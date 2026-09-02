@@ -2,9 +2,10 @@
 # fe-run.sh — 프론트엔드 실행 스크립트
 #
 # 사용법:
-#   ./fe-run.sh              # .run.env 의 FE_RUN_ARGS 사용
-#   ./fe-run.sh --mpn -q     # MPN quick dev
-#   ./fe-run.sh --all        # pnpm install → 전체 build → 전체 dev
+#   ./fe-run.sh              # .run.env 의 FE_RUN_ARGS 사용 (기본 --all)
+#   ./fe-run.sh --all        # pnpm install → 화면 라이브러리 전체 build → 전체 dev
+#   ./fe-run.sh --all -q     # 설치/빌드 건너뛰고 전체 dev 만 (dist 가 이미 있을 때)
+#   ./fe-run.sh --mpn -q     # MPN 만 (shared + m-mpn watch + mcm portal)
 #   ./fe-run.sh --mpn --build # shared/m-mpn build → shared/m-mpn/mcm dev
 #   ./fe-run.sh --install    # pnpm install 먼저 실행
 #   ./fe-run.sh --clean      # m-mcm/.next 캐시 삭제
@@ -141,7 +142,7 @@ has_scope_arg() {
 
 for arg in "$@"; do
   case "$arg" in
-    -h|--help) sed -n '2,14p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
   esac
 done
 
@@ -150,9 +151,10 @@ if ! has_scope_arg "$@"; then
     set -- "${ENV_ARGS[@]}" "$@"
     dev_log_print "fe" ".run.env 기본 옵션 사용: FE_RUN_ARGS=${FE_RUN_ARGS}"
   else
-    dev_log_error ".run.env 에 FE_RUN_ARGS 가 없습니다."
-    dev_log_error "예: FE_RUN_ARGS=\"--mpn -q\""
-    exit 2
+    # .run.env 는 개인 설정이라 git 에 없다(.gitignore). 새로 clone 한 저장소에서도
+    # 인자 없이 바로 뜨도록 --all 로 폴백한다. .run.env.example 을 복사해 조정한다.
+    set -- --all
+    dev_log_print "fe" ".run.env 없음 — 기본값 --all 로 진행 (.run.env.example 복사해 조정)"
   fi
 fi
 
@@ -169,7 +171,7 @@ for arg in "$@"; do
     --clean) DO_CLEAN=1 ;;
     --no-install) DO_INSTALL=0 ;;
     --no-build|-q) DO_BUILD=0; DO_INSTALL=0 ;;
-    -h|--help) sed -n '2,14p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
     *) dev_log_error "알 수 없는 옵션: $arg"; exit 2 ;;
   esac
 done
@@ -260,6 +262,20 @@ terminate_port_listeners() {
   fi
 }
 
+# pnpm --parallel 이 띄운 워커(tsup watch / next dev)는 중간에 재부모화돼
+# PIDS 트리 추적을 벗어나는 경우가 있다. 종료 시 이 저장소의 frontend 경로를 명령줄에
+# 물고 있는 프로세스만 골라 한 번 더 쓸어 담는다 (다른 프로젝트에는 영향 없음).
+terminate_frontend_stragglers() {
+  local signal="$1"
+  local pid
+
+  for pid in $(pgrep -f "$FRONTEND_DIR" 2>/dev/null || true); do
+    [ "$pid" = "$$" ] && continue
+    kill -0 "$pid" 2>/dev/null || continue
+    kill "-$signal" "$pid" 2>/dev/null || true
+  done
+}
+
 cleanup() {
   local reason="${1:-EXIT}"
   local first_signal="TERM"
@@ -292,6 +308,12 @@ cleanup() {
   for pid in "${LOG_PIDS[@]}"; do
     terminate_pid_tree TERM "$pid"
   done
+
+  # pnpm --parallel 워커 잔존분 정리 — 남겨두면 포트 5000 과 tsup watch 가 계속 물려 있다.
+  terminate_frontend_stragglers TERM
+  wait_for_exit $(pgrep -f "$FRONTEND_DIR" 2>/dev/null || true) || true
+  terminate_frontend_stragglers KILL
+
   dev_log_print "fe" "정리 완료."
 
   case "$reason" in
@@ -302,6 +324,36 @@ cleanup() {
 trap 'cleanup INT' INT
 trap 'cleanup TERM' TERM
 trap 'cleanup EXIT' EXIT
+
+# ── m-mcm 환경변수 부트스트랩 ────────────────────────────────
+# NextAuth 는 AUTH_SECRET 이 없으면 기동 자체가 실패한다. 새로 clone 한 저장소에서
+# 바로 뜨도록, .env / .env.local 이 하나도 없을 때만 .env.example 을 복사해 만든다.
+# 이미 파일이 있으면 절대 건드리지 않는다.
+ensure_mcm_env() {
+  local mcm_dir="$FRONTEND_DIR/m-mcm"
+  local env_file="$mcm_dir/.env"
+  local secret
+
+  [ -f "$env_file" ] && return 0
+  [ -f "$mcm_dir/.env.local" ] && return 0
+  [ -f "$mcm_dir/.env.example" ] || {
+    dev_log_error "m-mcm/.env 가 없고 .env.example 도 없습니다. 환경변수를 직접 만들어 주세요."
+    return 1
+  }
+
+  secret="$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 48 2>/dev/null || echo "local-dev-secret-$$")"
+  {
+    echo "# fe-run.sh 가 .env.example 로부터 자동 생성한 로컬 개발용 파일이다."
+    echo "# 실 프로젝트에서는 AUTH_SECRET 을 비롯한 값들을 반드시 새로 발급해 쓴다."
+    sed -e "s|^AUTH_SECRET=.*|AUTH_SECRET=\"$secret\"|" "$mcm_dir/.env.example"
+  } > "$env_file"
+
+  dev_log_print "fe" "m-mcm/.env 생성 (.env.example 기반, AUTH_SECRET 자동 발급)"
+  dev_log_print "fe" "  운영/공유 환경에 쓸 값이 아니다. 실 프로젝트 착수 시 전부 교체할 것."
+  return 0
+}
+
+ensure_mcm_env || exit 1
 
 # ── install / build (동기) ───────────────────────────────────
 if [ "$DO_INSTALL" = "1" ]; then
@@ -324,8 +376,10 @@ if [ "$DO_BUILD" = "1" ]; then
     ( cd "$FRONTEND_DIR" && dev_log_run pnpm --filter @dk-oasis/shared build ) || { dev_log_error "shared build 실패"; exit 1; }
     ( cd "$FRONTEND_DIR" && dev_log_run pnpm --filter @dk-oasis/m-mpn build ) || { dev_log_error "m-mpn build 실패"; exit 1; }
   else
-    dev_log_print "fe" "pnpm build 실행 ($FRONTEND_DIR)"
-    ( cd "$FRONTEND_DIR" && dev_log_run pnpm build ) || { dev_log_error "pnpm build 실패"; exit 1; }
+    # 화면 라이브러리(dist)만 빌드한다. m-mcm 은 next dev 가 직접 컴파일하므로
+    # 여기서 next build 까지 돌릴 이유가 없다(느리고, 프로덕션 빌드는 별도 관심사다).
+    dev_log_print "fe" "화면 라이브러리 전체 build 실행 (shared + m-mpn/m-mpp/m-mqc/m-mls/m-analog)"
+    ( cd "$FRONTEND_DIR" && dev_log_run pnpm build:libs ) || { dev_log_error "라이브러리 build 실패"; exit 1; }
   fi
 fi
 
@@ -347,7 +401,7 @@ if [ "$DEV_SCOPE" = "mpn" ]; then
   )
   dev_log_print "fe" "MPN 범위 dev 실행 (shared + m-mpn watch + mcm portal)"
 else
-  dev_log_print "fe" "전체 frontend dev 실행"
+  dev_log_print "fe" "전체 frontend dev 실행 (라이브러리 watch + mcm portal :$PORTAL_PORT)"
 fi
 
 PID_FILE="${TMPDIR:-/tmp}/dev-fe-$$.pid"
