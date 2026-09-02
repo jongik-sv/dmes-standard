@@ -140,8 +140,12 @@ button {
    컬럼 간 일정 간격을 유지하며, 조건이 많으면 여러 줄로 자연스럽게 접힌다(다닥다닥 방지). */
 .page-layout .search-area__conditions {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  column-gap: 24px;
+  /* ★2026-08-07 간격 보정 — 구 `minmax(240px, 1fr)` + gap 24px 는 넓은 화면에서 1fr 가 남은 폭을
+     전부 흡수해 라벨~다음 조건 사이가 과도하게 벌어졌다(사용자 지적 "간격이 너무 넓다").
+     열 정렬(N번째 조건이 같은 X축에서 시작)은 유지하되 트랙에 상한을 두고 남는 폭은 행 끝으로 보낸다. */
+  grid-template-columns: repeat(auto-fill, minmax(var(--search-col-min, 236px), var(--search-col-max, 300px)));
+  justify-content: start;
+  column-gap: 12px;
   row-gap: 8px;
   align-items: center;
   padding: 6px 10px;
@@ -849,6 +853,14 @@ button {
   background-color: #fffef0;
   box-shadow: none;
   border: none;
+}
+
+/* readOnly 도 disabled 와 동일한 옅은 회색 (2026-08-07). form-group-field 안에서는
+   위 :focus 규칙(배경 #fffef0)이 더 구체적이라, 같은 구체성으로 함께 선언해야 회색이 유지된다. */
+.page-layout .form-group-field .form-input[readonly],
+.page-layout .form-group-field .form-input[readonly]:focus {
+  background-color: var(--color-bg-disabled);
+  color: var(--color-text-disabled);
 }
 
 .page-layout .form-group-field .form-input:disabled,

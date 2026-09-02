@@ -40,6 +40,16 @@ export interface PageButton {
    *  - 미지정 시 + 페이지에 objId 미지정 (비-RBAC 페이지): 정상 노출.
    */
   action?: StandardActionCode | (string & {});
+  /**
+   * 이 버튼만 다른 보안객체로 판정할 때 지정. 미지정 시 PageLayoutProps.objId 사용.
+   * 팝업을 여는 버튼은 팝업의 OBJECT_ID 를 넣는다 (서버 BFF rbac-policy 판정과 정합).
+   */
+  objId?: string;
+  /**
+   * 최근검색값 저장 이벤트 발행 여부. 미지정 시 기존 동작(action === "search")을 따른다.
+   * 액션 코드가 교정되면(searchMtrl 등) 조회 버튼인데도 발행이 조용히 멈추므로 명시 플래그로 고정한다.
+   */
+  emitSearch?: boolean;
 }
 
 export interface PageLayoutProps {
@@ -56,6 +66,11 @@ export interface PageLayoutProps {
   children: React.ReactNode;
 }
 
+/** RBAC 판정 결과를 실어 나르는 내부 표현 — 활성 판정과 툴팁이 같은 값을 쓰게 한다. */
+interface ResolvedPageButton extends PageButton {
+  hasAccess: boolean;
+}
+
 export function PageLayout({
   title,
   className = "",
@@ -67,29 +82,37 @@ export function PageLayout({
 }: PageLayoutProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   // objId 없는 비-RBAC 페이지(디자인 더미·독립 도구 포함)는 인증/RBAC API를 호출하지 않는다.
-  const rbacState = useUserButtonRbac(Boolean(objId));
+  // 단, 페이지 objId 가 없어도 버튼별 objId 가 하나라도 있으면 훅을 켜야 한다.
+  //   훅이 꺼지면 rows=[] · isLoading=false 로 고정돼 해당 버튼들이 영구 비활성으로 굳는다.
+  const rbacEnabled = Boolean(objId) || buttons.some((b) => Boolean(b.objId));
+  const rbacState = useUserButtonRbac(rbacEnabled);
   const { pageId: contextPageId } = useTabPage();
   const footerRightText = screenId || contextPageId || "";
 
   // 각 버튼에 RBAC 결과 반영:
+  //  - 판정 objId = btn.objId ?? 페이지 objId (팝업 오픈 버튼은 팝업의 OBJECT_ID 로 판정)
   //  - objId 미지정 (비-RBAC 페이지) → 모든 버튼 통과
   //  - objId 지정 + action 미지정 → 비활성 (보안 default)
   //  - objId 지정 + action 지정 → 사용자 권한 검사
   // 명시적 disabled (props.disabled=true) 와 RBAC 비활성을 OR 결합.
-  const effectiveButtons = useMemo<PageButton[]>(
+  // hasAccess 를 여기서 한 번만 계산해 버튼 활성 판정과 툴팁이 동일 결과를 공유한다.
+  //   (툴팁이 페이지 objId 로 따로 판정하면, 버튼 objId 로 활성화된 버튼에 "권한이 없습니다" 오툴팁이 붙는다.)
+  const effectiveButtons = useMemo<ResolvedPageButton[]>(
     () =>
       buttons.map((btn) => {
-        const hasAccess = canDoButton(rbacState, objId, btn.action);
+        const hasAccess = canDoButton(rbacState, btn.objId ?? objId, btn.action);
         // 조회 버튼 클릭 = "실제 조회" → 최근 입력값 저장 트리거 발행 후 원래 onClick 실행.
         // (effectiveButtons 를 통하므로 F8 단축키 조회에도 동일하게 적용된다.)
-        const onClick =
-          btn.action === "search"
-            ? () => {
-                emitSearch(contextPageId);
-                btn.onClick();
-              }
-            : btn.onClick;
-        return { ...btn, onClick, disabled: btn.disabled || !hasAccess };
+        // 명시 플래그 우선 + 미지정 시 기존 action==="search" 동작 유지 (하위호환).
+        // startsWith("search") 류의 접두 매칭은 금지 — 팝업 오픈 버튼(searchItemPopup 등)이 오발화한다.
+        const shouldEmitSearch = btn.emitSearch ?? btn.action === "search";
+        const onClick = shouldEmitSearch
+          ? () => {
+              emitSearch(contextPageId);
+              btn.onClick();
+            }
+          : btn.onClick;
+        return { ...btn, onClick, disabled: btn.disabled || !hasAccess, hasAccess };
       }),
     [buttons, objId, rbacState, contextPageId]
   );
@@ -122,11 +145,7 @@ export function PageLayout({
                 className={`btn btn-${btn.type || "light"}`}
                 onClick={btn.onClick}
                 disabled={btn.disabled}
-                title={
-                  btn.action && btn.disabled && !canDoButton(rbacState, objId, btn.action)
-                    ? "권한이 없습니다"
-                    : undefined
-                }
+                title={btn.action && btn.disabled && !btn.hasAccess ? "권한이 없습니다" : undefined}
               >
                 {btn.label}
               </button>

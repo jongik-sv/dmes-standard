@@ -1,13 +1,6 @@
 "use client";
 
-import React, {
-  useState,
-  useMemo,
-  useRef,
-  useEffect,
-  useCallback,
-  memo,
-} from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback, memo } from "react";
 import { AgGridReact } from "ag-grid-react";
 import { AllCommunityModule, ModuleRegistry } from "ag-grid-community";
 import type {
@@ -23,10 +16,7 @@ import type {
   EditableCallbackParams,
 } from "ag-grid-community";
 import { GRID_TEMP_ID_FIELD } from "./GridPanel";
-import {
-  GRID_SIZE_CHANGE_SETTLE_MS,
-  resolveGridSizeChangeAction,
-} from "./grid-size-change";
+import { GRID_SIZE_CHANGE_SETTLE_MS, resolveGridSizeChangeAction } from "./grid-size-change";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -81,17 +71,15 @@ const DateTimeCellEditor = function DateTimeCellEditor(
  *   이 편집기는 편집 시작 시점의 행(row)으로 {value,label} 옵션을 계산해 행별 라벨을 정확히 표시한다.
  *   선택 즉시 편집을 종료(commit)해 agSelectCellEditor 와 동일한 UX 를 유지한다.
  */
-const SelectCellEditor = function SelectCellEditor(
-  props: {
-    value?: unknown;
-    options?: { value: string; label: string }[];
-    // ★ag-grid v33 커스텀 에디터 계약: 값 전달 = onValueChange(레거시 forwardRef getValue() 는 v33이 읽지 않음
-    //   → 선택해도 undefined 커밋 = 빈칸 버그의 원인). stopEditing 도 props 로 직접 온다.
-    onValueChange?: (value: unknown) => void;
-    stopEditing?: (suppressNavigateAfterEdit?: boolean) => void;
-    api?: { stopEditing?: (cancel?: boolean) => void };
-  }
-) {
+const SelectCellEditor = function SelectCellEditor(props: {
+  value?: unknown;
+  options?: { value: string; label: string }[];
+  // ★ag-grid v33 커스텀 에디터 계약: 값 전달 = onValueChange(레거시 forwardRef getValue() 는 v33이 읽지 않음
+  //   → 선택해도 undefined 커밋 = 빈칸 버그의 원인). stopEditing 도 props 로 직접 온다.
+  onValueChange?: (value: unknown) => void;
+  stopEditing?: (suppressNavigateAfterEdit?: boolean) => void;
+  api?: { stopEditing?: (cancel?: boolean) => void };
+}) {
   const valueRef = useRef(String(props.value ?? ""));
   const [value, setValue] = useState(valueRef.current);
   const selRef = useRef<HTMLSelectElement>(null);
@@ -117,7 +105,7 @@ const SelectCellEditor = function SelectCellEditor(
       onChange={(e) => {
         valueRef.current = e.target.value;
         setValue(e.target.value);
-        props.onValueChange?.(e.target.value);   // ★v33: 그리드에 값 커밋
+        props.onValueChange?.(e.target.value); // ★v33: 그리드에 값 커밋
         (props.stopEditing ?? props.api?.stopEditing)?.();
       }}
       style={{
@@ -253,6 +241,11 @@ export interface AgDataGridProps {
   /** @deprecated columnSizing="fit" 또는 명시 컬럼 폭을 사용한다. 이 prop 단독으로는 컨텐츠 기반 자동 폭을 켜지 않는다. */
   sizeToFit?: boolean;
   /**
+   * 컬럼 합계가 화면보다 넓은 업무 그리드에서 가로 스크롤 영역을 항상 표시한다.
+   * AG Grid `alwaysShowHorizontalScroll` 패스스루.
+   */
+  alwaysShowHorizontalScroll?: boolean;
+  /**
    * columnSizing="auto" 일 때 데이터 변경마다 컨텐츠 기반 열폭을 다시 계산할지 여부.
    * 기본 true: 재조회 시 기존 셀보다 큰 데이터가 들어오면 컬럼을 자동 확장한다.
    * (50ms 디바운스 + userResizedRef 가드로 반복 측정/수동 폭은 보호됨)
@@ -262,7 +255,7 @@ export interface AgDataGridProps {
   /**
    * 행 단위 높이 산출 (ag-grid getRowHeight 패스스루). 미지정/undefined 반환 시 기본 26px.
    * 한 셀에 여러 줄(개행)이 들어가는 그리드에서 사용한다 —
-   * 예: KsmErpK ManagedGrid 의 `row.Height = CountRow * 20` 재현.
+   * 예: SampleErp ManagedGrid 의 `row.Height = CountRow * 20` 재현.
    */
   getRowHeight?: (row: Record<string, unknown>) => number | undefined;
   /** 로우 클릭 시 선택 토글 (enableClickSelection 대신 직접 제어) */
@@ -304,6 +297,12 @@ export interface AgDataGridProps {
   columnSizing?: "auto" | "fixed" | "fit";
   /** 행 단위 추가 클래스 (예: row 상태에 따른 색상 시각화). 내부 ag-row-* 와 병합됨. */
   getRowClassExtra?: (row: Record<string, unknown>) => string | string[] | undefined;
+  /**
+   * 동적인 `getRowClassExtra` 조건이 바뀌었음을 알리는 토큰.
+   * 값이 바뀌면 AG Grid 행을 다시 그려 이전 행에 남은 클래스를 제거한다.
+   * 드래그 오버처럼 rowData 자체는 그대로이고 행 분류만 빠르게 바뀌는 화면에서 사용한다.
+   */
+  rowClassRefreshToken?: unknown;
   /**
    * 트리(계층) 그리드에서 ←/→ 키로 현재 포커스(highlightedRowKey) 행을 펼침/접힘 할 때 호출.
    * expand=true(→ 펼침), false(← 접힘). 이 콜백이 있을 때만 ←/→ 를 가로채며, 없으면 ag-grid 기본 동작을 유지한다.
@@ -355,6 +354,7 @@ function AgDataGridComponent({
   loading = false,
   loadingMessage = "조회 중...",
   autoSizeColumns,
+  alwaysShowHorizontalScroll = false,
   autoSizeOnDataUpdate = true,
   ariaLabel,
   getRowHeight,
@@ -366,6 +366,7 @@ function AgDataGridComponent({
   stopEditingWhenCellsLoseFocus = true,
   columnSizing = "auto",
   getRowClassExtra,
+  rowClassRefreshToken,
   onRowExpandCollapse,
   wrapHeaderText = false,
   autoHeaderHeight = false,
@@ -407,7 +408,9 @@ function AgDataGridComponent({
             cellEditor = "agSelectCellEditor";
             const valuesGetter = col.cellEditorValuesGetter;
             cellEditorParams = valuesGetter
-              ? (params: { data?: unknown }) => ({ values: valuesGetter((params.data ?? {}) as Record<string, unknown>) })
+              ? (params: { data?: unknown }) => ({
+                  values: valuesGetter((params.data ?? {}) as Record<string, unknown>),
+                })
               : { values: col.cellEditorValues ?? [] };
           } else {
             // ★기본(2026-07-28): 정적 옵션 select 도 전용 SelectCellEditor 로 통일 — 단일 클릭 즉시
@@ -605,20 +608,30 @@ function AgDataGridComponent({
   }, []);
 
   // ★제어형 선택 동기화 — selectedRows 제공 시 그리드 체크 상태를 외부 상태에 맞춘다.
-  //   (헤더 전체선택을 페이지가 가로채 "필요수량 맞춤 자동선택"으로 교체하는 등 프로그램 선택 제어용.
-  //    동기화로 발생하는 selectionChanged 는 페이지 상태와 동일 집합이라 루프 없이 안정.)
+  //   (헤더 전체선택을 페이지가 가로채 "필요수량 맞춤 자동선택"으로 교체하는 등 프로그램 선택 제어용.)
+  //   동기화가 일으키는 selectionChanged 는 onRowSelect 로 되울리지 않는다(suppress) — prop 이
+  //   반영 전(stale)인 렌더에서 되울리면 그 사이 사용자가 추가한 체크를 이전 집합으로 덮어쓴다
+  //   (빠른 연속 체크 시 두 번째 체크가 풀리는 경합). 최신 상태 렌더의 동기화가 최종 정합을 맞춘다.
+  const selectionSyncRef = useRef(false);
   useEffect(() => {
     const api = gridRef.current?.api;
     if (!api || selectedRows === undefined || !selectable) return;
     const want = new Set(selectedRows.map(String));
-    api.forEachNode((node) => {
-      const d = (node.data ?? {}) as Record<string, unknown>;
-      const tempId = d[GRID_TEMP_ID_FIELD];
-      const id =
-        typeof tempId === "string" && tempId ? tempId : String(d[rowKey] ?? "");
-      const sel = want.has(id);
-      if (node.isSelected() !== sel) node.setSelected(sel);
-    });
+    selectionSyncRef.current = true;
+    try {
+      api.forEachNode((node) => {
+        const d = (node.data ?? {}) as Record<string, unknown>;
+        const tempId = d[GRID_TEMP_ID_FIELD];
+        const id = typeof tempId === "string" && tempId ? tempId : String(d[rowKey] ?? "");
+        const sel = want.has(id);
+        if (node.isSelected() !== sel) node.setSelected(sel);
+      });
+    } finally {
+      // setSelected 의 selectionChanged 는 동기 발화가 기본이지만, 이벤트 큐 지연 대비 microtask 로 해제.
+      queueMicrotask(() => {
+        selectionSyncRef.current = false;
+      });
+    }
   }, [selectedRows, selectable, rowKey, data]);
 
   /** 현재 컬럼 폭을 min 으로 잠그고, 그리드가 더 넓을 때만 여백을 분배한다. */
@@ -678,33 +691,73 @@ function AgDataGridComponent({
     }, GRID_SIZE_CHANGE_SETTLE_MS);
   }, [fillRemainingColumnSpace]);
 
+  // ★그리드 준비 직후 1회 폭 정리 — 데이터가 0건이면 ag-grid 가 firstDataRendered / rowDataUpdated 를
+  //   내보내지 않아 아래 핸들러들이 한 번도 호출되지 않는다. 그 결과 "조회 결과가 없습니다" 상태에서
+  //   컬럼 폭 합이 그리드보다 좁아도 우측이 빈 채로 남았다(2026-08-07 CR 이력 화면에서 실측: 그리드 976px
+  //   vs 컬럼합 694px). 데이터 유무와 무관하게 마운트 후 한 번은 반드시 맞춘다.
+  //   deps 는 길이만 본다 — 배열을 인라인으로 만드는 페이지에서 매 렌더 재실행되는 것을 피한다.
+  useEffect(() => {
+    if (!gridReady || userResizedRef.current) return;
+    if (resolvedColumnSizing === "auto" && shouldAutoSizeColumns) {
+      scheduleAutoSizeAllColumns();
+      return;
+    }
+    scheduleFillRemainingColumnSpace();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    gridReady,
+    data.length,
+    columns.length,
+    resolvedColumnSizing,
+    shouldAutoSizeColumns,
+    scheduleAutoSizeAllColumns,
+    scheduleFillRemainingColumnSpace,
+  ]);
+
   const onFirstDataRendered = useCallback(() => {
-    if (resolvedColumnSizing !== "auto") return; // fixed/fit 모드는 컬럼 폭 자동 재계산 금지
-    scheduleAutoSizeAllColumns();
-  }, [resolvedColumnSizing, scheduleAutoSizeAllColumns]);
+    // 컨텐츠 기반 폭 재측정(autoSize)은 "auto" 모드 전용이지만,
+    // ★여백 분배(fill)는 모드와 무관하게 적용한다 — 컬럼 폭 합이 그리드보다 좁으면 우측에
+    //  빈 공간이 남아 보기 흉했다(2026-08-07 사용자 요구). fill 은 현재 폭을 min 으로 잠그고
+    //  남는 공간만 나누므로 fixed 의 픽셀 폭이 줄지 않고, fit 은 이미 꽉 차 있어 no-op 이다.
+    if (resolvedColumnSizing === "auto") {
+      scheduleAutoSizeAllColumns(); // 내부에서 fill 까지 수행
+      return;
+    }
+    scheduleFillRemainingColumnSpace();
+  }, [resolvedColumnSizing, scheduleAutoSizeAllColumns, scheduleFillRemainingColumnSpace]);
 
   const onRowDataUpdated = useCallback(() => {
-    if (resolvedColumnSizing !== "auto") return;
-    if (autoSizeOnDataUpdate && shouldAutoSizeColumns && !userResizedRef.current) {
-      scheduleAutoSizeAllColumns();
+    if (userResizedRef.current) return; // 사용자가 직접 조정한 폭은 건드리지 않는다
+    if (resolvedColumnSizing === "auto") {
+      if (autoSizeOnDataUpdate && shouldAutoSizeColumns) scheduleAutoSizeAllColumns();
+      return;
     }
+    // fixed/fit — 행 수가 바뀌며 세로 스크롤바가 생겼다 사라지면 가용 폭도 변한다. 여백만 재분배.
+    scheduleFillRemainingColumnSpace();
   }, [
     autoSizeOnDataUpdate,
     shouldAutoSizeColumns,
     resolvedColumnSizing,
     scheduleAutoSizeAllColumns,
+    scheduleFillRemainingColumnSpace,
   ]);
 
   // 컨테이너 폭 변경 시:
   //  - 숨김→표시(0→양수): 컨텐츠 측정(autoSize)
   //  - 일반 창 리사이즈: 드래그 중엔 스킵, settle 후 여백만 분배 (autoSize 금지 → 번쩍임 방지)
   const onGridSizeChanged = useCallback(() => {
-    if (resolvedColumnSizing !== "auto") return;
-    if (!shouldAutoSizeColumns || userResizedRef.current) return;
+    if (userResizedRef.current) return;
 
     const nextWidth = containerRef.current?.clientWidth ?? 0;
     const action = resolveGridSizeChangeAction(lastGridWidthRef.current, nextWidth);
     if (action === "none") return;
+
+    // fixed/fit 은 컨텐츠 재측정 없이 여백 분배만 (autoSize 는 "auto" 모드 전용).
+    if (resolvedColumnSizing !== "auto" || !shouldAutoSizeColumns) {
+      lastGridWidthRef.current = nextWidth;
+      scheduleFillRemainingColumnSpace();
+      return;
+    }
 
     if (action === "autosize") {
       lastGridWidthRef.current = nextWidth;
@@ -784,6 +837,14 @@ function AgDataGridComponent({
       api.redrawRows({ rowNodes: nodesToRedraw });
     }
   }, [highlightedRowKey, gridReady]);
+
+  useEffect(() => {
+    if (rowClassRefreshToken === undefined || !gridReady || !gridRef.current?.api) return;
+    const api = gridRef.current.api;
+    const editingCells = api.getEditingCells?.();
+    if (editingCells && editingCells.length > 0) return;
+    api.redrawRows();
+  }, [gridReady, rowClassRefreshToken]);
 
   // _rowState / nativeeditor_status 변경 감지 → 해당 행만 redrawRows (CSS 클래스 재적용)
   // 두 시스템 모두 지원 — useRowStateManager 는 _rowState, useGridDataManager 는 nativeeditor_status 사용
@@ -953,6 +1014,8 @@ function AgDataGridComponent({
   const handleSelectionChanged = useCallback(
     (_event: SelectionChangedEvent) => {
       if (!gridRef.current?.api || !onRowSelect) return;
+      // 제어형 동기화(selectedRows 강제 반영) 중의 변경은 되울리지 않는다 — 위 동기화 effect 주석 참조.
+      if (selectionSyncRef.current) return;
       const selectedNodes = gridRef.current.api.getSelectedNodes();
       const selectedIds = selectedNodes.map((node) => node.data[rowKey] as string | number);
       const selectedData = selectedNodes.map((node) => node.data as Record<string, unknown>);
@@ -1039,7 +1102,16 @@ function AgDataGridComponent({
         loadingOverlayComponent={loadingOverlayComponent}
         animateRows={false}
         suppressCellFocus={!hasEditableColumns}
-        enableCellTextSelection={!hasEditableColumns}
+        /*
+         * ★셀 텍스트 드래그 선택·복사는 항상 허용(2026-08-07 사용자 요구).
+         *   구: enableCellTextSelection={!hasEditableColumns} → 편집 컬럼이 하나라도 있으면 ag 가
+         *   셀에 user-select:none 을 걸어 "어떤 화면은 복사가 되고 어떤 화면은 안 되는" 편차가 생겼다
+         *   (실측: masterRuleList 셀 computed user-select=none, 드래그 선택 결과 빈 문자열).
+         *   편집 기능과 병존 가능하며(편집 중 셀은 input 자체 선택 동작), ensureDomOrder 는 화면 순서대로
+         *   복사되도록 DOM 순서를 보장한다.
+         */
+        enableCellTextSelection
+        ensureDomOrder
         headerHeight={28}
         rowHeight={26}
         getRowHeight={
@@ -1049,6 +1121,7 @@ function AgDataGridComponent({
         }
         suppressColumnVirtualisation={resolvedColumnSizing === "auto"}
         suppressHorizontalScroll={false}
+        alwaysShowHorizontalScroll={alwaysShowHorizontalScroll}
         domLayout="normal"
       />
     </div>

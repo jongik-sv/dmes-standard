@@ -25,7 +25,23 @@ interface MessageContextValue {
   showMessage: (params: ShowMessageParams) => void;
 }
 
-const MessageContext = createContext<MessageContextValue | null>(null);
+/**
+ * tsup splitting:false 로 entry 별(예: message-provider / portal-shell) 모듈이 inline 중복되면
+ * createContext 인스턴스가 갈라져 Provider ↔ Consumer 가 서로 다른 Context 를 참조한다
+ * (증상: portal-shell 내부 소비자에서 "useMessage must be used within a MessageProvider").
+ * tab-page-context.ts 관례대로 globalThis 캐싱으로 단일 인스턴스를 보장한다.
+ */
+const MESSAGE_CTX_KEY = "__dkOasisMessageContext__";
+
+interface MessageCtxCache {
+  [MESSAGE_CTX_KEY]?: ReturnType<typeof createContext<MessageContextValue | null>>;
+}
+
+const messageCtxCache = globalThis as unknown as MessageCtxCache;
+
+const MessageContext =
+  messageCtxCache[MESSAGE_CTX_KEY] ??
+  (messageCtxCache[MESSAGE_CTX_KEY] = createContext<MessageContextValue | null>(null));
 
 export function useMessage(): MessageContextValue {
   const context = useContext(MessageContext);

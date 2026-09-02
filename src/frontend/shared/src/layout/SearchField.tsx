@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { Input } from "../components/form/Input";
 import { Radio } from "../components/form/Radio";
 import { Select } from "../components/form/Select";
@@ -105,8 +106,20 @@ export function SearchField({
     );
   };
 
+  /*
+   * ★범위/복합 입력 자동 2칸 배치 (2026-08-07).
+   *   조회영역이 CSS grid(1칸 = minmax(240px,…))로 바뀐 뒤, `<SearchField label="기간">` 안에
+   *   [DatePicker][~][DatePicker] 처럼 입력을 여러 개 넣은 화면은 내용(라벨 76 + 입력 150×2 + 물결)이
+   *   한 칸을 넘겨 오른쪽 칸의 라벨 위로 삐져나왔다(스크린샷: "2026-0" 위에 "CR코드" 겹침).
+   *   SearchArea 의 자동 페어링은 `<SearchField label="~">` 를 별도로 둔 화면만 커버하므로,
+   *   여기서 "자식 입력이 2개 이상" 인 복합 필드도 2칸을 차지하게 한다. 화면 수정 불요.
+   */
+  const isComposite =
+    !!children && React.Children.toArray(children).filter((c) => React.isValidElement(c)).length > 1;
+  const spanClass = isComposite && !/\bspan-\d\b/.test(className) ? "span-2" : "";
+
   return (
-    <div className={`search-field ${className}`.trim()}>
+    <div className={`search-field ${spanClass} ${className}`.replace(/\s+/g, " ").trim()}>
       <span className="search-field__label">{label}</span>
       {renderInput()}
     </div>

@@ -1,0 +1,904 @@
+/* ========================================
+   m-mcm 표준 페이지 레이아웃 (dmes_react 스타일)
+   ======================================== */
+
+/* 페이지 레이아웃 */
+.page-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--color-bg);
+  font-size: var(--font-size-md);
+  font-family: var(--font-family);
+  overflow: hidden;
+  padding: 6px 0 0 0;
+  gap: 0;
+  --form-label-width: 100px;
+  --search-input-width: 150px;
+  --search-select-min-width: 100px;
+}
+
+.page-layout.comm-user-mng {
+  --search-select-min-width: 80px;
+}
+
+/* ========================================
+   페이지 헤더 (32px)
+   ======================================== */
+.page-layout__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 10px 8px;
+  background-color: var(--color-bg);
+  border-bottom: 1px solid var(--color-border-grid);
+  flex-shrink: 0;
+}
+
+.page-layout__title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.page-layout__header-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+/* ========================================
+   버튼 스타일
+   ======================================== */
+.page-layout .btn {
+  padding: 4px 12px;
+  font-size: var(--font-size-sm);
+  border: 1px solid #c0c0c0;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all var(--transition-fast);
+  font-family: inherit;
+}
+
+.page-layout .btn:hover {
+  background-color: #f0f0f0;
+}
+
+.page-layout .btn:disabled {
+  background-color: var(--color-border);
+  border-color: #bbb;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.page-layout .btn-primary {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.page-layout .btn-primary:hover {
+  background-color: var(--color-primary-hover);
+}
+
+.page-layout .btn-save {
+  background-color: var(--color-text-muted);
+  border-color: var(--color-text-muted);
+  color: #fff;
+}
+
+.page-layout .btn-save:hover {
+  background-color: #555;
+}
+
+.page-layout .btn-cancel {
+  background-color: #d32f2f;
+  border-color: #d32f2f;
+  color: #fff;
+}
+
+.page-layout .btn-cancel:hover {
+  background-color: #b71c1c;
+}
+
+/* ========================================
+   검색 영역 (36px)
+   ======================================== */
+.page-layout .search-area {
+  padding: 5px 6px;
+  background-color: #F5F9FA;
+  border-bottom: 1px solid #d0dae2;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-bottom: 4px;
+}
+
+/* ★조회조건 표준 배치(2026-07-01) — flex-wrap → CSS grid.
+   열이 세로로 정렬되어 N번째 조회조건이 어느 행이든 같은 X축에서 시작하고,
+   컬럼 간 일정 간격을 유지하며, 조건이 많으면 여러 줄로 자연스럽게 접힌다(다닥다닥 방지). */
+.page-layout .search-area__conditions {
+  display: grid;
+  /* ★2026-08-07 간격 보정 (shared page-layout.css 와 동기) — 구 `minmax(240px, 1fr)` + gap 24px 가
+     넓은 화면에서 남은 폭을 전부 흡수해 조건 사이가 과도하게 벌어졌다. 열 정렬은 유지하고 트랙 상한을 둔다. */
+  grid-template-columns: repeat(auto-fill, minmax(var(--search-col-min, 236px), var(--search-col-max, 300px)));
+  justify-content: start;
+  column-gap: 12px;
+  row-gap: 8px;
+  align-items: center;
+  padding: 6px 10px;
+  background-color: #f2f6f9;
+  border: none;
+  flex: 1;
+  min-width: 0;
+}
+
+.page-layout .search-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.page-layout .search-field__label {
+  font-size: var(--font-size-sm);
+  color: #333;
+  white-space: nowrap;
+  font-weight: 500;
+  min-width: 76px; /* 라벨 폭 통일 → 셀 내 필드 시작 X축도 정렬 */
+}
+
+/* 넓은 범위입력(From ~ To) 등은 grid 2칸을 차지 — 입력 2개가 한 칸에 안 눌리게.
+   (2026-08-07 shared 동기: SearchField 가 자식 입력 2개 이상인 복합 필드에 span-2 를 자동 부여한다.
+    없으면 [날짜]~[날짜] 가 한 칸을 넘겨 오른쪽 조건 라벨 위로 겹쳐 보인다.) */
+.page-layout .search-field.span-2 {
+  grid-column: span 2;
+}
+
+/* ★범위 자동 페어(2026-07-31, shared page-layout.css 동기) — SearchArea 가 label="~" 필드를
+   직전 필드와 묶은 한 칸. 2칸 폭 안에서 From·~·To 가 flex 로 인접 배치된다(구 flex 시절 간격 복원). */
+.page-layout .search-field-pair {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  grid-column: span 2;
+}
+
+/* 페어 안 두 번째 필드("~")의 라벨은 폭 통일(76px) 대상이 아님 — 물결만 좁게. */
+.page-layout .search-field-pair .search-field + .search-field .search-field__label {
+  min-width: 0;
+}
+
+/* ★룩업 입력(2026-07-31, shared 동기) — grid 셀에서 wrapper(100%)가 셀 폭으로 늘어나
+   내부 절대배치 팝업 버튼이 입력칸 밖(셀 우측)으로 밀리던 회귀 복원:
+   조회영역에서는 wrapper 도 입력과 같은 고정폭으로 맞춰 버튼이 입력칸 안쪽에 붙게 한다. */
+.page-layout .search-field .cm-lookup-text-field {
+  width: var(--search-input-width);
+}
+.page-layout .search-field .cm-lookup-text-field .form-input {
+  width: 100%;
+}
+
+.page-layout .search-field input:not(.form-combobox-input),
+.page-layout .search-field select {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--color-border-grid);
+  border-radius: 2px;
+  font-size: var(--font-size-sm);
+  box-sizing: border-box;
+  font-family: inherit;
+  background-color: #fff;
+}
+
+.page-layout .search-field input {
+  width: var(--search-input-width);
+}
+
+/* 체크박스는 텍스트 인풋 규격(150px×24px·border·padding)에서 제외 — 네이티브 14px 유지
+   (라디오 input[type="radio"] 예외와 동형). 이 예외가 없으면 조회영역 체크박스가 150px 박스로 커짐. */
+.page-layout .search-field input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  padding: 0;
+  border: 0;
+  background: none;
+  accent-color: var(--color-primary);
+}
+
+.page-layout .search-field select {
+  min-width: var(--search-select-min-width);
+}
+
+/* search-field 내 ComboBox — 기존 select와 동일한 외관 */
+.page-layout .search-field .form-combobox {
+  height: 24px;
+  min-width: var(--search-select-min-width);
+  border: 1px solid var(--color-border-grid);
+  border-radius: 2px;
+  font-size: var(--font-size-sm);
+  background-color: #fff;
+}
+
+.page-layout .search-field .form-combobox:focus-within {
+  border-color: var(--color-border-grid);
+  box-shadow: none;
+}
+
+.page-layout .search-field .form-combobox-input {
+  height: 100%;
+  padding: 0 6px;
+  border: none;
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  background: transparent;
+}
+
+.page-layout .search-field .form-combobox-toggle {
+  width: 18px;
+}
+
+/* ========================================
+   검색칸 최근 입력값 드롭다운 (SearchHistoryInput)
+   shared/src/layout/page-layout.css 와 동기화할 것.
+   ======================================== */
+.page-layout .search-field .search-history-field {
+  position: relative;
+  display: inline-flex;
+  width: var(--search-input-width);
+}
+
+.page-layout .search-field .search-history-field input {
+  width: 100%;
+}
+
+.search-history-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 2px 0 0 0;
+  padding: 2px 0;
+  min-width: 160px;
+  max-height: 240px;
+  overflow-y: auto;
+  background-color: #fff;
+  border: 1px solid var(--color-border-grid, #ccc);
+  border-radius: 2px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  z-index: 1000;
+  list-style: none;
+}
+
+.search-history-header {
+  padding: 3px 8px;
+  font-size: 11px;
+  color: #8a96a3;
+  font-weight: 600;
+  user-select: none;
+}
+
+.search-history-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  font-size: var(--font-size-sm);
+  color: #333;
+  cursor: pointer;
+}
+
+.search-history-option.highlighted {
+  background-color: var(--color-primary, #337ab7);
+  color: #fff;
+}
+
+.search-history-option__value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-history-option__delete {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  line-height: 1;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: 0.55;
+  cursor: pointer;
+  font-size: 14px;
+  border-radius: 2px;
+}
+
+.search-history-option__delete:hover {
+  opacity: 1;
+  background-color: rgba(0, 0, 0, 0.12);
+}
+
+.search-history-footer {
+  border-top: 1px solid #eef2f5;
+  padding: 2px 4px;
+  text-align: right;
+}
+
+.search-history-clear {
+  border: none;
+  background: transparent;
+  color: #6b7785;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 2px;
+}
+
+.search-history-clear:hover {
+  color: #d9534f;
+  background-color: #f5f7f9;
+}
+
+/* ========================================
+   컨텐츠 영역
+   ======================================== */
+.page-layout .content-body {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  min-height: 0;
+  height: 0;
+  overflow: hidden;
+  padding: 0 10px;
+}
+
+.page-layout .content-body--column {
+  flex-direction: column;
+}
+
+.page-layout .content-body--root {
+  padding: 4px 10px;
+  background-color: var(--color-bg);
+  border-radius: 2px;
+}
+
+.page-layout .content-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  padding: 1px;
+}
+
+/* ========================================
+   그리드 패널
+   ======================================== */
+.page-layout .grid-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background-color: var(--color-bg);
+  border: none;
+  border-radius: 2px;
+  overflow: hidden;
+  flex: 1 1 0;
+}
+
+.page-layout .grid-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 6px;
+  background-color: transparent;
+  border-bottom: none;
+  height: 28px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.page-layout .grid-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-layout .grid-panel-title>span:first-child {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.page-layout .grid-panel-count {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  font-weight: normal;
+}
+
+.page-layout .grid-panel-buttons {
+  display: flex;
+  gap: 3px;
+}
+
+.page-layout .grid-btn {
+  height: 24px;
+  padding: 0 10px;
+  font-size: var(--font-size-sm);
+  border: 1px solid #aab4be;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all var(--transition-fast);
+  font-family: inherit;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+.page-layout .grid-btn:hover {
+  background-color: #eaf0f6;
+  border-color: #7a9ab8;
+}
+
+.page-layout .grid-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.page-layout .grid-btn.primary {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.page-layout .grid-btn.primary:hover {
+  background-color: var(--color-primary-hover);
+}
+
+.page-layout .grid-btn.danger {
+  background-color: var(--color-danger);
+  border-color: var(--color-danger);
+  color: #fff;
+}
+
+.page-layout .grid-btn.danger:hover {
+  background-color: #c9302c;
+}
+
+.page-layout .grid-panel-content {
+  flex: 1 1 0;
+  overflow: auto;
+  min-height: 0;
+  height: 0;
+}
+
+/* ========================================
+   데이터 테이블 (AG Grid 스타일)
+   ======================================== */
+.page-layout .data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-md);
+  table-layout: fixed;
+}
+
+.page-layout .data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: 32px;
+  padding: 0 12px;
+  background-color: var(--color-bg-header);
+  border-bottom: 1px solid var(--color-border-grid);
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.page-layout .data-table tbody tr {
+  height: 28px;
+  border-bottom: 1px solid var(--color-border-light);
+  cursor: pointer;
+}
+
+.page-layout .data-table tbody tr:hover {
+  background-color: var(--color-bg-light);
+}
+
+.page-layout .data-table tbody tr.selected {
+  background-color: var(--color-selection);
+}
+
+.page-layout .data-table tbody tr.selected:hover {
+  background-color: var(--color-selection-hover, #d0e8fc);
+}
+
+.page-layout .data-table tbody td {
+  padding: 0 12px;
+  line-height: 28px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ========================================
+   폼 패널
+   ======================================== */
+.page-layout .form-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background-color: #fff;
+  border: none;
+  border-radius: 2px;
+  overflow: hidden;
+  flex: 1 1 0;
+}
+
+.page-layout .form-panel-content {
+  flex: 1 1 0;
+  padding: 0px 1px;
+  overflow-y: auto;
+  min-height: 0;
+  height: 0;
+}
+
+.page-layout .form-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 3px;
+  min-height: 26px;
+}
+
+.page-layout .form-label {
+  width: var(--form-label-width);
+  min-width: var(--form-label-width);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  padding: 0 6px;
+  background-color: var(--color-bg-header);
+  border: 1px solid var(--color-border-medium);
+  height: 26px;
+  line-height: 26px;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.page-layout .form-label.required::before {
+  content: "* ";
+  color: #d9534f;
+}
+
+.page-layout .form-value {
+  flex: 1;
+  border: 1px solid var(--color-border-medium);
+  border-left: none;
+  height: 26px;
+  box-sizing: border-box;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.page-layout .form-value input,
+.page-layout .form-value select {
+  width: 100%;
+  height: 100%;
+  border: none;
+  padding: 0 6px;
+  font-size: var(--font-size-sm);
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.page-layout .form-value input:focus,
+.page-layout .form-value select:focus {
+  outline: none;
+  background-color: #fffef0;
+}
+
+.page-layout .form-value input:disabled,
+.page-layout .form-value select:disabled {
+  background-color: var(--color-bg-disabled);
+  color: var(--color-text-disabled);
+}
+
+/* 라디오 그룹 */
+.page-layout .form-radio-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 6px;
+  height: 100%;
+}
+
+.page-layout .form-radio-group label,
+.page-layout .form-radio-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.page-layout .form-radio-group input[type="radio"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+
+/* ========================================
+   FormGroup (shared/form) MES 스타일 오버라이드
+   ======================================== */
+.page-layout .form-group {
+  display: flex;
+  align-items: center;
+  margin-bottom: 3px;
+  min-height: 26px;
+}
+
+.page-layout .form-group-label {
+  width: var(--form-label-width);
+  min-width: var(--form-label-width);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  padding: 0 6px;
+  background-color: var(--color-bg-header);
+  border: 1px solid var(--color-border-medium);
+  height: 26px;
+  line-height: 26px;
+  box-sizing: border-box;
+  text-align: left;
+  font-weight: normal;
+  flex-shrink: 0;
+}
+
+.page-layout .form-required {
+  color: #d9534f;
+  margin-right: 2px;
+}
+
+.page-layout .form-group-field {
+  flex: 1;
+  border: 1px solid var(--color-border-medium);
+  border-left: none;
+  height: 26px;
+  box-sizing: border-box;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.page-layout .form-group-field .form-input,
+.page-layout .form-group-field .form-select {
+  width: 100%;
+  height: 100%;
+  border: none;
+  padding: 0 6px;
+  font-size: var(--font-size-sm);
+  box-sizing: border-box;
+  font-family: inherit;
+  background-color: #fff;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.page-layout .form-group-field .form-input:focus,
+.page-layout .form-group-field .form-select:focus {
+  outline: none;
+  background-color: #fffef0;
+  box-shadow: none;
+  border: none;
+}
+
+/* readOnly 도 disabled 와 동일한 옅은 회색 (2026-08-07). form-group-field 안에서는
+   위 :focus 규칙(배경 #fffef0)이 더 구체적이라, 같은 구체성으로 함께 선언해야 회색이 유지된다. */
+.page-layout .form-group-field .form-input[readonly],
+.page-layout .form-group-field .form-input[readonly]:focus {
+  background-color: var(--color-bg-disabled);
+  color: var(--color-text-disabled);
+}
+
+.page-layout .form-group-field .form-input:disabled,
+.page-layout .form-group-field .form-select:disabled {
+  background-color: var(--color-bg-disabled);
+  color: var(--color-text-disabled);
+}
+
+.page-layout .form-group-field .form-radio-group {
+  padding: 0 6px;
+  height: 100%;
+  border: none;
+}
+
+/* ========================================
+   역할 패널
+   ======================================== */
+.page-layout .role-panel {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.page-layout .role-panel .grid-panel {
+  height: 100%;
+  flex: 1 1 0;
+}
+
+/* ========================================
+   푸터 (24px)
+   ======================================== */
+.page-layout__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 10px;
+  background-color: var(--color-bg-disabled);
+  border-top: 1px solid var(--color-border-grid);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.page-layout__footer-breadcrumb {
+  color: var(--color-text-muted);
+}
+
+.page-layout__footer-screen-id {
+  color: #7a8a9a;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+/* ========================================
+   로딩/빈 상태
+   ======================================== */
+.page-layout .data-table-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-md);
+}
+
+.page-layout .data-table-loading .loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--color-border-medium);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: um-spin 0.8s linear infinite;
+}
+
+@keyframes um-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.page-layout .data-table-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--color-text-disabled);
+  font-size: var(--font-size-md);
+}
+
+/* ========================================
+   에러 모달
+   ======================================== */
+/* 2026-07-19 사용자 지시 — 오류 팝업이 Modal(createPortal→body, .cm-modal-overlay z-index:9999) 뒤로 깔려/
+   안 보이던 현상 수정. ErrorModal 도 createPortal 로 document.body 에 렌더하므로(shared ErrorModal.tsx) 셀렉터의
+   .page-layout 전제를 제거(전역화)하고 z-index 를 50→10001 로 올려 팝업 위에 뜨게 한다.
+   ★ shared/src/layout/page-layout.css 와 반드시 동기화(본 파일은 포털 globals.css @import 로 실제 렌더되는 사본). */
+.error-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.4);
+}
+
+.error-modal {
+  border-radius: 4px;
+  background-color: #fff;
+  box-shadow: var(--shadow-modal);
+  max-width: 28rem;
+  width: 100%;
+}
+
+.error-modal__header {
+  border-bottom: 1px solid var(--color-border-medium);
+  padding: 8px 12px;
+  font-weight: 600;
+  font-size: var(--font-size-md);
+}
+
+.error-modal__body {
+  padding: 12px;
+}
+
+.error-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid var(--color-border-medium);
+  padding: 8px;
+}
+
+/* ErrorModal 은 body 로 createPortal 되어 .page-layout 밖에 있으므로 `.page-layout .btn` 스타일이
+   적용되지 않는다 → 오류 팝업 [확인] 버튼에 전역 버튼 스타일을 직접 부여한다(버튼 형태 명확화). */
+.error-modal__footer .btn {
+  padding: 4px 12px;
+  font-size: var(--font-size-sm);
+  border: 1px solid #c0c0c0;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all var(--transition-fast);
+  font-family: inherit;
+}
+.error-modal__footer .btn:hover {
+  background-color: #f0f0f0;
+}
+.error-modal__footer .btn-primary {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+.error-modal__footer .btn-primary:hover {
+  background-color: var(--color-primary-hover);
+}
+
+/* ========================================
+   스크롤바
+   ======================================== */
+.page-layout .grid-panel-content::-webkit-scrollbar,
+.page-layout .form-panel-content::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.page-layout .grid-panel-content::-webkit-scrollbar-track,
+.page-layout .form-panel-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.page-layout .grid-panel-content::-webkit-scrollbar-thumb,
+.page-layout .form-panel-content::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.page-layout .grid-panel-content::-webkit-scrollbar-thumb:hover,
+.page-layout .form-panel-content::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}

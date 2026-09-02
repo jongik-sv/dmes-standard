@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "pnpm --filter @dk-oasis/shared build && pnpm --filter @dk-oasis/m-mpn build && pnpm --filter @dk-oasis/m-mpp build && pnpm --filter @dk-oasis/m-mqc build && pnpm --filter @dk-oasis/m-analog build && pnpm --parallel --filter @dk-oasis/shared --filter @dk-oasis/m-mpn --filter @dk-oasis/m-mpp --filter @dk-oasis/m-mqc --filter @dk-oasis/mcm --filter @dk-oasis/m-analog dev",
+    "dev": "pnpm --filter @dk-oasis/shared build && pnpm --filter @dk-oasis/m-mpn build && pnpm --filter @dk-oasis/m-mpp build && pnpm --filter @dk-oasis/m-mqc build && pnpm --filter @dk-oasis/m-mls build && pnpm --filter @dk-oasis/m-analog build && pnpm --parallel --filter @dk-oasis/shared --filter @dk-oasis/m-mpn --filter @dk-oasis/m-mpp --filter @dk-oasis/m-mqc --filter @dk-oasis/m-mls --filter @dk-oasis/m-analog --filter @dk-oasis/mcm dev",
     "test:unit": "pnpm run test:unit:shared && pnpm run test:unit:mpn",
     "test:unit:shared": "pnpm --filter @dk-oasis/shared test:unit",
     "test:unit:mpn": "pnpm --filter @dk-oasis/m-mpn test:unit",
@@ -20,7 +20,8 @@
     "format": "pnpm --parallel --filter @dk-oasis/shared --filter @dk-oasis/mcm format",
     "format:check": "pnpm --parallel --filter @dk-oasis/shared --filter @dk-oasis/mcm format:check",
     "build": "pnpm -r build",
-    "lint": "pnpm -r lint"
+    "lint": "pnpm -r lint",
+    "build:libs": "pnpm --filter @dk-oasis/shared build && pnpm --filter @dk-oasis/m-mpn build && pnpm --filter @dk-oasis/m-mpp build && pnpm --filter @dk-oasis/m-mqc build && pnpm --filter @dk-oasis/m-mls build && pnpm --filter @dk-oasis/m-analog build"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

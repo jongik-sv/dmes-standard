@@ -173,7 +173,7 @@ export function PortalLoginForm({ appName, callbackUrl }: PortalLoginFormProps) 
         </button>
 
         <p className="login-copyright">
-          Copyright &copy; 2019 DONGKUK CO.,LTD. All Right Reserved.
+          {process.env.NEXT_PUBLIC_COPYRIGHT ?? `\u00a9 ${new Date().getFullYear()} ${appName}`}
         </p>
       </form>
 

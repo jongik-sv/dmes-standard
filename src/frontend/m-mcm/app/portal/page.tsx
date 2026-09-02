@@ -1,74 +1,221 @@
 "use client";
 
-import { useCallback, useState, type ReactNode } from "react";
-import type { PageProps } from "@dk-oasis/shared/portal-shell-core";
-import "@dk-oasis/shared/layout.css";
+import { useCallback } from "react";
+import {
+  type FavoriteFolderChoice,
+  PortalShell,
+  resolvePortalHomePageId,
+  usePortalFavorites,
+  usePortalMenu,
+} from "@dk-oasis/shared/portal-shell";
+import { MessageProvider, useGfnMessage } from "@dk-oasis/shared/message-provider";
+import "@dk-oasis/shared/portal-shell.css";
+import "@dk-oasis/shared/grid.css";
+import "@dk-oasis/shared/form.css";
+import "@dk-oasis/shared/modal.css";
+import { resolvePortalPage } from "./registered-modules";
 
-import SampleInventoryPage from "@dk-oasis/m-mls/pages/sample";
-import SamplePlanningPage from "@dk-oasis/m-mpn/pages/sample";
-import SampleProductionPage from "@dk-oasis/m-mpp/pages/sample";
-import SampleInspectionPage from "@dk-oasis/m-mqc/pages/sample";
+const MODULE_ID = "mcm";
+const MENU_ENDPOINT = { endpoint: "/api/mcm/oasis/secUser/myMenusTree" };
+const FAVORITES_ENDPOINT = { endpoint: "/api/mcm/oasis/secFavorite/search" };
+const FAVORITE_TOGGLE_ENDPOINT = "/api/mcm/oasis/secFavorite/toggle";
+const FAVORITE_ADD_FOLDER_ENDPOINT = "/api/mcm/oasis/secFavorite/addFolder";
+const FAVORITE_DELETE_FOLDER_ENDPOINT = "/api/mcm/oasis/secFavorite/deleteFolder";
+// 페이지 접근 이력(RECORD_ACCESS) 엔드포인트는 legacy secMenu.bpmn / secMenuService 빈 제거(2026-06-01)와 함께 폐기됨.
+// commMenuMng 신규 자산에 대응 action 미도입 — onPageOpen 콜백 자체를 PortalShell 에 전달하지 않는다.
+const DEFAULT_HOME_PAGE_ID = resolvePortalHomePageId(MODULE_ID, "home");
 
-/**
- * 포털 셸 자리표시자.
- *
- * 실제 배포에서는 @dk-oasis/shared/portal-shell 의 PortalShell + usePortalMenu 로
- * 메뉴 트리를 받아 탭 단위로 화면을 동적 로딩한다. 이 템플릿은 배선 구조만 보여주기 위해
- * 각 화면 라이브러리의 sample 엔트리를 정적으로 import 해 나란히 렌더링한다.
- */
-const MODULES: { moduleId: string; label: string; Page: (props: PageProps) => ReactNode }[] = [
-  { moduleId: "mpn", label: "계획·스케줄링", Page: SamplePlanningPage },
-  { moduleId: "mls", label: "물류·재고", Page: SampleInventoryPage },
-  { moduleId: "mqc", label: "품질·검사", Page: SampleInspectionPage },
-  { moduleId: "mpp", label: "생산", Page: SampleProductionPage },
-];
+function PortalShellWithMessage({
+  menu,
+  favorites,
+  refetchFavorites,
+}: {
+  menu: NonNullable<ReturnType<typeof usePortalMenu>["menu"]>;
+  favorites: ReturnType<typeof usePortalFavorites>["favorites"];
+  refetchFavorites: ReturnType<typeof usePortalFavorites>["refetch"];
+}) {
+  const gfn_message = useGfnMessage();
 
-export default function PortalPage() {
-  const [activeModuleId, setActiveModuleId] = useState(MODULES[0].moduleId);
-  const active = MODULES.find((m) => m.moduleId === activeModuleId) ?? MODULES[0];
+  const handleBeforeLogout = useCallback(
+    (doLogout: () => void) => {
+      gfn_message("로그아웃 하시겠습니까?", "", "", "confirm", "로그아웃", doLogout);
+    },
+    [gfn_message]
+  );
 
-  // 화면 상태 스냅샷 — 실제 셸에서는 탭별로 보관해 탭 전환 시 복원한다.
-  const handleSnapshotChange = useCallback(() => {}, []);
+  // 별 버튼 클릭 → 백엔드 토글 → 목록 재조회
+  // pageId 형식: "{moduleId}:{componentPath}" (예: "mcm:csa/commUserMng")
+  // folder: 미등록 → 등록 시 폴더 선택 팝업 결과(기존 fvtFoldId / 신규 fvtFoldNm). 제거 시 undefined.
+  const handleToggleFavorite = useCallback(
+    async (pageId: string, folder?: FavoriteFolderChoice) => {
+      try {
+        // 현재 사용자 ID (BE 가 SecurityContext 로 강제 치환하기 전까지 body 로 전달)
+        const meRes = await fetch("/api/auth/me", { credentials: "same-origin" });
+        const me = await meRes.json();
+        const userId: string = me.user?.id ?? "";
+        if (!userId) {
+          gfn_message("로그인 세션이 만료되었습니다. 다시 로그인해 주세요.", "", "", "error");
+          return;
+        }
+
+        const res = await fetch(FAVORITE_TOGGLE_ENDPOINT, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            meta: { userId, menuId: "PORTAL_SHELL" },
+            params: {
+              userId,
+              pageId,
+              ...(folder?.fvtFoldId ? { fvtFoldId: folder.fvtFoldId } : {}),
+              ...(folder?.fvtFoldNm ? { fvtFoldNm: folder.fvtFoldNm } : {}),
+            },
+          }),
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          throw new Error(`즐겨찾기 토글 실패 (${res.status}) ${text}`);
+        }
+        const body = await res.json();
+        if (!body.meta?.success) {
+          throw new Error(body.meta?.message ?? "즐겨찾기 토글 실패");
+        }
+
+        await refetchFavorites();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "즐겨찾기 처리 중 오류가 발생했습니다.";
+        gfn_message(msg, "", "", "error");
+      }
+    },
+    [gfn_message, refetchFavorites]
+  );
+
+  // 즐겨찾기 그룹 추가/삭제 공통 호출 (OASIS secFavorite/addFolder · deleteFolder)
+  const callFavoriteFolderAction = useCallback(
+    async (endpoint: string, params: Record<string, unknown>) => {
+      try {
+        const meRes = await fetch("/api/auth/me", { credentials: "same-origin" });
+        const me = await meRes.json();
+        const userId: string = me.user?.id ?? "";
+        if (!userId) {
+          gfn_message("로그인 세션이 만료되었습니다. 다시 로그인해 주세요.", "", "", "error");
+          return;
+        }
+        const res = await fetch(endpoint, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ meta: { userId, menuId: "PORTAL_SHELL" }, params: { userId, ...params } }),
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          throw new Error(`즐겨찾기 그룹 처리 실패 (${res.status}) ${text}`);
+        }
+        const body = await res.json();
+        if (!body.meta?.success) {
+          throw new Error(body.meta?.message ?? "즐겨찾기 그룹 처리 실패");
+        }
+        await refetchFavorites();
+      } catch (err) {
+        gfn_message(err instanceof Error ? err.message : "즐겨찾기 그룹 처리 중 오류가 발생했습니다.", "", "", "error");
+      }
+    },
+    [gfn_message, refetchFavorites]
+  );
+
+  const handleAddFavoriteFolder = useCallback(
+    (folderName: string) => {
+      void callFavoriteFolderAction(FAVORITE_ADD_FOLDER_ENDPOINT, { fvtFoldNm: folderName });
+    },
+    [callFavoriteFolderAction]
+  );
+
+  const handleDeleteFavoriteFolder = useCallback(
+    (folderId: string) => {
+      gfn_message(
+        "이 그룹을 삭제하시겠습니까? 하위 즐겨찾기도 함께 삭제됩니다.",
+        "",
+        "",
+        "confirm",
+        "삭제",
+        () => void callFavoriteFolderAction(FAVORITE_DELETE_FOLDER_ENDPOINT, { fvtFoldId: folderId })
+      );
+    },
+    [gfn_message, callFavoriteFolderAction]
+  );
+
+  // onPageOpen (메뉴 접근 이력) — legacy secMenuService 제거(2026-06-01)와 함께 미연결.
+  // commMenuMng 신규 자산에서 페이지 접근 이력 적재 action 이 도입되면 재연결.
 
   return (
-    <div style={{ display: "flex", height: "100vh" }}>
-      <nav
+    <PortalShell
+      appName="DMES Portal"
+      menu={menu}
+      favoriteMenus={favorites}
+      resolvePage={resolvePortalPage}
+      defaultHomePageId={DEFAULT_HOME_PAGE_ID}
+      onBeforeLogout={handleBeforeLogout}
+      onToggleFavorite={handleToggleFavorite}
+      onAddFavoriteFolder={handleAddFavoriteFolder}
+      onDeleteFavoriteFolder={handleDeleteFavoriteFolder}
+    />
+  );
+}
+
+export default function PortalPage() {
+  const {
+    menu,
+    isLoading: isMenuLoading,
+    errorMessage: menuErrorMessage,
+  } = usePortalMenu(MENU_ENDPOINT);
+
+  const {
+    favorites,
+    isLoading: isFavoritesLoading,
+    errorMessage: favoritesErrorMessage,
+    refetch: refetchFavorites,
+  } = usePortalFavorites(FAVORITES_ENDPOINT);
+
+  if (isMenuLoading || isFavoritesLoading) {
+    return (
+      <div
         style={{
-          width: 200,
-          flexShrink: 0,
-          borderRight: "1px solid #d6dbe3",
-          padding: 12,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100dvh",
+          fontFamily: "var(--font-family)",
+          color: "#666",
         }}
       >
-        <h2 style={{ fontSize: 13, color: "#5b6472", margin: "4px 0 12px" }}>모듈</h2>
-        {MODULES.map((m) => (
-          <button
-            key={m.moduleId}
-            type="button"
-            onClick={() => setActiveModuleId(m.moduleId)}
-            style={{
-              display: "block",
-              width: "100%",
-              textAlign: "left",
-              padding: "6px 8px",
-              marginBottom: 4,
-              border: "none",
-              borderRadius: 4,
-              cursor: "pointer",
-              background: m.moduleId === activeModuleId ? "#e6edf7" : "transparent",
-            }}
-          >
-            {m.label}
-          </button>
-        ))}
-      </nav>
-      <main style={{ flex: 1, minWidth: 0, overflow: "auto" }}>
-        <active.Page
-          tabId={`${active.moduleId}:sample`}
-          snapshot={null}
-          onSnapshotChange={handleSnapshotChange}
+        <div
+          style={{
+            width: 24,
+            height: 24,
+            border: "3px solid #e8e8e8",
+            borderTopColor: "var(--color-primary, #337ab7)",
+            borderRadius: "50%",
+            animation: "spin 0.8s linear infinite",
+            marginRight: 8,
+          }}
         />
-      </main>
-    </div>
+        로딩 중...
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
+  if (!menu || menuErrorMessage || favoritesErrorMessage) {
+    return (
+      <p style={{ padding: 16, color: "#dc3545" }}>
+        {menuErrorMessage ?? favoritesErrorMessage ?? "메뉴/즐겨찾기를 불러올 수 없습니다."}
+      </p>
+    );
+  }
+
+  return (
+    <MessageProvider>
+      <PortalShellWithMessage menu={menu} favorites={favorites} refetchFavorites={refetchFavorites} />
+    </MessageProvider>
   );
 }

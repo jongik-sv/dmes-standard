@@ -1,4 +1,10 @@
 export { PageLayout, type PageLayoutProps, type PageButton } from "./PageLayout";
+// 팝업 컴포넌트 내부 실행 버튼은 PageLayout 을 거치지 않으므로, 자기 objId 로 직접 판정하도록 재노출.
+export {
+  canDoButton,
+  useUserButtonRbac,
+  type ButtonRbacState,
+} from "../portal-shell/use-user-button-rbac";
 export { SearchArea, type SearchAreaProps } from "./SearchArea";
 export { SearchField, type SearchFieldProps, type SearchFieldOption } from "./SearchField";
 export { SearchHistoryInput, type SearchHistoryInputProps } from "./SearchHistoryInput";

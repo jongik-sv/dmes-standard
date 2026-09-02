@@ -3,28 +3,43 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "generate:page-registry": "node scripts/generate-page-registry.mjs",
+    "predev": "node scripts/generate-page-registry.mjs",
+    "prebuild": "node scripts/generate-page-registry.mjs",
     "dev": "next dev --turbopack --port 5000",
     "build": "next build",
-    "start": "next start --port 5000",
+    "build:next": "next build",
     "format": "prettier --write .",
-    "lint": "tsc --noEmit"
+    "format:check": "prettier --check .",
+    "start": "next start --port 5000",
+    "pack": "node scripts/pack-standalone.mjs",
+    "pack:zip": "node scripts/pack-standalone.mjs --zip",
+    "lint": "eslint"
   },
   "dependencies": {
     "@dk-oasis/m-analog": "workspace:*",
-    "@dk-oasis/m-mls": "workspace:*",
     "@dk-oasis/m-mpn": "workspace:*",
     "@dk-oasis/m-mpp": "workspace:*",
     "@dk-oasis/m-mqc": "workspace:*",
+    "@dk-oasis/m-mls": "workspace:*",
     "@dk-oasis/shared": "workspace:*",
+    "dotenv": "^16.6.1",
     "next": "16.1.6",
-    "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "next-auth": "^4.24.13",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.1",
     "@types/node": "^20.19.37",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "eslint": "^9.39.4",
+    "eslint-config-next": "16.1.6",
     "prettier": "^3.8.1",
+    "prettier-plugin-tailwindcss": "^0.6.14",
+    "tailwindcss": "^4.2.1",
     "typescript": "^5.9.3"
   }
 }

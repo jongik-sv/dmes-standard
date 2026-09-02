@@ -1,19 +1,18 @@
-/*
- * 포털 호스트 전역 스타일.
- * 공용 디자인 토큰은 @dk-oasis/shared 가 제공한다. Tailwind 등 별도 CSS 파이프라인을
- * 쓰려면 이 파일 최상단에서 시작한다.
- */
+@import "tailwindcss";
 @import "@dk-oasis/shared/variables.css";
+@import "./page-layout.css";
+@source "../../shared/src";
 
-body {
-  margin: 0;
-  font-family:
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    sans-serif;
-}
-
+/* ========================================
+   버튼 워드랩 일괄 차단 안전망 (2026-06-23)
+   포털 셸·로그인 등 PageLayout 밖 화면까지 포함해 앱 전역에서
+   버튼 텍스트의 의도치 않은 줄바꿈을 차단한다.
+   의도적으로 여러 줄이 필요한 버튼은 .btn-wrap 으로 예외 처리한다.
+   ======================================== */
 button {
   white-space: nowrap;
+}
+
+.btn-wrap {
+  white-space: normal;
 }

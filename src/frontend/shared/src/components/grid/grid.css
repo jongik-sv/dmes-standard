@@ -7,10 +7,29 @@
   border-radius: 4px;
   background-color: var(--color-bg, #fff);
   overflow: hidden;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   width: 100%;
   contain: strict;
+}
+
+/*
+ * 트랙패드 스크롤이 그리드 경계에서 페이지로 이어져 브라우저 뒤로가기/앞으로가기
+ * 제스처가 되는 것을 막는다. 다만 중앙 열 viewport 는 가로 스크롤만 담당하므로
+ * x축만 격리해야 한다. 양축을 contain 하면 중앙 셀 위의 세로 휠이 이 요소에 갇혀
+ * 실제 세로 스크롤 컨테이너(.ag-body-viewport)까지 전달되지 않는다.
+ */
+.cm-data-grid .ag-body-viewport {
+  overscroll-behavior-y: contain;
+}
+
+.cm-data-grid .ag-center-cols-viewport {
+  overscroll-behavior-x: contain;
+}
+
+.cm-data-grid .ag-body-horizontal-scroll-viewport {
+  overscroll-behavior-x: contain;
 }
 
 /* 키보드 네비게이션을 위해 컨테이너에 tabIndex={-1} 을 부여해 focus 를 받지만,
@@ -266,11 +285,42 @@
   top: 50%;
   transform: translate(-50%, -50%);
   margin: 0;
+  /* ★전체선택 클릭 불가 회귀 fix (2026-08-07).
+     위 absolute 배치는 흐름에서 빠지므로, 같은 헤더 셀 안에서 뒤에 그려지는
+     .ag-header-cell-label(정상 흐름·셀 전체 폭)이 체크박스를 덮어 클릭이 label 로 먹혔다.
+     (실측: document.elementFromPoint(체크박스 중앙) === DIV.ag-header-cell-label,
+      Playwright 일반 클릭 actionability 실패 → 헤더 전체선택이 "눌러도 아무 일 없음".)
+     z-index 로 위로 올린다. */
+  z-index: 2;
+}
+
+/* 선택 컬럼 헤더의 라벨(빈 제목)은 히트영역만 차지하므로 클릭을 통과시킨다 — 위 z-index 와 이중 안전장치. */
+.cm-data-grid .ag-header-cell[col-id="ag-Grid-SelectionColumn"] .ag-header-cell-label,
+.cm-data-grid .ag-header-cell[col-id="ag-Grid-SelectionColumn"] .ag-header-cell-comp-wrapper {
+  pointer-events: none;
+}
+.cm-data-grid .ag-header-cell[col-id="ag-Grid-SelectionColumn"] .ag-header-select-all {
+  pointer-events: auto;
 }
 
 .cm-data-grid .ag-checkbox-input-wrapper {
   width: 14px;
   height: 14px;
+}
+
+/* ★셀 텍스트 드래그 선택·복사 항상 허용 (2026-08-07 사용자 요구).
+   AgDataGrid 가 enableCellTextSelection 을 항상 켜지만, 테마/편집 상태에 따라
+   user-select:none 이 다시 걸리는 경로가 있어 CSS 로 못을 박는다. 헤더는 제외(드래그 리사이즈 방해). */
+.cm-data-grid .ag-cell,
+.cm-data-grid .ag-cell-value,
+.cm-data-grid .ag-cell-wrapper {
+  user-select: text;
+  -webkit-user-select: text;
+}
+/* 체크박스 선택 컬럼은 드래그 선택 대상이 아니다(클릭 전용). */
+.cm-data-grid .ag-cell[col-id="ag-Grid-SelectionColumn"] {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* Empty overlay */
@@ -346,11 +396,14 @@
 
 /* Column resizer */
 .cm-data-grid .ag-header-cell-resize {
-  width: 4px;
+  width: 12px;
 }
 
-.cm-data-grid .ag-header-cell-resize:hover {
+.cm-data-grid .ag-header-cell-resize:hover::after,
+.cm-data-grid .ag-header-cell-resize:active::after {
   background-color: var(--color-primary, #337ab7);
+  height: 60%;
+  top: 20%;
 }
 
 /* ========================================
@@ -719,9 +772,14 @@
   border-radius: 4px;
   background-color: var(--color-bg, #fff);
   overflow: hidden;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   width: 100%;
+}
+
+.cm-mui-data-grid .MuiDataGrid-virtualScroller {
+  overscroll-behavior: contain;
 }
 
 /* MUI DataGrid theme customization */
@@ -898,6 +956,7 @@
   border-radius: 4px;
   background-color: var(--color-bg, #fff);
   overflow: hidden;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -912,6 +971,7 @@
   border-bottom: 1px solid #c0cdd8;
   overflow-x: auto;
   overflow-y: hidden;
+  overscroll-behavior: contain;
   flex-shrink: 0;
 }
 
@@ -971,6 +1031,7 @@
 .cm-custom-grid-body {
   flex: 1;
   overflow: auto;
+  overscroll-behavior: contain;
   position: relative;
 }
 

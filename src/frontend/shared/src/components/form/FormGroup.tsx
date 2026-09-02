@@ -44,7 +44,6 @@ export function FormGroup({
   error,
   tip,
 }: FormGroupProps) {
-  const labelRef = useRef<HTMLLabelElement>(null);
   const generatedId = useId();
   const labelId = `${generatedId}-label`;
   const controlId = `${generatedId}-control`;
@@ -56,15 +55,28 @@ export function FormGroup({
       : null;
   const resolvedControlId =
     singleChild && typeof singleChild.props.id === "string" ? singleChild.props.id : controlId;
+  const labelRef = useRef<HTMLLabelElement>(null);
   // 툴팁을 document.body 로 portal + position:fixed 로 렌더 → 스크롤/overflow 컨테이너에 잘리거나
   // 다른 패널에 가려지지 않고 항상 최상단에 표시된다.
-  const [tipPos, setTipPos] = useState<{ left: number; top: number } | null>(null);
+  const [tipPos, setTipPos] = useState<{ left: number; top: number; above: boolean } | null>(null);
 
+  // 툴팁은 라벨 좌측 기준으로 라벨 위쪽에 띄운다. 위쪽 공간이 모자랄 때만 아래로 뒤집는다.
+  // 실제 높이는 above 일 때 translateY(-100%) 로 보정하므로, 아래 상수는 뒤집기 판정에만 쓰인다.
   const showTip = useCallback(() => {
     const el = labelRef.current;
-    if (!el) return;
+    if (!el || typeof window === "undefined") return;
     const rect = el.getBoundingClientRect();
-    setTipPos({ left: rect.left, top: rect.bottom + 4 });
+    const TIP_MAX_WIDTH = 320;
+    const TIP_EST_HEIGHT = 72;
+    const GAP = 6;
+    const GUTTER = 8;
+    const maxLeft = Math.max(GUTTER, window.innerWidth - TIP_MAX_WIDTH - GUTTER);
+    const above = rect.top - GAP >= TIP_EST_HEIGHT + GUTTER;
+    setTipPos({
+      left: Math.min(Math.max(rect.left, GUTTER), maxLeft),
+      top: above ? rect.top - GAP : rect.bottom + GAP,
+      above,
+    });
   }, []);
   const hideTip = useCallback(() => setTipPos(null), []);
 
@@ -101,17 +113,23 @@ export function FormGroup({
         htmlFor={resolvedControlId}
         className={`form-group-label${tip ? " has-tip" : ""}`}
         style={{ width: labelWidth, minWidth: labelWidth }}
-        onMouseEnter={tip ? showTip : undefined}
-        onMouseLeave={tip ? hideTip : undefined}
       >
-        {required && <span className="form-required">*</span>}
-        {label}
+        {/* 라벨 박스는 labelWidth 고정폭이라 텍스트 밖 여백까지 hover 로 잡힌다.
+            트리거를 텍스트 span 으로 좁혀 "라벨 위에 정확히 올렸을 때" 만 뜨게 한다. */}
+        {tip ? (
+          <span className="form-tip-trigger" onMouseEnter={showTip} onMouseLeave={hideTip}>
+            {required && <span className="form-required">*</span>}
+            {label}
+          </span>
+        ) : (
+          <>
+            {required && <span className="form-required">*</span>}
+            {label}
+          </>
+        )}
       </label>
-      <div
-        className="form-group-field"
-        onFocusCapture={tip ? showTip : undefined}
-        onBlurCapture={tip ? hideTip : undefined}
-      >
+      {/* 필드 focus/click 으로는 툴팁을 띄우지 않는다 — 입력 중 가림 때문. 스크린리더는 aria-describedby 로 계속 읽는다. */}
+      <div className="form-group-field">
         {enhancedChildren}
         {tip && (
           <span id={tipId} className="form-sr-only">
@@ -130,7 +148,13 @@ export function FormGroup({
         createPortal(
           <span
             className="form-tip-text form-tip-text--portal"
-            style={{ position: "fixed", left: tipPos.left, top: tipPos.top, display: "block" }}
+            style={{
+              position: "fixed",
+              left: tipPos.left,
+              top: tipPos.top,
+              display: "block",
+              ...(tipPos.above ? { transform: "translateY(-100%)" } : {}),
+            }}
           >
             {tip}
           </span>,

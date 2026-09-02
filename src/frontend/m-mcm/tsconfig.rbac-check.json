@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": true },
+  "include": [
+    "proxy.ts",
+    "lib/auth/api-permission-cache.ts",
+    "lib/http/be-proxy.ts",
+    "app/api/[module]/rest/[objId]/[action]/[...path]/route.ts",
+    "app/api/[module]/oasis/[serviceId]/[action]/route.ts",
+    "app/api/mcm/internal/cache/invalidate-role/route.ts",
+    "next-env.d.ts",
+    "types/**/*.d.ts"
+  ]
+}
