@@ -1,0 +1,47 @@
+# ── wildfly: JNDI datasource 블록 (dev/prod 공통 — 단독 활성 금지) ──
+# application.yml 의 spring.profiles.group 으로 dev|prod 활성 시 자동 포함된다.
+#
+# 원칙:
+#  - url/username/password/driver-class-name 전부 없음 — 물리 접속·풀은 각 WildFly standalone.xml 소유.
+#  - JNDI 논리명은 모든 WildFly(개발계/운영계) 공통. 같은 이름이 서버마다 다른 물리 DB 를 가리킨다.
+#  - 이름 규약: java:/jdbc/mssql/{모듈명}/{DS명} (§2-1). WildFly 는 java:/ 또는 java:jboss/ 접두어 필수(WFLYJCA0117).
+#  - ${PROP:기본값} 형태 — 기본값만으로 동작하며, 특정 서버가 다른 이름을 쓸 때만
+#    JNDI_DS_BIZ/JNDI_DS_CMN/JNDI_DS_IF/JNDI_DS_CARAVAN 를 -D 또는 환경변수로 override.
+spring:
+  datasource:
+    jndi-name: "${JNDI_DS_BIZ:java:/jdbc/mssql/mcm/dsBiz}"           # biz (MCMAPUSER)
+  jpa:
+    database-platform: org.hibernate.dialect.SQLServerDialect
+    hibernate:
+      ddl-auto: none                                                 # 개발계/운영계 모두 스키마 사전 관리
+
+cactus:
+  datasource:
+    extras:
+      cmn:
+        jndi-name: "${JNDI_DS_CMN:java:/jdbc/mssql/mcm/dsCmn}"       # 공통 (MCM 은 MCMAPUSER — biz 와 동일 물리)
+      if:
+        jndi-name: "${JNDI_DS_IF:java:/jdbc/mssql/mcm/dsIF}"         # 인터페이스 송수신 (EAIUSER)
+      caravan:
+        jndi-name: "${JNDI_DS_CARAVAN:java:/jdbc/mssql/mcm/dsCaravan}"  # Kafka 메타 (CARAVANUSER)
+  jpa:
+    extras:
+      cmn:
+        hibernate:
+          dialect: org.hibernate.dialect.SQLServerDialect
+          ddl-auto: none
+      if:
+        hibernate:
+          dialect: org.hibernate.dialect.SQLServerDialect
+          ddl-auto: none
+      caravan:
+        hibernate:
+          dialect: org.hibernate.dialect.SQLServerDialect
+          ddl-auto: none
+
+  # ── 포털알림 발행 클라이언트 (설계 §9 — pilotCaravanSend sendNotify 파일럿 루프백) ──
+  # WildFly 는 컨텍스트 루트 /mcm 이 붙는다 — 자기 자신 루프백 기본값(localhost:8080/mcm).
+  # HTTP 포트가 8080 이 아닌 서버는 NOTIFY_PUBLISH_URL 를 -D 또는 환경변수로 override.
+  notify:
+    publish-url: "${NOTIFY_PUBLISH_URL:http://localhost:8080/mcm/notify/publish}"
+    source: "${NOTIFY_SOURCE:mcm}"

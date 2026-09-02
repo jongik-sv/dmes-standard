@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_masterCodeUploadFilePopup" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="masterCodeUploadFilePopup" name="마스터코드 등록(Excel Upload)" isExecutable="true">
+    <bpmn:documentation>masterCodeUploadFilePopup — 분석리포트 §8 BPMN 5 노드 (Start / ExclusiveGateway / Task_2 search / UserTask save / End) + 5 sequenceFlow 1:1 보존. action 2 종: search (B-001 다운로드 — SELECT only) / save (B-003 등록 — 조건부 DELETE + N INSERT atomic). camunda:class = masterCodeUploadFilePopupService (OASIS 빈 lookup). To-Be 식별자 (BPMN설계서 §6): process id = masterCodeUploadFilePopup, sqlKey = As-Is GetCodeUploadList 유지 (사용자 결정).</bpmn:documentation>
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+
+    <bpmn:exclusiveGateway id="actionGateway">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_search</bpmn:outgoing>
+      <bpmn:outgoing>flow_save</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- action=search — Task_2 (CommonSelectTask) — B-001 다운로드 -->
+    <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
+    <bpmn:serviceTask id="searchTask" name="마스터코드 조회" camunda:class="masterCodeUploadFilePopupService">
+      <bpmn:documentation>분석 §6.1 SQL #1 GetCodeUploadList — SELECT 7 컬럼 / WHERE MASTER_CODE = :pCodeId / ORDER BY CATEGORY_ID, SORT_SEQ. As-Is sqlKey = MasterCodeUploadFilePopupMapper.GetCodeUploadList (Mapper namespace 보존 — 사용자 결정).</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchCodeUploadList" />
+          <camunda:property name="output" value="codeUploadList" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.cma.masterCodeUploadFilePopup.dto.MasterCodeUploadFilePopupSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_search</bpmn:incoming>
+      <bpmn:outgoing>flow_search_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="endSearch" />
+    <bpmn:endEvent id="endSearch">
+      <bpmn:incoming>flow_search_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- action=save — UserTask_09dxtkf (SaveMasterCodeFileUpload) — B-003 등록 -->
+    <bpmn:sequenceFlow id="flow_save" name="save" sourceRef="actionGateway" targetRef="saveTask" />
+    <bpmn:serviceTask id="saveTask" name="마스터코드 Import" camunda:class="masterCodeUploadFilePopupService">
+      <bpmn:documentation>분석 §7 As-Is SaveMasterCodeFileUpload.run() 1:1 + 사용자 결정 보강 (F-002/F-003/F-005 + cactus-core audit 9 컬럼 자동). atomic 트랜잭션 — 한 row 라도 INSERT 실패 시 전체 rollback. 입력: pCodeId / pRegFlag / dsGrdUpload (Map List 패스스루 — grid key 와 Java parameter name 일치, 2026-05-28 사용자 결정). 출력: cnt_import (INSERT 성공 row 수).</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="saveMasterCodeFileUpload" />
+          <camunda:property name="output" value="cnt_import" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_save</bpmn:incoming>
+      <bpmn:outgoing>flow_save_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_save_end" sourceRef="saveTask" targetRef="endSave" />
+    <bpmn:endEvent id="endSave">
+      <bpmn:incoming>flow_save_end</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="masterCodeUploadFilePopup">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="152" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="245" y="135" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchTask_di" bpmnElement="searchTask">
+        <dc:Bounds x="370" y="60" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearch_di" bpmnElement="endSearch">
+        <dc:Bounds x="542" y="82" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="saveTask_di" bpmnElement="saveTask">
+        <dc:Bounds x="370" y="180" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSave_di" bpmnElement="endSave">
+        <dc:Bounds x="542" y="202" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="188" y="160" />
+        <di:waypoint x="245" y="160" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_di" bpmnElement="flow_search">
+        <di:waypoint x="270" y="135" />
+        <di:waypoint x="270" y="100" />
+        <di:waypoint x="370" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_end_di" bpmnElement="flow_search_end">
+        <di:waypoint x="470" y="100" />
+        <di:waypoint x="542" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_di" bpmnElement="flow_save">
+        <di:waypoint x="270" y="185" />
+        <di:waypoint x="270" y="220" />
+        <di:waypoint x="370" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_end_di" bpmnElement="flow_save_end">
+        <di:waypoint x="470" y="220" />
+        <di:waypoint x="542" y="220" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

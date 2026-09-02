@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_masterRuleDataUploadFilePopup" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-tool" exporterVersion="1.2.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="masterRuleDataUploadFilePopup" name="일반 업무기준 등록(Excel Upload)" isExecutable="true">
+    <bpmn:documentation>masterRuleDataUploadFilePopup — As-Is mui cmb/MasterRuleDataUploadFilePopup (분석 §1 / §8) 의 To-Be BPMN.
+
+★ 부모 masterRuleData 의 자식 modal 팝업 (P-002 엑셀업로드 — MasterRuleData.xfdl:722). 동적 테이블(TB_MCA_&lt;업무기준ID&gt;, DDL on-demand)/동적 컬럼(컬럼정의 기반) 가족.
+
+사용자 결정 (가족 2026-06-04 + 본 화면 2026-06-05):
+  - Q-104 동적 SQL 안전화 — 테이블명 서버 재조립(pRuleId 형식검증+pTable 대조) + 저장 컬럼 컬럼정의 화이트리스트(COL_ID 식별자 강제) + 값 바인딩 (As-Is ${pTable}_Mapper.* 동적 namespace 제거 — C-006/C-007)
+  - Q-105 audit = McmAuditEntity 체계(C_*/U_*) native 세팅 (As-Is 미세팅 F-006 해소), 프로그램ID='masterRuleDataUploadFilePopup'
+  - Q-103 채번 GetMaxRuleSeq 본 화면 일원화 (As-Is 부모 매퍼 namespace 호출 F-004 해소)
+  - Q-102 삭제등록 — 빈 업로드 시 전건삭제 차단(서버 이중 방어) + 클라 confirm
+
+3 action 매핑 (As-Is UserTask 2종 + CommonSelectTask 1종 흡수):
+  action=search    → searchTask (masterRuleDataUploadFilePopupService.search) — 다운로드용 전건 SELECT * (As-Is Mapper #2 — WHERE/ORDER 없음 보존), 응답 { ds_GetRuleDataUploadList, cnt }
+  action=save      → saveTask (masterRuleDataUploadFilePopupService.save) — (조건부 전건 DELETE R-107) + ISNULL(MAX) 채번 + RULE_VER='1'/RULE_SEQ=++max(R-109) + DATE '-'제거·14자 절단(R-110) + audit 8 + 행번호 예외(MT-003, atomic rollback), 응답 { cnt_import }
+  action=searchCol → colTask (masterRuleDataUploadFilePopupService.searchCol) — 컬럼정의+PK판정 (searchRuleColDefsWithPk 재사용 — As-Is Mapper #1 동일 SQL), 응답 { ds_GetRuleColUploadList, cnt }</bpmn:documentation>
+    <bpmn:extensionElements>
+      <camunda:properties>
+        <camunda:property name="input" value="action" />
+      </camunda:properties>
+    </bpmn:extensionElements>
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="actionGateway">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_search</bpmn:outgoing>
+      <bpmn:outgoing>flow_save</bpmn:outgoing>
+      <bpmn:outgoing>flow_col</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="searchTask" name="일반 업무기준 조회 (다운로드용 전건)" camunda:class="masterRuleDataUploadFilePopupService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="search" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.cmb.masterRuleDataUploadFilePopup.dto.MasterRuleDataUploadFilePopupSaveRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_search</bpmn:incoming>
+      <bpmn:outgoing>flow_search_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endSearch">
+      <bpmn:incoming>flow_search_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="saveTask" name="업무기준 Import (Excel 일괄 등록)" camunda:class="masterRuleDataUploadFilePopupService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="save" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.cmb.masterRuleDataUploadFilePopup.dto.MasterRuleDataUploadFilePopupSaveRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_save</bpmn:incoming>
+      <bpmn:outgoing>flow_save_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endSave">
+      <bpmn:incoming>flow_save_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="colTask" name="일반 업무기준 컬럼조회 (컬럼정의)" camunda:class="masterRuleDataUploadFilePopupService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchCol" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.cmb.masterRuleDataUploadFilePopup.dto.MasterRuleDataUploadFilePopupSaveRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_col</bpmn:incoming>
+      <bpmn:outgoing>flow_col_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endCol">
+      <bpmn:incoming>flow_col_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+    <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
+    <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="endSearch" />
+    <bpmn:sequenceFlow id="flow_save" name="save" sourceRef="actionGateway" targetRef="saveTask" />
+    <bpmn:sequenceFlow id="flow_save_end" sourceRef="saveTask" targetRef="endSave" />
+    <bpmn:sequenceFlow id="flow_col" name="searchCol" sourceRef="actionGateway" targetRef="colTask" />
+    <bpmn:sequenceFlow id="flow_col_end" sourceRef="colTask" targetRef="endCol" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="masterRuleDataUploadFilePopup">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="152" y="222" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="245" y="215" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchTask_di" bpmnElement="searchTask">
+        <dc:Bounds x="380" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearch_di" bpmnElement="endSearch">
+        <dc:Bounds x="580" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="saveTask_di" bpmnElement="saveTask">
+        <dc:Bounds x="380" y="210" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSave_di" bpmnElement="endSave">
+        <dc:Bounds x="580" y="232" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="colTask_di" bpmnElement="colTask">
+        <dc:Bounds x="380" y="340" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endCol_di" bpmnElement="endCol">
+        <dc:Bounds x="580" y="362" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="188" y="240" />
+        <di:waypoint x="245" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_di" bpmnElement="flow_search">
+        <di:waypoint x="270" y="215" />
+        <di:waypoint x="270" y="120" />
+        <di:waypoint x="380" y="120" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="305" y="103" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_end_di" bpmnElement="flow_search_end">
+        <di:waypoint x="480" y="120" />
+        <di:waypoint x="580" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_di" bpmnElement="flow_save">
+        <di:waypoint x="270" y="265" />
+        <di:waypoint x="270" y="250" />
+        <di:waypoint x="380" y="250" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="305" y="233" width="32" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_end_di" bpmnElement="flow_save_end">
+        <di:waypoint x="480" y="250" />
+        <di:waypoint x="580" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_col_di" bpmnElement="flow_col">
+        <di:waypoint x="270" y="265" />
+        <di:waypoint x="270" y="380" />
+        <di:waypoint x="380" y="380" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="305" y="248" width="72" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_col_end_di" bpmnElement="flow_col_end">
+        <di:waypoint x="480" y="380" />
+        <di:waypoint x="580" y="380" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
+

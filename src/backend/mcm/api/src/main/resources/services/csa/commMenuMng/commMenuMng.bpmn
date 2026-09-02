@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_commMenuMng"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <!--
+    메뉴 관리 — commMenuMng BPMN (csa 그룹 / mcm 모듈 / W2)
+
+    분석리포트 §8 + BPMN설계서 §2 의 As-Is 6 action 보존 (To-Be 정책 #1 적용):
+      As-Is 6 (lov 폐기 — cross-cutting 정책 #1) → To-Be 5:
+        - searchCmMenu  — 메뉴 리스트 조회 (selectCommMenuMng + selectMenuFldList chain)
+        - searchMenuGrp — 메뉴 폴더 트리 단독 조회 (selectMenuFldList)
+        - saveCmMenu    — 메뉴 일괄 저장 (insertCommMenuMng / updateCommMenuMng / deleteCommMenuMng status 자동 분기)
+        - searchObj     — 선택 메뉴의 OBJECT 정보 조회 (selectMenuObj)
+        - commonList    — OBJECT 팝업 LoV (selectMenuObjPop)
+        ~~- lov         — BIZ SYSTEM CODE LoV (cross-cutting 정책 #1 — Task_1z04i9v + cross-namespace
+                          CommObjMngMapper.selectAppHostId 호출 동시 폐기)~~
+
+    As-Is 결함 To-Be 정정 (BPMN §6.1 / 분석 §11 #15 #16):
+      - process id: As-Is "sample1" (오기재) → To-Be "commMenuMng"
+      - process name: As-Is "사용자 ROLE 그룹 저장" (오기재) → To-Be "메뉴 관리"
+
+    OASIS executor 가 actionGateway 의 input='action' 으로 분기. serviceTask 별
+    Spring bean 'commMenuMngService' 의 method 호출 → 결과 Map 을 process variable 로 누적.
+
+    가이드 §6-C/D/E 정합 (W1 commObjMng 정본 패턴):
+      - grid property 사용 ✗ (saveCmMenu 는 grids.master.rows → method param `master` 자동 매핑)
+      - output="result" 명시 (응답 누락 결함 회피 — 가이드 §6-D)
+      - dto property: searchCmMenu / searchObj / commonList 3 action 만 (params → DTO 변환)
+      - <conditionExpression> 미사용 — sequenceFlow `name` 만으로 분기
+  -->
+
+  <bpmn:process id="commMenuMng" name="메뉴 관리" isExecutable="true">
+
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+
+    <bpmn:exclusiveGateway id="actionGateway">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_searchCmMenu</bpmn:outgoing>
+      <bpmn:outgoing>flow_searchMenuGrp</bpmn:outgoing>
+      <bpmn:outgoing>flow_saveCmMenu</bpmn:outgoing>
+      <bpmn:outgoing>flow_searchObj</bpmn:outgoing>
+      <bpmn:outgoing>flow_commonList</bpmn:outgoing>
+      <bpmn:outgoing>flow_saveCmMenuFld</bpmn:outgoing>
+      <bpmn:outgoing>flow_searchCmMenuFld</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ─────────── action: searchCmMenu — 메뉴 리스트 + 트리 chain 동시 조회 ─────────── -->
+    <bpmn:sequenceFlow id="flow_searchCmMenu" name="search" sourceRef="actionGateway" targetRef="searchCmMenuTask" />
+    <bpmn:serviceTask id="searchCmMenuTask" name="메뉴 관리 조회 + 메뉴 Fold 조회" camunda:class="commMenuMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchCmMenu" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commMenuMng.dto.CommMenuMngSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_searchCmMenu</bpmn:incoming>
+      <bpmn:outgoing>flow_searchCmMenu_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_searchCmMenu_end" sourceRef="searchCmMenuTask" targetRef="endSearchCmMenu" />
+    <bpmn:endEvent id="endSearchCmMenu">
+      <bpmn:incoming>flow_searchCmMenu_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─────────── action: searchMenuGrp — 메뉴 폴더 트리 단독 조회 ─────────── -->
+    <bpmn:sequenceFlow id="flow_searchMenuGrp" name="searchMenuGrp" sourceRef="actionGateway" targetRef="searchMenuGrpTask" />
+    <bpmn:serviceTask id="searchMenuGrpTask" name="메뉴 Fold 조회" camunda:class="commMenuMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchMenuGrp" />
+          <camunda:property name="output" value="result" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_searchMenuGrp</bpmn:incoming>
+      <bpmn:outgoing>flow_searchMenuGrp_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_searchMenuGrp_end" sourceRef="searchMenuGrpTask" targetRef="endSearchMenuGrp" />
+    <bpmn:endEvent id="endSearchMenuGrp">
+      <bpmn:incoming>flow_searchMenuGrp_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─────────── action: saveCmMenu — 일괄 저장 (status 분기) + 후속 재조회 ─────────── -->
+    <bpmn:sequenceFlow id="flow_saveCmMenu" name="save" sourceRef="actionGateway" targetRef="saveCmMenuTask" />
+    <bpmn:serviceTask id="saveCmMenuTask" name="메뉴 관리 저장 (status 분기) + 후속 재조회" camunda:class="commMenuMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="saveCmMenu" />
+          <camunda:property name="output" value="result" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_saveCmMenu</bpmn:incoming>
+      <bpmn:outgoing>flow_saveCmMenu_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_saveCmMenu_end" sourceRef="saveCmMenuTask" targetRef="endSaveCmMenu" />
+    <bpmn:endEvent id="endSaveCmMenu">
+      <bpmn:incoming>flow_saveCmMenu_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─────────── action: searchObj — 선택 메뉴의 OBJECT 정보 조회 ─────────── -->
+    <bpmn:sequenceFlow id="flow_searchObj" name="searchObj" sourceRef="actionGateway" targetRef="searchObjTask" />
+    <bpmn:serviceTask id="searchObjTask" name="OBJECT 정보 조회" camunda:class="commMenuMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchObj" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commMenuMng.dto.CommMenuMngSearchObjRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_searchObj</bpmn:incoming>
+      <bpmn:outgoing>flow_searchObj_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_searchObj_end" sourceRef="searchObjTask" targetRef="endSearchObj" />
+    <bpmn:endEvent id="endSearchObj">
+      <bpmn:incoming>flow_searchObj_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─────────── action: commonList — OBJECT 팝업 LoV ─────────── -->
+    <bpmn:sequenceFlow id="flow_commonList" name="commonList" sourceRef="actionGateway" targetRef="commonListTask" />
+    <bpmn:serviceTask id="commonListTask" name="OBJECT 팝업 조회" camunda:class="commMenuMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="commonList" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commMenuMng.dto.CommMenuMngCommonListRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_commonList</bpmn:incoming>
+      <bpmn:outgoing>flow_commonList_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_commonList_end" sourceRef="commonListTask" targetRef="endCommonList" />
+    <bpmn:endEvent id="endCommonList">
+      <bpmn:incoming>flow_commonList_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─────────── action: saveCmMenuFld — 2026-06-04 메뉴 필드 일괄 저장 (status 분기) ─────────── -->
+    <bpmn:sequenceFlow id="flow_saveCmMenuFld" name="saveCmMenuFld" sourceRef="actionGateway" targetRef="saveCmMenuFldTask" />
+    <bpmn:serviceTask id="saveCmMenuFldTask" name="메뉴 필드 일괄 저장 (status 분기) — TB_MCM_SEC_MENU_FLD" camunda:class="commMenuMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="saveCmMenuFld" />
+          <camunda:property name="output" value="result" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_saveCmMenuFld</bpmn:incoming>
+      <bpmn:outgoing>flow_saveCmMenuFld_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_saveCmMenuFld_end" sourceRef="saveCmMenuFldTask" targetRef="endSaveCmMenuFld" />
+    <bpmn:endEvent id="endSaveCmMenuFld">
+      <bpmn:incoming>flow_saveCmMenuFld_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─────────── action: searchCmMenuFld — 메뉴 필드 목록 조회 ─────────── -->
+    <bpmn:sequenceFlow id="flow_searchCmMenuFld" name="searchCmMenuFld" sourceRef="actionGateway" targetRef="searchCmMenuFldTask" />
+    <bpmn:serviceTask id="searchCmMenuFldTask" name="메뉴 필드 목록 조회 (TB_MCM_SEC_MENU_FLD)" camunda:class="commMenuMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchCmMenuFld" />
+          <camunda:property name="output" value="result" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_searchCmMenuFld</bpmn:incoming>
+      <bpmn:outgoing>flow_searchCmMenuFld_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_searchCmMenuFld_end" sourceRef="searchCmMenuFldTask" targetRef="endSearchCmMenuFld" />
+    <bpmn:endEvent id="endSearchCmMenuFld">
+      <bpmn:incoming>flow_searchCmMenuFld_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="commMenuMng">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="152" y="402" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="245" y="395" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchCmMenuTask_di" bpmnElement="searchCmMenuTask">
+        <dc:Bounds x="370" y="40" width="220" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearchCmMenu_di" bpmnElement="endSearchCmMenu">
+        <dc:Bounds x="640" y="62" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchMenuGrpTask_di" bpmnElement="searchMenuGrpTask">
+        <dc:Bounds x="370" y="200" width="220" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearchMenuGrp_di" bpmnElement="endSearchMenuGrp">
+        <dc:Bounds x="640" y="222" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="saveCmMenuTask_di" bpmnElement="saveCmMenuTask">
+        <dc:Bounds x="370" y="380" width="220" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSaveCmMenu_di" bpmnElement="endSaveCmMenu">
+        <dc:Bounds x="640" y="402" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchObjTask_di" bpmnElement="searchObjTask">
+        <dc:Bounds x="370" y="540" width="220" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearchObj_di" bpmnElement="endSearchObj">
+        <dc:Bounds x="640" y="562" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="commonListTask_di" bpmnElement="commonListTask">
+        <dc:Bounds x="370" y="700" width="220" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endCommonList_di" bpmnElement="endCommonList">
+        <dc:Bounds x="640" y="722" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="188" y="420" />
+        <di:waypoint x="245" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchCmMenu_di" bpmnElement="flow_searchCmMenu">
+        <di:waypoint x="270" y="395" />
+        <di:waypoint x="270" y="80" />
+        <di:waypoint x="370" y="80" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchCmMenu_end_di" bpmnElement="flow_searchCmMenu_end">
+        <di:waypoint x="590" y="80" />
+        <di:waypoint x="640" y="80" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchMenuGrp_di" bpmnElement="flow_searchMenuGrp">
+        <di:waypoint x="270" y="395" />
+        <di:waypoint x="270" y="240" />
+        <di:waypoint x="370" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchMenuGrp_end_di" bpmnElement="flow_searchMenuGrp_end">
+        <di:waypoint x="590" y="240" />
+        <di:waypoint x="640" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_saveCmMenu_di" bpmnElement="flow_saveCmMenu">
+        <di:waypoint x="295" y="420" />
+        <di:waypoint x="370" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_saveCmMenu_end_di" bpmnElement="flow_saveCmMenu_end">
+        <di:waypoint x="590" y="420" />
+        <di:waypoint x="640" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchObj_di" bpmnElement="flow_searchObj">
+        <di:waypoint x="270" y="445" />
+        <di:waypoint x="270" y="580" />
+        <di:waypoint x="370" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchObj_end_di" bpmnElement="flow_searchObj_end">
+        <di:waypoint x="590" y="580" />
+        <di:waypoint x="640" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_commonList_di" bpmnElement="flow_commonList">
+        <di:waypoint x="270" y="445" />
+        <di:waypoint x="270" y="740" />
+        <di:waypoint x="370" y="740" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_commonList_end_di" bpmnElement="flow_commonList_end">
+        <di:waypoint x="590" y="740" />
+        <di:waypoint x="640" y="740" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

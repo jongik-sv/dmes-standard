@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ╔════════════════════════════════════════════════════════════════════════╗
+  ║ 마스터코드 선택 팝업 OASIS BPMN — As-Is 1:1 보존 (4 노드)                 ║
+  ║                                                                        ║
+  ║ 설계서 정본 — docs/mcm/design/masterCodeSelPop/:                         ║
+  ║   - 분석리포트 §8 BPMN 워크플로우 전수                                    ║
+  ║   - BPMN설계서 §3.1 search flow + §6 To-Be 식별자 매핑                   ║
+  ║   - 정합체크서 §E.3 As-Is BPMN 전수 등재                                  ║
+  ║                                                                        ║
+  ║ As-Is process id : MasterCodeSelPop                                     ║
+  ║ To-Be process id : masterCodeSelPop  (= screenId / serviceId)           ║
+  ║ As-Is 4 노드     : StartEvent_1 → ExclusiveGateway_1 → Task_2 → EndEvent_1║
+  ║ As-Is sequence   : SequenceFlow_1 → SequenceFlow_0grwghu(name=search)    ║
+  ║                    → SequenceFlow_0lnje1n                                ║
+  ║                                                                        ║
+  ║ As-Is Task_2 camunda properties (CommonSelectTask + sqlKey):              ║
+  ║   class    = com.dongkuk.oasis.task.commonDbTask.CommonSelectTask         ║
+  ║   sqlKey   = MasterCodeSelPopMapper.GetCodeDetailList                    ║
+  ║   resultKey= ds_GetCodeDetailList                                        ║
+  ║   isServiceResult = true                                                 ║
+  ║                                                                        ║
+  ║ To-Be (cactus OASIS) — mcm SqlSession ✗ 이므로 mybatis Mapper.xml 사용 ✗.║
+  ║ ServiceTask camunda:class = "masterCodeSelPopService" 로 변경.            ║
+  ║   method = search                                                        ║
+  ║   dto    = com.dongkuk.dmes.mcm.cma.masterCodeSelPop.dto                 ║
+  ║            .MasterCodeSelPopSearchRequest                                ║
+  ║   output = items                                                         ║
+  ╚════════════════════════════════════════════════════════════════════════╝
+-->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_masterCodeSelPop"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:process id="masterCodeSelPop" name="마스터코드 조회" isExecutable="true">
+
+    <!-- StartEvent_1 → ExclusiveGateway_1 (action 분기) → Task_2 (Main조회) → EndEvent_1 -->
+    <bpmn:startEvent id="start"><bpmn:outgoing>flow_to_gw</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+
+    <bpmn:exclusiveGateway id="actionGateway">
+      <bpmn:extensionElements>
+        <camunda:properties><camunda:property name="input" value="action" /></camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_search</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ====================== search (B-001 조회 / OnLoad 자동) ====================== -->
+    <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
+    <bpmn:serviceTask id="searchTask" name="Main조회" camunda:class="masterCodeSelPopService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="search" />
+          <camunda:property name="output" value="items" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.cma.masterCodeSelPop.dto.MasterCodeSelPopSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_search</bpmn:incoming>
+      <bpmn:outgoing>flow_search_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="endSearch" />
+    <bpmn:endEvent id="endSearch"><bpmn:incoming>flow_search_end</bpmn:incoming></bpmn:endEvent>
+
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="masterCodeSelPop">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start"><dc:Bounds x="152" y="122" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true"><dc:Bounds x="245" y="115" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchTask_di" bpmnElement="searchTask"><dc:Bounds x="370" y="100" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearch_di" bpmnElement="endSearch"><dc:Bounds x="542" y="122" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw"><di:waypoint x="188" y="140" /><di:waypoint x="245" y="140" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_di" bpmnElement="flow_search"><di:waypoint x="295" y="140" /><di:waypoint x="370" y="140" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_end_di" bpmnElement="flow_search_end"><di:waypoint x="470" y="140" /><di:waypoint x="542" y="140" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

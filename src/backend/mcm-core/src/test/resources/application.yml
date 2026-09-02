@@ -1,0 +1,29 @@
+# 모드 B toy 사이트 — cactus 없이 mcm-core 만으로 부팅
+spring:
+  datasource:
+    # H2 in-memory — 모드 B 검증용. SQLite 의 connection-per-memory 이슈 회피.
+    # mcm-core 의 V1/V2/V3 DDL 은 표준 SQL 만 사용하므로 H2 에서도 동작.
+    url: "jdbc:h2:mem:mcmcore;DB_CLOSE_DELAY=-1;MODE=PostgreSQL"
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+    properties:
+      hibernate.globally_quoted_identifiers: true
+  flyway:
+    enabled: false
+    sql-migration-prefix: V
+  security:
+    user:
+      name: test
+      password: test
+  main:
+    allow-bean-definition-overriding: true
+
+logging:
+  level:
+    org.hibernate.SQL: warn
+    org.flywaydb: info

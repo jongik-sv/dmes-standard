@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_commPermMng"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <!--
+    PERMISSION 관리 — commPermMng BPMN (csa 그룹 / mcm 모듈 / W6)
+
+    분석리포트 §8 + BPMN설계서 §2 의 As-Is 3 action → To-Be 2 action (cross-cutting 정책 #1):
+      - searchCmPerm — PERMISSION 그리드 조회 (selectCommPermMng + ROLE_ID scalar subquery)
+      - saveCmPerm   — PERMISSION 일괄 저장 (insertCommPermMng / updateCommPermMng / deleteCommPermMng
+                       status 자동 분기 + NOT EXISTS 안전장치) + 후속 자동 재조회
+
+    To-Be 폐기 action (cross-cutting 정책 #1, 2026-05-31):
+      - lov (As-Is Task_08v4ryn / CommObjMngMapper.selectAppHostId cross-module 호출) — BIZ_SYSTEM_CODE
+        컬럼 폐기로 BIZ SYSTEM 콤보 (S-001 / D-008) 자체가 제거되므로 호출 불요
+
+    To-Be 미사용 action (가이드 표준 6 enum 매핑 — BPMN §3.3):
+      - search / save / delete / popup / export / lov → 미신설 (As-Is enum 보존, popup 은 클라이언트 전용)
+
+    As-Is BPMN 잔존 식별자 정정 (분석 §11.1 / §12):
+      - process id: "sample1" → "commPermMng"
+      - process name: "menuInfor" (다른 화면 잔존) → "PERMISSION 관리"
+
+    OASIS executor 가 actionGateway 의 input='action' 으로 분기. serviceTask 별
+    Spring bean 'commPermMngService' 의 method 호출 → 결과 Map 을 process variable 로 누적.
+
+    가이드 §6-C/D/E 정합 (W1~W5 정본 패턴):
+      - grid property 사용 ✗ (saveCmPerm 는 grids.master.rows → method param `master` 자동 매핑)
+      - output="result" 명시 (응답 누락 결함 회피)
+      - dto property 는 searchCmPerm 만 (params → DTO 변환)
+      - <conditionExpression> 미사용 — sequenceFlow `name` 만으로 분기
+  -->
+
+  <bpmn:process id="commPermMng" name="PERMISSION 관리" isExecutable="true">
+
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+
+    <bpmn:exclusiveGateway id="actionGateway">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_searchCmPerm</bpmn:outgoing>
+      <bpmn:outgoing>flow_saveCmPerm</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ─────────── action: searchCmPerm ─────────── -->
+    <bpmn:sequenceFlow id="flow_searchCmPerm" name="search" sourceRef="actionGateway" targetRef="searchCmPermTask" />
+    <bpmn:serviceTask id="searchCmPermTask" name="PERMISSION 그리드 조회" camunda:class="commPermMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchCmPerm" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commPermMng.dto.CommPermMngSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_searchCmPerm</bpmn:incoming>
+      <bpmn:outgoing>flow_searchCmPerm_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_searchCmPerm_end" sourceRef="searchCmPermTask" targetRef="endSearchCmPerm" />
+    <bpmn:endEvent id="endSearchCmPerm">
+      <bpmn:incoming>flow_searchCmPerm_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─────────── action: saveCmPerm — input grid: grids.master.rows → method param `master` ─────────── -->
+    <bpmn:sequenceFlow id="flow_saveCmPerm" name="save" sourceRef="actionGateway" targetRef="saveCmPermTask" />
+    <bpmn:serviceTask id="saveCmPermTask" name="PERMISSION 일괄 저장 (status 분기) + 후속 재조회" camunda:class="commPermMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="saveCmPerm" />
+          <camunda:property name="output" value="result" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_saveCmPerm</bpmn:incoming>
+      <bpmn:outgoing>flow_saveCmPerm_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_saveCmPerm_end" sourceRef="saveCmPermTask" targetRef="endSaveCmPerm" />
+    <bpmn:endEvent id="endSaveCmPerm">
+      <bpmn:incoming>flow_saveCmPerm_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="commPermMng">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="152" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="245" y="135" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchCmPermTask_di" bpmnElement="searchCmPermTask">
+        <dc:Bounds x="370" y="40" width="180" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearchCmPerm_di" bpmnElement="endSearchCmPerm">
+        <dc:Bounds x="600" y="62" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="saveCmPermTask_di" bpmnElement="saveCmPermTask">
+        <dc:Bounds x="370" y="200" width="180" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSaveCmPerm_di" bpmnElement="endSaveCmPerm">
+        <dc:Bounds x="600" y="222" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="188" y="160" />
+        <di:waypoint x="245" y="160" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchCmPerm_di" bpmnElement="flow_searchCmPerm">
+        <di:waypoint x="270" y="135" />
+        <di:waypoint x="270" y="80" />
+        <di:waypoint x="370" y="80" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchCmPerm_end_di" bpmnElement="flow_searchCmPerm_end">
+        <di:waypoint x="550" y="80" />
+        <di:waypoint x="600" y="80" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_saveCmPerm_di" bpmnElement="flow_saveCmPerm">
+        <di:waypoint x="270" y="185" />
+        <di:waypoint x="270" y="240" />
+        <di:waypoint x="370" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_saveCmPerm_end_di" bpmnElement="flow_saveCmPerm_end">
+        <di:waypoint x="550" y="240" />
+        <di:waypoint x="600" y="240" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

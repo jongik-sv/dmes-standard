@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_commSyncMng"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <!--
+    동기화 관리 — commSyncMng BPMN (csa 그룹 / mcm 모듈 / W8 — 8번째 화면)
+
+    분석리포트 §8 + BPMN설계서 §2 의 As-Is 1 action 1:1 보존 — 단일 action `reg` (이행).
+    As-Is UserTask id `UserTask_pwdinit` (다른 화면 복사 흔적) → To-Be `UserTask_runSync` 개명 (Q-006 해소).
+
+    To-Be 정책 (분석 §11.0 / Q-001~Q-010 해소 2026-05-31):
+      - #1 / Q-001 — 본 화면 책임 = MASTER 3 테이블 (TB_MCM_CODE_MASTER / TB_MCM_CODE_DETAIL / TB_MCM_CODE_CATEGORY)
+                     나머지 13 테이블 (RULE / RULE_JUDGE / INTERFACE / FORMAT / OBJECT) 은 후속 도메인 화면 위임
+      - #2 / Q-002 — Oracle DB Link 3종 폐기 → 단일 MSSQL 단일 업무 DB (DB Link 변수 빈문자열 고정)
+      - #3 / Q-003 — VI_MCM_CODE_ACCESS = cma 4 화면 정본 재사용 (MCMAPUSER.VI_MCM_CODE_ACCESS schema 명시)
+      - #4 / Q-005 — LOC 분기 유일화 (PRD 분기는 As-Is 코드 보존 / No-op)
+      - #5 / Q-006 — UserTask id = UserTask_runSync (As-Is UserTask_pwdinit 폐기)
+      - #6 / Q-007 — service package = com.dongkuk.dmes.mcm.csa.commSyncMng.service / dto = ...dto
+      - #7 / Q-008 — (b) 안 — INSERT INTO ... SELECT * 직후 별도 UPDATE 로 audit 4 컬럼 덮어쓰기
+      - #8 / Q-010 — 화면 존속 (schema 간 MCM_SOURCE ↔ MCMAPUSER ↔ MCM_BACKUP 동기화 시나리오)
+      - #11 — Entity / Repository 자체 신설 ✗ — cma 4 화면 (masterCodeMng) Entity 재사용
+              (com.dongkuk.dmes.mcm.entity.TbMcmCode{Master|Category|Detail})
+
+    OASIS executor 가 actionGateway 의 input='action' 으로 분기.
+    serviceTask 별 Spring bean 'commSyncMngService' 의 method 호출 → 결과 Map 을 process variable 로 누적.
+
+    가이드 §6-C/D/E 정합 (W1~W7 정본 패턴):
+      - grids.dsMain.rows / grids.dsObject.rows → method param `dsMain` / `dsObject` (List<Map>) 자동 매핑 (W7 정본)
+      - output="result" 명시 (응답 누락 결함 회피 — 가이드 §6-D)
+      - dto property: reg
+      - <conditionExpression> 미사용 — sequenceFlow `name` 만으로 분기 (가이드 §6-E)
+  -->
+
+  <bpmn:process id="commSyncMng" name="동기화 관리" isExecutable="true">
+
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+
+    <bpmn:exclusiveGateway id="actionGateway">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_reg</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ─────────── action: reg — 동기화 실행 (이행) — 6 처리유형 분기 (Service 내부 if/else) ─────────── -->
+    <!-- dto property = CommSyncMngRegRequest (pSyncTarget) — params 단일 enum.
+         grids.dsMain.rows / grids.dsObject.rows → service method 의 2 ~ 3 번째 인자 List<Map> 자동 매핑 (W7 정본 패턴).
+         BPMN flow 는 EndEvent 직진 — Service 내부에서 6 처리유형 분기 (MASTER / RULE / RULE_JUDGE / INTERFACE / FORMAT / OBJECT).
+         To-Be 본 화면 책임 = MASTER 만 활성 (Q-001 / Q-009 해소). 나머지 5 enum 은 No-op + 경고 로그. -->
+    <bpmn:sequenceFlow id="flow_reg" name="reg" sourceRef="actionGateway" targetRef="UserTask_runSync" />
+    <bpmn:serviceTask id="UserTask_runSync" name="동기화 실행 (이행) — MASTER 3 테이블 SOURCE → TARGET" camunda:class="commSyncMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="reg" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commSyncMng.dto.CommSyncMngRegRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_reg</bpmn:incoming>
+      <bpmn:outgoing>flow_reg_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_reg_end" sourceRef="UserTask_runSync" targetRef="endReg" />
+    <bpmn:endEvent id="endReg">
+      <bpmn:incoming>flow_reg_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="commSyncMng">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="152" y="240" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="245" y="233" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UserTask_runSync_di" bpmnElement="UserTask_runSync">
+        <dc:Bounds x="370" y="220" width="280" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endReg_di" bpmnElement="endReg">
+        <dc:Bounds x="700" y="242" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="188" y="258" />
+        <di:waypoint x="245" y="258" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_reg_di" bpmnElement="flow_reg">
+        <di:waypoint x="295" y="258" />
+        <di:waypoint x="370" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_reg_end_di" bpmnElement="flow_reg_end">
+        <di:waypoint x="650" y="260" />
+        <di:waypoint x="700" y="260" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

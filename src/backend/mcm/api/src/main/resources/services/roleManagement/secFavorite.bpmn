@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_secFavorite"
+                  targetNamespace="http://bpmn.io/schema/bpmn"
+                  exporter="Camunda Modeler" exporterVersion="5.37.0">
+
+  <bpmn:process id="secFavorite" name="즐겨찾기 서비스" isExecutable="true">
+
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+
+    <bpmn:exclusiveGateway id="actionGateway">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_search</bpmn:outgoing>
+      <bpmn:outgoing>flow_save</bpmn:outgoing>
+      <bpmn:outgoing>flow_toggle</bpmn:outgoing>
+      <bpmn:outgoing>flow_addFolder</bpmn:outgoing>
+      <bpmn:outgoing>flow_deleteFolder</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
+    <bpmn:serviceTask id="searchTask" name="즐겨찾기 조회" camunda:class="secFavoriteService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchFavorites" />
+          <camunda:property name="output" value="favorites" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.favorite.dto.SecFavoriteSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_search</bpmn:incoming>
+      <bpmn:outgoing>flow_search_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="endSearch" />
+    <bpmn:endEvent id="endSearch"><bpmn:incoming>flow_search_end</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_save" name="save" sourceRef="actionGateway" targetRef="saveTask" />
+    <bpmn:serviceTask id="saveTask" name="즐겨찾기 저장" camunda:class="secFavoriteService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="saveFavorites" />
+          <camunda:property name="output" value="savedCount" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_save</bpmn:incoming>
+      <bpmn:outgoing>flow_save_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_save_end" sourceRef="saveTask" targetRef="endSave" />
+    <bpmn:endEvent id="endSave"><bpmn:incoming>flow_save_end</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_toggle" name="toggle" sourceRef="actionGateway" targetRef="toggleTask" />
+    <bpmn:serviceTask id="toggleTask" name="즐겨찾기 토글" camunda:class="secFavoriteService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="toggleFavorite" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.favorite.dto.SecFavoriteToggleRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_toggle</bpmn:incoming>
+      <bpmn:outgoing>flow_toggle_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_toggle_end" sourceRef="toggleTask" targetRef="endToggle" />
+    <bpmn:endEvent id="endToggle"><bpmn:incoming>flow_toggle_end</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_addFolder" name="addFolder" sourceRef="actionGateway" targetRef="addFolderTask" />
+    <bpmn:serviceTask id="addFolderTask" name="즐겨찾기 폴더 추가" camunda:class="secFavoriteService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="addFolder" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.favorite.dto.SecFavoriteFolderRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_addFolder</bpmn:incoming>
+      <bpmn:outgoing>flow_addFolder_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_addFolder_end" sourceRef="addFolderTask" targetRef="endAddFolder" />
+    <bpmn:endEvent id="endAddFolder"><bpmn:incoming>flow_addFolder_end</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_deleteFolder" name="deleteFolder" sourceRef="actionGateway" targetRef="deleteFolderTask" />
+    <bpmn:serviceTask id="deleteFolderTask" name="즐겨찾기 폴더 삭제" camunda:class="secFavoriteService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="deleteFolder" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.favorite.dto.SecFavoriteFolderRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_deleteFolder</bpmn:incoming>
+      <bpmn:outgoing>flow_deleteFolder_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_deleteFolder_end" sourceRef="deleteFolderTask" targetRef="endDeleteFolder" />
+    <bpmn:endEvent id="endDeleteFolder"><bpmn:incoming>flow_deleteFolder_end</bpmn:incoming></bpmn:endEvent>
+
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="secFavorite">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start"><dc:Bounds x="152" y="192" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true"><dc:Bounds x="245" y="185" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchTask_di" bpmnElement="searchTask"><dc:Bounds x="370" y="100" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearch_di" bpmnElement="endSearch"><dc:Bounds x="542" y="122" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="saveTask_di" bpmnElement="saveTask"><dc:Bounds x="370" y="250" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSave_di" bpmnElement="endSave"><dc:Bounds x="542" y="272" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="toggleTask_di" bpmnElement="toggleTask"><dc:Bounds x="370" y="400" width="100" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endToggle_di" bpmnElement="endToggle"><dc:Bounds x="542" y="422" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw"><di:waypoint x="188" y="210" /><di:waypoint x="245" y="210" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_toggle_di" bpmnElement="flow_toggle"><di:waypoint x="270" y="235" /><di:waypoint x="270" y="440" /><di:waypoint x="370" y="440" /><bpmndi:BPMNLabel><dc:Bounds x="296" y="422" width="36" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_toggle_end_di" bpmnElement="flow_toggle_end"><di:waypoint x="470" y="440" /><di:waypoint x="542" y="440" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_di" bpmnElement="flow_search"><di:waypoint x="270" y="185" /><di:waypoint x="270" y="140" /><di:waypoint x="370" y="140" /><bpmndi:BPMNLabel><dc:Bounds x="300" y="122" width="35" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_end_di" bpmnElement="flow_search_end"><di:waypoint x="470" y="140" /><di:waypoint x="542" y="140" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_di" bpmnElement="flow_save"><di:waypoint x="270" y="235" /><di:waypoint x="270" y="290" /><di:waypoint x="370" y="290" /><bpmndi:BPMNLabel><dc:Bounds x="306" y="272" width="25" height="14" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_end_di" bpmnElement="flow_save_end"><di:waypoint x="470" y="290" /><di:waypoint x="542" y="290" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

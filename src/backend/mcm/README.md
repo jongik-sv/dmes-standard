@@ -1,27 +1,70 @@
 # mcm
 
-원본 프로젝트의 Spring Boot **`lib` + `api` 2 서브프로젝트** 패턴을 그대로 옮긴 골격 모듈이다.
-Gradle composite build 로 구성되며, 루트 `settings.gradle` 에서 `includeBuild` 로 물린다.
+MES 전체의 **앱 호스트**다. 인증(JWT)·권한(RBAC)·메뉴 트리를 소유하고, `mcm-core` 의 공통관리 도메인을
+OASIS BPMN 서비스로 노출한다. Spring Boot **`lib` + `api` 2 서브프로젝트** 패턴이며, Gradle composite build 로
+루트 `settings.gradle` 에서 `includeBuild` 로 물린다.
 
 ## 구조
 
 | 서브프로젝트 | 역할 |
 | --- | --- |
-| `lib` | 도메인 · 리포지토리 · 서비스 계층. `cactus-core` + `mcm-core` + `caravan-console` 에 의존한다. |
-| `api` | WAR 로 배포되는 Spring Boot 기동 모듈. `lib` 에 의존하며 컨트롤러와 설정 리소스를 가진다. |
+| `lib` | cactus 어댑터(비밀번호 해셔·계정 리포지토리)·인증 컨트롤러·권한키 API. `cactus-core` + `mcm-core` + `caravan-console` 에 의존한다. |
+| `api` | WAR 로 배포되는 Spring Boot 기동 모듈. 시큐리티 필터체인·JPA 설정·`DataInitializer`·BPMN 서비스 정의를 가진다. |
 
-패키지 루트는 `com.dongkuk.dmes.mcm` 이다. `api` 의 `McmApplication` 이 패키지 루트에 있어
-컴포넌트 스캔이 `lib` 의 `com.dongkuk.dmes.mcm.sample.*` 까지 자연히 덮는다.
+패키지 루트는 `com.dongkuk.dmes.mcm` 으로 `mcm-core` 와 동일하다. `api` 의 `McmApplication` 이 그 루트에 있어
+컴포넌트 스캔 한 벌이 라이브러리와 런처를 함께 덮는다.
+
+## 핵심 구성요소 (`api`)
+
+| 클래스 | 역할 |
+| --- | --- |
+| `McmApplication` | 컴포넌트/엔티티/리포지토리 스캔 범위, 프로파일 폴백(local), local SQLite 절대경로 override |
+| `config/SecurityConfig` | 필터 사슬 txId → requestId → clientKey → jwt → revokedToken → endpointPerm. `McmSecurityDefaults` 로 기본 URL 매처 적용 |
+| `config/JpaConfig` | primary EMF 명시 빌드 (cactus 의 secondary EMF 와 책임 분리) |
+| `config/RevokedTokenFilter` | 로그아웃/강제 로그아웃된 JWT `jti` 블랙리스트 검사 |
+| `init/DataInitializer` | **멱등** 스키마 artifacts + RBAC/메뉴/부서 시드. `dmes.init.enabled=false` 로 전체 skip |
+| `listener/RoleChangedEventListener` | 역할 변경 시 BFF 권한 캐시 무효화 통지 |
+
+### DataInitializer 가 만드는 것
+
+부팅 때마다 **존재하면 skip** 하는 멱등 적재다. 새 프로젝트는 빈 DB 로 시작해도 관리자 계정과 메뉴가 선다.
+
+- SEC_* 테이블 DDL (MSSQL 계열 한정 — SQLite 는 `ddl-auto=update` 가 담당)
+- RBAC 시드: `admin` 사용자 / `ROLE_GROUP_SYSADMIN` / `SYSADMIN` 역할 / `PERM_ALL`
+- 메뉴 트리: 공통관리(mcm) 루트 + `cma`(마스터관리 원장) · `csa`(시스템관리) · `cme`(마스터관리 가동) ·
+  `cmb`(업무기준관리 원장) · `cmz`(팝업 전용, 사이드바 숨김), 그리고 로그 분석(analog) 루트 + `anl` 그룹
+- 부서(`TB_MCM_DEPT_INFO`) 예시 7행, 업무기준 조회 검증용 샘플 데이터
+
+업무 모듈(mpn/mpp/mls/mqc)을 붙일 때는 `seedMcmSecRbac()` 안의 표시된 확장 지점에 `seed{모듈}Menus()` 를
+추가한다.
+
+## OASIS 서비스 (BPMN)
+
+화면 진입점은 `api/src/main/resources/services/{그룹}/{화면}.bpmn` 이다. `camunda:class` 가 `mcm-core` 의
+서비스 빈을 호출한다. 이관돼 있는 것:
+
+`cma` 4 · `cmb` 7 · `cme` 1 · `csa` 8 · `code` 2 · `security`(secUser — 내 메뉴/권한) · `roleManagement`(secFavorite — 즐겨찾기) · `audit`(감사 로그)
+
+BPMN 을 추가·수정한 뒤에는 커밋 전에 `oasis-contract-check` 스킬을 돌린다.
 
 ## sample/ 은 자리표시자다
 
 `sample/` 아래의 `SampleNotice`(공지사항) 수직 슬라이스는 **패턴 예시일 뿐 실제 업무 도메인이 아니다.**
-엔티티 → 리포지토리 → 서비스 → DTO → 컨트롤러 → Flyway 마이그레이션 → 서비스 단위 테스트로
-한 벌이 어떻게 이어지는지만 보여준다. 실제 프로젝트를 시작할 때는 이 슬라이스를 지우고
-같은 모양으로 업무 도메인을 채운다.
+실제 프로젝트를 시작할 때는 이 슬라이스를 지우고 같은 모양으로 업무 도메인을 채운다.
 
 - 조회: `GET /api/mcm/sample-notices`
 - 등록: `POST /api/mcm/sample-notices`
+
+## 프로파일
+
+| 프로파일 | 용도 |
+| --- | --- |
+| `local` (기본) | SQLite 직결. 프로파일 미지정 기동 시 폴백 |
+| `local-db` | 외부 RDB(SQL Server) 직결. 접속 정보는 **전부 환경변수** 주입 — 기본값 없음 |
+| `dev` / `prod` | WildFly WAR 배포. datasource 는 `wildfly` 프로파일의 JNDI 논리명이 담당 |
+
+`dev`/`prod` 는 `dmes.init.enabled=false` 로 `DataInitializer` 를 끈다 — 운영 계정에 DDL/시드가 도는 사고를 막기
+위해서다. 개발계에 시드가 필요하면 `-Ddmes.init.enabled=true` 로 한 번 띄우고 원복한다.
 
 ## 실행
 
@@ -32,5 +75,7 @@ Gradle composite build 로 구성되며, 루트 `settings.gradle` 에서 `includ
 `bootRun` 의 작업 디렉터리는 모듈 루트로 고정돼 있고, `application.yml` 의 SQLite 경로
 `../data/mcm.db` 는 `src/backend/data/` 를 가리킨다. 최초 실행 전에 해당 디렉터리가 있어야 한다.
 
-`application.yml` 은 골격이 뜨는 데 필요한 최소 구성만 담았다.
-**실제 데이터소스(JNDI · 다중 DB) 와 보안 설정은 `docs/framework/`, `docs/cactus/` 의 패턴을 따른다.**
+기동 후 초기 계정은 `admin` 이다. **운영 전에 반드시 비밀번호와 `cactus.jwt.secret` 을 바꾼다.**
+`application.yml` 의 비밀번호 정책(만료·이력·길이·복잡도)은 템플릿 기본값이 전부 꺼져 있으니 함께 켠다.
+
+실제 데이터소스(JNDI · 다중 DB) 와 보안 설정의 상세는 `docs/framework/`, `docs/cactus/` 의 패턴을 따른다.

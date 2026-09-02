@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_masterCodeMng"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <!--
+    Master Code 관리 — masterCodeMng BPMN
+
+    분석리포트 §8 의 As-Is BPMN (Task_2 등 hash id) 의 6 action 중 To-Be 활성 4 action 보존:
+      - search        — Master 그리드 + Master 전체 LoV
+      - searchDetail  — Category + Detail + Ref1~5 + Master 전체 LoV
+      - save          — Master 그리드 일괄 저장 + 후속 search 재조회
+      - saveDetail    — Detail status 분기 저장 + 후속 searchDetail 재조회
+
+    To-Be 제거 2 action (delete / deleteDetail) — As-Is 미호출 (사용자 결정 §12).
+
+    OASIS executor 가 actionGateway 의 input='action' 으로 분기. serviceTask 별
+    Spring bean 'masterCodeMngService' 의 method 호출 → 결과 Map 을 process variable 로 누적.
+  -->
+
+  <bpmn:process id="masterCodeMng" name="Master Code 관리" isExecutable="true">
+
+    <bpmn:startEvent id="start"><bpmn:outgoing>flow_to_gw</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+
+    <bpmn:exclusiveGateway id="actionGateway">
+      <bpmn:extensionElements>
+        <camunda:properties><camunda:property name="input" value="action" /></camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_search</bpmn:outgoing>
+      <bpmn:outgoing>flow_searchDetail</bpmn:outgoing>
+      <bpmn:outgoing>flow_save</bpmn:outgoing>
+      <bpmn:outgoing>flow_saveDetail</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ─────────── action: search ─────────── -->
+    <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
+    <bpmn:serviceTask id="searchTask" name="Master 그리드 + 마스터전체 LoV 조회" camunda:class="masterCodeMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="search" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.cma.masterCodeMng.dto.MasterCodeSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_search</bpmn:incoming>
+      <bpmn:outgoing>flow_search_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="endSearch" />
+    <bpmn:endEvent id="endSearch"><bpmn:incoming>flow_search_end</bpmn:incoming></bpmn:endEvent>
+
+    <!-- ─────────── action: searchDetail ─────────── -->
+    <bpmn:sequenceFlow id="flow_searchDetail" name="searchDetail" sourceRef="actionGateway" targetRef="searchDetailTask" />
+    <bpmn:serviceTask id="searchDetailTask" name="Category + Detail + Ref1~5 + 마스터전체 LoV 조회" camunda:class="masterCodeMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchDetail" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.cma.masterCodeMng.dto.MasterCodeDetailSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_searchDetail</bpmn:incoming>
+      <bpmn:outgoing>flow_searchDetail_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_searchDetail_end" sourceRef="searchDetailTask" targetRef="endSearchDetail" />
+    <bpmn:endEvent id="endSearchDetail"><bpmn:incoming>flow_searchDetail_end</bpmn:incoming></bpmn:endEvent>
+
+    <!-- ─────────── action: save — input grid: grids.master.rows → method param `master` ─────────── -->
+    <bpmn:sequenceFlow id="flow_save" name="save" sourceRef="actionGateway" targetRef="saveTask" />
+    <bpmn:serviceTask id="saveTask" name="Master 일괄 저장 + 후속 재조회" camunda:class="masterCodeMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="save" />
+          <camunda:property name="output" value="result" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_save</bpmn:incoming>
+      <bpmn:outgoing>flow_save_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_save_end" sourceRef="saveTask" targetRef="endSave" />
+    <bpmn:endEvent id="endSave"><bpmn:incoming>flow_save_end</bpmn:incoming></bpmn:endEvent>
+
+    <!-- ─────────── action: saveDetail — input grid: grids.master.rows → method param `master` ─────────── -->
+    <bpmn:sequenceFlow id="flow_saveDetail" name="saveDetail" sourceRef="actionGateway" targetRef="saveDetailTask" />
+    <bpmn:serviceTask id="saveDetailTask" name="Detail status 분기 저장 + 후속 재조회" camunda:class="masterCodeMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="saveDetail" />
+          <camunda:property name="output" value="result" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_saveDetail</bpmn:incoming>
+      <bpmn:outgoing>flow_saveDetail_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_saveDetail_end" sourceRef="saveDetailTask" targetRef="endSaveDetail" />
+    <bpmn:endEvent id="endSaveDetail"><bpmn:incoming>flow_saveDetail_end</bpmn:incoming></bpmn:endEvent>
+
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="masterCodeMng">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start"><dc:Bounds x="152" y="282" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true"><dc:Bounds x="245" y="275" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchTask_di" bpmnElement="searchTask"><dc:Bounds x="370" y="40" width="180" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearch_di" bpmnElement="endSearch"><dc:Bounds x="600" y="62" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchDetailTask_di" bpmnElement="searchDetailTask"><dc:Bounds x="370" y="170" width="180" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearchDetail_di" bpmnElement="endSearchDetail"><dc:Bounds x="600" y="192" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="saveTask_di" bpmnElement="saveTask"><dc:Bounds x="370" y="300" width="180" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSave_di" bpmnElement="endSave"><dc:Bounds x="600" y="322" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="saveDetailTask_di" bpmnElement="saveDetailTask"><dc:Bounds x="370" y="430" width="180" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSaveDetail_di" bpmnElement="endSaveDetail"><dc:Bounds x="600" y="452" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw"><di:waypoint x="188" y="300" /><di:waypoint x="245" y="300" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_di" bpmnElement="flow_search"><di:waypoint x="270" y="275" /><di:waypoint x="270" y="80" /><di:waypoint x="370" y="80" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_end_di" bpmnElement="flow_search_end"><di:waypoint x="550" y="80" /><di:waypoint x="600" y="80" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchDetail_di" bpmnElement="flow_searchDetail"><di:waypoint x="270" y="275" /><di:waypoint x="270" y="210" /><di:waypoint x="370" y="210" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchDetail_end_di" bpmnElement="flow_searchDetail_end"><di:waypoint x="550" y="210" /><di:waypoint x="600" y="210" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_di" bpmnElement="flow_save"><di:waypoint x="270" y="325" /><di:waypoint x="270" y="340" /><di:waypoint x="370" y="340" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_end_di" bpmnElement="flow_save_end"><di:waypoint x="550" y="340" /><di:waypoint x="600" y="340" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_saveDetail_di" bpmnElement="flow_saveDetail"><di:waypoint x="270" y="325" /><di:waypoint x="270" y="470" /><di:waypoint x="370" y="470" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_saveDetail_end_di" bpmnElement="flow_saveDetail_end"><di:waypoint x="550" y="470" /><di:waypoint x="600" y="470" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

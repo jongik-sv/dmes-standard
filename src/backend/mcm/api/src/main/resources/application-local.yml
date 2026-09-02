@@ -1,0 +1,61 @@
+spring:
+  datasource:
+    url: jdbc:sqlite:../data/mcm.db
+    driver-class-name: org.sqlite.JDBC
+  jpa:
+    database-platform: org.hibernate.community.dialect.SQLiteDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    # 참고: primary EMF 는 com.dongkuk.dmes.mcm.config.JpaConfig 가 명시 빌드하므로
+    # spring.jpa.properties 가 적용되지 않는다. SQLite introspection 전략(individually)은
+    # JpaConfig.entityManagerFactory() 에서 직접 설정 (2026-06-05).
+
+  security:
+    enabled: false
+
+# ── Cactus cmn/if/caravan EMF (local — 스키마 분리는 MSSQL 에서만) ──
+# local: cmn(공통)=mcm.db(biz 와 동일 파일 — cmn 엔티티 없음이라 잠금 위험 낮음, 관측 시 mcm-cmn.db 분리)
+#        if(인터페이스)=caravan-if.db / caravan(Kafka 메타)=caravan-console.db (파일 분리 — 단일 JVM 내 SQLite 잠금 회피).
+# 운영: cmn=MCMAPUSER / if=EAIUSER / caravan=CARAVANUSER.
+cactus:
+  datasource:
+    extras:
+      cmn:                     # 표준 3종 통일(2026-07-07) — biz 와 동일 mcm.db 공유
+        url: jdbc:sqlite:../data/mcm.db
+        driver-class-name: org.sqlite.JDBC
+      if:
+        url: jdbc:sqlite:../data/caravan-if.db
+        driver-class-name: org.sqlite.JDBC
+      caravan:
+        url: jdbc:sqlite:../data/caravan-console.db
+        driver-class-name: org.sqlite.JDBC
+  jpa:
+    extras:
+      cmn:
+        hibernate:
+          dialect: com.dongkuk.dmes.mcm.config.CactusSqliteIfNotExistsDialect
+          ddl-auto: update     # 매핑 엔티티 없음(cactus-cmn 빈 PU) — 실질 no-op
+      if:
+        hibernate:
+          # CREATE TABLE IF NOT EXISTS 자동 부착 — caravan EMF 가 이미 만든 동일 테이블의 already exists WARN 회피
+          dialect: com.dongkuk.dmes.mcm.config.CactusSqliteIfNotExistsDialect
+          ddl-auto: update
+          show-sql: true
+          # 2026-05-15 §6-6 후속 — caravan EMF 의 SchemaValidator 가 case-sensitive 매칭 → cactus
+          # 의 SnakePhysicalNamingStrategy (lowercase) 와 caravan 의 standard naming (uppercase)
+          # 충돌 회피. extras EMF 만 standard 로 override.
+          properties:
+            hibernate.physical_naming_strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+      caravan:
+        hibernate:
+          dialect: com.dongkuk.dmes.mcm.config.CactusSqliteIfNotExistsDialect
+          ddl-auto: update
+          show-sql: true
+          properties:
+            hibernate.physical_naming_strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+
+# ── 포털알림 발행 클라이언트 (설계 §9 — pilotCaravanSend sendNotify 파일럿 루프백, local-ph 와 동일) ──
+cactus.notify:
+  publish-url: http://localhost:8100/notify/publish
+  source: mcm

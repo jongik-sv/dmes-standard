@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_masterRuleFrame" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-tool" exporterVersion="1.2.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="masterRuleFrame" name="업무기준 구조관리" isExecutable="true">
+    <bpmn:documentation>masterRuleFrame — As-Is mui cmb/MasterRuleFrame (분석 §1 / 기능 §1 / BPMN §1) 의 To-Be BPMN.
+
+사용자 결정 (2026-06-04 ~ 06-05):
+  - DEC-03 영속성 = JPA (cmb 화면군 공통) — 외부 공통 Mapper delete/insert → MasterRuleColListRepository.deleteByRuleId + saveAll
+  - Q-001 To-Be 테이블 = MCAAPUSER.TB_MCA_RULE_COL_LIST (sheet134, PK=(RULE_ID,COL_SEQ)) / TB_MCA_RULE_MASTER (sheet135)
+  - Q-004 LoV (ds_div N/Y / ds_colType DATE/NUMBER/VARCHAR2) = FE 정적 enum
+  - 저장 = delete-all-then-insert 보존 (BR-003) / COL_SEQ IN+OUT 통합 순번 (BR-004) / RULE_VER 공란→1 (BR-005) / delete 반환값 미검증 (BR-015)
+
+2 action 매핑 (save 는 As-Is SaveMasterRuleColList Java Wow Task 흡수 — Service.save() 단일 트랜잭션, OASIS process wrap):
+  action=search → searchTask (masterRuleFrameService.search) — GetRuleColInList + GetRuleColOutList (IN/OUT 2 조회, ORDER BY COL_SEQ)
+  action=save   → saveTask   (masterRuleFrameService.save)   — delete-all(RULE_ID) → IN/OUT 전량 재삽입 + 자동 재조회 (As-Is save → 조회 IN/OUT 합류)</bpmn:documentation>
+    <bpmn:extensionElements>
+      <camunda:properties>
+        <camunda:property name="input" value="action" />
+      </camunda:properties>
+    </bpmn:extensionElements>
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="actionGateway">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_search</bpmn:outgoing>
+      <bpmn:outgoing>flow_save</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="searchTask" name="업무기준 IN/OUT 컬럼 조회" camunda:class="masterRuleFrameService">
+      <bpmn:documentation>As-Is GetRuleColInList + GetRuleColOutList (mui MasterRuleFrameMapper SELECT 2) 의 JPQL 변환 (분석 §6.1).
+- MasterRuleColListRepository.searchRuleColList(pRuleId, 'IN'/'OUT') — EXISTS(TB_MCA_RULE_MASTER) + pRuleId 동등비교 + ORDER BY COL_SEQ (BR-016)
+- 반환 = { ds_GetRuleColInList: [...], ds_GetRuleColOutList: [...], cnt } (As-Is resultKey 보존 — BPMN설계서 §2.2. cnt = IN 건수, MSG-010)</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="search" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.cmb.masterRuleFrame.dto.MasterRuleFrameSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_search</bpmn:incoming>
+      <bpmn:outgoing>flow_search_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endSearch">
+      <bpmn:incoming>flow_search_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="saveTask" name="업무기준 구조 저장 (delete-all→insert + 재조회)" camunda:class="masterRuleFrameService">
+      <bpmn:documentation>INPUT: MasterRuleFrameSearchRequest { pRuleId } + grids.inList / grids.outList (List&lt;Map&gt; — 전체 송신, As-Is xfdl:363 보존)
+PROCESS (As-Is SaveMasterRuleColList.run() java:20~100 직역):
+  1. ruleId 확정 — pRuleId 우선, 없으면 첫 행 ruleId. 공란 → REQUIRED_VALUE (BR-012)
+  2. 서버 필수검증 — 행별 COL_NM/COL_ID/MASTER_CODE_DIV/COL_TYPE/COL_LEN (VAL-01, MSG-001~005)
+  3. deleteByRuleId — 반환값 미검증 (BR-015 As-Is 보존)
+  4. IN → OUT 전량 재삽입 — COL_SEQ 통합 순번 1부터 (BR-004), RULE_VER 공란→1 (BR-005), McmAuditEntity audit 자동 (BR-017)
+  5. 재조회 (As-Is save → 조회 IN/OUT 합류 — BPMN §3.2)
+OUTPUT: Map { cnt_save, ds_GetRuleColInList, ds_GetRuleColOutList, cnt }
+예외 시 OASIS process 트랜잭션 전체 롤백 (BR-014 — delete 포함)</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="save" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.cmb.masterRuleFrame.dto.MasterRuleFrameSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_save</bpmn:incoming>
+      <bpmn:outgoing>flow_save_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endSave">
+      <bpmn:incoming>flow_save_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+    <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
+    <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="endSearch" />
+    <bpmn:sequenceFlow id="flow_save" name="save" sourceRef="actionGateway" targetRef="saveTask" />
+    <bpmn:sequenceFlow id="flow_save_end" sourceRef="saveTask" targetRef="endSave" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="masterRuleFrame">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="152" y="172" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="245" y="165" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchTask_di" bpmnElement="searchTask">
+        <dc:Bounds x="370" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearch_di" bpmnElement="endSearch">
+        <dc:Bounds x="560" y="122" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="saveTask_di" bpmnElement="saveTask">
+        <dc:Bounds x="370" y="250" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSave_di" bpmnElement="endSave">
+        <dc:Bounds x="560" y="272" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="188" y="190" />
+        <di:waypoint x="245" y="190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_di" bpmnElement="flow_search">
+        <di:waypoint x="270" y="165" />
+        <di:waypoint x="270" y="140" />
+        <di:waypoint x="370" y="140" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="300" y="123" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_end_di" bpmnElement="flow_search_end">
+        <di:waypoint x="470" y="140" />
+        <di:waypoint x="560" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_di" bpmnElement="flow_save">
+        <di:waypoint x="270" y="215" />
+        <di:waypoint x="270" y="290" />
+        <di:waypoint x="370" y="290" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="300" y="198" width="32" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_end_di" bpmnElement="flow_save_end">
+        <di:waypoint x="470" y="290" />
+        <di:waypoint x="560" y="290" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
+

@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_commUserRoleCopy"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <!--
+    사용자 권한 일괄 등록 — commUserRoleCopy BPMN (csa 그룹 / mcm 모듈 / W7)
+
+    분석리포트 §8 + BPMN설계서 §2 의 As-Is 3 action 1:1 보존:
+      - searchUserList  — 전체 사용자 List 조회 (selectUserList xml:7~19, ds_userFrom)
+      - search          — Copy 대상 사용자 + 보유 RoleGroup (selectCopyUserMap + selectCopyRoleGroupList chain,
+                          ds_copyUser + ds_copyRolegrp)
+      - save            — RoleGroup 일괄 복사 + 권한부여 이력 (As-Is SaveRoleGroupCopy.java 본문 흡수)
+
+    To-Be 정책 (분석 §11 + Q-001~Q-006 해소 2026-05-31):
+      - #1 / Q-001 — As-Is 외부 namespace CommUserMngMapper.selectRoleMergeObject 결함 정정 →
+                     본 화면 namespace 정본 → JPA findRoleGroupIdsToCopy 흡수
+      - #2 / Q-004 — As-Is EAI scalar subquery (EAIUSER.IF_GW01MMFSHD01/02) 폐기 →
+                     DMES 자체 TB_MCM_DEPT_INFO LEFT JOIN
+      - #3 / Q-003 — BPMN save flow 후속 task 미연결 = As-Is 의도된 분리 (FE 콜백 재조회 패턴) 보존
+                     save 분기는 EndEvent 직진 — FE 가 별도 fn_searchUserList() 호출로 ds_userFrom 새로고침
+      - #5 — Q-005 RESP_GBN='A' 추가 / Q-008 WORKS_CODE='P' Permission 하드코딩 보존
+      - #6 / Q-002 / Q-006 — As-Is 외부 namespace TB_MCM_SEC_USER_ROLL_HIS_Mapper.mergePK 폐기 →
+                     JPA Entity SecUserRollHis.saveAll 흡수 (5 컬럼 복합 PK upsert 등가)
+      - #11 — Entity / Repository 자체 신설 ✗ — W5 (commUserMng) owner 재사용
+              (SecUserMapping / SecUserRollHis / SecUserMappingRepository / SecUserRollHisRepository)
+
+    OASIS executor 가 actionGateway 의 input='action' 으로 분기.
+    serviceTask 별 Spring bean 'commUserRoleCopyService' 의 method 호출 → 결과 Map 을 process variable 로 누적.
+
+    가이드 §6-C/D/E 정합 (W1~W6 정본 패턴):
+      - grid property 사용 ✗ (save 는 grids.ds_userTo.rows → method param `master` 자동 매핑 / pwdinit 와 동일 패턴)
+      - output="result" 명시 (응답 누락 결함 회피 — 가이드 §6-D)
+      - dto property: search / save
+      - searchUserList 은 무파라미터 — dto 미선언
+      - <conditionExpression> 미사용 — sequenceFlow `name` 만으로 분기
+  -->
+
+  <bpmn:process id="commUserRoleCopy" name="사용자 권한 일괄 등록" isExecutable="true">
+
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+
+    <bpmn:exclusiveGateway id="actionGateway">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_searchUserList</bpmn:outgoing>
+      <bpmn:outgoing>flow_search</bpmn:outgoing>
+      <bpmn:outgoing>flow_save</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ─────────── action: searchUserList — 전체 사용자 List 조회 (selectUserList + DEPT_INFO LEFT JOIN) ─────────── -->
+    <!-- 2026-06-04 fix (a) — dto 추가 (CommUserRoleCopySearchRequest) 로 optional pUserIdCopy 전달
+         (Copy 대상 = 본인 응답 제외). pUserIdCopy 가 null/blank 이면 종전과 동일하게 전체 사용자 반환. -->
+    <bpmn:sequenceFlow id="flow_searchUserList" name="searchUserList" sourceRef="actionGateway" targetRef="searchUserListTask" />
+    <bpmn:serviceTask id="searchUserListTask" name="전체 사용자 조회 (TB_MCM_SEC_USER + DEPT_INFO LEFT JOIN)" camunda:class="commUserRoleCopyService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchUserList" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commUserRoleCopy.dto.CommUserRoleCopySearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_searchUserList</bpmn:incoming>
+      <bpmn:outgoing>flow_searchUserList_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_searchUserList_end" sourceRef="searchUserListTask" targetRef="endSearchUserList" />
+    <bpmn:endEvent id="endSearchUserList">
+      <bpmn:incoming>flow_searchUserList_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─────────── action: search — Copy 대상 사용자 + 보유 RoleGroup chain 조회 ─────────── -->
+    <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
+    <bpmn:serviceTask id="searchTask" name="Copy 대상 + RoleGroup (selectCopyUserMap + selectCopyRoleGroupList)" camunda:class="commUserRoleCopyService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="search" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commUserRoleCopy.dto.CommUserRoleCopySearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_search</bpmn:incoming>
+      <bpmn:outgoing>flow_search_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="endSearch" />
+    <bpmn:endEvent id="endSearch">
+      <bpmn:incoming>flow_search_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─────────── action: save — RoleGroup 일괄 복사 + 권한부여 이력 ─────────── -->
+    <!-- dto property = CommUserRoleCopySaveRequest (pUserIdCopy / pInfReqNo / pDescription),
+         grids.ds_userTo.rows → service method 의 두 번째 인자 List<Map> master 자동 매핑 (pwdinit 패턴 정합).
+         BPMN flow 는 EndEvent 직진 — searchUserList 후속 task 미연결 (Q-003 해소 / FE 콜백 재조회 패턴 보존). -->
+    <bpmn:sequenceFlow id="flow_save" name="save" sourceRef="actionGateway" targetRef="saveTask" />
+    <bpmn:serviceTask id="saveTask" name="RoleGroup 일괄 복사 (NOT IN + USER_MAPPING upsert + ROLL_HIS saveAll)" camunda:class="commUserRoleCopyService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="save" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commUserRoleCopy.dto.CommUserRoleCopySaveRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_save</bpmn:incoming>
+      <bpmn:outgoing>flow_save_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_save_end" sourceRef="saveTask" targetRef="endSave" />
+    <bpmn:endEvent id="endSave">
+      <bpmn:incoming>flow_save_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="commUserRoleCopy">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="152" y="240" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="245" y="233" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchUserListTask_di" bpmnElement="searchUserListTask">
+        <dc:Bounds x="370" y="40" width="240" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearchUserList_di" bpmnElement="endSearchUserList">
+        <dc:Bounds x="660" y="62" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchTask_di" bpmnElement="searchTask">
+        <dc:Bounds x="370" y="220" width="240" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearch_di" bpmnElement="endSearch">
+        <dc:Bounds x="660" y="242" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="saveTask_di" bpmnElement="saveTask">
+        <dc:Bounds x="370" y="400" width="240" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSave_di" bpmnElement="endSave">
+        <dc:Bounds x="660" y="422" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="188" y="258" />
+        <di:waypoint x="245" y="258" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -1,0 +1,26 @@
+# ── dev: 개발계 WildFly (JNDI) — 환경 차이값만 ──
+# 본 파일은 WildFly WAR 배포 전용 — datasource 는 wildfly 프로파일(application-wildfly.yml, group 자동 활성)이 정의.
+# 개발계 서버가 여럿이어도 이 프로파일 하나를 공유한다 — 서버별 물리 DB 차이는 각 WildFly standalone.xml 의 JNDI 매핑이 흡수.
+# bootRun/IDE 직결은 local(SQLite) 또는 local-db(외부 RDB) 를 쓴다.
+# 기동: WildFly JAVA_OPTS 에 -Dspring.profiles.active=dev
+spring:
+  jpa:
+    show-sql: true             # 개발계: SQL 로깅 ON
+
+cactus:
+  jwt:
+    secret: ${JWT_SECRET:Y2FjdHVzLXNhbXBsZS1zZWNyZXQta2V5LWZvci10ZXN0aW5nLW9ubHktMjAyNg==}
+  security:
+    client-key: ${BACKEND_CLIENT_KEY:dmes-bff-local-client-key-2026}
+
+# ── DataInitializer — WildFly 계열은 명시적으로 끔 (영향도 분석 2026-07-07) ──
+# 미명시 시 기본 true 로 WildFly JNDI 계정에 DDL/ALTER/시드가 실행되는 사고 위험.
+# 개발계에 시드/스키마 적재가 필요한 시점에만 -Ddmes.init.enabled=true 로 일시 전환 후 원복한다.
+dmes:
+  init:
+    enabled: false
+
+logging:
+  level:
+    com.dongkuk.dmes.mcm: DEBUG
+    org.hibernate.SQL: DEBUG

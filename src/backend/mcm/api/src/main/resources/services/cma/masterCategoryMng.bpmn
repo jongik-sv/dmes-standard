@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_masterCategoryMng"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:process id="masterCategoryMng" name="카테고리 관리" isExecutable="true">
+    <bpmn:documentation>
+masterCategoryMng — As-Is MasterCategoryMng (분석리포트 §8) 의 To-Be BPMN.
+사용자 결정 (분석리포트 §12) — delete flow / Task_0k24d4u / SequenceFlow_0w4k9x6 / SequenceFlow_10mn97r 제거.
+활성 action 2: search / save (As-Is xfdl 호출 ✓).
+
+action=search → searchTask (masterCategoryMngService.search)
+  내부에서 GetCodeCategoryList + GetCodeCategoryAllList 통합 응답 (list + allList) 반환.
+action=save  → saveTask   (masterCategoryMngService.save)
+  rowStatus C/U/D 분기 + 단일 트랜잭션 + 서버 사이드 중복체크 (사용자 결정 §12).
+    </bpmn:documentation>
+
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+
+    <bpmn:exclusiveGateway id="actionGateway">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_search</bpmn:outgoing>
+      <bpmn:outgoing>flow_save</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- action=search — GetCodeCategoryList + GetCodeCategoryAllList 통합 -->
+    <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
+    <bpmn:serviceTask id="searchTask" name="카테고리 조회 (조회 + 전체조회)" camunda:class="masterCategoryMngService">
+      <bpmn:documentation>
+GetCodeCategoryList (Mapper.xml:7~29) + GetCodeCategoryAllList (Mapper.xml:31~37) 통합.
+응답 = { list: [...], allList: [...] } — FE 가 ds_grdMain ← list / ds_grdMainAll ← allList.
+      </bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="search" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.cma.masterCategoryMng.dto.MasterCategoryMngSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_search</bpmn:incoming>
+      <bpmn:outgoing>flow_search_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="endSearch" />
+    <bpmn:endEvent id="endSearch">
+      <bpmn:incoming>flow_search_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- action=save — rowStatus C/U/D 일괄 (단일 트랜잭션) + 후속 재조회 -->
+    <bpmn:sequenceFlow id="flow_save" name="save" sourceRef="actionGateway" targetRef="saveTask" />
+    <bpmn:serviceTask id="saveTask" name="카테고리 일괄 저장 (C/U/D) + 후속 재조회" camunda:class="masterCategoryMngService">
+      <bpmn:documentation>
+SaveTbMcmCodeCategory.run() (As-Is java:19~72) JPA 직역 — CactusAuditEntity 자동 audit.
+검증 4 (필수 + 중복 + DB 충돌) + 서버 사이드 중복체크 강화 (사용자 결정 §12).
+로그 메시지 정정 "MasterCodeMapper.*" → "MasterCategoryMngMapper.*" (사용자 결정 §12).
+반환 Map = { cnt_merge, list, allList } — masterCodeMng 와 동일 OASIS 표준 패턴.
+      </bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="save" />
+          <camunda:property name="output" value="result" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_save</bpmn:incoming>
+      <bpmn:outgoing>flow_save_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_save_end" sourceRef="saveTask" targetRef="endSave" />
+    <bpmn:endEvent id="endSave">
+      <bpmn:incoming>flow_save_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="masterCategoryMng">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="152" y="192" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="245" y="185" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchTask_di" bpmnElement="searchTask">
+        <dc:Bounds x="370" y="100" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearch_di" bpmnElement="endSearch">
+        <dc:Bounds x="592" y="122" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="saveTask_di" bpmnElement="saveTask">
+        <dc:Bounds x="370" y="250" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSave_di" bpmnElement="endSave">
+        <dc:Bounds x="592" y="272" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="188" y="210" />
+        <di:waypoint x="245" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_di" bpmnElement="flow_search">
+        <di:waypoint x="270" y="185" />
+        <di:waypoint x="270" y="140" />
+        <di:waypoint x="370" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_end_di" bpmnElement="flow_search_end">
+        <di:waypoint x="530" y="140" />
+        <di:waypoint x="592" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_di" bpmnElement="flow_save">
+        <di:waypoint x="270" y="235" />
+        <di:waypoint x="270" y="290" />
+        <di:waypoint x="370" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_end_di" bpmnElement="flow_save_end">
+        <di:waypoint x="530" y="290" />
+        <di:waypoint x="592" y="290" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

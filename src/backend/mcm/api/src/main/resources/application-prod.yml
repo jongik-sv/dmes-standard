@@ -1,0 +1,27 @@
+# ── prod: 운영계 WildFly (JNDI) — 환경 차이값만 ──
+# 2026-07-07 JNDI 전환 설계 §4-5 (docs/framework/DataSource_JNDI설계.md).
+# datasource 는 wildfly 프로파일(application-wildfly.yml, group 자동 활성)이 정의 —
+# 구 방식(DB_URL/CARAVANUSER_DB_URL 등 env 직결)은 폐기. 물리 접속은 운영 WildFly standalone.xml 소유
+# (비밀번호는 Elytron credential-store 권장, 설계서 §5-4).
+# 기동: WildFly JAVA_OPTS 에 -Dspring.profiles.active=prod
+spring:
+  jpa:
+    show-sql: false            # 운영: SQL 로깅 OFF
+
+cactus:
+  jwt:
+    secret: ${JWT_SECRET}                    # 운영 env var 의무 — 기본값 없음(미주입 시 fail-fast)
+  security:
+    client-key: ${BACKEND_CLIENT_KEY}        # 운영 env var 의무
+
+# ── DataInitializer — 운영은 항상 끔 ──
+dmes:
+  init:
+    enabled: false
+
+logging:
+  level:
+    root: WARN
+    com.dongkuk.dmes.cactus: INFO
+    com.dongkuk.dmes.mcm: INFO
+    org.hibernate.SQL: WARN

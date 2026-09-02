@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_commObjMng"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <!--
+    OBJECT 관리 — commObjMng BPMN (csa 그룹 / mcm 모듈)
+
+    분석리포트 §8 + BPMN설계서 §2 의 As-Is 3 action 보존 (To-Be 정책 #1 적용):
+      - searchCmObj — OBJECT 그리드 조회 (selectCommObjMng)
+      - saveCmObj   — OBJECT 일괄 저장 (insertCommObjMng / updateCommObjMng / deleteCommObjMng status 자동 분기)
+      - lov         — MENU_ID 1 dataset (To-Be 정책 #1: As-Is APP_HOST_ID 폐기 → selectMenuId 1 SQL 만)
+
+    To-Be 미사용 action (가이드 표준 6 enum 매핑 — BPMN §2.4):
+      - search / searchDetail / save / saveDetail / delete / deleteDetail → 미신설 (As-Is enum 보존)
+
+    OASIS executor 가 actionGateway 의 input='action' 으로 분기. serviceTask 별
+    Spring bean 'commObjMngService' 의 method 호출 → 결과 Map 을 process variable 로 누적.
+
+    가이드 §6-C/D/E 정합:
+      - grid property 사용 ✗ (saveCmObj 는 grids.master.rows → method param `master` 자동 매핑 — cma 정본 패턴)
+      - output="result" 명시 (응답 누락 결함 회피)
+      - dto property 는 searchCmObj 만 (params → DTO 변환)
+      - <conditionExpression> 미사용 — sequenceFlow `name` 만으로 분기
+  -->
+
+  <bpmn:process id="commObjMng" name="OBJECT 관리" isExecutable="true">
+
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+
+    <bpmn:exclusiveGateway id="actionGateway">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_searchCmObj</bpmn:outgoing>
+      <bpmn:outgoing>flow_saveCmObj</bpmn:outgoing>
+      <bpmn:outgoing>flow_lov</bpmn:outgoing>
+      <bpmn:outgoing>flow_searchSystemLov</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- ─────────── action: searchCmObj ─────────── -->
+    <bpmn:sequenceFlow id="flow_searchCmObj" name="search" sourceRef="actionGateway" targetRef="searchCmObjTask" />
+    <bpmn:serviceTask id="searchCmObjTask" name="OBJECT 그리드 조회" camunda:class="commObjMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchCmObj" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.csa.commObjMng.dto.CommObjMngSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_searchCmObj</bpmn:incoming>
+      <bpmn:outgoing>flow_searchCmObj_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_searchCmObj_end" sourceRef="searchCmObjTask" targetRef="endSearchCmObj" />
+    <bpmn:endEvent id="endSearchCmObj">
+      <bpmn:incoming>flow_searchCmObj_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─────────── action: saveCmObj — input grid: grids.master.rows → method param `master` ─────────── -->
+    <bpmn:sequenceFlow id="flow_saveCmObj" name="save" sourceRef="actionGateway" targetRef="saveCmObjTask" />
+    <bpmn:serviceTask id="saveCmObjTask" name="OBJECT 일괄 저장 (status 분기) + 후속 재조회" camunda:class="commObjMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="saveCmObj" />
+          <camunda:property name="output" value="result" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_saveCmObj</bpmn:incoming>
+      <bpmn:outgoing>flow_saveCmObj_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_saveCmObj_end" sourceRef="saveCmObjTask" targetRef="endSaveCmObj" />
+    <bpmn:endEvent id="endSaveCmObj">
+      <bpmn:incoming>flow_saveCmObj_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─────────── action: lov — MENU_ID 1 dataset (To-Be 정책 #1) ─────────── -->
+    <bpmn:sequenceFlow id="flow_lov" name="lov" sourceRef="actionGateway" targetRef="lovTask" />
+    <bpmn:serviceTask id="lovTask" name="MENU ID LoV 조회" camunda:class="commObjMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="lov" />
+          <camunda:property name="output" value="result" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_lov</bpmn:incoming>
+      <bpmn:outgoing>flow_lov_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_lov_end" sourceRef="lovTask" targetRef="endLov" />
+    <bpmn:endEvent id="endLov">
+      <bpmn:incoming>flow_lov_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ─────────── action: searchSystemLov — SYSTEM 콤보박스 옵션 (TB_MCM_SEC_MENU_FLD root) ─────────── -->
+    <bpmn:sequenceFlow id="flow_searchSystemLov" name="searchSystemLov" sourceRef="actionGateway" targetRef="searchSystemLovTask" />
+    <bpmn:serviceTask id="searchSystemLovTask" name="SYSTEM LoV 조회 (root 폴더)" camunda:class="commObjMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchSystemLov" />
+          <camunda:property name="output" value="result" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_searchSystemLov</bpmn:incoming>
+      <bpmn:outgoing>flow_searchSystemLov_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_searchSystemLov_end" sourceRef="searchSystemLovTask" targetRef="endSearchSystemLov" />
+    <bpmn:endEvent id="endSearchSystemLov">
+      <bpmn:incoming>flow_searchSystemLov_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="commObjMng">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="152" y="222" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="245" y="215" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchCmObjTask_di" bpmnElement="searchCmObjTask">
+        <dc:Bounds x="370" y="40" width="180" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearchCmObj_di" bpmnElement="endSearchCmObj">
+        <dc:Bounds x="600" y="62" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="saveCmObjTask_di" bpmnElement="saveCmObjTask">
+        <dc:Bounds x="370" y="200" width="180" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSaveCmObj_di" bpmnElement="endSaveCmObj">
+        <dc:Bounds x="600" y="222" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lovTask_di" bpmnElement="lovTask">
+        <dc:Bounds x="370" y="360" width="180" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endLov_di" bpmnElement="endLov">
+        <dc:Bounds x="600" y="382" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchSystemLovTask_di" bpmnElement="searchSystemLovTask">
+        <dc:Bounds x="370" y="520" width="180" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearchSystemLov_di" bpmnElement="endSearchSystemLov">
+        <dc:Bounds x="600" y="542" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="188" y="240" />
+        <di:waypoint x="245" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchCmObj_di" bpmnElement="flow_searchCmObj">
+        <di:waypoint x="270" y="215" />
+        <di:waypoint x="270" y="80" />
+        <di:waypoint x="370" y="80" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchCmObj_end_di" bpmnElement="flow_searchCmObj_end">
+        <di:waypoint x="550" y="80" />
+        <di:waypoint x="600" y="80" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_saveCmObj_di" bpmnElement="flow_saveCmObj">
+        <di:waypoint x="295" y="240" />
+        <di:waypoint x="370" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_saveCmObj_end_di" bpmnElement="flow_saveCmObj_end">
+        <di:waypoint x="550" y="240" />
+        <di:waypoint x="600" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_lov_di" bpmnElement="flow_lov">
+        <di:waypoint x="270" y="265" />
+        <di:waypoint x="270" y="400" />
+        <di:waypoint x="370" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_lov_end_di" bpmnElement="flow_lov_end">
+        <di:waypoint x="550" y="400" />
+        <di:waypoint x="600" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchSystemLov_di" bpmnElement="flow_searchSystemLov">
+        <di:waypoint x="270" y="265" />
+        <di:waypoint x="270" y="560" />
+        <di:waypoint x="370" y="560" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchSystemLov_end_di" bpmnElement="flow_searchSystemLov_end">
+        <di:waypoint x="550" y="560" />
+        <di:waypoint x="600" y="560" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

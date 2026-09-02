@@ -1,21 +1,150 @@
-server:
-  port: 8091
-
 spring:
   application:
     name: mcm
-  datasource:
-    url: jdbc:sqlite:../data/mcm.db
-    driver-class-name: org.sqlite.JDBC
+
+  # ── 프로파일 체계 ──
+  #   local    : SQLite 직결 (bootRun/IDE) — 프로파일 미지정 기동은 McmApplication 의 spring.profiles.default=local 폴백
+  #   local-db : 외부 RDB(SQL Server) 직결 (bootRun/IDE) — 접속 정보는 전부 환경변수 주입
+  #   dev      : 개발계 WildFly — JNDI (아래 group 으로 wildfly 자동 활성)
+  #   prod     : 운영계 WildFly — JNDI
+  # local 계열(직결)과 dev/prod(JNDI)는 상호배타 — 반드시 하나만 활성.
+  # 사이트가 여럿이면 local-db 를 복제해 사이트별 프로파일(local-{사이트})을 만든다.
+  profiles:
+    group:
+      dev: [wildfly]
+      prod: [wildfly]
+
   jpa:
-    hibernate:
-      ddl-auto: none
+    open-in-view: false
     properties:
       hibernate:
-        dialect: org.hibernate.community.dialect.SQLiteDialect
-  flyway:
-    enabled: true
-    locations: classpath:db/migration
+        format_sql: true
+        # packagesToScan 라인 폐기 (2026-05-20) — JpaConfig.setPackagesToScan 이 정본. 중복/혼선 회피.
+        # ── Hibernate StatementInspector — native INSERT/UPDATE audit 9 컬럼 자동 주입 (2026-06-01) ──
+        # 대상 = MCMAPUSER.TB_MCM_* prefix 만. idempotent (C_USR_ID/U_USR_ID 이미 명시되어 있으면 skip).
+        # DataInitializer 수동 audit 명시는 보존, JPA Repository.save 등 hibernate 가 생성한 SQL 에만 주입.
+        session_factory:
+          statement_inspector: com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector
 
-# 실 프로젝트의 데이터소스(JNDI·다중 DB)·보안 설정은 docs/framework/, docs/cactus/ 의
-# 패턴을 따른다. 위 설정은 bootRun 으로 골격을 띄우기 위한 최소 구성이다.
+  # ── Flyway 비활성 (mcm 스키마 관리 정책) ──
+  # mcm 의 스키마는 Flyway 가 아니라 아래 둘이 관리한다.
+  #   local   : hibernate ddl-auto=update (엔티티 기준 자동 생성) + DataInitializer 의 멱등 DDL/시드
+  #   dev/prod: 사전 관리 스키마(WildFly JNDI 계정) + dmes.init.enabled=false
+  # `mcm-core/src/main/resources/db/migration/sqlite/` 의 V*.sql 은 SEC 테이블 스키마가 어떤 순서로
+  # 만들어졌는지 남긴 **이력 참고용**이며 런타임 적용 대상이 아니다. 켜 두면 그 파일들과
+  # 각 모듈의 sample 마이그레이션이 같은 버전 번호로 충돌해 부팅이 실패한다.
+  # 신규 프로젝트에서 mcm 도 Flyway 로 관리하려면 enabled=true 로 바꾸고 번호를 재채번한다
+  # (`.claude/skills/flyway-migration-add/`).
+  flyway:
+    enabled: false
+
+server:
+  # 로컬 bootRun/IDE 실행 포트. WAR(WildFly) 배포 시엔 무시되고 WildFly http 포트(8100)를 사용.
+  port: 8100
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+      force-response: true
+
+# ── Cactus 설정 ──
+cactus:
+  auth:
+    enabled: true
+  jwt:
+    secret: Y2FjdHVzLXNhbXBsZS1zZWNyZXQta2V5LWZvci10ZXN0aW5nLW9ubHktMjAyNg==
+    issuer: mcm
+    access-token-expiry: 28800   # 8h
+    refresh-token-expiry: 604800 # 7d
+  security:
+    max-login-failures: 5
+    client-key: dmes-bff-local-client-key-2026
+    # WS 핸드셰이크는 브라우저 직결(X-Client-Key 없음) — ClientKeyFilter skip (설계 §4.2).
+    # ⚠️ override 시 default 3종이 통째로 대체되므로 전부 나열 (ClientKeyFilter.java:85-87).
+    # ⚠️ @Value 플레이스홀더 바인딩이라 YAML 리스트 불가 — 콤마 문자열로 기재.
+    client-key-skip-paths: /auth/,/api/auth/,/actuator/,/ws/
+  oasis:
+    service-group: mcm
+    service-path: /services    # classpath root 의 services/** 매칭
+    transactional: true
+    cache:
+      size: 100                # BPMN parsing cache size (R-multi-22 fix — CactusCachingServiceProvider)
+  # ── caravan-hub 통합 클라이언트 (DefaultCaravanHubIntegrationClient → POST {base-url}/caravanHubApi/v1/send) ──
+  #   코드 하드코딩 기본값(SeraiClientProperties.baseUrl=http://localhost:8200) 대신 yml/env 로 주입한다.
+  #   운영/개발계는 CARAVAN_HUB_BASE_URL 환경변수로 override 한다.
+  caravan-hub:
+    base-url: ${CARAVAN_HUB_BASE_URL:http://localhost:8200}
+    auth:
+      client-key: ${CARAVAN_HUB_CLIENT_KEY:dmes-bff-local-client-key-2026}
+  # ── 1.0.21 multi-tx (옵션 β + δ) ──
+  datasource:
+    primary-alias: biz         # Spring Boot dataSource 빈을 'biz' alias (옵션 β)
+  jpa:
+    extras:
+      cmn:                     # 공통 DS — 표준 3종 통일(2026-07-07). MCM 은 물리적으로 biz 와 동일 MCMAPUSER
+        packages-to-scan: []   # 현재 cmn EMF 에 매핑할 엔티티 없음 (mpn 과 동일 패턴)
+        persistence-unit-name: cactus-cmn
+      if:                      # 인터페이스 송수신 DS — EAIUSER (운영) / caravan-if.db (local)
+        packages-to-scan: []   # pilot 제거(2026-06-05) — 현재 if EMF 에 매핑할 엔티티 없음
+        persistence-unit-name: cactus-if
+      caravan:                 # Kafka 메타 DS — CARAVANUSER (운영) / caravan-if.db (local). caravan-console 메타 entity 3종
+        packages-to-scan:
+          - com.dongkuk.caravan.console.host        # AppHostEntity (TB_MCM_APPHOST)
+          - com.dongkuk.caravan.console.caravanhubconfig # ConsoleCaravanHubConfigEntity (TB_MCM_MOM_KAFKA_SERAI_CONFIG)
+          - com.dongkuk.caravan.console.topic       # ConsoleTopicInfoEntity (TB_MCM_MOM_KAFKA_TOPICS)
+        persistence-unit-name: cactus-caravan
+  tx:
+    managers:                  # 옵션 δ — 표준 3개(txBiz/txCmn/txIF) 의무 + txCaravan(MCM 전용, MCM yml 에만 존재)
+      txBiz:
+        data-source: biz       # MCMAPUSER (mcm 자체 DB, primary-alias)
+      txCmn:
+        data-source: cmn       # 표준 통일(2026-07-07) — 구 "biz alias 매핑" 폐기. 독립 cmn DS (물리는 동일 MCMAPUSER)
+      txIF:
+        data-source: if        # 인터페이스 송수신 (EAIUSER)
+      txCaravan:
+        data-source: caravan   # Kafka 메타 (CARAVANUSER) — caravan-console 메타 repo 전용. @Transactional("txCaravan") 가능
+    default-manager: txBiz     # CactusTxProperties.defaultManager (yml `default` 는 Java 예약어라 매핑 불가)
+
+
+# ── mcm-core 비밀번호 정책 ──
+# 템플릿 기본값은 전부 꺼둔 상태다. 실 프로젝트 착수 시 expiry/history/min-length/complexity 를 반드시 켤 것.
+mcm:
+  security:
+    # SYSADMIN 브레이크글라스 (2026-07-30 순수 RBAC 전환 — docs/framework/BFF-RBAC-SYSADMIN프리패스제거-상세설계.md)
+    # false(기본) = SYSADMIN 도 TB_MCM_SEC_ROLE_MAPPING 멤버십으로 판정.
+    # true = 舊 전면통과 복원 (긴급 복구 전용 — JVM: -Dmcm.security.sysadmin-freepass=true)
+    sysadmin-freepass: false
+  password:
+    expiry-days: 0          # 만료 검증 끔
+    history-count: 0        # 마지막 N개 비교 끔
+    min-length: 0           # 길이 검증 끔
+    complexity-pattern: ""  # 복잡도 검증 끔
+    legacy-grace-days: -1
+
+# ── caravan-console 자체 설정 + Repository alias (kmc-core 0.2.0 패턴 B) ──
+# caravan 의존 제거 (2026-05-12) — caravan-console.kafka.* / caravan.* 블록 삭제. caravan 라이브러리는 caravan-hub 호스트에서만 사용 (v4 정본).
+caravan-console:
+  # ── 콘솔 전송 테스트용 caravan-hub 클라이언트 (ConsoleCaravanHubClient → POST {base-url}/caravanHubApi/v1/send) ──
+  #   cactus.caravan-hub 와는 별개 클라이언트(0.2.0 패턴 B — cactus 의존 제거)지만 호출 대상 허브는 동일하므로
+  #   같은 환경변수를 공유한다. 미지정 시 ConsoleCaravanHubProperties 기본값 localhost:8200 으로 나가 ConnectException.
+  #   override 예) JVM 옵션: -DCARAVAN_HUB_BASE_URL=http://<허브 호스트>:8200
+  #                환경변수 : CARAVAN_HUB_BASE_URL=http://<허브 호스트>:8200
+  caravanhub:
+    base-url: ${CARAVAN_HUB_BASE_URL:http://localhost:8200}
+    auth:
+      client-key: ${CARAVAN_HUB_CLIENT_KEY:dmes-bff-local-client-key-2026}
+  works-code: ${CARAVAN_CONSOLE_WORKS_CODE:p}        # caravan-console 인스턴스의 공장 식별자 (TB_MCM_APPHOST.WORKS_CD 필터)
+  message:
+    max-browse-count: 200                 # 메시지 검색 1회 최대 행 수
+  repository:                             # caravan-console 메타 Repository → caravan EMF/TxMgr (Kafka 스키마 CARAVANUSER)
+    emf-bean: cactusEntityManagerFactoryCaravan
+    tx-bean:  cactusTransactionManagerCaravan
+
+# ── 로깅 ──
+logging:
+  level:
+    root: INFO
+    com.dongkuk.dmes.cactus: DEBUG
+    com.dongkuk.dmes.mcm: DEBUG
+    org.hibernate.SQL: DEBUG

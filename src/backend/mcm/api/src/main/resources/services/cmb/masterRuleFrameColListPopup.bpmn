@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_masterRuleFrameColListPopup" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-tool" exporterVersion="1.2.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="masterRuleFrameColListPopup" name="업무기준 컬럼 리스트 등록 팝업" isExecutable="true">
+    <bpmn:documentation>masterRuleFrameColListPopup — As-Is mui cmb/MasterRuleFrameColListPopup (분석 §1 / §8) 의 To-Be BPMN.
+
+부모 masterRuleFrame 의 P-002(기초데이터 등록) 팝업 — 소스 테이블 컬럼 메타를 조회해 업무기준 컬럼 리스트를 편집·전체 재등록.
+
+사용자 결정:
+  - DEC-03 영속성 = JPA — MasterRuleColListRepository 재사용 (형제 masterRuleFrame 동일 테이블 동일 엔티티. PK=(RULE_ID,COL_SEQ) 2키 — 2026-07-08 설계 오기 정정)
+  - Q-002 save 반환 = { savedCount } 표준화 (As-Is 미사용 dataset 제거, 성공 시 팝업 닫기 — 재조회 없음)
+  - 메타 딕셔너리: As-Is Oracle ALL_TAB_COLUMNS/ALL_COL_COMMENTS → MSSQL INFORMATION_SCHEMA.COLUMNS + sys.extended_properties (C-001~C-004)
+
+2 action 매핑 (As-Is save 는 UserTask SaveMasterRuleBaseColList 흡수):
+  action=search → searchTask (masterRuleFrameColListPopupService.search) — 소스 테이블(pTable=TB_MCA_+ruleId) 컬럼 메타 → { ds_grdRuleCol, cnt } (As-Is resultKey 보존)
+  action=save   → saveTask   (masterRuleFrameColListPopupService.save)   — deleteByRuleId → COL_SEQ 재채번 전량 재삽입 → { savedCount }</bpmn:documentation>
+    <bpmn:extensionElements>
+      <camunda:properties>
+        <camunda:property name="input" value="action" />
+      </camunda:properties>
+    </bpmn:extensionElements>
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="actionGateway">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_search</bpmn:outgoing>
+      <bpmn:outgoing>flow_save</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="searchTask" name="소스 테이블 컬럼 메타 조회" camunda:class="masterRuleFrameColListPopupService">
+      <bpmn:documentation>As-Is GetRuleColList (Oracle 메타 딕셔너리) 의 MSSQL 변환 (분석 §6 / §11.1 C-001~C-004).
+- MasterRuleColListRepository.searchSourceTableColumns(pRuleId, pTable) — INFORMATION_SCHEMA.COLUMNS + sys.extended_properties(MS_Description), TABLE_SCHEMA='MCAAPUSER', NOT IN 19 식별자(As-Is 보존), varchar 계열→VARCHAR2(C-002)
+- 반환 = { ds_grdRuleCol: [9컬럼 camelCase rows — ioFlag 'OUT'/masterCodeDiv 'N' 기본], cnt }</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="search" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.cmb.masterRuleFrameColListPopup.dto.MasterRuleFrameColListPopupSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_search</bpmn:incoming>
+      <bpmn:outgoing>flow_search_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endSearch">
+      <bpmn:incoming>flow_search_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="saveTask" name="컬럼 리스트 전체 재등록 (delete-all→insert)" camunda:class="masterRuleFrameColListPopupService">
+      <bpmn:documentation>INPUT: MasterRuleFrameColListPopupSearchRequest { pRuleId } + grids.rows (ds_grdRuleCol 전량)
+PROCESS (As-Is SaveMasterRuleBaseColList.run() 분석 §5.3 직역):
+  1. ruleId 가드 (REQUIRED_VALUE)
+  2. 서버 필수검증 V-003~V-007 (행별 COL_NM/COL_ID/MASTER_CODE_DIV/COL_TYPE/COL_LEN)
+  3. deleteByRuleId — RULE_ID 기준 전체 삭제 (XV-001 confirm 후 호출됨)
+  4. 전량 재삽입 — COL_SEQ 1부터 재채번, RULE_VER '1' 고정, OLD_COL_ID/MES_COL_ID 미설정(As-Is 주석 보존)
+OUTPUT: { savedCount } (Q-002 확정 — 재조회 없음, FE 성공 시 팝업 닫기 + 부모 재조회)
+예외 시 OASIS process 트랜잭션 전체 롤백</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="save" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.cmb.masterRuleFrameColListPopup.dto.MasterRuleFrameColListPopupSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_save</bpmn:incoming>
+      <bpmn:outgoing>flow_save_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endSave">
+      <bpmn:incoming>flow_save_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+    <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
+    <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="endSearch" />
+    <bpmn:sequenceFlow id="flow_save" name="save" sourceRef="actionGateway" targetRef="saveTask" />
+    <bpmn:sequenceFlow id="flow_save_end" sourceRef="saveTask" targetRef="endSave" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="masterRuleFrameColListPopup">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="152" y="172" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="245" y="165" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchTask_di" bpmnElement="searchTask">
+        <dc:Bounds x="370" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearch_di" bpmnElement="endSearch">
+        <dc:Bounds x="560" y="122" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="saveTask_di" bpmnElement="saveTask">
+        <dc:Bounds x="370" y="250" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSave_di" bpmnElement="endSave">
+        <dc:Bounds x="560" y="272" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="188" y="190" />
+        <di:waypoint x="245" y="190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_di" bpmnElement="flow_search">
+        <di:waypoint x="270" y="165" />
+        <di:waypoint x="270" y="140" />
+        <di:waypoint x="370" y="140" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="300" y="123" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_end_di" bpmnElement="flow_search_end">
+        <di:waypoint x="470" y="140" />
+        <di:waypoint x="560" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_di" bpmnElement="flow_save">
+        <di:waypoint x="270" y="215" />
+        <di:waypoint x="270" y="290" />
+        <di:waypoint x="370" y="290" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="300" y="198" width="32" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_end_di" bpmnElement="flow_save_end">
+        <di:waypoint x="470" y="290" />
+        <di:waypoint x="560" y="290" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
+
