@@ -1,0 +1,215 @@
+{
+  "name": "@dk-oasis/shared",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./http": {
+      "types": "./dist/http.d.ts",
+      "import": "./dist/http.js"
+    },
+    "./secure-storage": {
+      "types": "./dist/secure-storage.d.ts",
+      "import": "./dist/secure-storage.js"
+    },
+    "./snapshot": {
+      "types": "./dist/snapshot.d.ts",
+      "import": "./dist/snapshot.js"
+    },
+    "./portal-shell-core": {
+      "types": "./dist/portal-shell-core.d.ts",
+      "import": "./dist/portal-shell-core.js"
+    },
+    "./portal-shell": {
+      "types": "./dist/portal-shell.d.ts",
+      "import": "./dist/portal-shell.js"
+    },
+    "./portal-menu": {
+      "types": "./dist/portal-menu.d.ts",
+      "import": "./dist/portal-menu.js"
+    },
+    "./auth-cookies": {
+      "types": "./dist/auth-cookies.d.ts",
+      "import": "./dist/auth-cookies.js"
+    },
+    "./auth-proxy": {
+      "types": "./dist/auth-proxy.d.ts",
+      "import": "./dist/auth-proxy.js"
+    },
+    "./auth-server": {
+      "types": "./dist/auth-server.d.ts",
+      "import": "./dist/auth-server.js"
+    },
+    "./auth-routes": {
+      "types": "./dist/auth-routes.d.ts",
+      "import": "./dist/auth-routes.js"
+    },
+    "./auth-rbac-policy": {
+      "types": "./dist/auth-rbac-policy.d.ts",
+      "import": "./dist/auth-rbac-policy.js"
+    },
+    "./auth-login-form": {
+      "types": "./dist/auth-login-form.d.ts",
+      "import": "./dist/auth-login-form.js"
+    },
+    "./auth-login-page": {
+      "types": "./dist/auth-login-page.d.ts",
+      "import": "./dist/auth-login-page.js"
+    },
+    "./layout": {
+      "types": "./dist/layout.d.ts",
+      "import": "./dist/layout.js"
+    },
+    "./layout.css": "./dist/layout.css",
+    "./pages/home-page": {
+      "types": "./dist/pages/home-page.d.ts",
+      "import": "./dist/pages/home-page.js"
+    },
+    "./utils": {
+      "types": "./dist/utils.d.ts",
+      "import": "./dist/utils.js"
+    },
+    "./error-boundary": {
+      "types": "./dist/error-boundary.d.ts",
+      "import": "./dist/error-boundary.js"
+    },
+    "./use-form-validation": {
+      "types": "./dist/use-form-validation.d.ts",
+      "import": "./dist/use-form-validation.js"
+    },
+    "./use-api-call": {
+      "types": "./dist/use-api-call.d.ts",
+      "import": "./dist/use-api-call.js"
+    },
+    "./modal": {
+      "types": "./dist/modal.d.ts",
+      "import": "./dist/modal.js"
+    },
+    "./message-provider": {
+      "types": "./dist/message-provider.d.ts",
+      "import": "./dist/message-provider.js"
+    },
+    "./variables.css": "./dist/variables.css",
+    "./portal-shell.css": "./dist/portal-shell.css",
+    "./auth-login-form.css": "./dist/auth-login-form.css",
+    "./modal.css": "./dist/modal.css",
+    "./form": {
+      "types": "./dist/form.d.ts",
+      "import": "./dist/form.js"
+    },
+    "./form.css": "./dist/form.css",
+    "./grid": {
+      "types": "./dist/grid.d.ts",
+      "import": "./dist/grid.js"
+    },
+    "./grid.css": "./dist/grid.css",
+    "./tree": {
+      "types": "./dist/tree.d.ts",
+      "import": "./dist/tree.js"
+    },
+    "./tree.css": "./dist/tree.css",
+    "./tabs": {
+      "types": "./dist/tabs.d.ts",
+      "import": "./dist/tabs.js"
+    },
+    "./charts": {
+      "types": "./dist/charts.d.ts",
+      "import": "./dist/charts.js"
+    },
+    "./matrix-table": {
+      "types": "./dist/matrix-table.d.ts",
+      "import": "./dist/matrix-table.js"
+    },
+    "./lookup": {
+      "types": "./dist/lookup.d.ts",
+      "import": "./dist/lookup.js"
+    },
+    "./oasis": {
+      "types": "./dist/oasis.d.ts",
+      "import": "./dist/oasis.js"
+    },
+    "./oasis-proxy": {
+      "types": "./dist/oasis-proxy.d.ts",
+      "import": "./dist/oasis-proxy.js"
+    },
+    "./lib": {
+      "types": "./dist/lib.d.ts",
+      "import": "./dist/lib.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "cross-env NODE_OPTIONS=--max-old-space-size=4096 tsup --watch",
+    "test:unit": "vitest run tests/unit",
+    "test:unit:watch": "vitest tests/unit",
+    "test:unit:coverage": "vitest run tests/unit --coverage",
+    "test:api": "vitest run tests/api",
+    "test:auth": "pnpm run test:api && vitest run tests/unit/auth-server.unit.test.ts tests/unit/auth-token.unit.test.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "html-to-image": "^1.11.13",
+    "next": "16.1.6",
+    "next-auth": "^4.24.13"
+  },
+  "peerDependencies": {
+    "@emotion/react": "^11.0.0",
+    "@emotion/styled": "^11.0.0",
+    "@mui/material": "^7.0.0",
+    "@mui/x-data-grid": "^8.0.0",
+    "ag-grid-community": "^33.0.0",
+    "ag-grid-react": "^33.0.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "peerDependenciesMeta": {
+    "ag-grid-community": {
+      "optional": true
+    },
+    "ag-grid-react": {
+      "optional": true
+    },
+    "@mui/x-data-grid": {
+      "optional": true
+    },
+    "@mui/material": {
+      "optional": true
+    },
+    "@emotion/react": {
+      "optional": true
+    },
+    "@emotion/styled": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/material": "^7.3.9",
+    "@mui/x-data-grid": "^8.27.5",
+    "@types/file-saver": "^2.0.7",
+    "@types/node": "^20.19.37",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitest/coverage-v8": "^3.2.4",
+    "cross-env": "^10.1.0",
+    "happy-dom": "^20.10.6",
+    "prettier": "^3.8.1",
+    "prettier-plugin-tailwindcss": "^0.6.14",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4",
+    "xlsx": "^0.18.5"
+  }
+}

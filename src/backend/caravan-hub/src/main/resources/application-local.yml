@@ -1,0 +1,38 @@
+# ────────────────────────────────────────────────────────────────────────────
+# 로컬 개발 프로파일
+#  - DB: SQLite 듀얼 DataSource (mst, if)
+#  - Kafka: 같은 backend 의 localKafka 모듈(임베디드 Kafka, localhost:9092)
+# bootRun.workingDir = caravan-hub 모듈 루트 → ../data/* 는 backend/data/* 로 해석된다.
+# ────────────────────────────────────────────────────────────────────────────
+caravan:
+  kafka:
+    bootstrap-servers: localhost:9092
+  hibernate:
+    # caravan 의 KafkaJpaConfig 가 사용. SQLite 는 자동 감지 잘 안 돼서 명시.
+    dialect: org.hibernate.community.dialect.SQLiteDialect
+    # 2026-05-15 §6-6 후속 — caravan 메타 + caravan-console 메타가 같은 if DS (caravan-hub-if.db) 공유.
+    # caravan-hub 먼저 부팅 → caravan 이 모든 테이블 생성 (caravan entity + caravan-console 공유 entity 동일 schema).
+    # mcm 그 다음 부팅 → cactus EMF 의 CactusSqliteIfNotExistsDialect 가 IF NOT EXISTS 로 안전.
+    # 운영 sequence: caravan-hub → mcm 강제.
+    ddl-auto: update
+
+spring:
+  datasource:
+    mst:
+      driver-class-name: org.sqlite.JDBC
+      jdbc-url: jdbc:sqlite:../data/caravan-hub-mst.db
+      hikari:
+        maximum-pool-size: 5
+        minimum-idle: 1
+        connection-timeout: 30000
+    if:
+      driver-class-name: org.sqlite.JDBC
+      jdbc-url: jdbc:sqlite:../data/caravan-hub-if.db
+      hikari:
+        maximum-pool-size: 5
+        minimum-idle: 1
+        connection-timeout: 30000
+
+logging:
+  file:
+    name: ./app.log

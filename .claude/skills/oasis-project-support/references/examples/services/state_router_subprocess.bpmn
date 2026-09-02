@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_state_router"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+  <!--
+    Pattern: shared subprocess that routes by `eventName` through nested
+    exclusive gateways. Other BPMNs reach it via <callActivity calledElement="state_router">,
+    so the process declares its inputs at the process level.
+  -->
+  <bpmn:process id="state_router" isExecutable="true">
+    <bpmn:extensionElements>
+      <camunda:properties>
+        <camunda:property name="input" value="itemId" />
+      </camunda:properties>
+    </bpmn:extensionElements>
+
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>fStart</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:exclusiveGateway id="gPending" name="pending state">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="eventName" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>fStart</bpmn:incoming>
+      <bpmn:outgoing>fLink</bpmn:outgoing>
+      <bpmn:outgoing>fAssignOrder</bpmn:outgoing>
+      <bpmn:outgoing>fUnsupportedPending</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="link" name="link"
+                      camunda:class="sample.biz.order.Order#link">
+      <bpmn:incoming>fLink</bpmn:incoming>
+      <bpmn:outgoing>fLinkDone</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="assignOrder" name="assign order"
+                      camunda:class="sample.biz.order.Order#assignToOrder">
+      <bpmn:incoming>fAssignOrder</bpmn:incoming>
+      <bpmn:outgoing>fAssignOrderDone</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="gLinked" name="linked state">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="eventName" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>fLinkDone</bpmn:incoming>
+      <bpmn:outgoing>fRun</bpmn:outgoing>
+      <bpmn:outgoing>fUnlink</bpmn:outgoing>
+      <bpmn:outgoing>fUnsupportedLinked</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="run" name="run"
+                      camunda:class="sample.biz.order.Order#run">
+      <bpmn:incoming>fRun</bpmn:incoming>
+      <bpmn:outgoing>fRunDone</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="unlink" name="unlink"
+                      camunda:class="sample.biz.order.Order#unlink">
+      <bpmn:incoming>fUnlink</bpmn:incoming>
+      <bpmn:outgoing>fUnlinkDone</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="endOk">
+      <bpmn:incoming>fAssignOrderDone</bpmn:incoming>
+      <bpmn:incoming>fRunDone</bpmn:incoming>
+      <bpmn:incoming>fUnlinkDone</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="endUnsupportedPending">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="itemId,eventName" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>fUnsupportedPending</bpmn:incoming>
+      <bpmn:errorEventDefinition errorRef="errUnsupported" />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endUnsupportedLinked">
+      <bpmn:incoming>fUnsupportedLinked</bpmn:incoming>
+      <bpmn:errorEventDefinition errorRef="errUnsupported" />
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="fStart"         sourceRef="start"       targetRef="gPending" />
+    <bpmn:sequenceFlow id="fLink"          name="link"
+                       sourceRef="gPending"   targetRef="link" />
+    <bpmn:sequenceFlow id="fAssignOrder"   name="assignOrder"
+                       sourceRef="gPending"   targetRef="assignOrder" />
+    <bpmn:sequenceFlow id="fUnsupportedPending"
+                       sourceRef="gPending"   targetRef="endUnsupportedPending" />
+    <bpmn:sequenceFlow id="fLinkDone"      sourceRef="link"        targetRef="gLinked" />
+    <bpmn:sequenceFlow id="fAssignOrderDone" sourceRef="assignOrder" targetRef="endOk" />
+    <bpmn:sequenceFlow id="fRun"           name="run"
+                       sourceRef="gLinked"    targetRef="run" />
+    <bpmn:sequenceFlow id="fUnlink"        name="unlink"
+                       sourceRef="gLinked"    targetRef="unlink" />
+    <bpmn:sequenceFlow id="fUnsupportedLinked"
+                       sourceRef="gLinked"    targetRef="endUnsupportedLinked" />
+    <bpmn:sequenceFlow id="fRunDone"       sourceRef="run"         targetRef="endOk" />
+    <bpmn:sequenceFlow id="fUnlinkDone"    sourceRef="unlink"      targetRef="endOk" />
+  </bpmn:process>
+
+  <bpmn:error id="errUnsupported" name="unsupportedEvent"
+              camunda:errorMessage="Event #{eventName} is not supported in current state." />
+</bpmn:definitions>

@@ -1,0 +1,43 @@
+// D1 PoC-2b — WildFly WAR 배포용. (PoC-1/2a/3 는 bootRun 으로 이미 PASS)
+plugins {
+    id 'java'
+    id 'war'
+    id 'org.springframework.boot' version '4.0.6'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+group = 'com.dongkuk.caravan.hub'
+version = '0.0.1-POC'
+java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
+repositories { mavenCentral(); mavenLocal() }
+ext { camelVersion = '4.20.0' }
+dependencyManagement {
+    imports { mavenBom "org.apache.camel.springboot:camel-spring-boot-bom:${camelVersion}" }
+}
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    implementation 'org.apache.camel.springboot:camel-spring-boot-starter'
+    implementation 'org.apache.camel.springboot:camel-servlet-starter'
+    implementation 'org.apache.camel.springboot:camel-sql-starter'
+    implementation 'org.apache.camel.springboot:camel-jackson-starter'
+    runtimeOnly 'org.xerial:sqlite-jdbc:3.45.3.0'
+
+    // ★ WildFly WAR: 내장 톰캣 제외 → 컨테이너(Undertow) 제공 (serai 패턴)
+    providedRuntime 'org.apache.tomcat.embed:tomcat-embed-core'
+    providedRuntime 'org.apache.tomcat.embed:tomcat-embed-el'
+    providedRuntime 'org.apache.tomcat.embed:tomcat-embed-websocket'
+}
+bootWar { archiveFileName = 'camel-hub-poc.war' }
+// bootRun(로컬 PoC-1/2a/3) 도 계속 되도록 providedRuntime 을 classpath 에 포함
+tasks.named('bootRun') { classpath += configurations.providedRuntime }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WildFly 배포 시 로깅 충돌 해결:
+//   WildFly 가 자체 slf4j 바인딩(slf4j-jboss-logmanager)을 제공하는데, Spring Boot 기본
+//   Logback 도 slf4j 바인딩이라 둘이 충돌("LoggerFactory is not a Logback LoggerContext").
+//   → WAR 에서 Logback/Spring Boot 로깅 스타터를 제외하고 WildFly 로깅을 사용.
+// ─────────────────────────────────────────────────────────────────────────────
+configurations.all {
+    exclude group: 'org.springframework.boot', module: 'spring-boot-starter-logging'
+    exclude group: 'ch.qos.logback'
+}

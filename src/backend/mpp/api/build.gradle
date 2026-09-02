@@ -1,0 +1,23 @@
+plugins {
+    id 'org.springframework.boot'
+    id 'war'
+}
+
+bootRun {
+    // 모듈 루트를 작업 디렉터리로 고정한다. application.yml 의 상대 경로(../data)가 여기에 걸린다.
+    workingDir = rootProject.projectDir
+}
+
+dependencies {
+    api project(':lib')
+    runtimeOnly files(project(':lib').sourceSets.main.output)
+
+    // 외장 WAS 배포를 전제로 내장 톰캣은 provided 처리한다.
+    providedRuntime 'org.apache.tomcat.embed:tomcat-embed-core'
+    providedRuntime 'org.apache.tomcat.embed:tomcat-embed-el'
+    providedRuntime 'org.apache.tomcat.embed:tomcat-embed-websocket'
+}
+
+bootWar {
+    archiveFileName = 'mpp.war'
+}

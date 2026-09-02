@@ -1,0 +1,132 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+group = 'com.dongkuk.caravan'
+version = '3.0.0'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+    withSourcesJar()
+    withJavadocJar()
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs.add('-parameters')
+    options.compilerArgs.add('-Xlint:deprecation')
+}
+
+javadoc {
+    options.encoding = 'UTF-8'
+    options.addStringOption('Xdoclint:none', '-quiet')
+    options.addBooleanOption('author', true)
+    failOnError = false
+}
+
+tasks.named('test') {
+    useJUnit()
+}
+
+def nexusUrl = "http://172.31.1.96:8889/nexus"
+def nexusUsername = 'admin'
+def nexusPassword = 'admin123'
+
+    repositories {
+        mavenCentral()
+        // maven {
+        //     url = "${nexusUrl}/content/groups/public"
+        //     allowInsecureProtocol = true
+        //     content {
+        //         includeGroup 'com.dongkuk'
+        //         includeGroup 'com.dongkuk.dmes'
+        //     }
+        // }
+    }
+
+dependencies {
+    // ── Spring Boot 4 BOM ──
+    api platform('org.springframework.boot:spring-boot-dependencies:4.0.6')
+    annotationProcessor platform('org.springframework.boot:spring-boot-dependencies:4.0.6')
+    testAnnotationProcessor platform('org.springframework.boot:spring-boot-dependencies:4.0.6')
+
+    // ── Spring Framework / Spring Kafka ──
+    api 'org.springframework:spring-context'
+    api 'org.springframework:spring-web'
+    api 'org.springframework:spring-webmvc'
+    api 'org.springframework:spring-tx'
+    api 'org.springframework:spring-jdbc'
+    api 'org.springframework.kafka:spring-kafka'
+    api 'org.apache.kafka:kafka-clients'
+
+    // ── JSON ──
+    api 'com.fasterxml.jackson.core:jackson-databind'
+    api 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'  // LocalDateTime 직렬화
+
+    // ── JPA (Hibernate) ──
+    api 'org.springframework.data:spring-data-jpa'
+    api 'org.hibernate.orm:hibernate-core'
+    // 비표준 dialect (SQLite 등) 자동 감지용. mcm/lib 와 동일 컨벤션.
+    api 'org.hibernate.orm:hibernate-community-dialects'
+    api 'org.springframework:spring-orm'
+
+    // ── Spring Boot AutoConfiguration (compileOnly) ──
+    compileOnly 'org.springframework.boot:spring-boot-autoconfigure'
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+
+    // ── Lombok ──
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // ── Logging / Validation / Servlet ──
+    implementation 'org.slf4j:slf4j-api'
+    api 'jakarta.validation:jakarta.validation-api'
+    compileOnly 'jakarta.servlet:jakarta.servlet-api'
+
+    // ── Test ──
+    testImplementation 'jakarta.servlet:jakarta.servlet-api'
+    testImplementation 'org.springframework.kafka:spring-kafka-test'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.mockito:mockito-core'
+    testImplementation 'org.hamcrest:hamcrest'
+    testImplementation 'com.jayway.jsonpath:json-path'
+    testImplementation 'org.springframework:spring-test'
+    testImplementation 'com.h2database:h2'
+    testCompileOnly 'org.projectlombok:lombok'
+    testAnnotationProcessor 'org.projectlombok:lombok'
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+
+            pom {
+                name = 'Caravan Kafka Library'
+                description = 'TRANSACTION_CODE 기반 동적 핸들러 라우팅을 지원하는 Kafka 인터페이스 라이브러리'
+            }
+        }
+    }
+    repositories {
+        maven {
+            name = 'nexusReleases'
+            url = "${nexusUrl}/content/repositories/releases/"
+            credentials {
+                username = nexusUsername
+                password = nexusPassword
+            }
+            allowInsecureProtocol = true
+        }
+        maven {
+            name = 'nexusSnapshots'
+            url = "${nexusUrl}/content/repositories/snapshots"
+            credentials {
+                username = nexusUsername
+                password = nexusPassword
+            }
+            allowInsecureProtocol = true
+        }
+    }
+}

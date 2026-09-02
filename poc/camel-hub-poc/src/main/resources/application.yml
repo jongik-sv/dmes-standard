@@ -1,0 +1,25 @@
+server:
+  port: 8080
+spring:
+  application:
+    name: camel-hub-poc
+  main:
+    web-application-type: servlet
+app:
+  datasource:
+    mst:
+      driver-class-name: org.sqlite.JDBC
+      jdbc-url: jdbc:sqlite:${user.home}/camel-hub-poc-data/poc-mst.db
+    if:
+      driver-class-name: org.sqlite.JDBC
+      jdbc-url: jdbc:sqlite:${user.home}/camel-hub-poc-data/poc-if.db
+camel:
+  springboot:
+    name: CamelHubPoc
+  servlet:
+    mapping:
+      context-path: /caravanHubApi/*
+logging:
+  level:
+    org.apache.camel: INFO
+    com.dongkuk.caravan.hub.poc: DEBUG

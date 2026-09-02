@@ -1,0 +1,10 @@
+rootProject.name = 'cactus-core'
+
+include 'oasis-core'
+include 'oasis-core-api'
+
+project(':oasis-core').projectDir = file('../oasis/oasis-core')
+project(':oasis-core-api').projectDir = file('../oasis/oasis-core-api')
+
+// caravan 의존 제거 (2026-05-12) — cactus-core 가 caravan 을 더 이상 transitive 노출하지 않음.
+// caravan 라이브러리는 caravan-hub 호스트에서만 직접 의존 (v4 정본). root settings.gradle 의 includeBuild('caravan-core') 만 유지.

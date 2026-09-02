@@ -1,0 +1,315 @@
+/* Login 스타일 - dmes_react 디자인 기반 */
+
+.login-wrapper {
+  display: flex;
+  height: 100vh;
+  background-size: cover;
+  background-position: center top;
+  color: #fff;
+  justify-content: center;
+  align-items: center;
+  font-family: var(--font-family);
+}
+
+.login-form {
+  width: 310px;
+  background-color: var(--color-bg, #fff);
+  color: #000;
+  padding: 50px;
+  border-radius: 0;
+  position: absolute;
+  right: 10%;
+  top: 50%;
+  transform: translateY(-50%);
+  box-shadow: 0px 2px 5px #323948;
+}
+
+.login-title {
+  font-size: 28px;
+  margin: 0 0 30px 0;
+  color: #1b3f7d;
+  font-weight: bold;
+}
+
+.login-input {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  margin-bottom: 15px;
+  font-size: var(--font-size-lg, 14px);
+  border: 1px solid var(--color-border, #ccc);
+  border-radius: 0;
+  box-sizing: border-box;
+  color: var(--color-text, #333);
+}
+
+.login-input:focus {
+  outline: none;
+  border-color: #1b3f7d;
+}
+
+.login-input::placeholder {
+  color: #aaa;
+}
+
+.login-save-id {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 15px;
+  font-size: var(--font-size-sm, 12px);
+  color: #555;
+  user-select: none;
+}
+
+.login-save-id input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.login-success {
+  padding: 8px 12px;
+  margin-bottom: 15px;
+  background-color: rgba(40, 167, 69, 0.08);
+  border: 1px solid rgba(40, 167, 69, 0.3);
+  border-radius: 4px;
+  color: #28a745;
+  font-size: var(--font-size-sm, 12px);
+}
+
+.login-error {
+  padding: 8px 12px;
+  margin-bottom: 15px;
+  background-color: rgba(220, 53, 69, 0.08);
+  border: 1px solid rgba(220, 53, 69, 0.3);
+  border-radius: 4px;
+  color: #dc3545;
+  font-size: var(--font-size-sm, 12px);
+}
+
+.login-button {
+  width: 100%;
+  height: 45px;
+  background-color: #1b3f7d;
+  color: #fff;
+  border: none;
+  border-radius: 0;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.login-button:hover:not(:disabled) {
+  background-color: #153466;
+}
+
+.login-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.login-copyright {
+  margin-top: 30px;
+  font-size: var(--font-size-xs, 11px);
+  text-align: center;
+  color: #aaa;
+}
+
+/* 비밀번호 변경 버튼 (로그인폼 내) */
+.login-change-pw {
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: var(--font-size-sm, 12px);
+  color: #1b3f7d;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.login-change-pw:hover {
+  color: #153466;
+}
+
+/* 비밀번호 변경 모달 */
+.pw-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pw-modal {
+  background: #fff;
+  border-radius: 8px;
+  width: 420px;
+  max-height: 90vh;
+  overflow: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.pw-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid #eee;
+}
+
+.pw-modal-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+  color: #333;
+}
+
+.pw-modal-close {
+  border: none;
+  background: none;
+  font-size: 22px;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.pw-modal-close:hover {
+  color: #333;
+}
+
+.pw-modal-body {
+  padding: 16px 20px 20px;
+}
+
+.pw-modal-field {
+  margin-bottom: 14px;
+}
+
+.pw-modal-field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 5px;
+}
+
+.pw-modal-field input {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  font-size: 13px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-sizing: border-box;
+  color: #333;
+}
+
+.pw-modal-field input:focus {
+  outline: none;
+  border-color: #1b3f7d;
+}
+
+.pw-modal-field input::placeholder {
+  color: #bbb;
+}
+
+.pw-modal-rules {
+  background: #f5f6f8;
+  border-radius: 4px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+
+.pw-modal-rules-title {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0 0 6px;
+  color: #555;
+}
+
+.pw-modal-rules ul {
+  margin: 0;
+  padding: 0 0 0 18px;
+  font-size: 12px;
+  color: #666;
+  line-height: 1.8;
+}
+
+.pw-modal-error {
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  background: rgba(220, 53, 69, 0.08);
+  border: 1px solid rgba(220, 53, 69, 0.3);
+  border-radius: 4px;
+  color: #dc3545;
+  font-size: 12px;
+}
+
+.pw-modal-success {
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  background: rgba(40, 167, 69, 0.08);
+  border: 1px solid rgba(40, 167, 69, 0.3);
+  border-radius: 4px;
+  color: #28a745;
+  font-size: 12px;
+}
+
+.pw-modal-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pw-modal-btn {
+  height: 40px;
+  font-size: 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.pw-modal-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.pw-modal-btn-reset {
+  flex: 0 0 auto;
+  padding: 0 16px;
+  background: #fff;
+  border: 1px solid #ddd;
+  color: #555;
+}
+
+.pw-modal-btn-reset:hover:not(:disabled) {
+  background: #f5f5f5;
+}
+
+.pw-modal-btn-submit {
+  flex: 1;
+  border: none;
+  background: var(--color-primary, #337ab7);
+  color: #fff;
+}
+
+.pw-modal-btn-submit:hover:not(:disabled) {
+  background: var(--color-primary-hover, #2a6499);
+}
+
+/* Responsive: hide left image on smaller screens */
+@media (max-width: 1024px) {
+  .login-left {
+    display: none;
+  }
+
+  .login-form {
+    position: relative;
+    right: auto;
+    top: auto;
+    transform: none;
+  }
+}

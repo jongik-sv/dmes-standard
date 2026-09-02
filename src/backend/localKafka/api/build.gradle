@@ -1,0 +1,25 @@
+plugins {
+    id 'org.springframework.boot'
+}
+
+bootRun {
+    workingDir = rootProject.projectDir
+    // embedded Kafka(io.github.embeddedkafka)는 log.dir 미지정 시 java.io.tmpdir 아래에
+    // kafka-logs<random> 를 생성한다. 기본 java.io.tmpdir(C:\...\Temp)이 C: 를 채우는 문제 →
+    // D:\localKafka 로 고정 (2026-05-28). 디렉토리는 사전 생성 필요.
+    jvmArgs '-Djava.io.tmpdir=D:/localKafka'
+}
+
+dependencies {
+    // ── Spring Boot ──
+    implementation 'org.springframework.boot:spring-boot-starter'
+
+    // ── Embedded Kafka Broker ──
+    // spring-kafka 의 EmbeddedKafkaKraftBroker 는 KRaft 모드에서 fixed port 강제가 안 됨
+    // (공식 미지원, spring-kafka issue #2916). 따라서 io.github.embeddedkafka 라이브러리 사용.
+    // KRaft 모드 + 9092 fixed port 가능. Scala 2.13 의존성이 transitive 로 들어옴.
+    implementation 'io.github.embeddedkafka:embedded-kafka_2.13:4.2.0'
+
+    // spring-kafka 도 일부 헬퍼/테스트 유틸 위해 같이 보유
+    implementation 'org.springframework.kafka:spring-kafka'
+}

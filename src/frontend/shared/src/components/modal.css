@@ -1,0 +1,332 @@
+/* Modal overlay */
+.cm-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 16px;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  box-sizing: border-box;
+}
+
+/* Modal container */
+.cm-modal {
+  width: min(var(--cm-modal-width, 600px), 100%);
+  max-width: 100%;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  max-height: 90vh;
+  max-height: min(90vh, calc(100dvh - 32px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Modal sizes — height 도 명시 (content-fit 으로 collapse 회피).
+   Modal 안 grid/form 이 0px 가 아닌 명시된 높이 안에서 flex chain 으로 채우도록 한다. */
+.cm-modal-sm {
+  --cm-modal-width: 400px;
+}
+
+.cm-modal-md {
+  --cm-modal-width: 600px;
+  min-height: 400px;
+  min-height: min(400px, calc(100dvh - 32px));
+}
+
+.cm-modal-lg {
+  --cm-modal-width: 900px;
+  min-height: 70vh;
+  min-height: min(70vh, calc(100dvh - 32px));
+}
+
+.cm-modal-xl {
+  --cm-modal-width: 1024px;
+  min-height: 80vh;
+  min-height: min(80vh, calc(100dvh - 32px));
+}
+
+/* 콘텐츠 높이에 맞춰 축소 — 내부 grid 에 명시 height 를 준 모달 등, size 프리셋의 큰 min-height 가
+   불필요해 하단 빈 공간이 생길 때 opt-in. (`.cm-modal.cm-modal--fit` 는 size 클래스보다 명시도 높음) */
+.cm-modal.cm-modal--fit {
+  min-height: 0;
+}
+
+.cm-modal-body--no-padding {
+  padding: 0;
+}
+
+.cm-modal-toolbar {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid #e0e0e0;
+  background-color: #fafafa;
+}
+
+.cm-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid #e0e0e0;
+  background-color: #fafafa;
+}
+
+/* Modal body 내부에서도 page-layout 의 GridPanel / SearchArea 스타일 적용
+   (page-layout.css 의 selector 가 `.page-layout` scope 라 Modal 안에서는 적용되지 않음 — Modal scope 별도 정의) */
+.cm-modal-body--no-padding {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.cm-modal-body .grid-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 6px;
+  height: 28px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  border-bottom: 1px solid #e0e0e0;
+}
+.cm-modal-body .grid-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cm-modal-body .grid-panel-title > span:first-child {
+  font-size: 13px;
+  font-weight: 600;
+}
+.cm-modal-body .grid-panel-count {
+  font-size: 13px;
+  color: #888;
+}
+.cm-modal-body .grid-panel-buttons {
+  display: flex;
+  gap: 3px;
+}
+.cm-modal-body .grid-btn {
+  height: 24px;
+  padding: 0 10px;
+  font-size: 13px;
+  border: 1px solid #aab4be;
+  background-color: #fff;
+  color: #333;
+  cursor: pointer;
+  border-radius: 2px;
+  font-family: inherit;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+.cm-modal-body .grid-btn:hover {
+  background-color: #eaf0f6;
+  border-color: #7a9ab8;
+}
+.cm-modal-body .grid-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.cm-modal-body .search-area {
+  padding: 6px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+  border-bottom: 1px solid #e0e0e0;
+  flex-shrink: 0;
+}
+.cm-modal-body .search-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cm-modal-body .search-field__label {
+  font-size: 13px;
+  color: #333;
+}
+
+/* Modal header */
+.cm-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid #e0e0e0;
+  background-color: #fafafa;
+}
+
+.cm-modal-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+}
+
+.cm-modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.15s;
+}
+
+.cm-modal-close:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Modal body */
+.cm-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+  /* Modal 내부의 ContentBody → ContentPanel → GridPanel → AgDataGrid 가
+     flex height chain 으로 modal max-height 까지 채우도록 column flex 강제.
+     (block layout 이면 ag-grid 가 0px collapse — 행 표시 안 됨) */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Modal footer */
+.cm-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid #e0e0e0;
+  background-color: #fafafa;
+}
+
+/* Message modal specific styles */
+.cm-message-modal-overlay {
+  z-index: 10000;
+}
+
+.cm-message-header {
+  border-bottom: none;
+}
+
+.cm-message-header .cm-modal-title {
+  color: #fff;
+}
+
+.cm-message-body {
+  padding: 20px;
+}
+
+.cm-message-content {
+  white-space: pre-line;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #333;
+}
+
+.cm-message-footer {
+  border-top: none;
+  background-color: #fff;
+}
+
+/* Button styles */
+.cm-btn {
+  padding: 8px 16px;
+  min-width: 80px;
+  white-space: nowrap;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid transparent;
+}
+
+.cm-btn-primary {
+  background-color: var(--color-primary, #337ab7);
+  color: #fff;
+  border-color: var(--color-primary, #337ab7);
+}
+
+.cm-btn-primary:hover {
+  background-color: var(--color-primary-hover, #2a6499);
+  border-color: var(--color-primary-hover, #2a6499);
+}
+
+.cm-btn-outline {
+  background-color: #fff;
+  color: #333;
+  border-color: #ccc;
+}
+
+.cm-btn-outline:hover {
+  background-color: #f5f5f5;
+  border-color: #999;
+}
+
+/* Toast — showMessage({ toast: true }) 정보성 메시지 (As-Is 하단 상태바 등가) */
+.cm-toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 10001; /* MessageModal overlay(10000) 위 — LoV 팝업 안에서도 보이도록 */
+  pointer-events: none;
+}
+
+.cm-toast {
+  min-width: 220px;
+  max-width: 420px;
+  padding: 10px 16px;
+  border-radius: 6px;
+  background-color: rgba(33, 33, 33, 0.92);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.5;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  border-left: 4px solid #1976d2;
+  white-space: pre-line;
+  animation: cm-toast-in 0.2s ease-out;
+}
+
+.cm-toast-info {
+  border-left-color: #1976d2;
+}
+.cm-toast-success {
+  border-left-color: #2e7d32;
+}
+.cm-toast-warning {
+  border-left-color: #ed6c02;
+}
+.cm-toast-error {
+  border-left-color: #d32f2f;
+}
+
+@keyframes cm-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

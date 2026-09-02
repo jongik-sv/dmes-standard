@@ -1,0 +1,92 @@
+plugins {
+    id 'java-library'
+    id 'checkstyle'
+    id "com.github.spotbugs" version "6.1.3"
+    id 'maven-publish'
+}
+
+compileJava {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+    options.encoding = "utf-8"
+    options.compilerArgs += ['-parameters']
+}
+compileTestJava {
+    options.encoding = "utf-8"
+    options.compilerArgs += ['-parameters']
+}
+
+java {
+    withJavadocJar()
+    withSourcesJar()
+}
+
+javadoc {
+    options.encoding("utf-8")
+}
+
+spotbugs {
+    excludeFilter = rootProject.file("config/spotbugs/exclude.xml")
+}
+
+spotbugsMain {
+    reports {
+        xml.required = false
+        html.required = true
+    }
+}
+
+spotbugsTest {
+    enabled = false
+    reports {
+        xml.required = false
+        html.required = true
+    }
+}
+
+//def nexusUrl = "http://10.110.1.12:8889/nexus"
+def nexusUrl = "http://172.31.1.96:8889/nexus"
+
+def secretsFile = file('.secrets.properties')
+def secrets = new Properties()
+if (secretsFile.exists()) {
+    secrets.load(new FileInputStream(secretsFile))
+}
+
+def nexusUsername = secrets.getProperty("NEXUS_USERNAME", System.getenv("NEXUS_USERNAME"))
+def nexusPassword = secrets.getProperty("NEXUS_PASSWORD", System.getenv("NEXUS_PASSWORD"))
+
+publishing {
+    repositories {
+        maven {
+            name = "Releases"
+            url = uri("${nexusUrl}/content/repositories/releases/")
+            credentials {
+                username = "${nexusUsername}"
+                password = "${nexusPassword}"
+            }
+            allowInsecureProtocol = true
+        }
+    }
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId = project.name
+            from components.java
+        }
+    }
+}
+
+dependencies {
+    api "org.springframework:spring-core:${rootProject.springVersion}"
+    api "org.slf4j:slf4j-api:${rootProject.slf4j}"
+    implementation('com.google.guava:guava:33.4.0-jre')
+    compileOnly "com.google.code.findbugs:annotations:${rootProject.findbugs}"
+    compileOnly "com.google.code.findbugs:jsr305:${rootProject.jsr305}"
+}
+
+checkstyle {
+}
+
+test {
+    useJUnitPlatform()
+}

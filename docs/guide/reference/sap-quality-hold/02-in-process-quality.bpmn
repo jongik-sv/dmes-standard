@@ -1,0 +1,348 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_InProcessQuality" targetNamespace="urn:sap-quality-hold-reference" exporter="bpmn-tool" exporterVersion="1.3.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:collaboration id="Collaboration_InProcessQuality">
+    <bpmn:participant id="Participant_InProcessQuality" name="생산 중 품질 (SAP S/4HANA QM · SAP Digital Manufacturing)" processRef="InProcessQuality" />
+  </bpmn:collaboration>
+  <bpmn:process id="InProcessQuality" name="생산 중 품질 — 검사·SFC Hold·NCR" isExecutable="false">
+    <bpmn:documentation>S/4HANA QM 공정검사 lot(원산지 03)와 SAP DM 작업 실행을 연계한다. 부적합 시 SFC를 Hold하여 진행을 차단하고 NCR/MRB 처분에 따라 재작업, 특채, 폐기를 수행한다.</bpmn:documentation>
+    <bpmn:startEvent id="IN_Start" name="생산오더 Release">
+      <bpmn:outgoing>IN_F01</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="IN_CreateLot03" name="[S/4 QM]&#10;공정검사 lot 03 생성">
+      <bpmn:incoming>IN_F01</bpmn:incoming>
+      <bpmn:outgoing>IN_F02</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="IN_ReleaseSFC" name="[SAP DM]&#10;오더·검사항목 수신 및 SFC Release">
+      <bpmn:incoming>IN_F02</bpmn:incoming>
+      <bpmn:outgoing>IN_F03</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="IN_ExecuteOperation" name="공정 작업 실행&#10;추적성·데이터 수집">
+      <bpmn:incoming>IN_F03</bpmn:incoming>
+      <bpmn:incoming>IN_F12</bpmn:incoming>
+      <bpmn:outgoing>IN_F04</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="IN_RecordInspection" name="[SAP DM]&#10;Inspection Point·검사결과·Buyoff 기록">
+      <bpmn:incoming>IN_F04</bpmn:incoming>
+      <bpmn:incoming>IN_F22</bpmn:incoming>
+      <bpmn:outgoing>IN_F05</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="IN_SyncResults" name="검사결과 S/4 QM 동기화&#10;평가값 수신">
+      <bpmn:incoming>IN_F05</bpmn:incoming>
+      <bpmn:outgoing>IN_F06</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="IN_ConformanceGateway" name="공정 적합?" default="IN_F08">
+      <bpmn:incoming>IN_F06</bpmn:incoming>
+      <bpmn:outgoing>IN_F07</bpmn:outgoing>
+      <bpmn:outgoing>IN_F08</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="IN_CompleteOperation" name="공정 완료·실적 확정">
+      <bpmn:incoming>IN_F07</bpmn:incoming>
+      <bpmn:incoming>IN_F18</bpmn:incoming>
+      <bpmn:outgoing>IN_F09</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="IN_LastOperationGateway" name="최종 공정?" default="IN_F11">
+      <bpmn:incoming>IN_F09</bpmn:incoming>
+      <bpmn:outgoing>IN_F10</bpmn:outgoing>
+      <bpmn:outgoing>IN_F11</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="IN_NextOperation" name="다음 공정 Queue">
+      <bpmn:incoming>IN_F11</bpmn:incoming>
+      <bpmn:outgoing>IN_F12</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="IN_EndSuccess" name="생산 후 품질로 인계">
+      <bpmn:incoming>IN_F10</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="IN_HoldSFC" name="[SAP DM]&#10;NC 기록 + SFC Hold&#10;Start/Complete 차단">
+      <bpmn:incoming>IN_F08</bpmn:incoming>
+      <bpmn:outgoing>IN_F13</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="IN_Containment" name="[S/4 QM/SAP DM]&#10;내부문제 Q3·영향 SFC 봉쇄">
+      <bpmn:incoming>IN_F13</bpmn:incoming>
+      <bpmn:outgoing>IN_F14</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="IN_MRB" name="NCR 기술검토·MRB 처분 승인">
+      <bpmn:incoming>IN_F14</bpmn:incoming>
+      <bpmn:outgoing>IN_F15</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="IN_DispositionGateway" name="처분?" default="IN_F19">
+      <bpmn:incoming>IN_F15</bpmn:incoming>
+      <bpmn:outgoing>IN_F16</bpmn:outgoing>
+      <bpmn:outgoing>IN_F19</bpmn:outgoing>
+      <bpmn:outgoing>IN_F23</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="IN_UseAsIs" name="특채/그대로 사용 승인">
+      <bpmn:incoming>IN_F16</bpmn:incoming>
+      <bpmn:outgoing>IN_F17</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="IN_CloseRelease" name="NC Close·SFC Hold 해제">
+      <bpmn:incoming>IN_F17</bpmn:incoming>
+      <bpmn:outgoing>IN_F18</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="IN_ReworkRoute" name="NC/특수 Routing으로 Disposition">
+      <bpmn:incoming>IN_F19</bpmn:incoming>
+      <bpmn:outgoing>IN_F20</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="IN_Repair" name="분석·수리·재작업">
+      <bpmn:incoming>IN_F20</bpmn:incoming>
+      <bpmn:outgoing>IN_F21</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="IN_Reinspect" name="SFC Hold 해제 후 재검사">
+      <bpmn:incoming>IN_F21</bpmn:incoming>
+      <bpmn:outgoing>IN_F22</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="IN_Scrap" name="SFC Scrap·폐기실적/비용 반영">
+      <bpmn:incoming>IN_F23</bpmn:incoming>
+      <bpmn:outgoing>IN_F24</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="IN_EndScrap" name="폐기 종결">
+      <bpmn:incoming>IN_F24</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="IN_F01" sourceRef="IN_Start" targetRef="IN_CreateLot03" />
+    <bpmn:sequenceFlow id="IN_F02" sourceRef="IN_CreateLot03" targetRef="IN_ReleaseSFC" />
+    <bpmn:sequenceFlow id="IN_F03" sourceRef="IN_ReleaseSFC" targetRef="IN_ExecuteOperation" />
+    <bpmn:sequenceFlow id="IN_F04" sourceRef="IN_ExecuteOperation" targetRef="IN_RecordInspection" />
+    <bpmn:sequenceFlow id="IN_F05" sourceRef="IN_RecordInspection" targetRef="IN_SyncResults" />
+    <bpmn:sequenceFlow id="IN_F06" sourceRef="IN_SyncResults" targetRef="IN_ConformanceGateway" />
+    <bpmn:sequenceFlow id="IN_F07" name="적합" sourceRef="IN_ConformanceGateway" targetRef="IN_CompleteOperation">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${inProcessAccepted == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="IN_F08" name="부적합/OOL/Buyoff 거부" sourceRef="IN_ConformanceGateway" targetRef="IN_HoldSFC" />
+    <bpmn:sequenceFlow id="IN_F09" sourceRef="IN_CompleteOperation" targetRef="IN_LastOperationGateway" />
+    <bpmn:sequenceFlow id="IN_F10" name="예" sourceRef="IN_LastOperationGateway" targetRef="IN_EndSuccess">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${lastOperation == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="IN_F11" name="아니오" sourceRef="IN_LastOperationGateway" targetRef="IN_NextOperation" />
+    <bpmn:sequenceFlow id="IN_F12" sourceRef="IN_NextOperation" targetRef="IN_ExecuteOperation" />
+    <bpmn:sequenceFlow id="IN_F13" sourceRef="IN_HoldSFC" targetRef="IN_Containment" />
+    <bpmn:sequenceFlow id="IN_F14" sourceRef="IN_Containment" targetRef="IN_MRB" />
+    <bpmn:sequenceFlow id="IN_F15" sourceRef="IN_MRB" targetRef="IN_DispositionGateway" />
+    <bpmn:sequenceFlow id="IN_F16" name="특채/그대로 사용" sourceRef="IN_DispositionGateway" targetRef="IN_UseAsIs">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${disposition == 'USE_AS_IS'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="IN_F17" sourceRef="IN_UseAsIs" targetRef="IN_CloseRelease" />
+    <bpmn:sequenceFlow id="IN_F18" sourceRef="IN_CloseRelease" targetRef="IN_CompleteOperation" />
+    <bpmn:sequenceFlow id="IN_F19" name="재작업" sourceRef="IN_DispositionGateway" targetRef="IN_ReworkRoute" />
+    <bpmn:sequenceFlow id="IN_F20" sourceRef="IN_ReworkRoute" targetRef="IN_Repair" />
+    <bpmn:sequenceFlow id="IN_F21" sourceRef="IN_Repair" targetRef="IN_Reinspect" />
+    <bpmn:sequenceFlow id="IN_F22" name="재검사" sourceRef="IN_Reinspect" targetRef="IN_RecordInspection" />
+    <bpmn:sequenceFlow id="IN_F23" name="폐기" sourceRef="IN_DispositionGateway" targetRef="IN_Scrap">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${disposition == 'SCRAP'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="IN_F24" sourceRef="IN_Scrap" targetRef="IN_EndScrap" />
+    <bpmn:textAnnotation id="IN_Annotation">
+      <bpmn:text>S/4HANA 공정검사 lot 03은 재고 비관련이다. WIP 진행 차단은 SAP DM SFC Hold가 담당하며, 재고 보류와 혼동하지 않는다.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="IN_Association" sourceRef="IN_CreateLot03" targetRef="IN_Annotation" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_InProcessQuality">
+      <bpmndi:BPMNShape id="Participant_InProcessQuality_di" bpmnElement="Participant_InProcessQuality" isHorizontal="true">
+        <dc:Bounds x="20" y="30" width="2090" height="730" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IN_Start_di" bpmnElement="IN_Start">
+        <dc:Bounds x="70" y="252" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IN_CreateLot03_di" bpmnElement="IN_CreateLot03">
+        <dc:Bounds x="160" y="230" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IN_ReleaseSFC_di" bpmnElement="IN_ReleaseSFC">
+        <dc:Bounds x="320" y="230" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IN_ExecuteOperation_di" bpmnElement="IN_ExecuteOperation">
+        <dc:Bounds x="480" y="230" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IN_RecordInspection_di" bpmnElement="IN_RecordInspection">
+        <dc:Bounds x="640" y="230" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IN_SyncResults_di" bpmnElement="IN_SyncResults">
+        <dc:Bounds x="800" y="230" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IN_ConformanceGateway_di" bpmnElement="IN_ConformanceGateway" isMarkerVisible="true">
+        <dc:Bounds x="970" y="245" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IN_CompleteOperation_di" bpmnElement="IN_CompleteOperation">
+        <dc:Bounds x="1130" y="230" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IN_LastOperationGateway_di" bpmnElement="IN_LastOperationGateway" isMarkerVisible="true">
+        <dc:Bounds x="1300" y="245" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IN_NextOperation_di" bpmnElement="IN_NextOperation">
+        <dc:Bounds x="1390" y="70" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IN_EndSuccess_di" bpmnElement="IN_EndSuccess">
+        <dc:Bounds x="1480" y="252" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IN_HoldSFC_di" bpmnElement="IN_HoldSFC">
+        <dc:Bounds x="1040" y="450" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IN_Containment_di" bpmnElement="IN_Containment">
+        <dc:Bounds x="1200" y="450" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IN_MRB_di" bpmnElement="IN_MRB">
+        <dc:Bounds x="1360" y="450" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IN_DispositionGateway_di" bpmnElement="IN_DispositionGateway" isMarkerVisible="true">
+        <dc:Bounds x="1530" y="465" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IN_UseAsIs_di" bpmnElement="IN_UseAsIs">
+        <dc:Bounds x="1660" y="270" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IN_CloseRelease_di" bpmnElement="IN_CloseRelease">
+        <dc:Bounds x="1820" y="270" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IN_ReworkRoute_di" bpmnElement="IN_ReworkRoute">
+        <dc:Bounds x="1660" y="450" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IN_Repair_di" bpmnElement="IN_Repair">
+        <dc:Bounds x="1820" y="450" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IN_Reinspect_di" bpmnElement="IN_Reinspect">
+        <dc:Bounds x="1980" y="450" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IN_Scrap_di" bpmnElement="IN_Scrap">
+        <dc:Bounds x="1660" y="650" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IN_EndScrap_di" bpmnElement="IN_EndScrap">
+        <dc:Bounds x="1830" y="672" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="IN_Annotation_di" bpmnElement="IN_Annotation">
+        <dc:Bounds x="640" y="70" width="500" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="IN_F01_di" bpmnElement="IN_F01">
+        <di:waypoint x="106" y="270" />
+        <di:waypoint x="160" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IN_F02_di" bpmnElement="IN_F02">
+        <di:waypoint x="260" y="270" />
+        <di:waypoint x="320" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IN_F03_di" bpmnElement="IN_F03">
+        <di:waypoint x="420" y="270" />
+        <di:waypoint x="480" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IN_F04_di" bpmnElement="IN_F04">
+        <di:waypoint x="580" y="270" />
+        <di:waypoint x="640" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IN_F05_di" bpmnElement="IN_F05">
+        <di:waypoint x="740" y="270" />
+        <di:waypoint x="800" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IN_F06_di" bpmnElement="IN_F06">
+        <di:waypoint x="900" y="270" />
+        <di:waypoint x="970" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IN_F07_di" bpmnElement="IN_F07">
+        <di:waypoint x="1020" y="270" />
+        <di:waypoint x="1130" y="270" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1055" y="253" width="16" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IN_F08_di" bpmnElement="IN_F08">
+        <di:waypoint x="995" y="295" />
+        <di:waypoint x="995" y="490" />
+        <di:waypoint x="1040" y="490" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="997.5" y="278" width="136" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IN_F09_di" bpmnElement="IN_F09">
+        <di:waypoint x="1230" y="270" />
+        <di:waypoint x="1300" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IN_F10_di" bpmnElement="IN_F10">
+        <di:waypoint x="1350" y="270" />
+        <di:waypoint x="1480" y="270" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1395" y="253" width="8" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IN_F11_di" bpmnElement="IN_F11">
+        <di:waypoint x="1325" y="245" />
+        <di:waypoint x="1325" y="110" />
+        <di:waypoint x="1390" y="110" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1337.5" y="93" width="24" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IN_F12_di" bpmnElement="IN_F12">
+        <di:waypoint x="1440" y="150" />
+        <di:waypoint x="1440" y="570" />
+        <di:waypoint x="530" y="570" />
+        <di:waypoint x="530" y="310" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IN_F13_di" bpmnElement="IN_F13">
+        <di:waypoint x="1140" y="490" />
+        <di:waypoint x="1200" y="490" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IN_F14_di" bpmnElement="IN_F14">
+        <di:waypoint x="1300" y="490" />
+        <di:waypoint x="1360" y="490" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IN_F15_di" bpmnElement="IN_F15">
+        <di:waypoint x="1460" y="490" />
+        <di:waypoint x="1530" y="490" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IN_F16_di" bpmnElement="IN_F16">
+        <di:waypoint x="1555" y="465" />
+        <di:waypoint x="1555" y="310" />
+        <di:waypoint x="1660" y="310" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1587.5" y="293" width="72" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IN_F17_di" bpmnElement="IN_F17">
+        <di:waypoint x="1760" y="310" />
+        <di:waypoint x="1820" y="310" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IN_F18_di" bpmnElement="IN_F18">
+        <di:waypoint x="1870" y="350" />
+        <di:waypoint x="1870" y="770" />
+        <di:waypoint x="1180" y="770" />
+        <di:waypoint x="1180" y="310" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IN_F19_di" bpmnElement="IN_F19">
+        <di:waypoint x="1580" y="490" />
+        <di:waypoint x="1660" y="490" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1600" y="473" width="24" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IN_F20_di" bpmnElement="IN_F20">
+        <di:waypoint x="1760" y="490" />
+        <di:waypoint x="1820" y="490" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IN_F21_di" bpmnElement="IN_F21">
+        <di:waypoint x="1920" y="490" />
+        <di:waypoint x="1980" y="490" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IN_F22_di" bpmnElement="IN_F22">
+        <di:waypoint x="2030" y="530" />
+        <di:waypoint x="2030" y="770" />
+        <di:waypoint x="690" y="770" />
+        <di:waypoint x="690" y="310" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1340" y="293" width="24" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IN_F23_di" bpmnElement="IN_F23">
+        <di:waypoint x="1555" y="515" />
+        <di:waypoint x="1555" y="690" />
+        <di:waypoint x="1660" y="690" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1587.5" y="498" width="16" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IN_F24_di" bpmnElement="IN_F24">
+        <di:waypoint x="1760" y="690" />
+        <di:waypoint x="1830" y="690" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IN_Association_di" bpmnElement="IN_Association">
+        <di:waypoint x="210" y="230" />
+        <di:waypoint x="890" y="130" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
+

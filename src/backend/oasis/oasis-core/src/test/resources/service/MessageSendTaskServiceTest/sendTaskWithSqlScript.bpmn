@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1ckjd1d" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.11.1" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="Process_0dffkce" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_0tuq6q0</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_0tuq6q0" sourceRef="StartEvent_1" targetRef="Activity_1krcoxw" />
+    <bpmn:endEvent id="Event_1hnhee4">
+      <bpmn:incoming>Flow_1ibgzol</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1ibgzol" sourceRef="Activity_0crqd2l" targetRef="Event_1hnhee4" />
+    <bpmn:sendTask id="Activity_0crqd2l" name="메시지" camunda:type="external" camunda:topic="m1">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="msg" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1680wkz</bpmn:incoming>
+      <bpmn:outgoing>Flow_1ibgzol</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:sequenceFlow id="Flow_1680wkz" sourceRef="Activity_1krcoxw" targetRef="Activity_0crqd2l" />
+    <bpmn:scriptTask id="Activity_1krcoxw" name="조회" scriptFormat="sql">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="tx" value="tm1" />
+          <camunda:property name="output" value="msg" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0tuq6q0</bpmn:incoming>
+      <bpmn:outgoing>Flow_1680wkz</bpmn:outgoing>
+      <bpmn:script>select id, firstName as name, 
+create_dt, enrolled_dt, 
+account_year,
+account_month,
+account_date,
+backup_data,
+now() as join_date
+ from users 
+where id = 1</bpmn:script>
+    </bpmn:scriptTask>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_0dffkce">
+      <bpmndi:BPMNEdge id="Flow_1680wkz_di" bpmnElement="Flow_1680wkz">
+        <di:waypoint x="340" y="120" />
+        <di:waypoint x="420" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1ibgzol_di" bpmnElement="Flow_1ibgzol">
+        <di:waypoint x="520" y="120" />
+        <di:waypoint x="622" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0tuq6q0_di" bpmnElement="Flow_0tuq6q0">
+        <di:waypoint x="188" y="120" />
+        <di:waypoint x="240" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="152" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1hnhee4_di" bpmnElement="Event_1hnhee4">
+        <dc:Bounds x="622" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_14e4h99_di" bpmnElement="Activity_0crqd2l">
+        <dc:Bounds x="420" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1hamui1_di" bpmnElement="Activity_1krcoxw">
+        <dc:Bounds x="240" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

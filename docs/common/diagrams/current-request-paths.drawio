@@ -1,0 +1,119 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.6 Chrome/144.0.7559.236 Electron/40.8.4 Safari/537.36" version="29.6.6">
+  <diagram id="current-request-paths" name="Current Request Paths">
+    <mxGraphModel dx="1504" dy="1309" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1300" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=24;fontStyle=1;fontColor=#1F2937;" value="UI → Portal BFF → Backend 요청 경로 (현행 main, 2026-05-21)" vertex="1">
+          <mxGeometry height="40" width="900" x="410" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="uiLane" parent="1" style="swimlane;html=1;rounded=0;startSize=32;horizontal=0;fillColor=#F8FAFC;strokeColor=#CBD5E1;fontSize=16;fontStyle=1;fontColor=#334155;" value="UI / Browser" vertex="1">
+          <mxGeometry height="1010" width="300" x="40" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="bffLane" parent="1" style="swimlane;html=1;rounded=0;startSize=32;horizontal=0;fillColor=#F8FAFC;strokeColor=#CBD5E1;fontSize=16;fontStyle=1;fontColor=#334155;" value="&amp;nbsp;&amp;nbsp; " vertex="1">
+          <mxGeometry height="1200" width="1290" x="390" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="proxy" parent="bffLane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;fontSize=14;fontStyle=1;fontColor=#78350F;" value="src/frontend/m-mcm/proxy.ts (Next middleware)&lt;br&gt;&lt;br&gt;/portal/* 인증 보호&lt;br&gt;/api/* 인증/RBAC 게이트&lt;br&gt;&lt;br&gt;forward 헤더 (BFF↔BE shared secret 모델):&lt;br&gt;· X-Client-Key (env: BACKEND_CLIENT_KEY)&lt;br&gt;· X-Authenticated-User (token.sub)&lt;br&gt;· X-Authenticated-Role (token.roles join &quot;,&quot;)&lt;br&gt;※ 사용자 JWT(Authorization Bearer) 는 더 이상 forward 하지 않음&lt;br&gt;&lt;br&gt;BFF self-fetch: X-Internal-Bff-Call=1&lt;br&gt;+ X-Authenticated-User/Role fallback (RBAC warmup)" vertex="1">
+          <mxGeometry height="730" width="425" x="95" y="185" as="geometry" />
+        </mxCell>
+        <mxCell id="restRoute" parent="bffLane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2FE;strokeColor=#0284C7;fontSize=13;fontColor=#0C4A6E;" value="src/frontend/m-mcm/app/api/[module]/rest/[...path]/route.ts&lt;br&gt;&lt;br&gt;/api/{module}/rest/{path} → ${module_url}/{path}&lt;br&gt;(BFF 가 rest segment 제거 후 BE 로 전달)" vertex="1">
+          <mxGeometry height="90" width="380" x="620" y="225" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" edge="1" parent="bffLane" source="proxy" style="endArrow=block;html=1;rounded=0;strokeColor=#0284C7;strokeWidth=2;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=0.997;exitY=0.115;exitDx=0;exitDy=0;exitPerimeter=0;" target="restRoute" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="580" y="270" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="oasisRoute" parent="bffLane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E8FF;strokeColor=#9333EA;fontSize=13;fontColor=#581C87;" value="src/frontend/m-mcm/app/api/[module]/oasis/[serviceId]/[action]/route.ts&lt;br&gt;&lt;br&gt;createOasisProxyHandler (from @dk-oasis/shared/oasis-proxy)&lt;br&gt;/api/{module}/oasis/{id}/{action} → ${module_url}/oasis/{id}/{action}&lt;br&gt;&lt;br&gt;forward 헤더 3 종 (BFF↔BE shared secret 모델, 2026-05-21~):&lt;br&gt;· X-Client-Key + X-Authenticated-User + X-Authenticated-Role&lt;br&gt;※ Authorization Bearer 제거 — BE 가 X-Client-Key 로 BFF 신뢰&lt;br&gt;(OASIS 그대로 전달, cactus OasisController 매핑 단순화)" vertex="1">
+          <mxGeometry height="130" width="580" x="620" y="410" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="bffLane" source="proxy" style="endArrow=block;html=1;rounded=0;strokeColor=#9333EA;strokeWidth=2;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=1.002;exitY=0.377;exitDx=0;exitDy=0;exitPerimeter=0;" target="oasisRoute" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="authRoute" parent="bffLane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE4E6;strokeColor=#E11D48;fontSize=13;fontColor=#881337;" value="src/frontend/m-mcm/app/api/auth/[...nextauth]/route.ts (위임형 handlers.ts)&lt;br&gt;&lt;br&gt;shared auth server&lt;br&gt;backendAccessToken / RefreshToken 을 NextAuth JWT 에 저장 (호환 유지)&lt;br&gt;※ 2026-05-21~ BFF→BE forward 에는 미사용 (shared secret 모델로 전환)&lt;br&gt;m-mcm NextAuth → mcm BE /api/auth/login&lt;br&gt;(ClientKeyFilter skip path: /api/auth/)" vertex="1">
+          <mxGeometry height="100" width="600" x="630" y="610" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" edge="1" parent="bffLane" source="proxy" style="endArrow=block;html=1;rounded=0;strokeColor=#E11D48;strokeWidth=2;" target="authRoute" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="helperRoute" parent="bffLane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#64748B;fontSize=13;fontColor=#334155;" value="src/frontend/m-mcm/app/api/auth/me/route.ts → 현재 사용자&#xa;src/frontend/m-mcm/app/api/auth/password/route.ts → PATCH /api/auth/change-password · POST /api/auth/reset-password 프록시&#xa;(※ BE McmAuthController 미매핑; reset 은 OASIS /oasis/secUser/resetPassword 경유)&#xa;src/frontend/m-mcm/app/api/auth/force-logout/route.ts → 쿠키 삭제" vertex="1">
+          <mxGeometry height="120" width="460" x="640" y="765" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" edge="1" parent="bffLane" source="proxy" style="endArrow=block;html=1;rounded=0;strokeColor=#64748B;strokeWidth=2;exitX=1.007;exitY=0.865;exitDx=0;exitDy=0;exitPerimeter=0;" target="helperRoute" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="backendLane" parent="1" style="swimlane;html=1;rounded=0;startSize=32;horizontal=0;fillColor=#F8FAFC;strokeColor=#CBD5E1;fontSize=16;fontStyle=1;fontColor=#334155;" value="Backend WAS" vertex="1">
+          <mxGeometry height="1010" width="690" x="1800" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="restBackend" parent="backendLane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#16A34A;fontSize=13;fontColor=#14532D;" value="모듈 WAS (REST) — com.dongkuk.dmes.{aps|mpn|mqc}.*&lt;br&gt;&lt;br&gt;cactus 필터 체인:&lt;br&gt;TxIdFilter → RequestIdFilter → ClientKeyFilter → JwtAuthenticationFilter&lt;br&gt;&lt;br&gt;★ ClientKeyFilter (2026-05-21~): X-Client-Key 검증 성공 시&lt;br&gt;X-Authenticated-User / X-Authenticated-Role 헤더로 SecurityContext&lt;br&gt;사전 인증을 set → JwtAuthenticationFilter 는 사전 인증 보존 분기로&lt;br&gt;JWT 검증 자체를 스킵 (만료된 사용자 JWT 도 영향 없음)&lt;br&gt;&lt;br&gt;GET/POST/PUT/PATCH/DELETE /api/* (예: /api/demands, /api/items)&lt;br&gt;(BE 매핑은 변경 없음, /api/{module}/rest/ segment 는 BFF 가 제거)" vertex="1">
+          <mxGeometry height="255" width="590" x="60" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="oasisBackend" parent="backendLane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#16A34A;fontSize=13;fontColor=#14532D;" value="모듈 WAS (OASIS) — com.dongkuk.dmes.{mcm|aps|mpn|mqc}.*&lt;br&gt;&lt;br&gt;cactus 필터 체인 (동일 ClientKeyFilter 정책 — 사전 인증 set):&lt;br&gt;TxIdFilter → RequestIdFilter → ClientKeyFilter → JwtAuthenticationFilter&lt;br&gt;cactus &lt;b&gt;OasisController&lt;/b&gt; 단일 매핑:&lt;br&gt;POST /oasis/{serviceId}/{action}&lt;br&gt;예: /oasis/secMenu/search" vertex="1">
+          <mxGeometry height="135" width="580" x="70" y="420" as="geometry" />
+        </mxCell>
+        <mxCell id="authBackend" parent="backendLane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#16A34A;fontSize=13;fontColor=#14532D;" value="mcm BE — com.dongkuk.dmes.mcm.*&#xa;McmAuthController @RequestMapping(&quot;/api/auth&quot;)&#xa;POST /api/auth/login, /api/auth/refresh, /api/auth/logout&#xa;cactus AuthService + SecUserRepository + JwtTokenProvider&#xa;mcm SecurityConfig (McmSecurityDefaults 매처) /api/auth/** permitAll&#xa;(ClientKeyFilter skip prefix: /api/auth/)" vertex="1">
+          <mxGeometry height="120" width="600" x="70" y="580" as="geometry" />
+        </mxCell>
+        <mxCell id="helperBackend" parent="backendLane" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#16A34A;fontSize=13;fontColor=#14532D;" value="mcm BE 또는 BFF Local / OASIS&#xa;PATCH /api/auth/change-password (※ BE REST 매핑 없음 — BFF 직접 처리 또는 OASIS 위임 필요)&#xa;POST /api/auth/reset-password (OASIS /oasis/secUser/resetPassword 사용 가능 — SecUserService.resetPassword)&#xa;쿠키 삭제(force-logout)는 BFF 에서 종료&#xa;(BFF self-fetch 시 X-Internal-Bff-Call=1 + X-Authenticated-User/Role fallback — 2026-05-21~)" vertex="1">
+          <mxGeometry height="125" width="600" x="70" y="770" as="geometry" />
+        </mxCell>
+        <mxCell id="restLabel" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#2563EB;fontSize=15;fontStyle=1;fontColor=#1E3A8A;" value="1. REST API (rest 경유)" vertex="1">
+          <mxGeometry height="36" width="240" x="70" y="260" as="geometry" />
+        </mxCell>
+        <mxCell id="restUi" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#3B82F6;fontSize=13;fontColor=#1E3A8A;" value="모듈 화면 (예: m-aps)&#xa;apiRequest(&quot;/api/aps/rest/api/demands&quot;)&#xa;BFF 가 segment 제거 후 BE 전달" vertex="1">
+          <mxGeometry height="80" width="230" x="80" y="315" as="geometry" />
+        </mxCell>
+        <mxCell id="oasisLabel" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EDE9FE;strokeColor=#7C3AED;fontSize=15;fontStyle=1;fontColor=#4C1D95;" value="2. OASIS 4-Segment API" vertex="1">
+          <mxGeometry height="36" width="240" x="70" y="455" as="geometry" />
+        </mxCell>
+        <mxCell id="oasisUi" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F3FF;strokeColor=#8B5CF6;fontSize=13;fontColor=#4C1D95;" value="mcm 접근관리 화면&#xa;POST /api/{module}/oasis/{serviceId}/{action}&#xa;예: /api/mcm/oasis/secMenu/search" vertex="1">
+          <mxGeometry height="90" width="230" x="80" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="authLabel" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFE4E6;strokeColor=#E11D48;fontSize=15;fontStyle=1;fontColor=#881337;" value="3. 로그인 / NextAuth" vertex="1">
+          <mxGeometry height="36" width="240" x="70" y="650" as="geometry" />
+        </mxCell>
+        <mxCell id="authUi" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF1F2;strokeColor=#F43F5E;fontSize=13;fontColor=#881337;" value="Login UI&#xa;/api/auth/* NextAuth 요청" vertex="1">
+          <mxGeometry height="70" width="230" x="80" y="710" as="geometry" />
+        </mxCell>
+        <mxCell id="helperLabel" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B;fontSize=15;fontStyle=1;fontColor=#334155;" value="4. 인증 보조 API" vertex="1">
+          <mxGeometry height="36" width="240" x="70" y="835" as="geometry" />
+        </mxCell>
+        <mxCell id="helperUi" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1F5F9;strokeColor=#64748B;fontSize=13;fontColor=#334155;" value="공통 Shell / 비밀번호 모달 / apiRequest 401 처리&#xa;/api/auth/me&#xa;/api/auth/password&#xa;/api/auth/force-logout" vertex="1">
+          <mxGeometry height="105" width="230" x="80" y="890" as="geometry" />
+        </mxCell>
+        <mxCell id="e0" edge="1" parent="1" source="restUi" style="endArrow=block;html=1;rounded=0;strokeColor=#D97706;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.002;entryY=0.121;entryDx=0;entryDy=0;entryPerimeter=0;" target="proxy" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="restRoute" style="endArrow=block;html=1;rounded=0;strokeColor=#16A34A;strokeWidth=2;" target="restBackend" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="oasisUi" style="endArrow=block;html=1;rounded=0;strokeColor=#D97706;strokeWidth=2;entryX=-0.004;entryY=0.398;entryDx=0;entryDy=0;entryPerimeter=0;" target="proxy" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="oasisRoute" style="endArrow=block;html=1;rounded=0;strokeColor=#16A34A;strokeWidth=2;" target="oasisBackend" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" edge="1" parent="1" source="authUi" style="endArrow=block;html=1;rounded=0;strokeColor=#D97706;strokeWidth=2;" target="proxy" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" edge="1" parent="1" source="authRoute" style="endArrow=block;html=1;rounded=0;strokeColor=#16A34A;strokeWidth=2;" target="authBackend" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" edge="1" parent="1" source="helperUi" style="endArrow=block;html=1;rounded=0;strokeColor=#D97706;strokeWidth=2;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="480" y="900" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e11" edge="1" parent="1" source="helperRoute" style="endArrow=block;html=1;rounded=0;strokeColor=#16A34A;strokeWidth=2;" target="helperBackend" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="note" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontColor=#475569;" value="현행 main 기준 (2026-05-21):&#xa;· 폐기: /api/backend/*, /api/[serviceGroup]/[serviceId]/[action], /${cactus.oasis.service-group}/api/..., /api/{module}/nooasis/* (rest 로 대체)&#xa;· UI→BFF: /api/{module}/oasis/{serviceId}/{action} 또는 /api/{module}/rest/{API_PATH}&#xa;· BFF→BE: OASIS 는 그대로 전달, REST 는 /api/{module}/rest/ segment 만 제거 → ${module_url}/{API_PATH}&#xa;· OASIS 진입점은 cactus OasisController 단일 매핑 /oasis/{serviceId}/{action}&#xa;· cactus 표준 필터 순서: TxIdFilter → RequestIdFilter → ClientKeyFilter → JwtAuthenticationFilter → Spring Security 표준&#xa;· ★ BFF↔BE shared secret 신뢰 모델 (2026-05-21~):&#xa;  - 사용자 JWT(Authorization Bearer) 는 더 이상 forward 안 함&#xa;  - X-Client-Key 가 shared secret 으로 BFF 신뢰를 증명&#xa;  - 사용자 컨텍스트는 X-Authenticated-User / X-Authenticated-Role 헤더로 전달&#xa;  - ClientKeyFilter 가 두 헤더로 SecurityContext 사전 인증 set → JwtAuthenticationFilter 가 JWT 검증 스킵&#xa;  - 효과: BE access token 8h 만료 무관, refresh rotation 불필요&#xa;· ClientKeyFilter: env BACKEND_CLIENT_KEY 또는 yml cactus.security.client-key 활성, skip prefix: /auth/, /api/auth/, /actuator/&#xa;· {CLIENT} 사이트 패키지: com.dongkuk.dmes.{aps|mpn|mqc|mcm}.* / cactus: com.dongkuk.dmes.cactus.*&#xa;· BFF: src/frontend/m-mcm (단일 Next.js BFF)" vertex="1">
+          <mxGeometry height="220" width="700" x="1880" y="1130" as="geometry" />
+        </mxCell>
+        <mxCell id="buBnLdGdKq2UkqDlwtAc-1" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;" value="&lt;div&gt;&amp;nbsp; 1) 파일 위치 / 역할&lt;/div&gt;&lt;div&gt;&amp;nbsp; - src/frontend/m-mcm/proxy.ts — Next.js의 미들웨어(middleware). 모든 요청이 라우트 핸들러에 도달하기 전에 거치는 진입 관문.&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;&amp;nbsp; 2) 인증/인가 게이트 2종&lt;/div&gt;&lt;div&gt;&amp;nbsp; - /portal/* 인증 보호 — 사용자 화면(/portal/...) 진입 시 NextAuth 세션이 없으면 로그인으로 리다이렉트.&lt;/div&gt;&lt;div&gt;&amp;nbsp; - /api/* 인증/RBAC 게이트 — API 라우트 호출 시 세션 검사 + 메뉴/역할(RBAC) 권한 검사. 통과 못 하면 401/403 반환.&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;&amp;nbsp; 3) 다운스트림으로 부착되는 forward 헤더 (BFF→BE 호출 시, 2026-05-21~ shared secret 모델)&lt;/div&gt;&lt;div&gt;&amp;nbsp; - X-Client-Key: &amp;lt;BACKEND_CLIENT_KEY&amp;gt; — BE 의 ClientKeyFilter 가 검증하는 shared secret. &quot;이 요청은 정식 BFF 가 보낸 것&quot; 을 증명. 일치하면 BE 는 사용자 JWT 검증을 스킵하고 X-Authenticated-User/Role 로 사전 인증을 set.&lt;/div&gt;&lt;div&gt;&amp;nbsp; - X-Authenticated-User: &amp;lt;token.sub&amp;gt; — NextAuth JWT 의 사용자 ID. BE 의 SecurityContext userId 로 입력됨.&lt;/div&gt;&lt;div&gt;&amp;nbsp; - X-Authenticated-Role: &amp;lt;token.roles.join(&quot;,&quot;)&amp;gt; — 사용자 역할 목록. BE 가 콤마 split 후 ROLE_ prefix 부착해 GrantedAuthority 로 등록.&lt;/div&gt;&lt;div&gt;&amp;nbsp; - ※ 폐지: Authorization: Bearer ... — 사용자 JWT 는 더 이상 BE 로 forward 하지 않음. BE access token 8h 만료에 영향 받지 않게 되며, refresh rotation 도 불필요.&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;&amp;nbsp; 4) BFF self-fetch 처리 (RBAC warmup 등)&lt;/div&gt;&lt;div&gt;&amp;nbsp; - BFF 자신이 자기 라우트를 호출하는 케이스(예: 로그인 직후 RBAC 메뉴 캐시를 채우려고 /api/... 를 서버사이드에서 한 번 더 부르는 &quot;warmup&quot;)가 있음.&lt;/div&gt;&lt;div&gt;&amp;nbsp; - 이때 부착되는 마커 (2026-05-21~):&lt;/div&gt;&lt;div&gt;&amp;nbsp; &amp;nbsp; - X-Internal-Bff-Call: 1 — middleware 가 &quot;이건 외부 사용자가 아니라 BFF 내부 호출이다&quot; 를 인식해 일반 게이트(세션 검사 등)를 우회 또는 완화할 수 있게 하는 표식.&lt;/div&gt;&lt;div&gt;&amp;nbsp; &amp;nbsp; - X-Authenticated-User / X-Authenticated-Role 헤더 fallback — 일반 흐름은 NextAuth 쿠키 → token.sub/roles 로 채우지만, self-fetch 는 쿠키 컨텍스트가 없으므로 호출자가 명시 부착. (※ 옛 Authorization Bearer fallback 폐기)&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;&amp;nbsp; 요약&lt;/div&gt;&lt;div&gt;&amp;nbsp; - 외부 요청 → proxy.ts 에서 인증/RBAC 검사 후 X-Client-Key + X-Authenticated-User/Role 부착하여 BE 호출.&lt;/div&gt;&lt;div&gt;&amp;nbsp; - BFF 내부 자기호출(warmup 등) → 위에 더해 X-Internal-Bff-Call=1 부착으로 게이트 우회.&lt;/div&gt;&lt;div&gt;&amp;nbsp; - BFF↔BE 는 shared secret 신뢰 채널 — 사용자 인증 컨텍스트는 헤더로만 전달, BE 는 자체 JWT 검증을 수행하지 않음.&lt;/div&gt;" vertex="1">
+          <mxGeometry height="540" width="590" x="470" y="1070" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

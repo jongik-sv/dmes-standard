@@ -1,0 +1,447 @@
+/* TabsBar 스타일 - dmes_react 디자인 기반 */
+
+.tabs-bar-wrapper {
+  background: linear-gradient(to right, #3a4050, #5e6479);
+  border-bottom: 1px solid #2f3545;
+  flex-shrink: 0;
+  height: 36px;
+}
+
+.tabs-bar {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  height: 36px;
+  gap: 2px;
+}
+
+.tabs-scroll-area {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+}
+
+.tabs-scroll-area > .tab-item {
+  flex: 0 1 130px;
+  width: 130px;
+  min-width: 100px;
+  max-width: 130px;
+  box-sizing: border-box;
+}
+
+/* Scroll buttons */
+.scroll-btn {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.8);
+  border: 1px solid var(--color-border);
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  transition: background-color var(--transition-normal);
+}
+
+.scroll-btn:hover:not(.disabled) {
+  background-color: rgba(255, 255, 255, 0.25);
+}
+
+.scroll-btn.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.scroll-left {
+  margin-right: 4px;
+}
+
+.scroll-right {
+  margin-left: 4px;
+}
+
+/* Tab items */
+.tab-item {
+  --tab-close-fade-color: #5a6478;
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  background-color: #4a5060;
+  border-radius: 3px 3px 0 0;
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.8);
+  transition:
+    background-color var(--transition-normal),
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
+  border: 1px solid #5a6070;
+  border-bottom: none;
+  flex-shrink: 0;
+  user-select: none;
+  position: relative;
+}
+
+.tab-item::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 48px;
+  border-radius: 0 3px 0 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--tab-close-fade-color) 58%,
+    var(--tab-close-fade-color) 100%
+  );
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-fast);
+}
+
+.tab-item:hover,
+.tab-item:focus-within {
+  background-color: #5a6478;
+  color: #fff;
+}
+
+.tab-item:hover::after,
+.tab-item:focus-within::after {
+  opacity: 1;
+}
+
+.tab-item.active {
+  --tab-close-fade-color: var(--color-bg);
+  background-color: var(--color-bg);
+  border-color: #5a6070;
+  border-bottom: 1px solid var(--color-bg);
+  margin-bottom: -1px;
+  color: #3a4050;
+  font-weight: 500;
+}
+
+.tab-item.dragging {
+  opacity: 0.4;
+  background-color: #4a5060;
+}
+
+.tab-item.drag-over {
+  margin-left: 8px;
+}
+
+.tab-item.drag-over::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: 2px;
+  bottom: 2px;
+  width: 3px;
+  background-color: var(--color-primary, #337ab7);
+  border-radius: 2px;
+}
+
+/* Home tab */
+.home-tab {
+  padding: 6px 10px;
+  flex-shrink: 0;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.7);
+  background-color: transparent;
+  border: none;
+}
+
+.home-tab:hover {
+  color: #fff;
+}
+
+.home-tab.active {
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-bg);
+  margin-bottom: -1px;
+  border-radius: 4px 4px 0 0;
+}
+
+.home-tab svg {
+  display: block;
+}
+
+.tab-title {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab-close {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  right: 4px;
+  display: inline-grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  margin: 0;
+  background-color: rgba(255, 255, 255, 0.08);
+  border: none;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: var(--font-size-lg);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%) scale(0.9);
+  transition:
+    opacity var(--transition-fast),
+    transform var(--transition-fast),
+    color var(--transition-fast),
+    background-color var(--transition-fast);
+}
+
+.tab-item:hover .tab-close,
+.tab-item:focus-within .tab-close {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(-50%) scale(1);
+}
+
+.tab-close:hover {
+  color: #fff;
+  background-color: rgba(255, 255, 255, 0.16);
+}
+
+.tab-close:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.9);
+  outline-offset: 1px;
+}
+
+.tab-item.active .tab-close {
+  color: var(--color-text-muted-light);
+  background-color: rgba(58, 64, 80, 0.06);
+}
+
+.tab-item.active .tab-close:hover {
+  color: #e74c3c;
+  background-color: rgba(58, 64, 80, 0.12);
+}
+
+.tab-item.active .tab-close:focus-visible {
+  outline-color: rgba(58, 64, 80, 0.7);
+}
+
+/* Controls */
+.tabs-controls {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.control-btn {
+  background-color: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 5px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: background-color var(--transition-normal);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.control-btn:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.control-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.control-btn svg {
+  display: block;
+}
+
+.control-btn.favorite-active {
+  color: #f1c40f;
+  border-color: #f1c40f;
+}
+
+.control-btn.favorite-active:hover {
+  background-color: #fef9e7;
+}
+
+.tab-count {
+  background-color: var(--color-primary, #337ab7);
+  color: white;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 10px;
+}
+
+/* Tab list dropdown */
+.tab-list-dropdown {
+  position: relative;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: white;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 250px;
+  max-width: 350px;
+  z-index: 1000;
+}
+
+.dropdown-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid #eee;
+  background-color: #f9f9f9;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.dropdown-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.dropdown-actions button {
+  padding: 4px 8px;
+  font-size: var(--font-size-xs);
+  border: 1px solid var(--color-border);
+  border-radius: var(--form-border-radius);
+  background-color: var(--color-bg);
+  cursor: pointer;
+}
+
+.dropdown-actions button:hover:not(:disabled) {
+  background-color: #e74c3c;
+  color: white;
+  border-color: #e74c3c;
+}
+
+.dropdown-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dropdown-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  gap: 8px;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: var(--font-size-sm);
+}
+
+.dropdown-item:hover {
+  background-color: var(--color-bg-hover);
+}
+
+.dropdown-item.active {
+  background-color: var(--color-selection);
+}
+
+.dropdown-item input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+}
+
+.dropdown-item .item-title {
+  flex: 1;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdown-item .item-close {
+  background: none;
+  border: none;
+  color: var(--color-text-muted-light);
+  font-size: var(--font-size-lg);
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.dropdown-item .item-close:hover {
+  color: #e74c3c;
+}
+
+/* 잘린 탭 제목을 hover 즉시 노출하는 포털 전용 툴팁 */
+.tab-title-tooltip {
+  position: fixed;
+  z-index: 10000;
+  max-width: min(260px, calc(100vw - 24px));
+  padding: 6px 9px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+  background-color: rgba(35, 40, 52, 0.96);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
+  color: #fff;
+  font-size: var(--font-size-sm, 13px);
+  font-weight: 400;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  white-space: normal;
+}
+
+/* Tab context menu (우클릭 메뉴) */
+.tab-context-menu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 140px;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  background: #ffffff;
+  border: 1px solid var(--color-border, #d0d5dd);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-size: var(--font-size-sm, 13px);
+  color: var(--color-text, #1f2937);
+  user-select: none;
+}
+
+.tab-context-menu-item {
+  padding: 6px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--transition-normal, 0.15s);
+}
+
+.tab-context-menu-item:hover {
+  background-color: #f1f5f9;
+}

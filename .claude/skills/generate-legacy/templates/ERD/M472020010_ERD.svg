@@ -1,0 +1,162 @@
+<svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+  <!-- 스타일 정의 -->
+  <defs>
+    <style>
+      .entity-box { fill: #f0f4f8; stroke: #2d3748; stroke-width: 2; }
+      .entity-header { fill: #4299e1; }
+      .entity-title { fill: white; font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; font-weight: bold; }
+      .attribute-text { fill: #2d3748; font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; }
+      .pk-text { fill: #e53e3e; font-weight: bold; }
+      .fk-text { fill: #38a169; font-weight: bold; }
+      .relationship-line { stroke: #718096; stroke-width: 2; fill: none; }
+      .relationship-text { fill: #4a5568; font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; }
+    </style>
+  </defs>
+
+  <!-- TB_M47_COIL_CMN (중심 테이블) -->
+  <g id="TB_M47_COIL_CMN">
+    <rect class="entity-box" x="400" y="50" width="300" height="180" rx="5"/>
+    <rect class="entity-header" x="400" y="50" width="300" height="30" rx="5"/>
+    <text class="entity-title" x="550" y="70" text-anchor="middle">TB_M47_COIL_CMN</text>
+
+    <text class="attribute-text pk-text" x="410" y="100">• COIL_ID (PK)</text>
+    <text class="attribute-text fk-text" x="410" y="120">• PCOIL_ID (FK)</text>
+    <text class="attribute-text" x="410" y="140">• PROC_CD</text>
+    <text class="attribute-text" x="410" y="160">• PLN_PROC</text>
+    <text class="attribute-text" x="410" y="180">• PLN_PROC_SEQ</text>
+    <text class="attribute-text" x="410" y="200">• ORD_NO (FK)</text>
+    <text class="attribute-text" x="550" y="100">• PRG_CD</text>
+    <text class="attribute-text" x="550" y="120">• WK_PRG_STS</text>
+    <text class="attribute-text" x="550" y="140">• MTL_COIL_THK</text>
+    <text class="attribute-text" x="550" y="160">• MTL_COIL_WTH</text>
+    <text class="attribute-text" x="550" y="180">• MTL_COIL_LTH</text>
+    <text class="attribute-text" x="550" y="200">• MO_NO</text>
+    <text class="attribute-text" x="550" y="220">• 기타...</text>
+  </g>
+
+  <!-- TB_M47_WK_INST_CMN -->
+  <g id="TB_M47_WK_INST_CMN">
+    <rect class="entity-box" x="50" y="320" width="280" height="120" rx="5"/>
+    <rect class="entity-header" x="50" y="320" width="280" height="30" rx="5"/>
+    <text class="entity-title" x="190" y="340" text-anchor="middle">TB_M47_WK_INST_CMN</text>
+
+    <text class="attribute-text pk-text" x="60" y="370">• COIL_ID, PROC_CD (PK_FK)</text>
+    <text class="attribute-text" x="60" y="390">• PLN_PROC_SEQ</text>
+    <text class="attribute-text" x="60" y="410">• MO_NO</text>
+    <text class="attribute-text" x="60" y="430">• SHT_CNT</text>
+  </g>
+
+  <!-- TB_M47_COIL_HLD -->
+  <g id="TB_M47_COIL_HLD">
+    <rect class="entity-box" x="380" y="320" width="280" height="120" rx="5"/>
+    <rect class="entity-header" x="380" y="320" width="280" height="30" rx="5"/>
+    <text class="entity-title" x="520" y="340" text-anchor="middle">TB_M47_COIL_HLD</text>
+
+    <text class="attribute-text pk-text" x="390" y="370">• COIL_ID, OCC_DH (PK_FK)</text>
+    <text class="attribute-text" x="390" y="390">• DEF_CD</text>
+    <text class="attribute-text" x="390" y="410">• HLD_JDG_CD</text>
+    <text class="attribute-text" x="390" y="430">• REQ_NXT_PROC_CD</text>
+  </g>
+
+  <!-- TB_M47_WK_INST_SHL -->
+  <g id="TB_M47_WK_INST_SHL">
+    <rect class="entity-box" x="710" y="320" width="280" height="120" rx="5"/>
+    <rect class="entity-header" x="710" y="320" width="280" height="30" rx="5"/>
+    <text class="entity-title" x="850" y="340" text-anchor="middle">TB_M47_WK_INST_SHL</text>
+
+    <text class="attribute-text pk-text" x="720" y="370">• COIL_ID, PROC_CD, SEQ (PK_FK)</text>
+    <text class="attribute-text" x="720" y="390">• SHT_LTH</text>
+    <text class="attribute-text" x="720" y="410">• SHT_CNT</text>
+  </g>
+
+  <!-- TB_C10_QLT_DSN_CMN -->
+  <g id="TB_C10_QLT_DSN_CMN">
+    <rect class="entity-box" x="400" y="520" width="300" height="100" rx="5"/>
+    <rect class="entity-header" x="400" y="520" width="300" height="30" rx="5"/>
+    <text class="entity-title" x="550" y="540" text-anchor="middle">TB_C10_QLT_DSN_CMN</text>
+
+    <text class="attribute-text pk-text" x="410" y="570">• ORD_NO (PK)</text>
+    <text class="attribute-text pk-text" x="410" y="590">• ORD_LN (PK)</text>
+    <text class="attribute-text" x="410" y="610">• PRD_NM_CD</text>
+  </g>
+
+  <!-- TB_C10_QLT_DSN_MNF -->
+  <g id="TB_C10_QLT_DSN_MNF">
+    <rect class="entity-box" x="50" y="680" width="280" height="100" rx="5"/>
+    <rect class="entity-header" x="50" y="680" width="280" height="30" rx="5"/>
+    <text class="entity-title" x="190" y="700" text-anchor="middle">TB_C10_QLT_DSN_MNF</text>
+
+    <text class="attribute-text pk-text" x="60" y="730">• ORD_NO, ORD_LN (PK_FK)</text>
+    <text class="attribute-text" x="60" y="750">• PRD_THK_RNG_LLV/ULV</text>
+    <text class="attribute-text" x="60" y="770">• PRD_WTH_RNG_LLV/ULV</text>
+  </g>
+
+  <!-- TB_C10_QLT_DSN_MQL -->
+  <g id="TB_C10_QLT_DSN_MQL">
+    <rect class="entity-box" x="380" y="680" width="280" height="100" rx="5"/>
+    <rect class="entity-header" x="380" y="680" width="280" height="30" rx="5"/>
+    <text class="entity-title" x="520" y="700" text-anchor="middle">TB_C10_QLT_DSN_MQL</text>
+
+    <text class="attribute-text pk-text" x="390" y="730">• ORD_NO, ORD_LN (PK_FK)</text>
+    <text class="attribute-text" x="390" y="750">• 재질사양 정보</text>
+  </g>
+
+  <!-- TB_C10_QLT_DSN_DLV -->
+  <g id="TB_C10_QLT_DSN_DLV">
+    <rect class="entity-box" x="710" y="680" width="280" height="100" rx="5"/>
+    <rect class="entity-header" x="710" y="680" width="280" height="30" rx="5"/>
+    <text class="entity-title" x="850" y="700" text-anchor="middle">TB_C10_QLT_DSN_DLV</text>
+
+    <text class="attribute-text pk-text" x="720" y="730">• ORD_NO, ORD_LN (PK_FK)</text>
+    <text class="attribute-text" x="720" y="750">• 인수도사양 정보</text>
+  </g>
+
+  <!-- 관계선 -->
+  <!-- TB_M47_COIL_CMN ↔ TB_M47_WK_INST_CMN (1:N) -->
+  <path class="relationship-line" d="M 400 230 L 190 320" marker-end="url(#arrow)"/>
+  <text class="relationship-text" x="280" y="270">작업지시</text>
+
+  <!-- TB_M47_COIL_CMN ↔ TB_M47_COIL_HLD (1:N) -->
+  <path class="relationship-line" d="M 550 230 L 520 320" marker-end="url(#arrow)"/>
+  <text class="relationship-text" x="560" y="275">부적합</text>
+
+  <!-- TB_M47_COIL_CMN ↔ TB_M47_WK_INST_SHL (1:N) -->
+  <path class="relationship-line" d="M 700 230 L 850 320" marker-end="url(#arrow)"/>
+  <text class="relationship-text" x="730" y="270">SHL지시</text>
+
+  <!-- TB_M47_COIL_CMN ↔ TB_M47_COIL_CMN (자체 관계) -->
+  <path class="relationship-line" d="M 400 140 L 350 140 L 350 100 L 400 100" marker-end="url(#arrow)"/>
+  <text class="relationship-text" x="320" y="120">모코일</text>
+
+  <!-- TB_M47_COIL_CMN ↔ TB_C10_QLT_DSN_CMN (N:1) -->
+  <path class="relationship-line" d="M 550 230 L 550 520" marker-end="url(#arrow)"/>
+  <text class="relationship-text" x="560" y="380">주문</text>
+
+  <!-- TB_C10_QLT_DSN_CMN ↔ TB_C10_QLT_DSN_MNF (1:N) -->
+  <path class="relationship-line" d="M 450 620 L 250 680" marker-end="url(#arrow)"/>
+  <text class="relationship-text" x="320" y="650">제조사양</text>
+
+  <!-- TB_C10_QLT_DSN_CMN ↔ TB_C10_QLT_DSN_MQL (1:N) -->
+  <path class="relationship-line" d="M 520 620 L 520 680" marker-end="url(#arrow)"/>
+  <text class="relationship-text" x="530" y="650">재질사양</text>
+
+  <!-- TB_C10_QLT_DSN_CMN ↔ TB_C10_QLT_DSN_DLV (1:N) -->
+  <path class="relationship-line" d="M 650 620 L 800 680" marker-end="url(#arrow)"/>
+  <text class="relationship-text" x="700" y="650">인수도사양</text>
+
+  <!-- 화살표 마커 정의 -->
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#718096"/>
+    </marker>
+  </defs>
+
+  <!-- 범례 -->
+  <g id="legend">
+    <rect x="1040" y="50" width="140" height="100" fill="white" stroke="#cbd5e0" stroke-width="1" rx="3"/>
+    <text x="1110" y="70" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold">범례</text>
+    <text x="1050" y="90" font-family="Arial" font-size="11" fill="#e53e3e">• PK: Primary Key</text>
+    <text x="1050" y="110" font-family="Arial" font-size="11" fill="#38a169">• FK: Foreign Key</text>
+    <text x="1050" y="130" font-family="Arial" font-size="11" fill="#718096">→ 관계 (1:N)</text>
+  </g>
+</svg>

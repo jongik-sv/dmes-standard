@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_QualityHold_E2E" targetNamespace="urn:sap-quality-hold-reference" exporter="Camunda Modeler" exporterVersion="5.46.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:collaboration id="Collaboration_QualityHold_E2E">
+    <bpmn:participant id="Participant_QualityHold_E2E" name="SAP S/4HANA QM · SAP Digital Manufacturing 통합 품질 생애주기" processRef="QualityHoldE2E" />
+    <bpmn:textAnnotation id="E2E_Annotation">
+      <bpmn:text>보류 해제는 단순 상태 변경이 아니라 해당 단계의 승인·검사·처분 조건 충족 후 수행한다.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="E2E_Association" sourceRef="E2E_PostProduction" targetRef="E2E_Annotation" />
+  </bpmn:collaboration>
+  <bpmn:process id="QualityHoldE2E" name="품질 보류 전 생애주기 E2E" isExecutable="false">
+    <bpmn:documentation>SAP S/4HANA Quality Management와 SAP Digital Manufacturing을 중심으로 구성한 품질 보류 참조 프로세스. 상세 단계는 각 Call Activity의 별도 BPMN을 참조한다.</bpmn:documentation>
+    <bpmn:startEvent id="E2E_Start" name="품질 생애주기 시작">
+      <bpmn:outgoing>E2E_F01</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:callActivity id="E2E_PreProduction" name="생산 전 품질&#10;계획·승인·출시 관문" calledElement="PreProductionQuality">
+      <bpmn:incoming>E2E_F01</bpmn:incoming>
+      <bpmn:outgoing>E2E_F02</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:callActivity id="E2E_InProcess" name="생산 중 품질&#10;검사·SFC Hold·NCR" calledElement="InProcessQuality">
+      <bpmn:incoming>E2E_F02</bpmn:incoming>
+      <bpmn:outgoing>E2E_F03</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:callActivity id="E2E_PostProduction" name="생산 후 품질&#10;최종검사·UD·재고해제" calledElement="PostProductionQuality">
+      <bpmn:incoming>E2E_F03</bpmn:incoming>
+      <bpmn:outgoing>E2E_F04</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:serviceTask id="E2E_Ship" name="출하·고객 사용&#10;추적성 유지">
+      <bpmn:incoming>E2E_F04</bpmn:incoming>
+      <bpmn:outgoing>E2E_F05</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:eventBasedGateway id="E2E_Wait" name="시장 품질 신호 대기">
+      <bpmn:incoming>E2E_F05</bpmn:incoming>
+      <bpmn:outgoing>E2E_F06</bpmn:outgoing>
+      <bpmn:outgoing>E2E_F07</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="E2E_ComplaintEvent" name="고객 불만 수신">
+      <bpmn:incoming>E2E_F06</bpmn:incoming>
+      <bpmn:outgoing>E2E_F08</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="E2E_WarrantyEnd" name="감시기간 종료">
+      <bpmn:incoming>E2E_F07</bpmn:incoming>
+      <bpmn:outgoing>E2E_F10</bpmn:outgoing>
+      <bpmn:timerEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:callActivity id="E2E_CustomerComplaint" name="고객 불만&#10;봉쇄·RMA·CAPA" calledElement="CustomerComplaintQuality">
+      <bpmn:incoming>E2E_F08</bpmn:incoming>
+      <bpmn:outgoing>E2E_F09</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:endEvent id="E2E_EndComplaint" name="불만 종결·기준 환류">
+      <bpmn:incoming>E2E_F09</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="E2E_EndNormal" name="정상 생애주기 종료">
+      <bpmn:incoming>E2E_F10</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="E2E_F01" sourceRef="E2E_Start" targetRef="E2E_PreProduction" />
+    <bpmn:sequenceFlow id="E2E_F02" sourceRef="E2E_PreProduction" targetRef="E2E_InProcess" />
+    <bpmn:sequenceFlow id="E2E_F03" sourceRef="E2E_InProcess" targetRef="E2E_PostProduction" />
+    <bpmn:sequenceFlow id="E2E_F04" sourceRef="E2E_PostProduction" targetRef="E2E_Ship" />
+    <bpmn:sequenceFlow id="E2E_F05" sourceRef="E2E_Ship" targetRef="E2E_Wait" />
+    <bpmn:sequenceFlow id="E2E_F06" name="불만·반품·시장 이상" sourceRef="E2E_Wait" targetRef="E2E_ComplaintEvent" />
+    <bpmn:sequenceFlow id="E2E_F07" name="감시기간 만료" sourceRef="E2E_Wait" targetRef="E2E_WarrantyEnd" />
+    <bpmn:sequenceFlow id="E2E_F08" sourceRef="E2E_ComplaintEvent" targetRef="E2E_CustomerComplaint" />
+    <bpmn:sequenceFlow id="E2E_F10" sourceRef="E2E_WarrantyEnd" targetRef="E2E_EndNormal" />
+    <bpmn:sequenceFlow id="E2E_F09" sourceRef="E2E_CustomerComplaint" targetRef="E2E_EndComplaint" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_QualityHold_E2E">
+      <bpmndi:BPMNShape id="Participant_QualityHold_E2E_di" bpmnElement="Participant_QualityHold_E2E" isHorizontal="true">
+        <dc:Bounds x="160" y="80" width="1246" height="368" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="E2E_Start_di" bpmnElement="E2E_Start">
+        <dc:Bounds x="210" y="282" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="187" y="318" width="83" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="E2E_PreProduction_di" bpmnElement="E2E_PreProduction">
+        <dc:Bounds x="300" y="260" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="E2E_InProcess_di" bpmnElement="E2E_InProcess">
+        <dc:Bounds x="460" y="260" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="E2E_PostProduction_di" bpmnElement="E2E_PostProduction">
+        <dc:Bounds x="620" y="260" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="E2E_Ship_di" bpmnElement="E2E_Ship">
+        <dc:Bounds x="780" y="260" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="E2E_Wait_di" bpmnElement="E2E_Wait">
+        <dc:Bounds x="940" y="275" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="922" y="325" width="86" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="E2E_ComplaintEvent_di" bpmnElement="E2E_ComplaintEvent">
+        <dc:Bounds x="1060" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1046" y="218" width="64" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="E2E_WarrantyEnd_di" bpmnElement="E2E_WarrantyEnd">
+        <dc:Bounds x="1060" y="382" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1048" y="418" width="61" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="E2E_CustomerComplaint_di" bpmnElement="E2E_CustomerComplaint">
+        <dc:Bounds x="1170" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="E2E_EndComplaint_di" bpmnElement="E2E_EndComplaint">
+        <dc:Bounds x="1340" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1315" y="218" width="86" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="E2E_EndNormal_di" bpmnElement="E2E_EndNormal">
+        <dc:Bounds x="1170" y="382" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1147" y="418" width="83" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="E2E_Annotation_di" bpmnElement="E2E_Annotation">
+        <dc:Bounds x="540" y="120" width="390" height="55" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E2E_F01_di" bpmnElement="E2E_F01">
+        <di:waypoint x="246" y="300" />
+        <di:waypoint x="300" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E2E_F02_di" bpmnElement="E2E_F02">
+        <di:waypoint x="400" y="300" />
+        <di:waypoint x="460" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E2E_F03_di" bpmnElement="E2E_F03">
+        <di:waypoint x="560" y="300" />
+        <di:waypoint x="620" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E2E_F04_di" bpmnElement="E2E_F04">
+        <di:waypoint x="720" y="300" />
+        <di:waypoint x="780" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E2E_F05_di" bpmnElement="E2E_F05">
+        <di:waypoint x="880" y="300" />
+        <di:waypoint x="940" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E2E_F06_di" bpmnElement="E2E_F06">
+        <di:waypoint x="965" y="275" />
+        <di:waypoint x="965" y="200" />
+        <di:waypoint x="1060" y="200" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="976" y="173" width="87" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E2E_F07_di" bpmnElement="E2E_F07">
+        <di:waypoint x="965" y="325" />
+        <di:waypoint x="965" y="400" />
+        <di:waypoint x="1060" y="400" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="990" y="308" width="61" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E2E_F08_di" bpmnElement="E2E_F08">
+        <di:waypoint x="1096" y="200" />
+        <di:waypoint x="1170" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E2E_F09_di" bpmnElement="E2E_F09">
+        <di:waypoint x="1270" y="200" />
+        <di:waypoint x="1340" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E2E_F10_di" bpmnElement="E2E_F10">
+        <di:waypoint x="1096" y="400" />
+        <di:waypoint x="1170" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E2E_Association_di" bpmnElement="E2E_Association">
+        <di:waypoint x="670" y="260" />
+        <di:waypoint x="735" y="175" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

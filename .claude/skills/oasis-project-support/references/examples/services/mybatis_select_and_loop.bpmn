@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_mybatis_select_and_loop"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+  <!--
+    Pattern: SELECT a list via MyBatis, then run a multi-instance loop in a
+    subProcess. The collection's element is auto-bound into the child context,
+    so the next SELECT can use #{id} and the Java task can take `id` directly.
+  -->
+  <bpmn:process id="mybatis_select_and_loop" isExecutable="true">
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>fStart</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:scriptTask id="loadIds"
+                     name="select ids"
+                     scriptFormat="sql"
+                     camunda:resource="test.selectIdsAsMap">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="output" value="ids" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>fStart</bpmn:incoming>
+      <bpmn:outgoing>fLoop</bpmn:outgoing>
+    </bpmn:scriptTask>
+
+    <bpmn:subProcess id="loop" name="loop">
+      <bpmn:multiInstanceLoopCharacteristics isSequential="true" camunda:collection="ids" />
+      <bpmn:incoming>fLoop</bpmn:incoming>
+      <bpmn:outgoing>fLoopDone</bpmn:outgoing>
+
+      <bpmn:startEvent id="loopStart">
+        <bpmn:outgoing>fInner1</bpmn:outgoing>
+      </bpmn:startEvent>
+
+      <bpmn:scriptTask id="lookupAge"
+                       name="lookup by id"
+                       scriptFormat="sql"
+                       camunda:resource="test.selectBind">
+        <bpmn:extensionElements>
+          <camunda:properties>
+            <camunda:property name="output" value="[0]['age'] -> age" />
+          </camunda:properties>
+        </bpmn:extensionElements>
+        <bpmn:incoming>fInner1</bpmn:incoming>
+        <bpmn:outgoing>fInner2</bpmn:outgoing>
+      </bpmn:scriptTask>
+
+      <bpmn:serviceTask id="callConsumer"
+                        name="call consumer"
+                        camunda:class="integration.MyBatisSelectAndLoopTest$Consumer#hello">
+        <bpmn:incoming>fInner2</bpmn:incoming>
+        <bpmn:outgoing>fInner3</bpmn:outgoing>
+      </bpmn:serviceTask>
+
+      <bpmn:endEvent id="loopEnd">
+        <bpmn:incoming>fInner3</bpmn:incoming>
+      </bpmn:endEvent>
+
+      <bpmn:sequenceFlow id="fInner1" sourceRef="loopStart"    targetRef="lookupAge" />
+      <bpmn:sequenceFlow id="fInner2" sourceRef="lookupAge"    targetRef="callConsumer" />
+      <bpmn:sequenceFlow id="fInner3" sourceRef="callConsumer" targetRef="loopEnd" />
+    </bpmn:subProcess>
+
+    <bpmn:endEvent id="end">
+      <bpmn:incoming>fLoopDone</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="fStart"    sourceRef="start"   targetRef="loadIds" />
+    <bpmn:sequenceFlow id="fLoop"     sourceRef="loadIds" targetRef="loop" />
+    <bpmn:sequenceFlow id="fLoopDone" sourceRef="loop"    targetRef="end" />
+  </bpmn:process>
+</bpmn:definitions>

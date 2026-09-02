@@ -1,0 +1,92 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+group = 'com.dongkuk.caravan'
+version = '0.1.0-SNAPSHOT'
+
+    repositories {
+        // 공개 의존은 mavenCentral 직접 — 사내망 미접속에도 영향 없음
+        mavenCentral()
+        // 사내 전용 라이브러리(`com.dongkuk:*`, `com.dongkuk.dmes:*`)는 사내 nexus 에서만
+        // maven {
+        //     url = 'http://172.31.1.96:8889/nexus/content/groups/public'
+        //     allowInsecureProtocol = true
+        //     content {
+        //         includeGroup 'com.dongkuk'
+        //         includeGroup 'com.dongkuk.dmes'
+        //     }
+        // }
+    }
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs.add('-parameters')
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    // sqlite test DB 단일 파일 락 모델 — 병렬 fork 시 SQLITE_BUSY 회피 (aps-core 와 동일 정책)
+    maxParallelForks = 1
+    forkEvery = 0
+}
+
+dependencies {
+    api platform('org.springframework.boot:spring-boot-dependencies:4.0.6')
+
+    // caravan-console 는 caravan / cactus-core 를 compileOnly 로만 의존 (소비자 mcm 이 런타임 제공).
+    // Decision-11 (caravan-console-MCM 마이그레이션 플랜): mcm → cactus-core → caravan transitive
+    compileOnly 'org.springframework.boot:spring-boot-starter-data-jpa'
+    compileOnly 'org.springframework.boot:spring-boot-starter-webmvc'
+    compileOnly 'org.springframework.boot:spring-boot-starter-security'
+    compileOnly 'org.springframework.boot:spring-boot-starter-validation'
+
+    // ── v4 caravan 의존 0 (2026-05-12) + cactus 의존 0 (0.2.0, 2026-05-15) ──
+    // caravan-console 가 caravan/Kafka internal class import 0 — 각 모듈 WAS 의 /kafkaApi/* REST 호출만.
+    // cactus 의존 0 — 0.2.0 패턴 B (KmcApiResponse / KmcAuditEntity / KmcSeraiClient 자체 정의).
+    compileOnly 'org.springframework:spring-web'                   // RestClient (KmcSeraiClient)
+
+    api 'com.fasterxml.jackson.core:jackson-databind'
+    api 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+
+    // Annotation processors
+    annotationProcessor platform('org.springframework.boot:spring-boot-dependencies:4.0.6')
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    testImplementation 'org.springframework.boot:spring-boot-starter-security'
+    testImplementation 'org.springframework.boot:spring-boot-starter-validation'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testRuntimeOnly 'org.xerial:sqlite-jdbc:3.45.3.0'
+    testRuntimeOnly 'org.hibernate.orm:hibernate-community-dialects:7.0.5.Final'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+publishing {
+    repositories {
+        maven {
+            name = 'Snapshots'
+            url = 'http://172.31.1.96:8889/nexus/content/repositories/snapshots/'
+            credentials {
+                username = 'admin'
+                password = 'admin123'
+            }
+            allowInsecureProtocol = true
+        }
+    }
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId = project.name
+            from components.java
+        }
+    }
+}

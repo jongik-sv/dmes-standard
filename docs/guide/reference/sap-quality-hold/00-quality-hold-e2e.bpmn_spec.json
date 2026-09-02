@@ -1,0 +1,189 @@
+{
+  "definitions": {
+    "id": "Definitions_QualityHold_E2E",
+    "targetNamespace": "urn:sap-quality-hold-reference",
+    "exporter": "bpmn-tool",
+    "exporterVersion": "1.3.0"
+  },
+  "process": {
+    "id": "QualityHoldE2E",
+    "name": "품질 보류 전 생애주기 E2E",
+    "isExecutable": false,
+    "documentation": "SAP S/4HANA Quality Management와 SAP Digital Manufacturing을 중심으로 구성한 품질 보류 참조 프로세스. 상세 단계는 각 Call Activity의 별도 BPMN을 참조한다."
+  },
+  "collaboration": {
+    "id": "Collaboration_QualityHold_E2E",
+    "participants": [
+      {
+        "id": "Participant_QualityHold_E2E",
+        "name": "SAP S/4HANA QM · SAP Digital Manufacturing 통합 품질 생애주기",
+        "processRef": "QualityHoldE2E"
+      }
+    ],
+    "messageFlows": []
+  },
+  "nodes": [
+    {
+      "id": "E2E_Start",
+      "type": "bpmn:StartEvent",
+      "name": "품질 생애주기 시작",
+      "x": 100,
+      "y": 232
+    },
+    {
+      "id": "E2E_PreProduction",
+      "type": "bpmn:CallActivity",
+      "name": "생산 전 품질\n계획·승인·출시 관문",
+      "calledElement": "PreProductionQuality",
+      "x": 190,
+      "y": 210
+    },
+    {
+      "id": "E2E_InProcess",
+      "type": "bpmn:CallActivity",
+      "name": "생산 중 품질\n검사·SFC Hold·NCR",
+      "calledElement": "InProcessQuality",
+      "x": 350,
+      "y": 210
+    },
+    {
+      "id": "E2E_PostProduction",
+      "type": "bpmn:CallActivity",
+      "name": "생산 후 품질\n최종검사·UD·재고해제",
+      "calledElement": "PostProductionQuality",
+      "x": 510,
+      "y": 210
+    },
+    {
+      "id": "E2E_Ship",
+      "type": "bpmn:ServiceTask",
+      "name": "출하·고객 사용\n추적성 유지",
+      "x": 670,
+      "y": 210
+    },
+    {
+      "id": "E2E_Wait",
+      "type": "bpmn:EventBasedGateway",
+      "name": "시장 품질 신호 대기",
+      "x": 830,
+      "y": 225
+    },
+    {
+      "id": "E2E_ComplaintEvent",
+      "type": "bpmn:IntermediateCatchEvent",
+      "name": "고객 불만 수신",
+      "eventDefinitions": [
+        {
+          "type": "bpmn:MessageEventDefinition"
+        }
+      ],
+      "x": 950,
+      "y": 132
+    },
+    {
+      "id": "E2E_WarrantyEnd",
+      "type": "bpmn:IntermediateCatchEvent",
+      "name": "감시기간 종료",
+      "eventDefinitions": [
+        {
+          "type": "bpmn:TimerEventDefinition"
+        }
+      ],
+      "x": 950,
+      "y": 332
+    },
+    {
+      "id": "E2E_CustomerComplaint",
+      "type": "bpmn:CallActivity",
+      "name": "고객 불만\n봉쇄·RMA·CAPA",
+      "calledElement": "CustomerComplaintQuality",
+      "x": 1060,
+      "y": 110
+    },
+    {
+      "id": "E2E_EndComplaint",
+      "type": "bpmn:EndEvent",
+      "name": "불만 종결·기준 환류",
+      "x": 1230,
+      "y": 132
+    },
+    {
+      "id": "E2E_EndNormal",
+      "type": "bpmn:EndEvent",
+      "name": "정상 생애주기 종료",
+      "x": 1060,
+      "y": 332
+    }
+  ],
+  "flows": [
+    {
+      "id": "E2E_F01",
+      "source": "E2E_Start",
+      "target": "E2E_PreProduction"
+    },
+    {
+      "id": "E2E_F02",
+      "source": "E2E_PreProduction",
+      "target": "E2E_InProcess"
+    },
+    {
+      "id": "E2E_F03",
+      "source": "E2E_InProcess",
+      "target": "E2E_PostProduction"
+    },
+    {
+      "id": "E2E_F04",
+      "source": "E2E_PostProduction",
+      "target": "E2E_Ship"
+    },
+    {
+      "id": "E2E_F05",
+      "source": "E2E_Ship",
+      "target": "E2E_Wait"
+    },
+    {
+      "id": "E2E_F06",
+      "source": "E2E_Wait",
+      "target": "E2E_ComplaintEvent",
+      "name": "불만·반품·시장 이상"
+    },
+    {
+      "id": "E2E_F07",
+      "source": "E2E_Wait",
+      "target": "E2E_WarrantyEnd",
+      "name": "감시기간 만료"
+    },
+    {
+      "id": "E2E_F08",
+      "source": "E2E_ComplaintEvent",
+      "target": "E2E_CustomerComplaint"
+    },
+    {
+      "id": "E2E_F09",
+      "source": "E2E_CustomerComplaint",
+      "target": "E2E_EndComplaint"
+    },
+    {
+      "id": "E2E_F10",
+      "source": "E2E_WarrantyEnd",
+      "target": "E2E_EndNormal"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "E2E_Annotation",
+      "text": "보류 해제는 단순 상태 변경이 아니라 해당 단계의 승인·검사·처분 조건 충족 후 수행한다.",
+      "x": 430,
+      "y": 70,
+      "width": 390,
+      "height": 55
+    }
+  ],
+  "associations": [
+    {
+      "id": "E2E_Association",
+      "source": "E2E_PostProduction",
+      "target": "E2E_Annotation"
+    }
+  ]
+}

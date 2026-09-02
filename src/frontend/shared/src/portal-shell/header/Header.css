@@ -1,0 +1,188 @@
+/* ========================================
+   Header 스타일 - dmes_react Topbar 디자인 기반
+   ======================================== */
+
+.portal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 36px;
+  padding: 0 20px;
+  background: linear-gradient(to right, #23283A, #4A5068);
+  color: #fff;
+  flex-shrink: 0;
+  position: relative;
+}
+
+/* 좌측: 앱 이름 */
+.portal-header__left {
+  display: flex;
+  align-items: center;
+}
+
+.portal-header__app-name {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.portal-header__logo {
+  height: 30px;
+  width: auto;
+  margin-left: -3px;
+  margin-bottom: 7px;
+}
+
+/* 우측: 사용자 정보 + 버튼들 */
+.portal-header__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.portal-header__user-name {
+  font-size: var(--font-size-md);
+  font-weight: 500;
+}
+
+.portal-header__divider {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: var(--font-size-sm);
+  margin: 0 4px;
+}
+
+/* 공통 아이콘 버튼 */
+.portal-header__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-normal),
+    color var(--transition-normal);
+}
+
+.portal-header__icon-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+/* 오버레이 */
+.portal-header__overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 9999;
+}
+
+/* 개인정보 팝업 */
+.portal-header__user-popup {
+  position: absolute;
+  top: 36px;
+  right: 20px;
+  width: 360px;
+  background-color: var(--color-bg, #fff);
+  border-radius: 4px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  z-index: 10000;
+  overflow: hidden;
+}
+
+.portal-header__popup-header {
+  background-color: #3A4050;
+  color: #fff;
+  padding: 10px 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.portal-header__popup-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-lg);
+  font-weight: 500;
+}
+
+.portal-header__popup-close {
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  border-radius: 2px;
+  transition: background-color var(--transition-normal);
+}
+
+.portal-header__popup-close:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.portal-header__popup-body {
+  padding: 20px;
+  background-color: var(--color-bg-light, #f8f9fa);
+}
+
+.portal-header__popup-field {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.portal-header__popup-field:last-child {
+  margin-bottom: 0;
+}
+
+.portal-header__popup-field label {
+  width: 90px;
+  font-size: var(--font-size-md);
+  color: var(--color-text, #333);
+  flex-shrink: 0;
+}
+
+.portal-header__popup-field input {
+  flex: 1;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid #ddd;
+  border-radius: 2px;
+  font-size: var(--font-size-md);
+  background-color: var(--color-bg-disabled, #e9ecef);
+  color: var(--color-text, #333);
+  cursor: default;
+}
+
+.portal-header__popup-footer {
+  padding: 12px 20px;
+  display: flex;
+  justify-content: center;
+  border-top: 1px solid #e9ecef;
+  background-color: var(--color-bg, #fff);
+}
+
+.portal-header__popup-footer button {
+  min-width: 80px;
+  height: 32px;
+  padding: 0 20px;
+  background-color: #6c757d;
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  font-size: var(--font-size-md);
+  cursor: pointer;
+  transition: background-color var(--transition-normal);
+}
+
+.portal-header__popup-footer button:hover {
+  background-color: #5a6268;
+}

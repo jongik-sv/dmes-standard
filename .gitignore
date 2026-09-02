@@ -1,0 +1,217 @@
+# Node.js / Frontend
+node_modules/
+.pnpm-store/
+.pnp/
+.pnp.js
+.pnpm-debug.log*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm/
+.npmrc
+.next/
+out/
+coverage/
+dist/
+.vite/
+.cache/
+build/
+
+# Java / Gradle
+.gradle/
+*.class
+*.jar
+*.war
+*.ear
+**/bin/generated-sources/
+**/bin/main/
+**/bin/test/
+# IntelliJ annotation processor output (MapStruct 등)
+**/src/main/generated/
+**/src/test/generated_tests/
+
+# Local dev SQLite DB (백엔드 멀티프로젝트 구조 모두 포함)
+src/backend/data/
+src/backend/**/data/
+src/backend/**/*.db
+# 잘못된 작업 디렉토리에서 기동 시 repo 루트에 생기는 SQLite 런타임 아티팩트
+/data/
+
+# Environment / local settings
+.env
+.env.*
+!.env.example
+
+# IDE / editor
+.vscode/
+.idea/
+*.swo
+*.swp
+*.swpx
+*~
+
+# macOS / Windows
+.DS_Store
+Thumbs.db
+
+# Logs (롤링 로그 아카이브 포함)
+*.log
+*.log.*
+logs/
+
+# analog 엔진 테스트 픽스처 — 위 *.log/logs/ 전역 무시의 예외.
+# 없으면 신규 체크아웃에서 core/api 테스트 82건이 FileNotFound 로 실패한다 (2026-07-17 실측).
+!src/backend/analog/core/src/test/resources/logs/
+!src/backend/analog/core/src/test/resources/logs/**
+!src/backend/analog/api/src/test/resources/fixture-logs/**
+
+# Tooling/cache
+
+# Claude Code 가 세션마다 만드는 워크트리 — 저장소 어디에서 만들어지든(최상위·docs/ 하위·중첩 저장소 등)
+# 로컬 전용이라 절대 커밋하지 않는다. 최상위 .claude/* 규칙은 중첩 경로(docs/.claude/... 등)에는 적용되지 않으므로 별도로 전체 깊이를 잡는다.
+**/.claude/worktrees/
+
+# .claude 디렉토리 자체는 살리고 직속 항목만 무시 (skills/ negation 작동을 위해)
+.claude/*
+!.claude/skills/
+# 팀 공유 프로젝트 설정 (훅 등). 개인 설정은 settings.local.json 이며 무시된다.
+!.claude/settings.json
+
+# .claude/skills/ 안의 모든 직속 디렉토리 무시 + 트래킹할 스킬만 예외
+.claude/skills/*
+!.claude/skills/oasis-project-support/
+!.claude/skills/oasis-project-support/**
+!.claude/skills/bpmn-skill/
+!.claude/skills/bpmn-skill/**
+!.claude/skills/classify-by-system/
+!.claude/skills/classify-by-system/**
+
+# OASIS 계약 검사 스킬 (2026-07-20 추가)
+!.claude/skills/oasis-contract-check/
+!.claude/skills/oasis-contract-check/**
+
+# Flyway 마이그레이션 채번 스킬 (2026-07-20 추가)
+!.claude/skills/flyway-migration-add/
+!.claude/skills/flyway-migration-add/**
+
+# ADR 작성 스킬 — 전 모듈 공용 (2026-07-20 추가)
+!.claude/skills/adr-write/
+!.claude/skills/adr-write/**
+
+# KsmErpK 레거시 분석 스킬 (mes-plugin 기반 — 2026-05-08 추가)
+!.claude/skills/_shared/
+!.claude/skills/_shared/**
+!.claude/skills/analyze-service/
+!.claude/skills/analyze-service/**
+!.claude/skills/analyze-plsql/
+!.claude/skills/analyze-plsql/**
+!.claude/skills/analyze-queries/
+!.claude/skills/analyze-queries/**
+!.claude/skills/analyze-custom-class/
+!.claude/skills/analyze-custom-class/**
+!.claude/skills/generate-bpa/
+!.claude/skills/generate-bpa/**
+!.claude/skills/generate-legacy/
+!.claude/skills/generate-legacy/**
+!.claude/skills/define-process-groups/
+!.claude/skills/define-process-groups/**
+!.claude/skills/generate-process-group/
+!.claude/skills/generate-process-group/**
+!.claude/skills/analyze-table-schema/
+!.claude/skills/analyze-table-schema/**
+!.claude/skills/analyze-trigger/
+!.claude/skills/analyze-trigger/**
+!.claude/skills/analyze-view/
+!.claude/skills/analyze-view/**
+
+# 주간 업무 보고 스킬 (2026-06-18 추가)
+!.claude/skills/weekly-report/
+!.claude/skills/weekly-report/**
+
+# BP 워크스페이스 sync-first 조회 스킬 (2026-07-15 추가)
+!.claude/skills/bp-workspace-sync/
+!.claude/skills/bp-workspace-sync/**
+
+# BP 업데이트(새 회의록 등) 반영 스킬 (2026-07-20 추가)
+!.claude/skills/bp-update-intake/
+!.claude/skills/bp-update-intake/**
+
+# 커밋 분류/메시지 규약 스킬 (2026-07-16 추가)
+!.claude/skills/git-commit/
+!.claude/skills/git-commit/**
+
+!.claude/skills/issue-brief/
+!.claude/skills/issue-brief/**
+
+# STT 회의록 정리 스킬 (2026-07-22 추가)
+!.claude/skills/meeting-minutes/
+!.claude/skills/meeting-minutes/**
+
+
+# Tooling/cache
+.playwright-cli
+__pycache__/
+*.py[cod]
+
+# 기존 {CLIENT} ERP 원본 소스 — 외부 자산이므로 GitLab/GitHub 어디에도 올리지 않음
+docs/external/KsmErpK/orgErpSource/
+
+# DMES MUI 외부 분석 자산 (별도 프로젝트, 수백 MB 규모)
+docs/external/DMES/mui/
+
+# {CLIENT} ERP 플러그인 압축 파일
+ksm-erp-plugin.zip
+
+# MES 플러그인 작업 자료 (도구 자산)
+mes-plugin/
+
+# 임시파일
+**/.$*
+**/.temp/
+
+.obsidian
+# 엑셀 변환용 임시 디렉토리 (data import 작업 중 생성)
+/tmp/
+# 데이터 검증/분석용 임시 Java 스크립트 (jdbc 콘솔 쿼리 등)
+/.tmp/
+
+dev-local.sh
+.run.env
+
+# 대용량 외부 참조 엑셀 (LS 외부 자료, read-only)
+docs/external/LS/MLE_믈류_TABLE.xlsx
+
+# {CLIENT} 물류 재설계 일회성 스크립트 (PPT 빌더·파서 등 — 한번 쓰고 마는 도구, 커밋 금지)
+docs/external/{CLIENT}_물류_재설계/*.py
+docs/external/{CLIENT}_물류_재설계/**/*.py
+
+# Office 임시/잠금 파일 (~$로 시작)
+~$*
+
+# 로컬 도구 컨텍스트 / xlsx 백업 사본 (로컬 안전본)
+.bp-context.json
+*_backup*.xlsx
+
+# BP 워크스페이스 로컬 미러 — 원격 문서 원문과 manifest는 worktree 전용
+docs/external/BP/{CLIENT}/
+
+dev-be.sh
+dev-fe.sh
+
+# 플래닝·스케줄링 입력/ERP 매핑 정리 문서 (로컬 산출물)
+PLANNING_SCHEDULING_INPUTS.md
+PLANNING_SCHEDULING_INPUTS.docx
+PLANNING_ERP_MAPPING_GAPS.md
+
+# ERP 데이터 요청 엑셀 + 생성 스크립트 (로컬 산출물)
+ERP_*.xlsx
+tools-gen-erp-*.cjs
+
+# 로컬 실행 에러 로그
+mpn-run.err
+
+# JVM heap dumps (OOM/프로파일링 산출물 — 커밋 금지)
+*.hprof
+
+output

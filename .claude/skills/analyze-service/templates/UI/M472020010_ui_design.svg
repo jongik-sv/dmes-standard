@@ -1,0 +1,370 @@
+<svg viewBox="0 0 1400 1200" xmlns="http://www.w3.org/2000/svg">
+  <!-- 스타일 정의 -->
+  <defs>
+    <style>
+      .window-frame { fill: #f0f0f0; stroke: #333; stroke-width: 2; }
+      .header-bg { fill: #2c3e50; }
+      .header-text { fill: white; font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; font-weight: bold; }
+      .button { fill: #3498db; stroke: #2980b9; stroke-width: 1; rx: 3; }
+      .button-text { fill: white; font-family: Arial, sans-serif; font-size: 11px; }
+      .button-disabled { fill: #bdc3c7; stroke: #95a5a6; }
+      .panel { fill: #ecf0f1; stroke: #34495e; stroke-width: 1; rx: 3; }
+      .panel-header { fill: #34495e; }
+      .panel-title { fill: white; font-family: Arial, sans-serif; font-size: 12px; font-weight: bold; }
+      .label { fill: #2c3e50; font-family: Arial, sans-serif; font-size: 11px; }
+      .input { fill: white; stroke: #7f8c8d; stroke-width: 1; }
+      .combo { fill: white; stroke: #7f8c8d; stroke-width: 1; }
+      .radio { fill: white; stroke: #7f8c8d; stroke-width: 1; }
+      .checkbox { fill: white; stroke: #7f8c8d; stroke-width: 1; }
+      .grid-header { fill: #34495e; }
+      .grid-header-text { fill: white; font-family: Arial, sans-serif; font-size: 10px; font-weight: bold; }
+      .grid-cell { fill: white; stroke: #bdc3c7; stroke-width: 1; }
+      .grid-text { fill: #2c3e50; font-family: Arial, sans-serif; font-size: 9px; }
+      .grid-selected { fill: #e8f4fd; }
+      .grid-row-header { fill: #f8f9fa; font-weight: bold; }
+      .divider { stroke: #95a5a6; stroke-width: 1; stroke-dasharray: 2,2; }
+      .arrow { fill: #e74c3c; }
+    </style>
+  </defs>
+
+  <!-- 메인 윈도우 프레임 -->
+  <rect class="window-frame" x="0" y="0" width="1400" height="1200" rx="5"/>
+
+  <!-- 1. 상단 메뉴바 -->
+  <rect class="header-bg" x="0" y="0" width="1400" height="40"/>
+  <text class="header-text" x="10" y="25">M472020010 - 박판 코일 검사 실적 등록 시스템</text>
+
+  <!-- 메뉴 버튼들 -->
+  <g id="menu-buttons">
+    <rect class="button" x="10" y="45" width="90" height="25"/>
+    <text class="button-text" x="55" y="60" text-anchor="middle">샘플TAG</text>
+
+    <rect class="button" x="105" y="45" width="90" height="25"/>
+    <text class="button-text" x="150" y="60" text-anchor="middle">고객특성</text>
+
+    <rect class="button" x="200" y="45" width="100" height="25"/>
+    <text class="button-text" x="250" y="60" text-anchor="middle">검사실적수정</text>
+
+    <rect class="button" x="305" y="45" width="100" height="25"/>
+    <text class="button-text" x="355" y="60" text-anchor="middle">제품시험</text>
+
+    <rect class="button" x="410" y="45" width="100" height="25"/>
+    <text class="button-text" x="460" y="60" text-anchor="middle">칼라시험</text>
+
+    <rect class="button" x="515" y="45" width="90" height="25"/>
+    <text class="button-text" x="560" y="60" text-anchor="middle">중량환산</text>
+
+    <rect class="button" x="610" y="45" width="100" height="25"/>
+    <text class="button-text" x="660" y="60" text-anchor="middle">특기사항</text>
+
+    <rect class="button" x="715" y="45" width="90" height="25"/>
+    <text class="button-text" x="760" y="60" text-anchor="middle">TAG재발행</text>
+
+    <rect class="button-disabled" x="810" y="45" width="60" height="25"/>
+    <text class="button-text" x="840" y="60" text-anchor="middle">조회</text>
+
+    <rect class="button" x="875" y="45" width="60" height="25"/>
+    <text class="button-text" x="905" y="60" text-anchor="middle">닫기</text>
+
+    <rect class="button-disabled" x="940" y="45" width="110" height="25"/>
+    <text class="button-text" x="995" y="60" text-anchor="middle">5R/S결로설정</text>
+  </g>
+
+  <!-- 2. 공정 선택 및 검사 제어 패널 -->
+  <g id="control-panel">
+    <rect class="panel" x="10" y="80" width="1380" height="120"/>
+    <rect class="panel-header" x="10" y="80" width="1380" height="20"/>
+    <text class="panel-title" x="20" y="95">공정 선택 및 검사 제어</text>
+
+    <!-- 공정 선택 -->
+    <text class="label" x="30" y="125">공정:</text>
+    <rect class="combo" x="80" y="110" width="170" height="20"/>
+    <text class="grid-text" x="85" y="125">CC - Cold Rolling</text>
+    <polygon points="240,115 250,115 245,125" fill="#7f8c8d"/>
+
+    <!-- MO번호 -->
+    <text class="label" x="280" y="125">MO번호:</text>
+    <rect class="input" x="340" y="110" width="150" height="20"/>
+    <text class="grid-text" x="345" y="125">MO20250001</text>
+
+    <!-- 코일ID -->
+    <text class="label" x="510" y="125">코일ID:</text>
+    <rect class="input" x="560" y="110" width="120" height="20"/>
+    <text class="grid-text" x="565" y="125">CC00123</text>
+
+    <!-- 검사정보 라디오 -->
+    <text class="label" x="30" y="155">검사정보:</text>
+    <circle class="radio" cx="110" cy="150" r="6"/>
+    <circle cx="110" cy="150" r="3" fill="#3498db"/>
+    <text class="label" x="120" y="155">주문정보</text>
+
+    <circle class="radio" cx="200" cy="150" r="6"/>
+    <text class="label" x="210" y="155">품질정보</text>
+
+    <!-- Scrap Tag 라디오 -->
+    <text class="label" x="300" y="155">Scrap Tag:</text>
+    <circle class="radio" cx="380" cy="150" r="6"/>
+    <circle cx="380" cy="150" r="3" fill="#3498db"/>
+    <text class="label" x="390" y="155">발행</text>
+
+    <circle class="radio" cx="450" cy="150" r="6"/>
+    <text class="label" x="460" y="155">미발행</text>
+
+    <!-- 버튼들 -->
+    <rect class="button" x="30" y="170" width="80" height="20"/>
+    <text class="button-text" x="70" y="183" text-anchor="middle">시편TAG</text>
+
+    <rect class="button" x="120" y="170" width="100" height="20"/>
+    <text class="button-text" x="170" y="183" text-anchor="middle">CPL가공실적</text>
+
+    <!-- 체크박스 -->
+    <rect class="checkbox" x="550" y="145" width="12" height="12"/>
+    <polyline points="552,151 555,154 560,147" stroke="#27ae60" stroke-width="2" fill="none"/>
+    <text class="label" x="570" y="155" font-size="9">TAG발행 강제 &lt;실적 등록 시 업무기준의 미발행 설정을 무시하고 제품/반제품TAG발행&gt;</text>
+  </g>
+
+  <!-- 3. Grid: 작업 지시 정보 목록 -->
+  <g id="main-grid">
+    <rect class="panel" x="10" y="210" width="1380" height="350"/>
+    <rect class="panel-header" x="10" y="210" width="1380" height="20"/>
+    <text class="panel-title" x="20" y="225">Grid: 작업 지시 정보 목록 (30행 표시, 다중선택 가능)</text>
+
+    <!-- Grid 헤더 -->
+    <rect class="grid-header" x="10" y="230" width="40" height="25"/>
+    <text class="grid-header-text" x="30" y="247" text-anchor="middle">Seq</text>
+
+    <rect class="grid-header" x="50" y="230" width="70" height="25"/>
+    <text class="grid-header-text" x="85" y="247" text-anchor="middle">코일ID</text>
+
+    <rect class="grid-header" x="120" y="230" width="60" height="25"/>
+    <text class="grid-header-text" x="150" y="247" text-anchor="middle">통판</text>
+
+    <rect class="grid-header" x="180" y="230" width="50" height="25"/>
+    <text class="grid-header-text" x="205" y="247" text-anchor="middle">합본</text>
+
+    <rect class="grid-header" x="230" y="230" width="50" height="25"/>
+    <text class="grid-header-text" x="255" y="247" text-anchor="middle">병합</text>
+
+    <rect class="grid-header" x="280" y="230" width="100" height="25"/>
+    <text class="grid-header-text" x="330" y="247" text-anchor="middle">진행상태</text>
+
+    <rect class="grid-header" x="380" y="230" width="120" height="25"/>
+    <text class="grid-header-text" x="440" y="247" text-anchor="middle">주문번호</text>
+
+    <rect class="grid-header" x="500" y="230" width="80" height="25"/>
+    <text class="grid-header-text" x="540" y="247" text-anchor="middle">MO번호</text>
+
+    <rect class="grid-header" x="580" y="230" width="150" height="25"/>
+    <text class="grid-header-text" x="655" y="247" text-anchor="middle">제품명/품명</text>
+
+    <rect class="grid-header" x="730" y="230" width="80" height="25"/>
+    <text class="grid-header-text" x="770" y="247" text-anchor="middle">복수주문</text>
+
+    <rect class="grid-header" x="810" y="230" width="80" height="25"/>
+    <text class="grid-header-text" x="850" y="247" text-anchor="middle">시편우선</text>
+
+    <rect class="grid-header" x="890" y="230" width="200" height="25"/>
+    <text class="grid-header-text" x="990" y="247" text-anchor="middle">전공정특기사항</text>
+
+    <rect class="grid-header" x="1090" y="230" width="80" height="25"/>
+    <text class="grid-header-text" x="1130" y="247" text-anchor="middle">소재두께</text>
+
+    <rect class="grid-header" x="1170" y="230" width="80" height="25"/>
+    <text class="grid-header-text" x="1210" y="247" text-anchor="middle">소재폭</text>
+
+    <rect class="grid-header" x="1250" y="230" width="80" height="25"/>
+    <text class="grid-header-text" x="1290" y="247" text-anchor="middle">소재길이</text>
+
+    <rect class="grid-header" x="1330" y="230" width="60" height="25"/>
+    <text class="grid-header-text" x="1360" y="247" text-anchor="middle">InLine</text>
+
+    <!-- Grid 데이터 행들 -->
+    <g id="grid-rows">
+      <!-- 1행 (선택된 행) -->
+      <rect class="grid-selected" x="10" y="255" width="1380" height="25"/>
+      <text class="grid-text grid-row-header" x="30" y="272" text-anchor="middle">1</text>
+      <text class="grid-text" x="85" y="272" text-anchor="middle" text-decoration="underline">CC00123</text>
+      <text class="grid-text" x="150" y="272" text-anchor="middle">ST</text>
+      <text class="grid-text" x="205" y="272" text-anchor="middle">N</text>
+      <text class="grid-text" x="255" y="272" text-anchor="middle">N</text>
+      <text class="grid-text" x="330" y="272" text-anchor="middle">G2-진행중</text>
+      <text class="grid-text" x="440" y="272" text-anchor="middle">4700001-1</text>
+      <text class="grid-text" x="540" y="272" text-anchor="middle" text-decoration="underline">MO00001</text>
+      <text class="grid-text" x="655" y="272" text-anchor="middle">제품A-TI</text>
+
+      <!-- 2행 -->
+      <rect class="grid-cell" x="10" y="280" width="1380" height="25"/>
+      <text class="grid-text grid-row-header" x="30" y="297" text-anchor="middle">2</text>
+      <text class="grid-text" x="85" y="297" text-anchor="middle">CC00124</text>
+      <text class="grid-text" x="330" y="297" text-anchor="middle">G3-완료</text>
+      <text class="grid-text" x="440" y="297" text-anchor="middle">4700002-2</text>
+      <text class="grid-text" x="540" y="297" text-anchor="middle">MO00002</text>
+      <text class="grid-text" x="655" y="297" text-anchor="middle">제품B-SPCC</text>
+
+      <!-- 3행 (Scrap 요구차) -->
+      <rect class="grid-cell" x="10" y="305" width="1380" height="25"/>
+      <rect x="280" y="305" width="100" height="25" fill="#ffebee"/>
+      <text class="grid-text grid-row-header" x="30" y="322" text-anchor="middle">3</text>
+      <text class="grid-text" x="85" y="322" text-anchor="middle">CC00125</text>
+      <text class="grid-text" x="150" y="322" text-anchor="middle"></text>
+      <text class="grid-text" x="205" y="322" text-anchor="middle">Y</text>
+      <text class="grid-text" x="255" y="322" text-anchor="middle"></text>
+      <text class="grid-text" x="330" y="322" text-anchor="middle" fill="#e74c3c">G2-진행중</text>
+      <text class="grid-text" x="340" y="332" font-size="7" fill="#e74c3c">Scrap요구차</text>
+      <text class="grid-text" x="440" y="322" text-anchor="middle">4700003-1</text>
+      <text class="grid-text" x="540" y="322" text-anchor="middle">MO00003</text>
+      <text class="grid-text" x="655" y="322" text-anchor="middle">제품C-SPHC</text>
+
+      <!-- 추가 행들 (생략 표시) -->
+      <line x1="20" y1="350" x2="1380" y2="350" stroke="#bdc3c7" stroke-width="1"/>
+      <text class="grid-text" x="700" y="380" text-anchor="middle" fill="#7f8c8d">...</text>
+      <text class="grid-text" x="700" y="400" text-anchor="middle" fill="#7f8c8d">30</text>
+    </g>
+  </g>
+
+  <!-- 4. 하단 정보 패널들 -->
+  <g id="info-panels">
+    <!-- 복수주문 정보 -->
+    <rect class="panel" x="10" y="570" width="450" height="50"/>
+    <rect class="panel-header" x="10" y="570" width="150" height="20"/>
+    <text class="panel-title" x="20" y="585">복수주문</text>
+    <rect class="panel-header" x="160" y="570" width="150" height="20"/>
+    <text class="panel-title" x="170" y="585">시편우선</text>
+    <rect class="panel-header" x="310" y="570" width="150" height="20"/>
+    <text class="panel-title" x="320" y="585">전공정특기사항</text>
+
+    <text class="grid-text" x="85" y="605" text-anchor="middle">Y</text>
+    <text class="grid-text" x="235" y="605" text-anchor="middle">3</text>
+    <text class="grid-text" x="400" y="605" text-anchor="middle" font-size="10">공정 내 주의사항: 표면 긁힘 주의, 내경 508mm 필수</text>
+
+    <!-- 소재 규격 정보 -->
+    <rect class="panel" x="470" y="570" width="460" height="50"/>
+    <rect class="panel-header" x="470" y="570" width="460" height="20"/>
+    <text class="panel-title" x="480" y="585">소재 규격 정보</text>
+
+    <text class="label" x="480" y="605">두께:</text>
+    <text class="grid-text" x="520" y="605">00.550 mm</text>
+
+    <text class="label" x="600" y="605">폭:</text>
+    <text class="grid-text" x="620" y="605">1250.0 mm</text>
+
+    <text class="label" x="700" y="605">길이:</text>
+    <text class="grid-text" x="730" y="605">2,500 m</text>
+
+    <text class="label" x="800" y="605">중량:</text>
+    <text class="grid-text" x="830" y="605">5,250 kg</text>
+
+    <!-- 공정 정보 -->
+    <rect class="panel" x="940" y="570" width="450" height="50"/>
+    <rect class="panel-header" x="940" y="570" width="450" height="20"/>
+    <text class="panel-title" x="950" y="585">공정 정보</text>
+
+    <text class="label" x="950" y="605">전공정:</text>
+    <text class="grid-text" x="990" y="605">[SH]</text>
+
+    <text class="label" x="1040" y="605">차공정:</text>
+    <text class="grid-text" x="1080" y="605">[GR]</text>
+
+    <text class="label" x="1120" y="605">InLine:</text>
+    <text class="grid-text" x="1160" y="605">[Y]</text>
+  </g>
+
+  <!-- 5. 버튼 영역 -->
+  <g id="action-buttons">
+    <rect class="button" x="600" y="640" width="80" height="30"/>
+    <text class="button-text" x="640" y="658" text-anchor="middle">확인</text>
+
+    <rect class="button" x="690" y="640" width="80" height="30"/>
+    <text class="button-text" x="730" y="658" text-anchor="middle">취소</text>
+
+    <rect class="button" x="780" y="640" width="80" height="30"/>
+    <text class="button-text" x="820" y="658" text-anchor="middle">초기화</text>
+  </g>
+
+  <!-- 6. 팝업 예시 (주문정보 상세) -->
+  <g id="popup-example" opacity="0.9">
+    <rect class="window-frame" x="200" y="700" width="500" height="400" rx="5"/>
+    <rect class="header-bg" x="200" y="700" width="500" height="30"/>
+    <text class="header-text" x="210" y="720">주문정보 상세 - 코일ID: CC00123</text>
+
+    <rect class="panel" x="210" y="740" width="480" height="350"/>
+
+    <!-- 주문 기본 정보 -->
+    <text class="label" x="220" y="760">주문번호:</text>
+    <text class="grid-text" x="290" y="760">4700001-1</text>
+
+    <text class="label" x="220" y="780">제품명:</text>
+    <text class="grid-text" x="270" y="780">제품A-TI</text>
+
+    <text class="label" x="220" y="800">품명코드:</text>
+    <text class="grid-text" x="290" y="800">TI450</text>
+
+    <text class="label" x="220" y="820">포장방법:</text>
+    <text class="grid-text" x="290" y="820">통판 ST</text>
+
+    <!-- 규격 정보 -->
+    <line x1="220" y1="835" x2="680" y2="835" stroke="#bdc3c7" stroke-width="1"/>
+    <text class="label" x="220" y="855" font-weight="bold">두께 규격:</text>
+    <text class="grid-text" x="290" y="855">0.50 ~ 0.60 mm</text>
+
+    <text class="label" x="220" y="875">폭 규격:</text>
+    <text class="grid-text" x="280" y="875">1240 ~ 1260 mm</text>
+
+    <text class="label" x="220" y="895">길이 규격:</text>
+    <text class="grid-text" x="290" y="895">2400 ~ 2600 m</text>
+
+    <text class="label" x="220" y="915">조도 RA:</text>
+    <text class="grid-text" x="280" y="915">0.5 ~ 1.2 μm</text>
+
+    <!-- 추가 정보 -->
+    <line x1="220" y1="930" x2="680" y2="930" stroke="#bdc3c7" stroke-width="1"/>
+    <text class="label" x="220" y="950">Slit 조수:</text>
+    <text class="grid-text" x="290" y="950">3개</text>
+
+    <text class="label" x="220" y="970">이폭 조분할:</text>
+    <text class="grid-text" x="310" y="970">Y</text>
+
+    <text class="label" x="220" y="990">칼라코팅이력:</text>
+    <text class="grid-text" x="310" y="990">N</text>
+
+    <text class="label" x="220" y="1010">보호필름두께:</text>
+    <text class="grid-text" x="320" y="1010">0.05 mm</text>
+
+    <!-- 닫기 버튼 -->
+    <rect class="button" x="590" y="1050" width="80" height="25"/>
+    <text class="button-text" x="630" y="1065" text-anchor="middle">닫기</text>
+  </g>
+
+  <!-- 7. 화살표 및 설명 -->
+  <g id="annotations">
+    <!-- 선택된 행 화살표 -->
+    <polygon class="arrow" points="150,240 155,250 145,250" fill="#e74c3c"/>
+    <text class="label" x="160" y="250" font-size="9" fill="#e74c3c">선택된 코일</text>
+
+    <!-- 팝업 설명 -->
+    <line x1="450" y1="800" x2="500" y2="750" stroke="#e74c3c" stroke-width="1"/>
+    <text class="label" x="460" y="795" font-size="9" fill="#e74c3c">주문정보 팝업</text>
+
+    <!-- Scrap 상태 설명 -->
+    <line x1="380" y1="317" x2="420" y2="340" stroke="#e74c3c" stroke-width="1"/>
+    <text class="label" x="425" y="345" font-size="9" fill="#e74c3c">Scrap 요구차 상태</text>
+  </g>
+
+  <!-- 범례 -->
+  <g id="legend">
+    <rect x="1050" y="100" width="330" height="120" fill="white" stroke="#bdc3c7" stroke-width="1" rx="3"/>
+    <text x="1060" y="120" font-family="Arial" font-size="12" font-weight="bold">범례</text>
+
+    <rect x="1060" y="130" width="30" height="15" fill="#e8f4fd" stroke="#3498db"/>
+    <text x="1095" y="142" font-family="Arial" font-size="10">선택된 행</text>
+
+    <rect x="1060" y="150" width="30" height="15" fill="#ffebee" stroke="#e74c3c"/>
+    <text x="1095" y="162" font-family="Arial" font-size="10">Scrap 요구차 상태</text>
+
+    <line x1="1060" y1="175" x2="1090" y2="175" stroke="#3498db" stroke-width="1" text-decoration="underline"/>
+    <text x="1095" y="179" font-family="Arial" font-size="10">클릭 가능한 링크</text>
+
+    <rect x="1060" y="190" width="30" height="15" fill="#3498db" rx="2"/>
+    <text x="1095" y="202" font-family="Arial" font-size="10">활성 버튼</text>
+  </g>
+</svg>

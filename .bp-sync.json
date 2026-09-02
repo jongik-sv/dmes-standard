@@ -1,0 +1,11 @@
+{
+  "workspaceId": "TODO-fill-in-bp-workspace-id",
+  "workspaceName": "{CLIENT}",
+  "outputDir": "docs/external/BP/{CLIENT}",
+  "staleAfter": "4h",
+  "deleteRemoved": true,
+  "concurrency": 1,
+  "requestDelaySeconds": 0.25,
+  "maxRetries": 5,
+  "scheduleIntervalSeconds": 14400
+}

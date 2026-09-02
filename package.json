@@ -1,0 +1,10 @@
+{
+  "name": "@dk-oasis/repository-tools",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "export-design-dummy": "node scripts/export-design-dummy.mjs",
+    "import-design-dummy": "node scripts/import-design-dummy.mjs"
+  },
+  "packageManager": "pnpm@10.30.3"
+}

@@ -1,0 +1,335 @@
+{
+  "definitions": {
+    "id": "Definitions_InProcessQuality",
+    "targetNamespace": "urn:sap-quality-hold-reference",
+    "exporter": "bpmn-tool",
+    "exporterVersion": "1.3.0"
+  },
+  "process": {
+    "id": "InProcessQuality",
+    "name": "생산 중 품질 — 검사·SFC Hold·NCR",
+    "isExecutable": false,
+    "documentation": "S/4HANA QM 공정검사 lot(원산지 03)와 SAP DM 작업 실행을 연계한다. 부적합 시 SFC를 Hold하여 진행을 차단하고 NCR/MRB 처분에 따라 재작업, 특채, 폐기를 수행한다."
+  },
+  "collaboration": {
+    "id": "Collaboration_InProcessQuality",
+    "participants": [
+      {
+        "id": "Participant_InProcessQuality",
+        "name": "생산 중 품질 (SAP S/4HANA QM · SAP Digital Manufacturing)",
+        "processRef": "InProcessQuality"
+      }
+    ],
+    "messageFlows": []
+  },
+  "nodes": [
+    {
+      "id": "IN_Start",
+      "type": "bpmn:StartEvent",
+      "name": "생산오더 Release",
+      "x": 70,
+      "y": 252
+    },
+    {
+      "id": "IN_CreateLot03",
+      "type": "bpmn:ServiceTask",
+      "name": "[S/4 QM]\n공정검사 lot 03 생성",
+      "x": 160,
+      "y": 230
+    },
+    {
+      "id": "IN_ReleaseSFC",
+      "type": "bpmn:ServiceTask",
+      "name": "[SAP DM]\n오더·검사항목 수신 및 SFC Release",
+      "x": 320,
+      "y": 230
+    },
+    {
+      "id": "IN_ExecuteOperation",
+      "type": "bpmn:UserTask",
+      "name": "공정 작업 실행\n추적성·데이터 수집",
+      "x": 480,
+      "y": 230
+    },
+    {
+      "id": "IN_RecordInspection",
+      "type": "bpmn:UserTask",
+      "name": "[SAP DM]\nInspection Point·검사결과·Buyoff 기록",
+      "x": 640,
+      "y": 230
+    },
+    {
+      "id": "IN_SyncResults",
+      "type": "bpmn:ServiceTask",
+      "name": "검사결과 S/4 QM 동기화\n평가값 수신",
+      "x": 800,
+      "y": 230
+    },
+    {
+      "id": "IN_ConformanceGateway",
+      "type": "bpmn:ExclusiveGateway",
+      "name": "공정 적합?",
+      "x": 970,
+      "y": 245
+    },
+    {
+      "id": "IN_CompleteOperation",
+      "type": "bpmn:UserTask",
+      "name": "공정 완료·실적 확정",
+      "x": 1130,
+      "y": 230
+    },
+    {
+      "id": "IN_LastOperationGateway",
+      "type": "bpmn:ExclusiveGateway",
+      "name": "최종 공정?",
+      "x": 1300,
+      "y": 245
+    },
+    {
+      "id": "IN_NextOperation",
+      "type": "bpmn:ServiceTask",
+      "name": "다음 공정 Queue",
+      "x": 1390,
+      "y": 70
+    },
+    {
+      "id": "IN_EndSuccess",
+      "type": "bpmn:EndEvent",
+      "name": "생산 후 품질로 인계",
+      "x": 1480,
+      "y": 252
+    },
+    {
+      "id": "IN_HoldSFC",
+      "type": "bpmn:UserTask",
+      "name": "[SAP DM]\nNC 기록 + SFC Hold\nStart/Complete 차단",
+      "x": 1040,
+      "y": 450
+    },
+    {
+      "id": "IN_Containment",
+      "type": "bpmn:UserTask",
+      "name": "[S/4 QM/SAP DM]\n내부문제 Q3·영향 SFC 봉쇄",
+      "x": 1200,
+      "y": 450
+    },
+    {
+      "id": "IN_MRB",
+      "type": "bpmn:UserTask",
+      "name": "NCR 기술검토·MRB 처분 승인",
+      "x": 1360,
+      "y": 450
+    },
+    {
+      "id": "IN_DispositionGateway",
+      "type": "bpmn:ExclusiveGateway",
+      "name": "처분?",
+      "x": 1530,
+      "y": 465
+    },
+    {
+      "id": "IN_UseAsIs",
+      "type": "bpmn:UserTask",
+      "name": "특채/그대로 사용 승인",
+      "x": 1660,
+      "y": 270
+    },
+    {
+      "id": "IN_CloseRelease",
+      "type": "bpmn:UserTask",
+      "name": "NC Close·SFC Hold 해제",
+      "x": 1820,
+      "y": 270
+    },
+    {
+      "id": "IN_ReworkRoute",
+      "type": "bpmn:UserTask",
+      "name": "NC/특수 Routing으로 Disposition",
+      "x": 1660,
+      "y": 450
+    },
+    {
+      "id": "IN_Repair",
+      "type": "bpmn:UserTask",
+      "name": "분석·수리·재작업",
+      "x": 1820,
+      "y": 450
+    },
+    {
+      "id": "IN_Reinspect",
+      "type": "bpmn:UserTask",
+      "name": "SFC Hold 해제 후 재검사",
+      "x": 1980,
+      "y": 450
+    },
+    {
+      "id": "IN_Scrap",
+      "type": "bpmn:UserTask",
+      "name": "SFC Scrap·폐기실적/비용 반영",
+      "x": 1660,
+      "y": 650
+    },
+    {
+      "id": "IN_EndScrap",
+      "type": "bpmn:EndEvent",
+      "name": "폐기 종결",
+      "x": 1830,
+      "y": 672
+    }
+  ],
+  "flows": [
+    {
+      "id": "IN_F01",
+      "source": "IN_Start",
+      "target": "IN_CreateLot03"
+    },
+    {
+      "id": "IN_F02",
+      "source": "IN_CreateLot03",
+      "target": "IN_ReleaseSFC"
+    },
+    {
+      "id": "IN_F03",
+      "source": "IN_ReleaseSFC",
+      "target": "IN_ExecuteOperation"
+    },
+    {
+      "id": "IN_F04",
+      "source": "IN_ExecuteOperation",
+      "target": "IN_RecordInspection"
+    },
+    {
+      "id": "IN_F05",
+      "source": "IN_RecordInspection",
+      "target": "IN_SyncResults"
+    },
+    {
+      "id": "IN_F06",
+      "source": "IN_SyncResults",
+      "target": "IN_ConformanceGateway"
+    },
+    {
+      "id": "IN_F07",
+      "source": "IN_ConformanceGateway",
+      "target": "IN_CompleteOperation",
+      "name": "적합",
+      "condition": "${inProcessAccepted == true}"
+    },
+    {
+      "id": "IN_F08",
+      "source": "IN_ConformanceGateway",
+      "target": "IN_HoldSFC",
+      "name": "부적합/OOL/Buyoff 거부",
+      "isDefault": true
+    },
+    {
+      "id": "IN_F09",
+      "source": "IN_CompleteOperation",
+      "target": "IN_LastOperationGateway"
+    },
+    {
+      "id": "IN_F10",
+      "source": "IN_LastOperationGateway",
+      "target": "IN_EndSuccess",
+      "name": "예",
+      "condition": "${lastOperation == true}"
+    },
+    {
+      "id": "IN_F11",
+      "source": "IN_LastOperationGateway",
+      "target": "IN_NextOperation",
+      "name": "아니오",
+      "isDefault": true
+    },
+    {
+      "id": "IN_F12",
+      "source": "IN_NextOperation",
+      "target": "IN_ExecuteOperation"
+    },
+    {
+      "id": "IN_F13",
+      "source": "IN_HoldSFC",
+      "target": "IN_Containment"
+    },
+    {
+      "id": "IN_F14",
+      "source": "IN_Containment",
+      "target": "IN_MRB"
+    },
+    {
+      "id": "IN_F15",
+      "source": "IN_MRB",
+      "target": "IN_DispositionGateway"
+    },
+    {
+      "id": "IN_F16",
+      "source": "IN_DispositionGateway",
+      "target": "IN_UseAsIs",
+      "name": "특채/그대로 사용",
+      "condition": "${disposition == 'USE_AS_IS'}"
+    },
+    {
+      "id": "IN_F17",
+      "source": "IN_UseAsIs",
+      "target": "IN_CloseRelease"
+    },
+    {
+      "id": "IN_F18",
+      "source": "IN_CloseRelease",
+      "target": "IN_CompleteOperation"
+    },
+    {
+      "id": "IN_F19",
+      "source": "IN_DispositionGateway",
+      "target": "IN_ReworkRoute",
+      "name": "재작업",
+      "isDefault": true
+    },
+    {
+      "id": "IN_F20",
+      "source": "IN_ReworkRoute",
+      "target": "IN_Repair"
+    },
+    {
+      "id": "IN_F21",
+      "source": "IN_Repair",
+      "target": "IN_Reinspect"
+    },
+    {
+      "id": "IN_F22",
+      "source": "IN_Reinspect",
+      "target": "IN_RecordInspection",
+      "name": "재검사"
+    },
+    {
+      "id": "IN_F23",
+      "source": "IN_DispositionGateway",
+      "target": "IN_Scrap",
+      "name": "폐기",
+      "condition": "${disposition == 'SCRAP'}"
+    },
+    {
+      "id": "IN_F24",
+      "source": "IN_Scrap",
+      "target": "IN_EndScrap"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "IN_Annotation",
+      "text": "S/4HANA 공정검사 lot 03은 재고 비관련이다. WIP 진행 차단은 SAP DM SFC Hold가 담당하며, 재고 보류와 혼동하지 않는다.",
+      "x": 640,
+      "y": 70,
+      "width": 500,
+      "height": 60
+    }
+  ],
+  "associations": [
+    {
+      "id": "IN_Association",
+      "source": "IN_CreateLot03",
+      "target": "IN_Annotation"
+    }
+  ]
+}

@@ -1,0 +1,120 @@
+server:
+  port: 8200
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+      force-response: true
+
+spring:
+  application:
+    name: caravan-hub
+
+  # ── 프로파일 체계 (2026-07-09 JNDI 전환 — docs/framework/DataSource_JNDI설계.md, mcm 패턴) ──
+  #   local    : SQLite 직결 (bootRun/IDE) — 미지정 기동은 CaravanHubApplication 의 spring.profiles.default=local 폴백
+  #   local-ph : 포항 개발 DB 직결 (bootRun, 구 mssql)
+  #   local-kp : 김포 개발 DB 직결 (bootRun, 구 dev)
+  #   dev      : 포항·김포 개발계 WildFly — JNDI (group 으로 wildfly 자동 활성)
+  #   prod     : 운영계 WildFly — JNDI
+  # local 계열(직결)과 dev/prod(JNDI)는 상호배타 — 반드시 하나만 활성. 구 `local,mssql` 조합 폐기.
+  profiles:
+    group:
+      dev: [wildfly]
+      prod: [wildfly]
+
+  # Spring Boot KafkaAutoConfiguration 비활성화 — 이걸 두면 default ConsumerFactory(enable.auto.commit=true)
+  # + ListenerContainerFactory(AckMode=BATCH) 가 등록되고 caravan 의 @ConditionalOnMissingBean 빈이 막힌다.
+  # 그 결과 caravan KafkaMessageConsumer.consume(...) 의 Acknowledgment 가 null 로 전달되어
+  # "No Acknowledgment available as an argument" / "Could not resolve parameter [2]" 가 난다.
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+
+# =============================================================================
+# Apache Camel (P2 골격 — 라우트는 P3~ 에서 탑재, 현재 0개로 CamelContext 만 기동)
+#   · DataSource(mstDataSource/ifDataSource)·매퍼 빈은 Spring ApplicationContext = Camel Registry 라
+#     라우트에서 `sql:...?dataSource=#ifDataSource` 로 즉시 참조 가능(별도 노출 불필요).
+#   · main-run-controller=false: 웹(Servlet) 컨테이너가 JVM 을 유지하므로 Camel 자체 블로킹 불필요.
+# =============================================================================
+camel:
+  springboot:
+    name: CaravanHub
+    main-run-controller: false
+  # 인바운드 HTTP(P3): CamelServlet 매핑. rest("/v1").post("/send") 와 합쳐 /caravanHubApi/v1/send.
+  servlet:
+    mapping:
+      context-path: /caravanHubApi/*
+
+# =============================================================================
+# Caravan Kafka
+# =============================================================================
+caravan:
+  kafka:
+    enabled: true
+    # bootstrap-servers 는 프로파일별 yml 에서 정의
+    #   local: localhost:9092(임베디드) / local-ph: 포항 브로커 / local-kp: 김포측 브로커
+    #   dev: ${KAFKA_BOOTSTRAP_SERVERS:포항 기본} / prod: ${KAFKA_BOOTSTRAP_SERVERS} (필수)
+    biz-system: HUB1
+    producer:
+      acks: all
+      retries: 3
+      timeout-seconds: 10
+      idempotence: true
+    consumer:
+      enabled: true
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      max-poll-records: 1
+      concurrency: 1
+    retry:
+      max-attempts: 3
+      delay-ms: 2000
+
+# =============================================================================
+# caravan-hub Integration
+# =============================================================================
+caravan-hub:
+  inbound:
+    db:
+      enabled: ${INTEGRATION_DB_ENABLED:true}
+      thread-pool-size: 10
+      batch-size: 100
+    file:
+      enabled: true
+      thread-pool-size: 5
+  outbound:
+    http:
+      connect-timeout: 10000
+      read-timeout: 30000
+  # 운영자 알림(SMS) — 큐막기/DLT 시 SmsAlertNotifier 로 발송.
+  #   enabled=false(기본): 게이트웨이 미연동 → caravan-core LoggingAlertNotifier 가 WARN 로그로 대체.
+  #   게이트웨이 연동 완료 후 SmsAlertNotifier.send() 구현 + enabled=true + gateway-url/recipients 설정.
+  alert:
+    sms:
+      enabled: ${CARAVAN_HUB_SMS_ALERT_ENABLED:false}
+      # gateway-url: ${CARAVAN_HUB_SMS_GATEWAY_URL:}
+      # recipients: ${CARAVAN_HUB_SMS_RECIPIENTS:}
+  # DataInitializer 게이트 (2026-07-09 신설) — false 면 기동 시 스키마 DDL 전체 skip.
+  # 기본 true(현행 동작 유지) — local 계열 직결 개발 편의. WildFly(dev/prod)는 프로파일 yml 에서 false 명시.
+  init:
+    enabled: true
+
+# =============================================================================
+# MyBatis
+# =============================================================================
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: false
+    call-setters-on-nulls: true
+
+# =============================================================================
+# Logging
+# =============================================================================
+logging:
+  level:
+    root: INFO
+    com.dongkuk.caravan.hub: DEBUG
+    com.dongkuk.caravan.core: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

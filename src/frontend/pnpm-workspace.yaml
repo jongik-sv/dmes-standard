@@ -1,0 +1,25 @@
+packages:
+  - m-mcm
+  - shared
+  - m-mpn
+  - m-mpp
+  - m-mqc
+  - m-mls
+  - m-analog
+  - m-design-dummy
+
+overrides:
+  react: "19.2.4"
+  react-dom: "19.2.4"
+
+ignoredBuiltDependencies:
+  - sharp
+  - unrs-resolver
+
+onlyBuiltDependencies:
+  - esbuild
+
+allowBuilds:
+  esbuild: set this to true or false
+  sharp: set this to true or false
+  unrs-resolver: set this to true or false

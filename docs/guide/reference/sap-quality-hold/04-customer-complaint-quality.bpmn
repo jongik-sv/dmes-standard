@@ -1,0 +1,448 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_CustomerComplaintQuality" targetNamespace="urn:sap-quality-hold-reference" exporter="bpmn-tool" exporterVersion="1.3.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:collaboration id="Collaboration_CustomerComplaintQuality">
+    <bpmn:participant id="Participant_CustomerComplaintQuality" name="고객 불만 (SAP S/4HANA QM · SAP DM · SD/ARM · EWM)" processRef="CustomerComplaintQuality" />
+  </bpmn:collaboration>
+  <bpmn:process id="CustomerComplaintQuality" name="고객 불만 — 봉쇄·RMA·원인분석·CAPA" isExecutable="false">
+    <bpmn:documentation>S/4HANA QM 고객불만 품질통지 Q1을 중심으로 고객응답과 내부 봉쇄를 병렬 실행하고, 필요 시 반품검사 lot를 생성한다. 처분, 근본원인, CAPA, 효과검증을 마친 뒤 영향범위별 보류를 해제한다.</bpmn:documentation>
+    <bpmn:startEvent id="CC_Start" name="고객 불만 수신">
+      <bpmn:outgoing>CC_F01</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:startEvent>
+    <bpmn:userTask id="CC_CreateQ1" name="[S/4 QM]&#10;고객불만 Quality Notification Q1 생성&#10;고객·자재·Batch·Delivery·Serial 연결">
+      <bpmn:incoming>CC_F01</bpmn:incoming>
+      <bpmn:outgoing>CC_F02</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="CC_ParallelSplit" name="즉시대응 병렬">
+      <bpmn:incoming>CC_F02</bpmn:incoming>
+      <bpmn:outgoing>CC_F03</bpmn:outgoing>
+      <bpmn:outgoing>CC_F04</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="CC_Containment" name="영향 Lot/Batch/Serial 추적·봉쇄&#10;S/4 재고/Batch 제한 + DM 관련 SFC Hold">
+      <bpmn:incoming>CC_F03</bpmn:incoming>
+      <bpmn:outgoing>CC_F05</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="CC_CustomerResponse" name="고객 접수 회신·위험도 평가&#10;RMA/대체/현장조치 판단">
+      <bpmn:incoming>CC_F04</bpmn:incoming>
+      <bpmn:outgoing>CC_F06</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="CC_ParallelJoin" name="초기 봉쇄 완료">
+      <bpmn:incoming>CC_F05</bpmn:incoming>
+      <bpmn:incoming>CC_F06</bpmn:incoming>
+      <bpmn:outgoing>CC_F07</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:exclusiveGateway id="CC_ReturnGateway" name="실물 반품 필요?" default="CC_F09">
+      <bpmn:incoming>CC_F07</bpmn:incoming>
+      <bpmn:outgoing>CC_F08</bpmn:outgoing>
+      <bpmn:outgoing>CC_F09</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="CC_CreateReturn" name="ARM/RMA 반품오더·Return Delivery 생성">
+      <bpmn:incoming>CC_F08</bpmn:incoming>
+      <bpmn:outgoing>CC_F10</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="CC_ReturnReceipt" name="반품 입고&#10;Blocked Returns/Inspection Stock&#10;lot 06 또는 05 생성">
+      <bpmn:incoming>CC_F10</bpmn:incoming>
+      <bpmn:outgoing>CC_F11</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="CC_ReturnInspection" name="기술검사·결함·검사결과 기록">
+      <bpmn:incoming>CC_F11</bpmn:incoming>
+      <bpmn:outgoing>CC_F12</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="CC_EvidenceReview" name="사진·샘플·생산/검사 이력 검토">
+      <bpmn:incoming>CC_F09</bpmn:incoming>
+      <bpmn:outgoing>CC_F13</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="CC_EvidenceMerge" name="조사자료 통합">
+      <bpmn:incoming>CC_F12</bpmn:incoming>
+      <bpmn:incoming>CC_F13</bpmn:incoming>
+      <bpmn:outgoing>CC_F14</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="CC_RootCause" name="결함 Item·Cause 기록&#10;5Why/4M 근본원인 분석">
+      <bpmn:incoming>CC_F14</bpmn:incoming>
+      <bpmn:incoming>CC_F30</bpmn:incoming>
+      <bpmn:outgoing>CC_F15</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="CC_CAPAPlan" name="Correction·CAPA Task 수립&#10;책임자·기한 지정">
+      <bpmn:incoming>CC_F15</bpmn:incoming>
+      <bpmn:outgoing>CC_F16</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="CC_DispositionGateway" name="고객품 처분?" default="CC_F18">
+      <bpmn:incoming>CC_F16</bpmn:incoming>
+      <bpmn:outgoing>CC_F17</bpmn:outgoing>
+      <bpmn:outgoing>CC_F18</bpmn:outgoing>
+      <bpmn:outgoing>CC_F19</bpmn:outgoing>
+      <bpmn:outgoing>CC_F20</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="CC_Repair" name="수리·재작업 후 반환">
+      <bpmn:incoming>CC_F17</bpmn:incoming>
+      <bpmn:outgoing>CC_F21</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="CC_Replace" name="대체품·환불·Credit 처리">
+      <bpmn:incoming>CC_F18</bpmn:incoming>
+      <bpmn:outgoing>CC_F22</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="CC_NoFault" name="No Fault Found&#10;그대로 반환/설명">
+      <bpmn:incoming>CC_F19</bpmn:incoming>
+      <bpmn:outgoing>CC_F23</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="CC_ScrapField" name="폐기·선별·현장조치/Recall">
+      <bpmn:incoming>CC_F20</bpmn:incoming>
+      <bpmn:outgoing>CC_F24</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="CC_DispositionMerge" name="처분 완료">
+      <bpmn:incoming>CC_F21</bpmn:incoming>
+      <bpmn:incoming>CC_F22</bpmn:incoming>
+      <bpmn:incoming>CC_F23</bpmn:incoming>
+      <bpmn:incoming>CC_F24</bpmn:incoming>
+      <bpmn:outgoing>CC_F25</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="CC_ImplementCAPA" name="내부 시정·예방조치 실행&#10;공정·검사계획·공급자 기준 개정">
+      <bpmn:incoming>CC_F25</bpmn:incoming>
+      <bpmn:outgoing>CC_F26</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="CC_VerifyEffectiveness" name="효과검증·재발 모니터링">
+      <bpmn:incoming>CC_F26</bpmn:incoming>
+      <bpmn:outgoing>CC_F27</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="CC_EffectiveGateway" name="효과 확인?" default="CC_F29">
+      <bpmn:incoming>CC_F27</bpmn:incoming>
+      <bpmn:outgoing>CC_F28</bpmn:outgoing>
+      <bpmn:outgoing>CC_F29</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="CC_Refine" name="원인/조치 재수립">
+      <bpmn:incoming>CC_F29</bpmn:incoming>
+      <bpmn:outgoing>CC_F30</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="CC_ReleaseContainment" name="QA 승인으로 영향범위별 보류 해제&#10;미해결 Lot/Batch/SFC는 유지">
+      <bpmn:incoming>CC_F28</bpmn:incoming>
+      <bpmn:outgoing>CC_F31</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="CC_FinalResponse" name="고객 최종 회신·8D/증빙 전달">
+      <bpmn:incoming>CC_F31</bpmn:incoming>
+      <bpmn:outgoing>CC_F32</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="CC_CompleteQ1" name="Q1 Task/Activity 완료·통지 종결">
+      <bpmn:incoming>CC_F32</bpmn:incoming>
+      <bpmn:outgoing>CC_F33</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="CC_End" name="불만 종결·기준 환류">
+      <bpmn:incoming>CC_F33</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="CC_F01" sourceRef="CC_Start" targetRef="CC_CreateQ1" />
+    <bpmn:sequenceFlow id="CC_F02" sourceRef="CC_CreateQ1" targetRef="CC_ParallelSplit" />
+    <bpmn:sequenceFlow id="CC_F03" sourceRef="CC_ParallelSplit" targetRef="CC_Containment" />
+    <bpmn:sequenceFlow id="CC_F04" sourceRef="CC_ParallelSplit" targetRef="CC_CustomerResponse" />
+    <bpmn:sequenceFlow id="CC_F05" sourceRef="CC_Containment" targetRef="CC_ParallelJoin" />
+    <bpmn:sequenceFlow id="CC_F06" sourceRef="CC_CustomerResponse" targetRef="CC_ParallelJoin" />
+    <bpmn:sequenceFlow id="CC_F07" sourceRef="CC_ParallelJoin" targetRef="CC_ReturnGateway" />
+    <bpmn:sequenceFlow id="CC_F08" name="예" sourceRef="CC_ReturnGateway" targetRef="CC_CreateReturn">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${physicalReturnRequired == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="CC_F09" name="아니오" sourceRef="CC_ReturnGateway" targetRef="CC_EvidenceReview" />
+    <bpmn:sequenceFlow id="CC_F10" sourceRef="CC_CreateReturn" targetRef="CC_ReturnReceipt" />
+    <bpmn:sequenceFlow id="CC_F11" sourceRef="CC_ReturnReceipt" targetRef="CC_ReturnInspection" />
+    <bpmn:sequenceFlow id="CC_F12" sourceRef="CC_ReturnInspection" targetRef="CC_EvidenceMerge" />
+    <bpmn:sequenceFlow id="CC_F13" sourceRef="CC_EvidenceReview" targetRef="CC_EvidenceMerge" />
+    <bpmn:sequenceFlow id="CC_F14" sourceRef="CC_EvidenceMerge" targetRef="CC_RootCause" />
+    <bpmn:sequenceFlow id="CC_F15" sourceRef="CC_RootCause" targetRef="CC_CAPAPlan" />
+    <bpmn:sequenceFlow id="CC_F16" sourceRef="CC_CAPAPlan" targetRef="CC_DispositionGateway" />
+    <bpmn:sequenceFlow id="CC_F17" name="수리/재작업" sourceRef="CC_DispositionGateway" targetRef="CC_Repair">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${customerDisposition == 'REPAIR'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="CC_F18" name="대체/환불" sourceRef="CC_DispositionGateway" targetRef="CC_Replace" />
+    <bpmn:sequenceFlow id="CC_F19" name="정상/NFF" sourceRef="CC_DispositionGateway" targetRef="CC_NoFault">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${customerDisposition == 'NO_FAULT'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="CC_F20" name="폐기/현장조치" sourceRef="CC_DispositionGateway" targetRef="CC_ScrapField">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${customerDisposition == 'SCRAP_OR_FIELD_ACTION'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="CC_F21" sourceRef="CC_Repair" targetRef="CC_DispositionMerge" />
+    <bpmn:sequenceFlow id="CC_F22" sourceRef="CC_Replace" targetRef="CC_DispositionMerge" />
+    <bpmn:sequenceFlow id="CC_F23" sourceRef="CC_NoFault" targetRef="CC_DispositionMerge" />
+    <bpmn:sequenceFlow id="CC_F24" sourceRef="CC_ScrapField" targetRef="CC_DispositionMerge" />
+    <bpmn:sequenceFlow id="CC_F25" sourceRef="CC_DispositionMerge" targetRef="CC_ImplementCAPA" />
+    <bpmn:sequenceFlow id="CC_F26" sourceRef="CC_ImplementCAPA" targetRef="CC_VerifyEffectiveness" />
+    <bpmn:sequenceFlow id="CC_F27" sourceRef="CC_VerifyEffectiveness" targetRef="CC_EffectiveGateway" />
+    <bpmn:sequenceFlow id="CC_F28" name="예" sourceRef="CC_EffectiveGateway" targetRef="CC_ReleaseContainment">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${capaEffective == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="CC_F29" name="아니오/재발" sourceRef="CC_EffectiveGateway" targetRef="CC_Refine" />
+    <bpmn:sequenceFlow id="CC_F30" name="재분석" sourceRef="CC_Refine" targetRef="CC_RootCause" />
+    <bpmn:sequenceFlow id="CC_F31" sourceRef="CC_ReleaseContainment" targetRef="CC_FinalResponse" />
+    <bpmn:sequenceFlow id="CC_F32" sourceRef="CC_FinalResponse" targetRef="CC_CompleteQ1" />
+    <bpmn:sequenceFlow id="CC_F33" sourceRef="CC_CompleteQ1" targetRef="CC_End" />
+    <bpmn:textAnnotation id="CC_Annotation">
+      <bpmn:text>보류는 전량 일괄 해제하지 않는다. Lot·Batch·Serial·SFC별 조사/처분/효과검증 상태에 따라 품질 승인자가 선택 해제한다.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="CC_Association" sourceRef="CC_ReleaseContainment" targetRef="CC_Annotation" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_CustomerComplaintQuality">
+      <bpmndi:BPMNShape id="Participant_CustomerComplaintQuality_di" bpmnElement="Participant_CustomerComplaintQuality" isHorizontal="true">
+        <dc:Bounds x="20" y="60" width="3226" height="600" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_Start_di" bpmnElement="CC_Start">
+        <dc:Bounds x="70" y="322" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_CreateQ1_di" bpmnElement="CC_CreateQ1">
+        <dc:Bounds x="160" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_ParallelSplit_di" bpmnElement="CC_ParallelSplit">
+        <dc:Bounds x="330" y="315" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_Containment_di" bpmnElement="CC_Containment">
+        <dc:Bounds x="440" y="150" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_CustomerResponse_di" bpmnElement="CC_CustomerResponse">
+        <dc:Bounds x="440" y="470" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_ParallelJoin_di" bpmnElement="CC_ParallelJoin">
+        <dc:Bounds x="620" y="315" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_ReturnGateway_di" bpmnElement="CC_ReturnGateway" isMarkerVisible="true">
+        <dc:Bounds x="750" y="315" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_CreateReturn_di" bpmnElement="CC_CreateReturn">
+        <dc:Bounds x="860" y="500" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_ReturnReceipt_di" bpmnElement="CC_ReturnReceipt">
+        <dc:Bounds x="1020" y="500" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_ReturnInspection_di" bpmnElement="CC_ReturnInspection">
+        <dc:Bounds x="1180" y="500" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_EvidenceReview_di" bpmnElement="CC_EvidenceReview">
+        <dc:Bounds x="960" y="240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_EvidenceMerge_di" bpmnElement="CC_EvidenceMerge" isMarkerVisible="true">
+        <dc:Bounds x="1350" y="315" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_RootCause_di" bpmnElement="CC_RootCause">
+        <dc:Bounds x="1450" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_CAPAPlan_di" bpmnElement="CC_CAPAPlan">
+        <dc:Bounds x="1610" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_DispositionGateway_di" bpmnElement="CC_DispositionGateway" isMarkerVisible="true">
+        <dc:Bounds x="1780" y="315" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_Repair_di" bpmnElement="CC_Repair">
+        <dc:Bounds x="1900" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_Replace_di" bpmnElement="CC_Replace">
+        <dc:Bounds x="1900" y="250" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_NoFault_di" bpmnElement="CC_NoFault">
+        <dc:Bounds x="1900" y="400" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_ScrapField_di" bpmnElement="CC_ScrapField">
+        <dc:Bounds x="1900" y="550" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_DispositionMerge_di" bpmnElement="CC_DispositionMerge" isMarkerVisible="true">
+        <dc:Bounds x="2070" y="315" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_ImplementCAPA_di" bpmnElement="CC_ImplementCAPA">
+        <dc:Bounds x="2180" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_VerifyEffectiveness_di" bpmnElement="CC_VerifyEffectiveness">
+        <dc:Bounds x="2350" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_EffectiveGateway_di" bpmnElement="CC_EffectiveGateway" isMarkerVisible="true">
+        <dc:Bounds x="2520" y="315" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_Refine_di" bpmnElement="CC_Refine">
+        <dc:Bounds x="2630" y="520" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_ReleaseContainment_di" bpmnElement="CC_ReleaseContainment">
+        <dc:Bounds x="2670" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_FinalResponse_di" bpmnElement="CC_FinalResponse">
+        <dc:Bounds x="2840" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_CompleteQ1_di" bpmnElement="CC_CompleteQ1">
+        <dc:Bounds x="3010" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_End_di" bpmnElement="CC_End">
+        <dc:Bounds x="3180" y="322" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CC_Annotation_di" bpmnElement="CC_Annotation">
+        <dc:Bounds x="2240" y="100" width="520" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="CC_F01_di" bpmnElement="CC_F01">
+        <di:waypoint x="106" y="340" />
+        <di:waypoint x="160" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F02_di" bpmnElement="CC_F02">
+        <di:waypoint x="260" y="340" />
+        <di:waypoint x="330" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F03_di" bpmnElement="CC_F03">
+        <di:waypoint x="355" y="315" />
+        <di:waypoint x="355" y="190" />
+        <di:waypoint x="440" y="190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F04_di" bpmnElement="CC_F04">
+        <di:waypoint x="355" y="365" />
+        <di:waypoint x="355" y="510" />
+        <di:waypoint x="440" y="510" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F05_di" bpmnElement="CC_F05">
+        <di:waypoint x="540" y="190" />
+        <di:waypoint x="620" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F06_di" bpmnElement="CC_F06">
+        <di:waypoint x="540" y="510" />
+        <di:waypoint x="620" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F07_di" bpmnElement="CC_F07">
+        <di:waypoint x="670" y="340" />
+        <di:waypoint x="750" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F08_di" bpmnElement="CC_F08">
+        <di:waypoint x="775" y="365" />
+        <di:waypoint x="775" y="540" />
+        <di:waypoint x="860" y="540" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="797.5" y="348" width="8" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F09_di" bpmnElement="CC_F09">
+        <di:waypoint x="775" y="315" />
+        <di:waypoint x="775" y="280" />
+        <di:waypoint x="960" y="280" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="847.5" y="263" width="24" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F10_di" bpmnElement="CC_F10">
+        <di:waypoint x="960" y="540" />
+        <di:waypoint x="1020" y="540" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F11_di" bpmnElement="CC_F11">
+        <di:waypoint x="1120" y="540" />
+        <di:waypoint x="1180" y="540" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F12_di" bpmnElement="CC_F12">
+        <di:waypoint x="1280" y="540" />
+        <di:waypoint x="1350" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F13_di" bpmnElement="CC_F13">
+        <di:waypoint x="1060" y="280" />
+        <di:waypoint x="1350" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F14_di" bpmnElement="CC_F14">
+        <di:waypoint x="1400" y="340" />
+        <di:waypoint x="1450" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F15_di" bpmnElement="CC_F15">
+        <di:waypoint x="1550" y="340" />
+        <di:waypoint x="1610" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F16_di" bpmnElement="CC_F16">
+        <di:waypoint x="1710" y="340" />
+        <di:waypoint x="1780" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F17_di" bpmnElement="CC_F17">
+        <di:waypoint x="1805" y="315" />
+        <di:waypoint x="1805" y="140" />
+        <di:waypoint x="1900" y="140" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1832.5" y="123" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F18_di" bpmnElement="CC_F18">
+        <di:waypoint x="1805" y="315" />
+        <di:waypoint x="1805" y="290" />
+        <di:waypoint x="1900" y="290" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1832.5" y="273" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F19_di" bpmnElement="CC_F19">
+        <di:waypoint x="1805" y="365" />
+        <di:waypoint x="1805" y="440" />
+        <di:waypoint x="1900" y="440" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1832.5" y="348" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F20_di" bpmnElement="CC_F20">
+        <di:waypoint x="1805" y="365" />
+        <di:waypoint x="1805" y="590" />
+        <di:waypoint x="1900" y="590" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1832.5" y="348" width="56" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F21_di" bpmnElement="CC_F21">
+        <di:waypoint x="2000" y="140" />
+        <di:waypoint x="2070" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F22_di" bpmnElement="CC_F22">
+        <di:waypoint x="2000" y="290" />
+        <di:waypoint x="2070" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F23_di" bpmnElement="CC_F23">
+        <di:waypoint x="2000" y="440" />
+        <di:waypoint x="2070" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F24_di" bpmnElement="CC_F24">
+        <di:waypoint x="2000" y="590" />
+        <di:waypoint x="2070" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F25_di" bpmnElement="CC_F25">
+        <di:waypoint x="2120" y="340" />
+        <di:waypoint x="2180" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F26_di" bpmnElement="CC_F26">
+        <di:waypoint x="2280" y="340" />
+        <di:waypoint x="2350" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F27_di" bpmnElement="CC_F27">
+        <di:waypoint x="2450" y="340" />
+        <di:waypoint x="2520" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F28_di" bpmnElement="CC_F28">
+        <di:waypoint x="2570" y="340" />
+        <di:waypoint x="2670" y="340" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2600" y="323" width="8" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F29_di" bpmnElement="CC_F29">
+        <di:waypoint x="2545" y="365" />
+        <di:waypoint x="2545" y="560" />
+        <di:waypoint x="2630" y="560" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2567.5" y="348" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F30_di" bpmnElement="CC_F30">
+        <di:waypoint x="2680" y="600" />
+        <di:waypoint x="2680" y="670" />
+        <di:waypoint x="1500" y="670" />
+        <di:waypoint x="1500" y="380" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2070" y="363" width="24" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F31_di" bpmnElement="CC_F31">
+        <di:waypoint x="2770" y="340" />
+        <di:waypoint x="2840" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F32_di" bpmnElement="CC_F32">
+        <di:waypoint x="2940" y="340" />
+        <di:waypoint x="3010" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_F33_di" bpmnElement="CC_F33">
+        <di:waypoint x="3110" y="340" />
+        <di:waypoint x="3180" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="CC_Association_di" bpmnElement="CC_Association">
+        <di:waypoint x="2720" y="300" />
+        <di:waypoint x="2500" y="160" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
+

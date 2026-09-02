@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.apache.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="orders.list">
+    <select id="byBuyer" resultType="map">
+        <![CDATA[
+        SELECT ORDER_ID
+             , BUYER_ID
+             , ITEM_CODE
+             , QTY
+             , STATUS
+             , ORDER_DATE
+          FROM TB_ORDER
+         WHERE BUYER_ID LIKE #{buyerId} || '%'
+           AND ITEM_CODE LIKE #{itemCode} || '%'
+           AND STATUS IN ('A','B')
+           AND ORDER_DATE BETWEEN NVL(#{from}, '00000000') AND NVL(#{to}, '99999999')
+        ]]>
+    </select>
+    <select id="byBuyerForCancel" resultType="map">
+        <![CDATA[
+        SELECT ORDER_ID
+             , BUYER_ID
+             , ITEM_CODE
+             , QTY
+             , STATUS
+          FROM TB_ORDER
+         WHERE BUYER_ID LIKE #{buyerId} || '%'
+           AND STATUS IN ('C')
+        ]]>
+    </select>
+    <select id="routes" resultType="map">
+        <![CDATA[
+        SELECT R.PRI
+             , R.LANE_CODE
+             , S.STEP_CODE
+             , S.SEQ AS STEP_SEQ
+             , R.SEQ AS LANE_SEQ
+             , S.ORDER_ID
+          FROM TB_STEP_ROUTE S
+          JOIN TB_LANE_ROUTE R ON S.LANE_ROUTE_ID = R.LANE_ROUTE_ID
+         WHERE S.ORDER_ID = #{orderId}
+           AND R.PRI = #{pri}
+           AND S.USED_YN = 'Y'
+         ORDER BY S.SEQ, STEP_SEQ
+        ]]>
+    </select>
+    <select id="priorityLov" resultType="lov">
+        <![CDATA[
+        SELECT PRI AS VALUE
+             , PRI || ' Group' AS DISPLAY_VALUE
+          FROM TB_LANE_ROUTE
+         WHERE ORDER_ID = #{orderId}
+         GROUP BY PRI
+         ORDER BY PRI
+        ]]>
+    </select>
+    <select id="lineCodeLov" resultType="lov">
+        <![CDATA[
+        SELECT 'LANE_CODE' AS MASTER_CODE
+             , LANE_CODE AS VALUE
+             , NULL AS DISPLAY_VALUE
+          FROM TB_BASE_LANE_ROUTE
+         WHERE RECIPE_ID = #{recipeId}
+         GROUP BY LANE_CODE
+         ORDER BY LANE_CODE
+        ]]>
+    </select>
+    <select id="stepCodeLov" resultType="lov">
+        <![CDATA[
+        SELECT 'STEP_CODE' AS MASTER_CODE
+             , STEP_CODE AS VALUE
+             , NULL AS DISPLAY_VALUE
+          FROM TB_BASE_STEP_ROUTE
+         WHERE RECIPE_ID = #{recipeId}
+         ORDER BY STEP_CODE
+        ]]>
+    </select>
+    <select id="laneInfo" resultType="map">
+        <![CDATA[
+        SELECT LANE_CODE
+             , LANE_ROUTE_ID
+             , SEQ
+          FROM TB_LANE_ROUTE
+         WHERE ORDER_ID = #{orderId}
+           AND PRI = #{pri}
+           AND USED_YN = 'Y'
+         ORDER BY SEQ
+        ]]>
+    </select>
+    <select id="stepInfo" resultType="map">
+        <![CDATA[
+        SELECT R.LANE_CODE
+             , S.STEP_CODE
+             , S.STEP_ROUTE_ID
+             , S.LANE_ROUTE_ID
+          FROM TB_STEP_ROUTE S
+          JOIN TB_LANE_ROUTE R ON S.LANE_ROUTE_ID = R.LANE_ROUTE_ID
+         WHERE S.ORDER_ID = #{orderId}
+           AND R.PRI = #{pri}
+           AND S.USED_YN = 'Y'
+         ORDER BY S.SEQ
+        ]]>
+    </select>
+    <select id="stepCount" resultType="map">
+        <![CDATA[
+        SELECT COUNT(DISTINCT S.STEP_CODE) AS cnt
+          FROM TB_STEP_ROUTE S
+          JOIN TB_LANE_ROUTE R ON S.LANE_ROUTE_ID = R.LANE_ROUTE_ID
+         WHERE S.ORDER_ID = #{orderId}
+           AND R.PRI = #{pri}
+        ]]>
+    </select>
+</mapper>

@@ -1,0 +1,90 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+group = 'com.dongkuk.dmes'
+version = '0.1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+    // 사내 전용 라이브러리 저장소가 있다면 여기에 추가
+    // maven {
+    //     url = 'https://your-internal-nexus/repository/maven-public/'
+    //     content {
+    //         includeGroup 'com.dongkuk'
+    //         includeGroup 'com.dongkuk.dmes'
+    //     }
+    // }
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs.add('-parameters')
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+dependencies {
+    api platform('org.springframework.boot:spring-boot-dependencies:4.0.6')
+
+    // 런타임 빈은 이 라이브러리를 사용하는 호스트 모듈(cactus-core 등)이 제공한다.
+    compileOnly 'org.springframework.boot:spring-boot-starter-data-jpa'
+    compileOnly 'org.springframework.boot:spring-boot-starter-webmvc'
+    compileOnly 'org.springframework.boot:spring-boot-starter-security'
+    compileOnly 'org.springframework.boot:spring-boot-starter-validation'
+    // Spring Boot 4 에서 spring-boot-starter-aop 은 spring-boot-starter-aspectj 로 개명됐다.
+    compileOnly 'org.springframework.boot:spring-boot-starter-aspectj'
+    compileOnly 'org.aspectj:aspectjweaver'
+
+    // JPA + MyBatis 혼용 패턴
+    compileOnly 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.4'
+
+    api 'com.fasterxml.jackson.core:jackson-databind'
+    api 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+
+    compileOnly 'org.flywaydb:flyway-core'
+
+    annotationProcessor platform('org.springframework.boot:spring-boot-dependencies:4.0.6')
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    testImplementation 'org.springframework.boot:spring-boot-starter-security'
+    testImplementation 'org.springframework.boot:spring-boot-starter-validation'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'com.tngtech.archunit:archunit-junit5:1.3.0'
+    testImplementation 'org.flywaydb:flyway-core'
+    testRuntimeOnly 'com.h2database:h2'
+    testRuntimeOnly 'org.flywaydb:flyway-database-postgresql'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// publishing: 사내 아티팩트 저장소가 준비되면 아래 블록의 주석을 해제하고 환경변수로 자격증명을 주입하세요.
+// publishing {
+//     repositories {
+//         maven {
+//             name = 'Snapshots'
+//             url = 'https://your-internal-nexus/repository/maven-snapshots/'
+//             credentials {
+//                 username = System.getenv('NEXUS_USERNAME')
+//                 password = System.getenv('NEXUS_PASSWORD')
+//             }
+//         }
+//     }
+//     publications {
+//         mavenJava(MavenPublication) {
+//             artifactId = project.name
+//             from components.java
+//         }
+//     }
+// }

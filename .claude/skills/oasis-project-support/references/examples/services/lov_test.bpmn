@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_lov_test"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+  <!--
+    Pattern: three forms of SELECT inside a Script Task.
+      - mb: external MyBatis mapper (`camunda:resource`)
+      - sql: inline SQL via <bpmn:script>, returns List<Map>
+      - inlineSqlDto: inline SQL with `/*resultType=...*/` to map to a DTO class
+  -->
+  <bpmn:process id="lov_test" isExecutable="true">
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>fStart</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:exclusiveGateway id="gAction">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>fStart</bpmn:incoming>
+      <bpmn:outgoing>fMb</bpmn:outgoing>
+      <bpmn:outgoing>fSql</bpmn:outgoing>
+      <bpmn:outgoing>fInlineSqlDto</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:scriptTask id="mb"
+                     name="mybatis"
+                     scriptFormat="sql"
+                     camunda:resource="lov.test">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="output" value="lov" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>fMb</bpmn:incoming>
+      <bpmn:outgoing>fMbDone</bpmn:outgoing>
+    </bpmn:scriptTask>
+
+    <bpmn:scriptTask id="inlineSql"
+                     name="inline sql"
+                     scriptFormat="sql">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="output" value="lov" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>fSql</bpmn:incoming>
+      <bpmn:outgoing>fSqlDone</bpmn:outgoing>
+      <bpmn:script>select '1' as "value", 'hi' as "displayValue" from dual
+union all
+select '2', 'hello' from dual</bpmn:script>
+    </bpmn:scriptTask>
+
+    <bpmn:scriptTask id="inlineSqlDto"
+                     name="inline sql with resultType"
+                     scriptFormat="sql">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="output" value="lov" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>fInlineSqlDto</bpmn:incoming>
+      <bpmn:outgoing>fInlineSqlDtoDone</bpmn:outgoing>
+      <bpmn:script>/*resultType=sample.cmn.inbound.Lov*/
+select '1' as "value", 'hi' as "displayValue" from dual
+union all
+select '2', 'hello' from dual</bpmn:script>
+    </bpmn:scriptTask>
+
+    <bpmn:endEvent id="end">
+      <bpmn:incoming>fMbDone</bpmn:incoming>
+      <bpmn:incoming>fSqlDone</bpmn:incoming>
+      <bpmn:incoming>fInlineSqlDtoDone</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="fStart"             sourceRef="start"        targetRef="gAction" />
+    <bpmn:sequenceFlow id="fMb"                name="mb"
+                       sourceRef="gAction"     targetRef="mb" />
+    <bpmn:sequenceFlow id="fSql"               name="sql"
+                       sourceRef="gAction"     targetRef="inlineSql" />
+    <bpmn:sequenceFlow id="fInlineSqlDto"      name="inlineSqlDto"
+                       sourceRef="gAction"     targetRef="inlineSqlDto" />
+    <bpmn:sequenceFlow id="fMbDone"            sourceRef="mb"           targetRef="end" />
+    <bpmn:sequenceFlow id="fSqlDone"           sourceRef="inlineSql"    targetRef="end" />
+    <bpmn:sequenceFlow id="fInlineSqlDtoDone"  sourceRef="inlineSqlDto" targetRef="end" />
+  </bpmn:process>
+</bpmn:definitions>

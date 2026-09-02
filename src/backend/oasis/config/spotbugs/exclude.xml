@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SpotBugs 제외 필터.
+  - CT_CONSTRUCTOR_THROW: 생성자 입력 검증에서 IllegalArgumentException 등을 던지는 정상 패턴.
+    Java 18+에서 finalizer attack 실효성이 사라져 노이즈에 가깝다.
+  - EI_EXPOSE_REP / EI_EXPOSE_REP2: DI 컨테이너에서 주입받은 의존성을 그대로 보관하거나
+    도메인/모델 객체의 컬렉션을 외부로 노출하는 정상 패턴이 다수.
+    필요 시 케이스별 @SuppressFBWarnings 또는 방어적 복사로 부분 보강한다.
+-->
+<FindBugsFilter
+        xmlns="https://github.com/spotbugs/filter/3.0.0"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="https://github.com/spotbugs/filter/3.0.0 https://raw.githubusercontent.com/spotbugs/spotbugs/3.1.0/spotbugs/etc/findbugsfilter.xsd">
+
+    <Match>
+        <Bug pattern="CT_CONSTRUCTOR_THROW"/>
+    </Match>
+
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+</FindBugsFilter>

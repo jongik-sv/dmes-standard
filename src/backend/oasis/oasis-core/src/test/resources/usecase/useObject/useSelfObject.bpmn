@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1ckjd1d" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.12.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="Process_0dffkce" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_0tuq6q0</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_0tuq6q0" sourceRef="StartEvent_1" targetRef="Activity_0mjo4nh" />
+    <bpmn:endEvent id="Event_1hnhee4">
+      <bpmn:incoming>Flow_0am91x5</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="Activity_0mjo4nh" name="파람빌더" camunda:class="usecase.useObject.FactoryType#build">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="nickName">Eliza</camunda:inputParameter>
+          <camunda:inputParameter name="nameSpec">$type{com.dongkuk.oasis.executors.NickName}</camunda:inputParameter>
+          <camunda:inputParameter name="helloDto">$type{com.dongkuk.oasis.executors.HelloDto}</camunda:inputParameter>
+        </camunda:inputOutput>
+        <camunda:properties>
+          <camunda:property name="object" value="true" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0tuq6q0</bpmn:incoming>
+      <bpmn:outgoing>Flow_0o80ao5</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_0o80ao5" sourceRef="Activity_0mjo4nh" targetRef="Activity_0fjx6oi" />
+    <bpmn:sequenceFlow id="Flow_0am91x5" sourceRef="Activity_0fjx6oi" targetRef="Event_1hnhee4" />
+    <bpmn:serviceTask id="Activity_0fjx6oi" name="서비스" camunda:class="usecase.useObject.ServiceType#service">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="output" value="result" />
+          <camunda:property name="new" value="true" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0o80ao5</bpmn:incoming>
+      <bpmn:outgoing>Flow_0am91x5</bpmn:outgoing>
+    </bpmn:serviceTask>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_0dffkce">
+      <bpmndi:BPMNEdge id="Flow_0am91x5_di" bpmnElement="Flow_0am91x5">
+        <di:waypoint x="480" y="120" />
+        <di:waypoint x="522" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0o80ao5_di" bpmnElement="Flow_0o80ao5">
+        <di:waypoint x="340" y="120" />
+        <di:waypoint x="380" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0tuq6q0_di" bpmnElement="Flow_0tuq6q0">
+        <di:waypoint x="188" y="120" />
+        <di:waypoint x="240" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="152" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1hnhee4_di" bpmnElement="Event_1hnhee4">
+        <dc:Bounds x="522" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0mjo4nh_di" bpmnElement="Activity_0mjo4nh">
+        <dc:Bounds x="240" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_00a3a19_di" bpmnElement="Activity_0fjx6oi">
+        <dc:Bounds x="380" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

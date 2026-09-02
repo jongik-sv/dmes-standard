@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" id="Definitions_00gahfq" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.5.0">
+  <bpmn:process id="Process_1ob4rra" name="Hey Process" isExecutable="true">
+    <bpmn:endEvent id="Event_1mxb8tz" name="error">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="id" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_03iruo7" errorRef="Error_17kc1w2" />
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmn:error id="Error_17kc1w2" name="userException" errorCode="abc" camunda:errorMessage="#{id} 설정을 잘 못 했습니다." />
+  <bpmn:error id="Error_1h9ibh5" name="Error_14sve4c" />
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_1ob4rra">
+      <bpmndi:BPMNShape id="Event_1v5fbni_di" bpmnElement="Event_1mxb8tz">
+        <dc:Bounds x="152" y="79" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="158" y="122" width="24" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

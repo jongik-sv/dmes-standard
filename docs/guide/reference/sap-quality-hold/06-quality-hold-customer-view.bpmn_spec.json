@@ -1,0 +1,1479 @@
+{
+  "definitions": {
+    "id": "Definitions_QualityHoldCustomerView",
+    "targetNamespace": "urn:sap-quality-hold-reference",
+    "exporter": "bpmn-tool",
+    "exporterVersion": "1.3.0",
+    "modeler": {
+      "executionPlatform": "Camunda Platform",
+      "executionPlatformVersion": "7.15.0"
+    }
+  },
+  "collaboration": {
+    "id": "Collaboration_QualityHoldCustomerView",
+    "participants": [
+      {
+        "id": "Participant_QE",
+        "name": "고객사 품질 · 기술 책임자",
+        "processRef": "Process_QE",
+        "x": 40,
+        "y": 40,
+        "width": 6200,
+        "height": 360
+      },
+      {
+        "id": "Participant_S4",
+        "name": "기준 · 오더 · 재고 관리 (SAP S/4HANA)",
+        "processRef": "Process_S4",
+        "x": 40,
+        "y": 440,
+        "width": 6200,
+        "height": 500
+      },
+      {
+        "id": "Participant_PPDS",
+        "name": "자재 · 설비 · 일정 재계획 (SAP PP/DS)",
+        "processRef": "Process_PPDS",
+        "x": 40,
+        "y": 980,
+        "width": 6200,
+        "height": 420
+      },
+      {
+        "id": "Participant_DM",
+        "name": "현장 시스템 실행 제어 (SAP Digital Manufacturing)",
+        "processRef": "Process_DM",
+        "x": 40,
+        "y": 1440,
+        "width": 6200,
+        "height": 460
+      },
+      {
+        "id": "Participant_PC",
+        "name": "생산관리 · 현장 작업자",
+        "processRef": "Process_PC",
+        "x": 40,
+        "y": 1940,
+        "width": 6200,
+        "height": 300
+      }
+    ],
+    "messageFlows": [
+      {
+        "id": "MF_PC_DM_ActualStatus",
+        "name": "실제 작업 · 자재투입 상태",
+        "source": "PC_VerifyActualStatus",
+        "target": "DM_TraceAffectedWork"
+      },
+      {
+        "id": "MF_S4_QE_Containment",
+        "name": "격리 범위와 고객 영향",
+        "source": "S4_ContainAffectedScope",
+        "target": "QE_AssessBusinessImpact"
+      },
+      {
+        "id": "MF_QE_S4_Revision",
+        "name": "승인된 새 생산기준",
+        "source": "QE_PublishNewStandard",
+        "target": "S4_RegisterNewStandard",
+        "waypoints": [
+          [1740, 260],
+          [1740, 580],
+          [1640, 580]
+        ]
+      },
+      {
+        "id": "MF_S4_PPDS_Standard",
+        "name": "새 자재목록 · 작업순서",
+        "source": "S4_PublishPlanningStandard",
+        "target": "PPDS_PrepareNewPlanningStandard"
+      },
+      {
+        "id": "MF_S4_PPDS_PlannedOrders",
+        "name": "미착수 계획오더",
+        "source": "S4_RequestPlannedOrderReplan",
+        "target": "PPDS_RecreatePlannedOrders"
+      },
+      {
+        "id": "MF_S4_PPDS_ProductionOrders",
+        "name": "변경 · 대체 생산오더",
+        "source": "S4_SendChangedOrders",
+        "target": "PPDS_AdoptChangedOrders"
+      },
+      {
+        "id": "MF_S4_DM_OrderChange",
+        "name": "현장 적용용 변경오더",
+        "source": "S4_SendChangedOrders",
+        "target": "DM_WaitChangedOrder",
+        "waypoints": [
+          [3600, 680],
+          [3680, 960],
+          [3680, 1570]
+        ]
+      },
+      {
+        "id": "MF_PPDS_S4_Plan",
+        "name": "자재부족 · 납기 영향",
+        "source": "PPDS_SendPlanningResult",
+        "target": "S4_ReceivePlanningResult"
+      },
+      {
+        "id": "MF_PPDS_DM_Schedule",
+        "name": "현장에서 실행할 일정",
+        "source": "PPDS_SendExecutableSchedule",
+        "target": "DM_WaitExecutableSchedule"
+      },
+      {
+        "id": "MF_S4_QE_Readiness",
+        "name": "오더 · 자재 조치 완료",
+        "source": "S4_AdjustParentOrders",
+        "target": "QE_ReviewReadiness"
+      },
+      {
+        "id": "MF_QE_DM_Release",
+        "name": "생산 재개 승인",
+        "source": "QE_ApproveResume",
+        "target": "DM_WaitQualityApproval"
+      },
+      {
+        "id": "MF_DM_PC_Resume",
+        "name": "현장 작업 재개 지시",
+        "source": "DM_ReleaseChangedWork",
+        "target": "PC_WaitRelease"
+      }
+    ]
+  },
+  "processes": [
+    {
+      "id": "Process_QE",
+      "name": "품질문제 판단과 생산 재개 승인",
+      "isExecutable": false,
+      "documentation": "생산 전, 생산 중, 생산 후 또는 고객 불만에서 접수된 품질문제의 사업 영향을 판단한다. 생산방법이나 필요 자재를 바꿔야 할 때 새 생산기준을 승인하고, 자재·일정·현장 준비가 끝난 뒤 생산 재개를 승인한다.",
+      "nodes": [
+        {
+          "id": "QE_Start",
+          "type": "bpmn:StartEvent",
+          "name": "품질문제 발생",
+          "x": 220,
+          "y": 172
+        },
+        {
+          "id": "QE_ReceiveIssue",
+          "type": "bpmn:UserTask",
+          "name": "문제 접수\n전 · 중 · 후 · 고객불만",
+          "x": 390,
+          "y": 150
+        },
+        {
+          "id": "QE_AssessBusinessImpact",
+          "type": "bpmn:UserTask",
+          "name": "안전 · 고객 · 납기\n영향 확인",
+          "x": 620,
+          "y": 150
+        },
+        {
+          "id": "QE_ChangeRequiredGate",
+          "type": "bpmn:ExclusiveGateway",
+          "name": "생산기준을\n바꿔야 하나?",
+          "x": 870,
+          "y": 165
+        },
+        {
+          "id": "QE_ApproveDispositionOnly",
+          "type": "bpmn:UserTask",
+          "name": "현재 기준으로 재작업 ·\n조건부사용 · 폐기 결정",
+          "x": 1080,
+          "y": 70
+        },
+        {
+          "id": "QE_EndNoChange",
+          "type": "bpmn:EndEvent",
+          "name": "현재 기준 유지",
+          "x": 1330,
+          "y": 92
+        },
+        {
+          "id": "QE_DesignNewStandard",
+          "type": "bpmn:UserTask",
+          "name": "새 자재목록 · 작업순서\n설계",
+          "x": 1080,
+          "y": 220
+        },
+        {
+          "id": "QE_ApproveNewStandard",
+          "type": "bpmn:UserTask",
+          "name": "변경안과 적용시점\n승인",
+          "x": 1330,
+          "y": 220
+        },
+        {
+          "id": "QE_PublishNewStandard",
+          "type": "bpmn:SendTask",
+          "name": "새 생산기준 배포\n기존 기준도 보존",
+          "x": 1590,
+          "y": 220
+        },
+        {
+          "id": "QE_ReviewReadiness",
+          "type": "bpmn:UserTask",
+          "name": "자재 · 일정 · 현장준비\n최종 확인",
+          "x": 4550,
+          "y": 150
+        },
+        {
+          "id": "QE_ReadinessGate",
+          "type": "bpmn:ExclusiveGateway",
+          "name": "모두\n준비됐나?",
+          "x": 4800,
+          "y": 165
+        },
+        {
+          "id": "QE_CloseReadinessGaps",
+          "type": "bpmn:UserTask",
+          "name": "부족 자재 · 일정 · 문서\n보완",
+          "x": 4990,
+          "y": 270
+        },
+        {
+          "id": "QE_ApproveResume",
+          "type": "bpmn:SendTask",
+          "name": "생산 재개 승인",
+          "x": 5230,
+          "y": 140
+        },
+        {
+          "id": "QE_EndChanged",
+          "type": "bpmn:EndEvent",
+          "name": "새 기준 적용 승인",
+          "x": 5460,
+          "y": 162
+        }
+      ],
+      "flows": [
+        {
+          "id": "QE_F01",
+          "source": "QE_Start",
+          "target": "QE_ReceiveIssue"
+        },
+        {
+          "id": "QE_F02",
+          "source": "QE_ReceiveIssue",
+          "target": "QE_AssessBusinessImpact"
+        },
+        {
+          "id": "QE_F03",
+          "source": "QE_AssessBusinessImpact",
+          "target": "QE_ChangeRequiredGate"
+        },
+        {
+          "id": "QE_F04",
+          "source": "QE_ChangeRequiredGate",
+          "target": "QE_DesignNewStandard",
+          "name": "변경 필요",
+          "condition": "${productionStandardChangeRequired == true}"
+        },
+        {
+          "id": "QE_F05",
+          "source": "QE_ChangeRequiredGate",
+          "target": "QE_ApproveDispositionOnly",
+          "name": "변경 불필요",
+          "isDefault": true
+        },
+        {
+          "id": "QE_F06",
+          "source": "QE_ApproveDispositionOnly",
+          "target": "QE_EndNoChange"
+        },
+        {
+          "id": "QE_F07",
+          "source": "QE_DesignNewStandard",
+          "target": "QE_ApproveNewStandard"
+        },
+        {
+          "id": "QE_F08",
+          "source": "QE_ApproveNewStandard",
+          "target": "QE_PublishNewStandard"
+        },
+        {
+          "id": "QE_F09",
+          "source": "QE_PublishNewStandard",
+          "target": "QE_ReviewReadiness"
+        },
+        {
+          "id": "QE_F10",
+          "source": "QE_ReviewReadiness",
+          "target": "QE_ReadinessGate"
+        },
+        {
+          "id": "QE_F11",
+          "source": "QE_ReadinessGate",
+          "target": "QE_ApproveResume",
+          "name": "준비 완료",
+          "condition": "${resumeReady == true}"
+        },
+        {
+          "id": "QE_F12",
+          "source": "QE_ReadinessGate",
+          "target": "QE_CloseReadinessGaps",
+          "name": "보완 필요",
+          "isDefault": true
+        },
+        {
+          "id": "QE_F13",
+          "source": "QE_CloseReadinessGaps",
+          "target": "QE_ReviewReadiness"
+        },
+        {
+          "id": "QE_F14",
+          "source": "QE_ApproveResume",
+          "target": "QE_EndChanged"
+        }
+      ],
+      "annotations": [
+        {
+          "id": "QE_AnnoScope",
+          "text": "품질문제는 생산 전 검사, 생산 중 이상, 생산 후 검사,\n고객 불만 중 어느 단계에서든 시작할 수 있다.",
+          "x": 2150,
+          "y": 270,
+          "width": 420,
+          "height": 65
+        },
+        {
+          "id": "QE_AnnoStandard",
+          "text": "생산기준 = 무엇을 쓰고(BOM), 어떤 순서로 만들며(Routing),\n어느 조합을 적용할지(Production Version) 정한 정보",
+          "x": 1580,
+          "y": 70,
+          "width": 500,
+          "height": 75
+        }
+      ],
+      "associations": [
+        {
+          "id": "QE_AssocScope",
+          "source": "QE_ReceiveIssue",
+          "target": "QE_AnnoScope"
+        },
+        {
+          "id": "QE_AssocStandard",
+          "source": "QE_PublishNewStandard",
+          "target": "QE_AnnoStandard"
+        }
+      ]
+    },
+    {
+      "id": "Process_S4",
+      "name": "품질 격리와 생산오더 변경",
+      "isExecutable": false,
+      "documentation": "SAP S/4HANA에서 문제 재고와 배치를 격리하고 관련 생산오더의 실제 착수 여부를 판정한다. 이미 생산을 시작한 오더는 기존 생산기준으로 처분하며, 완전히 미착수한 계획오더와 생산오더만 새 생산기준 적용 대상으로 처리한다.",
+      "nodes": [
+        {
+          "id": "S4_Start",
+          "type": "bpmn:StartEvent",
+          "name": "품질중단 요청",
+          "x": 220,
+          "y": 622
+        },
+        {
+          "id": "S4_ContainAffectedScope",
+          "type": "bpmn:UserTask",
+          "name": "문제 제품 · 재고 · 배치\n우선 격리",
+          "x": 390,
+          "y": 600
+        },
+        {
+          "id": "S4_CollectOrderFacts",
+          "type": "bpmn:ServiceTask",
+          "name": "관련 오더와 실제 작업 ·\n자재투입 상태 확인",
+          "x": 640,
+          "y": 600
+        },
+        {
+          "id": "S4_StartedOrderGate",
+          "type": "bpmn:ExclusiveGateway",
+          "name": "이미 생산을\n시작했나?",
+          "x": 900,
+          "y": 615
+        },
+        {
+          "id": "S4_KeepExistingStandard",
+          "type": "bpmn:UserTask",
+          "name": "생산 중 오더는\n기존 기준 유지",
+          "x": 1120,
+          "y": 760
+        },
+        {
+          "id": "S4_DisposeStartedOrder",
+          "type": "bpmn:UserTask",
+          "name": "재작업 · 조건부사용 ·\n폐기 처리",
+          "x": 1360,
+          "y": 760
+        },
+        {
+          "id": "S4_EndStartedOrder",
+          "type": "bpmn:EndEvent",
+          "name": "생산 중 오더 처리 완료",
+          "x": 1590,
+          "y": 782
+        },
+        {
+          "id": "S4_SelectUnstartedOrders",
+          "type": "bpmn:UserTask",
+          "name": "완전히 미착수한\n오더만 선택",
+          "x": 1120,
+          "y": 560
+        },
+        {
+          "id": "S4_ChangeApprovedGate",
+          "type": "bpmn:ExclusiveGateway",
+          "name": "새 생산기준\n승인됐나?",
+          "x": 1360,
+          "y": 575
+        },
+        {
+          "id": "S4_AdjustWithoutChange",
+          "type": "bpmn:UserTask",
+          "name": "현재 기준으로 처분 ·\n일정만 조정",
+          "x": 1590,
+          "y": 480
+        },
+        {
+          "id": "S4_EndWithoutChange",
+          "type": "bpmn:EndEvent",
+          "name": "현재 기준으로 계속",
+          "x": 1810,
+          "y": 502
+        },
+        {
+          "id": "S4_RegisterNewStandard",
+          "type": "bpmn:UserTask",
+          "name": "새 자재목록 · 작업순서 ·\n적용조합 등록",
+          "x": 1590,
+          "y": 610
+        },
+        {
+          "id": "S4_PublishPlanningStandard",
+          "type": "bpmn:SendTask",
+          "name": "새 생산기준을\n계획시스템에 전달",
+          "x": 1840,
+          "y": 610
+        },
+        {
+          "id": "S4_OrderTypeGate",
+          "type": "bpmn:ExclusiveGateway",
+          "name": "계획만 있는가,\n생산오더인가?",
+          "x": 2080,
+          "y": 625
+        },
+        {
+          "id": "S4_RequestPlannedOrderReplan",
+          "type": "bpmn:SendTask",
+          "name": "계획오더를 새 기준으로\n다시 만들도록 요청",
+          "x": 2420,
+          "y": 490
+        },
+        {
+          "id": "S4_OrderChangeSafeGate",
+          "type": "bpmn:ExclusiveGateway",
+          "name": "기존 생산오더를\n안전하게 바꿀 수 있나?",
+          "x": 2300,
+          "y": 700
+        },
+        {
+          "id": "S4_RereadNewStandard",
+          "type": "bpmn:UserTask",
+          "name": "생산오더에 새 기준\n다시 읽기",
+          "x": 2520,
+          "y": 610
+        },
+        {
+          "id": "S4_ValidateChangedOrder",
+          "type": "bpmn:UserTask",
+          "name": "자재 · 공정 · 원가 ·\n가능일 재확인",
+          "x": 2760,
+          "y": 610
+        },
+        {
+          "id": "S4_CreateReplacementOrder",
+          "type": "bpmn:UserTask",
+          "name": "미착수 잔량으로\n새 생산오더 생성",
+          "x": 2520,
+          "y": 790
+        },
+        {
+          "id": "S4_RetireOldOrder",
+          "type": "bpmn:UserTask",
+          "name": "기존 오더의 잔량 ·\n예약 정리",
+          "x": 2760,
+          "y": 790
+        },
+        {
+          "id": "S4_MergeOrderChange",
+          "type": "bpmn:ExclusiveGateway",
+          "name": "오더변경\n합류",
+          "x": 3100,
+          "y": 625
+        },
+        {
+          "id": "S4_HandleComponents",
+          "type": "bpmn:UserTask",
+          "name": "투입 · 미투입 · 의심자재를\n나눠 처리",
+          "x": 3290,
+          "y": 600
+        },
+        {
+          "id": "S4_SendChangedOrders",
+          "type": "bpmn:SendTask",
+          "name": "변경된 오더를\n계획 · 현장에 전달",
+          "x": 3500,
+          "y": 600
+        },
+        {
+          "id": "S4_ReceivePlanningResult",
+          "type": "bpmn:ReceiveTask",
+          "name": "새 일정과 부족결과\n수신",
+          "x": 4640,
+          "y": 600
+        },
+        {
+          "id": "S4_AdjustParentOrders",
+          "type": "bpmn:UserTask",
+          "name": "영향받는 상위제품\n오더만 조정",
+          "x": 4860,
+          "y": 600
+        },
+        {
+          "id": "S4_EndChanged",
+          "type": "bpmn:EndEvent",
+          "name": "오더 · 재고 조치 완료",
+          "x": 5100,
+          "y": 622
+        }
+      ],
+      "flows": [
+        {
+          "id": "S4_F01",
+          "source": "S4_Start",
+          "target": "S4_ContainAffectedScope"
+        },
+        {
+          "id": "S4_F02",
+          "source": "S4_ContainAffectedScope",
+          "target": "S4_CollectOrderFacts"
+        },
+        {
+          "id": "S4_F03",
+          "source": "S4_CollectOrderFacts",
+          "target": "S4_StartedOrderGate"
+        },
+        {
+          "id": "S4_F04",
+          "source": "S4_StartedOrderGate",
+          "target": "S4_SelectUnstartedOrders",
+          "name": "완전 미착수",
+          "condition": "${orderStarted == false}"
+        },
+        {
+          "id": "S4_F05",
+          "source": "S4_StartedOrderGate",
+          "target": "S4_KeepExistingStandard",
+          "name": "착수 또는 불명확",
+          "isDefault": true
+        },
+        {
+          "id": "S4_F06",
+          "source": "S4_KeepExistingStandard",
+          "target": "S4_DisposeStartedOrder"
+        },
+        {
+          "id": "S4_F07",
+          "source": "S4_DisposeStartedOrder",
+          "target": "S4_EndStartedOrder"
+        },
+        {
+          "id": "S4_F08",
+          "source": "S4_SelectUnstartedOrders",
+          "target": "S4_ChangeApprovedGate"
+        },
+        {
+          "id": "S4_F09",
+          "source": "S4_ChangeApprovedGate",
+          "target": "S4_RegisterNewStandard",
+          "name": "승인됨",
+          "condition": "${newStandardApproved == true}"
+        },
+        {
+          "id": "S4_F10",
+          "source": "S4_ChangeApprovedGate",
+          "target": "S4_AdjustWithoutChange",
+          "name": "변경 없음",
+          "isDefault": true
+        },
+        {
+          "id": "S4_F11",
+          "source": "S4_AdjustWithoutChange",
+          "target": "S4_EndWithoutChange"
+        },
+        {
+          "id": "S4_F12",
+          "source": "S4_RegisterNewStandard",
+          "target": "S4_PublishPlanningStandard"
+        },
+        {
+          "id": "S4_F13",
+          "source": "S4_PublishPlanningStandard",
+          "target": "S4_OrderTypeGate"
+        },
+        {
+          "id": "S4_F14",
+          "source": "S4_OrderTypeGate",
+          "target": "S4_RequestPlannedOrderReplan",
+          "name": "계획오더",
+          "condition": "${plannedOrder == true}"
+        },
+        {
+          "id": "S4_F15",
+          "source": "S4_OrderTypeGate",
+          "target": "S4_OrderChangeSafeGate",
+          "name": "생산오더",
+          "isDefault": true
+        },
+        {
+          "id": "S4_F16",
+          "source": "S4_RequestPlannedOrderReplan",
+          "target": "S4_MergeOrderChange"
+        },
+        {
+          "id": "S4_F17",
+          "source": "S4_OrderChangeSafeGate",
+          "target": "S4_RereadNewStandard",
+          "name": "변경 가능",
+          "condition": "${safeToReread == true}"
+        },
+        {
+          "id": "S4_F18",
+          "source": "S4_OrderChangeSafeGate",
+          "target": "S4_CreateReplacementOrder",
+          "name": "새 오더 필요",
+          "isDefault": true
+        },
+        {
+          "id": "S4_F19",
+          "source": "S4_RereadNewStandard",
+          "target": "S4_ValidateChangedOrder"
+        },
+        {
+          "id": "S4_F20",
+          "source": "S4_ValidateChangedOrder",
+          "target": "S4_MergeOrderChange"
+        },
+        {
+          "id": "S4_F21",
+          "source": "S4_CreateReplacementOrder",
+          "target": "S4_RetireOldOrder"
+        },
+        {
+          "id": "S4_F22",
+          "source": "S4_RetireOldOrder",
+          "target": "S4_MergeOrderChange"
+        },
+        {
+          "id": "S4_F23",
+          "source": "S4_MergeOrderChange",
+          "target": "S4_HandleComponents"
+        },
+        {
+          "id": "S4_F24",
+          "source": "S4_HandleComponents",
+          "target": "S4_SendChangedOrders"
+        },
+        {
+          "id": "S4_F25",
+          "source": "S4_SendChangedOrders",
+          "target": "S4_ReceivePlanningResult"
+        },
+        {
+          "id": "S4_F26",
+          "source": "S4_ReceivePlanningResult",
+          "target": "S4_AdjustParentOrders"
+        },
+        {
+          "id": "S4_F27",
+          "source": "S4_AdjustParentOrders",
+          "target": "S4_EndChanged"
+        }
+      ],
+      "annotations": [
+        {
+          "id": "S4_AnnoStarted",
+          "text": "‘생산 시작’은 오더 Release 여부가 아니라\n작업실적, 자재투입, 생산입고, 현장 작업이력으로 판단한다.",
+          "x": 780,
+          "y": 850,
+          "width": 470,
+          "height": 65
+        },
+        {
+          "id": "S4_AnnoComponents",
+          "text": "이미 투입된 자재는 자동으로 되돌리지 않는다.\n미투입분은 새로 예약하고, 의심 배치는 격리해 별도 판정한다.",
+          "x": 3220,
+          "y": 480,
+          "width": 500,
+          "height": 70
+        },
+        {
+          "id": "S4_AnnoSAPTerms",
+          "text": "SAP 용어: 자재목록=BOM, 작업순서=Routing,\n적용조합=Production Version, 오더에 다시 읽기=Read PP Master Data",
+          "x": 3800,
+          "y": 480,
+          "width": 500,
+          "height": 70
+        }
+      ],
+      "associations": [
+        {
+          "id": "S4_AssocStarted",
+          "source": "S4_StartedOrderGate",
+          "target": "S4_AnnoStarted"
+        },
+        {
+          "id": "S4_AssocComponents",
+          "source": "S4_HandleComponents",
+          "target": "S4_AnnoComponents"
+        },
+        {
+          "id": "S4_AssocTerms",
+          "source": "S4_RereadNewStandard",
+          "target": "S4_AnnoSAPTerms"
+        }
+      ]
+    },
+    {
+      "id": "Process_PPDS",
+      "name": "종속자재 · 상위제품 · 생산일정 재계획",
+      "isExecutable": false,
+      "documentation": "SAP PP/DS에서 품질보류로 사용할 수 없거나 늦어진 공급을 반영하고, 종속자재와 상위제품 오더의 연결관계를 추적한다. 새 생산기준과 변경오더를 반영해 자재부족, 설비능력, 생산순서, 고객 납기 영향을 다시 계산한다.",
+      "nodes": [
+        {
+          "id": "PPDS_Start",
+          "type": "bpmn:StartEvent",
+          "name": "생산중단 정보",
+          "x": 220,
+          "y": 1162
+        },
+        {
+          "id": "PPDS_TraceDependencies",
+          "type": "bpmn:ServiceTask",
+          "name": "하위 자재와 상위제품\n영향 찾기",
+          "x": 390,
+          "y": 1140
+        },
+        {
+          "id": "PPDS_AdjustHeldSupply",
+          "type": "bpmn:UserTask",
+          "name": "보류 제품의 사용가능일 ·\n수량 조정",
+          "x": 650,
+          "y": 1140
+        },
+        {
+          "id": "PPDS_ChangeRequiredGate",
+          "type": "bpmn:ExclusiveGateway",
+          "name": "생산기준\n변경?",
+          "x": 900,
+          "y": 1155
+        },
+        {
+          "id": "PPDS_ReplanCurrentStandard",
+          "type": "bpmn:ServiceTask",
+          "name": "현재 기준으로\n일정 다시 계산",
+          "x": 1120,
+          "y": 1040
+        },
+        {
+          "id": "PPDS_PrepareNewPlanningStandard",
+          "type": "bpmn:ServiceTask",
+          "name": "새 생산기준을\n계획용 구조로 변환",
+          "x": 1840,
+          "y": 1220
+        },
+        {
+          "id": "PPDS_OrderScopeGate",
+          "type": "bpmn:InclusiveGateway",
+          "name": "변경 대상\n오더",
+          "x": 2080,
+          "y": 1235
+        },
+        {
+          "id": "PPDS_RecreatePlannedOrders",
+          "type": "bpmn:ServiceTask",
+          "name": "미착수 계획오더를\n새 기준으로 다시 만들기",
+          "x": 2420,
+          "y": 1080
+        },
+        {
+          "id": "PPDS_AdoptChangedOrders",
+          "type": "bpmn:ServiceTask",
+          "name": "변경 · 대체 생산오더의\n새 자재와 공정 반영",
+          "x": 3500,
+          "y": 1220
+        },
+        {
+          "id": "PPDS_MergeOrders",
+          "type": "bpmn:InclusiveGateway",
+          "name": "재계획\n합류",
+          "x": 3780,
+          "y": 1092
+        },
+        {
+          "id": "PPDS_Reschedule",
+          "type": "bpmn:ServiceTask",
+          "name": "생산순서와 설비일정\n다시 계산",
+          "x": 3970,
+          "y": 1077
+        },
+        {
+          "id": "PPDS_CheckMaterialsCapacity",
+          "type": "bpmn:ServiceTask",
+          "name": "자재부족 · 설비능력\n확인",
+          "x": 4190,
+          "y": 1077
+        },
+        {
+          "id": "PPDS_AssessParentImpact",
+          "type": "bpmn:UserTask",
+          "name": "상위제품과 고객납기\n영향 계산",
+          "x": 4410,
+          "y": 1077
+        },
+        {
+          "id": "PPDS_SendPlanningResult",
+          "type": "bpmn:SendTask",
+          "name": "조정 결과를\nS/4HANA에 전달",
+          "x": 4640,
+          "y": 1077
+        },
+        {
+          "id": "PPDS_SendExecutableSchedule",
+          "type": "bpmn:SendTask",
+          "name": "실행할 일정을\n현장시스템에 전달",
+          "x": 4870,
+          "y": 1077
+        },
+        {
+          "id": "PPDS_End",
+          "type": "bpmn:EndEvent",
+          "name": "재계획 완료",
+          "x": 5100,
+          "y": 1099
+        }
+      ],
+      "flows": [
+        {
+          "id": "PPDS_F01",
+          "source": "PPDS_Start",
+          "target": "PPDS_TraceDependencies"
+        },
+        {
+          "id": "PPDS_F02",
+          "source": "PPDS_TraceDependencies",
+          "target": "PPDS_AdjustHeldSupply"
+        },
+        {
+          "id": "PPDS_F03",
+          "source": "PPDS_AdjustHeldSupply",
+          "target": "PPDS_ChangeRequiredGate"
+        },
+        {
+          "id": "PPDS_F04",
+          "source": "PPDS_ChangeRequiredGate",
+          "target": "PPDS_PrepareNewPlanningStandard",
+          "name": "변경됨",
+          "condition": "${planningStandardChanged == true}"
+        },
+        {
+          "id": "PPDS_F05",
+          "source": "PPDS_ChangeRequiredGate",
+          "target": "PPDS_ReplanCurrentStandard",
+          "name": "변경 없음",
+          "isDefault": true
+        },
+        {
+          "id": "PPDS_F06",
+          "source": "PPDS_ReplanCurrentStandard",
+          "target": "PPDS_MergeOrders"
+        },
+        {
+          "id": "PPDS_F07",
+          "source": "PPDS_PrepareNewPlanningStandard",
+          "target": "PPDS_OrderScopeGate"
+        },
+        {
+          "id": "PPDS_F08",
+          "source": "PPDS_OrderScopeGate",
+          "target": "PPDS_RecreatePlannedOrders",
+          "name": "계획오더",
+          "condition": "${hasPlannedOrders == true}"
+        },
+        {
+          "id": "PPDS_F09",
+          "source": "PPDS_OrderScopeGate",
+          "target": "PPDS_AdoptChangedOrders",
+          "name": "생산오더",
+          "condition": "${hasProductionOrders == true}"
+        },
+        {
+          "id": "PPDS_F10",
+          "source": "PPDS_RecreatePlannedOrders",
+          "target": "PPDS_MergeOrders"
+        },
+        {
+          "id": "PPDS_F11",
+          "source": "PPDS_AdoptChangedOrders",
+          "target": "PPDS_MergeOrders"
+        },
+        {
+          "id": "PPDS_F12",
+          "source": "PPDS_MergeOrders",
+          "target": "PPDS_Reschedule"
+        },
+        {
+          "id": "PPDS_F13",
+          "source": "PPDS_Reschedule",
+          "target": "PPDS_CheckMaterialsCapacity"
+        },
+        {
+          "id": "PPDS_F14",
+          "source": "PPDS_CheckMaterialsCapacity",
+          "target": "PPDS_AssessParentImpact"
+        },
+        {
+          "id": "PPDS_F15",
+          "source": "PPDS_AssessParentImpact",
+          "target": "PPDS_SendPlanningResult"
+        },
+        {
+          "id": "PPDS_F16",
+          "source": "PPDS_SendPlanningResult",
+          "target": "PPDS_SendExecutableSchedule"
+        },
+        {
+          "id": "PPDS_F17",
+          "source": "PPDS_SendExecutableSchedule",
+          "target": "PPDS_End"
+        }
+      ],
+      "annotations": [
+        {
+          "id": "PPDS_AnnoRole",
+          "text": "PP/DS는 오더를 자동으로 품질중단시키는 시스템이 아니다.\n중단된 공급을 반영해 자재, 설비, 순서와 납기를 다시 계산한다.",
+          "x": 1090,
+          "y": 1290,
+          "width": 520,
+          "height": 70
+        },
+        {
+          "id": "PPDS_AnnoPegging",
+          "text": "SAP의 연결관계(Pegging)는 어떤 자재 공급이\n어느 상위제품이나 고객수요에 쓰이는지 보여준다.",
+          "x": 360,
+          "y": 1270,
+          "width": 480,
+          "height": 65
+        },
+        {
+          "id": "PPDS_AnnoPDS",
+          "text": "계획용 구조(PDS)는 새 자재목록, 작업순서와 생산자원을\nPP/DS가 일정계획에 사용할 수 있게 변환한 정보다.",
+          "x": 1830,
+          "y": 1310,
+          "width": 520,
+          "height": 70
+        }
+      ],
+      "associations": [
+        {
+          "id": "PPDS_AssocRole",
+          "source": "PPDS_ReplanCurrentStandard",
+          "target": "PPDS_AnnoRole"
+        },
+        {
+          "id": "PPDS_AssocPegging",
+          "source": "PPDS_TraceDependencies",
+          "target": "PPDS_AnnoPegging"
+        },
+        {
+          "id": "PPDS_AssocPDS",
+          "source": "PPDS_PrepareNewPlanningStandard",
+          "target": "PPDS_AnnoPDS"
+        }
+      ]
+    },
+    {
+      "id": "Process_DM",
+      "name": "현장 작업 중단과 새 생산기준 적용",
+      "isExecutable": false,
+      "documentation": "SAP Digital Manufacturing에서 문제 작업단위와 관련 WIP를 즉시 Hold한다. 이미 생산을 시작한 작업단위는 기존 생산기준으로 처분하고, 미착수 작업단위만 새 생산기준을 적용한다. 변경오더, 실행일정, 품질 승인 세 가지가 모두 준비될 때까지 Hold를 유지한다.",
+      "nodes": [
+        {
+          "id": "DM_Start",
+          "type": "bpmn:StartEvent",
+          "name": "현장 품질이상",
+          "x": 220,
+          "y": 1662
+        },
+        {
+          "id": "DM_RecordIssue",
+          "type": "bpmn:UserTask",
+          "name": "문제내용과\n검사결과 기록",
+          "x": 390,
+          "y": 1640
+        },
+        {
+          "id": "DM_HoldAffectedWork",
+          "type": "bpmn:UserTask",
+          "name": "관련 작업 즉시 중단\n(SFC Hold)",
+          "x": 620,
+          "y": 1640
+        },
+        {
+          "id": "DM_TraceAffectedWork",
+          "type": "bpmn:ServiceTask",
+          "name": "작업이력 · 배치 ·\n투입자재 추적",
+          "x": 860,
+          "y": 1640
+        },
+        {
+          "id": "DM_StartedWorkGate",
+          "type": "bpmn:ExclusiveGateway",
+          "name": "해당 작업을\n이미 시작했나?",
+          "x": 1100,
+          "y": 1655
+        },
+        {
+          "id": "DM_KeepExistingStandard",
+          "type": "bpmn:UserTask",
+          "name": "생산 중 작업은\n기존 기준 유지",
+          "x": 1330,
+          "y": 1770
+        },
+        {
+          "id": "DM_DisposeStartedWork",
+          "type": "bpmn:UserTask",
+          "name": "재작업 · 조건부사용 ·\n폐기 실행",
+          "x": 1570,
+          "y": 1770
+        },
+        {
+          "id": "DM_ReleaseStartedWork",
+          "type": "bpmn:SendTask",
+          "name": "승인된 기존 기준으로\nHold 해제",
+          "x": 1810,
+          "y": 1770
+        },
+        {
+          "id": "DM_EndStartedWork",
+          "type": "bpmn:EndEvent",
+          "name": "생산 중 작업 처리 완료",
+          "x": 2040,
+          "y": 1792
+        },
+        {
+          "id": "DM_ChangeApprovedGate",
+          "type": "bpmn:ExclusiveGateway",
+          "name": "새 생산기준\n승인?",
+          "x": 1330,
+          "y": 1535
+        },
+        {
+          "id": "DM_ResumeWithoutChange",
+          "type": "bpmn:SendTask",
+          "name": "현재 기준으로 조치 후\nHold 해제",
+          "x": 1570,
+          "y": 1470
+        },
+        {
+          "id": "DM_EndWithoutChange",
+          "type": "bpmn:EndEvent",
+          "name": "현재 기준으로 재개",
+          "x": 1810,
+          "y": 1492
+        },
+        {
+          "id": "DM_WaitChangedOrder",
+          "type": "bpmn:ReceiveTask",
+          "name": "변경된 생산오더\n수신",
+          "x": 3680,
+          "y": 1530
+        },
+        {
+          "id": "DM_ApplyNewStandard",
+          "type": "bpmn:ServiceTask",
+          "name": "새 자재목록 · 작업순서\n현장오더에 적용",
+          "x": 3890,
+          "y": 1530
+        },
+        {
+          "id": "DM_MixedWorkGate",
+          "type": "bpmn:ExclusiveGateway",
+          "name": "같은 오더에\n생산 중 작업도 있나?",
+          "x": 4120,
+          "y": 1545
+        },
+        {
+          "id": "DM_ApplyAllUnstartedWork",
+          "type": "bpmn:ServiceTask",
+          "name": "미착수 작업 전체에\n새 기준 적용",
+          "x": 4340,
+          "y": 1460
+        },
+        {
+          "id": "DM_ApplySelectedWork",
+          "type": "bpmn:UserTask",
+          "name": "미착수 작업만 선택하거나\n오더 분리",
+          "x": 4340,
+          "y": 1630
+        },
+        {
+          "id": "DM_MergeStandardAssignment",
+          "type": "bpmn:ExclusiveGateway",
+          "name": "새 기준\n적용 합류",
+          "x": 4560,
+          "y": 1545
+        },
+        {
+          "id": "DM_KeepHoldUntilReady",
+          "type": "bpmn:UserTask",
+          "name": "준비 완료까지\n중단상태 유지",
+          "x": 4730,
+          "y": 1530
+        },
+        {
+          "id": "DM_WaitExecutableSchedule",
+          "type": "bpmn:ReceiveTask",
+          "name": "실행할 일정\n수신",
+          "x": 4970,
+          "y": 1530
+        },
+        {
+          "id": "DM_WaitQualityApproval",
+          "type": "bpmn:ReceiveTask",
+          "name": "품질 · 기술의\n재개 승인 대기",
+          "x": 5230,
+          "y": 1530
+        },
+        {
+          "id": "DM_ReleaseChangedWork",
+          "type": "bpmn:SendTask",
+          "name": "새 기준 작업\nHold 해제 · 배정",
+          "x": 5470,
+          "y": 1530
+        },
+        {
+          "id": "DM_EndChanged",
+          "type": "bpmn:EndEvent",
+          "name": "새 기준 생산 준비",
+          "x": 5700,
+          "y": 1552
+        }
+      ],
+      "flows": [
+        {
+          "id": "DM_F01",
+          "source": "DM_Start",
+          "target": "DM_RecordIssue"
+        },
+        {
+          "id": "DM_F02",
+          "source": "DM_RecordIssue",
+          "target": "DM_HoldAffectedWork"
+        },
+        {
+          "id": "DM_F03",
+          "source": "DM_HoldAffectedWork",
+          "target": "DM_TraceAffectedWork"
+        },
+        {
+          "id": "DM_F04",
+          "source": "DM_TraceAffectedWork",
+          "target": "DM_StartedWorkGate"
+        },
+        {
+          "id": "DM_F05",
+          "source": "DM_StartedWorkGate",
+          "target": "DM_ChangeApprovedGate",
+          "name": "완전 미착수",
+          "condition": "${workStarted == false}"
+        },
+        {
+          "id": "DM_F06",
+          "source": "DM_StartedWorkGate",
+          "target": "DM_KeepExistingStandard",
+          "name": "착수 또는 불명확",
+          "isDefault": true
+        },
+        {
+          "id": "DM_F07",
+          "source": "DM_KeepExistingStandard",
+          "target": "DM_DisposeStartedWork"
+        },
+        {
+          "id": "DM_F08",
+          "source": "DM_DisposeStartedWork",
+          "target": "DM_ReleaseStartedWork"
+        },
+        {
+          "id": "DM_F09",
+          "source": "DM_ReleaseStartedWork",
+          "target": "DM_EndStartedWork"
+        },
+        {
+          "id": "DM_F10",
+          "source": "DM_ChangeApprovedGate",
+          "target": "DM_WaitChangedOrder",
+          "name": "승인됨",
+          "condition": "${newStandardApproved == true}"
+        },
+        {
+          "id": "DM_F11",
+          "source": "DM_ChangeApprovedGate",
+          "target": "DM_ResumeWithoutChange",
+          "name": "변경 없음",
+          "isDefault": true
+        },
+        {
+          "id": "DM_F12",
+          "source": "DM_ResumeWithoutChange",
+          "target": "DM_EndWithoutChange"
+        },
+        {
+          "id": "DM_F13",
+          "source": "DM_WaitChangedOrder",
+          "target": "DM_ApplyNewStandard"
+        },
+        {
+          "id": "DM_F14",
+          "source": "DM_ApplyNewStandard",
+          "target": "DM_MixedWorkGate"
+        },
+        {
+          "id": "DM_F15",
+          "source": "DM_MixedWorkGate",
+          "target": "DM_ApplySelectedWork",
+          "name": "혼재",
+          "condition": "${mixedStartedWork == true}"
+        },
+        {
+          "id": "DM_F16",
+          "source": "DM_MixedWorkGate",
+          "target": "DM_ApplyAllUnstartedWork",
+          "name": "모두 미착수",
+          "isDefault": true
+        },
+        {
+          "id": "DM_F17",
+          "source": "DM_ApplyAllUnstartedWork",
+          "target": "DM_MergeStandardAssignment"
+        },
+        {
+          "id": "DM_F18",
+          "source": "DM_ApplySelectedWork",
+          "target": "DM_MergeStandardAssignment"
+        },
+        {
+          "id": "DM_F19",
+          "source": "DM_MergeStandardAssignment",
+          "target": "DM_KeepHoldUntilReady"
+        },
+        {
+          "id": "DM_F20",
+          "source": "DM_KeepHoldUntilReady",
+          "target": "DM_WaitExecutableSchedule"
+        },
+        {
+          "id": "DM_F21",
+          "source": "DM_WaitExecutableSchedule",
+          "target": "DM_WaitQualityApproval"
+        },
+        {
+          "id": "DM_F22",
+          "source": "DM_WaitQualityApproval",
+          "target": "DM_ReleaseChangedWork"
+        },
+        {
+          "id": "DM_F23",
+          "source": "DM_ReleaseChangedWork",
+          "target": "DM_EndChanged"
+        }
+      ],
+      "annotations": [
+        {
+          "id": "DM_AnnoHold",
+          "text": "SFC는 현장의 개별 작업단위다.\nSFC Hold는 해당 작업의 시작과 완료를 막아 실제 생산을 멈춘다.",
+          "x": 2200,
+          "y": 1810,
+          "width": 470,
+          "height": 70
+        },
+        {
+          "id": "DM_AnnoVersionPolicy",
+          "text": "한 오더에 생산 중 작업과 미착수 작업이 섞여 있으면\n생산 중 작업은 기존 기준, 미착수 작업만 새 기준을 적용한다.",
+          "x": 3580,
+          "y": 1760,
+          "width": 560,
+          "height": 70
+        },
+        {
+          "id": "DM_AnnoReleaseRule",
+          "text": "변경오더 + 실행가능 일정 + 품질승인\n세 가지가 모두 있어야 현장 작업을 재개한다.",
+          "x": 4840,
+          "y": 1760,
+          "width": 470,
+          "height": 65
+        }
+      ],
+      "associations": [
+        {
+          "id": "DM_AssocHold",
+          "source": "DM_HoldAffectedWork",
+          "target": "DM_AnnoHold"
+        },
+        {
+          "id": "DM_AssocVersion",
+          "source": "DM_MixedWorkGate",
+          "target": "DM_AnnoVersionPolicy"
+        },
+        {
+          "id": "DM_AssocRelease",
+          "source": "DM_WaitQualityApproval",
+          "target": "DM_AnnoReleaseRule"
+        }
+      ]
+    },
+    {
+      "id": "Process_PC",
+      "name": "현장 안전정지와 생산 재개",
+      "isExecutable": false,
+      "documentation": "생산관리자와 현장 작업자가 설비와 재공품을 안전하게 정지하고, 투입·미투입·의심 자재를 물리적으로 구분한다. 실제 상태를 시스템에 보고하고 승인된 작업지시와 생산기준을 확인한 후 생산을 재개한다.",
+      "nodes": [
+        {
+          "id": "PC_Start",
+          "type": "bpmn:StartEvent",
+          "name": "중단 지시",
+          "x": 220,
+          "y": 2082
+        },
+        {
+          "id": "PC_StopSafely",
+          "type": "bpmn:ManualTask",
+          "name": "설비 · 재공품\n안전 정지",
+          "x": 390,
+          "y": 2060
+        },
+        {
+          "id": "PC_SegregateMaterials",
+          "type": "bpmn:ManualTask",
+          "name": "투입 · 미투입 · 의심자재\n표시하고 격리",
+          "x": 620,
+          "y": 2060
+        },
+        {
+          "id": "PC_VerifyActualStatus",
+          "type": "bpmn:UserTask",
+          "name": "실제 작업 · 자재투입\n상태 확인",
+          "x": 860,
+          "y": 2060
+        },
+        {
+          "id": "PC_ReportActualStatus",
+          "type": "bpmn:SendTask",
+          "name": "확인된 현장상태\n시스템에 보고",
+          "x": 1100,
+          "y": 2060
+        },
+        {
+          "id": "PC_WaitRelease",
+          "type": "bpmn:ReceiveTask",
+          "name": "승인된 재개 지시\n대기",
+          "x": 5470,
+          "y": 2060
+        },
+        {
+          "id": "PC_CheckInstructions",
+          "type": "bpmn:UserTask",
+          "name": "새 작업지시 · 자재 ·\n생산기준 확인",
+          "x": 5670,
+          "y": 2060
+        },
+        {
+          "id": "PC_ResumeProduction",
+          "type": "bpmn:ManualTask",
+          "name": "승인된 기준으로\n생산 재개",
+          "x": 5870,
+          "y": 2060
+        },
+        {
+          "id": "PC_End",
+          "type": "bpmn:EndEvent",
+          "name": "현장 재개 완료",
+          "x": 6070,
+          "y": 2082
+        }
+      ],
+      "flows": [
+        {
+          "id": "PC_F01",
+          "source": "PC_Start",
+          "target": "PC_StopSafely"
+        },
+        {
+          "id": "PC_F02",
+          "source": "PC_StopSafely",
+          "target": "PC_SegregateMaterials"
+        },
+        {
+          "id": "PC_F03",
+          "source": "PC_SegregateMaterials",
+          "target": "PC_VerifyActualStatus"
+        },
+        {
+          "id": "PC_F04",
+          "source": "PC_VerifyActualStatus",
+          "target": "PC_ReportActualStatus"
+        },
+        {
+          "id": "PC_F05",
+          "source": "PC_ReportActualStatus",
+          "target": "PC_WaitRelease"
+        },
+        {
+          "id": "PC_F06",
+          "source": "PC_WaitRelease",
+          "target": "PC_CheckInstructions"
+        },
+        {
+          "id": "PC_F07",
+          "source": "PC_CheckInstructions",
+          "target": "PC_ResumeProduction"
+        },
+        {
+          "id": "PC_F08",
+          "source": "PC_ResumeProduction",
+          "target": "PC_End"
+        }
+      ],
+      "annotations": [
+        {
+          "id": "PC_AnnoPhysicalControl",
+          "text": "시스템 Hold만으로는 현장 격리가 끝나지 않는다.\n라벨, 구역, 용기 등으로 의심 자재와 재공품을 물리적으로 구분한다.",
+          "x": 570,
+          "y": 2160,
+          "width": 530,
+          "height": 60
+        }
+      ],
+      "associations": [
+        {
+          "id": "PC_AssocPhysicalControl",
+          "source": "PC_SegregateMaterials",
+          "target": "PC_AnnoPhysicalControl"
+        }
+      ]
+    }
+  ]
+}

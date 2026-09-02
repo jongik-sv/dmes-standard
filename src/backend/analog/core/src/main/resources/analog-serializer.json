@@ -1,0 +1,284 @@
+{
+  "version": 0.1,
+  "tokens": [
+
+    {
+      "tokenName": "DisCardMessage1",
+      "tokenType": "Message",
+      "nodeStatus": "",
+      "discard": true,
+      "stringMatchers": {
+        "startWith": [ "Parameter " ],
+        "containsAny": [ " has bound by name." ]
+      }
+    },
+    {
+      "tokenName": "DisCardMessageWithStart",
+      "tokenType": "Message",
+      "nodeStatus": "",
+      "discard": true,
+      "stringMatchers": {
+        "startWith": [
+          "extracted value ",
+          "Listing entities:",
+          "==>  Preparing:",
+          "==> Parameters:",
+          "<==      Total:",
+          "Converted value on extraction:"
+        ]
+      }
+    },
+    {
+      "tokenName": "DisCardMessageWithLogger",
+      "tokenType": "Message",
+      "nodeStatus": "",
+      "discard": true,
+      "stringMatchers": {
+        "logger": [
+          "org.hibernate.engine.internal.TwoPhaseLoad",
+          "org.hibernate.engine.transaction.internal.TransactionImpl",
+          "org.springframework.orm.jpa.JpaTransactionManager",
+          "org.hibernate.event.internal.AbstractFlushingEventListener",
+          "org.mybatis.spring.SqlSessionUtils",
+          "org.springframework.orm.jpa.JpaTransactionManager",
+          "[org.hibernate.engine.jdbc.internal.JdbcCoordinatorImpl",
+          "org.springframework.jdbc.datasource.DataSourceUtils",
+          "org.hibernate.loader.plan.exec.process.internal.CollectionReferenceInitializerImpl",
+          "org.hibernate.type.CollectionType",
+          "org.hibernate.loader.entity.plan.AbstractLoadPlanBasedEntityLoader",
+          "org.hibernate.loader.collection.plan.AbstractLoadPlanBasedCollectionInitializer",
+          "org.hibernate.engine.jdbc.internal.JdbcCoordinatorImpl",
+          "org.hibernate.loader.plan.exec.process.internal.ResultSetProcessorImpl",
+          "org.hibernate.engine.internal.Collections",
+          "org.hibernate.engine.loading.internal.CollectionLoadContext"
+        ]
+      }
+    },
+    {
+      "tokenName": "DisCardMessage4",
+      "tokenType": "Message",
+      "nodeStatus": "",
+      "discard": true,
+      "stringMatchers": {
+        "startWith": [ "reated collection wrapper: " ],
+        "logger": [ "org.hibernate.type.CollectionType" ]
+      }
+    },
+    {
+      "tokenName": "Query1",
+      "tokenType": "Query",
+      "nodeStatus": "",
+      "discard": false,
+      "stringMatchers": {
+        "startWith": [ "Mybatis SQL :" ]
+      },
+      "regExMatcher": { "test": "Mybatis SQL :\\s*(?<query>.*)" },
+      "assignValue": [ "query:query", "'y':#{Parent}hasQuery" ]
+    },
+    {
+      "tokenName": "Query2",
+      "tokenType": "Query",
+      "nodeStatus": "",
+      "discard": false,
+      "stringMatchers": {
+        "logger": [ "org.hibernate.SQL" ]
+      },
+      "regExMatcher": { "test": "(?<query>.*)" },
+      "assignValue": [ "query:query", "'y':#{Parent}hasQuery" ]
+    },
+    {
+      "tokenName": "Query3",
+      "tokenType": "Query",
+      "nodeStatus": "",
+      "discard": false,
+      "stringMatchers": {
+        "startWith": [ "Executing prepared SQL statement" ]
+      },
+      "regExMatcher": { "test": "Executing prepared SQL statement \\[(?<query>(?:.|\\n)*)" },
+      "assignValue": [ "query:query", "'y':#{Parent}hasQuery" ]
+    },
+    {
+      "tokenName": "TaskStart",
+      "tokenType": "Task",
+      "nodeStatus": "Start",
+      "discard": false,
+      "stringMatchers": {
+        "startWith": [ "Task" ],
+        "containsAny": [ "start." ]
+      },
+      "regExMatcher": { "test": "Task \\[(?<objectId>.*)\\]\\((?<objectName>.*)\\) start." },
+      "assignValue": [ "objectId:objectId", "objectName:objectName" ]
+    },
+    {
+      "tokenName": "TaskFinish",
+      "tokenType": "Task",
+      "nodeStatus": "Finish",
+      "discard": false,
+      "stringMatchers": {
+        "startWith": [ "Task" ],
+        "containsAny": [ " finish." ]
+      },
+      "regExMatcher": { "test": "Task \\[(?<objectId>.*)\\]\\((?<objectName>.*)\\) finish.\\((?<runTime>[0-9]+)ms\\)" },
+      "assignValue": [ "runTime:runTime" ]
+    },
+    {
+      "tokenName": "ProcessStart",
+      "tokenType": "Process",
+      "nodeStatus": "Start",
+      "discard": false,
+      "stringMatchers": {
+        "startWith": [ "Process" ],
+        "containsAny": [ "start." ]
+      },
+      "regExMatcher": { "test": "Process \\[(?<objectId>.*)\\]\\((?<objectName>.*)\\) start." },
+      "assignValue": [  "objectId:objectId", "objectName:objectName" ]
+    },
+    {
+      "tokenName": "ProcessFinish",
+      "tokenType": "Process",
+      "nodeStatus": "Finish",
+      "discard": false,
+      "stringMatchers": {
+        "startWith": [ "Process" ],
+        "containsAny": [ " finish." ]
+      },
+      "regExMatcher": { "test": "Process \\[(?<objectId>.*)\\]\\((?<objectName>.*)\\) finish.\\((?<runTime>[0-9]+)ms\\)" },
+      "assignValue": [ "runTime:runTime" ]
+    },
+    {
+      "tokenName": "ServiceStart",
+      "tokenType": "Service",
+      "nodeStatus": "Start",
+      "discard": false,
+      "stringMatchers": {
+        "startWith": [ "Service" ],
+        "containsAny": [ "start. Request Tag" ]
+      },
+      "regExMatcher": { "test": "Service \\[(?<objectId>.*)\\] start. Request Tag \\[(?<requestTag>.*)\\]$" },
+      "assignValue": [  "objectId:objectId", "objectId:objectName", "requestTag:#{Root}requestTag", "objectId:#{root}service.set"  ]
+    },
+    {
+      "tokenName": "ServiceFinish",
+      "tokenType": "Service",
+      "nodeStatus": "Finish",
+      "discard": false,
+      "stringMatchers": {
+        "startWith": [ "Service" ],
+        "containsAny": [ " finish." ]
+      },
+      "regExMatcher": { "test": "Service \\[(?<objectId>.*)\\] finish.\\((?<runTime>[0-9]+)ms\\)$" },
+      "assignValue": [ "runTime:runTime", "objectId:#{root}service.set" ]
+    },
+    {
+      "tokenName": "SubServiceStart",
+      "tokenType": "Service",
+      "nodeStatus": "Start",
+      "discard": false,
+      "stringMatchers": {
+        "startWith": [ "Sub-service" ],
+        "containsAny": [ "start." ]
+      },
+      "regExMatcher": { "test": "Sub-service \\[(?<objectId>.*)\\] *start\\." },
+      "assignValue": [ "objectId:objectId", "objectId:objectName", "'y':#{Parent}hasSubService", "objectId:#{root}service.set"]
+    },
+    {
+      "tokenName": "SubServiceFinish",
+      "tokenType": "Service",
+      "nodeStatus": "Finish",
+      "discard": false,
+      "stringMatchers": {
+        "startWith": [ "Sub-service" ],
+        "containsAny": [ "finish." ]
+      },
+      "regExMatcher": { "test": "Sub-service \\[(?<objectId>.*)\\] finish\\." },
+      "assignValue": [ "runTime:runTime", "objectId:#{root}service.set" ]
+    },
+    {
+      "tokenName": "RequestLog",
+      "tokenType": "InfoMessage",
+      "nodeStatus": "",
+      "discard": false,
+      "stringMatchers": {
+        "logger": [ "org.hibernate.internal.util.EntityPrinter" ],
+        "startWith": [ "com.dongkuk.dmes" ]
+      },
+      "regExMatcher": { "test": "com\\.dongkuk\\.dmes[^{]*(?<requestLog>.*)$" },
+      "assignValue": [ "requestLog:#{Root}requestLog" ]
+    },
+    {
+      "tokenName": "InvokingClass",
+      "tokenType": "InfoMessage",
+      "nodeStatus": "Finish",
+      "discard": false,
+      "stringMatchers": {
+        "startWith": [ "Invoking class : " ],
+        "containsAny": [ "method : " ]
+      },
+      "regExMatcher": { "test": "Invoking class : \\[(?<class>.*)\\], method : \\[(?<method>.*)\\]" },
+      "assignValue": [ "class:class", "method:method" ]
+    },
+    {
+      "tokenName": "Exception",
+      "tokenType": "Exception",
+      "nodeStatus": "",
+      "discard": false,
+      "stringMatchers": {
+        "level": [ "ERROR" ],
+        "containsAny": ["\tat "]
+      },
+
+      "assignValue": [ "message:#{Root}exception.Arr" ]
+    },
+    {
+      "tokenName": "QueryParameter1",
+      "tokenType": "QueryParameter",
+      "nodeStatus": "",
+      "discard": false,
+      "stringMatchers": {
+        "startWith": [ "Setting SQL statement parameter value: column index" ]
+      },
+      "regExMatcher": { "test": "parameter value \\[(?<value>.*)\\], value class \\[(?<type>.*)\\]" },
+      "assignValue": [ "value:#{Local}params.arr" ]
+    },
+    {
+      "tokenName": "QueryParameter2",
+      "tokenType": "QueryParameter",
+      "nodeStatus": "",
+      "discard": false,
+      "stringMatchers": {
+        "startWith": [ "binding parameter " ]
+      },
+      "regExMatcher": { "test": "binding parameter \\[[0-9]*\\] as \\[(?<type>.*)\\] - \\[(?<value>.*)\\]" },
+      "assignValue": [ "value:#{Local}params.Arr" ]
+    },
+    {
+      "tokenName": "ConvertedValueOnBinding",
+      "tokenType": "Message",
+      "nodeStatus": "",
+      "discard": true,
+      "stringMatchers": { "startWith": [ "Converted value on binding" ] }
+    },
+    {
+      "tokenName": "RequestMessage",
+      "tokenType": "Message",
+      "nodeStatus": "",
+      "discard": false,
+      "stringMatchers": { "startWith": [ "POST \"/", "GET \"/", "PUT \"/" , "PATCH\"/" , "DELETE \"/" ] },
+      "regExMatcher": { "test": "(?<Request>(?:POST|GET|PUT|PATCH|DELETE) \"\\/(?<RequestType>[^\\/]*).*)$" },
+      "assignValue": [ "Request:#{Root}request", "RequestType:#{Root}requestType" ]
+    },
+    {
+      "tokenName": "CompletedMessage",
+      "tokenType": "Message",
+      "nodeStatus": "",
+      "discard": true,
+      "stringMatchers": { "startWith": [ "Completed" ] }
+    },
+    {
+      "tokenName": "Message",
+      "tokenType": "Message",
+      "nodeStatus": "",
+      "discard": false
+    }
+  ]
+}

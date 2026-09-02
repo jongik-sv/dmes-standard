@@ -1,0 +1,1113 @@
+/* ========================================
+   DataGrid styles (AG-Grid based)
+   ======================================== */
+
+.cm-data-grid {
+  border: 1px solid var(--color-border-grid, #d0d0d0);
+  border-radius: 4px;
+  background-color: var(--color-bg, #fff);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  contain: strict;
+}
+
+/* 키보드 네비게이션을 위해 컨테이너에 tabIndex={-1} 을 부여해 focus 를 받지만,
+   클릭으로 focus 가 옮겨졌을 때 그리드 전체를 감싸는 파란 outline 이 시각적으로 거슬리므로 제거.
+   행 하이라이트가 시각 단서를 대체한다. */
+.cm-data-grid:focus,
+.cm-data-grid:focus-visible {
+  outline: none;
+}
+
+/* AG-Grid theme customization */
+.cm-data-grid.ag-theme-alpine {
+  --ag-header-height: 28px;
+  --ag-row-height: 26px;
+  --ag-header-background-color: #d2e6f2;
+  --ag-header-foreground-color: var(--color-text, #333);
+  --ag-odd-row-background-color: var(--color-bg, #fff);
+  --ag-row-hover-color: var(--color-bg-light, #f8f9fa);
+  --ag-selected-row-background-color: var(--color-selection, #e3f2fd);
+  --cm-grid-row-selected-color: var(--color-selection, #e3f2fd);
+  --cm-grid-row-selected-hover-color: var(--color-selection-hover, #d0e8fc);
+  --ag-border-color: #c0cdd8;
+  --ag-secondary-border-color: var(--color-border-light, #e8e8e8);
+  --ag-font-size: var(--font-size-md, 13px);
+  --ag-font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --ag-cell-horizontal-border: 1px solid var(--color-border-light, #e8e8e8);
+}
+
+/* Header */
+.cm-data-grid .ag-header {
+  border-bottom: 1px solid #c0cdd8;
+}
+
+.cm-data-grid .ag-header-cell {
+  padding: 0 8px;
+  font-weight: 600;
+  border-right: 1px solid #c0cdd8;
+}
+
+.cm-data-grid .ag-header-cell:last-child {
+  border-right: none;
+}
+
+.cm-data-grid .ag-header-cell-label {
+  justify-content: center;
+}
+
+.cm-data-grid .header-center .ag-header-cell-label {
+  justify-content: center;
+}
+
+.cm-data-grid .header-left .ag-header-cell-label {
+  justify-content: flex-start;
+}
+
+.cm-data-grid .header-right .ag-header-cell-label {
+  justify-content: flex-end;
+}
+
+/* Cell */
+.cm-data-grid .ag-cell {
+  padding: 0 8px;
+  line-height: 26px;
+  border-right: 1px solid var(--color-border-light, #e8e8e8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cm-data-grid .ag-cell:last-child {
+  border-right: none;
+}
+
+.cm-data-grid .ag-cell-wrapper,
+.cm-data-grid .ag-cell-value {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.cm-data-grid .ag-cell-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Grid cell badges
+   - Keep badges inside the 26px AG Grid row without changing row height.
+   - Long labels are clipped with ellipsis instead of wrapping over adjacent cells. */
+.cm-data-grid .cm-grid-badge-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  height: 26px;
+  overflow: hidden;
+  line-height: normal;
+}
+
+.cm-data-grid .cm-grid-badge-cell--left {
+  justify-content: flex-start;
+}
+
+.cm-data-grid .cm-grid-badge-cell--right {
+  justify-content: flex-end;
+}
+
+.cm-data-grid .cm-grid-badge-group {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-width: 0;
+  gap: 4px;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.cm-data-grid .cm-grid-badge-group--wrap {
+  flex-wrap: wrap;
+  row-gap: 2px;
+  align-content: center;
+}
+
+.cm-data-grid .cm-grid-badge {
+  display: inline-block;
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  padding: 1px 7px;
+  border: 1px solid var(--cm-grid-badge-border, transparent);
+  border-radius: 4px;
+  background: var(--cm-grid-badge-bg, #eef2f7);
+  color: var(--cm-grid-badge-color, #334155);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+.cm-data-grid .cm-grid-badge__label {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cm-data-grid .cm-grid-badge--strong {
+  font-weight: 700;
+}
+
+.cm-data-grid .cm-grid-badge--dimmed {
+  opacity: 0.5;
+}
+
+.cm-data-grid .cm-grid-badge--muted {
+  border-color: transparent;
+  background: transparent;
+  color: #9ca3af;
+  padding-inline: 0;
+}
+
+.cm-data-grid .ag-row {
+  border-bottom: 1px solid var(--color-border-light, #e8e8e8);
+}
+
+.cm-data-grid .ag-row:hover {
+  background-color: var(--color-bg-light, #f8f9fa);
+}
+
+.cm-data-grid .ag-row-selected {
+  background-color: var(--cm-grid-row-selected-color) !important;
+}
+
+.cm-data-grid .ag-row-selected:hover {
+  background-color: var(--cm-grid-row-selected-hover-color) !important;
+}
+
+.cm-data-grid .ag-row-highlighted {
+  background-color: var(--cm-grid-row-selected-color);
+}
+
+.cm-data-grid .ag-row-highlighted:hover {
+  background-color: var(--cm-grid-row-selected-hover-color);
+}
+
+.cm-data-grid .ag-row-selected.ag-row-hover::before,
+.cm-data-grid .ag-row-selected:hover::before,
+.cm-data-grid .ag-row-highlighted.ag-row-hover::before,
+.cm-data-grid .ag-row-highlighted:hover::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+  background-color: var(--cm-grid-row-selected-hover-color) !important;
+  background-image: none !important;
+}
+
+.cm-data-grid .ag-row-deleted {
+  background-color: #ffebee;
+  text-decoration: line-through;
+  color: #999;
+}
+
+.cm-data-grid .ag-row-deleted.ag-row-highlighted {
+  background-color: #ffcdd2;
+}
+
+.cm-data-grid .ag-row-inserted {
+  background-color: #e8f5e9;
+}
+
+.cm-data-grid .ag-row-inserted.ag-row-highlighted {
+  background-color: #c8e6c9;
+}
+
+.cm-data-grid .ag-row-modified {
+  background-color: #fff8e1;
+}
+
+.cm-data-grid .ag-row-modified.ag-row-highlighted {
+  background-color: #ffecb3;
+}
+
+/* 셀 단위 LightPink 마킹 (조건부 강조 — 비정상/주의 셀) */
+.cm-data-grid .ag-cell.cell-light-pink {
+  background-color: #ffe4ec !important;
+}
+
+/* Checkbox */
+.cm-data-grid .ag-selection-checkbox {
+  margin-right: 0;
+}
+
+/* 선택(체크박스) 컬럼 = 셀·헤더 모두 정확 중앙 (2026-07-28 사용자 확정).
+   v33 선택 컬럼 colId = "ag-Grid-SelectionColumn". flex 정렬은 ag 내부 래퍼
+   (comp-wrapper width:100%·셀 래퍼·패딩)에 계속 어긋나므로 절대배치+transform 으로
+   컬럼 폭 기준 기하 중앙에 고정 — 헤더/행이 같은 식이라 세로줄이 항상 일치한다.
+   (.ag-header-cell/.ag-cell 은 ag 가 position:absolute 로 배치 → 자식 절대배치 기준 성립.) */
+.cm-data-grid .ag-cell[col-id="ag-Grid-SelectionColumn"],
+.cm-data-grid .ag-header-cell[col-id="ag-Grid-SelectionColumn"] {
+  padding-left: 0;
+  padding-right: 0;
+}
+.cm-data-grid .ag-cell[col-id="ag-Grid-SelectionColumn"] .ag-selection-checkbox,
+.cm-data-grid .ag-header-cell[col-id="ag-Grid-SelectionColumn"] .ag-header-select-all {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+}
+
+.cm-data-grid .ag-checkbox-input-wrapper {
+  width: 14px;
+  height: 14px;
+}
+
+/* Empty overlay */
+.cm-data-grid .ag-overlay-no-rows-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--color-text-disabled, #999);
+  font-size: var(--font-size-md, 13px);
+}
+
+/* Loading overlay */
+.cm-data-grid .ag-overlay-loading-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+  color: var(--color-text-muted, #666);
+  font-size: var(--font-size-md, 13px);
+  background-color: rgba(255, 255, 255, 0.8);
+}
+
+.cm-data-grid .loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--color-border-medium, #e0e0e0);
+  border-top-color: var(--color-primary, #337ab7);
+  border-radius: 50%;
+  animation: cm-grid-spin 0.8s linear infinite;
+}
+
+@keyframes cm-grid-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Scrollbar */
+.cm-data-grid .ag-body-viewport::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.cm-data-grid .ag-body-viewport::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.cm-data-grid .ag-body-viewport::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.cm-data-grid .ag-body-viewport::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Sort indicator */
+.cm-data-grid .ag-header-cell-sortable:hover {
+  background-color: #cdd8e3;
+}
+
+.cm-data-grid .ag-sort-indicator-icon {
+  color: var(--color-primary, #337ab7);
+}
+
+/* Number alignment */
+.cm-data-grid .ag-cell[style*="text-align: right"] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Column resizer */
+.cm-data-grid .ag-header-cell-resize {
+  width: 4px;
+}
+
+.cm-data-grid .ag-header-cell-resize:hover {
+  background-color: var(--color-primary, #337ab7);
+}
+
+/* ========================================
+   GridPanel styles
+   ======================================== */
+
+.grid-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  border: 1px solid var(--color-border-grid, #d0d0d0);
+  background-color: var(--color-bg, #fff);
+  overflow: hidden;
+  contain: strict;
+}
+
+.grid-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background-color: var(--color-bg-header, #f5f6f7);
+  border-bottom: 1px solid var(--color-border-grid, #d0d0d0);
+  min-height: 32px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.grid-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.grid-panel-title > span:first-child {
+  font-size: var(--font-size-md, 13px);
+  font-weight: 600;
+  color: var(--color-text, #333);
+  white-space: nowrap;
+}
+
+.grid-panel-count {
+  font-size: var(--font-size-xs, 11px);
+  color: var(--color-text-muted, #666);
+  background-color: var(--color-border-light, #e8e8e8);
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.grid-panel-help-button {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-primary, #337ab7);
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.55;
+  transition:
+    opacity 0.15s ease,
+    color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.grid-panel-help-button:hover,
+.grid-panel-help-button:focus-visible {
+  opacity: 1;
+  color: var(--color-primary-hover, #2a6499);
+  background-color: color-mix(in srgb, var(--color-primary, #337ab7) 8%, transparent);
+}
+
+.grid-panel-help-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-primary, #337ab7) 35%, transparent);
+  outline-offset: 1px;
+}
+
+.grid-panel-help-button svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.grid-max-handle {
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: #334155;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.62;
+  transition:
+    opacity 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.grid-max-handle:hover,
+.grid-max-handle:focus-visible {
+  opacity: 1;
+  border-color: #aab4be;
+  background-color: rgba(51, 65, 85, 0.05);
+}
+
+.grid-max-handle:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-primary, #337ab7) 35%, transparent);
+  outline-offset: 1px;
+}
+
+.grid-max-handle svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.grid-help {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.grid-help-summary,
+.grid-help-empty {
+  margin: 0;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.grid-help-table-wrap {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.grid-help-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 13px;
+}
+
+.grid-help-table th {
+  padding: 8px 10px;
+  border-top: 1px solid #d8dee8;
+  border-bottom: 1px solid #d8dee8;
+  background: #f8fafc;
+  color: #1f2937;
+  text-align: left;
+  font-weight: 700;
+}
+
+.grid-help-table__header {
+  width: clamp(96px, 24%, 140px);
+}
+
+.grid-help-table td {
+  padding: 10px;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.grid-help-table__header-cell {
+  color: #111827;
+  font-weight: 700;
+  word-break: keep-all;
+}
+
+.grid-help-table__description-cell {
+  color: #334155;
+  line-height: 1.55;
+}
+
+.grid-help-values {
+  margin: 7px 0 0;
+  display: grid;
+  grid-template-columns: minmax(72px, 120px) minmax(0, 1fr);
+  gap: 4px 8px;
+}
+
+.grid-help-values__row {
+  display: contents;
+}
+
+.grid-help-values dt {
+  color: #1d4ed8;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.grid-help-values dd {
+  margin: 0;
+  min-width: 0;
+  color: #475569;
+}
+
+.grid-help-note {
+  margin-top: 7px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.grid-panel-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.grid-panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.grid-panel-header-extra {
+  display: inline-flex;
+  align-items: center;
+}
+
+.grid-panel-header-extra .grid-max-handle {
+  margin-left: 0;
+}
+
+.grid-btn {
+  padding: 4px 10px;
+  font-size: var(--font-size-sm, 12px);
+  border: 1px solid #c0c0c0;
+  background-color: var(--color-bg, #fff);
+  color: var(--color-text, #333);
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.grid-btn:hover {
+  background-color: #f0f0f0;
+  border-color: var(--color-border-hover, #999);
+}
+
+.grid-btn:active {
+  background-color: var(--color-border-medium, #e0e0e0);
+}
+
+.grid-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.grid-btn.primary {
+  background-color: var(--color-primary, #337ab7);
+  border-color: var(--color-primary, #337ab7);
+  color: #fff;
+}
+
+.grid-btn.primary:hover {
+  background-color: var(--color-primary-hover, #2a6499);
+}
+
+.grid-btn.danger {
+  background-color: var(--color-danger, #dc3545);
+  border-color: var(--color-danger, #dc3545);
+  color: #fff;
+}
+
+.grid-btn.danger:hover {
+  background-color: var(--color-danger-hover, #c82333);
+}
+
+.grid-btn.success {
+  background-color: #28a745;
+  border-color: #28a745;
+  color: #fff;
+}
+
+.grid-btn.success:hover {
+  background-color: #218838;
+}
+
+.grid-panel-content {
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+  position: relative;
+}
+
+.grid-panel-content .cm-data-grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: none;
+  border-radius: 0;
+}
+
+/*
+ * GridPanel 을 거치지 않고 상세/폼 패널(.form-panel) 또는 모달 바디(.cm-modal-body)
+ * 안에 직접 놓인 그리드는 "이중 테두리" 로 보인다:
+ *   ① 바깥 박스 .cm-data-grid 테두리(둥근 모서리) + ② ag-grid 내부 .ag-root-wrapper 테두리.
+ * 게다가 ② 는 .cm-data-grid 의 overflow:hidden + contain:strict 자식이라
+ * height:100% 의 소수점 레이아웃에서 바닥 1px 가 클리핑되어 잘려 보인다.
+ *
+ * 해결: 테두리를 클리핑되지 않는 "바깥 박스(.cm-data-grid)" 한 곳에만 단일로 두고,
+ *      안쪽 .ag-root-wrapper 의 자체 테두리는 제거한다. → 이중 테두리 제거 + 바닥선 온전 표시.
+ *      (.cm-data-grid 자신의 테두리는 자기 overflow 로 클리핑되지 않는다.)
+ */
+.form-panel .cm-data-grid,
+.cm-modal-body .cm-data-grid {
+  border: 1px solid var(--color-border-grid, #d0d0d0);
+  /* 기본 .cm-data-grid 와 동일한 둥근 모서리 유지 */
+  border-radius: 4px;
+  /* height:100% 에 테두리 2px 가 더해져 박스가 부모를 넘어 바닥선이 잘리는 것을 차단 */
+  box-sizing: border-box;
+  /*
+   * height:100% 로 부모를 꽉 채울 때, flex 소수점 반올림으로 바닥 테두리가
+   * 상위 overflow 경계에 걸려 1px 잘리는 현상이 있다(사용자가 99% 로 줄이면 보이던 이유).
+   * 높이에 1px 여유를 줘 바닥선을 항상 보이게 한다. inline height 를 !important 로
+   * 덮지 않고 max-height 로 상한만 거므로, 부모 높이가 auto 인 고정 px 그리드에는
+   * 백분율이 무시되어 영향이 없다(고정 높이 그리드 회귀 방지).
+   */
+  max-height: calc(100% - 1px);
+}
+.form-panel .cm-data-grid .ag-root-wrapper,
+.cm-modal-body .cm-data-grid .ag-root-wrapper {
+  border: none;
+  border-radius: 0;
+}
+
+.grid-panel-content .cm-custom-data-grid {
+  border: none;
+  border-radius: 0;
+  height: 100%;
+}
+
+.grid-panel-form {
+  border-top: 1px solid var(--color-border-grid, #d0d0d0);
+  padding: 8px;
+  background-color: #fafafa;
+  flex-shrink: 0;
+}
+
+/* ========================================
+   MuiDataGrid styles (MUI DataGrid based)
+   ======================================== */
+
+.cm-mui-data-grid {
+  border: 1px solid var(--color-border-grid, #d0d0d0);
+  border-radius: 4px;
+  background-color: var(--color-bg, #fff);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* MUI DataGrid theme customization */
+.cm-mui-data-grid .MuiDataGrid-root {
+  border: none;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: var(--font-size-md, 13px);
+}
+
+/* Header */
+.cm-mui-data-grid .MuiDataGrid-columnHeaders {
+  background-color: var(--color-bg-header, #f5f6f7);
+  border-bottom: 1px solid var(--color-border-grid, #d0d0d0);
+  min-height: 32px !important;
+  max-height: 32px !important;
+}
+
+.cm-mui-data-grid .MuiDataGrid-columnHeader {
+  padding: 0 12px;
+  font-weight: 600;
+  color: var(--color-text, #333);
+}
+
+.cm-mui-data-grid .MuiDataGrid-columnHeaderTitle {
+  font-weight: 600;
+}
+
+.cm-mui-data-grid .MuiDataGrid-columnSeparator {
+  visibility: hidden;
+}
+
+.cm-mui-data-grid .MuiDataGrid-columnHeader:hover .MuiDataGrid-columnSeparator {
+  visibility: visible;
+}
+
+/* Cell */
+.cm-mui-data-grid .MuiDataGrid-cell {
+  padding: 0 12px;
+  line-height: 28px;
+  border-bottom: 1px solid var(--color-border-light, #e8e8e8);
+}
+
+.cm-mui-data-grid .MuiDataGrid-row {
+  cursor: pointer;
+}
+
+.cm-mui-data-grid .MuiDataGrid-row:hover {
+  background-color: var(--color-bg-light, #f8f9fa);
+}
+
+.cm-mui-data-grid .MuiDataGrid-row.Mui-selected {
+  background-color: var(--color-selection, #e3f2fd);
+}
+
+.cm-mui-data-grid .MuiDataGrid-row.Mui-selected:hover {
+  background-color: var(--color-selection-hover, #d0e8fc);
+}
+
+/* Highlighted row */
+.cm-mui-data-grid .MuiDataGrid-row.mui-row-highlighted {
+  background-color: var(--color-selection, #e3f2fd);
+}
+
+.cm-mui-data-grid .MuiDataGrid-row.mui-row-highlighted:hover {
+  background-color: var(--color-selection-hover, #d0e8fc);
+}
+
+/* Deleted row */
+.cm-mui-data-grid .MuiDataGrid-row.mui-row-deleted {
+  background-color: #ffebee;
+  text-decoration: line-through;
+  color: var(--color-text-disabled, #999);
+}
+
+.cm-mui-data-grid .MuiDataGrid-row.mui-row-deleted.mui-row-highlighted {
+  background-color: #ffcdd2;
+}
+
+/* Checkbox */
+.cm-mui-data-grid .MuiDataGrid-cellCheckbox {
+  padding: 0;
+}
+
+.cm-mui-data-grid .MuiCheckbox-root {
+  padding: 4px;
+}
+
+.cm-mui-data-grid .MuiCheckbox-root.Mui-checked {
+  color: var(--color-primary, #337ab7);
+}
+
+/* Sort icon */
+.cm-mui-data-grid .MuiDataGrid-sortIcon {
+  color: var(--color-primary, #337ab7);
+}
+
+/* Scrollbar */
+.cm-mui-data-grid .MuiDataGrid-virtualScroller::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.cm-mui-data-grid .MuiDataGrid-virtualScroller::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.cm-mui-data-grid .MuiDataGrid-virtualScroller::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.cm-mui-data-grid .MuiDataGrid-virtualScroller::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Empty overlay */
+.mui-grid-no-rows {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--color-text-disabled, #999);
+  font-size: var(--font-size-md, 13px);
+}
+
+/* Loading overlay */
+.mui-grid-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+  color: var(--color-text-muted, #666);
+  font-size: var(--font-size-md, 13px);
+  background-color: rgba(255, 255, 255, 0.8);
+}
+
+.mui-grid-loading .loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--color-border-medium, #e0e0e0);
+  border-top-color: var(--color-primary, #337ab7);
+  border-radius: 50%;
+  animation: mui-spin 0.8s linear infinite;
+}
+
+@keyframes mui-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Number alignment */
+.cm-mui-data-grid .MuiDataGrid-cell[data-field][style*="text-align: right"] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Focus outline removal */
+.cm-mui-data-grid .MuiDataGrid-cell:focus,
+.cm-mui-data-grid .MuiDataGrid-cell:focus-within,
+.cm-mui-data-grid .MuiDataGrid-columnHeader:focus,
+.cm-mui-data-grid .MuiDataGrid-columnHeader:focus-within {
+  outline: none !important;
+}
+
+/* ========================================
+   CustomDataGrid styles (Pure React)
+   ======================================== */
+
+.cm-custom-data-grid {
+  border: 1px solid var(--color-border-grid, #d0d0d0);
+  border-radius: 4px;
+  background-color: var(--color-bg, #fff);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: var(--font-size-md, 13px);
+}
+
+/* Header */
+.cm-custom-grid-header {
+  background-color: #c8d8ea;
+  border-bottom: 1px solid #c0cdd8;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-shrink: 0;
+}
+
+.cm-custom-grid-header::-webkit-scrollbar {
+  display: none;
+}
+
+.cm-custom-grid-header-row {
+  display: flex;
+  min-width: fit-content;
+}
+
+.cm-custom-grid-header-cell {
+  height: 28px;
+  line-height: 28px;
+  padding: 0 8px;
+  font-weight: 600;
+  color: var(--color-text, #333);
+  background-color: #c8d8ea;
+  border-right: 1px solid #c0cdd8;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  user-select: none;
+}
+
+.cm-custom-grid-header-cell:last-child {
+  border-right: none;
+}
+
+.cm-custom-grid-header-cell .header-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cm-custom-grid-header-cell .sort-indicator {
+  font-size: 10px;
+  color: var(--color-primary, #337ab7);
+  width: 12px;
+  text-align: center;
+}
+
+.cm-custom-grid-header-cell.sortable {
+  cursor: pointer;
+}
+
+.cm-custom-grid-header-cell.sortable:hover {
+  background-color: #cdd8e3;
+}
+
+/* Body */
+.cm-custom-grid-body {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+}
+
+/* Scrollbar */
+.cm-custom-grid-body::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.cm-custom-grid-body::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.cm-custom-grid-body::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.cm-custom-grid-body::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Row */
+.cm-custom-grid-row {
+  display: flex;
+  min-width: fit-content;
+  border-bottom: 1px solid var(--color-border-light, #e8e8e8);
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+}
+
+.cm-custom-grid-row:hover {
+  background-color: var(--color-bg-light, #f8f9fa);
+}
+
+.cm-custom-grid-row.row-selected {
+  background-color: var(--color-selection, #e3f2fd);
+}
+
+.cm-custom-grid-row.row-selected:hover {
+  background-color: var(--color-selection-hover, #d0e8fc);
+}
+
+.cm-custom-grid-row.row-highlighted {
+  background-color: var(--color-selection, #e3f2fd);
+}
+
+.cm-custom-grid-row.row-highlighted:hover {
+  background-color: var(--color-selection-hover, #d0e8fc);
+}
+
+.cm-custom-grid-row.row-deleted {
+  background-color: #ffebee;
+  text-decoration: line-through;
+  color: var(--color-text-disabled, #999);
+}
+
+.cm-custom-grid-row.row-deleted.row-highlighted {
+  background-color: #ffcdd2;
+}
+
+/* Cell */
+.cm-custom-grid-cell {
+  height: 26px;
+  line-height: 26px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-right: 1px solid var(--color-border-light, #e8e8e8);
+}
+
+.cm-custom-grid-cell:last-child {
+  border-right: none;
+}
+
+/* Checkbox cell */
+.cm-custom-grid-checkbox-cell {
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.cm-custom-grid-checkbox-cell input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  accent-color: var(--color-primary, #337ab7);
+}
+
+/* Empty & Loading overlay */
+.cm-custom-grid-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 100px;
+  color: var(--color-text-disabled, #999);
+}
+
+.cm-custom-grid-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background-color: rgba(255, 255, 255, 0.8);
+  color: var(--color-text-muted, #666);
+  z-index: 10;
+}
+
+.cm-custom-grid-loading .loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--color-border-medium, #e0e0e0);
+  border-top-color: var(--color-primary, #337ab7);
+  border-radius: 50%;
+  animation: custom-spin 0.8s linear infinite;
+}
+
+@keyframes custom-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Number alignment */
+.cm-custom-grid-cell[style*="text-align: right"] {
+  font-variant-numeric: tabular-nums;
+}

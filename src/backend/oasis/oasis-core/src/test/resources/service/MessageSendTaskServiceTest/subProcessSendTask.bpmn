@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1ckjd1d" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.11.1" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="Process_0dffkce" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_01ak5cv</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:endEvent id="Event_1hnhee4">
+      <bpmn:incoming>Flow_108xfm6</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:subProcess id="Activity_0briejn" name="p2">
+      <bpmn:incoming>Flow_1hcy928</bpmn:incoming>
+      <bpmn:outgoing>Flow_108xfm6</bpmn:outgoing>
+      <bpmn:sendTask id="Activity_0crqd2l" name="메시지3" camunda:type="external" camunda:topic="m1" />
+    </bpmn:subProcess>
+    <bpmn:sendTask id="Activity_0ck75yt" name="메시지1" camunda:type="external" camunda:topic="m1">
+      <bpmn:incoming>Flow_01ak5cv</bpmn:incoming>
+      <bpmn:outgoing>Flow_0svctqj</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:subProcess id="Activity_1fhi4q4" name="p1">
+      <bpmn:incoming>Flow_0svctqj</bpmn:incoming>
+      <bpmn:outgoing>Flow_1hcy928</bpmn:outgoing>
+      <bpmn:sendTask id="Activity_1971tp4" name="메시지2" camunda:type="external" camunda:topic="m1" />
+    </bpmn:subProcess>
+    <bpmn:sequenceFlow id="Flow_01ak5cv" sourceRef="StartEvent_1" targetRef="Activity_0ck75yt" />
+    <bpmn:sequenceFlow id="Flow_0svctqj" sourceRef="Activity_0ck75yt" targetRef="Activity_1fhi4q4" />
+    <bpmn:sequenceFlow id="Flow_1hcy928" sourceRef="Activity_1fhi4q4" targetRef="Activity_0briejn" />
+    <bpmn:sequenceFlow id="Flow_108xfm6" sourceRef="Activity_0briejn" targetRef="Event_1hnhee4" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_0dffkce">
+      <bpmndi:BPMNEdge id="Flow_01ak5cv_di" bpmnElement="Flow_01ak5cv">
+        <di:waypoint x="188" y="180" />
+        <di:waypoint x="210" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0svctqj_di" bpmnElement="Flow_0svctqj">
+        <di:waypoint x="310" y="180" />
+        <di:waypoint x="320" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1hcy928_di" bpmnElement="Flow_1hcy928">
+        <di:waypoint x="460" y="180" />
+        <di:waypoint x="480" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_108xfm6_di" bpmnElement="Flow_108xfm6">
+        <di:waypoint x="620" y="180" />
+        <di:waypoint x="692" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="152" y="162" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1hnhee4_di" bpmnElement="Event_1hnhee4">
+        <dc:Bounds x="692" y="162" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0ck75yt_di" bpmnElement="Activity_0ck75yt">
+        <dc:Bounds x="210" y="140" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0briejn_di" bpmnElement="Activity_0briejn" isExpanded="true">
+        <dc:Bounds x="480" y="80" width="140" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_14e4h99_di" bpmnElement="Activity_0crqd2l">
+        <dc:Bounds x="500" y="140" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1fhi4q4_di" bpmnElement="Activity_1fhi4q4" isExpanded="true">
+        <dc:Bounds x="320" y="80" width="140" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1971tp4_di" bpmnElement="Activity_1971tp4">
+        <dc:Bounds x="340" y="140" width="100" height="80" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -1,0 +1,262 @@
+{
+  "definitions": {
+    "id": "Definitions_PreProductionQuality",
+    "targetNamespace": "urn:sap-quality-hold-reference",
+    "exporter": "bpmn-tool",
+    "exporterVersion": "1.3.0"
+  },
+  "process": {
+    "id": "PreProductionQuality",
+    "name": "생산 전 품질 — 계획·승인·출시 관문",
+    "isExecutable": false,
+    "documentation": "신규/변경 품목, 공급자, BOM/라우팅에 대해 S/4HANA QM 품질계획, 공급자 품질승인, Source Inspection, SAP Digital Manufacturing 실행 준비를 검증하고 미충족 대상을 생산 투입 전에 보류한다."
+  },
+  "collaboration": {
+    "id": "Collaboration_PreProductionQuality",
+    "participants": [
+      {
+        "id": "Participant_PreProductionQuality",
+        "name": "생산 전 품질 (SAP S/4HANA QM · SAP Digital Manufacturing)",
+        "processRef": "PreProductionQuality"
+      }
+    ],
+    "messageFlows": []
+  },
+  "nodes": [
+    {
+      "id": "PRE_Start",
+      "type": "bpmn:StartEvent",
+      "name": "신규·변경 품목/공급자/공정",
+      "x": 80,
+      "y": 252
+    },
+    {
+      "id": "PRE_QualityPlan",
+      "type": "bpmn:UserTask",
+      "name": "[S/4 QM]\n검사계획·MIC·샘플링·검사유형 설정",
+      "x": 170,
+      "y": 230
+    },
+    {
+      "id": "PRE_SupplierQuality",
+      "type": "bpmn:UserTask",
+      "name": "[S/4 QM]\nQ-Info·공급자 Release·Source Inspection 설정",
+      "x": 330,
+      "y": 230
+    },
+    {
+      "id": "PRE_QualificationPlanning",
+      "type": "bpmn:UserTask",
+      "name": "[S/4 QM]\n검사계획 Release·Source Inspection 준비",
+      "x": 490,
+      "y": 230
+    },
+    {
+      "id": "PRE_DMSync",
+      "type": "bpmn:ServiceTask",
+      "name": "[SAP DM]\nMaterial·Routing·검사항목·Buyoff 동기화",
+      "x": 650,
+      "y": 230
+    },
+    {
+      "id": "PRE_ReadinessGateway",
+      "type": "bpmn:ExclusiveGateway",
+      "name": "출시 전제 충족?",
+      "x": 820,
+      "y": 245
+    },
+    {
+      "id": "PRE_ReadinessHold",
+      "type": "bpmn:UserTask",
+      "name": "사전 품질 보류 적용\n공급자/Q-Info Block 또는\nDM Material·Routing·Operation Hold",
+      "x": 900,
+      "y": 430
+    },
+    {
+      "id": "PRE_CloseGap",
+      "type": "bpmn:UserTask",
+      "name": "누락 기준·승인·교육·문서 보완",
+      "x": 1070,
+      "y": 430
+    },
+    {
+      "id": "PRE_InspectionRequired",
+      "type": "bpmn:ExclusiveGateway",
+      "name": "Source Inspection/\nQualification 필요?",
+      "x": 970,
+      "y": 245
+    },
+    {
+      "id": "PRE_ExecuteQualification",
+      "type": "bpmn:UserTask",
+      "name": "Source Inspection·Qualification Run 실행",
+      "x": 1070,
+      "y": 330
+    },
+    {
+      "id": "PRE_RecordQualification",
+      "type": "bpmn:UserTask",
+      "name": "검사결과·결함·증빙 기록",
+      "x": 1230,
+      "y": 330
+    },
+    {
+      "id": "PRE_QualificationGateway",
+      "type": "bpmn:ExclusiveGateway",
+      "name": "승인 가능?",
+      "x": 1400,
+      "y": 345
+    },
+    {
+      "id": "PRE_QualificationBlock",
+      "type": "bpmn:UserTask",
+      "name": "공급자·품목·라우팅 출시 차단\n품질이슈/CAPA 발행",
+      "x": 1510,
+      "y": 500
+    },
+    {
+      "id": "PRE_Requalify",
+      "type": "bpmn:UserTask",
+      "name": "시정조치·재자격 평가 준비",
+      "x": 1680,
+      "y": 500
+    },
+    {
+      "id": "PRE_Release",
+      "type": "bpmn:UserTask",
+      "name": "품질 출시 승인\n공급·생산 Release 허용",
+      "x": 1570,
+      "y": 230
+    },
+    {
+      "id": "PRE_End",
+      "type": "bpmn:EndEvent",
+      "name": "생산 투입 가능",
+      "x": 1750,
+      "y": 252
+    }
+  ],
+  "flows": [
+    {
+      "id": "PRE_F01",
+      "source": "PRE_Start",
+      "target": "PRE_QualityPlan"
+    },
+    {
+      "id": "PRE_F02",
+      "source": "PRE_QualityPlan",
+      "target": "PRE_SupplierQuality"
+    },
+    {
+      "id": "PRE_F03",
+      "source": "PRE_SupplierQuality",
+      "target": "PRE_QualificationPlanning"
+    },
+    {
+      "id": "PRE_F04",
+      "source": "PRE_QualificationPlanning",
+      "target": "PRE_DMSync"
+    },
+    {
+      "id": "PRE_F05",
+      "source": "PRE_DMSync",
+      "target": "PRE_ReadinessGateway"
+    },
+    {
+      "id": "PRE_F06",
+      "source": "PRE_ReadinessGateway",
+      "target": "PRE_InspectionRequired",
+      "name": "충족",
+      "condition": "${preProductionReady == true}"
+    },
+    {
+      "id": "PRE_F07",
+      "source": "PRE_ReadinessGateway",
+      "target": "PRE_ReadinessHold",
+      "name": "미충족",
+      "isDefault": true
+    },
+    {
+      "id": "PRE_F08",
+      "source": "PRE_ReadinessHold",
+      "target": "PRE_CloseGap"
+    },
+    {
+      "id": "PRE_F09",
+      "source": "PRE_CloseGap",
+      "target": "PRE_DMSync",
+      "name": "재검증"
+    },
+    {
+      "id": "PRE_F10",
+      "source": "PRE_InspectionRequired",
+      "target": "PRE_ExecuteQualification",
+      "name": "필요",
+      "condition": "${qualificationInspectionRequired == true}"
+    },
+    {
+      "id": "PRE_F11",
+      "source": "PRE_InspectionRequired",
+      "target": "PRE_Release",
+      "name": "불필요",
+      "isDefault": true
+    },
+    {
+      "id": "PRE_F12",
+      "source": "PRE_ExecuteQualification",
+      "target": "PRE_RecordQualification"
+    },
+    {
+      "id": "PRE_F13",
+      "source": "PRE_RecordQualification",
+      "target": "PRE_QualificationGateway"
+    },
+    {
+      "id": "PRE_F14",
+      "source": "PRE_QualificationGateway",
+      "target": "PRE_Release",
+      "name": "합격·승인",
+      "condition": "${qualificationAccepted == true}"
+    },
+    {
+      "id": "PRE_F15",
+      "source": "PRE_QualificationGateway",
+      "target": "PRE_QualificationBlock",
+      "name": "불합격·보류",
+      "isDefault": true
+    },
+    {
+      "id": "PRE_F16",
+      "source": "PRE_QualificationBlock",
+      "target": "PRE_Requalify"
+    },
+    {
+      "id": "PRE_F17",
+      "source": "PRE_Requalify",
+      "target": "PRE_ExecuteQualification",
+      "name": "재검사"
+    },
+    {
+      "id": "PRE_F18",
+      "source": "PRE_Release",
+      "target": "PRE_End"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "PRE_Annotation",
+      "text": "사전 보류는 아직 생성되지 않은 재고가 아니라 공급관계·마스터·라우팅·작업 Release를 차단하는 예방적 관문이다.",
+      "x": 430,
+      "y": 70,
+      "width": 470,
+      "height": 55
+    }
+  ],
+  "associations": [
+    {
+      "id": "PRE_Association",
+      "source": "PRE_ReadinessHold",
+      "target": "PRE_Annotation"
+    }
+  ]
+}

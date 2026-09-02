@@ -1,0 +1,10 @@
+pluginManagement {
+    repositories {
+        // maven {
+        //     url "http://172.31.1.96:8889/nexus/content/groups/public"
+        //     allowInsecureProtocol = true
+        // }
+    }
+}
+
+rootProject.name = 'caravan-hub'

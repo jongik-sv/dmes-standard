@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" id="Definitions_00gahfq" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.5.0">
+  <bpmn:process id="Process_1ob4rra" name="Hey Process" isExecutable="true">
+    <bpmn:startEvent id="s1" name="s1">
+      <bpmn:outgoing>Flow_0snd4m7</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_0snd4m7" sourceRef="s1" targetRef="Gateway_0brj508" />
+    <bpmn:serviceTask id="t1" name="String" camunda:class="com.dongkuk.oasis.process.VarietyReturnMethods">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="greeting" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="log" value="&#34;hi&#34;" />
+        </camunda:properties>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="name">sister</camunda:inputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1ec1auj</bpmn:incoming>
+      <bpmn:outgoing>Flow_1oa7k4o</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="Event_1k6nf3k" name="e1">
+      <bpmn:incoming>Flow_1oa7k4o</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1oa7k4o" sourceRef="t1" targetRef="Event_1k6nf3k" />
+    <bpmn:exclusiveGateway id="Gateway_0brj508">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0snd4m7</bpmn:incoming>
+      <bpmn:outgoing>Flow_1ec1auj</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0qjn7nm</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1h7p79f</bpmn:outgoing>
+      <bpmn:outgoing>Flow_14qcgc5</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0lqktkp</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0ntiwji</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_1ec1auj" sourceRef="Gateway_0brj508" targetRef="t1">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">string</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:serviceTask id="Activity_1k2j24d" name="Map" camunda:class="com.dongkuk.oasis.process.VarietyReturnMethods">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="mapParam" />
+        </camunda:properties>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="param">
+            <camunda:map>
+              <camunda:entry key="data">1</camunda:entry>
+            </camunda:map>
+          </camunda:inputParameter>
+          <camunda:outputParameter name="result">success</camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0qjn7nm</bpmn:incoming>
+      <bpmn:outgoing>Flow_0zgvpae</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_0qjn7nm" sourceRef="Gateway_0brj508" targetRef="Activity_1k2j24d">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">map</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:endEvent id="Event_1qdnase">
+      <bpmn:incoming>Flow_0zgvpae</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_0zgvpae" sourceRef="Activity_1k2j24d" targetRef="Event_1qdnase" />
+    <bpmn:serviceTask id="Activity_07ubqwb" name="List" camunda:class="com.dongkuk.oasis.process.VarietyReturnMethods">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="listParam" />
+        </camunda:properties>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="param">
+            <camunda:list>
+              <camunda:value>1</camunda:value>
+              <camunda:value>3</camunda:value>
+            </camunda:list>
+          </camunda:inputParameter>
+          <camunda:outputParameter name="result">success</camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1h7p79f</bpmn:incoming>
+      <bpmn:outgoing>Flow_1nztlq3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_1h7p79f" sourceRef="Gateway_0brj508" targetRef="Activity_07ubqwb">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">list</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:endEvent id="Event_0ghhq9i">
+      <bpmn:incoming>Flow_1nztlq3</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1nztlq3" sourceRef="Activity_07ubqwb" targetRef="Event_0ghhq9i" />
+    <bpmn:serviceTask id="Activity_0owb33q" name="stringList" camunda:class="com.dongkuk.oasis.process.VarietyReturnMethods">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="stringListParam" />
+        </camunda:properties>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="param:string">
+            <camunda:list>
+              <camunda:value>a</camunda:value>
+              <camunda:value>b</camunda:value>
+            </camunda:list>
+          </camunda:inputParameter>
+          <camunda:outputParameter name="result">success</camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_14qcgc5</bpmn:incoming>
+      <bpmn:outgoing>Flow_10ss3f9</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_14qcgc5" sourceRef="Gateway_0brj508" targetRef="Activity_0owb33q">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">stringList</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:endEvent id="Event_11dget6">
+      <bpmn:incoming>Flow_10ss3f9</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_10ss3f9" sourceRef="Activity_0owb33q" targetRef="Event_11dget6" />
+    <bpmn:serviceTask id="Activity_19mob4x" name="Int" camunda:class="com.dongkuk.oasis.process.VarietyReturnMethods">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="intParam" />
+        </camunda:properties>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="param">3</camunda:inputParameter>
+          <camunda:outputParameter name="result">success</camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0lqktkp</bpmn:incoming>
+      <bpmn:outgoing>Flow_184s77m</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_0lqktkp" sourceRef="Gateway_0brj508" targetRef="Activity_19mob4x">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">int</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:endEvent id="Event_1qqjizh">
+      <bpmn:incoming>Flow_184s77m</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_184s77m" sourceRef="Activity_19mob4x" targetRef="Event_1qqjizh" />
+    <bpmn:serviceTask id="Activity_1j2p5ts" name="double" camunda:class="com.dongkuk.oasis.process.VarietyReturnMethods">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="doubleParam" />
+        </camunda:properties>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="param">3.0</camunda:inputParameter>
+          <camunda:outputParameter name="result">success</camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0ntiwji</bpmn:incoming>
+      <bpmn:outgoing>Flow_1jiji6e</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="Event_0v8ab26">
+      <bpmn:incoming>Flow_1jiji6e</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1jiji6e" sourceRef="Activity_1j2p5ts" targetRef="Event_0v8ab26" />
+    <bpmn:sequenceFlow id="Flow_0ntiwji" sourceRef="Gateway_0brj508" targetRef="Activity_1j2p5ts">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">double</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_1ob4rra">
+      <bpmndi:BPMNEdge id="Flow_0ntiwji_di" bpmnElement="Flow_0ntiwji">
+        <di:waypoint x="320" y="142" />
+        <di:waypoint x="320" y="760" />
+        <di:waypoint x="450" y="760" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1jiji6e_di" bpmnElement="Flow_1jiji6e">
+        <di:waypoint x="550" y="760" />
+        <di:waypoint x="662" y="760" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_184s77m_di" bpmnElement="Flow_184s77m">
+        <di:waypoint x="550" y="640" />
+        <di:waypoint x="662" y="640" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0lqktkp_di" bpmnElement="Flow_0lqktkp">
+        <di:waypoint x="320" y="142" />
+        <di:waypoint x="320" y="640" />
+        <di:waypoint x="450" y="640" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_10ss3f9_di" bpmnElement="Flow_10ss3f9">
+        <di:waypoint x="550" y="520" />
+        <di:waypoint x="662" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_14qcgc5_di" bpmnElement="Flow_14qcgc5">
+        <di:waypoint x="320" y="142" />
+        <di:waypoint x="320" y="520" />
+        <di:waypoint x="450" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1nztlq3_di" bpmnElement="Flow_1nztlq3">
+        <di:waypoint x="550" y="390" />
+        <di:waypoint x="662" y="390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1h7p79f_di" bpmnElement="Flow_1h7p79f">
+        <di:waypoint x="320" y="142" />
+        <di:waypoint x="320" y="390" />
+        <di:waypoint x="450" y="390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0zgvpae_di" bpmnElement="Flow_0zgvpae">
+        <di:waypoint x="550" y="260" />
+        <di:waypoint x="662" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0qjn7nm_di" bpmnElement="Flow_0qjn7nm">
+        <di:waypoint x="320" y="142" />
+        <di:waypoint x="320" y="260" />
+        <di:waypoint x="450" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1ec1auj_di" bpmnElement="Flow_1ec1auj">
+        <di:waypoint x="345" y="117" />
+        <di:waypoint x="450" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1oa7k4o_di" bpmnElement="Flow_1oa7k4o">
+        <di:waypoint x="550" y="117" />
+        <di:waypoint x="662" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0snd4m7_di" bpmnElement="Flow_0snd4m7">
+        <di:waypoint x="215" y="117" />
+        <di:waypoint x="295" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="s1">
+        <dc:Bounds x="179" y="99" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="191" y="142" width="12" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_03jcsns_di" bpmnElement="t1">
+        <dc:Bounds x="450" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1k6nf3k_di" bpmnElement="Event_1k6nf3k">
+        <dc:Bounds x="662" y="99" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="674" y="142" width="13" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0brj508_di" bpmnElement="Gateway_0brj508" isMarkerVisible="true">
+        <dc:Bounds x="295" y="92" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1k2j24d_di" bpmnElement="Activity_1k2j24d">
+        <dc:Bounds x="450" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1qdnase_di" bpmnElement="Event_1qdnase">
+        <dc:Bounds x="662" y="242" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_07ubqwb_di" bpmnElement="Activity_07ubqwb">
+        <dc:Bounds x="450" y="350" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0ghhq9i_di" bpmnElement="Event_0ghhq9i">
+        <dc:Bounds x="662" y="372" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0owb33q_di" bpmnElement="Activity_0owb33q">
+        <dc:Bounds x="450" y="480" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_11dget6_di" bpmnElement="Event_11dget6">
+        <dc:Bounds x="662" y="502" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_19mob4x_di" bpmnElement="Activity_19mob4x">
+        <dc:Bounds x="450" y="600" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1qqjizh_di" bpmnElement="Event_1qqjizh">
+        <dc:Bounds x="662" y="622" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1j2p5ts_di" bpmnElement="Activity_1j2p5ts">
+        <dc:Bounds x="450" y="720" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0v8ab26_di" bpmnElement="Event_0v8ab26">
+        <dc:Bounds x="662" y="742" width="36" height="36" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

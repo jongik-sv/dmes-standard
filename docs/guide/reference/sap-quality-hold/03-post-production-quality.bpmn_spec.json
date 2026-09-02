@@ -1,0 +1,300 @@
+{
+  "definitions": {
+    "id": "Definitions_PostProductionQuality",
+    "targetNamespace": "urn:sap-quality-hold-reference",
+    "exporter": "bpmn-tool",
+    "exporterVersion": "1.3.0"
+  },
+  "process": {
+    "id": "PostProductionQuality",
+    "name": "생산 후 품질 — 최종검사·UD·재고해제",
+    "isExecutable": false,
+    "documentation": "생산입고 시 S/4HANA QM 검사 lot(원산지 04)과 Quality Inspection Stock을 사용한다. 결과 및 결함 기록 후 Usage Decision과 재고전기를 통해 출하 가능, 제한, 재작업, 폐기를 결정한다."
+  },
+  "collaboration": {
+    "id": "Collaboration_PostProductionQuality",
+    "participants": [
+      {
+        "id": "Participant_PostProductionQuality",
+        "name": "생산 후 품질 (SAP S/4HANA QM · SAP Digital Manufacturing)",
+        "processRef": "PostProductionQuality"
+      }
+    ],
+    "messageFlows": []
+  },
+  "nodes": [
+    {
+      "id": "POST_Start",
+      "type": "bpmn:StartEvent",
+      "name": "최종공정 완료·생산입고",
+      "x": 70,
+      "y": 282
+    },
+    {
+      "id": "POST_CreateLot04",
+      "type": "bpmn:ServiceTask",
+      "name": "[S/4 QM]\nGR from Production lot 04 생성\nQuality Inspection Stock 보류",
+      "x": 160,
+      "y": 260
+    },
+    {
+      "id": "POST_Reconcile",
+      "type": "bpmn:ServiceTask",
+      "name": "DM 실적·Batch/Serial·Genealogy 정합",
+      "x": 330,
+      "y": 260
+    },
+    {
+      "id": "POST_FinalInspection",
+      "type": "bpmn:UserTask",
+      "name": "최종·포장·출하검사\n성적서/인증서 확인",
+      "x": 490,
+      "y": 260
+    },
+    {
+      "id": "POST_RecordResults",
+      "type": "bpmn:UserTask",
+      "name": "검사결과·결함·검사완료 기록",
+      "x": 650,
+      "y": 260
+    },
+    {
+      "id": "POST_AcceptGateway",
+      "type": "bpmn:ExclusiveGateway",
+      "name": "최종 적합?",
+      "x": 820,
+      "y": 275
+    },
+    {
+      "id": "POST_AcceptUD",
+      "type": "bpmn:UserTask",
+      "name": "Usage Decision: Accept\nUnrestricted/허용 재고로 전기",
+      "x": 970,
+      "y": 260
+    },
+    {
+      "id": "POST_RecurringGateway",
+      "type": "bpmn:ExclusiveGateway",
+      "name": "반복검사/새 품질신호?",
+      "x": 1140,
+      "y": 275
+    },
+    {
+      "id": "POST_RecurringHold",
+      "type": "bpmn:UserTask",
+      "name": "Batch Restricted 또는 재고 보류\n반복검사 lot 09 생성",
+      "x": 1230,
+      "y": 80
+    },
+    {
+      "id": "POST_ShippingRelease",
+      "type": "bpmn:UserTask",
+      "name": "Batch/재고 출하 승인",
+      "x": 1310,
+      "y": 260
+    },
+    {
+      "id": "POST_EndReleased",
+      "type": "bpmn:EndEvent",
+      "name": "출하 가능",
+      "x": 1480,
+      "y": 282
+    },
+    {
+      "id": "POST_RejectHold",
+      "type": "bpmn:UserTask",
+      "name": "결함/NCR 발행\nQI 유지 또는 Blocked Stock 전기",
+      "x": 920,
+      "y": 480
+    },
+    {
+      "id": "POST_MRB",
+      "type": "bpmn:UserTask",
+      "name": "기술검토·MRB 처분 승인",
+      "x": 1080,
+      "y": 480
+    },
+    {
+      "id": "POST_DispositionGateway",
+      "type": "bpmn:ExclusiveGateway",
+      "name": "처분?",
+      "x": 1250,
+      "y": 495
+    },
+    {
+      "id": "POST_UseAsIs",
+      "type": "bpmn:UserTask",
+      "name": "특채·부분수량 Release 승인",
+      "x": 1400,
+      "y": 380
+    },
+    {
+      "id": "POST_ReworkOrder",
+      "type": "bpmn:UserTask",
+      "name": "재작업 전기/오더 생성",
+      "x": 1400,
+      "y": 500
+    },
+    {
+      "id": "POST_ExecuteRework",
+      "type": "bpmn:UserTask",
+      "name": "재작업 수행",
+      "x": 1560,
+      "y": 500
+    },
+    {
+      "id": "POST_ScrapUD",
+      "type": "bpmn:UserTask",
+      "name": "Usage Decision: Reject\nScrap 전기·비용 반영",
+      "x": 1400,
+      "y": 690
+    },
+    {
+      "id": "POST_EndScrap",
+      "type": "bpmn:EndEvent",
+      "name": "폐기 종결",
+      "x": 1570,
+      "y": 712
+    }
+  ],
+  "flows": [
+    {
+      "id": "POST_F01",
+      "source": "POST_Start",
+      "target": "POST_CreateLot04"
+    },
+    {
+      "id": "POST_F02",
+      "source": "POST_CreateLot04",
+      "target": "POST_Reconcile"
+    },
+    {
+      "id": "POST_F03",
+      "source": "POST_Reconcile",
+      "target": "POST_FinalInspection"
+    },
+    {
+      "id": "POST_F04",
+      "source": "POST_FinalInspection",
+      "target": "POST_RecordResults"
+    },
+    {
+      "id": "POST_F05",
+      "source": "POST_RecordResults",
+      "target": "POST_AcceptGateway"
+    },
+    {
+      "id": "POST_F06",
+      "source": "POST_AcceptGateway",
+      "target": "POST_AcceptUD",
+      "name": "합격",
+      "condition": "${finalAccepted == true}"
+    },
+    {
+      "id": "POST_F07",
+      "source": "POST_AcceptGateway",
+      "target": "POST_RejectHold",
+      "name": "불합격/미결",
+      "isDefault": true
+    },
+    {
+      "id": "POST_F08",
+      "source": "POST_AcceptUD",
+      "target": "POST_RecurringGateway"
+    },
+    {
+      "id": "POST_F09",
+      "source": "POST_RecurringGateway",
+      "target": "POST_ShippingRelease",
+      "name": "없음",
+      "isDefault": true
+    },
+    {
+      "id": "POST_F10",
+      "source": "POST_RecurringGateway",
+      "target": "POST_RecurringHold",
+      "name": "유효기간/시장신호/주기 도래",
+      "condition": "${recurringInspectionRequired == true}"
+    },
+    {
+      "id": "POST_F11",
+      "source": "POST_RecurringHold",
+      "target": "POST_FinalInspection",
+      "name": "재검사"
+    },
+    {
+      "id": "POST_F12",
+      "source": "POST_ShippingRelease",
+      "target": "POST_EndReleased"
+    },
+    {
+      "id": "POST_F13",
+      "source": "POST_RejectHold",
+      "target": "POST_MRB"
+    },
+    {
+      "id": "POST_F14",
+      "source": "POST_MRB",
+      "target": "POST_DispositionGateway"
+    },
+    {
+      "id": "POST_F15",
+      "source": "POST_DispositionGateway",
+      "target": "POST_UseAsIs",
+      "name": "특채/부분 Release",
+      "condition": "${postDisposition == 'USE_AS_IS'}"
+    },
+    {
+      "id": "POST_F16",
+      "source": "POST_UseAsIs",
+      "target": "POST_AcceptUD"
+    },
+    {
+      "id": "POST_F17",
+      "source": "POST_DispositionGateway",
+      "target": "POST_ReworkOrder",
+      "name": "재작업",
+      "isDefault": true
+    },
+    {
+      "id": "POST_F18",
+      "source": "POST_ReworkOrder",
+      "target": "POST_ExecuteRework"
+    },
+    {
+      "id": "POST_F19",
+      "source": "POST_ExecuteRework",
+      "target": "POST_FinalInspection",
+      "name": "재검사"
+    },
+    {
+      "id": "POST_F20",
+      "source": "POST_DispositionGateway",
+      "target": "POST_ScrapUD",
+      "name": "폐기",
+      "condition": "${postDisposition == 'SCRAP'}"
+    },
+    {
+      "id": "POST_F21",
+      "source": "POST_ScrapUD",
+      "target": "POST_EndScrap"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "POST_Annotation",
+      "text": "Quality Inspection Stock에서의 출고는 QM Usage Decision/재고전기를 통해서만 수행한다. Batch Restricted는 별도 사용가능성 축이다.",
+      "x": 520,
+      "y": 80,
+      "width": 520,
+      "height": 60
+    }
+  ],
+  "associations": [
+    {
+      "id": "POST_Association",
+      "source": "POST_CreateLot04",
+      "target": "POST_Annotation"
+    }
+  ]
+}

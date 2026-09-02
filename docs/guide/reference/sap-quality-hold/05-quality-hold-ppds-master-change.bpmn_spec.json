@@ -1,0 +1,1464 @@
+{
+  "definitions": {
+    "id": "Definitions_QualityHoldPPDSMasterChange",
+    "targetNamespace": "urn:sap-quality-hold-reference",
+    "exporter": "bpmn-tool",
+    "exporterVersion": "1.3.0",
+    "modeler": {
+      "executionPlatform": "Camunda Platform",
+      "executionPlatformVersion": "7.15.0"
+    }
+  },
+  "collaboration": {
+    "id": "Collaboration_QualityHoldPPDSMasterChange",
+    "participants": [
+      {
+        "id": "Participant_QE",
+        "name": "품질 · 기술변경 관리",
+        "processRef": "Process_QE",
+        "x": 40,
+        "y": 40,
+        "width": 5600,
+        "height": 360
+      },
+      {
+        "id": "Participant_S4",
+        "name": "SAP S/4HANA QM · PP",
+        "processRef": "Process_S4",
+        "x": 40,
+        "y": 440,
+        "width": 5600,
+        "height": 500
+      },
+      {
+        "id": "Participant_PPDS",
+        "name": "SAP S/4HANA PP/DS",
+        "processRef": "Process_PPDS",
+        "x": 40,
+        "y": 980,
+        "width": 5600,
+        "height": 420
+      },
+      {
+        "id": "Participant_DM",
+        "name": "SAP Digital Manufacturing",
+        "processRef": "Process_DM",
+        "x": 40,
+        "y": 1440,
+        "width": 5600,
+        "height": 460
+      },
+      {
+        "id": "Participant_PC",
+        "name": "생산관리 · 현장",
+        "processRef": "Process_PC",
+        "x": 40,
+        "y": 1940,
+        "width": 5600,
+        "height": 300
+      }
+    ],
+    "messageFlows": [
+      {
+        "id": "MF_PC_DM_ActualStatus",
+        "name": "실제 착수 · 자재투입 상태",
+        "source": "PC_VerifyActualStatus",
+        "target": "DM_AssessSFCScope"
+      },
+      {
+        "id": "MF_S4_QE_Containment",
+        "name": "Q3 · 재고 · 오더 영향범위",
+        "source": "S4_ContainQualityScope",
+        "target": "QE_AssessChangeNeed"
+      },
+      {
+        "id": "MF_QE_S4_Revision",
+        "name": "승인 Change Number · Revision",
+        "source": "QE_PublishRevision",
+        "target": "S4_UpdateBOMRoutingPV"
+      },
+      {
+        "id": "MF_S4_PPDS_PDS",
+        "name": "생산버전 · BOM · Routing 변경",
+        "source": "S4_PublishProductionVersion",
+        "target": "PPDS_GenerateChangedPDS"
+      },
+      {
+        "id": "MF_S4_PPDS_PlannedOrders",
+        "name": "미착수 계획오더 목록",
+        "source": "S4_SendPlannedOrderCandidates",
+        "target": "PPDS_PreparePlannedOrders"
+      },
+      {
+        "id": "MF_S4_PPDS_ProductionOrders",
+        "name": "갱신 · 대체 생산오더",
+        "source": "S4_SendChangedOrders",
+        "target": "PPDS_AdoptChangedProductionOrders"
+      },
+      {
+        "id": "MF_S4_DM_OrderChange",
+        "name": "Order BOM · Routing · 일정",
+        "source": "S4_SendChangedOrders",
+        "target": "DM_WaitChangedOrder",
+        "waypoints": [
+          [2880, 680],
+          [3000, 960],
+          [3000, 1570],
+          [3010, 1570]
+        ]
+      },
+      {
+        "id": "MF_PPDS_S4_Plan",
+        "name": "자재 · 능력 · 부모오더 영향",
+        "source": "PPDS_SendS4Plan",
+        "target": "S4_ReceivePlanningImpact"
+      },
+      {
+        "id": "MF_PPDS_DM_Schedule",
+        "name": "확정 실행일정",
+        "source": "PPDS_SendDMSchedule",
+        "target": "DM_WaitExecutableSchedule"
+      },
+      {
+        "id": "MF_S4_QE_Readiness",
+        "name": "계획 · 오더 · 구성품 조치 완료",
+        "source": "S4_ApplyParentOrderActions",
+        "target": "QE_ReviewReadiness"
+      },
+      {
+        "id": "MF_QE_DM_Release",
+        "name": "개정 적용 생산 승인",
+        "source": "QE_ApproveProductionResume",
+        "target": "DM_WaitQualityApproval"
+      },
+      {
+        "id": "MF_DM_PC_ResumeChanged",
+        "name": "승인된 SFC Release",
+        "source": "DM_ReleaseChangedSFC",
+        "target": "PC_WaitRelease"
+      }
+    ]
+  },
+  "processes": [
+    {
+      "id": "Process_QE",
+      "name": "품질 · 기술변경 의사결정",
+      "isExecutable": false,
+      "documentation": "품질이상의 기술적 처분과 Engineering Change를 승인한다. 생산 중 오더는 기존 개정을 유지하고 미착수 오더만 신규 BOM, Routing, Production Version 적용 대상으로 승인한다.",
+      "nodes": [
+        {
+          "id": "QE_Start",
+          "type": "bpmn:StartEvent",
+          "name": "품질이상 접수",
+          "x": 100,
+          "y": 172
+        },
+        {
+          "id": "QE_AssessChangeNeed",
+          "type": "bpmn:UserTask",
+          "name": "NCR · Q3 · 페깅 영향\n기술검토",
+          "x": 260,
+          "y": 150
+        },
+        {
+          "id": "QE_RevisionRequiredGate",
+          "type": "bpmn:ExclusiveGateway",
+          "name": "BOM 또는\nRouting 개정?",
+          "x": 440,
+          "y": 165
+        },
+        {
+          "id": "QE_ApproveDispositionOnly",
+          "type": "bpmn:UserTask",
+          "name": "기존 개정 기준\n재작업 · 특채 · 폐기 승인",
+          "x": 610,
+          "y": 70
+        },
+        {
+          "id": "QE_EndNoRevision",
+          "type": "bpmn:EndEvent",
+          "name": "마스터 변경 없음",
+          "x": 800,
+          "y": 92
+        },
+        {
+          "id": "QE_CreateEngineeringChange",
+          "type": "bpmn:UserTask",
+          "name": "Change Number · Revision\n유효일 생성",
+          "x": 610,
+          "y": 220
+        },
+        {
+          "id": "QE_ApproveRevision",
+          "type": "bpmn:UserTask",
+          "name": "신규 BOM · Routing ·\n생산버전 승인",
+          "x": 790,
+          "y": 220
+        },
+        {
+          "id": "QE_PublishRevision",
+          "type": "bpmn:SendTask",
+          "name": "개정판 Publish\n기존판 WIP용 유지",
+          "x": 1140,
+          "y": 220
+        },
+        {
+          "id": "QE_ReviewReadiness",
+          "type": "bpmn:UserTask",
+          "name": "계획 · 오더 · 구성품 ·\n실행준비 통합검토",
+          "x": 4150,
+          "y": 150
+        },
+        {
+          "id": "QE_ReadinessGate",
+          "type": "bpmn:ExclusiveGateway",
+          "name": "재개 준비\n완료?",
+          "x": 4340,
+          "y": 165
+        },
+        {
+          "id": "QE_CloseReadinessGaps",
+          "type": "bpmn:UserTask",
+          "name": "계획 · 자재 · 문서\n미비사항 보완",
+          "x": 4510,
+          "y": 270
+        },
+        {
+          "id": "QE_ApproveProductionResume",
+          "type": "bpmn:SendTask",
+          "name": "신규 개정 생산\n재개 승인",
+          "x": 4700,
+          "y": 140
+        },
+        {
+          "id": "QE_EndChanged",
+          "type": "bpmn:EndEvent",
+          "name": "개정 적용 승인 완료",
+          "x": 4890,
+          "y": 162
+        }
+      ],
+      "flows": [
+        {
+          "id": "QE_F01",
+          "source": "QE_Start",
+          "target": "QE_AssessChangeNeed"
+        },
+        {
+          "id": "QE_F02",
+          "source": "QE_AssessChangeNeed",
+          "target": "QE_RevisionRequiredGate"
+        },
+        {
+          "id": "QE_F03",
+          "source": "QE_RevisionRequiredGate",
+          "target": "QE_CreateEngineeringChange",
+          "name": "개정 필요",
+          "condition": "${masterRevisionRequired == true}"
+        },
+        {
+          "id": "QE_F04",
+          "source": "QE_RevisionRequiredGate",
+          "target": "QE_ApproveDispositionOnly",
+          "name": "개정 불필요",
+          "isDefault": true
+        },
+        {
+          "id": "QE_F05",
+          "source": "QE_ApproveDispositionOnly",
+          "target": "QE_EndNoRevision"
+        },
+        {
+          "id": "QE_F06",
+          "source": "QE_CreateEngineeringChange",
+          "target": "QE_ApproveRevision"
+        },
+        {
+          "id": "QE_F07",
+          "source": "QE_ApproveRevision",
+          "target": "QE_PublishRevision"
+        },
+        {
+          "id": "QE_F08",
+          "source": "QE_PublishRevision",
+          "target": "QE_ReviewReadiness"
+        },
+        {
+          "id": "QE_F09",
+          "source": "QE_ReviewReadiness",
+          "target": "QE_ReadinessGate"
+        },
+        {
+          "id": "QE_F10",
+          "source": "QE_ReadinessGate",
+          "target": "QE_ApproveProductionResume",
+          "name": "완료",
+          "condition": "${revisionReady == true}"
+        },
+        {
+          "id": "QE_F11",
+          "source": "QE_ReadinessGate",
+          "target": "QE_CloseReadinessGaps",
+          "name": "미완료",
+          "isDefault": true
+        },
+        {
+          "id": "QE_F12",
+          "source": "QE_CloseReadinessGaps",
+          "target": "QE_ReviewReadiness"
+        },
+        {
+          "id": "QE_F13",
+          "source": "QE_ApproveProductionResume",
+          "target": "QE_EndChanged"
+        }
+      ],
+      "annotations": [
+        {
+          "id": "QE_AnnoVersionPolicy",
+          "text": "기존 생산버전을 덮어쓰거나 삭제하지 않는다.\n생산 중 WIP는 기존 개정, 미착수분은 신규 개정을 사용한다.",
+          "x": 1250,
+          "y": 70,
+          "width": 360,
+          "height": 70
+        }
+      ],
+      "associations": [
+        {
+          "id": "QE_AssocVersionPolicy",
+          "source": "QE_PublishRevision",
+          "target": "QE_AnnoVersionPolicy"
+        }
+      ]
+    },
+    {
+      "id": "Process_S4",
+      "name": "S/4HANA 품질 · 생산오더 변경",
+      "isExecutable": false,
+      "documentation": "S/4HANA QM과 PP에서 품질 봉쇄, 생산오더 실제실적 판정, 개정 마스터 반영, 미착수 생산오더의 PP Master Data 재읽기 또는 대체오더 생성, 구성품과 부모오더 조치를 수행한다.",
+      "nodes": [
+        {
+          "id": "S4_Start",
+          "type": "bpmn:StartEvent",
+          "name": "품질 Hold 신호 수신",
+          "x": 100,
+          "y": 622
+        },
+        {
+          "id": "S4_ContainQualityScope",
+          "type": "bpmn:UserTask",
+          "name": "Q3 · 검사 Lot · Batch\n재고 봉쇄",
+          "x": 250,
+          "y": 600
+        },
+        {
+          "id": "S4_CollectOrderFacts",
+          "type": "bpmn:ServiceTask",
+          "name": "생산오더 · 확정 · GI · GR ·\n외주 · 검사 Lot 상태 수집",
+          "x": 430,
+          "y": 600
+        },
+        {
+          "id": "S4_StartedOrderGate",
+          "type": "bpmn:ExclusiveGateway",
+          "name": "생산 착수\n발생?",
+          "x": 620,
+          "y": 615
+        },
+        {
+          "id": "S4_KeepExistingRevision",
+          "type": "bpmn:UserTask",
+          "name": "기존 Order BOM · Routing 유지\n개정 적용대상 제외",
+          "x": 790,
+          "y": 760
+        },
+        {
+          "id": "S4_ProcessExistingDisposition",
+          "type": "bpmn:UserTask",
+          "name": "기존 개정 기준\n재작업 · 특채 · 폐기 처리",
+          "x": 970,
+          "y": 760
+        },
+        {
+          "id": "S4_EndExistingRevision",
+          "type": "bpmn:EndEvent",
+          "name": "생산 중 오더 기존 개정 유지",
+          "x": 1170,
+          "y": 782
+        },
+        {
+          "id": "S4_SelectUnstartedCandidates",
+          "type": "bpmn:UserTask",
+          "name": "미착수 오더 선별\nREL 상태만으로 판단 금지",
+          "x": 790,
+          "y": 560
+        },
+        {
+          "id": "S4_RevisionDecisionGate",
+          "type": "bpmn:ExclusiveGateway",
+          "name": "마스터 개정\n승인?",
+          "x": 970,
+          "y": 575
+        },
+        {
+          "id": "S4_ApplyDispositionWithoutRevision",
+          "type": "bpmn:UserTask",
+          "name": "마스터 변경 없이\n품질처분 · 일정조정",
+          "x": 1280,
+          "y": 480
+        },
+        {
+          "id": "S4_EndNoRevision",
+          "type": "bpmn:EndEvent",
+          "name": "기존 마스터로 계속",
+          "x": 1470,
+          "y": 502
+        },
+        {
+          "id": "S4_UpdateBOMRoutingPV",
+          "type": "bpmn:UserTask",
+          "name": "Change Number 기준\nBOM · Routing · PV 반영",
+          "x": 1140,
+          "y": 610
+        },
+        {
+          "id": "S4_PublishProductionVersion",
+          "type": "bpmn:SendTask",
+          "name": "신규 생산버전\nPP/DS 변경전송",
+          "x": 1320,
+          "y": 610
+        },
+        {
+          "id": "S4_DocumentTypeGate",
+          "type": "bpmn:ExclusiveGateway",
+          "name": "계획오더 또는\n생산오더?",
+          "x": 1500,
+          "y": 625
+        },
+        {
+          "id": "S4_SendPlannedOrderCandidates",
+          "type": "bpmn:SendTask",
+          "name": "미착수 계획오더\nPP/DS 재전개 요청",
+          "x": 1670,
+          "y": 490
+        },
+        {
+          "id": "S4_RereadEligibilityGate",
+          "type": "bpmn:ExclusiveGateway",
+          "name": "Read PP Master Data\n허용?",
+          "x": 1760,
+          "y": 700
+        },
+        {
+          "id": "S4_ReadPPMasterData",
+          "type": "bpmn:UserTask",
+          "name": "CO02 Read PP Master Data\n신규 PV · Revision · Explosion Date",
+          "x": 1860,
+          "y": 610
+        },
+        {
+          "id": "S4_RecheckOrder",
+          "type": "bpmn:UserTask",
+          "name": "구성품 · 공정 · 원가 ·\n가용성 재검증",
+          "x": 2050,
+          "y": 610
+        },
+        {
+          "id": "S4_RereleaseOrder",
+          "type": "bpmn:UserTask",
+          "name": "오더 재스케줄 ·\n재릴리즈",
+          "x": 2240,
+          "y": 610
+        },
+        {
+          "id": "S4_CreateReplacementOrder",
+          "type": "bpmn:UserTask",
+          "name": "재읽기 제한 시\n미착수 잔량 대체오더 생성",
+          "x": 1860,
+          "y": 790
+        },
+        {
+          "id": "S4_RetireOldOrder",
+          "type": "bpmn:UserTask",
+          "name": "기존 오더 잔량 · 예약 ·\n페깅 정리",
+          "x": 2050,
+          "y": 790
+        },
+        {
+          "id": "S4_MergeOrderUpdate",
+          "type": "bpmn:ExclusiveGateway",
+          "name": "오더변경\n합류",
+          "x": 2470,
+          "y": 625
+        },
+        {
+          "id": "S4_ApplyComponentRules",
+          "type": "bpmn:UserTask",
+          "name": "구성품 처리\n투입분 유지 · 미투입분 재예약\n의심 Batch 격리",
+          "x": 2640,
+          "y": 600
+        },
+        {
+          "id": "S4_SendChangedOrders",
+          "type": "bpmn:SendTask",
+          "name": "변경 오더 · Order BOM ·\nRouting 배포",
+          "x": 2830,
+          "y": 600
+        },
+        {
+          "id": "S4_ReceivePlanningImpact",
+          "type": "bpmn:ReceiveTask",
+          "name": "PP/DS 재계획 결과 수신",
+          "x": 3960,
+          "y": 600
+        },
+        {
+          "id": "S4_ApplyParentOrderActions",
+          "type": "bpmn:UserTask",
+          "name": "영향 부모오더만\n지연 · Hold · 대체공급 반영",
+          "x": 4150,
+          "y": 600
+        },
+        {
+          "id": "S4_EndChanged",
+          "type": "bpmn:EndEvent",
+          "name": "S/4 변경 완료",
+          "x": 4340,
+          "y": 622
+        }
+      ],
+      "flows": [
+        {
+          "id": "S4_F01",
+          "source": "S4_Start",
+          "target": "S4_ContainQualityScope"
+        },
+        {
+          "id": "S4_F02",
+          "source": "S4_ContainQualityScope",
+          "target": "S4_CollectOrderFacts"
+        },
+        {
+          "id": "S4_F03",
+          "source": "S4_CollectOrderFacts",
+          "target": "S4_StartedOrderGate"
+        },
+        {
+          "id": "S4_F04",
+          "source": "S4_StartedOrderGate",
+          "target": "S4_SelectUnstartedCandidates",
+          "name": "미착수 증명",
+          "condition": "${orderStarted == false}"
+        },
+        {
+          "id": "S4_F05",
+          "source": "S4_StartedOrderGate",
+          "target": "S4_KeepExistingRevision",
+          "name": "착수 또는 불명확",
+          "isDefault": true
+        },
+        {
+          "id": "S4_F06",
+          "source": "S4_KeepExistingRevision",
+          "target": "S4_ProcessExistingDisposition"
+        },
+        {
+          "id": "S4_F07",
+          "source": "S4_ProcessExistingDisposition",
+          "target": "S4_EndExistingRevision"
+        },
+        {
+          "id": "S4_F08",
+          "source": "S4_SelectUnstartedCandidates",
+          "target": "S4_RevisionDecisionGate"
+        },
+        {
+          "id": "S4_F09",
+          "source": "S4_RevisionDecisionGate",
+          "target": "S4_UpdateBOMRoutingPV",
+          "name": "승인됨",
+          "condition": "${masterRevisionApproved == true}"
+        },
+        {
+          "id": "S4_F10",
+          "source": "S4_RevisionDecisionGate",
+          "target": "S4_ApplyDispositionWithoutRevision",
+          "name": "개정 없음",
+          "isDefault": true
+        },
+        {
+          "id": "S4_F11",
+          "source": "S4_ApplyDispositionWithoutRevision",
+          "target": "S4_EndNoRevision"
+        },
+        {
+          "id": "S4_F12",
+          "source": "S4_UpdateBOMRoutingPV",
+          "target": "S4_PublishProductionVersion"
+        },
+        {
+          "id": "S4_F13",
+          "source": "S4_PublishProductionVersion",
+          "target": "S4_DocumentTypeGate"
+        },
+        {
+          "id": "S4_F14",
+          "source": "S4_DocumentTypeGate",
+          "target": "S4_SendPlannedOrderCandidates",
+          "name": "PP/DS 계획오더",
+          "condition": "${hasPlannedOrders == true}"
+        },
+        {
+          "id": "S4_F15",
+          "source": "S4_DocumentTypeGate",
+          "target": "S4_RereadEligibilityGate",
+          "name": "S/4 생산오더",
+          "isDefault": true
+        },
+        {
+          "id": "S4_F16",
+          "source": "S4_SendPlannedOrderCandidates",
+          "target": "S4_MergeOrderUpdate"
+        },
+        {
+          "id": "S4_F17",
+          "source": "S4_RereadEligibilityGate",
+          "target": "S4_ReadPPMasterData",
+          "name": "허용",
+          "condition": "${rereadAllowed == true}"
+        },
+        {
+          "id": "S4_F18",
+          "source": "S4_RereadEligibilityGate",
+          "target": "S4_CreateReplacementOrder",
+          "name": "확정 · GI · 검사 Lot 등 존재",
+          "isDefault": true
+        },
+        {
+          "id": "S4_F19",
+          "source": "S4_ReadPPMasterData",
+          "target": "S4_RecheckOrder"
+        },
+        {
+          "id": "S4_F20",
+          "source": "S4_RecheckOrder",
+          "target": "S4_RereleaseOrder"
+        },
+        {
+          "id": "S4_F21",
+          "source": "S4_RereleaseOrder",
+          "target": "S4_MergeOrderUpdate"
+        },
+        {
+          "id": "S4_F22",
+          "source": "S4_CreateReplacementOrder",
+          "target": "S4_RetireOldOrder"
+        },
+        {
+          "id": "S4_F23",
+          "source": "S4_RetireOldOrder",
+          "target": "S4_MergeOrderUpdate"
+        },
+        {
+          "id": "S4_F24",
+          "source": "S4_MergeOrderUpdate",
+          "target": "S4_ApplyComponentRules"
+        },
+        {
+          "id": "S4_F25",
+          "source": "S4_ApplyComponentRules",
+          "target": "S4_SendChangedOrders"
+        },
+        {
+          "id": "S4_F26",
+          "source": "S4_SendChangedOrders",
+          "target": "S4_ReceivePlanningImpact"
+        },
+        {
+          "id": "S4_F27",
+          "source": "S4_ReceivePlanningImpact",
+          "target": "S4_ApplyParentOrderActions"
+        },
+        {
+          "id": "S4_F28",
+          "source": "S4_ApplyParentOrderActions",
+          "target": "S4_EndChanged"
+        }
+      ],
+      "annotations": [
+        {
+          "id": "S4_AnnoStarted",
+          "text": "착수 판정: Confirmation/PCNF/CNF, 구성품 GI·Backflush,\n생산 GR·Delivery, 외주 PO, 검사 Lot, DM SFC 이력까지 확인한다.",
+          "x": 450,
+          "y": 470,
+          "width": 420,
+          "height": 60
+        },
+        {
+          "id": "S4_AnnoReread",
+          "text": "Read PP Master Data는 기존 구성품·공정·할당을 삭제 후 재생성한다.\n릴리즈 상태, 원가, 가용성, 검사 연계를 다시 검증한다.",
+          "x": 1780,
+          "y": 470,
+          "width": 430,
+          "height": 65
+        }
+      ],
+      "associations": [
+        {
+          "id": "S4_AssocStarted",
+          "source": "S4_StartedOrderGate",
+          "target": "S4_AnnoStarted"
+        },
+        {
+          "id": "S4_AssocReread",
+          "source": "S4_ReadPPMasterData",
+          "target": "S4_AnnoReread"
+        }
+      ]
+    },
+    {
+      "id": "Process_PPDS",
+      "name": "PP/DS 공급 · 소요 · 상세일정 재계획",
+      "isExecutable": false,
+      "documentation": "PP/DS는 품질 Hold 실행 주체가 아니다. 보류된 입고예정과 페깅을 기준으로 종속자재, 부모오더, 자원일정을 분석하며 신규 PDS로 미착수 계획오더를 재전개한다.",
+      "nodes": [
+        {
+          "id": "PPDS_Start",
+          "type": "bpmn:StartEvent",
+          "name": "품질 Hold 영향 수신",
+          "x": 100,
+          "y": 1162
+        },
+        {
+          "id": "PPDS_TracePegging",
+          "type": "bpmn:ServiceTask",
+          "name": "Dynamic · Fixed Pegging 추적\n종속자재 · 부모오더 식별",
+          "x": 260,
+          "y": 1140
+        },
+        {
+          "id": "PPDS_AdjustHeldReceipt",
+          "type": "bpmn:UserTask",
+          "name": "보류 생산입고\n가용일 지연 · 수량 감소",
+          "x": 450,
+          "y": 1140
+        },
+        {
+          "id": "PPDS_ProtectAffectedSupply",
+          "type": "bpmn:UserTask",
+          "name": "의심 Batch · 전용공급 격리\n공용 정상공급은 유지",
+          "x": 640,
+          "y": 1140
+        },
+        {
+          "id": "PPDS_RevisionDecisionGate",
+          "type": "bpmn:ExclusiveGateway",
+          "name": "마스터 개정\n필요?",
+          "x": 830,
+          "y": 1155
+        },
+        {
+          "id": "PPDS_ReplanExistingRevision",
+          "type": "bpmn:ServiceTask",
+          "name": "기존 개정으로\n처분 · 일정 재계획",
+          "x": 1000,
+          "y": 1040
+        },
+        {
+          "id": "PPDS_PublishExistingPlan",
+          "type": "bpmn:SendTask",
+          "name": "기존 개정 계획 배포",
+          "x": 1180,
+          "y": 1040
+        },
+        {
+          "id": "PPDS_EndNoRevision",
+          "type": "bpmn:EndEvent",
+          "name": "기존 개정 재계획 완료",
+          "x": 1490,
+          "y": 1000
+        },
+        {
+          "id": "PPDS_GenerateChangedPDS",
+          "type": "bpmn:ServiceTask",
+          "name": "신규 생산버전에서\nPDS 생성 · 활성화",
+          "x": 1320,
+          "y": 1220
+        },
+        {
+          "id": "PPDS_OrderScopeGate",
+          "type": "bpmn:InclusiveGateway",
+          "name": "변경 대상\n오더유형",
+          "x": 1500,
+          "y": 1235
+        },
+        {
+          "id": "PPDS_PreparePlannedOrders",
+          "type": "bpmn:UserTask",
+          "name": "미착수 계획오더\nFirming · Fixed Pegging 검토",
+          "x": 1670,
+          "y": 1080
+        },
+        {
+          "id": "PPDS_ReexplodePlannedOrders",
+          "type": "bpmn:ServiceTask",
+          "name": "신규 PDS로 재전개\n또는 삭제 · 재생성",
+          "x": 1860,
+          "y": 1080
+        },
+        {
+          "id": "PPDS_AdoptChangedProductionOrders",
+          "type": "bpmn:ServiceTask",
+          "name": "갱신 · 대체 생산오더\n활동 · 소요 반영",
+          "x": 2830,
+          "y": 1260
+        },
+        {
+          "id": "PPDS_MergeChangedOrders",
+          "type": "bpmn:InclusiveGateway",
+          "name": "변경오더\n합류",
+          "x": 3030,
+          "y": 1165
+        },
+        {
+          "id": "PPDS_RunDetailedScheduling",
+          "type": "bpmn:ServiceTask",
+          "name": "Product Heuristic ·\nDetailed Scheduling 실행",
+          "x": 3200,
+          "y": 1140
+        },
+        {
+          "id": "PPDS_CheckMaterialCapacity",
+          "type": "bpmn:ServiceTask",
+          "name": "구성품 가용성 · 능력 ·\n자원대체 검증",
+          "x": 3390,
+          "y": 1140
+        },
+        {
+          "id": "PPDS_RebuildPegging",
+          "type": "bpmn:UserTask",
+          "name": "Dynamic Pegging 재구성\nFixed Pegging 유지 · 해제 검토",
+          "x": 3580,
+          "y": 1140
+        },
+        {
+          "id": "PPDS_AssessParentOrders",
+          "type": "bpmn:UserTask",
+          "name": "부모오더 부족 · 지연 ·\n대체공급 영향 산출",
+          "x": 3770,
+          "y": 1140
+        },
+        {
+          "id": "PPDS_SendS4Plan",
+          "type": "bpmn:SendTask",
+          "name": "S/4에 자재 · 부모오더\n영향 배포",
+          "x": 3960,
+          "y": 1140
+        },
+        {
+          "id": "PPDS_SendDMSchedule",
+          "type": "bpmn:SendTask",
+          "name": "DM에 실행가능 일정\n배포",
+          "x": 4320,
+          "y": 1140
+        },
+        {
+          "id": "PPDS_EndChanged",
+          "type": "bpmn:EndEvent",
+          "name": "PP/DS 재계획 완료",
+          "x": 4510,
+          "y": 1162
+        }
+      ],
+      "flows": [
+        {
+          "id": "PPDS_F01",
+          "source": "PPDS_Start",
+          "target": "PPDS_TracePegging"
+        },
+        {
+          "id": "PPDS_F02",
+          "source": "PPDS_TracePegging",
+          "target": "PPDS_AdjustHeldReceipt"
+        },
+        {
+          "id": "PPDS_F03",
+          "source": "PPDS_AdjustHeldReceipt",
+          "target": "PPDS_ProtectAffectedSupply"
+        },
+        {
+          "id": "PPDS_F04",
+          "source": "PPDS_ProtectAffectedSupply",
+          "target": "PPDS_RevisionDecisionGate"
+        },
+        {
+          "id": "PPDS_F05",
+          "source": "PPDS_RevisionDecisionGate",
+          "target": "PPDS_GenerateChangedPDS",
+          "name": "개정",
+          "condition": "${masterRevisionApproved == true}"
+        },
+        {
+          "id": "PPDS_F06",
+          "source": "PPDS_RevisionDecisionGate",
+          "target": "PPDS_ReplanExistingRevision",
+          "name": "기존 개정",
+          "isDefault": true
+        },
+        {
+          "id": "PPDS_F07",
+          "source": "PPDS_ReplanExistingRevision",
+          "target": "PPDS_PublishExistingPlan"
+        },
+        {
+          "id": "PPDS_F08",
+          "source": "PPDS_PublishExistingPlan",
+          "target": "PPDS_EndNoRevision"
+        },
+        {
+          "id": "PPDS_F09",
+          "source": "PPDS_GenerateChangedPDS",
+          "target": "PPDS_OrderScopeGate"
+        },
+        {
+          "id": "PPDS_F10",
+          "source": "PPDS_OrderScopeGate",
+          "target": "PPDS_PreparePlannedOrders",
+          "name": "계획오더",
+          "condition": "${hasPlannedOrders == true}"
+        },
+        {
+          "id": "PPDS_F11",
+          "source": "PPDS_OrderScopeGate",
+          "target": "PPDS_AdoptChangedProductionOrders",
+          "name": "생산오더",
+          "condition": "${hasProductionOrders == true}"
+        },
+        {
+          "id": "PPDS_F12",
+          "source": "PPDS_PreparePlannedOrders",
+          "target": "PPDS_ReexplodePlannedOrders"
+        },
+        {
+          "id": "PPDS_F13",
+          "source": "PPDS_ReexplodePlannedOrders",
+          "target": "PPDS_MergeChangedOrders"
+        },
+        {
+          "id": "PPDS_F14",
+          "source": "PPDS_AdoptChangedProductionOrders",
+          "target": "PPDS_MergeChangedOrders"
+        },
+        {
+          "id": "PPDS_F15",
+          "source": "PPDS_MergeChangedOrders",
+          "target": "PPDS_RunDetailedScheduling"
+        },
+        {
+          "id": "PPDS_F16",
+          "source": "PPDS_RunDetailedScheduling",
+          "target": "PPDS_CheckMaterialCapacity"
+        },
+        {
+          "id": "PPDS_F17",
+          "source": "PPDS_CheckMaterialCapacity",
+          "target": "PPDS_RebuildPegging"
+        },
+        {
+          "id": "PPDS_F18",
+          "source": "PPDS_RebuildPegging",
+          "target": "PPDS_AssessParentOrders"
+        },
+        {
+          "id": "PPDS_F19",
+          "source": "PPDS_AssessParentOrders",
+          "target": "PPDS_SendS4Plan"
+        },
+        {
+          "id": "PPDS_F20",
+          "source": "PPDS_SendS4Plan",
+          "target": "PPDS_SendDMSchedule"
+        },
+        {
+          "id": "PPDS_F21",
+          "source": "PPDS_SendDMSchedule",
+          "target": "PPDS_EndChanged"
+        }
+      ],
+      "annotations": [
+        {
+          "id": "PPDS_AnnoNoCascade",
+          "text": "PP/DS는 품질 Hold를 실행하거나 부모·하위 오더를 자동 Hold하지 않는다.\n가용일·수량·오더 데이터를 바꾼 후 페깅과 일정으로 영향을 계산한다.",
+          "x": 350,
+          "y": 1010,
+          "width": 430,
+          "height": 65
+        }
+      ],
+      "associations": [
+        {
+          "id": "PPDS_AssocNoCascade",
+          "source": "PPDS_TracePegging",
+          "target": "PPDS_AnnoNoCascade"
+        }
+      ]
+    },
+    {
+      "id": "Process_DM",
+      "name": "SAP DM 생산중단 · SFC 개정 적용",
+      "isExecutable": false,
+      "documentation": "SAP DM에서 품질이상 SFC를 Hold하고 실제 착수 여부와 SFC별 이력을 판정한다. 미착수 SFC만 Order BOM/Routing Upversion 또는 Production Change로 신규 개정을 적용하며 생산 중 SFC는 기존 개정으로 처분한다.",
+      "nodes": [
+        {
+          "id": "DM_Start",
+          "type": "bpmn:StartEvent",
+          "name": "품질이상 검출",
+          "x": 100,
+          "y": 1662
+        },
+        {
+          "id": "DM_RecordNC",
+          "type": "bpmn:UserTask",
+          "name": "NC · 검사결과 ·\nBuyoff Reject 기록",
+          "x": 250,
+          "y": 1640
+        },
+        {
+          "id": "DM_HoldAffectedSFC",
+          "type": "bpmn:UserTask",
+          "name": "영향 SFC Hold\nStart · Complete 차단",
+          "x": 430,
+          "y": 1640
+        },
+        {
+          "id": "DM_AssessSFCScope",
+          "type": "bpmn:ServiceTask",
+          "name": "SFC · Batch · Genealogy\n영향범위와 상태 수집",
+          "x": 610,
+          "y": 1640
+        },
+        {
+          "id": "DM_UnstartedSFCGate",
+          "type": "bpmn:ExclusiveGateway",
+          "name": "SFC 완전\n미착수?",
+          "x": 800,
+          "y": 1655
+        },
+        {
+          "id": "DM_KeepExistingRevision",
+          "type": "bpmn:UserTask",
+          "name": "생산 중 SFC\n기존 BOM · Routing 유지",
+          "x": 980,
+          "y": 1770
+        },
+        {
+          "id": "DM_ProcessMRBDisposition",
+          "type": "bpmn:UserTask",
+          "name": "재작업 · 특채 · 폐기\nMRB 처분 실행",
+          "x": 1170,
+          "y": 1770
+        },
+        {
+          "id": "DM_ResumeExistingRevision",
+          "type": "bpmn:SendTask",
+          "name": "허용된 기존 개정\nSFC Hold 해제",
+          "x": 1360,
+          "y": 1770
+        },
+        {
+          "id": "DM_EndExistingRevision",
+          "type": "bpmn:EndEvent",
+          "name": "생산 중 SFC 처분 완료",
+          "x": 1560,
+          "y": 1792
+        },
+        {
+          "id": "DM_RevisionDecisionGate",
+          "type": "bpmn:ExclusiveGateway",
+          "name": "마스터 개정\n승인?",
+          "x": 980,
+          "y": 1535
+        },
+        {
+          "id": "DM_DispositionWithoutRevision",
+          "type": "bpmn:UserTask",
+          "name": "기존 BOM · Routing으로\n품질처분 반영",
+          "x": 1160,
+          "y": 1470
+        },
+        {
+          "id": "DM_ResumeWithoutRevision",
+          "type": "bpmn:SendTask",
+          "name": "SFC Hold 해제\n기존 개정 재개",
+          "x": 1350,
+          "y": 1470
+        },
+        {
+          "id": "DM_EndNoRevision",
+          "type": "bpmn:EndEvent",
+          "name": "마스터 변경 없이 재개",
+          "x": 1550,
+          "y": 1492
+        },
+        {
+          "id": "DM_WaitChangedOrder",
+          "type": "bpmn:ReceiveTask",
+          "name": "S/4 변경오더 수신",
+          "x": 3010,
+          "y": 1530
+        },
+        {
+          "id": "DM_UpversionOrder",
+          "type": "bpmn:ServiceTask",
+          "name": "SupportChangeAfterRelease\nOrder BOM · Routing Upversion",
+          "x": 3200,
+          "y": 1530
+        },
+        {
+          "id": "DM_MixedOrderGate",
+          "type": "bpmn:ExclusiveGateway",
+          "name": "동일 오더에\n착수 SFC 혼재?",
+          "x": 3390,
+          "y": 1545
+        },
+        {
+          "id": "DM_ApplyAllUnstartedSFC",
+          "type": "bpmn:ServiceTask",
+          "name": "미착수 SFC 전체에\n신규 개정 할당",
+          "x": 3570,
+          "y": 1460
+        },
+        {
+          "id": "DM_ApplySelectedSFC",
+          "type": "bpmn:UserTask",
+          "name": "Production Change API로 선별\n또는 미착수 잔량 오더 분리",
+          "x": 3570,
+          "y": 1630
+        },
+        {
+          "id": "DM_MergeRevisionAssignment",
+          "type": "bpmn:ExclusiveGateway",
+          "name": "개정할당\n합류",
+          "x": 3770,
+          "y": 1545
+        },
+        {
+          "id": "DM_HoldChangedSFC",
+          "type": "bpmn:UserTask",
+          "name": "HoldProduction=BY_SFC\n검토 중 Hold 유지",
+          "x": 3940,
+          "y": 1530
+        },
+        {
+          "id": "DM_WaitExecutableSchedule",
+          "type": "bpmn:ReceiveTask",
+          "name": "PP/DS 실행가능 일정 수신",
+          "x": 4320,
+          "y": 1530
+        },
+        {
+          "id": "DM_WaitQualityApproval",
+          "type": "bpmn:ReceiveTask",
+          "name": "품질 · 기술 생산재개 승인",
+          "x": 4700,
+          "y": 1530
+        },
+        {
+          "id": "DM_ReleaseChangedSFC",
+          "type": "bpmn:SendTask",
+          "name": "신규 개정 SFC\nHold 해제 · Dispatch",
+          "x": 4890,
+          "y": 1530
+        },
+        {
+          "id": "DM_EndChanged",
+          "type": "bpmn:EndEvent",
+          "name": "신규 개정 생산 준비",
+          "x": 5080,
+          "y": 1552
+        }
+      ],
+      "flows": [
+        {
+          "id": "DM_F01",
+          "source": "DM_Start",
+          "target": "DM_RecordNC"
+        },
+        {
+          "id": "DM_F02",
+          "source": "DM_RecordNC",
+          "target": "DM_HoldAffectedSFC"
+        },
+        {
+          "id": "DM_F03",
+          "source": "DM_HoldAffectedSFC",
+          "target": "DM_AssessSFCScope"
+        },
+        {
+          "id": "DM_F04",
+          "source": "DM_AssessSFCScope",
+          "target": "DM_UnstartedSFCGate"
+        },
+        {
+          "id": "DM_F05",
+          "source": "DM_UnstartedSFCGate",
+          "target": "DM_RevisionDecisionGate",
+          "name": "완전 미착수",
+          "condition": "${sfcEverStarted == false}"
+        },
+        {
+          "id": "DM_F06",
+          "source": "DM_UnstartedSFCGate",
+          "target": "DM_KeepExistingRevision",
+          "name": "착수 · 부분완료 · 불명확",
+          "isDefault": true
+        },
+        {
+          "id": "DM_F07",
+          "source": "DM_KeepExistingRevision",
+          "target": "DM_ProcessMRBDisposition"
+        },
+        {
+          "id": "DM_F08",
+          "source": "DM_ProcessMRBDisposition",
+          "target": "DM_ResumeExistingRevision"
+        },
+        {
+          "id": "DM_F09",
+          "source": "DM_ResumeExistingRevision",
+          "target": "DM_EndExistingRevision"
+        },
+        {
+          "id": "DM_F10",
+          "source": "DM_RevisionDecisionGate",
+          "target": "DM_WaitChangedOrder",
+          "name": "개정 적용",
+          "condition": "${masterRevisionApproved == true}"
+        },
+        {
+          "id": "DM_F11",
+          "source": "DM_RevisionDecisionGate",
+          "target": "DM_DispositionWithoutRevision",
+          "name": "개정 없음",
+          "isDefault": true
+        },
+        {
+          "id": "DM_F12",
+          "source": "DM_DispositionWithoutRevision",
+          "target": "DM_ResumeWithoutRevision"
+        },
+        {
+          "id": "DM_F13",
+          "source": "DM_ResumeWithoutRevision",
+          "target": "DM_EndNoRevision"
+        },
+        {
+          "id": "DM_F14",
+          "source": "DM_WaitChangedOrder",
+          "target": "DM_UpversionOrder"
+        },
+        {
+          "id": "DM_F15",
+          "source": "DM_UpversionOrder",
+          "target": "DM_MixedOrderGate"
+        },
+        {
+          "id": "DM_F16",
+          "source": "DM_MixedOrderGate",
+          "target": "DM_ApplySelectedSFC",
+          "name": "혼재",
+          "condition": "${mixedSFCStatus == true}"
+        },
+        {
+          "id": "DM_F17",
+          "source": "DM_MixedOrderGate",
+          "target": "DM_ApplyAllUnstartedSFC",
+          "name": "모두 미착수",
+          "isDefault": true
+        },
+        {
+          "id": "DM_F18",
+          "source": "DM_ApplySelectedSFC",
+          "target": "DM_MergeRevisionAssignment"
+        },
+        {
+          "id": "DM_F19",
+          "source": "DM_ApplyAllUnstartedSFC",
+          "target": "DM_MergeRevisionAssignment"
+        },
+        {
+          "id": "DM_F20",
+          "source": "DM_MergeRevisionAssignment",
+          "target": "DM_HoldChangedSFC"
+        },
+        {
+          "id": "DM_F21",
+          "source": "DM_HoldChangedSFC",
+          "target": "DM_WaitExecutableSchedule"
+        },
+        {
+          "id": "DM_F22",
+          "source": "DM_WaitExecutableSchedule",
+          "target": "DM_WaitQualityApproval"
+        },
+        {
+          "id": "DM_F23",
+          "source": "DM_WaitQualityApproval",
+          "target": "DM_ReleaseChangedSFC"
+        },
+        {
+          "id": "DM_F24",
+          "source": "DM_ReleaseChangedSFC",
+          "target": "DM_EndChanged"
+        }
+      ],
+      "annotations": [
+        {
+          "id": "DM_AnnoSelection",
+          "text": "SFC가 In Queue라도 이전 공정 완료 이력이 있으면 생산 착수로 본다.\n주문 전체 Upversion보다 미착수 SFC 선별 또는 잔량 분리가 안전하다.",
+          "x": 1700,
+          "y": 1470,
+          "width": 430,
+          "height": 60
+        }
+      ],
+      "associations": [
+        {
+          "id": "DM_AssocSelection",
+          "source": "DM_UnstartedSFCGate",
+          "target": "DM_AnnoSelection"
+        }
+      ]
+    },
+    {
+      "id": "Process_PC",
+      "name": "생산관리 · 현장 중단과 재개",
+      "isExecutable": false,
+      "documentation": "현장에서 영향 WIP를 즉시 정지하고 투입·미투입 구성품과 실제 착수상태를 확인한다. 승인된 기존 또는 신규 개정의 SFC만 작업문서와 배치를 확인한 후 생산을 재개한다.",
+      "nodes": [
+        {
+          "id": "PC_Start",
+          "type": "bpmn:StartEvent",
+          "name": "중단 지시 수신",
+          "x": 100,
+          "y": 2082
+        },
+        {
+          "id": "PC_StopAffectedWIP",
+          "type": "bpmn:ManualTask",
+          "name": "영향 설비 · WIP\n안전 정지",
+          "x": 250,
+          "y": 2060
+        },
+        {
+          "id": "PC_SegregateComponents",
+          "type": "bpmn:ManualTask",
+          "name": "투입 · 미투입 · 의심 Batch\n물리적 식별 · 격리",
+          "x": 430,
+          "y": 2060
+        },
+        {
+          "id": "PC_VerifyActualStatus",
+          "type": "bpmn:UserTask",
+          "name": "작업착수 · 실적 · 자재투입\n현장사실 확인",
+          "x": 610,
+          "y": 2060
+        },
+        {
+          "id": "PC_ReportActualStatus",
+          "type": "bpmn:SendTask",
+          "name": "S/4 · DM에\n실제상태 보고",
+          "x": 790,
+          "y": 2060
+        },
+        {
+          "id": "PC_WaitRelease",
+          "type": "bpmn:ReceiveTask",
+          "name": "승인된 SFC Release 대기",
+          "x": 4890,
+          "y": 2060
+        },
+        {
+          "id": "PC_CheckRevisionDocuments",
+          "type": "bpmn:UserTask",
+          "name": "BOM · Routing · 작업지시 ·\n배치 · 자재 확인",
+          "x": 5080,
+          "y": 2060
+        },
+        {
+          "id": "PC_ResumeProduction",
+          "type": "bpmn:ManualTask",
+          "name": "승인 개정으로\n생산 재개",
+          "x": 5270,
+          "y": 2060
+        },
+        {
+          "id": "PC_End",
+          "type": "bpmn:EndEvent",
+          "name": "현장 재개 완료",
+          "x": 5450,
+          "y": 2082
+        }
+      ],
+      "flows": [
+        {
+          "id": "PC_F01",
+          "source": "PC_Start",
+          "target": "PC_StopAffectedWIP"
+        },
+        {
+          "id": "PC_F02",
+          "source": "PC_StopAffectedWIP",
+          "target": "PC_SegregateComponents"
+        },
+        {
+          "id": "PC_F03",
+          "source": "PC_SegregateComponents",
+          "target": "PC_VerifyActualStatus"
+        },
+        {
+          "id": "PC_F04",
+          "source": "PC_VerifyActualStatus",
+          "target": "PC_ReportActualStatus"
+        },
+        {
+          "id": "PC_F05",
+          "source": "PC_ReportActualStatus",
+          "target": "PC_WaitRelease"
+        },
+        {
+          "id": "PC_F06",
+          "source": "PC_WaitRelease",
+          "target": "PC_CheckRevisionDocuments"
+        },
+        {
+          "id": "PC_F07",
+          "source": "PC_CheckRevisionDocuments",
+          "target": "PC_ResumeProduction"
+        },
+        {
+          "id": "PC_F08",
+          "source": "PC_ResumeProduction",
+          "target": "PC_End"
+        }
+      ],
+      "annotations": [
+        {
+          "id": "PC_AnnoComponents",
+          "text": "이미 투입된 구성품은 Hold만으로 자동 취소되지 않는다.\n미투입품은 반납·재예약, 의심 Batch는 격리 후 SAP 재고상태와 일치시킨다.",
+          "x": 1000,
+          "y": 1980,
+          "width": 430,
+          "height": 60
+        }
+      ],
+      "associations": [
+        {
+          "id": "PC_AssocComponents",
+          "source": "PC_SegregateComponents",
+          "target": "PC_AnnoComponents"
+        }
+      ]
+    }
+  ]
+}

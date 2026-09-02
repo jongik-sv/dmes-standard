@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "1.1.0",
+  "discovery": {
+    "asIsCodeRegex": "^[A-Z]{3}\\d{3}[A-Z]$",
+    "candidateMatchMode": "fileNameContainsTargetKey",
+    "minRequiredRoles": [
+      "designer.cs",
+      "cs"
+    ]
+  },
+  "sourceRoots": [
+    {
+      "priority": 1,
+      "name": "KsmErpK orgErpSource (KsmK Project)",
+      "path": "D:/dmes-standard/docs/external/KsmErpK/orgErpSource",
+      "pathBase": "absolute",
+      "vendor": "KsmErpK",
+      "asIsPattern": "^[A-Z]{3}\\d{3}[A-Z]$",
+      "moduleHint": null,
+      "innerConvention": {
+        "designer.cs": "**/*.Designer.cs",
+        "cs":          "**/*.cs",
+        "resx":        "**/*.resx"
+      }
+    }
+  ],
+  "externalSourceDirs": [
+    {
+      "name": "KsmErpK procedures",
+      "path": "D:/dmes-standard/docs/external/KsmErpK/procedures",
+      "pathBase": "absolute",
+      "role": "sp.sql",
+      "filenamePattern": "{spName}.sql",
+      "resolveFromPhase": 1,
+      "resolveCallPatterns": [
+        "NewQuery\\(\"(\\w+)"
+      ]
+    },
+    {
+      "name": "KsmErpK tables (DDL — Phase 3)",
+      "path": "D:/dmes-standard/docs/external/KsmErpK/tables",
+      "pathBase": "absolute",
+      "role": "ddl.sql",
+      "filenamePattern": "{tableName}.sql",
+      "resolveFromPhase": 2,
+      "resolveCallPatterns": [
+        "FROM\\s+(\\w+)",
+        "JOIN\\s+(\\w+)"
+      ],
+      "enabled": true
+    }
+  ],
+  "conflictPolicy": {
+    "multiCandidate": "abort",
+    "noCandidate":    "abort",
+    "noTargetMatch":  "abort"
+  },
+  "comment": "v1.2 — Phase 2 SP resolution + Phase 3 DDL resolution 활성화 (enabled=true). SP 본문에서 FROM/JOIN 으로 호출한 테이블만 tables/{tableName}.sql 인입."
+}

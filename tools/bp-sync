@@ -1,0 +1,282 @@
+#!/usr/bin/env python3
+"""BP 워크스페이스를 로컬 worktree로 읽기 전용 미러링하는 래퍼.
+
+bp CLI v0.4.0+ 의 네이티브 `bp sync` (pull/status) 를 호출한다. 과거의 자체 미러링
+엔진(tools/bp_sync.py)을 대체하며, 다음 운영 편의만 이 래퍼가 담당한다.
+
+  * `.bp-sync.json` 설정(workspaceId / outputDir / staleAfter / deleteRemoved) 해석
+  * `--if-stale [기간]` TTL — 최근 pull 이 신선하면 원격 조회를 건너뜀
+  * `deleteRemoved: true` → `bp sync pull --prune` 로 원격 삭제 반영
+  * bp CLI 버전 점검 — sync 미지원(구버전)이면 업데이트 방법을 안내
+
+실제 미러링·증분·로컬수정 보호는 모두 네이티브 `bp sync` 가 수행한다.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Mapping, Sequence
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_CONFIG = ".bp-sync.json"
+MIN_BP_VERSION = (0, 4, 2)
+UPDATE_HINT = (
+    "sync 를 지원하는 최신 bp CLI 가 필요합니다(최소 "
+    f"{'.'.join(str(part) for part in MIN_BP_VERSION)}). "
+    "`npm install -g @cothe/bp@latest` 로 업데이트한 뒤 다시 실행하세요."
+)
+
+_DURATION_UNITS = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+
+
+def parse_duration(text: str) -> int:
+    """`4h`, `30m`, `90s`, `1d`, 또는 초 단위 숫자를 초로 변환한다."""
+    value = str(text).strip().lower()
+    match = re.fullmatch(r"(\d+(?:\.\d+)?)([smhd]?)", value)
+    if not match:
+        raise ValueError(f"기간 형식을 해석할 수 없습니다: {text}")
+    amount = float(match.group(1))
+    unit = match.group(2) or "s"
+    return int(amount * _DURATION_UNITS[unit])
+
+
+def read_config(path: Path) -> Mapping[str, Any]:
+    if not path.exists():
+        raise RuntimeError(f"설정 파일을 찾을 수 없습니다: {path}")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def bp_version(bp_command: str) -> tuple[int, ...] | None:
+    try:
+        result = subprocess.run(
+            [bp_command, "--version"],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return None
+    if result.returncode != 0:
+        return None
+    match = re.search(r"(\d+)\.(\d+)\.(\d+)", result.stdout)
+    if not match:
+        return None
+    return tuple(int(part) for part in match.groups())
+
+
+def ensure_sync_supported(bp_command: str) -> None:
+    """bp CLI 존재·버전·sync 서브커맨드 지원 여부를 점검한다."""
+    version = bp_version(bp_command)
+    if version is None:
+        raise RuntimeError(f"bp CLI 를 실행할 수 없습니다.\n{UPDATE_HINT}")
+    if version < MIN_BP_VERSION:
+        current = ".".join(str(part) for part in version)
+        raise RuntimeError(f"현재 bp CLI 버전 {current} 은 sync 를 지원하지 않습니다.\n{UPDATE_HINT}")
+    probe = subprocess.run(
+        [bp_command, "sync", "--help"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if probe.returncode != 0:
+        raise RuntimeError(f"bp CLI 에 sync 명령이 없습니다.\n{UPDATE_HINT}")
+
+
+def manifest_pulled_at(out_dir: Path) -> datetime | None:
+    manifest = out_dir / ".bp-sync" / "manifest.json"
+    if not manifest.exists():
+        return None
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    stamp = data.get("pulledAt")
+    if not stamp:
+        return None
+    try:
+        return datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def is_fresh(out_dir: Path, stale_after_seconds: int) -> tuple[bool, str]:
+    pulled_at = manifest_pulled_at(out_dir)
+    if pulled_at is None:
+        return False, "이전 동기화 기록이 없어 새로 pull 합니다."
+    age = (datetime.now(timezone.utc) - pulled_at).total_seconds()
+    if age < stale_after_seconds:
+        remaining = int(stale_after_seconds - age)
+        return True, f"최근 {int(age)}초 전 동기화됨(TTL {stale_after_seconds}초, {remaining}초 남음) — 건너뜁니다."
+    return False, f"마지막 동기화 후 {int(age)}초 경과(TTL {stale_after_seconds}초) — pull 합니다."
+
+
+def run_bp(bp_command: str, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run([bp_command, *args], text=True, capture_output=True, check=False)
+
+
+def parse_envelope(stdout: str) -> Mapping[str, Any] | None:
+    try:
+        payload = json.loads(stdout)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    data = payload.get("data")
+    return data if isinstance(data, dict) else None
+
+
+def fetch_failure_warnings(data: Mapping[str, Any]) -> list[str]:
+    """재시도로 회복 가능한 조회 실패(권한/일시적)만 추린다. 로컬 수정 스킵은 제외."""
+    failures = []
+    for line in data.get("warnings") or []:
+        text = str(line)
+        if "로컬 수정" in text:
+            continue
+        if "조회 실패" in text or "UNAUTHORIZED" in text or "실패" in text:
+            failures.append(text)
+    return failures
+
+
+def print_pull_summary(data: Mapping[str, Any]) -> None:
+    counts = {
+        "생성": data.get("created", 0),
+        "갱신": data.get("updated", 0),
+        "변화없음": data.get("unchanged", 0),
+        "스킵(조회생략)": data.get("skipped", 0),
+        "삭제(prune)": data.get("pruned", 0),
+        "고아": data.get("orphaned", 0),
+        "로컬수정보존": data.get("skippedLocalModified", 0),
+        "ERD실패": data.get("erdFailed", 0),
+    }
+    summary = ", ".join(f"{label} {value}" for label, value in counts.items())
+    print(f"동기화 완료: {summary}")
+    warnings = data.get("warnings") or []
+    if warnings:
+        print(f"경고 {len(warnings)}건(권한/조회 실패 등). 앞 5건:")
+        for line in warnings[:5]:
+            print(f"  - {line}")
+        if len(warnings) > 5:
+            print(f"  … 외 {len(warnings) - 5}건")
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="BP 워크스페이스를 네이티브 `bp sync` 로 로컬에 미러링합니다."
+    )
+    parser.add_argument("--config", default=DEFAULT_CONFIG, help="저장소 기준 설정 파일 경로")
+    parser.add_argument(
+        "--if-stale",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="기간",
+        help="설정된 TTL(또는 지정 기간) 이내면 건너뜀. 예: --if-stale 30m",
+    )
+    parser.add_argument("--force", action="store_true", help="로컬 수정·revision 무관하게 원격으로 덮어쓰기")
+    parser.add_argument("--check", action="store_true", help="파일을 쓰지 않고 변경/삭제 예정 내용만 확인")
+    args = parser.parse_args(argv)
+
+    if args.force and args.check:
+        parser.error("--force와 --check는 함께 사용할 수 없습니다.")
+
+    bp_command = os.environ.get("BP_COMMAND", "bp")
+
+    try:
+        ensure_sync_supported(bp_command)
+
+        config_path = (REPO_ROOT / args.config).resolve()
+        config = read_config(config_path)
+        workspace_id = config.get("workspaceId")
+        if not workspace_id:
+            raise RuntimeError(f"{config_path} 에 workspaceId 가 없습니다.")
+        out_dir = (REPO_ROOT / config.get("outputDir", "docs/external/BP/{CLIENT}")).resolve()
+        prune = bool(config.get("deleteRemoved", True))
+
+        if args.check:
+            result = run_bp(
+                bp_command,
+                ["sync", "status", "-w", workspace_id, "--out", str(out_dir), "--pretty"],
+            )
+            sys.stdout.write(result.stdout)
+            if result.stderr:
+                sys.stderr.write(result.stderr)
+            return result.returncode
+
+        if args.if_stale is not None:
+            override = args.if_stale or config.get("staleAfter", "4h")
+            stale_after = parse_duration(override)
+            fresh, message = is_fresh(out_dir, stale_after)
+            print(message)
+            if fresh:
+                return 0
+
+        concurrency = int(config.get("concurrency", 3))
+        max_attempts = max(1, int(config.get("maxRetries", 5)))
+        retry_delay = float(config.get("requestDelaySeconds", 0.25))
+
+        delay_ms = int(float(config.get("requestDelaySeconds", 0.25)) * 1000)
+        pull_args = [
+            "sync", "pull", "-w", workspace_id, "--out", str(out_dir),
+            "--format", "json", "--concurrency", str(concurrency),
+            "--delay", str(delay_ms),
+        ]
+        if prune:
+            pull_args.append("--prune")
+        if args.force:
+            pull_args.append("--force")
+
+        # 네이티브 sync 는 증분이므로, 일시적 조회 실패(권한/레이트리밋 401 등)는
+        # pull 을 다시 돌리면 빠진 문서만 채워진다. 구 엔진의 maxRetries 회복력을 래퍼에서 복원한다.
+        last_data: Mapping[str, Any] | None = None
+        last_result: subprocess.CompletedProcess[str] | None = None
+        prev_failures = None
+        for attempt in range(1, max_attempts + 1):
+            last_result = run_bp(bp_command, pull_args)
+            data = parse_envelope(last_result.stdout)
+            if data is None:
+                # 응답이 깨졌거나 오류 — 백오프 후 재시도
+                if attempt < max_attempts:
+                    print(f"[{attempt}/{max_attempts}] 응답 파싱 실패 — 재시도합니다.")
+                    time.sleep(retry_delay * (2 ** (attempt - 1)))
+                    continue
+                break
+            last_data = data
+            failures = fetch_failure_warnings(data)
+            got = data.get("created", 0) + data.get("updated", 0)
+            skipped = data.get("skipped", 0)
+            print(
+                f"[{attempt}/{max_attempts}] 수신 {got}건, 스킵 {skipped}건, "
+                f"조회실패 {len(failures)}건"
+            )
+            if not failures:
+                break
+            # 진전이 없으면(실패 수 그대로·신규 수신 0) 조기 종료 — 하드 권한 오류로 간주
+            if prev_failures is not None and len(failures) >= prev_failures and got == 0:
+                print("추가 진전이 없어 재시도를 멈춥니다(잔여는 하드 권한/영구 오류로 추정).")
+                break
+            prev_failures = len(failures)
+            if attempt < max_attempts:
+                time.sleep(retry_delay * (2 ** (attempt - 1)))
+
+        if last_data is not None:
+            print_pull_summary(last_data)
+        elif last_result is not None and last_result.stdout:
+            print(last_result.stdout.rstrip())
+        if last_result is not None and last_result.returncode != 0 and last_result.stderr:
+            sys.stderr.write(last_result.stderr)
+        return last_result.returncode if last_result is not None else 1
+    except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
+        print(f"bp-sync: {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

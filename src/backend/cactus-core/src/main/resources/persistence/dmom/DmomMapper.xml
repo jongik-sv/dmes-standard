@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  dmom 전문 송신 매퍼 (MSSQL).
+  - namespace=DmomMapper. cactus.mybatis.mapper-locations=classpath*:persistence/**/*.xml 로 로드.
+  - DS 는 호출 SqlSessionTemplate 으로 결정(format/IF/TC_ERROR 모두 biz-template = MCMAPUSER 연결).
+  - 결과 키는 cactus-mybatis-config 의 mapUnderscoreToCamelCase=true 로 camelCase 변환됨.
+  - 상세: docs/cactus/002_전문송수신(포멧,오아시스,메시지태스크)/02_전문송신_상세설계.md §5
+-->
+<mapper namespace="DmomMapper">
+
+    <!-- ① 포맷 레이아웃 조회.
+         MSSQL: Oracle (A,B)=(subquery) tuple 비교 미지원 → JOIN + TOP 1(최신 활성 FORMAT_VER) -->
+    <select id="getFormatLayout" resultType="map">
+        <!-- resultType=map: mapUnderscoreToCamelCase 는 Map 키를 변환하지 않으므로 명시적 alias 로
+             DmomFormatRepository 의 camelCase get() 키와 일치시킨다(ITEM_TP→itemTp 등). -->
+        SELECT L.FORMAT_ID         AS formatId,
+               L.FORMAT_VER        AS formatVer,
+               L.ITEM_SEQ          AS itemSeq,
+               L.ITEM_TP           AS itemTp,
+               L.ITEM_ID           AS itemId,
+               L.ITEM_NM           AS itemNm,
+               L.DATA_TP           AS dataTp,
+               L.DATA_LEN          AS dataLen,
+               L.DATA_DECIMAL_PREC AS dataDecimalPrec
+        FROM MCMAPUSER.TB_MCM_MOM_FORMAT_LAYOUT L
+        INNER JOIN (
+            SELECT TOP 1 F.FORMAT_ID, F.FORMAT_VER
+            FROM MCMAPUSER.TB_MCM_MOM_FORMAT_LIST F
+            INNER JOIN MCMAPUSER.TB_MCM_MOM_TC_LIST T ON T.FORMAT_ID = F.FORMAT_ID
+            WHERE T.TRANSACTION_CODE = #{transactionCode}
+              AND (T.START_ACTIVE_DATE IS NULL OR T.START_ACTIVE_DATE &lt; GETDATE())
+              AND (T.END_ACTIVE_DATE   IS NULL OR T.END_ACTIVE_DATE   &gt; GETDATE())
+              AND (F.START_ACTIVE_DATE IS NULL OR F.START_ACTIVE_DATE &lt; GETDATE())
+              AND (F.END_ACTIVE_DATE   IS NULL OR F.END_ACTIVE_DATE   &gt; GETDATE())
+            ORDER BY F.FORMAT_VER DESC
+        ) FV ON FV.FORMAT_ID = L.FORMAT_ID AND FV.FORMAT_VER = L.FORMAT_VER
+        ORDER BY L.ITEM_SEQ
+    </select>
+
+    <!-- ② 송신 테이블 ID 조회 -->
+    <select id="getSendTableId" resultType="string">
+        SELECT SEND_TABLE_ID
+        FROM MCMAPUSER.TB_MCM_MOM_INTERFACES
+        WHERE INTERFACE_ID = #{interfaceId}
+          AND TRANSACTION_CODE = #{transactionCode}
+    </select>
+
+    <!-- ③ DB 방식 아웃박스 INSERT (bizTemplate = 업무 tx 커넥션, EAIUSER schema-qualified).
+         테이블명은 호출부에서 화이트리스트 ^[A-Za-z_][A-Za-z0-9_]*$ 검증 후 전달.
+         제외 컬럼: KEY_DATA1~3(미사용), IF_SEQ(NULL 허용), IF_DATE/IF_TIME(CaravanHub 처리시 채움).
+         감사 컬럼(cUsrId/cAt/...) 은 CactusMybatisAuditInterceptor 가 Map 에 자동 주입. -->
+    <insert id="insertIfOutbound">
+        INSERT INTO EAIUSER.${tableName}
+            (TRANSACTION_CODE, INTERFACE_ID, INTERFACE_MSG, IF_FLAG,
+             C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER)
+        VALUES
+            (#{transactionCode}, #{interfaceId}, #{interfaceMsg}, #{ifFlag},
+             #{cUsrId}, #{cAt}, #{cSvcId}, #{cPgmId}, #{uUsrId}, #{uAt}, #{uSvcId}, #{uPgmId}, 0)
+    </insert>
+
+    <!-- ④ 에러 로그 INSERT (bizTemplate = MCMAPUSER). SQ_VAL = SEQUENCE. KEY_DATA 미사용(NULL). -->
+    <insert id="insertTcError">
+        INSERT INTO MCMAPUSER.TB_MCM_MOM_TC_ERROR
+            (SQ_VAL, TRANSACTION_CODE, INTERFACE_ID, INTERFACE_PROTOCOL, INTERFACE_MSG,
+             ERROR_TYPE, ERROR_CODE, ERROR_MSG, ERROR_STATUS_CODE,
+             C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER)
+        VALUES
+            (NEXT VALUE FOR MCMAPUSER.SEQ_MCM_MOM_TC_ERROR,
+             #{transactionCode}, #{interfaceId}, #{interfaceProtocol}, #{interfaceMsg},
+             #{errorType}, #{errorCode}, #{errorMsg}, #{errorStatusCode},
+             #{cUsrId}, #{cAt}, #{cSvcId}, #{cPgmId}, #{uUsrId}, #{uAt}, #{uSvcId}, #{uPgmId}, 0)
+    </insert>
+
+</mapper>

@@ -1,0 +1,795 @@
+<mxfile host="app.diagrams.net" modified="2026-04-24T00:00:00.000Z" agent="Claude" version="24.0.0" type="device">
+  <diagram name="① 로그인 및 토큰 발급" id="login">
+    <mxGraphModel dx="1422" dy="820" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="850" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="t1" value="① 로그인 &amp; 토큰 쌍 발급 (access + refresh)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="700" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="a1-br" value="Browser&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;(oasis-portal-auth.session-token)&lt;/font&gt;" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="80" y="60" width="160" height="740" as="geometry" />
+        </mxCell>
+        <mxCell id="a1-bff" value="Next.js BFF&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;(NextAuth v4 + proxy.ts)&lt;/font&gt;" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="320" y="60" width="160" height="740" as="geometry" />
+        </mxCell>
+        <mxCell id="a1-be" value="portal WAS&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;(cactus RequestIdFilter→ClientKeyFilter→JwtAuthenticationFilter)&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;com.dongkuk.dmes.portal.* PortalAuthController&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;color:#b85450&quot;&gt;★ 단일 토큰 발급 진입점 (cactus AuthController 폐기)&lt;/font&gt;" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#ffe6cc;strokeColor=#b85450;strokeWidth=3;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="560" y="60" width="160" height="740" as="geometry" />
+        </mxCell>
+        <mxCell id="a1-db" value="DB&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;(TB_SEC_USER / TB_SEC_USER_ROLE)&lt;/font&gt;" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="800" y="60" width="160" height="740" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1m1" value="1. 로그인 제출 (userId, password)" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="160" y="200" as="sourcePoint" />
+            <mxPoint x="400" y="200" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p1m2" value="2. POST /api/auth/login&lt;br&gt;{userId, password}" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="400" y="250" as="sourcePoint" />
+            <mxPoint x="640" y="250" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p1m3" value="3. SELECT * FROM TB_SEC_USER&lt;br&gt;WHERE USER_ID=?" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="640" y="300" as="sourcePoint" />
+            <mxPoint x="880" y="300" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p1m4" value="4. user row (USER_ENC_PWD, USE_YN …)" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;dashed=1;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="880" y="340" as="sourcePoint" />
+            <mxPoint x="640" y="340" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p1a1" value="5. 활성·잠금·유효기간 검증&lt;br&gt;  +  BCrypt.checkpw(raw, hash)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="560" y="365" width="220" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1m6" value="6. SELECT ROLE_ID&lt;br&gt;FROM TB_SEC_USER_ROLE" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="640" y="430" as="sourcePoint" />
+            <mxPoint x="880" y="430" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p1m7" value="7. [&quot;SYSADMIN&quot;, …]" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;dashed=1;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="880" y="470" as="sourcePoint" />
+            <mxPoint x="640" y="470" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p1a2" value="8. JwtTokenProvider.generateTokenPair(UserInfo)&lt;br&gt;────────────────────────&lt;br&gt;· accessToken  (15분, sub/userNm/userEmpNo/roles/jti/iss)&lt;br&gt;· refreshToken (14일, type=&quot;refresh&quot;/jti/iss)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;verticalAlign=middle;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="540" y="500" width="240" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1m9" value="9. 200 {accessToken, refreshToken, userInfo}" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;dashed=1;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="640" y="600" as="sourcePoint" />
+            <mxPoint x="400" y="600" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p1a3" value="10. NextAuth jwt callback:&lt;br&gt;· token.backendAccessToken  ← accessToken&lt;br&gt;· token.backendRefreshToken ← refreshToken&lt;br&gt;· token.roles = [&quot;SYSADMIN&quot;, …]" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;verticalAlign=middle;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="300" y="625" width="240" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1m11" value="11. 200  +  Set-Cookie:&lt;br&gt;oasis-portal-auth.session-token  (httpOnly, sameSite=lax)" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;dashed=1;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="400" y="725" as="sourcePoint" />
+            <mxPoint x="160" y="725" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p1note" value="토큰 만료 정책 (cactus.jwt.*)&lt;br&gt;────────────────&lt;br&gt;· access-token-expiry  : 900 s (15 m)&lt;br&gt;· refresh-token-expiry : 1,209,600 s (14 d)&lt;br&gt;· 서명 알고리즘 : HS256&lt;br&gt;· 서명 키     : cactus.jwt.secret (Base64)&lt;br&gt;· issuer      : cactus.jwt.issuer&lt;br&gt;&lt;br&gt;클레임 구조&lt;br&gt;────────────────&lt;br&gt;access  : sub, userNm, userEmpNo, roles, jti, iss, iat, exp&lt;br&gt;refresh : sub, type=&quot;refresh&quot;, jti, iss, iat, exp&lt;br&gt;&lt;br&gt;⚠ JWS(base64url 평문) — userNm·userEmpNo 등&lt;br&gt;  민감 클레임이 네트워크/로그에 노출됨" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="60" width="340" height="280" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1note2" value="저장 위치 (최종 상태)&lt;br&gt;────────────────&lt;br&gt;· 브라우저 : NextAuth 세션 쿠키(JWE) 1개 — httpOnly&lt;br&gt;· BFF 메모리(런타임) : 복호화된 token.backend* (호환 보관, 미사용)&lt;br&gt;· BE : stateless(DB 세션 없음), jti 블랙리스트 미구현&lt;br&gt;&lt;br&gt;⚠ 2026-05-21~ : BFF↔BE shared secret 모델로 전환.&lt;br&gt;  BFF 는 BE access token 을 더 이상 Bearer 로 forward 하지 않음.&lt;br&gt;  사용자 컨텍스트는 X-Authenticated-User/Role 헤더로만 전달.&lt;br&gt;  (token.backendAccessToken/RefreshToken 은 호환 유지 차원에서만 보관)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="360" width="340" height="200" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram name="② API 호출 및 Access 갱신" id="refresh">
+    <mxGraphModel dx="1422" dy="820" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="980" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="t2" value="② [DEPRECATED 2026-05-21] API 호출 &amp; Access Token 만료 → Refresh 갱신 후 원요청 재시도" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;fontColor=#9CA3AF" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1100" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="t2deprecated" value="⚠ DEPRECATED — 본 시나리오는 2026-05-21 BFF↔BE shared secret 신뢰 모델 전환으로 더 이상 발생하지 않는다.&lt;br&gt;BFF 가 사용자 JWT 를 BE 로 forward 하지 않으므로 BE access token 만료에 의한 401 자체가 없다.&lt;br&gt;BE 인증은 ClientKeyFilter 가 X-Client-Key 검증 후 X-Authenticated-User/Role 헤더로 SecurityContext 사전 인증을 set 하는 것으로 대체됨.&lt;br&gt;refresh-token rotation 도 BFF↔BE 경로에서는 불필요 (NextAuth JWT 안의 backendRefreshToken 은 호환 보관용으로만 존재).&lt;br&gt;아래 흐름은 historical record 로만 유지." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;fontSize=11;align=left;verticalAlign=top;spacingLeft=10;spacingTop=10;fontColor=#78350F" vertex="1" parent="1">
+          <mxGeometry x="40" y="60" width="1300" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="a2-br" value="Browser&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;(세션 쿠키 자동)&lt;/font&gt;" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="80" y="60" width="160" height="900" as="geometry" />
+        </mxCell>
+        <mxCell id="a2-bff" value="Next.js BFF&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;(proxy.ts + route.ts)&lt;/font&gt;" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="320" y="60" width="160" height="900" as="geometry" />
+        </mxCell>
+        <mxCell id="a2-be" value="portal WAS&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;(cactus RequestIdFilter→ClientKeyFilter→JwtAuthenticationFilter)&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;com.dongkuk.dmes.portal.* PortalAuthController&lt;/font&gt;" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="560" y="60" width="160" height="900" as="geometry" />
+        </mxCell>
+        <mxCell id="a2-db" value="DB" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="800" y="60" width="160" height="900" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p2s1" value="— 단계 A : Access Token 만료 감지 —" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=2;fontColor=#666666" vertex="1" parent="1">
+          <mxGeometry x="80" y="180" width="880" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p2m1" value="1. GET /api/portal/secUser/search  (세션 쿠키 자동)" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="160" y="220" as="sourcePoint" />
+            <mxPoint x="400" y="220" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p2a1" value="2. getToken()  →  token.backendAccessToken 추출" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="280" y="245" width="240" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p2m3" value="3. Authorization: Bearer {access (expired)}" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="400" y="300" as="sourcePoint" />
+            <mxPoint x="640" y="300" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p2a2" value="4. JwtAuthFilter.validateAndExtract()&lt;br&gt;→ ExpiredJwtException" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="540" y="325" width="200" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p2m5" value="5. 401 {errorCode:&quot;A002&quot;, message:&quot;토큰이 만료되었습니다&quot;}" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;dashed=1;strokeColor=#b85450;fontColor=#b85450;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="640" y="390" as="sourcePoint" />
+            <mxPoint x="400" y="390" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p2s2" value="— 단계 B : Refresh Token 으로 토큰 쌍 재발급 —" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=2;fontColor=#666666" vertex="1" parent="1">
+          <mxGeometry x="80" y="420" width="880" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p2a3" value="6. 401 / A002 감지  →  refresh 트리거&lt;br&gt;(동시 다중 401 을 하나로 dedupe — mutex 권장)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="300" y="450" width="240" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p2m7" value="7. POST /api/auth/refresh&lt;br&gt;{refreshToken: token.backendRefreshToken}" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="400" y="520" as="sourcePoint" />
+            <mxPoint x="640" y="520" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p2a4" value="8. JwtTokenProvider.validateRefreshToken()&lt;br&gt;  · 서명 검증 (HS256)&lt;br&gt;  · requireIssuer&lt;br&gt;  · type == &quot;refresh&quot; ?&lt;br&gt;  · exp &gt; now ?" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;verticalAlign=middle;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="540" y="550" width="220" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p2m9" value="9. SELECT role_ids (재조회 — 최신 권한 반영)" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="640" y="660" as="sourcePoint" />
+            <mxPoint x="880" y="660" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p2m10" value="10. roles" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;dashed=1;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="880" y="695" as="sourcePoint" />
+            <mxPoint x="640" y="695" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p2a5" value="11. generateTokenPair() — 새 access + 새 refresh&lt;br&gt;(Refresh Rotation 권장 — 이전 jti 는 블랙리스트 등록)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="530" y="720" width="240" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p2m12" value="12. 200 {accessToken (new), refreshToken (new)}" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;dashed=1;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="640" y="780" as="sourcePoint" />
+            <mxPoint x="400" y="780" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p2a6" value="13. NextAuth jwt callback 업데이트:&lt;br&gt;token.backendAccessToken  ← new access&lt;br&gt;token.backendRefreshToken ← new refresh&lt;br&gt;→ 세션 쿠키 재서명(Set-Cookie)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;verticalAlign=middle;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="300" y="800" width="240" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p2s3" value="— 단계 C : 원 요청 재시도 —" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=2;fontColor=#666666" vertex="1" parent="1">
+          <mxGeometry x="80" y="875" width="880" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p2m14" value="14. Authorization: Bearer {new access} — 원 요청 재시도" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="400" y="910" as="sourcePoint" />
+            <mxPoint x="640" y="910" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p2m15" value="15. 200 {grids/rows/…}" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;dashed=1;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="640" y="935" as="sourcePoint" />
+            <mxPoint x="400" y="935" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p2m16" value="16. 200 (투명 재시도 — 사용자 체감 无)" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;dashed=1;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="400" y="955" as="sourcePoint" />
+            <mxPoint x="160" y="955" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p2note" value="동시성 주의 — 현재 구현 관찰&lt;br&gt;────────────────&lt;br&gt;· 다중 탭 / 다중 API 동시 호출 시 401 이 동시에 발생&lt;br&gt;· refresh 호출이 N 번 병렬로 일어나면 Refresh Rotation&lt;br&gt;  구현 시 한쪽만 유효해 **다른 탭이 통째로 로그아웃**됨&lt;br&gt;&lt;br&gt;대응 패턴&lt;br&gt;────────────────&lt;br&gt;· BFF route.ts 안에 Promise-dedupe (in-flight map)&lt;br&gt;· 혹은 BE 가 rotation 을 짧은 grace 윈도우로 허용&lt;br&gt;  (이전 jti 를 N 초간 blacklist 미적용)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="60" width="340" height="220" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p2note2" value="어디가 뚫릴 수 있는가 (위협 모델)&lt;br&gt;────────────────&lt;br&gt;· access token 탈취 → 최대 15분 사용 가능&lt;br&gt;· refresh token 탈취 → 14일 동안 무제한 재발급&lt;br&gt;  ⇒ refresh 는 **재사용 감지(Reuse Detection)** 가 사실상 필수&lt;br&gt;    (이미 한 번 쓴 jti 가 재등장하면 세션 전체 폐기)&lt;br&gt;· 현재 미구현 → 로드맵 우선순위 High" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="300" width="340" height="180" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram name="③ Refresh 만료 → 재로그인" id="logout">
+    <mxGraphModel dx="1422" dy="820" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="650" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="t3" value="③ [DEPRECATED 2026-05-21] Refresh Token 까지 만료 → 세션 종료 &amp; 재로그인 강제" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;fontColor=#9CA3AF" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1100" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="t3deprecated" value="⚠ DEPRECATED — 본 시나리오는 2026-05-21 BFF↔BE shared secret 신뢰 모델 전환으로 더 이상 발생하지 않는다.&lt;br&gt;BFF↔BE 경로에서는 사용자 JWT 의 만료가 401 을 유발하지 않으므로 refresh 흐름 자체가 없다.&lt;br&gt;UI↔BFF 세션 만료(NextAuth 기본 30일)는 별개의 흐름으로 진행되며, 만료 시 NextAuth 가 /login 으로 리다이렉트한다.&lt;br&gt;아래 흐름은 historical record 로만 유지." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;fontSize=11;align=left;verticalAlign=top;spacingLeft=10;spacingTop=10;fontColor=#78350F" vertex="1" parent="1">
+          <mxGeometry x="40" y="60" width="1300" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="a3-br" value="Browser" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="80" y="60" width="160" height="540" as="geometry" />
+        </mxCell>
+        <mxCell id="a3-bff" value="Next.js BFF" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="320" y="60" width="160" height="540" as="geometry" />
+        </mxCell>
+        <mxCell id="a3-be" value="portal WAS&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;(com.dongkuk.dmes.portal.* PortalAuthController)&lt;/font&gt;" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="560" y="60" width="160" height="540" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p3m1" value="1. API 호출 (세션 쿠키 자동)" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="160" y="180" as="sourcePoint" />
+            <mxPoint x="400" y="180" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p3m2" value="2. Authorization: Bearer {access (expired)}" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="400" y="220" as="sourcePoint" />
+            <mxPoint x="640" y="220" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p3m3" value="3. 401 {errorCode:&quot;A002&quot;}" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;dashed=1;strokeColor=#b85450;fontColor=#b85450;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="640" y="260" as="sourcePoint" />
+            <mxPoint x="400" y="260" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p3m4" value="4. POST /api/auth/refresh {refreshToken}" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="400" y="300" as="sourcePoint" />
+            <mxPoint x="640" y="300" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p3a1" value="5. validateRefreshToken()&lt;br&gt;→ ExpiredJwtException  (refresh 14일 경과)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="530" y="325" width="240" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p3m6" value="6. 401 {errorCode:&quot;A003&quot;, &quot;유효하지 않은 토큰&quot;}" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;dashed=1;strokeColor=#b85450;fontColor=#b85450;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="640" y="390" as="sourcePoint" />
+            <mxPoint x="400" y="390" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p3a2" value="7. NextAuth signOut():&lt;br&gt;· 세션 쿠키 삭제 (httpOnly)&lt;br&gt;· token.backendAccessToken/RefreshToken 제거" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;verticalAlign=middle;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="300" y="420" width="260" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p3m8" value="8. 302 Location: /login?callbackUrl=…" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;dashed=1;strokeColor=#b85450;fontColor=#b85450;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="400" y="510" as="sourcePoint" />
+            <mxPoint x="160" y="510" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p3note" value="현재 구현 한계 &amp; 보강 포인트&lt;br&gt;────────────────&lt;br&gt;① FE fetch 래퍼에 401/A002 자동 감지 → /api/auth/refresh 호출 로직이&lt;br&gt;    portal 측에 체계적으로 구현되어 있지 않다. 호출처마다 다르게 처리 가능성.&lt;br&gt;② refresh 동시성 dedupe 미구현 — 여러 탭에서 경합 시 로그아웃 폭주.&lt;br&gt;③ BE 에 jti 블랙리스트 없음 — 탈취된 refresh 회수 수단 사실상 없음.&lt;br&gt;④ 로그아웃 시 서버 측 토큰 폐기 호출이 없음 — 쿠키만 삭제,&lt;br&gt;    탈취된 access / refresh 는 만료까지 그대로 유효.&lt;br&gt;&lt;br&gt;권장&lt;br&gt;────────────────&lt;br&gt;· TB_SEC_TOKEN_REVOKED(jti, user_id, revoked_at) 추가&lt;br&gt;· /api/auth/logout 엔드포인트가 refresh.jti 를 블랙리스트 등록&lt;br&gt;· JwtAuthFilter 에 jti 블랙리스트 조회 단계 추가&lt;br&gt;· 로그인 시 access TTL 은 15분 → 5분 단축 검토&lt;br&gt;· refresh TTL 은 14일 → 7일 단축 검토 (업무 주기 고려)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="760" y="60" width="460" height="340" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram name="④ 멀티 WAS 아키텍처 (구성도)" id="topology">
+    <mxGraphModel dx="1422" dy="820" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="t4" value="④ 멀티 WAS 아키텍처 — 인증 전담 WAS + 업무 WAS 분리, BFF 가 경로 기반 라우팅" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1100" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ly-client" value="Client" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontStyle=1;fontColor=#555555" vertex="1" parent="1">
+          <mxGeometry x="40" y="70" width="200" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="browser" value="Browser&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;m-aps · m-mpp · m-mqc · portal&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="80" y="100" width="220" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="browsercookie" value="httpOnly 세션 쿠키&lt;br&gt;oasis-portal-auth.session-token&lt;br&gt;(NextAuth JWE)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=10;dashed=1;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="80" y="185" width="220" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ly-bff" value="BFF (Next.js 16)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontStyle=1;fontColor=#555555" vertex="1" parent="1">
+          <mxGeometry x="400" y="70" width="400" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="bff" value="portal BFF  (포트 5000)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;fontStyle=1;container=1;collapsible=0;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="400" y="100" width="680" height="340" as="geometry" />
+        </mxCell>
+        <mxCell id="bff-proxy" value="proxy.ts&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;· /portal/*  인증 보호&lt;br&gt;· /api/auth/*  공개&lt;br&gt;· /api/*  RBAC 패턴 매칭&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6;fontStyle=1;" vertex="1" parent="bff">
+          <mxGeometry x="20" y="40" width="200" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="bff-authroute" value="/api/auth/[…]/route.ts&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;· login / refresh / logout&lt;br&gt;· password 변경&lt;br&gt;· → 항상 portal WAS 로&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6;fontStyle=1;" vertex="bff-authroute-v" parent="bff">
+          <mxGeometry x="240" y="40" width="200" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="bff-oasisroute" value="/api/[module]/oasis/[serviceId]/[action]/route.ts&lt;br&gt;/api/[module]/rest/[...path]/route.ts&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;createOasisProxyHandler&lt;br&gt;· module 으로 upstream 결정&lt;br&gt;· X-Client-Key = BACKEND_CLIENT_KEY 부착&lt;br&gt;· X-Authenticated-User = token.sub&lt;br&gt;· X-Authenticated-Role = token.roles.join(&quot;,&quot;)&lt;br&gt;· X-Request-Id 부착&lt;br&gt;※ Authorization Bearer 미부착 (2026-05-21~)&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6;fontStyle=1;" vertex="1" parent="bff">
+          <mxGeometry x="460" y="40" width="200" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="bff-envmap" value="backendApiUrlByModule (env 매핑)&lt;br&gt;────────────────&lt;br&gt;mcm     : MCM_WAS_URL&lt;br&gt;aps     : APS_WAS_URL&lt;br&gt;mes     : MES_WAS_URL&lt;br&gt;mpp     : MPP_WAS_URL&lt;br&gt;mqc     : MQC_WAS_URL&lt;br&gt;fallback: BACKEND_API_URL" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6;" vertex="1" parent="bff">
+          <mxGeometry x="20" y="180" width="290" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="bff-nextauthjwt" value="NextAuth JWT (token)&lt;br&gt;────────────────&lt;br&gt;· sub / role / roles&lt;br&gt;· backendAccessToken   ← mcm WAS 발급 (호환 보관, 미사용)&lt;br&gt;· backendRefreshToken  ← mcm WAS 발급 (호환 보관, 미사용)&lt;br&gt;&lt;br&gt;★ 2026-05-21~ BFF↔BE shared secret 모델:&lt;br&gt;모든 업무 WAS 호출에 X-Client-Key + X-Authenticated-User&lt;br&gt;+ X-Authenticated-Role 만 부착. Authorization Bearer 미부착." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6;" vertex="1" parent="bff">
+          <mxGeometry x="330" y="180" width="330" height="140" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ly-gw" value="Edge / 게이트웨이 (운영만)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontStyle=1;fontColor=#555555" vertex="1" parent="1">
+          <mxGeometry x="400" y="460" width="400" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="nginx" value="nginx (운영)&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;BACKEND_API_URL 단일 진입 → path prefix 로 portal / aps / mes / mpp / mqc 분기&lt;br&gt;개발 환경에서는 BFF 가 *_WAS_URL 로 직접 라우팅 (nginx 우회)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;fontStyle=1;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="400" y="490" width="680" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ly-was" value="WAS (Spring Boot 4 / Java 21 / cactus-core 공유)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontStyle=1;fontColor=#555555" vertex="1" parent="1">
+          <mxGeometry x="400" y="580" width="700" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="portal-was" value="portal WAS&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;포트 8080&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;fontStyle=1;container=1;collapsible=0;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="400" y="610" width="200" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="portal-roles" value="역할&lt;br&gt;────────&lt;br&gt;· 인증 (login / refresh / logout)&lt;br&gt;· JWT 발급·검증·갱신&lt;br&gt;· 사용자·역할 관리 (TB_SEC_*)&lt;br&gt;· 메뉴·즐겨찾기 API&lt;br&gt;· RBAC 패턴 공급 (secRolePerm)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;fontSize=10;align=left;verticalAlign=top;spacingLeft=6;spacingTop=6;" vertex="1" parent="portal-was">
+          <mxGeometry x="10" y="40" width="180" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="aps-was" value="APS WAS&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;포트 8081&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;fontStyle=1;container=1;collapsible=0;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="620" y="610" width="160" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="aps-roles" value="공정계획&lt;br&gt;────────&lt;br&gt;· 스케줄링&lt;br&gt;· 작업 배정&lt;br&gt;· BOM / Routing&lt;br&gt;· 마스터 엑셀&lt;br&gt;&lt;br&gt;JwtAuthFilter&lt;br&gt;(동일 secret)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;fontSize=10;align=left;verticalAlign=top;spacingLeft=6;spacingTop=6;" vertex="1" parent="aps-was">
+          <mxGeometry x="10" y="40" width="140" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="mpp-was" value="MPP WAS&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;포트 8083&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;fontStyle=1;container=1;collapsible=0;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="800" y="610" width="160" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="mpp-roles" value="조업관리&lt;br&gt;────────&lt;br&gt;· 제조오더&lt;br&gt;· 실적등록&lt;br&gt;· 투입/산출&lt;br&gt;&lt;br&gt;JwtAuthFilter&lt;br&gt;(동일 secret)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;fontSize=10;align=left;verticalAlign=top;spacingLeft=6;spacingTop=6;" vertex="1" parent="mpp-was">
+          <mxGeometry x="10" y="40" width="140" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="mqc-was" value="MQC WAS&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;포트 8084&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;fontStyle=1;container=1;collapsible=0;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="980" y="610" width="160" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="mqc-roles" value="품질관리&lt;br&gt;────────&lt;br&gt;· 부적합&lt;br&gt;· 검사&lt;br&gt;· NCR&lt;br&gt;&lt;br&gt;JwtAuthFilter&lt;br&gt;(동일 secret)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;fontSize=10;align=left;verticalAlign=top;spacingLeft=6;spacingTop=6;" vertex="1" parent="mqc-was">
+          <mxGeometry x="10" y="40" width="140" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ly-db" value="DB" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontStyle=1;fontColor=#555555" vertex="1" parent="1">
+          <mxGeometry x="400" y="830" width="200" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="db-sec" value="TB_SEC_USER&lt;br&gt;TB_SEC_USER_ROLE&lt;br&gt;TB_SEC_ROLE&lt;br&gt;TB_SEC_ROLE_API" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="420" y="860" width="160" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="db-biz" value="TB_APS_* / TB_MPP_*&lt;br&gt;TB_MQC_* / 공통&lt;br&gt;(업무 테이블)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="700" y="860" width="320" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-br-bff" value="HTTPS / 쿠키" style="endArrow=classic;html=1;fontSize=10;" edge="1" parent="1" source="browser" target="bff">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-auth-gw" value="/api/auth/*&lt;br&gt;→ portal WAS 고정" style="endArrow=classic;html=1;fontSize=10;dashed=0;strokeColor=#82b366;" edge="1" parent="1" source="bff-authroute-v" target="portal-was">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-oasis-nginx" value="/api/{group}/… (운영)" style="endArrow=classic;html=1;fontSize=10;" edge="1" parent="1" source="bff-oasisroute" target="nginx">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-nginx-portal" value="group=portal" style="endArrow=classic;html=1;fontSize=10;" edge="1" parent="1" source="nginx" target="portal-was">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-nginx-aps" value="group=aps" style="endArrow=classic;html=1;fontSize=10;" edge="1" parent="1" source="nginx" target="aps-was">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-nginx-mpp" value="group=mpp" style="endArrow=classic;html=1;fontSize=10;" edge="1" parent="1" source="nginx" target="mpp-was">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-nginx-mqc" value="group=mqc" style="endArrow=classic;html=1;fontSize=10;" edge="1" parent="1" source="nginx" target="mqc-was">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-portal-db" value="" style="endArrow=classic;html=1;fontSize=10;" edge="1" parent="1" source="portal-was" target="db-sec">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-aps-db" value="" style="endArrow=classic;html=1;fontSize=10;" edge="1" parent="1" source="aps-was" target="db-biz">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-mpp-db" value="" style="endArrow=classic;html=1;fontSize=10;" edge="1" parent="1" source="mpp-was" target="db-biz">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-mqc-db" value="" style="endArrow=classic;html=1;fontSize=10;" edge="1" parent="1" source="mqc-was" target="db-biz">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="note-shared" value="cactus-core 공유 표준 필터 / 컴포넌트&lt;br&gt;(패키지: com.dongkuk.dmes.cactus.*)&lt;br&gt;────────────────&lt;br&gt;· &lt;b&gt;JwtTokenProvider&lt;/b&gt; (HS256, cactus.jwt.secret) — login/refresh 발급용&lt;br&gt;· &lt;b&gt;JwtAuthenticationFilter&lt;/b&gt;  → 모든 모듈 BE 진입 필터로 통일&lt;br&gt;   (skip: /auth/*, /api/auth/**, /actuator/*)&lt;br&gt;   ★ 사전 인증 보존 분기 — ClientKeyFilter 가 set 한 SecurityContext 가 있으면 JWT 검증 스킵&lt;br&gt;· &lt;b&gt;ClientKeyFilter&lt;/b&gt;  (X-Client-Key 헤더, env: BACKEND_CLIENT_KEY,&lt;br&gt;   skip: /auth/*, /api/auth/**, /actuator/*)&lt;br&gt;   ★ 2026-05-21~ : X-Client-Key 검증 성공 시 X-Authenticated-User / X-Authenticated-Role&lt;br&gt;     헤더로 SecurityContext 사전 인증을 set (UsernamePasswordAuthenticationToken)&lt;br&gt;· &lt;b&gt;RequestIdFilter&lt;/b&gt;  (web.filter, MDC + 응답 X-Request-Id 헤더)&lt;br&gt;· &lt;b&gt;CactusWebSecurityAutoConfiguration&lt;/b&gt; (default SecurityFilterChain)&lt;br&gt;· 적용 순서: TxIdFilter → RequestIdFilter → ClientKeyFilter → JwtAuthenticationFilter → Spring Security 표준&lt;br&gt;&lt;br&gt;mcm 전용 (com.dongkuk.dmes.mcm.*):&lt;br&gt;· &lt;b&gt;McmAuthController&lt;/b&gt; @RequestMapping(&quot;/api/auth&quot;) — login/refresh 단일 진입점&lt;br&gt;· 자체 SecurityConfig (NextAuth /api/auth/** permitAll, cactus.auth.enabled=true)&lt;br&gt;· cactus AuthService + SecUserRepository 주입&lt;br&gt;&lt;br&gt;mpn / mpp / mqc 는 cactus default SecurityFilterChain 사용.&lt;br&gt;★ 2026-05-21~ BFF↔BE shared secret 모델 — BFF 가 사용자 JWT 를 forward 하지 않으므로&lt;br&gt;   업무 WAS 의 JwtAuthenticationFilter 는 사실상 미사용 (사전 인증 보존 분기로 통과).&lt;br&gt;   여전히 BE 가 JWT 를 발급하긴 하나 BFF↔BE 인증에 쓰이지 않음." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="60" width="420" height="500" as="geometry" />
+        </mxCell>
+
+        <mxCell id="note-risk" value="구조적 리스크 포인트 (2026-05-21~ shared secret 모델 기준)&lt;br&gt;────────────────&lt;br&gt;① &lt;b&gt;BACKEND_CLIENT_KEY 유출 = 전 모듈 BFF 위조 가능&lt;/b&gt;.&lt;br&gt;   X-Client-Key 가 단일 신뢰 게이트라 키 회전 정책이 필수.&lt;br&gt;   네트워크 경계(VPN/방화벽) 로 BFF↔BE 접근 IP 제한 권장.&lt;br&gt;② 업무 WAS 별 RBAC 재검증 수준이 불균일할 수 있음.&lt;br&gt;   (proxy.ts 가 차단해도 BE 단 재체크 필요)&lt;br&gt;③ cactus.jwt.secret 유출 = login 토큰 위조 가능 (login API 한정).&lt;br&gt;   BFF↔BE 인증에 JWT 를 안 쓰므로 영향 범위는 축소되었으나&lt;br&gt;   여전히 회전 정책 필요.&lt;br&gt;④ 로그인 장애 = 전 모듈 마비 (mcm WAS SPOF).&lt;br&gt;⑤ BACKEND_CLIENT_KEY 가 빈 값이면 BE 가 검증 스킵 (개발 편의 ↔ 운영 사고)." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="580" width="420" height="220" as="geometry" />
+        </mxCell>
+
+        <mxCell id="note-route" value="경로 라우팅 규약 (2026-05-21 기준)&lt;br&gt;────────────────&lt;br&gt;UI→BFF :&lt;br&gt; · OASIS  : POST /api/{module}/oasis/{serviceId}/{action}&lt;br&gt; · REST   : ANY  /api/{module}/rest/{API_PATH}&lt;br&gt;BFF→BE :&lt;br&gt; · OASIS  : ${module_url}/oasis/{serviceId}/{action} (그대로)&lt;br&gt; · REST   : rest segment 제거 → ${module_url}/{API_PATH}&lt;br&gt; · 인증 헤더 3 종 : X-Client-Key + X-Authenticated-User + X-Authenticated-Role&lt;br&gt;   (※ Authorization Bearer 폐기)&lt;br&gt;&lt;br&gt;예&lt;br&gt; /api/auth/login                       → mcm WAS (McmAuthController, 고정)&lt;br&gt; /api/mcm/oasis/secUser/search         → mcm WAS /oasis/secUser/search&lt;br&gt; /api/mpn/rest/api/demands             → mpn WAS /api/demands&lt;br&gt; /api/mpp/oasis/workOrder/save         → mpp WAS&lt;br&gt; /api/mqc/oasis/ncr/search             → mqc WAS&lt;br&gt;&lt;br&gt;운영은 nginx 가 path prefix 로 분기,&lt;br&gt;개발은 BFF 가 *_WAS_URL 로 직접 라우팅." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="820" width="420" height="320" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram name="⑤ 로그인 + 업무 API 라우팅" id="multi-flow">
+    <mxGraphModel dx="1422" dy="820" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1080" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="t5" value="⑤ 로그인 → portal WAS 인증 → 이후 업무 요청은 BFF 가 group 으로 분기" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1100" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="a5-br" value="Browser" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="60" y="60" width="140" height="990" as="geometry" />
+        </mxCell>
+        <mxCell id="a5-bff" value="portal BFF&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;(proxy.ts + oasis-proxy)&lt;/font&gt;" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="260" y="60" width="180" height="990" as="geometry" />
+        </mxCell>
+        <mxCell id="a5-portal" value="portal WAS&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;(com.dongkuk.dmes.portal.* PortalAuthController&lt;br&gt;토큰 발급 단일 진입점 · :8080)&lt;/font&gt;" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#ffe6cc;strokeColor=#b85450;strokeWidth=3;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="500" y="60" width="160" height="990" as="geometry" />
+        </mxCell>
+        <mxCell id="a5-aps" value="APS WAS&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;(공정계획 · :8081)&lt;/font&gt;" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="720" y="60" width="160" height="990" as="geometry" />
+        </mxCell>
+        <mxCell id="a5-mpp" value="MPP WAS&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;(조업관리 · :8083)&lt;/font&gt;" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="940" y="60" width="160" height="990" as="geometry" />
+        </mxCell>
+        <mxCell id="a5-mqc" value="MQC WAS&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;(품질관리 · :8084)&lt;/font&gt;" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1160" y="60" width="160" height="990" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p5s1" value="— Step A :  로그인은 언제나 portal WAS 로 고정 —" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=2;fontColor=#666666" vertex="1" parent="1">
+          <mxGeometry x="60" y="180" width="1260" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p5m1" value="1. POST /api/auth/login (userId, password)" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="130" y="220" as="sourcePoint" />
+            <mxPoint x="350" y="220" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p5a1" value="2. /api/auth 경로 → authenticateViaBackend()&lt;br&gt;upstream = MCM_WAS_URL (mcm WAS 고정)&lt;br&gt;portal NextAuth → BE /api/auth/login&lt;br&gt;(ClientKeyFilter skip path: /api/auth/**)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="240" y="245" width="260" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="p5m3" value="3. POST {MCM_WAS}/api/auth/login&lt;br&gt;(NextAuth → mcm BE McmAuthController, ClientKeyFilter skip /api/auth/**)" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="350" y="310" as="sourcePoint" />
+            <mxPoint x="580" y="310" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p5a2" value="4. cactus AuthService.login()&lt;br&gt;SecUserRepository + BCrypt + loadUserRoles&lt;br&gt;+ JwtTokenProvider.generate(SecUser)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="480" y="335" width="200" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="p5m5" value="5. 200 {accessToken, refreshToken, userInfo}" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;dashed=1;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="580" y="400" as="sourcePoint" />
+            <mxPoint x="350" y="400" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p5a3" value="6. NextAuth jwt callback&lt;br&gt;token.backendAccessToken / RefreshToken / roles 보관" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="240" y="425" width="260" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="p5m7" value="7. 200  +  Set-Cookie: oasis-portal-auth.session-token" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;dashed=1;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="350" y="490" as="sourcePoint" />
+            <mxPoint x="130" y="490" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p5s2" value="— Step B :  업무 API — /api/{module}/oasis/… 또는 /api/{module}/nooasis/… 는 module 키로 upstream 분기 —" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=2;fontColor=#666666" vertex="1" parent="1">
+          <mxGeometry x="60" y="525" width="1260" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p5m8" value="8. POST /api/aps/oasis/scheduling/search" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="130" y="565" as="sourcePoint" />
+            <mxPoint x="350" y="565" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p5a4" value="9. createOasisProxyHandler&lt;br&gt;module=&quot;aps&quot; → upstream = APS_WAS_URL&lt;br&gt;인증 헤더: X-Client-Key + X-Authenticated-User&lt;br&gt;+ X-Authenticated-Role (2026-05-21~)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;verticalAlign=middle;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="240" y="585" width="260" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="p5m10" value="10. POST {APS_WAS}/oasis/scheduling/search&lt;br&gt;X-Client-Key + X-Authenticated-User + X-Authenticated-Role + X-Request-Id" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="350" y="685" as="sourcePoint" />
+            <mxPoint x="800" y="685" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p5a5" value="11. cactus 필터 체인 (2026-05-21~ shared secret 모델):&lt;br&gt;TxIdFilter → RequestIdFilter → ClientKeyFilter → JwtAuthenticationFilter&lt;br&gt;★ ClientKeyFilter 가 X-Client-Key 검증 후 X-Authenticated-*&lt;br&gt;헤더로 SecurityContext 사전 인증 set → JwtAuthFilter 는 사전 인증&lt;br&gt;보존 분기로 JWT 검증 스킵 → cactus OasisController 실행" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;verticalAlign=middle;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="700" y="690" width="320" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="p5m12" value="12. 200 {schedule grid}" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;dashed=1;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="800" y="760" as="sourcePoint" />
+            <mxPoint x="350" y="760" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p5m13" value="13. 200" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;dashed=1;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="350" y="780" as="sourcePoint" />
+            <mxPoint x="130" y="780" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p5m14" value="14. POST /api/mpp/oasis/workOrder/save" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="130" y="820" as="sourcePoint" />
+            <mxPoint x="350" y="820" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p5a6" value="15. module=&quot;mpp&quot; → upstream = MPP_WAS_URL&lt;br&gt;인증 헤더 3 종 (shared secret 모델, 사용자 JWT 미전달)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="240" y="840" width="260" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="p5m16" value="16. POST {MPP_WAS}/oasis/workOrder/save  (X-Client-Key + X-Authenticated-User + X-Authenticated-Role + X-Request-Id)" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="350" y="895" as="sourcePoint" />
+            <mxPoint x="1020" y="895" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p5m17" value="17. 200" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;dashed=1;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1020" y="915" as="sourcePoint" />
+            <mxPoint x="130" y="915" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p5m18" value="18. POST /api/mqc/oasis/ncr/search" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="130" y="955" as="sourcePoint" />
+            <mxPoint x="350" y="955" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p5a7" value="19. module=&quot;mqc&quot; → upstream = MQC_WAS_URL" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="240" y="975" width="260" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="p5m20" value="20. POST {MQC_WAS}/oasis/ncr/search  (X-Client-Key + X-Authenticated-User + X-Authenticated-Role + X-Request-Id)" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="350" y="1020" as="sourcePoint" />
+            <mxPoint x="1240" y="1020" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p5m21" value="21. 200" style="html=1;endArrow=classic;startArrow=none;edgeStyle=none;rounded=0;dashed=1;fontSize=11;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1240" y="1040" as="sourcePoint" />
+            <mxPoint x="130" y="1040" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="p5note" value="이 그림의 포인트 (2026-05-21 기준)&lt;br&gt;────────────────&lt;br&gt;· 브라우저는 항상 BFF 만 안다 — 모듈별 WAS URL 은 외부 비공개.&lt;br&gt;· 로그인(/api/auth/*)은 URL 분기와 무관하게 mcm WAS &lt;b&gt;McmAuthController&lt;/b&gt; 로만 간다.&lt;br&gt;· 업무 호출은 module 키(aps/mpn/mpp/mqc/mcm/…)만 보고 upstream 선택.&lt;br&gt;· UI→BFF: /api/{module}/oasis/{serviceId}/{action} 또는 /api/{module}/rest/{API_PATH}.&lt;br&gt;· BFF→BE: OASIS 그대로, REST 는 rest segment 제거.&lt;br&gt;&lt;br&gt;★ 2026-05-21~ BFF↔BE shared secret 신뢰 모델:&lt;br&gt;· 업무 호출 단일 동선: BFF 가 X-Client-Key(env BACKEND_CLIENT_KEY)&lt;br&gt;  + X-Authenticated-User + X-Authenticated-Role + X-Request-Id 부착.&lt;br&gt;· Authorization: Bearer 폐기 — 사용자 JWT 를 BE 로 forward 하지 않음.&lt;br&gt;· cactus 필터 순서: TxIdFilter → RequestIdFilter → ClientKeyFilter → JwtAuthenticationFilter → Spring Security 표준.&lt;br&gt;  ClientKeyFilter 가 SecurityContext 사전 인증을 set → JwtAuthFilter 가 검증 스킵.&lt;br&gt;· /api/auth/** 는 ClientKeyFilter skip path (mcm SecurityConfig 가 permitAll).&lt;br&gt;· BFF self-fetch (RBAC cache warmup): X-Internal-Bff-Call=1 + X-Authenticated-User/Role fallback.&lt;br&gt;&lt;br&gt;★ Refresh 흐름은 BFF↔BE 경로에서 더 이상 발생하지 않는다.&lt;br&gt;  (BE access token 만료가 BFF 호출의 401 을 유발하지 않으므로)&lt;br&gt;  업무 WAS 는 refresh 엔드포인트를 가질 필요가 없다." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="60" y="60" width="600" height="340" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram name="⑥ 이중 토큰 구조 (외피 JWE + 내피 JWT)" id="dual-token">
+    <mxGraphModel dx="1422" dy="820" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1700" pageHeight="1180" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="t6" value="⑥ 이중 토큰 구조 — 외피(NextAuth JWE) + 내피(cactus JWT, 호환 보관)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1400" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="t6sub" value="두 토큰이 한 사용자 세션에 공존한다. 브라우저는 외피만, WAS 는 내피를 보유하나 인증에 쓰지 않는다 (2026-05-21~ shared secret 모델). BFF 는 외피를 복호화해 사용자 컨텍스트(sub/roles)만 꺼내 X-Authenticated-* 헤더로 BE 에 전달한다." style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontColor=#555555" vertex="1" parent="1">
+          <mxGeometry x="40" y="50" width="1600" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="browser6" value="Browser" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1;verticalAlign=top;spacingTop=10;container=1;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="110" width="280" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="browser6inner" value="외피 1개만 보유&lt;br&gt;──────────────&lt;br&gt;oasis-portal-auth.session-token&lt;br&gt;&lt;br&gt;httpOnly · sameSite=lax · (운영) Secure&lt;br&gt;JS 로 접근 불가&lt;br&gt;&lt;br&gt;값은 암호화되어 판독 불가&lt;br&gt;(내부의 cactus JWT 조차 보이지 않음)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=11;align=left;verticalAlign=top;spacingLeft=10;spacingTop=10;" vertex="1" parent="browser6">
+          <mxGeometry x="10" y="40" width="260" height="230" as="geometry" />
+        </mxCell>
+
+        <mxCell id="bff6" value="Next.js BFF" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1;verticalAlign=top;spacingTop=10;container=1;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="480" y="110" width="480" height="420" as="geometry" />
+        </mxCell>
+        <mxCell id="bff6step1" value="① getToken(req, {secret: AUTH_SECRET})&lt;br&gt;   → 외피 JWE 복호화 (AUTH_SECRET 필요)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fontStyle=1;" vertex="1" parent="bff6">
+          <mxGeometry x="15" y="45" width="450" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="bff6decoded" value="복호화된 NextAuth token 객체 (평문, 서버 메모리에만)&lt;br&gt;────────────────&lt;br&gt;{&lt;br&gt;  sub: &quot;admin&quot;,&lt;br&gt;  role: &quot;sysadmin&quot;,&lt;br&gt;  roles: [&quot;SYSADMIN&quot;],&lt;br&gt;  backendAccessToken  : &quot;eyJhbGciOiJIUzI1NiJ9.ey…&quot;,  ← 내피 (cactus JWS)&lt;br&gt;  backendRefreshToken : &quot;eyJhbGciOiJIUzI1NiJ9.ey…&quot;,&lt;br&gt;  iat, exp …&lt;br&gt;}" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fontFamily=Menlo,monospace;" vertex="1" parent="bff6">
+          <mxGeometry x="15" y="105" width="450" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="bff6step2" value="② RBAC 판단은 token.role/roles 로 (외피의 평문 필드)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fontStyle=1;" vertex="1" parent="bff6">
+          <mxGeometry x="15" y="275" width="450" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="bff6step3" value="③ 업무 API 호출 시 token.sub / token.roles 를 꺼내&lt;br&gt;   X-Authenticated-User / X-Authenticated-Role 헤더로 WAS 로 중계&lt;br&gt;   + X-Client-Key (shared secret) 를 함께 부착&lt;br&gt;   ※ 2026-05-21~ : token.backendAccessToken 은 BE 에 forward 하지 않음&lt;br&gt;   (호환 보관용으로만 NextAuth JWT 에 남아 있음)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fontStyle=1;" vertex="1" parent="bff6">
+          <mxGeometry x="15" y="320" width="450" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="was6" value="WAS 클러스터&lt;br&gt;&lt;font style=&quot;font-size:11px;font-weight:normal&quot;&gt;mcm · MPN · MPP · MQC&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=14;fontStyle=1;verticalAlign=top;spacingTop=10;container=1;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="110" width="560" height="470" as="geometry" />
+        </mxCell>
+        <mxCell id="was6inner" value="내피는 login API 발급용 (BFF↔BE 인증에는 미사용)&lt;br&gt;────────────────&lt;br&gt;cactus JWT (JWS / HS256) — mcm WAS 가 login/refresh 응답으로 발급&lt;br&gt;&lt;br&gt;★ 2026-05-21~ shared secret 신뢰 모델:&lt;br&gt;BFF↔BE 인증은 X-Client-Key (shared secret) + X-Authenticated-User/Role&lt;br&gt;헤더로 처리. JwtAuthenticationFilter 는 ClientKeyFilter 가 set 한&lt;br&gt;사전 인증을 보존만 하고 JWT 자체 검증은 스킵.&lt;br&gt;cactus.jwt.secret 은 login API 의 토큰 발급/refresh 용도로만 사용." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;fontSize=11;align=left;verticalAlign=top;spacingLeft=10;spacingTop=10;" vertex="1" parent="was6">
+          <mxGeometry x="15" y="45" width="530" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="was6decoded" value="cactus JWT 페이로드 (login API 발급 응답 형태, base64url 평문)&lt;br&gt;────────────────&lt;br&gt;header : {&quot;alg&quot;:&quot;HS256&quot;,&quot;typ&quot;:&quot;JWT&quot;}&lt;br&gt;payload: {&lt;br&gt;  iss: &quot;mcm&quot;,&lt;br&gt;  sub: &quot;admin&quot;,             ← userId&lt;br&gt;  userNm: &quot;관리자&quot;,         ⚠ 평문 노출 (login 응답 한정)&lt;br&gt;  userEmpNo: &quot;E12345&quot;,      ⚠ 평문 노출 (login 응답 한정)&lt;br&gt;  roles: [&quot;ROLE_SYSADMIN&quot;],&lt;br&gt;  jti, iat, exp (8시간)&lt;br&gt;}&lt;br&gt;signature : HMAC-SHA256(header.payload, cactus.jwt.secret)&lt;br&gt;&lt;br&gt;※ 이 토큰은 NextAuth JWT 에 호환 보관되지만&lt;br&gt;   BFF→BE 호출에 Authorization Bearer 로 forward 되지 않음." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;align=left;verticalAlign=top;spacingLeft=8;spacingTop=8;fontFamily=Menlo,monospace;" vertex="1" parent="was6">
+          <mxGeometry x="15" y="225" width="530" height="220" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e6-br-bff" value="외피 쿠키 (JWE)&lt;br&gt;AUTH_SECRET 로 서명" style="endArrow=classic;html=1;fontSize=11;startArrow=classic;endFill=1;startFill=1;strokeColor=#6c8ebf;" edge="1" parent="1" source="browser6" target="bff6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6-bff-was" value="2026-05-21~ shared secret 모델&lt;br&gt;X-Client-Key (env BACKEND_CLIENT_KEY)&lt;br&gt;+ X-Authenticated-User + X-Authenticated-Role&lt;br&gt;+ X-Request-Id&lt;br&gt;(Authorization Bearer 미부착)" style="endArrow=classic;html=1;fontSize=11;startArrow=classic;endFill=1;startFill=1;strokeColor=#d79b00;" edge="1" parent="1" source="bff6" target="was6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cmp-title" value="외피 vs 내피 비교" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="60" y="560" width="400" height="25" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cmp" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#999999;fontSize=11;verticalAlign=top;container=1;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="590" width="1600" height="380" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cmp-h1" value="항목" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1e5eb;strokeColor=#999999;fontSize=11;fontStyle=1;" vertex="1" parent="cmp">
+          <mxGeometry x="0" y="0" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-h2" value="외피 — NextAuth 세션 (JWE)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#999999;fontSize=11;fontStyle=1;" vertex="1" parent="cmp">
+          <mxGeometry x="200" y="0" width="620" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-h3" value="내피 — cactus access JWT (JWS)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#999999;fontSize=11;fontStyle=1;" vertex="1" parent="cmp">
+          <mxGeometry x="820" y="0" width="780" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cmp-r1a" value="역할" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f8f8;strokeColor=#cccccc;fontSize=10;fontStyle=1;" vertex="1" parent="cmp">
+          <mxGeometry x="0" y="30" width="200" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-r1b" value="브라우저 ↔ BFF 세션 유지" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cccccc;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="cmp">
+          <mxGeometry x="200" y="30" width="620" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-r1c" value="login API 발급/갱신용 (2026-05-21~ BFF↔WAS 호출 인증에는 미사용 — shared secret 모델)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cccccc;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="cmp">
+          <mxGeometry x="820" y="30" width="780" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cmp-r2a" value="발급 주체" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f8f8;strokeColor=#cccccc;fontSize=10;fontStyle=1;" vertex="1" parent="cmp">
+          <mxGeometry x="0" y="70" width="200" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-r2b" value="BFF 자신 (NextAuth jwt callback)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cccccc;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="cmp">
+          <mxGeometry x="200" y="70" width="620" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-r2c" value="mcm WAS (AuthService.login / refresh)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cccccc;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="cmp">
+          <mxGeometry x="820" y="70" width="780" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cmp-r3a" value="형식·암호" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f8f8;strokeColor=#cccccc;fontSize=10;fontStyle=1;" vertex="1" parent="cmp">
+          <mxGeometry x="0" y="110" width="200" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-r3b" value="JWE (A256GCM 대칭 암호화) — 페이로드 비공개" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cccccc;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="cmp">
+          <mxGeometry x="200" y="110" width="620" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-r3c" value="JWS (HS256 HMAC 서명) — 페이로드 base64url 평문" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cccccc;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="cmp">
+          <mxGeometry x="820" y="110" width="780" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cmp-r4a" value="서명/암호 키" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f8f8;strokeColor=#cccccc;fontSize=10;fontStyle=1;" vertex="1" parent="cmp">
+          <mxGeometry x="0" y="150" width="200" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-r4b" value="AUTH_SECRET  (BFF 만 보유)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cccccc;fontSize=10;align=left;spacingLeft=8;fontFamily=Menlo,monospace;" vertex="1" parent="cmp">
+          <mxGeometry x="200" y="150" width="620" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-r4c" value="cactus.jwt.secret  (모든 WAS 공유, BFF 는 모름)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cccccc;fontSize=10;align=left;spacingLeft=8;fontFamily=Menlo,monospace;" vertex="1" parent="cmp">
+          <mxGeometry x="820" y="150" width="780" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cmp-r5a" value="검증 주체" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f8f8;strokeColor=#cccccc;fontSize=10;fontStyle=1;" vertex="1" parent="cmp">
+          <mxGeometry x="0" y="190" width="200" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-r5b" value="BFF (getToken / NextAuth jwt callback)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cccccc;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="cmp">
+          <mxGeometry x="200" y="190" width="620" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-r5c" value="login/refresh API 응답 검증 시에만 mcm WAS JwtTokenProvider 가 사용 (2026-05-21~ BFF↔BE 일반 호출에서는 검증 안 함)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cccccc;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="cmp">
+          <mxGeometry x="820" y="190" width="780" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cmp-r6a" value="저장 위치" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f8f8;strokeColor=#cccccc;fontSize=10;fontStyle=1;" vertex="1" parent="cmp">
+          <mxGeometry x="0" y="230" width="200" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-r6b" value="브라우저 쿠키 + BFF 요청 메모리" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cccccc;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="cmp">
+          <mxGeometry x="200" y="230" width="620" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-r6c" value="NextAuth JWT 안에 호환 보관 (2026-05-21~ BE 로 forward 되지 않음)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cccccc;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="cmp">
+          <mxGeometry x="820" y="230" width="780" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cmp-r7a" value="수명" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f8f8;strokeColor=#cccccc;fontSize=10;fontStyle=1;" vertex="1" parent="cmp">
+          <mxGeometry x="0" y="270" width="200" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-r7b" value="세션 쿠키 수명 (NextAuth 기본 30일, 쿠키 maxAge 설정 기준)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cccccc;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="cmp">
+          <mxGeometry x="200" y="270" width="620" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-r7c" value="access 8시간 / refresh 7일 (mcm cactus.jwt.access-token-expiry=28800 / refresh-token-expiry=604800)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cccccc;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="cmp">
+          <mxGeometry x="820" y="270" width="780" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cmp-r8a" value="노출 위험" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f8f8;strokeColor=#cccccc;fontSize=10;fontStyle=1;" vertex="1" parent="cmp">
+          <mxGeometry x="0" y="310" width="200" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-r8b" value="httpOnly 로 JS 비노출. 암호화되어 MITM 에서 값 읽어도 내용 불가." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cccccc;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="cmp">
+          <mxGeometry x="200" y="310" width="620" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-r8c" value="BFF↔BE forward 안 함 → 네트워크/프록시 로그 노출 위험 제거. login 응답 한정 노출만 (2026-05-21~)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cccccc;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="cmp">
+          <mxGeometry x="820" y="310" width="780" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cmp-r9a" value="회수·회전" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f8f8;strokeColor=#cccccc;fontSize=10;fontStyle=1;" vertex="1" parent="cmp">
+          <mxGeometry x="0" y="350" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-r9b" value="AUTH_SECRET 교체 = 전 사용자 즉시 로그아웃" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cccccc;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="cmp">
+          <mxGeometry x="200" y="350" width="620" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp-r9c" value="cactus.jwt.secret 교체 = mcm WAS login 토큰 재발급 영향. BACKEND_CLIENT_KEY 회전 = 전 BFF↔BE 호출 동시 영향." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cccccc;fontSize=10;align=left;spacingLeft=8;" vertex="1" parent="cmp">
+          <mxGeometry x="820" y="350" width="780" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="risk-box" value="구조상 꼭 기억할 5가지 (2026-05-21~ shared secret 모델 기준)&lt;br&gt;────────────────&lt;br&gt;① 세 시크릿(AUTH_SECRET · cactus.jwt.secret · BACKEND_CLIENT_KEY) 은 절대 같은 값이면 안 된다.&lt;br&gt;② AUTH_SECRET 유출 : NextAuth 세션 탈취 가능 — 사용자 컨텍스트(sub/roles) 가 외부 노출.&lt;br&gt;③ BACKEND_CLIENT_KEY 유출 : BFF 위조 가능 — 임의 X-Authenticated-User/Role 헤더로 BE 접근 가능.&lt;br&gt;   ★ shared secret 모델의 단일 신뢰 게이트라 가장 중요. 회전 정책 + 네트워크 경계 제한 필수.&lt;br&gt;④ cactus.jwt.secret 유출 : mcm login API 의 토큰 위조 가능. BFF↔BE 일반 호출엔 영향 적음 (JWT 검증 안 함).&lt;br&gt;⑤ 브라우저 JS 는 어떤 경우에도 cactus JWT 를 볼 수 없다 — NextAuth 세션 쿠키만 보유, 그것마저 httpOnly + JWE." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;verticalAlign=top;spacingLeft=10;spacingTop=10;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="60" y="990" width="1600" height="150" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

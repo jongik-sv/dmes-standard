@@ -1,0 +1,429 @@
+{
+  "definitions": {
+    "id": "Definitions_CustomerComplaintQuality",
+    "targetNamespace": "urn:sap-quality-hold-reference",
+    "exporter": "bpmn-tool",
+    "exporterVersion": "1.3.0"
+  },
+  "process": {
+    "id": "CustomerComplaintQuality",
+    "name": "고객 불만 — 봉쇄·RMA·원인분석·CAPA",
+    "isExecutable": false,
+    "documentation": "S/4HANA QM 고객불만 품질통지 Q1을 중심으로 고객응답과 내부 봉쇄를 병렬 실행하고, 필요 시 반품검사 lot를 생성한다. 처분, 근본원인, CAPA, 효과검증을 마친 뒤 영향범위별 보류를 해제한다."
+  },
+  "collaboration": {
+    "id": "Collaboration_CustomerComplaintQuality",
+    "participants": [
+      {
+        "id": "Participant_CustomerComplaintQuality",
+        "name": "고객 불만 (SAP S/4HANA QM · SAP DM · SD/ARM · EWM)",
+        "processRef": "CustomerComplaintQuality"
+      }
+    ],
+    "messageFlows": []
+  },
+  "nodes": [
+    {
+      "id": "CC_Start",
+      "type": "bpmn:StartEvent",
+      "name": "고객 불만 수신",
+      "eventDefinitions": [
+        {
+          "type": "bpmn:MessageEventDefinition"
+        }
+      ],
+      "x": 70,
+      "y": 322
+    },
+    {
+      "id": "CC_CreateQ1",
+      "type": "bpmn:UserTask",
+      "name": "[S/4 QM]\n고객불만 Quality Notification Q1 생성\n고객·자재·Batch·Delivery·Serial 연결",
+      "x": 160,
+      "y": 300
+    },
+    {
+      "id": "CC_ParallelSplit",
+      "type": "bpmn:ParallelGateway",
+      "name": "즉시대응 병렬",
+      "x": 330,
+      "y": 315
+    },
+    {
+      "id": "CC_Containment",
+      "type": "bpmn:UserTask",
+      "name": "영향 Lot/Batch/Serial 추적·봉쇄\nS/4 재고/Batch 제한 + DM 관련 SFC Hold",
+      "x": 440,
+      "y": 150
+    },
+    {
+      "id": "CC_CustomerResponse",
+      "type": "bpmn:UserTask",
+      "name": "고객 접수 회신·위험도 평가\nRMA/대체/현장조치 판단",
+      "x": 440,
+      "y": 470
+    },
+    {
+      "id": "CC_ParallelJoin",
+      "type": "bpmn:ParallelGateway",
+      "name": "초기 봉쇄 완료",
+      "x": 620,
+      "y": 315
+    },
+    {
+      "id": "CC_ReturnGateway",
+      "type": "bpmn:ExclusiveGateway",
+      "name": "실물 반품 필요?",
+      "x": 750,
+      "y": 315
+    },
+    {
+      "id": "CC_CreateReturn",
+      "type": "bpmn:UserTask",
+      "name": "ARM/RMA 반품오더·Return Delivery 생성",
+      "x": 860,
+      "y": 500
+    },
+    {
+      "id": "CC_ReturnReceipt",
+      "type": "bpmn:ServiceTask",
+      "name": "반품 입고\nBlocked Returns/Inspection Stock\nlot 06 또는 05 생성",
+      "x": 1020,
+      "y": 500
+    },
+    {
+      "id": "CC_ReturnInspection",
+      "type": "bpmn:UserTask",
+      "name": "기술검사·결함·검사결과 기록",
+      "x": 1180,
+      "y": 500
+    },
+    {
+      "id": "CC_EvidenceReview",
+      "type": "bpmn:UserTask",
+      "name": "사진·샘플·생산/검사 이력 검토",
+      "x": 960,
+      "y": 240
+    },
+    {
+      "id": "CC_EvidenceMerge",
+      "type": "bpmn:ExclusiveGateway",
+      "name": "조사자료 통합",
+      "x": 1350,
+      "y": 315
+    },
+    {
+      "id": "CC_RootCause",
+      "type": "bpmn:UserTask",
+      "name": "결함 Item·Cause 기록\n5Why/4M 근본원인 분석",
+      "x": 1450,
+      "y": 300
+    },
+    {
+      "id": "CC_CAPAPlan",
+      "type": "bpmn:UserTask",
+      "name": "Correction·CAPA Task 수립\n책임자·기한 지정",
+      "x": 1610,
+      "y": 300
+    },
+    {
+      "id": "CC_DispositionGateway",
+      "type": "bpmn:ExclusiveGateway",
+      "name": "고객품 처분?",
+      "x": 1780,
+      "y": 315
+    },
+    {
+      "id": "CC_Repair",
+      "type": "bpmn:UserTask",
+      "name": "수리·재작업 후 반환",
+      "x": 1900,
+      "y": 100
+    },
+    {
+      "id": "CC_Replace",
+      "type": "bpmn:UserTask",
+      "name": "대체품·환불·Credit 처리",
+      "x": 1900,
+      "y": 250
+    },
+    {
+      "id": "CC_NoFault",
+      "type": "bpmn:UserTask",
+      "name": "No Fault Found\n그대로 반환/설명",
+      "x": 1900,
+      "y": 400
+    },
+    {
+      "id": "CC_ScrapField",
+      "type": "bpmn:UserTask",
+      "name": "폐기·선별·현장조치/Recall",
+      "x": 1900,
+      "y": 550
+    },
+    {
+      "id": "CC_DispositionMerge",
+      "type": "bpmn:ExclusiveGateway",
+      "name": "처분 완료",
+      "x": 2070,
+      "y": 315
+    },
+    {
+      "id": "CC_ImplementCAPA",
+      "type": "bpmn:UserTask",
+      "name": "내부 시정·예방조치 실행\n공정·검사계획·공급자 기준 개정",
+      "x": 2180,
+      "y": 300
+    },
+    {
+      "id": "CC_VerifyEffectiveness",
+      "type": "bpmn:UserTask",
+      "name": "효과검증·재발 모니터링",
+      "x": 2350,
+      "y": 300
+    },
+    {
+      "id": "CC_EffectiveGateway",
+      "type": "bpmn:ExclusiveGateway",
+      "name": "효과 확인?",
+      "x": 2520,
+      "y": 315
+    },
+    {
+      "id": "CC_Refine",
+      "type": "bpmn:UserTask",
+      "name": "원인/조치 재수립",
+      "x": 2630,
+      "y": 520
+    },
+    {
+      "id": "CC_ReleaseContainment",
+      "type": "bpmn:UserTask",
+      "name": "QA 승인으로 영향범위별 보류 해제\n미해결 Lot/Batch/SFC는 유지",
+      "x": 2670,
+      "y": 300
+    },
+    {
+      "id": "CC_FinalResponse",
+      "type": "bpmn:UserTask",
+      "name": "고객 최종 회신·8D/증빙 전달",
+      "x": 2840,
+      "y": 300
+    },
+    {
+      "id": "CC_CompleteQ1",
+      "type": "bpmn:UserTask",
+      "name": "Q1 Task/Activity 완료·통지 종결",
+      "x": 3010,
+      "y": 300
+    },
+    {
+      "id": "CC_End",
+      "type": "bpmn:EndEvent",
+      "name": "불만 종결·기준 환류",
+      "x": 3180,
+      "y": 322
+    }
+  ],
+  "flows": [
+    {
+      "id": "CC_F01",
+      "source": "CC_Start",
+      "target": "CC_CreateQ1"
+    },
+    {
+      "id": "CC_F02",
+      "source": "CC_CreateQ1",
+      "target": "CC_ParallelSplit"
+    },
+    {
+      "id": "CC_F03",
+      "source": "CC_ParallelSplit",
+      "target": "CC_Containment"
+    },
+    {
+      "id": "CC_F04",
+      "source": "CC_ParallelSplit",
+      "target": "CC_CustomerResponse"
+    },
+    {
+      "id": "CC_F05",
+      "source": "CC_Containment",
+      "target": "CC_ParallelJoin"
+    },
+    {
+      "id": "CC_F06",
+      "source": "CC_CustomerResponse",
+      "target": "CC_ParallelJoin"
+    },
+    {
+      "id": "CC_F07",
+      "source": "CC_ParallelJoin",
+      "target": "CC_ReturnGateway"
+    },
+    {
+      "id": "CC_F08",
+      "source": "CC_ReturnGateway",
+      "target": "CC_CreateReturn",
+      "name": "예",
+      "condition": "${physicalReturnRequired == true}"
+    },
+    {
+      "id": "CC_F09",
+      "source": "CC_ReturnGateway",
+      "target": "CC_EvidenceReview",
+      "name": "아니오",
+      "isDefault": true
+    },
+    {
+      "id": "CC_F10",
+      "source": "CC_CreateReturn",
+      "target": "CC_ReturnReceipt"
+    },
+    {
+      "id": "CC_F11",
+      "source": "CC_ReturnReceipt",
+      "target": "CC_ReturnInspection"
+    },
+    {
+      "id": "CC_F12",
+      "source": "CC_ReturnInspection",
+      "target": "CC_EvidenceMerge"
+    },
+    {
+      "id": "CC_F13",
+      "source": "CC_EvidenceReview",
+      "target": "CC_EvidenceMerge"
+    },
+    {
+      "id": "CC_F14",
+      "source": "CC_EvidenceMerge",
+      "target": "CC_RootCause"
+    },
+    {
+      "id": "CC_F15",
+      "source": "CC_RootCause",
+      "target": "CC_CAPAPlan"
+    },
+    {
+      "id": "CC_F16",
+      "source": "CC_CAPAPlan",
+      "target": "CC_DispositionGateway"
+    },
+    {
+      "id": "CC_F17",
+      "source": "CC_DispositionGateway",
+      "target": "CC_Repair",
+      "name": "수리/재작업",
+      "condition": "${customerDisposition == 'REPAIR'}"
+    },
+    {
+      "id": "CC_F18",
+      "source": "CC_DispositionGateway",
+      "target": "CC_Replace",
+      "name": "대체/환불",
+      "isDefault": true
+    },
+    {
+      "id": "CC_F19",
+      "source": "CC_DispositionGateway",
+      "target": "CC_NoFault",
+      "name": "정상/NFF",
+      "condition": "${customerDisposition == 'NO_FAULT'}"
+    },
+    {
+      "id": "CC_F20",
+      "source": "CC_DispositionGateway",
+      "target": "CC_ScrapField",
+      "name": "폐기/현장조치",
+      "condition": "${customerDisposition == 'SCRAP_OR_FIELD_ACTION'}"
+    },
+    {
+      "id": "CC_F21",
+      "source": "CC_Repair",
+      "target": "CC_DispositionMerge"
+    },
+    {
+      "id": "CC_F22",
+      "source": "CC_Replace",
+      "target": "CC_DispositionMerge"
+    },
+    {
+      "id": "CC_F23",
+      "source": "CC_NoFault",
+      "target": "CC_DispositionMerge"
+    },
+    {
+      "id": "CC_F24",
+      "source": "CC_ScrapField",
+      "target": "CC_DispositionMerge"
+    },
+    {
+      "id": "CC_F25",
+      "source": "CC_DispositionMerge",
+      "target": "CC_ImplementCAPA"
+    },
+    {
+      "id": "CC_F26",
+      "source": "CC_ImplementCAPA",
+      "target": "CC_VerifyEffectiveness"
+    },
+    {
+      "id": "CC_F27",
+      "source": "CC_VerifyEffectiveness",
+      "target": "CC_EffectiveGateway"
+    },
+    {
+      "id": "CC_F28",
+      "source": "CC_EffectiveGateway",
+      "target": "CC_ReleaseContainment",
+      "name": "예",
+      "condition": "${capaEffective == true}"
+    },
+    {
+      "id": "CC_F29",
+      "source": "CC_EffectiveGateway",
+      "target": "CC_Refine",
+      "name": "아니오/재발",
+      "isDefault": true
+    },
+    {
+      "id": "CC_F30",
+      "source": "CC_Refine",
+      "target": "CC_RootCause",
+      "name": "재분석"
+    },
+    {
+      "id": "CC_F31",
+      "source": "CC_ReleaseContainment",
+      "target": "CC_FinalResponse"
+    },
+    {
+      "id": "CC_F32",
+      "source": "CC_FinalResponse",
+      "target": "CC_CompleteQ1"
+    },
+    {
+      "id": "CC_F33",
+      "source": "CC_CompleteQ1",
+      "target": "CC_End"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "CC_Annotation",
+      "text": "보류는 전량 일괄 해제하지 않는다. Lot·Batch·Serial·SFC별 조사/처분/효과검증 상태에 따라 품질 승인자가 선택 해제한다.",
+      "x": 2240,
+      "y": 100,
+      "width": 520,
+      "height": 60
+    }
+  ],
+  "associations": [
+    {
+      "id": "CC_Association",
+      "source": "CC_ReleaseContainment",
+      "target": "CC_Annotation"
+    }
+  ]
+}

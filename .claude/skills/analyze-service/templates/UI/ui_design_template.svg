@@ -1,0 +1,408 @@
+<svg viewBox="0 0 1400 900" xmlns="http://www.w3.org/2000/svg">
+  <!-- 스타일 정의 -->
+  <defs>
+    <style>
+      .window-frame { fill: #f8f9fa; stroke: #dee2e6; stroke-width: 2; }
+      .header-bg { fill: #495057; }
+      .header-text { fill: white; font-family: 'Segoe UI', Arial, sans-serif; font-size: 16px; font-weight: bold; }
+      .divider-line { stroke: #adb5bd; stroke-width: 1; }
+      .form-panel { fill: #e9ecef; stroke: #6c757d; stroke-width: 1; rx: 3; }
+      .grid-panel { fill: #ffffff; stroke: #6c757d; stroke-width: 1; rx: 3; }
+      .grid-header { fill: #495057; }
+      .grid-header-text { fill: white; font-family: Arial, sans-serif; font-size: 11px; font-weight: bold; }
+      .grid-cell { fill: white; stroke: #dee2e6; stroke-width: 1; }
+      .grid-text { fill: #212529; font-family: Arial, sans-serif; font-size: 10px; }
+      .grid-selected { fill: #e3f2fd; }
+      .grid-row-header { fill: #f8f9fa; font-weight: bold; }
+      .form-label { fill: #495057; font-family: Arial, sans-serif; font-size: 11px; }
+      .input-field { fill: white; stroke: #ced4da; stroke-width: 1; rx: 2; }
+      .combo-field { fill: white; stroke: #ced4da; stroke-width: 1; rx: 2; }
+      .radio-button { fill: white; stroke: #6c757d; stroke-width: 1; }
+      .radio-checked { fill: #007bff; }
+      .button { fill: #007bff; stroke: #0056b3; stroke-width: 1; rx: 3; }
+      .button-text { fill: white; font-family: Arial, sans-serif; font-size: 10px; }
+      .statusbar { fill: #343a40; }
+      .status-text { fill: #ffffff; font-family: Arial, sans-serif; font-size: 10px; }
+      .tab-active { fill: #007bff; }
+      .tab-inactive { fill: #6c757d; }
+      .tab-text { fill: white; font-family: Arial, sans-serif; font-size: 11px; }
+      .annotation { fill: #dc3545; font-family: Arial, sans-serif; font-size: 9px; }
+      .annotation-line { stroke: #dc3545; stroke-width: 1; stroke-dasharray: 2,2; }
+    </style>
+  </defs>
+
+  <!-- 메인 윈도우 프레임 -->
+  <rect class="window-frame" x="10" y="10" width="1380" height="880" rx="5"/>
+
+  <!-- 상단 헤더 -->
+  <rect class="header-bg" x="10" y="10" width="1380" height="35"/>
+  <text class="header-text" x="20" y="32">[SERVICE-ID] - [시스템 화면 명칭]</text>
+
+  <!-- 1. Form_1: 메인 기능 및 검색 영역 (높이: 80px) -->
+  <g id="form-area">
+    <rect class="form-panel" x="10" y="50" width="1380" height="80"/>
+    <text class="form-label" x="20" y="70" font-weight="bold">Form_1: 메인 기능 및 검색 영역 (높이: 80px)</text>
+
+    <!-- 버튼들 -->
+    <rect class="button" x="20" y="85" width="60" height="25"/>
+    <text class="button-text" x="50" y="100" text-anchor="middle">버튼1</text>
+
+    <rect class="button" x="90" y="85" width="60" height="25"/>
+    <text class="button-text" x="120" y="100" text-anchor="middle">버튼2</text>
+
+    <rect class="button" x="160" y="85" width="60" height="25"/>
+    <text class="button-text" x="190" y="100" text-anchor="middle">버튼3</text>
+
+    <rect class="button" x="230" y="85" width="60" height="25"/>
+    <text class="button-text" x="260" y="100" text-anchor="middle">버튼4</text>
+
+    <rect class="button" x="300" y="85" width="50" height="25"/>
+    <text class="button-text" x="325" y="100" text-anchor="middle">조회</text>
+
+    <rect class="button" x="360" y="85" width="50" height="25"/>
+    <text class="button-text" x="385" y="100" text-anchor="middle">닫기</text>
+
+    <!-- 입력 필드 -->
+    <text class="form-label" x="450" y="100">필드1:</text>
+    <rect class="combo-field" x="490" y="85" width="120" height="20"/>
+    <text class="grid-text" x="495" y="98">컴포넌트 타입</text>
+    <polygon points="605,90 615,90 610,100" fill="#6c757d"/>
+
+    <!-- 라디오 버튼 -->
+    <circle class="radio-button" cx="680" cy="95" r="6"/>
+    <circle cx="680" cy="95" r="3" class="radio-checked"/>
+    <text class="form-label" x="690" y="100">Radio 옵션1</text>
+
+    <circle class="radio-button" cx="780" cy="95" r="6"/>
+    <text class="form-label" x="790" y="100">Radio 옵션2</text>
+  </g>
+
+  <!-- 구분선 -->
+  <line x1="10" y1="135" x2="1390" y2="135" class="divider-line"/>
+
+  <!-- 2. Grid_2: 지시/목록 정보 영역 (높이: 200px) -->
+  <g id="grid2-area">
+    <rect class="grid-panel" x="10" y="140" width="1380" height="200"/>
+    <text class="form-label" x="20" y="160" font-weight="bold">Grid_2: 지시/목록 정보 영역 (높이: 200px)</text>
+
+    <!-- Grid 헤더 -->
+    <rect class="grid-header" x="20" y="170" width="50" height="25"/>
+    <text class="grid-header-text" x="45" y="187" text-anchor="middle">Seq</text>
+
+    <rect class="grid-header" x="70" y="170" width="80" height="25"/>
+    <text class="grid-header-text" x="110" y="187" text-anchor="middle">ID</text>
+
+    <rect class="grid-header" x="150" y="170" width="60" height="25"/>
+    <text class="grid-header-text" x="180" y="187" text-anchor="middle">구분</text>
+
+    <rect class="grid-header" x="210" y="170" width="120" height="25"/>
+    <text class="grid-header-text" x="270" y="187" text-anchor="middle">주문번호</text>
+
+    <rect class="grid-header" x="330" y="170" width="100" height="25"/>
+    <text class="grid-header-text" x="380" y="187" text-anchor="middle">MO번호</text>
+
+    <rect class="grid-header" x="430" y="170" width="80" height="25"/>
+    <text class="grid-header-text" x="470" y="187" text-anchor="middle">소재두께</text>
+
+    <rect class="grid-header" x="510" y="170" width="80" height="25"/>
+    <text class="grid-header-text" x="550" y="187" text-anchor="middle">소재폭</text>
+
+    <rect class="grid-header" x="590" y="170" width="80" height="25"/>
+    <text class="grid-header-text" x="630" y="187" text-anchor="middle">소재길이</text>
+
+    <rect class="grid-header" x="670" y="170" width="80" height="25"/>
+    <text class="grid-header-text" x="710" y="187" text-anchor="middle">소재중량</text>
+
+    <rect class="grid-header" x="750" y="170" width="60" height="25"/>
+    <text class="grid-header-text" x="780" y="187" text-anchor="middle">전공정</text>
+
+    <!-- Grid 데이터 행들 -->
+    <g id="grid2-rows">
+      <!-- 1행 -->
+      <rect class="grid-selected" x="20" y="195" width="790" height="30"/>
+      <text class="grid-text grid-row-header" x="45" y="213" text-anchor="middle">1</text>
+      <text class="grid-text" x="110" y="213" text-anchor="middle">ID12345</text>
+      <text class="grid-text" x="180" y="213" text-anchor="middle">R</text>
+      <text class="grid-text" x="270" y="213" text-anchor="middle">ORD-2024-001</text>
+      <text class="grid-text" x="380" y="213" text-anchor="middle">MO-12345</text>
+      <text class="grid-text" x="470" y="213" text-anchor="middle">1.234</text>
+      <text class="grid-text" x="550" y="213" text-anchor="middle">1200.5</text>
+      <text class="grid-text" x="630" y="213" text-anchor="middle">15,000</text>
+      <text class="grid-text" x="710" y="213" text-anchor="middle">8,500</text>
+      <text class="grid-text" x="780" y="213" text-anchor="middle">CAL</text>
+
+      <!-- 2행 -->
+      <rect class="grid-cell" x="20" y="225" width="790" height="30"/>
+      <text class="grid-text grid-row-header" x="45" y="243" text-anchor="middle">2</text>
+      <text class="grid-text" x="110" y="243" text-anchor="middle">ID12346</text>
+      <text class="grid-text" x="180" y="243" text-anchor="middle">S</text>
+      <text class="grid-text" x="270" y="243" text-anchor="middle">ORD-2024-002</text>
+      <text class="grid-text" x="380" y="243" text-anchor="middle">MO-12346</text>
+      <text class="grid-text" x="470" y="243" text-anchor="middle">0.987</text>
+      <text class="grid-text" x="550" y="243" text-anchor="middle">1000.0</text>
+      <text class="grid-text" x="630" y="243" text-anchor="middle">12,000</text>
+      <text class="grid-text" x="710" y="243" text-anchor="middle">6,800</text>
+      <text class="grid-text" x="780" y="243" text-anchor="middle">SHL</text>
+
+      <!-- 3행 -->
+      <rect class="grid-cell" x="20" y="255" width="790" height="30"/>
+      <text class="grid-text grid-row-header" x="45" y="273" text-anchor="middle">3</text>
+      <text class="grid-text" x="110" y="273" text-anchor="middle">ID12347</text>
+      <text class="grid-text" x="180" y="273" text-anchor="middle">R</text>
+      <text class="grid-text" x="270" y="273" text-anchor="middle">ORD-2024-003</text>
+      <text class="grid-text" x="380" y="273" text-anchor="middle">MO-12347</text>
+      <text class="grid-text" x="470" y="273" text-anchor="middle">1.500</text>
+      <text class="grid-text" x="550" y="273" text-anchor="middle">1400.0</text>
+      <text class="grid-text" x="630" y="273" text-anchor="middle">18,000</text>
+      <text class="grid-text" x="710" y="273" text-anchor="middle">11,200</text>
+      <text class="grid-text" x="780" y="273" text-anchor="middle">ACL</text>
+
+      <!-- 4행 -->
+      <rect class="grid-cell" x="20" y="285" width="790" height="30"/>
+      <text class="grid-text grid-row-header" x="45" y="303" text-anchor="middle">4</text>
+      <text class="grid-text" x="110" y="303" text-anchor="middle">ID12348</text>
+      <text class="grid-text" x="180" y="303" text-anchor="middle">S</text>
+      <text class="grid-text" x="270" y="303" text-anchor="middle">ORD-2024-004</text>
+      <text class="grid-text" x="380" y="303" text-anchor="middle">MO-12348</text>
+      <text class="grid-text" x="470" y="303" text-anchor="middle">1.100</text>
+      <text class="grid-text" x="550" y="303" text-anchor="middle">1300.0</text>
+      <text class="grid-text" x="630" y="303" text-anchor="middle">16,500</text>
+      <text class="grid-text" x="710" y="303" text-anchor="middle">9,200</text>
+      <text class="grid-text" x="780" y="303" text-anchor="middle">GRV</text>
+
+      <!-- 5행 -->
+      <rect class="grid-cell" x="20" y="315" width="790" height="20"/>
+      <text class="grid-text grid-row-header" x="45" y="328" text-anchor="middle">5</text>
+      <text class="grid-text" x="110" y="328" text-anchor="middle">ID12349</text>
+      <text class="grid-text" x="180" y="328" text-anchor="middle">R</text>
+      <text class="grid-text" x="270" y="328" text-anchor="middle">ORD-2024-005</text>
+      <text class="grid-text" x="380" y="328" text-anchor="middle">MO-12349</text>
+      <text class="grid-text" x="470" y="328" text-anchor="middle">0.850</text>
+      <text class="grid-text" x="550" y="328" text-anchor="middle">950.0</text>
+      <text class="grid-text" x="630" y="328" text-anchor="middle">13,200</text>
+      <text class="grid-text" x="710" y="328" text-anchor="middle">7,100</text>
+      <text class="grid-text" x="780" y="328" text-anchor="middle">TML</text>
+    </g>
+
+    <!-- 수평 스크롤바 표시 -->
+    <rect x="20" y="335" width="790" height="15" fill="#e9ecef" stroke="#ced4da"/>
+    <rect x="20" y="335" width="200" height="15" fill="#6c757d"/>
+  </g>
+
+  <!-- 구분선 -->
+  <line x1="10" y1="355" x2="1390" y2="355" class="divider-line"/>
+
+  <!-- 3. Tab 영역 -->
+  <g id="tab-area">
+    <!-- Tab 헤더 -->
+    <rect class="tab-active" x="10" y="360" width="150" height="30"/>
+    <text class="tab-text" x="85" y="378" text-anchor="middle">Tab 1: 실적정보</text>
+
+    <rect class="tab-inactive" x="160" y="360" width="150" height="30"/>
+    <text class="tab-text" x="235" y="378" text-anchor="middle">Tab 2: 주문정보</text>
+
+    <rect class="tab-inactive" x="310" y="360" width="150" height="30"/>
+    <text class="tab-text" x="385" y="378" text-anchor="middle">Tab 3: 품질정보</text>
+
+    <rect class="tab-inactive" x="460" y="360" width="150" height="30"/>
+    <text class="tab-text" x="535" y="378" text-anchor="middle">Tab 4: 부적합정보</text>
+  </g>
+
+  <!-- 4. Grid_3: 상세 정보 영역 (높이: 400px) -->
+  <g id="grid3-area">
+    <rect class="grid-panel" x="10" y="390" width="1380" height="400"/>
+    <text class="form-label" x="20" y="410" font-weight="bold">Grid_3: 상세 정보 영역 (높이: 400px) - 수평 스크롤 [컬럼 수]+컬럼</text>
+
+    <!-- Grid 헤더 (확장 표시) -->
+    <rect class="grid-header" x="20" y="420" width="30" height="25"/>
+    <text class="grid-header-text" x="35" y="437" text-anchor="middle">☑</text>
+
+    <rect class="grid-header" x="50" y="420" width="80" height="25"/>
+    <text class="grid-header-text" x="90" y="437" text-anchor="middle">ID</text>
+
+    <rect class="grid-header" x="130" y="420" width="60" height="25"/>
+    <text class="grid-header-text" x="160" y="437" text-anchor="middle">상태</text>
+
+    <rect class="grid-header" x="190" y="420" width="100" height="25"/>
+    <text class="grid-header-text" x="240" y="437" text-anchor="middle">주문번호</text>
+
+    <rect class="grid-header" x="290" y="420" width="120" height="25"/>
+    <text class="grid-header-text" x="350" y="437" text-anchor="middle">시작일시</text>
+
+    <rect class="grid-header" x="410" y="420" width="120" height="25"/>
+    <text class="grid-header-text" x="470" y="437" text-anchor="middle">종료일시</text>
+
+    <rect class="grid-header" x="530" y="420" width="60" height="25"/>
+    <text class="grid-header-text" x="560" y="437" text-anchor="middle">등급</text>
+
+    <rect class="grid-header" x="590" y="420" width="60" height="25"/>
+    <text class="grid-header-text" x="620" y="437" text-anchor="middle">두께W</text>
+
+    <rect class="grid-header" x="650" y="420" width="60" height="25"/>
+    <text class="grid-header-text" x="680" y="437" text-anchor="middle">두께C</text>
+
+    <rect class="grid-header" x="710" y="420" width="60" height="25"/>
+    <text class="grid-header-text" x="740" y="437" text-anchor="middle">두께D</text>
+
+    <rect class="grid-header" x="770" y="420" width="50" height="25"/>
+    <text class="grid-header-text" x="795" y="437" text-anchor="middle">...</text>
+
+    <!-- Grid 데이터 행들 -->
+    <g id="grid3-rows">
+      <!-- 1행 (선택됨, 편집 가능) -->
+      <rect class="grid-selected" x="20" y="445" width="800" height="30"/>
+      <rect x="25" y="452" width="15" height="15" fill="white" stroke="#6c757d"/>
+      <polyline points="28,460 32,464 40,456" stroke="#28a745" stroke-width="2" fill="none"/>
+      <text class="grid-text" x="90" y="463" text-anchor="middle">ID12345</text>
+      <text class="grid-text" x="160" y="463" text-anchor="middle">G2</text>
+      <text class="grid-text" x="240" y="463" text-anchor="middle">ORD-001</text>
+      <text class="grid-text" x="350" y="463" text-anchor="middle">2024-10-15 09:00</text>
+      <text class="grid-text" x="470" y="463" text-anchor="middle">2024-10-15 12:00</text>
+      <text class="grid-text" x="560" y="463" text-anchor="middle">A</text>
+      <text class="grid-text" x="620" y="463" text-anchor="middle">1.234</text>
+      <text class="grid-text" x="680" y="463" text-anchor="middle">1.235</text>
+      <text class="grid-text" x="740" y="463" text-anchor="middle">1.233</text>
+      <text class="grid-text" x="795" y="463" text-anchor="middle">...</text>
+
+      <!-- 2행 (완료 상태, 읽기 전용) -->
+      <rect class="grid-cell" x="20" y="475" width="800" height="30"/>
+      <rect x="25" y="482" width="15" height="15" fill="white" stroke="#6c757d"/>
+      <text class="grid-text" x="90" y="493" text-anchor="middle">ID12346</text>
+      <text class="grid-text" x="160" y="493" text-anchor="middle">G3</text>
+      <text class="grid-text" x="240" y="493" text-anchor="middle">ORD-002</text>
+      <text class="grid-text" x="350" y="493" text-anchor="middle">2024-10-15 13:00</text>
+      <text class="grid-text" x="470" y="493" text-anchor="middle" fill="#6c757d"></text>
+      <text class="grid-text" x="560" y="493" text-anchor="middle">B</text>
+      <text class="grid-text" x="620" y="493" text-anchor="middle">0.987</text>
+      <text class="grid-text" x="680" y="493" text-anchor="middle">0.988</text>
+      <text class="grid-text" x="740" y="493" text-anchor="middle">0.986</text>
+      <text class="grid-text" x="795" y="493" text-anchor="middle">...</text>
+
+      <!-- 3행 (진행 전 상태) -->
+      <rect class="grid-cell" x="20" y="505" width="800" height="30"/>
+      <rect x="25" y="512" width="15" height="15" fill="white" stroke="#6c757d"/>
+      <text class="grid-text" x="90" y="523" text-anchor="middle">ID12347</text>
+      <text class="grid-text" x="160" y="523" text-anchor="middle">G1</text>
+      <text class="grid-text" x="240" y="523" text-anchor="middle">ORD-003</text>
+      <text class="grid-text" x="350" y="523" text-anchor="middle" fill="#6c757d"></text>
+      <text class="grid-text" x="470" y="523" text-anchor="middle" fill="#6c757d"></text>
+      <text class="grid-text" x="560" y="523" text-anchor="middle" fill="#6c757d"></text>
+      <text class="grid-text" x="620" y="523" text-anchor="middle" fill="#6c757d"></text>
+      <text class="grid-text" x="680" y="523" text-anchor="middle" fill="#6c757d"></text>
+      <text class="grid-text" x="740" y="523" text-anchor="middle" fill="#6c757d"></text>
+      <text class="grid-text" x="795" y="523" text-anchor="middle">...</text>
+
+      <!-- 추가 행들 (스크롤 표시) -->
+      <rect class="grid-cell" x="20" y="535" width="800" height="30"/>
+      <rect x="25" y="542" width="15" height="15" fill="white" stroke="#6c757d"/>
+      <text class="grid-text" x="90" y="553" text-anchor="middle">ID12348</text>
+      <text class="grid-text" x="160" y="553" text-anchor="middle">G2</text>
+
+      <rect class="grid-cell" x="20" y="565" width="800" height="30"/>
+      <rect x="25" y="572" width="15" height="15" fill="white" stroke="#6c757d"/>
+      <text class="grid-text" x="90" y="583" text-anchor="middle">ID12349</text>
+      <text class="grid-text" x="160" y="583" text-anchor="middle">G3</text>
+
+      <rect class="grid-cell" x="20" y="595" width="800" height="30"/>
+      <rect x="25" y="602" width="15" height="15" fill="white" stroke="#6c757d"/>
+      <text class="grid-text" x="90" y="613" text-anchor="middle">ID12350</text>
+      <text class="grid-text" x="160" y="613" text-anchor="middle">G1</text>
+
+      <rect class="grid-cell" x="20" y="625" width="800" height="30"/>
+      <rect x="25" y="632" width="15" height="15" fill="white" stroke="#6c757d"/>
+      <text class="grid-text" x="90" y="643" text-anchor="middle">ID12351</text>
+      <text class="grid-text" x="160" y="643" text-anchor="middle">G2</text>
+
+      <rect class="grid-cell" x="20" y="655" width="800" height="30"/>
+      <rect x="25" y="662" width="15" height="15" fill="white" stroke="#6c757d"/>
+      <text class="grid-text" x="90" y="673" text-anchor="middle">ID12352</text>
+      <text class="grid-text" x="160" y="673" text-anchor="middle">G3</text>
+
+      <rect class="grid-cell" x="20" y="685" width="800" height="30"/>
+      <rect x="25" y="692" width="15" height="15" fill="white" stroke="#6c757d"/>
+      <text class="grid-text" x="90" y="703" text-anchor="middle">ID12353</text>
+      <text class="grid-text" x="160" y="703" text-anchor="middle">G1</text>
+
+      <rect class="grid-cell" x="20" y="715" width="800" height="30"/>
+      <rect x="25" y="722" width="15" height="15" fill="white" stroke="#6c757d"/>
+      <text class="grid-text" x="90" y="733" text-anchor="middle">ID12354</text>
+      <text class="grid-text" x="160" y="733" text-anchor="middle">G2</text>
+
+      <rect class="grid-cell" x="20" y="745" width="800" height="40"/>
+      <text class="grid-text" x="400" y="770" text-anchor="middle" fill="#6c757d" font-style="italic">더 많은 데이터...</text>
+    </g>
+
+    <!-- 추가 컬럼 설명 -->
+    <text class="form-label" x="20" y="800" font-style="italic">하단 컬럼 계속: 폭, 길이, 중량, [공정별]정보, 품질, 부적합 등</text>
+
+    <!-- 수평 스크롤바 -->
+    <rect x="20" y="810" width="800" height="15" fill="#e9ecef" stroke="#ced4da"/>
+    <rect x="20" y="810" width="300" height="15" fill="#6c757d"/>
+
+    <!-- 수직 스크롤바 -->
+    <rect x="1360" y="420" width="15" height="405" fill="#e9ecef" stroke="#ced4da"/>
+    <rect x="1360" y="420" width="15" height="150" fill="#6c757d"/>
+  </g>
+
+  <!-- 5. StatusBar -->
+  <g id="statusbar">
+    <rect class="statusbar" x="10" y="800" width="1380" height="25"/>
+    <text class="status-text" x="20" y="817">조회: 5건</text>
+    <text class="status-text" x="100" y="817">|</text>
+    <text class="status-text" x="120" y="817">선택: 1건</text>
+    <text class="status-text" x="200" y="817">|</text>
+    <text class="status-text" x="220" y="817">최종 수정: 2024-10-18 14:30</text>
+    <text class="status-text" x="450" y="817">|</text>
+    <text class="status-text" x="470" y="817">사용자: ADMIN</text>
+  </g>
+
+  <!-- 화면 크기 정보 -->
+  <g id="screen-info">
+    <rect x="1100" y="50" width="280" height="80" fill="white" stroke="#6c757d" stroke-width="1" rx="3"/>
+    <text class="form-label" x="1110" y="70" font-weight="bold">전체 화면 크기</text>
+    <text class="grid-text" x="1110" y="90">1920px(W) × 1080px(H)</text>
+    <text class="grid-text" x="1110" y="110" font-size="9" fill="#6c757d">실제 구현 시 반응형 설계 권장</text>
+  </g>
+
+  <!-- 주요 기능 설명 (어노테이션) -->
+  <g id="annotations">
+    <!-- 선택된 행 설명 -->
+    <line x1="830" y1="460" x2="880" y2="440" class="annotation-line"/>
+    <text class="annotation" x="885" y="443">선택된 행 (편집 가능)</text>
+
+    <!-- 체크박스 설명 -->
+    <line x1="35" y1="460" x2="15" y2="480" class="annotation-line"/>
+    <text class="annotation" x="15" y="500">선택 체크박스</text>
+
+    <!-- 탭 전환 설명 -->
+    <line x1="235" y1="375" x2="235" y2="395" class="annotation-line"/>
+    <text class="annotation" x="240" y="410">Tab 전환으로 다른 정보 표시</text>
+
+    <!-- 스크롤 설명 -->
+    <line x1="1367" y1="495" x2="1380" y2="480" class="annotation-line"/>
+    <text class="annotation" x="1385" y="483">수직 스크롤</text>
+
+    <!-- 수평 스크롤 설명 -->
+    <line x1="170" y1="342" x2="170" y2="360" class="annotation-line"/>
+    <text class="annotation" x="175" y="358">수평 스크롤 (컬럼 수 많음)</text>
+  </g>
+
+  <!-- 범례 -->
+  <g id="legend">
+    <rect x="1100" y="150" width="280" height="120" fill="white" stroke="#6c757d" stroke-width="1" rx="3"/>
+    <text class="form-label" x="1110" y="170" font-weight="bold">범례</text>
+
+    <rect x="1110" y="180" width="30" height="15" fill="#e3f2fd" stroke="#2196f3"/>
+    <text class="grid-text" x="1145" y="192">선택된 행</text>
+
+    <rect x="1110" y="200" width="30" height="15" fill="white" stroke="#dee2e6"/>
+    <text class="grid-text" x="1145" y="212">일반 행</text>
+
+    <rect x="1110" y="220" width="15" height="15" fill="white" stroke="#6c757d"/>
+    <polyline points="1113,228 1117,232 1125,224" stroke="#28a745" stroke-width="2" fill="none"/>
+    <text class="grid-text" x="1130" y="232">체크된 항목</text>
+
+    <rect x="1110" y="240" width="30" height="15" fill="#495057"/>
+    <text class="grid-text" x="1115" y="252" fill="white" font-size="9">헤더</text>
+  </g>
+</svg>

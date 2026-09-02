@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_multi_action"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+  <!--
+    Pattern: a single screen-level BPMN whose outermost exclusive gateway routes
+    on the `action` field. Each branch shows a different OASIS pattern:
+      - run/cancel branches use callActivity with multi-instance over a list of IDs
+      - list/lov branches run a single Script Task against a MyBatis mapper
+      - update branches call a Java service task directly
+  -->
+  <bpmn:process id="multi_action_screen" isExecutable="true">
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>fStart</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:exclusiveGateway id="gAction">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>fStart</bpmn:incoming>
+      <bpmn:outgoing>fRun</bpmn:outgoing>
+      <bpmn:outgoing>fRunCancel</bpmn:outgoing>
+      <bpmn:outgoing>fList</bpmn:outgoing>
+      <bpmn:outgoing>fListForCancel</bpmn:outgoing>
+      <bpmn:outgoing>fUpdateRoute</bpmn:outgoing>
+      <bpmn:outgoing>fLanePriorityLov</bpmn:outgoing>
+      <bpmn:outgoing>fLaneLov</bpmn:outgoing>
+      <bpmn:outgoing>fStepLov</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- branch: run — multi-instance call activity over a list of ids -->
+    <bpmn:callActivity id="callRun"
+                       name="dispatch run event"
+                       calledElement="event_handler">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="event">run</camunda:inputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>fRun</bpmn:incoming>
+      <bpmn:outgoing>fRunDone</bpmn:outgoing>
+      <bpmn:multiInstanceLoopCharacteristics isSequential="true"
+                                             camunda:collection="orderIds"
+                                             camunda:elementVariable="orderId" />
+    </bpmn:callActivity>
+    <bpmn:endEvent id="endRun"><bpmn:incoming>fRunDone</bpmn:incoming></bpmn:endEvent>
+
+    <!-- branch: run-cancel — service task with multi-instance + downstream callActivity -->
+    <bpmn:serviceTask id="cancelOne"
+                      name="cancel one order"
+                      camunda:class="sample.biz.order.Order#cancelRun">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="output" value="target" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>fRunCancel</bpmn:incoming>
+      <bpmn:outgoing>fCancelOneDone</bpmn:outgoing>
+      <bpmn:multiInstanceLoopCharacteristics isSequential="true"
+                                             camunda:collection="orderIds"
+                                             camunda:elementVariable="orderId" />
+    </bpmn:serviceTask>
+    <bpmn:callActivity id="callRunCancel"
+                       name="dispatch run-cancel event"
+                       calledElement="state_router">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="eventName">runCancel</camunda:inputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>fCancelOneDone</bpmn:incoming>
+      <bpmn:outgoing>fRunCancelDone</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:endEvent id="endRunCancel"><bpmn:incoming>fRunCancelDone</bpmn:incoming></bpmn:endEvent>
+
+    <!-- branch: list / listForCancel — MyBatis-backed Script Task -->
+    <bpmn:scriptTask id="loadList"
+                     name="load list"
+                     scriptFormat="sql"
+                     camunda:resource="orders.list.byBuyer">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="output" value="orders" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>fList</bpmn:incoming>
+      <bpmn:outgoing>fListDone</bpmn:outgoing>
+    </bpmn:scriptTask>
+    <bpmn:endEvent id="endList"><bpmn:incoming>fListDone</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:scriptTask id="loadListForCancel"
+                     name="load list for cancel"
+                     scriptFormat="sql"
+                     camunda:resource="orders.list.byBuyerForCancel">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="output" value="orders" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>fListForCancel</bpmn:incoming>
+      <bpmn:outgoing>fListForCancelDone</bpmn:outgoing>
+    </bpmn:scriptTask>
+    <bpmn:endEvent id="endListForCancel"><bpmn:incoming>fListForCancelDone</bpmn:incoming></bpmn:endEvent>
+
+    <!-- branch: update route — Java service task -->
+    <bpmn:serviceTask id="updateRoute"
+                      name="update route"
+                      camunda:class="sample.biz.order.Order#updateRoute">
+      <bpmn:incoming>fUpdateRoute</bpmn:incoming>
+      <bpmn:outgoing>fUpdateRouteDone</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endUpdateRoute"><bpmn:incoming>fUpdateRouteDone</bpmn:incoming></bpmn:endEvent>
+
+    <!-- branches: LOV queries — Script Task with output alias -->
+    <bpmn:scriptTask id="loadPriorityLov"
+                     name="priority LOV"
+                     scriptFormat="sql"
+                     camunda:resource="orders.list.priorityLov">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="output" value="priorityLov" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>fLanePriorityLov</bpmn:incoming>
+      <bpmn:outgoing>fPriorityLovDone</bpmn:outgoing>
+    </bpmn:scriptTask>
+    <bpmn:endEvent id="endPriorityLov"><bpmn:incoming>fPriorityLovDone</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:scriptTask id="loadLaneLov"
+                     name="lane code LOV"
+                     scriptFormat="sql"
+                     camunda:resource="orders.list.lineCodeLov">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="output" value="laneLov" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>fLaneLov</bpmn:incoming>
+      <bpmn:outgoing>fLaneLovDone</bpmn:outgoing>
+    </bpmn:scriptTask>
+    <bpmn:endEvent id="endLaneLov"><bpmn:incoming>fLaneLovDone</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:scriptTask id="loadStepLov"
+                     name="step code LOV"
+                     scriptFormat="sql"
+                     camunda:resource="orders.list.stepCodeLov">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="output" value="stepLov" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>fStepLov</bpmn:incoming>
+      <bpmn:outgoing>fStepLovDone</bpmn:outgoing>
+    </bpmn:scriptTask>
+    <bpmn:endEvent id="endStepLov"><bpmn:incoming>fStepLovDone</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="fStart"             sourceRef="start"             targetRef="gAction" />
+    <bpmn:sequenceFlow id="fRun"               name="run"               sourceRef="gAction"  targetRef="callRun" />
+    <bpmn:sequenceFlow id="fRunDone"           sourceRef="callRun"           targetRef="endRun" />
+    <bpmn:sequenceFlow id="fRunCancel"         name="runCancel"         sourceRef="gAction"  targetRef="cancelOne" />
+    <bpmn:sequenceFlow id="fCancelOneDone"     sourceRef="cancelOne"         targetRef="callRunCancel" />
+    <bpmn:sequenceFlow id="fRunCancelDone"     sourceRef="callRunCancel"     targetRef="endRunCancel" />
+    <bpmn:sequenceFlow id="fList"              name="list"              sourceRef="gAction"  targetRef="loadList" />
+    <bpmn:sequenceFlow id="fListDone"          sourceRef="loadList"          targetRef="endList" />
+    <bpmn:sequenceFlow id="fListForCancel"     name="listForCancel"     sourceRef="gAction"  targetRef="loadListForCancel" />
+    <bpmn:sequenceFlow id="fListForCancelDone" sourceRef="loadListForCancel" targetRef="endListForCancel" />
+    <bpmn:sequenceFlow id="fUpdateRoute"       name="updateRoute"       sourceRef="gAction"  targetRef="updateRoute" />
+    <bpmn:sequenceFlow id="fUpdateRouteDone"   sourceRef="updateRoute"       targetRef="endUpdateRoute" />
+    <bpmn:sequenceFlow id="fLanePriorityLov"   name="priorityLov"       sourceRef="gAction"  targetRef="loadPriorityLov" />
+    <bpmn:sequenceFlow id="fPriorityLovDone"   sourceRef="loadPriorityLov"   targetRef="endPriorityLov" />
+    <bpmn:sequenceFlow id="fLaneLov"           name="laneLov"           sourceRef="gAction"  targetRef="loadLaneLov" />
+    <bpmn:sequenceFlow id="fLaneLovDone"       sourceRef="loadLaneLov"       targetRef="endLaneLov" />
+    <bpmn:sequenceFlow id="fStepLov"           name="stepLov"           sourceRef="gAction"  targetRef="loadStepLov" />
+    <bpmn:sequenceFlow id="fStepLovDone"       sourceRef="loadStepLov"       targetRef="endStepLov" />
+  </bpmn:process>
+</bpmn:definitions>

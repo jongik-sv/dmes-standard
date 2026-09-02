@@ -1,0 +1,341 @@
+# Part B: @dk-oasis/shared 사용 정책
+
+> 상위 문서: [Frontend 표준 개발 가이드 V2](../FrontEnd_표준_통합_개발가이드_v2.md)
+> 본 문서의 범위는 워크스페이스 공용 패키지 `@dk-oasis/shared` 다. **m-mpn 로컬 공통층**(`src/_shared`, 도메인 공통)은 [Part D. m-mpn 공통 모듈 카탈로그](part-d-mpn-shared-catalog.md)가 정본이며, Part D 에 등재된 모듈은 본 문서의 ASK 대상이 아니다.
+
+## 0. 사용 정책
+
+| 등급     | 의미                                                          |
+| -------- | ------------------------------------------------------------- |
+| MUST     | 해당 용도에는 반드시 본 항목을 사용한다.                      |
+| SHOULD   | 특별한 사유가 없으면 본 항목을 사용한다.                      |
+| MAY      | 조건에 해당하면 사용할 수 있다.                               |
+| MUST NOT | 일반 업무 페이지에서 사용 금지 (포털/인증 등 특수 영역 전용). |
+| ASK      | 본 문서에 없는 항목은 임의로 쓰지 말고 사용자에게 확인한다.   |
+
+---
+
+## 1. 허용 목록 총괄 표
+
+| 서브패스                                      | 상태                   | 용도                                 | 본문 가이드 연결 |
+| --------------------------------------------- | ---------------------- | ------------------------------------ | ---------------- |
+| `@dk-oasis/shared/http`                       | MUST                   | `apiRequest`, `HttpError`, `getJson` | §8, §10          |
+| `@dk-oasis/shared/portal-shell-core`          | MUST                   | 페이지 컴포넌트 타입                 | §14-2            |
+| `@dk-oasis/shared/portal-shell`               | MUST NOT (일반 페이지) | 포털 프레임 전용                     | —                |
+| `@dk-oasis/shared/layout`                     | MUST                   | 레이아웃 컴포넌트                    | §14-2            |
+| `@dk-oasis/shared/variables.css`              | MUST                   | 공통 디자인 토큰                     | §4-1             |
+| `@dk-oasis/shared/form`                       | MUST                   | 입력 컨트롤                          | §14-2            |
+| `@dk-oasis/shared/grid`                       | MUST                   | Grid 및 행 상태 관리                 | §9, §14-2        |
+| `@dk-oasis/shared/tree`                       | SHOULD                 | 트리 표현                            | —                |
+| `@dk-oasis/shared/modal`                      | MUST (모달 페이지)     | Modal 시스템                         | §11 E            |
+| `@dk-oasis/shared/message-provider`           | MUST                   | 사용자 메시지                        | §8               |
+| `@dk-oasis/shared/use-api-call`               | SHOULD                 | API 호출 + 메시지                    | §8               |
+| `@dk-oasis/shared/use-form-validation`        | SHOULD                 | 입력 검증                            | —                |
+| `@dk-oasis/shared/error-boundary`             | MAY                    | 치명적 에러 경계                     | —                |
+| `@dk-oasis/shared/snapshot`                   | MUST (상태 지속)       | 탭 스냅샷 유틸                       | §7               |
+| `@dk-oasis/shared/utils`, `/lib`              | ASK                    | 세부 심볼 미등재 (실제 파일 확인)    | —                |
+| `@dk-oasis/shared/secure-storage`             | ASK                    | 세부 심볼 미등재                     | —                |
+| `@dk-oasis/shared/oasis`, `/oasis-proxy`      | MUST NOT (일반 페이지) | 포털 프록시 전용                     | —                |
+| `@dk-oasis/shared/auth-*`                     | MUST NOT (일반 페이지) | 인증 레이어 전용                     | —                |
+| `@dk-oasis/shared/access-db`, `/portal-menu*` | MUST NOT (일반 페이지) | 포털 메뉴/DB 전용                    | —                |
+
+---
+
+## 2. HTTP 계층 `/http`
+
+검증된 export:
+
+```ts
+// 범용
+import { apiRequest, HttpError, getJson } from "@dk-oasis/shared/http";
+
+// Phase 7 헬퍼 (수동 path 조립 지양)
+import {
+  apiQuery,
+  apiQueryService,
+  apiService,
+  apiLovMaster,
+  apiLovQuery,
+  apiLovService,
+} from "@dk-oasis/shared/http";
+```
+
+- MUST: BE 호출은 `apiRequest` 또는 위 Phase 7 헬퍼로 수행한다.
+- MUST NOT: `fetch`, `axios`, 자작 wrapper 사용.
+- SHOULD: Phase 7 path(query / service / lov, Part A §2-2-1) 호출은 헬퍼를 우선 사용한다.
+- 동작: 토큰 자동 주입(localStorage `oasis_access_token`), 401 에러 메시지 throw, BE `error.message` 추출 후 throw.
+
+> **모듈 제약** (Part A §2-2-1-A): Phase 7 6 종 헬퍼 (`apiQuery` / `apiQueryService` / `apiService` / `apiLovMaster` / `apiLovQuery` / `apiLovService`) 는 BE 측 MyBatis `SqlSession` 빈을 등록한 모듈 (**aps / mpn 만 허용**) 에서만 사용 가능하다. **mpp / mqc / mls / mcm** 화면은 무조건 `apiRequest` + OASIS path (`/api/{module}/oasis/{serviceId}/{action}`) 를 사용한다. 위반 시 runtime 404 + 정합체크서 §K ✗.
+
+### 2-1. BFF 프록시 계약 (참고)
+
+BFF (Next.js `app/api/{moduleId}/...`) 가 BE 로 요청을 프록시할 때의 계약은 RULE.md 가 정본이며, 일반 페이지에서 직접 의식할 필요는 없다. 다만 디버깅·환경 구성 시 다음을 알고 있어야 한다.
+
+- 인증 헤더 4종 (필수): `Authorization`, `X-Client-Key`, `X-Authenticated-User`, `X-Authenticated-Role`
+- 환경변수 우선순위: `${MODULE}_WAS_URL` → `BACKEND_API_URL` (fallback)
+- `X-Client-Key` 의 값은 BFF 의 `BACKEND_CLIENT_KEY` env 에서 부착된다.
+- BFF 라우팅 규칙: `oasis/...` 는 그대로 전달, `rest/...` / `query/...` / `service/...` / `lov/...` 는 `/api/{moduleId}/` prefix 만 제거하여 `${module_url}/...` 로 전달.
+
+상세 매핑은 RULE.md §"URL 컨벤션 (UI → BFF → BE)" / §"Phase 7 신규 컨벤션" 표를 참고한다.
+
+---
+
+## 3. 페이지 인터페이스 `/portal-shell-core`
+
+검증된 export (요지):
+
+```ts
+import type {
+  PortalShellPageComponent,
+  PageProps,
+} from "@dk-oasis/shared/portal-shell-core";
+import { parsePageId } from "@dk-oasis/shared/portal-shell-core";
+```
+
+- MUST: 페이지 본체는 `PortalShellPageComponent` 시그니처로 export.
+
+---
+
+## 4. 레이아웃 `/layout`
+
+검증된 export:
+
+```ts
+import {
+  PageLayout,
+  SearchArea,
+  SearchField,
+  ContentBody,
+  ContentPanel,
+  ErrorModal,
+} from "@dk-oasis/shared/layout";
+import "@dk-oasis/shared/layout.css";
+```
+
+- MUST: 페이지 상단 타이틀·버튼바·검색 영역·본문은 위 구성으로만 작성한다.
+
+### 4-1. 공통 디자인 토큰 `/variables.css`
+
+```ts
+import "@dk-oasis/shared/variables.css";
+```
+
+- MUST: 앱 전역 색상·간격·타이포그래피·폼 크기 토큰은 위 CSS를 단일 정본으로 사용한다.
+- MUST NOT: 각 앱의 전역 CSS에 동일한 `:root` 토큰을 복사해 별도 관리하지 않는다.
+
+---
+
+## 5. Form `/form`
+
+검증된 export:
+
+```ts
+import {
+  Button,
+  Input,
+  Select,
+  Checkbox,
+  DatePicker,
+  Radio,
+  Textarea,
+  FormGroup,
+  ComboBox,
+  Spinner,
+} from "@dk-oasis/shared/form";
+import "@dk-oasis/shared/form.css";
+```
+
+- MUST: 모든 입력 컨트롤은 본 모듈에서 가져온다.
+
+---
+
+## 6. Grid `/grid`
+
+검증된 export (대표):
+
+```ts
+import {
+  AgDataGrid,
+  DataGrid,
+  MuiDataGrid,
+  CustomDataGrid,
+  GridPanel,
+  useGridDataManager,
+  useRowStateManager,
+  ROW_STATUS,
+  type SavePayload,
+  type GridColumn,
+} from "@dk-oasis/shared/grid";
+import "@dk-oasis/shared/grid.css";
+```
+
+- MUST: 저장형 페이지는 `useGridDataManager` 로 행 상태를 관리한다.
+- MUST: `SavePayload = { inserted, updated, deleted, totalChanges }` 는 `*-api.ts` 에서 변환한다 (Part A §9).
+- MUST NOT: `ag-grid-react` 를 페이지에서 직접 import.
+- 보조 export: `DataGrid`, `MuiDataGrid`, `CustomDataGrid`, `GridPanel` 은 특수 요건 시 사용. 일반 페이지의 기본값은 `AgDataGrid`.
+
+---
+
+## 7. Tree `/tree`
+
+검증된 export:
+
+```ts
+import { Tree, type TreeProps, type TreeNode } from "@dk-oasis/shared/tree";
+import "@dk-oasis/shared/tree.css";
+```
+
+- SHOULD: 계층 표현이 필요할 때 사용한다.
+- MUST NOT: 이전 오기 `TreeView` 를 import 하지 않는다 (존재하지 않는 심볼).
+
+---
+
+## 8. Modal `/modal`
+
+검증된 export:
+
+```ts
+import {
+  Modal,
+  MessageModal,
+  type ModalProps,
+  type MessageModalProps,
+  type AlertType,
+} from "@dk-oasis/shared/modal";
+import "@dk-oasis/shared/modal.css";
+```
+
+- MUST: 팝업·확인 대화상자는 `Modal` 또는 `MessageModal` 을 사용한다.
+
+---
+
+## 9. 메시지 `/message-provider`
+
+검증된 export:
+
+```ts
+import {
+  useGfnMessage,
+  useMessage,
+  MessageProvider,
+} from "@dk-oasis/shared/message-provider";
+```
+
+- MUST: 사용자 메시지 표시는 `useGfnMessage` 만 사용한다.
+- MUST NOT: `alert`, `console.error`, 자작 토스트 사용.
+
+---
+
+## 10. API 호출 훅 `/use-api-call`
+
+검증된 export:
+
+```ts
+import { useApiCall, type ApiCallOptions } from "@dk-oasis/shared/use-api-call";
+```
+
+- SHOULD: 성공/실패 메시지 자동 처리가 필요한 호출에 사용.
+
+---
+
+## 11. 폼 검증 `/use-form-validation`
+
+검증된 export:
+
+```ts
+import {
+  useFormValidation,
+  type FormErrors,
+  type FieldRulesMap,
+} from "@dk-oasis/shared/use-form-validation";
+```
+
+- SHOULD: 입력 검증 규칙이 있는 폼 페이지에서 사용.
+
+---
+
+## 12. 에러 바운더리 `/error-boundary`
+
+검증된 export:
+
+```ts
+import {
+  ErrorBoundary,
+  type ErrorBoundaryProps,
+} from "@dk-oasis/shared/error-boundary";
+```
+
+- MAY: 치명적 오류 격리 필요 영역에 사용.
+- MUST NOT: 비즈니스 오류 처리를 대체하지 않는다 (비즈니스 오류는 `useGfnMessage`).
+
+---
+
+## 13. 스냅샷 `/snapshot`
+
+검증된 export:
+
+```ts
+import { cloneSnapshot, isSnapshotEqual } from "@dk-oasis/shared/snapshot";
+```
+
+- MUST: 탭 전환 상태 유지 시 `PageProps.snapshot` 과 함께 사용한다.
+
+---
+
+## 14. 유틸 `/utils`, `/lib`, 스토리지 `/secure-storage`
+
+- ASK: 세부 export 심볼은 본 문서에 등재하지 않았다. 사용 전 실제 `shared/src/{utils|lib|secure-storage}/` 를 확인하고, 필요 심볼이 검증되면 본 문서에 등재한 뒤 사용한다.
+- MUST NOT: 존재 여부를 확인하지 않은 심볼을 임의 import.
+
+---
+
+## 15. ASK 대상 (일반 페이지 사용 제한)
+
+- `/portal-shell`, `/portal-menu*`, `/auth-*`, `/oasis`, `/oasis-proxy`, `/access-db`, `/pages/home-page` : 포털/인증/메뉴 전용. 일반 업무 페이지에서 MUST NOT.
+- 필요 판단 시 Part A §12 절차 적용.
+
+---
+
+## 16. 표준 import 예시
+
+조회 + Grid 페이지:
+
+```ts
+import type { PortalShellPageComponent } from "@dk-oasis/shared/portal-shell-core";
+import {
+  PageLayout,
+  SearchArea,
+  SearchField,
+  ContentBody,
+  ContentPanel,
+} from "@dk-oasis/shared/layout";
+import { Button } from "@dk-oasis/shared/form";
+import {
+  AgDataGrid,
+  useGridDataManager,
+  type SavePayload,
+} from "@dk-oasis/shared/grid";
+import { useApiCall } from "@dk-oasis/shared/use-api-call";
+import { apiRequest } from "@dk-oasis/shared/http";
+```
+
+모달 페이지:
+
+```ts
+import { Modal } from "@dk-oasis/shared/modal";
+import { Button, Input } from "@dk-oasis/shared/form";
+import { useGfnMessage } from "@dk-oasis/shared/message-provider";
+```
+
+---
+
+## 17. 금지 사항 (재확인)
+
+- MUST NOT: 커스텀 `fetch` / `axios` wrapper 작성.
+- MUST NOT: `alert`, `console.error` 로 사용자 메시지 표시.
+- MUST NOT: shared 의 컴포넌트를 페이지 로컬에서 중복 구현.
+- MUST NOT: 상대경로 체인(`../../../`) 으로 shared 또는 타 도메인 import.
+- MUST NOT: `@dk-oasis/shared/dist/...` 직접 import.
+- MUST NOT: 본 문서에 등재되지 않은 경로/심볼 임의 사용.
+
+---

@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" id="Definitions_00gahfq" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.5.0">
+  <bpmn:process id="Process_1ob4rra" name="Hey Process" isExecutable="true">
+    <bpmn:startEvent id="s1" name="s1">
+      <bpmn:outgoing>Flow_0snd4m7</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_0snd4m7" sourceRef="s1" targetRef="t1" />
+    <bpmn:serviceTask id="t1" name="String" camunda:class="com.dongkuk.oasis.process.VarietyReturnMethods">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="string" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0snd4m7</bpmn:incoming>
+      <bpmn:outgoing>Flow_16zabz7</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1oa7k4o</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_16zabz7" sourceRef="t1" targetRef="Activity_1podfmh">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">#root=="hi"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:endEvent id="Event_1k6nf3k" name="e1">
+      <bpmn:incoming>Flow_1oa7k4o</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1oa7k4o" sourceRef="t1" targetRef="Event_1k6nf3k" />
+    <bpmn:endEvent id="Event_0r73i8y" name="e2">
+      <bpmn:incoming>Flow_14yc7yv</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_14yc7yv" sourceRef="Activity_1podfmh" targetRef="Event_0r73i8y" />
+    <bpmn:sequenceFlow id="Flow_1msqned" sourceRef="Activity_1podfmh" targetRef="Activity_00hqt09">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">size()&gt;0</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:endEvent id="Event_0p4qiln" name="e3">
+      <bpmn:incoming>Flow_0sf15p3</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:exclusiveGateway id="Gateway_0b0cild">
+      <bpmn:incoming>Flow_0j4musu</bpmn:incoming>
+      <bpmn:outgoing>Flow_0sf15p3</bpmn:outgoing>
+      <bpmn:outgoing>Flow_17so4lc</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_0j4musu" sourceRef="Activity_00hqt09" targetRef="Gateway_0b0cild" />
+    <bpmn:sequenceFlow id="Flow_0sf15p3" sourceRef="Gateway_0b0cild" targetRef="Event_0p4qiln">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">#this==11</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_17so4lc" sourceRef="Gateway_0b0cild" targetRef="Activity_1u55oig" />
+    <bpmn:endEvent id="Event_0vvy6th" name="e4">
+      <bpmn:incoming>Flow_0udvvpg</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="Activity_1u55oig" name="String" camunda:class="com.dongkuk.oasis.process.VarietyReturnMethods">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="string" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_17so4lc</bpmn:incoming>
+      <bpmn:outgoing>Flow_0udvvpg</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_0udvvpg" sourceRef="Activity_1u55oig" targetRef="Event_0vvy6th" />
+    <bpmn:serviceTask id="Activity_1podfmh" name="stringList" camunda:class="com.dongkuk.oasis.process.VarietyReturnMethods">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="stringList" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_16zabz7</bpmn:incoming>
+      <bpmn:outgoing>Flow_14yc7yv</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1msqned</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_00hqt09" name="stringStringMap" camunda:class="com.dongkuk.oasis.process.VarietyReturnMethods">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="stringStringMap" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1msqned</bpmn:incoming>
+      <bpmn:outgoing>Flow_0j4musu</bpmn:outgoing>
+    </bpmn:serviceTask>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_1ob4rra">
+      <bpmndi:BPMNEdge id="Flow_0udvvpg_di" bpmnElement="Flow_0udvvpg">
+        <di:waypoint x="810" y="650" />
+        <di:waypoint x="872" y="650" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_17so4lc_di" bpmnElement="Flow_17so4lc">
+        <di:waypoint x="670" y="545" />
+        <di:waypoint x="670" y="650" />
+        <di:waypoint x="710" y="650" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0sf15p3_di" bpmnElement="Flow_0sf15p3">
+        <di:waypoint x="695" y="520" />
+        <di:waypoint x="862" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0j4musu_di" bpmnElement="Flow_0j4musu">
+        <di:waypoint x="560" y="390" />
+        <di:waypoint x="670" y="390" />
+        <di:waypoint x="670" y="495" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1msqned_di" bpmnElement="Flow_1msqned">
+        <di:waypoint x="510" y="280" />
+        <di:waypoint x="510" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_14yc7yv_di" bpmnElement="Flow_14yc7yv">
+        <di:waypoint x="560" y="240" />
+        <di:waypoint x="662" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1oa7k4o_di" bpmnElement="Flow_1oa7k4o">
+        <di:waypoint x="410" y="117" />
+        <di:waypoint x="662" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_16zabz7_di" bpmnElement="Flow_16zabz7">
+        <di:waypoint x="360" y="157" />
+        <di:waypoint x="360" y="230" />
+        <di:waypoint x="460" y="230" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0snd4m7_di" bpmnElement="Flow_0snd4m7">
+        <di:waypoint x="215" y="117" />
+        <di:waypoint x="310" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="s1">
+        <dc:Bounds x="179" y="99" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="191" y="142" width="12" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_03jcsns_di" bpmnElement="t1">
+        <dc:Bounds x="310" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1k6nf3k_di" bpmnElement="Event_1k6nf3k">
+        <dc:Bounds x="662" y="99" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="674" y="142" width="13" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0r73i8y_di" bpmnElement="Event_0r73i8y">
+        <dc:Bounds x="662" y="222" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="674" y="265" width="13" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0p4qiln_di" bpmnElement="Event_0p4qiln">
+        <dc:Bounds x="862" y="502" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="874" y="545" width="13" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0b0cild_di" bpmnElement="Gateway_0b0cild" isMarkerVisible="true">
+        <dc:Bounds x="645" y="495" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0vvy6th_di" bpmnElement="Event_0vvy6th">
+        <dc:Bounds x="872" y="632" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="884" y="675" width="13" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1u55oig_di" bpmnElement="Activity_1u55oig">
+        <dc:Bounds x="710" y="610" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_05utyrm_di" bpmnElement="Activity_1podfmh">
+        <dc:Bounds x="460" y="200" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_06n6xod_di" bpmnElement="Activity_00hqt09">
+        <dc:Bounds x="460" y="350" width="100" height="80" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -1,0 +1,35 @@
+plugins {
+    id 'org.springframework.boot' apply false
+    id 'io.spring.dependency-management'
+}
+
+dependencyManagement {
+    imports {
+        mavenBom org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES
+    }
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    // SQLite 는 DB 파일 단위 락이라 병렬 fork 시 테스트가 서로 막힌다.
+    maxParallelForks = 1
+}
+
+dependencies {
+    api 'com.dongkuk.dmes:cactus-core:1.0.20-SNAPSHOT'
+    api 'com.dongkuk.dmes:mcm-core'
+
+    api 'org.springframework.boot:spring-boot-starter-actuator'
+    api 'org.springframework.boot:spring-boot-starter-data-jpa'
+    api 'org.springframework.boot:spring-boot-starter-security'
+    api 'org.springframework.boot:spring-boot-starter-web'
+    api 'org.springframework.boot:spring-boot-starter-validation'
+
+    api 'org.xerial:sqlite-jdbc:3.45.3.0'
+    api 'org.hibernate.orm:hibernate-community-dialects:7.0.5.Final'
+
+    // 샘플 스키마를 Flyway 로 관리한다.
+    // Spring Boot 4 부터 FlywayAutoConfiguration 이 별도 모듈(spring-boot-flyway)로 빠졌다.
+    api 'org.flywaydb:flyway-core'
+    api 'org.springframework.boot:spring-boot-flyway'
+}

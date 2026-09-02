@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" id="Definitions_00gahfq" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.5.0">
+  <bpmn:collaboration id="Collaboration_16z5li2">
+    <bpmn:participant id="Participant_04a79vc" name="이름" processRef="Process_1ob4rra" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_1ob4rra" name="프로세스 이름" isExecutable="true">
+    <bpmn:laneSet id="LaneSet_0l4brqa" />
+    <bpmn:serviceTask id="Activity_0g8lc6y" name="hey" camunda:class="jhvjkj">
+      <bpmn:incoming>Flow_17s4468</bpmn:incoming>
+      <bpmn:outgoing>Flow_13zb5dx</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_17s4468</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:endEvent id="Event_0dkkwpu">
+      <bpmn:incoming>Flow_13zb5dx</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_17s4468" sourceRef="StartEvent_1" targetRef="Activity_0g8lc6y" />
+    <bpmn:sequenceFlow id="Flow_13zb5dx" sourceRef="Activity_0g8lc6y" targetRef="Event_0dkkwpu" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1" name="Default Process Diagram">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_16z5li2">
+      <bpmndi:BPMNShape id="Participant_04a79vc_di" bpmnElement="Participant_04a79vc" isHorizontal="true">
+        <dc:Bounds x="130" y="80" width="630" height="250" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_13zb5dx_di" bpmnElement="Flow_13zb5dx">
+        <di:waypoint x="411" y="140" />
+        <di:waypoint x="463" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_17s4468_di" bpmnElement="Flow_17s4468">
+        <di:waypoint x="246" y="140" />
+        <di:waypoint x="311" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Event_0dkkwpu_di" bpmnElement="Event_0dkkwpu">
+        <dc:Bounds x="463" y="122" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1hnffso_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="210" y="122" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1h108w0_di" bpmnElement="Activity_0g8lc6y">
+        <dc:Bounds x="311" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

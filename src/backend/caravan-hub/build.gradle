@@ -1,0 +1,115 @@
+plugins {
+    id 'java'
+    id 'war'
+    id 'org.springframework.boot' version '4.0.6'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.dongkuk.caravan'
+version = '1.0.0-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs.add('-parameters')
+}
+
+def nexusUrl = "http://172.31.1.96:8889/nexus"
+
+// ── Apache Camel 4.20 (Spring Boot 4.x 지원은 Camel 4.19+; PoC-2b WildFly 실배포 검증 완료) ──
+ext { camelVersion = '4.20.0' }
+dependencyManagement {
+    imports {
+        mavenBom "org.apache.camel.springboot:camel-spring-boot-bom:${camelVersion}"
+    }
+}
+
+repositories {
+    mavenCentral()
+    mavenLocal()
+    // maven {
+    //     url "${nexusUrl}/content/groups/public"
+    //     allowInsecureProtocol = true
+    //     content {
+    //         includeGroup 'com.dongkuk'
+    //         includeGroup 'com.dongkuk.dmes'
+    //         includeGroup 'com.dongkuk.caravan'
+    //     }
+    // }
+}
+
+bootRun {
+    // local SQLite 경로 ../data/caravan-*.db 의 기준을 caravan-hub 모듈 루트로 통일한다.
+    workingDir = rootProject.projectDir
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+dependencies {
+    // Caravan Kafka Library
+    implementation 'com.dongkuk.caravan:caravan-core:3.0.0'
+
+    // ── Apache Camel ──
+    //   core: CamelContext 자동구성 / sql: 인바운드·아웃바운드 DB(onConsume 낙관락, P3-DB/P4)
+    //   jackson: 메시지 (un)marshal / servlet: 인바운드 HTTP(P3-HTTP, /caravanHubApi/*).
+    //   http·sftp starter 는 아웃바운드/FILE 단계(P3-FILE/P4)에서 추가.
+    implementation 'org.apache.camel.springboot:camel-spring-boot-starter'
+    implementation 'org.apache.camel.springboot:camel-sql-starter'
+    implementation 'org.apache.camel.springboot:camel-jackson-starter'
+    implementation 'org.apache.camel.springboot:camel-servlet-starter'
+
+    // Spring Boot (버전은 dependency-management BOM 에서 관리)
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    // Actuator (/actuator/health — 타 모듈(mpn/mls/mpp/mqc/analog)과 톤 통일)
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    // MyBatis
+    implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.5'
+
+    // JSch (SFTP)
+    implementation 'com.jcraft:jsch:0.1.55'
+
+    // Caffeine Cache
+    implementation 'com.github.ben-manes.caffeine:caffeine:3.2.0'
+
+    // ── DB Drivers (옵셔널 프로파일별 활성화) ──
+    runtimeOnly 'org.xerial:sqlite-jdbc:3.45.3.0'
+    providedRuntime 'com.microsoft.sqlserver:mssql-jdbc:12.8.1.jre11'   // JNDI 전환(2026-07-09): WildFly 모듈 제공, WAR 제외. bootRun(runtimeClasspath)엔 잔존
+
+    // WildFly(외장 WAS) 의 서블릿 컨테이너를 사용 → 내장 Tomcat 은 provided 처리.
+    // bootWar 가 WEB-INF/lib = runtimeClasspath − providedRuntime 으로 계산하므로
+    // starter-web 이 transitive 로 끌어온 Tomcat 도 WEB-INF/lib-provided 로 격리되어 배포 안 됨.
+    // 주의: starter-tomcat 전체를 빼면 SF7/SB4 에서 spring-web 까지 runtimeClasspath 에서 누락되어
+    //       로컬 bootRun/IDE 실행이 깨진다. 내장 서블릿 컨테이너 jar(tomcat-embed-*)만 provided 로 뺀다.
+    providedRuntime 'org.apache.tomcat.embed:tomcat-embed-core'
+    providedRuntime 'org.apache.tomcat.embed:tomcat-embed-el'
+    providedRuntime 'org.apache.tomcat.embed:tomcat-embed-websocket'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // Test
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testCompileOnly 'org.projectlombok:lombok'
+    testAnnotationProcessor 'org.projectlombok:lombok'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+bootWar {
+    archiveFileName = 'caravan-hub.war'
+}

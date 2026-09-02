@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" id="Definitions_00gahfq" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.12.0">
+  <bpmn:process id="Process_1ob4rra" name="Hey Process" isExecutable="true">
+    <bpmn:startEvent id="s1" name="s1">
+      <bpmn:outgoing>Flow_0snd4m7</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_0snd4m7" sourceRef="s1" targetRef="Activity_16x8iol" />
+    <bpmn:endEvent id="Event_1cyxcyy">
+      <bpmn:incoming>Flow_1btco9h</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1btco9h" sourceRef="Activity_16x8iol" targetRef="Event_1cyxcyy" />
+    <bpmn:subProcess id="Activity_16x8iol" name="dto 만드는 서브 프로세스">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="dto" value="com.dongkuk.oasis.process.SubProcessPassingDtoTest$MyDto" />
+          <camunda:property name="output" value="result" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0snd4m7</bpmn:incoming>
+      <bpmn:outgoing>Flow_1btco9h</bpmn:outgoing>
+      <bpmn:serviceTask id="Activity_1vh11ib" name="ㄹㄹ" camunda:class="com.dongkuk.oasis.process.Sub#hi">
+        <bpmn:extensionElements>
+          <camunda:properties>
+            <camunda:property name="output" value="out" />
+          </camunda:properties>
+        </bpmn:extensionElements>
+      </bpmn:serviceTask>
+    </bpmn:subProcess>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_1ob4rra">
+      <bpmndi:BPMNEdge id="Flow_0snd4m7_di" bpmnElement="Flow_0snd4m7">
+        <di:waypoint x="188" y="187" />
+        <di:waypoint x="320" y="187" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1btco9h_di" bpmnElement="Flow_1btco9h">
+        <di:waypoint x="680" y="187" />
+        <di:waypoint x="832" y="187" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="s1">
+        <dc:Bounds x="152" y="169" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="164" y="212" width="12" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1cyxcyy_di" bpmnElement="Event_1cyxcyy">
+        <dc:Bounds x="832" y="169" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1mtz0cj_di" bpmnElement="Activity_16x8iol" isExpanded="true">
+        <dc:Bounds x="320" y="82" width="360" height="210" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0qnvg16_di" bpmnElement="Activity_1vh11ib">
+        <dc:Bounds x="450" y="150" width="100" height="80" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

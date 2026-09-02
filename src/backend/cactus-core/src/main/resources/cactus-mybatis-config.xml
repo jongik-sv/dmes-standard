@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE configuration PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-config.dtd">
+<!--
+  cactus 의 기본 mybatis-config.xml. CactusMultiMybatisAutoConfiguration 의
+  SqlSessionFactoryBean.setConfigLocation() 으로 로드.
+
+  film 의 mybatis-config.xml 과 동일 settings (검증된 운영 설정):
+    - callSettersOnNulls=true       : NULL 컬럼도 setter 호출 (Map 결과의 모든 key 보존)
+    - mapUnderscoreToCamelCase=true : DB 컬럼 snake_case → Java camelCase 자동 변환
+    - cacheEnabled=false            : 2차 캐시 비활성 (multi-tx 시 cache 일관성 회피)
+    - jdbcTypeForNull=NULL          : null 파라미터 jdbcType=NULL 자동 설정
+    - localCacheScope=STATEMENT     : 1차 캐시 statement scope (트랜잭션 내 row 재호출 시 fresh)
+
+  호스트가 override 시 yml 의 cactus.mybatis.config-location 으로 다른 xml 지정.
+-->
+<configuration>
+    <settings>
+        <setting name="callSettersOnNulls" value="true"/>
+        <setting name="mapUnderscoreToCamelCase" value="true"/>
+        <setting name="cacheEnabled" value="false"/>
+        <setting name="jdbcTypeForNull" value="NULL"/>
+        <setting name="localCacheScope" value="STATEMENT"/>
+    </settings>
+    <!--
+      typeAliases 없음.
+      - 'map' 은 mybatis 기본 (java.util.Map) — 중복 등록 시 TypeException.
+      - 호스트 모듈이 자체 별칭 필요 시 별도 mybatis-config.xml 작성 후 cactus.mybatis.config-location override.
+    -->
+</configuration>

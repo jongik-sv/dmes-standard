@@ -1,0 +1,25 @@
+// Composite aggregator — 실제 빌드 로직은 각 includeBuild 프로젝트가 담당한다.
+// 사용 예:
+//   ./gradlew buildAll     // 5개 프로젝트 전체 build
+//   ./gradlew testAll      // 5개 프로젝트 전체 test
+//   ./gradlew cleanAll     // 5개 프로젝트 전체 clean
+
+def includedProjectNames = ['mpn', 'aps-core', 'cactus-core', 'mpp', 'mqc', 'mcm', 'localKafka', 'caravan-core', 'caravan-hub']
+
+tasks.register('buildAll') {
+    group = 'composite'
+    description = '모든 포함 빌드의 build 태스크를 실행한다.'
+    dependsOn includedProjectNames.collect { gradle.includedBuild(it).task(':build') }
+}
+
+tasks.register('testAll') {
+    group = 'composite'
+    description = '모든 포함 빌드의 test 태스크를 실행한다.'
+    dependsOn includedProjectNames.collect { gradle.includedBuild(it).task(':test') }
+}
+
+tasks.register('cleanAll') {
+    group = 'composite'
+    description = '모든 포함 빌드의 clean 태스크를 실행한다.'
+    dependsOn includedProjectNames.collect { gradle.includedBuild(it).task(':clean') }
+}

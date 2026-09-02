@@ -1,0 +1,25 @@
+// analog/api — {CLIENT} 어댑터 (Spring Boot 4 launcher)
+//   - 의존: analog/core (분석 엔진 + serializer)
+//   - 책임: REST 컨트롤러 (/api/meta, /log/range/time, /log/range/time/tree, /log/range/time/download), 설정, 부팅
+plugins {
+    id 'org.springframework.boot'
+}
+
+bootRun {
+    workingDir = rootProject.projectDir
+    jvmArgs = ['-Dfile.encoding=UTF-8', '-Dsun.stdout.encoding=UTF-8', '-Dsun.stderr.encoding=UTF-8']
+}
+
+dependencies {
+    api project(':core')
+    runtimeOnly files(project(':core').sourceSets.main.output)
+
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

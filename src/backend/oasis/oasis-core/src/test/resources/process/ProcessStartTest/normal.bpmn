@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" id="Definitions_00gahfq" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.5.0">
+  <bpmn:process id="Process_1ob4rra" name="Hey Process" isExecutable="true">
+    <bpmn:startEvent id="s1" name="s1">
+      <bpmn:outgoing>Flow_0snd4m7</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_0snd4m7" sourceRef="s1" targetRef="t1" />
+    <bpmn:serviceTask id="t1" name="나는 태스크" camunda:class="com.dongkuk.oasis.unmarshal.camunda.AWow">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="dao" value="mydao" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0snd4m7</bpmn:incoming>
+      <bpmn:outgoing>Flow_16zabz7</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_0nc7onr" name="꺄악">
+      <bpmn:incoming>Flow_16zabz7</bpmn:incoming>
+      <bpmn:outgoing>Flow_0tvfufo</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0ebz02u</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_16zabz7" sourceRef="t1" targetRef="Gateway_0nc7onr" />
+    <bpmn:sequenceFlow id="Flow_0tvfufo" name="일" sourceRef="Gateway_0nc7onr" targetRef="t2">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">1!=1</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_0ebz02u" name="이" sourceRef="Gateway_0nc7onr" targetRef="t3">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">2==2</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:serviceTask id="t3" name="알람" default="Flow_0f5kc09" camunda:class="com.dongkuk.oasis.unmarshal.camunda.AWow">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="msg" value="hihi" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0ebz02u</bpmn:incoming>
+      <bpmn:outgoing>Flow_1hq8fwm</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0f5kc09</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="Event_0belzar" name="e2">
+      <bpmn:incoming>Flow_1hq8fwm</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1hq8fwm" name="삼" sourceRef="t3" targetRef="Event_0belzar">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">삼</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:endEvent id="Event_1k6nf3k" name="e1">
+      <bpmn:incoming>Flow_01w51dr</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_01w51dr" sourceRef="t2" targetRef="Event_1k6nf3k" />
+    <bpmn:sequenceFlow id="Flow_0f5kc09" sourceRef="t3" targetRef="t4" />
+    <bpmn:endEvent id="Event_1agrkit" name="e3">
+      <bpmn:incoming>Flow_1o2mv44</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1o2mv44" sourceRef="t4" targetRef="Event_1agrkit" />
+    <bpmn:serviceTask id="t4" name="SMS" camunda:class="com.dongkuk.oasis.unmarshal.camunda.AWow">
+      <bpmn:incoming>Flow_0f5kc09</bpmn:incoming>
+      <bpmn:outgoing>Flow_1o2mv44</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="t2" name="나도 태스크" camunda:class="com.dongkuk.oasis.unmarshal.camunda.AWow">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="in" value="abc" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0tvfufo</bpmn:incoming>
+      <bpmn:outgoing>Flow_01w51dr</bpmn:outgoing>
+    </bpmn:serviceTask>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_1ob4rra">
+      <bpmndi:BPMNEdge id="Flow_1o2mv44_di" bpmnElement="Flow_1o2mv44">
+        <di:waypoint x="800" y="340" />
+        <di:waypoint x="862" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0f5kc09_di" bpmnElement="Flow_0f5kc09">
+        <di:waypoint x="580" y="270" />
+        <di:waypoint x="580" y="340" />
+        <di:waypoint x="700" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_01w51dr_di" bpmnElement="Flow_01w51dr">
+        <di:waypoint x="630" y="117" />
+        <di:waypoint x="782" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1hq8fwm_di" bpmnElement="Flow_1hq8fwm">
+        <di:waypoint x="630" y="230" />
+        <di:waypoint x="782" y="230" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="701" y="212" width="10" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0ebz02u_di" bpmnElement="Flow_0ebz02u">
+        <di:waypoint x="450" y="142" />
+        <di:waypoint x="450" y="230" />
+        <di:waypoint x="530" y="230" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="460" y="183" width="10" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0tvfufo_di" bpmnElement="Flow_0tvfufo">
+        <di:waypoint x="475" y="117" />
+        <di:waypoint x="530" y="117" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="498" y="99" width="10" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_16zabz7_di" bpmnElement="Flow_16zabz7">
+        <di:waypoint x="370" y="117" />
+        <di:waypoint x="425" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0snd4m7_di" bpmnElement="Flow_0snd4m7">
+        <di:waypoint x="215" y="117" />
+        <di:waypoint x="270" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="s1">
+        <dc:Bounds x="179" y="99" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="191" y="142" width="12" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_03jcsns_di" bpmnElement="t1">
+        <dc:Bounds x="270" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0nc7onr_di" bpmnElement="Gateway_0nc7onr" isMarkerVisible="true">
+        <dc:Bounds x="425" y="92" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="420" y="142" width="20" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1kttadj_di" bpmnElement="t3">
+        <dc:Bounds x="530" y="190" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0belzar_di" bpmnElement="Event_0belzar">
+        <dc:Bounds x="782" y="212" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="794" y="255" width="13" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1k6nf3k_di" bpmnElement="Event_1k6nf3k">
+        <dc:Bounds x="782" y="99" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="794" y="142" width="13" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1agrkit_di" bpmnElement="Event_1agrkit">
+        <dc:Bounds x="862" y="322" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="874" y="365" width="13" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0rd62w3_di" bpmnElement="t4">
+        <dc:Bounds x="700" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1fy97ue_di" bpmnElement="t2">
+        <dc:Bounds x="530" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -1,0 +1,4 @@
+interface:
+  display_name: "OASIS Project Support"
+  short_description: "Support OASIS-based projects with BPMN design, binding analysis, testing, and debugging workflows."
+  default_prompt: "Use $oasis-project-support to inspect BPMN, Java tasks, bindings, and tests in an OASIS-based project before proposing changes."

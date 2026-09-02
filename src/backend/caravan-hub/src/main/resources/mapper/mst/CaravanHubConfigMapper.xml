@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.dongkuk.caravan.hub.mapper.CaravanHubConfigMapper">
+
+    <!-- DB INBOUND 폴링 대상 테이블 목록 조회 -->
+    <select id="selectDbInboundConfigs" resultType="java.util.Map">
+        SELECT
+            c.TOPIC_ID,
+            c.DB_SCHEMA,
+            c.DB_TABLE_NAME,
+            COALESCE(c.POLLING_INTERVAL_MS, 1000) AS POLLING_INTERVAL_MS,
+            t.GROUP_ID
+        FROM TB_CARAVAN_HUB_CONFIG c
+        INNER JOIN TB_CARAVAN_TOPICS t
+            ON c.TOPIC_ID = t.TOPIC_ID
+        WHERE c.INTEGRATION_TYPE = 'DB'
+          AND c.DIRECTION = 'INBOUND'
+          AND c.USE_YN = 'Y'
+          AND t.USE_TP = 'Y'
+    </select>
+
+    <!-- FILE INBOUND 폴링 대상 설정 조회 -->
+    <select id="selectFileInboundConfigs" resultType="java.util.Map">
+        SELECT
+            c.TOPIC_ID,
+            c.FILE_PATH,
+            c.BACKUP_PATH,
+            c.FTP_HOST,
+            c.FTP_PORT,
+            c.FTP_USER,
+            c.FTP_PASSWORD,
+            COALESCE(c.POLLING_INTERVAL_MS, 1000) AS POLLING_INTERVAL_MS,
+            t.GROUP_ID
+        FROM TB_CARAVAN_HUB_CONFIG c
+        INNER JOIN TB_CARAVAN_TOPICS t
+            ON c.TOPIC_ID = t.TOPIC_ID
+        WHERE c.INTEGRATION_TYPE = 'FILE'
+          AND c.DIRECTION = 'INBOUND'
+          AND c.USE_YN = 'Y'
+          AND t.USE_TP = 'Y'
+    </select>
+
+    <!-- OUTBOUND 설정 조회 -->
+    <select id="selectOutboundConfig" parameterType="java.lang.String" resultType="java.util.Map">
+        SELECT
+            TOPIC_ID,
+            DIRECTION,
+            INTEGRATION_TYPE,
+            DB_TABLE_NAME,
+            DB_SCHEMA,
+            HTTP_URL,
+            HTTP_METHOD,
+            HTTP_HEADERS,
+            FILE_PATH,
+            BACKUP_PATH,
+            FTP_HOST,
+            FTP_PORT,
+            FTP_USER,
+            FTP_PASSWORD
+        FROM TB_CARAVAN_HUB_CONFIG
+        WHERE TOPIC_ID = #{TOPIC_ID}
+          AND DIRECTION = 'OUTBOUND'
+          AND USE_YN = 'Y'
+    </select>
+
+    <!-- 테이블명 검증 (SQL Injection 방지) -->
+    <select id="isValidTableName" resultType="int">
+        SELECT COUNT(*)
+        FROM TB_CARAVAN_HUB_CONFIG
+        WHERE DB_SCHEMA = #{schema}
+          AND DB_TABLE_NAME = #{tableName}
+          AND USE_YN = 'Y'
+    </select>
+
+</mapper>

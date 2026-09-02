@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" id="Definitions_00gahfq" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.5.0">
+  <bpmn:process id="Process_1ob4rra" name="Hey Process" isExecutable="true">
+    <bpmn:startEvent id="s1" name="s1">
+      <bpmn:outgoing>Flow_0snd4m7</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_0snd4m7" sourceRef="s1" targetRef="Activity_1442y7w" />
+    <bpmn:endEvent id="Event_1k6nf3k" name="e1">
+      <bpmn:incoming>Flow_19b8zpb</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:subProcess id="Activity_0vc166z" name="이름넣어주세요">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="name" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0wi2i3i</bpmn:incoming>
+      <bpmn:outgoing>Flow_19b8zpb</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1v5r05z</bpmn:outgoing>
+      <bpmn:startEvent id="Event_1n2hcay">
+        <bpmn:outgoing>Flow_0uhb713</bpmn:outgoing>
+      </bpmn:startEvent>
+      <bpmn:sequenceFlow id="Flow_0uhb713" sourceRef="Event_1n2hcay" targetRef="Activity_1yfklac" />
+      <bpmn:endEvent id="Event_070vc1p">
+        <bpmn:incoming>Flow_0pwzycj</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:serviceTask id="Activity_1yfklac" name="이름이름" camunda:class="com.dongkuk.oasis.process.NameDecorator">
+        <bpmn:extensionElements>
+          <camunda:inputOutput>
+            <camunda:outputParameter name="result">here</camunda:outputParameter>
+          </camunda:inputOutput>
+          <camunda:properties>
+            <camunda:property name="method" value="deco" />
+            <camunda:property name="output" value="fullName" />
+          </camunda:properties>
+        </bpmn:extensionElements>
+        <bpmn:incoming>Flow_0uhb713</bpmn:incoming>
+        <bpmn:outgoing>Flow_0pwzycj</bpmn:outgoing>
+      </bpmn:serviceTask>
+      <bpmn:sequenceFlow id="Flow_0pwzycj" sourceRef="Activity_1yfklac" targetRef="Event_070vc1p" />
+    </bpmn:subProcess>
+    <bpmn:sequenceFlow id="Flow_19b8zpb" sourceRef="Activity_0vc166z" targetRef="Event_1k6nf3k">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">['fullName']=="jeongjin kim"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:task id="Activity_1442y7w" name="프로세스에 값 생성">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:outputParameter name="name">jeongjin</camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0snd4m7</bpmn:incoming>
+      <bpmn:outgoing>Flow_0wi2i3i</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:sequenceFlow id="Flow_0wi2i3i" sourceRef="Activity_1442y7w" targetRef="Activity_0vc166z" />
+    <bpmn:endEvent id="Event_08xht4y">
+      <bpmn:incoming>Flow_1v5r05z</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1v5r05z" sourceRef="Activity_0vc166z" targetRef="Event_08xht4y" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_1ob4rra">
+      <bpmndi:BPMNEdge id="Flow_1v5r05z_di" bpmnElement="Flow_1v5r05z">
+        <di:waypoint x="770" y="240" />
+        <di:waypoint x="930" y="240" />
+        <di:waypoint x="930" y="272" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0wi2i3i_di" bpmnElement="Flow_0wi2i3i">
+        <di:waypoint x="360" y="177" />
+        <di:waypoint x="420" y="177" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_19b8zpb_di" bpmnElement="Flow_19b8zpb">
+        <di:waypoint x="770" y="177" />
+        <di:waypoint x="912" y="177" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0snd4m7_di" bpmnElement="Flow_0snd4m7">
+        <di:waypoint x="215" y="177" />
+        <di:waypoint x="260" y="177" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="s1">
+        <dc:Bounds x="179" y="159" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="191" y="202" width="12" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1k6nf3k_di" bpmnElement="Event_1k6nf3k">
+        <dc:Bounds x="912" y="159" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="924" y="202" width="13" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0vc166z_di" bpmnElement="Activity_0vc166z" isExpanded="true">
+        <dc:Bounds x="420" y="77" width="350" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_0pwzycj_di" bpmnElement="Flow_0pwzycj">
+        <di:waypoint x="640" y="177" />
+        <di:waypoint x="702" y="177" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0uhb713_di" bpmnElement="Flow_0uhb713">
+        <di:waypoint x="496" y="177" />
+        <di:waypoint x="540" y="177" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Event_1n2hcay_di" bpmnElement="Event_1n2hcay">
+        <dc:Bounds x="460" y="159" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_070vc1p_di" bpmnElement="Event_070vc1p">
+        <dc:Bounds x="702" y="159" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1yfklac_di" bpmnElement="Activity_1yfklac">
+        <dc:Bounds x="540" y="137" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1442y7w_di" bpmnElement="Activity_1442y7w">
+        <dc:Bounds x="260" y="137" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_08xht4y_di" bpmnElement="Event_08xht4y">
+        <dc:Bounds x="912" y="272" width="36" height="36" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

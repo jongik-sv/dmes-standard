@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_PreProductionQuality" targetNamespace="urn:sap-quality-hold-reference" exporter="bpmn-tool" exporterVersion="1.3.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:collaboration id="Collaboration_PreProductionQuality">
+    <bpmn:participant id="Participant_PreProductionQuality" name="생산 전 품질 (SAP S/4HANA QM · SAP Digital Manufacturing)" processRef="PreProductionQuality" />
+  </bpmn:collaboration>
+  <bpmn:process id="PreProductionQuality" name="생산 전 품질 — 계획·승인·출시 관문" isExecutable="false">
+    <bpmn:documentation>신규/변경 품목, 공급자, BOM/라우팅에 대해 S/4HANA QM 품질계획, 공급자 품질승인, Source Inspection, SAP Digital Manufacturing 실행 준비를 검증하고 미충족 대상을 생산 투입 전에 보류한다.</bpmn:documentation>
+    <bpmn:startEvent id="PRE_Start" name="신규·변경 품목/공급자/공정">
+      <bpmn:outgoing>PRE_F01</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="PRE_QualityPlan" name="[S/4 QM]&#10;검사계획·MIC·샘플링·검사유형 설정">
+      <bpmn:incoming>PRE_F01</bpmn:incoming>
+      <bpmn:outgoing>PRE_F02</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="PRE_SupplierQuality" name="[S/4 QM]&#10;Q-Info·공급자 Release·Source Inspection 설정">
+      <bpmn:incoming>PRE_F02</bpmn:incoming>
+      <bpmn:outgoing>PRE_F03</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="PRE_QualificationPlanning" name="[S/4 QM]&#10;검사계획 Release·Source Inspection 준비">
+      <bpmn:incoming>PRE_F03</bpmn:incoming>
+      <bpmn:outgoing>PRE_F04</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="PRE_DMSync" name="[SAP DM]&#10;Material·Routing·검사항목·Buyoff 동기화">
+      <bpmn:incoming>PRE_F04</bpmn:incoming>
+      <bpmn:incoming>PRE_F09</bpmn:incoming>
+      <bpmn:outgoing>PRE_F05</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="PRE_ReadinessGateway" name="출시 전제 충족?" default="PRE_F07">
+      <bpmn:incoming>PRE_F05</bpmn:incoming>
+      <bpmn:outgoing>PRE_F06</bpmn:outgoing>
+      <bpmn:outgoing>PRE_F07</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="PRE_ReadinessHold" name="사전 품질 보류 적용&#10;공급자/Q-Info Block 또는&#10;DM Material·Routing·Operation Hold">
+      <bpmn:incoming>PRE_F07</bpmn:incoming>
+      <bpmn:outgoing>PRE_F08</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="PRE_CloseGap" name="누락 기준·승인·교육·문서 보완">
+      <bpmn:incoming>PRE_F08</bpmn:incoming>
+      <bpmn:outgoing>PRE_F09</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="PRE_InspectionRequired" name="Source Inspection/&#10;Qualification 필요?" default="PRE_F11">
+      <bpmn:incoming>PRE_F06</bpmn:incoming>
+      <bpmn:outgoing>PRE_F10</bpmn:outgoing>
+      <bpmn:outgoing>PRE_F11</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="PRE_ExecuteQualification" name="Source Inspection·Qualification Run 실행">
+      <bpmn:incoming>PRE_F10</bpmn:incoming>
+      <bpmn:incoming>PRE_F17</bpmn:incoming>
+      <bpmn:outgoing>PRE_F12</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="PRE_RecordQualification" name="검사결과·결함·증빙 기록">
+      <bpmn:incoming>PRE_F12</bpmn:incoming>
+      <bpmn:outgoing>PRE_F13</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="PRE_QualificationGateway" name="승인 가능?" default="PRE_F15">
+      <bpmn:incoming>PRE_F13</bpmn:incoming>
+      <bpmn:outgoing>PRE_F14</bpmn:outgoing>
+      <bpmn:outgoing>PRE_F15</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="PRE_QualificationBlock" name="공급자·품목·라우팅 출시 차단&#10;품질이슈/CAPA 발행">
+      <bpmn:incoming>PRE_F15</bpmn:incoming>
+      <bpmn:outgoing>PRE_F16</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="PRE_Requalify" name="시정조치·재자격 평가 준비">
+      <bpmn:incoming>PRE_F16</bpmn:incoming>
+      <bpmn:outgoing>PRE_F17</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="PRE_Release" name="품질 출시 승인&#10;공급·생산 Release 허용">
+      <bpmn:incoming>PRE_F11</bpmn:incoming>
+      <bpmn:incoming>PRE_F14</bpmn:incoming>
+      <bpmn:outgoing>PRE_F18</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="PRE_End" name="생산 투입 가능">
+      <bpmn:incoming>PRE_F18</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="PRE_F01" sourceRef="PRE_Start" targetRef="PRE_QualityPlan" />
+    <bpmn:sequenceFlow id="PRE_F02" sourceRef="PRE_QualityPlan" targetRef="PRE_SupplierQuality" />
+    <bpmn:sequenceFlow id="PRE_F03" sourceRef="PRE_SupplierQuality" targetRef="PRE_QualificationPlanning" />
+    <bpmn:sequenceFlow id="PRE_F04" sourceRef="PRE_QualificationPlanning" targetRef="PRE_DMSync" />
+    <bpmn:sequenceFlow id="PRE_F05" sourceRef="PRE_DMSync" targetRef="PRE_ReadinessGateway" />
+    <bpmn:sequenceFlow id="PRE_F06" name="충족" sourceRef="PRE_ReadinessGateway" targetRef="PRE_InspectionRequired">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${preProductionReady == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="PRE_F07" name="미충족" sourceRef="PRE_ReadinessGateway" targetRef="PRE_ReadinessHold" />
+    <bpmn:sequenceFlow id="PRE_F08" sourceRef="PRE_ReadinessHold" targetRef="PRE_CloseGap" />
+    <bpmn:sequenceFlow id="PRE_F09" name="재검증" sourceRef="PRE_CloseGap" targetRef="PRE_DMSync" />
+    <bpmn:sequenceFlow id="PRE_F10" name="필요" sourceRef="PRE_InspectionRequired" targetRef="PRE_ExecuteQualification">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${qualificationInspectionRequired == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="PRE_F11" name="불필요" sourceRef="PRE_InspectionRequired" targetRef="PRE_Release" />
+    <bpmn:sequenceFlow id="PRE_F12" sourceRef="PRE_ExecuteQualification" targetRef="PRE_RecordQualification" />
+    <bpmn:sequenceFlow id="PRE_F13" sourceRef="PRE_RecordQualification" targetRef="PRE_QualificationGateway" />
+    <bpmn:sequenceFlow id="PRE_F14" name="합격·승인" sourceRef="PRE_QualificationGateway" targetRef="PRE_Release">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${qualificationAccepted == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="PRE_F15" name="불합격·보류" sourceRef="PRE_QualificationGateway" targetRef="PRE_QualificationBlock" />
+    <bpmn:sequenceFlow id="PRE_F16" sourceRef="PRE_QualificationBlock" targetRef="PRE_Requalify" />
+    <bpmn:sequenceFlow id="PRE_F17" name="재검사" sourceRef="PRE_Requalify" targetRef="PRE_ExecuteQualification" />
+    <bpmn:sequenceFlow id="PRE_F18" sourceRef="PRE_Release" targetRef="PRE_End" />
+    <bpmn:textAnnotation id="PRE_Annotation">
+      <bpmn:text>사전 보류는 아직 생성되지 않은 재고가 아니라 공급관계·마스터·라우팅·작업 Release를 차단하는 예방적 관문이다.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="PRE_Association" sourceRef="PRE_ReadinessHold" targetRef="PRE_Annotation" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_PreProductionQuality">
+      <bpmndi:BPMNShape id="Participant_PreProductionQuality_di" bpmnElement="Participant_PreProductionQuality" isHorizontal="true">
+        <dc:Bounds x="30" y="30" width="1786" height="580" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PRE_Start_di" bpmnElement="PRE_Start">
+        <dc:Bounds x="80" y="252" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PRE_QualityPlan_di" bpmnElement="PRE_QualityPlan">
+        <dc:Bounds x="170" y="230" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PRE_SupplierQuality_di" bpmnElement="PRE_SupplierQuality">
+        <dc:Bounds x="330" y="230" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PRE_QualificationPlanning_di" bpmnElement="PRE_QualificationPlanning">
+        <dc:Bounds x="490" y="230" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PRE_DMSync_di" bpmnElement="PRE_DMSync">
+        <dc:Bounds x="650" y="230" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PRE_ReadinessGateway_di" bpmnElement="PRE_ReadinessGateway" isMarkerVisible="true">
+        <dc:Bounds x="820" y="245" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PRE_ReadinessHold_di" bpmnElement="PRE_ReadinessHold">
+        <dc:Bounds x="900" y="430" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PRE_CloseGap_di" bpmnElement="PRE_CloseGap">
+        <dc:Bounds x="1070" y="430" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PRE_InspectionRequired_di" bpmnElement="PRE_InspectionRequired" isMarkerVisible="true">
+        <dc:Bounds x="970" y="245" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PRE_ExecuteQualification_di" bpmnElement="PRE_ExecuteQualification">
+        <dc:Bounds x="1070" y="330" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PRE_RecordQualification_di" bpmnElement="PRE_RecordQualification">
+        <dc:Bounds x="1230" y="330" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PRE_QualificationGateway_di" bpmnElement="PRE_QualificationGateway" isMarkerVisible="true">
+        <dc:Bounds x="1400" y="345" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PRE_QualificationBlock_di" bpmnElement="PRE_QualificationBlock">
+        <dc:Bounds x="1510" y="500" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PRE_Requalify_di" bpmnElement="PRE_Requalify">
+        <dc:Bounds x="1680" y="500" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PRE_Release_di" bpmnElement="PRE_Release">
+        <dc:Bounds x="1570" y="230" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PRE_End_di" bpmnElement="PRE_End">
+        <dc:Bounds x="1750" y="252" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PRE_Annotation_di" bpmnElement="PRE_Annotation">
+        <dc:Bounds x="430" y="70" width="470" height="55" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="PRE_F01_di" bpmnElement="PRE_F01">
+        <di:waypoint x="116" y="270" />
+        <di:waypoint x="170" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PRE_F02_di" bpmnElement="PRE_F02">
+        <di:waypoint x="270" y="270" />
+        <di:waypoint x="330" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PRE_F03_di" bpmnElement="PRE_F03">
+        <di:waypoint x="430" y="270" />
+        <di:waypoint x="490" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PRE_F04_di" bpmnElement="PRE_F04">
+        <di:waypoint x="590" y="270" />
+        <di:waypoint x="650" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PRE_F05_di" bpmnElement="PRE_F05">
+        <di:waypoint x="750" y="270" />
+        <di:waypoint x="820" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PRE_F06_di" bpmnElement="PRE_F06">
+        <di:waypoint x="870" y="270" />
+        <di:waypoint x="970" y="270" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="900" y="253" width="16" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PRE_F07_di" bpmnElement="PRE_F07">
+        <di:waypoint x="845" y="295" />
+        <di:waypoint x="845" y="470" />
+        <di:waypoint x="900" y="470" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="852.5" y="278" width="24" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PRE_F08_di" bpmnElement="PRE_F08">
+        <di:waypoint x="1000" y="470" />
+        <di:waypoint x="1070" y="470" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PRE_F09_di" bpmnElement="PRE_F09">
+        <di:waypoint x="1120" y="510" />
+        <di:waypoint x="1120" y="550" />
+        <di:waypoint x="700" y="550" />
+        <di:waypoint x="700" y="310" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="890" y="293" width="24" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PRE_F10_di" bpmnElement="PRE_F10">
+        <di:waypoint x="995" y="295" />
+        <di:waypoint x="995" y="370" />
+        <di:waypoint x="1070" y="370" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1012.5" y="278" width="16" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PRE_F11_di" bpmnElement="PRE_F11">
+        <di:waypoint x="1020" y="270" />
+        <di:waypoint x="1570" y="270" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1275" y="253" width="24" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PRE_F12_di" bpmnElement="PRE_F12">
+        <di:waypoint x="1170" y="370" />
+        <di:waypoint x="1230" y="370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PRE_F13_di" bpmnElement="PRE_F13">
+        <di:waypoint x="1330" y="370" />
+        <di:waypoint x="1400" y="370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PRE_F14_di" bpmnElement="PRE_F14">
+        <di:waypoint x="1425" y="345" />
+        <di:waypoint x="1425" y="270" />
+        <di:waypoint x="1570" y="270" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1477.5" y="253" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PRE_F15_di" bpmnElement="PRE_F15">
+        <di:waypoint x="1425" y="395" />
+        <di:waypoint x="1425" y="540" />
+        <di:waypoint x="1510" y="540" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1447.5" y="378" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PRE_F16_di" bpmnElement="PRE_F16">
+        <di:waypoint x="1610" y="540" />
+        <di:waypoint x="1680" y="540" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PRE_F17_di" bpmnElement="PRE_F17">
+        <di:waypoint x="1730" y="580" />
+        <di:waypoint x="1730" y="620" />
+        <di:waypoint x="1120" y="620" />
+        <di:waypoint x="1120" y="410" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1405" y="393" width="24" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PRE_F18_di" bpmnElement="PRE_F18">
+        <di:waypoint x="1670" y="270" />
+        <di:waypoint x="1750" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PRE_Association_di" bpmnElement="PRE_Association">
+        <di:waypoint x="950" y="430" />
+        <di:waypoint x="665" y="125" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
+

@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_state_actor"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+  <!--
+    Pattern: state-transition actor with multiple boolean validators.
+    Each `is*` task returns boolean. The sequenceFlow with conditionExpression
+    `#root = false` routes to an Error End Event with a user-visible message.
+    Only when all validators pass is the final state-change task executed.
+  -->
+  <bpmn:process id="state_actor_validation" isExecutable="true">
+    <bpmn:extensionElements>
+      <camunda:properties>
+        <camunda:property name="input" value="itemId" />
+      </camunda:properties>
+    </bpmn:extensionElements>
+
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>f1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:serviceTask id="checkReady"
+                      name="check ready"
+                      camunda:class="sample.biz.master.Item#isReady">
+      <bpmn:incoming>f1</bpmn:incoming>
+      <bpmn:outgoing>f2</bpmn:outgoing>
+      <bpmn:outgoing>fNotReady</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="checkPacked"
+                      name="check packed"
+                      camunda:class="sample.biz.process.Package#isPacked">
+      <bpmn:incoming>f2</bpmn:incoming>
+      <bpmn:outgoing>f3</bpmn:outgoing>
+      <bpmn:outgoing>fNotPacked</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="checkNotHeld"
+                      name="check not held"
+                      camunda:class="sample.biz.master.checker.HoldChecker#check">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="item">$type{sample.biz.master.Item}</camunda:inputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f3</bpmn:incoming>
+      <bpmn:outgoing>f4</bpmn:outgoing>
+      <bpmn:outgoing>fHeld</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="recordIn"
+                      name="record in"
+                      camunda:class="sample.biz.warehouse.Warehouse#recordIn">
+      <bpmn:incoming>f4</bpmn:incoming>
+      <bpmn:outgoing>f5</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="changeStatus"
+                      name="change status"
+                      camunda:class="sample.biz.master.Item#changeStatus">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="nextStatus">K1</camunda:inputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>f5</bpmn:incoming>
+      <bpmn:outgoing>f6</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="endOk">
+      <bpmn:incoming>f6</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="endNotReady">
+      <bpmn:incoming>fNotReady</bpmn:incoming>
+      <bpmn:errorEventDefinition errorRef="errNotReady" />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endNotPacked">
+      <bpmn:incoming>fNotPacked</bpmn:incoming>
+      <bpmn:errorEventDefinition errorRef="errNotPacked" />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endHeld">
+      <bpmn:incoming>fHeld</bpmn:incoming>
+      <bpmn:errorEventDefinition errorRef="errHeld" />
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="f1" sourceRef="start"        targetRef="checkReady" />
+    <bpmn:sequenceFlow id="f2" sourceRef="checkReady"   targetRef="checkPacked" />
+    <bpmn:sequenceFlow id="f3" sourceRef="checkPacked"  targetRef="checkNotHeld" />
+    <bpmn:sequenceFlow id="f4" sourceRef="checkNotHeld" targetRef="recordIn" />
+    <bpmn:sequenceFlow id="f5" sourceRef="recordIn"     targetRef="changeStatus" />
+    <bpmn:sequenceFlow id="f6" sourceRef="changeStatus" targetRef="endOk" />
+
+    <bpmn:sequenceFlow id="fNotReady" name="not ready"
+                       sourceRef="checkReady" targetRef="endNotReady">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">#root = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="fNotPacked" name="not packed"
+                       sourceRef="checkPacked" targetRef="endNotPacked">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">#root = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="fHeld" name="held"
+                       sourceRef="checkNotHeld" targetRef="endHeld">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">#root = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+  </bpmn:process>
+
+  <bpmn:error id="errNotReady"  name="itemStatus" camunda:errorMessage="Item is not in ready state." />
+  <bpmn:error id="errNotPacked" name="packStatus" camunda:errorMessage="Item is not packed." />
+  <bpmn:error id="errHeld"      name="hold"       camunda:errorMessage="Item is on hold." />
+</bpmn:definitions>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  WildFly 배포 시 컨텍스트 루트를 "/" 로 고정.
+  → 최종 URL = http://{host}:{port}/caravanHubApi/v1/send  (WAR 이름 프리픽스 제거)
+  bootRun(내장) 과 동일 경로가 되어 PoC-2a ↔ 2b 비교가 쉬움.
+-->
+<jboss-web>
+    <context-root>/</context-root>
+</jboss-web>

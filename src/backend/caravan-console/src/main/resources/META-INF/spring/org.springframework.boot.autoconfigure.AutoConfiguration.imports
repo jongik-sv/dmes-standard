@@ -1,0 +1,3 @@
+com.dongkuk.caravan.console.config.ConsoleEmfAliasAutoConfiguration
+com.dongkuk.caravan.console.config.ConsoleJpaAutoConfiguration
+com.dongkuk.caravan.console.caravanhub.ConsoleCaravanHubAutoConfiguration

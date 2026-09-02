@@ -1,0 +1,13 @@
+[versions]
+spring-boot = "3.4.3"
+spring-dependency-management = "1.1.7"
+jjwt = "0.12.6"
+sqlite-jdbc = "3.47.2.0"
+springdoc = "2.8.4"
+mapstruct = "1.6.3"
+
+[libraries]
+
+[plugins]
+spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
+spring-dependency-management = { id = "io.spring.dependency-management", version.ref = "spring-dependency-management" }

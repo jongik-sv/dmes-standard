@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+  IF_* 테이블 CRUD SQL.
+
+  AUDIT 컬럼 — cactus 표준 9 컬럼 (v4 §16 정합, 2026-05-13):
+    C_USR_ID / C_AT / C_SVC_ID / C_PGM_ID
+    U_USR_ID / U_AT / U_SVC_ID / U_PGM_ID
+    VER
+
+  caravan-hub INSERT 시 SYSTEM/caravan-hub/DbOutboundHandler 고정값 (caravan §17 fallback 패턴 정합).
+  caravan-hub UPDATE 시 SYSTEM/caravan-hub/DbInboundHandler 고정값.
+-->
+<mapper namespace="com.dongkuk.caravan.hub.mapper.InterfaceMapper">
+
+    <!--
+      미처리(N/null) + 블록마커(E) 조회. C_AT ASC(FIFO) 로 정렬하며 IF_FLAG 를 함께 반환한다.
+      호출측(DbInboundHandler)이 오래된 순으로 훑다가 head 가 'E' 면 큐막기(정지),
+      'N'/null 이면 발행한다. (null 은 미처리로 취급 — 외부 insert/운영자 리셋 대응)
+    -->
+    <select id="selectPendingMessages" resultType="java.util.Map">
+        SELECT
+            U_AT,
+            TRANSACTION_CODE,
+            INTERFACE_ID,
+            INTERFACE_MSG,
+            KEY_DATA1,
+            KEY_DATA2,
+            KEY_DATA3,
+            IF_SEQ,
+            VER,
+            IF_FLAG
+        FROM ${TABLE_NAME}
+        WHERE IF_FLAG = 'N' OR IF_FLAG IS NULL OR IF_FLAG = 'E'
+        ORDER BY C_AT ASC
+    </select>
+
+    <!-- 처리 성공 (IF_FLAG = 'Y') — cactus audit 표준 + IF_DATE/IF_TIME(처리 일시)는 도메인 컬럼 -->
+    <update id="updateSuccess">
+        UPDATE ${TABLE_NAME}
+        SET IF_FLAG = 'Y',
+            IF_DATE = #{IF_DATE},
+            IF_TIME = #{IF_TIME},
+            U_AT = #{NOW},
+            U_USR_ID = 'SYSTEM',
+            U_SVC_ID = 'caravan-hub',
+            U_PGM_ID = 'DbInboundHandler',
+            VER = COALESCE(VER, 0) + 1
+        WHERE U_AT = #{U_AT}
+          AND TRANSACTION_CODE = #{TRANSACTION_CODE}
+          AND (IF_FLAG = 'N' OR IF_FLAG IS NULL)
+    </update>
+
+    <!-- 처리 실패 (IF_FLAG = 'E') — 미처리(N/null) 상태에서만 마킹(운영자 수동 변경 보존) -->
+    <update id="updateError">
+        UPDATE ${TABLE_NAME}
+        SET IF_FLAG = 'E',
+            IF_DATE = #{IF_DATE},
+            IF_TIME = #{IF_TIME},
+            U_AT = #{NOW},
+            U_USR_ID = 'SYSTEM',
+            U_SVC_ID = 'caravan-hub',
+            U_PGM_ID = 'DbInboundHandler',
+            VER = COALESCE(VER, 0) + 1
+        WHERE U_AT = #{U_AT}
+          AND TRANSACTION_CODE = #{TRANSACTION_CODE}
+          AND (IF_FLAG = 'N' OR IF_FLAG IS NULL)
+    </update>
+
+    <!-- OUTBOUND DB INSERT — cactus audit 9 컬럼 표준 -->
+    <insert id="insertOutboundData">
+        INSERT INTO ${schema}.${tableName} (
+            TRANSACTION_CODE,
+            INTERFACE_ID,
+            INTERFACE_MSG,
+            IF_FLAG,
+            C_USR_ID,
+            C_AT,
+            C_SVC_ID,
+            C_PGM_ID,
+            U_USR_ID,
+            U_AT,
+            U_SVC_ID,
+            U_PGM_ID,
+            VER
+        ) VALUES (
+            #{TRANSACTION_CODE},
+            #{INTERFACE_ID},
+            #{INTERFACE_MSG},
+            #{IF_FLAG},
+            'SYSTEM',
+            #{NOW},
+            'caravan-hub',
+            'DbOutboundHandler',
+            'SYSTEM',
+            #{NOW},
+            'caravan-hub',
+            'DbOutboundHandler',
+            0
+        )
+    </insert>
+
+</mapper>

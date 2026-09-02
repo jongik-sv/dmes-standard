@@ -1,0 +1,38 @@
+# ────────────────────────────────────────────────────────────────────────────
+# local-ph: 포항 개발 DB 직결 (bootRun/IDE 전용, Hikari) — 구 application-mssql.yml 이관 (2026-07-09)
+#  듀얼 DataSource (단일 DB ksm_dmes, USER=스키마 분리)
+#  - mst (@Primary): CARAVANUSER — Kafka 도메인. TB_CARAVAN_HUB_CONFIG(라우팅) +
+#                    caravan 메타(TB_MCM_MOM_KAFKA_TOPICS / TB_MCM_MOM_TC_ERROR).
+#  - if : EAIUSER    — 인터페이스 IF_* 테이블.
+#  - Kafka: 포항 개발 브로커. (구 local,mssql 조합에선 local 이 localhost 를 공급했으나 단독 활성화로 명시)
+#  사용: -Dspring.profiles.active=local-ph (단독)
+# ────────────────────────────────────────────────────────────────────────────
+spring:
+  datasource:
+    mst:
+      driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+      jdbc-url: jdbc:sqlserver://10.10.80.241:1433;databaseName=ksm_dmes;encrypt=false;trustServerCertificate=true
+      username: CARAVANUSER
+      password: CARAVANUSER_DEV
+      hikari:
+        maximum-pool-size: 10
+        minimum-idle: 2
+        connection-timeout: 30000
+    if:
+      driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+      jdbc-url: jdbc:sqlserver://10.10.80.241:1433;databaseName=ksm_dmes;encrypt=false;trustServerCertificate=true
+      username: EAIUSER
+      password: EAIUSER_DEV
+      hikari:
+        maximum-pool-size: 10
+        minimum-idle: 2
+        connection-timeout: 30000
+
+# caravan EMF (=@Primary mst = CARAVANUSER) — MSSQL dialect
+caravan:
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:10.10.80.48:9092,10.10.80.48:9094,10.10.80.48:9096}   # 포항 개발 브로커
+    replication-factor: 3       # 3브로커 클러스터(10.10.80.48) 토픽 RF=3 — caravan-hub.war 재빌드본 필요
+  hibernate:
+    dialect: org.hibernate.dialect.SQLServerDialect
+    ddl-auto: none       # 스키마 안정화됨 — 부팅 시 ALTER 시도 안 함(PK/인덱스 종속 컬럼 alter 실패 WARN 제거). 신규 테이블 필요 시 일시 update

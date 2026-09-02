@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dongkuk.oasis.transaction">
+    <select id="selectEmployeeEntity" parameterType="java.util.HashMap"
+            resultType="com.dongkuk.oasis.transaction.Employee">
+        select id, firstName, lastName
+        from Employee
+    </select>
+    <update id="updateEmployeeEntity" parameterType="java.util.HashMap">
+        update Employee
+        set firstName = #{firstName}
+        where id = #{id}
+    </update>
+    <insert id="insertEmployEntity" parameterType="java.util.HashMap">
+        insert into Employee(id, firstName, lastName)
+        values (#{id}, #{firstName}, #{lastName})
+    </insert>
+</mapper>

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  WildFly(39, Jakarta EE 11) 배포 시 컨테이너 모듈이 WAR 번들 라이브러리와 충돌하지 않도록 제외한다.
+
+  - logging : 앱이 Logback + slf4j 를 직접 번들 → WildFly logging 서브시스템/모듈 제외.
+  - jpa     : 앱이 Hibernate ORM 7.2 + jakarta.persistence-api 3.2 를 직접 번들(Spring Boot 가 부트스트랩)
+              → WildFly 의 JPA 서브시스템 및 org.hibernate / jakarta.persistence.api 모듈을 제외해야
+              컨테이너의 PersistenceUnitInfo 인터페이스가 섞여
+              NoSuchMethodError(getScopeAnnotationName 등)가 나는 것을 막는다.
+              (caravan-hub 는 JPA 미사용이라 무해)
+
+  ※ 최초 배포 후 클래스로딩/충돌 로그를 보고 exclusions 항목을 가감한다.
+-->
+<jboss-deployment-structure xmlns="urn:jboss:deployment-structure:1.3">
+    <deployment>
+        <exclude-subsystems>
+            <subsystem name="logging"/>
+            <subsystem name="jpa"/>
+        </exclude-subsystems>
+        <exclusions>
+            <!-- 로깅 -->
+            <module name="org.jboss.logging"/>
+            <module name="org.apache.commons.logging"/>
+            <module name="org.slf4j"/>
+            <module name="org.slf4j.impl"/>
+            <module name="org.apache.log4j"/>
+            <!-- JPA/Hibernate: WAR 번들 Hibernate 7.2 + jakarta.persistence 3.2 를 권위로 사용 -->
+            <module name="org.hibernate"/>
+            <module name="org.hibernate.commons-annotations"/>
+            <module name="jakarta.persistence.api"/>
+        </exclusions>
+    </deployment>
+</jboss-deployment-structure>

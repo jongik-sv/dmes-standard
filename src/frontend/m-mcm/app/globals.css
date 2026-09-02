@@ -1,0 +1,19 @@
+/*
+ * 포털 호스트 전역 스타일.
+ * 공용 디자인 토큰은 @dk-oasis/shared 가 제공한다. Tailwind 등 별도 CSS 파이프라인을
+ * 쓰려면 이 파일 최상단에서 시작한다.
+ */
+@import "@dk-oasis/shared/variables.css";
+
+body {
+  margin: 0;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+}
+
+button {
+  white-space: nowrap;
+}

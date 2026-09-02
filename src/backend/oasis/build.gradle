@@ -1,0 +1,28 @@
+subprojects {
+    group = 'com.dongkuk'
+    version = '5.1.1'
+
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        maven {
+            url = uri("https://jitpack.io")
+        }
+    }
+}
+
+project.ext.set("springVersion", "7.0.6")
+project.ext.set("log4jVersion", "2.24.3")
+project.ext.set("jpaVersion", "3.2.0")
+project.ext.set("mybatis", "3.5.19")
+project.ext.set("mybatisSpring", "3.0.4")
+project.ext.set("slf4j", "2.0.16")
+project.ext.set("gson", "2.12.1")
+project.ext.set("assertj", "3.27.3")
+project.ext.set("junit", "5.11.4")
+project.ext.set("jackson", "2.18.2")
+project.ext.set("springDataJpa", "4.0.4")
+project.ext.set("hikari", "6.2.1")
+project.ext.set("hibernate", "7.0.5.Final")
+project.ext.set("jsr305", "3.0.2")
+project.ext.set("findbugs", "3.0.1")

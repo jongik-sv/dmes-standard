@@ -1,0 +1,5 @@
+# analog 엔진 테스트 픽스처 — 줄바꿈 무변환(-text) 필수.
+# 엔진이 바이트 오프셋 기반 검색이라 CRLF→LF 정규화 시 픽스처가 오염된다
+# (tiny_crlf.log 는 CRLF 줄바꿈 자체를 검증하는 자원).
+src/backend/analog/core/src/test/resources/logs/** -text
+src/backend/analog/api/src/test/resources/fixture-logs/** -text

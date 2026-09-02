@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" id="Definitions_00gahfq" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.5.0">
+  <bpmn:process id="Process_1ob4rra" name="Hey Process" isExecutable="true">
+    <bpmn:startEvent id="Event_11ym3rg" name="s1">
+      <bpmn:outgoing>Flow_1r6fk86</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:endEvent id="Event_0517e84">
+      <bpmn:incoming>Flow_1yphd21</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:scriptTask id="Activity_0xvbm4j" name="요청한 ID 조회&#10;(sql script)" scriptFormat="sql">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="tx" value="tm12" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1r6fk86</bpmn:incoming>
+      <bpmn:outgoing>Flow_0iznlg1</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1fynq60</bpmn:outgoing>
+      <bpmn:script>select id, firstName, lastName from users where id = :id</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:sequenceFlow id="Flow_1r6fk86" sourceRef="Event_11ym3rg" targetRef="Activity_0xvbm4j" />
+    <bpmn:sequenceFlow id="Flow_0iznlg1" sourceRef="Activity_0xvbm4j" targetRef="Activity_0vlz21h" />
+    <bpmn:sequenceFlow id="Flow_1ib4wxe" sourceRef="Activity_0vlz21h" targetRef="Activity_1rj2c75" />
+    <bpmn:sequenceFlow id="Flow_1pehs1y" sourceRef="Activity_1rj2c75" targetRef="Activity_0gqe4pg" />
+    <bpmn:sequenceFlow id="Flow_0iv2bc7" sourceRef="Activity_0gqe4pg" targetRef="Activity_13prw2g" />
+    <bpmn:serviceTask id="Activity_0vlz21h" name="사용자 등록" camunda:class="usecase.multiDataSource.UserSignIn">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="signIn" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0iznlg1</bpmn:incoming>
+      <bpmn:outgoing>Flow_1ib4wxe</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_1fynq60" name="요청한 ID로 조회된 결과가 있을 때" sourceRef="Activity_0xvbm4j" targetRef="Activity_0t2ruyl">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">#root.size() != 0</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:endEvent id="Event_05lf99h">
+      <bpmn:incoming>Flow_0k6bh80</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_0k6bh80" sourceRef="Activity_0t2ruyl" targetRef="Event_05lf99h" />
+    <bpmn:serviceTask id="Activity_1rj2c75" name="등록결과 조회&#10;(mybatis)" camunda:class="usecase.multiDataSource.UserSignIn">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="resultSignIn" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1ib4wxe</bpmn:incoming>
+      <bpmn:outgoing>Flow_1pehs1y</bpmn:outgoing>
+      <bpmn:outgoing>Flow_033jolv</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_033jolv" name="등록된 사용자가 없을 때" sourceRef="Activity_1rj2c75" targetRef="Activity_0t2ruyl">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">#root != 4</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:scriptTask id="Activity_0gqe4pg" name="사용자 조회" scriptFormat="sql">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="tx" value="tm1" />
+          <camunda:property name="output" value="cnt" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1pehs1y</bpmn:incoming>
+      <bpmn:outgoing>Flow_0iv2bc7</bpmn:outgoing>
+      <bpmn:script>select id, firstName, lastName from users</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:serviceTask id="Activity_0t2ruyl" name="사용자 예외 생성&#10;(todo)" camunda:class="usecase.multiDataSource.MyUserExceptionTask">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="userException" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1fynq60</bpmn:incoming>
+      <bpmn:incoming>Flow_033jolv</bpmn:incoming>
+      <bpmn:outgoing>Flow_0k6bh80</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:scriptTask id="Activity_13prw2g" name="다른 소스 사용자 조회" scriptFormat="sql">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="ds" value="dataSource1" />
+          <camunda:property name="output" value="cnt2" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0iv2bc7</bpmn:incoming>
+      <bpmn:outgoing>Flow_1yphd21</bpmn:outgoing>
+      <bpmn:script>select id, firstName, lastName from users</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:sequenceFlow id="Flow_1yphd21" sourceRef="Activity_13prw2g" targetRef="Event_0517e84" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_1ob4rra">
+      <bpmndi:BPMNEdge id="Flow_1yphd21_di" bpmnElement="Flow_1yphd21">
+        <di:waypoint x="1010" y="120" />
+        <di:waypoint x="1052" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_033jolv_di" bpmnElement="Flow_033jolv">
+        <di:waypoint x="630" y="160" />
+        <di:waypoint x="630" y="230" />
+        <di:waypoint x="750" y="230" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="645" y="186" width="70" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0k6bh80_di" bpmnElement="Flow_0k6bh80">
+        <di:waypoint x="850" y="230" />
+        <di:waypoint x="902" y="230" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1fynq60_di" bpmnElement="Flow_1fynq60">
+        <di:waypoint x="250" y="160" />
+        <di:waypoint x="250" y="230" />
+        <di:waypoint x="750" y="230" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="258" y="186" width="84" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0iv2bc7_di" bpmnElement="Flow_0iv2bc7">
+        <di:waypoint x="850" y="120" />
+        <di:waypoint x="910" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1pehs1y_di" bpmnElement="Flow_1pehs1y">
+        <di:waypoint x="680" y="120" />
+        <di:waypoint x="750" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1ib4wxe_di" bpmnElement="Flow_1ib4wxe">
+        <di:waypoint x="520" y="120" />
+        <di:waypoint x="580" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0iznlg1_di" bpmnElement="Flow_0iznlg1">
+        <di:waypoint x="300" y="120" />
+        <di:waypoint x="420" y="120" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="318" y="86" width="84" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1r6fk86_di" bpmnElement="Flow_1r6fk86">
+        <di:waypoint x="168" y="120" />
+        <di:waypoint x="200" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Event_11ym3rg_di" bpmnElement="Event_11ym3rg">
+        <dc:Bounds x="132" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="144" y="145" width="12" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0517e84_di" bpmnElement="Event_0517e84">
+        <dc:Bounds x="1052" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0xvbm4j_di" bpmnElement="Activity_0xvbm4j">
+        <dc:Bounds x="200" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1hihqf0_di" bpmnElement="Activity_0vlz21h">
+        <dc:Bounds x="420" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_05lf99h_di" bpmnElement="Event_05lf99h">
+        <dc:Bounds x="902" y="212" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0bjqjuk_di" bpmnElement="Activity_1rj2c75">
+        <dc:Bounds x="580" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_10mz8ar_di" bpmnElement="Activity_0gqe4pg">
+        <dc:Bounds x="750" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1r893m4_di" bpmnElement="Activity_0t2ruyl">
+        <dc:Bounds x="750" y="190" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_13prw2g_di" bpmnElement="Activity_13prw2g">
+        <dc:Bounds x="910" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

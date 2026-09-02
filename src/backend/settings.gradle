@@ -1,0 +1,67 @@
+rootProject.name = 'backend'
+
+includeBuild('mpn') {
+    dependencySubstitution {
+        substitute module('com.dongkuk.dmes:mpn') using project(':')
+    }
+}
+includeBuild('cactus-core') {
+    dependencySubstitution {
+        substitute module('com.dongkuk.dmes:cactus-core') using project(':')
+    }
+}
+includeBuild('aps-core') {
+    dependencySubstitution {
+        substitute module('com.dongkuk.dmes:aps-core') using project(':')
+    }
+}
+includeBuild('mcm-core') {
+    dependencySubstitution {
+        substitute module('com.dongkuk.dmes:mcm-core') using project(':')
+    }
+}
+includeBuild('caravan-console') {
+    dependencySubstitution {
+        substitute module('com.dongkuk.caravan:caravan-console') using project(':')
+    }
+}
+includeBuild('mpp') {
+    dependencySubstitution {
+        substitute module('com.dongkuk.dmes:mpp') using project(':')
+    }
+}
+includeBuild('mqc') {
+    dependencySubstitution {
+        substitute module('com.dongkuk.dmes:mqc') using project(':')
+    }
+}
+includeBuild('mls') {
+    dependencySubstitution {
+        substitute module('com.dongkuk.dmes:mls') using project(':')
+    }
+}
+includeBuild('mcm') {
+    dependencySubstitution {
+        substitute module('com.dongkuk.dmes:mcm') using project(':')
+    }
+}
+includeBuild('localKafka') {
+    dependencySubstitution {
+        substitute module('com.dongkuk.dmes:localKafka') using project(':')
+    }
+}
+includeBuild('caravan-core') {
+    dependencySubstitution {
+        substitute module('com.dongkuk.caravan:caravan-core') using project(':')
+    }
+}
+includeBuild('caravan-hub') {
+    dependencySubstitution {
+        substitute module('com.dongkuk.caravan:caravan-hub') using project(':')
+    }
+}
+includeBuild('analog') {
+    dependencySubstitution {
+        substitute module('com.dongkuk.dmes:analog') using project(':')
+    }
+}

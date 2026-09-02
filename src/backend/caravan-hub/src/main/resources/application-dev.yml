@@ -1,0 +1,23 @@
+# ────────────────────────────────────────────────────────────────────────────
+# dev: 포항·김포 개발계 WildFly (JNDI) — 환경 차이값만
+#  ⚠️ 역할 전환 (2026-07-09 JNDI 전환): 구 dev(김포 직결)는 application-local-kp.yml 로 이관됐다.
+#  본 파일은 WildFly WAR 배포 전용 — datasource 는 wildfly 프로파일(group 자동 활성)이 JNDI 로 정의.
+#  포항·김포 개발계는 이 프로파일 하나를 공유 — 서버별 DB 차이는 각 WildFly 의 JNDI 매핑이,
+#  Kafka 브로커 차이는 JVM 시스템 프로퍼티(KAFKA_BOOTSTRAP_SERVERS)가 흡수한다.
+#  기동: WildFly JAVA_OPTS/system-properties 에 -Dspring.profiles.active=dev
+# ────────────────────────────────────────────────────────────────────────────
+caravan:
+  kafka:
+    # 기본값 = 포항 개발 브로커. 김포 WildFly 는 -DKAFKA_BOOTSTRAP_SERVERS=<김포 브로커> 로 override.
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:10.10.80.241:9092}
+
+# ── DataInitializer — WildFly 계열은 명시적으로 끔 (2026-07-09 게이트 신설) ──
+# 스키마는 사전 생성분 사용. 신규 테이블 적재가 필요할 때만 -Dcaravan-hub.init.enabled=true 로 일시 전환.
+caravan-hub:
+  init:
+    enabled: false
+
+logging:
+  level:
+    com.dongkuk.caravan.hub: DEBUG
+    com.dongkuk.caravan.core: INFO

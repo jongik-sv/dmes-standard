@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+"""Install or manage the macOS launchd job for BP worktree sync."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from pathlib import Path
+import plistlib
+import shutil
+import subprocess
+import sys
+from typing import Any, Mapping, Sequence
+
+
+LABEL = "com.dongkuk.dmes-standard.bp-sync"
+REPO_ROOT = Path(__file__).resolve().parent.parent
+CONFIG_PATH = REPO_ROOT / ".bp-sync.json"
+PLIST_PATH = Path.home() / "Library" / "LaunchAgents" / f"{LABEL}.plist"
+LOG_PATH = Path.home() / "Library" / "Logs" / "dmes-standard-bp-sync.log"
+
+
+def read_config() -> Mapping[str, Any]:
+    return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+
+
+def command_path(name: str, *, resolve: bool = True) -> str:
+    value = shutil.which(name)
+    if not value:
+        raise RuntimeError(f"명령을 찾을 수 없습니다: {name}")
+    return str(Path(value).resolve()) if resolve else str(Path(value).absolute())
+
+
+def bp_authenticated(bp_command: str) -> bool:
+    result = subprocess.run(
+        [bp_command, "--format", "json", "auth", "status"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    try:
+        envelope = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return False
+    return result.returncode == 0 and bool(((envelope.get("data") or {}).get("authenticated")))
+
+
+def build_plist(bp_command: str, python_command: str, interval: int) -> dict[str, Any]:
+    path_parts = {
+        str(Path(bp_command).parent),
+        str(Path(python_command).parent),
+        "/usr/local/bin",
+        "/usr/bin",
+        "/bin",
+        "/usr/sbin",
+        "/sbin",
+    }
+    return {
+        "Label": LABEL,
+        "ProgramArguments": [
+            python_command,
+            str(REPO_ROOT / "tools" / "bp-sync"),
+            "--if-stale",
+        ],
+        "WorkingDirectory": str(REPO_ROOT),
+        "EnvironmentVariables": {
+            "BP_COMMAND": bp_command,
+            "PATH": ":".join(sorted(path_parts)),
+        },
+        "RunAtLoad": True,
+        "StartInterval": interval,
+        "ProcessType": "Background",
+        "LowPriorityIO": True,
+        "StandardOutPath": str(LOG_PATH),
+        "StandardErrorPath": str(LOG_PATH),
+    }
+
+
+def launchctl(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(["launchctl", *args], text=True, capture_output=True, check=check)
+
+
+def install() -> int:
+    config = read_config()
+    # Keep the NVM bin symlink so its directory (and therefore node) is in PATH.
+    bp_command = command_path("bp", resolve=False)
+    python_command = command_path("python3")
+    if not bp_authenticated(bp_command):
+        raise RuntimeError("BP 인증이 유효하지 않습니다. `bp login` 후 다시 설치하세요.")
+    interval = int(config.get("scheduleIntervalSeconds") or 14400)
+    if interval < 300:
+        raise RuntimeError("scheduleIntervalSeconds는 최소 300초여야 합니다.")
+    PLIST_PATH.parent.mkdir(parents=True, exist_ok=True)
+    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with PLIST_PATH.open("wb") as handle:
+        plistlib.dump(build_plist(bp_command, python_command, interval), handle, sort_keys=True)
+    domain = f"gui/{os.getuid()}"
+    launchctl("bootout", domain, str(PLIST_PATH), check=False)
+    result = launchctl("bootstrap", domain, str(PLIST_PATH), check=False)
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or "launchd 작업을 등록하지 못했습니다.")
+    launchctl("enable", f"{domain}/{LABEL}", check=False)
+    print(f"BP 정기 동기화 등록 완료: {interval}초 간격")
+    print(f"설정: {PLIST_PATH}")
+    print(f"로그: {LOG_PATH}")
+    return 0
+
+
+def uninstall() -> int:
+    domain = f"gui/{os.getuid()}"
+    launchctl("bootout", domain, str(PLIST_PATH), check=False)
+    PLIST_PATH.unlink(missing_ok=True)
+    print("BP 정기 동기화를 해제했습니다.")
+    return 0
+
+
+def status() -> int:
+    domain = f"gui/{os.getuid()}/{LABEL}"
+    result = launchctl("print", domain, check=False)
+    if result.returncode == 0:
+        print("BP 정기 동기화가 등록되어 있습니다.")
+        print(result.stdout.rstrip())
+        return 0
+    print("BP 정기 동기화가 등록되어 있지 않습니다.")
+    return 1
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="BP 동기화 launchd 작업을 관리합니다.")
+    parser.add_argument("action", choices=("install", "uninstall", "status"))
+    args = parser.parse_args(argv)
+    try:
+        return {"install": install, "uninstall": uninstall, "status": status}[args.action]()
+    except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
+        print(f"bp-sync-schedule: {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

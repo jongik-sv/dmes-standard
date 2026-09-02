@@ -1,0 +1,121 @@
+plugins {
+    id 'java-library'
+    id 'checkstyle'
+    id "com.github.spotbugs" version "6.1.3"
+    id 'maven-publish'
+}
+
+compileJava {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+    options.encoding = "utf-8"
+    options.compilerArgs += ['-parameters']
+}
+compileTestJava {
+    options.encoding = "utf-8"
+    options.compilerArgs += ['-parameters']
+}
+
+java {
+    withJavadocJar()
+    withSourcesJar()
+}
+
+javadoc {
+    options.encoding("utf-8")
+}
+
+spotbugs {
+    excludeFilter = rootProject.file("config/spotbugs/exclude.xml")
+}
+
+spotbugsMain {
+    reports {
+        xml.required = false
+        html.required = true
+    }
+}
+
+spotbugsTest {
+    enabled = false
+    reports {
+        xml.required = false
+        html.required = true
+    }
+}
+
+//def nexusUrl = "http://10.110.1.12:8889/nexus"
+def nexusUrl = "http://172.31.1.96:8889/nexus"
+
+def secretsFile = file('.secrets.properties')
+def secrets = new Properties()
+if (secretsFile.exists()) {
+    secrets.load(new FileInputStream(secretsFile))
+}
+
+def nexusUsername = secrets.getProperty("NEXUS_USERNAME", System.getenv("NEXUS_USERNAME"))
+def nexusPassword = secrets.getProperty("NEXUS_PASSWORD", System.getenv("NEXUS_PASSWORD"))
+
+publishing {
+    repositories {
+        maven {
+            name = "Releases"
+            url = uri("${nexusUrl}/content/repositories/releases/")
+            credentials {
+                username = "${nexusUsername}"
+                password = "${nexusPassword}"
+            }
+            allowInsecureProtocol = true
+        }
+    }
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId = project.name
+            from components.java
+        }
+    }
+}
+
+dependencies {
+    api project(':oasis-core-api')
+    implementation "org.springframework:spring-expression:${rootProject.springVersion}"
+    implementation "org.springframework:spring-context:${rootProject.springVersion}"
+    implementation "org.springframework:spring-orm:${rootProject.springVersion}"
+    implementation "jakarta.persistence:jakarta.persistence-api:${rootProject.jpaVersion}"
+    implementation "org.mybatis:mybatis:${rootProject.mybatis}"
+    implementation "org.slf4j:slf4j-api:${rootProject.slf4j}"
+    implementation "org.jdom:jdom2:2.0.6"
+    implementation 'org.jboss:jboss-vfs:3.2.16.Final'
+    implementation "com.google.code.findbugs:annotations:${rootProject.findbugs}"
+    implementation('com.google.guava:guava:33.4.0-jre')
+    implementation "com.google.code.findbugs:jsr305:${rootProject.jsr305}"
+    implementation "com.google.code.gson:gson:${rootProject.gson}"
+    implementation("com.fasterxml.jackson.core:jackson-databind:${rootProject.jackson}")
+    testImplementation("org.apache.logging.log4j:log4j-core:${rootProject.log4jVersion}")
+    testImplementation("org.apache.logging.log4j:log4j-slf4j2-impl:${rootProject.log4jVersion}")
+    testImplementation 'net.datafaker:datafaker:2.4.2'
+    testImplementation("org.assertj:assertj-core:${rootProject.assertj}")
+    testImplementation('org.mockito:mockito-core:5.15.2')
+    testImplementation "org.junit.jupiter:junit-jupiter-api:${rootProject.junit}"
+    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${rootProject.junit}"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher:1.11.4"
+    testImplementation 'io.github.autoparams:autoparams:8.3.0'
+
+    testImplementation "org.springframework:spring-test:${rootProject.springVersion}"
+    testImplementation "org.springframework:spring-orm:${rootProject.springVersion}"
+    testImplementation "org.springframework.data:spring-data-jpa:${rootProject.springDataJpa}"
+    testImplementation "com.zaxxer:HikariCP:${rootProject.hikari}"
+
+    testImplementation "com.h2database:h2:2.3.232"
+    testImplementation "org.hibernate.orm:hibernate-core:${rootProject.hibernate}"
+    testImplementation "jakarta.xml.bind:jakarta.xml.bind-api:4.0.2"
+    testImplementation "org.mybatis:mybatis-spring:${rootProject.mybatisSpring}"
+}
+
+checkstyle {
+}
+
+test {
+    useJUnitPlatform()
+    jvmArgs '--add-opens', 'java.base/java.time=ALL-UNNAMED'
+}

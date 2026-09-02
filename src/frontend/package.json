@@ -1,0 +1,31 @@
+{
+  "name": "@dk-oasis/workspace",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter @dk-oasis/shared build && pnpm --filter @dk-oasis/m-mpn build && pnpm --filter @dk-oasis/m-mpp build && pnpm --filter @dk-oasis/m-mqc build && pnpm --filter @dk-oasis/m-analog build && pnpm --parallel --filter @dk-oasis/shared --filter @dk-oasis/m-mpn --filter @dk-oasis/m-mpp --filter @dk-oasis/m-mqc --filter @dk-oasis/mcm --filter @dk-oasis/m-analog dev",
+    "test:unit": "pnpm run test:unit:shared && pnpm run test:unit:mpn",
+    "test:unit:shared": "pnpm --filter @dk-oasis/shared test:unit",
+    "test:unit:mpn": "pnpm --filter @dk-oasis/m-mpn test:unit",
+    "test:unit:watch": "pnpm --filter @dk-oasis/shared test:unit:watch",
+    "test:unit:coverage": "pnpm --filter @dk-oasis/shared test:unit:coverage",
+    "test:api": "pnpm --filter @dk-oasis/shared test:api",
+    "test:auth": "pnpm --filter @dk-oasis/shared test:auth",
+    "test:e2e": "pnpm exec playwright test e2e",
+    "test:all": "pnpm test:unit && pnpm test:api && pnpm test:e2e",
+    "test:smoke:login": "pnpm exec playwright test e2e/login-smoke.spec.ts",
+    "test:smoke:auth-guard": "pnpm exec playwright test e2e/auth-guard-smoke.spec.ts",
+    "design-dummy": "pnpm --filter @dk-oasis/m-design-dummy dev",
+    "export-design-dummy": "node ../../scripts/export-design-dummy.mjs",
+    "format": "pnpm --parallel --filter @dk-oasis/shared --filter @dk-oasis/mcm format",
+    "format:check": "pnpm --parallel --filter @dk-oasis/shared --filter @dk-oasis/mcm format:check",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "tailwindcss": "^4.2.1",
+    "verdaccio": "^6.3.2"
+  },
+  "packageManager": "pnpm@10.30.3+sha512.c961d1e0a2d8e354ecaa5166b822516668b7f44cb5bd95122d590dd81922f606f5473b6d23ec4a5be05e7fcd18e8488d47d978bbe981872f1145d06e9a740017"
+}

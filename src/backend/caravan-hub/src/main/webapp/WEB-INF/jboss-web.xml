@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  컨텍스트 루트 고정 (2026-07-09, 사용자 결정) — caravan-hub.war 의 기본 컨텍스트(/caravan-hub) 대신
+  루트(/)로 서비스한다. mcm(/mcm)과 달리 caravan-hub 는 전용 컨테이너라 루트 점유 충돌 없음.
+  → MCM 의 CARAVAN_HUB_BASE_URL 은 컨텍스트 없이 http://<host>:<port> 로 지정
+    (Camel 매핑 /caravanHubApi/* 가 루트 바로 아래 붙음).
+  (bootRun/내장 Tomcat 은 본 파일을 읽지 않음 — WildFly 전용)
+-->
+<jboss-web xmlns="http://www.jboss.com/xml/ns/javaee"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:schemaLocation="http://www.jboss.com/xml/ns/javaee http://www.jboss.org/j2ee/schema/jboss-web_14_0.xsd">
+    <context-root>/</context-root>
+</jboss-web>

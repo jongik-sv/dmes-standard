@@ -1,0 +1,22 @@
+# ────────────────────────────────────────────────────────────────────────────
+# prod: 운영계 WildFly (JNDI) — 환경 차이값만 (2026-07-09 JNDI 전환)
+#  - DB: wildfly 프로파일(group 자동 활성)의 JNDI 가 정의. 구 CARAVAN_HUB_MST_DB_*/IF_DB_* env 6종 폐기
+#    — 물리 접속은 운영 WildFly(domain.xml 프로파일) 소유.
+#  - Kafka: 기본값 없음(필수) — 운영 JVM 에 -DKAFKA_BOOTSTRAP_SERVERS 미주입 시 부팅 실패(fail-fast).
+#    개발 브로커로 조용히 붙는 사고 방지 (사용자 결정 2026-07-09).
+#  기동: WildFly JAVA_OPTS/system-properties 에 -Dspring.profiles.active=prod
+# ────────────────────────────────────────────────────────────────────────────
+caravan:
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+
+# ── DataInitializer — 운영은 항상 끔 (스키마는 DBA 사전 생성) ──
+caravan-hub:
+  init:
+    enabled: false
+
+logging:
+  level:
+    root: WARN
+    com.dongkuk.caravan.hub: INFO
+    com.dongkuk.caravan.core: WARN

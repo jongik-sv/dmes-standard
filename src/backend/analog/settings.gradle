@@ -1,0 +1,4 @@
+rootProject.name = 'analog'
+
+include 'core'
+include 'api'

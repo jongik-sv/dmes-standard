@@ -1,0 +1,393 @@
+/**
+ * 로그 분석 (anl/logViewer) 화면 전용 전역 스타일 — .anl-log-viewer 루트 클래스로 스코프.
+ * 원본: analog-express-ui-plate AnalogMainPage.css(wave) / LogViewer.css(docTypeTab) /
+ *       ServiceListViewer.css(linkButton) 이식 + rsuite 레이아웃의 flex 재구성.
+ * 색상·간격은 shared variables.css 의 CSS 변수 우선 사용.
+ */
+
+.anl-log-viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  font-size: var(--font-size-md);
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+/* ============================================================
+   메타 로드 상태 (로딩 / 오류+재시도)
+   ============================================================ */
+.anl-log-viewer.anl-meta-state {
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md);
+}
+
+.anl-log-viewer .anl-meta-error {
+  color: var(--color-error);
+}
+
+/* ============================================================
+   워크스페이스 탭바 (+ New Workspace, 우측 stageTitle·wave 로딩)
+   ============================================================ */
+.anl-log-viewer .anl-tab-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-sm) 0 var(--spacing-sm);
+  border-bottom: 1px solid var(--color-border-light);
+  flex-shrink: 0;
+}
+
+.anl-log-viewer .anl-tab-list {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  overflow-x: auto;
+}
+
+.anl-log-viewer .anl-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px 5px 20px;
+  border: 1px solid var(--color-border-light);
+  border-bottom: 2px solid transparent;
+  border-radius: 4px 4px 0 0;
+  background: var(--color-bg-light);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.anl-log-viewer .anl-tab:hover {
+  background: var(--color-bg-hover);
+}
+
+.anl-log-viewer .anl-tab-active {
+  background: var(--color-bg);
+  border-color: var(--color-border-medium);
+  border-bottom-color: var(--color-primary);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.anl-log-viewer .anl-tab-close {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--color-text-muted);
+}
+
+.anl-log-viewer .anl-tab-close:hover {
+  color: var(--color-danger);
+}
+
+.anl-log-viewer .anl-tab-bar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding-right: var(--spacing-sm);
+  flex-shrink: 0;
+}
+
+.anl-log-viewer .anl-stage-title {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+/* wave 로딩 애니메이션 (원본 AnalogMainPage.css — 밝은 배경용으로 색만 조정) */
+.anl-log-viewer .anl-wave-group {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.anl-log-viewer .anl-wave {
+  width: 2px;
+  height: 10px;
+  background: linear-gradient(45deg, var(--color-primary), #7fd4ff);
+  margin: 3px;
+  animation: anl-wave 1s linear infinite;
+}
+
+.anl-log-viewer .anl-wave:nth-child(2) {
+  animation-delay: 0.1s;
+}
+.anl-log-viewer .anl-wave:nth-child(3) {
+  animation-delay: 0.2s;
+}
+.anl-log-viewer .anl-wave:nth-child(4) {
+  animation-delay: 0.3s;
+}
+.anl-log-viewer .anl-wave:nth-child(5) {
+  animation-delay: 0.4s;
+}
+.anl-log-viewer .anl-wave:nth-child(6) {
+  animation-delay: 0.5s;
+}
+.anl-log-viewer .anl-wave:nth-child(7) {
+  animation-delay: 0.6s;
+}
+.anl-log-viewer .anl-wave:nth-child(8) {
+  animation-delay: 0.7s;
+}
+.anl-log-viewer .anl-wave:nth-child(9) {
+  animation-delay: 0.8s;
+}
+.anl-log-viewer .anl-wave:nth-child(10) {
+  animation-delay: 0.9s;
+}
+
+@keyframes anl-wave {
+  0% {
+    transform: scale(0);
+  }
+  50% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(0);
+  }
+}
+
+/* ============================================================
+   본문 레이아웃 (사이드바 + 콘텐츠)
+   ============================================================ */
+.anl-log-viewer .anl-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* 좌측 검색 사이드바 — 260px ↔ 56px 접힘 (CSS transition, 접힘 시 폼 숨김) */
+.anl-log-viewer .anl-sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 260px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  padding: 10px;
+  border-right: 1px solid var(--color-border-light);
+  overflow: hidden;
+  transition: width var(--transition-slow);
+}
+
+.anl-log-viewer .anl-sidebar-collapsed {
+  width: 56px;
+}
+
+.anl-log-viewer .anl-sidebar-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.anl-log-viewer .anl-sidebar-collapsed .anl-sidebar-form {
+  display: none;
+}
+
+.anl-log-viewer .anl-range-tilde {
+  text-align: center;
+  color: var(--color-text-muted);
+  line-height: 1;
+}
+
+.anl-log-viewer .anl-preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+}
+
+.anl-log-viewer .anl-divider {
+  width: 100%;
+  border: none;
+  border-top: 1px solid var(--color-border-light);
+  margin: var(--spacing-xs) 0;
+}
+
+.anl-log-viewer .anl-block-button {
+  width: 100%;
+}
+
+.anl-log-viewer .anl-icon-row {
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+.anl-log-viewer .anl-icon-row .form-button {
+  flex: 1;
+}
+
+.anl-log-viewer .anl-icon {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+  vertical-align: middle;
+}
+
+.anl-log-viewer .anl-sidebar-spacer {
+  flex: 1;
+}
+
+.anl-log-viewer .anl-sidebar-toggle {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: right;
+  padding: var(--spacing-xs);
+  font-size: var(--font-size-md);
+  color: var(--color-text-muted);
+}
+
+.anl-log-viewer .anl-sidebar-toggle:hover {
+  color: var(--color-primary);
+}
+
+/* ============================================================
+   콘텐츠 (문서 pane + 하단 문서 탭 + 서비스 목록 오버레이 기준점)
+   ============================================================ */
+.anl-log-viewer .anl-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  text-align: left;
+}
+
+.anl-log-viewer .anl-doc-panes {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.anl-log-viewer .anl-doc-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* 탭 전환은 언마운트 대신 display 토글 (Monaco 마운트 유지) */
+.anl-log-viewer .anl-pane-hidden {
+  display: none;
+}
+
+.anl-log-viewer .anl-monaco-host {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  text-align: left;
+}
+
+.anl-log-viewer .anl-binder-toolbar {
+  display: flex;
+  gap: 6px;
+  margin: 10px;
+}
+
+/* JSON 트리 뷰 (원본 .json-view 12px) */
+.anl-log-viewer .anl-json-pane {
+  flex: 1;
+  overflow: auto;
+  padding: var(--spacing-xs);
+}
+
+.anl-log-viewer .anl-json-pane .json-view {
+  font-size: 12px;
+}
+
+/* 하단 문서 탭 바 (작은 글씨, 첫 아이템 왼쪽 여백 — 원본 docTypeTab) */
+.anl-log-viewer .anl-doc-tab-bar {
+  display: flex;
+  padding-left: 64px;
+  border-top: 1px solid var(--color-border-light);
+  flex-shrink: 0;
+}
+
+.anl-log-viewer .anl-doc-tab {
+  padding: 3px 10px;
+  font-size: var(--font-size-xs);
+  border: 1px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.anl-log-viewer .anl-doc-tab-active {
+  background: var(--color-bg);
+  border-color: var(--color-border-medium);
+  border-top-color: var(--color-bg);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* ============================================================
+   서비스 목록 오버레이 패널 (원본 위치/크기 유지)
+   ============================================================ */
+.anl-log-viewer .anl-service-overlay {
+  position: absolute;
+  z-index: 999;
+  bottom: 30px;
+  left: 62px;
+  width: calc(100% - 200px);
+  height: 500px;
+  max-height: calc(100% - 60px);
+  box-shadow: 5px 5px 20px 1px #cccccc;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-light);
+}
+
+/* 로그/JSON 드릴다운 링크 버튼 (원본 .linkButton) */
+.anl-log-viewer .anl-link-button {
+  background-color: transparent;
+  border: none;
+  padding: 0;
+  margin-right: 5px;
+  text-decoration-line: underline;
+  color: var(--color-primary);
+  font-size: inherit;
+  cursor: pointer;
+}
+
+.anl-log-viewer .anl-link-button:hover {
+  font-weight: bolder;
+}
+
+/* 오류 행 — 빨간 글씨 */
+.anl-log-viewer .anl-row-error .ag-cell {
+  color: var(--color-danger);
+}
+
+/* 수행시간 히트맵 — cellClassRules 이산 버킷 (원본 연속 alpha 의 5단계 근사).
+   heat-5 는 오류 행 글자색보다 뒤에 선언해 흰 글씨가 우선하게 한다. */
+.anl-log-viewer .ag-cell.anl-heat-1 {
+  background-color: rgba(255, 0, 0, 0.16);
+}
+
+.anl-log-viewer .ag-cell.anl-heat-2 {
+  background-color: rgba(255, 0, 0, 0.32);
+}
+
+.anl-log-viewer .ag-cell.anl-heat-3 {
+  background-color: rgba(255, 0, 0, 0.48);
+}
+
+.anl-log-viewer .ag-cell.anl-heat-4 {
+  background-color: rgba(255, 0, 0, 0.64);
+}
+
+.anl-log-viewer .ag-cell.anl-heat-5 {
+  background-color: red;
+  color: #ffffff;
+}

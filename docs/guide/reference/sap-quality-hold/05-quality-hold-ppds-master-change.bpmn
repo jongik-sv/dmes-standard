@@ -1,0 +1,1553 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_QualityHoldPPDSMasterChange" targetNamespace="urn:sap-quality-hold-reference" exporter="Camunda Modeler" exporterVersion="5.46.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:collaboration id="Collaboration_QualityHoldPPDSMasterChange">
+    <bpmn:participant id="Participant_QE" name="품질 · 기술변경 관리" processRef="Process_QE" />
+    <bpmn:participant id="Participant_S4" name="SAP S/4HANA QM · PP" processRef="Process_S4" />
+    <bpmn:participant id="Participant_PPDS" name="SAP S/4HANA PP/DS" processRef="Process_PPDS" />
+    <bpmn:participant id="Participant_DM" name="SAP Digital Manufacturing" processRef="Process_DM" />
+    <bpmn:participant id="Participant_PC" name="생산관리 · 현장" processRef="Process_PC" />
+    <bpmn:messageFlow id="MF_PC_DM_ActualStatus" name="실제 착수 · 자재투입 상태" sourceRef="PC_VerifyActualStatus" targetRef="DM_AssessSFCScope" />
+    <bpmn:messageFlow id="MF_S4_QE_Containment" name="Q3 · 재고 · 오더 영향범위" sourceRef="S4_ContainQualityScope" targetRef="QE_AssessChangeNeed" />
+    <bpmn:messageFlow id="MF_QE_S4_Revision" name="승인 Change Number · Revision" sourceRef="QE_PublishRevision" targetRef="S4_UpdateBOMRoutingPV" />
+    <bpmn:messageFlow id="MF_S4_PPDS_PDS" name="생산버전 · BOM · Routing 변경" sourceRef="S4_PublishProductionVersion" targetRef="PPDS_GenerateChangedPDS" />
+    <bpmn:messageFlow id="MF_S4_PPDS_PlannedOrders" name="미착수 계획오더 목록" sourceRef="S4_SendPlannedOrderCandidates" targetRef="PPDS_PreparePlannedOrders" />
+    <bpmn:messageFlow id="MF_S4_PPDS_ProductionOrders" name="갱신 · 대체 생산오더" sourceRef="S4_SendChangedOrders" targetRef="PPDS_AdoptChangedProductionOrders" />
+    <bpmn:messageFlow id="MF_S4_DM_OrderChange" name="Order BOM · Routing · 일정" sourceRef="S4_SendChangedOrders" targetRef="DM_WaitChangedOrder" />
+    <bpmn:messageFlow id="MF_PPDS_S4_Plan" name="자재 · 능력 · 부모오더 영향" sourceRef="PPDS_SendS4Plan" targetRef="S4_ReceivePlanningImpact" />
+    <bpmn:messageFlow id="MF_PPDS_DM_Schedule" name="확정 실행일정" sourceRef="PPDS_SendDMSchedule" targetRef="DM_WaitExecutableSchedule" />
+    <bpmn:messageFlow id="MF_S4_QE_Readiness" name="계획 · 오더 · 구성품 조치 완료" sourceRef="S4_ApplyParentOrderActions" targetRef="QE_ReviewReadiness" />
+    <bpmn:messageFlow id="MF_QE_DM_Release" name="개정 적용 생산 승인" sourceRef="QE_ApproveProductionResume" targetRef="DM_WaitQualityApproval" />
+    <bpmn:messageFlow id="MF_DM_PC_ResumeChanged" name="승인된 SFC Release" sourceRef="DM_ReleaseChangedSFC" targetRef="PC_WaitRelease" />
+    <bpmn:textAnnotation id="PC_AnnoComponents">
+      <bpmn:text>이미 투입된 구성품은 Hold만으로 자동 취소되지 않는다.
+미투입품은 반납·재예약, 의심 Batch는 격리 후 SAP 재고상태와 일치시킨다.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:textAnnotation id="DM_AnnoSelection">
+      <bpmn:text>SFC가 In Queue라도 이전 공정 완료 이력이 있으면 생산 착수로 본다.
+주문 전체 Upversion보다 미착수 SFC 선별 또는 잔량 분리가 안전하다.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:textAnnotation id="PPDS_AnnoNoCascade">
+      <bpmn:text>PP/DS는 품질 Hold를 실행하거나 부모·하위 오더를 자동 Hold하지 않는다.
+가용일·수량·오더 데이터를 바꾼 후 페깅과 일정으로 영향을 계산한다.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:textAnnotation id="QE_AnnoVersionPolicy">
+      <bpmn:text>기존 생산버전을 덮어쓰거나 삭제하지 않는다.
+생산 중 WIP는 기존 개정, 미착수분은 신규 개정을 사용한다.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="QE_AssocVersionPolicy" sourceRef="QE_PublishRevision" targetRef="QE_AnnoVersionPolicy" />
+    <bpmn:textAnnotation id="S4_AnnoStarted">
+      <bpmn:text>착수 판정: Confirmation/PCNF/CNF, 구성품 GI·Backflush,
+생산 GR·Delivery, 외주 PO, 검사 Lot, DM SFC 이력까지 확인한다.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="S4_AssocStarted" sourceRef="S4_StartedOrderGate" targetRef="S4_AnnoStarted" />
+    <bpmn:textAnnotation id="S4_AnnoReread">
+      <bpmn:text>Read PP Master Data는 기존 구성품·공정·할당을 삭제 후 재생성한다.
+릴리즈 상태, 원가, 가용성, 검사 연계를 다시 검증한다.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="S4_AssocReread" sourceRef="S4_ReadPPMasterData" targetRef="S4_AnnoReread" />
+    <bpmn:association id="PC_AssocComponents" sourceRef="PC_SegregateComponents" targetRef="PC_AnnoComponents" />
+    <bpmn:association id="DM_AssocSelection" sourceRef="DM_UnstartedSFCGate" targetRef="DM_AnnoSelection" />
+    <bpmn:association id="PPDS_AssocNoCascade" sourceRef="PPDS_TracePegging" targetRef="PPDS_AnnoNoCascade" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_QE" name="품질 · 기술변경 의사결정" isExecutable="false">
+    <bpmn:documentation>품질이상의 기술적 처분과 Engineering Change를 승인한다. 생산 중 오더는 기존 개정을 유지하고 미착수 오더만 신규 BOM, Routing, Production Version 적용 대상으로 승인한다.</bpmn:documentation>
+    <bpmn:startEvent id="QE_Start" name="품질이상 접수">
+      <bpmn:outgoing>QE_F01</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="QE_RevisionRequiredGate" name="BOM 또는&#10;Routing 개정?" default="QE_F04">
+      <bpmn:incoming>QE_F02</bpmn:incoming>
+      <bpmn:outgoing>QE_F03</bpmn:outgoing>
+      <bpmn:outgoing>QE_F04</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="QE_ApproveDispositionOnly" name="기존 개정 기준&#10;재작업 · 특채 · 폐기 승인">
+      <bpmn:incoming>QE_F04</bpmn:incoming>
+      <bpmn:outgoing>QE_F05</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="QE_EndNoRevision" name="마스터 변경 없음">
+      <bpmn:incoming>QE_F05</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="QE_CreateEngineeringChange" name="Change Number · Revision&#10;유효일 생성">
+      <bpmn:incoming>QE_F03</bpmn:incoming>
+      <bpmn:outgoing>QE_F06</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="QE_ApproveRevision" name="신규 BOM · Routing ·&#10;생산버전 승인">
+      <bpmn:incoming>QE_F06</bpmn:incoming>
+      <bpmn:outgoing>QE_F07</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sendTask id="QE_PublishRevision" name="개정판 Publish&#10;기존판 WIP용 유지">
+      <bpmn:incoming>QE_F07</bpmn:incoming>
+      <bpmn:outgoing>QE_F08</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:userTask id="QE_CloseReadinessGaps" name="계획 · 자재 · 문서&#10;미비사항 보완">
+      <bpmn:incoming>QE_F11</bpmn:incoming>
+      <bpmn:outgoing>QE_F12</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sendTask id="QE_ApproveProductionResume" name="신규 개정 생산&#10;재개 승인">
+      <bpmn:incoming>QE_F10</bpmn:incoming>
+      <bpmn:outgoing>QE_F13</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:endEvent id="QE_EndChanged" name="개정 적용 승인 완료">
+      <bpmn:incoming>QE_F13</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="QE_F01" sourceRef="QE_Start" targetRef="QE_AssessChangeNeed" />
+    <bpmn:sequenceFlow id="QE_F02" sourceRef="QE_AssessChangeNeed" targetRef="QE_RevisionRequiredGate" />
+    <bpmn:sequenceFlow id="QE_F03" name="개정 필요" sourceRef="QE_RevisionRequiredGate" targetRef="QE_CreateEngineeringChange">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${masterRevisionRequired == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="QE_F04" name="개정 불필요" sourceRef="QE_RevisionRequiredGate" targetRef="QE_ApproveDispositionOnly" />
+    <bpmn:sequenceFlow id="QE_F05" sourceRef="QE_ApproveDispositionOnly" targetRef="QE_EndNoRevision" />
+    <bpmn:sequenceFlow id="QE_F06" sourceRef="QE_CreateEngineeringChange" targetRef="QE_ApproveRevision" />
+    <bpmn:sequenceFlow id="QE_F07" sourceRef="QE_ApproveRevision" targetRef="QE_PublishRevision" />
+    <bpmn:sequenceFlow id="QE_F08" sourceRef="QE_PublishRevision" targetRef="QE_ReviewReadiness" />
+    <bpmn:sequenceFlow id="QE_F12" sourceRef="QE_CloseReadinessGaps" targetRef="QE_ReviewReadiness" />
+    <bpmn:sequenceFlow id="QE_F09" sourceRef="QE_ReviewReadiness" targetRef="QE_ReadinessGate" />
+    <bpmn:sequenceFlow id="QE_F10" name="완료" sourceRef="QE_ReadinessGate" targetRef="QE_ApproveProductionResume">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${revisionReady == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="QE_F11" name="미완료" sourceRef="QE_ReadinessGate" targetRef="QE_CloseReadinessGaps" />
+    <bpmn:sequenceFlow id="QE_F13" sourceRef="QE_ApproveProductionResume" targetRef="QE_EndChanged" />
+    <bpmn:userTask id="QE_AssessChangeNeed" name="NCR · Q3 · 페깅 영향&#10;기술검토">
+      <bpmn:incoming>QE_F01</bpmn:incoming>
+      <bpmn:outgoing>QE_F02</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="QE_ReviewReadiness" name="계획 · 오더 · 구성품 ·&#10;실행준비 통합검토">
+      <bpmn:incoming>QE_F08</bpmn:incoming>
+      <bpmn:incoming>QE_F12</bpmn:incoming>
+      <bpmn:outgoing>QE_F09</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="QE_ReadinessGate" name="재개 준비&#10;완료?" default="QE_F11">
+      <bpmn:incoming>QE_F09</bpmn:incoming>
+      <bpmn:outgoing>QE_F10</bpmn:outgoing>
+      <bpmn:outgoing>QE_F11</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+  </bpmn:process>
+  <bpmn:process id="Process_S4" name="S/4HANA 품질 · 생산오더 변경" isExecutable="false">
+    <bpmn:documentation>S/4HANA QM과 PP에서 품질 봉쇄, 생산오더 실제실적 판정, 개정 마스터 반영, 미착수 생산오더의 PP Master Data 재읽기 또는 대체오더 생성, 구성품과 부모오더 조치를 수행한다.</bpmn:documentation>
+    <bpmn:startEvent id="S4_Start" name="품질 Hold 신호 수신">
+      <bpmn:outgoing>S4_F01</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="S4_ContainQualityScope" name="Q3 · 검사 Lot · Batch&#10;재고 봉쇄">
+      <bpmn:incoming>S4_F01</bpmn:incoming>
+      <bpmn:outgoing>S4_F02</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="S4_CollectOrderFacts" name="생산오더 · 확정 · GI · GR ·&#10;외주 · 검사 Lot 상태 수집">
+      <bpmn:incoming>S4_F02</bpmn:incoming>
+      <bpmn:outgoing>S4_F03</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="S4_StartedOrderGate" name="생산 착수&#10;발생?" default="S4_F05">
+      <bpmn:incoming>S4_F03</bpmn:incoming>
+      <bpmn:outgoing>S4_F04</bpmn:outgoing>
+      <bpmn:outgoing>S4_F05</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="S4_KeepExistingRevision" name="기존 Order BOM · Routing 유지&#10;개정 적용대상 제외">
+      <bpmn:incoming>S4_F05</bpmn:incoming>
+      <bpmn:outgoing>S4_F06</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="S4_ProcessExistingDisposition" name="기존 개정 기준&#10;재작업 · 특채 · 폐기 처리">
+      <bpmn:incoming>S4_F06</bpmn:incoming>
+      <bpmn:outgoing>S4_F07</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="S4_EndExistingRevision" name="생산 중 오더 기존 개정 유지">
+      <bpmn:incoming>S4_F07</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="S4_SelectUnstartedCandidates" name="미착수 오더 선별&#10;REL 상태만으로 판단 금지">
+      <bpmn:incoming>S4_F04</bpmn:incoming>
+      <bpmn:outgoing>S4_F08</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="S4_RevisionDecisionGate" name="마스터 개정&#10;승인?" default="S4_F10">
+      <bpmn:incoming>S4_F08</bpmn:incoming>
+      <bpmn:outgoing>S4_F09</bpmn:outgoing>
+      <bpmn:outgoing>S4_F10</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="S4_EndNoRevision" name="기존 마스터로 계속">
+      <bpmn:incoming>S4_F11</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="S4_UpdateBOMRoutingPV" name="Change Number 기준&#10;BOM · Routing · PV 반영">
+      <bpmn:incoming>S4_F09</bpmn:incoming>
+      <bpmn:outgoing>S4_F12</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sendTask id="S4_PublishProductionVersion" name="신규 생산버전&#10;PP/DS 변경전송">
+      <bpmn:incoming>S4_F12</bpmn:incoming>
+      <bpmn:outgoing>S4_F13</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:exclusiveGateway id="S4_DocumentTypeGate" name="계획오더 또는&#10;생산오더?" default="S4_F15">
+      <bpmn:incoming>S4_F13</bpmn:incoming>
+      <bpmn:outgoing>S4_F14</bpmn:outgoing>
+      <bpmn:outgoing>S4_F15</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sendTask id="S4_SendPlannedOrderCandidates" name="미착수 계획오더&#10;PP/DS 재전개 요청">
+      <bpmn:incoming>S4_F14</bpmn:incoming>
+      <bpmn:outgoing>S4_F16</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:exclusiveGateway id="S4_RereadEligibilityGate" name="Read PP Master Data&#10;허용?" default="S4_F18">
+      <bpmn:incoming>S4_F15</bpmn:incoming>
+      <bpmn:outgoing>S4_F17</bpmn:outgoing>
+      <bpmn:outgoing>S4_F18</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="S4_ReadPPMasterData" name="CO02 Read PP Master Data&#10;신규 PV · Revision · Explosion Date">
+      <bpmn:incoming>S4_F17</bpmn:incoming>
+      <bpmn:outgoing>S4_F19</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="S4_RecheckOrder" name="구성품 · 공정 · 원가 ·&#10;가용성 재검증">
+      <bpmn:incoming>S4_F19</bpmn:incoming>
+      <bpmn:outgoing>S4_F20</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="S4_RereleaseOrder" name="오더 재스케줄 ·&#10;재릴리즈">
+      <bpmn:incoming>S4_F20</bpmn:incoming>
+      <bpmn:outgoing>S4_F21</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="S4_CreateReplacementOrder" name="재읽기 제한 시&#10;미착수 잔량 대체오더 생성">
+      <bpmn:incoming>S4_F18</bpmn:incoming>
+      <bpmn:outgoing>S4_F22</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="S4_RetireOldOrder" name="기존 오더 잔량 · 예약 ·&#10;페깅 정리">
+      <bpmn:incoming>S4_F22</bpmn:incoming>
+      <bpmn:outgoing>S4_F23</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="S4_MergeOrderUpdate" name="오더변경&#10;합류">
+      <bpmn:incoming>S4_F16</bpmn:incoming>
+      <bpmn:incoming>S4_F21</bpmn:incoming>
+      <bpmn:incoming>S4_F23</bpmn:incoming>
+      <bpmn:outgoing>S4_F24</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="S4_ApplyComponentRules" name="구성품 처리&#10;투입분 유지 · 미투입분 재예약&#10;의심 Batch 격리">
+      <bpmn:incoming>S4_F24</bpmn:incoming>
+      <bpmn:outgoing>S4_F25</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sendTask id="S4_SendChangedOrders" name="변경 오더 · Order BOM ·&#10;Routing 배포">
+      <bpmn:incoming>S4_F25</bpmn:incoming>
+      <bpmn:outgoing>S4_F26</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:receiveTask id="S4_ReceivePlanningImpact" name="PP/DS 재계획 결과 수신">
+      <bpmn:incoming>S4_F26</bpmn:incoming>
+      <bpmn:outgoing>S4_F27</bpmn:outgoing>
+    </bpmn:receiveTask>
+    <bpmn:userTask id="S4_ApplyParentOrderActions" name="영향 부모오더만&#10;지연 · Hold · 대체공급 반영">
+      <bpmn:incoming>S4_F27</bpmn:incoming>
+      <bpmn:outgoing>S4_F28</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="S4_EndChanged" name="S/4 변경 완료">
+      <bpmn:incoming>S4_F28</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="S4_F01" sourceRef="S4_Start" targetRef="S4_ContainQualityScope" />
+    <bpmn:sequenceFlow id="S4_F02" sourceRef="S4_ContainQualityScope" targetRef="S4_CollectOrderFacts" />
+    <bpmn:sequenceFlow id="S4_F03" sourceRef="S4_CollectOrderFacts" targetRef="S4_StartedOrderGate" />
+    <bpmn:sequenceFlow id="S4_F04" name="미착수 증명" sourceRef="S4_StartedOrderGate" targetRef="S4_SelectUnstartedCandidates">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${orderStarted == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="S4_F05" name="착수 또는 불명확" sourceRef="S4_StartedOrderGate" targetRef="S4_KeepExistingRevision" />
+    <bpmn:sequenceFlow id="S4_F06" sourceRef="S4_KeepExistingRevision" targetRef="S4_ProcessExistingDisposition" />
+    <bpmn:sequenceFlow id="S4_F07" sourceRef="S4_ProcessExistingDisposition" targetRef="S4_EndExistingRevision" />
+    <bpmn:sequenceFlow id="S4_F08" sourceRef="S4_SelectUnstartedCandidates" targetRef="S4_RevisionDecisionGate" />
+    <bpmn:sequenceFlow id="S4_F09" name="승인됨" sourceRef="S4_RevisionDecisionGate" targetRef="S4_UpdateBOMRoutingPV">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${masterRevisionApproved == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="S4_F10" name="개정 없음" sourceRef="S4_RevisionDecisionGate" targetRef="S4_ApplyDispositionWithoutRevision" />
+    <bpmn:sequenceFlow id="S4_F11" sourceRef="S4_ApplyDispositionWithoutRevision" targetRef="S4_EndNoRevision" />
+    <bpmn:sequenceFlow id="S4_F12" sourceRef="S4_UpdateBOMRoutingPV" targetRef="S4_PublishProductionVersion" />
+    <bpmn:sequenceFlow id="S4_F13" sourceRef="S4_PublishProductionVersion" targetRef="S4_DocumentTypeGate" />
+    <bpmn:sequenceFlow id="S4_F14" name="PP/DS 계획오더" sourceRef="S4_DocumentTypeGate" targetRef="S4_SendPlannedOrderCandidates">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${hasPlannedOrders == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="S4_F15" name="S/4 생산오더" sourceRef="S4_DocumentTypeGate" targetRef="S4_RereadEligibilityGate" />
+    <bpmn:sequenceFlow id="S4_F16" sourceRef="S4_SendPlannedOrderCandidates" targetRef="S4_MergeOrderUpdate" />
+    <bpmn:sequenceFlow id="S4_F17" name="허용" sourceRef="S4_RereadEligibilityGate" targetRef="S4_ReadPPMasterData">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${rereadAllowed == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="S4_F18" name="확정 · GI · 검사 Lot 등 존재" sourceRef="S4_RereadEligibilityGate" targetRef="S4_CreateReplacementOrder" />
+    <bpmn:sequenceFlow id="S4_F19" sourceRef="S4_ReadPPMasterData" targetRef="S4_RecheckOrder" />
+    <bpmn:sequenceFlow id="S4_F20" sourceRef="S4_RecheckOrder" targetRef="S4_RereleaseOrder" />
+    <bpmn:sequenceFlow id="S4_F21" sourceRef="S4_RereleaseOrder" targetRef="S4_MergeOrderUpdate" />
+    <bpmn:sequenceFlow id="S4_F22" sourceRef="S4_CreateReplacementOrder" targetRef="S4_RetireOldOrder" />
+    <bpmn:sequenceFlow id="S4_F23" sourceRef="S4_RetireOldOrder" targetRef="S4_MergeOrderUpdate" />
+    <bpmn:sequenceFlow id="S4_F24" sourceRef="S4_MergeOrderUpdate" targetRef="S4_ApplyComponentRules" />
+    <bpmn:sequenceFlow id="S4_F25" sourceRef="S4_ApplyComponentRules" targetRef="S4_SendChangedOrders" />
+    <bpmn:sequenceFlow id="S4_F26" sourceRef="S4_SendChangedOrders" targetRef="S4_ReceivePlanningImpact" />
+    <bpmn:sequenceFlow id="S4_F27" sourceRef="S4_ReceivePlanningImpact" targetRef="S4_ApplyParentOrderActions" />
+    <bpmn:sequenceFlow id="S4_F28" sourceRef="S4_ApplyParentOrderActions" targetRef="S4_EndChanged" />
+    <bpmn:userTask id="S4_ApplyDispositionWithoutRevision" name="마스터 변경 없이&#10;품질처분 · 일정조정">
+      <bpmn:incoming>S4_F10</bpmn:incoming>
+      <bpmn:outgoing>S4_F11</bpmn:outgoing>
+    </bpmn:userTask>
+  </bpmn:process>
+  <bpmn:process id="Process_PPDS" name="PP/DS 공급 · 소요 · 상세일정 재계획" isExecutable="false">
+    <bpmn:documentation>PP/DS는 품질 Hold 실행 주체가 아니다. 보류된 입고예정과 페깅을 기준으로 종속자재, 부모오더, 자원일정을 분석하며 신규 PDS로 미착수 계획오더를 재전개한다.</bpmn:documentation>
+    <bpmn:startEvent id="PPDS_Start" name="품질 Hold 영향 수신">
+      <bpmn:outgoing>PPDS_F01</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="PPDS_TracePegging" name="Dynamic · Fixed Pegging 추적&#10;종속자재 · 부모오더 식별">
+      <bpmn:incoming>PPDS_F01</bpmn:incoming>
+      <bpmn:outgoing>PPDS_F02</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="PPDS_AdjustHeldReceipt" name="보류 생산입고&#10;가용일 지연 · 수량 감소">
+      <bpmn:incoming>PPDS_F02</bpmn:incoming>
+      <bpmn:outgoing>PPDS_F03</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="PPDS_ProtectAffectedSupply" name="의심 Batch · 전용공급 격리&#10;공용 정상공급은 유지">
+      <bpmn:incoming>PPDS_F03</bpmn:incoming>
+      <bpmn:outgoing>PPDS_F04</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="PPDS_RevisionDecisionGate" name="마스터 개정&#10;필요?" default="PPDS_F06">
+      <bpmn:incoming>PPDS_F04</bpmn:incoming>
+      <bpmn:outgoing>PPDS_F05</bpmn:outgoing>
+      <bpmn:outgoing>PPDS_F06</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="PPDS_ReplanExistingRevision" name="기존 개정으로&#10;처분 · 일정 재계획">
+      <bpmn:incoming>PPDS_F06</bpmn:incoming>
+      <bpmn:outgoing>PPDS_F07</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sendTask id="PPDS_PublishExistingPlan" name="기존 개정 계획 배포">
+      <bpmn:incoming>PPDS_F07</bpmn:incoming>
+      <bpmn:outgoing>PPDS_F08</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="PPDS_GenerateChangedPDS" name="신규 생산버전에서&#10;PDS 생성 · 활성화">
+      <bpmn:incoming>PPDS_F05</bpmn:incoming>
+      <bpmn:outgoing>PPDS_F09</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:inclusiveGateway id="PPDS_OrderScopeGate" name="변경 대상&#10;오더유형">
+      <bpmn:incoming>PPDS_F09</bpmn:incoming>
+      <bpmn:outgoing>PPDS_F10</bpmn:outgoing>
+      <bpmn:outgoing>PPDS_F11</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+    <bpmn:userTask id="PPDS_PreparePlannedOrders" name="미착수 계획오더&#10;Firming · Fixed Pegging 검토">
+      <bpmn:incoming>PPDS_F10</bpmn:incoming>
+      <bpmn:outgoing>PPDS_F12</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="PPDS_ReexplodePlannedOrders" name="신규 PDS로 재전개&#10;또는 삭제 · 재생성">
+      <bpmn:incoming>PPDS_F12</bpmn:incoming>
+      <bpmn:outgoing>PPDS_F13</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="PPDS_F01" sourceRef="PPDS_Start" targetRef="PPDS_TracePegging" />
+    <bpmn:sequenceFlow id="PPDS_F02" sourceRef="PPDS_TracePegging" targetRef="PPDS_AdjustHeldReceipt" />
+    <bpmn:sequenceFlow id="PPDS_F03" sourceRef="PPDS_AdjustHeldReceipt" targetRef="PPDS_ProtectAffectedSupply" />
+    <bpmn:sequenceFlow id="PPDS_F04" sourceRef="PPDS_ProtectAffectedSupply" targetRef="PPDS_RevisionDecisionGate" />
+    <bpmn:sequenceFlow id="PPDS_F05" name="개정" sourceRef="PPDS_RevisionDecisionGate" targetRef="PPDS_GenerateChangedPDS">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${masterRevisionApproved == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="PPDS_F06" name="기존 개정" sourceRef="PPDS_RevisionDecisionGate" targetRef="PPDS_ReplanExistingRevision" />
+    <bpmn:sequenceFlow id="PPDS_F07" sourceRef="PPDS_ReplanExistingRevision" targetRef="PPDS_PublishExistingPlan" />
+    <bpmn:sequenceFlow id="PPDS_F08" sourceRef="PPDS_PublishExistingPlan" targetRef="PPDS_EndNoRevision" />
+    <bpmn:sequenceFlow id="PPDS_F09" sourceRef="PPDS_GenerateChangedPDS" targetRef="PPDS_OrderScopeGate" />
+    <bpmn:sequenceFlow id="PPDS_F10" name="계획오더" sourceRef="PPDS_OrderScopeGate" targetRef="PPDS_PreparePlannedOrders">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${hasPlannedOrders == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="PPDS_F11" name="생산오더" sourceRef="PPDS_OrderScopeGate" targetRef="PPDS_AdoptChangedProductionOrders">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${hasProductionOrders == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="PPDS_F12" sourceRef="PPDS_PreparePlannedOrders" targetRef="PPDS_ReexplodePlannedOrders" />
+    <bpmn:sequenceFlow id="PPDS_F13" sourceRef="PPDS_ReexplodePlannedOrders" targetRef="PPDS_MergeChangedOrders" />
+    <bpmn:sequenceFlow id="PPDS_F14" sourceRef="PPDS_AdoptChangedProductionOrders" targetRef="PPDS_MergeChangedOrders" />
+    <bpmn:sequenceFlow id="PPDS_F15" sourceRef="PPDS_MergeChangedOrders" targetRef="PPDS_RunDetailedScheduling" />
+    <bpmn:sequenceFlow id="PPDS_F20" sourceRef="PPDS_SendS4Plan" targetRef="PPDS_SendDMSchedule" />
+    <bpmn:sequenceFlow id="PPDS_F21" sourceRef="PPDS_SendDMSchedule" targetRef="PPDS_EndChanged" />
+    <bpmn:endEvent id="PPDS_EndNoRevision" name="기존 개정 재계획 완료">
+      <bpmn:incoming>PPDS_F08</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="PPDS_AdoptChangedProductionOrders" name="갱신 · 대체 생산오더&#10;활동 · 소요 반영">
+      <bpmn:incoming>PPDS_F11</bpmn:incoming>
+      <bpmn:outgoing>PPDS_F14</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:inclusiveGateway id="PPDS_MergeChangedOrders" name="변경오더&#10;합류">
+      <bpmn:incoming>PPDS_F13</bpmn:incoming>
+      <bpmn:incoming>PPDS_F14</bpmn:incoming>
+      <bpmn:outgoing>PPDS_F15</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+    <bpmn:serviceTask id="PPDS_RunDetailedScheduling" name="Product Heuristic ·&#10;Detailed Scheduling 실행">
+      <bpmn:incoming>PPDS_F15</bpmn:incoming>
+      <bpmn:outgoing>PPDS_F16</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="PPDS_CheckMaterialCapacity" name="구성품 가용성 · 능력 ·&#10;자원대체 검증">
+      <bpmn:incoming>PPDS_F16</bpmn:incoming>
+      <bpmn:outgoing>PPDS_F17</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="PPDS_RebuildPegging" name="Dynamic Pegging 재구성&#10;Fixed Pegging 유지 · 해제 검토">
+      <bpmn:incoming>PPDS_F17</bpmn:incoming>
+      <bpmn:outgoing>PPDS_F18</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="PPDS_AssessParentOrders" name="부모오더 부족 · 지연 ·&#10;대체공급 영향 산출">
+      <bpmn:incoming>PPDS_F18</bpmn:incoming>
+      <bpmn:outgoing>PPDS_F19</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sendTask id="PPDS_SendS4Plan" name="S/4에 자재 · 부모오더&#10;영향 배포">
+      <bpmn:incoming>PPDS_F19</bpmn:incoming>
+      <bpmn:outgoing>PPDS_F20</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:sequenceFlow id="PPDS_F16" sourceRef="PPDS_RunDetailedScheduling" targetRef="PPDS_CheckMaterialCapacity" />
+    <bpmn:sequenceFlow id="PPDS_F17" sourceRef="PPDS_CheckMaterialCapacity" targetRef="PPDS_RebuildPegging" />
+    <bpmn:sequenceFlow id="PPDS_F18" sourceRef="PPDS_RebuildPegging" targetRef="PPDS_AssessParentOrders" />
+    <bpmn:sequenceFlow id="PPDS_F19" sourceRef="PPDS_AssessParentOrders" targetRef="PPDS_SendS4Plan" />
+    <bpmn:sendTask id="PPDS_SendDMSchedule" name="DM에 실행가능 일정&#10;배포">
+      <bpmn:incoming>PPDS_F20</bpmn:incoming>
+      <bpmn:outgoing>PPDS_F21</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:endEvent id="PPDS_EndChanged" name="PP/DS 재계획 완료">
+      <bpmn:incoming>PPDS_F21</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmn:process id="Process_DM" name="SAP DM 생산중단 · SFC 개정 적용" isExecutable="false">
+    <bpmn:documentation>SAP DM에서 품질이상 SFC를 Hold하고 실제 착수 여부와 SFC별 이력을 판정한다. 미착수 SFC만 Order BOM/Routing Upversion 또는 Production Change로 신규 개정을 적용하며 생산 중 SFC는 기존 개정으로 처분한다.</bpmn:documentation>
+    <bpmn:startEvent id="DM_Start" name="품질이상 검출">
+      <bpmn:outgoing>DM_F01</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="DM_RecordNC" name="NC · 검사결과 ·&#10;Buyoff Reject 기록">
+      <bpmn:incoming>DM_F01</bpmn:incoming>
+      <bpmn:outgoing>DM_F02</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="DM_HoldAffectedSFC" name="영향 SFC Hold&#10;Start · Complete 차단">
+      <bpmn:incoming>DM_F02</bpmn:incoming>
+      <bpmn:outgoing>DM_F03</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="DM_AssessSFCScope" name="SFC · Batch · Genealogy&#10;영향범위와 상태 수집">
+      <bpmn:incoming>DM_F03</bpmn:incoming>
+      <bpmn:outgoing>DM_F04</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="DM_UnstartedSFCGate" name="SFC 완전&#10;미착수?" default="DM_F06">
+      <bpmn:incoming>DM_F04</bpmn:incoming>
+      <bpmn:outgoing>DM_F05</bpmn:outgoing>
+      <bpmn:outgoing>DM_F06</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="DM_KeepExistingRevision" name="생산 중 SFC&#10;기존 BOM · Routing 유지">
+      <bpmn:incoming>DM_F06</bpmn:incoming>
+      <bpmn:outgoing>DM_F07</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="DM_ProcessMRBDisposition" name="재작업 · 특채 · 폐기&#10;MRB 처분 실행">
+      <bpmn:incoming>DM_F07</bpmn:incoming>
+      <bpmn:outgoing>DM_F08</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sendTask id="DM_ResumeExistingRevision" name="허용된 기존 개정&#10;SFC Hold 해제">
+      <bpmn:incoming>DM_F08</bpmn:incoming>
+      <bpmn:outgoing>DM_F09</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:endEvent id="DM_EndExistingRevision" name="생산 중 SFC 처분 완료">
+      <bpmn:incoming>DM_F09</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:exclusiveGateway id="DM_RevisionDecisionGate" name="마스터 개정&#10;승인?" default="DM_F11">
+      <bpmn:incoming>DM_F05</bpmn:incoming>
+      <bpmn:outgoing>DM_F10</bpmn:outgoing>
+      <bpmn:outgoing>DM_F11</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="DM_DispositionWithoutRevision" name="기존 BOM · Routing으로&#10;품질처분 반영">
+      <bpmn:incoming>DM_F11</bpmn:incoming>
+      <bpmn:outgoing>DM_F12</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sendTask id="DM_ResumeWithoutRevision" name="SFC Hold 해제&#10;기존 개정 재개">
+      <bpmn:incoming>DM_F12</bpmn:incoming>
+      <bpmn:outgoing>DM_F13</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:endEvent id="DM_EndNoRevision" name="마스터 변경 없이 재개">
+      <bpmn:incoming>DM_F13</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:receiveTask id="DM_WaitChangedOrder" name="S/4 변경오더 수신">
+      <bpmn:incoming>DM_F10</bpmn:incoming>
+      <bpmn:outgoing>DM_F14</bpmn:outgoing>
+    </bpmn:receiveTask>
+    <bpmn:serviceTask id="DM_UpversionOrder" name="SupportChangeAfterRelease&#10;Order BOM · Routing Upversion">
+      <bpmn:incoming>DM_F14</bpmn:incoming>
+      <bpmn:outgoing>DM_F15</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="DM_MixedOrderGate" name="동일 오더에&#10;착수 SFC 혼재?" default="DM_F17">
+      <bpmn:incoming>DM_F15</bpmn:incoming>
+      <bpmn:outgoing>DM_F16</bpmn:outgoing>
+      <bpmn:outgoing>DM_F17</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="DM_ApplyAllUnstartedSFC" name="미착수 SFC 전체에&#10;신규 개정 할당">
+      <bpmn:incoming>DM_F17</bpmn:incoming>
+      <bpmn:outgoing>DM_F19</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="DM_ApplySelectedSFC" name="Production Change API로 선별&#10;또는 미착수 잔량 오더 분리">
+      <bpmn:incoming>DM_F16</bpmn:incoming>
+      <bpmn:outgoing>DM_F18</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="DM_MergeRevisionAssignment" name="개정할당&#10;합류">
+      <bpmn:incoming>DM_F18</bpmn:incoming>
+      <bpmn:incoming>DM_F19</bpmn:incoming>
+      <bpmn:outgoing>DM_F20</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="DM_HoldChangedSFC" name="HoldProduction=BY_SFC&#10;검토 중 Hold 유지">
+      <bpmn:incoming>DM_F20</bpmn:incoming>
+      <bpmn:outgoing>DM_F21</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:receiveTask id="DM_WaitExecutableSchedule" name="PP/DS 실행가능 일정 수신">
+      <bpmn:incoming>DM_F21</bpmn:incoming>
+      <bpmn:outgoing>DM_F22</bpmn:outgoing>
+    </bpmn:receiveTask>
+    <bpmn:receiveTask id="DM_WaitQualityApproval" name="품질 · 기술 생산재개 승인">
+      <bpmn:incoming>DM_F22</bpmn:incoming>
+      <bpmn:outgoing>DM_F23</bpmn:outgoing>
+    </bpmn:receiveTask>
+    <bpmn:sendTask id="DM_ReleaseChangedSFC" name="신규 개정 SFC&#10;Hold 해제 · Dispatch">
+      <bpmn:incoming>DM_F23</bpmn:incoming>
+      <bpmn:outgoing>DM_F24</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:endEvent id="DM_EndChanged" name="신규 개정 생산 준비">
+      <bpmn:incoming>DM_F24</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="DM_F01" sourceRef="DM_Start" targetRef="DM_RecordNC" />
+    <bpmn:sequenceFlow id="DM_F02" sourceRef="DM_RecordNC" targetRef="DM_HoldAffectedSFC" />
+    <bpmn:sequenceFlow id="DM_F03" sourceRef="DM_HoldAffectedSFC" targetRef="DM_AssessSFCScope" />
+    <bpmn:sequenceFlow id="DM_F04" sourceRef="DM_AssessSFCScope" targetRef="DM_UnstartedSFCGate" />
+    <bpmn:sequenceFlow id="DM_F05" name="완전 미착수" sourceRef="DM_UnstartedSFCGate" targetRef="DM_RevisionDecisionGate">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${sfcEverStarted == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="DM_F06" name="착수 · 부분완료 · 불명확" sourceRef="DM_UnstartedSFCGate" targetRef="DM_KeepExistingRevision" />
+    <bpmn:sequenceFlow id="DM_F07" sourceRef="DM_KeepExistingRevision" targetRef="DM_ProcessMRBDisposition" />
+    <bpmn:sequenceFlow id="DM_F08" sourceRef="DM_ProcessMRBDisposition" targetRef="DM_ResumeExistingRevision" />
+    <bpmn:sequenceFlow id="DM_F09" sourceRef="DM_ResumeExistingRevision" targetRef="DM_EndExistingRevision" />
+    <bpmn:sequenceFlow id="DM_F10" name="개정 적용" sourceRef="DM_RevisionDecisionGate" targetRef="DM_WaitChangedOrder">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${masterRevisionApproved == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="DM_F11" name="개정 없음" sourceRef="DM_RevisionDecisionGate" targetRef="DM_DispositionWithoutRevision" />
+    <bpmn:sequenceFlow id="DM_F12" sourceRef="DM_DispositionWithoutRevision" targetRef="DM_ResumeWithoutRevision" />
+    <bpmn:sequenceFlow id="DM_F13" sourceRef="DM_ResumeWithoutRevision" targetRef="DM_EndNoRevision" />
+    <bpmn:sequenceFlow id="DM_F14" sourceRef="DM_WaitChangedOrder" targetRef="DM_UpversionOrder" />
+    <bpmn:sequenceFlow id="DM_F15" sourceRef="DM_UpversionOrder" targetRef="DM_MixedOrderGate" />
+    <bpmn:sequenceFlow id="DM_F16" name="혼재" sourceRef="DM_MixedOrderGate" targetRef="DM_ApplySelectedSFC">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${mixedSFCStatus == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="DM_F17" name="모두 미착수" sourceRef="DM_MixedOrderGate" targetRef="DM_ApplyAllUnstartedSFC" />
+    <bpmn:sequenceFlow id="DM_F19" sourceRef="DM_ApplyAllUnstartedSFC" targetRef="DM_MergeRevisionAssignment" />
+    <bpmn:sequenceFlow id="DM_F18" sourceRef="DM_ApplySelectedSFC" targetRef="DM_MergeRevisionAssignment" />
+    <bpmn:sequenceFlow id="DM_F20" sourceRef="DM_MergeRevisionAssignment" targetRef="DM_HoldChangedSFC" />
+    <bpmn:sequenceFlow id="DM_F21" sourceRef="DM_HoldChangedSFC" targetRef="DM_WaitExecutableSchedule" />
+    <bpmn:sequenceFlow id="DM_F22" sourceRef="DM_WaitExecutableSchedule" targetRef="DM_WaitQualityApproval" />
+    <bpmn:sequenceFlow id="DM_F23" sourceRef="DM_WaitQualityApproval" targetRef="DM_ReleaseChangedSFC" />
+    <bpmn:sequenceFlow id="DM_F24" sourceRef="DM_ReleaseChangedSFC" targetRef="DM_EndChanged" />
+  </bpmn:process>
+  <bpmn:process id="Process_PC" name="생산관리 · 현장 중단과 재개" isExecutable="false">
+    <bpmn:documentation>현장에서 영향 WIP를 즉시 정지하고 투입·미투입 구성품과 실제 착수상태를 확인한다. 승인된 기존 또는 신규 개정의 SFC만 작업문서와 배치를 확인한 후 생산을 재개한다.</bpmn:documentation>
+    <bpmn:startEvent id="PC_Start" name="중단 지시 수신">
+      <bpmn:outgoing>PC_F01</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:manualTask id="PC_StopAffectedWIP" name="영향 설비 · WIP&#10;안전 정지">
+      <bpmn:incoming>PC_F01</bpmn:incoming>
+      <bpmn:outgoing>PC_F02</bpmn:outgoing>
+    </bpmn:manualTask>
+    <bpmn:manualTask id="PC_SegregateComponents" name="투입 · 미투입 · 의심 Batch&#10;물리적 식별 · 격리">
+      <bpmn:incoming>PC_F02</bpmn:incoming>
+      <bpmn:outgoing>PC_F03</bpmn:outgoing>
+    </bpmn:manualTask>
+    <bpmn:userTask id="PC_VerifyActualStatus" name="작업착수 · 실적 · 자재투입&#10;현장사실 확인">
+      <bpmn:incoming>PC_F03</bpmn:incoming>
+      <bpmn:outgoing>PC_F04</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sendTask id="PC_ReportActualStatus" name="S/4 · DM에&#10;실제상태 보고">
+      <bpmn:incoming>PC_F04</bpmn:incoming>
+      <bpmn:outgoing>PC_F05</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:receiveTask id="PC_WaitRelease" name="승인된 SFC Release 대기">
+      <bpmn:incoming>PC_F05</bpmn:incoming>
+      <bpmn:outgoing>PC_F06</bpmn:outgoing>
+    </bpmn:receiveTask>
+    <bpmn:userTask id="PC_CheckRevisionDocuments" name="BOM · Routing · 작업지시 ·&#10;배치 · 자재 확인">
+      <bpmn:incoming>PC_F06</bpmn:incoming>
+      <bpmn:outgoing>PC_F07</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:manualTask id="PC_ResumeProduction" name="승인 개정으로&#10;생산 재개">
+      <bpmn:incoming>PC_F07</bpmn:incoming>
+      <bpmn:outgoing>PC_F08</bpmn:outgoing>
+    </bpmn:manualTask>
+    <bpmn:endEvent id="PC_End" name="현장 재개 완료">
+      <bpmn:incoming>PC_F08</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="PC_F01" sourceRef="PC_Start" targetRef="PC_StopAffectedWIP" />
+    <bpmn:sequenceFlow id="PC_F02" sourceRef="PC_StopAffectedWIP" targetRef="PC_SegregateComponents" />
+    <bpmn:sequenceFlow id="PC_F03" sourceRef="PC_SegregateComponents" targetRef="PC_VerifyActualStatus" />
+    <bpmn:sequenceFlow id="PC_F04" sourceRef="PC_VerifyActualStatus" targetRef="PC_ReportActualStatus" />
+    <bpmn:sequenceFlow id="PC_F05" sourceRef="PC_ReportActualStatus" targetRef="PC_WaitRelease" />
+    <bpmn:sequenceFlow id="PC_F06" sourceRef="PC_WaitRelease" targetRef="PC_CheckRevisionDocuments" />
+    <bpmn:sequenceFlow id="PC_F07" sourceRef="PC_CheckRevisionDocuments" targetRef="PC_ResumeProduction" />
+    <bpmn:sequenceFlow id="PC_F08" sourceRef="PC_ResumeProduction" targetRef="PC_End" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_QualityHoldPPDSMasterChange">
+      <bpmndi:BPMNShape id="Participant_QE_di" bpmnElement="Participant_QE" isHorizontal="true">
+        <dc:Bounds x="160" y="40" width="5600" height="360" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="QE_Start_di" bpmnElement="QE_Start">
+        <dc:Bounds x="220" y="172" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="208" y="208" width="61" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="QE_RevisionRequiredGate_di" bpmnElement="QE_RevisionRequiredGate" isMarkerVisible="true">
+        <dc:Bounds x="560" y="165" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="616.5" y="176" width="67" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="QE_ApproveDispositionOnly_di" bpmnElement="QE_ApproveDispositionOnly">
+        <dc:Bounds x="730" y="70" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="QE_EndNoRevision_di" bpmnElement="QE_EndNoRevision">
+        <dc:Bounds x="920" y="92" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="902" y="128" width="73" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="QE_CreateEngineeringChange_di" bpmnElement="QE_CreateEngineeringChange">
+        <dc:Bounds x="730" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="QE_ApproveRevision_di" bpmnElement="QE_ApproveRevision">
+        <dc:Bounds x="910" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="QE_PublishRevision_di" bpmnElement="QE_PublishRevision">
+        <dc:Bounds x="1260" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="QE_CloseReadinessGaps_di" bpmnElement="QE_CloseReadinessGaps">
+        <dc:Bounds x="4630" y="270" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="QE_ApproveProductionResume_di" bpmnElement="QE_ApproveProductionResume">
+        <dc:Bounds x="4820" y="140" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="QE_EndChanged_di" bpmnElement="QE_EndChanged">
+        <dc:Bounds x="5010" y="162" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="4985" y="198" width="86" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="QE_AssessChangeNeed_di" bpmnElement="QE_AssessChangeNeed">
+        <dc:Bounds x="370" y="150" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="QE_ReviewReadiness_di" bpmnElement="QE_ReviewReadiness">
+        <dc:Bounds x="4270" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="QE_ReadinessGate_di" bpmnElement="QE_ReadinessGate" isMarkerVisible="true">
+        <dc:Bounds x="4435" y="235" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="4489" y="236" width="42" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="QE_F01_di" bpmnElement="QE_F01">
+        <di:waypoint x="256" y="190" />
+        <di:waypoint x="370" y="190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="QE_F02_di" bpmnElement="QE_F02">
+        <di:waypoint x="470" y="190" />
+        <di:waypoint x="560" y="190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="QE_F03_di" bpmnElement="QE_F03">
+        <di:waypoint x="585" y="215" />
+        <di:waypoint x="585" y="260" />
+        <di:waypoint x="730" y="260" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="619" y="233" width="42" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="QE_F04_di" bpmnElement="QE_F04">
+        <di:waypoint x="585" y="165" />
+        <di:waypoint x="585" y="110" />
+        <di:waypoint x="730" y="110" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="636" y="93" width="51" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="QE_F05_di" bpmnElement="QE_F05">
+        <di:waypoint x="830" y="110" />
+        <di:waypoint x="920" y="110" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="QE_F06_di" bpmnElement="QE_F06">
+        <di:waypoint x="830" y="260" />
+        <di:waypoint x="910" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="QE_F07_di" bpmnElement="QE_F07">
+        <di:waypoint x="1010" y="260" />
+        <di:waypoint x="1260" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="QE_F08_di" bpmnElement="QE_F08">
+        <di:waypoint x="1360" y="261" />
+        <di:waypoint x="4270" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="QE_F12_di" bpmnElement="QE_F12">
+        <di:waypoint x="4680" y="350" />
+        <di:waypoint x="4680" y="370" />
+        <di:waypoint x="4320" y="370" />
+        <di:waypoint x="4320" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="QE_F09_di" bpmnElement="QE_F09">
+        <di:waypoint x="4370" y="260" />
+        <di:waypoint x="4435" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="QE_F10_di" bpmnElement="QE_F10">
+        <di:waypoint x="4460" y="235" />
+        <di:waypoint x="4460" y="180" />
+        <di:waypoint x="4820" y="180" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="4480" y="163" width="20" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="QE_F11_di" bpmnElement="QE_F11">
+        <di:waypoint x="4460" y="285" />
+        <di:waypoint x="4460" y="310" />
+        <di:waypoint x="4630" y="310" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="4495" y="293" width="29" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="QE_F13_di" bpmnElement="QE_F13">
+        <di:waypoint x="4920" y="180" />
+        <di:waypoint x="5010" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Participant_S4_di" bpmnElement="Participant_S4" isHorizontal="true">
+        <dc:Bounds x="160" y="440" width="5600" height="500" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_Start_di" bpmnElement="S4_Start">
+        <dc:Bounds x="220" y="622" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="194" y="658" width="89" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_ContainQualityScope_di" bpmnElement="S4_ContainQualityScope">
+        <dc:Bounds x="370" y="600" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_CollectOrderFacts_di" bpmnElement="S4_CollectOrderFacts">
+        <dc:Bounds x="550" y="600" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_StartedOrderGate_di" bpmnElement="S4_StartedOrderGate" isMarkerVisible="true">
+        <dc:Bounds x="740" y="615" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="800" y="626" width="42" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_KeepExistingRevision_di" bpmnElement="S4_KeepExistingRevision">
+        <dc:Bounds x="910" y="760" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_ProcessExistingDisposition_di" bpmnElement="S4_ProcessExistingDisposition">
+        <dc:Bounds x="1090" y="760" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_EndExistingRevision_di" bpmnElement="S4_EndExistingRevision">
+        <dc:Bounds x="1290" y="782" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1270" y="818" width="76" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_SelectUnstartedCandidates_di" bpmnElement="S4_SelectUnstartedCandidates">
+        <dc:Bounds x="910" y="560" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_RevisionDecisionGate_di" bpmnElement="S4_RevisionDecisionGate" isMarkerVisible="true">
+        <dc:Bounds x="1090" y="575" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1143" y="586" width="51" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_EndNoRevision_di" bpmnElement="S4_EndNoRevision">
+        <dc:Bounds x="1590" y="502" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1567" y="538" width="83" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_UpdateBOMRoutingPV_di" bpmnElement="S4_UpdateBOMRoutingPV">
+        <dc:Bounds x="1260" y="610" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_PublishProductionVersion_di" bpmnElement="S4_PublishProductionVersion">
+        <dc:Bounds x="1440" y="610" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_DocumentTypeGate_di" bpmnElement="S4_DocumentTypeGate" isMarkerVisible="true">
+        <dc:Bounds x="1620" y="625" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1668" y="636" width="61" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_SendPlannedOrderCandidates_di" bpmnElement="S4_SendPlannedOrderCandidates">
+        <dc:Bounds x="1790" y="490" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_RereadEligibilityGate_di" bpmnElement="S4_RereadEligibilityGate" isMarkerVisible="true">
+        <dc:Bounds x="1880" y="700" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1865" y="750" width="81" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_ReadPPMasterData_di" bpmnElement="S4_ReadPPMasterData">
+        <dc:Bounds x="1980" y="610" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_RecheckOrder_di" bpmnElement="S4_RecheckOrder">
+        <dc:Bounds x="2170" y="610" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_RereleaseOrder_di" bpmnElement="S4_RereleaseOrder">
+        <dc:Bounds x="2360" y="610" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_CreateReplacementOrder_di" bpmnElement="S4_CreateReplacementOrder">
+        <dc:Bounds x="1980" y="790" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_RetireOldOrder_di" bpmnElement="S4_RetireOldOrder">
+        <dc:Bounds x="2170" y="790" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_MergeOrderUpdate_di" bpmnElement="S4_MergeOrderUpdate" isMarkerVisible="true">
+        <dc:Bounds x="2590" y="625" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2596" y="675" width="39" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_ApplyComponentRules_di" bpmnElement="S4_ApplyComponentRules">
+        <dc:Bounds x="2760" y="600" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_SendChangedOrders_di" bpmnElement="S4_SendChangedOrders">
+        <dc:Bounds x="2950" y="600" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_ReceivePlanningImpact_di" bpmnElement="S4_ReceivePlanningImpact">
+        <dc:Bounds x="4080" y="600" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_ApplyParentOrderActions_di" bpmnElement="S4_ApplyParentOrderActions">
+        <dc:Bounds x="4270" y="600" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_EndChanged_di" bpmnElement="S4_EndChanged">
+        <dc:Bounds x="4460" y="622" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="4448" y="658" width="61" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_ApplyDispositionWithoutRevision_di" bpmnElement="S4_ApplyDispositionWithoutRevision">
+        <dc:Bounds x="1440" y="480" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="S4_F01_di" bpmnElement="S4_F01">
+        <di:waypoint x="256" y="640" />
+        <di:waypoint x="370" y="640" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F02_di" bpmnElement="S4_F02">
+        <di:waypoint x="470" y="640" />
+        <di:waypoint x="550" y="640" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F03_di" bpmnElement="S4_F03">
+        <di:waypoint x="650" y="640" />
+        <di:waypoint x="740" y="640" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F04_di" bpmnElement="S4_F04">
+        <di:waypoint x="765" y="615" />
+        <di:waypoint x="765" y="600" />
+        <di:waypoint x="910" y="600" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="816" y="583" width="51" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F05_di" bpmnElement="S4_F05">
+        <di:waypoint x="765" y="665" />
+        <di:waypoint x="765" y="800" />
+        <di:waypoint x="910" y="800" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="784" y="703" width="73" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F06_di" bpmnElement="S4_F06">
+        <di:waypoint x="1010" y="800" />
+        <di:waypoint x="1090" y="800" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F07_di" bpmnElement="S4_F07">
+        <di:waypoint x="1190" y="800" />
+        <di:waypoint x="1290" y="800" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F08_di" bpmnElement="S4_F08">
+        <di:waypoint x="1010" y="600" />
+        <di:waypoint x="1090" y="600" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F09_di" bpmnElement="S4_F09">
+        <di:waypoint x="1115" y="625" />
+        <di:waypoint x="1115" y="650" />
+        <di:waypoint x="1260" y="650" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1145" y="633" width="29" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F10_di" bpmnElement="S4_F10">
+        <di:waypoint x="1115" y="575" />
+        <di:waypoint x="1115" y="520" />
+        <di:waypoint x="1440" y="520" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1257" y="503" width="42" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F11_di" bpmnElement="S4_F11">
+        <di:waypoint x="1540" y="520" />
+        <di:waypoint x="1590" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F12_di" bpmnElement="S4_F12">
+        <di:waypoint x="1360" y="650" />
+        <di:waypoint x="1440" y="650" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F13_di" bpmnElement="S4_F13">
+        <di:waypoint x="1540" y="650" />
+        <di:waypoint x="1620" y="650" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F14_di" bpmnElement="S4_F14">
+        <di:waypoint x="1645" y="625" />
+        <di:waypoint x="1645" y="530" />
+        <di:waypoint x="1790" y="530" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1700" y="513" width="75" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F15_di" bpmnElement="S4_F15">
+        <di:waypoint x="1645" y="675" />
+        <di:waypoint x="1645" y="725" />
+        <di:waypoint x="1880" y="725" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1670" y="703" width="58" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F16_di" bpmnElement="S4_F16">
+        <di:waypoint x="1890" y="530" />
+        <di:waypoint x="2615" y="530" />
+        <di:waypoint x="2615" y="625" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F17_di" bpmnElement="S4_F17">
+        <di:waypoint x="1905" y="700" />
+        <di:waypoint x="1905" y="650" />
+        <di:waypoint x="1980" y="650" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1921" y="633" width="20" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F18_di" bpmnElement="S4_F18">
+        <di:waypoint x="1905" y="750" />
+        <di:waypoint x="1905" y="830" />
+        <di:waypoint x="1980" y="830" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1972" y="733" width="70" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F19_di" bpmnElement="S4_F19">
+        <di:waypoint x="2080" y="650" />
+        <di:waypoint x="2170" y="650" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F20_di" bpmnElement="S4_F20">
+        <di:waypoint x="2270" y="650" />
+        <di:waypoint x="2360" y="650" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F21_di" bpmnElement="S4_F21">
+        <di:waypoint x="2460" y="650" />
+        <di:waypoint x="2590" y="650" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F22_di" bpmnElement="S4_F22">
+        <di:waypoint x="2080" y="830" />
+        <di:waypoint x="2170" y="830" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F23_di" bpmnElement="S4_F23">
+        <di:waypoint x="2270" y="830" />
+        <di:waypoint x="2540" y="830" />
+        <di:waypoint x="2540" y="650" />
+        <di:waypoint x="2590" y="650" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F24_di" bpmnElement="S4_F24">
+        <di:waypoint x="2640" y="650" />
+        <di:waypoint x="2760" y="650" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F25_di" bpmnElement="S4_F25">
+        <di:waypoint x="2860" y="640" />
+        <di:waypoint x="2950" y="640" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F26_di" bpmnElement="S4_F26">
+        <di:waypoint x="3050" y="640" />
+        <di:waypoint x="4080" y="640" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F27_di" bpmnElement="S4_F27">
+        <di:waypoint x="4180" y="640" />
+        <di:waypoint x="4270" y="640" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_F28_di" bpmnElement="S4_F28">
+        <di:waypoint x="4370" y="640" />
+        <di:waypoint x="4460" y="640" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Participant_PPDS_di" bpmnElement="Participant_PPDS" isHorizontal="true">
+        <dc:Bounds x="160" y="980" width="5600" height="420" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PPDS_Start_di" bpmnElement="PPDS_Start">
+        <dc:Bounds x="220" y="1162" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="194" y="1198" width="89" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PPDS_TracePegging_di" bpmnElement="PPDS_TracePegging">
+        <dc:Bounds x="380" y="1140" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PPDS_AdjustHeldReceipt_di" bpmnElement="PPDS_AdjustHeldReceipt">
+        <dc:Bounds x="570" y="1140" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PPDS_ProtectAffectedSupply_di" bpmnElement="PPDS_ProtectAffectedSupply">
+        <dc:Bounds x="760" y="1140" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PPDS_RevisionDecisionGate_di" bpmnElement="PPDS_RevisionDecisionGate" isMarkerVisible="true">
+        <dc:Bounds x="950" y="1155" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1001" y="1166" width="51" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PPDS_ReplanExistingRevision_di" bpmnElement="PPDS_ReplanExistingRevision">
+        <dc:Bounds x="1120" y="1040" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PPDS_PublishExistingPlan_di" bpmnElement="PPDS_PublishExistingPlan">
+        <dc:Bounds x="1300" y="1040" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PPDS_GenerateChangedPDS_di" bpmnElement="PPDS_GenerateChangedPDS">
+        <dc:Bounds x="1440" y="1220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PPDS_OrderScopeGate_di" bpmnElement="PPDS_OrderScopeGate">
+        <dc:Bounds x="1620" y="1235" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1624" y="1294.5" width="42" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PPDS_PreparePlannedOrders_di" bpmnElement="PPDS_PreparePlannedOrders">
+        <dc:Bounds x="1790" y="1080" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PPDS_ReexplodePlannedOrders_di" bpmnElement="PPDS_ReexplodePlannedOrders">
+        <dc:Bounds x="1980" y="1080" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PPDS_EndNoRevision_di" bpmnElement="PPDS_EndNoRevision">
+        <dc:Bounds x="1542" y="1062" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1524" y="1098" width="73" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PPDS_AdoptChangedProductionOrders_di" bpmnElement="PPDS_AdoptChangedProductionOrders">
+        <dc:Bounds x="2370" y="1220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PPDS_MergeChangedOrders_di" bpmnElement="PPDS_MergeChangedOrders">
+        <dc:Bounds x="2975" y="1092" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2980" y="1054.5" width="39" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PPDS_RunDetailedScheduling_di" bpmnElement="PPDS_RunDetailedScheduling">
+        <dc:Bounds x="3320" y="1077" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PPDS_CheckMaterialCapacity_di" bpmnElement="PPDS_CheckMaterialCapacity">
+        <dc:Bounds x="3510" y="1077" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PPDS_RebuildPegging_di" bpmnElement="PPDS_RebuildPegging">
+        <dc:Bounds x="3700" y="1077" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PPDS_AssessParentOrders_di" bpmnElement="PPDS_AssessParentOrders">
+        <dc:Bounds x="3890" y="1077" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PPDS_SendS4Plan_di" bpmnElement="PPDS_SendS4Plan">
+        <dc:Bounds x="4080" y="1077" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PPDS_SendDMSchedule_di" bpmnElement="PPDS_SendDMSchedule">
+        <dc:Bounds x="4440" y="1077" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PPDS_EndChanged_di" bpmnElement="PPDS_EndChanged">
+        <dc:Bounds x="4612" y="1099" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="4587" y="1135" width="87" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="PPDS_F01_di" bpmnElement="PPDS_F01">
+        <di:waypoint x="256" y="1180" />
+        <di:waypoint x="380" y="1180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PPDS_F02_di" bpmnElement="PPDS_F02">
+        <di:waypoint x="480" y="1180" />
+        <di:waypoint x="570" y="1180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PPDS_F03_di" bpmnElement="PPDS_F03">
+        <di:waypoint x="670" y="1180" />
+        <di:waypoint x="760" y="1180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PPDS_F04_di" bpmnElement="PPDS_F04">
+        <di:waypoint x="860" y="1180" />
+        <di:waypoint x="950" y="1180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PPDS_F05_di" bpmnElement="PPDS_F05">
+        <di:waypoint x="975" y="1205" />
+        <di:waypoint x="975" y="1260" />
+        <di:waypoint x="1440" y="1260" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="992" y="1222" width="20" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PPDS_F06_di" bpmnElement="PPDS_F06">
+        <di:waypoint x="975" y="1155" />
+        <di:waypoint x="975" y="1080" />
+        <di:waypoint x="1120" y="1080" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1027" y="1063" width="42" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PPDS_F07_di" bpmnElement="PPDS_F07">
+        <di:waypoint x="1220" y="1080" />
+        <di:waypoint x="1300" y="1080" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PPDS_F08_di" bpmnElement="PPDS_F08">
+        <di:waypoint x="1400" y="1080" />
+        <di:waypoint x="1542" y="1080" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PPDS_F09_di" bpmnElement="PPDS_F09">
+        <di:waypoint x="1540" y="1260" />
+        <di:waypoint x="1620" y="1260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PPDS_F10_di" bpmnElement="PPDS_F10">
+        <di:waypoint x="1645" y="1235" />
+        <di:waypoint x="1645" y="1120" />
+        <di:waypoint x="1790" y="1120" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1694" y="1103" width="39" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PPDS_F11_di" bpmnElement="PPDS_F11">
+        <di:waypoint x="1670" y="1260" />
+        <di:waypoint x="2370" y="1260" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1998" y="1228" width="39" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PPDS_F12_di" bpmnElement="PPDS_F12">
+        <di:waypoint x="1890" y="1120" />
+        <di:waypoint x="1980" y="1120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PPDS_F13_di" bpmnElement="PPDS_F13">
+        <di:waypoint x="2080" y="1117" />
+        <di:waypoint x="2975" y="1117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PPDS_F14_di" bpmnElement="PPDS_F14">
+        <di:waypoint x="2470" y="1260" />
+        <di:waypoint x="2790" y="1260" />
+        <di:waypoint x="2790" y="1117" />
+        <di:waypoint x="2975" y="1117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PPDS_F15_di" bpmnElement="PPDS_F15">
+        <di:waypoint x="3025" y="1117" />
+        <di:waypoint x="3320" y="1117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PPDS_F20_di" bpmnElement="PPDS_F20">
+        <di:waypoint x="4180" y="1117" />
+        <di:waypoint x="4440" y="1117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PPDS_F21_di" bpmnElement="PPDS_F21">
+        <di:waypoint x="4540" y="1117" />
+        <di:waypoint x="4612" y="1117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PPDS_F16_di" bpmnElement="PPDS_F16">
+        <di:waypoint x="3420" y="1117" />
+        <di:waypoint x="3510" y="1117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PPDS_F17_di" bpmnElement="PPDS_F17">
+        <di:waypoint x="3610" y="1117" />
+        <di:waypoint x="3700" y="1117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PPDS_F18_di" bpmnElement="PPDS_F18">
+        <di:waypoint x="3800" y="1117" />
+        <di:waypoint x="3890" y="1117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PPDS_F19_di" bpmnElement="PPDS_F19">
+        <di:waypoint x="3990" y="1117" />
+        <di:waypoint x="4080" y="1117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Participant_DM_di" bpmnElement="Participant_DM" isHorizontal="true">
+        <dc:Bounds x="160" y="1440" width="5600" height="460" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DM_Start_di" bpmnElement="DM_Start">
+        <dc:Bounds x="220" y="1662" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="208" y="1698" width="61" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DM_RecordNC_di" bpmnElement="DM_RecordNC">
+        <dc:Bounds x="370" y="1640" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DM_HoldAffectedSFC_di" bpmnElement="DM_HoldAffectedSFC">
+        <dc:Bounds x="550" y="1640" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DM_AssessSFCScope_di" bpmnElement="DM_AssessSFCScope">
+        <dc:Bounds x="730" y="1640" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DM_UnstartedSFCGate_di" bpmnElement="DM_UnstartedSFCGate" isMarkerVisible="true">
+        <dc:Bounds x="920" y="1655" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="979.5" y="1666" width="45" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DM_KeepExistingRevision_di" bpmnElement="DM_KeepExistingRevision">
+        <dc:Bounds x="1100" y="1770" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DM_ProcessMRBDisposition_di" bpmnElement="DM_ProcessMRBDisposition">
+        <dc:Bounds x="1290" y="1770" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DM_ResumeExistingRevision_di" bpmnElement="DM_ResumeExistingRevision">
+        <dc:Bounds x="1480" y="1770" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DM_EndExistingRevision_di" bpmnElement="DM_EndExistingRevision">
+        <dc:Bounds x="1680" y="1792" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1659" y="1828" width="79" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DM_RevisionDecisionGate_di" bpmnElement="DM_RevisionDecisionGate" isMarkerVisible="true">
+        <dc:Bounds x="1100" y="1535" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1143.5" y="1586" width="51" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DM_DispositionWithoutRevision_di" bpmnElement="DM_DispositionWithoutRevision">
+        <dc:Bounds x="1280" y="1470" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DM_ResumeWithoutRevision_di" bpmnElement="DM_ResumeWithoutRevision">
+        <dc:Bounds x="1470" y="1470" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DM_EndNoRevision_di" bpmnElement="DM_EndNoRevision">
+        <dc:Bounds x="1670" y="1492" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1652" y="1528" width="73" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DM_WaitChangedOrder_di" bpmnElement="DM_WaitChangedOrder">
+        <dc:Bounds x="3130" y="1530" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DM_UpversionOrder_di" bpmnElement="DM_UpversionOrder">
+        <dc:Bounds x="3320" y="1530" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DM_MixedOrderGate_di" bpmnElement="DM_MixedOrderGate" isMarkerVisible="true">
+        <dc:Bounds x="3510" y="1545" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3499" y="1595" width="73" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DM_ApplyAllUnstartedSFC_di" bpmnElement="DM_ApplyAllUnstartedSFC">
+        <dc:Bounds x="3690" y="1460" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DM_ApplySelectedSFC_di" bpmnElement="DM_ApplySelectedSFC">
+        <dc:Bounds x="3690" y="1630" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DM_MergeRevisionAssignment_di" bpmnElement="DM_MergeRevisionAssignment" isMarkerVisible="true">
+        <dc:Bounds x="3890" y="1545" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3896" y="1595" width="39" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DM_HoldChangedSFC_di" bpmnElement="DM_HoldChangedSFC">
+        <dc:Bounds x="4060" y="1530" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DM_WaitExecutableSchedule_di" bpmnElement="DM_WaitExecutableSchedule">
+        <dc:Bounds x="4440" y="1530" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DM_WaitQualityApproval_di" bpmnElement="DM_WaitQualityApproval">
+        <dc:Bounds x="4820" y="1530" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DM_ReleaseChangedSFC_di" bpmnElement="DM_ReleaseChangedSFC">
+        <dc:Bounds x="5010" y="1530" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DM_EndChanged_di" bpmnElement="DM_EndChanged">
+        <dc:Bounds x="5200" y="1552" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="5175" y="1588" width="86" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="DM_F01_di" bpmnElement="DM_F01">
+        <di:waypoint x="256" y="1680" />
+        <di:waypoint x="370" y="1680" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DM_F02_di" bpmnElement="DM_F02">
+        <di:waypoint x="470" y="1680" />
+        <di:waypoint x="550" y="1680" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DM_F03_di" bpmnElement="DM_F03">
+        <di:waypoint x="650" y="1680" />
+        <di:waypoint x="730" y="1680" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DM_F04_di" bpmnElement="DM_F04">
+        <di:waypoint x="830" y="1680" />
+        <di:waypoint x="920" y="1680" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DM_F05_di" bpmnElement="DM_F05">
+        <di:waypoint x="945" y="1655" />
+        <di:waypoint x="945" y="1560" />
+        <di:waypoint x="1100" y="1560" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1001" y="1543" width="51" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DM_F06_di" bpmnElement="DM_F06">
+        <di:waypoint x="945" y="1705" />
+        <di:waypoint x="945" y="1810" />
+        <di:waypoint x="1100" y="1810" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="965" y="1736" width="74" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DM_F07_di" bpmnElement="DM_F07">
+        <di:waypoint x="1200" y="1810" />
+        <di:waypoint x="1290" y="1810" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DM_F08_di" bpmnElement="DM_F08">
+        <di:waypoint x="1390" y="1810" />
+        <di:waypoint x="1480" y="1810" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DM_F09_di" bpmnElement="DM_F09">
+        <di:waypoint x="1580" y="1810" />
+        <di:waypoint x="1680" y="1810" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DM_F10_di" bpmnElement="DM_F10">
+        <di:waypoint x="1125" y="1585" />
+        <di:waypoint x="1125" y="1630" />
+        <di:waypoint x="3180" y="1630" />
+        <di:waypoint x="3180" y="1610" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2132" y="1613" width="42" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DM_F11_di" bpmnElement="DM_F11">
+        <di:waypoint x="1125" y="1535" />
+        <di:waypoint x="1125" y="1510" />
+        <di:waypoint x="1280" y="1510" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1182" y="1493" width="42" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DM_F12_di" bpmnElement="DM_F12">
+        <di:waypoint x="1380" y="1510" />
+        <di:waypoint x="1470" y="1510" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DM_F13_di" bpmnElement="DM_F13">
+        <di:waypoint x="1570" y="1510" />
+        <di:waypoint x="1670" y="1510" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DM_F14_di" bpmnElement="DM_F14">
+        <di:waypoint x="3230" y="1570" />
+        <di:waypoint x="3320" y="1570" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DM_F15_di" bpmnElement="DM_F15">
+        <di:waypoint x="3420" y="1570" />
+        <di:waypoint x="3510" y="1570" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DM_F16_di" bpmnElement="DM_F16">
+        <di:waypoint x="3535" y="1595" />
+        <di:waypoint x="3535" y="1670" />
+        <di:waypoint x="3690" y="1670" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3591" y="1578" width="20" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DM_F17_di" bpmnElement="DM_F17">
+        <di:waypoint x="3535" y="1545" />
+        <di:waypoint x="3535" y="1500" />
+        <di:waypoint x="3690" y="1500" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3591" y="1483" width="51" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DM_F19_di" bpmnElement="DM_F19">
+        <di:waypoint x="3790" y="1500" />
+        <di:waypoint x="3890" y="1570" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DM_F18_di" bpmnElement="DM_F18">
+        <di:waypoint x="3790" y="1670" />
+        <di:waypoint x="3890" y="1570" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DM_F20_di" bpmnElement="DM_F20">
+        <di:waypoint x="3940" y="1570" />
+        <di:waypoint x="4060" y="1570" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DM_F21_di" bpmnElement="DM_F21">
+        <di:waypoint x="4160" y="1570" />
+        <di:waypoint x="4440" y="1570" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DM_F22_di" bpmnElement="DM_F22">
+        <di:waypoint x="4540" y="1570" />
+        <di:waypoint x="4820" y="1570" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DM_F23_di" bpmnElement="DM_F23">
+        <di:waypoint x="4920" y="1570" />
+        <di:waypoint x="5010" y="1570" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DM_F24_di" bpmnElement="DM_F24">
+        <di:waypoint x="5110" y="1570" />
+        <di:waypoint x="5200" y="1570" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Participant_PC_di" bpmnElement="Participant_PC" isHorizontal="true">
+        <dc:Bounds x="160" y="1940" width="5600" height="300" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PC_Start_di" bpmnElement="PC_Start">
+        <dc:Bounds x="220" y="2082" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="206" y="2118" width="64" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PC_StopAffectedWIP_di" bpmnElement="PC_StopAffectedWIP">
+        <dc:Bounds x="370" y="2060" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PC_SegregateComponents_di" bpmnElement="PC_SegregateComponents">
+        <dc:Bounds x="550" y="2060" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PC_VerifyActualStatus_di" bpmnElement="PC_VerifyActualStatus">
+        <dc:Bounds x="730" y="2060" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PC_ReportActualStatus_di" bpmnElement="PC_ReportActualStatus">
+        <dc:Bounds x="910" y="2060" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PC_WaitRelease_di" bpmnElement="PC_WaitRelease">
+        <dc:Bounds x="5010" y="2060" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PC_CheckRevisionDocuments_di" bpmnElement="PC_CheckRevisionDocuments">
+        <dc:Bounds x="5200" y="2060" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PC_ResumeProduction_di" bpmnElement="PC_ResumeProduction">
+        <dc:Bounds x="5390" y="2060" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PC_End_di" bpmnElement="PC_End">
+        <dc:Bounds x="5570" y="2082" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="5556" y="2118" width="64" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="PC_F01_di" bpmnElement="PC_F01">
+        <di:waypoint x="256" y="2100" />
+        <di:waypoint x="370" y="2100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PC_F02_di" bpmnElement="PC_F02">
+        <di:waypoint x="470" y="2100" />
+        <di:waypoint x="550" y="2100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PC_F03_di" bpmnElement="PC_F03">
+        <di:waypoint x="650" y="2100" />
+        <di:waypoint x="730" y="2100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PC_F04_di" bpmnElement="PC_F04">
+        <di:waypoint x="830" y="2100" />
+        <di:waypoint x="910" y="2100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PC_F05_di" bpmnElement="PC_F05">
+        <di:waypoint x="1010" y="2100" />
+        <di:waypoint x="5010" y="2100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PC_F06_di" bpmnElement="PC_F06">
+        <di:waypoint x="5110" y="2100" />
+        <di:waypoint x="5200" y="2100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PC_F07_di" bpmnElement="PC_F07">
+        <di:waypoint x="5300" y="2100" />
+        <di:waypoint x="5390" y="2100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PC_F08_di" bpmnElement="PC_F08">
+        <di:waypoint x="5490" y="2100" />
+        <di:waypoint x="5570" y="2100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PPDS_AssocNoCascade_di" bpmnElement="PPDS_AssocNoCascade">
+        <di:waypoint x="430" y="1140" />
+        <di:waypoint x="465" y="1095" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DM_AssocSelection_di" bpmnElement="DM_AssocSelection">
+        <di:waypoint x="945" y="1655" />
+        <di:waypoint x="785" y="1550" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="PC_AssocComponents_di" bpmnElement="PC_AssocComponents">
+        <di:waypoint x="600" y="2060" />
+        <di:waypoint x="455" y="2020" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_AssocReread_di" bpmnElement="S4_AssocReread">
+        <di:waypoint x="2030" y="610" />
+        <di:waypoint x="2135" y="590" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="QE_AssocVersionPolicy_di" bpmnElement="QE_AssocVersionPolicy">
+        <di:waypoint x="1310" y="220" />
+        <di:waypoint x="1310" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="S4_AssocStarted_di" bpmnElement="S4_AssocStarted">
+        <di:waypoint x="754" y="626" />
+        <di:waypoint x="706" y="540" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="PC_AnnoComponents_di" bpmnElement="PC_AnnoComponents">
+        <dc:Bounds x="240" y="1960" width="430" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DM_AnnoSelection_di" bpmnElement="DM_AnnoSelection">
+        <dc:Bounds x="570" y="1490" width="390" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="PPDS_AnnoNoCascade_di" bpmnElement="PPDS_AnnoNoCascade">
+        <dc:Bounds x="250" y="1030" width="430" height="65" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="MF_S4_QE_Containment_di" bpmnElement="MF_S4_QE_Containment">
+        <di:waypoint x="420" y="600" />
+        <di:waypoint x="420" y="230" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="333" y="256" width="73" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MF_QE_S4_Revision_di" bpmnElement="MF_QE_S4_Revision">
+        <di:waypoint x="1310" y="300" />
+        <di:waypoint x="1310" y="610" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1319" y="460" width="61" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MF_S4_QE_Readiness_di" bpmnElement="MF_S4_QE_Readiness">
+        <di:waypoint x="4320" y="600" />
+        <di:waypoint x="4320" y="300" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="4362" y="441" width="87" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MF_QE_DM_Release_di" bpmnElement="MF_QE_DM_Release">
+        <di:waypoint x="4870" y="220" />
+        <di:waypoint x="4870" y="1530" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="4887" y="867" width="86" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MF_S4_PPDS_PDS_di" bpmnElement="MF_S4_PPDS_PDS">
+        <di:waypoint x="1490" y="690" />
+        <di:waypoint x="1490" y="1220" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1535" y="947" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MF_S4_PPDS_PlannedOrders_di" bpmnElement="MF_S4_PPDS_PlannedOrders">
+        <di:waypoint x="1840" y="570" />
+        <di:waypoint x="1840" y="1080" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1865" y="817" width="70" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MF_S4_PPDS_ProductionOrders_di" bpmnElement="MF_S4_PPDS_ProductionOrders">
+        <di:waypoint x="3000" y="680" />
+        <di:waypoint x="3000" y="970" />
+        <di:waypoint x="2420" y="970" />
+        <di:waypoint x="2420" y="1220" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2440" y="1088" width="89" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MF_S4_DM_OrderChange_di" bpmnElement="MF_S4_DM_OrderChange">
+        <di:waypoint x="3000" y="680" />
+        <di:waypoint x="3120" y="960" />
+        <di:waypoint x="3120" y="1570" />
+        <di:waypoint x="3130" y="1570" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3026" y="1257" width="67" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MF_PPDS_S4_Plan_di" bpmnElement="MF_PPDS_S4_Plan">
+        <di:waypoint x="4130" y="1077" />
+        <di:waypoint x="4130" y="680" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="4185" y="869" width="61" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MF_PPDS_DM_Schedule_di" bpmnElement="MF_PPDS_DM_Schedule">
+        <di:waypoint x="4490" y="1157" />
+        <di:waypoint x="4490" y="1530" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="4501" y="1335" width="61" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MF_PC_DM_ActualStatus_di" bpmnElement="MF_PC_DM_ActualStatus">
+        <di:waypoint x="780" y="2060" />
+        <di:waypoint x="780" y="1720" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="813" y="1882" width="89" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="MF_DM_PC_ResumeChanged_di" bpmnElement="MF_DM_PC_ResumeChanged">
+        <di:waypoint x="5060" y="1610" />
+        <di:waypoint x="5060" y="2060" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="5111" y="1827" width="54" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="S4_AnnoReread_di" bpmnElement="S4_AnnoReread">
+        <dc:Bounds x="1920" y="540" width="370" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="QE_AnnoVersionPolicy_di" bpmnElement="QE_AnnoVersionPolicy">
+        <dc:Bounds x="1130" y="120" width="360" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S4_AnnoStarted_di" bpmnElement="S4_AnnoStarted">
+        <dc:Bounds x="480" y="490" width="360" height="50" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

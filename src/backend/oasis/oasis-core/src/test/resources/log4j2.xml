@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="warn">
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="[%d{DEFAULT}][%-5level][%mdc{service_tag}][%logger{36}(%line)]-%msg%n"/>
+        </Console>
+        <RollingFile name="rollingFile" fileName="log/rollingSample.log"
+                     filePattern="log/rollingSample.%i.log">
+            <PatternLayout pattern="[%d{DEFAULT}][%-5level][%mdc{service_tag}][%logger{36}(%line)]-%msg%n"/>
+            <Policies>
+                <!-- size 단위: Byte(default), KB, MB, or GB -->
+                <SizeBasedTriggeringPolicy size="10MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="5" fileIndex="min"/>
+        </RollingFile>
+    </Appenders>
+    <Loggers>
+        <!-- Spring Jdbc Template 파라미터 로깅 -->
+        <logger level="TRACE" name="org.springframework.jdbc.core.StatementCreatorUtils" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="rollingFile"/>
+        </logger>
+        <logger level="debug" name="org.springframework.jdbc.core.JdbcTemplate" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="rollingFile"/>
+        </logger>
+        <logger name="org.hibernate.SQL" level="debug" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="rollingFile"/>
+        </logger>
+        <logger name="org.hibernate.cfg.Settings" level="info" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="rollingFile"/>
+        </logger>
+        <logger name="org.hibernate.id.factory.internal.DefaultIdentifierGeneratorFactory" level="info"
+                additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="rollingFile"/>
+        </logger>
+        <logger name="org.hibernate.type.BasicTypeRegistry" level="info" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="rollingFile"/>
+        </logger>
+        <Logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="trace" additivity="false">
+            <AppenderRef ref="Console"/>
+            <!--            <AppenderRef ref="RollingFile"/>-->
+        </Logger>
+        <logger name="test" level="trace" additivity="false">
+            <AppenderRef ref="Console"/>
+            <!--<AppenderRef ref="rollingFile"/>-->
+        </logger>
+        <Root level="debug">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="rollingFile"/>
+        </Root>
+
+    </Loggers>
+</Configuration>
