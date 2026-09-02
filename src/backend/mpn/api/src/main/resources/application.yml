@@ -15,7 +15,13 @@ spring:
         dialect: org.hibernate.community.dialect.SQLiteDialect
   flyway:
     enabled: true
-    locations: classpath:db/migration
+    # ⚠️ locations 는 반드시 자기 아티팩트 폴더로 좁힌다.
+    #    모든 호스트 모듈이 mcm-core(공유 라이브러리)를 classpath 에 물고 있어서,
+    #    `classpath:db/migration` 처럼 넓게 잡으면 라이브러리가 실은 V*.sql 과
+    #    버전 번호가 겹쳐 "Found more than one migration with version 1" 로 부팅이 죽는다.
+    #    라이브러리 마이그레이션을 함께 적용하려면 그 아티팩트 폴더를 명시적으로 더한다.
+    #    예) locations: classpath:db/migration/mpn,classpath:db/migration/aps-core
+    locations: classpath:db/migration/mpn
 
 # 실 프로젝트의 데이터소스(JNDI·다중 DB)·보안 설정은 docs/framework/, docs/cactus/ 의
 # 패턴을 따른다. 위 설정은 bootRun 으로 골격을 띄우기 위한 최소 구성이다.
