@@ -6,6 +6,7 @@
  */
 package com.dongkuk.dmes.mcm.csa.commRoleMng.service;
 
+import com.dongkuk.dmes.mcm.common.event.RoleChangedEvent;
 import com.dongkuk.dmes.mcm.csa.commRoleMng.dto.CommRoleMngSearchObjectLovRequest;
 import com.dongkuk.dmes.mcm.csa.commRoleMng.dto.CommRoleMngSearchPermRequest;
 import com.dongkuk.dmes.mcm.csa.commRoleMng.dto.CommRoleMngSearchRequest;
@@ -17,13 +18,16 @@ import com.dongkuk.dmes.mcm.repository.SecRoleMappingRepository;
 import com.dongkuk.dmes.mcm.repository.SecRoleRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * commRoleMng — OASIS BPMN serviceTask entry point (W3 / csa 9 화면 3번째).
@@ -81,13 +85,16 @@ public class CommRoleMngService {
     private final SecRoleRepository secRoleRepository;
     private final SecRoleMappingRepository secRoleMappingRepository;
     private final SecRoleMappingNativeRepository secRoleMappingNativeRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public CommRoleMngService(SecRoleRepository secRoleRepository,
                               SecRoleMappingRepository secRoleMappingRepository,
-                              SecRoleMappingNativeRepository secRoleMappingNativeRepository) {
+                              SecRoleMappingNativeRepository secRoleMappingNativeRepository,
+                              ApplicationEventPublisher eventPublisher) {
         this.secRoleRepository = secRoleRepository;
         this.secRoleMappingRepository = secRoleMappingRepository;
         this.secRoleMappingNativeRepository = secRoleMappingNativeRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -257,6 +264,8 @@ public class CommRoleMngService {
      */
     public Map<String, Object> saveCmRoleMap(List<Map<String, Object>> master) {
         int cnt = 0;
+        int skipped = 0;                                  // 서버가 조용히 건너뛴 행 수 (FE 가 사유를 알 수 있게 응답에 실어 보낸다)
+        Set<String> touchedRoleIds = new LinkedHashSet<>(); // 캐시 무효화 대상
         String lastRoleId = null; // 후속 재조회용 ROLE_ID 추출
         if (master != null) {
             for (Map<String, Object> row : master) {
@@ -274,6 +283,7 @@ public class CommRoleMngService {
                     log.warn("[commRoleMng.saveCmRoleMap] PK null — skip row "
                            + "(status={} ROLE_ID={} OBJECT_ID={} PERMISSION_ID={})",
                             status, roleId, objectId, permissionId);
+                    skipped++;
                     continue;
                 }
                 lastRoleId = roleId;
@@ -283,6 +293,9 @@ public class CommRoleMngService {
                     if (secRoleMappingRepository.existsById(pk)) {
                         secRoleMappingRepository.deleteById(pk);
                         cnt++;
+                        touchedRoleIds.add(roleId);
+                    } else {
+                        skipped++;
                     }
                 } else if ("inserted".equals(status) || "C".equals(status)) {
                     // 중복 PK 차단 (Q-004 해소 — Service 레이어 책임)
@@ -290,6 +303,7 @@ public class CommRoleMngService {
                         log.warn("[commRoleMng.saveCmRoleMap] insert blocked — duplicate PK "
                                + "(ROLE_ID={} OBJECT_ID={} PERMISSION_ID={}) silent skip",
                                 roleId, objectId, permissionId);
+                        skipped++;
                         continue;
                     }
                     SecRoleMapping entity = new SecRoleMapping();
@@ -298,11 +312,19 @@ public class CommRoleMngService {
                     entity.setPermissionId(permissionId);
                     secRoleMappingRepository.save(entity);
                     cnt++;
+                    touchedRoleIds.add(roleId);
                 } else {
                     // updated / 기타 — As-Is updateCommRoleMap no-op 폐기 (Q-011)
                     log.warn("[commRoleMng.saveCmRoleMap] unsupported status={} — skip (UPDATE 분기 폐기 / Q-011)", status);
+                    skipped++;
                 }
             }
+        }
+        // 2026-09-04 fix — 역할↔권한 매핑이 바뀌면 UserPermCache(TTL 10분)를 즉시 비운다.
+        // 이 이벤트가 없어 "권한을 부여했는데 최대 10분간 403" / "회수했는데 계속 통과" 가 발생했다.
+        // (RoleChangedEvent 발행처가 commObjMng 한 곳뿐이었다 — RoleChangedEvent javadoc 이 규정한 발행처 누락)
+        if (!touchedRoleIds.isEmpty()) {
+            eventPublisher.publishEvent(new RoleChangedEvent(touchedRoleIds));
         }
         // 후속 ds_roleMap 재조회 (As-Is xfdl:504~511 — fn_run("searchCmRoleMap") 자동 재호출 정합)
         List<Map<String, Object>> rows = (lastRoleId == null || lastRoleId.isBlank())
@@ -310,6 +332,7 @@ public class CommRoleMngService {
                 : secRoleMappingNativeRepository.searchCmRoleMap(lastRoleId);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("cnt_merge", cnt);
+        out.put("cnt_skip", skipped);
         out.put("ds_roleMap", rows);
         return out;
     }

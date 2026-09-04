@@ -23,7 +23,8 @@ import java.util.List;
  *   <li>{@link #searchByFilter(String, String, String)} = As-Is {@code selectCommUser} (xml:7~40) 의
  *       SecUser 본 부분 — DEPT_NM JOIN 은 Service 레이어에서 후처리 (DeptInfoRepository 별도 조회).</li>
  *   <li>{@link #findAllUserIdEmpNo()} = As-Is {@code selectCommUserAll} (xml:42~46) — USER_ID / USER_EMP_NO 만</li>
- *   <li>{@link #updateEndActiveDate(String, LocalDateTime)} = As-Is {@code deleteCmUser} (xml:130~134) 논리삭제</li>
+ *   <li>{@link #updateEndActiveDate(String, LocalDateTime, String)} = As-Is {@code deleteCmUser} (xml:130~134) 논리삭제
+ *       (2026-09-04 — USE_TP='N' 동시 SET)</li>
  *   <li>{@link #updateReRegUser(String, LocalDateTime, LocalDateTime, String)} = As-Is {@code updateReRegUser}
  *       (xml:278~285) — START_ACTIVE_DATE / END_ACTIVE_DATE / USE_TP SET. updateReRegUserCnt 반환값 사용.</li>
  * </ul>
@@ -77,11 +78,17 @@ public interface SecUserRepository extends JpaRepository<SecUser, String> {
     /**
      * As-Is {@code deleteCmUser} (xml:130~134) MSSQL 변환 — 논리삭제 (END_ACTIVE_DATE SET).
      * {@code UPDATE TB_MCM_SEC_USER SET END_ACTIVE_DATE = #{END_ACTIVE_DATE} WHERE USER_ID = #{pUserId}}.
+     *
+     * <p><b>2026-09-04 fix — {@code USE_TP='N'} 동시 SET (사용자 결정).</b> 종전에는 END_ACTIVE_DATE 만
+     * 마감하고 USE_TP 는 'Y' 로 남겼는데, 목록 기본 필터가 {@code USE_TP='Y'} 라 삭제한 계정이 계속
+     * "사용 여부 Yes" 로 남았고, "계정 재생성" 버튼은 {@code USE_TP === "Y"} 면 비활성이라
+     * <b>영영 열리지 않았다</b>. 되돌리는 경로는 {@link #updateReRegUser}(… , "Y") 가 이미 담당한다.
      */
     @Modifying
-    @Query("UPDATE McmSecUser u SET u.endActiveDate = :endActiveDate WHERE u.userId = :userId")
+    @Query("UPDATE McmSecUser u SET u.endActiveDate = :endActiveDate, u.useTp = :useTp WHERE u.userId = :userId")
     int updateEndActiveDate(@Param("userId") String userId,
-                            @Param("endActiveDate") LocalDateTime endActiveDate);
+                            @Param("endActiveDate") LocalDateTime endActiveDate,
+                            @Param("useTp") String useTp);
 
     /**
      * As-Is {@code updateReRegUser} (xml:278~285) MSSQL 변환 — 계정 재생성.

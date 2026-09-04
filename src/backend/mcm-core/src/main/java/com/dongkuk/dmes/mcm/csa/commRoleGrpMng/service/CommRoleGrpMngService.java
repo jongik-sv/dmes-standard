@@ -6,6 +6,7 @@
  */
 package com.dongkuk.dmes.mcm.csa.commRoleGrpMng.service;
 
+import com.dongkuk.dmes.mcm.common.event.RoleChangedEvent;
 import com.dongkuk.dmes.mcm.csa.commRoleGrpMng.dto.CommRoleGrpMngSearchMapRequest;
 import com.dongkuk.dmes.mcm.csa.commRoleGrpMng.dto.CommRoleGrpMngSearchRequest;
 import com.dongkuk.dmes.mcm.entity.SecRoleGroup;
@@ -15,13 +16,16 @@ import com.dongkuk.dmes.mcm.repository.SecRoleGroupMappingRepository;
 import com.dongkuk.dmes.mcm.repository.SecRoleGroupRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * commRoleGrpMng — OASIS BPMN serviceTask entry point (W4 / csa 9 화면 4번째).
@@ -75,12 +79,16 @@ public class CommRoleGrpMngService {
     private final SecRoleGroupMappingRepository secRoleGroupMappingRepository;
     private final SecRoleGroupMappingNativeRepository secRoleGroupMappingNativeRepository;
 
+    private final ApplicationEventPublisher eventPublisher;
+
     public CommRoleGrpMngService(SecRoleGroupRepository secRoleGroupRepository,
                                  SecRoleGroupMappingRepository secRoleGroupMappingRepository,
-                                 SecRoleGroupMappingNativeRepository secRoleGroupMappingNativeRepository) {
+                                 SecRoleGroupMappingNativeRepository secRoleGroupMappingNativeRepository,
+                                 ApplicationEventPublisher eventPublisher) {
         this.secRoleGroupRepository = secRoleGroupRepository;
         this.secRoleGroupMappingRepository = secRoleGroupMappingRepository;
         this.secRoleGroupMappingNativeRepository = secRoleGroupMappingNativeRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -265,6 +273,8 @@ public class CommRoleGrpMngService {
      */
     public Map<String, Object> saveCmRoleGrpMap(List<Map<String, Object>> master) {
         int cnt = 0;
+        int skipped = 0;                                  // 서버가 조용히 건너뛴 행 수 (FE 가 사유를 알 수 있게 응답에 실어 보낸다)
+        Set<String> touchedRoleIds = new LinkedHashSet<>(); // 캐시 무효화 대상
         String lastRoleGroupId = null; // 후속 재조회용 ROLE_GROUP_ID 추출
         if (master != null) {
             for (Map<String, Object> row : master) {
@@ -280,6 +290,7 @@ public class CommRoleGrpMngService {
                     log.warn("[commRoleGrpMng.saveCmRoleGrpMap] PK null — skip row "
                            + "(status={} ROLE_GROUP_ID={} ROLE_ID={})",
                             status, roleGroupId, roleId);
+                    skipped++;
                     continue;
                 }
                 lastRoleGroupId = roleGroupId;
@@ -289,6 +300,9 @@ public class CommRoleGrpMngService {
                     if (secRoleGroupMappingRepository.existsById(pk)) {
                         secRoleGroupMappingRepository.deleteById(pk);
                         cnt++;
+                        touchedRoleIds.add(roleId);
+                    } else {
+                        skipped++;
                     }
                 } else if ("inserted".equals(status) || "C".equals(status)) {
                     // 중복 PK 차단 (W3 SecRoleMapping 정본 패턴 — Service 레이어 책임)
@@ -296,6 +310,7 @@ public class CommRoleGrpMngService {
                         log.warn("[commRoleGrpMng.saveCmRoleGrpMap] insert blocked — duplicate PK "
                                + "(ROLE_GROUP_ID={} ROLE_ID={}) silent skip",
                                 roleGroupId, roleId);
+                        skipped++;
                         continue;
                     }
                     SecRoleGroupMapping entity = new SecRoleGroupMapping();
@@ -303,11 +318,18 @@ public class CommRoleGrpMngService {
                     entity.setRoleId(roleId);
                     secRoleGroupMappingRepository.save(entity);
                     cnt++;
+                    touchedRoleIds.add(roleId);
                 } else {
                     // updated / 기타 — As-Is updateCommRoleGrpMap 더미 DUAL 폐기 (W3 정본 패턴)
                     log.warn("[commRoleGrpMng.saveCmRoleGrpMap] unsupported status={} — skip (UPDATE 분기 폐기 / 더미 DUAL)", status);
+                    skipped++;
                 }
             }
+        }
+        // 2026-09-04 fix — 역할그룹↔역할 매핑이 바뀌면 UserPermCache(TTL 10분)를 즉시 비운다.
+        // 이 이벤트가 없어 "그룹에 역할을 붙였는데 최대 10분간 403" 이 발생했다.
+        if (!touchedRoleIds.isEmpty()) {
+            eventPublisher.publishEvent(new RoleChangedEvent(touchedRoleIds));
         }
         // 후속 ds_roleGrpMap 재조회 (As-Is xfdl:577 — fn_run("searchCmRoleGrpMap") 자동 재호출 정합)
         List<Map<String, Object>> rows = (lastRoleGroupId == null || lastRoleGroupId.isBlank())
@@ -315,6 +337,7 @@ public class CommRoleGrpMngService {
                 : secRoleGroupMappingNativeRepository.searchCmRoleGrpMap(lastRoleGroupId);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("cnt_merge", cnt);
+        out.put("cnt_skip", skipped);
         out.put("ds_roleGrpMap", rows);
         return out;
     }

@@ -7,24 +7,29 @@
 package com.dongkuk.dmes.mcm.csa.commUserRoleCopy.service;
 
 import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
+import com.dongkuk.dmes.mcm.common.event.RoleChangedEvent;
 import com.dongkuk.dmes.mcm.csa.commUserRoleCopy.dto.CommUserRoleCopySaveRequest;
 import com.dongkuk.dmes.mcm.csa.commUserRoleCopy.dto.CommUserRoleCopySearchRequest;
 import com.dongkuk.dmes.mcm.entity.SecUserMapping;
 import com.dongkuk.dmes.mcm.entity.SecUserRollHis;
+import com.dongkuk.dmes.mcm.repository.SecRoleGroupMappingRepository;
 import com.dongkuk.dmes.mcm.repository.SecUserMappingRepository;
 import com.dongkuk.dmes.mcm.repository.SecUserRollHisRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * commUserRoleCopy — OASIS BPMN serviceTask entry point (W7 / csa 9 화면 7번째).
@@ -90,10 +95,17 @@ public class CommUserRoleCopyService {
     @PersistenceContext(unitName = "default")
     private EntityManager entityManager;
 
+    private final SecRoleGroupMappingRepository secRoleGroupMappingRepository;
+    private final ApplicationEventPublisher eventPublisher;
+
     public CommUserRoleCopyService(SecUserMappingRepository secUserMappingRepository,
-                                   SecUserRollHisRepository secUserRollHisRepository) {
+                                   SecUserRollHisRepository secUserRollHisRepository,
+                                   SecRoleGroupMappingRepository secRoleGroupMappingRepository,
+                                   ApplicationEventPublisher eventPublisher) {
         this.secUserMappingRepository = secUserMappingRepository;
         this.secUserRollHisRepository = secUserRollHisRepository;
+        this.secRoleGroupMappingRepository = secRoleGroupMappingRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -137,7 +149,11 @@ public class CommUserRoleCopyService {
                 .append(" AND S.USE_TP = 'Y' ");
         if (excludeSelf) {
             // 2026-06-04 fix (a) — Copy 대상(본인) 제외
-            sql.append("   AND S.USER_ID <> :pUserIdCopy AND S.USER_EMP_NO <> :pUserIdCopy ");
+            // 2026-09-04 fix — USER_EMP_NO 가 NULL 인 사용자까지 함께 사라지던 3값 논리 결함 수정.
+            //   `NULL <> 'x'` 는 TRUE 가 아니라 UNKNOWN 이라 WHERE 가 그 행을 통째로 버린다
+            //   (사번 미등록 사용자가 권한 복사 대상 목록에서 전부 증발).
+            sql.append("   AND S.USER_ID <> :pUserIdCopy ")
+               .append("   AND (S.USER_EMP_NO IS NULL OR S.USER_EMP_NO <> :pUserIdCopy) ");
         }
         sql.append(" ORDER BY D.DEPT_NM, S.USER_NM ASC");
 
@@ -287,6 +303,8 @@ public class CommUserRoleCopyService {
         log.info("[commUserRoleCopy.save] start — pUserIdCopy=[{}], targets={}건",
                 pUserIdCopy, master.size());
 
+        Set<String> touchedRoleGroupIds = new LinkedHashSet<>(); // 캐시 무효화 대상
+
         // 외곽 루프 — 권한 생성 대상자 (ds_userTo 행 N건)
         for (Map<String, Object> row : master) {
             if (row == null) continue;
@@ -343,6 +361,7 @@ public class CommUserRoleCopyService {
                     log.info("[commUserRoleCopy.save] SKIP (이미 보유) userId={}, roleGroupId={}",
                             userId, roleGroupId);
                 }
+                touchedRoleGroupIds.add(roleGroupId);
             }
 
             cnt++; // 사용자 단위 counter (As-Is SaveRoleGroupCopy.java:77 cnt++)
@@ -350,6 +369,16 @@ public class CommUserRoleCopyService {
 
         // 영속 컨텍스트 flush 로 INSERT/UPDATE 실제 발행 확인 (이후 트랜잭션 commit 단계에서 실패 시 명확한 예외).
         entityManager.flush();
+
+        // 2026-09-04 fix — 사용자↔역할그룹 매핑이 바뀌면 UserPermCache(TTL 10분)를 즉시 비운다.
+        // 이 발행이 없어 권한을 복사해도 최대 10분간 실제 API 호출이 403 이었다.
+        if (!touchedRoleGroupIds.isEmpty()) {
+            List<String> roleIds = secRoleGroupMappingRepository
+                    .findRoleIdsByRoleGroupIdIn(new ArrayList<>(touchedRoleGroupIds));
+            if (roleIds != null && !roleIds.isEmpty()) {
+                eventPublisher.publishEvent(new RoleChangedEvent(new LinkedHashSet<>(roleIds)));
+            }
+        }
         log.info("[commUserRoleCopy.save] done — cnt_save={}", cnt);
 
         Map<String, Object> out = new LinkedHashMap<>();

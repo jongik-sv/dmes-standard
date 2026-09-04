@@ -8,6 +8,7 @@
 package com.dongkuk.dmes.mcm.csa.commUserMng.service;
 
 import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
+import com.dongkuk.dmes.mcm.common.event.RoleChangedEvent;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngDeptRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngPwdInitRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngRoleCopyRequest;
@@ -21,6 +22,7 @@ import com.dongkuk.dmes.mcm.entity.SecUserMapping;
 import com.dongkuk.dmes.mcm.entity.SecUserPwd;
 import com.dongkuk.dmes.mcm.entity.SecUserRollHis;
 import com.dongkuk.dmes.mcm.repository.DeptInfoRepository;
+import com.dongkuk.dmes.mcm.repository.SecRoleGroupMappingRepository;
 import com.dongkuk.dmes.mcm.repository.SecUserHisRepository;
 import com.dongkuk.dmes.mcm.repository.SecUserMappingRepository;
 import com.dongkuk.dmes.mcm.repository.SecUserPwdRepository;
@@ -30,6 +32,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -39,8 +42,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * commUserMng — OASIS BPMN serviceTask entry point (W5 / csa 9 화면 5번째).
@@ -117,6 +122,8 @@ public class CommUserMngService {
     private final SecUserHisRepository secUserHisRepository;
     private final SecUserRollHisRepository secUserRollHisRepository;
     private final DeptInfoRepository deptInfoRepository;
+    private final SecRoleGroupMappingRepository secRoleGroupMappingRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @PersistenceContext(unitName = "default")
     private EntityManager entityManager;
@@ -126,13 +133,31 @@ public class CommUserMngService {
                               SecUserPwdRepository secUserPwdRepository,
                               SecUserHisRepository secUserHisRepository,
                               SecUserRollHisRepository secUserRollHisRepository,
-                              DeptInfoRepository deptInfoRepository) {
+                              DeptInfoRepository deptInfoRepository,
+                              SecRoleGroupMappingRepository secRoleGroupMappingRepository,
+                              ApplicationEventPublisher eventPublisher) {
         this.secUserRepository = secUserRepository;
         this.secUserMappingRepository = secUserMappingRepository;
         this.secUserPwdRepository = secUserPwdRepository;
         this.secUserHisRepository = secUserHisRepository;
         this.secUserRollHisRepository = secUserRollHisRepository;
         this.deptInfoRepository = deptInfoRepository;
+        this.secRoleGroupMappingRepository = secRoleGroupMappingRepository;
+        this.eventPublisher = eventPublisher;
+    }
+
+    /**
+     * 사용자↔역할그룹 매핑이 바뀌면 그 그룹들이 품고 있는 역할 ID 로 {@link RoleChangedEvent} 를 발행한다.
+     *
+     * <p>2026-09-04 fix — 이 발행이 없어 {@code UserPermCache}(TTL 10분)가 그대로 남았고,
+     * "역할그룹을 붙였는데 최대 10분간 403 / 뗐는데 계속 통과" 가 발생했다. 메뉴 트리는 DB 직독이라
+     * 즉시 바뀌는데 API 만 막히는 비대칭 증상의 원인이기도 하다.
+     */
+    private void publishRoleChanged(Set<String> roleGroupIds) {
+        if (roleGroupIds == null || roleGroupIds.isEmpty()) return;
+        List<String> roleIds = secRoleGroupMappingRepository.findRoleIdsByRoleGroupIdIn(new ArrayList<>(roleGroupIds));
+        if (roleIds == null || roleIds.isEmpty()) return;
+        eventPublisher.publishEvent(new RoleChangedEvent(new LinkedHashSet<>(roleIds)));
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -307,6 +332,11 @@ public class CommUserMngService {
      * <p><b>2026-06-04 fix — 계정삭제 동작 점검 (사용자 명시 #3):</b> row 의 {@code END_ACTIVE_DATE} 가
      * "9999-12-31" sentinel (rowAdd default / 활성 사용자의 미지정 값) 이면 today 로 강제 정정.
      * 이전 구현은 9999-12-31 을 그대로 SET 해서 실제 마감이 일어나지 않았음 (계정삭제 무동작 원인).
+     *
+     * <p><b>2026-09-04 fix — {@code USE_TP='N'} 동시 SET (사용자 결정):</b> 종전에는 END_ACTIVE_DATE 만
+     * 마감해서 삭제한 계정이 기본 필터({@code USE_TP='Y'}) 목록에 계속 "사용 여부 Yes" 로 남았고,
+     * "계정 재생성" 버튼(FE {@code USE_TP === "Y"} 면 비활성)이 영영 열리지 않았다.
+     * 되돌리는 경로는 {@link #reRegCmUser}(→ {@code updateReRegUser(…, "Y")}) 가 이미 담당한다.
      */
     private boolean applyDelete(Map<String, Object> row) {
         String userId = strOf(row.get("USER_ID"));
@@ -317,7 +347,7 @@ public class CommUserMngService {
                     endDt, userId);
             endDt = LocalDate.now().atStartOfDay();
         }
-        int affected = secUserRepository.updateEndActiveDate(userId, endDt);
+        int affected = secUserRepository.updateEndActiveDate(userId, endDt, "N");
         if (affected > 0) {
             String activeDt = endDt.format(YYYYMMDD);
             saveUserHis(userId, activeDt, "D", "M",
@@ -457,6 +487,7 @@ public class CommUserMngService {
      */
     public Map<String, Object> saveUserRoleGrp(List<Map<String, Object>> master) {
         int cnt = 0;
+        Set<String> touchedRoleGroupIds = new LinkedHashSet<>(); // 캐시 무효화 대상
         if (master != null) {
             String today = currentYyyymmdd();
             for (Map<String, Object> row : master) {
@@ -481,6 +512,7 @@ public class CommUserMngService {
                     // 2026-06-04 — INF_REQ_NO / DESCRIPTION 정책 제거. null 적재.
                     saveUserRollHis(today, "P", userId, roleGroupId, "A",
                             strOf(row.get("ROLE_GROUP_NM")), null, null);
+                    touchedRoleGroupIds.add(roleGroupId);
                     cnt++;
                 } else if ("deleted".equals(status) || "D".equals(status)) {
                     if (secUserMappingRepository.existsById(pk)) {
@@ -488,12 +520,14 @@ public class CommUserMngService {
                     }
                     saveUserRollHis(today, "P", userId, roleGroupId, "D",
                             strOf(row.get("ROLE_GROUP_NM")), null, null);
+                    touchedRoleGroupIds.add(roleGroupId);
                     cnt++;
                 } else {
                     log.debug("[commUserMng.saveUserRoleGrp] skip status={}", status);
                 }
             }
         }
+        publishRoleChanged(touchedRoleGroupIds);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("cnt_save", cnt);
         return out;
@@ -633,6 +667,7 @@ public class CommUserMngService {
                 }
                 cnt++;
             }
+            publishRoleChanged(new LinkedHashSet<>(roleGroupIds));
         }
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("cnt_save", cnt);
