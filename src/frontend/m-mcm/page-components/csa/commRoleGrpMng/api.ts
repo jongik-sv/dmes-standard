@@ -43,6 +43,8 @@ interface SearchCmRoleGrpMapPayload {
 
 interface SaveCmRoleGrpMapPayload {
   cnt_merge?: number;
+  /** 서버가 조용히 건너뛴 행 수 (중복 PK / PK 누락 / 미지원 status). 0 이 아니면 화면에 사유를 알린다. */
+  cnt_skip?: number;
   ds_roleGrpMap?: CommRoleGrpMngRoleMapRow[];
 }
 

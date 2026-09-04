@@ -278,7 +278,18 @@ export default function CommUserMngPage() {
     [rows],
   );
 
-  const visibleCount = rows.filter((r) => r.nativeeditor_status !== "deleted").length;
+  /**
+   * 삭제 표시된 행을 뺀 실제 표시 대상.
+   *
+   * <p>2026-09-04 fix — 종전에는 건수(count)만 deleted 를 제외하고 그리드 data 는 원본 rows 를
+   * 그대로 넘겨, 삭제 버튼을 눌러도 건수만 줄고 행은 그대로 남았다 ("삭제가 안 먹는다").
+   * 우측 역할 그리드는 이미 같은 필터를 쓰고 있어 같은 파일 안에서 동작이 갈렸다.
+   */
+  const visibleRows = useMemo(
+    () => rows.filter((r) => r.nativeeditor_status !== "deleted"),
+    [rows],
+  );
+  const visibleCount = visibleRows.length;
 
   // ── search ──
   const loadList = useCallback(
@@ -696,8 +707,18 @@ export default function CommUserMngPage() {
   // ── B-012 역할조회 (선택 사용자의 추가 가능 역할 새로고침) ──
   const handleRoleSearch = useCallback(async () => {
     if (!selected) return;
+    // 2026-09-04 fix — loadRoleGrids 는 두 그리드를 통째로 갈아치운다. "역할추가" 로 만든
+    // 미저장 행(inserted/deleted)이 확인 없이 사라지던 것을 막는다.
+    const pending = userRoleGrpRows.some((r) => r.nativeeditor_status);
+    if (
+      pending
+      && typeof window !== "undefined"
+      && !window.confirm("저장하지 않은 역할 변경이 있습니다. 버리고 다시 조회할까요?")
+    ) {
+      return;
+    }
     await loadRoleGrids(String(selected.USER_ID));
-  }, [selected, loadRoleGrids]);
+  }, [selected, userRoleGrpRows, loadRoleGrids]);
 
   // ── Detail (D-NNN) ──
   const updateDetailField = (field: keyof CommUserMngRow, value: string) => {
@@ -800,7 +821,7 @@ export default function CommUserMngPage() {
             showAddButton
             showCopyButton
             showDeleteButton
-            data={rows}
+            data={visibleRows}
             rowKey="__rowId"
             columns={USER_COLUMNS}
             selectedRowKey={selectedKey}
@@ -810,7 +831,7 @@ export default function CommUserMngPage() {
             <AgDataGrid
               columnSizing="fit"
               columns={USER_COLUMNS}
-              data={rows}
+              data={visibleRows}
               rowKey="__rowId"
               sortable
               singleClickEdit
@@ -1228,18 +1249,13 @@ export default function CommUserMngPage() {
               data={availRoleGrpRows}
               rowKey="__argId"
               sortable
-              onRowClick={(row) => {
-                const k = String((row as { __argId?: string }).__argId ?? "");
-                setSelectedArgKeys((prev) => {
-                  const next = new Set(prev);
-                  if (next.has(k)) {
-                    next.delete(k);
-                  } else {
-                    next.add(k);
-                  }
-                  return next;
-                });
-              }}
+              /* 2026-09-04 fix — 종전에는 onRowClick 으로 Set 만 토글해 화면에 선택 표시가 전혀
+                 없었다. 무엇이 선택됐는지 알 수 없고 두 번 클릭하면 조용히 해제돼, 그 상태로
+                 "역할추가" 를 누르면 "선택된 Role 그룹이 없습니다" 만 떴다.
+                 체크박스 다중 선택으로 교체 (commUserRoleCopy 정본 패턴). */
+              selectable
+              multiSelect
+              onRowSelect={(ids) => setSelectedArgKeys(new Set(ids.map(String)))}
               loading={false}
               emptyMessage="추가 가능 역할그룹이 없습니다."
             />

@@ -229,6 +229,30 @@ const PERM_COLUMNS: GridColumn[] = [
 ];
 
 /**
+ * 권한 저장 결과 메시지.
+ *
+ * <p>2026-09-04 fix — BE 는 중복 PK / PK 누락 / 미지원 status 를 log.warn 후 조용히 건너뛰고
+ * `meta.success=true` 로 응답한다. 그래서 버튼을 눌러도 아무 일이 없는데 화면에는
+ * "0건 저장되었습니다" 만 떴다. 건너뛴 행 수(cnt_skip)를 함께 알린다.
+ */
+function saveResultMessage(cntMerge: number, cntSkip: number): string {
+  if (cntSkip > 0) {
+    return `${cntMerge}건 저장되었습니다. (${cntSkip}건은 이미 부여됐거나 대상이 없어 처리되지 않았습니다)`;
+  }
+  return `${cntMerge}건 저장되었습니다.`;
+}
+
+/**
+ * 저장된 MENU_ID 를 LoV 라벨("csa (시스템관리)") 로 치환. LoV 에 없으면 원본 코드를 그대로 보여준다.
+ * (미지정이면 "" — 상세 영역에서 placeholder "(미지정)" 로 표기)
+ */
+function menuIdLabel(menuId: string, lov: MenuIdLov[]): string {
+  if (!menuId) return "";
+  const hit = lov.find((m) => String(m.MENU_ID ?? "") === menuId);
+  return String(hit?.MENU_ID_NM ?? menuId);
+}
+
+/**
  * 행추가 default — AsIs xfdl:687~697 fn_rowAdd.
  */
 function emptyRow(): CommRoleMngRow {
@@ -318,30 +342,56 @@ export default function CommRoleMngPage() {
     });
   }, [permRows, permFilter]);
 
+  /** sub2 우에서 현재 선택된 PERMISSION_ID (단일 선택 — 미선택이면 ""). */
+  const selectedPermId = useMemo(() => {
+    if (permSelectedKeys.length === 0) return "";
+    const keySet = new Set(permSelectedKeys.map((k) => String(k)));
+    const hit = permRows.find((r) => keySet.has(r.__pmId));
+    return hit ? String(hit.PERMISSION_ID ?? "") : "";
+  }, [permRows, permSelectedKeys]);
+
   /**
-   * sub2 좌 — OBJECT 목록 필터 (2026-06-03 사용자 결정 — 정책 변경).
+   * sub2 좌 — OBJECT 목록 필터.
    *
    * <p>2 단계 필터:
    * <ol>
-   *   <li><b>이미 부여된 OBJECT 제외</b> — sub1 (현재 권한 그리드) 의 OBJECT_ID 집합과 매칭하여 제외.
-   *       이미 부여된 OBJECT 는 재부여 불가 → 목록에서 자체 숨김 (FE 클라이언트 필터).</li>
+   *   <li><b>이미 부여된 조합 제외</b> — 권한 매핑의 PK 는 (ROLE_ID, OBJECT_ID, PERMISSION_ID) 이므로
+   *       "선택된 PERMISSION 기준으로" 이미 부여된 OBJECT 만 제외한다. 권한 미선택 시엔 제외하지 않는다.</li>
    *   <li><b>OBJECT FILTER UPPER LIKE</b> — OBJECT_ID + OBJECT_NM 양쪽 부분 일치.</li>
    * </ol>
+   *
+   * <p>2026-09-04 fix — 이전 구현은 PERMISSION 과 무관하게 "sub1 에 한 번이라도 등장한 OBJECT" 를
+   * 전부 숨겼다. 그 결과 모든 OBJECT 에 권한이 하나씩 부여된 역할(예: SYSADMIN)에서는 OBJECT 목록이
+   * 0 건이 되어 두 번째 PERMISSION 을 부여할 방법 자체가 사라졌다.
    */
   const filteredObjectRows = useMemo(() => {
     const kw = objectFilter.trim().toUpperCase();
-    // 1) sub1 의 OBJECT_ID 집합 — 이미 부여된 OBJECT 는 목록에서 제외
+    // 1) 선택된 PERMISSION 에 대해 이미 부여된 OBJECT_ID 집합
     const grantedObjIds = new Set(
-      roleMapRows.map((r) => String(r.OBJECT_ID ?? "").toUpperCase()),
+      roleMapRows
+        .filter((r) => String(r.PERMISSION_ID ?? "") === selectedPermId)
+        .map((r) => String(r.OBJECT_ID ?? "").toUpperCase()),
     );
     return objectRows.filter((r) => {
       const id = String(r.OBJECT_ID ?? "").toUpperCase();
-      if (grantedObjIds.has(id)) return false; // 이미 부여 — 제외
+      if (selectedPermId && grantedObjIds.has(id)) return false; // 동일 권한 이미 부여 — 제외
       if (!kw) return true;
       const nm = String(r.OBJECT_NM ?? "").toUpperCase();
       return id.includes(kw) || nm.includes(kw);
     });
-  }, [objectRows, objectFilter, roleMapRows]);
+  }, [objectRows, objectFilter, roleMapRows, selectedPermId]);
+
+  /**
+   * 목록에서 사라진 OBJECT 의 체크 상태 정리 —
+   * 권한을 바꿔 선택하면 표시 대상이 달라지므로, 보이지 않는 행이 선택된 채 남지 않게 한다.
+   */
+  useEffect(() => {
+    const visible = new Set(filteredObjectRows.map((r) => r.__olId));
+    setObjectSelectedKeys((prev) => {
+      const next = prev.filter((k) => visible.has(String(k)));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [filteredObjectRows]);
 
   // ── LoV (Form onload, AsIs xfdl:316~347 CommRoleMng_onload → fn_lov) ──
   useEffect(() => {
@@ -385,7 +435,10 @@ export default function CommRoleMngPage() {
 
   // ── search (action=searchCmRole — fn_search → fn_run("searchCmRole"), xfdl:630) ──
   const loadList = useCallback(
-    async (f: CommRoleMngFilters) => {
+    async (
+      f: CommRoleMngFilters,
+      opts?: { preferRoleId?: string; silent?: boolean },
+    ) => {
       setIsSearching(true);
       setError(null);
       try {
@@ -396,13 +449,20 @@ export default function CommRoleMngPage() {
         }));
         setRows(list);
         if (list.length > 0) {
-          setSelectedKey(getRowKey(list[0]));
+          // 2026-09-04 fix — 재조회할 때마다 무조건 첫 행으로 튀지 않게, 보고 있던 역할이
+          // 결과에 남아 있으면 그 행을 유지한다 (없을 때만 첫 행).
+          const prefer = opts?.preferRoleId
+            ? list.find((r) => String(r.ROLE_ID ?? "") === opts.preferRoleId)
+            : undefined;
+          setSelectedKey(getRowKey(prefer ?? list[0]));
         } else {
           setSelectedKey(null);
           setRoleMapRows([]);
           setPermRows([]);
         }
-        showMessage({ message: `${list.length}건 조회 되었습니다.`, toast: true });
+        if (!opts?.silent) {
+          showMessage({ message: `${list.length}건 조회 되었습니다.`, toast: true });
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : "조회 실패");
         setRows([]);
@@ -418,7 +478,8 @@ export default function CommRoleMngPage() {
   const handleFilterChange = (k: keyof CommRoleMngFilters, v: string) =>
     setFilters((p) => ({ ...p, [k]: v }));
 
-  const handleSearch = () => void loadList(filters);
+  const handleSearch = () =>
+    void loadList(filters, { preferRoleId: String(selected?.ROLE_ID ?? "") || undefined });
 
   /** B-002 초기화 (fn_reset, xfdl:634) — AsIs 명시 버튼. */
   const handleReset = () => {
@@ -459,24 +520,30 @@ export default function CommRoleMngPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // selectedKey 변경 시 + (inserted ✗) 시 sub1/sub2 자동 갱신.
+  /**
+   * sub1/sub2 갱신 트리거 — 선택된 "저장된" 역할의 ROLE_ID.
+   * 신규(inserted) 행은 아직 DB 에 없으므로 권한 조회 대상이 아니다.
+   *
+   * 2026-09-04 fix — 트리거를 selectedKey 가 아닌 ROLE_ID 로 바꿨다.
+   * 저장 후 목록이 재조회되면 행 key(__rowId)가 바뀌는데, 이전 구현은 selectedKey 만 보고 있어
+   * 같은 역할을 계속 선택 중인데도 권한 그리드가 갱신되지 않았다.
+   */
+  const selectedRoleId =
+    selected && selected.nativeeditor_status !== "inserted"
+      ? String(selected.ROLE_ID ?? "")
+      : "";
+
   useEffect(() => {
-    if (!selectedKey || !selected) {
+    if (!selectedRoleId) {
       setRoleMapRows([]);
       setPermRows([]);
+      setRoleMapSelectedKeys([]);
+      setPermSelectedKeys([]);
+      setObjectSelectedKeys([]);
       return;
     }
-    if (selected.nativeeditor_status === "inserted") {
-      setRoleMapRows([]);
-      setPermRows([]);
-      return;
-    }
-    const roleId = String(selected.ROLE_ID ?? "");
-    if (roleId) {
-      void loadRoleMapAndPerm(roleId);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedKey]);
+    void loadRoleMapAndPerm(selectedRoleId);
+  }, [selectedRoleId, loadRoleMapAndPerm]);
 
   /**
    * 행취소 (xfdl:736 fn_rowCancel = gfn_grdInit — 그리드 변경 전체 reset 이나, To-Be 는 선택 행만 취소).
@@ -512,13 +579,23 @@ export default function CommRoleMngPage() {
           (r) => (r as GridRow).__gridTempId === addedRowKey,
         ) as Partial<CommRoleMngRow> | undefined;
         setRows((prev) => {
-          const base = sourceRow ?? {};
+          // 2026-09-04 fix — GridPanel.createEmptyRow 는 columns 전 컬럼을 ""(빈 문자열)로 채워 넘긴다.
+          // 그대로 spread 하면 emptyRow() 의 기본값(USE_TP='Y' / 유효개시일=오늘 / 유효기한일=9999-12-31)이
+          // 빈 문자열로 덮여 사라진다 (행추가 직후 사용여부·유효일자가 비어 보이던 원인).
+          // → 빈 값만 기본값으로 되메운다. 행복사(원본 값 보유)는 그대로 보존된다.
+          const base = (sourceRow ?? {}) as Record<string, unknown>;
+          const merged: Record<string, unknown> = { ...emptyRow() };
+          for (const [k, v] of Object.entries(base)) {
+            if (v !== "" && v !== null && v !== undefined) merged[k] = v;
+          }
           const newRow: CommRoleMngRow & GridRow = {
-            ...emptyRow(),
-            ...base,
+            ...(merged as CommRoleMngRow),
+            // ROLE_ID / ID 는 신규·복사 모두 비운다 — 메뉴 ID + ID 입력 시 ROLE_ID 자동 합성.
+            // (메뉴 ID 는 복사 시 원본 폴더를 유지)
             ROLE_ID: "",
-            MENU_ID: "",
             ID: "",
+            // AgDataGrid rowKey="__rowId" — 신규 행이 ""(전 행 중복 key)이 되지 않도록 tempId 로 채운다.
+            __rowId: addedRowKey,
             __gridTempId: addedRowKey,
             nativeeditor_status: "inserted" as RowStatus,
           };
@@ -581,8 +658,20 @@ export default function CommRoleMngPage() {
     for (const r of rows) {
       if (!r.nativeeditor_status) continue;
       if (r.nativeeditor_status === "deleted") continue;
+      // V-006 Essential — 신규 행은 메뉴 ID + ID 가 모두 있어야 ROLE_ID 가 합성된다.
+      // (2026-09-04 fix — 검증이 없어 메뉴 ID 없이 임의 ROLE_ID 로 저장되던 결함)
+      if (r.nativeeditor_status === "inserted") {
+        if (!String(r.MENU_ID ?? "").trim()) {
+          setError("메뉴 ID 는 필수 입력입니다.");
+          return;
+        }
+        if (!String(r.ID ?? "").trim()) {
+          setError("ID 는 필수 입력입니다.");
+          return;
+        }
+      }
       if (!r.ROLE_ID || String(r.ROLE_ID).trim().length === 0) {
-        setError("ROLE_ID 는 필수 입력입니다. (메뉴 ID + ID 입력 시 자동 합성)");
+        setError("역할 ID 가 생성되지 않았습니다. 메뉴 ID 와 ID 를 입력하세요.");
         return;
       }
     }
@@ -596,20 +685,19 @@ export default function CommRoleMngPage() {
           ...stripInternal(r),
           rowStatus: r.nativeeditor_status,
         })) as unknown as CommRoleMngRow[];
+      const keepRoleId = String(selected?.ROLE_ID ?? "");
       const res = await apiSaveCmRole(payload);
       showMessage({ message: `${res.cnt_merge ?? 0}건 저장되었습니다.` });
-      const refreshed = (res.ds_main ?? []).map((r, i) => ({
-        ...withSyntheticId(r, i),
-        nativeeditor_status: "" as RowStatus,
-      }));
-      setRows(refreshed);
-      setSelectedKey(null);
+      // 2026-09-04 fix — 응답의 ds_main 은 BE 가 findAll() 로 만든 무조건 전체·무정렬 목록이라
+      // 조건 조회 후 저장하면 갑자기 전체가 임의 순서로 뜬다. 현재 검색조건으로 다시 조회하고,
+      // 방금 저장한 역할의 선택을 유지한다 (이어서 버튼 권한을 부여하는 것이 실제 동선).
+      await loadList(filters, { preferRoleId: keepRoleId || undefined, silent: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "저장 실패 하였습니다.");
     } finally {
       setIsSaving(false);
     }
-  }, [rows, hasAnyChanges, showMessage]);
+  }, [rows, hasAnyChanges, selected, filters, loadList, showMessage]);
 
   // ── shuttle ──
 
@@ -635,7 +723,7 @@ export default function CommRoleMngPage() {
         rowStatus: "deleted" as RowStatus,
       })) as unknown as CommRoleMngRoleMapRow[];
       const res = await apiSaveCmRoleMap(payload);
-      showMessage({ message: `${res.cnt_merge ?? 0}건 저장되었습니다.` });
+      showMessage({ message: saveResultMessage(res.cnt_merge ?? 0, res.cnt_skip ?? 0) });
       if (selected) {
         await loadRoleMapAndPerm(String(selected.ROLE_ID ?? ""));
       }
@@ -698,7 +786,7 @@ export default function CommRoleMngPage() {
         rowStatus: "inserted" as RowStatus,
       })) as unknown as CommRoleMngRoleMapRow[];
       const res = await apiSaveCmRoleMap(payload);
-      showMessage({ message: `${res.cnt_merge ?? 0}건 저장되었습니다.` });
+      showMessage({ message: saveResultMessage(res.cnt_merge ?? 0, res.cnt_skip ?? 0) });
       await loadRoleMapAndPerm(roleId);
       setObjectSelectedKeys([]);
       setPermSelectedKeys([]);
@@ -861,12 +949,16 @@ export default function CommRoleMngPage() {
 
           <ContentPanel width={480}>
             {selected ? (
+              // 2026-09-04 fix — 상세 영역이 row 높이를 넘어가면 하단 필드(유효 기한일)가 잘려
+              // 접근 자체가 불가능했다. wrapper 를 패널 높이에 고정하고 본문만 스크롤시킨다.
               <div style={{
                 marginTop: 32,
                 display: "flex",
                 flexDirection: "column",
                 border: "1px solid #d4dae0",
                 background: "#fff",
+                height: "calc(100% - 32px)",
+                minHeight: 0,
               }}>
                 <div style={{
                   height: 28,
@@ -882,17 +974,20 @@ export default function CommRoleMngPage() {
                 }}>
                   상세 정보
                 </div>
-                <div style={{ padding: 0, background: "#fff" }}>
+                <div style={{ padding: 0, background: "#fff", flex: "1 1 0", minHeight: 0, overflowY: "auto" }}>
                   <table style={DETAIL_TABLE_STYLE}>
                     <tbody>
                       <tr>
                         <th style={DETAIL_LABEL_CELL}>역할 ID *</th>
                         <td style={DETAIL_VALUE_CELL}>
+                          {/* AsIs xfdl:243 readonly="true" — ROLE_ID 는 항상 자동 합성값.
+                              2026-09-04 fix: 신규 행에서 직접 입력이 열려 있어 메뉴 ID 없이
+                              임의 ROLE_ID 가 만들어지던 결함(합성 규칙 무력화)을 차단. */}
                           <Input
                             value={String(selected.ROLE_ID ?? "")}
                             maxLength={100}
-                            readOnly={selected.nativeeditor_status !== "inserted"}
-                            onChange={(v: string) => updateDetailField("ROLE_ID", v)}
+                            readOnly
+                            placeholder="메뉴 ID + ID 입력 시 자동 생성"
                           />
                         </td>
                       </tr>
@@ -900,16 +995,26 @@ export default function CommRoleMngPage() {
                       <tr>
                         <th style={DETAIL_LABEL_CELL}>메뉴 ID *</th>
                         <td style={DETAIL_VALUE_CELL}>
-                          <ComboBox
-                            data={menuLov as unknown as Record<string, unknown>[]}
-                            valueField="MENU_ID"
-                            labelField="MENU_ID_NM"
-                            value={String(selected.MENU_ID ?? "")}
-                            onChange={(v) => updateDetailField("MENU_ID", v)}
-                            readOnly={!isNewRow}
-                            disabled={!isNewRow}
-                            placeholder="(선택)"
-                          />
+                          {isNewRow ? (
+                            /* 메뉴 ID = 메뉴 폴더(csa/cma/...). 선택 즉시 ID 와 합쳐져
+                               ROLE_ID = "role_{메뉴ID}_{ID}" 로 자동 생성된다. */
+                            <ComboBox
+                              data={menuLov as unknown as Record<string, unknown>[]}
+                              valueField="MENU_ID"
+                              labelField="MENU_ID_NM"
+                              value={String(selected.MENU_ID ?? "")}
+                              onChange={(v) => updateDetailField("MENU_ID", v)}
+                              placeholder="(선택)"
+                            />
+                          ) : (
+                            /* 기존 행의 메뉴 ID 는 ROLE_ID(PK) 구성요소라 변경 불가.
+                               빈 콤보로 보여 "선택이 안 된 것" 처럼 오해되던 것을 읽기전용 표기로 바꿈. */
+                            <Input
+                              value={menuIdLabel(String(selected.MENU_ID ?? ""), menuLov)}
+                              readOnly
+                              placeholder="(미지정 — 기존 역할은 변경 불가)"
+                            />
+                          )}
                         </td>
                       </tr>
 
@@ -1024,12 +1129,13 @@ export default function CommRoleMngPage() {
           {/* sub1 — 현재 버튼 권한 (AsIs div_subGrd1). */}
           <ContentPanel>
             <GridPanel
-              title="현재 버튼 권한"
+              title="이 역할의 버튼 권한"
               count={filteredRoleMapRows.length}
               buttons={[
                 {
                   id: "btn_shuttle_remove",
-                  label: "▼ 권한 삭제",
+                  // 2026-09-04 fix — 이 패널(좌)에서 후보 풀(우)로 되돌리는 동작이라 ▼ 가 아니라 ▶.
+                  label: "권한 삭제 ▶",
                   onClick: () => void handleShuttleRemove(),
                   disabled: isSearching || isSaving,
                 },
@@ -1075,9 +1181,13 @@ export default function CommRoleMngPage() {
                   placeholder="OBJECT_ID / OBJECT명"
                 />
               </div>
+              {/* 목록에서 제외되는 기준(선택 권한)을 화면에 드러낸다 — 왜 특정 OBJECT 가 안 보이는지 알 수 있게. */}
+              <span style={{ fontSize: 11, color: selectedPermId ? "#1a5fb4" : "#888", whiteSpace: "nowrap" }}>
+                {selectedPermId ? `선택 권한: ${selectedPermId} (부여됨 제외)` : "권한 미선택"}
+              </span>
             </div>
             <GridPanel
-              title="OBJECT 목록"
+              title="② 대상 화면(OBJECT) 선택"
               count={filteredObjectRows.length}
               data={filteredObjectRows}
               rowKey="__olId"
@@ -1114,7 +1224,7 @@ export default function CommRoleMngPage() {
               </div>
             </div>
             <GridPanel
-              title="전체 버튼 권한"
+              title="① 부여할 권한 선택"
               count={filteredPermRows.length}
               buttons={[
                 {

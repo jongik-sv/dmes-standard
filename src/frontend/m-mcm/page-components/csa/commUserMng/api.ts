@@ -191,9 +191,11 @@ export async function pwdinit(
       USER_EMP_NO: userEmpNo,
       SSO_RESET_FLAG: ssoResetFlag,
     },
-    ssoMaster && ssoMaster.length > 0
-      ? { master: { rows: ssoMaster as unknown as Record<string, unknown>[] } }
-      : undefined,
+    // 2026-09-04 fix — BE pwdinit(request, master) 는 2-arg 이고 OASIS StrictMethodInvoker 는
+    // 전 파라미터 필수다. grids 를 생략하면 context 에 `master` 키가 없어 메서드 해석이 실패하고
+    // (MethodResolutionException) HTTP 200 + meta.success=false 로 떨어져 "비밀번호 초기화가
+    // 아무 것도 안 된다" 가 된다. 비-SSO 경로에서도 빈 배열을 항상 실어 보낸다.
+    { master: { rows: (ssoMaster ?? []) as unknown as Record<string, unknown>[] } },
   );
 }
 

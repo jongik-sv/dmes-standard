@@ -18,7 +18,7 @@
  *   │   width=메인:right=440 (좌 flex:1)     │   width=430              │
  *   ├────────────────────────┬──────────────┴─────────────────────────┤
  *   │ Row 2 좌 — 현재 역할     │ 셔틀  │ Row 2 우 — 전체 역할            │
- *   │ (sub1 div_subGrd1)     │ ▲▼   │ (sub2 div_subGrd2)             │
+ *   │ (sub1 div_subGrd1)     │ ◀▶   │ (sub2 div_subGrd2)             │
  *   └────────────────────────┴──────┴────────────────────────────────┘
  *   (Row 2 = sub1 flex:1 + 셔틀 36px + sub2 flex:1 3분할)
  *
@@ -26,7 +26,7 @@
  *
  * AsIs commonTopButton (xfdl:364): [btn_search], [btn_reset], [btn_save], [btn_close]
  * AsIs commonRightButton on grd_main (xfdl:376): [btn_rowAdd], [btn_rowDelete], [btn_rowCopy], [btn_rowCancel]
- * AsIs div_buttonGrp (xfdl:116~123): btn_right (▼ 위→아래 = 현재 → 제외) + btn_left (▲ 아래→위 = 추가)
+ * AsIs div_buttonGrp (xfdl:116~123): btn_right (▶ 좌→우 = 현재에서 제외) + btn_left (◀ 우→좌 = 현재에 추가)
  *
  * 2-chain auto load (xfdl:753~770 ds_main_onrowposchanged 中 2 회 호출만 유지):
  *   역할 그룹 행 선택 → searchCmRoleGrpMap + searchCmRole (2 회 fn_run).
@@ -261,6 +261,20 @@ const ROLE_COLUMNS: GridColumn[] = [
 ];
 
 /**
+ * 저장 결과 메시지.
+ *
+ * <p>2026-09-04 fix — BE 는 중복 PK / PK 누락 / 미지원 status 를 log.warn 후 조용히 건너뛰고
+ * `meta.success=true` 로 응답한다. 그래서 셔틀 버튼을 눌러도 아무 일이 없는데 화면에는
+ * "0건 저장되었습니다" 만 떠서 원인 추적이 불가능했다. 건너뛴 행 수(cnt_skip)를 함께 알린다.
+ */
+function saveResultMessage(cntMerge: number, cntSkip: number): string {
+  if (cntSkip > 0) {
+    return `${cntMerge}건 저장되었습니다. (${cntSkip}건은 이미 연결됐거나 대상이 없어 처리되지 않았습니다)`;
+  }
+  return `${cntMerge}건 저장되었습니다.`;
+}
+
+/**
  * 행추가 default (xfdl:710~723 fn_rowAdd):
  *  - USE_TP = 'Y'
  *  - START_ACTIVE_DATE = gfn_today() 8자
@@ -321,7 +335,10 @@ export default function CommRoleGrpMngPage() {
   // ── search ──
   /** action=searchCmRoleGrp (EX-001 / fn_search → fn_run("searchCmRoleGrp"), xfdl:665). */
   const loadList = useCallback(
-    async (f: CommRoleGrpMngFilters) => {
+    async (
+      f: CommRoleGrpMngFilters,
+      opts?: { preferGroupId?: string; silent?: boolean },
+    ) => {
       setIsSearching(true);
       setError(null);
       try {
@@ -332,13 +349,20 @@ export default function CommRoleGrpMngPage() {
         }));
         setRows(list);
         if (list.length > 0) {
-          setSelectedKey(getRowKey(list[0]));
+          // 2026-09-04 fix — 재조회할 때마다 첫 행으로 튀지 않게, 보고 있던 그룹이 결과에
+          // 남아 있으면 그 행을 유지한다 (없을 때만 첫 행).
+          const prefer = opts?.preferGroupId
+            ? list.find((r) => String(r.ROLE_GROUP_ID ?? "") === opts.preferGroupId)
+            : undefined;
+          setSelectedKey(getRowKey(prefer ?? list[0]));
         } else {
           setSelectedKey(null);
           setRoleMapRows([]);
           setRoleRows([]);
         }
-        showMessage({ message: `${list.length}건 조회 되었습니다.`, toast: true });
+        if (!opts?.silent) {
+          showMessage({ message: `${list.length}건 조회 되었습니다.`, toast: true });
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : "조회 실패");
         setRows([]);
@@ -354,7 +378,8 @@ export default function CommRoleGrpMngPage() {
   const handleFilterChange = (k: keyof CommRoleGrpMngFilters, v: string) =>
     setFilters((p) => ({ ...p, [k]: v }));
 
-  const handleSearch = () => void loadList(filters);
+  const handleSearch = () =>
+    void loadList(filters, { preferGroupId: String(selected?.ROLE_GROUP_ID ?? "") || undefined });
 
   /** EX-002 초기화 (fn_reset, xfdl:669). */
   const handleReset = () => {
@@ -423,23 +448,27 @@ export default function CommRoleGrpMngPage() {
       setError("취소할 행을 선택하세요.");
       return;
     }
-    setRows((prev) => {
-      const target = prev.find((r) => getRowKey(r) === selectedKey);
-      if (!target?.nativeeditor_status) {
-        setError("변경된 행이 아닙니다.");
-        return prev;
-      }
-      if (target.nativeeditor_status === "inserted") {
-        return prev.filter((r) => getRowKey(r) !== selectedKey);
-      }
-      return prev.map((r) =>
+    // 2026-09-04 fix — 취소 대상 판정을 setRows updater 안에서 하고 그 밖에서 무조건
+    // setSelectedKey(null) 하던 구조라, "변경된 행이 아닙니다" 로 거부해 놓고도 선택이 풀렸다.
+    // (updater 안 setError 는 React StrictMode 이중 호출 대상이기도 하다.)
+    const target = rows.find((r) => getRowKey(r) === selectedKey);
+    if (!target?.nativeeditor_status) {
+      setError("변경된 행이 아닙니다.");
+      return;
+    }
+    if (target.nativeeditor_status === "inserted") {
+      setRows((prev) => prev.filter((r) => getRowKey(r) !== selectedKey));
+      setSelectedKey(null);
+      return;
+    }
+    setRows((prev) =>
+      prev.map((r) =>
         getRowKey(r) === selectedKey
           ? { ...r, nativeeditor_status: "" as RowStatus }
           : r,
-      );
-    });
-    setSelectedKey(null);
-  }, [selectedKey]);
+      ),
+    );
+  }, [rows, selectedKey]);
 
   /** 행추가 / 행복사 / 행삭제 통합 (GridPanel showAddButton/showCopyButton/showDeleteButton onDataChange). */
   const handleDataChange = useCallback(
@@ -449,11 +478,20 @@ export default function CommRoleGrpMngPage() {
           (r) => (r as GridRow).__gridTempId === addedRowKey,
         ) as Partial<CommRoleGrpMngRow> | undefined;
         setRows((prev) => {
-          const base = sourceRow ?? {};
+          // 2026-09-04 fix — GridPanel.createEmptyRow 는 columns 전 컬럼을 ""(빈 문자열)로 채워 넘긴다.
+          // 그대로 spread 하면 emptyRow() 의 기본값(USE_TP='Y' / 유효개시일 / 유효기한일)이 빈 문자열로
+          // 덮여 사라진다. 사용여부 라디오가 아무것도 선택 안 된 상태로 보이고, 그대로 저장하면
+          // USE_TP='' 가 DB 에 들어간다. → 빈 값만 기본값으로 되메운다 (행복사 원본 값은 보존).
+          const base = (sourceRow ?? {}) as Record<string, unknown>;
+          const merged: Record<string, unknown> = { ...emptyRow() };
+          for (const [k, v] of Object.entries(base)) {
+            if (v !== "" && v !== null && v !== undefined) merged[k] = v;
+          }
           const newRow: CommRoleGrpMngRow & GridRow = {
-            ...emptyRow(),
-            ...base,
+            ...(merged as CommRoleGrpMngRow),
             ROLE_GROUP_ID: "", // PK 사용자 입력 강제
+            // AgDataGrid rowKey — 신규 행이 ""(전 행 중복 key)이 되지 않도록 tempId 로 채운다.
+            __rowId: addedRowKey,
             __gridTempId: addedRowKey,
             nativeeditor_status: "inserted" as RowStatus,
           };
@@ -545,24 +583,23 @@ export default function CommRoleGrpMngPage() {
           ...stripInternal(r),
           rowStatus: r.nativeeditor_status,
         })) as unknown as CommRoleGrpMngRow[];
+      const keepGroupId = String(selected?.ROLE_GROUP_ID ?? "");
       const res = await apiSaveCmRoleGrp(payload);
       showMessage({ message: `${res.cnt_merge ?? 0}건 저장되었습니다.` });
-      const refreshed = (res.ds_main ?? []).map((r, i) => ({
-        ...withSyntheticId(r, i),
-        nativeeditor_status: "" as RowStatus,
-      }));
-      setRows(refreshed);
-      setSelectedKey(null);
+      // 2026-09-04 fix — 응답의 ds_main 은 BE 가 findAll() 로 만든 무조건 전체·무정렬 목록이라
+      // 조건 조회 후 저장하면 갑자기 전체가 임의 순서로 뜬다. 현재 검색조건으로 다시 조회하고,
+      // 방금 저장한 그룹의 선택을 유지한다 (이어서 역할을 붙이는 것이 실제 동선).
+      await loadList(filters, { preferGroupId: keepGroupId || undefined, silent: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "저장 실패 하였습니다.");
     } finally {
       setIsSaving(false);
     }
-  }, [rows, hasAnyChanges, selected, roleMapRows, showMessage]);
+  }, [rows, hasAnyChanges, selected, roleMapRows, filters, loadList, showMessage]);
 
   // ── shuttle (div_buttonGrp xfdl:116~123) ──
 
-  /** B-002 — 현재 역할 제외 (xfdl:611~623 / fn_removeRoleMapRow / saveCmRoleGrpMap action DELETE). btn_right ▼. */
+  /** B-002 — 현재 역할 제외 (xfdl:611~623 / fn_removeRoleMapRow / saveCmRoleGrpMap action DELETE). btn_right ▶. */
   const handleShuttleRemove = useCallback(async () => {
     if (roleMapSelectedKeys.length === 0) {
       setError("제외할 역할을 선택하세요.");
@@ -583,7 +620,7 @@ export default function CommRoleGrpMngPage() {
         rowStatus: "deleted" as RowStatus,
       })) as unknown as CommRoleGrpMngRoleMapRow[];
       const res = await apiSaveCmRoleGrpMap(payload);
-      showMessage({ message: `${res.cnt_merge ?? 0}건 저장되었습니다.` });
+      showMessage({ message: saveResultMessage(res.cnt_merge ?? 0, res.cnt_skip ?? 0) });
       // 후속 3 chain 재조회 (xfdl:572~578 fn_callBack saveCmRoleGrpMap)
       if (selected && selected.ROLE_GROUP_ID) {
         await loadSubGrids(String(selected.ROLE_GROUP_ID));
@@ -595,7 +632,7 @@ export default function CommRoleGrpMngPage() {
     }
   }, [roleMapRows, roleMapSelectedKeys, selected, loadSubGrids, showMessage]);
 
-  /** B-003 — 현재 역할 추가 (xfdl:625~645 / fn_appendRoleMapRow). V-401 + V-402 검증. btn_left ▲. */
+  /** B-003 — 현재 역할 추가 (xfdl:625~645 / fn_appendRoleMapRow). V-401 + V-402 검증. btn_left ◀. */
   const handleShuttleAdd = useCallback(async () => {
     if (!selected || !selected.ROLE_GROUP_ID) {
       setError("선택된 Role 그룹 ID가 없습니다.");
@@ -622,7 +659,7 @@ export default function CommRoleGrpMngPage() {
         rowStatus: "inserted" as RowStatus,
       })) as unknown as CommRoleGrpMngRoleMapRow[];
       const res = await apiSaveCmRoleGrpMap(payload);
-      showMessage({ message: `${res.cnt_merge ?? 0}건 저장되었습니다.` });
+      showMessage({ message: saveResultMessage(res.cnt_merge ?? 0, res.cnt_skip ?? 0) });
       if (selected.ROLE_GROUP_ID) {
         await loadSubGrids(String(selected.ROLE_GROUP_ID));
       }
@@ -915,7 +952,10 @@ export default function CommRoleGrpMngPage() {
               </GridPanel>
             </ContentPanel>
 
-            {/* div_buttonGrp — 셔틀 버튼 (xfdl:116~123 width=24, btn_right ▼ 제외 / btn_left ▲ 추가). */}
+            {/* div_buttonGrp — 셔틀 버튼 (xfdl:116~123 width=24, btn_left 추가 / btn_right 제외).
+                2026-09-04 fix — 두 그리드가 좌(현재 역할) ↔ 우(전체 역할) 로 나란히 놓여 있는데
+                버튼만 ▲/▼ 라 이동 방향과 반대로 읽혔다. AsIs 이름(btn_left/btn_right)대로 ◀/▶ 로 정정.
+                  ◀ = 우(전체) → 좌(현재) 추가 / ▶ = 좌(현재) → 우(전체) 제외 */}
             <div style={{
               flex: "0 0 36px",
               display: "flex",
@@ -928,16 +968,16 @@ export default function CommRoleGrpMngPage() {
               <Button
                 onClick={() => void handleShuttleAdd()}
                 disabled={isSaving}
-                ariaLabel="선택한 역할을 현재 역할에 추가 (B-003 btn_left ▲)"
+                ariaLabel="선택한 역할을 현재 역할에 추가 (B-003 btn_left)"
               >
-                ▲
+                ◀
               </Button>
               <Button
                 onClick={() => void handleShuttleRemove()}
                 disabled={isSaving}
-                ariaLabel="선택한 역할을 현재 역할에서 제외 (B-002 btn_right ▼)"
+                ariaLabel="선택한 역할을 현재 역할에서 제외 (B-002 btn_right)"
               >
-                ▼
+                ▶
               </Button>
             </div>
 
