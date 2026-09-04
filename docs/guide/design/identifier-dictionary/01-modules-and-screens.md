@@ -102,6 +102,7 @@
 | 2026-06-10 | `lse` | **수불관리** | itemTransSummary 등재 동시 (사용자 확정). itemTransCheck 추가 2026-06-10 |
 | 2026-06-10 | `lsf` | **PDA관리** | 사용자 카탈로그 확정 (화면 미등재) |
 | 2026-06-10 | `lsg` | **기준관리** | slInfoMgmt(창고정보 조회) 등재 (사용자 카탈로그 확정 동시). slLocMgmt(적재위치 관리) 추가 2026-06-11. itemMoveTypeMgmt(수불유형정보조회) 추가 2026-06-12 |
+| 2026-09-03 | `lsh` | **공지관리** | noticeMgmt(공지사항 관리) 등재 동시. **To-Be only 신규 영역** — As-Is 대응 화면 없음 (사용자 지시 2026-09-03) |
 
 **(MUST NOT)**: 사용자 확정 전 임시 영역명을 정본 등재 (A.2.3) 에 추가 ✗. 반드시 `[임시]` 마커 유지 → 확정 PR 후 마커 제거.
 
@@ -118,6 +119,7 @@
 | `mls` | `lse` | **신규 영역 코드** (★ 2026-06-10) | **수불관리** | 2026-06-10 | (itemTransSummary 등재 동시) | `itemTransSummary` · `itemTransCheck` |
 | `mls` | `lsf` | **신규 영역 코드** (★ 2026-06-10) | **PDA관리** | 2026-06-10 | (사용자 카탈로그 확정) | — |
 | `mls` | `lsg` | **신규 영역 코드** (★ 2026-06-10) | **기준관리** | 2026-06-10 | (slInfoMgmt 등재 동시) | `slInfoMgmt` · `slLocMgmt` · `itemMoveTypeMgmt` |
+| `mls` | `lsh` | **신규 영역 코드** (★ 2026-09-03) | **공지관리** — 전사 공지사항 등록·게시 | 2026-09-03 | (noticeMgmt 등재 동시 — 사용자 지시) | `noticeMgmt` |
 | `mpp` | `operation` | legacy 의미명 | 일상 운영 (작업실적·공정보고) | 2026-04-28 | (workReport 등재 동시) | `workReport` |
 | `mpp` | `master` | legacy 의미명 (예정) | mpp 모듈 마스터 (작업장·자원 등) | (예정) | — | — |
 | `mpp` | `setup` | legacy 의미명 (예정) | mpp 셋업 (BOP·라우팅 등) | (예정) | — | — |
@@ -217,6 +219,7 @@
 | `slLocMgmt` | `IBA007K` | `mls` | `lsg` | `slLocMgmt` | 2026-06-11 | 적재위치 관리 (As-Is LOCATION 등록 — **MES 정본 CRUD 소유 전환**: TB_MLS_SL_LOC(120) 직접 IUD, 창고(119)는 SELECT-only 참조. IF-MLS-IN-04 폐기. 사용자 확정 2026-06-11) |
 | `itemMoveTypeMgmt` | `IBA001K` | `mls` | `lsg` | `itemMoveTypeMgmt` | 2026-06-12 | 수불유형정보조회 (As-Is 수불유형등록 — **ERP CRUD 존치 / MES 조회전용 미러**, IF-MLS-IN-05 → TB_MLS_MOVE_TYPE(121). 사용자 확정 2026-06-12) |
 | `itemStockIssueMgmt` | `PCB020K` | `mls` | `lsb` | `itemStockIssueMgmt` | 2026-06-12 | 자재불출처리(창고) — **사용자 부여 + 설계 완료 2026-06-12 (6종 산출)**. 일반 자재 전용(박판 분기 미이식 — slitStockIssueMgmt 위임), 반납 ADMIN popup 1:1, IF-MLS-OUT-06/07, 공정보고 자동 연동(P-6) 미채택 |
+| `noticeMgmt` | — (To-Be only) | `mls` | `lsh` | `noticeMgmt` | 2026-09-03 | 공지사항 관리 — **As-Is 없음(신규 화면)**. 사용자 지시 2026-09-03 로 mls 를 테스트 모듈 삼아 신설. 목록+상세 CRUD + 게시상태/게시기간. 분석리포트 미작성(기능설계서 1종 축소 — 사용자 결정) |
 
 **등재 절차**:
 1. 신규 화면 분석 시 본 표에 행 추가

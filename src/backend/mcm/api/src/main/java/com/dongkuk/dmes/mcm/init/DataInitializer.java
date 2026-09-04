@@ -832,6 +832,7 @@ public class DataInitializer implements ApplicationRunner {
         log.info("[DataInitializer] ANALOG 로그 분석(anl) 메뉴 시드 — 폴더 2 + OBJECT 1 + 메뉴 leaf 1 + RBAC 1");
     }
 
+
     /**
      * 모듈 무관 범용 폴더 INSERT 헬퍼(이름의 Mpn 은 legacy).
      *

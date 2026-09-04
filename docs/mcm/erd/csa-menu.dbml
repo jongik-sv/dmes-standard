@@ -1,0 +1,359 @@
+// ============================================================================
+// mcm / csa 시스템관리 — 메뉴·권한 스키마 (DBML)
+//
+//   붙여넣는 곳: https://dbdiagram.io/d  (좌측 편집기에 전문 붙여넣기)
+//   작성일: 2026-09-04
+//   근거:  src/backend/data/mcm.db 실측 PRAGMA + mcm-core 엔티티
+//          + SecUserService.filterMenusByRole / SecMenuNativeRepository / DataInitializer
+//
+// ── 읽기 전 주의 2가지 ───────────────────────────────────────────────────────
+//
+// 1) 여기의 Ref 는 전부 "논리 FK" 다. 실제 DB 에는 FK 제약이 하나도 없다.
+//    mcm-core 엔티티에 @ManyToOne / @OneToMany / @JoinColumn 이 0건이다
+//    (JPA 연관관계 금지 정책). 조인은 native query 나 Java 코드가 수행한다.
+//    → OBJECT_ID 를 지워도 TB_MCM_SEC_MENU 행은 그대로 남는다.
+//
+// 2) audit 9 컬럼은 아래 표에서 뺐다. 13개 테이블 전부에 동일하게 붙어 있어
+//    다이어그램만 어지럽힌다. cactus-core CactusAuditEntity 가 자동 적용한다:
+//      C_USR_ID varchar(100) / C_AT timestamp / C_SVC_ID varchar(100) / C_PGM_ID varchar(100)
+//      U_USR_ID varchar(100) / U_AT timestamp / U_SVC_ID varchar(100) / U_PGM_ID varchar(100)
+//      VER bigint
+//    필요하면 위 9줄을 각 Table 블록에 그대로 붙여 넣으면 된다.
+// ============================================================================
+
+Project mcm_csa_menu {
+  database_type: 'MSSQL'
+  Note: '''
+    mcm 모듈 csa(시스템관리) 그룹의 메뉴·권한 스키마.
+
+    핵심: 메뉴 트리가 테이블 두 개로 쪼개져 있다.
+      TB_MCM_SEC_MENU_FLD = 폴더만 (모듈 루트 + 그룹)  — 실측 8행
+      TB_MCM_SEC_MENU     = 화면(leaf)만                — 실측 21행, 21행 전부 OBJECT_ID 보유
+    따라서 TB_MCM_SEC_MENU.PARENT_MENU_ID 는 같은 테이블이 아니라
+    TB_MCM_SEC_MENU_FLD.MENU_ID 를 가리킨다. (2026-06-02 분리)
+
+    운영 스키마는 MCMAPUSER. 로컬은 SQLite(mcm.db) 단일 스키마다.
+  '''
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 메뉴 트리
+// ────────────────────────────────────────────────────────────────────────────
+
+Table TB_MCM_SEC_MENU_FLD {
+  MENU_ID         varchar(30)   [pk, note: '폴더 ID — 모듈 루트(mcm/analog) 또는 그룹(cma/cmb/cme/cmz/csa/anl)']
+  PARENT_MENU_ID  varchar(30)   [note: '상위 폴더 (자기참조). 모듈 루트는 NULL']
+  MENU_NM         varchar(100)  [note: '폴더명']
+  MENU_SEQ        varchar(30)   [note: '형제 정렬 — 8자리 0 LPAD']
+  FULL_SEQ        "numeric(10,0)" [note: '7자리 인코딩. recomputeMenuFullSeq() 가 자동 재계산 (사용자 입력 X)']
+  USE_TP          varchar(1)    [note: '사용 여부 Y/N']
+  MENU_TP         varchar(20)   [note: '메뉴 유형']
+  MENU_VIEW_YN    varchar(1)    [note: '사이드바 표시 Y/N. NULL 은 숨김이 아니라 표시로 취급']
+  BIZ_SYSTEM_CODE varchar(10)   [note: 'To-Be 폐기 — DDL 만 잔존 (cross-cutting 정책 #1)']
+
+  Note: '''
+    폴더 전용 테이블. 화면(leaf) 행은 들어오지 않는다.
+    소유 화면: commMenuMng 의 "메뉴 필드 관리" 팝업.
+    실측 8행: mcm, cma, cmb, cme, cmz, csa, analog, anl
+  '''
+}
+
+Table TB_MCM_SEC_MENU {
+  MENU_ID           varchar(30)   [pk, note: '화면 메뉴 ID (관행상 OBJECT_ID 와 동일 값)']
+  PARENT_MENU_ID    varchar(30)   [note: '소속 그룹 폴더 → TB_MCM_SEC_MENU_FLD.MENU_ID (같은 테이블 아님)']
+  OBJECT_ID         varchar(50)   [note: '화면 실체 → TB_MCM_SEC_OBJ. 권한 판정의 기준 키']
+  MENU_NM           varchar(300)  [note: '화면명']
+  MENU_SEQ          varchar(30)   [note: '형제 정렬']
+  FULL_SEQ          varchar(30)   [note: '7자리 인코딩 (FLD 는 numeric, 여기는 varchar — 타입 불일치 주의)']
+  MENU_TP           varchar(10)   [note: '메뉴 유형']
+  MENU_VIEW_YN      varchar(1)    [note: '사이드바 표시 Y/N']
+  USE_TP            varchar(1)    [note: '사용 여부']
+  MENU_DESC         varchar(1000) [note: '설명']
+  MENU_PARAM1       varchar(300)  [note: '화면 파라미터 1']
+  MENU_PARAM2       varchar(300)  [note: '화면 파라미터 2']
+  MENU_PARAM3       varchar(300)  [note: '화면 파라미터 3']
+  START_ACTIVE_DATE varchar(255)  [note: '유효 시작']
+  END_ACTIVE_DATE   varchar(255)  [note: '유효 종료']
+
+  Note: '''
+    화면(leaf) 전용 테이블. 폴더 행은 들어오지 않는다.
+    소유 화면: commMenuMng 본 그리드.
+    실측 21행 — 21행 전부 OBJECT_ID 를 갖는다.
+    PARENT_MENU_ID distinct = cma / csa / cme / cmb / cmz / anl (전부 FLD 쪽 ID)
+  '''
+}
+
+Table TB_MCM_SEC_OBJ {
+  OBJECT_ID         varchar(50)   [pk, note: '화면 식별자 = screenId = serviceId = BPMN 파일명']
+  OBJECT_NM         varchar(100)  [note: '화면명']
+  SYSTEM_CODE       varchar(10)   [note: '소속 모듈. FE moduleId 가 되어 BFF 라우팅을 결정한다 (mcm/mls/analog)']
+  OBJECT_TYPE       varchar(10)   [note: 'web 등']
+  USE_TP            varchar(1)    [note: '사용 여부']
+  ACCESS_TP         varchar(10)   [note: '내부 / 외부']
+  FORM_URL          varchar(100)  [note: '화면 경로']
+  SERVICE           varchar(100)  [note: '서비스명']
+  PARAM             varchar(150)  [note: '파라미터']
+  PROGRAM_DESC      varchar(300)  [note: '프로그램 설명']
+  OUT_ACCESS_IP     varchar(150)  [note: '외부 접속 주소']
+  START_ACTIVE_DATE varchar(255)  [note: '유효 시작']
+  END_ACTIVE_DATE   varchar(255)  [note: '유효 종료']
+
+  Note: '''
+    화면 실체. 메뉴에 걸리지 않는 팝업도 여기에는 등재된다(자기 serviceId 로 OASIS 를 호출하므로).
+    소유 화면: commObjMng.
+    실측 21행.
+  '''
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 권한 (RBAC)
+// ────────────────────────────────────────────────────────────────────────────
+
+Table TB_MCM_SEC_ROLE_MAPPING {
+  OBJECT_ID     varchar(50)   [note: '→ TB_MCM_SEC_OBJ']
+  PERMISSION_ID varchar(100)  [note: '→ TB_MCM_SEC_PERM']
+  ROLE_ID       varchar(30)   [note: '→ TB_MCM_SEC_ROLE']
+
+  indexes {
+    (OBJECT_ID, PERMISSION_ID, ROLE_ID) [pk]
+  }
+
+  Note: '''
+    권한 판정의 중심 테이블. 역할 x 화면 x 권한 3중 복합 PK.
+    filterMenusByRole 이 여기서 "허용 OBJECT_ID 집합" 을 만든다.
+    이 행이 없으면 메뉴에 걸어도 EndpointPermissionFilter 가 API 를 막는다.
+    실측 21행 (SYSADMIN x 21 OBJECT x PERM_ALL).
+  '''
+}
+
+Table TB_MCM_SEC_PERM {
+  PERMISSION_ID     varchar(100)  [pk, note: '권한 ID (PERM_ALL 등)']
+  PERMISSION_NM     varchar(100)  [note: '권한명']
+  PERMISSION_ACTION varchar(2000) [note: '허용 action 콤마 목록 (search,save,delete,...). UserPermCache 가 분할해 PermKey 를 만든다']
+  POPUP_BTN         varchar(1000) [note: '팝업 버튼 제어']
+  PERMISSION_COMMON varchar(500)  [note: '공통 버튼 제어']
+  PERMISSION_CUSTOM varchar(500)  [note: '커스텀 버튼 제어']
+  PERMISSION_DESC   varchar(300)  [note: '설명']
+  USE_TP            varchar(1)    [note: '사용 여부']
+  START_ACTIVE_DATE varchar(255)  [note: '유효 시작']
+  END_ACTIVE_DATE   varchar(255)  [note: '유효 종료']
+
+  Note: '소유 화면: commPermMng. 실측 1행 (PERM_ALL).'
+}
+
+Table TB_MCM_SEC_ROLE {
+  ROLE_ID           varchar(30)   [pk, note: '역할 ID. "ROLE_" prefix 없이 저장한다 (JWT claim 빌드 시 ROLE_ 를 붙임)']
+  ROLE_NM           varchar(100)  [note: '역할명']
+  MENU_ID           varchar(30)   [note: '기본 진입 메뉴 → TB_MCM_SEC_MENU_FLD.MENU_ID']
+  PARENT_ROLE_ID    varchar(30)   [note: '상위 역할 — 본 화면 미사용, 컬럼만 보존']
+  ROLE_DESC         varchar(300)  [note: '설명']
+  USE_TP            varchar(1)    [note: '사용 여부']
+  START_ACTIVE_DATE varchar(255)  [note: '유효 시작']
+  END_ACTIVE_DATE   varchar(255)  [note: '유효 종료']
+
+  Note: '소유 화면: commRoleMng. 실측 1행 (SYSADMIN).'
+}
+
+Table TB_MCM_SEC_ROLEGROUP {
+  ROLE_GROUP_ID     varchar(30)   [pk, note: '역할 그룹 ID']
+  ROLE_GROUP_NM     varchar(100)  [note: '역할 그룹명']
+  ROLE_GROUP_DESC   varchar(300)  [note: '설명']
+  USE_TP            varchar(1)    [note: '사용 여부']
+  START_ACTIVE_DATE varchar(255)  [note: '유효 시작']
+  END_ACTIVE_DATE   varchar(255)  [note: '유효 종료']
+
+  Note: '소유 화면: commRoleGrpMng. 실측 1행 (ROLE_GROUP_SYSADMIN).'
+}
+
+Table TB_MCM_SEC_ROLEGROUP_MAPPING {
+  ROLE_GROUP_ID varchar(30) [note: '→ TB_MCM_SEC_ROLEGROUP']
+  ROLE_ID       varchar(30) [note: '→ TB_MCM_SEC_ROLE']
+
+  indexes {
+    (ROLE_GROUP_ID, ROLE_ID) [pk]
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 사용자
+// ────────────────────────────────────────────────────────────────────────────
+
+Table TB_MCM_SEC_USER {
+  USER_ID           varchar(30)  [pk, note: '사용자 ID']
+  USER_NM           varchar(30)  [note: '성명']
+  USER_EMP_NO       varchar(10)  [note: '사번']
+  DEPT_CD           varchar(10)  [note: '부서 코드 → TB_MCM_DEPT_INFO (본 다이어그램 범위 밖)']
+  EMAIL             varchar(30)  [note: '이메일']
+  TEL_NO            varchar(15)  [note: '전화']
+  MOBILE_TEL_NO     varchar(15)  [note: '휴대전화']
+  USE_TP            varchar(1)   [note: '사용 여부']
+  IN_OUT_EMP_TP     varchar(1)   [note: '내부(I) / 외부(O)']
+  USER_CATEGORY_CD  varchar(10)  [note: '사용자 구분']
+  SSO_ID            varchar(30)  [note: 'SSO ID']
+  PWD_FAIL_COUNT    bigint       [note: '비밀번호 실패 횟수 — max-login-failures 와 비교']
+  MENU_TP           varchar(1)   [note: '메뉴 표시 유형']
+  THEME_TP          varchar(20)  [note: '테마']
+  EXCEL_TP          varchar(1)   [note: '엑셀 출력 유형']
+  BOTTOM_MSG_YN     varchar(1)   [note: '하단 메시지 표시']
+  GROUP_ID1         varchar(50)  [note: '그룹 1']
+  GROUP_ID2         varchar(50)  [note: '그룹 2']
+  GROUP_ID3         varchar(50)  [note: '그룹 3']
+  START_ACTIVE_DATE varchar(255) [note: '유효 시작']
+  END_ACTIVE_DATE   varchar(255) [note: '유효 종료']
+
+  Note: '소유 화면: commUserMng.'
+}
+
+Table TB_MCM_SEC_USER_MAPPING {
+  ROLE_GROUP_ID varchar(30)  [note: '→ TB_MCM_SEC_ROLEGROUP']
+  USER_ID       varchar(100) [note: '→ TB_MCM_SEC_USER (길이 100 — USER 쪽 30 과 불일치)']
+
+  indexes {
+    (ROLE_GROUP_ID, USER_ID) [pk]
+  }
+}
+
+Table TB_MCM_SEC_USER_PWD {
+  USER_ID                  varchar(30)  [pk, note: '→ TB_MCM_SEC_USER']
+  USER_ENC_PWD             varchar(100) [note: 'BCrypt 해시']
+  USER_ENC_TEMP_PWD        varchar(100) [note: '임시 비밀번호 해시']
+  TEMP_PWD_EXPIRATION_DATE varchar(255) [note: '임시 비밀번호 만료일']
+  USER_SSO_PWD             varchar(100) [note: 'SSO 비밀번호']
+  SALT                     varchar(100) [note: 'salt (BCrypt 사용 시 미사용)']
+  LAST_PWD_CHNG_DATE       varchar(255) [note: '최종 변경일 — expiry-days 정책과 비교']
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 즐겨찾기 (메뉴 참조)
+// ────────────────────────────────────────────────────────────────────────────
+
+Table TB_MCM_SEC_USER_FAVORITE {
+  FULL_ID     varchar(200) [note: '전체 경로 ID']
+  FVT_FOLD_ID varchar(30)  [note: '→ TB_MCM_SEC_USER_FAVORITE_FOLD (길이 30 — FOLD 쪽 10 과 불일치)']
+  MENU_ID     varchar(30)  [note: '→ TB_MCM_SEC_MENU']
+  MENU_SEQ    integer      [note: '메뉴 순번']
+  USER_ID     varchar(30)  [note: '→ TB_MCM_SEC_USER']
+  FVT_SEQ     integer      [not null, note: '즐겨찾기 정렬']
+
+  indexes {
+    (FULL_ID, FVT_FOLD_ID, MENU_ID, MENU_SEQ, USER_ID) [pk]
+  }
+
+  Note: '5중 복합 PK. 실측 0행.'
+}
+
+Table TB_MCM_SEC_USER_FAVORITE_FOLD {
+  FVT_FOLD_ID  varchar(10) [note: '즐겨찾기 폴더 ID']
+  USER_ID      varchar(30) [note: '→ TB_MCM_SEC_USER']
+  FVT_FOLD_NM  varchar(30) [note: '폴더명']
+  FVT_FOLD_SEQ integer     [not null, note: '정렬']
+
+  indexes {
+    (FVT_FOLD_ID, USER_ID) [pk]
+  }
+
+  Note: '실측 0행.'
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 이력 (메뉴와 직접 관계 없음 — 참고용)
+// ────────────────────────────────────────────────────────────────────────────
+
+Table TB_MCM_SEC_USER_HIS {
+  ACTIVE_DT   varchar(8)   [note: '기준일 yyyyMMdd']
+  USER_ID     varchar(30)  [note: '→ TB_MCM_SEC_USER']
+  USER_NM     varchar(30)  [note: '성명 스냅샷']
+  PROC_TYPE   varchar(1)   [note: '처리 유형']
+  PROC_CASE   varchar(1)   [note: '처리 구분']
+  INF_REQ_NO  varchar(100) [note: '인터페이스 요청번호']
+  DESCRIPTION varchar(300) [note: '설명']
+
+  indexes {
+    (ACTIVE_DT, USER_ID) [pk]
+  }
+
+  Note: '사용자 변경 이력. 실측 0행.'
+}
+
+Table TB_MCM_SEC_USER_ROLL_HIS {
+  OP_SUMUP_DT   varchar(8)   [note: '집계일 yyyyMMdd']
+  RESP_GBN      varchar(1)   [note: '책임 구분']
+  ROLE_GROUP_ID varchar(30)  [note: '→ TB_MCM_SEC_ROLEGROUP']
+  USER_ID       varchar(30)  [note: '→ TB_MCM_SEC_USER']
+  WORKS_CODE    varchar(1)   [note: '공장 코드']
+  ROLE_GROUP_NM varchar(100) [note: '역할 그룹명 스냅샷']
+  INF_REQ_NO    varchar(100) [note: '인터페이스 요청번호']
+  DESCRIPTION   varchar(300) [note: '설명']
+
+  indexes {
+    (OP_SUMUP_DT, RESP_GBN, ROLE_GROUP_ID, USER_ID, WORKS_CODE) [pk]
+  }
+
+  Note: '역할 부여 이력. 5중 복합 PK. 실측 0행.'
+}
+
+// ============================================================================
+// 관계 (전부 논리 FK — DB 제약 없음)
+// ============================================================================
+
+// 메뉴 트리
+Ref: TB_MCM_SEC_MENU_FLD.PARENT_MENU_ID > TB_MCM_SEC_MENU_FLD.MENU_ID   // 폴더 자기참조 (모듈 → 그룹)
+Ref: TB_MCM_SEC_MENU.PARENT_MENU_ID     > TB_MCM_SEC_MENU_FLD.MENU_ID   // 화면의 부모는 폴더
+Ref: TB_MCM_SEC_MENU.OBJECT_ID          - TB_MCM_SEC_OBJ.OBJECT_ID      // 화면 실체 (1:1)
+
+// 권한
+Ref: TB_MCM_SEC_ROLE_MAPPING.OBJECT_ID     > TB_MCM_SEC_OBJ.OBJECT_ID
+Ref: TB_MCM_SEC_ROLE_MAPPING.PERMISSION_ID > TB_MCM_SEC_PERM.PERMISSION_ID
+Ref: TB_MCM_SEC_ROLE_MAPPING.ROLE_ID       > TB_MCM_SEC_ROLE.ROLE_ID
+Ref: TB_MCM_SEC_ROLE.MENU_ID               > TB_MCM_SEC_MENU_FLD.MENU_ID   // 역할 기본 진입 메뉴
+
+// 역할 그룹
+Ref: TB_MCM_SEC_ROLEGROUP_MAPPING.ROLE_GROUP_ID > TB_MCM_SEC_ROLEGROUP.ROLE_GROUP_ID
+Ref: TB_MCM_SEC_ROLEGROUP_MAPPING.ROLE_ID       > TB_MCM_SEC_ROLE.ROLE_ID
+
+// 사용자
+Ref: TB_MCM_SEC_USER_MAPPING.ROLE_GROUP_ID > TB_MCM_SEC_ROLEGROUP.ROLE_GROUP_ID
+Ref: TB_MCM_SEC_USER_MAPPING.USER_ID       > TB_MCM_SEC_USER.USER_ID
+Ref: TB_MCM_SEC_USER_PWD.USER_ID           - TB_MCM_SEC_USER.USER_ID
+
+// 즐겨찾기
+Ref: TB_MCM_SEC_USER_FAVORITE.USER_ID      > TB_MCM_SEC_USER.USER_ID
+Ref: TB_MCM_SEC_USER_FAVORITE.MENU_ID      > TB_MCM_SEC_MENU.MENU_ID
+Ref: TB_MCM_SEC_USER_FAVORITE.FVT_FOLD_ID  > TB_MCM_SEC_USER_FAVORITE_FOLD.FVT_FOLD_ID
+Ref: TB_MCM_SEC_USER_FAVORITE_FOLD.USER_ID > TB_MCM_SEC_USER.USER_ID
+
+// 이력
+Ref: TB_MCM_SEC_USER_HIS.USER_ID            > TB_MCM_SEC_USER.USER_ID
+Ref: TB_MCM_SEC_USER_ROLL_HIS.USER_ID       > TB_MCM_SEC_USER.USER_ID
+Ref: TB_MCM_SEC_USER_ROLL_HIS.ROLE_GROUP_ID > TB_MCM_SEC_ROLEGROUP.ROLE_GROUP_ID
+
+// ============================================================================
+// 그룹 (dbdiagram 캔버스 정리용)
+// ============================================================================
+
+TableGroup "메뉴트리" {
+  TB_MCM_SEC_MENU_FLD
+  TB_MCM_SEC_MENU
+  TB_MCM_SEC_OBJ
+}
+
+TableGroup "권한" {
+  TB_MCM_SEC_ROLE_MAPPING
+  TB_MCM_SEC_PERM
+  TB_MCM_SEC_ROLE
+  TB_MCM_SEC_ROLEGROUP
+  TB_MCM_SEC_ROLEGROUP_MAPPING
+}
+
+TableGroup "사용자" {
+  TB_MCM_SEC_USER
+  TB_MCM_SEC_USER_MAPPING
+  TB_MCM_SEC_USER_PWD
+}
+
+TableGroup "즐겨찾기_이력" {
+  TB_MCM_SEC_USER_FAVORITE
+  TB_MCM_SEC_USER_FAVORITE_FOLD
+  TB_MCM_SEC_USER_HIS
+  TB_MCM_SEC_USER_ROLL_HIS
+}

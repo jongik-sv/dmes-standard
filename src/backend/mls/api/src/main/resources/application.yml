@@ -13,6 +13,12 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.community.dialect.SQLiteDialect
+        # SQLite 커뮤니티 dialect + xerial 드라이버는 LocalDate/LocalDateTime 라운드트립에 결함이 있어
+        # 저장값이 epoch millis(정수)로 새어 시드(ISO text)·조회와 형식이 어긋난다. mcm-core 의 컨버터를
+        # auto-apply 해 문자열로 고정한다. mcm 은 JpaConfig 가 EMF 를 명시 빌드해서 이 프로퍼티가 안 먹지만,
+        # mls 는 Spring Boot 기본 EMF 라 yml 로 등록된다.
+        # ⚠️ MSSQL 로 전환하면 네이티브 date/datetime2 를 쓰도록 본 줄을 제거해야 한다.
+        metadata_builder_contributor: com.dongkuk.dmes.mcm.common.persistence.SqliteTemporalConverterContributor
   flyway:
     enabled: true
     # ⚠️ locations 는 반드시 자기 아티팩트 폴더로 좁힌다.
@@ -25,3 +31,36 @@ spring:
 
 # 실 프로젝트의 데이터소스(JNDI·다중 DB)·보안 설정은 docs/framework/, docs/cactus/ 의
 # 패턴을 따른다. 위 설정은 bootRun 으로 골격을 띄우기 위한 최소 구성이다.
+
+# ---------------------------------------------------------------------------
+# Cactus / OASIS — noticeMgmt 화면 도입과 함께 신설 (2026-09-03)
+# ---------------------------------------------------------------------------
+# 그전까지 본 모듈에는 cactus 설정이 전무해 OASIS 가 한 번도 부팅된 적이 없다
+# (기능설계서 §11.1 GAP-004). 아래 3 블록이 각각 무엇을 켜는지:
+#
+#   cactus.jwt.secret   — CactusWebSecurityAutoConfiguration / SecurityAutoConfiguration 의
+#                         @ConditionalOnProperty 키다. 이 값이 없으면 SecurityFilterChain 이
+#                         등록되지 않아 Spring Security 기본 체인(전 요청 인증 요구)이 걸리고
+#                         BFF 호출이 401 로 막힌다. mls 는 로그인을 호스팅하지 않으므로
+#                         cactus.auth.enabled 는 켜지 않는다 — 토큰 발급 주체는 mcm 이다.
+#   cactus.security     — BFF(be-proxy) 가 붙이는 X-Client-Key 를 검증한다. ClientKeyFilter 가
+#                         X-Authenticated-User / X-Authenticated-Role 헤더로 SecurityContext 를
+#                         사전 인증 set 하고, 후속 JwtAuthenticationFilter 는 그것을 보존한다.
+#                         (analog 모듈이 같은 신뢰 채널 방식이다.)
+#   cactus.oasis        — BPMN 로더. service-path 는 classpath prefix 라 실제 위치는
+#                         src/main/resources/services/**/*.bpmn 이다. 파일명이 곧 serviceId 이며
+#                         하위 폴더는 자유지만 같은 classpath 에 동명 파일이 있으면 호출 시점에
+#                         Duplicate service files exist 로 죽는다.
+cactus:
+  jwt:
+    secret: ${CACTUS_JWT_SECRET:Y2FjdHVzLXNhbXBsZS1zZWNyZXQta2V5LWZvci10ZXN0aW5nLW9ubHktMjAyNg==}
+    issuer: mls
+  security:
+    client-key: ${BACKEND_CLIENT_KEY:dmes-bff-local-client-key-2026}
+    # ⚠️ override 시 default 3종이 통째로 대체되므로 전부 나열한다 (ClientKeyFilter.java:85-87).
+    # @Value 플레이스홀더 바인딩이라 YAML 리스트 불가 — 콤마 문자열로 기재.
+    client-key-skip-paths: /auth/,/api/auth/,/actuator/
+  oasis:
+    service-group: mls
+    service-path: /services
+    transactional: true

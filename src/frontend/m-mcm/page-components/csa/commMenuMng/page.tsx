@@ -364,7 +364,11 @@ const OBJ_COLUMNS: GridColumn[] = [
 function emptyRow(menuIdFromTree: string): CommMenuMngRow {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   return {
-    MENU_ID: menuIdFromTree, // 신규 행 PK 사용자 입력 강제 (W1 패턴) — 트리 노드 default
+    // 2026-09-04 (TE-006) — MENU_ID 를 트리 노드로 채우지 않는다.
+    //   주석은 "PK 사용자 입력 강제" 라면서 값을 미리 넣어 두어 서로 모순이었고,
+    //   MENU_ID 와 PARENT_MENU_ID 가 같은 값으로 시작하는 탓에 사용자가 MENU_ID 만 고치면
+    //   그대로 자기참조가 됐다. 트리 노드는 상위 폴더(PARENT_MENU_ID)에만 쓴다.
+    MENU_ID: "",
     MENU_SEQ: "",
     FULL_SEQ: "",
     MENU_NM: "",
@@ -423,6 +427,25 @@ export default function CommMenuMngPage() {
 
   // 평면 treeRows → nested TreeNode (memoized).
   const tree = useMemo(() => buildMenuTree(treeRows), [treeRows]);
+
+  /**
+   * 상세 폼 "상위 폴더" Select 옵션 (2026-09-04 TE-006).
+   *
+   * 좌측 트리와 같은 원천(treeRows = TB_MCM_SEC_MENU_FLD)을 쓰므로 트리에 보이는 폴더와
+   * 목록이 어긋날 수 없다. 라벨은 `{MENU_NM} ({MENU_ID})` — 폴더명만 보여주면 같은 이름의
+   * 폴더를 구분할 수 없고, ID 만 보여주면 어느 폴더인지 알기 어렵다.
+   */
+  const parentFolderOptions = useMemo(
+    () =>
+      treeRows
+        .map((r) => ({
+          value: String(r.MENU_ID ?? ""),
+          label: `${String(r.MENU_NM ?? r.MENU_ID ?? "")} (${String(r.MENU_ID ?? "")})`,
+        }))
+        .filter((o) => o.value.length > 0)
+        .sort((a, b) => a.value.localeCompare(b.value)),
+    [treeRows],
+  );
 
   const selected = useMemo<(CommMenuMngRow & GridRow) | null>(() => {
     if (!selectedKey) return null;
@@ -613,7 +636,11 @@ export default function CommMenuMngPage() {
           const newRow: CommMenuMngRow & GridRow = {
             ...emptyRow(selectedTreeMenuId),
             ...base,
-            MENU_ID: selectedTreeMenuId, // 트리 노드 기반 default
+            // 2026-09-04 (TE-006) — base(GridPanel 빈 행)가 emptyRow 값을 덮어쓰므로 필수 2개는 뒤에서 재확정.
+            //   MENU_ID 는 사용자 입력 강제(빈 값), PARENT_MENU_ID 는 선택된 트리 폴더.
+            //   트리 미선택이면 빈 값으로 남고, 상세 폼의 "상위 폴더" Select 로 직접 고를 수 있다.
+            MENU_ID: "",
+            PARENT_MENU_ID: selectedTreeMenuId,
             MENU_SEQ: "", // PK#2 사용자 입력 강제
             __gridTempId: addedRowKey,
             nativeeditor_status: "inserted" as RowStatus,
@@ -691,6 +718,26 @@ export default function CommMenuMngPage() {
       }
       if (!r.OBJECT_ID || String(r.OBJECT_ID).trim().length === 0) {
         setError("OBJECT_ID 는 필수 입력입니다.");
+        return;
+      }
+      // V-005 (2026-09-04, TE-006) — 상위 폴더 필수.
+      //   행추가는 PARENT_MENU_ID 를 선택된 트리 노드에서 가져온다(selectedTreeMenuId ?? ""). 트리에서
+      //   아무것도 고르지 않은 채 추가하면 빈 값으로 전송되고, 예전 BE 는 그걸 자기참조(MENU_ID)로 저장해
+      //   트리에도 안 잡히고 화면도 안 열리는 행을 만들었다. 지금은 BE 가 거부하지만, 저장 버튼을 누르기
+      //   전에 여기서 막아야 사용자가 원인(트리 미선택)을 바로 안다.
+      if (!r.PARENT_MENU_ID || String(r.PARENT_MENU_ID).trim().length === 0) {
+        setError(
+          `상위 폴더가 지정되지 않았습니다 (MENU_ID=${String(r.MENU_ID)}). ` +
+            "좌측 메뉴 구조 트리에서 그룹 폴더를 먼저 선택한 뒤 행을 추가하세요.",
+        );
+        return;
+      }
+      // 자기참조 방어 — 과거 데이터나 수기 입력으로 들어올 수 있다. 화면 leaf 의 부모는 항상 그룹 폴더다.
+      if (String(r.PARENT_MENU_ID).trim() === String(r.MENU_ID).trim()) {
+        setError(
+          `상위 폴더가 자기 자신을 가리킵니다 (MENU_ID=${String(r.MENU_ID)}). ` +
+            "좌측 트리에서 그룹 폴더를 선택한 뒤 다시 시도하세요.",
+        );
         return;
       }
     }
@@ -1150,6 +1197,7 @@ export default function CommMenuMngPage() {
                   isNewRow={!!isNewRow}
                   updateDetailField={updateDetailField}
                   onObjectLovOpen={openObjectLov}
+                  parentFolderOptions={parentFolderOptions}
                 />
               </div>
             </div>
@@ -1364,11 +1412,14 @@ function MenuDetailForm({
   isNewRow,
   updateDetailField,
   onObjectLovOpen,
+  parentFolderOptions,
 }: {
   selected: CommMenuMngRow & GridRow;
   isNewRow: boolean;
   updateDetailField: (field: keyof CommMenuMngRow, value: string) => void;
   onObjectLovOpen: () => void;
+  /** 상위 폴더 Select 옵션 — 좌측 트리와 동일 원천(TB_MCM_SEC_MENU_FLD). */
+  parentFolderOptions: { value: string; label: string }[];
 }) {
   return (
     <table style={DETAIL_TABLE_STYLE}>
@@ -1443,11 +1494,20 @@ function MenuDetailForm({
             </div>
           </td>
         </tr>
-        {/* D-008 상위 폴더 (readonly — INSERT/UPDATE 시 BE 가 MENU_ID 로 자동 세트) */}
+        {/* D-008 상위 폴더 — 2026-09-04 (TE-006): readOnly Input → 폴더 Select.
+              화면 leaf 는 반드시 그룹 폴더에 매달려야 하는데(R3 트리 분리), 예전에는 이 값을 정하는
+              입력란이 화면 어디에도 없었다. 트리 노드 선택에만 의존해 행추가 시점에 암묵적으로 채워졌고,
+              비어 있으면 BE 가 자기참조로 저장해 복구 불가능한 행이 됐다.
+              옵션은 좌측 트리와 같은 원천(treeRows = TB_MCM_SEC_MENU_FLD)이라 목록이 어긋나지 않는다. */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>상위 폴더</th>
+          <th style={DETAIL_LABEL_CELL}>상위 폴더 *</th>
           <td style={DETAIL_VALUE_CELL}>
-            <Input value={String(selected.PARENT_MENU_ID ?? "")} readOnly />
+            <Select
+              value={String(selected.PARENT_MENU_ID ?? "")}
+              options={parentFolderOptions}
+              placeholder="(선택)"
+              onChange={(v: string) => updateDetailField("PARENT_MENU_ID", v)}
+            />
           </td>
         </tr>
         {/* D-009 FULL SEQ — 2026-06-04 사용자 지시: 자동 부여 (모듈 백만 / 그룹 만 / 화면 100+10 인코딩)

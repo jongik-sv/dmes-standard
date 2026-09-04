@@ -9,6 +9,8 @@ package com.dongkuk.dmes.mcm.repository;
 import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import org.hibernate.query.NativeQuery;
+import org.hibernate.type.StandardBasicTypes;
 import org.springframework.stereotype.Repository;
 
 import java.util.ArrayDeque;
@@ -328,6 +330,8 @@ public class SecMenuNativeRepository {
      * <p>TB_MCM_SEC_MENU_FLD 의 본 4 컬럼 + FULL_SEQ + MENU_VIEW_YN 반환 (audit 컬럼은 본 화면 책임 ✗).
      * 트리 정렬 정합: MENU_SEQ asc (numeric — VARCHAR 이지만 zero-pad 시 string 비교 OK).
      *
+     * <p>결과 타입은 {@code addScalar} 로 고정한다 — 이유는 메서드 본문 주석 참조 (2026-09-03).
+     *
      * <p>2026-08-14 — {@code MENU_VIEW_YN}(폴더 표시/미표시) 을 본 SELECT 로 흡수했다. 직전에는
      * 화면 패키지의 별도 어댑터가 전건 맵을 따로 읽어 결과에 덧입혔는데, 같은 테이블을 두 번 읽을
      * 이유가 없다. 값 도메인은 {@code 'Y'}(표시) / {@code 'N'}(미표시) 2 값이고,
@@ -340,16 +344,27 @@ public class SecMenuNativeRepository {
         // FULL_SEQ 인코딩 (모듈 백만 / 그룹 만) 은 recomputeMenuFullSeq() 가 저장 시 자동 부여.
         // ORDER BY 도 FULL_SEQ 우선 (인코딩 = 트리 표시 순서) → null(미부여) 행은 말미.
         //
-        // MENU_VIEW_YN 은 searchCmMenu 와 동일하게 CAST(... AS VARCHAR(20)) 로 감싼다 (본 클래스 javadoc 참조).
-        //   Hibernate 6 는 length=1 VARCHAR 를 Character 로 추론하므로, 값이 '' 인 행이 하나라도 섞이면
-        //   CoercionException 으로 조회 전체가 실패한다. 게다가 DataInitializer.normalizeSecMenuCharColumns
-        //   의 자가치유 대상은 TB_MCM_SEC_MENU 뿐이라 본 FLD 테이블은 '' 오염이 남아 있을 수 있다.
+        // 2026-09-03 — 결과 타입을 CAST(... AS VARCHAR(20)) 대신 addScalar 로 고정한다.
+        //   CAST 는 "그 식(expression) 컬럼의 JDBC 타입을 드라이버가 무엇으로 보고하느냐" 에 여전히 의존한다.
+        //   sqlite-jdbc 는 선언타입이 없는 식 컬럼의 타입을 '현재 행의 값 타입' 으로 추론하는데, 본 테이블의
+        //   정렬 첫 행(mcm, FULL_SEQ=1000000)은 MENU_VIEW_YN 이 NULL 이라 numeric 으로 보고됐다.
+        //   → Hibernate 가 DecimalJdbcType 을 골랐고, 뒤이어 'N'(cmz 행) 을 만난 순간
+        //     "Could not extract column [6] from JDBC ResultSet [Bad value for type BigDecimal : N]" 로
+        //     조회 전체가 실패했다 (팝업 0건 + 오류 모달).
+        //   addScalar 는 ResultSet 메타데이터를 보지 않고 타입을 고정하므로 방언·데이터 오염과 무관하게 안전하다.
+        //   Character 추론(length=1 VARCHAR → '' CoercionException) 문제도 함께 사라진다.
         String sql =
-                "SELECT MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, " +
-                "       CAST(MENU_VIEW_YN AS VARCHAR(20)) " +
+                "SELECT MENU_ID, MENU_SEQ, MENU_NM, PARENT_MENU_ID, FULL_SEQ, MENU_VIEW_YN " +
                 "  FROM MCMAPUSER.TB_MCM_SEC_MENU_FLD " +
                 " ORDER BY CASE WHEN FULL_SEQ IS NULL THEN 1 ELSE 0 END, FULL_SEQ, MENU_SEQ, MENU_ID";
-        List<Object[]> rows = entityManager.createNativeQuery(sql).getResultList();
+        NativeQuery<Object[]> q = entityManager.createNativeQuery(sql).unwrap(NativeQuery.class);
+        q.addScalar("MENU_ID", StandardBasicTypes.STRING)
+         .addScalar("MENU_SEQ", StandardBasicTypes.STRING)
+         .addScalar("MENU_NM", StandardBasicTypes.STRING)
+         .addScalar("PARENT_MENU_ID", StandardBasicTypes.STRING)
+         .addScalar("FULL_SEQ", StandardBasicTypes.LONG)
+         .addScalar("MENU_VIEW_YN", StandardBasicTypes.STRING);
+        List<Object[]> rows = q.getResultList();
         List<Map<String, Object>> out = new ArrayList<>(rows.size());
         for (Object[] row : rows) {
             Map<String, Object> map = new LinkedHashMap<>();

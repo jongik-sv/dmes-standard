@@ -134,7 +134,16 @@ const PORTAL_MODULE_CONFIG: PortalModuleConfigEntry[] = [
     // ANALOG_STATIC_PAGES 화이트리스트(analogPackagePageLoader)가 직접 검증한다. 미등록 키는 null 처리.
     loadPage: analogPackagePageLoader,
   },
-  // 업무 모듈(mpn / mpp / mls / mqc ...) 을 붙일 때 여기에 1개 항목씩 추가한다.
+  {
+    // 2026-09-04 — mls(물류) 모듈 포털 등재. 1호 화면 lsh/noticeMgmt.
+    //   화면 코드는 m-mls 패키지의 pages/{group}/{leaf}/page.tsx 에 있고, codegen
+    //   (generate-page-registry.mjs 의 MODULE_PAGE_PACKAGES) 이 PAGE_REGISTRY 에 정적 import 로 등재한다.
+    //   따라서 analog 처럼 전용 로더가 필요 없고 sharedPortalPageLoader 로 충분하다.
+    moduleId: "mls",
+    packageName: "@dk-oasis/m-mls",
+    loadPage: createStrictModuleLoader("mls", sharedPortalPageLoader),
+  },
+  // 업무 모듈(mpn / mpp / mqc ...) 을 붙일 때 여기에 1개 항목씩 추가한다.
   // 대부분은 sharedPortalPageLoader(= PAGE_REGISTRY) 로 충분하다:
   //   { moduleId: "mpn", packageName: "@dk-oasis/m-mpn",
   //     loadPage: createStrictModuleLoader("mpn", sharedPortalPageLoader) },

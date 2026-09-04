@@ -9,6 +9,8 @@ package com.dongkuk.dmes.mcm.csa.commMenuMng.service;
 import com.dongkuk.dmes.mcm.csa.commMenuMng.dto.CommMenuMngCommonListRequest;
 import com.dongkuk.dmes.mcm.csa.commMenuMng.dto.CommMenuMngSearchObjRequest;
 import com.dongkuk.dmes.mcm.csa.commMenuMng.dto.CommMenuMngSearchRequest;
+import com.dongkuk.dmes.mcm.common.exception.BusinessException;
+import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
 import com.dongkuk.dmes.mcm.entity.SecMenu;
 import com.dongkuk.dmes.mcm.repository.SecMenuNativeRepository;
 import com.dongkuk.dmes.mcm.repository.SecMenuRepository;
@@ -152,9 +154,10 @@ public class CommMenuMngService {
      *   <li>"deleted"  / "D" → DELETE (PK 복합 (MENU_ID, MENU_SEQ) 로 deleteById)</li>
      * </ul>
      *
-     * <p>As-Is PARENT_MENU_ID = #{MENU_ID} 자기참조 (xml:77/96 / 분석 §9.1 #12) 보존 — INSERT / UPDATE 시
-     * 본 행의 MENU_ID 를 PARENT_MENU_ID 로 자동 세트 (As-Is 의도 — D-008 의 cbo_menu_id text 첫 공백 전 substr
-     * 가 실제 부모 ID).
+     * <p><b>PARENT_MENU_ID 는 그룹 폴더 MENU_ID 이며 필수다.</b> As-Is 의 {@code #{MENU_ID}} 자기참조
+     * (xml:77/96 / 분석 §9.1 #12) 는 R3 트리 재설계(폴더=TB_MCM_SEC_MENU_FLD / 화면=본 테이블) 이후
+     * 성립하지 않는다. 값이 비어 오면 {@code BusinessException} 으로 거부한다 — 자기참조로 저장하면
+     * 트리·화면·LoV 어디에서도 복구할 수 없는 행이 된다 (2026-09-04 TE-006).
      *
      * <p>As-Is V-004 millisecond cut (fn_MsgSaveCallBack xfdl:649~659 — START/END_ACTIVE_DATE.toString().length > 8
      * 시 substring(0,8)) 은 To-Be parseLocalDateTime 안에서 8자 yyyyMMdd 변환으로 자동 흡수.
@@ -213,10 +216,23 @@ public class CommMenuMngService {
                     //   (폴더=TB_MCM_SEC_MENU_FLD / 화면 PARENT_MENU_ID = 그룹 폴더 MENU_ID) 와 모순.
                     //   화면이 그룹 폴더에 매달려야 트리 표시 + FULL_SEQ 그룹BASE 산출이 가능하다.
                     //   → FE 가 제공한 그룹 폴더 PARENT_MENU_ID(트리 노드 / OBJECT LoV 선택값) 를 보존.
-                    //   blank 인 비정상 입력만 As-Is fallback(self) 로 보호.
+                    //
+                    // 2026-09-04 — blank 일 때의 As-Is fallback(self) 을 제거하고 거부로 바꿨다 (TE-006).
+                    //   그 fallback 은 "보호" 가 아니라 복구 불가능한 행을 만들어 냈다:
+                    //     · 자기참조 행은 트리 어느 폴더에도 안 걸려 searchCmMenu 결과에서 사라진다
+                    //       (PARENT_MENU_ID IN (후손 폴더) 에 자기 자신은 없다).
+                    //     · componentPath 가 "{자기ID}/{objectId}" 로 조립돼 page-registry 키와 어긋나 화면도 안 열린다.
+                    //     · OBJECT LoV 는 부모를 SEC_MENU 에서 역조회하므로 깨진 값을 계속 되읽는다.
+                    //     · 상세 폼의 상위 폴더는 readOnly 이고 메인 그리드엔 그 컬럼이 없어 화면에서 못 고친다.
+                    //   즉 한 번 blank 로 저장되면 DB 를 직접 건드리지 않는 한 빠져나올 수 없었다.
+                    //   R3 이후 화면 leaf 의 부모는 반드시 그룹 폴더이므로 자기참조는 성립할 수 없는 값이다.
                     String rowParentMenuId = strOf(row.get("PARENT_MENU_ID"));
-                    entity.setParentMenuId(
-                            (rowParentMenuId != null && !rowParentMenuId.isBlank()) ? rowParentMenuId : menuId);
+                    if (rowParentMenuId == null || rowParentMenuId.isBlank()) {
+                        throw new BusinessException(ErrorCode.REQUIRED_VALUE,
+                                "상위 폴더가 지정되지 않았습니다 (MENU_ID=" + menuId + "). "
+                                        + "좌측 메뉴 구조 트리에서 그룹 폴더를 먼저 선택한 뒤 행을 추가하세요.");
+                    }
+                    entity.setParentMenuId(rowParentMenuId);
                     entity.setMenuParam1(strOf(row.get("MENU_PARAM1")));
                     entity.setMenuParam2(strOf(row.get("MENU_PARAM2")));
                     entity.setMenuParam3(strOf(row.get("MENU_PARAM3")));

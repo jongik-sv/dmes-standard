@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_noticeMgmt" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-tool" exporterVersion="1.3.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="noticeMgmt" name="공지사항 관리" isExecutable="true">
+    <bpmn:documentation>noticeMgmt — 공지사항 관리 (To-Be only 신규 화면. As-Is 레거시 없음).
+정본: docs/mls/design/noticeMgmt/noticeMgmt_기능설계서.md
+
+action=search       -&gt; searchTask       (noticeMgmtService.search)
+  §3 조회조건 S-001~S-004. 게시기간은 '포함' 이 아니라 '교차' 조건이다.
+action=save         -&gt; saveTask         (noticeMgmtService.save)
+  §5.1 B-003 저장 / B-004 삭제. rowStatus C/U/D 분기 + 전 행 검증 후 일괄 throw.
+  삭제는 별도 action 이 아니라 rowStatus='D' 로 흡수한다 (§5.1).
+action=changeStatus -&gt; changeStatusTask (noticeMgmtService.changeStatus)
+  §5.1 B-005 게시중지. §7.2 전이 규칙을 DB 재조회로 서버 재판정한다.</bpmn:documentation>
+    <bpmn:startEvent id="start" name="시작">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="actionGateway" name="action 분기">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_search</bpmn:outgoing>
+      <bpmn:outgoing>flow_save</bpmn:outgoing>
+      <bpmn:outgoing>flow_changeStatus</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="searchTask" name="공지사항 목록 조회" camunda:class="noticeMgmtService">
+      <bpmn:documentation>기능설계서 §3 / §3.2 — S-001~S-004 조건으로 G-001~G-005 목록 반환. 응답 result.list.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="search" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mls.lsh.noticeMgmt.dto.NoticeMgmtSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_search</bpmn:incoming>
+      <bpmn:outgoing>flow_search_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="saveTask" name="공지사항 일괄 저장 (C/U/D)" camunda:class="noticeMgmtService">
+      <bpmn:documentation>기능설계서 §5.1 B-003/B-004 — grids.master.rows 를 파라미터 이름 master 로 바인딩. dto 미지정.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="save" />
+          <camunda:property name="output" value="result" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_save</bpmn:incoming>
+      <bpmn:outgoing>flow_save_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="changeStatusTask" name="게시상태 변경" camunda:class="noticeMgmtService">
+      <bpmn:documentation>기능설계서 §5.1 B-005 / §7.2 — 전이 가능 여부를 DB 재조회로 서버 재판정.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="changeStatus" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mls.lsh.noticeMgmt.dto.NoticeMgmtChangeStatusRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_changeStatus</bpmn:incoming>
+      <bpmn:outgoing>flow_changeStatus_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endSearch" name="조회 완료">
+      <bpmn:incoming>flow_search_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endSave" name="저장 완료">
+      <bpmn:incoming>flow_save_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endChangeStatus" name="상태변경 완료">
+      <bpmn:incoming>flow_changeStatus_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+    <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
+    <bpmn:sequenceFlow id="flow_save" name="save" sourceRef="actionGateway" targetRef="saveTask" />
+    <bpmn:sequenceFlow id="flow_changeStatus" name="changeStatus" sourceRef="actionGateway" targetRef="changeStatusTask" />
+    <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="endSearch" />
+    <bpmn:sequenceFlow id="flow_save_end" sourceRef="saveTask" targetRef="endSave" />
+    <bpmn:sequenceFlow id="flow_changeStatus_end" sourceRef="changeStatusTask" targetRef="endChangeStatus" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="noticeMgmt">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="152" y="192" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="245" y="185" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchTask_di" bpmnElement="searchTask">
+        <dc:Bounds x="380" y="60" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="saveTask_di" bpmnElement="saveTask">
+        <dc:Bounds x="380" y="180" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="changeStatusTask_di" bpmnElement="changeStatusTask">
+        <dc:Bounds x="380" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearch_di" bpmnElement="endSearch">
+        <dc:Bounds x="560" y="82" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSave_di" bpmnElement="endSave">
+        <dc:Bounds x="560" y="202" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endChangeStatus_di" bpmnElement="endChangeStatus">
+        <dc:Bounds x="560" y="322" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="188" y="210" />
+        <di:waypoint x="245" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_di" bpmnElement="flow_search">
+        <di:waypoint x="270" y="185" />
+        <di:waypoint x="270" y="100" />
+        <di:waypoint x="380" y="100" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="305" y="83" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_di" bpmnElement="flow_save">
+        <di:waypoint x="270" y="235" />
+        <di:waypoint x="270" y="220" />
+        <di:waypoint x="380" y="220" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="305" y="203" width="32" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_changeStatus_di" bpmnElement="flow_changeStatus">
+        <di:waypoint x="270" y="235" />
+        <di:waypoint x="270" y="340" />
+        <di:waypoint x="380" y="340" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="305" y="218" width="96" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_end_di" bpmnElement="flow_search_end">
+        <di:waypoint x="480" y="100" />
+        <di:waypoint x="560" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_end_di" bpmnElement="flow_save_end">
+        <di:waypoint x="480" y="220" />
+        <di:waypoint x="560" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_changeStatus_end_di" bpmnElement="flow_changeStatus_end">
+        <di:waypoint x="480" y="340" />
+        <di:waypoint x="560" y="340" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
+
