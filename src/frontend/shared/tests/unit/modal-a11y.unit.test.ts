@@ -1,9 +1,9 @@
 /** @vitest-environment happy-dom */
 
 import { act, createElement, type ReactElement } from "react";
-import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MessageModal, Modal } from "../../src/components/modal";
+import { rerender as rerenderMantine, renderWithMantine, type Rendered } from "./mantine-test-utils";
 
 interface ModalContractCase {
   name: string;
@@ -34,13 +34,19 @@ const modalContractCases: ModalContractCase[] = [
   },
 ];
 
-let host: HTMLDivElement;
-let root: Root;
+// 렌더 하네스: Mantine 9 의 `Modal.Root` 는 `MantineProvider` 없이 렌더하면 예외를 던지므로
+// (team-lead 공통 판정) 이 파일의 렌더 하네스만 공용 `mantine-test-utils` 의
+// `renderWithMantine`/`rerender` 로 교체한다. 단언은 한 줄도 바꾸지 않는다. 같은 테스트 안에서
+// `render()`를 두 번째 호출하는 경우(예: open→close 전환)는 새로 마운트하지 않고 기존 root 를
+// 재렌더해야 하므로, 최초 호출인지 여부를 `rendered` 로 추적해 자동으로 분기한다.
+let rendered: Rendered | null = null;
 
 function render(element: ReactElement) {
-  act(() => {
-    root.render(element);
-  });
+  if (!rendered) {
+    rendered = renderWithMantine(element);
+  } else {
+    rerenderMantine(rendered, element);
+  }
 }
 
 function getDialog(): HTMLElement {
@@ -63,22 +69,16 @@ function dispatchKey(key: string, shiftKey = false): KeyboardEvent {
 }
 
 beforeEach(() => {
-  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
     callback(0);
     return 1;
   });
   vi.stubGlobal("cancelAnimationFrame", vi.fn());
-
-  host = document.createElement("div");
-  document.body.append(host);
-  root = createRoot(host);
 });
 
 afterEach(() => {
-  act(() => {
-    root.unmount();
-  });
+  rendered?.unmount();
+  rendered = null;
   document.body.replaceChildren();
   vi.unstubAllGlobals();
 });
