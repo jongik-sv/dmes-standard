@@ -6,13 +6,19 @@ function read(relativePath: string): string {
 }
 
 describe("shared primary color consistency", () => {
-  it("uses the canonical primary tokens for shared primary buttons", () => {
+  it("shared CSS 는 primary 색을 토큰으로만 쓰고 레거시 파랑을 하드코딩하지 않는다", () => {
     const variablesCss = read("../../src/styles/variables.css");
+    const modalCss = read("../../src/components/modal.css");
     const formCss = read("../../src/components/form/form.css");
 
     expect(variablesCss).toContain("--color-primary: var(--mantine-color-dmes-6");
-    expect(formCss).not.toContain("var(--color-primary, #4a90d9)");
-    expect(formCss).not.toContain("var(--color-primary-hover, #3a7bc8)");
+
+    // modal.css 레거시 파랑 검사는 P2 토스트 제거 후 확장
+    expect(formCss).not.toMatch(/#(1976d2|1a73e8|4a90d9|3a7bc8)/i);
+
+    for (const css of [modalCss, formCss]) {
+      expect(css.replace(/var\([^)]*\)/g, "")).not.toMatch(/#(337ab7|2a6499)/i);
+    }
   });
 
   it("derives generic active tabs and retry actions from the primary token", () => {
