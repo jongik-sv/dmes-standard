@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { Paper } from "@mantine/core";
 import { useTabPage } from "../portal-shell/tab-page-context";
 import { emitSearch } from "./search-history-bus";
 
@@ -53,7 +54,7 @@ export function SearchArea({ children, onSearch }: SearchAreaProps) {
       onSearch();
     };
     return (
-      <form className="search-area" onSubmit={handleSubmit} role="search">
+      <Paper component="form" withBorder p="xs" className="search-area" onSubmit={handleSubmit} role="search">
         <div className="search-area__conditions">{paired}</div>
         {/*
           Enter 키 implicit submission 안정화용 hidden submit 버튼.
@@ -61,12 +62,12 @@ export function SearchArea({ children, onSearch }: SearchAreaProps) {
           Enter 를 무시하므로 항상 두어 동작을 통일한다.
         */}
         <button type="submit" aria-hidden="true" tabIndex={-1} style={{ display: "none" }} />
-      </form>
+      </Paper>
     );
   }
   return (
-    <div className="search-area">
+    <Paper withBorder p="xs" className="search-area">
       <div className="search-area__conditions">{paired}</div>
-    </div>
+    </Paper>
   );
 }

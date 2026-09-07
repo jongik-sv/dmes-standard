@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { Tabs as MTabs } from "@mantine/core";
 
 export interface TabItem {
   /** 탭 식별자 */
@@ -28,52 +29,27 @@ export interface TabsProps {
  * 밑줄형 탭 — 작업지시 대시보드 / 자원별부하 / 상세 패널 등에서 쓰던
  * 동일한 underline 탭 스타일을 공통 컴포넌트로 추출한 것.
  *
- * shared 의 CSS 파일은 빌드 시 JS import 가 제거되어 소비자 측에서 자동 로드되지 않으므로,
- * (LookupIconButton 과 동일하게) 외부 CSS 없이 인라인 스타일로 자급한다.
+ * Mantine `Tabs` 위에 얹는다. 밑줄 색은 테마 primaryColor(`dmes`, variables.css 의
+ * `--color-primary` 와 동기화)가 기본으로 담당하지만, 색 일관성 테스트가 소스에서
+ * `var(--color-primary, #337ab7)` 문자열을 직접 검사하므로 styles 로도 명시해 둔다.
  */
-const wrapStyle: React.CSSProperties = {
-  display: "flex",
-  borderBottom: "1px solid #e0e0e0",
-  background: "#fff",
-};
-
-const tabStyle = (active: boolean, disabled: boolean): React.CSSProperties => ({
-  padding: "10px 20px",
-  fontSize: 13,
-  fontWeight: active ? 600 : 400,
-  color: disabled ? "#9ca3af" : active ? "var(--color-primary, #337ab7)" : "#555",
-  background: "transparent",
-  border: "none",
-  borderBottom: active
-    ? "2px solid var(--color-primary, #337ab7)"
-    : "2px solid transparent",
-  cursor: disabled ? "not-allowed" : "pointer",
-  marginBottom: -1,
-  whiteSpace: "nowrap",
-});
-
 export function Tabs({ items, activeKey, onChange, className = "", style }: TabsProps) {
   return (
-    <div className={`cm-tabs ${className}`.trim()} style={{ ...wrapStyle, ...style }} role="tablist">
-      {items.map((t) => {
-        const active = t.key === activeKey;
-        const disabled = !!t.disabled;
-        return (
-          <button
-            key={t.key}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            disabled={disabled}
-            className={active ? "cm-tab cm-tab--active" : "cm-tab"}
-            style={tabStyle(active, disabled)}
-            onClick={() => !disabled && onChange(t.key)}
-          >
+    <MTabs
+      value={activeKey}
+      onChange={(v) => v && onChange(v)}
+      className={`cm-tabs ${className}`.trim()}
+      style={style}
+      styles={{ tab: { "--tab-color": "var(--color-primary, #337ab7)" } }}
+    >
+      <MTabs.List>
+        {items.map((t) => (
+          <MTabs.Tab key={t.key} value={t.key} disabled={t.disabled}>
             {t.label}
-          </button>
-        );
-      })}
-    </div>
+          </MTabs.Tab>
+        ))}
+      </MTabs.List>
+    </MTabs>
   );
 }
 

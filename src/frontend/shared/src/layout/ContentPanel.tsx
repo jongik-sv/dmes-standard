@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { Paper } from "@mantine/core";
 import { useContentMaximize } from "./ContentBody";
 
 export interface ContentPanelProps {
@@ -39,8 +40,8 @@ export function ContentPanel({ panelId, flex, width, height, children }: Content
   }
 
   return (
-    <div className="content-panel" style={style}>
+    <Paper withBorder className="content-panel" style={style}>
       {children}
-    </div>
+    </Paper>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { Text } from "@mantine/core";
 import { Input } from "../components/form/Input";
 import { Radio } from "../components/form/Radio";
 import { Select } from "../components/form/Select";
@@ -120,7 +121,9 @@ export function SearchField({
 
   return (
     <div className={`search-field ${spanClass} ${className}`.replace(/\s+/g, " ").trim()}>
-      <span className="search-field__label">{label}</span>
+      <Text size="xs" className="search-field__label">
+        {label}
+      </Text>
       {renderInput()}
     </div>
   );

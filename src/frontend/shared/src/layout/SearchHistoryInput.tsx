@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { TextInput } from "@mantine/core";
 import { generateId } from "../utils/libUtil";
 import { subscribeSearch } from "./search-history-bus";
 import {
@@ -178,7 +179,7 @@ export function SearchHistoryInput({
 
   return (
     <div ref={containerRef} className="search-history-field">
-      <input
+      <TextInput
         ref={inputRef}
         type="text"
         className="form-input search-history-input"

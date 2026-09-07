@@ -1,6 +1,9 @@
 "use client";
 
-import React, { useState, useCallback, useRef, memo } from "react";
+import React, { memo, useMemo, useState } from "react";
+import { Tree as MTree, useTree, type RenderTreeNodePayload, type TreeNodeData } from "@mantine/core";
+import { IconChevronRight } from "@tabler/icons-react";
+import clsx from "clsx";
 import "./tree.css";
 
 export interface TreeNode {
@@ -9,79 +12,6 @@ export interface TreeNode {
   children?: TreeNode[];
   [key: string]: unknown;
 }
-
-interface TreeNodeProps {
-  node: TreeNode;
-  level: number;
-  expandedItems: (string | number)[];
-  selectedItems: string[];
-  onToggle: (nodeId: string | number) => void;
-  onSelect: (nodeId: string | number) => void;
-}
-
-function getVisibleNodes(items: TreeNode[], expandedItems: (string | number)[], level = 0): (TreeNode & { level: number })[] {
-  const result: (TreeNode & { level: number })[] = [];
-  for (const item of items) {
-    result.push({ ...item, level });
-    const hasChildren = item.children && item.children.length > 0;
-    if (hasChildren && expandedItems.includes(item.id)) {
-      result.push(...getVisibleNodes(item.children!, expandedItems, level + 1));
-    }
-  }
-  return result;
-}
-
-function findParentNode(items: TreeNode[], targetId: string | number, parent: TreeNode | null = null): TreeNode | null | undefined {
-  for (const item of items) {
-    if (item.id === targetId) return parent;
-    if (item.children && item.children.length > 0) {
-      const found = findParentNode(item.children, targetId, item);
-      if (found !== undefined) return found;
-    }
-  }
-  return undefined;
-}
-
-const TreeNodeComponent = memo(function TreeNodeComponent({ node, level, expandedItems, selectedItems, onToggle, onSelect }: TreeNodeProps) {
-  const hasChildren = node.children && node.children.length > 0;
-  const isExpanded = expandedItems.includes(node.id);
-  const isSelected = selectedItems.includes(String(node.id));
-
-  const handleToggle = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (hasChildren) onToggle(node.id);
-  };
-
-  const handleSelect = () => {
-    onSelect(node.id);
-  };
-
-  return (
-    <li role="treeitem" aria-expanded={hasChildren ? isExpanded : undefined} aria-selected={isSelected} aria-level={level + 1} data-node-id={node.id}>
-      <div className={`tree-node-content ${isSelected ? "selected" : ""}`} style={{ paddingLeft: `${level * 16 + 8}px` }} onClick={handleSelect}>
-        <span className={`tree-node-toggle ${hasChildren ? "has-children" : ""}`} onClick={handleToggle}>
-          {hasChildren ? (isExpanded ? "\u25BC" : "\u25B6") : ""}
-        </span>
-        <span className="tree-node-label">{node.label}</span>
-      </div>
-      {hasChildren && isExpanded && (
-        <ul role="group">
-          {node.children!.map((child) => (
-            <TreeNodeComponent
-              key={child.id}
-              node={child}
-              level={level + 1}
-              expandedItems={expandedItems}
-              selectedItems={selectedItems}
-              onToggle={onToggle}
-              onSelect={onSelect}
-            />
-          ))}
-        </ul>
-      )}
-    </li>
-  );
-});
 
 export interface TreeProps {
   items?: TreeNode[];
@@ -92,6 +22,14 @@ export interface TreeProps {
   className?: string;
 }
 
+function toNodeData(items: TreeNode[]): TreeNodeData[] {
+  return items.map((n) => ({
+    value: String(n.id),
+    label: n.label,
+    children: n.children ? toNodeData(n.children) : undefined,
+  }));
+}
+
 function TreeComponent({
   items = [],
   expandedItems: controlledExpanded,
@@ -100,7 +38,6 @@ function TreeComponent({
   onSelectedItemsChange,
   className = "",
 }: TreeProps) {
-  const treeRef = useRef<HTMLUListElement>(null);
   const [internalExpanded, setInternalExpanded] = useState<(string | number)[]>([]);
   const [internalSelected, setInternalSelected] = useState<string[]>([]);
 
@@ -112,99 +49,67 @@ function TreeComponent({
         : [String(controlledSelected)]
       : internalSelected;
 
-  const handleToggle = useCallback(
-    (nodeId: string | number) => {
-      const newExpanded = expandedItems.includes(nodeId) ? expandedItems.filter((id) => id !== nodeId) : [...expandedItems, nodeId];
-      if (onExpandedItemsChange) {
-        onExpandedItemsChange(null, newExpanded);
-      } else {
-        setInternalExpanded(newExpanded);
-      }
-    },
-    [expandedItems, onExpandedItemsChange],
-  );
+  const data = useMemo(() => toNodeData(items), [items]);
+  const tree = useTree({
+    expandedState: Object.fromEntries(expandedItems.map((id) => [String(id), true])),
+    selectedState: selectedItems,
+    multiple: false,
+  });
 
-  const handleSelect = useCallback(
-    (nodeId: string | number) => {
-      const nodeIdStr = String(nodeId);
-      if (onSelectedItemsChange) {
-        onSelectedItemsChange(null, nodeIdStr);
-      } else {
-        setInternalSelected([nodeIdStr]);
-      }
-    },
-    [onSelectedItemsChange],
-  );
+  const toggle = (id: string) => {
+    const next = expandedItems.map(String).includes(id)
+      ? expandedItems.filter((x) => String(x) !== id)
+      : [...expandedItems, id];
+    if (onExpandedItemsChange) {
+      onExpandedItemsChange(null, next);
+    } else {
+      setInternalExpanded(next);
+    }
+  };
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      const visibleNodes = getVisibleNodes(items, expandedItems);
-      if (visibleNodes.length === 0) return;
+  const select = (id: string) => {
+    if (onSelectedItemsChange) {
+      onSelectedItemsChange(null, id);
+    } else {
+      setInternalSelected([id]);
+    }
+  };
 
-      const currentId = selectedItems.length > 0 ? selectedItems[0] : null;
-      const currentIndex = currentId != null ? visibleNodes.findIndex((n) => String(n.id) === String(currentId)) : -1;
-
-      switch (e.key) {
-        case "ArrowDown": {
-          e.preventDefault();
-          const nextIndex = currentIndex < visibleNodes.length - 1 ? currentIndex + 1 : 0;
-          handleSelect(visibleNodes[nextIndex].id);
-          break;
-        }
-        case "ArrowUp": {
-          e.preventDefault();
-          const prevIndex = currentIndex > 0 ? currentIndex - 1 : visibleNodes.length - 1;
-          handleSelect(visibleNodes[prevIndex].id);
-          break;
-        }
-        case "ArrowRight": {
-          e.preventDefault();
-          if (currentIndex >= 0) {
-            const node = visibleNodes[currentIndex];
-            if (node.children?.length && !expandedItems.includes(node.id)) {
-              handleToggle(node.id);
-            }
-          }
-          break;
-        }
-        case "ArrowLeft": {
-          e.preventDefault();
-          if (currentIndex >= 0) {
-            const node = visibleNodes[currentIndex];
-            if (node.children?.length && expandedItems.includes(node.id)) {
-              handleToggle(node.id);
-            } else {
-              const parent = findParentNode(items, node.id);
-              if (parent) handleSelect(parent.id);
-            }
-          }
-          break;
-        }
-        case "Enter":
-        case " ": {
-          e.preventDefault();
-          if (currentIndex >= 0) handleSelect(visibleNodes[currentIndex].id);
-          break;
-        }
-      }
-    },
-    [items, expandedItems, selectedItems, handleToggle, handleSelect],
+  const renderNode = ({ node, expanded, hasChildren, selected, level, elementProps }: RenderTreeNodePayload) => (
+    <div
+      {...elementProps}
+      className={clsx("tree-item", selected && "selected", elementProps.className)}
+      style={{ paddingLeft: level * 16 }}
+      onClick={(e) => {
+        e.stopPropagation();
+        select(node.value);
+      }}
+    >
+      {hasChildren ? (
+        <IconChevronRight
+          size={14}
+          className={clsx("tree-item__toggle", expanded && "expanded")}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggle(node.value);
+          }}
+        />
+      ) : (
+        <span className="tree-item__toggle tree-item__toggle--leaf" />
+      )}
+      <span className="tree-item__label">{node.label}</span>
+    </div>
   );
 
   return (
-    <ul ref={treeRef} className={`cm-tree ${className}`.trim()} role="tree" aria-label="트리 메뉴" tabIndex={0} onKeyDown={handleKeyDown}>
-      {items.map((item) => (
-        <TreeNodeComponent
-          key={item.id}
-          node={item}
-          level={0}
-          expandedItems={expandedItems}
-          selectedItems={selectedItems}
-          onToggle={handleToggle}
-          onSelect={handleSelect}
-        />
-      ))}
-    </ul>
+    <MTree
+      data={data}
+      tree={tree}
+      renderNode={renderNode}
+      expandOnClick={false}
+      selectOnClick={false}
+      className={clsx("cm-tree", className)}
+    />
   );
 }
 

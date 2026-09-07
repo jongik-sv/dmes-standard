@@ -67,31 +67,10 @@ button {
 
 /* ========================================
    버튼 스타일
+   PageLayout 자체 버튼은 Mantine Button(page-button)이 담당한다.
+   .btn-primary 만 예외로 남긴다 — GridPanel buttons[].className (예: masterCodeMng
+   저장 버튼)이 "grid-btn btn-primary" 조합으로 여전히 참조한다(그리드는 1단계 변경 없음).
    ======================================== */
-.page-layout .btn {
-  padding: 4px 12px;
-  font-size: var(--font-size-sm);
-  border: 1px solid #c0c0c0;
-  background-color: var(--color-bg);
-  color: var(--color-text);
-  cursor: pointer;
-  border-radius: 2px;
-  transition: all var(--transition-fast);
-  font-family: inherit;
-  white-space: nowrap;
-}
-
-.page-layout .btn:hover {
-  background-color: #f0f0f0;
-}
-
-.page-layout .btn:disabled {
-  background-color: var(--color-border);
-  border-color: #bbb;
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
 .page-layout .btn-primary {
   background-color: var(--color-primary);
   border-color: var(--color-primary);
@@ -102,31 +81,11 @@ button {
   background-color: var(--color-primary-hover);
 }
 
-.page-layout .btn-save {
-  background-color: var(--color-text-muted);
-  border-color: var(--color-text-muted);
-  color: #fff;
-}
-
-.page-layout .btn-save:hover {
-  background-color: #555;
-}
-
-.page-layout .btn-cancel {
-  background-color: #d32f2f;
-  border-color: #d32f2f;
-  color: #fff;
-}
-
-.page-layout .btn-cancel:hover {
-  background-color: #b71c1c;
-}
-
 /* ========================================
    검색 영역 (36px)
    ======================================== */
 .page-layout .search-area {
-  padding: 5px 6px;
+  /* padding 은 SearchArea 의 Paper p="xs" 가 담당(inline style 이 항상 우선). */
   background-color: #f2f6f9;
   border-bottom: 1px solid #d0dae2;
   display: flex;
@@ -193,26 +152,12 @@ button {
 }
 
 .page-layout .search-field__label {
-  font-size: var(--font-size-sm);
-  color: #333;
   white-space: nowrap;
-  font-weight: 500;
   min-width: 76px; /* 라벨 폭 통일 → 셀 내 필드 시작 X축도 정렬 */
 }
 
-/* 텍스트/날짜/콤보 입력만 박스 스타일 — 체크박스/라디오는 shared form.css(.form-checkbox/.form-radio) 가 담당 */
-.page-layout .search-field input:not(.form-combobox-input):not([type="checkbox"]):not([type="radio"]),
-.page-layout .search-field select {
-  height: 24px;
-  padding: 0 8px;
-  border: 1px solid var(--color-border-grid);
-  border-radius: 2px;
-  font-size: var(--font-size-sm);
-  box-sizing: border-box;
-  font-family: inherit;
-  background-color: #fff;
-}
-
+/* 텍스트/날짜/콤보 입력 박스 외형(높이·테두리·배경 등)은 Mantine TextInput/NativeSelect 가 담당한다.
+   ERP 밀도 오버라이드(고정 폭)만 여기 남긴다. 체크박스/라디오는 shared form.css 가 담당. */
 .page-layout .search-field input:not([type="checkbox"]):not([type="radio"]) {
   width: var(--search-input-width);
 }
@@ -233,30 +178,9 @@ button {
   min-width: var(--search-select-min-width);
 }
 
-/* search-field 내 ComboBox — 기존 select와 동일한 외관 */
+/* search-field 내 ComboBox — 폭만 유지(외형은 Mantine Select 가 담당) */
 .page-layout .search-field .form-combobox {
-  height: 24px;
   min-width: var(--search-select-min-width);
-  border: 1px solid var(--color-border-grid);
-  border-radius: 2px;
-  font-size: var(--font-size-sm);
-  background-color: #fff;
-}
-
-.page-layout .search-field .form-combobox:focus-within {
-  border-color: var(--color-border-grid);
-  box-shadow: none;
-}
-
-.page-layout .search-field .form-combobox-input {
-  height: 100%;
-  padding: 0 8px;
-  font-size: var(--font-size-sm);
-  font-family: inherit;
-}
-
-.page-layout .search-field .form-combobox-toggle {
-  width: 18px;
 }
 
 /* ========================================

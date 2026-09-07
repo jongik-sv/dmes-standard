@@ -41,11 +41,11 @@ export const DETAIL_TABLE_STYLE: CSSProperties = {
 
 /** 라벨 셀 — 회색 배경 + 테두리 + 좌측 정렬 + 130px 고정 너비. */
 export const DETAIL_LABEL_CELL: CSSProperties = {
-  background: "#f4f6f8",
-  border: "1px solid #d4dae0",
+  background: "var(--mantine-color-gray-0, #f4f6f8)",
+  border: "1px solid var(--mantine-color-gray-3, #d4dae0)",
   padding: "6px 10px",
   fontWeight: 500,
-  color: "#333",
+  color: "var(--mantine-color-text, #333)",
   width: 130,
   whiteSpace: "nowrap",
   textAlign: "left",
@@ -53,7 +53,7 @@ export const DETAIL_LABEL_CELL: CSSProperties = {
 
 /** 값 셀 — 흰 배경 + 테두리 + 작은 padding (input 이 셀 내부를 거의 채움). */
 export const DETAIL_VALUE_CELL: CSSProperties = {
-  border: "1px solid #d4dae0",
+  border: "1px solid var(--mantine-color-gray-3, #d4dae0)",
   padding: "4px 6px",
   background: "#fff",
 };
@@ -62,7 +62,7 @@ export const DETAIL_VALUE_CELL: CSSProperties = {
 export const INPUT_BASE: CSSProperties = {
   width: "100%",
   padding: "4px 6px",
-  border: "1px solid #c0c6cc",
+  border: "1px solid var(--mantine-color-gray-4, #c0c6cc)",
   borderRadius: 2,
   background: "#ffffff",
   color: "#222",

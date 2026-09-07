@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef } from "react";
+import { Button, Group, Title } from "@mantine/core";
 import "./page-layout.css";
 import { canDoButton, useUserButtonRbac } from "../portal-shell/use-user-button-rbac";
 import { useTabPage } from "../portal-shell/tab-page-context";
@@ -71,6 +72,22 @@ interface ResolvedPageButton extends PageButton {
   hasAccess: boolean;
 }
 
+/** 기존 .btn-{type} 시각 구분을 Mantine Button 의 variant/color 로 매핑한다. */
+const BUTTON_VARIANT_BY_TYPE: Record<string, "filled" | "default"> = {
+  primary: "filled",
+  save: "filled",
+  cancel: "filled",
+  close: "default",
+  light: "default",
+};
+const BUTTON_COLOR_BY_TYPE: Record<string, string | undefined> = {
+  primary: undefined, // 테마 primaryColor(dmes) 사용
+  save: "gray",
+  cancel: "danger",
+  close: undefined,
+  light: undefined,
+};
+
 export function PageLayout({
   title,
   className = "",
@@ -134,24 +151,28 @@ export function PageLayout({
 
   return (
     <div ref={containerRef} className={`page-layout ${className}`.trim()}>
-      <div className="page-layout__header">
-        <h2 className="page-layout__title">{title}</h2>
+      <Group justify="space-between" className="page-layout__header">
+        <Title order={2} className="page-layout__title">
+          {title}
+        </Title>
         <div className="page-layout__header-buttons">
           {effectiveButtons
             .filter((btn) => btn.type !== "close")
             .map((btn) => (
-              <button
+              <Button
                 key={btn.id}
-                className={`btn btn-${btn.type || "light"}`}
+                className={`page-button page-button--${btn.type || "light"}`}
+                variant={BUTTON_VARIANT_BY_TYPE[btn.type || "light"]}
+                color={BUTTON_COLOR_BY_TYPE[btn.type || "light"]}
                 onClick={btn.onClick}
                 disabled={btn.disabled}
                 title={btn.action && btn.disabled && !btn.hasAccess ? "권한이 없습니다" : undefined}
               >
                 {btn.label}
-              </button>
+              </Button>
             ))}
         </div>
-      </div>
+      </Group>
 
       {children}
 
