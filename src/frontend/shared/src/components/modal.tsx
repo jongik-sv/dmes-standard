@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { Modal as M, Button } from "@mantine/core";
 import {
   IconAlertTriangle,
@@ -31,9 +31,9 @@ const FOCUSABLE_SELECTOR = [
  * 확인됨 — 소스: use-modal.mjs, use-focus-trap.mjs, use-focus-return.mjs, Portal.mjs):
  * 1. 초기 초점 이동(`useFocusTrap`)과 초점 복귀(`useFocusReturn`)가 `setTimeout` 매크로태스크로
  *    지연되어, 동기 assertion 에서는 아직 반영되지 않는다.
- * 2. Escape 핸들러(`useWindowEvent`)가 `onClose()` 만 호출하고 `event.preventDefault()` 를 하지 않는다.
- *    게다가 `event.target?.getAttribute(...)` 를 무조건 호출해서, keydown 이 (테스트처럼) `document`
- *    자체에 dispatch 되면 `document` 에는 `getAttribute` 가 없어 TypeError 로 죽는다.
+ * 2. Escape 핸들러(`useWindowEvent`)가 `onClose()` 는 정확히 호출하지만 `event.preventDefault()` 를
+ *    하지 않는다 — `preventDefault()` 만 `useEscapeCompat` 이 보강하고 `onClose` 호출은 Mantine 에
+ *    맡긴다(아래 `useEscapeCompat` 참고).
  * 3. `scopeTab` 은 활성 요소가 dialog 밖에 있고 "마지막/첫 tabbable" 도 아니면 아무 것도 하지 않고
  *    반환한다 — Tab 방향에 맞춰 안으로 되돌리는 보정이 없다.
  * 4. Mantine `Modal` 은 `Portal` 로 렌더하는데 `Portal` 은 최초 렌더에서 아무 것도 그리지 않고
@@ -42,8 +42,9 @@ const FOCUSABLE_SELECTOR = [
  *    소비가 얽히면) 상위 컴포넌트의 `useEffect`/`useLayoutEffect` 하나로는 "실제 DOM 이 완성된 시점"을
  *    안정적으로 잡을 수 없다. 그래서 `Modal.Content` 의 **ref 콜백**(해당 DOM 노드가 실제로 커밋되는
  *    바로 그 순간 동기 호출됨)에서 초기 초점·리스너 등록을 수행한다.
- * 그래서 기존(레거시) 초점 계약 훅을 이 모델로 이식해 Mantine 과 병행 구동한다. Escape 는 (2) 때문에
- * Mantine 쪽에 맡길 수 없어 `useEscapeCompat` 이 전담한다(아래).
+ * 5. React 자신의 커밋 내장 동작 하나가 초점 복귀와 충돌한다 — 아래 "이전 초점 캡처/복귀" 부분의
+ *    주석 참고(이건 Mantine 문제가 아니라 React 자체 문제라 별도로 적었다).
+ * 그래서 기존(레거시) 초점 계약 훅을 이 모델로 이식해 Mantine 과 병행 구동한다.
  */
 function useModalA11yCompat(open: boolean, descriptionId?: string) {
   const dialogRef = useRef<HTMLElement | null>(null);
@@ -137,11 +138,29 @@ function useModalA11yCompat(open: boolean, descriptionId?: string) {
   }, [open]);
 
   // 이전 초점 캡처/복귀는 ref 콜백(= Modal.Content DOM 마운트 시점)이 아니라 이 컴포넌트의 open
-  // prop 전환에 직접 묶는다. Mantine Transition 은 (테스트의 rAF 동기 스텁과 맞물리면) exit 전환
-  // 중 `flushSync` 를 잘못된 시점에 호출해 `Modal.Content` 를 한 번 더 마운트/언마운트(또는 FocusTrap
-  // 의 ref 재부착)시킬 수 있는데, ref 콜백에 의존하면 그 잡음까지 "previousFocus" 로 잘못 캡처한다.
-  // open 은 우리 컴포넌트 자신의 prop 이라 그 잡음과 무관하게 안정적이다.
-  useLayoutEffect(() => {
+  // prop 전환에 직접 묶는다 — open 은 우리 컴포넌트 자신의 prop 이라 Mantine 내부 DOM churn 과
+  // 무관하게 안정적으로 캡처된다.
+  //
+  // **왜 layout effect 가 아니라 effect(passive) 인가**: React 는 커밋의 mutation phase 가 끝나면
+  // "이 커밋 시작 시점에 포커스돼 있던 요소"(commitBeforeMutationEffects 에서 캡처)와 "지금 실제로
+  // 포커스된 요소"를 비교해, 둘이 다르고 캡처된 요소가 아직 문서에 붙어 있으면 그 요소로 강제로
+  // `.focus()`를 다시 호출하는 내장 로직이 있다(react-dom-client.development.js 의
+  // `flushMutationEffects`, 이른바 focus/selection 보존 — 텍스트 인풋 전용이 아니라 어떤 요소든
+  // `focus` 메서드만 있으면 적용된다. Mantine 과 무관한 React 자체 동작이다). Modal 이 닫힐 때
+  // Mantine 의 기본 exit transition(200ms) 때문에 `Modal.Content` DOM 은 그 커밋에서 즉시 사라지지
+  // 않고 그대로 붙어 있으므로, "이 커밋 시작 시점에 포커스돼 있던" 다이얼로그 내부 버튼이 여전히
+  // 문서에 남아 이 복원 대상이 된다. 이 복원 로직은 mutation phase 끝(=layout effect 들이 실행되기
+  // 바로 직전) 에 실행되므로, 우리가 layout effect 의 cleanup 에서 `previousFocus.focus()`를 불러도
+  // (그 자체는 mutation phase 도중의 layout-effect-unmount 처리 중에 실행됨) 그 직후 React 의 복원
+  // 로직이 "커밋 시작 시점 포커스 요소"로 다시 덮어써 버린다 — 실측: `focus()`를 몽키패치해 호출
+  // 스택을 확인, `flushMutationEffects` 가 다이얼로그 내부 버튼에 `.focus()`를 다시 호출하는 것을
+  // 직접 확인했다. 이 순서는 Mantine/rAF/Transition 타이밍과 무관하게 React 자체 커밋 구조상
+  // 항상 이렇게 되므로, 실제 브라우저(비 테스트 환경)에서도 재현되는 진짜 문제다(이전에 이 사실을
+  // "테스트 환경 한정" 이라 잘못 판단해 focusin watchdog 으로 덮어 뒀던 것을 team-lead 리뷰로 걷어내며
+  // 재조사해 알아냈다). 해결책은 우리 복원을 React 의 그 복원 로직보다 **뒤에** 실행시키는 것 —
+  // passive effect(`useEffect`)는 mutation/layout phase 가 모두 끝난 뒤(페인트 이후) 실행되므로,
+  // 여기서 `.focus()`를 부르면 항상 마지막 발언권을 갖는다.
+  useEffect(() => {
     if (!open) return;
     const previousFocus =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -149,18 +168,6 @@ function useModalA11yCompat(open: boolean, descriptionId?: string) {
     return () => {
       if (!previousFocus?.isConnected) return;
       previousFocus.focus();
-
-      // Watchdog — 위 복귀 직후, 같은 동기 구간 안에서 Mantine 쪽의 잔여 오동작(위 flushSync
-      // 오용)이 focus 를 다시 가로채는 경우가 있다(테스트 환경 한정 — 실제 브라우저의 진짜 비동기
-      // rAF/setTimeout 에서는 재현되지 않는다). 같은 tick 에서 발생하는 focusin 만 되돌리고,
-      // microtask 이후에는 정상적인(모달과 무관한) 후속 초점 이동을 막지 않도록 즉시 해제한다.
-      const handleFocusIn = () => {
-        if (document.activeElement !== previousFocus && previousFocus.isConnected) {
-          previousFocus.focus();
-        }
-      };
-      document.addEventListener("focusin", handleFocusIn, true);
-      queueMicrotask(() => document.removeEventListener("focusin", handleFocusIn, true));
     };
   }, [open]);
 
@@ -168,41 +175,25 @@ function useModalA11yCompat(open: boolean, descriptionId?: string) {
 }
 
 /**
- * Escape 보정. Mantine 내부 `useWindowEvent` 핸들러(`window` 캡처 단계)는 두 가지를 한다:
- * (a) `event.preventDefault()` 를 안 함(우리 `modal-a11y.unit.test.ts` 계약 위반),
- * (b) `event.target?.getAttribute("data-mantine-stop-propagation")` 을 무조건 호출 — `target` 이
- * `Element` 가 아니면(테스트의 `document.dispatchEvent(event)` 처럼 keydown 이 `document` 자체에
- * dispatch 된 경우) `document` 에는 `getAttribute` 가 없어 TypeError 로 죽는다.
- *
- * (b) 는 실제 서비스에서는 keydown 이 항상 포커스를 가진 Element 를 target 으로 하므로 절대
- * 재현되지 않는다. 그래서 이 훅은 **그 합성 경로(target 이 Element 가 아닐 때)만** 가로채
- * `stopImmediatePropagation` 으로 Mantine 핸들러를 막고 onClose 를 직접 호출한다. 정상 경로
- * (target 이 실제 Element)는 그대로 Mantine 에 맡긴다 — Mantine 이 `event.isComposing`(한글 입력
- * 중 Escape 로 조합을 취소하는 IME 케이스)과 `data-mantine-stop-propagation`(모달 안에 열린
- * Mantine Select/DateInput 등의 드롭다운이 Escape 를 자기가 먼저 소비하도록 표시하는 것)을
- * 처리하기 때문 — 여기서 무조건 stopImmediatePropagation 하면 그 두 케이스가 깨진다.
- * `preventDefault()` 는 두 경로 모두에서 호출해 계약을 만족시킨다(Escape 의 브라우저 기본 동작은
- * 어차피 없어 부작용이 없다).
+ * Escape 보정. Mantine 내부 `useWindowEvent` 핸들러(`window` 캡처 단계, `useEffect`=passive 라
+ * 우리 아래 `useLayoutEffect` 보다 항상 나중에 등록된다)는 `event.preventDefault()` 를 호출하지
+ * 않는다 — 이 저장소의 `modal-a11y.unit.test.ts` 계약("Escape 를 누르면 `defaultPrevented`
+ * 여야 한다")을 만족시키려면 우리가 대신 호출해야 한다. `onClose` 호출 자체는 Mantine 의 핸들러가
+ * `event.isComposing`(한글 입력 중 Escape 로 조합을 취소하는 IME 케이스)과
+ * `data-mantine-stop-propagation`(모달 안에 열린 Mantine Select/DateInput 등의 드롭다운이 Escape
+ * 를 자기가 먼저 소비하도록 표시하는 것)을 고려해 이미 정확히 처리하므로, 여기서 다시 부르지
+ * 않는다(중복 호출 방지). `event.target` 이 실제 포커스된 Element 라는 전제는 실제 keydown 이면
+ * 항상 성립하고, 테스트도 (`modal-a11y.unit.test.ts` 의 `dispatchKey`) 실제 포커스된 요소에
+ * dispatch 하도록 맞춰져 있다.
  */
-function useEscapeCompat(open: boolean, onClose?: () => void) {
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-
+function useEscapeCompat(open: boolean) {
   useLayoutEffect(() => {
     if (!open) return;
 
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
-
-      const hasRealElementTarget = event.target instanceof Element;
-      if (!hasRealElementTarget) {
-        // 합성 dispatch(target=document 등) — Mantine 핸들러가 크래시하므로 우리가 전담한다.
-        event.stopImmediatePropagation();
-        onCloseRef.current?.();
-      }
-      // else: Mantine 의 자체 핸들러가 isComposing/data-mantine-stop-propagation 을 고려해
-      // onClose 를 호출하도록 그대로 둔다(중복 호출 없음).
+      // onClose 는 Mantine 자체 핸들러(useWindowEvent, 아래에서 나중에 실행됨)가 호출한다.
     };
 
     window.addEventListener("keydown", handleEscape, true);
@@ -245,7 +236,7 @@ function ModalImpl({
   overlayClassName = "",
 }: ModalProps & { overlayClassName?: string }) {
   const { setDialogRef } = useModalA11yCompat(open, descriptionId);
-  useEscapeCompat(open, onClose);
+  useEscapeCompat(open);
 
   return (
     <M.Root opened={open} onClose={onClose ?? (() => {})} size={SIZE[size]} centered>

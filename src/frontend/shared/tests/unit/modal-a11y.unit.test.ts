@@ -62,8 +62,12 @@ function dispatchKey(key: string, shiftKey = false): KeyboardEvent {
     bubbles: true,
     cancelable: true,
   });
+  // 실제 keydown 은 항상 포커스를 가진 Element 를 target 으로 한다 — Mantine 의 Escape 핸들러가
+  // `event.target?.getAttribute("data-mantine-stop-propagation")` 를 호출하므로(document 는
+  // getAttribute 가 없어 TypeError), document 자체가 아니라 실제 포커스된 요소에 dispatch 한다
+  // (team-lead 지시: modal.tsx 쪽 합성-경로 분기를 없애고 하네스에서 dispatch 대상을 고친다).
   act(() => {
-    document.dispatchEvent(event);
+    (document.activeElement ?? document.body).dispatchEvent(event);
   });
   return event;
 }
