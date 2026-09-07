@@ -1,14 +1,8 @@
 "use client";
 
-import React, {
-  useState,
-  useRef,
-  useMemo,
-  useEffect,
-  useCallback,
-  type CSSProperties,
-} from "react";
-import { generateId } from "../../utils/libUtil";
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
+import { Select } from "@mantine/core";
+import clsx from "clsx";
 
 export interface ComboBoxProps {
   /** 원본 데이터 배열 (string[] 또는 object[]) */
@@ -91,263 +85,91 @@ export function ComboBox({
   createLabel,
   maxVisible,
 }: ComboBoxProps) {
-  const comboId = useMemo(() => id || generateId("combo"), [id]);
-  const listboxId = `${comboId}-listbox`;
+  const autoId = useId();
+  const comboId = id || autoId;
   const errorId = `${comboId}-error`;
-
-  const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLUListElement>(null);
 
-  const [open, setOpen] = useState(false);
-  const [inputText, setInputText] = useState("");
-  const [highlightIndex, setHighlightIndex] = useState(-1);
+  const options = useMemo(() => resolveOptions(data, valueField, labelField), [data, valueField, labelField]);
 
-  const options = useMemo(
-    () => resolveOptions(data, valueField, labelField),
-    [data, valueField, labelField]
-  );
+  // 검색어를 직접 제어한다 — onCreateNew 노출 판정과 표시 텍스트 동기화에 필요하다.
+  const [searchValue, setSearchValue] = useState("");
 
-  // value prop → input 표시 텍스트 동기화
+  // value 가 현재 옵션 목록에 없어도(대용량 데이터의 maxVisible 캡 등으로 화면에 없을 수 있다)
+  // 입력창 표시가 사라지지 않도록 임시 항목을 앞에 추가한다.
+  const selectData = useMemo(() => {
+    if (value && !options.some((o) => o.value === value)) {
+      return [{ value, label: value }, ...options];
+    }
+    return options;
+  }, [options, value]);
+
+  // value(선택된 옵션)가 바뀌면 검색어를 그 라벨로 동기화한다 — 기존 구현의
+  // "value prop → input 표시 텍스트 동기화" 이펙트와 동일한 역할.
   useEffect(() => {
     const found = options.find((o) => o.value === value);
-    setInputText(found ? found.label : value ? "" : "");
+    setSearchValue(found ? found.label : value || "");
   }, [value, options]);
 
-  // 필터링된 옵션 + 캡 여부 — 한 번의 패스로 maxVisible 도달 시 즉시 종료하여
-  // 대용량(수만~수십만) 옵션에서도 매 키스트로크 비용이 O(maxVisible) 로 고정된다.
-  const { filtered, isCapped } = useMemo(() => {
-    const keyword = inputText.toLowerCase();
-    const cap = maxVisible ?? Infinity;
-    const result: ResolvedOption[] = [];
-    let truncated = false;
-    for (const o of options) {
-      if (keyword && !o.label.toLowerCase().includes(keyword)) continue;
-      if (result.length >= cap) {
-        truncated = true;
-        break;
-      }
-      result.push(o);
-    }
-    return { filtered: result, isCapped: truncated };
-  }, [options, inputText, maxVisible]);
+  const trimmed = searchValue.trim();
+  const showCreateItem = !!onCreateNew && trimmed.length > 0 && !options.some((o) => o.label === trimmed);
 
-  // creatable 항목 노출 여부: onCreateNew 가 설정되었고, 입력 텍스트가 기존 옵션과 정확히 일치하지 않을 때
-  const showCreateItem = useMemo(() => {
-    if (!onCreateNew) return false;
-    const trimmed = inputText.trim();
-    if (!trimmed) return false;
-    return !options.some((o) => o.label === trimmed);
-  }, [onCreateNew, inputText, options]);
-  const createIndex = filtered.length; // create 항목 인덱스 (filtered 다음)
+  const resolvedAriaInvalid = ariaInvalid ?? !!error;
+  const resolvedAriaDescribedBy = mergeDescribedBy(ariaDescribedBy, error ? errorId : undefined);
 
-  // 하이라이트된 항목이 보이도록 스크롤
+  // Mantine Select(InputBase 계열)는 자신의 error prop 으로만 aria-invalid/
+  // aria-describedby 를 계산해 외부 주입값을 덮어써 버린다(Input/Select/Textarea/
+  // DatePicker 공통 이슈). DOM 커밋 이후 직접 반영한다.
   useEffect(() => {
-    if (!open || highlightIndex < 0 || !listRef.current) return;
-    const item = listRef.current.children[highlightIndex] as HTMLElement;
-    item?.scrollIntoView({ block: "nearest" });
-  }, [highlightIndex, open]);
-
-  // 외부 클릭 시 닫기
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        closeDropdown();
-      }
-    }
-    if (open) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
-
-  const closeDropdown = useCallback(() => {
-    setOpen(false);
-    setHighlightIndex(-1);
-    // 닫힐 때 선택된 값의 label로 복원
-    const found = options.find((o) => o.value === value);
-    setInputText(found ? found.label : "");
-  }, [value, options]);
-
-  const selectOption = useCallback(
-    (opt: ResolvedOption) => {
-      setInputText(opt.label);
-      setOpen(false);
-      setHighlightIndex(-1);
-      onChange?.(opt.value, opt.raw);
-    },
-    [onChange]
-  );
-
-  const triggerCreate = useCallback(
-    (text: string) => {
-      const trimmed = text.trim();
-      if (!trimmed) return;
-      setOpen(false);
-      setHighlightIndex(-1);
-      onCreateNew?.(trimmed);
-    },
-    [onCreateNew]
-  );
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInputText(e.target.value);
-    setOpen(true);
-    setHighlightIndex(-1);
-  };
-
-  const handleFocus = () => {
-    if (!disabled && !readOnly) {
-      setInputText("");
-      setOpen(true);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (disabled || readOnly) return;
-
-    switch (e.key) {
-      case "ArrowDown":
-        e.preventDefault();
-        if (!open) {
-          setOpen(true);
-        } else {
-          const max = filtered.length + (showCreateItem ? 1 : 0) - 1;
-          setHighlightIndex((prev) => (prev < max ? prev + 1 : 0));
-        }
-        break;
-      case "ArrowUp":
-        e.preventDefault();
-        if (open) {
-          const max = filtered.length + (showCreateItem ? 1 : 0) - 1;
-          setHighlightIndex((prev) => (prev > 0 ? prev - 1 : max));
-        }
-        break;
-      case "Enter":
-        e.preventDefault();
-        if (!open) break;
-        if (showCreateItem && highlightIndex === createIndex) {
-          triggerCreate(inputText);
-        } else if (highlightIndex >= 0 && filtered[highlightIndex]) {
-          selectOption(filtered[highlightIndex]);
-        }
-        break;
-      case "Escape":
-        e.preventDefault();
-        closeDropdown();
-        break;
-    }
-  };
-
-  const handleToggle = () => {
-    if (disabled || readOnly) return;
-    if (open) {
-      closeDropdown();
-    } else {
-      setOpen(true);
-      inputRef.current?.focus();
-    }
-  };
+    const el = inputRef.current;
+    if (!el) return;
+    el.setAttribute("aria-invalid", String(resolvedAriaInvalid));
+    if (resolvedAriaDescribedBy) el.setAttribute("aria-describedby", resolvedAriaDescribedBy);
+  }, [resolvedAriaInvalid, resolvedAriaDescribedBy]);
 
   return (
-    <>
-      <div
-        ref={containerRef}
-        className={`form-combobox ${error ? "form-error" : ""} ${className}`.trim()}
-        style={style}
-      >
-        <input
-          ref={inputRef}
-          id={comboId}
-          type="text"
-          className="form-combobox-input"
-          value={inputText}
-          onChange={handleInputChange}
-          onFocus={handleFocus}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          disabled={disabled}
-          readOnly={readOnly}
-          autoComplete="off"
-          role="combobox"
-          aria-expanded={open}
-          aria-controls={listboxId}
-          aria-autocomplete="list"
-          aria-activedescendant={
-            highlightIndex >= 0 ? `${comboId}-opt-${highlightIndex}` : undefined
-          }
-          aria-label={ariaLabel}
-          aria-labelledby={ariaLabelledBy}
-          aria-invalid={ariaInvalid ?? !!error}
-          aria-describedby={mergeDescribedBy(ariaDescribedBy, error ? errorId : undefined)}
-        />
-        <button
-          type="button"
-          className="form-combobox-toggle"
-          tabIndex={-1}
-          onClick={handleToggle}
-          disabled={disabled}
-          aria-label="Toggle dropdown"
-        >
-          <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
-            <path
-              d="M1 1L5 5L9 1"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
-        {open && (
-          <ul ref={listRef} id={listboxId} className="form-combobox-dropdown" role="listbox">
-            {filtered.length > 0
-              ? filtered.map((opt, idx) => (
-                  <li
-                    key={opt.value}
-                    id={`${comboId}-opt-${idx}`}
-                    className={`form-combobox-option${idx === highlightIndex ? " highlighted" : ""}${opt.value === value ? " selected" : ""}`}
-                    role="option"
-                    aria-selected={opt.value === value}
-                    onMouseEnter={() => setHighlightIndex(idx)}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      selectOption(opt);
-                    }}
-                  >
-                    {opt.label}
-                  </li>
-                ))
-              : !showCreateItem && <li className="form-combobox-empty">No results</li>}
-            {showCreateItem && (
-              <li
-                key="__create_new__"
-                id={`${comboId}-opt-${createIndex}`}
-                className={`form-combobox-option form-combobox-create${createIndex === highlightIndex ? " highlighted" : ""}`}
-                role="option"
-                aria-selected={false}
-                onMouseEnter={() => setHighlightIndex(createIndex)}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  triggerCreate(inputText);
-                }}
-              >
-                {(createLabel ?? ((t) => `+ "${t}" 신규 생성`))(inputText.trim())}
-              </li>
-            )}
-            {isCapped && (
-              <li key="__capped__" className="form-combobox-empty" aria-disabled="true">
-                {`상위 ${maxVisible}개만 표시 — 더 좁히려면 입력하세요`}
-              </li>
-            )}
-          </ul>
-        )}
-      </div>
-      {error && (
-        <span id={errorId} className="form-error-message" role="alert">
-          {error}
-        </span>
-      )}
-    </>
+    <Select
+      ref={inputRef}
+      id={comboId}
+      searchable
+      data={selectData}
+      value={value || null}
+      onChange={(v) => {
+        const item = v == null ? undefined : options.find((o) => o.value === v)?.raw;
+        onChange?.(v ?? "", item);
+      }}
+      searchValue={searchValue}
+      onSearchChange={setSearchValue}
+      limit={maxVisible}
+      placeholder={placeholder}
+      disabled={disabled}
+      readOnly={readOnly}
+      comboboxProps={{ withinPortal: false }}
+      nothingFoundMessage={
+        showCreateItem ? (
+          <button
+            type="button"
+            className="form-combobox-create"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => onCreateNew?.(trimmed)}
+          >
+            {(createLabel ?? ((t) => `+ "${t}" 신규 생성`))(trimmed)}
+          </button>
+        ) : undefined
+      }
+      error={
+        error ? (
+          <span id={errorId} className="form-error-message" role="alert">
+            {error}
+          </span>
+        ) : undefined
+      }
+      aria-label={ariaLabel}
+      aria-labelledby={ariaLabelledBy}
+      aria-invalid={resolvedAriaInvalid}
+      aria-describedby={resolvedAriaDescribedBy}
+      className={clsx("form-combobox", error && "form-error", className)}
+      style={style}
+    />
   );
 }

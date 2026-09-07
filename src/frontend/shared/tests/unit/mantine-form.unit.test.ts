@@ -1,7 +1,7 @@
 /** @vitest-environment happy-dom */
 import { act, createElement } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { Button, Checkbox, DatePicker, Input, Radio, Select, Textarea } from "../../src/components/form";
+import { Button, Checkbox, ComboBox, DatePicker, Input, MultiSelectComboBox, Radio, Select, Textarea } from "../../src/components/form";
 import { renderWithMantine } from "./mantine-test-utils";
 
 // React 는 controlled input/textarea 노드에 값 추적용 setter 를 얹어두므로, 테스트에서
@@ -97,6 +97,48 @@ describe("form (Mantine 구현) 계약", () => {
       ta.dispatchEvent(new Event("input", { bubbles: true }));
     });
     expect(onChange).toHaveBeenCalledWith("x");
+    r.unmount();
+  });
+
+  it("ComboBox 는 옵션 선택 시 onChange(value, item) 을 돌려준다", () => {
+    const onChange = vi.fn();
+    const data = [
+      { value: "a", label: "Apple" },
+      { value: "b", label: "Banana" },
+    ];
+    const r = renderWithMantine(createElement(ComboBox, { data, value: "", onChange }));
+    const input = r.host.querySelector("input") as HTMLInputElement;
+    act(() => input.focus());
+    const options = r.host.querySelectorAll('[role="option"]');
+    expect(options.length).toBe(2);
+    act(() => (options[1] as HTMLElement).click());
+    expect(onChange).toHaveBeenCalledWith("b", { value: "b", label: "Banana" });
+    r.unmount();
+  });
+
+  it("ComboBox 는 maxVisible 만큼만 옵션을 렌더한다", () => {
+    const data = Array.from({ length: 50 }, (_, i) => ({ value: String(i), label: `Item${i}` }));
+    const r = renderWithMantine(createElement(ComboBox, { data, value: "", maxVisible: 5 }));
+    const input = r.host.querySelector("input") as HTMLInputElement;
+    act(() => input.focus());
+    const options = r.host.querySelectorAll('[role="option"]');
+    expect(options.length).toBe(5);
+    r.unmount();
+  });
+
+  it("MultiSelectComboBox 는 value 배열을 태그로 표시하고 onChange(values) 로 왕복한다", () => {
+    const onChange = vi.fn();
+    const data = [
+      { value: "a", label: "Apple" },
+      { value: "b", label: "Banana" },
+    ];
+    const r = renderWithMantine(createElement(MultiSelectComboBox, { data, value: ["a"], onChange }));
+    expect(r.host.textContent).toContain("Apple");
+    const input = r.host.querySelector("input") as HTMLInputElement;
+    act(() => input.focus());
+    const options = r.host.querySelectorAll('[role="option"]');
+    act(() => (options[1] as HTMLElement).click());
+    expect(onChange).toHaveBeenCalledWith(["a", "b"]);
     r.unmount();
   });
 });
