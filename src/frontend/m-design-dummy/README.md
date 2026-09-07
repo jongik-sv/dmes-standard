@@ -2,6 +2,10 @@
 
 디자이너·퍼블리셔에게 현행 DMES 화면 패턴과 `@dk-oasis/shared`를 함께 전달하기 위한 독립 프론트엔드 모듈입니다.
 
+## UI 기반
+
+이 프로젝트는 **Mantine 9**(컴포넌트 기반)와 **ag-grid-community 33**(그리드)을 사용합니다. 샌드박스 루트는 `DmesUiProvider`로 감싸야 합니다.
+
 ## 실행
 
 저장소 안에서는:
@@ -34,7 +38,7 @@ npm run dev
 | ---------------------- | ------------------------------------------ | ----------------------------------------- |
 | 디자인 시작점          | 토큰·화면·컴포넌트 사용범위                | 전체 샘플 위치 확인                       |
 | 폼·피드백 컴포넌트     | Form·Lookup·Tree·Tabs·Modal·Progress 전체  | 입력, 검색, 메시지, 오류, 로딩            |
-| 데이터 표시 컴포넌트   | AG·MUI·Custom Grid·Badge·Pagination·Matrix | Grid 전환, 다중 선택, 도움말, 페이지 전환 |
+| 데이터 표시 컴포넌트   | AG Grid·Custom Grid·Badge·Pagination·Matrix | Grid 전환, 다중 선택, 도움말, 페이지 전환 |
 | 레이아웃·스플리터      | ContentBody·ResizableFormPanel·MaxHandle   | 드래그 크기 조정, 패널 최대화, 상세 편집  |
 | 단일 조회·편집         | 검색 + 단일 Grid CRUD                      | 조회, 행 추가/복사/삭제, 인라인 편집, CSV |
 | 마스터–상세            | 상하 연동 Grid + ResizableFormPanel        | 워크센터 선택, 자원 할당/해제, 상세 편집  |

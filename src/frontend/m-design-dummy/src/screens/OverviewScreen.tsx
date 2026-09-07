@@ -60,7 +60,7 @@ const PATTERN_ROWS = [
   },
   {
     screen: "데이터 표시 컴포넌트",
-    components: "AG·MUI·Custom Grid / Badge / Pagination / Matrix",
+    components: "AG Grid·Custom Grid / Badge / Pagination / Matrix",
     behavior: "Grid 전환, 다중 선택, 도움말, 페이지 전환",
   },
   {
