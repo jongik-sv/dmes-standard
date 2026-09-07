@@ -71,6 +71,13 @@ function leafByText(r: Rendered, text: string): HTMLElement {
   throw new Error(`"${text}" 를 가진 요소를 찾지 못했다.`);
 }
 
+/** React 제어 입력에 값을 넣는다. 네이티브 setter 를 거쳐야 React 가 변경을 인식한다. */
+function typeInto(input: HTMLInputElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+  setter?.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 /** 실제 포인터 입력과 같은 순서로 mousedown → click 을 보낸다. */
 function pointerClick(element: HTMLElement) {
   act(() => {
@@ -213,6 +220,44 @@ describe("portal-shell (Mantine 구현) 계약", () => {
     expect(favoritesRadio).toBeDefined();
     act(() => favoritesRadio!.click());
     expect(onNavigationViewModeChange).toHaveBeenCalledWith("favorites");
+
+    r.unmount();
+  });
+
+  it("Sidebar 의 검색 지우기 버튼과 접기 토글은 실제로 클릭이 전달된다", () => {
+    const onExpandedChange = vi.fn();
+    const r = renderWithMantine(
+      createElement(Sidebar, {
+        appName: "DMES",
+        menuItems: [],
+        favoriteFolders: [],
+        navigationViewMode: "menu" as const,
+        onNavigationViewModeChange: () => {},
+        isExpanded: true,
+        onExpandedChange,
+        activePageId: null,
+        onMenuItemClick: () => {},
+      })
+    );
+
+    const search = r.host.querySelector<HTMLInputElement>("input.search-input");
+    expect(search).not.toBeNull();
+    act(() => typeInto(search!, "사용자"));
+    expect(search!.value).toBe("사용자");
+
+    // Mantine 의 rightSection 은 pointer-events 를 열어 주지 않으면 실제 브라우저에서 클릭이 죽는다.
+    const wrapper = r.host.querySelector<HTMLElement>(".mantine-Input-wrapper");
+    expect(wrapper?.getAttribute("style")).toContain("--input-right-section-pointer-events: all");
+
+    const clear = r.host.querySelector<HTMLElement>(".clear-btn");
+    expect(clear).not.toBeNull();
+    act(() => clear!.click());
+    expect(r.host.querySelector<HTMLInputElement>("input.search-input")!.value).toBe("");
+
+    const toggle = r.host.querySelector<HTMLElement>(".sidebar-toggle-button");
+    expect(toggle).not.toBeNull();
+    act(() => toggle!.click());
+    expect(onExpandedChange).toHaveBeenCalledWith(false);
 
     r.unmount();
   });

@@ -267,15 +267,6 @@
   display: block;
 }
 
-.control-btn.favorite-active {
-  color: #f1c40f;
-  border-color: #f1c40f;
-}
-
-.control-btn.favorite-active:hover {
-  background-color: #fef9e7;
-}
-
 .tab-count {
   background-color: var(--color-primary, #337ab7);
   color: white;

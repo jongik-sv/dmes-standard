@@ -68,15 +68,23 @@
 }
 
 /* Toggle button */
-/* 토글 버튼 — 크기/색은 Mantine ActionIcon 이 담당하고 여기서는 위치만 지정한다. */
+/* 토글 버튼 — 크기·모서리는 ActionIcon 의 인라인 style 로 확정하고 여기서는 위치만 지정한다. */
 .sidebar-toggle-button {
   position: absolute;
   top: 50%;
   right: -14px;
   transform: translateY(-50%);
   z-index: 1001;
-  border-radius: 0 6px 6px 0;
   box-shadow: 2px 0 6px rgba(0, 0, 0, 0.15);
+  transition: all var(--transition-normal);
+}
+
+/* hover 확장은 인라인 width 를 이겨야 해서 !important 가 불가피하다. */
+.sidebar-toggle-button:hover {
+  width: 18px !important;
+  min-width: 18px !important;
+  right: -18px;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.25);
 }
 
 .sidebar-toggle-button .toggle-icon {

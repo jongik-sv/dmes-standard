@@ -32,6 +32,8 @@ const FAVORITE_ACTIVE_ICON_VARS = {
   ...CONTROL_ICON_VARS,
   "--ai-color": "#f1c40f",
   "--ai-bd": "1px solid #f1c40f",
+  "--ai-hover": "rgba(241, 196, 15, 0.18)",
+  "--ai-hover-color": "#f1c40f",
 } as React.CSSProperties;
 
 interface TabState {

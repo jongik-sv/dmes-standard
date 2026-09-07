@@ -231,11 +231,13 @@ export function Sidebar({
           className="sidebar-toggle-button"
           variant="filled"
           color="dmes"
-          radius={0}
-          w={14}
-          h={60}
-          miw={14}
-          mih={60}
+          style={{
+            width: 14,
+            minWidth: 14,
+            height: 60,
+            minHeight: 60,
+            borderRadius: "0 6px 6px 0",
+          }}
           onClick={() => onExpandedChange(!isExpanded)}
           title={isExpanded ? "메뉴 접기" : "메뉴 펼치기"}
           aria-label={isExpanded ? "메뉴 접기" : "메뉴 펼치기"}
@@ -283,6 +285,7 @@ export function Sidebar({
               value={searchTerm}
               onChange={handleSearchChange}
               size="xs"
+              rightSectionPointerEvents="all"
               rightSection={
                 searchTerm ? (
                   <ActionIcon
