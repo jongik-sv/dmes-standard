@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useMemo, type CSSProperties } from "react";
-import { generateId } from "../../utils/libUtil";
+import { useId, type CSSProperties } from "react";
+import { Checkbox as MantineCheckbox } from "@mantine/core";
+import clsx from "clsx";
 
 export interface CheckboxProps {
   id?: string;
@@ -27,25 +28,27 @@ export function Checkbox({
   style,
   ...ariaProps
 }: CheckboxProps) {
-  const generatedId = useMemo(() => generateId("checkbox"), []);
-  const checkId = id ?? generatedId;
+  const autoId = useId();
+  const checkId = id ?? autoId;
 
   return (
-    <label className={`form-checkbox-label ${className}`.trim()} style={style} htmlFor={checkId}>
-      <input
-        id={checkId}
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange?.(e.target.checked)}
-        disabled={disabled}
-        className="form-checkbox"
-        aria-checked={checked}
-        aria-label={ariaProps["aria-label"]}
-        aria-labelledby={ariaProps["aria-labelledby"]}
-        aria-describedby={ariaProps["aria-describedby"]}
-        aria-invalid={ariaProps["aria-invalid"]}
-      />
-      {label && <span>{label}</span>}
-    </label>
+    <MantineCheckbox
+      id={checkId}
+      checked={checked}
+      onChange={(e) => onChange?.(e.currentTarget.checked)}
+      disabled={disabled}
+      label={label || undefined}
+      style={style}
+      aria-checked={checked}
+      aria-label={ariaProps["aria-label"]}
+      aria-labelledby={ariaProps["aria-labelledby"]}
+      aria-describedby={ariaProps["aria-describedby"]}
+      aria-invalid={ariaProps["aria-invalid"]}
+      classNames={{
+        root: clsx(className),
+        body: "form-checkbox-label",
+        input: "form-checkbox",
+      }}
+    />
   );
 }

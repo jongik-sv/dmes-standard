@@ -1,6 +1,7 @@
 "use client";
 
-import React from "react";
+import type { CSSProperties, ReactNode } from "react";
+import { Progress, Text } from "@mantine/core";
 
 export type ProgressStatus = "idle" | "running" | "completed" | "error";
 
@@ -13,7 +14,7 @@ export interface ProgressBarProps {
    */
   value?: number;
   /** 막대 옆/아래에 표시할 텍스트 (상태 메시지 등) */
-  label?: React.ReactNode;
+  label?: ReactNode;
   /** N% 숫자 표시 (value 필요) */
   showPercent?: boolean;
   /** idle 상태에서 숨김 (기본값 true) — SchedulingProgressBar 와 동일 동작 */
@@ -23,14 +24,14 @@ export interface ProgressBarProps {
   /** running 색상 오버라이드 */
   color?: string;
   className?: string;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
 }
 
 const STATUS_COLOR: Record<ProgressStatus, string> = {
-  idle: "#9ca3af",
-  running: "#2563eb",
-  completed: "#16a34a",
-  error: "#dc2626",
+  idle: "gray",
+  running: "dmes",
+  completed: "green",
+  error: "danger",
 };
 
 const STATUS_LABEL: Record<ProgressStatus, string> = {
@@ -45,7 +46,6 @@ const STATUS_LABEL: Record<ProgressStatus, string> = {
  *
  * - `value` 지정 → 결정형(채워지는 막대 + 선택적 %)
  * - `value` 미지정 + `status="running"` → 비결정형(줄무늬 애니메이션)
- * - shared 관례(Tabs/Spinner)와 동일하게 외부 CSS 없이 인라인 스타일 자급.
  */
 export function ProgressBar({
   status = "idle",
@@ -60,7 +60,7 @@ export function ProgressBar({
 }: ProgressBarProps) {
   if (status === "idle" && hideWhenIdle) return null;
 
-  const accent = status === "running" ? (color ?? STATUS_COLOR.running) : STATUS_COLOR[status];
+  const mantineColor = status === "running" ? (color ?? STATUS_COLOR.running) : STATUS_COLOR[status];
   const determinate = typeof value === "number" && !Number.isNaN(value);
   const pct = determinate ? Math.max(0, Math.min(100, value as number)) : 0;
   const indeterminate = status === "running" && !determinate;
@@ -74,64 +74,29 @@ export function ProgressBar({
       aria-valuemin={0}
       aria-valuemax={100}
     >
-      <div
-        style={{
-          flex: 1,
-          height,
-          background: "#eceff3",
-          borderRadius: height,
-          overflow: "hidden",
-          position: "relative",
-        }}
-      >
-        {indeterminate ? (
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              bottom: 0,
-              width: "40%",
-              borderRadius: height,
-              background: `linear-gradient(90deg, transparent, ${accent}, transparent)`,
-              animation: "oasis-progress-indeterminate 1.2s ease-in-out infinite",
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              height: "100%",
-              width: `${pct}%`,
-              background: accent,
-              borderRadius: height,
-              transition: "width 0.25s ease",
-            }}
-          />
-        )}
-      </div>
+      <Progress
+        value={indeterminate ? 100 : pct}
+        color={mantineColor}
+        size={height}
+        animated={indeterminate}
+        striped={indeterminate}
+        style={{ flex: 1 }}
+        radius={height}
+      />
 
       {(label != null || (showPercent && determinate) || status !== "running") && (
-        <span
-          style={{
-            fontSize: 12,
-            fontWeight: 700,
-            color: accent,
-            whiteSpace: "nowrap",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-          }}
+        <Text
+          size="xs"
+          fw={700}
+          c={mantineColor}
+          style={{ whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 6 }}
         >
           {label ?? STATUS_LABEL[status]}
           {showPercent && determinate && (
             <span style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{pct}%</span>
           )}
-        </span>
+        </Text>
       )}
-
-      <style>{`@keyframes oasis-progress-indeterminate {
-        0% { left: -40%; }
-        100% { left: 100%; }
-      }`}</style>
     </div>
   );
 }

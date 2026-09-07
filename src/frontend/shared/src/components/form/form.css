@@ -2,10 +2,11 @@
    Input field common styles
    ============================================================ */
 
+/* form-datepicker/form-textarea 는 Mantine(DateInput/Textarea)이 자체 렌더링을 맡으므로
+   외형 규칙을 여기서 관리하지 않는다. form-input/form-select 는 Mantine 없이 raw HTML
+   로 그대로 쓰는 화면(access-management 등)이 있어 유지한다. */
 .form-input,
-.form-select,
-.form-datepicker,
-.form-textarea {
+.form-select {
   width: 100%;
   height: var(--form-height, 26px);
   padding: 0 8px;
@@ -21,18 +22,14 @@
 }
 
 .form-input:focus,
-.form-select:focus,
-.form-datepicker:focus,
-.form-textarea:focus {
+.form-select:focus {
   outline: none;
   border-color: var(--color-focus, #337ab7);
   box-shadow: var(--shadow-focus, 0 0 0 2px rgba(51, 122, 183, 0.15));
 }
 
 .form-input:disabled,
-.form-select:disabled,
-.form-datepicker:disabled,
-.form-textarea:disabled {
+.form-select:disabled {
   background-color: var(--color-bg-disabled, #f5f5f5);
   color: var(--color-text-disabled, #999);
   cursor: not-allowed;
@@ -44,30 +41,15 @@
    값 선택·복사는 계속 되게 한다(disabled 로 바꾸면 복사도 막히고 폼 전송값도 빠진다).
    ★[readonly] 속성 선택자를 쓴다 — :read-only 의사클래스는 checkbox/radio/select 처럼
    애초에 편집 대상이 아닌 요소에도 매칭돼 의도치 않게 회색이 번진다. */
-.form-input[readonly],
-.form-datepicker[readonly],
-.form-textarea[readonly] {
+.form-input[readonly] {
   background-color: var(--color-bg-disabled, #f5f5f5);
   color: var(--color-text-disabled, #999);
 }
 
 /* readOnly 는 포커스 강조도 뺀다 — 편집 가능한 칸으로 오해할 여지를 없앤다. */
-.form-input[readonly]:focus,
-.form-datepicker[readonly]:focus,
-.form-textarea[readonly]:focus {
+.form-input[readonly]:focus {
   border-color: var(--color-border, #ccc);
   box-shadow: none;
-}
-
-/* Textarea
-   height 는 '명시적 값' 이어야 한다. height:auto 로 두면 flex 컨테이너
-   (.form-group-field) 안에서 높이가 풀려 패널 전체로 부풀어 오른다. */
-.form-textarea {
-  height: 60px;
-  min-height: 26px;
-  max-height: 160px;
-  padding: 6px 8px;
-  resize: vertical;
 }
 
 /* textarea 행 (.form-group--textarea): 라벨 상단정렬 + 필드 block 흐름.
@@ -115,30 +97,8 @@
   white-space: nowrap;
 }
 
-/* ============================================================
-   Checkbox
-   ============================================================ */
-
-.form-checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--font-size-sm, 12px);
-  color: var(--color-text, #333);
-  cursor: pointer;
-  padding-left: 4px;
-}
-
-.form-checkbox {
-  width: 14px;
-  height: 14px;
-  margin-left: 2px;
-  cursor: pointer;
-}
-
-.form-checkbox:disabled {
-  cursor: not-allowed;
-}
+/* Checkbox — Mantine Checkbox 가 자체 렌더링을 맡으므로 외형 규칙 없음.
+   (form-checkbox-label/form-checkbox 클래스는 내부 참조용으로만 남아있다) */
 
 /* ============================================================
    Button
@@ -177,27 +137,8 @@
   background-color: var(--color-primary-hover, #2a6499);
 }
 
-.form-button-danger {
-  background-color: var(--color-danger, #dc3545);
-  color: white;
-  border-color: var(--color-danger, #dc3545);
-}
-
-.form-button-danger:hover:not(:disabled) {
-  background-color: var(--color-danger-hover, #c82333);
-}
-
-/* 크기 변형 — 좁은 컨테이너용. nowrap 은 .form-button 에서 상속. */
-.form-button-sm {
-  height: 24px;
-  padding: 0 10px;
-}
-
-.form-button-mini {
-  height: 22px;
-  padding: 0 8px;
-  font-size: var(--font-size-xs, 11px);
-}
+/* form-button-danger/form-button-sm/form-button-mini — Mantine Button 이
+   color="danger"/size 매핑으로 자체 렌더링을 맡으므로 외형 규칙 없음. */
 
 /* ============================================================
    Search field combination
@@ -222,16 +163,12 @@
    ============================================================ */
 
 .form-input.form-error,
-.form-select.form-error,
-.form-datepicker.form-error,
-.form-textarea.form-error {
+.form-select.form-error {
   border-color: var(--color-error, #dc3545);
 }
 
 .form-input.form-error:focus,
-.form-select.form-error:focus,
-.form-datepicker.form-error:focus,
-.form-textarea.form-error:focus {
+.form-select.form-error:focus {
   border-color: var(--color-error, #dc3545);
   box-shadow: var(--shadow-error-focus, 0 0 0 2px rgba(220, 53, 69, 0.15));
 }

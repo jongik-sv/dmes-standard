@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import { Overlay } from "@mantine/core";
 import { Spinner } from "./Spinner";
 
 export interface LoadingOverlayProps {
@@ -33,6 +33,10 @@ export interface LoadingOverlayProps {
  *   ...
  * &lt;/div&gt;
  * </pre>
+ *
+ * Mantine 의 `LoadingOverlay` 는 `loaderProps.children` 을 스피너 대체용으로 쓰기 때문에
+ * 라벨을 그 경로로 넘기면 스피너 애니메이션이 사라진다. 대신 `Overlay` (배경) + `Spinner`
+ * (스피너+라벨) 조합으로 원래 동작을 그대로 유지한다.
  */
 export interface LoadingOverlayPropsExt extends LoadingOverlayProps {
   /** "container" (default) — absolute, 부모 영역만. "fullscreen" — fixed, viewport 전체. */
@@ -49,21 +53,17 @@ export function LoadingOverlay({
 }: LoadingOverlayPropsExt) {
   if (!visible) return null;
   return (
-    <div
-      style={{
-        position: scope === "fullscreen" ? "fixed" : "absolute",
-        inset: 0,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: `rgba(255, 255, 255, ${backgroundOpacity})`,
-        zIndex,
-      }}
+    <Overlay
+      pos={scope === "fullscreen" ? "fixed" : "absolute"}
+      backgroundOpacity={backgroundOpacity}
+      color="#fff"
+      zIndex={zIndex}
+      style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
       role="status"
       aria-live="polite"
       aria-busy="true"
     >
       <Spinner size={size} label={label} />
-    </div>
+    </Overlay>
   );
 }

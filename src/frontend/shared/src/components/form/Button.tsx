@@ -1,6 +1,7 @@
 "use client";
 
-import React, { type ButtonHTMLAttributes, type ReactNode } from "react";
+import { type ButtonHTMLAttributes, type ReactNode } from "react";
+import { Button as MantineButton } from "@mantine/core";
 
 export type ButtonVariant = "default" | "primary" | "danger";
 
@@ -14,6 +15,18 @@ export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
   type?: "button" | "submit" | "reset";
   ariaLabel?: string;
 }
+
+const MANTINE_VARIANT: Record<ButtonVariant, { variant: "default" | "filled"; color?: string }> = {
+  default: { variant: "default" },
+  primary: { variant: "filled", color: "dmes" },
+  danger: { variant: "filled", color: "danger" },
+};
+
+const MANTINE_SIZE: Record<ButtonSize, string> = {
+  default: "sm",
+  sm: "xs",
+  mini: "compact-xs",
+};
 
 export function Button({
   children,
@@ -29,10 +42,14 @@ export function Button({
 }: ButtonProps) {
   const variantClass = variant !== "default" ? `form-button-${variant}` : "";
   const sizeClass = size !== "default" ? `form-button-${size}` : "";
+  const mantineVariant = MANTINE_VARIANT[variant];
 
   return (
-    <button
+    <MantineButton
       type={type}
+      variant={mantineVariant.variant}
+      color={mantineVariant.color}
+      size={MANTINE_SIZE[size]}
       className={`form-button ${variantClass} ${sizeClass} ${className}`.replace(/\s+/g, " ").trim()}
       onClick={onClick}
       disabled={disabled}
@@ -41,6 +58,6 @@ export function Button({
       {...rest}
     >
       {children}
-    </button>
+    </MantineButton>
   );
 }

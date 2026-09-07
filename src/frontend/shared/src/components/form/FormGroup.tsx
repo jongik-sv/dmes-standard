@@ -128,8 +128,14 @@ export function FormGroup({
           </>
         )}
       </label>
-      {/* 필드 focus/click 으로는 툴팁을 띄우지 않는다 — 입력 중 가림 때문. 스크린리더는 aria-describedby 로 계속 읽는다. */}
-      <div className="form-group-field">
+      {/* 키보드 사용자는 라벨에 마우스를 올릴 수 없으므로, 필드가 focus 를 받으면(캡처 단계 —
+          자식이 Input 이든 Radio.Group 이든 별도 onFocus prop 계약 없이 동작) 마우스 hover 와
+          동일한 툴팁을 띄운다. 스크린리더는 focus 여부와 무관하게 aria-describedby 로 계속 읽는다. */}
+      <div
+        className="form-group-field"
+        onFocusCapture={tip ? showTip : undefined}
+        onBlurCapture={tip ? hideTip : undefined}
+      >
         {enhancedChildren}
         {tip && (
           <span id={tipId} className="form-sr-only">
