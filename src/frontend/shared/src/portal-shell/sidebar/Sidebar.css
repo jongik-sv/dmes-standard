@@ -254,7 +254,9 @@
 
 /* 스크롤바는 Mantine ScrollArea 가 그린다(scrollbarSize=6). */
 
-.sidebar-open > .tree-scroll-area > ul {
+/* ScrollArea 가 root 와 ul 사이에 viewport > content 를 끼우므로 자식 결합자로는 매치되지 않는다.
+   중첩 ul 까지 잡히지 않도록 content 직계 자식(= 최상위 ul)만 지정한다. */
+.sidebar-open .tree-scroll-area .mantine-ScrollArea-content > ul {
   padding-left: 0;
   margin: 0;
   list-style: none;

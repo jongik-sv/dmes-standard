@@ -1,4 +1,6 @@
 /** @vitest-environment happy-dom */
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { act, createElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { TabsBar } from "../../src/portal-shell/tabs-bar/TabsBar";
@@ -258,6 +260,42 @@ describe("portal-shell (Mantine 구현) 계약", () => {
     expect(toggle).not.toBeNull();
     act(() => toggle!.click());
     expect(onExpandedChange).toHaveBeenCalledWith(false);
+
+    r.unmount();
+  });
+
+  it("메뉴 트리 최상위 ul 은 ScrollArea content 아래에 있고 목록 초기화 규칙에 매치된다", () => {
+    const r = renderWithMantine(
+      createElement(Sidebar, {
+        appName: "DMES",
+        menuItems: [menuNode({ id: "csa", displayText: "권한관리", type: "dir" })],
+        favoriteFolders: [],
+        navigationViewMode: "menu" as const,
+        onNavigationViewModeChange: () => {},
+        isExpanded: true,
+        onExpandedChange: () => {},
+        activePageId: null,
+        onMenuItemClick: () => {},
+      })
+    );
+
+    const ul = r.host.querySelector<HTMLElement>(".tree-scroll-area ul");
+    expect(ul).not.toBeNull();
+    // ScrollArea 가 root 와 ul 사이에 viewport > content 두 겹을 끼운다.
+    expect(ul!.parentElement?.className).toContain("mantine-ScrollArea-content");
+
+    // Sidebar.css 의 최상위 ul 초기화 규칙(list-style/padding 제거)이 실제 DOM 에 걸려야 한다.
+    // 자식 결합자로 두면 ScrollArea 래퍼 때문에 죽어 브라우저 기본 disc/들여쓰기가 살아난다.
+    // happy-dom 환경에서는 import.meta.url 이 file: 스킴이 아니라 vitest root 기준으로 읽는다.
+    const sidebarCss = readFileSync(
+      resolve(process.cwd(), "src/portal-shell/sidebar/Sidebar.css"),
+      "utf8"
+    );
+    const rootListSelector = sidebarCss.match(
+      /^(\.sidebar-open[^{]*tree-scroll-area[^{]*ul)\s*\{/m
+    );
+    expect(rootListSelector).not.toBeNull();
+    expect(ul!.matches(rootListSelector![1].trim())).toBe(true);
 
     r.unmount();
   });
