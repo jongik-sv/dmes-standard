@@ -9,6 +9,9 @@ import {
   useRef,
   useState,
 } from "react";
+import { TextInput } from "@mantine/core";
+import { IconSearch } from "@tabler/icons-react";
+import { Modal } from "../components/modal";
 import type { PortalMenuSearchItem } from "./menu-search";
 import { filterMenuSearchItems } from "./menu-search";
 
@@ -201,64 +204,28 @@ export function MenuSearchDialog({
   }
 
   return (
-    <div
-      className="portal-menu-search__overlay modal-overlay"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
-          onClose();
-        }
-      }}
+    <Modal
+      open={open}
+      title="메뉴 검색"
+      onClose={onClose}
+      size="md"
+      className="portal-menu-search modal-overlay"
+      bodyClassName="portal-menu-search__body"
     >
-      <div
-        ref={dialogRef}
-        className="portal-menu-search"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={`${inputId}-title`}
-        onKeyDown={handleKeyDown}
-      >
-        <div className="portal-menu-search__header">
-          <h2 id={`${inputId}-title`} className="portal-menu-search__title">
-            메뉴 검색
-          </h2>
-          <button
-            type="button"
-            className="portal-menu-search__close"
-            onClick={onClose}
-            aria-label="닫기"
-          >
-            ×
-          </button>
-        </div>
-
+      <div ref={dialogRef} className="portal-menu-search__panel" onKeyDown={handleKeyDown}>
         <div className="portal-menu-search__input-wrap">
-          <span className="portal-menu-search__input-icon" aria-hidden="true">
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-          </span>
-          <input
+          <TextInput
             ref={inputRef}
             id={inputId}
             className="portal-menu-search__input"
-            type="text"
             value={query}
             onChange={(event) => {
-              setQuery(event.target.value);
+              setQuery(event.currentTarget.value);
               setSelectedIndex(0);
             }}
             placeholder="메뉴명 검색"
+            leftSection={<IconSearch size={15} stroke={2} />}
+            size="sm"
             role="combobox"
             aria-autocomplete="list"
             aria-controls={listboxId}
@@ -292,6 +259,6 @@ export function MenuSearchDialog({
           )}
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

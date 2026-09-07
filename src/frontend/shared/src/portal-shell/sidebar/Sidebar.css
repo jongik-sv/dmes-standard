@@ -68,101 +68,41 @@
 }
 
 /* Toggle button */
+/* 토글 버튼 — 크기/색은 Mantine ActionIcon 이 담당하고 여기서는 위치만 지정한다. */
 .sidebar-toggle-button {
   position: absolute;
   top: 50%;
   right: -14px;
   transform: translateY(-50%);
-  width: 14px;
-  height: 60px;
-  background: linear-gradient(
-    135deg,
-    var(--color-primary, #337ab7) 0%,
-    var(--color-primary-hover, #2a6499) 100%
-  );
-  color: #fff;
-  border: none;
-  border-radius: 0 6px 6px 0;
-  cursor: pointer;
   z-index: 1001;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  font-weight: bold;
-  transition: all var(--transition-normal);
+  border-radius: 0 6px 6px 0;
   box-shadow: 2px 0 6px rgba(0, 0, 0, 0.15);
 }
 
-.sidebar-toggle-button:hover {
-  width: 18px;
-  right: -18px;
-  background: var(--color-primary-hover, #2a6499);
-  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.25);
-}
-
 .sidebar-toggle-button .toggle-icon {
-  color: white;
   font-size: 10px;
   font-weight: bold;
   line-height: 1;
 }
 
-/* Tab container */
+/* Tab container — Mantine SegmentedControl 을 감싼다 (구 tab-active/tab-inactive 대체). */
 .tab-container {
-  display: flex;
   height: 32px;
   border-bottom: 1px solid #b8c8d8;
   background-color: #dce6ee;
   flex-shrink: 0;
+  padding: 0;
 }
 
-.tab-active {
-  flex: 1;
-  height: 100%;
-  padding: 0 8px;
-  background-color: var(--color-bg);
-  color: #3A4050;
-  border: none;
-  font-weight: 600;
+.tab-container label {
+  height: 32px;
   font-size: var(--font-size-sm);
-  cursor: pointer;
-  transition: all var(--transition-normal);
-  border-bottom: 2px solid #5E6479;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-}
-
-.tab-active:first-child {
-  border-right: 1px solid #b8c8d8;
-}
-
-.tab-inactive {
-  flex: 1;
-  height: 100%;
-  padding: 0 8px;
-  background-color: #dce6ee;
   color: #556677;
-  border: none;
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--transition-normal);
-  border-bottom: 2px solid transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
 }
 
-.tab-inactive:first-child {
-  border-right: 1px solid #b8c8d8;
-}
-
-.tab-inactive:hover {
-  background-color: #cdd8e4;
+.tab-container label[data-active] {
+  color: #3a4050;
+  font-weight: 600;
 }
 
 /* Search container */
@@ -179,41 +119,11 @@
 
 .search-box {
   flex: 1;
-  display: flex;
-  position: relative;
 }
 
+/* 입력 자체(테두리/포커스)는 Mantine TextInput 이 담당한다. */
 .search-box .search-input {
-  width: 100%;
-  padding: 7px 28px 7px 10px;
-  border: 1px solid var(--color-border-grid);
-  border-radius: 4px;
   font-size: var(--font-size-sm);
-  background-color: var(--color-bg);
-  color: var(--color-text);
-}
-
-.search-box .search-input:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: var(--shadow-focus);
-}
-
-.search-box .search-input::placeholder {
-  color: var(--color-text-placeholder);
-}
-
-.clear-btn {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  color: var(--color-text-disabled);
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-  padding: 4px;
 }
 
 .clear-btn:hover {
@@ -221,25 +131,11 @@
 }
 
 .expand-buttons {
-  display: flex;
-  gap: 4px;
   flex-shrink: 0;
 }
 
 .toggle-all-button {
-  padding: 6px 8px;
   font-size: var(--font-size-sm);
-  cursor: pointer;
-  background-color: var(--color-bg);
-  color: var(--color-text);
-  border: 1px solid var(--color-border-grid);
-  border-radius: 4px;
-  transition: all var(--transition-normal);
-}
-
-.toggle-all-button:hover {
-  background-color: #f0f0f0;
-  border-color: var(--color-primary);
 }
 
 .tree-expand-icon {
@@ -318,7 +214,7 @@
 }
 
 .tree-item.selected-menu {
-  background: linear-gradient(to right, #3A4050, #5E6479);
+  background: linear-gradient(to right, #3a4050, #5e6479);
   color: #fff;
   font-weight: 500;
 }
@@ -341,29 +237,14 @@
 }
 
 /* Tree scroll area */
+/* Mantine ScrollArea — 루트가 남은 높이를 차지하고 내부 viewport 가 스크롤한다. */
 .tree-scroll-area {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;
   padding: 0 10px;
 }
 
-.tree-scroll-area::-webkit-scrollbar {
-  width: 6px;
-}
-
-.tree-scroll-area::-webkit-scrollbar-track {
-  background: var(--color-bg-disabled);
-  border-radius: 3px;
-}
-
-.tree-scroll-area::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 3px;
-}
-
-.tree-scroll-area::-webkit-scrollbar-thumb:hover {
-  background: #aaa;
-}
+/* 스크롤바는 Mantine ScrollArea 가 그린다(scrollbarSize=6). */
 
 .sidebar-open > .tree-scroll-area > ul {
   padding-left: 0;
@@ -437,7 +318,7 @@
 .favorites-tree .fav-toolbar {
   display: flex;
   align-items: center;
-  justify-content: flex-end;   /* 버튼 div 전체 우측 정렬 */
+  justify-content: flex-end; /* 버튼 div 전체 우측 정렬 */
   gap: 6px;
   padding: 6px 10px;
   border-bottom: 1px solid var(--sidebar-border, #e8e8e8);
@@ -456,7 +337,9 @@
   font-size: 12px;
   white-space: nowrap;
 }
-.favorites-tree .fav-row { position: relative; }
+.favorites-tree .fav-row {
+  position: relative;
+}
 .favorites-tree .fav-delete-btn {
   margin-left: auto;
   border: none;
@@ -469,5 +352,9 @@
   padding: 2px 4px;
   transition: opacity 0.12s ease;
 }
-.favorites-tree .fav-row:hover .fav-delete-btn { opacity: 0.6; }
-.favorites-tree .fav-delete-btn:hover { opacity: 1; }
+.favorites-tree .fav-row:hover .fav-delete-btn {
+  opacity: 0.6;
+}
+.favorites-tree .fav-delete-btn:hover {
+  opacity: 1;
+}

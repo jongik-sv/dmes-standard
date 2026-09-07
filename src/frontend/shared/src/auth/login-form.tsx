@@ -3,12 +3,24 @@
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useState, useTransition } from "react";
+import {
+  Alert,
+  Anchor,
+  Button,
+  Checkbox,
+  Group,
+  Paper,
+  PasswordInput,
+  Text,
+  TextInput,
+  Title,
+} from "@mantine/core";
 import { PasswordChangeModal } from "./PasswordChangeModal";
 import "./login-form.css";
 
 const SAVE_ID_STORAGE_KEY = "oasis.login.savedUserId";
 const SAVE_ID_FLAG_KEY = "oasis.login.saveIdEnabled";
-const BACKEND_API_URL = "";  // 프론트 프록시 경유
+const BACKEND_API_URL = ""; // 프론트 프록시 경유
 
 export interface PortalLoginFormProps {
   appName: string;
@@ -124,58 +136,81 @@ export function PortalLoginForm({ appName, callbackUrl }: PortalLoginFormProps) 
 
   return (
     <div className="login-wrapper" style={{ backgroundImage: "url(/images/bg_login.png)" }}>
-      <form className="login-form" onSubmit={handleSubmit}>
-        <h2 className="login-title">Login</h2>
+      <Paper component="form" className="login-form" radius={0} onSubmit={handleSubmit}>
+        <Title order={2} className="login-title">
+          Login
+        </Title>
 
-        <input
+        <TextInput
           id="login-user-id"
-          type="text"
+          name="userId"
+          label="아이디"
           className="login-input"
           placeholder="아이디"
           value={userId}
-          onChange={(e) => setUserId(e.target.value)}
+          onChange={(event) => setUserId(event.currentTarget.value)}
           autoComplete="username"
+          size="md"
+          radius={0}
         />
 
-        <input
+        <PasswordInput
           id="login-password"
-          type="password"
+          name="password"
+          label="비밀번호"
           className="login-input"
           placeholder="비밀번호"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(event) => setPassword(event.currentTarget.value)}
           autoComplete="current-password"
+          size="md"
+          radius={0}
         />
 
-        <div className="login-save-id">
-          <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-            <input
-              type="checkbox"
-              checked={saveId}
-              onChange={(e) => setSaveId(e.target.checked)}
-            />
-            아이디 저장
-          </label>
-          <button
+        <Group className="login-save-id" justify="space-between" wrap="nowrap">
+          <Checkbox
+            label="아이디 저장"
+            checked={saveId}
+            onChange={(event) => setSaveId(event.currentTarget.checked)}
+          />
+          <Anchor
+            component="button"
             type="button"
             className="login-change-pw"
             onClick={handleOpenPasswordModal}
           >
             비밀번호 변경
-          </button>
-        </div>
+          </Anchor>
+        </Group>
 
-        {errorMessage && <div className="login-error">{errorMessage}</div>}
-        {successMessage && <div className="login-success">{successMessage}</div>}
+        {errorMessage && (
+          <Alert color="danger" className="login-error" variant="light" p="xs">
+            {errorMessage}
+          </Alert>
+        )}
+        {successMessage && (
+          <Alert color="green" className="login-success" variant="light" p="xs">
+            {successMessage}
+          </Alert>
+        )}
 
-        <button type="submit" className="login-button" disabled={isPending}>
+        <Button
+          type="submit"
+          className="login-button"
+          fullWidth
+          disabled={isPending}
+          size="md"
+          h={45}
+          radius={0}
+          color="#1b3f7d"
+        >
           {isPending ? "로그인 중..." : "로그인"}
-        </button>
+        </Button>
 
-        <p className="login-copyright">
+        <Text component="p" className="login-copyright">
           {process.env.NEXT_PUBLIC_COPYRIGHT ?? `\u00a9 ${new Date().getFullYear()} ${appName}`}
-        </p>
-      </form>
+        </Text>
+      </Paper>
 
       {showPasswordModal && (
         <PasswordChangeModal

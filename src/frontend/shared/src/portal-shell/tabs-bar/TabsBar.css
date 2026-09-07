@@ -34,20 +34,9 @@
 }
 
 /* Scroll buttons */
+/* 좌우 스크롤 버튼 — 배경/hover 는 Mantine ActionIcon 의 CSS 변수로 준다. */
 .scroll-btn {
-  background-color: rgba(255, 255, 255, 0.15);
-  color: rgba(255, 255, 255, 0.8);
-  border: 1px solid var(--color-border);
-  padding: 4px 8px;
-  cursor: pointer;
-  font-size: 10px;
-  border-radius: 3px;
   flex-shrink: 0;
-  transition: background-color var(--transition-normal);
-}
-
-.scroll-btn:hover:not(.disabled) {
-  background-color: rgba(255, 255, 255, 0.25);
 }
 
 .scroll-btn.disabled {

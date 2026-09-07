@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { Group, Menu, Text, UnstyledButton } from "@mantine/core";
+import { IconChevronDown, IconLogout, IconUser } from "@tabler/icons-react";
 import "./Header.css";
 
 export interface HeaderProps {
@@ -12,118 +13,53 @@ export interface HeaderProps {
 }
 
 export function Header({ appName, userName, loginId, onLogout, onGoHome }: HeaderProps) {
-  const [showUserInfo, setShowUserInfo] = useState(false);
-  const userInfoBtnRef = useRef<HTMLButtonElement>(null);
-
   return (
-    <div className="portal-header">
-      <div className="portal-header__left">
-        <img className="portal-header__logo" src="/images/dmes_logo_w.png" alt={appName} onClick={onGoHome} style={{ cursor: onGoHome ? "pointer" : undefined }} />
-      </div>
-      <div className="portal-header__right">
-        <span className="portal-header__user-name">{userName} 님</span>
-        <span className="portal-header__divider">|</span>
-        <button
-          ref={userInfoBtnRef}
-          type="button"
-          className="portal-header__icon-btn"
-          onClick={() => setShowUserInfo(!showUserInfo)}
-          title="개인 정보"
-          aria-label="개인 정보"
-        >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-            <circle cx="12" cy="7" r="4" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          className="portal-header__icon-btn"
-          onClick={onLogout}
-          title="로그아웃"
-          aria-label="로그아웃"
-        >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <polyline points="16 17 21 12 16 7" />
-            <line x1="21" y1="12" x2="9" y2="12" />
-          </svg>
-        </button>
-      </div>
+    <Group className="portal-header" h={48} px="md" justify="space-between" wrap="nowrap">
+      <Group className="portal-header__left" gap="xs" wrap="nowrap">
+        <img
+          className="portal-header__logo"
+          src="/images/dmes_logo_w.png"
+          alt={appName}
+          onClick={onGoHome}
+          style={{ cursor: onGoHome ? "pointer" : undefined }}
+        />
+      </Group>
 
-      {showUserInfo && (
-        <>
-          <div className="portal-header__overlay" onClick={() => setShowUserInfo(false)} />
-          <div className="portal-header__user-popup">
-            <div className="portal-header__popup-header">
-              <span className="portal-header__popup-title">
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
-                개인 정보
-              </span>
-              <button
-                type="button"
-                className="portal-header__popup-close"
-                onClick={() => setShowUserInfo(false)}
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            </div>
-            <div className="portal-header__popup-body">
-              <div className="portal-header__popup-field">
-                <label>사용자명</label>
-                <input type="text" value={userName} readOnly />
-              </div>
-              <div className="portal-header__popup-field">
-                <label>로그인 ID</label>
-                <input type="text" value={loginId} readOnly />
-              </div>
-            </div>
-            <div className="portal-header__popup-footer">
-              <button type="button" onClick={() => setShowUserInfo(false)}>
-                닫기
-              </button>
-            </div>
-          </div>
-        </>
-      )}
-    </div>
+      <Group className="portal-header__right" gap={4} wrap="nowrap">
+        <Menu
+          shadow="md"
+          width={240}
+          position="bottom-end"
+          withinPortal
+          transitionProps={{ duration: 0 }}
+        >
+          <Menu.Target>
+            <UnstyledButton className="portal-header__user-button" aria-label="개인 정보">
+              <Group gap={6} wrap="nowrap">
+                <IconUser size={16} stroke={2} />
+                <Text className="portal-header__user-name" size="sm" fw={500} c="inherit">
+                  {userName} 님
+                </Text>
+                <IconChevronDown size={14} stroke={2} />
+              </Group>
+            </UnstyledButton>
+          </Menu.Target>
+
+          <Menu.Dropdown>
+            <Menu.Label>개인 정보</Menu.Label>
+            <Menu.Item component="div" className="portal-header__popup-field" disabled>
+              사용자명 · {userName}
+            </Menu.Item>
+            <Menu.Item component="div" className="portal-header__popup-field" disabled>
+              로그인 ID · {loginId}
+            </Menu.Item>
+            <Menu.Divider />
+            <Menu.Item leftSection={<IconLogout size={14} stroke={2} />} onClick={onLogout}>
+              로그아웃
+            </Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
+      </Group>
+    </Group>
   );
 }

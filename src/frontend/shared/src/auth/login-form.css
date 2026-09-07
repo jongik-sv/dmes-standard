@@ -31,82 +31,28 @@
   font-weight: bold;
 }
 
+/* 입력 자체(테두리·포커스·placeholder)는 Mantine TextInput / PasswordInput 이 담당한다.
+   .login-input 은 래퍼에 붙어 간격만 책임진다. */
 .login-input {
-  width: 100%;
-  height: 32px;
-  padding: 0 10px;
   margin-bottom: 15px;
-  font-size: var(--font-size-lg, 14px);
-  border: 1px solid var(--color-border, #ccc);
-  border-radius: 0;
-  box-sizing: border-box;
-  color: var(--color-text, #333);
-}
-
-.login-input:focus {
-  outline: none;
-  border-color: #1b3f7d;
-}
-
-.login-input::placeholder {
-  color: #aaa;
 }
 
 .login-save-id {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   margin-bottom: 15px;
   font-size: var(--font-size-sm, 12px);
   color: #555;
   user-select: none;
 }
 
-.login-save-id input[type="checkbox"] {
-  width: 14px;
-  height: 14px;
-  cursor: pointer;
-}
-
-.login-success {
-  padding: 8px 12px;
-  margin-bottom: 15px;
-  background-color: rgba(40, 167, 69, 0.08);
-  border: 1px solid rgba(40, 167, 69, 0.3);
-  border-radius: 4px;
-  color: #28a745;
-  font-size: var(--font-size-sm, 12px);
-}
-
+.login-success,
 .login-error {
-  padding: 8px 12px;
   margin-bottom: 15px;
-  background-color: rgba(220, 53, 69, 0.08);
-  border: 1px solid rgba(220, 53, 69, 0.3);
-  border-radius: 4px;
-  color: #dc3545;
   font-size: var(--font-size-sm, 12px);
 }
 
+/* 높이·색·radius 는 Button props 로 준다. */
 .login-button {
-  width: 100%;
-  height: 45px;
-  background-color: #1b3f7d;
-  color: #fff;
-  border: none;
-  border-radius: 0;
   font-size: 16px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.login-button:hover:not(:disabled) {
-  background-color: #153466;
-}
-
-.login-button:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
 }
 
 .login-copyright {

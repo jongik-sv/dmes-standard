@@ -1,6 +1,8 @@
 "use client";
 
-import { type ReactNode, memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { ActionIcon, Group, ScrollArea, SegmentedControl, TextInput } from "@mantine/core";
+import { IconMenu2, IconStar, IconX } from "@tabler/icons-react";
 import "./Sidebar.css";
 import type { PortalShellMenuItem } from "../types";
 import { getPortalMenuItemPageId } from "../menu-search";
@@ -225,110 +227,111 @@ export function Sidebar({
         )}
 
         {/* Toggle button */}
-        <button
+        <ActionIcon
           className="sidebar-toggle-button"
+          variant="filled"
+          color="dmes"
+          radius={0}
+          w={14}
+          h={60}
+          miw={14}
+          mih={60}
           onClick={() => onExpandedChange(!isExpanded)}
           title={isExpanded ? "메뉴 접기" : "메뉴 펼치기"}
-          type="button"
+          aria-label={isExpanded ? "메뉴 접기" : "메뉴 펼치기"}
         >
           <span className="toggle-icon">{isExpanded ? "◀" : "▶"}</span>
-        </button>
+        </ActionIcon>
 
         {/* Tab buttons (menu / favorites) */}
-        <div className="tab-container">
-          <button
-            type="button"
-            className={navigationViewMode === "menu" ? "tab-active" : "tab-inactive"}
-            onClick={() => onNavigationViewModeChange("menu")}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <line x1="3" y1="12" x2="21" y2="12" />
-              <line x1="3" y1="18" x2="21" y2="18" />
-            </svg>
-            메뉴
-          </button>
-          <button
-            type="button"
-            className={navigationViewMode === "favorites" ? "tab-active" : "tab-inactive"}
-            onClick={() => onNavigationViewModeChange("favorites")}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-            </svg>
-            즐겨찾기
-          </button>
-        </div>
+        <SegmentedControl
+          className="tab-container"
+          value={navigationViewMode}
+          onChange={(value) => onNavigationViewModeChange(value as "menu" | "favorites")}
+          fullWidth
+          size="xs"
+          radius={0}
+          data={[
+            {
+              value: "menu",
+              label: (
+                <Group gap={4} justify="center" wrap="nowrap">
+                  <IconMenu2 size={14} stroke={2} />
+                  메뉴
+                </Group>
+              ),
+            },
+            {
+              value: "favorites",
+              label: (
+                <Group gap={4} justify="center" wrap="nowrap">
+                  <IconStar size={14} stroke={2} />
+                  즐겨찾기
+                </Group>
+              ),
+            },
+          ]}
+        />
 
         {/* Search bar (menu mode only) */}
         {navigationViewMode === "menu" && (
           <div className="search-container">
-            <div className="search-box">
-              <input
-                type="text"
-                placeholder="메뉴명 검색"
-                value={searchTerm}
-                onChange={handleSearchChange}
-                className="search-input"
-              />
-              {searchTerm && (
-                <button
-                  type="button"
-                  className="clear-btn"
-                  onClick={clearSearch}
-                  title="검색어 삭제"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-            <div className="expand-buttons">
-              <button
-                type="button"
-                onClick={() => toggleAll(true)}
+            <TextInput
+              className="search-box"
+              classNames={{ input: "search-input" }}
+              placeholder="메뉴명 검색"
+              value={searchTerm}
+              onChange={handleSearchChange}
+              size="xs"
+              rightSection={
+                searchTerm ? (
+                  <ActionIcon
+                    className="clear-btn"
+                    variant="subtle"
+                    color="gray"
+                    size="sm"
+                    onClick={clearSearch}
+                    title="검색어 삭제"
+                    aria-label="검색어 삭제"
+                  >
+                    <IconX size={14} stroke={2} />
+                  </ActionIcon>
+                ) : null
+              }
+            />
+            <Group className="expand-buttons" gap={4} wrap="nowrap">
+              <ActionIcon
                 className="toggle-all-button"
+                variant="default"
+                size="md"
+                onClick={() => toggleAll(true)}
                 title="전체 펼치기"
+                aria-label="전체 펼치기"
               >
                 <span className="tree-expand-icon">
                   <span className="lines">≡</span>
                   <span className="arrow">▼</span>
                 </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => toggleAll(false)}
+              </ActionIcon>
+              <ActionIcon
                 className="toggle-all-button"
+                variant="default"
+                size="md"
+                onClick={() => toggleAll(false)}
                 title="전체 접기"
+                aria-label="전체 접기"
               >
                 <span className="tree-expand-icon">
                   <span className="lines">≡</span>
                   <span className="arrow">▲</span>
                 </span>
-              </button>
-            </div>
+              </ActionIcon>
+            </Group>
           </div>
         )}
 
         {/* Tree scroll area */}
-        <div className="tree-scroll-area">
+        <ScrollArea className="tree-scroll-area" type="auto" scrollbarSize={6}>
           {navigationViewMode === "menu" ? (
             <ul>
               {filteredMenuItems.map((item) => (
@@ -355,7 +358,7 @@ export function Sidebar({
               onDeleteFavorite={onDeleteFavorite}
             />
           )}
-        </div>
+        </ScrollArea>
       </div>
     </div>
   );

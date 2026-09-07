@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AppShell } from "@mantine/core";
 import { signOut } from "next-auth/react";
 import { readSecureJson, writeSecureJson } from "../secure-storage";
 import { cloneSnapshot, isSnapshotEqual } from "../snapshot";
@@ -30,6 +31,7 @@ import { TabPageContext } from "./tab-page-context";
 import { useTabHistory } from "./use-tab-history";
 import "./portal-shell.css";
 
+const PORTAL_HEADER_HEIGHT = 48;
 const DEFAULT_STORAGE_KEY = "oasis.portal.tabs.v1";
 const DEFAULT_HOME_TAB_TITLE = "홈";
 const RECENT_MENU_STORAGE_SUFFIX = ".recent-menu";
@@ -748,8 +750,12 @@ export function PortalShell({
   );
 
   return (
-    <div className="portal-shell">
-      {isHeaderVisible && (
+    <AppShell
+      className="portal-shell"
+      header={{ height: PORTAL_HEADER_HEIGHT, collapsed: !isHeaderVisible }}
+      padding={0}
+    >
+      <AppShell.Header className="portal-shell__header" withBorder={false}>
         <Header
           appName={appName}
           userName={displayUserName}
@@ -759,69 +765,71 @@ export function PortalShell({
             if (homeTabId && resolvedHomePageId) navigateToTab(homeTabId, resolvedHomePageId);
           }}
         />
-      )}
-      <div className="portal-shell__body">
-        <Sidebar
-          appName={appName}
-          menuItems={menu.items}
-          favoriteFolders={favoriteTree}
-          navigationViewMode={navigationViewMode}
-          onNavigationViewModeChange={setNavigationViewMode}
-          isExpanded={isSideNavigationExpanded}
-          onExpandedChange={setIsSideNavigationExpanded}
-          activePageId={activeTab?.pageId ?? null}
-          onMenuItemClick={openPageTab}
-          onAddFavoriteFolder={handleAddFavoriteFolder}
-          onDeleteFavoriteFolder={handleDeleteFavoriteFolder}
-          onDeleteFavorite={handleDeleteFavorite}
-        />
-        <div className="portal-shell__main">
-          <div className="portal-shell__content-wrapper">
-            <TabsBar
-              tabs={orderedTabs}
-              activeTabId={activeTabId}
-              onTabClick={(tabId) => {
-                const tab = tabs.find((t) => t.id === tabId);
-                if (tab) navigateToTab(tabId, tab.pageId);
-                else setActiveTabId(tabId);
-              }}
-              onTabClose={closeTab}
-              onTabReorder={reorderTabs}
-              onGoHome={() => {
-                if (homeTabId && resolvedHomePageId) navigateToTab(homeTabId, resolvedHomePageId);
-              }}
-              onRefresh={refreshActiveTab}
-              isHeaderVisible={isHeaderVisible}
-              onToggleHeader={toggleHeaderVisible}
-              isCurrentPageFavorite={isCurrentPageFavorite}
-              onToggleFavorite={handleToggleFavorite}
-              onCapture={handleCapture}
-            />
-            <div className="portal-shell__content-area">
-              {tabs.length === 0 ? (
-                <Dashboard />
-              ) : (
-                tabs.map((tab) => (
-                  <div
-                    key={tab.id}
-                    className="portal-shell__tab-page"
-                    style={{ display: tab.id === activeTabId ? "flex" : "none" }}
-                  >
-                    <TabPageContext.Provider
-                      value={{
-                        pageId: tab.pageId,
-                        serviceId: serviceIdByPageId.get(tab.pageId) ?? "",
-                      }}
+      </AppShell.Header>
+      <AppShell.Main className="portal-shell__main-area">
+        <div className="portal-shell__body">
+          <Sidebar
+            appName={appName}
+            menuItems={menu.items}
+            favoriteFolders={favoriteTree}
+            navigationViewMode={navigationViewMode}
+            onNavigationViewModeChange={setNavigationViewMode}
+            isExpanded={isSideNavigationExpanded}
+            onExpandedChange={setIsSideNavigationExpanded}
+            activePageId={activeTab?.pageId ?? null}
+            onMenuItemClick={openPageTab}
+            onAddFavoriteFolder={handleAddFavoriteFolder}
+            onDeleteFavoriteFolder={handleDeleteFavoriteFolder}
+            onDeleteFavorite={handleDeleteFavorite}
+          />
+          <div className="portal-shell__main">
+            <div className="portal-shell__content-wrapper">
+              <TabsBar
+                tabs={orderedTabs}
+                activeTabId={activeTabId}
+                onTabClick={(tabId) => {
+                  const tab = tabs.find((t) => t.id === tabId);
+                  if (tab) navigateToTab(tabId, tab.pageId);
+                  else setActiveTabId(tabId);
+                }}
+                onTabClose={closeTab}
+                onTabReorder={reorderTabs}
+                onGoHome={() => {
+                  if (homeTabId && resolvedHomePageId) navigateToTab(homeTabId, resolvedHomePageId);
+                }}
+                onRefresh={refreshActiveTab}
+                isHeaderVisible={isHeaderVisible}
+                onToggleHeader={toggleHeaderVisible}
+                isCurrentPageFavorite={isCurrentPageFavorite}
+                onToggleFavorite={handleToggleFavorite}
+                onCapture={handleCapture}
+              />
+              <div className="portal-shell__content-area">
+                {tabs.length === 0 ? (
+                  <Dashboard />
+                ) : (
+                  tabs.map((tab) => (
+                    <div
+                      key={tab.id}
+                      className="portal-shell__tab-page"
+                      style={{ display: tab.id === activeTabId ? "flex" : "none" }}
                     >
-                      {renderTabBody(tab)}
-                    </TabPageContext.Provider>
-                  </div>
-                ))
-              )}
+                      <TabPageContext.Provider
+                        value={{
+                          pageId: tab.pageId,
+                          serviceId: serviceIdByPageId.get(tab.pageId) ?? "",
+                        }}
+                      >
+                        {renderTabBody(tab)}
+                      </TabPageContext.Provider>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </AppShell.Main>
       <FavoriteFolderPickerModal
         open={isFolderPickerOpen}
         folders={favoriteFolders}
@@ -837,6 +845,6 @@ export function PortalShell({
         onOpenPage={openPageTab}
         onClose={() => setIsMenuSearchOpen(false)}
       />
-    </div>
+    </AppShell>
   );
 }

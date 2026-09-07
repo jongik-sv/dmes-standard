@@ -1,6 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ActionIcon, Button, Group, TextInput } from "@mantine/core";
+import { Modal } from "../../components/modal";
+
+/** 확정 버튼은 공통 primary 토큰을 그대로 쓴다(레거시 파랑 하드코딩 금지). */
+const CONFIRM_BUTTON_STYLES = {
+  root: { backgroundColor: "var(--color-primary, #337ab7)" },
+} as const;
 
 /** 즐겨찾기 leaf(메뉴) 노드. */
 export interface FavoriteLeaf {
@@ -30,7 +37,16 @@ export interface FavoritesTreeProps {
 // 메뉴 트리(TreeItem)와 동일한 폴더/페이지 아이콘 — 시각 일관성 보장.
 function FolderIcon({ open }: { open: boolean }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
       {open ? (
         <line x1="9" y1="14" x2="15" y2="14" stroke="#fff" strokeWidth="2.5" />
@@ -46,7 +62,16 @@ function FolderIcon({ open }: { open: boolean }) {
 
 function PageIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="3" y="3" width="18" height="18" rx="2" />
       <line x1="8" y1="9" x2="16" y2="9" />
       <line x1="8" y1="13" x2="16" y2="13" />
@@ -96,24 +121,48 @@ export function FavoritesTree({
   return (
     <div className="favorites-tree">
       {/* 툴바 — 우측 정렬: [＋ 그룹] [전체 펼치기] [전체 접기] */}
-      <div className="fav-toolbar">
+      <Group className="fav-toolbar" gap={4} justify="flex-end" wrap="nowrap">
         {onAddFolder && (
-          <button
-            type="button"
+          <Button
             className="toggle-all-button fav-add-group-btn"
-            onClick={() => { setNewName(""); setAddModalOpen(true); }}
+            variant="default"
+            size="compact-xs"
+            onClick={() => {
+              setNewName("");
+              setAddModalOpen(true);
+            }}
             title="그룹 추가"
           >
             ＋ 그룹
-          </button>
+          </Button>
         )}
-        <button type="button" className="toggle-all-button" onClick={expandAll} title="전체 펼치기">
-          <span className="tree-expand-icon"><span className="lines">≡</span><span className="arrow">▼</span></span>
-        </button>
-        <button type="button" className="toggle-all-button" onClick={collapseAll} title="전체 접기">
-          <span className="tree-expand-icon"><span className="lines">≡</span><span className="arrow">▲</span></span>
-        </button>
-      </div>
+        <ActionIcon
+          className="toggle-all-button"
+          variant="default"
+          size="md"
+          onClick={expandAll}
+          title="전체 펼치기"
+          aria-label="전체 펼치기"
+        >
+          <span className="tree-expand-icon">
+            <span className="lines">≡</span>
+            <span className="arrow">▼</span>
+          </span>
+        </ActionIcon>
+        <ActionIcon
+          className="toggle-all-button"
+          variant="default"
+          size="md"
+          onClick={collapseAll}
+          title="전체 접기"
+          aria-label="전체 접기"
+        >
+          <span className="tree-expand-icon">
+            <span className="lines">≡</span>
+            <span className="arrow">▲</span>
+          </span>
+        </ActionIcon>
+      </Group>
 
       {folders.length === 0 ? (
         <div className="no-results">즐겨찾기 항목이 없습니다.</div>
@@ -123,15 +172,23 @@ export function FavoritesTree({
             const open = collapsed[folder.folderId] !== true;
             return (
               <li key={folder.folderId}>
-                <div className="tree-item tree-item--folder fav-row" onClick={() => toggleFolder(folder.folderId)}>
-                  <span className="folder-icon"><FolderIcon open={open} /></span>
+                <div
+                  className="tree-item tree-item--folder fav-row"
+                  onClick={() => toggleFolder(folder.folderId)}
+                >
+                  <span className="folder-icon">
+                    <FolderIcon open={open} />
+                  </span>
                   <span className="item-name">{folder.folderName}</span>
                   {onDeleteFolder && (
                     <button
                       type="button"
                       className="fav-delete-btn"
                       title="그룹 삭제"
-                      onClick={(e) => { e.stopPropagation(); onDeleteFolder(folder.folderId); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteFolder(folder.folderId);
+                      }}
                     >
                       ✕
                     </button>
@@ -141,7 +198,14 @@ export function FavoritesTree({
                 {open && (
                   <ul>
                     {folder.children.length === 0 ? (
-                      <li><div className="tree-item fav-empty" style={{ paddingLeft: 28, opacity: 0.5, cursor: "default" }}>(비어 있음)</div></li>
+                      <li>
+                        <div
+                          className="tree-item fav-empty"
+                          style={{ paddingLeft: 28, opacity: 0.5, cursor: "default" }}
+                        >
+                          (비어 있음)
+                        </div>
+                      </li>
                     ) : (
                       folder.children.map((leaf) => (
                         <li key={leaf.pageId}>
@@ -150,14 +214,19 @@ export function FavoritesTree({
                             style={{ paddingLeft: 28 }}
                             onClick={() => onMenuItemClick(leaf.pageId)}
                           >
-                            <span className="menu-icon"><PageIcon /></span>
+                            <span className="menu-icon">
+                              <PageIcon />
+                            </span>
                             <span className="item-name">{leaf.displayText}</span>
                             {onDeleteFavorite && (
                               <button
                                 type="button"
                                 className="fav-delete-btn"
                                 title="즐겨찾기 해제"
-                                onClick={(e) => { e.stopPropagation(); onDeleteFavorite(leaf.pageId); }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onDeleteFavorite(leaf.pageId);
+                                }}
                               >
                                 ✕
                               </button>
@@ -174,47 +243,35 @@ export function FavoritesTree({
         </ul>
       )}
 
-      {/* 그룹 추가 모달 */}
-      {addModalOpen && (
-        <div
-          role="presentation"
-          onClick={() => setAddModalOpen(false)}
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10000 }}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="즐겨찾기 그룹 추가"
-            onClick={(e) => e.stopPropagation()}
-            style={{ width: 320, background: "#fff", borderRadius: 6, boxShadow: "0 8px 24px rgba(0,0,0,0.2)", fontFamily: "var(--font-family)", overflow: "hidden" }}
-          >
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid #eee", fontWeight: 600 }}>그룹 추가</div>
-            <div style={{ padding: 16 }}>
-              <input
-                type="text"
-                autoFocus
-                value={newName}
-                maxLength={30}
-                placeholder="그룹명"
-                onChange={(e) => setNewName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") submitAdd(); }}
-                style={{ width: "100%", height: 30, padding: "0 8px", boxSizing: "border-box" }}
-              />
-            </div>
-            <div style={{ padding: "10px 16px", borderTop: "1px solid #eee", display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <button type="button" onClick={() => setAddModalOpen(false)} style={{ height: 30, padding: "0 14px", cursor: "pointer" }}>취소</button>
-              <button
-                type="button"
-                onClick={submitAdd}
-                disabled={!newName.trim()}
-                style={{ height: 30, padding: "0 14px", border: "none", borderRadius: 4, color: "#fff", background: "var(--color-primary, #337ab7)", opacity: newName.trim() ? 1 : 0.5, cursor: newName.trim() ? "pointer" : "not-allowed" }}
-              >
-                추가
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 그룹 추가 모달 — 공통 Modal 사용 (자체 오버레이 금지) */}
+      <Modal
+        open={addModalOpen}
+        title="그룹 추가"
+        onClose={() => setAddModalOpen(false)}
+        size="sm"
+        className="fav-add-folder-modal"
+        footer={
+          <Group gap="xs" justify="flex-end">
+            <Button variant="default" onClick={() => setAddModalOpen(false)}>
+              취소
+            </Button>
+            <Button onClick={submitAdd} disabled={!newName.trim()} styles={CONFIRM_BUTTON_STYLES}>
+              추가
+            </Button>
+          </Group>
+        }
+      >
+        <TextInput
+          data-autofocus
+          value={newName}
+          maxLength={30}
+          placeholder="그룹명"
+          onChange={(event) => setNewName(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") submitAdd();
+          }}
+        />
+      </Modal>
     </div>
   );
 }

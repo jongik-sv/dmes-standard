@@ -1,10 +1,38 @@
 "use client";
 
 import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { ActionIcon } from "@mantine/core";
+import {
+  IconCamera,
+  IconChevronDown,
+  IconChevronLeft,
+  IconChevronRight,
+  IconChevronUp,
+  IconHome,
+  IconList,
+  IconRefresh,
+  IconStar,
+  IconStarFilled,
+} from "@tabler/icons-react";
 import { createTrailingResizeScheduler, getTabVisibilityScrollLeft } from "./tab-visibility";
 import "./TabsBar.css";
 
 const VIEWPORT_RESIZE_SETTLE_MS = 120;
+
+/** 어두운 탭 바 위에서 ActionIcon 이 기존 .control-btn 과 같은 명도를 갖도록 CSS 변수를 직접 준다. */
+const CONTROL_ICON_VARS = {
+  "--ai-color": "rgba(255, 255, 255, 0.75)",
+  "--ai-bg": "transparent",
+  "--ai-hover": "rgba(255, 255, 255, 0.15)",
+  "--ai-hover-color": "#fff",
+  "--ai-bd": "1px solid rgba(255, 255, 255, 0.2)",
+} as React.CSSProperties;
+
+const FAVORITE_ACTIVE_ICON_VARS = {
+  ...CONTROL_ICON_VARS,
+  "--ai-color": "#f1c40f",
+  "--ai-bd": "1px solid #f1c40f",
+} as React.CSSProperties;
 
 interface TabState {
   id: string;
@@ -299,7 +327,7 @@ export function TabsBar({
 
   return (
     <div className="tabs-bar-wrapper">
-      <div className="tabs-bar">
+      <div className="tabs-bar tab-bar">
         {/* Home tab */}
         {homeTab && (
           <button
@@ -308,33 +336,24 @@ export function TabsBar({
             onClick={() => onTabClick(homeTab.id)}
             title="홈"
           >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-              <polyline points="9 22 9 12 15 12 15 22" />
-            </svg>
+            <IconHome size={16} stroke={2} />
           </button>
         )}
 
         {/* Scroll left */}
         {showScrollButtons && (
-          <button
-            type="button"
+          <ActionIcon
             className={`scroll-btn scroll-left ${!canScrollLeft ? "disabled" : ""}`}
+            variant="subtle"
+            size="md"
+            style={CONTROL_ICON_VARS}
             onClick={scrollLeft}
             disabled={!canScrollLeft}
             title="왼쪽으로 스크롤"
+            aria-label="왼쪽으로 스크롤"
           >
-            ◀
-          </button>
+            <IconChevronLeft size={14} stroke={2} />
+          </ActionIcon>
         )}
 
         {/* Tabs scroll area */}
@@ -382,83 +401,66 @@ export function TabsBar({
 
         {/* Scroll right */}
         {showScrollButtons && (
-          <button
-            type="button"
+          <ActionIcon
             className={`scroll-btn scroll-right ${!canScrollRight ? "disabled" : ""}`}
+            variant="subtle"
+            size="md"
+            style={CONTROL_ICON_VARS}
             onClick={scrollRight}
             disabled={!canScrollRight}
             title="오른쪽으로 스크롤"
+            aria-label="오른쪽으로 스크롤"
           >
-            ▶
-          </button>
+            <IconChevronRight size={14} stroke={2} />
+          </ActionIcon>
         )}
 
         {/* Controls */}
         <div className="tabs-controls">
           {/* Refresh button */}
           {onRefresh && (
-            <button type="button" className="control-btn" onClick={onRefresh} title="새로고침">
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polyline points="23 4 23 10 17 10" />
-                <polyline points="1 20 1 14 7 14" />
-                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-              </svg>
-            </button>
+            <ActionIcon
+              variant="subtle"
+              size="md"
+              style={CONTROL_ICON_VARS}
+              onClick={onRefresh}
+              title="새로고침"
+              aria-label="새로고침"
+            >
+              <IconRefresh size={14} stroke={2} />
+            </ActionIcon>
           )}
 
           {/* Capture button — 활성 탭 컨텐츠를 PNG 로 다운로드 */}
           {onCapture && (
-            <button
-              type="button"
-              className="control-btn"
+            <ActionIcon
+              variant="subtle"
+              size="md"
+              style={CONTROL_ICON_VARS}
               onClick={onCapture}
               title="화면 캡쳐 (PNG 다운로드)"
+              aria-label="화면 캡쳐 (PNG 다운로드)"
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                <circle cx="12" cy="13" r="4" />
-              </svg>
-            </button>
+              <IconCamera size={14} stroke={2} />
+            </ActionIcon>
           )}
 
           {/* Favorite toggle button */}
-          <button
-            type="button"
-            className={`control-btn ${isCurrentPageFavorite ? "favorite-active" : ""}`}
+          <ActionIcon
+            className={isCurrentPageFavorite ? "favorite-active" : undefined}
+            variant="subtle"
+            size="md"
+            style={isCurrentPageFavorite ? FAVORITE_ACTIVE_ICON_VARS : CONTROL_ICON_VARS}
             onClick={onToggleFavorite}
             title={isCurrentPageFavorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+            aria-label={isCurrentPageFavorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
           >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill={isCurrentPageFavorite ? "currentColor" : "none"}
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-            </svg>
-          </button>
+            {isCurrentPageFavorite ? (
+              <IconStarFilled size={14} />
+            ) : (
+              <IconStar size={14} stroke={2} />
+            )}
+          </ActionIcon>
 
           {/* Tab list dropdown */}
           <div className="tab-list-dropdown">
@@ -468,23 +470,7 @@ export function TabsBar({
               onClick={() => setShowTabList(!showTabList)}
               title="탭 목록"
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="8" y1="6" x2="21" y2="6" />
-                <line x1="8" y1="12" x2="21" y2="12" />
-                <line x1="8" y1="18" x2="21" y2="18" />
-                <line x1="3" y1="6" x2="3.01" y2="6" />
-                <line x1="3" y1="12" x2="3.01" y2="12" />
-                <line x1="3" y1="18" x2="3.01" y2="18" />
-              </svg>
+              <IconList size={14} stroke={2} />
               {nonHomeTabs.length > 0 && <span className="tab-count">{nonHomeTabs.length}</span>}
             </button>
 
@@ -542,29 +528,20 @@ export function TabsBar({
 
           {/* Header toggle button (rightmost) */}
           {onToggleHeader && (
-            <button
-              type="button"
-              className="control-btn"
+            <ActionIcon
+              variant="subtle"
+              size="md"
+              style={CONTROL_ICON_VARS}
               onClick={onToggleHeader}
               title={isHeaderVisible ? "헤더 접기" : "헤더 펼치기"}
+              aria-label={isHeaderVisible ? "헤더 접기" : "헤더 펼치기"}
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                {isHeaderVisible ? (
-                  <polyline points="4 14 12 6 20 14" />
-                ) : (
-                  <polyline points="4 10 12 18 20 10" />
-                )}
-              </svg>
-            </button>
+              {isHeaderVisible ? (
+                <IconChevronUp size={14} stroke={2} />
+              ) : (
+                <IconChevronDown size={14} stroke={2} />
+              )}
+            </ActionIcon>
           )}
         </div>
       </div>

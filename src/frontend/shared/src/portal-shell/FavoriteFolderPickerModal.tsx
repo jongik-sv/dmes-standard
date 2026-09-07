@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Button, Group, NativeSelect, Radio, Stack, Text, TextInput } from "@mantine/core";
+import { Modal } from "../components/modal";
 
 /** 즐겨찾기 추가 시 대상 폴더 선택 결과. 둘 중 하나만 채워진다. */
 export interface FavoriteFolderChoice {
@@ -27,13 +29,24 @@ interface Props {
 
 const DEFAULT_NEW_FOLDER_NAME = "즐겨찾기";
 
+/** 확정 버튼은 공통 primary 토큰을 그대로 쓴다(레거시 파랑 하드코딩 금지). */
+const CONFIRM_BUTTON_STYLES = {
+  root: { backgroundColor: "var(--color-primary, #337ab7)" },
+} as const;
+
 /**
  * 마이메뉴(즐겨찾기) 추가 — 폴더 선택 팝업. mui {@code commonMyMenuAdd} 동등.
  *
  * <p>기존 폴더가 있으면 콤보 선택(기본) + "새 폴더" 토글. 폴더가 없으면 신규 폴더명 입력만
  * (기본값 "즐겨찾기"). 확정 시 {@link FavoriteFolderChoice} 를 반환한다.
  */
-export function FavoriteFolderPickerModal({ open, folders, pageLabel, onConfirm, onCancel }: Props) {
+export function FavoriteFolderPickerModal({
+  open,
+  folders,
+  pageLabel,
+  onConfirm,
+  onCancel,
+}: Props) {
   const hasFolders = folders.length > 0;
   const [mode, setMode] = useState<"existing" | "new">(hasFolders ? "existing" : "new");
   const [selectedFoldId, setSelectedFoldId] = useState<string>(folders[0]?.fvtFoldId ?? "");
@@ -64,124 +77,65 @@ export function FavoriteFolderPickerModal({ open, folders, pageLabel, onConfirm,
   };
 
   return (
-    <div
-      role="presentation"
-      onClick={onCancel}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.35)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 10000,
-      }}
+    <Modal
+      open={open}
+      title="마이메뉴 추가"
+      onClose={onCancel}
+      size="sm"
+      className="favorite-folder-picker"
+      footer={
+        <Group gap="xs" justify="flex-end">
+          <Button variant="default" onClick={onCancel}>
+            취소
+          </Button>
+          <Button onClick={handleConfirm} disabled={!canConfirm} styles={CONFIRM_BUTTON_STYLES}>
+            추가
+          </Button>
+        </Group>
+      }
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="마이메뉴 추가"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: 360,
-          background: "#fff",
-          borderRadius: 6,
-          boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
-          fontFamily: "var(--font-family)",
-          overflow: "hidden",
-        }}
+      <Radio.Group
+        value={mode}
+        onChange={(value) => setMode(value as "existing" | "new")}
+        name="fav-folder-mode"
       >
-        <div style={{ padding: "12px 16px", borderBottom: "1px solid #eee", fontWeight: 600 }}>
-          마이메뉴 추가
-        </div>
-        <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ fontSize: 13, color: "#555" }}>
+        <Stack gap="sm">
+          <Text size="sm" c="dimmed">
             {pageLabel ? `'${pageLabel}' 를(을) ` : ""}어느 폴더에 추가할까요?
-          </div>
+          </Text>
 
           {hasFolders && (
-            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-              <input
-                type="radio"
-                name="fav-folder-mode"
-                checked={mode === "existing"}
-                onChange={() => setMode("existing")}
-              />
-              <span style={{ minWidth: 64 }}>기존 폴더</span>
-              <select
+            <Group gap="xs" wrap="nowrap" align="center">
+              <Radio value="existing" label="기존 폴더" />
+              <NativeSelect
                 value={selectedFoldId}
                 disabled={mode !== "existing"}
-                onChange={(e) => setSelectedFoldId(e.target.value)}
-                style={{ flex: 1, height: 28, padding: "0 6px" }}
-              >
-                {folders.map((f) => (
-                  <option key={f.fvtFoldId} value={f.fvtFoldId}>
-                    {f.fvtFoldNm || f.fvtFoldId}
-                  </option>
-                ))}
-              </select>
-            </label>
+                onChange={(event) => setSelectedFoldId(event.currentTarget.value)}
+                data={folders.map((folder) => ({
+                  value: folder.fvtFoldId,
+                  label: folder.fvtFoldNm || folder.fvtFoldId,
+                }))}
+                style={{ flex: 1 }}
+              />
+            </Group>
           )}
 
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-            {hasFolders && (
-              <input
-                type="radio"
-                name="fav-folder-mode"
-                checked={mode === "new"}
-                onChange={() => setMode("new")}
-              />
-            )}
-            <span style={{ minWidth: 64 }}>새 폴더</span>
-            <input
-              type="text"
+          <Group gap="xs" wrap="nowrap" align="center">
+            {hasFolders ? <Radio value="new" label="새 폴더" /> : <Text size="sm">새 폴더</Text>}
+            <TextInput
               value={newFolderName}
               disabled={hasFolders && mode !== "new"}
               maxLength={30}
-              onChange={(e) => setNewFolderName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleConfirm();
+              onChange={(event) => setNewFolderName(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") handleConfirm();
               }}
               placeholder="폴더명"
-              style={{ flex: 1, height: 28, padding: "0 6px" }}
+              style={{ flex: 1 }}
             />
-          </label>
-        </div>
-        <div
-          style={{
-            padding: "10px 16px",
-            borderTop: "1px solid #eee",
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 8,
-          }}
-        >
-          <button
-            type="button"
-            onClick={onCancel}
-            style={{ height: 30, padding: "0 14px", cursor: "pointer" }}
-          >
-            취소
-          </button>
-          <button
-            type="button"
-            onClick={handleConfirm}
-            disabled={!canConfirm}
-            style={{
-              height: 30,
-              padding: "0 14px",
-              cursor: canConfirm ? "pointer" : "not-allowed",
-              background: "var(--color-primary, #337ab7)",
-              opacity: canConfirm ? 1 : 0.5,
-              color: "#fff",
-              border: "none",
-              borderRadius: 4,
-            }}
-          >
-            추가
-          </button>
-        </div>
-      </div>
-    </div>
+          </Group>
+        </Stack>
+      </Radio.Group>
+    </Modal>
   );
 }
