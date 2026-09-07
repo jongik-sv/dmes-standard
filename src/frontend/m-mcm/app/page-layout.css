@@ -182,18 +182,9 @@
   width: 100%;
 }
 
-.page-layout .search-field input:not(.form-combobox-input),
-.page-layout .search-field select {
-  height: 24px;
-  padding: 0 8px;
-  border: 1px solid var(--color-border-grid);
-  border-radius: 2px;
-  font-size: var(--font-size-sm);
-  box-sizing: border-box;
-  font-family: inherit;
-  background-color: #fff;
-}
-
+/* 텍스트/날짜/콤보 입력 박스 외형(높이·테두리·배경 등)은 Mantine TextInput/NativeSelect 가 담당한다.
+   ERP 밀도 오버라이드(고정 폭)만 여기 남긴다 — shared/src/layout/page-layout.css 와 동기.
+   구 커스텀 ComboBox 의 `.form-combobox-input` 예외도 그 DOM 이 사라져 함께 걷어냈다. */
 .page-layout .search-field input {
   width: var(--search-input-width);
 }
@@ -214,32 +205,9 @@
   min-width: var(--search-select-min-width);
 }
 
-/* search-field 내 ComboBox — 기존 select와 동일한 외관 */
+/* search-field 내 ComboBox — 폭만 유지(외형은 Mantine Select 가 담당) */
 .page-layout .search-field .form-combobox {
-  height: 24px;
   min-width: var(--search-select-min-width);
-  border: 1px solid var(--color-border-grid);
-  border-radius: 2px;
-  font-size: var(--font-size-sm);
-  background-color: #fff;
-}
-
-.page-layout .search-field .form-combobox:focus-within {
-  border-color: var(--color-border-grid);
-  box-shadow: none;
-}
-
-.page-layout .search-field .form-combobox-input {
-  height: 100%;
-  padding: 0 6px;
-  border: none;
-  font-size: var(--font-size-sm);
-  font-family: inherit;
-  background: transparent;
-}
-
-.page-layout .search-field .form-combobox-toggle {
-  width: 18px;
 }
 
 /* ========================================
