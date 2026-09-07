@@ -243,7 +243,16 @@ function ModalImpl({
       <M.Overlay className={clsx("cm-modal-overlay", "modal-overlay", overlayClassName)} />
       <M.Content
         ref={setDialogRef}
-        className={clsx("cm-modal", `cm-modal-${size}`, className)}
+        // `M.Content` 의 `className` prop 은 Mantine 내부에서 `mantine-Modal-content` 뿐 아니라
+        // `mantine-Modal-inner`(flex 부모, 폭/정렬을 담당) 에도 그대로 전달된다(ModalContent.mjs:
+        // `ctx.getStyles("content", {className,...})` 와 `ctx.getStyles("inner", {className,...})`
+        // 가 같은 className 을 공유해서 호출됨 — 실측 확인: `.mantine-Modal-inner` 에도
+        // `cm-modal cm-modal-md` 가 그대로 붙는다). `.cm-modal { display:flex; flex-direction:
+        // column }` 이 inner 에도 걸리면 inner 의 주축이 세로로 바뀌어 `flex: 0 0 var(--modal-size)`
+        // 가 폭이 아니라 높이에 적용되고, 결과적으로 Modal 폭이 붕괴한다(LookupModal md 실측
+        // 325px, 정상이면 600px). `classNames` 는 selector 별로 분리되므로 `content` 키만 지정해
+        // inner 를 건드리지 않는다.
+        classNames={{ content: clsx("cm-modal", `cm-modal-${size}`, className) }}
       >
         {(title || showCloseButton) && (
           <M.Header className="cm-modal-header">

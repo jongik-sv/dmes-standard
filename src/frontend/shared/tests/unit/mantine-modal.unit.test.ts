@@ -13,6 +13,15 @@ describe("Modal (Mantine 구현) 계약", () => {
     expect(document.querySelector(".cm-modal")).not.toBeNull();
     expect(document.querySelector(".cm-modal-overlay")).not.toBeNull();
     expect(document.body.textContent).toContain("본문");
+    // fix round 1 §3(team-lead 실측): `.cm-modal` 은 `.mantine-Modal-content` 에만 붙어야 한다.
+    // `.mantine-Modal-inner`(flex 부모)에도 붙으면 그 요소의 flex-direction 이 column 이 돼
+    // Modal 폭이 붕괴한다(LookupModal md 실측 325px, 정상 600px).
+    expect(document.querySelector(".mantine-Modal-content")?.classList.contains("cm-modal")).toBe(
+      true
+    );
+    expect(document.querySelector(".mantine-Modal-inner")?.classList.contains("cm-modal")).toBe(
+      false
+    );
     r.unmount();
   });
 
