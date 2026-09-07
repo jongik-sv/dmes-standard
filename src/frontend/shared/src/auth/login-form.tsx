@@ -145,6 +145,7 @@ export function PortalLoginForm({ appName, callbackUrl }: PortalLoginFormProps) 
           id="login-user-id"
           name="userId"
           label="아이디"
+          aria-label="User ID"
           className="login-input"
           placeholder="아이디"
           value={userId}
@@ -158,6 +159,7 @@ export function PortalLoginForm({ appName, callbackUrl }: PortalLoginFormProps) 
           id="login-password"
           name="password"
           label="비밀번호"
+          aria-label="Password"
           className="login-input"
           placeholder="비밀번호"
           value={password}

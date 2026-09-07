@@ -91,6 +91,8 @@ describe("form (Mantine 구현) 계약", () => {
     expect(radios.length).toBe(2);
     act(() => (radios[1] as HTMLInputElement).click());
     expect(onChange).toHaveBeenCalledWith("N");
+    // 옵션들은 Group(가로 배치)으로 감싸져 있어야 한다.
+    expect(r.host.querySelector(".mantine-Group-root")).not.toBeNull();
     r.unmount();
   });
 

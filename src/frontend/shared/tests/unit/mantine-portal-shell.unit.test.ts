@@ -398,6 +398,12 @@ describe("portal-shell (Mantine 구현) 계약", () => {
     const submit = r.host.querySelector<HTMLButtonElement>("button[type=submit]");
     expect(submit?.textContent).toContain("로그인");
 
+    // e2e 셀렉터 계약(login-smoke.spec.ts, portal-tab-history.spec.ts)이 요구하는
+    // aria-label·클래스가 실제 DOM 에 존재하는지 검증한다.
+    expect(r.host.querySelector('input[aria-label="User ID"]')).not.toBeNull();
+    expect(r.host.querySelector('input[aria-label="Password"]#login-password')).not.toBeNull();
+    expect(r.host.querySelector("button.login-button")).not.toBeNull();
+
     r.unmount();
   });
 });

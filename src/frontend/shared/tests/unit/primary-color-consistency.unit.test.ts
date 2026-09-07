@@ -32,12 +32,13 @@ describe("shared primary color consistency", () => {
   });
 
   it("does not hardcode legacy blue on portal and module primary actions", () => {
+    // 템플릿 저장소에 없는 dmes-ksm 전용 파일 2개 제거(2026-09-07):
+    // m-mcm/page-components/mpf/executionMonitor/page.tsx,
+    // m-mcm/page-components/caravanConsole/topic/components/SendTestModal.tsx
     const sources = [
       read("../../src/portal-shell/FavoriteFolderPickerModal.tsx"),
       read("../../src/portal-shell/sidebar/FavoritesTree.tsx"),
       read("../../../m-analog/src/anl/log-viewer/log-viewer.css"),
-      read("../../../m-mcm/page-components/mpf/executionMonitor/page.tsx"),
-      read("../../../m-mcm/page-components/caravanConsole/topic/components/SendTestModal.tsx"),
     ];
 
     for (const source of sources) {

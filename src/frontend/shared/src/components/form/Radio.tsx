@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useLayoutEffect, useRef, type CSSProperties } from "react";
-import { Radio as MantineRadio } from "@mantine/core";
+import { Group, Radio as MantineRadio } from "@mantine/core";
 
 // SSR 에서는 useLayoutEffect 가 경고를 낸다 — 서버에서는 useEffect(no-op) 로 대체한다.
 const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
@@ -71,21 +71,23 @@ export function Radio({
       className={`form-radio-group ${className}`.trim()}
       style={style}
     >
-      {options.map((option) => {
-        const optionValue = typeof option === "object" ? option.value : option;
-        const optionLabel = typeof option === "object" ? option.label : option;
-        const radioId = `${uniqueId}-${optionValue}`;
-        return (
-          <MantineRadio
-            key={optionValue}
-            id={radioId}
-            value={optionValue}
-            label={optionLabel}
-            disabled={disabled}
-            classNames={{ label: "form-radio-label" }}
-          />
-        );
-      })}
+      <Group gap="sm" wrap="nowrap">
+        {options.map((option) => {
+          const optionValue = typeof option === "object" ? option.value : option;
+          const optionLabel = typeof option === "object" ? option.label : option;
+          const radioId = `${uniqueId}-${optionValue}`;
+          return (
+            <MantineRadio
+              key={optionValue}
+              id={radioId}
+              value={optionValue}
+              label={optionLabel}
+              disabled={disabled}
+              classNames={{ label: "form-radio-label" }}
+            />
+          );
+        })}
+      </Group>
     </MantineRadio.Group>
   );
 }
