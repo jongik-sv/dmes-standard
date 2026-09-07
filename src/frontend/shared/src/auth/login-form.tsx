@@ -168,6 +168,7 @@ export function PortalLoginForm({ appName, callbackUrl }: PortalLoginFormProps) 
           autoComplete="username"
           size="md"
           radius={0}
+          disabled={!mounted}
         />
 
         <PasswordInput
@@ -182,6 +183,7 @@ export function PortalLoginForm({ appName, callbackUrl }: PortalLoginFormProps) 
           autoComplete="current-password"
           size="md"
           radius={0}
+          disabled={!mounted}
           visibilityToggleButtonProps={{ "aria-label": "비밀번호 표시 전환" }}
         />
 
@@ -190,6 +192,7 @@ export function PortalLoginForm({ appName, callbackUrl }: PortalLoginFormProps) 
             label="아이디 저장"
             checked={saveId}
             onChange={(event) => setSaveId(event.currentTarget.checked)}
+            disabled={!mounted}
           />
           <Anchor
             component="button"
