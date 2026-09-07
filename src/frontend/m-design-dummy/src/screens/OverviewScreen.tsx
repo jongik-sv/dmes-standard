@@ -127,7 +127,7 @@ const COVERAGE_ROWS = [
   {
     screen: "Grid",
     components:
-      "AgDataGrid(DataGrid) · MuiDataGrid · CustomDataGrid · GridPanel/Help · GridBadge/Cell/Group · Pagination",
+      "AgDataGrid(DataGrid) · CustomDataGrid · GridPanel/Help · GridBadge/Cell/Group · Pagination",
     behavior: "데이터 표시 화면",
   },
   {

@@ -8,7 +8,6 @@ import {
   GridBadgeCell,
   GridBadgeGroup,
   GridPanel,
-  MuiDataGrid,
   Pagination,
   type GridColumn,
 } from "@dk-oasis/shared/grid";
@@ -191,7 +190,7 @@ const MATRIX_ROWS: MatrixTableRow[] = [
   },
 ];
 
-type GridKind = "ag" | "mui" | "custom";
+type GridKind = "ag" | "custom";
 
 export function DataDisplayCatalogScreen() {
   const { showMessage } = useMessage();
@@ -240,8 +239,8 @@ export function DataDisplayCatalogScreen() {
         <section className="catalog-intro">
           <strong>shared 데이터 표시 전체 구성</strong>
           <span>
-            AG Grid, MUI Grid, 경량 Custom Grid, 배지, 패널 도움말,
-            페이지네이션과 MatrixTable을 동일 데이터로 비교합니다.
+            AG Grid, 경량 Custom Grid, 배지, 패널 도움말, 페이지네이션과
+            MatrixTable을 동일 데이터로 비교합니다.
           </span>
         </section>
 
@@ -252,7 +251,6 @@ export function DataDisplayCatalogScreen() {
           <Tabs
             items={[
               { key: "ag", label: "AgDataGrid / DataGrid" },
-              { key: "mui", label: "MuiDataGrid" },
               { key: "custom", label: "CustomDataGrid" },
             ]}
             activeKey={gridKind}
@@ -262,9 +260,7 @@ export function DataDisplayCatalogScreen() {
             title={
               gridKind === "ag"
                 ? "작업지시 — AgDataGrid"
-                : gridKind === "mui"
-                  ? "작업지시 — MuiDataGrid"
-                  : "작업지시 — CustomDataGrid"
+                : "작업지시 — CustomDataGrid"
             }
             count={GRID_ROWS.length}
             titleExtra={
@@ -304,8 +300,6 @@ export function DataDisplayCatalogScreen() {
           >
             {gridKind === "ag" ? (
               <DataGrid {...commonProps} columnSizing="fit" />
-            ) : gridKind === "mui" ? (
-              <MuiDataGrid {...commonProps} />
             ) : (
               <CustomDataGrid {...commonProps} />
             )}
