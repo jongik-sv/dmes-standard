@@ -238,9 +238,25 @@ function ModalImpl({
   const { setDialogRef } = useModalA11yCompat(open, descriptionId);
   useEscapeCompat(open);
 
+  // e2e 계약(계획 Global Constraints): overlay 계열 클래스는 base 에서 `.cm-modal` 을 **감싸는**
+  // 컨테이너에 있었고, e2e 가 이 요소를 기준으로 자손을 질의한다(예: mpp-ppd-revision-verify 의
+  // `overlay.locator(".ag-header-cell")`). `M.Overlay` 는 Content 의 형제인 자기 닫힘 요소라 거기에만
+  // 두면 자손 질의가 0건이 된다. Overlay 와 Content 를 모두 감싸는 `root` 로 올려 조상 역할을
+  // 복원하고, 시각 스크림에 규칙을 걸 여지를 남기려 Overlay 에도 같은 클래스를 함께 둔다.
+  // `open=false` 일 때 비우는 이유: `.mantine-Modal-root` 는 닫힌 상태에서도 DOM 에 남으므로
+  // (ModalBase 가 root Box 를 항상 렌더 — 실측 확인) 클래스를 무조건 붙이면
+  // `page.locator('.cm-message-modal-overlay').count() === 0` 으로 닫힘을 판정하는 e2e 가 깨진다.
+  const overlayClasses = open ? clsx("cm-modal-overlay", "modal-overlay", overlayClassName) : undefined;
+
   return (
-    <M.Root opened={open} onClose={onClose ?? (() => {})} size={SIZE[size]} centered>
-      <M.Overlay className={clsx("cm-modal-overlay", "modal-overlay", overlayClassName)} />
+    <M.Root
+      opened={open}
+      onClose={onClose ?? (() => {})}
+      size={SIZE[size]}
+      centered
+      classNames={{ root: overlayClasses }}
+    >
+      <M.Overlay className={overlayClasses} />
       <M.Content
         ref={setDialogRef}
         // `M.Content` 의 `className` prop 은 Mantine 내부에서 `mantine-Modal-content` 뿐 아니라

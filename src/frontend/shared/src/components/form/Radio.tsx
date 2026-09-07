@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef, type CSSProperties } from "react";
+import { useId, useRef, type CSSProperties } from "react";
 import { Group, Radio as MantineRadio } from "@mantine/core";
-
-// SSR 에서는 useLayoutEffect 가 경고를 낸다 — 서버에서는 useEffect(no-op) 로 대체한다.
-const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+import { useIsomorphicLayoutEffect } from "../../hooks/use-isomorphic-layout-effect";
 
 export type RadioOption = string | { value: string; label: string };
 

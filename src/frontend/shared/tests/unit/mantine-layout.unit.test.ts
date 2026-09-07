@@ -30,6 +30,36 @@ describe("tabs/tree/layout (Mantine 구현) 계약", () => {
     r.unmount();
   });
 
+  // base 의 Tree 는 ArrowUp/Down/Left/Right·Enter 를 직접 구현했다. Mantine 이전 후에도
+  // 키보드 확장(ArrowRight)·선택(Enter) 이 실제로 동작해야 접근성 회귀가 아니다.
+  it("Tree 는 ArrowRight 로 확장하고 Enter 로 선택하며 aria-expanded 를 노출한다", () => {
+    const onExp = vi.fn();
+    const onSel = vi.fn();
+    const items = [{ id: 1, label: "루트", children: [{ id: 2, label: "자식" }] }];
+    const r = renderWithMantine(
+      createElement(Tree, { items, expandedItems: [], onExpandedItemsChange: onExp, onSelectedItemsChange: onSel }),
+    );
+    // 초기화 통지(Tree 가 마운트 시 controller.initialize 로 전체 상태를 되돌려 준다)는
+    // 집합이 같으므로 상위로 흘러나가지 않아야 한다.
+    expect(onExp).not.toHaveBeenCalled();
+
+    const rootItem = r.host.querySelector('li[role="treeitem"][data-value="1"]') as HTMLElement;
+    expect(rootItem).not.toBeNull();
+    expect(rootItem.querySelector(".tree-item")?.getAttribute("aria-expanded")).toBe("false");
+
+    const press = (key: string, code: string) =>
+      act(() => {
+        rootItem.dispatchEvent(new KeyboardEvent("keydown", { key, code, bubbles: true, cancelable: true }));
+      });
+
+    press("ArrowRight", "ArrowRight");
+    expect(onExp).toHaveBeenCalledWith(null, ["1"]);
+
+    press("Enter", "Enter");
+    expect(onSel).toHaveBeenCalledWith(null, "1");
+    r.unmount();
+  });
+
   it("PageLayout 은 page-layout__header-buttons 안에 page-button 을 렌더한다", () => {
     const onClick = vi.fn();
     const r = renderWithMantine(

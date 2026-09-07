@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, type CSSProperties } from "react";
+import { useId, useMemo, useRef, type CSSProperties } from "react";
 import { MultiSelect } from "@mantine/core";
 import clsx from "clsx";
-
-// SSR 에서는 useLayoutEffect 가 경고를 낸다 — 서버에서는 useEffect(no-op) 로 대체한다.
-const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+import { useIsomorphicLayoutEffect } from "../../hooks/use-isomorphic-layout-effect";
 
 export interface MultiSelectComboBoxProps {
   /** 원본 데이터 배열 (string[] 또는 object[]) */

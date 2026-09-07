@@ -43,6 +43,32 @@ describe("Modal (Mantine 구현) 계약", () => {
     r.unmount();
   });
 
+  // 계획 Global Constraints: e2e 가 쓰는 shared 클래스는 "같은 역할의 요소" 에 남아야 한다.
+  // 클래스 문자열의 존재만 보면 통과하지만, overlay 가 dialog 를 감싸지 않으면
+  // `overlay.locator(...)` 처럼 overlay 를 컨테이너로 삼는 e2e 셀렉터가 전부 0건이 된다.
+  it("overlay 계열 클래스 요소는 role=dialog 와 확인 버튼을 자손으로 가진다", () => {
+    const r = renderWithMantine(
+      createElement(MessageModal, { open: true, alertType: "confirm", message: "계속?", onConfirm: () => {}, onClose: () => {} }),
+    );
+    const overlay = document.querySelector(".cm-modal-overlay");
+    expect(overlay).not.toBeNull();
+    expect(overlay!.querySelector('[role="dialog"]')).not.toBeNull();
+    const msgOverlay = document.querySelector(".cm-message-modal-overlay");
+    expect(msgOverlay).not.toBeNull();
+    const ok = Array.from(msgOverlay!.querySelectorAll("button")).find((b) => b.textContent?.trim() === "확인");
+    expect(ok).toBeDefined();
+    r.unmount();
+  });
+
+  // `.mantine-Modal-root` 는 닫힌 상태에서도 DOM 에 남는다(ModalBase 가 root Box 를 항상 렌더).
+  // e2e 는 `.cm-message-modal-overlay` 의 count === 0 으로 닫힘을 판정하므로 클래스가 남으면 안 된다.
+  it("open=false 면 overlay 계열 클래스가 DOM 에 남지 않는다", () => {
+    const r = renderWithMantine(createElement(MessageModal, { open: false, alertType: "confirm", message: "계속?" }));
+    expect(document.querySelector(".cm-modal-overlay")).toBeNull();
+    expect(document.querySelector(".cm-message-modal-overlay")).toBeNull();
+    r.unmount();
+  });
+
   it("ErrorModal 은 message 가 있을 때만 '오류' 제목으로 열린다", () => {
     const r = renderWithMantine(createElement(ErrorModal, { message: "실패", onClose: () => {} }));
     expect(document.body.textContent).toContain("오류");

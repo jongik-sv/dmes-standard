@@ -223,7 +223,7 @@ export function PortalLoginForm({ appName, callbackUrl }: PortalLoginFormProps) 
           size="md"
           h={45}
           radius={0}
-          color="#1b3f7d"
+          color="loginBrand"
         >
           {isPending ? "로그인 중..." : "로그인"}
         </Button>

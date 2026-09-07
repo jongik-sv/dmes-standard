@@ -209,7 +209,11 @@ export function MenuSearchDialog({
       title="메뉴 검색"
       onClose={onClose}
       size="md"
-      className="portal-menu-search modal-overlay"
+      // `Modal` 의 `className` 은 `classNames.content`(dialog 본문) 로 전달되므로 여기에
+      // `modal-overlay` 를 얹으면 overlay 가 아닌 요소에 붙는다. `.modal-overlay` 는 `Modal` 이
+      // root 와 Overlay 에 이미 부여하므로(modal.tsx), `PageLayout` 의 ESC 가드가 쓰는
+      // `document.querySelector(".modal-overlay")` 는 그대로 성립한다.
+      className="portal-menu-search"
       bodyClassName="portal-menu-search__body"
     >
       <div ref={dialogRef} className="portal-menu-search__panel" onKeyDown={handleKeyDown}>
