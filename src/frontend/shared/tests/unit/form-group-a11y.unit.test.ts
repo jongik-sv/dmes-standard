@@ -8,16 +8,20 @@
 
 import { act, createElement, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { MantineProvider } from "@mantine/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FormGroup } from "../../src/components/form/FormGroup";
 import { Input } from "../../src/components/form/Input";
 import { Radio } from "../../src/components/form/Radio";
+import { dmesTheme } from "../../src/ui-provider/theme";
 
 let host: HTMLDivElement;
 let root: Root;
 
+// FormGroup 의 자식(Input/Radio)이 Mantine 컴포넌트로 재구현되어 MantineProvider 컨텍스트가
+// 필요하다(P1, 2026-09-07). 렌더 하네스만 감싸며 assertion 은 그대로 둔다.
 function render(element: ReactElement) {
-  act(() => root.render(element));
+  act(() => root.render(createElement(MantineProvider, { theme: dmesTheme }, element)));
 }
 
 beforeEach(() => {
