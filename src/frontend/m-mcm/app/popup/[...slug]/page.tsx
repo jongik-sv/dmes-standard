@@ -7,7 +7,6 @@
  */
 
 import { use, useEffect, useState } from "react";
-import { useGfnMessage } from "@dk-oasis/shared/message-provider";
 import "@dk-oasis/shared/portal-shell.css";
 import "@dk-oasis/shared/grid.css";
 import "@dk-oasis/shared/form.css";
@@ -27,7 +26,6 @@ function findOwnerModule(slug: string[]): { moduleId: string; pageName: string }
 }
 
 function PopupBody({ slug }: { slug: string[] }) {
-  const gfn_message = useGfnMessage();
   const [PageComponent, setPageComponent] = useState<PageComponent | null>(null);
   const [error, setError] = useState<string | null>(null);
 
