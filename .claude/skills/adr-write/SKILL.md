@@ -19,6 +19,9 @@ description: "ADR(설계 결정 기록)을 발행·개정·확정할 때 사용�
 
 파일명은 `NNNN-{kebab-case-slug}.md`, 위치는 `docs/{module}/design/adr/`.
 
+전 모듈 횡단 결정(어느 한 모듈에 속하지 않고 aps/mcm/mls/mqc/mpp/mas 전체에
+적용되는 결정)은 예외적으로 `docs/guide/adr/` 에 둔다.
+
 ## 1. 번호는 모듈별 독립이다
 
 **모듈마다 `0001` 부터 따로 매긴다. 접두어를 붙이지 않는다.**

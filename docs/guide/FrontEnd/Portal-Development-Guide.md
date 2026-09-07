@@ -35,12 +35,19 @@ BFF 는 NextAuth 세션을 검증한 뒤 BE 로 forward 할 때 다음 3종 헤�
 
 ### 2-1. import
 
-포털 진입점(`m-mcm/app/portal/page.tsx`)에서 shared CSS 를 import 한다. 개별 페이지 컴포넌트에서 재import 할 필요는 없다.
+root layout(`m-mcm/app/layout.tsx`)이 `@dk-oasis/shared/ui-provider` 의
+`DmesUiProvider` 로 앱 전체를 **한 번만** 감싼다(`/portal`, `/popup/[...slug]`,
+`/login` 모두 root layout 아래이므로 별도 Provider 가 필요 없다). Mantine 자체
+CSS(`@mantine/core/styles.layer.css` 등)는 `m-mcm/app/globals.css` 에서
+Tailwind 보다 먼저 로드되므로 포털 진입점에서 따로 import 하지 않는다.
+
+포털 진입점(`m-mcm/app/portal/page.tsx`)에서는 shared 의 나머지 CSS 를
+import 한다. 개별 페이지 컴포넌트에서 재import 할 필요는 없다.
 
 ```typescript
 import "@dk-oasis/shared/portal-shell.css";  // 포털 프레임 (사이드바, 헤더, 탭바)
-import "@dk-oasis/shared/grid.css";           // 그리드 (AG-Grid 커스텀)
-import "@dk-oasis/shared/form.css";           // 폼 입력 필드
+import "@dk-oasis/shared/grid.css";           // 그리드 (AG-Grid 커스텀, Mantine 테마 변수 연동)
+import "@dk-oasis/shared/form.css";           // 폼 입력 필드 (Mantine 위 ERP 밀도 오버라이드)
 import "@dk-oasis/shared/modal.css";          // 모달/다이얼로그
 ```
 

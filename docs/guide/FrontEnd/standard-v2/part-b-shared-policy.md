@@ -3,6 +3,11 @@
 > 상위 문서: [Frontend 표준 개발 가이드 V2](../FrontEnd_표준_통합_개발가이드_v2.md)
 > 본 문서의 범위는 워크스페이스 공용 패키지 `@dk-oasis/shared` 다. **m-mpn 로컬 공통층**(`src/_shared`, 도메인 공통)은 [Part D. m-mpn 공통 모듈 카탈로그](part-d-mpn-shared-catalog.md)가 정본이며, Part D 에 등재된 모듈은 본 문서의 ASK 대상이 아니다.
 
+**구현 기반: Mantine 9(그리드 ag-grid-community 33).** shared 의 그리드 외 공통
+UI(폼·모달·메시지·탭·트리·레이아웃·portal-shell·로그인 폼)는 Mantine 9 위에
+구현되어 있다. 그리드는 ag-grid-community v33 을 그대로 쓴다. 결정 근거는
+[전 모듈 ADR-0001](../../adr/0001-ui-library-mantine9-aggrid.md) 을 따른다.
+
 ## 0. 사용 정책
 
 | 등급     | 의미                                                          |
@@ -20,6 +25,7 @@
 | 서브패스                                      | 상태                   | 용도                                 | 본문 가이드 연결 |
 | --------------------------------------------- | ---------------------- | ------------------------------------ | ---------------- |
 | `@dk-oasis/shared/http`                       | MUST                   | `apiRequest`, `HttpError`, `getJson` | §8, §10          |
+| `@dk-oasis/shared/ui-provider`                | MUST (호스트 root)     | `DmesUiProvider`, Mantine theme      | §4-2             |
 | `@dk-oasis/shared/portal-shell-core`          | MUST                   | 페이지 컴포넌트 타입                 | §14-2            |
 | `@dk-oasis/shared/portal-shell`               | MUST NOT (일반 페이지) | 포털 프레임 전용                     | —                |
 | `@dk-oasis/shared/layout`                     | MUST                   | 레이아웃 컴포넌트                    | §14-2            |
@@ -123,6 +129,17 @@ import "@dk-oasis/shared/variables.css";
 - MUST: 앱 전역 색상·간격·타이포그래피·폼 크기 토큰은 위 CSS를 단일 정본으로 사용한다.
 - MUST NOT: 각 앱의 전역 CSS에 동일한 `:root` 토큰을 복사해 별도 관리하지 않는다.
 
+### 4-2. UI Provider `/ui-provider`
+
+검증된 export:
+
+```ts
+import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
+```
+
+- MUST: `DmesUiProvider` 는 **호스트 root layout 이 한 번만** 감싼다(`m-mcm/app/layout.tsx` 등). 페이지·개별 라우트 layout 에서 중복으로 감싸지 않는다.
+- MUST NOT: 화면 모듈에서 `@mantine/*` 를 직접 import 하지 않는다. 필요한 컴포넌트가 shared 에 없으면 shared 에 추가한다(§17 참조).
+
 ---
 
 ## 5. Form `/form`
@@ -157,7 +174,6 @@ import "@dk-oasis/shared/form.css";
 import {
   AgDataGrid,
   DataGrid,
-  MuiDataGrid,
   CustomDataGrid,
   GridPanel,
   useGridDataManager,
@@ -172,7 +188,7 @@ import "@dk-oasis/shared/grid.css";
 - MUST: 저장형 페이지는 `useGridDataManager` 로 행 상태를 관리한다.
 - MUST: `SavePayload = { inserted, updated, deleted, totalChanges }` 는 `*-api.ts` 에서 변환한다 (Part A §9).
 - MUST NOT: `ag-grid-react` 를 페이지에서 직접 import.
-- 보조 export: `DataGrid`, `MuiDataGrid`, `CustomDataGrid`, `GridPanel` 은 특수 요건 시 사용. 일반 페이지의 기본값은 `AgDataGrid`.
+- 보조 export: `DataGrid`, `CustomDataGrid`, `GridPanel` 은 특수 요건 시 사용. 일반 페이지의 기본값은 `AgDataGrid`.
 
 ---
 
@@ -334,6 +350,7 @@ import { useGfnMessage } from "@dk-oasis/shared/message-provider";
 - MUST NOT: 커스텀 `fetch` / `axios` wrapper 작성.
 - MUST NOT: `alert`, `console.error` 로 사용자 메시지 표시.
 - MUST NOT: shared 의 컴포넌트를 페이지 로컬에서 중복 구현.
+- MUST NOT: `@mantine/*` 를 화면 모듈에서 직접 import 하지 않는다. 필요한 컴포넌트가 shared 에 없으면 shared 에 추가한다.
 - MUST NOT: 상대경로 체인(`../../../`) 으로 shared 또는 타 도메인 import.
 - MUST NOT: `@dk-oasis/shared/dist/...` 직접 import.
 - MUST NOT: 본 문서에 등재되지 않은 경로/심볼 임의 사용.

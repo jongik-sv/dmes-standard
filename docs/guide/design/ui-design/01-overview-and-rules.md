@@ -20,6 +20,7 @@
 | 「../FrontEnd/FrontEnd_표준_통합_개발가이드_v2.md」 | Frontend 개발 표준 통합본 (Part A 규칙 + Part B shared 카탈로그 + Part C 샘플) — §A.9 개발 연계, `@dk-oasis/shared` 허용 서브패스 확인 시 |
 
 ### 공통 원칙 (MUST)
+- 구현 기반: Mantine 9 + ag-grid-community. `@dk-oasis/shared` 공통 컴포넌트는 Mantine 9 위에 구현되며, 그리드만 ag-grid-community 를 유지한다([전 모듈 ADR-0001](../../adr/0001-ui-library-mantine9-aggrid.md)).
 - 모든 화면은 Frontend 개발가이드 §3-1 페이지 유형(A~E) 중 하나를 선택한다 (§A.4-1).
 - **SIDEBAR / HEADER / TabsBar 는 `portal` 의 `PortalShell` 이 자동 주입**한다. 화면 설계의 대상 영역은 **`PageLayout` 내부 영역(SearchArea / ContentBody / ContentPanel)** 으로 한정한다. (MUST)
 - 공통 컴포넌트는 `@dk-oasis/shared` 의 허용된 서브패스(`/layout`, `/form`, `/grid`, `/modal`, `/tree`, `/message-provider`, `/http`, `/use-api-call`, `/use-form-validation`, `/snapshot`, `/error-boundary` 등)에서 import 한다. 허용 목록 외 서브패스 사용 금지. (MUST NOT)

@@ -217,13 +217,15 @@ export { default } from "@dk-oasis/m-mpn/pages/planning/production-plan-page";
 
 ### A.9-3. shared 실제 주요 컴포넌트·심볼 (설계서에 이 이름만 사용)
 
+구현 기반: Mantine 9 + ag-grid-community.
+
 설계서 §5 컴포넌트 구조에 등장해야 할 **실제 shared 이름** (FE 가이드 Part B 검증된 export):
 
 | 서브패스 | 주요 심볼 |
 |---|---|
 | `/layout` | `PageLayout`, `SearchArea`, `SearchField`, `ContentBody`, `ContentPanel`, `ErrorModal` |
 | `/form` | `Button`, `Input`, `Select`, `Checkbox`, `DatePicker`, `Radio`, `Textarea`, `FormGroup`, `ComboBox`, `Spinner` |
-| `/grid` | `AgDataGrid`, `DataGrid`, `MuiDataGrid`, `CustomDataGrid`, `GridPanel`, `useGridDataManager`, `useRowStateManager`, `ROW_STATUS`, type `SavePayload`, type `GridColumn` |
+| `/grid` | `AgDataGrid`, `DataGrid`, `CustomDataGrid`, `GridPanel`, `useGridDataManager`, `useRowStateManager`, `ROW_STATUS`, type `SavePayload`, type `GridColumn` |
 | `/modal` | `Modal`, `MessageModal` |
 | `/tree` | `Tree`, type `TreeProps`, type `TreeNode` |
 | `/message-provider` | `useGfnMessage`, `useMessage`, `MessageProvider` |

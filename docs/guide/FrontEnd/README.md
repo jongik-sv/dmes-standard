@@ -11,6 +11,7 @@ Frontend, portal, shared package, private npm registry 관련 가이드는 이 �
 | Portal 화면/메뉴/BFF 개발 | [`Portal-Development-Guide.md`](Portal-Development-Guide.md) | [`Portal-Menu-Role-Policy.md`](Portal-Menu-Role-Policy.md) |
 | Portal 메뉴 역할 정책 | [`Portal-Menu-Role-Policy.md`](Portal-Menu-Role-Policy.md) | [`../Security/Security-Guide.md`](../Security/Security-Guide.md) |
 | private npm / Verdaccio | [`Verdaccio-Guide.md`](Verdaccio-Guide.md) | [`../Operations/DMES-Module-Package-Publishing-and-Consumption-Guide.md`](../Operations/DMES-Module-Package-Publishing-and-Consumption-Guide.md) |
+| 공통 UI 기반(전 모듈 횡단) 결정 근거 확인 | [전 모듈 ADR-0001: 공통 UI 기반 Mantine 9 채택과 그리드 ag-grid-community 유지](../adr/0001-ui-library-mantine9-aggrid.md) | [`standard-v2/part-b-shared-policy.md`](standard-v2/part-b-shared-policy.md) |
 
 ## 배치 기준
 
