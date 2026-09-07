@@ -8,15 +8,15 @@
   /* ============================================================
      색상 - 기본
      ============================================================ */
-  --color-primary: #337ab7;
-  --color-primary-hover: #2a6499;
-  --color-danger: #d9534f;
-  --color-danger-hover: #c9302c;
+  --color-primary: var(--mantine-color-dmes-6, #337ab7);
+  --color-primary-hover: var(--mantine-color-dmes-7, #2a6499);
+  --color-danger: var(--mantine-color-danger-6, #d9534f);
+  --color-danger-hover: var(--mantine-color-danger-7, #c9302c);
 
-  --color-text: #333;
+  --color-text: var(--mantine-color-text, #333);
   --color-text-disabled: #999;
   --color-text-placeholder: #999;
-  --color-text-muted: #666;
+  --color-text-muted: var(--mantine-color-dimmed, #666);
   --color-text-muted-light: #888;
 
   --color-bg: #fff;

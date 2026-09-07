@@ -7,7 +7,7 @@
  */
 
 import { use, useEffect, useState } from "react";
-import { MessageProvider, useGfnMessage } from "@dk-oasis/shared/message-provider";
+import { useGfnMessage } from "@dk-oasis/shared/message-provider";
 import "@dk-oasis/shared/portal-shell.css";
 import "@dk-oasis/shared/grid.css";
 import "@dk-oasis/shared/form.css";
@@ -87,9 +87,5 @@ function PopupBody({ slug }: { slug: string[] }) {
 
 export default function PopupRoute({ params }: { params: Promise<{ slug: string[] }> }) {
   const { slug } = use(params);
-  return (
-    <MessageProvider>
-      <PopupBody slug={slug} />
-    </MessageProvider>
-  );
+  return <PopupBody slug={slug} />;
 }

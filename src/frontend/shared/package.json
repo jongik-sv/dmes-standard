@@ -95,6 +95,10 @@
       "types": "./dist/message-provider.d.ts",
       "import": "./dist/message-provider.js"
     },
+    "./ui-provider": {
+      "types": "./dist/ui-provider.d.ts",
+      "import": "./dist/ui-provider.js"
+    },
     "./variables.css": "./dist/variables.css",
     "./portal-shell.css": "./dist/portal-shell.css",
     "./auth-login-form.css": "./dist/auth-login-form.css",
@@ -164,10 +168,11 @@
     "next-auth": "^4.24.13"
   },
   "peerDependencies": {
-    "@emotion/react": "^11.0.0",
-    "@emotion/styled": "^11.0.0",
-    "@mui/material": "^7.0.0",
-    "@mui/x-data-grid": "^8.0.0",
+    "@mantine/core": "^9.6.0",
+    "@mantine/dates": "^9.6.0",
+    "@mantine/hooks": "^9.6.0",
+    "@mantine/modals": "^9.6.0",
+    "@mantine/notifications": "^9.6.0",
     "ag-grid-community": "^33.0.0",
     "ag-grid-react": "^33.0.0",
     "react": "^19.2.0",
@@ -179,31 +184,23 @@
     },
     "ag-grid-react": {
       "optional": true
-    },
-    "@mui/x-data-grid": {
-      "optional": true
-    },
-    "@mui/material": {
-      "optional": true
-    },
-    "@emotion/react": {
-      "optional": true
-    },
-    "@emotion/styled": {
-      "optional": true
     }
   },
   "devDependencies": {
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.1",
-    "@mui/material": "^7.3.9",
-    "@mui/x-data-grid": "^8.27.5",
+    "@mantine/core": "^9.6.0",
+    "@mantine/dates": "^9.6.0",
+    "@mantine/hooks": "^9.6.0",
+    "@mantine/modals": "^9.6.0",
+    "@mantine/notifications": "^9.6.0",
+    "@tabler/icons-react": "^3.46.0",
     "@types/file-saver": "^2.0.7",
     "@types/node": "^20.19.37",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitest/coverage-v8": "^3.2.4",
+    "clsx": "^2.1.1",
     "cross-env": "^10.1.0",
+    "dayjs": "^1.11.23",
     "happy-dom": "^20.10.6",
     "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.6.14",

@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next";
+import { mantineHtmlProps } from "@mantine/core";
+import { ColorSchemeScript, DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -29,8 +31,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko">
-      <body className="m-0">{children}</body>
+    <html lang="ko" {...mantineHtmlProps}>
+      <head>
+        <ColorSchemeScript defaultColorScheme="light" />
+      </head>
+      <body className="m-0">
+        <DmesUiProvider>{children}</DmesUiProvider>
+      </body>
     </html>
   );
 }

@@ -1,5 +1,4 @@
 export { AgDataGrid, DataGrid, type AgDataGridProps, type GridColumn } from "./AgDataGrid";
-export { MuiDataGrid, type MuiDataGridProps } from "./MuiDataGrid";
 export { CustomDataGrid, type CustomDataGridProps } from "./CustomDataGrid";
 export {
   GridBadge,

@@ -8,7 +8,7 @@ import {
   usePortalFavorites,
   usePortalMenu,
 } from "@dk-oasis/shared/portal-shell";
-import { MessageProvider, useGfnMessage } from "@dk-oasis/shared/message-provider";
+import { useGfnMessage } from "@dk-oasis/shared/message-provider";
 import "@dk-oasis/shared/portal-shell.css";
 import "@dk-oasis/shared/grid.css";
 import "@dk-oasis/shared/form.css";
@@ -213,9 +213,5 @@ export default function PortalPage() {
     );
   }
 
-  return (
-    <MessageProvider>
-      <PortalShellWithMessage menu={menu} favorites={favorites} refetchFavorites={refetchFavorites} />
-    </MessageProvider>
-  );
+  return <PortalShellWithMessage menu={menu} favorites={favorites} refetchFavorites={refetchFavorites} />;
 }

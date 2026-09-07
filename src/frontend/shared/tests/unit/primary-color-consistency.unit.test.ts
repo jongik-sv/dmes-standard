@@ -7,15 +7,10 @@ function read(relativePath: string): string {
 
 describe("shared primary color consistency", () => {
   it("uses the canonical primary tokens for shared primary buttons", () => {
-    const modalCss = read("../../src/components/modal.css");
+    const variablesCss = read("../../src/styles/variables.css");
     const formCss = read("../../src/components/form/form.css");
 
-    expect(modalCss).toMatch(
-      /\.cm-btn-primary\s*\{[^}]*background-color: var\(--color-primary, #337ab7\);[^}]*border-color: var\(--color-primary, #337ab7\);/s,
-    );
-    expect(modalCss).toMatch(
-      /\.cm-btn-primary:hover\s*\{[^}]*background-color: var\(--color-primary-hover, #2a6499\);[^}]*border-color: var\(--color-primary-hover, #2a6499\);/s,
-    );
+    expect(variablesCss).toContain("--color-primary: var(--mantine-color-dmes-6");
     expect(formCss).not.toContain("var(--color-primary, #4a90d9)");
     expect(formCss).not.toContain("var(--color-primary-hover, #3a7bc8)");
   });
