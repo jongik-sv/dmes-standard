@@ -1,6 +1,7 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from "react";
+import React, { createContext, useContext, useState, useCallback, useRef, type ReactNode } from "react";
+import { notifications } from "@mantine/notifications";
 import { MessageModal, type AlertType } from "./modal";
 
 export interface ShowMessageParams {
@@ -100,40 +101,31 @@ interface MsgState {
   onCancel?: () => void;
 }
 
-interface ToastItem {
-  id: number;
-  message: string;
-  type: Exclude<AlertType, "confirm">;
-}
+/** toast 색상 — `MessageModal` 의 `COLOR_MAP` 과 같은 의미값을 Mantine 색 이름으로. */
+const TOAST_COLOR_MAP: Record<Exclude<AlertType, "confirm">, string> = {
+  info: "blue",
+  warning: "orange",
+  error: "danger",
+  success: "green",
+};
 
 export function MessageProvider({ children }: { children: ReactNode }) {
   const [msgState, setMsgState] = useState<MsgState>({ open: false });
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const toastSeqRef = useRef(0);
-  const toastTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   // 현재 msgState 스냅샷 — handleClose/handleConfirm 이 setState 업데이터 밖(이벤트 핸들러
   // 스코프)에서 콜백을 호출하도록 참조로 보관한다("렌더 중 다른 컴포넌트 setState" 경고 방지).
   const msgStateRef = useRef<MsgState>(msgState);
   msgStateRef.current = msgState;
 
-  useEffect(() => {
-    const timers = toastTimersRef.current;
-    return () => {
-      timers.forEach(clearTimeout);
-    };
-  }, []);
-
   const showMessage = useCallback(
     ({ title, message, alertType = "info", callback, onConfirm, onCancel, toast, toastDuration }: ShowMessageParams) => {
       if (toast && alertType !== "confirm") {
-        const id = ++toastSeqRef.current;
-        setToasts((prev) => [...prev, { id, message, type: alertType }]);
-        const timer = setTimeout(() => {
-          setToasts((prev) => prev.filter((t) => t.id !== id));
-          toastTimersRef.current.delete(id);
-          callback?.();
-        }, toastDuration ?? 3000);
-        toastTimersRef.current.set(id, timer);
+        notifications.show({
+          title,
+          message,
+          color: TOAST_COLOR_MAP[alertType],
+          autoClose: toastDuration ?? 3000,
+          onClose: () => callback?.(),
+        });
         return;
       }
       setMsgState({ open: true, title, message, alertType, callback, onConfirm, onCancel });
@@ -168,15 +160,6 @@ export function MessageProvider({ children }: { children: ReactNode }) {
         onClose={handleClose}
         onConfirm={handleConfirm}
       />
-      {toasts.length > 0 && (
-        <div className="cm-toast-container" aria-live="polite">
-          {toasts.map((t) => (
-            <div key={t.id} className={`cm-toast cm-toast-${t.type}`} role="status">
-              {t.message}
-            </div>
-          ))}
-        </div>
-      )}
     </MessageContext.Provider>
   );
 }

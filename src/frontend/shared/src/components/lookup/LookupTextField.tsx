@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useMemo, type CSSProperties } from "react";
+import { useMemo, type CSSProperties } from "react";
+import { TextInput } from "@mantine/core";
 import { generateId } from "../../utils/libUtil";
 import { LookupIconButton } from "./LookupIconButton";
 import { shouldOpenLookupPopupFromKey } from "./lookup-shortcuts";
@@ -68,10 +69,9 @@ export function LookupTextField({
         ...style,
       }}
     >
-      <input
+      <TextInput
         id={inputId}
-        type="text"
-        className="form-input"
+        classNames={{ input: "form-input" }}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
@@ -90,27 +90,19 @@ export function LookupTextField({
         placeholder={placeholder}
         disabled={disabled}
         readOnly={readOnly}
-        // 우측 내부 버튼 영역(약 24px) 만큼 padding-right 확보
-        style={{ paddingRight: 28 }}
+        // 우측 내부 버튼 영역만큼 padding-right 확보(rightSectionWidth 로 폭 지정).
+        rightSectionWidth={26}
+        rightSection={
+          onOpenPopup && (
+            <LookupIconButton
+              onClick={() => onOpenPopup(value)}
+              disabled={disabled}
+              ariaLabel={buttonAriaLabel}
+              style={{ width: 24, height: "auto" }}
+            />
+          )
+        }
       />
-      {onOpenPopup && (
-        <LookupIconButton
-          onClick={() => onOpenPopup(value)}
-          disabled={disabled}
-          ariaLabel={buttonAriaLabel}
-          // 입력칸 우측 내부에 절대배치 (form-input 모서리 라운드 보호)
-          style={{
-            position: "absolute",
-            top: 1,
-            right: 1,
-            bottom: 1,
-            width: 24,
-            height: "auto",
-            borderTopRightRadius: "var(--form-border-radius, 3px)",
-            borderBottomRightRadius: "var(--form-border-radius, 3px)",
-          }}
-        />
-      )}
     </div>
   );
 }

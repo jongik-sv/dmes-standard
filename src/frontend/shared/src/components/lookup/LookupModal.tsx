@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { NativeSelect, TextInput } from "@mantine/core";
 import { Modal } from "../modal";
 import { Button } from "../form";
 import { AgDataGrid, Pagination, type GridColumn } from "../grid";
@@ -81,17 +82,6 @@ const DEFAULT_PAGE_SIZE = 50;
 const PAGE_SIZE_OPTIONS = [50, 100, 200];
 const GRID_HEIGHT = 320;
 
-const CONTROL_STYLE: CSSProperties = {
-  height: 32,
-  border: "1px solid #cbd5e1",
-  borderRadius: 6,
-  padding: "0 8px",
-  fontSize: 13,
-  background: "#fff",
-  color: "#1f2937",
-  boxSizing: "border-box",
-  outline: "none",
-};
 const FIELD_WRAP_STYLE: CSSProperties = { display: "flex", flexDirection: "column", gap: 4 };
 const FIELD_LABEL_STYLE: CSSProperties = {
   fontSize: 11,
@@ -278,20 +268,14 @@ export function LookupModal({
               <div key={f.key} style={FIELD_WRAP_STYLE}>
                 <span style={FIELD_LABEL_STYLE}>{f.label}</span>
                 {isSelect ? (
-                  <select
+                  <NativeSelect
                     value={filterValues[f.key] ?? ""}
                     onChange={(e) => handleFilterChange(f.key, e.target.value, true)}
-                    style={{ ...CONTROL_STYLE, width, cursor: "pointer" }}
-                  >
-                    {(f.options ?? []).map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
+                    data={(f.options ?? []).map((o) => ({ value: o.value, label: o.label }))}
+                    style={{ width }}
+                  />
                 ) : (
-                  <input
-                    type="text"
+                  <TextInput
                     value={filterValues[f.key] ?? ""}
                     placeholder={f.placeholder}
                     onChange={(e) => handleFilterChange(f.key, e.target.value, false)}
@@ -301,7 +285,7 @@ export function LookupModal({
                         handleSearch();
                       }
                     }}
-                    style={{ ...CONTROL_STYLE, width }}
+                    style={{ width }}
                   />
                 )}
               </div>
@@ -309,9 +293,8 @@ export function LookupModal({
           })}
           <div style={{ ...FIELD_WRAP_STYLE, flex: 1, minWidth: 200 }}>
             <span style={FIELD_LABEL_STYLE}>검색어</span>
-            <input
+            <TextInput
               ref={keywordInputRef}
-              type="text"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               onKeyDown={(e) => {
@@ -321,7 +304,7 @@ export function LookupModal({
                 }
               }}
               placeholder={placeholder}
-              style={{ ...CONTROL_STYLE, width: "100%" }}
+              style={{ width: "100%" }}
             />
           </div>
           <Button onClick={handleSearch} disabled={loading} variant="primary">
