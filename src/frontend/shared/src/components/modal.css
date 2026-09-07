@@ -14,6 +14,31 @@
   min-height: 0;
 }
 
+/* Mantine 의 size 토큰(--modal-size-md 등)은 이 저장소의 기존 픽셀 폭(레거시 `--cm-modal-width`)보다
+   좁다(예: md 는 440px vs 기존 600px) — LookupModal 처럼 고정 폭 그리드를 담는 화면이 좁아지는 시각적
+   회귀를 막기 위해, Modal.Content 에 함께 붙는 `cm-modal-${size}` 클래스로 `--modal-size`(Mantine 이
+   flex-basis 계산에 쓰는 CSS 변수)를 이 요소 위에서 다시 덮어써 기존 폭을 복원한다. `min-height` 도
+   같은 이유로 복원 — Mantine 쪽은 `height:auto`/`max-height` 만 주고 `min-height` 를 주지 않아,
+   고정 높이가 없는 그리드(GridPanel 등)를 담은 모달이 내용만큼만 줄어드는 회귀가 있었다. */
+.cm-modal-sm {
+  --modal-size: 400px;
+}
+
+.cm-modal-md {
+  --modal-size: 600px;
+  min-height: min(400px, calc(100dvh - 32px));
+}
+
+.cm-modal-lg {
+  --modal-size: 900px;
+  min-height: min(70vh, calc(100dvh - 32px));
+}
+
+.cm-modal-xl {
+  --modal-size: 1024px;
+  min-height: min(80vh, calc(100dvh - 32px));
+}
+
 .cm-modal-toolbar {
   display: flex;
   gap: 8px;

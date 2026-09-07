@@ -250,7 +250,10 @@ function ModalImpl({
   return (
     <M.Root opened={open} onClose={onClose ?? (() => {})} size={SIZE[size]} centered>
       <M.Overlay className={clsx("cm-modal-overlay", "modal-overlay", overlayClassName)} />
-      <M.Content ref={setDialogRef} className={clsx("cm-modal", className)}>
+      <M.Content
+        ref={setDialogRef}
+        className={clsx("cm-modal", `cm-modal-${size}`, className)}
+      >
         {(title || showCloseButton) && (
           <M.Header className="cm-modal-header">
             <M.Title className="cm-modal-title">{title}</M.Title>
