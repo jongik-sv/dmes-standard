@@ -38,6 +38,15 @@ export function PortalLoginForm({ appName, callbackUrl }: PortalLoginFormProps) 
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [modalDefaultEmail, setModalDefaultEmail] = useState("");
   const [modalDefaultPassword, setModalDefaultPassword] = useState("");
+  // hydration 이전에는 handleSubmit 의 preventDefault 가 아직 붙지 않아, 제출이
+  // 네이티브 GET 으로 나가 비밀번호가 쿼리스트링에 노출될 수 있다(e2e 실측:
+  // portal-tab-history.spec.ts 가 domcontentloaded 직후 클릭). hydration 완료
+  // 전까지는 submit 버튼을 비활성화해 이 창구를 막는다.
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // 로컬스토리지에서 저장된 아이디 불러오기
   useEffect(() => {
@@ -136,7 +145,13 @@ export function PortalLoginForm({ appName, callbackUrl }: PortalLoginFormProps) 
 
   return (
     <div className="login-wrapper" style={{ backgroundImage: "url(/images/bg_login.png)" }}>
-      <Paper component="form" className="login-form" radius={0} onSubmit={handleSubmit}>
+      <Paper
+        component="form"
+        method="post"
+        className="login-form"
+        radius={0}
+        onSubmit={handleSubmit}
+      >
         <Title order={2} className="login-title">
           Login
         </Title>
@@ -167,6 +182,7 @@ export function PortalLoginForm({ appName, callbackUrl }: PortalLoginFormProps) 
           autoComplete="current-password"
           size="md"
           radius={0}
+          visibilityToggleButtonProps={{ "aria-label": "비밀번호 표시 전환" }}
         />
 
         <Group className="login-save-id" justify="space-between" wrap="nowrap">
@@ -200,7 +216,7 @@ export function PortalLoginForm({ appName, callbackUrl }: PortalLoginFormProps) 
           type="submit"
           className="login-button"
           fullWidth
-          disabled={isPending}
+          disabled={isPending || !mounted}
           size="md"
           h={45}
           radius={0}

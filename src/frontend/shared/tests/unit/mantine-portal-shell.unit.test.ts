@@ -404,6 +404,19 @@ describe("portal-shell (Mantine 구현) 계약", () => {
     expect(r.host.querySelector('input[aria-label="Password"]#login-password')).not.toBeNull();
     expect(r.host.querySelector("button.login-button")).not.toBeNull();
 
+    // getByLabel("Password") 가 비밀번호 입력과 표시 토글 버튼 둘 다에 매칭되던
+    // 문제(round 2, Playwright 의 부분일치가 토글 기본 라벨의 "password" 문자열에도
+    // 걸렸다) — 토글 라벨을 한국어로 분리해 "Password" 부분일치에서 빠지는지 직접 검증.
+    expect(
+      r.host
+        .querySelector(".mantine-PasswordInput-visibilityToggle")
+        ?.getAttribute("aria-label")
+    ).toBe("비밀번호 표시 전환");
+
+    // hydration 전 제출이 네이티브 GET 으로 나가 비밀번호가 쿼리스트링에 노출되던
+    // 문제(round 2) — JS 없이도 자격증명이 GET 쿼리에 실리지 않도록 method=post.
+    expect(r.host.querySelector("form.login-form")?.getAttribute("method")).toBe("post");
+
     r.unmount();
   });
 });
