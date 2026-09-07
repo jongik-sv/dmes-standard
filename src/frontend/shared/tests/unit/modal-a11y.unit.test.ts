@@ -69,8 +69,18 @@ function dispatchKey(key: string, shiftKey = false): KeyboardEvent {
 }
 
 beforeEach(() => {
+  // Mantine `Transition`(모달 열림/닫힘 애니메이션)은 `requestAnimationFrame` 콜백 안에서
+  // `ReactDOM.flushSync`를 호출한다(use-transition.mjs). 예전엔 이 콜백을 동기로 즉시 실행하는
+  // 스텁을 썼는데, 그러면 그 rAF 호출이 React 자신의 effect-flush 호출 스택 "안"에서 재진입하며
+  // flushSync 를 부르게 되어 "flushSync was called from inside a lifecycle method" 경고가 났다.
+  // (이 하네스의 어떤 assertion 도 이 Transition 완료 시점에 의존하지 않는다 — 초점 이동/복귀는
+  // modal.tsx 의 자체 layout effect·ref 콜백이 React 커밋과 동기로 처리한다.) 그래서 콜백을
+  // `queueMicrotask`로 미뤄, 현재 동기 호출 스택(= React 커밋/effect 플러시)이 완전히 빠져나간
+  // 뒤에 실행되게 한다 — 이러면 더 이상 "lifecycle method 안"이 아니므로 경고가 사라진다.
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
-    callback(0);
+    // 미뤄진 콜백이 React 상태를 바꾸므로(Transition 의 setStatus) act() 배치 밖에서 실행되면
+    // "not wrapped in act(...)" 경고가 새로 생긴다 — 여기서 한 번 더 act() 로 감싸 방지한다.
+    queueMicrotask(() => act(() => callback(0)));
     return 1;
   });
   vi.stubGlobal("cancelAnimationFrame", vi.fn());
