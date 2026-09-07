@@ -239,13 +239,27 @@ function ModalImpl({
   useEscapeCompat(open);
 
   // e2e 계약(계획 Global Constraints): overlay 계열 클래스는 base 에서 `.cm-modal` 을 **감싸는**
-  // 컨테이너에 있었고, e2e 가 이 요소를 기준으로 자손을 질의한다(예: mpp-ppd-revision-verify 의
-  // `overlay.locator(".ag-header-cell")`). `M.Overlay` 는 Content 의 형제인 자기 닫힘 요소라 거기에만
-  // 두면 자손 질의가 0건이 된다. Overlay 와 Content 를 모두 감싸는 `root` 로 올려 조상 역할을
-  // 복원하고, 시각 스크림에 규칙을 걸 여지를 남기려 Overlay 에도 같은 클래스를 함께 둔다.
-  // `open=false` 일 때 비우는 이유: `.mantine-Modal-root` 는 닫힌 상태에서도 DOM 에 남으므로
-  // (ModalBase 가 root Box 를 항상 렌더 — 실측 확인) 클래스를 무조건 붙이면
-  // `page.locator('.cm-message-modal-overlay').count() === 0` 으로 닫힘을 판정하는 e2e 가 깨진다.
+  // 컨테이너에 있었고, e2e 는 이 요소에 두 가지를 동시에 요구한다 —
+  //   (1) `expect(overlay).toBeVisible()`  (2) `overlay.locator(".ag-header-cell")` 자손 질의
+  //       (`mpp-ppd-revision-verify:158-161`, `portal-tab-history:33`)
+  // 부착 지점을 셋 다 실측한 결과 `inner` 만 두 조건을 함께 만족한다.
+  //   - `M.Overlay`      : fixed 1600x900(보임) 이지만 자기 닫힘 요소라 자손 0건.
+  //   - `classNames.root`: dialog 를 자손으로 갖지만 `position: static; height: 0` 이라
+  //                        Playwright `isVisible()` 이 false — `toBeVisible()` 이 실패한다.
+  //   - `classNames.inner`: `position: fixed; inset: 0`(1600x900, 보임) 이면서 Content 를 자손으로
+  //                        가진다. base 의 overlay 역할과 정확히 같다.
+  // `M.Overlay` 에 같은 클래스를 병행 부여하지 않는 이유(실측): DOM 순서상 Overlay 가 inner 보다
+  // 앞서므로 `.cm-modal-overlay` 든 `.cm-message-modal-overlay` 든 **첫 매칭이 자손 없는 스크림**이
+  // 되어 (2) 가 다시 깨진다. M4 가 없앤 "같은 클래스가 서로 다른 역할의 요소 두 곳에 존재하는" 상태를
+  // 되살리는 셈이기도 하다. `modal.css:145` 의 `.cm-message-modal-overlay { z-index: 10000 }` 은
+  // `position: fixed` 인 inner 에 걸리므로 "다른 Modal 위에 항상 표시" 의도는 그대로 유지된다
+  // (스크림은 Mantine 기본 z-index 와 DOM 순서로 여전히 아래 Modal 을 덮는다).
+  // `open=false` 일 때 비우는 것은 이중 안전장치다. 부착 지점이 `classNames.root` 였을 때는
+  // **필수**였다 — `ModalBase` 가 root Box 를 `opened` 와 무관하게 항상 렌더하므로(실측 확인)
+  // 클래스가 영구히 남아 `.count() === 0` 으로 닫힘을 판정하는 e2e 6곳이 깨졌다. 지금 쓰는 `inner` 는
+  // Transition 안이라 닫히면 스스로 언마운트되므로 이 가드 없이도 클래스가 사라진다(실측: 가드를
+  // 빼도 아래 "open=false 면 남지 않는다" 단언이 통과). 계약 자체는 그 단위 테스트가 지키고,
+  // 이 가드는 `keepMounted` 같은 옵션이 나중에 붙어도 안전하도록 남겨 둔다.
   const overlayClasses = open ? clsx("cm-modal-overlay", "modal-overlay", overlayClassName) : undefined;
 
   return (
@@ -254,9 +268,9 @@ function ModalImpl({
       onClose={onClose ?? (() => {})}
       size={SIZE[size]}
       centered
-      classNames={{ root: overlayClasses }}
+      classNames={{ inner: overlayClasses }}
     >
-      <M.Overlay className={overlayClasses} />
+      <M.Overlay />
       <M.Content
         ref={setDialogRef}
         // `M.Content` 의 `className` prop 은 Mantine 내부에서 `mantine-Modal-content` 뿐 아니라

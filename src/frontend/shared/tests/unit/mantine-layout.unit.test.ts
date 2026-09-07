@@ -45,7 +45,6 @@ describe("tabs/tree/layout (Mantine 구현) 계약", () => {
 
     const rootItem = r.host.querySelector('li[role="treeitem"][data-value="1"]') as HTMLElement;
     expect(rootItem).not.toBeNull();
-    expect(rootItem.querySelector(".tree-item")?.getAttribute("aria-expanded")).toBe("false");
 
     const press = (key: string, code: string) =>
       act(() => {
@@ -57,6 +56,23 @@ describe("tabs/tree/layout (Mantine 구현) 계약", () => {
 
     press("Enter", "Enter");
     expect(onSel).toHaveBeenCalledWith(null, "1");
+    r.unmount();
+  });
+
+  // fix wave 2 §B2: aria 는 role 이 있는 `li[role=treeitem]` 에 있어야 보조기술이 읽는다.
+  // Mantine 은 중첩 트리의 li 에 aria-expanded/aria-level 을 붙이지 않으므로 직접 반영한다.
+  it("Tree 는 li[role=treeitem] 에 aria-expanded 와 aria-level 을 반영한다", () => {
+    const items = [{ id: 1, label: "루트", children: [{ id: 2, label: "자식" }] }];
+    const r = renderWithMantine(createElement(Tree, { items, expandedItems: [1] }));
+    const root = r.host.querySelector('li[role="treeitem"][data-value="1"]') as HTMLElement;
+    const child = r.host.querySelector('li[role="treeitem"][data-value="2"]') as HTMLElement;
+    expect(root.getAttribute("aria-expanded")).toBe("true");
+    expect(root.getAttribute("aria-level")).toBe("1");
+    // 자식이 없는 노드에는 aria-expanded 를 붙이지 않는다.
+    expect(child.getAttribute("aria-expanded")).toBeNull();
+    expect(child.getAttribute("aria-level")).toBe("2");
+    // role 이 없는 `div.tree-item` 에는 aria 를 남기지 않는다(보조기술이 무시하는 자리).
+    expect(root.querySelector(".tree-item")?.hasAttribute("aria-expanded")).toBe(false);
     r.unmount();
   });
 

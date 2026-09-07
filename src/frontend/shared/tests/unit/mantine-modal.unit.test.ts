@@ -53,6 +53,11 @@ describe("Modal (Mantine 구현) 계약", () => {
     const overlay = document.querySelector(".cm-modal-overlay");
     expect(overlay).not.toBeNull();
     expect(overlay!.querySelector('[role="dialog"]')).not.toBeNull();
+    // fix wave 2 §B1(실측): 부착 지점은 `inner` 여야 한다. `classNames.root` 는 dialog 를 자손으로
+    // 갖지만 `position: static; height: 0` 이라 Playwright `toBeVisible()` 이 실패하고,
+    // `M.Overlay` 는 보이지만 자손이 없다. `.first()` 가 집는 첫 매칭이 inner 여야 e2e 의
+    // `expect(overlay).toBeVisible()` 과 `overlay.locator(...)` 가 함께 성립한다.
+    expect(overlay!.classList.contains("mantine-Modal-inner")).toBe(true);
     const msgOverlay = document.querySelector(".cm-message-modal-overlay");
     expect(msgOverlay).not.toBeNull();
     const ok = Array.from(msgOverlay!.querySelectorAll("button")).find((b) => b.textContent?.trim() === "확인");

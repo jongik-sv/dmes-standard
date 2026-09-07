@@ -1,9 +1,10 @@
 "use client";
 
-import React, { memo, useMemo, useState } from "react";
+import React, { memo, useMemo, useRef, useState } from "react";
 import { Tree as MTree, useTree, type RenderTreeNodePayload, type TreeNodeData } from "@mantine/core";
 import { IconChevronRight } from "@tabler/icons-react";
 import clsx from "clsx";
+import { useIsomorphicLayoutEffect } from "../../hooks/use-isomorphic-layout-effect";
 import "./tree.css";
 
 export interface TreeNode {
@@ -28,6 +29,17 @@ function toNodeData(items: TreeNode[]): TreeNodeData[] {
     label: n.label,
     children: n.children ? toNodeData(n.children) : undefined,
   }));
+}
+
+/** 자식을 가진 노드의 id 집합을 모은다(`aria-expanded` 부여 대상 판정용). */
+function collectParentIds(items: TreeNode[], acc: Set<string> = new Set()): Set<string> {
+  for (const node of items) {
+    if (node.children && node.children.length > 0) {
+      acc.add(String(node.id));
+      collectParentIds(node.children, acc);
+    }
+  }
+  return acc;
 }
 
 /** 두 id 목록이 순서와 무관하게 같은 집합인지 판정한다. */
@@ -100,6 +112,8 @@ function TreeComponent({
       if (isSameIdSet(next, expandedItems)) return;
       emitExpanded(next);
     },
+    // 참고: `selectOnClick={false}` 라 현재 Mantine 이 `controller.select` 를 부르는 경로가 없어
+    // 이 콜백은 실사용되지 않는다. 제어 모드 계약을 온전히 갖추기 위한 연결이다.
     onSelectedStateChange: (state) => {
       const id = state[state.length - 1];
       if (id === undefined || isSameIdSet(state, selectedItems)) return;
@@ -112,6 +126,29 @@ function TreeComponent({
   // 포커스를 받는 요소는 `<li role="treeitem">` 이고 `renderNode` 의 div 는 그 자손이라
   // 이벤트 경로에 오르지 않는다. 따라서 핸들러는 이벤트가 실제로 올라오는 root `<ul>` 에 건다
   // (Tree.mjs 가 나머지 props 를 root 요소로 전개한다).
+  // base 의 `<li role="treeitem" aria-expanded aria-level>` 복원.
+  // Mantine 의 중첩 `TreeNode` 는 `li` 에 `aria-expanded`·`aria-level` 을 붙이지 않고
+  // (`aria-expanded` 는 flat 모드인 `FlatTreeNode` 전용), `renderNode` 는 `li` 에 props 를 주입할 수
+  // 없다. 그래서 DOM 커밋 이후 `treeitem` 요소에 직접 반영한다(Radio·MultiSelectComboBox 와 동형).
+  // `aria-level` 은 Mantine 이 `li` 에 남기는 `data-level`(루트가 1) 을 그대로 쓴다.
+  const rootRef = useRef<HTMLUListElement>(null);
+  const parentIds = useMemo(() => collectParentIds(items), [items]);
+  useIsomorphicLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    root.querySelectorAll<HTMLElement>('[role="treeitem"][data-value]').forEach((li) => {
+      const value = li.dataset.value;
+      if (value === undefined) return;
+      if (parentIds.has(value)) {
+        li.setAttribute("aria-expanded", String(expandedItems.map(String).includes(value)));
+      } else {
+        li.removeAttribute("aria-expanded");
+      }
+      const level = li.dataset.level;
+      if (level) li.setAttribute("aria-level", level);
+    });
+  }, [data, parentIds, expandedItems]);
+
   const handleRootKeyDown = (event: React.KeyboardEvent<HTMLUListElement>) => {
     if (event.key !== "Enter") return;
     const target = event.target as HTMLElement | null;
@@ -127,9 +164,8 @@ function TreeComponent({
       {...elementProps}
       className={clsx("tree-item", selected && "selected", elementProps.className)}
       style={{ paddingLeft: level * 16 }}
-      // Mantine 의 중첩 TreeNode 는 `li` 에 `aria-expanded` 를 붙이지 않는다(flat 모드 전용).
-      // base 의 `<li role="treeitem" aria-expanded>` 와 같은 정보를 보조기술에 남긴다.
-      aria-expanded={hasChildren ? expanded : undefined}
+      // `aria-expanded`·`aria-level` 은 role 이 없는 이 div 가 아니라 실제 `li[role="treeitem"]` 에
+      // 있어야 보조기술이 읽는다 — 위 layout effect 가 담당한다.
       onClick={(e) => {
         e.stopPropagation();
         select(node.value);
@@ -153,6 +189,7 @@ function TreeComponent({
 
   return (
     <MTree
+      ref={rootRef}
       data={data}
       tree={tree}
       renderNode={renderNode}
