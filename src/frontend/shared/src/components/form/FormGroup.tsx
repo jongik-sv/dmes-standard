@@ -5,15 +5,16 @@ import React, {
   Children,
   cloneElement,
   isValidElement,
+  useId,
   useState,
   useRef,
   useCallback,
-  useId,
   type ReactElement,
   type ReactNode,
   type CSSProperties,
 } from "react";
 import { createPortal } from "react-dom";
+import { Input } from "@mantine/core";
 
 export interface FormGroupProps {
   label?: string;
@@ -58,6 +59,16 @@ export function FormGroup({
   const labelRef = useRef<HTMLLabelElement>(null);
   // 툴팁을 document.body 로 portal + position:fixed 로 렌더 → 스크롤/overflow 컨테이너에 잘리거나
   // 다른 패널에 가려지지 않고 항상 최상단에 표시된다.
+  //
+  // Mantine `Tooltip` 로 교체를 시도했으나 채택하지 않았다: Mantine `Tooltip`/`Transition` 은
+  // `opened` 를 true 로 바꿔도 실제 DOM 마운트가 추가 React 커밋(내부 `useTransition` 상태
+  // 갱신, `@mantine/core/Transition` 관련 "not wrapped in act" 경고로 확인됨)을 거친 뒤에야
+  // 일어난다 — `renderWithMantine`(mantine-test-utils.ts) 이 `MantineProvider` 에 `env="test"`
+  // 를 주지 않는 한(그러면 Transition 이 동기 렌더로 바뀐다 — Transition.tsx 의
+  // `if (env === "test") return mounted ? ... : ...` 분기) `act(() => input.focus())` 직후
+  // 동기 `document.querySelector` 로는 툴팁 노드를 찾을 수 없다. env="test" 적용은
+  // mantine-test-utils.ts(공유 테스트 인프라, 담당 파일 아님) 변경이 필요해 이번 라운드에서는
+  // 보류하고(리드에게 후속 제안), 검증된 기존 커스텀 포지셔닝을 유지한다.
   const [tipPos, setTipPos] = useState<{ left: number; top: number; above: boolean } | null>(null);
 
   // 툴팁은 라벨 좌측 기준으로 라벨 위쪽에 띄운다. 위쪽 공간이 모자랄 때만 아래로 뒤집는다.
@@ -107,7 +118,7 @@ export function FormGroup({
 
   return (
     <div className={`form-group ${className}`.trim()} style={style}>
-      <label
+      <Input.Label
         ref={labelRef}
         id={labelId}
         htmlFor={resolvedControlId}
@@ -127,7 +138,7 @@ export function FormGroup({
             {label}
           </>
         )}
-      </label>
+      </Input.Label>
       {/* 키보드 사용자는 라벨에 마우스를 올릴 수 없으므로, 필드가 focus 를 받으면(캡처 단계 —
           자식이 Input 이든 Radio.Group 이든 별도 onFocus prop 계약 없이 동작) 마우스 hover 와
           동일한 툴팁을 띄운다. 스크린리더는 focus 여부와 무관하게 aria-describedby 로 계속 읽는다. */}

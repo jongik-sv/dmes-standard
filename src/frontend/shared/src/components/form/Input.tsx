@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, type InputHTMLAttributes } from "react";
+import { useId, type InputHTMLAttributes } from "react";
 import { TextInput } from "@mantine/core";
 import clsx from "clsx";
 
@@ -29,20 +29,11 @@ export function Input({
   const autoId = useId();
   const inputId = id || autoId;
   const errorId = `${inputId}-error`;
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // Mantine TextInput 은 자신의 error prop 으로만 aria-invalid/aria-describedby 를 계산해
-  // 부모(FormGroup 등)가 주입한 값을 그대로 덮어써 버린다. DOM 커밋 이후 직접 반영한다.
-  useEffect(() => {
-    const el = inputRef.current;
-    if (!el) return;
-    if (externalAriaInvalid != null) el.setAttribute("aria-invalid", String(externalAriaInvalid));
-    if (externalAriaDescribedBy) el.setAttribute("aria-describedby", externalAriaDescribedBy);
-  }, [externalAriaInvalid, externalAriaDescribedBy, error]);
+  const resolvedAriaInvalid = externalAriaInvalid ?? !!error;
+  const resolvedAriaDescribedBy = externalAriaDescribedBy ?? (error ? errorId : undefined);
 
   return (
     <TextInput
-      ref={inputRef}
       id={inputId}
       type={type}
       value={String(value ?? "")}
@@ -51,8 +42,6 @@ export function Input({
       placeholder={placeholder}
       readOnly={readOnly}
       style={style}
-      aria-invalid={externalAriaInvalid ?? !!error}
-      aria-describedby={externalAriaDescribedBy ?? (error ? errorId : undefined)}
       error={
         error ? (
           <span id={errorId} className="form-error-message" role="alert">
@@ -60,6 +49,17 @@ export function Input({
           </span>
         ) : undefined
       }
+      // Mantine InputBase 는 자신의 error prop 으로만 aria-invalid/aria-describedby 를
+      // 계산해 부모(FormGroup 등)가 주입한 값을 덮어써 버린다(packages/@mantine/core/src/
+      // components/Input/Input.tsx 의 ariaAttributes). `attributes.input` 은 그 계산 뒤
+      // getStyles("input") 결과로 마지막에 spread 되므로, 여기서 최종값을 강제해 SSR/CSR
+      // 첫 페인트부터 정확한 값을 렌더한다(런타임 useEffect 불필요).
+      attributes={{
+        input: {
+          "aria-invalid": resolvedAriaInvalid ? "true" : "false",
+          ...(resolvedAriaDescribedBy ? { "aria-describedby": resolvedAriaDescribedBy } : {}),
+        },
+      }}
       classNames={{ input: clsx("form-input", error && "form-error", className) }}
       {...rest}
     />

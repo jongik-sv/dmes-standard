@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, type TextareaHTMLAttributes } from "react";
+import { useId, type TextareaHTMLAttributes } from "react";
 import { Textarea as MantineTextarea } from "@mantine/core";
 import clsx from "clsx";
 
@@ -28,20 +28,11 @@ export function Textarea({
   const autoId = useId();
   const textareaId = id || autoId;
   const errorId = `${textareaId}-error`;
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // Mantine Textarea(InputBase 계열)는 자신의 error prop 으로만 aria-invalid/
-  // aria-describedby 를 계산해 부모(FormGroup 등)가 주입한 값을 덮어써 버린다.
-  useEffect(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    if (externalAriaInvalid != null) el.setAttribute("aria-invalid", String(externalAriaInvalid));
-    if (externalAriaDescribedBy) el.setAttribute("aria-describedby", externalAriaDescribedBy);
-  }, [externalAriaInvalid, externalAriaDescribedBy, error]);
+  const resolvedAriaInvalid = externalAriaInvalid ?? !!error;
+  const resolvedAriaDescribedBy = externalAriaDescribedBy ?? (error ? errorId : undefined);
 
   return (
     <MantineTextarea
-      ref={textareaRef}
       id={textareaId}
       value={String(value ?? "")}
       onChange={(e) => onChange?.(e.currentTarget.value)}
@@ -51,8 +42,6 @@ export function Textarea({
       readOnly={readOnly}
       autosize={false}
       style={style}
-      aria-invalid={externalAriaInvalid ?? !!error}
-      aria-describedby={externalAriaDescribedBy ?? (error ? errorId : undefined)}
       error={
         error ? (
           <span id={errorId} className="form-error-message" role="alert">
@@ -60,6 +49,15 @@ export function Textarea({
           </span>
         ) : undefined
       }
+      // Mantine InputBase 는 자신의 error prop 으로만 aria-invalid/aria-describedby 를
+      // 계산해 부모(FormGroup 등)가 주입한 값을 덮어써 버린다(Input.tsx 절 참고). 여기서도
+      // attributes.input 으로 SSR/CSR 첫 페인트부터 최종값을 강제한다.
+      attributes={{
+        input: {
+          "aria-invalid": resolvedAriaInvalid ? "true" : "false",
+          ...(resolvedAriaDescribedBy ? { "aria-describedby": resolvedAriaDescribedBy } : {}),
+        },
+      }}
       classNames={{ input: clsx("form-textarea", error && "form-error", className) }}
       {...rest}
     />

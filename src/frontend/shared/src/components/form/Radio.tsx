@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useId, useRef, type CSSProperties } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, type CSSProperties } from "react";
 import { Radio as MantineRadio } from "@mantine/core";
+
+// SSR 에서는 useLayoutEffect 가 경고를 낸다 — 서버에서는 useEffect(no-op) 로 대체한다.
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 export type RadioOption = string | { value: string; label: string };
 
@@ -40,10 +43,16 @@ export function Radio({
   const ariaDescribedBy = ariaProps["aria-describedby"];
   const ariaInvalid = ariaProps["aria-invalid"];
 
-  // Mantine Radio.Group 은 role="radiogroup" 요소의 aria-labelledby/aria-describedby 를
-  // Input.Wrapper 컨텍스트(자신의 label/description/error)로만 계산해, 부모(FormGroup 등)가
-  // 주입한 값을 반영하지 않는다. DOM 커밋 이후 실제 radiogroup 요소에 직접 반영한다.
-  useEffect(() => {
+  // Mantine RadioGroup(packages/@mantine/core/src/components/Radio/RadioGroup/RadioGroup.tsx)
+  // 은 실제 role="radiogroup" 요소(InputsGroupFieldset.tsx)를 label/aria-label 없이
+  // {children, role} 만 받는 함수로 렌더하고, aria-labelledby/aria-describedby 는 그 안에서
+  // ctx.labelId/ctx.describedBy(Input.Wrapper 컨텍스트 — RadioGroup 자신의 label/error/
+  // description 으로만 채워짐)로 하드코딩한다. attributes 같은 override 경로가 없어(Input.tsx
+  // 의 attributes.input 우회가 불가능) 부모(FormGroup 등)가 주입한 값을 반영할 방법이 없다.
+  // DOM 커밋 이후 실제 radiogroup 요소에 직접 반영한다. useLayoutEffect 를 쓰되 SSR 에서는
+  // useEffect 로 대체해 경고를 피한다 — 다만 SSR HTML 자체에는 이 보정이 반영되지 않는다
+  // (첫 하이드레이션 직후에만 반영, 리드 보고 예정 — round 2 잔여 사항).
+  useIsomorphicLayoutEffect(() => {
     const radioGroupEl = containerRef.current?.querySelector('[role="radiogroup"]');
     if (!radioGroupEl) return;
     if (ariaLabelledBy) radioGroupEl.setAttribute("aria-labelledby", ariaLabelledBy);

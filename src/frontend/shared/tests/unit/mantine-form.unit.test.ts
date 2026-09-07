@@ -1,8 +1,22 @@
 /** @vitest-environment happy-dom */
 import { act, createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { MantineProvider } from "@mantine/core";
 import { describe, expect, it, vi } from "vitest";
-import { Button, Checkbox, ComboBox, DatePicker, Input, MultiSelectComboBox, Radio, Select, Textarea } from "../../src/components/form";
+import {
+  Button,
+  Checkbox,
+  ComboBox,
+  DatePicker,
+  FormGroup,
+  Input,
+  MultiSelectComboBox,
+  Radio,
+  Select,
+  Textarea,
+} from "../../src/components/form";
 import { renderWithMantine } from "./mantine-test-utils";
+import { dmesTheme } from "../../src/ui-provider/theme";
 
 // React 는 controlled input/textarea 노드에 값 추적용 setter 를 얹어두므로, 테스트에서
 // `el.value = x` 로 직접 대입하면 React 가 이미 그 값을 "알고 있는 값"으로 간주해 뒤이은
@@ -140,5 +154,18 @@ describe("form (Mantine 구현) 계약", () => {
     act(() => (options[1] as HTMLElement).click());
     expect(onChange).toHaveBeenCalledWith(["a", "b"]);
     r.unmount();
+  });
+
+  it("FormGroup + Input 은 SSR 마크업에서부터 aria-invalid/aria-describedby 를 정확히 렌더한다", () => {
+    const html = renderToStaticMarkup(
+      createElement(
+        MantineProvider,
+        { theme: dmesTheme },
+        createElement(FormGroup, { label: "이름", error: "필수" }, createElement(Input, { value: "" })),
+      ),
+    );
+    const inputTag = html.match(/<input[^>]*>/)?.[0] ?? "";
+    expect(inputTag).toContain('aria-invalid="true"');
+    expect(inputTag).toMatch(/aria-describedby="[^"]+"/);
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useId, useMemo, useState, type CSSProperties } from "react";
 import { Select } from "@mantine/core";
 import clsx from "clsx";
 
@@ -88,7 +88,6 @@ export function ComboBox({
   const autoId = useId();
   const comboId = id || autoId;
   const errorId = `${comboId}-error`;
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const options = useMemo(() => resolveOptions(data, valueField, labelField), [data, valueField, labelField]);
 
@@ -117,19 +116,8 @@ export function ComboBox({
   const resolvedAriaInvalid = ariaInvalid ?? !!error;
   const resolvedAriaDescribedBy = mergeDescribedBy(ariaDescribedBy, error ? errorId : undefined);
 
-  // Mantine Select(InputBase 계열)는 자신의 error prop 으로만 aria-invalid/
-  // aria-describedby 를 계산해 외부 주입값을 덮어써 버린다(Input/Select/Textarea/
-  // DatePicker 공통 이슈). DOM 커밋 이후 직접 반영한다.
-  useEffect(() => {
-    const el = inputRef.current;
-    if (!el) return;
-    el.setAttribute("aria-invalid", String(resolvedAriaInvalid));
-    if (resolvedAriaDescribedBy) el.setAttribute("aria-describedby", resolvedAriaDescribedBy);
-  }, [resolvedAriaInvalid, resolvedAriaDescribedBy]);
-
   return (
     <Select
-      ref={inputRef}
       id={comboId}
       searchable
       data={selectData}
@@ -166,8 +154,15 @@ export function ComboBox({
       }
       aria-label={ariaLabel}
       aria-labelledby={ariaLabelledBy}
-      aria-invalid={resolvedAriaInvalid}
-      aria-describedby={resolvedAriaDescribedBy}
+      // Mantine Select(InputBase 계열)는 자신의 error prop 으로만 aria-invalid/
+      // aria-describedby 를 계산해 외부 주입값을 덮어써 버린다(Input.tsx 절 참고).
+      // attributes.input 으로 SSR/CSR 첫 페인트부터 최종값을 강제한다.
+      attributes={{
+        input: {
+          "aria-invalid": resolvedAriaInvalid ? "true" : "false",
+          ...(resolvedAriaDescribedBy ? { "aria-describedby": resolvedAriaDescribedBy } : {}),
+        },
+      }}
       className={clsx("form-combobox", error && "form-error", className)}
       style={style}
     />

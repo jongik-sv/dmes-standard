@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, type CSSProperties } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, type CSSProperties } from "react";
 import { MultiSelect } from "@mantine/core";
 import clsx from "clsx";
+
+// SSR 에서는 useLayoutEffect 가 경고를 낸다 — 서버에서는 useEffect(no-op) 로 대체한다.
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 export interface MultiSelectComboBoxProps {
   /** 원본 데이터 배열 (string[] 또는 object[]) */
@@ -88,12 +91,19 @@ export function MultiSelectComboBox({
   const resolvedAriaInvalid = ariaInvalid ?? !!error;
   const resolvedAriaDescribedBy = mergeDescribedBy(ariaDescribedBy, error ? errorId : undefined);
 
-  // Mantine MultiSelect(InputBase 계열)도 Select 와 동일하게 자신의 error prop 으로만
-  // aria-invalid/aria-describedby 를 계산해 외부 주입값을 덮어써 버린다.
-  useEffect(() => {
+  // MultiSelect 의 실제 입력 요소(PillsInput.Field)는 Input.tsx/Select 등과 달리
+  // attributes.inputField 로 넘긴 값도 못 이긴다 — Mantine 소스
+  // packages/@mantine/core/src/components/PillsInput/PillsInputField/PillsInputField.tsx
+  // 가 getStyles("field")/attributes 스프레드 *뒤에* "aria-invalid": ctx?.hasError,
+  // "aria-describedby": inputWrapperCtx?.describedBy 를 하드코딩해 항상 마지막에 이긴다.
+  // (ctx/inputWrapperCtx 는 MultiSelect 자신의 error prop 으로만 채워진다 — FormGroup 처럼
+  // 외부에서 주입한 값은 반영할 방법이 없다.) 이 경우만 DOM 커밋 이후 직접 보정한다.
+  // useLayoutEffect 를 쓰되 SSR 에서는 useEffect 로 대체해 경고를 피한다 — 다만 SSR HTML
+  // 자체에는 이 보정이 반영되지 않는다(첫 하이드레이션 직후에만 반영).
+  useIsomorphicLayoutEffect(() => {
     const el = inputRef.current;
     if (!el) return;
-    el.setAttribute("aria-invalid", String(resolvedAriaInvalid));
+    el.setAttribute("aria-invalid", resolvedAriaInvalid ? "true" : "false");
     if (resolvedAriaDescribedBy) el.setAttribute("aria-describedby", resolvedAriaDescribedBy);
   }, [resolvedAriaInvalid, resolvedAriaDescribedBy]);
 

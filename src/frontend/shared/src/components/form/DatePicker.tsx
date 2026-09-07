@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, type InputHTMLAttributes } from "react";
+import { useId, type InputHTMLAttributes } from "react";
 import { DateInput } from "@mantine/dates";
 import clsx from "clsx";
 
@@ -33,20 +33,11 @@ export function DatePicker({
   const autoId = useId();
   const pickerId = id || autoId;
   const errorId = `${pickerId}-error`;
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // Mantine DateInput(InputBase 계열)는 자신의 error prop 으로만 aria-invalid/
-  // aria-describedby 를 계산해 부모(FormGroup 등)가 주입한 값을 덮어써 버린다.
-  useEffect(() => {
-    const el = inputRef.current;
-    if (!el) return;
-    if (externalAriaInvalid != null) el.setAttribute("aria-invalid", String(externalAriaInvalid));
-    if (externalAriaDescribedBy) el.setAttribute("aria-describedby", externalAriaDescribedBy);
-  }, [externalAriaInvalid, externalAriaDescribedBy, error]);
+  const resolvedAriaInvalid = externalAriaInvalid ?? !!error;
+  const resolvedAriaDescribedBy = externalAriaDescribedBy ?? (error ? errorId : undefined);
 
   return (
     <DateInput
-      ref={inputRef}
       id={pickerId}
       name={name}
       value={ISO_DATE.test(value ?? "") ? (value as string) : null}
@@ -62,8 +53,6 @@ export function DatePicker({
       style={style}
       aria-label={ariaLabel}
       aria-labelledby={ariaLabelledBy}
-      aria-invalid={externalAriaInvalid ?? !!error}
-      aria-describedby={externalAriaDescribedBy ?? (error ? errorId : undefined)}
       error={
         error ? (
           <span id={errorId} className="form-error-message" role="alert">
@@ -71,6 +60,15 @@ export function DatePicker({
           </span>
         ) : undefined
       }
+      // Mantine InputBase 는 자신의 error prop 으로만 aria-invalid/aria-describedby 를
+      // 계산해 부모(FormGroup 등)가 주입한 값을 덮어써 버린다(Input.tsx 절 참고). 여기서도
+      // attributes.input 으로 SSR/CSR 첫 페인트부터 최종값을 강제한다.
+      attributes={{
+        input: {
+          "aria-invalid": resolvedAriaInvalid ? "true" : "false",
+          ...(resolvedAriaDescribedBy ? { "aria-describedby": resolvedAriaDescribedBy } : {}),
+        },
+      }}
       classNames={{ input: clsx("form-datepicker", error && "form-error", className) }}
     />
   );
