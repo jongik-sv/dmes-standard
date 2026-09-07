@@ -134,10 +134,12 @@ import "@dk-oasis/shared/variables.css";
 검증된 export:
 
 ```ts
-import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
+import { ColorSchemeScript, DmesUiProvider, dmesTheme } from "@dk-oasis/shared/ui-provider";
 ```
 
 - MUST: `DmesUiProvider` 는 **호스트 root layout 이 한 번만** 감싼다(`m-mcm/app/layout.tsx` 등). 페이지·개별 라우트 layout 에서 중복으로 감싸지 않는다.
+- MUST: `ColorSchemeScript` 는 **호스트 root layout 의 `<head>` 전용**이다(FOUC 방지용 인라인 스크립트). 화면 모듈이나 본문에서 렌더하지 않는다. 참조 구현은 `m-mcm/app/layout.tsx` 다.
+- MAY: `dmesTheme` 은 `DmesUiProvider` 가 이미 적용하므로 호스트가 직접 쓸 일은 없다. 테스트 하네스나 Storybook 처럼 Provider 를 직접 구성하는 경우에만 참조한다.
 - MUST NOT: 화면 모듈에서 `@mantine/*` 를 직접 import 하지 않는다. 필요한 컴포넌트가 shared 에 없으면 shared 에 추가한다(§17 참조).
 
 ---

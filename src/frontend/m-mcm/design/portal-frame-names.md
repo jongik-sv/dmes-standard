@@ -67,7 +67,7 @@
 | ② | 상단바 | Header | `portal-header` | `shared/src/portal-shell/header/Header.tsx` |
 | ③ | 본문 영역 | Body | `portal-shell__body` | `portal-shell.tsx` 내 |
 | ④ | 사이드바 | Sidebar | `sidebar` | `shared/src/portal-shell/sidebar/Sidebar.tsx` |
-| ⑤ | 탐색 탭 | Nav Tab | `tab-active` / `tab-inactive` | Sidebar 내 `tab-container` |
+| ⑤ | 탐색 탭 | Nav Tab | `tab-container label[data-active]` (Mantine SegmentedControl) | Sidebar 내 `tab-container` |
 | ⑥ | 메뉴 검색창 | Search Bar | `search-box`, `search-input` | Sidebar 내 `search-container` |
 | ⑦ | 트리 펼침 버튼 | Tree Controls | `toggle-all-button` | Sidebar 내 `expand-buttons` |
 | ⑧ | 메뉴 트리 | Menu Tree | `tree-scroll-area` | Sidebar 내 `tree-scroll-area` |
