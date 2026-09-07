@@ -48,16 +48,15 @@ const FOCUSABLE_SELECTOR = [
 function useModalA11yCompat(open: boolean, descriptionId?: string) {
   const dialogRef = useRef<HTMLElement | null>(null);
   const keydownHandlerRef = useRef<((event: KeyboardEvent) => void) | null>(null);
-  const observerRef = useRef<MutationObserver | null>(null);
   const descriptionIdRef = useRef(descriptionId);
   descriptionIdRef.current = descriptionId;
   const openRef = useRef(open);
   openRef.current = open;
 
-  // `Modal.Content` 는 `bodyMounted` 컨텍스트가 바뀔 때마다 `aria-describedby` 를 자체 계산해
-  // 다시 쓴다. 그 재렌더는 우리가 `children` 으로 넘긴 하위 트리를 (참조가 그대로라) 건드리지 않고
-  // `Modal.Content` 자신만 다시 렌더하므로, 그 안에 있는 어떤 React effect 로도 "그다음 순간"을
-  // 잡을 수 없다 — 대신 DOM 자체를 관찰해 값이 바뀔 때마다 즉시 되돌린다.
+  // `Modal.Content` 는 `bodyMounted` 컨텍스트가 true 가 될 때 `aria-describedby` 를 자체 계산해
+  // 다시 쓴다. `Modal.Body` 를 쓰지 않는 한(아래 ModalImpl 참고) `bodyMounted` 는 계속 false 로
+  // 남아 이 재계산이 항상 `undefined` 로 안정되므로, 마운트 시 한 번만 적용하면 이후 재렌더에도
+  // 우리 값이 유지된다(실측 확인 — `Modal.Body` 를 쓰면 이 가정이 깨진다).
   const applyDescribedBy = useCallback(() => {
     const node = dialogRef.current;
     if (!node) return;
@@ -70,8 +69,6 @@ function useModalA11yCompat(open: boolean, descriptionId?: string) {
 
   const setDialogRef = useCallback((node: HTMLElement | null) => {
     dialogRef.current = node;
-    observerRef.current?.disconnect();
-    observerRef.current = null;
     if (!node) return;
 
     // Mantine Transition 의 exit 시퀀스가 (테스트의 rAF 동기 스텁과 맞물리면) `flushSync` 를
@@ -80,11 +77,6 @@ function useModalA11yCompat(open: boolean, descriptionId?: string) {
     if (!openRef.current) return;
 
     applyDescribedBy();
-    if (typeof MutationObserver !== "undefined") {
-      const observer = new MutationObserver(applyDescribedBy);
-      observer.observe(node, { attributes: true, attributeFilter: ["aria-describedby"] });
-      observerRef.current = observer;
-    }
 
     const handleKeyDown = (event: KeyboardEvent) => {
       const dialog = dialogRef.current;
@@ -127,19 +119,16 @@ function useModalA11yCompat(open: boolean, descriptionId?: string) {
     (firstFocusable ?? node).focus();
   }, [applyDescribedBy]);
 
-  // descriptionId 자체가 열린 상태에서 바뀌는 경우 — 속성 변화가 아니라 prop 변화라
-  // MutationObserver 가 잡지 못하므로 직접 재적용한다.
+  // descriptionId 자체가 열린 상태에서 바뀌는 경우(드묾) 재적용한다.
   useLayoutEffect(() => {
     applyDescribedBy();
   }, [descriptionId, applyDescribedBy]);
 
-  // open → false 전환(또는 unmount) 시 리스너/observer 해제.
+  // open → false 전환(또는 unmount) 시 리스너 해제.
   // Mantine Transition 의 exit 애니메이션(기본 200ms) 과 무관하게, 이 컴포넌트의 open prop 이
   // 바뀌는 바로 그 커밋에서 동기 실행되어야 하므로 layout effect 로 둔다.
   useLayoutEffect(() => {
     return () => {
-      observerRef.current?.disconnect();
-      observerRef.current = null;
       if (keydownHandlerRef.current) {
         document.removeEventListener("keydown", keydownHandlerRef.current);
         keydownHandlerRef.current = null;
@@ -179,14 +168,21 @@ function useModalA11yCompat(open: boolean, descriptionId?: string) {
 }
 
 /**
- * Escape 전담 처리. Mantine 내부 `useWindowEvent` 핸들러는 `window` 캡처 단계에서 등록되고
- * `event.target?.getAttribute(...)` 를 무조건 호출하므로, keydown 이 `document` 자체에 dispatch 되면
- * (이 저장소 `modal-a11y.unit.test.ts` 의 `dispatchKey` 가 그렇게 한다) `document` 에는 `getAttribute`
- * 가 없어 TypeError 로 죽는다. 실제 서비스에서는 keydown 이 항상 포커스를 가진 특정 Element 를
- * target 으로 하므로 발생하지 않는 문제지만, 계약 테스트가 이 경로를 쓰는 한 우리가 선제 차단해야
- * 한다. `window` 캡처 단계에 우리 리스너를 **layout effect** 로 등록해 Mantine 의 것(passive
- * `useEffect`)보다 먼저 붙게 하고, `stopImmediatePropagation` 으로 Mantine 핸들러 실행 자체를
- * 막은 뒤 onClose 호출까지 직접 담당한다(중복 호출 없음 — Mantine 쪽은 아예 실행되지 않는다).
+ * Escape 보정. Mantine 내부 `useWindowEvent` 핸들러(`window` 캡처 단계)는 두 가지를 한다:
+ * (a) `event.preventDefault()` 를 안 함(우리 `modal-a11y.unit.test.ts` 계약 위반),
+ * (b) `event.target?.getAttribute("data-mantine-stop-propagation")` 을 무조건 호출 — `target` 이
+ * `Element` 가 아니면(테스트의 `document.dispatchEvent(event)` 처럼 keydown 이 `document` 자체에
+ * dispatch 된 경우) `document` 에는 `getAttribute` 가 없어 TypeError 로 죽는다.
+ *
+ * (b) 는 실제 서비스에서는 keydown 이 항상 포커스를 가진 Element 를 target 으로 하므로 절대
+ * 재현되지 않는다. 그래서 이 훅은 **그 합성 경로(target 이 Element 가 아닐 때)만** 가로채
+ * `stopImmediatePropagation` 으로 Mantine 핸들러를 막고 onClose 를 직접 호출한다. 정상 경로
+ * (target 이 실제 Element)는 그대로 Mantine 에 맡긴다 — Mantine 이 `event.isComposing`(한글 입력
+ * 중 Escape 로 조합을 취소하는 IME 케이스)과 `data-mantine-stop-propagation`(모달 안에 열린
+ * Mantine Select/DateInput 등의 드롭다운이 Escape 를 자기가 먼저 소비하도록 표시하는 것)을
+ * 처리하기 때문 — 여기서 무조건 stopImmediatePropagation 하면 그 두 케이스가 깨진다.
+ * `preventDefault()` 는 두 경로 모두에서 호출해 계약을 만족시킨다(Escape 의 브라우저 기본 동작은
+ * 어차피 없어 부작용이 없다).
  */
 function useEscapeCompat(open: boolean, onClose?: () => void) {
   const onCloseRef = useRef(onClose);
@@ -198,8 +194,15 @@ function useEscapeCompat(open: boolean, onClose?: () => void) {
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
-      event.stopImmediatePropagation();
-      onCloseRef.current?.();
+
+      const hasRealElementTarget = event.target instanceof Element;
+      if (!hasRealElementTarget) {
+        // 합성 dispatch(target=document 등) — Mantine 핸들러가 크래시하므로 우리가 전담한다.
+        event.stopImmediatePropagation();
+        onCloseRef.current?.();
+      }
+      // else: Mantine 의 자체 핸들러가 isComposing/data-mantine-stop-propagation 을 고려해
+      // onClose 를 호출하도록 그대로 둔다(중복 호출 없음).
     };
 
     window.addEventListener("keydown", handleEscape, true);

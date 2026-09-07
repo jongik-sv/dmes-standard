@@ -4,6 +4,16 @@
    남긴다. 외부 참조는 grep 으로 확인했다(m-mcm 의 여러 화면이 Modal + GridPanel/SearchArea 조합을
    그대로 쓴다). */
 
+/* Mantine 의 Modal.Content CSS 모듈(.m_54c44539 등)은 max-height/overflow-y 만 주고
+   display:flex 는 주지 않는다 — `.cm-modal-body` 의 `flex:1; min-height:0`(아래) 가 실제로
+   작동하려면 부모가 flex column 이어야 하므로 여기서 보강한다(안 하면 GridPanel 안의 ag-grid 가
+   높이 0px 로 collapse — m-mcm 의 Modal+GridPanel 화면들이 이 체인에 의존한다). */
+.cm-modal {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .cm-modal-toolbar {
   display: flex;
   gap: 8px;
