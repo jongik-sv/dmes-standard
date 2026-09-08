@@ -227,10 +227,6 @@
   font-weight: 500;
 }
 
-.tree-item--page.selected-menu {
-  margin-left: 15px;
-}
-
 .tree-item--page:hover {
   background: linear-gradient(to right, transparent 15px, var(--color-selection) 15px);
 }
@@ -242,6 +238,16 @@
 .tree-item.selected-menu:hover {
   background: linear-gradient(to right, #4a5060, #6a7089);
   color: #fff;
+}
+
+/* 페이지 항목의 선택 배경은 hover 와 같이 연결선(15px) 뒤에서 시작한다.
+   margin 으로 항목 전체를 밀면 텍스트가 형제와 어긋나므로 배경만 비운다. */
+.tree-item--page.selected-menu {
+  background: linear-gradient(to right, transparent 15px, #3a4050 15px, #5e6479);
+}
+
+.tree-item--page.selected-menu:hover {
+  background: linear-gradient(to right, transparent 15px, #4a5060 15px, #6a7089);
 }
 
 /* Tree scroll area */
