@@ -10,3 +10,6 @@ src/backend/analog/api/src/test/resources/fixture-logs/** -text
 #          한글 주석/로그가 깨지기 때문). BOM 은 그대로 두고 줄바꿈만 CRLF 로 고정한다.
 *.cmd text eol=crlf
 *.ps1 text eol=crlf
+
+# dflow-kit — 스킬 스크립트 줄끝 고정
+.claude/skills/** text eol=lf

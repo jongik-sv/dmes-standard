@@ -148,6 +148,23 @@ logs/
 !.claude/skills/meeting-minutes/
 !.claude/skills/meeting-minutes/**
 
+# D'Flow 에이전트 스킬 킷 (dflow-kit install.sh — 2026-09-15 추가).
+# 팀원 워크트리는 origin 기본 브랜치의 스킬을 쓰므로 이 7종은 커밋·push 해야 /dflow-team 이 뜬다.
+!.claude/skills/dflow-work/
+!.claude/skills/dflow-work/**
+!.claude/skills/dflow-dev/
+!.claude/skills/dflow-dev/**
+!.claude/skills/dflow-poll/
+!.claude/skills/dflow-poll/**
+!.claude/skills/dflow-merge/
+!.claude/skills/dflow-merge/**
+!.claude/skills/dflow-team/
+!.claude/skills/dflow-team/**
+!.claude/skills/dflow-export/
+!.claude/skills/dflow-export/**
+!.claude/skills/dflow-wbs-nlevel/
+!.claude/skills/dflow-wbs-nlevel/**
+
 
 # Tooling/cache
 .playwright-cli
