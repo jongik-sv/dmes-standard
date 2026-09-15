@@ -37,6 +37,7 @@ import {
   SearchField,
   ContentBody,
   ContentPanel,
+  ResizableFormPanel,
   ErrorModal,
   DETAIL_TABLE_STYLE,
   DETAIL_LABEL_CELL,
@@ -581,7 +582,8 @@ export default function CommPermMngPage() {
       </SearchArea>
 
       {/* 2026-06-02 W5 정책 A (round3 — 사용자 명시):
-          Detail 폭 420 → 700 으로 확장 (메인 그리드와 균형). 그리드는 flex:1 유지. */}
+          Detail 폭 420 → 700 으로 확장 (메인 그리드와 균형). 그리드는 flex:1 유지.
+          2026-09-09: ResizableFormPanel 로 교체 — 기본 700, 드래그로 420~900 조절. */}
       <ContentBody root>
         <ContentPanel>
           <GridPanel
@@ -630,7 +632,12 @@ export default function CommPermMngPage() {
             marginTop:32 (좌측 GridPanel header 자리 비움) + 1px #d4dae0 border + 흰 bg
             + 28px gray header ("상세 정보") — 좌측 컬럼 헤더 라인과 정렬.
             height: auto (내용물 크기 맞춤 — 흰 빈 공간 ✗). */}
-        <ContentPanel width={700}>
+        <ResizableFormPanel
+          panelId="commPermMng-detail"
+          defaultWidth={700}
+          minWidth={420}
+          maxWidth={900}
+        >
           <div
             style={{
               marginTop: 32,
@@ -673,7 +680,7 @@ export default function CommPermMngPage() {
               )}
             </div>
           </div>
-        </ContentPanel>
+        </ResizableFormPanel>
       </ContentBody>
 
       <ErrorModal message={error} onClose={() => setError(null)} />

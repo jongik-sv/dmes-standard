@@ -83,7 +83,21 @@ export function ResizableFormPanel({
         <div
           onMouseDown={startDrag}
           title="드래그하여 상세 너비 조절"
-          style={{ width: 10, flexShrink: 0, alignSelf: "stretch", cursor: "col-resize", display: "flex", alignItems: "center", justifyContent: "center" }}
+          style={{
+            // ContentBody 의 gap(6px) 안에 핸들을 겹쳐 넣는다 — 폭 10 에 margin -8 씩이면
+            // 레이아웃 기여 폭이 -6 이 되어 [패널][gap][핸들][gap][패널] 총 간격이 원래 6px 로 유지된다.
+            // 히트 영역 10px 은 양쪽 패널 위로 2px 씩 걸치므로 zIndex 로 위에 올린다.
+            width: 10,
+            margin: "0 -8px",
+            position: "relative",
+            zIndex: 1,
+            flexShrink: 0,
+            alignSelf: "stretch",
+            cursor: "col-resize",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
         >
           <div style={{ width: 3, height: 44, borderRadius: 2, background: "#cbd5e1" }} />
         </div>
