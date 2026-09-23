@@ -26,7 +26,7 @@ export MODEL_DIR=...
 $B info                                   # 그래프 입출력·토큰화 확인
 $B tokens                                 # 코퍼스 토큰 길이 분포
 $B single threads=4 n=200                 # 콜드 로드·단건 인코딩
-$B batch threads=4 batch=1 limit=10000 save=$SCRATCH/vectors   # 1만 건 일괄(약 8분)
+$B batch threads=4 batch=1 limit=10000 save=$SCRATCH/vectors   # 1만 건 일괄(약 6분)
 JAVA_OPTS=-Xmx6g $B scan sizes=10000,100000,1000000 q=100       # 전수 비교 규모별
 $B query threads=4 vectors=$SCRATCH/vectors n=200               # 질의 = 인코딩 + 전수 비교
 $B sqlite vectors=$SCRATCH/vectors db=$SCRATCH/probe.db         # SQLite BLOB 왕복

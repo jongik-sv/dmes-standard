@@ -209,7 +209,7 @@
       "additionalProperties": false
     },
     "CodeSets": {
-      "description": "화면이 받아 둔 카테고리 코드 집합. 키는 '마루코드ID|카테고리ID'. 서버 러너는 같은 집합으로 CodeEffLookup 가짜를 만든다.",
+      "description": "화면이 받아 둔 카테고리 코드 집합. 키는 '마루코드ID|카테고리ID'. 서버 러너는 키마다 가짜 사본을 합성한다 — CodeLookup(헤더 INUSE, RELEASED 버전 1.000 하나를 전 기간 열어 두고 집합의 코드를 ITEM 행으로)과 CodeEffLookup(id, 1.000, cate → 집합). 없는 id 는 마루 데이터 대상(MasterLookup.NONE)이다(design §6.10).",
       "type": "object",
       "propertyNames": { "pattern": "^[A-Za-z0-9_]+\\|[A-Za-z0-9_]+$" },
       "additionalProperties": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }

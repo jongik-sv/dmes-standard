@@ -56,7 +56,7 @@
 | E5 | INT8 변환본 `thkmon/KURE-v1-onnx-int8` rev `118dcc12c125320225de077e57a9f367ce8f6407`(MIT): `model.onnx` 568,451,402 bytes, sha256 `1808718e3d54308c8d7bf67fbad5632e08e44b029653e3e31cdd7ed0180d171b`, `tokenizer.json` sha256 `fb3c3b93…1dfd`, README 가 `quantize_dynamic` QInt8·opset 17·fp32 출력이라고 적는다. **README 는 풀링을 "masked mean pool + L2" 로 적는데, 원본 모델 설정(E4)과 다르다.** `LaraAI-Labs/KURE-v1-onnx-int8`(rev `dbe4aab5…`)도 같은 파일 구성이다 | 다운로드·`shasum`, README |
 | E6 | ONNX 그래프(ORT 세션 메타): 입력 `input_ids`·`attention_mask`(INT64 `[batch, seq]`), **`token_type_ids` 없음**, 출력 `last_hidden_state`(FLOAT `[batch, seq, 1024]`) 하나 | `poc/mdm-embedding-bench/results/raw-01-info-tokens.txt` |
 | E7 | 토크나이저 `tokenizer.json`: Unigram, TemplateProcessing(`<s> … </s>`), truncation max 2048, pad_id 1. DJL 0.38.0 은 jar 안 osx-aarch64·linux-x86_64·linux-aarch64 네이티브를 `~/.djl.ai/tokenizers/` 로 풀어 쓴다(네트워크 없음). `optMaxLength(2048)` 을 줘도 "modelMaxLength" 경고와 함께 512 로 낮춘다 — 용어 입력 최대 100 토큰이라 영향 없음 | 같은 파일, `~/.djl.ai/tokenizers/0.21.0-0.38.0-cpu-osx-aarch64/` |
-| E8 | 측정 결과(Apple M5 10코어·16GB, ORT Java 1.30.0, intra-op 4): 단건 인코딩 전체 입력 p50 29.1/p95 42.1 ms, 표기만 p50 7.5/p95 8.8 ms, **질의 1건(표기 인코딩 + 1만×1024 전수 코사인 top-5) p50 20.0/p95 22.2 ms**, 전체 입력 질의 p95 76.2 ms, **1만 건 일괄 486.9 s(8.1 분)**, 콜드 로드 0.8-4.8 s, RSS 로드 후 약 1.3 GB·일괄 중 최대 1.4-2.0 GB. CPU 에서는 배치 크기를 키워도 빨라지지 않는다(배치 1: 33.6, 32: 39.8 ms/건), 길이순 정렬을 안 하면 63.1 ms/건, intra 10 은 느려진다 | `poc/mdm-embedding-bench/results/README.md`, `raw-02~06` |
+| E8 | 측정 결과(Apple M5 10코어·16GB, ORT Java 1.30.0, intra-op 4): 단건 인코딩 전체 입력 p50 29.1/p95 42.1 ms, 표기만 p50 7.5/p95 8.8 ms, **질의 1건(표기 인코딩 + 1만×1024 전수 코사인 top-5) p50 20.0/p95 22.2 ms**, 전체 입력 질의 p95 76.2 ms, **1만 건 일괄 336.2 s(5.6 분, 단독 재측정 — 다른 작업과 겹친 첫 측정은 486.9 s)**, 콜드 로드 0.8-4.8 s, RSS 로드 후 약 1.3 GB·일괄 중 최대 1.4-2.0 GB. CPU 에서는 배치 크기를 키워도 빨라지지 않는다(배치 1: 33.6, 32: 39.8 ms/건), 길이순 정렬을 안 하면 63.1 ms/건, intra 10 은 느려진다 | `poc/mdm-embedding-bench/results/README.md`, `raw-02~06` |
 | E9 | 전수 비교(단일 스레드, 인코딩 제외) p95: 1만 4.9 ms · 5만 24.9 ms · 10만 50.9 ms · 25만 124.4 ms · 100만 661.0 ms(행당 약 0.5 µs 선형, 100만이면 행렬 3.9 GB) | `raw-05-scan.txt` |
 | E10 | SQLite 3.45.3(sqlite-jdbc 3.45.3.0, mdm/lib 과 같은 버전) `BLOB` 1만 행: 적재 91.7 ms, `WHERE EMBEDDING_MODEL = ?` 전체 읽기 + float32 LE 디코드 23.1 ms, 비트 단위 왕복 일치, 파일 44 MB | `raw-07-sqlite.txt`, `src/backend/mdm/lib/build.gradle:31` |
 | E11 | 풀링 정성 확인(유사어 15쌍, 질의 표기만): CLS top-5 12/15, masked mean 11/15. 합성 코퍼스라 품질 근거로 쓰지 않는다 | `raw-08-pooling.txt` |
@@ -138,7 +138,7 @@ docs/mdm/engine-contract/
 |---|---|
 | `poc/mdm-embedding-bench/{settings.gradle,build.gradle,.gitignore,README.md}` | 독립 Gradle PoC(ORT 1.30.0, DJL tokenizers 0.38.0, sqlite-jdbc 3.45.3.0). `build/`·`.gradle/`·`*.onnx`·`*.db`·`model/` 무시 |
 | `poc/mdm-embedding-bench/src/main/java/com/dongkuk/dmes/mdm/poc/embedding/{TermCorpus,KureEncoder,Bench}.java` | 합성 코퍼스·인코더·측정 8모드 |
-| `poc/mdm-embedding-bench/results/{README.md,raw-01…08-*.txt}` | 측정 요약과 원시 출력 |
+| `poc/mdm-embedding-bench/results/{README.md,raw-01…09-*.txt}` | 측정 요약과 원시 출력 |
 | `docs/mdm/tasks/TSK-02-02/contract-draft/**` | 엔진 계약 초안(C2 로 옮긴다) |
 
 ### 2.4 수정하지 않는 것(명시)
@@ -219,7 +219,7 @@ mkdir -p $T
   ```
 - **V9 decisions.md append-only** — `6` / `0` / `D-025`
   ```bash
-  grep -cE '^## D-02[0-5] \(2026-09-2[45]T' docs/mdm/decisions.md
+  grep -cE '^## D-02[0-5] \(2026-09-2[3-9]T' docs/mdm/decisions.md
   /usr/bin/git diff $BASE -- docs/mdm/decisions.md | grep -E '^-[^-]' | wc -l
   grep -oE '^## D-[0-9]+' docs/mdm/decisions.md | tail -1 | sed 's/## //'
   ```
@@ -248,11 +248,11 @@ mkdir -p $T
   grep -c 'mdm-embedding-bench' src/backend/settings.gradle src/backend/build.gradle | awk -F: '{s+=$2} END{print s}'
   /usr/bin/git ls-files | grep -cE '[.]onnx$'
   ```
-- **V14 PoC 빌드·결과 파일** — `BUILD SUCCESSFUL` / `8` / 각 `1` 이상
+- **V14 PoC 빌드·결과 파일** — `BUILD SUCCESSFUL` / `9` / 각 `1` 이상
   ```bash
   JAVA_HOME=$JAVA_HOME src/backend/gradlew -p poc/mdm-embedding-bench compileJava --no-daemon -q && echo BUILD SUCCESSFUL
   ls poc/mdm-embedding-bench/results/raw-0*.txt | wc -l
-  for k in 'p50 20.0 ms' '486.9 s' '1808718e3d54308c8d7bf67fbad5632e08e44b029653e3e31cdd7ed0180d171b' '661.0 ms'; do grep -c -- "$k" poc/mdm-embedding-bench/results/README.md; done
+  for k in 'p50 20.0 ms' '336.2 s' '1808718e3d54308c8d7bf67fbad5632e08e44b029653e3e31cdd7ed0180d171b' '661.0 ms'; do grep -c -- "$k" poc/mdm-embedding-bench/results/README.md; done
   ```
 - **V15 src·PRD·wbs·ADR 불변** — `0`
   ```bash
@@ -378,10 +378,10 @@ mkdir -p $T
 | `MAX` `SUM` `AVERAGE` | BASE | 표준 | 있음 | NPE | 필수 |
 | `STR_LENGTH` `STR_UPPER` `STR_LOWER` `STR_TRIM` | BASE | 표준 | 있음 | NPE | 필수 |
 | `STR_LEFT` `STR_RIGHT` `STR_SUBSTRING` | BASE | 표준(0부터, 끝 배타) | **없음 — TSK-03-04 추가** | NPE | 필수 |
-| `STR_CONTAINS` | BASE | 표준(대소문자 무시) | 있음(`str(null)`="null" 로 검사 — 갈림) | false | 필수(갈림 방지) |
+| `STR_CONTAINS` | BASE | 표준(대소문자 무시) | 있음(`str(null)`="null" 로 검사 — 갈림, **false 로 고친다**) | false | 선택(서버가 false 를 돌려 실패하지 않는다) |
 | `STR_STARTS_WITH` `STR_ENDS_WITH` | BASE | 표준(대소문자 구분) | 있음 | NPE | 필수 |
 | `STR_MATCHES` | BASE | 표준(전체 일치, 타임아웃 100 ms) | 있음(`^(?:…)$`) | NPE | 필수 |
-| `INSTR(s, sub)` | MDM | 커스텀: 대소문자 구분, 1부터 위치, 없으면 0, 인자 NULL 이면 NULL(06:443, EG:215) | **없음 — TSK-03-04 추가** | NULL 반환 | 선택(NULL 반환) — 단 `> 0` 비교에서 NPE(F19 `X < 1`) |
+| `INSTR(s, sub)` | MDM | 커스텀: 대소문자 구분, 1부터 위치, 없으면 0, 인자 NULL 이면 NULL(06:443, EG:215) | **없음 — TSK-03-04 추가** | NULL 반환 | NULL 전파 — 바깥 연산으로 판정한다. 비교(`> 0`)에 쓰이면 NULL 비교가 NPE 라(F19 `X < 1`) 사실상 필수 |
 | `MASTER(id, cate, key[, attr])` | MDM | 커스텀, `EVAL_TS` 로 판정 | 주입(마루 코드 대상·받아 둔 집합만) | key NULL → false/NULL | key 선택 |
 | `MASTER_AT(id, cate, key, base_dt[, attr])` | MDM | 커스텀, base_dt 로 판정 | 1차 폴백(`isSupported=false`) | key·base_dt NULL → false/NULL(D5) | key·base_dt 선택 |
 
@@ -440,7 +440,9 @@ CODE_LIST(id, cate, baseDt)               → List<CodeListEntry(code,name,alter
 | 적중 정책·행 하이라이트·첫 거짓 셀 | 화면 JS(06:724) | — |
 | 도메인 표준식 | AST 인터프리터(EG §8.5 0항) | 비즈니스식은 화면에 배포하지 않음, "서버 확인" |
 
-`isSupported(ast, injected)` 는 노드 종류 6종·연산자 enum·함수 이름을 훑는다. `MASTER` 는 첫 인자 id 에 대한 코드 집합이 주입돼 있을 때만 지원으로 본다. 인터프리터는 원천 샘플(F20)을 출발점으로 하되 `INSTR`·`STR_LEFT`·`STR_RIGHT`·`STR_SUBSTRING` 을 더하고, NULL 동작은 서버(F19)에 맞춘다(EG §8.5 2항 "다르면 서버가 기준이고 인터프리터를 고친다"). 맞출 수 없는 자리(예: `NOT(NULL)` 서버 NPE)는 코퍼스에서 `error: EVALUATION_ERROR` 로 기대하고 화면도 오류로 낸다.
+`isSupported(ast, injected)` 는 노드 종류 6종·연산자 enum·함수 이름을 훑는다. `MASTER` 는 첫 인자 id 에 대한 코드 집합이 주입돼 있을 때만 지원으로 본다. 인터프리터는 원천 샘플(F20)을 출발점으로 하되 `INSTR`·`STR_LEFT`·`STR_RIGHT`·`STR_SUBSTRING` 을 더하고, NULL 동작은 서버(F19)에 맞춘다(EG §8.5 2항 "다르면 서버가 기준이고 인터프리터를 고친다"). 서버가 예외를 내는 자리(예: `NOT(NULL)` NPE)는 코퍼스에서 `error: EVALUATION_ERROR` 로 기대하고 화면도 오류로 낸다.
+
+**예약 키 검사도 화면이 같이 한다.** 원천 샘플의 `prepare()` 는 키를 대문자로 바꾸고 상수가 변수를 가린다(`JS/evalex-ast-interpreter.js:161·257-261`). 그래서 레코드에 `NULL` 키가 오면 서버는 `CONSTANT_KEY` 인데 화면은 조용히 상수를 쓴다. 화면 평가기는 평가 전에 변수 키를 검사해 상수 8종(대소문자 무시) → `CONSTANT_KEY`, `EVAL_TS` → `EVAL_TS_KEY`, `_` 로 시작 → `RESERVED_KEY` 로 서버와 같은 코드를 낸다(코퍼스 `expr.constant-key`).
 
 ### 6.10 정합성 코퍼스 형식 (→ C1 §11)
 
@@ -448,7 +450,7 @@ CODE_LIST(id, cate, baseDt)               → List<CodeListEntry(code,name,alter
 - 두 종류: `ExprCase{id, kind:"expr", slot?, expr, ast, vars, evalTs?, codeSets?, expect}` — 서버는 `expr` 을, 화면은 `ast` 를 평가. `CellCase{id, kind:"cell", variable{name, dataType, dateString?, maruCodeId?}, cell, patternRegex?, value, evalTs?, codeSets?, expect}` — 서버는 생성기 텍스트를, 화면은 셀 구조를 평가.
 - **값은 `TypedValue`**: `{"type":"NUMBER","value":"1.10"}`처럼 숫자를 문자열로 싣는다(JS double 오차 방지). NUMBER 는 값으로 견준다(`1.10 == 1.1`). NULL 은 `{"type":"NULL"}`. `vars` 의 타입이 변수 선언과 다르면 타입 변환 오류 사례다.
 - `expect`: `{value: TypedValue}` 또는 `{error: ErrorCode}`, `screenFallback: true` 면 화면은 `isSupported=false` 여야 하고 서버 결과만 견준다.
-- `codeSets`: `{"PROC_CD|PLATING": ["82","84"]}` — 서버 러너는 이것으로 `CodeEffLookup` 가짜를, 화면은 CODE_IN·MASTER 주입 집합을 만든다.
+- `codeSets`: `{"PROC_CD|PLATING": ["82","84"]}` — 화면은 CODE_IN·MASTER 주입 집합으로 쓴다. **서버 러너는 키마다 가짜 사본을 합성한다**: `CodeLookup.code(id)` 가 헤더 `status=INUSE`, RELEASED 버전 하나(`ver=1.000`, `apply_from=0001-01-01T00:00`, `apply_to=9999-12-31T00:00`), 집합의 코드마다 ITEM 행(`from_ver 1.000`, `to_ver 9999`)을 돌려주고, `CodeEffLookup.codes(id, 1.000, cate)` 가 그 집합을 돌려준다. 이렇게 해야 `MASTER`·CODE_IN 이 마루 코드 경로(`CodeResolver`)로 가고 `MasterLookup` 으로 새지 않는다. `codeSets` 에 없는 id 는 `CodeLookup` 이 빈 값 → 마루 데이터 대상(`MasterLookup.NONE`, 늘 false)이다(`expr.master.data-fallback`).
 - 필수 사례 = 06:284-296 목록 전부 + 이번 조사로 드러난 갈림(F19·F20): `NULL + 1`(서버 문자열 `"null1"`), `MIN(NULL, 1)`/`MAX(1, NULL)` 비대칭, `STR_CONTAINS(NULL, "u")`, `IF(NULL, …)`, `NOT(NULL)`, `FALSE && NULL`·`NULL || TRUE`, `STR_SUBSTRING` 경계, `ROUND` HALF_EVEN(`2.345 → 2.34`), `SWITCH` 결과 직렬화(`2E+1` 아님), 상수 이름 레코드 키. 표본 15건은 `samples/sample-corpus.json`.
 
 ### 6.11 임베딩 모델·런타임·입력 형식 (→ C3 §2)
@@ -477,7 +479,7 @@ CODE_LIST(id, cate, baseDt)               → List<CodeListEntry(code,name,alter
 | 단건 인코딩(저장 경로, 전체 입력) | p50 29.1 · p95 42.1 ms | 등록·수정 1건에 체감 없음 |
 | 질의 1건 = 표기 인코딩 + 1만×1024 전수 코사인 top-5 | **p50 20.0 · p95 22.2 ms** | 약 22배 여유 |
 | 질의 1건 = 전체 입력 인코딩 + 전수 비교 | p50 54.6 · p95 76.2 ms | 약 6배 여유 |
-| 1만 건 일괄 인코딩(최초 구축·재인코딩) | 486.9 s(8.1 분), 20.5 건/s(배치 1) | 배치 작업 |
+| 1만 건 일괄 인코딩(최초 구축·재인코딩) | 336.2 s(5.6 분), 29.7 건/s(배치 1, 단독 실행) | 배치 작업 |
 | 전수 비교만 | 1만 4.9 · 10만 50.9 · 25만 124.4 · 100만 661.0 ms(p95) | 100만에서 기준 초과 |
 | SQLite BLOB 1만 행 전체 읽기+디코드 | 23.1 ms | 캐시 적재 |
 | RSS | 로드 후 약 1.3 GB, 일괄 중 최대 1.4-2.0 GB | 메모리 산정 |
@@ -510,9 +512,9 @@ EMBEDDING_MODEL  VARCHAR(100) NULL,
 **동작 규칙(TSK-04-02)**
 1. JPA 엔티티(`TB_MDM_TERM`)는 `EMBEDDING`·`EMBEDDING_MODEL` 을 **매핑하지 않는다**. 그리드·상세 조회가 4 KB 를 끌어오지 않고, 용어 저장이 벡터를 덮지 않는다. 읽기·쓰기는 전용 리포지토리의 네이티브 SQL 로 한다.
 2. 등록·수정: 표기·정의·영문명 중 하나라도 바뀌면 같은 트랜잭션에서 인코딩해 `UPDATE … SET EMBEDDING = ?, EMBEDDING_MODEL = ?, U_USR_ID…, U_AT…` — 네이티브 쓰기라 감사 칼럼을 명시(naming-dialect-rules §2, E15). 모델이 없거나 인코딩이 실패하면 용어 저장은 성공시키고 두 칼럼을 NULL 로 둔다(다음 재인코딩 배치가 채운다).
-3. 캐시: 서버 메모리에 `term_id → float[1024]`(현재 `EMBEDDING_MODEL` 값인 행만). 추천 호출마다 `SELECT COUNT(*), MAX(U_AT) FROM TB_MDM_TERM WHERE EMBEDDING_MODEL = ?` 로 바뀜을 보고, 바뀌었으면 `U_AT >= 마지막 적재 시각` 인 행을 다시 읽는다(여러 서버 인스턴스에서도 맞다).
+3. 캐시: 서버 메모리에 `term_id → float[1024]`(현재 `EMBEDDING_MODEL` 값인 행만). 추천 호출마다 **모델 조건 없이** `SELECT COUNT(*), MAX(U_AT) FROM TB_MDM_TERM` 으로 바뀜을 본다. 행 수가 줄었으면(삭제) 전체를 다시 읽는다(1만 행 23 ms, E10). 그 밖에 바뀌었으면 **모델 조건 없이** `U_AT >= 마지막 적재 시각` 인 행을 읽어, `EMBEDDING_MODEL` 이 현재 값인 행은 넣거나 바꾸고 아닌 행(NULL 포함 — 인코딩 실패·재인코딩 대기)은 캐시에서 뺀다. 여러 서버 인스턴스에서도 맞다. 경계 시각은 `>=` 로 겹쳐 읽어 같은 초 안의 쓰기를 놓치지 않는다.
 4. 추천: 질의 입력 인코딩 → 캐시 전수 내적 → 자기 자신 제외 top-N(기본 5). 1차 문자열 추천과 합쳐 보이는 것은 화면 몫.
-5. 재인코딩 배치(최초 구축·모델 교체): `WHERE EMBEDDING_MODEL IS NULL OR EMBEDDING_MODEL <> :current` 행을 배치 1·직렬로 인코딩(1만 건 약 8분). 진행 중에는 새 값 행끼리만 비교한다(02:540).
+5. 재인코딩 배치(최초 구축·모델 교체): `WHERE EMBEDDING_MODEL IS NULL OR EMBEDDING_MODEL <> :current` 행을 배치 1·직렬로 인코딩(1만 건 약 6분). 진행 중에는 새 값 행끼리만 비교한다(02:540).
 6. 재검토 임계: **현재 모델 벡터 100,000 건**(전수 비교 p95 51 ms·캐시 390 MB) 또는 운영 추천 응답 **p95 250 ms**(500 ms 의 절반) 중 먼저 오는 쪽. 그때 병렬 스캔 → ANN(③) 순으로 본다. 원천 전망은 "많아야 수만 건"(02:533)이다.
 
 ### 6.14 decisions.md 추가 항목 (→ M1, 문안 그대로. 시각은 Build 가 커밋 시각 UTC 로)
@@ -545,7 +547,7 @@ EMBEDDING_MODEL  VARCHAR(100) NULL,
 ## D-023 (2026-09-24T..Z)
 - **Phase**: design (TSK-02-02)
 - **Decision needed**: 화면 JS 평가기 범위와 정합성 코퍼스 형식, MASTER_AT 기준일 문자열
-- **Decision made**: op-code 셀은 구조 직접 비교, Expression·식 변수·열 조건은 AST 인터프리터, 결과 Expression 은 지원되면 미리보기 표시(원천 미결 06:389), MASTER 마루 데이터·MASTER_AT·attr 형태는 isSupported=false 로 서버 폴백. 코퍼스는 CorpusFile v1(ExprCase·CellCase, TypedValue 숫자 문자열, screenFallback). MASTER_AT base_dt 는 YYYYMMDD(00:00:00)·YYYYMMDDHHMMSS(KST), 그 밖은 평가 오류, NULL 은 false/NULL(design D5)
+- **Decision made**: op-code 셀은 구조 직접 비교, Expression·식 변수·열 조건은 AST 인터프리터, 결과 Expression 은 지원되면 미리보기 표시(원천 미결 06:389), MASTER 마루 데이터·MASTER_AT·attr 형태는 isSupported=false 로 서버 폴백, 화면도 예약 키(상수·EVAL_TS·_ 접두)를 서버와 같은 오류 코드로 거부. 코퍼스는 CorpusFile v1(ExprCase·CellCase, TypedValue 숫자 문자열, screenFallback). MASTER_AT base_dt 는 YYYYMMDD(00:00:00)·YYYYMMDDHHMMSS(KST), 그 밖은 평가 오류, NULL 은 false/NULL(design D5)
 - **Rationale**: 06:271·716-731, EG 8.5. EvalEx 와 원천 JS 샘플의 NULL 동작 차이 6가지를 실측해 코퍼스 필수 사례에 더했다
 - **Reversible**: yes
 - **Source**: docs/mdm/engine-contract.md §7·§10·§11
@@ -569,7 +571,7 @@ EMBEDDING_MODEL  VARCHAR(100) NULL,
 
 ### 6.15 이 문서가 인용하는 측정 원시 파일 목록(→ C3 §3 링크)
 
-`poc/mdm-embedding-bench/results/raw-01-info-tokens.txt`(그래프·토큰), `raw-02-single.txt`(콜드 로드·단건), `raw-03-batch-1000.txt`(배치·스레드 비교), `raw-04-batch-10k.txt`(1만 건), `raw-05-scan.txt`(규모별 전수 비교), `raw-06-query.txt`(질의), `raw-07-sqlite.txt`(BLOB 왕복), `raw-08-pooling.txt`(풀링 정성).
+`poc/mdm-embedding-bench/results/raw-01-info-tokens.txt`(그래프·토큰), `raw-02-single.txt`(콜드 로드·단건), `raw-03-batch-1000.txt`(배치·스레드 비교), `raw-04-batch-10k.txt`(1만 건, 다른 작업과 겹침), `raw-09-batch-10k-rerun.txt`(1만 건 단독 재측정 — 인용 값), `raw-05-scan.txt`(규모별 전수 비교), `raw-06-query.txt`(질의), `raw-07-sqlite.txt`(BLOB 왕복), `raw-08-pooling.txt`(풀링 정성).
 
 ### 6.16 새 문서 골격 (→ C1·C3)
 
