@@ -1,0 +1,355 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dmes.dongkuk.local/mdm/engine-contract.schema.json",
+  "title": "maru-mdm-engine 공유 계약 (초안, TSK-02-02)",
+  "description": "서버 엔진(Java)과 화면 JS 평가기(TS)가 주고받는 JSON 모양의 정본. Java record·TS 타입은 이 스키마에서 나온다(design §6.3). 숫자는 전부 문자열이다(06:1038).",
+  "$defs": {
+    "AstNode": {
+      "description": "EvalEx AST 노드(evalex-guide §8.3). 자식이 없으면 params 키를 뺀다. 설정이 허용하는 여섯 종류만 나온다(design D1).",
+      "oneOf": [
+        { "$ref": "#/$defs/AstNumberLiteral" },
+        { "$ref": "#/$defs/AstStringLiteral" },
+        { "$ref": "#/$defs/AstVariable" },
+        { "$ref": "#/$defs/AstPrefix" },
+        { "$ref": "#/$defs/AstInfix" },
+        { "$ref": "#/$defs/AstFunction" }
+      ]
+    },
+    "AstNumberLiteral": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "NUMBER_LITERAL" },
+        "value": { "type": "string", "pattern": "^(0[xX][0-9A-Fa-f]+|([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?)$" }
+      },
+      "required": ["type", "value"],
+      "additionalProperties": false
+    },
+    "AstStringLiteral": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "STRING_LITERAL" },
+        "value": { "type": "string" }
+      },
+      "required": ["type", "value"],
+      "additionalProperties": false
+    },
+    "AstVariable": {
+      "description": "변수 또는 상수(TRUE/FALSE/NULL/PI/E …). 상수가 변수보다 먼저다(evalex-guide §8.3).",
+      "type": "object",
+      "properties": {
+        "type": { "const": "VARIABLE_OR_CONSTANT" },
+        "value": { "type": "string", "pattern": "^[^0-9\\s][^\\s]*$" }
+      },
+      "required": ["type", "value"],
+      "additionalProperties": false
+    },
+    "AstPrefix": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "PREFIX_OPERATOR" },
+        "value": { "enum": ["-", "+", "!"] },
+        "params": { "type": "array", "items": { "$ref": "#/$defs/AstNode" }, "minItems": 1, "maxItems": 1 }
+      },
+      "required": ["type", "value", "params"],
+      "additionalProperties": false
+    },
+    "AstInfix": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "INFIX_OPERATOR" },
+        "value": { "enum": ["+", "-", "*", "/", "%", "^", "=", "==", "!=", "<>", "<", "<=", ">", ">=", "&&", "||"] },
+        "params": { "type": "array", "items": { "$ref": "#/$defs/AstNode" }, "minItems": 2, "maxItems": 2 }
+      },
+      "required": ["type", "value", "params"],
+      "additionalProperties": false
+    },
+    "AstFunction": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "FUNCTION" },
+        "value": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+        "params": { "type": "array", "items": { "$ref": "#/$defs/AstNode" }, "minItems": 1 }
+      },
+      "required": ["type", "value"],
+      "additionalProperties": false
+    },
+
+    "DataType": { "enum": ["NUMBER", "STRING", "BOOLEAN", "DATE"] },
+
+    "TypedValue": {
+      "description": "타입을 붙인 값. NUMBER 는 십진 문자열이고 값으로 견준다(1.10 == 1.1). NULL 은 value 가 없다. LIST 는 COLLECT LIST 결과.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": { "type": { "enum": ["NUMBER"] }, "value": { "type": "string", "pattern": "^-?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)$" } },
+          "required": ["type", "value"], "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "type": { "enum": ["STRING"] }, "value": { "type": "string" } },
+          "required": ["type", "value"], "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "type": { "enum": ["BOOLEAN"] }, "value": { "enum": ["true", "false"] } },
+          "required": ["type", "value"], "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "type": { "enum": ["NULL"] } },
+          "required": ["type"], "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "type": { "enum": ["LIST"] }, "items": { "type": "array", "items": { "$ref": "#/$defs/TypedValue" } } },
+          "required": ["type", "items"], "additionalProperties": false
+        }
+      ]
+    },
+
+    "CellOp": {
+      "enum": ["NA", "EQ", "NE", "LT", "LE", "GT", "GE", "IN", "NOT_IN", "CODE_IN", "CONTAINS", "INSTR", "IS_NULL", "NOT_NULL",
+               "<= 변수 <=", "<= 변수 <", "< 변수 <=", "< 변수 <"]
+    },
+    "CellJson": {
+      "description": "룰 셀(06:1036-1054). 키는 일곱뿐이고 값은 전부 문자열. op 에 따라 쓰는 키가 정해진다.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": { "op": { "enum": ["NA", "IS_NULL", "NOT_NULL"] } },
+          "required": ["op"], "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "op": { "enum": ["EQ", "NE", "LT", "LE", "GT", "GE", "CODE_IN", "CONTAINS", "INSTR"] }, "left": { "type": "string", "minLength": 1 } },
+          "required": ["op", "left"], "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "op": { "enum": ["IN", "NOT_IN"] }, "list": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true } },
+          "required": ["op", "list"], "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "op": { "enum": ["<= 변수 <=", "<= 변수 <", "< 변수 <=", "< 변수 <"] }, "left": { "type": "string", "minLength": 1 }, "right": { "type": "string", "minLength": 1 } },
+          "required": ["op", "left", "right"], "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "expr": { "type": "string", "minLength": 1 }, "ast": { "$ref": "#/$defs/AstNode" } },
+          "required": ["expr", "ast"], "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "val": { "type": "string" } },
+          "required": ["val"], "additionalProperties": false
+        }
+      ]
+    },
+
+    "ErrorCode": {
+      "description": "판정 오류 코드(Java EngineEvaluationException.Code 와 같은 이름).",
+      "enum": ["RULE_NOT_FOUND", "SET_NOT_FOUND", "SET_DEPRECATED", "MISSING_KEY", "REQUIRED_NULL", "TYPE_CONVERSION",
+               "CONSTANT_KEY", "RESERVED_KEY", "EVAL_TS_KEY", "UNIQUE_MULTIPLE_HITS", "ANY_CONFLICT", "EVALUATION_ERROR"]
+    },
+
+    "CorpusFile": {
+      "description": "서버·화면 정합성 코퍼스(06:284-296, evalex-guide §8.5 2항). 양쪽 러너(JUnit·Vitest)가 같은 파일을 읽는다.",
+      "type": "object",
+      "properties": {
+        "version": { "const": 1 },
+        "cases": { "type": "array", "items": { "$ref": "#/$defs/CorpusCase" }, "minItems": 1 }
+      },
+      "required": ["version", "cases"],
+      "additionalProperties": false
+    },
+    "CorpusCase": { "oneOf": [ { "$ref": "#/$defs/ExprCase" }, { "$ref": "#/$defs/CellCase" } ] },
+    "ExprCase": {
+      "description": "자유 식 — 서버는 expr 을 EvalEx 로, 화면은 ast 를 인터프리터로 평가한다.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" },
+        "kind": { "const": "expr" },
+        "slot": { "enum": ["DOMAIN_STD", "DOMAIN_BIZ", "RULE_COND_EXPR", "RULE_RESULT_EXPR", "RULE_EXPR_VAR", "RULE_GRP_COND"] },
+        "expr": { "type": "string", "minLength": 1 },
+        "ast": { "$ref": "#/$defs/AstNode" },
+        "vars": { "type": "object", "additionalProperties": { "$ref": "#/$defs/TypedValue" } },
+        "evalTs": { "$ref": "#/$defs/LocalDateTime" },
+        "codeSets": { "$ref": "#/$defs/CodeSets" },
+        "expect": { "$ref": "#/$defs/Expect" }
+      },
+      "required": ["id", "kind", "expr", "ast", "vars", "expect"],
+      "additionalProperties": false
+    },
+    "CellCase": {
+      "description": "op-code 셀 — 서버는 생성 텍스트를 EvalEx 로, 화면은 셀 구조를 직접 견준다(06:271·284).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" },
+        "kind": { "const": "cell" },
+        "variable": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "minLength": 1 },
+            "dataType": { "enum": ["NUMBER", "STRING", "BOOLEAN"] },
+            "dateString": { "type": "boolean", "description": "일자 String(YYYYMMDD·YYYYMM·YYYY) 도메인" },
+            "maruCodeId": { "type": "string", "description": "코드 도메인 변수의 마루 코드(CODE_IN 용)" }
+          },
+          "required": ["name", "dataType"],
+          "additionalProperties": false
+        },
+        "cell": { "$ref": "#/$defs/CellJson" },
+        "patternRegex": { "type": "string", "description": "= 패턴이 정규식형일 때 서버가 저장 응답으로 준 정규식(06:267)" },
+        "value": { "$ref": "#/$defs/TypedValue" },
+        "evalTs": { "$ref": "#/$defs/LocalDateTime" },
+        "codeSets": { "$ref": "#/$defs/CodeSets" },
+        "expect": { "$ref": "#/$defs/Expect" }
+      },
+      "required": ["id", "kind", "variable", "cell", "value", "expect"],
+      "additionalProperties": false
+    },
+    "CodeSets": {
+      "description": "화면이 받아 둔 카테고리 코드 집합. 키는 '마루코드ID|카테고리ID'. 서버 러너는 같은 집합으로 CodeEffLookup 가짜를 만든다.",
+      "type": "object",
+      "propertyNames": { "pattern": "^[A-Za-z0-9_]+\\|[A-Za-z0-9_]+$" },
+      "additionalProperties": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+    },
+    "Expect": {
+      "description": "기대 결과. value 또는 error 중 하나. screenFallback=true 면 화면은 isSupported=false 로 폴백해야 하고 서버 결과만 견준다.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": { "value": { "$ref": "#/$defs/TypedValue" }, "screenFallback": { "type": "boolean" } },
+          "required": ["value"], "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "error": { "$ref": "#/$defs/ErrorCode" }, "screenFallback": { "type": "boolean" } },
+          "required": ["error"], "additionalProperties": false
+        }
+      ]
+    },
+    "LocalDateTime": {
+      "description": "KST 벽시계 초 단위(naming-dialect-rules §3 #16).",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}$"
+    },
+
+    "VarType": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "dataType": { "$ref": "#/$defs/DataType" },
+        "scale": { "type": ["integer", "null"] },
+        "domainId": { "type": ["string", "null"] }
+      },
+      "required": ["name", "dataType"],
+      "additionalProperties": false
+    },
+    "InputContract": {
+      "description": "입력 계약(06:202-230). 스냅샷에 실리고 정의 조회 CONTRACT 로도 나간다.",
+      "type": "object",
+      "properties": {
+        "always": { "type": "array", "items": { "$ref": "#/$defs/VarType" } },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "rowId": { "type": "integer" },
+              "cond": { "type": "string" },
+              "required": { "type": "array", "items": { "$ref": "#/$defs/VarType" } },
+              "optional": { "type": "array", "items": { "$ref": "#/$defs/VarType" } }
+            },
+            "required": ["rowId", "cond", "required", "optional"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["always", "rows"],
+      "additionalProperties": false
+    },
+
+    "RuleResult": {
+      "description": "룰 판정 결과(Java RuleResult 의 JSON 모양). 값 테스트 API·판정 서비스 응답.",
+      "type": "object",
+      "properties": {
+        "ruleId": { "type": "string" },
+        "ver": { "type": "integer" },
+        "evalTs": { "$ref": "#/$defs/LocalDateTime" },
+        "hits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "rowId": { "type": "integer" },
+              "seq": { "type": "integer" },
+              "groupChoices": { "type": "object", "additionalProperties": { "type": ["integer", "null"] } }
+            },
+            "required": ["rowId", "seq", "groupChoices"],
+            "additionalProperties": false
+          }
+        },
+        "defaultApplied": { "type": "boolean" },
+        "results": { "type": "object", "additionalProperties": { "$ref": "#/$defs/TypedValue" } },
+        "trace": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "rowId": { "type": "integer" },
+              "seq": { "type": "integer" },
+              "evaluated": { "type": "boolean" },
+              "hit": { "type": "boolean" },
+              "firstFalseVarId": { "type": ["integer", "null"] }
+            },
+            "required": ["rowId", "seq", "evaluated", "hit", "firstFalseVarId"],
+            "additionalProperties": false
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": { "enum": ["EXPR_CELL_NULL", "GRP_COND_NULL"] },
+              "ruleId": { "type": ["string", "null"] },
+              "rowId": { "type": ["integer", "null"] },
+              "varId": { "type": ["integer", "null"] },
+              "message": { "type": "string" }
+            },
+            "required": ["code", "message"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["ruleId", "ver", "evalTs", "hits", "defaultApplied", "results", "trace", "warnings"],
+      "additionalProperties": false
+    },
+    "EngineError": {
+      "description": "판정 오류 응답(Java EngineEvaluationException.violations 의 JSON 모양).",
+      "type": "object",
+      "properties": {
+        "violations": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "stage": { "enum": ["SET_CHECK", "INPUT_CHECK", "ROW_SELECT", "RESULT_CHECK", "RESULT_EVAL"] },
+              "code": { "$ref": "#/$defs/ErrorCode" },
+              "ruleId": { "type": ["string", "null"] },
+              "rowId": { "type": ["integer", "null"] },
+              "name": { "type": ["string", "null"] },
+              "message": { "type": "string" }
+            },
+            "required": ["stage", "code", "message"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["violations"],
+      "additionalProperties": false
+    }
+  }
+}

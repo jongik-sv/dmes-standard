@@ -1,0 +1,44 @@
+IF(X, 1, 2)  => 2
+IF(TRUE, X, 2)  => null
+SWITCH(X, 1, 10, 20)  => 2E+1
+COALESCE(X, 5)  => 5
+NOT(X)  !! NullPointerException
+!X  !! NullPointerException
+ABS(X)  !! NullPointerException
+CEILING(X)  !! NullPointerException
+FLOOR(X)  !! NullPointerException
+SQRT(X)  !! NullPointerException
+ROUND(X, 2)  !! NullPointerException
+ROUND(N, X)  !! NullPointerException
+MIN(X, 1)  => 1
+MAX(N, X)  !! NullPointerException
+SUM(X, 1)  !! NullPointerException
+AVERAGE(X, 1)  !! NullPointerException
+STR_LENGTH(X)  !! NullPointerException
+STR_UPPER(X)  !! NullPointerException
+STR_LOWER(X)  !! NullPointerException
+STR_TRIM(X)  !! NullPointerException
+STR_LEFT(X, 1)  !! NullPointerException
+STR_LEFT(S, X)  !! NullPointerException
+STR_RIGHT(X, 1)  !! NullPointerException
+STR_SUBSTRING(X, 0, 1)  !! NullPointerException
+STR_SUBSTRING(S, X)  !! NullPointerException
+STR_CONTAINS(X, "a")  => false
+STR_CONTAINS(S, X)  => false
+STR_STARTS_WITH(X, "a")  !! NullPointerException
+STR_STARTS_WITH(S, X)  !! NullPointerException
+STR_ENDS_WITH(X, "a")  !! NullPointerException
+STR_MATCHES(X, "a")  !! NullPointerException
+STR_MATCHES(S, X)  !! NullPointerException
+X + 1  => null1
+X + "a"  => nulla
+X * 2  !! EvaluationException
+X == NULL  => true
+X != 1  => true
+X < 1  !! NullPointerException
+X && TRUE  !! NullPointerException
+FALSE && X  => false
+TRUE || X  => true
+X || TRUE  !! NullPointerException
+STR_SUBSTRING("ABCDE", 1, 2)  => B
+STR_LEFT("ABC", 5)  => ABC

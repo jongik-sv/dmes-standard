@@ -1,0 +1,419 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "cell.eq.trailing-zero",
+      "kind": "cell",
+      "variable": {
+        "name": "COIL_THK",
+        "dataType": "NUMBER"
+      },
+      "cell": {
+        "op": "EQ",
+        "left": "1.1"
+      },
+      "value": {
+        "type": "NUMBER",
+        "value": "1.10"
+      },
+      "expect": {
+        "value": {
+          "type": "BOOLEAN",
+          "value": "true"
+        }
+      }
+    },
+    {
+      "id": "cell.range.upper-open-boundary",
+      "kind": "cell",
+      "variable": {
+        "name": "COIL_THK",
+        "dataType": "NUMBER"
+      },
+      "cell": {
+        "op": "<= 변수 <",
+        "left": "1.6",
+        "right": "2.5"
+      },
+      "value": {
+        "type": "NUMBER",
+        "value": "2.5"
+      },
+      "expect": {
+        "value": {
+          "type": "BOOLEAN",
+          "value": "false"
+        }
+      }
+    },
+    {
+      "id": "cell.ne.null",
+      "kind": "cell",
+      "variable": {
+        "name": "SURF_GRD",
+        "dataType": "STRING"
+      },
+      "cell": {
+        "op": "NE",
+        "left": "A"
+      },
+      "value": {
+        "type": "NULL"
+      },
+      "expect": {
+        "value": {
+          "type": "BOOLEAN",
+          "value": "false"
+        }
+      }
+    },
+    {
+      "id": "cell.is-null.null",
+      "kind": "cell",
+      "variable": {
+        "name": "SURF_GRD",
+        "dataType": "STRING"
+      },
+      "cell": {
+        "op": "IS_NULL"
+      },
+      "value": {
+        "type": "NULL"
+      },
+      "expect": {
+        "value": {
+          "type": "BOOLEAN",
+          "value": "true"
+        }
+      }
+    },
+    {
+      "id": "cell.in.single",
+      "kind": "cell",
+      "variable": {
+        "name": "SURF_GRD",
+        "dataType": "STRING"
+      },
+      "cell": {
+        "op": "IN",
+        "list": [
+          "A"
+        ]
+      },
+      "value": {
+        "type": "STRING",
+        "value": "A"
+      },
+      "expect": {
+        "value": {
+          "type": "BOOLEAN",
+          "value": "true"
+        }
+      }
+    },
+    {
+      "id": "cell.code-in.not-member",
+      "kind": "cell",
+      "variable": {
+        "name": "PROC_CD",
+        "dataType": "STRING",
+        "maruCodeId": "PROC_CD"
+      },
+      "cell": {
+        "op": "CODE_IN",
+        "left": "PLATING"
+      },
+      "value": {
+        "type": "STRING",
+        "value": "83"
+      },
+      "evalTs": "2026-07-15T00:00:00",
+      "codeSets": {
+        "PROC_CD|PLATING": [
+          "82",
+          "84"
+        ]
+      },
+      "expect": {
+        "value": {
+          "type": "BOOLEAN",
+          "value": "false"
+        }
+      }
+    },
+    {
+      "id": "cell.eq.pattern-regex",
+      "kind": "cell",
+      "variable": {
+        "name": "STL_GRD",
+        "dataType": "STRING"
+      },
+      "cell": {
+        "op": "EQ",
+        "left": "A%B"
+      },
+      "patternRegex": "A.*B",
+      "value": {
+        "type": "STRING",
+        "value": "AxxB"
+      },
+      "expect": {
+        "value": {
+          "type": "BOOLEAN",
+          "value": "true"
+        }
+      }
+    },
+    {
+      "id": "cell.contains.meta-literal",
+      "kind": "cell",
+      "variable": {
+        "name": "SPEC_NM",
+        "dataType": "STRING"
+      },
+      "cell": {
+        "op": "CONTAINS",
+        "left": "G.3"
+      },
+      "value": {
+        "type": "STRING",
+        "value": "JIS G33"
+      },
+      "expect": {
+        "value": {
+          "type": "BOOLEAN",
+          "value": "false"
+        }
+      }
+    },
+    {
+      "id": "cell.lt.date-string",
+      "kind": "cell",
+      "variable": {
+        "name": "ORD_DT",
+        "dataType": "STRING",
+        "dateString": true
+      },
+      "cell": {
+        "op": "LT",
+        "left": "20260907"
+      },
+      "value": {
+        "type": "STRING",
+        "value": "20260906"
+      },
+      "expect": {
+        "value": {
+          "type": "BOOLEAN",
+          "value": "true"
+        }
+      }
+    },
+    {
+      "id": "cell.type-mismatch",
+      "kind": "cell",
+      "variable": {
+        "name": "COIL_THK",
+        "dataType": "NUMBER"
+      },
+      "cell": {
+        "op": "GE",
+        "left": "2.5"
+      },
+      "value": {
+        "type": "STRING",
+        "value": "abc"
+      },
+      "expect": {
+        "error": "TYPE_CONVERSION"
+      }
+    },
+    {
+      "id": "expr.decimal.no-double",
+      "kind": "expr",
+      "slot": "RULE_COND_EXPR",
+      "expr": "A + B == 0.3",
+      "ast": {
+        "type": "INFIX_OPERATOR",
+        "value": "==",
+        "params": [
+          {
+            "type": "INFIX_OPERATOR",
+            "value": "+",
+            "params": [
+              {
+                "type": "VARIABLE_OR_CONSTANT",
+                "value": "A"
+              },
+              {
+                "type": "VARIABLE_OR_CONSTANT",
+                "value": "B"
+              }
+            ]
+          },
+          {
+            "type": "NUMBER_LITERAL",
+            "value": "0.3"
+          }
+        ]
+      },
+      "vars": {
+        "A": {
+          "type": "NUMBER",
+          "value": "0.1"
+        },
+        "B": {
+          "type": "NUMBER",
+          "value": "0.2"
+        }
+      },
+      "expect": {
+        "value": {
+          "type": "BOOLEAN",
+          "value": "true"
+        }
+      }
+    },
+    {
+      "id": "expr.instr.null-compare",
+      "kind": "expr",
+      "slot": "RULE_COND_EXPR",
+      "expr": "INSTR(A, \"X\") > 0",
+      "ast": {
+        "type": "INFIX_OPERATOR",
+        "value": ">",
+        "params": [
+          {
+            "type": "FUNCTION",
+            "value": "INSTR",
+            "params": [
+              {
+                "type": "VARIABLE_OR_CONSTANT",
+                "value": "A"
+              },
+              {
+                "type": "STRING_LITERAL",
+                "value": "X"
+              }
+            ]
+          },
+          {
+            "type": "NUMBER_LITERAL",
+            "value": "0"
+          }
+        ]
+      },
+      "vars": {
+        "A": {
+          "type": "NULL"
+        }
+      },
+      "expect": {
+        "error": "EVALUATION_ERROR"
+      }
+    },
+    {
+      "id": "expr.master.data-fallback",
+      "kind": "expr",
+      "slot": "RULE_COND_EXPR",
+      "expr": "MASTER(\"CUST\", \"BASE\", CUST_CD)",
+      "ast": {
+        "type": "FUNCTION",
+        "value": "MASTER",
+        "params": [
+          {
+            "type": "STRING_LITERAL",
+            "value": "CUST"
+          },
+          {
+            "type": "STRING_LITERAL",
+            "value": "BASE"
+          },
+          {
+            "type": "VARIABLE_OR_CONSTANT",
+            "value": "CUST_CD"
+          }
+        ]
+      },
+      "vars": {
+        "CUST_CD": {
+          "type": "STRING",
+          "value": "C001"
+        }
+      },
+      "evalTs": "2026-09-24T09:00:00",
+      "expect": {
+        "value": {
+          "type": "BOOLEAN",
+          "value": "false"
+        },
+        "screenFallback": true
+      }
+    },
+    {
+      "id": "expr.round.half-even",
+      "kind": "expr",
+      "slot": "RULE_RESULT_EXPR",
+      "expr": "ROUND(X, 2)",
+      "ast": {
+        "type": "FUNCTION",
+        "value": "ROUND",
+        "params": [
+          {
+            "type": "VARIABLE_OR_CONSTANT",
+            "value": "X"
+          },
+          {
+            "type": "NUMBER_LITERAL",
+            "value": "2"
+          }
+        ]
+      },
+      "vars": {
+        "X": {
+          "type": "NUMBER",
+          "value": "2.345"
+        }
+      },
+      "expect": {
+        "value": {
+          "type": "NUMBER",
+          "value": "2.34"
+        }
+      }
+    },
+    {
+      "id": "expr.constant-key",
+      "kind": "expr",
+      "slot": "RULE_COND_EXPR",
+      "expr": "V != NULL",
+      "ast": {
+        "type": "INFIX_OPERATOR",
+        "value": "!=",
+        "params": [
+          {
+            "type": "VARIABLE_OR_CONSTANT",
+            "value": "V"
+          },
+          {
+            "type": "VARIABLE_OR_CONSTANT",
+            "value": "NULL"
+          }
+        ]
+      },
+      "vars": {
+        "V": {
+          "type": "NUMBER",
+          "value": "1"
+        },
+        "NULL": {
+          "type": "NUMBER",
+          "value": "1"
+        }
+      },
+      "expect": {
+        "error": "CONSTANT_KEY"
+      }
+    }
+  ]
+}
