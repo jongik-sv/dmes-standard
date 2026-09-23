@@ -72,7 +72,7 @@ Build 는 아래 커밋 단위 순서대로 커밋한다. 각 커밋은 스스�
 
 | 구분 | 경로 | 내용 |
 |---|---|---|
-| 생성 | `LIB/dma/naming/package-info.java` | dma 그룹 공유 명명 규칙. Spring·JPA·DB import 금지 |
+| 생성 | `LIB/dma/naming/package-info.java` | dma 그룹 공유 명명 규칙. Spring·JPA·DB import 금지. screenId 가 아닌 그룹 공유 패키지라 ArchUnit·계약 검사기가 거부하면 `com.dongkuk.dmes.mdm.common.naming` 으로 옮기고 설계 이탈로 기록한다 |
 | 생성 | `LIB/dma/naming/NamingRules.java` | 상수·정규식·정규화 유틸(§6.3) |
 | 생성 | `LIB/dma/naming/TermEntry.java` (record) | `(Long termId, String termName, int senseNo, String definition, String context, String engName, String engAbbr, String synonymsJson, String aliasesJson)` |
 | 생성 | `LIB/dma/naming/DomainEntry.java` (record) | `(Long domainId, String domainName, String stdName)` |
@@ -214,7 +214,7 @@ MSSQL 수동 게이트(`:api:mssqlMigrationTest`)는 마이그레이션을 바�
 
 ### 3.3 서버 테스트 (`APIT/dma/`, 커밋 B)
 
-공통: `@SpringBootTest(MOCK)` + `@ActiveProfiles("local")` + `@TempDir` SQLite + `@Import(DmaTestSupport.Config.class)`. 각 테스트 전 `MutableCurrentUser` 를 설정하고, 테스트 데이터는 리포지토리 save 로 넣는다(Flyway 운영 시드 금지). ThreadLocal 정리(`UserContextHolder.clear()`, `AuditHolder.remove()`)는 `AbstractVersionStateScenarioTest.java:100-119` 선례를 따른다. 예외 단언은 `BusinessException` 의 message 가 해당 `MdmErrorCode.defaultMessage()` 로 **시작**하는지로 한다.
+두 서비스 테스트(`ColumnMngServiceSqliteTest`·`TermRegPopServiceSqliteTest`) 공통: `@SpringBootTest(MOCK)` + `@ActiveProfiles("local")` + `@TempDir` SQLite + `@Import(DmaTestSupport.Config.class)`. **`DmaOasisHttpTest` 는 이 설정을 가져오지 않는다.** 가짜 `MdmCurrentUser` 없이 `X-Authenticated-Role` 헤더 → `ClientKeyFilter` → `CactusMdmCurrentUser` 실제 경로로 역할을 주어야 P1·P6 가 서버 권한 검사의 증거가 된다(데이터 준비는 `JdbcTemplate` 또는 리포지토리 빈으로 한다). 각 테스트 전 `MutableCurrentUser` 를 설정하고, 테스트 데이터는 리포지토리 save 로 넣는다(Flyway 운영 시드 금지). ThreadLocal 정리(`UserContextHolder.clear()`, `AuditHolder.remove()`)는 `AbstractVersionStateScenarioTest.java:100-119` 선례를 따른다. 예외 단언은 `BusinessException` 의 message 가 해당 `MdmErrorCode.defaultMessage()` 로 **시작**하는지로 한다.
 
 **`ColumnMngServiceSqliteTest`**
 
@@ -227,6 +227,7 @@ MSSQL 수동 게이트(`:api:mssqlMigrationTest`)는 마이그레이션을 바�
 | C5 | physName `RMTL_COIL_THK_***` 로 save(나머지 정상) | **MDM016**(MDM020 아님) |
 | C6 | physName 은 `RMTL_COIL_THK_DEV` 지만 논리명 `원재료 코일 두께 편차`(편차 미등록) | MDM016(서버 재분해) |
 | C7 | terms 에 없는 termId | MDM016 |
+| C7b | 논리명 `원재료 코일 두께 ***`(역분해 결과를 그대로 적용한 모양), 물리명 `RMTL_COIL_THK_DEV`, terms 비움 | MDM016(`*` 는 분해 구분자라 재분해만으로는 잡히지 않는다 → ④ 조건) |
 | C8 | terms 그리드 비어 있음 | 서버가 재분해 기본 선택으로 TERM_IDS 를 채워 저장 |
 | C9 | 다른 컬럼이 이미 ERP·`MATNR` 을 가진 상태에서 새 컬럼에 ERP·`MATNR` | **MDM017**, 새 컬럼도 저장되지 않음(롤백 대신 저장 전에 검사하므로 행 0) |
 | C10 | 한 요청 안에 ERP·`MATNR` 두 번 | MDM017 |
@@ -390,7 +391,7 @@ sqlite3 $W/src/backend/data/mdm.db "SELECT COUNT(*) FROM TB_MDM_TERM; SELECT COU
 | I9 | 도메인 추천 = 물리명 `_` 토큰 목록의 **꼬리**와 도메인 표준명 토큰 목록이 같은 것 중 가장 긴 것. 동률은 domainId 오름차순. `***` 는 어떤 토큰과도 같지 않다. 없으면 null(D4) | D1~D5, C23 | 머리 일치, 부분 문자열 일치, `***` 무시 |
 | I10 | 표시명 제안: 긴 = 논리명(24자 초과면 빈 값), 중간·짧은 = 논리명 → 공백 제거 → 앞 단어부터 하나씩 떼고 공백 제거 순으로 12·6자 이하 첫 후보, 없으면 빈 값. 길이는 code point | L1~L4 | 한도 뒤바꿈, 뒤 단어부터 뗌 |
 | I11 | 표시 폴백은 짧은 → 중간 → 긴 → 논리명. 공백만 있는 값은 빈 값 | `labels.test.ts`, E4 | 짧은이 비면 논리명으로 바로 감 |
-| I12 | 저장은 `***` 가 남으면 **MDM016** 으로 거부한다: ① 물리명에 `*` 포함 ② 서버가 논리명을 다시 분해해 UNKNOWN/NO_ABBR 이 있음 ③ terms 의 termId 가 없음. 이 검사는 역할·필수값 검사 다음, 형식·길이 검사보다 **먼저**다 | C5·C6·C7, P2 | 검사 삭제(→ MDM020 이나 성공이 되어 단언 실패), ② 만 삭제(C6 실패) |
+| I12 | 저장은 `***` 가 남으면 **MDM016** 으로 거부한다: ① 물리명에 `*` 포함 ② 서버가 논리명을 다시 분해해 UNKNOWN/NO_ABBR 이 있음 ③ terms 의 termId 가 없음 ④ 논리명에 `*` 포함. 이 검사는 역할·필수값 검사 다음, 형식·길이 검사보다 **먼저**다 | C5·C6·C7·C7b, P2 | 검사 삭제(→ MDM020 이나 성공이 되어 단언 실패), ② 만 삭제(C6 실패), ④ 만 삭제(C7b 가 저장 성공) |
 | I13 | 한 시스템 안 한 필드명은 한 컬럼에만 붙는다: 다른 컬럼과 충돌하면, 또는 요청 안에서 겹치면 **MDM017**. 같은 컬럼·같은 시스템의 다른 이름은 허용. 비교는 트림 뒤 정확 일치(대소문자 구분) | C9~C13, E5 | 자기 컬럼 제외 누락(C13), 대소문자 무시(C12), 요청 내 중복 미검사(C10) |
 | I14 | 쓰기(`columnMng.save`, `termRegPop.reg`)는 `MdmCurrentUser.roleIds()` 에 `MDM_STD_ADMIN` 이 있어야 한다. SYSADMIN·STEWARD 만으로는 **MDM015**. 이 검사는 서비스 메서드의 **첫 문장**이다 | C3·C4, R2, P1·P6 | 검사 삭제, SYSADMIN 허용 추가(C4), 검증 뒤로 이동(C3 의 "행 0" 은 같아도 P1 메시지가 MDM020 등으로 바뀜) |
 | I15 | 읽기 액션(`search`·`view`·`compare`, 팝업 `search`)에는 서버 역할 검사가 없다 | P5 | 읽기에 가드 추가 |
@@ -430,7 +431,7 @@ sqlite3 $W/src/backend/data/mdm.db "SELECT COUNT(*) FROM TB_MDM_TERM; SELECT COU
 - `domains`: `{domainId, domainName, stdName, label: "<id> <domainName> (<stdName>)"}`, domainName 오름차순. `systems`: `JdbcTemplate` 로 `SELECT SYSTEM_CODE, SYSTEM_NAME FROM TB_MDM_SYSTEM WHERE SELF_YN = 'N' ORDER BY SYSTEM_CODE` → `{systemCode, systemName}`.
 - `view`: 없는 columnId 는 MDM020("컬럼을 찾을 수 없습니다"). `column` 은 저장 요청 params 와 같은 키(required 는 Boolean). `systems` 는 systemCode·physName 오름차순. `terms`: `{termId, termName, senseNo, engAbbr, missing}`.
 - `compare`: input 트림 후 비면 MDM020. FORWARD 는 `ColumnNameComposer.forward`, REVERSE 는 `reverse`. `domains` 는 `DomainSuggester` 결과 `{domainId, domainName, stdName, matchLength}`. `duplicates` 는 `{columnId, columnName, physName, usageNote, domainId, domainName, matchedBy, systemCode}`: FORWARD 는 COLUMN_NAME = logicalName(`COLUMN_NAME`), placeholder 가 없을 때 PHYS_NAME = physName(`PHYS_NAME`). REVERSE 는 PHYS_NAME = 정규화 입력(`PHYS_NAME`)과 매핑 PHYS_NAME ∈ {트림 입력, 대문자 입력}(`SYSTEM_FIELD`, systemCode 포함). 같은 컬럼이 여러 근거로 잡히면 행을 나눈다.
-- 서비스 필드: `MdmColumnRepository`, `MdmColumnSystemRepository`, `MdmDomainRepository`, `MdmTermRepository`, `JdbcTemplate`, `MdmStdAdminGuard`, `List<MaruIdNamespace>`(비어 있을 수 있음, `ObjectProvider` 또는 `List` 주입 — 빈이 0개여도 기동해야 한다).
+- 서비스 필드: `MdmColumnRepository`, `MdmColumnSystemRepository`, `MdmDomainRepository`, `MdmTermRepository`, `JdbcTemplate`, `MdmStdAdminGuard`, `ObjectProvider<MaruIdNamespace>`(`orderedStream()` 으로 순회. 현재 구현 빈이 0개라 `List` 직접 주입보다 이쪽으로 고정한다. Build 는 첫 부팅에서 기동을 확인한다).
 
 ### 6.2 `termRegPop` 서비스 계약 (`POST /api/mdm/oasis/termRegPop/{action}`)
 
@@ -521,7 +522,7 @@ sqlite3 $W/src/backend/data/mdm.db "SELECT COUNT(*) FROM TB_MDM_TERM; SELECT COU
 
 1. `guard.requireStdAdmin()` → MDM015.
 2. 필수: `columnName`(정규화 후), `physName`(트림 후), `domainId` 가 비면 MDM020.
-3. 자리 표시자(I12): `physName.contains("*")`, 또는 `forward(columnName)` 에 UNKNOWN/NO_ABBR, 또는 terms 그리드의 termId 중 DB 에 없는 것 → MDM016. terms 그리드가 null 이거나 비면 재분해 결과의 선택 용어 ID 를 쓴다.
+3. 자리 표시자(I12): `physName.contains("*")`, 또는 `columnName.contains("*")`, 또는 `forward(columnName)` 에 UNKNOWN/NO_ABBR, 또는 terms 그리드의 termId 중 DB 에 없는 것 → MDM016. terms 그리드가 null 이거나 비면 재분해 결과의 선택 용어 ID 를 쓴다.
 4. 형식·길이·존재(MDM020): `STD_PHYS_NAME`, 길이(I20), 도메인 존재, `refKind` ∈ {null, `MASTER`}, `MASTER` 면 `refTarget` 필수, `refKind` 가 비면 `refTarget`·`refCateId` 도 비어야 함, `MaruIdNamespace`(kind `MASTER_DATA`) 구현체가 있으면 `contains(refTarget)` 확인(없으면 생략).
 5. 컬럼 유일성: `findByColumnName`·`findByPhysName` 결과가 자기(columnId) 아닌 행이면 MDM018.
 6. 매핑 행: 각 행 트림, systemCode·physName 모두 비면 버림, 한쪽만 비면 MDM020, 시스템 코드가 `SELF_YN='N'` 목록에 없으면 MDM020, 길이 초과 MDM020. 요청 안 (systemCode, physName) 중복 → MDM017. 행마다 `findBySystemCodeAndPhysName` 에서 columnId ≠ 자기인 행 → MDM017(모두 모아 한 번에).
@@ -569,12 +570,13 @@ log.info("[DataInitializer] TSK-04-04 MDM 컬럼 사전 시드 — OBJECT 2 + �
 - `<MdmPageLayout group="dma" screenId="columnMng" title="컬럼 사전" buttons={[조회(action "search", primary), 신규(action "save", light), 저장(action "save", save)]}>`. 페이지 안 권한 판정은 `const rbac = useUserButtonRbac(true)`.
 - `SearchArea`: 검색어 `Input`(placeholder `논리명·표준 물리명·시스템별 실제 필드명`), 도메인 `Select`(전체 + `domains.label`). 진입 시 자동 조회 1회.
 - 본문(`ContentBody`) 위쪽: 컬럼 목록 `AgDataGrid`(읽기 전용, 행 클릭 → `view`). 열: 논리명, 표준 물리명, 표시명(긴/중간/짧은: `resolveLabels` 결과를 `" / "` 로 연결), 도메인(`domainName (stdName)`), 필수, 구성 용어, 시스템 필드. 0건이면 빈 상태 문구(`data-testid="column-list-empty"`).
-- 아래 왼쪽 `ContentPanel` "컬럼명 자동 생성": 방향 `Select`(`FORWARD` 한국어 → 물리명 / `REVERSE` 물리명 → 논리명), 입력, [분해](`disabled={!canDoButton(rbac, "columnMng", "compare")}`). 토큰 표(순서·토큰·매칭·약어·처리). 처리 칸: MATCHED `등록됨`, SYNONYM `동의어 → <표준어>`, AMBIGUOUS 후보 `Select`(바꾸면 `replaceToken`), NO_ABBR `약어 없음 — 용어 관리에서 약어 등록`, UNKNOWN 은 `***` 버튼(클릭 → 팝업). 물리명 미리보기, 추천 도메인 `Select`(추천이 있으면 기본 선택), 중복 검사(없으면 `신규` 배지, 있으면 행마다 [열기] → `view`). [상세에 적용]: 폼에 논리명·물리명·표시명 3종(FORWARD 만)·도메인(선택값이 있을 때)·terms(토큰 선택 용어 ID, 해결 안 된 자리는 null) 를 채운다.
+- 아래 왼쪽 `ContentPanel` "컬럼명 자동 생성": 방향 `Select`(`FORWARD` 한국어 → 물리명 / `REVERSE` 물리명 → 논리명), 입력, [분해](`disabled={!canDoButton(rbac, "columnMng", "compare")}`). 토큰 표(순서·토큰·매칭·약어·처리). 처리 칸: MATCHED `등록됨`, SYNONYM `동의어 → <표준어>`, AMBIGUOUS 후보 `Select`(바꾸면 `replaceToken`), NO_ABBR `약어 없음 — 용어 관리에서 약어 등록`, UNKNOWN 은 `***` 버튼(클릭 → 팝업). 물리명 미리보기, 추천 도메인 `Select`(추천이 있으면 기본 선택), 중복 검사(없으면 `신규` 배지, 있으면 행마다 [열기] → `view`). [상세에 적용]: 폼에 논리명·물리명·표시명 3종(FORWARD 만)·도메인(선택값이 있을 때)·terms(토큰 선택 용어 ID, 해결 안 된 자리는 null) 를 채운다. REVERSE 결과의 논리명에 `***` 가 있어도 그대로 채우고, 저장 선검사와 서버(I12 ④)가 막는다.
+- **팝업에서 용어를 고른 뒤(새로 등록했든 기존 유사어를 골랐든)** `replaceToken` 으로 그 자리를 바꾸고, 바뀐 토큰으로 만든 `composeLogicalName(tokens)` 를 입력으로 `compare FORWARD` 를 **다시 호출**한다. 그래야 추천 도메인·중복 검사·표시명 제안이 새 물리명(`RMTL_COIL_THK_DEV`) 기준으로 다시 계산된다(E3 이 이것을 본다). 다시 받은 토큰에서 사용자가 이미 고른 동음이의어 선택은 `seq` 와 `surface` 가 같을 때 되살린다. 입력칸 값도 이 논리명으로 바꾼다.
 - 아래 오른쪽 `ContentPanel` "컬럼 상세": 논리명*, 표준 물리명*(입력 시 대문자화. terms 가 모두 해결됐는데 약어 조합과 다르면 경고 문구만, 저장은 막지 않음), 표시명 긴/중간/짧은(`maxLength` 24/12/6), 도메인*, 필수(Y/N), 기본값, 참조 종류(없음/MASTER), 참조 대상, 참조 카테고리, 설명, 활용처 메모, 라벨 파생 미리보기(`resolveLabels`).
 - 맨 아래 `GridPanel`(`showAddButton showDeleteButton`) + 편집 `AgDataGrid`: 시스템(`systems` 선택 편집기), 실제 필드명, 변환 규칙, note. 행 추가 기본값: 시스템 빈 값, 필드명 = 표준 물리명이 있으면 `ZZ_` + 표준 물리명.
-- [저장]: 화면 선검사 — 물리명에 `***` 또는 terms 에 null → 오류 모달 `미등록 용어(***)가 남아 있어 저장할 수 없습니다`(서버 문구와 같게), 필수 누락 → 오류 모달. 통과하면 `save`(params + `grids.systems` + `grids.terms` 항상 포함), 성공 시 `useMessage().showMessage({ message: "저장했습니다", toast: true })`, 목록 재조회, 저장한 columnId 재선택. 실패 시 `ErrorModal` 에 `Error.message`(= `meta.message`).
+- [저장]: 화면 선검사 — 물리명이나 논리명에 `***`, 또는 terms 에 null → 오류 모달 `미등록 용어(***)가 남아 있어 저장할 수 없습니다`(서버 문구와 같게), 필수 누락 → 오류 모달. 통과하면 `save`(params + `grids.systems` + `grids.terms` 항상 포함), 성공 시 `useMessage().showMessage({ message: "저장했습니다", toast: true })`, 목록 재조회, 저장한 columnId 재선택. 실패 시 `ErrorModal` 에 `Error.message`(= `meta.message`).
 - [신규]: 폼·그리드·자동 생성 패널 초기화.
-- `tokens.ts`: `composePhysName(tokens)`, `composeLogicalName(tokens)`, `hasPlaceholder(tokens)`, `replaceToken(tokens, seq, term)`(토큰 status 를 MATCHED 로, abbr 를 용어 약어로). FE 는 새 분해를 하지 않고 서버 토큰을 고치기만 한다.
+- `tokens.ts`: `composePhysName(tokens)`, `composeLogicalName(tokens)`, `hasPlaceholder(tokens)`, `replaceToken(tokens, seq, term)`(토큰 status 를 MATCHED 로, abbr 를 용어 약어로). FE 는 분해 규칙을 따로 구현하지 않는다. 토큰을 고친 뒤의 재계산은 위의 `compare` 재호출로 서버에 맡긴다.
 
 ### 6.17 `api.ts`
 
