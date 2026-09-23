@@ -45,7 +45,7 @@ class CommonContractTest {
             assertTrue(code.defaultMessage() != null && !code.defaultMessage().isBlank(), code + " 기본 메시지");
             assertTrue(Set.of(400, 403, 409).contains(code.httpStatus()), code + " 의미 HTTP 상태");
         }
-        assertEquals(14, MdmErrorCode.values().length);
+        assertEquals(15, MdmErrorCode.values().length);
     }
 
     @Test
@@ -58,6 +58,13 @@ class CommonContractTest {
         assertEquals(409, MdmErrorCode.CONFIRM_WARNINGS_NOT_ACKNOWLEDGED.httpStatus());
         assertEquals(com.dongkuk.dmes.cactus.common.ErrorCode.BUSINESS_ERROR,
                 MdmErrorCode.CONFIRM_WARNINGS_NOT_ACKNOWLEDGED.transport());
+    }
+
+    @Test
+    void TSK_04_03_이_더한_도메인_저장_거부_코드() {
+        assertEquals("MDM015", MdmErrorCode.DOMAIN_SAVE_REJECTED.code());
+        assertEquals(400, MdmErrorCode.DOMAIN_SAVE_REJECTED.httpStatus());
+        assertEquals(com.dongkuk.dmes.cactus.common.ErrorCode.BUSINESS_ERROR, MdmErrorCode.DOMAIN_SAVE_REJECTED.transport());
     }
 
     @Test

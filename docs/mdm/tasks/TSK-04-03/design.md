@@ -543,6 +543,24 @@ Build·Verify 의 변이 검증이 이 목록을 순회한다. 오른쪽은 변�
 
 ---
 
+## 9. Build 기록
+
+### 9.1 B0 스파이크 실측(2026-09-24, Build 첫 단계)
+
+실제 `services/dma/domainMng.bpmn` + 골격 `DomainMngService` 를 `RANDOM_PORT` SQLite 로 띄우고 신뢰 헤더를 붙여 `POST /oasis/domainMng/{action}` 을 보냈다(임시 테스트, 측정 뒤 삭제). 응답 원문:
+
+| # | 요청 | 응답(원문) | 결론 |
+|---|---|---|---|
+| a | `view` — 서비스가 `new BusinessException(BUSINESS_ERROR, "B0 view 원문 메시지 id=999")` 를 던짐 | `{"meta":{"success":false,"code":"S001","message":"B0 view 원문 메시지 id=999"}}` | **메시지는 감싸지지 않고 원문 그대로** `meta.message` 에 온다. `meta.code` 는 `S001` 고정, `errors[]` 는 없다(F5 확인). |
+| b | `validate` + grids `testCases`(2행)·`examples`(1행), params `parentDomainId:7` | `{"data":{"result":{"parent":7,"testCases":2,"examples":1}},"meta":{"success":true,"code":"0000"}}` | grids 행이 **메서드 파라미터 이름으로 바인딩**된다(mdm lib 의 `-parameters` 정상). 결과는 `data.result.{키}`. |
+| c | `validate` 에 grids 를 빼고 보냄 | `success:false`, `"No suitable method … Key [testCases] is not visible in the binding context … Parameter [testCases] is not marked optional."` | grid 가 없으면 바인딩 실패다. |
+| c' | BPMN serviceTask 에 `camunda:property optional="testCases,examples"` | `"[optional] is an unavailable attribute. Element [saveTask] … Executor [JavaServiceTaskExecutable]"` | `optional` 속성은 이 실행기에서 **쓸 수 없다**(BPMN 에서 뺐다). → **화면은 grids 를 빈 행 배열이라도 늘 보낸다**(`api.ts` 가 보장, `api.test.ts` 로 고정). |
+| d | `save` — `saveAndFlush` 로 1행을 쓰고 나서 `BusinessException` 을 던짐 | `{"meta":{"success":false,"code":"S001","message":"B0 save 원문 메시지 R08 id=1"}}`, 호출 뒤 `SELECT COUNT(*) FROM TB_MDM_DOMAIN` = **0** | 쓰고 난 뒤 던지면 action 전체가 **실제로 되돌려진다**(F3 전제 확인). |
+| e | params `parentDomainId:""` | `"java.lang.NumberFormatException: For input string: \"\""` | Gson 은 `Long` 의 빈 문자열을 null 로 바꾸지 못한다. |
+| e' | params `parentDomainId:null` | `{"meta":{"code":"S999","message":"The type cannot be determined because object is null…"}}` | **params 에 null 값이 있으면 요청 전체가 실패**한다. → 화면 `api.ts` 는 값이 null·빈 문자열인 params 키를 **빼고** 보낸다(`api.test.ts` 로 고정). |
+
+**§3.2 끝 "거부의 전달" 확정**: 메시지가 원문으로 전달되므로, `save` 거부는 `DomainRejections.reject(issues)`(`dma/domainMng/service` 안의 작은 헬퍼)가 `new BusinessException(DOMAIN_SAVE_REJECTED.transport(), 요약 메시지, details)` 를 직접 만들어 던진다. 요약 메시지는 `"도메인 저장 거부: R06 …; R08 …"`(ERROR 이슈 코드·메시지·`ITEM_KEY` 를 `; ` 로 이음), details 첫 행은 `ErrorDetail.of("MDM015", 기본 메시지)`, 뒤 행은 이슈마다 `ErrorDetail.ofGrid` — `MdmErrors.of` 와 같은 모양이지만 메시지만 요약으로 바꾼다. 공유 파일 `MdmErrors` 는 고치지 않는다(D11). 동시 수정은 `MdmErrors.of(ROW_VERSION_CONFLICT)` 그대로(메시지 = "다른 사용자가 수정했습니다. 다시 불러오세요"). 화면은 `meta.message` 를 그대로 오류 모달에 보인다. E5 는 "다른 사용자가 수정" 포함까지 단언한다.
+
 ## 담당자 확인 필요 결정
 
 무인 실행이라 근거가 강한 쪽을 골랐다. 근거 강약은 spec 본문 > 승인된 선행 산출물 > 리포 기존 관례 > 미승인 선행 산출물 순이다.
