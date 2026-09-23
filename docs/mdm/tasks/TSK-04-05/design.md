@@ -492,7 +492,7 @@ Build·Verify 의 변이 검증은 이 목록을 순회한다. 각 항목 끝의
 
 §2 의 파일 10개를 합치거나 나누지 않았다. 설계가 모양을 정하지 않은 API 는 아래처럼 정했다.
 
-- `SapCsv`: `parse(String)`(원시 레코드), `parseTable(sourceName, text)`, `readTable(Path, Charset)`, `toBytes(List<List<String>>)` 과 중첩 record `Table`·`Row`(`recordNumber` 는 헤더를 1로 센 레코드 번호). 입력을 지정한 문자셋으로 디코드하지 못하면(`CharacterCodingException`) `SapDictInputException` 으로 바꾼다. 즉 `--charset` 을 잘못 주면 종료 코드 1이다.
+- `SapCsv`: `parse(String)`(원시 레코드), `parseTable(sourceName, text)`, `readTable(Path, Charset)`, `toBytes(List<List<String>>)` 과 중첩 record `Table`·`Row`(`recordNumber` 는 헤더를 1로 센 레코드 번호). 입력을 지정한 문자셋으로 디코드하지 못하면(`CharacterCodingException`) `SapDictInputException` 으로 바꾼다. 따라서 MS949 파일을 기본값(UTF-8)으로 읽는 경우처럼 문자셋이 맞지 않으면 종료 코드 1이다. 존재하지 않는 문자셋 이름은 인자 오류이며 종료 코드 2다.
 - `SapTypeMapping.map(datatype, leng, decimals)` 는 `Optional<SapTypeMapping.ValueDefinition>` 을 돌려준다. `ValueDefinition` 은 중첩 record 이고, `domainKey()` 가 §4.2 형식의 키를 만든다.
 - `SapDictCandidateExtractor.extract` 는 static 이다.
 - `SapDictCandidateWriter` 는 둘로 나눴다. `render(candidates)` 는 파일 이름과 바이트를 모두 만들고, `write(files, outDir)` 는 쓰기만 한다. I4 의 "모든 계산을 끝낸 뒤에만 쓰기"를 호출 순서로 드러내려는 것이다.
