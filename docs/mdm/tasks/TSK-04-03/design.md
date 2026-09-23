@@ -630,6 +630,18 @@ Build·Verify 의 변이 검증이 이 목록을 순회한다. 오른쪽은 변�
 - I11b(트랜잭션 밖 직접 커넥션)는 정적 가드(ArchUnit `DataSource.getConnection` 호출 금지)만 잡는다. B3 는 이 변이를 잡지 않는다 — SQLite 풀에서 커넥션을 여는 것만으로는 실패하지 않는다.
 - I16b(validate 에서 쓰기)는 보강 전 코드로는 돌리지 않았다 — `assertRejected` 가 validate 뒤에 행 수를 재므로 놓친다고 코드로 판단해 먼저 보강했다. 도우미가 validate 전에 행 수를 재고 validate 직후에도 비교하게 늘린 뒤 RED 를 확인했다(`R02_…`·`R04_…`·`R05_…`·`R09_…` 등 거부 테스트 전부).
 
+### 9.4 게이트 실행 결과(Build 완료 시점, 명령은 §4.0 글자 그대로)
+
+| 게이트 | 결과 |
+|---|---|
+| 백엔드 `testAll` | **1957 tests, 실패 0·오류 0**(기준선 1853 + 신규 104: lib 63·api 41) |
+| 프런트 `pnpm build:libs` | 성공 |
+| m-mdm `vitest run` | 295 tests(기준선 278 + 신규 17). 신규·기존 기능 테스트는 모두 통과. **`tests/evalex-perf.test.ts` NFR-1 시간 한도(1만 레코드 100 ms) 1~4건 실패** — 호스트 load average 35~51(다른 워크트리 빌드·OrbStack) 상태에서 중앙값 177~843 ms. 이 파일과 `src/evalex/**` 는 설계 커밋(8701833) 이후 바뀌지 않았고, 그 파일만 단독으로 돌려도 같은 실패가 난다 → 환경 부하로 판단(보고에 올린다) |
+| m-mdm `lint`(tsc --noEmit) | 통과 |
+| `oasis-contract-check --root .` | ERROR 0(기본 대상에 mdm 없음, X14). `--module mdm`: ERROR 0 · INFO 1(6-D-2 Map 반환 — 화면 `api.ts` 가 `data.result` 를 펼친다) |
+| `:api:mssqlMigrationTest`(docker/OrbStack) | 40 tests 통과(신규 `DomainImpactQueriesMssqlTest` 2 포함) |
+| E2E 세 스펙(자기 포트 18113·18206·15113, workers 1) | `mdm-domainMng` 3 + `mdm-shell-rbac-smoke` 4 + `mdm-sample-smoke` 1 = **8 passed** |
+
 ## 담당자 확인 필요 결정
 
 무인 실행이라 근거가 강한 쪽을 골랐다. 근거 강약은 spec 본문 > 승인된 선행 산출물 > 리포 기존 관례 > 미승인 선행 산출물 순이다.
