@@ -2,7 +2,7 @@
   "tsk": "TSK-03-02",
   "order": "ea440494-a2ed-42c5-9842-4c1dce2f9972",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "refactor",
+  "phase": "reported",
   "baseline": {
     "failures": 0,
     "tests": 524,
@@ -21,8 +21,8 @@
   "pred_note": "선행 mdm/TSK-03-01: reached=true·head_sha 없음 → 행 G 갈래 2, pred-reflected.sh REFLECTED → origin/dev 기점 스택 없이 진행",
   "planned_removal": "TSK-03-01 D2 ContractOnlyPhaseTest 5건 계획 삭제는 이 Task 몫(팀장 지시 2026-09-24)",
   "last": {
-    "phase": "verify",
-    "event": "verify.ok"
+    "phase": "done",
+    "event": "done.ok"
   },
   "model": "sonnet",
   "design_gate": {
