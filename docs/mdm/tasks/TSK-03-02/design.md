@@ -944,9 +944,9 @@ Build Phase(2026-09-24)에서 설계와 달라진 점과 그 이유다. 계약 �
 
 **변이 검증 (전체 스위트 기준, Verify 재시도에서 직접 재확인)**
 
-방법: 규칙마다 §9 변이 표에서 Build 가 가장 적은 테스트만 빨강을 낸 변이(가장 약하게 덮인 것)를 골라 원문 한 곳을 정확히 한 번 바꾸고, `rm -rf build/test-results/test` 뒤 `gradlew test --no-daemon`(`--tests` 필터 없음)을 돌려 XML 전체(380건)에서 실패 사례를 모은 뒤 `git checkout --` 로 되돌리고 `git diff --stat -- src` 가 비는지 확인했다. I24 는 Build 에서 유일하게 살아남았던 변이(I24a)라 대표 변이(I24b)에 더해 I24a 도 함께 재확인해 총 **37개 변이**를 돌렸다. I35 는 설계상 컴파일 실패를 빨강으로 친다. I33 은 Build 원안(`Class<?>` 필드에 `.class` 리터럴 대입)이 ArchUnit 의 클래스 리터럴 의존 탐지 여부가 불확실해, 필드 타입 자체를 `DefaultCodeResolver` 로 선언하는 더 확실한 동형 변이로 바꿔 넣었다(같은 규칙·같은 대상 테스트를 겨냥한다).
+방법: 규칙마다 §9 변이 표에서 Build 가 가장 적은 테스트만 빨강을 낸 변이(가장 약하게 덮인 것)를 골라 원문 한 곳을 정확히 한 번 바꾸고, `rm -rf build/test-results/test` 뒤 `gradlew test --no-daemon`(`--tests` 필터 없음)을 돌려 XML 전체(380건)에서 실패 사례를 모은 뒤 `git checkout --` 로 되돌리고 `git diff --stat -- src` 가 비는지 확인했다. I24 는 Build 에서 유일하게 살아남았던 변이(I24a)라 대표 변이(I24b)에 더해 I24a 도 함께 재확인해 총 **37개 변이**를 돌렸다. I35 는 설계상 컴파일 실패를 빨강으로 친다(`ExpressionEvaluatorTest.java:24,33,42` 의 `cannot find symbol` 로 실측). I33 은 대표 변이로 필드 타입을 `DefaultCodeResolver` 로 선언하는 동형 변이를 썼고, Build 원안(`Class<?>` 필드에 `.class` 리터럴 대입)도 별도로 재실행해 두 방식 모두 같은 테스트(`EnginePackageDependencyTest.domain_은_rule_과_code_를_보지_않는다()`)에서 빨강임을 확인했다(§9 의 Build 기록 1/5 와 일치, 아래 I33orig 행).
 
-- **결과: 37/37 변이 모두 빨강**(36/36 규칙 커버 + I24a 재확인). 생존한 변이 없음.
+- **결과: 38/38 변이 모두 빨강**(37개 대표 변이[36/36 규칙 + I24a 재확인] + I33 원안 재확인 1개). 생존한 변이 없음.
 - 덮지 못한 것(자동 테스트 밖, §5 의 기존 서술과 같음): ① 1,000 스레드 테스트(`MdmEvaluatorTest.동시_평가_1000_스레드_결과가_단일_스레드와_같다`)는 값 섞임을 확률적으로만 잡는다 — I10a 재확인에서는 결정적 짝 `평가_뒤_캐시_원본에는_값이_남지_않는다` 와 1,000 스레드 테스트가 함께 빨강이었다. ② 영구 테스트·계약 파일이 바이트 동일인지는 자동 테스트가 없다 — 아래 "보호 파일 바이트 동일 확인" 으로 본다.
 
 | 변이 ID | 규칙 | 넣은 변이 | 엔진 전체 스위트(380건) 결과 | 대표 테스트(빨강 사례) |
@@ -984,7 +984,8 @@ Build Phase(2026-09-24)에서 설계와 달라진 점과 그 이유다. 계약 �
 | I30a | I30 | 유효 코드 참조를 가장 먼 값으로 | 빨강 1 | `EffectiveExpressionsTest.[CodeRef[…A], CodeRef[…B]] → CodeRef[…B]` |
 | I31 | I31 | ExpressionChecker.Problem 을 record 로 | 빨강 1 | `EngineContractSchemaTest.expr_rule_패키지의_record_enum_은_스키마_대응이_있거나_Java_전용_목록에_있다()` |
 | I32 | I32 | MdmExpressionConfig 에 static final 아닌 필드 | 빨강 1 | `ContractTypeShapeTest.상수_홀더는_final_이고_생성자가_private_이며_필드가_static_final_이다()` |
-| I33 | I33 | DefaultDomainValidator 에 DefaultCodeResolver 타입 필드를 둔다(Build 원안을 더 확실한 동형 변이로 대체) | 빨강 1 | `EnginePackageDependencyTest.domain_은_rule_과_code_를_보지_않는다()` |
+| I33 | I33 | DefaultDomainValidator 에 DefaultCodeResolver 타입 필드를 둔다(대표 변이) | 빨강 1 | `EnginePackageDependencyTest.domain_은_rule_과_code_를_보지_않는다()` |
+| I33orig | I33(원안 재확인) | DefaultDomainValidator 가 DefaultCodeResolver 를 본다(Build 원안: `Class<?>` 필드에 `.class` 리터럴 대입) | 빨강 1 | `EnginePackageDependencyTest.domain_은_rule_과_code_를_보지_않는다()` |
 | I34 | I34 | main 이 허용 목록 밖(java.io)에 의존 | 빨강 1 | `MaruMdmEngineArchitectureTest.engine_은_EvalEx_와_java_표준_외에_의존하지_않는다()` |
 | I35 | I35 | 스캐폴드 evaluate → evaluateExpression(이름 변경) | 컴파일 실패(설계상 빨강으로 인정) | `ExpressionEvaluatorTest` 컴파일 실패 |
 | I36b | I36 | nullable=false 검사 삭제 | 빨강 1 | `BusinessFunctionTest.nullable_false_인자에_NULL_이면_부르지_않고_평가_오류다()` |
