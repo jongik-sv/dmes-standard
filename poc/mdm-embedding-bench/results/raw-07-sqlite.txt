@@ -1,0 +1,10 @@
+env.java	21.0.12.1 OpenJDK 64-Bit Server VM
+env.os	Mac OS X aarch64
+env.cpus	10
+env.ort	1.30.0
+sqlite.version	3.45.3
+sqlite.insert10k.ms	91.7
+sqlite.selectAllAndDecode10k.ms	23.1
+sqlite.singleUpdateCommit.ms	p50=0.02 p95=0.03 max=0.31 n=100
+sqlite.roundTripBitExact	true
+sqlite.fileMB	44.0

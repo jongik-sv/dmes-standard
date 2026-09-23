@@ -1,0 +1,49 @@
+batch.params	threads=4 batch=1 limit=1000 sortByLength=true
+batch.total.s	33.6
+batch.throughput.termsPerSec	29.8
+batch.perTerm.ms	33.61
+batch.est10k.min	5.6
+rss.peakSampled.MB	1447
+rss.afterBatch.MB	1447
+batch.params	threads=4 batch=8 limit=1000 sortByLength=true
+batch.total.s	35.0
+batch.throughput.termsPerSec	28.5
+batch.perTerm.ms	35.04
+batch.est10k.min	5.8
+rss.peakSampled.MB	1496
+rss.afterBatch.MB	1508
+batch.params	threads=4 batch=32 limit=1000 sortByLength=true
+batch.total.s	39.8
+batch.throughput.termsPerSec	25.1
+batch.perTerm.ms	39.78
+batch.est10k.min	6.6
+rss.peakSampled.MB	1677
+rss.afterBatch.MB	1839
+batch.params	threads=4 batch=64 limit=1000 sortByLength=true
+batch.total.s	39.7
+batch.throughput.termsPerSec	25.2
+batch.perTerm.ms	39.68
+batch.est10k.min	6.6
+rss.peakSampled.MB	1386
+rss.afterBatch.MB	2017
+batch.params	threads=4 batch=32 limit=1000 sortByLength=false
+batch.total.s	63.1
+batch.throughput.termsPerSec	15.8
+batch.perTerm.ms	63.11
+batch.est10k.min	10.5
+rss.peakSampled.MB	1636
+rss.afterBatch.MB	1638
+batch.params	threads=6 batch=32 limit=1000 sortByLength=true
+batch.total.s	38.4
+batch.throughput.termsPerSec	26.1
+batch.perTerm.ms	38.37
+batch.est10k.min	6.4
+rss.peakSampled.MB	1684
+rss.afterBatch.MB	1841
+batch.params	threads=10 batch=32 limit=1000 sortByLength=true
+batch.total.s	50.8
+batch.throughput.termsPerSec	19.7
+batch.perTerm.ms	50.82
+batch.est10k.min	8.5
+rss.peakSampled.MB	1686
+rss.afterBatch.MB	1843

@@ -1,0 +1,10 @@
+env.java	21.0.12.1 OpenJDK 64-Bit Server VM
+env.os	Mac OS X aarch64
+env.cpus	10
+env.ort	1.30.0
+query.threads	4
+query.corpus	10000
+query.nameOnly.encodePlusScan.ms	p50=19.99 p95=22.17 max=23.99 n=200
+query.fullInput.encodePlusScan.ms	p50=54.55 p95=76.15 max=81.03 n=200
+query.scanOnly.ms	p50=9.22 p95=10.58 max=10.75 n=200
+rss.query.MB	1435

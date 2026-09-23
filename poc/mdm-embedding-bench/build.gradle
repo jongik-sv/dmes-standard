@@ -1,0 +1,28 @@
+// TSK-02-02 임베딩 PoC — KURE-v1 ONNX INT8 × ONNX Runtime Java(CPU) 측정.
+// ONNX Runtime·토크나이저 의존은 이 PoC 에만 둔다. maru-mdm-engine 에는 절대 넣지 않는다(TRD §10).
+// 실행: src/backend/gradlew -p poc/mdm-embedding-bench run --args='...' (README.md)
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'com.dongkuk.dmes.mdm.poc'
+version = '0.0.1-POC'
+
+java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
+
+repositories { mavenCentral() }
+
+dependencies {
+    implementation 'com.microsoft.onnxruntime:onnxruntime:1.30.0'
+    implementation 'ai.djl.huggingface:tokenizers:0.38.0'
+    implementation 'org.xerial:sqlite-jdbc:3.45.3.0'   // mdm/lib/build.gradle:31 과 같은 버전
+    runtimeOnly 'org.slf4j:slf4j-simple:2.0.17'
+}
+
+application {
+    mainClass = 'com.dongkuk.dmes.mdm.poc.embedding.Bench'
+    applicationDefaultJvmArgs = ['-Xmx3g']
+}
+
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }

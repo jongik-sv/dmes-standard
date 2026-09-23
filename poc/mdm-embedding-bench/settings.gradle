@@ -1,0 +1,2 @@
+// 독립 PoC — src/backend composite build·testAll 에 넣지 않는다(TSK-02-02).
+rootProject.name = 'mdm-embedding-bench'

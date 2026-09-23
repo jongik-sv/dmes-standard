@@ -1,0 +1,21 @@
+env.java	21.0.12.1 OpenJDK 64-Bit Server VM
+env.os	Mac OS X aarch64
+env.cpus	10
+env.ort	1.30.0
+pair.오차->편차	clsRank=1 meanRank=1
+pair.출하예정일->납기	clsRank=100 meanRank=314
+pair.판두께->두께	clsRank=1 meanRank=1
+pair.수요가->고객사	clsRank=1 meanRank=1
+pair.결함->불량	clsRank=17 meanRank=1
+pair.작업실적->생산실적	clsRank=3 meanRank=109
+pair.설비이상->설비고장	clsRank=1 meanRank=1
+pair.보유수량->재고	clsRank=1 meanRank=1
+pair.반출->출하	clsRank=1 meanRank=1
+pair.재질->강종	clsRank=987 meanRank=4065
+pair.감기온도->권취온도	clsRank=1 meanRank=7
+pair.라인휴지->조업정지	clsRank=1 meanRank=1
+pair.스크랩->폐기	clsRank=1 meanRank=1
+pair.입하일->입고일자	clsRank=1 meanRank=1
+pair.조업자->작업자	clsRank=1 meanRank=1
+pooling.cls	top1=11 top5=12 /15
+pooling.mean	top1=11 top5=11 /15

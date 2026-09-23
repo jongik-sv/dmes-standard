@@ -1,0 +1,26 @@
+env.java	21.0.12.1 OpenJDK 64-Bit Server VM
+env.os	Mac OS X aarch64
+env.cpus	10
+env.ort	1.30.0
+[main] INFO ai.djl.util.Platform - Found matching platform from: jar:file:/Users/jji/project/dmes-standard/dflow-fae5410a/poc/mdm-embedding-bench/build/install/mdm-embedding-bench/lib/tokenizers-0.38.0.jar!/native/lib/tokenizers.properties
+[main] INFO ai.djl.huggingface.tokenizers.jni.LibUtils - Extracting native/lib/osx-aarch64/cpu/libtokenizers.dylib to cache ...
+[main] WARN ai.djl.huggingface.tokenizers.HuggingFaceTokenizer - maxLength is greater then modelMaxLength, change to: 512
+inputs	{input_ids=NodeInfo(name=input_ids,info=TensorInfo(javaType=INT64,onnxType=ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64,shape=[-1, -1],dimNames=[batch,seq])), attention_mask=NodeInfo(name=attention_mask,info=TensorInfo(javaType=INT64,onnxType=ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64,shape=[-1, -1],dimNames=[batch,seq]))}
+outputs	{last_hidden_state=NodeInfo(name=last_hidden_state,info=TensorInfo(javaType=FLOAT,onnxType=ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT,shape=[-1, -1, 1024],dimNames=[batch,seq,""]))}
+tokens(sample)	[<s>, ▁코, 일, ▁두, 께, :, ▁대상, 의, ▁두, 꺼, 운, ▁정도, ▁(, Co, il, ▁Thi, ck, ness, ), </s>]
+ids(sample)	[0, 23358, 1599, 11385, 53204, 12, 68191, 367, 11385, 112955, 12451, 34121, 15, 10625, 379, 19669, 2594, 7432, 16, 2]
+dim	1024
+l2norm	1.000000
+env.java	21.0.12.1 OpenJDK 64-Bit Server VM
+env.os	Mac OS X aarch64
+env.cpus	10
+env.ort	1.30.0
+[main] INFO ai.djl.util.Platform - Found matching platform from: jar:file:/Users/jji/project/dmes-standard/dflow-fae5410a/poc/mdm-embedding-bench/build/install/mdm-embedding-bench/lib/tokenizers-0.38.0.jar!/native/lib/tokenizers.properties
+[main] WARN ai.djl.huggingface.tokenizers.HuggingFaceTokenizer - maxLength is greater then modelMaxLength, change to: 512
+corpus.size	10000
+tokens.full	p50=55 p95=83 max=100 min=19
+tokens.nameOnly	p50=9 p95=11 max=16 min=5
+chars.full	p50=108 p95=158 max=192 min=45
+sample.0	열연 전단 롤 번호: 전단 단계 롤의 식별을 위한 번호. 상위 시스템(ERP)과 MES 사이 인터페이스로 주고받는다. APS 계획 수립 때 제약 조건으로 참조한다. (Hot Rolling Shearing Roll Number)
+sample.1	산세 로트 실적: 산세 단계 로트의 실제로 수행한 결과. 공정 이상이 생기면 이 값으로 원인을 추적한다. APS 계획 수립 때 제약 조건으로 참조한다. (Pickling Lot Actual)
+sample.2	제강 열연 배치 경도: 열연 단계 배치의 표면 경도 측정값(단위 HV). (Steelmaking Hot Rolling Batch Hardness)

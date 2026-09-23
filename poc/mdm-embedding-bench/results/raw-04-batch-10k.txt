@@ -1,0 +1,13 @@
+env.java	21.0.12.1 OpenJDK 64-Bit Server VM
+env.os	Mac OS X aarch64
+env.cpus	10
+env.ort	1.30.0
+[main] WARN ai.djl.huggingface.tokenizers.HuggingFaceTokenizer - maxLength is greater then modelMaxLength, change to: 512
+batch.params	threads=4 batch=1 limit=10000 sortByLength=true
+batch.total.s	486.9
+batch.throughput.termsPerSec	20.5
+batch.perTerm.ms	48.69
+batch.est10k.min	8.1
+rss.peakSampled.MB	1449
+rss.afterBatch.MB	578
+saved	/private/tmp/claude-501/-Users-jji-project-dmes-standard-dflow-fae5410a/e52d88d2-81c0-46b5-bca6-f25fe844b83a/scratchpad/vectors

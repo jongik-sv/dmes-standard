@@ -1,0 +1,9 @@
+env.java	21.0.12.1 OpenJDK 64-Bit Server VM
+env.os	Mac OS X aarch64
+env.cpus	10
+env.ort	1.30.0
+scan.n=10000.ms	p50=4.78 p95=4.92 max=6.40 n=100 matrixMB=39
+scan.n=50000.ms	p50=23.81 p95=24.88 max=25.89 n=100 matrixMB=195
+scan.n=100000.ms	p50=47.85 p95=50.89 max=52.53 n=100 matrixMB=390
+scan.n=250000.ms	p50=123.03 p95=124.40 max=126.25 n=100 matrixMB=976
+scan.n=1000000.ms	p50=511.10 p95=661.04 max=1081.25 n=100 matrixMB=3906

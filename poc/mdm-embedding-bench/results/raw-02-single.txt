@@ -1,0 +1,39 @@
+env.java	21.0.12.1 OpenJDK 64-Bit Server VM
+env.os	Mac OS X aarch64
+env.cpus	10
+env.ort	1.30.0
+rss.beforeLoad.MB	76
+[main] WARN ai.djl.huggingface.tokenizers.HuggingFaceTokenizer - maxLength is greater then modelMaxLength, change to: 512
+coldLoad.sessionAndTokenizer.ms	806.5
+coldLoad.firstInference.ms	26.9
+rss.afterLoad.MB	1308
+threads	1
+single.fullInput.ms	p50=52.14 p95=74.60 max=86.55 n=200
+single.nameOnly.ms	p50=10.76 p95=13.07 max=16.96 n=200
+rss.afterSingle.MB	1345
+env.java	21.0.12.1 OpenJDK 64-Bit Server VM
+env.os	Mac OS X aarch64
+env.cpus	10
+env.ort	1.30.0
+rss.beforeLoad.MB	75
+[main] WARN ai.djl.huggingface.tokenizers.HuggingFaceTokenizer - maxLength is greater then modelMaxLength, change to: 512
+coldLoad.sessionAndTokenizer.ms	4816.3
+coldLoad.firstInference.ms	19.9
+rss.afterLoad.MB	1309
+threads	4
+single.fullInput.ms	p50=29.13 p95=42.05 max=50.88 n=200
+single.nameOnly.ms	p50=7.49 p95=8.80 max=11.86 n=200
+rss.afterSingle.MB	1345
+env.java	21.0.12.1 OpenJDK 64-Bit Server VM
+env.os	Mac OS X aarch64
+env.cpus	10
+env.ort	1.30.0
+rss.beforeLoad.MB	76
+[main] WARN ai.djl.huggingface.tokenizers.HuggingFaceTokenizer - maxLength is greater then modelMaxLength, change to: 512
+coldLoad.sessionAndTokenizer.ms	844.6
+coldLoad.firstInference.ms	21.3
+rss.afterLoad.MB	1302
+threads	10
+single.fullInput.ms	p50=69.83 p95=151.44 max=214.42 n=200
+single.nameOnly.ms	p50=16.65 p95=37.94 max=76.89 n=200
+rss.afterSingle.MB	659
