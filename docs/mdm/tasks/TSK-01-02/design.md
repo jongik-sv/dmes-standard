@@ -764,3 +764,96 @@ Build·Verify 는 항목마다 적힌 변이를 **일부러 넣어 빨강을 확
 - **택한 것**: (a)
 - **근거**: 코드는 spec 이 나열한 그대로다. `레벨2` 는 원천 01 흐름 표의 표기("레벨2(미정)"), `마루 MDM` 은 이미 시드된 메뉴 루트 이름과 같다. 감사 시각은 규칙 #16(DB 시각 함수 금지)과 SQLite Instant 형식 미실측(D4) 때문에 NULL 이 가장 안전하다(규칙표 §2 는 NULL 을 허용). 화면이 없어(01:195) 이름은 나중에 UPDATE 마이그레이션으로 쉽게 바꿀 수 있다.
 - **반려되면 재작업 방향**: 이름만 바꾸면 V2 가 아직 운영에 적용되지 않았으면 V2 시드를, 적용됐으면 V3 UPDATE 마이그레이션(두 방언)과 T5·T11·T12 기대값을 고친다.
+
+---
+
+## Build 기록 (Phase 03, 2026-09-24)
+
+커밋: A(계약) `d0823ac` · B(샘플 이동) `93b989f` · 이 기록은 별도 docs 커밋이다(B 만 revert 해도 이 기록은 남는다).
+
+### 빨강 확인 (테스트 먼저)
+
+| 대상 | 구현 전 결과 |
+|---|---|
+| T1~T10(lib) | `:lib:compileTestJava` 실패(계약 클래스 없음, error 210건) |
+| T11·T13(api) | V2·yml 없이 `:api:test` 9건 중 6건 실패(T13 패리티 1 + T11 5, 인스펙터 단언은 불변 유지라 초록) |
+| T12(MSSQL) | mssql V2 를 잠시 뺀 상태로 `:api:mssqlMigrationTest` 4건 모두 실패 |
+| Vitest | `tsup.config.ts` 만 바꾼 상태로 `expected ['dma/mdmSample'] to deeply equal ['mdt/mdmSample']` 실패 |
+| E2E | 커밋 A 코드(샘플 이동 전)로 서버를 띄우고 고친 스펙 실행 → `/^용어·도메인$/` 폴더 없음으로 실패 |
+
+### 변이 검증 결과 (§5 불변 규칙)
+
+모든 변이는 스크립트로 넣고 테스트를 돌린 뒤 되돌렸다. "빨강" 은 적힌 테스트가 실패했다는 뜻이다.
+
+| # | 넣은 변이 → 결과 |
+|---|---|
+| I1 | 상수 추가 → T2 빨강 / 개명 → 컴파일 실패 |
+| I2 | `INUSE`→`IN_USE` → T2 빨강 |
+| I3 | `REQUEST.inScope=true`·`CONFIRM.to=APPROVED` → T2 빨강 / `DELETE_DRAFT` 삭제 → 컴파일 실패 |
+| I4 | `INITIAL_ROW_VERSION=1`·`OPEN_END` 초 1 → T2 빨강 |
+| I5 | sqlite L2 행 삭제·MDM=N+ERP=Y·이름 레벨2→L2 → T11 빨강 / `SEEDED` 에서 L2 삭제 → T5·T11 빨강 / mssql L2 삭제·MDM=N+ERP=Y → T12 빨강 |
+| I6 | sqlite UX 삭제·CHECK 삭제 → T11 빨강 / mssql UX·CHECK·`SELF_YN` COLLATE·`SYSTEM_CODE` COLLATE 삭제 → T12 빨강 |
+| I7 | `C_USR_ID`→`CREATE_USER`·PK 이름 `PK_MDM_SYSTEM`·`C_AT` 타입 변경 → T11·T12 각각 빨강 / mssql `SYSTEM_NAME` VARCHAR → T12 빨강 |
+| I8 | mssql V2→V3 파일명 → 패리티 빨강 / sqlite V2 삭제 → 패리티·T11 빨강 / local-db locations 변경 → T12 빨강 |
+| I9 | 순서 바꿈·VER 삭제·`NATIVE_COLUMN_LIST` 불일치 → T5 빨강 |
+| I10 | `DMF` 추가·`DMA` 코드를 옛 그룹 코드로·폴더 이름 변경·URL 접두 변경 → T4 빨강 |
+| I11 | STEWARD×dmd CONFIRM·READ 에 save·`LOCK` 상수 → T4 빨강 |
+| I12 | 코드 중복·409→400·MDM007 문구 한 글자 → T5 빨강 |
+| I13 | `MASTER_DATA` 에 CODE·`BASE_DEF_EXPR="*"`·수정 가능 Set → T3 빨강 |
+| I14 | 실행 클래스 추가·인터페이스 default 메서드·record 에 `jakarta.persistence` 어노테이션 → T1 빨강. **보강**: 상수 클래스의 `static final UnaryOperator` 필드와 record 의 `Supplier` 구성 요소가 처음 규칙으로는 초록이었다(ArchUnit 1.x 는 람다 본문을 합성 메서드가 아니라 감싸는 코드 단위로 본다). T1 에 "함수 객체 필드 금지" 규칙을 더해 빨강으로 만들었다. §2.9 의 "record·enum 에는 접근자만" 도 T1 에 규칙으로 더했다(record 판정 메서드·enum 의 인자 받는 메서드 → 빨강) |
+| I15 | 계약 record(새 파일)에 `MasterCode` 칼럼·계약 밖 mdm 클래스의 `RuleMasterRepository`·`cma` 서비스 사용 → T1 빨강 (설계 문안의 "기존 record 에 필드 추가" 는 test 호출부가 먼저 컴파일 실패해 ArchUnit 을 시험하지 못하므로 새 파일로 바꿔 넣었다) |
+| I16 | SPI 메서드 인자 추가 → 스텁 컴파일 실패 / 스텁을 main 으로 옮김 → T1 빨강 |
+| I17 | 스텁을 `>=` 로 → T10② 빨강 / 최초 면제 삭제 → T10① 빨강 |
+| I18 | `application-local.yml` 속성 삭제·값 false → T11-5 빨강 |
+| I19 | `application.yml` 에 `statement_inspector` 등록 → T11-6 빨강 |
+| I20 | `tasks.named('test') { dependsOn 'mssqlMigrationTest' }` → testAll dry-run 의 mssql 줄 0→4(빨강). 양성 대조: 같은 출력에 `:mdm:api:test`·`:mdm:lib:test` 가 찍힌다. docker 를 끈 상태로 게이트를 부르면 `initializationError`(Could not find a valid Docker environment)로 **실패**한다(skip 아님). `@EnabledIf` 추가는 자동 검출 없음 — **미커버, 리뷰 확인 대상** |
+| I21 | tsup entry 만 바꿈 → Vitest 빨강 / 레지스트리 재생성 결과 `mdt/` 키 0 / `migrateMdmSampleGroupToDma` 호출 제거 → 옛 행이 남고(`mdmSample` 부모 `mdt`) E2E 빨강(**수동 검증**, 자동 테스트 없음) / `seedMcmSecMenuFld` 등 기존 시드 메서드 diff 없음(커밋 B diff 로 확인) |
+| I22 | `git diff --stat` 로 확인: 선행 문서 샘플 배정 문구·`tasks/TSK-01-01/**` 변경 없음, 규칙표는 §2.7 의 네 칸만 |
+
+**미커버로 남은 것(보고)**:
+- 상수 클래스 초기화식에서 람다로 **데이터만 만드는** 경우(`Stream.of(..).map(s -> s).toList()`)는 T1 이 잡지 않는다. 설계가 허용한 "상수 데이터 구성" 범위라 규칙을 넓히지 않았다.
+- 인자 없는 enum 메서드와 record 접근자 재정의의 **본문**은 T1 이 보지 않는다(예: `isTerminal()`).
+- T1 은 lib 의 test classpath 에서 클래스를 가져오므로 `com.dongkuk.dmes.mdm..` 중 **lib main 만** 본다. api main(현재 `MdmApplication`·`ServletInitializer` 뿐)에 As-Is 마스터 의존을 넣는 변이는 잡지 못한다(I15 의 빨강은 lib main 변이 기준). 업무 코드는 lib 에 두는 구조(F1)라 당장 막지는 않지만, api 에 업무 클래스가 생기면 api test 에도 같은 규칙이 필요하다.
+- I20 의 `@EnabledIf`·`Assumptions` 추가는 자동 검출이 없다.
+- I21 의 `DataInitializer` 이행은 자동 테스트가 없고 아래 E2E 수동 절차로만 검증했다.
+
+### 설계 이탈
+
+1. **T1 규칙 2개 추가**(위 I14): 함수 객체 필드 금지, record·enum 접근자만. 변이 검증이 찾은 구멍을 덮기 위함이다.
+2. **기대값 헬퍼 `MdmSystemSeedExpectations`**(api test): §3.3 끝 "기대값을 테스트마다 따로 적지 않는다" 를 지키려고 T11·T12 가 같은 이름(D10)·칼럼 집합을 한 곳에서 읽는다. 그래서 `mssqlTest` source set 의 classpath 에 `sourceSets.test.output` 을 더했다(§2.6 원문에는 main 만). `mssqlMigrationTest` 의 `testClassesDirs` 는 mssqlTest 뿐이라 test 클래스가 두 번 돌지 않는다. `testLogging` 에 `showStandardStreams = true` 를 더해 `@@VERSION` 줄이 실행 기록에 남게 했다.
+3. **`foreign_keys` 는 주 경로로 채택**: yml 키를 대괄호 표기 `"[foreign_keys]": true` 로 적었다(Spring 이 Map 키를 바꾸지 않게). T11-5 가 URL 파라미터 없이 초록이라 §2.5 대체 경로(URL 파라미터)는 쓰지 않았다.
+4. **`MdmErrorCode` 접근자 이름**: §7 인계 문안(`code.code()`·`code.transport()`)에 맞춰 `code()`·`httpStatus()`·`transport()`·`defaultMessage()` 로 했다(cactus 식 `getX()` 아님).
+5. **`DataInitializer` 호출부 주석도 고침**(B6 범위 밖 1곳): `seedMdmMenus();` 바로 위 주석이 옛 그룹 코드와 `componentPath` 를 적고 있어, 고치지 않으면 §3.6 잔존 grep 기준(이행 메서드 본문과 바로 위 주석에만)을 어긴다. 주석만 `dma` 로 바꿨고 다른 메서드는 건드리지 않았다.
+6. **즐겨찾기 UPDATE 는 유지**(§2.4 조건 충족): ① 엔티티 `SecUserFavorite` 가 `@Table(name = "TB_MCM_SEC_USER_FAVORITE", schema = "MCMAPUSER")`, `FULL_ID` 는 `@Column(name = "FULL_ID")`. ② mcm `application-local-db.yml` 이 `ddl-auto: update` 라 MSSQL 개발 DB 에도 테이블이 생기고, `docs/mcm/erd/csa-menu-tables.md:24` 가 이 테이블을 실측 표 항목으로 적고 있다. SQLite 에서는 옛 즐겨찾기 행을 넣고 재기동해 `dma/mdmSample` 로 바뀌는 것을 확인했다(아래 E2E ④). MSSQL 경로는 여전히 아무도 실행하지 않았다(설계가 적은 한계 그대로).
+7. **E2E 순서 변경**: 설계는 "새 DB 실행 → sqlite3 로 옛 상태를 손으로 만든 뒤 이행 실행" 이었다. 실제로는 ① 커밋 A 코드로 띄워 고친 스펙이 빨강(이때 옛 코드가 진짜 `mdt` 행을 시드) → ② 커밋 B 코드로 같은 DB 재기동 = **옛 코드가 만든 DB 의 이행**(로그 `leaf 1 · 자식 폴더 0 · 폴더 1 · 즐겨찾기 0행`, 조회 `dma|용어·도메인`·`dma`, `mdt` 행 없음) → 스모크 1 passed → ③ DB 를 옆으로 옮기고(`src/backend/data/keep-migrated/`, 삭제 아님) 새 DB 로 재기동 → 스모크 1 passed → ④ I21 변이: sqlite3 로 옛 상태를 만들고 옛 즐겨찾기 행(`mdt/mdmSample`)을 넣은 뒤 이행 호출을 뺀 코드로 기동 → 옛 행이 남고 스모크 빨강 → 호출을 되돌려 같은 DB 로 재기동 → `dma`·`mdt` 둘 다 있는 분기(폴더 행은 남고 leaf·즐겨찾기만 이행, 로그 `leaf 1 · 자식 폴더 0 · 폴더 0 · 즐겨찾기 1행`)에서 스모크 1 passed → ⑤ 테스트용 즐겨찾기가 스크린샷에 별표로 찍혀, DB 를 다시 옮기고(`keep-both-branch/`) 새 DB 로 한 번 더 돌려 그 스크린샷을 커밋했다. 옛 코드가 만든 DB 로 이행을 본 ② 가 sqlite3 로 손으로 만든 상태보다 강한 증거다.
+8. **T11·T12 에 사례 추가**: `SELF_YN='X'` 거부(CHECK), T12 는 오류 번호 547 까지 확인.
+
+### E2E 실행 기록
+
+- 포트: BE 18100, FE 15100(시작 전 두 포트 모두 LISTEN 없음 확인). Gradle `--no-daemon`, `be-run.sh`·`fe-run.sh` 미사용.
+- 격리: 워크트리 `src/backend/data/` 를 만든 뒤 기동. be.log 의 SQLite URL 이 `jdbc:sqlite:/Users/jji/project/dmes-standard/dflow-eb6fdb44/src/backend/data/mcm.db`. m-mcm 의 `@dk-oasis/m-mdm`·`shared` 링크가 워크트리 안(`realpath` 확인).
+- 자기 백엔드 응답 증거: be.log 에 `http-nio-18100` 스레드의 `userId=admin` JWT·`secUser` 서비스 호출.
+- 결과: 빨강 1회(이동 전), 1 passed ×4(이행 DB, 새 DB, 둘 다 있는 DB, 스크린샷용 새 DB), 변이 빨강 1회.
+- 정리: 기록한 PID 와 18100·15100 리스너만 종료. 전역 `gradlew --stop`·이름 기반 종료 없음.
+- 부산물: next dev 가 바꾼 `m-mcm/next-env.d.ts` 와 Playwright 가 지운 추적 파일 `src/frontend/test-results/round7-verify-…/error-context.md` 는 추적본으로 되돌렸다(커밋하지 않음). 옛 빌드 산출물 `m-mdm/dist/pages/mdt/` 와 빈 폴더 `m-mdm/pages/mdt/` 는 추적되지 않아 그대로 둔다(F19).
+
+### MSSQL 게이트 실행 기록
+
+- OrbStack 착수 상태 `Stopped` → `orb start`(남의 컨테이너 `lect_postgres`·`hani-postgres`·`hani-redis` 가 함께 올라옴) → 게이트·변이 실행 → 자기 컨테이너(mssql·ryuk) 없음 확인, 남의 3개만 남음 → `orb stop` → `Stopped`.
+- `mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04` 태그를 새로 받았다(이미지 캐시에 남는다).
+- 통과 로그: `@@VERSION = Microsoft SQL Server 2022 (RTM-CU27) (KB5104824) - 16.0.4295.3 (X64) … Developer Edition (64-bit) on Linux (Ubuntu 22.04.5 LTS)`, 4 PASSED.
+
+### 게이트 결과 (Build 시점)
+
+| 게이트 | 결과 |
+|---|---|
+| backend `testAll --rerun-tasks` | 447 tests / 0 failures (기준선 395 → +52: mdm lib 46, mdm api 6). 37개 태스크 모두 실제 실행 |
+| `:api:mssqlMigrationTest` | 4 PASSED (SQL Server 2022 RTM-CU27) |
+| testAll 비포함 | dry-run 에 `:mdm:api:test`·`:mdm:lib:test` 가 찍히고 mssql 0줄 |
+| m-mdm | Vitest 1 passed, `tsc --noEmit` 통과, `build` 통과(`dist/pages/dma/mdmSample/page.js`) |
+| m-mcm eslint | 23 errors / 44 warnings(기준선과 같음) |
+| UI audit | mantine·aggrid 모두 0건 |
+| page-registry | 재생성 diff 는 mdm 한 줄(`"dma/mdmSample"`), 옛 그룹 키 0 |
+| 옛 그룹 잔존 grep(§3.6) | `DataInitializer.java` 의 `migrateMdmSampleGroupToDma` 본문과 바로 위 주석에만 있음 |
+| E2E | 위 「E2E 실행 기록」 |
+| 커밋 경계 | A·B 가 고친 파일 교집합 없음(B 만 revert 가능). 기존 시드 메서드(`seedMcmSecMenu`·`seedMcmSecMenuFld`·`seedMcmSecRbac`·`swapLegacyGrpMenuIds`·`cleanupLegacyFolderRowsInSecMenu`) diff 없음 |
