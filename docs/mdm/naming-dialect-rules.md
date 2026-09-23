@@ -36,6 +36,7 @@
 
   → **코드 변경은 없다.** mdm 설정에 인스펙터를 등록하지 않는 상태를 유지한다.
 - **`ROW_VERSION` 과 `VER` 의 역할 분리**: `row_version` 은 원천이 정한 낙관적 잠금 칼럼이다(원천에 있는 테이블에만 원천 그대로 둔다 — CODE_VER·RULE_VER·RULE_TEST_CASE·RULE_SET·DATA_ITEM). 서버가 요청의 값과 저장값을 비교해 다르면 409 로 거부하고, 같으면 저장·상태 전이 때 1 올린다(04:305). 초깃값은 0 이다(04:1008. 06 은 명시가 없어 0 으로 통일한다). `VER` 는 감사용 변경 횟수이며 잠금 판정에 쓰지 않는다(`@Version` 이 아니라 수정마다 1 올리는 카운터). 원천에 `row_version` 이 없는 테이블에는 새로 넣지 않는다(원천 DDL 불변).
+- **예외 — 원천 업무 칼럼 `VER` 과 이름이 겹치는 6개 테이블**: `TB_MDM_CODE_VER`·`TB_MDM_CODE_RECV`·`TB_MDM_RULE_VER`·`TB_MDM_RULE_VAR`·`TB_MDM_RULE_ROW`·`TB_MDM_RULE_RECV` 는 원천 업무 칼럼으로 `VER`(버전 번호, 일부는 PK 구성요소)을 이미 갖고 있어 감사 9칼럼의 `VER` 을 그대로 두면 같은 테이블에 칼럼명이 중복된다. 이 6개 테이블만 감사 카운터를 `AUD_VER BIGINT`로 둔다(원천 `VER` 은 개명하지 않는다, D-022, TSK-02-03/design.md D8).
 - **02 의 "관리 속성(버전·유효기간·소유 부서·담당자·등록 출처)"**(02:36-39·82·762)은 감사 칼럼과 다른 업무 속성이다. 공통 규칙으로 정하지 않고 TSK-02-03(02 DB 설계)이 02 원문대로 정한다.
 
 ## 3. 방언 매핑
@@ -92,9 +93,9 @@
 
 | 받는 Task | 인계 내용 |
 |---|---|
-| TSK-01-02 | 감사 칼럼 명시 헬퍼(네이티브 쓰기용), 방언 판정 빈, SQLite `foreign_keys` 설정, BOOLEAN·일시 매핑 실측(§3 #14~#16), `flyway-migration-add` 의 mdm 지원 판정, As-Is 마스터 엔티티 import 금지 ArchUnit 규칙, 그룹 코드 상수 `dma~dme` |
+| TSK-01-02 | 감사 칼럼 명시 헬퍼(네이티브 쓰기용), 방언 판정 빈, SQLite `foreign_keys` 설정, BOOLEAN·일시 매핑 실측(§3 #14~#16), `flyway-migration-add` 의 mdm 지원 판정, As-Is 마스터 엔티티 import 금지 ArchUnit 규칙, 그룹 코드 상수 `dma~dme`. **`TB_MDM_CODE_VER`·`TB_MDM_CODE_RECV`·`TB_MDM_RULE_VER`·`TB_MDM_RULE_VAR`·`TB_MDM_RULE_ROW`·`TB_MDM_RULE_RECV` 6개 테이블의 엔티티는 `CactusAuditEntity` 상속 시 `@AttributeOverride(name="version", column=@Column(name="AUD_VER"))` 를 반드시 붙일 것**(§2 예외, D-022) — 빠뜨리면 엔티티가 존재하지 않는 `VER` 칼럼에 매핑되어 부팅·쿼리 시점에 오류가 난다 |
 | TSK-02-03 | (완료) §1 명명과 §3 방언의 `실측 필요 → TSK-02-03` 행(#2~#5, #19, #20) — SQLite 는 `docs/mdm/erd/verify/Verify.java` 로 실측해 `확인(TSK-02-03 실측, sqlite-jdbc 3.45.3.0)`로 갱신, MSSQL 열은 `실측 필요`로 남기고 아래 5개 영역 계약 Task 로 이관(§3 각 행 참조). 보류 테이블 DDL·활성 테이블 배포 칸 `DEFAULT 0`([ADR-0002](adr/0002-version-confirm-without-approval.md))·02 관리 속성(§2 끝 항목, decisions.md D3)·`TB_MDM_DICT_SEQ` 초기 행은 `docs/mdm/erd/` 에 반영됨 |
-| TSK-04-01(02)·TSK-05-01(03)·TSK-06-01(04)·TSK-07-01(05)·TSK-08-01(06) | TSK-02-03 이 SQLite 로만 실측하고 남긴 MSSQL `실측 필요` 행(§3 #2~#5·#19·#20 중 자기 영역 해당분). `TB_MDM_CODE_VER`·`TB_MDM_CODE_RECV`·`TB_MDM_RULE_VER`·`TB_MDM_RULE_VAR`·`TB_MDM_RULE_ROW`·`TB_MDM_RULE_RECV` 의 감사 카운터가 `AUD_VER`(원천 `VER`  칼럼과 충돌 회피)로 개명된 이탈도 인지할 것(decisions.md D-020) |
+| TSK-04-01(02)·TSK-05-01(03)·TSK-06-01(04)·TSK-07-01(05)·TSK-08-01(06) | TSK-02-03 이 SQLite 로만 실측하고 남긴 MSSQL `실측 필요` 행(§3 #2~#5·#19·#20 중 자기 영역 해당분). `TB_MDM_CODE_VER`·`TB_MDM_CODE_RECV`·`TB_MDM_RULE_VER`·`TB_MDM_RULE_VAR`·`TB_MDM_RULE_ROW`·`TB_MDM_RULE_RECV` 의 감사 카운터가 `AUD_VER`(원천 `VER` 칼럼과 충돌 회피)로 개명된 이탈도 인지할 것(§2 예외, decisions.md D-022) |
 | TSK-04-03 · TSK-06-02 · TSK-07-03 · TSK-08-02 · TSK-08-05 · TSK-01-04(보류) | §3 에서 각자 이름이 적힌 `실측 필요` 행 |
 
 ### 6.2 갱신 규칙

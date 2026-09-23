@@ -875,6 +875,14 @@ SQLite 는 `PRAGMA foreign_keys` 강제가 DML 시점이라 CREATE TABLE 안에 
 - **근거**: MSSQL 은 `CREATE TABLE ... FOREIGN KEY` 시점에 참조 테이블이 이미 있어야 한다(일반 T-SQL 제약, 실측하지 않고 표준 동작으로 판단 — F4·불변규칙 7 에 따라 이 부분은 "확인"이 아니라 "규칙"으로 남긴다). SQLite 는 이 문제가 없어 인라인을 유지해 두 방언 파일 구조 차이를 최소화한다.
 - **반려 시 재작업**: 실제 MSSQL 실행(영역 계약 Task, local-db 프로파일)에서 이 배치로도 오류가 나면 §6.6 파일 순서를 조정하고 `naming-dialect-rules.md` §3 에 실측 결과를 기록한다.
 
+### D8 — 감사 `VER` 과 원천 업무 `VER` 이름 충돌 해소 (Build 단계 발견, 오케스트레이터 승인)
+- **질문**: `TB_MDM_CODE_VER`·`TB_MDM_CODE_RECV`·`TB_MDM_RULE_VER`·`TB_MDM_RULE_VAR`·`TB_MDM_RULE_ROW`·`TB_MDM_RULE_RECV` 6개 테이블에서 §6.0 감사 9칼럼의 `VER`(변경 카운터)과 원천 업무 칼럼 `VER`(버전 번호, 일부는 PK 구성요소)이 같은 이름으로 충돌해 `CREATE TABLE` 자체가 불가능하다 — 이 충돌을 어떻게 없앨지.
+- **선택지**: (1) 감사 카운터만 `AUD_VER` 로 개명. (2) 원천 업무 `VER` 을 개명(예: `MARU_VER`). (3) 이 6개 테이블만 감사 `VER` 칼럼 자체를 생략.
+- **택한 것**: (1) 감사 카운터를 `AUD_VER`(타입은 `VER` 과 동일한 `BIGI`)로 개명. 원천 업무 `VER` 은 그대로 둔다.
+- **근거**: `CactusAuditEntity`(`src/backend/cactus-core/src/main/java/com/dongkuk/dmes/cactus/audit/CactusAuditEntity.java`, 읽기 전용 확인)의 실제 필드는 `@Column(name = "VER") private Long version;` 이고 클래스 자체는 `@MappedSuperclass` 라, 하위 엔티티에서 표준 JPA `@AttributeOverride(name="version", column=@Column(name="AUD_VER"))` 로 재매핑할 수 있어 cactus-core 코드 변경이 필요 없다(오케스트레이터 확인). (2)안은 원천 업무 `VER` 이 `TB_MDM_CODE_VER`/`TB_MDM_RULE_VER` 의 PK 구성요소이자 `TB_MDM_CODE_ITEM.FROM_VER` 등 여러 자식 테이블의 FK 대상이라 개명 파급이 크고, 불변 규칙 2("원천 칼럼은 대소문자만 바꾼다")에도 정면으로 반한다. (3)안은 이 6개 테이블만 감사 변경 카운터가 빠져 감사 정책(naming-dialect-rules.md §2, D-013)이 깨진다.
+- **반려 시 재작업**: (2)안으로 되돌리려면 원천 `VER`(PK·다중 FK 대상)을 개명해야 하므로 두 방언 DDL 전체와 `expected-columns.json`·`Verify.java` 체크 c·e 를 다시 손봐야 한다. (3)안이면 이 6개 테이블의 감사 칼럼을 8개로 줄이고 `naming-dialect-rules.md` §2 예외 목록에 추가해야 한다.
+- **Source**: `decisions.md` D-022, `naming-dialect-rules.md` §2·§6.1, `docs/mdm/erd/verify/expected-columns.json`
+
 ---
 
 ## Build 단계 이탈 기록 (design.md 대비)

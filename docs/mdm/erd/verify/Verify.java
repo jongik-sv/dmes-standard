@@ -743,6 +743,11 @@ public class Verify {
                     String want = auditExpectedType(expCol);
                     if (!type.equalsIgnoreCase(want)) { problems.add(table + "." + expCol + " 타입=" + type + " 기대=" + want); rowOk = false; }
                 }
+                // AUD_VER 은 §2 예외 6개 테이블에만 있어야 하고, 나머지 테이블에는 생기면 안 된다(D-022, D8).
+                boolean hasAudVer = typeByName.containsKey("AUD_VER");
+                boolean expectsAudVer = Boolean.TRUE.equals(info.get("uses_aud_var"));
+                if (hasAudVer && !expectsAudVer) { problems.add(table + " 은 §2 예외 대상이 아닌데 AUD_VER 칼럼이 있음"); rowOk = false; }
+                if (!hasAudVer && expectsAudVer) { problems.add(table + " 은 §2 예외 대상인데 AUD_VER 칼럼이 없음"); rowOk = false; }
                 if (rowOk) ok++;
             }
             // 참고: design.md 는 "35 개 중 DICT_SEQ 제외 34개"(TB_MDM_SYSTEM fixture 포함)라 적었으나,
