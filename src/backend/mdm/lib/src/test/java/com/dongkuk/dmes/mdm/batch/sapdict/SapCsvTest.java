@@ -30,7 +30,7 @@ class SapCsvTest {
 
     @Test
     void BOM_을_떼고_CRLF_와_LF_를_모두_읽고_빈_줄은_건너뛴다() {
-        SapCsv.Table table = SapCsv.parseTable("X.csv", "﻿ROLLNAME,DDTEXT\r\nA,가\n\r\nB,나\r\n\n");
+        SapCsv.Table table = SapCsv.parseTable("X.csv", "\uFEFFROLLNAME,DDTEXT\r\nA,가\n\r\nB,나\r\n\n");
 
         assertEquals(List.of("ROLLNAME", "DDTEXT"), table.headers());
         assertEquals(2, table.rows().size());

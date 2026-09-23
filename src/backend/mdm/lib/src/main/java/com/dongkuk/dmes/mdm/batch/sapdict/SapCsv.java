@@ -22,7 +22,7 @@ import java.util.Set;
  */
 public final class SapCsv {
 
-    private static final char BOM = '﻿';
+    private static final char BOM = '\uFEFF';
     private static final byte[] UTF8_BOM = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
 
     private SapCsv() {

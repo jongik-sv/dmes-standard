@@ -207,7 +207,7 @@ class SapDictCandidateCliTest {
     void charset_옵션은_입력에만_적용되고_출력은_UTF8_이다() throws Exception {
         Charset ms949 = Charset.forName("MS949");
         for (String name : List.of("DD03L.csv", "DD04L.csv", "DD04T.csv", "DD01L.csv")) {
-            String text = Files.readString(in.resolve(name), StandardCharsets.UTF_8).replace("﻿", "");
+            String text = Files.readString(in.resolve(name), StandardCharsets.UTF_8).replace("\uFEFF", "");
             Files.write(in.resolve(name), text.getBytes(ms949));
         }
 

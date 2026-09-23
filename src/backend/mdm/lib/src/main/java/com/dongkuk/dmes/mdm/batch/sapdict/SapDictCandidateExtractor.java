@@ -31,7 +31,7 @@ import java.util.regex.Pattern;
 public final class SapDictCandidateExtractor {
 
     /** 용어 분해 구분자: 공백·괄호·슬래시·쉼표·가운뎃점(I12). */
-    private static final Pattern TERM_SEPARATOR = Pattern.compile("[\\s()\\[\\]{}/,·]+");
+    private static final Pattern TERM_SEPARATOR = Pattern.compile("[\\s()\\[\\]{}/,\u00B7]+");
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
     private static final int SAMPLE_LIMIT = 5;
     private static final String NO_ROLLNAME = "(없음)";
@@ -119,7 +119,7 @@ public final class SapDictCandidateExtractor {
             return null;
         }
         for (String label : List.of(text.scrtextL(), text.ddtext(), text.scrtextM(), text.scrtextS())) {
-            if (label.chars().anyMatch(c -> c >= '가' && c <= '힣')) {
+            if (label.chars().anyMatch(c -> c >= '\uAC00' && c <= '\uD7A3')) {
                 return WHITESPACE.matcher(label.strip()).replaceAll(" ");
             }
         }
