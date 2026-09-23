@@ -65,7 +65,7 @@ design/  BackEnd_표준_    FrontEnd_표준_
 | 토큰 | 표기 | 출처 |
 |---|---|---|
 | `TB_` | 고정 prefix (대문자 + 언더스코어) | 본 절 |
-| `{모듈명}` | **lowercase 3 글자** | §A.1.1 5 모듈 정본 (mpn / mpp / mls / mqc / mcm) |
+| `{모듈명}` | **lowercase 3 글자** (단 `mdm` 은 대문자 `MDM` — §A.12.7) | §A.1.1 모듈 정본 (mpn / mpp / mls / mqc / mcm / mdm) |
 | `_` | 구분자 (언더스코어 1 글자) | 본 절 |
 | `{역할}` | **lowercase + snake_case 도메인 명사 + 선택적 한정어** | 본 절 |
 
@@ -94,14 +94,14 @@ design/  BackEnd_표준_    FrontEnd_표준_
 ### A.12.4 등재 절차
 
 1. 신규 테이블 필요 시 분석리포트 §4 또는 설계서 §3 데이터 모델 절에 `TB_{모듈}_{역할}` 후보 기재
-2. 모듈명이 §A.1.1 5 모듈 외이거나 역할 토큰이 기존 테이블과 의미 중복이면 [확인필요: Q-NNN] 등재
+2. 모듈명이 §A.1.1 모듈 정본 외이거나 역할 토큰이 기존 테이블과 의미 중복이면 [확인필요: Q-NNN] 등재
 3. 사용자 확정 후 마이그레이션 스크립트 + 본 부속서 PR 동시 진행
 
 ### A.12.5 (MUST NOT)
 
 | 사례 | 처리 |
 |---|---|
-| `TB_master_mold` / `TB_aps_*` (legacy 모듈명) | ✗ — A.1.1 5 모듈만 허용 |
+| `TB_master_mold` / `TB_aps_*` (legacy 모듈명) | ✗ — A.1.1 모듈 정본만 허용 |
 | `TB_MPP_MOLD_MASTER` (전체 대문자) | ✗ — 모듈명 lowercase / 역할 lowercase 강제 |
 | `TB_mpp_MoldMaster` (역할 camelCase/PascalCase) | ✗ — 역할 snake_case 강제 |
 | `TB_code_master` (모듈 prefix 누락) | ✗ — `TB_{모듈}_` 강제 |
@@ -109,7 +109,15 @@ design/  BackEnd_표준_    FrontEnd_표준_
 
 ### A.12.6 검증 (정합 §B `B-A12`)
 
-신규 테이블명 토큰 정규식 매칭: `^TB_(mpn|mpp|mls|mqc|mcm)_[a-z][a-z0-9_]*$` 100%. 위반 1 건 이상 시 ✗.
+신규 테이블명 토큰 정규식 매칭: `^(TB_(mpn|mpp|mls|mqc|mcm)_[a-z][a-z0-9_]*|TB_MDM_[A-Z][A-Z0-9_]*)$` 100% (둘째 가지는 §A.12.7 mdm 예외). 위반 1 건 이상 시 ✗.
+
+### A.12.7 mdm 모듈 예외 — 대문자 표기 (2026-09-24)
+
+1. mdm(마루 MDM) 테이블은 `TB_MDM_{역할}` 로 모듈·역할을 **대문자** UPPER_SNAKE 로 쓴다(예 `TB_MDM_CODE_VER`, `TB_MDM_RULE_ROW`). 근거: 사용자 결정 2026-09-23(`docs/mdm/decisions.md` D-006), 리포 실자산 관례(모듈 테이블 28종(CREATE TABLE·@Table 합집합) 전부 대문자 — mcm-reference "테이블명 대문자 유지"), 칼럼은 backend-standard §5 UPPER_SNAKE.
+2. 칼럼·제약·인덱스 명명은 [`docs/mdm/naming-dialect-rules.md`](../../../mdm/naming-dialect-rules.md) §1 을 따른다.
+3. `TB_mdm_*`(소문자)·`TB_Mdm_*` 는 ✗.
+4. 다른 모듈의 소문자 규칙은 이 절이 바꾸지 않는다(전 모듈 대문자 전환 여부는 별도 결정 — `docs/mdm/tasks/TSK-02-01/design.md` D1).
+5. ADR: [mdm ADR-0001](../../../mdm/adr/0001-physical-naming-audit-dialect.md)
 
 ---
 

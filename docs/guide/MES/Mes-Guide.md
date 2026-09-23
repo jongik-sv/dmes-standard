@@ -19,7 +19,7 @@
 | 대상 | APS 를 제외한 {CLIENT} MES 업무 모듈: `mpp`, `mqc`, `mls`, `mas`, `mcm` 등 |
 | Backend 경로 | `src/backend/{moduleId}` |
 | Frontend 경로 | `src/frontend/m-{moduleId}` |
-| 설계 산출물 경로 | `docs/{moduleId}/design/{screenId}/` |
+| 설계 산출물 경로 | `docs/{moduleId}/design/{screenId}/` (mdm 은 `docs/mdm/screens/{screenId}/`) |
 | 패키지 | `com.dongkuk.dmes.{moduleId}.*` |
 
 `src/backend/{moduleId}` 또는 `src/frontend/m-{moduleId}` 가 없으면 임의 생성하지 말고 사용자 확인 후 진행한다.

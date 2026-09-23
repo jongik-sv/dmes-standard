@@ -6,9 +6,9 @@
 
 `moduleId` 는 MES 하위 업무 모듈을 식별하는 단수 영문 약어. **lowercase 3 글자 정본**. `screenId` 에는 합성되지 않으며, 라우트 prefix (`/api/{moduleId}/...`)·BFF 경로·패키지 root (`com.dongkuk.dmes.{moduleId}`)·테이블명 (`TB_{moduleId}_...`) 에서 단독 표기는 항상 lowercase 3글자.
 
-### A.1.1 5 모듈 정본 (D1)
+### A.1.1 모듈 정본 (D1)
 
-> **(MUST)** 신축 MES 의 모듈은 아래 5 개로 고정. `master` / `aps` / `portal` 등 기 구축 식별자는 **legacy/외부 의존 카탈로그**(A.1.2) 로 분리 보존하되, 신규 화면의 `moduleId` 는 반드시 본 표 5 값 중 하나로만 결정한다.
+> **(MUST)** 신축 MES 의 모듈은 아래 표의 값으로 고정한다(2026-09-24 `mdm` 추가 등재). `master` / `aps` / `portal` 등 기 구축 식별자는 **legacy/외부 의존 카탈로그**(A.1.2) 로 분리 보존하되, 신규 화면의 `moduleId` 는 반드시 본 표의 값 중 하나로만 결정한다.
 
 | moduleId | 풀네임 (영문) | 풀네임 (한글, 영역) | 도메인 | 라우트 prefix | 등재일 |
 |---|---|---|---|---|---|
@@ -17,6 +17,7 @@
 | `mls` | Manufacturing **Logistics** | **물류관리** | 입출고·재고·이송·창고 | `/api/mls` | 2026-05-20 |
 | `mqc` | Manufacturing **Quality** Control | **품질관리** | 검사의뢰·검사실적·시험성적서 | `/api/mqc` | 2026-05-20 |
 | `mcm` | Manufacturing **Common** Management | **공통관리** | KMC 콘솔·SERAI 연동·메시지·앱호스트 | `/api/mcm` | 2026-05-20 |
+| `mdm` | Master Data **Management** | **기준정보관리(MDM)** | 용어·도메인·컬럼·단위·인터페이스 레이아웃·마스터코드·마스터데이터·업무기준 표준 원장(마루 MDM) | `/api/mdm` | 2026-09-24 |
 
 **모듈 ↔ 한글 영역 매핑표 (단방향, 영역 → moduleId)**:
 
@@ -27,12 +28,13 @@
 | 물류관리 | `mls` | 자재 입출고·재고·이송 |
 | 품질관리 | `mqc` | 검사·시험·성적서 |
 | 공통관리 | `mcm` | 콘솔·메시지·연동 인프라 (KMC) |
+| 기준정보관리(MDM) | `mdm` | 표준 원장. mcm `cma`/`cmb` As-Is 와 병존([mdm ADR-0003](../../../mdm/adr/0003-module-boundary-screens-roles.md)) |
 
-**(MUST NOT)**: 한글 영역명 ("조업관리" / "보전관리" / "설비관리" 등) 으로 신규 moduleId 를 도출하지 않는다. 위 5 값으로 흡수 매핑하거나, 매핑 불가 시 [확인필요: Q-NNN] + 본 부속서 PR.
+**(MUST NOT)**: 한글 영역명 ("조업관리" / "보전관리" / "설비관리" 등) 으로 신규 moduleId 를 도출하지 않는다. 위 표의 값으로 흡수 매핑하거나, 매핑 불가 시 [확인필요: Q-NNN] + 본 부속서 PR.
 
 ### A.1.2 legacy / 외부 의존 카탈로그 (참조용)
 
-신축 MES 5 모듈 외 기 구축·공유 모듈은 본 표로 분리 등재. 신규 화면 `moduleId` 결정 후보로는 사용 ✗.
+A.1.1 모듈 외 기 구축·공유 모듈은 본 표로 분리 등재. 신규 화면 `moduleId` 결정 후보로는 사용 ✗.
 
 | moduleId | 풀네임 (영문) | 풀네임 (한글) | 도메인 | 라우트 prefix | 등재일 | 사용 화면 |
 |---|---|---|---|---|---|---|
@@ -43,7 +45,7 @@
 ### A.1.3 등재 절차
 
 1. 분석리포트 §1 에서 `moduleId` 후보 식별
-2. 본 부속서 A.1.1 (5 모듈 정본) 에 매핑되지 않는 후보 발견 시 → [확인필요: Q-NNN] 마커 + §13 등재
+2. 본 부속서 A.1.1 (모듈 정본) 에 매핑되지 않는 후보 발견 시 → [확인필요: Q-NNN] 마커 + §13 등재
 3. 사용자 결정 후 본 부속서 PR 로 A.1.1 흡수 매핑 또는 A.1.2 분리 등재
 4. 등재 PR 머지 후 분석리포트의 [확인필요] → resolved
 
@@ -72,6 +74,7 @@
 | `mqc` | `qc` | `qca` / `qcb` / ... |
 | `mas` | `as` | `asa` / `asb` / ... |
 | `mcm` | `cm` | `cma` / `cmb` / ... |
+| `mdm` | `dm` | `dma` / `dmb` / `dmc` / `dmd` / `dme` / ... |
 
 **(MUST NOT)**:
 - 3 글자 외 길이 (`op` 2글자 / `oper` 4글자) — 신규 등재 ✗ (legacy 호환은 A.2.3 별표)
@@ -125,6 +128,11 @@
 | `mpp` | `setup` | legacy 의미명 (예정) | mpp 셋업 (BOP·라우팅 등) | (예정) | — | — |
 | `mcm` | `cma` | **영역 코드** (`cm`+`a`) | Master 관리(원장) — 카테고리·마스터코드 | 2026-05-27 | (masterCategoryMng 등재 동시) | `masterCategoryMng` / `masterCodeMng` / `masterCodeSelPop` / `masterCodeUploadFilePopup` |
 | `mcm` | `cmb` | **영역 코드** (`cm`+`b`) | 업무기준 관리(원장) — 업무기준(Rule) 구조·데이터 | 2026-06-04 | (masterRule* 5종 설계확정 등재) | `masterRuleListPop` / `masterRuleList` / `masterRuleFrame` / `masterRuleData` / `masterRuleFrameColListPopup` |
+| `mdm` | `dma` | **영역 코드** (`dm`+`a`) | 용어·도메인·컬럼·단위(02) — 표준 원장 사전(마루 MDM) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `unitMng` / `termMng` / `domainMng` / `columnMng` / `termRegPop` (+ TSK-01-01 샘플 `mdmSample` 은 옛 경로에 있으며 TSK-01-03 에서 옮긴다) |
+| `mdm` | `dmb` | **영역 코드** (`dm`+`b`) | 인터페이스 레이아웃(03) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `headerMng` / `layoutMng` |
+| `mdm` | `dmc` | **영역 코드** (`dm`+`c`) | 마스터코드(04) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `codeMng` / `codeEdit` / `codeItemEdit` / `codeCateEdit` / `codeConfirm` |
+| `mdm` | `dmd` | **영역 코드** (`dm`+`d`) | 마스터데이터(05) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `dataMng` / `dataEdit` / `dataCateEdit` / `dataItemMng` / `dataHistory` / `dataCsvUploadPop` |
+| `mdm` | `dme` | **영역 코드** (`dm`+`e`) | 업무기준·룰 세트(06) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `ruleMng` / `ruleEdit` / `ruleConfirm` / `ruleSetMng` / `ruleSetEdit` |
 | `master` | `common` | legacy 의미명 | 공통 마스터 (코드·부서) | 기 구축 | — | (다수) |
 | `master` | `item` | legacy 의미명 | 품목·재질 마스터 | 기 구축 | — | (다수) |
 | `aps` | `planning` | legacy 의미명 | 생산계획 | 기 구축 | — | (다수) |
@@ -141,7 +149,7 @@
 
 > **(MUST — 사용자 결정 사항 정본)** MES 모듈 신규 화면 `screenId` 는 **`{화면명}` 단일 토큰** camelCase 형식으로 결정한다. **모듈명·그룹명 토큰을 식별자에 포함하지 않는다** (`{moduleId}{화면명}` 2-토큰 / `{모듈명}{그룹명}{화면명}` 3-토큰 형식 모두 사용 ✗ — 사용자 결정으로 폐기). 모듈 구분은 폴더 경로·URL prefix·패키지 root 가 담당하므로 식별자에 모듈명을 중복 표기하지 않는다. APS 예외 (`mpn`) 는 별도 — 단일 토큰 (kebab-case 변환 가능) 유지.
 
-#### MES 룰 (`mls` / `mqc` / `mpp` / `mas` / `mcm` — 정본)
+#### MES 룰 (`mls` / `mqc` / `mpp` / `mas` / `mcm` / `mdm` — 정본)
 
 | 토큰 | 표기 | 출처 | 예시 |
 |---|---|---|---|

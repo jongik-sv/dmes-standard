@@ -1,8 +1,8 @@
 # WBS - 마루 MDM (dmes-standard 개발분)
 
-> version: 1.2
+> version: 1.3
 > depth: 3
-> start-date: 2026-09-28 / target-date: 2027-01-05 / updated: 2026-09-23
+> start-date: 2026-09-28 / target-date: 2027-01-05 / updated: 2026-09-24
 > 입력: [PRD.md](PRD.md) · [TRD.md](TRD.md) · 원천 설계 [design/basic/](design/basic/README.md) (02·03·04 전체 방식·05·06 + HTML 시안)
 > 일정: 영업일(주말 제외) FS 계산, 공휴일·인력 제약 미반영 — target-date 는 인원 무제한 가정의 임계 경로 종료일이며 납기가 아니다. 담당 배정 후 D'Flow 에서 재조정
 > 설계 링크(`design/basic/...`)는 이 PC 의 로컬 심볼릭 링크(`docs/mdm/design` → `/Users/jji/project/mdm/docs/design`)를 거친다. 워크트리·다른 클론·D'Flow 웹에서는 열리지 않으므로 원본 경로 `/Users/jji/project/mdm/docs/design/basic/` 을 직접 연다
@@ -25,7 +25,7 @@
 | domain | architecture |
 |--------|-------------|
 | backend | RULE.md MES 분기(`docs/guide/MES/Mes-Guide.md`). 업무 API 는 OASIS BPMN(`services/{group}/{screenId}.bpmn` → 서비스 빈), `@RestController` 우회 금지. 패키지 `com.dongkuk.dmes.mdm.{group}.{screenId}`. 스키마는 Flyway 두 방언(`flyway-migration-add`). BPMN 수정 후 `oasis-contract-check` ERROR 0. 엔진 jar 는 EvalEx 외 의존·DB·네트워크 호출 금지 |
-| frontend | 공통 FE 가이드(`docs/guide/FrontEnd/README.md`). 화면 `m-mdm/src/pages/{group}/{screenId}/page.tsx`, 팝업은 `page.tsx` 금지. 라우팅과 메뉴 연결: 신규 페이지는 즉시 page-registry 에 등록하고 `DataInitializer` 메뉴·OBJECT·RBAC 시드를 같은 Task 에서 추가한다. 라우터·메뉴 배선을 분리된 후속 Task 로 미루면 orphan page 가 발생한다. 화면마다 설계 산출물 5종(RULE.md)을 Task 설계 단계에서 작성한다 |
+| frontend | 공통 FE 가이드(`docs/guide/FrontEnd/README.md`). 화면 `m-mdm/pages/{group}/{screenId}/page.tsx`, 팝업은 `page.tsx` 금지. 라우팅과 메뉴 연결: 신규 페이지는 즉시 page-registry 에 등록하고 `DataInitializer` 메뉴·OBJECT·RBAC 시드를 같은 Task 에서 추가한다. 라우터·메뉴 배선을 분리된 후속 Task 로 미루면 orphan page 가 발생한다. 화면마다 설계 산출물 5종(RULE.md)을 Task 설계 단계에서 작성한다 |
 
 ### Quality Commands
 | name | command |
@@ -105,7 +105,7 @@ node, vitest, java
   - `TB_MDM_SYSTEM` DDL(두 방언) + 초기 적재 시드(ERP/MES/APS/DKMS/L2 + MDM 자기 행)
   - 공통 관리 속성(등록·수정자·일시) 칼럼 규약과 적용 방식(TB 명명 결정 반영)
   - 역할 상수(표준 관리자·담당자)·권한 액션 코드, 공통 오류 코드·응답 DTO
-  - OASIS 서비스 ID·화면 그룹 코드(mdt/mdl/mdc/mdd/mdr/mda) 규칙
+  - OASIS 서비스 ID·화면 그룹 코드(dma/dmb/dmc/dmd/dme — [screens/README.md](screens/README.md)) 규칙
   - 04·05 공유 모델: 카테고리(REGEX/TABLE, BASE 예약, def_target) 타입과 마루 코드·마루 데이터 ID 이름 공간 검사 인터페이스
   - 버전 상태 5종(DRAFT/REQUESTED/APPROVED/RELEASED/CANCELLED) 상수와 전이 표 인터페이스. 이번 범위의 전이는 담당자 확정(DRAFT→RELEASED)·DRAFT 삭제뿐
   - DRAFT 소유권(선점·해제·넘기기) 서비스 인터페이스, `row_version` 낙관적 잠금 규약
@@ -144,7 +144,8 @@ node, vitest, java
 - prd-ref: [04 「버전 상태와 적용시점」](design/basic/04-master-code-deploy-full.md) · [04 「상신 시 검사」](design/basic/04-master-code-deploy-full.md) · [06 「테이블 설계」](design/basic/06-business-rule.md) · PRD §2 규칙 7 · PRD §3, TRD §6 · PRD FR-F1
 - requirements:
   - MDM 메뉴 그룹 트리(용어·도메인 / 레이아웃 / 마스터코드 / 마스터데이터 / 업무기준) 시드
-  - 역할 2종(표준 관리자·담당자) 시드와 화면·액션별 권한 매핑 기본값
+  - TSK-01-01 이 만든 샘플 화면 `mdmSample` 의 그룹 경로를 `dma` 로 옮기거나 샘플을 지운다(메뉴 시드·tsup entry·pages 폴더·스모크 테스트를 함께 맞춘다)
+  - 역할 2종(표준 관리자·담당자) 시드와 화면·액션별 권한 매핑 기본값(역할 ID·권한 세트·매트릭스는 [ADR-0003](adr/0003-module-boundary-screens-roles.md))
   - m-mdm 공통 화면 셸(PageLayout, 상태 배지, 잠금 배지)
   - 이번 범위의 전이 2종(담당자 확정 DRAFT→RELEASED, DRAFT 삭제), 미적용 버전 하나 규칙
   - 확정 시 apply_to 열기 + 직전 RELEASED 버전 닫기(한 트랜잭션)
@@ -530,7 +531,7 @@ node, vitest, java
 - tags: 02, ui, embedding, agent
 - depends: TSK-04-01, TSK-01-03, TSK-02-02
 - blocked-by: -
-- entry-point: /portal → mdt/unitMng (메뉴: MDM > 용어·도메인 > 단위 마스터); /portal → mdt/termMng (메뉴: MDM > 용어·도메인 > 용어 관리)
+- entry-point: /portal → dma/unitMng (메뉴: MDM > 용어·도메인 > 단위 마스터); /portal → dma/termMng (메뉴: MDM > 용어·도메인 > 용어 관리)
 - note: 세부 작업: 단위 마스터 / 용어 관리 / 용어 임베딩 유사어 추천
 
 #### PRD 요구사항
@@ -557,12 +558,12 @@ node, vitest, java
 
 #### 기술 스펙 (TRD)
 - tech-spec:
-  - BE: `com.dongkuk.dmes.mdm.mdt.unitMng.{dto,service}` + BPMN `services/mdt/unitMng.bpmn`
-  - FE: `m-mdm/src/pages/mdt/unitMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdt/unitMng`
-  - BE: `com.dongkuk.dmes.mdm.mdt.termMng.{dto,service}` + BPMN `services/mdt/termMng.bpmn`
-  - FE: `m-mdm/src/pages/mdt/termMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdt/termMng`
+  - BE: `com.dongkuk.dmes.mdm.dma.unitMng.{dto,service}` + BPMN `services/dma/unitMng.bpmn`
+  - FE: `m-mdm/pages/dma/unitMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dma/unitMng`
+  - BE: `com.dongkuk.dmes.mdm.dma.termMng.{dto,service}` + BPMN `services/dma/termMng.bpmn`
+  - FE: `m-mdm/pages/dma/termMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dma/termMng`
 - api-spec:
   - OASIS 서비스 `unitMng` — `/api/mdm/oasis/{serviceId}/{action}`
   - OASIS 서비스 `termMng` — `/api/mdm/oasis/{serviceId}/{action}`
@@ -584,7 +585,7 @@ node, vitest, java
 - tags: 02, ui, evalex, impact, agent
 - depends: TSK-04-01, TSK-01-03, TSK-03-02, TSK-03-04
 - blocked-by: -
-- entry-point: /portal → mdt/domainMng (메뉴: MDM > 용어·도메인 > 도메인 관리)
+- entry-point: /portal → dma/domainMng (메뉴: MDM > 용어·도메인 > 도메인 관리)
 - note: 세부 작업: 도메인 관리 — 상속 트리·기본 속성 / 도메인 검증식·테스트 케이스·미리보기 / 도메인 영향도 조회
 
 #### PRD 요구사항
@@ -611,9 +612,9 @@ node, vitest, java
 
 #### 기술 스펙 (TRD)
 - tech-spec:
-  - BE: `com.dongkuk.dmes.mdm.mdt.domainMng.{dto,service}` + BPMN `services/mdt/domainMng.bpmn`
-  - FE: `m-mdm/src/pages/mdt/domainMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdt/domainMng`
+  - BE: `com.dongkuk.dmes.mdm.dma.domainMng.{dto,service}` + BPMN `services/dma/domainMng.bpmn`
+  - FE: `m-mdm/pages/dma/domainMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dma/domainMng`
 - api-spec:
   - OASIS 서비스 `domainMng` — `/api/mdm/oasis/{serviceId}/{action}`
 - data-model:
@@ -634,7 +635,7 @@ node, vitest, java
 - tags: 02, ui, naming, agent
 - depends: TSK-04-01, TSK-01-03
 - blocked-by: -
-- entry-point: /portal → mdt/columnMng (메뉴: MDM > 용어·도메인 > 컬럼 사전)
+- entry-point: /portal → dma/columnMng (메뉴: MDM > 용어·도메인 > 컬럼 사전)
 - note: 세부 작업: 컬럼 사전 — 목록·상세·시스템 필드명 매핑 / 컬럼명 자동 생성·역분해·용어 인라인 등록
 
 #### PRD 요구사항
@@ -643,7 +644,7 @@ node, vitest, java
   - 컬럼 목록(실제 필드명으로도 검색), 상세 폼(표시명 긴24/중12/짧6, 도메인 필수, 참조 종류)
   - 시스템별 실제 필드명 그리드(행 추가·삭제, transform·note)
   - 한국어 논리명 → 최장 일치 분해 → 동의어 표준어 치환 → 물리명 미리보기(`***` 표시)
-  - `***` 클릭 → 유사어 확인 → 용어 인라인 등록 팝업(`mdt/termRegPop`)
+  - `***` 클릭 → 유사어 확인 → 용어 인라인 등록 팝업(`dma/termRegPop`)
   - 도메인 추천·중복 검사, 역방향(물리명 → 논리명) 분해
 - acceptance:
   - 한 시스템 안 같은 필드명의 두 번째 등록 거부
@@ -656,9 +657,9 @@ node, vitest, java
 
 #### 기술 스펙 (TRD)
 - tech-spec:
-  - BE: `com.dongkuk.dmes.mdm.mdt.columnMng.{dto,service}` + BPMN `services/mdt/columnMng.bpmn`
-  - FE: `m-mdm/src/pages/mdt/columnMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdt/columnMng`
+  - BE: `com.dongkuk.dmes.mdm.dma.columnMng.{dto,service}` + BPMN `services/dma/columnMng.bpmn`
+  - FE: `m-mdm/pages/dma/columnMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dma/columnMng`
 - api-spec:
   - OASIS 서비스 `columnMng` — `/api/mdm/oasis/{serviceId}/{action}`
 - data-model:
@@ -690,7 +691,7 @@ node, vitest, java
   - 샘플 추출 파일로 후보·미대응 목록이 생성된다
   - 후보는 파일로 출력하고 자동 등록하지 않는다. 사람이 검토해 용어·도메인·컬럼 화면으로 등록한다
 - constraints:
-  - 사전 수신 시스템 화면(`mdt/dictSystemMng`)과 변경분 배포는 보류(PRD §5)
+  - 사전 수신 시스템 화면(`dma/dictSystemMng`)과 변경분 배포는 보류(PRD §5)
 - test-criteria: -
 
 #### 기술 스펙 (TRD)
@@ -747,7 +748,7 @@ node, vitest, java
 - tags: 03, ui
 - depends: TSK-05-01, TSK-01-03
 - blocked-by: -
-- entry-point: /portal → mdl/headerMng (메뉴: MDM > 레이아웃 > 전문 헤더 정의); /portal → mdl/layoutMng (메뉴: MDM > 레이아웃 > 전문 레이아웃)
+- entry-point: /portal → dmb/headerMng (메뉴: MDM > 레이아웃 > 전문 헤더 정의); /portal → dmb/layoutMng (메뉴: MDM > 레이아웃 > 전문 레이아웃)
 - note: 세부 작업: 전문 헤더 정의 / 전문 레이아웃 — 기본 속성·헤더 구성·상수 재정의 / 전문 레이아웃 — 본문 항목·오프셋 자동 계산
 
 #### PRD 요구사항
@@ -772,12 +773,12 @@ node, vitest, java
 
 #### 기술 스펙 (TRD)
 - tech-spec:
-  - BE: `com.dongkuk.dmes.mdm.mdl.headerMng.{dto,service}` + BPMN `services/mdl/headerMng.bpmn`
-  - FE: `m-mdm/src/pages/mdl/headerMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdl/headerMng`
-  - BE: `com.dongkuk.dmes.mdm.mdl.layoutMng.{dto,service}` + BPMN `services/mdl/layoutMng.bpmn`
-  - FE: `m-mdm/src/pages/mdl/layoutMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdl/layoutMng`
+  - BE: `com.dongkuk.dmes.mdm.dmb.headerMng.{dto,service}` + BPMN `services/dmb/headerMng.bpmn`
+  - FE: `m-mdm/pages/dmb/headerMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dmb/headerMng`
+  - BE: `com.dongkuk.dmes.mdm.dmb.layoutMng.{dto,service}` + BPMN `services/dmb/layoutMng.bpmn`
+  - FE: `m-mdm/pages/dmb/layoutMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dmb/layoutMng`
 - api-spec:
   - OASIS 서비스 `headerMng` — `/api/mdm/oasis/{serviceId}/{action}`
   - OASIS 서비스 `layoutMng` — `/api/mdm/oasis/{serviceId}/{action}`
@@ -798,7 +799,7 @@ node, vitest, java
 - tags: 03, serializer, validate, version
 - depends: TSK-05-01, TSK-01-03, TSK-03-02
 - blocked-by: -
-- entry-point: /portal → mdl/layoutMng (메뉴: MDM > 레이아웃 > 전문 레이아웃)
+- entry-point: /portal → dmb/layoutMng (메뉴: MDM > 레이아웃 > 전문 레이아웃)
 - note: 세부 작업: 전문 직렬화기·파서 라이브러리 / 등록 검증과 샘플 전문 / 버전 이력·스냅샷 출력·영향도. 스냅샷 배포는 보류(PRD §2 규칙 7)
 
 #### PRD 요구사항
@@ -825,9 +826,9 @@ node, vitest, java
 
 #### 기술 스펙 (TRD)
 - tech-spec:
-  - BE: `com.dongkuk.dmes.mdm.mdl.layoutMng.{dto,service}` + BPMN `services/mdl/layoutMng.bpmn`
-  - FE: `m-mdm/src/pages/mdl/layoutMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdl/layoutMng`
+  - BE: `com.dongkuk.dmes.mdm.dmb.layoutMng.{dto,service}` + BPMN `services/dmb/layoutMng.bpmn`
+  - FE: `m-mdm/pages/dmb/layoutMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dmb/layoutMng`
 - api-spec:
   - OASIS 서비스 `layoutMng` — `/api/mdm/oasis/{serviceId}/{action}`
 - data-model: -
@@ -882,7 +883,7 @@ node, vitest, java
 - tags: 04, ui, version
 - depends: TSK-06-01, TSK-01-03
 - blocked-by: -
-- entry-point: /portal → mdc/codeMng (메뉴: MDM > 마스터코드 > 마루 코드); /portal → mdc/codeEdit (메뉴: MDM > 마스터코드 > 마루 코드 수정)
+- entry-point: /portal → dmc/codeMng (메뉴: MDM > 마스터코드 > 마루 코드); /portal → dmc/codeEdit (메뉴: MDM > 마스터코드 > 마루 코드 수정)
 - note: 세부 작업: 마루 코드 조회·등록 / 마루 코드 수정 — 헤더·라벨·폐기 / 버전 목록·새 버전·복원·DRAFT 소유권. 배포 대상·EXTERNAL 원천은 보류(PRD §2 규칙 7)
 
 #### PRD 요구사항
@@ -909,12 +910,12 @@ node, vitest, java
 
 #### 기술 스펙 (TRD)
 - tech-spec:
-  - BE: `com.dongkuk.dmes.mdm.mdc.codeMng.{dto,service}` + BPMN `services/mdc/codeMng.bpmn`
-  - FE: `m-mdm/src/pages/mdc/codeMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdc/codeMng`
-  - BE: `com.dongkuk.dmes.mdm.mdc.codeEdit.{dto,service}` + BPMN `services/mdc/codeEdit.bpmn`
-  - FE: `m-mdm/src/pages/mdc/codeEdit/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdc/codeEdit`
+  - BE: `com.dongkuk.dmes.mdm.dmc.codeMng.{dto,service}` + BPMN `services/dmc/codeMng.bpmn`
+  - FE: `m-mdm/pages/dmc/codeMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dmc/codeMng`
+  - BE: `com.dongkuk.dmes.mdm.dmc.codeEdit.{dto,service}` + BPMN `services/dmc/codeEdit.bpmn`
+  - FE: `m-mdm/pages/dmc/codeEdit/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dmc/codeEdit`
 - api-spec:
   - OASIS 서비스 `codeMng` — `/api/mdm/oasis/{serviceId}/{action}`
   - OASIS 서비스 `codeEdit` — `/api/mdm/oasis/{serviceId}/{action}`
@@ -935,7 +936,7 @@ node, vitest, java
 - tags: 04, ui, tree, patch
 - depends: TSK-06-01, TSK-01-03, TSK-03-02
 - blocked-by: -
-- entry-point: /portal → mdc/codeItemEdit (메뉴: MDM > 마스터코드 > 코드 편집)
+- entry-point: /portal → dmc/codeItemEdit (메뉴: MDM > 마스터코드 > 코드 편집)
 - note: 세부 작업: 코드 편집 그리드 — 선분 조작·저장 검사 / 코드 트리 보기·계층 콤보·미리보기 / 경미 수정
 
 #### PRD 요구사항
@@ -959,9 +960,9 @@ node, vitest, java
 
 #### 기술 스펙 (TRD)
 - tech-spec:
-  - BE: `com.dongkuk.dmes.mdm.mdc.codeItemEdit.{dto,service}` + BPMN `services/mdc/codeItemEdit.bpmn`
-  - FE: `m-mdm/src/pages/mdc/codeItemEdit/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdc/codeItemEdit`
+  - BE: `com.dongkuk.dmes.mdm.dmc.codeItemEdit.{dto,service}` + BPMN `services/dmc/codeItemEdit.bpmn`
+  - FE: `m-mdm/pages/dmc/codeItemEdit/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dmc/codeItemEdit`
 - api-spec:
   - OASIS 서비스 `codeItemEdit` — `/api/mdm/oasis/{serviceId}/{action}`
 - data-model: -
@@ -981,7 +982,7 @@ node, vitest, java
 - tags: 04, category
 - depends: TSK-06-01, TSK-01-03, TSK-03-02
 - blocked-by: -
-- entry-point: /portal → mdc/codeCateEdit (메뉴: MDM > 마스터코드 > 카테고리 편집)
+- entry-point: /portal → dmc/codeCateEdit (메뉴: MDM > 마스터코드 > 카테고리 편집)
 - note: 세부 작업: 카테고리 편집 — REGEX / 카테고리 편집 — TABLE 이중 목록
 
 #### PRD 요구사항
@@ -1002,9 +1003,9 @@ node, vitest, java
 
 #### 기술 스펙 (TRD)
 - tech-spec:
-  - BE: `com.dongkuk.dmes.mdm.mdc.codeCateEdit.{dto,service}` + BPMN `services/mdc/codeCateEdit.bpmn`
-  - FE: `m-mdm/src/pages/mdc/codeCateEdit/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdc/codeCateEdit`
+  - BE: `com.dongkuk.dmes.mdm.dmc.codeCateEdit.{dto,service}` + BPMN `services/dmc/codeCateEdit.bpmn`
+  - FE: `m-mdm/pages/dmc/codeCateEdit/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dmc/codeCateEdit`
 - api-spec:
   - OASIS 서비스 `codeCateEdit` — `/api/mdm/oasis/{serviceId}/{action}`
 - data-model: -
@@ -1023,7 +1024,7 @@ node, vitest, java
 - tags: 04, version, confirm
 - depends: TSK-06-01, TSK-01-03
 - blocked-by: -
-- entry-point: /portal → mdc/codeConfirm (메뉴: MDM > 마스터코드 > 버전 확정)
+- entry-point: /portal → dmc/codeConfirm (메뉴: MDM > 마스터코드 > 버전 확정)
 - note: 세부 작업: 확정 폼·검사 8항 / 직전 RELEASED 대비 diff / 확정 전이·자동 전이. 상신·결재·배포·철회·수신은 보류(PRD §2 규칙 7)
 
 #### PRD 요구사항
@@ -1045,9 +1046,9 @@ node, vitest, java
 
 #### 기술 스펙 (TRD)
 - tech-spec:
-  - BE: `com.dongkuk.dmes.mdm.mdc.codeConfirm.{dto,service}` + BPMN `services/mdc/codeConfirm.bpmn`
-  - FE: `m-mdm/src/pages/mdc/codeConfirm/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdc/codeConfirm`
+  - BE: `com.dongkuk.dmes.mdm.dmc.codeConfirm.{dto,service}` + BPMN `services/dmc/codeConfirm.bpmn`
+  - FE: `m-mdm/pages/dmc/codeConfirm/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dmc/codeConfirm`
 - api-spec:
   - OASIS 서비스 `codeConfirm` — `/api/mdm/oasis/{serviceId}/{action}`
 - data-model: -
@@ -1100,7 +1101,7 @@ node, vitest, java
 - tags: 05, ui, category
 - depends: TSK-07-01, TSK-01-03, TSK-03-02
 - blocked-by: -
-- entry-point: /portal → mdd/dataMng (메뉴: MDM > 마스터데이터 > 마루 데이터); /portal → mdd/dataEdit (메뉴: MDM > 마스터데이터 > 마루 데이터 수정); /portal → mdd/dataCateEdit (메뉴: MDM > 마스터데이터 > 카테고리 편집)
+- entry-point: /portal → dmd/dataMng (메뉴: MDM > 마스터데이터 > 마루 데이터); /portal → dmd/dataEdit (메뉴: MDM > 마스터데이터 > 마루 데이터 수정); /portal → dmd/dataCateEdit (메뉴: MDM > 마스터데이터 > 카테고리 편집)
 - note: 세부 작업: 마루 데이터 조회·등록 / 마루 데이터 수정 — 헤더·라벨·계층·폐기 / 카테고리 편집. 배포 대상·EXTERNAL 원천은 보류(PRD §2 규칙 7)
 
 #### PRD 요구사항
@@ -1126,15 +1127,15 @@ node, vitest, java
 
 #### 기술 스펙 (TRD)
 - tech-spec:
-  - BE: `com.dongkuk.dmes.mdm.mdd.dataMng.{dto,service}` + BPMN `services/mdd/dataMng.bpmn`
-  - FE: `m-mdm/src/pages/mdd/dataMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdd/dataMng`
-  - BE: `com.dongkuk.dmes.mdm.mdd.dataEdit.{dto,service}` + BPMN `services/mdd/dataEdit.bpmn`
-  - FE: `m-mdm/src/pages/mdd/dataEdit/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdd/dataEdit`
-  - BE: `com.dongkuk.dmes.mdm.mdd.dataCateEdit.{dto,service}` + BPMN `services/mdd/dataCateEdit.bpmn`
-  - FE: `m-mdm/src/pages/mdd/dataCateEdit/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdd/dataCateEdit`
+  - BE: `com.dongkuk.dmes.mdm.dmd.dataMng.{dto,service}` + BPMN `services/dmd/dataMng.bpmn`
+  - FE: `m-mdm/pages/dmd/dataMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dmd/dataMng`
+  - BE: `com.dongkuk.dmes.mdm.dmd.dataEdit.{dto,service}` + BPMN `services/dmd/dataEdit.bpmn`
+  - FE: `m-mdm/pages/dmd/dataEdit/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dmd/dataEdit`
+  - BE: `com.dongkuk.dmes.mdm.dmd.dataCateEdit.{dto,service}` + BPMN `services/dmd/dataCateEdit.bpmn`
+  - FE: `m-mdm/pages/dmd/dataCateEdit/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dmd/dataCateEdit`
 - api-spec:
   - OASIS 서비스 `dataMng` — `/api/mdm/oasis/{serviceId}/{action}`
   - OASIS 서비스 `dataEdit` — `/api/mdm/oasis/{serviceId}/{action}`
@@ -1156,7 +1157,7 @@ node, vitest, java
 - tags: 05, core, ui, history
 - depends: TSK-07-01, TSK-01-03
 - blocked-by: -
-- entry-point: /portal → mdd/dataItemMng (메뉴: MDM > 마스터데이터 > 항목 관리); /portal → mdd/dataHistory (메뉴: MDM > 마스터데이터 > 항목 이력)
+- entry-point: /portal → dmd/dataItemMng (메뉴: MDM > 마스터데이터 > 항목 관리); /portal → dmd/dataHistory (메뉴: MDM > 마스터데이터 > 항목 이력)
 - note: 세부 작업: 일시 선분 저장 코어 + 검사 7단계 / 항목 관리 — 목록·인라인 편집·닫기 / 항목 이력
 
 #### PRD 요구사항
@@ -1182,12 +1183,12 @@ node, vitest, java
 
 #### 기술 스펙 (TRD)
 - tech-spec:
-  - BE: `com.dongkuk.dmes.mdm.mdd.dataItemMng.{dto,service}` + BPMN `services/mdd/dataItemMng.bpmn`
-  - FE: `m-mdm/src/pages/mdd/dataItemMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdd/dataItemMng`
-  - BE: `com.dongkuk.dmes.mdm.mdd.dataHistory.{dto,service}` + BPMN `services/mdd/dataHistory.bpmn`
-  - FE: `m-mdm/src/pages/mdd/dataHistory/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdd/dataHistory`
+  - BE: `com.dongkuk.dmes.mdm.dmd.dataItemMng.{dto,service}` + BPMN `services/dmd/dataItemMng.bpmn`
+  - FE: `m-mdm/pages/dmd/dataItemMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dmd/dataItemMng`
+  - BE: `com.dongkuk.dmes.mdm.dmd.dataHistory.{dto,service}` + BPMN `services/dmd/dataHistory.bpmn`
+  - FE: `m-mdm/pages/dmd/dataHistory/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dmd/dataHistory`
 - api-spec:
   - OASIS 서비스 `dataItemMng` — `/api/mdm/oasis/{serviceId}/{action}`
   - OASIS 서비스 `dataHistory` — `/api/mdm/oasis/{serviceId}/{action}`
@@ -1207,7 +1208,7 @@ node, vitest, java
 - tags: 05, tree, csv
 - depends: TSK-07-01, TSK-01-03, TSK-07-03
 - blocked-by: -
-- entry-point: /portal → mdd/dataItemMng (메뉴: MDM > 마스터데이터 > 항목 관리); /portal → mdd/dataCsvUploadPop (메뉴: MDM > 마스터데이터 > 항목 관리 > CSV 업로드)
+- entry-point: /portal → dmd/dataItemMng (메뉴: MDM > 마스터데이터 > 항목 관리); /portal → dmd/dataCsvUploadPop (메뉴: MDM > 마스터데이터 > 항목 관리 > CSV 업로드)
 - note: 세부 작업: 항목 트리 보기 / CSV 업로드. EXTERNAL 수신 API·수신 로그·변경분 동기화 송신은 보류(PRD §2 규칙 7)
 
 #### PRD 요구사항
@@ -1227,12 +1228,12 @@ node, vitest, java
 
 #### 기술 스펙 (TRD)
 - tech-spec:
-  - BE: `com.dongkuk.dmes.mdm.mdd.dataItemMng.{dto,service}` + BPMN `services/mdd/dataItemMng.bpmn`
-  - FE: `m-mdm/src/pages/mdd/dataItemMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdd/dataItemMng`
-  - BE: `com.dongkuk.dmes.mdm.mdd.dataCsvUploadPop.{dto,service}` + BPMN `services/mdd/dataCsvUploadPop.bpmn`
-  - FE: `m-mdm/src/pages/mdd/dataCsvUploadPop/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdd/dataCsvUploadPop`
+  - BE: `com.dongkuk.dmes.mdm.dmd.dataItemMng.{dto,service}` + BPMN `services/dmd/dataItemMng.bpmn`
+  - FE: `m-mdm/pages/dmd/dataItemMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dmd/dataItemMng`
+  - BE: `com.dongkuk.dmes.mdm.dmd.dataCsvUploadPop.{dto,service}` + BPMN `services/dmd/dataCsvUploadPop.bpmn`
+  - FE: `m-mdm/pages/dmd/dataCsvUploadPop/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dmd/dataCsvUploadPop`
 - api-spec:
   - OASIS 서비스 `dataItemMng` — `/api/mdm/oasis/{serviceId}/{action}`
   - OASIS 서비스 `dataCsvUploadPop` — `/api/mdm/oasis/{serviceId}/{action}`
@@ -1288,7 +1289,7 @@ node, vitest, java
 - tags: 06, ui, grid
 - depends: TSK-08-01, TSK-01-03, TSK-03-04
 - blocked-by: -
-- entry-point: /portal → mdr/ruleMng (메뉴: MDM > 업무기준 > 룰); /portal → mdr/ruleEdit (메뉴: MDM > 업무기준 > 룰 화면)
+- entry-point: /portal → dme/ruleMng (메뉴: MDM > 업무기준 > 룰); /portal → dme/ruleEdit (메뉴: MDM > 업무기준 > 룰 화면)
 - note: 세부 작업: 룰 조회·등록 / 룰 화면 골격 — 헤더·버전·소유권·활용처 / 의사결정표 그리드. 배포 대상 카드·EXTERNAL 원천은 보류(PRD §2 규칙 7)
 
 #### PRD 요구사항
@@ -1315,12 +1316,12 @@ node, vitest, java
 
 #### 기술 스펙 (TRD)
 - tech-spec:
-  - BE: `com.dongkuk.dmes.mdm.mdr.ruleMng.{dto,service}` + BPMN `services/mdr/ruleMng.bpmn`
-  - FE: `m-mdm/src/pages/mdr/ruleMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdr/ruleMng`
-  - BE: `com.dongkuk.dmes.mdm.mdr.ruleEdit.{dto,service}` + BPMN `services/mdr/ruleEdit.bpmn`
-  - FE: `m-mdm/src/pages/mdr/ruleEdit/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdr/ruleEdit`
+  - BE: `com.dongkuk.dmes.mdm.dme.ruleMng.{dto,service}` + BPMN `services/dme/ruleMng.bpmn`
+  - FE: `m-mdm/pages/dme/ruleMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dme/ruleMng`
+  - BE: `com.dongkuk.dmes.mdm.dme.ruleEdit.{dto,service}` + BPMN `services/dme/ruleEdit.bpmn`
+  - FE: `m-mdm/pages/dme/ruleEdit/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dme/ruleEdit`
 - api-spec:
   - OASIS 서비스 `ruleMng` — `/api/mdm/oasis/{serviceId}/{action}`
   - OASIS 서비스 `ruleEdit` — `/api/mdm/oasis/{serviceId}/{action}`
@@ -1341,7 +1342,7 @@ node, vitest, java
 - tags: 06, columns, pivot, derive, contract-view
 - depends: TSK-08-01, TSK-01-03, TSK-03-02, TSK-03-04
 - blocked-by: -
-- entry-point: /portal → mdr/ruleEdit (메뉴: MDM > 업무기준 > 룰 화면)
+- entry-point: /portal → dme/ruleEdit (메뉴: MDM > 업무기준 > 룰 화면)
 - note: 세부 작업: 열 설정 표·도메인 검색 / 피벗 보기·결과 열 그룹 / 산출 룰·Expression 편집·서버 미리보기 / 입력 계약 표·계약 diff
 
 #### PRD 요구사항
@@ -1366,9 +1367,9 @@ node, vitest, java
 
 #### 기술 스펙 (TRD)
 - tech-spec:
-  - BE: `com.dongkuk.dmes.mdm.mdr.ruleEdit.{dto,service}` + BPMN `services/mdr/ruleEdit.bpmn`
-  - FE: `m-mdm/src/pages/mdr/ruleEdit/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdr/ruleEdit`
+  - BE: `com.dongkuk.dmes.mdm.dme.ruleEdit.{dto,service}` + BPMN `services/dme/ruleEdit.bpmn`
+  - FE: `m-mdm/pages/dme/ruleEdit/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dme/ruleEdit`
 - api-spec:
   - OASIS 서비스 `ruleEdit` — `/api/mdm/oasis/{serviceId}/{action}`
 - data-model: -
@@ -1389,7 +1390,7 @@ node, vitest, java
 - tags: 06, validate, test
 - depends: TSK-08-01, TSK-03-03, TSK-03-04, TSK-01-03
 - blocked-by: -
-- entry-point: /portal → mdr/ruleEdit (메뉴: MDM > 업무기준 > 룰 화면)
+- entry-point: /portal → dme/ruleEdit (메뉴: MDM > 업무기준 > 룰 화면)
 - note: 세부 작업: 룰 저장 시 검사 / 값 테스트·테스트 케이스
 
 #### PRD 요구사항
@@ -1411,9 +1412,9 @@ node, vitest, java
 
 #### 기술 스펙 (TRD)
 - tech-spec:
-  - BE: `com.dongkuk.dmes.mdm.mdr.ruleEdit.{dto,service}` + BPMN `services/mdr/ruleEdit.bpmn`
-  - FE: `m-mdm/src/pages/mdr/ruleEdit/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdr/ruleEdit`
+  - BE: `com.dongkuk.dmes.mdm.dme.ruleEdit.{dto,service}` + BPMN `services/dme/ruleEdit.bpmn`
+  - FE: `m-mdm/pages/dme/ruleEdit/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dme/ruleEdit`
 - api-spec:
   - OASIS 서비스 `ruleEdit` — `/api/mdm/oasis/{serviceId}/{action}`
 - data-model: -
@@ -1431,7 +1432,7 @@ node, vitest, java
 - tags: 06, version, confirm
 - depends: TSK-08-01, TSK-01-03, TSK-03-03, TSK-08-04
 - blocked-by: -
-- entry-point: /portal → mdr/ruleConfirm (메뉴: MDM > 업무기준 > 버전 확정)
+- entry-point: /portal → dme/ruleConfirm (메뉴: MDM > 업무기준 > 버전 확정)
 - note: 세부 작업: 확정 검사 / 직전 RELEASED 대비 row_id diff / 확정 전이·자동 전이. 상신·결재·배포 스냅샷·정의 조회 API·수신은 보류(PRD §2 규칙 7)
 
 #### PRD 요구사항
@@ -1452,9 +1453,9 @@ node, vitest, java
 
 #### 기술 스펙 (TRD)
 - tech-spec:
-  - BE: `com.dongkuk.dmes.mdm.mdr.ruleConfirm.{dto,service}` + BPMN `services/mdr/ruleConfirm.bpmn`
-  - FE: `m-mdm/src/pages/mdr/ruleConfirm/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdr/ruleConfirm`
+  - BE: `com.dongkuk.dmes.mdm.dme.ruleConfirm.{dto,service}` + BPMN `services/dme/ruleConfirm.bpmn`
+  - FE: `m-mdm/pages/dme/ruleConfirm/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dme/ruleConfirm`
 - api-spec:
   - OASIS 서비스 `ruleConfirm` — `/api/mdm/oasis/{serviceId}/{action}`
 - data-model: -
@@ -1472,7 +1473,7 @@ node, vitest, java
 - tags: 06, ruleset
 - depends: TSK-08-01, TSK-01-03, TSK-03-03
 - blocked-by: -
-- entry-point: /portal → mdr/ruleSetMng (메뉴: MDM > 업무기준 > 룰 세트); /portal → mdr/ruleSetEdit (메뉴: MDM > 업무기준 > 룰 세트 편집)
+- entry-point: /portal → dme/ruleSetMng (메뉴: MDM > 업무기준 > 룰 세트); /portal → dme/ruleSetEdit (메뉴: MDM > 업무기준 > 룰 세트 편집)
 - note: 세부 작업: 룰 세트 조회·등록 / 룰 세트 편집 — 순서·입출력·구성 지침
 
 #### PRD 요구사항
@@ -1495,12 +1496,12 @@ node, vitest, java
 
 #### 기술 스펙 (TRD)
 - tech-spec:
-  - BE: `com.dongkuk.dmes.mdm.mdr.ruleSetMng.{dto,service}` + BPMN `services/mdr/ruleSetMng.bpmn`
-  - FE: `m-mdm/src/pages/mdr/ruleSetMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdr/ruleSetMng`
-  - BE: `com.dongkuk.dmes.mdm.mdr.ruleSetEdit.{dto,service}` + BPMN `services/mdr/ruleSetEdit.bpmn`
-  - FE: `m-mdm/src/pages/mdr/ruleSetEdit/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdr/ruleSetEdit`
+  - BE: `com.dongkuk.dmes.mdm.dme.ruleSetMng.{dto,service}` + BPMN `services/dme/ruleSetMng.bpmn`
+  - FE: `m-mdm/pages/dme/ruleSetMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dme/ruleSetMng`
+  - BE: `com.dongkuk.dmes.mdm.dme.ruleSetEdit.{dto,service}` + BPMN `services/dme/ruleSetEdit.bpmn`
+  - FE: `m-mdm/pages/dme/ruleSetEdit/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`dme/ruleSetEdit`
 - api-spec:
   - OASIS 서비스 `ruleSetMng` — `/api/mdm/oasis/{serviceId}/{action}`
   - OASIS 서비스 `ruleSetEdit` — `/api/mdm/oasis/{serviceId}/{action}`
