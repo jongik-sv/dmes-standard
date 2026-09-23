@@ -2,7 +2,7 @@
   "tsk": "TSK-01-01",
   "order": "12cbcc4e-ed40-454f-8041-c99e08487d0b",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "verify",
+  "phase": "reported",
   "model": "haiku",
   "baseline": {
     "failures": 0,
@@ -19,8 +19,8 @@
     "frontend_vitest_preexisting": "m-mls·m-mpn·m-mqc·m-mpp test 는 test 파일 없음으로 exit 1. root test:unit 은 m-mpn test:unit 스크립트 없음으로 exit 1"
   },
   "last": {
-    "phase": "verify",
-    "event": "verify.ok"
+    "phase": "done",
+    "event": "done.ok"
   },
   "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\""
 }
