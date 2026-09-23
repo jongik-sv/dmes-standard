@@ -2,6 +2,7 @@ package kr.dongkuk.maru.mdm.engine.expr;
 
 import com.ezylang.evalex.Expression;
 import com.ezylang.evalex.EvaluationException;
+import com.ezylang.evalex.config.ExpressionConfiguration;
 import com.ezylang.evalex.data.EvaluationValue;
 import com.ezylang.evalex.parser.ParseException;
 import java.math.BigDecimal;
@@ -9,11 +10,13 @@ import java.math.BigDecimal;
 /**
  * EvalEx 를 감싸는 얇은 수식 평가기.
  *
- * <p>TSK-01-01 스캐폴드 단계 — "엔진이 EvalEx 를 실제로 쓴다"를 증명하는 최소 클래스다
- * (design.md §2.2 주석: "ArchUnit 대상 0건 방지"). 실 업무 규칙(할당·검증식 등)은 이 클래스를
- * 확장하는 후속 Task 에서 채운다.
+ * <p>TSK-01-01 스캐폴드로 시작했고, TSK-03-02 에서 설정 팩토리({@link MdmExpressionConfig#baseBuilder()})로 전환했다
+ * (engine-contract §13). 그래서 고정값 14개와 BASE 24종 사전이 적용되고, 표준 사전의 {@code DT_NOW}·{@code RANDOM} 은
+ * 파싱 단계에서 거부된다. 판정·검증은 {@link MdmEvaluator} 를 쓴다 — 이 클래스는 공개 시그니처를 지키는 단순 진입점이다.
  */
 public class ExpressionEvaluator {
+
+    private static final ExpressionConfiguration CONFIG = MdmExpressionConfig.baseBuilder().build();
 
     /**
      * 수식 문자열을 평가해 숫자 결과를 돌려준다.
@@ -24,7 +27,7 @@ public class ExpressionEvaluator {
      */
     public BigDecimal evaluate(String expression) {
         try {
-            EvaluationValue result = new Expression(expression).evaluate();
+            EvaluationValue result = new Expression(expression, CONFIG).evaluate();
             return result.getNumberValue();
         } catch (ParseException | EvaluationException e) {
             throw new IllegalArgumentException("식을 평가할 수 없습니다: " + expression, e);

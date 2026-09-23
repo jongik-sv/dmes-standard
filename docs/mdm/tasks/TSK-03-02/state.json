@@ -2,5 +2,69 @@
   "tsk": "TSK-03-02",
   "order": "ea440494-a2ed-42c5-9842-4c1dce2f9972",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "reported",
+  "baseline": {
+    "failures": 0,
+    "tests": 524,
+    "backend_testAll": {
+      "tests": 518,
+      "failures": 0,
+      "engine_tests": 76,
+      "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon"
+    },
+    "frontend_m_mdm": {
+      "tests": 6,
+      "failures": 0,
+      "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint"
+    }
+  },
+  "pred_note": "선행 mdm/TSK-03-01: reached=true·head_sha 없음 → 행 G 갈래 2, pred-reflected.sh REFLECTED → origin/dev 기점 스택 없이 진행",
+  "planned_removal": "TSK-03-01 D2 ContractOnlyPhaseTest 5건 계획 삭제는 이 Task 몫(팀장 지시 2026-09-24)",
+  "last": {
+    "phase": "done",
+    "event": "done.ok"
+  },
+  "model": "sonnet",
+  "design_gate": {
+    "commit": "b1ae47c",
+    "new_tests": 305,
+    "expected_engine": 376,
+    "expected_testAll": 818
+  },
+  "build_gate": {
+    "head": "96880b3",
+    "backend_testAll": {
+      "tests": 822,
+      "failures": 0
+    },
+    "engine_tests": 380,
+    "frontend_m_mdm": {
+      "tests": 6,
+      "failures": 0,
+      "lint": "pass"
+    },
+    "planned_removal_commit": "be433b6",
+    "count_note": "518 - 5(ContractOnlyPhaseTest 계획 삭제) + 309 = 822",
+    "mutation": "36/36 red (67 mutants), protected files diff vs 955cef1 empty"
+  },
+  "verify_attempt1": {
+    "model": "haiku",
+    "commit": "e135bf7",
+    "result": "fail: 변이를 다시 넣지 않고 Build 결과를 옮겨 적음"
+  },
+  "verify_gate": {
+    "model": "sonnet(retry)",
+    "commits": [
+      "11c2c78",
+      "607821c"
+    ],
+    "backend_testAll": {
+      "tests": 822,
+      "failures": 0
+    },
+    "engine_tests": 380,
+    "frontend_m_mdm": "unchanged since build gate (6 pass, lint pass)",
+    "mutation": "38 mutants (I1~I36 대표 + I24a + I33orig) 전부 red, 엔진 전체 스위트 기준"
+  },
+  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\""
 }

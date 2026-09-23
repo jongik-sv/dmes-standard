@@ -11,9 +11,9 @@ import kr.dongkuk.maru.mdm.engine.spi.EngineLookups;
  * EvalEx 설정 고정값과 설정 팩토리 시그니처(06-business-rule.md:442, evalex-guide §6).
  *
  * <p>설정은 이 클래스 하나가 만든다. 서버·하위 시스템·정합성 테스트가 같은 값을 써야 결과가 같다(06:438).
- * TSK-03-01 은 계약 전용이라 고정값을 상수로만 두고, 두 팩토리는 시그니처만 둔다(TSK-03-01 design D1).
- * 몸체는 TSK-03-02 가 채운다 — 상수마다 적힌 빌더 메서드에 그 상수를 하나씩 넣으면 된다.
- * 빌더 메서드 이름은 EvalEx 3.7.0 jar 를 javap 로 확인했다(TSK-02-02 design §0).
+ * 두 팩토리는 상수마다 적힌 빌더 메서드에 그 상수를 하나씩 넣는다(TSK-03-02). 빌더 메서드 이름은 EvalEx 3.7.0 jar 를
+ * javap 로 확인했다(TSK-02-02 design §0). 이 클래스는 상수 홀더라 필드를 더하지 않고, 사전 조립은
+ * {@code FunctionDictionaries} 에 위임한다.
  */
 public final class MdmExpressionConfig {
 
@@ -62,19 +62,37 @@ public final class MdmExpressionConfig {
     private MdmExpressionConfig() {}
 
     /**
-     * 함수 사전을 뺀 고정 설정 — 위 상수를 빌더에 그대로 넣는다(TSK-03-02 구현).
+     * 고정 설정 — 위 상수를 빌더에 그대로 넣고, 함수 사전은 {@link FunctionSets#BASE} 24종으로 둔다(TSK-03-02 design D3).
+     * 사전을 비워 두면 EvalEx 가 표준 사전 전체({@code DT_NOW}·{@code RANDOM} 포함)를 넣기 때문이다(06:442).
      * 문법을 줄인다 — 배열·구조체·암묵 곱셈·작은따옴표·2진 값을 끈다.
      */
     public static ExpressionConfiguration.ExpressionConfigurationBuilder baseBuilder() {
-        throw new UnsupportedOperationException("TSK-03-02 에서 구현한다");
+        return ExpressionConfiguration.builder()
+                .mathContext(MATH_CONTEXT)
+                .zoneId(ZONE)
+                .locale(LOCALE)
+                .regexTimeoutMillis(REGEX_TIMEOUT_MILLIS)
+                .maxRecursionDepth(MAX_RECURSION_DEPTH)
+                .allowOverwriteConstants(ALLOW_OVERWRITE_CONSTANTS)
+                .lenientMode(LENIENT_MODE)
+                .arraysAllowed(ARRAYS_ALLOWED)
+                .structuresAllowed(STRUCTURES_ALLOWED)
+                .implicitMultiplicationAllowed(IMPLICIT_MULTIPLICATION_ALLOWED)
+                .singleQuoteStringLiteralsAllowed(SINGLE_QUOTE_STRING_LITERALS_ALLOWED)
+                .binaryAllowed(BINARY_ALLOWED)
+                .stripTrailingZeros(STRIP_TRAILING_ZEROS)
+                .decimalPlacesRounding(DECIMAL_PLACES_ROUNDING)
+                .functionDictionary(FunctionDictionaries.base());
     }
 
     /**
-     * 엔진 설정 — {@link #baseBuilder()} + 함수 사전({@link FunctionSets#STANDARD} ∪ 비즈니스 함수)(TSK-03-02 구현).
+     * 엔진 설정 — {@link #baseBuilder()} + 함수 사전({@link FunctionSets#STANDARD} ∪ 비즈니스 함수)(TSK-03-02).
      * 사전 밖 함수는 파싱 단계에서 {@code ParseException("Undefined function")} 으로 거부된다(EvalEx 3.7.0 실측).
      * 칸별 제한은 저장 시 검사가 {@link FunctionSets.Slot} 으로 한다(06:443).
+     *
+     * @throws IllegalArgumentException 비즈니스 함수 적재 규칙(engine-contract §5 1)에 어긋날 때
      */
     public static ExpressionConfiguration create(EngineLookups lookups) {
-        throw new UnsupportedOperationException("TSK-03-02 에서 구현한다");
+        return baseBuilder().functionDictionary(FunctionDictionaries.engine(lookups)).build();
     }
 }
