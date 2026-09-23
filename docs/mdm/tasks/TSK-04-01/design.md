@@ -418,3 +418,49 @@ design.md §5 불변 규칙 순서. "방언"은 실제로 변이를 실행해 �
 - `testAll`: **485 tests / 0 failures**(기준선 447 / 0 대비 +38, 신규 실패 0). 오케스트레이터가 준 집계 명령(`find src/backend -path '*/build/test-results/*' -name 'TEST-*.xml' | xargs grep -h -o '<testsuite [^>]*'`)을 글자 그대로 실행하면 **499 tests**가 나온다 — 이 명령은 `mssqlMigrationTest` 결과 디렉터리도 함께 세기 때문이다(485 + `mssqlMigrationTest` 14 = 499).
 - `:api:mssqlMigrationTest`: **14 passed**(기존 `MdmMssqlMigrationTest` 4 + 신규 `MdmTermDomainColumnMssqlMigrationTest` 10), SQL Server 2022-CU27, 0 failed.
 - **red 확인**: 새 테스트 자체의 "구현 전 red"는 관찰하지 못했다(이탈 1, TDD 순서 이탈). 대신 위 「변이 검증 결과표」의 11개 불변 규칙 변이로 "이 테스트들이 틀린 구현을 실제로 잡는다"를 보였다 — 이것이 이 Build 의 red 증거다.
+
+---
+
+## Verify 기록
+
+작성 2026-09-24 · Phase 04 Verify 담당(`agent/847a7616-term-domain-column-contract`).
+
+### 전체 테스트 스위트 + 게이트
+
+```bash
+cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --console=plain
+# → 485 tests / 0 failures (기준선 447 / 0 대비 +38, 신규 실패 0)
+```
+
+```bash
+cd src/backend/mdm && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ../gradlew :lib:test :api:test --rerun --no-daemon --console=plain
+# → 모든 테스트 성공
+```
+
+```bash
+cd src/backend/mdm && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ../gradlew :api:mssqlMigrationTest --no-daemon --console=plain
+# → 14 passed (기존 4 + 신규 10)
+```
+
+### 변이 검증 재확인
+
+| # | 불변 규칙 | 변이 | 재확인 | 결과 |
+|---|---|---|---|---|
+| 2 | `FK_TB_MDM_DOMAIN_CODE` 미부착(D1) | sqlite V3 에 FK 재부착 | Verify에서 다시 실행 | 🔴 예상대로 10개 테스트 빨강 (`MdmEntityJpaRoundtripTest` 3개 + `MdmTermDomainColumnMigrationTest` 7개) — 원복 후 `git status --short` 깨끗함 |
+
+Build에서 확인한 나머지 10개 불변 규칙(#1·#3·#4·#5·#6·#7·#9·#10·#11·#12)은 모두 변이 검증을 통과했으므로 Verify에서는 재확인하지 않음. 안 깨진 변이 없음.
+
+### 수용 기준 점검
+
+| spec 수용 기준 | 검증 방법 | 결과 |
+|---|---|---|
+| 실행 로직 없음 (contract-only) | design.md §3.5 ArchUnit + §3.4 스텁 컴파일 테스트 | ✅ `MdmContractArchitectureTest` 음성 테스트가 규칙 위반을 실제로 거부함. 엔티티·리포지토리는 계약 패키지와 분리 완료 |
+| 03·06 계약이 이 인터페이스만 참조한다 | design.md §3.4 스텁 컴파일 + §3.5 ArchUnit 규칙 | ✅ `ColumnDictionaryConsumerStub`/`EffectiveDomainConsumerStub`/`DomainReferenceSpiStub` 모두 컴파일·동작. TSK-05-01·08-01 때 ArchUnit이 자동 집행 |
+
+### 게이트 판정
+
+- **기준선 대비 신규 실패**: 0
+- **테스트 총수 미감소**: 485 > 447 (✅ 38개 증가)
+- **MSSQL 게이트**: 14 PASSED (✅ 신규 10 추가)
+
+**PHASE_RESULT: verify ok**
