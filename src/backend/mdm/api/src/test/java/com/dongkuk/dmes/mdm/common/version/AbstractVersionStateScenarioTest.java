@@ -580,7 +580,7 @@ public abstract class AbstractVersionStateScenarioTest {
         Map<String, Object> parent = readObject(VersionTarget.MASTER_CODE, "USED_CD");
         assertEquals("INUSE", parent.get("STATUS"));
         assertEquals("seed", parent.get("U_USR_ID"), "이미 INUSE 면 감사 칼럼도 그대로");
-        assertEquals(5L, number(parent.get(auditCounter())));
+        assertEquals(5L, number(parent.get(parentAuditCounter())));
     }
 
     @Test
@@ -595,14 +595,19 @@ public abstract class AbstractVersionStateScenarioTest {
 
         confirm(v2, 0, "2026-06-01 00:00:00");
 
-        for (Map<String, Object> row : List.of(readVersion(v2), readVersion(v1),
-                readObject(VersionTarget.MASTER_CODE, "PROC_CD"))) {
+        Map<String, Object> parent = readObject(VersionTarget.MASTER_CODE, "PROC_CD");
+        for (Map<String, Object> row : List.of(readVersion(v2), readVersion(v1), parent)) {
             assertEquals(KIM, row.get("U_USR_ID"), row.toString());
             assertEquals("codeConfirm", row.get("U_SVC_ID"), "U_SVC_ID ← serviceId: " + row);
             assertEquals("codeConfirmMenu", row.get("U_PGM_ID"), "U_PGM_ID ← menuId: " + row);
             assertEquals("2026-06-20 10:11:12", text(row.get("U_AT")), "U_AT = 애플리케이션 시각: " + row);
-            assertEquals(1L, number(row.get(auditCounter())), row.toString());
         }
+        // 감사 카운터는 테이블마다 칼럼이 다르다(D-034): 버전 테이블 AUD_VER, 부모 VER. 업무 VER 는 그대로다.
+        assertEquals(1L, number(readVersion(v2).get(auditCounter())));
+        assertEquals(1L, number(readVersion(v1).get(auditCounter())));
+        assertEquals(1L, number(parent.get(parentAuditCounter())));
+        assertEquals(0, new BigDecimal(readVersion(v2).get("VER").toString()).compareTo(v2.ver()),
+                "업무 버전 칼럼 VER 는 감사 카운터로 오르지 않는다");
     }
 
     // ── 도우미 ────────────────────────────────────────────────────────────────────────────
@@ -611,8 +616,14 @@ public abstract class AbstractVersionStateScenarioTest {
         return registry.spec(target);
     }
 
+    /** 버전 테이블의 감사 카운터 칼럼(D-034: AUD_VER). */
     protected String auditCounter() {
         return spec(VersionTarget.MASTER_CODE).auditCounterColumn();
+    }
+
+    /** 부모 테이블의 감사 카운터 칼럼(D-034: VER). */
+    protected String parentAuditCounter() {
+        return spec(VersionTarget.MASTER_CODE).parentAuditCounterColumn();
     }
 
     protected static VersionRef code(String id, String ver) {
@@ -678,7 +689,7 @@ public abstract class AbstractVersionStateScenarioTest {
     protected void seedObject(VersionTarget target, String objectId, String status, String uUsrId, Integer auditCounter) {
         VersionTableSpec spec = spec(target);
         jdbc.update("INSERT INTO " + spec.parentTable() + " (" + spec.parentObjectIdColumn() + ", STATUS, U_USR_ID, "
-                + spec.auditCounterColumn() + ") VALUES (?, ?, ?, ?)", objectId, status, uUsrId, auditCounter);
+                + spec.parentAuditCounterColumn() + ") VALUES (?, ?, ?, ?)", objectId, status, uUsrId, auditCounter);
     }
 
     protected void seedVersion(VersionRef ref, String status, String ownerId, String applyFrom, String applyTo,

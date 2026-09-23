@@ -31,7 +31,7 @@ import org.springframework.stereotype.Repository;
  * <ul>
  *   <li>테이블·칼럼 이름은 {@link VersionTableSpec} 과 고정 칼럼 상수에서만 온다. 이름이 {@code ^[A-Z][A-Z0-9_]*$} 가
  *       아니면 SQL 을 만들기 전에 거부한다. 값은 모두 바인딩 파라미터다(불변 규칙 I17).</li>
- *   <li>모든 쓰기는 감사 U_* 칼럼을 명시하고, 명세에 감사 카운터가 있으면 1 올린다(규칙표 §2, I16).</li>
+ *   <li>모든 쓰기는 감사 U_* 칼럼을 명시하고, 명세에 그 테이블의 감사 카운터가 있으면 1 올린다(규칙표 §2, D-034, I16).</li>
  *   <li>일시는 {@link MdmTemporalBinder} 를 거친다. DB 시각 함수를 쓰지 않는다(규칙표 #16, I15).</li>
  *   <li>버전 비교·정렬은 SQL 이 아니라 Java 에서 한다(규칙표 #17: SQLite NUMERIC 친화도).</li>
  *   <li>호출자 트랜잭션 안에서만 쓴다. native UPDATE 는 관리 엔티티를 갱신하지 않으므로 쿼리 전에 flush 한다.</li>
@@ -88,7 +88,7 @@ public class VersionRowStore {
         String sql = "UPDATE " + spec.versionTable() + " SET " + STATUS + " = '" + RELEASED + "', "
                 + APPLY_FROM + " = :applyFrom, " + APPLY_TO + " = :applyTo, "
                 + REQUESTED_BY + " = :confirmerId, " + REQUESTED_AT + " = :now, " + RELEASED_AT + " = :now, "
-                + rowVersionBump() + auditSet(spec)
+                + rowVersionBump() + auditSet(spec.auditCounterColumn())
                 + keyWhere(spec) + draftAndRowVersion();
         NativeQuery<?> q = bindKey(query(sql), ref)
                 .setParameter("applyFrom", temporal.toDb(applyFrom))
@@ -102,7 +102,8 @@ public class VersionRowStore {
     /** 직전 RELEASED 의 적용 구간을 새 버전의 apply_from 에서 닫는다. */
     public int closeApplyTo(VersionRef prev, LocalDateTime applyTo, AuditStamp stamp) {
         VersionTableSpec spec = spec(prev.target());
-        String sql = "UPDATE " + spec.versionTable() + " SET " + APPLY_TO + " = :applyTo" + auditSet(spec)
+        String sql = "UPDATE " + spec.versionTable() + " SET " + APPLY_TO + " = :applyTo"
+                + auditSet(spec.auditCounterColumn())
                 + keyWhere(spec) + " AND " + STATUS + " = '" + RELEASED + "'";
         NativeQuery<?> q = bindKey(query(sql), prev).setParameter("applyTo", temporal.toDb(applyTo));
         return bindAudit(q, stamp).executeUpdate();
@@ -117,7 +118,7 @@ public class VersionRowStore {
         VersionTableSpec spec = spec(ref.target());
         String ownerValue = newOwnerOrNull == null ? "NULL" : ":newOwner";
         String sql = "UPDATE " + spec.versionTable() + " SET " + OWNER_ID + " = " + ownerValue + ", "
-                + rowVersionBump() + auditSet(spec)
+                + rowVersionBump() + auditSet(spec.auditCounterColumn())
                 + keyWhere(spec) + draftAndRowVersion()
                 + (requireOwnerNull ? " AND " + OWNER_ID + " IS NULL" : "");
         NativeQuery<?> q = bindKey(query(sql), ref).setParameter("expected", expected);
@@ -130,7 +131,7 @@ public class VersionRowStore {
     /** DRAFT 저장 직전 row_version 만 올린다. */
     public int casBumpRowVersion(VersionRef ref, long expected, AuditStamp stamp) {
         VersionTableSpec spec = spec(ref.target());
-        String sql = "UPDATE " + spec.versionTable() + " SET " + rowVersionBump() + auditSet(spec)
+        String sql = "UPDATE " + spec.versionTable() + " SET " + rowVersionBump() + auditSet(spec.auditCounterColumn())
                 + keyWhere(spec) + draftAndRowVersion();
         NativeQuery<?> q = bindKey(query(sql), ref).setParameter("expected", expected);
         return bindAudit(q, stamp).executeUpdate();
@@ -146,7 +147,7 @@ public class VersionRowStore {
     public int markParentInUse(VersionTarget target, String objectId, AuditStamp stamp) {
         VersionTableSpec spec = spec(target);
         String sql = "UPDATE " + spec.parentTable() + " SET " + STATUS + " = '" + MaruObjectStatus.INUSE.name() + "'"
-                + auditSet(spec)
+                + auditSet(spec.parentAuditCounterColumn())
                 + " WHERE " + spec.parentObjectIdColumn() + " = :objectId"
                 + " AND " + STATUS + " = '" + MaruObjectStatus.CREATED.name() + "'";
         NativeQuery<?> q = query(sql).setParameter("objectId", objectId);
@@ -164,6 +165,9 @@ public class VersionRowStore {
         requireName(spec.parentObjectIdColumn());
         if (spec.auditCounterColumn() != null) {
             requireName(spec.auditCounterColumn());
+        }
+        if (spec.parentAuditCounterColumn() != null) {
+            requireName(spec.parentAuditCounterColumn());
         }
         return spec;
     }
@@ -196,10 +200,10 @@ public class VersionRowStore {
         return ROW_VERSION_COLUMN + " = " + ROW_VERSION_COLUMN + " + " + ROW_VERSION_STEP;
     }
 
-    private static String auditSet(VersionTableSpec spec) {
+    /** 감사 U_* 칼럼과, 그 테이블에 감사 카운터가 있으면 카운터 +1. 카운터 이름은 테이블마다 다르다(D-034). */
+    private static String auditSet(String counter) {
         String set = ", " + U_USR_ID + " = :uUsrId, " + U_AT + " = :uAt, " + U_SVC_ID + " = :uSvcId, "
                 + U_PGM_ID + " = :uPgmId";
-        String counter = spec.auditCounterColumn();
         return counter == null ? set : set + ", " + counter + " = COALESCE(" + counter + ", 0) + 1";
     }
 

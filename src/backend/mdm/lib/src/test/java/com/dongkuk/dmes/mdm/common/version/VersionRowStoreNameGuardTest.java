@@ -29,7 +29,7 @@ class VersionRowStoreNameGuardTest {
     @ValueSource(strings = {"tb_mdm_code_ver", "TB MDM", "TB_MDM;DROP", "1TB", ""})
     void 나쁜_테이블_이름은_SQL_전에_거부한다(String badName) {
         EntityManager em = mock(EntityManager.class);
-        VersionRowStore store = store(em, new VersionTableSpec(badName, "MARU_CODE_ID", "VER", "TB_MDM_CODE", "MARU_CODE_ID", null));
+        VersionRowStore store = store(em, new VersionTableSpec(badName, "MARU_CODE_ID", "VER", "TB_MDM_CODE", "MARU_CODE_ID", null, null));
 
         assertThrows(IllegalArgumentException.class, () -> store.find(REF));
         assertThrows(IllegalArgumentException.class, () -> store.casBumpRowVersion(REF, 0, STAMP));
@@ -40,14 +40,17 @@ class VersionRowStoreNameGuardTest {
     void 나쁜_칼럼_이름도_거부한다() {
         EntityManager em = mock(EntityManager.class);
         assertThrows(IllegalArgumentException.class, () -> store(em,
-                new VersionTableSpec("TB_MDM_CODE_VER", "MARU_CODE_ID; --", "VER", "TB_MDM_CODE", "MARU_CODE_ID", null)).find(REF));
+                new VersionTableSpec("TB_MDM_CODE_VER", "MARU_CODE_ID; --", "VER", "TB_MDM_CODE", "MARU_CODE_ID", null, null)).find(REF));
         assertThrows(IllegalArgumentException.class, () -> store(em,
-                new VersionTableSpec("TB_MDM_CODE_VER", "MARU_CODE_ID", "ver", "TB_MDM_CODE", "MARU_CODE_ID", null)).find(REF));
+                new VersionTableSpec("TB_MDM_CODE_VER", "MARU_CODE_ID", "ver", "TB_MDM_CODE", "MARU_CODE_ID", null, null)).find(REF));
         assertThrows(IllegalArgumentException.class, () -> store(em,
-                new VersionTableSpec("TB_MDM_CODE_VER", "MARU_CODE_ID", "VER", "TB_MDM_CODE", "MARU_CODE_ID", "AUD VER"))
+                new VersionTableSpec("TB_MDM_CODE_VER", "MARU_CODE_ID", "VER", "TB_MDM_CODE", "MARU_CODE_ID", "AUD VER", null))
                 .markParentInUse(VersionTarget.MASTER_CODE, "PROC_CD", STAMP));
         assertThrows(IllegalArgumentException.class, () -> store(em,
-                new VersionTableSpec("TB_MDM_CODE_VER", "MARU_CODE_ID", "VER", "tb_mdm_code", "MARU_CODE_ID", null))
+                new VersionTableSpec("TB_MDM_CODE_VER", "MARU_CODE_ID", "VER", "TB_MDM_CODE", "MARU_CODE_ID", null, "VER;"))
+                .markParentInUse(VersionTarget.MASTER_CODE, "PROC_CD", STAMP));
+        assertThrows(IllegalArgumentException.class, () -> store(em,
+                new VersionTableSpec("TB_MDM_CODE_VER", "MARU_CODE_ID", "VER", "tb_mdm_code", "MARU_CODE_ID", null, null))
                 .markParentInUse(VersionTarget.MASTER_CODE, "PROC_CD", STAMP));
         verifyNoInteractions(em);
     }
