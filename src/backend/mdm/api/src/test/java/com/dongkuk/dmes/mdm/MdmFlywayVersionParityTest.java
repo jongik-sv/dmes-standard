@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mdm;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.net.URI;
@@ -34,6 +35,9 @@ class MdmFlywayVersionParityTest {
         assertFalse(mssqlVersions.isEmpty(), "mssql 마이그레이션 디렉터리가 비어 있다");
         assertEquals(sqliteVersions, mssqlVersions,
                 "sqlite/mssql 버전 번호 집합이 다르다 — 불변 규칙 4 위반");
+        // TSK-01-02 design.md §5 I8 — V2(TB_MDM_SYSTEM)가 두 방언 모두에 있어야 한다.
+        assertTrue(sqliteVersions.containsAll(Set.of("1", "2")), "sqlite 에 V1·V2 가 없다: " + sqliteVersions);
+        assertTrue(mssqlVersions.containsAll(Set.of("1", "2")), "mssql 에 V1·V2 가 없다: " + mssqlVersions);
     }
 
     private Set<String> versionsOf(String classpathDir) throws IOException, URISyntaxException {

@@ -2,5 +2,33 @@
   "tsk": "TSK-01-02",
   "order": "eb6fdb44-1c77-4366-bd4f-9e9c7b45a318",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "reported",
+  "baseline": {
+    "failures": 0,
+    "tests": 395,
+    "backend_testAll": {
+      "tests": 395,
+      "failures": 0,
+      "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll"
+    },
+    "frontend_m_mdm": {
+      "test": "1 passed (pnpm --filter @dk-oasis/m-mdm test)",
+      "lint": "tsc --noEmit pass"
+    },
+    "frontend_lint_preexisting": "m-mcm eslint 23 errors / 44 warnings (build:libs 후, TSK-01-01 기록과 같음)",
+    "after_verify": {
+      "backend_testAll": {
+        "tests": 447,
+        "failures": 0
+      },
+      "mssqlMigrationTest": "4 passed (SQL Server 2022 CU27, testAll 비포함 수동 게이트)",
+      "e2e": "dma/mdmSample smoke 1 passed x2 (새 DB·이행 DB)"
+    }
+  },
+  "last": {
+    "phase": "done",
+    "event": "done.ok"
+  },
+  "model": "haiku",
+  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\""
 }

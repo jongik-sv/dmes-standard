@@ -62,9 +62,9 @@
 | 11 | `LANGUAGE sql STABLE` 함수(sql:51·93) | 저장 함수·프로시저 금지 | 같음 | 애플리케이션·엔진으로 옮긴다 | 규칙 |
 | 12 | `FULL JOIN … USING`(06:1267 diff) | `FULL OUTER JOIN … ON` + 키는 `COALESCE` | 같음 | `USING` 금지 | SQLite `FULL OUTER JOIN`(3.39 이상) **실측 필요 → TSK-08-05**(룰 diff). 안 되면 두 LEFT JOIN 의 UNION ALL |
 | 13 | `SELECT … FOR UPDATE`, `EXCLUDE`(02:457) | 행 잠금 없음 | `WITH (UPDLOCK, HOLDLOCK)` | 행 잠금 대신 조건부 UPDATE(`WHERE ROW_VERSION = :v`, 갱신 0행이면 409). 부득이하면 SQLite `BEGIN IMMEDIATE` | 규칙 |
-| 14 | `ON DELETE CASCADE`(06:896·1154) | 연결마다 외래키 강제를 켜야 동작(`foreign_keys=true`) | 한 테이블로 가는 cascade 경로가 둘 이상이면 DDL 오류 | FK 는 걸고 cascade 는 한 부모 사슬에만 둔다 | 확인(리포): mdm local datasource URL(`jdbc:sqlite:../data/mdm.db`)에 외래키 설정이 없다. 설정과 동작은 **실측 필요 → TSK-01-02** |
-| 15 | BOOLEAN(02:640·443, 05:609, 06:939·1285) | `INTEGER` + `CHECK (COL IN (0,1))` | `BIT` | Java `boolean`. 원천이 `*_yn varchar` 로 둔 칼럼(`emergency_yn` 등)은 `VARCHAR(1)` `'Y'/'N'` 그대로 | Hibernate 매핑 **실측 필요 → TSK-01-02** |
-| 16 | 업무 일시 `timestamp`(KST 고정 04:329, 02:402) | `TEXT` `'YYYY-MM-DD HH:MM:SS'` | `DATETIME2(0)` | Java `LocalDateTime`(KST, 시간대 없음). **현재 시각은 애플리케이션이 파라미터로 넘긴다** — DB 시각 함수 금지(SQLite `CURRENT_TIMESTAMP` 는 UTC). 열린 끝은 `'9999-12-31 00:00:00'` | 확인(리포): SQLite 날짜 왕복 결함 선례(mcm `SqliteTemporalConverterContributor`). mdm 적용 방식 **실측 필요 → TSK-01-02** |
+| 14 | `ON DELETE CASCADE`(06:896·1154) | 연결마다 외래키 강제를 켜야 동작(`foreign_keys=true`) | 한 테이블로 가는 cascade 경로가 둘 이상이면 DDL 오류 | FK 는 걸고 cascade 는 한 부모 사슬에만 둔다 | 확인(TSK-01-02 실측): local 프로파일은 Hikari data-source-properties 의 foreign_keys=true 로 켠다(URL 을 바꿔 넣어도 유지). 자식 FK 위반 INSERT 거부를 SQLite 에서 확인. MSSQL cascade 경로 제약은 T-SQL 규칙(미실측) |
+| 15 | BOOLEAN(02:640·443, 05:609, 06:939·1285) | `INTEGER` + `CHECK (COL IN (0,1))` | `BIT` | Java `boolean`. 원천이 `*_yn varchar` 로 둔 칼럼(`emergency_yn` 등)은 `VARCHAR(1)` `'Y'/'N'` 그대로 | Hibernate 매핑 **실측 필요 → TSK-04-01**(TSK-01-02 에서 이관 — 첫 BOOLEAN 엔티티 Task, TSK-01-02 design D4) |
+| 16 | 업무 일시 `timestamp`(KST 고정 04:329, 02:402) | `TEXT` `'YYYY-MM-DD HH:MM:SS'` | `DATETIME2(0)` | Java `LocalDateTime`(KST, 시간대 없음). **현재 시각은 애플리케이션이 파라미터로 넘긴다** — DB 시각 함수 금지(SQLite `CURRENT_TIMESTAMP` 는 UTC). 열린 끝은 `'9999-12-31 00:00:00'` | 확인(리포): SQLite 날짜 왕복 결함 선례(mcm `SqliteTemporalConverterContributor`). mdm 적용 방식 **실측 필요 → TSK-04-01**(TSK-01-02 에서 이관, design D4). CactusAuditEntity 의 Instant(C_AT·U_AT) SQLite 저장 형식도 함께 확인 |
 | 17 | `DECIMAL(7,3)` 버전(04:994) | `NUMERIC(7,3)` | `DECIMAL(7,3)` | Java `BigDecimal`, 읽은 뒤 `setScale(3)`. major/minor 산술은 Java 에서만 한다(SQL 산술 금지) | SQLite 는 NUMERIC 친화도라 실수로 저장될 수 있다 — 저장·비교 **실측 필요 → TSK-06-02**(버전 채번) |
 | 18 | `text`/`varchar` | `TEXT` / `VARCHAR(n)`(길이 강제 안 됨) | 한글이 들어가는 칼럼 `NVARCHAR(n)`/`NVARCHAR(MAX)`, 코드·ID 칼럼 `VARCHAR(n)` | 길이 검사는 애플리케이션이 한다 | 규칙 |
 | 19 | 문자 비교 대소문자 | 기본 BINARY(구분) | 기본 콜레이션은 보통 대소문자 무시 → 코드·키 칼럼에 `COLLATE Latin1_General_100_BIN2` | 두 방언의 비교 결과를 같게 한다(대소문자 구분. 엔진 jar·화면 JS 평가기와 같은 판정) | 규칙. DDL 적용 **실측 필요 → TSK-02-03** |
@@ -84,7 +84,7 @@
 
 - 위치: `mdm/api/src/main/resources/db/migration/mdm/{sqlite,mssql}`.
 - **두 방언의 V 번호 집합은 항상 같다**(TSK-01-01 불변 규칙 4). 새 번호는 두 방언 합집합의 최댓값 + 1 이다.
-- `flyway-migration-add` 스킬이 mdm 경로를 지원하지 않으면 같은 규칙을 손으로 적용한다(지원 여부 판정은 TSK-01-02).
+- `flyway-migration-add` 스킬이 mdm 경로를 지원하지 않으면 같은 규칙을 손으로 적용한다. 판정(TSK-01-02): 지원하지 않는다(--module 선택지가 aps-core·mcm-core 뿐). 손으로 적용한다.
 
 ## 6. 인계와 갱신 규칙
 
