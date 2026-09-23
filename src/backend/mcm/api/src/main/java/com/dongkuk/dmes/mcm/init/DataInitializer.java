@@ -897,6 +897,22 @@ public class DataInitializer implements ApplicationRunner {
         // ── TSK-01-03 — MDM 역할·권한 세트와 화면별 매트릭스 ──
         seedMdmRbac();
         seedMdmObjectRbac("mdmSample", "dma");
+
+        // ── TSK-04-04 — 컬럼 사전(columnMng) + 용어 인라인 등록 팝업(termRegPop). 팝업은 메뉴 leaf 없이 OBJECT·권한만
+        //    둔다(screens/README §3·§5 — 버튼·API 권한은 역할 매핑에서 오고 메뉴를 보지 않는다, design.md F14·F15).
+        insertMcmSecObjIfAbsent("columnMng", "컬럼 사전", "mdm");
+        insertMcmSecObjIfAbsent("termRegPop", "용어 인라인 등록", "mdm");
+        insertMcmSecMenuIfAbsent("columnMng", "004", "5010140", "컬럼 사전", "dma", "columnMng");
+        for (String objectId : new String[]{"columnMng", "termRegPop"}) {
+            insertIfAbsentComposite(
+                    "TB_MCM_SEC_ROLE_MAPPING",
+                    new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
+                    new String[]{"SYSADMIN", objectId,    "PERM_ALL"},
+                    "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                    "VALUES ('SYSADMIN', '" + objectId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
+            seedMdmObjectRbac(objectId, "dma");
+        }
+        log.info("[DataInitializer] TSK-04-04 MDM 컬럼 사전 시드 — OBJECT 2 + 메뉴 leaf 1 + RBAC(SYSADMIN 2 + MDM 역할 4)");
         log.info("[DataInitializer] MDM 메뉴 시드 — 폴더 6 + OBJECT 1 + 메뉴 leaf 1 + RBAC(SYSADMIN 1 + MDM 역할 2)");
     }
 
