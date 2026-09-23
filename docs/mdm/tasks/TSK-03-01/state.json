@@ -2,7 +2,7 @@
   "tsk": "TSK-03-01",
   "order": "ddb95b54-377e-417d-a694-d0fd8475c370",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "refactor",
+  "phase": "reported",
   "baseline": {
     "failures": 0,
     "tests": 395,
@@ -21,8 +21,8 @@
   "pred_note": "선행 mdm/TSK-02-02·mdm/TSK-01-01: reached=true·head_sha 없음 → 행 G 갈래 2, pred-reflected.sh REFLECTED(둘 다) → origin/dev 기점 스택 없이 진행",
   "model": "haiku",
   "last": {
-    "phase": "verify",
-    "event": "verify.ok"
+    "phase": "done",
+    "event": "done.ok"
   },
   "build_gate": {
     "backend_testAll": {
