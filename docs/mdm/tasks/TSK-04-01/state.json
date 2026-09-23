@@ -2,5 +2,24 @@
   "tsk": "TSK-04-01",
   "order": "847a7616-c56e-43fb-a5fe-5380f42aba38",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "design",
+  "baseline": {
+    "failures": 0,
+    "tests": 447,
+    "backend_testAll": {
+      "tests": 447,
+      "failures": 0,
+      "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --console=plain"
+    },
+    "count_cmd": "find src/backend -path '*/build/test-results/*' -name 'TEST-*.xml' | xargs grep -h -o '<testsuite [^>]*' (tests/failures/errors 합산)",
+    "mssqlMigrationTest": {
+      "result": "4 passed (SQL Server 2022-CU27, testAll 비포함 수동 게이트, docker 필요)",
+      "cmd": "cd src/backend/mdm && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ../gradlew :api:mssqlMigrationTest --no-daemon --console=plain"
+    }
+  },
+  "last": {
+    "phase": "claim",
+    "event": "claim.ok"
+  },
+  "model": "sonnet"
 }
