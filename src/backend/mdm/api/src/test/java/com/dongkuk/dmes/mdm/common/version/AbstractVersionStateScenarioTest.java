@@ -163,9 +163,15 @@ public abstract class AbstractVersionStateScenarioTest {
         VersionRef v1001 = code("PROC_CD", "1.001");
         seedVersion(v1000, "RELEASED", KIM, "2024-01-01 00:00:00", OPEN_END, 1);
         seedVersion(v1001, "DRAFT", KIM, null, null, 0);
+        // 검사 순서(I2·I8·I10): SPI 는 DRAFT 확정·직전 닫기 UPDATE 보다 먼저 불린다. 롤백이 최종 상태를 되돌리므로
+        // 순서는 같은 트랜잭션 안에서 SPI 가 보는 행으로 확인한다.
+        List<String> seenBySpi = new ArrayList<>();
+        confirmCheck(VersionTarget.MASTER_CODE).during(request ->
+                seenBySpi.add(statusAndApplyToInCurrentTransaction(v1001) + " / " + statusAndApplyToInCurrentTransaction(v1000)));
 
         ConfirmResult result = confirm(v1001, 0, "2026-07-01 00:00:00");
 
+        assertEquals(List.of("DRAFT|null / RELEASED|" + OPEN_END), seenBySpi, "SPI 가 본 draft / 직전 행");
         assertEquals(v1000, result.closedPrevious());
         assertEquals("2026-07-01 00:00:00", text(readVersion(v1000).get("APPLY_TO")));
         Map<String, Object> row = readVersion(v1001);
@@ -724,6 +730,17 @@ public abstract class AbstractVersionStateScenarioTest {
                 .setParameter(2, ref.ver().setScale(ref.target().versionScale()))
                 .getSingleResult();
         return ((Number) count).intValue();
+    }
+
+    /** 서비스 트랜잭션 안(SPI 호출 중)에서 같은 연결로 STATUS·APPLY_TO 를 읽는다. */
+    protected String statusAndApplyToInCurrentTransaction(VersionRef ref) {
+        VersionTableSpec spec = spec(ref.target());
+        Object[] row = (Object[]) entityManager.createNativeQuery("SELECT STATUS, CAST(APPLY_TO AS VARCHAR(40)) FROM "
+                        + spec.versionTable() + " WHERE " + spec.objectIdColumn() + " = ?1 AND " + spec.versionColumn() + " = ?2")
+                .setParameter(1, ref.objectId())
+                .setParameter(2, ref.ver().setScale(ref.target().versionScale()))
+                .getSingleResult();
+        return row[0] + "|" + row[1];
     }
 
     /** SQLite TEXT·MSSQL DATETIME2 를 같은 문자열로 읽는다. */
