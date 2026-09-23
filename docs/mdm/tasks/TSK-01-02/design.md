@@ -127,7 +127,7 @@
 | A43 | `src/backend/mdm/lib/build.gradle` | 수정 | `testImplementation 'com.tngtech.archunit:archunit-junit5:1.3.0'` |
 | A44 | `src/backend/mdm/api/build.gradle` | 수정 | `mssqlTest` source set + `mssqlMigrationTest` 태스크(§2.6) |
 | A45 | `docs/mdm/naming-dialect-rules.md` | 수정 | §3 #14·#15·#16 검증 상태 칸, §5 도구 판정 문장만(§2.7). 다른 곳 금지 |
-| A46 | `docs/mdm/decisions.md` | 수정(끝에 추가) | D-020~D-025(§2.8) |
+| A46 | `docs/mdm/decisions.md` | 수정(끝에 추가) | 결정 6건, 번호는 Build 시점 마지막 번호 + 1 부터(§2.8) |
 
 테스트(커밋 A 에 함께, **구현보다 먼저 작성해 빨강 확인**):
 
