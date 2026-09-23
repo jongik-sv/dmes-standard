@@ -2,7 +2,7 @@
   "tsk": "TSK-03-01",
   "order": "ddb95b54-377e-417d-a694-d0fd8475c370",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "build",
+  "phase": "verify",
   "baseline": {
     "failures": 0,
     "tests": 395,
@@ -19,9 +19,21 @@
     }
   },
   "pred_note": "선행 mdm/TSK-02-02·mdm/TSK-01-01: reached=true·head_sha 없음 → 행 G 갈래 2, pred-reflected.sh REFLECTED(둘 다) → origin/dev 기점 스택 없이 진행",
-  "model": "opus",
+  "model": "haiku",
   "last": {
-    "phase": "design",
-    "event": "design.ok"
+    "phase": "build",
+    "event": "build.ok"
+  },
+  "build_gate": {
+    "backend_testAll": {
+      "tests": 466,
+      "failures": 0
+    },
+    "frontend_m_mdm": {
+      "tests": 6,
+      "failures": 0,
+      "lint": "pass"
+    },
+    "mutation": "54/54 red (I1~I26, I22a); I11·I27 git diff origin/dev 빈 값"
   }
 }
