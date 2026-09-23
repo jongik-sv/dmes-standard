@@ -2,7 +2,7 @@
   "tsk": "TSK-05-01",
   "order": "ae88277d-8bd0-4993-a035-7803c6c26b14",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "verify",
+  "phase": "refactor",
   "baseline": {
     "failures": 0,
     "tests": 556,
@@ -19,8 +19,8 @@
     }
   },
   "last": {
-    "phase": "build",
-    "event": "build.ok"
+    "phase": "verify",
+    "event": "verify.ok"
   },
   "model": "haiku",
   "complexity": "3점(depends 3 +1, Flyway=마이그레이션 +2) → opus 판정이나 spec model=sonnet 오버라이드",
@@ -33,5 +33,27 @@
       "tests": 22,
       "failures": 0
     }
-  }
+  },
+  "verify_gate": {
+    "backend_testAll": {
+      "tests": 581,
+      "failures": 0
+    },
+    "mssqlMigrationTest": {
+      "tests": 22,
+      "failures": 0
+    },
+    "mutations_rechecked": [
+      "3",
+      "5",
+      "6",
+      "7(gap)",
+      "8",
+      "10",
+      "11",
+      "14",
+      "15a"
+    ]
+  },
+  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\""
 }

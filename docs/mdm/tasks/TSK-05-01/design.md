@@ -511,3 +511,9 @@ MSSQL `TB_MDM_LAYOUT_CONST.CONST_VALUE`는 `VARCHAR(50) COLLATE Latin1_General_1
 1. **`ContractStubCompileTest.java`에 03 레이아웃 스텁 컴파일 테스트 3개를 추가했다** — §2 "수정" 목록에 이 파일이 없었다. TSK-04-01 이 같은 상황(§2 "수정" 목록 누락)에서 남긴 선례("Build 판단"으로 기존 파일에 메서드를 추가하고 이탈로 기록)를 그대로 따른다. 별도 파일(`LayoutStubCompileTest.java` 등)을 새로 만들지 않은 이유는 기존 스텁 컴파일 테스트가 이미 이 파일 하나에 모여 있어(02 쪽 스텁도 같은 파일에 있다) 계약 스텁 컴파일 검증의 단일 진입점을 유지하는 쪽을 택했다.
 2. **`MdmInterfaceLayoutExpectations.java`(신규 파일)를 §2 "생성" 목록에 없이 추가했다** — `MdmInterfaceLayoutMigrationTest`(SQLite)와 `MdmInterfaceLayoutMssqlMigrationTest`(MSSQL) 양쪽이 같은 테이블·칼럼 기대값을 봐야 해서, 기존 `MdmDictionaryExpectations`·`MdmSystemSeedExpectations` 와 같은 패턴으로 공유 헬퍼를 신설했다. 두 파일에 중복 정의하는 대신 공유하는 쪽이 리포 관례와 일치한다고 판단했다.
 3. **F28(위)을 새로 추가했다** — 설계 시점에는 CONST_VALUE 의 실제 저장 문자 집합 제약을 실측하지 않았다.
+
+### 오케스트레이터 직접 게이트 (Verify)
+
+- Verify 보고에서 빠진 규칙 15a(fixture L110 `LENGTH` 항목의 상대 오프셋 6→106)를 오케스트레이터가 직접 넣고 `:lib:test --rerun --continue` 로 돌렸다. `LayoutSnapshotSchemaStructureTest.오프셋_산술이_헤더_offset과_totalLength_합에_정합한다` 하나만 실패해 잡혔고, `git checkout` 원복 뒤 `git status` 는 깨끗했다.
+- 원본 트리로 두 게이트를 직접 다시 돌렸다: `testAll` 581 / 0(기준선 556 / 0), `:api:mssqlMigrationTest` 22 / 0(기준선 14 / 0).
+- Refactor Phase 는 생략한다: 워커(무인) 실행이며 dev-discipline 「Phase 05」가 무인 모드에서는 실행하지 않는다고 정한다.
