@@ -1,7 +1,7 @@
 import { expect, test, type Locator } from "@playwright/test";
 
-const BASE = "http://localhost:5000";
-const SHOT = "test-results/master-rule-frame";   // 실행 증거 스크린샷 (BE 8100 local-ph + FE 5000 dev + SMOKE_LOGIN_USER/PASSWORD 필요)
+const BASE = "http://localhost:5100";
+const SHOT = "test-results/master-rule-frame";   // 실행 증거 스크린샷 (BE 8100 local-ph + FE 5100 dev + SMOKE_LOGIN_USER/PASSWORD 필요)
 
 test("masterRuleFrame E2E — 메뉴 진입/P-001/조회/행추가/저장/재조회", async ({ page }) => {
   test.setTimeout(240_000);

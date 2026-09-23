@@ -350,7 +350,7 @@
         <mxCell id="ly-bff" value="BFF (Next.js 16)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontStyle=1;fontColor=#555555" vertex="1" parent="1">
           <mxGeometry x="400" y="70" width="400" height="20" as="geometry" />
         </mxCell>
-        <mxCell id="bff" value="portal BFF  (포트 5000)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;fontStyle=1;container=1;collapsible=0;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+        <mxCell id="bff" value="portal BFF  (포트 5100)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;fontStyle=1;container=1;collapsible=0;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
           <mxGeometry x="400" y="100" width="680" height="340" as="geometry" />
         </mxCell>
         <mxCell id="bff-proxy" value="proxy.ts&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;· /portal/*  인증 보호&lt;br&gt;· /api/auth/*  공개&lt;br&gt;· /api/*  RBAC 패턴 매칭&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6;fontStyle=1;" vertex="1" parent="bff">

@@ -8,7 +8,7 @@ interface GuardAppConfig {
 const guardApps: GuardAppConfig[] = [
   {
     appId: "mcm",
-    baseUrl: process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5000",
+    baseUrl: process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100",
   },
 ];
 

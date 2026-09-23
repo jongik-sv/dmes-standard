@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
  * 메시지 전송 (mcm/cia messageSender) 화면 스모크.
  *
  * 실행 전제 (기존 *-smoke.spec.ts 와 동일): m-mcm 호스트 + mcm BE + DB 가 떠 있어야 한다.
- *   SMOKE_MCM_BASE_URL (default http://localhost:5000) / SMOKE_LOGIN_USER / SMOKE_LOGIN_PASSWORD.
+ *   SMOKE_MCM_BASE_URL (default http://localhost:5100) / SMOKE_LOGIN_USER / SMOKE_LOGIN_PASSWORD.
  *
  * 시나리오 (GATE-07 핵심):
  *   (1) 로그인 → portal 진입
@@ -13,7 +13,7 @@ import { expect, test } from "@playwright/test";
  *   (4) 라디오 A/B 토글 + 전송 버튼 노출 확인
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5000";
+const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5100";
 const LOGIN_USER = process.env.SMOKE_LOGIN_USER ?? "admin@dmes.com";
 const LOGIN_PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 

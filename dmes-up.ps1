@@ -27,7 +27,7 @@ Usage:
   .\dmes-up.cmd -Clean     # both of the above
   .\dmes-up.cmd -Detach -Be   # backend only     (-Fe for frontend only)
 
-Ports: portal 5000 | mls 8092 | mqc 8093 | mpp 8094 | mpn 8095 | mcm 8100 | analog 8191
+Ports: portal 5100 | mls 8092 | mqc 8093 | mpp 8094 | mpn 8095 | mcm 8100 | analog 8191
 Login: admin / admin123
 #>
 [CmdletBinding()]
@@ -87,7 +87,7 @@ if ($Be) {
 }
 
 # 3. stop whatever this repo already has running ------------------------------
-# Ports alone are not enough: a `next dev` that has not bound 5000 yet still
+# Ports alone are not enough: a `next dev` that has not bound 5100 yet still
 # loses the race with a second one and dies with EADDRINUSE. The shim also
 # hides the script name from be-run/fe-run's own "previous instance" cleanup,
 # so that cleanup can no longer see the process it is meant to replace.
@@ -159,7 +159,7 @@ $feArgs = if ($Full) { @('--all') } else { @('--all', '-q') }
 
 if (-not $Detach) {
     Write-Host ''
-    Say 'portal  http://localhost:5000    login  admin / admin123'
+    Say 'portal  http://localhost:5100    login  admin / admin123'
     Say 'mls 8092 | mqc 8093 | mpp 8094 | mpn 8095 | mcm 8100 | analog 8191'
     Say 'Ctrl+C stops backend and frontend together'
     Write-Host ''
@@ -229,7 +229,7 @@ while ((Get-Date) -lt $deadline -and $up.Count -lt $pending.Count) {
 Write-Host ''
 if ($up.Count -eq $pending.Count) {
     Say 'all services up'
-    Say 'portal  http://localhost:5000    login  admin / admin123'
+    Say 'portal  http://localhost:5100    login  admin / admin123'
     Say 'stop with .\dmes-down.cmd'
 } else {
     $missing = @($pending | Where-Object { -not $up.ContainsKey($_[0]) } | ForEach-Object { "$($_[0]):$($_[1])" })

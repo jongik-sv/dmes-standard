@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-const BASE = "http://localhost:5000";
+const BASE = "http://localhost:5100";
 
 const LEAVES = [
   { id: "commObjMng",       label: "OBJECT 관리",         group: "시스템관리", expectedPath: "csa/commObjMng" },

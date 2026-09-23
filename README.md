@@ -106,7 +106,7 @@ UTF-8 BOM + CRLF 로 커밋돼 있다(`.gitattributes` 가 고정).
 이 파일은 개인 설정이라 git 에 없다 — [`.run.env.example`](.run.env.example) 을 복사해 쓰고,
 없으면 스크립트가 `--all` 로 폴백하므로 복제 직후 설정 없이도 그대로 뜬다.
 
-**로컬 포트** — 포털 `5000` · mls `8092` · mqc `8093` · mpp `8094` · mpn `8095` · **mcm `8100`(포털 호스트)** · analog `8191`.
+**로컬 포트** — 포털 `5100` · mls `8092` · mqc `8093` · mpp `8094` · mpn `8095` · **mcm `8100`(포털 호스트)** · analog `8191`.
 FE 는 `m-mcm/.env` 의 `{모듈}_WAS_URL` 로 각 백엔드를 찾는다. 이 파일이 없으면 `fe-run.sh` 가
 `.env.example` 에서 만들고 `AUTH_SECRET` 을 자동 발급한다 (로컬 전용 — 실 프로젝트에서 반드시 교체).
 

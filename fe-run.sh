@@ -19,7 +19,7 @@ set -u
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FRONTEND_DIR="$ROOT_DIR/src/frontend"
 RUN_ENV_FILE="$ROOT_DIR/.run.env"
-PORTAL_PORT=5000
+PORTAL_PORT=5100
 
 [ -f "$RUN_ENV_FILE" ] && . "$RUN_ENV_FILE"
 
@@ -309,7 +309,7 @@ cleanup() {
     terminate_pid_tree TERM "$pid"
   done
 
-  # pnpm --parallel 워커 잔존분 정리 — 남겨두면 포트 5000 과 tsup watch 가 계속 물려 있다.
+  # pnpm --parallel 워커 잔존분 정리 — 남겨두면 포트 5100 과 tsup watch 가 계속 물려 있다.
   terminate_frontend_stragglers TERM
   wait_for_exit $(pgrep -f "$FRONTEND_DIR" 2>/dev/null || true) || true
   terminate_frontend_stragglers KILL

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5000";
+const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5100";
 const LOGIN_USER = process.env.SMOKE_LOGIN_USER ?? "admin@dmes.com";
 const LOGIN_PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 

@@ -4,7 +4,7 @@ import { test } from "@playwright/test";
 // + commUserMng (W5 reference, regression 확인)
 // = 9 화면 자동조회 / Detail wrapper / 카테고리 nowrap / 버튼 / 날짜 yyyy-MM-dd 검증
 
-const BASE = "http://localhost:5000";
+const BASE = "http://localhost:5100";
 
 const SCREENS = [
   // csa 7 (W5 패턴 적용 대상)

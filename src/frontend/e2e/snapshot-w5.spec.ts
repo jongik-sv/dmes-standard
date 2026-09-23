@@ -2,7 +2,7 @@ import { test } from "@playwright/test";
 import fs from "fs";
 import path from "path";
 
-const BASE = "http://localhost:5000";
+const BASE = "http://localhost:5100";
 
 test("commUserMng iter#4 row-selected snapshot", async ({ page, context }) => {
   test.setTimeout(180_000);

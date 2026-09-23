@@ -1,6 +1,6 @@
 import { test } from "@playwright/test";
 
-const BASE = "http://localhost:5000";
+const BASE = "http://localhost:5100";
 
 const SCREENS = [
   { id: "commUserMng",      label: "사용자 관리",         group: "시스템관리" },

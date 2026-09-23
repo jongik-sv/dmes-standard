@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-const BASE = "http://localhost:5000";
+const BASE = "http://localhost:5100";
 
 test.setTimeout(180_000);
 

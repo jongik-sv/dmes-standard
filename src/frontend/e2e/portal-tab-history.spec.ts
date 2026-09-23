@@ -10,7 +10,7 @@ import { expect, test, type Page } from "@playwright/test";
  * dev 픽스처 계정(admin/admin123)은 기존 e2e(auto-search-csa)와 동일.
  */
 
-const BASE = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5000";
+const BASE = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5100";
 
 const portalTab = (page: Page) =>
   page.evaluate(() => {

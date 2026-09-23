@@ -14,7 +14,7 @@ import { expect, test, type Page } from "@playwright/test";
  * 임시 검증 산출물(프로덕션 소스 아님). 서버는 외부에서 부팅됨(webServer 미설정).
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5000";
+const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5100";
 const LOGIN_USER = process.env.SMOKE_LOGIN_USER ?? "admin";
 const LOGIN_PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 

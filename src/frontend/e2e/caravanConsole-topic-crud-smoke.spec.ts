@@ -3,8 +3,8 @@ import { expect, test } from "@playwright/test";
 /**
  * 토픽 관리 (caravanConsole/topic) CRUD 스모크.
  *
- * 실행 전제 (기존 *-smoke.spec.ts 와 동일): m-mcm 호스트(5000) + mcm BE(8100) 가 떠 있어야 한다.
- *   SMOKE_MCM_BASE_URL (default http://localhost:5000) / SMOKE_LOGIN_USER / SMOKE_LOGIN_PASSWORD.
+ * 실행 전제 (기존 *-smoke.spec.ts 와 동일): m-mcm 호스트(5100) + mcm BE(8100) 가 떠 있어야 한다.
+ *   SMOKE_MCM_BASE_URL (default http://localhost:5100) / SMOKE_LOGIN_USER / SMOKE_LOGIN_PASSWORD.
  *
  * 시나리오 (2026-07-09 Q-001 해제 — save 액션 활성 검증):
  *   (1) 로그인 → portal 진입 → 메뉴 (… > 카프카관리 > 토픽 관리) 진입 → 화면 렌더 (page not-found 아님)
@@ -16,7 +16,7 @@ import { expect, test } from "@playwright/test";
  * 주의: 실제 C/U/D 의 caravan fan-out(브로커/DB 반영)은 대상 caravan WAS 기동이 전제라 본 스모크 범위 밖.
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5000";
+const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5100";
 const LOGIN_USER = process.env.SMOKE_LOGIN_USER ?? "admin@dmes.com";
 const LOGIN_PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 

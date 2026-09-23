@@ -1,7 +1,7 @@
 import { expect, test, type Locator } from "@playwright/test";
 
-const BASE = "http://localhost:5000";
-const SHOT = "test-results/master-rule-data";   // 실행 조건: BE 8100(local-ph) + FE 5000 + SMOKE_LOGIN_USER/PASSWORD
+const BASE = "http://localhost:5100";
+const SHOT = "test-results/master-rule-data";   // 실행 조건: BE 8100(local-ph) + FE 5100 + SMOKE_LOGIN_USER/PASSWORD
 
 test("masterRuleData E2E — 메뉴/P-001/lov+search 연쇄/동적그리드/행추가·수정/저장/재조회", async ({ page }) => {
   test.setTimeout(240_000);

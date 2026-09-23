@@ -119,7 +119,7 @@ try {
         -WorkingDirectory $RootDir -NoNewWindow -PassThru
 
     Write-Launcher 'BE + FE 모두 기동. Ctrl+C 로 종료.'
-    Write-Launcher '  포털 http://localhost:5000  (초기 계정 admin / admin123)'
+    Write-Launcher '  포털 http://localhost:5100  (초기 계정 admin / admin123)'
     Write-Launcher '  백엔드 기동에는 시간이 더 걸린다 — be-mcm 이 뜨기 전에는 로그인이 실패한다.'
 
     # 어느 쪽이 먼저 끝났는지 알려준다. 한쪽만 조용히 죽어 원인을 못 찾는 상황을 막는다.

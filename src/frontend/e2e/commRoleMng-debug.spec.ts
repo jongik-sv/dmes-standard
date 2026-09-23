@@ -1,6 +1,6 @@
 import { test } from "@playwright/test";
 
-const BASE = "http://localhost:5000";
+const BASE = "http://localhost:5100";
 
 test("commRoleMng 결함 조사", async ({ page, context }) => {
   test.setTimeout(120_000);

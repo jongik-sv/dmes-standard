@@ -15,7 +15,7 @@ import { expect, test } from "@playwright/test";
  * playwright.config has no webServer.
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5000";
+const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
 const LOGIN_USER = process.env.SMOKE_LOGIN_USER ?? "admin";
 const LOGIN_PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 

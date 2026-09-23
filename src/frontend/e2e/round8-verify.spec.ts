@@ -1,6 +1,6 @@
 import { test } from "@playwright/test";
 
-const BASE = "http://localhost:5000";
+const BASE = "http://localhost:5100";
 
 test("round8 — 탭 라벨 + commObjMng FORM_URL/OBJECT_ID/SYSTEM 검증", async ({ page, context }) => {
   test.setTimeout(180_000);

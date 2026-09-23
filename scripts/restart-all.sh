@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # DMES 로컬 풀스택 재기동 스크립트 (Git Bash / Windows)
 #
-# 동작: 포털(5000) · mcm(8100) · mqc(8300) 종료 → 프론트 라이브러리 모듈 재빌드
+# 동작: 포털(5100) · mcm(8100) · mqc(8300) 종료 → 프론트 라이브러리 모듈 재빌드
 #       → 3개 서비스 재기동 → 포트 LISTEN 대기 → 기동 확인 출력
 #
 # 사용법:
@@ -17,7 +17,7 @@
 #   ※ 구 `local,mssql` 조합은 폐기됐다(application-mssql.yml 삭제, 05b933dee).
 #      지금 이 값을 주면 에러 없이 local 만 적용돼 SQLite 로 조용히 뜬다.
 #
-# 로그인: admin / admin123   포털: http://localhost:5000
+# 로그인: admin / admin123   포털: http://localhost:5100
 set -u
 
 # 백엔드 활성 프로파일 (local 계열과 dev/prod 는 상호배타 — 하나만 지정)
@@ -77,7 +77,7 @@ wait_port() {
 }
 
 echo "=== 1) 종료 ==="
-[ "$DO_FRONT" -eq 1 ] && kill_port 5000
+[ "$DO_FRONT" -eq 1 ] && kill_port 5100
 kill_port 8100
 kill_port 8300
 
@@ -150,18 +150,18 @@ echo "  [8300] mqc bootRun($PROFILE) 시작 -> $LOGDIR/mqc-boot.log"
 if [ "$DO_FRONT" -eq 1 ]; then
   nohup bash -c "cd '$FE/m-mcm' && pnpm run dev" > "$LOGDIR/m-mcm-dev.log" 2>&1 &
   disown
-  echo "  [5000] m-mcm 포털 시작 -> $LOGDIR/m-mcm-dev.log"
+  echo "  [5100] m-mcm 포털 시작 -> $LOGDIR/m-mcm-dev.log"
 fi
 
 echo "=== 4) 기동 확인 ==="
 wait_port 8100 "mcm"
 wait_port 8300 "mqc"
-[ "$DO_FRONT" -eq 1 ] && wait_port 5000 "portal"
+[ "$DO_FRONT" -eq 1 ] && wait_port 5100 "portal"
 
 echo "=== 완료 ==="
 grep -aiE 'Started McmApplication' "$LOGDIR/mcm-boot.log" | tail -1
 grep -aiE 'Started MqcApplication' "$LOGDIR/mqc-boot.log" | tail -1
 [ "$DO_FRONT" -eq 1 ] && grep -aiE 'Ready in' "$LOGDIR/m-mcm-dev.log" | tail -1
 echo
-echo "포털: http://localhost:5000  (admin / admin123)"
+echo "포털: http://localhost:5100  (admin / admin123)"
 echo "브라우저에서 Ctrl+Shift+R 하드 리프레시 후 화면 조회하세요."

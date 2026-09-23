@@ -15,7 +15,7 @@ import { expect, test, type Page } from "@playwright/test";
  * 각 화면의 그리드/컨테이너가 렌더되어야 한다. (데이터 유무에는 관대)
  */
 
-const BASE = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5000";
+const BASE = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5100";
 const LOGIN_USER = process.env.SMOKE_LOGIN_USER ?? "admin";
 const LOGIN_PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const SNAP_DIR = "test-results/w4-snap";

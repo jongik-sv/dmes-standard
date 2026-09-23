@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 import path from "path";
 
-const BASE = "http://localhost:5000";
-const SHOT = "test-results/master-rule-data-upload";   // 실행 조건: BE 8100(local-ph) + FE 5000 + SMOKE_LOGIN_USER/PASSWORD
+const BASE = "http://localhost:5100";
+const SHOT = "test-results/master-rule-data-upload";   // 실행 조건: BE 8100(local-ph) + FE 5100 + SMOKE_LOGIN_USER/PASSWORD
 const FIXTURE = path.join(__dirname, "fixtures", "master-rule-data-upload.xlsx");   // 5행 헤더(COL_ID)/6행~ 데이터 2행(GBP/CHF)
 
 test("masterRuleDataUploadFilePopup E2E — 부모 P-002 진입/컬럼정의 자동조회/파일선택 미리보기/삭제등록 confirm/등록/다운로드", async ({ page }) => {

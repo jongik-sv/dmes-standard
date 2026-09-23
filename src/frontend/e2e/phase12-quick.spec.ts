@@ -1,6 +1,6 @@
 import { test } from "@playwright/test";
 
-const BASE = "http://localhost:5000";
+const BASE = "http://localhost:5100";
 
 test("phase12 quick — 메뉴 관리 + OBJECT 관리 마운트 확인", async ({ page, context }) => {
   test.setTimeout(120_000);

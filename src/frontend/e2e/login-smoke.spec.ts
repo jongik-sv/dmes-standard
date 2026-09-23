@@ -10,7 +10,7 @@ interface SmokeAppConfig {
 const smokeApps: SmokeAppConfig[] = [
   {
     appId: "mcm",
-    baseUrl: process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5000",
+    baseUrl: process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100",
     userEnvKey: "SMOKE_MCM_USER",
     passwordEnvKey: "SMOKE_MCM_PASSWORD",
   },

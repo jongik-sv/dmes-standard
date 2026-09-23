@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-const BASE = "http://localhost:5000";
+const BASE = "http://localhost:5100";
 
 test("round8b — commObjMng 조회 후 첫 행 선택 시 FORM URL = csa/commObjMng", async ({ page, context }) => {
   test.setTimeout(120_000);

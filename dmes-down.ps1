@@ -32,7 +32,7 @@ if (Test-Path (Join-Path $BackendDir 'gradlew.bat')) {
     Pop-Location
 }
 
-$ports = 5000,8092,8093,8094,8095,8100,8191
+$ports = 5100,8092,8093,8094,8095,8100,8191
 $still = @($ports | Where-Object {
     Get-NetTCPConnection -LocalPort $_ -State Listen -ErrorAction SilentlyContinue })
 if ($still.Count -eq 0) { Write-Host '[down] all ports free' -ForegroundColor Green }

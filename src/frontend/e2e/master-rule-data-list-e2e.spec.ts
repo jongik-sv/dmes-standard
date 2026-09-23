@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-const BASE = "http://localhost:5000";
-const SHOT = "test-results/master-rule-data-list";   // 실행 조건: BE 8100(local-ph) + FE 5000 + SMOKE_LOGIN_USER/PASSWORD
+const BASE = "http://localhost:5100";
+const SHOT = "test-results/master-rule-data-list";   // 실행 조건: BE 8100(local-ph) + FE 5100 + SMOKE_LOGIN_USER/PASSWORD
 
 test("masterRuleDataList E2E — 메뉴/P-001 연쇄/읽기전용 동적그리드/조건검색/마스터코드 셀클릭 P-002/엑셀다운", async ({ page }) => {
   test.setTimeout(240_000);
