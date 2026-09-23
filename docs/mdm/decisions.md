@@ -250,3 +250,27 @@
 - **Rationale**: spec 의 데이터 모델은 TB_MDM_SYSTEM 하나이고 선행 설계가 보류 테이블을 다른 Task 에 배정했다
 - **Reversible**: yes
 - **Source**: docs/mdm/tasks/TSK-01-02/design.md D6
+
+## D-032 (2026-09-24T00:00:00Z)
+- **Phase**: design (TSK-02-03)
+- **Decision needed**: 03 `TB_MDM_EAI.header_layout_id` 단일 헤더(md) vs html 목업이 그리는 순서 있는 N개 헤더 적층(EAI 구간 + 시스템 구간) 중 스키마에 반영할 모델
+- **Decision made**: 덧셈적(additive) N-헤더 모델을 채택하고 junction 테이블 `TB_MDM_LAYOUT_HEADER(LAYOUT_ID, SEQ, HEADER_LAYOUT_ID)`를 신설한다. N=1 이면 md 의 "전문당 헤더 하나" 동작과 완전히 같다. 전문별 헤더 상수 재정의 값을 저장할 `TB_MDM_LAYOUT_CONST(LAYOUT_ID, HEADER_LAYOUT_ID, HEADER_SEQ, CONST_VALUE)`도 함께 신설한다
+- **Rationale**: spec 의 데이터 모델 절이 "TB_MDM_EAI, TB_MDM_LAYOUT, TB_MDM_LAYOUT_ITEM (+ 헤더 적층·상수 재정의 테이블)"이라 적어 적층 테이블 신설을 이미 전제한다(근거 1순위). 실제 AS-IS 전문(M201)이 GLUE 공통헤더 + L2 구간헤더 두 겹을 쓰는 구조를 md 단일모델로는 표현할 수 없다. N=1 이 md 동작을 정확히 재현하므로 되돌리기 비용이 낮다
+- **Reversible**: no(스키마 신설 — 되돌리려면 두 테이블과 관련 FK 를 제거하고 `TB_MDM_LAYOUT_ITEM.default_value` 재정의 방식으로 축소 재설계해야 함, TSK-02-03/design.md D1 "반려 시 재작업" 참조)
+- **Source**: docs/mdm/tasks/TSK-02-03/design.md D1·D2, `docs/mdm/erd/03-interface-layout.{mmd,sqlite.sql,mssql.sql}`
+
+## D-033 (2026-09-24T00:00:00Z)
+- **Phase**: design (TSK-02-03)
+- **Decision needed**: naming-dialect-rules.md §2 끝 항목이 "02 원문대로 정하라"고 위임한 관리 속성 5종(버전·유효기간·소유 부서·담당자·등록 출처) 중 TERM·DOMAIN 에 실제로 물리 칼럼을 추가할 항목
+- **Decision made**: `TB_MDM_TERM` 에 `OWNER_DEPT`(소유 부서)·`OWNER_ID`(담당자)·`SRC_ORIGIN`(등록 출처) 3칼럼만 추가한다. 버전·유효기간은 두 표 모두 생략한다. `TB_MDM_DOMAIN` 에는 5종 모두 추가하지 않는다(02 원문이 DOMAIN 은 "소유자는 두지 않는다"고 명시)
+- **Rationale**: 02 원문 테이블 설계 절 서두는 "관리 속성(버전·유효기간)은 공통 모듈에서 일괄 정의하므로 생략"이라 적어 이 두 개만 생략 대상으로 예시했다. "버전"은 감사 `VER`(변경 카운터)과 저장-즉시-배포 정책으로 실질적으로 커버되고, "유효기간"은 화면 요구사항에 입력 필드로 등장하지 않는다. 반면 소유 부서·담당자·등록 출처는 02 TERM 속성표에 생략 언급 없이 남아 있고, 감사 칼럼(시스템 사용자)과 의미가 다른 업무 속성(조직·문서 정보)이다
+- **Reversible**: no(스키마 신설 — 되돌리려면 `TB_MDM_TERM` 의 3칼럼을 제거해야 함, FK·UX 영향 없어 제거 자체는 안전. TSK-02-03/design.md D3 "반려 시 재작업" 참조)
+- **Source**: docs/mdm/tasks/TSK-02-03/design.md D3, `docs/mdm/erd/02-term-domain-column.{mmd,sqlite.sql,mssql.sql}`
+
+## D-034 (2026-09-24T00:00:00Z)
+- **Phase**: build (TSK-02-03)
+- **Decision needed**: design.md §6.0 감사 9칼럼의 `VER BIGI`가 원천 업무 칼럼 `VER`(버전 번호, PK 구성요소)과 6개 테이블(`TB_MDM_CODE_VER`·`TB_MDM_CODE_RECV`·`TB_MDM_RULE_VER`·`TB_MDM_RULE_VAR`·`TB_MDM_RULE_ROW`·`TB_MDM_RULE_RECV`)에서 칼럼명이 그대로 충돌해(같은 테이블에 `VER` 두 개, `CREATE TABLE` 자체가 불가) design.md 를 문자 그대로 구현할 수 없음
+- **Decision made**: 이 6개 테이블에 한해 감사 카운터 칼럼만 `AUD_VER`(타입은 `VER` 과 동일한 `BIGI`)로 개명하고, 원천 업무 `VER` 칼럼은 개명하지 않는다(불변 규칙 2 의 "원천 칼럼은 대소문자만 바꾼다"를 지킨다). 두 방언 DDL·`expected-columns.json`·검증 스크립트(체크 c·e) 모두 이 예외를 명시한다
+- **Rationale**: `CactusAuditEntity`(src/backend/cactus-core, 읽기 전용 확인)는 `@Column(name="VER")` 로 고정돼 있으나 `@MappedSuperclass` 이므로 하위 엔티티가 표준 JPA `@AttributeOverride(name="version", column=@Column(name="AUD_VER"))` 로 재매핑할 수 있어 cactus-core 코드 변경이 필요 없다. 감사 카운터 쪽을 개명하는 편이 업무 버전 칼럼(PK·다른 테이블의 FK 대상)을 건드리는 것보다 영향 범위가 작다
+- **Reversible**: yes(엔티티 매핑을 다시 바꾸면 원복 가능. 다만 그 전까지 이 6개 테이블에 엔티티를 붙이는 모든 후속 Task 는 `@AttributeOverride` 를 적용해야 함 — naming-dialect-rules.md §6.1 인계 표에 명시)
+- **Source**: `src/backend/cactus-core/src/main/java/com/dongkuk/dmes/cactus/audit/CactusAuditEntity.java`(읽기 전용 확인), `docs/mdm/erd/04-master-code.sqlite.sql`·`06-business-rule.sqlite.sql` 머리말, `docs/mdm/erd/verify/expected-columns.json`

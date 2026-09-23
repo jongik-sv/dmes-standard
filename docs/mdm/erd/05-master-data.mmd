@@ -1,0 +1,61 @@
+%% TSK-02-03 영역 05 (dmd) ERD — design.md §6.4. 변경분 배포 방식(F11) — 행 단위 chg_seq NOT NULL.
+%% TB_MDM_DATA_CATE_EFF(사본 전용 REGEX 캐시)는 spec 대상 밖이라 이 ERD 에 없다.
+erDiagram
+    TB_MDM_DATA {
+        CD50 MARU_DATA_ID PK
+        NM100 MARU_DATA_NAME
+        CD20 STATUS "INUSE DEPRECATED"
+        CD20 SOURCE_SYSTEM FK
+        BIGI LAST_CHG_SEQ
+        BIGI CHG_SEQ
+    }
+    TB_MDM_DATA_SYSTEM["TB_MDM_DATA_SYSTEM (보류)"] {
+        CD50 MARU_DATA_ID PK,FK
+        CD20 SYSTEM_CODE PK,FK
+    }
+    TB_MDM_DATA_ITEM {
+        CD50 MARU_DATA_ID PK,FK
+        CD50 CODE PK
+        DTS VALID_FROM PK
+        DTS VALID_TO
+        INT4 ROW_VERSION
+        BIGI CHG_SEQ
+    }
+    TB_MDM_DATA_CATE {
+        CD50 MARU_DATA_ID PK,FK
+        CD50 CATE_ID PK
+        DTS VALID_FROM PK
+        CD20 DEF_KIND "REGEX TABLE"
+        BIGI CHG_SEQ
+    }
+    TB_MDM_DATA_CATE_ITEM {
+        CD50 MARU_DATA_ID PK,FK
+        CD50 CATE_ID PK "FK 없음, 앱 검사"
+        CD50 CODE PK "FK 없음, 앱 검사"
+        DTS VALID_FROM PK
+        BIGI CHG_SEQ
+    }
+    TB_MDM_DATA_RECV["TB_MDM_DATA_RECV (수신 로그, 보류)"] {
+        ID_AI RECV_ID PK
+        CD50 MARU_DATA_ID FK
+        CD20 SOURCE_SYSTEM FK
+        INT4 ROW_COUNT
+    }
+    TB_MDM_DATA_RECV_ITEM["TB_MDM_DATA_RECV_ITEM (보류)"] {
+        INT4 RECV_ID PK,FK
+        INT4 SEQ PK
+        CD20 ACTION "예약어, INSERT UPDATE CLOSE REOPEN NONE"
+    }
+    TB_MDM_SYSTEM["TB_MDM_SYSTEM (TSK-01-02 소유)"] {
+        CD20 SYSTEM_CODE PK
+    }
+
+    TB_MDM_SYSTEM ||--o{ TB_MDM_DATA : "SOURCE_SYSTEM"
+    TB_MDM_DATA ||--o{ TB_MDM_DATA_SYSTEM : "MARU_DATA_ID"
+    TB_MDM_SYSTEM ||--o{ TB_MDM_DATA_SYSTEM : "SYSTEM_CODE"
+    TB_MDM_DATA ||--o{ TB_MDM_DATA_ITEM : "MARU_DATA_ID"
+    TB_MDM_DATA ||--o{ TB_MDM_DATA_CATE : "MARU_DATA_ID"
+    TB_MDM_DATA ||--o{ TB_MDM_DATA_CATE_ITEM : "MARU_DATA_ID"
+    TB_MDM_DATA ||--o{ TB_MDM_DATA_RECV : "MARU_DATA_ID"
+    TB_MDM_SYSTEM ||--o{ TB_MDM_DATA_RECV : "SOURCE_SYSTEM"
+    TB_MDM_DATA_RECV ||--o{ TB_MDM_DATA_RECV_ITEM : "RECV_ID"

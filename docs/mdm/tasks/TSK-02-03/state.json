@@ -2,5 +2,21 @@
   "tsk": "TSK-02-03",
   "order": "7b4c7ea2-7054-4192-bbf0-490b7770c733",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "reported",
+  "baseline": {
+    "failures": 0,
+    "tests": 395,
+    "backend_testAll": {
+      "tests": 395,
+      "failures": 0,
+      "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon"
+    }
+  },
+  "mode": "docs-special: 산출물 문서(ERD·DDL 초안)뿐. 게이트 = design.md 문서 체크리스트 + DDL 두 방언 실측 + testAll 회귀",
+  "last": {
+    "phase": "done",
+    "event": "done.ok"
+  },
+  "model": "haiku",
+  "refactor": "skipped: research/docs 특례(산출물 문서뿐) + 워커(무인) 실행 — dev-discipline Phase 05"
 }

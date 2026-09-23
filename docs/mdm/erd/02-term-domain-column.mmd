@@ -1,0 +1,67 @@
+%% TSK-02-03 영역 02 (dma) ERD — design.md §6.1
+%% TB_MDM_SYSTEM 은 TSK-01-02 소유(이 Task 가 만들지 않음, 실선 참조). 보류 테이블은 엔티티 라벨에 "(보류)" 로 표시한다.
+erDiagram
+    TB_MDM_UNIT {
+        CD20 UNIT_CODE PK
+        CD50 DIMENSION
+        CD20 BASE_UNIT
+        DECF FACTOR
+        BIGI CHG_SEQ
+    }
+    TB_MDM_TERM {
+        ID_AI TERM_ID PK
+        NM100 TERM_NAME
+        INT4 SENSE_NO
+        TXT DEFINITION
+        CD50 ENG_ABBR
+        JSONV SYNONYMS
+        NM100 OWNER_DEPT "D3 신설"
+        CD50 OWNER_ID "D3 신설"
+        NM200 SRC_ORIGIN "D3 신설"
+    }
+    TB_MDM_DOMAIN {
+        ID_AI DOMAIN_ID PK
+        NM100 DOMAIN_NAME
+        CD50 STD_NAME
+        INT4 PARENT_DOMAIN_ID FK "자기 참조"
+        CD20 DOMAIN_KIND
+        CD20 UNIT_CODE FK
+        CD50 MARU_CODE_ID FK "교차영역 04, 점선"
+        BIGI CHG_SEQ
+    }
+    TB_MDM_COLUMN {
+        ID_AI COLUMN_ID PK
+        NM100 COLUMN_NAME
+        CD50 PHYS_NAME UK "D6 신설 UX"
+        INT4 DOMAIN_ID FK
+        BOOLI REQUIRED
+        BIGI CHG_SEQ
+    }
+    TB_MDM_COLUMN_SYSTEM {
+        INT4 COLUMN_ID PK,FK
+        CD20 SYSTEM_CODE PK,FK
+        CD50 PHYS_NAME PK
+    }
+    TB_MDM_DICT_SEQ["TB_MDM_DICT_SEQ (보류, 감사칼럼 예외)"] {
+        CD20 DICT_CODE PK
+        BIGI LAST_CHG_SEQ
+    }
+    TB_MDM_DICT_SYSTEM["TB_MDM_DICT_SYSTEM (보류)"] {
+        CD20 DICT_CODE PK,FK
+        CD20 SYSTEM_CODE PK,FK
+    }
+    TB_MDM_SYSTEM["TB_MDM_SYSTEM (TSK-01-02 소유, 이 Task 미생성)"] {
+        CD20 SYSTEM_CODE PK
+    }
+    TB_MDM_CODE["TB_MDM_CODE (04, 교차영역)"] {
+        CD50 MARU_CODE_ID PK
+    }
+
+    TB_MDM_DOMAIN ||--o{ TB_MDM_DOMAIN : "PARENT_DOMAIN_ID 자기참조"
+    TB_MDM_UNIT ||--o{ TB_MDM_DOMAIN : "UNIT_CODE"
+    TB_MDM_CODE ||..o{ TB_MDM_DOMAIN : "MARU_CODE_ID (점선, 교차영역 02→04)"
+    TB_MDM_DOMAIN ||--o{ TB_MDM_COLUMN : "DOMAIN_ID"
+    TB_MDM_COLUMN ||--o{ TB_MDM_COLUMN_SYSTEM : "COLUMN_ID"
+    TB_MDM_SYSTEM ||--o{ TB_MDM_COLUMN_SYSTEM : "SYSTEM_CODE (TSK-01-02 소유)"
+    TB_MDM_DICT_SEQ ||--o{ TB_MDM_DICT_SYSTEM : "DICT_CODE"
+    TB_MDM_SYSTEM ||--o{ TB_MDM_DICT_SYSTEM : "SYSTEM_CODE (TSK-01-02 소유)"
