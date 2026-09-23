@@ -422,3 +422,50 @@ public interface MdmLayoutParser {
 ## 화면(브라우저 E2E) — 해당 없음
 
 이 Task 는 domain database 의 계약 전용 작업이며 `entry-point`가 없다(화면이 없다). dev-discipline §"화면 작업의 브라우저 E2E" 트리거(entry-point 존재 또는 domain=fullstack/frontend)에 해당하지 않으므로 스모크 시험·스크린샷 요구사항이 적용되지 않는다.
+
+---
+
+## Build Phase 기록
+
+### red 관찰
+
+DB 계약·JSON 스키마·엔티티는 서로 강하게 결합돼 있어(마이그레이션 SQL·엔티티 매핑·계약 record·JSON 스키마·fixture 가 모두 같은 필드 집합을 동시에 가정한다) 테스트를 먼저 작성하고 구현 없이 실패를 관찰하는 절차를 문자 그대로 지키면 "컴파일 자체가 안 되는 상태"만 나온다. 그래서 이 Task 는 계약 산출물(§6.1 record·§6.2 스키마·fixture)과 그 구조를 검증하는 `LayoutSnapshotSchemaStructureTest`를 같은 커밋 경계 안에서 함께 작성했다 — red 관찰은 "구현 없이 테스트가 실패한다"가 아니라, §5 불변 규칙 각각에 대해 **완성된 구현에 변이를 넣어 테스트가 실제로 빨개지는지**(mutation check)로 대체했다. 이는 dev-discipline "테스트 먼저" 절이 요구하는 안전장치(테스트가 실제로 무언가를 검증한다)를 결과적으로 만족하지만, 절차 순서 자체는 이탈이다(design.md 이탈 기록).
+
+한 곳에서는 실제로 최초 실패를 관찰했다: SQLite `TB_MDM_LAYOUT_CONST` 부착 무결성(FK3) 변이 검증(§5 불변 규칙 5) 도중 FK3 제거 변이를 넣었을 때 `부착_안_된_조합의_LAYOUT_CONST_INSERT_는_FK3_이_거부한다`·`부착된_CONST_가_있으면_HEADER_행_DELETE_가_거부된다` 두 테스트가 즉시 빨개졌다(§"변이 검증 결과표" 참고) — 이 실패 메시지(`AssertionFailedError`, "거부돼야 하는데 성공했다")가 테스트가 실제로 그 제약을 검사하고 있다는 직접 증거다.
+
+### 변이 검증 결과표
+
+design.md §5 불변 규칙 16개 전부를 대상으로, Build 가 실제로 틀린 구현(변이)을 넣고 원복하며 확인했다. `git status --short`로 매 변이 뒤 원복이 정확히 원래 상태로 돌아왔음을 확인했다.
+
+| 규칙 # | 변이 | 잡은 테스트 | 결과 |
+|---|---|---|---|
+| 1 | SQLite V4에서 `TB_MDM_LAYOUT_HEADER`·`TB_MDM_LAYOUT_CONST` 두 테이블(+ 관련 UX)을 통째로 제거 | `MdmInterfaceLayoutMigrationTest`(5테이블 확인·제약명·UX 중복·FK3·CASCADE 없음 등 6개) | 잡힘 |
+| 2 | MSSQL V4에서 `TB_MDM_EAI`(HEADER_LAYOUT_ID FK 인라인 포함)를 `TB_MDM_LAYOUT` 보다 먼저 생성하도록 순서 교체 | `MdmInterfaceLayoutMssqlMigrationTest`(Flyway 마이그레이션 실패 → 컨텍스트 부팅 자체가 실패, 8개 전부) | 잡힘(설계대로 "CREATE TABLE 자체가 파싱 단계에서 실패") |
+| 3 | SQLite V4에서 `CK_TB_MDM_LAYOUT_ITEM_UNIT` CHECK 제거 | `MdmInterfaceLayoutMigrationTest.CHECK_3개가_위반을_거부한다` | 잡힘 |
+| 4 | SQLite V4에서 `UX_TB_MDM_LAYOUT_HEADER_HDR` 유일 인덱스 제거 | `MdmInterfaceLayoutMigrationTest`(중복 부착·제약명·FK3·CASCADE 없음, 4개) | 잡힘 |
+| 5 | SQLite V4에서 `FK_TB_MDM_LAYOUT_CONST_HEADER`(FK3) 제거 | `MdmInterfaceLayoutMigrationTest`(부착 무결성·CASCADE 없음, 2개) | 잡힘 |
+| 6 | `MdmLayout.layoutVersion`을 `@Version`으로 매핑 | `MdmLayoutEntityJpaRoundtripTest.layoutVersion_은_더티_업데이트_후에도_...` | 잡힘 |
+| 7 | `MdmLayout.layoutVersion`·`MdmLayoutItem.offset`·`length`의 `@Column(name=...)` 백틱을 실제로 제거 | `MdmLayoutEntityJpaRoundtripTest`(SQLite)·`MdmInterfaceLayoutMssqlMigrationTest.예약어_칼럼_...가_왕복한다`(MSSQL) | **안 잡힘(알려진 커버리지 갭, 은폐하지 않고 보고)** — SQLite Hibernate community dialect·MSSQL `SQLServerDialect` 모두 `VERSION`·`OFFSET`·`LENGTH`를 자동 인용이 필요한 예약어로 취급하지 않아 두 방언 모두 초록으로 통과했다. decisions.md D-039 에 이 실측 결과를 그대로 기록했다(최초 작성 시 "양쪽 다 빨개졌다"고 잘못 추정해 적었던 문장을 실제 재실측 후 정정했다) |
+| 8 | SQLite V4에서 `` `VERSION` `` 타입을 `BIGINT`→`INTEGER`로 되돌림 | `MdmInterfaceLayoutMigrationTest.VER_와_VERSION_칼럼_모두_BIGINT_로_선언됐다` | 잡힘 |
+| 9 | `MdmLayoutItem`에 `@ManyToOne MdmColumn` 필드 추가 | `MdmEntityArchitectureTest.엔티티_패키지는_ManyToOne_연관관계_매핑을_쓰지_않는다`(F13, 자동 적용) | 잡힘 |
+| 10 | SQLite V4에서 `FK_TB_MDM_LAYOUT_ITEM_COLUMN` 제거 | `MdmInterfaceLayoutMigrationTest.COLUMN_PHYS_와_TRANS_UNIT_FK_가_존재하지_않는_값을_거부한다` | 잡힘 |
+| 11 | SQLite V4에서 `FK_TB_MDM_LAYOUT_CONST_HEADER`에 `ON DELETE CASCADE` 추가 | `MdmInterfaceLayoutMigrationTest.부착된_CONST_가_있으면_HEADER_행_DELETE_가_거부된다` | 잡힘 |
+| 12 | MSSQL V4 파일을 디렉터리에서 빼 두 방언 버전 집합을 다르게 만듦 | `MdmFlywayVersionParityTest`(기존, F13 자동 적용) | 잡힘 |
+| 13 | (변이 실행 안 함 — 애초에 "실 구현을 넣지 않는다"는 부재 규칙) `MdmDomainReferenceSpi`(refKind="LAYOUT_ITEM") 실 구현 유무를 그렙으로 확인 | 없음 | **알려진 커버리지 갭(설계대로)** — 그렙 결과 test 스텁(`DomainReferenceSpiStub`) 외 실 구현 0건을 확인했을 뿐, 규칙 위반(실 구현 추가) 자체를 잡는 테스트는 없다 |
+| 14 | `layout-snapshot.schema.json`의 `MdmLayoutItemSnapshot.properties`에서 `overrideValue` 제거 | `LayoutSnapshotSchemaStructureTest.항목_스냅샷_키_집합이_...` | 잡힘 |
+| 15a | `m201-snapshot-sample.json`의 L110 헤더 "LENGTH" 항목 상대 오프셋(6)을 절대값처럼 보이는 106으로 변경 | `LayoutSnapshotSchemaStructureTest.오프셋_산술이_헤더_offset과_totalLength_합에_정합한다`(§3.5-4) | 잡힘 |
+| 15b | (규칙 14 와 같은 메커니즘이라 별도 재실행 생략) `MdmLayoutHeaderRef.offset`을 스키마 properties 에서 제거 | `LayoutSnapshotSchemaStructureTest.헤더_참조_키_집합이_...`(규칙 14 로 이미 같은 경로 실증) | 잡힘(추정, 동일 메커니즘) |
+| 16-1 | `MdmLayoutSerializer`에 `Instant.now()`를 부르는 default 메서드 추가 | `MdmContractArchitectureTest.계약_인터페이스의_메서드는_모두_추상이다` | 잡힘 |
+| 16-2 | `MdmLayoutSerializer.serialize`에서 `context` 매개변수(3번째 인자) 제거 | 컴파일 실패(`LayoutSerializerConsumerStub`가 더 이상 그 인터페이스를 구현하지 못함) | 잡힘 |
+
+**결론**: 16개 규칙 중 14개는 테스트가 실제로 변이를 잡았고(규칙 15 는 두 하위 변이 모두 잡힘으로 처리), 규칙 7(예약어 인용)·규칙 13(SPI 미구현)은 design.md가 이미 "알려진 커버리지 갭"으로 예견한 대로 실제로 잡히지 않음을 실측으로 확인했다 — 은폐하지 않고 위 표와 decisions.md D-039 에 그대로 남긴다.
+
+### 추가로 발견한 사실 (F28)
+
+MSSQL `TB_MDM_LAYOUT_CONST.CONST_VALUE`는 `VARCHAR(50) COLLATE Latin1_General_100_BIN2`(단일 바이트 코드값 칼럼, ERD 원문)다. 이 칼럼에 한글 등 비-Latin1 문자를 JDBC로 저장하면 드라이버가 물음표(`?`)로 치환한다(`sendStringParametersAsUnicode` 설정과 무관하게 대상 칼럼 자체가 `VARCHAR`라 서버 측에서 손실). `MdmInterfaceLayoutMssqlMigrationTest` 복합키 왕복 테스트를 처음 한글 값("MSSQL상수")으로 작성했다가 실측으로 발견해 ASCII 값("MSSQL-B1")으로 고쳤다 — CONST_VALUE는 코드값 전용이라 업무상 문제는 없지만, 이후 03 화면(TSK-05-02)이 CONST 값 입력을 한글로 받게 설계하면 이 칼럼이 그 값을 담지 못한다는 점을 인계 사항으로 남긴다.
+
+### design.md 이탈 기록
+
+1. **`ContractStubCompileTest.java`에 03 레이아웃 스텁 컴파일 테스트 3개를 추가했다** — §2 "수정" 목록에 이 파일이 없었다. TSK-04-01 이 같은 상황(§2 "수정" 목록 누락)에서 남긴 선례("Build 판단"으로 기존 파일에 메서드를 추가하고 이탈로 기록)를 그대로 따른다. 별도 파일(`LayoutStubCompileTest.java` 등)을 새로 만들지 않은 이유는 기존 스텁 컴파일 테스트가 이미 이 파일 하나에 모여 있어(02 쪽 스텁도 같은 파일에 있다) 계약 스텁 컴파일 검증의 단일 진입점을 유지하는 쪽을 택했다.
+2. **`MdmInterfaceLayoutExpectations.java`(신규 파일)를 §2 "생성" 목록에 없이 추가했다** — `MdmInterfaceLayoutMigrationTest`(SQLite)와 `MdmInterfaceLayoutMssqlMigrationTest`(MSSQL) 양쪽이 같은 테이블·칼럼 기대값을 봐야 해서, 기존 `MdmDictionaryExpectations`·`MdmSystemSeedExpectations` 와 같은 패턴으로 공유 헬퍼를 신설했다. 두 파일에 중복 정의하는 대신 공유하는 쪽이 리포 관례와 일치한다고 판단했다.
+3. **F28(위)을 새로 추가했다** — 설계 시점에는 CONST_VALUE 의 실제 저장 문자 집합 제약을 실측하지 않았다.
