@@ -129,11 +129,14 @@ public class UnitMngService {
             }
         }
 
-        MdmUnit entity = unitRepository.findById(unitCode).orElseGet(() -> new MdmUnit(unitCode));
+        MdmUnit existing = unitRepository.findById(unitCode).orElse(null);
+        MdmUnit entity = existing != null ? existing : new MdmUnit(unitCode);
         entity.setDimension(dimension);
         entity.setBaseUnit(baseUnit);
         entity.setFactor(factor);
-        entity.setChgSeq(0L); // I16 — 등록 시 0으로 명시, 수정 시에도 이 작업 범위에서는 건드리지 않는다(배포 순번 메커니즘은 범위 밖).
+        if (existing == null) {
+            entity.setChgSeq(0L); // I16 — 등록 시에는 0으로 명시한다.
+        } // I16 — 수정 시에는 CHG_SEQ 를 건드리지 않는다(배포 순번 메커니즘은 범위 밖) — 이미 로드된 값을 그대로 둔다.
         MdmUnit saved = unitRepository.save(entity);
         log.info("[unitMng] save — unitCode={} dimension={} baseUnit={} factor={}", unitCode, dimension, baseUnit, factor);
         return new UnitRow(saved.getUnitCode(), saved.getDimension(), saved.getBaseUnit(), saved.getFactor());

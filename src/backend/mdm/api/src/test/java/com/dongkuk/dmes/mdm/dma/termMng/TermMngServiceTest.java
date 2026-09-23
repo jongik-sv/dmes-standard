@@ -198,6 +198,23 @@ class TermMngServiceTest {
         assertTrue(candidates.stream().noneMatch(c -> c.getTermId().equals(saved.getTermId())));
     }
 
+    @Test
+    void I18_편집거리_점수_0_5_경계값_포함_그_아래는_제외된다() {
+        // "ABCD" 기준 — "ABXY"(distance=2, maxLen=4 → score=0.5, 포함) vs "AXYZ"(distance=3 → score=0.25, 제외).
+        service.save(req("ABXY", 1, "경계값 포함 후보"));
+        service.save(req("AXYZ", 1, "경계값 제외 후보"));
+
+        RecommendRequest req = new RecommendRequest();
+        req.setTermName("ABCD");
+        Map<String, Object> result = service.recommend(req);
+        @SuppressWarnings("unchecked")
+        List<com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendCandidate> candidates =
+                (List<com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendCandidate>) (List<?>) result.get("candidates");
+
+        assertTrue(candidates.stream().anyMatch(c -> "ABXY".equals(c.getTermName())), candidates.toString());
+        assertTrue(candidates.stream().noneMatch(c -> "AXYZ".equals(c.getTermName())), candidates.toString());
+    }
+
     // ── I19 ──
 
     @Test

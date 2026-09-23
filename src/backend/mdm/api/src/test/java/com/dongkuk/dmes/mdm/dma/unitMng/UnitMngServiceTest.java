@@ -9,7 +9,9 @@ import com.dongkuk.dmes.mdm.dma.unitMng.dto.UnitDeleteRequest;
 import com.dongkuk.dmes.mdm.dma.unitMng.dto.UnitSaveRequest;
 import com.dongkuk.dmes.mdm.dma.unitMng.service.UnitMngService;
 import com.dongkuk.dmes.mdm.entity.MdmDomain;
+import com.dongkuk.dmes.mdm.entity.MdmUnit;
 import com.dongkuk.dmes.mdm.repository.MdmDomainRepository;
+import com.dongkuk.dmes.mdm.repository.MdmUnitRepository;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -36,6 +38,8 @@ class UnitMngServiceTest {
     UnitMngService service;
     @Autowired
     MdmDomainRepository domainRepository;
+    @Autowired
+    MdmUnitRepository unitRepository;
 
     @DynamicPropertySource
     static void overrideDatasource(DynamicPropertyRegistry registry) {
@@ -149,5 +153,25 @@ class UnitMngServiceTest {
     void UNIT_CODE_는_20자를_넘으면_거부한다() {
         String tooLong = "A".repeat(21);
         assertThrows(BusinessException.class, () -> service.save(req(tooLong, "MASS10", tooLong, "1")));
+    }
+
+    // ── I16 ──
+
+    @Test
+    void I16_등록_시_CHG_SEQ는_0이고_수정_시에는_건드리지_않는다() {
+        service.save(req("KG8", "MASS11", "KG8", "1"));
+        assertEquals(0L, unitRepository.findById("KG8").orElseThrow().getChgSeq(), "등록 시 CHG_SEQ 는 0");
+        // 형제 단위를 하나 둬서(siblings 비지 않음) 이후 KG8 자기 자신 수정이 I3 의 "새 차원 첫 등록" 제약
+        // (factor=1 강제)에 걸리지 않게 한다 — 이 테스트의 관심사는 I16 뿐이다.
+        service.save(req("G8", "MASS11", "KG8", "0.001"));
+
+        // 배포 순번 메커니즘은 범위 밖이므로, 이미 0이 아닌 값을 직접 심어 두고 수정 후에도 그대로인지 확인한다.
+        MdmUnit entity = unitRepository.findById("KG8").orElseThrow();
+        entity.setChgSeq(7L);
+        unitRepository.saveAndFlush(entity);
+
+        service.save(req("KG8", "MASS11", "KG8", "2")); // factor 만 바꾸는 수정
+        assertEquals(7L, unitRepository.findById("KG8").orElseThrow().getChgSeq(),
+                "수정 시 CHG_SEQ 를 건드리면 안 된다(I16)");
     }
 }
