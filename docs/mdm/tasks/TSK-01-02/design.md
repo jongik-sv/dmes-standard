@@ -857,3 +857,58 @@ Build·Verify 는 항목마다 적힌 변이를 **일부러 넣어 빨강을 확
 | 옛 그룹 잔존 grep(§3.6) | `DataInitializer.java` 의 `migrateMdmSampleGroupToDma` 본문과 바로 위 주석에만 있음 |
 | E2E | 위 「E2E 실행 기록」 |
 | 커밋 경계 | A·B 가 고친 파일 교집합 없음(B 만 revert 가능). 기존 시드 메서드(`seedMcmSecMenu`·`seedMcmSecMenuFld`·`seedMcmSecRbac`·`swapLegacyGrpMenuIds`·`cleanupLegacyFolderRowsInSecMenu`) diff 없음 |
+
+## Verify 기록 (Phase 04, 2026-09-24)
+
+### 게이트 검증
+
+| 게이트 | 결과 |
+|---|---|
+| backend testAll | BUILD SUCCESSFUL, 0 failures (모든 테스트 UP-TO-DATE) |
+| :api:mssqlMigrationTest | 4 PASSED (@@VERSION: SQL Server 2022 RTM-CU27 16.0.4295.3) |
+| testAll 비포함 확인 | `:mdm:api:test` 4줄 / `:mdm:lib:test` 포함 / `mssql` 0줄 ✓ |
+| m-mdm | Vitest 1 passed, tsc 통과, build 통과 |
+| m-mcm eslint | 23 errors, 44 warnings (기준선 동일) |
+| UI audit | 0건 (Build 단계 기록 유지) |
+| E2E 스모크 | 새 DB: 1 passed, 이행 DB: 1 passed |
+| mdt 잔존 grep | 7줄 전부 DataInitializer.java의 migrateMdmSampleGroupToDma 메서드·주석에만 위치 |
+
+### E2E 상세 (Verify)
+
+**포트 선정**: BE 18000, FE 15000 (기존 18100은 사용 중)
+
+**새 DB 스모크**:
+- SQLite URL: `jdbc:sqlite:/Users/jji/project/dmes-standard/dflow-eb6fdb44/src/backend/data/mcm.db` ✓
+- BE 로그: 메뉴 조회 요청 기록 확인 (`myMenusTreeTask`) ✓
+- 조회 결과: `dma|용어·도메인`, PARENT_MENU_ID=`dma` (mdt 행 없음) ✓
+- 스모크 테스트: 1 passed ✓
+
+**이행 DB 스모크** (옛 DB 상태로 되돌린 후):
+- DB 상태 변경: MENU_ID='dma'→'mdt', MENU_NM='마루·도메인·칼럼·단위', PARENT_MENU_ID='mdt'
+- BE 재기동 후 스모크 실행
+- 이행 로직 실행: migrateMdmSampleGroupToDma가 DB 자동 UPDATE
+- 조회 결과: `dma|용어·도메인`, PARENT_MENU_ID=`dma` (이행 완료) ✓
+- 스모크 테스트: 1 passed ✓
+
+**정리**: 두 포트의 리스너만 종료 (기록한 PID 직접 kill)
+
+### 변이 검증 (§5 불변 규칙)
+
+6개 항목을 선택해 변이 주입 후 testAll 실행하여 예상 빨강 확인:
+
+| # | 불변 규칙 | 변이 | 기대 빨강 | 결과 |
+|---|---|---|---|---|
+| 1 | I1: VersionStatus 5종 | +ARCHIVED 상수 | T2 `버전_상태는_원천_순서대로_정확히_5종이다()` | FAILED ✓ |
+| 2 | I5: TB_MDM_SYSTEM 시드 6행 | V2에서 L2 삭제 | T11 `시스템_시드는_6행이고_자기_행은_MDM_하나다()` | FAILED ✓ |
+| 3 | I4: row_version 초깃값 | INITIAL_ROW_VERSION=1 | T2 `row_version_규약과_열린_끝_일시()` | FAILED ✓ |
+| 4 | I10: 화면 그룹 5종 | +DMF 추가 | T4 `화면_그룹은_dma_부터_dme_까지_5종이고_폴더_이름이_screens_README_와_같다()` | FAILED ✓ |
+| 5 | I21: tsup entry | 엔트리명 변경 (wrongPage) | Vitest `tsup-entries.smoke.test.ts` | FAILED ✓ |
+| 6 | I6: UX 인덱스 부분 유일 | 인덱스 삭제 | T11 `자기_행_유일과_Y_N_검사와_대소문자_구분을_DB_가_강제한다()` | FAILED ✓ |
+
+**모든 변이 원상복구 확인** (`git diff --stat` 비었음)
+
+### 종합 판정
+
+**PHASE_RESULT: verify ok**
+
+모든 게이트 통과, 변이 검증 완료, 추적 파일 정리 완료.
