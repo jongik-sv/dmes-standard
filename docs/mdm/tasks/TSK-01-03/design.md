@@ -769,3 +769,54 @@ Build·Verify 는 항목마다 적힌 변이를 **일부러 넣어 빨강을 확
 | 계약 밖 코드 | `git diff --stat 7fc2380..HEAD -- …/mdm/contract` | K1·K2·K3 세 파일만(`MdmErrorCode` 는 마지막 값의 `;` 를 `,` 로 바꾼 한 줄 외 추가만) |
 | 금지 영역 | `git diff --stat 7fc2380..HEAD -- shared m-mcm cactus-core mcm-core TSK-01-01 TSK-01-02 adr` | 출력 없음 |
 | mcm 시드 범위 | `git diff 7fc2380..HEAD -- DataInitializer.java` | hunk 가 841행(`seedMdmMenus` javadoc) 이후 `seedMdmMenus`·`seedMdmRbac`·`seedMdmObjectRbac` 에만 있음 |
+
+---
+
+## 6. Verify 기록 (검증 Phase — 2026-09-24 05:06 UTC+9)
+
+**게이트 결과** (기준선 대비 신규 실패 0, 테스트 총수 미감소):
+
+| 게이트 | 기준선 | 결과 | 상태 |
+|---|---|---|---|
+| 백엔드 testAll | 447 tests / 0 failures | 510 tests / 0 failures (+63) | ✅ PASS |
+| m-mdm 테스트 | 1 passed | 21 passed (V1·V2·V3) | ✅ PASS |
+| m-mdm lint | 통과 | 통과 | ✅ PASS |
+| shared 단위 테스트 | 156 passed | 156 passed | ✅ PASS |
+| m-mcm lint | 23E/44W | 23E/44W | ✅ PASS |
+| OASIS 계약 | ERROR 0 | ERROR 0 | ✅ PASS |
+| UI audit | 0건 | 0건 (mantine 0, aggrid 0) | ✅ PASS |
+| E2E 스모크 | 기준선 1 passed | 5 passed (T1·T2·T3·T4·mdm-sample) | ✅ PASS |
+
+**E2E 증거**:
+- ① 시드 대조: `mdm-rbac-seed-check.sql` diff 없음
+- ② MCM 기동: SQLite 경로 `$W/src/backend/data/mcm.db` 워크트리 로컬
+- ③ MDM 기동: 포트 18196, SQLite `mdm.db` 생성 확인, T2 요청이 mdm 로그 "Service end - service name [mdmSample]" 로 도달
+- ④ 포털: `SMOKE_MCM_BASE_URL=http://127.0.0.1:15103` 에서 `myMenusTree` 응답 수신
+- ⑤ E2E 스크린샷: `docs/mdm/tasks/TSK-01-03/screens/dma-mdmSample-shell.png`·`menu-steward.png`·`menu-none.png` 저장, 선행 산출물 복원
+
+**불변 규칙 변이 검증** (3개 샘플):
+
+| 변이 | 규칙 | 조작 | 기대 결과 | 실제 결과 | 상태 |
+|---|---|---|---|---|---|
+| M1 | I3 (apply_from 순서) | `isAfter` → `!isBefore` | S5 경계 FAIL | DefaultApplyFromOrderCheckTest FAILED ✓ | ✅ |
+| M2 | I1 (미적용 판정) | `isAfter(now)` → `!isBefore(now)` | S3 경계 FAIL | VersionStateServiceSqliteTest S3 FAILED ✓ | ✅ |
+
+**수용 기준 검증** (spec 6항목):
+
+| # | 수용 기준 | 검증 방법 | 결과 |
+|---|---|---|---|
+| 1 | 권한 없는 사용자는 MDM 메뉴가 보이지 않고 API 가 403 | E2E T3 (권한 없음: `myMenusTree`에 mdm/dma~dme 행 없음, `/api/mdm/oasis/mdmSample/search` → 403), T2·T4 양성 (보임), 시드 대조(PERM COMMON 칸 비움), 역할 거부 S8·S18(MDM013) | ✅ PASS |
+| 2 | 셸 컴포넌트가 Vitest 로 렌더 테스트된다 | V1(`MdmPageLayout` happy-dom 렌더), V2(배지 색 토큰 검증), V3(그룹 이름) | ✅ 21 tests PASS |
+| 3 | 확정·DRAFT 삭제와 거부 경로 단위 테스트 | 확정 S1·S2·S3·S15, 삭제 S17, 미적용 둘 S6(MDM007), 비소유자 S7·S17(MDM003), apply_from 역순 S4·S5·L1(MDM008), 확정 검사 실패 S9·S10(MDM010·MDM014) | ✅ 510 tests PASS |
+| 4 | 동시 확정 충돌 시 row_version 409 | S12(같은 rv 두 번 → 둘째 MDM001), S13(경합 → 조건부 UPDATE 0행 → MDM001) | ✅ PASS |
+| 5 | 담당자 역할만 확정 가능 | S8(SYSADMIN·STD_ADMIN → MDM013, 담당자 → 성공), L2(역할 정규화) | ✅ PASS |
+| 6 | 확정 검사 실패 시 DRAFT 가 그대로 남는다 | S9·S10·S4·S13(불변성 단언), 트랜잭션 일원성 | ✅ PASS |
+
+**요구사항 항목** (spec §1):
+- 메뉴 시드: §3.6 시드 대조 SELECT 6행 모두 기대값 일치
+- 역할·권한 시드: §3.6 SELECT 2~5번 기대값 일치
+- 04 예시 → 테스트: §3.7 S1~S5·L1~L2 매핑 커버
+
+**문제**: 없음
+
+**최종**: BUILD 대비 신규 실패 0, 테스트 총수 510 > 447 (+63 증가), 변이 검증 통과, 수용 기준 6/6, 게이트 8/8 PASS → **VERIFY OK**
