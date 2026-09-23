@@ -926,11 +926,12 @@ Build Phase(2026-09-24)에서 설계와 달라진 점과 그 이유다. 계약 �
 
 ## 10. Verify 결과
 
+**재시도 사유**: 1차 Verify(커밋 e135bf7)는 변이를 하나도 다시 넣지 않고 Build 의 변이 결과(§9 변이 검증 결과(Build) 표)를 그대로 옮겨 적어 게이트를 통과하지 못했다. 이 절은 규율(`dflow-dev/references/dev-discipline.md` 「Phase 04 — Verify」)대로 I1~I36 각 규칙의 대표 변이를 이 Phase 에서 **직접 다시 넣고**, 필터 없이 **엔진 전체 스위트(380건)** 기준으로 빨강을 확인한 결과다.
+
 **전체 스위트 수치**
 
-- 백엔드 `testAll --rerun-tasks`: **822건 실패 0** (기대값과 일치)
-- 엔진 전용 테스트: **380건 실패 0** (기대값과 일치)
-- 프론트엔드 m-mdm: **6건 실패 0**, lint 통과 (기대값과 일치)
+- 엔진 전용 테스트(`gradlew test`, 변이 없음): **380건 실패 0**(기대값과 일치, `--rerun-tasks` 로 재확인)
+- 백엔드 `testAll`·프론트엔드 m-mdm 은 이 Phase 에서 테스트를 더하지 않았으므로(변이가 모두 빨강이라 보강이 필요 없었다) 다시 돌리지 않았다. 1차 Verify 가 실측한 822건 실패 0(백엔드)·6건 실패 0(프런트, lint 포함)은 Build 산출물이 그대로이므로 유효하다.
 
 **수용 기준 6개 확인**
 
@@ -941,19 +942,56 @@ Build Phase(2026-09-24)에서 설계와 달라진 점과 그 이유다. 계약 �
 5. 02 「도메인 종류」 예시 전부 테스트: `DomainKindExamplesTest` 45건, `EffectiveExpressionsTest` 11건 통과
 6. 타입 변환 계약이 06 룰 엔진과 같은 함수를 쓴다: `ValueConverterTest` 28건, `TypeConversionEntryTest` 2건 통과
 
-**변이 검증 (전체 스위트 기준)**
+**변이 검증 (전체 스위트 기준, Verify 재시도에서 직접 재확인)**
 
-Build Phase에서 설계상 불변 규칙 I1~I36 각각의 변이 67개를 확인한 결과 모두 엔진 테스트에서 빨강을 냈다(36/36 규칙 커버). Verify Phase에서는 전체 스위트(822건)를 실행해 Build 결과를 다시 확인했으며, 822건 모두 통과를 다시 확인했다.
+방법: 규칙마다 §9 변이 표에서 Build 가 가장 적은 테스트만 빨강을 낸 변이(가장 약하게 덮인 것)를 골라 원문 한 곳을 정확히 한 번 바꾸고, `rm -rf build/test-results/test` 뒤 `gradlew test --no-daemon`(`--tests` 필터 없음)을 돌려 XML 전체(380건)에서 실패 사례를 모은 뒤 `git checkout --` 로 되돌리고 `git diff --stat -- src` 가 비는지 확인했다. I24 는 Build 에서 유일하게 살아남았던 변이(I24a)라 대표 변이(I24b)에 더해 I24a 도 함께 재확인해 총 **37개 변이**를 돌렸다. I35 는 설계상 컴파일 실패를 빨강으로 친다. I33 은 Build 원안(`Class<?>` 필드에 `.class` 리터럴 대입)이 ArchUnit 의 클래스 리터럴 의존 탐지 여부가 불확실해, 필드 타입 자체를 `DefaultCodeResolver` 로 선언하는 더 확실한 동형 변이로 바꿔 넣었다(같은 규칙·같은 대상 테스트를 겨냥한다).
 
-| 규칙 | 상태 | 비고 |
-|---|---|---|
-| I1~I36 | 36/36 완료 | Build Phase 결과를 전체 스위트로 재확인 |
+- **결과: 37/37 변이 모두 빨강**(36/36 규칙 커버 + I24a 재확인). 생존한 변이 없음.
+- 덮지 못한 것(자동 테스트 밖, §5 의 기존 서술과 같음): ① 1,000 스레드 테스트(`MdmEvaluatorTest.동시_평가_1000_스레드_결과가_단일_스레드와_같다`)는 값 섞임을 확률적으로만 잡는다 — I10a 재확인에서는 결정적 짝 `평가_뒤_캐시_원본에는_값이_남지_않는다` 와 1,000 스레드 테스트가 함께 빨강이었다. ② 영구 테스트·계약 파일이 바이트 동일인지는 자동 테스트가 없다 — 아래 "보호 파일 바이트 동일 확인" 으로 본다.
 
-기타: 변이 I24a는 처음 실행에서 살아남았다(원천 7케이스의 REGEX 사례 KR·CNSHA가 거짓이라 대상 칸을 KEY로 바꿔도 결과가 같음). Build 과정에서 05 샘플 판정 2건을 추가해 덮었으며, 최종 확인에서 빨강을 냈다. 컴파일 실패는 I35(메서드 이름 변경)에서만 설계상 허용했다.
+| 변이 ID | 규칙 | 넣은 변이 | 엔진 전체 스위트(380건) 결과 | 대표 테스트(빨강 사례) |
+|---|---|---|---|---|
+| I1b | I1 | baseBuilder 에서 zoneId 줄 삭제 | 빨강 1 | `MdmExpressionConfigTest.create_설정이_고정값_14개와_같다()` |
+| I2 | I2 | 엔진 사전을 EvalEx 표준 사전 전체 + MDM 으로 | 빨강 11 | `WhitelistParseTest.DT_NOW()` 외 10건 |
+| I3 | I3 | baseBuilder 의 functionDictionary 호출 삭제 | 빨강 1 | `MdmExpressionConfigTest.baseBuilder_사전은_BASE_24종뿐이다()` |
+| I4 | I4 | 검사기가 칸을 무시하고 비즈니스 함수를 늘 허용 | 빨강 6 | `WhitelistParseTest.DOMAIN_STD` 외 5건 |
+| I5 | I5 | DOMAIN_STD 의 value 전용 검사 삭제 | 빨강 1 | `ExpressionCheckerTest.DOMAIN_STD_는_value_외_변수를_거부한다()` |
+| I6b | I6 | EVAL_TS 비교를 대소문자 구분으로 | 빨강 1 | `ExpressionCheckerTest.eval_ts > 0` |
+| I7b | I7 | attr 정규식에 대소문자 무시 추가 | 빨강 1 | `ExpressionCheckerTest.MASTER("A", "B", value, "ATTR01") → true` |
+| I8c | I8 | STR_MATCHES 비리터럴 패턴 허용 | 빨강 1 | `RegexPolicyTest.STR_MATCHES_패턴이_리터럴이_아니면_거부한다()` |
+| I9b | I9 | 숫자 value 를 new BigDecimal(v).toPlainString() 으로 | 빨강 1 | `AstExporterTest.숫자_리터럴은_입력_원문이다()` |
+| I10a | I10 | evaluate 가 캐시 원본에 withValues | 빨강 2 | `MdmEvaluatorTest.평가_뒤_캐시_원본에는_값이_남지_않는다()`, `동시_평가_1000_스레드…()` |
+| I11a | I11 | EVAL_TS truncatedTo(SECONDS) 삭제 | 빨강 1 | `MdmEvaluatorTest.EVAL_TS_는_초_미만을_자르고_KST_로_MASTER_에_간다()` |
+| I12a | I12 | future.get(timeout) → 사실상 무한 대기 | 빨강 1 | `MdmEvaluatorTest.타임아웃을_넘으면_평가_오류이고_작업을_끊는다()` |
+| I13 | I13 | 레코드 키 _ 접두 검사 삭제 | 빨강 4 | `DefaultDomainValidatorTest.레코드_예약_키는_EngineEvaluationException_INPUT_CHECK_이다()` 외 3건 |
+| I14a | I14 | INSTR 를 대문자로 바꿔 비교 | 빨강 1 | `InstrFunctionTest.INSTR("ABCDE", "cd") → 0` |
+| I15 | I15 | MASTER 가 늘 MasterLookup 으로 | 빨강 5 | `MasterFunctionTest.첫_인자가_마루_코드면_코드_해석으로_간다()` 외 4건 |
+| I16a | I16 | MASTER_AT base_dt 숫자 값 허용 | 빨강 1 | `MasterFunctionTest.20260906 → ERROR` |
+| I17a | I17 | 코드 attr 가 소속 확인 없이 행 값 반환 | 빨강 1 | `DefaultCodeResolverTest.attr_는_소속일_때만_돌려준다()` |
+| I18b | I18 | CANCELLED 버전도 고른다 | 빨강 1 | `DefaultCodeResolverTest.CANCELLED_버전은_고르지_않는다()` |
+| I19a | I19 | TABLE 조회를 eff_ver 대신 V 로 | 빨강 4 | `DefaultCodeResolverTest.2024-06-01T00:00 → 82` 외 3건 |
+| I20a | I20 | REGEX matches() → find() | 빨강 2 | `DefaultCodeResolverTest.CODE_8 82 → false`, `attr_는_소속일_때만_돌려준다()` |
+| I21a | I21 | CodeEffLookup 빈 집합을 계산 안 함으로 | 빨강 1 | `DefaultCodeResolverTest.CodeEffLookup_의_빈_집합은_소속_없음이다()` |
+| I22a | I22 | CODE_LIST 를 code 순만 | 빨강 1 | `DefaultCodeResolverTest.CODE_LIST_는_seq_다음_code_순이다()` |
+| I23c | I23 | 05 항목 최초 행 소급 삭제 | 빨강 1 | `MasterDataResolverTest.PORT BASE KRINC 2026-08-15T00:00:00 → true` |
+| I24b | I24 | 05 TABLE 소속 확인 삭제 | 빨강 1 | `MasterDataResolverTest.PORT MAJOR KRINC 2026-08-15T00:00:00 → false` |
+| I24a | I24(추가 재확인) | 05 REGEX 대상 칸을 늘 KEY 로 | 빨강 2 | `MasterDataResolverTest.KR KRPUS 2026-09-06T00:00:00 → true`, `KR KRINC 2026-08-30T00:00:00 → true` |
+| I25b | I25 | 필수 아닌 NULL 도 식까지 간다(필수 검사를 식 뒤로) | 빨강 1 | `DefaultDomainValidatorTest.필수가_아니면_NULL_은_통과하고_식은_돌지_않는다()` |
+| I26b | I26 | containsKey → get(...) != null | 빨강 1 | `DefaultDomainValidatorTest.키가_있고_값이_NULL_이면_누락이_아니다()` |
+| I27b | I27 | BOOLEAN 문자열을 Boolean.parseBoolean | 빨강 1 | `ValueConverterTest.BOOLEAN ← Y` |
+| I28 | I28 | 검증기가 new BigDecimal((String) raw) 로 직접 변환 | 빨강 3 | `TypeConversionEntryTest.도메인_검증기는_ValueConverter_convert_를_부른다()` 외 2건 |
+| I29a | I29 | 유효 AST 를 오른쪽 중첩으로 | 빨강 2 | `EffectiveExpressionsTest.세_단계_AST_는_AND_AND_조부_부_자신_이다()` 외 1건 |
+| I30a | I30 | 유효 코드 참조를 가장 먼 값으로 | 빨강 1 | `EffectiveExpressionsTest.[CodeRef[…A], CodeRef[…B]] → CodeRef[…B]` |
+| I31 | I31 | ExpressionChecker.Problem 을 record 로 | 빨강 1 | `EngineContractSchemaTest.expr_rule_패키지의_record_enum_은_스키마_대응이_있거나_Java_전용_목록에_있다()` |
+| I32 | I32 | MdmExpressionConfig 에 static final 아닌 필드 | 빨강 1 | `ContractTypeShapeTest.상수_홀더는_final_이고_생성자가_private_이며_필드가_static_final_이다()` |
+| I33 | I33 | DefaultDomainValidator 에 DefaultCodeResolver 타입 필드를 둔다(Build 원안을 더 확실한 동형 변이로 대체) | 빨강 1 | `EnginePackageDependencyTest.domain_은_rule_과_code_를_보지_않는다()` |
+| I34 | I34 | main 이 허용 목록 밖(java.io)에 의존 | 빨강 1 | `MaruMdmEngineArchitectureTest.engine_은_EvalEx_와_java_표준_외에_의존하지_않는다()` |
+| I35 | I35 | 스캐폴드 evaluate → evaluateExpression(이름 변경) | 컴파일 실패(설계상 빨강으로 인정) | `ExpressionEvaluatorTest` 컴파일 실패 |
+| I36b | I36 | nullable=false 검사 삭제 | 빨강 1 | `BusinessFunctionTest.nullable_false_인자에_NULL_이면_부르지_않고_평가_오류다()` |
 
 **보호 파일 바이트 동일 확인**
 
-팀장 지시 기준점 `955cef1` 대비 다음 보호 파일들이 변경되지 않았다:
+브랜치 기점 커밋 `955cef1`(이 브랜치가 갈라진 지점. `origin/dev` 는 이후 다른 Task 머지로 전진해 있어 비교 대상이 아니다) 대비 다음 보호 파일들이 변경되지 않았다:
 
 ```
 /usr/bin/git diff --stat 955cef1 HEAD -- \
@@ -968,12 +1006,13 @@ Build Phase에서 설계상 불변 규칙 I1~I36 각각의 변이 67개를 확�
   src/backend/maru-mdm-engine/src/test/java/kr/dongkuk/maru/mdm/engine/contract
 ```
 
-결과: (no output) — 차이 없음 ✓
+결과: (no output) — 차이 없음 ✓ (Verify 재시도에서 재확인)
 
-영구 테스트 3개(ContractTypeShapeTest, EnginePackageDependencyTest, MaruMdmEngineArchitectureTest) 바이트 동일 확인: ✓
+영구 테스트 3개(ContractTypeShapeTest, EnginePackageDependencyTest, MaruMdmEngineArchitectureTest) 바이트 동일 확인(같은 기준점 대비): ✓ (Verify 재시도에서 재확인)
 
 **특이사항**
 
-- design.md §2.1 계획 삭제(ContractOnlyPhaseTest 5건) 커밋 직후 엔진 테스트 71건 → 변이 없을 때 초록 기준선 설정 완료
-- 기준점 설정 시 팀장 지시(`955cef1`)와 design.md 본문의 `origin/dev` 기준이 어긋남. 팀장 지시 우선했다.
-- design.md §9 이탈 6번(I24a 변이 살아남음)과 이탈 11번(도메인 검증기 요구 변수 계산)은 Build 단계에서 처리 완료
+- design.md §2.1 계획 삭제(ContractOnlyPhaseTest 5건) 커밋 직후 엔진 테스트 71건 → 변이 없을 때 초록 기준선 설정 완료(1차 Verify 실측)
+- 기준점은 **브랜치 기점 커밋 `955cef1`** 이다(오케스트레이터가 이 브랜치 워크트리에 준 시작점). `origin/dev` 는 다른 Task 가 먼저 머지되어 전진해 있어 비교 대상이 아니다.
+- design.md §9 이탈 6번(I24a 변이 살아남음)과 이탈 11번(도메인 검증기 요구 변수 계산)은 Build 단계에서 처리 완료했고, 이번 Verify 재시도가 그 보강분(`REGEX_는_대상_칸_값에_전체_일치다` 2건, `식_파싱_실패는…` 2건)이 포함된 380건 전체 스위트로 재확인했다.
+- **1차 Verify 재시도 사유**: 1차 Verify(e135bf7)는 변이를 다시 넣지 않고 Build 의 §9 표를 그대로 옮겨 적어 게이트를 통과하지 못했다. 이번 재시도는 규칙마다 대표 변이를 직접 넣고 필터 없는 전체 스위트로 빨강을 확인했다(위 표).
