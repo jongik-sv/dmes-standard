@@ -64,6 +64,8 @@ class DefaultDomainValidatorTest {
                 .column(column("EXC", DataType.NUMBER, false, "value / 0 > 1", null))
                 .column(column("NULL_RESULT", DataType.NUMBER, false, "IF(value > 0, NULL, TRUE)", null))
                 .column(column("NON_BOOL", DataType.NUMBER, false, "value + 1", null))
+                .column(column("STD_PARSE", DataType.NUMBER, false, "NOPE_FN(value)", null))
+                .column(column("BIZ_PARSE", DataType.NUMBER, false, null, "NOPE_FN(value)"))
                 .build();
         validator = new DefaultDomainValidator(lookups.definitions(), new MdmEvaluator(lookups));
     }
@@ -181,6 +183,18 @@ class DefaultDomainValidatorTest {
         assertAll(
                 () -> assertFalse(r.valid()),
                 () -> assertEquals(List.of(Step.STD_EXPR), steps(r)));
+    }
+
+    /** 비즈니스 함수 jar 에서 함수가 빠지면 저장된 식이 판정 때 파싱에 실패한다. 표준식·비즈니스식 어느 쪽이든 판정 오류다. */
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"STD_PARSE", "BIZ_PARSE"})
+    void 식_파싱_실패는_EngineEvaluationException_RESULT_EVAL_이다(String column) {
+        EngineEvaluationException e = assertThrows(EngineEvaluationException.class,
+                () -> validator.validate(T, column, record(column, "5"), TS));
+        Violation v = e.violations().get(0);
+        assertAll(
+                () -> assertEquals(Stage.RESULT_EVAL, v.stage()),
+                () -> assertEquals(Code.EVALUATION_ERROR, v.code()));
     }
 
     @Test

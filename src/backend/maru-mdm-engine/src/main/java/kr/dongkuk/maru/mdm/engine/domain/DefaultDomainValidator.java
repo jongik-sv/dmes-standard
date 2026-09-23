@@ -95,7 +95,7 @@ public final class DefaultDomainValidator implements DomainValidator {
             if (def.bizRequiredVars() != null) {
                 need.addAll(def.bizRequiredVars());
             }
-            need.addAll(EffectiveExpressions.bizRequiredVars(biz, evaluator));
+            need.addAll(requiredVars(biz));
             List<String> missing = need.stream().filter(n -> !ci.containsKey(n)).toList();
             if (!missing.isEmpty()) {
                 return fail(value, Step.BIZ_VAR_MISSING, "비즈니스 요구 변수가 레코드에 없다: " + String.join(", ", missing));
@@ -109,14 +109,22 @@ public final class DefaultDomainValidator implements DomainValidator {
         return new ValidationResult(true, value, List.of());
     }
 
+    /** 유효 비즈니스식의 요구 변수. 식이 파싱되지 않으면(예: 비즈니스 함수가 빠졌다) 판정 오류다. */
+    private List<String> requiredVars(String biz) {
+        try {
+            return EffectiveExpressions.bizRequiredVars(biz, evaluator);
+        } catch (ExpressionFailure f) {
+            throw judgmentError(f);
+        }
+    }
+
     /** NULL 결과는 거짓(06 Expression 셀 규칙과 같다). 불린이 아니거나 평가 예외면 판정 오류. */
     private boolean evalBoolean(String text, Map<String, Object> ctx, Instant evalTs) {
         EvaluationValue r;
         try {
             r = evaluator.evaluate(text, ctx, evalTs);
         } catch (ExpressionFailure f) {
-            throw new EngineEvaluationException(List.of(
-                    new Violation(Stage.RESULT_EVAL, f.code(), null, null, f.name(), f.getMessage())));
+            throw judgmentError(f);
         }
         if (r.isNullValue()) {
             return false;
@@ -126,6 +134,12 @@ public final class DefaultDomainValidator implements DomainValidator {
         }
         throw new EngineEvaluationException(List.of(new Violation(Stage.RESULT_EVAL, Code.EVALUATION_ERROR, null, null,
                 null, "검증식 결과가 불린이 아니다: " + text + " = " + r.getValue())));
+    }
+
+    /** 식 하나의 실패를 판정 오류로 옮긴다. stage 는 RESULT_EVAL(클래스 주석). */
+    private static EngineEvaluationException judgmentError(ExpressionFailure f) {
+        return new EngineEvaluationException(List.of(
+                new Violation(Stage.RESULT_EVAL, f.code(), null, null, f.name(), f.getMessage())));
     }
 
     private static ValidationResult fail(Object value, Step step, String message) {

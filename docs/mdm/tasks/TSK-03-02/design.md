@@ -105,7 +105,7 @@ TSK-03-01 design.md 결정 D2(526-531행)의 원문이다.
 - **순서**: Build 의 첫 구현 커밋 **직전의 별도 커밋**으로 지운다(커밋 메시지 예: `test(mdm): TSK-03-02 계약 전용 임시 규칙 ContractOnlyPhaseTest 를 지운다`). 그 커밋 뒤 엔진 테스트는 71건 초록이어야 한다. 구현이 들어가면 1·2·3·4·5 가 모두 빨강이 되므로, 삭제를 구현 뒤로 미루지 않는다.
 - **공존 확인**: 이 파일은 `ContractTypeShapeTest` 의 `CONTRACT_TYPES`·`ENGINE`·`PREFIX` 를 가져다 쓰기만 하고, 반대 방향 참조는 없다(F21). 삭제 커밋에서 엔진 테스트를 돌려 `ContractTypeShapeTest` 5건이 컴파일·통과하는지 확인하고 결과를 보고에 적는다.
 - `ContractTypeShapeTest` 의 Javadoc 두 곳(33·42행)에 남는 `ContractOnlyPhaseTest` 언급은 **고치지 않는다.** 영구 테스트 파일을 바이트 동일로 두어 형제 Task 와의 충돌 여지를 없애는 편이 낫다. 이 사실은 보고에 한 줄 적는다.
-- **예상 총수 변화**: 엔진 76 → 76 − 5 + N, 백엔드 `testAll` 518 → 518 − 5 + N. N = **307**(§3 합계, Build 에서 305 → 307, §9 이탈 6). 따라서 엔진 **378건**, `testAll` **820건**을 기대한다. Verify 는 총수에서 빠진 5건을 이 계획 삭제로 설명한다.
+- **예상 총수 변화**: 엔진 76 → 76 − 5 + N, 백엔드 `testAll` 518 → 518 − 5 + N. N = **309**(§3 합계, Build 에서 305 → 309, §9 이탈 6·11). 따라서 엔진 **380건**, `testAll` **822건**을 기대한다. Verify 는 총수에서 빠진 5건을 이 계획 삭제로 설명한다.
 
 ### 2.2 생성 — main
 
@@ -157,7 +157,7 @@ TSK-03-01 design.md 결정 D2(526-531행)의 원문이다.
 | `T/arch/TypeConversionEntryTest.java` | 2 | §3.1 |
 | `T/code/DefaultCodeResolverTest.java` | 43 | §3.2 |
 | `T/code/MasterDataResolverTest.java` | 19 | §3.2 |
-| `T/domain/DefaultDomainValidatorTest.java` | 15 | §3.3 |
+| `T/domain/DefaultDomainValidatorTest.java` | 17 | §3.3 |
 | `T/domain/DomainKindExamplesTest.java` | 45 | §3.3 |
 | `T/domain/EffectiveExpressionsTest.java` | 11 | §3.3 |
 | `T/testsupport/InMemoryLookups.java`, `CodeFixtures.java`(PROC_CD·보조 코드), `PortFixtures.java`(05 PORT), `DomainFixtures.java`(02 도메인) | 0 | 테스트 전용 spi 구현·고정 데이터. `@Test` 없음 |
@@ -336,9 +336,9 @@ rule 패키지를 겨냥한 규칙은 두지 않는다. 지금은 대상이 비�
 | `닫았다_다시_연_빈_구간은_false_다` | 항목 행 [08-20, 08-25), [08-28, ∞) → `08-26` false |
 | `대상이_없으면_false_다` `@ParameterizedTest` 3건 | key null, 없는 마루 데이터 `NOPE`, 없는 카테고리 `NOPE` |
 
-### 3.3 `domain` — 71건
+### 3.3 `domain` — 73건
 
-**`DefaultDomainValidatorTest` — 15건**
+**`DefaultDomainValidatorTest` — 17건**
 
 | 테스트 | 검사 |
 |---|---|
@@ -355,6 +355,7 @@ rule 패키지를 겨냥한 규칙은 두지 않는다. 지금은 대상이 비�
 | `결과의_value_는_변환된_값이다` | NUMBER 컬럼 `"1.60"` → `BigDecimal 1.60` |
 | `식_결과가_NULL_이면_검증_실패다` | `STD_EXPR` failure(예외 아님) |
 | `식_결과가_불린이_아니면_판정_오류다` | 식 `value + 1` → `EngineEvaluationException(EVALUATION_ERROR)` |
+| `식_파싱_실패는_EngineEvaluationException_RESULT_EVAL_이다` `@ParameterizedTest` 2건 (Build 추가, §9 이탈 11) | 표준식 `NOPE_FN(value)`·비즈니스식 `NOPE_FN(value)`(비즈니스 함수가 빠진 경우) → 둘 다 `stage == RESULT_EVAL`, `code == EVALUATION_ERROR`. 비즈니스식 쪽은 요구 변수 계산에서 나는 파싱 실패가 `ExpressionFailure` 그대로 새던 결함을 잡는다 |
 
 **`DomainKindExamplesTest` — 45건 (수용 기준 5)**
 
@@ -406,20 +407,20 @@ TEXT 식의 거짓 가지는 `validate` 경로로는 닿지 않는다. 공백만
 | expr(`MdmExpressionConfigTest` 9 + `BusinessFunctionTest` 9 + `WhitelistParseTest` 17 + `ExpressionCheckerTest` 26 + `RegexPolicyTest` 30 + `AstExporterTest` 16 + `MdmEvaluatorTest` 15 + `InstrFunctionTest` 6 + `MasterFunctionTest` 16 + `ValueConverterTest` 28) | 172 |
 | arch(`TypeConversionEntryTest`) | 2 |
 | code(`DefaultCodeResolverTest` 43 + `MasterDataResolverTest` 19) | 62 |
-| domain(`DefaultDomainValidatorTest` 15 + `DomainKindExamplesTest` 45 + `EffectiveExpressionsTest` 11) | 71 |
-| **N(새 테스트)** | **307** (설계 305 + Build 추가 2) |
+| domain(`DefaultDomainValidatorTest` 17 + `DomainKindExamplesTest` 45 + `EffectiveExpressionsTest` 11) | 73 |
+| **N(새 테스트)** | **309** (설계 305 + Build 추가 4, §9 이탈 6·11) |
 | 계획 삭제(`ContractOnlyPhaseTest`) | −5 |
-| **엔진 총수** | 76 − 5 + 307 = **378** |
-| **백엔드 `testAll` 총수** | 518 − 5 + 307 = **820** |
+| **엔진 총수** | 76 − 5 + 309 = **380** |
+| **백엔드 `testAll` 총수** | 518 − 5 + 309 = **822** |
 | 프런트 m-mdm | 6(변화 없음, 스키마·TS 를 바꾸지 않는다) |
 
 ```bash
-# 엔진만 빠르게 — 378건 실패 0 기대 (기준선 76건은 이번 Phase 에서 실측)
+# 엔진만 빠르게 — 380건 실패 0 기대 (기준선 76건은 이번 Phase 에서 실측)
 cd src/backend/maru-mdm-engine && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ../gradlew test --no-daemon
-grep -ho 'tests="[0-9]*"' build/test-results/test/*.xml | awk -F'"' '{s+=$2} END {print s}'   # 378
+grep -ho 'tests="[0-9]*"' build/test-results/test/*.xml | awk -F'"' '{s+=$2} END {print s}'   # 380
 grep -ho 'failures="[0-9]*"\|errors="[0-9]*"' build/test-results/test/*.xml | sort | uniq -c   # 전부 0
 
-# 백엔드 전체 — 820건 실패 0 기대 (mdm/lib 스모크가 ExpressionEvaluator 를 부른다)
+# 백엔드 전체 — 822건 실패 0 기대 (mdm/lib 스모크가 ExpressionEvaluator 를 부른다)
 cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon
 
 # 프런트 — 6건 실패 0, lint 통과(변화 없음 확인용)
@@ -722,7 +723,7 @@ public final class MasterDataResolver implements MasterLookup {
 6. `ExpressionChecker`·`AstExporter`(+ `build.gradle` networknt) → `WhitelistParseTest`·`ExpressionCheckerTest`·`RegexPolicyTest` 통합 2건·`AstExporterTest`.
 7. `EffectiveExpressions`·`DefaultDomainValidator` → §3.3, `TypeConversionEntryTest`.
 8. `ExpressionEvaluator` 몸체 전환, package-info·Javadoc 갱신.
-9. 엔진 테스트(378) → `testAll`(820) → 프런트(6, 변화 없음 확인).
+9. 엔진 테스트(380) → `testAll`(822) → 프런트(6, 변화 없음 확인).
 10. §5 변이를 하나씩 넣어 빨강을 확인하고 되돌린다. 결과를 표로 보고한다.
 
 커밋은 영역 단위로 나눈다(예: `feat(mdm): TSK-03-02 코드 해석기와 05 마루 데이터 판정기를 둔다`). 모든 커밋에 `--trailer "DFlow-Order: ea440494-a2ed-42c5-9842-4c1dce2f9972"` 를 붙이고 파일을 이름으로 stage 한다.
@@ -770,13 +771,14 @@ Build Phase(2026-09-24)에서 설계와 달라진 점과 그 이유다. 계약 �
 | 3 | `EvaluationValue.nullValue()` | `EvaluationValue.NULL_VALUE` | 3.7.0 에서 `nullValue()` 는 `@Deprecated(forRemoval)` 이다(컴파일 경고 확인). 같은 값을 주는 공개 상수를 쓴다 |
 | 4 | `create_설정이_고정값_14개와_같다` 는 `create(lookups)` 결과를 본다 | 같은 검사를, 호스트 기본 시간대·로캘을 잠시 UTC·`Locale.US` 로 바꾼 상태에서 만든 설정에 한다(`try/finally` 로 되돌림) | EvalEx 기본 `zoneId` 는 JVM 기본 시간대다. KST 호스트에서는 `.zoneId(ZONE)` 삭제 변이(I1b)가 살아남는다. 호스트와 무관하게 빨강이 나게 했다 |
 | 5 | `TypeConversionEntryTest` 첫 규칙은 "커스텀 `ArchCondition`" | ArchUnit 내장 `ArchConditions.callMethod(ValueConverter.class, "convert", Object.class, DataType.class)` | 내장 조건이 "그 메서드를 부르는 호출이 있다"를 그대로 표현한다. `failOnEmptyShould` 기본값(참)으로 대상 1건 이상도 그대로 강제된다. 변이 I28 로 빨강을 확인했다 |
-| 6 | `MasterDataResolverTest` 17건, N = 305 | `REGEX_는_대상_칸_값에_전체_일치다` 2건을 더해 19건, N = **307**, 엔진 **378**, `testAll` **820** | 변이 I24a("05 REGEX 대상 칸을 늘 KEY 로")가 처음에 살아남았다. 원천 7케이스의 REGEX 사례(KR·CNSHA)는 거짓이라 대상 칸을 KEY 로 바꿔도 결과가 같다. 05 샘플 판정(05:746-747 "PORT.KR = {KRPUS}", "KRINC 는 09-01 09:00 전이면 PORT.KR 에서 true")을 2건으로 옮겨 덮었다. §2.1·§2.4·§3.2·§3.5·§4·§5·§6.12 의 수치를 같은 커밋에서 고쳤다 |
+| 6 | `MasterDataResolverTest` 17건, N = 305 | `REGEX_는_대상_칸_값에_전체_일치다` 2건을 더해 19건(이 시점 N = 307, 최종 수치는 11번) | 변이 I24a("05 REGEX 대상 칸을 늘 KEY 로")가 처음에 살아남았다. 원천 7케이스의 REGEX 사례(KR·CNSHA)는 거짓이라 대상 칸을 KEY 로 바꿔도 결과가 같다. 05 샘플 판정(05:746-747 "PORT.KR = {KRPUS}", "KRINC 는 09-01 09:00 전이면 PORT.KR 에서 true")을 2건으로 옮겨 덮었다. §2.1·§2.4·§3.2·§3.5·§4·§5·§6.12 의 수치를 같은 커밋에서 고쳤다 |
 | 7 | `ExpressionChecker.Problem` 의 kind 는 "문자열 상수" | 상수 `PARSE`·`FUNCTION`·`VARIABLE`·`RESERVED`·`MDM_ARGUMENT`·`REGEX` 를 `ExpressionChecker` 에 둔다. `ExpressionFailure` 의 reason 상수는 `ExpressionFailure` 에 둔다 | 설계가 위치를 정하지 않았다. 검사기 쪽 상수는 검사기에, 평가기 실패 상수는 실패 타입에 둔다 |
 | 8 | §5 I12 변이 "`future.get(timeout)` → `future.get()`" | `future.get(Long.MAX_VALUE, NANOSECONDS)` 로 넣었다 | `future.get()` 은 `TimeoutException` 을 던지지 않아 `catch (TimeoutException)` 이 컴파일 오류가 된다. 컴파일 실패는 I35 외에는 빨강으로 치지 않으므로, 같은 뜻(사실상 무한 대기)의 컴파일되는 변이로 바꿨다 |
 | 9 | §5 I34 변이 "main 에서 `com.networknt` import" | main 에 `java.io.Serializable` 필드를 더했다 | networknt 는 `testImplementation` 이라 main 컴파일 클래스패스에 없어 컴파일 오류가 된다. 같은 영구 규칙(허용 목록 밖 의존)을 건드리는 컴파일되는 변이로 바꿨다 |
 | 10 | §5 I9 변이 "숫자 value 를 `new BigDecimal(v).toPlainString()` 으로" | `0x` 로 시작하는 리터럴은 빼고 바꿨다 | `new BigDecimal("0xFF")` 는 예외라 "예외로만 빨강"이 된다. 행동 변이(`1e-3` → `0.001`)로 빨강이 나는지 보려고 뺐다 |
+| 11 | §6.9 의사코드는 요구 변수 계산(`bizRequiredVars`)을 판정 오류 변환 밖에 둔다 | 요구 변수 계산도 `ExpressionFailure` → `EngineEvaluationException(RESULT_EVAL)` 변환 안에 넣었다(`requiredVars`·`judgmentError` 도우미). 테스트 `식_파싱_실패는_EngineEvaluationException_RESULT_EVAL_이다` 2건 추가 → `DefaultDomainValidatorTest` 17건, N = **309**, 엔진 **380**, `testAll` **822** | Build 마감 검토에서 찾은 계약 결함이다. 비즈니스 함수 jar 에서 함수가 빠지면 저장된 비즈니스식이 판정 때 `Undefined function` 으로 파싱에 실패하는데, 요구 변수 계산(`MdmEvaluator.usedVariables` → 컴파일)에서 난 `ExpressionFailure(PARSE)` 가 `validate()` 밖으로 그대로 나갔다. `DomainValidator` 계약은 식 오류를 `EngineEvaluationException` 으로 약속한다. 테스트를 먼저 넣어 비즈니스식 사례만 빨강(17건 중 1건 실패)인 것을 확인한 뒤 고쳤다. 표준식 사례는 이미 초록인 짝이다 |
 
-그 밖의 구현 선택(설계 범위 안): `MasterFunctionTest` 의 기록용 `MasterLookup` 은 `MasterDataResolver`(PORT)에 판정을 위임하며 받은 `baseDt` 를 기록한다. `DomainFixtures` 의 CODE 컬럼은 유효 표준식을 비워 검증기가 자동 `MASTER` 식을 만드는 경로를 탄다. `bizRequiredVars` 는 정의에 싣지 않아 유효 비즈니스식에서 계산하는 경로를 탄다. `MdmEvaluator` 의 가상 스레드 실행기는 닫지 않는다(가상 스레드는 JVM 종료를 막지 않는다).
+그 밖의 구현 선택(설계 범위 안): `MasterFunctionTest` 의 기록용 `MasterLookup` 은 `MasterDataResolver`(PORT)에 판정을 위임하며 받은 `baseDt` 를 기록한다. `DomainFixtures` 의 CODE 컬럼은 유효 표준식을 비워 검증기가 자동 `MASTER` 식을 만드는 경로를 탄다. `bizRequiredVars` 는 정의에 싣지 않아 유효 비즈니스식에서 계산하는 경로를 탄다. `MdmEvaluator` 의 가상 스레드 실행기는 닫지 않는다(가상 스레드는 JVM 종료를 막지 않는다). 평가가 가상 스레드에서 돌므로, 서버의 조회 구현체(`CodeLookup`·`MasterLookup` 등)는 호출 스레드에 묶인 문맥(트랜잭션·보안 문맥·MDC)을 `MASTER` 조회 안에서 보지 못한다 — TSK-03-03 과 서버 구현체에 넘기는 주의 사항이다(설계가 정한 타임아웃 방식의 결과라 바꾸지 않았다).
 
 ### 변이 검증 결과(Build)
 
