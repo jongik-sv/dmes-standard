@@ -2,6 +2,10 @@
 
 > Phase 02 Design. 작업 디렉터리 `/Users/jji/project/dmes-standard/dflow-91b83c83`(브랜치 `agent/91b83c83-term-unit-mng`, 기점 origin/dev 3d08db7).
 
+> **화면 설계 산출물(팀장 지시, 담당자 확인 필요 결정 D14)**: 5종 대신 기능설계서 1종만 작성했다 —
+> [단위 마스터 기능설계서](../../screens/unitMng/unitMng_기능설계서.md),
+> [용어 관리 기능설계서](../../screens/termMng/termMng_기능설계서.md).
+
 ## 0. entry-point 정정 — `mdt` 는 낡은 값이다
 
 `spec.md:4` 는 `entry-point: /portal → mdt/unitMng ...; mdt/termMng ...` 라고 적었지만, 이 `mdt` 그룹 코드는
@@ -54,6 +58,13 @@ TSK-02-01(ADR-0003)이 식별자 사전 §A.2.1 규칙에 맞춰 `mdt→dma` 로
   (담당자 확인 필요 결정 D11) — 이 세 칼럼 값은 ASCII 코드로만 받고, 한글은 FE 상수 맵으로만 보여준다.
 
 ## 2. 변경 파일 목록
+
+### 생성 — 화면 설계 산출물(팀장 지시, D14)
+
+| 경로 | 내용 |
+|---|---|
+| `docs/mdm/screens/unitMng/unitMng_기능설계서.md` | 단위 마스터 기능설계서(5종 중 1종, DEC-001 선례). `docs/guide/design/templates/기능설계서.template.md` 구조 준수 |
+| `docs/mdm/screens/termMng/termMng_기능설계서.md` | 용어 관리 기능설계서(동일) |
 
 ### 생성 — 백엔드
 
@@ -475,7 +486,9 @@ Build·Verify 의 변이 검증이 이 목록을 순회한다.
   - 반려되면: 자모 분해·trigram 인덱스를 추가 구현하거나 DB 네이티브 검색으로 교체 — `compare` 액션의
     입출력 계약은 바뀌지 않으므로 구현 교체만 필요하다.
 
-- **D10. 화면별 설계 산출물 5종(`docs/mdm/screens/{screenId}/`) 생략**
+- **D10. 화면별 설계 산출물 5종(`docs/mdm/screens/{screenId}/`) 생략 — [팀장 지시로 D14 가 대체]**
+  - **후속**: 이 D10(산출물을 아예 안 만듦)은 팀장이 직접 전파한 지시로 D14("기능설계서 1종만
+    만든다")로 바뀌었다. 근거·질문은 기록으로 남기고, 실제 채택은 D14 를 따른다.
   - 질문: `docs/mdm/screens/README.md` §1 은 화면별 분석 리포트·기능·디자인·BPMN·정합 체크 5종을
     `docs/mdm/screens/{screenId}/` 에 두라고 정했고, `Mes-Guide.md` §4 "개발 진입 가드"는 이 5종 중
     하나라도 없으면 구현을 금지한다고 정했다. 이번 작업도 만드는가.
@@ -540,6 +553,29 @@ Build·Verify 의 변이 검증이 이 목록을 순회한다.
   - 반려되면: `TermMngService.delete` 에 방언별(SQLite `json_each`/MSSQL `OPENJSON`) 네이티브 질의를
     추가해 참조 중인 용어의 삭제를 거부한다 — TSK-04-04 가 아직 없으므로 검증 없이 구현만 앞서가는
     모양이 된다는 점에 유의.
+
+- **D14. 화면 설계 산출물을 기능설계서 1종으로 축소(팀장 전파 지시)**
+  - 질문: `RULE.md`·`Mes-Guide.md` §4 개발 진입 가드는 화면마다 분석리포트·기능설계서·디자인설계서·
+    BPMN설계서·정합체크서 5종을 요구한다. MDM 의 `unitMng`/`termMng` 는 As-Is 레거시가 없는 신규
+    화면이라 분석리포트가 성립하지 않고 G1~G7 게이트도 채울 수 없다(D10 이 이미 지적한 문제와 같은
+    뿌리). 5종을 그대로 요구할 수 없다면 무엇을 만드는가.
+  - 선택지: (a) `docs/ai-build-log/DEC-001_noticeMgmt-on-mls.md`(mls `noticeMgmt` 선례 — "설계 산출물을
+    기능설계서 1종으로 축소") 그대로 따라 기능설계서 1종만 만든다 (b) 5종을 전부 만들되 분석리포트는
+    "해당 없음" 형해화한 문서로 채운다 (c) 산출물을 아예 만들지 않는다(D10 의 원래 판단).
+  - 택한 것: (a) — **팀장이 직접 지시**했다(자동 모드 판단이 아니라 위임자 지시, D10 을 대체·보강).
+  - 근거: DEC-001 이 이미 같은 상황(To-Be only 신규 화면, `Mes-Guide.md` §4 게이트 불성립)에서
+    "기능설계서 1종 + 축소 사유를 기록"으로 확정한 선례이고, 팀장이 이 선례를 그대로 적용하라고
+    명시했다(근거 강도: 위임자 지시 — spec.md 본문보다 직접적). D10(산출물 자체 생략)은 이 지시로
+    대체된다 — 다만 산출물 위치(`docs/mdm/screens/{screenId}/`)와 "리포 기존 관례(선행 3개 작업이
+    아무것도 안 만듦)"라는 D10 의 관찰은 그대로 유효하며, 이번에 처음으로 그 관례에 기능설계서 1종을
+    더한다.
+  - 산출물: `docs/mdm/screens/unitMng/unitMng_기능설계서.md`, `docs/mdm/screens/termMng/termMng_기능설계서.md`
+    (`docs/mls/design/noticeMgmt/noticeMgmt_기능설계서.md` 형식·`docs/guide/design/templates/기능설계서.template.md`
+    구조 준수, 표 근거 칸에 `docs/mdm/design/basic/02-term-domain-column.md`·HTML 시안·본 design.md
+    파일/행 번호를 인용).
+  - 반려되면: 5종 전부를 만들거나(분석리포트의 As-Is 부재를 어떻게 채울지 별도 결정 필요), 또는 D10
+    으로 되돌려 산출물을 아예 만들지 않는다 — 모듈 전체 규칙(신규 화면 트랙)은 팀장이 사람에게 확인받는
+    사안이라 이 D14 는 이번 두 화면에 한정된 적용이다.
 
 ## E2E 서버 절차
 
