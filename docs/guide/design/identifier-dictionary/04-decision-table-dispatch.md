@@ -76,7 +76,7 @@ design/  BackEnd_표준_    FrontEnd_표준_
 | 표기 | lowercase + snake_case (단 `mdm` 은 UPPER_SNAKE — §A.12.7) | `code_master` / `inspection_request` |
 | 도메인 명사 | 단수형 | `code` ○ / `codes` ✗ |
 | 한정어 | `_` 로 연결 (역할 내 추가 `_` 허용) | `code_master_detail` / `inspection_request_detail` |
-| 금지 | PascalCase / camelCase / 대문자 단어 | `CodeMaster` ✗ / `codeMaster` ✗ |
+| 금지 | PascalCase / camelCase / 대문자 단어(단 `mdm` 은 UPPER_SNAKE — §A.12.7) | `CodeMaster` ✗ / `codeMaster` ✗ |
 | 금지 | 한글 음역 / 의미 추정 | `bunseok` ✗ |
 
 ### A.12.3 예시 5~7 개 (5 모듈 골고루 분포)

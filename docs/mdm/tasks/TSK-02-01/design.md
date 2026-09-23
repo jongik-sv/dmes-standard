@@ -659,12 +659,16 @@ action 과 `allActions`(F18) 대조 — ADR-0003 에 이 표를 그대로 싣는
 
 Verify Phase(무인)가 V26 내용 대조에서 찾아 고친 정합성 결함이다. 체크리스트 기대값은 손대지 않았고, 아래는 모두 산출물 쪽 보강·수정이다.
 
-1. **식별자 사전 나머지 모순 2건 보강**(오케스트레이터 지시) — M4·M6(§2.2)이 `{모듈명}` 토큰 행에만 mdm 대문자 예외 포인터를 달아, 같은 문서의 다른 두 자리가 여전히 "항상 lowercase" 라고 글자 그대로 모순됐다. 규칙 자체는 바꾸지 않고 §A.12.7 포인터만 덧붙였다.
+1. **식별자 사전·backend-standard 의 남은 모순 보강**(오케스트레이터 지시 2건 + 같은 종류로 찾은 2건) — M4·M6·M7(§2.2)이 `{모듈명}` 토큰 행·112행 테이블 규칙 칸에만 mdm 대문자 예외 포인터를 달아, 같은 문서들의 다른 자리가 여전히 "항상 lowercase" 라고 글자 그대로 모순됐다. 규칙 자체는 바꾸지 않고 §A.12.7 포인터만 덧붙였다.
    - `docs/guide/design/identifier-dictionary/01-modules-and-screens.md:7` — 테이블명 단독 표기 "항상 lowercase 3글자" 문장 끝에 mdm 예외 포인터 추가.
-   - `docs/guide/design/identifier-dictionary/04-decision-table-dispatch.md:70`(A.12.1 `{역할}` 행)·`:76`(A.12.2 표기 행) — "lowercase + snake_case" 에 mdm(UPPER_SNAKE) 예외 포인터 추가.
+   - `docs/guide/design/identifier-dictionary/04-decision-table-dispatch.md:70`(A.12.1 `{역할}` 행)·`:76`(A.12.2 표기 행)·`:79`(A.12.2 금지 행 "대문자 단어") — "lowercase + snake_case" / "대문자 단어 금지" 에 mdm(UPPER_SNAKE) 예외 포인터 추가.
+   - `docs/guide/BackEnd/standard-v2/backend-standard/02-structure-naming-constraints.md:138`(D2 테이블 명명 표준 "역할" 행) — "lowercase snake_case" 에 mdm 예외 포인터 추가.
 2. **naming-dialect-rules.md §6.1 인계표 누락 보강** — TSK-01-02 행에 design.md §7 이 요구한 "그룹 코드 상수 `dma~dme`" 항목이 빠져 있었다. 추가했다.
 3. **ADR-0001 D1 FK 명명 규칙 누락 보강** — design §6.1·규칙표 §1 에 있는 "같은 두 테이블 사이 FK 가 둘 이상이면 뒤에 `_{칼럼}`" 단서가 ADR 본문에서만 빠져 있었다. 추가했다.
 4. **ADR-0001 Consequences 과잉 단정 완화** — "대소문자만 다른 코드가 헷갈린다면 저장 검사로 막는다"(단정)가 design D7 근거("막을 수 있다", 이 Task 가 만드는 검사가 아님)보다 강하게 적혀 있었다. "막을 수 있다(이 Task 가 그 검사를 만드는 것은 아니다)"로 완화했다.
 5. **screens/README.md §6 목록 정정** — design §6.5 의 "보류로 만들지 않는 화면" 목록(5항목)에 없는 `dictSystemMng`(§3 의 별도 "(보류)" 예약 행)을 Build 가 §6 목록에 얹어, "영구 미제작"과 "그룹 예약된 보류 화면"의 구분이 흐려졌다. `dictSystemMng` 를 §6 목록에서 빼고, 두 범주가 다르다는 설명 한 줄을 추가했다.
+6. **고칠 수 없는 모순(보고만)** — 아래 둘은 같은 종류(mdm 대문자 예외와의 문면 모순)지만 design.md §5 불변 규칙 6 이 글자 그대로 보존을 지시해 고치지 않았다.
+   - `docs/guide/design/identifier-dictionary/04-decision-table-dispatch.md:105`(A.12.5) `TB_MPP_MOLD_MASTER (전체 대문자) ✗ — 모듈명 lowercase / 역할 lowercase 강제` — 불변 규칙 6 이 "A.12.5 의 `TB_MPP_MOLD_MASTER` ✗ 행 … 은 그대로다" 라고 명시.
+   - `docs/guide/BackEnd/standard-v2/backend-standard/02-structure-naming-constraints.md:133` `모듈명: 6 모듈 (…) lowercase 3글자만 허용.` — 불변 규칙 6 이 "backend-standard 의 '6 모듈'·예시 … 은 그대로다" 라고 명시. 3줄 아래 mdm 예외 불릿(M7)이 이미 있어 국소 문맥으로는 읽힌다.
 
-V1~V24 는 위 수정 뒤 재실행해 전부 기대값을 확인했다(아래 `## Verify 재실행 기록` 없이, 이 문단이 그 결과를 대신한다 — 개별 항목은 팀장 보고에 남긴다). 그 밖에 ADR-0002 ↔ §6.7·§6.8·§6.10·D3~D5, screens/README·ADR-0003 ↔ §6.5·§6.6·§6.9·D2·D6, decisions.md D-012~D-019 ↔ §6.12, naming-dialect-rules.md·ADR-0001 의 나머지 부분은 적대적으로 대조해 누락·왜곡·모순·깨진 링크를 찾지 못했다.
+위 1~5 수정 뒤 V1~V24 를 `gate.sh` 로 재실행해 전부 design.md §3 의 기대값과 일치함을 확인했다(개별 결과는 팀장 보고에 남긴다). ADR-0002 ↔ §6.7·§6.8·§6.10·D3~D5, screens/README·ADR-0003 ↔ §6.5·§6.6·§6.9·D2·D6, decisions.md D-012~D-019 ↔ §6.12, naming-dialect-rules.md·ADR-0001 의 나머지 부분은 적대적으로 대조해 6번 외의 누락·왜곡·모순·깨진 링크를 찾지 못했다.
