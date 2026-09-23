@@ -5,6 +5,7 @@ packages:
   - m-mpp
   - m-mqc
   - m-mls
+  - m-mdm
   - m-analog
   - m-design-dummy
 
