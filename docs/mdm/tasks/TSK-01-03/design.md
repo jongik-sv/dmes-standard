@@ -14,6 +14,17 @@
 - TSK-01-02 가 정한 계약(버전 상태·row_version·오류 코드·역할·권한 상수)은 그대로 쓰고 새로 정의하지 않는다. 계약에 더하는 것은 §2.1 의 세 가지뿐이고 모두 결정 항목(D3)으로 올린다.
 - E2E 서버는 리포의 `be-run.sh`·`fe-run.sh` 를 쓰지 않고 빈 포트로 직접 띄운다(§3.6).
 
+### 원천(04·06)과 spec 의 차이 (명시, spec 을 따른다)
+
+| 항목 | 원천 04·06 | spec·PRD 규칙 7 | 따르는 것 |
+|---|---|---|---|
+| 버전이 효력을 얻는 전이 | 상신(DRAFT→REQUESTED) → 결재 승인(→APPROVED) → 배포(→RELEASED)(04:234-245) | 담당자 확정 DRAFT→RELEASED 직행. 상신·반려·승인·승인 취소·철회 없음(spec 요구사항 마지막 줄, PRD §2 규칙 7) | spec. "승인 시 apply_to 열기·직전 닫기"(04:327)를 "확정 시" 로 읽는다 |
+| 적용시점 하한 | `apply_from >= max(직전 apply_from + 최소 간격, 상신 일시 + 리드타임)`, 최초 버전 면제(04:331-339) | 직전 RELEASED apply_from 보다 뒤(엄격), 최초 버전 면제(spec 요구사항, PRD 규칙 7) | spec. 리드타임·최소 간격·긴급 사유는 두지 않는다(소급 허용, ADR-0002 결과) |
+| 상신 시 검사 5항(배포 대상 시스템 1개 이상, 경고) | 있음(04:411) | 배포 보류라 검사하지 않는다(ADR-0002 D4) | spec 쪽 해석. 검사 실구현은 영역 SPI 몫이라 공통 서비스는 관여하지 않는다 |
+| 미적용 버전 정의 | DRAFT·REQUESTED·APPROVED + apply_from 이 오지 않은 RELEASED(04:284) | 이번 범위에는 REQUESTED·APPROVED 가 생기지 않는다(PRD 규칙 7) | 미적용 = DRAFT + 미래 RELEASED(ADR-0002 D2, 결과는 원천과 같다) |
+| 확정할 수 있는 사람 | 04·06 본문에는 "담당자 권한" 의 역할 판정이 없다(04:1192 미결, 06:1001 은 권한과 소유를 섞지 말라고만 함) | "담당자 역할만 확정 가능"(spec 수용 기준) | spec. 역할 `MDM_STEWARD` 로 판정(ADR-0003 D5, D6) |
+| DRAFT 소유권 넘기기 대상 | 넘기기는 소유자가 받을 사람을 고른다(04:303, 06:998) | "넘기기(소유자만)" 만 요구 | spec 을 따르되, 대상 담당자 검사(ADR-0002 D3)는 포트로 두고 기본 거부(D7) |
+
 ### RULE.md 라우팅
 
 - 진입점: RULE.md 「작업 분기 — 가이드 라우팅」 표의 **분기 3(MES 개발)** 이다. 대상 경로가 `src/backend/mdm`·`src/frontend/m-mdm` 이고(RULE.md:22-23 식별 규칙), 설계 산출물을 쓰는 작업이 아니다. FE 구현 세부는 공통 FrontEnd 가이드와 `mantine-aggrid-ui` 스킬을 따른다(RULE.md:31, :60).
@@ -365,7 +376,7 @@ TDD 순서: §3.1~§3.4 의 테스트를 먼저 쓰고 컴파일 실패 또는 �
 | # | 파일 | 단언 |
 |---|---|---|
 | A1 | `common/support/DefaultMdmDialectResolverSqliteTest`(위 시나리오 클래스 안의 메서드로 둬도 된다) | local 프로파일에서 `current() == SQLITE` |
-| A2 | `common/security/MdmSecurityChainTest` | `@SpringBootTest(RANDOM_PORT)` + local + `@TempDir`. JDK HttpClient 로 ① `POST /oasis/anyService/search` 헤더 없음 → **401** ② 같은 요청에 `X-Client-Key: dmes-bff-local-client-key-2026`, `X-Authenticated-User: kim`, `X-Authenticated-Role: MDM_STEWARD` → 401·403 이 **아니다**(서비스가 없으니 OASIS 오류 응답이면 된다) ③ `GET /actuator/health` → 200. D6 의 신뢰 채널이 켜졌음을 보인다 |
+| A2 | `common/security/MdmSecurityChainTest` | `@SpringBootTest(RANDOM_PORT)` + local + `@TempDir`. JDK HttpClient 로 ① `POST /oasis/anyService/search` 헤더 없음 → **401** ② 같은 요청에 `X-Client-Key: <유효 키>`, `X-Authenticated-User: kim`, `X-Authenticated-Role: MDM_STEWARD` → 401·403 이 **아니고** 본문 최상위에 `meta` 가 있다(OASIS 봉투. 서비스가 없으니 오류 코드면 된다). 유효 키는 상수로 쓰지 않는다: 테스트가 `@SpringBootTest(properties = "cactus.security.client-key=mdm-test-client-key")` 로 고정하되, `ClientKeyFilter` 는 환경변수 `BACKEND_CLIENT_KEY` 를 yml 보다 먼저 보므로(CKF:59,81-84) 테스트도 같은 순서로 `System.getenv("BACKEND_CLIENT_KEY")` 가 있으면 그 값을, 없으면 고정한 속성 값을 쓴다 ③ `GET /actuator/health` → 200. D6 의 신뢰 채널이 켜졌음을 보인다 |
 | A3 | 기존 `MdmApplicationHealthTest`·`MdmSharedContractMigrationTest`·`MdmFlywayVersionParityTest` | 고치지 않고 초록 유지 |
 
 ### 3.3 MSSQL 수동 게이트 (testAll 비포함, docker 필요)
@@ -397,8 +408,8 @@ UI 점검(커밋 전 필수, 0건): `D=.claude/skills/mantine-aggrid-ui/scripts;
 
 스펙 구성(메뉴 로케이터·로그인은 F51 과 같은 방식, `SMOKE_MCM_BASE_URL` 필수 사용):
 - T1 admin(`admin`/`admin123`): 메뉴 이동 → `.page-layout__footer-breadcrumb` 가 `"마루 MDM > 용어·도메인 > MDM 샘플"`, 안내 문단 보임, `.mdm-status-badge` 6개·`.mdm-lock-badge` 3개 보임. 스크린샷 `docs/mdm/tasks/TSK-01-03/screens/dma-mdmSample-shell.png`(fullPage).
-- T2 담당자(`e2e_mdm_steward`): 사이드바에 "마루 MDM" 이 보이고 "용어·도메인" 아래 "MDM 샘플" 로 이동된다(MDM_STEWARD × mdmSample = PERM_MDM_READ 매핑의 효과). `page.request.post("/api/mdm/oasis/mdmSample/search", { data: {} })` 의 상태가 **401·403 이 아니다**(BFF RBAC 통과 + mdm 신뢰 채널 동작). 스크린샷 `menu-steward.png`.
-- T3 권한 없는 사용자(`e2e_mdm_none`): 로그인 뒤 `.sidebar-container` 에 "마루 MDM" 텍스트가 **없다**(`toHaveCount(0)`). 같은 API POST → **403**, 본문 `error.code == "FORBIDDEN"`. 스크린샷 `menu-none.png`.
+- T2 담당자(`e2e_mdm_steward`): 사이드바에 "마루 MDM" 이 보이고 "용어·도메인" 아래 "MDM 샘플" 로 이동된다(MDM_STEWARD × mdmSample = PERM_MDM_READ 매핑의 효과). `page.request.post("/api/mdm/oasis/mdmSample/search", { data: {} })` 의 상태가 **401·403 이 아니고**, 본문이 JSON 이며 최상위에 `meta` 객체가 있다(mdm OASIS 가 돌려준 `CactusResponse` 봉투. BFF 가 백엔드에 닿지 못한 502 류는 이 단언에서 빨강). 서비스가 없으므로 `meta` 는 오류 코드를 담아도 된다. 스크린샷 `menu-steward.png`.
+- T3 권한 없는 사용자(`e2e_mdm_none`): 로그인 **전에** `page.waitForResponse(r => r.url().includes("/api/mcm/oasis/secUser/myMenusTree"))` 를 걸어 두고, 로그인 뒤 그 응답이 200 이며 본문의 메뉴 행(`grids.menus.rows`)에 `MENU_ID`(또는 응답의 메뉴 ID 필드)가 `mdm`·`dma`~`dme` 인 행이 **없음**을 단언한다. 응답을 받은 **뒤에** `.sidebar-container` 가 보이는 상태에서 "마루 MDM" 텍스트가 없음(`toHaveCount(0)`)을 단언한다(메뉴가 그려지기 전의 거짓 통과 방지). 같은 API POST → **403**, 본문 `error.code == "FORBIDDEN"`. 스크린샷 `menu-none.png`. 메뉴 응답의 필드 이름은 `shared/src/portal-shell/use-portal-menu.ts` 로 Build 가 확인한다. T2 도 같은 응답에 `mdm` 루트가 **있음**을 단언한다(양성 대조).
 - T4 표준 관리자(`e2e_mdm_stdadmin`): "MDM 샘플" 까지 이동된다(PERM_MDM_EDIT 매핑).
 - 사용자 ID·비밀번호는 `SMOKE_MDM_{NONE,STEWARD,STDADMIN}_USER`, `SMOKE_LOGIN_PASSWORD` 환경변수로 받되 기본값은 위 ID·`admin123`.
 
@@ -437,19 +448,20 @@ cd $W && /usr/bin/git checkout -- docs/mdm/tasks/TSK-01-02/screens/dma-mdmSample
 ```
 
 - 통과 기준: 두 스펙 합계 passed, skipped·failed 0. 시드 대조 `diff` 출력 없음.
-- 거짓 통과 방지 증거(보고에 붙인다): ① `be-mcm.log` 의 SQLite 경로가 워크트리 쪽이다. ② `be-mdm.log` 에 T2 의 `/oasis/mdmSample/search` 요청이 찍혔다. ③ `be-mcm.log` 에 로그인·메뉴 조회가 찍혔다. ④ `git status` 에 `docs/mdm/tasks/TSK-01-02/**` 변경이 없다.
+- 거짓 통과 방지 증거(보고에 붙인다): ① `be-mcm.log` 의 SQLite 경로가 워크트리 쪽이다. ② `be-mdm.log` 의 기동 로그에 포트 18196 과 SQLite 경로 `$W/src/backend/data/mdm.db` 가 찍혔고, T2 의 응답 본문이 `meta` 를 가진 OASIS 봉투였다(스펙 단언. Spring 은 기본으로 요청 로그를 남기지 않으므로 요청 로그 줄은 증거로 쓰지 않는다). ③ T3·T2 가 기다린 `myMenusTree` 응답이 자기 포털(15103)에서 왔다. ④ `git status` 에 `docs/mdm/tasks/TSK-01-02/**` 변경이 없다.
 - 시드 대조 `mdm-rbac-seed-check.sql` 의 SELECT 와 기대 출력(Build 가 두 파일로 만든다):
 
 | SELECT | 기대 출력(`|` 구분) |
 |---|---|
-| `SELECT MENU_ID, MENU_NM, PARENT_MENU_ID, FULL_SEQ FROM TB_MCM_SEC_MENU_FLD WHERE MENU_ID IN ('mdm','dma','dmb','dmc','dmd','dme') ORDER BY FULL_SEQ;` | `mdm\|마루 MDM\|\|5000000`, `dma\|용어·도메인\|mdm\|5010000`, `dmb\|레이아웃\|mdm\|5020000`, `dmc\|마스터코드\|mdm\|5030000`, `dmd\|마스터데이터\|mdm\|5040000`, `dme\|업무기준\|mdm\|5050000` |
+| `SELECT MENU_ID, MENU_NM, IFNULL(PARENT_MENU_ID,'-') FROM TB_MCM_SEC_MENU_FLD WHERE MENU_ID IN ('mdm','dma','dmb','dmc','dmd','dme') ORDER BY MENU_ID;` | `dma\|용어·도메인\|mdm`, `dmb\|레이아웃\|mdm`, `dmc\|마스터코드\|mdm`, `dmd\|마스터데이터\|mdm`, `dme\|업무기준\|mdm`, `mdm\|마루 MDM\|-` |
 | `SELECT ROLE_ID FROM TB_MCM_SEC_ROLE WHERE ROLE_ID LIKE 'MDM\_%' ESCAPE '\' ORDER BY ROLE_ID;` | `MDM_STD_ADMIN`, `MDM_STEWARD` |
 | `SELECT ROLE_GROUP_ID, ROLE_ID FROM TB_MCM_SEC_ROLEGROUP_MAPPING WHERE ROLE_ID LIKE 'MDM\_%' ESCAPE '\' ORDER BY 1;` | `ROLE_GROUP_MDM_STD_ADMIN\|MDM_STD_ADMIN`, `ROLE_GROUP_MDM_STEWARD\|MDM_STEWARD` |
 | `SELECT PERMISSION_ID, IFNULL(PERMISSION_COMMON,'-'), IFNULL(PERMISSION_CUSTOM,'-'), IFNULL(POPUP_BTN,'-'), PERMISSION_ACTION FROM TB_MCM_SEC_PERM WHERE PERMISSION_ID LIKE 'PERM\_MDM\_%' ESCAPE '\' ORDER BY 1;` | `PERM_MDM_CONFIRM\|-\|-\|-\|search,view,export,compare,save,delete,reg,import,validate,execute,copy,restore,confirm`, `PERM_MDM_EDIT\|-\|-\|-\|search,view,export,compare,save,delete,reg,import,validate,execute,copy,restore`, `PERM_MDM_READ\|-\|-\|-\|search,view,export,compare` |
 | `SELECT ROLE_ID, OBJECT_ID, PERMISSION_ID FROM TB_MCM_SEC_ROLE_MAPPING WHERE OBJECT_ID='mdmSample' ORDER BY ROLE_ID;` | `MDM_STD_ADMIN\|mdmSample\|PERM_MDM_EDIT`, `MDM_STEWARD\|mdmSample\|PERM_MDM_READ`, `SYSADMIN\|mdmSample\|PERM_ALL` |
 | `SELECT COUNT(*) FROM TB_MCM_SEC_USER WHERE USER_ID LIKE 'e2e\_%' ESCAPE '\';`(픽스처 적용 **전**에 돈다) | `0`(운영 시드에 시험 사용자 없음) |
 
-  - PERM 행의 기대 액션 문자열은 `MdmPermissions.READ_ACTIONS`·`EDIT_ACTIONS`·`CONFIRM_ACTIONS` 를 `","` 로 이은 값과 같아야 한다. Build 는 기대 파일을 손으로 쓰지 말고 계약 상수에서 만든 값과 대조해 확인한다(`jshell` 이나 lib 테스트 출력으로 한 번 뽑아 비교).
+  - `FULL_SEQ`·`MENU_SEQ` 는 대조하지 않는다. `seedMdmMenus` 뒤에 `fixModuleRootMenuSeqOrder`(DI:431)와 `recomputeMenuFullSeq`(DI:435)가 값을 다시 계산할 수 있어서 손으로 적은 기대값이 거짓 빨강을 낸다. 폴더 순서(dma→dme)는 E2E 스크린샷으로 사람이 본다. `PARENT_MENU_ID` 가 NULL 인지 빈 문자열인지는 첫 실행 출력으로 Build 가 확인하고 `IFNULL` 기대값을 맞춘다.
+- PERM 행의 기대 액션 문자열은 `MdmPermissions.READ_ACTIONS`·`EDIT_ACTIONS`·`CONFIRM_ACTIONS` 를 `","` 로 이은 값과 같아야 한다. Build 는 기대 파일을 손으로 쓰지 말고 계약 상수에서 만든 값과 대조해 확인한다(`jshell` 이나 lib 테스트 출력으로 한 번 뽑아 비교).
 - 정리: `kill $FE_PID $BE_MDM_PID $BE_MCM_PID` 뒤, 자기 포트를 아직 리슨하는 프로세스만 `lsof -tiTCP:15103 -sTCP:LISTEN | xargs kill`, 18196·18103 도 같다(시작할 때 비어 있음을 확인한 포트라 점유자는 자기 프로세스뿐). **금지**: 전역 `gradlew --stop`, `pkill`·`killall`·`pgrep -f` 로 종료, 5100·8100·8096 프로세스 종료, `be-run.sh`·`fe-run.sh`. `src/backend/data/` 는 gitignore 대상이라 남겨도 된다.
 
 ### 3.7 04 「버전 상태와 적용시점」 예시 → 테스트 매핑
@@ -504,7 +516,7 @@ m-mcm·shared 는 바꾸지 않으므로 그 패키지 게이트는 없다. 만�
 
 | spec 수용 기준 | 검증 방법 |
 |---|---|
-| 권한 없는 사용자는 MDM 메뉴가 보이지 않고 API 가 403 | E2E T3(역할 없는 사용자: 사이드바에 "마루 MDM" 0개, `/api/mdm/oasis/mdmSample/search` → 403 `FORBIDDEN`). 양성 대조 E2E T2·T4(담당자·표준 관리자는 보이고 403 아님). 시드 대조 §3.6(MDM PERM 이 COMMON 칸을 비워 액션이 매트릭스 그대로). 서비스 수준 역할 거부 S8·S18(MDM013, 의미 상태 403). mdm 신뢰 채널 A2 |
+| 권한 없는 사용자는 MDM 메뉴가 보이지 않고 API 가 403 | E2E T3(역할 없는 사용자: `myMenusTree` 응답에 `mdm`·`dma`~`dme` 행 없음, 응답 뒤 사이드바에 "마루 MDM" 0개, `/api/mdm/oasis/mdmSample/search` → 403 `FORBIDDEN`). 양성 대조 E2E T2·T4(담당자·표준 관리자는 보이고 403 아님). 시드 대조 §3.6(MDM PERM 이 COMMON 칸을 비워 액션이 매트릭스 그대로). 서비스 수준 역할 거부 S8·S18(MDM013, 의미 상태 403). mdm 신뢰 채널 A2 |
 | 셸 컴포넌트가 Vitest 로 렌더 테스트된다 | V1(`MdmPageLayout` happy-dom 렌더), V2(상태·잠금 배지 렌더·색 토큰), V3(그룹 이름): `pnpm --filter @dk-oasis/m-mdm test` |
 | 확정·DRAFT 삭제와 거부 경로(미적용 버전 둘, 비소유자, apply_from 역순, 확정 검사 실패) 단위 테스트 | 확정 S1·S2·S3·S15, 삭제 S17. 미적용 둘 S6(MDM007), 비소유자 S7·S17(MDM003), apply_from 역순 S4·S5(MDM008)·L1, 확정 검사 실패 S9(MDM010)·S10(MDM014) |
 | 동시 확정 충돌 시 row_version 409 | S12(같은 rv 두 번 → 둘째 MDM001, MDM002 아님), S13(검사와 UPDATE 사이 경합 → 조건부 UPDATE 0행 → MDM001), S11, MSSQL S12·S13. "409" 는 `MdmErrorCode.ROW_VERSION_CONFLICT`(httpStatus 409)를 `BusinessException` 의 `ErrorDetail.code = "MDM001"` 로 싣는 것으로 표현한다(D5, L4) |
