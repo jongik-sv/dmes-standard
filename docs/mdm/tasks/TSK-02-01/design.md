@@ -13,7 +13,7 @@
 | # | 사실 | 근거 |
 |---|---|---|
 | F1 | 식별자 사전 §A.12 는 `TB_{모듈}_{역할}` 의 모듈·역할을 **소문자로 강제**하고 정규식 `^TB_(mpn\|mpp\|mls\|mqc\|mcm)_[a-z][a-z0-9_]*$`(112행), "A.1.1 5 모듈만 허용"(104행), `TB_MPP_MOLD_MASTER` ✗(106행)를 둔다 | `docs/guide/design/identifier-dictionary/04-decision-table-dispatch.md:60-112` |
-| F2 | 그러나 리포의 실제 모듈 테이블은 **전부 대문자**다. `CREATE TABLE` 로 만든 모듈 테이블 17종, `@Table(name=…)` 26종 모두 `^TB_(MPN\|MPP\|MLS\|MQC\|MCM)_[A-Z][A-Z0-9_]*$` 에 맞고 소문자 정규식에 맞는 것은 0종이다. mls 는 이 어긋남을 GAP-002 로 적고 대문자를 택했다. mcm-reference 는 "테이블명 대문자 유지"를 정본으로 둔다 | `src/backend/**/db/migration/**`, `mls/.../V2__create_notice.sql:4-7`, `docs/guide/reference/mcm-reference.md` A절 "스키마 / 테이블명" 행 |
+| F2 | 그러나 리포의 실제 모듈 테이블은 **전부 대문자**다. `CREATE TABLE` 로 만든 모듈 테이블 17종, `@Table(name=…)` 26종 모두(합집합 28종) `^TB_(MPN\|MPP\|MLS\|MQC\|MCM)_[A-Z][A-Z0-9_]*$` 에 맞고 소문자 정규식에 맞는 것은 0종이다. mls 는 이 어긋남을 GAP-002 로 적고 대문자를 택했다. mcm-reference 는 "테이블명 대문자 유지"를 정본으로 둔다 | `src/backend/**/db/migration/**`, `mls/.../V2__create_notice.sql:4-7`, `docs/guide/reference/mcm-reference.md` A절 "스키마 / 테이블명" 행 |
 | F3 | backend-standard §5 는 칼럼을 `UPPER_SNAKE_CASE` 로 정한다. 테이블 행도 소문자 6 모듈 규칙을 되풀이한다 | `docs/guide/BackEnd/standard-v2/backend-standard/02-structure-naming-constraints.md:112-146` |
 | F4 | 원천 설계는 설명·ERD 에서 테이블을 `TB_MDM_*` 대문자로, 칼럼을 snake_case 소문자로 쓴다. `.md` 에는 `CREATE TABLE` 이 없다(표·ERD 뿐). 판정 예제 SQL 과 `sql/04-code-exists.sql` 만 소문자 테이블명을 쓴다. 제약 이름 `ck_md_domain_flag`·`ck_md_domain_code`(02:62·114) | 원천 02~06·sql/ 조사 |
 | F5 | `McmAuditStatementInspector` 는 정규식 `MCMAPUSER\.TB_MCM_[A-Za-z0-9_]+` 로 **스키마 접두까지 붙은** INSERT/UPDATE 만 고치고, svc/pgm 값을 `'mcm'` 으로 하드코딩한다. 등록은 mcm 앱의 `application.yml:27`(`session_factory.statement_inspector`)과 `JpaConfig.java:95-102`(SQLite 일 때)뿐이다 | `src/backend/mcm-core/.../audit/McmAuditStatementInspector.java:39-46,226-230`, `src/backend/mcm/api/...` |
@@ -120,7 +120,7 @@ A.3.2 화면 행은 이번에 넣지 않는다(등재 절차 1 "신규 화면 �
 | 97 | `2. 모듈명이 §A.1.1 5 모듈 외이거나 …` | `2. 모듈명이 §A.1.1 모듈 정본 외이거나 …` |
 | 104 | `\| … (legacy 모듈명) \| ✗ — A.1.1 5 모듈만 허용 \|` | `\| … (legacy 모듈명) \| ✗ — A.1.1 모듈 정본만 허용 \|` |
 | 112 | ``신규 테이블명 토큰 정규식 매칭: `^TB_(mpn|mpp|mls|mqc|mcm)_[a-z][a-z0-9_]*$` 100%. …`` | ``신규 테이블명 토큰 정규식 매칭: `^(TB_(mpn|mpp|mls|mqc|mcm)_[a-z][a-z0-9_]*|TB_MDM_[A-Z][A-Z0-9_]*)$` 100% (둘째 가지는 §A.12.7 mdm 예외). …`` |
-| 112 뒤 | (A.12.6 다음, `---` 앞) | 새 절 `### A.12.7 mdm 모듈 예외 — 대문자 표기 (2026-09-24)` 본문: ① mdm(마루 MDM) 테이블은 `TB_MDM_{역할}` 로 모듈·역할을 **대문자** UPPER_SNAKE 로 쓴다(예 `TB_MDM_CODE_VER`, `TB_MDM_RULE_ROW`). 근거: 사용자 결정 2026-09-23(`docs/mdm/decisions.md` D-006), 리포 실자산 관례(모듈 테이블 43종 전부 대문자 — mcm-reference "테이블명 대문자 유지"), 칼럼은 backend-standard §5 UPPER_SNAKE. ② 칼럼·제약·인덱스 명명은 [`docs/mdm/naming-dialect-rules.md`](../../../mdm/naming-dialect-rules.md) §1. ③ `TB_mdm_*`(소문자)·`TB_Mdm_*` 는 ✗. ④ 다른 모듈의 소문자 규칙은 이 절이 바꾸지 않는다(전 모듈 대문자 전환 여부는 별도 결정 — `docs/mdm/tasks/TSK-02-01/design.md` D1). ⑤ ADR: [mdm ADR-0001](../../../mdm/adr/0001-physical-naming-audit-dialect.md) |
+| 112 뒤 | (A.12.6 다음, `---` 앞) | 새 절 `### A.12.7 mdm 모듈 예외 — 대문자 표기 (2026-09-24)` 본문: ① mdm(마루 MDM) 테이블은 `TB_MDM_{역할}` 로 모듈·역할을 **대문자** UPPER_SNAKE 로 쓴다(예 `TB_MDM_CODE_VER`, `TB_MDM_RULE_ROW`). 근거: 사용자 결정 2026-09-23(`docs/mdm/decisions.md` D-006), 리포 실자산 관례(모듈 테이블 28종(CREATE TABLE·@Table 합집합) 전부 대문자 — mcm-reference "테이블명 대문자 유지"), 칼럼은 backend-standard §5 UPPER_SNAKE. ② 칼럼·제약·인덱스 명명은 [`docs/mdm/naming-dialect-rules.md`](../../../mdm/naming-dialect-rules.md) §1. ③ `TB_mdm_*`(소문자)·`TB_Mdm_*` 는 ✗. ④ 다른 모듈의 소문자 규칙은 이 절이 바꾸지 않는다(전 모듈 대문자 전환 여부는 별도 결정 — `docs/mdm/tasks/TSK-02-01/design.md` D1). ⑤ ADR: [mdm ADR-0001](../../../mdm/adr/0001-physical-naming-audit-dialect.md) |
 
 **M7 `docs/guide/BackEnd/standard-v2/backend-standard/02-structure-naming-constraints.md`**
 - 112행 테이블 행 규칙 칸 끝에 ` · 예외: \`mdm\` 은 \`TB_MDM_{역할}\` 대문자(식별자 사전 §A.12.7)` 추가
@@ -142,7 +142,7 @@ A.3.2 화면 행은 이번에 넣지 않는다(등재 절차 1 "신규 화면 �
 코드 변경이 없으므로 새 테스트 코드는 없다. 아래 항목이 게이트다. 명령은 리포 루트에서 실행한다. 정규식 안의 글자 `|` 는 `[|]` 로 쓰고(BSD grep 에서 `\|` 의 뜻이 달라지는 것을 피함), `--include` 는 따옴표로 감싼다(zsh 글롭). 한 항목에 명령이 둘이면 "짝"이며 둘 다 기대값이어야 통과다.
 
 ```bash
-BASE=$(/usr/bin/git log --diff-filter=A --format=%H -- docs/mdm/tasks/TSK-02-01/design.md)
+BASE=0eacb8d919c30cac7d91c47abfe67c1338e0c02f   # design.md 를 처음 추가한 커밋(명령 치환 없이 리터럴로 둔다)
 ID=docs/guide/design/identifier-dictionary
 ```
 
@@ -199,7 +199,7 @@ ID=docs/guide/design/identifier-dictionary
   ```bash
   DI=src/backend/mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer.java
   for a in search view export compare save delete reg import copy restore validate execute confirm lock unlock handover; do
-    printf '%s %s\n' "$a" "$(grep -c "\"$a\"" $DI)"; done
+    printf '%s %s\n' "$a" "$(awk '/String allActions = String.join/,/\);/' $DI | grep -c "\"$a\"")"; done
   ```
 - **V11 decisions.md append-only**(짝) — 삭제 행 `0` / `8`
   ```bash
@@ -595,7 +595,7 @@ action 과 `allActions`(F18) 대조 — ADR-0003 에 이 표를 그대로 싣는
 - **질문**: 식별자 사전 §A.12 는 테이블명의 모듈·역할을 소문자로 강제하는데, 사용자 결정(D-006)은 `TB_MDM_*` 대문자다. 규칙을 어떻게 맞출 것인가?
 - **선택지**: (a) mdm 만 예외 — A.12 정규식에 `TB_MDM_[A-Z][A-Z0-9_]*` 가지를 더하고 §A.12.7 예외 절을 둔다. 다른 모듈의 소문자 규칙은 그대로 / (b) 전 모듈 대문자 전환 — A.12·backend-standard 의 규칙과 예시를 대문자로 바꾸고 모듈 횡단 ADR(`docs/guide/adr/0002`)을 낸다 / (c) 대소문자 무시 — 정규식을 case-insensitive 로 바꾸고 표기는 권장으로만 둔다
 - **택한 것**: (a)
-- **근거**: spec 이 "식별자 사전 정규식에 mdm 추가"를 요구한다(1순위). 리포 실자산은 모듈 테이블 43종이 전부 대문자여서(F2) 사실상 (b) 가 현실과 맞지만, (b) 는 spec 범위를 넘어 다른 모듈의 규칙 문서를 바꾸는 모듈 횡단 결정이라 이 Task 가 단독으로 내리지 않는다. (c) 는 표기를 둘로 허용해 규칙을 약하게 만든다.
+- **근거**: spec 이 "식별자 사전 정규식에 mdm 추가"를 요구한다(1순위). 리포 실자산은 모듈 테이블 28종(CREATE TABLE·@Table 합집합)이 전부 대문자여서(F2) 사실상 (b) 가 현실과 맞지만, (b) 는 spec 범위를 넘어 다른 모듈의 규칙 문서를 바꾸는 모듈 횡단 결정이라 이 Task 가 단독으로 내리지 않는다. (c) 는 표기를 둘로 허용해 규칙을 약하게 만든다.
 - **반려되면 재작업 방향**: (b) 면 — A.12.1 표기·A.12.3 예시·A.12.5 `TB_MPP_MOLD_MASTER` 행·A.12.6 정규식을 대문자로 바꾸고 §A.12.7 을 지운 뒤, backend-standard 02:112·132-146 과 01-rules:121 예시를 대문자로 고치고 `docs/guide/adr/0002-*` 를 발행한다(mdm ADR-0001 은 그 링크만). (c) 면 — 정규식을 `(?i)` 로 바꾸고 §A.12.7 을 "권장 표기" 로 낮춘다. 어느 쪽이든 mdm 쪽 산출물(규칙표·ADR-0001)의 `TB_MDM_*` 는 그대로다.
 
 ### D2 — 화면 그룹 코드
