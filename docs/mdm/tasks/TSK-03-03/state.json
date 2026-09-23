@@ -2,7 +2,7 @@
   "tsk": "TSK-03-03",
   "order": "e1205c87-681d-44be-90b1-0965067683f3",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "reported",
+  "phase": "merged",
   "baseline": {
     "failures": 0,
     "tests": 524,
@@ -61,5 +61,6 @@
     },
     "mutation": "I1·I3·I8·I10·I12·I17·I20·I22·I23·I28·I31·I34 전체 엔진 스위트로 12/12 빨강, 원복 확인"
   },
-  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\""
+  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\"",
+  "unapproved": true
 }
