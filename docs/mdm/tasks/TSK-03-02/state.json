@@ -2,5 +2,33 @@
   "tsk": "TSK-03-02",
   "order": "ea440494-a2ed-42c5-9842-4c1dce2f9972",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "build",
+  "baseline": {
+    "failures": 0,
+    "tests": 524,
+    "backend_testAll": {
+      "tests": 518,
+      "failures": 0,
+      "engine_tests": 76,
+      "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon"
+    },
+    "frontend_m_mdm": {
+      "tests": 6,
+      "failures": 0,
+      "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint"
+    }
+  },
+  "pred_note": "선행 mdm/TSK-03-01: reached=true·head_sha 없음 → 행 G 갈래 2, pred-reflected.sh REFLECTED → origin/dev 기점 스택 없이 진행",
+  "planned_removal": "TSK-03-01 D2 ContractOnlyPhaseTest 5건 계획 삭제는 이 Task 몫(팀장 지시 2026-09-24)",
+  "last": {
+    "phase": "design",
+    "event": "design.ok"
+  },
+  "model": "opus",
+  "design_gate": {
+    "commit": "b1ae47c",
+    "new_tests": 305,
+    "expected_engine": 376,
+    "expected_testAll": 818
+  }
 }
