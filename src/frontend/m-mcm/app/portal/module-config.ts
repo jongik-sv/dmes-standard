@@ -144,7 +144,7 @@ const PORTAL_MODULE_CONFIG: PortalModuleConfigEntry[] = [
     loadPage: createStrictModuleLoader("mls", sharedPortalPageLoader),
   },
   {
-    // 2026-09-23 — mdm 모듈 포털 등재. 1호 화면 mdt/mdmSample(스캐폴드 검증용 빈 화면).
+    // 2026-09-23 — mdm 모듈 포털 등재. 1호 화면 dma/mdmSample(스캐폴드 검증용 빈 화면, TSK-01-02 에서 그룹 이동).
     //   화면 코드는 m-mdm 패키지의 pages/{group}/{leaf}/page.tsx 에 있고, codegen 이 등재한다.
     moduleId: "mdm",
     packageName: "@dk-oasis/m-mdm",
