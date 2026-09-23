@@ -9,7 +9,8 @@
 3. 산출물 누락, G1~G7 미통과, 정합체크 불일치, `[확인필요]` 잔존이 있으면 구현을 멈추고 설계 보완으로 환송한다.
 4. 산출물이 통과 상태이면 분석리포트 → 기능설계서 → 디자인설계서 → BPMN설계서 → 정합체크서 순서로 읽는다.
 5. Backend 는 `BackEnd/BackEnd_표준_통합_개발가이드_v2.md`, Frontend 는 `FrontEnd/FrontEnd_표준_통합_개발가이드_v2.md` 와 `FrontEnd/Local-Rules.md` 를 따른다.
-6. 변경 후 관련 Backend test, Frontend build, 설계-구현 정합 대조를 수행한다.
+6. 신규 화면(팝업 포함)은 **메뉴·권한 등재**(OBJECT · 메뉴 leaf · 역할 매핑 · action 시드)까지 한다. 절차 정본은 [Backend 표준 04 §13-3](../BackEnd/standard-v2/backend-standard/04-cases-checklist-menu.md#13-3-신규-메뉴권한-등재-절차-must) 이다. 등재가 빠지면 코드가 통과해도 화면에 들어갈 수 없거나 모든 호출이 403 이므로 개발 완료로 보지 않는다.
+7. 변경 후 관련 Backend test, Frontend build, 설계-구현 정합 대조, 메뉴·권한 실측을 수행한다.
 
 ## 1. 적용 범위
 
@@ -103,5 +104,6 @@ MES OASIS/BPMN 구현에서는 `BackEnd_표준_통합_개발가이드_v2.md` 가
 | Frontend | `cd src/frontend/m-{moduleId} && pnpm build` |
 | DB schema | migration 적용 테스트 + 관련 API 테스트 |
 | 화면별 개발 | 설계 산출물의 필드/버튼/API/action/상태/검증 1:1 대조 |
+| 신규 화면 메뉴·권한 | admin 로그인 → 사이드바 진입 → 설계서의 모든 action 403 없음 (Backend 표준 04 §13-3) |
 
 대상 모듈의 관례가 더 좁은 targeted test 를 제공하면 먼저 실행하고, 변경 범위가 넓으면 모듈 기본 test/build 까지 확인한다.

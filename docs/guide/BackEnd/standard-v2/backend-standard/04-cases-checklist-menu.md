@@ -122,6 +122,8 @@ cactus-core 의 `InboundAutoConfiguration` 은 `QueryController` (`/query/{query
 - [ ] 모든 import 가 「Part C: cactus-core 레퍼런스」 의 경로와 일치하는가?
 - [ ] `@Service("beanName")`, BPMN `camunda:class`, `method`, `dto` 가 모두 일치하는가?
 - [ ] BPMN 파일명과 API `serviceId` 가 일치하는가?
+- [ ] **메뉴·권한 등재 (§13-3 MUST)**: 신규 화면(팝업 포함)마다 OBJECT · 메뉴 leaf · 역할 매핑 시드를 넣었는가? BPMN `actionGateway` 의 새 action 이 `PERM_ALL` 목록에 있는가?
+- [ ] **메뉴·권한 실측**: admin 로그인 → 사이드바에서 화면 진입 → 조회·저장 등 모든 action 이 403 없이 동작하는가? (팝업은 사이드바에 뜨지 않고 부모 화면에서 열리는가?)
 
 ### 12-3. 설계서 ↔ 코드 1:1 대조 (MUST)
 
@@ -264,16 +266,35 @@ DB 메뉴 트리를 단일 SoT 로 삼고 FE 라우팅에서 정적 매핑 (구 
   - 정규식: `^[a-z][a-zA-Z0-9]*$` (소문자 시작 + 영숫자만, 첫 글자 lowercase).
   - 위반 시: `IllegalStateException("OBJECT_ID camelCase 룰 위반 — menuId=... objectId='...'. 허용 패턴: ^[a-z][a-zA-Z0-9]*$")` throw — 시드 단계에서 즉시 실패. 런타임 라우팅 실패 회피.
   - `null` 입력은 허용 (root 그룹 폴더는 `TB_MCM_SEC_MENU_FLD` 가 owner — OBJECT_ID 부재).
-- **참조 구현**: `src/backend/mcm/api/src/main/java/kr/co/ksm/dmes/mcm/init/DataInitializer.java:1031-1045` (`insertMcmSecMenuIfAbsent` 메서드 head + camelCase 정규식).
+- **참조 구현**: `src/backend/mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer.java` 의 `insertMcmSecMenuIfAbsent` (7-인자 오버로드 head + camelCase 정규식).
 - **이유**: FE 의 `page-components/{group}/{leaf}/page.tsx` 폴더명과 1:1 일치해야 codegen PAGE_REGISTRY 키 = DB componentPath 키가 정합 — 시드 시점에서 차단하지 않으면 런타임 404 / 모듈 미발견 오류.
 
-### 13-3. 신규 메뉴 등재 절차
+### 13-3. 신규 메뉴·권한 등재 절차 (MUST)
 
-신규 화면 등록 시:
-1. 화면명을 `screenId` 정본 (§5 명명 규칙) 으로 확정 — camelCase 단일 토큰.
-2. `insertMcmSecMenuIfAbsent` 호출 시 `parentMenuId` = group 토큰 (3 글자), `objectId` = screenId.
-3. 빌드/배포 → 시드 정규식 통과 → leaf row 의 derived `componentPath` 가 `{group}/{screenId}` 형식으로 자동 응답에 포함.
-4. FE 측 페이지 파일은 `page-components/{group}/{screenId}/page.tsx` 위치에 작성. 빌드 시 codegen (FE 가이드 §11-2) 이 자동 등재.
+**화면 개발(MES·APS 공통)은 메뉴와 권한 등재까지 끝나야 완료다.** 코드와 테스트가 통과해도 등재가 빠지면 사용자는 화면에 들어가지 못하거나, 들어가도 모든 호출이 403 이다. 특히 OBJECT 행이 없으면 admin(SYSADMIN)도 `EndpointPermissionFilter` 에서 403 을 받고, 증상은 "조용한 빈 데이터"로만 보인다(2026-08-12 cmb 6 화면 누락 사례).
+
+시드 위치는 `src/backend/mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer.java` 이다. 모든 헬퍼가 `insertIfAbsent` 계열이라 멱등이다. 신규 업무 모듈은 `seedAnalogMenus()` 를 본보기로 `seed{Module}Menus()` 를 만들고 `seedMcmSecRbac()` 의 "확장 지점" 주석 자리에서 호출한다. 기존 모듈에 화면을 더할 때는 그 모듈의 seed 메서드에 행을 추가한다.
+
+신규 화면(팝업 포함) 1건마다 아래 다섯 단계를 모두 수행한다.
+
+1. **식별자 확정**: 화면명을 `screenId` 정본(§5 명명 규칙)으로 확정한다. camelCase 단일 토큰이며, OBJECT_ID · 메뉴 `objectId` · OASIS `serviceId` · FE 폴더명이 모두 이 값이다.
+2. **OBJECT 등재** — `TB_MCM_SEC_OBJ`: `insertMcmSecObjIfAbsent(screenId, 화면명, systemCode)`. `systemCode` 는 FE `moduleId`(예: `mcm`, `mpp`, `analog`)다. `UserPermCache` 는 이 OBJECT_ID 로만 PermKey(`{objId}/{action}`)를 만든다.
+3. **메뉴 등재** — `TB_MCM_SEC_MENU`(leaf) / `TB_MCM_SEC_MENU_FLD`(폴더):
+   - 그룹 폴더가 없으면 `insertMpnFld(groupId, menuSeq, 그룹명, moduleRoot, fullSeq)` 로 먼저 만든다(이름의 Mpn 은 legacy, 모듈 무관).
+   - leaf 는 `insertMcmSecMenuIfAbsent(screenId, "001", fullSeq, 화면명, groupId, screenId)` 로 넣는다. `parentMenuId` = group 토큰(3 글자), `objectId` = screenId.
+   - **팝업**도 leaf 로 등재하되 7-인자 오버로드로 `viewYn="N"` 을 준다. 사이드바에는 뜨지 않고, 메뉴·역할 화면에서 화면과 똑같이 RBAC 를 다룰 수 있다.
+   - FULL_SEQ 는 7자리 인코딩(모듈 백만 / 그룹 만 / 화면 +100·+110…)을 따른다. 부팅 끝의 `recomputeMenuFullSeq()` 가 트리 위치 기준으로 재부여한다.
+4. **역할 매핑** — `TB_MCM_SEC_ROLE_MAPPING`: 최소 `(SYSADMIN, screenId, PERM_ALL)` 1행을 `insertIfAbsentComposite` 로 넣는다. 설계서가 업무 역할(조회 전용 등)을 정의하면 그 역할 × OBJECT × PERMISSION 행도 함께 넣는다. 역할·권한 데이터 모델은 [RBAC-PATH-CONVENTION §5.1](../../../Security/RBAC-PATH-CONVENTION.md) 을 따른다.
+5. **action 등재** — `TB_MCM_SEC_PERM.PERMISSION_ACTION`: 화면 BPMN 의 `actionGateway` 분기명 중 `seedMcmSecRbac()` 의 `allActions` 목록에 없는 것을 추가한다. **목록에 없는 action 은 SYSADMIN 도 403 이다.** 조회는 되는데 콤보·팝업·저장만 실패하는 형태로 나타난다. 이미 시드된 DB 는 `ensurePermAllActions` 가 부팅 때 누락분을 append 한다.
+   ```bash
+   grep -h 'sourceRef="actionGateway"' src/backend/{moduleId}/**/services/**/*.bpmn
+   ```
+
+그 다음:
+
+- 빌드·부팅 → 시드 정규식(§13-2) 통과 → leaf row 의 derived `componentPath` 가 `{group}/{screenId}` 로 응답에 실린다.
+- FE 페이지는 `page-components/{group}/{screenId}/page.tsx` 에 작성한다. 빌드 시 codegen(FE 가이드 §11-2)이 자동 등재한다.
+- **실측(완료 조건)**: admin 으로 로그인해 사이드바에서 화면에 들어가고, 설계서의 모든 action(조회·저장·콤보·팝업)이 403 없이 동작하는지 확인한다. §12-2 체크리스트의 메뉴·권한 두 항목이 이것이다.
 
 ### 13-4. legacy 호환 메모
 

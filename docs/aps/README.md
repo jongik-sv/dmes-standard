@@ -10,6 +10,10 @@
 형식을 보여 주는 샘플 ADR 1건만 남겼다. 신규 프로젝트에서는
 `adr-write` 스킬로 ADR 을 채번·발행하면서 이 디렉터리를 채워 나간다.
 
+## 개발 공통 규칙
+
+- APS 화면(`src/frontend/m-mpn`)도 MES 와 같은 메뉴·권한 체계(`TB_MCM_SEC_*`)를 쓴다. 신규 화면은 메뉴·권한 등재까지 해야 완료이며, 절차 정본은 [Backend 표준 04 §13-3](../guide/BackEnd/standard-v2/backend-standard/04-cases-checklist-menu.md#13-3-신규-메뉴권한-등재-절차-must) 이다.
+
 ## 샘플
 
 - [`design/adr/0000-sample-decision.md`](./design/adr/0000-sample-decision.md) — ADR 형식 예시
