@@ -107,6 +107,21 @@ TSK-03-01 design.md 결정 D2(526-531행)의 원문이다.
 - `ContractTypeShapeTest` 의 Javadoc 두 곳(33·42행)에 남는 `ContractOnlyPhaseTest` 언급은 **고치지 않는다.** 영구 테스트 파일을 바이트 동일로 두어 형제 Task 와의 충돌 여지를 없애는 편이 낫다. 이 사실은 보고에 한 줄 적는다.
 - **예상 총수 변화**: 엔진 76 → 76 − 5 + N, 백엔드 `testAll` 518 → 518 − 5 + N. N = **309**(§3 합계, Build 에서 305 → 309, §9 이탈 6·11). 따라서 엔진 **380건**, `testAll` **822건**을 기대한다. Verify 는 총수에서 빠진 5건을 이 계획 삭제로 설명한다.
 
+**팀장 조율 지시(2026-09-24, TSK-03-03 과 병렬 진행)와 이 Task 의 적용**
+
+- **지시 내용**: "03-03 이 자기 구현으로 무효가 되는 2건을 지우고 03-02 가 나머지 3건을 지운다. 판단 기준은 자기 구현 때문에 깨지는 테스트다. 둘이 같은 테스트를 지우면 머지 때 팀장이 해소한다. done 시점 `testAll` 은 실패 0 이어야 한다."
+- **적용 결과**: 이 기준을 이 Task 에 적용하면 5건 모두 이 Task 의 구현 때문에 깨진다. 그래서 **파일째 삭제를 유지했다**(Build 커밋 `be433b6`). 일부만 지우면 남은 테스트가 이 Task 의 구현 커밋에서 빨강이 되어 done 시점의 "`testAll` 실패 0" 조건을 지킬 수 없다.
+
+| # | 테스트 | 이 Task 의 어느 구현 때문에 깨지는가 |
+|---|---|---|
+| 1 | `main_클래스_집합이_계약_타입과_스캐폴드로_닫혀_있다` | 새 main 클래스(§2.2 의 `MdmEvaluator`·`ExpressionChecker`·`AstExporter`·`DefaultCodeResolver`·`MasterDataResolver`·`DefaultDomainValidator` 등)가 "계약 타입 ∪ 스캐폴드" 닫힌 집합 밖에 생긴다 |
+| 2 | `MdmExpressionConfig_의_메서드는_UnsupportedOperationException_만_던진다` | `MdmExpressionConfig.baseBuilder()`·`create()` 몸체 구현(§6.1)이 UOE 대신 설정을 돌려준다 |
+| 3 | `EvalEx_실행_타입은_스캐폴드_ExpressionEvaluator_만_쓴다` | `ExpressionEvaluator` 밖에서 EvalEx `Expression` 을 쓴다(`MdmEvaluator`·`ExpressionChecker`·`AstExporter`) |
+| 4 | `baseBuilder_는_UnsupportedOperationException_을_던진다` | `MdmExpressionConfig.baseBuilder()` 몸체 구현 |
+| 5 | `create_는_UnsupportedOperationException_을_던진다` | `MdmExpressionConfig.create()` 몸체 구현 |
+
+- **중복 삭제**: TSK-03-03 도 같은 파일·같은 테스트를 지우면 머지 때 삭제 충돌(또는 이미 지워진 파일)이 생긴다. 이 충돌은 **팀장이 머지 때 해소한다**(지시 원문). 이 Task 는 03-03 브랜치를 건드리지 않는다.
+
 ### 2.2 생성 — main
 
 | 파일 | 공개 여부 | 내용 |
@@ -757,6 +772,16 @@ public final class MasterDataResolver implements MasterLookup {
 |---|---|
 | TSK-03-03 룰 판정 엔진 | 셀 평가는 `MdmEvaluator.evaluate`(캐시·`copy()`·타임아웃·`EVAL_TS`)를 쓴다. 레코드 값 변환은 `ValueConverter.convert`, 레코드 키 검사는 `RecordKeys.violations` 를 쓴다. `ExpressionFailure.code()` 를 `Violation` 의 code 로 옮기고 stage 는 룰 단계로 채운다. rule 쪽 결속 테스트(D2)를 그 Task 에서 더한다 |
 | TSK-03-04 겹침·빈틈·JS 평가기·코퍼스 | 코퍼스의 타입 변환 사례는 §6.7 표를 따른다. 서버 러너는 `MdmEvaluator`·`AstExporter` 를 쓴다. 화면 정규식 제약은 §6.5 표와 같다 |
+
+**`MdmExpressionConfig` 공개 시그니처(TSK-03-03 인계).** 03-03 은 생성자로 주입받는 EvalEx 설정을 테스트 fixture 로 조립해 두었다가, 이 Task 가 머지되면 `MdmExpressionConfig.create` 로 바꾼다.
+
+| 시그니처 | 돌려주는 것 | null 인자 | 스레드 안전성 |
+|---|---|---|---|
+| `public static ExpressionConfiguration.ExpressionConfigurationBuilder baseBuilder()` | 부를 때마다 **새** 빌더를 준다. 고정값 14개(`MATH_CONTEXT` precision 68·HALF_EVEN, `ZONE` Asia/Seoul, `LOCALE` ROOT, `REGEX_TIMEOUT_MILLIS` 100, `MAX_RECURSION_DEPTH` 2000, `ALLOW_OVERWRITE_CONSTANTS`·`LENIENT_MODE`·`ARRAYS_ALLOWED`·`STRUCTURES_ALLOWED`·`IMPLICIT_MULTIPLICATION_ALLOWED`·`SINGLE_QUOTE_STRING_LITERALS_ALLOWED`·`BINARY_ALLOWED` false, `STRIP_TRAILING_ZEROS` true, `DECIMAL_PLACES_ROUNDING` 무제한)와 함수 사전 `FunctionSets.BASE` 24종(D3)이 들어 있다. MDM 함수(`INSTR`·`MASTER`·`MASTER_AT`)는 없다 | 인자가 없다 | 빌더는 가변이라 공유하지 않고 호출마다 새로 받는다. `build()` 결과는 아래 `create` 결과처럼 공유해도 된다 |
+| `public static ExpressionConfiguration create(EngineLookups lookups)` | `baseBuilder()` 의 고정값 14개 + 함수 사전 = `FunctionSets.STANDARD` 27종(BASE 24 + `INSTR`·`MASTER`·`MASTER_AT`) ∪ `lookups.functions()` 의 비즈니스 함수. 칸별 제한은 사전이 아니라 `ExpressionChecker` 가 `Slot` 으로 한다. 비즈니스 함수 이름이 `^[A-Z][A-Z0-9_]*$` 밖이거나 STANDARD·GENERATED·EvalEx 표준 사전 이름·다른 비즈니스 함수와 겹치면 `IllegalArgumentException` 을 던진다 | `lookups` 가 null 이면 `NullPointerException` 이다. 구성 요소도 모두 non-null 이어야 한다. `codes`·`codeEff`·`functions` 가 null 이면 `create` 가 곧바로 NPE 를 던진다. `masters` 가 null 이면 `create` 는 통과하지만 마루 데이터 대상 `MASTER` 를 평가할 때 NPE(→ `EVALUATION_ERROR`)가 난다. 쓰지 않는 칸에는 `CodeEffLookup.NONE`·`MasterLookup.NONE`·`FunctionProvider.NONE` 을 넣는다 | 한 번 만들어 여러 스레드가 공유해도 된다. 설정 객체는 만든 뒤 바뀌지 않고, 사전 안의 함수 객체는 상태가 없거나(`MASTER` 계열의 정규식 캐시는 `ConcurrentHashMap`) 읽기만 한다. 전제는 두 가지다. 넘긴 spi 구현체가 스레드 안전해야 하고, 받은 사전(`getFunctionDictionary()`)에 `addFunction` 을 부르지 않아야 한다. `create` 는 부를 때마다 사전·코드 해석기를 새로 만들므로 요청마다 부르지 말고 엔진 인스턴스당 한 번 만든다(`MdmEvaluator` 가 그렇게 한다) |
+
+- 03-03 이 fixture 로 조립한 설정이 위 표와 다르면(특히 사전이 BASE 만이거나 EvalEx 표준 사전 전체이면) `MASTER`·`INSTR` 의 파싱 결과와 `DT_NOW` 거부 여부가 달라진다. 교체 뒤 03-03 테스트 결과가 달라지면 설정 차이부터 확인한다.
+- **expr 에 record·enum 을 새로 두지 않는다.** 영구 테스트 `EngineContractSchemaTest.expr_rule_패키지의_record_enum_은_스키마_대응이_있거나_Java_전용_목록에_있다` 는 `expr`·`rule` 패키지와 그 하위(중첩 포함)의 모든 record·enum 을 스키마 대응표나 `JAVA_ONLY` 목록에서 요구한다(F18). 이 Task 는 이 규칙을 지켰다(§1, §7 첫 항목, 불변 규칙 I31). TSK-03-03 이 `rule` 에 record·enum 을 더하면 같은 테스트의 대응표나 `JAVA_ONLY` 를 함께 갱신해야 한다.
 
 ---
 
