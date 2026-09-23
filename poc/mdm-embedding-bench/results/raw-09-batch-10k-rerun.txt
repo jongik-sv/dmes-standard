@@ -1,0 +1,11 @@
+env.java	21.0.12.1 OpenJDK 64-Bit Server VM
+env.os	Mac OS X aarch64
+env.cpus	10
+env.ort	1.30.0
+batch.params	threads=4 batch=1 limit=10000 sortByLength=true
+batch.total.s	336.2
+batch.throughput.termsPerSec	29.7
+batch.perTerm.ms	33.62
+batch.est10k.min	5.6
+rss.peakSampled.MB	1461
+rss.afterBatch.MB	1462

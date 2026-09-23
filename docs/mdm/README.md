@@ -5,6 +5,8 @@
 - [wbs.md](wbs.md) — 작업 분해(Task 37개)
 - [decisions.md](decisions.md) — 결정 감사 기록(append-only)
 - [naming-dialect-rules.md](naming-dialect-rules.md) — 명명·감사 칼럼·방언·영속성·Flyway 규칙표(DB 설계 Task 인용 정본)
+- [engine-contract.md](engine-contract.md) — 평가 엔진 공유 계약(spi·EvalEx 설정·허용 함수·AST 스키마·화면 JS 범위·코퍼스 형식). 계약 파일 [engine-contract/](engine-contract/)
+- [term-embedding.md](term-embedding.md) — 용어 임베딩 모델·저장·검색 방식(TRD T6)
 - [adr/](adr/README.md) — mdm ADR(설계 결정 기록)
 - [screens/](screens/README.md) — 화면 그룹 코드·screenId 목록·경로 규약, 화면별 설계 산출물 `screens/{screenId}/`
 - [tasks/](tasks/) — Task 별 spec·design
