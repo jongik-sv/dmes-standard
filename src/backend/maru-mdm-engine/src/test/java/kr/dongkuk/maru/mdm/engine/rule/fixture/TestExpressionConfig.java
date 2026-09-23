@@ -19,6 +19,7 @@ import com.ezylang.evalex.config.ExpressionConfiguration;
 import com.ezylang.evalex.config.FunctionDictionaryIfc;
 import com.ezylang.evalex.config.MapBasedFunctionDictionary;
 import com.ezylang.evalex.functions.FunctionIfc;
+import java.time.ZoneId;
 import java.util.Map;
 import java.util.TreeSet;
 import kr.dongkuk.maru.mdm.engine.expr.FunctionSets;
@@ -42,6 +43,11 @@ public final class TestExpressionConfig {
 
     /** {@code extra} 는 카운팅 함수처럼 테스트 안에서만 쓰는 함수다. */
     public static ExpressionConfiguration create(TestFunctions functions, Map<String, FunctionIfc> extra) {
+        return create(functions, extra, ZONE);
+    }
+
+    /** 시간대만 바꾼 설정 — EVAL_TS 가 설정 시간대와 무관하게 {@code Instant} 로 들어가는지 볼 때만 쓴다(I28). */
+    public static ExpressionConfiguration create(TestFunctions functions, Map<String, FunctionIfc> extra, ZoneId zone) {
         FunctionDictionaryIfc defaults = ExpressionConfiguration.defaultConfiguration().getFunctionDictionary();
         MapBasedFunctionDictionary dict = new MapBasedFunctionDictionary();
         for (String name : new TreeSet<>(FunctionSets.BASE)) {
@@ -51,7 +57,7 @@ public final class TestExpressionConfig {
         extra.forEach(dict::addFunction);
         return ExpressionConfiguration.builder()
                 .mathContext(MATH_CONTEXT)
-                .zoneId(ZONE)
+                .zoneId(zone)
                 .locale(LOCALE)
                 .regexTimeoutMillis(REGEX_TIMEOUT_MILLIS)
                 .maxRecursionDepth(MAX_RECURSION_DEPTH)

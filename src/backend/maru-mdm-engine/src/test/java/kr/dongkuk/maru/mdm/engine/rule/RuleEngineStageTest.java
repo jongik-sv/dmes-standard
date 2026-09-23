@@ -162,6 +162,23 @@ class RuleEngineStageTest {
         assertEquals(cut, seen.getDateTimeValue());
     }
 
+    @Test
+    void EVAL_TS_는_설정_시간대와_무관하게_Instant_로_넣는다() {
+        // KST 벽시계 LocalDateTime 으로 넣으면 설정 시간대가 KST 일 때만 같은 순간이 된다. UTC 설정에서 차이가 드러난다.
+        TestFunctions utcFunctions = new TestFunctions().code("C", "K", "A");
+        MdmRuleEngine utc = new MdmRuleEngine(
+                TestExpressionConfig.create(utcFunctions, Map.of(), java.time.ZoneOffset.UTC), lookup);
+        lookup.add(gen(decision("TZ", 1, HitPolicy.FIRST, FROM,
+                List.of(exprCondVar(1, 1), resultVar(2, DispType.VALUE, "R", STRING, 1)),
+                contract(vts("K", STRING)),
+                row(1, 1, 1, expr("MASTER(\"C\", \"K\", K)"), 2, val("hit")))));
+        Instant raw = Instant.parse("2026-09-30T15:00:07.5Z");
+        utc.evaluate("TZ", rec("K", "A"), raw);
+        EvaluationValue seen = utcFunctions.seenEvalTs().get(0);
+        assertTrue(seen.isDateTimeValue(), seen.toString());
+        assertEquals(Instant.parse("2026-09-30T15:00:07Z"), seen.getDateTimeValue());
+    }
+
     // ------------------------------------------------------------------ 2단계 ROW_SELECT(I18·I19)
 
     @Test

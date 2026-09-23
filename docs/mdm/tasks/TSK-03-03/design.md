@@ -837,3 +837,18 @@ SPD_JOIN (DERIVE, 메타 H:533 · WR:34): var 1 RESULT EXPRESSION `LINE_SPD` NUM
 ## Build 모델 권고
 
 **opus.** spec 의 model 이 opus 이고 Design 도 opus 였다(dev-discipline 모델 배정 "Design 이 opus 였으면 Build 도 opus"). 판정 절차·생성기·스냅샷·fixture 가 모두 정밀한 명세 이행이라 격하하지 않는다.
+
+---
+
+## 이탈 기록 (Build, 2026-09-24)
+
+설계 본문과 다르게 했거나 설계가 정하지 않은 자리를 채운 것을 적는다. 계약·설정·스냅샷 기대 텍스트는 바꾸지 않았다.
+
+1. **테스트 전용 설정에 시간대 인자 오버로드를 더했다.** `TestExpressionConfig.create(functions, extra, zoneId)` 를 추가했고, 기존 `create(...)` 는 그대로 `MdmExpressionConfig.ZONE` 을 쓴다(§6.16). 이유는 변이 검증이다. I28 에 "EVAL_TS 를 KST 벽시계 `LocalDateTime` 으로 넣는" 변이를 넣으면 설정 시간대가 KST 라서 EvalEx 가 같은 순간으로 되돌려 바꾸고, 결과가 달라지지 않는다. UTC 설정 엔진으로 `RuleEngineStageTest.EVAL_TS_는_설정_시간대와_무관하게_Instant_로_넣는다` 를 더해 이 변이를 빨강으로 만들었다. 운영 경로에는 영향이 없다.
+2. **§3.1 에 없는 테스트 사례를 더했다.** `ResultAggregator.rank`·`collect`·`sameValue` 를 직접 부르는 단위 사례(`HitPolicyTest`)를 넣었다. `stripTrailingZeros=true` 때문에 엔진 경로에서는 `1.0` 과 `1` 이 같은 scale 로 정규화되어, I24 의 "`equals` 로 숫자 비교" 변이가 엔진 경로로는 드러나지 않는다.
+3. **스냅샷 로더를 별도 파일로 두지 않았다.** `CellTextSnapshotTest.cases()`(test 전용 record `SnapshotCase`)를 `GeneratedTextParseTest` 가 같이 쓴다. §2.2 의 파일 목록은 그대로다.
+4. **매개변수화 테스트 이름에 메서드 이름을 넣었다.** `@ParameterizedTest(name = "{displayName} [{0}]")` 로, 기존 `EngineContractSchemaTest` 관례를 따랐다. JUnit XML 의 testcase 이름이 메서드끼리 겹치면(`[1] 7` 등) 게이트의 "테스트 이름 단위 차분"이 틀어지기 때문이다.
+5. **설계가 순서를 정하지 않은 자리.** `evaluate` 는 룰 조회(`RULE_NOT_FOUND`)를 먼저 하고 레코드 예약 키 검사를 그다음에 한다. 예약 키 위반은 그 자리에서 던지며, 1단계 계약 키 검사와 한 예외로 합치지 않는다(§6.2 "예약 키 검사는 부르는 쪽이 이미 했다"). 결과 열 그룹 고르기는 DERIVE 에서도 같은 규칙으로 한다(§6.4 "정책과 무관").
+6. **세트 입력 키 확인은 §6.13 4 그대로 DERIVE 행 계약의 optional 이름도 요구한다.** 그래서 `SPD_JOIN` 을 단독으로 담은 세트는 `EXC_SPD` 키(값 null 허용)가 레코드에 있어야 한다. 설계대로 구현한 결과이며, 테스트 `CREATED_세트는_실행하고_빈_세트는_빈_결과` 가 이 전제를 따른다. optional 을 세트 입력 키에서 빼야 한다면 원천 06:420 해석을 담당자가 정해야 한다.
+7. **F11 후속.** `rule/package-info.java` 의 "계약 전용 단계" 설명은 이 Task 뒤에 낡았지만 고치지 않았다(병렬 03-04 충돌 회피). 머지 뒤 정리 대상이다.
+8. **I40 은 변이를 넣지 않았다.** `MdmExpressionConfig` 는 이 Phase 의 수정 금지 파일이라 몸체 추가 변이를 넣지 않았다. 보호는 `ContractOnlyPhaseTest` 나머지 3건 초록과 `/usr/bin/git diff` 공백 확인으로 대신한다.
