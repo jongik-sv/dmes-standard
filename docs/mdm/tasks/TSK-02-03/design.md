@@ -12,7 +12,7 @@
 | # | 사실 | 근거 |
 |---|---|---|
 | F1 | 02~06 원천 문서는 전부 "논리 설계 수준"이며 실제 `CREATE TABLE`/`PRIMARY KEY`/`REFERENCES`/`CHECK(...)` 구문이 없다(grep 0건). 표+산문으로만 PK·FK·제약을 서술한다. NOT NULL·기본값이 명시되지 않은 칼럼이 많다(표마다 "불명확" 표기 다수) | 02:762, 03 전체, 04:967, 05:601, 06:905 |
-| F2 | `TB_MDM_SYSTEM` 은 TSK-01-02(공통 계약) 소유다(`system_code` PK, `system_name`). 이 Task 의 모든 DDL(02~06 전 영역, `system_code`/`source_system` 칼럼을 가진 모든 테이블)은 `TB_MDM_SYSTEM` 을 참조하는 칼럼은 **두되 FK 제약은 걸지 않는다.** ERD 에는 점선(외부 참조)으로 표시한다. 실제 FK 추가는 `TB_MDM_SYSTEM` 이 배포된 뒤 영역 계약 Task 가 ALTER TABLE 로 한다 | 오케스트레이터 사실 #1, wbs.md 105·126행 |
+| F2 | `TB_MDM_SYSTEM` 은 TSK-01-02(공통 계약) 소유다(`system_code` PK, `system_name`, `self_yn` — wbs.md 105·126행). 이 Task 는 `TB_MDM_SYSTEM` 테이블 자체를 만들지 않지만, 원천이 FK 로 적은 자리(04:957·05:594·06:896, 02 ERD 실선, 03:70)는 **인라인 FK 를 건다.** 영역 계약 Task 는 전부 TSK-01-02 에 의존하므로(wbs 의존 순서) 마이그레이션 시점엔 `TB_MDM_SYSTEM` 이 이미 있고, SQLite 는 `ALTER TABLE`로 FK 를 나중에 추가할 수 없어(테이블 재생성 필요) 후행 ALTER 방식(§6.6)을 쓸 수도 없다 — 처음부터 인라인으로 거는 것이 유일한 방법이다. `system_code` 타입은 TSK-01-02 계약이 아직 없어 `CD20`(VARCHAR(20))을 가정으로 둔다 | wbs.md 105·126행, 04:957, 05:594, 06:896, 02:665·ERD, 03:70 |
 | F3 | TRD §4.1 은 배포 대상 보류 목록에서 `TB_MDM_COLUMN_SYSTEM` 만 제외(활성)한다. `TB_MDM_CODE_SYSTEM`·`TB_MDM_DATA_SYSTEM`·`TB_MDM_RULE_SYSTEM` 은 보류(DDL만, 엔티티·리포지토리·서비스·BPMN·화면 없음, D-019) | TRD.md:47, decisions.md D-019 |
 | F4 | 실측 DB 는 SQLite 뿐이다(2026-09-24 사용자 지시). MSSQL DDL 은 두 방언 요구대로 작성하되 실행·실측하지 않는다. `naming-dialect-rules.md` §3 의 `실측 필요 → TSK-02-03` 행(#2~#5·#19·#20)은 이 Task 가 SQLite 쪽만 확인하고 MSSQL 은 `실측 필요` 로 남겨 각 영역 마이그레이션 Task 로 이관한다 | 오케스트레이터 사실 #3, naming-dialect-rules.md §3·§6.1 |
 | F5 | mdm 이 쓰는 SQLite 엔진은 `org.xerial:sqlite-jdbc:3.45.3.0`. 검증은 CLI `sqlite3`(3.50, 버전 다름)가 아니라 이 jar 를 JDK 21 단일 파일 실행으로 쓴다. jar 가 slf4j-api 를 요구하면 Gradle wrapper 배포판의 slf4j-api-1.7.36.jar 를 함께 classpath 에 둔다 | 오케스트레이터 사실 #4 |
@@ -47,7 +47,7 @@
 
 | # | 파일 | 내용 | 근거 절 |
 |---|---|---|---|
-| B1 | `docs/mdm/erd/02-term-domain-column.mmd` | 02 ERD(Mermaid), 외부 참조(TB_MDM_SYSTEM·TB_MDM_CODE)는 점선 | §6.1 |
+| B1 | `docs/mdm/erd/02-term-domain-column.mmd` | 02 ERD(Mermaid). `TB_MDM_CODE` 참조는 점선(교차영역, §6.6), `TB_MDM_SYSTEM` 참조는 실선 + `"TSK-01-02 소유"` 주석 | §6.1 |
 | B2 | `docs/mdm/erd/02-term-domain-column.sqlite.sql` | 02 SQLite DDL 7 테이블 | §6.1 |
 | B3 | `docs/mdm/erd/02-term-domain-column.mssql.sql` | 02 MSSQL DDL(`maru_code_id` FK 는 후행 ALTER, §6.6) | §6.1·§6.6 |
 | B4 | `docs/mdm/erd/03-interface-layout.mmd` | 03 ERD(신설 2테이블 포함) | §6.2 |
@@ -85,12 +85,12 @@ SLF4J=${SLF4J_API_JAR:-/Users/jji/.gradle/wrapper/dists/gradle-8.14.3-bin/cv11ve
 
 | 체크 | 절차 | 기대 결과 |
 |---|---|---|
-| **a** | 임시 SQLite DB 에 `fixtures/00-system.sql`(TB_MDM_SYSTEM 최소 3행: MDM/MES/ERP — TSK-01-02 계약 최소 모양, 이 Task 가 임시로 흉내만 낸다) 적용 → 02~06 전체 SQLite DDL(B2·B5·B7·B8·B9) 순서대로 적용 | 오류 0, `SELECT count(*) FROM sqlite_master WHERE type='table' AND name LIKE 'TB_MDM_%'` = 35(02:7 + 03:5(신설 2 포함) + 04:7 + 05:7 + 06:8 + 이미 존재 가정한 TB_MDM_SYSTEM 1 = 35, TB_MDM_SYSTEM 은 fixture 로 만들었으므로 포함) |
+| **a** | 임시 SQLite DB 에 `fixtures/00-system.sql`(`CREATE TABLE TB_MDM_SYSTEM(system_code VARCHAR(20) PRIMARY KEY, system_name TEXT, self_yn VARCHAR(1))` + MDM/MES/ERP 3행 — TSK-01-02 계약 최소 모양(wbs 126행), F2 대로 이 Task 가 임시로 흉내만 낸다) 적용 → 02~06 전체 SQLite DDL(B2·B5·B7·B8·B9) 순서대로 적용(FK 가 인라인이므로 이 fixture 를 먼저 적용해야 한다) | 오류 0, `SELECT count(*) FROM sqlite_master WHERE type='table' AND name LIKE 'TB_MDM_%'` = 35(02:7 + 03:5(신설 2 포함) + 04:7 + 05:7 + 06:8 + fixture 로 만든 TB_MDM_SYSTEM 1 = 35) |
 | **b** | 두 방언 DDL 파일을 파싱해 비교: SQLite 는 적용 후 `pragma_table_info`로 테이블별 칼럼 집합·타입 계열을 읽고, MSSQL 은 정규식으로 `CREATE TABLE`/`ALTER TABLE ADD CONSTRAINT` 블록을 파싱한다. FK 는 (자식칼럼,부모테이블,부모칼럼) 3순組 집합으로 모아 **스키마 전체(파일 경계 무시)**에서 비교한다(F19) | 테이블 집합 일치, 칼럼명 집합 일치(대소문자만 다름 허용), FK 3순組 집합 일치. MSSQL 쪽 FK 자식칼럼의 길이·COLLATE 가 부모 PK 칼럼과 동일한지도 이 체크에서 정규식으로 대조(§6.0 타입 토큰 하나로 통일했으므로 자동 일치해야 함) |
 | **c** | `expected-columns.json`(원천 표에서 옮긴 칼럼명 목록, 예외: 감사 9칼럼·03 신설 2테이블·02 TERM 관리속성 3칼럼(D3)·03 신설 칼럼 전부는 "추가 칼럼"으로 명시)과 적용된 SQLite 스키마의 칼럼 목록을 대조 | 대소문자 차이만 있고, "추가 칼럼" 목록 밖의 추가·삭제·개명 0건 |
 | **d** | `PRAGMA foreign_key_list('<표>')` 를 35개 테이블 전부에 돌려 부모 테이블이 `TB_MDM_%` 또는 자기 자신인지 확인 | 100% `TB_MDM_%` 접두(TB_MDM_SYSTEM 포함), 하위 업무 테이블(mcm·mls 등) 0건 |
-| **e** | 35개 테이블 중 `TB_MDM_DICT_SEQ` 를 제외한 34개에 감사 9칼럼(`C_USR_ID` 등)이 전부 있는지 `pragma_table_info` 로 확인 | 34/34 |
-| **f** | 활성 테이블(`TB_MDM_CODE`·`TB_MDM_DATA`·`TB_MDM_DOMAIN`·`TB_MDM_COLUMN`·`TB_MDM_UNIT`·`TB_MDM_DATA_ITEM`·`TB_MDM_DATA_CATE`·`TB_MDM_DATA_CATE_ITEM`)의 `chg_seq`/`last_chg_seq` 칼럼 기본값이 SQLite DDL 상 `DEFAULT 0`인지 확인, `TB_MDM_DICT_SEQ` 초기 행(`dict_code='DOMAIN', last_chg_seq=0`) INSERT 후 조회 | `DEFAULT 0` 전부 일치(ADR-0002), 초기 행 1건 조회됨 |
+| **e** | 35개 테이블 중 `TB_MDM_DICT_SEQ` 를 제외한 34개에 감사 9칼럼(`C_USR_ID` 등)이 전부 있는지, 그리고 타입이 `naming-dialect-rules.md` §2 정본과 일치하는지(`C_USR_ID`·`C_SVC_ID`·`C_PGM_ID`·`U_USR_ID`·`U_SVC_ID`·`U_PGM_ID` 는 `pragma_table_info` 의 `type` 이 `VARCHAR(100)`, `C_AT`·`U_AT` 는 `TIMESTAMP`, `VER` 은 `INTEGER`(BIGINT 대응)) `pragma_table_info` 로 확인 | 34/34, 타입 전부 일치(§6.0 `AUD_STR`/`AUD_AT`/`BIGI` 토큰과 동일) |
+| **f** | 활성 테이블의 배포 칸 두 그룹을 ADR-0002 문구 그대로 DEFAULT 0 여부로 확인한다. ① `chg_seq BIGINT NOT NULL DEFAULT 0` 그룹(ADR-0002 "TB_MDM_DOMAIN·COLUMN·UNIT, 05 네 테이블" = 7개): `TB_MDM_DOMAIN`·`TB_MDM_COLUMN`·`TB_MDM_UNIT`(02) + `TB_MDM_DATA`·`TB_MDM_DATA_ITEM`·`TB_MDM_DATA_CATE`·`TB_MDM_DATA_CATE_ITEM`(05, §6.4). ② `last_chg_seq BIGINT NOT NULL DEFAULT 0` 그룹(ADR-0002 "TB_MDM_CODE·TB_MDM_DATA, TB_MDM_DICT_SEQ" = 3개): `TB_MDM_CODE`(04)·`TB_MDM_DATA`(05, ①과 중복 — 이 테이블만 두 칼럼을 함께 가진다)·`TB_MDM_DICT_SEQ`(02). `TB_MDM_DICT_SEQ` 초기 행(`dict_code='DOMAIN', last_chg_seq=0`) INSERT 후 조회 | 7개 전부 `chg_seq DEFAULT 0`, 3개 전부 `last_chg_seq DEFAULT 0`(distinct 테이블 수 9), 초기 행 1건 조회됨 |
 | **g** | 방언표 #2·#3·#4·#5·#19·#20 을 SQLite 에서 샘플로 실측: #2 `TB_MDM_CODE_RECV`·`TB_MDM_DATA_RECV`·`TB_MDM_RULE_RECV` 3곳의 `recv_id` 가 `INTEGER PRIMARY KEY AUTOINCREMENT` 로 실제 자동 증가하는지 연속 INSERT 로 확인. #3 `TB_MDM_RULE_ROW.cells` 에 부정형 JSON 문자열 INSERT 시 CHECK 로 거부되는지, NULL 허용 JSON 칼럼(`TB_MDM_DOMAIN.std_ast`)에 NULL INSERT 가 통과하는지. #4 샘플 `cells` 로 `json_each` 순번이 0부터인지. #5 `json_extract(cells, '$."1".op')` 로 값 추출. #19 코드 키 칼럼(`TB_MDM_CODE_ITEM.code`)에 대소문자만 다른 두 값이 서로 다른 행으로 INSERT 되는지(BINARY 비교 확인). #20 `TB_MDM_TERM.eng_abbr` 부분 인덱스에 NULL 여러 개가 통과하고 같은 비NULL 값 중복은 거부되는지 | 각 항목 기대값과 일치(0-based 순번, INSERT 성공/실패가 위 서술대로) |
 | **h** | `fixtures/cells-ref-check.sql`(RULE_VAR·RULE_ROW 샘플 + 정상/댕글링 셀 각 1건)로 06:1133 룰 참조 검사와 동치인 `json_each` 기반 조회 실행 | 댕글링(존재하지 않는 var_id 키, 또는 코드 카테고리 미배포 대상 참조) 1건 잡힘, 정상 참조 1건 통과 |
 | **i** | SQLite DDL 텍스트를 정규식으로 파싱해 `CONSTRAINT PK_/FK_/UX_/IX_/CK_` 접두, 128자 이하, 전부 대문자인지 확인(SQLite pragma 는 제약 이름을 노출하지 않으므로 텍스트 검사) | 위반 0건 |
@@ -125,7 +125,7 @@ SLF4J=${SLF4J_API_JAR:-/Users/jji/.gradle/wrapper/dists/gradle-8.14.3-bin/cv11ve
 1. **`src/` 는 한 줄도 바꾸지 않는다.** `data/mdm.db` 도 열지 않는다(검증은 임시 DB 만 쓴다).
 2. **원천 칼럼 이름은 대소문자만 바꾼다.** 칼럼 추가·삭제·개명은 이 Task 의 결정이 아니다 — 유일한 예외는 D3(02 관리속성 3칼럼)·D1·D2(03 신설 2테이블과 그 칼럼)처럼 원천이 비워 둔 자리를 이 Task 가 채우는 경우뿐이며, 이 경우도 `expected-columns.json` 의 "추가 칼럼" 목록에 명시해 체크 c 가 구분하게 한다.
 3. **보류 테이블(`*_SYSTEM`(COLUMN_SYSTEM 제외)·`TB_MDM_DICT_SEQ`·`TB_MDM_DICT_SYSTEM`·`*_RECV*`)은 DDL 에서 빼지 않는다.** "코드 없음"이지 "테이블 없음"이 아니다.
-4. **`TB_MDM_SYSTEM` 테이블 자체는 이 Task 가 만들지 않는다.** 참조 칼럼만 두고 FK 는 걸지 않는다(F2).
+4. **`TB_MDM_SYSTEM` 테이블 자체는 이 Task 가 만들지 않는다.** 다만 원천이 FK 로 적은 자리(§6.0 F2)에는 인라인 FK 를 건다 — "FK 없음"으로 되돌리지 않는다.
 5. **04·05·06 의 버전 상태 상수(DRAFT/REQUESTED/APPROVED/RELEASED/CANCELLED, CREATED/INUSE/DEPRECATED) 이름과 `apply_from`/`apply_to`·`row_version` 의미는 원천 그대로다.** TSK-02-01 D-017 의 버전 확정 규칙(결재 칸 처리 등)을 이 Task 가 다시 정의하지 않는다.
 6. **04 는 전체 방식(행 `chg_seq` 없음), 02·05 는 변경분 방식(행 `chg_seq` 있음)** 을 그대로 유지한다(PRD §2 규칙5, F11). 04 문서 안의 미결 "배포 방식"(04-master-code.md 와의 양자택일)은 이미 PRD 로 닫혔으므로 재론하지 않는다.
 7. **CATE_ITEM → CATE·ITEM(04), CATE → ITEM(05) 선분 참조에는 FK 를 걸지 않는다.** 저장 시·상신 시 검사로 앱이 대신한다(F12) — SQLite/MSSQL 모두 동일.
@@ -159,12 +159,14 @@ SLF4J=${SLF4J_API_JAR:-/Users/jji/.gradle/wrapper/dists/gradle-8.14.3-bin/cv11ve
 | `DEC73` | `NUMERIC(7,3)` | `DECIMAL(7,3)` | `BigDecimal` | 04 버전 번호(ver, restored_from, from_ver, to_ver) 전용 |
 | `ATTR500` | `TEXT` + 길이 앱 검사 | `NVARCHAR(500)` | `String` | 04·05 attr01-10 값 |
 | `DTS` | `TEXT`(`'YYYY-MM-DD HH:MM:SS'`) | `DATETIME2(0)` | `LocalDateTime` | 업무 일시(KST, 초 단위) |
+| `AUD_STR` | `VARCHAR(100)` | `VARCHAR(100)` | `String` | 감사 9칼럼의 문자 칼럼(C_USR_ID 등) — `naming-dialect-rules.md` §2 원문 그대로, COLLATE 없음 |
+| `AUD_AT` | `TIMESTAMP` | `DATETIME2` | `LocalDateTime` | 감사 `C_AT`/`U_AT` — mls V2 관례(정밀도 미지정, `DTS` 의 `(0)`과 다름) |
 
 **예약어 충돌 칼럼**(F18): `LAYOUT.version`, `LAYOUT_ITEM.offset`·`length`, `DATA_RECV_ITEM.action`, `*_RECV.result` 는 DDL 에서 SQLite `"..."`, MSSQL `[...]` 로 항상 감싼다. 칼럼명 자체는 바꾸지 않는다.
 
-**감사 9칼럼**(모든 표, `TB_MDM_DICT_SEQ` 제외 — `naming-dialect-rules.md` §2 그대로, 이하 `+AUDIT9` 로 표기): `C_USR_ID CD50`, `C_AT DTS`, `C_SVC_ID CD50`, `C_PGM_ID CD50`, `U_USR_ID CD50`, `U_AT DTS`, `U_SVC_ID CD50`, `U_PGM_ID CD50`, `VER BIGI` — 전부 NULL 허용.
+**감사 9칼럼**(모든 표, `TB_MDM_DICT_SEQ` 제외 — `naming-dialect-rules.md` §2 원문 그대로, 이하 `+AUDIT9` 로 표기): `C_USR_ID AUD_STR`, `C_AT AUD_AT`, `C_SVC_ID AUD_STR`, `C_PGM_ID AUD_STR`, `U_USR_ID AUD_STR`, `U_AT AUD_AT`, `U_SVC_ID AUD_STR`, `U_PGM_ID AUD_STR`, `VER BIGI`(= `BIGINT`, mls V2 관례) — 전부 NULL 허용. (이전 초안에서 `CD50`/`DTS` 를 잘못 인용했던 것을 정본대로 고쳤다.)
 
-**`TB_MDM_SYSTEM` 참조 칼럼**(F2): `system_code`/`source_system`/`snd_system`/`rcv_system` 류는 `CD20`(전부 짧은 코드이므로) 타입만 두고 FK 는 걸지 않는다. ERD 는 `TB_MDM_SYSTEM ..o{ 자식 : "(외부 참조, FK 없음 — TSK-01-02)"` 점선으로 그린다.
+**`TB_MDM_SYSTEM` 참조 칼럼**(F2): `TB_MDM_SYSTEM` 은 이 Task 가 만들지 않지만, 영역 계약 Task 는 전부 TSK-01-02 에 의존하므로 마이그레이션 시점에는 이미 존재한다(wbs 의존 순서). 따라서 원천이 FK 로 적은 자리(`system_code`/`source_system`/`snd_system`/`rcv_system` 등, §6.1~§6.5 각 표)에는 **`CD20` 타입 그대로 인라인 FK 를 건다**(`FK_{테이블}_SYSTEM`, 같은 테이블에 둘 이상이면 `_컬럼` 접미). `system_code` 의 실제 길이·타입은 TSK-01-02 계약이 아직 없어 `CD20`(VARCHAR(20))을 **가정**으로 둔다 — 계약이 확정되면 그 타입에 맞춰 `CD20` 정의를 갱신한다. ERD 는 실선 + `"TSK-01-02 소유"` 주석으로 그린다. FK 이름은 패턴대로면 `TB_MDM_CODE_SYSTEM`처럼 **형제 테이블 이름과 그대로 겹치는 경우**(MSSQL 은 제약 이름도 스키마 오브젝트 이름공간을 공유해 실제 충돌이 난다)가 있어, 그 칼럼이 `source_system`/`snd_system`/`rcv_system` 처럼 칼럼명 자체가 있는 자리는 `_SRC`/`_SND`/`_RCV` 를 붙여 피한다(예 `FK_TB_MDM_CODE_SYSTEM_SRC`). `*_SYSTEM` 자식 테이블(예 `TB_MDM_CODE_SYSTEM.system_code`)처럼 칼럼명이 `system_code` 하나뿐인 자리는 그대로 `FK_{테이블}_SYSTEM`(예 `FK_TB_MDM_CODE_SYSTEM_SYSTEM`)을 쓴다.
 
 ---
 
@@ -257,12 +259,12 @@ PK `PK_TB_MDM_COLUMN`(COLUMN_ID) · FK `FK_TB_MDM_COLUMN_DOMAIN`(DOMAIN_ID→TB_
 `+AUDIT9`
 
 **TB_MDM_COLUMN_SYSTEM** (원장, chg_seq 없음 — 변경은 TB_MDM_COLUMN.chg_seq 에 찍힘)
-PK `PK_TB_MDM_COLUMN_SYSTEM`(COLUMN_ID,SYSTEM_CODE,PHYS_NAME) · FK `FK_TB_MDM_COLUMN_SYSTEM_COLUMN`(COLUMN_ID→TB_MDM_COLUMN) · SYSTEM_CODE FK 없음(F2) · IX `IX_TB_MDM_COLUMN_SYSTEM_SYS_PHYS`(SYSTEM_CODE,PHYS_NAME) — 02:677 역방향 조회 요구 명시
+PK `PK_TB_MDM_COLUMN_SYSTEM`(COLUMN_ID,SYSTEM_CODE,PHYS_NAME) · FK `FK_TB_MDM_COLUMN_SYSTEM_COLUMN`(COLUMN_ID→TB_MDM_COLUMN), `FK_TB_MDM_COLUMN_SYSTEM_SYSTEM`(SYSTEM_CODE→TB_MDM_SYSTEM, F2·TSK-01-02 소유) · IX `IX_TB_MDM_COLUMN_SYSTEM_SYS_PHYS`(SYSTEM_CODE,PHYS_NAME) — 02:677 역방향 조회 요구 명시
 
 | 칼럼 | 타입 | NULL |
 |---|---|---|
 | COLUMN_ID | BIGINT/INTEGER(FK) | NOT NULL |
-| SYSTEM_CODE | CD20 | NOT NULL |
+| SYSTEM_CODE | CD20(FK) | NOT NULL |
 | PHYS_NAME | CD50 | NOT NULL |
 | TRANSFORM | CD50 | NULL |
 | NOTE | TXT | NULL |
@@ -280,12 +282,12 @@ PK `PK_TB_MDM_DICT_SEQ`(DICT_CODE) · CK `CK_TB_MDM_DICT_SEQ_CODE` `CHECK (DICT_
 초기 행 1건 필요: `('DOMAIN', 0)`.
 
 **TB_MDM_DICT_SYSTEM** (보류, 배포 안 함)
-PK `PK_TB_MDM_DICT_SYSTEM`(DICT_CODE,SYSTEM_CODE) · FK `FK_TB_MDM_DICT_SYSTEM_DICT_SEQ`(DICT_CODE→TB_MDM_DICT_SEQ) · SYSTEM_CODE FK 없음 · CK `CK_TB_MDM_DICT_SYSTEM_CODE` `CHECK (DICT_CODE='DOMAIN')`
+PK `PK_TB_MDM_DICT_SYSTEM`(DICT_CODE,SYSTEM_CODE) · FK `FK_TB_MDM_DICT_SYSTEM_DICT_SEQ`(DICT_CODE→TB_MDM_DICT_SEQ), `FK_TB_MDM_DICT_SYSTEM_SYSTEM`(SYSTEM_CODE→TB_MDM_SYSTEM, F2) · CK `CK_TB_MDM_DICT_SYSTEM_CODE` `CHECK (DICT_CODE='DOMAIN')`
 
 | 칼럼 | 타입 | NULL |
 |---|---|---|
 | DICT_CODE | CD20 | NOT NULL |
-| SYSTEM_CODE | CD20 | NOT NULL |
+| SYSTEM_CODE | CD20(FK) | NOT NULL |
 | NOTE | TXT | NULL |
 
 `+AUDIT9`
@@ -310,7 +312,7 @@ PK `PK_TB_MDM_EAI`(EAI_CODE) · FK `FK_TB_MDM_EAI_LAYOUT`(HEADER_LAYOUT_ID→TB_
 `+AUDIT9`
 
 **TB_MDM_LAYOUT**
-PK `PK_TB_MDM_LAYOUT`(LAYOUT_ID) · FK `FK_TB_MDM_LAYOUT_EAI`(EAI_CODE→TB_MDM_EAI, **순환, §6.6 후행 ALTER**) · SND_SYSTEM/RCV_SYSTEM FK 없음(F2) · CK `CK_TB_MDM_LAYOUT_KIND` `CHECK (LAYOUT_KIND IN ('HEADER','MESSAGE'))`
+PK `PK_TB_MDM_LAYOUT`(LAYOUT_ID) · FK `FK_TB_MDM_LAYOUT_EAI`(EAI_CODE→TB_MDM_EAI, **순환, §6.6 후행 ALTER**), `FK_TB_MDM_LAYOUT_SYSTEM_SND`(SND_SYSTEM→TB_MDM_SYSTEM, F2, 03:70), `FK_TB_MDM_LAYOUT_SYSTEM_RCV`(RCV_SYSTEM→TB_MDM_SYSTEM, F2, 03:70) · CK `CK_TB_MDM_LAYOUT_KIND` `CHECK (LAYOUT_KIND IN ('HEADER','MESSAGE'))`
 
 | 칼럼 | 타입 | NULL | 기본값 | 비고 |
 |---|---|---|---|---|
@@ -318,8 +320,8 @@ PK `PK_TB_MDM_LAYOUT`(LAYOUT_ID) · FK `FK_TB_MDM_LAYOUT_EAI`(EAI_CODE→TB_MDM_
 | LAYOUT_KIND | CD20 | NOT NULL | - | |
 | LAYOUT_NAME | NM100 | NOT NULL | - | |
 | EAI_CODE | CD20 | NULL | - | MESSAGE만(앱 검사) |
-| SND_SYSTEM | CD20 | NULL | - | |
-| RCV_SYSTEM | CD20 | NULL | - | |
+| SND_SYSTEM | CD20(FK) | NULL | - | |
+| RCV_SYSTEM | CD20(FK) | NULL | - | |
 | TOTAL_LENGTH | INT4 | NOT NULL | 0 | 계산값 |
 | `"VERSION"`/`[VERSION]` | BIGI | NOT NULL | 0 | 배포 스냅샷 번호(예약어, F18) |
 
@@ -374,7 +376,7 @@ PK `PK_TB_MDM_LAYOUT_CONST`(LAYOUT_ID,HEADER_LAYOUT_ID,HEADER_SEQ) · FK `FK_TB_
 전체 방식(F11) — 행 단위 `chg_seq` 없음, `TB_MDM_CODE.last_chg_seq` 하나.
 
 **TB_MDM_CODE**
-PK `PK_TB_MDM_CODE`(MARU_CODE_ID) · SOURCE_SYSTEM FK 없음(F2) · CK `CK_TB_MDM_CODE_STATUS` IN('CREATED','INUSE','DEPRECATED'), `CK_TB_MDM_CODE_SRC_KIND` IN('MDM','EXTERNAL'), `CK_TB_MDM_CODE_SRC_SYS` `CHECK ((SOURCE_KIND='EXTERNAL' AND SOURCE_SYSTEM IS NOT NULL) OR (SOURCE_KIND='MDM' AND SOURCE_SYSTEM IS NULL))`, `CK_TB_MDM_CODE_LVL_CNT` `CHECK (LVL_CNT BETWEEN 0 AND 5)`
+PK `PK_TB_MDM_CODE`(MARU_CODE_ID) · FK `FK_TB_MDM_CODE_SYSTEM_SRC`(SOURCE_SYSTEM→TB_MDM_SYSTEM, F2, 04:957) · CK `CK_TB_MDM_CODE_STATUS` IN('CREATED','INUSE','DEPRECATED'), `CK_TB_MDM_CODE_SRC_KIND` IN('MDM','EXTERNAL'), `CK_TB_MDM_CODE_SRC_SYS` `CHECK ((SOURCE_KIND='EXTERNAL' AND SOURCE_SYSTEM IS NOT NULL) OR (SOURCE_KIND='MDM' AND SOURCE_SYSTEM IS NULL))`, `CK_TB_MDM_CODE_LVL_CNT` `CHECK (LVL_CNT BETWEEN 0 AND 5)`
 
 | 칼럼 | 타입 | NULL | 기본값 |
 |---|---|---|---|
@@ -382,7 +384,7 @@ PK `PK_TB_MDM_CODE`(MARU_CODE_ID) · SOURCE_SYSTEM FK 없음(F2) · CK `CK_TB_MD
 | MARU_CODE_NAME | NM100 | NOT NULL | - |
 | STATUS | CD20 | NOT NULL | 'CREATED' |
 | SOURCE_KIND | CD20 | NOT NULL | - |
-| SOURCE_SYSTEM | CD20 | NULL | - |
+| SOURCE_SYSTEM | CD20(FK) | NULL | - |
 | DESCRIPTION | TXT | NULL | - |
 | ATTR01_NAME..ATTR10_NAME | NM100 ×10 | NULL | - |
 | LVL_CNT | INT4 | NOT NULL | 0 |
@@ -391,12 +393,12 @@ PK `PK_TB_MDM_CODE`(MARU_CODE_ID) · SOURCE_SYSTEM FK 없음(F2) · CK `CK_TB_MD
 `+AUDIT9`
 
 **TB_MDM_CODE_SYSTEM**(보류)
-PK `PK_TB_MDM_CODE_SYSTEM`(MARU_CODE_ID,SYSTEM_CODE) · FK `FK_TB_MDM_CODE_SYSTEM_CODE`(MARU_CODE_ID→TB_MDM_CODE) · SYSTEM_CODE FK 없음
+PK `PK_TB_MDM_CODE_SYSTEM`(MARU_CODE_ID,SYSTEM_CODE) · FK `FK_TB_MDM_CODE_SYSTEM_CODE`(MARU_CODE_ID→TB_MDM_CODE), `FK_TB_MDM_CODE_SYSTEM_SYSTEM`(SYSTEM_CODE→TB_MDM_SYSTEM, F2)
 
 | 칼럼 | 타입 | NULL |
 |---|---|---|
 | MARU_CODE_ID | CD50(FK) | NOT NULL |
-| SYSTEM_CODE | CD20 | NOT NULL |
+| SYSTEM_CODE | CD20(FK) | NOT NULL |
 | DESCRIPTION | TXT | NULL |
 
 `+AUDIT9`
@@ -478,13 +480,13 @@ PK `PK_TB_MDM_CODE_CATE_ITEM`(MARU_CODE_ID,CATE_ID,CODE,FROM_VER) · FK `FK_TB_M
 `+AUDIT9`
 
 **TB_MDM_CODE_RECV**
-PK `PK_TB_MDM_CODE_RECV`(RECV_ID) · FK `FK_TB_MDM_CODE_RECV_CODE`(MARU_CODE_ID→TB_MDM_CODE) · SOURCE_SYSTEM FK 없음 · CK `CK_TB_MDM_CODE_RECV_REQ` IN('VERSION','CANCEL','DEPRECATE'), `CK_TB_MDM_CODE_RECV_RESULT` `CHECK ("RESULT" IS NULL OR "RESULT" IN ('OK','REJECTED','FAILED'))`
+PK `PK_TB_MDM_CODE_RECV`(RECV_ID) · FK `FK_TB_MDM_CODE_RECV_CODE`(MARU_CODE_ID→TB_MDM_CODE), `FK_TB_MDM_CODE_RECV_SYSTEM`(SOURCE_SYSTEM→TB_MDM_SYSTEM, F2) · CK `CK_TB_MDM_CODE_RECV_REQ` IN('VERSION','CANCEL','DEPRECATE'), `CK_TB_MDM_CODE_RECV_RESULT` `CHECK ("RESULT" IS NULL OR "RESULT" IN ('OK','REJECTED','FAILED'))`
 
 | 칼럼 | 타입 | NULL |
 |---|---|---|
 | RECV_ID | ID_AI | NOT NULL |
 | MARU_CODE_ID | CD50(FK) | NULL |
-| SOURCE_SYSTEM | CD20 | NOT NULL |
+| SOURCE_SYSTEM | CD20(FK) | NOT NULL |
 | SOURCE_REF | CD50 | NULL |
 | REQ_KIND | CD20 | NOT NULL |
 | RECEIVED_AT | DTS | NOT NULL |
@@ -504,7 +506,7 @@ PK `PK_TB_MDM_CODE_RECV`(RECV_ID) · FK `FK_TB_MDM_CODE_RECV_CODE`(MARU_CODE_ID�
 변경분 방식(F11) — 행 단위 `chg_seq` NOT NULL. `TB_MDM_DATA_CATE_EFF`(사본 전용 REGEX 캐시)는 spec 대상 밖, 원장 DDL 에 포함하지 않는다.
 
 **TB_MDM_DATA**
-PK `PK_TB_MDM_DATA`(MARU_DATA_ID) · SOURCE_SYSTEM FK 없음 · CK `CK_TB_MDM_DATA_STATUS` IN('INUSE','DEPRECATED'), `CK_TB_MDM_DATA_SRC_KIND` IN('MDM','EXTERNAL'), `CK_TB_MDM_DATA_SRC_SYS` `CHECK ((SOURCE_KIND='EXTERNAL' AND SOURCE_SYSTEM IS NOT NULL) OR (SOURCE_KIND='MDM' AND SOURCE_SYSTEM IS NULL))`, `CK_TB_MDM_DATA_LVL_CNT` `CHECK (LVL_CNT BETWEEN 0 AND 5)`
+PK `PK_TB_MDM_DATA`(MARU_DATA_ID) · FK `FK_TB_MDM_DATA_SYSTEM_SRC`(SOURCE_SYSTEM→TB_MDM_SYSTEM, F2, 05:594) · CK `CK_TB_MDM_DATA_STATUS` IN('INUSE','DEPRECATED'), `CK_TB_MDM_DATA_SRC_KIND` IN('MDM','EXTERNAL'), `CK_TB_MDM_DATA_SRC_SYS` `CHECK ((SOURCE_KIND='EXTERNAL' AND SOURCE_SYSTEM IS NOT NULL) OR (SOURCE_KIND='MDM' AND SOURCE_SYSTEM IS NULL))`, `CK_TB_MDM_DATA_LVL_CNT` `CHECK (LVL_CNT BETWEEN 0 AND 5)`
 
 | 칼럼 | 타입 | NULL | 기본값 |
 |---|---|---|---|
@@ -512,7 +514,7 @@ PK `PK_TB_MDM_DATA`(MARU_DATA_ID) · SOURCE_SYSTEM FK 없음 · CK `CK_TB_MDM_DA
 | MARU_DATA_NAME | NM100 | NOT NULL | - |
 | STATUS | CD20 | NOT NULL | 'INUSE' |
 | SOURCE_KIND | CD20 | NOT NULL | - |
-| SOURCE_SYSTEM | CD20 | NULL | - |
+| SOURCE_SYSTEM | CD20(FK) | NULL | - |
 | CODE_PATTERN | TXT_A | NOT NULL | `'^[0-9A-Z]{1,20}$'` |
 | DESCRIPTION | TXT | NULL | - |
 | ATTR01_NAME..ATTR10_NAME | NM100 ×10 | NULL | - |
@@ -524,12 +526,12 @@ PK `PK_TB_MDM_DATA`(MARU_DATA_ID) · SOURCE_SYSTEM FK 없음 · CK `CK_TB_MDM_DA
 `+AUDIT9`
 
 **TB_MDM_DATA_SYSTEM**(보류)
-PK `PK_TB_MDM_DATA_SYSTEM`(MARU_DATA_ID,SYSTEM_CODE) · FK `FK_TB_MDM_DATA_SYSTEM_DATA`(MARU_DATA_ID→TB_MDM_DATA) · SYSTEM_CODE FK 없음
+PK `PK_TB_MDM_DATA_SYSTEM`(MARU_DATA_ID,SYSTEM_CODE) · FK `FK_TB_MDM_DATA_SYSTEM_DATA`(MARU_DATA_ID→TB_MDM_DATA), `FK_TB_MDM_DATA_SYSTEM_SYSTEM`(SYSTEM_CODE→TB_MDM_SYSTEM, F2)
 
 | 칼럼 | 타입 | NULL |
 |---|---|---|
 | MARU_DATA_ID | CD50(FK) | NOT NULL |
-| SYSTEM_CODE | CD20 | NOT NULL |
+| SYSTEM_CODE | CD20(FK) | NOT NULL |
 | DESCRIPTION | TXT | NULL |
 
 `+AUDIT9`
@@ -548,7 +550,7 @@ PK `PK_TB_MDM_DATA_ITEM`(MARU_DATA_ID,CODE,VALID_FROM) · FK `FK_TB_MDM_DATA_ITE
 | DESCRIPTION | TXT | NULL | - |
 | VALID_TO | DTS | NOT NULL | `'9999-12-31 00:00:00'` |
 | ROW_VERSION | INT4 | NOT NULL | 0 |
-| CHG_SEQ | BIGI | NOT NULL | - |
+| CHG_SEQ | BIGI | NOT NULL | 0 |
 | LVL1..LVL5 | CD50 ×5 | NULL | - |
 | ATTR01..ATTR10 | ATTR500 ×10 | NULL | - |
 
@@ -568,7 +570,7 @@ PK `PK_TB_MDM_DATA_CATE`(MARU_DATA_ID,CATE_ID,VALID_FROM) · FK `FK_TB_MDM_DATA_
 | DEF_TARGET | CD20 | NULL | - |
 | DESCRIPTION | TXT | NULL | - |
 | VALID_TO | DTS | NOT NULL | `'9999-12-31 00:00:00'` |
-| CHG_SEQ | BIGI | NOT NULL | - |
+| CHG_SEQ | BIGI | NOT NULL | 0 |
 
 `+AUDIT9`
 
@@ -582,18 +584,18 @@ PK `PK_TB_MDM_DATA_CATE_ITEM`(MARU_DATA_ID,CATE_ID,CODE,VALID_FROM) · FK `FK_TB
 | CODE | CD50 | NOT NULL | - |
 | VALID_FROM | DTS | NOT NULL | - |
 | VALID_TO | DTS | NOT NULL | `'9999-12-31 00:00:00'` |
-| CHG_SEQ | BIGI | NOT NULL | - |
+| CHG_SEQ | BIGI | NOT NULL | 0 |
 
 `+AUDIT9`
 
 **TB_MDM_DATA_RECV**
-PK `PK_TB_MDM_DATA_RECV`(RECV_ID) · FK `FK_TB_MDM_DATA_RECV_DATA`(MARU_DATA_ID→TB_MDM_DATA) · SOURCE_SYSTEM FK 없음 · CK `CK_TB_MDM_DATA_RECV_RESULT` `CHECK ("RESULT" IS NULL OR "RESULT" IN ('OK','REJECTED','FAILED'))`
+PK `PK_TB_MDM_DATA_RECV`(RECV_ID) · FK `FK_TB_MDM_DATA_RECV_DATA`(MARU_DATA_ID→TB_MDM_DATA), `FK_TB_MDM_DATA_RECV_SYSTEM`(SOURCE_SYSTEM→TB_MDM_SYSTEM, F2) · CK `CK_TB_MDM_DATA_RECV_RESULT` `CHECK ("RESULT" IS NULL OR "RESULT" IN ('OK','REJECTED','FAILED'))`
 
 | 칼럼 | 타입 | NULL | 기본값 |
 |---|---|---|---|
 | RECV_ID | ID_AI | NOT NULL | - |
 | MARU_DATA_ID | CD50(FK) | NULL | - |
-| SOURCE_SYSTEM | CD20 | NOT NULL | - |
+| SOURCE_SYSTEM | CD20(FK) | NOT NULL | - |
 | SOURCE_REF | CD50 | NULL | - |
 | RECEIVED_AT | DTS | NOT NULL | - |
 | BODY | TXT | NOT NULL | - |
@@ -624,7 +626,7 @@ PK `PK_TB_MDM_DATA_RECV_ITEM`(RECV_ID,SEQ) · FK `FK_TB_MDM_DATA_RECV_ITEM_RECV`
 배포 순번 `chg_seq` 없음(버전 스냅샷 배포, 06:905).
 
 **TB_MDM_RULE**
-PK `PK_TB_MDM_RULE`(MARU_RULE_ID) · SOURCE_SYSTEM FK 없음 · CK `CK_TB_MDM_RULE_KIND` IN('DECISION','DERIVE'), `CK_TB_MDM_RULE_STATUS` IN('CREATED','INUSE','DEPRECATED'), `CK_TB_MDM_RULE_SRC_KIND` IN('MDM','EXTERNAL'), `CK_TB_MDM_RULE_SRC_SYS` `CHECK ((SOURCE_KIND='EXTERNAL' AND SOURCE_SYSTEM IS NOT NULL) OR (SOURCE_KIND='MDM' AND SOURCE_SYSTEM IS NULL))`
+PK `PK_TB_MDM_RULE`(MARU_RULE_ID) · FK `FK_TB_MDM_RULE_SYSTEM_SRC`(SOURCE_SYSTEM→TB_MDM_SYSTEM, F2, 06:896) · CK `CK_TB_MDM_RULE_KIND` IN('DECISION','DERIVE'), `CK_TB_MDM_RULE_STATUS` IN('CREATED','INUSE','DEPRECATED'), `CK_TB_MDM_RULE_SRC_KIND` IN('MDM','EXTERNAL'), `CK_TB_MDM_RULE_SRC_SYS` `CHECK ((SOURCE_KIND='EXTERNAL' AND SOURCE_SYSTEM IS NOT NULL) OR (SOURCE_KIND='MDM' AND SOURCE_SYSTEM IS NULL))`
 
 | 칼럼 | 타입 | NULL | 기본값 |
 |---|---|---|---|
@@ -633,7 +635,7 @@ PK `PK_TB_MDM_RULE`(MARU_RULE_ID) · SOURCE_SYSTEM FK 없음 · CK `CK_TB_MDM_RU
 | RULE_KIND | CD20 | NOT NULL | - |
 | STATUS | CD20 | NOT NULL | 'CREATED' |
 | SOURCE_KIND | CD20 | NOT NULL | - |
-| SOURCE_SYSTEM | CD20 | NULL | - |
+| SOURCE_SYSTEM | CD20(FK) | NULL | - |
 | DESCRIPTION | TXT | NULL | - |
 | USAGE_NOTE | TXT | NULL | - |
 | LAST_VAR_ID | INT4 | NOT NULL | 0 |
@@ -643,12 +645,12 @@ PK `PK_TB_MDM_RULE`(MARU_RULE_ID) · SOURCE_SYSTEM FK 없음 · CK `CK_TB_MDM_RU
 `+AUDIT9`
 
 **TB_MDM_RULE_SYSTEM**(보류)
-PK `PK_TB_MDM_RULE_SYSTEM`(MARU_RULE_ID,SYSTEM_CODE) · FK `FK_TB_MDM_RULE_SYSTEM_RULE`(MARU_RULE_ID→TB_MDM_RULE) · SYSTEM_CODE FK 없음 · CK `CK_TB_MDM_RULE_SYSTEM_KIND` IN('DEF','RESULT')
+PK `PK_TB_MDM_RULE_SYSTEM`(MARU_RULE_ID,SYSTEM_CODE) · FK `FK_TB_MDM_RULE_SYSTEM_RULE`(MARU_RULE_ID→TB_MDM_RULE), `FK_TB_MDM_RULE_SYSTEM_SYSTEM`(SYSTEM_CODE→TB_MDM_SYSTEM, F2) · CK `CK_TB_MDM_RULE_SYSTEM_KIND` IN('DEF','RESULT')
 
 | 칼럼 | 타입 | NULL | 기본값 |
 |---|---|---|---|
 | MARU_RULE_ID | CD50(FK) | NOT NULL | - |
-| SYSTEM_CODE | CD20 | NOT NULL | - |
+| SYSTEM_CODE | CD20(FK) | NOT NULL | - |
 | DEPLOY_KIND | CD20 | NOT NULL | 'DEF' |
 | DESCRIPTION | TXT | NULL | - |
 
@@ -754,13 +756,13 @@ PK `PK_TB_MDM_RULE_SET`(MARU_RULE_SET_ID) · RULE_IDS FK 없음(원천 명시) �
 `+AUDIT9`
 
 **TB_MDM_RULE_RECV**
-PK `PK_TB_MDM_RULE_RECV`(RECV_ID) · FK `FK_TB_MDM_RULE_RECV_RULE`(MARU_RULE_ID→TB_MDM_RULE) · SOURCE_SYSTEM FK 없음 · CK `CK_TB_MDM_RULE_RECV_REQ` IN('VERSION','CANCEL','DEPRECATE'), `CK_TB_MDM_RULE_RECV_RESULT` `CHECK ("RESULT" IS NULL OR "RESULT" IN ('OK','REJECTED','FAILED'))`
+PK `PK_TB_MDM_RULE_RECV`(RECV_ID) · FK `FK_TB_MDM_RULE_RECV_RULE`(MARU_RULE_ID→TB_MDM_RULE), `FK_TB_MDM_RULE_RECV_SYSTEM`(SOURCE_SYSTEM→TB_MDM_SYSTEM, F2) · CK `CK_TB_MDM_RULE_RECV_REQ` IN('VERSION','CANCEL','DEPRECATE'), `CK_TB_MDM_RULE_RECV_RESULT` `CHECK ("RESULT" IS NULL OR "RESULT" IN ('OK','REJECTED','FAILED'))`
 
 | 칼럼 | 타입 | NULL |
 |---|---|---|
 | RECV_ID | ID_AI | NOT NULL |
 | MARU_RULE_ID | CD50(FK) | NULL |
-| SOURCE_SYSTEM | CD20 | NOT NULL |
+| SOURCE_SYSTEM | CD20(FK) | NOT NULL |
 | SOURCE_REF | CD50 | NULL |
 | REQ_KIND | CD20 | NOT NULL |
 | RECEIVED_AT | DTS | NOT NULL |
