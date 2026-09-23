@@ -10,7 +10,7 @@
 
 > **(MUST — 사용자 결정 사항 정본)** MES 룰 = **`{화면명}` 단일 토큰** camelCase (모듈명·그룹명 prefix 없음). APS 예외 (`mpn`) 도 단일 토큰. (§A.3.1 정본)
 
-#### MES 룰 (`mls` / `mqc` / `mpp` / `mas` / `mcm` — 정본)
+#### MES 룰 (`mls` / `mqc` / `mpp` / `mas` / `mcm` / `mdm` — 정본)
 
 - **단일 토큰 camelCase `{화면명}`** — 화면명 그 자체 (첫 글자 소문자, 모듈명/그룹명 결합 없음)
 - 예: `plateSlittingMgmt`, `masterCodeMng`, `inspectionRequest`, `stockMove`
@@ -29,7 +29,7 @@
 
 > **(MUST)** MES 룰 = `screenId` 와 동일 camelCase 단일값. APS 예외 (`mpn`) 만 kebab-case 변환.
 
-#### MES 룰 (`mls` / `mqc` / `mpp` / `mas` / `mcm` — 정본)
+#### MES 룰 (`mls` / `mqc` / `mpp` / `mas` / `mcm` / `mdm` — 정본)
 
 - **`screenId` 와 동일 camelCase 값** (변환 ✗)
 - 예: `plateSlittingMgmt` → `plateSlittingMgmt` (동일값) / `masterCodeMng` → `masterCodeMng` (동일값)
@@ -45,7 +45,7 @@
 
 > **(MUST)** MES 룰 = `screenId` 와 동일 camelCase 단일값. APS 예외 (`mpn`) 만 `portal:{moduleGroup}/{pageName}` path 구조 가능.
 
-#### MES 룰 (`mls` / `mqc` / `mpp` / `mas` / `mcm` — 정본)
+#### MES 룰 (`mls` / `mqc` / `mpp` / `mas` / `mcm` / `mdm` — 정본)
 
 - **`screenId` 와 동일 camelCase 단일값** (= `pageName` = `serviceId` 와도 동일)
 - 예: `plateSlittingMgmt` / `masterCodeMng` / `inspectionRequest`
@@ -134,7 +134,7 @@
 
 > **(MUST)** MES 룰 / APS 예외 별도. 파일명 = `{screenId}.tsx` (MES) vs `{kebab-pageName}-page.tsx` (APS).
 
-#### MES 룰 (`mls` / `mqc` / `mpp` / `mas` / `mcm` — 정본)
+#### MES 룰 (`mls` / `mqc` / `mpp` / `mas` / `mcm` / `mdm` — 정본)
 
 - Frontend 파일명: **`{screenId}.tsx`** (camelCase 단일값, suffix `-page` 없음)
 - 예: `plateSlittingMgmt.tsx` / `masterCodeMng.tsx` / `inspectionRequest.tsx`

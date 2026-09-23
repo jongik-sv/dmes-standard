@@ -1,6 +1,6 @@
 # TRD — 마루 MDM (dmes-standard 개발분)
 
-> version: 1.1 · 작성: 2026-09-23 · 개정: 2026-09-23(결재·배포·수신 보류)
+> version: 1.2 · 작성: 2026-09-23 · 개정: 2026-09-23(결재·배포·수신 보류), 2026-09-24(전사 아키텍처 확정 — TSK-02-01)
 > 근거: 현재 dmes-standard 저장소 환경(RULE.md, `docs/guide/**`, `src/backend/**`, `src/frontend/**`).
 > 기능 범위는 `docs/mdm/PRD.md`, 상세 규칙은 원천 설계 `docs/mdm/design/basic/02~06`.
 > 이 문서에 적은 명령은 저장소 문서·스크립트에서 옮긴 것이며 이 문서 작성 시점에 실행해 확인하지 않았다.
@@ -25,7 +25,7 @@
 |---|---|---|
 | 언어·런타임 | Java 21, Spring Boot 4.0.6, Gradle 9.3.1 wrapper(`src/backend/gradlew`) | `src/backend/mcm/build.gradle`, wrapper properties |
 | 프레임워크 | cactus-core 1.0.22-SNAPSHOT(보안·JWT·다중 DS/TX), OASIS 5.1.1(BPMN 서비스) | 각 `build.gradle` |
-| 영속성 | JPA + MyBatis(복잡 조회·방언별 SQL) | mcm-core 관례 |
+| 영속성 | JPA(엔티티·Repository) + JPA native 쿼리(방언별 SQL). MyBatis 는 쓰지 않는다 | backend-standard 04 MES 모듈 규칙, [명명·방언 규칙](naming-dialect-rules.md) §4 |
 | DB | 로컬 SQLite, local-db·운영 MSSQL(WildFly JNDI), 테스트 H2 | `application-*.yml` |
 | 식 엔진 | EvalEx 3.7.0 (precision 68, HALF_EVEN) | 06, evalex-guide |
 | 임베딩(용어 유사어 2차) | KURE-v1 ONNX INT8 + ONNX Runtime Java(CPU) | 02 「임베딩」 — 저장 방식은 조사 Task |
@@ -55,41 +55,44 @@
 
 ### 4.2 방언 매핑 (설계는 PostgreSQL 문법 전제)
 
+확정 규칙표(2026-09-24, TSK-02-01): [naming-dialect-rules.md](naming-dialect-rules.md) §3. 아래 표는 요약이며 충돌하면 규칙표가 우선한다.
+
 | 설계 문법 | SQLite(로컬) | MSSQL(운영) |
 |---|---|---|
 | `UPDATE … RETURNING` (배포 순번·식별자 발급) | `RETURNING` 지원(3.35+) | `OUTPUT inserted.*` |
 | JSONB (`TB_MDM_RULE_ROW.cells`, `TB_MDM_RULE_SET.rule_ids` 등) | TEXT + `json_each` | `NVARCHAR(MAX)` + `ISJSON` CHECK, `OPENJSON` |
 | REPEATABLE READ 한 스냅샷 읽기 | WAL 읽기 트랜잭션 | `SNAPSHOT` 격리 수준 |
 | `vector` (용어 임베딩) | 대응 없음 | 대응 없음(버전별 상이) → 조사 Task |
-| 재귀 CTE(영향도·상속 트리) | 지원 | 지원 |
+| 재귀 CTE(영향도·상속 트리) | 지원 | 지원(RECURSIVE 키워드 없음 — 공통 문안은 WITH + UNION ALL) |
 
 ### 4.3 스키마 관리
 - 새 모듈이므로 Flyway 를 쓴다. 위치 `mdm/api/src/main/resources/db/migration/mdm/{sqlite,mssql}` (mqc 관례).
 - 번호는 두 방언 합집합에서 채번한다: `flyway-migration-add` 스킬.
 - 테이블 명명(사용자 결정 2026-09-23): 원천 설계의 `MD_*` 를 저장소 규칙 `TB_{모듈}_*` 에 맞춰 **`TB_MDM_*`** 로 바꾼다. 예: `MD_UNIT` → `TB_MDM_UNIT`, `MD_CODE_ITEM` → `TB_MDM_CODE_ITEM`.
   - 원천 설계 문서·HTML 시안·sql 도 2026-09-23 에 `TB_MDM_*` 로 바꿨다(백업: `/Users/jji/project/mdm/old/basic-before-tb-mdm-rename-2026-09-23.tar.gz`).
-  - 후속 조치(전사 아키텍처 설계 Task): 식별자 사전 정규식(`04-decision-table-dispatch.md`, 5모듈만 허용)에 `mdm` 추가, 감사 칼럼 자동 주입(`McmAuditStatementInspector`, `TB_MCM_*` 한정)을 `TB_MDM_*` 에 적용할지 결정.
+  - 확정(2026-09-24, TSK-02-01): 식별자 사전에 mdm 모듈을 등재하고 §A.12.7 에 mdm 대문자 예외(`TB_MDM_{역할}`, 칼럼 UPPER_SNAKE)를 둔다. 감사 칼럼 자동 주입(`McmAuditStatementInspector`)은 `TB_MDM_*` 에 적용하지 않는다 — 감사 9칼럼은 `CactusAuditEntity` 리스너가 채운다. [ADR-0001](adr/0001-physical-naming-audit-dialect.md)
 
 ## 5. 프론트엔드
 
-- 화면은 `m-mdm/src/pages/{group}/{screenId}/page.tsx`, 팝업은 `{group}/{screenId}/{screenId}.tsx` + `index.ts` 배럴(page.tsx 금지).
+- 화면은 `m-mdm/pages/{group}/{screenId}/page.tsx`(포털 codegen 이 스캔하는 경로, `src/` 없음), 팝업은 `{group}/{screenId}/{screenId}.tsx` + `index.ts` 배럴(page.tsx 금지).
 - 메뉴·OBJECT·RBAC 는 백엔드 `DataInitializer` 에 시드한다. `componentPath = {group}/{screenId}`. 메뉴 등록은 화면 Task 안에서 끝낸다(orphan page 금지).
 - 공통 컴포넌트: `shared/src/components/{grid,form,tree,tabs,lookup}`, `PageLayout`, 엑셀 업로드 팝업 패턴.
-- 화면 그룹 코드(가정, 전사 아키텍처 설계에서 식별자 사전과 대조해 확정):
+- 화면 그룹 코드(확정 2026-09-24, 식별자 사전 §A.2.1 영역 코드 — 목록·screenId 는 [screens/README.md](screens/README.md)):
 
 | 그룹 | 영역 |
 |---|---|
-| `mdt` | 용어·도메인·컬럼·단위(02) |
-| `mdl` | 인터페이스 레이아웃(03) |
-| `mdc` | 마스터코드(04) |
-| `mdd` | 마스터데이터(05) |
-| `mdr` | 업무기준·룰 세트(06) |
-| `mda` | 결재 공통. 보류(PRD §2 규칙 7) — 이번 범위에서 화면 없음 |
+| `dma` | 용어·도메인·컬럼·단위(02) |
+| `dmb` | 인터페이스 레이아웃(03) |
+| `dmc` | 마스터코드(04) |
+| `dmd` | 마스터데이터(05) |
+| `dme` | 업무기준·룰 세트(06) |
+
+결재 공통 그룹은 보류(PRD §2 규칙 7)다. 결재를 구현할 때 다음 순번(`dmf`)으로 등재한다.
 
 ## 6. 인증·권한
 
 - cactus JWT + NextAuth + BFF(`m-mcm/proxy.ts`) RBAC 검증을 그대로 쓴다.
-- 역할(표준 관리자·담당자)은 `TB_MCM_SEC_ROLE` 에 시드하고, 권한 액션은 기존 코드(`search/save` 등)를 쓴다. 버전 확정은 담당자 권한이다. 결재자 역할과 `approve/reject/cancel` 액션은 결재 보류와 함께 미룬다.
+- 역할은 `MDM_STD_ADMIN`(표준 관리자)·`MDM_STEWARD`(담당자) 2종을 `TB_MCM_SEC_ROLE` 에 시드하고, 권한 세트 `PERM_MDM_READ`·`PERM_MDM_EDIT`·`PERM_MDM_CONFIRM` 을 그룹별로 매핑한다(매트릭스: [ADR-0003](adr/0003-module-boundary-screens-roles.md)). 버전 확정(`confirm`)은 담당자 권한이다. 결재자 역할과 `approve/reject/cancel` 액션은 결재 보류와 함께 미룬다.
 - DRAFT 소유권(선점·해제·넘기기)은 역할이 아니라 `owner_id` 로 판정한다(04 「버전 상태와 적용시점」, 06 「테이블 설계」).
 
 ## 7. 테스트·품질 명령 (문서 기준, 미실행)
@@ -110,17 +113,17 @@
 ## 8. 개발 절차 (RULE.md)
 
 - MDM 은 MES 개발 분기(`docs/guide/MES/Mes-Guide.md`)를 탄다. 화면마다 설계 산출물 5종(분석 리포트·기능·디자인·BPMN·정합 체크)을 개발 전에 만든다.
-- 산출물 위치: `docs/mdm/design/{screenId}/` 는 **외부 mdm 프로젝트로 가는 심볼릭 링크 안**이다(`docs/mdm/design` → `/Users/jji/project/mdm/docs/design`). 화면 산출물을 dmes 저장소에 커밋하려면 위치를 `docs/mdm/screens/{screenId}/` 로 두는 안을 전사 아키텍처 설계 Task 에서 정한다.
+- 산출물 위치(확정 2026-09-24): `docs/mdm/screens/{screenId}/`. `docs/mdm/design` 은 외부 mdm 프로젝트로 가는 링크(gitignore)라 커밋되지 않는다. [screens/README.md](screens/README.md)
 - 스키마 변경은 `flyway-migration-add`, 되돌리기 어려운 결정은 `adr-write` 로 ADR 을 남긴다.
 
 ## 9. 가정 (Assumptions, 2026-09-23)
 
 | # | 가정 | 확정 시점 |
 |---|---|---|
-| T1 | 기존 mcm `cma`/`cmb` As-Is 화면과 신규 MDM 은 병존한다. 데이터 이관은 범위 밖 | 전사 아키텍처 설계 |
-| T2 | 화면 그룹 코드 `mdt/mdl/mdc/mdd/mdr/mda` | 전사 아키텍처 설계 |
+| T1 | 기존 mcm `cma`/`cmb` As-Is 화면과 신규 MDM 은 병존한다. 데이터 이관은 범위 밖 | **확정** 2026-09-24 — [ADR-0003](adr/0003-module-boundary-screens-roles.md) |
+| T2 | 화면 그룹 코드 `dma/dmb/dmc/dmd/dme`(가정했던 의미 기호형 코드를 식별자 사전 §A.2.1 영역 코드로 바꿈. 결재 그룹은 보류) | **확정** 2026-09-24 — [screens/README.md](screens/README.md), [ADR-0003](adr/0003-module-boundary-screens-roles.md) |
 | T3 | 로컬 포트 8096 | 스캐폴드 |
-| T4 | 결재·배포·수신은 이번에 구현하지 않는다(PRD §2 규칙 7). 배포 대상·순번·수신 로그 테이블은 설계대로 만들되 코드는 쓰지 않는다 | 전사 아키텍처 설계 |
+| T4 | 결재·배포·수신은 이번에 구현하지 않는다(PRD §2 규칙 7). 배포 대상·순번·수신 로그 테이블은 설계대로 만들되 코드는 쓰지 않는다 | **확정** 2026-09-24 — [ADR-0002](adr/0002-version-confirm-without-approval.md) |
 | T5 | 엔진 jar 는 사내 Maven 저장소 배포를 전제로 버전을 붙이되, 1차는 composite build 의존으로 쓴다 | 엔진 설계 |
 | T6 | 용어 임베딩은 원장 DB 밖(파일 인덱스 또는 별도 저장)에 둘 수 있다. 결정 전까지 1차 문자열 유사어로 기능한다 | 임베딩 조사 |
 

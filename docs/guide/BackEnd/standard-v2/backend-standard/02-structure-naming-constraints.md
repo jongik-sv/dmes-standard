@@ -109,7 +109,7 @@ MES 4 모듈 (`mls` / `mqc` / `mpp` / `mas`) 은 한 화면을 식별하는 모�
 |---|---|---|
 | 클래스 | PascalCase (`{ScreenId 첫글자 대문자}*`) — Java 클래스 컨벤션 (식별자/폴더/파일명 룰과는 별개) | `PlateSlittingMgmtService` |
 | 메서드/변수 | camelCase | `searchPlateSlitting` |
-| 테이블 | `TB_{모듈명}_{역할}` (모듈명=mpn/mpp/mls/mqc/mas/mcm lowercase 3글자, 역할=lowercase snake_case) | `TB_mls_plate_slitting` |
+| 테이블 | `TB_{모듈명}_{역할}` (모듈명=mpn/mpp/mls/mqc/mas/mcm lowercase 3글자, 역할=lowercase snake_case) · 예외: `mdm` 은 `TB_MDM_{역할}` 대문자(식별자 사전 §A.12.7) | `TB_mls_plate_slitting` |
 | 컬럼 | UPPER_SNAKE_CASE | `SLITTING_NO` |
 | Service Bean | camelCase = `screenId` 와 동일 | `@Service("plateSlittingMgmt")` |
 | BPMN 파일 | `{serviceId}.bpmn` (= `screenId`) | `plateSlittingMgmt.bpmn` |
@@ -134,7 +134,8 @@ MES 4 모듈 (`mls` / `mqc` / `mpp` / `mas`) 은 한 화면을 식별하는 모�
     - MES 4 모듈: `mls` (물류) / `mqc` (품질) / `mpp` (조업) / `mas` (작업지시·실행)
     - APS 모듈: `mpn` (계획 — APS 사이트, §3-1 의 APS / mpn 예외 적용)
     - 공통 인프라: `mcm` (앱 호스트 / 메뉴 / 코드 마스터 등)
-  - **역할**: lowercase snake_case. 역할 안에 추가 `_` 허용 (예: `mold_master`, `inspection_request`, `plate_slitting`).
+    - 예외: `mdm`(마루 MDM, 2026-09-24) — 모듈·역할 모두 대문자 `TB_MDM_{ROLE}` (식별자 사전 §A.12.7)
+  - **역할**: lowercase snake_case(단 `mdm` 은 UPPER_SNAKE — 위 예외, 식별자 사전 §A.12.7). 역할 안에 추가 `_` 허용 (예: `mold_master`, `inspection_request`, `plate_slitting`).
 - 예시:
   - `TB_mls_plate_slitting` — MLS 모듈 후판 슬리팅
   - `TB_mls_shipment_history` — MLS 모듈 출하 이력

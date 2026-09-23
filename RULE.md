@@ -21,7 +21,7 @@
 - 화면코드 prefix 가 `APS_` 또는 작업 파일 경로가 `src/backend/{mpn, aps-core}` / `src/frontend/m-mpn` 이면 **APS** (분기 2) 로 본다.
 - 그 외 화면코드 또는 `src/backend/{moduleId}` / `src/frontend/m-{moduleId}` (mpp / mqc / mls / mas / mcm 등) 은 **MES** 로 본다.
 - MES 작업 지시에 "설계", "분석리포트", "기능설계서", "디자인설계서", "BPMN설계서", "정합체크" 등 산출물 작성 키워드가 있으면 분기 1이다.
-- MES 화면의 `docs/{moduleId}/design/{화면식별자}/` 5종 산출물이 없거나 분석리포트가 없으면 분기 1이다.
+- MES 화면의 `docs/{moduleId}/design/{화면식별자}/` 5종 산출물이 없거나 분석리포트가 없으면 분기 1이다. 단 mdm 은 `docs/mdm/screens/{화면식별자}/` 다(`docs/mdm/design` 은 외부 링크 — [docs/mdm/screens/README.md](docs/mdm/screens/README.md)).
 - 5종 산출물이 모두 있고 분석완료 게이트 G1~G7 통과 + 정합체크 통과면 분기 3이다.
 - 부분 누락·게이트 미통과·정합 불일치 등 경계 상태의 가드는 [Mes-Guide.md](docs/guide/MES/Mes-Guide.md) §4 "개발 진입 가드" 표를 따른다.
 
