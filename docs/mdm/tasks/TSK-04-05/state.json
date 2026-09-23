@@ -2,7 +2,7 @@
   "tsk": "TSK-04-05",
   "order": "b192b68f-3f59-40dd-ac6e-3fb29d1d64c2",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "build",
+  "phase": "refactor",
   "baseline": {
     "failures": 0,
     "tests": 556,
@@ -14,8 +14,33 @@
     "count_cmd": "find src/backend -path '*/build/test-results/*' -name 'TEST-*.xml' | xargs grep -h -o '<testsuite [^>]*' (tests/failures/errors 합산)"
   },
   "last": {
-    "phase": "design",
-    "event": "design.ok"
+    "phase": "verify",
+    "event": "verify.ok"
   },
-  "model": "opus"
+  "model": "haiku",
+  "build_gate": {
+    "backend_testAll": {
+      "tests": 674,
+      "failures": 0,
+      "errors": 0
+    },
+    "mutations": "65/65 red (I1~I20, I20 리뷰 판정)"
+  },
+  "verify_gate": {
+    "backend_testAll": {
+      "tests": 674,
+      "failures": 0,
+      "errors": 0
+    },
+    "mutations_rechecked": [
+      "I1",
+      "I3",
+      "I5",
+      "I8",
+      "I11",
+      "I15",
+      "I17"
+    ]
+  },
+  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\""
 }
