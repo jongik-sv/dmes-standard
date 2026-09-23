@@ -685,3 +685,88 @@ Build·Verify 는 항목마다 적힌 변이를 **일부러 넣어 빨강을 확
 - **택한 것**: (a)
 - **근거**: 상태→라벨·톤 대응은 mdm 업무 규칙이라 모듈에 두는 것이 맞고, shared 에 같은 컴포넌트가 없으므로 part-b §17 "shared 컴포넌트 로컬 중복 구현 금지" 에 걸리지 않는다. Mantine 을 쓰지 않으므로 "Mantine 이 필요하면 shared 에 추가" 규칙(part-b §4-2)의 대상도 아니다. (b)·(c) 는 shared·m-mcm 을 바꿔 변경 패키지를 늘린다. 인라인 토큰은 UI-Visual-Standard §3 이 허용하고 샘플 화면 선례가 있다. 샘플은 스캐폴드 검증 화면이라 미리보기를 더해도 업무 영향이 없고, 승인자가 스크린샷으로 셸 모습을 본다(dev-discipline). 강도: 중.
 - **반려되면 재작업 방향**: (b) 면 shared `components/badge` 를 추가하는 변경을 먼저 승인받고(shared 기준선 측정), m-mdm 배지는 그 래퍼로 바꾼다. (d) 면 U8 의 미리보기 패널을 빼고 E2E T1 의 배지 단언·스크린샷 이름을 조정한다.
+
+---
+
+## Build 이탈 (Build Phase 추기, 2026-09-24)
+
+설계에서 벗어난 점과 그 사유다. 설계의 판단(D1~D11)을 바꾼 것은 없고, 새 담당자 결정(D12 이후)은 생기지 않았다.
+
+| # | 설계 | Build 에서 한 것 | 사유 |
+|---|---|---|---|
+| X1 | §2.4 버전 값 읽기 `new BigDecimal(value.toString())` | `VersionRowStore.selectColumns` 가 VER 를 `CAST(VER AS VARCHAR(40))` 로 읽고 문자열에서 BigDecimal 을 만든다 | 시나리오 첫 실행에서 S2·S3·S5·S6·S9·S13·S23 이 실패했다(실측). SQLite NUMERIC 친화도는 `1.000` 을 INTEGER, `1.001` 을 REAL 로 저장해 행마다 저장 형식이 다르고, native 결과를 첫 행 형식으로 읽으면 `1.001` 의 소수부가 잘려 `1.000` 과 같은 버전으로 보였다(2.001 을 2.000 과 같은 행으로 봐 MDM007 을 놓치고, 1.001 을 "다른 미적용 버전" 으로 봐 MDM007 을 잘못 낸다). CAST 는 SQLite·MSSQL 둘 다 같은 문자열(`1.001`, `1`)을 돌려준다. 규칙표 #17 의 "버전 비교는 Java 에서" 원칙은 그대로다 |
+| X2 | §3.2 `AbstractVersionStateScenarioTest` 의 추상 훅 `spec`·`seedObject`·`seedVersion`·`readVersion` | 추상 훅은 `createSchema(JdbcTemplate)`·`clearTables(JdbcTemplate)` 둘이고, `spec` 은 주입된 `VersionTableRegistry` 에 위임한다. `seedObject`·`seedVersion`·`readVersion` 은 명세 이름으로 동작하는 재정의 가능한 기본 구현이다 | 명세 이름만으로 SQL 이 방언 무관하게 성립해 SQLite·MSSQL 구현이 DDL 만 다르다. 실제 테이블(부모 FK·NOT NULL)을 쓰는 TSK-06-01·08-01 은 seed 계열을 재정의하면 된다(§7 인계는 같다) |
+| X3 | §3.3 MSSQL 은 S2·S12·S13·S23 과 저장 형식만 | `VersionStateServiceMssqlTest` 가 추상 키트를 상속해 방언 무관 시나리오 전부(S1~S13, S15~S23)와 저장 형식·방언 판정을 돈다(24건, 기존 `MdmMssqlMigrationTest` 4건과 함께 28 PASSED) | 설계 범위보다 넓다. 같은 키트를 그대로 쓰는 편이 코드가 적고, 모두 통과했다. 컨테이너는 Spring 컨텍스트(Flyway)보다 먼저 떠야 해서 `@Container` 대신 static 블록에서 시작하고 DB `mdm_version` 을 만든다. S14(트리거)·S24(typeof)는 SQLite 전용이라 제외 |
+| X4 | §2.7 U8 "ContentPanel 하나를 더해 '공통 셸 미리보기' 제목" | 안내 문단과 같은 `ContentPanel` 안에 제목 문단 "공통 셸 미리보기" 와 배지 두 줄을 둔다 | shared `ContentPanel` 에 `title` prop 이 없다(`shared/src/layout/ContentPanel.tsx`). 패널 두 개는 `ContentBody` 안에서 가로로 나뉘어 배지가 좁아진다. 안내 문단 글자는 그대로다 |
+| X5 | §3.6 6) 스모크 명령 | `pnpm exec playwright test … --workers=1` | `playwright.config.ts` 가 `fullyParallel: true` 라 두 스펙 파일이 서로 다른 워커에서 동시에 admin 으로 로그인하면 mcm SQLite 가 `SQLITE_BUSY` 로 로그인을 500 으로 떨어뜨린다(첫 실행 실측: `mdm-sample-smoke` 가 `/login` 에 머묾, be-mcm 로그 `database is locked`). 스펙 파일 안은 `describe.configure({ mode: "serial" })` 이다 |
+| X6 | §3.6 1) "새 DB 로 시작" | 워크트리 `src/backend/data/mcm.db`(오케스트레이터 기준선 실행분)를 지우지 않고 `mcm.db.baseline-20260924` 로 이름만 바꾼 뒤 새 DB 로 기동했다 | 시드 대조 마지막 SELECT(시험 사용자 0명)는 새 DB 에서만 참이다. 파일은 gitignore 대상이다 |
+| X7 | §6 "역할 그룹이 없는 사용자의 로그인이 막히는지 미확인" | 막히지 않았다. `e2e_mdm_none` 은 역할 그룹 없이 로그인되고 메뉴 응답이 비어 있다. `ROLE_GROUP_E2E_EMPTY` 는 만들지 않았다 | 실측 |
+| X8 | §2.6 `seedMdmObjectRbac` 안의 `Map.of(…)` | `java.util.Map` 을 정규화 이름으로 쓴다 | `import java.util.Map;` 을 더하면 §3.8 "mcm 시드 범위" 게이트(허용 메서드 밖 줄 변경 없음)에 걸린다 |
+| X9 | §3.2 A2 요청 본문 미지정 | `{"meta":{},"data":{}}` | `OasisController` 가 CactusRequest 본문을 받는다. 서비스가 없어 `ServiceNotFoundException` 이 봉투(`meta`)로 돌아온다 |
+| X10 | 테스트 보강(설계에 없음) | S2 에 "SPI 호출 시점의 행 상태"(같은 트랜잭션에서 draft 가 DRAFT, 직전 APPLY_TO 가 열린 끝) 단언, V1 에 "objId = screenId 면 `/api/auth/me` 호출" 단언을 더했다 | 변이 분석에서 드러난 구멍: 확정은 한 트랜잭션이라 "직전 닫기를 SPI 앞으로"(I2)·"SPI 를 UPDATE 뒤로"(I8) 변이가 롤백 때문에 최종 상태로는 드러나지 않고, `objId` 를 빼는 변이(I22)는 V1 에서 보이지 않았다 |
+| X11 | §3 TDD 순서 | lib 단위(L1~L10·K4·K5)·A2·V1~V3·시드 대조는 테스트를 먼저 쓰고 빨강(컴파일 실패·401·모듈 없음·행 없음)을 확인했다. **시나리오 S1~S24 는 서비스 구현 뒤에 썼다** | 서비스 구현을 lib 단위 테스트와 같은 단계에서 끝냈기 때문이다. 대신 시나리오 첫 실행이 7건 빨강으로 실제 결함(X1)을 잡았고, 불변 규칙 변이 검증이 시나리오의 판별력을 보인다(아래 「Build 기록」) |
+
+## Build 기록 (Build Phase 추기, 2026-09-24)
+
+### 테스트 먼저 — 빨강 확인
+
+| 테스트 | 빨강(구현 전) | 초록(구현 뒤) |
+|---|---|---|
+| A2 `MdmSecurityChainTest` | B21 설정 전: 신뢰 헤더가 있어도 401(3건 중 1건 실패) | 3/3 |
+| V1~V3(m-mdm) | 셸 구현 전: `@/shell` 모듈 없음으로 import 실패 | 21/21(기존 1 + 신규 20) |
+| L1~L10·K4·K5(lib) | 계약·구현 전: 컴파일 실패(`VersionDraftDeletionSpi`·`MdmErrors`·`VersionRowStore` 등 cannot find symbol) | lib 82/82 |
+| S1~S24(api) | 서비스 구현 뒤 작성(Build 이탈 X11). 첫 실행 7건 실패(S2·S3·S5·S6·S9·S13·S23)가 VER 읽기 결함(X1)을 잡았다 | 25/25(SQLite), MSSQL 24/24 |
+| 시드 대조 §3.6 | DataInitializer 변경 전 격리 mcm.db: dmb~dme·역할·그룹·PERM·매핑 행 없음(diff 9줄) | 새 DB 에서 diff 없음 |
+| E2E | 시드·픽스처 뒤 작성 | 두 스펙 5 passed(`--workers=1`, X5) |
+
+### 불변 규칙 변이 검증
+
+변이마다 파일을 고쳐 해당 테스트만 돌린 뒤 `git checkout` 으로 되돌렸다(드라이버: 변이 51건 + E2E·시드 대조 변이 6건). "빨강" 칸은 실패한 테스트다.
+
+| 규칙 | 변이 | 결과 |
+|---|---|---|
+| I1 | 미적용 판정에서 미래 RELEASED 제외 / `>` → `>=` / confirm 의 MDM007 검사 삭제 / deleteDraft 에 MDM007 검사 추가 | 빨강 S3 / S3 / S6 / S6 |
+| I2 | TransactionTemplate 제거(NOT_SUPPORTED) / 직전 닫기를 SPI 앞으로 / APPLY_TO 에 열린 끝 대신 NULL | 빨강 19건 / S2(X10 보강 뒤) / S1·S2·S3·S24 |
+| I3 | `isAfter` → `!isBefore` / 최초 면제 삭제 / 직전을 "VER 최소" 로 | 빨강 S5·L1 / S1 등 7건·L1 / S3 |
+| I4 | 역할 검사 삭제 / SYSADMIN 허용 / `ROLE_` 접두 제거 삭제 | 빨강 S8·S18 / S8·S18 / L2 2건 |
+| I5 | 소유자 검사 삭제 / owner NULL 허용 / 선점 조건 삭제 | 빨강 S7·S17·S19·S20·S21 / S7 / S18 |
+| I6 | release 에 "SYSADMIN 이면 통과" / release 에 담당자 역할 요구 | 빨강 S19 / S19 |
+| I7 | 넘기기 대상 검사 삭제 / 기본 디렉터리 true | 빨강 S20 / L9 |
+| I8 | errors 무시 / 경고 확인 없이 통과 / SPI 를 UPDATE 뒤로 | 빨강 S9 / S10 / S2·S13 |
+| I9 | 조건부 UPDATE 의 ROW_VERSION 조건 무력화 / 0행 무시 / rv 증가 2 | 빨강 S13 / S13 / S1·S12·S18·S19·S20·S21 |
+| I10 | 상태 검사를 row_version 앞으로 / 역할 검사를 SPI 뒤로 | 빨강 S12 / S8(Events 순서 단언) |
+| I11 | `APPROVED_BY` 에 확정자 / 확정 때 `OWNER_ID = NULL` | 빨강 S1 / S1·S12 |
+| I12 | `<=` → `<` / 조건 삭제(항상 INUSE) / 부모 `STATUS='CREATED'` 조건 삭제 | 빨강 S22 / S22 / S22 |
+| I13 | 삭제 훅을 DELETE 뒤로 / 훅 호출 삭제 | 빨강 S17 / S17 |
+| I14 | 중복 허용(마지막 값) / 미등록 시 null 반환 / 공통 서비스가 SPI `diff` 호출 | 빨강 L3 2건 / L3 2건 / 16건 |
+| I15 | 바인더를 Timestamp 로 / `U_AT` 에 `CURRENT_TIMESTAMP` / 바인더 초 자르기 삭제 / 확정 입력 초 자르기 삭제 | 빨강 S24 등 13건·L5 / S21·S23·S24 / L5 2건 / **처음엔 살아남음 → S5 에 "직전 + 0.5초 → MDM008" 을 더한 뒤 S5 빨강** |
+| I16 | 부모 INUSE UPDATE 의 감사 칼럼 삭제 / 카운터 증가 삭제 | 빨강 S23 / S23 |
+| I17 | 이름 검사 삭제 | 빨강 L10 6건 |
+| I18 | `jwt.secret` 삭제 / skip-paths 에서 `/actuator/` 삭제 | 빨강 A2 ②(헤더 없는 ①은 Spring 기본 보안도 401 이라 초록 — ②가 잡는다) / A2 ③·`MdmApplicationHealthTest` |
+| I19 | READ 에 COMMON `search,save` / STEWARD × mdmSample 을 EDIT / 담당자 역할 그룹 매핑 삭제 | 빨강 시드 diff / 시드 diff / **E2E T2**(메뉴 응답에 mdm 없음) |
+| I20 | 폴더 이름 한 글자(`마스터 코드`) / m-mdm `MDM_GROUPS` 한 글자 / 시험 사용자 존재 | 빨강 시드 diff / V3 / 시드 diff 마지막 줄 |
+| I21 | 권한 없는 사용자에게 담당자 역할 그룹 매핑 | 빨강 **E2E T3**(메뉴 응답에 mdm 있음) |
+| I22 | 배지에 `#fff` / breadcrumb 구분자 `/` / RELEASED 에도 잠금 배지 / `@mantine/core` import / `objId` 삭제 | 빨강 V2 4건 / V1 2건 / V2 4건 / audit 1건 / V1(X10 보강 뒤) |
+| I23 | 계약 패키지에 구현 클래스 / MDM001 메시지 변경 | 빨강 ArchUnit 규칙 1 / `CommonContractTest` |
+| I24 | 샘플 안내 문단 변경 | **미실행.** 서버를 내린 뒤라 E2E 변이를 돌리지 않았다. 두 스펙(`mdm-sample-smoke` 5), `mdm-shell-rbac-smoke` 의 `openSample`)이 문단 글자를 단언한다. §3.8 금지 영역 diff 게이트는 출력 없음 |
+
+- E2E·시드 대조 변이는 코드가 아니라 격리 DB(또는 그 복사본)에 SQL 로 넣었다. 시드는 insert-if-absent 라 코드 변이가 기존 DB 에 반영되지 않고, mcm 권한 캐시(10분) 때문에 매 변이마다 mcm 을 다시 띄웠다. 되돌린 뒤 두 스펙 5 passed 를 다시 확인했다.
+- I19·I20 의 "seedMcmSecMenuFld 수정" 변이는 테스트가 아니라 §3.8 "mcm 시드 범위" diff 게이트가 잡는다(hunk 가 841행 이후 `seedMdmMenus`·새 메서드에만 있음을 확인).
+
+### 게이트 결과
+
+| 게이트 | 명령 | 결과 |
+|---|---|---|
+| backend 전체 | `cd src/backend && JAVA_HOME=… ./gradlew testAll --rerun-tasks --no-daemon` | **510 tests, 0 failures, 0 skipped**(기준선 447 → +63: mdm lib 47→82, mdm api 9→37). 모듈별 cactus-core 203·caravan-core 102·caravan-hub 78·mdm lib 82·mdm api 37·maru-mdm-engine 5·aps-core 3. `--rerun-tasks` 는 변이 드라이버가 부분 실행한 결과가 UP-TO-DATE 로 재사용되지 않게 붙였다 |
+| MSSQL(수동) | `cd src/backend/mdm && ../gradlew :api:mssqlMigrationTest --no-daemon`(OrbStack 실행 중) | 28 PASSED(`MdmMssqlMigrationTest` 4 + `VersionStateServiceMssqlTest` 24) |
+| m-mdm 테스트 | `pnpm build:libs` 뒤 `pnpm --filter @dk-oasis/m-mdm test` | 4 files / 21 passed(기준선 1) |
+| m-mdm 타입 검사 | `pnpm --filter @dk-oasis/m-mdm lint` | 통과 |
+| m-mdm build | `pnpm --filter @dk-oasis/m-mdm build` | 통과, `dist/pages/dma/mdmSample/page.js` 갱신(`@/shell` 이 번들에 풀림) |
+| shared 단위 | `pnpm test:unit:shared` | 23 files / 156 passed(기준선과 같음, shared 변경 없음) |
+| m-mcm lint | `pnpm --filter @dk-oasis/mcm lint` | 23 errors / 44 warnings(기준선과 같음, m-mcm 변경 없음) |
+| UI audit | §3.4 끝의 mantine·aggrid audit 두 개 | 13개 파일 0건 / 12개 파일 0건 |
+| OASIS 계약 | `check_oasis_contract.py --root .` | ERROR 0 / WARN 0 |
+| E2E·시드 | §3.6(+ `--workers=1`, X5) | 시드 diff 없음, 두 스펙 5 passed. 증거: ① be-mcm 로그 `jdbc:sqlite:/Users/jji/project/dmes-standard/dflow-c7f0c4f6/src/backend/data/mcm.db` ② be-mdm 로그 `Tomcat started on port 18196`, `mdm.db` 가 워크트리 `src/backend/data` 에 생성, T2 요청이 mdm 로그 `Service end - service name [mdmSample]` 로 닿음 ③ `myMenusTree` 응답은 `SMOKE_MCM_BASE_URL=http://127.0.0.1:15103` 포털에서 옴 ④ 부산물(TSK-01-02 스크린샷·`m-mcm/next-env.d.ts`·`test-results/**`)은 `git restore` 로 되돌림 |
+| 계약 밖 코드 | `git diff --stat 7fc2380..HEAD -- …/mdm/contract` | K1·K2·K3 세 파일만(`MdmErrorCode` 는 마지막 값의 `;` 를 `,` 로 바꾼 한 줄 외 추가만) |
+| 금지 영역 | `git diff --stat 7fc2380..HEAD -- shared m-mcm cactus-core mcm-core TSK-01-01 TSK-01-02 adr` | 출력 없음 |
+| mcm 시드 범위 | `git diff 7fc2380..HEAD -- DataInitializer.java` | hunk 가 841행(`seedMdmMenus` javadoc) 이후 `seedMdmMenus`·`seedMdmRbac`·`seedMdmObjectRbac` 에만 있음 |
