@@ -77,7 +77,7 @@
 |---|---|---|
 | F23 | 버전 테이블 `TB_MDM_CODE_VER`·`TB_MDM_RULE_VER` 와 부모 `TB_MDM_CODE`·`TB_MDM_RULE` 는 **아직 없다.** TSK-06-01·TSK-08-01(계약 전용, depends 에 TSK-01-03 없음)이 Flyway 로 만든다 | wbs.md:843-872·1249-1280, 리포 `db/migration/mdm/*` 에 V1·V2 뿐 |
 | F24 | 공통 칼럼(원천 04·06 이 두 버전 테이블에 똑같이 둔 것): `STATUS`, `OWNER_ID`, `APPLY_FROM`, `APPLY_TO`, `REQUESTED_BY`, `REQUESTED_AT`, `APPROVED_BY`, `APPROVED_AT`, `EMERGENCY_YN`, `EMERGENCY_REASON`, `REJECT_REASON`, `RELEASED_AT`, `CANCELLED_AT`, `CANCEL_REASON`, `ROW_VERSION`. 키는 04 `MARU_CODE_ID + VER(DECIMAL(7,3))`, 06 `MARU_RULE_ID + VER(정수)`. 부모 상태 칼럼은 둘 다 `STATUS`(CREATED/INUSE/DEPRECATED) | 원천 04:993-1009, 06:968-985, 04:973, 06:960 |
-| F25 | **칼럼 이름 충돌(선행 산출물 결함).** 규칙표 §2·ADR-0001 D2 는 모든 `TB_MDM_*` 에 감사 카운터 `VER BIGINT` 를 두라고 하고, 원천은 `TB_MDM_CODE_VER`·`TB_MDM_RULE_VER`·`TB_MDM_RULE_VAR`·`TB_MDM_RULE_ROW` 에 업무 칼럼 `ver`(PK 일부)를 둔다. 규칙표 §1 은 "원천 칼럼 이름은 대소문자만 바뀐다(개명 없음)" 이다. 한 테이블에 같은 이름 칼럼 둘은 DDL 이 불가능하다. `CactusAuditEntity` 도 `VER` 를 감사 카운터로 매핑한다(필드 `version`). TSK-02-01·TSK-01-02 모두 이 충돌을 다루지 않았다 | `docs/mdm/naming-dialect-rules.md:29,38`, `adr/0001-*.md:32`, 원천 04:993, 06:968, TSK-01-02 F7 |
+| F25 | **칼럼 이름 충돌(선행 산출물 결함).** 규칙표 §2·ADR-0001 D2 는 모든 `TB_MDM_*` 에 감사 카운터 `VER BIGINT` 를 두라고 하고, 원천은 `TB_MDM_CODE_VER`·`TB_MDM_RULE_VER`·`TB_MDM_RULE_VAR`·`TB_MDM_RULE_ROW` 에 업무 칼럼 `ver`(PK 일부)를 둔다. 규칙표 §1 은 "원천 칼럼 이름은 대소문자만 바뀐다(개명 없음)" 이다. 한 테이블에 같은 이름 칼럼 둘은 DDL 이 불가능하다. `CactusAuditEntity` 도 `VER` 를 감사 카운터로 매핑한다(필드 `version`). TSK-02-01·TSK-01-02 모두 이 충돌을 다루지 않았다 | `docs/mdm/naming-dialect-rules.md:29,38`, `adr/0001-*.md:32`, 원천 04:993, 06:968, TSK-01-02 F7 **→ 해결: decisions D-034(TSK-02-03)가 6개 테이블(CODE_VER·CODE_RECV·RULE_VER·RULE_VAR·RULE_ROW·RULE_RECV)에 한해 감사 카운터만 `AUD_VER` 로 개명했다. 업무 `VER` 는 그대로, 부모 `TB_MDM_CODE`·`TB_MDM_RULE` 의 감사 카운터는 `VER` 그대로다(Build 반영, 팀장 지시)** |
 | F26 | 규칙표 #16: 업무 일시는 SQLite `TEXT 'YYYY-MM-DD HH:MM:SS'`, MSSQL `DATETIME2(0)`, Java `LocalDateTime`(KST, 시간대 없음). **현재 시각은 애플리케이션이 파라미터로 넘기고 DB 시각 함수를 쓰지 않는다.** 열린 끝 `'9999-12-31 00:00:00'`. mdm 적용 방식(엔티티 매핑·`CactusAuditEntity` Instant 의 SQLite 저장 형식)은 "실측 필요 → TSK-04-01" 이다 | `naming-dialect-rules.md` §3 #16 |
 | F27 | 규칙표 #13·#7: 행 잠금 대신 **조건부 UPDATE**(`WHERE ROW_VERSION = :v`, 갱신 0행이면 409). 저장·확정은 기본 READ COMMITTED | `naming-dialect-rules.md` §3 #7·#13 |
 | F28 | 규칙표 §4: 영속성은 JPA 1순위, 방언별 SQL 은 JPA native 쿼리(`EntityManager.createNativeQuery`)로 쓴다. MyBatis 금지. 방언 판정은 한 곳 | `naming-dialect-rules.md` §4 |
@@ -119,7 +119,7 @@
 
 ## 1. 접근 방식
 
-이 Task 는 세 덩어리다. 첫째, **공통 버전 상태 서비스**를 mdm lib 에 구현한다. 04·06 의 버전 테이블은 아직 없고(F23) 두 테이블은 상태·소유자·적용 구간·row_version 칼럼이 같으므로(F24), 서비스는 테이블·키 칼럼 이름을 **주입받는 명세(`VersionTableSpec`)** 로 받아 JPA native 쿼리 하나의 경로로 두 대상을 다룬다(D1). 모든 전이는 `TransactionTemplate` 한 트랜잭션 안에서 "읽기 → 순서가 고정된 사전 검사 → 확정 검사 SPI → `ROW_VERSION` 조건부 UPDATE → 직전 RELEASED 닫기 → 부모 INUSE" 순으로 진행하고, 하나라도 실패하면 전부 롤백되어 DRAFT 가 그대로 남는다. 테스트는 실제 이름과 겹치지 않는 **픽스처 테이블**에 대해 SQLite 로 돌리므로, 뒤에 TSK-06-01·08-01 이 실제 테이블을 만들어도 충돌하지 않는다. 감사 `VER` 와 업무 `VER` 의 이름 충돌(F25)은 이 Task 가 풀 문제가 아니므로 칼럼 이름을 주입받아 우회하고 선행 결함으로 보고한다(D2). 둘째, **권한 가드**는 기존 구조를 그대로 쓴다: 메뉴 가시성과 API 403 은 mcm 시드(역할 2·역할 그룹 2·PERM 3·매핑)와 BFF RBAC 가 맡고, mdm 백엔드는 mls 선례대로 신뢰 채널(`cactus.jwt.secret`)을 켜서 요청 역할을 받은 뒤 버전 전이에서 "담당자만" 을 직접 검사한다(D6). 셋째, **m-mdm 공통 셸**은 shared `PageLayout` 을 감싼 `MdmPageLayout` 과, Mantine 없이 의미 토큰 인라인 스타일로 그린 상태·잠금 배지로 만든다(D11). 샘플 화면에 셸을 입혀 E2E 스크린샷으로 모습을 보인다. 판단 순서는 근거 순위(spec > 승인 산출물 > 리포 관례 > 미승인 산출물)를 따른다.
+이 Task 는 세 덩어리다. 첫째, **공통 버전 상태 서비스**를 mdm lib 에 구현한다. 04·06 의 버전 테이블은 아직 없고(F23) 두 테이블은 상태·소유자·적용 구간·row_version 칼럼이 같으므로(F24), 서비스는 테이블·키 칼럼 이름을 **주입받는 명세(`VersionTableSpec`)** 로 받아 JPA native 쿼리 하나의 경로로 두 대상을 다룬다(D1). 모든 전이는 `TransactionTemplate` 한 트랜잭션 안에서 "읽기 → 순서가 고정된 사전 검사 → 확정 검사 SPI → `ROW_VERSION` 조건부 UPDATE → 직전 RELEASED 닫기 → 부모 INUSE" 순으로 진행하고, 하나라도 실패하면 전부 롤백되어 DRAFT 가 그대로 남는다. 테스트는 실제 이름과 겹치지 않는 **픽스처 테이블**에 대해 SQLite 로 돌리므로, 뒤에 TSK-06-01·08-01 이 실제 테이블을 만들어도 충돌하지 않는다. 감사 `VER` 와 업무 `VER` 의 이름 충돌(F25)은 decisions D-034 가 풀었다(버전 테이블 감사 카운터만 `AUD_VER`). 명세는 테이블마다 감사 카운터 칼럼을 따로 받는다(D2, 팀장 지시로 D-034 를 따른다). 둘째, **권한 가드**는 기존 구조를 그대로 쓴다: 메뉴 가시성과 API 403 은 mcm 시드(역할 2·역할 그룹 2·PERM 3·매핑)와 BFF RBAC 가 맡고, mdm 백엔드는 mls 선례대로 신뢰 채널(`cactus.jwt.secret`)을 켜서 요청 역할을 받은 뒤 버전 전이에서 "담당자만" 을 직접 검사한다(D6). 셋째, **m-mdm 공통 셸**은 shared `PageLayout` 을 감싼 `MdmPageLayout` 과, Mantine 없이 의미 토큰 인라인 스타일로 그린 상태·잠금 배지로 만든다(D11). 샘플 화면에 셸을 입혀 E2E 스크린샷으로 모습을 보인다. 판단 순서는 근거 순위(spec > 승인 산출물 > 리포 관례 > 미승인 산출물)를 따른다.
 
 ---
 
@@ -166,9 +166,9 @@
 | B7 | `security/CactusMdmCurrentUser.java` | `@Component implements MdmCurrentUser` | `UserContextHolder.get()` 의 userId·roles. 역할 문자열마다 앞의 `ROLE_` 를 한 번 떼고 대문자 비교 없이 그대로 쓴다(`ROLE_MDM_STEWARD` → `MDM_STEWARD`, `MDM_STEWARD` → `MDM_STEWARD`). 문맥이 없으면 userId null·역할 빈 집합 |
 | B8 | `security/MdmStewardDirectory.java` | 인터페이스 | `boolean isSteward(String userId)`: **다른** 사용자가 담당자 역할을 가졌는지. 넘기기 대상 검사에만 쓴다(D7) |
 | B9 | `security/UnresolvedStewardDirectory.java` | `@Component implements MdmStewardDirectory` | 기본 구현. 항상 `false` 를 돌려주고, 부를 때마다 WARN 로그 "담당자 조회 어댑터가 없어 넘기기를 거부합니다(TSK-01-03 D7)". 따라서 운영에서 넘기기는 어댑터가 생길 때까지 MDM005 로 거부된다(fail-closed) |
-| B10 | `version/VersionTableSpec.java` | record | `(String versionTable, String objectIdColumn, String versionColumn, String parentTable, String parentObjectIdColumn, String auditCounterColumn)`. `auditCounterColumn` 만 null 허용(D2) |
+| B10 | `version/VersionTableSpec.java` | record | `(String versionTable, String objectIdColumn, String versionColumn, String parentTable, String parentObjectIdColumn, String auditCounterColumn, String parentAuditCounterColumn)`. 감사 카운터는 테이블마다 따로 둔다(D-034: 버전 테이블 `AUD_VER`, 부모 `VER`). 감사 카운터 두 칸만 null 허용(null 이면 그 테이블 카운터를 올리지 않는다) |
 | B11 | `version/VersionTableRegistry.java` | 인터페이스 | `VersionTableSpec spec(VersionTarget target)` |
-| B12 | `version/DefaultVersionTableRegistry.java` | `@Component` | MASTER_CODE → `("TB_MDM_CODE_VER","MARU_CODE_ID","VER","TB_MDM_CODE","MARU_CODE_ID", null)`, BUSINESS_RULE → `("TB_MDM_RULE_VER","MARU_RULE_ID","VER","TB_MDM_RULE","MARU_RULE_ID", null)`. `versionTable` 은 `VersionTarget.versionTable()` 에서 가져온다. javadoc: "잠정값: 감사 카운터 칼럼 이름은 TSK-06-01·08-01 이 F25 를 해결한 뒤 채운다" |
+| B12 | `version/DefaultVersionTableRegistry.java` | `@Component` | MASTER_CODE → `("TB_MDM_CODE_VER","MARU_CODE_ID","VER","TB_MDM_CODE","MARU_CODE_ID","AUD_VER","VER")`, BUSINESS_RULE → `("TB_MDM_RULE_VER","MARU_RULE_ID","VER","TB_MDM_RULE","MARU_RULE_ID","AUD_VER","VER")`. `versionTable` 은 `VersionTarget.versionTable()` 에서 가져온다. 감사 카운터는 decisions D-034 를 따른다(팀장 지시, Build 반영) |
 | B13 | `version/VersionRow.java` | record | `(VersionRef ref, String status, String ownerId, LocalDateTime applyFrom, LocalDateTime applyTo, long rowVersion)` |
 | B14 | `version/VersionRowStore.java` | `@Repository` | `EntityManager` native 쿼리 전용(§2.4). 테이블·칼럼 이름은 `VersionTableSpec` 과 고정 칼럼 상수에서만 만들고 **사용자 입력을 SQL 문자열에 넣지 않는다**(값은 모두 바인딩 파라미터) |
 | B15 | `version/VersionSpiRegistry.java` | `@Component` | 생성자에서 `List<VersionConfirmCheckSpi>`·`List<VersionDraftDeletionSpi>` 를 받아 target 별 `EnumMap` 을 만든다. **같은 target 이 둘이면 `IllegalStateException`(기동 실패).** `confirmCheck(target)`·`draftDeletion(target)` 은 없으면 `IllegalStateException("확정 검사 SPI 가 등록되지 않았습니다: " + target)` (fail-closed, D4) |
@@ -222,7 +222,7 @@
 
 - 고정 칼럼 상수: `STATUS, OWNER_ID, APPLY_FROM, APPLY_TO, REQUESTED_BY, REQUESTED_AT, RELEASED_AT`, `VersionConventions.ROW_VERSION_COLUMN`, 감사 `U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID`(`MdmAuditColumns` 상수 사용).
 - 테이블·키 이름은 `VersionTableSpec` 에서만 온다. SQL 조립은 이 클래스 안에서만 하고, 이름 값이 `^[A-Z][A-Z0-9_]*$` 가 아니면 `IllegalArgumentException`(명세 오타가 SQL 로 흘러가지 않게).
-- 모든 쓰기는 감사 칼럼 `U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID` 를 `MdmNativeAuditSupport.currentStamp()` 값으로 **명시**한다(규칙표 §2). `auditCounterColumn` 이 null 이 아니면 `<col> = COALESCE(<col>, 0) + 1` 도 함께 쓴다. null 이면 쓰지 않는다(D2).
+- 모든 쓰기는 감사 칼럼 `U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID` 를 `MdmNativeAuditSupport.currentStamp()` 값으로 **명시**한다(규칙표 §2). 그 테이블의 감사 카운터(버전 테이블은 `auditCounterColumn`, 부모는 `parentAuditCounterColumn`)가 null 이 아니면 `<col> = COALESCE(<col>, 0) + 1` 도 함께 쓴다. null 이면 쓰지 않는다(D-034).
 - 일시 파라미터는 전부 `MdmTemporalBinder.toDb(...)` 를 거친다. 읽은 일시는 `fromDb(...)`.
 - DB 시각 함수(`CURRENT_TIMESTAMP`, `SYSDATETIME()`)를 쓰지 않는다(규칙표 #16).
 - 버전 값: 읽으면 `new BigDecimal(value.toString()).setScale(target.versionScale())`, 쓰면 `ref.ver().setScale(target.versionScale())` 를 바인딩한다. 버전 산술(직전 찾기)은 SQL `ORDER BY` 가 아니라 Java 에서 읽은 목록으로 한다(규칙표 #17: SQLite NUMERIC 친화도).
@@ -304,7 +304,7 @@
 | E3 | `src/frontend/e2e/fixtures/mdm-rbac-seed-check.sql` | 시드 대조 SELECT(§3.6). `.mode list`·`.separator |` 를 파일 안에 둔다 |
 | E4 | `src/frontend/e2e/fixtures/mdm-rbac-seed-check.expected.txt` | 위 SELECT 의 기대 출력(§3.6 표 그대로) |
 | E5 | `docs/mdm/tasks/TSK-01-03/screens/dma-mdmSample-shell.png`, `menu-steward.png`, `menu-none.png` | E2E 가 남긴 스크린샷(Verify 가 커밋해도 된다) |
-| E6 | `docs/mdm/decisions.md` | 끝에 추가. 번호는 Build 시점 마지막 `D-0NN` + 1 부터(작성 시점 마지막은 D-031). 형식은 기존 항목과 같다. 항목: D1·D2·D3·D6·D7·D8·D9·D10·D11 요지(각 1건) |
+| E6 | `docs/mdm/decisions.md` | 끝에 추가. 번호는 Build 시점 마지막 `D-0NN` + 1 부터(작성 시점 마지막은 D-031). 형식은 기존 항목과 같다. 항목: D1·D3·D6·D7·D8·D9·D10·D11 요지(각 1건). **팀장 지시로 번호는 D-035 부터**(origin/dev 의 마지막이 D-034), VER 충돌(D2)은 D-034 와 중복이라 추가하지 않는다 |
 
 **고치지 않는 것(명시)**: `docs/mdm/tasks/TSK-01-01/**`, `docs/mdm/tasks/TSK-01-02/**`(스크린샷 포함: §3.6 복원 절차), ADR-0001~0003, `naming-dialect-rules.md`, `screens/README.md`, wbs.md, PRD·TRD, `src/frontend/shared/**`, `src/frontend/m-mcm/**`, cactus-core·mcm-core 소스, `.claude/skills/**`, `be-run.sh`·`fe-run.sh`.
 
@@ -323,7 +323,7 @@ TDD 순서: §3.1~§3.4 의 테스트를 먼저 쓰고 컴파일 실패 또는 �
 | L3 | `version/VersionSpiRegistryTest` | 같은 target SPI 둘 → 생성자 `IllegalStateException`. 없는 target 조회 → `IllegalStateException`(메시지에 target 이름). 삭제 훅도 같은 두 사례 |
 | L4 | `support/MdmErrorsTest` | `of(ROW_VERSION_CONFLICT)` → transport `BUSINESS_ERROR`, 메시지 기본값, detail 1건 code `MDM001`. `of(CONFIRM_CHECK_FAILED, [이슈2])` → detail 3건, 둘째·셋째가 이슈 code·field·rowKey(itemKey). `ROW_VERSION_CONFLICT.httpStatus() == 409` |
 | L5 | `support/MdmTemporalBinderTest` | 방언을 생성자로 받는 순수 테스트. SQLITE: `toDb(2026-07-01T00:00:00)` = `"2026-07-01 00:00:00"`, nanos 는 잘림. `toDb(Instant 2026-06-30T15:00:00Z)` = `"2026-07-01 00:00:00"`(KST). MSSQL: `LocalDateTime` 그대로. `fromDb` 가 String·`Timestamp`·`LocalDateTime`·null 을 모두 같은 값으로 읽고 `"2026-07-01 00:00:00.123"` 은 초로 자른다 |
-| L6 | `version/DefaultVersionTableRegistryTest` | 두 target 의 명세 값이 §2.2 B12 와 같고 `versionTable` 이 `VersionTarget.versionTable()` 과 같다. `auditCounterColumn` 이 null(D2 잠정값). 이 단언은 TSK-06-01·08-01 이 F25 를 풀 때 함께 고친다 |
+| L6 | `version/DefaultVersionTableRegistryTest` | 두 target 의 명세 값이 §2.2 B12 와 같고 `versionTable` 이 `VersionTarget.versionTable()` 과 같다. 감사 카운터가 버전 테이블 `AUD_VER`·부모 `VER`, 업무 버전 칼럼이 `VER`(D-034) |
 | L7 | `contract/common/CommonContractTest`(수정, K4) | 개수 14, MDM013·MDM014 값 |
 | L8 | `contract/stub/ContractStubCompileTest`(수정, K5) | 삭제 훅 스텁 둘을 `List<VersionDraftDeletionSpi>` 로 다룸 |
 | L9 | `security/UnresolvedStewardDirectoryTest` | 어떤 ID(`"kim"`, 공백, null)에도 `isSteward` 가 false(D7 fail-closed) |
@@ -332,10 +332,10 @@ TDD 순서: §3.1~§3.4 의 테스트를 먼저 쓰고 컴파일 실패 또는 �
 ### 3.2 api SQLite 시나리오 테스트 (testAll 포함, `mdm/api/src/test/java/com/dongkuk/dmes/mdm/common/version/…`)
 
 구성:
-- `VersionFixtureTables`(seed-only 헬퍼, F30): 테스트 전용 테이블을 **실제 이름과 다른 이름**으로 만든다. `TB_MDM_TC_CODE(MARU_CODE_ID PK, STATUS NOT NULL, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, AUD_VER)`, `TB_MDM_TC_CODE_VER(MARU_CODE_ID, VER NUMERIC(7,3), STATUS NOT NULL, OWNER_ID, APPLY_FROM TEXT, APPLY_TO TEXT, REQUESTED_BY, REQUESTED_AT TEXT, APPROVED_BY, APPROVED_AT TEXT, RELEASED_AT TEXT, ROW_VERSION BIGINT NOT NULL DEFAULT 0, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, AUD_VER BIGINT, PRIMARY KEY(MARU_CODE_ID, VER))`, 06 쪽 `TB_MDM_TC_RULE`·`TB_MDM_TC_RULE_VER`(VER INTEGER). 원자성 시험용 트리거 1개(S14). `CREATE TABLE IF NOT EXISTS` 로 만들고 `@BeforeEach` 에서 네 테이블을 `DELETE` 로 비운다. 행 넣기 헬퍼 `seedObject(target, id, status)`, `seedVersion(target, id, ver, status, owner, applyFrom, applyTo, rowVersion)`.
+- `VersionFixtureTables`(seed-only 헬퍼, F30): 테스트 전용 테이블을 **실제 이름과 다른 이름**으로 만든다. `TB_MDM_TC_CODE(MARU_CODE_ID PK, STATUS NOT NULL, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER)`(부모 감사 카운터는 D-034 대로 `VER`), `TB_MDM_TC_CODE_VER(MARU_CODE_ID, VER NUMERIC(7,3), STATUS NOT NULL, OWNER_ID, APPLY_FROM TEXT, APPLY_TO TEXT, REQUESTED_BY, REQUESTED_AT TEXT, APPROVED_BY, APPROVED_AT TEXT, RELEASED_AT TEXT, ROW_VERSION BIGINT NOT NULL DEFAULT 0, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, AUD_VER BIGINT, PRIMARY KEY(MARU_CODE_ID, VER))`, 06 쪽 `TB_MDM_TC_RULE`·`TB_MDM_TC_RULE_VER`(VER INTEGER). 원자성 시험용 트리거 1개(S14). `CREATE TABLE IF NOT EXISTS` 로 만들고 `@BeforeEach` 에서 네 테이블을 `DELETE` 로 비운다. 행 넣기 헬퍼 `seedObject(target, id, status)`, `seedVersion(target, id, ver, status, owner, applyFrom, applyTo, rowVersion)`.
 - `AbstractVersionStateScenarioTest`(abstract): 아래 S1~S24 시나리오를 가진다. 추상 훅 `VersionTableSpec spec(VersionTarget)`, `void seedObject(…)`, `void seedVersion(…)`, `Map<String,Object> readVersion(VersionRef)`. TSK-06-01·08-01 이 실제 DDL 로 같은 시나리오를 돌릴 수 있게 하는 인계 키트다(§7).
 - `VersionStateServiceSqliteTest extends AbstractVersionStateScenarioTest`: `@SpringBootTest(webEnvironment = MOCK)` + `@ActiveProfiles("local")` + `@TempDir` SQLite URL(`MdmSharedContractMigrationTest` 와 같은 방식, F20). `@TestConfiguration` 으로 `@Primary` 빈 네 개를 준다:
-  - `VersionTableRegistry` → 픽스처 명세(`TB_MDM_TC_CODE_VER`, `MARU_CODE_ID`, `VER`, `TB_MDM_TC_CODE`, `MARU_CODE_ID`, `AUD_VER`) 등
+  - `VersionTableRegistry` → 픽스처 명세(`TB_MDM_TC_CODE_VER`, `MARU_CODE_ID`, `VER`, `TB_MDM_TC_CODE`, `MARU_CODE_ID`, `AUD_VER`, `VER`) 등
   - `Clock` → 테스트가 바꿀 수 있는 `MutableClock`(Asia/Seoul)
   - `MdmCurrentUser` → 테스트가 userId·역할을 바꾸는 가짜
   - `MdmStewardDirectory` → 담당자 ID 집합을 받는 가짜
@@ -368,7 +368,7 @@ TDD 순서: §3.1~§3.4 의 테스트를 먼저 쓰고 컴파일 실패 또는 �
 | S20 | 넘기기. 소유자 → 새 owner, rv+1. 비소유자 → **MDM003**. 대상이 담당자 아님 → **MDM005**. 대상 공백·자기 자신 → **MDM005** | |
 | S21 | 저장 가드. `beginDraftWrite` 소유자·정상 → rv+1 반환. 비소유자 **MDM003**, 낡은 rv **MDM001**, RELEASED **MDM002** | |
 | S22 | 부모 INUSE 경계. `applyFrom` = now → INUSE. `applyFrom` = now + 1초 → CREATED 유지. 부모가 이미 INUSE → 그대로(감사 칼럼도 안 바뀜) | |
-| S23 | 감사 칼럼. `AuditHolder.setAudit(new CactusAudit("kim", "codeConfirmMenu", "codeConfirm"))`(userId, menuId, serviceId 순) 뒤 확정 → 확정 행·직전 행·부모 행의 `U_USR_ID kim`, `U_SVC_ID codeConfirm`(serviceId), `U_PGM_ID codeConfirmMenu`(menuId, `CactusAuditListener` 와 같은 대응), `U_AT` = clock(KST 문자열), `AUD_VER` 이 1 증가. `@AfterEach AuditHolder.remove()` | |
+| S23 | 감사 칼럼. `AuditHolder.setAudit(new CactusAudit("kim", "codeConfirmMenu", "codeConfirm"))`(userId, menuId, serviceId 순) 뒤 확정 → 확정 행·직전 행·부모 행의 `U_USR_ID kim`, `U_SVC_ID codeConfirm`(serviceId), `U_PGM_ID codeConfirmMenu`(menuId, `CactusAuditListener` 와 같은 대응), `U_AT` = clock(KST 문자열), 감사 카운터가 1 증가(버전 행 `AUD_VER`, 부모 행 `VER`, D-034). 버전 행의 업무 `VER` 는 그대로. `@AfterEach AuditHolder.remove()` | |
 | S24 | SQLite 저장 형식. 확정 뒤 `SELECT typeof(APPLY_FROM), APPLY_FROM, typeof(APPLY_TO), APPLY_TO` = `text|2026-07-01 00:00:00|text|9999-12-31 00:00:00`(D9) | |
 
 추가 api 테스트:
@@ -590,7 +590,7 @@ Build·Verify 는 항목마다 적힌 변이를 **일부러 넣어 빨강을 확
 
 | 받는 Task | 인계 내용 |
 |---|---|
-| TSK-06-01 · TSK-08-01 (DDL·엔티티) | ① **F25 칼럼 이름 충돌을 먼저 해결**하고(D2), `DefaultVersionTableRegistry` 의 `auditCounterColumn`(지금 null)과 `DefaultVersionTableRegistryTest` 를 함께 고친다. ② 버전 테이블에 §2.4 고정 칼럼(`STATUS, OWNER_ID, APPLY_FROM, APPLY_TO, REQUESTED_BY, REQUESTED_AT, RELEASED_AT, ROW_VERSION`, 감사 `U_*`)이 이 이름으로 있어야 한다. `ROW_VERSION BIGINT NOT NULL DEFAULT 0`. 부모 `TB_MDM_CODE`·`TB_MDM_RULE` 에 `STATUS`. ③ `AbstractVersionStateScenarioTest` 를 실제 테이블로 상속해 같은 시나리오를 돌린다(픽스처 대신 Flyway 테이블, 부모 FK·NOT NULL 칼럼은 그 Task 의 `seedObject`·`seedVersion` 이 채운다). ④ SQLite 일시는 TSK-01-03 이 `TEXT 'yyyy-MM-dd HH:mm:ss'`(KST) 로 쓴다(D9): 버전 엔티티의 `LocalDateTime` 매핑이 이 문자열을 읽어야 한다 |
+| TSK-06-01 · TSK-08-01 (DDL·엔티티) | ① F25 칼럼 이름 충돌은 decisions D-034 로 해결됐다. `DefaultVersionTableRegistry` 는 이미 버전 테이블 `AUD_VER`·부모 `VER` 로 채워져 있다(Build 반영). 버전 엔티티는 `@AttributeOverride(name = "version", column = @Column(name = "AUD_VER"))` 를 쓴다. ② 버전 테이블에 §2.4 고정 칼럼(`STATUS, OWNER_ID, APPLY_FROM, APPLY_TO, REQUESTED_BY, REQUESTED_AT, RELEASED_AT, ROW_VERSION`, 감사 `U_*`)이 이 이름으로 있어야 한다. `ROW_VERSION BIGINT NOT NULL DEFAULT 0`. 부모 `TB_MDM_CODE`·`TB_MDM_RULE` 에 `STATUS`. ③ `AbstractVersionStateScenarioTest` 를 실제 테이블로 상속해 같은 시나리오를 돌린다(픽스처 대신 Flyway 테이블, 부모 FK·NOT NULL 칼럼은 그 Task 의 `seedObject`·`seedVersion` 이 채운다). ④ SQLite 일시는 TSK-01-03 이 `TEXT 'yyyy-MM-dd HH:mm:ss'`(KST) 로 쓴다(D9): 버전 엔티티의 `LocalDateTime` 매핑이 이 문자열을 읽어야 한다 |
 | TSK-04-01 | 규칙표 #16 실측 때 `MdmTemporalBinder` 의 SQLite 형식(업무 일시·감사 `U_AT` 모두 KST 초 단위 문자열)과 `CactusAuditEntity` Instant 저장 형식을 맞춘다. 다르면 바인더 한 곳만 고친다 |
 | TSK-06-02 (04 DRAFT 생성·편집) | 새 버전 INSERT 직전 `VersionWriteGuard.checkCanCreateVersion`, DRAFT 저장 직전 `beginDraftWrite`(반환 rv 를 화면에 돌려준다). INSERT 는 `STATUS='DRAFT'`, `OWNER_ID = 만든 사람`, `ROW_VERSION = 0`. `VersionDraftDeletionSpi`(MASTER_CODE) 구현: `to_ver = V` 행 9999 로 되돌리기, `from_ver = V` 행 삭제(ITEM·CATE·CATE_ITEM), VER 행 삭제 전에. 버전 엔티티를 들고 있다가 공통 서비스를 부른 뒤에는 다시 읽는다(§2.4 영속성 함정) |
 | TSK-08-02 (06 룰 DRAFT) | 위와 같다. `VersionDraftDeletionSpi`(BUSINESS_RULE)는 CASCADE 가 있으므로 빈 구현을 **반드시 등록**한다(미등록이면 삭제가 fail-closed) |
@@ -603,10 +603,7 @@ Build·Verify 는 항목마다 적힌 변이를 **일부러 넣어 빨강을 확
 ## 8. 선행 산출물(TSK-01-02 외) 수정 필요 여부: 오케스트레이터 판단용
 
 - **TSK-01-02 산출물**: 작은 추가만 한다(계약 인터페이스 2개, 오류 코드 2개, `CommonContractTest` 개수 12→14, 스텁 2개). 기존 계약의 시그니처·값은 바꾸지 않는다(D3). 크게 고칠 필요는 없다.
-- **선행 결함(보고 대상)**: 감사 칼럼 `VER`(규칙표 §2·ADR-0001 D2·`MdmAuditColumns`·`CactusAuditEntity`)과 원천 업무 칼럼 `ver`(04 `TB_MDM_CODE_VER`, 06 `TB_MDM_RULE_VER`·`RULE_VAR`·`RULE_ROW`)가 한 테이블에서 이름이 같다(F25). 이 Task 는 칼럼 이름을 주입받아 막히지 않는다. 최소 변경안 후보:
-  - (가) 이 네 테이블만 감사 카운터 칼럼 이름을 바꾼다(예 `AUD_VER`). 엔티티는 `@AttributeOverride(name = "version", column = @Column(name = "AUD_VER"))`. 규칙표 §2 에 예외 한 줄, ADR-0001 D2 에 각주. 원천 업무 칼럼은 그대로.
-  - (나) 업무 칼럼을 바꾼다(예 `VER_NO`, 자식의 `FROM_VER`·`TO_VER` 는 유지). 규칙표 §1 "개명 없음" 원칙에 예외가 생기고 원천 문서와 대조가 어려워진다.
-  - 권장: (가). 결정·반영은 DDL 을 만드는 TSK-06-01·08-01 착수 전에 오케스트레이터(또는 담당자)가 한다.
+- **선행 결함(해결됨)**: 감사 칼럼 `VER`(규칙표 §2·ADR-0001 D2·`MdmAuditColumns`·`CactusAuditEntity`)과 원천 업무 칼럼 `ver`(04 `TB_MDM_CODE_VER`, 06 `TB_MDM_RULE_VER`·`RULE_VAR`·`RULE_ROW`)가 한 테이블에서 이름이 같다(F25). **decisions D-034 로 (가) 확정**: 6개 테이블(CODE_VER·CODE_RECV·RULE_VER·RULE_VAR·RULE_ROW·RULE_RECV)에 한해 감사 카운터만 `AUD_VER` 로 개명하고, 엔티티는 `@AttributeOverride(name = "version", column = @Column(name = "AUD_VER"))` 를 쓴다. 원천 업무 칼럼은 그대로다. 이 Task 는 팀장 지시로 기본 명세를 D-034 에 맞췄다(Build 반영).
 
 ---
 
@@ -619,12 +616,8 @@ Build·Verify 는 항목마다 적힌 변이를 **일부러 넣어 빨강을 확
 - **근거**: 두 테이블의 상태·소유자·적용 구간·row_version 칼럼이 같아(F24, 원천) 한 경로로 다룰 수 있다. ADR-0002 결과 절과 TSK-01-02 D3(미승인 선행)이 "확정 트랜잭션은 TSK-01-03 이 공통 구현하고 직전 버전 apply_to 닫기는 네이티브 UPDATE" 를 전제한다. 규칙표 §4(리포 관례·미승인)는 JPA native 를 정한다. (b) 는 트랜잭션 규칙(조건부 UPDATE·원자성)이 영역마다 흩어지고, 이 Task 에서 실제 DB 로 원자성을 증명할 수 없다. (c) 는 뒤 Task 의 Flyway 테이블(부모 FK·NOT NULL)과 충돌한다. (d) 는 spec 의 data-model "-" 과 wbs 의 테이블 배정(TSK-06-01·08-01)에 어긋난다. 강도: 중(두 근거가 미승인 선행 산출물).
 - **반려되면 재작업 방향**: (b) 면 `VersionRowStore` 를 포트 인터페이스로 바꾸고 기존 native 구현은 테스트 전용 참조 구현으로 옮긴다. 서비스·시나리오 테스트는 그대로 쓴다.
 
-### D2: 감사 `VER` 와 업무 `VER` 이름 충돌을 이 Task 에서 어떻게 다루는가
-- **질문**: 규칙표 §2 의 감사 카운터 `VER` 와 원천 버전 칼럼 `ver` 가 같은 테이블에서 겹친다(F25). 이 Task 의 네이티브 쓰기는 어느 칼럼을 감사 카운터로 올리는가?
-- **선택지**: (a) 칼럼 이름을 명세로 주입받고, 기본 명세는 업무 버전 칼럼 `VER`·감사 카운터 없음(null, 올리지 않음)으로 둔다. 충돌은 선행 결함으로 보고하고 TSK-06-01·08-01 이 정한다 / (b) 이 Task 가 감사 카운터 이름을 `AUD_VER` 로 정하고 규칙표를 고친다 / (c) 업무 칼럼 이름을 바꾼다고 이 Task 가 정한다 / (d) 해결될 때까지 설계를 멈춘다
-- **택한 것**: (a)
-- **근거**: 테이블을 만드는 Task 가 아니므로 이름을 정할 권한이 없다(규칙표·ADR-0001 은 미승인이지만 모든 DDL Task 가 인용하는 정본). 명세 주입으로 이 Task 는 막히지 않고, 픽스처 명세는 `AUD_VER` 로 카운터 경로도 시험한다(S23). 대가: 기본 명세로 운영하면 버전 행 네이티브 쓰기에서 감사 카운터가 오르지 않는다. 버전 테이블이 생기기 전에는 운영 경로가 없으므로 실제 영향은 없다. 강도: 중.
-- **반려되면 재작업 방향**: (b) 면 `DefaultVersionTableRegistry` 의 `auditCounterColumn` 을 `AUD_VER` 로 바꾸고 L6 단언을 고친 뒤, 규칙표 §2 에 예외를 적는 문서 변경을 별도 커밋으로 올린다. (c) 면 `versionColumn` 기본값만 바꾼다.
+### D2: (해결됨 — 담당자 확인 대상에서 뺀다)
+- 감사 `VER` 와 업무 `VER` 이름 충돌(F25)은 **팀장 지시로 decisions D-034 를 따른다.** 버전 테이블의 감사 카운터는 `AUD_VER`, 부모 테이블의 감사 카운터는 `VER`, 업무 버전 칼럼은 `VER` 다. 기본 명세 `DefaultVersionTableRegistry` 와 L6 단언을 이에 맞췄다(Build 반영, 원안 선택지 (b) 에 해당하되 규칙표는 D-034 가 이미 반영해 고치지 않는다). 번호 D2 는 비워 두고 재번호하지 않는다.
 
 ### D3: 계약(TSK-01-02)에 무엇을 더하는가
 - **질문**: spec 의 "미적용 버전 하나 규칙" 중 새 버전 생성 거부(MDM006)와 저장 거부(MDM007), 04 DRAFT 삭제의 자식 행 정리(F29), 담당자 아닌 사용자 거부와 경고 확인 흐름을 부를 자리가 현재 계약에 없다.
@@ -693,7 +686,7 @@ Build·Verify 는 항목마다 적힌 변이를 **일부러 넣어 빨강을 확
 
 ## Build 이탈 (Build Phase 추기, 2026-09-24)
 
-설계에서 벗어난 점과 그 사유다. 설계의 판단(D1~D11)을 바꾼 것은 없고, 새 담당자 결정(D12 이후)은 생기지 않았다.
+설계에서 벗어난 점과 그 사유다. 설계의 판단 가운데 D2 만 팀장 지시로 바뀌었고(X12), 나머지(D1·D3~D11)는 그대로다. 새 담당자 결정(D12 이후)은 생기지 않았다.
 
 > **TDD 순서 이탈(X11, 먼저 밝힌다)**: 버전 상태 시나리오 S1~S24 는 서비스 구현을 끝낸 **뒤에** 썼다. "테스트 먼저" 규율과 어긋난다. 대신 시나리오 첫 실행이 7건 빨강으로 실제 결함(X1)을 잡았고, 불변 규칙 변이 55건이 모두 빨강을 낸다(「Build 기록」). lib 단위·A2·V1~V3·시드 대조는 테스트를 먼저 쓰고 빨강을 확인했다.
 
@@ -709,6 +702,7 @@ Build·Verify 는 항목마다 적힌 변이를 **일부러 넣어 빨강을 확
 | X8 | §2.6 `seedMdmObjectRbac` 안의 `Map.of(…)` | `java.util.Map` 을 정규화 이름으로 쓴다 | `import java.util.Map;` 을 더하면 §3.8 "mcm 시드 범위" 게이트(허용 메서드 밖 줄 변경 없음)에 걸린다 |
 | X9 | §3.2 A2 요청 본문 미지정 | `{"meta":{},"data":{}}` | `OasisController` 가 CactusRequest 본문을 받는다. 서비스가 없어 `ServiceNotFoundException` 이 봉투(`meta`)로 돌아온다 |
 | X10 | 테스트 보강(설계에 없음) | S2 에 "SPI 호출 시점의 행 상태"(같은 트랜잭션에서 draft 가 DRAFT, 직전 APPLY_TO 가 열린 끝) 단언, V1 에 "objId = screenId 면 `/api/auth/me` 호출" 단언을 더했다 | 변이 분석에서 드러난 구멍: 확정은 한 트랜잭션이라 "직전 닫기를 SPI 앞으로"(I2)·"SPI 를 UPDATE 뒤로"(I8) 변이가 롤백 때문에 최종 상태로는 드러나지 않고, `objId` 를 빼는 변이(I22)는 V1 에서 보이지 않았다 |
+| X12 | D2(a) 기본 명세의 감사 카운터 null, E6 번호 D-032~ | **팀장 지시(decisions D-034 반영)**: `VersionTableSpec` 에 `parentAuditCounterColumn` 을 더해 감사 카운터를 테이블마다 따로 두고, 기본 명세를 버전 테이블 `AUD_VER`·부모 `VER`·업무 버전 `VER` 로 채웠다. 픽스처도 실제 DDL(`docs/mdm/erd/04·06`, origin/dev 에서 `git show` 로 읽음)과 같은 모양으로 바꿨다. decisions 는 D-035 부터 8건(D2 제외) | D-034 가 버전 테이블(6개)에만 `AUD_VER` 개명을 적용해 부모 `TB_MDM_CODE`·`TB_MDM_RULE` 는 `VER` 그대로다. 명세 하나에 카운터 칼럼 하나로는 두 테이블을 함께 맞출 수 없다. 업무 칼럼 개명·cactus-core 변경은 하지 않았다 |
 | X11 | §3 TDD 순서 | lib 단위(L1~L10·K4·K5)·A2·V1~V3·시드 대조는 테스트를 먼저 쓰고 빨강(컴파일 실패·401·모듈 없음·행 없음)을 확인했다. **시나리오 S1~S24 는 서비스 구현 뒤에 썼다** | 서비스 구현을 lib 단위 테스트와 같은 단계에서 끝냈기 때문이다. 대신 시나리오 첫 실행이 7건 빨강으로 실제 결함(X1)을 잡았고, 불변 규칙 변이 검증이 시나리오의 판별력을 보인다(아래 「Build 기록」) |
 
 ## Build 기록 (Build Phase 추기, 2026-09-24)
@@ -726,7 +720,7 @@ Build·Verify 는 항목마다 적힌 변이를 **일부러 넣어 빨강을 확
 
 ### 불변 규칙 변이 검증
 
-변이마다 파일을 고쳐 해당 테스트만 돌린 뒤 `git checkout` 으로 되돌렸다(드라이버: 단위 수준 변이 55건 — 기존 파일 54 + 새 파일 1 — 와 E2E·시드 대조 변이 6건). "빨강" 칸은 실패한 테스트다.
+변이마다 파일을 고쳐 해당 테스트만 돌린 뒤 `git checkout` 으로 되돌렸다(드라이버: 단위 수준 변이 55건 — 기존 파일 54 + 새 파일 1 — 와 E2E·시드 대조 변이 6건. D-034 반영 뒤 `VersionRowStore`·명세를 건드리는 변이 11건(m2c·m9a·m9c·m11a·m11b·m12c·m15a·m15b·m16a·m16b·m17a)을 커밋된 코드 기준으로 다시 돌리고 3건(m16c·m16d·m16e)을 더했다: 모두 빨강). "빨강" 칸은 실패한 테스트다.
 
 | 규칙 | 변이 | 결과 |
 |---|---|---|
@@ -745,7 +739,7 @@ Build·Verify 는 항목마다 적힌 변이를 **일부러 넣어 빨강을 확
 | I13 | 삭제 훅을 DELETE 뒤로 / 훅 호출 삭제 | 빨강 S17 / S17 |
 | I14 | 중복 허용(마지막 값) / 미등록 시 null 반환 / 공통 서비스가 SPI `diff` 호출 | 빨강 L3 2건 / L3 2건 / 16건 |
 | I15 | 바인더를 Timestamp 로 / `U_AT` 에 `CURRENT_TIMESTAMP` / 바인더 초 자르기 삭제 / 확정 입력 초 자르기 삭제 | 빨강 S24 등 13건·L5 / S21·S23·S24 / L5 2건 / **처음엔 살아남음 → S5 에 "직전 + 0.5초 → MDM008" 을 더한 뒤 S5 빨강** |
-| I16 | 부모 INUSE UPDATE 의 감사 칼럼 삭제 / 카운터 증가 삭제 | 빨강 S23 / S23 |
+| I16 | 부모 INUSE UPDATE 의 감사 칼럼 삭제 / 카운터 증가 삭제 / 부모에 버전 테이블 카운터(`AUD_VER`) 사용 / 버전 행에 부모 카운터(`VER` = 업무 버전) 사용 / 기본 명세 카운터를 `VER` 로 | 빨강 S23 / S23 / 8건 / 10건(S23 이 업무 VER 불변을 단언) / L6 3건 (뒤 셋은 D-034 반영 뒤 추가, 커밋된 코드 기준 재실행) |
 | I17 | 이름 검사 삭제 | 빨강 L10 6건 |
 | I18 | `jwt.secret` 삭제 / skip-paths 에서 `/actuator/` 삭제 | 빨강 A2 ②(헤더 없는 ①은 Spring 기본 보안도 401 이라 초록 — ②가 잡는다) / A2 ③·`MdmApplicationHealthTest` |
 | I19 | READ 에 COMMON `search,save` / STEWARD × mdmSample 을 EDIT / 담당자 역할 그룹 매핑 삭제 | 빨강 시드 diff / 시드 diff / **E2E T2**(메뉴 응답에 mdm 없음) |

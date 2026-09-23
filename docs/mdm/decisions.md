@@ -251,7 +251,7 @@
 - **Reversible**: yes
 - **Source**: docs/mdm/tasks/TSK-01-02/design.md D6
 
-## D-032 (2026-09-23T19:34:55Z)
+## D-035 (2026-09-23T19:34:55Z)
 - **Phase**: design (TSK-01-03)
 - **Decision needed**: 공통 버전 상태 서비스가 아직 없는 버전 테이블(04·06)의 행을 어떻게 읽고 쓰는가
 - **Decision made**: 테이블·키 칼럼 이름을 주입받는 명세(`VersionTableSpec`)로 JPA native 쿼리 한 경로를 둔다. 테스트는 실제 이름과 다른 픽스처 테이블(`TB_MDM_TC_*`)로 SQLite·MSSQL 에서 돌리고, 시나리오 키트 `AbstractVersionStateScenarioTest` 를 TSK-06-01·08-01 에 인계한다
@@ -259,15 +259,7 @@
 - **Reversible**: yes
 - **Source**: docs/mdm/tasks/TSK-01-03/design.md D1
 
-## D-033 (2026-09-23T19:34:55Z)
-- **Phase**: design (TSK-01-03)
-- **Decision needed**: 감사 카운터 `VER` 와 원천 업무 버전 칼럼 `ver` 가 같은 테이블에서 이름이 겹치는 선행 결함(F25)을 이 Task 에서 어떻게 다루는가
-- **Decision made**: 칼럼 이름을 명세로 주입받고, 실제 대상 기본 명세의 감사 카운터는 잠정값 null(올리지 않음)로 둔다. 충돌 해소는 DDL 을 만드는 TSK-06-01·08-01 이 한다(권장안: 네 테이블만 감사 카운터를 `AUD_VER` 로)
-- **Rationale**: 테이블을 만드는 Task 가 아니라 이름을 정할 권한이 없다. 버전 테이블이 생기기 전에는 운영 경로가 없어 잠정값의 영향이 없다
-- **Reversible**: yes
-- **Source**: docs/mdm/tasks/TSK-01-03/design.md D2
-
-## D-034 (2026-09-23T19:34:55Z)
+## D-036 (2026-09-23T19:34:55Z)
 - **Phase**: design (TSK-01-03)
 - **Decision needed**: 미적용 버전 가드·DRAFT 삭제 정리 훅·담당자 역할 거부·경고 미확인을 부를 자리가 TSK-01-02 계약에 없다
 - **Decision made**: 계약에 `VersionWriteGuard`·`VersionDraftDeletionSpi` 인터페이스와 `MdmErrorCode` 2개(MDM013 `STEWARD_ROLE_REQUIRED` 403, MDM014 `CONFIRM_WARNINGS_NOT_ACKNOWLEDGED` 409)를 더한다. 기존 12개 코드·인터페이스 시그니처는 바꾸지 않는다
@@ -275,7 +267,7 @@
 - **Reversible**: yes
 - **Source**: docs/mdm/tasks/TSK-01-03/design.md D3
 
-## D-035 (2026-09-23T19:34:55Z)
+## D-037 (2026-09-23T19:34:55Z)
 - **Phase**: design (TSK-01-03)
 - **Decision needed**: mdm API 403·메뉴 비노출과 '담당자만 확정' 을 어느 층이 보장하는가
 - **Decision made**: 메뉴·API 액션 RBAC 는 mcm 시드 + BFF(`proxy.ts`)가 맡고, mdm 은 mls 선례대로 `cactus.jwt.secret`·client key 신뢰 채널을 켜서 요청 역할을 받으며, 버전 전이 서비스가 역할(담당자)과 소유자를 직접 검사한다. SYSADMIN 은 담당자로 보지 않는다
@@ -283,7 +275,7 @@
 - **Reversible**: yes
 - **Source**: docs/mdm/tasks/TSK-01-03/design.md D6
 
-## D-036 (2026-09-23T19:34:55Z)
+## D-038 (2026-09-23T19:34:55Z)
 - **Phase**: design (TSK-01-03)
 - **Decision needed**: DRAFT 넘기기 대상이 담당자인지 mdm 이 어떻게 검사하는가(다른 사용자 역할 조회 수단 없음)
 - **Decision made**: 포트 `MdmStewardDirectory` 를 두고 기본 구현 `UnresolvedStewardDirectory` 는 항상 거부한다(fail-closed, MDM005). 실제 조회 어댑터는 첫 소유권 화면 Task 가 만든다
@@ -291,7 +283,7 @@
 - **Reversible**: yes
 - **Source**: docs/mdm/tasks/TSK-01-03/design.md D7
 
-## D-037 (2026-09-23T19:34:55Z)
+## D-039 (2026-09-23T19:34:55Z)
 - **Phase**: design (TSK-01-03)
 - **Decision needed**: CREATED→INUSE 즉시 전이와 결재 칸 채움을 공통 확정에 넣는가
 - **Decision made**: 확정 UPDATE 가 `REQUESTED_BY/AT`·`RELEASED_AT` 을 함께 쓰고(APPROVED_*·OWNER_ID 는 쓰지 않음), 같은 트랜잭션에서 `APPLY_FROM <= now` 이면 부모 CREATED→INUSE 까지 한다. 그 밖의 경로는 영역 몫
@@ -299,7 +291,7 @@
 - **Reversible**: yes
 - **Source**: docs/mdm/tasks/TSK-01-03/design.md D8
 
-## D-038 (2026-09-23T19:34:55Z)
+## D-040 (2026-09-23T19:34:55Z)
 - **Phase**: design (TSK-01-03)
 - **Decision needed**: SQLite 네이티브 쓰기의 일시 표현(규칙표 #16 의 mdm 적용 방식은 TSK-04-01 실측 대상)
 - **Decision made**: `MdmTemporalBinder` 한 곳에서 업무 일시와 감사 `U_AT` 를 모두 KST 초 단위 `'yyyy-MM-dd HH:mm:ss'` 문자열로 쓰고(MSSQL 은 LocalDateTime/DATETIME2), TSK-04-01 결론에 따라 이 한 곳만 고친다
@@ -307,7 +299,7 @@
 - **Reversible**: yes
 - **Source**: docs/mdm/tasks/TSK-01-03/design.md D9
 
-## D-039 (2026-09-23T19:34:55Z)
+## D-041 (2026-09-23T19:34:55Z)
 - **Phase**: design (TSK-01-03)
 - **Decision needed**: MDM RBAC 시드의 모양(역할 그룹·매핑 대상·시험 사용자)
 - **Decision made**: 역할 2(`MDM_STD_ADMIN`·`MDM_STEWARD`) + 역할 그룹 2(1:1) + 권한 세트 3(PERMISSION_COMMON·CUSTOM·POPUP_BTN 비움) + 기존 OBJECT `mdmSample` 에만 ADR-0003 D5 매트릭스 매핑 + 화면 Task 용 헬퍼 `seedMdmObjectRbac`. 시험 사용자는 운영 시드에 넣지 않고 E2E 가 격리 DB 픽스처로 만든다. 메뉴 폴더 dmb~dme 를 새로 등록한다
@@ -315,7 +307,7 @@
 - **Reversible**: yes
 - **Source**: docs/mdm/tasks/TSK-01-03/design.md D10
 
-## D-040 (2026-09-23T19:34:55Z)
+## D-042 (2026-09-23T19:34:55Z)
 - **Phase**: design (TSK-01-03)
 - **Decision needed**: m-mdm 공통 셸의 상태·잠금 배지를 어디에 어떻게 만드는가
 - **Decision made**: m-mdm `src/shell/` 에 `MdmPageLayout`(shared PageLayout 래핑)·`VersionStatusBadge`·`DraftLockBadge` 를 두고 의미 토큰 인라인 스타일로 그린다(Mantine·16진수 색 없음). 샘플 화면에 셸을 입히고 배지 미리보기를 더해 E2E 스크린샷으로 보인다
