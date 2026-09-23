@@ -2,6 +2,12 @@ spring:
   datasource:
     url: jdbc:sqlite:../data/mdm.db
     driver-class-name: org.sqlite.JDBC
+    hikari:
+      data-source-properties:
+        # 규칙표 §3 #14 — SQLite 는 연결마다 외래키 강제를 켜야 FK·cascade 가 동작한다(TSK-01-02 D4).
+        # URL 파라미터가 아니라 드라이버 속성으로 켜서, 테스트가 URL 만 바꿔 넣어도 유지되게 한다.
+        # 키는 대괄호 표기로 적어 Spring 이 Map 키를 바꾸지 않게 한다.
+        "[foreign_keys]": true
   jpa:
     database-platform: org.hibernate.community.dialect.SQLiteDialect
     hibernate:

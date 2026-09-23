@@ -21,3 +21,29 @@ dependencies {
 bootWar {
     archiveFileName = 'mdm.war'
 }
+
+// TSK-01-02 D5 — MSSQL 실제 적용 검증. docker 가 필요하므로 test/testAll 에 연결하지 않는다.
+// 실행: cd src/backend/mdm && ../gradlew :api:mssqlMigrationTest --no-daemon
+// test 출력을 classpath 에 더하는 것은 T11(SQLite)과 기대값 헬퍼(MdmSystemSeedExpectations)를 같이 쓰기 위해서다.
+sourceSets {
+    mssqlTest {
+        compileClasspath += sourceSets.main.output + sourceSets.test.output
+        runtimeClasspath += sourceSets.main.output + sourceSets.test.output
+    }
+}
+configurations {
+    mssqlTestImplementation.extendsFrom testImplementation
+    mssqlTestRuntimeOnly.extendsFrom testRuntimeOnly
+}
+dependencies {
+    mssqlTestImplementation 'org.testcontainers:testcontainers-mssqlserver'   // 버전은 Boot 4.0.6 BOM(2.0.5)
+    mssqlTestImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+}
+tasks.register('mssqlMigrationTest', Test) {
+    description = 'mdm Flyway 마이그레이션을 Testcontainers MSSQL(2022-CU27)에 실제 적용한다. docker 필요, testAll 비포함.'
+    group = 'verification'
+    testClassesDirs = sourceSets.mssqlTest.output.classesDirs
+    classpath = sourceSets.mssqlTest.runtimeClasspath
+    useJUnitPlatform()
+    testLogging { events 'passed', 'failed', 'skipped'; showStandardStreams = true; exceptionFormat = 'full' }
+}
