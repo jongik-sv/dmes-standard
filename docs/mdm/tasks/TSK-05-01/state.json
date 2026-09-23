@@ -2,7 +2,7 @@
   "tsk": "TSK-05-01",
   "order": "ae88277d-8bd0-4993-a035-7803c6c26b14",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "refactor",
+  "phase": "reported",
   "baseline": {
     "failures": 0,
     "tests": 556,
@@ -19,8 +19,8 @@
     }
   },
   "last": {
-    "phase": "verify",
-    "event": "verify.ok"
+    "phase": "done",
+    "event": "done.ok"
   },
   "model": "haiku",
   "complexity": "3점(depends 3 +1, Flyway=마이그레이션 +2) → opus 판정이나 spec model=sonnet 오버라이드",
