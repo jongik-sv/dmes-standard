@@ -15,13 +15,13 @@
 
 | # | 사실 | 근거 |
 |---|---|---|
-| F1 | 엔진은 독립 Gradle 빌드다. 백엔드 루트 `testAll` 은 포함 빌드 11개의 `:test` 에 `dependsOn` 만 건다. **실패가 하나라도 나면 Gradle 은 `--continue` 없이 남은 테스트 태스크를 건너뛸 수 있다.** 이 Task 는 허용 실패 2건을 안고 가므로 게이트 실행에 `--continue` 를 붙여야 총수를 바르게 센다(§3.4) | `src/backend/build.gradle:7,15-19` |
+| F1 | 엔진은 독립 Gradle 빌드다. 백엔드 루트 `testAll` 은 포함 빌드 11개의 `:test` 에 `dependsOn` 만 건다. **실패가 하나라도 나면 Gradle 은 `--continue` 없이 남은 테스트 태스크를 건너뛸 수 있다.** (개정: 이 Task 는 D2 개정에 따라 실패 0 게이트라 `--continue` 가 필요 없다, §3.4) | `src/backend/build.gradle:7,15-19` |
 | F2 | main 의존은 `api 'com.ezylang:EvalEx:3.7.0'` 하나, test 는 JUnit 5.11.4·ArchUnit 1.3.0·`jackson-databind:2.18.2`(test 전용)다. `-parameters`, UTF-8 | `maru-mdm-engine/build.gradle` |
 | F3 | **영구** `MaruMdmEngineArchitectureTest`: main 은 `kr.dongkuk.maru.mdm.engine..`·`com.ezylang.evalex..`·`java.lang/util/math/time/text..` 만 의존한다. `java.io`·`java.nio`·`java.sql`·`java.net` 은 쓸 수 없다. `java.util.regex`·`java.util.function`·`java.util.concurrent`·`java.time.temporal` 은 된다 | `arch/MaruMdmEngineArchitectureTest.java` |
 | F4 | **영구** `EnginePackageDependencyTest`: `..engine.rule..`(하위 포함)은 `engine.domain`·`engine.code` 를 보지 못한다. `engine.expr`·`engine.spi` 는 본다 | `arch/EnginePackageDependencyTest.java` |
 | F5 | **영구** `ContractTypeShapeTest`: `CONTRACT_TYPES` 목록에 든 계약 타입에만 형태 규칙을 건다. 새 구현 클래스는 이 목록 밖이라 영향이 없다. 단 계약 record·interface 에 메서드를 더하면(예: `RuleView.row(rowId)`) 빨강이다 | `arch/ContractTypeShapeTest.java` |
 | F6 | **영구** `EngineContractSchemaTest.expr_rule_패키지의_record_enum_은_스키마_대응이_있거나_Java_전용_목록에_있다`: main 의 `engine.expr`·`engine.rule` 을 `importPackages` 로 읽고(**하위 패키지까지 재귀**), 그 안의 **모든 record·enum**(중첩·private 포함)이 대응표(R1-R11·E1-E8) 또는 `JAVA_ONLY` 목록에 있어야 한다. 그래서 rule 에 record·enum 을 하나라도 더하면 이 테스트가 빨강이다. test 범위 클래스는 검사 밖이다 | `contract/EngineContractSchemaTest.java:106-113,210-236` |
-| F7 | **임시** `ContractOnlyPhaseTest` 5건. 이 Task 가 main 구현 클래스를 넣으면 `main_클래스_집합이_계약_타입과_스캐폴드로_닫혀_있다` 와 `EvalEx_실행_타입은_스캐폴드_ExpressionEvaluator_만_쓴다` 가 반드시 빨강이 된다. 나머지 3건(`MdmExpressionConfig_의_메서드는_UnsupportedOperationException_만_던진다`, `baseBuilder_는_UnsupportedOperationException_을_던진다`, `create_는_UnsupportedOperationException_을_던진다`)은 `MdmExpressionConfig` 만 보므로 이 Task 가 그 파일을 건드리지 않으면 초록이다 | `arch/ContractOnlyPhaseTest.java` |
+| F7 | **임시** `ContractOnlyPhaseTest` 5건. 이 Task 가 main 구현 클래스를 넣으면 `main_클래스_집합이_계약_타입과_스캐폴드로_닫혀_있다` 와 `EvalEx_실행_타입은_스캐폴드_ExpressionEvaluator_만_쓴다` 가 반드시 빨강이 된다. 나머지 3건(`MdmExpressionConfig_의_메서드는_UnsupportedOperationException_만_던진다`, `baseBuilder_는_UnsupportedOperationException_을_던진다`, `create_는_UnsupportedOperationException_을_던진다`)은 `MdmExpressionConfig` 만 보므로 이 Task 가 그 파일을 건드리지 않으면 초록이다. (개정: 빨강이 되는 2건은 D2 개정에 따라 이 Task 가 메서드째 지운다) | `arch/ContractOnlyPhaseTest.java` |
 | F8 | 계약 필드 확인(팀장 제약 4): `RuleCell.ast`(Expression 셀 AST), `RuleVar.exprAst`(식 변수 AST), `RuleVar.grpCondAst`(열 조건 AST), `RuleDefinition.contract`(입력 계약)가 **모두 있다**. view 의 AST·CONTRACT 는 이 필드를 그대로 꺼내면 된다. 반면 `RuleView.ColumnView` 에는 `resGrp`·`grpCond`·`grpCondAst` 칸이 없고, 06:495 의 `RuleView.row(rowId)` 는 계약 record 에 메서드가 필요해 F5 가 막는다(D9) | `spi/DefinitionLookup.java`, `rule/RuleView.java` |
 | F9 | `RuleCell.text` 는 `@Nullable` 이 아니다. NA 셀의 텍스트도 null 이 아니라 빈 문자열 `""` 이어야 계약을 지킨다 | `spi/DefinitionLookup.java` RuleCell |
 | F10 | `RuleEngine` Javadoc: `evalTs` 필수, 엔진은 초 미만을 잘라 `EVAL_TS` 로 넣는다. 레코드 키는 표준 물리명 그대로다. `text`·`textAndAst` 는 `view` 위임 default 다 | `rule/RuleEngine.java` |
@@ -109,13 +109,17 @@
 
 ### 2.3 수정
 
-없다. 이 Task 는 기존 파일을 한 줄도 고치지 않는다.
+| 파일 | 변경 |
+|---|---|
+| `E/src/test/java/kr/dongkuk/maru/mdm/engine/arch/ContractOnlyPhaseTest.java` | 이 Task 의 구현 클래스 때문에 무효가 되는 테스트 메서드 2건(`main_클래스_집합이_계약_타입과_스캐폴드로_닫혀_있다`, `EvalEx_실행_타입은_스캐폴드_ExpressionEvaluator_만_쓴다`)을 지운다. 그 2건만 쓰던 import·상수(`SCAFFOLD`, `MASTER_LOOKUP_NONE`)를 정리하고, 클래스 Javadoc 에 삭제 사실 한 줄을 덧붙인다. 나머지 3건과 파일은 남긴다(D2 개정). |
+
+그 밖의 기존 파일은 한 줄도 고치지 않는다.
 
 ### 2.4 수정하지 않는 것(명시, 바꾸면 게이트 실패로 본다)
 
 - `E/src/main/java/.../expr/MdmExpressionConfig.java` — TSK-03-02 몫. 고치면 `ContractOnlyPhaseTest` 나머지 3건이 깨지고 03-02 와 충돌한다.
 - 계약 타입 전부(`rule/RuleEngine`·`RuleResult`·`RuleSetResult`·`RuleView`, `spi/**`, `expr/**`, `code/**`, `domain/**`), `E/src/main/resources/.../engine-contract.schema.json`, `src/frontend/m-mdm` 의 생성 TS.
-- `E/src/test/java/.../arch/**`(특히 `ContractOnlyPhaseTest` 는 지우지도 `@Disabled` 하지도 않는다, D2), `E/src/test/java/.../contract/**`(`JAVA_ONLY` 목록 포함, D3).
+- `E/src/test/java/.../arch/**`(`ContractOnlyPhaseTest` 는 §2.3 의 메서드 2건 삭제 외에는 고치지 않는다. 파일을 지우거나 `@Disabled` 하지 않는다, D2), `E/src/test/java/.../contract/**`(`JAVA_ONLY` 목록 포함, D3).
 - `rule/package-info.java`(F11), 스캐폴드 `expr/ExpressionEvaluator.java` 와 그 테스트.
 - `docs/mdm/engine-contract/**` 초안.
 - `state.json`(오케스트레이터 관리).
@@ -184,12 +188,13 @@ cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Con
 cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint
 ```
 
-- **이 Task 의 게이트 실행에는 backend 명령 끝에 `--continue` 를 붙인다.** 허용 실패 2건 때문에 엔진 `:test` 가 실패로 끝나면 `--continue` 없이는 다른 포함 빌드의 테스트가 건너뛰어져 총수가 줄어든 것처럼 보인다(F1). 종료 코드는 실패(허용 실패 때문)이므로 판정은 종료 코드가 아니라 각 포함 빌드의 `build/test-results/test/TEST-*.xml` 을 테스트 이름 단위로 모아서 한다.
+- **게이트는 위 backend 명령 그대로(`--continue` 없이) 종료 코드 0, 실패 0 이다**(D2 개정, 팀장 지시). 총수는 각 포함 빌드의 `build/test-results/test/TEST-*.xml` 을 테스트 이름 단위로 모아 센다.
 - 엔진만 빠르게: `cd src/backend/maru-mdm-engine && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ../gradlew test --no-daemon`(래퍼 경로는 Build 가 확인한다. 없으면 `cd src/backend && … ./gradlew :maru-mdm-engine:test` 대신 `testAll --continue` 를 쓴다).
-- **게이트 = 테스트 이름 단위로 기준선과 차분했을 때 신규 실패가 아래 허용 2건뿐 + 총수 미감소.**
-  - 허용 실패: `ContractOnlyPhaseTest.main_클래스_집합이_계약_타입과_스캐폴드로_닫혀_있다`, `ContractOnlyPhaseTest.EvalEx_실행_타입은_스캐폴드_ExpressionEvaluator_만_쓴다`.
+- **게이트 = 실패 0 + 테스트 이름 단위로 기준선과 차분했을 때 계획 삭제 2건 외에 사라진 테스트 없음 + 총수 미감소.**
+  - 계획 삭제(D2 개정): `ContractOnlyPhaseTest.main_클래스_집합이_계약_타입과_스캐폴드로_닫혀_있다`, `ContractOnlyPhaseTest.EvalEx_실행_타입은_스캐폴드_ExpressionEvaluator_만_쓴다`.
+  - 예상 총수: 기준선 518 − 계획 삭제 2 + 새 테스트 539 = **1,055**. "총수 미감소"의 하한은 계획 삭제 2건을 뺀 **516** 이다.
   - 초록 유지 필수: `ContractOnlyPhaseTest` 의 나머지 3건, `ContractTypeShapeTest`·`EnginePackageDependencyTest`·`MaruMdmEngineArchitectureTest`·`EngineContractSchemaTest`·`EngineContractConstantsTest`·`ExpressionEvaluatorTest` 전부.
-- **기준선 재설정 규칙:** TSK-03-02 가 먼저 머지되어 이 브랜치가 그 위로 올라가면 `ContractOnlyPhaseTest` 5건이 사라진다. 그때 기준선은 "518 − 5 = 513 + 03-02 가 더한 테스트 수"이고 허용 실패는 0건이다. Verify 는 기준선을 다시 잡은 사실을 보고에 적는다.
+- **기준선 재설정 규칙:** TSK-03-02 가 먼저 머지되어 이 브랜치가 그 위로 올라가면 `ContractOnlyPhaseTest` 나머지 3건도 사라진다. 그때 기준선은 "518 − 5 = 513 + 03-02 가 더한 테스트 수"이고 게이트는 여전히 실패 0 이다. Verify 는 기준선을 다시 잡은 사실을 보고에 적는다.
 - frontend 는 이 Task 가 건드리지 않지만 게이트로 그대로 돌려 6건·lint 통과를 확인한다.
 - **브라우저 E2E 스모크 넷: 해당 없음.** 사유: entry-point 없음(`-`), domain backend, 화면이 없다.
 
@@ -263,7 +268,7 @@ cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test && pnpm
 | I37 | 셀 요약 규칙(§6.12) | `IN (A, B)` 구분자를 `,` 로 → `CellSummaryTest`. Equal 셀에 `= ` 접두 → 같은 테스트 |
 | I38 | 결과 표현: `results` 키는 결과 열 seq 순(그룹은 첫 열 자리), null 값을 담을 수 있는 불변 맵, 숫자는 EvalEx 가 낸 `BigDecimal` 그대로 | `Map.copyOf` 사용 → null 결과 사례에서 NPE. 키 순서 흔들림 → 키 순서 단언 |
 | I39 | 아키텍처: rule main 에 record·enum 이 없고(F6), rule 은 `engine.code`·`engine.domain` 을 보지 않으며(F4), main 의존은 EvalEx·java 표준뿐이다(F3) | rule 에 `private record X(int a)` 추가 → `EngineContractSchemaTest.expr_rule_패키지의_…`. `CodeResolver` import → `EnginePackageDependencyTest.rule_은_…`. `java.io.UncheckedIOException` 사용 → `MaruMdmEngineArchitectureTest` |
-| I40 | 계약·설정 불변: `MdmExpressionConfig`·계약 타입·스키마·TS 생성물·arch/contract 테스트 파일은 바이트 동일, `ContractOnlyPhaseTest` 나머지 3건 초록 | `MdmExpressionConfig.baseBuilder` 에 몸체 추가 → `ContractOnlyPhaseTest` 3건 빨강. 자동 테스트가 없는 부분(스키마·TS·테스트 파일 자체)은 Verify 가 `/usr/bin/git diff <머지 기준> -- <경로>` 가 비어 있는지 본다(덮지 못하는 변이로 보고) |
+| I40 | 계약·설정 불변: `MdmExpressionConfig`·계약 타입·스키마·TS 생성물·arch/contract 테스트 파일은 바이트 동일(단 `ContractOnlyPhaseTest` 는 §2.3 의 메서드 2건 삭제만), `ContractOnlyPhaseTest` 나머지 3건 초록 | `MdmExpressionConfig.baseBuilder` 에 몸체 추가 → `ContractOnlyPhaseTest` 3건 빨강. 자동 테스트가 없는 부분(스키마·TS·테스트 파일 자체)은 Verify 가 `/usr/bin/git diff <머지 기준> -- <경로>` 가 비어 있는지 본다(덮지 못하는 변이로 보고) |
 
 ---
 
@@ -702,7 +707,7 @@ SPD_JOIN (DERIVE, 메타 H:533 · WR:34): var 1 RESULT EXPRESSION `LINE_SPD` NUM
 - **`EvaluationValue.nullValue()` 금지**(E16, 제거 예정 경고). `NULL_VALUE` 상수를 쓴다.
 - **`java.io` 금지**(F3). `Serializable` 구현, `UncheckedIOException`, 리소스 읽기를 main 에 두지 않는다. 스냅샷 파일은 test 만 읽는다.
 - **`MdmExpressionConfig` 를 import 해도 되지만 고치지 않는다.** main rule 코드는 그 클래스가 필요 없다.
-- **ContractOnlyPhaseTest 를 지우거나 `@Disabled` 하지 않는다**(D2). 허용 실패 2건 외 나머지 3건은 초록이어야 한다.
+- **ContractOnlyPhaseTest 는 무효가 된 메서드 2건만 지운다**(D2 개정). 파일을 지우거나 `@Disabled` 하지 않고, 나머지 3건은 초록이어야 한다.
 - **게이트는 `--continue`** 로 돌리고 XML 보고서로 센다(F1, §3.4).
 - **스냅샷 JSON 이스케이프**: §6.10.4 의 텍스트는 원문이다. JSON 에 옮길 때 `\` 는 `\\`, `"` 는 `\"` 로 한 번 더 이스케이프한다. 스냅샷을 코드로 재생성하지 않는다.
 - **샘플 기대값의 출처를 테스트 주석에 적는다**(06 줄 번호·H 줄 번호·"설계 정의 D10"). D10 의 값은 원천이 아니다.
@@ -721,11 +726,13 @@ SPD_JOIN (DERIVE, 메타 H:533 · WR:34): var 1 RESULT EXPRESSION `LINE_SPD` NUM
 - **반려되면 재작업 방향**: 03-02 머지 뒤 `TestExpressionConfig` 를 `MdmExpressionConfig.create(new EngineLookups(…코드 사본 fixture…))` 로 바꾸고, `TestFunctions` 를 지우고, `SampleRuleValueTest`·`GeneratedTextParseTest`·`RuleSetEvaluationTest` 를 다시 돌린다. CODE_IN 사례는 코퍼스 규칙(engine-contract §11 가짜 사본 합성)으로 `CodeLookup`·`CodeEffLookup` fixture 를 만든다.
 
 ### D2 — `ContractOnlyPhaseTest` 를 어떻게 다루는가
-- **질문**: 테스트 파일 주석은 "먼저 구현하는 Task 가 지운다"인데, 이 Task 가 main 구현을 넣으면 그중 2건이 반드시 실패한다. 지울 것인가?
-- **선택지**: (a) 지우지도 `@Disabled` 하지도 않고 2건을 허용 실패로 보고한다 / (b) 이 Task 가 파일째 지운다 / (c) 2건만 `@Disabled`
-- **택한 것**: (a). 허용 실패는 `main_클래스_집합이_계약_타입과_스캐폴드로_닫혀_있다`, `EvalEx_실행_타입은_스캐폴드_ExpressionEvaluator_만_쓴다` 두 건이고, 나머지 3건은 초록을 유지한다(§3.4, I40).
-- **근거**: 오케스트레이터 확정 제약 5(팀장 지시로 삭제 주체를 TSK-03-02 로 고정). 주석의 "먼저 구현하는 Task" 는 미승인 선행(TSK-03-01) 문구라 근거 순위가 팀장 지시보다 낮다. 두 Task 가 같은 파일을 지우면 머지 충돌이 난다.
-- **반려되면 재작업 방향**: (b) 면 이 Task 의 Build 커밋에서 `ContractOnlyPhaseTest.java` 를 지우고 기준선 총수를 5 줄여 다시 잡는다(허용 실패 0). 03-02 에 "이미 지웠다"를 알린다.
+> **개정(Build, 2026-09-24, 팀장 지시).** 처음 택한 (a) "허용 실패 2건"은 폐기했다. dev 에 실패 테스트가 들어가면 뒤에 착수하는 모든 워커의 기준선이 깨지기 때문이다.
+
+- **질문**: 테스트 파일 주석은 "먼저 구현하는 Task 가 지운다"인데, 이 Task 가 main 구현을 넣으면 그중 2건이 반드시 실패한다. 어떻게 다루는가?
+- **선택지**: (a) 지우지도 `@Disabled` 하지도 않고 2건을 허용 실패로 보고한다(최초 선택, 폐기) / (b) 이 Task 가 파일째 지운다 / (c) 2건만 `@Disabled` / (d) 이 Task 구현 때문에 무효가 되는 테스트 메서드 2건만 지우고 나머지 3건과 파일은 남긴다
+- **택한 것**: (d). 지우는 것은 `main_클래스_집합이_계약_타입과_스캐폴드로_닫혀_있다`, `EvalEx_실행_타입은_스캐폴드_ExpressionEvaluator_만_쓴다` 두 건이다. `MdmExpressionConfig` 만 보는 나머지 3건은 초록을 유지하고 TSK-03-02 가 지운다. 그 2건만 쓰던 import·상수를 정리하고 클래스 Javadoc 에 한 줄을 덧붙이며, 그 밖의 줄은 건드리지 않는다(§2.3). 게이트는 실패 0 이다(§3.4).
+- **근거**: TSK-03-01 D2 는 "main 구현 클래스를 먼저 넣는 Task 가 그 커밋에서 이 파일을 지운다"고 정했다. 팀장 지시는 게이트를 실패 0 으로 두고, 이 Task 가 무효로 만드는 2건만 지우고, 나머지 3건의 삭제 주체는 TSK-03-02 로 두라는 것이다. (b) 는 03-02 가 아직 지키는 3건(`MdmExpressionConfig` 가 UOE 인지)의 보호를 먼저 없앤다. (c) 는 실패를 감출 뿐 무효가 된 규칙을 남긴다. (d) 는 같은 파일을 고치는 03-02 와의 diff 를 가장 작게 한다.
+- **반려되면 재작업 방향**: (b) 면 `ContractOnlyPhaseTest.java` 를 파일째 지우고 예상 총수를 3 더 줄인다(1,052). 03-02 에 "이미 지웠다"를 알린다.
 
 ### D3 — rule 의 내부 타입을 record·enum 없이 만든다
 - **질문**: 영구 `EngineContractSchemaTest`(F6)는 expr·rule(하위 포함)의 모든 record·enum 이 대응표나 `JAVA_ONLY` 목록에 있기를 요구한다. 내부 값 묶음과 토큰 종류를 무엇으로 만드는가?
@@ -832,6 +839,13 @@ SPD_JOIN (DERIVE, 메타 H:533 · WR:34): var 1 RESULT EXPRESSION `LINE_SPD` NUM
 - **근거**: 컴파일 캐시는 TSK-03-02 요구사항("컴파일 캐시 + copy()")이다. rule 에 따로 두면 03-02 의 캐시와 두 벌이 된다. 새 인스턴스 평가는 스레드 안전하다.
 - **반려되면 재작업 방향**: 03-02 머지 뒤 `ExpressionRunner` 가 03-02 캐시에서 원본을 받아 `copy()` 로 평가하게 바꾼다. 공개 API 는 바뀌지 않는다.
 
+### D18 — 세트 입력 키 일괄 확인이 DERIVE 행 계약의 optional 이름까지 요구하는가
+- **질문**: §6.13 4 는 세트 실행 전 입력 키 확인의 대상을 "조건 변수 ∪ DERIVE 룰 행 변수(required·optional)"로 정했다. 그러면 앞 룰이 채우지 않는 optional 이름(예: `SPD_JOIN` 만 담은 세트의 `EXC_SPD`)도 레코드 키로 있어야 한다. optional 의 뜻인 "키가 없어도 된다"(§6.2 3단계, I26)와 어긋나는가?
+- **선택지**: (a) 설계대로 optional 이름도 요구한다(값은 null 허용) / (b) 세트 사전 검사에서 optional 이름은 빼고 required 만 요구한다
+- **택한 것**: (a). 설계 §6.13 그대로 구현했다(Build 이탈 기록 6).
+- **근거**: 원천 06:420 "세트 입력 키를 한꺼번에 본다"는 DERIVE 행 변수의 required·optional 구분을 따로 말하지 않는다. 사전 검사는 판정 도중 "변수 없음" 오류가 나지 않게 하는 목적이므로 넓게 요구하는 쪽이 안전하다. LS_A3 는 `EXC_SPD` 를 앞 룰(`SPD_EXC`)이 채우므로 영향이 없다.
+- **반려되면 재작업 방향**: (b) 면 `MdmRuleEngine.missingInputKeys` 에서 DERIVE `RowContract.optional()` 을 `needed` 에 넣지 않는다. `RuleSetEvaluationTest.CREATED_세트는_실행하고_빈_세트는_빈_결과` 의 레코드에서 `EXC_SPD` 를 빼고, optional 누락이 오류가 아님을 확인하는 사례를 더한다. 이 경우 단독 DERIVE 식이 optional 이름을 참조하면 판정 중 `EVALUATION_ERROR` 가 날 수 있으니 식 작성 규칙을 함께 정해야 한다.
+
 ---
 
 ## Build 모델 권고
@@ -852,3 +866,13 @@ SPD_JOIN (DERIVE, 메타 H:533 · WR:34): var 1 RESULT EXPRESSION `LINE_SPD` NUM
 6. **세트 입력 키 확인은 §6.13 4 그대로 DERIVE 행 계약의 optional 이름도 요구한다.** 그래서 `SPD_JOIN` 을 단독으로 담은 세트는 `EXC_SPD` 키(값 null 허용)가 레코드에 있어야 한다. 설계대로 구현한 결과이며, 테스트 `CREATED_세트는_실행하고_빈_세트는_빈_결과` 가 이 전제를 따른다. optional 을 세트 입력 키에서 빼야 한다면 원천 06:420 해석을 담당자가 정해야 한다.
 7. **F11 후속.** `rule/package-info.java` 의 "계약 전용 단계" 설명은 이 Task 뒤에 낡았지만 고치지 않았다(병렬 03-04 충돌 회피). 머지 뒤 정리 대상이다.
 8. **I40 은 변이를 넣지 않았다.** `MdmExpressionConfig` 는 이 Phase 의 수정 금지 파일이라 몸체 추가 변이를 넣지 않았다. 보호는 `ContractOnlyPhaseTest` 나머지 3건 초록과 `/usr/bin/git diff` 공백 확인으로 대신한다.
+9. **D2 를 개정했다(팀장 지시).** 허용 실패 2건 방식을 폐기하고, `ContractOnlyPhaseTest` 의 무효가 된 메서드 2건만 지웠다. 게이트는 실패 0 이고 예상 총수는 1,055, 하한은 516 이다(§2.3·§3.4). 이탈 기록 6의 질문은 D18 로 올렸다.
+
+## 후속 (이 Task 에서 하지 않는다)
+
+TSK-03-02 머지 뒤에 할 일이다.
+
+- `TestExpressionConfig`·`TestFunctions` 를 `MdmExpressionConfig.create(...)` 와 03-02 의 함수 구현으로 바꾸고 샘플·파싱·세트 테스트를 다시 돌린다(D1).
+- `ExpressionRunner` 에 03-02 의 컴파일 캐시 + `copy()` 를 연결한다(D17).
+- `ContractOnlyPhaseTest` 나머지 3건이 사라진 뒤 기준선을 다시 잡는다(§3.4).
+- `rule/package-info.java` 의 "계약 전용 단계" 설명을 정리한다(F11).
