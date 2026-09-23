@@ -20,7 +20,7 @@
 | F2 | **BPMN 규약**: `exclusiveGateway id="actionGateway"` + `camunda:property input=action`, 분기 sequenceFlow 의 `name` = action. serviceTask `camunda:class="{빈 이름}"`, 속성 `method`·`output`·`dto`(쉼표로 여러 DTO 가능). `grid` 속성 금지(PropertyException). 요청 `params` 는 DTO 로, `grids.{id}.rows` 는 **이름이 같은 메서드 파라미터** `List<Map<String,Object>> {id}` 로 들어간다(`-parameters` 컴파일, 이름이 다르면 조용히 null). 반환이 `Map` 이고 `output="result"` 면 응답은 `data.result.{…}` 이며 Map 안의 List 는 grid 로 분리되지 않는다 | `CactusRequestConverter.java:24-50`, `CactusResponseConverter.java:46-87`, `PlainJavaServiceTaskExecutable.java:42,183-200`, backend-standard `02-structure-naming-constraints.md:293-327` |
 | F3 | **트랜잭션 경계 = action 요청 1건**. `CoreServiceStarter.java:91-100` 이 `transactionHandler.execute(() -> processStarter.start(...))` 로 BPMN 전체를 감싸고, `SpringTransactionHandler.java:204-256` 이 예외 시 `rollbackAll` 한다. mdm 은 `application.yml:29-32` `transactional: true`, TM 은 기본 `"transactionManager"`(Spring Boot 의 `JpaTransactionManager`) 하나(legacy 모드, `cactus.tx.managers` 없음). 서비스에 `@Transactional` 금지(CGLIB 프록시가 파라미터 이름을 잃어 `ParameterName must not be null`) | `OasisAutoConfiguration.java:100-127`, `OasisProperties.java:49`, NoticeMgmtService.java:42-46 |
 | F4 | **커밋 오류는 삼켜진다**: `SpringTransactionHandler.commitAll()`(116-145)은 커밋 중 `TransactionException` 을 로그만 남기고 성공으로 응답한다. 그래서 CHECK·UX 위반을 드러내려면 서비스 안에서 `saveAndFlush` 로 flush 를 강제해야 한다. 같은 TM 으로 합류한 호출이 던진 예외를 잡고 계속 가면 rollback-only 가 남아 커밋 때 조용히 사라진다 — 잡지 않는다 | 조사 |
-| F5 | **오류 응답 모양(코드 판독, 미실행)**: 서비스가 던진 예외는 `TaskExecutionException` 으로 감싸진 뒤 `CoreServiceStarter` 의 `catch (Exception)` 에서 SYSTEM_ERROR 결과가 되고, `CactusResponseConverter.convertError`(92-100)는 `meta.code="S001"`(USER_ERROR 면 `"E001"`)·`meta.message = e.getMessage()`만 싣는다. `OasisServiceExecutor.java:113` 의 `catch (BusinessException)`(오류 코드·`errors[]` 를 싣는 경로)은 서비스 예외로는 타지 않는다. 즉 **MDM 오류 코드와 `errors[]` 는 응답에 오지 않고, 메시지도 감싼 예외의 메시지(원문 그대로인지 미확인)** 다 — Build 첫 단계에서 실측한다(§4.3 B0) | `CoreServiceStarter.java:101-126`, `OasisServiceExecutor.java:60-130` |
+| F5 | **오류 응답 모양(코드 판독, 미실행)**: 서비스가 던진 예외는 `TaskExecutionException` 으로 감싸진 뒤 `CoreServiceStarter` 의 `catch (Exception)` 에서 SYSTEM_ERROR 결과가 되고, `CactusResponseConverter.convertError`(92-100)는 `meta.code="S001"`(USER_ERROR 면 `"E001"`)·`meta.message = e.getMessage()`만 싣는다. `OasisServiceExecutor.java:113` 의 `catch (BusinessException)`(오류 코드·`errors[]` 를 싣는 경로)은 서비스 예외로는 타지 않는다. 즉 **MDM 오류 코드와 `errors[]` 는 응답에 오지 않고, 메시지도 감싼 예외의 메시지(원문 그대로인지 미확인)** 다 — Build 첫 단계에서 실측한다(§4.3 B0). 참고로 DEC-001 「남은 관찰」은 mls `noticeMgmt` 실측에서 `meta.code` 가 `S001` 로 고정되지만 **메시지는 그대로 전달된다**고 기록했다 | `CoreServiceStarter.java:101-126`, `OasisServiceExecutor.java:60-130`, `docs/ai-build-log/DEC-001_noticeMgmt-on-mls.md` |
 | F6 | **감사 칼럼**: `CactusAuditEntity`(9칼럼) + `CactusAuditListener` — PrePersist 에서 `VER=0`, PreUpdate 에서 `VER+1`. `VER` 은 `@Version` 이 아니라 자동 낙관적 잠금이 없다. `AuditHolder` 는 `OasisServiceExecutor` 가 요청마다 설정한다. SQLite 에서 `C_AT`(Instant)은 INTEGER(epoch millis)로 저장된다(TSK-04-01 D10) — 네이티브 SQL 로 `C_AT` 를 비교·정렬하지 않는다 | `src/backend/cactus-core/src/main/java/com/dongkuk/dmes/cactus/audit/CactusAuditEntity.java:24-51`, `CactusAuditListener.java:24-58` |
 | F7 | **`TB_MDM_DOMAIN` 스키마(V3)** 는 이 작업에 필요한 칼럼을 모두 갖는다: `DOMAIN_ID`(IDENTITY)·`DOMAIN_NAME`·`STD_NAME VARCHAR(50)`·`PARENT_DOMAIN_ID`(자기 FK)·`DOMAIN_KIND`·`DATA_TYPE`(NOT NULL)·`LENGTH`·`SCALE`·`UNIT_CODE`(FK→`TB_MDM_UNIT`)·`MARU_CODE_ID`·`CATE_ID`·`STD_RULE`·`STD_AST`(json)·`BIZ_RULE`·`BIZ_AST`(json)·`DESCRIPTION`·`EXAMPLES`(json)·`TEST_CASES`(json)·`CHG_SEQ NOT NULL DEFAULT 0`·감사 9칼럼. CHECK `CK_TB_MDM_DOMAIN_CODE (DOMAIN_KIND <> 'CODE' OR STD_RULE IS NULL)`, `CK_TB_MDM_DOMAIN_FLAG (DOMAIN_KIND <> 'FLAG' OR PARENT_DOMAIN_ID IS NOT NULL OR STD_RULE IS NOT NULL)`, JSON CHECK 4개. **버전·유효기간 칼럼은 없다**(TSK-02-03 D3 — 감사 `VER` 과 저장 즉시 반영 정책으로 갈음). `FK_TB_MDM_DOMAIN_CODE` 는 걸지 않았다(TSK-04-01 D1). 엔티티 `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/entity/MdmDomain.java`, 리포지토리 `.../repository/MdmDomainRepository.java` 가 이미 있다 | `src/backend/mdm/api/src/main/resources/db/migration/mdm/{sqlite,mssql}/V3__create_mdm_term_domain_column.sql` |
 | F8 | **배포는 보류다**: TRD §4.1·T4(확정, ADR-0002)·decisions D-019 — 배포 대상·배포 순번(`TB_MDM_DICT_SEQ`, `chg_seq`)·수신 로그 테이블은 DDL 만 있고 이번 범위의 코드는 쓰지 않는다. 활성 테이블의 `CHG_SEQ` 는 `DEFAULT 0`·엔티티 미매핑이다. 따라서 02 「배포 순번」의 "하위 트리에 순번을 찍는다"는 이번에 구현하지 않는다 | TRD.md:47·142, decisions.md:153 |
@@ -40,7 +40,7 @@
 | F22 | **포털 적재**: `src/frontend/m-mcm/scripts/generate-page-registry.mjs` 가 `m-mcm/lib/generated/page-registry.ts`(git 추적)를 만든다. 포털은 `@dk-oasis/m-mdm/pages/*` → **dist** 로 풀리므로 `src/frontend/m-mdm/tsup.config.ts` 의 pages entry 에 한 줄을 넣고 `pnpm build:libs` 를 다시 돌려야 한다(1:1 대응은 `m-mdm/tests/tsup-entries.smoke.test.ts` 가 검사). `next dev` 를 직접 띄우면 `predev` 훅(레지스트리 재생성)이 돌지 않는다 | 조사 |
 | F23 | **vitest**: `m-mdm/vitest.config.ts` 는 `tests/**/*.test.ts` 만 모은다(`.tsx` 는 조용히 빠진다). 렌더 테스트는 JSX 대신 `createElement`, 첫 줄 `/** @vitest-environment happy-dom */`, `DmesUiProvider` 로 감싸고 `fetch` 를 스텁한다(선례 `m-mdm/tests/shell/mdm-page-layout.test.ts`). `@dk-oasis/shared/*` 는 dist 를 읽으므로 `pnpm build:libs` 가 먼저다 | 조사 |
 | F24 | **E2E**: `src/frontend/playwright.config.ts` 는 서버를 띄우지 않고 `baseURL` 도 없다(`fullyParallel: true`). 기존 mdm 스펙은 `SMOKE_MCM_BASE_URL`(기본값 5100 = 메인 체크아웃 포털 → 거짓 통과 주의)·`SMOKE_LOGIN_USER/PASSWORD` 를 쓰고, 로그인은 스펙 안 `login()`(`/login` → 자리표시자 "아이디"·"비밀번호" → "로그인" → `/portal`), 메뉴 이동은 `.tree-item .item-name` 을 텍스트로 누른다. 시험 사용자 `e2e_mdm_steward`·`e2e_mdm_stdadmin`·`e2e_mdm_none` 은 `e2e/fixtures/mdm-rbac-users.sql` 을 격리 `mcm.db` 에 넣어 만든다. `e2e/fixtures/mdm-rbac-seed-check.sql` 은 `OBJECT_ID='mdmSample'` 만 보므로 새 OBJECT 를 추가해도 기대 파일은 바뀌지 않는다. `page.route` 선례는 없다. 기존 `mdm-sample-smoke.spec.ts` 는 추적 파일 `docs/mdm/tasks/TSK-01-02/screens/dma-mdmSample.png` 를, `mdm-shell-rbac-smoke.spec.ts` 는 `docs/mdm/tasks/TSK-01-03/screens/*.png` 를 덮어쓴다 | `src/frontend/e2e/*.spec.ts`, TSK-01-03 design F51·§3.6 |
-| F25 | **화면 설계 산출물**: RULE.md·Mes-Guide §4 「개발 진입 가드」·ADR-0003 D3·인계 — 화면 Task 는 `docs/mdm/screens/{screenId}/` 에 5종(분석리포트·기능설계서·디자인설계서·BPMN설계서·정합체크, 템플릿 `docs/guide/design/templates/`)을 두고 식별자 사전 §A.3.2(`docs/guide/design/identifier-dictionary/01-modules-and-screens.md:200-`) 에 화면 행을 등재한다. mdm 에는 아직 선례 폴더가 없다(`docs/mdm/screens/` 에 README 만 있다). mls `noticeMgmt`(As-Is 없음)는 사용자 결정으로 기능설계서 1종으로 줄였다 | RULE.md:24-25, `docs/guide/MES/Mes-Guide.md:51-62` |
+| F25 | **화면 설계 산출물**: RULE.md·Mes-Guide §4 「개발 진입 가드」·ADR-0003 D3·인계 — 화면 Task 는 `docs/mdm/screens/{screenId}/` 에 5종(분석리포트·기능설계서·디자인설계서·BPMN설계서·정합체크, 템플릿 `docs/guide/design/templates/`)을 두고 식별자 사전 §A.3.2(`docs/guide/design/identifier-dictionary/01-modules-and-screens.md:200-`) 에 화면 행을 등재한다. mdm 에는 아직 선례 폴더가 없다(`docs/mdm/screens/` 에 README 만 있다). mls `noticeMgmt`(As-Is 없음)는 사용자 결정으로 기능설계서 1종으로 줄였다(`docs/ai-build-log/DEC-001_noticeMgmt-on-mls.md` 결정 2, 산출물 `docs/mls/design/noticeMgmt/noticeMgmt_기능설계서.md`). 팀장 지시(2026-09-24)로 이 화면도 기능설계서 1종만 둔다(D8) | RULE.md:24-25, `docs/guide/MES/Mes-Guide.md:51-62` |
 | F26 | **재귀 CTE 방언**: 공통 문안은 `WITH name (cols) AS (anchor UNION ALL recursive)` — MSSQL 은 `RECURSIVE` 키워드가 없고 SQLite 는 선택이다(TRD §4.2). MSSQL 은 앵커와 재귀부의 칼럼 타입이 정확히 같아야 하고 기본 `MAXRECURSION` 이 100 이다 | TRD.md:62-64 |
 
 ---
@@ -124,7 +124,7 @@
 
 | 파일 | 내용 |
 |---|---|
-| `docs/mdm/screens/domainMng/domainMng_분석리포트.md`, `_기능설계서.md`, `_디자인설계서.md`, `_BPMN설계서.md`, `_정합체크.md` | 화면 설계 산출물 5종(D8). As-Is 가 없으므로 원천 02·시안을 분석 대상으로 삼고, 내용은 이 design.md 에서 옮긴다. **Build 가 코드보다 먼저** 쓴다(Mes-Guide 진입 가드) |
+| [`docs/mdm/screens/domainMng/domainMng_기능설계서.md`](../../screens/domainMng/domainMng_기능설계서.md) | 화면 설계 산출물 — 기능설계서 1종(D8, DEC-001 선례). **이 Design 커밋에서 생성했다.** 근거 칸에 원천 02·시안 행 번호 인용 |
 | `docs/mdm/tasks/TSK-04-03/screens/*.png` | E2E 스크린샷(§4.6) |
 
 ### 수정
@@ -311,17 +311,13 @@ ORDER BY s.DEPTH, s.DOMAIN_ID, c.COLUMN_ID
 
 ### 3.8 화면 (`FM/pages/dma/domainMng/page.tsx`)
 
-시안 「2. 도메인 관리」 배치를 따른다. 공통 셸은 `MdmPageLayout group="dma" screenId="domainMng" title="도메인 관리"`, 셸 버튼은 `조회`(action `search`)·`도메인 등록`(신규 폼)·`하위 도메인 등록`(선택 행을 부모로)·`도메인검증`(action `validate`)·`저장`(action `save`). `저장` 은 현재 초안으로 `도메인검증` 을 통과(ERROR 0)해야 열리고, 폼을 고치면 다시 닫힌다(시안 "도메인검증을 통과해야 저장이 열린다"). W01 경고가 있으면 저장 전에 확인 모달을 띄운다.
+화면의 영역·필드·버튼·검증 규칙·권한·열거형은 기능설계서 [`docs/mdm/screens/domainMng/domainMng_기능설계서.md`](../../screens/domainMng/domainMng_기능설계서.md) 가 정본이다(여기서 다시 적지 않는다). 필드·버튼 ID(`S-`·`G-`·`D-`·`L-`·`B-`·`GB-`)와 검증 규칙 ID(§3.2 의 R/S/W 코드)는 그 문서와 코드가 같은 값을 쓴다. 구현 요점만 적는다.
 
-| 영역 | 구성 | 요점 |
-|---|---|---|
-| 검색 | 검색어, 종류(전체·QTY 계량·CODE 코드·ID 식별자·TEXT 문자·DATE 날짜·시각·FLAG 고정값) | 시안 문구 "도메인 층에는 시스템 쪽 이름이 없다…" |
-| 도메인 목록 | `AgDataGrid` 컬럼: 도메인명(들여쓰기 `└`, `domain-tree.ts`), 표준명, 종류, 타입(자식은 "(상속)"), 단위, 자신의 표준식, 유효 식(조립, 읽기 전용), 비즈니스식(요구 변수) | 0행이면 빈 상태 문구 "조회된 도메인이 없습니다". `MATCHED=false` 조상은 흐리게. 행 클릭 → `view` |
-| 기본 속성 | 도메인명*, 표준명*(형식 안내), 부모 도메인(후보에서 자기·하위 제외), 종류·타입·단위(부모가 있으면 "고정" 표시·비활성, 값은 부모 유효값), 길이·소수("좁히기 — 부모 n 이하"), 코드 참조 마루 코드·카테고리(CODE 만 활성, "비우면 부모 참조"), 정의(markdown), 예시 값(쉼표 구분 → `examples` 그리드) | 수정 모드에서는 구조 칼럼(종류·타입·단위·부모)을 모두 잠근다 |
-| 검증식 | 표준 검증식(배지 "화면·서버"), 비즈니스 검증식(배지 "서버 전용", 차 있으면 "서버 확인 항목"), 유효 표준식·유효 비즈니스식(읽기 전용, "저장하지 않음·조립"), 비즈니스 요구 변수 표(표준 물리명·논리명·컬럼 사전 등재 여부) | CODE 종류는 표준 칸 비활성 + "코드 참조로 MASTER 자동 생성" 안내 |
-| 미리보기·테스트 케이스 | 입력값, 요구 변수 입력칸, 판정 배지(표준 통과/실패/서버 확인, 비즈니스 결과), 테스트 케이스 그리드(입력·기대·결과·메모, 행 추가·삭제, 결과는 `validate` 응답) | §3.5 |
-| 영향도와 처리 | 영향도 표(§3.6), 변경 분류 배지(신규·호환·좁히기·넓히기·구조 변경(금지)), diff 표(필드·이전·이후·방향), 검사 목록(이슈 코드·수준·메시지, 하위 케이스 실패 포함) | 시안 문구 "기존 데이터 재검증 리포트는 두지 않는다" |
-| 오류 | `api.ts` 의 throw 를 잡아 `ErrorModal`(또는 `useMessage().showMessage`)로 `meta.message` 를 보인다 | 스모크 4 |
+- 공통 셸 `MdmPageLayout group="dma" screenId="domainMng" title="도메인 관리"`. 셸 버튼의 `action` 으로 버튼 RBAC 가 자동 판정된다.
+- 목록은 `AgDataGrid` + 컬럼 `render` 로 들여쓰기를 그린다(`domain-tree.ts`, 트리 그리드 선례 없음 — F21).
+- `저장` 은 현재 초안으로 `validate` 가 ERROR 0 을 돌려준 뒤에만 열리고, 폼·케이스를 고치면 다시 닫힌다.
+- 오류는 `api.ts` 의 throw 를 잡아 `ErrorModal`(또는 `useMessage().showMessage`)로 `meta.message` 를 보인다(스모크 4).
+- 미리보기 동작은 §3.5, 영향도 응답 모양은 §3.6 을 따른다.
 
 권한: `useUserButtonRbac` + `canDoButton` 으로 `validate`·`execute`·`save` 가능 여부를 보고, 불가하면 편집 폼을 읽기 전용으로 두고 해당 버튼을 숨긴다(셸 버튼은 `action` 으로 자동 판정).
 
@@ -350,7 +346,7 @@ ORDER BY s.DEPTH, s.DOMAIN_ID, c.COLUMN_ID
 
 ### 3.11 화면 설계 산출물과 식별자 사전
 
-Build 는 코드를 쓰기 전에 `docs/mdm/screens/domainMng/` 에 5종을 템플릿(`docs/guide/design/templates/`)대로 쓴다(D8). 분석리포트의 원본 자료는 As-Is 가 아니라 원천 02(「도메인 설계」 41-298행, 「TB_MDM_DOMAIN」 820-860행)와 시안(199-415행)이며, 분석완료 게이트 G1~G7 중 As-Is 전제 항목은 "해당 없음(신규 모듈, As-Is 없음)"과 사유를 적는다. 기능·디자인·BPMN 설계서는 이 문서 §3.1·§3.2·§3.8 을 옮기고, 정합체크는 화면 식별자·action·필드 키·DB 칼럼이 코드와 같은지 대조한다. 식별자 사전 §A.3.2 에 한 행을 등재한다.
+화면 설계 산출물은 기능설계서 1종 [`docs/mdm/screens/domainMng/domainMng_기능설계서.md`](../../screens/domainMng/domainMng_기능설계서.md) 이며 이 Design 커밋에 들어 있다(D8). Build 는 구현 중 화면 식별자·필드 ID·버튼 ID·action·DB 칼럼이 바뀌면 그 문서를 먼저 고친다(Mes-Guide §5). 식별자 사전 §A.3.2 에 한 행을 등재하는 것은 Build 몫이다.
 
 ---
 
@@ -600,12 +596,12 @@ Build·Verify 의 변이 검증이 이 목록을 순회한다. 오른쪽은 변�
 - **근거**: spec 요구사항 목록에 자동 생성이 없다. 분해·치환 기능은 TSK-04-04(병렬, 이 작업의 선행이 아님) 산출물이라 재사용할 수 없고 따로 만들면 중복 구현과 충돌이 생긴다.
 - **반려되면 재작업할 방향**: TSK-04-04 머지 뒤 그 분해 서비스를 `validate` 에서 불러 표준명 제안·미등록 용어 경고를 더한다(화면 기본 속성 폼에 제안 버튼).
 
-### D8 — 화면 설계 산출물 5종을 이 작업에서 만드는가
-- **질문**: RULE.md·Mes-Guide 진입 가드·ADR-0003 은 화면마다 5종 산출물을 요구하는데, 팀장 지시로 Design Phase 는 design.md 만 쓴다. mls `noticeMgmt` 는 사용자 결정으로 1종만 뒀다.
-- **선택지**: (1) 만들지 않는다. (2) Build 가 코드보다 먼저 5종을 간결하게 쓴다(As-Is 대신 원천 02·시안). (3) noticeMgmt 처럼 기능설계서 1종만.
-- **택한 것**: (2).
-- **근거**: ADR-0003 D3·인계(화면 Task 가 `docs/mdm/screens/{screenId}/` 를 맡는다)와 wbs Design Guidance("설계 산출물 5종을 Task 설계 단계에서 작성")가 저장소 정본이다. (3) 의 근거는 다른 화면에 대한 사용자 개별 결정이라 옮겨 올 수 없다. Phase 경계 지시(design.md 만)를 지키려고 작성 시점을 Build 첫 단계로 둔다.
-- **반려되면 재작업할 방향**: (1)이면 `docs/mdm/screens/domainMng/` 를 만들지 않고 정합 확인을 design.md §5 로 갈음한다. (3)이면 기능설계서만 남긴다.
+### D8 — 화면 설계 산출물을 몇 종 만드는가
+- **질문**: RULE.md·Mes-Guide §4 개발 진입 가드·ADR-0003 D3 은 화면마다 5종(분석리포트·기능설계서·디자인설계서·BPMN설계서·정합체크)을 요구한다. MDM 화면은 As-Is 가 없어 분석리포트와 G1~G7 게이트가 성립하지 않는다.
+- **선택지**: (1) 5종을 모두 만든다(As-Is 대신 원천 02·시안을 분석 대상으로). (2) 기능설계서 1종만 만든다. (3) 만들지 않고 design.md 로 갈음한다.
+- **택한 것**: (2). 산출물 [`docs/mdm/screens/domainMng/domainMng_기능설계서.md`](../../screens/domainMng/domainMng_기능설계서.md) 를 이 Design 커밋에 넣었다.
+- **근거**: 팀장 지시(2026-09-24)와 선례 `docs/ai-build-log/DEC-001_noticeMgmt-on-mls.md` 결정 2 — 설계 체계가 As-Is → To-Be 마이그레이션 전제라 To-Be only 화면은 분석리포트·게이트를 채울 원본이 없어 기능설계서 1종으로 줄였다(사용자 결정). 이 화면도 같은 조건이다. 1종으로 줄인 사실과 한계는 기능설계서 머리말과 §11.1 GAP-001 에 남겼다. **모듈 전체 규칙(MDM 화면 전부에 1종을 적용할지)은 팀장이 사람에게 확인받는다.**
+- **반려되면 재작업할 방향**: (1)이면 Build 가 코드보다 먼저 분석리포트(원본 = 원천 02 「도메인 설계」 41-298행·「TB_MDM_DOMAIN」 820-860행·시안 199-415행, As-Is 전제 게이트는 "해당 없음"과 사유)·디자인설계서·BPMN설계서·정합체크를 `docs/mdm/screens/domainMng/` 에 추가하고, 기능설계서 표의 근거를 분석리포트 인용으로 바꾼다.
 
 ### D9 — 저장 거부의 오류 코드
 - **질문**: 도메인 저장 거부를 어떤 오류 코드로 던지는가. `MdmErrorCode` 에 도메인용 코드가 없고, 병렬 작업이 같은 번호를 고를 수 있다.
