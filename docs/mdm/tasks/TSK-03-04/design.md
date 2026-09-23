@@ -1,7 +1,7 @@
 # TSK-03-04 설계 — 겹침·빈틈 분석·입력 계약 + 화면 JS 평가기·정합성 코퍼스
 
 > 주문 `7d8179b0-ad6c-4811-972c-dd7a34ddcba2` · category dev · domain fullstack · 작성 2026-09-24 (Design Phase)
-> 입력: `spec.md`(요구사항 데이터로만 읽었다) · 원천 `06-business-rule.md`(130·177·202·242·321·352행 절, 458행 패키지표) · `evalex-guide.md` §6·§8 · `02-term-domain-column.md` 「도메인 검증 규칙 표현 방식」 · `workrule-column-design.md` 5절 · `06-business-rule.html`(시안 룰 정의) · `PRD.md` FR-E2·E3·E7·AC-3·NFR-1 · `TRD.md` · `decisions.md` D-020~D-023 · `engine-contract.md` · TSK-03-01 산출물(엔진 계약 main, 스키마 정본, TS 생성물, `tasks/TSK-03-01/design.md`)
+> 입력: `spec.md`(요구사항 데이터로만 읽었다) · 원천 `06-business-rule.md`(130·177·202·242·321·352행 절, 458행 패키지표) · `evalex-guide.md` §6·§8 · `02-term-domain-column.md` 「도메인 검증 규칙 표현 방식」 · `workrule-column-design.md` 5절 · `06-business-rule.html`(시안 룰 정의) · `PRD.md` FR-E2·E3·E7·AC-3·NFR-1 · `TRD.md` · `decisions.md` D-020~D-023 · `engine-contract.md` · TSK-03-01 산출물(엔진 계약 main, 스키마 정본, TS 생성물, `tasks/TSK-03-01/design.md`) · 병렬 형제 TSK-03-03 의 미머지 설계(`agent/e1205c87-rule-engine` 브랜치 69f1a03 의 `docs/mdm/tasks/TSK-03-03/design.md`, 팀장 조율 지시로 반영, §0.3)
 > 근거 강약: spec 본문 > 승인된 선행 산출물 > 리포 기존 관례 > 미승인 선행 산출물. TSK-03-01·TSK-02-02 는 dev 에 머지됐지만 승인 전이다.
 > 기점: `origin/dev` 955cef1, 브랜치 `agent/7d8179b0-rule-analysis-js-eval`.
 > 경로 약어: `E` = `src/backend/maru-mdm-engine`, `T` = `E/src/test/java/kr/dongkuk/maru/mdm/engine`, `R` = `E/src/test/resources/kr/dongkuk/maru/mdm/engine`, `M` = `src/frontend/m-mdm`, `J` = `E/src/main/java/kr/dongkuk/maru/mdm/engine`.
@@ -32,6 +32,19 @@
 | F16 | PROD_WGT_CALC 의 정확한 정의는 06 md 가 아니라 시안 `06-business-rule.html:466-477` 에 있다. PV1(UNIQUE, RELEASED)은 조건 열 `PROD_TYPE`(Equal, var 1, seq 1)·`CALC_BASIS`(Equal, var 3, seq 2), 결과 열 `PROD_WGT`(Expression, var 2)와 행 셋이다. 행 id 1(seq 1): `EQ COIL`·`EQ LEN`·`ROUND(COIL_THK * COIL_WID * COIL_LEN * SPEC_GRAV / 1000, 1)`. 행 id 3(seq 2): `EQ COIL`·`EQ DIA`·`ROUND(PI / 4 * (COIL_OUT_DIA ^ 2 - COIL_IN_DIA ^ 2) * COIL_WID * (1 - COIL_VOID_RT / 100) * SPEC_GRAV / 1000000, 1)`. 행 id 2(seq 3): `EQ SHEET`·`NA`·`ROUND(COIL_THK * COIL_WID * SHEET_LEN * SHEET_CNT * SPEC_GRAV / 1000000, 1)`. PV2(DRAFT)는 결과 식의 `SPEC_GRAV` 를 `COALESCE(SPEC_GRAV, 7.85)` 로 바꾼 것이다. 값 테스트 사례: 행 1 입력(1.8, 1200, 1500, 7.85) → 25434, 행 3 입력(외경 1800, 내경 610, 폭 1200, 공극률 1.5, 비중 7.85) → 20899.7, 행 2 입력(0.8, 1219, 2438, 120, 7.85, `CALC_BASIS` NULL) → 2239.6. 세 값은 EvalEx 3.7.0 으로 실측해도 같다 | html 466-477·523-527, F17 |
 | F17 | 시안 컬럼 사전 타입(`06-business-rule.html:367-388`): `COIL_THK` Number scale 2, `COIL_WID` Number 0, `COIL_LEN` Number 1, `SPEC_GRAV` Number 3, `COIL_OUT_DIA`·`COIL_IN_DIA`·`SHEET_LEN`·`SHEET_CNT` Number 0, `COIL_VOID_RT` Number 2, `PROD_WGT` Number 1, `PROD_TYPE`·`CALC_BASIS`·`SURF_GRD`·`TOP_RESIN_CD`·`COAT_SIDE` String, `BASE_FCT` Number 2 | html |
 | F18 | 시안 BASE_SPD_LKP 두께 구간(UNIQUE, `06-business-rule.html:485`): `< 변수 <=` 0 0.5, `< 변수 <` 0.5 0.6, `<= 변수 <` 0.6 0.7, `<= 변수 <` 0.7 0.8, `<= 변수 <` 0.8 0.9, `<= 변수 <` 0.9 1, `<= 변수 <=` 1 1.2. 값 테스트: `COIL_THK` 0.65 → 3행 | html 485·528 |
+
+### 0.3 병렬 형제 TSK-03-03 과의 조율 (팀장 전달, 2026-09-24)
+
+03-03 은 아직 dev 에 머지되지 않았다. `/usr/bin/git fetch origin` 뒤 `origin/agent/*` 원격 브랜치는 없었고, 03-03 설계는 같은 저장소의 로컬 브랜치 `agent/e1205c87-rule-engine`(커밋 69f1a03, 워크트리 `dflow-e1205c87`)에서 `/usr/bin/git show agent/e1205c87-rule-engine:docs/mdm/tasks/TSK-03-03/design.md` 로 읽었다. 03-03 도 승인 전(미승인 선행)이다. 이 Task 의 코드는 **03-03 없이 컴파일·통과해야 한다.** 03-03 에 기대는 코드는 모두 §6.15 「03-03 머지 뒤 후속」으로 미룬다.
+
+| # | 사실 | 근거 |
+|---|---|---|
+| F19 | 영구 `EngineContractSchemaTest.expr_rule_패키지의_record_enum_은_스키마_대응이_있거나_Java_전용_목록에_있다` 는 main 의 `engine.expr`·`engine.rule`(하위 패키지 포함)의 **모든 record·enum** 이 대응표나 `JAVA_ONLY` 목록에 있기를 요구한다. 엔진 main 에 파일을 더하지 않는다는 이 Task 의 제약(F7)에 이 테스트도 사유로 더한다. test 소스는 검사 밖이다 | `T/contract/EngineContractSchemaTest.java`, 03-03 design F6 |
+| F20 | 03-03 이 `engine.rule` main 에 두는 이름: public `MdmRuleEngine`·`CellTextGenerator`·`CellSummary`, package-private `RuleEvaluator`·`ResultAggregator`·`ExpressionRunner`·`ExpressionFailure`·`ValueConverter`·`RecordKeys`. 03-03 test 는 `T/rule/**`·`T/rule/fixture/**`(`TestExpressionConfig`, `TestFunctions`, `InMemoryDefinitionLookup`, `RuleFixtures`, `SampleRules`, `CellTextSnapshotTest` 등)와 `E/src/test/resources/kr/dongkuk/maru/mdm/engine/rule/cell-text-snapshot.json` 이다. 이 Task 의 test 클래스(`T/corpus/` 의 `CorpusEvalExHarness`·`CorpusFunctions`·`CellTextOracle`·`AstMaps`·`CorpusConformanceTest`·`CorpusShapeTest`·`CellTextOracleTest`·`CorpusHarnessTest`)와 resources(`R/corpus/`)는 이 이름·경로와 겹치지 않는다 | 팀장 전달, 03-03 design §2.1·§2.2 |
+| F21 | 03-03 §6.1 공개 시그니처(인용): `CellTextGenerator.NA_TEXT = ""`, `MAX_PATTERN_WILDCARDS = 3`, `REGEX_META`(14종), `static String subject(RuleVar var)`, `static String conditionText(RuleCell cell, @Nullable String subject, DataType dataType, @Nullable String maruCodeId)`, `static String resultText(RuleCell cell, DataType dataType)`, `static Optional<String> patternRegex(String patternValue)`("`=` 값이 정규식형이면 앵커 없는 Java 정규식, 정확 일치·단순형이면 빈 값. 거부 대상이면 IAE"), `static RuleDefinition withTexts(RuleDefinition, Function<String,String> maruCodeIdByDomainId)`, `CellSummary.of(@Nullable RuleVar var, RuleCell cell)`. 03-03 은 "이 시그니처는 TSK-03-04 의 코퍼스 CellCase 서버 러너가 부를 계약이다"라고 적었다(03-03 §6.1, D15) | 03-03 design §6.1 |
+| F22 | 03-03 §6.11 `=` 패턴 규칙(인용 요약): ① `\` 다음이 `%`·`_`·`\` 면 글자 토큰, 다른 글자이거나 끝의 `\` 면 **거부(IAE)**, `%` 는 ANY, `_` 는 ONE ② 연속 ANY 접기 ③ ANY 하나뿐이면 거부, 접은 뒤 ANY 가 3 개를 넘으면 거부 ④ 와일드카드 없음 → 정확 일치, `[글자+, ANY]` → `STR_STARTS_WITH`, `[ANY, 글자+]` → `STR_ENDS_WITH`, `[ANY, 글자+, ANY]` → `INSTR(V, "…") > 0`, 그 밖 → 정규식(글자는 `REGEX_META` 면 `\` 를 붙이고 ANY `.*`, ONE `.`, 앵커 없음) ⑤ STRING 변수의 EQ 값은 늘 토큰화한다(03-03 D15). 이스케이프한 `\%`·`\_` 는 글자라 단순형 안에 들어갈 수 있다(`A\_B%` → `STR_STARTS_WITH(V, "A_B")`). `A.B%` 는 단순형이다(03-03 D11 ②, 이 설계 F14 와 같다). 접두형 `succ` 는 03-03 에 없다(서버는 겹침을 계산하지 않는다). 06:359 의 `succ` 규칙은 이 Task 의 화면 분석에만 쓴다 | 03-03 design §6.11, D11, D15 |
+| F23 | 03-03 §6.7 `ValueConverter.toDeclared`(인용 요약): NUMBER ← String 은 `new BigDecimal(s)`(지수 허용, 공백·빈 문자열 실패), Boolean 은 실패. STRING·DATE ← BigDecimal·정수는 `toPlainString()`. BOOLEAN ← String 은 `TRUE`/`FALSE`(대소문자 무시). §6.8 `RecordKeys`: 상수 8종·`EVAL_TS`(대소문자 무시)·`_` 접두 검사에 더해, 대소문자만 다른 키가 둘 이상이면 `RESERVED_KEY`(03-03 D13). 입력 계약 키 확인(`MISSING_KEY`)은 **대소문자를 구분하는 정확 일치**다. §6.2: 조건 셀이 없으면(키 없음) 건너뛰고, 조건 셀 결과가 NULL 이면 거짓 + `EXPR_CELL_NULL`, **불린이 아니면 `EVALUATION_ERROR`**. `hitPolicy == null` 인 DECISION 은 FIRST 로 본다 | 03-03 design §6.2·§6.7·§6.8 |
+| F24 | 03-03 §6.12 `CellSummary.of`: NA → `-`, Equal 열의 EQ → 값 그대로, EQ·NE·LT·LE·GT·GE → `= L`·`<> L`·`< L`·`<= L`·`> L`·`>= L`, IN·NOT_IN → `IN (a, b)`·`NOT IN (a, b)`, CODE_IN → `IN 카테고리 L`, CONTAINS·INSTR → `CONTAINS L`·`INSTR L`, IS_NULL·NOT_NULL → `IS NULL`·`IS NOT NULL`, 구간 op → `L <op> R`(예 `1.6 <= 변수 < 2.5`), Expression 셀 → expr, 결과 Value → val, 모르는 op → op 문자열. 값은 저장 문자열 그대로 | 03-03 design §6.12 |
 
 ### 0.2 EvalEx 3.7.0 실측 (2026-09-24, 이 Task 의 설계 기준)
 
@@ -168,7 +181,8 @@
 - `T/arch/ContractOnlyPhaseTest.java`, `EnginePackageDependencyTest.java`, `MaruMdmEngineArchitectureTest.java`, `ContractTypeShapeTest.java`, `T/contract/**`, `T/expr/ExpressionEvaluatorTest.java`.
 - `M/src/index.ts`(타입 전용 배럴 유지, F11), `M/src/contract/**`, `M/scripts/**`, 기존 두 테스트, `M/tsconfig.json`, `M/.prettierignore`.
 - `src/frontend/pnpm-workspace.yaml`(바뀌면 되돌린다), `docs/mdm/engine-contract/**`(F13), `docs/mdm/decisions.md`.
-- 형제 Task 가 쓸 test 패키지 `T/expr/**`·`T/rule/**` 에는 파일을 만들지 않는다. 새 test 파일은 모두 `T/corpus/` 에 둔다.
+- 형제 Task 가 쓸 test 패키지 `T/expr/**`·`T/rule/**`(03-03 의 `T/rule/fixture/**` 포함)와 resources `E/src/test/resources/kr/dongkuk/maru/mdm/engine/rule/**` 에는 파일을 만들지 않는다. 새 test 파일은 모두 `T/corpus/`, 새 resources 는 `R/corpus/` 에 둔다. 클래스 단순 이름도 03-03 의 main·test 이름(F20)과 겹치지 않는다.
+- `T/contract/EngineContractSchemaTest.java`(`JAVA_ONLY` 목록 포함)는 고치지 않는다(F19).
 - 커밋 제외: `docs/mdm/tasks/TSK-03-04/state.json`, `spec.md`, `.dflow*`, `.result`, `.issues`, `.tsbuildinfo`, `dist/`.
 
 ---
@@ -198,7 +212,7 @@
 | `사례_키가_ExprCase_CellCase_의_properties_와_required_를_지킨다` | `kind` 로 정의를 골라 사례 키 ⊆ `properties` 키, `required` ⊆ 사례 키. `variable` 객체도 `CellCase.properties.variable` 로 같은 검사 |
 | `TypedValue_Expect_CellJson_모양이_스키마_변형_하나에_맞는다` | `TypedValue`: `type` 이 다섯 값 중 하나이고 변형의 키 집합과 같으며 NUMBER 는 변형의 `pattern` 을 지킨다. `Expect`: `value`·`error` 중 정확히 하나. `CellJson`: `op` 가 속한 묶음(`NoValueOp`·`SingleValueOp`·`ListOp`·`RangeOp`, 스키마 `enum` 에서 읽는다)의 변형 키 집합과 같다 |
 
-**`CellTextOracleTest` — 14건**(V 자리 변수명은 `V`)
+**`CellTextOracleTest` — 14건**(V 자리 변수명은 `V`. 기대 텍스트는 03-03 §6.10.4 스냅샷의 같은 모양 항목과 글자까지 같다. 03-03 머지 뒤 이 테스트는 스냅샷 대조로 옮겨지고 지운다, §6.15)
 
 | 테스트 | 셀 → 기대 텍스트 |
 |---|---|
@@ -209,11 +223,11 @@
 | `IN_은_괄호로_묶은_OR_사슬이다` | STRING `{op:IN, list:["A","B"]}` → `V != NULL && (V == "A" \|\| V == "B")` |
 | `NOT_IN_은_AND_사슬이다` | `{op:NOT_IN, list:["A","B"]}` → `V != NULL && V != "A" && V != "B"` |
 | `패턴_단순형_셋` | `SGC%` → `V != NULL && STR_STARTS_WITH(V, "SGC")`, `%CC` → `V != NULL && STR_ENDS_WITH(V, "CC")`, `%G33%` → `V != NULL && INSTR(V, "G33") > 0` |
-| `패턴_정규식형과_정규식_변환` | `A%B` → `V != NULL && STR_MATCHES(V, "A.*B")`. 변환 함수 단위: `CellTextOracle.likeToRegex("A.B%")` = `A\.B.*`(06:258 예시, F14), `likeToRegex("%A%B%")` = `.*A.*B.*` |
+| `패턴_정규식형과_정규식_변환_거부` | `A%B` → `V != NULL && STR_MATCHES(V, "A.*B")`. `patternRegex("A.B%")` = 빈 값(단순형, 03-03 D11 ②), `patternRegex("A.B_")` = `A\.B.`(03-03 스냅샷 eq.pattern.regex-dot), `patternRegex("%A%B%")` = `.*A.*B.*`, 내부 변환 `likeToRegex("A.B%")` = `A\.B.*`(06:258 예시의 이스케이프, F14). 거부: `patternRegex("A\\B")`(홀로 선 `\`)·`patternRegex("%")`·`patternRegex("%A%B%C%")` 는 `IllegalArgumentException` |
 | `이스케이프한_와일드카드와_문자열_리터럴` | `100\%` → `V != NULL && V == "100%"`. 값 `a"b\c` 의 EQ → `V != NULL && V == "a\"b\\c"` |
 | `CONTAINS_와_INSTR_는_방향이_반대다` | CONTAINS `CC` → `V != NULL && INSTR(V, "CC") > 0`, INSTR `SGCC,SGHC` → `V != NULL && INSTR("SGCC,SGHC", V) > 0` |
 | `CODE_IN_은_MASTER_로_만든다` | variable `maruCodeId: PROC_CD`, `{op:CODE_IN, left:"PLATING"}` → `V != NULL && MASTER("PROC_CD", "PLATING", V)` |
-| `IS_NULL_NOT_NULL_NA` | `V == NULL`, `V != NULL`, NA → `null`(식 없음) |
+| `IS_NULL_NOT_NULL_NA` | `V == NULL`, `V != NULL`, NA → `""`(`NA_TEXT`, 03-03 F9) |
 | `Boolean_은_TRUE_FALSE_맨_이름이다` | BOOLEAN `{op:EQ, left:"TRUE"}` → `V != NULL && V == TRUE` |
 | `코퍼스_셀_텍스트의_함수는_GENERATED_안이다` | 코퍼스 cell 사례마다 텍스트를 만들어 하네스 설정으로 파싱하고, `getAllASTNodes()` 의 FUNCTION 이름 집합 ⊆ `FunctionSets.GENERATED` |
 
@@ -260,7 +274,7 @@ export const JAVA_EXPR_DIR = path.join(ENGINE_ROOT, "src/main/java/kr/dongkuk/ma
 | 5 | `isSupported: 허용 밖 함수와 인자 수가 틀린 INSTR 은 거짓이다` | `LOG(A)` false, `INSTR(A, "B", "C")` false |
 | 6 | `isSupported: 알 수 없는 노드 종류는 거짓이다` | `{type: "ARRAY_INDEX", …}` false |
 | 7 | `usedVariables 는 대문자·첫 등장 순서이고 상수를 뺀다` | `b + A * PI + B` → `["B", "A"]` |
-| 8 | `예약 키는 평가 전에 거부된다` | 키 `true` → CONSTANT_KEY, `eval_ts` → EVAL_TS_KEY, `_X` → RESERVED_KEY(대소문자 무시) |
+| 8 | `예약 키는 평가 전에 거부된다` | 키 `true` → CONSTANT_KEY, `eval_ts` → EVAL_TS_KEY, `_X` → RESERVED_KEY(대소문자 무시), `A` 와 `a` 가 함께 오면 RESERVED_KEY |
 | 9 | `같은 AST 객체는 compile 결과를 재사용한다` | `compile(ast) === compile(ast)` |
 | 10 | `리터럴과 레코드 숫자는 원문 스케일로 문자열이 된다` | `STR_UPPER(1.50)` → `"1.50"`, `"" + X`(X 원문 `"1.10"`) → `"1.10"`, `"" + ROUND(X, 2)`(X `"2.5"`) → `"2.50"` |
 | 11 | `계산한 숫자를 문자열로 바꾸는 자리는 폴백한다` | `"" + (0.1 * 10)` → `{kind: "fallback"}` |
@@ -422,7 +436,7 @@ Build·Verify 는 이 표를 순회해 변이를 넣고 빨강을 확인한 뒤 
 | I23 | 계산한 숫자를 문자열로 바꾸거나 혼합 타입을 대소 비교하는 자리는 폴백(틀린 값을 내지 않는다) | 폴백 대신 `toFixed()` → `expr.concat.computed-scale` 이 value 가 되어 실패(허용 목록은 폴백을 요구) + interpreter #11. 혼합 비교를 문자열 비교로 → `expr.compare.mixed-type` + #12 |
 | I24 | 화면 폴백은 `ALLOWED_FALLBACK_IDS` 4건에서만 허용하고, 그 밖의 폴백은 실패다 | 러너가 모든 폴백을 통과로 → 메타 테스트 `폴백을 허용한 사례는 고정 목록…` 은 그대로지만, 폴백이 새로 생기는 변이(예: I12 를 폴백으로 처리)는 해당 사례에서 실패 |
 | I25 | 리터럴·레코드 숫자는 원문 스케일로 문자열이 된다 | 원문 표를 끄기 → `expr.str-upper.literal-scale`·`expr.concat.record-scale`(폴백이 되어 실패) |
-| I26 | 셀 값 타입 변환: NUMBER 변수는 NUMBER 또는 평문 십진 STRING 만, STRING 변수는 STRING 만, BOOLEAN 변수는 BOOLEAN 만 | STRING → NUMBER 변환 금지 → `cell.type.number-from-string`. NUMBER → STRING 허용 → `cell.type.string-from-number` |
+| I26 | 셀 값 타입 변환 = 03-03 `ValueConverter`(§6.2 표): NUMBER ← 숫자·BigDecimal 모양 문자열, STRING ← 문자열·숫자(평문), BOOLEAN ← 불린·`TRUE`/`FALSE` 문자열 | STRING → NUMBER 변환 금지 → `cell.type.number-from-string`. NUMBER → STRING 거부 → `cell.type.string-from-number`(F 대신 오류). BOOLEAN 이 `Y` 를 받음 → `cell.type.bool-from-string` |
 | I27 | 입력 계약 `always` = 조건 열 변수(seq 순) + 식 변수 참조 + Expression 조건 셀 참조 + 열 조건 참조, 룰 결과 변수 제외 | 조건 열 순서를 이름순으로 → input-contract #1. 결과 변수 제외 제거 → #13 |
 | I28 | 행은 seq 순서, DEFAULT 는 마지막, `cond` 는 §6.7 형식 | 행을 rowId 순으로 → #2. 구분자 `·` 를 `,` 로 → #2 |
 | I29 | 필수·선택 판정 규칙(§6.7 표) | `==` 피연산자를 필수로 → #7. COALESCE 앞 인자를 필수로 → #5·#8. IF 가드 무시 → #9. `&&` 가드 무시 → #10. INSTR 를 늘 필수로 → #11. MIN 을 선택으로 → #12 |
@@ -437,7 +451,7 @@ Build·Verify 는 이 표를 순회해 변이를 넣고 빨강을 확인한 뒤 
 | I38 | 1만 레코드 평가 중앙값 < 100 ms | 평가마다 `compile` 캐시를 비움 + 레코드마다 `new Decimal` 을 두 번씩 → `evalex-perf.test.ts`(변이 강도는 Build 가 20 µs 바쁜 대기를 넣어 확인) |
 | I39 | 코퍼스는 엔진 test resources 한 벌이다 | m-mdm 에 사본 추가 → 메타 테스트 `m-mdm 안에 코퍼스 사본이 없고…`. Vitest 경로를 사본으로 → 같은 테스트 |
 | I40 | 코퍼스 식 텍스트와 AST 는 같은 식이다 | 사례 하나의 `ast` 리터럴을 바꿈 → `식_사례의_AST_가…`(해당 id). 텍스트만 바꿈 → 같은 테스트 |
-| I41 | 오라클 정규식 = 사례 `patternRegex`, 생성 함수 ⊆ `GENERATED` | `likeToRegex` 에서 `.` 이스케이프 제거 → `서버_평가가…[cell.eq.pattern.dot-literal]`·오라클 #8. 오라클이 `STR_CONTAINS` 를 쓰게 → 오라클 #14 |
+| I41 | 오라클 정규식 = 사례 `patternRegex`, 생성 함수 ⊆ `GENERATED`, 패턴 규칙 = 03-03 §6.11 | `likeToRegex` 에서 `.` 이스케이프 제거 → 오라클 #8(`A.B_`). `%` 앞 단순형 판정을 없애 모두 정규식으로 → 오라클 #7. 홀로 선 `\` 를 글자로 받음 → 오라클 #8(거부 단언). 오라클이 `STR_CONTAINS` 를 쓰게 → 오라클 #14. `patternRegex` 가 사례와 다름 → `서버_평가가…[cell.eq.pattern-regex]` |
 | I42 | 하네스 설정은 계약 상수에서 온다 | 하네스 precision 34 → `하네스_설정값이…` + 코퍼스 `expr.divide.precision` |
 | I43 | 공개 경로는 서브패스, 배럴은 타입 전용 유지 | `index.ts` 에 `export * from "./evalex"` → `evalex-entry` #1(루트 배럴에 `./evalex` 가 없어야 한다). exports 제거 → 같은 테스트. tsup entry 제거 → entry #2 |
 | I44 | 엔진 main·스키마·보호 테스트 파일은 바이트 동일 | 자동 테스트 일부(`ContractOnlyPhaseTest` 가 main 추가를 잡는다) + Verify 가 `/usr/bin/git diff origin/dev -- src/backend/maru-mdm-engine/src/main src/backend/maru-mdm-engine/build.gradle src/backend/maru-mdm-engine/src/test/java/kr/dongkuk/maru/mdm/engine/arch src/backend/maru-mdm-engine/src/test/java/kr/dongkuk/maru/mdm/engine/contract src/frontend/m-mdm/src/index.ts docs/mdm/engine-contract` 이 비어 있는지 본다(덮지 못하는 변이로 보고) |
@@ -527,13 +541,16 @@ export function convertForType(v: EvalValue | number, dataType: DataType): EvalV
 
 | 변수 타입 | 받는 값 | 결과 | 그 밖 |
 |---|---|---|---|
-| NUMBER | Decimal | 그대로 | TYPE_CONVERSION |
-| NUMBER | string 이 `PLAIN_DECIMAL` 에 맞음 | `decimalWithText(s)` | |
-| NUMBER | JS number(유한) | `decimalWithText(String(n))`(화면 그리드 입력 편의. 코퍼스에는 없다) | |
-| STRING | string | 그대로 | TYPE_CONVERSION |
-| BOOLEAN | boolean | 그대로 | TYPE_CONVERSION |
+| NUMBER | Decimal | 그대로 | boolean → TYPE_CONVERSION |
+| NUMBER | string 이 `BIGDECIMAL_TEXT`(`^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$`, Java `new BigDecimal(s)` 가 받는 모양)에 맞음 | `PLAIN_DECIMAL` 이면 `decimalWithText(s)`, 지수형이면 `new D(s)`(원문 미등록) | 공백·빈 문자열·그 밖 → TYPE_CONVERSION |
+| NUMBER | JS number(유한) | `decimalWithText(String(n))`(화면 그리드 입력 편의. 코퍼스에는 없다) | NaN·무한 → TYPE_CONVERSION |
+| STRING·DATE | string | 그대로 | boolean → TYPE_CONVERSION |
+| STRING·DATE | Decimal | `toPlainString` 과 같은 문자열: 원문 표가 있으면 그것, 없으면 `toFixed()`(값 변환은 폴백하지 않는다. 레코드 값은 원문이 늘 있다) | |
+| BOOLEAN | boolean | 그대로 | Decimal → TYPE_CONVERSION |
+| BOOLEAN | string | `toUpperCase()` 가 `TRUE`/`FALSE` 면 불린 | 그 밖 → TYPE_CONVERSION |
 | 모든 타입 | null | null | |
-| DATE | — | 결과 변수 선언에만 온다(F 계약 `DataType` 주석). 조건 변수로 오면 TYPE_CONVERSION | |
+
+이 표는 03-03 `ValueConverter.toDeclared`(F23)와 같다. 처음 설계(STRING ← 숫자 거부, BOOLEAN ← 문자열 거부)에서 03-03 에 맞춰 바꿨다(D9).
 
 ### 6.3 인터프리터 의미표 (`interpreter.ts`·`functions.ts`)
 
@@ -593,7 +610,7 @@ export function convertForType(v: EvalValue | number, dataType: DataType): EvalV
 
 **`evaluate(ast, vars, opts)` 순서**(`EvaluateOptions = { codeSets?: CodeSets }`)
 
-1. `checkRecordKeys(Object.keys(vars))`: 키마다(순서대로) 대문자가 `RESERVED_CONSTANTS` 에 있으면 `CONSTANT_KEY`, 대문자가 `EVAL_TS` 면 `EVAL_TS_KEY`, `_` 로 시작하면 `RESERVED_KEY`. 처음 어긋난 키의 코드로 `{kind: "error"}` 를 돌려준다.
+1. `checkRecordKeys(Object.keys(vars))`: 키마다(순서대로) 대문자가 `RESERVED_CONSTANTS` 에 있으면 `CONSTANT_KEY`, 대문자가 `EVAL_TS` 면 `EVAL_TS_KEY`, `_` 로 시작하면 `RESERVED_KEY`. 이어서 대문자로 바꾸면 같아지는 키가 둘 이상이면 `RESERVED_KEY`(F23, 03-03 D13). 처음 어긋난 키의 코드로 `{kind: "error"}` 를 돌려준다. 3단계 키 누락 검사는 EvalEx 변수 조회 의미(대소문자 무시)를 따르고, 미리보기의 입력 계약 키 검사만 정확 일치다.
 2. `isSupported(ast, opts)` 가 거짓이면 `{kind: "fallback", reason}`.
 3. `usedVariables(ast)` 가운데 vars 에 대문자 기준으로 없는 이름이 있으면 `MISSING_KEY`.
 4. `compile(ast, opts)(prepare(vars))`. `prepare` 는 키를 대문자로 바꾸고 값을 `EvalValue` 로 둔다(Decimal·string·boolean·null 만 받고, JS number 는 `decimalWithText(String(n))`).
@@ -636,7 +653,7 @@ export function evaluateCell(variable: CellVariable, cell: CellJson, value: Eval
 | 구간 4종 | 왼쪽 부등호를 뒤집어 `v >= L`(또는 `>`), 오른쪽은 `v <= R`(또는 `<`) |
 
 - 셀 리터럴 변환: NUMBER 는 `PLAIN_DECIMAL` 이 아니면 `err`(evaluateCell 은 `{kind: "error", code: "EVALUATION_ERROR"}`). BOOLEAN 은 `"TRUE"`·`"FALSE"` 만. 셀별 변환 결과는 `WeakMap<CellJson, …>` 로 캐시한다(성능).
-- **`pattern.ts`**: `tokenize(p)` → 토큰 `{lit: string}`·`ANY_SEQ`(`%`)·`ANY_ONE`(`_`). `\%`·`\_`·`\\` 는 글자, 그 밖의 `\x` 는 `\` 와 `x` 두 글자. 연속한 `ANY_SEQ` 는 하나로 접는다. 인접 글자 토큰은 하나로 합친다. `classify(tokens)` → `exact(lit)` | `prefix(lit)` | `suffix(lit)` | `infix(lit)` | `regex`. 글자 부분에 이스케이프한 `%`·`_` 가 있어도 단순형으로 본다(진릿값이 같다. F14 와 같은 취지). `succ(a)`: 마지막 코드유닛 `u` 가 대리쌍 범위(0xD800–0xDFFF)이거나 `0xD7FF`·`0xFFFF` 이면 `undefined`(못 푼다), 아니면 `a.slice(0, -1) + String.fromCharCode(u + 1)`. 빈 문자열이면 `undefined`.
+- **`pattern.ts`**: `tokenize(p)` → 토큰 `{lit: string}`·`ANY_SEQ`(`%`)·`ANY_ONE`(`_`). `\%`·`\_`·`\\` 는 글자, 그 밖의 `\x` 와 끝의 홀로 선 `\` 는 **거부**(F22 ①). 연속한 `ANY_SEQ` 는 하나로 접는다. 접은 뒤 `ANY_SEQ` 하나뿐이거나 3 개를 넘으면 **거부**(F22 ③). 거부된 패턴 셀은 `evaluateCell` 이 `{kind: "error", code: "EVALUATION_ERROR"}` 를 돌려주고(저장 시 검사가 막는 입력이다), 분석은 `unknown` 으로 본다. STRING 변수의 EQ 값은 일자 여부와 무관하게 늘 토큰화한다(F22 ⑤). 인접 글자 토큰은 하나로 합친다. `classify(tokens)` → `exact(lit)` | `prefix(lit)` | `suffix(lit)` | `infix(lit)` | `regex`. 글자 부분에 이스케이프한 `%`·`_` 가 있어도 단순형으로 본다(진릿값이 같다. F14 와 같은 취지). `succ(a)`: 마지막 코드유닛 `u` 가 대리쌍 범위(0xD800–0xDFFF)이거나 `0xD7FF`·`0xFFFF` 이면 `undefined`(못 푼다), 아니면 `a.slice(0, -1) + String.fromCharCode(u + 1)`. 빈 문자열이면 `undefined`.
 
 ### 6.6 룰 정의 TS 타입 (`rule-model.ts`)
 
@@ -690,7 +707,7 @@ export function computeInputContract(rule: RuleDef, resolveType: (name: string) 
 
 1. **always**: 조건 열을 `seq` 순으로 돌며 (a) 이름 열이면 `varName`, 식 변수면 `refVars ?? usedVariables(exprAst)` (b) Expression 조건 열이면 그 열의 모든 행 셀 `ast` 의 `usedVariables` 를 행 `seq` 순으로 모은다. 이어서 결과 열을 `seq` 순으로 돌며 `grpCondAst` 의 `usedVariables` 를 모은다. 룰 결과 변수 이름(결과 열 `varName` ∪ `resGrp`)은 뺀다. 첫 등장 순으로 중복을 지운다. 각 이름을 `resolveType` 으로 `VarType` 으로 바꾼다(`resolveType` 이 `undefined` 를 돌려주면 `Error` 를 던진다. 저장 시 검사가 막는 자리다).
 2. **rows**: NORMAL 행을 `seq` 순으로, 그 뒤 DEFAULT 행을 싣는다. 행마다 결과 셀(`expr`·`ast` 가 있는 셀)의 `nullSafety` 를 결과 열 `seq` 순으로 합친다. 한 셀에서라도 required 면 required, 아니면 optional 이다. 룰 결과 변수 이름은 뺀다. 결과 열 그룹의 열들도 모두 합친다(어느 열을 고를지는 실행 때 정해지므로 합집합, 한 열에서라도 필수면 필수. 애매하면 필수 원칙). `{val}` 셀은 변수가 없다. 조건 변수가 결과 식에도 쓰이면 행 목록에도 남긴다(키는 늘 있지만 NULL 이면 안 되는지를 알려야 한다).
-3. **cond**: NORMAL 행은 조건 열 `seq` 순으로 셀 요약을 ` · `(가운뎃점 앞뒤 공백)으로 잇는다. NA 셀과 빈 셀은 건너뛴다. 모두 건너뛰면 `"-"`. DEFAULT 행은 `"기본 행"`. 요약 형식(N = 열 표시 이름 = `varName ?? label ?? "_V" + varId`):
+3. **cond**: NORMAL 행은 조건 열 `seq` 순으로 셀 요약을 ` · `(가운뎃점 앞뒤 공백)으로 잇는다. NA 셀과 빈 셀은 건너뛴다. 모두 건너뛰면 `"-"`. DEFAULT 행은 `"기본 행"`. 셀 요약 자체는 03-03 `CellSummary.of`(F24)를 TS 로 옮긴 `cellSummary(var, cell)`(`input-contract.ts` 안, export)로 만들고, 06:226-229 의 모양(`PROD_TYPE = COIL`)이 되도록 열 이름을 앞에 붙인다. 규칙: 구간 op 는 요약의 `변수` 를 N 으로 바꾼다, Equal 열의 EQ 는 `N = ` + 요약, Expression 셀은 요약(expr) 그대로, 그 밖은 `N ` + 요약. 결과는 아래 표와 같다(N = 열 표시 이름 = `varName ?? label ?? "_V" + varId`). D1 이 반려돼 Java 로 이식할 때는 `CellSummary.of` 를 그대로 재사용한다:
 
 | op | 요약 |
 |---|---|
@@ -767,9 +784,9 @@ export function previewRule(rule: RuleDef, record: Record<string, EvalValue | nu
                             opts?: { codeSets?: CodeSets; patternRegex?: Record<string, string> /* 키 `${rowId}:${varId}` */ }): RulePreview;
 ```
 
-1. **조건 검사**: `checkRecordKeys(레코드 키)` → 오류면 그대로. `computeInputContract` 의 always 이름(대문자) 가운데 레코드에 없는 키가 있으면 `MISSING_KEY`(이름 전부를 `message` 에). 조건 열 변수를 `convertForType` 으로 바꾼다(실패 시 `TYPE_CONVERSION`). 식 변수 열은 참조 변수 가운데 하나라도 null 이면 null, 아니면 `evaluate(exprAst)` 결과를 선언 타입으로 바꿔 scope 의 `_V<varId>` 에 넣는다(평가 오류 → `EVALUATION_ERROR`, 타입 실패 → `TYPE_CONVERSION`, 폴백 → 그 열 셀은 모두 판정 불가).
-2. **행 고르기**: NORMAL 행을 `seq` 순으로. 조건 셀을 조건 열 `seq` 순으로 평가한다. op 셀은 `evaluateCell(…, { skipKeyCheck: true })`, Expression 셀은 `evaluate(ast)`: 결과 null → 그 셀 false + 경고 `{code: "EXPR_CELL_NULL", ruleId, rowId, varId, message}`, 그 밖 값은 `toBool`, 폴백 → 판정 불가, 오류 → 미리보기 전체가 `{kind: "error"}`. 행 판정: 처음 false 셀에서 멈추고 `hit = false`, `firstFalseVarId` 기록. false 없이 판정 불가 셀이 있으면 `hit = null`, 모두 참이면 `hit = true`.
-3. **정책**: FIRST — 행을 차례로 보다가 `hit === true` 면 멈춘다(뒤 행 `evaluated = false`). 그 전에 `hit === null` 인 행을 만나면 `{kind: "fallback"}`. UNIQUE — 모두 평가한다. 확정 적중이 2개 이상이면 `UNIQUE_MULTIPLE_HITS`(rowIds). 아니면 `null` 이 하나라도 있으면 fallback. PRIORITY·COLLECT·ANY — 모두 평가해 확정 적중 전부(결과 값에 따른 선택·집계는 서버 값 테스트 몫). `null` 이 있으면 fallback. DERIVE(`hitPolicy null`) — 행 하나가 늘 적중.
+1. **조건 검사**: `checkRecordKeys(레코드 키)` → 오류면 그대로. `computeInputContract` 의 always 이름 가운데 레코드에 **정확히 같은 키**(대소문자 구분, F23)가 없으면 `MISSING_KEY`(이름 전부를 `message` 에). 조건 열 변수를 `convertForType` 으로 바꾼다(실패 시 `TYPE_CONVERSION`). 식 변수 열은 참조 변수 가운데 하나라도 null 이면 null, 아니면 `evaluate(exprAst)` 결과를 선언 타입으로 바꿔 scope 의 `_V<varId>` 에 넣는다(평가 오류 → `EVALUATION_ERROR`, 타입 실패 → `TYPE_CONVERSION`, 폴백 → 그 열 셀은 모두 판정 불가).
+2. **행 고르기**: NORMAL 행을 `seq` 순으로(같으면 rowId 순). 셀이 없거나 NA 면 건너뛴다(F23). 조건 셀을 조건 열 `seq` 순으로 평가한다. op 셀은 `evaluateCell(…, { skipKeyCheck: true })`, Expression 셀은 `evaluate(ast)`: 결과 null → 그 셀 false + 경고 `{code: "EXPR_CELL_NULL", ruleId, rowId, varId, message}`, 불린이 아니면 `EVALUATION_ERROR`(F23, 03-03 §6.2 와 같다), 폴백 → 판정 불가, 오류 → 미리보기 전체가 `{kind: "error"}`. 행 판정: 처음 false 셀에서 멈추고 `hit = false`, `firstFalseVarId` 기록. false 없이 판정 불가 셀이 있으면 `hit = null`, 모두 참이면 `hit = true`.
+3. **정책**: FIRST — 행을 차례로 보다가 `hit === true` 면 멈춘다(뒤 행 `evaluated = false`). 그 전에 `hit === null` 인 행을 만나면 `{kind: "fallback"}`. UNIQUE — 모두 평가한다. 확정 적중이 2개 이상이면 `UNIQUE_MULTIPLE_HITS`(rowIds). 아니면 `null` 이 하나라도 있으면 fallback. PRIORITY·COLLECT·ANY — 모두 평가해 확정 적중 전부(결과 값에 따른 선택·집계는 서버 값 테스트 몫). `null` 이 있으면 fallback. DERIVE — 첫 NORMAL 행 하나가 늘 적중. `hitPolicy` 가 null 인 DECISION 은 FIRST 로 본다(F23).
 4. 적중이 없으면 DEFAULT 행이 있을 때 `defaultApplied: true`.
 
 ### 6.10 코퍼스 파일과 사례 목록
@@ -865,7 +882,7 @@ export function previewRule(rule: RuleDef, record: Record<string, EvalValue | nu
 | 80 | `cell.type-mismatch` | THK | GE 2.5 | S abc | error TYPE_CONVERSION | 표본, 06:290 |
 | 81 | `cell.type.number-from-string` | THK | GE 2.5 | S 2.50 | T | 06:199 |
 | 82 | `cell.type.bool-from-string` | OK | EQ TRUE | S Y | error TYPE_CONVERSION | 06:290 |
-| 83 | `cell.type.string-from-number` | SURF | EQ A | N 1 | error TYPE_CONVERSION | 06:290 |
+| 83 | `cell.type.string-from-number` | SURF | EQ A | N 1 | F(`"1"` 로 바뀌어 `"A"` 와 다르다) | F23(03-03 ValueConverter) |
 | 84 | `cell.constant-key` | `{name: "pi", dataType: "NUMBER"}` | EQ 1 | N 1 | error CONSTANT_KEY | 06:296, 06:199 |
 | 85 | `cell.eval-ts-key` | `{name: "EVAL_TS", dataType: "STRING"}` | EQ A | S A | error EVAL_TS_KEY | engine-contract §6 |
 | 86 | `cell.reserved-key` | `{name: "_V7", dataType: "STRING"}` | EQ A | S A | error RESERVED_KEY | engine-contract §6 |
@@ -1010,9 +1027,9 @@ static ExpressionConfiguration configuration(Map<String, List<String>> codeSets)
 
 | 자리 | 하네스 규칙 | 실물 담당 |
 |---|---|---|
-| 예약 키 검사 | 키 순서대로 `ReservedNames.CONSTANTS`(대문자 비교) → `CONSTANT_KEY`, `EVAL_TS`(대문자 비교) → `EVAL_TS_KEY`, `_` 접두 → `RESERVED_KEY`. 처음 어긋난 키 | TSK-03-03 `INPUT_CHECK` |
+| 예약 키 검사 | 키 순서대로 `ReservedNames.CONSTANTS`(대문자 비교) → `CONSTANT_KEY`, `EVAL_TS`(대문자 비교) → `EVAL_TS_KEY`, `_` 접두 → `RESERVED_KEY`, 대소문자만 다른 키 묶음 → `RESERVED_KEY`. 처음 어긋난 키 | TSK-03-03 `RecordKeys.check`(F23) |
 | 키 누락 | `expression.getUsedVariables()` 가운데 상수를 뺀 이름이 vars 에 없으면 `MISSING_KEY` | TSK-03-03(입력 계약 기반) |
-| 셀 값 타입 변환 | §6.2 `convertForType` 표와 같다(NUMBER ← 평문 십진 STRING 허용) | TSK-03-03 엔진 계약 2 |
+| 셀 값 타입 변환 | 03-03 `ValueConverter.toDeclared` 표(F23)를 test 안에 옮긴 `CorpusEvalExHarness.toDeclared`. §6.2 화면 표와 같다 | TSK-03-03 `ValueConverter`(머지 뒤 후속에서 교체는 하지 않는다. package-private 이라 test 패키지 `corpus` 에서 부를 수 없다. 코퍼스 사례가 두 구현을 묶는다) |
 | NA 셀 | 식을 만들지 않고 true | TSK-03-03(평가 목록에서 뺀다, 06:180) |
 | 오류 매핑 | `EvaluationException`·`NullPointerException`·`ArithmeticException`·`IndexOutOfBoundsException`·그 밖 `RuntimeException` → `EVALUATION_ERROR`. `ParseException` 은 코퍼스 잘못이므로 테스트 실패 | TSK-03-02·03 |
 | `INSTR` | `InstrStandIn`: 인자 `s`, `sub`. 어느 쪽이든 NULL 이면 NULL, 아니면 `s.indexOf(sub) + 1`(`BigDecimal`) | TSK-03-02 |
@@ -1022,14 +1039,16 @@ static ExpressionConfiguration configuration(Map<String, List<String>> codeSets)
 **평가 절차**(`CorpusConformanceTest`)
 
 - expr 사례: (1) vars 키 예약 검사 (2) `new Expression(expr, configuration(codeSets))` (3) 키 누락 검사 (4) vars 를 `TypedValue` → Java(`NUMBER` → `new BigDecimal(value)`(스케일 유지), `STRING` → `String`, `BOOLEAN` → `Boolean`, `NULL` → `null`)로 바꿔 `with` (5) `evaluate()` (6) 결과 `EvaluationValue` → `TypedValue`(`isNullValue` → NULL, `isBooleanValue` → BOOLEAN, `isNumberValue` → NUMBER `toPlainString()`, `isStringValue` → STRING, 그 밖은 실패) (7) 기대와 비교(NUMBER 는 `compareTo == 0`).
-- cell 사례: (1) `variable.name` 예약 검사 (2) 값 타입 변환 (3) NA 면 true (4) `CellTextOracle.text(variable, cell)` 로 텍스트(V 자리에 `variable.name`)를 만들고 `patternRegex` 가 있으면 `CellTextOracle.regexFor(cell)` 과 같은지 단언 (5) `with(name, 변환값)` 뒤 평가 (6) BOOLEAN 비교.
+- cell 사례: (1) `variable.name` 예약 검사 (2) 값 타입 변환 (3) NA 면 true (4) `CellTextOracle.conditionText(cell, variable.name, dataType, variable.maruCodeId)` 로 텍스트를 만들고, `patternRegex` 가 있으면 `CellTextOracle.patternRegex(cell.left)` 가 그것과 글자까지 같은지 단언 (5) `with(name, 변환값)` 뒤 평가 (6) BOOLEAN 비교.
 
-**`CellTextOracle`**(06 「EvalEx 생성 규칙」 06:242-262 를 옮긴다)
+**`CellTextOracle`**(06 「EvalEx 생성 규칙」 06:242-262 와 03-03 §6.10·§6.11 을 옮긴 test 전용 거울. 03-03 머지 뒤 `CellTextGenerator` 로 바꾼다, §6.15)
 
-- `static String text(JsonNode variable, JsonNode cell)` — NA 면 `null`. 변수 이름을 V 로 쓴다.
+- 시그니처는 03-03 `CellTextGenerator` 와 짝을 맞춘다(F21). 인자 타입만 코퍼스 모양(Jackson `JsonNode` 셀, `String` 데이터 타입)이다: `static final String NA_TEXT = ""`, `static String conditionText(JsonNode cell, String subject, String dataType, String maruCodeId)`(NA → `NA_TEXT`), `static Optional<String> patternRegex(String patternValue)`(정규식형일 때만 앵커 없는 정규식, 정확 일치·단순형이면 빈 값, 거부 대상이면 `IllegalArgumentException`). 일자 String 은 `dataType` 이 `STRING` 이다(생성기는 일자를 따로 보지 않는다).
+- 리터럴 모양은 03-03 §6.10.2 와 같다. NUMBER 는 `^[+-]?\d+(\.\d+)?$` 만 받고(그 밖 IAE) `stripTrailingZeros`, 0 이면 `0`, 음수면 괄호. BOOLEAN 은 `TRUE`/`FALSE` 대소문자 무시.
+- 거부 규칙은 03-03 §6.10.3 가운데 코퍼스에 닿는 것만 옮긴다: 홀로 선 `\`, `%`·`%%` 단독, 접은 뒤 `%` 4 개 이상, 빈 CONTAINS·INSTR 값, 숫자 리터럴 모양 위반, BOOLEAN `TRUE`/`FALSE` 밖, 빈 IN 목록, 구간 `right` 없음, `maruCodeId` 없는 CODE_IN, 모르는 op.
 - 리터럴: STRING·일자 → `"` + (`\` → `\\`, `"` → `\"`) + `"`. NUMBER → 평문 정규화(`new BigDecimal(s).stripTrailingZeros().toPlainString()`, `-0` 은 `0`), 음수면 `(-1.5)` 처럼 괄호. BOOLEAN → `TRUE`/`FALSE`.
 - op 별 텍스트는 오라클 테스트 표(§3.1)와 같다. IN 목록은 셀에 적힌 순서대로 쓴다(저장 시 정렬은 저장 측 몫).
-- `=` 패턴(STRING 비일자 변수): `pattern.ts` 와 같은 토큰화(TS 와 Java 가 같은 규칙을 따로 구현한다. 코퍼스가 둘을 묶는다). 와일드카드 없음 → `V != NULL && V == "원문 복원값"`. 접두·접미·앞뒤형 → `STR_STARTS_WITH`·`STR_ENDS_WITH`·`INSTR(V, "A") > 0`. 그 밖 → `STR_MATCHES(V, "<likeToRegex 결과를 문자열 리터럴 규칙으로 이스케이프>")`.
+- `=` 패턴(STRING 변수의 EQ, 일자 포함 늘 토큰화): 03-03 §6.11(F22)·`pattern.ts` 와 같은 토큰화(TS 와 Java 가 같은 규칙을 따로 구현한다. 코퍼스가 둘을 묶는다). 와일드카드 없음 → `V != NULL && V == "원문 복원값"`. 접두·접미·앞뒤형 → `STR_STARTS_WITH`·`STR_ENDS_WITH`·`INSTR(V, "A") > 0`. 그 밖 → `STR_MATCHES(V, "<likeToRegex 결과를 문자열 리터럴 규칙으로 이스케이프>")`.
 - `static String likeToRegex(String pattern)`: 글자 토큰은 `\ ^ $ . | ? * + ( ) [ ] { }` 이면 앞에 `\`, `ANY_SEQ` → `.*`, `ANY_ONE` → `.`.
 
 **`AstMaps.toMap(ASTNode)`**: `type` = `token.getType().name()`, `value` = `token.getValue()`, 자식이 있으면 `params`(원천 `AstExporter.toMap` 과 같다). 비교는 Jackson `valueToTree` 로 바꿔 `JsonNode.equals`.
@@ -1074,9 +1093,25 @@ it.each(corpus.cases.map(c => [c.id, c] as const))("%s", (_id, c) => { … });
 
 ---
 
+### 6.15 03-03 머지 뒤 후속 (이 Task 의 코드는 03-03 없이 컴파일·통과한다)
+
+지금 03-03 코드는 dev 에 없다(F20·F21 은 설계 인용일 뿐이다). 아래는 03-03 이 dev 에 머지된 **뒤에** 하는 일이고, 이 Task 의 Build 범위가 아니다. 담당은 03-03·03-04 가운데 나중에 머지되는 쪽의 후속 작업(또는 팀장이 정하는 정리 Task)이다. Build 는 이 절을 구현하지 않고, 끝 보고에 "03-03 머지 뒤 후속 5건"으로 올린다.
+
+| # | 후속 | 바꾸는 곳 |
+|---|---|---|
+| P1 | 코퍼스 cell 사례의 서버 텍스트를 `CellTextGenerator.conditionText(RuleCell, subject, DataType, maruCodeId)` 로 만든다. 코퍼스 셀 JSON 을 `new DefinitionLookup.RuleCell(op, left, right, list, expr, ast, val, "")` 로, `variable.dataType` 을 `DefinitionLookup.DataType` 으로 바꾸는 변환만 러너에 둔다. `patternRegex` 대조도 `CellTextGenerator.patternRegex` 로 바꾼다 | `CorpusConformanceTest` 4단계, `CellTextOracle` 삭제 |
+| P2 | `CellTextOracleTest` 14건을 지운다. 같은 모양은 03-03 `CellTextSnapshotTest` 가 고정한다. `코퍼스_셀_텍스트의_함수는_GENERATED_안이다` 1건만 `CorpusConformanceTest` 로 옮겨 남긴다 | 테스트 수 −13 |
+| P3 | 서버 러너가 코퍼스를 03-03 의 `MdmRuleEngine` 경로로도 돌릴지 정한다. 셀 사례 하나를 조건 열 하나·행 하나짜리 FIRST 룰로 감싸 `hits` 여부를 기대값과 견주면, 예약 키·타입 변환·NA 처리까지 03-03 실물로 검증된다. 이렇게 하면 `CorpusEvalExHarness` 의 예약 키·타입 변환 거울(§6.11 표)을 지울 수 있다 | `CorpusConformanceTest` |
+| P4 | TSK-03-02 까지 머지되면 `CorpusEvalExHarness.configuration` 을 `MdmExpressionConfig.create(...)` 한 줄로 바꾸고 `CorpusFunctions` 를 지운다(D2). 03-03 의 `TestExpressionConfig` 와 같은 시점이다 | `CorpusEvalExHarness`, `CorpusFunctions` |
+| P5 | D1 이 반려돼 분석·입력 계약을 Java 로 이식하게 되면, `RowContract.cond` 는 03-03 `CellSummary.of` 를 재사용해 §6.7 의 열 이름 붙이기만 더한다 | `engine.rule`(이식 Task) |
+
+---
+
 ## 7. Build 가 주의할 함정
 
-- **엔진 main 금지**: `J/**` 에 파일을 만들거나 고치면 `ContractOnlyPhaseTest` 가 빨강이 된다. 하네스·오라클·대역 함수는 모두 test 소스(`T/corpus/`)다. 그 테스트를 지우거나 고치지 않는다.
+- **엔진 main 금지**: `J/**` 에 파일을 만들거나 고치면 `ContractOnlyPhaseTest` 가 빨강이 되고, record·enum 이면 영구 `EngineContractSchemaTest`(F19)도 빨강이 된다. 하네스·오라클·대역 함수는 모두 test 소스(`T/corpus/`)다. `ContractOnlyPhaseTest` 는 지우지도 고치지도 않는다. done 시점의 `testAll` 은 이 브랜치(기점 955cef1)에서 실패 0 이어야 한다.
+- **03-03 코드에 기대지 않는다**: `CellTextGenerator`·`CellSummary`·`ValueConverter` 등 03-03 클래스를 import 하지 않는다(dev 에 없어 컴파일이 깨진다). 03-03 의 규칙은 §0.3 인용과 오라클·TS 구현으로 거울만 둔다. 03-03 설계가 바뀌었는지 Build 시작 때 `/usr/bin/git show agent/e1205c87-rule-engine:docs/mdm/tasks/TSK-03-03/design.md` 로 §6.1·§6.7·§6.8·§6.11·§6.12 를 다시 보고, 달라졌으면 이 설계와의 차이를 보고에 적는다(설계를 조용히 바꾸지 않는다).
+- **03-03 이 먼저 dev 에 머지된 뒤 이 브랜치를 다시 기점에 맞추는 경우**: 03-03 은 `ContractOnlyPhaseTest` 2건을 허용 실패로 안고 간다(03-03 D2). 그 2건은 이 Task 가 만든 실패가 아니므로 보고에 출처를 적어 구분한다. 이 Task 가 새로 만든 실패는 0 이어야 한다.
 - **`MdmExpressionConfig.create`·`baseBuilder` 는 UOE 다**: 하네스에서 부르지 않는다. 상수만 읽는다. 스캐폴드 `expr.ExpressionEvaluator` 도 쓰지 않는다(TSK-03-02 가 바꾼다).
 - **원천 JS 샘플을 그대로 옮기지 않는다**: `equals` 의 숫자 승격, `num()` 의 문자열 승격, `str(null)` 의 `"null"` 을 STR_* 인자에 쓰는 것, `&&` 의 NULL → false, `MIN`·`MAX` 의 `D.min`, `STR_CONTAINS` 의 `toLowerCase`, 64자리 PI 는 모두 서버와 다르다(§0.2).
 - **decimal.js 스케일**: `new Decimal("1.50").toString()` 은 `"1.5"` 다. 숫자를 문자열로 바꿀 때 반드시 `NUMBER_TEXT` 를 거친다. `toTypedValue` 는 값 비교용이라 `toFixed()` 로 충분하다.
@@ -1157,3 +1192,11 @@ it.each(corpus.cases.map(c => [c.id, c] as const))("%s", (_id, c) => { … });
 - **택한 것**: (a)
 - **근거**: 06:208 의 기준 문장은 "NULL 이 들어오면 식이 깨지는지"이고 예시는 "처럼"으로 열거한 것이다. 실측(§0.2)으로 깨지지 않음이 확인된 자리는 애매하지 않다. engine-contract §5 표(`STR_CONTAINS` 선택, `INSTR` "바깥 연산으로 판정", `MASTER` key 선택, `MIN` 필수)를 그대로 따랐다. `+` 만은 실측과 달리 06 원문 "사칙연산"을 따른다(원문이 더 구체적이다). 06:208 "함수마다 인자가 NULL을 받는지는 함수 화이트리스트에 함께 적는다"에 맞춰 정책을 함수 표(`functions.ts`)에 둔다.
 - **반려되면 재작업 방향**: (b) 면 `nullSafety` 에서 `==`·`!=` 의 SAFE 를 "상대가 `NULL` 상수일 때만"으로 좁히고 input-contract #7·#8 의 기대를 필수로 바꾼다. `+` 를 선택으로 바꾸라는 판단이면 INFIX 표에서 `+` 만 SAFE 로 옮기고 #6 에 `A + "x"` 사례를 더한다. 결과 열 그룹을 교집합으로 보라는 판단이면 §6.7 2단계를 바꾸고 #13 을 고친다.
+
+### D9 — 병렬 형제 TSK-03-03 과 규칙이 겹치는 자리를 어떻게 맞추는가
+- **질문**: 03-03(미머지)은 op-code 셀 → 텍스트 생성기 `CellTextGenerator`, 값 변환 `ValueConverter`, 예약 키 `RecordKeys`, 셀 요약 `CellSummary` 를 `engine.rule` 에 둔다. 이 Task 의 서버 러너·화면 평가기·입력 계약과 규칙이 겹친다. 03-03 코드 없이 어떻게 맞추는가?
+- **확인한 것**: 03-03 설계를 로컬 브랜치 `agent/e1205c87-rule-engine`(69f1a03)에서 읽었다(원격 `origin/agent/*` 는 없다). §6.1 시그니처(F21), §6.11 패턴 규칙(F22), §6.7·§6.8·§6.2 값 변환·키·조건 셀 판정(F23), §6.12 셀 요약(F24)을 인용했다. 03-03 D15 는 "03-04 가 다른 규칙을 이미 구현했다면 코퍼스로 맞춰 보고 서버(이 생성기)를 기준으로 한다"고 적었다.
+- **선택지**: (a) 03-03 규칙을 기준으로 이 설계를 맞추고, test 안의 거울(`CellTextOracle`·`CorpusEvalExHarness.toDeclared`)과 TS 구현으로 따라 한다. 03-03 코드를 부르는 부분은 머지 뒤 후속(§6.15)으로 미룬다 / (b) 이 Task 의 처음 규칙을 유지하고 차이는 머지 때 코퍼스로 푼다 / (c) 03-03 머지를 기다린다
+- **택한 것**: (a). 처음 설계에서 바꾼 것은 넷이다. ① 셀 값 변환: STRING 변수가 숫자를 평문 문자열로 받고(`cell.type.string-from-number` 기대가 오류에서 F 로 바뀐다), BOOLEAN 변수가 `TRUE`/`FALSE` 문자열을 받고, NUMBER 변수가 지수형 문자열을 받는다. ② `=` 패턴: 홀로 선 `\`·`%` 단독·접은 뒤 `%` 4 개 이상을 거부한다. ③ 대소문자만 다른 레코드 키를 `RESERVED_KEY` 로 거부하고, 미리보기의 입력 계약 키 검사는 정확 일치로 한다. ④ Expression 조건 셀 결과가 불린이 아니면 `EVALUATION_ERROR` 다. 셀 요약은 `CellSummary.of` 를 옮기고 열 이름만 붙인다. 테스트 건수는 바뀌지 않는다.
+- **근거**: 서버가 기준이다(EG 8.5 2항, PRD AC-3). 머지 뒤 서버 쪽 텍스트·변환은 03-03 코드가 만든다. 지금 다른 규칙으로 코퍼스를 짜면 머지 때 코퍼스 기대값이 흔들린다((b)). (c) 는 병렬 일정을 막는다. 03-03 도 미승인 선행이라 근거 순위는 가장 낮지만, 두 설계가 06 원문(06:156-160·199·248)과 같은 방향이고 06 이 정하지 않은 가장자리만 03-03 쪽 결정을 따랐다.
+- **반려되면 재작업 방향**: (b) 면 §6.2 변환 표·§6.5 패턴 거부·`checkRecordKeys` 중복 키 규칙을 처음 설계로 되돌리고 `cell.type.string-from-number` 기대를 TYPE_CONVERSION 으로 되돌린다. 차이는 03-03 머지 뒤 P1·P3 에서 코퍼스가 드러내고, 그때 어느 쪽을 고칠지 다시 정한다. 03-03 설계가 머지 전에 바뀌면 이 절과 §0.3 을 다시 맞춘다.
