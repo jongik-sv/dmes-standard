@@ -487,3 +487,48 @@ Build·Verify 의 변이 검증은 이 목록을 순회한다. 각 항목 끝의
 ## Build 이탈 기록
 
 (Build 가 이 설계와 달리 구현한 지점과 사유를 여기에 추기한다.)
+
+### B1. 파일 구성과 API 모양 (§2 보충, 동작 변경 없음)
+
+§2 의 파일 10개를 합치거나 나누지 않았다. 설계가 모양을 정하지 않은 API 는 아래처럼 정했다.
+
+- `SapCsv`: `parse(String)`(원시 레코드), `parseTable(sourceName, text)`, `readTable(Path, Charset)`, `toBytes(List<List<String>>)` 과 중첩 record `Table`·`Row`(`recordNumber` 는 헤더를 1로 센 레코드 번호). 입력을 지정한 문자셋으로 디코드하지 못하면(`CharacterCodingException`) `SapDictInputException` 으로 바꾼다. 즉 `--charset` 을 잘못 주면 종료 코드 1이다.
+- `SapTypeMapping.map(datatype, leng, decimals)` 는 `Optional<SapTypeMapping.ValueDefinition>` 을 돌려준다. `ValueDefinition` 은 중첩 record 이고, `domainKey()` 가 §4.2 형식의 키를 만든다.
+- `SapDictCandidateExtractor.extract` 는 static 이다.
+- `SapDictCandidateWriter` 는 둘로 나눴다. `render(candidates)` 는 파일 이름과 바이트를 모두 만들고, `write(files, outDir)` 는 쓰기만 한다. I4 의 "모든 계산을 끝낸 뒤에만 쓰기"를 호출 순서로 드러내려는 것이다.
+- `SapDictInputException` 은 unchecked 예외(`RuntimeException`)다.
+- **종료 코드 3을 추가했다.** 설계는 출력 쓰기 실패(`IOException`)의 종료 코드를 정하지 않았다. 입력 오류(1)나 인자 오류(2)와 섞이지 않도록 3을 쓴다.
+
+### B2. 구조 행은 reader 와 extractor 두 곳에서 거른다 (§4.1 I6 보충)
+
+§4.1 은 "읽은 직후 버린다"(reader)고 적었다. 그런데 §3.4 픽스처는 `SapDdicExtract` 에 구조 행을 직접 넣으므로 extractor 도 걸러야 한다.
+
+- **reader**: 키 중복 검사 **전에** 버려야 한다. 실제 DD03L 은 한 테이블에 `.INCLUDE` 가 여러 번 나오기 때문이다.
+- **extractor**: §3.4 픽스처를 위해 한 번 더 거른다.
+
+두 필터는 각각 독립된 테스트로 고정했다. reader 쪽은 `SapDdicReaderTest.구조_행은_키_중복_검사_전에_버린다` 이고, 샘플 S13 도 `.INCLUDE` 를 두 번 넣었다. extractor 쪽은 `구조_행은_어느_출력에도_나오지_않는다` 다.
+
+### B3. 설계 목록보다 더한 테스트·단언 (변이 검증 구멍을 미리 막으려는 것)
+
+| 위치 | 추가 | 막는 변이 |
+|---|---|---|
+| `SapDictCandidateExtractorTest.detail_은_DATATYPE_과_ROLLNAMES_를_구분자로_잇는다` | UNSUPPORTED_TYPE + NO_KOREAN_LABEL + FIELD_NAME_CONFLICT 가 함께 붙는 행의 detail `DATATYPE=FLTP \| ROLLNAMES=…` | I16 detail 결합 순서·구분자 |
+| `타입을_정할_수_없으면_UNSUPPORTED_TYPE_이다` 둘째 사례 | DD01L 행은 있는데 DATATYPE 이 공백이고, DD04L 은 CHAR 인 경우 | I9 "고른 쪽이 공백이면 DD04L 로 물러서지 않는다" |
+| `한글이_하나도_없으면_NO_KOREAN_LABEL_이다` 셋째 사례 | 자모만 든 라벨 `ㅋㅋ` | I11 한글 음절 범위를 자모까지 넓히는 변이 |
+| `용어는_공백과_괄호_슬래시_쉼표_가운뎃점으로_나눈다` 둘째 사례 | `(가)[나]{다},라` | I12 정규식에서 `[]`·`{}`·`,` 를 빼는 변이 |
+| `컬럼명은_앞뒤_공백을_떼고_공백을_하나로_줄인다` | 탭이 섞인 공백, 참고 칸 `sap_scrtext_l` 은 앞뒤 공백만 뗀다 | I11 정규화 |
+| `SapDdicReaderTest` | `정상_입력을_읽는다`, `AS4LOCAL_칸이_없으면_모든_행을_쓴다`, `구조_행은_키_중복_검사_전에_버린다`, 숫자 칸 네 경우 파라미터 | I5·I6·I4 |
+| `SapTypeMappingTest` | `INT_는_DECIMALS_가_있어도_scale_0_이다`, `문자열_타입은_DECIMALS_가_있어도_scale_이_빈_값이다`, 공백만 있는 datatype | I8 |
+| `SapDictCandidateCliTest.입력_오류면_기존_출력_파일도_바뀌지_않는다` | §3.6-4 의 "기존 출력 파일이 있던 경우"를 별도 메서드로 분리 | I4 |
+| `SapDictCandidateCliTest.charset_옵션은_입력에만_적용되고_출력은_UTF8_이다` | MS949 입력 → 출력은 UTF-8 BOM, 한글이 그대로 읽힌다 | I17 "출력은 항상 UTF-8" |
+| `인자가_없거나_모르는_옵션이면_…` | 인자 없음·모르는 문자셋 두 경우 추가 | I4(인자 오류 2) |
+
+### B4. 샘플 사례 보강 (§3.5 사례표, 사례는 모두 유지)
+
+- **S13**: `ZTPP_COIL-.INCLUDE` 를 두 번(POSITION 0002·0013) 넣었다(B2).
+- **S14**: 비활성(`AS4LOCAL=N`) 행을 DD03L 에만 두지 않고 DD04L(`ZZDE_COIL_WGT`)·DD04T(`ZZDE_COIL_THK`, `3` 행)·DD01L(`ZZDO_COIL_WGT`)에도 하나씩 넣었다. 각 파일에서 필터가 빠지면 키 중복이 나서 골든이 빨강이 된다.
+- **I9 를 골든에서도 확인한다.** `ZZDE_COIL_ID` 의 DD04L 자체 타입을 CHAR 18 로, DD01L 을 CHAR 20 으로 달리 두었다. 기대값은 `STRING(20)` 이다.
+- **공백 정규화**: `ZZDE_COIL_ID` 의 SCRTEXT_L 을 `코일  아이디`(공백 둘)로 두었다. `column_name` 은 `코일 아이디` 이고 `sap_scrtext_l` 은 원문 그대로다.
+- **RFC 4180 인용**: `ZZDE_COIL_WGT` 의 DDTEXT 에 쉼표(`코일 중량, 실측`)를 넣어, 출력에서 인용 칸이 제대로 왕복하는지 본다.
+- **입력 BOM**: `DD03L.csv` 를 UTF-8 BOM 으로 시작시켰다(엑셀 저장 형식).
+- `ZZDE_RAW_COIL_THK`(S17)가 `ZZDE_COIL_THK` 와 같은 도메인을 쓴다. 그래서 `NUMBER(3,1)` 의 element_count 는 2다.
