@@ -2,7 +2,7 @@
   "tsk": "TSK-04-01",
   "order": "847a7616-c56e-43fb-a5fe-5380f42aba38",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "refactor",
+  "phase": "reported",
   "baseline": {
     "failures": 0,
     "tests": 447,
@@ -18,8 +18,8 @@
     }
   },
   "last": {
-    "phase": "refactor",
-    "event": "refactor.skipped"
+    "phase": "done",
+    "event": "done.ok"
   },
   "model": "haiku",
   "build_gate": {
