@@ -45,7 +45,19 @@ class CommonContractTest {
             assertTrue(code.defaultMessage() != null && !code.defaultMessage().isBlank(), code + " 기본 메시지");
             assertTrue(Set.of(400, 403, 409).contains(code.httpStatus()), code + " 의미 HTTP 상태");
         }
-        assertEquals(12, MdmErrorCode.values().length);
+        assertEquals(14, MdmErrorCode.values().length);
+    }
+
+    @Test
+    void TSK_01_03_이_더한_오류_코드_두_개() {
+        // TSK-01-03 D3 — 담당자 역할 거부(MDM013)와 확정 검사 경고 미확인(MDM014).
+        assertEquals("MDM013", MdmErrorCode.STEWARD_ROLE_REQUIRED.code());
+        assertEquals(403, MdmErrorCode.STEWARD_ROLE_REQUIRED.httpStatus());
+        assertEquals(com.dongkuk.dmes.cactus.common.ErrorCode.ACCESS_DENIED, MdmErrorCode.STEWARD_ROLE_REQUIRED.transport());
+        assertEquals("MDM014", MdmErrorCode.CONFIRM_WARNINGS_NOT_ACKNOWLEDGED.code());
+        assertEquals(409, MdmErrorCode.CONFIRM_WARNINGS_NOT_ACKNOWLEDGED.httpStatus());
+        assertEquals(com.dongkuk.dmes.cactus.common.ErrorCode.BUSINESS_ERROR,
+                MdmErrorCode.CONFIRM_WARNINGS_NOT_ACKNOWLEDGED.transport());
     }
 
     @Test

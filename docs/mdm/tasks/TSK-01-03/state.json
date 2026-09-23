@@ -2,5 +2,57 @@
   "tsk": "TSK-01-03",
   "order": "c7f0c4f6-568b-41f1-a7e3-40936f6c5827",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "reported",
+  "baseline": {
+    "failures": 0,
+    "tests": 447,
+    "backend_testAll": {
+      "tests": 447,
+      "failures": 0,
+      "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll"
+    },
+    "frontend_m_mdm": {
+      "test": "1 passed (cd src/frontend && pnpm --filter @dk-oasis/m-mdm test)",
+      "lint": "tsc --noEmit pass (cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm lint)"
+    },
+    "frontend_shared": {
+      "test": "23 files / 156 passed (cd src/frontend && pnpm test:unit:shared)"
+    },
+    "frontend_m_mcm_lint": "67 problems (23 errors, 44 warnings) — 기존 (cd src/frontend && pnpm --filter @dk-oasis/mcm lint), m-mcm 에 test 스크립트 없음",
+    "e2e": {
+      "mdm_sample_smoke": "1 passed",
+      "cmd": "TSK-01-02 design.md §3.5 절차, BE 18300 / FE 15300, 워크트리 src/backend/data 격리 확인",
+      "spec": "e2e/mdm-sample-smoke.spec.ts"
+    }
+  },
+  "base_note": "선행 TSK-01-02: reached=true, head_sha 없음 → pred-reflected.sh REFLECTED(증거 3) → origin/dev 7fc2380 기점, 스택 없음",
+  "last": {
+    "phase": "done",
+    "event": "done.ok"
+  },
+  "model": "sonnet",
+  "build_gate": {
+    "backend_testAll": {
+      "tests": 510,
+      "failures": 0
+    },
+    "m_mdm_test": "21 passed",
+    "m_mdm_lint": "pass",
+    "shared": "156 passed",
+    "m_mcm_lint": "23 errors / 44 warnings (기준선 같음)",
+    "oasis": "ERROR 0"
+  },
+  "verify_gate": {
+    "backend_testAll": {
+      "tests": 510,
+      "failures": 0
+    },
+    "m_mdm_test": "21 passed",
+    "m_mdm_lint": "pass",
+    "oasis": "ERROR 0",
+    "ui_audit": "0/0",
+    "e2e": "5 passed — 오케스트레이터 직접 실행(mcm 18703·mdm 18796·포털 15703, 새 mcm.db, 시드 대조 diff 없음, SQLite 경로 워크트리 확인)",
+    "mutation": "I1~I24 62건 전부 빨강 (verify2, sonnet 재시도)"
+  },
+  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\""
 }

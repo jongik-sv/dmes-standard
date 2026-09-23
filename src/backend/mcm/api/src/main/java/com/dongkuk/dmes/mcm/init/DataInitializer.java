@@ -838,15 +838,20 @@ public class DataInitializer implements ApplicationRunner {
     }
 
     /**
-     * TSK-01-01 mdm(마루 MDM) 스캐폴드 검증용 샘플 화면 메뉴/OBJECT/RBAC 시드(seedAnalogMenus 패턴 그대로).
+     * mdm(마루 MDM) 메뉴 그룹 트리·RBAC 시드(TSK-01-01 샘플 화면 + TSK-01-03 메뉴 그룹·역할·권한 세트).
      *
      * <ul>
-     *   <li>폴더 2: mdm(모듈 루트) + dma(그룹, 용어·도메인 — screens/README §2) — TB_MCM_SEC_MENU_FLD.</li>
+     *   <li>폴더 6: mdm(모듈 루트) + 그룹 5개 dma 용어·도메인 / dmb 레이아웃 / dmc 마스터코드 / dmd 마스터데이터 /
+     *       dme 업무기준 — TB_MCM_SEC_MENU_FLD. 이름은 MdmScreenGroup·screens/README §2·m-mdm MDM_GROUPS 와 글자까지
+     *       같다(TSK-01-03). leaf 가 없는 폴더는 사이드바에 나오지 않고, 화면 Task 가 leaf 를 붙이면 보인다.</li>
      *   <li>OBJECT 1: mdmSample — TB_MCM_SEC_OBJ (SYSTEM_CODE='mdm' = FE moduleId,
      *       m-mcm PORTAL_MODULE_CONFIG 의 mdm 로더로 라우팅).</li>
      *   <li>메뉴 leaf 1: parent='dma' — TB_MCM_SEC_MENU. componentPath = 'dma/mdmSample'.</li>
-     *   <li>RBAC 1: SYSADMIN × mdmSample × PERM_ALL — TB_MCM_SEC_ROLE_MAPPING.</li>
+     *   <li>RBAC: SYSADMIN × mdmSample × PERM_ALL(기존) + {@link #seedMdmRbac()}(역할 2·역할 그룹 2·권한 세트 3) +
+     *       {@link #seedMdmObjectRbac(String, String)}(그룹 × 역할 매트릭스, ADR-0003 D5).</li>
      * </ul>
+     *
+     * <p>시험 사용자는 시드하지 않는다(TSK-01-03 D10) — E2E 는 격리 DB 에 픽스처(e2e/fixtures/mdm-rbac-users.sql)로 넣는다.
      *
      * <p>TSK-01-02 D2 — TSK-01-01 이 옛 그룹으로 시드한 기존 DB 는 시드 전에 {@link #migrateMdmSampleGroupToDma()}
      * 가 UPDATE 로 이행한다(insert-if-absent 시드와 조회 때 계산되는 componentPath 때문에 리터럴만 바꾸면 기존 DB 에서
@@ -869,6 +874,11 @@ public class DataInitializer implements ApplicationRunner {
         // ── 폴더 (FLD) — root mdm(모듈 5) + group dma(용어·도메인) ──
         insertMpnFld("mdm", "00000005", "마루 MDM", null,   5000000L);
         insertMpnFld("dma", "00000100", "용어·도메인", "mdm", 5010000L);
+        // ── TSK-01-03 — 나머지 메뉴 그룹 4개(MdmScreenGroup·screens/README §2 와 같은 이름) ──
+        insertMpnFld("dmb", "00000200", "레이아웃",     "mdm", 5020000L);
+        insertMpnFld("dmc", "00000300", "마스터코드",   "mdm", 5030000L);
+        insertMpnFld("dmd", "00000400", "마스터데이터", "mdm", 5040000L);
+        insertMpnFld("dme", "00000500", "업무기준",     "mdm", 5050000L);
 
         // ── OBJECT — SYSTEM_CODE='mdm' 이 FE moduleId 가 된다 ──
         insertMcmSecObjIfAbsent("mdmSample", "MDM 샘플", "mdm");
@@ -883,7 +893,113 @@ public class DataInitializer implements ApplicationRunner {
                 new String[]{"SYSADMIN", "mdmSample", "PERM_ALL"},
                 "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
                 "VALUES ('SYSADMIN', 'mdmSample', 'PERM_ALL'" + AUDIT_VALS + ")");
-        log.info("[DataInitializer] MDM 샘플(dma) 메뉴 시드 — 폴더 2 + OBJECT 1 + 메뉴 leaf 1 + RBAC 1");
+
+        // ── TSK-01-03 — MDM 역할·권한 세트와 화면별 매트릭스 ──
+        seedMdmRbac();
+        seedMdmObjectRbac("mdmSample", "dma");
+        log.info("[DataInitializer] MDM 메뉴 시드 — 폴더 6 + OBJECT 1 + 메뉴 leaf 1 + RBAC(SYSADMIN 1 + MDM 역할 2)");
+    }
+
+    /**
+     * TSK-01-03 D10 — MDM 역할 2종·역할 그룹 2종(1:1)·권한 세트 3종 시드(ADR-0003 D5).
+     *
+     * <p>역할 ID 는 {@code ROLE_} 접두 없이 넣는다(JWT 역할 클레임이 "ROLE_" + ROLE_ID). 사용자는 역할 그룹을 거쳐서만
+     * 역할을 받으므로 역할 그룹을 함께 둔다. 권한 세트의 액션 목록은 mdm 계약 MdmPermissions.*_ACTIONS 와 같다(이 모듈은
+     * mdm lib 을 의존하지 않아 문자열로 적고, e2e/fixtures/mdm-rbac-seed-check 가 대조한다).
+     * <b>PERMISSION_COMMON·PERMISSION_CUSTOM·POPUP_BTN 은 비운다</b> — UserPermCache 가 네 칸의 합집합을 액션으로
+     * 쓰므로 PERM_ALL 처럼 COMMON 을 채우면 READ 가 save·delete 를 얻는다.
+     */
+    private void seedMdmRbac() {
+        final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
+        final String AUDIT_VALS = ", 'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', "
+                                + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
+
+        // TB_MCM_SEC_ROLE — 표준 관리자·담당자
+        insertIfAbsent(
+                "TB_MCM_SEC_ROLE", "ROLE_ID", "MDM_STD_ADMIN",
+                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE " +
+                "(ROLE_ID, ROLE_NM, ROLE_DESC, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
+                "VALUES ('MDM_STD_ADMIN', N'표준 관리자', N'용어·도메인·레이아웃 등록·수정(ADR-0003 D5)', 'Y', SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+        insertIfAbsent(
+                "TB_MCM_SEC_ROLE", "ROLE_ID", "MDM_STEWARD",
+                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE " +
+                "(ROLE_ID, ROLE_NM, ROLE_DESC, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
+                "VALUES ('MDM_STEWARD', N'담당자', N'마스터코드·마스터데이터·업무기준 편집과 버전 확정(ADR-0003 D5)', 'Y', SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+
+        // TB_MCM_SEC_ROLEGROUP — 역할 그룹 1:1
+        insertIfAbsent(
+                "TB_MCM_SEC_ROLEGROUP", "ROLE_GROUP_ID", "ROLE_GROUP_MDM_STD_ADMIN",
+                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLEGROUP " +
+                "(ROLE_GROUP_ID, ROLE_GROUP_NM, ROLE_GROUP_DESC, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
+                "VALUES ('ROLE_GROUP_MDM_STD_ADMIN', N'MDM 표준 관리자 그룹', N'MDM 표준 관리자 역할 그룹', 'Y', SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+        insertIfAbsent(
+                "TB_MCM_SEC_ROLEGROUP", "ROLE_GROUP_ID", "ROLE_GROUP_MDM_STEWARD",
+                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLEGROUP " +
+                "(ROLE_GROUP_ID, ROLE_GROUP_NM, ROLE_GROUP_DESC, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
+                "VALUES ('ROLE_GROUP_MDM_STEWARD', N'MDM 담당자 그룹', N'MDM 담당자 역할 그룹', 'Y', SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+
+        // TB_MCM_SEC_ROLEGROUP_MAPPING — (그룹, 역할)
+        for (String roleId : new String[]{"MDM_STD_ADMIN", "MDM_STEWARD"}) {
+            String groupId = "ROLE_GROUP_" + roleId;
+            insertIfAbsentComposite(
+                    "TB_MCM_SEC_ROLEGROUP_MAPPING",
+                    new String[]{"ROLE_GROUP_ID", "ROLE_ID"},
+                    new String[]{groupId,         roleId},
+                    "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLEGROUP_MAPPING (ROLE_GROUP_ID, ROLE_ID" + AUDIT_COLS + ") " +
+                    "VALUES ('" + groupId + "', '" + roleId + "'" + AUDIT_VALS + ")");
+        }
+
+        // TB_MCM_SEC_PERM — READ ⊂ EDIT ⊂ CONFIRM (MdmPermissions.*_ACTIONS 와 같은 순서)
+        String readActions = "search,view,export,compare";
+        String editActions = readActions + ",save,delete,reg,import,validate,execute,copy,restore";
+        String confirmActions = editActions + ",confirm";
+        String[][] perms = {
+                {"PERM_MDM_READ",    "MDM 조회",      "MDM 조회 권한(ADR-0003 D5)",           readActions},
+                {"PERM_MDM_EDIT",    "MDM 편집",      "MDM 조회·편집 권한(ADR-0003 D5)",      editActions},
+                {"PERM_MDM_CONFIRM", "MDM 편집·확정", "MDM 조회·편집·확정 권한(ADR-0003 D5)", confirmActions},
+        };
+        for (String[] perm : perms) {
+            insertIfAbsent(
+                    "TB_MCM_SEC_PERM", "PERMISSION_ID", perm[0],
+                    "INSERT INTO MCMAPUSER.TB_MCM_SEC_PERM " +
+                    "(PERMISSION_ID, PERMISSION_NM, PERMISSION_DESC, PERMISSION_ACTION, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
+                    "VALUES ('" + perm[0] + "', N'" + escapeSql(perm[1]) + "', N'" + escapeSql(perm[2]) + "', " +
+                    "'" + escapeSql(perm[3]) + "', 'Y', SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+        }
+    }
+
+    /**
+     * TSK-01-03 D10 — MDM 화면 OBJECT 하나에 그룹 × 역할 매트릭스(ADR-0003 D5)를 매핑한다.
+     *
+     * <p>화면 Task 는 OBJECT·leaf 시드 뒤 이 메서드를 한 줄 부른다(TSK-01-03 D10). SYSADMIN 은 여기 없다 —
+     * 기존대로 PERM_ALL 행을 따로 둔다. 매트릭스는 mdm 계약 MdmPermissions.MATRIX 와 같다.
+     *
+     * @param objectId  TB_MCM_SEC_OBJ.OBJECT_ID(= screenId)
+     * @param groupCode 메뉴 그룹 코드 dma~dme. 모르는 값이면 기동 실패
+     */
+    private void seedMdmObjectRbac(String objectId, String groupCode) {
+        final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
+        final String AUDIT_VALS = ", 'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', "
+                                + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
+        java.util.Map<String, java.util.Map<String, String>> matrix = java.util.Map.of(
+                "dma", java.util.Map.of("MDM_STD_ADMIN", "PERM_MDM_EDIT", "MDM_STEWARD", "PERM_MDM_READ"),
+                "dmb", java.util.Map.of("MDM_STD_ADMIN", "PERM_MDM_EDIT", "MDM_STEWARD", "PERM_MDM_READ"),
+                "dmc", java.util.Map.of("MDM_STD_ADMIN", "PERM_MDM_READ", "MDM_STEWARD", "PERM_MDM_CONFIRM"),
+                "dmd", java.util.Map.of("MDM_STD_ADMIN", "PERM_MDM_READ", "MDM_STEWARD", "PERM_MDM_EDIT"),
+                "dme", java.util.Map.of("MDM_STD_ADMIN", "PERM_MDM_READ", "MDM_STEWARD", "PERM_MDM_CONFIRM"));
+        java.util.Map<String, String> byRole = matrix.get(groupCode);
+        if (byRole == null) {
+            throw new IllegalStateException("[DataInitializer] 알 수 없는 MDM 메뉴 그룹: " + groupCode);
+        }
+        for (String roleId : new String[]{"MDM_STD_ADMIN", "MDM_STEWARD"}) {
+            String permissionId = byRole.get(roleId);
+            insertIfAbsentComposite(
+                    "TB_MCM_SEC_ROLE_MAPPING",
+                    new String[]{"ROLE_ID", "OBJECT_ID", "PERMISSION_ID"},
+                    new String[]{roleId,    objectId,    permissionId},
+                    "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                    "VALUES ('" + roleId + "', '" + escapeSql(objectId) + "', '" + permissionId + "'" + AUDIT_VALS + ")");
+        }
     }
 
     // TSK-01-02 D2 — TSK-01-01 이 옛 그룹 mdt 로 시드한 기존 DB 를 dma 로 옮긴다.

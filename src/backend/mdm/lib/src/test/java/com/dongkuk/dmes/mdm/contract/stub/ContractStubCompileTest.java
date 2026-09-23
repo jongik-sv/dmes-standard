@@ -18,6 +18,7 @@ import com.dongkuk.dmes.mdm.contract.version.ConfirmCheckResult;
 import com.dongkuk.dmes.mdm.contract.version.DiffKind;
 import com.dongkuk.dmes.mdm.contract.version.VersionConfirmCheckSpi;
 import com.dongkuk.dmes.mdm.contract.version.VersionDiff;
+import com.dongkuk.dmes.mdm.contract.version.VersionDraftDeletionSpi;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import java.math.BigDecimal;
@@ -92,6 +93,20 @@ class ContractStubCompileTest {
         ConfirmCheckResult ruleResult = businessRule.check(new ConfirmCheckRequest(ruleDraft, now, now, "s", now));
         assertEquals(1, ruleResult.errors().size());
         assertEquals("MDM010", ruleResult.errors().get(0).code());
+    }
+
+    @Test
+    void 삭제_정리_훅_구현이_모든_버전_대상을_하나씩_덮는다() {
+        // TSK-01-03 K5 — VersionDraftDeletionSpi 도 target 마다 정확히 하나(D4).
+        List<VersionDraftDeletionSpi> hooks = List.of(new MasterCodeDraftDeletionStub(), new BusinessRuleDraftDeletionStub());
+        Set<VersionTarget> targets = hooks.stream().map(VersionDraftDeletionSpi::target)
+                .collect(Collectors.toCollection(() -> EnumSet.noneOf(VersionTarget.class)));
+        assertEquals(EnumSet.allOf(VersionTarget.class), targets);
+        assertEquals(hooks.size(), targets.size(), "같은 대상을 두 훅이 맡으면 안 된다");
+
+        VersionRef draft = new VersionRef(VersionTarget.MASTER_CODE, "PROC_CD", new BigDecimal("2.000"));
+        hooks.get(0).beforeDraftDelete(draft);
+        assertEquals(List.of(draft), ((MasterCodeDraftDeletionStub) hooks.get(0)).calls);
     }
 
     @Test
