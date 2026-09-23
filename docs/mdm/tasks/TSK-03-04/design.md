@@ -187,7 +187,7 @@
 |---|---|---|---|
 | `서버_평가가_코퍼스_기대값과_같다` | `@TestFactory` → `DynamicTest` 사례마다(표시 이름 = 사례 id) | 169 | §6.11 절차로 평가한 결과가 `expect.value`(값 비교) 또는 `expect.error`(코드 비교)와 같다. `screenFallback` 은 서버 쪽에서 보지 않는다. 셀 사례에 `patternRegex` 가 있으면 오라클이 만든 정규식이 그것과 글자까지 같아야 한다 |
 | `식_사례의_AST_가_EvalEx_파싱_결과와_같다` | `@TestFactory` → expr 사례마다 | 82 | `AstMaps.toMap(new Expression(expr, harness 설정).getAbstractSyntaxTree())` 를 Jackson 트리로 바꾼 것이 사례의 `ast` 와 `JsonNode.equals` 로 같다. 텍스트와 AST 가 같은 식이라는 교차 확인이다 |
-| `표본_15건이_같은_내용으로_들어_있다` | `@Test` | 1 | §6.10 「표본 15건」 id 목록(테스트 안 상수)이 코퍼스에 모두 있다. docs 표본 파일은 읽지 않는다(TSK-03-01 D6 의 단일 사본 원칙) |
+| `표본_15건의_id_와_기대값이_그대로_들어_있다` | `@Test` | 1 | 테스트 안 상수 `SAMPLE_EXPECTS`(§6.10 「표본 15건」의 `id → expect` 15쌍, docs 표본과 같은 값)와 코퍼스의 같은 id 사례 `expect` 가 Jackson 트리로 같다. docs 표본 파일은 읽지 않는다(TSK-03-01 D6 의 단일 사본 원칙). §6.14 5단계에서 표본 기대값을 서버 결과로 바꿔야 하는 상황이면 고치지 말고 멈춰 보고한다 |
 
 **`CorpusShapeTest` — 4건**(JSON Schema 검증기는 쓰지 않는다. 스키마 `$defs` 를 읽어 대조한다)
 
@@ -225,7 +225,7 @@
 | `하네스_함수_사전은_BASE_와_INSTR_MASTER_뿐이다` | `FunctionSets.BASE` 이름마다 `hasFunction` 참, `INSTR`·`MASTER` 참, `MASTER_AT` 거짓, `FunctionSets.STANDARD` 밖 이름(`LOG`, `DT_NOW`, `STR_FORMAT`) 거짓 |
 | `대역_INSTR_는_06_규칙을_따른다` | `INSTR("SGCC", "CC")` = 3, `INSTR("SGCC", "cc")` = 0, `INSTR(X, "C")`(X NULL) = NULL, `INSTR("abc", "")` = 1 |
 
-### 3.2 프런트 — 새 테스트 249건 (6 → 255)
+### 3.2 프런트 — 새 테스트 251건 (6 → 257)
 
 모든 테스트는 `M/tests/*.test.ts`(평면 배치, 기존 관례)다. 경로는 `tests/helpers/engine-paths.ts` 가 한 번 정한다.
 
@@ -240,16 +240,16 @@ export const JAVA_EXPR_DIR = path.join(ENGINE_ROOT, "src/main/java/kr/dongkuk/ma
 | 파일 | 건수 | 테스트 |
 |---|---|---|
 | `evalex-corpus.test.ts` | 169 + 3 = 172 | `it.each(cases)("%s", …)` 사례마다 1건(§6.12). 메타 3건: `폴백을 허용한 사례는 고정 목록 4건과 같다`(screenFallback=true 인 id 집합 == `ALLOWED_FALLBACK_IDS`), `id 가 유일하다`, `m-mdm 안에 코퍼스 사본이 없고 러너는 엔진 test resources 를 읽는다`(node_modules·dist 를 뺀 m-mdm 트리에 `*corpus*.json` 0개, `CORPUS_PATH` 가 엔진 경로이고 파일이 있다) |
-| `evalex-interpreter.test.ts` | 14 | 아래 표 |
+| `evalex-interpreter.test.ts` | 16 | 아래 표 |
 | `evalex-contract-parity.test.ts` | 5 | 아래 표 |
 | `evalex-input-contract.test.ts` | 14 | 아래 표 |
 | `evalex-cell-compare.test.ts` | 3 | 아래 표 |
 | `evalex-rule-analysis.test.ts` | 21 | 아래 표 |
 | `evalex-rule-preview.test.ts` | 13 | 아래 표 |
 | `evalex-perf.test.ts` | 4 | §6.13 |
-| `evalex-entry.test.ts` | 3 | `package.json exports 에 ./evalex 가 dist/evalex/index.js·d.ts 를 가리킨다`, `tsup 첫 설정 entry 에 evalex/index 가 src/evalex/index.ts 로 있다`, `decimal.js 는 dependencies 에 있고 devDependencies 에 없다` |
+| `evalex-entry.test.ts` | 3 | `package.json exports 에 ./evalex 가 dist/evalex/index.js·d.ts 를 가리키고 루트 배럴 src/index.ts 에는 ./evalex 문자열이 없다`, `tsup 첫 설정 entry 에 evalex/index 가 src/evalex/index.ts 로 있다`, `decimal.js 는 dependencies 에 있고 devDependencies 에 없다` |
 
-**`evalex-interpreter.test.ts` (14)**
+**`evalex-interpreter.test.ts` (16)**
 
 | # | 테스트 | 기대 |
 |---|---|---|
@@ -267,6 +267,8 @@ export const JAVA_EXPR_DIR = path.join(ENGINE_ROOT, "src/main/java/kr/dongkuk/ma
 | 12 | `혼합 타입 대소 비교는 폴백한다` | `1 < "2"` → fallback |
 | 13 | `STR_TRIM 은 U+0020 이하만 자른다` | `STR_TRIM(" a ")` → `" a"` |
 | 14 | `숫자 결과는 평문 십진 TypedValue 가 된다` | `SWITCH(X, 1, 10, 20)` → `{type: "NUMBER", value: "20"}`(지수 표기 아님) |
+| 15 | `validate 는 결과가 boolean 이 아니면 EVALUATION_ERROR 다` | `validate(ast("value >= 0.1"), {value: "0.5"})` → `{kind: "value", value: true}`, `validate(ast("value + 1"), {value: "1"})` → `{kind: "error", code: "EVALUATION_ERROR"}` |
+| 16 | `prepare 한 scope 를 여러 식에 다시 써도 결과가 같다` | `const s = prepare({A: "1.10", B: "2"})` 를 `A + B == 3.1`·`STR_UPPER("" + A)` 에 넘긴 결과가 원본 vars 를 넘긴 결과와 같다(`true`, `"1.10"`). 예약 키가 있으면 `prepare` 가 `EvalexError("CONSTANT_KEY")` 를 던진다 |
 
 **`evalex-contract-parity.test.ts` (5)** — Java 계약 소스를 텍스트로 읽어 정규식으로 뽑는다(스키마를 상대경로로 공유한 TSK-03-01 관례와 같다).
 
@@ -363,13 +365,13 @@ export const JAVA_EXPR_DIR = path.join(ENGINE_ROOT, "src/main/java/kr/dongkuk/ma
 ```bash
 # 백엔드 — 518건 실패 0 기준, 이 Task 뒤 791건 실패 0 기대
 cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon
-# 프런트 — 6건 실패 0·lint 통과 기준, 이 Task 뒤 255건 실패 0·lint 통과 기대
+# 프런트 — 6건 실패 0·lint 통과 기준, 이 Task 뒤 257건 실패 0·lint 통과 기대
 cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint
 ```
 
 - 엔진만 빠르게 돌릴 때: `cd src/backend/maru-mdm-engine && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ../gradlew test --no-daemon`.
 - 테스트는 **반드시 포그라운드로 끝까지** 돌린다. `run_in_background` 를 쓰지 않는다(알림을 기다리다 멈춘 사고가 있었다).
-- 건수 산식: 백엔드 = 169(서버 평가) + 82(AST 대조) + 1(표본) + 4(모양) + 14(오라클) + 3(하네스) = 273. 프런트 = 172 + 14 + 5 + 14 + 3 + 21 + 13 + 4 + 3 = 249. 코퍼스 사례 수가 바뀌면 두 산식을 함께 고치고 보고에 적는다.
+- 건수 산식: 백엔드 = 169(서버 평가) + 82(AST 대조) + 1(표본) + 4(모양) + 14(오라클) + 3(하네스) = 273. 프런트 = 172 + 16 + 5 + 14 + 3 + 21 + 13 + 4 + 3 = 251. 코퍼스 사례 수가 바뀌면 두 산식을 함께 고치고 보고에 적는다.
 
 ---
 
@@ -384,7 +386,7 @@ cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test && pnpm
 | (요구사항) 조건 열별 값 집합으로 겹침·빈틈·도달 불가 계산 | `value-set.ts`·`rule-analysis.ts`, 위 분석 테스트 21건 |
 | (요구사항) AST 기반 행별 필수·선택 입력 변수 | `null-safety.ts`·`input-contract.ts`, 입력 계약 테스트 14건 |
 | (요구사항) op-code 셀 직접 비교, 적중 정책·겹침 즉시 미리보기(decimal.js) | `cell-compare.ts`(코퍼스 cell 87건 + 단위 3건), `rule-preview.ts`(13건), 겹침은 `analyzeRule`(분석 테스트) |
-| (요구사항) AST 인터프리터, 지원 밖 노드는 isSupported=false 로 서버 폴백 | `interpreter.ts`(코퍼스 expr 82건 + 단위 14건 + 계약 일치 5건). 폴백은 interpreter #2~#6·#11·#12, 미리보기 #11 |
+| (요구사항) AST 인터프리터, 지원 밖 노드는 isSupported=false 로 서버 폴백 | `interpreter.ts`(코퍼스 expr 82건 + 단위 16건 + 계약 일치 5건). 폴백은 interpreter #2~#6·#11·#12, 미리보기 #11 |
 | (요구사항) 서버·JS 정합성 코퍼스 JSON + 양쪽 러너 | 코퍼스 한 벌(엔진 test resources) + JUnit·Vitest 러너, 사본 없음 메타 테스트 |
 
 ---
@@ -437,7 +439,7 @@ Build·Verify 는 이 표를 순회해 변이를 넣고 빨강을 확인한 뒤 
 | I40 | 코퍼스 식 텍스트와 AST 는 같은 식이다 | 사례 하나의 `ast` 리터럴을 바꿈 → `식_사례의_AST_가…`(해당 id). 텍스트만 바꿈 → 같은 테스트 |
 | I41 | 오라클 정규식 = 사례 `patternRegex`, 생성 함수 ⊆ `GENERATED` | `likeToRegex` 에서 `.` 이스케이프 제거 → `서버_평가가…[cell.eq.pattern.dot-literal]`·오라클 #8. 오라클이 `STR_CONTAINS` 를 쓰게 → 오라클 #14 |
 | I42 | 하네스 설정은 계약 상수에서 온다 | 하네스 precision 34 → `하네스_설정값이…` + 코퍼스 `expr.divide.precision` |
-| I43 | 공개 경로는 서브패스, 배럴은 타입 전용 유지 | `index.ts` 에 `export * from "./evalex"` → 기존 테스트는 초록일 수 있으므로 `evalex-entry` #1·#2 와 §3.3 번들 확인(`dist/index.js` 런타임 코드 0줄)으로 본다. exports 제거 → entry #1 |
+| I43 | 공개 경로는 서브패스, 배럴은 타입 전용 유지 | `index.ts` 에 `export * from "./evalex"` → `evalex-entry` #1(루트 배럴에 `./evalex` 가 없어야 한다). exports 제거 → 같은 테스트. tsup entry 제거 → entry #2 |
 | I44 | 엔진 main·스키마·보호 테스트 파일은 바이트 동일 | 자동 테스트 일부(`ContractOnlyPhaseTest` 가 main 추가를 잡는다) + Verify 가 `/usr/bin/git diff origin/dev -- src/backend/maru-mdm-engine/src/main src/backend/maru-mdm-engine/build.gradle src/backend/maru-mdm-engine/src/test/java/kr/dongkuk/maru/mdm/engine/arch src/backend/maru-mdm-engine/src/test/java/kr/dongkuk/maru/mdm/engine/contract src/frontend/m-mdm/src/index.ts docs/mdm/engine-contract` 이 비어 있는지 본다(덮지 못하는 변이로 보고) |
 
 ---
@@ -454,7 +456,7 @@ export { D, NUMBER_TEXT } from "./decimal";
 export type { EvalValue, EvalOutcome } from "./values";
 export { fromTypedValue, toTypedValue, convertForType } from "./values";
 export { EvalexError, FallbackSignal } from "./errors";
-export { compile, evaluate, isSupported, usedVariables, checkRecordKeys } from "./interpreter";
+export { compile, evaluate, validate, prepare, isSupported, usedVariables, checkRecordKeys } from "./interpreter";
 export type { EvaluateOptions, CodeSetIndex } from "./interpreter";
 export { evaluateCell } from "./cell-compare";
 export type { CellVariable, CellOutcome } from "./cell-compare";
@@ -596,6 +598,10 @@ export function convertForType(v: EvalValue | number, dataType: DataType): EvalV
 3. `usedVariables(ast)` 가운데 vars 에 대문자 기준으로 없는 이름이 있으면 `MISSING_KEY`.
 4. `compile(ast, opts)(prepare(vars))`. `prepare` 는 키를 대문자로 바꾸고 값을 `EvalValue` 로 둔다(Decimal·string·boolean·null 만 받고, JS number 는 `decimalWithText(String(n))`).
 5. 던져진 것 매핑: `EvalexError` → `{kind: "error", code}`, `FallbackSignal` → `{kind: "fallback"}`, 그 밖의 모든 예외(decimal.js 오류 포함) → `EVALUATION_ERROR`.
+
+- `prepare(vars)`: 1단계 예약 키 검사를 하고(어긋나면 `EvalexError` 를 던진다) 4단계 정규화를 한 scope 를 돌려준다. scope 에는 `PREPARED` 심벌을 붙이고, `evaluate` 가 이 표지를 보면 1·4단계를 건너뛴다(EG 8.7 "prepare 재사용"). 그리드에서 행마다 한 번 `prepare` 하고 여러 식에 넘긴다.
+- `validate(ast, vars, opts)`: `evaluate` 결과가 `value` 인데 boolean 이 아니면 `{kind: "error", code: "EVALUATION_ERROR"}` 로 바꾼다(도메인 표준식·룰 조건 셀용, EG 8.6 API 목록).
+- `isSupported`(codeSets 없을 때)와 `usedVariables` 결과는 AST 객체 기준 `WeakMap` 으로 캐시한다. `evaluate` 가 호출마다 AST 를 다시 훑지 않게 하려는 것이다(§6.13 성능).
 
 `compile` 캐시는 `opts.codeSets` 가 없을 때만 AST 객체 기준 WeakMap 으로 쓴다(원천 샘플과 같다). `codeSets` 가 있으면 `WeakMap<AstNode, WeakMap<CodeSets, Compiled>>` 로 두 단계 캐시한다.
 
