@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_termMng" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-tool" exporterVersion="1.3.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="termMng" name="용어 관리" isExecutable="true">
+    <bpmn:documentation>termMng — 용어 관리 (To-Be only 신규 화면. As-Is 레거시 없음).
+정본: docs/mdm/screens/termMng/termMng_기능설계서.md, TSK-04-02 design.md.
+
+action=search  -&gt; searchTask  (termMngService.search)        — §3 S-001~S-003
+action=save    -&gt; saveTask    (termMngService.save)          — §4 D-001~D-011, 불변 규칙 I6·I7·I8·I12
+action=delete  -&gt; deleteTask  (termMngService.delete)        — D13(TERM_IDS 참조 검사는 범위 밖)
+action=compare -&gt; compareTask (termMngService.recommend)     — 1차+2차 유사어 추천 결합(D4), 불변 규칙 I18
+action=execute -&gt; executeTask (termMngService.reencodeBatch) — 재인코딩 배치(관리자 전용, D6, I11)
+
+BPMN 의 action(RBAC 키)과 서비스의 method(자바 메서드명)는 별개다(design.md §1, I14). execute 는
+PERM_MDM_EDIT 에만 있고 PERM_MDM_READ 에는 없어(MdmPermissions) 재인코딩 배치가 자연히 표준
+관리자 전용이 된다.</bpmn:documentation>
+    <bpmn:startEvent id="start" name="시작">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="actionGateway" name="action 분기">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_search</bpmn:outgoing>
+      <bpmn:outgoing>flow_save</bpmn:outgoing>
+      <bpmn:outgoing>flow_delete</bpmn:outgoing>
+      <bpmn:outgoing>flow_compare</bpmn:outgoing>
+      <bpmn:outgoing>flow_execute</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="searchTask" name="용어 목록 조회" camunda:class="termMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="search" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dma.termMng.dto.TermSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_search</bpmn:incoming>
+      <bpmn:outgoing>flow_search_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="saveTask" name="용어 저장" camunda:class="termMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="save" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dma.termMng.dto.TermSaveRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_save</bpmn:incoming>
+      <bpmn:outgoing>flow_save_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="deleteTask" name="용어 삭제" camunda:class="termMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="delete" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dma.termMng.dto.TermDeleteRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_delete</bpmn:incoming>
+      <bpmn:outgoing>flow_delete_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="compareTask" name="유사어 추천(1차+2차)" camunda:class="termMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="recommend" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_compare</bpmn:incoming>
+      <bpmn:outgoing>flow_compare_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="executeTask" name="재인코딩 배치(청크)" camunda:class="termMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="reencodeBatch" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dma.termMng.dto.ReencodeBatchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_execute</bpmn:incoming>
+      <bpmn:outgoing>flow_execute_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endSearch" name="조회 완료">
+      <bpmn:incoming>flow_search_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endSave" name="저장 완료">
+      <bpmn:incoming>flow_save_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endDelete" name="삭제 완료">
+      <bpmn:incoming>flow_delete_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endCompare" name="추천 완료">
+      <bpmn:incoming>flow_compare_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endExecute" name="배치 완료">
+      <bpmn:incoming>flow_execute_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+    <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
+    <bpmn:sequenceFlow id="flow_save" name="save" sourceRef="actionGateway" targetRef="saveTask" />
+    <bpmn:sequenceFlow id="flow_delete" name="delete" sourceRef="actionGateway" targetRef="deleteTask" />
+    <bpmn:sequenceFlow id="flow_compare" name="compare" sourceRef="actionGateway" targetRef="compareTask" />
+    <bpmn:sequenceFlow id="flow_execute" name="execute" sourceRef="actionGateway" targetRef="executeTask" />
+    <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="endSearch" />
+    <bpmn:sequenceFlow id="flow_save_end" sourceRef="saveTask" targetRef="endSave" />
+    <bpmn:sequenceFlow id="flow_delete_end" sourceRef="deleteTask" targetRef="endDelete" />
+    <bpmn:sequenceFlow id="flow_compare_end" sourceRef="compareTask" targetRef="endCompare" />
+    <bpmn:sequenceFlow id="flow_execute_end" sourceRef="executeTask" targetRef="endExecute" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="termMng">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="152" y="312" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="245" y="305" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchTask_di" bpmnElement="searchTask">
+        <dc:Bounds x="380" y="60" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="saveTask_di" bpmnElement="saveTask">
+        <dc:Bounds x="380" y="180" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="deleteTask_di" bpmnElement="deleteTask">
+        <dc:Bounds x="380" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="compareTask_di" bpmnElement="compareTask">
+        <dc:Bounds x="380" y="420" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="executeTask_di" bpmnElement="executeTask">
+        <dc:Bounds x="380" y="540" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearch_di" bpmnElement="endSearch">
+        <dc:Bounds x="560" y="82" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSave_di" bpmnElement="endSave">
+        <dc:Bounds x="560" y="202" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endDelete_di" bpmnElement="endDelete">
+        <dc:Bounds x="560" y="322" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endCompare_di" bpmnElement="endCompare">
+        <dc:Bounds x="560" y="442" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endExecute_di" bpmnElement="endExecute">
+        <dc:Bounds x="560" y="562" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="188" y="330" />
+        <di:waypoint x="245" y="330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_di" bpmnElement="flow_search">
+        <di:waypoint x="270" y="305" />
+        <di:waypoint x="270" y="100" />
+        <di:waypoint x="380" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_di" bpmnElement="flow_save">
+        <di:waypoint x="270" y="305" />
+        <di:waypoint x="270" y="220" />
+        <di:waypoint x="380" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_delete_di" bpmnElement="flow_delete">
+        <di:waypoint x="270" y="355" />
+        <di:waypoint x="270" y="340" />
+        <di:waypoint x="380" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_compare_di" bpmnElement="flow_compare">
+        <di:waypoint x="270" y="355" />
+        <di:waypoint x="270" y="460" />
+        <di:waypoint x="380" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_execute_di" bpmnElement="flow_execute">
+        <di:waypoint x="270" y="355" />
+        <di:waypoint x="270" y="580" />
+        <di:waypoint x="380" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_end_di" bpmnElement="flow_search_end">
+        <di:waypoint x="480" y="100" />
+        <di:waypoint x="560" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_end_di" bpmnElement="flow_save_end">
+        <di:waypoint x="480" y="220" />
+        <di:waypoint x="560" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_delete_end_di" bpmnElement="flow_delete_end">
+        <di:waypoint x="480" y="340" />
+        <di:waypoint x="560" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_compare_end_di" bpmnElement="flow_compare_end">
+        <di:waypoint x="480" y="460" />
+        <di:waypoint x="560" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_execute_end_di" bpmnElement="flow_execute_end">
+        <di:waypoint x="480" y="580" />
+        <di:waypoint x="560" y="580" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

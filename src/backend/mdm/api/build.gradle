@@ -47,3 +47,26 @@ tasks.register('mssqlMigrationTest', Test) {
     useJUnitPlatform()
     testLogging { events 'passed', 'failed', 'skipped'; showStandardStreams = true; exceptionFormat = 'full' }
 }
+
+// TSK-04-02 — OnnxKureEmbeddingEncoder 실측 수동 게이트. mssqlTest 와 같은 패턴(sourceSet 신설, testAll
+// 미포함 — check/test 어느 것도 이 태스크에 의존하지 않는다). 모델 파일이 없으면 SKIPPED(빨강 아님).
+sourceSets {
+    onnxTest {
+        compileClasspath += sourceSets.main.output + sourceSets.test.output
+        runtimeClasspath += sourceSets.main.output + sourceSets.test.output
+    }
+}
+configurations {
+    onnxTestImplementation.extendsFrom testImplementation
+    onnxTestRuntimeOnly.extendsFrom testRuntimeOnly
+}
+tasks.register('onnxEmbeddingManualTest', Test) {
+    description = 'OnnxKureEmbeddingEncoder 를 실제 ONNX 모델 파일로 인코딩·재측정한다. 모델 파일 없으면 SKIPPED, testAll 비포함.'
+    group = 'verification'
+    testClassesDirs = sourceSets.onnxTest.output.classesDirs
+    classpath = sourceSets.onnxTest.runtimeClasspath
+    useJUnitPlatform()
+    systemProperty 'mdm.embedding.model-dir', System.getenv('MDM_EMBEDDING_MODEL_DIR') ?: ''
+    systemProperty 'mdm.embedding.encoder', 'onnx'
+    testLogging { events 'passed', 'failed', 'skipped'; showStandardStreams = true; exceptionFormat = 'full' }
+}

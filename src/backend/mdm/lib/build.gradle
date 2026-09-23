@@ -48,6 +48,13 @@ dependencies {
 
     // TSK-01-02 T1 — 계약 패키지 전용 규칙·As-Is 마스터 import 금지(mcm-core·maru-mdm-engine 선례와 같은 버전).
     testImplementation 'com.tngtech.archunit:archunit-junit5:1.3.0'
+
+    // TSK-04-02 — OnnxKureEmbeddingEncoder(실 구현, mdm.embedding.encoder=onnx 수동 게이트 전용) 의존.
+    // 라이브러리 jar 만 추가한다 — 모델 파일은 커밋하지 않는다. testAll 은 이 인코더를 절대 활성화하지
+    // 않으므로(I13) 이 의존이 있어도 testAll 결과에는 영향이 없다. 버전은 poc/mdm-embedding-bench/build.gradle
+    // 과 동일(실측 확인).
+    api 'com.microsoft.onnxruntime:onnxruntime:1.30.0'
+    api 'ai.djl.huggingface:tokenizers:0.38.0'
 }
 
 // TSK-04-05 — SAP 데이터 엘리먼트 후보 추출 배치(design.md D1). Spring 없이 main 으로 돌고 후보 CSV 만 쓴다(DB 쓰기 없음).
