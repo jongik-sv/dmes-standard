@@ -2,5 +2,39 @@
   "tsk": "TSK-04-02",
   "order": "91b83c83-f885-4522-8e2d-330acd1fd51f",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "design",
+  "baseline": {
+    "failures": 0,
+    "tests": 1274,
+    "backend_testAll": {
+      "tests": 1274,
+      "failures": 0,
+      "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+      "count_cmd": "find src/backend -path '*/build/test-results/*' -name 'TEST-*.xml' | xargs grep -h -o '<testsuite [^>]*' (tests/failures/errors 합산)"
+    },
+    "frontend_m_mdm": {
+      "test": "5 files / 26 passed (cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test) — build:libs 선행 없으면 3 files 실패",
+      "lint": "tsc --noEmit pass (cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint)"
+    },
+    "frontend_shared": {
+      "test": "23 files / 156 passed (cd src/frontend && pnpm test:unit:shared)"
+    },
+    "e2e": {
+      "ref": "TSK-01-03 verify_gate: mdm-shell-rbac-smoke + mdm-sample-smoke 5 passed (서버 필요, TSK-01-03 design.md §3.6 절차). 기준선 시점 재실행 안 함 — Verify 에서 같은 절차로 전체 mdm e2e 재실행"
+    },
+    "oasis": {
+      "result": "ERROR 0 / WARN 0 / INFO 29",
+      "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root ."
+    },
+    "mssqlMigrationTest": {
+      "result": "38 passed (3 suites 24+4+10, docker SQL Server, testAll 비포함 수동 게이트)",
+      "cmd": "cd src/backend/mdm && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ../gradlew :api:mssqlMigrationTest --no-daemon --console=plain"
+    }
+  },
+  "base_note": "선행 TSK-04-01·TSK-01-03·TSK-02-02: reached=true, head_sha 없음 → pred-reflected.sh REFLECTED(증거 2건씩) → origin/dev 3d08db7 기점, 스택 없음",
+  "last": {
+    "phase": "baseline",
+    "event": "baseline.ok"
+  },
+  "model": "sonnet"
 }
