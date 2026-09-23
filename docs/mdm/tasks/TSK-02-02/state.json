@@ -2,7 +2,7 @@
   "tsk": "TSK-02-02",
   "order": "fae5410a-20f5-4eca-aa0a-71acc017566a",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "reported",
+  "phase": "merged",
   "baseline": {
     "failures": 0,
     "tests": 395,
@@ -19,5 +19,6 @@
   },
   "model": "haiku",
   "mode": "docs-special: 산출물 문서·계약 초안·PoC 측정(design.md §2·§3). 게이트 = 문서 체크리스트 V1~V16 + testAll 회귀",
-  "refactor": "skipped: research/docs 특례(산출물 문서·계약 초안·PoC) + 워커(무인) 실행 — dev-discipline Phase 05"
+  "refactor": "skipped: research/docs 특례(산출물 문서·계약 초안·PoC) + 워커(무인) 실행 — dev-discipline Phase 05",
+  "unapproved": true
 }
