@@ -250,7 +250,8 @@ private void migrateMdmSampleGroupToDma() {
 - 시드: `insertMpnFld("dma", "00000100", "용어·도메인", "mdm", 5010000L);`, `insertMcmSecMenuIfAbsent("mdmSample", "001", "5010100", "MDM 샘플", "dma", "mdmSample");`. OBJECT·ROLE_MAPPING 행은 그대로(OBJECT_ID 불변). 로그 문구 `MDM 샘플(dma)`. javadoc 의 `mdt` 설명을 `dma`(용어·도메인, screens/README §2)로 바꾸고 "기존 DB 는 migrateMdmSampleGroupToDma 가 이행" 을 적는다.
 - 순서가 중요하다: 이행 메서드가 `insertMpnFld("dma", …)` **보다 먼저** 돌아야 기존 DB 에서 `dma` 가 새로 INSERT 되지 않고 옛 행이 이름과 함께 옮겨진다.
 - `dma` 와 `mdt` 가 둘 다 있는 경우(정상 경로에서는 생기지 않는다)에는 `mdt` 폴더 행을 지우지 않는다. 자식이 없어 사이드바에 보이지 않는다(F22). 삭제는 사용자 확인 대상이라 하지 않는다.
-- 즐겨찾기 테이블·칼럼 이름은 Build 가 엔티티(`@Table`)로 확인한다. 이름이 다르면 그 이름을 쓰고 이탈로 적는다.
+- **즐겨찾기 UPDATE 는 조건부다.** `DataInitializer.run()` 전체가 `@Transactional` 하나라서(`:79-81`), 테이블·칼럼 이름이 틀리거나 MSSQL 개발 DB 에 테이블이 없으면 시드 전체가 롤백되고 mcm 기동이 실패한다. E2E 는 새 SQLite DB 만 보므로 MSSQL 쪽 경로는 아무도 검증하지 않는다. Build 는 ① 엔티티 `@Table`·`@Column` 으로 이름을 확인하고 ② 이 테이블이 MSSQL 에도 있다는 근거(MSSQL DDL·초기화 코드·기존 네이티브 SQL 의 `MCMAPUSER.TB_MCM_SEC_USER_FAVORITE` 사용 등)를 grep 으로 찾는다. 둘 중 하나라도 확인하지 못하면 이 UPDATE 를 빼고, 옛 즐겨찾기 경로가 남는 것을 「Build 이탈」에 알려진 한계로 적는다.
+- `seedMdmMenus` javadoc 과 로그 문구에는 `mdt` 글자를 쓰지 않는다("옛 그룹" 으로 쓴다). `mdt` 리터럴은 `migrateMdmSampleGroupToDma` 본문과 바로 위 주석에만 둔다(§3.6 grep 기준).
 - `nq()` 는 SQLite 에서 `MCMAPUSER.` 접두와 `N'` 를 떼 준다(`DataInitializer:2838-2850`).
 
 ### 2.5 SQLite `foreign_keys` (커밋 A, D4)
@@ -315,14 +316,16 @@ tasks.register('mssqlMigrationTest', Test) {
 
 형식은 기존 항목과 같다(`## D-0NN (UTC ISO 시각)` + Phase/Decision needed/Decision made/Rationale/Reversible/Source). 시각은 Build 시점 `date -u +%Y-%m-%dT%H:%M:%SZ`, Phase `design (TSK-01-02)`, 모두 `Reversible: yes`, Source `docs/mdm/tasks/TSK-01-02/design.md` 해당 D.
 
-| 번호 | 요지 | 근거 D |
+**번호는 고정하지 않는다.** 다른 워커(TSK-02-02·02-03 등)도 decisions.md 끝에 이어 쓸 수 있으므로, Build 는 커밋 직전에 파일의 마지막 `D-0NN` 을 확인하고 그다음 번호부터 아래 순서대로 붙인다(작성 시점 마지막은 D-019). 병합 충돌이 나면 번호를 다시 매긴다(내용은 그대로).
+
+| 순서 | 요지 | 근거 D |
 |---|---|---|
-| D-020 | 샘플 `mdmSample` 을 TSK-01-02 에서 `dma` 로 `git mv`(별도 커밋), 기존 DB 는 UPDATE 로 이행(폴더 이름 용어·도메인, DELETE 없음) | D1·D2 |
-| D-021 | 계약 패키지 `com.dongkuk.dmes.mdm.contract` 와 ArchUnit 계약 전용 규칙. 감사 헬퍼·방언 판정 빈은 인터페이스만, 구현은 TSK-01-03 | D3·D9 |
-| D-022 | 방언 실측: #14 foreign_keys 는 TSK-01-02 확인, #15·#16 은 TSK-04-01 로 이관. MSSQL 적용 검증은 Testcontainers 별도 태스크(testAll 비포함) | D4·D5 |
-| D-023 | mdm 공통 오류 코드 `MdmErrorCode`(MDMnnn, 의미 HTTP 상태 + cactus ErrorCode 운반). cactus-core 불변 | D7 |
-| D-024 | `TB_MDM_SYSTEM` 시드 이름(레벨2·마루 MDM)과 감사 값, Y/N 플래그 칼럼도 MSSQL BIN2 | D8·D10 |
-| D-025 | 보류 테이블(배포 대상·배포 순번·수신 로그) DDL 은 TSK-01-02 에서 제외(TSK-02-01 배정대로 TSK-02-03·영역 계약) | D6 |
+| 1 | 샘플 `mdmSample` 을 TSK-01-02 에서 `dma` 로 `git mv`(별도 커밋), 기존 DB 는 UPDATE 로 이행(폴더 이름 용어·도메인, DELETE 없음) | D1·D2 |
+| 2 | 계약 패키지 `com.dongkuk.dmes.mdm.contract` 와 ArchUnit 계약 전용 규칙. 감사 헬퍼·방언 판정 빈은 인터페이스만, 구현은 TSK-01-03 | D3·D9 |
+| 3 | 방언 실측: #14 foreign_keys 는 TSK-01-02 확인, #15·#16 은 TSK-04-01 로 이관. MSSQL 적용 검증은 Testcontainers 별도 태스크(testAll 비포함) | D4·D5 |
+| 4 | mdm 공통 오류 코드 `MdmErrorCode`(MDMnnn, 의미 HTTP 상태 + cactus ErrorCode 운반). cactus-core 불변 | D7 |
+| 5 | `TB_MDM_SYSTEM` 시드 이름(레벨2·마루 MDM)과 감사 값, Y/N 플래그 칼럼도 MSSQL BIN2 | D8·D10 |
+| 6 | 보류 테이블(배포 대상·배포 순번·수신 로그) DDL 은 TSK-01-02 에서 제외(TSK-02-01 배정대로 TSK-02-03·영역 계약) | D6 |
 
 ### 2.9 계약 코드 명세 (A1~A39)
 
@@ -524,9 +527,10 @@ TDD 순서: T1~T13 을 먼저 쓰고 **컴파일 실패 또는 단언 실패로 
 `MdmSharedContractMigrationTest`: `@SpringBootTest`(웹 환경 MOCK) + `@ActiveProfiles("local")` + `@TempDir` SQLite 파일 URL(`jdbc:sqlite:<file>`, 파라미터 없이 — §2.5 가 URL 과 무관하게 동작함을 보이려고). 한 컨텍스트에서:
 1. `flyway_schema_history` 의 성공 버전 집합 = `{1, 2}`.
 2. `SELECT SYSTEM_CODE, SYSTEM_NAME, SELF_YN, VER, C_USR_ID, C_AT FROM TB_MDM_SYSTEM` = 6행이고 코드 집합이 `MdmSystemCodes.SEEDED` 와 같다. `SELF_YN='Y'` 는 정확히 1행이고 그 코드가 `MdmSystemCodes.SELF`. 이름은 D10 값. `VER=0`, `C_USR_ID='SYSTEM'`, `C_AT IS NULL`.
-3. `INSERT … SELF_YN='Y'`(새 코드) → `SQLException`(UNIQUE). `SELF_YN='y'` → `SQLException`(CHECK). `SYSTEM_CODE='erp'` 는 들어가고 `'ERP'` 조회는 여전히 1행(대소문자 구분). 변경은 테스트 안에서 되돌리거나 `@TempDir` DB 라 무관하다.
+3. `INSERT … SELF_YN='Y'`(새 코드) → `SQLException`(UNIQUE). `SELF_YN='y'` → `SQLException`(CHECK). `SYSTEM_CODE='erp'` 는 들어가고 `'ERP'` 조회는 여전히 1행(대소문자 구분).
+   - **쓰기 단언은 반드시 롤백한다.** 같은 클래스의 메서드는 같은 `@TempDir` DB 를 공유하므로, `'erp'` INSERT 가 남으면 실행 순서에 따라 2번의 "정확히 6행" 단언이 깨진다. 쓰기 단언은 한 `Connection` 에서 `setAutoCommit(false)` 로 시작해 `finally` 에서 `rollback()` 한다. 5번의 임시 FK 테이블 DDL 도 같은 방식으로 롤백한다(SQLite 는 DDL 도 트랜잭션에 든다). 이 규칙은 T12(MSSQL)에도 같다.
 4. `PRAGMA table_info(TB_MDM_SYSTEM)` 칼럼 이름 집합 = `{SYSTEM_CODE, SYSTEM_NAME, SELF_YN} ∪ MdmAuditColumns.ALL`, 모두 `^[A-Z][A-Z0-9_]*$`. `C_AT`·`U_AT` 선언 타입 `TIMESTAMP`, `VER` `BIGINT`. `sqlite_master.sql` 에 `CONSTRAINT PK_TB_MDM_SYSTEM`·`CONSTRAINT CK_TB_MDM_SYSTEM_SELF_YN` 포함, 인덱스 `UX_TB_MDM_SYSTEM_SELF_YN` 존재. 테이블 이름이 `^TB_MDM_[A-Z][A-Z0-9_]*$`.
-5. `PRAGMA foreign_keys` = 1. 그리고 테스트 전용 임시 테이블 두 개(`TMP_FK_PARENT`, `TMP_FK_CHILD … REFERENCES TMP_FK_PARENT`)를 JDBC 로 만들어 없는 부모를 가리키는 INSERT 가 `SQLException` 인지 본다(규칙표 #14 동작). 끝나면 그 두 임시 테이블을 DROP(테스트가 만든 것만).
+5. `PRAGMA foreign_keys` = 1. 그리고 테스트 전용 임시 테이블 두 개(`TMP_FK_PARENT`, `TMP_FK_CHILD … REFERENCES TMP_FK_PARENT`)를 JDBC 로 만들어 없는 부모를 가리키는 INSERT 가 `SQLException` 인지 본다(규칙표 #14 동작). 테이블 생성부터 INSERT 까지 한 트랜잭션에서 하고 `rollback()` 으로 끝낸다(3번 규칙). PRAGMA 확인은 같은 풀의 연결로 하되, 트랜잭션 안에서는 `foreign_keys` 를 바꿀 수 없으므로 값 읽기만 한다.
 6. `EntityManagerFactory` 속성에 `hibernate.session_factory.statement_inspector` 가 없다(ADR-0001 D2, F12).
 
 `MdmApplicationHealthTest` 는 바꾸지 않는다(V1 검사는 그대로 참).
@@ -596,12 +600,12 @@ cd $W/src/frontend && SMOKE_MCM_BASE_URL=http://127.0.0.1:15100 SMOKE_LOGIN_USER
 |---|---|---|
 | backend 전체 | `cd src/backend && JAVA_HOME=… ./gradlew testAll` | 기준선 395 대비 신규 실패 0, 총수 증가(새 테스트 수만큼) |
 | MSSQL 적용 | §3.3 `:api:mssqlMigrationTest` | PASSED(수동 게이트, docker 필요) |
-| testAll 비포함 확인 | `cd src/backend && ./gradlew testAll --dry-run \| grep -i mssql` | 0줄 |
+| testAll 비포함 확인 | `cd src/backend && ./gradlew testAll --dry-run > $SP/dry.txt; grep -c ':mdm:api:test\|mdm:api:test' $SP/dry.txt; grep -ci mssql $SP/dry.txt` | **양성 대조가 먼저**: 같은 출력에 mdm 의 `:api:test`(또는 `:lib:test`)가 1줄 이상 찍혀야 이 검사가 유효하다. 찍히지 않으면(composite 빌드가 포함 빌드 태스크를 dry-run 에 안 보이는 경우) 대신 `cd src/backend/mdm && ../gradlew test --dry-run` 출력에서 `:api:test` 가 찍히고 `mssqlMigrationTest` 가 0줄인지 본다. 그 뒤 `mssql` 0줄 |
 | m-mdm | `pnpm --filter @dk-oasis/m-mdm test` / `tsc --noEmit` / `build` | 1 passed / 통과 / 통과 |
 | m-mcm lint | `pnpm -C src/frontend/m-mcm lint` | 기준선 23 errors/44 warnings 대비 증가 0 |
 | UI audit | §3.4 | 0건 |
 | E2E | §3.5 | 1 passed ×2(새 DB, 이행 DB) |
-| mdt 잔존 | `rtk proxy grep -rnw mdt src --include='*.ts' --include='*.tsx' --include='*.java' --include='*.mjs' --include='*.sql' -l \| grep -v -E 'node_modules\|/dist/\|/build/\|/.next/'` | `DataInitializer.java` 한 파일뿐, 그 안에서도 `migrateMdmSampleGroupToDma` 메서드 안에만 |
+| mdt 잔존 | `rtk proxy grep -rnw mdt src --include='*.ts' --include='*.tsx' --include='*.java' --include='*.mjs' --include='*.sql' \| grep -v -E 'node_modules\|/dist/\|/build/\|/.next/'` | `DataInitializer.java` 한 파일뿐이고, 그 안에서도 `migrateMdmSampleGroupToDma` 메서드 본문과 그 바로 위 주석에만 있다(`seedMdmMenus` javadoc 은 `mdt` 글자 없이 "옛 그룹" 으로 쓴다) |
 
 ---
 
@@ -696,7 +700,7 @@ Build·Verify 는 항목마다 적힌 변이를 **일부러 넣어 빨강을 확
 - **선택지**: (a) 이 Task 에서 `git mv` 로 `dma/mdmSample` 로 옮기고 계약과 별도 커밋 / (b) 이 Task 에서 샘플 삭제 / (c) 문서대로 TSK-01-03 에 남김
 - **택한 것**: (a)
 - **근거**: 위임자 지시(팀장, 이 Task 의 직접 지시)가 이 Task 에서 처리하라고 한다. 삭제는 사용자 확인이 필요한 행위라 무인 모드에서 고르지 않는다. 옮기면 TSK-01-01 의 "포털에서 mdm 화면이 열린다" 증거가 그대로 유지된다. 저장소 문서(미승인 선행 산출물, 4순위)의 배정 문구는 팀장 지시에 따라 고치지 않는다 — 그래서 문서와 코드가 "누가 옮겼는가" 에서 잠시 어긋난다.
-- **반려되면 재작업 방향**: 커밋 B 를 `git revert` 하고(계약 커밋 A 는 무관하게 남는다) TSK-01-03 에 위임한다. decisions.md D-020 은 지우지 않고 새 항목으로 번복을 기록한다.
+- **반려되면 재작업 방향**: 커밋 B 를 `git revert` 하고(계약 커밋 A 는 무관하게 남는다) TSK-01-03 에 위임한다. decisions.md 의 해당 항목(§2.8 순서 1)은 지우지 않고 새 항목으로 번복을 기록한다.
 
 ### D2 — 기존 개발 DB 에 남은 `mdt` 메뉴 행을 어떻게 이행하는가
 - **질문**: 메뉴 시드는 insert-if-absent 이고 componentPath 는 `PARENT_MENU_ID/OBJECT_ID` 로 계산된다(F21). 리터럴만 바꾸면 기존 DB 에서는 화면이 열리지 않는다. 폴더 이름도 정해야 한다.
