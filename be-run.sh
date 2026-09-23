@@ -279,6 +279,56 @@ mkdir -p "$BACKEND_DIR/data"
 # 그 cleanup 에는 `gradlew --stop`(전역 데몬 정지)이 들어 있어서, 방금 새로 띄운 모듈들이
 #   FAILURE: Gradle build daemon has been stopped: stop command received
 # 로 함께 죽는다. 그래서 포트를 건드리기 전에 이전 인스턴스를 먼저 끝내고 기다린다.
+#
+# 대상은 **이 체크아웃의** be-run.sh 만이다. 같은 PC 의 다른 체크아웃·워크트리(예: /dflow-team 팀원
+# 워크트리 dflow-<id8>)에서 도는 be-run.sh 까지 잡으면 남의 서버를 죽인다(2026-09-24 사고: 팀원이
+# 워크트리에서 --mdm 을 띄우자 메인 체크아웃의 mcm 8100 이 함께 종료됐다).
+
+# pid 의 작업 디렉터리(절대경로). 알 수 없으면 빈 값.
+pid_cwd() {
+  local pid="$1"
+  if [ -e "/proc/$pid/cwd" ]; then
+    readlink "/proc/$pid/cwd" 2>/dev/null || true
+  elif command -v lsof >/dev/null 2>&1; then
+    lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -n 1
+  fi
+}
+
+# pid 가 이 체크아웃($ROOT_DIR)의 be-run.sh 인지.
+# - 명령줄의 be-run.sh 가 절대경로면 그 경로가 이 체크아웃의 것일 때만 참이다.
+# - 상대경로(./be-run.sh)면 cwd 로 본다. 서브셸은 모듈 폴더(src/backend/<m>)로 cd 해 있으므로
+#   $ROOT_DIR 자체이거나 $ROOT_DIR/src/ 아래면 참이다. 워크트리는 $ROOT_DIR/dflow-<id8>·
+#   $ROOT_DIR/.claude/worktrees/ 아래에 생기므로 단순 접두 비교를 쓰지 않는다.
+is_own_be_run() {
+  local pid="$1" args tok cwd
+  args="$(ps -o command= -p "$pid" 2>/dev/null || true)"
+  for tok in $args; do
+    case "$tok" in
+      /*be-run.sh) [ "$tok" = "$ROOT_DIR/be-run.sh" ]; return ;;
+      *be-run.sh) break ;;
+    esac
+  done
+  cwd="$(pid_cwd "$pid")"
+  case "$cwd" in
+    "$ROOT_DIR"|"$ROOT_DIR/src/"*) return 0 ;;
+  esac
+  return 1
+}
+
+# 다른 체크아웃의 be-run.sh 가 살아 있는지. Gradle 데몬은 체크아웃 사이에 공유되므로(GRADLE_USER_HOME)
+# 그때는 cleanup 에서 전역 `gradlew --stop` 을 하지 않는다.
+other_checkout_be_run_alive() {
+  local pid
+  command -v pgrep >/dev/null 2>&1 || return 1
+  for pid in $(pgrep -f "be-run.sh" 2>/dev/null || true); do
+    [ "$pid" = "$$" ] && continue
+    [ "$pid" = "$PPID" ] && continue
+    kill -0 "$pid" 2>/dev/null || continue
+    is_own_be_run "$pid" || return 0
+  done
+  return 1
+}
+
 terminate_previous_be_runs() {
   local pid
   local victims=()
@@ -290,6 +340,7 @@ terminate_previous_be_runs() {
     [ "$pid" = "$$" ] && continue
     [ "$pid" = "$PPID" ] && continue          # local-run.sh 등 부모는 건드리지 않는다
     kill -0 "$pid" 2>/dev/null || continue
+    is_own_be_run "$pid" || continue          # 다른 체크아웃·워크트리의 인스턴스는 건드리지 않는다
     victims+=("$pid")
   done
 
@@ -483,6 +534,11 @@ stop_gradle_daemons() {
   local i
 
   local m gw
+
+  if other_checkout_be_run_alive; then
+    dev_log_print "be" "다른 체크아웃의 be-run.sh 가 실행 중이라 공유 Gradle 데몬 정지(gradlew --stop)를 건너뜁니다"
+    return 0
+  fi
 
   for m in "${SELECTED_MODULES[@]}"; do
     gw="$(be_module_gradlew "$m")"
