@@ -6,6 +6,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.contract.category.MaruIdKind;
 import com.dongkuk.dmes.mdm.contract.category.MaruIdNamespace;
+import com.dongkuk.dmes.mdm.contract.dictionary.MdmColumnDictionaryEntry;
+import com.dongkuk.dmes.mdm.contract.dictionary.MdmDomainDraft;
+import com.dongkuk.dmes.mdm.contract.dictionary.MdmDomainKind;
+import com.dongkuk.dmes.mdm.contract.dictionary.MdmDomainReference;
+import com.dongkuk.dmes.mdm.contract.dictionary.MdmDomainReferenceSpi;
+import com.dongkuk.dmes.mdm.contract.dictionary.MdmEffectiveDomain;
+import com.dongkuk.dmes.mdm.contract.dictionary.MdmEffectiveDomainResolver;
 import com.dongkuk.dmes.mdm.contract.version.ConfirmCheckRequest;
 import com.dongkuk.dmes.mdm.contract.version.ConfirmCheckResult;
 import com.dongkuk.dmes.mdm.contract.version.DiffKind;
@@ -112,5 +119,53 @@ class ContractStubCompileTest {
 
     private static VersionConfirmCheckSpi byTarget(VersionTarget target) {
         return CONFIRM_CHECKS.stream().filter(spi -> spi.target() == target).findFirst().orElseThrow();
+    }
+
+    // ── TSK-04-01 design.md §3.4 — 02 계약(dictionary) 스텁 컴파일 ──
+
+    @Test
+    void 컬럼_사전_조회_스텁이_MdmColumnDictionaryLookup_만으로_화면_라벨을_조립한다() {
+        MdmColumnDictionaryEntry entry = new MdmColumnDictionaryEntry(
+                1L, "품목코드", "ITEM_CD", 10L, MdmDomainKind.CODE, true,
+                "품목 코드", "품목코드", "품목", null, "LAYOUT_ITEM", "L-1", null, null);
+        ColumnDictionaryConsumerStub stub = new ColumnDictionaryConsumerStub(entry);
+
+        assertEquals("품목 코드(domain=10, ref=LAYOUT_ITEM)", stub.composeScreenLabel("ITEM_CD"));
+        assertEquals("UNKNOWN", stub.composeScreenLabel("UNKNOWN"));
+        assertEquals(Optional.of(entry), stub.byColumnId(1L));
+        assertEquals(List.of(entry), stub.byDomainId(10L));
+        assertEquals(Optional.empty(), stub.byDomainId(99L).stream().findFirst());
+    }
+
+    @Test
+    void 유효_도메인_해석_스텁이_조회_경로와_저장_경로_모두_컴파일_동작한다() {
+        MdmEffectiveDomainResolver resolver = new EffectiveDomainConsumerStub();
+
+        MdmEffectiveDomain resolved = resolver.resolve(5L);
+        assertEquals(5L, resolved.domainId());
+
+        MdmDomainDraft draft = new MdmDomainDraft(null, 5L, MdmDomainKind.FLAG, "std", "biz", null);
+        MdmEffectiveDomain fromDraft = resolver.resolveDraft(draft);
+        assertEquals("std", fromDraft.effectiveStdExpr());
+        assertEquals("biz", fromDraft.effectiveBizExpr());
+    }
+
+    @Test
+    void 영향도_참조_SPI_목록이_구현체_0개에서도_빈_결과로_동작한다() {
+        List<MdmDomainReferenceSpi> empty = List.of();
+        List<MdmDomainReference> merged = empty.stream()
+                .flatMap(spi -> spi.referencesTo(Set.of(1L), Set.of("ITEM_CD")).stream())
+                .toList();
+        assertTrue(merged.isEmpty(), "구현체가 없으면(wbs 수용 기준) 참조는 0건이어야 한다");
+
+        List<MdmDomainReferenceSpi> both = List.of(
+                new DomainReferenceSpiStub("LAYOUT_ITEM", List.of(new MdmDomainReference("LAYOUT_ITEM", "L-1"))),
+                new DomainReferenceSpiStub("RULE_VAR", List.of(new MdmDomainReference("RULE_VAR", "R-1"))));
+        List<MdmDomainReference> mergedBoth = both.stream()
+                .flatMap(spi -> spi.referencesTo(Set.of(1L), Set.of("ITEM_CD")).stream())
+                .toList();
+        assertEquals(2, mergedBoth.size());
+        assertTrue(mergedBoth.contains(new MdmDomainReference("LAYOUT_ITEM", "L-1")));
+        assertTrue(mergedBoth.contains(new MdmDomainReference("RULE_VAR", "R-1")));
     }
 }

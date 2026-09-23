@@ -99,12 +99,59 @@ class MdmContractArchitectureTest {
         rule.check(MDM);
     }
 
+    /**
+     * TSK-04-01 design.md §5 불변 규칙 6 — {@code MdmDomainKind}·{@code MdmDataType} 은 엔진의(문서 초안뿐,
+     * F15) {@code DomainKind}·{@code DataType} 과 값 집합을 같게 의도하되 별도 타입으로 선언한다. 엔진
+     * 모듈과의 컴파일 결합을 만들지 않기 위해서다.
+     */
+    @Test
+    void 계약_패키지는_엔진_타입에_의존하지_않는다() {
+        ArchRule rule = noClasses().that().resideInAPackage(CONTRACT)
+                .should().dependOnClassesThat().resideInAnyPackage("kr.dongkuk.maru.mdm.engine..")
+                .as("계약 패키지는 kr.dongkuk.maru.mdm.engine.. 에 의존하지 않는다(TSK-04-01 design.md 불변 규칙 6)");
+        rule.check(MDM);
+    }
+
     @Test
     void mdm_코드는_mcm_core_AsIs_마스터_자산에_의존하지_않는다() {
         ArchRule rule = noClasses().that().resideInAPackage("com.dongkuk.dmes.mdm..")
                 .should().dependOnClassesThat(asIsMasterAsset())
                 .as("mdm 은 mcm-core 의 As-Is 마스터 엔티티·리포지토리·화면 패키지를 쓰지 않는다(ADR-0003 D4-2)");
         rule.check(MDM);
+    }
+
+    /**
+     * TSK-04-01 design.md §3.5 — 계약 패키지는 엔티티·리포지토리(구현 세부)를 몰라야 한다. 이 규칙이 실제로
+     * 위반을 잡는지는 {@link #공허_통과_방지_음성_테스트가_실제로_위반을_잡는다()} 가 별도로 증명한다.
+     */
+    @Test
+    void 계약_패키지는_엔티티_리포지토리_패키지에_의존하지_않는다() {
+        ArchRule rule = noClasses().that().resideInAPackage(CONTRACT)
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "com.dongkuk.dmes.mdm.entity..", "com.dongkuk.dmes.mdm.repository..")
+                .as("계약 패키지(contract..)는 entity../repository..에 의존하지 않는다(TSK-04-01 design.md §3.5, §5 불변 규칙 3)");
+        rule.check(MDM);
+    }
+
+    /**
+     * TSK-04-01 design.md §3.5 — 03·06 의 실제 계약 패키지가 아직 없어 위 규칙이 "아무것도 못 잡는 채로
+     * 통과"하고 있지 않음을 보장한다. 고립된 {@link JavaClasses} 에 규칙 위반 클래스를 심어 직접 평가한다.
+     */
+    @Test
+    void 공허_통과_방지_음성_테스트가_실제로_위반을_잡는다() {
+        // 이 임포트는 DO_NOT_INCLUDE_TESTS 를 쓰지 않는다 — ArchViolationSample 이 test-only 고립 클래스라
+        // 그 옵션을 쓰면 대상 자체가 빠져 규칙이 "아무것도 못 잡고" 통과해 버린다(이 테스트의 목적과 반대).
+        JavaClasses isolated = new ClassFileImporter()
+                .importPackages(
+                        "com.dongkuk.dmes.mdm.contract",
+                        "com.dongkuk.dmes.mdm.entity",
+                        "com.dongkuk.dmes.mdm.contract.dictionary.archviolation");
+        ArchRule rule = noClasses().that().resideInAPackage(CONTRACT)
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "com.dongkuk.dmes.mdm.entity..", "com.dongkuk.dmes.mdm.repository..");
+        assertTrue(rule.evaluate(isolated).hasViolation(),
+                "고립 클래스(ArchViolationSample, 계약을 가장해 엔티티를 직접 참조)가 있는데도 규칙이 위반을 잡지 못했다"
+                        + " — 규칙이 공허 통과하고 있다");
     }
 
     private static DescribedPredicate<JavaClass> recordOrEnum() {
