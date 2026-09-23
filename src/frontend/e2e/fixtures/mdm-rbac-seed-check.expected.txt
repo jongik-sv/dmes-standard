@@ -1,0 +1,17 @@
+dma|용어·도메인|mdm
+dmb|레이아웃|mdm
+dmc|마스터코드|mdm
+dmd|마스터데이터|mdm
+dme|업무기준|mdm
+mdm|마루 MDM|-
+MDM_STD_ADMIN
+MDM_STEWARD
+ROLE_GROUP_MDM_STD_ADMIN|MDM_STD_ADMIN
+ROLE_GROUP_MDM_STEWARD|MDM_STEWARD
+PERM_MDM_CONFIRM|-|-|-|search,view,export,compare,save,delete,reg,import,validate,execute,copy,restore,confirm
+PERM_MDM_EDIT|-|-|-|search,view,export,compare,save,delete,reg,import,validate,execute,copy,restore
+PERM_MDM_READ|-|-|-|search,view,export,compare
+MDM_STD_ADMIN|mdmSample|PERM_MDM_EDIT
+MDM_STEWARD|mdmSample|PERM_MDM_READ
+SYSADMIN|mdmSample|PERM_ALL
+0
