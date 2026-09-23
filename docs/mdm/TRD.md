@@ -1,6 +1,6 @@
 # TRD — 마루 MDM (dmes-standard 개발분)
 
-> version: 1.0 · 작성: 2026-09-23
+> version: 1.1 · 작성: 2026-09-23 · 개정: 2026-09-23(결재·배포·수신 보류)
 > 근거: 현재 dmes-standard 저장소 환경(RULE.md, `docs/guide/**`, `src/backend/**`, `src/frontend/**`).
 > 기능 범위는 `docs/mdm/PRD.md`, 상세 규칙은 원천 설계 `docs/mdm/design/basic/02~06`.
 > 이 문서에 적은 명령은 저장소 문서·스크립트에서 옮긴 것이며 이 문서 작성 시점에 실행해 확인하지 않았다.
@@ -37,12 +37,15 @@
 
 - 업무 API 는 OASIS BPMN 표준: `mdm/api/src/main/resources/services/{group}/{screenId}.bpmn` → `camunda:class` 서비스 빈. 임의 `@RestController` 우회 금지(Mes-Guide §7).
 - 경로: `/api/mdm/oasis/{serviceId}/{action}` (RBAC-PATH-CONVENTION §8). REST 가 필요한 경우 `POST /api/mdm/{objId}/{action}`.
-- 수신 API(EXTERNAL 원천 04·05·06)는 원천 시스템이 호출한다. 인증 방식은 배포·수신 설계 Task 에서 정한다(caravan-hub 연계 후보).
+- 수신 API(EXTERNAL 원천 04·05·06)는 결재·배포와 함께 보류한다(PRD §2 규칙 7). 구현할 때 인증 방식을 정한다(caravan-hub 연계 후보).
 - OASIS/BPMN 을 고친 뒤에는 `oasis-contract-check` 로 ERROR 0 을 확인한다.
 
 ## 4. 데이터베이스
 
 ### 4.1 테이블 (원천 설계 기준 33개 + 수신 로그)
+
+배포 대상(`*_SYSTEM`, `TB_MDM_COLUMN_SYSTEM` 제외)·배포 순번(`TB_MDM_DICT_SEQ`, `chg_seq`)·수신 로그(`*_RECV*`) 테이블은 설계대로 만들되 이번 범위의 코드는 쓰지 않는다(T4, PRD §2 규칙 7).
+
 - 공통: `TB_MDM_SYSTEM`
 - 02: `TB_MDM_UNIT`, `TB_MDM_TERM`, `TB_MDM_DOMAIN`, `TB_MDM_COLUMN`, `TB_MDM_COLUMN_SYSTEM`, `TB_MDM_DICT_SEQ`, `TB_MDM_DICT_SYSTEM`
 - 03: `TB_MDM_EAI`, `TB_MDM_LAYOUT`, `TB_MDM_LAYOUT_ITEM` (+ 헤더 적층·상수 재정의 테이블은 설계 Task 에서 결정)
@@ -81,13 +84,13 @@
 | `mdc` | 마스터코드(04) |
 | `mdd` | 마스터데이터(05) |
 | `mdr` | 업무기준·룰 세트(06) |
-| `mda` | 결재 공통(08) |
+| `mda` | 결재 공통. 보류(PRD §2 규칙 7) — 이번 범위에서 화면 없음 |
 
 ## 6. 인증·권한
 
 - cactus JWT + NextAuth + BFF(`m-mcm/proxy.ts`) RBAC 검증을 그대로 쓴다.
-- 역할(표준 관리자·담당자·결재자)은 `TB_MCM_SEC_ROLE` 에 시드하고, 권한 액션은 기존 코드(`search/save/approve/reject/cancel` 등)를 쓴다.
-- DRAFT 소유권(선점·해제·넘기기)은 역할이 아니라 `owner_id` 로 판정한다(08).
+- 역할(표준 관리자·담당자)은 `TB_MCM_SEC_ROLE` 에 시드하고, 권한 액션은 기존 코드(`search/save` 등)를 쓴다. 버전 확정은 담당자 권한이다. 결재자 역할과 `approve/reject/cancel` 액션은 결재 보류와 함께 미룬다.
+- DRAFT 소유권(선점·해제·넘기기)은 역할이 아니라 `owner_id` 로 판정한다(04 「버전 상태와 적용시점」, 06 「테이블 설계」).
 
 ## 7. 테스트·품질 명령 (문서 기준, 미실행)
 
@@ -117,14 +120,14 @@
 | T1 | 기존 mcm `cma`/`cmb` As-Is 화면과 신규 MDM 은 병존한다. 데이터 이관은 범위 밖 | 전사 아키텍처 설계 |
 | T2 | 화면 그룹 코드 `mdt/mdl/mdc/mdd/mdr/mda` | 전사 아키텍처 설계 |
 | T3 | 로컬 포트 8096 | 스캐폴드 |
-| T4 | 배포 전달 수단은 07 후보 중 하나를 어댑터로 구현하고 주기 pull 안전망을 둔다. 1차 구현은 통합테스트용 수신 스텁까지 | 배포·수신 설계 |
+| T4 | 결재·배포·수신은 이번에 구현하지 않는다(PRD §2 규칙 7). 배포 대상·순번·수신 로그 테이블은 설계대로 만들되 코드는 쓰지 않는다 | 전사 아키텍처 설계 |
 | T5 | 엔진 jar 는 사내 Maven 저장소 배포를 전제로 버전을 붙이되, 1차는 composite build 의존으로 쓴다 | 엔진 설계 |
 | T6 | 용어 임베딩은 원장 DB 밖(파일 인덱스 또는 별도 저장)에 둘 수 있다. 결정 전까지 1차 문자열 유사어로 기능한다 | 임베딩 조사 |
 
 ## 10. 기술 제약 사항 (Constraints)
 
 - 엔진 jar(`maru-mdm-engine`)는 EvalEx 외 라이브러리에 의존하지 않고 DB·네트워크를 직접 부르지 않는다. 정의·사본 조회는 `engine.spi` 인터페이스로만 받는다(01 §8).
-- 업무 API 는 OASIS BPMN 으로만 노출한다. 수신 API 도 같은 인가 체계를 거친다.
+- 업무 API 는 OASIS BPMN 으로만 노출한다.
 - 원장 DDL 은 SQLite 와 MSSQL 두 방언을 같은 Flyway 번호로 함께 낸다.
 - 화면은 m-mdm 라이브러리에 두고 m-mcm 포털로 적재한다. 팝업에 `page.tsx` 를 쓰지 않는다.
 - 파생값(유효 식·유효 AST·요구 변수·입력 계약)은 저장하지 않고 조회 시 계산한다. 단 EvalEx 텍스트와 함께 AST JSON 은 저장한다(02 「검증식 계약」).
@@ -132,9 +135,8 @@
 ## 11. 기술 비기능 요구사항 (Non-functional Requirements)
 
 - 성능: 엔진 컴파일 캐시 적용 후 의사결정표 1건 판정 1 ms 이내(행 200개 기준), 화면 AST 평가 1만 행 100 ms 이내.
-- 동시성: 배포 순번·식별자 발급은 단일 UPDATE 문(`RETURNING`/`OUTPUT`)으로 직렬화한다. 편집 충돌은 `row_version` 으로 409 를 돌려준다.
-- 추적성: 수신 로그는 수신 즉시 1행을 커밋하고, 처리 실패도 FAILED 로 남긴다.
-- 호환성: 엔진 jar 는 Java 21 에서 동작하고 배포 스냅샷 헤더에 엔진 모듈 버전을 싣는다(06).
+- 동시성: 식별자 발급은 단일 UPDATE 문(`RETURNING`/`OUTPUT`)으로 직렬화한다(배포 순번 발급은 보류). 편집 충돌은 `row_version` 으로 409 를 돌려준다.
+- 호환성: 엔진 jar 는 Java 21 에서 동작한다. 배포 스냅샷 헤더의 엔진 모듈 버전(06)은 배포와 함께 보류한다.
 
 ## 12. 기술 인수 조건 (Acceptance Criteria)
 

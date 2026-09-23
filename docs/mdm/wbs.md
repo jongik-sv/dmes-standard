@@ -1,6 +1,6 @@
 # WBS - 마루 MDM (dmes-standard 개발분)
 
-> version: 1.1
+> version: 1.2
 > depth: 3
 > start-date: 2026-09-28 / target-date: 2027-01-05 / updated: 2026-09-23
 > 입력: [PRD.md](PRD.md) · [TRD.md](TRD.md) · 원천 설계 [design/basic/](design/basic/README.md) (02·03·04 전체 방식·05·06 + HTML 시안)
@@ -39,7 +39,7 @@ node, vitest, java
 
 ## WP-01: 프로젝트 초기화·공유 계약
 - schedule: 2026-09-28 ~ 2026-11-20
-- description: mdm 모듈·엔진 모듈 뼈대, 전사 공유 계약(계약 전용), 결재·배포 공통 기반 구현
+- description: mdm 모듈·엔진 모듈 뼈대, 전사 공유 계약(계약 전용), 버전 상태 공통 기반 구현. 결재·배포·수신은 보류(PRD §2 규칙 7)
 
 ### TSK-01-01: 모듈 스캐폴드 (mdm·maru-mdm-engine) + DB 연결 + CI
 - category: infra
@@ -49,7 +49,7 @@ node, vitest, java
 - priority: critical
 - assignee: -
 - schedule: 2026-09-28 ~ 2026-10-06
-- tags: setup, mdm, engine
+- tags: setup, mdm, engine, agent
 - depends: -
 - blocked-by: -
 - entry-point: -
@@ -85,7 +85,7 @@ node, vitest, java
   - Flyway V1 (빈 베이스라인)
 - ui-spec: -
 
-### TSK-01-02: 전사 공유 계약 — 공통·결재 상태기계·배포 수신 (계약 전용)
+### TSK-01-02: 전사 공유 계약 — 공통·버전 상태 (계약 전용)
 - category: infra
 - domain: database
 - model: opus
@@ -93,34 +93,29 @@ node, vitest, java
 - priority: critical
 - assignee: -
 - schedule: 2026-10-22 ~ 2026-11-03
-- tags: contract, approval, deploy
+- tags: contract, version, agent
 - depends: TSK-02-01
 - blocked-by: -
 - entry-point: -
-- note: 세부 작업: MDM 전사 공유 계약 (계약 전용) / 결재·버전 상태기계 계약 (계약 전용) / 배포·수신 코어 계약 (계약 전용)
+- note: 세부 작업: MDM 전사 공유 계약 (계약 전용) / 버전 상태 계약 (계약 전용). 결재·배포·수신 계약은 보류(PRD §2 규칙 7)
 
 #### PRD 요구사항
-- prd-ref: [02 「테이블 설계 샘플」](design/basic/02-term-domain-column.md) · [01 「2. 관리 대상별 원장과 흐름」](design/basic/01-mdm-overview.md) · [08 「1. 대상별 결재 여부」](design/basic/08-approval.md) · [04 「버전 상태와 적용시점」](design/basic/04-master-code-deploy-full.md) · [07 「대상별 배포 기전 현황」](design/basic/07-deploy.md) · [02 「배포 순번」](design/basic/02-term-domain-column.md) · PRD FR-A6, FR-F1~F3 · PRD FR-F1 · PRD FR-F2, FR-F3
+- prd-ref: [02 「테이블 설계 샘플」](design/basic/02-term-domain-column.md) · [01 「2. 관리 대상별 원장과 흐름」](design/basic/01-mdm-overview.md) · [04 「버전 상태와 적용시점」](design/basic/04-master-code-deploy-full.md) · [06 「테이블 설계」](design/basic/06-business-rule.md) · PRD FR-A6, FR-F1 · PRD §2 규칙 7
 - requirements:
   - `TB_MDM_SYSTEM` DDL(두 방언) + 초기 적재 시드(ERP/MES/APS/DKMS/L2 + MDM 자기 행)
   - 공통 관리 속성(등록·수정자·일시) 칼럼 규약과 적용 방식(TB 명명 결정 반영)
-  - 역할 상수(표준 관리자·담당자·결재자)·권한 액션 코드, 공통 오류 코드·응답 DTO
+  - 역할 상수(표준 관리자·담당자)·권한 액션 코드, 공통 오류 코드·응답 DTO
   - OASIS 서비스 ID·화면 그룹 코드(mdt/mdl/mdc/mdd/mdr/mda) 규칙
   - 04·05 공유 모델: 카테고리(REGEX/TABLE, BASE 예약, def_target) 타입과 마루 코드·마루 데이터 ID 이름 공간 검사 인터페이스
-  - 버전 상태 5종(DRAFT/REQUESTED/APPROVED/RELEASED/CANCELLED)과 전이 표 인터페이스
+  - 버전 상태 5종(DRAFT/REQUESTED/APPROVED/RELEASED/CANCELLED) 상수와 전이 표 인터페이스. 이번 범위의 전이는 담당자 확정(DRAFT→RELEASED)·DRAFT 삭제뿐
   - DRAFT 소유권(선점·해제·넘기기) 서비스 인터페이스, `row_version` 낙관적 잠금 규약
-  - 적용시점 하한 계산 인터페이스(최소 간격·리드타임·긴급·최초 버전 면제)
-  - 대상별 결재 provider SPI(04 마루 코드·06 룰이 구현: diff 조회·상신 검사 호출)
-  - 배포 순번 발급 인터페이스(단일 UPDATE, 방언별 RETURNING/OUTPUT)
-  - 묶음 헤더 스키마(원장 코드·대상·순번·방식 FULL/CHANGE·엔진 버전)
-  - 한 스냅샷 읽기 템플릿, 전달 어댑터 SPI(설계 Task 결정 수단) + 주기 pull 안전망 인터페이스
-  - 수신 API 골격: 원천 인증 → 수신 로그 1행 커밋 → 처리 트랜잭션 → FAILED 별도 커밋
+  - 확정 시 apply_from 순서 검사 인터페이스(직전 RELEASED apply_from 보다 뒤, 최초 버전 면제)
+  - 대상별 확정 검사 SPI(04 마루 코드·06 룰이 구현: diff 조회·확정 검사 호출)
 - acceptance:
   - 실행 로직 없음 (contract-only)
   - 두 방언 마이그레이션이 SQLite·MSSQL 에서 적용된다
   - 공통 DTO·상수가 mdm lib 에 컴파일된다
   - 04·06 이 같은 인터페이스를 구현할 수 있음을 스텁 컴파일로 확인
-  - 02·03·04·05·06 배포·수신 Task 가 이 인터페이스만으로 구현 범위를 정할 수 있다
 - constraints: -
 - test-criteria: -
 
@@ -131,7 +126,7 @@ node, vitest, java
   - TB_MDM_SYSTEM(system_code PK, system_name, self_yn)
 - ui-spec: -
 
-### TSK-01-03: 권한 가드·공통 셸 + 결재 공통(상태기계 서비스·결재 화면)
+### TSK-01-03: 권한 가드·공통 셸 + 버전 상태 서비스(담당자 확정)
 - category: infra
 - domain: fullstack
 - model: opus
@@ -139,33 +134,31 @@ node, vitest, java
 - priority: high
 - assignee: -
 - schedule: 2026-11-04 ~ 2026-11-20
-- tags: shell, rbac, approval, state-machine, ui
+- tags: shell, rbac, version, state-machine, ui, agent
 - depends: TSK-01-02
 - blocked-by: -
-- entry-point: /portal → MDM 메뉴 그룹 (메뉴: MDM); /portal → mda/approvalMng (메뉴: MDM > 결재 > 결재 관리)
-- note: 세부 작업: 권한 가드 + 공통 레이아웃 셸 / 결재·버전 상태기계 서비스 / 결재 공통 화면
+- entry-point: /portal → MDM 메뉴 그룹 (메뉴: MDM)
+- note: 세부 작업: 권한 가드 + 공통 레이아웃 셸 / 버전 상태 서비스(담당자 확정). 결재 화면은 보류(PRD §2 규칙 7)
 
 #### PRD 요구사항
-- prd-ref: [08 「7. 미결 사항」](design/basic/08-approval.md) · [08 「2. 마스터코드 결재 흐름」](design/basic/08-approval.md) · [04 「버전 상태와 적용시점」](design/basic/04-master-code-deploy-full.md) · [08 「6. 결재 화면」](design/basic/08-approval.md) · PRD PRD §3, TRD §6 · PRD FR-F1, FR-C5 · PRD FR-F1 · 시안: [04 「탭7 상신·결재 하단」](design/basic/html/04-master-code.html)
+- prd-ref: [04 「버전 상태와 적용시점」](design/basic/04-master-code-deploy-full.md) · [04 「상신 시 검사」](design/basic/04-master-code-deploy-full.md) · [06 「테이블 설계」](design/basic/06-business-rule.md) · PRD §2 규칙 7 · PRD §3, TRD §6 · PRD FR-F1
 - requirements:
-  - MDM 메뉴 그룹 트리(용어·도메인 / 레이아웃 / 마스터코드 / 마스터데이터 / 업무기준 / 결재) 시드
-  - 역할 3종 시드와 화면·액션별 권한 매핑 기본값
-  - m-mdm 공통 화면 셸(PageLayout, 상태 배지, 원천 배지 MDM/EXTERNAL, 잠금 배지)
-  - 전이 7종(상신·반려·승인·승인 취소·배포·철회·DRAFT 삭제) 구현, 미적용 버전 하나 규칙
-  - 승인 시 apply_to 열기 + 직전 버전 닫기, 승인 취소 시 되돌림
+  - MDM 메뉴 그룹 트리(용어·도메인 / 레이아웃 / 마스터코드 / 마스터데이터 / 업무기준) 시드
+  - 역할 2종(표준 관리자·담당자) 시드와 화면·액션별 권한 매핑 기본값
+  - m-mdm 공통 화면 셸(PageLayout, 상태 배지, 잠금 배지)
+  - 이번 범위의 전이 2종(담당자 확정 DRAFT→RELEASED, DRAFT 삭제), 미적용 버전 하나 규칙
+  - 확정 시 apply_to 열기 + 직전 RELEASED 버전 닫기(한 트랜잭션)
   - DRAFT 선점·해제·넘기기(소유자만), 관리자 강제 해제 없음
-  - 적용시점 하한 계산, 늦은 승인·배포 경고
-  - 결재 대기 목록(대상 종류·ID·버전·상신자·희망 apply_from·긴급)
-  - 대상별 diff 표시(provider SPI 로 04 테이블·키 diff, 06 row_id diff)
-  - 승인·반려(사유 필수)·승인 취소, 재검사 없이 상태만 전이
+  - 확정 시 apply_from 순서 검사(직전 RELEASED apply_from 보다 뒤, 최초 버전 면제)
+  - 대상별 확정 검사 SPI 호출(04 검사 8항, 06 저장 시 검사·테스트 케이스는 각 영역이 구현)
+  - 상신·반려·승인·승인 취소·철회와 결재 화면은 만들지 않는다(PRD §2 규칙 7)
 - acceptance:
   - 권한 없는 사용자는 MDM 메뉴가 보이지 않고 API 가 403
   - 셸 컴포넌트가 Vitest 로 렌더 테스트된다
-  - 08 흐름도의 모든 전이·거부 경로 단위 테스트
-  - 동시 상신·승인 충돌 시 row_version 409
-  - 결재자 역할만 승인·반려 버튼 활성
-  - 반려 시 DRAFT 로 돌아가고 사유가 남는다
-  - 포털 메뉴에서 화면이 열리고 e2e `src/frontend/e2e/mdm-approvalMng.spec.ts` 가 통과한다
+  - 확정·DRAFT 삭제와 거부 경로(미적용 버전 둘, 비소유자, apply_from 역순, 확정 검사 실패) 단위 테스트
+  - 동시 확정 충돌 시 row_version 409
+  - 담당자 역할만 확정 가능
+  - 확정 검사 실패 시 DRAFT 가 그대로 남는다
 - constraints: -
 - test-criteria:
   - 04 「버전 상태와 적용시점」 예시를 테스트 케이스로 옮긴다
@@ -174,34 +167,31 @@ node, vitest, java
 - tech-spec:
   - `DataInitializer.seedMdmMenus()`
   - shared `PageLayout`, `portal-menu`
-  - BE: `com.dongkuk.dmes.mdm.mda.approvalMng.{dto,service}` + BPMN `services/mda/approvalMng.bpmn`
-  - FE: `m-mdm/src/pages/mda/approvalMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mda/approvalMng`
-- api-spec:
-  - OASIS 서비스 `approvalMng` — `/api/mdm/oasis/{serviceId}/{action}`
+  - BE: 공통 버전 상태 서비스(화면 없음, 04·06 영역 서비스가 호출)
+- api-spec: -
 - data-model: -
 - ui-spec:
-  - 08 「6. 결재 화면」 레이아웃, 시안: [04 「탭7 상신·결재 하단」](design/basic/html/04-master-code.html)
+  - 공통 셸 컴포넌트(상태·잠금 배지). 독립 화면 없음
 
-### TSK-01-04: 배포 코어·수신 API 골격 + 수신 스텁
+### TSK-01-04: [보류] 배포 코어·수신 API 골격 + 수신 스텁
 - category: infra
 - domain: backend
 - model: opus
 - status: [ ]
-- priority: high
+- priority: low
 - assignee: -
 - schedule: 2026-11-04 ~ 2026-11-10
-- tags: deploy, receive
+- tags: deploy, receive, on-hold
 - depends: TSK-01-02
 - blocked-by: -
 - entry-point: -
-- note: -
+- note: 보류(사용자 결정 2026-09-23, PRD §2 규칙 7). 결재·배포·수신을 구현할 때 다시 연다. 그때 요구사항을 원천 설계(02·04·05·06 배포·수신 절)로 다시 쓴다. 에이전트 위임 대상이 아니다
 
 #### PRD 요구사항
-- prd-ref: [07 「4. 전달 수단 후보」](design/basic/07-deploy.md) · [05 「저장 경로와 검증」](design/basic/05-master-data.md) · PRD FR-F2, FR-F3
+- prd-ref: [05 「보내는 쪽」](design/basic/05-master-data.md) · [05 「저장 경로와 검증」](design/basic/05-master-data.md) · PRD FR-F2, FR-F3 · PRD §5 「보류」
 - requirements:
   - 배포 순번 발급기(SQLite RETURNING / MSSQL OUTPUT), 스냅샷 읽기(SQLite WAL / MSSQL SNAPSHOT)
-  - 전달 어댑터 1종(설계 결정) + 실패 재시도 + 주기 pull 안전망
+  - 전달(수단 미정) + 실패 재시도 + 주기 pull 안전망(05 「안전망」)
   - 수신 API 공통 처리기(원천 인증, 2단 커밋 로그)
   - 통합테스트용 하위 시스템 수신 스텁(옛 묶음 폐기, 멱등 적용, last_seq_received 기록)
 - acceptance:
@@ -220,7 +210,7 @@ node, vitest, java
 - schedule: 2026-10-07 ~ 2026-11-04
 - description: 전사 아키텍처·공통 설계, 영역별 DB(ERD) 설계, 미결 사항 조사
 
-### TSK-02-01: 전사 아키텍처·결재·배포 방식 설계
+### TSK-02-01: 전사 아키텍처·버전 확정 규칙 설계
 - category: design
 - domain: infra
 - model: opus
@@ -228,31 +218,28 @@ node, vitest, java
 - priority: critical
 - assignee: -
 - schedule: 2026-10-07 ~ 2026-10-21
-- tags: architecture, approval, deploy, research
+- tags: architecture, version, research, agent
 - depends: TSK-01-01
 - blocked-by: -
 - entry-point: -
-- note: 세부 작업: 전사 아키텍처·공통 계약 설계 / 결재·버전 공통 설계 / 배포·수신 방식 결정
+- note: 세부 작업: 전사 아키텍처·공통 계약 설계 / 버전 상태·담당자 확정 규칙 설계. 결재·배포·수신 설계는 보류(PRD §2 규칙 7)
 
 #### PRD 요구사항
-- prd-ref: [01 「MDM 전체 아키텍처」](design/basic/01-mdm-overview.md) · [02 「ERD」](design/basic/02-term-domain-column.md) · [08 「4. 상신 시 검사」](design/basic/08-approval.md) · [06 「DRAFT와 시험 사본」](design/basic/06-business-rule.md) · [07 「4. 전달 수단 후보」](design/basic/07-deploy.md) · [07 「6. 01의 화면 요구와 04·05 규칙의 충돌」](design/basic/07-deploy.md) · PRD TRD §1·§4·§5·§8 · PRD FR-F1 · PRD FR-F2, FR-F3
+- prd-ref: [01 「MDM 전체 아키텍처」](design/basic/01-mdm-overview.md) · [02 「ERD」](design/basic/02-term-domain-column.md) · [04 「상신 시 검사」](design/basic/04-master-code-deploy-full.md) · [06 「DRAFT와 시험 사본」](design/basic/06-business-rule.md) · PRD §2 규칙 2·7 · PRD TRD §1·§4·§5·§8 · PRD FR-F1
 - requirements:
   - 테이블 명명 `TB_MDM_*` 확정(사용자 결정 2026-09-23) 반영: 식별자 사전 정규식에 mdm 추가, 감사 칼럼 자동 주입(`McmAuditStatementInspector`) 적용 범위 결정, ADR
   - 방언 매핑 확정(RETURNING/OUTPUT, JSON 칼럼, 스냅샷 격리, 재귀 CTE)
   - 화면 그룹 코드·screenId 목록, 화면 설계 산출물 위치(`docs/mdm/design` 은 외부 링크 → `docs/mdm/screens/` 안)
   - 기존 mcm `cma`/`cmb` 와의 병존 원칙, 공통 관리 속성 정의
-  - 04·06 공통 상태기계·DRAFT 정책 확정, 08↔04 불일치 해소(상신 검사 5항 vs 8항, 버전 목록 열)
-  - 권한 역할(담당자·결재자·표준 관리자) 배치와 겸임 허용 여부, 결재자 지정 방식
-  - 승인 취소 시 approved_by/at 처리
-  - 전달 수단(07 후보 A~E) 중 1차 구현 수단 선택 — caravan-hub(Kafka) 재사용 가능성 포함
-  - 전달 로그(07 §6-1) 도입 여부 → 목업 전용 화면(04 배포와 사본, 05 배포 순번, 02 last_seq 표시) 개발 여부 결정
-  - 04 전체 방식과 02·05 변경분 방식이 공존할 때 묶음 헤더·수신 규칙
-  - 수신 API 인증 방식과 전문 형식, 04·05·06 공통 모듈화
+  - 04·06 공통 버전 상태·DRAFT 정책과 담당자 확정 규칙 확정(PRD §2 규칙 7. 07·08 은 적용하지 않는다)
+  - 확정 때 쓰는 결재 칸(approved_by·approved_at 등)을 확정자·확정 일시로 채울지 비울지 결정
+  - 권한 역할(표준 관리자·담당자) 배치
+  - 배포 대상·배포 순번·수신 로그 테이블을 DDL 만 두고 코드는 쓰지 않는 원칙을 ADR 에 기록
 - acceptance:
   - ADR 발행(adr-write) 및 TRD §9 가정 T1·T2 확정
   - 모든 후속 DB 설계 Task 가 참조할 명명·방언 규칙표 존재
-  - 08 §7 미결 중 권한·결재자 항목에 결론 또는 협의 이슈(issue-brief) 발행
-  - decisions.md 에 결정 기록, 목업 전용 화면 추가 시 defect/dev Task 신설 제안
+  - 권한 역할 배치에 결론 또는 협의 이슈(issue-brief) 발행
+  - decisions.md 에 결정 기록
 - constraints: -
 - test-criteria: -
 
@@ -270,7 +257,7 @@ node, vitest, java
 - priority: high
 - assignee: -
 - schedule: 2026-10-22 ~ 2026-11-02
-- tags: engine, embedding, research
+- tags: engine, embedding, research, agent
 - depends: TSK-02-01
 - blocked-by: -
 - entry-point: -
@@ -305,7 +292,7 @@ node, vitest, java
 - priority: high
 - assignee: -
 - schedule: 2026-10-22 ~ 2026-11-04
-- tags: erd, 02, 03, 04, 05, 06
+- tags: erd, 02, 03, 04, 05, 06, agent
 - depends: TSK-02-01
 - blocked-by: -
 - entry-point: -
@@ -322,6 +309,7 @@ node, vitest, java
   - 테이블 TB_MDM_DATA, TB_MDM_DATA_SYSTEM, TB_MDM_DATA_ITEM, TB_MDM_DATA_CATE, TB_MDM_DATA_CATE_ITEM, TB_MDM_DATA_RECV, TB_MDM_DATA_RECV_ITEM 의 두 방언 DDL 초안(명명 결정 반영)
   - 테이블 TB_MDM_RULE, TB_MDM_RULE_SYSTEM, TB_MDM_RULE_VER, TB_MDM_RULE_VAR, TB_MDM_RULE_ROW, TB_MDM_RULE_TEST_CASE, TB_MDM_RULE_SET, TB_MDM_RULE_RECV 의 두 방언 DDL 초안(명명 결정 반영)
   - JSON 칼럼(cells, rule_ids) 방언 표현과 json_each/OPENJSON 참조 검사 쿼리
+  - 배포 대상(`*_SYSTEM`)·배포 순번(`TB_MDM_DICT_SEQ`, `chg_seq`)·수신 로그(`*_RECV*`) 표는 설계대로 두고 ERD 에 보류 표시(PRD §2 규칙 7)
 - acceptance:
   - ERD(Mermaid 또는 dbml)와 DDL 초안을 `docs/mdm/erd/` 에 커밋
   - 영역 계약 Task 가 그대로 마이그레이션으로 옮길 수 있는 수준
@@ -351,7 +339,7 @@ node, vitest, java
 - priority: critical
 - assignee: -
 - schedule: 2026-11-03 ~ 2026-11-05
-- tags: contract, engine
+- tags: contract, engine, agent
 - depends: TSK-02-02, TSK-01-01
 - blocked-by: -
 - entry-point: -
@@ -383,7 +371,7 @@ node, vitest, java
 - priority: high
 - assignee: -
 - schedule: 2026-11-06 ~ 2026-11-24
-- tags: engine, expr, code, domain
+- tags: engine, expr, code, domain, agent
 - depends: TSK-03-01
 - blocked-by: -
 - entry-point: -
@@ -425,7 +413,7 @@ node, vitest, java
 - priority: high
 - assignee: -
 - schedule: 2026-11-06 ~ 2026-11-24
-- tags: engine, rule, opcode, ruleset
+- tags: engine, rule, opcode, ruleset, agent
 - depends: TSK-03-01
 - blocked-by: -
 - entry-point: -
@@ -465,7 +453,7 @@ node, vitest, java
 - priority: high
 - assignee: -
 - schedule: 2026-11-06 ~ 2026-11-19
-- tags: engine, analysis, js, corpus
+- tags: engine, analysis, js, corpus, agent
 - depends: TSK-03-01
 - blocked-by: -
 - entry-point: `@dk-oasis/m-mdm` evalex 모듈 (화면 없음 — 02 도메인·06 룰 화면에서 소비)
@@ -496,7 +484,7 @@ node, vitest, java
 
 ## WP-04: 용어·도메인·컬럼 사전 (02)
 - schedule: 2026-11-05 ~ 2026-12-11
-- description: 용어·도메인·컬럼·단위 표준 사전과 변경분 배포
+- description: 용어·도메인·컬럼·단위 표준 사전과 초기 적재(변경분 배포는 보류)
 
 ### TSK-04-01: 용어·도메인·컬럼 공유 계약 (계약 전용)
 - category: infra
@@ -506,7 +494,7 @@ node, vitest, java
 - priority: critical
 - assignee: -
 - schedule: 2026-11-05 ~ 2026-11-09
-- tags: contract, 02
+- tags: contract, 02, agent
 - depends: TSK-02-03, TSK-01-02
 - blocked-by: -
 - entry-point: -
@@ -516,7 +504,7 @@ node, vitest, java
 - prd-ref: [02 「테이블 설계 샘플」](design/basic/02-term-domain-column.md) · PRD FR-A
 - requirements:
   - 02 테이블 7개 Flyway(두 방언), JPA 엔티티·리포지토리
-  - 유효 식·유효 코드 참조 해석 함수 인터페이스(저장·배포·조회 공유), 영향도 조회 인터페이스
+  - 유효 식·유효 코드 참조 해석 함수 인터페이스(저장·조회 공유), 영향도 조회 인터페이스
   - 컬럼 사전 조회 인터페이스(03 레이아웃·06 룰 변수가 사용)
 - acceptance:
   - 실행 로직 없음 (contract-only)
@@ -539,7 +527,7 @@ node, vitest, java
 - priority: high
 - assignee: -
 - schedule: 2026-11-23 ~ 2026-12-02
-- tags: 02, ui, embedding
+- tags: 02, ui, embedding, agent
 - depends: TSK-04-01, TSK-01-03, TSK-02-02
 - blocked-by: -
 - entry-point: /portal → mdt/unitMng (메뉴: MDM > 용어·도메인 > 단위 마스터); /portal → mdt/termMng (메뉴: MDM > 용어·도메인 > 용어 관리)
@@ -561,7 +549,6 @@ node, vitest, java
   - 포털 메뉴에서 화면이 열리고 e2e `src/frontend/e2e/mdm-unitMng.spec.ts` 가 통과한다
   - (표기, 의미 번호) 중복 저장 거부
   - 약어 중복 경고
-  - 용어 변경은 배포 순번을 찍지 않는다
   - 포털 메뉴에서 화면이 열리고 e2e `src/frontend/e2e/mdm-termMng.spec.ts` 가 통과한다
   - 용어 1만 건 추천 응답 500 ms 이내
   - embedding_model 이 다른 행은 재인코딩 대상으로 잡힌다
@@ -594,7 +581,7 @@ node, vitest, java
 - priority: high
 - assignee: -
 - schedule: 2026-11-25 ~ 2026-12-11
-- tags: 02, ui, evalex, impact
+- tags: 02, ui, evalex, impact, agent
 - depends: TSK-04-01, TSK-01-03, TSK-03-02, TSK-03-04
 - blocked-by: -
 - entry-point: /portal → mdt/domainMng (메뉴: MDM > 용어·도메인 > 도메인 관리)
@@ -605,12 +592,12 @@ node, vitest, java
 - requirements:
   - 상속 트리 그리드(들여쓰기, 유효 식 표시), 기본 속성 폼
   - 상속 규칙: 종류·타입·단위 고정, 길이·소수 좁히기, CODE 참조(maru_code_id+cate_id) 대체
-  - 변경 분류(호환/좁히기·넓히기/구조 변경 금지), 저장 = 즉시 배포 사건
+  - 변경 분류(호환/좁히기·넓히기/구조 변경 금지)
   - 표준식(화면+서버)·비즈니스식(서버 전용) 두 칸, 저장 시 파싱·화이트리스트·AST 저장
   - 저장 거부 조건 10종, 빈 말단 경고
   - 테스트 케이스 그리드 실행, 부모 수정 시 하위 테스트 케이스를 같은 트랜잭션에서 재실행
   - 화면 JS 미리보기 + 비즈니스식 서버 미리보기(디바운스)
-  - 재귀 CTE 로 하위 도메인·참조 컬럼·룰 결과 변수·레이아웃·배포 시스템 조회
+  - 재귀 CTE 로 하위 도메인·참조 컬럼·룰 결과 변수·레이아웃 조회
   - 저장 전 diff 와 변경 분류 표시
 - acceptance:
   - 상속 순환·길이 확대·구조 변경 저장 거부
@@ -644,7 +631,7 @@ node, vitest, java
 - priority: high
 - assignee: -
 - schedule: 2026-11-23 ~ 2026-12-02
-- tags: 02, ui, naming
+- tags: 02, ui, naming, agent
 - depends: TSK-04-01, TSK-01-03
 - blocked-by: -
 - entry-point: /portal → mdt/columnMng (메뉴: MDM > 용어·도메인 > 컬럼 사전)
@@ -680,55 +667,43 @@ node, vitest, java
   - 시안: [02 「컬럼 사전 관리」](design/basic/html/02-term-domain-column.html)
   - 시안: [02 「컬럼 사전 관리 — 자동 생성 패널」](design/basic/html/02-term-domain-column.html)
 
-### TSK-04-05: 사전 수신 시스템·변경분 배포·초기 적재
+### TSK-04-05: 초기 적재 — SAP 데이터 엘리먼트 후보 추출
 - category: dev
-- domain: fullstack
+- domain: backend
 - model: opus
 - status: [ ]
 - priority: high
 - assignee: -
 - schedule: 2026-11-23 ~ 2026-12-04
-- tags: 02, deploy, migration
-- depends: TSK-04-01, TSK-01-03, TSK-01-04
+- tags: 02, migration, agent
+- depends: TSK-04-01
 - blocked-by: -
-- entry-point: /portal → mdt/dictSystemMng (메뉴: MDM > 용어·도메인 > 사전 수신 시스템)
-- note: 세부 작업: 사전 수신 시스템 지정 / 사전 변경분 배포 / SAP 초기 적재 후보 추출
+- entry-point: -
+- note: 세부 작업: SAP 초기 적재 후보 추출. 사전 수신 시스템 지정·변경분 배포는 보류(PRD §2 규칙 7)
 
 #### PRD 요구사항
-- prd-ref: [02 「배포」](design/basic/02-term-domain-column.md) · [02 「배포 순번」](design/basic/02-term-domain-column.md) · [02 「TB_MDM_COLUMN_SYSTEM (컬럼 시스템 매핑)」](design/basic/02-term-domain-column.md) · PRD FR-A5 · PRD FR-A6 · 시안: [02 「사전 수신 시스템」](design/basic/html/02-term-domain-column.html)
+- prd-ref: [02 「TB_MDM_COLUMN_SYSTEM (컬럼 시스템 매핑)」](design/basic/02-term-domain-column.md) · PRD FR-A6 · PRD §5 「보류」
 - requirements:
-  - TB_MDM_DICT_SYSTEM 지정·해제, 시스템 지정 팝업, TB_MDM_DICT_SEQ 현재 값 표시
-  - 사건 하나에 순번 하나(`TB_MDM_DICT_SEQ` 단일 UPDATE), 부모 변경 시 하위 트리 전부에 순번
-  - 도메인(유효 식·AST·구조화 속성)·컬럼(대상 시스템 서브셋 + transform)·단위 스냅샷 조립
-  - 배포 코어 어댑터로 송출
   - SAP 데이터 엘리먼트(DD03L 등) 추출 파일에서 용어·도메인·컬럼 매핑 후보 생성
   - 미대응 필드 작업 목록 출력
 - acceptance:
-  - 지정 변경은 배포 순번을 찍지 않는다
-  - ERP 는 참고 사양 대상으로만 표시
-  - 포털 메뉴에서 화면이 열리고 e2e `src/frontend/e2e/mdm-dictSystemMng.spec.ts` 가 통과한다
-  - 02 「배포 순번」 예시 D1~D6 을 수신 스텁으로 재현
-  - 용어·TB_MDM_SYSTEM·TB_MDM_DICT_SYSTEM 변경은 순번 없음
   - 샘플 추출 파일로 후보·미대응 목록이 생성된다
-  - 후보는 저장 전 사람이 확정한다(자동 등록 없음)
+  - 후보는 파일로 출력하고 자동 등록하지 않는다. 사람이 검토해 용어·도메인·컬럼 화면으로 등록한다
 - constraints:
-  - 시스템별 last_seq_received 표시는 TSK-02-01-03 전달 로그 결정 뒤에 추가
+  - 사전 수신 시스템 화면(`mdt/dictSystemMng`)과 변경분 배포는 보류(PRD §5)
 - test-criteria: -
 
 #### 기술 스펙 (TRD)
 - tech-spec:
-  - BE: `com.dongkuk.dmes.mdm.mdt.dictSystemMng.{dto,service}` + BPMN `services/mdt/dictSystemMng.bpmn`
-  - FE: `m-mdm/src/pages/mdt/dictSystemMng/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdt/dictSystemMng`
-- api-spec:
-  - OASIS 서비스 `dictSystemMng` — `/api/mdm/oasis/{serviceId}/{action}`
+  - BE: 후보 추출 배치(입력: SAP 추출 파일, 출력: 후보·미대응 목록 파일)
+- api-spec: -
 - data-model: -
 - ui-spec:
-  - 시안: [02 「사전 수신 시스템」](design/basic/html/02-term-domain-column.html)
+  - -
 
 ## WP-05: 인터페이스 레이아웃 (03)
 - schedule: 2026-11-10 ~ 2026-12-14
-- description: 고정 길이 전문 정의·검증·직렬화와 스냅샷 배포
+- description: 고정 길이 전문 정의·검증·직렬화와 스냅샷 출력(스냅샷 배포는 보류)
 
 ### TSK-05-01: 인터페이스 레이아웃 공유 계약 (계약 전용)
 - category: infra
@@ -738,7 +713,7 @@ node, vitest, java
 - priority: critical
 - assignee: -
 - schedule: 2026-11-10 ~ 2026-11-12
-- tags: contract, 03
+- tags: contract, 03, agent
 - depends: TSK-02-03, TSK-01-02, TSK-04-01
 - blocked-by: -
 - entry-point: -
@@ -812,7 +787,7 @@ node, vitest, java
   - 시안: [03 「전문 레이아웃 — 헤더 구성·상수 편집」](design/basic/html/03-interface-layout.html)
   - 시안: [03 「전문 레이아웃 — 본문 항목」](design/basic/html/03-interface-layout.html)
 
-### TSK-05-03: 직렬화기·등록 검증·버전·스냅샷 배포
+### TSK-05-03: 직렬화기·등록 검증·버전·스냅샷 출력
 - category: dev
 - domain: fullstack
 - model: opus
@@ -820,14 +795,14 @@ node, vitest, java
 - priority: high
 - assignee: -
 - schedule: 2026-11-25 ~ 2026-12-14
-- tags: 03, serializer, validate, version, deploy
-- depends: TSK-05-01, TSK-01-03, TSK-03-02, TSK-01-04
+- tags: 03, serializer, validate, version
+- depends: TSK-05-01, TSK-01-03, TSK-03-02
 - blocked-by: -
 - entry-point: /portal → mdl/layoutMng (메뉴: MDM > 레이아웃 > 전문 레이아웃)
-- note: 세부 작업: 전문 직렬화기·파서 라이브러리 / 등록 검증과 샘플 전문 / 버전 이력·스냅샷 출력·영향도 / 레이아웃 스냅샷 배포
+- note: 세부 작업: 전문 직렬화기·파서 라이브러리 / 등록 검증과 샘플 전문 / 버전 이력·스냅샷 출력·영향도. 스냅샷 배포는 보류(PRD §2 규칙 7)
 
 #### PRD 요구사항
-- prd-ref: [03 「수신 처리」](design/basic/03-interface-layout.md) · [03 「단위와 표현 형식」](design/basic/03-interface-layout.md) · [03 「자동 계산과 등록 검증」](design/basic/03-interface-layout.md) · [03 「버전과 변경」](design/basic/03-interface-layout.md) · [07 「대상별 배포 기전 현황」](design/basic/07-deploy.md) · PRD FR-B5 · PRD FR-B3 · PRD FR-B4 · 시안: [03 「등록 검증과 샘플 전문」](design/basic/html/03-interface-layout.html) · 시안: [03 「버전과 영향도」](design/basic/html/03-interface-layout.html)
+- prd-ref: [03 「수신 처리」](design/basic/03-interface-layout.md) · [03 「단위와 표현 형식」](design/basic/03-interface-layout.md) · [03 「자동 계산과 등록 검증」](design/basic/03-interface-layout.md) · [03 「버전과 변경」](design/basic/03-interface-layout.md) · PRD FR-B5 · PRD FR-B3 · PRD FR-B4 · 시안: [03 「등록 검증과 샘플 전문」](design/basic/html/03-interface-layout.html) · 시안: [03 「버전과 영향도」](design/basic/html/03-interface-layout.html)
 - requirements:
   - 인코딩 바이트 길이·패딩·암묵 소수점·AUTO(SEND_TIME·MSG_LENGTH·SEQ·LAYOUT_ID) 채움
   - 단위 경계 변환(trans_unit / unit_item, TB_MDM_UNIT 계수)
@@ -837,16 +812,14 @@ node, vitest, java
   - 버전 이력(전환 방식 순차/동시), 변경 분류 표
   - 레이아웃 스냅샷 JSON·엑셀 내려받기
   - 컬럼·도메인 변경 영향 전문 목록
-  - 저장 즉시 스냅샷 버전 생성·배포 코어로 송출
-  - ERP 는 참고 사양으로만 전달
+  - 저장 즉시 스냅샷 버전 생성(배포는 보류)
 - acceptance:
   - 3.5 mm → `0035` 등 03 예시 왕복(직렬화→파싱) 일치
-  - 송신·수신 양측이 같은 스냅샷으로 동작
+  - 직렬화와 파싱이 같은 스냅샷 버전으로 동작
   - 거부 7종 각각 서버 테스트
   - CONST 값은 도메인 유효 식으로 검증
   - 포털 메뉴에서 화면이 열리고 e2e `src/frontend/e2e/mdm-layoutMng.spec.ts` 가 통과한다
   - FILLER 분할 추가는 총 길이 불변·순차 전환으로 분류
-  - 수신 스텁이 스냅샷 버전을 받아 저장
 - constraints: -
 - test-criteria: -
 
@@ -864,7 +837,7 @@ node, vitest, java
 
 ## WP-06: 마스터코드 (04, 전체 방식)
 - schedule: 2026-11-05 ~ 2026-12-10
-- description: 마루 코드 버전·선분·카테고리·결재와 전체 방식 배포
+- description: 마루 코드 버전·선분·카테고리와 담당자 확정(결재·배포·수신은 보류)
 
 ### TSK-06-01: 마스터코드 공유 계약 (계약 전용)
 - category: infra
@@ -885,7 +858,7 @@ node, vitest, java
 - requirements:
   - 04 테이블 7개 Flyway 두 방언, 엔티티
   - 선분 조작 서비스 인터페이스(카테고리 모델·ID 이름 공간은 전사 계약 재사용)
-  - 결재 provider(diff·상신 검사) 구현 대상 선언
+  - 확정 검사 SPI(diff·검사 8항) 구현 대상 선언
 - acceptance:
   - 실행 로직 없음 (contract-only)
 - constraints: -
@@ -910,23 +883,23 @@ node, vitest, java
 - depends: TSK-06-01, TSK-01-03
 - blocked-by: -
 - entry-point: /portal → mdc/codeMng (메뉴: MDM > 마스터코드 > 마루 코드); /portal → mdc/codeEdit (메뉴: MDM > 마스터코드 > 마루 코드 수정)
-- note: 세부 작업: 마루 코드 조회·등록 / 마루 코드 수정 — 헤더·배포 대상·라벨·폐기 / 버전 목록·새 버전·복원·DRAFT 소유권
+- note: 세부 작업: 마루 코드 조회·등록 / 마루 코드 수정 — 헤더·라벨·폐기 / 버전 목록·새 버전·복원·DRAFT 소유권. 배포 대상·EXTERNAL 원천은 보류(PRD §2 규칙 7)
 
 #### PRD 요구사항
 - prd-ref: [04 「화면」](design/basic/04-master-code-deploy-full.md) · [04 「추가 컬럼」](design/basic/04-master-code-deploy-full.md) · [04 「코드 삭제와 마루 코드 폐기」](design/basic/04-master-code-deploy-full.md) · [04 「버전 상태와 적용시점」](design/basic/04-master-code-deploy-full.md) · PRD FR-C1 · PRD FR-C2 · 시안: [04 「탭1 조회·등록」](design/basic/html/04-master-code.html) · 시안: [04 「탭2 수정 — 카드 ①~③」](design/basic/html/04-master-code.html) · 시안: [04 「탭2 수정 — 버전 목록·새버전 대화상자」](design/basic/html/04-master-code.html)
 - requirements:
-  - 조회(마루 코드·상태·원천), 현재 버전은 구간에서 조회(없으면 배포 대기 vX)
-  - 등록(MDM 원천): TB_MDM_CODE(CREATED)·VER 1.000 DRAFT·CATE BASE 를 한 트랜잭션, 등록(EXTERNAL): TB_MDM_CODE 한 행
-  - 헤더 경미 수정, 배포 대상 추가(즉시 동기화 요청)·제거(06 룰 참조 경고)
+  - 조회(마루 코드·상태), 현재 버전은 구간에서 조회(없으면 미확정 표시)
+  - 등록(MDM 원천만): TB_MDM_CODE(CREATED)·VER 1.000 DRAFT·CATE BASE 를 한 트랜잭션
+  - 헤더 경미 수정
   - 추가 컬럼 라벨 attr01–10, DEPRECATED 전이(미적용 버전 없을 때)
-  - 버전 목록(종류·상태·적용 구간·결재자·소유자), 상태별 버튼 활성 매트릭스
+  - 버전 목록(종류·상태·적용 구간·소유자), 상태별 버튼 활성 매트릭스(확정 이동 포함)
   - 새 버전 대화상자: major=floor(max)+1, minor=max+0.001(999 상한), 빈 버전/복원(restored_from)
   - DRAFT 선점·해제·넘기기, DRAFT 삭제 시 선분 복구
 - acceptance:
   - ID 문자 제약·TB_MDM_DATA ID 중복 거부
   - 등록자가 DRAFT 를 자동 선점
   - 포털 메뉴에서 화면이 열리고 e2e `src/frontend/e2e/mdm-codeMng.spec.ts` 가 통과한다
-  - EXTERNAL 코드는 편집 버튼이 숨겨진다
+  - 등록은 MDM 원천만 받는다
   - 폐기 후 CODE_LIST 에서 숨고 MASTER 판정은 유지
   - 포털 메뉴에서 화면이 열리고 e2e `src/frontend/e2e/mdm-codeEdit.spec.ts` 가 통과한다
   - 미적용 버전이 있으면 새 버전 거부, 2개면 DRAFT 삭제만 허용
@@ -974,7 +947,6 @@ node, vitest, java
   - lvl 트리 보기(접기·펴기, 이 노드로 편집, 필터 칩)
   - 카테고리 선택 미리보기 패널(콤보/목록·근거 모드)
   - RELEASED 코드 행의 이름·약칭·순서·설명 in-place 수정
-  - last_chg_seq +1, 배포 대상 담당자 알림
 - acceptance:
   - 04 「샘플 데이터」 저장 검사 결과 일치
   - RELEASED·CANCELLED 는 읽기 전용 diff
@@ -1040,7 +1012,7 @@ node, vitest, java
   - 시안: [04 「탭6 카테고리(REGEX)」](design/basic/html/04-master-code.html)
   - 시안: [04 「탭5 카테고리(TABLE)」](design/basic/html/04-master-code.html)
 
-### TSK-06-05: 상신·결재 연동·전체 방식 배포·수신
+### TSK-06-05: 마루 코드 버전 확정 — 검사 8항·적용시점·diff
 - category: dev
 - domain: fullstack
 - model: opus
@@ -1048,58 +1020,43 @@ node, vitest, java
 - priority: high
 - assignee: -
 - schedule: 2026-11-23 ~ 2026-12-10
-- tags: 04, submit, approval, deploy, receive
-- depends: TSK-06-01, TSK-01-03, TSK-01-04
+- tags: 04, version, confirm
+- depends: TSK-06-01, TSK-01-03
 - blocked-by: -
-- entry-point: /portal → mdc/codeSubmit (메뉴: MDM > 마스터코드 > 상신); /portal → mdc/codeRecvLog (메뉴: MDM > 마스터코드 > 수신 로그)
-- note: 세부 작업: 상신 — 검사 8항·적용시점 하한 / 결재 연동·배포·철회·자동 전이 / 전체 방식 배포 질의·묶음 / EXTERNAL 수신 API·수신 로그
+- entry-point: /portal → mdc/codeConfirm (메뉴: MDM > 마스터코드 > 버전 확정)
+- note: 세부 작업: 확정 폼·검사 8항 / 직전 RELEASED 대비 diff / 확정 전이·자동 전이. 상신·결재·배포·철회·수신은 보류(PRD §2 규칙 7)
 
 #### PRD 요구사항
-- prd-ref: [04 「상신 시 검사」](design/basic/04-master-code-deploy-full.md) · [08 「3. 결재에서 지키는 규칙」](design/basic/08-approval.md) · [04 「버전 상태와 적용시점」](design/basic/04-master-code-deploy-full.md) · [08 「2. 마스터코드 결재 흐름」](design/basic/08-approval.md) · [04 「배포와 사본」](design/basic/04-master-code-deploy-full.md) · [04 「보내는 쪽」](design/basic/04-master-code-deploy-full.md) · [04 「수신 API (원천이 EXTERNAL인 마루 코드)」](design/basic/04-master-code-deploy-full.md) · PRD FR-C5 · PRD FR-C6 · 시안: [04 「탭7 상신」](design/basic/html/04-master-code.html) · 시안: [04 「탭9 수신 로그」](design/basic/html/04-master-code.html)
+- prd-ref: [04 「상신 시 검사」](design/basic/04-master-code-deploy-full.md) · [04 「버전 상태와 적용시점」](design/basic/04-master-code-deploy-full.md) · PRD §2 규칙 7 · PRD FR-C5 · 시안: [04 「탭7 상신」](design/basic/html/04-master-code.html)
 - requirements:
-  - 상신 폼(희망 apply_from, 긴급 + 사유), 검사 8항 결과 표(통과·경고·거부)
-  - 하한 = max(직전 apply_from + 최소 간격, 상신 일시 + 리드타임)
-  - 결재 provider 구현(테이블·키 diff, 바뀐 카테고리 요약)
-  - 배포·철회(apply_from 전 RELEASED 만), CREATED→INUSE 자동 전이
-  - 순번 사건: 배포·경미 수정·철회·DEPRECATED
-  - 다섯 테이블 + last_chg_seq 한 스냅샷 읽기, 미배포 행 제외
-  - to_ver·apply_to 가림, 묶음 헤더(순번·원장 코드)
-  - 배포 대상 추가 시 즉시 전체 묶음 송출
-  - VERSION/CANCEL/DEPRECATE 수신, 거부 5종, 통과 시 major+1 RELEASED + diff 선분 + 순번 한 트랜잭션
-  - 수신 로그 화면(조회 전용, 요청 원문·걸린 항목)
+  - 확정 폼(희망 apply_from), 검사 8항 결과 표(통과·경고·거부). 3항은 "직전 RELEASED apply_from 보다 뒤" 로 검사(PRD §2 규칙 7)
+  - 직전 RELEASED 대비 diff(테이블·키, 바뀐 카테고리 요약)
+  - 확정 = DRAFT → RELEASED, 직전 버전 apply_to 닫기를 한 트랜잭션으로(공통 버전 상태 서비스 사용)
+  - CREATED→INUSE 자동 전이(첫 RELEASED 의 apply_from 경과)
 - acceptance:
-  - 거부 1건이라도 있으면 상신 불가
-  - 최초 버전은 하한 면제
-  - 포털 메뉴에서 화면이 열리고 e2e `src/frontend/e2e/mdm-codeSubmit.spec.ts` 가 통과한다
-  - 철회 시 from_ver=V 행 삭제·to_ver=V 행 9999 복구
-  - DRAFT 편집·결재·배포 대상 변경은 순번 없음
-  - `sql/04-chg-seq-sim.py --mode full` 9,000회 불일치 0건
-  - 가림 누락 시 판정이 어긋나는 회귀 테스트
-  - 부분 저장 없음
-  - MDM 원천 코드 수신 거부
-  - 포털 메뉴에서 화면이 열리고 e2e `src/frontend/e2e/mdm-codeRecvLog.spec.ts` 가 통과한다
-- constraints: -
+  - 거부 1건이라도 있으면 확정 불가
+  - 최초 버전은 3항 면제
+  - 담당자가 아닌 사용자는 확정할 수 없다
+  - 04 「샘플 데이터」 버전 이력(v1.000 → v1.001)을 확정 경로로 재현
+  - 포털 메뉴에서 화면이 열리고 e2e `src/frontend/e2e/mdm-codeConfirm.spec.ts` 가 통과한다
+- constraints:
+  - 상신 화면 시안(탭7)은 배치 참고용이다. 긴급·사유·결재 영역은 만들지 않는다
 - test-criteria: -
 
 #### 기술 스펙 (TRD)
 - tech-spec:
-  - BE: `com.dongkuk.dmes.mdm.mdc.codeSubmit.{dto,service}` + BPMN `services/mdc/codeSubmit.bpmn`
-  - FE: `m-mdm/src/pages/mdc/codeSubmit/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdc/codeSubmit`
-  - BE: `com.dongkuk.dmes.mdm.mdc.codeRecvLog.{dto,service}` + BPMN `services/mdc/codeRecvLog.bpmn`
-  - FE: `m-mdm/src/pages/mdc/codeRecvLog/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdc/codeRecvLog`
+  - BE: `com.dongkuk.dmes.mdm.mdc.codeConfirm.{dto,service}` + BPMN `services/mdc/codeConfirm.bpmn`
+  - FE: `m-mdm/src/pages/mdc/codeConfirm/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdc/codeConfirm`
 - api-spec:
-  - OASIS 서비스 `codeSubmit` — `/api/mdm/oasis/{serviceId}/{action}`
-  - OASIS 서비스 `codeRecvLog` — `/api/mdm/oasis/{serviceId}/{action}`
+  - OASIS 서비스 `codeConfirm` — `/api/mdm/oasis/{serviceId}/{action}`
 - data-model: -
 - ui-spec:
-  - 시안: [04 「탭7 상신」](design/basic/html/04-master-code.html)
-  - 시안: [04 「탭9 수신 로그」](design/basic/html/04-master-code.html)
+  - 시안: [04 「탭7 상신」](design/basic/html/04-master-code.html) (확정 폼으로 변형)
 
 ## WP-07: 마스터데이터 (05)
 - schedule: 2026-11-05 ~ 2026-12-24
-- description: 마루 데이터 정의·항목·카테고리와 변경분 배포
+- description: 마루 데이터 정의·항목·카테고리(변경분 배포·수신은 보류)
 
 ### TSK-07-01: 마스터데이터 공유 계약 (계약 전용)
 - category: infra
@@ -1144,14 +1101,14 @@ node, vitest, java
 - depends: TSK-07-01, TSK-01-03, TSK-03-02
 - blocked-by: -
 - entry-point: /portal → mdd/dataMng (메뉴: MDM > 마스터데이터 > 마루 데이터); /portal → mdd/dataEdit (메뉴: MDM > 마스터데이터 > 마루 데이터 수정); /portal → mdd/dataCateEdit (메뉴: MDM > 마스터데이터 > 카테고리 편집)
-- note: 세부 작업: 마루 데이터 조회·등록 / 마루 데이터 수정 — 헤더·배포 대상·라벨·계층·폐기 / 카테고리 편집
+- note: 세부 작업: 마루 데이터 조회·등록 / 마루 데이터 수정 — 헤더·라벨·계층·폐기 / 카테고리 편집. 배포 대상·EXTERNAL 원천은 보류(PRD §2 규칙 7)
 
 #### PRD 요구사항
 - prd-ref: [05 「화면」](design/basic/05-master-data.md) · [05 「추가 컬럼」](design/basic/05-master-data.md) · [05 「구조: 마루 데이터 → 항목 · 추가 컬럼 · 카테고리」](design/basic/05-master-data.md) · [05 「카테고리 정의 방식」](design/basic/05-master-data.md) · PRD FR-D1 · 시안: [05 「마루 데이터 조회·등록」](design/basic/html/05-master-data.html) · 시안: [05 「마루 데이터 수정」](design/basic/html/05-master-data.html) · 시안: [05 「카테고리 편집」](design/basic/html/05-master-data.html)
 - requirements:
-  - 조회(ID·이름·상태·원천), 등록(MDM/EXTERNAL 폼): TB_MDM_DATA(INUSE)+CATE BASE 한 트랜잭션, 순번 1 즉시 배포
-  - 헤더·키 패턴 저장, 배포 대상 추가(초기 적재)·제거(룰 참조 경고)
-  - 라벨 1~10 저장(즉시 배포), lvl_cnt 증감, 폐기 2단 확인
+  - 조회(ID·이름·상태), 등록(MDM 원천만): TB_MDM_DATA(INUSE)+CATE BASE 한 트랜잭션
+  - 헤더·키 패턴 저장
+  - 라벨 1~10 저장, lvl_cnt 증감, 폐기 2단 확인
   - REGEX(대상 KEY/LVL/ATTR)·TABLE(체크박스 소속 적용) 편집, 닫기·다시 열기(선분)
   - 매칭 건수 미리보기
 - acceptance:
@@ -1159,7 +1116,7 @@ node, vitest, java
   - 등록 후 수정 화면으로 이동
   - 포털 메뉴에서 화면이 열리고 e2e `src/frontend/e2e/mdm-dataMng.spec.ts` 가 통과한다
   - lvl_cnt 축소는 뒤 칸 값이 있는 행이 없을 때만
-  - DEPRECATED 후 저장·수신 거부
+  - DEPRECATED 후 저장 거부
   - 포털 메뉴에서 화면이 열리고 e2e `src/frontend/e2e/mdm-dataEdit.spec.ts` 가 통과한다
   - BASE 편집·닫기 불가
   - 닫힌 카테고리는 소속 보존·판정 false
@@ -1200,21 +1157,21 @@ node, vitest, java
 - depends: TSK-07-01, TSK-01-03
 - blocked-by: -
 - entry-point: /portal → mdd/dataItemMng (메뉴: MDM > 마스터데이터 > 항목 관리); /portal → mdd/dataHistory (메뉴: MDM > 마스터데이터 > 항목 이력)
-- note: 세부 작업: 일시 선분·순번 저장 코어 + 검사 7단계 / 항목 관리 — 목록·인라인 편집·닫기 / 항목 이력
+- note: 세부 작업: 일시 선분 저장 코어 + 검사 7단계 / 항목 관리 — 목록·인라인 편집·닫기 / 항목 이력
 
 #### PRD 요구사항
 - prd-ref: [05 「저장 경로와 검증」](design/basic/05-master-data.md) · [05 「선분과 닫기」](design/basic/05-master-data.md) · [05 「화면」](design/basic/05-master-data.md) · PRD FR-D2, FR-D3 · PRD FR-D2 · PRD FR-D3 · 시안: [05 「항목 관리 (PORT·CUST)」](design/basic/html/05-master-data.html) · 시안: [05 「항목 이력」](design/basic/html/05-master-data.html)
 - requirements:
-  - 수정 = 옛 행 valid_to 닫기 + 같은 시각 새 행, 두 행 같은 순번
-  - 닫기·다시 열기, 값이 같으면 순번·행 없음
+  - 수정 = 옛 행 valid_to 닫기 + 같은 시각 새 행
+  - 닫기·다시 열기, 값이 같으면 새 행 없음
   - 검사 1~7(DEPRECATED, 원천·경로, code_pattern, name, attr 라벨, 계층 일관성, TABLE 소속)
-  - TB_MDM_DATA 행 잠금 단일 UPDATE 로 순번 직렬화
+  - TB_MDM_DATA 행 잠금으로 같은 마루 데이터의 동시 저장 직렬화. 배포 순번 발급은 보류(PRD §2 규칙 7)
   - 서버 페이징 그리드(동적 lvl·attr 열), 인라인 편집·닫기·다시 열기·이력 링크
-  - 원천 EXTERNAL 이면 조회 전용, row_version 충돌 안내
+  - row_version 충돌 안내
   - 대상(항목/카테고리/소속)·키별 선분 타임라인, 닫힌 구간 표시
 - acceptance:
-  - 05 「예」 E1~E6·X1~X4 사건 표 재현
-  - 동시 저장에서 순번 중복 0
+  - 05 「예」 E1~E6·X1~X4 의 선분 결과 재현(순번 칸 제외)
+  - 동시 저장에서 선분 겹침 0
   - 닫힌 키로 신규 등록 시 다시 열기 안내
   - 다른 사용자 수정 충돌 시 재조회
   - 포털 메뉴에서 화면이 열리고 e2e `src/frontend/e2e/mdm-dataItemMng.spec.ts` 가 통과한다
@@ -1239,7 +1196,7 @@ node, vitest, java
   - 시안: [05 「항목 관리 (PORT·CUST)」](design/basic/html/05-master-data.html)
   - 시안: [05 「항목 이력」](design/basic/html/05-master-data.html)
 
-### TSK-07-04: 항목 트리·CSV 업로드·수신·변경분 배포
+### TSK-07-04: 항목 트리·CSV 업로드
 - category: dev
 - domain: fullstack
 - model: sonnet
@@ -1247,33 +1204,24 @@ node, vitest, java
 - priority: high
 - assignee: -
 - schedule: 2026-12-09 ~ 2026-12-24
-- tags: 05, tree, csv, receive, deploy
-- depends: TSK-07-01, TSK-01-03, TSK-07-03, TSK-01-04
+- tags: 05, tree, csv
+- depends: TSK-07-01, TSK-01-03, TSK-07-03
 - blocked-by: -
-- entry-point: /portal → mdd/dataItemMng (메뉴: MDM > 마스터데이터 > 항목 관리); /portal → mdd/dataCsvUploadPop (메뉴: MDM > 마스터데이터 > 항목 관리 > CSV 업로드); /portal → mdd/dataRecvLog (메뉴: MDM > 마스터데이터 > 수신 로그)
-- note: 세부 작업: 항목 트리 보기 / CSV 업로드 / EXTERNAL 수신 API·수신 로그 / 변경분 동기화 송신
+- entry-point: /portal → mdd/dataItemMng (메뉴: MDM > 마스터데이터 > 항목 관리); /portal → mdd/dataCsvUploadPop (메뉴: MDM > 마스터데이터 > 항목 관리 > CSV 업로드)
+- note: 세부 작업: 항목 트리 보기 / CSV 업로드. EXTERNAL 수신 API·수신 로그·변경분 동기화 송신은 보류(PRD §2 규칙 7)
 
 #### PRD 요구사항
-- prd-ref: [05 「구조: 마루 데이터 → 항목 · 추가 컬럼 · 카테고리」](design/basic/05-master-data.md) · [05 「저장 경로와 검증」](design/basic/05-master-data.md) · [05 「배포 순번」](design/basic/05-master-data.md) · PRD FR-D2 · PRD FR-D3 · PRD FR-D4 · 시안: [05 「항목 관리 (ORG 트리)」](design/basic/html/05-master-data.html) · 시안: [05 「CSV 업로드」](design/basic/html/05-master-data.html) · 시안: [05 「수신 로그」](design/basic/html/05-master-data.html)
+- prd-ref: [05 「구조: 마루 데이터 → 항목 · 추가 컬럼 · 카테고리」](design/basic/05-master-data.md) · [05 「저장 경로와 검증」](design/basic/05-master-data.md) · PRD FR-D2 · PRD FR-D3 · 시안: [05 「항목 관리 (ORG 트리)」](design/basic/html/05-master-data.html) · 시안: [05 「CSV 업로드」](design/basic/html/05-master-data.html)
 - requirements:
   - lvl 트리 보기, 이 노드로 보기 필터 칩, 열린 행 필터
   - UTF-8·RFC 4180, 열 이름 = 물리명, 검증 결과(INSERT/UPDATE/NONE·오류)
-  - 오류 0건일 때만 한 트랜잭션·순번 하나로 저장
-  - 요청 1건 항목 1~N upsert, closed 플래그, 행별 action(INSERT/UPDATE/CLOSE/REOPEN/NONE)
-  - 수신 로그 화면(행 동작 표·요청 원문)
-  - 네 테이블 `chg_seq > :last` 한 스냅샷 읽기, 커밋 직후 송출·재시도
-  - 초기 적재·따라잡기·재적재가 같은 질의
+  - 오류 0건일 때만 한 트랜잭션으로 저장
 - acceptance:
   - ORG 샘플 트리가 `sql/04-hier-tree-sim.py` 결과와 일치
   - 포털 메뉴에서 화면이 열리고 e2e `src/frontend/e2e/mdm-dataItemMng.spec.ts` 가 통과한다
-  - 같은 파일 재업로드 시 바뀐 행만 새 순번
+  - 같은 파일 재업로드 시 바뀐 행만 새 선분
   - CSV 로 닫기 불가
   - 포털 메뉴에서 화면이 열리고 e2e `src/frontend/e2e/mdm-dataCsvUploadPop.spec.ts` 가 통과한다
-  - 요청 단위 거부만(행 단위·PARTIAL 없음)
-  - 인증 실패 요청은 기록하지 않는다
-  - 포털 메뉴에서 화면이 열리고 e2e `src/frontend/e2e/mdm-dataRecvLog.spec.ts` 가 통과한다
-  - 수신 스텁이 원장 코드가 다른 같은 ID 묶음을 거부
-  - 순번 역행 묶음 폐기
 - constraints: -
 - test-criteria: -
 
@@ -1285,22 +1233,17 @@ node, vitest, java
   - BE: `com.dongkuk.dmes.mdm.mdd.dataCsvUploadPop.{dto,service}` + BPMN `services/mdd/dataCsvUploadPop.bpmn`
   - FE: `m-mdm/src/pages/mdd/dataCsvUploadPop/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
   - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdd/dataCsvUploadPop`
-  - BE: `com.dongkuk.dmes.mdm.mdd.dataRecvLog.{dto,service}` + BPMN `services/mdd/dataRecvLog.bpmn`
-  - FE: `m-mdm/src/pages/mdd/dataRecvLog/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdd/dataRecvLog`
 - api-spec:
   - OASIS 서비스 `dataItemMng` — `/api/mdm/oasis/{serviceId}/{action}`
   - OASIS 서비스 `dataCsvUploadPop` — `/api/mdm/oasis/{serviceId}/{action}`
-  - OASIS 서비스 `dataRecvLog` — `/api/mdm/oasis/{serviceId}/{action}`
 - data-model: -
 - ui-spec:
   - 시안: [05 「항목 관리 (ORG 트리)」](design/basic/html/05-master-data.html)
   - 시안: [05 「CSV 업로드」](design/basic/html/05-master-data.html)
-  - 시안: [05 「수신 로그」](design/basic/html/05-master-data.html)
 
 ## WP-08: 업무기준 (06)
-- schedule: 2026-11-10 ~ 2026-12-16
-- description: 의사결정표·산출 룰·룰 세트 편집, 검사·시험·상신과 배포
+- schedule: 2026-11-10 ~ 2026-12-21
+- description: 의사결정표·산출 룰·룰 세트 편집, 검사·시험·담당자 확정(결재·배포·수신은 보류)
 
 ### TSK-08-01: 업무기준 공유 계약 (계약 전용)
 - category: infra
@@ -1321,7 +1264,7 @@ node, vitest, java
 - requirements:
   - 06 테이블 8개 Flyway 두 방언(JSON 칼럼), 엔티티
   - 식별자 발급(last_var_id 등) 인터페이스, 엔진 DefinitionLookup 구현 대상 선언
-  - 결재 provider(row_id diff) 구현 대상 선언
+  - 확정 검사 SPI(row_id diff·확정 검사) 구현 대상 선언
 - acceptance:
   - 실행 로직 없음 (contract-only)
 - constraints: -
@@ -1346,22 +1289,22 @@ node, vitest, java
 - depends: TSK-08-01, TSK-01-03, TSK-03-04
 - blocked-by: -
 - entry-point: /portal → mdr/ruleMng (메뉴: MDM > 업무기준 > 룰); /portal → mdr/ruleEdit (메뉴: MDM > 업무기준 > 룰 화면)
-- note: 세부 작업: 룰 조회·등록 / 룰 화면 골격 — 헤더·버전·소유권·배포 대상·활용처 / 의사결정표 그리드
+- note: 세부 작업: 룰 조회·등록 / 룰 화면 골격 — 헤더·버전·소유권·활용처 / 의사결정표 그리드. 배포 대상 카드·EXTERNAL 원천은 보류(PRD §2 규칙 7)
 
 #### PRD 요구사항
 - prd-ref: [06 「화면」](design/basic/06-business-rule.md) · [06 「DRAFT와 시험 사본」](design/basic/06-business-rule.md) · [06 「조건 열의 표시 타입과 op-code」](design/basic/06-business-rule.md) · PRD FR-E1 · PRD FR-E2 · 시안: [06 「룰 조회·등록」](design/basic/html/06-business-rule.html) · 시안: [06 「룰 화면 카드 ①②⑦⑧, EXTERNAL 변형」](design/basic/html/06-business-rule.html) · 시안: [06 「룰 화면 카드 ③ 의사결정표」](design/basic/html/06-business-rule.html)
 - requirements:
-  - 조회(ID/명·종류·상태·원천·배포 대상, 서버 페이징)
-  - 등록 MDM(TB_MDM_RULE CREATED + VER 1 DRAFT, 자동 선점), 등록 EXTERNAL(자리 확보)
-  - 카드 ①헤더(룰명·설명·활용처 메모 바로 저장, 폐기) ②버전 목록(새 버전=직전 RELEASED 복사, 상신 이동, 삭제·해제·넘기기)
-  - 카드 ⑦배포 대상(DEF) ⑧활용처(담은 세트, 의존·역의존 룰)
-  - 잠금 배지와 EXTERNAL 읽기 전용 모드(S4a)
+  - 조회(ID/명·종류·상태, 서버 페이징)
+  - 등록 MDM 원천만(TB_MDM_RULE CREATED + VER 1 DRAFT, 자동 선점)
+  - 카드 ①헤더(룰명·설명·활용처 메모 바로 저장, 폐기) ②버전 목록(새 버전=직전 RELEASED 복사, 확정 이동, 삭제·해제·넘기기)
+  - 카드 ⑧활용처(담은 세트, 의존·역의존 룰). ⑦배포 대상은 보류
+  - 잠금 배지
   - 열 머리 3줄, 표시 타입별 셀(OP·하한·상한·값·식), 무관 체크, 행 설명, 적중 정책 선택
   - 행 추가·기본 행·드래그 순서·저장·되돌리기, base 대비 변경 셀 강조
   - JS 즉시 검사(겹침·빈틈·도달 불가 알림), 행 선택 시 적중 조건 강조
 - acceptance:
   - ID 는 물리명 규칙
-  - 원천은 등록 후 변경 불가
+  - 등록은 MDM 원천만 받는다
   - 포털 메뉴에서 화면이 열리고 e2e `src/frontend/e2e/mdm-ruleMng.spec.ts` 가 통과한다
   - 소유자 아닌 사용자는 읽기·값 테스트만
   - 미적용 버전이 있으면 새 버전 거부
@@ -1417,7 +1360,7 @@ node, vitest, java
   - 포털 메뉴에서 화면이 열리고 e2e `src/frontend/e2e/mdm-ruleEdit.spec.ts` 가 통과한다
   - BASE_SPD_LKP 샘플 표시·편집 왕복 일치
   - COIL_WGT_CALC·PROD_WGT_CALC 샘플 저장·미리보기 일치
-  - 계약 변경 시 상신 화면 확인란으로 연결
+  - 계약 변경 시 확정 화면 확인란으로 연결
 - constraints: -
 - test-criteria: -
 
@@ -1477,57 +1420,46 @@ node, vitest, java
 - ui-spec:
   - 시안: [06 「룰 화면 카드 ④⑤⑥」](design/basic/html/06-business-rule.html)
 
-### TSK-08-05: 룰 상신·배포·정의 조회·수신
+### TSK-08-05: 룰 버전 확정 — 확정 검사·적용시점·diff
 - category: dev
 - domain: fullstack
 - model: opus
 - status: [ ]
 - priority: high
 - assignee: -
-- schedule: 2026-11-25 ~ 2026-12-09
-- tags: 06, submit, deploy, receive
-- depends: TSK-08-01, TSK-01-03, TSK-06-01, TSK-07-01, TSK-01-04, TSK-03-03
+- schedule: 2026-12-07 ~ 2026-12-21
+- tags: 06, version, confirm
+- depends: TSK-08-01, TSK-01-03, TSK-03-03, TSK-08-04
 - blocked-by: -
-- entry-point: /portal → mdr/ruleSubmit (메뉴: MDM > 업무기준 > 상신); /portal → mdr/ruleRecvLog (메뉴: MDM > 업무기준 > 수신 로그)
-- note: 세부 작업: 상신 — 검사·룰 참조 검사·하한 / 룰 배포 스냅샷·정의 조회 API·결재 연동 / EXTERNAL 수신 API·수신 로그
+- entry-point: /portal → mdr/ruleConfirm (메뉴: MDM > 업무기준 > 버전 확정)
+- note: 세부 작업: 확정 검사 / 직전 RELEASED 대비 row_id diff / 확정 전이·자동 전이. 상신·결재·배포 스냅샷·정의 조회 API·수신은 보류(PRD §2 규칙 7)
 
 #### PRD 요구사항
-- prd-ref: [06 「저장 시 검사」](design/basic/06-business-rule.md) · [08 「3. 결재에서 지키는 규칙」](design/basic/08-approval.md) · [06 「테이블 설계」](design/basic/06-business-rule.md) · [06 「엔진 모듈: 별도 jar로 분리」](design/basic/06-business-rule.md) · [06 「수신 API (원천이 EXTERNAL인 룰)」](design/basic/06-business-rule.md) · PRD FR-E4 · PRD FR-E6 · 시안: [06 「상신」](design/basic/html/06-business-rule.html) · 시안: [06 「수신 로그」](design/basic/html/06-business-rule.html)
+- prd-ref: [06 「저장 시 검사」](design/basic/06-business-rule.md) · [06 「테이블 설계」](design/basic/06-business-rule.md) · PRD §2 규칙 7 · PRD FR-E4 · 시안: [06 「상신」](design/basic/html/06-business-rule.html)
 - requirements:
-  - 저장 시 검사 전부 + 변수·행 1개 이상 + 기대값 있는 테스트 케이스 전부 통과
-  - 룰 참조 검사: 참조 코드·카테고리·데이터가 DEF 대상 시스템마다 TB_MDM_CODE_SYSTEM/TB_MDM_DATA_SYSTEM 에 있음
-  - 앞 룰 RELEASED 확인, 적용시점 하한, 계약 변경 확인란
-  - 결재 provider(row_id diff: ADDED/REMOVED/CHANGED/SAME), 승인·배포·철회, CREATED→INUSE 자동 전이
-  - RELEASED 버전 스냅샷(헤더·엔진 버전·변수·계약·행·셀 구조+텍스트/AST), 세트 스냅샷
-  - 정의 조회 API(`view`, ERP 용 JSON)
-  - 배포 대상 제거 시 영향 룰 경고 API(04·05 가 호출)
-  - VERSION/CANCEL/DEPRECATE, 전체 정의 한 요청, 거부 4종, 저장·상신 검사 없음
-  - 수신 로그 화면
+  - 확정 검사: 저장 시 검사 전부 + 변수·행 1개 이상 + 기대값 있는 테스트 케이스 전부 통과
+  - 앞 룰 RELEASED 확인, apply_from 이 직전 RELEASED apply_from 보다 뒤, 계약 변경 확인란
+  - 직전 RELEASED 대비 row_id diff(ADDED/REMOVED/CHANGED/SAME)
+  - 확정 = DRAFT → RELEASED, 직전 버전 apply_to 닫기(공통 버전 상태 서비스 사용), CREATED→INUSE 자동 전이
 - acceptance:
-  - 검사 하나라도 실패하면 상신 거부
-  - 포털 메뉴에서 화면이 열리고 e2e `src/frontend/e2e/mdm-ruleSubmit.spec.ts` 가 통과한다
-  - 수신 스텁이 스냅샷으로 판정한 결과가 서버 판정과 같다
-  - MDM 원천 룰 수신 거부
-  - 실패 시 FAILED 별도 커밋
-  - 포털 메뉴에서 화면이 열리고 e2e `src/frontend/e2e/mdm-ruleRecvLog.spec.ts` 가 통과한다
-- constraints: -
+  - 검사 하나라도 실패하면 확정 거부
+  - 담당자가 아닌 사용자는 확정할 수 없다
+  - 룰 참조 검사(배포 대상 시스템 기준)는 하지 않는다
+  - 포털 메뉴에서 화면이 열리고 e2e `src/frontend/e2e/mdm-ruleConfirm.spec.ts` 가 통과한다
+- constraints:
+  - 상신 화면 시안은 배치 참고용이다. 결재 영역은 만들지 않는다
 - test-criteria: -
 
 #### 기술 스펙 (TRD)
 - tech-spec:
-  - BE: `com.dongkuk.dmes.mdm.mdr.ruleSubmit.{dto,service}` + BPMN `services/mdr/ruleSubmit.bpmn`
-  - FE: `m-mdm/src/pages/mdr/ruleSubmit/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdr/ruleSubmit`
-  - BE: `com.dongkuk.dmes.mdm.mdr.ruleRecvLog.{dto,service}` + BPMN `services/mdr/ruleRecvLog.bpmn`
-  - FE: `m-mdm/src/pages/mdr/ruleRecvLog/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
-  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdr/ruleRecvLog`
+  - BE: `com.dongkuk.dmes.mdm.mdr.ruleConfirm.{dto,service}` + BPMN `services/mdr/ruleConfirm.bpmn`
+  - FE: `m-mdm/src/pages/mdr/ruleConfirm/page.tsx` (m-mcm 포털 적재, page-registry 코드젠)
+  - 메뉴·OBJECT·RBAC 시드: `DataInitializer` componentPath=`mdr/ruleConfirm`
 - api-spec:
-  - OASIS 서비스 `ruleSubmit` — `/api/mdm/oasis/{serviceId}/{action}`
-  - OASIS 서비스 `ruleRecvLog` — `/api/mdm/oasis/{serviceId}/{action}`
+  - OASIS 서비스 `ruleConfirm` — `/api/mdm/oasis/{serviceId}/{action}`
 - data-model: -
 - ui-spec:
-  - 시안: [06 「상신」](design/basic/html/06-business-rule.html)
-  - 시안: [06 「수신 로그」](design/basic/html/06-business-rule.html)
+  - 시안: [06 「상신」](design/basic/html/06-business-rule.html) (확정 폼으로 변형)
 
 ### TSK-08-06: 룰 세트 조회·등록·편집
 - category: dev
@@ -1550,7 +1482,7 @@ node, vitest, java
   - 빈 세트 등록(INUSE)
   - 룰 목록 순서 편집(드래그·▲▼, 뒤에 있음 표시), 세트 입출력 표
   - 결과 변수 역추적 → 위상 정렬 제안 → 목록 적용, 순환 검출
-  - 저장 시 검사 4개, 저장 즉시 배포, 폐기·되살리기
+  - 저장 시 검사 4개, 폐기·되살리기(저장 즉시 배포는 보류)
 - acceptance:
   - 등록 후 편집 화면으로 이동
   - 포털 메뉴에서 화면이 열리고 e2e `src/frontend/e2e/mdm-ruleSetMng.spec.ts` 가 통과한다
@@ -1579,7 +1511,7 @@ node, vitest, java
 
 ## WP-09: 통합테스트
 - schedule: 2026-12-15 ~ 2027-01-05
-- description: 영역 간 흐름·배포 정합·권한 교차·성능 (개별 기능 재검증 아님)
+- description: 영역 간 흐름·원장 판정 정합·권한 교차·성능 (개별 기능 재검증 아님)
 
 ### TSK-09-01: 영역 통합 — 평가 엔진·용어 사전·레이아웃
 - category: itest
@@ -1593,14 +1525,14 @@ node, vitest, java
 - depends: TSK-03-02, TSK-03-03, TSK-03-04, TSK-04-02, TSK-04-03, TSK-04-04, TSK-04-05, TSK-05-02, TSK-05-03
 - blocked-by: -
 - entry-point: -
-- note: 세부 작업: 평가 엔진 — 서버·화면 정합성과 샘플 룰 판정 / 용어·도메인·컬럼 — 등록→검증→사전 배포 / 인터페이스 레이아웃 — 정의→검증→직렬화 왕복
+- note: 세부 작업: 평가 엔진 — 서버·화면 정합성과 샘플 룰 판정 / 용어·도메인·컬럼 — 등록→검증 / 인터페이스 레이아웃 — 정의→검증→직렬화 왕복
 
 #### PRD 요구사항
-- prd-ref: [06 「엔진 골격 (Java, 서버)」](design/basic/06-business-rule.md) · [02 「배포 순번」](design/basic/02-term-domain-column.md) · [03 「자동 계산과 등록 검증」](design/basic/03-interface-layout.md) · PRD FR-E7 · PRD FR-A · PRD FR-B
+- prd-ref: [06 「엔진 골격 (Java, 서버)」](design/basic/06-business-rule.md) · [03 「자동 계산과 등록 검증」](design/basic/03-interface-layout.md) · PRD FR-E7 · PRD FR-A · PRD FR-B
 - requirements:
-  - 코퍼스 전체·샘플 룰 4종을 서버 엔진·JS 평가기·수신 스텁 사본에서 같은 결과로 판정
-  - 용어 → 도메인(상속·검증식) → 컬럼(자동 생성·매핑) → 사전 변경분 배포(D1~D6)가 수신 스텁까지 이어진다
-  - 헤더·레이아웃 등록 → 등록 검증 → 스냅샷 배포 → 송신 직렬화·수신 파싱 왕복 일치
+  - 코퍼스 전체·샘플 룰 4종을 서버 엔진·JS 평가기에서 같은 결과로 판정
+  - 용어 → 도메인(상속·검증식) → 컬럼(자동 생성·매핑)이 한 흐름으로 등록·검증된다
+  - 헤더·레이아웃 등록 → 등록 검증 → 스냅샷 생성 → 직렬화·파싱 왕복 일치
 - acceptance:
   - 시나리오 통과
   - 발견 결함은 해당 기능 WP 에 defect Task 로 등록됨
@@ -1625,14 +1557,14 @@ node, vitest, java
 - depends: TSK-06-02, TSK-06-03, TSK-06-04, TSK-06-05, TSK-07-02, TSK-07-03, TSK-07-04, TSK-08-02, TSK-08-03, TSK-08-04, TSK-08-05, TSK-08-06
 - blocked-by: -
 - entry-point: -
-- note: 세부 작업: 마스터코드 — 등록→편집→상신→결재→배포→사본 판정 / 마스터데이터 — 등록→항목·CSV→수신→변경분 배포 / 업무기준 — 편집→검사→시험→상신→결재→배포
+- note: 세부 작업: 마스터코드 — 등록→편집→확정→원장 판정 / 마스터데이터 — 등록→항목·CSV / 업무기준 — 편집→검사→시험→확정
 
 #### PRD 요구사항
 - prd-ref: [04 「샘플 데이터」](design/basic/04-master-code-deploy-full.md) · [05 「예」](design/basic/05-master-data.md) · [06 「저장 시 검사」](design/basic/06-business-rule.md) · PRD FR-C · PRD FR-D · PRD FR-E
 - requirements:
-  - PROC_CD·STEEL_STD·EQP_CD 샘플로 전 흐름, 전체 방식 사본의 MASTER_AT 판정이 판정 표와 일치
-  - PORT·ORG·CUST 샘플로 화면·CSV·수신 API 경로가 같은 순번 규칙을 지키고 사본 판정 7케이스 일치
-  - 룰 4종·세트 LS_A3 가 편집부터 배포까지 통과, 수신 스텁 판정이 서버 판정과 일치
+  - PROC_CD·STEEL_STD·EQP_CD 샘플로 등록→편집→확정 흐름, 원장 기준 MASTER_AT 판정이 판정 표와 일치
+  - PORT·ORG·CUST 샘플로 화면·CSV 경로가 같은 선분 규칙을 지키고 원장 기준 판정 7케이스 일치
+  - 룰 4종·세트 LS_A3 가 편집부터 확정까지 통과, 서버 판정이 샘플 기대값과 일치
 - acceptance:
   - 시나리오 통과
   - 발견 결함은 해당 기능 WP 에 defect Task 로 등록됨
@@ -1660,11 +1592,11 @@ node, vitest, java
 - note: 세부 작업: 모듈 관통 — 도메인·코드·데이터·룰 연쇄 / 권한 교차·성능
 
 #### PRD 요구사항
-- prd-ref: [01 「4. 배포·실행 흐름」](design/basic/01-mdm-overview.md) · [08 「7. 미결 사항」](design/basic/08-approval.md) · PRD PRD AC-1~AC-6 · PRD PRD NFR-1, NFR-5
+- prd-ref: [01 「MDM 전체 아키텍처」](design/basic/01-mdm-overview.md) · PRD AC-1~AC-4, AC-6 · PRD NFR-1, NFR-5
 - requirements:
-  - CODE 도메인이 마루 코드를 참조 → 코드 배포 → 데이터 배포 → 룰이 MASTER 로 코드·데이터 참조해 상신·배포 → 배포 대상에서 시스템 제거 시 룰 경고 → 사본 판정 일치
-  - 역할 3종 × 화면·액션 권한 매트릭스, DRAFT 소유권 교차(비소유자 저장 거부)
-  - NFR-1 성능(AST 1만 행, 룰 판정), 수신 API 인증 실패 경로
+  - CODE 도메인이 마루 코드를 참조 → 코드 확정 → 데이터 등록 → 룰이 MASTER 로 코드·데이터를 참조해 확정 → 원장 기준 판정 일치
+  - 역할 2종 × 화면·액션 권한 매트릭스, DRAFT 소유권 교차(비소유자 저장 거부)
+  - NFR-1 성능(AST 1만 행, 룰 판정)
 - acceptance:
   - 시나리오 통과
   - 발견 결함은 해당 기능 WP 에 defect Task 로 등록됨
@@ -1681,17 +1613,17 @@ node, vitest, java
 
 ## 의존 그래프
 
-> `dep-analysis.py --graph-stats` 결과(생성 직후 실행). 노드 표기는 3단계 4자리(`0101.` = TSK-01-01).
+> `dep-analysis.py --graph-stats` 결과(2026-09-23 결재·배포·수신 보류 반영 후 재생성). 노드 표기는 3단계 4자리(`0101.` = TSK-01-01).
 
 ### 그래프 (Mermaid)
 
 ```mermaid
 graph LR
   T0101["0101. 모듈 스캐폴드 (mdm·maru-"]
-  T0102["0102. 전사 공유 계약 — 공통·결재 상"]
-  T0103["0103. 권한 가드·공통 셸 + 결재 공통"]
-  T0104["0104. 배포 코어·수신 API 골격 + "]
-  T0201["0201. 전사 아키텍처·결재·배포 방식 설"]
+  T0102["0102. 전사 공유 계약 — 공통·버전 상"]
+  T0103["0103. 권한 가드·공통 셸 + 버전 상태"]
+  T0104["0104. [보류] 배포 코어·수신 API "]
+  T0201["0201. 전사 아키텍처·버전 확정 규칙 설"]
   T0202["0202. 평가 엔진 설계 + 임베딩 방식 "]
   T0203["0203. 영역별 DB(ERD) 설계 (02"]
   T0301["0301. 엔진 공유 계약 (계약 전용)"]
@@ -1702,7 +1634,7 @@ graph LR
   T0402["0402. 용어·단위 관리 (유사어 추천 포"]
   T0403["0403. 도메인 관리 — 상속·검증식·테스"]
   T0404["0404. 컬럼 사전 — 자동 생성·역분해·"]
-  T0405["0405. 사전 수신 시스템·변경분 배포·초"]
+  T0405["0405. 초기 적재 — SAP 데이터 엘리"]
   T0501["0501. 인터페이스 레이아웃 공유 계약 ("]
   T0502["0502. 전문 헤더·레이아웃 편집"]
   T0503["0503. 직렬화기·등록 검증·버전·스냅샷 "]
@@ -1710,16 +1642,16 @@ graph LR
   T0602["0602. 마루 코드 조회·등록·수정·버전"]
   T0603["0603. 코드 편집 — 그리드·트리·경미 "]
   T0604["0604. 카테고리 편집 — REGEX·TA"]
-  T0605["0605. 상신·결재 연동·전체 방식 배포·"]
+  T0605["0605. 마루 코드 버전 확정 — 검사 8"]
   T0701["0701. 마스터데이터 공유 계약 (계약 전"]
   T0702["0702. 마루 데이터 조회·등록·수정·카테"]
   T0703["0703. 항목 관리 — 저장 코어·목록·이"]
-  T0704["0704. 항목 트리·CSV 업로드·수신·변"]
+  T0704["0704. 항목 트리·CSV 업로드"]
   T0801["0801. 업무기준 공유 계약 (계약 전용)"]
   T0802["0802. 룰 조회·등록·룰 화면 골격·의사"]
   T0803["0803. 열 설정·피벗·결과 열 그룹·산출"]
   T0804["0804. 룰 저장 시 검사·값 테스트"]
-  T0805["0805. 룰 상신·배포·정의 조회·수신"]
+  T0805["0805. 룰 버전 확정 — 확정 검사·적용"]
   T0806["0806. 룰 세트 조회·등록·편집"]
   T0901["0901. 영역 통합 — 평가 엔진·용어 사"]
   T0902["0902. 영역 통합 — 마스터코드·마스터데"]
@@ -1747,8 +1679,6 @@ graph LR
   T0401 --> T0404
   T0103 --> T0404
   T0401 --> T0405
-  T0103 --> T0405
-  T0104 --> T0405
   T0203 --> T0501
   T0102 --> T0501
   T0401 --> T0501
@@ -1757,7 +1687,6 @@ graph LR
   T0501 --> T0503
   T0103 --> T0503
   T0302 --> T0503
-  T0104 --> T0503
   T0203 --> T0601
   T0102 --> T0601
   T0601 --> T0602
@@ -1770,7 +1699,6 @@ graph LR
   T0302 --> T0604
   T0601 --> T0605
   T0103 --> T0605
-  T0104 --> T0605
   T0203 --> T0701
   T0102 --> T0701
   T0701 --> T0702
@@ -1781,7 +1709,6 @@ graph LR
   T0701 --> T0704
   T0103 --> T0704
   T0703 --> T0704
-  T0104 --> T0704
   T0203 --> T0801
   T0102 --> T0801
   T0301 --> T0801
@@ -1799,10 +1726,8 @@ graph LR
   T0103 --> T0804
   T0801 --> T0805
   T0103 --> T0805
-  T0601 --> T0805
-  T0701 --> T0805
-  T0104 --> T0805
   T0303 --> T0805
+  T0804 --> T0805
   T0801 --> T0806
   T0103 --> T0806
   T0303 --> T0806
@@ -1841,54 +1766,52 @@ graph LR
   style T0601 fill:#e8f5e9,stroke:#2e7d32
   style T0701 fill:#e8f5e9,stroke:#2e7d32
   style T0801 fill:#e8f5e9,stroke:#2e7d32
-  style T0803 fill:#e8f5e9,stroke:#2e7d32
   style T0103 fill:#fff3e0,stroke:#e65100
-  style T0104 fill:#fff3e0,stroke:#e65100
+  style T0104 fill:#eeeeee,stroke:#9e9e9e,stroke-dasharray: 4 3
 ```
 
 ### 통계
 
 | 항목 | 값 | 임계값 |
 |------|-----|--------|
-| 최장 체인 깊이 | 7 | 3 초과 시 검토 (공정 양끝 +2 는 구조 비용 허용) |
+| 최장 체인 깊이 | 8 | 3 초과 시 검토 (공정 양끝 +2 는 구조 비용 허용) |
 | 전체 Task 수 | 37 | — |
 | Fan-in ≥ 3 Task 수 | 14 | 계약 추출 후보 (모듈 계약·셸·itest 는 구조적 예외) |
-| Diamond 패턴 수 | 212 | 자주 발생 시 apex 계약 추출 |
+| Diamond 패턴 수 | 169 | 자주 발생 시 apex 계약 추출 |
 
-**최장 경로**: TSK-01-01 → TSK-02-01 → TSK-02-02 → TSK-03-01 → TSK-03-02 → TSK-04-03 → TSK-09-01
+**최장 경로**: TSK-01-01 → TSK-02-01 → TSK-02-02 → TSK-03-01 → TSK-03-03 → TSK-08-04 → TSK-08-05 → TSK-09-02
 
 - 공정 양끝 구조 비용: 스캐폴드 → 전사 설계 → 엔진 설계 → 엔진 계약(선행 4) + 통합테스트(후행 1).
-- 나머지 2노드는 식 평가 코어 → 도메인 관리 화면이다. 도메인 검증식 화면은 엔진 실동작(식 파싱·도메인 검증기)이 있어야 만들 수 있는 **실제 구현 의존**이라 유지한다.
-- 기능 구간 내부 깊이는 대부분 3(모듈 계약 → 기능 → itest)이다. 공통 서비스(결재·배포 코어, 엔진 부품)를 거치는 경로가 4다.
+- 나머지는 룰 판정 엔진 → 룰 저장 시 검사 → 룰 버전 확정이다. 확정 검사가 저장 시 검사를 그대로 호출하는 **실제 구현 의존**이라 유지한다.
+- TSK-01-04(배포 코어)는 보류라 후행 Task 가 없다. 결재·배포·수신을 구현할 때 다시 잇는다(PRD §2 규칙 7).
 
 **Fan-in Top 5**
 
-| Task | Fan-in | 계약 추출 가능? |
-|------|--------|----------------|
-| TSK-01-03 | 19 | 구조적 예외 — 권한 가드·공통 셸(샌드위치 골격 고정) |
-| TSK-01-02 | 7 | 이미 계약 전용 Task(모듈 계약) — 구조적 예외 |
-| TSK-03-02 | 7 | 아래 리뷰 후보 참조 |
-| TSK-04-01 | 6 | 이미 계약 전용 Task(모듈 계약) — 구조적 예외 |
-| TSK-01-04 | 5 | 아래 리뷰 후보 참조 |
+| Task | Fan-in |
+|------|--------|
+| TSK-01-03 | 18 |
+| TSK-01-02 | 7 |
+| TSK-03-02 | 7 |
+| TSK-04-01 | 6 |
+| TSK-02-03 | 5 |
 
 **Diamond 패턴** (apex 별 집계 — 개별 목록은 생략)
 
-| Apex | 패턴 수 | 판단 |
-|------|--------|------|
-| TSK-01-03 | 96 | 상류 설계·스캐폴드 공유로 생기는 구조적 다이아몬드 |
-| TSK-01-02 | 35 | 공통 계약에서 셸·모듈 계약 두 갈래로 나뉘었다가 화면 Task 에서 합류 — 골격이 만드는 구조적 다이아몬드 |
-| TSK-03-01 | 13 | 공통 계약에서 셸·모듈 계약 두 갈래로 나뉘었다가 화면 Task 에서 합류 — 골격이 만드는 구조적 다이아몬드 |
-| TSK-06-01 | 11 | 공통 계약에서 셸·모듈 계약 두 갈래로 나뉘었다가 화면 Task 에서 합류 — 골격이 만드는 구조적 다이아몬드 |
-| TSK-08-01 | 11 | 공통 계약에서 셸·모듈 계약 두 갈래로 나뉘었다가 화면 Task 에서 합류 — 골격이 만드는 구조적 다이아몬드 |
-| TSK-07-01 | 9 | 공통 계약에서 셸·모듈 계약 두 갈래로 나뉘었다가 화면 Task 에서 합류 — 골격이 만드는 구조적 다이아몬드 |
+| Apex | 패턴 수 |
+|------|--------|
+| TSK-01-03 | 91 |
+| TSK-01-02 | 17 |
+| TSK-03-01 | 13 |
+| TSK-08-01 | 11 |
+| TSK-03-02 | 7 |
+| TSK-04-01 | 6 |
 
 ### 리뷰 후보 (review_candidates)
 
 | Task | 신호 | 판정 | 근거 |
 |------|------|------|------|
 | TSK-01-02 | fan_in=7 | 유지 | 이미 계약 전용 Task. 모듈 계약 fan-in 은 프로그램 수만큼 커지는 구조적 예외 |
-| TSK-01-03 | fan_in=19 | 유지 | 권한 가드·공통 셸과 결재 공통 — 화면 Task 전부가 의존하는 샌드위치 골격 노드. 계약(TSK-01-02)은 이미 분리됨 |
-| TSK-01-04 | fan_in=5 | 유지 | 계약(TSK-01-02)은 이미 분리됨. 소비 Task(배포 송출·수신 API)는 순번 발급·전달 실동작이 필요 |
+| TSK-01-03 | fan_in=18 | 유지 | 권한 가드·공통 셸과 버전 상태 서비스 — 화면 Task 전부가 의존하는 샌드위치 골격 노드. 계약(TSK-01-02)은 이미 분리됨 |
 | TSK-02-01 | fan_in=3 | 유지 | 전사 설계는 엔진 설계·DB 설계의 전이적 게이트. 개발 Task 는 이것이 아니라 계약에 의존한다 |
 | TSK-02-03 | fan_in=5 | 유지 | 영역 DB 설계는 영역 계약의 유일한 설계 선행(계약 파이프라인) |
 | TSK-03-01 | fan_in=4 | 유지 | 이미 계약 전용 Task. 모듈 계약 fan-in 은 프로그램 수만큼 커지는 구조적 예외 |
@@ -1897,15 +1820,13 @@ graph LR
 | TSK-03-04 | fan_in=5 | 유지 | 엔진 계약(TSK-03-01)은 이미 분리됨. 소비 Task 는 해당 엔진 부품의 실동작(미리보기·검사·판정)이 필요 |
 | TSK-04-01 | fan_in=6 | 유지 | 이미 계약 전용 Task. 모듈 계약 fan-in 은 프로그램 수만큼 커지는 구조적 예외 |
 | TSK-04-03 | depends_count=4 | 유지 | 도메인 검증식·미리보기는 식 코어·도메인 검증기·JS 평가기 실동작이 필요 |
-| TSK-05-03 | depends_count=4 | 유지 | 샘플 전문 렌더는 직렬화기, CONST 검증은 도메인 검증기, 스냅샷은 배포 코어 실동작이 필요 |
-| TSK-06-01 | fan_in=5 | 유지 | 이미 계약 전용 Task. 모듈 계약 fan-in 은 프로그램 수만큼 커지는 구조적 예외 |
-| TSK-07-01 | fan_in=4 | 유지 | 이미 계약 전용 Task. 모듈 계약 fan-in 은 프로그램 수만큼 커지는 구조적 예외 |
-| TSK-07-03 | fan_in=3 | 유지 | 화면·CSV·수신 API 세 경로가 같은 선분·순번 저장 코어를 써야 한다(05 「저장 경로와 검증」) |
-| TSK-07-04 | depends_count=4 | 유지 | CSV·수신 API 는 저장 코어를, 변경분 송신은 배포 코어를 쓴다 |
+| TSK-06-01 | fan_in=4 | 유지 | 이미 계약 전용 Task. 모듈 계약 fan-in 은 프로그램 수만큼 커지는 구조적 예외 |
+| TSK-07-01 | fan_in=3 | 유지 | 이미 계약 전용 Task. 모듈 계약 fan-in 은 프로그램 수만큼 커지는 구조적 예외 |
+| TSK-07-03 | fan_in=3 | 유지 | 화면·CSV 두 경로가 같은 선분 저장 코어를 써야 한다(05 「저장 경로와 검증」) |
 | TSK-08-01 | depends_count=4, fan_in=5 | 유지 | 06 계약은 도메인(02) FK·엔진 SPI 를 참조한다 — 계약 간 참조 |
 | TSK-08-03 | depends_count=4 | 유지 | Expression 미리보기·입력 계약 표가 식 코어·분석 엔진 실동작을 쓴다 |
-| TSK-08-04 | depends_count=4 | 유지 | 저장 시 검사가 op-code 생성기·겹침 분석을, 값 테스트가 판정 엔진을 쓴다 |
-| TSK-08-05 | depends_count=6 | 유지 | 룰 참조 검사가 04·05 계약을, 배포가 결재·배포 코어와 엔진 view 를 조합한다 |
+| TSK-08-04 | depends_count=4, fan_in=3 | 유지 | 저장 시 검사가 op-code 생성기·겹침 분석을, 값 테스트가 판정 엔진을 쓴다. 확정(TSK-08-05)이 이 검사를 그대로 호출한다 |
+| TSK-08-05 | depends_count=4 | 유지 | 확정 검사가 저장 시 검사(TSK-08-04)·판정 엔진·공통 버전 상태 서비스를 조합한다 |
 | TSK-09-01 | depends_count=9 | 유지 | 통합테스트는 시나리오가 관통하는 기능 Task 전부에 의존 — 구조적 예외 |
 | TSK-09-02 | depends_count=12 | 유지 | 통합테스트는 시나리오가 관통하는 기능 Task 전부에 의존 — 구조적 예외 |
 | TSK-09-03 | depends_count=7 | 유지 | 통합테스트는 시나리오가 관통하는 기능 Task 전부에 의존 — 구조적 예외 |
