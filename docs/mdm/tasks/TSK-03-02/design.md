@@ -784,7 +784,7 @@ Build Phase(2026-09-24)에서 설계와 달라진 점과 그 이유다. 계약 �
 
 방법: 스크립트가 변이마다 원문 한 곳이 **정확히 한 번** 맞는지 확인하고 바꾼 뒤, 해당 테스트 클래스만 `--tests` 로 돌려 JUnit XML 의 실패 사례를 모으고 `/usr/bin/git checkout --` 로 되돌렸다. 전 변이 뒤 `/usr/bin/git diff --stat` 이 비어 있음(잔여 변이 없음)을 확인했다. 컴파일 실패는 I35 에서만 빨강으로 친다.
 
-- 결과: 불변 규칙 **36/36 빨강**(변이 67개 모두 빨강, I35 는 설계대로 컴파일 실패). 처음 실행에서 살아남은 변이는 I24a 하나였고 테스트 2건을 더해 덮었다(§9 이탈 6).
+- 결과: 불변 규칙 **36/36 빨강**(변이 67개 모두 빨강, I35 는 설계대로 컴파일 실패). 처음 실행에서 살아남은 변이는 I24a 하나였고 테스트 2건을 더해 덮었다(§9 이탈 6). §9 이탈 11 수정 뒤 `DefaultDomainValidator` 에 걸린 변이 8개(I25a-c·I26a-c·I28·I33)는 수정 커밋 위에서 다시 돌려 빨강을 확인했다. 수정 자체는 테스트를 먼저 넣어 비즈니스식 사례가 빨강인 것을 본 뒤 넣었다.
 - 덮지 못한 것(자동 테스트 밖): ① 1,000 스레드 테스트는 값 섞임을 확률적으로만 잡는다 — I10a 에서는 결정적 짝 `평가_뒤_캐시_원본에는_값이_남지_않는다` 와 함께 1,000 스레드 테스트도 빨강이었다. ② 영구 테스트·계약 파일이 바이트 동일인지는 자동 테스트가 없다 — Verify 가 `/usr/bin/git diff origin/dev -- <§2.5 목록>` 으로 본다. ③ I18a·I19c·I23b 는 04·05 가 공유하는 `Segments` 한 곳의 변이라 04·05 테스트가 함께 빨강이 된다(규칙 I18·I23 을 한 변이가 같이 덮는다).
 
 | 변이 ID | 규칙 | 넣은 변이 | 결과 | 빨강이 난 테스트(클래스.사례) |
@@ -836,23 +836,23 @@ Build Phase(2026-09-24)에서 설계와 달라진 점과 그 이유다. 계약 �
 | I23d | I23 | closedAt 무시 | 빨강 1/17 | `MasterDataResolverTest.폐기된_마루_데이터는_closed_at_부터_false_다()` |
 | I24a | I24 | 05 REGEX 대상 칸을 늘 KEY 로 | 빨강 2/19 (첫 실행은 생존 0/17 → 테스트 2건 추가 후 재실행) | `MasterDataResolverTest.KR KRPUS 2026-09-06T00:00:00 → true`, `MasterDataResolverTest.KR KRINC 2026-08-30T00:00:00 → true` |
 | I24b | I24 | 05 TABLE 소속 확인 삭제 | 빨강 1/17 | `MasterDataResolverTest.PORT MAJOR KRINC 2026-08-15T00:00:00 → false` |
-| I25a | I25 | 빈 값 정규화 삭제 | 빨강 3/15 | `DefaultDomainValidatorTest.''`, `DefaultDomainValidatorTest.'   '`, `DefaultDomainValidatorTest.'	
+| I25a | I25 | 빈 값 정규화 삭제 | 빨강 3/17 (§9 이탈 11 수정 커밋 뒤 재실행) | `DefaultDomainValidatorTest.''`, `DefaultDomainValidatorTest.'   '`, `DefaultDomainValidatorTest.'	
 '` |
-| I25b | I25 | 필수 아닌 NULL 도 식까지 간다(필수 검사를 식 뒤로) | 빨강 1/15 | `DefaultDomainValidatorTest.필수가_아니면_NULL_은_통과하고_식은_돌지_않는다()` |
-| I25c | I25 | 표준식 실패 뒤에도 비즈니스식 평가 | 빨강 1/15 | `DefaultDomainValidatorTest.표준식이_거짓이면_비즈니스식을_돌리지_않는다()` |
-| I26a | I26 | 비즈니스 요구 변수 누락 검사 삭제 | 빨강 2/60 | `DefaultDomainValidatorTest.비즈니스_요구_변수_키가_없으면_BIZ_VAR_MISSING_이다()`, `DomainKindExamplesTest.COIL_GRS_WGT '20' null → false BIZ_VAR_MISSING` |
-| I26b | I26 | containsKey → get(...) != null | 빨강 1/15 | `DefaultDomainValidatorTest.키가_있고_값이_NULL_이면_누락이_아니다()` |
-| I26c | I26 | 레코드 복사본을 대소문자 구분 맵으로 | 빨강 1/15 | `DefaultDomainValidatorTest.요구_변수_키는_대소문자를_가리지_않는다()` |
+| I25b | I25 | 필수 아닌 NULL 도 식까지 간다(필수 검사를 식 뒤로) | 빨강 1/17 (§9 이탈 11 수정 커밋 뒤 재실행) | `DefaultDomainValidatorTest.필수가_아니면_NULL_은_통과하고_식은_돌지_않는다()` |
+| I25c | I25 | 표준식 실패 뒤에도 비즈니스식 평가 | 빨강 1/17 (§9 이탈 11 수정 커밋 뒤 재실행) | `DefaultDomainValidatorTest.표준식이_거짓이면_비즈니스식을_돌리지_않는다()` |
+| I26a | I26 | 비즈니스 요구 변수 누락 검사 삭제 | 빨강 2/62 (§9 이탈 11 수정 커밋 뒤 재실행) | `DefaultDomainValidatorTest.비즈니스_요구_변수_키가_없으면_BIZ_VAR_MISSING_이다()`, `DomainKindExamplesTest.COIL_GRS_WGT '20' null → false BIZ_VAR_MISSING` |
+| I26b | I26 | containsKey → get(...) != null | 빨강 1/17 (§9 이탈 11 수정 커밋 뒤 재실행) | `DefaultDomainValidatorTest.키가_있고_값이_NULL_이면_누락이_아니다()` |
+| I26c | I26 | 레코드 복사본을 대소문자 구분 맵으로 | 빨강 1/17 (§9 이탈 11 수정 커밋 뒤 재실행) | `DefaultDomainValidatorTest.요구_변수_키는_대소문자를_가리지_않는다()` |
 | I27a | I27 | 숫자 문자열을 new BigDecimal(s) 로 바로 | 빨강 5/28 | `ValueConverterTest.NUMBER ← 1e3`, `ValueConverterTest.NUMBER ← 0xFF`, `ValueConverterTest.NUMBER ←  1`, `ValueConverterTest.NUMBER ← 1,000`, 외 1건 |
 | I27b | I27 | BOOLEAN 문자열을 Boolean.parseBoolean | 빨강 1/28 | `ValueConverterTest.BOOLEAN ← Y` |
-| I28 | I28 | 검증기가 new BigDecimal((String) raw) 로 직접 변환 | 빨강 2/2 | `TypeConversionEntryTest.domain_은_값_변환을_직접_하지_않는다()`, `TypeConversionEntryTest.도메인_검증기는_ValueConverter_convert_를_부른다()` |
+| I28 | I28 | 검증기가 new BigDecimal((String) raw) 로 직접 변환 | 빨강 2/2 (§9 이탈 11 수정 커밋 뒤 재실행) | `TypeConversionEntryTest.domain_은_값_변환을_직접_하지_않는다()`, `TypeConversionEntryTest.도메인_검증기는_ValueConverter_convert_를_부른다()` |
 | I29a | I29 | 유효 AST 를 오른쪽 중첩으로 | 빨강 2/11 | `EffectiveExpressionsTest.세_단계_AST_는_AND_AND_조부_부_자신_이다()`, `EffectiveExpressionsTest.[value > 0, value <= 30, value >= 1 && value <= 25]` |
 | I29b | I29 | 유효 텍스트 괄호 생략 | 빨강 2/11 | `EffectiveExpressionsTest.[value > 0, value <= 30, value >= 1 && value <= 25]`, `EffectiveExpressionsTest.두_단계_유효_텍스트는_02_예시와_같다()` |
 | I30a | I30 | 유효 코드 참조를 가장 먼 값으로 | 빨강 1/11 | `EffectiveExpressionsTest.[CodeRef[maruCodeId=PROC_CD, cateId=A], CodeRef[maruCodeId=PROC_CD, cateId=B]] → CodeRef[maruCodeId=PROC_CD, cateId=B]` |
 | I30b | I30 | 카테고리 null·빈 값을 그대로(BASE 로 안 바꿈) | 빨강 1/43 | `DefaultCodeResolverTest.카테고리가_비면_BASE_다()` |
 | I31 | I31 | ExpressionChecker.Problem 을 record 로 | 빨강 1/46 | `EngineContractSchemaTest.expr_rule_패키지의_record_enum_은_스키마_대응이_있거나_Java_전용_목록에_있다()` |
 | I32 | I32 | MdmExpressionConfig 에 static final 아닌 필드 | 빨강 1/5 | `ContractTypeShapeTest.상수_홀더는_final_이고_생성자가_private_이며_필드가_static_final_이다()` |
-| I33 | I33 | DefaultDomainValidator 가 DefaultCodeResolver 를 본다 | 빨강 1/5 | `EnginePackageDependencyTest.domain_은_rule_과_code_를_보지_않는다()` |
+| I33 | I33 | DefaultDomainValidator 가 DefaultCodeResolver 를 본다 | 빨강 1/5 (§9 이탈 11 수정 커밋 뒤 재실행) | `EnginePackageDependencyTest.domain_은_rule_과_code_를_보지_않는다()` |
 | I34 | I34 | main 이 허용 목록 밖(java.io)에 의존 — networknt 는 main 클래스패스에 없어 대체 | 빨강 1/2 | `MaruMdmEngineArchitectureTest.engine_은_EvalEx_와_java_표준_외에_의존하지_않는다()` |
 | I35 | I35 | 스캐폴드 evaluate → evaluateExpression(이름 변경) | 컴파일 실패(I35 는 설계상 허용) | `ExpressionEvaluatorTest` 컴파일 실패(`cannot find symbol evaluate`) |
 | I36a | I36 | 비즈니스 함수 이름 충돌 검사 삭제 | 빨강 3/9 | `BusinessFunctionTest.MASTER`, `BusinessFunctionTest.IF`, `BusinessFunctionTest.DT_NOW` |
