@@ -23,7 +23,11 @@ public enum MdmErrorCode {
     TRANSITION_NOT_ALLOWED("MDM009", 409, ErrorCode.BUSINESS_ERROR, "허용되지 않는 상태 전이입니다"),
     CONFIRM_CHECK_FAILED("MDM010", 400, ErrorCode.BUSINESS_ERROR, "확정 검사를 통과하지 못했습니다"),
     MARU_ID_NAMESPACE_CONFLICT("MDM011", 400, ErrorCode.DUPLICATE_DATA, "마루 코드·마루 데이터에 같은 ID 가 있습니다"),
-    RESERVED_CATEGORY("MDM012", 400, ErrorCode.BUSINESS_ERROR, "예약 카테고리 BASE 는 편집·삭제할 수 없습니다");
+    RESERVED_CATEGORY("MDM012", 400, ErrorCode.BUSINESS_ERROR, "예약 카테고리 BASE 는 편집·삭제할 수 없습니다"),
+    /** TSK-01-03 D3 — 확정·선점은 담당자(MDM_STEWARD) 역할만 할 수 있다. */
+    STEWARD_ROLE_REQUIRED("MDM013", 403, ErrorCode.ACCESS_DENIED, "담당자 역할이 있어야 할 수 있습니다"),
+    /** TSK-01-03 D3 — 확정 검사 경고가 있는데 확인(warningsAcknowledged) 없이 확정을 요청했다. */
+    CONFIRM_WARNINGS_NOT_ACKNOWLEDGED("MDM014", 409, ErrorCode.BUSINESS_ERROR, "확정 검사 경고를 확인한 뒤 다시 확정하세요");
 
     private final String code;
     private final int httpStatus;
