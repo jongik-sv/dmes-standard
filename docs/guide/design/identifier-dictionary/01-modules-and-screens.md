@@ -228,6 +228,7 @@ A.1.1 모듈 외 기 구축·공유 모듈은 본 표로 분리 등재. 신규 �
 | `itemMoveTypeMgmt` | `IBA001K` | `mls` | `lsg` | `itemMoveTypeMgmt` | 2026-06-12 | 수불유형정보조회 (As-Is 수불유형등록 — **ERP CRUD 존치 / MES 조회전용 미러**, IF-MLS-IN-05 → TB_MLS_MOVE_TYPE(121). 사용자 확정 2026-06-12) |
 | `itemStockIssueMgmt` | `PCB020K` | `mls` | `lsb` | `itemStockIssueMgmt` | 2026-06-12 | 자재불출처리(창고) — **사용자 부여 + 설계 완료 2026-06-12 (6종 산출)**. 일반 자재 전용(박판 분기 미이식 — slitStockIssueMgmt 위임), 반납 ADMIN popup 1:1, IF-MLS-OUT-06/07, 공정보고 자동 연동(P-6) 미채택 |
 | `noticeMgmt` | — (To-Be only) | `mls` | `lsh` | `noticeMgmt` | 2026-09-03 | 공지사항 관리 — **As-Is 없음(신규 화면)**. 사용자 지시 2026-09-03 로 mls 를 테스트 모듈 삼아 신설. 목록+상세 CRUD + 게시상태/게시기간. 분석리포트 미작성(기능설계서 1종 축소 — 사용자 결정) |
+| `domainMng` | — (To-Be only) | `mdm` | `dma` | `domainMng` | 2026-09-24 | 도메인 관리 — As-Is 없음, 원천 02 maru03020/03030 계승. 상속 트리·검증식 두 칸·테스트 케이스·영향도(TSK-04-03). 기능설계서 1종(`docs/mdm/screens/domainMng/`) |
 
 **등재 절차**:
 1. 신규 화면 분석 시 본 표에 행 추가
