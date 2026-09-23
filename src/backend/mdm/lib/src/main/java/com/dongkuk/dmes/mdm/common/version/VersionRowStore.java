@@ -174,8 +174,13 @@ public class VersionRowStore {
         }
     }
 
+    /**
+     * VER 는 문자열로 읽는다. SQLite NUMERIC 친화도는 {@code 1.000} 을 INTEGER, {@code 1.001} 을 REAL 로 저장해 행마다
+     * 저장 형식이 다르고, 결과 타입을 첫 행으로 정하면 뒤 행의 소수부가 잘린다(Build 실측, 규칙표 #17).
+     */
     private static String selectColumns(VersionTableSpec spec) {
-        return "SELECT " + spec.objectIdColumn() + ", " + spec.versionColumn() + ", " + STATUS + ", " + OWNER_ID + ", "
+        return "SELECT " + spec.objectIdColumn() + ", CAST(" + spec.versionColumn() + " AS VARCHAR(40)), "
+                + STATUS + ", " + OWNER_ID + ", "
                 + APPLY_FROM + ", " + APPLY_TO + ", " + ROW_VERSION_COLUMN;
     }
 
