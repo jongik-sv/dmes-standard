@@ -60,6 +60,9 @@ describe("MdmPageLayout", () => {
     );
     expect(container.querySelector(".page-layout__footer-screen-id")?.textContent).toBe("mdmSample");
     expect(container.querySelector(".probe-body")?.textContent).toBe("본문");
+    // objId = screenId 면 PageLayout 이 버튼 RBAC 판정용으로 /api/auth/me 를 부른다(objId 가 없으면 부르지 않는다).
+    const calledUrls = vi.mocked(globalThis.fetch).mock.calls.map((call) => String(call[0]));
+    expect(calledUrls).toContain("/api/auth/me");
   });
 
   it("그룹이 바뀌면 breadcrumb 가운데 폴더 이름이 바뀐다", async () => {
