@@ -121,14 +121,14 @@ class EngineContractSchemaTest {
         return RECORDS.values().stream().map(p -> Arguments.of(p.id(), p));
     }
 
-    @ParameterizedTest(name = "[{0}]")
+    @ParameterizedTest(name = "{displayName} [{0}]")
     @MethodSource("enumPairs")
     void enum_상수_집합이_스키마와_같다(String id, EnumPair pair) {
         assertEquals(new TreeSet<>(pair.java().get()), new TreeSet<>(pair.schema().get()),
                 id + " Java 상수 집합과 $defs/" + pair.def() + " 가 다르다");
     }
 
-    @ParameterizedTest(name = "[{0}]")
+    @ParameterizedTest(name = "{displayName} [{0}]")
     @MethodSource("recordPairs")
     void record_컴포넌트_이름이_스키마_속성과_같다(String id, RecordPair pair) {
         Set<String> java = new TreeSet<>(componentNames(pair.type()));
@@ -137,7 +137,7 @@ class EngineContractSchemaTest {
         assertEquals(schema, java, id + " " + pair.type().getSimpleName() + " 컴포넌트와 $defs/" + pair.def() + " 속성이 다르다");
     }
 
-    @ParameterizedTest(name = "[{0}]")
+    @ParameterizedTest(name = "{displayName} [{0}]")
     @MethodSource("recordPairs")
     void Nullable_표지가_스키마의_선택_또는_null_허용과_같다(String id, RecordPair pair) {
         View view = view(pair.def());
@@ -159,7 +159,7 @@ class EngineContractSchemaTest {
         assertEquals(List.of(), violations, id + " " + pair.type().getSimpleName() + " ↔ $defs/" + pair.def());
     }
 
-    @ParameterizedTest(name = "[{0}]")
+    @ParameterizedTest(name = "{displayName} [{0}]")
     @MethodSource("recordPairs")
     void record_컴포넌트_타입_종류가_스키마와_맞는다(String id, RecordPair pair) {
         View view = view(pair.def());
