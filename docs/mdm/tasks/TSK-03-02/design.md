@@ -217,7 +217,7 @@ TDD 순서: 영역마다 테스트를 먼저 쓰고 빨강(컴파일 실패 포�
 | `비즈니스_함수는_비즈니스_칸_밖에서_거부된다` `@ParameterizedTest` 5건 | `THK_OK(value)` 를 `DOMAIN_STD`, `RULE_COND_EXPR`, `RULE_RESULT_EXPR`, `RULE_EXPR_VAR`, `RULE_GRP_COND` 에 검사 → `FUNCTION` 문제 |
 | `비즈니스_함수는_DOMAIN_BIZ_에서_통과한다` | 문제 0건 |
 | `거부된_식은_평가되지_않는다` | 위 두 거부 경로 뒤 `THK_OK` 본문 호출 횟수 0 |
-| `STANDARD_함수는_여섯_칸_모두에서_통과한다` | `FunctionSets.STANDARD` 27종마다 최소 인자 식(예: `ABS(value)`, `MASTER("A", "BASE", value)`)을 만들어 여섯 칸 모두 문제 0건 |
+| `STANDARD_함수는_여섯_칸_모두에서_통과한다` | `FunctionSets.STANDARD` 27종마다 최소 인자 식을 만들어 여섯 칸 모두 문제 0건. 식은 **리터럴과 `value` 만으로** 만든다(`DOMAIN_STD` 가 다른 변수를 거부하기 때문이다). 예: `ABS(value)`, `SWITCH(value, 1, "a", "b")`, `MASTER("A", "BASE", value)`, `MASTER_AT("A", "BASE", value, "20260101")` |
 
 **`ExpressionCheckerTest` — 26건**
 
@@ -357,7 +357,7 @@ rule 패키지를 겨냥한 규칙은 두지 않는다. 지금은 대상이 비�
 
 **`DomainKindExamplesTest` — 45건 (수용 기준 5)**
 
-도메인 정의는 `DomainFixtures` 가 02 의 **자신의 식**만 적고, 유효 식은 `EffectiveExpressions` 로 조립한다(S8). 사례는 `R/domain/02-domain-kind-cases.csv`(`domain,value,extraVars,evalTs,valid,step`)이다.
+도메인 정의는 `DomainFixtures` 가 02 의 **자신의 식**만 적고, 유효 식은 `EffectiveExpressions` 로 조립한다(S8). 사례는 `R/domain/02-domain-kind-cases.csv`(`domain,value,extraVars,evalTs,valid,step`)이다. `value` 는 레코드에 넣는 원시 문자열이고(NUMBER 도메인은 `ValueConverter` 가 바꾼다), 공백이 뜻을 갖는 TEXT 사례 `" a "` 는 큰따옴표로 감싼다. `extraVars` 표기: 빈 칸 = 추가 키 없음, `NAME:N:19` = 키 `NAME` 에 `BigDecimal("19")`, `NAME:S:20260901` = 문자열, `NAME:NULL` = 키는 있고 값이 null, 여럿은 `;` 로 잇는다. 비즈니스 요구 변수는 변환하지 않고 그대로 들어가므로(§6.9) 숫자 변수는 반드시 `N`(`BigDecimal`)으로 준다. 문자열로 주면 EvalEx 의 타입 간 암묵 비교에 기대어 통과해 버린다(06:198 이 경고하는 모양).
 
 | 02 칸 | 도메인(자신의 식 → 유효 식) | 사례 (값 → 결과) | 건수 |
 |---|---|---|---|
@@ -392,11 +392,11 @@ TEXT 식의 거짓 가지는 `validate` 경로로는 닿지 않는다. 공백만
 
 ### 3.4 테스트 리소스(원천 표 복사)와 가정
 
-- `R/code/04-code-exists-expected.csv`: 머리 `#` 주석에 출처(`04-master-code-deploy-full.md:719-726`, `sql/04-code-exists.sql`)를 적는다. 열: `baseDt,code,expected`. 12행. 기대값은 04 표의 82·83·84 열을 옮긴 것이다. 표 머리가 "`sql/04-code-exists.sql` 의 실행 결과(PostgreSQL 18 확인)"이므로 이 표가 곧 SQL 결과다. SQL 을 엔진 테스트에서 돌리지 않는다(04 SQL 은 PostgreSQL `~` 정규식을 쓰고, 엔진은 DB 없는 순수 Java 다). **H2·SQLite 는 추가하지 않는다.** 원천에 결과표가 있으므로 표 복사가 팀장 지시의 우선 방식이다.
+- `R/code/04-code-exists-expected.csv`: 머리 행 뒤의 `#` 주석에 출처(`04-master-code-deploy-full.md:719-726`, `sql/04-code-exists.sql`)를 적는다. 열: `baseDt,code,expected`. 12행. 기대값은 04 표의 82·83·84 열을 옮긴 것이다. 표 머리가 "`sql/04-code-exists.sql` 의 실행 결과(PostgreSQL 18 확인)"이므로 이 표가 곧 SQL 결과다. SQL 을 엔진 테스트에서 돌리지 않는다(04 SQL 은 PostgreSQL `~` 정규식을 쓰고, 엔진은 DB 없는 순수 Java 다). **H2·SQLite 는 추가하지 않는다.** 원천에 결과표가 있으므로 표 복사가 팀장 지시의 우선 방식이다.
 - 04 SQL 과 Java 해석의 차이 한 가지: SQL 4단계는 REGEX 를 `p_value`(코드값)에 대조하지만, 04:187 은 `def_target` 칸에 대조하라고 정한다. 예제 데이터의 REGEX 는 BASE(`def_target = CODE`) 하나뿐이라 결과가 같다. Java 는 04:187 을 따른다.
-- `R/code/05-port-cases.csv`: 출처 `05-master-data.md:460-470`. 열: `id,cate,key,baseDt,expected`. 기준일은 날짜라 `T00:00:00` 을 붙인다(05:380 "일자 타입이면 그날 00:00:00").
+- `R/code/05-port-cases.csv`: 머리 행 뒤의 `#` 주석에 출처 `05-master-data.md:460-470`. 열: `id,cate,key,baseDt,expected`. 기준일은 날짜라 `T00:00:00` 을 붙인다(05:380 "일자 타입이면 그날 00:00:00").
 - **05 PORT 사건 시각 가정**: 원천은 사건 3(2026-08-20 09:00)·5(2026-08-25 09:00)·6(2026-09-01 09:00)의 시각만 준다(05:738). 나머지는 다음으로 정한다: 사건 1 BASE 생성 `2026-08-19T09:00`, 사건 4 KR 등록 `2026-08-21T09:00`, 사건 7 MAJOR 등록 `2026-09-02T09:00`, 사건 8 MAJOR 소속 저장 `2026-09-03T09:00`. 손 계산 결과 7케이스가 모두 원천 기대값과 같다. 특히 소급에 기대는 두 건을 확인했다: `BASE KRINC 08-15` 는 항목(08-20)과 BASE 행(08-19) 모두 최초 행 소급으로 true, `MAJOR KRINC 08-15` 는 MAJOR 행이 최초 행 소급으로 잡히지만 KRINC 소속 행이 없어 false.
-- `R/domain/02-domain-kind-cases.csv`: 출처 `02-term-domain-column.md:55-60, 91-101, 994-1025`. 일자 정규식 219자는 CSV 가 아니라 `DomainFixtures` 상수로 둔다(정규식의 `|` 와 CSV 구분자가 섞이지 않게). CODE 사례의 `evalTs` 는 KST `2026-09-10T00:00` = `2026-09-09T15:00:00Z`, `2026-07-15T00:00` = `2026-07-14T15:00:00Z` 이다.
+- `R/domain/02-domain-kind-cases.csv`: 머리 행 뒤의 `#` 주석에 출처 `02-term-domain-column.md:55-60, 91-101, 994-1025`. 일자 정규식 219자는 CSV 가 아니라 `DomainFixtures` 상수로 둔다(정규식의 `|` 와 CSV 구분자가 섞이지 않게). CODE 사례의 `evalTs` 는 KST `2026-09-10T00:00` = `2026-09-09T15:00:00Z`, `2026-07-15T00:00` = `2026-07-14T15:00:00Z` 이다.
 
 ### 3.5 합계와 게이트 명령
 
@@ -771,8 +771,8 @@ public final class MasterDataResolver implements MasterLookup {
 - **질문**: 계약에 변환 함수 자리가 없다(F23). 도메인 검증(02 3단계)과 룰 판정(06:198)이 같은 함수를 쓰게 하려면 어디에 어떤 규칙으로 두고, rule 구현이 아직 없는(형제 TSK-03-03) 상태에서 무엇으로 검증할 것인가?
 - **선택지**: (a) `expr.ValueConverter.convert(Object, DataType)` 공개 단일 진입점 + §6.7 변환 표 + 이 Task 의 검증은 ① 변환 표 테스트 28건 ② domain 이 이 함수를 부르고 직접 변환하지 않는다는 ArchUnit 2건, rule 쪽 결속 테스트는 TSK-03-03 에 인계 / (b) (a) + rule 패키지 대상 ArchUnit 규칙("rule 은 BigDecimal(String)·Boolean.parseBoolean 을 직접 부르지 않는다")을 지금 영구 테스트로 넣는다 / (c) `spi` 에 변환 함수를 둔다 / (d) 계약 interface(`expr.ValueConversion`)를 새로 두고 구현을 따로 둔다
 - **택한 것**: (a)
-- **근거**: 의존 방향(06:463)상 rule 과 domain 이 함께 볼 수 있는 곳은 `expr`·`spi` 인데, spi 는 호출자가 구현하는 조회 인터페이스 자리라(06:461) 엔진 로직을 두기에 맞지 않는다((c) 탈락). (b) 는 지금 rule 에 구현 클래스가 없어 `failOnEmptyShould` 에 걸리고, 형제 Task 가 셀 리터럴을 `BigDecimal` 로 읽는 코드를 넣으면 머지 순간 dev 를 빨강으로 만든다. 형제 범위에 손대지 말라는 팀장 지시와도 부딪힌다. (d) 는 구현이 하나뿐인 추상화를 계약에 더한다. 변환 규칙은 06 「저장 시 검사」 타입 행(06:325 "지수·16진 표기는 거부", "Boolean 열에 TRUE/FALSE 밖의 값을 넣지 못한다")을 레코드 값에도 똑같이 적용했다. 두 엔진(서버·화면)이 같은 문자열을 같은 수로 읽게 하려는 정합성 조건이기 때문이다.
-- **반려되면 재작업 방향**: (b) 면 `TypeConversionEntryTest` 에 rule 규칙 1건을 더하되 `allowEmptyShould` 를 쓰지 말고, 머지 순서상 TSK-03-03 뒤에 넣도록 오케스트레이터와 조율한다(N +1). 변환 표 자체가 반려되면(예: 지수 표기 허용) `ValueConverter` 의 숫자 정규식과 `ValueConverterTest` 사례를 고치고, TSK-03-04 코퍼스 인계 문구도 같이 고친다.
+- **근거**: 의존 방향(06:463)상 rule 과 domain 이 함께 볼 수 있는 곳은 `expr`·`spi` 인데, spi 는 호출자가 구현하는 조회 인터페이스 자리라(06:461) 엔진 로직을 두기에 맞지 않는다((c) 탈락). (b) 는 지금 rule 에 구현 클래스가 없어 `failOnEmptyShould` 에 걸리고, 형제 Task 가 셀 리터럴을 `BigDecimal` 로 읽는 코드를 넣으면 머지 순간 dev 를 빨강으로 만든다. 형제 범위에 손대지 말라는 팀장 지시와도 부딪힌다. (d) 는 구현이 하나뿐인 추상화를 계약에 더한다. 변환 규칙은 06 「저장 시 검사」 타입 행(06:325 "지수·16진 표기는 거부", "Boolean 열에 TRUE/FALSE 밖의 값을 넣지 못한다")을 레코드 값에도 똑같이 적용했다. 두 엔진(서버·화면)이 같은 문자열을 같은 수로 읽게 하려는 정합성 조건이기 때문이다. **경계**: 도메인 검증의 비즈니스 요구 변수 값은 이 함수로 바꾸지 않고 그대로 넣는다(§6.9). 그 변수의 데이터 타입을 이 컬럼의 정의로는 알 수 없기 때문이다. 그래서 호출자(백엔드)가 `BigDecimal`·`String`·`Boolean` 으로 넣어야 하고, 이 경계는 변환 계약 밖이다.
+- **반려되면 재작업 방향**: (b) 면 `TypeConversionEntryTest` 에 rule 규칙 1건을 더하되 `allowEmptyShould` 를 쓰지 말고, 머지 순서상 TSK-03-03 뒤에 넣도록 오케스트레이터와 조율한다(N +1). 변환 표 자체가 반려되면(예: 지수 표기 허용) `ValueConverter` 의 숫자 정규식과 `ValueConverterTest` 사례를 고치고, TSK-03-04 코퍼스 인계 문구도 같이 고친다. 비즈니스 요구 변수도 변환해야 한다면 `DefinitionLookup.column(table, 변수)` 로 그 변수의 타입을 찾아 `ValueConverter.convert` 를 거치게 하고(정의가 없으면 그대로), 변환 실패를 `TYPE_CONVERSION` 으로 돌려주는 사례 1건을 `DefaultDomainValidatorTest` 에 더한다(N +1).
 
 ### D3 — `MdmExpressionConfig.baseBuilder()` 가 함수 사전을 가질 것인가
 - **질문**: 계약 Javadoc 은 `baseBuilder()` 를 "함수 사전을 뺀 고정 설정"이라 적었다. 그런데 EvalEx 빌더는 `functionDictionary` 를 부르지 않으면 표준 사전 전체(`DT_NOW`·`RANDOM` 포함)를 넣는다(F11). 글자 그대로 따를 것인가?
