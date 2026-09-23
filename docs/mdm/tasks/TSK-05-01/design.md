@@ -365,14 +365,14 @@ public interface MdmLayoutParser {
 - **질문**: 예약어와 충돌하는 칼럼을 엔티티에서 어떻게 인용할 것인가(F7·F15, 선례 없음).
 - **선택지**: (1) Hibernate 방언-중립 백틱 인용 `@Column(name="\`VERSION\`")`(Hibernate 가 방언별로 자동 변환: MSSQL `[VERSION]`, SQLite `"VERSION"`). (2) 방언별 인용 문자를 문자열에 하드코딩(비이식적). (3) 칼럼명을 바꾼다(불변 규칙 1 위반, 배제).
 - **택한 것**: (1).
-- **근거**: naming-dialect-rules.md 에 선례가 없어(F15) 이 Task 가 처음 정한다. Hibernate 표준 메커니즘이 방언 분기 코드를 만들지 않는다. **근거 강도: 강**. 단, §5 불변 규칙 7 에 적었듯 Build 가 실제로 변이 검증을 해서 이 인용이 없으면 정말로 실패하는지 확인해야 한다(추정만으로 강도를 매기지 않는다).
+- **근거**: naming-dialect-rules.md 에 선례가 없어(F15) 이 Task 가 처음 정한다. Hibernate 표준 메커니즘이 방언 분기 코드를 만들지 않는다. **근거 강도: 중**(Build·Verify 실측 정정: 현재 SQLite community dialect·MSSQL `SQLServerDialect` 모두 이 세 이름을 백틱 없이도 통과시켰다. 따라서 백틱은 방언·버전이 바뀔 때를 대비한 방어적 인용이며, 불변 규칙 7 은 변이로 잡지 못하는 알려진 커버리지 갭이다. decisions.md D-039).
 - **반려 시 재작업**: `@Column`의 백틱을 제거하고 `hibernate.globally_quoted_identifiers=true` 전역 설정으로 대체 — 예약어 없는 다른 mdm 칼럼도 전부 인용돼 영향 범위가 커진다.
 
 ### D2 — 레이아웃 스냅샷 JSON 스키마 검증 방식(새 의존성 여부)
 - **질문**: 샘플 JSON을 스키마로 검증하는 테스트에 JSON-Schema validator 라이브러리를 추가할 것인가.
 - **선택지**: (1) 새 의존성 추가 후 실제 스키마 validator로 검증. (2) 의존성 없이 이미 있는 Jackson(F18)으로 필수 키 집합·타입만 구조적으로 단언.
 - **택한 것**: (2).
-- **근거**: 팀장 지시("새 의존성이 필요하면 조용히 추가하지 말고 D 항목으로 올린다")를 그대로 따른다. Jackson 은 이미 전이 의존이라 추가 비용이 없다. **근거 강도: 강**.
+- **근거**: 새 의존성을 조용히 추가하지 않는 리포 관례를 따른다(오케스트레이터 정정: 처음 적은 "팀장 지시"는 사실이 아니다. 이 문구는 오케스트레이터가 쓴 Design 프롬프트에서 왔다). Jackson 은 이미 전이 의존이라 추가 비용이 없다. **근거 강도: 강**.
 - **반려 시 재작업**: `lib/build.gradle`에 `testImplementation`으로 JSON-Schema validator 를 추가하고 §3.5 테스트를 실제 스키마 검증으로 다시 작성한다.
 
 ### D3 — 스냅샷 예시 JSON 수치의 출처
@@ -517,3 +517,5 @@ MSSQL `TB_MDM_LAYOUT_CONST.CONST_VALUE`는 `VARCHAR(50) COLLATE Latin1_General_1
 - Verify 보고에서 빠진 규칙 15a(fixture L110 `LENGTH` 항목의 상대 오프셋 6→106)를 오케스트레이터가 직접 넣고 `:lib:test --rerun --continue` 로 돌렸다. `LayoutSnapshotSchemaStructureTest.오프셋_산술이_헤더_offset과_totalLength_합에_정합한다` 하나만 실패해 잡혔고, `git checkout` 원복 뒤 `git status` 는 깨끗했다.
 - 원본 트리로 두 게이트를 직접 다시 돌렸다: `testAll` 581 / 0(기준선 556 / 0), `:api:mssqlMigrationTest` 22 / 0(기준선 14 / 0).
 - Refactor Phase 는 생략한다: 워커(무인) 실행이며 dev-discipline 「Phase 05」가 무인 모드에서는 실행하지 않는다고 정한다.
+- 마감 전 fixture 정정: `m201-snapshot-sample.json` 본문 COIL_THK 의 `transUnit` 을 `"mm"` 에서 `null` 로 고쳤다. 시안(html:356)에서 `mm` 은 파생된 **기준 단위**이고, 03 원문은 전송 단위를 "도메인 기준 단위와 다를 때만" 적는다고 정하기 때문이다. `:lib:test --rerun` 74 / 0.
+- 마감 전 Flyway 충돌 재확인: `origin/dev` 는 V1~V3 뿐이고, 형제 워크트리 디스크에도 V4 는 이 워크트리에만 있다.

@@ -50,7 +50,7 @@
   "items": [
     { "seq": 1, "fillKind": "DATA", "dataType": "CHAR", "columnPhys": "COIL_ID", "transUnit": null, "unitItem": null, "numFormat": null, "defaultValue": null, "overrideValue": null, "fillerLength": null, "offset": 130, "length": 20 },
     { "seq": 2, "fillKind": "DATA", "dataType": "CHAR", "columnPhys": "PROD_DT", "transUnit": null, "unitItem": null, "numFormat": null, "defaultValue": null, "overrideValue": null, "fillerLength": null, "offset": 150, "length": 8 },
-    { "seq": 3, "fillKind": "DATA", "dataType": "NUM", "columnPhys": "COIL_THK", "transUnit": "mm", "unitItem": null, "numFormat": { "sign": false, "zeroPad": true, "impliedScale": 1 }, "defaultValue": null, "overrideValue": null, "fillerLength": null, "offset": 158, "length": 4 },
+    { "seq": 3, "fillKind": "DATA", "dataType": "NUM", "columnPhys": "COIL_THK", "transUnit": null, "unitItem": null, "numFormat": { "sign": false, "zeroPad": true, "impliedScale": 1 }, "defaultValue": null, "overrideValue": null, "fillerLength": null, "offset": 158, "length": 4 },
     { "seq": 4, "fillKind": "FILLER", "dataType": null, "columnPhys": null, "transUnit": null, "unitItem": null, "numFormat": null, "defaultValue": null, "overrideValue": null, "fillerLength": 25, "offset": 162, "length": 25 }
   ]
 }
