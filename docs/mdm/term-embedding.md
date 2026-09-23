@@ -109,4 +109,4 @@ TSK-04-02 가 구현한다.
 |---|---|
 | TSK-02-03 DB 설계 | ERD 의 `TB_MDM_TERM` 에 `EMBEDDING`·`EMBEDDING_MODEL` 칼럼(§5 DDL) |
 | TSK-04-01 02 계약 | Flyway 두 방언 칼럼, MSSQL `VARBINARY(4096)` JDBC 왕복 실측과 naming-dialect-rules §3 #23 상태 갱신, 엔티티 미매핑 |
-| TSK-04-02 용어 관리 | ORT 1.30.0·DJL tokenizers 0.38.0 을 `mdm/lib` 에 둔다. 모델 경로 설정, §6 동작 규칙 1~6(캐시·재인코딩 배치·임계 감시), design D3 결과에 따른 모델 파일(원본 FP32 직접 변환이면 변환 스크립트와 sha256 기록), 메모리 산정(RSS 약 1.3 GB) |
+| TSK-04-02 용어 관리 | ORT 1.30.0·DJL tokenizers 0.38.0 을 `mdm/lib` 에 둔다. 모델 경로 설정, §6 동작 규칙 1~6(캐시·재인코딩 배치·임계 감시), design D3 결과에 따른 모델 파일(원본 FP32 직접 변환이면 변환 스크립트와 sha256 기록), 메모리 산정(RSS 약 1.3 GB). §3 수치는 개발 PC(macOS·Apple M5)에서 잰 값이므로 운영 WildFly 서버의 OS·CPU 에서 단건 인코딩·질의 p95 를 다시 잰다. DJL tokenizers 0.38.0 jar 에 든 네이티브는 osx-aarch64·linux-x86_64·linux-aarch64 뿐이고 Windows 는 없다(`unzip -l` 확인) — 운영 서버가 Windows 면 토크나이저 네이티브 확보 방법을 먼저 정한다 |
