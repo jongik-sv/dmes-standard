@@ -1,0 +1,789 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "na",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "NA"
+      },
+      "text": ""
+    },
+    {
+      "id": "eq.string",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "A"
+      },
+      "text": "SURF_GRD != NULL && SURF_GRD == \"A\""
+    },
+    {
+      "id": "eq.number",
+      "kind": "cond",
+      "dataType": "NUMBER",
+      "subject": "COIL_THK",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "1.60"
+      },
+      "text": "COIL_THK != NULL && COIL_THK == 1.6"
+    },
+    {
+      "id": "eq.number.same",
+      "kind": "cond",
+      "dataType": "NUMBER",
+      "subject": "COIL_THK",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "1.6"
+      },
+      "text": "COIL_THK != NULL && COIL_THK == 1.6"
+    },
+    {
+      "id": "eq.number.negative",
+      "kind": "cond",
+      "dataType": "NUMBER",
+      "subject": "COIL_THK",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "-1.50"
+      },
+      "text": "COIL_THK != NULL && COIL_THK == (-1.5)"
+    },
+    {
+      "id": "eq.number.zero",
+      "kind": "cond",
+      "dataType": "NUMBER",
+      "subject": "COIL_THK",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "-0.00"
+      },
+      "text": "COIL_THK != NULL && COIL_THK == 0"
+    },
+    {
+      "id": "eq.number.plus",
+      "kind": "cond",
+      "dataType": "NUMBER",
+      "subject": "COIL_THK",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "+007.10"
+      },
+      "text": "COIL_THK != NULL && COIL_THK == 7.1"
+    },
+    {
+      "id": "eq.number.integer",
+      "kind": "cond",
+      "dataType": "NUMBER",
+      "subject": "COIL_THK",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "1000"
+      },
+      "text": "COIL_THK != NULL && COIL_THK == 1000"
+    },
+    {
+      "id": "eq.boolean",
+      "kind": "cond",
+      "dataType": "BOOLEAN",
+      "subject": "IS_WIDE",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "true"
+      },
+      "text": "IS_WIDE != NULL && IS_WIDE == TRUE"
+    },
+    {
+      "id": "eq.exprvar",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "_V7",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "A"
+      },
+      "text": "_V7 != NULL && _V7 == \"A\""
+    },
+    {
+      "id": "eq.escape",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "a\"b\\\\c"
+      },
+      "text": "SURF_GRD != NULL && SURF_GRD == \"a\\\"b\\\\c\""
+    },
+    {
+      "id": "eq.korean",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "가나*"
+      },
+      "text": "SURF_GRD != NULL && SURF_GRD == \"가나*\""
+    },
+    {
+      "id": "eq.pattern.prefix",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "SGC%"
+      },
+      "text": "SURF_GRD != NULL && STR_STARTS_WITH(SURF_GRD, \"SGC\")"
+    },
+    {
+      "id": "eq.pattern.prefix-dot",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "A.B%"
+      },
+      "text": "SURF_GRD != NULL && STR_STARTS_WITH(SURF_GRD, \"A.B\")"
+    },
+    {
+      "id": "eq.pattern.suffix",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "%CC"
+      },
+      "text": "SURF_GRD != NULL && STR_ENDS_WITH(SURF_GRD, \"CC\")"
+    },
+    {
+      "id": "eq.pattern.contains",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "%G3302%"
+      },
+      "text": "SURF_GRD != NULL && INSTR(SURF_GRD, \"G3302\") > 0"
+    },
+    {
+      "id": "eq.pattern.collapse-prefix",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "SGC%%"
+      },
+      "text": "SURF_GRD != NULL && STR_STARTS_WITH(SURF_GRD, \"SGC\")"
+    },
+    {
+      "id": "eq.pattern.middle",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "A%B"
+      },
+      "text": "SURF_GRD != NULL && STR_MATCHES(SURF_GRD, \"A.*B\")"
+    },
+    {
+      "id": "eq.pattern.collapse",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "A%%%B"
+      },
+      "text": "SURF_GRD != NULL && STR_MATCHES(SURF_GRD, \"A.*B\")"
+    },
+    {
+      "id": "eq.pattern.three",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "%A%B%"
+      },
+      "text": "SURF_GRD != NULL && STR_MATCHES(SURF_GRD, \".*A.*B.*\")"
+    },
+    {
+      "id": "eq.pattern.underscore-only",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "_"
+      },
+      "text": "SURF_GRD != NULL && STR_MATCHES(SURF_GRD, \".\")"
+    },
+    {
+      "id": "eq.pattern.underscore",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "A_C"
+      },
+      "text": "SURF_GRD != NULL && STR_MATCHES(SURF_GRD, \"A.C\")"
+    },
+    {
+      "id": "eq.pattern.underscore-prefix",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "A_%"
+      },
+      "text": "SURF_GRD != NULL && STR_MATCHES(SURF_GRD, \"A..*\")"
+    },
+    {
+      "id": "eq.pattern.regex-dot",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "A.B_"
+      },
+      "text": "SURF_GRD != NULL && STR_MATCHES(SURF_GRD, \"A\\\\.B.\")"
+    },
+    {
+      "id": "eq.pattern.regex-meta-all",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "(a)[b]{c}^$|?*+._"
+      },
+      "text": "SURF_GRD != NULL && STR_MATCHES(SURF_GRD, \"\\\\(a\\\\)\\\\[b\\\\]\\\\{c\\\\}\\\\^\\\\$\\\\|\\\\?\\\\*\\\\+\\\\..\")"
+    },
+    {
+      "id": "eq.pattern.escaped-percent",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "A\\%"
+      },
+      "text": "SURF_GRD != NULL && SURF_GRD == \"A%\""
+    },
+    {
+      "id": "eq.pattern.escaped-underscore",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "A\\_B%"
+      },
+      "text": "SURF_GRD != NULL && STR_STARTS_WITH(SURF_GRD, \"A_B\")"
+    },
+    {
+      "id": "eq.pattern.escaped-backslash",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "A\\\\B%"
+      },
+      "text": "SURF_GRD != NULL && STR_STARTS_WITH(SURF_GRD, \"A\\\\B\")"
+    },
+    {
+      "id": "eq.pattern.regex-backslash",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "A\\\\_"
+      },
+      "text": "SURF_GRD != NULL && STR_MATCHES(SURF_GRD, \"A\\\\\\\\.\")"
+    },
+    {
+      "id": "eq.pattern.regex-quote",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "EQ",
+        "left": "A\"B_"
+      },
+      "text": "SURF_GRD != NULL && STR_MATCHES(SURF_GRD, \"A\\\"B.\")"
+    },
+    {
+      "id": "ne.string",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "NE",
+        "left": "C"
+      },
+      "text": "SURF_GRD != NULL && SURF_GRD != \"C\""
+    },
+    {
+      "id": "ne.string.literal-percent",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "NE",
+        "left": "A%"
+      },
+      "text": "SURF_GRD != NULL && SURF_GRD != \"A%\""
+    },
+    {
+      "id": "lt.number",
+      "kind": "cond",
+      "dataType": "NUMBER",
+      "subject": "COIL_THK",
+      "maruCodeId": null,
+      "cell": {
+        "op": "LT",
+        "left": "2.5"
+      },
+      "text": "COIL_THK != NULL && COIL_THK < 2.5"
+    },
+    {
+      "id": "le.number",
+      "kind": "cond",
+      "dataType": "NUMBER",
+      "subject": "COIL_THK",
+      "maruCodeId": null,
+      "cell": {
+        "op": "LE",
+        "left": "2.50"
+      },
+      "text": "COIL_THK != NULL && COIL_THK <= 2.5"
+    },
+    {
+      "id": "gt.number",
+      "kind": "cond",
+      "dataType": "NUMBER",
+      "subject": "COIL_THK",
+      "maruCodeId": null,
+      "cell": {
+        "op": "GT",
+        "left": "1000"
+      },
+      "text": "COIL_THK != NULL && COIL_THK > 1000"
+    },
+    {
+      "id": "ge.number",
+      "kind": "cond",
+      "dataType": "NUMBER",
+      "subject": "COIL_THK",
+      "maruCodeId": null,
+      "cell": {
+        "op": "GE",
+        "left": "2.5"
+      },
+      "text": "COIL_THK != NULL && COIL_THK >= 2.5"
+    },
+    {
+      "id": "ge.date-string",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "DLV_DT",
+      "maruCodeId": null,
+      "cell": {
+        "op": "GE",
+        "left": "20260907"
+      },
+      "text": "DLV_DT != NULL && DLV_DT >= \"20260907\""
+    },
+    {
+      "id": "in.string.one",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "IN",
+        "list": [
+          "A"
+        ]
+      },
+      "text": "SURF_GRD != NULL && (SURF_GRD == \"A\")"
+    },
+    {
+      "id": "in.string.order",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "IN",
+        "list": [
+          "C",
+          "A",
+          "E",
+          "B",
+          "D"
+        ]
+      },
+      "text": "SURF_GRD != NULL && (SURF_GRD == \"C\" || SURF_GRD == \"A\" || SURF_GRD == \"E\" || SURF_GRD == \"B\" || SURF_GRD == \"D\")"
+    },
+    {
+      "id": "in.number",
+      "kind": "cond",
+      "dataType": "NUMBER",
+      "subject": "COIL_THK",
+      "maruCodeId": null,
+      "cell": {
+        "op": "IN",
+        "list": [
+          "1.0",
+          "2"
+        ]
+      },
+      "text": "COIL_THK != NULL && (COIL_THK == 1 || COIL_THK == 2)"
+    },
+    {
+      "id": "not_in.one",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "NOT_IN",
+        "list": [
+          "C"
+        ]
+      },
+      "text": "SURF_GRD != NULL && SURF_GRD != \"C\""
+    },
+    {
+      "id": "not_in.many",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "NOT_IN",
+        "list": [
+          "C",
+          "D"
+        ]
+      },
+      "text": "SURF_GRD != NULL && SURF_GRD != \"C\" && SURF_GRD != \"D\""
+    },
+    {
+      "id": "code_in",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "PROC_CD",
+      "maruCodeId": "PROC_CD",
+      "cell": {
+        "op": "CODE_IN",
+        "left": "PLATING"
+      },
+      "text": "PROC_CD != NULL && MASTER(\"PROC_CD\", \"PLATING\", PROC_CD)"
+    },
+    {
+      "id": "contains",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SPEC_NM",
+      "maruCodeId": null,
+      "cell": {
+        "op": "CONTAINS",
+        "left": "SGCC"
+      },
+      "text": "SPEC_NM != NULL && INSTR(SPEC_NM, \"SGCC\") > 0"
+    },
+    {
+      "id": "contains.meta",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SPEC_NM",
+      "maruCodeId": null,
+      "cell": {
+        "op": "CONTAINS",
+        "left": "G3302%.*\\"
+      },
+      "text": "SPEC_NM != NULL && INSTR(SPEC_NM, \"G3302%.*\\\\\") > 0"
+    },
+    {
+      "id": "instr",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "STL_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "INSTR",
+        "left": "SGCC,SGHC,SGCH"
+      },
+      "text": "STL_GRD != NULL && INSTR(\"SGCC,SGHC,SGCH\", STL_GRD) > 0"
+    },
+    {
+      "id": "is_null",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "IS_NULL"
+      },
+      "text": "SURF_GRD == NULL"
+    },
+    {
+      "id": "not_null",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "NOT_NULL"
+      },
+      "text": "SURF_GRD != NULL"
+    },
+    {
+      "id": "range.le-le",
+      "kind": "cond",
+      "dataType": "NUMBER",
+      "subject": "COIL_THK",
+      "maruCodeId": null,
+      "cell": {
+        "op": "<= 변수 <=",
+        "left": "1.6",
+        "right": "2.5"
+      },
+      "text": "COIL_THK != NULL && COIL_THK >= 1.6 && COIL_THK <= 2.5"
+    },
+    {
+      "id": "range.le-lt",
+      "kind": "cond",
+      "dataType": "NUMBER",
+      "subject": "COIL_THK",
+      "maruCodeId": null,
+      "cell": {
+        "op": "<= 변수 <",
+        "left": "1.6",
+        "right": "2.5"
+      },
+      "text": "COIL_THK != NULL && COIL_THK >= 1.6 && COIL_THK < 2.5"
+    },
+    {
+      "id": "range.lt-le",
+      "kind": "cond",
+      "dataType": "NUMBER",
+      "subject": "COIL_THK",
+      "maruCodeId": null,
+      "cell": {
+        "op": "< 변수 <=",
+        "left": "0",
+        "right": "0.5"
+      },
+      "text": "COIL_THK != NULL && COIL_THK > 0 && COIL_THK <= 0.5"
+    },
+    {
+      "id": "range.lt-lt",
+      "kind": "cond",
+      "dataType": "NUMBER",
+      "subject": "COIL_THK",
+      "maruCodeId": null,
+      "cell": {
+        "op": "< 변수 <",
+        "left": "0.5",
+        "right": "0.6"
+      },
+      "text": "COIL_THK != NULL && COIL_THK > 0.5 && COIL_THK < 0.6"
+    },
+    {
+      "id": "range.negative",
+      "kind": "cond",
+      "dataType": "NUMBER",
+      "subject": "COIL_THK",
+      "maruCodeId": null,
+      "cell": {
+        "op": "<= 변수 <",
+        "left": "-1.5",
+        "right": "0"
+      },
+      "text": "COIL_THK != NULL && COIL_THK >= (-1.5) && COIL_THK < 0"
+    },
+    {
+      "id": "range.exprvar",
+      "kind": "cond",
+      "dataType": "NUMBER",
+      "subject": "_V8",
+      "maruCodeId": null,
+      "cell": {
+        "op": "<= 변수 <",
+        "left": "1",
+        "right": "2"
+      },
+      "text": "_V8 != NULL && _V8 >= 1 && _V8 < 2"
+    },
+    {
+      "id": "range.date-string",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "DLV_DT",
+      "maruCodeId": null,
+      "cell": {
+        "op": "<= 변수 <",
+        "left": "20260101",
+        "right": "20270101"
+      },
+      "text": "DLV_DT != NULL && DLV_DT >= \"20260101\" && DLV_DT < \"20270101\""
+    },
+    {
+      "id": "expression",
+      "kind": "cond",
+      "dataType": "BOOLEAN",
+      "subject": null,
+      "maruCodeId": null,
+      "cell": {
+        "expr": "COIL_THK * COIL_WID > 3000"
+      },
+      "text": "COIL_THK * COIL_WID > 3000"
+    },
+    {
+      "id": "result.value.string",
+      "kind": "result",
+      "dataType": "STRING",
+      "cell": {
+        "val": "A"
+      },
+      "text": "\"A\""
+    },
+    {
+      "id": "result.value.number",
+      "kind": "result",
+      "dataType": "NUMBER",
+      "cell": {
+        "val": "1.050"
+      },
+      "text": "1.05"
+    },
+    {
+      "id": "result.value.negative",
+      "kind": "result",
+      "dataType": "NUMBER",
+      "cell": {
+        "val": "-0.5"
+      },
+      "text": "(-0.5)"
+    },
+    {
+      "id": "result.value.boolean",
+      "kind": "result",
+      "dataType": "BOOLEAN",
+      "cell": {
+        "val": "FALSE"
+      },
+      "text": "FALSE"
+    },
+    {
+      "id": "result.value.date",
+      "kind": "result",
+      "dataType": "DATE",
+      "cell": {
+        "val": "20260907"
+      },
+      "text": "\"20260907\""
+    },
+    {
+      "id": "result.expression",
+      "kind": "result",
+      "dataType": "NUMBER",
+      "cell": {
+        "expr": "ROUND(BASE_FCT * 0.98, 2)"
+      },
+      "text": "ROUND(BASE_FCT * 0.98, 2)"
+    },
+    {
+      "id": "qlty.cell-1-1",
+      "kind": "cond",
+      "dataType": "NUMBER",
+      "subject": "COIL_THK",
+      "maruCodeId": null,
+      "cell": {
+        "op": "<= 변수 <",
+        "left": "1.6",
+        "right": "2.5"
+      },
+      "text": "COIL_THK != NULL && COIL_THK >= 1.6 && COIL_THK < 2.5"
+    },
+    {
+      "id": "qlty.cell-3-1",
+      "kind": "cond",
+      "dataType": "NUMBER",
+      "subject": "COIL_THK",
+      "maruCodeId": null,
+      "cell": {
+        "op": "GE",
+        "left": "2.5"
+      },
+      "text": "COIL_THK != NULL && COIL_THK >= 2.5"
+    },
+    {
+      "id": "qlty.cell-3-3",
+      "kind": "cond",
+      "dataType": "STRING",
+      "subject": "SURF_GRD",
+      "maruCodeId": null,
+      "cell": {
+        "op": "NOT_IN",
+        "list": [
+          "C"
+        ]
+      },
+      "text": "SURF_GRD != NULL && SURF_GRD != \"C\""
+    }
+  ]
+}

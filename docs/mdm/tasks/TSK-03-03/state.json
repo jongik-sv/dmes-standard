@@ -2,5 +2,64 @@
   "tsk": "TSK-03-03",
   "order": "e1205c87-681d-44be-90b1-0965067683f3",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "reported",
+  "baseline": {
+    "failures": 0,
+    "tests": 524,
+    "backend_testAll": {
+      "tests": 518,
+      "failures": 0,
+      "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon"
+    },
+    "frontend_m_mdm": {
+      "tests": 6,
+      "failures": 0,
+      "lint": "pass",
+      "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint"
+    }
+  },
+  "pred_note": "선행 mdm/TSK-03-01: reached=true·head_sha 없음 → 행 G 갈래 2, pred-reflected.sh REFLECTED → origin/dev 기점 스택 없이 진행",
+  "last": {
+    "phase": "done",
+    "event": "done.ok"
+  },
+  "model": "haiku",
+  "design_commit": "69f1a03",
+  "build_gate": {
+    "backend_testAll": {
+      "tests": 1055,
+      "failures": 0,
+      "exit": 0
+    },
+    "frontend_m_mdm": {
+      "tests": 6,
+      "failures": 0,
+      "lint": "pass"
+    },
+    "planned_deletion": [
+      "ContractOnlyPhaseTest.main_클래스_집합이_계약_타입과_스캐폴드로_닫혀_있다",
+      "ContractOnlyPhaseTest.EvalEx_실행_타입은_스캐폴드_ExpressionEvaluator_만_쓴다"
+    ],
+    "mutation": "I1-I39 변이 74개 전부 빨강, I40 변이 없음(수정 금지 파일)",
+    "commits": [
+      "2e4d7c6",
+      "f7e05e4",
+      "789728e"
+    ]
+  },
+  "verify_gate": {
+    "backend_testAll": {
+      "tests": 1055,
+      "failures": 0,
+      "exit": 0
+    },
+    "frontend_m_mdm": {
+      "tests": 6,
+      "failures": 0,
+      "lint": "pass",
+      "note": "Build 게이트 이후 frontend 변경 없음"
+    },
+    "mutation": "I1·I3·I8·I10·I12·I17·I20·I22·I23·I28·I31·I34 전체 엔진 스위트로 12/12 빨강, 원복 확인"
+  },
+  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\""
 }
