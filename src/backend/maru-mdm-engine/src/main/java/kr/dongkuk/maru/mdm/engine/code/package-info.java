@@ -1,7 +1,7 @@
 /**
- * 코드(Code) 처리 — TSK-01-01 스캐폴드 단계, 빈 골격.
+ * 코드(Code) 처리 — TSK-03-01 계약 전용 단계. interface·record·enum·상수만 둔다.
  *
- * <p>06-business-rule.md 「모듈 하나, 패키지 다섯」 이 정한 다섯 패키지 중 하나. 실 업무 로직은
- * 후속 Task 에서 채운다.
+ * <p>06-business-rule.md 「모듈 하나, 패키지 다섯」 이 정한 다섯 패키지 중 하나. 구현은 TSK-03-02·03 이
+ * 채운다.
  */
 package kr.dongkuk.maru.mdm.engine.code;
