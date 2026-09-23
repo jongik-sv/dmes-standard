@@ -124,7 +124,7 @@
 
 | 파일 | 내용 |
 |---|---|
-| [`docs/mdm/screens/domainMng/domainMng_기능설계서.md`](../../screens/domainMng/domainMng_기능설계서.md) | 화면 설계 산출물 — 기능설계서 1종(D8, DEC-001 선례). **이 Design 커밋에서 생성했다.** 근거 칸에 원천 02·시안 행 번호 인용 |
+| [`docs/mdm/screens/domainMng/domainMng_기능설계서.md`](../../screens/domainMng/domainMng_기능설계서.md) | **생성(Design 에서 작성 완료)**. 화면 설계 산출물은 이 기능설계서 1종뿐이다(D8, DEC-001 선례). 근거 칸에 원천 02·시안 행 번호 인용 |
 | `docs/mdm/tasks/TSK-04-03/screens/*.png` | E2E 스크린샷(§4.6) |
 
 ### 수정
@@ -346,7 +346,7 @@ ORDER BY s.DEPTH, s.DOMAIN_ID, c.COLUMN_ID
 
 ### 3.11 화면 설계 산출물과 식별자 사전
 
-화면 설계 산출물은 기능설계서 1종 [`docs/mdm/screens/domainMng/domainMng_기능설계서.md`](../../screens/domainMng/domainMng_기능설계서.md) 이며 이 Design 커밋에 들어 있다(D8). Build 는 구현 중 화면 식별자·필드 ID·버튼 ID·action·DB 칼럼이 바뀌면 그 문서를 먼저 고친다(Mes-Guide §5). 식별자 사전 §A.3.2 에 한 행을 등재하는 것은 Build 몫이다.
+기능설계서: [`docs/mdm/screens/domainMng/domainMng_기능설계서.md`](../../screens/domainMng/domainMng_기능설계서.md) (D8). 식별자 사전 §A.3.2 화면 행 등재(ADR-0003 인계)는 Build 몫이다.
 
 ---
 
@@ -597,11 +597,12 @@ Build·Verify 의 변이 검증이 이 목록을 순회한다. 오른쪽은 변�
 - **반려되면 재작업할 방향**: TSK-04-04 머지 뒤 그 분해 서비스를 `validate` 에서 불러 표준명 제안·미등록 용어 경고를 더한다(화면 기본 속성 폼에 제안 버튼).
 
 ### D8 — 화면 설계 산출물을 몇 종 만드는가
-- **질문**: RULE.md·Mes-Guide §4 개발 진입 가드·ADR-0003 D3 은 화면마다 5종(분석리포트·기능설계서·디자인설계서·BPMN설계서·정합체크)을 요구한다. MDM 화면은 As-Is 가 없어 분석리포트와 G1~G7 게이트가 성립하지 않는다.
-- **선택지**: (1) 5종을 모두 만든다(As-Is 대신 원천 02·시안을 분석 대상으로). (2) 기능설계서 1종만 만든다. (3) 만들지 않고 design.md 로 갈음한다.
-- **택한 것**: (2). 산출물 [`docs/mdm/screens/domainMng/domainMng_기능설계서.md`](../../screens/domainMng/domainMng_기능설계서.md) 를 이 Design 커밋에 넣었다.
-- **근거**: 팀장 지시(2026-09-24)와 선례 `docs/ai-build-log/DEC-001_noticeMgmt-on-mls.md` 결정 2 — 설계 체계가 As-Is → To-Be 마이그레이션 전제라 To-Be only 화면은 분석리포트·게이트를 채울 원본이 없어 기능설계서 1종으로 줄였다(사용자 결정). 이 화면도 같은 조건이다. 1종으로 줄인 사실과 한계는 기능설계서 머리말과 §11.1 GAP-001 에 남겼다. **모듈 전체 규칙(MDM 화면 전부에 1종을 적용할지)은 팀장이 사람에게 확인받는다.**
-- **반려되면 재작업할 방향**: (1)이면 Build 가 코드보다 먼저 분석리포트(원본 = 원천 02 「도메인 설계」 41-298행·「TB_MDM_DOMAIN」 820-860행·시안 199-415행, As-Is 전제 게이트는 "해당 없음"과 사유)·디자인설계서·BPMN설계서·정합체크를 `docs/mdm/screens/domainMng/` 에 추가하고, 기능설계서 표의 근거를 분석리포트 인용으로 바꾼다.
+- **질문**: RULE.md·Mes-Guide §4 개발 진입 가드·ADR-0003 D3 은 화면마다 5종(분석리포트·기능설계서·디자인설계서·BPMN설계서·정합체크)을 요구한다. MDM 화면은 As-Is 가 없다.
+- **선택지**: (1) 만들지 않고 design.md 로 갈음한다. (2) 5종을 모두 만든다(As-Is 대신 원천 02·시안을 분석 대상으로). (3) 기능설계서 1종만 만든다.
+- **택한 것**: (3). 산출물 [`docs/mdm/screens/domainMng/domainMng_기능설계서.md`](../../screens/domainMng/domainMng_기능설계서.md) 를 이 Design Phase 에서 작성해 커밋했다.
+- **근거**: 팀장 지시(MDM 화면 기준, TSK-04-04 이슈에서 정함) + DEC-001 선례(`docs/ai-build-log/DEC-001_noticeMgmt-on-mls.md` 결정 2). As-Is 가 없어 분석리포트와 G1~G7 게이트가 성립하지 않는다. 1종으로 줄인 사실과 한계는 기능설계서 머리말과 §11.1 GAP-001 에 남겼다.
+- 모듈 전체 규칙(MDM 화면 전부에 1종을 적용하는 것)은 팀장이 사람에게 확인받는다.
+- **반려되면 재작업할 방향**: 나머지 4종(분석리포트·디자인설계서·BPMN설계서·정합체크)을 템플릿(`docs/guide/design/templates/`)대로 `docs/mdm/screens/domainMng/` 에 추가한다.
 
 ### D9 — 저장 거부의 오류 코드
 - **질문**: 도메인 저장 거부를 어떤 오류 코드로 던지는가. `MdmErrorCode` 에 도메인용 코드가 없고, 병렬 작업이 같은 번호를 고를 수 있다.
