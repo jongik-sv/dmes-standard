@@ -1,0 +1,49 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.0.6' apply false
+    id 'io.spring.dependency-management' version '1.1.7' apply false
+}
+
+allprojects {
+    group = 'com.dongkuk.dmes'
+    version = '0.0.1-SNAPSHOT'
+
+    repositories {
+        mavenLocal()
+        mavenCentral()
+    }
+}
+
+subprojects {
+    apply plugin: 'java-library'
+    apply plugin: 'io.spring.dependency-management'
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+        options.compilerArgs.add('-parameters')
+    }
+
+    dependencies {
+        compileOnly 'org.projectlombok:lombok'
+        annotationProcessor 'org.projectlombok:lombok'
+        testImplementation 'org.springframework.boot:spring-boot-starter-test'
+        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    }
+
+    test {
+        useJUnitPlatform()
+    }
+}
+
+// ── mqc 와 다른 지점(D9, design.md §6.1b) — 루트 :test 가 서브프로젝트 테스트를 실제로 실행하도록 명시 집계 ──
+// testAll(src/backend/build.gradle) 이 gradle.includedBuild('mdm').task(':test') 하나에만 의존하므로,
+// 이 의존을 걸어 두지 않으면 :lib:test/:api:test 가 testAll 그래프에 들어오지 않는다(실측 확인 완료 —
+// mqc/mpp/mls/mpn/mcm/analog 는 이 결함을 그대로 물려받고 있다, D9 "반려되면 재작업 방향" 참고).
+tasks.named('test') {
+    dependsOn(subprojects.collect { "${it.path}:test" })
+}

@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: jdbc:sqlite:../data/mdm.db
+    driver-class-name: org.sqlite.JDBC
+  jpa:
+    database-platform: org.hibernate.community.dialect.SQLiteDialect
+    hibernate:
+      ddl-auto: none
+  flyway:
+    # 불변 규칙 3(design.md §5) — locations 는 반드시 자기 모듈·방언 폴더로 좁힌다.
+    locations: classpath:db/migration/mdm/sqlite

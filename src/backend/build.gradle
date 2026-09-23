@@ -4,7 +4,7 @@
 //   ./gradlew testAll      // 5개 프로젝트 전체 test
 //   ./gradlew cleanAll     // 5개 프로젝트 전체 clean
 
-def includedProjectNames = ['mpn', 'aps-core', 'cactus-core', 'mpp', 'mqc', 'mcm', 'localKafka', 'caravan-core', 'caravan-hub']
+def includedProjectNames = ['mpn', 'aps-core', 'cactus-core', 'mpp', 'mqc', 'mcm', 'localKafka', 'caravan-core', 'caravan-hub', 'mdm', 'maru-mdm-engine']
 
 tasks.register('buildAll') {
     group = 'composite'

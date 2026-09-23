@@ -1,0 +1,11 @@
+# D6(design.md "담당자 확인 필요 결정") — wildfly 는 사전 관리 스키마 전제. JNDI 이름 규약
+# java:/jdbc/mssql/{모듈}/{DS} 그대로 적용(mcm 선례와 동일).
+spring:
+  datasource:
+    jndi-name: "${JNDI_DS_BIZ:java:/jdbc/mssql/mdm/dsBiz}"
+  jpa:
+    database-platform: org.hibernate.dialect.SQLServerDialect
+    hibernate:
+      ddl-auto: none
+  flyway:
+    enabled: false   # D6: wildfly 는 사전 관리 스키마 전제 — 마이그레이션은 local/local-db 로만 검증한다
