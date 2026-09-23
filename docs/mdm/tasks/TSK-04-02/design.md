@@ -746,3 +746,79 @@ lsof -tiTCP:18203 -sTCP:LISTEN | xargs -r kill
 | 프런트 UI 감사 | `python3 .claude/skills/mantine-aggrid-ui/scripts/mantine_docs.py audit <바뀐 파일·폴더>`, `python3 .claude/skills/mantine-aggrid-ui/scripts/aggrid_docs.py audit <바뀐 파일·폴더>`(mantine-aggrid-ui SKILL.md §4) | 0건 |
 | OASIS 계약 검사 | `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` | ERROR 0 / WARN 0 |
 | E2E | §"E2E 서버 절차". `pnpm exec playwright test e2e/mdm-shell-rbac-smoke.spec.ts e2e/mdm-sample-smoke.spec.ts e2e/mdm-unitMng.spec.ts e2e/mdm-termMng.spec.ts --workers=1` | 전체 passed, skipped·failed 0 |
+
+## Build 이탈
+
+- **테스트 파일 수 정정(팀장 지시 "기존 테스트 2개"보다 많음)**: 팀장 지시는 "D1 로 인해 사실이 바뀐 기존 테스트
+  2개"라고 했으나, 실제로 V4(약어 유일 인덱스→비유일)를 반영하면 4곳이 깨진다 — ①
+  `MdmTermDomainColumnMigrationTest.UX_TB_MDM_TERM_ABBR_만_NULL_다건_허용_동일_비NULL_은_거부한다()`(이름·본문
+  교정) ② 같은 파일의 `제약_인덱스_이름이_규칙표를_따른다()`(인덱스 이름 문자열 하나만 교정) ③
+  `MdmTermDomainColumnMssqlMigrationTest.필터_인덱스는_UX_TB_MDM_TERM_ABBR_만이고_...()`(이름·본문 교정) ④
+  같은 파일의 `local_db_설정으로_V1_V2_V3_가_적용된다()`(V4 포함 버전 집합, 팀장 지시에 명시되지 않았던
+  누락분) ⑤ `MdmSharedContractMigrationTest.flyway_가_V1_V2_V3_를_적용했다()`(V4 포함, 지시에 있던 것).
+  모두 완화가 아니라 V4 반영이 강제하는 사실 교정이라 그대로 고쳤다.
+- **D12 실제 채택 확인**: design.md 본문에 D12(동의어 확정 시 "후보의 termName+후보의 systems")와
+  "코드베이스 지식" 절(§"동의어로 확정...편집 중인 용어 자신의 systems")이 서로 반대로 적혀 있었다(advisor
+  지적). 기능설계서(`termMng_기능설계서.md` §5.2 B-005, GAP-103)가 D12(a)를 명시적으로 구현 대상으로
+  적어 뒀고 D12 결정 블록 자체가 정식 기록이므로 D12(a)(후보의 termName+후보의 systems)를 따른다. 프런트
+  구현 시 "코드베이스 지식" 절의 반대 서술은 무시한다.
+- **저장소가 Spring Boot 4 + Jackson 3(`tools.jackson`) 기본 스택이라 classic
+  `com.fasterxml.jackson.databind.ObjectMapper` 빈이 자동 등록되지 않는다**(실측 확인 — `@Autowired
+  ObjectMapper` 로 생성자 주입하면 `NoSuchBeanDefinitionException`). 설계 시점에는 예상하지 못한
+  프레임워크 사실이다. 리포 기존 관례(`GridConverter`, `AuditLogger` 등)를 따라 `TermMngService`·
+  `TermRecommendationCache` 모두 `private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()`
+  직접 인스턴스로 바꿨다(Spring 빈 주입 포기).
+- **`UnitForbiddenCodes`/`MdmDomainRepository.existsByUnitCode`/`MdmTermRepository.findByTermNameAndSenseNo`
+  /`findByEngAbbr`/`MdmUnitRepository.findByDimension`**: design.md §2 변경 파일 목록에 별도 항목으로
+  없었지만, UnitMngService/TermMngService 구현에 최소한으로 필요한 파생 쿼리·상수 클래스라 함께 추가했다
+  ("이 작업은 findByTermNameAndSenseNo, findByEngAbbr 같은 파생 쿼리를 정상적으로 추가한다"는 "코드베이스
+  지식" 절의 사전 허용 범위 안).
+- **`DataInitializer`의 SYSADMIN×OBJECT×PERM_ALL 매핑**: mdmSample 선례가 3줄 블록(OBJECT·MENU·
+  ROLE_MAPPING)이므로 unitMng·termMng 도 동일하게 SYSADMIN 몫 `TB_MCM_SEC_ROLE_MAPPING` 행을 추가했다
+  (반복문으로 3개 OBJECT 를 순회하도록 리팩터링). e2e 는 `e2e_mdm_stdadmin`/`e2e_mdm_steward` 로 돌려
+  이 SYSADMIN 경로를 직접 검증하지 않지만, admin 계정이 이 화면들을 열 수 있어야 한다는 리포 관례를
+  mdmSample 과 어긋나지 않게 유지하기 위함이다.
+- **버그 수정(설계 이탈이라기보다 구현 중 발견)**: `UnitMngService.save()` 초안이 수정 시에도 `CHG_SEQ`
+  를 0 으로 강제 덮어써 불변 규칙 I16("수정 시에는 건드리지 않는다")을 위반했다. 변이 검증 대상 항목으로
+  직접 다루다 발견해 즉시 고쳤다(신규 등록일 때만 0, 수정 시 로드된 값 유지) — 커밋 `240bac3`.
+- **`OnnxKureEmbeddingEncoderManualTest`의 측정 범위 축소**: design.md §3.3 은 "단건 인코딩 p50/p95,
+  `recommend` 1만 건 p50/p95" 둘 다 재측정하라고 했으나, 이 테스트는 스프링 컨텍스트 없는 순수 JUnit
+  이어야 한다는 같은 절의 요구(모델 경로가 비었을 때 빈 생성 실패로 SKIPPED 대신 빨강이 나는 사고 방지)와
+  충돌한다 — `recommend` 측정에는 `TermMngService`+`TermRecommendationCache`+DB(스프링 컨텍스트)가
+  필요하다. 이 워크트리에는 애초에 모델 파일이 없어 이 게이트 자체가 SKIPPED 로 끝나므로(§3.3, `find .
+  -iname "*.onnx"` 재확인 완료) 실측 불가 상태는 동일하다. 단건 인코딩 p50/p95 측정만 남기고 `recommend`
+  1만 건 재측정은 이 수동 테스트에서 제외했다 — 모델 파일을 실제로 구해 이 게이트를 처음 돌리는 사람이
+  필요하다면 별도로 `@SpringBootTest` 통합 시험을 추가해야 한다(인계 사항).
+
+## Build 변이 검증
+
+Build 단계에서 §5 불변 규칙 각각에 일부러 틀린 구현을 넣어 관련 테스트가 빨강이 나는지 확인했다(항목별
+1개 파일만 되돌리는 `git checkout --`로 원복, 원복 후 해당 테스트 재실행으로 초록 확인). I10·I15·I17 은
+이 작업이 새로 만든 코드가 아니라(기존 스키마·SPI·계약을 그대로 쓰는 회귀 대상) design.md 원안이 이미
+"정적 확인/회귀만, 신규 테스트 없음"으로 명시했으므로 새로 변이를 넣지 않았다 — testAll 전체가 그린임을
+반복 확인해 회귀만 유지됨을 대신 확인했다. I21(FE 라벨맵)은 프런트 Build 뒤 별도로 검증한다.
+
+| 항목 | 넣은 변이 | 잡은 테스트 | 빨강 |
+|---|---|---|---|
+| I1 | `UnitMngService.convertPreview` 의 차원 다름 거부 분기를 `if(false)`로 무력화 | `UnitConvertPreviewTest.I1_서로_다른_차원끼리는_환산을_거부한다` | 예 |
+| I2 | 최종 반올림 `setScale(9, HALF_UP)` → `setScale(6, HALF_UP)` | `UnitConvertPreviewTest`(2건: 35분→h, ton/kg/g 왕복) | 예 |
+| I3 | 기존 차원 `baseUnit` 불일치 거부 분기를 `if(false)`로 무력화 | `UnitMngServiceTest.기존_차원에_등록시_확립된_기준단위와_다르면_거부한다` | 예 |
+| I4 | `UnitForbiddenCodes.isForbidden()` 을 항상 `false` 로 | `UnitMngServiceTest.금지_단위_코드는_어떤_차원으로도_등록을_거부한다` | 예 |
+| I5(a) | `domainRepository.existsByUnitCode(...)` 분기를 `if(false)`로 무력화 | `UnitMngServiceTest.FK_참조가_있는_단위는_삭제를_거부한다` | 예 |
+| I5(b) | `hasSiblings` 분기를 `if(false)`로 무력화 | `UnitMngServiceTest.기준단위이면서_형제단위가_남아있으면_삭제를_거부한다` | 예 |
+| I6 | `(termName,senseNo)` 중복 거부(애플리케이션 레벨) 분기를 `if(false)`로 무력화 | `TermMngServiceTest.I6_같은_표기_의미번호_중복_저장은_거부한다` | 예(DB `UX_TB_MDM_TERM_NAME_SENSE` 유일 인덱스가 대신 막아 예외 타입이 달라지며 여전히 빨강 — 이중 방어가 실제로 작동함을 보여준다) |
+| I7 | `definition == null` 거부 분기를 `if(false)`로 무력화 | `TermMngServiceTest.I7_정의가_없으면_저장을_거부한다` | 예(DB `NOT NULL` 제약이 대신 막아 예외 타입이 달라지며 여전히 빨강) |
+| I8 | `warnings.add("ENG_ABBR_DUP")` 분기를 `if(false)`로 무력화 | `TermMngServiceTest.I8_영문약어_중복은_저장을_막지_않고_경고만_낸다` | 예 |
+| I9 | `TermEmbeddingCodec` 의 `ByteOrder.LITTLE_ENDIAN` → `BIG_ENDIAN`(encode·decode 둘 다) | `TermEmbeddingCodecTest.encode_decode_는_little_endian_으로_왕복한다`(수작업으로 만든 LE 기대 버퍼와 바이트 비교) | 예 |
+| I11 | `TermEmbeddingRepository.findStaleTermIds` 의 SQL 조건을 `WHERE 1=1`(전건)로 무력화 | `TermReencodeBatchTest.I11_EMBEDDING_MODEL이_NULL이거나_다른_행만_대상으로_잡는다` + 청크 테스트 연쇄 실패 | 예 |
+| I12 | `TermMngService.reencodeBatch` 의 `!encoder.isEnabled()` 조기 반환 분기를 `if(false)`로 무력화 | `TermReencodeBatchTest.I12_인코더가_비활성이면_즉시_반환하고_아무것도_건드리지_않는다` | 예 |
+| I13 | `application.yml` 의 `mdm.embedding.encoder`를 `none`→`fake` 로 변경 | `NoopTermEmbeddingEncoderTest.main_application_yml_의_운영_기본값은_none_이다`(advisor 가 지적한 대로 이 테스트가 없으면 `ApplicationContextRunner` 계열 테스트는 이 변이를 못 잡는다) | 예 |
+| I14 | `termMng.bpmn` 의 `compare` sequenceFlow `name` 을 `"compaer"` 오타로 변경 | `MdmOasisActionVocabularyTest`(어휘 포함 여부·5개 액션 존재 여부 2건) | 예 |
+| I16 | (구현 버그로 실제 발생) `UnitMngService.save()` 가 수정 시에도 `CHG_SEQ=0` 강제 | `UnitMngServiceTest.I16_등록_시_CHG_SEQ는_0이고_수정_시에는_건드리지_않는다` | 예 — 실제 버그를 잡아 즉시 수정(커밋 `240bac3`), 재검증 초록 확인 |
+| I18 | `MIN_STAGE1_SCORE` 를 `0.5`→`0.99` 로 상향 | `TermMngServiceTest.I18_편집거리_점수_0_5_경계값_포함_그_아래는_제외된다` | 예 |
+| I19 | `afterCommitOrNow` 의 트랜잭션 동기화 분기를 `if(false)`로 무력화(항상 즉시 실행) | `TermMngServiceTest.I19_트랜잭션이_롤백되면_DB에도_캐시에도_남지_않는다` | 예 |
+| I20 | `UnitMngService.CODE_20` 정규식을 문자 종류 제한 없이 길이만 검사(`^.{1,20}$`)하도록 완화 | `UnitMngServiceTest.UNIT_CODE_DIMENSION_이_ASCII_가_아니면_거부한다` | 예 |
+
+**못 덮은 항목**: 없음 — I10·I15·I17 은 신규 코드가 아니라는 design.md 원안 판단을 그대로 따랐고(은폐가
+아니라 계획대로), 그 외 I1~I9·I11~I14·I16·I18~I20 은 전부 전용 변이로 빨강을 확인했다. I21(FE)은
+프런트 Build 완료 뒤 별도 기록한다.
