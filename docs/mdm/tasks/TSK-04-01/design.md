@@ -464,3 +464,18 @@ Build에서 확인한 나머지 10개 불변 규칙(#1·#3·#4·#5·#6·#7·#9·
 - **MSSQL 게이트**: 14 PASSED (✅ 신규 10 추가)
 
 **PHASE_RESULT: verify ok**
+
+### 오케스트레이터 변이 재확인 (Verify 게이트 보강)
+
+Verify 서브에이전트는 #2 만 전체 스위트로 재확인했다. dev-discipline 「Phase 04」의 "Build 가 확인한 항목도 전체 스위트 기준으로 다시 본다"를 채우려고 오케스트레이터가 아래 6개 변이를 직접 넣고 mdm 전체 스위트(`cd src/backend/mdm && ../gradlew :lib:test :api:test --rerun --continue --no-daemon`, lib 65 + api 29 = 94건)로 돌린 뒤 `git checkout`/파일 삭제로 원복했다. 원복 후 `git status` 는 깨끗했다.
+
+| # | 변이 | 잡은 테스트(전체 스위트에서 유일 실패) |
+|---|---|---|
+| 3 | `MdmColumnDictionaryLookup` 에 `default` 메서드 | `MdmContractArchitectureTest.계약_인터페이스의_메서드는_모두_추상이다` |
+| 5 | `TB_MDM_DICT_SEQ` 임시 `@Entity` 추가 | `MdmEntityJpaRoundtripTest.관리_엔티티_테이블_집합에_DICT_SEQ_DICT_SYSTEM_이_없고_5개_업무_테이블은_있다` |
+| 7 | `MdmTerm` 에 `@Column(name="EMBEDDING") byte[] vector` | `MdmEntityJpaRoundtripTest.MdmTerm_은_EMBEDDING_EMBEDDING_MODEL_칼럼을_매핑하지_않는다` |
+| 9 | `MdmDomain` 에 `@ManyToOne` 부모 필드 | `MdmEntityArchitectureTest.엔티티_패키지는_ManyToOne_연관관계_매핑을_쓰지_않는다` |
+| 10 | `MdmTerm` 을 `GenerationType.AUTO` 로 | `MdmEntityJpaRoundtripTest.MdmTerm_은_IDENTITY_채번_으로_저장_조회_왕복한다` |
+| 12 | sqlite V3 `CK_TB_MDM_COLUMN_TERM_IDS_JSON` 제거 | `MdmTermDomainColumnMigrationTest.JSON_CHECK_8칼럼이_부정형을_거부하고_NULL_은_통과한다` |
+
+오케스트레이터 직접 게이트: testAll 485 / 0(기준선 447 / 0), mdm `--rerun` 94 / 0, `:api:mssqlMigrationTest` 14 passed.

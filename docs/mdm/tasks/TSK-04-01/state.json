@@ -2,7 +2,7 @@
   "tsk": "TSK-04-01",
   "order": "847a7616-c56e-43fb-a5fe-5380f42aba38",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "verify",
+  "phase": "refactor",
   "baseline": {
     "failures": 0,
     "tests": 447,
@@ -18,8 +18,8 @@
     }
   },
   "last": {
-    "phase": "build",
-    "event": "build.ok"
+    "phase": "verify",
+    "event": "verify.ok"
   },
   "model": "haiku",
   "build_gate": {
@@ -28,5 +28,25 @@
       "failures": 0
     },
     "mssqlMigrationTest": "14 passed (SQL Server 2022-CU27)"
+  },
+  "verify_gate": {
+    "backend_testAll": {
+      "tests": 485,
+      "failures": 0
+    },
+    "mdm_rerun": {
+      "tests": 94,
+      "failures": 0
+    },
+    "mssqlMigrationTest": "14 passed",
+    "mutations_rechecked": [
+      "3",
+      "5",
+      "7",
+      "9",
+      "10",
+      "12",
+      "2"
+    ]
   }
 }
