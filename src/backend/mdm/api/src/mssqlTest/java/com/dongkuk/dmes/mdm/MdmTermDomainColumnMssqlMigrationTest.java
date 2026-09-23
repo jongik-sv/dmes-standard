@@ -1,5 +1,7 @@
 package com.dongkuk.dmes.mdm;
 
+import static com.dongkuk.dmes.mdm.MdmDictionaryExpectations.JSON_VALUE_EXPECTED;
+import static com.dongkuk.dmes.mdm.MdmDictionaryExpectations.JSON_VALUE_FIXTURE;
 import static com.dongkuk.dmes.mdm.MdmDictionaryExpectations.embeddingFixture;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -115,7 +117,12 @@ class MdmTermDomainColumnMssqlMigrationTest {
         }
     }
 
-    /** #5 — JSON_VALUE(COL, '$.type') 이 SQLite json_extract 와 같은 경로 문법·같은 값을 반환한다. */
+    /**
+     * #5 — JSON_VALUE(COL, '$.type') 이 SQLite json_extract 와 같은 경로 문법·같은 값을 반환한다.
+     * {@code MdmDictionaryExpectations.JSON_VALUE_FIXTURE}/{@code _EXPECTED} 를
+     * {@code MdmTermDomainColumnMigrationTest} 의 같은 이름 테스트와 공유해, 두 방언에 실제로 같은 입력을
+     * 넣고 같은 경로로 값을 뽑아 비교한다(§3.2-③ "같은 입력 JSON 으로 양쪽 실행 후 비교").
+     */
     @Test
     void JSON_VALUE_가_경로_로_값을_추출한다() throws SQLException {
         try (Connection c = dataSource.getConnection()) {
@@ -123,7 +130,7 @@ class MdmTermDomainColumnMssqlMigrationTest {
             try (PreparedStatement ps = c.prepareStatement(
                     "INSERT INTO TB_MDM_DOMAIN (DOMAIN_NAME, STD_NAME, DOMAIN_KIND, DATA_TYPE, STD_AST) "
                             + "OUTPUT inserted.DOMAIN_ID VALUES (N'JSON값', 'JSON_VALUE_D', 'QTY', 'NUMBER', ?)")) {
-                ps.setString(1, "{\"type\":\"foo\"}");
+                ps.setString(1, JSON_VALUE_FIXTURE);
                 try (ResultSet keys = ps.executeQuery()) {
                     keys.next();
                     long domainId = keys.getLong(1);
@@ -132,7 +139,8 @@ class MdmTermDomainColumnMssqlMigrationTest {
                         select.setLong(1, domainId);
                         try (ResultSet rs = select.executeQuery()) {
                             assertTrue(rs.next());
-                            assertEquals("foo", rs.getString(1), "SQLite json_extract(STD_AST,'$.type') 와 같은 값이어야 한다");
+                            assertEquals(JSON_VALUE_EXPECTED, rs.getString(1),
+                                    "SQLite json_extract(STD_AST,'$.type') 와 같은 값이어야 한다");
                         }
                     }
                 }

@@ -22,6 +22,10 @@ final class MdmDictionaryExpectations {
     static final Set<String> ENTITY_TABLES = Set.of(
             "TB_MDM_UNIT", "TB_MDM_TERM", "TB_MDM_DOMAIN", "TB_MDM_COLUMN", "TB_MDM_COLUMN_SYSTEM");
 
+    /** §3.2-③ — SQLite json_extract·MSSQL JSON_VALUE 를 같은 입력·같은 경로로 비교할 때 쓰는 공유 픽스처. */
+    static final String JSON_VALUE_FIXTURE = "{\"type\":\"foo\"}";
+    static final String JSON_VALUE_EXPECTED = "foo";
+
     /** 불변 규칙 12 — JSON CHECK 대상은 정확히 8칼럼(TERM 3·DOMAIN 4·COLUMN 1). */
     static final Set<String> JSON_CHECK_NAMES = Set.of(
             "CK_TB_MDM_TERM_SYNONYMS_JSON", "CK_TB_MDM_TERM_ALIASES_JSON", "CK_TB_MDM_TERM_SYSTEMS_JSON",

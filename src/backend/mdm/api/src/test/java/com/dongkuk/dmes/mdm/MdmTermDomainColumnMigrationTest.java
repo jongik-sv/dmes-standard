@@ -1,6 +1,8 @@
 package com.dongkuk.dmes.mdm;
 
 import static com.dongkuk.dmes.mdm.MdmDictionaryExpectations.JSON_CHECK_NAMES;
+import static com.dongkuk.dmes.mdm.MdmDictionaryExpectations.JSON_VALUE_EXPECTED;
+import static com.dongkuk.dmes.mdm.MdmDictionaryExpectations.JSON_VALUE_FIXTURE;
 import static com.dongkuk.dmes.mdm.MdmDictionaryExpectations.TABLES;
 import static com.dongkuk.dmes.mdm.MdmDictionaryExpectations.embeddingFixture;
 import static com.dongkuk.dmes.mdm.MdmDictionaryExpectations.expectedColumns;
@@ -264,6 +266,32 @@ class MdmTermDomainColumnMigrationTest {
         }
     }
 
+    /**
+     * #5 — json_extract(COL, '$.type') 이 경로 문법으로 값을 뽑는다. {@code MdmDictionaryExpectations}의
+     * 같은 픽스처/기대값을 {@code MdmTermDomainColumnMssqlMigrationTest.JSON_VALUE_가_경로_로_값을_추출한다()}
+     * 와 공유해, 두 방언에 실제로 같은 입력을 넣고 같은 경로로 값을 뽑아 비교한다(§3.2-③).
+     */
+    @Test
+    void json_extract_이_경로_로_값을_추출한다() throws SQLException {
+        try (Connection c = dataSource.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                long domainId = insertDomainWithAst(c, "JSON값추출-" + SEQ.incrementAndGet(), JSON_VALUE_FIXTURE);
+                try (PreparedStatement select = c.prepareStatement(
+                        "SELECT json_extract(STD_AST, '$.type') FROM TB_MDM_DOMAIN WHERE DOMAIN_ID = ?")) {
+                    select.setLong(1, domainId);
+                    try (ResultSet rs = select.executeQuery()) {
+                        assertTrue(rs.next());
+                        assertEquals(JSON_VALUE_EXPECTED, rs.getString(1));
+                    }
+                }
+            } finally {
+                c.rollback();
+                c.setAutoCommit(true);
+            }
+        }
+    }
+
     @Test
     void EMBEDDING_칼럼이_NULL_허용이고_4096바이트_BLOB_이_바이트_단위로_왕복한다() throws SQLException {
         try (Connection c = dataSource.getConnection()) {
@@ -365,14 +393,19 @@ class MdmTermDomainColumnMigrationTest {
         }
     }
 
-    private static void insertDomainWithAst(Connection c, String stdName, String stdAst) throws SQLException {
+    private static long insertDomainWithAst(Connection c, String stdName, String stdAst) throws SQLException {
         try (PreparedStatement ps = c.prepareStatement(
                 "INSERT INTO TB_MDM_DOMAIN (DOMAIN_NAME, STD_NAME, DOMAIN_KIND, DATA_TYPE, STD_AST) "
-                        + "VALUES (?, ?, 'QTY', 'NUMBER', ?)")) {
+                        + "VALUES (?, ?, 'QTY', 'NUMBER', ?)",
+                Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, "도메인-" + stdName);
             ps.setString(2, stdName);
             ps.setString(3, stdAst);
             ps.executeUpdate();
+            try (ResultSet keys = ps.getGeneratedKeys()) {
+                keys.next();
+                return keys.getLong(1);
+            }
         }
     }
 

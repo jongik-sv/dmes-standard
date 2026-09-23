@@ -267,6 +267,16 @@ cd src/backend/mdm && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk
 - **근거**: 위 강도 그대로.
 - **반려 시 재작업**: 두 레코드를 `MdmColumnDefinition` 하나로 합치고 인터페이스도 하나로 줄인다. §3.4 스텁도 함께 고친다.
 
+### D10 — `CactusAuditEntity.C_AT`(Instant)의 SQLite 실제 저장 형식(#16 실측 결과 처리)
+
+- **질문**: Build 가 실측(`MdmEntityJpaRoundtripTest.C_AT_의_SQLite_저장_형식을_typeof_로_관찰한다`)한 결과, mdm 의 `CactusAuditEntity.C_AT`(Instant) 매핑이 SQLite 에 **INTEGER(epoch millis)**로 저장됨을 확인했다(`typeof(C_AT)='integer'`) — mcm 이 `SqliteTemporalConverterContributor`로 우회해야 했던 바로 그 결함(02:402 근거 문서가 예고한 "SQLite 날짜 왕복 결함")이 mdm 에도 그대로 재현된다. 이 Task 가 지금 고칠 것인가, 사실만 기록하고 미룰 것인가.
+- **선택지**:
+  1. 이 Task 가 mdm 용 `MetadataBuilderContributor`(또는 동등 설정)를 지금 추가해 ISO-8601 텍스트로 정규화한다. **강도: 약** — spec 수용 기준 "실행 로직 없음(contract-only)"과 이 Task 의 범위(02 DDL·엔티티·계약, §1)를 벗어난 전역 JPA 설정 변경이고, 이 Task 의 테스트가 요구하는 어떤 비교도 이 결함 때문에 깨지지 않는다(왕복 테스트는 같은 Hibernate 경로로 쓰고 읽으므로 내부적으로 일관됨).
+  2. 사실만 실측·기록하고(`typeof()` 단언으로 테스트에 고정) 고치지 않는다. 규칙표(#16)에 있는 그대로 반영하고, 향후 네이티브 SQL 로 `C_AT` 를 다루는 Task(예: 03·04·05·06 화면의 감사 표시, 또는 04-03 의 재귀 CTE 가 `C_AT` 를 비교/정렬 기준으로 쓸 경우)에 인계한다. **강도: 강** — 이 Task 범위 밖의 전역 설정 변경이고, 고치려면 mdm 전용 `LocalContainerEntityManagerFactoryBean` 커스터마이징(현재 mdm 은 Spring Boot 자동 설정을 그대로 쓴다, mcm 처럼 명시 `JpaConfig` 가 없다)이 필요해 파급 범위가 크다.
+- **택한 것**: 2.
+- **근거**: 위 강도 그대로. 이 Task 의 수용 기준·테스트 어느 것도 `C_AT` 의 텍스트 형식에 의존하지 않는다(모두 Hibernate 매핑을 통해 쓰고 읽으므로 내부적으로 일관). "실측하고 규칙표에 반영"이 이 Task 의 역할(§6.2)이고, "고칠지"는 실제로 그 결함이 문제를 일으키는 소비자 Task 의 판단이다.
+- **반려 시 재작업**: mdm 전용 `JpaConfig`(또는 `EntityManagerFactoryCustomizer`)를 신설해 `hibernate.metadata_builder_contributor` 로 mcm 과 같은 컨버터(또는 mdm 전용 버전)를 등록하고, 그 결과로 이미 SQLite 로 저장된 개발 DB 의 기존 `C_AT` 값(INTEGER)과 새 형식(TEXT)이 섞이는 마이그레이션 문제를 별도로 다뤄야 한다.
+
 ### D9 — 영향도 조회가 03·06 데이터(`TB_MDM_LAYOUT_ITEM`·`TB_MDM_RULE_VAR`)를 참조하는 방식 (판단 지점 3, 의존 방향)
 - **질문**: `MdmDomainImpactLookup` 구현체(TSK-04-03)가 03·06 의 데이터를 어떻게 참조하는가 — 두 테이블이 아직 없거나(06 은 `TSK-08-01` 미완료 시) 비어 있을 수 있는 상황(F9)에서.
 - **선택지**:
@@ -358,6 +368,7 @@ public interface MdmDomainImpactLookup {
 | **TSK-05-01**(03), **TSK-08-01**(06) | `com.dongkuk.dmes.mdm.contract.dictionary`의 세 인터페이스만 참조한다(§3.5 ArchUnit 이 자동 집행). `com.dongkuk.dmes.mdm.entity`/`.repository`를 직접 import 하면 안 된다. 각자 `MdmDomainReferenceSpi`를 구현해 자기 영역이 참조하는 도메인/컬럼을 알려준다(D9) — 03 은 `refKind="LAYOUT_ITEM"`, 06 은 `refKind="RULE_VAR"`. |
 | **TSK-03-01**(엔진 공유 계약) | 실제 `kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup`·`DomainKind`가 컴파일되면, `com.dongkuk.dmes.mdm.contract.dictionary.MdmDomainKind`·`MdmDataType`과 값 집합이 같은지 확인하는 교차 검증 테스트를 추가한다(F15 — 이 Task 는 대상이 없어 만들지 못했다). |
 | **모든 후속 Task**(naming-dialect-rules §6.2) | §3 #3·#5·#15·#16·#19·#20·#23 이 "확인(TSK-04-01 실측)"으로 갱신되므로, 그 값(콜레이션·JSON 함수·BIT/DATETIME2 매핑 등)을 재실측 없이 그대로 인용할 수 있다. |
+| **`C_AT`/`U_AT` 를 네이티브 SQL 로 다루는 모든 후속 Task**(D10) | mdm 의 `CactusAuditEntity.C_AT`(Instant)는 SQLite 에 **INTEGER(epoch millis)**로 저장된다(`typeof(C_AT)='integer'`, 실측). ISO-8601 텍스트를 기대하는 네이티브 SQL(정렬·비교·표시)을 쓰면 오작동한다 — 엔티티 경로로만 읽고 쓰거나, 이 사실을 감안해 native 쿼리를 작성할 것. |
 
 ---
 
@@ -367,38 +378,43 @@ public interface MdmDomainImpactLookup {
 
 ### 설계 이탈
 
-1. **§3.1-4 의 전제 오류** — "`TB_MDM_UNIT`·`TB_MDM_COLUMN_SYSTEM`·`TB_MDM_DICT_SYSTEM`이 참조하는 기존 FK(`TB_MDM_SYSTEM`)"라고 적었으나, ERD(`docs/mdm/erd/02-term-domain-column.sqlite.sql`)를 다시 확인하니 `TB_MDM_UNIT`에는 `TB_MDM_SYSTEM`을 가리키는 FK 가 없다(원문에도 없음). `MdmTermDomainColumnMigrationTest.기존_TB_MDM_SYSTEM_FK_는_여전히_강제된다()`는 실제로 FK 가 있는 두 테이블(`TB_MDM_COLUMN_SYSTEM`·`TB_MDM_DICT_SYSTEM`)만 대조군으로 쓴다. V3 DDL 자체는 이 오류의 영향을 받지 않는다(ERD 원문을 그대로 옮겼으므로).
-2. **§3.4 스텁 컴파일 테스트 배치** — design 이 "같은 파일에 메서드 추가 또는 별도 스텁 파일, Build 판단"이라 위임한 대로, 기존 `ContractStubCompileTest.java`(TSK-01-02 소유)에 dictionary 세 인터페이스용 테스트 메서드 3개를 추가했다(별도 파일을 새로 만들지 않음) — §2 "수정" 목록에 이 파일이 없었던 것은 design 의 누락이다.
-3. **변이 검증 커버리지 구멍을 메우기 위한 추가 산출물**(§2 목록 밖, dev-discipline "안 깨지는 변이는 테스트를 늘려 덮는다"에 따른 추가):
+1. **TDD 순서 이탈** — dev-discipline 「Phase 03」은 "테스트를 먼저 쓰고 실패를 확인한 뒤 구현"을 요구하지만, 실제로는 V3 마이그레이션·엔티티·리포지토리·계약 타입을 먼저 쓰고 테스트를 나중에 썼다(작업 순서 판단 오류, 은폐하지 않고 기록한다). 그 결과 새 테스트는 대부분 **첫 실행에서 바로 초록**이었고 "구현 전 red" 관찰은 하지 못했다 — 유일하게 처음 빨강이 났던 것은 `MdmEntityJpaRoundtripTest`의 `TransactionRequiredException`인데, 이는 구현 누락이 아니라 테스트 하네스 버그(`@Transactional` 누락)였다. "테스트가 틀린 구현을 잡는다"는 증명은 아래 §「변이 검증 결과표」의 11개 불변 규칙 변이로 별도로 했다 — red 확인의 증거는 그쪽이다.
+2. **§3.1-4 의 전제 오류** — "`TB_MDM_UNIT`·`TB_MDM_COLUMN_SYSTEM`·`TB_MDM_DICT_SYSTEM`이 참조하는 기존 FK(`TB_MDM_SYSTEM`)"라고 적었으나, ERD(`docs/mdm/erd/02-term-domain-column.sqlite.sql`)를 다시 확인하니 `TB_MDM_UNIT`에는 `TB_MDM_SYSTEM`을 가리키는 FK 가 없다(원문에도 없음). `MdmTermDomainColumnMigrationTest.기존_TB_MDM_SYSTEM_FK_는_여전히_강제된다()`는 실제로 FK 가 있는 두 테이블(`TB_MDM_COLUMN_SYSTEM`·`TB_MDM_DICT_SYSTEM`)만 대조군으로 쓴다. V3 DDL 자체는 이 오류의 영향을 받지 않는다(ERD 원문을 그대로 옮겼으므로).
+3. **§3.4 스텁 컴파일 테스트 배치** — design 이 "같은 파일에 메서드 추가 또는 별도 스텁 파일, Build 판단"이라 위임한 대로, 기존 `ContractStubCompileTest.java`(TSK-01-02 소유)에 dictionary 세 인터페이스용 테스트 메서드 3개를 추가했다(별도 파일을 새로 만들지 않음) — §2 "수정" 목록에 이 파일이 없었던 것은 design 의 누락이다.
+4. **변이 검증 커버리지 구멍을 메우기 위한 추가 산출물**(§2 목록 밖, dev-discipline "안 깨지는 변이는 테스트를 늘려 덮는다"에 따른 추가):
    - `lib/src/test/.../entity/MdmEntityArchitectureTest.java`(신규) — 엔티티 패키지가 엔진 타입에 의존하지 않는지(불변 규칙 6), `@ManyToOne`/`@OneToMany`/`@OneToOne`/`@ManyToMany` 연관관계 매핑을 쓰지 않는지(불변 규칙 9) ArchUnit 으로 고정. 왕복 테스트만으로는 두 변이 모두 통과해 버린다(아래 표 실측).
    - `MdmContractArchitectureTest`에 "계약_패키지는_엔진_타입에_의존하지_않는다" 규칙 추가(불변 규칙 6, 기존 Spring/JPA/Hibernate/JDBC 금지 목록에 엔진 패키지가 없었다).
-   - `MdmEntityJpaRoundtripTest`에 "매핑된_엔티티는_정확히_5개다"(D2 가드)·"MdmTerm_은_EMBEDDING_EMBEDDING_MODEL_을_매핑하지_않는다"(불변 규칙 7 가드) 두 메서드 추가.
+   - `MdmEntityJpaRoundtripTest`에 D2 가드·불변 규칙 7 가드 두 메서드 추가. **1차 구현("엔티티 정확히 5개", "메타모델 속성 이름으로 EMBEDDING 확인") 은 advisor 재검토에서 두 가지 결함이 드러나 다시 고쳤다**: ①"정확히 5개"는 TSK-05-01·06-01·07-01·08-01 이 각자 `entity` 패키지에 엔티티를 늘리는 정상 진화와 충돌하므로, "5개 업무 테이블 존재 + DICT_SEQ·DICT_SYSTEM 부재"(테이블 이름 기반, `containsAll`+부재 확인)로 바꿨다. ②속성 자바 이름(`embedding`)이 아니라 필드를 `vector`로 개명하고 `@Column(name="EMBEDDING")`만 유지하는 변이는 이름 기반 검사를 피해가므로, `@Column` 어노테이션의 `name()` 값으로 검사하도록 바꿨다 — 실제로 이 변이를 넣어 새 가드가 잡음을 재확인했다(아래 표).
    - `MdmTermDomainColumnMigrationTest`의 JSON CHECK 8칼럼 확인 로직을 "알려진 8개 이름 존재 확인"에서 "`*_JSON CHECK` 패턴 전부를 정규식으로 세어 정확히 8개"로 강화(원래 방식은 9번째 미등재 CHECK 가 추가되는 변이를 못 잡았다, 아래 표 실측).
-4. **F1 대조군(§3.2-⑩) 을 MSSQL 컨테이너로 매번 다시 실행하지 않음** — MSSQL 은 DDL 자체에 `FK_TB_MDM_DOMAIN_CODE` 가 없어(ERD 원문부터 이미 제외) SQLite 와 달리 "FK 를 다시 걸면 CREATE TABLE 자체가 실패"하는 구조적으로 자명한 실패 모드다. SQLite 쪽에서는 실제로 FK 를 넣는 변이를 실행해 6개 테스트가 즉시 빨강이 됨을 확인했다(아래 표) — MSSQL 쪽은 도커 컨테이너 재기동 비용 대비 추가 정보가 적어 생략했다.
+   - `MdmDictionaryExpectations`에 `JSON_VALUE_FIXTURE`/`JSON_VALUE_EXPECTED` 공유 상수를 추가하고, `MdmTermDomainColumnMigrationTest`에 SQLite `json_extract` 단언을 새로 추가했다 — §3.2-③이 요구한 "같은 입력 JSON 으로 양쪽(SQLite·MSSQL) 실행 후 비교"가 처음엔 MSSQL 쪽만 있었다(SQLite 쪽에서 같은 입력으로 `json_extract` 를 실행한 적이 없었다, advisor 재검토).
+   - `MdmEntityJpaRoundtripTest`에 `C_AT_의_SQLite_저장_형식을_typeof_로_관찰한다()`를 추가해 naming-dialect-rules §3 #16 이 요구한 "Instant(C_AT·U_AT)의 SQLite 저장 형식" 관찰을 실제로 했다(처음엔 빠져 있었다, advisor 재검토) — 결과는 `typeof(C_AT)='integer'`(epoch millis), mcm 이 우회해야 했던 결함이 mdm 에도 재현된다. 새 D10 항목으로 기록했다(고치지는 않음, 아래 참고).
+5. **F1 대조군(§3.2-⑩) 을 MSSQL 컨테이너로 매번 다시 실행하지 않음** — MSSQL 은 DDL 자체에 `FK_TB_MDM_DOMAIN_CODE` 가 없어(ERD 원문부터 이미 제외) SQLite 와 달리 "FK 를 다시 걸면 CREATE TABLE 자체가 실패"하는 구조적으로 자명한 실패 모드다. SQLite 쪽에서는 실제로 FK 를 넣는 변이를 실행해 6개 테스트가 즉시 빨강이 됨을 확인했다(아래 표) — MSSQL 쪽은 도커 컨테이너 재기동 비용 대비 추가 정보가 적어 생략했다.
+
+### 담당자 확인 필요 결정 D10
+
+`CactusAuditEntity.C_AT`(Instant)의 SQLite 실제 저장 형식(#16 실측 결과 처리) — 위 「담당자 확인 필요 결정」 절의 D10 항목 참고. 요지: SQLite 에 INTEGER(epoch millis)로 저장됨을 실측 확인했고, 이 Task 범위 밖의 전역 JPA 설정 변경이 필요해 **고치지 않고 사실만 기록·인계**하기로 했다(§8 인계 사항에 새 행 추가).
 
 ### 변이 검증 결과표
 
-design.md §5 불변 규칙 순서. "방언"은 실제로 변이를 실행해 확인한 방언, "원복 확인"은 `/usr/bin/git diff`(신규 파일은 원본 텍스트 재확인)로 완전 원복을 확인했다는 뜻이다.
+design.md §5 불변 규칙 순서. "방언"은 실제로 변이를 실행해 확인한 방언, 모든 변이는 확인 직후 정확히 원래 텍스트로 원복했다(신규 파일은 삭제, 기존 파일은 원문 재확인). 11개 불변 규칙(§5 의 1~7·9~12, #8 은 대상 파일이 없어 변이 자체가 성립하지 않아 제외)에 변이를 넣었고, **7개는 기존(변이 검증 이전부터 있던) 테스트가 즉시 잡았고, 4개(#5·#6·#7·#9)는 처음엔 안 잡혔다가 이번 Build 가 가드 테스트를 새로 추가해 커버리지 구멍을 메웠다**(은폐하지 않고 여기 기록).
 
-| # | 불변 규칙 | 변이 | 결과 | 방언 |
-|---|---|---|---|---|
-| 1 | ERD 원문 칼럼 보존 | `TB_MDM_UNIT.DIMENSION` 칼럼 삭제 | 🔴 `_7테이블_전부_생성되고_칼럼_집합이_기대값과_같다` 실패 | SQLite |
-| 2 | `FK_TB_MDM_DOMAIN_CODE` 미부착(D1) | sqlite V3 에 FK 재부착 | 🔴 6개 테스트 실패(`FK_TB_MDM_DOMAIN_CODE_부재_확인`·`JSON_CHECK_8칼럼`·`AUTOINCREMENT`·`CK_...`·`UX_TB_MDM_COLUMN_NAME_PHYS_NAME`·`기존_TB_MDM_SYSTEM_FK`) — F1 이 예측한 대로 `TB_MDM_DOMAIN`에 대한 모든 쓰기가 막혔다 | SQLite(MSSQL 은 구조상 자명, 이탈 4 참고) |
-| 3 | 계약 인터페이스는 추상 메서드만 | `MdmColumnDictionaryLookup`에 `default` 메서드 추가 | 🔴 `계약_인터페이스의_메서드는_모두_추상이다` 실패(기존 TSK-01-02 규칙이 새 서브패키지에도 자동 적용됨을 재확인) | — |
-| 4 | 감사 9칼럼은 `CactusAuditEntity` 상속만, 재선언 금지 | `MdmUnit`에 `@Column(name="VER") private Long dupVer` 추가 | 🔴 컨텍스트 부팅 자체가 `org.hibernate.MappingException`으로 실패(7개 테스트 모두 실패) — "가정하지 말고 실제로 확인"(Build 지시)한 결과 | SQLite |
-| 5 | `DICT_SEQ`·`DICT_SYSTEM` 엔티티 없음(D2) | `TB_MDM_DICT_SEQ`용 임시 `@Entity` 클래스 추가 | 🟢(기존 테스트는 전부 통과) → 🔴 새로 추가한 "매핑된_엔티티는_정확히_5개다" 가드만 잡음(이탈 3 참고, 커버리지 구멍이었다) | SQLite |
-| 6 | 엔진 타입을 계약에 import 하지 않음 | `MdmCodeRef`에 `kr.dongkuk.maru.mdm.engine.expr.ExpressionEvaluator` 참조 static 필드 추가 | 🟢 → 🔴 새로 추가한 "계약_패키지는_엔진_타입에_의존하지_않는다" 가드만 잡음(이탈 3, 기존 금지 목록에 엔진 패키지가 없었다) | — |
-| 7 | `EMBEDDING`을 엔티티에 매핑하지 않음 | `MdmTerm`에 `byte[] embedding` 필드 매핑 추가 | 🟢(왕복 테스트 그대로 통과) → 🔴 새로 추가한 "MdmTerm_은_EMBEDDING_...을_매핑하지_않는다" 가드만 잡음(이탈 3) | SQLite |
-| 9 | JPA 연관관계 매핑 금지 | `MdmDomain.parentDomainId`에 `@ManyToOne` 필드 추가 | 🟢(왕복은 그대로 통과) → 🔴 새로 추가한 `MdmEntityArchitectureTest` 가드만 잡음(이탈 3) | — |
-| 10 | ID 채번은 `GenerationType.IDENTITY` 고정 | `MdmTerm`을 `GenerationType.AUTO`로 변경 | 🔴 `MdmTerm_은_IDENTITY_채번...` 실패(`org.sqlite.SQLiteException`) | SQLite |
-| 11 | `COLUMN_SYSTEM.SYSTEM_CODE`는 BIN2 콜레이션 유지(F17) | mssql V3 에서 `COLLATE Latin1_General_100_BIN2` 제거 | 🔴 `MdmTermDomainColumnMssqlMigrationTest` 10개 전부 실패(콜레이션 불일치로 `TB_MDM_SYSTEM` FK 비교가 깨지며 컨텍스트 부팅 단계부터 실패 — 예상보다 넓게 잡혔지만 "잡지 못함"은 아니다) | MSSQL |
-| 12 | JSON CHECK 정확히 8칼럼 | (a) sqlite `COLUMN.TERM_IDS` CHECK 제거 (b) sqlite `TERM.STD_BASIS`에 9번째 CHECK 추가 (c) mssql `COLUMN.TERM_IDS` CHECK 제거 | 🔴 세 방향 모두 `JSON_CHECK...` 관련 테스트 단독 실패(이탈 3 의 정규식 강화 이후) | SQLite(a,b) · MSSQL(c) |
-| 8 | `VersionConventions`등 재정의 금지 | (해당 없음 — 이 Task 가 그 파일들을 건드리지 않아 구조적으로 자명, 별도 변이 생략) | — | — |
-
-**요약**: 12개 항목 중 10개는 기존/신규 테스트가 곧바로 잡았고, 3개(#5·#6·#7·#9, 표에서는 4건)는 처음엔 안 잡혔다가 이번 Build 가 가드 테스트를 추가해 커버리지 구멍을 메웠다(은폐하지 않고 여기 기록). #8 은 파일을 건드리지 않아 변이 자체가 성립하지 않는다.
+| # | 불변 규칙 | 변이 | 결과 | 방언 | 분류 |
+|---|---|---|---|---|---|
+| 1 | ERD 원문 칼럼 보존 | `TB_MDM_UNIT.DIMENSION` 칼럼 삭제 | 🔴 `_7테이블_전부_생성되고_칼럼_집합이_기대값과_같다` 실패 | SQLite | 기존 테스트가 잡음 |
+| 2 | `FK_TB_MDM_DOMAIN_CODE` 미부착(D1) | sqlite V3 에 FK 재부착 | 🔴 6개 테스트 실패(`FK_TB_MDM_DOMAIN_CODE_부재_확인`·`JSON_CHECK_8칼럼`·`AUTOINCREMENT`·`CK_...`·`UX_TB_MDM_COLUMN_NAME_PHYS_NAME`·`기존_TB_MDM_SYSTEM_FK`) — F1 이 예측한 대로 `TB_MDM_DOMAIN`에 대한 모든 쓰기가 막혔다 | SQLite(MSSQL 은 구조상 자명, 이탈 5 참고) | 기존 테스트가 잡음 |
+| 3 | 계약 인터페이스는 추상 메서드만 | `MdmColumnDictionaryLookup`에 `default` 메서드 추가 | 🔴 `계약_인터페이스의_메서드는_모두_추상이다` 실패(기존 TSK-01-02 규칙이 새 서브패키지에도 자동 적용됨을 재확인) | — | 기존 테스트가 잡음 |
+| 4 | 감사 9칼럼은 `CactusAuditEntity` 상속만, 재선언 금지 | `MdmUnit`에 `@Column(name="VER") private Long dupVer` 추가 | 🔴 컨텍스트 부팅 자체가 `org.hibernate.MappingException`으로 실패(7개 테스트 모두 실패) — "가정하지 말고 실제로 확인"한 결과 | SQLite | 기존 테스트가 잡음 |
+| 5 | `DICT_SEQ`·`DICT_SYSTEM` 엔티티 없음(D2) | `TB_MDM_DICT_SEQ`용 임시 `@Entity` 클래스 추가 | 🟢(1차 실행, 기존 테스트 전부 통과) → 새 가드 추가(이탈 4) → 🔴 재실행 시 새 가드가 잡음 | SQLite | **새 가드 필요했음** |
+| 6 | 엔진 타입을 계약에 import 하지 않음 | `MdmCodeRef`에 `kr.dongkuk.maru.mdm.engine.expr.ExpressionEvaluator` 참조 static 필드 추가 | 🟢 → 새 가드 추가(이탈 4) → 🔴 재실행 시 새 가드가 잡음 | — | **새 가드 필요했음** |
+| 7 | `EMBEDDING`을 엔티티에 매핑하지 않음 | (1차) `MdmTerm`에 `byte[] embedding` 필드 매핑 추가 → 🟢(왕복 테스트 통과) → 이름 기반 가드 추가 → 🔴 잡음. (2차, advisor 재검토) 필드명을 `vector`로 바꾸고 `@Column(name="EMBEDDING")`만 유지 → 이름 기반 가드는 못 잡을 것으로 예상돼 칼럼명 기반으로 가드를 다시 씀 → 🔴 새 가드가 잡음(재확인 완료) | SQLite | **새 가드 필요했음(1·2차 모두)** |
+| 9 | JPA 연관관계 매핑 금지 | `MdmDomain.parentDomainId`에 `@ManyToOne` 필드 추가 | 🟢(왕복은 그대로 통과) → 새 가드 추가(이탈 4) → 🔴 재실행 시 `MdmEntityArchitectureTest` 가 잡음 | — | **새 가드 필요했음** |
+| 10 | ID 채번은 `GenerationType.IDENTITY` 고정 | `MdmTerm`을 `GenerationType.AUTO`로 변경 | 🔴 `MdmTerm_은_IDENTITY_채번...` 실패(`org.sqlite.SQLiteException`) | SQLite | 기존 테스트가 잡음 |
+| 11 | `COLUMN_SYSTEM.SYSTEM_CODE`는 BIN2 콜레이션 유지(F17) | mssql V3 에서 `COLLATE Latin1_General_100_BIN2` 제거 | 🔴 `MdmTermDomainColumnMssqlMigrationTest` 10개 전부 실패 — 정확한 SQL Server 오류 코드(콜레이션 충돌 시 통상 1757)는 로그로 확인하지 않았다. 컨텍스트 구성(마이그레이션 또는 Hibernate 부팅) 단계에서 전체가 실패한 것으로 보이며, 원인은 미확인이지만 "잡지 못함"은 아니다 | MSSQL | 기존 테스트가 잡음(원인 미확인, 전체 실패로 표현을 낮춤) |
+| 12 | JSON CHECK 정확히 8칼럼 | (a) sqlite `COLUMN.TERM_IDS` CHECK 제거 (b) sqlite `TERM.STD_BASIS`에 9번째 CHECK 추가 (c) mssql `COLUMN.TERM_IDS` CHECK 제거 | 🔴 세 방향 모두 `JSON_CHECK...` 관련 테스트 단독 실패(이탈 4 의 정규식 강화 이후 — 강화 전에는 (b) 방향을 못 잡았을 것이다) | SQLite(a,b) · MSSQL(c) | 기존 테스트가 잡음(강화 후) |
+| 8 | `VersionConventions`등 재정의 금지 | (해당 없음 — 이 Task 가 그 파일들을 건드리지 않아 구조적으로 자명, 별도 변이 생략) | — | — | 해당 없음 |
 
 ### 게이트 결과
 
-- `testAll`: 476 tests / 0 failures(기준선 447 / 0 대비 +29, 신규 실패 0).
-- `:api:mssqlMigrationTest`: 14 passed(기존 `MdmMssqlMigrationTest` 4 + 신규 `MdmTermDomainColumnMssqlMigrationTest` 10), SQL Server 2022-CU27.
-- 새 테스트 red 확인: `MdmTermDomainColumnMigrationTest`·`MdmEntityJpaRoundtripTest`·`MdmTermDomainColumnMssqlMigrationTest`·`DictionaryContractTest`·`MdmEntityArchitectureTest`·`ContractStubCompileTest`(신규 메서드)·`MdmContractArchitectureTest`(신규 메서드)는 구현 전 컴파일 실패 또는 실패 상태에서 시작해 구현 후 초록이 됨을 확인했다.
+- `testAll`: **485 tests / 0 failures**(기준선 447 / 0 대비 +38, 신규 실패 0). 오케스트레이터가 준 집계 명령(`find src/backend -path '*/build/test-results/*' -name 'TEST-*.xml' | xargs grep -h -o '<testsuite [^>]*'`)을 글자 그대로 실행하면 **499 tests**가 나온다 — 이 명령은 `mssqlMigrationTest` 결과 디렉터리도 함께 세기 때문이다(485 + `mssqlMigrationTest` 14 = 499).
+- `:api:mssqlMigrationTest`: **14 passed**(기존 `MdmMssqlMigrationTest` 4 + 신규 `MdmTermDomainColumnMssqlMigrationTest` 10), SQL Server 2022-CU27, 0 failed.
+- **red 확인**: 새 테스트 자체의 "구현 전 red"는 관찰하지 못했다(이탈 1, TDD 순서 이탈). 대신 위 「변이 검증 결과표」의 11개 불변 규칙 변이로 "이 테스트들이 틀린 구현을 실제로 잡는다"를 보였다 — 이것이 이 Build 의 red 증거다.

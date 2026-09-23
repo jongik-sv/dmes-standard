@@ -167,31 +167,74 @@ class MdmEntityJpaRoundtripTest {
 
     /**
      * D2 가드 — {@code TB_MDM_DICT_SEQ}·{@code TB_MDM_DICT_SYSTEM} 은 엔티티를 붙이지 않는다. 왕복 테스트
-     * 만으로는 "엔티티를 추가해도" 아무것도 깨지지 않는다(mutation check 실측, Build 기록) — 매핑된 엔티티
-     * 집합을 정확히 5개로 고정해 늘어나는 변이를 잡는다.
+     * 만으로는 "엔티티를 추가해도" 아무것도 깨지지 않는다(mutation check 실측, Build 기록).
+     *
+     * <p>매핑된 엔티티 "개수"가 아니라 <b>테이블 이름 집합</b>으로 검사한다 — 엔티티 개수 고정은 TSK-05-01·
+     * 06-01·07-01·08-01 이 각자 {@code com.dongkuk.dmes.mdm.entity} 에 자기 엔티티를 추가하는 정상 진화와
+     * 충돌한다(advisor 재검토). D2 가 실제로 금지하는 것은 "DICT_SEQ·DICT_SYSTEM 두 테이블에 엔티티가
+     * 붙는 것"이므로, 그 두 테이블 이름의 부재만 고정하고 5개 업무 테이블의 존재는 별개로 확인한다.
      */
     @Test
-    void 매핑된_엔티티는_정확히_5개다_DICT_SEQ_DICT_SYSTEM_제외() {
-        Set<String> entityNames = entityManager.getMetamodel().getEntities().stream()
-                .map(e -> e.getJavaType().getSimpleName())
-                .filter(name -> !name.startsWith("Sec") && !name.startsWith("Revoked") && !name.startsWith("AuditLog")
-                        && !name.startsWith("MasterCode"))
+    void 관리_엔티티_테이블_집합에_DICT_SEQ_DICT_SYSTEM_이_없고_5개_업무_테이블은_있다() {
+        Set<String> managedTableNames = entityManager.getMetamodel().getEntities().stream()
+                .map(e -> e.getJavaType().getAnnotation(jakarta.persistence.Table.class))
+                .filter(java.util.Objects::nonNull)
+                .map(jakarta.persistence.Table::name)
                 .collect(Collectors.toSet());
-        assertEquals(Set.of("MdmUnit", "MdmTerm", "MdmDomain", "MdmColumn", "MdmColumnSystem"), entityNames,
-                "TB_MDM_DICT_SEQ·TB_MDM_DICT_SYSTEM 은 D2 에 따라 엔티티를 붙이지 않는다");
+        assertTrue(managedTableNames.containsAll(Set.of(
+                "TB_MDM_UNIT", "TB_MDM_TERM", "TB_MDM_DOMAIN", "TB_MDM_COLUMN", "TB_MDM_COLUMN_SYSTEM")));
+        assertFalse(managedTableNames.contains("TB_MDM_DICT_SEQ"), "D2 — TB_MDM_DICT_SEQ 는 엔티티를 붙이지 않는다");
+        assertFalse(managedTableNames.contains("TB_MDM_DICT_SYSTEM"), "D2 — TB_MDM_DICT_SYSTEM 은 엔티티를 붙이지 않는다");
     }
 
     /**
-     * 불변 규칙 7 가드 — {@code MdmTerm} 은 {@code EMBEDDING}/{@code EMBEDDING_MODEL} 을 매핑하지 않는다.
-     * 매핑해도 저장·조회 왕복 자체는 그대로 통과하므로(mutation check 실측) 메타모델 속성 이름으로 직접 확인한다.
+     * 불변 규칙 7 가드 — {@code MdmTerm} 은 {@code EMBEDDING}/{@code EMBEDDING_MODEL} <b>칼럼</b>을 매핑하지
+     * 않는다. 매핑해도 저장·조회 왕복 자체는 그대로 통과하므로(mutation check 실측) 직접 확인이 필요하다.
+     *
+     * <p>필드 자바 이름이 아니라 {@code @Column(name=...)} 값으로 검사한다 — 필드명을 {@code vector} 등으로
+     * 바꾸고 {@code @Column(name="EMBEDDING")}만 유지하는 변이는 필드 이름 검사로는 잡히지 않는다
+     * (advisor 재검토).
      */
     @Test
-    void MdmTerm_은_EMBEDDING_EMBEDDING_MODEL_을_매핑하지_않는다() {
-        Set<String> attributeNames = entityManager.getMetamodel().entity(
-                com.dongkuk.dmes.mdm.entity.MdmTerm.class).getAttributes().stream()
-                .map(jakarta.persistence.metamodel.Attribute::getName)
+    void MdmTerm_은_EMBEDDING_EMBEDDING_MODEL_칼럼을_매핑하지_않는다() {
+        Set<String> mappedColumnNames = java.util.Arrays.stream(
+                        com.dongkuk.dmes.mdm.entity.MdmTerm.class.getDeclaredFields())
+                .map(f -> f.getAnnotation(jakarta.persistence.Column.class))
+                .filter(java.util.Objects::nonNull)
+                .map(jakarta.persistence.Column::name)
                 .collect(Collectors.toSet());
-        assertFalse(attributeNames.contains("embedding"), "EMBEDDING 은 네이티브 SQL 로만 다룬다(불변 규칙 7)");
-        assertFalse(attributeNames.contains("embeddingModel"), "EMBEDDING_MODEL 은 네이티브 SQL 로만 다룬다(불변 규칙 7)");
+        assertFalse(mappedColumnNames.contains("EMBEDDING"), "EMBEDDING 은 네이티브 SQL 로만 다룬다(불변 규칙 7)");
+        assertFalse(mappedColumnNames.contains("EMBEDDING_MODEL"), "EMBEDDING_MODEL 은 네이티브 SQL 로만 다룬다(불변 규칙 7)");
+    }
+
+    /**
+     * #16(naming-dialect-rules.md §3) — {@code CactusAuditEntity.C_AT}(Instant) 가 SQLite 에 실제로
+     * 어떤 형식으로 저장되는지(정수 epoch 인지 ISO 텍스트인지) {@code typeof()} 로 직접 관찰한다. mcm
+     * 진영의 결함 선례({@code SqliteTemporalConverterContributor} 필요 사례)가 mdm 에도 재현되는지
+     * 실측으로 확인한다 — mdm 에는 그 컨트리뷰터가 등록돼 있지 않다(JpaConfig 가 없다, 코드 확인).
+     */
+    @Test
+    void C_AT_의_SQLite_저장_형식을_typeof_로_관찰한다() {
+        MdmUnit unit = new MdmUnit("KG-TYPEOF");
+        unit.setDimension("MASS");
+        unit.setBaseUnit("KG");
+        unit.setFactor(new BigDecimal("1"));
+        unit.setChgSeq(0L);
+        unitRepository.save(unit);
+        entityManager.flush();
+
+        // 같은 트랜잭션(같은 커넥션) 안에서 봐야 한다 — dataSource.getConnection() 으로 별도 커넥션을
+        // 열면 이 테스트 트랜잭션이 아직 커밋 전이라 그 행을 볼 수 없다(실측: rs.next()==false 로 확인).
+        Object[] row = (Object[]) entityManager.createNativeQuery(
+                        "SELECT typeof(C_AT), C_AT FROM TB_MDM_UNIT WHERE UNIT_CODE = 'KG-TYPEOF'")
+                .getSingleResult();
+        String sqliteType = String.valueOf(row[0]);
+        Object rawValue = row[1];
+        assertNotNull(rawValue, "C_AT 원시 저장값");
+        // 관찰한 사실을 그대로 고정한다(Build 기록·naming-dialect-rules.md #16 참고) — Hibernate 커뮤니티
+        // dialect 의 Instant 매핑이 SQLite 에 실제로는 INTEGER(epoch millis)로 저장한다(typeof()=integer).
+        // mcm 진영이 SqliteTemporalConverterContributor 로 우회해야 했던 바로 그 결함이 mdm 에도 그대로
+        // 재현된다 — mdm 은 그 컨트리뷰터를 등록하지 않으므로 이 결함을 그대로 안고 있다(D10, §8 인계 참고).
+        assertEquals("integer", sqliteType, "C_AT SQLite 저장 typeof(): " + rawValue);
     }
 }
