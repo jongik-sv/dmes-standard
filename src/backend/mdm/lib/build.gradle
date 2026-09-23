@@ -39,9 +39,10 @@ dependencies {
     // Flyway — Spring Boot 4 부터 FlywayAutoConfiguration 이 별도 모듈로 빠졌다(mqc 주석 그대로).
     api 'org.flywaydb:flyway-core'
     api 'org.springframework.boot:spring-boot-flyway'
-    // design.md §6.2 이탈(D10) — 원안은 'org.flywaydb:flyway-database-sqlserver' 였으나 Build 1단계
-    // 실제 resolve 로 확인한 결과 그 아티팩트는 존재하지 않는다(mavenCentral 404). Flyway 의 MSSQL
-    // 모듈은 다른 방언(postgresql 등)과 달리 'database-' 접두가 없는 'flyway-sqlserver' 다
-    // (repo1.maven.org/maven2/org/flywaydb/ 목록 재검증 완료. postgresql 쪽만 flyway-database-postgresql).
+    // design.md 「Build Phase 이탈 기록」 참고(D10 아님 — 대안 있는 결정이 아니라 §6.2 원안의 사실
+    // 오류 정정). 원안은 'org.flywaydb:flyway-database-sqlserver' 였으나 Build 1단계 실제 resolve 로
+    // 확인한 결과 그 아티팩트는 존재하지 않는다(mavenCentral 404). Flyway 의 MSSQL 모듈은 다른
+    // 방언(postgresql 등)과 달리 'database-' 접두가 없는 'flyway-sqlserver' 다(repo1.maven.org/
+    // maven2/org/flywaydb/ 목록 재검증 완료. postgresql 쪽만 flyway-database-postgresql).
     runtimeOnly 'org.flywaydb:flyway-sqlserver'
 }
