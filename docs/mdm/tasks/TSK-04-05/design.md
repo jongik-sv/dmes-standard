@@ -146,14 +146,14 @@ Build 는 record·작은 클래스를 합쳐 파일 수를 줄여도 된다. 다
 3. 헤더 이름은 앞뒤 공백을 떼고 대문자로 맞춰 비교한다(`rollname ` → `ROLLNAME`).
 4. 헤더보다 칸이 적은 행은 빠진 칸을 빈 문자열로 채운다. 헤더보다 칸이 많은 행은 `SapDictInputException`(행 번호 포함).
 5. 같은 헤더 이름이 두 번 나오면 `SapDictInputException`.
-6. 쓰기: 출력 첫 3바이트가 `EF BB BF`(BOM)이고, 쉼표·큰따옴표·줄바꿈이 든 값만 인용하며, 읽기로 되읽으면 원래 값과 같다(왕복).
+6. 쓰기: 출력 첫 3바이트가 `EF BB BF`(BOM)이고, 모든 줄끝이 `\r\n` 이며 단독 `\n` 이 없고(값 안의 줄바꿈은 인용 칸 안에만 있다), 쉼표·큰따옴표·줄바꿈이 든 값만 인용하며, 읽기로 되읽으면 원래 값과 같다(왕복).
 7. `--charset` 에 `MS949` 를 주면 MS949 로 인코딩한 한글 입력을 바르게 읽는다(입력 전용 옵션, I17).
 
 ### 3.2 `SapDdicReaderTest` — 입력 무결성 (I4·I5)
 
 1. 필수 헤더(§4.1 표)가 하나라도 없으면 파일 이름과 헤더 이름을 담은 `SapDictInputException`.
 2. 네 입력 파일 중 하나라도 없으면 `SapDictInputException`.
-3. `AS4LOCAL` 칸이 있으면 값이 `A` 인 행만 남긴다(`N`·`M` 행은 버린다). 칸이 없으면 모든 행을 쓴다.
+3. `AS4LOCAL` 칸이 있으면 값이 `A` 인 행만 남긴다(`N`·`M` 행은 버린다). 칸이 없으면 모든 행을 쓴다. **네 파일 각각**(DD03L·DD04L·DD04T·DD01L)에 대해 따로 단언한다(파라미터 테스트).
 4. 활성 행 필터 뒤 키가 중복되면 `SapDictInputException`: `DD03L (TABNAME, FIELDNAME)`, `DD04L ROLLNAME`, `DD01L DOMNAME`, 한국어 `DD04T ROLLNAME`(`DDLANGUAGE` `3` 행과 `KO` 행이 둘 다 있어도 중복이다).
 5. `LENG`·`DECIMALS` 가 공백이면 0, 숫자가 아니면 `SapDictInputException`(SAP NUMC 칸이다). 앞자리 0(`000020`)은 20으로 읽는다.
 6. `DD04T` 는 `DDLANGUAGE` 를 앞뒤 공백 제거·대문자로 맞춘 값이 `3` 또는 `KO` 인 행만 남긴다(`E`·`EN`·`D` 행은 버린다).
@@ -196,6 +196,7 @@ Build 는 record·작은 클래스를 합쳐 파일 수를 줄여도 된다. 다
 | `note_는_DE_와_DOMAIN_을_적는다` | DOMNAME 있음 → `DE=ZZDE_COIL_ID; DOMAIN=ZZDO_COIL_ID`, 없음 → `DE=ZZDE_COIL_ID` | I15 |
 | `미대응_사유는_정해진_순서로_모두_적는다` | `NO_KOREAN_LABEL` 과 `FIELD_NAME_CONFLICT` 가 함께면 `NO_KOREAN_LABEL;FIELD_NAME_CONFLICT` | I16 |
 | `엘리먼트가_없으면_엘리먼트_단위_사유를_더_보지_않는다` | `NO_DATA_ELEMENT` 행에는 `DATA_ELEMENT_NOT_FOUND`·`UNSUPPORTED_TYPE`·`NO_KOREAN_LABEL` 이 붙지 않는다. `DATA_ELEMENT_NOT_FOUND` 행에는 `UNSUPPORTED_TYPE`·`NO_KOREAN_LABEL` 이 붙지 않는다 | I16 |
+| `sample_rollnames_는_정렬한_앞_5개다` | 같은 domain_key 를 가진 엘리먼트 6개(이름을 뒤섞어 입력) → `sample_rollnames` 는 정렬한 앞 5개이고 6번째가 빠진다. `element_count` 는 6. 용어 후보도 같은 규칙이다 | I17 |
 | `출력_행은_정해진_키로_정렬된다` | 입력 순서를 뒤섞어도 다섯 목록의 순서가 §4.3 정렬 키대로다 | I17 |
 | `같은_입력이면_같은_결과다` | 같은 입력으로 두 번 `extract` → `equals` | I18 |
 
@@ -415,7 +416,7 @@ Build·Verify 의 변이 검증은 이 목록을 순회한다. 각 항목 끝의
 - **I14 필드명 충돌.** 한 필드명의 대상 행들에서 `ROLLNAME` 값(공백 포함) 종류가 둘 이상이면 그 필드명의 모든 대상 행이 `FIELD_NAME_CONFLICT` 이고 그 필드명의 컬럼 시스템 후보는 없다. 테이블별로 나누어 판정하지 않는다. (I14 테스트 3개, S10·S11)
 - **I15 컬럼 시스템 후보 칸.** 필드명 하나에 한 행(테이블 칸 없음, `tables` 는 참고), `system_code` = `MdmSystemCodes.ERP`, `transform` = 엘리먼트 도메인의 DD01L `CONVEXIT`, `note` = `DE={ROLLNAME}` 또는 `DE={ROLLNAME}; DOMAIN={DOMNAME}`. (I15 테스트 4개, S1·S2·S6)
 - **I16 미대응 사유.** 사유 코드는 정확히 다섯(`NO_DATA_ELEMENT`, `DATA_ELEMENT_NOT_FOUND`, `UNSUPPORTED_TYPE`, `NO_KOREAN_LABEL`, `FIELD_NAME_CONFLICT`)이고 이 순서로 `;` 로 잇는다. `NO_DATA_ELEMENT` 는 나머지 엘리먼트 단위 사유를, `DATA_ELEMENT_NOT_FOUND` 는 `UNSUPPORTED_TYPE`·`NO_KOREAN_LABEL` 을 배제한다. `detail` 형식은 §4.2 대로다. 행 단위는 (TABNAME, FIELDNAME) 이다. (I16 테스트 2개, S7~S12)
-- **I17 출력 형식.** 파일 이름 다섯, 헤더 칸 이름·순서(§4.3 표), UTF-8 BOM, CRLF, RFC 4180 최소 인용, 다중값 구분자 `;`, 정렬 키, `sample_rollnames` 최대 5개. 입력 문자셋 옵션 `--charset` 은 입력에만 적용하고 출력은 항상 UTF-8 이다. (§3.1-6·7, `출력_행은_정해진_키로_정렬된다`, §3.5)
+- **I17 출력 형식.** 파일 이름 다섯, 헤더 칸 이름·순서(§4.3 표), UTF-8 BOM, CRLF, RFC 4180 최소 인용, 다중값 구분자 `;`, 정렬 키, `sample_rollnames` 최대 5개. 입력 문자셋 옵션 `--charset` 은 입력에만 적용하고 출력은 항상 UTF-8 이다. (§3.1-6·7, `출력_행은_정해진_키로_정렬된다`, `sample_rollnames_는_정렬한_앞_5개다`, §3.5)
 - **I18 결정성.** 같은 입력이면 다섯 파일이 바이트 단위로 같다. 파일에 시각·경로 같은 가변 값을 넣지 않는다. (`같은_입력이면_같은_결과다`, §3.6-5)
 - **I19 실행 형태.** Spring 컨텍스트 없이 도는 `main` 이다. Gradle `sapDictCandidates` 태스크는 `build`·`test`·`check` 에 연결하지 않는다. api 의 부팅 진입점은 `com.dongkuk.dmes.mdm.MdmApplication` 하나다. (§3.7-2, §3.8-①)
 - **I20 선행 산출물 불변.** `contract/**`·`entity/**`·`repository/**`·`api/**`·마이그레이션·`data-migration/**`·`docs/mdm/{wbs,PRD,TRD,decisions,naming-dialect-rules}.md`·`docs/mdm/erd/**` 를 고치지 않는다. §2 목록 밖의 파일을 바꾸면 이탈 기록을 남긴다. (리뷰: `git diff --stat` 이 §2 목록과 같은지)
