@@ -225,6 +225,15 @@ class ColumnMngServiceSqliteTest {
     }
 
     @Test
+    void C2b_TERM_IDS_는_토큰_순서를_지키고_정렬하지_않는다() {
+        // 변이 검증(I22) 보강 — ID 오름차순과 다른 순서로 보내도 그대로 저장한다.
+        save(valid(), List.of(), termRows(thk.getTermId(), rmtl.getTermId(), coil.getTermId()));
+
+        assertEquals("[" + thk.getTermId() + "," + rmtl.getTermId() + "," + coil.getTermId() + "]",
+                jdbc.queryForObject("SELECT TERM_IDS FROM TB_MDM_COLUMN", String.class));
+    }
+
+    @Test
     void C3_담당자만이면_입력을_보기_전에_MDM015() {
         currentUser.set("kim", Set.of(MdmRoles.STEWARD));
         ColumnMngSaveRequest invalid = new ColumnMngSaveRequest();

@@ -195,11 +195,13 @@ class TermRegPopServiceSqliteTest {
 
     @Test
     void R7_등록_직후_분해에_바로_반영된다() {
-        reg(valid());
-
         ColumnMngCompareRequest req = new ColumnMngCompareRequest();
         req.setDirection("FORWARD");
         req.setInput("원재료 코일두께 편차");
+        // 등록 전에 한 번 분해해 둔다 — 사전을 캐시하면 등록 뒤 분해가 옛 사전을 쓰게 된다(I26).
+        assertEquals("RMTL_COIL_THK_***", columnMngService.compare(req).get("physName"));
+
+        reg(valid());
         Map<String, Object> result = columnMngService.compare(req);
 
         assertEquals("RMTL_COIL_THK_DEV", result.get("physName"));
