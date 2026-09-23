@@ -618,7 +618,7 @@ log.info("[DataInitializer] TSK-04-04 MDM 컬럼 사전 시드 — OBJECT 2 + �
 | TSK-04-02(termMng) | 용어 표면형·동의어 해석은 `com.dongkuk.dmes.mdm.dma.naming.TermDictionary` 를 재사용한다. 동의어·별칭 JSON 원소는 이 Task 가 문자열 배열 `["명칭(시스템)"]` 로 가정하고 `name`/`term` 객체도 읽는다(D3). 다른 모양을 정하면 `TermDictionary` 파서와 `TermDictionaryTest` T1~T3 을 함께 고친다. 인라인 등록 용어는 `SRC_ORIGIN='MDM:columnMng'`, `EMBEDDING` NULL 이므로 임베딩 재생성 대상에 포함한다. 팝업 유사어에 2차(임베딩) 추천을 붙이려면 `termRegPop.search` 결과에 합친다 |
 | TSK-04-03(domainMng) | 도메인 추천은 표준명 `_` 토큰 꼬리 일치다(D4). 표준명이 약어 조합 규칙을 벗어나면 추천에 잡히지 않는다 |
 | TSK-05-01·08-01 | `MdmColumnDictionaryLookup` 구현은 여전히 소비자 몫이다(F8). 컬럼 물리명은 이 화면에서 바뀔 수 있으므로(참조 무결성 검사 없음) 물리명으로 참조한다면 영향 검사를 그쪽에서 요구해야 한다 |
-| 모든 mdm 화면 Task | ① 오류는 `meta.message` 만 화면에 온다(F12). ② 쓰기 서버 가드는 `MdmStdAdminGuard`(또는 같은 모양)로 역할을 직접 본다. ③ 계약 검사에 `--module mdm`. ④ 팝업은 OBJECT + 역할 매핑만으로 권한이 동작한다(F15) |
+| 모든 mdm 화면 Task | ① 오류는 `meta.message` 만 화면에 온다(F12). ② 쓰기 서버 가드는 `MdmStdAdminGuard`(또는 같은 모양)로 역할을 직접 본다. ③ 계약 검사에 `--module mdm`. ④ 팝업은 OBJECT + 역할 매핑만으로 권한이 동작한다(F15). ⑤ (Build 추기) OASIS `params` 에 `null` 값을 넣지 않는다(B3), 이름 바인딩 그리드는 빈 rows 로라도 항상 보낸다(B1) |
 | cactus-core 담당 | `OasisServiceExecutor` 가 BPMN 경로의 `BusinessException` 코드·`errors[]` 를 잃는 문제(F12). 고친다면 `serviceStarter.start` 결과의 `exception()` 이 `BusinessException` 인지 보고 옮겨 담는 것이 가장 작다. 이 Task 에서는 고치지 않는다 |
 
 ---
@@ -661,3 +661,102 @@ log.info("[DataInitializer] TSK-04-04 MDM 컬럼 사전 시드 — OBJECT 2 + �
 - **선택지**: ① `compare`(READ). **강도: 중** — 용어집·기존 컬럼과 "대조"하는 읽기라 의미가 맞고, 담당자도 `***` 까지 가서 등록 불가를 확인할 수 있어 수용 기준 5 를 화면에서 의미 있게 시험할 수 있다. ② `validate`(EDIT). **강도: 약** — 담당자가 분해조차 못 해 "권한 없는 사용자는 인라인 등록 불가"가 "화면 자체를 못 쓴다"로 바뀐다. ③ `search` 에 `mode` 파라미터로 합침. **강도: 약** — 한 메서드가 두 응답 모양을 갖게 된다.
 - **택한 것**: ①.
 - **반려 시 재작업**: BPMN 분기 이름과 FE `api.ts` 액션, `DmaBpmnActionTest` 허용 목록, [분해] 버튼 권한 판정 액션을 바꾼다.
+
+---
+
+## Build 이탈
+
+Build(Phase 03, 2026-09-24)가 이 문서에서 벗어난 지점과 그 사유다. 실측으로 설계 가정과 다른 사실이 나온 항목은 "실측"으로 표시했다.
+
+| # | 설계 | 실제 구현 | 사유 |
+|---|---|---|---|
+| B1 | P4 — `grids.terms` 를 빼고 보내도 저장된다(바인딩이 실패하면 이탈로 기록) | **실측: 바인딩이 실패한다.** P4 를 둘로 나눴다: P4(빈 rows 로 보내면 서버가 재분해로 TERM_IDS 를 채움)·P4b(그리드를 빼면 `No suitable method` 로 실패). FE `saveColumn` 이 두 그리드를 항상 보내는 규칙(I16)을 `api.test.ts` 가 고정한다 | `camunda:class`(빈 이름) 경로의 `NamedObjectJavaServiceTaskExecutable` 은 `opt` 속성을 `MethodInvokerContext` 에 넘기지 않는다(`oasis-core/.../executors/NamedObjectJavaServiceTaskExecutable.java:89-93`). 그래서 선택 파라미터를 표시할 방법이 없다 |
+| B2 | C1 기대 `systems` = ERP·MES·APS·DKMS·L2 이면서 "코드 오름차순" | §6.1 SQL(`ORDER BY SYSTEM_CODE`) 그대로 APS·DKMS·ERP·L2·MES 로 단언한다 | 설계 본문 안의 모순. SQL 쪽을 따랐다 |
+| B3 | (설계에 없음) | **실측:** OASIS 는 `params` 안의 `null` 값의 타입을 정하지 못해 요청 전체를 `The type cannot be determined because object is null` 로 거부한다. FE `callOasis` 가 `null`·`undefined` 키를 빼고 보낸다(`api.test.ts` 가 고정). 서버 DTO 에서는 빠진 키가 곧 null 이다 | 첫 E2E 실행에서 검색(`domainId: null`)이 실패해 드러났다. 다른 mdm 화면도 같은 규칙이 필요하다(§8 인계 「모든 mdm 화면 Task」 ⑤에 추기) |
+| B4 | P1 로 F12 를 실측하고 다르면 멈춘다 | **실측 결과 F12 와 같다.** 역할 거부는 HTTP 200 + `meta.success=false` + `meta.code="S001"` + `meta.message` = 예외 message 로 온다. P3 에서 `C_USR_ID` 가 `X-Authenticated-User` 값으로 채워지는 것도 확인했다 | 설계대로 진행 |
+| B5 | P8 — C9 조건으로 "뒤 단계 실패가 앞 단계 쓰기를 남기지 않는다" 실측 | P8 은 시험 전용 SQLite 트리거로 매핑 INSERT 를 실패시켜, 먼저 INSERT 된 컬럼 행이 프로세스 트랜잭션과 함께 롤백되는 것을 실측한다. C9 조건(쓰기 전 검사로 아무것도 쓰지 않음)은 P8b 로 따로 둔다 | §6.12 는 모든 검증을 쓰기 전에 끝내므로 C9 조건에서는 쓰기가 일어나지 않아 롤백을 증명하지 못한다 |
+| B6 | E2E E1~E6 여섯 시험 → 스모크 합계 11 passed | E2·E3·E4 를 한 시험(`E2~E4`)으로 묶었다. `mdm-columnMng` 4건 + 기존 5건 = **9 passed** | E3 는 E2 의 분해 결과(같은 화면 상태)에서 팝업을 열고, E4 는 E3 가 바꾼 토큰으로 적용한다. 시험마다 새 페이지가 열리므로 나누면 앞 단계를 다시 해야 한다. 단언 내용은 §3.5 표와 같다 |
+| B7 | [저장] 화면 선검사: 순서 명시 없음 | `***` 선검사를 필수값 검사보다 먼저 한다 | E2 처럼 미등록 꼬리는 추천 도메인이 없어(D4) 필수 누락 문구가 원인(`***`)을 가린다. 서버 순서(§6.12)는 그대로다 |
+| B8 | 시스템별 실제 필드명 그리드는 화면 맨 아래 전체 폭 | 오른쪽 "컬럼 상세" 패널 안, 폼 아래에 둔다. `GridPanel` 을 감싸는 요소에 높이를 준다 | `.grid-panel` 이 `contain: strict; height: 100%` 라 부모 높이가 없으면 0 이 되어 [행추가]가 표 뒤로 숨는다(E2E 실측). 1280×720 에서 네 영역을 세로로 쌓으면 패널마다 높이가 모자란다 |
+| B9 | AMBIGUOUS 후보 `Select` 를 바꾸면 `replaceToken` | 후보 선택은 화면 안에서만 바꾸고 compare 를 다시 부르지 않는다. compare 재호출은 팝업에서 용어를 고른 뒤에만 한다(§6.16 문구 그대로) | 재호출하면 서버 기본 선택으로 되돌아간다. 사용자가 고른 후보는 `seq`·`surface` 가 같을 때 되살린다 |
+| B10 | 팝업 권한 판정은 [등록](`reg`)만 | [약어 제안]도 `termRegPop × search` 로 판정한다 | 사용자 조작으로 서버를 부르는 버튼이라 masterRuleListPop 선례(자기 objId × 실제 액션명)를 따랐다. 담당자도 READ 라 동작은 같다 |
+| B11 | `bpmn-skill`(bpmn-tool CLI)로 생성 | `npx -p @cothe/bpmn-tool bpmn-tool create/validate` 로 생성·검증했다(전역 설치 없음). 경고 1건 "default flow 미설정"은 `noticeMgmt.bpmn` 선례와 같다 | 전역 환경을 바꾸지 않으려고 npx 캐시로 실행했다 |
+| B12 | `data-testid` 목록 | 목록 외에 `token-candidate-{seq}`, `gen-duplicates`, `form-label-preview`, `form-required`, `term-pop-term-name`, `term-pop-sense-no`, `term-pop-context`, `term-pop-error`, `term-pop-use-{termId}` 를 더했다 | E2E 단언 대상 |
+| B13 | MDM020 상세 예 "표시명(짧은)은 6자 이하여야 합니다" | "표시명(짧은)은(는) 6자 이하여야 합니다" 모양으로 칸 이름을 싣는다 | 칸 이름마다 조사를 고르지 않으려고 한 모양으로 통일했다. 단언은 칸 이름 포함 여부다 |
+| B14 | 시험 파일 목록 | 설계 목록 외에 `LIBT/common/security/MdmStdAdminGuardTest`, `LIBT/dma/naming/NamingFixtures`(픽스처), C2b·P4b·P8b·R7 강화를 더했다. C2b·R7 강화는 변이 검증에서 살아남은 변이를 덮으려고 넣었다(아래 기록) | 새 테스트 추가이며 기대값 완화가 아니다 |
+
+`com.dongkuk.dmes.mdm.dma.naming` 패키지는 ArchUnit·계약 검사기가 거부하지 않아 옮기지 않았다(§2 커밋 A 조건부 이탈 없음).
+
+## Build 변이 검증 기록
+
+§5 불변 규칙마다 틀린 구현을 넣고 해당 시험을 돌린 뒤 `git checkout` 으로 되돌렸다. 하네스는 변이 하나마다 대상 시험 묶음(`dma.naming.*`, `dma.columnMng.*`, `dma.termRegPop.*`, `DmaOasisHttpTest`, `DmaBpmnActionTest`, vitest 파일)을 돌리고 실패한 시험 이름을 기록했다. 매 변이 뒤 작업 트리가 깨끗한 것을 확인했다. E2E 로만 잡히는 규칙(I17·I29)은 새 mcm.db·mdm.db 로 서버를 다시 띄워 E2E 를 돌렸다.
+
+| 규칙 | 변이 | 잡은 시험 | 결과 |
+|---|---|---|---|
+| I1 | `PLACEHOLDER` 를 `??` 로 | F2·F6·F7·F9·R3·D2 등 | 잡음 |
+| I1 | NO_ABBR 약어를 빈 문자열로 | F9 | 잡음 |
+| I1 | FE `PLACEHOLDER` 를 `??` 로 | `tokens.test.ts`(4건) | 잡음 |
+| I2 | 최장 일치 → 최단 일치 | F1·F2·F3·영문 덩어리 | 잡음 |
+| I3 | 미등록 구간을 덩어리 끝까지 | F8a·F8b | 잡음 |
+| I3 | 미등록 구간을 한 글자씩 | F2·F6·F7·F8a | 잡음 |
+| I4 | `(` 를 글자로 취급 | F7 | 잡음 |
+| I5 | 별칭 제외 | T4·F5b·영문 덩어리 | 잡음 |
+| I5 | 동의어 끝 괄호 미제거 | T1·T2·F4·F5·S3 | 잡음 |
+| I5 | JSON 파싱 오류 전파 | T3 | 잡음 |
+| I6 | 후보 정렬 뒤집기 | F5·F5b·표기+동의어 중복 제거 | 잡음 |
+| I6 | AMBIGUOUS 기본 선택을 null 로 | F5·F5b | 잡음 |
+| I7 | 동의어 표면형을 논리명에 씀 | F4 | 잡음 |
+| I8 | 역분해를 조각 1개씩만 대조 | R2 | 잡음 |
+| I8 | 약어 색인 대소문자 구분 | T5 | 잡음 |
+| I8 | 역분해 입력 대문자화 제거 | R4 | 잡음 |
+| I9 | 꼬리 대신 머리 일치 | D1·D2·D3·머리/중간 | 잡음 |
+| I9 | 부분 문자열 일치 | D2·머리/중간 | 잡음 |
+| I9 | `***` 토큰을 빼고 비교 | D2 | 잡음 |
+| I9 | 동률을 domainId 내림차순 | D3 | 잡음 |
+| I10 | 중간·짧은 한도 뒤바꿈 | L1·L3·중간 후보 | 잡음 |
+| I10 | 뒤 단어부터 뗌 | L1·L3·중간 후보 | 잡음 |
+| I10 | 길이를 UTF-16 char 수로 | L4 | 잡음 |
+| I11 | 짧은이 비면 바로 논리명 | `labels.test.ts`(4건) | 잡음 |
+| I11 | 공백만 있는 값을 값으로 | `labels.test.ts` 공백 | 잡음 |
+| I12 | 자리 표시자 검사 삭제 | C5·C6·C7b·약어 없는 용어 | 잡음 |
+| I12 | ② 재분해 검사만 삭제 | C6·약어 없는 용어 | 잡음 |
+| I12 | ④ 논리명 `*` 검사만 삭제 | C7b | 잡음 |
+| I12 | ③ 없는 termId 허용 | C7 | 잡음 |
+| I12 | 형식 검사를 자리 표시자 검사보다 먼저 | C5 | 잡음 |
+| I13 | 자기 컬럼 제외 누락 | C13·C14 | 잡음 |
+| I13 | 필드명 비교 대소문자 무시 | C12 | 잡음 |
+| I13 | 요청 안 중복 미검사 | C10 | 잡음 |
+| I14 | save 가드 삭제 | C3·C4 | 잡음 |
+| I14 | 가드에 SYSADMIN 허용 | C4·R2 | 잡음 |
+| I14 | save 가드를 형식 검증 뒤로 | C3·C5·C17 | 잡음 |
+| I14 | reg 가드 삭제 | R2 | 잡음 |
+| I14 | save 가드 삭제(HTTP 경로) | P1 | 잡음 |
+| I15 | 읽기(search)에 가드 추가 | P5 | 잡음 |
+| I16 | BPMN 분해 액션을 `validate` 로 | `DmaBpmnActionTest` | 잡음 |
+| I16 | BPMN 액션 이름 `searchDetail` | `DmaBpmnActionTest` | 잡음 |
+| I16 | FE 빈 그리드 생략 | `api.test.ts` 두 그리드 | 잡음 |
+| I17 | termRegPop 의 SYSADMIN·매트릭스 시드 누락(mcm 새 DB) | E2E `E2~E4`(팝업 유사어 조회부터 BFF 403 으로 빈 표) | 잡음 |
+| I17 | 메뉴 leaf 이름 변경(`컬럼사전`, mcm 새 DB) | E2E E1(메뉴 이동 실패) | 잡음 |
+| I18 | 약어 중복 비교 대소문자 구분 | R4 | 잡음 |
+| I18 | 표기에 공백 허용 | R5 | 잡음 |
+| I18 | 의미 번호 0 허용 | R5 | 잡음 |
+| I18 | (표기, 의미 번호) 중복 미검사 | R3 | 잡음 |
+| I19 | 대안 길이 증가 순서 뒤집기 | A1·A2·A3·A4 | 잡음 |
+| I19 | 숫자 접미 대안 제거 | A6 | 잡음 |
+| I20 | 표시명(긴) 한도 25 | C16 | 잡음 |
+| I20 | 코드 칸 한도 51 | 코드 칸 길이 | 잡음 |
+| I20 | 표시명(짧은) 한도 7 | C16·C23 | 잡음 |
+| I21 | 매핑 전체 삭제 후 전체 삽입 | C14(VER 0) | 잡음 |
+| I22 | TERM_IDS 를 문자열 배열로 | C2·C8 | 잡음 |
+| I22 | TERM_IDS 정렬 | 1차 **생존** → C2b 추가 후 C2b | 잡음(보강 뒤) |
+| I23 | 빈 사전이면 색인 null | 빈 사전 | 잡음 |
+| I24 | V4 추가·V1~V3 수정 | 시험이 아니라 §3.1 "마이그레이션 불변" diff 게이트가 잡는다(`git diff --stat origin/dev -- …/db/migration` 출력 없음 확인) | 게이트 |
+| I25 | message 를 상세만으로 | `MdmErrorsTest`(상세 붙임) | 잡음 |
+| I26 | 용어 사전 정적 캐시 | 1차 **생존**(R7 이 등록 뒤에만 분해해 캐시가 등록 뒤에 채워짐) → R7 이 등록 전에도 분해하게 고친 뒤 R7 | 잡음(보강 뒤) |
+| I27 | 편집 거리 한도 2 | S1·편집 거리 1 까지 | 잡음 |
+| I27 | 동의어 일치 점수 0.9 → 0.75 | S3 | 잡음 |
+| I28 | MDM016 문구 변경 | `CommonContractTest` MDM015~020 | 잡음 |
+| I29 | 팝업 [등록] 권한 판정 제거(m-mdm 재빌드) | E2E E6(`toBeDisabled` 실패) | 잡음 |
+| I30 | 검색에서 시스템 필드명 제외 | C21 | 잡음 |
+
+요약: 변이 65건(시험으로 잡는 64 + 게이트 1). 1차에 살아남은 변이 2건(I22 정렬, I26 캐시)은 시험을 보강해 잡았다. 최종 생존 0건. 처음 넣은 I3 "한 글자씩" 변이(`while (false)`)는 Java 도달 불가 문장이라 컴파일 오류였고, 도달 가능한 모양(`while (j < i)`)으로 바꿔 다시 돌렸다.
