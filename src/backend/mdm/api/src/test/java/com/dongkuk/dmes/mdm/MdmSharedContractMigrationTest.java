@@ -61,7 +61,7 @@ class MdmSharedContractMigrationTest {
     }
 
     @Test
-    void flyway_가_V1_V2_V3_를_적용했다() throws SQLException {
+    void flyway_가_V1_V2_V3_V4_를_적용했다() throws SQLException {
         Set<String> versions = new HashSet<>();
         try (Connection c = dataSource.getConnection();
              Statement s = c.createStatement();
@@ -70,8 +70,9 @@ class MdmSharedContractMigrationTest {
                 versions.add(rs.getString(1));
             }
         }
-        // TSK-04-01 F12 — V3(02 용어·도메인·컬럼) 추가 반영. 완화가 아니라 새 버전 반영이다.
-        assertEquals(Set.of("1", "2", "3"), versions);
+        // TSK-04-01 F12 — V3(02 용어·도메인·컬럼) 반영. TSK-05-01 — V4(03 인터페이스 레이아웃) 추가 반영.
+        // 둘 다 완화가 아니라 새 버전 반영이다.
+        assertEquals(Set.of("1", "2", "3", "4"), versions);
     }
 
     @Test

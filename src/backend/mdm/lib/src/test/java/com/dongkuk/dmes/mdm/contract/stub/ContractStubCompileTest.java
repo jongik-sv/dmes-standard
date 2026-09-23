@@ -13,6 +13,12 @@ import com.dongkuk.dmes.mdm.contract.dictionary.MdmDomainReference;
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmDomainReferenceSpi;
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmEffectiveDomain;
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmEffectiveDomainResolver;
+import com.dongkuk.dmes.mdm.contract.layout.MdmFillKind;
+import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutHeaderRef;
+import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutItemSnapshot;
+import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutItemType;
+import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutSerializeContext;
+import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutSnapshot;
 import com.dongkuk.dmes.mdm.contract.version.ConfirmCheckRequest;
 import com.dongkuk.dmes.mdm.contract.version.ConfirmCheckResult;
 import com.dongkuk.dmes.mdm.contract.version.DiffKind;
@@ -167,5 +173,61 @@ class ContractStubCompileTest {
         assertEquals(2, mergedBoth.size());
         assertTrue(mergedBoth.contains(new MdmDomainReference("LAYOUT_ITEM", "L-1")));
         assertTrue(mergedBoth.contains(new MdmDomainReference("RULE_VAR", "R-1")));
+    }
+
+    // ── TSK-05-01 design.md §3.4 — 03(레이아웃) 계약 스텁 컴파일 ──
+    // 별도 파일을 새로 만들지 않고 기존 ContractStubCompileTest.java(TSK-01-02 소유)에 메서드를 추가한다
+    // — TSK-04-01 이 같은 판단(design.md §2 "수정" 목록에 이 파일이 없는 것은 design 의 누락)을 이미 남겼다.
+
+    @Test
+    void 레이아웃_직렬화기_스텁이_컨텍스트를_받아_컴파일_동작한다() {
+        MdmLayoutItemSnapshot bodyItem = new MdmLayoutItemSnapshot(
+                1, MdmFillKind.DATA, MdmLayoutItemType.CHAR, "COIL_ID", null, null, null,
+                null, null, null, 0, 20);
+        MdmLayoutSnapshot snapshot = new MdmLayoutSnapshot(
+                201L, "M201", "IFL2MES201", "L2", "MES", "EUC-KR", "패딩 규칙",
+                2L, 20, List.of(), List.of(bodyItem));
+        LayoutSerializerConsumerStub stub = new LayoutSerializerConsumerStub();
+
+        MdmLayoutSerializeContext context = new MdmLayoutSerializeContext(
+                LocalDateTime.of(2026, 9, 24, 10, 0, 0), 1L);
+        byte[] serialized = stub.serialize(snapshot, java.util.Map.of("COIL_ID", "C1"), context);
+        assertEquals(snapshot.totalLength(), serialized.length);
+    }
+
+    @Test
+    void 레이아웃_파서_스텁이_컴파일_동작한다() {
+        MdmLayoutSnapshot snapshot = new MdmLayoutSnapshot(
+                201L, "M201", "IFL2MES201", "L2", "MES", "EUC-KR", "패딩 규칙",
+                2L, 20, List.of(), List.of());
+        LayoutParserConsumerStub stub = new LayoutParserConsumerStub();
+
+        java.util.Map<String, Object> parsed = stub.parse(snapshot, new byte[20]);
+        assertEquals(201L, parsed.get("layoutId"));
+        assertEquals(20, parsed.get("messageLength"));
+    }
+
+    @Test
+    void 레이아웃_스냅샷이_헤더_0_1_2_경우를_생성자_호출로_담을_수_있다() {
+        MdmLayoutItemSnapshot headerItem = new MdmLayoutItemSnapshot(
+                2, MdmFillKind.CONST, MdmLayoutItemType.CHAR, "SND_FAC_TP", null, null, null,
+                "B0", "B1", null, 8, 4);
+        MdmLayoutHeaderRef h100 = new MdmLayoutHeaderRef(1, 100L, "L100 GLUE 공통 헤더", 0, 100, List.of(headerItem));
+        MdmLayoutHeaderRef h110 = new MdmLayoutHeaderRef(2, 110L, "L110 L2 구간 헤더", 100, 30, List.of());
+
+        MdmLayoutSnapshot noHeader = new MdmLayoutSnapshot(
+                1L, "무헤더", null, null, null, null, null, 1L, 10, List.of(), List.of());
+        MdmLayoutSnapshot oneHeader = new MdmLayoutSnapshot(
+                2L, "단일헤더", null, null, null, null, null, 1L, 110, List.of(h100), List.of());
+        MdmLayoutSnapshot stacked = new MdmLayoutSnapshot(
+                201L, "M201", "IFL2MES201", "L2", "MES", "EUC-KR", null, 2L, 187, List.of(h100, h110), List.of());
+
+        assertEquals(0, noHeader.headers().size());
+        assertEquals(1, oneHeader.headers().size());
+        assertEquals(2, stacked.headers().size());
+        // 헤더 기본값·재정의 값을 둘 다 구분해 조립할 수 있음을 증명한다(F22, 불변 규칙 14).
+        MdmLayoutItemSnapshot fromStacked = stacked.headers().get(0).items().get(0);
+        assertEquals("B0", fromStacked.defaultValue());
+        assertEquals("B1", fromStacked.overrideValue());
     }
 }
