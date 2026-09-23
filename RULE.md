@@ -60,6 +60,7 @@
 | ADR 을 발행·개정하거나 `PROPOSED → ACCEPTED` 로 확정할 때 (전 모듈 공용) | [`.claude/skills/adr-write/`](.claude/skills/adr-write/SKILL.md) — 번호는 **모듈별 독립**(접두어 없음). 모듈 밖 인용은 번호만 쓰지 말고 경로 링크를 함께 쓴다 |
 | BP(bpgoat)에 **새 회의록·협의·설계 문서가 올라왔을 때** 그 내용을 설계에 반영해야 하는 경우 (조회만 하면 해당 없음) | [`.claude/skills/bp-update-intake/`](.claude/skills/bp-update-intake/SKILL.md) — 실질 신규분은 `.md` mtime 으로 가린다(`.doc.json` 단독 갱신 = 본문 무변경). 판정은 문서끼리가 아니라 shipped 코드로 하고, 반영은 **안건집 → ADR → 메모리** 순 |
 | STT(음성 인식) 자막을 **회의록으로 정리**할 때 (녹음 자막 `.txt` 수령, "회의록 정리·작성해줘") | [`.claude/skills/meeting-minutes/`](.claude/skills/meeting-minutes/SKILL.md) — 작성 규칙 정본은 BP 미러의 「회의 내용 요약 프롬프트」. 자막은 `offset`/`limit` 으로 **전량** 읽고, 교정 근거는 [`docs/glossary/`](docs/glossary/) 의 단어집·이해관계자 명단(고객사 착수 시 채움). 확신 낮은 인명·수치는 본문에서 빼고 따로 보고 |
+| `src/frontend` 의 화면(`m-*`)·shared UI 를 만들거나 고칠 때, Mantine·ag-grid prop/옵션이 설치 버전에서 유효한지 확인하거나 옛 API·타입 오류를 고칠 때 | [`.claude/skills/mantine-aggrid-ui/`](.claude/skills/mantine-aggrid-ui/SKILL.md) — 규칙 정본은 [FrontEnd 가이드](docs/guide/FrontEnd/README.md)(Part B·UI-Visual-Standard)이고 스킬은 문서 조회·검증 절차다. 라이브러리 문서는 설치 버전(Mantine 9.6 · ag-grid-community 33.3.2) 기준으로 스크립트로 조회하고, 바꾼 파일은 커밋 전 `audit` 두 개가 0건이어야 한다 |
 
 ## 화면 설계시 규칙
 

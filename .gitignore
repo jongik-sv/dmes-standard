@@ -148,6 +148,10 @@ logs/
 !.claude/skills/meeting-minutes/
 !.claude/skills/meeting-minutes/**
 
+# Mantine 9 · ag-grid-community UI 개발 스킬 (2026-09-23 추가)
+!.claude/skills/mantine-aggrid-ui/
+!.claude/skills/mantine-aggrid-ui/**
+
 # D'Flow 에이전트 스킬(dflow-*)은 wbs-web 정본으로 가는 로컬 심볼릭 링크라 추적하지 않는다 (2026-09-23).
 
 
