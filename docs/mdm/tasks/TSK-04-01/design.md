@@ -1,6 +1,6 @@
 # TSK-04-01 설계 — 용어·도메인·컬럼 공유 계약 (계약 전용)
 
-> category infra · domain database · priority critical · Design Phase(supervised)
+> category infra · domain database · priority critical · Design Phase(--worker 자동 모드)
 > 입력: `spec.md` · `.claude/skills/dflow-dev/references/dev-discipline.md` §"Phase 02 — Design" · `RULE.md`·`CLAUDE.md` ·
 > `docs/guide/BackEnd/Backend-Implementation-Guide.md` · `docs/mdm/{PRD,TRD,decisions,naming-dialect-rules,engine-contract,wbs,term-embedding}.md` ·
 > `docs/mdm/design/basic/02-term-domain-column.md`(원천) · `docs/mdm/tasks/{TSK-02-03,TSK-01-02}/design.md` ·
@@ -354,7 +354,7 @@ public interface MdmDomainImpactLookup {
 | 받는 Task | 인계 내용 |
 |---|---|
 | **TSK-06-01**(04, `TB_MDM_CODE`) | `FK_TB_MDM_DOMAIN_CODE`를 두 방언 모두 **후행으로** 추가해야 한다(D1). MSSQL 은 `99-cross-area-fk.mssql.sql`(TSK-02-03 설계) 패턴을 실제 마이그레이션 버전으로 재현하면 되지만, **SQLite 는 `ALTER TABLE ADD CONSTRAINT`가 없으므로 `TB_MDM_DOMAIN` 테이블을 재생성(12단계 패턴: 새 테이블 생성→데이터 복사→구 테이블 드롭→rename)해야 한다.** Flyway 는 마이그레이션마다 트랜잭션을 열고 `PRAGMA foreign_keys`는 트랜잭션 안에서 바꿀 수 없다는 점, `TB_MDM_COLUMN`이 `TB_MDM_DOMAIN`을 참조하므로 단순 DROP 이 막힌다는 점, `TB_MDM_RULE_VAR`(06)이 이미 `TB_MDM_DOMAIN`을 참조하기 시작했다면 재생성 비용이 더 커진다는 점을 고려해야 한다. |
-| **TSK-04-02·04-03·04-04** | `TB_MDM_CODE`가 아직 없는 동안에도(D1) 도메인·컬럼 CRUD 가 정상 동작해야 한다 — `MARU_CODE_ID`/`CATE_ID` 유효성은 직접 SQL 조인이 아니라 **TSK-01-02 의 `MaruIdNamespace`**(`com.dongkuk.dmes.mdm.contract.category`, `MaruIdKind.MASTER_CODE`, 04·05 가 구현하는 기존 SPI)를 `List<MaruIdNamespace>`로 주입받아 검사한다 — 구현체가 아직 없으면(06-01 미완료) 검사를 건너뛰거나 "확인 불가"로 표시하되 예외를 던지지 않는다(D1 선택지 3 과 같은 안전망을 이미 있는 계약으로 얻는다). `MdmEffectiveDomainResolver`·`MdmDomainImpactLookup`(§6)의 실제 구현체(재귀 CTE, AND 체이닝, `List<MdmDomainReferenceSpi>` 집계)를 만드는 것이 TSK-04-03 핵심 작업이다. `TB_MDM_RULE_VAR`가 없으면 `MdmDomainReferenceSpi` 구현체(TSK-08-01)도 없으므로 `externalReferences`의 "RULE_VAR" 부분은 자동으로 빈 리스트가 된다(D9). |
+| **TSK-04-02·04-03·04-04** | `TB_MDM_CODE`가 아직 없는 동안에도(D1) 도메인·컬럼 CRUD 가 정상 동작해야 한다 — `MARU_CODE_ID`/`CATE_ID` 유효성은 직접 SQL 조인이 아니라 **TSK-01-02 의 `MaruIdNamespace`**(`com.dongkuk.dmes.mdm.contract.category`, `MaruIdKind.MASTER_CODE`, 04·05 가 구현하는 기존 SPI)를 `List<MaruIdNamespace>`로 주입받아 검사한다 — 구현체가 아직 없으면(06-01 미완료) 검사를 건너뛰거나 "확인 불가"로 표시하되 예외를 던지지 않는다(D1 선택지 3 과 같은 안전망을 이미 있는 계약으로 얻는다). `MdmEffectiveDomainResolver`·`MdmDomainImpactLookup`(§7)의 실제 구현체(재귀 CTE, AND 체이닝, `List<MdmDomainReferenceSpi>` 집계)를 만드는 것이 TSK-04-03 핵심 작업이다. `TB_MDM_RULE_VAR`가 없으면 `MdmDomainReferenceSpi` 구현체(TSK-08-01)도 없으므로 `externalReferences`의 "RULE_VAR" 부분은 자동으로 빈 리스트가 된다(D9). |
 | **TSK-05-01**(03), **TSK-08-01**(06) | `com.dongkuk.dmes.mdm.contract.dictionary`의 세 인터페이스만 참조한다(§3.5 ArchUnit 이 자동 집행). `com.dongkuk.dmes.mdm.entity`/`.repository`를 직접 import 하면 안 된다. 각자 `MdmDomainReferenceSpi`를 구현해 자기 영역이 참조하는 도메인/컬럼을 알려준다(D9) — 03 은 `refKind="LAYOUT_ITEM"`, 06 은 `refKind="RULE_VAR"`. |
 | **TSK-03-01**(엔진 공유 계약) | 실제 `kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup`·`DomainKind`가 컴파일되면, `com.dongkuk.dmes.mdm.contract.dictionary.MdmDomainKind`·`MdmDataType`과 값 집합이 같은지 확인하는 교차 검증 테스트를 추가한다(F15 — 이 Task 는 대상이 없어 만들지 못했다). |
 | **모든 후속 Task**(naming-dialect-rules §6.2) | §3 #3·#5·#15·#16·#19·#20·#23 이 "확인(TSK-04-01 실측)"으로 갱신되므로, 그 값(콜레이션·JSON 함수·BIT/DATETIME2 매핑 등)을 재실측 없이 그대로 인용할 수 있다. |
