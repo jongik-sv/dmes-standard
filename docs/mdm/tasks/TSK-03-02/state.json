@@ -2,7 +2,7 @@
   "tsk": "TSK-03-02",
   "order": "ea440494-a2ed-42c5-9842-4c1dce2f9972",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "reported",
+  "phase": "merged",
   "baseline": {
     "failures": 0,
     "tests": 524,
@@ -66,5 +66,6 @@
     "frontend_m_mdm": "unchanged since build gate (6 pass, lint pass)",
     "mutation": "38 mutants (I1~I36 대표 + I24a + I33orig) 전부 red, 엔진 전체 스위트 기준"
   },
-  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\""
+  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\"",
+  "unapproved": true
 }
