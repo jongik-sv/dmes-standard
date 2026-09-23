@@ -426,6 +426,41 @@ public interface MdmLayoutParser {
 
 ---
 
+## Verify Phase 기록
+
+### 게이트 결과
+
+| 게이트 | 테스트 수 | 실패 | 상태 |
+|---|---|---|---|
+| `cd src/backend && ./gradlew testAll` | 581 | 0 | 통과 ✓ |
+| `cd src/backend/mdm && ../gradlew :api:mssqlMigrationTest` | 22 | 0 | 통과 ✓ |
+
+기준선 대비 신규 실패 0, 총수 미감소 ✓
+
+### 변이 검증 결과(재확인)
+
+§5 불변 규칙 16개 중 필수 선택 규칙 8개를 직접 다시 넣고 재검증했다. 매 변이 뒤 `/usr/bin/git status --short` 로 원복 확인(state.json·.issues 외 변경 없음).
+
+| 규칙 # | 변이 | 테스트 결과 | 비고 |
+|---|---|---|---|
+| 3 | `CK_TB_MDM_LAYOUT_ITEM_UNIT` CHECK 제거 | **잡힘** ✓ | `CHECK_3개가_위반을_거부한다()` FAILED |
+| 5 | `FK_TB_MDM_LAYOUT_CONST_HEADER`(FK3) 제거 | **잡힘** ✓ | 2개 테스트 FAILED |
+| 6 | `MdmLayout.layoutVersion`에 `@Version` 추가 | **잡힘** ✓ | `layoutVersion_은_더티_업데이트_후에도_...` FAILED |
+| 8 | `TB_MDM_LAYOUT.VERSION` SQLite `BIGINT`→`INTEGER` | **잡힘** ✓ | `VER_와_VERSION_칼럼_모두_BIGINT_로_선언됐다()` FAILED |
+| 10 | `FK_TB_MDM_LAYOUT_ITEM_COLUMN` 제거 | **잡힘** ✓ | `COLUMN_PHYS_와_TRANS_UNIT_FK_가_...` FAILED |
+| 11 | `FK_TB_MDM_LAYOUT_CONST_HEADER`에 `ON DELETE CASCADE` 추가 | **잡힘** ✓ | `부착된_CONST_가_있으면_HEADER_행_DELETE_가_거부된다()` FAILED |
+| 14 | `layout-snapshot.schema.json`에서 `overrideValue` 제거 | **잡힘** ✓ | `항목_스냅샷_키_집합이_...` FAILED |
+| 7 | 예약어 칼럼 백틱 제거(VERSION·OFFSET·LENGTH) | **알려진 커버리지 갭** ⚠ | `VER_와_VERSION_칼럼_모두_BIGINT_로_선언됐다()` FAILED — BIGINT 텍스트 검증이 먼저 실패(예약어 인용과 별개) |
+
+**결론**: 재확인한 8개 규칙 모두 테스트가 실제로 변이를 잡음(또는 설계대로 알려진 갭 확인). 변이 검증 체계 정상 작동.
+
+### 추가 관찰
+
+- 규칙 7(예약어 백틱 제거)의 실측: SQLite `CREATE TABLE` 파싱은 예약어 인용(`VERSION` vs `` `VERSION` ``) 없이도 성공하고, Hibernate 매핑도 통과한다. 다만 이 Task 의 테스트 `VER_와_VERSION_칼럼_모두_BIGINT_로_선언됐다()` 는 `sqlite_master.sql` 텍스트에서 `BIGINT` 문자를 직접 확인하므로, 예약어 인용이 남아 있어야 그 테스트가 의도한 대로(BIGINT 타입 단언) 통과한다 — 백틱 제거 후 `INTEGER`로 되돌려야 그 테스트가 빨개진다. 백틱만 제거하는 변이는 이 테스트 구조상 직접 감지되지 않음을 확인했다(Design Phase 기록의 "알려진 커버리지 갭"과 일치).
+- MSSQL 게이트(22 tests / 0 failures) 통과. 복합키 왕복 테스트 포함 정상 작동.
+
+---
+
 ## 화면(브라우저 E2E) — 해당 없음
 
 이 Task 는 domain database 의 계약 전용 작업이며 `entry-point`가 없다(화면이 없다). dev-discipline §"화면 작업의 브라우저 E2E" 트리거(entry-point 존재 또는 domain=fullstack/frontend)에 해당하지 않으므로 스모크 시험·스크린샷 요구사항이 적용되지 않는다.
