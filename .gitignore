@@ -22,6 +22,8 @@ build/
 .gradle/
 *.class
 *.jar
+# Gradle wrapper jar 는 커밋한다(새 워크트리·clone 에서 gradlew 가 바로 돌도록)
+!**/gradle/wrapper/gradle-wrapper.jar
 *.war
 *.ear
 **/bin/generated-sources/
