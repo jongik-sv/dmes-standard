@@ -4,7 +4,7 @@
 
 ## A.1 모듈 카탈로그 (`moduleId`)
 
-`moduleId` 는 MES 하위 업무 모듈을 식별하는 단수 영문 약어. **lowercase 3 글자 정본**. `screenId` 에는 합성되지 않으며, 라우트 prefix (`/api/{moduleId}/...`)·BFF 경로·패키지 root (`com.dongkuk.dmes.{moduleId}`)·테이블명 (`TB_{moduleId}_...`) 에서 단독 표기는 항상 lowercase 3글자.
+`moduleId` 는 MES 하위 업무 모듈을 식별하는 단수 영문 약어. **lowercase 3 글자 정본**. `screenId` 에는 합성되지 않으며, 라우트 prefix (`/api/{moduleId}/...`)·BFF 경로·패키지 root (`com.dongkuk.dmes.{moduleId}`)·테이블명 (`TB_{moduleId}_...`) 에서 단독 표기는 항상 lowercase 3글자(단 `mdm` 테이블명은 대문자 `TB_MDM_` — [§A.12.7](04-decision-table-dispatch.md)).
 
 ### A.1.1 모듈 정본 (D1)
 

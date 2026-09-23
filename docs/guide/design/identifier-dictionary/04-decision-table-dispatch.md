@@ -67,13 +67,13 @@ design/  BackEnd_표준_    FrontEnd_표준_
 | `TB_` | 고정 prefix (대문자 + 언더스코어) | 본 절 |
 | `{모듈명}` | **lowercase 3 글자** (단 `mdm` 은 대문자 `MDM` — §A.12.7) | §A.1.1 모듈 정본 (mpn / mpp / mls / mqc / mcm / mdm) |
 | `_` | 구분자 (언더스코어 1 글자) | 본 절 |
-| `{역할}` | **lowercase + snake_case 도메인 명사 + 선택적 한정어** | 본 절 |
+| `{역할}` | **lowercase + snake_case 도메인 명사 + 선택적 한정어** (단 `mdm` 은 UPPER_SNAKE — §A.12.7) | 본 절 |
 
 ### A.12.2 역할 토큰 규칙
 
 | 규칙 | 내용 | 예시 |
 |---|---|---|
-| 표기 | lowercase + snake_case | `code_master` / `inspection_request` |
+| 표기 | lowercase + snake_case (단 `mdm` 은 UPPER_SNAKE — §A.12.7) | `code_master` / `inspection_request` |
 | 도메인 명사 | 단수형 | `code` ○ / `codes` ✗ |
 | 한정어 | `_` 로 연결 (역할 내 추가 `_` 허용) | `code_master_detail` / `inspection_request_detail` |
 | 금지 | PascalCase / camelCase / 대문자 단어 | `CodeMaster` ✗ / `codeMaster` ✗ |

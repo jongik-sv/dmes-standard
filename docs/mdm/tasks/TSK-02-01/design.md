@@ -652,3 +652,19 @@ action 과 `allActions`(F18) 대조 — ADR-0003 에 이 표를 그대로 싣는
 | TSK-06-05 · TSK-08-05 | 미래 apply_from 확정 경고(철회 부재), 결재 칸 처리(D3), 5항 생략(04) |
 | TSK-07-04 | `dataCsvUploadPop` 팝업/독립 확정(§6.5) |
 | 화면 Task 전부 | 식별자 사전 A.3.2 화면 행 등재, DRAFT 소유권 action 이름 확정과 `allActions` 추가, 산출물 `docs/mdm/screens/{screenId}/` |
+
+---
+
+## Verify 이탈
+
+Verify Phase(무인)가 V26 내용 대조에서 찾아 고친 정합성 결함이다. 체크리스트 기대값은 손대지 않았고, 아래는 모두 산출물 쪽 보강·수정이다.
+
+1. **식별자 사전 나머지 모순 2건 보강**(오케스트레이터 지시) — M4·M6(§2.2)이 `{모듈명}` 토큰 행에만 mdm 대문자 예외 포인터를 달아, 같은 문서의 다른 두 자리가 여전히 "항상 lowercase" 라고 글자 그대로 모순됐다. 규칙 자체는 바꾸지 않고 §A.12.7 포인터만 덧붙였다.
+   - `docs/guide/design/identifier-dictionary/01-modules-and-screens.md:7` — 테이블명 단독 표기 "항상 lowercase 3글자" 문장 끝에 mdm 예외 포인터 추가.
+   - `docs/guide/design/identifier-dictionary/04-decision-table-dispatch.md:70`(A.12.1 `{역할}` 행)·`:76`(A.12.2 표기 행) — "lowercase + snake_case" 에 mdm(UPPER_SNAKE) 예외 포인터 추가.
+2. **naming-dialect-rules.md §6.1 인계표 누락 보강** — TSK-01-02 행에 design.md §7 이 요구한 "그룹 코드 상수 `dma~dme`" 항목이 빠져 있었다. 추가했다.
+3. **ADR-0001 D1 FK 명명 규칙 누락 보강** — design §6.1·규칙표 §1 에 있는 "같은 두 테이블 사이 FK 가 둘 이상이면 뒤에 `_{칼럼}`" 단서가 ADR 본문에서만 빠져 있었다. 추가했다.
+4. **ADR-0001 Consequences 과잉 단정 완화** — "대소문자만 다른 코드가 헷갈린다면 저장 검사로 막는다"(단정)가 design D7 근거("막을 수 있다", 이 Task 가 만드는 검사가 아님)보다 강하게 적혀 있었다. "막을 수 있다(이 Task 가 그 검사를 만드는 것은 아니다)"로 완화했다.
+5. **screens/README.md §6 목록 정정** — design §6.5 의 "보류로 만들지 않는 화면" 목록(5항목)에 없는 `dictSystemMng`(§3 의 별도 "(보류)" 예약 행)을 Build 가 §6 목록에 얹어, "영구 미제작"과 "그룹 예약된 보류 화면"의 구분이 흐려졌다. `dictSystemMng` 를 §6 목록에서 빼고, 두 범주가 다르다는 설명 한 줄을 추가했다.
+
+V1~V24 는 위 수정 뒤 재실행해 전부 기대값을 확인했다(아래 `## Verify 재실행 기록` 없이, 이 문단이 그 결과를 대신한다 — 개별 항목은 팀장 보고에 남긴다). 그 밖에 ADR-0002 ↔ §6.7·§6.8·§6.10·D3~D5, screens/README·ADR-0003 ↔ §6.5·§6.6·§6.9·D2·D6, decisions.md D-012~D-019 ↔ §6.12, naming-dialect-rules.md·ADR-0001 의 나머지 부분은 적대적으로 대조해 누락·왜곡·모순·깨진 링크를 찾지 못했다.

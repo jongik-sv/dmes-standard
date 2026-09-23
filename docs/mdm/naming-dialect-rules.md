@@ -92,7 +92,7 @@
 
 | 받는 Task | 인계 내용 |
 |---|---|
-| TSK-01-02 | 감사 칼럼 명시 헬퍼(네이티브 쓰기용), 방언 판정 빈, SQLite `foreign_keys` 설정, BOOLEAN·일시 매핑 실측(§3 #14~#16), `flyway-migration-add` 의 mdm 지원 판정, As-Is 마스터 엔티티 import 금지 ArchUnit 규칙 |
+| TSK-01-02 | 감사 칼럼 명시 헬퍼(네이티브 쓰기용), 방언 판정 빈, SQLite `foreign_keys` 설정, BOOLEAN·일시 매핑 실측(§3 #14~#16), `flyway-migration-add` 의 mdm 지원 판정, As-Is 마스터 엔티티 import 금지 ArchUnit 규칙, 그룹 코드 상수 `dma~dme` |
 | TSK-02-03 | §1 명명과 §3 방언의 `실측 필요 → TSK-02-03` 행(#2~#5, #19, #20), 보류 테이블 DDL·활성 테이블 배포 칸 `DEFAULT 0`([ADR-0002](adr/0002-version-confirm-without-approval.md)), 02 관리 속성(§2 끝 항목), `TB_MDM_DICT_SEQ` 초기 행 |
 | TSK-04-03 · TSK-06-02 · TSK-07-03 · TSK-08-02 · TSK-08-05 · TSK-01-04(보류) | §3 에서 각자 이름이 적힌 `실측 필요` 행 |
 
