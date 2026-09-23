@@ -73,7 +73,7 @@ docs/mdm/engine-contract/
 | 판정 입구의 평가 시각 | `java.time.Instant` | 06:480 과 같다. EvalEx 에서 DATE_TIME 값이 된다 |
 | spi 가 돌려주는 업무 일시(`apply_from`·`apply_to` 등), `MasterLookup`·`CodeResolver` 기준일 | KST 벽시계 `LocalDateTime`(초 단위) | naming-dialect-rules §3 #16 과 같은 타입이다. 열린 끝은 `9999-12-31T00:00` |
 | 마루 코드 버전(`ver`, `from_ver`, `to_ver`) | `BigDecimal` scale 3 | `DECIMAL(7,3)`, naming-dialect-rules §3 #17. 열린 `to_ver` 는 9999 |
-| 룰 버전 | `int` | 06 룰 버전은 정수다 |
+| 룰 버전 | `int` | `TB_MDM_RULE_VER.ver` 는 1부터 매기는 정수 버전이다(06:971) |
 
 엔진은 `Instant` 를 `MdmExpressionConfig.ZONE`(`Asia/Seoul`)으로 한 번 바꿔 spi 에 넘긴다.
 
