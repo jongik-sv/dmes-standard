@@ -103,6 +103,7 @@ describe("겹침·빈틈·도달 불가 분석", () => {
 
   it("<> A 와 IS NULL 은 겹치지 않는다", () => {
     expect(analyze(rule("UNIQUE", [col(1, "STRING")], [[S("NE", "A")], [{ op: "IS_NULL" }]]))).toEqual([]);
+    expect(analyze(rule("UNIQUE", [col(1, "STRING")], [[{ op: "NOT_NULL" }], [{ op: "IS_NULL" }]]))).toEqual([]);
   });
 
   it("한 열이라도 서로소면 두 행은 겹치지 않는다", () => {

@@ -111,20 +111,20 @@ describe("적중 정책 미리보기", () => {
       ruleId: "FB",
       ruleKind: "DECISION",
       hitPolicy: "FIRST",
-      vars: [cond(1, "ONE", "SURF_GRD", 1), cond(2, "EXPRESSION", null, 2, { dataType: "BOOLEAN" }), result(3, "VALUE", "QLTY_GRD", 1)],
+      // Expression 열(var 2)이 seq 1 이라 판정 불가 셀이 먼저 온다. 행 1 은 뒤의 표면등급 셀이 거짓, 행 2 는 참이다.
+      vars: [cond(2, "EXPRESSION", null, 1, { dataType: "BOOLEAN" }), cond(1, "ONE", "SURF_GRD", 2), result(3, "VALUE", "QLTY_GRD", 1)],
       rows: [
-        row(1, 1, { 1: { op: "IN", list: ["X"] }, 2: E('MASTER_AT("PROC_CD", "PLATING", SURF_GRD, "20260901")'), 3: { val: "A" } }),
-        row(2, 2, { 1: { op: "IN", list: ["A"] }, 2: E('MASTER_AT("PROC_CD", "PLATING", SURF_GRD, "20260901")'), 3: { val: "B" } }),
+        row(1, 1, { 2: E('MASTER_AT("PROC_CD", "PLATING", SURF_GRD, "20260901")'), 1: { op: "IN", list: ["X"] }, 3: { val: "A" } }),
+        row(2, 2, { 2: E('MASTER_AT("PROC_CD", "PLATING", SURF_GRD, "20260901")'), 1: { op: "IN", list: ["A"] }, 3: { val: "B" } }),
       ],
     };
     const p = previewRule(r, { SURF_GRD: "A" });
     expect(p.kind).toBe("fallback");
     if (p.kind !== "fallback") return;
-    expect(p.trace.map((t) => [t.rowId, t.hit, t.firstFalseVarId])).toEqual([
-      [1, false, 1],
-      [2, null, null],
+    expect(p.trace.map((t) => [t.rowId, t.hit, t.firstFalseVarId, t.fallbackVarIds])).toEqual([
+      [1, false, 1, [2]],
+      [2, null, null, [2]],
     ]);
-    expect(p.trace[1].fallbackVarIds).toEqual([2]);
   });
 
   it("Expression 조건 셀 결과가 NULL 이면 그 셀만 거짓이고 EXPR_CELL_NULL 경고를 남긴다", () => {
