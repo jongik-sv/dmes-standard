@@ -250,8 +250,8 @@ class DomainMngOasisFlowTest {
         long owner = saveOk(draft(uniq("W"), "QTY", "NUMBER").put("unitCode", "ton"), grids());
         jdbc.update("INSERT OR IGNORE INTO TB_MDM_COLUMN (COLUMN_NAME, PHYS_NAME, DOMAIN_ID, REQUIRED, CHG_SEQ) "
                 + "VALUES ('코일 순중량', 'COIL_NET_WGT', ?, 0, 0)", owner);
-        int count = jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_DOMAIN", Integer.class);
-        Object ver = row(owner).get("VER");
+        String fingerprint = "SELECT DOMAIN_ID, VER, U_AT, DESCRIPTION, STD_RULE FROM TB_MDM_DOMAIN ORDER BY DOMAIN_ID";
+        java.util.List<Map<String, Object>> before = jdbc.queryForList(fingerprint);
 
         ObjectNode p = json.createObjectNode();
         p.put("domainKind", "QTY");
@@ -278,7 +278,6 @@ class DomainMngOasisFlowTest {
         assertTrue(compile.path("compileIssues").toString().contains("R04"), compile.toString());
         assertTrue(compile.path("std").isMissingNode() || compile.path("std").isNull(), "컴파일 이슈가 있으면 평가하지 않는다");
 
-        assertEquals(count, jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_DOMAIN", Integer.class));
-        assertEquals(ver, row(owner).get("VER"));
+        assertEquals(before, jdbc.queryForList(fingerprint), "execute 가 도메인 표를 바꿨다(I16)");
     }
 }

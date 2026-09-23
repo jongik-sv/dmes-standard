@@ -88,16 +88,17 @@ abstract class DomainMngApiSupport {
     }
 
     /**
-     * ① validate 의 issues 에 code 가 있고 ② save 가 BusinessException 을 던지며(메시지에 code) ③ 행 수와 대상 행 값이
+     * ① validate 의 issues 에 code 가 있고 validate 는 행을 남기지 않으며 ② save 가 BusinessException 을 던지며(메시지에 code) ③ 행 수와 대상 행 값이
      * 호출 전과 같다.
      */
     protected BusinessException assertRejected(String code, DomainDraftRequest r, List<Map<String, Object>> testCases) {
-        Map<String, Object> validated = service.validate(r, testCases, List.of());
-        assertTrue(issueCodes(validated).contains(code), code + " 가 validate 이슈에 없다: " + validated.get("issues"));
-        assertEquals(Boolean.FALSE, validated.get("ok"));
         int before = rowCount();
         List<Map<String, Object>> target = r.getDomainId() == null ? null
                 : jdbc.queryForList("SELECT * FROM TB_MDM_DOMAIN WHERE DOMAIN_ID = ?", r.getDomainId());
+        Map<String, Object> validated = service.validate(r, testCases, List.of());
+        assertTrue(issueCodes(validated).contains(code), code + " 가 validate 이슈에 없다: " + validated.get("issues"));
+        assertEquals(Boolean.FALSE, validated.get("ok"));
+        assertEquals(before, rowCount(), "validate 가 행을 남겼다(쓰기는 save 만, I16)");
         BusinessException e = assertThrows(BusinessException.class, () -> service.save(r, testCases, List.of()));
         assertTrue(e.getMessage().contains(code), e.getMessage());
         assertEquals(before, rowCount(), "거부된 저장이 행을 남겼다");
