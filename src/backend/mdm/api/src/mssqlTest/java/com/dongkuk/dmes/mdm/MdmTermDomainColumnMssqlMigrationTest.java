@@ -84,7 +84,8 @@ class MdmTermDomainColumnMssqlMigrationTest {
     }
 
     @Test
-    void local_db_설정으로_V1_V2_V3_가_적용된다() throws SQLException {
+    void local_db_설정으로_V1_V2_V3_V4_가_적용된다() throws SQLException {
+        // TSK-05-01 — V4(03 인터페이스 레이아웃) 추가 반영. 완화가 아니라 새 버전 반영이다.
         Set<String> versions = new HashSet<>();
         try (Connection c = dataSource.getConnection(); Statement s = c.createStatement();
              ResultSet rs = s.executeQuery("SELECT version FROM flyway_schema_history WHERE success = 1")) {
@@ -92,7 +93,7 @@ class MdmTermDomainColumnMssqlMigrationTest {
                 versions.add(rs.getString(1));
             }
         }
-        assertEquals(Set.of("1", "2", "3"), versions);
+        assertEquals(Set.of("1", "2", "3", "4"), versions);
     }
 
     /** #3 — CHECK(ISJSON(...) = 1) 8개, 부정형 JSON INSERT 는 오류 547(CHECK 위반)로 거부. */

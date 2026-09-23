@@ -75,10 +75,11 @@ class MdmMssqlMigrationTest {
     }
 
     @Test
-    void local_db_설정의_locations_로_V1_V2_V3_가_적용된다() throws SQLException {
-        // TSK-04-01 F12 — V3(02 용어·도메인·컬럼) 추가 반영. 완화가 아니라 새 버전 반영이다.
-        assertEquals(3, migrateResult.migrationsExecuted);
-        assertEquals("3", migrateResult.targetSchemaVersion);
+    void local_db_설정의_locations_로_V1_V2_V3_V4_가_적용된다() throws SQLException {
+        // TSK-04-01 F12 — V3(02 용어·도메인·컬럼) 반영. TSK-05-01 — V4(03 인터페이스 레이아웃) 추가 반영.
+        // 둘 다 완화가 아니라 새 버전 반영이다.
+        assertEquals(4, migrateResult.migrationsExecuted);
+        assertEquals("4", migrateResult.targetSchemaVersion);
 
         Set<String> versions = new HashSet<>();
         try (Connection c = connect(); Statement s = c.createStatement();
@@ -87,7 +88,7 @@ class MdmMssqlMigrationTest {
                 versions.add(rs.getString(1));
             }
         }
-        assertEquals(Set.of("1", "2", "3"), versions);
+        assertEquals(Set.of("1", "2", "3", "4"), versions);
     }
 
     @Test

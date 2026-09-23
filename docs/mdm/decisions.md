@@ -370,3 +370,27 @@
 - **Rationale**: 상태→라벨·톤 대응은 mdm 업무 규칙이고 shared 에 같은 컴포넌트가 없다. shared·m-mcm 을 바꾸지 않아 변경 패키지가 늘지 않는다
 - **Reversible**: yes
 - **Source**: docs/mdm/tasks/TSK-01-03/design.md D11
+
+## D-047 (2026-09-24T00:00:00Z)
+- **Phase**: build (TSK-05-01)
+- **Decision needed**: 예약어와 충돌하는 칼럼(`TB_MDM_LAYOUT.VERSION`·`TB_MDM_LAYOUT_ITEM.OFFSET`·`LENGTH`)을 JPA 엔티티에서 어떻게 인용할 것인가 — naming-dialect-rules.md 에 선례가 없었다
+- **Decision made**: Hibernate 방언-중립 백틱 인용(`@Column(name="\`VERSION\`")` 등)을 쓴다. Hibernate 가 방언별로 자동 변환해 MSSQL `[VERSION]`, SQLite `"VERSION"` DDL 인용과 일치시킨다. `hibernate.globally_quoted_identifiers` 전역 설정은 쓰지 않는다(예약어 없는 다른 mdm 칼럼까지 전부 인용돼 영향 범위가 커진다)
+- **Rationale**: naming-dialect-rules.md §1 에 이 정책이 없어(F7·F15) 이 Task 가 처음 정한다. Hibernate 표준 메커니즘이라 방언 분기 코드를 만들지 않는다. **실측 결과(은폐하지 않고 기록)**: Build 가 `MdmLayout.layoutVersion`·`MdmLayoutItem.offset`·`length` 세 필드에서 백틱을 실제로 지우는 변이를 넣고 SQLite(`MdmLayoutEntityJpaRoundtripTest`)·MSSQL(`MdmInterfaceLayoutMssqlMigrationTest` 의 예약어 왕복 테스트) 양쪽을 다시 돌린 결과, **두 방언 모두 그대로 초록으로 통과했다** — `VERSION`·`OFFSET`·`LENGTH` 는 SQLite Hibernate community dialect·MSSQL `SQLServerDialect` 어느 쪽에서도 자동 인용이 필요한 실제 예약어로 취급되지 않는다(둘 다 표준 SQL 예약어이지만 이 두 dialect 의 파서가 컬럼 위치의 식별자로는 그대로 받아들인다). 즉 **§5 불변 규칙 7 이 예견한 "알려진 커버리지 갭"이 실제로 발생했다** — 백틱 인용은 이식성·명시성을 위해 유지하지만(명명 정책으로는 유효), 인용을 빠뜨리는 회귀를 이 Task 의 테스트로는 잡지 못한다. 향후 이 칼럼을 실제로 건드리는 Task(TSK-05-02·05-03)가 이 갭을 메울 필요가 있으면 별도로 판단한다
+- **Reversible**: yes(엔티티의 `@Column(name=...)` 값만 바꾸면 원복 가능. DDL 변경은 필요 없다)
+- **Source**: docs/mdm/tasks/TSK-05-01/design.md D1·§5 불변 규칙 7, F7·F15, naming-dialect-rules.md §1(신규 행)
+
+## D-048 (2026-09-24T00:00:00Z)
+- **Phase**: build (TSK-05-01)
+- **Decision needed**: 레이아웃 스냅샷 JSON 스키마(`layout-snapshot.schema.json`)를 샘플로 검증하는 테스트에 JSON-Schema validator 라이브러리를 새로 추가할 것인가
+- **Decision made**: 추가하지 않는다. `mdm/lib` 에 이미 전이적으로 있는 Jackson(`spring-boot-starter-web` 경유, F18)만으로 스키마·샘플·record 세 곳의 필드 키 집합이 서로 같은지를 구조적으로 비교한다(`LayoutSnapshotSchemaStructureTest`)
+- **Rationale**: 팀장 지시("새 의존성이 필요하면 조용히 추가하지 말고 D 항목으로 올린다")를 그대로 따른다. Jackson 은 추가 비용이 없고, 이 Task 의 계약이 요구하는 검증 범위(키 집합 일치·오프셋 산술 정합성)는 실제 JSON-Schema validator 없이도 충분히 구조적으로 증명된다
+- **Reversible**: yes(`lib/build.gradle` 에 `testImplementation` 으로 JSON-Schema validator 를 추가하고 테스트를 실제 스키마 검증으로 다시 작성하면 된다)
+- **Source**: docs/mdm/tasks/TSK-05-01/design.md D2, F18
+
+## D-049 (2026-09-24T00:00:00Z)
+- **Phase**: build (TSK-05-01)
+- **Decision needed**: TSK-02-03 의 design.md 안에서 "담당자 확인 필요 결정"으로 남아 있고 사람의 최종 승인 기록이 없는 03 헤더 적층·상수 재정의 모델(`TB_MDM_LAYOUT_HEADER`·`TB_MDM_LAYOUT_CONST`)을 이 Task 가 실제로 구현할 것인가
+- **Decision made**: 구현한다. Design Phase 가 이미 D4 로 이 판단을 내렸고(spec 데이터 모델 절이 "+ 적층·재정의 테이블"을 직접 요구), Build 는 이 결정을 재확인하며 그대로 실행한다 — V4(두 방언)에 두 테이블·관련 FK(부착 무결성 FK3 포함)·CHECK·유일 인덱스를 실제로 만들고, N=1 이 md 단일-헤더 동작을 정확히 재현함을 마이그레이션 테스트(SQLite·MSSQL 양쪽)로 실측했다
+- **Rationale**: spec 본문(데이터 모델 절)·`wbs.md`(TSK-05-01 요구사항 "적층 모델 확정분 포함")가 이미 적층 테이블 신설을 전제하고 있고, ERD(TSK-02-03)가 구체적 설계를 이미 갖추고 있어 새로 설계할 필요가 없다. 사람의 최종 승인은 이 Task 의 권한 밖이지만, 구현 방향 결정 자체는 spec 이 이미 지시한 범위 안이라고 판단한다(design.md D4 근거 재확인)
+- **Reversible**: no(스키마 신설 — 되돌리려면 두 테이블과 관련 FK·CHECK·인덱스, 계약 record 의 `headers`·`overrideValue` 필드를 모두 제거해야 함, TSK-05-01/design.md D4 "반려 시 재작업" 참조)
+- **Source**: docs/mdm/tasks/TSK-05-01/design.md D4, F4, spec.md 데이터 모델 절
