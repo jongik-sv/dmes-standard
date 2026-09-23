@@ -423,6 +423,8 @@ J=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 lsof -iTCP:18103 -sTCP:LISTEN; lsof -iTCP:18196 -sTCP:LISTEN; lsof -iTCP:15103 -sTCP:LISTEN
 # 1) 격리 DB 자리(F17 함정 — 없으면 mcm 이 메인 체크아웃 mcm.db 를 잡는다). gitignore 대상, 새 DB 로 시작
 mkdir -p $W/src/backend/data
+#    기존 mcm.db 가 있으면 지우지 말고 옮겨 새 DB 로 시작한다 — 시드 대조 마지막 SELECT(시험 사용자 0명)는 새 DB 에서만 참이다(Build 이탈 X6)
+[ -f $W/src/backend/data/mcm.db ] && mv $W/src/backend/data/mcm.db $W/src/backend/data/mcm.db.bak-$(date +%Y%m%d%H%M%S)
 # 2) mcm 백엔드
 cd $W/src/backend/mcm && JAVA_HOME=$J ../gradlew :api:bootRun --no-daemon --console=plain \
   --args='--spring.profiles.active=local --server.port=18103 --mcm.bff.invalidate-role-url=http://127.0.0.1:15103/api/mcm/internal/cache/invalidate-role --cactus.notify.publish-url=http://127.0.0.1:18103/notify/publish' > $SP/be-mcm.log 2>&1 &
@@ -441,8 +443,9 @@ cd $W/src/frontend/m-mcm && AUTH_SECRET=$(openssl rand -hex 32) NEXTAUTH_URL=htt
   BACKEND_CLIENT_KEY=dmes-bff-local-client-key-2026 pnpm exec next dev --turbopack --port 15103 > $SP/fe.log 2>&1 &
 FE_PID=$!
 # 6) 스모크 — 반드시 자기 포털(기본값 5100 은 메인 체크아웃 포털 → 거짓 통과)
+#    --workers=1: 두 스펙이 병렬로 admin 로그인하면 mcm SQLite 가 SQLITE_BUSY 로 로그인을 500 으로 떨어뜨린다(Build 이탈 X5)
 cd $W/src/frontend && SMOKE_MCM_BASE_URL=http://127.0.0.1:15103 SMOKE_LOGIN_USER=admin SMOKE_LOGIN_PASSWORD=admin123 \
-  pnpm exec playwright test e2e/mdm-shell-rbac-smoke.spec.ts e2e/mdm-sample-smoke.spec.ts
+  pnpm exec playwright test e2e/mdm-shell-rbac-smoke.spec.ts e2e/mdm-sample-smoke.spec.ts --workers=1
 # 7) 선행 Task 추적 파일 복원 — mdm-sample-smoke 가 TSK-01-02 스크린샷을 덮어쓴다(F51). stage 하지 않고 되돌린다
 cd $W && /usr/bin/git checkout -- docs/mdm/tasks/TSK-01-02/screens/dma-mdmSample.png
 ```
@@ -692,6 +695,8 @@ Build·Verify 는 항목마다 적힌 변이를 **일부러 넣어 빨강을 확
 
 설계에서 벗어난 점과 그 사유다. 설계의 판단(D1~D11)을 바꾼 것은 없고, 새 담당자 결정(D12 이후)은 생기지 않았다.
 
+> **TDD 순서 이탈(X11, 먼저 밝힌다)**: 버전 상태 시나리오 S1~S24 는 서비스 구현을 끝낸 **뒤에** 썼다. "테스트 먼저" 규율과 어긋난다. 대신 시나리오 첫 실행이 7건 빨강으로 실제 결함(X1)을 잡았고, 불변 규칙 변이 55건이 모두 빨강을 낸다(「Build 기록」). lib 단위·A2·V1~V3·시드 대조는 테스트를 먼저 쓰고 빨강을 확인했다.
+
 | # | 설계 | Build 에서 한 것 | 사유 |
 |---|---|---|---|
 | X1 | §2.4 버전 값 읽기 `new BigDecimal(value.toString())` | `VersionRowStore.selectColumns` 가 VER 를 `CAST(VER AS VARCHAR(40))` 로 읽고 문자열에서 BigDecimal 을 만든다 | 시나리오 첫 실행에서 S2·S3·S5·S6·S9·S13·S23 이 실패했다(실측). SQLite NUMERIC 친화도는 `1.000` 을 INTEGER, `1.001` 을 REAL 로 저장해 행마다 저장 형식이 다르고, native 결과를 첫 행 형식으로 읽으면 `1.001` 의 소수부가 잘려 `1.000` 과 같은 버전으로 보였다(2.001 을 2.000 과 같은 행으로 봐 MDM007 을 놓치고, 1.001 을 "다른 미적용 버전" 으로 봐 MDM007 을 잘못 낸다). CAST 는 SQLite·MSSQL 둘 다 같은 문자열(`1.001`, `1`)을 돌려준다. 규칙표 #17 의 "버전 비교는 Java 에서" 원칙은 그대로다 |
@@ -721,7 +726,7 @@ Build·Verify 는 항목마다 적힌 변이를 **일부러 넣어 빨강을 확
 
 ### 불변 규칙 변이 검증
 
-변이마다 파일을 고쳐 해당 테스트만 돌린 뒤 `git checkout` 으로 되돌렸다(드라이버: 변이 51건 + E2E·시드 대조 변이 6건). "빨강" 칸은 실패한 테스트다.
+변이마다 파일을 고쳐 해당 테스트만 돌린 뒤 `git checkout` 으로 되돌렸다(드라이버: 단위 수준 변이 55건 — 기존 파일 54 + 새 파일 1 — 와 E2E·시드 대조 변이 6건). "빨강" 칸은 실패한 테스트다.
 
 | 규칙 | 변이 | 결과 |
 |---|---|---|
