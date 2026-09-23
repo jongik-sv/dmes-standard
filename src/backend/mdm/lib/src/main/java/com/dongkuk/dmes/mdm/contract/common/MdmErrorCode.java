@@ -27,7 +27,20 @@ public enum MdmErrorCode {
     /** TSK-01-03 D3 — 확정·선점은 담당자(MDM_STEWARD) 역할만 할 수 있다. */
     STEWARD_ROLE_REQUIRED("MDM013", 403, ErrorCode.ACCESS_DENIED, "담당자 역할이 있어야 할 수 있습니다"),
     /** TSK-01-03 D3 — 확정 검사 경고가 있는데 확인(warningsAcknowledged) 없이 확정을 요청했다. */
-    CONFIRM_WARNINGS_NOT_ACKNOWLEDGED("MDM014", 409, ErrorCode.BUSINESS_ERROR, "확정 검사 경고를 확인한 뒤 다시 확정하세요");
+    CONFIRM_WARNINGS_NOT_ACKNOWLEDGED("MDM014", 409, ErrorCode.BUSINESS_ERROR, "확정 검사 경고를 확인한 뒤 다시 확정하세요"),
+    /** TSK-04-04 D1 — 컬럼 저장·용어 인라인 등록은 표준 관리자(MDM_STD_ADMIN) 역할만 할 수 있다. */
+    STD_ADMIN_ROLE_REQUIRED("MDM015", 403, ErrorCode.ACCESS_DENIED, "표준 관리자 역할이 있어야 할 수 있습니다"),
+    /** TSK-04-04 I12 — 미등록 용어 자리({@code ***})가 남은 컬럼은 저장할 수 없다. */
+    NAME_PLACEHOLDER_REMAINS("MDM016", 400, ErrorCode.INVALID_VALUE, "미등록 용어(***)가 남아 있어 저장할 수 없습니다"),
+    /** TSK-04-04 I13 — 한 시스템 안 같은 필드명의 두 번째 등록. */
+    SYSTEM_FIELD_ALREADY_MAPPED("MDM017", 409, ErrorCode.DUPLICATE_DATA,
+            "한 시스템 안에서 필드명 하나는 컬럼 하나에만 붙일 수 있습니다"),
+    /** TSK-04-04 — 같은 논리명 또는 표준 물리명의 컬럼이 이미 있다. */
+    COLUMN_DUPLICATED("MDM018", 409, ErrorCode.DUPLICATE_DATA, "같은 논리명 또는 물리명의 컬럼이 이미 있습니다"),
+    /** TSK-04-04 I18 — 같은 (표기, 의미 번호) 또는 영문 약어(대소문자 무시)의 용어가 이미 있다. */
+    TERM_DUPLICATED("MDM019", 409, ErrorCode.DUPLICATE_DATA, "같은 표기·의미 번호 또는 영문 약어의 용어가 이미 있습니다"),
+    /** TSK-04-04 — 형식·길이·존재 검사 실패. 어느 칸인지는 message 의 상세로 싣는다. */
+    INVALID_INPUT("MDM020", 400, ErrorCode.INVALID_VALUE, "입력값이 올바르지 않습니다");
 
     private final String code;
     private final int httpStatus;

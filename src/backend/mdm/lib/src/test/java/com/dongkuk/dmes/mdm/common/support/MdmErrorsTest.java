@@ -53,4 +53,24 @@ class MdmErrorsTest {
         assertEquals(ErrorCode.ACCESS_DENIED, MdmErrors.of(MdmErrorCode.NOT_DRAFT_OWNER).getErrorCode());
         assertEquals(ErrorCode.ACCESS_DENIED, MdmErrors.of(MdmErrorCode.STEWARD_ROLE_REQUIRED).getErrorCode());
     }
+
+    @Test
+    void 상세가_있으면_기본_문구_뒤에_붙인다() {
+        // TSK-04-04 I25 — OASIS 경로는 message 만 화면에 오므로(F12) 기본 문구로 시작하고 상세는 ": " 뒤에 붙인다.
+        BusinessException e = MdmErrors.of(MdmErrorCode.SYSTEM_FIELD_ALREADY_MAPPED, "ERP·MATNR → 컬럼 '코일 아이디'",
+                List.of(new MdmCheckIssue("MDM017", "ERP·MATNR", "physName", "ERP")));
+
+        assertEquals("한 시스템 안에서 필드명 하나는 컬럼 하나에만 붙일 수 있습니다: ERP·MATNR → 컬럼 '코일 아이디'",
+                e.getMessage());
+        assertEquals(ErrorCode.DUPLICATE_DATA, e.getErrorCode());
+        assertEquals(2, e.getErrors().size());
+        assertEquals("MDM017", e.getErrors().get(0).code());
+        assertEquals("ERP", e.getErrors().get(1).rowKey());
+    }
+
+    @Test
+    void 상세가_비면_기본_문구만() {
+        assertEquals("입력값이 올바르지 않습니다", MdmErrors.of(MdmErrorCode.INVALID_INPUT, "  ", List.of()).getMessage());
+        assertEquals("입력값이 올바르지 않습니다", MdmErrors.of(MdmErrorCode.INVALID_INPUT, null, List.of()).getMessage());
+    }
 }
