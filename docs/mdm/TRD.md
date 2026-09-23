@@ -1,0 +1,150 @@
+# TRD — 마루 MDM (dmes-standard 개발분)
+
+> version: 1.0 · 작성: 2026-09-23
+> 근거: 현재 dmes-standard 저장소 환경(RULE.md, `docs/guide/**`, `src/backend/**`, `src/frontend/**`).
+> 기능 범위는 `docs/mdm/PRD.md`, 상세 규칙은 원천 설계 `docs/mdm/design/basic/02~06`.
+> 이 문서에 적은 명령은 저장소 문서·스크립트에서 옮긴 것이며 이 문서 작성 시점에 실행해 확인하지 않았다.
+
+## 1. 모듈 배치 (사용자 결정 2026-09-23: 새 `mdm` 모듈)
+
+| 구성 | 위치 | 형태 | 참고 모델 |
+|---|---|---|---|
+| 백엔드 사이트 모듈 | `src/backend/mdm/` (`lib` + `api`) | Gradle composite build 참여, Boot 런처·WAR | `src/backend/mqc/` |
+| 평가 엔진 | `src/backend/maru-mdm-engine/` | 독립 `java-library` jar. 의존은 EvalEx 3.7.0 하나 | 01 §8, 06 「엔진 모듈」 |
+| 프론트엔드 화면 라이브러리 | `src/frontend/m-mdm/` (`@dk-oasis/m-mdm`) | tsup 빌드 라이브러리, `pages/{group}/{screenId}/page.tsx` | `src/frontend/m-mqc/` |
+| 호스트 앱 | `src/frontend/m-mcm/` | m-mdm 화면을 포털 탭으로 적재(`page-registry` 코드젠) | `m-mcm/README.md` |
+
+- 패키지: `com.dongkuk.dmes.mdm.{group}.{screenId}.{dto,service}`, 공용 `entity/`, `repository/` (Workspace-Structure §2~§5).
+- 엔진 패키지: `com.dongkuk.dmes.mdm.engine.{expr,rule,domain,code,spi}` (06 「엔진 모듈」).
+- `src/backend/settings.gradle` 에 `includeBuild('mdm')`, `includeBuild('maru-mdm-engine')` 를 추가하고, 루트 `build.gradle` 의 `includedProjectNames` 에 넣어 `testAll` 대상이 되게 한다.
+- 로컬 포트: 8096 (기존 8092~8095·8100 과 겹치지 않는 값. `be-run.sh` 에 `--mdm` 추가). 확정은 스캐폴드 Task.
+
+## 2. 기술 스택
+
+| 구분 | 스택 | 근거 |
+|---|---|---|
+| 언어·런타임 | Java 21, Spring Boot 4.0.6, Gradle 9.3.1 wrapper(`src/backend/gradlew`) | `src/backend/mcm/build.gradle`, wrapper properties |
+| 프레임워크 | cactus-core 1.0.22-SNAPSHOT(보안·JWT·다중 DS/TX), OASIS 5.1.1(BPMN 서비스) | 각 `build.gradle` |
+| 영속성 | JPA + MyBatis(복잡 조회·방언별 SQL) | mcm-core 관례 |
+| DB | 로컬 SQLite, local-db·운영 MSSQL(WildFly JNDI), 테스트 H2 | `application-*.yml` |
+| 식 엔진 | EvalEx 3.7.0 (precision 68, HALF_EVEN) | 06, evalex-guide |
+| 임베딩(용어 유사어 2차) | KURE-v1 ONNX INT8 + ONNX Runtime Java(CPU) | 02 「임베딩」 — 저장 방식은 조사 Task |
+| 프론트 | Next.js 16.1.6(App Router, m-mcm), React 19, TypeScript 5.9, Mantine 9, AG Grid 33, decimal.js | `m-mcm/package.json`, `shared/package.json` |
+| 패키지 관리 | pnpm 10 workspace | `src/frontend/pnpm-workspace.yaml` |
+| 테스트 | JUnit 5 + Spring Boot Test, Vitest 3, Playwright 1.58 | 각 package.json·build.gradle |
+
+## 3. API 규약
+
+- 업무 API 는 OASIS BPMN 표준: `mdm/api/src/main/resources/services/{group}/{screenId}.bpmn` → `camunda:class` 서비스 빈. 임의 `@RestController` 우회 금지(Mes-Guide §7).
+- 경로: `/api/mdm/oasis/{serviceId}/{action}` (RBAC-PATH-CONVENTION §8). REST 가 필요한 경우 `POST /api/mdm/{objId}/{action}`.
+- 수신 API(EXTERNAL 원천 04·05·06)는 원천 시스템이 호출한다. 인증 방식은 배포·수신 설계 Task 에서 정한다(caravan-hub 연계 후보).
+- OASIS/BPMN 을 고친 뒤에는 `oasis-contract-check` 로 ERROR 0 을 확인한다.
+
+## 4. 데이터베이스
+
+### 4.1 테이블 (원천 설계 기준 33개 + 수신 로그)
+- 공통: `TB_MDM_SYSTEM`
+- 02: `TB_MDM_UNIT`, `TB_MDM_TERM`, `TB_MDM_DOMAIN`, `TB_MDM_COLUMN`, `TB_MDM_COLUMN_SYSTEM`, `TB_MDM_DICT_SEQ`, `TB_MDM_DICT_SYSTEM`
+- 03: `TB_MDM_EAI`, `TB_MDM_LAYOUT`, `TB_MDM_LAYOUT_ITEM` (+ 헤더 적층·상수 재정의 테이블은 설계 Task 에서 결정)
+- 04: `TB_MDM_CODE`, `TB_MDM_CODE_SYSTEM`, `TB_MDM_CODE_VER`, `TB_MDM_CODE_ITEM`, `TB_MDM_CODE_CATE`, `TB_MDM_CODE_CATE_ITEM`, `TB_MDM_CODE_RECV`
+- 05: `TB_MDM_DATA`, `TB_MDM_DATA_SYSTEM`, `TB_MDM_DATA_ITEM`, `TB_MDM_DATA_CATE`, `TB_MDM_DATA_CATE_ITEM`, `TB_MDM_DATA_RECV`, `TB_MDM_DATA_RECV_ITEM`
+- 06: `TB_MDM_RULE`, `TB_MDM_RULE_SYSTEM`, `TB_MDM_RULE_VER`, `TB_MDM_RULE_VAR`, `TB_MDM_RULE_ROW`, `TB_MDM_RULE_TEST_CASE`, `TB_MDM_RULE_SET`, `TB_MDM_RULE_RECV`
+
+### 4.2 방언 매핑 (설계는 PostgreSQL 문법 전제)
+
+| 설계 문법 | SQLite(로컬) | MSSQL(운영) |
+|---|---|---|
+| `UPDATE … RETURNING` (배포 순번·식별자 발급) | `RETURNING` 지원(3.35+) | `OUTPUT inserted.*` |
+| JSONB (`TB_MDM_RULE_ROW.cells`, `TB_MDM_RULE_SET.rule_ids` 등) | TEXT + `json_each` | `NVARCHAR(MAX)` + `ISJSON` CHECK, `OPENJSON` |
+| REPEATABLE READ 한 스냅샷 읽기 | WAL 읽기 트랜잭션 | `SNAPSHOT` 격리 수준 |
+| `vector` (용어 임베딩) | 대응 없음 | 대응 없음(버전별 상이) → 조사 Task |
+| 재귀 CTE(영향도·상속 트리) | 지원 | 지원 |
+
+### 4.3 스키마 관리
+- 새 모듈이므로 Flyway 를 쓴다. 위치 `mdm/api/src/main/resources/db/migration/mdm/{sqlite,mssql}` (mqc 관례).
+- 번호는 두 방언 합집합에서 채번한다: `flyway-migration-add` 스킬.
+- 테이블 명명(사용자 결정 2026-09-23): 원천 설계의 `MD_*` 를 저장소 규칙 `TB_{모듈}_*` 에 맞춰 **`TB_MDM_*`** 로 바꾼다. 예: `MD_UNIT` → `TB_MDM_UNIT`, `MD_CODE_ITEM` → `TB_MDM_CODE_ITEM`.
+  - 원천 설계 문서·HTML 시안·sql 도 2026-09-23 에 `TB_MDM_*` 로 바꿨다(백업: `/Users/jji/project/mdm/old/basic-before-tb-mdm-rename-2026-09-23.tar.gz`).
+  - 후속 조치(전사 아키텍처 설계 Task): 식별자 사전 정규식(`04-decision-table-dispatch.md`, 5모듈만 허용)에 `mdm` 추가, 감사 칼럼 자동 주입(`McmAuditStatementInspector`, `TB_MCM_*` 한정)을 `TB_MDM_*` 에 적용할지 결정.
+
+## 5. 프론트엔드
+
+- 화면은 `m-mdm/src/pages/{group}/{screenId}/page.tsx`, 팝업은 `{group}/{screenId}/{screenId}.tsx` + `index.ts` 배럴(page.tsx 금지).
+- 메뉴·OBJECT·RBAC 는 백엔드 `DataInitializer` 에 시드한다. `componentPath = {group}/{screenId}`. 메뉴 등록은 화면 Task 안에서 끝낸다(orphan page 금지).
+- 공통 컴포넌트: `shared/src/components/{grid,form,tree,tabs,lookup}`, `PageLayout`, 엑셀 업로드 팝업 패턴.
+- 화면 그룹 코드(가정, 전사 아키텍처 설계에서 식별자 사전과 대조해 확정):
+
+| 그룹 | 영역 |
+|---|---|
+| `mdt` | 용어·도메인·컬럼·단위(02) |
+| `mdl` | 인터페이스 레이아웃(03) |
+| `mdc` | 마스터코드(04) |
+| `mdd` | 마스터데이터(05) |
+| `mdr` | 업무기준·룰 세트(06) |
+| `mda` | 결재 공통(08) |
+
+## 6. 인증·권한
+
+- cactus JWT + NextAuth + BFF(`m-mcm/proxy.ts`) RBAC 검증을 그대로 쓴다.
+- 역할(표준 관리자·담당자·결재자)은 `TB_MCM_SEC_ROLE` 에 시드하고, 권한 액션은 기존 코드(`search/save/approve/reject/cancel` 등)를 쓴다.
+- DRAFT 소유권(선점·해제·넘기기)은 역할이 아니라 `owner_id` 로 판정한다(08).
+
+## 7. 테스트·품질 명령 (문서 기준, 미실행)
+
+| 구분 | 명령 |
+|---|---|
+| BE 단위(mdm) | `cd src/backend/mdm && ../gradlew :lib:test :api:test` |
+| BE 단위(엔진) | `cd src/backend/maru-mdm-engine && ../gradlew test` |
+| BE 전체 | `cd src/backend && ./gradlew testAll` (mdm·엔진을 `includedProjectNames` 에 넣은 뒤) |
+| FE 단위 | `cd src/frontend && pnpm --filter @dk-oasis/m-mdm test` (Vitest — 스캐폴드에서 추가) |
+| Lint / Typecheck | `cd src/frontend && pnpm lint` (m-mdm 은 `tsc --noEmit`) |
+| E2E | `cd src/frontend && pnpm exec playwright test e2e/mdm-*.spec.ts` |
+| E2E 서버 | `./be-run.sh --mcm --mdm` (8100·8096, `--mdm` 은 스캐폴드에서 추가) + `./fe-run.sh --all -q` (5100). `be-run.sh` 는 포그라운드에서 대기하므로 `&&` 로 잇지 않는다. 로그인 `SMOKE_LOGIN_USER=admin` / `SMOKE_LOGIN_PASSWORD=admin123` |
+| 계약 검사 | `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` |
+
+주의: `playwright.config.ts` 는 서버를 띄우지 않는다. 테스트 전에 위 서버를 직접 띄운다.
+
+## 8. 개발 절차 (RULE.md)
+
+- MDM 은 MES 개발 분기(`docs/guide/MES/Mes-Guide.md`)를 탄다. 화면마다 설계 산출물 5종(분석 리포트·기능·디자인·BPMN·정합 체크)을 개발 전에 만든다.
+- 산출물 위치: `docs/mdm/design/{screenId}/` 는 **외부 mdm 프로젝트로 가는 심볼릭 링크 안**이다(`docs/mdm/design` → `/Users/jji/project/mdm/docs/design`). 화면 산출물을 dmes 저장소에 커밋하려면 위치를 `docs/mdm/screens/{screenId}/` 로 두는 안을 전사 아키텍처 설계 Task 에서 정한다.
+- 스키마 변경은 `flyway-migration-add`, 되돌리기 어려운 결정은 `adr-write` 로 ADR 을 남긴다.
+
+## 9. 가정 (Assumptions, 2026-09-23)
+
+| # | 가정 | 확정 시점 |
+|---|---|---|
+| T1 | 기존 mcm `cma`/`cmb` As-Is 화면과 신규 MDM 은 병존한다. 데이터 이관은 범위 밖 | 전사 아키텍처 설계 |
+| T2 | 화면 그룹 코드 `mdt/mdl/mdc/mdd/mdr/mda` | 전사 아키텍처 설계 |
+| T3 | 로컬 포트 8096 | 스캐폴드 |
+| T4 | 배포 전달 수단은 07 후보 중 하나를 어댑터로 구현하고 주기 pull 안전망을 둔다. 1차 구현은 통합테스트용 수신 스텁까지 | 배포·수신 설계 |
+| T5 | 엔진 jar 는 사내 Maven 저장소 배포를 전제로 버전을 붙이되, 1차는 composite build 의존으로 쓴다 | 엔진 설계 |
+| T6 | 용어 임베딩은 원장 DB 밖(파일 인덱스 또는 별도 저장)에 둘 수 있다. 결정 전까지 1차 문자열 유사어로 기능한다 | 임베딩 조사 |
+
+## 10. 기술 제약 사항 (Constraints)
+
+- 엔진 jar(`maru-mdm-engine`)는 EvalEx 외 라이브러리에 의존하지 않고 DB·네트워크를 직접 부르지 않는다. 정의·사본 조회는 `engine.spi` 인터페이스로만 받는다(01 §8).
+- 업무 API 는 OASIS BPMN 으로만 노출한다. 수신 API 도 같은 인가 체계를 거친다.
+- 원장 DDL 은 SQLite 와 MSSQL 두 방언을 같은 Flyway 번호로 함께 낸다.
+- 화면은 m-mdm 라이브러리에 두고 m-mcm 포털로 적재한다. 팝업에 `page.tsx` 를 쓰지 않는다.
+- 파생값(유효 식·유효 AST·요구 변수·입력 계약)은 저장하지 않고 조회 시 계산한다. 단 EvalEx 텍스트와 함께 AST JSON 은 저장한다(02 「검증식 계약」).
+
+## 11. 기술 비기능 요구사항 (Non-functional Requirements)
+
+- 성능: 엔진 컴파일 캐시 적용 후 의사결정표 1건 판정 1 ms 이내(행 200개 기준), 화면 AST 평가 1만 행 100 ms 이내.
+- 동시성: 배포 순번·식별자 발급은 단일 UPDATE 문(`RETURNING`/`OUTPUT`)으로 직렬화한다. 편집 충돌은 `row_version` 으로 409 를 돌려준다.
+- 추적성: 수신 로그는 수신 즉시 1행을 커밋하고, 처리 실패도 FAILED 로 남긴다.
+- 호환성: 엔진 jar 는 Java 21 에서 동작하고 배포 스냅샷 헤더에 엔진 모듈 버전을 싣는다(06).
+
+## 12. 기술 인수 조건 (Acceptance Criteria)
+
+- `./gradlew testAll` 이 mdm·엔진을 포함해 통과한다.
+- 두 방언 마이그레이션이 로컬 SQLite 기동과 MSSQL(local-db 프로파일) 기동에서 모두 적용된다.
+- `oasis-contract-check` ERROR 0.
+- 서버 엔진과 화면 JS 평가기의 정합성 코퍼스 불일치 0건.
+- 새 화면마다 메뉴·OBJECT·RBAC 시드가 있고 m-mcm 포털에서 열린다.
+
+## Assumptions (auto-resolved 2026-09-23)
+
+- prd-validate 가 TRD 에 PRD 형식 필수 절(인수 조건·비기능·제약)을 요구해 §10~§12 를 기술 관점으로 보강했다.
+- 나머지 가정은 §9 표(T1~T6)를 따른다.
