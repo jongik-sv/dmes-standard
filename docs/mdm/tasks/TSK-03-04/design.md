@@ -1128,6 +1128,78 @@ it.each(corpus.cases.map(c => [c.id, c] as const))("%s", (_id, c) => { … });
 - **git**: `/usr/bin/git` 절대경로로만 부른다. `git add -A` 를 쓰지 않고 파일명을 명시한다.
 - **문제 기록**: 겪은 문제는 `.issues` 에 직접 쓰지 않고 Phase 보고에 분류(tool-error·gate-retry·permission·skill-unclear·env·other)와 함께 올린다.
 
+## 8. Build 이탈 (Build Phase 추기, 2026-09-24)
+
+Build 는 §6.14 순서대로 진행했다. 설계와 달라진 자리와 그 사유를 적는다. 03-03 설계는 Build 시작 때 다시 확인했고 69f1a03 에서 바뀌지 않았다.
+
+| # | 이탈 | 사유 | 영향 |
+|---|---|---|---|
+| B1 | 테스트 전용 식 파서 `M/tests/helpers/parse-expr.ts` 와 그 검증 테스트 `M/tests/evalex-test-parser.test.ts`(1건)를 더했다 | 설계는 TS 테스트가 쓸 AST 의 출처를 정하지 않았다(interpreter #15 의 `ast("…")` 만 암시). AST 를 손으로 쓰지 않으려고 파서를 두었고, EvalEx 3.7.0 을 실측해 문법을 맞췄다(전위 > `^`(오른쪽 결합) > `* / %` > `+ -` > `< <= > >=` > `== = != <>` > `&&` > `\|\|`, 함수 이름은 적은 대로). 검증 테스트가 코퍼스 식 82건의 서버 AST 와 같은지 본다 | 프런트 새 테스트 251 → **252**(총 257 → **258**). 파서는 제품 코드가 아니다(tsconfig `include` 밖) |
+| B2 | 함수의 숫자 인자(`ABS`·`ROUND`·`SUM`·`STR_LEFT` 등)가 문자열·불린이면 오류 대신 **폴백**한다. 연산자(`- * / % ^`, 단항)는 설계대로 오류다 | `javap -c` 로 확인한 EvalEx `EvaluationValue.getNumberValue` 는 문자열을 `Boolean.parseBoolean` 으로 1/0 으로, 불린을 1/0 으로 바꾼다(예: `ABS("2")` = 0). 오류를 내면 서버와 다르고, 그 이상한 값을 재현하는 것은 D4 취지에 어긋난다. NULL 은 서버에서 NPE 라 설계대로 오류다 | 코퍼스 사례 없음(D10) |
+| B3 | `^` 정수부 한도를 안전 정수가 아니라 int 범위(2³¹−1)로 했다 | EvalEx 는 `intValueExact()` 로 정수부를 꺼내 int 를 넘으면 ArithmeticException 이다 | 코퍼스 사례 없음 |
+| B4 | STRING 변수의 `=` 값은 일자 여부와 무관하게 늘 토큰화한다(§6.5 표의 "일자면 `===`" 대신) | §6.5 표와 같은 절 bullet(F22 ⑤, 03-03 D15)이 서로 다르다. 서버 생성기(오라클)는 늘 토큰화하므로 서버를 따랐다. 일자 값에는 와일드카드가 없어 결과는 같다 | 없음 |
+| B5 | BOOLEAN 셀 리터럴 `TRUE`·`FALSE` 를 대소문자 무시로 받는다(§6.5 는 대문자만) | 03-03 §6.10.2 리터럴 규칙과 오라클이 대소문자를 무시한다(서버 기준) | 없음 |
+| B6 | 오라클 테스트 `이스케이프한_와일드카드와_문자열_리터럴` 의 저장 값을 `a"b\\c`(이스케이프한 `\`)로 적었다 | 설계 본문의 `a"b\c` 는 `=` 패턴 규칙(F22 ①)상 홀로 선 `\` 라 거부 대상이다. 기대 텍스트 `"a\"b\\c"` 는 03-03 스냅샷 eq.escape(저장 값 `a"b\\c`)와 같다 | 없음 |
+| B7 | 미리보기 테스트 #11 의 열 순서를 바꿨다(Expression 열이 seq 1, 표면등급 열이 seq 2). 행 1 은 판정 불가 셀 **뒤에** 확정 거짓 셀이 온다 | 설계 그대로(앞 셀이 거짓)면 I37 변이("판정 불가 셀이 있으면 행 전체 판정 불가")가 빨개지지 않는다. I37 문구("뒤에 확정 거짓 셀이 있으면 행을 거짓으로")에 맞췄다. 행 2 는 여전히 "앞 셀이 참 → 판정 불가 → fallback" 이다 | 건수 같음 |
+| B8 | 분석 테스트 #11 에 `NOT_NULL`·`IS_NULL` 짝(겹침 없음) 단언을 더했다 | I30 변이("NOT_NULL 이 NULL 을 덮게")를 붙잡는 사례가 설계 테스트에 없었다 | 건수 같음 |
+| B9 | 미리보기 테스트 #12 의 `A` 를 문자열 `"0"` 대신 숫자 `0` 으로, 인터프리터 #15·#16 의 `value`·`A`·`B` 를 `convertForType(…, "NUMBER")` 값으로 넣었다 | 문자열 레코드 값은 식 안에서 문자열이라 `"0" > 1` 이 혼합 타입 대소 비교(폴백)가 된다. 설계 표기의 `"0.5"`·`"1.10"` 은 "원문이 그런 숫자"라는 뜻으로 읽었다 | 없음 |
+| B10 | 미리보기에서 판정 불가 셀 **뒤의** 셀이 오류면 미리보기 오류가 아니라 그 행을 판정 불가로 둔다 | 서버는 앞 셀이 참일 때만 그 셀에 닿는다. 화면은 앞 셀 결과를 모르므로 오류를 확정할 수 없다(D11) | 코퍼스·테스트 사례 없음 |
+| B11 | 성능: `evaluate` 가 예약 키 검사와 scope 정규화를 한 번의 키 순회로 한다(`checkRecordKeys` 와 같은 결과 — 예약 이름이 먼저, 대소문자만 다른 키는 그 뒤). `plainText` 는 이미 평문 모양이면 바로 돌려준다 | 첫 게이트에서 NFR-1 R2 가 vitest 병렬 부하 속에 100 ms 를 넘은 적이 있다(단독 40 ms). 기준은 바꾸지 않고 구현 비용을 줄였다 | 단독 측정 중앙값 R2 14.2 ms · R3 6.7 ms · BASE_SPD_LKP 18.0 ms · QLTY_GRD_JDG 19.7 ms, 전체 스위트 병렬 중 53.5 · 22.0 · 49.2 · 34.0 ms |
+| B12 | 분석에서 Expression 조건 열에도 자리표시 값 영역(string)을 준다 | Expression 열의 NA 셀을 "전체 + NULL" 집합으로 다뤄 겹침·도달 불가 계산에 그대로 넣기 위해서다. Expression 셀은 설계대로 `unknown`(NULL 포함)이다 | 없음 |
+
+**코퍼스 기대값(§6.14 5단계)**: 169건 모두 첫 서버 실행에서 설계 표의 기대값과 같았다. 서버 결과로 바꾼 기대값은 없다. 표본 15건은 docs 표본의 `slot`·`evalTs` 칸까지 그대로 옮겼다.
+
+**테스트 건수**: 백엔드 새 테스트 273건(설계와 같다). 프런트 새 테스트 252건(설계 251 + B1).
+
+**변이 검증 결과**(구현 쪽 변이, 각 변이는 되돌렸다. 덮지 못한 변이는 둘이다)
+
+| I | 변이 | 빨개진 테스트 |
+|---|---|---|
+| I1 | precision 68 → 34 | 코퍼스 `expr.divide.precision`·`expr.average.rounding`, parity #4 |
+| I2 | ROUND HALF_UP | `expr.round.half-even` |
+| I3 | modulo FLOOR | `expr.modulo.negative` |
+| I4 | 숫자 승격 / 숫자를 원문 문자열로 비교 | `expr.eq.mixed-type` / `expr.eq.number-scale`·`cell.eq.trailing-zero`·`cell.in.number` |
+| I5 | NE·NOT_IN 의 NULL 참, LT 의 NULL 예외 | `cell.ne.null`, `cell.not-in.null`, `cell.lt.null` |
+| I6 | NA 를 값 있을 때만 참 | `cell.na.null` |
+| I7 | `<= 변수 <` 양쪽 닫힘 / `< 변수 <=` 아래 닫힘 | `cell.range.upper-open-boundary`·`cell.range.date-string-upper` / `cell.range.oi.lower` |
+| I8 | 단락 제거 / NULL 을 거짓으로 | `expr.and.false-short`·`expr.gen.guard-null` / `expr.or.null-left`·`expr.and.null-left`·`expr.bang.null` |
+| I9 | IF 인자 미리 평가 / NULL 조건 오류 | `expr.if.lazy` / `expr.if.null-cond` |
+| I10 | NULL 무시 / 첫 NULL 도 오류 | `expr.min.null-later`·`expr.max.null-later` / `expr.min.null-first`·`expr.max.null-first` |
+| I11 | `+` 의 NULL 오류 | `expr.null-plus`·`expr.plus-null-right` |
+| I12 | 산술 문자열 승격 | `expr.string-times` |
+| I13 | decimal.js `pow` 한 번 / 역수 precision 68 / 역수 HALF_EVEN | `expr.power.fraction`·`expr.power.mixed`·`expr.power.negative-scale` / `expr.power.negative-scale` / **덮지 못함**(설계 예상과 같다) |
+| I14 | decimal.js `sqrt` | `expr.sqrt`·`expr.sqrt.negative` |
+| I15 | 예약 키 검사 제거 | `expr.constant-key`·`cell.constant-key`·`expr.eval-ts-key`·`cell.eval-ts-key`·`expr.reserved-key`·`cell.reserved-key`, interpreter #8·#16 |
+| I16 | 누락 키를 NULL 로 | `expr.missing-key` |
+| I17 | `localeCompare` | `expr.string-order`·`expr.string-order.digits` |
+| I18 | 대소문자 무시 / `%`·`.` 를 와일드카드로 | `cell.contains.case`·`cell.instr.case`·`cell.eq.pattern.prefix-case` / `cell.contains.percent-literal`·`cell.contains.meta-literal`·`cell.instr.meta` 외 4건 |
+| I19 | 이스케이프 무시 / 앵커 제거 | `cell.eq.pattern.escaped-percent`·`…escaped-underscore`·`…backslash` / `cell.eq.pattern-regex.full-match`·`expr.str-matches.full` |
+| I20 | CODE_IN 집합 없으면 false | `cell.code-in.no-set` |
+| I21 | MASTER_AT 허용 / MASTER 무조건 허용 | interpreter #2 / interpreter #3·`expr.master.data-fallback` |
+| I22 | BASE 에 LOG / MASTER 최대 5 | parity #1·#5 / parity #2 |
+| I23 | 계산 숫자를 `toFixed` 로 / 혼합 비교를 문자열 비교로 | `expr.concat.computed-scale`·interpreter #11 / `expr.compare.mixed-type`·interpreter #12 |
+| I24 | 산술 오류를 폴백으로(허용 목록 밖 폴백) | `expr.string-times`·`expr.null-times` |
+| I25 | 원문 표 끄기 | `expr.str-upper.literal-scale`·`expr.concat.record-scale`·`expr.null-plus`·`expr.plus-null-right` |
+| I26 | STRING→NUMBER 금지 / NUMBER→STRING 거부 / BOOLEAN 이 `Y` 수용 | `cell.type.number-from-string` / `cell.type.string-from-number` / `cell.type.bool-from-string` |
+| I27 | 조건 열 이름순 / 결과 변수 제외 제거 | input-contract #1·#13 / #13 |
+| I28 | 행 rowId 순 / 구분자 `,` | input-contract #2·#3 / #2·#13 |
+| I29 | `==` 필수 / COALESCE 앞 인자 필수 / IF 가드 무시 / `&&` 가드 무시 / INSTR 늘 필수 / MIN 선택 | #7 외 4건 / #5·#8 / #9 / #10 / #11 / #12 |
+| I30 | NOT_NULL 이 NULL 을 덮게 / 가드 셀(NE·반직선)이 NULL 을 덮게 | analysis #11(B8) / #5·#7·#11·#18·#21 |
+| I31 | 한 열만 교차해도 겹침 / UNIQUE 를 WARNING | analysis #7·#12·#18·#20 / #8·#10·#13·#19·#21 |
+| I32 | 접두 패턴 닫힌 구간 / CONTAINS 점 집합 | analysis #13 / #14 |
+| I33 | 격자 무시 / 바깥 반직선 보고 / 끝점 반올림 | analysis #3 / #4 외 11건 / #3 |
+| I34 | NULL 빈틈 행마다 / Expression 열 포함 | analysis #1·#20 외 / #15 |
+| I35 | FIRST 제한 제거 / 합집합 무시 | analysis #10·#13·#19 / #18 |
+| I36 | FIRST 계속 평가 / UNIQUE 오류 제거 | preview #1·#5 / #4 |
+| I37 | 판정 불가 셀이 있으면 행 전체 판정 불가 | preview #11(B7) |
+| I38 | 식: 평가마다 캐시 없이 build + 20 µs 바쁜 대기 / 미리보기: 레코드마다 20 µs 바쁜 대기 | perf R2·R3 / perf BASE_SPD_LKP·QLTY_GRD_JDG |
+| I39 | 사본 추가 / Vitest 경로를 사본으로 | 메타 `m-mdm 안에 코퍼스 사본이 없고…` |
+| I40 | 사례 ast 리터럴 변경 / 식 텍스트만 변경 | JUnit `식_사례의_AST_가…[expr.decimal.no-double]` / 같은 테스트와 서버 평가의 `expr.round.half-even-odd` |
+| I41 | `.` 이스케이프 제거 / 단순형 판정 제거 / 홀로 선 `\` 수용 / STR_CONTAINS 사용 / patternRegex 다름 | oracle #8 / oracle #7·#8 / oracle #8 / oracle #10·#14·`cell.contains.case` / `서버_평가가…[cell.eq.pattern-regex]` |
+| I42 | 하네스 precision 34 | `하네스_설정값이…`·`expr.divide.precision`·`expr.average.rounding`·`expr.sqrt`·`expr.power.negative-scale` |
+| I43 | 루트 배럴 재수출 / exports 제거 / tsup entry 제거 | entry #1 / entry #1 / entry #2 |
+| I44 | (자동 테스트로 덮지 못함, 설계 예상과 같다) | `/usr/bin/git diff 955cef1 -- <엔진 main·build.gradle·arch·contract·expr test·m-mdm src/index.ts·src/contract·docs/mdm/engine-contract·pnpm-workspace.yaml·decisions.md>` 가 비어 있음을 확인했다. `origin/dev`(9a00856) 는 TSK-04-01 머지로 앞서 있지만 엔진·m-mdm·lockfile 은 건드리지 않았다 |
+
 ---
 
 ## 담당자 확인 필요 결정
@@ -1200,3 +1272,24 @@ it.each(corpus.cases.map(c => [c.id, c] as const))("%s", (_id, c) => { … });
 - **택한 것**: (a). 처음 설계에서 바꾼 것은 넷이다. ① 셀 값 변환: STRING 변수가 숫자를 평문 문자열로 받고(`cell.type.string-from-number` 기대가 오류에서 F 로 바뀐다), BOOLEAN 변수가 `TRUE`/`FALSE` 문자열을 받고, NUMBER 변수가 지수형 문자열을 받는다. ② `=` 패턴: 홀로 선 `\`·`%` 단독·접은 뒤 `%` 4 개 이상을 거부한다. ③ 대소문자만 다른 레코드 키를 `RESERVED_KEY` 로 거부하고, 미리보기의 입력 계약 키 검사는 정확 일치로 한다. ④ Expression 조건 셀 결과가 불린이 아니면 `EVALUATION_ERROR` 다. 셀 요약은 `CellSummary.of` 를 옮기고 열 이름만 붙인다. 테스트 건수는 바뀌지 않는다.
 - **근거**: 서버가 기준이다(EG 8.5 2항, PRD AC-3). 머지 뒤 서버 쪽 텍스트·변환은 03-03 코드가 만든다. 지금 다른 규칙으로 코퍼스를 짜면 머지 때 코퍼스 기대값이 흔들린다((b)). (c) 는 병렬 일정을 막는다. 03-03 도 미승인 선행이라 근거 순위는 가장 낮지만, 두 설계가 06 원문(06:156-160·199·248)과 같은 방향이고 06 이 정하지 않은 가장자리만 03-03 쪽 결정을 따랐다.
 - **반려되면 재작업 방향**: (b) 면 §6.2 변환 표·§6.5 패턴 거부·`checkRecordKeys` 중복 키 규칙을 처음 설계로 되돌리고 `cell.type.string-from-number` 기대를 TYPE_CONVERSION 으로 되돌린다. 차이는 03-03 머지 뒤 P1·P3 에서 코퍼스가 드러내고, 그때 어느 쪽을 고칠지 다시 정한다. 03-03 설계가 머지 전에 바뀌면 이 절과 §0.3 을 다시 맞춘다.
+
+### D10 — 함수의 숫자 인자가 문자열·불린이면 화면은 무엇을 하는가 (Build 추가)
+- **질문**: 설계 §6.3 의 `num(v)` 는 숫자가 아니면 오류다. 그런데 EvalEx 함수(`ABS`·`ROUND`·`SUM`·`STR_LEFT` 의 길이 등)는 인자를 `getNumberValue()` 로 꺼내고, 이 메서드는 문자열을 `Boolean.parseBoolean` 결과(1/0)로, 불린을 1/0 으로 바꾼다(`javap -c` 확인). 화면은 이 자리에서 무엇을 해야 하는가?
+- **선택지**: (a) 폴백한다 / (b) 설계대로 오류 / (c) 서버의 1/0 변환을 재현한다
+- **택한 것**: (a). 연산자(`- * / % ^`, 단항)는 서버도 오류를 내므로 설계대로 오류다. NULL 인자는 서버에서 NPE 라 오류다.
+- **근거**: (b) 는 서버와 다른 결과(오류 대 값)를 낸다. (c) 는 서버의 비의도적 동작을 화면이 굳히는 일이고, D4 가 정한 "재현할 수 없거나 재현하면 안 되는 자리는 폴백" 원칙에 맞지 않는다. 폴백은 서버 미리보기로 넘어가므로 결과는 늘 서버와 같다.
+- **반려되면 재작업 방향**: (b) 면 `functions.ts` 의 `numArg`·`minMax` 에서 `FallbackSignal` 을 `err` 로 바꾸고, 코퍼스에 `ABS("2")` 사례를 서버 값(0)과 함께 넣어 화면이 다르다는 것을 `screenFallback` 없이 드러낸다(그러면 코퍼스가 빨개지므로 (c) 로 가야 한다). (c) 면 `numArg` 에 `getNumberValue` 변환표를 옮기고 코퍼스 사례를 더한다.
+
+### D11 — 미리보기에서 판정 불가 셀 뒤의 셀이 오류일 때 (Build 추가)
+- **질문**: 한 행에서 판정 불가(폴백) 셀 뒤의 셀이 평가 오류를 내면 미리보기 전체를 오류로 볼 것인가?
+- **선택지**: (a) 그 행을 판정 불가로 둔다 / (b) 미리보기 오류로 둔다
+- **택한 것**: (a)
+- **근거**: 서버는 조건 셀을 AND 로 평가해 앞 셀이 참일 때만 뒤 셀에 닿는다. 앞 셀 결과를 모르는 화면이 오류를 확정하면, 앞 셀이 실제로 거짓인 경우 서버와 다른 결과(오류 대 거짓)를 보인다.
+- **반려되면 재작업 방향**: `rule-preview.ts` `evalCell` 의 `afterUndetermined` 분기를 지우고 오류를 그대로 돌려준다.
+
+### D12 — TS 테스트의 AST 출처 (Build 추가)
+- **질문**: TS 단위 테스트(인터프리터·입력 계약·분석·미리보기·성능)는 식 텍스트에서 AST 를 얻어야 하는데 설계가 출처를 정하지 않았다. 어디서 얻을 것인가?
+- **선택지**: (a) 테스트 전용 파서를 두고 코퍼스 서버 AST 로 검증한다 / (b) Java 로 AST 를 뽑아 JSON 고정물로 둔다 / (c) 테스트마다 AST 를 손으로 적는다
+- **택한 것**: (a)(§8 B1)
+- **근거**: (b) 는 식을 바꿀 때마다 Java 로 다시 뽑아야 하고 고정물이 사본이 된다. (c) 는 틀리기 쉽고 설계 §6.14 4단계("AST 를 손으로 쓰지 않는다")의 취지와 어긋난다. (a) 의 파서는 코퍼스 82건의 서버 AST 와 같음이 테스트로 고정된다.
+- **반려되면 재작업 방향**: (b) 면 `M/tests/fixtures/` 에 식 → AST JSON 을 두고(파일 이름은 `*corpus*.json` 을 피한다) `parse-expr.ts`·`evalex-test-parser.test.ts` 를 지운다. 프런트 테스트 수는 1건 줄어든다.
