@@ -274,3 +274,27 @@
 - **Rationale**: `CactusAuditEntity`(src/backend/cactus-core, 읽기 전용 확인)는 `@Column(name="VER")` 로 고정돼 있으나 `@MappedSuperclass` 이므로 하위 엔티티가 표준 JPA `@AttributeOverride(name="version", column=@Column(name="AUD_VER"))` 로 재매핑할 수 있어 cactus-core 코드 변경이 필요 없다. 감사 카운터 쪽을 개명하는 편이 업무 버전 칼럼(PK·다른 테이블의 FK 대상)을 건드리는 것보다 영향 범위가 작다
 - **Reversible**: yes(엔티티 매핑을 다시 바꾸면 원복 가능. 다만 그 전까지 이 6개 테이블에 엔티티를 붙이는 모든 후속 Task 는 `@AttributeOverride` 를 적용해야 함 — naming-dialect-rules.md §6.1 인계 표에 명시)
 - **Source**: `src/backend/cactus-core/src/main/java/com/dongkuk/dmes/cactus/audit/CactusAuditEntity.java`(읽기 전용 확인), `docs/mdm/erd/04-master-code.sqlite.sql`·`06-business-rule.sqlite.sql` 머리말, `docs/mdm/erd/verify/expected-columns.json`
+
+## D-035 (2026-09-24T00:00:00Z)
+- **Phase**: build (TSK-04-01)
+- **Decision needed**: `TB_MDM_DOMAIN.MARU_CODE_ID → TB_MDM_CODE` 교차 영역 FK 를 V3(02)에 지금 거는가
+- **Decision made**: 걸지 않는다. SQLite·MSSQL 두 방언 모두 이번 V3 에 `FK_TB_MDM_DOMAIN_CODE` 를 넣지 않고, `TB_MDM_CODE`(04 영역, TSK-06-01)가 생긴 뒤 후행으로 추가한다. SQLite 는 `ALTER TABLE ADD CONSTRAINT` 가 없어 그때 가서 `TB_MDM_DOMAIN` 테이블 재생성(12단계 패턴)이 필요하다
+- **Rationale**: 이 Design Phase 가 직접 실측(F1, `FkProbe.java`, sqlite-jdbc 3.45.3.0) — SQLite 는 `foreign_keys=ON` 상태에서 부모 테이블이 없는 채로 인라인 FK 를 걸면 그 칼럼을 향한 FK 가 걸린 테이블에 대한 **모든** INSERT/DELETE(NULL 값이어도)가 `no such table` 로 거부된다(prepare 단계 검사). wbs 의존 그래프(F9)상 `TSK-04-02`·`04-03`·`04-04` 가 `TSK-06-01` 에 의존하지 않으므로 이 세 후속 Task 작업 시점에 `TB_MDM_CODE` 가 없을 개연성이 실제로 있다 — 이때 FK 를 걸면 도메인 종류와 무관하게 `TB_MDM_DOMAIN`·자식 `TB_MDM_COLUMN` 에 대한 모든 쓰기가 막힌다. 실제로 Build 가 이 FK 를 다시 넣는 변이를 넣어 확인한 결과 SQLite 쪽 관련 테스트 6개가 즉시 빨강이 났다(변이 검증)
+- **Reversible**: no(FK 신설 자체는 가능하지만 SQLite 는 되돌리려면 테이블 재생성이 필요 — TSK-06-01 이 §8 인계 사항대로 처리)
+- **Source**: docs/mdm/tasks/TSK-04-01/design.md D1(판단 지점 1), F1·F9
+
+## D-036 (2026-09-24T00:00:00Z)
+- **Phase**: build (TSK-04-01)
+- **Decision needed**: TSK-02-03 D4 가 "이번 범위 제외"로 미뤘던 `TB_MDM_TERM.EMBEDDING`/`EMBEDDING_MODEL` 을 V3 에 지금 포함하는가
+- **Decision made**: 포함한다. SQLite `BLOB`, MSSQL `VARBINARY(4096)`, 양쪽 `EMBEDDING_MODEL VARCHAR(100)`. 엔티티에는 매핑하지 않고(불변 규칙 7) 네이티브 SQL 로만 다룬다 — 실제 왕복(4,096바이트, L2 정규화 float32 little-endian 1024개)을 SQLite·MSSQL 양쪽에서 실측해 바이트 단위로 일치함을 확인했다(`MdmTermDomainColumnMigrationTest`·`MdmTermDomainColumnMssqlMigrationTest`)
+- **Rationale**: `decisions.md` D-024·D-025(TSK-02-02) 와 `naming-dialect-rules.md` §3 #23·§6.1 인계표가 "MSSQL 왕복 실측 → TSK-04-01" 을 이미 이 Task 소관으로 명시적으로 지정했다. TSK-02-03 D4 의 "이번 범위 제외" 는 그 조건(TSK-02-02 가 원장 DB 보관을 확정)이 이미 참이 됐을 때의 반려 시 재작업 경로였다. 타입은 D4 재작업 문구(`VARBINARY(MAX)`/`CD50`)가 아니라 더 나중·더 구체적인 규칙표·`term-embedding.md`(`VARBINARY(4096)`/`VARCHAR(100)`)를 따랐다
+- **Reversible**: no(스키마 신설 — 되돌리려면 두 칼럼과 관련 테스트를 제거하고 TSK-04-02 로 이월해야 함)
+- **Source**: docs/mdm/tasks/TSK-04-01/design.md D7, F10, decisions.md D-024·D-025, naming-dialect-rules.md §3 #23
+
+## D-037 (2026-09-24T00:00:00Z)
+- **Phase**: build (TSK-04-01)
+- **Decision needed**: 영향도 조회(`MdmDomainImpactLookup`) 구현체가 03(`TB_MDM_LAYOUT_ITEM`)·06(`TB_MDM_RULE_VAR`)의 데이터를 어떻게 참조하는가 — 두 테이블이 아직 없거나 비어 있을 수 있는 상황에서
+- **Decision made**: `contract.dictionary` 에 03·06 이 구현하는 SPI `MdmDomainReferenceSpi`(`referencesTo(Set<Long> domainIds, Set<String> columnPhysNames)`)를 신설한다. 영향도 조회 구현체(TSK-04-03)는 `List<MdmDomainReferenceSpi>`(스프링 빈 목록, 0개 가능)를 모아 집계한다 — 구현체가 없으면(그 영역 미착수) 그 영역 참조는 자연스럽게 0건이 된다
+- **Rationale**: F9 와 완전히 같은 구조의 문제(02→03·02→06 로 향하는 직접 SQL 의존을 만들면 대상 테이블이 없을 때 F1 과 같은 종류의 오류가 나고, wbs 의 02→03·02→06 단방향 의존을 역행한다). TSK-01-02 가 이미 검증한 `VersionConfirmCheckSpi`/`List<...>` 패턴을 재사용해 새 리스크를 만들지 않는다. 03·06 이 SPI 구현체를 제공하는 쪽이지 02 가 03·06 타입을 아는 쪽이 아니다(계약 의존 방향이 올바르다) — 이 방향은 §3.4 스텁 컴파일 테스트(`DomainReferenceSpiStub`, refKind="LAYOUT_ITEM"/"RULE_VAR")와 §3.5 ArchUnit(계약 패키지가 entity../repository..에 의존하지 않음)으로 지금 증명했다
+- **Reversible**: yes(구현이 없는 인터페이스 신설이라 TSK-04-03 이 실제 구현체를 만들기 전까지는 되돌리기 쉽다. 되돌리면 `MdmDomainImpactLookup` 구현체가 `TB_MDM_LAYOUT_ITEM`·`TB_MDM_RULE_VAR` 에 대한 네이티브 조인 SQL 을 직접 가져야 하고, 그 테이블들이 없는 동안 예외를 던지지 않도록 방어 코드를 추가해야 한다)
+- **Source**: docs/mdm/tasks/TSK-04-01/design.md D9(판단 지점 3), F9
