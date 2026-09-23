@@ -33,6 +33,7 @@ export const PAGE_REGISTRY: Record<string, () => Promise<{ default: unknown }>> 
   "dashboard-overview": () => import("@/page-components/dashboard-overview/page"),
   "home": () => import("@/page-components/home/page"),
   "lsh/noticeMgmt": () => import("@dk-oasis/m-mls/pages/lsh/noticeMgmt/page"),
+  "mdt/mdmSample": () => import("@dk-oasis/m-mdm/pages/mdt/mdmSample/page"),
   "operations-queue": () => import("@/page-components/operations-queue/page"),
 };
 

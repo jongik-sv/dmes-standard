@@ -143,6 +143,13 @@ const PORTAL_MODULE_CONFIG: PortalModuleConfigEntry[] = [
     packageName: "@dk-oasis/m-mls",
     loadPage: createStrictModuleLoader("mls", sharedPortalPageLoader),
   },
+  {
+    // 2026-09-23 — mdm 모듈 포털 등재. 1호 화면 mdt/mdmSample(스캐폴드 검증용 빈 화면).
+    //   화면 코드는 m-mdm 패키지의 pages/{group}/{leaf}/page.tsx 에 있고, codegen 이 등재한다.
+    moduleId: "mdm",
+    packageName: "@dk-oasis/m-mdm",
+    loadPage: createStrictModuleLoader("mdm", sharedPortalPageLoader),
+  },
   // 업무 모듈(mpn / mpp / mqc ...) 을 붙일 때 여기에 1개 항목씩 추가한다.
   // 대부분은 sharedPortalPageLoader(= PAGE_REGISTRY) 로 충분하다:
   //   { moduleId: "mpn", packageName: "@dk-oasis/m-mpn",

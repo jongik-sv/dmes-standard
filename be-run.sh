@@ -2,7 +2,7 @@
 # be-run.sh — 백엔드 모듈(local 프로파일) 실행 스크립트
 #
 # 실행 대상 모듈과 포트:
-#   mls 8092 · mqc 8093 · mpp 8094 · mpn 8095 · mcm 8100 · analog 8191
+#   mls 8092 · mqc 8093 · mpp 8094 · mpn 8095 · mdm 8096 · mcm 8100 · analog 8191
 #   (mcm 이 포털 호스트 — FE 는 mcm 8100 을 본다)
 #
 # 사용법:
@@ -11,8 +11,8 @@
 #   ./be-run.sh --mcm        # mcm 만
 #   ./be-run.sh --mcm --mpn  # 여러 모듈 조합
 #
-# 모듈 플래그: --mpn --mcm --mls --mqc --mpp --analog
-# --all 은 6개 JVM 을 동시에 띄운다. 메모리가 빠듯하면 필요한 모듈만 골라 쓴다.
+# 모듈 플래그: --mpn --mcm --mls --mqc --mpp --mdm --analog
+# --all 은 7개 JVM 을 동시에 띄운다. 메모리가 빠듯하면 필요한 모듈만 골라 쓴다.
 #
 # 대상 포트를 이미 물고 있는 프로세스가 있으면 정리하고 시작한다.
 #   ./be-run.sh --keep-port  # 회수하지 않고 "점유 중" 으로 중단 (종전 동작)
@@ -68,6 +68,7 @@ dev_log_tag_color() {
     be-mls) printf '%s' "$DEVLOG_CYAN" ;;
     be-mqc) printf '%s' "$DEVLOG_YELLOW" ;;
     be-mpp) printf '%s' "$DEVLOG_GREEN" ;;
+    be-mdm) printf '%s' "$DEVLOG_RED" ;;
     be-analog) printf '%s' "$DEVLOG_DIM" ;;
     *) printf '%s' "$DEVLOG_CYAN" ;;
   esac
@@ -171,7 +172,7 @@ fi
 # ── 모듈 카탈로그 ────────────────────────────────────────────
 # 실행 가능한 Spring Boot 모듈. 신규 모듈을 추가하면 아래 3곳만 손보면 된다.
 #   (1) BE_ALL_MODULES  (2) be_module_port  (3) dev_log_tag_color 의 be-{모듈} 색상
-BE_ALL_MODULES=(mls mqc mpp mpn mcm analog)
+BE_ALL_MODULES=(mls mqc mpp mpn mdm mcm analog)
 
 be_module_port() {
   case "$1" in
@@ -179,6 +180,7 @@ be_module_port() {
     mqc) printf '8093' ;;
     mpp) printf '8094' ;;
     mpn) printf '8095' ;;
+    mdm) printf '8096' ;;
     mcm) printf '8100' ;;
     analog) printf '8191' ;;
     *) printf '' ;;
@@ -214,7 +216,7 @@ for arg in "$@"; do
     --keep-port) KEEP_PORT=1 ;;
     --all|--full)
       for m in "${BE_ALL_MODULES[@]}"; do be_select_module "$m"; done ;;
-    --mpn|--mcm|--mls|--mqc|--mpp|--analog)
+    --mpn|--mcm|--mls|--mqc|--mpp|--mdm|--analog)
       be_select_module "${arg#--}" ;;
     -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
     *) dev_log_error "알 수 없는 옵션: $arg"; exit 2 ;;
@@ -222,7 +224,7 @@ for arg in "$@"; do
 done
 
 if [ "${#SELECTED_MODULES[@]}" -eq 0 ]; then
-  dev_log_error "BE 실행 대상을 선택하세요: --all 또는 --mpn/--mcm/--mls/--mqc/--mpp/--analog"
+  dev_log_error "BE 실행 대상을 선택하세요: --all 또는 --mpn/--mcm/--mls/--mqc/--mpp/--mdm/--analog"
   exit 2
 fi
 

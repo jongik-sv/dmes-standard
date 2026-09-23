@@ -2,5 +2,25 @@
   "tsk": "TSK-01-01",
   "order": "12cbcc4e-ed40-454f-8041-c99e08487d0b",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "reported",
+  "model": "haiku",
+  "baseline": {
+    "failures": 0,
+    "tests": 386,
+    "backend_testAll": {
+      "tests": 386,
+      "failures": 0
+    },
+    "frontend_shared_unit": {
+      "tests": 156,
+      "failures": 0
+    },
+    "frontend_lint_preexisting": "m-mcm eslint 23 errors / 44 warnings (build:libs 후). m-mls·m-mqc tsc 는 shared dist 없으면 실패",
+    "frontend_vitest_preexisting": "m-mls·m-mpn·m-mqc·m-mpp test 는 test 파일 없음으로 exit 1. root test:unit 은 m-mpn test:unit 스크립트 없음으로 exit 1"
+  },
+  "last": {
+    "phase": "done",
+    "event": "done.ok"
+  },
+  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\""
 }

@@ -43,6 +43,7 @@ export const POST = createOasisProxyHandler<NextRequest>({
     mpp: process.env.MPP_WAS_URL,
     mqc: process.env.MQC_WAS_URL,
     mls: process.env.MLS_WAS_URL,
+    mdm: process.env.MDM_WAS_URL,
   }),
   backendClientKey: process.env.BACKEND_CLIENT_KEY,
   invalidateRole,

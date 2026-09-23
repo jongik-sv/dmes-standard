@@ -41,6 +41,7 @@ const OUT_FILE = path.join(OUT_DIR, "page-registry.ts");
 const MODULE_PAGE_PACKAGES = [
   { pkg: "@dk-oasis/m-mpp", dir: path.resolve(ROOT, "..", "m-mpp", "pages") },
   { pkg: "@dk-oasis/m-mls", dir: path.resolve(ROOT, "..", "m-mls", "pages") },
+  { pkg: "@dk-oasis/m-mdm", dir: path.resolve(ROOT, "..", "m-mdm", "pages") },
   // 향후: { pkg: "@dk-oasis/m-mqc", dir: path.resolve(ROOT, "..", "m-mqc", "pages") },
 ];
 

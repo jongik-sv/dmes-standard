@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@dk-oasis/m-analog": "workspace:*",
+    "@dk-oasis/m-mdm": "workspace:*",
     "@dk-oasis/m-mls": "workspace:*",
     "@dk-oasis/m-mpn": "workspace:*",
     "@dk-oasis/m-mpp": "workspace:*",

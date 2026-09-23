@@ -1,0 +1,21 @@
+rootProject.name = 'mdm'
+
+includeBuild('../cactus-core') {
+    dependencySubstitution {
+        substitute module('com.dongkuk.dmes:cactus-core') using project(':')
+    }
+}
+includeBuild('../mcm-core') {
+    dependencySubstitution {
+        substitute module('com.dongkuk.dmes:mcm-core') using project(':')
+    }
+}
+includeBuild('../maru-mdm-engine') {
+    dependencySubstitution {
+        // D7 — group 은 06-business-rule.md 패키지표 기준(kr.dongkuk.maru.mdm), com.dongkuk.dmes 아님
+        substitute module('kr.dongkuk.maru.mdm:maru-mdm-engine') using project(':')
+    }
+}
+
+include 'lib'
+include 'api'
