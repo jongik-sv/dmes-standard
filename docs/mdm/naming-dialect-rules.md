@@ -71,7 +71,7 @@
 | 20 | NULL 허용 유일 제약 | UNIQUE 가 NULL 여러 개 허용 | UNIQUE 가 NULL 하나만 허용 | NULL 허용 유일 칼럼은 두 방언 모두 `CREATE UNIQUE INDEX … WHERE COL IS NOT NULL`(부분·필터 인덱스) | **실측 필요 → TSK-02-03** |
 | 21 | 페이징 | `LIMIT n OFFSET m` | `ORDER BY … OFFSET m ROWS FETCH NEXT n ROWS ONLY` | JPA `Pageable` 우선(Hibernate 방언이 변환). 네이티브면 방언별 문안 | **실측 필요 → TSK-07-03**(항목 서버 페이징) |
 | 22 | 문자열 결합 | `\|\|` | `+` 또는 `CONCAT()` | JPQL 우선. 네이티브면 방언별 문안(mcm `isSqlite()` 분기 선례) | 확인(리포 mcm 선례) |
-| 23 | `vector`(02:533·600) | — | — | 이 표 범위 밖 | TSK-02-02(임베딩 조사) |
+| 23 | `vector`(02:533·600) | `EMBEDDING BLOB` NULL 허용 + `EMBEDDING_MODEL VARCHAR(100)` | `EMBEDDING VARBINARY(4096)` NULL 허용 + `EMBEDDING_MODEL VARCHAR(100)` | 값은 L2 정규화한 float32 little-endian 1024개(4,096바이트). DB 벡터 함수·네이티브 `VECTOR`·확장(sqlite-vec) 금지, 비교는 애플리케이션 메모리. 엔티티는 두 칼럼을 매핑하지 않고 네이티브 SQL 로만 읽고 쓴다([term-embedding.md](term-embedding.md)) | SQLite 왕복 **확인(TSK-02-02 실측)**. MSSQL 왕복 **실측 필요 → TSK-04-01** |
 | 24 | 부분 인덱스(원천), `ON CONFLICT`, 배열 타입 | — | — | 원천 사용 0건. upsert 가 필요하면 존재 검사 후 INSERT/UPDATE | 확인(원천) |
 
 ## 4. 영속성·SQL 작성
@@ -95,6 +95,7 @@
 | TSK-01-02 | 감사 칼럼 명시 헬퍼(네이티브 쓰기용), 방언 판정 빈, SQLite `foreign_keys` 설정, BOOLEAN·일시 매핑 실측(§3 #14~#16), `flyway-migration-add` 의 mdm 지원 판정, As-Is 마스터 엔티티 import 금지 ArchUnit 규칙, 그룹 코드 상수 `dma~dme` |
 | TSK-02-03 | §1 명명과 §3 방언의 `실측 필요 → TSK-02-03` 행(#2~#5, #19, #20), 보류 테이블 DDL·활성 테이블 배포 칸 `DEFAULT 0`([ADR-0002](adr/0002-version-confirm-without-approval.md)), 02 관리 속성(§2 끝 항목), `TB_MDM_DICT_SEQ` 초기 행 |
 | TSK-04-03 · TSK-06-02 · TSK-07-03 · TSK-08-02 · TSK-08-05 · TSK-01-04(보류) | §3 에서 각자 이름이 적힌 `실측 필요` 행 |
+| TSK-04-01 · TSK-04-02 | §3 #23 임베딩 칼럼 DDL·MSSQL 왕복 실측, [term-embedding.md](term-embedding.md) 동작 규칙 |
 
 ### 6.2 갱신 규칙
 
