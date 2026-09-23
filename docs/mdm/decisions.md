@@ -298,3 +298,11 @@
 - **Rationale**: F9 와 완전히 같은 구조의 문제(02→03·02→06 로 향하는 직접 SQL 의존을 만들면 대상 테이블이 없을 때 F1 과 같은 종류의 오류가 나고, wbs 의 02→03·02→06 단방향 의존을 역행한다). TSK-01-02 가 이미 검증한 `VersionConfirmCheckSpi`/`List<...>` 패턴을 재사용해 새 리스크를 만들지 않는다. 03·06 이 SPI 구현체를 제공하는 쪽이지 02 가 03·06 타입을 아는 쪽이 아니다(계약 의존 방향이 올바르다) — 이 방향은 §3.4 스텁 컴파일 테스트(`DomainReferenceSpiStub`, refKind="LAYOUT_ITEM"/"RULE_VAR")와 §3.5 ArchUnit(계약 패키지가 entity../repository..에 의존하지 않음)으로 지금 증명했다
 - **Reversible**: yes(구현이 없는 인터페이스 신설이라 TSK-04-03 이 실제 구현체를 만들기 전까지는 되돌리기 쉽다. 되돌리면 `MdmDomainImpactLookup` 구현체가 `TB_MDM_LAYOUT_ITEM`·`TB_MDM_RULE_VAR` 에 대한 네이티브 조인 SQL 을 직접 가져야 하고, 그 테이블들이 없는 동안 예외를 던지지 않도록 방어 코드를 추가해야 한다)
 - **Source**: docs/mdm/tasks/TSK-04-01/design.md D9(판단 지점 3), F9
+
+## D-038 (2026-09-24T00:00:00Z)
+- **Phase**: build (TSK-04-01)
+- **Decision needed**: D-030 이 "SQLite Instant 형식 미실측"을 근거로 `TB_MDM_SYSTEM` 시드 감사 시각을 NULL 로 둔 전제가, 이번 Build 의 실측으로 바뀌었다 — 이 사실을 어떻게 반영하는가
+- **Decision made**: `CactusAuditEntity.C_AT`(Instant)의 SQLite 실제 저장 형식을 `typeof(C_AT)` 로 직접 관찰한 결과 **`integer`(epoch millis)**임을 확인했다(TSK-04-01 design.md D10). D-030 이 전제로 삼았던 "미실측" 상태는 해소됐지만, D-030 자신의 결정(시드 감사 시각 NULL)은 이 사실과 무관하게 그대로 유지한다 — D-030 은 "DB 시각 함수 금지" 원칙과 "원시 SQL INSERT 는 `CactusAuditListener` 를 거치지 않는다"는 별개 근거로 성립하는 결정이라 이번 실측이 그 결론을 바꾸지 않는다. 다만 **mcm `SqliteTemporalConverterContributor` 가 이 형식을 이미 정규화해 줄 것이라는 가정은 틀렸다** — 그 컨트리뷰터는 `LocalDate`/`LocalDateTime` 전용이고 `Instant` 는 우회 대상이 아니다(코드 확인). 이 Task 는 고치지 않고 사실만 기록·인계한다(D10)
+- **Rationale**: naming-dialect-rules.md §6.2 "실측 결과가 규칙과 다르면 decisions.md 에 기록"을 따른다. D-030 을 개정(수정)하지 않고 새 번호로 append 하는 이유는 D-030 자체가 틀린 결정이 아니라 그 결정이 기대고 있던 "미실측" 전제 하나가 달라졌을 뿐이기 때문이다(D-030 의 결론은 유지)
+- **Reversible**: yes(사실 기록일 뿐 스키마·코드 변경이 없다)
+- **Source**: docs/mdm/tasks/TSK-04-01/design.md D10, decisions.md D-030, `src/backend/mcm-core/.../SqliteTemporalConverterContributor.java`(읽기 전용 확인)

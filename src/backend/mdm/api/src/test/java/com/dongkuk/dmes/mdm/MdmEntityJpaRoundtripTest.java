@@ -209,9 +209,11 @@ class MdmEntityJpaRoundtripTest {
 
     /**
      * #16(naming-dialect-rules.md §3) — {@code CactusAuditEntity.C_AT}(Instant) 가 SQLite 에 실제로
-     * 어떤 형식으로 저장되는지(정수 epoch 인지 ISO 텍스트인지) {@code typeof()} 로 직접 관찰한다. mcm
-     * 진영의 결함 선례({@code SqliteTemporalConverterContributor} 필요 사례)가 mdm 에도 재현되는지
-     * 실측으로 확인한다 — mdm 에는 그 컨트리뷰터가 등록돼 있지 않다(JpaConfig 가 없다, 코드 확인).
+     * 어떤 형식으로 저장되는지(정수 epoch 인지 ISO 텍스트인지) {@code typeof()} 로 직접 관찰한다.
+     *
+     * <p>mcm {@code SqliteTemporalConverterContributor} 는 {@code LocalDate}/{@code LocalDateTime}
+     * 전용 컨버터만 등록하며 {@code Instant} 는 애초에 그 우회 대상이 아니다(코드 확인) — "같은 결함이
+     * mdm 에도 재현되는지" 가 아니라, {@code Instant} 자체의 SQLite 저장 형식이 무엇인지를 새로 관찰한다.
      */
     @Test
     void C_AT_의_SQLite_저장_형식을_typeof_로_관찰한다() {
@@ -231,10 +233,10 @@ class MdmEntityJpaRoundtripTest {
         String sqliteType = String.valueOf(row[0]);
         Object rawValue = row[1];
         assertNotNull(rawValue, "C_AT 원시 저장값");
-        // 관찰한 사실을 그대로 고정한다(Build 기록·naming-dialect-rules.md #16 참고) — Hibernate 커뮤니티
-        // dialect 의 Instant 매핑이 SQLite 에 실제로는 INTEGER(epoch millis)로 저장한다(typeof()=integer).
-        // mcm 진영이 SqliteTemporalConverterContributor 로 우회해야 했던 바로 그 결함이 mdm 에도 그대로
-        // 재현된다 — mdm 은 그 컨트리뷰터를 등록하지 않으므로 이 결함을 그대로 안고 있다(D10, §8 인계 참고).
+        // 관찰한 사실을 그대로 고정한다(design.md D10, naming-dialect-rules.md #16 참고) — Hibernate
+        // 커뮤니티 dialect 의 Instant 매핑이 SQLite 에 실제로는 INTEGER(epoch millis)로 저장한다
+        // (typeof()=integer). 이 Task 는 이 사실만 기록하고 고치지 않는다 — 네이티브 SQL 로 C_AT 를
+        // ISO-8601 텍스트로 다루는 후속 Task 에 인계한다(§8).
         assertEquals("integer", sqliteType, "C_AT SQLite 저장 typeof(): " + rawValue);
     }
 }
