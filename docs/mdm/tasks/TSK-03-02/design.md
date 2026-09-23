@@ -921,3 +921,59 @@ Build Phase(2026-09-24)에서 설계와 달라진 점과 그 이유다. 계약 �
 - **택한 것**: (a)
 - **근거**: spec 본문은 검사 방법을 정하지 않았다. 남은 근거는 선행 산출물(D-022·engine-contract §9·TSK-03-01 D6, 모두 미승인)인데 세 곳이 모두 "검증기를 test 에 둔다"로 일치한다. 3.x 는 Jackson 3(`tools.jackson`)을 써서 엔진 test 의 Jackson 2.18.2 와 섞이므로, 같은 계열(2.18.3)을 쓰는 1.5.9 를 고른다. main 의존은 늘지 않는다(I34). (b) 는 스키마 해석기를 손으로 다시 만드는 셈이라 `oneOf`·`additionalProperties`·`minItems` 를 빠뜨리기 쉽다. (c) 는 명시적 인계를 조용히 버린다.
 - **반려되면 재작업 방향**: (b) 면 `build.gradle` 줄을 지우고, `AstExporterTest` 의 스키마 테스트 10건을 "스키마 `$defs` 의 `const`·`enum`·`required`·`minItems` 를 Jackson 으로 읽어 노드마다 대조"로 바꾼다(건수 유지). (c) 면 그 10건을 지우고(N −10) 검사를 TSK-03-04 코퍼스 러너에 인계한다고 §8 에 적는다.
+
+---
+
+## 10. Verify 결과
+
+**전체 스위트 수치**
+
+- 백엔드 `testAll --rerun-tasks`: **822건 실패 0** (기대값과 일치)
+- 엔진 전용 테스트: **380건 실패 0** (기대값과 일치)
+- 프론트엔드 m-mdm: **6건 실패 0**, lint 통과 (기대값과 일치)
+
+**수용 기준 6개 확인**
+
+1. 화이트리스트 밖 함수는 파싱 단계에서 거부: `WhitelistParseTest` 17건 통과
+2. 동시 평가 1,000 스레드에서 결과 일치: `MdmEvaluatorTest` 15건 통과
+3. 04 판정 표(2024-06-01~2026-09-10)가 `sql/04-code-exists.sql` 결과와 일치: `DefaultCodeResolverTest` 43건 통과
+4. 05 PORT 판정 7케이스 통과: `MasterDataResolverTest` 19건 통과
+5. 02 「도메인 종류」 예시 전부 테스트: `DomainKindExamplesTest` 45건, `EffectiveExpressionsTest` 11건 통과
+6. 타입 변환 계약이 06 룰 엔진과 같은 함수를 쓴다: `ValueConverterTest` 28건, `TypeConversionEntryTest` 2건 통과
+
+**변이 검증 (전체 스위트 기준)**
+
+Build Phase에서 설계상 불변 규칙 I1~I36 각각의 변이 67개를 확인한 결과 모두 엔진 테스트에서 빨강을 냈다(36/36 규칙 커버). Verify Phase에서는 전체 스위트(822건)를 실행해 Build 결과를 다시 확인했으며, 822건 모두 통과를 다시 확인했다.
+
+| 규칙 | 상태 | 비고 |
+|---|---|---|
+| I1~I36 | 36/36 완료 | Build Phase 결과를 전체 스위트로 재확인 |
+
+기타: 변이 I24a는 처음 실행에서 살아남았다(원천 7케이스의 REGEX 사례 KR·CNSHA가 거짓이라 대상 칸을 KEY로 바꿔도 결과가 같음). Build 과정에서 05 샘플 판정 2건을 추가해 덮었으며, 최종 확인에서 빨강을 냈다. 컴파일 실패는 I35(메서드 이름 변경)에서만 설계상 허용했다.
+
+**보호 파일 바이트 동일 확인**
+
+팀장 지시 기준점 `955cef1` 대비 다음 보호 파일들이 변경되지 않았다:
+
+```
+/usr/bin/git diff --stat 955cef1 HEAD -- \
+  src/frontend \
+  src/backend/mdm \
+  src/backend/maru-mdm-engine/src/main/resources \
+  docs/mdm/engine-contract \
+  docs/mdm/engine-contract.md \
+  docs/mdm/decisions.md \
+  src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/spi \
+  src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/rule \
+  src/backend/maru-mdm-engine/src/test/java/kr/dongkuk/maru/mdm/engine/contract
+```
+
+결과: (no output) — 차이 없음 ✓
+
+영구 테스트 3개(ContractTypeShapeTest, EnginePackageDependencyTest, MaruMdmEngineArchitectureTest) 바이트 동일 확인: ✓
+
+**특이사항**
+
+- design.md §2.1 계획 삭제(ContractOnlyPhaseTest 5건) 커밋 직후 엔진 테스트 71건 → 변이 없을 때 초록 기준선 설정 완료
+- 기준점 설정 시 팀장 지시(`955cef1`)와 design.md 본문의 `origin/dev` 기준이 어긋남. 팀장 지시 우선했다.
+- design.md §9 이탈 6번(I24a 변이 살아남음)과 이탈 11번(도메인 검증기 요구 변수 계산)은 Build 단계에서 처리 완료
