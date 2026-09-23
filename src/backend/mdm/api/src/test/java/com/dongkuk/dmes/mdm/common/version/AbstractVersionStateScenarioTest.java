@@ -241,6 +241,10 @@ public abstract class AbstractVersionStateScenarioTest {
 
         assertMdm("MDM008", () -> confirm(v2, 0, "2026-01-01 00:00:00"));
         assertDraftUntouched(v2, 0);
+        // 초 단위로 자른 뒤 비교한다(I15): 0.5초 뒤는 저장하면 직전과 같은 초라 거부해야 한다.
+        assertMdm("MDM008", () -> versionStateService.confirm(new ConfirmCommand(v2, 0,
+                LocalDateTime.of(2026, 1, 1, 0, 0, 0, 500_000_000), KIM, false)));
+        assertDraftUntouched(v2, 0);
 
         confirm(v2, 0, "2026-01-01 00:00:01");
         assertEquals("2026-01-01 00:00:01", text(readVersion(v1).get("APPLY_TO")));
