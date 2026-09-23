@@ -2,7 +2,7 @@
   "tsk": "TSK-04-05",
   "order": "b192b68f-3f59-40dd-ac6e-3fb29d1d64c2",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "refactor",
+  "phase": "reported",
   "baseline": {
     "failures": 0,
     "tests": 556,
@@ -14,8 +14,8 @@
     "count_cmd": "find src/backend -path '*/build/test-results/*' -name 'TEST-*.xml' | xargs grep -h -o '<testsuite [^>]*' (tests/failures/errors 합산)"
   },
   "last": {
-    "phase": "verify",
-    "event": "verify.ok"
+    "phase": "done",
+    "event": "done.ok"
   },
   "model": "haiku",
   "build_gate": {
