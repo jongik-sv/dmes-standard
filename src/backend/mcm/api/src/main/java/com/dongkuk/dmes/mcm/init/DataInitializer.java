@@ -411,6 +411,11 @@ public class DataInitializer implements ApplicationRunner {
         //   + OBJECT 1 + 메뉴 leaf 1 + SYSADMIN RBAC 1. componentPath=anl/logViewer.
         seedAnalogMenus();
 
+        // 2026-09-23 — TSK-01-01 mdm(마루 MDM) 스캐폴드 검증용 샘플 화면 시드.
+        //   그룹 mdt(용어·도메인·컬럼·단위). 폴더 2(mdm 모듈 루트 + mdt 그룹) + OBJECT 1 + 메뉴 leaf 1
+        //   + SYSADMIN RBAC 1. componentPath=mdt/mdmSample. 화면 자체는 API 를 호출하지 않는 빈 화면.
+        seedMdmMenus();
+
         // 확장 지점 — 신규 업무 모듈을 추가할 때 여기에 seed{Module}Menus() 를 호출한다.
 
         // 2026-06-04 사용자 지시 — 모든 메뉴 시드 적재 후 FULL_SEQ 7자리 인코딩 강제 재계산 (멱등).
@@ -830,6 +835,48 @@ public class DataInitializer implements ApplicationRunner {
                 "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
                 "VALUES ('SYSADMIN', 'logViewer', 'PERM_ALL'" + AUDIT_VALS + ")");
         log.info("[DataInitializer] ANALOG 로그 분석(anl) 메뉴 시드 — 폴더 2 + OBJECT 1 + 메뉴 leaf 1 + RBAC 1");
+    }
+
+    /**
+     * TSK-01-01 mdm(마루 MDM) 스캐폴드 검증용 샘플 화면 메뉴/OBJECT/RBAC 시드(seedAnalogMenus 패턴 그대로).
+     *
+     * <ul>
+     *   <li>폴더 2: mdm(모듈 루트) + mdt(그룹, 용어·도메인·컬럼·단위) — TB_MCM_SEC_MENU_FLD.</li>
+     *   <li>OBJECT 1: mdmSample — TB_MCM_SEC_OBJ (SYSTEM_CODE='mdm' = FE moduleId,
+     *       m-mcm PORTAL_MODULE_CONFIG 의 mdm 로더로 라우팅).</li>
+     *   <li>메뉴 leaf 1: parent='mdt' — TB_MCM_SEC_MENU. componentPath = 'mdt/mdmSample'.</li>
+     *   <li>RBAC 1: SYSADMIN × mdmSample × PERM_ALL — TB_MCM_SEC_ROLE_MAPPING.</li>
+     * </ul>
+     *
+     * <p>FULL_SEQ 인코딩: 모듈 백만(mdm=5,000,000 — analog=4,000,000 다음, {@code insertMpnFld} 전수
+     * grep 으로 5 가 미사용임을 확인) / 그룹 만(mdt=5,010,000) / 화면 백·십(5010100). MENU_SEQ
+     * mdm='00000005'. 시드 후 recomputeMenuFullSeq() 가 트리 위치 기준으로 FULL_SEQ 재부여(멱등).
+     * 샘플 화면이 API 를 호출하지 않아(design.md §3.3) PERMISSION_ACTION 등재는 불필요 — 실 BPMN 이
+     * 생기는 다음 화면 Task 에서 seedMcmSecRbac() 의 allActions 목록에 추가한다.
+     */
+    private void seedMdmMenus() {
+        final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
+        final String AUDIT_VALS = ", 'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', "
+                                + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
+
+        // ── 폴더 (FLD) — root mdm(모듈 5) + group mdt(용어·도메인·컬럼·단위) ──
+        insertMpnFld("mdm", "00000005", "마루 MDM", null,   5000000L);
+        insertMpnFld("mdt", "00000100", "용어·도메인·컬럼·단위", "mdm", 5010000L);
+
+        // ── OBJECT — SYSTEM_CODE='mdm' 이 FE moduleId 가 된다 ──
+        insertMcmSecObjIfAbsent("mdmSample", "MDM 샘플", "mdm");
+
+        // ── 메뉴 leaf (parent=mdt) — componentPath = 'mdt/mdmSample' ──
+        insertMcmSecMenuIfAbsent("mdmSample", "001", "5010100", "MDM 샘플", "mdt", "mdmSample");
+
+        // ── RBAC — SYSADMIN × 1 OBJECT × PERM_ALL ──
+        insertIfAbsentComposite(
+                "TB_MCM_SEC_ROLE_MAPPING",
+                new String[]{"ROLE_ID",  "OBJECT_ID",  "PERMISSION_ID"},
+                new String[]{"SYSADMIN", "mdmSample", "PERM_ALL"},
+                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                "VALUES ('SYSADMIN', 'mdmSample', 'PERM_ALL'" + AUDIT_VALS + ")");
+        log.info("[DataInitializer] MDM 샘플(mdt) 메뉴 시드 — 폴더 2 + OBJECT 1 + 메뉴 leaf 1 + RBAC 1");
     }
 
 
