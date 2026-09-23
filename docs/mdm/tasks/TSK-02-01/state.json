@@ -2,7 +2,7 @@
   "tsk": "TSK-02-01",
   "order": "4b57b000-c9ed-47d4-a129-2dbc431c4423",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "reported",
+  "phase": "merged",
   "model": "sonnet",
   "baseline": {
     "failures": 0,
@@ -18,5 +18,6 @@
     "event": "done.ok"
   },
   "mode": "docs-special: 산출물 문서뿐(design.md §1·§3). 게이트 = 문서 체크리스트 V1~V26 + testAll 회귀",
-  "refactor": "skipped: research/docs 특례(산출물 문서뿐) + 워커(무인) 실행 — dev-discipline Phase 05"
+  "refactor": "skipped: research/docs 특례(산출물 문서뿐) + 워커(무인) 실행 — dev-discipline Phase 05",
+  "unapproved": true
 }
