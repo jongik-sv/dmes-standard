@@ -874,3 +874,13 @@ SQLite 는 `PRAGMA foreign_keys` 강제가 DML 시점이라 CREATE TABLE 안에 
 - **택한 것**: (2), §6.6 표대로.
 - **근거**: MSSQL 은 `CREATE TABLE ... FOREIGN KEY` 시점에 참조 테이블이 이미 있어야 한다(일반 T-SQL 제약, 실측하지 않고 표준 동작으로 판단 — F4·불변규칙 7 에 따라 이 부분은 "확인"이 아니라 "규칙"으로 남긴다). SQLite 는 이 문제가 없어 인라인을 유지해 두 방언 파일 구조 차이를 최소화한다.
 - **반려 시 재작업**: 실제 MSSQL 실행(영역 계약 Task, local-db 프로파일)에서 이 배치로도 오류가 나면 §6.6 파일 순서를 조정하고 `naming-dialect-rules.md` §3 에 실측 결과를 기록한다.
+
+---
+
+## Build 단계 이탈 기록 (design.md 대비)
+
+1. **감사 `VER` 과 업무 `VER` 이름 충돌 → `AUD_VER` 개명**. §6.0 은 감사 9칼럼에 `VER BIGI`(변경 카운터)를 모든 테이블에 두라고 하지만, `TB_MDM_CODE_VER`·`TB_MDM_CODE_RECV`(§6.3)·`TB_MDM_RULE_VER`·`TB_MDM_RULE_VAR`·`TB_MDM_RULE_ROW`·`TB_MDM_RULE_RECV`(§6.5)는 원천 업무 칼럼으로도 `VER`(버전 번호, 일부는 PK 구성요소)을 갖는다 — 같은 테이블에 `VER` 을 두 번 선언하는 `CREATE TABLE` 은 SQL 문법상 불가능하다. Build 는 이 6개 테이블에 한해 **감사 카운터만 `AUD_VER` 로 개명**하고 원천 `VER` 은 그대로 두었다(불변 규칙 2 "원천 칼럼은 대소문자만 바꾼다"를 지킴 — 원천이 아닌 감사 칼럼 쪽을 조정). 근거·되돌리기 방법은 `decisions.md` D-022.
+2. **02 MSSQL `TB_MDM_DOMAIN` JSON CHECK 4개 누락 보강**. §6.1 `TB_MDM_DOMAIN` 타입표는 `STD_AST`·`BIZ_AST`·`EXAMPLES`·`TEST_CASES` 를 `JSONV`(= CHECK 포함)로 지정하는데, Build 최초 초안의 MSSQL DDL 에서 이 4개의 `ISJSON` CHECK 를 빠뜨렸다(SQLite 쪽은 처음부터 정상). 체크 b(두 방언 CK 이름 집합 대조)로 발견해 `CK_TB_MDM_DOMAIN_{STD_AST,BIZ_AST,EXAMPLES,TEST_CASES}_JSON` 4개를 추가했다.
+3. **§3 체크 e 산식 정정**: "35개 테이블 중 `TB_MDM_DICT_SEQ` 를 제외한 34개"는 검증용 `TB_MDM_SYSTEM` fixture(F2, 이 Task 비소유)를 포함한 계산이라 부정확하다. 실제 이 Task 소유 테이블은 34개이고, `TB_MDM_DICT_SEQ` 를 빼면 감사 칼럼 검사 대상은 **33개**다. `Verify.java` 체크 e 와 `docs/mdm/erd/README.md` 는 33/33 으로 바로잡았다.
+
+세 항목 모두 `docs/mdm/erd/verify/` 의 검증(체크 a~i 전부 PASS, 변이 검증 8건 전부 FAIL 유도 성공)을 통과한 상태에서 반영됐다.

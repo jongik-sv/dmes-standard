@@ -1,0 +1,175 @@
+{
+  "_comment": "TSK-02-03 체크 c 기대값. source_columns = design.md §6 표가 원천 문서에서 그대로 옮긴 칼럼(대소문자만 다름 허용). added_columns = design.md 불변규칙 2의 유일한 예외(감사 9칼럼, D3 관리속성 3칼럼, D1·D2 신설 2테이블 칼럼 전부, VER 충돌 회피용 AUD_VER)로 명시한 '추가 칼럼'. embedding·embedding_model(TERM)은 D4 로 범위 제외되어 두 목록 어디에도 없다(삭제가 아니라 애초에 이 Task 대상이 아님, F8).",
+  "audit9": ["C_USR_ID","C_AT","C_SVC_ID","C_PGM_ID","U_USR_ID","U_AT","U_SVC_ID","U_PGM_ID","VER"],
+  "audit9_aud_var": ["C_USR_ID","C_AT","C_SVC_ID","C_PGM_ID","U_USR_ID","U_AT","U_SVC_ID","U_PGM_ID","AUD_VER"],
+  "aud_var_tables_comment": "이 6개 테이블은 업무 칼럼 VER 과 감사 카운터 VER 이 이름 충돌해(design.md 이탈, decisions.md D-0NN) 감사 카운터만 AUD_VER 로 개명했다. audit9_aud_var 를 쓴다.",
+  "aud_var_tables": ["TB_MDM_CODE_VER","TB_MDM_CODE_RECV","TB_MDM_RULE_VER","TB_MDM_RULE_VAR","TB_MDM_RULE_ROW","TB_MDM_RULE_RECV"],
+  "tables": {
+    "TB_MDM_UNIT": {
+      "source_columns": ["UNIT_CODE","DIMENSION","BASE_UNIT","FACTOR","CHG_SEQ"],
+      "added_columns": []
+    },
+    "TB_MDM_TERM": {
+      "source_columns": ["TERM_ID","TERM_NAME","SENSE_NO","DEFINITION","CONTEXT","ENG_NAME","ENG_ABBR","SYNONYMS","ALIASES","SYSTEMS","STD_BASIS"],
+      "added_columns": ["OWNER_DEPT","OWNER_ID","SRC_ORIGIN"],
+      "json_columns": ["SYNONYMS","ALIASES","SYSTEMS"]
+    },
+    "TB_MDM_DOMAIN": {
+      "source_columns": ["DOMAIN_ID","DOMAIN_NAME","STD_NAME","PARENT_DOMAIN_ID","DOMAIN_KIND","DATA_TYPE","LENGTH","SCALE","UNIT_CODE","MARU_CODE_ID","CATE_ID","STD_RULE","STD_AST","BIZ_RULE","BIZ_AST","DESCRIPTION","EXAMPLES","TEST_CASES","CHG_SEQ"],
+      "added_columns": [],
+      "json_columns": ["STD_AST","BIZ_AST","EXAMPLES","TEST_CASES"]
+    },
+    "TB_MDM_COLUMN": {
+      "source_columns": ["COLUMN_ID","COLUMN_NAME","LABEL_LONG","LABEL_MID","LABEL_SHORT","PHYS_NAME","DESCRIPTION","DOMAIN_ID","REQUIRED","DEFAULT_VALUE","REF_KIND","REF_TARGET","REF_CATE_ID","TERM_IDS","USAGE_NOTE","CHG_SEQ"],
+      "added_columns": [],
+      "json_columns": ["TERM_IDS"]
+    },
+    "TB_MDM_COLUMN_SYSTEM": {
+      "source_columns": ["COLUMN_ID","SYSTEM_CODE","PHYS_NAME","TRANSFORM","NOTE"],
+      "added_columns": []
+    },
+    "TB_MDM_DICT_SEQ": {
+      "source_columns": ["DICT_CODE","LAST_CHG_SEQ"],
+      "added_columns": [],
+      "no_audit": true
+    },
+    "TB_MDM_DICT_SYSTEM": {
+      "source_columns": ["DICT_CODE","SYSTEM_CODE","NOTE"],
+      "added_columns": []
+    },
+    "TB_MDM_EAI": {
+      "source_columns": ["EAI_CODE","EAI_NAME","ENCODING","PAD_RULE","HEADER_LAYOUT_ID"],
+      "added_columns": []
+    },
+    "TB_MDM_LAYOUT": {
+      "source_columns": ["LAYOUT_ID","LAYOUT_KIND","LAYOUT_NAME","EAI_CODE","SND_SYSTEM","RCV_SYSTEM","TOTAL_LENGTH","VERSION"],
+      "added_columns": []
+    },
+    "TB_MDM_LAYOUT_ITEM": {
+      "source_columns": ["LAYOUT_ID","SEQ","FILL_KIND","COLUMN_PHYS","TRANS_UNIT","UNIT_ITEM","NUM_FORMAT","DEFAULT_VALUE","FILLER_LENGTH","OFFSET","LENGTH"],
+      "added_columns": []
+    },
+    "TB_MDM_LAYOUT_HEADER": {
+      "source_columns": [],
+      "added_columns": ["LAYOUT_ID","SEQ","HEADER_LAYOUT_ID"],
+      "new_table": true
+    },
+    "TB_MDM_LAYOUT_CONST": {
+      "source_columns": [],
+      "added_columns": ["LAYOUT_ID","HEADER_LAYOUT_ID","HEADER_SEQ","CONST_VALUE"],
+      "new_table": true
+    },
+    "TB_MDM_CODE": {
+      "source_columns": ["MARU_CODE_ID","MARU_CODE_NAME","STATUS","SOURCE_KIND","SOURCE_SYSTEM","DESCRIPTION","ATTR01_NAME","ATTR02_NAME","ATTR03_NAME","ATTR04_NAME","ATTR05_NAME","ATTR06_NAME","ATTR07_NAME","ATTR08_NAME","ATTR09_NAME","ATTR10_NAME","LVL_CNT","LAST_CHG_SEQ"],
+      "added_columns": []
+    },
+    "TB_MDM_CODE_SYSTEM": {
+      "source_columns": ["MARU_CODE_ID","SYSTEM_CODE","DESCRIPTION"],
+      "added_columns": []
+    },
+    "TB_MDM_CODE_VER": {
+      "source_columns": ["MARU_CODE_ID","VER","VER_KIND","RESTORED_FROM","STATUS","OWNER_ID","APPLY_FROM","APPLY_TO","DESCRIPTION","REQUESTED_BY","REQUESTED_AT","EMERGENCY_YN","EMERGENCY_REASON","APPROVED_BY","APPROVED_AT","REJECT_REASON","RELEASED_AT","CANCELLED_AT","CANCEL_REASON","ROW_VERSION"],
+      "added_columns": ["AUD_VER"],
+      "uses_aud_var": true
+    },
+    "TB_MDM_CODE_ITEM": {
+      "source_columns": ["MARU_CODE_ID","CODE","FROM_VER","TO_VER","NAME","ALTER_NAME","SEQ","DESCRIPTION","LVL1","LVL2","LVL3","LVL4","LVL5","ATTR01","ATTR02","ATTR03","ATTR04","ATTR05","ATTR06","ATTR07","ATTR08","ATTR09","ATTR10"],
+      "added_columns": []
+    },
+    "TB_MDM_CODE_CATE": {
+      "source_columns": ["MARU_CODE_ID","CATE_ID","FROM_VER","TO_VER","CATE_NAME","DEF_KIND","DEF_EXPR","DEF_TARGET","DESCRIPTION"],
+      "added_columns": []
+    },
+    "TB_MDM_CODE_CATE_ITEM": {
+      "source_columns": ["MARU_CODE_ID","CATE_ID","CODE","FROM_VER","TO_VER"],
+      "added_columns": []
+    },
+    "TB_MDM_CODE_RECV": {
+      "source_columns": ["RECV_ID","MARU_CODE_ID","SOURCE_SYSTEM","SOURCE_REF","REQ_KIND","RECEIVED_AT","BODY","RESULT","RESULT_DETAIL","VER","CHG_SEQ","PROCESSED_AT"],
+      "added_columns": ["AUD_VER"],
+      "uses_aud_var": true
+    },
+    "TB_MDM_DATA": {
+      "source_columns": ["MARU_DATA_ID","MARU_DATA_NAME","STATUS","SOURCE_KIND","SOURCE_SYSTEM","CODE_PATTERN","DESCRIPTION","ATTR01_NAME","ATTR02_NAME","ATTR03_NAME","ATTR04_NAME","ATTR05_NAME","ATTR06_NAME","ATTR07_NAME","ATTR08_NAME","ATTR09_NAME","ATTR10_NAME","LVL_CNT","CLOSED_AT","LAST_CHG_SEQ","CHG_SEQ"],
+      "added_columns": []
+    },
+    "TB_MDM_DATA_SYSTEM": {
+      "source_columns": ["MARU_DATA_ID","SYSTEM_CODE","DESCRIPTION"],
+      "added_columns": []
+    },
+    "TB_MDM_DATA_ITEM": {
+      "source_columns": ["MARU_DATA_ID","CODE","VALID_FROM","NAME","ALTER_NAME","SEQ","DESCRIPTION","VALID_TO","ROW_VERSION","CHG_SEQ","LVL1","LVL2","LVL3","LVL4","LVL5","ATTR01","ATTR02","ATTR03","ATTR04","ATTR05","ATTR06","ATTR07","ATTR08","ATTR09","ATTR10"],
+      "added_columns": []
+    },
+    "TB_MDM_DATA_CATE": {
+      "source_columns": ["MARU_DATA_ID","CATE_ID","VALID_FROM","CATE_NAME","DEF_KIND","DEF_EXPR","DEF_TARGET","DESCRIPTION","VALID_TO","CHG_SEQ"],
+      "added_columns": []
+    },
+    "TB_MDM_DATA_CATE_ITEM": {
+      "source_columns": ["MARU_DATA_ID","CATE_ID","CODE","VALID_FROM","VALID_TO","CHG_SEQ"],
+      "added_columns": []
+    },
+    "TB_MDM_DATA_RECV": {
+      "source_columns": ["RECV_ID","MARU_DATA_ID","SOURCE_SYSTEM","SOURCE_REF","RECEIVED_AT","BODY","ROW_COUNT","RESULT","RESULT_DETAIL","CHG_SEQ","PROCESSED_AT"],
+      "added_columns": []
+    },
+    "TB_MDM_DATA_RECV_ITEM": {
+      "source_columns": ["RECV_ID","SEQ","CODE","ACTION"],
+      "added_columns": []
+    },
+    "TB_MDM_RULE": {
+      "source_columns": ["MARU_RULE_ID","MARU_RULE_NAME","RULE_KIND","STATUS","SOURCE_KIND","SOURCE_SYSTEM","DESCRIPTION","USAGE_NOTE","LAST_VAR_ID","LAST_ROW_ID","LAST_CASE_ID"],
+      "added_columns": []
+    },
+    "TB_MDM_RULE_SYSTEM": {
+      "source_columns": ["MARU_RULE_ID","SYSTEM_CODE","DEPLOY_KIND","DESCRIPTION"],
+      "added_columns": []
+    },
+    "TB_MDM_RULE_VER": {
+      "source_columns": ["MARU_RULE_ID","VER","STATUS","BASE_VER","OWNER_ID","HIT_POLICY","APPLY_FROM","APPLY_TO","DESCRIPTION","REQUESTED_BY","REQUESTED_AT","EMERGENCY_YN","EMERGENCY_REASON","APPROVED_BY","APPROVED_AT","REJECT_REASON","RELEASED_AT","CANCELLED_AT","CANCEL_REASON","ROW_VERSION"],
+      "added_columns": ["AUD_VER"],
+      "uses_aud_var": true
+    },
+    "TB_MDM_RULE_VAR": {
+      "source_columns": ["MARU_RULE_ID","VER","VAR_ID","VAR_KIND","DISP_TYPE","AXIS","VAR_NAME","VAR_AST","DOMAIN_ID","DATA_TYPE","COLLECT_AGG","PRIO_LIST","RES_GRP","GRP_COND","GRP_COND_AST","SEQ","LABEL","DESCRIPTION"],
+      "added_columns": ["AUD_VER"],
+      "uses_aud_var": true,
+      "json_columns": ["VAR_AST","PRIO_LIST","GRP_COND_AST"]
+    },
+    "TB_MDM_RULE_ROW": {
+      "source_columns": ["MARU_RULE_ID","VER","ROW_ID","SEQ","ROW_KIND","CELLS","NOTE","TAG"],
+      "added_columns": ["AUD_VER"],
+      "uses_aud_var": true,
+      "json_columns": ["CELLS"]
+    },
+    "TB_MDM_RULE_TEST_CASE": {
+      "source_columns": ["MARU_RULE_ID","CASE_ID","CASE_NAME","INPUT_JSON","EXPECTED_JSON","DESCRIPTION","ROW_VERSION"],
+      "added_columns": [],
+      "json_columns": ["INPUT_JSON","EXPECTED_JSON"]
+    },
+    "TB_MDM_RULE_SET": {
+      "source_columns": ["MARU_RULE_SET_ID","MARU_RULE_SET_NAME","RULE_IDS","DESCRIPTION","STATUS","ROW_VERSION"],
+      "added_columns": [],
+      "json_columns": ["RULE_IDS"]
+    },
+    "TB_MDM_RULE_RECV": {
+      "source_columns": ["RECV_ID","MARU_RULE_ID","SOURCE_SYSTEM","SOURCE_REF","REQ_KIND","RECEIVED_AT","BODY","RESULT","RESULT_DETAIL","VER","PROCESSED_AT"],
+      "added_columns": ["AUD_VER"],
+      "uses_aud_var": true
+    }
+  },
+  "partial_unique_indexes": [
+    {"name": "UX_TB_MDM_TERM_ABBR", "table": "TB_MDM_TERM"},
+    {"name": "UX_TB_MDM_RULE_VAR_NAME", "table": "TB_MDM_RULE_VAR"},
+    {"name": "UX_TB_MDM_RULE_ROW_SEQ", "table": "TB_MDM_RULE_ROW"}
+  ],
+  "cascade_fks": [
+    {"table": "TB_MDM_RULE_VAR", "name": "FK_TB_MDM_RULE_VAR_VER"},
+    {"table": "TB_MDM_RULE_ROW", "name": "FK_TB_MDM_RULE_ROW_VER"}
+  ],
+  "sqlite_only_checks_comment": "REQUIRED(BOOLI) CK 는 SQLite 에만 있다(MSSQL 은 BIT). §6.0 비대칭.",
+  "sqlite_only_checks": [
+    {"table": "TB_MDM_COLUMN", "name": "CK_TB_MDM_COLUMN_REQUIRED"}
+  ],
+  "autoincrement_tables": ["TB_MDM_TERM","TB_MDM_DOMAIN","TB_MDM_COLUMN","TB_MDM_LAYOUT","TB_MDM_CODE_RECV","TB_MDM_DATA_RECV","TB_MDM_RULE_RECV"]
+}
