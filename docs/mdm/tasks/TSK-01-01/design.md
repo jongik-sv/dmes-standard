@@ -618,3 +618,19 @@ Build Phase 가 그대로 따를 수 있는 순서다. 각 단계 커밋은 `--t
 - **택한 것**: (a)
 - **근거**: 이 Task 의 spec·수용 기준은 mdm 스캐폴드에 한정된다 — 기존 6개 모듈의 `testAll` 배선을 고치면 그 모듈들의 실제 테스트가 처음으로 도는 것이므로 기준선(386건) 자체가 큰 폭으로 바뀌는 별도 변경이다. 이 Task 하나로 조용히 끼워 넣으면 "기준선 대비 신규 실패 0" 판정이 다른 모듈들의 (지금까지 한 번도 실행된 적 없는) 테스트 실패까지 떠안게 돼 이 Task 의 책임 범위를 벗어난다(dev-discipline Verify 규율과 충돌). (c)는 확정된 결함을 알면서도 방치하는 것이라 §4 AC 1·2·6 을 거짓 통과시켜 기각한다. (a)가 이 Task 의 acceptance("mdm 포함으로 testAll 통과")를 실제로 만족시키면서 범위를 지킨다.
 - **반려되면 재작업 방향**: (b)를 택하면 `mpn`/`mpp`/`mqc`/`mcm`/`mls`/`analog` 6개 모듈의 루트 `build.gradle` 에 동일한 서브프로젝트 test 집계 블록을 추가하고(`mls`/`analog` 는 `includedProjectNames` 자체에도 추가), 6개 모듈의 실제 테스트가 처음으로 `testAll` 에 편입되면서 총 tests 수·소요 시간·잠재적 기존 실패(지금까지 한 번도 실행되지 않아 숨어 있었을 수 있는 실패)가 드러날 것을 전제로 새 기준선을 다시 측정한다. 이 발견 자체는 이번 Task 완료 보고 시 issue-brief 로 정리해 별도 과제화할 것을 권한다(이미 이 design.md 가 근거 문서 역할을 한다).
+
+## Build Phase 이탈 기록
+
+### §6.2 Flyway MSSQL 의존 좌표 정정(설계 오기, D10 은 아님 — 대안 있는 결정이 아니라 사실 오류)
+
+design.md §6.2 원안은 `runtimeOnly 'org.flywaydb:flyway-database-sqlserver'` 를 제시했다. Build
+1단계에서 `cd src/backend/mdm && ../gradlew :lib:dependencies` 전에 mavenCentral 을 직접
+재검증(`curl https://repo1.maven.org/maven2/org/flywaydb/flyway-database-sqlserver/` → 404,
+`org/flywaydb/` 전체 목록 조회)한 결과 그 아티팩트는 **존재하지 않는다**. Flyway 11.x 의 모듈
+명명은 방언마다 다르다 — `flyway-database-postgresql`(mcm-core 가 이미 쓰는 좌표, 실존 확인)처럼
+`database-` 접두가 붙는 방언도 있지만, MSSQL 은 `org.flywaydb:flyway-sqlserver`(접두 없음)다.
+mdm/lib/build.gradle 을 이 좌표로 교체해 `../gradlew :lib:compileTestJava`·`:api:test`(RANDOM_PORT
+부팅) 양쪽에서 실제 resolve·동작을 확인했다(BUILD SUCCESSFUL, 커밋 75a179f). §6.2 스니펫 자체는
+수정하지 않고 이 절에 정정만 남긴다 — 원문 스니펫이 "왜 틀렸는지"의 기록으로도 값이 있다고 판단했다.
+실 구현체(`src/backend/mdm/lib/build.gradle`)는 `flyway-sqlserver` 를 쓴다.
+
