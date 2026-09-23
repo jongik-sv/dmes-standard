@@ -2,7 +2,7 @@
   "tsk": "TSK-04-04",
   "order": "88a2e470-4463-49fd-a8d3-a1c7cbc3eeb1",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "design",
+  "phase": "build",
   "baseline": {
     "failures": 0,
     "tests": 1274,
@@ -32,8 +32,8 @@
   },
   "base_note": "선행 TSK-04-01·TSK-01-03: reached=true, head_sha 없음 → pred-reflected.sh REFLECTED(증거 2) → origin/dev 3d08db7 기점, 스택 없음",
   "last": {
-    "phase": "baseline",
-    "event": "baseline.ok"
+    "phase": "design",
+    "event": "design.ok"
   },
   "model": "opus"
 }
