@@ -1,0 +1,19 @@
+ROLLNAME,DDLANGUAGE,AS4LOCAL,DDTEXT,REPTEXT,SCRTEXT_S,SCRTEXT_M,SCRTEXT_L
+MANDT,3,A,클라이언트,클라이언트,클라이언트,클라이언트,클라이언트
+MANDT,E,A,Client,Client,Client,Client,Client
+ZZDE_COIL_ID,3,A,코일 ID,코일 ID,코일ID,코일 ID,코일  아이디
+ZZDE_COIL_THK,KO,A,코일 두께,두께,두께,코일 두께,코일 두께
+ZZDE_COIL_THK,3,N,옛 코일 두께,두께,두께,옛 두께,옛 코일 두께
+ZZDE_COIL_WGT,3,A,"코일 중량, 실측",중량,중량,코일 중량,코일 중량
+ZZDE_ORD_DT,3,A,지시 일자,지시일,지시일,지시 일자,지시 일자
+ZZDE_PROD_DT,3,A,생산 일자,생산일,생산일,생산 일자,생산 일자
+ZZDE_SHIP_DT,3,A,출하 일자,출하일,출하일,출하 일자,출하 일자
+ZZDE_LINE_SPD,3,A,라인 스피드,,속도,,
+ZZDE_RATIO,3,A,비율,비율,비율,비율,비율
+ZZDE_RAW_COIL_THK,3,A,원재료 코일 두께,원재료두께,두께,원재료 코일 두께,원재료 코일 두께(mm)
+VBELN_VA,3,A,Sales Document,Sales Doc.,Sales Doc.,Sales Document,Sales Document
+VBELN_VL,E,A,Delivery,Delivery,Delivery,Delivery,Delivery
+KUNAG,3,A,판매처,판매처,판매처,판매처,판매처
+KUNWE,3,A,인도처,인도처,인도처,인도처,인도처
+AUDAT,E,A,Document Date,Doc. Date,Doc. Date,Document Date,Document Date
+ZZDE_UNUSED,3,A,미사용,미사용,미사용,미사용,미사용

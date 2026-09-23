@@ -49,3 +49,14 @@ dependencies {
     // TSK-01-02 T1 — 계약 패키지 전용 규칙·As-Is 마스터 import 금지(mcm-core·maru-mdm-engine 선례와 같은 버전).
     testImplementation 'com.tngtech.archunit:archunit-junit5:1.3.0'
 }
+
+// TSK-04-05 — SAP 데이터 엘리먼트 후보 추출 배치(design.md D1). Spring 없이 main 으로 돌고 후보 CSV 만 쓴다(DB 쓰기 없음).
+// build·test·check 에 연결하지 않는다(불변 규칙 I19). 입력·출력 경로는 절대 경로로 준다.
+// 실행: cd src/backend/mdm && ../gradlew :lib:sapDictCandidates --no-daemon \
+//         --args="--in /abs/sap-extract --out /abs/sap-candidates [--charset MS949]"
+tasks.register('sapDictCandidates', JavaExec) {
+    group = 'mdm'
+    description = 'SAP DDIC 추출 CSV(DD03L·DD04L·DD04T·DD01L)에서 용어·도메인·컬럼 후보와 미대응 목록 CSV 를 만든다.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.dongkuk.dmes.mdm.batch.sapdict.SapDictCandidateCli'
+}

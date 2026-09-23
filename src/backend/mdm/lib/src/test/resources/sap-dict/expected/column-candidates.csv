@@ -1,0 +1,12 @@
+rollname,column_name,term_names,domain_key,sap_scrtext_l,sap_scrtext_m,sap_scrtext_s,sap_ddtext,field_names
+KUNAG,판매처,판매처,STRING(10),판매처,판매처,판매처,판매처,KUNNR
+KUNWE,인도처,인도처,STRING(10),인도처,인도처,인도처,인도처,KUNNR
+MANDT,클라이언트,클라이언트,STRING(3),클라이언트,클라이언트,클라이언트,클라이언트,MANDT
+ZZDE_COIL_ID,코일 아이디,코일;아이디,STRING(20),코일  아이디,코일 ID,코일ID,코일 ID,ZZ_COIL_ID
+ZZDE_COIL_THK,코일 두께,코일;두께,"NUMBER(3,1)",코일 두께,코일 두께,두께,코일 두께,ZZ_COIL_THK
+ZZDE_COIL_WGT,코일 중량,코일;중량,"NUMBER(13,3):QTY",코일 중량,코일 중량,중량,"코일 중량, 실측",ZZ_COIL_WGT
+ZZDE_LINE_SPD,라인 스피드,라인;스피드,"NUMBER(5,1)",,,속도,라인 스피드,ZZ_LINE_SPD
+ZZDE_ORD_DT,지시 일자,지시;일자,STRING(8):DATE,지시 일자,지시 일자,지시일,지시 일자,ZZ_ORD_DT
+ZZDE_PROD_DT,생산 일자,생산;일자,STRING(8):DATE,생산 일자,생산 일자,생산일,생산 일자,ZZ_PROD_DT
+ZZDE_RAW_COIL_THK,원재료 코일 두께(mm),원재료;코일;두께;mm,"NUMBER(3,1)",원재료 코일 두께(mm),원재료 코일 두께,두께,원재료 코일 두께,ZZ_RAW_COIL_THK
+ZZDE_SHIP_DT,출하 일자,출하;일자,STRING(8):DATE,출하 일자,출하 일자,출하일,출하 일자,ZZ_SHIP_DT
