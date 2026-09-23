@@ -105,7 +105,7 @@ TSK-03-01 design.md 결정 D2(526-531행)의 원문이다.
 - **순서**: Build 의 첫 구현 커밋 **직전의 별도 커밋**으로 지운다(커밋 메시지 예: `test(mdm): TSK-03-02 계약 전용 임시 규칙 ContractOnlyPhaseTest 를 지운다`). 그 커밋 뒤 엔진 테스트는 71건 초록이어야 한다. 구현이 들어가면 1·2·3·4·5 가 모두 빨강이 되므로, 삭제를 구현 뒤로 미루지 않는다.
 - **공존 확인**: 이 파일은 `ContractTypeShapeTest` 의 `CONTRACT_TYPES`·`ENGINE`·`PREFIX` 를 가져다 쓰기만 하고, 반대 방향 참조는 없다(F21). 삭제 커밋에서 엔진 테스트를 돌려 `ContractTypeShapeTest` 5건이 컴파일·통과하는지 확인하고 결과를 보고에 적는다.
 - `ContractTypeShapeTest` 의 Javadoc 두 곳(33·42행)에 남는 `ContractOnlyPhaseTest` 언급은 **고치지 않는다.** 영구 테스트 파일을 바이트 동일로 두어 형제 Task 와의 충돌 여지를 없애는 편이 낫다. 이 사실은 보고에 한 줄 적는다.
-- **예상 총수 변화**: 엔진 76 → 76 − 5 + N, 백엔드 `testAll` 518 → 518 − 5 + N. N = **305**(§3 합계). 따라서 엔진 **376건**, `testAll` **818건**을 기대한다. Verify 는 총수에서 빠진 5건을 이 계획 삭제로 설명한다.
+- **예상 총수 변화**: 엔진 76 → 76 − 5 + N, 백엔드 `testAll` 518 → 518 − 5 + N. N = **307**(§3 합계, Build 에서 305 → 307, §9 이탈 6). 따라서 엔진 **378건**, `testAll` **820건**을 기대한다. Verify 는 총수에서 빠진 5건을 이 계획 삭제로 설명한다.
 
 ### 2.2 생성 — main
 
@@ -156,7 +156,7 @@ TSK-03-01 design.md 결정 D2(526-531행)의 원문이다.
 | `T/expr/ValueConverterTest.java` | 28 | §3.1 |
 | `T/arch/TypeConversionEntryTest.java` | 2 | §3.1 |
 | `T/code/DefaultCodeResolverTest.java` | 43 | §3.2 |
-| `T/code/MasterDataResolverTest.java` | 17 | §3.2 |
+| `T/code/MasterDataResolverTest.java` | 19 | §3.2 |
 | `T/domain/DefaultDomainValidatorTest.java` | 15 | §3.3 |
 | `T/domain/DomainKindExamplesTest.java` | 45 | §3.3 |
 | `T/domain/EffectiveExpressionsTest.java` | 11 | §3.3 |
@@ -301,14 +301,14 @@ TDD 순서: 영역마다 테스트를 먼저 쓰고 빨강(컴파일 실패 포�
 
 rule 패키지를 겨냥한 규칙은 두지 않는다. 지금은 대상이 비어 `failOnEmptyShould` 에 걸리고, 형제 Task 가 머지되는 순간 dev 를 빨강으로 만들 수 있다(D2).
 
-### 3.2 `code` — 60건
+### 3.2 `code` — 62건
 
 **`DefaultCodeResolverTest` — 43건** (고정 데이터 `CodeFixtures.procCd()` = `sql/04-code-exists.sql` INSERT 그대로 + BASE 의 `def_target = CODE`(04:95))
 
 | 테스트 | 사례 |
 |---|---|
-| `04_판정_표와_같다` `@CsvFileSource` 12건 (수용 기준 3) | `R/code/04-code-exists-expected.csv`: 기준일 {2024-06-01, 2025-03-01, 2026-07-15, 2026-09-10} × 코드 {82, 83, 84}, 카테고리 `COATING`. 기대값은 04:723-726 |
-| `04_목록_열과_같다` `@ParameterizedTest` 4건 | 같은 네 기준일의 `codeList("PROC_CD", "COATING", dt)` 코드 = `82` / `82` / `82,84` / `82,83,84` |
+| `원천04_판정_표와_같다` `@CsvFileSource` 12건 (수용 기준 3) | `R/code/04-code-exists-expected.csv`: 기준일 {2024-06-01, 2025-03-01, 2026-07-15, 2026-09-10} × 코드 {82, 83, 84}, 카테고리 `COATING`. 기대값은 04:723-726 |
+| `원천04_목록_열과_같다` `@ParameterizedTest` 4건 | 같은 네 기준일의 `codeList("PROC_CD", "COATING", dt)` 코드 = `82` / `82` / `82,84` / `82,83,84` |
 | `버전_선택` `@ParameterizedTest` 8건 | `2024-06-01T00:00`→1.000(소급), `2024-12-31T23:59:59`→1.000(소급), `2025-01-01T00:00`→1.000, `2026-06-30T23:59:59`→1.000, `2026-07-01T00:00`→1.001, `2026-08-31T23:59:59`→1.001, `2026-09-01T00:00`→1.002, `2030-01-01T00:00`→1.002 |
 | `apply_from_경계의_카테고리_소속` `@ParameterizedTest` 2건 | `83` in `COATING`: `2026-08-31T23:59:59` false, `2026-09-01T00:00` true |
 | `CANCELLED_버전은_고르지_않는다` | 1.001 을 CANCELLED 로 바꾼 데이터에서 `2026-07-15` → 1.000 |
@@ -324,11 +324,12 @@ rule 패키지를 겨냥한 규칙은 두지 않는다. 지금은 대상이 비�
 | `DEPRECATED_마루_코드의_CODE_LIST_는_빈_목록이다` | 헤더 DEPRECATED → 빈 목록(02:426) |
 | `effectiveCodes_는_CodeEffLookup_을_보지_않는다` | 사본 집합 {81} 을 줘도 `effectiveCodes("PROC_CD", 1.001, "COATING")` = {82, 84} |
 
-**`MasterDataResolverTest` — 17건** (고정 데이터 `PortFixtures.port()`, §3.4 가정 시각)
+**`MasterDataResolverTest` — 19건** (고정 데이터 `PortFixtures.port()`, §3.4 가정 시각)
 
 | 테스트 | 사례 |
 |---|---|
-| `05_PORT_판정_7케이스` `@CsvFileSource` 7건 (수용 기준 4) | `R/code/05-port-cases.csv`: 05:464-470 표 그대로 |
+| `원천05_PORT_판정_7케이스` `@CsvFileSource` 7건 (수용 기준 4) | `R/code/05-port-cases.csv`: 05:464-470 표 그대로 |
+| `REGEX_는_대상_칸_값에_전체_일치다` `@ParameterizedTest` 2건 (Build 추가, §9 이탈 6) | `KR`/KRPUS `2026-09-06` true(05:746 PORT.KR = {KRPUS}), `KR`/KRINC `2026-08-30` true(05:747 KRINC 는 09-01 09:00 전이면 PORT.KR 에서 true). 원천 7케이스에는 ATTR01 REGEX 가 참이 되는 사례가 없어 변이 I24a 가 살아남았다 |
 | `선분_경계` `@ParameterizedTest` 3건 | `BASE`/KRINC `2026-09-01T08:59:59` true, `BASE`/KRINC `2026-09-01T09:00:00` false(valid_to 배타), `BASE`/KRPUS `2026-08-25T09:00:00` true(둘째 행 valid_from 포함) |
 | `attr_형태` `@ParameterizedTest` 2건 | KRPUS `attr01` at `2026-09-06` → "KR", KRINC `attr01` at `2026-09-06` → 빈 값 |
 | `폐기된_마루_데이터는_closed_at_부터_false_다` | `closedAt = 2026-09-05T00:00` → `09-04T23:59:59` true, `09-05T00:00` false |
@@ -404,21 +405,21 @@ TEXT 식의 거짓 가지는 `validate` 경로로는 닿지 않는다. 공백만
 |---|---|
 | expr(`MdmExpressionConfigTest` 9 + `BusinessFunctionTest` 9 + `WhitelistParseTest` 17 + `ExpressionCheckerTest` 26 + `RegexPolicyTest` 30 + `AstExporterTest` 16 + `MdmEvaluatorTest` 15 + `InstrFunctionTest` 6 + `MasterFunctionTest` 16 + `ValueConverterTest` 28) | 172 |
 | arch(`TypeConversionEntryTest`) | 2 |
-| code(`DefaultCodeResolverTest` 43 + `MasterDataResolverTest` 17) | 60 |
+| code(`DefaultCodeResolverTest` 43 + `MasterDataResolverTest` 19) | 62 |
 | domain(`DefaultDomainValidatorTest` 15 + `DomainKindExamplesTest` 45 + `EffectiveExpressionsTest` 11) | 71 |
-| **N(새 테스트)** | **305** |
+| **N(새 테스트)** | **307** (설계 305 + Build 추가 2) |
 | 계획 삭제(`ContractOnlyPhaseTest`) | −5 |
-| **엔진 총수** | 76 − 5 + 305 = **376** |
-| **백엔드 `testAll` 총수** | 518 − 5 + 305 = **818** |
+| **엔진 총수** | 76 − 5 + 307 = **378** |
+| **백엔드 `testAll` 총수** | 518 − 5 + 307 = **820** |
 | 프런트 m-mdm | 6(변화 없음, 스키마·TS 를 바꾸지 않는다) |
 
 ```bash
-# 엔진만 빠르게 — 376건 실패 0 기대 (기준선 76건은 이번 Phase 에서 실측)
+# 엔진만 빠르게 — 378건 실패 0 기대 (기준선 76건은 이번 Phase 에서 실측)
 cd src/backend/maru-mdm-engine && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ../gradlew test --no-daemon
-grep -ho 'tests="[0-9]*"' build/test-results/test/*.xml | awk -F'"' '{s+=$2} END {print s}'   # 376
+grep -ho 'tests="[0-9]*"' build/test-results/test/*.xml | awk -F'"' '{s+=$2} END {print s}'   # 378
 grep -ho 'failures="[0-9]*"\|errors="[0-9]*"' build/test-results/test/*.xml | sort | uniq -c   # 전부 0
 
-# 백엔드 전체 — 818건 실패 0 기대 (mdm/lib 스모크가 ExpressionEvaluator 를 부른다)
+# 백엔드 전체 — 820건 실패 0 기대 (mdm/lib 스모크가 ExpressionEvaluator 를 부른다)
 cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon
 
 # 프런트 — 6건 실패 0, lint 통과(변화 없음 확인용)
@@ -435,8 +436,8 @@ cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test && pnpm
 |---|---|
 | 1. 화이트리스트 밖 함수는 파싱 단계에서 거부 | `WhitelistParseTest` 17건: 사전 밖 함수 9종이 파싱에서 `Undefined function` 으로 거부되고(`check` 의 `PARSE`, `evaluate` 의 `ExpressionFailure(PARSE)`), 비즈니스 함수는 비즈니스 칸 밖 다섯 칸에서 저장 시 검사(파싱 직후 AST 검사)가 거부하며, 거부된 식은 한 번도 평가되지 않는다. 보조: `MdmExpressionConfigTest.baseBuilder_사전은_BASE_24종뿐이다`·`create_사전은_…`, `ExpressionCheckerTest`(`MASTER` 인자 모양·예약 변수) |
 | 2. 동시 평가 1,000 스레드에서 결과 일치(캐시 copy 검증) | `MdmEvaluatorTest.동시_평가_1000_스레드_결과가_단일_스레드와_같다` + 결정적 짝 `평가_뒤_캐시_원본에는_값이_남지_않는다` + `같은_텍스트는_한_번만_컴파일한다` |
-| 3. 04 판정 표(2024-06-01~2026-09-10)가 `sql/04-code-exists.sql` 결과와 일치 | `DefaultCodeResolverTest.04_판정_표와_같다` 12건 + `04_목록_열과_같다` 4건(04:721-726 을 리소스로 복사). 경계 보강: `버전_선택` 8건, `apply_from_경계의_카테고리_소속` 2건, `v1_000_에만_있다가_닫힌_카테고리` 2건(04:728) |
-| 4. 05 PORT 판정 7케이스 통과 | `MasterDataResolverTest.05_PORT_판정_7케이스` 7건(05:464-470 을 리소스로 복사). 경계 보강 `선분_경계` 3건 |
+| 3. 04 판정 표(2024-06-01~2026-09-10)가 `sql/04-code-exists.sql` 결과와 일치 | `DefaultCodeResolverTest.원천04_판정_표와_같다` 12건 + `원천04_목록_열과_같다` 4건(04:721-726 을 리소스로 복사). 경계 보강: `버전_선택` 8건, `apply_from_경계의_카테고리_소속` 2건, `v1_000_에만_있다가_닫힌_카테고리` 2건(04:728) |
+| 4. 05 PORT 판정 7케이스 통과 | `MasterDataResolverTest.원천05_PORT_판정_7케이스` 7건(05:464-470 을 리소스로 복사). 경계 보강 `선분_경계` 3건, REGEX 대상 칸 보강 `REGEX_는_대상_칸_값에_전체_일치다` 2건 |
 | 5. 02 「도메인 종류」 예시 전부 테스트 | `DomainKindExamplesTest` 45건: QTY·CODE(자동 생성 MASTER)·ID·TEXT·DATE(정규식·비즈니스식)·FLAG(두 식)마다 통과·실패 사례, 02 상속 예(10·11, 중량 트리) 포함. 유효 식 조립은 `EffectiveExpressionsTest` 11건 |
 | 6. 타입 변환 계약이 06 룰 엔진과 같은 함수를 쓴다 | 공개 단일 진입점 `expr.ValueConverter.convert(Object, DataType)`(rule·domain 이 모두 볼 수 있는 `expr`). `ValueConverterTest` 28건이 변환 표를 고정하고, `TypeConversionEntryTest` 2건이 도메인 검증기가 이 함수를 부르며 직접 변환하지 않음을 ArchUnit 으로 묶는다. rule 쪽 결속은 TSK-03-03 인계(D2) |
 
@@ -479,13 +480,13 @@ Build·Verify 는 규칙마다 변이를 넣어 빨강을 확인하고 되돌린
 | I15 | `MASTER` 첫 인자 가르기: `CodeLookup.code(id)` 가 있으면 코드 해석, 없으면 `MasterLookup`(S4) | 늘 `MasterLookup` 으로 → `첫_인자가_마루_코드면…` + 04 CODE 도메인 사례 |
 | I16 | `MASTER_AT` 의 `base_dt` 는 8·14자리 숫자 문자열만, 달력상 없는 날짜·다른 타입은 평가 오류, NULL 은 false/NULL(S16) | 숫자 값 허용 → `MASTER_AT_base_dt`(숫자 사례). `ResolverStyle.STRICT` 대신 `SMART` → `"20260231"` 사례 |
 | I17 | 속성 형태는 소속(유효)일 때만 값, 아니면 NULL | 소속 확인 없이 행 값 반환 → `attr_는_소속일_때만_돌려준다` + `MasterDataResolverTest.attr_형태`(KRINC) |
-| I18 | 04 버전 선택: `apply_from <= dt < apply_to` 인 RELEASED, 없으면 최초 RELEASED(S9) | `dt < applyTo` → `dt <= applyTo` → `버전_선택`(`2026-07-01T00:00`·`2026-09-01T00:00`). CANCELLED 포함 → `CANCELLED_버전은…`. 소급 삭제 → `04_판정_표와_같다`(2024-06-01 행) + `버전_선택` 소급 2건 |
-| I19 | 04 카테고리: V 에 유효한 행, 생기기 전이면 최초 정의, 닫혔으면 없음. TABLE 은 `eff_ver = max(cate.from_ver, V)`(S9) | TABLE 조회를 `eff_ver` 대신 V 로 → `04_판정_표와_같다`(2024-06-01·2025-03-01 의 82). 카테고리 소급 삭제 → 같은 행들. 닫힌 행도 소급 후보로 → `v1_000_에만_있다가_닫힌_카테고리`(2026-07-15) |
+| I18 | 04 버전 선택: `apply_from <= dt < apply_to` 인 RELEASED, 없으면 최초 RELEASED(S9) | `dt < applyTo` → `dt <= applyTo` → `버전_선택`(`2026-07-01T00:00`·`2026-09-01T00:00`). CANCELLED 포함 → `CANCELLED_버전은…`. 소급 삭제 → `원천04_판정_표와_같다`(2024-06-01 행) + `버전_선택` 소급 2건 |
+| I19 | 04 카테고리: V 에 유효한 행, 생기기 전이면 최초 정의, 닫혔으면 없음. TABLE 은 `eff_ver = max(cate.from_ver, V)`(S9) | TABLE 조회를 `eff_ver` 대신 V 로 → `원천04_판정_표와_같다`(2024-06-01·2025-03-01 의 82). 카테고리 소급 삭제 → 같은 행들. 닫힌 행도 소급 후보로 → `v1_000_에만_있다가_닫힌_카테고리`(2026-07-15) |
 | I20 | REGEX 는 `def_target` 칸에 전체 일치, 칸이 NULL 이면 불일치(S10) | `matches()` → `find()` → `REGEX_는_def_target…`(CODE `8`/`82`). 늘 코드값에 대조 → 같은 테스트(LVL2·ATTR01) |
 | I21 | `CodeEffLookup` 이 값을 주면 그것을 쓰고(빈 집합 = 소속 없음), `effectiveCodes` 는 늘 행으로 계산한다 | 빈 집합을 "계산 안 함"으로 취급 → `CodeEffLookup_의_빈_집합은…`. `effectiveCodes` 가 `CodeEffLookup` 을 먼저 보게 → `effectiveCodes_는…` |
 | I22 | `CODE_LIST` 는 seq 오름차순(NULL 뒤), 같으면 code 순. DEPRECATED 는 빈 목록 | code 순만 → `CODE_LIST_는_seq_다음_code_순이다`. DEPRECATED 검사 삭제 → `DEPRECATED_마루_코드의…` |
-| I23 | 05 선분: `valid_from <= dt < valid_to`, 가장 이른 행보다 앞이면 그 행, 데이터 `closed_at` 이후 false(S11) | `dt < validTo` → `<=` → `선분_경계`(KRINC 09:00:00). `validFrom <= dt` → `<` → 같은 테스트(KRPUS 08-25 09:00). 최초 행 소급 삭제 → `05_PORT_판정_7케이스`(KRINC 08-15). `closedAt` 무시 → `폐기된_마루_데이터는…` |
-| I24 | 05 소속: REGEX 는 대상 칸 전체 일치, TABLE 은 소속 선분 행 | REGEX 대상 칸을 늘 KEY 로 → `05_PORT_판정_7케이스`(KR·CNSHA). TABLE 소속 확인 삭제 → 같은 테스트(MAJOR·KRINC) |
+| I23 | 05 선분: `valid_from <= dt < valid_to`, 가장 이른 행보다 앞이면 그 행, 데이터 `closed_at` 이후 false(S11) | `dt < validTo` → `<=` → `선분_경계`(KRINC 09:00:00). `validFrom <= dt` → `<` → 같은 테스트(KRPUS 08-25 09:00). 최초 행 소급 삭제 → `원천05_PORT_판정_7케이스`(KRINC 08-15). `closedAt` 무시 → `폐기된_마루_데이터는…` |
+| I24 | 05 소속: REGEX 는 대상 칸 전체 일치, TABLE 은 소속 선분 행 | REGEX 대상 칸을 늘 KEY 로 → `REGEX_는_대상_칸_값에_전체_일치다`(Build 추가 — 원천 7케이스의 KR·CNSHA 는 거짓이라 이 변이를 잡지 못한다, §9). TABLE 소속 확인 삭제 → 같은 테스트(MAJOR·KRINC) |
 | I25 | `validate` 순서: NOT_DEFINED → 예약 키 → 정규화 → 필수 → 변환 → 유효 표준식 → 유효 비즈니스식, 앞 단계 실패에서 멈춘다(S7) | 정규화 삭제 → `공백만_있는_값은…` 3건. 필수 검사를 식 뒤로 → `필수가_아니면_NULL_은…`. 표준식 실패 뒤에도 비즈니스식 평가 → `표준식이_거짓이면…` |
 | I26 | 비즈니스 요구 변수 = 정의 목록 ∪ 유효 비즈니스식의 사용 변수 − `value`. 키가 없으면(대소문자 무시) `BIZ_VAR_MISSING`, 값이 NULL 이면 누락 아님 | 누락 검사 삭제 → `비즈니스_요구_변수_키가_없으면…` + CSV COIL_GRS_WGT(NET 없음, 판정 오류로 바뀜). `containsKey` → `get(...) != null` → `키가_있고_값이_NULL_이면…`. 대소문자 구분 맵 → `요구_변수_키는_대소문자를…` |
 | I27 | 값 변환 표(D2): 숫자 문자열은 `^[+-]?[0-9]+(\.[0-9]+)?$` 만, 지수·16진·공백·구분 기호 거부, BOOLEAN 문자열은 `true`/`false`(대소문자 무시)만 | `new BigDecimal(s)` 로 바로 변환 → `ValueConverterTest`(`1e3`). `Boolean.parseBoolean` → `"Y"` 사례(false 로 받아들여짐) |
@@ -721,7 +722,7 @@ public final class MasterDataResolver implements MasterLookup {
 6. `ExpressionChecker`·`AstExporter`(+ `build.gradle` networknt) → `WhitelistParseTest`·`ExpressionCheckerTest`·`RegexPolicyTest` 통합 2건·`AstExporterTest`.
 7. `EffectiveExpressions`·`DefaultDomainValidator` → §3.3, `TypeConversionEntryTest`.
 8. `ExpressionEvaluator` 몸체 전환, package-info·Javadoc 갱신.
-9. 엔진 테스트(376) → `testAll`(818) → 프런트(6, 변화 없음 확인).
+9. 엔진 테스트(378) → `testAll`(820) → 프런트(6, 변화 없음 확인).
 10. §5 변이를 하나씩 넣어 빨강을 확인하고 되돌린다. 결과를 표로 보고한다.
 
 커밋은 영역 단위로 나눈다(예: `feat(mdm): TSK-03-02 코드 해석기와 05 마루 데이터 판정기를 둔다`). 모든 커밋에 `--trailer "DFlow-Order: ea440494-a2ed-42c5-9842-4c1dce2f9972"` 를 붙이고 파일을 이름으로 stage 한다.
@@ -755,6 +756,105 @@ public final class MasterDataResolver implements MasterLookup {
 |---|---|
 | TSK-03-03 룰 판정 엔진 | 셀 평가는 `MdmEvaluator.evaluate`(캐시·`copy()`·타임아웃·`EVAL_TS`)를 쓴다. 레코드 값 변환은 `ValueConverter.convert`, 레코드 키 검사는 `RecordKeys.violations` 를 쓴다. `ExpressionFailure.code()` 를 `Violation` 의 code 로 옮기고 stage 는 룰 단계로 채운다. rule 쪽 결속 테스트(D2)를 그 Task 에서 더한다 |
 | TSK-03-04 겹침·빈틈·JS 평가기·코퍼스 | 코퍼스의 타입 변환 사례는 §6.7 표를 따른다. 서버 러너는 `MdmEvaluator`·`AstExporter` 를 쓴다. 화면 정규식 제약은 §6.5 표와 같다 |
+
+---
+
+## 9. Build 이탈
+
+Build Phase(2026-09-24)에서 설계와 달라진 점과 그 이유다. 계약 타입 시그니처·스키마·프런트는 바꾸지 않았다. 새로 정한 "담당자 확인 필요 결정"은 없다(아래는 모두 기본값 안의 구현 선택이거나 불가피한 이름 조정이다).
+
+| # | 설계 | Build 에서 한 것 | 이유 |
+|---|---|---|---|
+| 1 | 테스트 이름 `04_판정_표와_같다`·`04_목록_열과_같다`·`05_PORT_판정_7케이스` | `원천04_판정_표와_같다`·`원천04_목록_열과_같다`·`원천05_PORT_판정_7케이스` | Java 메서드 이름은 숫자로 시작할 수 없다(컴파일 오류). 본문 표·§4·§5 의 이름도 같이 고쳤다 |
+| 2 | §6.12 순서(설정·사전 → code → MASTER·평가기) | code 패키지를 설정 팩토리보다 먼저 구현했다. `RecordKeys` 는 `MdmEvaluatorTest` 와 함께, `RegexPolicyTest` 의 검사기 통합 2건은 `ExpressionChecker` 와 함께 넣었다 | `create()` 가 `MASTER` 함수를 통해 `DefaultCodeResolver` 를 만들어야 하므로 code 가 먼저 있어야 컴파일된다. 영역마다 테스트를 먼저 쓰고 컴파일 실패(빨강)를 확인한 뒤 구현한 순서는 지켰다 |
+| 3 | `EvaluationValue.nullValue()` | `EvaluationValue.NULL_VALUE` | 3.7.0 에서 `nullValue()` 는 `@Deprecated(forRemoval)` 이다(컴파일 경고 확인). 같은 값을 주는 공개 상수를 쓴다 |
+| 4 | `create_설정이_고정값_14개와_같다` 는 `create(lookups)` 결과를 본다 | 같은 검사를, 호스트 기본 시간대·로캘을 잠시 UTC·`Locale.US` 로 바꾼 상태에서 만든 설정에 한다(`try/finally` 로 되돌림) | EvalEx 기본 `zoneId` 는 JVM 기본 시간대다. KST 호스트에서는 `.zoneId(ZONE)` 삭제 변이(I1b)가 살아남는다. 호스트와 무관하게 빨강이 나게 했다 |
+| 5 | `TypeConversionEntryTest` 첫 규칙은 "커스텀 `ArchCondition`" | ArchUnit 내장 `ArchConditions.callMethod(ValueConverter.class, "convert", Object.class, DataType.class)` | 내장 조건이 "그 메서드를 부르는 호출이 있다"를 그대로 표현한다. `failOnEmptyShould` 기본값(참)으로 대상 1건 이상도 그대로 강제된다. 변이 I28 로 빨강을 확인했다 |
+| 6 | `MasterDataResolverTest` 17건, N = 305 | `REGEX_는_대상_칸_값에_전체_일치다` 2건을 더해 19건, N = **307**, 엔진 **378**, `testAll` **820** | 변이 I24a("05 REGEX 대상 칸을 늘 KEY 로")가 처음에 살아남았다. 원천 7케이스의 REGEX 사례(KR·CNSHA)는 거짓이라 대상 칸을 KEY 로 바꿔도 결과가 같다. 05 샘플 판정(05:746-747 "PORT.KR = {KRPUS}", "KRINC 는 09-01 09:00 전이면 PORT.KR 에서 true")을 2건으로 옮겨 덮었다. §2.1·§2.4·§3.2·§3.5·§4·§5·§6.12 의 수치를 같은 커밋에서 고쳤다 |
+| 7 | `ExpressionChecker.Problem` 의 kind 는 "문자열 상수" | 상수 `PARSE`·`FUNCTION`·`VARIABLE`·`RESERVED`·`MDM_ARGUMENT`·`REGEX` 를 `ExpressionChecker` 에 둔다. `ExpressionFailure` 의 reason 상수는 `ExpressionFailure` 에 둔다 | 설계가 위치를 정하지 않았다. 검사기 쪽 상수는 검사기에, 평가기 실패 상수는 실패 타입에 둔다 |
+| 8 | §5 I12 변이 "`future.get(timeout)` → `future.get()`" | `future.get(Long.MAX_VALUE, NANOSECONDS)` 로 넣었다 | `future.get()` 은 `TimeoutException` 을 던지지 않아 `catch (TimeoutException)` 이 컴파일 오류가 된다. 컴파일 실패는 I35 외에는 빨강으로 치지 않으므로, 같은 뜻(사실상 무한 대기)의 컴파일되는 변이로 바꿨다 |
+| 9 | §5 I34 변이 "main 에서 `com.networknt` import" | main 에 `java.io.Serializable` 필드를 더했다 | networknt 는 `testImplementation` 이라 main 컴파일 클래스패스에 없어 컴파일 오류가 된다. 같은 영구 규칙(허용 목록 밖 의존)을 건드리는 컴파일되는 변이로 바꿨다 |
+| 10 | §5 I9 변이 "숫자 value 를 `new BigDecimal(v).toPlainString()` 으로" | `0x` 로 시작하는 리터럴은 빼고 바꿨다 | `new BigDecimal("0xFF")` 는 예외라 "예외로만 빨강"이 된다. 행동 변이(`1e-3` → `0.001`)로 빨강이 나는지 보려고 뺐다 |
+
+그 밖의 구현 선택(설계 범위 안): `MasterFunctionTest` 의 기록용 `MasterLookup` 은 `MasterDataResolver`(PORT)에 판정을 위임하며 받은 `baseDt` 를 기록한다. `DomainFixtures` 의 CODE 컬럼은 유효 표준식을 비워 검증기가 자동 `MASTER` 식을 만드는 경로를 탄다. `bizRequiredVars` 는 정의에 싣지 않아 유효 비즈니스식에서 계산하는 경로를 탄다. `MdmEvaluator` 의 가상 스레드 실행기는 닫지 않는다(가상 스레드는 JVM 종료를 막지 않는다).
+
+### 변이 검증 결과(Build)
+
+방법: 스크립트가 변이마다 원문 한 곳이 **정확히 한 번** 맞는지 확인하고 바꾼 뒤, 해당 테스트 클래스만 `--tests` 로 돌려 JUnit XML 의 실패 사례를 모으고 `/usr/bin/git checkout --` 로 되돌렸다. 전 변이 뒤 `/usr/bin/git diff --stat` 이 비어 있음(잔여 변이 없음)을 확인했다. 컴파일 실패는 I35 에서만 빨강으로 친다.
+
+- 결과: 불변 규칙 **36/36 빨강**(변이 67개 모두 빨강, I35 는 설계대로 컴파일 실패). 처음 실행에서 살아남은 변이는 I24a 하나였고 테스트 2건을 더해 덮었다(§9 이탈 6).
+- 덮지 못한 것(자동 테스트 밖): ① 1,000 스레드 테스트는 값 섞임을 확률적으로만 잡는다 — I10a 에서는 결정적 짝 `평가_뒤_캐시_원본에는_값이_남지_않는다` 와 함께 1,000 스레드 테스트도 빨강이었다. ② 영구 테스트·계약 파일이 바이트 동일인지는 자동 테스트가 없다 — Verify 가 `/usr/bin/git diff origin/dev -- <§2.5 목록>` 으로 본다. ③ I18a·I19c·I23b 는 04·05 가 공유하는 `Segments` 한 곳의 변이라 04·05 테스트가 함께 빨강이 된다(규칙 I18·I23 을 한 변이가 같이 덮는다).
+
+| 변이 ID | 규칙 | 넣은 변이 | 결과 | 빨강이 난 테스트(클래스.사례) |
+|---|---|---|---|---|
+| I1a | I1 | baseBuilder 에서 allowOverwriteConstants 줄 삭제 | 빨강 2/9 | `MdmExpressionConfigTest.create_설정이_고정값_14개와_같다()`, `MdmExpressionConfigTest.상수_사전이_남고_상수_이름_값_넣기가_거부된다()` |
+| I1b | I1 | baseBuilder 에서 zoneId 줄 삭제 | 빨강 1/9 | `MdmExpressionConfigTest.create_설정이_고정값_14개와_같다()` |
+| I2 | I2 | 엔진 사전을 EvalEx 표준 사전 전체 + MDM 으로 | 빨강 11/26 | `WhitelistParseTest.거부된_식은_평가되지_않는다()`, `WhitelistParseTest.DT_NOW()`, `WhitelistParseTest.DT_TODAY()`, `WhitelistParseTest.RANDOM()`, 외 7건 |
+| I3 | I3 | baseBuilder 의 functionDictionary 호출 삭제 | 빨강 1/9 | `MdmExpressionConfigTest.baseBuilder_사전은_BASE_24종뿐이다()` |
+| I4 | I4 | 검사기가 칸을 무시하고 비즈니스 함수를 늘 허용 | 빨강 6/17 | `WhitelistParseTest.거부된_식은_평가되지_않는다()`, `WhitelistParseTest.DOMAIN_STD`, `WhitelistParseTest.RULE_COND_EXPR`, `WhitelistParseTest.RULE_RESULT_EXPR`, 외 2건 |
+| I5 | I5 | DOMAIN_STD 의 value 전용 검사 삭제 | 빨강 1/26 | `ExpressionCheckerTest.DOMAIN_STD_는_value_외_변수를_거부한다()` |
+| I6a | I6 | 식·선언 변수의 _ 접두 검사 삭제 | 빨강 3/26 | `ExpressionCheckerTest._V1 → true`, `ExpressionCheckerTest._V1 > 0`, `ExpressionCheckerTest._x == 1` |
+| I6b | I6 | EVAL_TS 비교를 대소문자 구분으로 | 빨강 1/26 | `ExpressionCheckerTest.eval_ts > 0` |
+| I6c | I6 | 선언 변수명 상수 비교를 대소문자 구분으로 | 빨강 3/26 | `ExpressionCheckerTest.null → true`, `ExpressionCheckerTest.Pi → true`, `ExpressionCheckerTest.e → true` |
+| I7a | I7 | MASTER 최대 인자 비교를 maxArgs + 1 로 | 빨강 2/26 | `ExpressionCheckerTest.MASTER("A", "B", value, "attr01", "x") → true`, `ExpressionCheckerTest.MASTER_AT("A", "B", value, D, "attr01", "x") → true` |
+| I7b | I7 | attr 정규식에 대소문자 무시 추가 | 빨강 1/26 | `ExpressionCheckerTest.MASTER("A", "B", value, "ATTR01") → true` |
+| I8a | I8 | 소유 한정자 검사 삭제 | 빨강 4/30 | `RegexPolicyTest.a++`, `RegexPolicyTest.a*+`, `RegexPolicyTest.a?+`, `RegexPolicyTest.a{2,}+` |
+| I8b | I8 | 중첩 수량자 검사 삭제 | 빨강 5/30 | `RegexPolicyTest.(a+)+`, `RegexPolicyTest.(a*)*`, `RegexPolicyTest.(\w+\s?)+`, `RegexPolicyTest.([a-z]+)*$`, 외 1건 |
+| I8c | I8 | STR_MATCHES 비리터럴 패턴 허용 | 빨강 1/30 | `RegexPolicyTest.STR_MATCHES_패턴이_리터럴이_아니면_거부한다()` |
+| I9a | I9 | 자식이 없어도 params 키를 넣는다 | 빨강 12/16 | `AstExporterTest.접두_연산자가_거듭제곱보다_먼저_묶인다()`, `AstExporterTest.자식_없는_노드와_인자_0개_함수는_params_키가_없다()`, `AstExporterTest.evalex_guide_8_3_예시와_같다()`, `AstExporterTest.음수는_접두_연산자와_숫자다()`, 외 8건 |
+| I9b | I9 | 숫자 value 를 new BigDecimal(v).toPlainString() 으로 | 빨강 1/16 | `AstExporterTest.숫자_리터럴은_입력_원문이다()` |
+| I10a | I10 | evaluate 가 캐시 원본에 withValues | 빨강 2/15 | `MdmEvaluatorTest.평가_뒤_캐시_원본에는_값이_남지_않는다()`, `MdmEvaluatorTest.동시_평가_1000_스레드_결과가_단일_스레드와_같다()` |
+| I10b | I10 | 캐시 없이 매번 new Expression | 빨강 2/15 | `MdmEvaluatorTest.같은_텍스트는_한_번만_컴파일한다()`, `MdmEvaluatorTest.평가_뒤_캐시_원본에는_값이_남지_않는다()` |
+| I11a | I11 | EVAL_TS truncatedTo(SECONDS) 삭제 | 빨강 1/31 | `MdmEvaluatorTest.EVAL_TS_는_초_미만을_자르고_KST_로_MASTER_에_간다()` |
+| I11b | I11 | MASTER 가 ZoneOffset.UTC 로 변환 | 빨강 2/31 | `MdmEvaluatorTest.EVAL_TS_는_초_미만을_자르고_KST_로_MASTER_에_간다()`, `MasterFunctionTest.2026-08-31T15:00:00Z → true` |
+| I12a | I12 | future.get(timeout) → 사실상 무한 대기 | 빨강 1/15 | `MdmEvaluatorTest.타임아웃을_넘으면_평가_오류이고_작업을_끊는다()` |
+| I12b | I12 | 타임아웃 때 cancel(true) → cancel(false) | 빨강 1/15 | `MdmEvaluatorTest.타임아웃을_넘으면_평가_오류이고_작업을_끊는다()` |
+| I13 | I13 | 레코드 키 _ 접두 검사 삭제 | 빨강 4/30 | `DefaultDomainValidatorTest.레코드_예약_키는_EngineEvaluationException_INPUT_CHECK_이다()`, `MdmEvaluatorTest._V1 → RESERVED_KEY`, `MdmEvaluatorTest._x → RESERVED_KEY`, `MdmEvaluatorTest.레코드_예약_키_위반은_한_번에_모두_모은다()` |
+| I14a | I14 | INSTR 를 대문자로 바꿔 비교 | 빨강 1/6 | `InstrFunctionTest.INSTR("ABCDE", "cd") → 0` |
+| I14b | I14 | INSTR NULL 인자에 0 반환 | 빨강 2/6 | `InstrFunctionTest.INSTR("A", NULL) → null`, `InstrFunctionTest.INSTR(NULL, "A") → null` |
+| I15 | I15 | MASTER 가 늘 MasterLookup 으로 | 빨강 5/61 | `DomainKindExamplesTest.PROC_CD '82' null → true null`, `DomainKindExamplesTest.PROC_CD '83' null → true null`, `MasterFunctionTest.attr_형태는_저장된_문자열을_돌려준다()`, `MasterFunctionTest.첫_인자가_마루_코드면_코드_해석으로_간다()`, 외 1건 |
+| I16a | I16 | MASTER_AT base_dt 숫자 값 허용 | 빨강 1/16 | `MasterFunctionTest.20260906 → ERROR` |
+| I16b | I16 | YYYYMMDD 해석을 STRICT → SMART | 빨강 1/16 | `MasterFunctionTest.20260231 → ERROR` |
+| I17a | I17 | 코드 attr 가 소속 확인 없이 행 값 반환 | 빨강 1/59 | `DefaultCodeResolverTest.attr_는_소속일_때만_돌려준다()` |
+| I17b | I17 | 데이터 attr 가 유효 확인 없이 첫 행 값 반환 | 빨강 1/17 | `MasterDataResolverTest.KRINC → null` |
+| I18a | I18/I23 | 선분 끝 dt < to → dt <= to (04·05 공용) | 빨강 5/60 | `DefaultCodeResolverTest.2026-09-01T00:00:00 → true`, `DefaultCodeResolverTest.2026-07-01T00:00:00 → 1.001`, `DefaultCodeResolverTest.2026-09-01T00:00:00 → 1.002`, `DefaultCodeResolverTest.2026-07-15T00:00:00 → false`, 외 1건 |
+| I18b | I18 | CANCELLED 버전도 고른다 | 빨강 1/43 | `DefaultCodeResolverTest.CANCELLED_버전은_고르지_않는다()` |
+| I18c | I18 | 버전 소급 삭제 | 빨강 5/43 | `DefaultCodeResolverTest.2024-06-01T00:00 → 82`, `DefaultCodeResolverTest.2024-06-01T00:00:00 → 1.000`, `DefaultCodeResolverTest.2024-12-31T23:59:59 → 1.000`, `DefaultCodeResolverTest.2024-06-01T00:00:00 82 → true`, 외 1건 |
+| I19a | I19 | TABLE 조회를 eff_ver 대신 V 로 | 빨강 4/43 | `DefaultCodeResolverTest.2024-06-01T00:00 → 82`, `DefaultCodeResolverTest.2025-03-01T00:00 → 82`, `DefaultCodeResolverTest.2024-06-01T00:00:00 82 → true`, `DefaultCodeResolverTest.2025-03-01T00:00:00 82 → true` |
+| I19b | I19 | 카테고리 소급 삭제 | 빨강 4/43 | `DefaultCodeResolverTest.2024-06-01T00:00 → 82`, `DefaultCodeResolverTest.2025-03-01T00:00 → 82`, `DefaultCodeResolverTest.2024-06-01T00:00:00 82 → true`, `DefaultCodeResolverTest.2025-03-01T00:00:00 82 → true` |
+| I19c | I19/I23 | 닫힌 행도 소급 후보로(가장 이른 행을 늘 고른다) | 빨강 5/60 | `DefaultCodeResolverTest.2026-07-15T00:00:00 → false`, `MasterDataResolverTest.KRINC → null`, `MasterDataResolverTest.KRINC 2026-09-01T09:00:00 → false`, `MasterDataResolverTest.PORT BASE KRINC 2026-09-06T00:00:00 → false`, 외 1건 |
+| I20a | I20 | REGEX matches() → find() | 빨강 2/43 | `DefaultCodeResolverTest.CODE_8 82 → false`, `DefaultCodeResolverTest.attr_는_소속일_때만_돌려준다()` |
+| I20b | I20 | REGEX 를 늘 코드값에 대조 | 빨강 3/43 | `DefaultCodeResolverTest.LVL2_KS3 82 → true`, `DefaultCodeResolverTest.ATTR01_KR 82 → true`, `DefaultCodeResolverTest.ATTR01_ANY 83 → false` |
+| I21a | I21 | CodeEffLookup 빈 집합을 계산 안 함으로 | 빨강 1/43 | `DefaultCodeResolverTest.CodeEffLookup_의_빈_집합은_소속_없음이다()` |
+| I21b | I21 | effectiveCodes 가 CodeEffLookup 을 먼저 본다 | 빨강 1/43 | `DefaultCodeResolverTest.effectiveCodes_는_CodeEffLookup_을_보지_않는다()` |
+| I22a | I22 | CODE_LIST 를 code 순만 | 빨강 1/43 | `DefaultCodeResolverTest.CODE_LIST_는_seq_다음_code_순이다()` |
+| I22b | I22 | DEPRECATED 검사 삭제 | 빨강 1/43 | `DefaultCodeResolverTest.DEPRECATED_마루_코드의_CODE_LIST_는_빈_목록이다()` |
+| I23b | I23 | 선분 시작 from <= dt → from < dt (04·05 공용) | 빨강 15/60 | `DefaultCodeResolverTest.2026-09-01T00:00:00 → true`, `DefaultCodeResolverTest.CODE_8X 82 → true`, `DefaultCodeResolverTest.LVL2_KS3 82 → true`, `DefaultCodeResolverTest.ATTR01_KR 82 → true`, 외 11건 |
+| I23c | I23 | 05 항목 최초 행 소급 삭제 | 빨강 1/17 | `MasterDataResolverTest.PORT BASE KRINC 2026-08-15T00:00:00 → true` |
+| I23d | I23 | closedAt 무시 | 빨강 1/17 | `MasterDataResolverTest.폐기된_마루_데이터는_closed_at_부터_false_다()` |
+| I24a | I24 | 05 REGEX 대상 칸을 늘 KEY 로 | 빨강 2/19 (첫 실행은 생존 0/17 → 테스트 2건 추가 후 재실행) | `MasterDataResolverTest.KR KRPUS 2026-09-06T00:00:00 → true`, `MasterDataResolverTest.KR KRINC 2026-08-30T00:00:00 → true` |
+| I24b | I24 | 05 TABLE 소속 확인 삭제 | 빨강 1/17 | `MasterDataResolverTest.PORT MAJOR KRINC 2026-08-15T00:00:00 → false` |
+| I25a | I25 | 빈 값 정규화 삭제 | 빨강 3/15 | `DefaultDomainValidatorTest.''`, `DefaultDomainValidatorTest.'   '`, `DefaultDomainValidatorTest.'	
+'` |
+| I25b | I25 | 필수 아닌 NULL 도 식까지 간다(필수 검사를 식 뒤로) | 빨강 1/15 | `DefaultDomainValidatorTest.필수가_아니면_NULL_은_통과하고_식은_돌지_않는다()` |
+| I25c | I25 | 표준식 실패 뒤에도 비즈니스식 평가 | 빨강 1/15 | `DefaultDomainValidatorTest.표준식이_거짓이면_비즈니스식을_돌리지_않는다()` |
+| I26a | I26 | 비즈니스 요구 변수 누락 검사 삭제 | 빨강 2/60 | `DefaultDomainValidatorTest.비즈니스_요구_변수_키가_없으면_BIZ_VAR_MISSING_이다()`, `DomainKindExamplesTest.COIL_GRS_WGT '20' null → false BIZ_VAR_MISSING` |
+| I26b | I26 | containsKey → get(...) != null | 빨강 1/15 | `DefaultDomainValidatorTest.키가_있고_값이_NULL_이면_누락이_아니다()` |
+| I26c | I26 | 레코드 복사본을 대소문자 구분 맵으로 | 빨강 1/15 | `DefaultDomainValidatorTest.요구_변수_키는_대소문자를_가리지_않는다()` |
+| I27a | I27 | 숫자 문자열을 new BigDecimal(s) 로 바로 | 빨강 5/28 | `ValueConverterTest.NUMBER ← 1e3`, `ValueConverterTest.NUMBER ← 0xFF`, `ValueConverterTest.NUMBER ←  1`, `ValueConverterTest.NUMBER ← 1,000`, 외 1건 |
+| I27b | I27 | BOOLEAN 문자열을 Boolean.parseBoolean | 빨강 1/28 | `ValueConverterTest.BOOLEAN ← Y` |
+| I28 | I28 | 검증기가 new BigDecimal((String) raw) 로 직접 변환 | 빨강 2/2 | `TypeConversionEntryTest.domain_은_값_변환을_직접_하지_않는다()`, `TypeConversionEntryTest.도메인_검증기는_ValueConverter_convert_를_부른다()` |
+| I29a | I29 | 유효 AST 를 오른쪽 중첩으로 | 빨강 2/11 | `EffectiveExpressionsTest.세_단계_AST_는_AND_AND_조부_부_자신_이다()`, `EffectiveExpressionsTest.[value > 0, value <= 30, value >= 1 && value <= 25]` |
+| I29b | I29 | 유효 텍스트 괄호 생략 | 빨강 2/11 | `EffectiveExpressionsTest.[value > 0, value <= 30, value >= 1 && value <= 25]`, `EffectiveExpressionsTest.두_단계_유효_텍스트는_02_예시와_같다()` |
+| I30a | I30 | 유효 코드 참조를 가장 먼 값으로 | 빨강 1/11 | `EffectiveExpressionsTest.[CodeRef[maruCodeId=PROC_CD, cateId=A], CodeRef[maruCodeId=PROC_CD, cateId=B]] → CodeRef[maruCodeId=PROC_CD, cateId=B]` |
+| I30b | I30 | 카테고리 null·빈 값을 그대로(BASE 로 안 바꿈) | 빨강 1/43 | `DefaultCodeResolverTest.카테고리가_비면_BASE_다()` |
+| I31 | I31 | ExpressionChecker.Problem 을 record 로 | 빨강 1/46 | `EngineContractSchemaTest.expr_rule_패키지의_record_enum_은_스키마_대응이_있거나_Java_전용_목록에_있다()` |
+| I32 | I32 | MdmExpressionConfig 에 static final 아닌 필드 | 빨강 1/5 | `ContractTypeShapeTest.상수_홀더는_final_이고_생성자가_private_이며_필드가_static_final_이다()` |
+| I33 | I33 | DefaultDomainValidator 가 DefaultCodeResolver 를 본다 | 빨강 1/5 | `EnginePackageDependencyTest.domain_은_rule_과_code_를_보지_않는다()` |
+| I34 | I34 | main 이 허용 목록 밖(java.io)에 의존 — networknt 는 main 클래스패스에 없어 대체 | 빨강 1/2 | `MaruMdmEngineArchitectureTest.engine_은_EvalEx_와_java_표준_외에_의존하지_않는다()` |
+| I35 | I35 | 스캐폴드 evaluate → evaluateExpression(이름 변경) | 컴파일 실패(I35 는 설계상 허용) | `ExpressionEvaluatorTest` 컴파일 실패(`cannot find symbol evaluate`) |
+| I36a | I36 | 비즈니스 함수 이름 충돌 검사 삭제 | 빨강 3/9 | `BusinessFunctionTest.MASTER`, `BusinessFunctionTest.IF`, `BusinessFunctionTest.DT_NOW` |
+| I36b | I36 | nullable=false 검사 삭제 | 빨강 1/9 | `BusinessFunctionTest.nullable_false_인자에_NULL_이면_부르지_않고_평가_오류다()` |
 
 ---
 

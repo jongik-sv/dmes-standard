@@ -40,6 +40,16 @@ class MasterDataResolverTest {
         assertEquals(expected, PORT_RESOLVER.isValid(PORT, "BASE", key, baseDt));
     }
 
+    /**
+     * 05:746-747 샘플 판정 — PORT.KR = {KRPUS}, KRINC 는 2026-09-01 09:00 전이면 PORT.KR 에서 true. 원천 7케이스에는
+     * ATTR01 REGEX 가 참이 되는 사례가 없어 "대상 칸을 늘 KEY 로 보는" 구현을 잡지 못한다(Build 변이 I24a).
+     */
+    @ParameterizedTest(name = "KR {0} {1} → true")
+    @CsvSource({"KRPUS, 2026-09-06T00:00:00", "KRINC, 2026-08-30T00:00:00"})
+    void REGEX_는_대상_칸_값에_전체_일치다(String key, LocalDateTime baseDt) {
+        assertTrue(PORT_RESOLVER.isValid(PORT, "KR", key, baseDt));
+    }
+
     @ParameterizedTest(name = "{0} → {1}")
     @CsvSource({"KRPUS, KR", "KRINC, "})
     void attr_형태(String key, String expected) {
