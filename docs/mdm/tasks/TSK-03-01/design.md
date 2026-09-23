@@ -33,7 +33,7 @@
 
 ## 1. 접근 방식
 
-TSK-02-02 가 docs 에 남긴 계약 초안(Java 21 개, JSON Schema 1 개)을 **복사해서** 엔진 main 으로 옮기고, 실행 몸체가 필요한 자리는 interface·시그니처·`UnsupportedOperationException` 으로만 둔다. JSON 모양의 정본은 엔진 `src/main/resources` 의 스키마 **한 벌**이다. TS 는 m-mdm 의 생성 스크립트가 그 파일을 상대경로로 읽어 `json-schema-to-typescript` 로 만들고, vitest 가 "다시 생성한 결과 = 커밋된 파일"을 검사한다. Java 는 엔진 main 의존을 EvalEx 하나로 유지해야 하므로(F2·F3) 생성기를 쓰지 않고, 손으로 쓴 record·enum 을 엔진 테스트(Jackson 은 `testImplementation`)가 스키마 `$defs` 와 양방향으로 대조한다. "실행 로직 없음"은 ArchUnit 으로 기계 검증한다. 이 검증은 두 종류로 나눈다. 계약 타입의 형태 규칙은 후속 Task 이후에도 남기는 영구 규칙이다. "구현 클래스가 하나도 없다"는 폐쇄 규칙은 TSK-03-02 가 첫 구현을 넣을 때 지우는 임시 규칙이다(D2). 이 방식을 고른 이유는 세 가지다. 첫째, spec 수용 기준 두 줄을 모두 자동 테스트로 붙잡는다. 둘째, 스키마 사본이 하나뿐이라 어긋남이 다시 생길 자리가 없다. 셋째, 엔진 jar 의 의존 제약(PRD FR-E7·TRD §10)을 건드리지 않는다.
+TSK-02-02 가 docs 에 남긴 계약 초안(Java 21 개, JSON Schema 1 개)을 **복사해서** 엔진 main 으로 옮기고, 실행 몸체가 필요한 자리는 interface·시그니처·`UnsupportedOperationException` 으로만 둔다. JSON 모양의 정본은 엔진 `src/main/resources` 의 스키마 **한 벌**이다. TS 는 m-mdm 의 생성 스크립트가 그 파일을 상대경로로 읽어 `json-schema-to-typescript` 로 만들고, vitest 가 "다시 생성한 결과 = 커밋된 파일"을 검사한다. Java 는 엔진 main 의존을 EvalEx 하나로 유지해야 하므로(F2·F3) 생성기를 쓰지 않고, 손으로 쓴 record·enum 을 엔진 테스트(Jackson 은 `testImplementation`)가 스키마 `$defs` 와 양방향으로 대조한다. "실행 로직 없음"은 ArchUnit 으로 기계 검증한다. 이 검증은 두 종류로 나눈다. 계약 타입의 형태 규칙은 후속 Task 이후에도 남기는 영구 규칙이다. "구현 클래스가 하나도 없다"는 폐쇄 규칙은 main 구현 클래스를 먼저 넣는 후속 Task(TSK-03-02·03-03·03-04 는 모두 03-01 에만 의존해 병렬로 진행된다)가 파일째 지우는 임시 규칙이다(D2). 이 방식을 고른 이유는 세 가지다. 첫째, spec 수용 기준 두 줄을 모두 자동 테스트로 붙잡는다. 둘째, 스키마 사본이 하나뿐이라 어긋남이 다시 생길 자리가 없다. 셋째, 엔진 jar 의 의존 제약(PRD FR-E7·TRD §10)을 건드리지 않는다.
 
 ---
 
@@ -47,6 +47,7 @@ TSK-02-02 가 docs 에 남긴 계약 초안(Java 21 개, JSON Schema 1 개)을 *
 | `java/…/expr/{AstNode,EngineWarning,EngineEvaluationException,FunctionSets,ReservedNames}.java` | 복사. 매핑 record 에 `@Nullable` 추가 | 사용처는 TSK-03-02·03 |
 | `java/…/expr/MdmExpressionConfig.java` | **모양을 바꿔 복사**: 고정값 14개를 `public static final` 상수로 두고, `baseBuilder()`·`create(EngineLookups)` 는 시그니처만 두고 둘 다 UOE 를 던진다(D1, §6.2) | 두 몸체는 TSK-03-02 |
 | `java/…/code/CodeResolver.java` | 복사(interface + `CodeListEntry` record) | 구현은 TSK-03-02 |
+| (초안 밖) `MASTER`·`MASTER_AT`·`INSTR` 식 함수 시그니처 | `expr.MdmFunction` enum 을 새로 둔다(이름·인자 수·인자 이름, §6.7, D7). 초안은 이것을 `engine-contract.md` §7 문서로만 적었다 | `AbstractFunction` 구현은 TSK-03-02 |
 | `java/…/rule/{RuleEngine,RuleResult,RuleSetResult,RuleView}.java` | 복사(interface·record·enum). `RuleEngine.text`·`textAndAst` default 위임은 유지(F14) | `RuleEngine` 구현·`RuleView.row(rowId)`(F15)는 TSK-03-03 |
 | `java/…/domain/DomainValidator.java` | 복사(interface·record·enum) | 구현은 TSK-03-02 |
 | `schema/engine-contract.schema.json` | 엔진 `src/main/resources/kr/dongkuk/maru/mdm/engine/engine-contract.schema.json` 으로 **복사한 뒤 고친다**. 모양(JSON 적합성)은 바꾸지 않고, 이름 끌어올리기·title·`RuleSetResult` 추가만 한다(D5, §6.4). 이 사본이 정본이다 | — |
@@ -68,13 +69,14 @@ TSK-02-02 가 docs 에 남긴 계약 초안(Java 21 개, JSON Schema 1 개)을 *
 | `J/spi/Nullable.java` | 표지 annotation(§6.3, D3) |
 | `J/expr/AstNode.java`, `EngineWarning.java`, `EngineEvaluationException.java`, `FunctionSets.java`, `ReservedNames.java` | 초안 복사 + §6.3 표지 |
 | `J/expr/MdmExpressionConfig.java` | §6.2 모양 |
+| `J/expr/MdmFunction.java` | MDM 조회·문자열 함수 시그니처 enum(§6.7, D7) — 초안에 없는 새 계약 파일 |
 | `J/code/CodeResolver.java` | 초안 복사 |
 | `J/rule/RuleEngine.java`, `RuleResult.java`, `RuleSetResult.java`, `RuleView.java` | 초안 복사 + §6.3 표지 |
 | `J/domain/DomainValidator.java` | 초안 복사 |
 | `E/src/main/resources/kr/dongkuk/maru/mdm/engine/engine-contract.schema.json` | 스키마 정본(§6.4) |
 | `T/arch/EnginePackageDependencyTest.java` | 패키지 의존 방향 5규칙(§3) |
 | `T/arch/ContractTypeShapeTest.java` | 계약 타입 형태 영구 규칙(§3) |
-| `T/arch/ContractOnlyPhaseTest.java` | 계약 전용 폐쇄 임시 규칙(§3). 클래스 Javadoc 에 "TSK-03-02 가 첫 구현을 넣는 커밋에서 이 클래스를 지운다"를 적는다 |
+| `T/arch/ContractOnlyPhaseTest.java` | 계약 전용 폐쇄 임시 규칙(§3). 클래스 Javadoc 에 "TSK-03-02·03-03·03-04 중 main 구현 클래스를 먼저 넣는 Task 가 그 커밋에서 이 파일을 지운다"를 적는다 |
 | `T/contract/EngineContractSchemaTest.java` | Java↔스키마 양방향 대조(§3, §6.5) |
 | `T/contract/EngineContractConstantsTest.java` | 설정 고정값·함수 집합·예약 이름 고정(§3) |
 | `M/scripts/gen-engine-contract.mjs` | TS 생성 스크립트(§6.6) |
@@ -106,7 +108,7 @@ TSK-02-02 가 docs 에 남긴 계약 초안(Java 21 개, JSON Schema 1 개)을 *
 
 기준선: 백엔드 `testAll` 395건 실패 0(엔진 5건 포함), 프런트 m-mdm 1건 실패 0. 화면 작업이 아니므로 **브라우저 E2E 는 해당 없음**이다. 새 테스트를 먼저 쓰고, 계약 파일을 옮기기 전에 빨강(컴파일 실패 포함)을 확인한 뒤 구현한다.
 
-### 3.1 백엔드 — 새 테스트 70건 (엔진 5 → 75, testAll 395 → 465)
+### 3.1 백엔드 — 새 테스트 71건 (엔진 5 → 76, testAll 395 → 466)
 
 모든 ArchUnit 테스트는 기존 테스트와 같은 import 를 쓴다: `new ClassFileImporter().withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS).importPackages("kr.dongkuk.maru.mdm.engine")`.
 
@@ -132,7 +134,9 @@ TSK-02-02 가 docs 에 남긴 계약 초안(Java 21 개, JSON Schema 1 개)을 *
 | `계약_record_생성자는_Record_생성자만_부른다` | record 생성자의 `getMethodCallsFromSelf()` 가 비어 있고 `getConstructorCallsFromSelf()` 의 대상이 `java.lang.Record.<init>` 뿐이다(compact 생성자 로직 금지) |
 | `계약_interface_의_몸체_있는_메서드는_RuleEngine_text_textAndAst_뿐이다` | 계약 interface 들의 메서드 중 `ABSTRACT` 가 아니고 `SYNTHETIC` 도 아닌 것(static 초기화 블록 제외)의 집합 = {`RuleEngine.text`, `RuleEngine.textAndAst`} |
 
-**`T/arch/ContractOnlyPhaseTest.java` — 5건(임시, TSK-03-02 가 지운다)**
+**`T/arch/ContractOnlyPhaseTest.java` — 5건(임시, main 구현 클래스를 먼저 넣는 후속 Task 가 파일째 지운다)**
+
+TSK-03-02 는 `expr`·`code`·`domain` 에, TSK-03-03 은 `rule` 에 구현 클래스를 넣고 셀을 `Expression` 으로 평가한다(06:394-414). TSK-03-04 도 입력 계약 계산을 `rule` 에 둘 수 있다. 셋 중 어느 Task 가 먼저 구현을 넣든 I8·I10 이 빨강이 되므로, 그 Task 가 이 파일을 지운다. 패키지별로 쪼개지 않는 이유는 세 브랜치가 같은 파일을 고치며 충돌할 위험이 더 크기 때문이다.
 
 | 테스트 | 검사 |
 |---|---|
@@ -158,7 +162,7 @@ TSK-02-02 가 docs 에 남긴 계약 초안(Java 21 개, JSON Schema 1 개)을 *
 | `모든_ref_는_defs_안에서_풀린다` | 1 |
 | `스키마는_2020_12_이고_title_이_EngineContract_다` | 1 |
 
-**`T/contract/EngineContractConstantsTest.java` — 9건(영구)**
+**`T/contract/EngineContractConstantsTest.java` — 10건(영구)**
 
 | 테스트 | 검사 |
 |---|---|
@@ -171,6 +175,7 @@ TSK-02-02 가 docs 에 남긴 계약 초안(Java 21 개, JSON Schema 1 개)을 *
 | `CONSTANTS_는_EvalEx_표준_상수와_같다` | `ReservedNames.CONSTANTS` == `ExpressionConfiguration.StandardConstants.keySet()`(대문자로 맞춰 비교) |
 | `예약_키_상수가_06_422_424_와_같다` | `EVAL_TS="EVAL_TS"`, `RESERVED_PREFIX="_"`, `EXPR_VAR_PREFIX="_V"`, `DOMAIN_VALUE="value"` |
 | `Slot_표지는_DOMAIN_BIZ_만_비즈니스_함수_DOMAIN_STD_만_value_전용이다` | `FunctionSets.Slot` 6개 값의 두 boolean |
+| `MdmFunction_시그니처가_06_443_05_363_과_같다` | 이름 집합 == `FunctionSets.MDM`; `INSTR` 2~2 `(s, sub)`, `MASTER` 3~4 `(id, cate, key, attr)`, `MASTER_AT` 4~5 `(id, cate, key, base_dt, attr)`; 값마다 `paramNames().size() == maxArgs()` |
 
 ### 3.2 프런트 — 새 테스트 5건 (m-mdm 1 → 6)
 
@@ -187,7 +192,7 @@ TSK-02-02 가 docs 에 남긴 계약 초안(Java 21 개, JSON Schema 1 개)을 *
 ### 3.3 게이트 명령과 번들 확인
 
 ```bash
-# 백엔드 — 465건 실패 0 기대
+# 백엔드 — 466건 실패 0 기대
 cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon
 # 엔진만 빠르게
 cd src/backend/maru-mdm-engine && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ../gradlew test --no-daemon
@@ -210,7 +215,7 @@ grep -vE "^\s*$|sourceMappingURL" src/frontend/m-mdm/dist/index.js | wc -l   # 0
 | (요구사항) engine.spi 인터페이스 | `spi` 6개 파일 + `EnginePackageDependencyTest` 의 spi 격리 규칙 |
 | (요구사항) EvalEx 설정 팩토리 시그니처 | `MdmExpressionConfig.baseBuilder()`·`create(EngineLookups)` 시그니처 + 고정값 상수(`EngineContractConstantsTest`) |
 | (요구사항) AST JSON 스키마 타입 | Java `AstNode`(E1~E3, R1) ↔ 스키마 `AstNode` ↔ TS `AstNode` |
-| (요구사항) MASTER/MASTER_AT/CODE_LIST 함수 시그니처 | `CodeResolver`(`isMember`·`attr`·`codeList`·`CodeListEntry`), `MasterLookup`, `FunctionSets.MDM` 고정 테스트. 식 함수 시그니처(인자 수·형태)는 `engine-contract.md` §7 이 문서 계약이고 `AbstractFunction` 구현은 TSK-03-02 다 |
+| (요구사항) MASTER/MASTER_AT/CODE_LIST 함수 시그니처 | 식 함수: `expr.MdmFunction`(이름·최소/최대 인자 수·인자 이름) + `MdmFunction_시그니처가…` 테스트(D7). `CODE_LIST` 는 식 함수가 아니라 Java API `CodeResolver.codeList(maruCodeId, cateId, baseDt)` → `List<CodeListEntry>`(X6). 마루 코드·데이터 판정 입구는 `CodeResolver.isMember`·`attr`, `MasterLookup.isValid`·`attr`. `AbstractFunction` 구현은 TSK-03-02 |
 | (요구사항) 판정 결과 타입(적중 row_id·seq, 첫 거짓 셀, 경고) | `RuleResult.Hit(rowId, seq, …)`, `RowTrace.firstFalseVarId`, `EngineWarning` ↔ 스키마 `RuleHit`·`RowTrace`·`EngineWarning`(R7~R10) |
 | (요구사항) JS 평가기와 공유할 AST·셀 구조 TS 타입 | 생성 TS 의 `AstNode`·`CellJson`·`CellOp`·`TypedValue`·코퍼스 타입, `@dk-oasis/m-mdm` 배럴에서 export |
 
@@ -229,10 +234,10 @@ grep -vE "^\s*$|sourceMappingURL" src/frontend/m-mdm/dist/index.js | wc -l   # 0
 | I5 | 상수 홀더는 final·private 생성자·static final 필드만 | `FunctionSets` 에서 `final` 제거 또는 `public static Set<String> EXTRA` (non-final) 추가 → `상수_홀더는…` |
 | I6 | 계약 record 에 몸체 메서드·생성자 로직이 없다 | `RuleView` 에 `row(int rowId)` 추가 → `계약_record_는_접근자와…`. `RuleResult` 에 `hits = List.copyOf(hits)` compact 생성자 추가 → `계약_record_생성자는…` |
 | I7 | 계약 interface 의 몸체 메서드는 `RuleEngine.text`·`textAndAst` 뿐이다 | `DomainValidator` 에 default 메서드 추가 → `계약_interface_의…`. `RuleEngine.text` 를 abstract 로 바꿈 → 같은 테스트(집합이 달라짐) |
-| I8 | (임시) main 클래스 집합이 계약 타입 + 스캐폴드 + `MasterLookup$1` 로 닫혀 있다 | `rule/SimpleRuleEngine implements RuleEngine` 추가 → `main_클래스_집합이…`. `CodeResolver.java` 삭제 → 같은 테스트(빠진 쪽). `ExpressionEvaluator` 삭제 → 같은 테스트 + `ExpressionEvaluatorTest` 컴파일 실패 |
-| I9 | (임시) `MdmExpressionConfig.baseBuilder()`·`create()` 는 UOE 만 던진다 | `baseBuilder()` 에 초안 빌더 체인 복원 → `MdmExpressionConfig_의_메서드는…` + `baseBuilder_는…`. `create` 가 `baseBuilder().build()` 반환 → 두 테스트 |
-| I10 | (임시) EvalEx 실행 타입은 스캐폴드만 쓴다 | `MdmExpressionConfig.create` 에서 `new com.ezylang.evalex.Expression("1")` → `EvalEx_실행_타입은…` |
-| I11 | 스캐폴드 `ExpressionEvaluator`·그 테스트·`MaruMdmEngineArchitectureTest` 는 바이트 동일 | 자동 테스트 없음. Verify 가 `git diff main -- <세 파일>` 이 비어 있는지 본다(덮지 못하는 변이로 보고) |
+| I8 | (임시, 첫 구현 Task 가 삭제) main 클래스 집합이 계약 타입 + 스캐폴드 + `MasterLookup$1` 로 닫혀 있다 | `rule/SimpleRuleEngine implements RuleEngine` 추가 → `main_클래스_집합이…`. `CodeResolver.java` 삭제 → 같은 테스트(빠진 쪽). `ExpressionEvaluator` 삭제 → 같은 테스트 + `ExpressionEvaluatorTest` 컴파일 실패 |
+| I9 | (임시, 첫 구현 Task 가 삭제) `MdmExpressionConfig.baseBuilder()`·`create()` 는 UOE 만 던진다 | `baseBuilder()` 에 초안 빌더 체인 복원 → `MdmExpressionConfig_의_메서드는…` + `baseBuilder_는…`. `create` 가 `baseBuilder().build()` 반환 → 두 테스트 |
+| I10 | (임시, 첫 구현 Task 가 삭제) EvalEx 실행 타입은 스캐폴드만 쓴다 | `MdmExpressionConfig.create` 에서 `new com.ezylang.evalex.Expression("1")` → `EvalEx_실행_타입은…` |
+| I11 | 스캐폴드 `ExpressionEvaluator`·그 테스트·`MaruMdmEngineArchitectureTest` 는 바이트 동일 | 자동 테스트 없음. Verify 가 `/usr/bin/git diff main -- <세 파일>` 이 비어 있는지 본다(덮지 못하는 변이로 보고) |
 | I12 | Java enum·상수 집합 = 스키마 enum(E1~E8) | `EngineEvaluationException.Code` 에 `TIMEOUT` 추가 → `enum_상수_집합이…[E5]`. 스키마 `InfixOperator` 에서 `"<>"` 제거 → `[E2]`. 스키마 `ExprSlot` 에 값 추가 → `[E8]` |
 | I13 | record 컴포넌트 이름 = 스키마 속성 이름(R1~R11, 양방향) | `Violation.name` 을 `varName` 으로 → `record_컴포넌트_이름이…[R6]`. 스키마 `RuleHit` 에 `note` 속성 추가 → `[R9]` |
 | I14 | `@Nullable` ⇔ (스키마에서 required 아님 ∨ null 허용) | `EngineWarning.ruleId` 의 `@Nullable` 제거 → `Nullable_표지가…[R7]`. 스키마 `RuleResult.required` 에서 `ruleId` 제거 → `[R8]`. 스키마 `RuleHit.rowId` 타입에 `"null"` 추가 → `[R9]` |
@@ -244,11 +249,12 @@ grep -vE "^\s*$|sourceMappingURL" src/frontend/m-mdm/dist/index.js | wc -l   # 0
 | I20 | 함수 집합: `STANDARD = BASE ∪ MDM`, `GENERATED ⊆ STANDARD`, 제외 함수 없음, BASE 는 EvalEx 표준 사전 안, MDM 은 밖 | `BASE` 에 `DT_NOW` 추가 → `제외_함수는…`(+ `STANDARD_는…` 크기). `STANDARD` 에서 `INSTR` 제거 → `STANDARD_는…`. `BASE` 에 `FOO` → `BASE_는_EvalEx…` |
 | I21 | 예약 이름: 상수 8종 = EvalEx 표준 상수, `EVAL_TS`·`_`·`_V`·`value` | `CONSTANTS` 에서 `PI` 제거 → `CONSTANTS_는…`. `EXPR_VAR_PREFIX="_X"` → `예약_키_상수가…` |
 | I22 | Slot 표지(06:443·EG §7) | `RULE_COND_EXPR(true, false)` → `Slot_표지는…` |
+| I22a | MDM 함수 시그니처: `INSTR` 2, `MASTER` 3~4, `MASTER_AT` 4~5, 이름 집합 = `FunctionSets.MDM` | `MASTER` 최대 인자 5 → `MdmFunction_시그니처가…`. `MdmFunction` 에 `CODE_LIST` 추가 → 같은 테스트(이름 집합) |
 | I23 | TS 생성물 = 스키마에서 다시 생성한 결과 | 생성 파일 한 줄 손수정 → 프런트 `스키마로 다시 생성한…`. 스키마만 고치고 재생성 안 함 → 같은 테스트 |
 | I24 | 스키마 사본은 엔진 resources 한 벌 | 스키마를 `M/src/contract/` 에 복사 → `m-mdm 안에 스키마 사본이 없다`. `SCHEMA_PATH` 를 docs 초안으로 → `생성 스크립트는…` |
 | I25 | 생성 TS export 이름 목록(§6.4) | 스키마 `RuleHit` 를 `Hit` 로 개명 후 재생성 → 프런트 `생성 파일의 export 이름이…`(+ Java R9) |
 | I26 | 배럴이 생성 타입을 재수출하고 런타임 코드를 내지 않는다 | `index.ts` 의 재수출 제거 → 프런트 `index.ts 가 생성 파일을…`. `export *` 로 바꿔 런타임 코드 발생 여부는 §3.3 번들 확인으로만 본다(자동 테스트 없음) |
-| I27 | docs 초안(`docs/mdm/engine-contract/**`)은 바이트 동일 | 자동 테스트 없음. Verify 가 `git diff main -- docs/mdm/engine-contract/` 가 비어 있는지 본다 |
+| I27 | docs 초안(`docs/mdm/engine-contract/**`)은 바이트 동일 | 자동 테스트 없음. Verify 가 `/usr/bin/git diff main -- docs/mdm/engine-contract/` 가 비어 있는지 본다 |
 
 ---
 
@@ -259,7 +265,7 @@ grep -vE "^\s*$|sourceMappingURL" src/frontend/m-mdm/dist/index.js | wc -l   # 0
 이름 있는 main 클래스 전부다(FQN 은 `kr.dongkuk.maru.mdm.engine.` 뒤만 적는다. 중첩은 `$`).
 
 - spi: `DefinitionLookup`, `$ColumnDefinition`, `$CodeRef`, `$DomainKind`, `$DataType`, `$RuleDefinition`, `$RuleKind`, `$HitPolicy`, `$VarKind`, `$DispType`, `$CollectAgg`, `$RuleVar`, `$RowKind`, `$RuleRow`, `$RuleCell`, `$InputContract`, `$RowContract`, `$VarType`, `$RuleSetDefinition`, `$SetStatus` · `CodeLookup`, `$CodeRows`, `$CodeHeader`, `$CodeVersionRow`, `$CodeItemRow`, `$CodeCateRow`, `$CodeCateItemRow` · `CodeEffLookup` · `MasterLookup` · `FunctionProvider`, `$BusinessFunction`, `$Param`, `$Body` · `EngineLookups` · `Nullable`
-- expr: `AstNode`, `$Type` · `EngineWarning`, `$Code` · `EngineEvaluationException`, `$Stage`, `$Code`, `$Violation` · `FunctionSets`, `$Slot` · `ReservedNames` · `MdmExpressionConfig`
+- expr: `AstNode`, `$Type` · `EngineWarning`, `$Code` · `EngineEvaluationException`, `$Stage`, `$Code`, `$Violation` · `FunctionSets`, `$Slot` · `ReservedNames` · `MdmExpressionConfig` · `MdmFunction`
 - code: `CodeResolver`, `$CodeListEntry`
 - rule: `RuleEngine`, `$Part` · `RuleResult`, `$Hit`, `$RowTrace` · `RuleSetResult` · `RuleView`, `$ColumnView`, `$RowView`, `$CellView`
 - domain: `DomainValidator`, `$ValidationResult`, `$Failure`, `$Step`
@@ -406,11 +412,11 @@ public @interface Nullable {}
 
 **스키마 전용 목록**(대응 Java 없음, 사유를 테스트 상수 옆 주석에 적는다): `AstNumberLiteral`·`AstStringLiteral`·`AstVariable`·`AstPrefix`·`AstInfix`·`AstFunction`(R1 유니온 뷰로 대조), `TypedValue`(Java 값은 `Object`, 직렬화는 호출자), `CellOp`·`NoValueOp`·`SingleValueOp`·`ListOp`·`RangeOp`(Java `RuleCell.op` 는 `String`, op 해석은 TSK-03-03 생성기), `CorpusFile`·`CorpusCase`·`ExprCase`·`CellCase`·`CodeSets`·`Expect`(코퍼스, TSK-03-04 러너), `LocalDateTime`(형식), `EngineError`(예외 래퍼, 내용은 R6 으로 대조).
 
-**Java 전용 목록**(expr·rule 패키지의 record·enum 중 스키마 대응 없음): `rule.RuleView`·`$ColumnView`·`$RowView`·`$CellView`(정의 조회 JSON 은 서버 API 가 정한다, TSK-03-03), `rule.RuleEngine.Part`(입구 인자, JSON 아님).
+**Java 전용 목록**(expr·rule 패키지의 record·enum 중 스키마 대응 없음): `expr.MdmFunction`(식 함수 시그니처, JSON 모양이 아니다), `rule.RuleView`·`$ColumnView`·`$RowView`·`$CellView`(정의 조회 JSON 은 서버 API 가 정한다, TSK-03-03), `rule.RuleEngine.Part`(입구 인자, JSON 아님).
 
 ### 6.6 TS 생성 파이프라인
 
-- **설치**: `cd src/frontend && pnpm --filter @dk-oasis/m-mdm add -D json-schema-to-typescript@^16.0.0`. 끝나면 `git status --short src/frontend` 로 `pnpm-workspace.yaml` 등 다른 파일이 바뀌었는지 보고, 바뀌었으면 그 파일만 `git checkout -- <파일>` 로 되돌린다. 커밋은 `m-mdm/package.json`·`pnpm-lock.yaml` 로 한정한다.
+- **설치**: `cd src/frontend && pnpm --filter @dk-oasis/m-mdm add -D json-schema-to-typescript@^16.0.0`. 끝나면 `/usr/bin/git status --short src/frontend` 로 `pnpm-workspace.yaml` 등 다른 파일이 바뀌었는지 보고, 바뀌었으면 그 파일만 `/usr/bin/git checkout -- <파일>` 로 되돌린다. 커밋은 `m-mdm/package.json`·`pnpm-lock.yaml` 로 한정한다.
 - **스크립트** `M/scripts/gen-engine-contract.mjs`(ESM, 타입 검사 밖):
 
 ```js
@@ -451,10 +457,40 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   tsup 의 dts 빌드가 `export type *` 를 처리하지 못하면(빌드 오류 또는 `dist/index.d.ts` 에 타입 없음) `export * from "./contract/engine-contract.generated";` 로 바꾸고, 프런트 테스트 5 의 기대 문자열도 같이 바꾸고, §3.3 번들 확인으로 런타임 코드가 없는지 다시 본다. 이탈은 design.md 에 추기한다.
 - **포맷 보호**: `M/.prettierignore` 에 `src/contract/engine-contract.generated.ts`. m-mdm `format` 스크립트(`prettier --write .`)가 생성물을 바꾸지 않게 한다.
 
-### 6.7 Java 이식 절차 (Build 순서)
+### 6.7 `MdmFunction` — 식 함수 시그니처 (D7)
+
+```java
+package kr.dongkuk.maru.mdm.engine.expr;
+
+/** 엔진이 구현하는 커스텀 식 함수의 시그니처(06:443-444, 05:363-400, EG:215·223). 구현(AbstractFunction)은 TSK-03-02. */
+public enum MdmFunction {
+    /** INSTR(s, sub) → NUMBER|NULL. 대소문자 구분, 1부터, 없으면 0, 인자가 NULL 이면 NULL. */
+    INSTR(2, 2, List.of("s", "sub")),
+    /** MASTER(id, cate, key) → BOOLEAN(EVAL_TS 에 유효), MASTER(id, cate, key, attr) → STRING|NULL. */
+    MASTER(3, 4, List.of("id", "cate", "key", "attr")),
+    /** MASTER_AT(id, cate, key, base_dt) → BOOLEAN(base_dt 에 유효), + attr → STRING|NULL. base_dt 는 YYYYMMDD·YYYYMMDDHHMMSS(KST). */
+    MASTER_AT(4, 5, List.of("id", "cate", "key", "base_dt", "attr"));
+
+    private final int minArgs;
+    private final int maxArgs;
+    private final List<String> paramNames;
+
+    MdmFunction(int minArgs, int maxArgs, List<String> paramNames) { … 필드 대입만 … }
+
+    public int minArgs() { … }
+    public int maxArgs() { … }
+    public List<String> paramNames() { … }
+}
+```
+
+- 데이터만 싣는 enum 이다(생성자는 필드 대입, 메서드는 접근자). 계약 형태 규칙상 enum 은 허용 종류이고, `FunctionSets.Slot` 과 같은 모양이다.
+- 쓰는 곳: TSK-03-02 의 `AbstractFunction` 인자 수 선언, 저장 시 AST 검사의 "초과 인자 거부"(05:400), TSK-03-04 의 `isSupported`.
+- `CODE_LIST` 는 넣지 않는다. 식 사전에 없는 Java API 다(06:316, X6).
+
+### 6.8 Java 이식 절차 (Build 순서)
 
 1. 테스트 5개 파일을 먼저 쓴다. 계약 클래스가 없어 컴파일 실패(빨강)를 확인한다. `ContractOnlyPhaseTest`·`EngineContractSchemaTest` 는 스키마·계약 파일이 없으면 실패한다.
-2. `cp -R docs/mdm/engine-contract/java/kr <E>/src/main/java/` 로 복사한다(스캐폴드 `ExpressionEvaluator`·`package-info` 와 파일 이름이 겹치지 않는다). 복사 뒤 `git diff --stat main -- docs/mdm/engine-contract/` 가 비어 있어야 한다.
+2. `cp -R docs/mdm/engine-contract/java/kr <E>/src/main/java/` 로 복사한다(스캐폴드 `ExpressionEvaluator`·`package-info` 와 파일 이름이 겹치지 않는다). 복사 뒤 `/usr/bin/git diff --stat main -- docs/mdm/engine-contract/` 가 비어 있어야 한다.
 3. `MdmExpressionConfig` 를 §6.2 로 바꾸고, `spi/Nullable.java` 를 만들고, §6.3 표지를 단다. 초안 Javadoc 의 "design §6.x" 는 TSK-02-02 design 을 가리킨다. 문구는 그대로 두되 모호하면 `TSK-02-02 design §6.x` 로 한정한다.
 4. 스키마를 §6.4 대로 만든다. `build.gradle` 에 Jackson 을 더한다.
 5. 엔진 테스트 → m-mdm 설치·생성·테스트 → `testAll` 순서로 초록을 확인한다.
@@ -489,9 +525,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
 
 ### D2 — "실행 로직 없음"을 무엇으로 기계 검증하고, 후속 Task 와 어떻게 나눌 것인가
 - **질문**: 계약 전용을 테스트로 붙잡되, TSK-03-02·03 이 구현 클래스를 넣으면 그 테스트는 반드시 깨진다. 규칙을 어떻게 나눌 것인가?
-- **선택지**: (a) 계약 타입 목록에만 적용하는 영구 형태 규칙(`ContractTypeShapeTest`) + "구현 클래스가 없다" 임시 폐쇄 규칙(`ContractOnlyPhaseTest`, TSK-03-02 가 첫 구현 커밋에서 지운다) / (b) 전부 영구 규칙으로 두고 후속 Task 가 목록을 늘린다 / (c) 기계 검증 없이 리뷰로만 / (d) 전부 임시 규칙
+- **선택지**: (a) 계약 타입 목록에만 적용하는 영구 형태 규칙(`ContractTypeShapeTest`) + "구현 클래스가 없다" 임시 폐쇄 규칙(`ContractOnlyPhaseTest`, TSK-03-02·03-03·03-04 중 main 구현 클래스를 먼저 넣는 Task 가 그 커밋에서 파일째 지운다) / (b) 전부 영구 규칙으로 두고 후속 Task 가 목록을 늘린다 / (c) 기계 검증 없이 리뷰로만 / (d) 전부 임시 규칙
 - **택한 것**: (a)
-- **근거**: spec 수용 기준이 contract-only 이므로 검증은 자동이어야 한다((c) 탈락). 폐쇄 규칙을 영구로 두면 후속 Task 가 구현할 때마다 계약 테스트를 고쳐야 해서 계약 테스트의 의미가 흐려진다((b)). 형태 규칙까지 임시로 두면 이후 계약 record 에 로직이 스며드는 것을 막지 못한다((d)). (a) 는 계약 타입의 모양은 영구히 지키고, "이 시점에 구현이 없다"는 사실만 한시적으로 지킨다. `ContractOnlyPhaseTest` Javadoc 과 이 문서에 "TSK-03-02 가 지운다"를 적어 둔다.
+- **근거**: spec 수용 기준이 contract-only 이므로 검증은 자동이어야 한다((c) 탈락). 폐쇄 규칙을 영구로 두면 후속 Task 가 구현할 때마다 계약 테스트를 고쳐야 해서 계약 테스트의 의미가 흐려진다((b)). 형태 규칙까지 임시로 두면 이후 계약 record 에 로직이 스며드는 것을 막지 못한다((d)). (a) 는 계약 타입의 모양은 영구히 지키고, "이 시점에 구현이 없다"는 사실만 한시적으로 지킨다. 세 후속 Task 가 병렬로 시작하므로(wbs 일정 모두 2026-11-06~) 삭제 주체를 특정 Task 로 못 박지 않고 "먼저 구현을 넣는 Task"로 정한다. `ContractOnlyPhaseTest` Javadoc 과 이 문서에 그렇게 적어 둔다.
 - **반려되면 재작업 방향**: (b) 면 `ContractOnlyPhaseTest` 를 `ContractTypeShapeTest` 에 합치고 폐쇄 규칙을 "계약 패키지의 새 클래스는 `impl` 하위 패키지에만" 같은 영구 규칙으로 바꾼다. (d) 면 `ContractTypeShapeTest` 를 `ContractOnlyPhaseTest` 로 합치고 Javadoc 에 삭제 시점을 적는다.
 
 ### D3 — Java record 의 필수·null 여부를 스키마와 어떻게 대조할 것인가
@@ -521,3 +557,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
 - **택한 것**: (a)
 - **근거**: spec 수용 기준은 "Java·TS 타입이 같은 스키마에서 나온다"이고, 이것은 타입 구조 대조로 증명된다. 검증 대상 JSON 을 엔진이 아직 만들지 않으므로, 지금 검증기를 넣으면 모듈 밖 docs 표본을 읽는 테스트가 된다. 이런 테스트는 docs 초안에 의존하므로 D4 의 단일 사본 원칙과 부딪힌다. §13 인계는 미승인 선행이라 근거가 가장 약하다. JSON 라이브러리는 리포 선례(`oasis/build.gradle:23`)와 캐시가 있는 `jackson-databind:2.18.2` 로 정했다(명백한 기본값).
 - **반려되면 재작업 방향**: (b)·(c) 면 `maven-metadata.xml` 로 `json-schema-validator` 버전을 확인하고, 그 버전의 2020-12 지원과 요구 Jackson 버전을 확인한 뒤 `testImplementation` 에 더한다. 표본은 docs 를 읽지 말고 `E/src/test/resources/` 에 최소 표본(AST 3건, RuleResult 1건, 틀린 모양 2건)을 새로 만들어 검증한다. 테스트 수는 그만큼 늘린다.
+
+### D7 — `MASTER`·`MASTER_AT`·`INSTR` 식 함수 시그니처를 Java 계약에 어떻게 담을 것인가
+- **질문**: spec 요구사항이 "MASTER/MASTER_AT/CODE_LIST 함수 시그니처"를 적었다. 초안은 이름(`FunctionSets.MDM`)과 CODE_LIST 경로(`CodeResolver.codeList`)만 Java 로 두고, 식 함수의 인자 수·형태는 `engine-contract.md` §7 문서로만 적었다. 무엇으로 담을 것인가?
+- **선택지**: (a) 계약 전용 enum `expr.MdmFunction`(이름·최소/최대 인자 수·인자 이름)을 새로 두고 테스트로 고정 / (b) 문서 계약(`engine-contract.md` §7)만 두고 Java 는 이름 집합까지 / (c) 함수마다 Java interface(`MasterFunction` 등) 시그니처를 둔다
+- **택한 것**: (a)
+- **근거**: spec 본문 요구사항을 미승인 선행 문서(가장 약한 근거)에만 기대게 두지 않는다. 인자 수는 저장 시 AST 검사(05:400 "초과 인자 거부")와 화면 `isSupported` 가 함께 쓰는 값이라 코드 계약이어야 한다. enum 은 데이터만 싣고 로직이 없어 계약 전용 조건을 지킨다. (c) 는 EvalEx `AbstractFunction` 과 겹치는 추상화를 만들고, 식 함수의 실제 입구(EvalEx 함수 사전)와 모양이 달라 쓸 곳이 없다.
+- **반려되면 재작업 방향**: (b) 면 `MdmFunction.java` 와 `MdmFunction_시그니처가…` 테스트를 지우고, `CONTRACT_TYPES`·Java 전용 목록에서 빼고, §4 해당 행을 "문서 계약(`engine-contract.md` §7)"으로 되돌리고 테스트 수를 1 줄인다. (c) 면 enum 대신 `expr` 에 interface 를 두고 형태 규칙의 interface 몸체 허용 목록은 그대로 둔다.
