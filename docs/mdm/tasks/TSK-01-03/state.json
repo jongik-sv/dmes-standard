@@ -2,7 +2,7 @@
   "tsk": "TSK-01-03",
   "order": "c7f0c4f6-568b-41f1-a7e3-40936f6c5827",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "reported",
+  "phase": "merged",
   "baseline": {
     "failures": 0,
     "tests": 447,
@@ -54,5 +54,6 @@
     "e2e": "5 passed — 오케스트레이터 직접 실행(mcm 18703·mdm 18796·포털 15703, 새 mcm.db, 시드 대조 diff 없음, SQLite 경로 워크트리 확인)",
     "mutation": "I1~I24 62건 전부 빨강 (verify2, sonnet 재시도)"
   },
-  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\""
+  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\"",
+  "unapproved": true
 }
