@@ -417,6 +417,13 @@ public interface MdmLayoutParser {
 - **근거**: naming-dialect-rules §3 #16 "현재 시각은 애플리케이션이 파라미터로 넘긴다 — DB 시각 함수 금지"가 정한 원칙을 이 계약에도 그대로 적용한다 — 인터페이스가 시계를 직접 읽게 두면 같은 원칙 위반이 된다. `SEQ`도 스냅샷 밖의 호출자 상태이므로 같은 논리가 적용된다. 지금 문맥 인자를 넣지 않으면 TSK-05-03 이 나중에 시그니처를 바꿔야 하고, 이는 이미 소비자가 생긴 뒤의 계약 변경이라 더 비싸다. 반대 근거: 03:25 는 AUTO 를 "검증식의 결정성 원칙과 충돌하지 않는다 — 검증이 아니라 송신 시점의 값 기록"이라 부르며 결정성 원칙 **밖**에 둔다 — 이는 (2)(구현이 직접 시각을 읽어도 검증 결정성 문제는 없다)를 뒷받침하지만, naming-dialect-rules §3 #16 은 검증이 아닌 저장·직렬화 일반에도 "애플리케이션이 파라미터로 넘긴다"를 적용하므로 그 반대 근거가 (1)을 뒤집지 못한다. **근거 강도: 중**(직접적으로 "직렬화 인터페이스는 이렇게 생겨야 한다"고 못박은 문장은 없다).
 - **반려 시 재작업**: `MdmLayoutSerializeContext`·시그니처 변경을 되돌리고 `serialize(MdmLayoutSnapshot, Map<String,Object>)` 두 인자로 축소한다 — §6.1·§2·§3.4 스텁·불변 규칙 16을 모두 함께 되돌린다.
 
+### D9 — 상수 값 칼럼(`CONST_VALUE`·`DEFAULT_VALUE`)을 MSSQL 에서 `VARCHAR`+BIN2 로 둘 것인가(Build 가 F28 로 발견, 오케스트레이터 추가)
+- **질문**: MSSQL `TB_MDM_LAYOUT_CONST.CONST_VALUE`·`TB_MDM_LAYOUT_ITEM.DEFAULT_VALUE` 는 ERD 원문대로 `VARCHAR(50) COLLATE Latin1_General_100_BIN2` 라 한글 상수를 저장하면 `?` 로 손실된다(F28 실측). 코드값 칼럼으로 유지할 것인가, 한글 상수를 담을 수 있게 넓힐 것인가.
+- **선택지**: (1) ERD 그대로 `VARCHAR`+BIN2 유지(상수는 코드값 전용). (2) `NVARCHAR(50)`(BIN2 유지 또는 기본 콜레이션)으로 바꿔 한글 상수를 허용한다.
+- **택한 것**: (1).
+- **근거**: 03 원문의 상수 예시(송신공장구분 `B1`, AUTO 종류 `SEND_TIME` 등)가 전부 영문·숫자 코드값이고, ERD(TSK-02-03)가 이 칼럼을 코드값 칼럼으로 설계했다. naming-dialect-rules 의 코드값 칼럼 규칙(`VARCHAR`+BIN2)과도 일치한다. 한글 상수의 업무 사례는 원문·시안에 없다. **근거 강도: 중**(리포 기존 관례. 다만 EUC-KR 전문에 한글 고정값이 실릴 가능성을 원문이 명시적으로 배제하지는 않는다).
+- **반려 시 재작업**: V4 가 아직 운영에 적용되지 않았다면 MSSQL V4 의 두 칼럼을 `NVARCHAR(50)` 으로 바꾸고(SQLite 는 `VARCHAR` 친화도라 변경 불필요), 적용됐다면 V5 `ALTER COLUMN` 으로 넓힌다. `MdmInterfaceLayoutMssqlMigrationTest` 복합키 왕복에 한글 상수 왕복 단언을 추가한다.
+
 ---
 
 ## 화면(브라우저 E2E) — 해당 없음
