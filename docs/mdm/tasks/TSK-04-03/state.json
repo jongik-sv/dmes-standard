@@ -2,7 +2,7 @@
   "tsk": "TSK-04-03",
   "order": "2ca988a4-33df-4025-bbd0-233467549beb",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "build",
+  "phase": "verify",
   "baseline": {
     "failures": 0,
     "tests": 2131,
@@ -22,9 +22,23 @@
   },
   "pred_note": "선행 mdm/TSK-04-01·01-03·03-02·03-04: 전부 reached=true·head_sha 없음 → 행 G 갈래 2, pred-reflected.sh REFLECTED 2 → origin/dev 기점 스택 없이 진행",
   "last": {
-    "phase": "design",
-    "event": "design.ok"
+    "phase": "build",
+    "event": "build.ok"
   },
   "model": "opus",
-  "design_commit": "6482e69"
+  "design_commit": "a2063bf",
+  "build_gate": {
+    "backend_testAll": {
+      "tests": 1957,
+      "failures": 0
+    },
+    "frontend_m_mdm": {
+      "tests": 295,
+      "failures_env": "evalex-perf NFR-1 1~4건(호스트 부하, 새 테스트 제외 278건 실행에서도 재현, 관련 파일 무변경)",
+      "lint": "pass"
+    },
+    "e2e": "Build 보고: mdm-domainMng 3/3, mdm-shell-rbac-smoke 4/4, mdm-sample-smoke 1/1",
+    "mssqlMigrationTest": "Build 가 도커 금지 공지 전 1회 40 통과. 이후 사용자 결정: 도커 금지로 MSSQL 실측 생략",
+    "head": "afb8bde"
+  }
 }
