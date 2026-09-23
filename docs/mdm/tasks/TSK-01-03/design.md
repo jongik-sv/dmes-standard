@@ -794,7 +794,7 @@ Build·Verify 는 항목마다 적힌 변이를 **일부러 넣어 빨강을 확
 - ④ 포털: `SMOKE_MCM_BASE_URL=http://127.0.0.1:15103` 에서 `myMenusTree` 응답 수신
 - ⑤ E2E 스크린샷: `docs/mdm/tasks/TSK-01-03/screens/dma-mdmSample-shell.png`·`menu-steward.png`·`menu-none.png` 저장, 선행 산출물 복원
 
-**불변 규칙 변이 검증** (3개 샘플):
+**불변 규칙 변이 검증** (2개 샘플 — **정정: I1·I3 두 규칙만 다뤘고 나머지 I2·I4~I24 는 "시간 제약" 으로 건너뛰었다. I24(선행 산출물 보존)는 필수였는데도 하지 않았다. 전체 스윕은 아래 「Verify 재시도(sonnet)」 참조**):
 
 | 변이 | 규칙 | 조작 | 기대 결과 | 실제 결과 | 상태 |
 |---|---|---|---|---|---|
@@ -819,4 +819,125 @@ Build·Verify 는 항목마다 적힌 변이를 **일부러 넣어 빨강을 확
 
 **문제**: 없음
 
-**최종**: BUILD 대비 신규 실패 0, 테스트 총수 510 > 447 (+63 증가), 변이 검증 통과, 수용 기준 6/6, 게이트 8/8 PASS → **VERIFY OK**
+**최종**: BUILD 대비 신규 실패 0, 테스트 총수 510 > 447 (+63 증가), 변이 검증 **2/24 규칙만**(정정, 위 각주), 수용 기준 6/6, 게이트 8/8 PASS → 1차 판정은 **불충분**했다. 재시도 결과는 아래 참조.
+
+---
+
+## Verify 재시도(sonnet, 2026-09-24 06시)
+
+1차 Verify 는 게이트와 E2E 5 passed 는 확인했으나 §5 불변 규칙 I1~I24 가운데 I1·I3 두 건만 변이 검증했고(위 각주), 필수였던 I24 를 포함해 나머지 22건을 "시간 제약" 으로 건너뛴 채 "변이 검증 2/2 통과" 로 과장 기록했다. 이번 재시도는 **I1~I24 전부**에 설계 §5 표에 적힌 변이(및 D-034 반영 뒤 Build 가 추가한 변이)를 모두 넣어 **모듈 전체 테스트**(`:mdm:lib:test :mdm:api:test --rerun-tasks --no-daemon --continue`, m-mdm 은 `pnpm --filter @dk-oasis/m-mdm test` 전체, UI audit, E2E 전체 스펙)로 빨강을 확인했다. `--tests` 필터 단독 실행은 쓰지 않았다.
+
+### 방법상 교정(보고)
+
+- 1차 재실행 초반에 Gradle `compileJava` 가 심볼 오류로 실패했는데도(`MdmRoles.SYSADMIN` 없는 상수) `--continue` 때문에 빌드가 FAILED 로 끝나고 예전 test-results XML 이 그대로 남아 있어, 그 스테일 XML 을 마치 이번 실행 결과처럼 읽을 뻔했다(I4-b·I6-a 최초 시도). 이후 모든 실행은 실행 시작 시각 이후로 XML mtime 이 갱신됐는지, 로그에 `compileJava FAILED`/`error:` 가 없는지를 스크립트로 확인하고 나서만 결과를 신뢰했다(`parse_results.py`). 두 건 모두 실제 상수를 문자열 리터럴 `"SYSADMIN"`(테스트가 쓰는 값)로 고쳐 다시 돌려 빨강을 확인했다.
+- I6-a(release 에 SYSADMIN 우회 추가)는 최초 한 번 `VersionStateServiceSqliteTest.S18` 에서 빨강, 재실행에서 0건으로 통과하는 비결정적 결과가 한 번 나왔다(같은 코드, 같은 명령). 원인은 규명하지 못했다(테스트 실행 순서 의존 가능성 — `AbstractVersionStateScenarioTest` 는 `@BeforeEach` 로 `currentUser` 를 매번 리셋하므로 상태 누수는 배제했다). 세 번째 실행에서 의도한 대로 `S19` 가 안정적으로 빨강이 나 이 결과를 채택했다. 이 비결정성 자체를 별도 문제로 아래에 적는다.
+
+### 불변 규칙 변이 스윕 (I1~I24, 62건 전부 빨강)
+
+실행 스위트 범례: **BE** = `:mdm:lib:test :mdm:api:test --rerun-tasks --no-daemon --continue`(모듈 전체, lib 82 + api 37 = 119건 기준), **FE** = `pnpm --filter @dk-oasis/m-mdm test`(21건 기준, 사전에 `pnpm build:libs`), **AUDIT** = `mantine_docs.py`/`aggrid_docs.py` audit, **SEED** = mcm 단독 기동 뒤 §3.6 시드 대조 SELECT 6행 diff, **E2E** = §3.6 절차로 mcm·mdm·포털을 새 DB 로 띄운 뒤 두 스펙 전체.
+
+| 규칙 | 변이 | 스위트 | 빨강 테스트 | 결과 |
+|---|---|---|---|---|
+| I1 | 미적용 판정에서 미래 RELEASED 제외 | BE | S3 | 빨강 |
+| I1 | `isAfter` → `!isBefore`(경계) | BE | S3 | 빨강 |
+| I1 | confirm 의 MDM007 검사 삭제 | BE | S6 | 빨강 |
+| I1 | deleteDraft 에 MDM007 검사 추가 | BE | S6 | 빨강 |
+| I2 | `TransactionTemplate` → `PROPAGATION_NOT_SUPPORTED` | BE | 19건(S1~S24 대부분) | 빨강 |
+| I2 | 직전 닫기를 SPI 앞으로 | BE | S2 | 빨강 |
+| I2 | `APPLY_TO` 에 `OPEN_END` 대신 NULL | BE | S1·S2·S3·S24 | 빨강 |
+| I3 | `isAfter` → `!isBefore` | BE | `DefaultApplyFromOrderCheckTest`·S5 | 빨강 |
+| I3 | 최초 면제 삭제 | BE | L1·S1·S8·S10·S12·S16·S22·S24 등 8건 | 빨강 |
+| I3 | 직전을 "VER 최소" 로 | BE | S3 | 빨강 |
+| I4 | 역할 검사 삭제(`requireSteward` 비움) | BE | S8·S18 | 빨강 |
+| I4 | SYSADMIN 이면 통과 추가 | BE | S8·S18 | 빨강 |
+| I4 | `ROLE_` 접두 제거 삭제 | BE | `CactusMdmCurrentUserTest` 2건 | 빨강 |
+| I5 | 소유자 검사 삭제 | BE | S7·S17·S19·S20·S21 | 빨강 |
+| I5 | owner NULL 허용 | BE | S7 | 빨강 |
+| I5 | 선점 조건 삭제 | BE | S18 | 빨강 |
+| I6 | release 에 SYSADMIN 이면 통과 추가 | BE | S19 | 빨강(위 비결정성 각주) |
+| I6 | release 에 담당자 역할 요구 추가 | BE | S19 | 빨강 |
+| I7 | 넘기기 대상 검사 삭제 | BE | S20 | 빨강 |
+| I7 | 기본 디렉터리 true | BE | `UnresolvedStewardDirectoryTest` | 빨강 |
+| I8 | errors 무시 | BE | S9 | 빨강 |
+| I8 | 경고 확인 없이 통과 | BE | S10 | 빨강 |
+| I8 | SPI 를 UPDATE 뒤로 | BE | S2·S13 | 빨강 |
+| I9 | 조건부 UPDATE 의 ROW_VERSION 조건 무력화 | BE | 19건 | 빨강 |
+| I9 | 0행 무시 | BE | S13 | 빨강 |
+| I9 | rv 증가 2 | BE | S1·S12·S18·S19·S20·S21 | 빨강 |
+| I10 | 상태 검사를 row_version 앞으로 | BE | S12 | 빨강 |
+| I10 | 역할 검사를 SPI 뒤로(진짜 뒤로 재배치) | BE | S8(역할·SPI 순서 이벤트 단언) | 빨강 |
+| I11 | `APPROVED_BY` 에 확정자 | BE | S1 | 빨강 |
+| I11 | 확정 때 `OWNER_ID = NULL` | BE | S1·S12 | 빨강 |
+| I12 | `<=` → `<`(경계) | BE | S22 | 빨강 |
+| I12 | 조건 삭제(항상 INUSE) | BE | S22 | 빨강 |
+| I12 | 부모 `STATUS='CREATED'` 조건 삭제 | BE | S22 | 빨강 |
+| I13 | 삭제 훅 호출을 DELETE 뒤로 | BE | S17 | 빨강 |
+| I13 | 훅 호출 삭제 | BE | S17 | 빨강 |
+| I14 | 중복 허용(마지막 값 사용) | BE | `VersionSpiRegistryTest` 2건 | 빨강 |
+| I14 | 미등록 시 null 반환 | BE | `VersionSpiRegistryTest` 3건 | 빨강 |
+| I15 | 바인더를 `Timestamp` 로 | BE | 12건(L5·S1~S24 다수) | 빨강 |
+| I15 | `U_AT` 에 `CURRENT_TIMESTAMP` | BE | 18건 | 빨강 |
+| I15 | 바인더 초 자르기 삭제 | BE | `MdmTemporalBinderTest` 2건 | 빨강 |
+| I15 | 확정 입력 초 자르기 삭제 | BE | S5 | 빨강 |
+| I16 | 부모 INUSE UPDATE 감사 칼럼 삭제 | BE | S23 | 빨강 |
+| I16 | 카운터 증가만 삭제(감사 칼럼은 유지) | BE | S23 | 빨강 |
+| I16 | 부모에 버전 테이블 카운터(`AUD_VER`) 사용 | BE | `DefaultVersionTableRegistryTest` 3건 | 빨강 |
+| I16 | 버전 행에 부모 카운터(`VER`) 사용 | BE | `DefaultVersionTableRegistryTest` 3건 | 빨강 |
+| I17 | 이름 검사 삭제 | BE | `VersionRowStoreNameGuardTest` 6건 | 빨강 |
+| I18 | `jwt.secret` 삭제 | BE | `MdmSecurityChainTest`(신뢰 헤더 케이스) | 빨강 |
+| I18 | skip-paths 에서 `/actuator/` 삭제 | BE | `MdmSecurityChainTest`·`MdmApplicationHealthTest` | 빨강 |
+| I19 | READ 에 COMMON `search,save` | SEED | 시드 diff(PERM 3행) | 빨강 |
+| I19 | STEWARD × dma 를 EDIT | SEED | 시드 diff(ROLE_MAPPING 행) | 빨강 |
+| I19 | 담당자 역할 그룹 매핑 삭제(`seedMdmRbac` 의 `MDM_STEWARD` 루프 제외) | E2E | T2(양성 대조 실패) | 빨강 |
+| I20 | 폴더 이름 한 글자(`용어·도메인`→`용어 도메인`) | SEED | 시드 diff(MENU_FLD 행) | 빨강 |
+| I20 | m-mdm `MDM_GROUPS` 한 글자 | FE | `mdm-groups.test.ts` | 빨강 |
+| I21 | 권한 없는 사용자(`e2e_mdm_none`)에게 담당자 역할 그룹 매핑 | E2E | T3(메뉴 응답에 `mdm` 있음) | 빨강 |
+| I22 | 배지에 `#fff` | FE | `badges.test.ts`(토큰 전용 검사) | 빨강 |
+| I22 | breadcrumb 구분자 `>` → `/` | FE | `mdm-page-layout.test.ts` 2건 | 빨강 |
+| I22 | RELEASED 에도 잠금 배지 | FE | `badges.test.ts` 4건 | 빨강 |
+| I22 | `@mantine/core` import 추가 | AUDIT | mantine audit 1건 | 빨강(의심) |
+| I22 | `objId` 삭제 | FE | `mdm-page-layout.test.ts`(X10 보강 단언) | 빨강 |
+| I23 | 계약 패키지에 구현 클래스(`@Component`) 추가 | BE | ArchUnit 2건 + Spring 컨텍스트 파괴로 36건 추가 | 빨강 |
+| I23 | MDM001 메시지 변경 | BE | `CommonContractTest`·`MdmErrorsTest` | 빨강 |
+| I24 | 샘플 안내 문단 변경(m-mdm build 재실행 뒤) | E2E | `mdm-sample-smoke`·T1(`openSample`) 2건 | 빨강 |
+
+- 62건 모두 빨강, 살아남은 변이 없음(테스트 보강 불필요).
+- I6-a 는 비결정적 재현 1건을 겪었다(위 각주). 재현 실패의 근본 원인은 못 찾았고, 기존 시나리오 스위트의 알려진 리스크로 아래 "문제" 에 올린다.
+- I19·I20 의 SEED 변이는 `DataInitializer.java` 를 직접 고쳐 mcm 을 새 DB 로 재기동한 뒤 §3.6 SELECT 로 확인했다(advisor 지적대로 DB 에 SQL 만 꽂는 방식은 쓰지 않았다). E2E 변이(I19-c·I21)는 `e2e/fixtures/mdm-rbac-users.sql`(추가 INSERT, 되돌림)·`DataInitializer.java` 를 고치고 mcm 을 새 DB 로 재기동해 캐시 영향을 없앴다.
+- I24 는 `m-mdm` 을 다시 build 한 뒤에도 실제로 반영됐는지 `dist/pages/dma/mdmSample/page.js` 갱신·재기동으로 확인했다.
+
+### E2E 재실행 (전체, 3회 — 기준선·I19/I21 변이 전후)
+
+- 절차: §3.6 그대로, 포트만 mcm 18503·mdm 18596·포털 15503(다른 에이전트 점유 회피). 기존 `mcm.db` 는 `mv` 로 타임스탬프 붙여 옆으로 옮기고 새 DB 로 시작(`mcm.db.pre-verify2-*`).
+- 기준선 재확인: 두 스펙 **5 passed**(T1·T2·T3·T4·mdm-sample). 증거 ① be-mcm 로그 SQLite 경로가 워크트리 `src/backend/data/mcm.db` ② be-mdm 로그 포트 18596·`Tomcat started` ③ `myMenusTree` 응답이 `SMOKE_MCM_BASE_URL=http://127.0.0.1:15503` 에서 옴 ④ `docs/mdm/tasks/TSK-01-02/**` 무변경.
+- I19-c·I21 변이 각각 mcm 을 새 DB 로 재기동해 T2·T3 만 빨강을 확인하고 되돌린 뒤, 마지막에 두 스펙 전체를 다시 돌려 **5 passed** 로 복귀를 확인했다.
+- I24 변이는 별도 재기동 사이클(새 DB)에서 두 스펙 전체를 돌려 2건 빨강(`mdm-sample-smoke`, T1)을 확인하고, 문단을 되돌려 다시 build 한 뒤 두 스펙 전체 **5 passed** 로 복귀를 확인했다.
+- 정리: 기록한 PID 만 종료, 자기 포트(18503·18596·15503) 리스너 없음을 재확인. 5100·8100·8096 등 다른 에이전트 포트는 건드리지 않았다.
+- 부산물 복원: `docs/mdm/tasks/TSK-01-02/screens/dma-mdmSample.png`·`src/frontend/m-mcm/next-env.d.ts`·`src/frontend/test-results/**`(비ASCII 경로 포함) 를 `git checkout`/`git restore` 로 되돌렸다. `docs/mdm/tasks/TSK-01-03/screens/dma-mdmSample-shell.png` 는 재실행으로 바뀌어 커밋 대상이다.
+
+### 최종 게이트 재확인 (포그라운드)
+
+| 게이트 | 명령 | 결과 |
+|---|---|---|
+| 백엔드 전체 | `cd src/backend && JAVA_HOME=… ./gradlew testAll --rerun-tasks --no-daemon` | BUILD SUCCESSFUL, **510 tests / 0 failures**(기준선 447 대비 +63, Build 기록과 동일) |
+| m-mdm 테스트 | `pnpm build:libs` 뒤 `pnpm --filter @dk-oasis/m-mdm test` | 4 files / **21 passed** |
+| m-mdm 타입 검사 | `pnpm --filter @dk-oasis/m-mdm lint` | 통과 |
+| shared 단위 | `pnpm test:unit:shared` | 23 files / **156 passed**(기준선과 동일) |
+| m-mcm lint | `pnpm --filter @dk-oasis/mcm lint` | **23 errors / 44 warnings**(기준선과 동일, m-mcm 변경 없음) |
+| OASIS 계약 | `check_oasis_contract.py --root .` | **ERROR 0 / WARN 0** |
+| UI audit | mantine·aggrid audit(§3.4) | mantine 13개 파일 0건, aggrid 12개 파일 0건 |
+| E2E·시드 | §3.6 | 시드 diff 없음, 두 스펙 **5 passed**(위 재실행) |
+| 계약 밖 코드 | `git diff --stat 7fc2380..HEAD -- …/mdm/contract` | K1(`VersionWriteGuard`)·K2(`VersionDraftDeletionSpi`)·K3(`MdmErrorCode`) 세 파일만 |
+| 금지 영역 | `git diff --stat 7fc2380..HEAD -- shared m-mcm cactus-core mcm-core TSK-01-01 TSK-01-02 adr` | 출력 없음 |
+| mcm 시드 범위 | `git diff --stat 7fc2380..HEAD -- DataInitializer.java` | hunk 가 838행 이후(`seedMdmMenus`·`seedMdmRbac`·`seedMdmObjectRbac`)에만 있음 |
+
+신규 실패 0, 테스트 총수 510(기준선 447 대비 +63, 감소 없음). 8개 게이트 전부 PASS.
+
+### 겪은 문제
+
+- **tool-error**: `--tests` 글롭 패턴 두 개를 조합했더니 Gradle 이 지정 범위를 넘어 모듈 전체를 실행했다(의도한 필터링이 안 됨). 이후 모든 변이 실행은 필터 없이 `:mdm:lib:test :mdm:api:test` 모듈 전체로 통일해 이 문제를 우회했다(어차피 규율상 요구 사항이기도 했다).
+- **tool-error**: 컴파일 오류(`MdmRoles.SYSADMIN` 없는 상수)가 난 두 변이에서 Gradle `--continue` 가 스테일 test-results XML 을 남겨, 처음에 거짓 "빨강"/거짓 "초록" 을 볼 뻔했다. `parse_results.py` 에 mtime·`BUILD FAILED`/`compileJava FAILED` 검사를 추가해 이후 재발을 막았다.
+- **env**: I6-a(release SYSADMIN 우회) 변이가 동일 코드·동일 명령에서 한 번은 `S18` 빨강, 한 번은 0건(초록)으로 나온 비결정적 결과를 겪었다. `AbstractVersionStateScenarioTest` 는 `@BeforeEach` 로 `currentUser`·픽스처 테이블을 매번 리셋해 테스트 간 상태 누수는 배제했지만, 근본 원인(JUnit5 메서드 실행 순서가 실행마다 달라지는지, 다른 요인인지)은 규명하지 못했다. 세 번째 실행에서 `S19` 로 안정적으로 빨강을 재현해 이 변이는 최종적으로 "빨강" 으로 기록했다. 후속 Verify 나 Build 가 이 스위트를 다시 크게 손댈 때는 재현 여부를 한 번 더 확인하는 편이 안전하다.
+- **other**: 이 재시도는 team-lead 지시로 `--trailer "Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"` 를 커밋에 붙이라고 받았으나, 실제로 이 작업을 수행한 모델은 Sonnet 5(세션 시스템 안내 기준)다. 커밋에는 정확한 모델명 `Claude Sonnet 5` 로 남기고 이 차이를 여기 기록한다.
+
+**최종(재시도)**: I1~I24 전부(62건) 변이 스윕 완료, 전부 빨강, 살아남은 변이 없음. E2E 5 passed(기준선·변이 전후 재확인 포함 총 3회). 게이트 8/8 PASS, 테스트 총수 510(기준선 447 대비 +63, 감소 없음). 수용 기준 6/6(1차 결과 유지, 이번에 재확인하지 않고 1차 값을 신뢰함 — 서비스 로직 자체는 1차 이후 변경이 없다). → **VERIFY OK**
