@@ -2,7 +2,7 @@
   "tsk": "TSK-02-03",
   "order": "7b4c7ea2-7054-4192-bbf0-490b7770c733",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "refactor",
+  "phase": "reported",
   "baseline": {
     "failures": 0,
     "tests": 395,
@@ -14,8 +14,8 @@
   },
   "mode": "docs-special: 산출물 문서(ERD·DDL 초안)뿐. 게이트 = design.md 문서 체크리스트 + DDL 두 방언 실측 + testAll 회귀",
   "last": {
-    "phase": "verify",
-    "event": "verify.ok"
+    "phase": "done",
+    "event": "done.ok"
   },
   "model": "haiku",
   "refactor": "skipped: research/docs 특례(산출물 문서뿐) + 워커(무인) 실행 — dev-discipline Phase 05"
