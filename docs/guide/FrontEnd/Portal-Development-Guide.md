@@ -61,12 +61,14 @@ import "@dk-oasis/shared/modal.css";          // 모달/다이얼로그
 
 `_rowState` 값에 따라 자동 적용된다.
 
-| 행 상태 | CSS 클래스 | 배경색 |
+| 행 상태 | CSS 클래스 | 배경 토큰 (값) |
 |---|---|---|
-| `added` / `copied` | `ag-row-inserted` | 연두 `#e8f5e9` |
-| `modified` | `ag-row-modified` | 노랑 `#fff8e1` |
-| `deleted` | `ag-row-deleted` | 빨강 `#ffebee` (취소선) |
-| 선택 행 | `ag-row-highlighted` | 파랑 `#e3f2fd` |
+| `added` / `copied` | `ag-row-inserted` | `--color-success-soft` (`#d8f0e0`) |
+| `modified` | `ag-row-modified` | `--color-edited` (`#fef3c7`) |
+| `deleted` | `ag-row-deleted` | `--color-danger-soft` (`#fdeaea`, 취소선) |
+| 선택 행 | `ag-row-highlighted` | `--color-selection` (`#dbe8fb`) |
+
+색 값의 정본은 `variables.css` 와 [UI 시각 표준](UI-Visual-Standard.md) §5·§7 이다. 선택 행은 배경 톤으로만 구분하고 왼쪽 컬러 바를 붙이지 않는다.
 
 선택 + 상태 동시(예: `ag-row-inserted` + `ag-row-highlighted`)면 더 진한 배경이 적용된다.
 

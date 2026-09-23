@@ -6,6 +6,7 @@
 @import "@mantine/dates/styles.layer.css";
 @import "@mantine/notifications/styles.layer.css";
 @import "tailwindcss";
+@import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 @import "@dk-oasis/shared/variables.css";
 @import "./page-layout.css";
 @source "../../shared/src";
@@ -22,4 +23,18 @@ button {
 
 .btn-wrap {
   white-space: normal;
+}
+
+/* ========================================
+   C 톤 기본 타이포 (2026-09-23)
+   Pretendard 는 pretendard 패키지로 번들한다(사내망 CDN 비의존).
+   숫자는 고정폭(tnum)으로 맞춰 그리드·폼 정렬을 돕는다.
+   ======================================== */
+html,
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  color: var(--color-text);
+  font-feature-settings: "tnum";
+  -webkit-font-smoothing: antialiased;
 }

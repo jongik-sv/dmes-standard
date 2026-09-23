@@ -34,9 +34,9 @@ describe("portal tabs close affordance", () => {
     );
   });
 
-  it("uses a subtle translucent square button", () => {
+  it("uses a transparent square button with the shared small radius", () => {
     expect(tabsBarCss).toMatch(
-      /\.tab-close\s*\{[^}]*background-color: rgba\(255, 255, 255, 0\.08\);[^}]*border-radius: 4px;/s
+      /\.tab-close\s*\{[^}]*background-color: transparent;[^}]*border-radius: var\(--radius-sm\);/s
     );
   });
 

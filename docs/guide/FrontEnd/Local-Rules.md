@@ -9,6 +9,7 @@
 - 외부 도메인 / 인프라 미구축 처리와 Decision Log: [standard-v2/frontend-standard/03-cases-checklist-menu.md](standard-v2/frontend-standard/03-cases-checklist-menu.md)
 - Portal 화면/메뉴/BFF 개발: [Portal-Development-Guide.md](Portal-Development-Guide.md)
 - Portal 메뉴 역할 정책: [Portal-Menu-Role-Policy.md](Portal-Menu-Role-Policy.md)
+- 화면 시각 표준(톤·토큰·셸·그리드·토스트): [UI-Visual-Standard.md](UI-Visual-Standard.md)
 
 ## 2. 로컬 작업 규칙
 
@@ -89,6 +90,7 @@ pnpm dev
 - 금지: KPI 카드, 원인 그룹 카드, 예외 카드, 요약 카드에서 좌측/상단 컬러 바를 반복해 구분하는 패턴.
 - 허용: 라벨 앞 작은 점, 아이콘, 숫자 색상, 배지, 얇은 전체 테두리, 배경 톤 차이, 텍스트 굵기 등으로 상태를 구분한다.
 - 선택/활성 상태는 한쪽 바가 아니라 전체 테두리, 배경 톤, 체크/상태 아이콘 등으로 표현한다.
+- 그리드 선택 행, 사이드바 선택 탭, 로그인 카드, 토스트에도 같은 규칙을 적용한다(2px 밑줄·한 변 inset 그림자 포함). 공통 적용 위치는 [UI-Visual-Standard.md](UI-Visual-Standard.md) §9.
 
 ## 9. 중요 액션 UX
 

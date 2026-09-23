@@ -218,7 +218,7 @@ const btnStyle: React.CSSProperties = {
   padding: "8px 20px",
   border: "none",
   borderRadius: 4,
-  background: "var(--color-primary, #337ab7)",
+  background: "var(--color-primary, #0b62d6)",
   color: "#fff",
   fontSize: 14,
   cursor: "pointer",

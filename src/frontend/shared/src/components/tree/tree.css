@@ -1,5 +1,5 @@
 .cm-tree {
-  font-size: var(--font-size-md, 13px);
+  font-size: var(--font-size-md);
   user-select: none;
   list-style: none;
   padding: 0;
@@ -14,22 +14,24 @@
 .tree-item {
   display: flex;
   align-items: center;
-  padding: 4px 8px;
+  padding: 3px 8px;
   cursor: pointer;
-  border-radius: 4px;
-  transition: background-color 0.15s ease;
+  border-radius: var(--radius-sm);
+  transition: background-color var(--transition-fast);
 }
 
 .tree-item:hover {
-  background-color: #f0f0f0;
+  background-color: var(--color-bg-hover);
 }
 
 .tree-item.selected {
-  background-color: var(--color-selection, #e3f2fd);
+  background-color: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-weight: 600;
 }
 
 .tree-item.selected:hover {
-  background-color: var(--color-selection-hover, #d0e8fc);
+  background-color: var(--color-primary-soft-hover);
 }
 
 .tree-item__toggle {
@@ -38,10 +40,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-text-muted, #666);
+  color: var(--color-text-muted);
   flex-shrink: 0;
   cursor: pointer;
-  transition: transform 0.15s ease;
+  transition: transform var(--transition-fast);
 }
 
 .tree-item__toggle.expanded {
@@ -53,7 +55,7 @@
 }
 
 .tree-item__toggle:hover {
-  color: var(--color-text, #333);
+  color: var(--color-text);
 }
 
 .tree-item__label {

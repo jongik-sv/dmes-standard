@@ -12,12 +12,11 @@
 .sidebar {
   width: 280px;
   min-width: 0;
-  background-color: #f5f6f8;
-  color: var(--color-text);
+  background-color: var(--shell-sidebar-bg);
+  color: var(--shell-sidebar-fg);
   position: relative;
   height: 100%;
-  border-right: 2px solid #b0c4d8;
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+  border-right: 1px solid var(--shell-header-border);
   transition: width var(--transition-slow);
   display: flex;
   flex-direction: column;
@@ -59,23 +58,26 @@
 }
 
 .sidebar-resize-handle:hover {
-  background-color: color-mix(in srgb, var(--color-primary, #337ab7) 50%, transparent);
+  background-color: color-mix(in srgb, var(--color-primary) 50%, transparent);
 }
 
 .sidebar-resize-handle:active,
 .sidebar.resizing .sidebar-resize-handle {
-  background-color: color-mix(in srgb, var(--color-primary, #337ab7) 80%, transparent);
+  background-color: color-mix(in srgb, var(--color-primary) 80%, transparent);
 }
 
-/* Toggle button */
-/* 토글 버튼 — 크기·모서리는 ActionIcon 의 인라인 style 로 확정하고 여기서는 위치만 지정한다. */
+/* Toggle button — 크기·모서리는 ActionIcon 의 인라인 style 로 확정하고 여기서는 위치·색만 지정한다.
+   filled 변형의 배경은 Mantine 인라인 변수라서 속성을 직접 덮는다(비계층 CSS 가 @layer mantine 을 이긴다). */
 .sidebar-toggle-button {
   position: absolute;
   top: 50%;
   right: -14px;
   transform: translateY(-50%);
-  z-index: 1001;
-  box-shadow: 2px 0 6px rgba(0, 0, 0, 0.15);
+  z-index: 150; /* AppShell(100) 위, Mantine 모달(200) 아래 */
+  background-color: var(--shell-sidebar-bg);
+  color: var(--shell-sidebar-muted);
+  border: 1px solid var(--shell-sidebar-border);
+  border-left: none;
   transition: all var(--transition-normal);
 }
 
@@ -84,7 +86,9 @@
   width: 18px !important;
   min-width: 18px !important;
   right: -18px;
-  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.25);
+  background-color: var(--shell-sidebar-active-bg);
+  border-color: var(--shell-sidebar-active-bg);
+  color: var(--shell-sidebar-active-fg);
 }
 
 .sidebar-toggle-button .toggle-icon {
@@ -93,23 +97,42 @@
   line-height: 1;
 }
 
-/* Tab container — Mantine SegmentedControl 을 감싼다 (구 tab-active/tab-inactive 대체). */
+/* Tab container — Mantine SegmentedControl 을 감싼다 (구 tab-active/tab-inactive 대체).
+   선택 탭은 한 변 밑줄 대신 배경 톤으로 구분한다(UI-Visual-Standard §9). */
 .tab-container {
-  height: 32px;
-  border-bottom: 1px solid #b8c8d8;
-  background-color: #dce6ee;
+  height: 34px;
+  border-bottom: 1px solid var(--shell-sidebar-border);
+  background-color: var(--shell-sidebar-bg);
   flex-shrink: 0;
-  padding: 0;
+  padding: 4px 8px;
+  box-sizing: border-box;
+}
+
+.tab-container .mantine-SegmentedControl-indicator {
+  background-color: var(--shell-sidebar-hover-bg);
+  box-shadow: none;
+  border-radius: var(--radius-sm);
+}
+
+.tab-container .mantine-SegmentedControl-control::before {
+  display: none;
 }
 
 .tab-container label {
-  height: 32px;
-  font-size: var(--font-size-sm);
-  color: #556677;
+  height: 25px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-md);
+  color: var(--shell-sidebar-muted);
+}
+
+.tab-container label:hover {
+  color: var(--shell-sidebar-fg);
 }
 
 .tab-container label[data-active] {
-  color: #3a4050;
+  color: var(--shell-sidebar-active-fg);
   font-weight: 600;
 }
 
@@ -118,10 +141,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
-  padding: 6px 10px;
-  background-color: var(--color-bg-light);
-  border-bottom: 1px solid var(--color-border-medium);
+  gap: 4px;
+  padding: 8px;
+  background-color: var(--shell-sidebar-bg);
   flex-shrink: 0;
 }
 
@@ -129,28 +151,58 @@
   flex: 1;
 }
 
-/* 입력 자체(테두리/포커스)는 Mantine TextInput 이 담당한다. */
+/* 입력은 Mantine TextInput 이며 어두운 톤으로 덮는다. */
 .search-box .search-input {
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
+  background-color: var(--shell-sidebar-input-bg);
+  border-color: var(--shell-sidebar-border);
+  color: var(--shell-sidebar-fg);
 }
 
-.clear-btn:hover {
-  color: #d9534f;
+.search-box .search-input::placeholder {
+  color: var(--shell-sidebar-muted);
+}
+
+.search-box .search-input:focus {
+  border-color: var(--color-primary);
+}
+
+.search-container .clear-btn {
+  color: var(--shell-sidebar-muted);
+}
+
+.search-container .clear-btn:hover {
+  background-color: var(--shell-sidebar-hover-bg);
+  color: var(--color-danger);
 }
 
 .expand-buttons {
   flex-shrink: 0;
 }
 
-.toggle-all-button {
+/* 펼침/접힘·그룹 추가 버튼 — variant="default" 의 밝은 배경을 사이드바 톤으로 덮는다. */
+.sidebar .toggle-all-button {
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  min-height: 26px;
   font-size: var(--font-size-sm);
+  background-color: var(--shell-sidebar-input-bg);
+  border: 1px solid var(--shell-sidebar-border);
+  border-radius: var(--radius-sm);
+  color: var(--shell-sidebar-fg);
+}
+
+.sidebar .toggle-all-button:hover {
+  background-color: var(--shell-sidebar-hover-bg);
+  color: var(--shell-sidebar-active-fg);
 }
 
 .tree-expand-icon {
   display: inline-flex;
   align-items: center;
   gap: 1px;
-  color: #555;
+  color: inherit;
 }
 
 .tree-expand-icon .lines {
@@ -163,23 +215,25 @@
   line-height: 1;
 }
 
-/* Tree items */
-.tree-item {
+/* Tree items — 행 높이 28px, 12.5px */
+.sidebar-container .tree-item {
   cursor: pointer;
-  padding: 7px 8px;
+  height: 28px;
+  padding: 0 8px;
   font-size: var(--font-size-md);
-  border-radius: 4px;
-  transition: background-color var(--transition-normal);
+  color: var(--shell-sidebar-fg);
+  border-radius: var(--radius-sm);
+  transition: background-color var(--transition-fast);
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.tree-item:hover {
-  background-color: var(--color-selection);
+.sidebar-container .tree-item:hover {
+  background-color: var(--shell-sidebar-hover-bg);
 }
 
-.tree-item .expand-icon {
+.sidebar-container .tree-item .expand-icon {
   width: 18px;
   height: 18px;
   display: flex;
@@ -187,27 +241,20 @@
   justify-content: center;
   font-size: var(--font-size-lg);
   font-weight: bold;
-  color: var(--color-primary);
-  background-color: color-mix(in srgb, var(--color-primary, #337ab7) 10%, transparent);
-  border-radius: 3px;
+  color: var(--shell-sidebar-muted);
+  border-radius: var(--radius-sm);
   flex-shrink: 0;
 }
 
-.tree-item .folder-icon {
+.sidebar-container .tree-item .folder-icon,
+.sidebar-container .tree-item .menu-icon {
   display: flex;
   align-items: center;
-  color: #555;
+  color: var(--shell-sidebar-muted);
   flex-shrink: 0;
 }
 
-.tree-item .menu-icon {
-  display: flex;
-  align-items: center;
-  color: #444;
-  flex-shrink: 0;
-}
-
-.tree-item .item-name {
+.sidebar-container .tree-item .item-name {
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
@@ -215,39 +262,37 @@
 }
 
 /* Selected states */
-.tree-item.selected-folder {
-  color: var(--color-primary);
-  font-weight: bold;
-  background-color: color-mix(in srgb, var(--color-primary, #337ab7) 10%, transparent);
+.sidebar-container .tree-item.selected-folder {
+  color: var(--shell-sidebar-active-fg);
+  font-weight: 600;
+  background-color: var(--shell-sidebar-hover-bg);
 }
 
-.tree-item.selected-menu {
-  background: linear-gradient(to right, #3a4050, #5e6479);
-  color: #fff;
-  font-weight: 500;
+.sidebar-container .tree-item.selected-folder .folder-icon {
+  color: var(--shell-sidebar-fg);
 }
 
-.tree-item--page:hover {
-  background: linear-gradient(to right, transparent 15px, var(--color-selection) 15px);
+/* 선택된 화면 — 파랑 채움 + 흰 글자 */
+.sidebar-container .tree-item.selected-menu,
+.sidebar-container .tree-item.selected-menu:hover {
+  background: var(--shell-sidebar-active-bg);
+  color: var(--shell-sidebar-active-fg);
+  font-weight: 600;
 }
 
-.tree-item.selected-menu .menu-icon {
-  color: #fff;
+.sidebar-container .tree-item.selected-menu .menu-icon {
+  color: var(--shell-sidebar-active-fg);
 }
 
-.tree-item.selected-menu:hover {
-  background: linear-gradient(to right, #4a5060, #6a7089);
-  color: #fff;
-}
-
-/* 페이지 항목의 선택 배경은 hover 와 같이 연결선(15px) 뒤에서 시작한다.
+/* 페이지 항목의 hover·선택 배경은 연결선(15px) 뒤에서 시작한다.
    margin 으로 항목 전체를 밀면 텍스트가 형제와 어긋나므로 배경만 비운다. */
-.tree-item--page.selected-menu {
-  background: linear-gradient(to right, transparent 15px, #3a4050 15px, #5e6479);
+.sidebar-container .tree-item--page:hover {
+  background: linear-gradient(to right, transparent 15px, var(--shell-sidebar-hover-bg) 15px);
 }
 
-.tree-item--page.selected-menu:hover {
-  background: linear-gradient(to right, transparent 15px, #4a5060 15px, #6a7089);
+.sidebar-container .tree-item--page.selected-menu,
+.sidebar-container .tree-item--page.selected-menu:hover {
+  background: linear-gradient(to right, transparent 15px, var(--shell-sidebar-active-bg) 15px);
 }
 
 /* Tree scroll area */
@@ -255,10 +300,26 @@
 .tree-scroll-area {
   flex: 1;
   min-height: 0;
-  padding: 0 10px;
+  padding: 0 8px;
 }
 
-/* 스크롤바는 Mantine ScrollArea 가 그린다(scrollbarSize=6). */
+/* 스크롤바는 Mantine ScrollArea 가 그린다(scrollbarSize=6). 어두운 바탕에 맞춰 트랙·손잡이 색만 바꾼다. */
+.tree-scroll-area .mantine-ScrollArea-scrollbar,
+.tree-scroll-area .mantine-ScrollArea-scrollbar:hover {
+  background-color: transparent;
+}
+
+.tree-scroll-area .mantine-ScrollArea-thumb {
+  background-color: color-mix(in srgb, var(--shell-sidebar-muted) 45%, transparent);
+}
+
+.tree-scroll-area .mantine-ScrollArea-scrollbar:hover .mantine-ScrollArea-thumb {
+  background-color: color-mix(in srgb, var(--shell-sidebar-muted) 70%, transparent);
+}
+
+.tree-scroll-area .mantine-ScrollArea-corner {
+  background-color: transparent;
+}
 
 /* ScrollArea 가 root 와 ul 사이에 viewport > content 를 끼우므로 자식 결합자로는 매치되지 않는다.
    중첩 ul 까지 잡히지 않도록 content 직계 자식(= 최상위 ul)만 지정한다. */
@@ -292,7 +353,7 @@
   top: 0;
   bottom: 0;
   width: 1px;
-  background-color: #ccc;
+  background-color: color-mix(in srgb, var(--shell-sidebar-muted) 45%, transparent);
 }
 
 /* Horizontal branch (2depth) */
@@ -300,16 +361,16 @@
   content: "";
   position: absolute;
   left: 1px;
-  top: 16px;
+  top: 14px;
   width: 7px;
   height: 1px;
-  background-color: #ccc;
+  background-color: color-mix(in srgb, var(--shell-sidebar-muted) 45%, transparent);
 }
 
 /* Last child (2depth) */
 .sidebar-open ul ul > li:last-child::before {
   bottom: auto;
-  height: 16px;
+  height: 14px;
 }
 
 /* Vertical line (3depth+) - shifted right under parent folder icon */
@@ -326,7 +387,7 @@
 .no-results {
   padding: 20px;
   text-align: center;
-  color: var(--color-text-disabled);
+  color: var(--shell-sidebar-muted);
   font-size: var(--font-size-md);
 }
 
@@ -335,13 +396,13 @@
   display: flex;
   align-items: center;
   justify-content: flex-end; /* 버튼 div 전체 우측 정렬 */
-  gap: 6px;
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--sidebar-border, #e8e8e8);
+  gap: 4px;
+  padding: 8px;
+  border-bottom: 1px solid var(--shell-sidebar-border);
 }
 /* 툴바 모든 버튼 높이 통일 (아이콘 버튼/텍스트 버튼 동일) */
 .favorites-tree .fav-toolbar .toggle-all-button {
-  height: 28px;
+  height: 26px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -350,7 +411,7 @@
 }
 .favorites-tree .fav-add-group-btn {
   width: auto;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   white-space: nowrap;
 }
 .favorites-tree .fav-row {
@@ -360,17 +421,22 @@
   margin-left: auto;
   border: none;
   background: transparent;
-  color: #c0392b;
-  font-size: 12px;
+  color: var(--shell-sidebar-muted);
+  font-size: var(--font-size-sm);
   line-height: 1;
   cursor: pointer;
   opacity: 0;
   padding: 2px 4px;
-  transition: opacity 0.12s ease;
+  transition: opacity var(--transition-fast);
 }
 .favorites-tree .fav-row:hover .fav-delete-btn {
   opacity: 0.6;
 }
 .favorites-tree .fav-delete-btn:hover {
   opacity: 1;
+  color: color-mix(in srgb, var(--color-danger) 60%, var(--shell-sidebar-active-fg));
+}
+/* 선택된(파랑 채움) 행 위에서는 흰 글자로 보인다. */
+.favorites-tree .selected-menu .fav-delete-btn {
+  color: var(--shell-sidebar-active-fg);
 }

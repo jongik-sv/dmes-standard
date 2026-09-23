@@ -1,72 +1,164 @@
 /**
  * variables.css
  * CSS 디자인 토큰 (CSS Custom Properties)
- * dmes_react 디자인 시스템 기반
+ *
+ * 2026-09-23 UI 2단계(C 고밀도 산업용 톤) 개편:
+ * - 원시 팔레트(--c-*) → 의미 토큰(--color-*, --shell-*) 두 층으로 나눈다.
+ * - shared 의 모든 CSS 는 원시 16진수 대신 아래 의미 토큰만 참조한다.
+ * - Mantine theme(ui-provider/theme.ts)의 dmes/danger 팔레트와 같은 값을 쓴다.
+ * 스펙: docs/superpowers/specs/2026-09-23-ui-phase2-visual-foundation-design.md
  */
 
 :root {
   /* ============================================================
+     원시 팔레트 (직접 참조 지양 — 아래 의미 토큰을 쓴다)
+     ============================================================ */
+  --c-blue-50: #e8f1fd;
+  --c-blue-100: #d3e3fa;
+  --c-blue-150: #dbe8fb;
+  --c-blue-600: #0b62d6;
+  --c-blue-700: #0a53b5;
+  --c-blue-800: #084595;
+
+  --c-red-50: #fdeaea;
+  --c-red-100: #f9d0d0;
+  --c-red-600: #d42a2a;
+  --c-red-700: #b82222;
+
+  --c-green-50: #d8f0e0;
+  --c-green-700: #13663a;
+  --c-amber-50: #fef3c7;
+  --c-amber-700: #a15c07;
+
+  --c-slate-950: #0f1720;
+  --c-slate-900: #1c2530;
+  --c-slate-850: #26313e;
+  --c-slate-800: #2f3b4a;
+  --c-slate-750: #34414f;
+  --c-slate-700: #2b3440;
+  --c-slate-600: #5b6573;
+  --c-slate-500: #8a94a3;
+  --c-slate-400: #9aa5b3;
+  --c-slate-300: #c9d0d9;
+  --c-slate-250: #d5dbe2;
+  --c-slate-200: #e3e8ee;
+  --c-slate-150: #e3e7ec;
+  --c-slate-100: #eef1f4;
+  --c-slate-75: #f1f3f6;
+  --c-slate-50: #f6f8fa;
+  --c-slate-bg: #e9ecf0;
+
+  /* ============================================================
      색상 - 기본
      ============================================================ */
-  --color-primary: var(--mantine-color-dmes-6, #337ab7);
-  --color-primary-hover: var(--mantine-color-dmes-7, #2a6499);
-  --color-danger: var(--mantine-color-danger-6, #d9534f);
-  --color-danger-hover: var(--mantine-color-danger-7, #c9302c);
+  --color-primary: var(--mantine-color-dmes-6, #0b62d6);
+  --color-primary-hover: var(--mantine-color-dmes-7, #0a53b5);
+  --color-primary-active: var(--c-blue-800);
+  --color-primary-soft: var(--c-blue-50);
+  --color-primary-soft-hover: var(--c-blue-100);
+  --color-on-primary: #fff;
 
-  --color-text: var(--mantine-color-text, #333);
-  --color-text-disabled: #999;
-  --color-text-placeholder: #999;
-  --color-text-muted: var(--mantine-color-dimmed, #666);
-  --color-text-muted-light: #888;
+  --color-danger: var(--mantine-color-danger-6, #d42a2a);
+  --color-danger-hover: var(--mantine-color-danger-7, #b82222);
+  --color-danger-soft: var(--c-red-50);
 
+  --color-success: var(--c-green-700);
+  --color-success-soft: var(--c-green-50);
+  --color-warning: var(--c-amber-700);
+  --color-warning-soft: var(--c-amber-50);
+
+  --color-text: var(--c-slate-950);
+  --color-text-secondary: var(--c-slate-700);
+  --color-text-disabled: var(--c-slate-400);
+  --color-text-placeholder: var(--c-slate-500);
+  --color-text-muted: var(--c-slate-600);
+  --color-text-muted-light: var(--c-slate-500);
+
+  /* 앱 바탕(카드 사이 여백) / 카드·입력 표면 */
+  --color-bg-app: var(--c-slate-bg);
   --color-bg: #fff;
-  --color-bg-disabled: #f5f5f5;
-  --color-bg-hover: #f5f5f5;
-  --color-bg-header: #f5f6f7;
-  --color-bg-light: #f8f9fa;
+  --color-bg-disabled: var(--c-slate-100);
+  --color-bg-readonly: var(--c-slate-100);
+  --color-bg-hover: var(--c-slate-100);
+  --color-bg-header: var(--c-slate-75);
+  --color-bg-light: var(--c-slate-50);
+  --color-bg-zebra: var(--c-slate-50);
+  --color-bg-grid-header: var(--c-slate-200);
 
-  --color-border: #ccc;
-  --color-border-hover: #999;
-  --color-border-light: #e8e8e8;
-  --color-border-medium: #e0e0e0;
-  --color-border-grid: #d0d0d0;
+  --color-border: var(--c-slate-300);
+  --color-border-hover: var(--c-slate-400);
+  --color-border-strong: var(--c-slate-400);
+  --color-border-light: var(--c-slate-150);
+  --color-border-medium: var(--c-slate-300);
+  --color-border-grid: var(--c-slate-300);
 
-  --color-selection: #e3f2fd;
-  --color-selection-hover: #d0e8fc;
-  --color-selection-border: #b8cde2;
+  --color-selection: var(--c-blue-150);
+  --color-selection-hover: var(--c-blue-100);
+  --color-selection-border: var(--c-blue-600);
+
+  /* 편집 중(수정된 행/셀) 강조 */
+  --color-edited: var(--c-amber-50);
 
   /* ============================================================
      색상 - 에러/검증
      ============================================================ */
-  --color-error: #d9534f;
-  --color-error-bg: rgba(217, 83, 79, 0.05);
+  --color-error: var(--color-danger);
+  --color-error-bg: rgba(212, 42, 42, 0.05);
 
   /* ============================================================
      색상 - 포커스
      ============================================================ */
-  --color-focus: #337ab7;
-  --color-focus-shadow: rgba(51, 122, 183, 0.15);
+  --color-focus: var(--c-blue-600);
+  --color-focus-shadow: rgba(11, 98, 214, 0.2);
+
+  /* ============================================================
+     포털 셸 (헤더 · 사이드바 · MDI 탭)
+     ============================================================ */
+  --shell-header-height: 44px;
+  --shell-header-bg: var(--c-slate-900);
+  --shell-header-fg: #e8edf3;
+  --shell-header-muted: #8a97a8;
+  --shell-header-border: var(--c-slate-950);
+  --shell-header-control-bg: var(--c-slate-850);
+  --shell-header-control-border: var(--c-slate-750);
+
+  --shell-sidebar-bg: var(--c-slate-850);
+  --shell-sidebar-fg: #c4ccd6;
+  --shell-sidebar-muted: #8a97a8;
+  --shell-sidebar-hover-bg: var(--c-slate-800);
+  --shell-sidebar-active-bg: var(--c-blue-600);
+  --shell-sidebar-active-fg: #fff;
+  --shell-sidebar-border: var(--c-slate-750);
+  --shell-sidebar-input-bg: var(--c-slate-900);
+
+  --shell-tabs-bg: var(--c-slate-250);
+  --shell-tab-fg: var(--c-slate-700);
+  --shell-tab-hover-bg: var(--c-slate-200);
+  --shell-tab-active-bg: #fff;
+  --shell-tab-active-fg: var(--c-slate-950);
 
   /* ============================================================
      간격 (Spacing)
      ============================================================ */
   --spacing-xs: 4px;
   --spacing-sm: 8px;
-  --spacing-md: 12px;
-  --spacing-lg: 16px;
-  --spacing-xl: 24px;
+  --spacing-md: 10px;
+  --spacing-lg: 12px;
+  --spacing-xl: 16px;
 
   /* ============================================================
      타이포그래피
      ============================================================ */
   --font-size-xs: 11px;
   --font-size-sm: 12px;
-  --font-size-md: 13px;
+  --font-size-md: 12.5px;
   --font-size-lg: 14px;
+  --font-size-title: 16px;
 
   --font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell",
-    "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+    "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Apple SD Gothic Neo", "Malgun Gothic", "Roboto", sans-serif;
+  --font-family-mono: "JetBrains Mono", "D2Coding", ui-monospace, SFMono-Regular, Menlo, monospace;
 
   /* ============================================================
      폼 요소
@@ -74,26 +166,33 @@
   --form-height: 26px;
   --form-border-radius: 3px;
   --form-padding: 0 8px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+
+  /* Mantine xs 크기(기본 30px)를 C 톤 컨트롤 높이 26px 로 맞춘다.
+     Mantine 은 @layer mantine 안에서 선언하므로 이 비계층 선언이 우선한다. */
+  --input-height-xs: 26px;
+  --button-height-xs: 26px;
 
   /* ============================================================
      그림자
      ============================================================ */
-  --shadow-focus: 0 0 0 2px rgba(51, 122, 183, 0.15);
-  --shadow-error-focus: 0 0 0 2px rgba(220, 53, 69, 0.15);
-  --shadow-dropdown: 0 2px 8px rgba(0, 0, 0, 0.15);
-  --shadow-modal: 0 4px 16px rgba(0, 0, 0, 0.2);
+  --shadow-focus: 0 0 0 2px var(--color-focus-shadow);
+  --shadow-error-focus: 0 0 0 2px rgba(212, 42, 42, 0.18);
+  --shadow-dropdown: 0 4px 12px rgba(15, 23, 32, 0.18);
+  --shadow-modal: 0 8px 28px rgba(15, 23, 32, 0.28);
 
   /* ============================================================
      트랜지션
      ============================================================ */
-  --transition-fast: 0.15s ease;
-  --transition-normal: 0.2s ease;
+  --transition-fast: 0.12s ease;
+  --transition-normal: 0.18s ease;
   --transition-slow: 0.3s ease;
 
   /* ============================================================
      레이아웃
      ============================================================ */
-  --sidebar-width: 280px;
+  --sidebar-width: 240px;
   --sidebar-collapsed-width: 0px;
-  --tab-height: 36px;
+  --tab-height: 34px;
 }

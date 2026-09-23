@@ -7,11 +7,13 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: var(--color-bg);
+  /* C 톤(2026-09-23): 화면 바탕은 앱 회색, 조회영역·패널은 그 위의 흰 카드 */
+  background-color: var(--color-bg-app);
+  color: var(--color-text);
   font-size: var(--font-size-md);
   font-family: var(--font-family);
   overflow: hidden;
-  padding: 6px 0 0 0;
+  padding: 0;
   gap: 0;
   --form-label-width: 100px;
   --search-input-width: 150px;
@@ -29,15 +31,16 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 4px 10px 8px;
-  background-color: var(--color-bg);
-  border-bottom: 1px solid var(--color-border-grid);
+  padding: 8px 10px;
+  background-color: transparent;
+  border-bottom: none;
   flex-shrink: 0;
 }
 
 .page-layout__title {
-  font-size: 17px;
-  font-weight: 600;
+  font-size: var(--font-size-title);
+  font-weight: 700;
+  line-height: 1.3;
   color: var(--color-text);
   margin: 0;
 }
@@ -53,22 +56,22 @@
 .page-layout .btn {
   padding: 4px 12px;
   font-size: var(--font-size-sm);
-  border: 1px solid #c0c0c0;
+  border: 1px solid var(--color-border-strong);
   background-color: var(--color-bg);
   color: var(--color-text);
   cursor: pointer;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   transition: all var(--transition-fast);
   font-family: inherit;
 }
 
 .page-layout .btn:hover {
-  background-color: #f0f0f0;
+  background-color: var(--color-bg-hover);
 }
 
 .page-layout .btn:disabled {
   background-color: var(--color-border);
-  border-color: #bbb;
+  border-color: var(--color-border-strong);
   cursor: not-allowed;
   opacity: 0.6;
 }
@@ -76,7 +79,7 @@
 .page-layout .btn-primary {
   background-color: var(--color-primary);
   border-color: var(--color-primary);
-  color: #fff;
+  color: var(--color-on-primary);
 }
 
 .page-layout .btn-primary:hover {
@@ -86,21 +89,21 @@
 .page-layout .btn-save {
   background-color: var(--color-text-muted);
   border-color: var(--color-text-muted);
-  color: #fff;
+  color: var(--color-on-primary);
 }
 
 .page-layout .btn-save:hover {
-  background-color: #555;
+  background-color: var(--color-text-secondary);
 }
 
 .page-layout .btn-cancel {
-  background-color: #d32f2f;
-  border-color: #d32f2f;
-  color: #fff;
+  background-color: var(--color-danger);
+  border-color: var(--color-danger);
+  color: var(--color-on-primary);
 }
 
 .page-layout .btn-cancel:hover {
-  background-color: #b71c1c;
+  background-color: var(--color-danger-hover);
 }
 
 /* ========================================
@@ -108,12 +111,14 @@
    ======================================== */
 .page-layout .search-area {
   padding: 5px 6px;
-  background-color: #F5F9FA;
-  border-bottom: 1px solid #d0dae2;
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: none;
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  margin-bottom: 4px;
+  margin: 0 10px 8px;
 }
 
 /* ★조회조건 표준 배치(2026-07-01) — flex-wrap → CSS grid.
@@ -128,8 +133,9 @@
   column-gap: 12px;
   row-gap: 8px;
   align-items: center;
-  padding: 6px 10px;
-  background-color: #f2f6f9;
+  /* 카드 안쪽 여백은 SearchArea 의 Paper p="xs"(inline) 가 담당 */
+  padding: 0;
+  background-color: transparent;
   border: none;
   flex: 1;
   min-width: 0;
@@ -144,7 +150,7 @@
 
 .page-layout .search-field__label {
   font-size: var(--font-size-sm);
-  color: #333;
+  color: var(--color-text-secondary);
   white-space: nowrap;
   font-weight: 500;
   min-width: 76px; /* 라벨 폭 통일 → 셀 내 필드 시작 X축도 정렬 */
@@ -234,18 +240,18 @@
   min-width: 160px;
   max-height: 240px;
   overflow-y: auto;
-  background-color: #fff;
-  border: 1px solid var(--color-border-grid, #ccc);
-  border-radius: 2px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-dropdown);
   z-index: 1000;
   list-style: none;
 }
 
 .search-history-header {
   padding: 3px 8px;
-  font-size: 11px;
-  color: #8a96a3;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted-light);
   font-weight: 600;
   user-select: none;
 }
@@ -257,13 +263,13 @@
   gap: 8px;
   padding: 4px 8px;
   font-size: var(--font-size-sm);
-  color: #333;
+  color: var(--color-text);
   cursor: pointer;
 }
 
 .search-history-option.highlighted {
-  background-color: var(--color-primary, #337ab7);
-  color: #fff;
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
 }
 
 .search-history-option__value {
@@ -286,16 +292,16 @@
   opacity: 0.55;
   cursor: pointer;
   font-size: 14px;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .search-history-option__delete:hover {
   opacity: 1;
-  background-color: rgba(0, 0, 0, 0.12);
+  background-color: color-mix(in srgb, currentColor 15%, transparent);
 }
 
 .search-history-footer {
-  border-top: 1px solid #eef2f5;
+  border-top: 1px solid var(--color-border-light);
   padding: 2px 4px;
   text-align: right;
 }
@@ -303,16 +309,16 @@
 .search-history-clear {
   border: none;
   background: transparent;
-  color: #6b7785;
-  font-size: 11px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
   cursor: pointer;
   padding: 2px 6px;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .search-history-clear:hover {
-  color: #d9534f;
-  background-color: #f5f7f9;
+  color: var(--color-danger);
+  background-color: var(--color-bg-hover);
 }
 
 /* ========================================
@@ -322,11 +328,11 @@
   flex: 1 1 0;
   display: flex;
   flex-direction: row;
-  gap: 6px;
+  gap: var(--spacing-sm);
   min-height: 0;
   height: 0;
   overflow: hidden;
-  padding: 0 10px;
+  padding: 0 10px 8px;
 }
 
 .page-layout .content-body--column {
@@ -334,9 +340,8 @@
 }
 
 .page-layout .content-body--root {
-  padding: 4px 10px;
-  background-color: var(--color-bg);
-  border-radius: 2px;
+  padding: 0 10px 8px;
+  background-color: transparent;
 }
 
 .page-layout .content-panel {
@@ -346,7 +351,12 @@
   min-height: 0;
   height: 100%;
   overflow: hidden;
-  padding: 1px;
+  padding: 0;
+  /* ContentPanel(Mantine Paper withBorder) = C 톤 흰 카드 */
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: none;
 }
 
 /* ========================================
@@ -359,7 +369,7 @@
   min-height: 0;
   background-color: var(--color-bg);
   border: none;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
   flex: 1 1 0;
 }
@@ -368,10 +378,10 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 3px 6px;
-  background-color: transparent;
-  border-bottom: none;
-  height: 28px;
+  padding: 0 8px 0 10px;
+  background-color: var(--color-bg-header);
+  border-bottom: 1px solid var(--color-border);
+  height: 32px;
   flex-shrink: 0;
   box-sizing: border-box;
 }
@@ -380,18 +390,40 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  /* 좁은 패널에서도 제목·건수는 남기고 버튼 영역이 줄어든다. */
+  flex: 0 0 auto;
+  max-width: 60%;
+  min-width: 0;
 }
 
 .page-layout .grid-panel-title>span:first-child {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
   color: var(--color-text);
+  /* 좁은 패널에서 제목이 한 글자씩 줄바꿈되지 않도록 한 줄로 두고 말줄임한다. */
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.page-layout .grid-panel-count {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-  font-weight: normal;
+/* 건수 배지 — 어두운 알약. title 이 없으면 count 가 first-child 가 되어 위 규칙(0,3,1)이
+   글자색을 덮으므로 같은 구체성의 셀렉터를 함께 두고 뒤에 선언한다. */
+.page-layout .grid-panel-count,
+.page-layout .grid-panel-title > span.grid-panel-count {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 9px;
+  background-color: var(--c-slate-900);
+  color: var(--color-on-primary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .page-layout .grid-panel-buttons {
@@ -403,11 +435,11 @@
   height: 24px;
   padding: 0 10px;
   font-size: var(--font-size-sm);
-  border: 1px solid #aab4be;
+  border: 1px solid var(--color-border-strong);
   background-color: var(--color-bg);
   color: var(--color-text);
   cursor: pointer;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   transition: all var(--transition-fast);
   font-family: inherit;
   box-sizing: border-box;
@@ -415,8 +447,8 @@
 }
 
 .page-layout .grid-btn:hover {
-  background-color: #eaf0f6;
-  border-color: #7a9ab8;
+  background-color: var(--color-bg-header);
+  border-color: var(--c-slate-500);
 }
 
 .page-layout .grid-btn:disabled {
@@ -427,7 +459,7 @@
 .page-layout .grid-btn.primary {
   background-color: var(--color-primary);
   border-color: var(--color-primary);
-  color: #fff;
+  color: var(--color-on-primary);
 }
 
 .page-layout .grid-btn.primary:hover {
@@ -437,11 +469,11 @@
 .page-layout .grid-btn.danger {
   background-color: var(--color-danger);
   border-color: var(--color-danger);
-  color: #fff;
+  color: var(--color-on-primary);
 }
 
 .page-layout .grid-btn.danger:hover {
-  background-color: #c9302c;
+  background-color: var(--color-danger-hover);
 }
 
 .page-layout .grid-panel-content {
@@ -465,10 +497,12 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  height: 32px;
-  padding: 0 12px;
-  background-color: var(--color-bg-header);
+  height: 28px;
+  padding: 0 8px;
+  background-color: var(--color-bg-grid-header);
   border-bottom: 1px solid var(--color-border-grid);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
   font-weight: 600;
   text-align: left;
   white-space: nowrap;
@@ -477,13 +511,13 @@
 }
 
 .page-layout .data-table tbody tr {
-  height: 28px;
+  height: 26px;
   border-bottom: 1px solid var(--color-border-light);
   cursor: pointer;
 }
 
 .page-layout .data-table tbody tr:hover {
-  background-color: var(--color-bg-light);
+  background-color: var(--color-bg-hover);
 }
 
 .page-layout .data-table tbody tr.selected {
@@ -491,12 +525,12 @@
 }
 
 .page-layout .data-table tbody tr.selected:hover {
-  background-color: var(--color-selection-hover, #d0e8fc);
+  background-color: var(--color-selection-hover);
 }
 
 .page-layout .data-table tbody td {
-  padding: 0 12px;
-  line-height: 28px;
+  padding: 0 8px;
+  line-height: 26px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -510,9 +544,9 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  background-color: #fff;
+  background-color: var(--color-bg);
   border: none;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
   flex: 1 1 0;
 }
@@ -536,10 +570,10 @@
   width: var(--form-label-width);
   min-width: var(--form-label-width);
   font-size: var(--font-size-sm);
-  color: var(--color-text);
-  padding: 0 6px;
+  color: var(--color-text-secondary);
+  padding: 0 8px;
   background-color: var(--color-bg-header);
-  border: 1px solid var(--color-border-medium);
+  border: 1px solid var(--color-border-light);
   height: 26px;
   line-height: 26px;
   box-sizing: border-box;
@@ -550,12 +584,12 @@
 
 .page-layout .form-label.required::before {
   content: "* ";
-  color: #d9534f;
+  color: var(--color-danger);
 }
 
 .page-layout .form-value {
   flex: 1;
-  border: 1px solid var(--color-border-medium);
+  border: 1px solid var(--color-border-light);
   border-left: none;
   height: 26px;
   box-sizing: border-box;
@@ -578,7 +612,8 @@
 .page-layout .form-value input:focus,
 .page-layout .form-value select:focus {
   outline: none;
-  background-color: #fffef0;
+  background-color: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-focus);
 }
 
 .page-layout .form-value input:disabled,
@@ -626,10 +661,10 @@
   width: var(--form-label-width);
   min-width: var(--form-label-width);
   font-size: var(--font-size-sm);
-  color: var(--color-text);
-  padding: 0 6px;
+  color: var(--color-text-secondary);
+  padding: 0 8px;
   background-color: var(--color-bg-header);
-  border: 1px solid var(--color-border-medium);
+  border: 1px solid var(--color-border-light);
   height: 26px;
   line-height: 26px;
   box-sizing: border-box;
@@ -639,13 +674,13 @@
 }
 
 .page-layout .form-required {
-  color: #d9534f;
+  color: var(--color-danger);
   margin-right: 2px;
 }
 
 .page-layout .form-group-field {
   flex: 1;
-  border: 1px solid var(--color-border-medium);
+  border: 1px solid var(--color-border-light);
   border-left: none;
   height: 26px;
   box-sizing: border-box;
@@ -663,7 +698,7 @@
   font-size: var(--font-size-sm);
   box-sizing: border-box;
   font-family: inherit;
-  background-color: #fff;
+  background-color: var(--color-bg);
   border-radius: 0;
   box-shadow: none;
 }
@@ -671,17 +706,18 @@
 .page-layout .form-group-field .form-input:focus,
 .page-layout .form-group-field .form-select:focus {
   outline: none;
-  background-color: #fffef0;
-  box-shadow: none;
+  background-color: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-focus);
   border: none;
 }
 
 /* readOnly 도 disabled 와 동일한 옅은 회색 (2026-08-07). form-group-field 안에서는
-   위 :focus 규칙(배경 #fffef0)이 더 구체적이라, 같은 구체성으로 함께 선언해야 회색이 유지된다. */
+   위 :focus 규칙(흰 배경·포커스 테두리)이 더 구체적이라, 같은 구체성으로 함께 선언해야 회색이 유지된다. */
 .page-layout .form-group-field .form-input[readonly],
 .page-layout .form-group-field .form-input[readonly]:focus {
   background-color: var(--color-bg-disabled);
   color: var(--color-text-disabled);
+  box-shadow: none;
 }
 
 .page-layout .form-group-field .form-input:disabled,
@@ -721,9 +757,9 @@
   justify-content: space-between;
   align-items: center;
   padding: 4px 10px;
-  background-color: var(--color-bg-disabled);
-  border-top: 1px solid var(--color-border-grid);
-  font-size: var(--font-size-xs);
+  background-color: transparent;
+  border-top: 1px solid var(--color-border);
+  font-size: 11.5px;
   color: var(--color-text-muted);
   height: 24px;
   flex-shrink: 0;
@@ -734,9 +770,9 @@
 }
 
 .page-layout__footer-screen-id {
-  color: #7a8a9a;
-  font-family: monospace;
-  font-size: 11px;
+  color: var(--color-text-muted);
+  font-family: var(--font-family-mono);
+  font-size: 11.5px;
 }
 
 /* ========================================
@@ -791,12 +827,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: color-mix(in srgb, var(--c-slate-950) 45%, transparent);
 }
 
 .error-modal {
-  border-radius: 4px;
-  background-color: #fff;
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg);
   box-shadow: var(--shadow-modal);
   max-width: 28rem;
   width: 100%;
@@ -826,21 +862,21 @@
 .error-modal__footer .btn {
   padding: 4px 12px;
   font-size: var(--font-size-sm);
-  border: 1px solid #c0c0c0;
+  border: 1px solid var(--color-border-strong);
   background-color: var(--color-bg);
   color: var(--color-text);
   cursor: pointer;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   transition: all var(--transition-fast);
   font-family: inherit;
 }
 .error-modal__footer .btn:hover {
-  background-color: #f0f0f0;
+  background-color: var(--color-bg-hover);
 }
 .error-modal__footer .btn-primary {
   background-color: var(--color-primary);
   border-color: var(--color-primary);
-  color: #fff;
+  color: var(--color-on-primary);
 }
 .error-modal__footer .btn-primary:hover {
   background-color: var(--color-primary-hover);
@@ -857,16 +893,16 @@
 
 .page-layout .grid-panel-content::-webkit-scrollbar-track,
 .page-layout .form-panel-content::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--color-bg-light);
 }
 
 .page-layout .grid-panel-content::-webkit-scrollbar-thumb,
 .page-layout .form-panel-content::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: var(--color-border);
   border-radius: 4px;
 }
 
 .page-layout .grid-panel-content::-webkit-scrollbar-thumb:hover,
 .page-layout .form-panel-content::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: var(--color-border-strong);
 }

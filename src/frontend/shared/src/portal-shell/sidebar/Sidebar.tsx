@@ -236,7 +236,7 @@ export function Sidebar({
             minWidth: 14,
             height: 60,
             minHeight: 60,
-            borderRadius: "0 6px 6px 0",
+            borderRadius: "0 3px 3px 0",
           }}
           onClick={() => onExpandedChange(!isExpanded)}
           title={isExpanded ? "메뉴 접기" : "메뉴 펼치기"}

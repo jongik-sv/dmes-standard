@@ -8,30 +8,30 @@
 .form-input,
 .form-select {
   width: 100%;
-  height: var(--form-height, 26px);
-  padding: 0 8px;
-  font-size: var(--font-size-sm, 12px);
-  border: 1px solid var(--color-border, #ccc);
-  border-radius: var(--form-border-radius, 3px);
-  background-color: var(--color-bg, #fff);
-  color: var(--color-text, #333);
+  height: var(--form-height);
+  padding: var(--form-padding);
+  font-size: var(--font-size-md);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--form-border-radius);
+  background-color: var(--color-bg);
+  color: var(--color-text);
   box-sizing: border-box;
   transition:
-    border-color 0.2s,
-    box-shadow 0.2s;
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 .form-input:focus,
 .form-select:focus {
   outline: none;
-  border-color: var(--color-focus, #337ab7);
-  box-shadow: var(--shadow-focus, 0 0 0 2px rgba(51, 122, 183, 0.15));
+  border-color: var(--color-focus);
+  box-shadow: var(--shadow-focus);
 }
 
 .form-input:disabled,
 .form-select:disabled {
-  background-color: var(--color-bg-disabled, #f5f5f5);
-  color: var(--color-text-disabled, #999);
+  background-color: var(--color-bg-disabled);
+  color: var(--color-text-disabled);
   cursor: not-allowed;
 }
 
@@ -42,13 +42,13 @@
    ★[readonly] 속성 선택자를 쓴다 — :read-only 의사클래스는 checkbox/radio/select 처럼
    애초에 편집 대상이 아닌 요소에도 매칭돼 의도치 않게 회색이 번진다. */
 .form-input[readonly] {
-  background-color: var(--color-bg-disabled, #f5f5f5);
-  color: var(--color-text-disabled, #999);
+  background-color: var(--color-bg-readonly);
+  color: var(--color-text-muted);
 }
 
 /* readOnly 는 포커스 강조도 뺀다 — 편집 가능한 칸으로 오해할 여지를 없앤다. */
 .form-input[readonly]:focus {
-  border-color: var(--color-border, #ccc);
+  border-color: var(--color-border-strong);
   box-shadow: none;
 }
 
@@ -72,15 +72,15 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  height: var(--form-height, 26px);
+  height: var(--form-height);
 }
 
 .form-radio-label {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: var(--font-size-sm, 12px);
-  color: var(--color-text, #333);
+  font-size: var(--font-size-md);
+  color: var(--color-text);
   cursor: pointer;
 }
 
@@ -105,36 +105,37 @@
    ============================================================ */
 
 .form-button {
-  height: var(--form-height, 26px);
-  padding: 0 12px;
-  font-size: var(--font-size-sm, 12px);
-  border: 1px solid var(--color-border, #ccc);
-  border-radius: var(--form-border-radius, 3px);
-  background-color: var(--color-bg, #fff);
-  color: var(--color-text, #333);
+  height: var(--form-height);
+  padding: 0 10px;
+  font-size: var(--font-size-md);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--form-border-radius);
+  background-color: var(--color-bg);
+  color: var(--color-text);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--transition-fast);
   white-space: nowrap;
 }
 
 .form-button:hover:not(:disabled) {
-  background-color: var(--color-bg-hover, #f5f5f5);
-  border-color: var(--color-border-hover, #999);
+  background-color: var(--color-bg-hover);
+  border-color: var(--color-text-muted-light);
 }
 
 .form-button:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
 .form-button-primary {
-  background-color: var(--color-primary, #337ab7);
-  color: white;
-  border-color: var(--color-primary, #337ab7);
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+  border-color: var(--color-primary);
 }
 
 .form-button-primary:hover:not(:disabled) {
-  background-color: var(--color-primary-hover, #2a6499);
+  background-color: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
 }
 
 /* form-button-danger/form-button-sm/form-button-mini — Mantine Button 이
@@ -164,18 +165,18 @@
 
 .form-input.form-error,
 .form-select.form-error {
-  border-color: var(--color-error, #dc3545);
+  border-color: var(--color-error);
 }
 
 .form-input.form-error:focus,
 .form-select.form-error:focus {
-  border-color: var(--color-error, #dc3545);
-  box-shadow: var(--shadow-error-focus, 0 0 0 2px rgba(220, 53, 69, 0.15));
+  border-color: var(--color-error);
+  box-shadow: var(--shadow-error-focus);
 }
 
 .form-error-message {
-  font-size: var(--font-size-xs, 11px);
-  color: var(--color-error, #dc3545);
+  font-size: var(--font-size-xs);
+  color: var(--color-error);
   margin-top: 2px;
   line-height: 1.3;
 }
@@ -209,16 +210,16 @@
 
 .form-group-label {
   padding-right: 8px;
-  font-size: var(--font-size-sm, 12px);
+  font-size: var(--font-size-sm);
   font-weight: 500;
-  color: var(--color-text, #333);
+  color: var(--color-text-secondary);
   text-align: right;
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 .form-required {
-  color: #f44336;
+  color: var(--color-danger);
   margin-right: 2px;
 }
 
@@ -246,15 +247,15 @@
   min-width: 220px;
   max-width: 320px;
   padding: 6px 10px;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 400;
   line-height: 1.5;
-  color: #fff;
-  background-color: rgba(50, 50, 50, 0.95);
-  border-radius: 4px;
+  color: var(--shell-header-fg);
+  background-color: var(--shell-header-bg);
+  border-radius: var(--radius-sm);
   white-space: normal;
   text-align: left;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-dropdown);
   pointer-events: none;
 }
 
@@ -277,8 +278,8 @@
 
 .form-container {
   padding: 10px;
-  background-color: var(--color-bg, #fff);
-  border: 1px solid #ddd;
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
 }
 
 /* ============================================================
@@ -290,28 +291,28 @@
   display: flex;
   align-items: center;
   width: 100%;
-  height: var(--form-height, 26px);
-  border: 1px solid var(--color-border, #ccc);
-  border-radius: var(--form-border-radius, 3px);
-  background-color: var(--color-bg, #fff);
+  height: var(--form-height);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--form-border-radius);
+  background-color: var(--color-bg);
   box-sizing: border-box;
   transition:
-    border-color 0.2s,
-    box-shadow 0.2s;
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 .form-combobox:focus-within {
-  border-color: var(--color-focus, #337ab7);
-  box-shadow: var(--shadow-focus, 0 0 0 2px rgba(51, 122, 183, 0.15));
+  border-color: var(--color-focus);
+  box-shadow: var(--shadow-focus);
 }
 
 .form-combobox.form-error {
-  border-color: var(--color-error, #dc3545);
+  border-color: var(--color-error);
 }
 
 .form-combobox.form-error:focus-within {
-  border-color: var(--color-error, #dc3545);
-  box-shadow: var(--shadow-error-focus, 0 0 0 2px rgba(220, 53, 69, 0.15));
+  border-color: var(--color-error);
+  box-shadow: var(--shadow-error-focus);
 }
 
 .form-combobox-input {
@@ -320,8 +321,8 @@
   height: 100%;
   border: none;
   padding: 0 6px;
-  font-size: var(--font-size-sm, 12px);
-  color: var(--color-text, #333);
+  font-size: var(--font-size-md);
+  color: var(--color-text);
   background: transparent;
   box-sizing: border-box;
   font-family: inherit;
@@ -330,8 +331,8 @@
 }
 
 .form-combobox-input:disabled {
-  background-color: var(--color-bg-disabled, #f5f5f5);
-  color: var(--color-text-disabled, #999);
+  background-color: var(--color-bg-disabled);
+  color: var(--color-text-disabled);
   cursor: not-allowed;
 }
 
@@ -344,13 +345,13 @@
   padding: 0;
   border: none;
   background: transparent;
-  color: var(--color-text-secondary, #999);
+  color: var(--color-text-muted);
   cursor: pointer;
   flex-shrink: 0;
 }
 
 .form-combobox-toggle:hover {
-  color: var(--color-text, #333);
+  color: var(--color-text);
 }
 
 .form-combobox-toggle:disabled {
@@ -366,10 +367,10 @@
   margin-top: 2px;
   max-height: 200px;
   overflow-y: auto;
-  background-color: var(--color-bg, #fff);
-  border: 1px solid var(--color-border, #ccc);
-  border-radius: var(--form-border-radius, 3px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--form-border-radius);
+  box-shadow: var(--shadow-dropdown);
   z-index: 1000;
   list-style: none;
   padding: 2px 0;
@@ -378,8 +379,8 @@
 
 .form-combobox-option {
   padding: 4px 8px;
-  font-size: var(--font-size-sm, 12px);
-  color: var(--color-text, #333);
+  font-size: var(--font-size-md);
+  color: var(--color-text);
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
@@ -387,8 +388,8 @@
 }
 
 .form-combobox-option.highlighted {
-  background-color: var(--color-primary, #337ab7);
-  color: #fff;
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
 }
 
 .form-combobox-option.selected {
@@ -397,8 +398,8 @@
 
 .form-combobox-empty {
   padding: 6px 8px;
-  font-size: var(--font-size-sm, 12px);
-  color: var(--color-text-disabled, #999);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted-light);
   text-align: center;
   list-style: none;
 }
@@ -427,11 +428,11 @@
   align-items: center;
   gap: 2px;
   padding: 1px 4px 1px 6px;
-  background-color: var(--color-selection, #e3f2fd);
-  border: 1px solid var(--color-selection-border, #b8cde2);
+  background-color: var(--color-primary-soft);
+  border: 1px solid var(--color-primary-soft-hover);
   border-radius: 2px;
-  font-size: var(--font-size-xs, 11px);
-  color: var(--color-text, #333);
+  font-size: var(--font-size-xs);
+  color: var(--color-primary-active);
   line-height: 1.4;
   max-width: 140px;
   white-space: nowrap;
@@ -451,7 +452,7 @@
   padding: 0;
   border: none;
   background: transparent;
-  color: #666;
+  color: var(--color-text-muted);
   font-size: 13px;
   font-weight: bold;
   cursor: pointer;
@@ -461,8 +462,8 @@
 }
 
 .form-multiselect-tag-remove:hover {
-  background-color: rgba(0, 0, 0, 0.08);
-  color: #333;
+  background-color: var(--color-primary-soft-hover);
+  color: var(--color-text);
 }
 
 .form-multiselect-input {
@@ -471,8 +472,8 @@
   height: 20px;
   border: none;
   padding: 0 2px;
-  font-size: var(--font-size-sm, 12px);
-  color: var(--color-text, #333);
+  font-size: var(--font-size-md);
+  color: var(--color-text);
   background: transparent;
   outline: none;
   font-family: inherit;
@@ -508,13 +509,13 @@
 }
 
 .page-layout .form-value .form-combobox-input:focus {
-  background-color: #fffef0;
+  background-color: var(--color-primary-soft);
 }
 
 /* page-layout 내 MultiSelectComboBox — form-value의 고정 높이를 해제 */
 .page-layout .form-row:has(.form-multiselect) .form-value {
   height: auto;
-  min-height: 26px;
+  min-height: var(--form-height);
 }
 
 .page-layout .form-value .form-multiselect {

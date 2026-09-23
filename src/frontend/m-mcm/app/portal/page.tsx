@@ -193,7 +193,7 @@ export default function PortalPage() {
             width: 24,
             height: 24,
             border: "3px solid #e8e8e8",
-            borderTopColor: "var(--color-primary, #337ab7)",
+            borderTopColor: "var(--color-primary, #0b62d6)",
             borderRadius: "50%",
             animation: "spin 0.8s linear infinite",
             marginRight: 8,

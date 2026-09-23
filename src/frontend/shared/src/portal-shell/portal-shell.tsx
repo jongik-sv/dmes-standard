@@ -31,7 +31,7 @@ import { TabPageContext } from "./tab-page-context";
 import { useTabHistory } from "./use-tab-history";
 import "./portal-shell.css";
 
-const PORTAL_HEADER_HEIGHT = 48;
+const PORTAL_HEADER_HEIGHT = 44;
 const DEFAULT_STORAGE_KEY = "oasis.portal.tabs.v1";
 const DEFAULT_HOME_TAB_TITLE = "홈";
 const RECENT_MENU_STORAGE_SUFFIX = ".recent-menu";

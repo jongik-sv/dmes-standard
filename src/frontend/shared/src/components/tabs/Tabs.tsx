@@ -31,7 +31,7 @@ export interface TabsProps {
  *
  * Mantine `Tabs` 위에 얹는다. 밑줄 색은 테마 primaryColor(`dmes`, variables.css 의
  * `--color-primary` 와 동기화)가 기본으로 담당하지만, 색 일관성 테스트가 소스에서
- * `var(--color-primary, #337ab7)` 문자열을 직접 검사하므로 styles 로도 명시해 둔다.
+ * `var(--color-primary, #0b62d6)` 문자열을 직접 검사하므로 styles 로도 명시해 둔다.
  */
 export function Tabs({ items, activeKey, onChange, className = "", style }: TabsProps) {
   return (
@@ -40,7 +40,7 @@ export function Tabs({ items, activeKey, onChange, className = "", style }: Tabs
       onChange={(v) => v && onChange(v)}
       className={`cm-tabs ${className}`.trim()}
       style={style}
-      styles={{ tab: { "--tab-color": "var(--color-primary, #337ab7)" } }}
+      styles={{ tab: { "--tab-color": "var(--color-primary, #0b62d6)" } }}
     >
       <MTabs.List>
         {items.map((t) => (

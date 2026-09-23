@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>DMES 톤 샘플</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+<style>
+/* ── 공통 구조: 세 톤이 같은 DOM 을 쓰고 토큰만 바꾼다 ── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body { font-family: var(--font); font-size: var(--fs); color: var(--text); background: var(--bg); font-feature-settings: "tnum"; }
+button { font: inherit; cursor: pointer; }
+input, select { font: inherit; color: inherit; }
+
+.switcher { position: fixed; right: 16px; bottom: 16px; z-index: 99; display: flex; gap: 6px; background: #111; padding: 6px; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.3); }
+.switcher button { border: 0; background: transparent; color: #bbb; padding: 8px 14px; border-radius: 6px; font-size: 13px; font-family: Pretendard Variable, sans-serif; }
+.switcher button.on { background: #fff; color: #111; font-weight: 600; }
+
+.app { display: grid; grid-template-rows: var(--header-h) 1fr; height: 100vh; }
+header.top { display: flex; align-items: center; gap: 16px; padding: 0 20px; background: var(--header-bg); color: var(--header-fg); border-bottom: 1px solid var(--header-border); }
+.logo { font-weight: 800; font-size: 20px; letter-spacing: -.02em; display: flex; align-items: center; gap: 2px; }
+.logo img { height: var(--logo-h, 28px); display: block; }
+body.tone-b .logo img { filter: invert(1) hue-rotate(180deg); }
+.logo small { font-weight: 500; font-size: 12px; color: var(--header-sub); margin-left: 10px; letter-spacing: 0; }
+.top .search { margin-left: 24px; flex: 0 1 320px; height: 32px; border-radius: var(--r); border: 1px solid var(--header-input-border); background: var(--header-input-bg); color: var(--header-sub); display: flex; align-items: center; padding: 0 10px; font-size: 13px; }
+.top .spacer { flex: 1; }
+.top .user { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--avatar-bg); color: var(--avatar-fg); display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+
+.body { display: grid; grid-template-columns: var(--side-w) 1fr; min-height: 0; }
+aside { background: var(--side-bg); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+.side-tabs { display: flex; padding: var(--side-pad) var(--side-pad) 0; gap: 4px; }
+.side-tabs span { flex: 1; text-align: center; padding: 7px 0; border-radius: var(--r) var(--r) 0 0; color: var(--muted); font-size: 13px; }
+.side-tabs span.on { color: var(--side-on-fg); font-weight: 600; box-shadow: inset 0 -2px 0 var(--primary); }
+.side-filter { padding: var(--side-pad); }
+.side-filter div { height: 30px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); padding: 0 10px; display: flex; align-items: center; color: var(--muted); font-size: 12.5px; }
+nav.tree { padding: 0 var(--side-pad) var(--side-pad); overflow: auto; }
+.grp { font-size: 11.5px; font-weight: 600; color: var(--muted); padding: 12px 8px 6px; letter-spacing: var(--grp-ls); text-transform: var(--grp-tt); }
+.item { display: flex; align-items: center; gap: 8px; height: var(--nav-h); padding: 0 10px; border-radius: var(--r); color: var(--side-fg); font-size: var(--nav-fs); }
+.item.sub { padding-left: 26px; }
+.item .ic { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .35; flex: none; }
+.item.on { background: var(--nav-on-bg); color: var(--nav-on-fg); font-weight: 600; }
+.item.on .ic { opacity: 1; }
+
+main { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg); }
+.mdi { display: flex; align-items: flex-end; gap: 2px; height: var(--mdi-h); padding: 0 12px; background: var(--mdi-bg); border-bottom: 1px solid var(--line); }
+.mdi span { display: flex; align-items: center; gap: 8px; height: calc(var(--mdi-h) - 6px); padding: 0 14px; font-size: 13px; color: var(--muted); border-radius: var(--r) var(--r) 0 0; }
+.mdi span.on { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: var(--mdi-on-shadow); border: 1px solid var(--line); border-bottom-color: var(--surface); margin-bottom: -1px; }
+.mdi span i { font-style: normal; color: var(--muted); font-size: 11px; }
+
+.page { flex: 1; overflow: auto; padding: var(--page-pad); display: flex; flex-direction: column; gap: var(--gap); }
+.page-head { display: flex; align-items: center; gap: 12px; }
+.crumb { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+.page-head h1 { font-size: var(--h1); font-weight: 700; letter-spacing: -.02em; }
+.page-head .actions { margin-left: auto; display: flex; gap: 6px; }
+
+.btn { height: var(--btn-h); padding: 0 var(--btn-px); border-radius: var(--r); border: 1px solid var(--btn-border); background: var(--surface); color: var(--text); font-size: 13px; font-weight: 500; }
+.btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--primary); }
+.btn:disabled { opacity: .45; }
+
+.card { background: var(--surface); border: 1px solid var(--card-border); border-radius: var(--r-card); box-shadow: var(--shadow); }
+.search-card { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 24px; padding: var(--card-pad); }
+.field { display: grid; grid-template-columns: var(--label-w) 1fr; align-items: center; gap: 10px; }
+.field label { font-size: 12.5px; color: var(--label); font-weight: 500; }
+.input { height: var(--input-h); border: 1px solid var(--input-border); border-radius: var(--r); background: var(--input-bg); padding: 0 10px; display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
+.input.ph { color: var(--muted); }
+.input.ro { background: var(--ro-bg); color: var(--muted); }
+
+.work { display: grid; grid-template-columns: 240px minmax(0, 1fr) 340px; gap: var(--gap); flex: 1; min-height: 0; }
+.panel { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.panel-head { display: flex; align-items: center; gap: 8px; height: var(--panel-head-h); padding: 0 var(--card-pad-x); border-bottom: 1px solid var(--line); background: var(--panel-head-bg); }
+.panel-head h2 { font-size: 13.5px; font-weight: 700; }
+.count { font-size: 11.5px; padding: 1px 8px; border-radius: 99px; background: var(--badge-bg); color: var(--badge-fg); font-weight: 600; }
+.panel-head .tools { margin-left: auto; display: flex; gap: 4px; }
+.panel-head .tools .btn { height: calc(var(--btn-h) - 4px); padding: 0 10px; font-size: 12.5px; }
+
+.mtree { padding: 8px; font-size: 13px; }
+.mtree div { height: 30px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-radius: var(--r); }
+.mtree div.l2 { padding-left: 28px; }
+.mtree div.on { background: var(--nav-on-bg-soft); color: var(--primary); font-weight: 600; }
+.mtree .car { color: var(--muted); font-size: 10px; width: 12px; }
+
+table.grid { width: 100%; border-collapse: collapse; font-size: var(--grid-fs); }
+.grid th { position: sticky; top: 0; height: var(--grid-head-h); background: var(--grid-head-bg); color: var(--grid-head-fg); font-weight: 600; text-align: left; padding: 0 12px; border-bottom: 1px solid var(--line-strong); font-size: var(--grid-head-fs); letter-spacing: var(--grid-head-ls); text-transform: var(--grp-tt); white-space: nowrap; }
+.grid th .req { color: var(--danger); }
+.grid td { height: var(--row-h); padding: 0 12px; border-bottom: 1px solid var(--row-line); white-space: nowrap; }
+.grid tr:nth-child(even) td { background: var(--zebra); }
+.grid tr.sel td { background: var(--row-sel); box-shadow: inset 0 0 0 0 transparent; }
+.grid tr.sel td:first-child { box-shadow: inset 3px 0 0 var(--primary); }
+.grid td.num { font-variant-numeric: tabular-nums; color: var(--muted); }
+.grid td.mono { font-family: var(--mono); font-size: calc(var(--grid-fs) - .5px); }
+.tag { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 11.5px; font-weight: 600; background: var(--ok-bg); color: var(--ok-fg); }
+.tag.off { background: var(--off-bg); color: var(--muted); }
+.grid-wrap { overflow: auto; flex: 1; }
+
+.form { padding: var(--card-pad); display: flex; flex-direction: column; gap: 12px; overflow: auto; }
+.form .field { grid-template-columns: 96px 1fr; }
+.form .row2 { display: flex; gap: 6px; }
+.form .row2 .input { flex: 1; }
+.radio { display: flex; gap: 16px; font-size: 13px; align-items: center; height: var(--input-h); }
+.radio span { display: flex; align-items: center; gap: 6px; }
+.radio i { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--input-border); display: inline-block; }
+.radio i.on { border: 5px solid var(--primary); }
+footer.status { height: 28px; display: flex; align-items: center; padding: 0 16px; font-size: 11.5px; color: var(--muted); border-top: 1px solid var(--line); background: var(--surface); }
+footer.status .code { margin-left: auto; font-family: var(--mono); }
+
+/* ── A. 남색 기조 유지 + 정돈 ── */
+body.tone-a {
+  --font: "Pretendard Variable", Pretendard, system-ui, sans-serif; --mono: "JetBrains Mono", ui-monospace, monospace;
+  --fs: 13.5px; --h1: 20px; --r: 6px; --r-card: 8px;
+  --bg: #f3f5f9; --surface: #fff; --text: #1a2233; --muted: #6b7486; --label: #3d4658;
+  --line: #e1e6ee; --line-strong: #cfd6e2; --row-line: #eef1f6; --card-border: #e1e6ee;
+  --primary: #1f4ea3; --danger: #d64545; --logo-accent: #e03c31;
+  --header-h: 56px; --header-bg: #14213d; --header-fg: #fff; --header-sub: #9fb0cf; --header-border: #14213d;
+  --header-input-bg: rgba(255,255,255,.08); --header-input-border: rgba(255,255,255,.12);
+  --avatar-bg: #2d4f8f; --avatar-fg: #fff;
+  --side-w: 248px; --side-bg: #fff; --side-fg: #2b3345; --side-pad: 12px; --side-on-fg: #14213d;
+  --nav-h: 34px; --nav-fs: 13.5px; --nav-on-bg: #14213d; --nav-on-fg: #fff; --nav-on-bg-soft: #e8eefa;
+  --grp-ls: 0; --grp-tt: none;
+  --mdi-h: 42px; --mdi-bg: #e8ecf3; --mdi-on-shadow: none;
+  --page-pad: 20px; --gap: 16px; --card-pad: 16px 20px; --card-pad-x: 16px;
+  --shadow: 0 1px 2px rgba(20,33,61,.06);
+  --btn-h: 32px; --btn-px: 14px; --btn-border: #cfd6e2;
+  --label-w: 72px; --input-h: 32px; --input-border: #cfd6e2; --input-bg: #fff; --ro-bg: #f3f5f9;
+  --panel-head-h: 46px; --panel-head-bg: #fff; --badge-bg: #e8eefa; --badge-fg: #1f4ea3;
+  --grid-fs: 13px; --grid-head-fs: 12.5px; --grid-head-ls: 0; --grid-head-h: 36px; --grid-head-bg: #f5f7fb; --grid-head-fg: #3d4658;
+  --row-h: 34px; --zebra: #fff; --row-sel: #edf2fc;
+  --ok-bg: #e4f4ea; --ok-fg: #217a45; --off-bg: #eef0f4;
+}
+/* ── B. 밝은 SaaS 풍 ── */
+body.tone-b {
+  --font: "Pretendard Variable", Pretendard, system-ui, sans-serif; --mono: "JetBrains Mono", ui-monospace, monospace;
+  --fs: 14px; --h1: 22px; --r: 8px; --r-card: 12px;
+  --bg: #fafafa; --surface: #fff; --text: #18181b; --muted: #71717a; --label: #52525b;
+  --line: #ececef; --line-strong: #e4e4e7; --row-line: #f4f4f5; --card-border: #ececef;
+  --primary: #4f46e5; --danger: #e11d48; --logo-accent: #4f46e5;
+  --header-h: 56px; --header-bg: #fff; --header-fg: #18181b; --header-sub: #a1a1aa; --header-border: #ececef;
+  --header-input-bg: #f4f4f5; --header-input-border: transparent;
+  --avatar-bg: #eef2ff; --avatar-fg: #4f46e5;
+  --side-w: 244px; --side-bg: #fafafa; --side-fg: #3f3f46; --side-pad: 12px; --side-on-fg: #18181b;
+  --nav-h: 34px; --nav-fs: 14px; --nav-on-bg: #fff; --nav-on-fg: #18181b; --nav-on-bg-soft: #eef2ff;
+  --grp-ls: .04em; --grp-tt: none;
+  --mdi-h: 44px; --mdi-bg: #fff; --mdi-on-shadow: none;
+  --page-pad: 28px; --gap: 20px; --card-pad: 20px 24px; --card-pad-x: 20px;
+  --shadow: 0 1px 3px rgba(0,0,0,.04), 0 1px 2px rgba(0,0,0,.03);
+  --btn-h: 36px; --btn-px: 16px; --btn-border: #e4e4e7;
+  --label-w: 76px; --input-h: 36px; --input-border: #e4e4e7; --input-bg: #fff; --ro-bg: #fafafa;
+  --panel-head-h: 52px; --panel-head-bg: #fff; --badge-bg: #f4f4f5; --badge-fg: #52525b;
+  --grid-fs: 13.5px; --grid-head-fs: 12.5px; --grid-head-ls: 0; --grid-head-h: 40px; --grid-head-bg: #fff; --grid-head-fg: #71717a;
+  --row-h: 40px; --zebra: #fff; --row-sel: #f5f5ff;
+  --ok-bg: #ecfdf3; --ok-fg: #15803d; --off-bg: #f4f4f5;
+}
+body.tone-b .item.on { box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 0 0 1px #ececef; }
+body.tone-b .mdi span.on { border-radius: 0; border: 0; box-shadow: inset 0 -2px 0 var(--primary); background: transparent; margin: 0; }
+/* ── C. 고밀도 산업용 ── */
+body.tone-c {
+  --font: "Pretendard Variable", Pretendard, system-ui, sans-serif; --mono: "JetBrains Mono", ui-monospace, monospace;
+  --fs: 12.5px; --h1: 16px; --r: 3px; --r-card: 3px;
+  --bg: #e9ecf0; --surface: #fff; --text: #0f1720; --muted: #5b6573; --label: #2b3440;
+  --line: #c9d0d9; --line-strong: #9aa5b3; --row-line: #e3e7ec; --card-border: #c9d0d9;
+  --primary: #0b62d6; --danger: #d42a2a; --logo-accent: #e03c31;
+  --header-h: 44px; --header-bg: #1c2530; --header-fg: #e8edf3; --header-sub: #8a97a8; --header-border: #0f1720;
+  --header-input-bg: #26313e; --header-input-border: #34414f;
+  --avatar-bg: #34414f; --avatar-fg: #e8edf3; --logo-h: 26px;
+  --side-w: 224px; --side-bg: #26313e; --side-fg: #c4ccd6; --side-pad: 8px; --side-on-fg: #fff;
+  --nav-h: 28px; --nav-fs: 12.5px; --nav-on-bg: #0b62d6; --nav-on-fg: #fff; --nav-on-bg-soft: #e2edfc;
+  --grp-ls: .06em; --grp-tt: uppercase;
+  --mdi-h: 34px; --mdi-bg: #d5dbe2; --mdi-on-shadow: none;
+  --page-pad: 10px; --gap: 8px; --card-pad: 10px 12px; --card-pad-x: 10px;
+  --shadow: none;
+  --btn-h: 26px; --btn-px: 10px; --btn-border: #9aa5b3;
+  --label-w: 64px; --input-h: 26px; --input-border: #9aa5b3; --input-bg: #fff; --ro-bg: #eef1f4;
+  --panel-head-h: 32px; --panel-head-bg: #f1f3f6; --badge-bg: #1c2530; --badge-fg: #fff;
+  --grid-fs: 12px; --grid-head-fs: 11px; --grid-head-ls: .04em; --grid-head-h: 28px; --grid-head-bg: #e3e8ee; --grid-head-fg: #2b3440;
+  --row-h: 26px; --zebra: #f6f8fa; --row-sel: #dbe8fb;
+  --ok-bg: #d8f0e0; --ok-fg: #13663a; --off-bg: #e3e7ec;
+}
+body.tone-c aside .side-filter div { background: #1c2530; border-color: #34414f; }
+body.tone-c .side-tabs span.on { color: #fff; }
+body.tone-c .grid td, body.tone-c .grid th { border-right: 1px solid var(--row-line); }
+body.tone-c .page-head h1 { text-transform: none; }
+
+.note { position: fixed; left: 16px; bottom: 16px; z-index: 99; max-width: 420px; background: #111; color: #eee; padding: 10px 14px; border-radius: 10px; font: 12.5px/1.5 Pretendard Variable, sans-serif; box-shadow: 0 6px 24px rgba(0,0,0,.3); }
+.note b { color: #fff; }
+</style>
+</head>
+<body class="tone-a">
+<div class="app">
+  <header class="top">
+    <div class="logo"><img src="dmes_logo_w.png" alt="DMES" /></div>
+    <div class="search">메뉴·화면 검색 (Ctrl+K)</div>
+    <div class="spacer"></div>
+    <div class="user"><span class="avatar">관</span>관리자 님 ▾</div>
+  </header>
+  <div class="body">
+    <aside>
+      <div class="side-tabs"><span class="on">메뉴</span><span>즐겨찾기</span></div>
+      <div class="side-filter"><div>메뉴명 검색</div></div>
+      <nav class="tree">
+        <div class="grp">공통관리</div>
+        <div class="item"><span class="ic"></span>마스터관리(원장)</div>
+        <div class="item"><span class="ic"></span>시스템관리</div>
+        <div class="item sub"><span class="ic"></span>OBJECT 관리</div>
+        <div class="item sub on"><span class="ic"></span>메뉴 관리</div>
+        <div class="item sub"><span class="ic"></span>역할 관리</div>
+        <div class="item sub"><span class="ic"></span>역할 그룹 관리</div>
+        <div class="item sub"><span class="ic"></span>사용자 관리</div>
+        <div class="item sub"><span class="ic"></span>PERMISSION 관리</div>
+        <div class="item sub"><span class="ic"></span>사용자 권한 일괄 등록</div>
+        <div class="item"><span class="ic"></span>마스터관리(가동)</div>
+        <div class="item"><span class="ic"></span>업무기준관리(원장)</div>
+        <div class="grp">로그 분석</div>
+        <div class="item"><span class="ic"></span>로그 조회</div>
+      </nav>
+    </aside>
+    <main>
+      <div class="mdi"><span>⌂</span><span class="on">메뉴 관리 <i>✕</i></span><span>사용자 관리 <i>✕</i></span><span>역할 관리 <i>✕</i></span></div>
+      <div class="page">
+        <div class="page-head">
+          <div><div class="crumb">공통관리 › 시스템관리</div><h1>메뉴 관리</h1></div>
+          <div class="actions"><button class="btn">초기화</button><button class="btn primary">조회</button><button class="btn" disabled>저장</button></div>
+        </div>
+        <section class="card search-card">
+          <div class="field"><label>메뉴 ID</label><div class="input ph">입력</div></div>
+          <div class="field"><label>메뉴 명</label><div class="input ph">입력</div></div>
+          <div class="field"><label>사용 유무</label><div class="input">전체 <span>▾</span></div></div>
+        </section>
+        <div class="work">
+          <section class="card panel">
+            <div class="panel-head"><h2>메뉴 구조</h2><span class="count">8</span><div class="tools"><button class="btn ghost">필드 관리</button></div></div>
+            <div class="mtree">
+              <div><span class="car">▾</span>공통관리</div>
+              <div class="l2">마스터관리(원장)</div>
+              <div class="l2 on">시스템관리</div>
+              <div class="l2">마스터관리(가동)</div>
+              <div class="l2">업무기준관리(원장)</div>
+              <div class="l2">팝업</div>
+              <div><span class="car">▾</span>로그 분석</div>
+              <div class="l2">로그 조회</div>
+            </div>
+          </section>
+          <section class="card panel">
+            <div class="panel-head"><h2>메뉴 목록</h2><span class="count">21</span><div class="tools"><button class="btn">행추가</button><button class="btn" disabled>행삭제</button><button class="btn">Export</button></div></div>
+            <div class="grid-wrap">
+              <table class="grid">
+                <thead><tr><th>메뉴순서</th><th>메뉴 ID <span class="req">*</span></th><th>메뉴명 <span class="req">*</span></th><th>OBJECT ID <span class="req">*</span></th><th>FULL SEQ</th><th>사용</th></tr></thead>
+                <tbody>
+                  <tr class="sel"><td class="num">00000001</td><td class="mono">commMenuMng</td><td>메뉴 관리</td><td class="mono">commMenuMng</td><td class="num">1020110</td><td><span class="tag">사용</span></td></tr>
+                  <tr><td class="num">00000002</td><td class="mono">commObjMng</td><td>OBJECT 관리</td><td class="mono">commObjMng</td><td class="num">1020100</td><td><span class="tag">사용</span></td></tr>
+                  <tr><td class="num">00000003</td><td class="mono">commPermMng</td><td>PERMISSION 관리</td><td class="mono">commPermMng</td><td class="num">1020150</td><td><span class="tag">사용</span></td></tr>
+                  <tr><td class="num">00000004</td><td class="mono">commRoleGrpMng</td><td>역할 그룹 관리</td><td class="mono">commRoleGrpMng</td><td class="num">1020130</td><td><span class="tag">사용</span></td></tr>
+                  <tr><td class="num">00000005</td><td class="mono">commRoleMng</td><td>역할 관리</td><td class="mono">commRoleMng</td><td class="num">1020120</td><td><span class="tag">사용</span></td></tr>
+                  <tr><td class="num">00000006</td><td class="mono">commSyncMng</td><td>동기화 관리</td><td class="mono">commSyncMng</td><td class="num">1020170</td><td><span class="tag off">미사용</span></td></tr>
+                  <tr><td class="num">00000007</td><td class="mono">commUserMng</td><td>사용자 관리</td><td class="mono">commUserMng</td><td class="num">1020140</td><td><span class="tag">사용</span></td></tr>
+                  <tr><td class="num">00000008</td><td class="mono">commUserRoleCo</td><td>사용자 권한 일괄 등록</td><td class="mono">commUserRoleCo</td><td class="num">1020160</td><td><span class="tag">사용</span></td></tr>
+                  <tr><td class="num">00000009</td><td class="mono">logViewer</td><td>로그 뷰어</td><td class="mono">logViewer</td><td class="num">2010100</td><td><span class="tag">사용</span></td></tr>
+                  <tr><td class="num">00000010</td><td class="mono">masterCategory</td><td>카테고리 관리</td><td class="mono">masterCategoryMng</td><td class="num">1010100</td><td><span class="tag">사용</span></td></tr>
+                  <tr><td class="num">00000011</td><td class="mono">masterCodeMng</td><td>Master Code 관리</td><td class="mono">masterCodeMng</td><td class="num">1010110</td><td><span class="tag">사용</span></td></tr>
+                  <tr><td class="num">00000012</td><td class="mono">masterRuleData</td><td>업무기준 Data관리</td><td class="mono">masterRuleData</td><td class="num">1040110</td><td><span class="tag off">미사용</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+          <section class="card panel">
+            <div class="panel-head"><h2>상세 정보</h2></div>
+            <div class="form">
+              <div class="field"><label>메뉴 ID *</label><div class="input ro">commMenuMng</div></div>
+              <div class="field"><label>메뉴 순서 *</label><div class="input">00000001</div></div>
+              <div class="field"><label>메뉴명 *</label><div class="input">메뉴 관리</div></div>
+              <div class="field"><label>OBJECT ID *</label><div class="row2"><div class="input ro">commMenuMng</div><button class="btn">검색</button></div></div>
+              <div class="field"><label>상위 폴더 *</label><div class="input">시스템관리 (csa) <span>▾</span></div></div>
+              <div class="field"><label>FULL SEQ</label><div class="input ro">1020110</div></div>
+              <div class="field"><label>사용 구분</label><div class="radio"><span><i class="on"></i>사용</span><span><i></i>미사용</span></div></div>
+            </div>
+          </section>
+        </div>
+      </div>
+      <footer class="status"><span>공통관리 › 시스템관리 › 메뉴 관리</span><span class="code">mcm:csa/commMenuMng</span></footer>
+    </main>
+  </div>
+</div>
+
+<div class="note" id="note"></div>
+<div class="switcher">
+  <button data-t="a" class="on">A 남색 정돈</button>
+  <button data-t="b">B 밝은 SaaS</button>
+  <button data-t="c">C 고밀도 산업용</button>
+</div>
+<script>
+const notes = {
+  a: "<b>A. 남색 기조 유지 + 정돈</b><br>헤더 남색·로고 빨강 유지. Pretendard 13.5px, 버튼/입력 32px, 행 34px, 반경 6px. 카드 구획과 여백만 정리.",
+  b: "<b>B. 밝은 SaaS 풍</b><br>흰 헤더·옅은 사이드바, 강조색(인디고) 하나. 14px, 컨트롤 36px, 행 40px, 반경 8~12px. 여백 넉넉, 한 화면 정보량은 가장 적음.",
+  c: "<b>C. 고밀도 산업용 (선택됨)</b><br>기존 로고 그대로, 동작색 파랑 #0b62d6 단일. 어두운 헤더·사이드바, 12~12.5px, 컨트롤 26px, 행 26px, 반경 3px, 열 구분선·줄무늬. 현재와 같은 밀도에 대비·정렬만 정리."
+};
+function setTone(t) {
+  document.body.className = "tone-" + t;
+  document.querySelectorAll(".switcher button").forEach(b => b.classList.toggle("on", b.dataset.t === t));
+  document.getElementById("note").innerHTML = notes[t];
+  history.replaceState(null, "", "#" + t);
+}
+document.querySelectorAll(".switcher button").forEach(b => b.onclick = () => setTone(b.dataset.t));
+setTone((location.hash || "#a").slice(1));
+window.addEventListener("hashchange", () => setTone((location.hash || "#a").slice(1)));
+</script>
+</body>
+</html>

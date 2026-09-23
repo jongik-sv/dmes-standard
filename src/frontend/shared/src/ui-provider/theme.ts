@@ -1,57 +1,52 @@
 import { createTheme, type MantineColorsTuple } from "@mantine/core";
 
-// variables.css 의 --color-primary #337ab7 / hover #2a6499 를 index 6 / 7 에 둔다.
+// C 톤(2026-09-23) 동작색 #0b62d6 / hover #0a53b5 를 index 6 / 7 에 둔다.
+// variables.css 의 --color-primary 가 --mantine-color-dmes-6 을 참조한다.
 const dmes: MantineColorsTuple = [
-  "#e8f1f9",
-  "#d0e2f2",
-  "#a9c9e6",
-  "#7fafd9",
-  "#5c98cd",
-  "#4487c2",
-  "#337ab7",
-  "#2a6499",
-  "#22507a",
-  "#1a3d5c",
+  "#e8f1fd",
+  "#d3e3fa",
+  "#a8c8f4",
+  "#7aabee",
+  "#4f90e8",
+  "#2a78e0",
+  "#0b62d6",
+  "#0a53b5",
+  "#084595",
+  "#063674",
 ];
 
-// variables.css 의 --color-danger #d9534f / hover #c9302c 를 index 6 / 7 에 둔다.
+// variables.css 의 --color-danger #d42a2a / hover #b82222 를 index 6 / 7 에 둔다.
 const danger: MantineColorsTuple = [
-  "#fbeaea",
-  "#f6d3d2",
-  "#eeaba9",
-  "#e58480",
-  "#df6561",
-  "#db5450",
-  "#d9534f",
-  "#c9302c",
-  "#a82824",
-  "#7f1e1b",
+  "#fdeaea",
+  "#f9d0d0",
+  "#f2a3a3",
+  "#eb7676",
+  "#e45050",
+  "#dd3a3a",
+  "#d42a2a",
+  "#b82222",
+  "#951b1b",
+  "#721414",
 ];
 
-// 로그인 화면 전용 브랜드 남색 — login-form.css 의 #1b3f7d 를 index 6 에 둔다.
-// login-form.tsx 가 `color="#1b3f7d"` 하드코딩 대신 이 팔레트를 참조한다.
-const loginBrand: MantineColorsTuple = [
-  "#e9edf4",
-  "#ccd6e6",
-  "#a3b4d0",
-  "#7890b8",
-  "#5573a3",
-  "#3c5c91",
-  "#1b3f7d",
-  "#173568",
-  "#122a53",
-  "#0d1f3e",
-];
+// 로그인 화면 전용 팔레트 — C 톤에서는 동작색(dmes)과 같은 파랑을 쓴다.
+// login-form.tsx 가 하드코딩 대신 이 팔레트 이름을 참조하므로 이름은 유지한다.
+const loginBrand: MantineColorsTuple = dmes;
 
 export const dmesTheme = createTheme({
   primaryColor: "dmes",
   primaryShade: 6,
   colors: { dmes, danger, loginBrand },
   defaultRadius: "sm",
-  // variables.css 의 --font-family 와 같은 스택을 사용한다.
+  radius: { xs: "2px", sm: "3px", md: "4px", lg: "6px", xl: "8px" },
+  // variables.css 의 --font-family 와 같은 스택을 사용한다. Pretendard 는 호스트 앱이 번들한다.
   fontFamily:
-    '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
-  fontSizes: { xs: "12px", sm: "13px", md: "14px", lg: "16px", xl: "18px" },
+    '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", "Roboto", sans-serif',
+  fontFamilyMonospace: '"JetBrains Mono", "D2Coding", ui-monospace, SFMono-Regular, Menlo, monospace',
+  headings: { fontWeight: "700" },
+  fontSizes: { xs: "11px", sm: "12px", md: "12.5px", lg: "14px", xl: "16px" },
+  black: "#0f1720",
+  // C 톤은 고밀도라 컨트롤 기본 크기를 xs(26px, variables.css 에서 높이 재정의)로 둔다.
   components: {
     Button: { defaultProps: { size: "xs" } },
     TextInput: { defaultProps: { size: "xs" } },

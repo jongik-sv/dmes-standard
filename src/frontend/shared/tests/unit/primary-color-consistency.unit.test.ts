@@ -25,9 +25,9 @@ describe("shared primary color consistency", () => {
     const tabsSource = read("../../src/components/tabs/Tabs.tsx");
     const errorBoundarySource = read("../../src/components/error-boundary.tsx");
 
-    expect(tabsSource).toContain("var(--color-primary, #337ab7)");
+    expect(tabsSource).toContain("var(--color-primary, #0b62d6)");
     expect(tabsSource).not.toContain("#1a73e8");
-    expect(errorBoundarySource).toContain("var(--color-primary, #337ab7)");
+    expect(errorBoundarySource).toContain("var(--color-primary, #0b62d6)");
     expect(errorBoundarySource).not.toContain("#1976d2");
   });
 

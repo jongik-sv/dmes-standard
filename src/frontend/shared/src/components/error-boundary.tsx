@@ -59,7 +59,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
             onClick={this.handleReset}
             style={{
               padding: "8px 20px",
-              backgroundColor: "var(--color-primary, #337ab7)",
+              backgroundColor: "var(--color-primary, #0b62d6)",
               color: "#fff",
               border: "none",
               borderRadius: "4px",

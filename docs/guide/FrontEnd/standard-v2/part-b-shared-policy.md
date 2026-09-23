@@ -128,6 +128,7 @@ import "@dk-oasis/shared/variables.css";
 
 - MUST: 앱 전역 색상·간격·타이포그래피·폼 크기 토큰은 위 CSS를 단일 정본으로 사용한다.
 - MUST NOT: 각 앱의 전역 CSS에 동일한 `:root` 토큰을 복사해 별도 관리하지 않는다.
+- MUST: 토큰 구조(원시 `--c-*` / 의미 `--color-*`·`--shell-*`), 값, 하드코딩 색 금지 규칙은 [UI 시각 표준](../UI-Visual-Standard.md) §3~§5 를 따른다.
 
 ### 4-2. UI Provider `/ui-provider`
 
@@ -140,6 +141,7 @@ import { ColorSchemeScript, DmesUiProvider, dmesTheme } from "@dk-oasis/shared/u
 - MUST: `DmesUiProvider` 는 **호스트 root layout 이 한 번만** 감싼다(`m-mcm/app/layout.tsx` 등). 페이지·개별 라우트 layout 에서 중복으로 감싸지 않는다.
 - MUST: `ColorSchemeScript` 는 **호스트 root layout 의 `<head>` 전용**이다(FOUC 방지용 인라인 스크립트). 화면 모듈이나 본문에서 렌더하지 않는다. 참조 구현은 `m-mcm/app/layout.tsx` 다.
 - MAY: `dmesTheme` 은 `DmesUiProvider` 가 이미 적용하므로 호스트가 직접 쓸 일은 없다. 테스트 하네스나 Storybook 처럼 Provider 를 직접 구성하는 경우에만 참조한다.
+- MUST: 테마 값(팔레트 `dmes`·`danger`·`loginBrand`, Pretendard, 반경 3px, 기본 크기 `xs`=26px)과 토스트 위치(우측 하단)는 [UI 시각 표준](../UI-Visual-Standard.md) §4·§8 이 정본이다.
 - MUST NOT: 화면 모듈에서 `@mantine/*` 를 직접 import 하지 않는다. 필요한 컴포넌트가 shared 에 없으면 shared 에 추가한다(§17 참조).
 
 ---
@@ -190,6 +192,7 @@ import "@dk-oasis/shared/grid.css";
 - MUST: 저장형 페이지는 `useGridDataManager` 로 행 상태를 관리한다.
 - MUST: `SavePayload = { inserted, updated, deleted, totalChanges }` 는 `*-api.ts` 에서 변환한다 (Part A §9).
 - MUST NOT: `ag-grid-react` 를 페이지에서 직접 import.
+- MUST NOT: `ag-grid-enterprise` 를 추가하거나 Enterprise 기능(행 그룹·집계·Excel Export 등)을 쓰지 않는다([전 모듈 ADR-0001](../../adr/0001-ui-library-mantine9-aggrid.md) D2). 필요하면 사용자에게 먼저 확인한다. Excel 다운로드는 `@dk-oasis/shared/utils` 의 `exportToExcel` 을 쓴다.
 - 보조 export: `DataGrid`, `CustomDataGrid`, `GridPanel` 은 특수 요건 시 사용. 일반 페이지의 기본값은 `AgDataGrid`.
 
 ---
@@ -356,5 +359,6 @@ import { useGfnMessage } from "@dk-oasis/shared/message-provider";
 - MUST NOT: 상대경로 체인(`../../../`) 으로 shared 또는 타 도메인 import.
 - MUST NOT: `@dk-oasis/shared/dist/...` 직접 import.
 - MUST NOT: 본 문서에 등재되지 않은 경로/심볼 임의 사용.
+- 위 금지 사항 중 import 규칙은 `mantine-aggrid-ui` 스킬의 `audit` 가 기계 점검한다([FrontEnd 인덱스 §자동 점검](../README.md#자동-점검)).
 
 ---

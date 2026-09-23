@@ -103,7 +103,7 @@ interface MsgState {
 
 /** toast 색상 — `MessageModal` 의 `COLOR_MAP` 과 같은 의미값을 Mantine 색 이름으로. */
 const TOAST_COLOR_MAP: Record<Exclude<AlertType, "confirm">, string> = {
-  info: "blue",
+  info: "dmes",
   warning: "orange",
   error: "danger",
   success: "green",

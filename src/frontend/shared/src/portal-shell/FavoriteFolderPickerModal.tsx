@@ -31,7 +31,7 @@ const DEFAULT_NEW_FOLDER_NAME = "즐겨찾기";
 
 /** 확정 버튼은 공통 primary 토큰을 그대로 쓴다(레거시 파랑 하드코딩 금지). */
 const CONFIRM_BUTTON_STYLES = {
-  root: { backgroundColor: "var(--color-primary, #337ab7)" },
+  root: { backgroundColor: "var(--color-primary, #0b62d6)" },
 } as const;
 
 /**

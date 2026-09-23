@@ -37,7 +37,8 @@
   justify-content: space-between;
   gap: var(--spacing-sm);
   padding: var(--spacing-xs) var(--spacing-sm) 0 var(--spacing-sm);
-  border-bottom: 1px solid var(--color-border-light);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-header);
   flex-shrink: 0;
 }
 
@@ -53,10 +54,11 @@
   align-items: center;
   gap: 6px;
   padding: 5px 10px 5px 20px;
-  border: 1px solid var(--color-border-light);
+  border: 1px solid var(--color-border);
   border-bottom: 2px solid transparent;
-  border-radius: 4px 4px 0 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   background: var(--color-bg-light);
+  color: var(--color-text-secondary);
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
@@ -68,10 +70,10 @@
 
 .anl-log-viewer .anl-tab-active {
   background: var(--color-bg);
-  border-color: var(--color-border-medium);
+  border-color: var(--color-border);
   border-bottom-color: var(--color-primary);
   color: var(--color-primary);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .anl-log-viewer .anl-tab-close {
@@ -111,7 +113,7 @@
 .anl-log-viewer .anl-wave {
   width: 2px;
   height: 10px;
-  background: linear-gradient(45deg, var(--color-primary), #7fd4ff);
+  background: linear-gradient(45deg, var(--color-primary), var(--color-primary-soft-hover));
   margin: 3px;
   animation: anl-wave 1s linear infinite;
 }
@@ -173,7 +175,8 @@
   flex-shrink: 0;
   box-sizing: border-box;
   padding: 10px;
-  border-right: 1px solid var(--color-border-light);
+  border-right: 1px solid var(--color-border);
+  background: var(--color-bg-light);
   overflow: hidden;
   transition: width var(--transition-slow);
 }
@@ -303,14 +306,15 @@
 }
 
 .anl-log-viewer .anl-json-pane .json-view {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 /* 하단 문서 탭 바 (작은 글씨, 첫 아이템 왼쪽 여백 — 원본 docTypeTab) */
 .anl-log-viewer .anl-doc-tab-bar {
   display: flex;
   padding-left: 64px;
-  border-top: 1px solid var(--color-border-light);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-header);
   flex-shrink: 0;
 }
 
@@ -326,7 +330,7 @@
 
 .anl-log-viewer .anl-doc-tab-active {
   background: var(--color-bg);
-  border-color: var(--color-border-medium);
+  border-color: var(--color-border);
   border-top-color: var(--color-bg);
   color: var(--color-primary);
   font-weight: 600;
@@ -343,9 +347,10 @@
   width: calc(100% - 200px);
   height: 500px;
   max-height: calc(100% - 60px);
-  box-shadow: 5px 5px 20px 1px #cccccc;
+  box-shadow: var(--shadow-dropdown);
   background: var(--color-bg);
-  border: 1px solid var(--color-border-light);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
 }
 
 /* 로그/JSON 드릴다운 링크 버튼 (원본 .linkButton) */
@@ -372,22 +377,22 @@
 /* 수행시간 히트맵 — cellClassRules 이산 버킷 (원본 연속 alpha 의 5단계 근사).
    heat-5 는 오류 행 글자색보다 뒤에 선언해 흰 글씨가 우선하게 한다. */
 .anl-log-viewer .ag-cell.anl-heat-1 {
-  background-color: rgba(255, 0, 0, 0.16);
+  background-color: color-mix(in srgb, var(--color-danger) 16%, transparent);
 }
 
 .anl-log-viewer .ag-cell.anl-heat-2 {
-  background-color: rgba(255, 0, 0, 0.32);
+  background-color: color-mix(in srgb, var(--color-danger) 32%, transparent);
 }
 
 .anl-log-viewer .ag-cell.anl-heat-3 {
-  background-color: rgba(255, 0, 0, 0.48);
+  background-color: color-mix(in srgb, var(--color-danger) 48%, transparent);
 }
 
 .anl-log-viewer .ag-cell.anl-heat-4 {
-  background-color: rgba(255, 0, 0, 0.64);
+  background-color: color-mix(in srgb, var(--color-danger) 64%, transparent);
 }
 
 .anl-log-viewer .ag-cell.anl-heat-5 {
-  background-color: red;
-  color: #ffffff;
+  background-color: var(--color-danger);
+  color: var(--color-on-primary);
 }

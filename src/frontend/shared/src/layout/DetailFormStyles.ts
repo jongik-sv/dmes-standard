@@ -35,17 +35,17 @@ import type { CSSProperties } from "react";
 export const DETAIL_TABLE_STYLE: CSSProperties = {
   width: "100%",
   borderCollapse: "collapse",
-  fontSize: 12,
-  background: "#fff",
+  fontSize: "var(--font-size-sm)",
+  background: "var(--color-bg)",
 };
 
 /** 라벨 셀 — 회색 배경 + 테두리 + 좌측 정렬 + 130px 고정 너비. */
 export const DETAIL_LABEL_CELL: CSSProperties = {
-  background: "var(--mantine-color-gray-0, #f4f6f8)",
-  border: "1px solid var(--mantine-color-gray-3, #d4dae0)",
+  background: "var(--color-bg-header)",
+  border: "1px solid var(--color-border-light)",
   padding: "6px 10px",
   fontWeight: 500,
-  color: "var(--mantine-color-text, #333)",
+  color: "var(--color-text-secondary)",
   width: 130,
   whiteSpace: "nowrap",
   textAlign: "left",
@@ -53,19 +53,19 @@ export const DETAIL_LABEL_CELL: CSSProperties = {
 
 /** 값 셀 — 흰 배경 + 테두리 + 작은 padding (input 이 셀 내부를 거의 채움). */
 export const DETAIL_VALUE_CELL: CSSProperties = {
-  border: "1px solid var(--mantine-color-gray-3, #d4dae0)",
+  border: "1px solid var(--color-border-light)",
   padding: "4px 6px",
-  background: "#fff",
+  background: "var(--color-bg)",
 };
 
 /** 활성 input/select — 흰 배경 + 명시 테두리 + 검정 텍스트. */
 export const INPUT_BASE: CSSProperties = {
   width: "100%",
   padding: "4px 6px",
-  border: "1px solid var(--mantine-color-gray-4, #c0c6cc)",
-  borderRadius: 2,
-  background: "#ffffff",
-  color: "#222",
+  border: "1px solid var(--color-border-strong)",
+  borderRadius: "var(--radius-sm)",
+  background: "var(--color-bg)",
+  color: "var(--color-text)",
   outline: "none",
   fontSize: 12,
 };
@@ -73,13 +73,13 @@ export const INPUT_BASE: CSSProperties = {
 /** readonly input — 옅은 회색 배경 + 옅은 회색 텍스트. */
 export const INPUT_READONLY: CSSProperties = {
   ...INPUT_BASE,
-  background: "#f0f2f5",
-  color: "#666",
+  background: "var(--color-bg-readonly)",
+  color: "var(--color-text-muted)",
 };
 
 /** disabled input — readonly 보다 더 옅은 텍스트. */
 export const INPUT_DISABLED: CSSProperties = {
   ...INPUT_BASE,
-  background: "#f0f2f5",
-  color: "#888",
+  background: "var(--color-bg-disabled)",
+  color: "var(--color-text-disabled)",
 };

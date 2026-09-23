@@ -1,87 +1,197 @@
-/* Login 스타일 - dmes_react 디자인 기반 */
+/* Login 스타일 — UI 2단계 C 고밀도 산업용 톤 (2026-09-23)
+ * 스펙: docs/superpowers/specs/2026-09-23-ui-phase2-visual-foundation-design.md
+ * 색상은 shared/src/styles/variables.css 의 의미 토큰만 참조한다.
+ * 클래스명(.login-*, .pw-modal-*)은 e2e·단위 테스트 계약이므로 바꾸지 않는다. */
 
+/* ------------------------------------------------------------------
+ * 배경 + 카드 배치
+ *
+ * 배경 bg_login.png(1919×1079)는 로고·일러스트·"Digital Manufacturing" 제목·
+ * DONGKUK SYSTEMS 로고가 한 장에 새겨진 이미지다. background-size: cover +
+ * position: center top 으로 깔리므로, 렌더된 이미지 크기를
+ *   W = max(뷰포트 폭, 뷰포트 높이 × 1919/1079)
+ *   H = max(뷰포트 높이, 뷰포트 폭 × 1079/1919)
+ * 로 계산할 수 있다. 제목은 이미지 좌표 x 61.5%~94.4%, y 11%~17% 에,
+ * DONGKUK 로고는 y 92.7% 부근에 있다. 카드 슬롯(.login-card-slot)을
+ * "제목 아래 ~ DONGKUK 로고 위, 제목과 같은 가로 구간" 으로 잡아 카드가
+ * 제목을 절대 덮지 않게 한다(이전: right 10% + 세로 중앙 고정 → 제목과 겹침).
+ * ------------------------------------------------------------------ */
 .login-wrapper {
+  --login-bg-w: max(100vw, 100vh * 1.7785);
+  --login-bg-h: max(100vh, 100vw * 0.5623);
+  --login-bg-crop-x: calc((var(--login-bg-w) - 100vw) / 2);
+
+  position: relative;
   display: flex;
   height: 100vh;
+  overflow: hidden;
+  background-color: var(--c-slate-950);
   background-size: cover;
   background-position: center top;
-  color: #fff;
+  background-repeat: no-repeat;
+  color: var(--color-text);
   justify-content: center;
   align-items: center;
   font-family: var(--font-family);
 }
 
-.login-form {
-  width: 310px;
-  background-color: var(--color-bg, #fff);
-  color: #000;
-  padding: 50px;
-  border-radius: 0;
+.login-card-slot {
   position: absolute;
-  right: 10%;
-  top: 50%;
-  transform: translateY(-50%);
-  box-shadow: 0px 2px 5px #323948;
+  /* 제목 하단(17%) 아래 여유를 두고 시작 */
+  top: calc(var(--login-bg-h) * 0.19);
+  /* DONGKUK 로고(92.7%) 위에서 끝남. 이미지 아래가 잘려 로고가 안 보이면 16px */
+  bottom: max(16px, calc(100vh - var(--login-bg-h) * 0.905));
+  /* 제목의 가로 구간(61.5% ~ 94.4%)과 맞춘다 */
+  left: calc(var(--login-bg-w) * 0.615 - var(--login-bg-crop-x));
+  right: max(16px, calc(100vw - var(--login-bg-w) * 0.944 + var(--login-bg-crop-x)));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-form {
+  width: 330px;
+  max-width: 100%;
+  box-sizing: border-box;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  padding: 28px 30px 22px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-modal);
 }
 
 .login-title {
-  font-size: 28px;
-  margin: 0 0 30px 0;
-  color: #1b3f7d;
-  font-weight: bold;
+  font-size: 22px;
+  line-height: 1.25;
+  margin: 0 0 20px 0;
+  color: var(--color-text);
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
-/* 입력 자체(테두리·포커스·placeholder)는 Mantine TextInput / PasswordInput 이 담당한다.
-   .login-input 은 래퍼에 붙어 간격만 책임진다. */
+/* 입력 자체의 높이(36px)·반경(3px)은 TextInput / PasswordInput 의 size·radius prop 이 담당한다.
+ * .login-input 은 래퍼에 붙어 간격·라벨·테두리 색을 책임진다. */
 .login-input {
-  margin-bottom: 15px;
+  margin-bottom: 14px;
+}
+
+.login-input label {
+  margin-bottom: 4px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.login-input input {
+  border-color: var(--color-border);
+  color: var(--color-text);
+  font-size: 13px;
+}
+
+.login-input input::placeholder {
+  color: var(--color-text-placeholder);
+}
+
+.login-input input:focus,
+.login-input input:focus-visible {
+  border-color: var(--color-focus);
+  box-shadow: var(--shadow-focus);
+  outline: none;
+}
+
+/* PasswordInput 은 input 을 한 겹 더 감싼 래퍼에 테두리가 있다 */
+.login-input .mantine-PasswordInput-input {
+  border-color: var(--color-border);
+}
+
+.login-input .mantine-PasswordInput-input:focus-within {
+  border-color: var(--color-focus);
+  box-shadow: var(--shadow-focus);
+}
+
+.login-input .mantine-PasswordInput-innerInput:focus {
+  box-shadow: none;
 }
 
 .login-save-id {
-  margin-bottom: 15px;
-  font-size: var(--font-size-sm, 12px);
-  color: #555;
+  margin-bottom: 16px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
   user-select: none;
+}
+
+.login-save-id .mantine-Checkbox-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
 }
 
 .login-success,
 .login-error {
-  margin-bottom: 15px;
-  font-size: var(--font-size-sm, 12px);
+  margin-bottom: 14px;
+  font-size: var(--font-size-sm);
 }
 
-/* 높이·색·radius 는 Button props 로 준다. */
+/* 높이·반경·채움색(loginBrand = dmes 파랑)은 Button props 로 준다. */
 .login-button {
-  font-size: 16px;
+  font-size: var(--font-size-lg);
+  font-weight: 600;
 }
 
 .login-copyright {
-  margin-top: 30px;
-  font-size: var(--font-size-xs, 11px);
+  margin: 18px 0 0;
+  font-size: var(--font-size-xs);
   text-align: center;
-  color: #aaa;
+  color: var(--color-text-muted-light);
 }
 
-/* 비밀번호 변경 버튼 (로그인폼 내) */
+/* 비밀번호 변경 링크 (로그인폼 내) */
 .login-change-pw {
   padding: 0;
   border: none;
   background: none;
-  font-size: var(--font-size-sm, 12px);
-  color: #1b3f7d;
+  font-size: var(--font-size-sm);
+  color: var(--color-primary);
   cursor: pointer;
-  text-decoration: underline;
+  text-decoration: none;
 }
 
 .login-change-pw:hover {
-  color: #153466;
+  color: var(--color-primary-hover);
+  text-decoration: underline;
 }
 
-/* 비밀번호 변경 모달 */
+.login-change-pw:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------
+ * 좁은 화면 / 세로로 긴 화면 폴백
+ * 배경 이미지를 cover 로 깔면 제목·일러스트 사이에 카드가 들어갈 자리가 없다.
+ * 이미지를 빼고 slate 그라데이션 위에 카드를 가운데 둔다(제목 겹침 원천 차단).
+ * inline style 의 backgroundImage 를 이기기 위해 !important 를 쓴다.
+ * ------------------------------------------------------------------ */
+@media (max-width: 900px), (max-aspect-ratio: 4/3) {
+  .login-wrapper {
+    background-image: linear-gradient(160deg, var(--c-slate-900), var(--c-slate-950)) !important;
+    padding: 16px;
+    box-sizing: border-box;
+  }
+
+  .login-card-slot {
+    position: static;
+    width: 100%;
+  }
+}
+
+/* ------------------------------------------------------------------
+ * 비밀번호 변경 모달
+ * ------------------------------------------------------------------ */
 .pw-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  /* --c-slate-950(#0f1720) 기반 반투명 */
+  background: rgba(15, 23, 32, 0.55);
   z-index: 9999;
   display: flex;
   align-items: center;
@@ -89,173 +199,169 @@
 }
 
 .pw-modal {
-  background: #fff;
-  border-radius: 8px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  border-radius: var(--radius-md);
   width: 420px;
+  max-width: calc(100vw - 32px);
   max-height: 90vh;
   overflow: auto;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-modal);
+  font-family: var(--font-family);
 }
 
 .pw-modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px 12px;
-  border-bottom: 1px solid #eee;
+  padding: 12px 16px;
+  background: var(--color-bg-header);
+  border-bottom: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
 }
 
 .pw-modal-title {
-  font-size: 18px;
+  font-size: var(--font-size-title);
   font-weight: 700;
   margin: 0;
-  color: #333;
+  color: var(--color-text);
 }
 
 .pw-modal-close {
   border: none;
   background: none;
-  font-size: 22px;
-  color: #999;
+  font-size: 20px;
+  color: var(--color-text-muted-light);
   cursor: pointer;
   padding: 0;
   line-height: 1;
 }
 
 .pw-modal-close:hover {
-  color: #333;
+  color: var(--color-text);
 }
 
 .pw-modal-body {
-  padding: 16px 20px 20px;
+  padding: 16px;
 }
 
 .pw-modal-field {
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .pw-modal-field label {
   display: block;
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
-  color: #333;
-  margin-bottom: 5px;
+  color: var(--color-text-secondary);
+  margin-bottom: 4px;
 }
 
 .pw-modal-field input {
   width: 100%;
-  height: 36px;
+  height: 32px;
   padding: 0 10px;
   font-size: 13px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--form-border-radius);
   box-sizing: border-box;
-  color: #333;
+  color: var(--color-text);
+  background: var(--color-bg);
 }
 
 .pw-modal-field input:focus {
   outline: none;
-  border-color: #1b3f7d;
+  border-color: var(--color-focus);
+  box-shadow: var(--shadow-focus);
 }
 
 .pw-modal-field input::placeholder {
-  color: #bbb;
+  color: var(--color-text-placeholder);
 }
 
 .pw-modal-rules {
-  background: #f5f6f8;
-  border-radius: 4px;
-  padding: 12px 14px;
-  margin-bottom: 14px;
+  background: var(--color-bg-light);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin-bottom: 12px;
 }
 
 .pw-modal-rules-title {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   margin: 0 0 6px;
-  color: #555;
+  color: var(--color-text-secondary);
 }
 
 .pw-modal-rules ul {
   margin: 0;
   padding: 0 0 0 18px;
-  font-size: 12px;
-  color: #666;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
   line-height: 1.8;
 }
 
 .pw-modal-error {
   padding: 8px 12px;
   margin-bottom: 12px;
-  background: rgba(220, 53, 69, 0.08);
-  border: 1px solid rgba(220, 53, 69, 0.3);
-  border-radius: 4px;
-  color: #dc3545;
-  font-size: 12px;
+  background: var(--color-danger-soft);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-sm);
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
 }
 
 .pw-modal-success {
   padding: 8px 12px;
   margin-bottom: 12px;
-  background: rgba(40, 167, 69, 0.08);
-  border: 1px solid rgba(40, 167, 69, 0.3);
-  border-radius: 4px;
-  color: #28a745;
-  font-size: 12px;
+  background: var(--color-success-soft);
+  border: 1px solid var(--color-success);
+  border-radius: var(--radius-sm);
+  color: var(--color-success);
+  font-size: var(--font-size-sm);
 }
 
 .pw-modal-footer {
   display: flex;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
 }
 
 .pw-modal-btn {
-  height: 40px;
-  font-size: 14px;
-  border-radius: 4px;
+  height: 32px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--form-border-radius);
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background-color var(--transition-fast);
 }
 
 .pw-modal-btn:disabled {
-  opacity: 0.7;
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
 .pw-modal-btn-reset {
   flex: 0 0 auto;
-  padding: 0 16px;
-  background: #fff;
-  border: 1px solid #ddd;
-  color: #555;
+  padding: 0 14px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
 }
 
 .pw-modal-btn-reset:hover:not(:disabled) {
-  background: #f5f5f5;
+  background: var(--color-bg-hover);
+  border-color: var(--color-border-hover);
 }
 
 .pw-modal-btn-submit {
   flex: 1;
   border: none;
-  background: var(--color-primary, #337ab7);
-  color: #fff;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
 }
 
 .pw-modal-btn-submit:hover:not(:disabled) {
-  background: var(--color-primary-hover, #2a6499);
-}
-
-/* Responsive: hide left image on smaller screens */
-@media (max-width: 1024px) {
-  .login-left {
-    display: none;
-  }
-
-  .login-form {
-    position: relative;
-    right: auto;
-    top: auto;
-    transform: none;
-  }
+  background: var(--color-primary-hover);
 }

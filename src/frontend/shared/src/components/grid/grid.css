@@ -3,9 +3,9 @@
    ======================================== */
 
 .cm-data-grid {
-  border: 1px solid var(--color-border-grid, #d0d0d0);
-  border-radius: 4px;
-  background-color: var(--color-bg, #fff);
+  border: 1px solid var(--color-border-grid);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-bg);
   overflow: hidden;
   overscroll-behavior: contain;
   display: flex;
@@ -40,34 +40,56 @@
   outline: none;
 }
 
-/* AG-Grid theme customization */
+/* AG-Grid theme customization — C 고밀도 산업용 톤 (2026-09-23 UI 2단계)
+   ag-grid 33 Theming API(기본 quartz)의 --ag-* 파라미터를 의미 토큰으로 구동한다.
+   이 요소에 둔 --ag-* 는 ag 가 만든 --ag-inherited-* 경로로 그리드 내부에 상속된다. */
 .cm-data-grid.ag-theme-alpine {
   --ag-header-height: 28px;
   --ag-row-height: 26px;
-  --ag-header-background-color: var(--mantine-color-gray-0, #d2e6f2);
-  --ag-header-foreground-color: var(--mantine-color-text, #333);
-  --ag-odd-row-background-color: var(--color-bg, #fff);
-  --ag-row-hover-color: var(--color-bg-light, #f8f9fa);
-  --ag-selected-row-background-color: var(--mantine-color-dmes-0, #e3f2fd);
-  --cm-grid-row-selected-color: var(--mantine-color-dmes-0, #e3f2fd);
-  --cm-grid-row-selected-hover-color: var(--color-selection-hover, #d0e8fc);
-  --ag-border-color: #c0cdd8;
-  --ag-secondary-border-color: var(--color-border-light, #e8e8e8);
-  --ag-font-size: var(--font-size-md, 13px);
-  --ag-font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --ag-cell-horizontal-border: 1px solid var(--color-border-light, #e8e8e8);
+  --ag-font-family: var(--font-family);
+  --ag-font-size: var(--font-size-sm);
+  --ag-data-font-size: var(--font-size-sm);
+  --ag-foreground-color: var(--color-text);
+  --ag-text-color: var(--color-text);
+  --ag-background-color: var(--color-bg);
+  --ag-accent-color: var(--color-primary);
+  --ag-border-color: var(--color-border-grid);
+  --ag-wrapper-border-radius: var(--radius-sm);
+  --ag-border-radius: var(--radius-sm);
+  /* 헤더: 회색 바탕 · 보조 글자색 600 · 아래 강조선 · 열 구분선 */
+  --ag-header-background-color: var(--color-bg-grid-header);
+  --ag-header-text-color: var(--color-text-secondary);
+  --ag-header-font-size: var(--font-size-xs);
+  --ag-header-font-weight: 600;
+  --ag-header-row-border: 1px solid var(--color-border-strong);
+  /* 헤더 열 구분선은 아래 .ag-header-cell border-right 로 그린다(ag ::after 와 이중선 방지). */
+  --ag-header-cell-hover-background-color: color-mix(in srgb, var(--color-bg-grid-header) 75%, var(--color-border-strong));
+  /* 본문: 옅은 행 구분선 · 열 구분선 · 줄무늬 · hover · 선택 */
+  --ag-row-border: 1px solid var(--color-border-light);
+  --ag-column-border: 1px solid var(--color-border-light);
+  --ag-odd-row-background-color: var(--color-bg-zebra);
+  --ag-row-hover-color: var(--color-bg-hover);
+  --ag-selected-row-background-color: var(--color-selection);
+  --ag-range-selection-border-color: var(--color-focus);
+  --ag-checkbox-checked-background-color: var(--color-primary);
+  --ag-invalid-color: var(--color-danger);
+  --cm-grid-row-selected-color: var(--color-selection);
+  --cm-grid-row-selected-hover-color: var(--color-selection-hover);
+  font-family: var(--font-family);
 }
 
 /* Header */
 .cm-data-grid .ag-header {
-  border-bottom: 1px solid #c0cdd8;
+  border-bottom: 1px solid var(--color-border-strong);
 }
 
 .cm-data-grid .ag-header-cell {
   padding: 0 8px;
   font-weight: 600;
-  border-right: 1px solid #c0cdd8;
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.02em;
+  color: var(--color-text-secondary);
+  border-right: 1px solid var(--color-border);
 }
 
 .cm-data-grid .ag-header-cell:last-child {
@@ -94,7 +116,8 @@
 .cm-data-grid .ag-cell {
   padding: 0 8px;
   line-height: 26px;
-  border-right: 1px solid var(--color-border-light, #e8e8e8);
+  font-size: var(--font-size-sm);
+  border-right: 1px solid var(--color-border-light);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -160,10 +183,10 @@
   min-width: 0;
   padding: 1px 7px;
   border: 1px solid var(--cm-grid-badge-border, transparent);
-  border-radius: 4px;
-  background: var(--cm-grid-badge-bg, #eef2f7);
-  color: var(--cm-grid-badge-color, #334155);
-  font-size: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--cm-grid-badge-bg, var(--color-bg-disabled));
+  color: var(--cm-grid-badge-color, var(--color-text-secondary));
+  font-size: var(--font-size-xs);
   font-weight: 600;
   line-height: 16px;
   white-space: nowrap;
@@ -191,16 +214,16 @@
 .cm-data-grid .cm-grid-badge--muted {
   border-color: transparent;
   background: transparent;
-  color: #9ca3af;
+  color: var(--color-text-disabled);
   padding-inline: 0;
 }
 
 .cm-data-grid .ag-row {
-  border-bottom: 1px solid var(--color-border-light, #e8e8e8);
+  border-bottom: 1px solid var(--color-border-light);
 }
 
 .cm-data-grid .ag-row:hover {
-  background-color: var(--color-bg-light, #f8f9fa);
+  background-color: var(--color-bg-hover);
 }
 
 .cm-data-grid .ag-row-selected {
@@ -232,35 +255,36 @@
   background-image: none !important;
 }
 
+/* 행 상태 표시 — 삭제(빨강) · 추가(초록) · 수정(호박). 현재 행이면 선택색과 섞는다. */
 .cm-data-grid .ag-row-deleted {
-  background-color: #ffebee;
+  background-color: var(--color-danger-soft);
   text-decoration: line-through;
-  color: #999;
+  color: var(--color-text-disabled);
 }
 
 .cm-data-grid .ag-row-deleted.ag-row-highlighted {
-  background-color: #ffcdd2;
+  background-color: color-mix(in srgb, var(--color-danger-soft) 55%, var(--color-selection));
 }
 
 .cm-data-grid .ag-row-inserted {
-  background-color: #e8f5e9;
+  background-color: var(--color-success-soft);
 }
 
 .cm-data-grid .ag-row-inserted.ag-row-highlighted {
-  background-color: #c8e6c9;
+  background-color: color-mix(in srgb, var(--color-success-soft) 55%, var(--color-selection));
 }
 
 .cm-data-grid .ag-row-modified {
-  background-color: #fff8e1;
+  background-color: var(--color-edited);
 }
 
 .cm-data-grid .ag-row-modified.ag-row-highlighted {
-  background-color: #ffecb3;
+  background-color: color-mix(in srgb, var(--color-edited) 55%, var(--color-selection));
 }
 
 /* 셀 단위 LightPink 마킹 (조건부 강조 — 비정상/주의 셀) */
 .cm-data-grid .ag-cell.cell-light-pink {
-  background-color: #ffe4ec !important;
+  background-color: var(--color-danger-soft) !important;
 }
 
 /* Checkbox */
@@ -329,8 +353,8 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: var(--color-text-disabled, #999);
-  font-size: var(--font-size-md, 13px);
+  color: var(--color-text-disabled);
+  font-size: var(--font-size-md);
 }
 
 /* Loading overlay */
@@ -341,15 +365,15 @@
   justify-content: center;
   height: 100%;
   gap: 12px;
-  color: var(--color-text-muted, #666);
-  font-size: var(--font-size-md, 13px);
-  background-color: rgba(255, 255, 255, 0.8);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-md);
+  background-color: color-mix(in srgb, var(--color-bg) 80%, transparent);
 }
 
 .cm-data-grid .loading-spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid var(--mantine-color-gray-3, #e0e0e0);
+  border: 3px solid var(--color-border-light);
   border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: cm-grid-spin 0.8s linear infinite;
@@ -368,21 +392,21 @@
 }
 
 .cm-data-grid .ag-body-viewport::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--color-bg-light);
 }
 
 .cm-data-grid .ag-body-viewport::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: var(--color-border-medium);
   border-radius: 4px;
 }
 
 .cm-data-grid .ag-body-viewport::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: var(--color-border-hover);
 }
 
 /* Sort indicator */
 .cm-data-grid .ag-header-cell-sortable:hover {
-  background-color: #cdd8e3;
+  background-color: color-mix(in srgb, var(--color-bg-grid-header) 75%, var(--color-border-strong));
 }
 
 .cm-data-grid .ag-sort-indicator-icon {
@@ -390,7 +414,8 @@
 }
 
 /* Number alignment */
-.cm-data-grid .ag-cell[style*="text-align: right"] {
+.cm-data-grid .ag-cell[style*="text-align: right"],
+.cm-data-grid .ag-right-aligned-cell {
   font-variant-numeric: tabular-nums;
 }
 
@@ -415,8 +440,9 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  border: 1px solid var(--color-border-grid, #d0d0d0);
-  background-color: var(--color-bg, #fff);
+  border: 1px solid var(--color-border-grid);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-bg);
   overflow: hidden;
   contain: strict;
 }
@@ -426,8 +452,8 @@
   justify-content: space-between;
   align-items: center;
   padding: 6px 10px;
-  background-color: var(--color-bg-header, #f5f6f7);
-  border-bottom: 1px solid var(--color-border-grid, #d0d0d0);
+  background-color: var(--color-bg-header);
+  border-bottom: 1px solid var(--color-border-grid);
   min-height: 32px;
   box-sizing: border-box;
   flex-shrink: 0;
@@ -442,18 +468,19 @@
 }
 
 .grid-panel-title > span:first-child {
-  font-size: var(--font-size-md, 13px);
+  font-size: var(--font-size-md);
   font-weight: 600;
-  color: var(--mantine-color-text, #333);
+  color: var(--color-text);
   white-space: nowrap;
 }
 
 .grid-panel-count {
-  font-size: var(--font-size-xs, 11px);
-  color: var(--color-text-muted, #666);
-  background-color: var(--color-border-light, #e8e8e8);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  background-color: var(--color-border-light);
   padding: 2px 8px;
   border-radius: 10px;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -501,7 +528,7 @@
   border: 1px solid transparent;
   border-radius: 4px;
   background: transparent;
-  color: #334155;
+  color: var(--color-text-secondary);
   cursor: pointer;
   padding: 0;
   display: inline-flex;
@@ -518,8 +545,8 @@
 .grid-max-handle:hover,
 .grid-max-handle:focus-visible {
   opacity: 1;
-  border-color: #aab4be;
-  background-color: rgba(51, 65, 85, 0.05);
+  border-color: var(--color-border-hover);
+  background-color: var(--color-bg-hover);
 }
 
 .grid-max-handle:focus-visible {
@@ -543,8 +570,8 @@
 .grid-help-summary,
 .grid-help-empty {
   margin: 0;
-  color: #475569;
-  font-size: 13px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-md);
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
@@ -558,15 +585,15 @@
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
-  font-size: 13px;
+  font-size: var(--font-size-md);
 }
 
 .grid-help-table th {
   padding: 8px 10px;
-  border-top: 1px solid #d8dee8;
-  border-bottom: 1px solid #d8dee8;
-  background: #f8fafc;
-  color: #1f2937;
+  border-top: 1px solid var(--color-border-strong);
+  border-bottom: 1px solid var(--color-border-strong);
+  background: var(--color-bg-grid-header);
+  color: var(--color-text-secondary);
   text-align: left;
   font-weight: 700;
 }
@@ -577,19 +604,19 @@
 
 .grid-help-table td {
   padding: 10px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--color-border-light);
   vertical-align: top;
   overflow-wrap: anywhere;
 }
 
 .grid-help-table__header-cell {
-  color: #111827;
+  color: var(--color-text);
   font-weight: 700;
   word-break: keep-all;
 }
 
 .grid-help-table__description-cell {
-  color: #334155;
+  color: var(--color-text-secondary);
   line-height: 1.55;
 }
 
@@ -605,7 +632,7 @@
 }
 
 .grid-help-values dt {
-  color: #1d4ed8;
+  color: var(--color-primary);
   font-weight: 700;
   overflow-wrap: anywhere;
 }
@@ -613,13 +640,13 @@
 .grid-help-values dd {
   margin: 0;
   min-width: 0;
-  color: #475569;
+  color: var(--color-text-muted);
 }
 
 .grid-help-note {
   margin-top: 7px;
-  color: #64748b;
-  font-size: 12px;
+  color: var(--color-text-muted-light);
+  font-size: var(--font-size-sm);
 }
 
 .grid-panel-buttons {
@@ -646,23 +673,23 @@
 
 .grid-btn {
   padding: 4px 10px;
-  font-size: var(--font-size-sm, 12px);
-  border: 1px solid #c0c0c0;
-  background-color: var(--color-bg, #fff);
-  color: var(--mantine-color-text, #333);
+  font-size: var(--font-size-sm);
+  border: 1px solid var(--color-border-strong);
+  background-color: var(--color-bg);
+  color: var(--color-text);
   cursor: pointer;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   transition: all 0.15s ease;
   white-space: nowrap;
 }
 
 .grid-btn:hover {
-  background-color: #f0f0f0;
-  border-color: var(--color-border-hover, #999);
+  background-color: var(--color-bg-hover);
+  border-color: var(--color-border-hover);
 }
 
 .grid-btn:active {
-  background-color: var(--mantine-color-gray-3, #e0e0e0);
+  background-color: var(--color-bg-disabled);
 }
 
 .grid-btn:disabled {
@@ -673,7 +700,7 @@
 .grid-btn.primary {
   background-color: var(--color-primary);
   border-color: var(--color-primary);
-  color: #fff;
+  color: var(--color-on-primary);
 }
 
 .grid-btn.primary:hover {
@@ -681,23 +708,23 @@
 }
 
 .grid-btn.danger {
-  background-color: var(--color-danger, #dc3545);
-  border-color: var(--color-danger, #dc3545);
-  color: #fff;
+  background-color: var(--color-danger);
+  border-color: var(--color-danger);
+  color: var(--color-on-primary);
 }
 
 .grid-btn.danger:hover {
-  background-color: var(--color-danger-hover, #c82333);
+  background-color: var(--color-danger-hover);
 }
 
 .grid-btn.success {
-  background-color: #28a745;
-  border-color: #28a745;
-  color: #fff;
+  background-color: var(--color-success);
+  border-color: var(--color-success);
+  color: var(--color-on-primary);
 }
 
 .grid-btn.success:hover {
-  background-color: #218838;
+  background-color: color-mix(in srgb, var(--color-success) 85%, black);
 }
 
 .grid-panel-content {
@@ -730,9 +757,9 @@
  */
 .form-panel .cm-data-grid,
 .cm-modal-body .cm-data-grid {
-  border: 1px solid var(--color-border-grid, #d0d0d0);
+  border: 1px solid var(--color-border-grid);
   /* 기본 .cm-data-grid 와 동일한 둥근 모서리 유지 */
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   /* height:100% 에 테두리 2px 가 더해져 박스가 부모를 넘어 바닥선이 잘리는 것을 차단 */
   box-sizing: border-box;
   /*
@@ -757,9 +784,9 @@
 }
 
 .grid-panel-form {
-  border-top: 1px solid var(--color-border-grid, #d0d0d0);
+  border-top: 1px solid var(--color-border-grid);
   padding: 8px;
-  background-color: #fafafa;
+  background-color: var(--color-bg-light);
   flex-shrink: 0;
 }
 
@@ -768,9 +795,9 @@
    ======================================== */
 
 .cm-mui-data-grid {
-  border: 1px solid var(--color-border-grid, #d0d0d0);
-  border-radius: 4px;
-  background-color: var(--color-bg, #fff);
+  border: 1px solid var(--color-border-grid);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-bg);
   overflow: hidden;
   overscroll-behavior: contain;
   display: flex;
@@ -785,15 +812,14 @@
 /* MUI DataGrid theme customization */
 .cm-mui-data-grid .MuiDataGrid-root {
   border: none;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  font-size: var(--font-size-md, 13px);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
 }
 
 /* Header */
 .cm-mui-data-grid .MuiDataGrid-columnHeaders {
-  background-color: var(--color-bg-header, #f5f6f7);
-  border-bottom: 1px solid var(--color-border-grid, #d0d0d0);
+  background-color: var(--color-bg-header);
+  border-bottom: 1px solid var(--color-border-grid);
   min-height: 32px !important;
   max-height: 32px !important;
 }
@@ -801,7 +827,7 @@
 .cm-mui-data-grid .MuiDataGrid-columnHeader {
   padding: 0 12px;
   font-weight: 600;
-  color: var(--mantine-color-text, #333);
+  color: var(--color-text);
 }
 
 .cm-mui-data-grid .MuiDataGrid-columnHeaderTitle {
@@ -820,7 +846,7 @@
 .cm-mui-data-grid .MuiDataGrid-cell {
   padding: 0 12px;
   line-height: 28px;
-  border-bottom: 1px solid var(--color-border-light, #e8e8e8);
+  border-bottom: 1px solid var(--color-border-light);
 }
 
 .cm-mui-data-grid .MuiDataGrid-row {
@@ -828,35 +854,35 @@
 }
 
 .cm-mui-data-grid .MuiDataGrid-row:hover {
-  background-color: var(--color-bg-light, #f8f9fa);
+  background-color: var(--color-bg-hover);
 }
 
 .cm-mui-data-grid .MuiDataGrid-row.Mui-selected {
-  background-color: var(--color-selection, #e3f2fd);
+  background-color: var(--color-selection);
 }
 
 .cm-mui-data-grid .MuiDataGrid-row.Mui-selected:hover {
-  background-color: var(--color-selection-hover, #d0e8fc);
+  background-color: var(--color-selection-hover);
 }
 
 /* Highlighted row */
 .cm-mui-data-grid .MuiDataGrid-row.mui-row-highlighted {
-  background-color: var(--color-selection, #e3f2fd);
+  background-color: var(--color-selection);
 }
 
 .cm-mui-data-grid .MuiDataGrid-row.mui-row-highlighted:hover {
-  background-color: var(--color-selection-hover, #d0e8fc);
+  background-color: var(--color-selection-hover);
 }
 
 /* Deleted row */
 .cm-mui-data-grid .MuiDataGrid-row.mui-row-deleted {
-  background-color: #ffebee;
+  background-color: var(--color-danger-soft);
   text-decoration: line-through;
-  color: var(--color-text-disabled, #999);
+  color: var(--color-text-disabled);
 }
 
 .cm-mui-data-grid .MuiDataGrid-row.mui-row-deleted.mui-row-highlighted {
-  background-color: #ffcdd2;
+  background-color: color-mix(in srgb, var(--color-danger-soft) 55%, var(--color-selection));
 }
 
 /* Checkbox */
@@ -884,16 +910,16 @@
 }
 
 .cm-mui-data-grid .MuiDataGrid-virtualScroller::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--color-bg-light);
 }
 
 .cm-mui-data-grid .MuiDataGrid-virtualScroller::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: var(--color-border-medium);
   border-radius: 4px;
 }
 
 .cm-mui-data-grid .MuiDataGrid-virtualScroller::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: var(--color-border-hover);
 }
 
 /* Empty overlay */
@@ -902,8 +928,8 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: var(--color-text-disabled, #999);
-  font-size: var(--font-size-md, 13px);
+  color: var(--color-text-disabled);
+  font-size: var(--font-size-md);
 }
 
 /* Loading overlay */
@@ -914,15 +940,15 @@
   justify-content: center;
   height: 100%;
   gap: 12px;
-  color: var(--color-text-muted, #666);
-  font-size: var(--font-size-md, 13px);
-  background-color: rgba(255, 255, 255, 0.8);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-md);
+  background-color: color-mix(in srgb, var(--color-bg) 80%, transparent);
 }
 
 .mui-grid-loading .loading-spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid var(--mantine-color-gray-3, #e0e0e0);
+  border: 3px solid var(--color-border-light);
   border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: mui-spin 0.8s linear infinite;
@@ -952,23 +978,22 @@
    ======================================== */
 
 .cm-custom-data-grid {
-  border: 1px solid var(--color-border-grid, #d0d0d0);
-  border-radius: 4px;
-  background-color: var(--color-bg, #fff);
+  border: 1px solid var(--color-border-grid);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-bg);
   overflow: hidden;
   overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   width: 100%;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  font-size: var(--font-size-md, 13px);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
 }
 
 /* Header */
 .cm-custom-grid-header {
-  background-color: #c8d8ea;
-  border-bottom: 1px solid #c0cdd8;
+  background-color: var(--color-bg-grid-header);
+  border-bottom: 1px solid var(--color-border-strong);
   overflow-x: auto;
   overflow-y: hidden;
   overscroll-behavior: contain;
@@ -989,9 +1014,11 @@
   line-height: 28px;
   padding: 0 8px;
   font-weight: 600;
-  color: var(--mantine-color-text, #333);
-  background-color: #c8d8ea;
-  border-right: 1px solid #c0cdd8;
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.02em;
+  color: var(--color-text-secondary);
+  background-color: var(--color-bg-grid-header);
+  border-right: 1px solid var(--color-border);
   box-sizing: border-box;
   white-space: nowrap;
   overflow: hidden;
@@ -1024,7 +1051,7 @@
 }
 
 .cm-custom-grid-header-cell.sortable:hover {
-  background-color: #cdd8e3;
+  background-color: color-mix(in srgb, var(--color-bg-grid-header) 75%, var(--color-border-strong));
 }
 
 /* Body */
@@ -1042,55 +1069,55 @@
 }
 
 .cm-custom-grid-body::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--color-bg-light);
 }
 
 .cm-custom-grid-body::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: var(--color-border-medium);
   border-radius: 4px;
 }
 
 .cm-custom-grid-body::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: var(--color-border-hover);
 }
 
 /* Row */
 .cm-custom-grid-row {
   display: flex;
   min-width: fit-content;
-  border-bottom: 1px solid var(--color-border-light, #e8e8e8);
+  border-bottom: 1px solid var(--color-border-light);
   cursor: pointer;
   transition: background-color 0.1s ease;
 }
 
 .cm-custom-grid-row:hover {
-  background-color: var(--color-bg-light, #f8f9fa);
+  background-color: var(--color-bg-hover);
 }
 
 .cm-custom-grid-row.row-selected {
-  background-color: var(--color-selection, #e3f2fd);
+  background-color: var(--color-selection);
 }
 
 .cm-custom-grid-row.row-selected:hover {
-  background-color: var(--color-selection-hover, #d0e8fc);
+  background-color: var(--color-selection-hover);
 }
 
 .cm-custom-grid-row.row-highlighted {
-  background-color: var(--color-selection, #e3f2fd);
+  background-color: var(--color-selection);
 }
 
 .cm-custom-grid-row.row-highlighted:hover {
-  background-color: var(--color-selection-hover, #d0e8fc);
+  background-color: var(--color-selection-hover);
 }
 
 .cm-custom-grid-row.row-deleted {
-  background-color: #ffebee;
+  background-color: var(--color-danger-soft);
   text-decoration: line-through;
-  color: var(--color-text-disabled, #999);
+  color: var(--color-text-disabled);
 }
 
 .cm-custom-grid-row.row-deleted.row-highlighted {
-  background-color: #ffcdd2;
+  background-color: color-mix(in srgb, var(--color-danger-soft) 55%, var(--color-selection));
 }
 
 /* Cell */
@@ -1102,7 +1129,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  border-right: 1px solid var(--color-border-light, #e8e8e8);
+  border-right: 1px solid var(--color-border-light);
 }
 
 .cm-custom-grid-cell:last-child {
@@ -1134,7 +1161,7 @@
   justify-content: center;
   height: 100%;
   min-height: 100px;
-  color: var(--color-text-disabled, #999);
+  color: var(--color-text-disabled);
 }
 
 .cm-custom-grid-loading {
@@ -1148,15 +1175,15 @@
   align-items: center;
   justify-content: center;
   gap: 12px;
-  background-color: rgba(255, 255, 255, 0.8);
-  color: var(--color-text-muted, #666);
+  background-color: color-mix(in srgb, var(--color-bg) 80%, transparent);
+  color: var(--color-text-muted);
   z-index: 10;
 }
 
 .cm-custom-grid-loading .loading-spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid var(--mantine-color-gray-3, #e0e0e0);
+  border: 3px solid var(--color-border-light);
   border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: custom-spin 0.8s linear infinite;

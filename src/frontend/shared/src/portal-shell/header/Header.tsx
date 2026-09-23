@@ -14,7 +14,7 @@ export interface HeaderProps {
 
 export function Header({ appName, userName, loginId, onLogout, onGoHome }: HeaderProps) {
   return (
-    <Group className="portal-header" h={48} px="md" justify="space-between" wrap="nowrap">
+    <Group className="portal-header" h={44} px="md" justify="space-between" wrap="nowrap">
       <Group className="portal-header__left" gap="xs" wrap="nowrap">
         <img
           className="portal-header__logo"

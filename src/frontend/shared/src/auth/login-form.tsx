@@ -145,93 +145,97 @@ export function PortalLoginForm({ appName, callbackUrl }: PortalLoginFormProps) 
 
   return (
     <div className="login-wrapper" style={{ backgroundImage: "url(/images/bg_login.png)" }}>
-      <Paper
-        component="form"
-        method="post"
-        className="login-form"
-        radius={0}
-        onSubmit={handleSubmit}
-      >
-        <Title order={2} className="login-title">
-          Login
-        </Title>
+      {/* 배경 이미지(bg_login.png)에 새겨진 "Digital Manufacturing" 제목 아래 빈 영역에
+          카드를 놓기 위한 배치 슬롯. 위치 계산은 login-form.css 의 .login-card-slot 참고. */}
+      <div className="login-card-slot">
+        <Paper
+          component="form"
+          method="post"
+          className="login-form"
+          radius="md"
+          onSubmit={handleSubmit}
+        >
+          <Title order={2} className="login-title">
+            Login
+          </Title>
 
-        <TextInput
-          id="login-user-id"
-          name="userId"
-          label="아이디"
-          aria-label="User ID"
-          className="login-input"
-          placeholder="아이디"
-          value={userId}
-          onChange={(event) => setUserId(event.currentTarget.value)}
-          autoComplete="username"
-          size="md"
-          radius={0}
-          disabled={!mounted}
-        />
-
-        <PasswordInput
-          id="login-password"
-          name="password"
-          label="비밀번호"
-          aria-label="Password"
-          className="login-input"
-          placeholder="비밀번호"
-          value={password}
-          onChange={(event) => setPassword(event.currentTarget.value)}
-          autoComplete="current-password"
-          size="md"
-          radius={0}
-          disabled={!mounted}
-          visibilityToggleButtonProps={{ "aria-label": "비밀번호 표시 전환" }}
-        />
-
-        <Group className="login-save-id" justify="space-between" wrap="nowrap">
-          <Checkbox
-            label="아이디 저장"
-            checked={saveId}
-            onChange={(event) => setSaveId(event.currentTarget.checked)}
+          <TextInput
+            id="login-user-id"
+            name="userId"
+            label="아이디"
+            aria-label="User ID"
+            className="login-input"
+            placeholder="아이디"
+            value={userId}
+            onChange={(event) => setUserId(event.currentTarget.value)}
+            autoComplete="username"
+            size="sm"
+            radius="sm"
             disabled={!mounted}
           />
-          <Anchor
-            component="button"
-            type="button"
-            className="login-change-pw"
-            onClick={handleOpenPasswordModal}
+
+          <PasswordInput
+            id="login-password"
+            name="password"
+            label="비밀번호"
+            aria-label="Password"
+            className="login-input"
+            placeholder="비밀번호"
+            value={password}
+            onChange={(event) => setPassword(event.currentTarget.value)}
+            autoComplete="current-password"
+            size="sm"
+            radius="sm"
+            disabled={!mounted}
+            visibilityToggleButtonProps={{ "aria-label": "비밀번호 표시 전환" }}
+          />
+
+          <Group className="login-save-id" justify="space-between" wrap="nowrap">
+            <Checkbox
+              label="아이디 저장"
+              checked={saveId}
+              onChange={(event) => setSaveId(event.currentTarget.checked)}
+              disabled={!mounted}
+            />
+            <Anchor
+              component="button"
+              type="button"
+              className="login-change-pw"
+              onClick={handleOpenPasswordModal}
+            >
+              비밀번호 변경
+            </Anchor>
+          </Group>
+
+          {errorMessage && (
+            <Alert color="danger" className="login-error" variant="light" p="xs">
+              {errorMessage}
+            </Alert>
+          )}
+          {successMessage && (
+            <Alert color="green" className="login-success" variant="light" p="xs">
+              {successMessage}
+            </Alert>
+          )}
+
+          <Button
+            type="submit"
+            className="login-button"
+            fullWidth
+            disabled={isPending || !mounted}
+            size="sm"
+            h={38}
+            radius="sm"
+            color="loginBrand"
           >
-            비밀번호 변경
-          </Anchor>
-        </Group>
+            {isPending ? "로그인 중..." : "로그인"}
+          </Button>
 
-        {errorMessage && (
-          <Alert color="danger" className="login-error" variant="light" p="xs">
-            {errorMessage}
-          </Alert>
-        )}
-        {successMessage && (
-          <Alert color="green" className="login-success" variant="light" p="xs">
-            {successMessage}
-          </Alert>
-        )}
-
-        <Button
-          type="submit"
-          className="login-button"
-          fullWidth
-          disabled={isPending || !mounted}
-          size="md"
-          h={45}
-          radius={0}
-          color="loginBrand"
-        >
-          {isPending ? "로그인 중..." : "로그인"}
-        </Button>
-
-        <Text component="p" className="login-copyright">
-          {process.env.NEXT_PUBLIC_COPYRIGHT ?? `\u00a9 ${new Date().getFullYear()} ${appName}`}
-        </Text>
-      </Paper>
+          <Text component="p" className="login-copyright">
+            {process.env.NEXT_PUBLIC_COPYRIGHT ?? `\u00a9 ${new Date().getFullYear()} ${appName}`}
+          </Text>
+        </Paper>
+      </div>
 
       {showPasswordModal && (
         <PasswordChangeModal

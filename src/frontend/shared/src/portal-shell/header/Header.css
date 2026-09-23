@@ -1,17 +1,20 @@
 /* ========================================
-   Header 스타일 - Mantine Group/Menu 기반 (dmes_react Topbar 디자인 유지)
+   Header 스타일 - Mantine Group/Menu 기반, C 고밀도 산업용 톤
+   색·높이는 variables.css 의 --shell-header-* 토큰만 쓴다.
    ======================================== */
 
 .portal-header {
-  height: 48px;
-  background: linear-gradient(to right, #23283a, #4a5068);
-  color: #fff;
+  height: var(--shell-header-height);
+  background-color: var(--shell-header-bg);
+  color: var(--shell-header-fg);
+  border-bottom: 1px solid var(--shell-header-border);
   flex-shrink: 0;
 }
 
-/* 좌측: 로고 */
+/* 좌측: 로고 (기존 이미지를 그대로 쓰고 높이만 헤더에 맞춘다) */
 .portal-header__logo {
-  height: 30px;
+  display: block;
+  height: 26px;
   width: auto;
   margin-left: -3px;
 }
@@ -20,25 +23,45 @@
 .portal-header__user-button {
   display: inline-flex;
   align-items: center;
-  padding: 6px 10px;
-  border-radius: 4px;
-  color: rgba(255, 255, 255, 0.9);
-  transition: background-color var(--transition-normal);
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--shell-header-fg);
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
 .portal-header__user-button:hover,
+.portal-header__user-button[aria-expanded="true"] {
+  background-color: var(--shell-header-control-bg);
+  border-color: var(--shell-header-control-border);
+}
+
 .portal-header__user-button:focus-visible {
-  background-color: rgba(255, 255, 255, 0.12);
-  color: #fff;
-  outline: none;
+  background-color: var(--shell-header-control-bg);
+  border-color: var(--shell-header-control-border);
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+.portal-header__user-button svg {
+  color: var(--shell-header-muted);
 }
 
 .portal-header__user-name {
+  font-size: var(--font-size-md);
   white-space: nowrap;
 }
 
-/* 개인 정보 표시용 Menu.Item — 클릭 대상이 아니므로 비활성 표시를 그대로 둔다. */
+/* 개인 정보 표시용 Menu.Item — 클릭 대상이 아니므로 비활성 표시를 그대로 두되 읽기 쉬운 글자색을 준다. */
 .portal-header__popup-field {
-  color: var(--color-text, #333);
+  color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
+}
+
+.portal-header__popup-field[data-disabled] {
+  opacity: 1;
+  cursor: default;
 }

@@ -19,21 +19,22 @@ import "./TabsBar.css";
 
 const VIEWPORT_RESIZE_SETTLE_MS = 120;
 
-/** 어두운 탭 바 위에서 ActionIcon 이 기존 .control-btn 과 같은 명도를 갖도록 CSS 변수를 직접 준다. */
+/** 밝은 탭 바(--shell-tabs-bg) 위의 아이콘 버튼 — 26px 정사각·옅은 테두리. 크기·반경은 TabsBar.css 가 확정한다. */
 const CONTROL_ICON_VARS = {
-  "--ai-color": "rgba(255, 255, 255, 0.75)",
+  "--ai-color": "var(--shell-tab-fg)",
   "--ai-bg": "transparent",
-  "--ai-hover": "rgba(255, 255, 255, 0.15)",
-  "--ai-hover-color": "#fff",
-  "--ai-bd": "1px solid rgba(255, 255, 255, 0.2)",
+  "--ai-hover": "var(--shell-tab-hover-bg)",
+  "--ai-hover-color": "var(--shell-tab-active-fg)",
+  "--ai-bd": "1px solid var(--color-border)",
 } as React.CSSProperties;
 
 const FAVORITE_ACTIVE_ICON_VARS = {
   ...CONTROL_ICON_VARS,
-  "--ai-color": "#f1c40f",
-  "--ai-bd": "1px solid #f1c40f",
-  "--ai-hover": "rgba(241, 196, 15, 0.18)",
-  "--ai-hover-color": "#f1c40f",
+  "--ai-color": "var(--color-warning)",
+  "--ai-bg": "var(--color-warning-soft)",
+  "--ai-bd": "1px solid var(--color-warning)",
+  "--ai-hover": "var(--color-warning-soft)",
+  "--ai-hover-color": "var(--color-warning)",
 } as React.CSSProperties;
 
 interface TabState {

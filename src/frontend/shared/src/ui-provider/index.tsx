@@ -20,7 +20,8 @@ export function DmesUiProvider({ children }: { children: ReactNode }) {
   return (
     <MantineProvider theme={dmesTheme} defaultColorScheme="light">
       <DatesProvider settings={{ locale: "ko", firstDayOfWeek: 0 }}>
-        <Notifications position="top-right" zIndex={10000} />
+        {/* 토스트는 화면 우측 상단의 조회·저장 버튼을 가리지 않도록 우측 하단, 상태줄 위에 띄운다(2026-09-23). */}
+        <Notifications position="bottom-right" containerWidth={360} limit={3} zIndex={10000} />
         <ModalsProvider>
           <MessageProvider>{children}</MessageProvider>
         </ModalsProvider>

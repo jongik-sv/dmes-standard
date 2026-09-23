@@ -6,7 +6,7 @@ import { Modal } from "../../components/modal";
 
 /** 확정 버튼은 공통 primary 토큰을 그대로 쓴다(레거시 파랑 하드코딩 금지). */
 const CONFIRM_BUTTON_STYLES = {
-  root: { backgroundColor: "var(--color-primary, #337ab7)" },
+  root: { backgroundColor: "var(--color-primary)" },
 } as const;
 
 /** 즐겨찾기 leaf(메뉴) 노드. */

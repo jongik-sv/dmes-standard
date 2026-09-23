@@ -37,7 +37,7 @@ describe("DmesUiProvider", () => {
       root.render(createElement(DmesUiProvider, null, createElement("i")));
     });
     const style = document.querySelector("style[data-mantine-styles]")?.textContent ?? "";
-    expect(style).toContain("--mantine-color-dmes-6: #337ab7");
+    expect(style).toContain("--mantine-color-dmes-6: #0b62d6");
     act(() => root.unmount());
     host.remove();
   });
