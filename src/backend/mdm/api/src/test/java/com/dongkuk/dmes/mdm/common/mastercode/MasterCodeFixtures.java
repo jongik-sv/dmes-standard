@@ -134,6 +134,21 @@ public final class MasterCodeFixtures {
                 .stream().sorted().toList();
     }
 
+    /** "code|from|to|name|alter|seq" 목록(정렬). */
+    public List<String> itemRows(String id) {
+        return jdbc.query("SELECT CODE, FROM_VER, TO_VER, NAME, ALTER_NAME, SEQ FROM TB_MDM_CODE_ITEM "
+                        + "WHERE MARU_CODE_ID = ?",
+                (rs, i) -> rs.getString(1) + "|" + fmt(rs.getBigDecimal(2)) + "|" + fmt(rs.getBigDecimal(3)) + "|"
+                        + rs.getString(4) + "|" + rs.getString(5) + "|" + rs.getObject(6), id)
+                .stream().sorted().toList();
+    }
+
+    public List<String> cateSegments(String id) {
+        return jdbc.query("SELECT CATE_ID, FROM_VER, TO_VER FROM TB_MDM_CODE_CATE WHERE MARU_CODE_ID = ?",
+                (rs, i) -> rs.getString(1) + "@" + fmt(rs.getBigDecimal(2)) + "-" + fmt(rs.getBigDecimal(3)), id)
+                .stream().sorted().toList();
+    }
+
     public List<String> cateItemSegments(String id) {
         return jdbc.query("SELECT CATE_ID, CODE, FROM_VER, TO_VER FROM TB_MDM_CODE_CATE_ITEM WHERE MARU_CODE_ID = ?",
                 (rs, i) -> rs.getString(1) + " " + rs.getString(2) + "@" + fmt(rs.getBigDecimal(3)) + "-"
