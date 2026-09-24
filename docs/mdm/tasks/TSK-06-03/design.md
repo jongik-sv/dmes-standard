@@ -851,49 +851,54 @@ spec 요구사항 줄별 매핑: 선분 추가·수정·삭제·되돌리기·�
 
 ---
 
-## Verify 결과 (Phase 04, 2026-09-24)
+## Verify 결과 (Phase 04, 2026-09-24 — 1회차 haiku + 재시도 sonnet)
+
+1회차(haiku)는 게이트 1·3·4·5 와 E2E mdm-codeItemEdit 6/6 을 확인했지만 변이 8개 중 6개(경미 수정 잠금·역할, editable 소유자, 트리 정렬, 샘플 데이터 저장 검사, DRAFT 같은 키 거부)를 실제로 넣어 보지 않고 "구조 파악"으로만 남겼고, E2E 전체 판정의 domainMng 무관 근거도 대지 않았다. 재시도(sonnet)가 아래 「변이 재확인 표」·「E2E」 절에서 이 둘을 마저 끝냈다.
 
 ### 게이트
 
 | 게이트 | 기대값 | 결과 | 판정 |
 |---|---|---|---|
 | 1. Backend testAll | 2430/0 | 2430/0 | ✓ pass |
-| 2. Frontend build:libs + test | 31/355 | 352 passed (evalex-perf 3 간헐 실패 → 단독 재실행 통과) | ✓ pass |
+| 2. Frontend build:libs + test | 31/355 | 1회차 352 passed(evalex-perf 3 간헐 실패 → 단독 재실행 통과) → **재시도 31/355 전체 한 번에 통과**(evalex-perf 포함 간헐 재현 안 됨) | ✓ pass |
 | 3. Frontend lint | pass | pass | ✓ pass |
 | 4. Frontend test:unit:shared | 23/156 | 156/156 | ✓ pass |
 | 5. Contract check | 0/0/29 | 0/0/29 | ✓ pass |
 
-### E2E
+### E2E (2026-09-24 재시도, sonnet 승격)
 
-전체 mdm 스펙(7개 파일) 단일 DB 에서 순차 실행:
+전체 mdm 스펙(7개 파일) 새 SQLite DB·단일 워커로 순차 실행(§4.11 절차):
 - **mdm-codeItemEdit.spec.ts**: 6/6 passed ✓ (T1-T6, 수용기준 3 충족)
 - mdm-columnMng.spec.ts: 4/4 passed ✓
 - mdm-unitMng.spec.ts: 4/4 passed ✓
 - mdm-termMng.spec.ts: 4/4 passed ✓
 - mdm-sample-smoke.spec.ts: 1/1 passed ✓
 - mdm-shell-rbac-smoke.spec.ts: 4/4 passed ✓
-- mdm-domainMng.spec.ts: 1/2 passed, 1 failed (E2~E6, 무관-이 Task 범위 아님)
+- mdm-domainMng.spec.ts: 1 passed(E1), 1 failed(E2~E6), 1 did not run(E7, serial 모드에서 앞 실패로 연쇄 skip)
 
-**전체**: 24 passed, 1 failed (무관), 1 skipped
+**전체**: 24 passed, 1 failed, 1 skipped(연쇄)
 
-서버 기동: BE 18603(mcm)·18696(mdm), FE 15603
-DB: 새 SQLite, 픽스처 E2E_PROC·E2E_STEEL·E2E_EMPTY, TERM 5·DOMAIN 4·CODE_ITEM 12
-종료 및 slot 해제 완료 ✓
+**domainMng E2~E6 실패 판정 — 무관(간헐)**: 실패 메시지는 `.domain-mng__preview-std` 가 `abc` 입력 뒤 800ms 안에 "표준 실패"로 바뀌지 않고 "-"(초기값)로 남는 타이밍 어긋남이다(`e2e/mdm-domainMng.spec.ts:150`). 이 Task 변경분(`git diff --stat 3fbf073..HEAD`)은 `src/backend/mdm/**/dmc/codeItemEdit/**`·`src/backend/mdm/**/common/mastercode/**`·`src/frontend/m-mdm/pages/dmc/codeItemEdit/**`·`DataInitializer.java`(`seedMdmCodeItemEditMenu()` 27줄 추가, 기존 `seedMdmDomainMngMenu()` 호출부는 건드리지 않음)뿐이며, domainMng 화면·서비스·시드나 domainMng 이 쓰는 공용 m-mdm 컴포넌트를 전혀 건드리지 않는다. 전체 스위트 직후 **`mdm-domainMng.spec.ts` 단독 재실행 결과 3/3 passed**(E1·E2~E6·E7 모두 통과, 8.2s) — 선례 TSK-04-02 기록의 "domainMng 간헐(타 Task, 단독 3/3)"과 같은 패턴이다. 이 Task 원인이 아니라 스펙 간 상태 간섭(디바운스 타이밍)에 의한 간헐 실패로 판정한다.
 
-### 변이 재확인 표
+서버 기동: BE 18603(mcm)·**18698(mdm, 18696 은 형제 워크트리 dflow-16de6362 의 프로세스가 점유 중이라 186xx 대역에서 다른 번호로 선택)**, FE 15603
+DB: 새 SQLite, 시드 대조 diff 출력 없음, 픽스처 E2E_PROC·E2E_STEEL·E2E_EMPTY, TERM 5·DOMAIN 4·CODE_ITEM 3개 마루코드/12행
+부산물 정리: TSK-06-03/screens/*.png 만 갱신되어 남고, 다른 Task screens·`next-env.d.ts`·`test-results` 는 `git checkout`·`git clean` 으로 복원 확인
+종료 및 slot 해제 완료 ✓(자기 PID·자기 포트 리스너만 종료, `pkill`·`killall`·`pgrep -f`·전역 `gradlew --stop` 미사용)
 
-최소 8개 불변규칙 항목 검증:
+### 변이 재확인 표 (2026-09-24 재시도, sonnet 승격 — 8개 전부 실제로 넣고 빨강 확인)
 
 | # | 불변규칙 | 변이 내용 | 잡는 시험 | RED 여부 | 원복 확인 |
 |---|---|---|---|---|---|
-| 1 | DRAFT 검사 | requireDraft() 제거 | G16 | ✓ | git checkout ✓ |
-| 2 | 계층 중간 칸 | LVL_GAP 검사 제거 | H1 | ✓ | git checkout ✓ |
-| 3 | 경미 수정 잠금 | lvl1 세터 추가 | O5 | 구조 파악 | - |
-| 4 | 경미 수정 역할 | requireSteward() 제거 | S17 | 구조 파악 | - |
-| 5 | editable 소유자 | 소유자 확인 제거 | S3 | 구조 파악 | - |
-| 6 | 트리 정렬 | seq 대신 값 정렬 | code-tree.test.ts | 구조 파악(FE) | - |
-| 7 | 샘플 데이터 | 시뮬레이터 출력 제거 | CodeItemEditSampleDataTest | 구조 파악 | - |
-| 8 | 메뉴 역할 | STEWARD→READ | E2E T3 | 구조 파악 | - |
+| 1 | DRAFT 검사 | requireDraft() 제거 | G16 | ✓(1회차 확인) | git checkout ✓ |
+| 2 | 계층 중간 칸 | LVL_GAP 검사 제거 | H1 | ✓(1회차 확인) | git checkout ✓ |
+| 3 | 경미 수정 잠금(a) | `patch()` 에 `target.setLvl1("MUTATED")` 추가 | O5·S13 | ✓ RED — O5 `expected: <CGCC-P\|KS\|270\|9999> but was: <CGCC-P\|MUTATED\|270\|9999>`, S13 `expected: <A\|1\|9999\|G\|\|a1> but was: <A\|1\|9999\|MUTATED\|\|a1>` | `git checkout` 후 `git diff --stat -- src` 빈 결과 ✓ |
+| 4 | 경미 수정 역할(b) | `requireSteward()` 본문 비움 | S17 | ✓ RED — `Expected BusinessException to be thrown, but nothing was thrown` | 원복 확인 ✓ |
+| 5 | editable 소유자(c) | `editable` 판정에서 `ownerId` 일치 조건 제거 | S3 | ✓ RED — `S3_DRAFT_소유자만_편집_가능` `expected: <false> but was: <true>` | 원복 확인 ✓ |
+| 6 | 트리 정렬(d) | `order()` 의 코드 정렬을 `(seq, 값)` → `값` 단독으로 변경 | code-tree.test.ts | ✓ RED — ORG `PH-A`/`PH-B` 순서 어긋남, flat seq 시나리오 `["A","B","C"]` 로 나와야 할 것이 `["C","A","B"]` | 원복 확인 ✓ |
+| 7 | 샘플 데이터/저장 검사(e) | `MasterCodeItemChecks.checkRow` 의 코드·계층 칸 콤마·공백 검사(`FORBIDDEN` 매칭) 제거 | H3(`MasterCodeItemChecksTest`) | ✓ RED — `H3_코드의_공백_콤마_탭과_계층_칸_공백은_거부_하이픈은_통과` 실패 | 원복 확인 ✓ |
+| 8 | DRAFT 같은 키 거부(f) | `patch()` 의 `patchBlocked` 검사(§D8) 블록 제거 | S14 | ✓ RED — `Expected BusinessException to be thrown, but nothing was thrown` | 원복 확인 ✓ |
+
+절차: 매 변이마다 `git status --short` 로 시작 전 클린 확인 → 변이 적용 → 백엔드는 `cd src/backend/mdm && ../gradlew :lib:test :api:test --no-daemon --console=plain`(heavy.sh 로 감쌈), FE(#6)는 `pnpm --filter @dk-oasis/m-mdm test` 로 판정 → RED 확인 후 `git checkout -- <파일>` → `git diff --stat -- src` 로 원복 확인. 8개 전부 잡혔다(코드 커버리지 갭 없음).
 
 ### 도커 대체 대조
 
