@@ -2,7 +2,7 @@
   "tsk": "TSK-06-01",
   "order": "087bc67d-ad17-4c40-bda2-3999117ed0ab",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "refactor",
+  "phase": "reported",
   "baseline": {
     "failures": 0,
     "tests": 1878,
@@ -14,12 +14,12 @@
     "count_cmd": "find src/backend -path '*/build/test-results/*' -not -path '*mssqlMigrationTest*' -name 'TEST-*.xml' | xargs grep -h -o '<testsuite [^>]*' (tests/failures/errors 합산)",
     "mssqlMigrationTest": "제외 — 사용자 결정(팀장 지시 2026-09-24): 도커 금지로 MSSQL 실측 생략, DDL 리뷰로 대체. 게이트 비교 대상 아님"
   },
-  "flyway_version": "V6 (팀장 배정 2026-09-24)",
+  "flyway_version": "V9 (팀장 정정 2026-09-24: 배정표 폐기, dev 머지 뒤 최대+1. 최초 배정 V6)",
   "complexity": "3점(depends 2 +1, Flyway=마이그레이션 +2) → opus, spec model=opus",
   "model": "haiku",
   "last": {
-    "phase": "verify",
-    "event": "verify.ok"
+    "phase": "done",
+    "event": "done.ok"
   },
   "design_commit": "22fd710",
   "build_gate": {
@@ -56,5 +56,16 @@
     "rule30": "main 구현 0건",
     "mssql_ddl_review": "§3.13 8/8 통과(도커 금지로 실측 대체)"
   },
-  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\""
+  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\"",
+  "merge_gate": {
+    "backend_testAll": {
+      "tests": 2252,
+      "failures": 0,
+      "errors": 0,
+      "note": "origin/dev(TSK-08-01·04-03·04-04) 머지 + V9 재채번 + 04-03 픽스처 seed 뒤 --rerun-tasks"
+    },
+    "compileMssqlTestJava": "ok",
+    "mssqlMigrationTest": "미실행(사용자 결정: 도커 금지)"
+  },
+  "decisions": "design.md D1~D12, decisions.md 임시 ID D-TSK-06-01-1~5"
 }
