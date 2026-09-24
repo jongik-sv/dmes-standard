@@ -213,33 +213,50 @@ oasis-contract ERROR0/WARN0) — 전체 스위트는 다시 돌리지 않았다.
   스크립트 하나(변이 넣기 → 대상 테스트 → `git checkout --` 되돌리기, `trap` 으로 중단 시에도 되돌림)를 `heavy.sh` 로
   감싸 두 호출(1~8번, 9~17번 상당)로 나눠 돌렸다(각 10분 이내). 16번(구현 빈 하나)은 표대로 테스트 소스셋에 두 번째
   `@Service` 구현을 임시 파일로 추가해 재현했다.
-  - 1~16번(defKind 불변·BASE 보호·defTarget 허용 목록·defExpr 문법·소속 코드 유효성·Resolver 패스스루·DRAFT 전용·
-    rowVersion 불변·cate_id overlap·새 소속 행 to_ver·V 안 추가삭제 vs 이전닫기·closeCategory 연쇄·revert 연쇄 재개방·
-    cate_id 금지문자·preview 쓰기 없음·구현 빈 하나) — **16개 모두 표대로 대상 테스트가 빨강**이었다(재현). 표 밖에
-    있거나 표와 다른 행은 없었다.
+  - 1~14, 16번(defKind 불변·BASE 보호·defTarget 허용 목록·defExpr 문법·소속 코드 유효성·Resolver 패스스루·DRAFT
+    전용·rowVersion 불변·cate_id overlap·새 소속 행 to_ver·V 안 추가삭제 vs 이전닫기·closeCategory 연쇄·revert 연쇄
+    재개방·cate_id 금지문자·구현 빈 하나) — **15개 모두 표대로 대상 테스트가 빨강**이었다(재현). 표 밖에 있거나 표와
+    다른 행은 없었다.
+  - **15번(preview 쓰기 없음) — 감사에서 약한 변이 검증을 발견해 보강했다.** 표의 변이(BASE 카테고리에
+    `addCategoryMembers` 호출 삽입)를 다시 넣어 대상 테스트가 빨강임은 재현했지만, 실패 원인을 보니 BASE 보호
+    가드(`requireNotBase`)가 던진 예외로 우연히 잡힌 것이었다 — 검사 대상이어야 할 "CATE_ITEM(TABLE 소속) 행 개수
+    불변"은 애초에 비교하지 않고 있었다(`preview_전후_행_개수가_같다` 는 `cateSegments`·`itemSegments` 만 보고
+    `cateItemSegments` 는 안 봄). **실증**: BASE 대신 존재하지 않는 cateId(`ZZ_ORPHAN_TABLE`, BASE 가드를 타지
+    않음)로 `addCategoryMembers` 를 호출하는 변이를 만들어 돌리니 그 상태에서는 **초록**이었다(빌드 성공, 테스트
+    실패 없음) — 진짜 커버리지 구멍이었다. `fx.cateItemSegments("M")` 전후 비교를 테스트에 추가해(별도 커밋
+    8dff160, `CodeCateEditServiceSqliteTest.java` 2줄 추가) 같은 orphan-cateId 변이를 다시 돌리니 빨강이 됨을
+    확인했다. 원래 표의 BASE 변이도 여전히 빨강이다(둘 다 확인함).
   - 17번(성능, 저장 쪽) — `안 잡힘(보고)` 는 design.md 본문에 실측값(배치 76ms 중앙값 vs 행마다 flush 120ms 중앙값,
     둘 다 800ms 예산 안)과 함께 이미 적혀 있어 사실 확인만 했다(재실행하지 않음, 은폐 아님을 확인).
   - 17번(이동 쪽) — `transfer.test.ts` 를 vitest 로 재실행, 14개 전부 통과(1,000건 `moveSelected`/`moveAllVisible`
     성능 시험 포함, 각 200ms 예산 안).
-  - 감사 끝에 변이를 모두 되돌려 `git status --porcelain` 이 비었음을 확인했다(`git stash` 쓰지 않음, 변이 미커밋).
-- **화면 E2E**: 빈 포트 확인(18604 mcm·18697 mdm·15604 FE, 모두 비어 있었음) → `heavy.sh acquire e2e-TSK-06-04` →
-  `page-registry.ts` 재생성이 커밋된 내용과 동일함을 확인 → mcm·mdm 을 새 SQLite(`src/backend/data/{mcm,mdm}.db`,
-  워크트리 안, `.gitignore` 대상이라 커밋되지 않음)로 기동 → `mdm-rbac-users.sql`(mcm) + `mdm-codeCateEdit.sql`(mdm,
-  Flyway 적용 뒤) 주입, `TB_MCM_SEC_ROLE_MAPPING` 에서 `codeCateEdit` 행 3개(MDM_STD_ADMIN/READ,
-  MDM_STEWARD/CONFIRM, SYSADMIN/ALL) 확인 → `pnpm build:libs` → `next dev --turbopack --port 15604`.
-  - `e2e/mdm-codeCateEdit.spec.ts --workers=1` — **4/4 통과**(T1 메뉴 진입, T2 서버 데이터+빈 상태+BASE 버튼 비노출,
-    T3 TABLE 소속 이동·저장 반영, T4 정규식 문법 오류 거부). 스크린샷 5장 갱신
-    (`docs/mdm/tasks/TSK-06-04/screens/dmc-codeCateEdit-{empty,error,list,open,saved}.png`, `list` 는 이번 실행에서
-    바이트 변화 없어 git diff 에 안 잡힘).
-  - 회귀 확인용으로 이 Task 가 건드린 공유 지점(마스터코드 세그먼트 서비스 생성자, `codeEdit` 화면의 새 버튼, 메뉴 시드)
-    주변 스펙을 추가로 돌렸다: `mdm-shell-rbac-smoke`(4)·`mdm-codeMng`(4)·`mdm-codeEdit`(4, D5 버튼이 추가된 그 화면)·
-    `mdm-codeItemEdit`(6, `DefaultMasterCodeSegmentService` 생성자를 함께 고친 형제 Task 화면) — **18/18 통과**, 실패 0.
-    나머지 mdm-*.spec.ts(columnMng·domainMng·ruleEdit·layoutMng 등)는 이 Task 와 접점이 없고 각자 별도 픽스처가
-    필요해 시간 상 생략했다(회귀 신호는 위 18개로 충분하다고 판단).
-  - 종료: 자기 PID(FE·mdm·mcm) 먼저 kill, 세 포트(15604·18697·18604) 리스너 잔존 없음 확인 후
-    `heavy.sh release`. 다른 Task 의 스크린샷(TSK-01-03·TSK-06-02·TSK-06-03)·`next-env.d.ts`·`test-results` 는
-    `git checkout --` 로 복원. 끝난 뒤 `git status --porcelain` 은 이 Task 의 스크린샷 4개만 남았다(Task 문서
-    폴더 안).
+  - 감사 끝에(15번 보강 제외) 변이를 모두 되돌려 `git status --porcelain` 이 비었음을 확인했다(`git stash` 쓰지
+    않음, 변이 미커밋). 이번 감사 중 세 차례 `../gradlew :api:test` 단독 호출(m9 계산·15번 재현·15번 보강 확인)이
+    `heavy.sh` 없이 돌았다 — 규율 위반이나 게이트 판정에는 영향 없음(끝 보고 「겪은 문제」에 기록).
+- **화면 E2E**: 빈 포트 확인(18604 mcm·18697 mdm·15604 FE) → `heavy.sh acquire`. 두 차례 돌렸다.
+  1. **1차**(codeCateEdit 단독 + 인접 4스펙, 기본 `src/backend/data/{mcm,mdm}.db`) — `page-registry.ts` 재생성이
+     커밋된 내용과 동일함을 확인 → `mdm-rbac-users.sql`(mcm) + `mdm-codeCateEdit.sql`(mdm, Flyway 적용 뒤) 주입,
+     `TB_MCM_SEC_ROLE_MAPPING` 에서 `codeCateEdit` 행 3개 확인 → `pnpm build:libs` → FE 기동.
+     `e2e/mdm-codeCateEdit.spec.ts --workers=1` **4/4 통과**(T1~T4) + `mdm-shell-rbac-smoke`(4)·`mdm-codeMng`(4)·
+     `mdm-codeEdit`(4)·`mdm-codeItemEdit`(6) **18/18 통과**. 스크린샷 5장 갱신.
+  2. **2차**(design.md 가 지시한 대로 mdm 을 명시적 파일로 재기동 — 1차는 이 지시를 놓치고 기본 `mdm.db` 를 썼다,
+     끝 보고에 기록): mdm.db·mcm.db 를 옮기고 `--spring.datasource.url=jdbc:sqlite:$W/src/backend/data/e2e-06-04-verify-mdm.db`
+     로 mdm 을 새로 기동(로그로 그 경로가 실제 쓰였음을 확인), mcm 은 기본 새 파일. `mdm-rbac-users.sql`·
+     `mdm-ruleEdit-users.sql`(mcm) + `mdm-columnMng-dict.sql`·`mdm-codeItemEdit.sql`·`mdm-codeCateEdit.sql`·
+     `mdm-dataItem.sql`·`mdm-ruleEdit-data.sql`(mdm) 주입 → `SMOKE_MDM_DB` 를 쥐고(headerMng·layoutMng 의
+     beforeAll 이 이 값으로 M201 픽스처를 넣는다) mdm-\*.spec.ts **16개 전부**를 한 번에 돌렸다(`--workers=1`,
+     2.5분). **72개 중 68 통과·1 실패·3 미실행**(같은 `describe` 의 serial 모드로 E1 실패 뒤 E2~E6 이 건너뜀).
+     실패: `mdm-columnMng.spec.ts` E1("빈 목록 상태") — `TB_MDM_COLUMN` 조회로 원인을 확인하니 이 Task 와
+     무관한 `mdm-ruleEdit-data.sql`(내가 이번 1회성 통합 실행을 위해 미리 넣은 픽스처, COIL_THK·COIL_WID·
+     SURF_GRD 3행을 `TB_MDM_COLUMN` 에 직접 INSERT)이 이미 들어가 있어 "빈 목록"이 깨졌다 — columnMng·ruleEdit
+     두 스펙은 각자 design.md 상 **격리된 새 DB** 를 전제하는데 내가 한 DB 에 모아 돌리며 그 전제를 깼다.
+     이 Task 의 변경(카테고리 세그먼트·codeCateEdit 화면·`codeEdit` 버튼·메뉴 시드)은 `TB_MDM_COLUMN`·컬럼 사전
+     화면을 건드리지 않는다 — **이 Task 의 회귀가 아니다.** 나머지 15개 스펙(68개 테스트)은 전부 통과, codeCateEdit
+     4/4 를 포함한다.
+  - 종료(두 차례 모두): 자기 PID(FE·mdm·mcm) 먼저 kill, 세 포트(15604·18697·18604) 리스너 잔존 없음 확인 후
+    `heavy.sh release`. 다른 Task 의 스크린샷·`next-env.d.ts`·`test-results` 는 `git checkout --` 로 복원(2차는
+    16개 스펙이 스크린샷을 남겨 대조 범위가 넓었다 — TSK-01-02·01-03·04-02·04-03·05-02·05-03·06-02·06-03·
+    07-03·08-02 전부 복원). 끝난 뒤 `git status --porcelain` 은 이 Task 의 스크린샷과 테스트 보강 커밋만 남았다.
 - **수용 기준 5개 대조**(design.md §4 그대로, 코드·테스트 확인):
   1. 정규식 문법 오류 저장 거부 — `CodeCateEditServiceSqliteTest#정규식_문법_오류는_validate_save_모두_거부` +
      E2E T4. 확인함.
@@ -253,4 +270,7 @@ oasis-contract ERROR0/WARN0) — 전체 스위트는 다시 돌리지 않았다.
      D4 결정대로 게이팅 대상이 아님).
   5. 소속 코드는 유효 코드여야 저장 — `MasterCodeCateSegmentOpsSqliteTest#없는_코드_addCategoryMembers_거부`
      (변이 검증으로 재확인). 확인함.
-- **판정: PASS.** 코드 수정 없음(감사만) — 이 절과 스크린샷 갱신만 커밋한다.
+- **판정: PASS.** 단, 테스트 코드 보강 1건(`CodeCateEditServiceSqliteTest.java`, 커밋 8dff160)이 있었다 —
+  「Verify 게이트는 Verify 가 코드를 고쳤을 때만 전체 스위트를 돈다」 규칙에 따라 오케스트레이터가 전체 스위트
+  게이트를 다시 돌려야 한다(이 서브에이전트는 관련 테스트만 확인했다, 위 참고). 그 외에는 이 절·스크린샷 갱신
+  커밋(33c922a)뿐이다.
