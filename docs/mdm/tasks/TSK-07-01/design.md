@@ -430,7 +430,7 @@ public interface MdmTemporalSegmentStore<K, V> {
 - **택한 것**: (1).
 - **근거**: 선택지 3 은 이미 승인 경계에 있는 F6(05 원문 직접 근거)을 건드리므로 Build 가 판단할 사안이 아니다(배제). 선택지 2 는 `LocalDateTime` 타입을 포기해 계약(`MdmTemporalSegmentRules.OPEN_END`)과의 정합을 스스로 깨고, MSSQL 네이티브 `DATETIME2` 바인딩을 문자열 경유로 우회해야 해 F7(MSSQL 은 네이티브 사용) 원칙과도 어긋난다. 선택지 1 은 실제로 컴파일·부팅·왕복 테스트(§3.2, `VALID_FROM_과_VALID_TO_가_SQLite_에_naming_dialect_rules_형식_TEXT_로_저장된다()`)까지 통과함을 실측으로 확인했고, `LocalDateTime` 타입·계약 정합·MSSQL 네이티브 바인딩(방언 감지로 유지) 셋 다 지킨다. **근거 강도: 강**(대안이 사실상 없다 — Hibernate 프레임워크 제약이지 이 Task 의 설계 취향이 아니다).
 - **반려 시 재작업**: 선택지 2 로 바꾸려면 `MdmDataItemId`·`MdmDataCateId`·`MdmDataCateItemId` 의 `validFrom` 필드 타입을 `String`(naming-dialect-rules §3 #16 형식 문자열)으로 바꾸고, `MdmTemporalSegmentRules.OPEN_END` 를 문자열 상수로 바꾸거나 엔티티 쪽에서만 변환 계층을 하나 더 둬야 한다 — 계약(§6.1)·§3.2 테스트 다시 작성.
-- **Source**: 실측(Hibernate 7.2.12.Final `BasicValueBinder.disallowConverter`), `decisions.md` D-TSK-07-01-2
+- **Source**: 실측(Hibernate 7.2.12.Final `BasicValueBinder.disallowConverter`), `decisions.md` D-064
 
 ---
 
@@ -558,6 +558,6 @@ design.md §5 의 규칙들을 Build 와 다른 방식으로 재검증:
 - **팀장 지시로 Flyway 버전을 V7 → V10 으로 재채번했다.** 팀장이 번호 배정표를 폐기했다(dev 에 V8(TSK-08-01)·V9(TSK-06-01)가 먼저 머지되어 V7 은 역순 도착이라 머지 관문 migration-check 에 걸린다). done 직전에 origin/dev 를 이 브랜치에 머지한 뒤 `mdm/{sqlite,mssql}` 의 최대 버전(V9)+1 로 두 파일을 `V10__create_mdm_master_data.sql` 로 옮겼다. 본문(F1·§2·§3·§5)의 「V7」은 모두 이 V10 을 가리킨다. F1 의 순서 위험(V5·V6 공백)은 재채번으로 사라졌다.
 - 버전을 기대하는 테스트를 함께 고쳤다: `MdmSharedContractMigrationTest`(SQLite, `{1,2,3,4,8,9,10}`), `MdmMasterDataMigrationTest`(`version = '10'`), `MdmMasterDataDdlParityTest`(리소스 경로 V10), mssqlTest 4개(`MdmMssqlMigrationTest` 7건·target `"10"`, `MdmInterfaceLayoutMssqlMigrationTest`·`MdmTermDomainColumnMssqlMigrationTest`·`MdmMasterDataMssqlMigrationTest` 버전 집합). 완화가 아니라 새 버전 반영이다. mssqlTest 는 여전히 컴파일만 확인한다(사용자 결정: 도커 금지로 MSSQL 실측 생략, DDL 리뷰로 대체).
 - **SQLite 일시 컨버터를 dev 쪽 한 벌로 합쳤다.** dev 에 TSK-08-01·06-01 이 먼저 넣은 `common.support.MdmSqliteLocalDateTimeConverter`+`MdmSqliteTemporalContributor`(`application-local.yml` 등록, 형식 `yyyy-MM-dd HH:mm:ss`·초 절삭)가 이 Task 의 `persistence.LocalDateTimeAttributeConverter`+`MdmSqliteTemporalConverterContributor`(§2 생성, 이탈 3)와 목적·형식이 같다. `metadata_builder_contributor` 는 하나만 등록되므로 dev 쪽을 남기고 이 Task 의 두 파일을 지웠다. 불변 규칙 8 의 검증(§3.2 `typeof` 단정)은 합친 컨버터로 그대로 돈다. `@Id` 인 `VALID_FROM` 은 여전히 `MdmLocalDateTimeIdUserType`(D3)을 쓴다.
-- **decisions.md 결정 번호를 임시 ID 로 바꿨다(팀장 지시).** Build 가 쓴 전역 번호 D-050·D-051·D-052 는 dev 의 다른 Task 와 겹치므로 `D-TSK-07-01-1`·`-2`·`-3` 으로 바꿨다. 머지 때 decisions.sh 가 다음 전역 번호를 매긴다. 이 문서의 참조도 같이 바꿨다.
+- **decisions.md 결정 번호를 임시 ID 로 바꿨다(팀장 지시).** Build 가 쓴 전역 번호 D-050·D-051·D-052 는 dev 의 다른 Task 와 겹치므로 `D-063`·`-2`·`-3` 으로 바꿨다. 머지 때 decisions.sh 가 다음 전역 번호를 매긴다. 이 문서의 참조도 같이 바꿨다.
 - naming-dialect-rules.md 는 dev 판을 기준으로 삼고, 이 Task 의 05 기록(§3 #2·#16·#19)을 V10·합친 컨버터·임시 결정 ID 에 맞게 고쳐 각 행 끝에 덧붙였다.
 

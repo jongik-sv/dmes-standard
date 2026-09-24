@@ -504,7 +504,8 @@
 - **Reversible**: yes
 - **Source**: docs/mdm/tasks/TSK-06-01/design.md D11·§7·F9
 
-## D-TSK-07-01-1 (2026-09-24T10:20:00Z)
+## D-063 (2026-09-24T10:20:00Z)
+- **Temp ID**: D-TSK-07-01-1
 - **Phase**: build (TSK-07-01)
 - **Decision needed**: 일시 선분 저장 코어 인터페이스(`MdmTemporalSegmentStore`)의 확정 시그니처를 append 한다(design.md §6.1 확정분, Build 가 그대로 구현)
 - **Decision made**: Design Phase D1 을 그대로 구현했다 — 제네릭 `<K,V>` 네 메서드(`register`/`modify`/`close`/`reopen`) 인터페이스 하나로 항목(`TB_MDM_DATA_ITEM`)·카테고리(`TB_MDM_DATA_CATE`)·소속(`TB_MDM_DATA_CATE_ITEM`) 세 테이블의 선분 생애주기를 공통 표현한다. `MdmTemporalSegmentRules.OPEN_END`(`LocalDateTime.of(9999,12,31,0,0,0)`)·`MdmTemporalSegmentAction`(INSERT/UPDATE/CLOSE/REOPEN/NONE)·`MdmTemporalSegmentResult<V>`(action,value)와 함께 `com.dongkuk.dmes.mdm.contract.data` 패키지에 둔다. `src/main` 구현체는 없다(TSK-07-03 몫) — `MdmTemporalSegmentStoreNoImplementationTest`(ArchUnit, `api/src/test`)가 이를 확인하고, `MdmTemporalSegmentStoreConsumerStub`(`lib/src/test`)이 컴파일 증명을 한다
@@ -512,7 +513,8 @@
 - **Reversible**: yes(인터페이스 시그니처 변경은 스텁·ArchUnit 테스트만 함께 고치면 된다 — DDL 영향 없음)
 - **Source**: docs/mdm/tasks/TSK-07-01/design.md D1·§6.1
 
-## D-TSK-07-01-2 (2026-09-24T10:20:00Z)
+## D-064 (2026-09-24T10:20:00Z)
+- **Temp ID**: D-TSK-07-01-2
 - **Phase**: build (TSK-07-01)
 - **Decision needed**: `MdmDataItem.validFrom`·`MdmDataCate.validFrom`·`MdmDataCateItem.validFrom`(선분 PK 구성 요소, F6)은 LocalDateTime 이면서 `@Id` 다 — Hibernate 7 은 `@jakarta.persistence.Id` 속성에 `AttributeConverter`(JPA 계층, auto-apply 포함)를 거는 것을 하드 금지한다(실측: `org.hibernate.AnnotationException: 'AttributeConverter' not allowed for attribute ... annotated '@jakarta.persistence.Id'`, `@Convert(disableConversion=true)`로만 억제 가능). design.md F8 이 예상한 mcm 식 `AttributeConverter`+`MetadataBuilderContributor` auto-apply 방식은 PK 가 아닌 칼럼에서만 유효했다 — Id 인 `VALID_FROM` 을 어떻게 SQLite `TEXT`(naming-dialect-rules §3 #16 형식)로 저장할 것인가
 - **Decision made**: `VALID_FROM`(Id) 은 Hibernate 네이티브 `UserType<LocalDateTime>`(`MdmLocalDateTimeIdUserType`, `org.hibernate.usertype.UserType` — JPA `AttributeConverter` 와 다른 코드 경로라 이 제약을 받지 않는다, 실측 확인)으로 매핑하고 필드에 `@Convert(disableConversion=true)`를 함께 붙여 auto-apply 컨버터 탐색 대상에서 명시적으로 뺀다. 이 `UserType` 은 `SharedSessionContractImplementor.getJdbcServices().getDialect()`로 런타임에 방언을 감지해 SQLite 면 `yyyy-MM-dd HH:mm:ss` 텍스트로, 그 밖(MSSQL 포함)이면 네이티브 `Timestamp` 로 바인딩한다 — `MdmSqliteTemporalContributor`가 SQLite 프로파일에만 컨버터를 등록하는 것과 같은 효과를 방언 감지로 낸다. 비-Id LocalDateTime 칼럼(`VALID_TO`·`CLOSED_AT`·`RECEIVED_AT`·`PROCESSED_AT`)은 auto-apply SQLite 컨버터를 쓴다. 당초 이 Task 가 `LocalDateTimeAttributeConverter`+`MdmSqliteTemporalConverterContributor` 를 따로 만들었으나, dev 머지(2026-09-24) 때 TSK-08-01·06-01 이 먼저 넣은 같은 목적의 `MdmSqliteLocalDateTimeConverter`+`MdmSqliteTemporalContributor`(`common.support`, 형식 동일)로 합치고 이 Task 의 두 파일은 지웠다(`metadata_builder_contributor` 는 하나만 등록된다)
@@ -520,7 +522,8 @@
 - **Reversible**: yes(향후 Hibernate 버전이 Id 컨버터를 허용하면 `MdmLocalDateTimeIdUserType` 을 걷어내고 mcm 과 같은 단일 `AttributeConverter` 경로로 통일할 수 있다 — 엔티티 3개의 `validFrom` 필드 애노테이션만 바꾸면 된다)
 - **Source**: docs/mdm/tasks/TSK-07-01/design.md D3(신설), F7·F8, 실측(Hibernate 7.2.12.Final `BasicValueBinder.disallowConverter`)
 
-## D-TSK-07-01-3 (2026-09-24T10:20:00Z)
+## D-065 (2026-09-24T10:20:00Z)
+- **Temp ID**: D-TSK-07-01-3
 - **Phase**: build (TSK-07-01)
 - **Decision needed**: F7·F8 단정(§3.2, §5 불변 규칙 8) — SQLite 전용 auto-apply 컨버터(비-Id 필드, dev 머지 뒤 `MdmSqliteLocalDateTimeConverter`)와 `MdmLocalDateTimeIdUserType`(Id 필드) 가 실제로 naming-dialect-rules §3 #16 형식(`yyyy-MM-dd HH:mm:ss`, 소수초 없음, 공백 구분자)으로 저장·조회되는지 실측
 - **Decision made**: `MdmMasterDataEntityJpaRoundtripTest.VALID_FROM_과_VALID_TO_가_SQLite_에_naming_dialect_rules_형식_TEXT_로_저장된다()`로 실측 확인했다 — `typeof(VALID_FROM)`·`typeof(VALID_TO)` 모두 `'text'`, 값은 각각 `'2026-09-24 10:00:00'`·`'9999-12-31 00:00:00'`(요청한 형식과 정확히 일치). 컨트리뷰터 등록(`application-local.yml` 의 `metadata_builder_contributor`) 전에는 SQLite 가 epoch millis 정수를 텍스트로 새겨(`typeof`=`text` 이지만 값이 `'1790211600000'`류) `getTimestamp()` 왕복이 `ParseException` 으로 깨졌다(mcm 선례가 경고한 결함이 mdm 에서도 그대로 재현됨을 실측으로 확인) — 등록 후에는 재현되지 않는다
