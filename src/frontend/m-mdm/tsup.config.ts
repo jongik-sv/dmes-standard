@@ -26,6 +26,7 @@ export default defineConfig([
     entry: {
       // 화면 엔트리는 업무 영역이 늘어날 때마다 여기에 1줄씩 추가한다.
       "pages/dma/mdmSample/page": "pages/dma/mdmSample/page.tsx",
+      "pages/dma/domainMng/page": "pages/dma/domainMng/page.tsx",
     },
   },
 ]);
