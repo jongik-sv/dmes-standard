@@ -2,7 +2,7 @@
   "tsk": "TSK-07-01",
   "order": "e2017bfa-8445-44c0-97b4-ee6bc10796e2",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "refactor",
+  "phase": "reported",
   "baseline": {
     "failures": 0,
     "tests": 1878,
@@ -18,7 +18,7 @@
   "model": "haiku",
   "last": {
     "phase": "done",
-    "event": "pre-push"
+    "event": "done.ok"
   },
   "mssql": "사용자 결정: 도커 금지로 MSSQL 실측(mssqlMigrationTest) 생략, SQLite testAll + MSSQL/SQLite DDL 줄 대조 리뷰로 대체. 기준선·게이트 비교 대상 아님",
   "design_commit": "52eb0a1",
