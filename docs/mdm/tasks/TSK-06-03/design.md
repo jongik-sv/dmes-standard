@@ -704,6 +704,28 @@ spec 요구사항 줄별 매핑: 선분 추가·수정·삭제·되돌리기·�
 
 ---
 
+## Build 이탈과 보강 (Phase 03, 2026-09-24)
+
+설계에서 벗어난 점과 설계에 없던 보강이다. 다음 Phase 와 리뷰어는 아래를 이 문서의 일부로 읽는다.
+
+| # | 이탈·보강 | 사유 |
+|---|---|---|
+| B1 | 시그니처: `MasterCodeItemChecks.check(Header(lvlCnt, attrLabels), List<MasterCodeItemEntry>, Set<String>)`, `MasterCodeItemProjection.apply(List<MasterCodeItemEntry>, rows)`. `Header` 에 sourceKind 를 두지 않고 EXTERNAL 판정은 서비스가 한다. 새 파일 `MasterCodeItemEntry`(코드+값 레코드)·`MasterCodeRejections`(MDM022·023 예외, detail `<코드>[<칸>] <이슈 코드> <문구>; …`)를 더했다 | 코드별 값을 순서 있게 넘기고, 코드가 빈 새 행(CODE_REQUIRED)도 같은 목록에 담기 위해서다 |
+| B2 | 선분 조작의 쓰기는 `saveAndFlush`, 삭제는 `delete` 뒤 `flush` 다(§6.2 의 `save`·`delete` 보다 강함). HTTP 시험 **O7**(한 요청에서 V 에서 추가한 코드를 지우고 다시 넣기)을 더했다 | Hibernate 는 flush 때 INSERT 를 DELETE 보다 먼저 실행해, 한 트랜잭션에서 같은 PK 를 지운 뒤 넣으면 PK 위반이 난다. 즉시 flush 하면 DB 오류도 serviceTask 안에서 나서 `meta.success=false` 로 실린다(O3) |
+| B3 | `CodeItemPatchRequest` 에 `@JsonIgnoreProperties(ignoreUnknown = true)` | 잠긴 칸(`lvl1`·`attr01`·`toVer`)을 더 보내도 바인딩이 실패하지 않고 무시되게 한다(O5) |
+| B4 | view 응답 행에 `fromVer`·`toVer`, `selected` 에 `display` 를 더했다. `save`·`restore` 는 `rowVersion` 이 없으면 MDM021, `restore` 도 EXTERNAL 이면 MDM022 `SOURCE_EXTERNAL` | 경미 수정 요청에 행의 from_ver 가 필요하다. 입력 누락·원천 판정을 저장과 같게 맞췄다 |
+| B5 | 시험 보강: G1b(addItem 직접 겹침), G13b(분리), G18b(정렬), 값 목록 길이, H1b(다른 행의 **코드값**을 다른 앞 칸 아래 그룹으로), H6 셋째(코드가 자기 계층 값과 같은 행), P 추가 2건(seq 문자열·모르는 rowStatus), R 정렬, S10b(되돌린 결과가 계층 검사에 걸림), HTTP 조회 액션 1건 | H1b: 변이 18b(코드값 비교 누락)가 시뮬레이터 4건으로는 드러나지 않았다. H6 셋째: §4.2 H6 첫째는 V 적용 후 모습에 자기 새 값이 들어 있어 자기 코드를 비교에서 빼지 않아도 결과가 같다(변이 18a 를 잡지 못한다). 자기 행이 자기와 어긋나는 경우(코드 G 가 lvl1 에도 G)만 차이가 난다 |
+| B6 | FE 시험 배치: 코드 칸 잠김(③·불변 규칙 39)은 `grid-state.isCellEditable` 단위 시험으로, 경미 수정 패널의 disabled(④)·patchBlocked(⑤)는 `components/PatchPanel` 을 직접 렌더해 본다. page-render 는 버튼·패널 유무·빈 상태·row_version 을 본다 | happy-dom 에서 ag-grid 셀 편집기 상태를 확인할 수 없고, 행 클릭 선택을 안정적으로 재현하기 어렵다 |
+| B7 | 경미 수정 패널은 선택 버전이 `patchable` 이면 늘 보이고, 행을 고르지 않았으면 `그리드에서 고칠 행을 고르세요.` 를 보인다(§6.8 은 "행을 골랐을 때만"). 행 선택은 `patchable` 일 때만 바꾼다 | ⑥(CANCELLED 에 패널 없음)을 행 선택 없이 판정하려고 D15 로 정했다. 행 선택 제한은 E2E 첫 전체 실행에서 T4 의 새 행 한 번 클릭 편집이 행 선택 갱신(그리드 다시 그리기)과 겹쳐 실패한 실측 때문이다 |
+| B8 | data-testid: `code-save` 는 달지 않았다 — 상단 버튼(`PageButton`)이 testid 를 받지 않아 E2E 는 역할 이름 `저장` 으로 누른다. `code-add` 는 GridPanel `headerExtra` 의 shared `Button`, `code-closed-toggle`·`code-preview-mode` 는 Checkbox·Radio 를 감싼 요소, `code-tab-grid`·`code-tab-tree` 는 탭 라벨 span 이다. 더한 testid: `patch-lvlN`·`patch-attrNN`·`code-preview-step-{i}`·`code-preview-title` | shared 래퍼가 임의 props 를 넘기지 않는 곳은 감싸는 요소에 단다(shared 를 넓히지 않는다, D13) |
+| B9 | 트리 라벨의 `(n건)` 은 그룹 아래 코드 수(자기 제외)다. 트리 탭에 `모두 펴기`·`모두 접기` 버튼을 두었다 | 접기·펴기 요구(spec)를 한 번에 조작하기 위해서다 |
+| B10 | E2E 절차 보정: mcm 로그의 `Started McmApplication` 뒤에도 DataInitializer 가 시드를 쓰므로, 시드 대조·사용자 픽스처는 `초기 데이터 삽입 완료` 로그를 본 뒤에 넣는다 | 첫 시도에서 `no such table`·`database is locked` 가 났다 |
+| B11 | `bpmn-tool` 은 전역 설치가 없어 `npx -y @cothe/bpmn-tool@1.3.0` 으로 create·validate·preview 했다(오류 0, default flow 경고 1 — dma 파일과 같음) | 환경 |
+
+**변이 검증에서 잡지 못한 것(보고 대상)**: 불변 규칙 3 의 변이 "V 에서 두 번 고칠 때도 닫고 새로 넣기"는 빨강이 되지 않는다. `from_ver = V` 행을 `to_ver = V` 로 닫은 뒤 같은 PK(`code`, `V`)의 새 행을 `save` 하면 JPA `merge` 가 그 행을 갱신으로 합쳐, 표의 최종 상태가 올바른 구현과 같다(관측 불가능한 동치 변이). 네이티브 INSERT 로 바꾸는 변이라면 PK 위반으로 드러난다.
+
+---
+
 ## 담당자 확인 필요 결정
 
 ### D1 — entry-point 는 `dmc/codeItemEdit`(spec 의 `mdc` 는 오기)
@@ -803,6 +825,13 @@ spec 요구사항 줄별 매핑: 선분 추가·수정·삭제·되돌리기·�
 - **택한 것**: ①.
 - **근거와 근거 순위**: 코드 테이블이 갖는 값은 "코드값·이름·약칭·순서·설명과 계층 칸, 추가 컬럼"(04:155)이고, 04:531 도 설명을 버전 행의 값으로 다룬다. ②는 새 코드의 설명을 RELEASED 뒤 경미 수정으로만 넣게 만들어 DRAFT 편집을 불완전하게 한다.
 - **반려되면 재작업할 방향**: ②면 그리드에서 설명 열을 빼고 요청 행의 `description` 은 CHANGED 때 기존 값을 그대로 보낸다.
+
+### D15 — 경미 수정 패널은 선택 버전이 경미 수정 가능하면 늘 보인다
+- **질문**: §6.8 은 경미 수정 패널을 "RELEASED·patchable 이고 행을 골랐을 때만" 보인다고 했다. 행을 고르기 전에는 패널을 숨기는가, 안내와 함께 보이는가.
+- **선택지**: ① `patchable` 이면 늘 보이고 행이 없으면 `그리드에서 고칠 행을 고르세요.` 안내. ② 행을 골랐을 때만 보인다(설계 원문).
+- **택한 것**: ①.
+- **근거와 근거 순위**: spec·원천(04:522-549, 시안 경미 수정 패널)은 표시 시점을 정하지 않았다. ①은 RELEASED 에서 무엇을 할 수 있는지(이름·약칭·순서·설명만)를 행을 고르기 전에 알려 주고, page-render ⑥(CANCELLED 에 패널 없음)을 행 선택 없이 판정할 수 있게 한다. 잠김 규칙(수용 기준 5·6)은 두 선택지에서 같다. 근거 순위: 원천의 공백 → 설계(미승인) 문구보다 시험 가능성을 우선했다.
+- **반려되면 재작업할 방향**: `page.tsx` 에서 패널 조건을 `patchable && patchRowValue` 로 바꾸고, page-render ④·⑥ 이 행을 고른 뒤 판정하도록(행 클릭을 재현하는 도우미를 더해) 고친다.
 
 ---
 
