@@ -4,6 +4,7 @@ import com.dongkuk.dmes.mdm.contract.category.CategoryDefinition;
 import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeItemValues;
 import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeSegmentKey;
 import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeSegmentService;
+import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeSegmentTable;
 import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeVersionView;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import java.math.BigDecimal;
@@ -23,9 +24,11 @@ import org.springframework.stereotype.Service;
 public class DefaultMasterCodeSegmentService implements MasterCodeSegmentService {
 
     private final MasterCodeItemSegmentOps items;
+    private final MasterCodeCateSegmentOps categories;
 
-    public DefaultMasterCodeSegmentService(MasterCodeItemSegmentOps items) {
+    public DefaultMasterCodeSegmentService(MasterCodeItemSegmentOps items, MasterCodeCateSegmentOps categories) {
         this.items = items;
+        this.categories = categories;
     }
 
     @Override
@@ -55,32 +58,36 @@ public class DefaultMasterCodeSegmentService implements MasterCodeSegmentService
 
     @Override
     public void addCategory(VersionRef draft, CategoryDefinition definition) {
-        throw new UnsupportedOperationException("TSK-06-04 가 구현한다: addCategory");
+        categories.addCategory(draft, definition);
     }
 
     @Override
     public void changeCategory(VersionRef draft, CategoryDefinition definition) {
-        throw new UnsupportedOperationException("TSK-06-04 가 구현한다: changeCategory");
+        categories.changeCategory(draft, definition);
     }
 
     @Override
     public void closeCategory(VersionRef draft, String cateId) {
-        throw new UnsupportedOperationException("TSK-06-04 가 구현한다: closeCategory");
+        categories.closeCategory(draft, cateId);
     }
 
     @Override
     public void addCategoryMembers(VersionRef draft, String cateId, Set<String> codes) {
-        throw new UnsupportedOperationException("TSK-06-04 가 구현한다: addCategoryMembers");
+        categories.addCategoryMembers(draft, cateId, codes);
     }
 
     @Override
     public void removeCategoryMembers(VersionRef draft, String cateId, Set<String> codes) {
-        throw new UnsupportedOperationException("TSK-06-04 가 구현한다: removeCategoryMembers");
+        categories.removeCategoryMembers(draft, cateId, codes);
     }
 
     /** ITEM·CATE_ITEM 은 06-03 이 구현하고, CATE 는 TSK-06-04 몫이다(D3). */
     @Override
     public void revert(VersionRef draft, MasterCodeSegmentKey key) {
+        if (key.table() == MasterCodeSegmentTable.CATE) {
+            categories.revertCate(draft, key.cateId());
+            return;
+        }
         items.revert(draft, key);
     }
 

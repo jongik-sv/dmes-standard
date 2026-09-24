@@ -20,6 +20,7 @@ export interface VersionButtons {
   handover: VersionButtonState;
   confirmMove: VersionButtonState;
   itemEdit: VersionButtonState;
+  cateEdit: VersionButtonState;
   headerSave: VersionButtonState;
   deprecate: VersionButtonState;
   /** 새 버전 버튼 옆 안내(미적용 버전이 있거나 minor 상한). */
@@ -60,6 +61,7 @@ export function versionButtons(view: CodeEditView | null, selectedVer: string | 
     handover: on(mine && single),
     confirmMove: on(mine && single),
     itemEdit: on(mine && single),
+    cateEdit: on(mine && single),
     headerSave: on(editable && unapplied < 2),
     deprecate: on(editable && !deprecated && unapplied === 0),
     newVersionHint,

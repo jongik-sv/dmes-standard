@@ -405,6 +405,9 @@ export default function CodeEditPage({ tabId, snapshot, onSnapshotChange }: Code
               <Button data-testid="ver-item-edit" disabled={!allowed(buttons.itemEdit.enabled, "save")} onClick={() => moveTo("dmc/codeItemEdit")}>
                 코드 편집
               </Button>
+              <Button data-testid="ver-cate-edit" disabled={!allowed(buttons.cateEdit.enabled, "save")} onClick={() => moveTo("dmc/codeCateEdit")}>
+                카테고리 편집
+              </Button>
             </div>
             {buttons.newVersionHint ? (
               <p data-testid="ver-new-hint" style={{ padding: "0 var(--spacing-md)", ...mutedText }}>

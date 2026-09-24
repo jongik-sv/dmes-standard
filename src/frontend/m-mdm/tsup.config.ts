@@ -39,6 +39,7 @@ export default defineConfig([
       "pages/dmb/headerMng/page": "pages/dmb/headerMng/page.tsx",
       "pages/dmb/layoutMng/page": "pages/dmb/layoutMng/page.tsx",
       "pages/dmc/codeItemEdit/page": "pages/dmc/codeItemEdit/page.tsx",
+      "pages/dmc/codeCateEdit/page": "pages/dmc/codeCateEdit/page.tsx",
       "pages/dmc/codeMng/page": "pages/dmc/codeMng/page.tsx",
       "pages/dmc/codeEdit/page": "pages/dmc/codeEdit/page.tsx",
       "pages/dmd/dataItemMng/page": "pages/dmd/dataItemMng/page.tsx",
