@@ -175,6 +175,27 @@ class DmeOasisHttpTest {
         assertTrue(copy.path("meta").path("message").asText().startsWith(MdmErrorCode.UNAPPLIED_VERSION_EXISTS.defaultMessage()), copy.toString());
     }
 
+    /** TSK-08-03 — BPMN 이 parseExpr(validate action)·도메인 검색(search target=DOMAIN)을 실제 서비스 메서드로 잇는다. */
+    @Test
+    void validate_는_식을_서버에서_파싱하고_search_target_DOMAIN_은_도메인을_찾는다() throws Exception {
+        ObjectNode ok = json.createObjectNode().put("text", "ROUND(COIL_THK * 2, 1)").put("slot", "RULE_RESULT_EXPR");
+        JsonNode parsed = post("ruleEdit", "validate", "kim", envelope("ruleEdit", ok));
+        assertTrue(parsed.path("meta").path("success").asBoolean(false), parsed.toString());
+        JsonNode r = parsed.path("data").path("result");
+        assertEquals("COIL_THK", r.path("refVars").path(0).asText(), parsed.toString());
+        assertTrue(r.path("supported").asBoolean(false), parsed.toString());
+        assertFalse(r.path("ast").isMissingNode() || r.path("ast").isEmpty(), parsed.toString());
+
+        JsonNode bad = post("ruleEdit", "validate", "kim", envelope("ruleEdit",
+                json.createObjectNode().put("text", "COIL_THK +").put("slot", "RULE_RESULT_EXPR")));
+        assertFalse(bad.path("meta").path("success").asBoolean(true), "파싱 오류는 실패 응답: " + bad);
+
+        JsonNode dom = post("ruleEdit", "search", "kim", envelope("ruleEdit",
+                json.createObjectNode().put("target", "DOMAIN").put("keyword", "COIL_THK")));
+        assertTrue(dom.path("meta").path("success").asBoolean(false), dom.toString());
+        assertEquals("COIL_THK_D", dom.path("data").path("result").path("rows").path(0).path("stdName").asText(), dom.toString());
+    }
+
     @Test
     void 룰_목록은_서버_페이징으로_온다() throws Exception {
         registerByKim();

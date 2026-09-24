@@ -4,7 +4,7 @@
     <bpmn:documentation>ruleEdit — 룰 화면 (To-Be only 신규 화면, dme 업무기준).
 정본: docs/mdm/screens/ruleEdit/ruleEdit_기능설계서.md, TSK-08-02 design.md §6.1.
 
-action=search   -&gt; searchTask (ruleEditService.searchRules) READ — 상단 룰 고르기(ID·명 앞부분 20건)
+action=search   -&gt; searchTask (ruleEditService.search) READ — target RULE(기본)=상단 룰 고르기(ID·명 앞부분 20건)·DOMAIN=값 타입 도메인 검색(8건, TSK-08-03)
 action=view     -&gt; viewTask (ruleEditService.view) READ — 선택 버전 정의·해석된 타입·base 행·서버 검사·활용처·me·editable
 action=save     -&gt; saveTask (ruleEditService.save) EDIT — part HEADER(룰명·설명·활용처 메모)·TABLE(행·적중 정책, 행은 grids.rows). RuleEditSavePart 빈에 위임
 action=delete   -&gt; deleteTask (ruleEditService.delete) EDIT — target VERSION(DRAFT 삭제)·RULE(폐기)
@@ -12,9 +12,10 @@ action=copy     -&gt; copyTask (ruleEditService.newVersion) EDIT — 직전 RELE
 action=lock     -&gt; lockTask (ruleEditService.lock) EDIT — DraftOwnershipService.acquire
 action=unlock   -&gt; unlockTask (ruleEditService.unlock) EDIT — DraftOwnershipService.release
 action=handover -&gt; handoverTask (ruleEditService.handover) EDIT — DraftOwnershipService.handover
+action=validate -&gt; validateTask (ruleEditService.parseExpr) EDIT — 식 입력 칸 서버 파싱(AST·참조 변수·화면 평가 가능 여부, TSK-08-03). 열 편집자만 부르므로 EDIT
 
-BPMN 의 action(RBAC 키)과 서비스의 method(자바 메서드명)는 별개다. 같은 action 안의 갈래(part·target)는 Java 가 가른다(두 번째 게이트웨이를 두지 않는다).
-확장 지점: 08-04 가 validate(값 테스트) 갈래를 더한다.</bpmn:documentation>
+BPMN 의 action(RBAC 키, mcm 시드 어휘 16종 — 새 action 을 만들 수 없다)과 서비스의 method(자바 메서드명)는 별개다. 같은 action 안의 갈래(part·target)는 Java 가 가른다(두 번째 게이트웨이를 두지 않는다).
+확장 지점: 08-04 는 validate action 을 값 테스트에도 쓴다면 요청의 target 으로 Java 가 가른다(두 번째 게이트웨이 금지).</bpmn:documentation>
     <bpmn:startEvent id="start" name="시작">
       <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
     </bpmn:startEvent>
@@ -33,11 +34,12 @@ BPMN 의 action(RBAC 키)과 서비스의 method(자바 메서드명)는 별개�
       <bpmn:outgoing>flow_lock</bpmn:outgoing>
       <bpmn:outgoing>flow_unlock</bpmn:outgoing>
       <bpmn:outgoing>flow_handover</bpmn:outgoing>
+      <bpmn:outgoing>flow_validate</bpmn:outgoing>
     </bpmn:exclusiveGateway>
     <bpmn:serviceTask id="searchTask" name="룰 고르기" camunda:class="ruleEditService">
       <bpmn:extensionElements>
         <camunda:properties>
-          <camunda:property name="method" value="searchRules" />
+          <camunda:property name="method" value="search" />
           <camunda:property name="output" value="result" />
           <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSearchRequest" />
         </camunda:properties>
@@ -146,6 +148,20 @@ BPMN 의 action(RBAC 키)과 서비스의 method(자바 메서드명)는 별개�
     <bpmn:endEvent id="end_handover" name="넘기기 완료">
       <bpmn:incoming>flow_handover_end</bpmn:incoming>
     </bpmn:endEvent>
+    <bpmn:serviceTask id="validateTask" name="식 파싱" camunda:class="ruleEditService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="parseExpr" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleExprParseRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_validate</bpmn:incoming>
+      <bpmn:outgoing>flow_validate_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_validate" name="식 파싱 완료">
+      <bpmn:incoming>flow_validate_end</bpmn:incoming>
+    </bpmn:endEvent>
     <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
     <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
     <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="end_search" />
@@ -163,6 +179,8 @@ BPMN 의 action(RBAC 키)과 서비스의 method(자바 메서드명)는 별개�
     <bpmn:sequenceFlow id="flow_unlock_end" sourceRef="unlockTask" targetRef="end_unlock" />
     <bpmn:sequenceFlow id="flow_handover" name="handover" sourceRef="actionGateway" targetRef="handoverTask" />
     <bpmn:sequenceFlow id="flow_handover_end" sourceRef="handoverTask" targetRef="end_handover" />
+    <bpmn:sequenceFlow id="flow_validate" name="validate" sourceRef="actionGateway" targetRef="validateTask" />
+    <bpmn:sequenceFlow id="flow_validate_end" sourceRef="validateTask" targetRef="end_validate" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="ruleEdit">

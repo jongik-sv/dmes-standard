@@ -72,7 +72,21 @@ public class RuleEditService {
         }
     }
 
-    // action: search — 상단 룰 고르기
+    // action: search — target RULE(기본, 상단 룰 고르기)·DOMAIN(도메인 검색 위젯). BPMN 은 이 메서드를 부른다.
+    public Object search(RuleEditSearchRequest request) {
+        String target = request == null ? null : RuleEditSupport.blankToNull(request.getTarget());
+        if (target == null || "RULE".equals(target)) {
+            return searchRules(request);
+        }
+        if ("DOMAIN".equals(target)) {
+            RuleDomainSearchRequest q = new RuleDomainSearchRequest();
+            q.setKeyword(request.getKeyword());
+            return searchDomains(q);
+        }
+        throw new BusinessException(ErrorCode.INVALID_VALUE, "검색 대상은 RULE·DOMAIN 중 하나여야 합니다: " + target);
+    }
+
+    // 룰 고르기(target=RULE)
     public RuleEditSearchResult searchRules(RuleEditSearchRequest request) {
         String keyword = request == null ? null : RuleEditSupport.blankToNull(request.getKeyword());
         return new RuleEditSearchResult(queries.searchPrefix(keyword, SEARCH_LIMIT).stream()
@@ -125,7 +139,7 @@ public class RuleEditService {
         return versionService.handover(request);
     }
 
-    // action: parseExpr — 식 입력 칸의 디바운스 파싱(서버 EvalEx 단일 진원, 불변 9). 화면은 파싱 결과만 해석한다.
+    // action: validate(BPMN) → parseExpr — 식 입력 칸의 디바운스 파싱(서버 EvalEx 단일 진원, 불변 9). 화면은 파싱 결과만 해석한다.
     public RuleExprParseResult parseExpr(RuleExprParseRequest request) {
         String text = request == null ? null : RuleEditSupport.blankToNull(request.getText());
         if (text == null) {
@@ -184,7 +198,7 @@ public class RuleEditService {
         }
     }
 
-    // action: searchDomains — 값 타입 도메인 검색 위젯(평면 8건). domainMng search 는 트리 응답이라 쓰지 않았다(design 이탈란).
+    // action: search target=DOMAIN → searchDomains — 값 타입 도메인 검색 위젯(평면 8건). domainMng search 는 트리 응답이라 쓰지 않았다(design 이탈란).
     public RuleDomainSearchResult searchDomains(RuleDomainSearchRequest request) {
         String kw = request == null ? null : RuleEditSupport.blankToNull(request.getKeyword());
         String needle = kw == null ? "" : kw.toUpperCase(Locale.ROOT);

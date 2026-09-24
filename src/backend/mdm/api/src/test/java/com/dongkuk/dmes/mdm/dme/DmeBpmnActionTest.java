@@ -32,9 +32,10 @@ class DmeBpmnActionTest {
     }
 
     @Test
-    void ruleEdit_는_search_view_save_delete_copy_lock_unlock_handover() throws Exception {
+    void ruleEdit_는_search_view_save_delete_copy_lock_unlock_handover_validate() throws Exception {
         Map<String, String> methods = new HashMap<>();
-        methods.put("search", "searchRules");
+        methods.put("search", "search"); // target=RULE|DOMAIN 을 Java 가 가른다(TSK-08-03 — 새 action 은 mcm 시드 어휘 16종 밖이라 못 만든다)
+        methods.put("validate", "parseExpr");
         methods.put("view", "view");
         methods.put("save", "save");
         methods.put("delete", "delete");
