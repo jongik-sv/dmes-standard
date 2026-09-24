@@ -278,6 +278,19 @@ BPMN 을 고쳤으면 `.claude/skills/bpmn-skill/SKILL.md` 검증을, Flyway 는
 - **계약 타입 표시**: 룰 열에 없는 변수(결과 식이 읽는 사전 변수)는 화면에 타입이 없다. 그 이름은 타입 툴팁 없이 이름만 보인다.
 - **`contractWarnings` 노출**: `contract-view.ts` 의 `contractOfView(view, asts).contractWarnings`(WARNING 문장 목록)와 `contractWarnings(diffs)` 로 노출한다. 08-05 확정 화면이 이 함수를 그대로 부른다.
 
+### Build 이탈 기록 (단계 7, 담당 C)
+
+- **E2E 서버 격리**: 08-02 절차의 "src/backend/data 의 mcm.db·mdm.db 를 옮기고 새로 시작" 은 이 PC 에서 쓸 수 없다. 사용자의 로컬 mdm(8096)·mcm(8100)이 같은 폴더를 쓰고, mcm 은 `LocalSqliteDataSource.resolveBackendDataDir()`(user.dir 에서 위로 `src/backend/data` 를 찾음)가 `--spring.datasource.url` 을 덮어쓴다. 그래서 mdm 은 `--spring.datasource.url=jdbc:sqlite:<임시>/mdm.db` 로, mcm 은 `bootJar` 를 임시 폴더(`<임시>/src/backend/mcm`, 그 위에 `src/backend/data`)에서 `java -jar` 로 띄웠다. 포털은 `m-mcm/.next` 잠금(사용자의 5100 dev)과 겹쳐 m-mcm 소스를 `src/frontend/.e2e-TSK-08-03/` 로 복사하고 `node_modules` 만 링크해 별도 dev 서버(15223)로 띄운 뒤 지웠다(심볼릭 링크만으로는 `app` 을 못 찾는다). 첫 시도에서 mcm 이 사용자의 `src/backend/data/mcm.db` 를 잠시 열었다(caravan 허브 설정 갱신 문장 8건, 기동 즉시 종료).
+- **스펙 실행 범위**: `mdm-ruleEdit.spec.ts` 전체(S1~S11 + C1~C6·C2b)와 `mdm-ruleMng.spec.ts` 를 돌렸다. `mdm-shell-rbac-smoke.spec.ts` 는 TSK-01-03 스크린샷을 덮어써 원복이 필요하므로 뺐다(시드 대조는 `mdm-rbac-seed-check.sql` diff 로 대신 통과).
+- **C3**: 산출 룰의 새 결과 열은 표시 타입을 `Expression` 으로 바꿔야 한다(`DERIVE_EXPR_ONLY`). 순서 이동으로 "뒤 순서 참조" 거부, 자기 참조 거부·적용 시 요청 없음, 고쳐서 적용 왕복까지 화면으로 확인했다. 식 미리보기는 저장된 케이스 대신 "미리보기 입력" 한 줄이며 `= 25434.0` 이다.
+- **C4**: 그리드 Expression 셀이 읽기 전용이고 열 설정에는 DECISION 결과 식 칸이 없다. 그래서 DRAFT 식의 `COALESCE(SPEC_GRAV, 7.85)` 는 그리드 표시로 확인하고, 식 미리보기는 C3 로 옮겼다.
+- **C5**: 묶음 3줄(코일 LEN·코일 DIA·시트)과 알림 "필수 입력이 선택이 되었습니다: SPEC_GRAV", 경고 0건을 확인했다. PROD_WGT_CALC v1 이 SPEC_GRAV 필수, v2 가 COALESCE 로 선택이 되는 픽스처다.
+- **C6**: 화이트리스트 밖 함수는 `MASTER("PORT", "ALL", SURF_GRD)`(3~4 인자 필수, 2 인자는 파싱 오류)로 조건 식 열에서 확인했다. 도메인 검색은 SPEED 로 SPEED_MPM 이 나오고 8건 이내다.
+- **C2b 추가**: 결과 열이 여럿인 BASE_SPD_LKP 는 피벗 섹션이 아예 안 보인다(pvSpec 판정)는 것을 확인하는 시나리오를 더했다.
+- **스크린샷**: 포털은 안쪽 영역이 스크롤되어 fullPage 가 해당 섹션을 못 담는다. 각 스크린샷 전에 대상 섹션을 `scrollIntoViewIfNeeded` 로 보이게 했다.
+- **화면 미구현 2건(검증 안 함, 보고만)**: 앞 룰 결과의 열 축 값 순서, base 대비 노란 칸.
+- **변이 검증 보강**: 백엔드 불변 1(셀 JSON 7키)은 처음 변이가 살아남아 DERIVE 셀 키·문자열 단언을 `RuleColumnsServiceTest` 에 더했고, 불변 11 은 잡는 테스트가 없어 `RuleEditFacadeContractTest`(Transactional 금지·ResolvedVar 칼럼 고정)를 새로 추가했다.
+
 ## 변이 검증 기록
 
 | 불변 규칙 | 변이 | 잡은 테스트 | 결과 |
