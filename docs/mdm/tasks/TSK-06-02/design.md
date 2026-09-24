@@ -128,10 +128,10 @@
 
 | 조각 | 경로 | 내용(추가만 — 이탈은 표시) |
 |---|---|---|
-| a | `$DI` `seedMdmMenus()` 끝(TSK-04-04 블록 뒤, `}` 앞) | 새 블록 추가: `insertMcmSecObjIfAbsent("codeMng","마루 코드","mdm")`, `insertMcmSecObjIfAbsent("codeEdit","마루 코드 수정","mdm")`, `insertMcmSecMenuIfAbsent("codeMng","001","5030100","마루 코드","dmc","codeMng")`, `insertMcmSecMenuIfAbsent("codeEdit","002","5030200","마루 코드 수정","dmc","codeEdit")`, 두 OBJECT 에 SYSADMIN PERM_ALL(TSK-04-04 `for` 블록 모양) + `seedMdmObjectRbac(objectId,"dmc")`, `ensureMdmPermActions();`, 로그 한 줄 |
-| c | `$DI` `seedMcmSecRbac()` | `String allActions = String.join(…);` 문 **바로 다음 줄**에 `allActions = allActions + ",lock,unlock,handover";`(주석 "TSK-06-02 — DRAFT 소유권 액션(ADR-0003 D5)") 한 줄 추가. `ensurePermAllActions(allActions)` 보다 앞이어야 한다. **이탈(D2)** |
+| a | `$DI` `seedMdmMenus()` 끝(TSK-04-04 블록 뒤, `}` 앞) | 새 블록 추가: `insertMcmSecObjIfAbsent("codeMng","마루 코드","mdm")`, `insertMcmSecObjIfAbsent("codeEdit","마루 코드 수정","mdm")`, `insertMcmSecMenuIfAbsent("codeMng","001","5030100","마루 코드","dmc","codeMng")`, `insertMcmSecMenuIfAbsent("codeEdit","002","5030200","마루 코드 수정","dmc","codeEdit")`, 두 OBJECT 에 SYSADMIN PERM_ALL(TSK-04-04 `for` 블록 모양) + `seedMdmObjectRbac(objectId,"dmc")`, 로그 한 줄 |
+| c | `$DI` `seedMcmSecRbac()` | `String allActions = String.join(…);` 문 **바로 다음 줄**에 `allActions = allActions + ",lock,unlock,handover";`(주석 "TSK-06-02 — DRAFT 소유권 액션(ADR-0003 D5)") 한 줄 추가. `ensurePermAllActions(allActions)` 보다 앞이어야 한다. 뒤에서 `allActions` 를 람다·익명 클래스가 참조하면 재할당이 컴파일을 깨므로 첫 컴파일로 확인하고, 깨지면 `String allActionsWithOwnership = allActions + "…";` 새 변수를 두고 그 뒤의 사용처를 새 변수로 바꾼다(그때는 이탈로 적는다). **이탈(D2)** |
 | c | `$DI` `seedMdmRbac()` | `String editActions = …;` **바로 다음 줄**에 `editActions = editActions + ",lock,unlock,handover";` 한 줄 추가(confirmActions 는 그 뒤에 계산되므로 자동 포함). **이탈(D2)** |
-| c | `$DI` 새 메서드 `ensureMdmPermActions()` | 기존 DB 보정: `PERM_MDM_EDIT`·`PERM_MDM_CONFIRM` 행의 `PERMISSION_ACTION` 이 목표 문자열과 다르면 목표로 UPDATE(멱등, 새 DB 영향 0). 목표 문자열은 `seedMdmRbac` 과 같은 식으로 만든다(상수 중복을 피하려면 두 문자열을 private static 메서드로 뽑되 **기존 줄은 바꾸지 않는다** — 새 메서드 안에서 같은 식을 다시 쓰고 주석으로 짝을 표시). `ensurePermAllActions`(`:1497-1519`) 모양을 따른다 |
+| c | `$DI` 새 메서드 `ensureMdmPermActions()` + 조각 a 블록 끝에 호출 한 줄 `ensureMdmPermActions();` | 기존 DB 보정: `PERM_MDM_EDIT`·`PERM_MDM_CONFIRM` 행의 `PERMISSION_ACTION` 이 목표 문자열과 다르면 목표로 UPDATE(멱등, 새 DB 영향 0). 목표 문자열은 `seedMdmRbac` 과 같은 식으로 만든다(상수 중복을 피하려면 두 문자열을 private static 메서드로 뽑되 **기존 줄은 바꾸지 않는다** — 새 메서드 안에서 같은 식을 다시 쓰고 주석으로 짝을 표시). `ensurePermAllActions`(`:1497-1519`) 모양을 따른다 |
 | c | `$LM/contract/security/MdmActions.java` | `RESTORE` 뒤·`CONFIRM` 앞에 `LOCK="lock"`, `UNLOCK="unlock"`, `HANDOVER="handover"` 추가, Javadoc 의 "화면 Task 가 이름을 확정한 뒤 더한다" 를 "TSK-06-02 가 확정(ADR-0003 D5 권장 이름)" 으로. **계약 이탈(D2)** |
 | c | `$LM/contract/security/MdmPermissions.java` | `EDIT_ACTIONS` 에 `RESTORE` 뒤 `LOCK, UNLOCK, HANDOVER`, `CONFIRM_ACTIONS` 에 `RESTORE, LOCK, UNLOCK, HANDOVER, CONFIRM` 순. **계약 이탈(D2)** |
 | c | `$LT/contract/security/SecurityScreenContractTest.java` | `EDIT` 기대 집합에 세 액션 추가, `액션_상수_13종…잠금_계열은_없다` → `액션_상수_16종은_모두_어느_세트엔가_있고_소유권_액션은_EDIT_이다`(기대 16개, lock·unlock·handover ∈ EDIT, ∉ READ). 기대값을 바꾸는 이유는 새 액션 반영이지 완화가 아니다 |
@@ -177,7 +177,7 @@
 | `DmcBpmnActionTest` | 스프링 없이 두 BPMN 을 DOM 파싱: process id, `actionGateway` 분기 이름 집합이 **정확히** §6.1 표와 같고, 각 분기의 serviceTask `camunda:class`·`method`·`dto`·`output=result` 가 표와 같고, `grid` 속성 없음, 모든 액션이 `MdmActions` 상수 집합(리플렉션, 하드코딩 13개 아님) 안, READ 액션(`search`,`view`)만 `MdmPermissions.READ_ACTIONS` 에 있고 나머지는 `EDIT_ACTIONS` 에 있음(I21) |
 | `CodeEditHeaderSqliteTest` | E1 view: 헤더·라벨 10개·버전 목록(ver 내림차순, `verLabel`, `restoredLabel`="v1.000 복원")·flags·`me`·`steward`. E2 saveHeader 정상 → 이름·설명·LVL_CNT·라벨 저장, 공백 라벨→NULL, 응답 `auditVer` +1. E3 `auditVer` 불일치 → MDM001(I19). E4 lvl_cnt 줄이기: 열린 ITEM 행 LVL3 값 있음 → 3→2 거부(MDM021), 값이 현재 적용 버전 이전에 닫힌 행에만 있으면 허용, DRAFT 에서 닫힌(to_ver=DRAFT) 행에 값이 있으면 거부, 늘리기는 항상 허용(I19). E5 미적용 2개(DRAFT 1.001·1.002 seed) → saveHeader MDM007, deprecate MDM007(I6). E6 미적용 1개 → deprecate MDM009, saveHeader 는 허용. E7 미적용 0개(RELEASED 과거) → deprecate → STATUS='DEPRECATED', ITEM·CATE·VER 행 수 불변, 다시 deprecate → MDM009, 이후 새 버전 → MDM009(I13, 조각 c 에서). E8 버전 0개인 CREATED 코드 deprecate 허용(D9). E9 EXTERNAL 코드(seed) → saveHeader·deprecate MDM021(I8). E10 저장 CREATED + 적용 RELEASED 인 코드에 saveHeader → 같은 트랜잭션에서 STATUS='INUSE' 저장(I18). E11 역할 없음 → MDM013(I12) |
 | `MasterCodeDeprecateEngineSqliteTest` | G1 코드 seed(1.000 RELEASED 과거, ITEM A·B, BASE) → `new DefaultCodeResolver(new MdmCodeLookup(…), CodeEffLookup.NONE)`: 폐기 **전** `codeList(id,"BASE",now)` = [A,B](대조군), `isMember(id,"BASE","A",now)=true`. G2 `codeEditService.deprecate` 후 같은 resolver: `codeList=[]`, `isMember(...,"A",now)=true`, `isMember(...,"A",2026-01-02)=true`(과거 기준일), `selectVersion` 값 유지(I16) |
-| `CodeEditVersionSqliteTest` | V1 등록 직후 새 버전(빈) → MDM006(DRAFT 미적용)(I5). V2 1.000 RELEASED(과거) + CANCELLED 1.001 seed → major=2.000·minor=1.002(CANCELLED 포함), 새 VER 행 DRAFT·`VER_KIND`·`OWNER_ID='stw1'`·`ROW_VERSION=0`·`RESTORED_FROM` NULL, 응답 `rowVersion=0`(I1·I2·I11). V3 max=1.999 → minor MDM021("major 를 올리십시오" 포함), major 는 2.000(I2). V4 미래 RELEASED 1.001 있음 → MDM006(I5). V5 미적용 2개 → 새 버전 MDM006, deleteDraft(소유자) 성공 → 남은 미적용 1개, 선점·해제는 허용(D7)(I6). V6 버전 0개(1.000 DRAFT 삭제 뒤) → minor MDM021, major → 1.000 + BASE 재생성(I4). V7 DEPRECATED → 새 버전 MDM009. V8 소유권: 등록자 unlock → owner NULL·rv 1, 다른 담당자 `stw2` lock → owner stw2·rv 2, stw1 lock → MDM004, stw2 handover("stw1") → MDM005(운영 디렉터리, D3), 가짜 디렉터리(테스트 `@Primary MdmStewardDirectory` stub 이 stw1 을 담당자로) → owner stw1, 응답 view 의 owner·rowVersion 이 새 값(I22·I23). V9 rv 불일치 → MDM001, 소유자 아닌 사람 deleteDraft → MDM003, 역할 없음(`MDM_STD_ADMIN`) lock·unlock·handover·delete·create → MDM013(I12). V10 확정 이동은 서버 액션이 없다(화면 이동만) |
+| `CodeEditVersionSqliteTest` | V1 등록 직후 새 버전(빈) → MDM006(DRAFT 미적용)(I5). V2 1.000 RELEASED(과거) + CANCELLED 1.001 seed → major=2.000·minor=1.002(CANCELLED 포함), 새 VER 행 DRAFT·`VER_KIND`·`OWNER_ID='stw1'`·`ROW_VERSION=0`·`RESTORED_FROM` NULL, 응답 `rowVersion=0`(I1·I2·I11). V3 max=1.999 → minor MDM021("major 를 올리십시오" 포함), major 는 2.000(I2). V4 미래 RELEASED 1.001 있음 → MDM006(I5). V5 미적용 2개(각자 소유) → 새 버전 MDM006, lock·unlock·handover MDM007, deleteDraft(소유자) 성공 → 남은 미적용 1개, 이제 unlock 허용(I6). V6 버전 0개(1.000 DRAFT 삭제 뒤) → minor MDM021, major → 1.000 + BASE 재생성(I4). V7 DEPRECATED → 새 버전 MDM009. V8 소유권: 등록자 unlock → owner NULL·rv 1, 다른 담당자 `stw2` lock → owner stw2·rv 2, stw1 lock → MDM004, stw2 handover("stw1") → MDM005(운영 디렉터리, D3), 가짜 디렉터리(테스트 `@Primary MdmStewardDirectory` stub 이 stw1 을 담당자로) → owner stw1, 응답 view 의 owner·rowVersion 이 새 값(I22·I23). V9 rv 불일치 → MDM001, 소유자 아닌 사람 deleteDraft → MDM003, 역할 없음(`MDM_STD_ADMIN`) lock·unlock·handover·delete·create → MDM013(I12). V10 확정 이동은 서버 액션이 없다(화면 이동만) |
 | `MasterCodeDraftDeletionSqliteTest` | D1 1.000 RELEASED: ITEM A,B,C, CATE BASE·T(TABLE), CATE_ITEM (T,A),(T,B). DRAFT 1.001: A 수정(A@1.000 to=1.001, A@1.001 새 행), B 삭제(B@1.000 to=1.001, (T,B) to=1.001), D 추가(D@1.001), T 이름 수정(T@1.000 to=1.001, T@1.001), (T,D) 추가, R(REGEX) 추가. deleteDraft → `FROM_VER=1.001` 행 0(세 표), `TO_VER=1.001` 행 0, 세 표 전체가 DRAFT 만들기 전 스냅샷과 같다(행 집합 비교), VER 1.001 없음, 1.000 행 불변(I14). D2 1.000 DRAFT 삭제 → BASE 행도 없음, 코드 헤더 남음, 이어서 major → 1.000·BASE 다시 생김(I4·I14). D3 훅 안에서 예외(트리거) → VER 행·선분 모두 원상(같은 트랜잭션) |
 | `MasterCodeRestoreSqliteTest` | P1 1.000 RELEASED(ITEM A(name a1),B; CATE BASE, T(TABLE,name t1); CATE_ITEM (T,A)), 1.001 RELEASED(A name a2, B 닫힘, C 추가, T name t2, (T,A) 닫힘, (T,C) 추가, R REGEX 추가), 둘 다 과거 적용. restore(MAJOR, source 1.000) → 2.000 DRAFT, `RESTORED_FROM=1.000`, `rowsAt(2.000)` 가 키·값으로 `rowsAt(1.000)` 과 같다(세 표). P2 diff(`FROM_VER=2.000 OR TO_VER=2.000`) 에 ITEM(A 변경·B 추가·C 닫힘), CATE(T 변경·R 닫힘), CATE_ITEM((T,A) 추가·(T,C) 닫힘) 이 **세 표 모두** 있고, BASE 와 값이 같은 키는 없다(I15). P3 source 가 DRAFT·CANCELLED·없는 버전 → MDM021. P4 restore 도 미적용 있으면 MDM006. P5 restore 뒤 deleteDraft → 1.001 상태로 복구(I14 와 조합) |
 | `MasterCodeNativeSqlMssqlTest`(mssqlTest) | 게이트 밖. D1·P1·R8 의 축약판을 MSSQL 에서: 삭제 훅 네이티브 DELETE/UPDATE, `CAST(VER AS VARCHAR(40))` 읽기, 채번한 DECIMAL(7,3) 저장·등호 조회(#17) |
@@ -188,7 +188,7 @@
 |---|---|
 | `tests/shell/page-handoff.test.ts` | `openMdmPage("dmc/codeEdit",{maruCodeId:"X"})` 가 `portal-open-tab` 이벤트(`detail.pageId="mdm:dmc/codeEdit"`)를 내고, `takeMdmPageParams("dmc/codeEdit")` 가 `{maruCodeId:"X"}` 를 한 번만 돌려준다(두 번째 null). `useMdmPageParams` 는 마운트 때와 `portal-tab-activated`(`detail.tabId` 가 자기 tabId)일 때 소비한다 |
 | `tests/dmc/codeMng/code-mng-page.test.ts` | 렌더 → `/oasis/codeMng/search` 결과 행 표시, 빈 결과면 "조회된 마루 코드가 없습니다", 등록 성공 → `/oasis/codeMng/reg` 호출 본문에 `sourceKind` 없음(서버 기본 MDM), 성공 뒤 `portal-open-tab`(`mdm:dmc/codeEdit`)·handoff `{maruCodeId}`. 서버 오류(`meta.success=false`) → `ErrorModal` 문구 |
-| `tests/dmc/codeEdit/version-buttons.test.ts` | `versionButtons` 순수 함수 매트릭스(§6.12 표 전 행): 미적용 있으면 새버전 둘 비활성, DEPRECATED·EXTERNAL 비활성, 버전 0개면 minor 비활성·major 활성, `canMinor=false` 면 minor 비활성+안내 "major 를 올리십시오", DRAFT 소유자=나 → 삭제·해제·넘기기·확정 이동·코드 편집 활성, 소유자 없음 → 선점만, 남의 DRAFT → 모두 비활성, 미적용 2개 → 경고 문구 + 삭제·선점·해제만(확정 이동·코드 편집·넘기기·새버전 비활성), RELEASED·CANCELLED 선택 → 버전 버튼 비활성(I25) |
+| `tests/dmc/codeEdit/version-buttons.test.ts` | `versionButtons` 순수 함수 매트릭스(§6.12 표 전 행): 미적용 있으면 새버전 둘 비활성, DEPRECATED·EXTERNAL 비활성, 버전 0개면 minor 비활성·major 활성, `canMinor=false` 면 minor 비활성+안내 "major 를 올리십시오", DRAFT 소유자=나 → 삭제·해제·넘기기·확정 이동·코드 편집 활성, 소유자 없음 → 선점만, 남의 DRAFT → 모두 비활성, 미적용 2개 → 경고 문구 + 삭제만(선점·해제·넘기기·확정 이동·코드 편집·새버전·헤더 저장·폐기 비활성), RELEASED·CANCELLED 선택 → 버전 버튼 비활성(I25) |
 | `tests/dmc/codeEdit/code-edit-page.test.ts` | handoff/snapshot 으로 받은 코드로 `view` 호출, 버전 목록·`DraftLockBadge` 문구, 확정 이동 → `portal-open-tab`(`mdm:dmc/codeConfirm`)·handoff `{maruCodeId, ver}`, MDM001 문구 오류 → 오류 모달 닫으면 `view` 재호출, 새 버전 모달의 번호 미리보기가 서버 `nextMajor`/`nextMinor` 값 |
 
 ### 3.4 화면 스모크 넷 — 브라우저 E2E(러너 `pnpm exec playwright test`, 서버 절차 §9)
@@ -231,7 +231,7 @@ Build·Verify 는 §5 각 행의 "변이 예" 를 하나씩 넣어 빨강을 확
 | AC4 | 등록은 MDM 원천만 받는다 | R5(EXTERNAL·기타 → MDM021, 저장값 'MDM'), E9(EXTERNAL 코드 쓰기 거부), 화면에 원천 선택 없음(code-mng-page 테스트) |
 | AC5 | 폐기 후 CODE_LIST 에서 숨고 MASTER 판정은 유지 | `MasterCodeDeprecateEngineSqliteTest` G1(폐기 전 목록 있음 대조)·G2(폐기 후 `codeList=[]`, `isMember=true`) — 실제 `DefaultCodeResolver` + DB 를 읽는 `MdmCodeLookup`(운영 빈 미등록, D5), E7(행 보존) |
 | AC6 | 포털 메뉴에서 화면이 열리고 e2e `mdm-codeEdit.spec.ts` 통과 | E2E E1~E4(스모크 넷), 스크린샷 4장. E4 는 D3 fail-closed 경로 |
-| AC7 | 미적용 버전이 있으면 새 버전 거부, 2개면 DRAFT 삭제만 허용 | V1·V4(MDM006), V5(2개: 새 버전 MDM006, deleteDraft 성공), E5(2개: saveHeader·deprecate MDM007), `version-buttons.test.ts`(2개면 삭제·선점·해제만). 선점·해제 허용은 D7 |
+| AC7 | 미적용 버전이 있으면 새 버전 거부, 2개면 DRAFT 삭제만 허용 | V1·V4(MDM006), V5(2개: 새 버전 MDM006, deleteDraft 성공), E5(2개: saveHeader·deprecate MDM007), V5(2개: lock·unlock·handover MDM007), `version-buttons.test.ts`(2개면 삭제만) |
 | AC8 | 복원 diff 가 코드·카테고리·CATE_ITEM 모두 채운다 | `MasterCodeRestoreSqliteTest` P1(복원 결과 = 원본 모습, 세 표)·P2(diff 에 세 표 모두, 같은 키 없음) |
 
 8항 모두 SQLite 로 확인한다. MSSQL 방언 동작은 수용 기준이 아니며 머지 뒤 방언 검증 몫이다(아래 도커 절).
@@ -247,7 +247,7 @@ Build·Verify 는 §5 각 행의 "변이 예" 를 하나씩 넣어 빨강을 확
 | I3 | major 결과가 `MAX_MAJOR(9998)` 초과면 거부(9999 는 발급 안 함) | N4 | 상한 검사 제거 |
 | I4 | 버전이 하나도 없으면 MAJOR 만, 번호 1.000, 같은 트랜잭션에서 BASE(REGEX `.*`, CODE, from 1.000, to 9999) 생성 | N5, V6, D2 | 1.000 재생성 때 BASE 누락, minor 허용 |
 | I5 | 새 버전(빈·복원)은 INSERT 전에 `VersionWriteGuard.checkCanCreateVersion(MASTER_CODE,id)` — 미적용(DRAFT 또는 `applyFrom.isAfter(now)` 인 RELEASED)이 하나라도 있으면 MDM006. `applyFrom == now` 는 적용됨 | V1·V4·P4, S4 | 호출 누락, `!isBefore` 로 경계 반전 |
-| I6 | 미적용 2개 이상: saveHeader·deprecate → MDM007, 새 버전 → MDM006, deleteDraft·view 허용, 선점·해제·넘기기는 공통 서비스 규칙대로 허용(D7) | V5, E5, version-buttons | saveHeader 의 개수 검사 제거, deleteDraft 에 개수 검사 추가 |
+| I6 | 미적용 2개 이상이면 DRAFT 삭제·조회만: saveHeader·deprecate·lock·unlock·handover → MDM007, 새 버전 → MDM006, deleteDraft·view·search 허용(D7) | V5, E5, version-buttons | saveHeader·lock 의 개수 검사 제거, deleteDraft 에 개수 검사 추가 |
 | I7 | 등록 = TB_MDM_CODE(CREATED) + TB_MDM_CODE_VER(1.000, DRAFT, MAJOR, owner=등록자, rv 0) + TB_MDM_CODE_CATE(BASE) 를 **한 OASIS 액션**에서. 어느 하나가 실패하면 셋 다 없다 | R1, H2 | BASE 생성을 별도 액션/비동기로, 서비스에 `REQUIRES_NEW` |
 | I8 | 등록 원천은 MDM 만(`sourceKind` 없음 → MDM, 그 밖 → MDM021). 저장된 `SOURCE_KIND` 가 MDM 이 아닌 코드는 모든 쓰기 거부(MDM021) | R5, E9 | EXTERNAL 허용, 쓰기 경로의 원천 검사 제거 |
 | I9 | ID = `NamingRules.STD_PHYS_NAME`(`^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$`) 이고 1~50자이며 `MaruIdRules.FORBIDDEN_CHAR_PATTERN`(`[.,\s]`) 문자가 없다. 위반은 MDM021 이고 행을 만들지 않는다(D8) | R2 | 소문자 허용, 길이 51 허용, 점 허용 |
@@ -324,7 +324,7 @@ static String label(BigDecimal ver)                            // "v" + ver.setS
 
 ### 6.5 선분 조작(`MasterCodeVersionSegments`, `MasterCodeDraftDeletion`)
 
-1. `createBaseCategory(VersionRef firstDraft)`: `new MdmCodeCate(id, CategoryConventions.BASE_CATE_ID, FIRST_VER, BASE_DEF_KIND.name())` + `setDefExpr(BASE_DEF_EXPR)`, `setDefTarget(CategoryOwner.MASTER_CODE.baseDefTarget().name())`, `setCateName("전체")`, toVer 기본 9999 → `persist`. `firstDraft.ver()` 가 FIRST_VER 가 아니면 `IllegalArgumentException`.
+1. `createBaseCategory(VersionRef firstDraft)`: `new MdmCodeCate(id, CategoryConventions.BASE_CATE_ID, FIRST_VER, BASE_DEF_KIND.name())` + `setDefExpr(BASE_DEF_EXPR)`, `setDefTarget(CategoryOwner.MASTER_CODE.baseDefTarget().name())`, `setCateName("전체")`, toVer 기본 9999 → `persist`. `firstDraft.ver()` 가 FIRST_VER 가 아니면 `IllegalArgumentException`. 끝에서 `entityManager.flush()` 한다 — INSERT 실패가 커밋 때가 아니라 serviceTask 안에서 나야 H2(트리거 실패 주입)의 `meta.success=false` 단언이 성립한다.
 2. `rowsAt(String id, BigDecimal v)`: 세 표의 그 코드 행을 JPQL `where e.maruCodeId = :id` 로 **전부** 읽고 Java 에서 `from ≤ v < to` 로 거른다(I20). 반환 `record Rows(Map<String,MdmCodeItem> items, Map<String,MdmCodeCate> cates, Map<String,MdmCodeCateItem> cateItems)`(CATE_ITEM 키 `cateId + "," + code`).
 3. `MasterCodeDraftDeletion.beforeDraftDelete(VersionRef v)`: 표마다 네이티브 두 문장(ITEM → CATE_ITEM → CATE 순서 무관, FK 는 FROM_VER→VER 만):
    `DELETE FROM <표> WHERE MARU_CODE_ID=:objectId AND FROM_VER=:ver` → `UPDATE <표> SET TO_VER=:open, U_USR_ID=:uUsrId, U_AT=:uAt, U_SVC_ID=:uSvcId, U_PGM_ID=:uPgmId, VER=COALESCE(VER,0)+1 WHERE MARU_CODE_ID=:objectId AND TO_VER=:ver`. `:open` = `OPEN_TO_VER.setScale(3)`, 스탬프 `MdmNativeAuditSupport.currentStamp()`, 바인딩은 F10(`flush` 먼저). 순서는 DELETE 먼저(되돌린 옛 행과 PK 가 다르므로 순서가 결과를 바꾸지 않지만 읽기 쉽게).
@@ -355,7 +355,7 @@ static String label(BigDecimal ver)                            // "v" + ver.setS
   - `deprecate`: 머리 → 저장 DEPRECATED 면 MDM009 → 미적용 ≥2 MDM007, =1 MDM009("미적용 버전이 있어 폐기할 수 없습니다") → auditVer → `setStatus("DEPRECATED")` → view.
   - `createVersion`/`restoreVersion`: 머리 → DEPRECATED MDM009 → `writeGuard.checkCanCreateVersion` → max·kind 로 번호(I1~I4, 불가면 MDM021) → (restore) 원본 검사 → `MdmCodeVer` persist(owner=me, restoredFrom) → `flush` → 1.000 이면 `createBaseCategory` → (restore) `fillFrom` → INUSE 계산 저장 → view.
   - `deleteDraft`: `requireSteward` → `versionStateService.deleteDraft(ref, rv, me)` → view. (원천 검사는 하지 않아도 되지만 머리를 써도 된다 — EXTERNAL 은 DRAFT 가 없다.)
-  - `acquire`/`release`/`handover`: `requireSteward` → `ownership.acquire(ref, rv, me)` / `release(ref, rv, me)` / `handover(ref, rv, me, newOwnerId)` → view. `newOwnerId` 는 trim, 비면 그대로 넘겨 MDM005.
+  - `acquire`/`release`/`handover`: `requireSteward` → 미적용 ≥2 MDM007(D7) → `ownership.acquire(ref, rv, me)` / `release(ref, rv, me)` / `handover(ref, rv, me, newOwnerId)` → view. `newOwnerId` 는 trim, 비면 그대로 넘겨 MDM005.
 
 ### 6.9 `MdmStewardGuard`(정본 모양 — 08-02 도 같은 파일이면 그대로 합쳐진다)
 
@@ -408,9 +408,9 @@ export function useMdmPageParams(componentPath: string, tabId: string | undefine
 |---|---|
 | 새버전(major)(`reg`) | `flags.canNewMajor` |
 | 새버전(minor)(`reg`) | `flags.canNewMinor`. `minorLimit` 이면 비활성 + "major 를 올리십시오" |
-| 삭제(`delete`) | 선택 DRAFT && owner==me |
-| 선점(`lock`) | 선택 DRAFT && owner==null |
-| 해제(`unlock`) | 선택 DRAFT && owner==me |
+| 삭제(`delete`) | 선택 DRAFT && owner==me(미적용 2개여도 활성) |
+| 선점(`lock`) | 선택 DRAFT && owner==null && unappliedCount==1 |
+| 해제(`unlock`) | 선택 DRAFT && owner==me && unappliedCount==1 |
 | 넘기기(`handover`) | 선택 DRAFT && owner==me && unappliedCount==1 |
 | 확정 이동(이동만, action `confirm` 으로 권한 판정) | 선택 DRAFT && owner==me && unappliedCount==1 |
 | 코드 편집(이동만, action `save`) | 선택 DRAFT && owner==me && unappliedCount==1 |
@@ -562,66 +562,77 @@ $W/.claude/skills/dflow-dev/scripts/heavy.sh release
 - **선택지**: ① 만들지 않음(운영 넘기기 = 늘 MDM005) — 강도 중. ② mcm 에 client-key 전용 내부 조회 API + mdm RestClient 어댑터 — 강도 약(새 보안 경로·IDOR 검토·mcm 패키지 변경, 무인 범위 밖). ③ 항상 허용 — 강도 약(담당자 아닌 소유자는 BFF 권한이 없어 DRAFT 를 영영 풀 수 없게 될 수 있다, TSK-01-03 D7).
 - **택한 것**: ①. 서버 경로·화면·오류 표시는 완성하고, 성공 경로는 테스트 가짜 디렉터리로 시험한다(V8).
 - **대가**: **spec 요구사항 "넘기기"는 어댑터가 생길 때까지 운영에서 동작하지 않는다**(항상 "넘겨받는 사람은 담당자 역할이 있어야 합니다"). 끝 보고에 올린다. E2E E4 는 이 거부 경로를 쓴다(비담당자 대상이라 어댑터가 생겨도 기대값이 같다).
+- **근거**: 리포 기존 관례·미승인 선행 산출물(TSK-01-03 D7 이 fail-closed 를 택했고 ②를 보안 검토 대상으로 적었다). spec 본문은 "넘기기"만 요구하고 대상 검사는 요구하지 않지만, 대상 검사를 빼는 ③은 되돌릴 수 없는 잠김을 만든다.
 - **반려 시 재작업**: ②면 별도 설계(mcm 내부 API·보안 검토)를 올리고 mdm 에 어댑터 빈을 추가한다. 화면·서비스는 바뀌지 않는다.
 
 ### D4 — TB_MDM_DATA ID 중복은 리포지토리로 직접 본다(운영 MASTER_DATA 이름 공간 빈 미등록)
 - **질문**: 계약 Javadoc 은 "등록 서비스는 `List<MaruIdNamespace>` 로 상대 표를 본다"인데 MASTER_DATA 구현(07-02 몫)이 없다.
 - **선택지**: ① `MdmDataRepository.existsById` 직접 조회 + MASTER_CODE 빈만 등록 — 강도 중. ② 이 Task 가 MASTER_DATA 빈도 등록 — 강도 약(`ColumnMngService` 가 "빈 없으면 생략"에서 "TB_MDM_DATA 에 없으면 거부"로 바뀌어 columnMng 테스트·E2E 가 깨진다, F14). ③ 빈이 있으면 빈, 없으면 리포지토리 — 강도 약(두 경로라 07-02 이후 동작이 조용히 바뀐다).
 - **택한 것**: ①.
+- **근거**: 리포 기존 관례(`ColumnMngService` 가 MASTER_DATA 빈 부재를 "검사 생략"으로 쓰고 있다)와 spec 수용 기준 1(TB_MDM_DATA 중복 거부)을 함께 지키는 유일한 선택지다.
 - **반려 시 재작업**: ②면 `MasterDataIdNamespace` 빈을 만들고 columnMng 테스트(C28 계열)와 E2E 픽스처를 고친다. 07-02 가 빈을 등록한 뒤에는 `CodeMngService` 를 이름 공간 목록 순회로 바꿀 수 있다(동작 동일).
 
 ### D5 — 운영 `CodeLookup` 빈을 등록하지 않고 수용 기준 5는 `MdmCodeLookup` 구현체로 시험
 - **질문**: "폐기 후 CODE_LIST 숨김·MASTER 유지"를 보려면 엔진이 04 원장을 읽어야 한다. 운영 빈을 등록하면 decisions.md:449 대로 도메인 저장 R10 거부·MASTER 판정이 자동으로 켜져 TSK-04-03 동작·테스트가 바뀐다.
 - **선택지**: ① 구현체(`MdmCodeLookup`)는 만들되 `@Component` 로 등록하지 않고 테스트가 `DefaultCodeResolver` 에 직접 붙인다 — 강도 중. ② 운영 빈 등록 — 강도 약(이 Task 범위 밖의 도메인 동작 변경, 형제 Task 테스트 영향). ③ 엔진 단위 테스트만 인용 — 강도 약(DB 상태→엔진 경로를 시험하지 않는다).
 - **택한 것**: ①. 등록 시점은 06-05 이후 판단으로 넘긴다(인계).
+- **근거**: spec 수용 기준 5 는 엔진 판정 결과를 요구할 뿐 운영 빈 등록을 요구하지 않는다. 리포 기존 결정(decisions.md:449)이 빈 등록의 부작용을 명시했다.
 - **반려 시 재작업**: ②면 `@Component` 한 줄과 TSK-04-03 테스트(`DomainMngWithoutCodeLedgerTest` 등) 기대값 조정, `MdmCodeLookupAvailability` 의 W02 경로 재확인.
 
 ### D6 — `MasterCodeSegmentService` 구현 클래스를 만들지 않고 06-02 몫 두 메서드를 별도 컴포넌트에 둔다
 - **질문**: 계약 인터페이스 하나를 06-02(`createBaseCategory`·`fillFrom`)·06-03·06-04 가 나눠 구현하게 돼 있고 06-03 이 동시에 돈다.
 - **선택지**: ① `MasterCodeVersionSegments`(인터페이스 미구현, 같은 이름·시그니처의 두 메서드) — 강도 중(충돌 없음, 06-03 이 위임). ② 이 Task 가 구현 클래스를 만들고 나머지 10개 메서드는 `UnsupportedOperationException` — 강도 약(06-03 과 add/add 충돌, 미완성 빈이 운영에 뜬다).
 - **택한 것**: ①.
+- **근거**: 미승인 선행 산출물(TSK-06-01 계약의 구현 배정)과 팀장 지시(형제 Task 범위 경계·충돌 최소화)를 함께 지킨다.
 - **반려 시 재작업**: ②면 구현 클래스를 만들어 두 메서드를 옮기고 06-03 머지 때 합친다.
 
-### D7 — 미적용 2개 상태에서도 선점·해제·넘기기를 허용
-- **질문**: 수용 기준은 "2개면 DRAFT 삭제만 허용". 그런데 소유자가 해제한 DRAFT 는 누군가 선점해야 지울 수 있고, 공통 서비스(TSK-01-03)는 소유권 연산에 개수 검사를 일부러 두지 않았다(04:299 "허용: DRAFT 삭제, 조회").
-- **선택지**: ① 허용(04 의 거부 목록 — 저장·새 버전·상신·승인·경미 수정 — 에 소유권 연산이 없다) — 강도 중. ② 화면·서버 모두 거부 — 강도 약(선점되지 않은 DRAFT 는 삭제할 방법이 없어진다).
-- **택한 것**: ①. 화면은 경고 문구와 함께 삭제·선점·해제만 활성(넘기기·확정 이동·코드 편집·새 버전·헤더 저장·폐기 비활성).
-- **반려 시 재작업**: ②면 codeEdit 의 `acquire`·`release`·`handover` 앞에 개수 검사(MDM007)를 넣고 V5·버튼 매트릭스를 고친다.
+### D7 — 미적용 2개 상태에서는 선점·해제·넘기기도 막는다(수용 기준을 글자 그대로)
+- **질문**: 수용 기준은 "2개면 DRAFT 삭제만 허용"인데 공통 서비스(TSK-01-03)는 소유권 연산에 개수 검사를 두지 않았다(04:299 "허용: DRAFT 삭제, 조회"). 화면 서비스가 소유권 연산을 막아도 되는가.
+- **선택지**: ① codeEdit 의 `acquire`·`release`·`handover` 앞에서 MDM007 — 강도 강(spec 수용 기준 글자 그대로). ② 공통 서비스처럼 허용 — 강도 약(수용 기준과 어긋난다).
+- **택한 것**: ①. 공통 서비스는 허용하지만 화면 서비스가 막는다.
+- **근거**: spec 본문(수용 기준 7). 막아도 막다른 상태가 생기지 않는다 — 미적용 2개는 major·minor 동시 클릭으로만 생기고(해제된 DRAFT 가 있으면 `checkCanCreateVersion` 이 둘째를 막는다), 그때 두 DRAFT 는 만든 사람이 각각 자동 선점하므로 각 소유자가 자기 DRAFT 를 지울 수 있다.
+- **반려 시 재작업**: ②면 세 메서드의 개수 검사를 빼고 V5·I6·버튼 매트릭스(선점·해제 활성)·version-buttons 기대값을 고친다.
 
 ### D8 — ID 문자 제약 = 컬럼 물리명 규칙 전체(대문자 스네이크) + 50자
 - **질문**: 04 는 "점·공백·콤마 금지. 컬럼 물리명 규칙과 같다"고 했다. 금지 문자만 볼지, 물리명 패턴 전체를 볼지.
 - **선택지**: ① `NamingRules.STD_PHYS_NAME` + 50자 + `MaruIdRules` 금지 문자 — 강도 중(원천 문장 "물리명 규칙과 같다"를 그대로 적용, 원천 예시 ID 가 모두 대문자 스네이크). ② 금지 문자만 — 강도 약(소문자·한글·하이픈 ID 가 생겨 `MASTER("…")` 인자 규칙과 어긋날 수 있다).
 - **택한 것**: ①. `NamingRules` 는 `dma.naming` 에 있으나 lib 안 유틸이라 그대로 import 한다.
+- **근거**: spec 가 지목한 원천 04 「식별자」 표 문장("컬럼 물리명 규칙과 같다")과 리포 기존 유틸(`NamingRules.STD_PHYS_NAME`).
 - **반려 시 재작업**: ②면 `CodeMngService` 의 패턴 검사 한 줄과 R2 의 소문자·숫자 시작 케이스를 뺀다.
 
 ### D9 — CREATED(버전 없음 포함)에서도 폐기 허용
 - **질문**: 04 표는 "→ DEPRECATED 조건: 미적용 버전이 없을 것"만 적고 출발 상태를 적지 않았다.
 - **선택지**: ① CREATED·INUSE 모두 허용 — 강도 중(조건 문장을 글자 그대로, 잘못 만든 코드를 치울 수단). ② INUSE 만 — 강도 약(원천에 없는 조건).
 - **택한 것**: ①.
+- **근거**: spec 가 지목한 원천 04 「마루 코드 폐기」 조건 문장을 글자 그대로 적용했다. 출발 상태 제한은 원천에 없다.
 - **반려 시 재작업**: `deprecate` 에 "저장·계산 상태 INUSE" 검사(MDM009)를 더하고 E8·E2E E3(B 폐기)를 RELEASED 가 있는 코드로 바꾼다(06-05 확정이 필요해 E2E 는 seed 필요).
 
 ### D10 — DEPRECATED 이후에도 헤더 경미 수정 허용
 - **질문**: 폐기된 코드의 이름·설명·라벨을 고칠 수 있는지 원천에 없다.
 - **선택지**: ① 허용(판정에 쓰지 않는 값, 과거 기준일 판정은 계속된다) — 강도 약. ② 거부 — 강도 약.
 - **택한 것**: ①(되돌리기 쉬운 쪽).
+- **근거**: 원천 04 「경미 수정」은 판정에 쓰지 않는 값을 패치로 고치게 하고 DEPRECATED 를 예외로 두지 않았다. 강한 근거는 없어 되돌리기 쉬운 쪽을 골랐다.
 - **반려 시 재작업**: `saveHeader` 에 DEPRECATED 검사(MDM009) 한 줄, 헤더 저장 버튼 조건에 `storedStatus ≠ DEPRECATED` 추가.
 
 ### D11 — 화면 설계 산출물은 기능설계서 1종
 - **질문**: RULE.md·Mes-Guide 는 `docs/mdm/screens/{screenId}/` 5종을 요구한다.
 - **선택지**: ① 기능설계서 1종(As-Is 없는 신규 화면 선례 넷, DEC-001) — 강도 중. ② 5종 — 강도 약(As-Is 분석 전제 템플릿이 "해당 없음"으로 채워진다). ③ design.md 만 — 강도 약(선례와 다름).
 - **택한 것**: ①. Build 가 조각 a·b 에서 쓰고 식별자 사전 행을 함께 등재한다.
+- **근거**: 리포 기존 관례(선례 넷: unitMng·termMng·domainMng·columnMng, DEC-001).
 - **반려 시 재작업**: 문서만 바뀐다(코드 영향 없음).
 
 ### D12 — 화면 간 이동 규약(`openMdmPage`/handoff)을 새로 둔다
 - **질문**: 포털에 파라미터를 들고 화면을 여는 API 가 없다(C8). "ID 링크로 수정 화면", "등록 뒤 수정 화면으로", "확정 이동" 이 모두 필요하다.
 - **선택지**: ① m-mdm 셸에 전역 저장소 + `portal-open-tab` + `portal-tab-activated` 재확인 + snapshot 보존 규약 — 강도 약(선례 없음, shared 무수정). ② shared 포털에 파라미터 API 추가 — 강도 약(shared·포털 변경, 영향 범위 큼). ③ 이동 없이 codeEdit 에서 코드를 다시 고르게 함 — 강도 약(원천 04 화면 문장 위반).
 - **택한 것**: ①. 06-03·06-05 가 같은 규약으로 받는다(§6.10).
+- **근거**: spec 가 지목한 원천 04 「화면」 문장("ID 링크로 수정 화면에 간다", "수정 화면으로 간다")과 spec 요구사항 "확정 이동". 리포에 선례가 없어 shared 를 바꾸지 않는 쪽을 골랐다.
 - **반려 시 재작업**: ②면 shared 에 API 를 두고 `page-handoff.ts` 를 그 API 호출로 바꾼다(호출부 불변).
 
 ### D13 — 복원 원본은 RELEASED 버전만
 - **질문**: 새 버전 대화상자의 "vX 내용으로 채우기"에 어떤 버전을 보일지.
 - **선택지**: ① RELEASED 만 — 강도 중(CANCELLED 는 철회 때 행이 지워져 모습을 재현할 수 없다 04:386, DRAFT 는 미적용이라 새 버전을 만들 수 없는 상태). ② 모든 버전 — 강도 약.
 - **택한 것**: ①.
+- **근거**: spec 가 지목한 원천 04 「되돌리기와 철회」(철회 때 행 삭제)와 「한 번에 하나」(미적용이 있으면 새 버전 불가).
 - **반려 시 재작업**: `restoreSources`·P3 검사 조건만 바꾼다.
 
 ---
