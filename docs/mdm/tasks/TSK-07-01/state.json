@@ -2,5 +2,48 @@
   "tsk": "TSK-07-01",
   "order": "e2017bfa-8445-44c0-97b4-ee6bc10796e2",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "refactor",
+  "baseline": {
+    "failures": 0,
+    "tests": 1878,
+    "backend_testAll": {
+      "tests": 1878,
+      "failures": 0,
+      "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain"
+    },
+    "count_cmd": "find src/backend -path '*/build/test-results/*' -not -path '*mssqlMigrationTest*' -name 'TEST-*.xml' | xargs grep -h -o '<testsuite [^>]*' | awk (tests/failures/errors 합산)"
+  },
+  "complexity": "3점(depends 2 +1, Flyway=마이그레이션 +2) → opus 판정이나 spec model=sonnet 오버라이드",
+  "flyway_version": "V7 (팀장 배정)",
+  "model": "haiku",
+  "last": {
+    "phase": "verify",
+    "event": "verify.ok"
+  },
+  "mssql": "사용자 결정: 도커 금지로 MSSQL 실측(mssqlMigrationTest) 생략, SQLite testAll + MSSQL/SQLite DDL 줄 대조 리뷰로 대체. 기준선·게이트 비교 대상 아님",
+  "design_commit": "52eb0a1",
+  "build_gate": {
+    "backend_testAll": {
+      "tests": 1906,
+      "failures": 0,
+      "errors": 0
+    },
+    "compileMssqlTestJava": "ok",
+    "head": "7e809a1",
+    "dev_merge": "d67e560 (origin/dev 6855c6c, 충돌 없음)"
+  },
+  "verify_gate": {
+    "backend_testAll": {
+      "tests": 1906,
+      "failures": 0,
+      "errors": 0
+    },
+    "note": "Verify 서브에이전트 실측 1906/0 + 같은 소스 트리의 오케스트레이터 Build 게이트 실측 1906/0. 서브에이전트는 커밋 전 멈춰 오케스트레이터가 기록을 커밋",
+    "mutations_rechecked": [
+      "1&4(MSSQL parity)",
+      "6",
+      "11"
+    ]
+  },
+  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\""
 }
