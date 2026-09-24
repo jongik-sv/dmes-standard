@@ -165,11 +165,13 @@ class CodeCateEditServiceSqliteTest {
         seedM();
         List<String> beforeCates = fx.cateSegments("M");
         List<String> beforeItems = fx.itemSegments("M");
+        List<String> beforeCateItems = fx.cateItemSegments("M");
 
         service.preview(preview("M", "1.001", null, "[AB]", "CODE"));
 
         assertEquals(beforeCates, fx.cateSegments("M"));
         assertEquals(beforeItems, fx.itemSegments("M"));
+        assertEquals(beforeCateItems, fx.cateItemSegments("M"));
     }
 
     // ── 기본 동작 ────────────────────────────────────────────────────────
