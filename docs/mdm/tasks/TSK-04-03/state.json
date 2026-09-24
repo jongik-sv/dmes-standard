@@ -2,7 +2,7 @@
   "tsk": "TSK-04-03",
   "order": "2ca988a4-33df-4025-bbd0-233467549beb",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "refactor",
+  "phase": "reported",
   "baseline": {
     "failures": 0,
     "tests": 2131,
@@ -22,8 +22,8 @@
   },
   "pred_note": "선행 mdm/TSK-04-01·01-03·03-02·03-04: 전부 reached=true·head_sha 없음 → 행 G 갈래 2, pred-reflected.sh REFLECTED 2 → origin/dev 기점 스택 없이 진행",
   "last": {
-    "phase": "verify",
-    "event": "verify.ok"
+    "phase": "done",
+    "event": "done.ok"
   },
   "model": "sonnet",
   "design_commit": "a2063bf",
