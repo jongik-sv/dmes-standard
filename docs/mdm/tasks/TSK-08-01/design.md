@@ -722,3 +722,140 @@ public class MdmSqliteTemporalContributor implements MetadataBuilderContributor 
 - **택한 것**: (1).
 - **근거와 강약 순위**: 사용자 결정(도커 금지)으로 실행할 수 없는 테스트는 한 번도 초록을 본 적 없는 코드가 되어, 나중에 실행했을 때 실패가 DDL 결함인지 테스트 결함인지 가를 수 없다. 대신 docker 없는 DDL 대조 테스트(§3.2)가 두 방언의 구조 동일성과 MSSQL 전용 규칙을 매 빌드마다 실제로 확인한다. mssqlTest 컴파일은 docker 없이 성공함을 확인했다(F25). 강도: **중**(선례는 반대다).
 - **반려되면 재작업할 방향**: `AM/MdmBusinessRuleMssqlMigrationTest.java` 를 `MdmInterfaceLayoutMssqlMigrationTest` 패턴(`@SpringBootTest` + `local-db` + Testcontainers)으로 추가해 §3.1 의 1~9 항목과 #2~#5·#19·#20 MSSQL 몫을 옮기고, `:api:compileMssqlTestJava` 로 컴파일만 확인한다. 실행은 도커가 허용될 때 한다.
+
+---
+
+## Build 기록
+
+### B1. 산출물과 커밋
+
+| 커밋 | 내용 |
+|---|---|
+| `531d428` | 계약 `contract.rule` 7파일(`MdmRuleIdKind`·`MdmRuleIdRange`·`MdmRuleIdIssuer`·`MdmRuleDefinitionSource`·`MdmRuleDiffConventions`·`MdmRuleConfirmCheckItem`·`package-info`) |
+| `3510743` | V8 두 방언, `MdmBusinessRuleExpectations`·`MdmBusinessRuleMigrationTest`·`MdmBusinessRuleDdlParityTest`, 기존 버전 기대값 4파일에 `"8"` 반영 |
+| `3f91d9b` | `MdmSqliteLocalDateTimeConverter`·`MdmSqliteTemporalContributor`, `application-local.yml` 한 줄, 컨버터 단위 테스트 |
+| `9d4f74b` | 활성 6엔티티·ID 클래스 4·리포지토리 6, `MdmBusinessRuleEntityJpaRoundtripTest`, `BusinessRuleVersionScenarioSqliteTest` |
+| `11d1028` | `BusinessRuleConfirmCheckStub` 갱신, `ContractStubCompileTest` 절 추가, `RuleIdIssuerConsumerStub`·`RuleDefinitionLookupStub`, `MdmRuleContractOnlyArchitectureTest`·`violation/ViolatingIssuer` |
+
+### B2. 테스트 먼저(빨강 확인)
+
+| 테스트 | 처음 빨강 | 근거 |
+|---|---|---|
+| `MdmBusinessRuleMigrationTest`(13) · `MdmBusinessRuleDdlParityTest`(16) | 예(런타임) | SQLite V8 을 옮겨 둔 채 실행: 14 tests / 14 failed(파리티는 `initializationError`, V8 리소스 없음). V8 복원·MSSQL V8 작성 뒤 초록. 이때 `MdmSharedContractMigrationTest` 도 빨강을 확인하고 `"8"` 을 반영했다 |
+| `MdmSqliteLocalDateTimeConverterTest` | 예(컴파일) | 컨버터 클래스가 없어 `cannot find symbol` |
+| `MdmBusinessRuleEntityJpaRoundtripTest` | 예(런타임, D5 부분) | `application-local.yml` 의 contributor 줄을 지운 채 실행: 15 tests / 3 failed(`typeof` 가 text 가 아님, `ParseException`, yml 정적 검사). 줄을 되살려 초록 |
+| `ContractStubCompileTest`(§3.6 절)·`MdmRuleContractOnlyArchitectureTest` | 예(컴파일) | `contract.rule` 타입이 없어 `cannot find symbol` |
+| `BusinessRuleVersionScenarioSqliteTest`(R1~R4)·§3.1-12 런타임 가드 | 아니오 | 엔티티·DDL 을 먼저 쓴 뒤 작성했다(순서 이탈, B5-1). 대신 변이 I5c·I25a(시나리오)와 I21b·I21c(가드)로 빨강을 확인했다 |
+
+### B3. 변이 검증
+
+(아래 표는 `scratchpad/mutate.py` 로 변이 하나마다 적용 → 좁은 테스트 실행 → `git checkout` 원복한 결과다. 모든 변이 뒤 `git status` 가 깨끗함을 확인했다.)
+
+| 변이 | 내용 | 결과 | 빨개진 테스트 |
+|---|---|---|---|
+| P2 | MSSQL RULE_VAR 에서 RES_GRP 제거 | KILLED | `MdmBusinessRuleDdlParityTest.P2_테이블마다_칼럼_이름_목록이_순서까지_같다`; `MdmBusinessRuleDdlParityTest.P3_칼럼마다_NOT_NULL_여부가_같다`; `MdmBusinessRuleDdlParityTest.P9_칼럼마다_SQLite_MSSQL_타입_쌍이_허용_목록_안에_있다` |
+| P3 | MSSQL CELLS 를 NULL 로 | KILLED | `MdmBusinessRuleDdlParityTest.P10_JSON_CHECK_가_정확히_7칼럼에_방언별_함수로_있다`; `MdmBusinessRuleDdlParityTest.P3_칼럼마다_NOT_NULL_여부가_같다` |
+| P4 | MSSQL PK_TB_MDM_RULE_ROW 에서 VER 제거 | KILLED | `MdmBusinessRuleDdlParityTest.P4_PK_이름과_칼럼이_같다` |
+| P5 | MSSQL FK_TB_MDM_RULE_VER_RULE 에 CASCADE | KILLED | `MdmBusinessRuleDdlParityTest.P5_FK_가_같고_CASCADE_는_두_FK_뿐이다` |
+| P6 | MSSQL UX_TB_MDM_RULE_ROW_SEQ 의 WHERE 제거 | KILLED | `MdmBusinessRuleDdlParityTest.P6_UX_이름_칼럼_WHERE_가_같다` |
+| P7 | MSSQL CK_TB_MDM_RULE_VER_HIT 에서 'ANY' 제거 | KILLED | `MdmBusinessRuleDdlParityTest.P7_CK_이름_집합이_같고_JSON_을_뺀_CK_본문도_같다` |
+| P8 | MSSQL EMERGENCY_YN 기본값 'Y' | KILLED | `MdmBusinessRuleDdlParityTest.P8_DEFAULT_칼럼과_리터럴이_같다` |
+| P9 | MSSQL LAST_VAR_ID 를 BIGINT 로 | KILLED | `MdmBusinessRuleDdlParityTest.P9_칼럼마다_SQLite_MSSQL_타입_쌍이_허용_목록_안에_있다` |
+| P10 | MSSQL CK_TB_MDM_RULE_SET_RULE_IDS_JSON 제거 | KILLED | `MdmBusinessRuleDdlParityTest.P10_JSON_CHECK_가_정확히_7칼럼에_방언별_함수로_있다`; `MdmBusinessRuleDdlParityTest.P7_CK_이름_집합이_같고_JSON_을_뺀_CK_본문도_같다` |
+| P11 | MSSQL VAR_NAME 을 VARCHAR(MAX) 로 | KILLED | `MdmBusinessRuleDdlParityTest.P11_MSSQL_PK_UX_FK_키_칼럼에_MAX_타입이_없다`; `MdmBusinessRuleDdlParityTest.P9_칼럼마다_SQLite_MSSQL_타입_쌍이_허용_목록_안에_있다` |
+| P12 | MSSQL OWNER_ID 의 COLLATE 제거 | KILLED | `MdmBusinessRuleDdlParityTest.P12_MSSQL_감사_칼럼을_뺀_길이_지정_VARCHAR_에는_BIN2_가_있다`; `MdmBusinessRuleDdlParityTest.P9_칼럼마다_SQLite_MSSQL_타입_쌍이_허용_목록_안에_있다` |
+| P13 | MSSQL RULE_VAR.DOMAIN_ID 를 INT 로 | KILLED | `MdmBusinessRuleDdlParityTest.P13_MSSQL_FK_칼럼_타입이_참조_칼럼_타입과_같다`; `MdmBusinessRuleDdlParityTest.P9_칼럼마다_SQLite_MSSQL_타입_쌍이_허용_목록_안에_있다` |
+| P14 | MSSQL DF_TB_MDM_RULE_STATUS 이름 제거 | KILLED | `MdmBusinessRuleDdlParityTest.P14_MSSQL_DEFAULT_는_모두_DF_이름을_갖고_IDENTITY_는_RECV_ID_뿐이다` |
+| P15 | MSSQL 에 "RESULT" 표기 | KILLED | `MdmBusinessRuleDdlParityTest.P15_방언_금지_토큰이_없다` |
+| I1 | SQLite 에서 RES_GRP 제거 | KILLED | `MdmBusinessRuleMigrationTest._8테이블_전부_생성되고_칼럼_목록이_순서까지_기대값과_같다` |
+| I2a | MdmRuleVer 의 @AttributeOverride 제거 | KILLED | `MdmBusinessRuleEntityJpaRoundtripTest.AUD_VER_테이블은_감사_카운터를_AUD_VER_에_쓰고_업무_VER_는_그대로다`; `MdmBusinessRuleEntityJpaRoundtripTest.MdmRuleRow_는_IdClass_복합_PK_로_저장_조회_왕복한다`; `MdmBusinessRuleEntityJpaRoundtripTest.MdmRuleVar_는_IdClass_복합_PK_로_저장_조회_왕복한다` |
+| I2b | SQLite RULE_VER 의 AUD_VER 를 VER 로 | KILLED | `MdmBusinessRuleMigrationTest.CHECK_가_위반을_제약_이름으로_거부한다`; `MdmBusinessRuleMigrationTest.FK_가_없는_부모를_거부하고_RECV_의_룰_NULL_은_통과시킨다`; `MdmBusinessRuleMigrationTest.JSON_CHECK_는_7칼럼에서_부정형을_거부하고_NULL_허용_칼럼만_NULL_을_통과시킨다` |
+| I3 | SQLite RULE_SET ROW_VERSION 을 INTEGER 로 | KILLED | `MdmBusinessRuleMigrationTest.제약_이름이_모두_있고_감사_카운터와_ROW_VERSION_은_BIGINT_다` |
+| I4a | SQLite CK_TB_MDM_RULE_ROW_CELLS_JSON 제거 | KILLED | `MdmBusinessRuleMigrationTest.JSON_CHECK_는_7칼럼에서_부정형을_거부하고_NULL_허용_칼럼만_NULL_을_통과시킨다`; `MdmBusinessRuleMigrationTest.제약_이름이_모두_있고_감사_카운터와_ROW_VERSION_은_BIGINT_다` |
+| I4b | SQLite BODY 에 JSON CHECK 추가 | KILLED | `MdmBusinessRuleMigrationTest.JSON_CHECK_는_7칼럼에서_부정형을_거부하고_NULL_허용_칼럼만_NULL_을_통과시킨다` |
+| I5a | SQLite FK_TB_MDM_RULE_VER_RULE 에 CASCADE | KILLED | `MdmBusinessRuleMigrationTest.RULE_VER_삭제는_VAR_ROW_를_CASCADE_로_지우고_그_밖의_부모_삭제는_거부된다` |
+| I5b | SQLite FK_TB_MDM_RULE_VAR_VER 의 CASCADE 제거(마이그레이션 테스트) | KILLED | `MdmBusinessRuleMigrationTest.RULE_VER_삭제는_VAR_ROW_를_CASCADE_로_지우고_그_밖의_부모_삭제는_거부된다` |
+| I5c | SQLite FK_TB_MDM_RULE_VAR_VER 의 CASCADE 제거(시나리오 R2) | KILLED | `BusinessRuleVersionScenarioSqliteTest.R1_JPA_로_저장한_룰_버전을_공통_서비스가_확정하고_엔티티로_다시_읽는다`; `BusinessRuleVersionScenarioSqliteTest.R2_DRAFT_삭제는_그_버전의_변수와_행을_CASCADE_로_지운다`; `BusinessRuleVersionScenarioSqliteTest.R3_실제_TB_MDM_RULE_VER_에_네이티브_확정이_KST_초_단위_TEXT_로_쓴다` |
+| I6a | SQLite UX_TB_MDM_RULE_VAR_NAME 의 WHERE 제거 | KILLED | `MdmBusinessRuleMigrationTest.JSON_CHECK_는_7칼럼에서_부정형을_거부하고_NULL_허용_칼럼만_NULL_을_통과시킨다`; `MdmBusinessRuleMigrationTest.부분_유일_인덱스가_결과_열_이름과_NORMAL_행_순번만_유일하게_묶는다` |
+| I6b | SQLite UX_TB_MDM_RULE_VAR_SEQ 제거 | KILLED | `MdmBusinessRuleMigrationTest.부분_유일_인덱스가_결과_열_이름과_NORMAL_행_순번만_유일하게_묶는다`; `MdmBusinessRuleMigrationTest.제약_이름이_모두_있고_감사_카운터와_ROW_VERSION_은_BIGINT_다` |
+| I7 | SQLite CK_TB_MDM_RULE_VAR_RESULT_NAME 제거 | KILLED | `MdmBusinessRuleMigrationTest.CHECK_가_위반을_제약_이름으로_거부한다`; `MdmBusinessRuleMigrationTest.제약_이름이_모두_있고_감사_카운터와_ROW_VERSION_은_BIGINT_다` |
+| I8a | SQLite DISP_TYPE 목록을 엔진 enum 이름으로 | KILLED | `MdmBusinessRuleMigrationTest.CHECK_가_위반을_제약_이름으로_거부한다`; `MdmBusinessRuleMigrationTest._06_샘플_데이터가_모든_제약을_통과한다` |
+| I8b | SQLite CK_TB_MDM_RULE_VAR_DISP 제거 | KILLED | `MdmBusinessRuleMigrationTest.CHECK_가_위반을_제약_이름으로_거부한다`; `MdmBusinessRuleMigrationTest.제약_이름이_모두_있고_감사_카운터와_ROW_VERSION_은_BIGINT_다` |
+| I13a | MSSQL V8 파일을 빼 둠 | KILLED | `MdmFlywayVersionParityTest.sqlite_와_mssql_의_버전_집합이_같다` |
+| I13b | SQLite V8 을 V5 로 개명 | KILLED | `MdmSharedContractMigrationTest.flyway_가_V1_V2_V3_V4_V8_을_적용했다` |
+| I14 | MdmRuleRecv 엔티티 추가 | KILLED | `MdmBusinessRuleEntityJpaRoundtripTest.관리_엔티티_테이블_집합에_06_활성_6테이블이_있고_보류_2테이블은_없다` |
+| I15 | MdmRuleVar 에 @ManyToOne MdmRuleVer | KILLED | `MdmEntityArchitectureTest.엔티티_패키지는_ManyToOne_연관관계_매핑을_쓰지_않는다` |
+| I16a | MdmRule.lastVarId 의 updatable=false 제거 | KILLED | `MdmBusinessRuleEntityJpaRoundtripTest.MdmRule_의_카운터와_상태는_엔티티_저장으로_되돌아가지_않는다` |
+| I16b | MdmRule.status 의 updatable=false 제거 | KILLED | `MdmBusinessRuleEntityJpaRoundtripTest.MdmRule_의_카운터와_상태는_엔티티_저장으로_되돌아가지_않는다` |
+| I16c | MdmRuleVer.status 의 updatable=false 제거 | KILLED | `MdmBusinessRuleEntityJpaRoundtripTest.MdmRuleVer_의_서비스_소유_칼럼은_엔티티_저장으로_되돌아가지_않고_ROW_VERSION_도_자동으로_오르지_않는다` |
+| I16d | MdmRuleVer.ownerId 의 updatable=false 제거 | KILLED | `MdmBusinessRuleEntityJpaRoundtripTest.MdmRuleVer_의_서비스_소유_칼럼은_엔티티_저장으로_되돌아가지_않고_ROW_VERSION_도_자동으로_오르지_않는다` |
+| I16e | MdmRuleVer.rowVersion 의 updatable=false 제거 | KILLED | `MdmBusinessRuleEntityJpaRoundtripTest.MdmRuleVer_의_서비스_소유_칼럼은_엔티티_저장으로_되돌아가지_않고_ROW_VERSION_도_자동으로_오르지_않는다` |
+| I16f | MdmRuleVer.releasedAt 의 updatable=false 제거 | KILLED | `MdmBusinessRuleEntityJpaRoundtripTest.MdmRuleVer_의_서비스_소유_칼럼은_엔티티_저장으로_되돌아가지_않고_ROW_VERSION_도_자동으로_오르지_않는다` |
+| I16g | MdmRuleVer.requestedBy 의 updatable=false 제거 | KILLED | `MdmBusinessRuleEntityJpaRoundtripTest.MdmRuleVer_의_서비스_소유_칼럼은_엔티티_저장으로_되돌아가지_않고_ROW_VERSION_도_자동으로_오르지_않는다` |
+| I16h | MdmRuleVer.applyTo 의 updatable=false 제거 | KILLED | `MdmBusinessRuleEntityJpaRoundtripTest.MdmRuleVer_의_서비스_소유_칼럼은_엔티티_저장으로_되돌아가지_않고_ROW_VERSION_도_자동으로_오르지_않는다` |
+| I16i | MdmRuleTestCase.rowVersion 의 updatable=false 제거 | KILLED | `MdmBusinessRuleEntityJpaRoundtripTest.MdmRuleTestCase_와_MdmRuleSet_의_ROW_VERSION_은_엔티티_저장으로_되돌아가지_않는다` |
+| I16j | MdmRuleSet.rowVersion 의 updatable=false 제거 | KILLED | `MdmBusinessRuleEntityJpaRoundtripTest.MdmRuleTestCase_와_MdmRuleSet_의_ROW_VERSION_은_엔티티_저장으로_되돌아가지_않는다` |
+| I17 | MdmRuleVer.rowVersion 에 @Version | KILLED | `MdmBusinessRuleEntityJpaRoundtripTest.MdmRuleVer_의_서비스_소유_칼럼은_엔티티_저장으로_되돌아가지_않고_ROW_VERSION_도_자동으로_오르지_않는다` |
+| I18a | application-local.yml contributor 줄 제거 | KILLED | `MdmBusinessRuleEntityJpaRoundtripTest.MdmRuleVer_는_IdClass_복합_PK_로_저장_조회_왕복한다`; `MdmBusinessRuleEntityJpaRoundtripTest.SQLite_일시_컨버터는_local_프로파일에만_등록되고_Converter_어노테이션이_없다`; `MdmBusinessRuleEntityJpaRoundtripTest.업무_일시는_초_단위_KST_텍스트로_저장되고_텍스트를_LocalDateTime_으로_읽는다` |
+| I18b | 컨버터 쓰기 형식을 .SSS 로 | KILLED | `MdmSqliteLocalDateTimeConverterTest.같은_입력에_대해_MdmTemporalBinder_의_SQLite_문자열과_글자까지_같다`; `MdmSqliteLocalDateTimeConverterTest.쓰기는_초_단위로_잘라_yyyy_MM_dd_HH_mm_ss_문자열이다`; `MdmSqliteLocalDateTimeConverterTest.읽기는_공백과_T_구분_소수초를_받고_앞_19자만_쓴다` |
+| I18c | 컨버터 쓰기 형식을 .SSS 로(엔티티 경로) | KILLED | `MdmBusinessRuleEntityJpaRoundtripTest.업무_일시는_초_단위_KST_텍스트로_저장되고_텍스트를_LocalDateTime_으로_읽는다` |
+| I19a | 컨버터에 @Converter(autoApply = true) | KILLED | `MdmBusinessRuleEntityJpaRoundtripTest.AUD_VER_테이블은_감사_카운터를_AUD_VER_에_쓰고_업무_VER_는_그대로다`; `MdmBusinessRuleEntityJpaRoundtripTest.MdmRuleRow_는_IdClass_복합_PK_로_저장_조회_왕복한다`; `MdmBusinessRuleEntityJpaRoundtripTest.MdmRuleSet_은_지정_PK_로_저장_조회_왕복한다` |
+| I19b | application-local-db.yml 에 contributor 추가 | KILLED | `MdmBusinessRuleEntityJpaRoundtripTest.SQLite_일시_컨버터는_local_프로파일에만_등록되고_Converter_어노테이션이_없다` |
+| I20a | MdmRuleIdIssuer 에 default 메서드 | KILLED | `MdmContractArchitectureTest.계약_인터페이스의_메서드는_모두_추상이다` |
+| I20b | contract.rule 에 DefinitionLookup 확장 인터페이스 | KILLED | `MdmContractArchitectureTest.계약_패키지는_엔진_타입에_의존하지_않는다` |
+| I21a | @Component DefaultRuleIdIssuer(정적 가드) | KILLED | `MdmRuleContractOnlyArchitectureTest.main_에_MdmRuleIdIssuer_구현_클래스가_없다` |
+| I21b | @Component DefaultRuleIdIssuer(런타임 가드) | KILLED | `MdmBusinessRuleMigrationTest.계약_전용_06_업무_실행_구현_빈이_없다` |
+| I21c | @Component DefinitionLookup 구현(런타임 가드) | KILLED | `MdmBusinessRuleMigrationTest.계약_전용_06_업무_실행_구현_빈이_없다` |
+| I21d | MdmRuleRepository 에 파생 쿼리 메서드 | KILLED | `MdmRuleContractOnlyArchitectureTest._06_리포지토리는_메서드를_선언하지_않는다` |
+| I22 | (동치 변이) 스텁의 rule() 인자를 바꿔 엔진 서명과 어긋나게 | KILLED | 컴파일 실패(`:lib:compileTestJava`, `@Override`/추상 메서드 미구현) |
+| I23a | MdmRuleIdIssuer.issue 의 count 인자 제거 | KILLED | 컴파일 실패(`:lib:compileTestJava`, `@Override`/추상 메서드 미구현) |
+| I23b | counterColumn 값 변경 | KILLED | `ContractStubCompileTest.룰_식별자_종류마다_TB_MDM_RULE_카운터_칼럼이_정해져_있다` |
+| I24a | MdmRuleDiffConventions.CELLS = "CELL" | KILLED | `ContractStubCompileTest.확정_검사_06_스텁이_row_id_키와_SEQ_CELLS_값_맵_관례를_따른다` |
+| I24b | MdmRuleConfirmCheckItem 에 RULE_REFERENCE 추가 | KILLED | `ContractStubCompileTest.확정_검사_항목은_넷이고_룰_참조_검사가_없으며_정의_출처는_둘이다` |
+| I25a | SQLite OWNER_ID 를 OWNER 로 개명(시나리오) | KILLED | `BusinessRuleVersionScenarioSqliteTest.R1_JPA_로_저장한_룰_버전을_공통_서비스가_확정하고_엔티티로_다시_읽는다`; `BusinessRuleVersionScenarioSqliteTest.R2_DRAFT_삭제는_그_버전의_변수와_행을_CASCADE_로_지운다`; `BusinessRuleVersionScenarioSqliteTest.R3_실제_TB_MDM_RULE_VER_에_네이티브_확정이_KST_초_단위_TEXT_로_쓴다` |
+| I25b | SQLite OWNER_ID 를 OWNER 로 개명(마이그레이션) | KILLED | `MdmBusinessRuleMigrationTest._06_샘플_데이터가_모든_제약을_통과한다`; `MdmBusinessRuleMigrationTest._8테이블_전부_생성되고_칼럼_목록이_순서까지_기대값과_같다` |
+| I25c | SQLite RULE_VER ROW_VERSION 기본값 제거 | KILLED | `MdmBusinessRuleMigrationTest.CHECK_가_위반을_제약_이름으로_거부한다`; `MdmBusinessRuleMigrationTest.FK_가_없는_부모를_거부하고_RECV_의_룰_NULL_은_통과시킨다`; `MdmBusinessRuleMigrationTest.JSON_CHECK_는_7칼럼에서_부정형을_거부하고_NULL_허용_칼럼만_NULL_을_통과시킨다` |
+
+합계 62건, 전부 KILLED(살아남은 변이 0). 불변 규칙 9~12 는 파리티 변이 P7·P8·P11·P12·P13 이 덮는다. 알려진 커버리지 갭: 규칙 22 의 엔진 파일 비서명 변경, 규칙 26(기대값 완화), 규칙 27(`MdmDomainReferenceSpi` 구현) — 오케스트레이터가 diff 로 확인했다(엔진·cactus·공통 버전 diff 0행, 기대값은 `assertEquals` 동등 비교 유지, `implements MdmDomainReferenceSpi` 0건).
+
+### B4. §3.3 MSSQL DDL 줄 단위 리뷰 체크리스트(Build 1회차)
+
+대상: `mssql/V8__create_mdm_business_rule.sql`(커밋 `3510743`). 줄 번호는 그 파일 기준이다.
+
+| # | 항목 | 결과 | 근거 |
+|---|---|---|---|
+| 1 | 두 파일의 테이블·칼럼을 줄 단위로 대응시켰다(칼럼 순서 동일) | ✓ | 테이블 시작 10·40·60·98·142·167·191·213행, SQLite 파일과 같은 순서. 자동 대조 P1·P2·P3 초록 |
+| 2 | 모든 문장이 `;` 로 끝나고 `GO` 가 없다 | ✓ | `;` 로 끝나는 문장 11개(테이블 8 + 인덱스 3), `GO` 0개. P15 가 `GO` 줄을 금지한다 |
+| 3 | 필터 인덱스 문법이 V3 `UX_TB_MDM_TERM_ABBR`(V3 58행)와 같은 모양이고, 필터 식에 비교만 있다 | ✓ | 140행 `WHERE VAR_KIND = 'RESULT'`, 165행 `WHERE ROW_KIND = 'NORMAL'`. `OR`·함수 없음 |
+| 4 | `UX_TB_MDM_RULE_VAR_NAME` 키 크기 ≤ 1,700바이트 | ✓ | `MARU_RULE_ID` 50 + `VER`(INT) 4 + `VAR_NAME` 1,000 = 1,054바이트(140행). `UX_TB_MDM_RULE_VAR_SEQ` 50+4+20+4=78, `UX_TB_MDM_RULE_ROW_SEQ` 50+4+4=58 |
+| 5 | CHECK 식이 자기 테이블 칼럼만 참조하고 함수는 `ISJSON` 뿐이며, 문자열 리터럴이 SQLite 와 글자까지 같다 | ✓ | CHECK 본문 grep: `ISJSON` 외 함수 없음. P7 이 JSON 외 CK 본문(리터럴 대소문자 포함)을 SQLite 와 비교한다(`'Equal'`·`'Expression'`·`'Value'` 동일) |
+| 6 | `[RESULT]` 인용이 칼럼 정의와 CHECK 양쪽에 있다 | ✓ | 221행(칼럼), 238행(CHECK 두 곳) |
+| 7 | `IDENTITY(1,1)` 칼럼에 DEFAULT 가 없고, CASCADE 경로가 각각 하나다 | ✓ | 214행 `RECV_ID BIGINT IDENTITY(1,1) NOT NULL`(DEFAULT 없음). CASCADE 는 127행(`RULE_VAR→RULE_VER`)·161행(`RULE_ROW→RULE_VER`) 둘뿐이고 `RULE_VER→RULE` 은 CASCADE 가 없어 다중 경로가 없다(규칙표 #14). P5 가 CASCADE 집합을 고정한다 |
+| 8 | 제약 이름이 128자 이하이고 V2~V4 이름과 겹치지 않는다 | ✓ | V8 제약·인덱스 이름 60개, 최장 38자. V2~V4(MSSQL)의 이름과 교집합 0 |
+| 9 | V2·V3 참조 칼럼과 타입·길이·콜레이션이 같다 | ✓ | `SOURCE_SYSTEM`·`SYSTEM_CODE` = `VARCHAR(20) COLLATE Latin1_General_100_BIN2`(V2 `SYSTEM_CODE` 와 같음), `RULE_VAR.DOMAIN_ID` = `BIGINT`(V3 `DOMAIN_ID BIGINT IDENTITY`). P13 초록 |
+
+### B5. Build 이탈(design.md 대비)
+
+1. **TDD 순서**: SQLite V8 을 테스트보다 먼저 썼다가, 실행 전에 옮겨 두고 빨강(14/14)을 확인한 뒤 되살렸다. 엔티티도 왕복 테스트보다 먼저 썼다. 왕복 테스트의 빨강은 D5 contributor 줄을 지운 실행으로 확인했고, 나머지 단언과 시나리오 R1~R4·런타임 가드는 변이 검증(B3)으로 빨강을 확인했다.
+2. **§6.2 생성자 기본값 보강**: §6.2 목록에 없던 `MdmRuleSet.status`(NOT NULL, DB 기본값 `'INUSE'`)를 생성자가 `"INUSE"` 로 채운다. JPA 는 모든 칼럼을 INSERT 하므로 DB 기본값이 적용되지 않는다. `MdmRuleVar(ruleId, ver, varId, varKind, seq)`·`MdmRuleRow(ruleId, ver, rowId, rowKind, seq, cells)`·`MdmRuleTestCase(ruleId, caseId, inputJson)`·`MdmRuleSet(setId, name, ruleIds)` 는 NOT NULL 칼럼을 생성자 인자로 받는다(§6.2 가 정하지 않은 모양).
+3. **JSON CHECK 이름 규칙 명확화**: §3.2 P10 은 `CK_{테이블}_{칼럼}_JSON` 이지만 §6.0 ⑥ 이름은 `CK_TB_MDM_RULE_TEST_CASE_INPUT_JSON`(접미사 겹침 없음)이다. §6.0 이름을 정본으로 보고 "칼럼 이름이 `_JSON` 으로 끝나면 접미사를 겹쳐 붙이지 않는다"로 구현했다(`MdmBusinessRuleExpectations.jsonCheckName`).
+4. **검사 강화**: §3.1-4·5 의 CHECK 거부는 예외 발생만이 아니라 SQLite 오류 문구의 제약 이름까지 단언한다(다른 CHECK 가 대신 막는 경우를 가른다). 파리티 파서는 V8 에 CREATE TABLE·CREATE UNIQUE INDEX 밖의 문장이 있으면 실패하고, P15 는 `GO` 줄과 백틱도 금지한다.
+5. **R1 세부**: 확정 apply_from 은 `2026-06-01 00:00:00`(v1 의 2026-01-01 보다 뒤, 시계 2026-06-20 09:08:07 이하 — 부모 INUSE 전이 조건 S22). 읽기는 트랜잭션 밖 리포지토리 `findById` 라 매번 새로 읽으므로 `entityManager.clear()` 를 부르지 않았다.
+6. **불변 규칙 22 변이는 동치 변이로 했다**: 엔진 main 소스는 수정 금지라 `DefinitionLookup.rule` 서명을 실제로 바꾸지 않고, 스텁 `rule()` 의 인자 타입을 바꿔 `@Override` 컴파일 실패를 확인했다(서명이 어긋나면 스텁이 깨진다는 같은 결합을 보인다).
+7. **`RuleDefinitionLookupStub.ruleSet()` 의 `ruleIds` 는 빈 목록**이다: JSON 파싱은 08-04 몫이라 스텁은 상태·ID 변환만 증명한다.
+
+### B6. D6 감사 시각 실측값
+
+`BusinessRuleVersionScenarioSqliteTest.R1` 표준 출력(2026-09-24): `U_AT raw={U_TYPE=text, U_AT=2026-06-20 09:08:07, C_TYPE=integer}`, 엔티티 `getUpdatedAt()` = `2026-06-20T09:08:07Z`, 시계(KST) = `2026-06-20T00:08:07Z`, **차이 +9.0시간**. 예외는 없다. 업무 일시(`applyFrom`·`applyTo`·`releasedAt`·`requestedAt`)는 정확히 같다(단언). F12 예상과 일치하며 고치지 않고 인계한다(§7 TSK-01-03 후속 행, decisions D-053).
+
+### B7. 검증 명령 결과
+
+오케스트레이터가 Build 게이트로 직접 실행한 결과(2026-09-24)다.
+
+| 명령 | 결과 |
+|---|---|
+| `cd src/backend && ./gradlew testAll --no-daemon --console=plain` | BUILD SUCCESSFUL, **1962 tests / 0 failures / 0 errors**(기준선 1878/0 대비 +84, 신규 실패 0). 집계는 state.json `count_cmd` |
+| `cd src/backend/mdm && ../gradlew :api:compileMssqlTestJava --no-daemon --rerun-tasks -x test` | BUILD SUCCESSFUL(강제 재컴파일, docker 호출 없음) |
+| `mssqlMigrationTest` | 실행하지 않음. 사용자 결정: 도커 금지로 MSSQL 실측 생략, DDL 리뷰로 대체(B4 체크리스트 + `MdmBusinessRuleDdlParityTest`) |
+| `/usr/bin/git diff --stat 78813e9 -- src/backend/maru-mdm-engine src/backend/cactus-core src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/version` | 출력 없음(다른 Task 산출물 불변) |
+| 변이 검증 | 62건 전부 KILLED(B3) |
