@@ -529,6 +529,13 @@ cd $W && /usr/bin/git checkout -- docs/mdm/tasks/TSK-01-02/screens/dma-mdmSample
 
 ---
 
+### D9 — (Build) TSK-04-03 의 `mdm-domainMng.spec.ts` `selectRow` 가 view 응답까지 기다리게 고친다
+- **질문**: Build 의 E2E 게이트(§3.7 7)에서 기존 스펙 `mdm-domainMng.spec.ts` E2~E6 가 새 DB 첫 실행마다 E3 미리보기("abc" → "표준 실패")에서 `-` 로 실패했다. 다른 Task 의 테스트를 고칠 것인가.
+- **선택지**: (1) 그 스펙의 `selectRow` 도우미만 고쳐, 클릭 전에 `waitForResponse(/domainMng/view)` 를 걸고 클릭 뒤 응답과 두 프레임 반영을 기다린 다음 기존 단언을 둔다(단언·기대값 불변). (2) shared `AgDataGrid` 를 바꿔 우회한다. (3) 스펙을 그대로 두고 실패를 보고한다.
+- **택한 것**: (1).
+- **근거**: 포커스 추적 실측 — 테스트의 행 클릭(pointerdown~click) 뒤 ag-grid 가 `rowClicked` 를 `LocalEventService.flushAsyncQueue` 로 약 19ms 늦게 보내고, 그 콜백(`handleRowClicked`)이 그리드 컨테이너로 포커스를 가져간 뒤 `view` 를 부른다. 그런데 `selectRow` 의 대기 조건(도메인명 값 = 행 이름)은 저장 직후 화면이 같은 행을 이미 열어 두어 **처음부터 참**이라, 테스트가 곧바로 미리보기 입력을 시작하고 늦게 온 view 응답이 입력값을 비운다. 즉 기존 스펙의 공허한 대기가 원인이다. 기본 경로의 `AgGridReact` prop 은 기점과 같지만(컴파일 결과 diff 확인) 렌더 타이밍이 조금 바뀌어 경쟁이 드러났다(기점 shared 로 단독 2/2 통과, 이 작업 shared 로 4/4 실패. 기점 shared 로 전체 실행은 돌리지 않았다). (1) 은 공허한 대기를 실제 왕복 대기로 바꾸는 **강화**이며 기대값을 완화하지 않는다. E5·E7 도 같은 도우미를 쓰므로 함께 안전해진다. 수정 뒤 새 DB 전체 실행 연속 2회가 모두 12 passed 다. (2) 는 원인이 스펙에 있어 맞지 않고, (3) 은 E2E 게이트를 통과하지 못한다. 근거 강도: 강(실측).
+- **반려되면 재작업할 방향**: `mdm-domainMng.spec.ts` 의 `selectRow` 변경만 되돌리고(커밋 `test(TSK-05-02): 도메인 관리 E2E 행 선택이 view 응답까지 기다린다`), TSK-04-03 쪽에서 같은 경쟁을 다른 방법(예: 저장 직후 재선택 생략)으로 푼다.
+
 ## 도커 금지로 생략한 검증
 
 - 금지 모드 출처: 워커 기본(DOCKER=allow 아님)
@@ -542,3 +549,29 @@ cd $W && /usr/bin/git checkout -- docs/mdm/tasks/TSK-01-02/screens/dma-mdmSample
 - TSK-05-03: `dmb.layout`(계산·규칙·코덱·사전 조회)을 재사용한다. NUM_FORMAT 형식은 D3, 거부 코드 L01~L11 과 05-03 몫(#2·#3·#4·#7)은 §6.2. `layoutMng` 한 벌은 add/add 충돌이 확정적이다(§2 겹침 표). `MdmDomainReferenceSpi(LAYOUT_ITEM)` 실 구현과 `VERSION` 증가는 05-03 몫이다(D7).
 - html "구간 종류 [미결]", AUTO(MSG_LENGTH)의 "세는 범위", SEND_TIME 날짜·시각 분할(html 미결 배지)은 이 작업도 저장하지 않는다(TSK-05-01 F24·D7 인계 유지).
 - CONST 값 칼럼은 MSSQL 에서 `VARCHAR(50) BIN2` 라 한글이 손실된다(TSK-05-01 D9·F28) — 상수 입력은 코드값(영문·숫자) 전제이며, 기능설계서에 그렇게 적는다. 화면 입력 검사로 막지는 않는다(05-03 유효 식 검사 몫).
+
+---
+
+## Build 이탈 (Build Phase 추기, 2026-09-24)
+
+| # | 이탈 | 사유 |
+|---|---|---|
+| B1 | `layoutMng search target=HEADER` 응답 행에 `EAI_CODE`·`items`(헤더 항목·기본값·파생값)를 더했다(§6.1) | 저장 전 새 전문에서 EAI 자동 부착·헤더 추가로 들어온 헤더의 [상수 편집]을 열려면 헤더 항목이 필요하다. view 는 저장된 전문만 준다. 새 액션을 만들지 않고(D8) 같은 target 의 응답만 넓혔다. `LayoutMngServiceSqliteTest.search_는_헤더_요약과_총_길이를_돌려준다` 가 단언한다 |
+| B2 | `LayoutFillKinds.Field` 의 `UNIT` 을 `TRANS_UNIT`·`UNIT_ITEM` 둘로 나누고 `key()`(행 키)를 더했다. `parse(String)` 추가 | §3.1 파라미터 테스트가 칸마다 field 이름을 단언한다(두 칸의 열림·닫힘은 같다) |
+| B3 | 새 클래스 `dmb.layout.LayoutRows`(응답 행 조립·초안→엔티티·길이 계산), `LayoutQueries` 에 JPQL `allStacks`·`itemCounts`·`allEais` 와 네이티브 `UNITS_SQL`(단위 목록, 예약어 없음 — `ALL_NATIVE_SQL` 에 넣어 정적 가드 대상) | 두 서비스가 같은 행 모양·계산을 쓴다. 단위 목록은 항목 상세의 전송 단위 선택용 |
+| B4 | 항목 SEQ 는 grid **행 순서**가 정본이다 — 서버는 요청의 `SEQ` 를 읽지 않고 1..n 으로 다시 매긴다(`LayoutItemDraft.fromRow(row, seq)`) | 드래그 순서가 곧 저장 순서다. 중복·누락 SEQ 로 PK 충돌이 나지 않는다 |
+| B5 | 헤더 레이아웃 행의 `EAI_CODE` 는 비워 둔다 — 헤더와 EAI 의 관계는 `TB_MDM_EAI.HEADER_LAYOUT_ID` 하나로 둔다 | 순환 FK(LAYOUT.EAI_CODE, EAI.HEADER_LAYOUT_ID) 때문에 신규 헤더를 먼저 넣고 EAI 를 upsert 해야 한다(D2). EAI 이름·인코딩·패딩은 요청에 값이 있을 때만 바꾼다 |
+| B6 | 화면 오른쪽에 쌓이는 그리드(사용 전문·헤더 항목·헤더 구성·본문 항목)는 shared `GridPanel` 대신 제목 + 높이를 준 `AgDataGrid` 로 둔다(domainMng 선례). 왼쪽 목록은 `GridPanel` 안의 감싸는 div 가 패널을 채운다 | `GridPanel` 은 `height:100%; contain: strict` 라 높이가 정해지지 않은 세로 흐름에서 0 으로 접히고, 그 안의 `.cm-data-grid` 는 절대 배치다(E2E 실측) |
+| B7 | 계산 표시 칸(항목명·도메인(파생)·설정·위치·재정의 요약)을 `render` 가 아니라 행 데이터 필드로 넣는다(`src/layout/item-rows.ts`). 헤더 구성의 위치 열 col-id 는 `POSITION` | ag-grid 는 필드 값이 바뀐 셀만 다시 그려, 필드 없는 `render` 칸은 상수 적용·드래그 뒤 갱신되지 않았다(E2E L5 실측) |
+| B8 | shared `AgDataGrid`: `resolveRowDrag()` 를 export 하고, `onRowOrderChange` 가 없으면 hook·핸들러를 만들지 않는다. 기본 동작 불변은 shared `tests/unit/grid-row-drag.unit.test.ts` 가 단언한다(I22 의 알려진 갭을 덮음) | shared 에는 `test` 스크립트가 없어 `pnpm --filter @dk-oasis/shared test` 대신 `test:unit`(vitest `tests/unit`)을 돌렸다 — 158 passed. 게이트 판정에는 넣지 않는다 |
+| B9 | 테스트 추가: headerMng `page-render.test.ts`(목록·빈 상태·헤더 길이 즉시 계산·영향도), SQLite `화면이_보낸_OFFSET_LENGTH_는_무시하고_다시_계산한다`(두 서비스), `view_는_전문_레이아웃을_열지_않는다`, `search_HEADER_…`, `fill_kind_가_없거나_모르는_값이면_L03…`, `칸_행렬은_F10_표와_같다`, `이슈는_행_순서대로_모두_모은다`. `LayoutTestSupport` 는 M201 한 벌마다 새 EAI 코드를 쓴다(한 클래스가 DB 하나를 공유) | 변이 I4③·I11 을 단위·vitest 로 잡기 위해. page-render 두 파일은 화면 파일보다 먼저 빨강을 확인하지 못했다(보고에 올린다) — 민감도는 변이 I11·I20 으로 보였다 |
+| B10 | Java 테스트 이름 `50자를_넘지_않는다` → `형식_문자열은_50자를_넘지_않는다` | Java 식별자는 숫자로 시작할 수 없다 |
+| B11 | TSK-04-03 `mdm-domainMng.spec.ts` 의 `selectRow` 도우미를 view 응답 대기로 강화 | D9 |
+| B12 | E2E 스크린샷은 12장이다(§3.5 표에 적은 이름 전부) | §3.5 표 |
+
+## Build 기록 (실측)
+
+- **알 수 없는 grid**: `LayoutOasisFlowTest.전문_save_에_헤더_항목_grid_를_끼워_보내도_헤더는_바뀌지_않는다` — OASIS 는 모르는 grid `headerItems` 를 무시했다(`meta.success=true`). 헤더 행·항목(DEFAULT_VALUE `B0`, LENGTH 4)은 바뀌지 않았다. 변이 I8③(save 에 5번째 인자 `headerItems` 를 더해 반영)은 OASIS 가 그 메서드를 골라 이 테스트를 빨갛게 했다.
+- **E2E**: §3.7 절차(포트 18521·18596·15521)로 새 DB 전체 실행을 연속 2회 돌려 모두 12 passed 였다(domainMng 3·headerMng 2·layoutMng 2·sample 1·shell-rbac 4). D9 이전에는 domainMng E2 가 새 DB 첫 실행에서 실패했다.
+- **BPMN**: `bpmn-tool@1.3.0 create`·`validate`(npx) — 유효, 경고 1(actionGateway default flow 미설정, domainMng 와 같다). `check_oasis_contract.py --module mdm` ERROR 0.
+- **MSSQL**: `LayoutQueriesMssqlTest` 는 `:api:compileMssqlTestJava` 로 컴파일만 확인했다(도커 금지).
