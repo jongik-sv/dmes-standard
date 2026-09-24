@@ -760,6 +760,15 @@ lsof -tiTCP:18203 -sTCP:LISTEN | xargs -r kill
 - **사용자 결정: 도커 금지로 MSSQL 실측 생략** — `mssqlMigrationTest`(Testcontainers, docker 필요)는
   시스템 부하 문제로 이후 어디서도 실행하지 않는다. 대체로 sqlite 쪽 testAll 통과 + 아래 "MSSQL/SQLite
   방언 대조" 표로 V5 두 방언 파일의 동등성을 리뷰로 확인한다.
+- **origin/dev 2차 머지(TSK-08-01 V8 포함)**: 팀장 지시로 origin/dev 를 다시 조회해 보니 그 사이
+  TSK-08-01(업무기준 공유 계약, `V8__create_mdm_business_rule.sql`)이 추가로 머지돼 있었다.
+  `merge --no-ff`(커밋 `4eb982a`)로 반영하며 같은 4개 파일에서 다시 충돌이 났다 —
+  `MdmSharedContractMigrationTest`·`MdmMssqlMigrationTest`·`MdmInterfaceLayoutMssqlMigrationTest`·
+  `MdmTermDomainColumnMssqlMigrationTest` 의 버전 집합을 `{1,2,3,4,5}`→`{1,2,3,4,5,8}` 로 갱신해
+  해소했다(V6·V7 은 다른 병렬 Task 가 아직 dev 에 머지하지 않아 존재하지 않는다 — Flyway 는 번호 연속을
+  요구하지 않으므로 문제 없음). `docs/mdm/decisions.md`·`naming-dialect-rules.md` 도 dev 쪽 변경이
+  자동 병합됐다(충돌 없음). 이 작업 소유 파일(unitMng/termMng 서비스·화면·V5 마이그레이션)에는 영향이
+  없다 — TSK-08-01 은 업무기준(03 영역과 무관한 새 04 영역) 전용이라 겹치는 코드가 없다.
 
   **MSSQL/SQLite 방언 대조 — `V5__term_abbr_index_relax.sql`**(`diff -y` 실측, 실행문 2줄만 존재)
 
