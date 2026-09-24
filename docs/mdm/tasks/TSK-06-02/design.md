@@ -36,7 +36,7 @@
 | F18 | 오류 코드(`MdmErrorCode`, `MdmErrors.of(code)` / `MdmErrors.of(code, detail, List.of())` → `BusinessException`, message = "기본문구: detail"): MDM001 rv/동시수정 "다른 사용자가 수정했습니다. 다시 불러오세요", MDM002 DRAFT 아님, MDM003 소유자 아님, MDM004 이미 선점, MDM005 넘기기 대상 담당자 아님, MDM006 "미적용 버전이 있어 새 버전을 만들 수 없습니다", MDM007 "미적용 버전이 2개입니다. 하나를 삭제하세요", MDM009 "허용되지 않는 상태 전이입니다", MDM011 "마루 코드·마루 데이터에 같은 ID 가 있습니다", MDM013 "담당자 역할이 있어야 할 수 있습니다", MDM021 "입력값이 올바르지 않습니다". **BPMN serviceTask 안에서 던지면 화면에는 `meta.message` 만 오고 `meta.code="S001"`, `errors[]` 는 빈다** → 화면·E2E 는 문구의 앞부분으로 가린다 | `MdmErrorCode.java:14-45`, `MdmErrors.java`, TSK-04-04 F12 |
 | F19 | 현재 사용자 `MdmCurrentUser{ userId(); roleIds() /*ROLE_ 접두 제거*/ }`(운영 `CactusMdmCurrentUser`). 역할 가드 선례 `MdmStdAdminGuard.requireStdAdmin()`(MDM016). 담당자 가드는 `VersionPreconditions.requireSteward` 뿐이고 package-private | `common/security/*` |
 | F20 | 시계: `MdmClockConfig.mdmClock()` = `Clock.system(KST)` 빈, `MdmClockConfig.KST`. 공통 서비스는 `LocalDateTime.now(clock).truncatedTo(SECONDS)` | `MdmClockConfig.java` |
-| F21 | **권한**: dmc 는 `MDM_STD_ADMIN→PERM_MDM_READ`, `MDM_STEWARD→PERM_MDM_CONFIRM`(dma 와 반대). E2E·HTTP 시험은 **담당자(`e2e_mdm_steward`, 역할 헤더 `MDM_STEWARD`)** 로 돈다. BFF 는 URL `module/serviceId/action` 키로 403 을 내며 FE 쪽 액션 화이트리스트는 없다. `MdmActions` 는 13개이고 `SecurityScreenContractTest` 가 "13개, lock·unlock·handover 없음"을 단언한다. ADR-0003 D5 가 소유권 액션 권장 이름 `lock/unlock/handover` 를 적었다. **팀장 확정(D-TSK-06-02-1): 이름 확정과 `allActions`·`PERM_MDM_EDIT`·`MdmActions`·seed-check 의 소유권 액션 부분은 TSK-08-02 몫이다.** 그 전에는 BFF 가 담당자의 `codeEdit/lock|unlock|handover` 를 403 으로 막고 화면 버튼은 `canDoButton` 으로 비활성이다(SYSADMIN 도 PERM_ALL 에 없어 같다). mdm 서버를 직접 부르는 HTTP 테스트는 BFF 를 거치지 않으므로 영향이 없다 | `MdmPermissions.java`, `SecurityScreenContractTest.java:65-74`, `DataInitializer.java:297-338,980-995`, ADR-0003 D5 |
+| F21 | **권한**: dmc 는 `MDM_STD_ADMIN→PERM_MDM_READ`, `MDM_STEWARD→PERM_MDM_CONFIRM`(dma 와 반대). E2E·HTTP 시험은 **담당자(`e2e_mdm_steward`, 역할 헤더 `MDM_STEWARD`)** 로 돈다. BFF 는 URL `module/serviceId/action` 키로 403 을 내며 FE 쪽 액션 화이트리스트는 없다. `MdmActions` 는 13개이고 `SecurityScreenContractTest` 가 "13개, lock·unlock·handover 없음"을 단언한다. ADR-0003 D5 가 소유권 액션 권장 이름 `lock/unlock/handover` 를 적었다. **팀장 확정(D-075): 이름 확정과 `allActions`·`PERM_MDM_EDIT`·`MdmActions`·seed-check 의 소유권 액션 부분은 TSK-08-02 몫이다.** 그 전에는 BFF 가 담당자의 `codeEdit/lock|unlock|handover` 를 403 으로 막고 화면 버튼은 `canDoButton` 으로 비활성이다(SYSADMIN 도 PERM_ALL 에 없어 같다). mdm 서버를 직접 부르는 HTTP 테스트는 BFF 를 거치지 않으므로 영향이 없다 | `MdmPermissions.java`, `SecurityScreenContractTest.java:65-74`, `DataInitializer.java:297-338,980-995`, ADR-0003 D5 |
 
 ### 0.2 서비스·BPMN·화면 관례(`dma` 선례)
 
@@ -62,7 +62,7 @@
 
 두 화면은 `dma` 선례(OASIS BPMN 액션 라우팅 + `@Service` 빈 + `MdmPageLayout`)를 그대로 복제하고, 버전 상태는 TSK-01-03 공통 서비스(`VersionWriteGuard`·`DraftOwnershipService`·`VersionStateService`)에 맡긴다. 공통 서비스가 하지 않는 일(채번·새 버전 INSERT·BASE 생성·복원 채우기·DRAFT 삭제 선분 복구·DEPRECATED 전이·CREATED→INUSE 쓰기 경로)만 새로 만든다. 04 영역에 공통인 부품(삭제 훅·선분 조작·조회 모델·엔진 조회 구현·ID 이름 공간)은 `com.dongkuk.dmes.mdm.common.mastercode` 에 두어 06-03·06-04·06-05 가 재사용하게 하고, 화면 서비스는 얇게 둔다.
 
-동시에 도는 형제 Task 와 부딪히지 않게 세 가지를 지킨다. 첫째, `MasterCodeSegmentService` 구현 클래스는 만들지 않는다 — 06-03 도 같은 인터페이스를 구현하므로 add/add 충돌이 난다. 06-02 몫(`createBaseCategory`·`fillFrom`)은 같은 의미·시그니처의 공개 메서드를 가진 `MasterCodeVersionSegments` 에 두고, 뒤에 구현 클래스를 만드는 Task 가 위임한다(D6). 둘째, 공유 등록 파일(DataInitializer·page-registry·tsup·셸 index)은 줄을 **추가만** 한다. 셋째, DRAFT 소유권 액션의 권한 등록(`MdmActions`·`MdmPermissions`·시드·계약 테스트·seed-check)은 **하지 않는다** — 팀장 확정으로 TSK-08-02 몫이다(D-TSK-06-02-1). 이 Task 의 BPMN·화면은 ADR-0003 D5 권장 이름 `lock/unlock/handover` 를 문자열로만 참조하고, BFF 권한이 필요한 동작(화면의 선점·해제·넘기기 버튼)은 **08-02 머지 뒤 연결**된다. 넷째, 다른 Task 가 재사용할 공용 부품 두 개(`MdmStewardGuard`, 시나리오 테스트 설정의 BeanFactoryPostProcessor)는 이 Task 가 만든다(팀장 확정 D-TSK-06-02-2, §10).
+동시에 도는 형제 Task 와 부딪히지 않게 세 가지를 지킨다. 첫째, `MasterCodeSegmentService` 구현 클래스는 만들지 않는다 — 06-03 도 같은 인터페이스를 구현하므로 add/add 충돌이 난다. 06-02 몫(`createBaseCategory`·`fillFrom`)은 같은 의미·시그니처의 공개 메서드를 가진 `MasterCodeVersionSegments` 에 두고, 뒤에 구현 클래스를 만드는 Task 가 위임한다(D6). 둘째, 공유 등록 파일(DataInitializer·page-registry·tsup·셸 index)은 줄을 **추가만** 한다. 셋째, DRAFT 소유권 액션의 권한 등록(`MdmActions`·`MdmPermissions`·시드·계약 테스트·seed-check)은 **하지 않는다** — 팀장 확정으로 TSK-08-02 몫이다(D-075). 이 Task 의 BPMN·화면은 ADR-0003 D5 권장 이름 `lock/unlock/handover` 를 문자열로만 참조하고, BFF 권한이 필요한 동작(화면의 선점·해제·넘기기 버튼)은 **08-02 머지 뒤 연결**된다. 넷째, 다른 Task 가 재사용할 공용 부품 두 개(`MdmStewardGuard`, 시나리오 테스트 설정의 BeanFactoryPostProcessor)는 이 Task 가 만든다(팀장 확정 D-076, §10).
 
 수용 기준이 기대는 두 대상은 지금 운영에 없다. TB_MDM_DATA ID 중복은 `MdmDataRepository.existsById` 로 직접 보고(운영 MASTER_DATA 이름 공간 빈을 등록하면 columnMng 동작이 뒤집힌다, D4), CODE_LIST·MASTER 판정은 운영 `CodeLookup` 빈을 등록하지 않은 채 DB 를 읽는 `MdmCodeLookup` 구현체를 실제 `DefaultCodeResolver` 에 붙여 시험한다(D5). 결재·배포·EXTERNAL 등록은 PRD §2 규칙 7 로 만들지 않는다 — 목록의 "배포 대상 수" 열, 배포 대상 카드, 결재자 열, 등록 화면의 배포 대상·원천 선택은 두지 않는다(`screens/README.md` §6).
 
@@ -135,9 +135,9 @@
 | a·b | `src/frontend/m-mcm/lib/generated/page-registry.ts` | 손으로 고치지 않고 `pnpm generate:page-registry` 재생성본을 커밋 |
 | a·b | `docs/guide/design/identifier-dictionary/01-modules-and-screens.md` §A.3.2 표 | `columnMng`·`termRegPop` 행 뒤에 `codeMng`·`codeEdit` 행 추가(`— (To-Be only) | mdm | dmc | <id> | 2026-09-24 | … TSK-06-02. 기능설계서 1종(docs/mdm/screens/<id>/)`) |
 | c | `docs/mdm/naming-dialect-rules.md` #17 | SQLite 쪽 `확인(TSK-06-02 실측)` + 관찰 한 줄(Java 채번, 범위 비교는 Java, 등호 바인딩은 `setScale(3)`), MSSQL 쪽 `실측 필요 → 머지 뒤 dialect_check(MasterCodeNativeSqlMssqlTest)` |
-| c | `docs/mdm/decisions.md` 끝 | 임시 ID 블록 2개 추가(§6.14): `D-TSK-06-02-3`(운영 CodeLookup 미등록, D5), `D-TSK-06-02-4`(MasterCodeSegmentService 구현 분할, D6). `D-TSK-06-02-1`·`-2`(팀장 확정)는 Design 이 이미 적었다. 전역 번호를 매기지 않는다 |
+| c | `docs/mdm/decisions.md` 끝 | 임시 ID 블록 2개 추가(§6.14): `D-077`(운영 CodeLookup 미등록, D5), `D-078`(MasterCodeSegmentService 구현 분할, D6). `D-075`·`-2`(팀장 확정)는 Design 이 이미 적었다. 전역 번호를 매기지 않는다 |
 
-**수정하지 않는 것(팀장 확정 D-TSK-06-02-1 — TSK-08-02 몫)**: `$LM/contract/security/MdmActions.java`(LOCK·UNLOCK·HANDOVER 상수 추가 안 함), `$LM/contract/security/MdmPermissions.java`(`EDIT_ACTIONS`·`CONFIRM_ACTIONS`), `$DI` 의 `seedMcmSecRbac` `allActions`·`seedMdmRbac` `editActions`(줄 추가도 안 함), `ensureMdmPermActions` 류 보정 메서드(만들지 않음), `$LT/contract/security/SecurityScreenContractTest.java`, `src/frontend/e2e/fixtures/mdm-rbac-seed-check.expected.txt`.
+**수정하지 않는 것(팀장 확정 D-075 — TSK-08-02 몫)**: `$LM/contract/security/MdmActions.java`(LOCK·UNLOCK·HANDOVER 상수 추가 안 함), `$LM/contract/security/MdmPermissions.java`(`EDIT_ACTIONS`·`CONFIRM_ACTIONS`), `$DI` 의 `seedMcmSecRbac` `allActions`·`seedMdmRbac` `editActions`(줄 추가도 안 함), `ensureMdmPermActions` 류 보정 메서드(만들지 않음), `$LT/contract/security/SecurityScreenContractTest.java`, `src/frontend/e2e/fixtures/mdm-rbac-seed-check.expected.txt`.
 
 **수정하지 않는 것(그 밖)**: `common/version/*`(재사용만), `contract/mastercode/*`·`contract/category/*`·`contract/version/*`, 엔티티·리포지토리(파생 쿼리도 더하지 않는다 — 06-03 과 같은 파일 충돌 회피, 조회는 §6.4 네이티브), Flyway, `MdmOasisActionVocabularyTest`(dma 파일만 본다), `DmaBpmnActionTest`, `DmaTestSupport`(import 해서 재사용), `mdm-shell-rbac-smoke.spec.ts`(새 leaf 로 깨지지 않음), `UnresolvedStewardDirectory`(D3), `MdmEngineConfig`(D5).
 
@@ -169,7 +169,7 @@
 | `MasterCodeVersionSummaryTest` | S1 구간 안 RELEASED→현재 "v1.001", S2 RELEASED 가 모두 미래→"배포 대기 v1.000", S3 RELEASED 없음→"미확정", S4 `apply_from==now` 는 적용됨(미적용 아님, 현재 버전), S5 DRAFT·미래 RELEASED 는 미적용, CANCELLED 는 아님, S6 저장 CREATED + 적용된 RELEASED → 계산 상태 INUSE, 저장 DEPRECATED 는 그대로 (I17·I18·I5 경계) |
 | `CodeMngServiceSqliteTest` | R1 정상 등록 → CODE(CREATED, SOURCE_KIND='MDM', 이름·설명·LVL_CNT) + VER(1.000, DRAFT, MAJOR, OWNER_ID='stw1', ROW_VERSION=0, RESTORED_FROM NULL, APPLY_* NULL) + CATE(BASE, FROM 1.000, TO 9999, REGEX, '.*', CODE) 정확히 3행, 결과 `ver="1.000"`·`rowVersion=0`·`ownerId="stw1"`(I7·I11). R2 ID 제약 거부(MDM021): `"proc_cd"`, `"PROC.CD"`, `"PROC CD"`, `"PROC,CD"`, `"1PROC"`, 51자, `""`/null — 그리고 어느 경우도 행이 생기지 않음 / `"PROC_CD"`·`"A1_B2"` 통과(I9). R3 TB_MDM_CODE 중복 → MDM011, R4 **TB_MDM_DATA 에만 같은 ID** → MDM011, 두 경우 행 수 불변(I10). R5 `sourceKind="EXTERNAL"`·`"XYZ"` → MDM021, `null`·`"MDM"` → 통과(I8). R6 역할 `MDM_STD_ADMIN` 만·`SYSADMIN` 만 → MDM013, 행 없음(I12). R7 이름 공백 → MDM021, `lvlCnt=6`·`-1` → MDM021. R8 search: 코드 3개 seed(RELEASED 과거 적용 1.000+1.001 / 미래 RELEASED 만 / DRAFT 만) → 행별 `currentVerLabel` "v1.001" / "배포 대기 v1.000" / "미확정", `unappliedLabel` "없음" / "v1.000 RELEASED" / "v1.000 DRAFT", 계산 `status`(CREATED 저장 + 적용 RELEASED → "INUSE") — 그리고 search 뒤 DB STATUS 는 여전히 CREATED(I17·I18). R9 keyword(ID·이름 부분일치)·status 필터(계산 상태 기준), 결과 0건이면 `rows=[]`·`totalCount=0` |
 | `DmcOasisHttpTest` | H1 역할 헤더 `MDM_STEWARD` 로 `POST /oasis/codeMng/reg` 성공 → `meta.success=true`, `data.result.ver="1.000"`, DB 3행, `C_USR_ID`·`OWNER_ID` = 헤더 사용자. H2 **트랜잭션 경계**: SQLite 트리거 `CREATE TRIGGER … BEFORE INSERT ON TB_MDM_CODE_CATE BEGIN SELECT RAISE(ABORT,'x'); END` 뒤 reg → `meta.success=false`, TB_MDM_CODE·TB_MDM_CODE_VER 행 0(I7). H3 `MDM_STD_ADMIN` 헤더 → `meta.message` 가 MDM013 기본 문구로 시작. H4 `codeEdit/lock`·`codeEdit/unlock` 라우팅(조각 c): 등록 → unlock → `ownerId` null → lock → 헤더 사용자 |
-| `DmcCodeBpmnActionTest` | 스프링 없이 두 BPMN 을 DOM 파싱: process id, `actionGateway` 분기 이름 집합이 **정확히** §6.1 표와 같고, 각 분기의 serviceTask `camunda:class`·`method`·`dto`·`output=result` 가 표와 같고, `grid` 속성 없음, 모든 액션이 `MdmActions` 상수 집합(리플렉션, 하드코딩 13개 아님) ∪ 테스트 로컬 상수 `OWNERSHIP_ACTIONS = Set.of("lock","unlock","handover")` 안, READ 액션(`search`,`view`)만 `MdmPermissions.READ_ACTIONS` 에 있고 소유권 3개를 뺀 나머지는 `EDIT_ACTIONS` 에 있음(I21). 로컬 상수에는 "08-02 가 MdmActions 에 더하면 그 상수로 바꾼다(D-TSK-06-02-1)" 주석 |
+| `DmcCodeBpmnActionTest` | 스프링 없이 두 BPMN 을 DOM 파싱: process id, `actionGateway` 분기 이름 집합이 **정확히** §6.1 표와 같고, 각 분기의 serviceTask `camunda:class`·`method`·`dto`·`output=result` 가 표와 같고, `grid` 속성 없음, 모든 액션이 `MdmActions` 상수 집합(리플렉션, 하드코딩 13개 아님) ∪ 테스트 로컬 상수 `OWNERSHIP_ACTIONS = Set.of("lock","unlock","handover")` 안, READ 액션(`search`,`view`)만 `MdmPermissions.READ_ACTIONS` 에 있고 소유권 3개를 뺀 나머지는 `EDIT_ACTIONS` 에 있음(I21). 로컬 상수에는 "08-02 가 MdmActions 에 더하면 그 상수로 바꾼다(D-075)" 주석 |
 | `CodeEditHeaderSqliteTest` | E1 view: 헤더·라벨 10개·버전 목록(ver 내림차순, `verLabel`, `restoredLabel`="v1.000 복원")·flags·`me`·`steward`. E2 saveHeader 정상 → 이름·설명·LVL_CNT·라벨 저장, 공백 라벨→NULL, 응답 `auditVer` +1. E3 `auditVer` 불일치 → MDM001(I19). E4 lvl_cnt 줄이기: 열린 ITEM 행 LVL3 값 있음 → 3→2 거부(MDM021), 값이 현재 적용 버전 이전에 닫힌 행에만 있으면 허용, DRAFT 에서 닫힌(to_ver=DRAFT) 행에 값이 있으면 거부, 늘리기는 항상 허용(I19). E5 미적용 2개(DRAFT 1.001·1.002 seed) → saveHeader MDM007, deprecate MDM007(I6). E6 미적용 1개 → deprecate MDM009, saveHeader 는 허용. E7 미적용 0개(RELEASED 과거) → deprecate → STATUS='DEPRECATED', ITEM·CATE·VER 행 수 불변, 다시 deprecate → MDM009, 이후 새 버전 → MDM009(I13, 조각 c 에서). E8 버전 0개인 CREATED 코드 deprecate 허용(D9). E9 EXTERNAL 코드(seed) → saveHeader·deprecate MDM021(I8). E10 저장 CREATED + 적용 RELEASED 인 코드에 saveHeader → 같은 트랜잭션에서 STATUS='INUSE' 저장(I18). E11 역할 없음 → MDM013(I12) |
 | `MasterCodeDeprecateEngineSqliteTest` | G1 코드 seed(1.000 RELEASED 과거, ITEM A·B, BASE) → `new DefaultCodeResolver(new MdmCodeLookup(…), CodeEffLookup.NONE)`: 폐기 **전** `codeList(id,"BASE",now)` = [A,B](대조군), `isMember(id,"BASE","A",now)=true`. G2 `codeEditService.deprecate` 후 같은 resolver: `codeList=[]`, `isMember(...,"A",now)=true`, `isMember(...,"A",2026-01-02)=true`(과거 기준일), `selectVersion` 값 유지(I16) |
 | `CodeEditVersionSqliteTest` | V1 등록 직후 새 버전(빈) → MDM006(DRAFT 미적용)(I5). V2 1.000 RELEASED(과거) + CANCELLED 1.001 seed → major=2.000·minor=1.002(CANCELLED 포함), 새 VER 행 DRAFT·`VER_KIND`·`OWNER_ID='stw1'`·`ROW_VERSION=0`·`RESTORED_FROM` NULL, 응답 `rowVersion=0`(I1·I2·I11). V3 max=1.999 → minor MDM021("major 를 올리십시오" 포함), major 는 2.000(I2). V4 미래 RELEASED 1.001 있음 → MDM006(I5). V5 미적용 2개(각자 소유) → 새 버전 MDM006, lock·unlock·handover MDM007, deleteDraft(소유자) 성공 → 남은 미적용 1개, 이제 unlock 허용(I6). V6 버전 0개(1.000 DRAFT 삭제 뒤) → minor MDM021, major → 1.000 + BASE 재생성(I4). V7 DEPRECATED → 새 버전 MDM009. V8 소유권: 등록자 unlock → owner NULL·rv 1, 다른 담당자 `stw2` lock → owner stw2·rv 2, stw1 lock → MDM004, stw2 handover("stw1") → MDM005(운영 디렉터리, D3), 가짜 디렉터리(테스트 `@Primary MdmStewardDirectory` stub 이 stw1 을 담당자로) → owner stw1, 응답 view 의 owner·rowVersion 이 새 값(I22·I23). V9 rv 불일치 → MDM001, 소유자 아닌 사람 deleteDraft → MDM003, 역할 없음(`MDM_STD_ADMIN`) lock·unlock·handover·delete·create → MDM013(I12). V10 확정 이동은 서버 액션이 없다(화면 이동만) |
@@ -225,7 +225,7 @@ Build·Verify 는 §5 각 행의 "변이 예" 를 하나씩 넣어 빨강을 확
 | AC3 | 포털 메뉴에서 화면이 열리고 e2e `mdm-codeMng.spec.ts` 통과 | E2E M1~M4(스모크 넷), 스크린샷 3장 |
 | AC4 | 등록은 MDM 원천만 받는다 | R5(EXTERNAL·기타 → MDM021, 저장값 'MDM'), E9(EXTERNAL 코드 쓰기 거부), 화면에 원천 선택 없음(code-mng-page 테스트) |
 | AC5 | 폐기 후 CODE_LIST 에서 숨고 MASTER 판정은 유지 | `MasterCodeDeprecateEngineSqliteTest` G1(폐기 전 목록 있음 대조)·G2(폐기 후 `codeList=[]`, `isMember=true`) — 실제 `DefaultCodeResolver` + DB 를 읽는 `MdmCodeLookup`(운영 빈 미등록, D5), E7(행 보존) |
-| AC6 | 포털 메뉴에서 화면이 열리고 e2e `mdm-codeEdit.spec.ts` 통과 | E2E E1~E4(스모크 넷), 스크린샷 4장. **한계**: 선점·해제·넘기기 버튼은 권한 시드(TSK-08-02 몫, D-TSK-06-02-1)가 없어 08-02 머지 전에는 브라우저에서 막힌다 — 이 스펙은 그 버튼을 누르지 않고, 동작은 V8·V9·H4·version-buttons 로 확인한다(08-02 머지 뒤 연결) |
+| AC6 | 포털 메뉴에서 화면이 열리고 e2e `mdm-codeEdit.spec.ts` 통과 | E2E E1~E4(스모크 넷), 스크린샷 4장. **한계**: 선점·해제·넘기기 버튼은 권한 시드(TSK-08-02 몫, D-075)가 없어 08-02 머지 전에는 브라우저에서 막힌다 — 이 스펙은 그 버튼을 누르지 않고, 동작은 V8·V9·H4·version-buttons 로 확인한다(08-02 머지 뒤 연결) |
 | AC7 | 미적용 버전이 있으면 새 버전 거부, 2개면 DRAFT 삭제만 허용 | V1·V4(MDM006), V5(2개: 새 버전 MDM006, deleteDraft 성공), E5(2개: saveHeader·deprecate MDM007), V5(2개: lock·unlock·handover MDM007 — 서비스 테스트. 브라우저 선점·해제는 08-02 머지 뒤 연결), `version-buttons.test.ts`(2개면 삭제만) |
 | AC8 | 복원 diff 가 코드·카테고리·CATE_ITEM 모두 채운다 | `MasterCodeRestoreSqliteTest` P1(복원 결과 = 원본 모습, 세 표)·P2(diff 에 세 표 모두, 같은 키 없음) |
 
@@ -260,7 +260,7 @@ Build·Verify 는 §5 각 행의 "변이 예" 를 하나씩 넣어 빨강을 확
 | I21 | BPMN 액션↔메서드 표(§6.1)가 정확하다. 모든 액션 ∈ `MdmActions`, READ 액션은 `search`·`view` 뿐 | `DmcCodeBpmnActionTest` | 분기 이름 오타, save 를 READ 로 |
 | I22 | 소유권·삭제 액션은 공통 서비스에 **행위자 = `MdmCurrentUser.userId()`** 를 넘긴다(요청의 사용자 ID 를 행위자로 쓰지 않음; 요청에서 받는 것은 `newOwnerId` 뿐) | V8·V9 | 요청 파라미터를 행위자로 |
 | I23 | 공통 서비스 호출 뒤의 응답은 §6.4 네이티브 조회(`flush` 뒤)로 만든다 — 이미 로드한 `MdmCodeVer` 엔티티로 만들지 않는다(F11) | V8(lock 뒤 owner·rv 가 새 값) | lock 전에 엔티티를 로드해 응답에 사용 |
-| I24 | 시드: `codeMng`·`codeEdit` leaf 는 `dmc` 아래, OBJECT·SYSADMIN PERM_ALL·`seedMdmObjectRbac(…,"dmc")`. **이 Task 는 소유권 액션 권한(`MdmActions`·`MdmPermissions`·`allActions`·`editActions`·seed-check)을 고치지 않는다**(D-TSK-06-02-1) | seed-check 대조가 기대 파일 **무수정**으로 통과(§9 5단계), `SecurityScreenContractTest` 무수정 통과, E2E M1·E1(메뉴) | leaf 시드 누락 → M1 실패. 소유권 액션을 공유 계약에 추가 → `SecurityScreenContractTest` 빨강 |
+| I24 | 시드: `codeMng`·`codeEdit` leaf 는 `dmc` 아래, OBJECT·SYSADMIN PERM_ALL·`seedMdmObjectRbac(…,"dmc")`. **이 Task 는 소유권 액션 권한(`MdmActions`·`MdmPermissions`·`allActions`·`editActions`·seed-check)을 고치지 않는다**(D-075) | seed-check 대조가 기대 파일 **무수정**으로 통과(§9 5단계), `SecurityScreenContractTest` 무수정 통과, E2E M1·E1(메뉴) | leaf 시드 누락 → M1 실패. 소유권 액션을 공유 계약에 추가 → `SecurityScreenContractTest` 빨강 |
 | I25 | 화면 버튼 매트릭스(§6.12 표) | `version-buttons.test.ts` | 미적용 있을 때 새버전 활성, 2개일 때 확정 이동 활성 |
 | I26 | E2E 스모크 넷 두 스펙 | §3.4, 전체 스위트 | 메뉴 이름·leaf 시드 누락, 빈 상태 문구 |
 | I27 | 화면 이동은 `openMdmPage(componentPath, params)` 한 경로(§6.10): pageId = `mdm:` + componentPath, params 는 한 번만 소비 | page-handoff 테스트 | pageId 접두 누락, 소비 뒤 삭제 안 함 |
@@ -284,7 +284,7 @@ Build·Verify 는 §5 각 행의 "변이 예" 를 하나씩 넣어 빨강을 확
 | | `reg`(c) | `createVersion` | `CodeVersionCreateRequest` | `CodeEditView` | EDIT |
 | | `restore`(c) | `restoreVersion` | `CodeVersionRestoreRequest` | `CodeEditView` | EDIT |
 | | `delete`(c) | `deleteDraft` | `CodeDraftRequest` | `CodeEditView` | EDIT |
-| | `lock`(c) | `acquire` | `CodeDraftRequest` | `CodeEditView` | 08-02 머지 뒤 연결(D-TSK-06-02-1) |
+| | `lock`(c) | `acquire` | `CodeDraftRequest` | `CodeEditView` | 08-02 머지 뒤 연결(D-075) |
 | | `unlock`(c) | `release` | `CodeDraftRequest` | `CodeEditView` | 08-02 머지 뒤 연결 |
 | | `handover`(c) | `handover` | `CodeDraftRequest` | `CodeEditView` | 08-02 머지 뒤 연결 |
 
@@ -454,7 +454,7 @@ static BeanFactoryPostProcessor removeProductionVersionSpisShadowedByFakes() {
 | TSK-06-03(codeItemEdit, 동시 진행) | 코드 행 편집·되돌리기·`viewAt`·경미 수정(행). 이 Task 는 **`MasterCodeSegmentService` 구현 클래스를 만들지 않는다**(D6) — 06-03 이 만들 때 `createBaseCategory`·`fillFrom` 을 `MasterCodeVersionSegments` 에 위임하면 된다. "코드 편집" 버튼은 `openMdmPage("dmc/codeItemEdit",{maruCodeId,ver})` 이동만. 06-03 은 DRAFT 저장 직전 `beginDraftWrite` 를 부르고, 삭제 훅(`MasterCodeDraftDeletion`)이 그 행들을 복구한다 |
 | TSK-06-04(codeCateEdit) | 카테고리 편집. BASE 생성만 이 Task(등록·1.000 재생성) |
 | TSK-06-05(codeConfirm) | DRAFT→RELEASED 전이·검사 8항·확정 SPI·diff 화면. 이 Task 의 "확정 이동" 은 `openMdmPage("dmc/codeConfirm",{maruCodeId,ver})` **이동만** 한다. 06-05 가 확정 SPI 를 운영 빈으로 등록해도 §6.13 설정이 시나리오 테스트를 지킨다. 운영 `CodeLookup` 빈 등록 여부는 06-05 이후 판단(D5) |
-| TSK-08-02(룰 화면, 동시 진행) | 소유권 액션 이름 확정과 `allActions`·`PERM_MDM_EDIT`·`MdmActions`·seed-check 의 소유권 부분은 **08-02 몫**(팀장 확정 D-TSK-06-02-1). 이 Task 는 `lock/unlock/handover` 를 문자열로 참조만 한다. 공용 부품 P1·P2(§10)는 이 Task 가 만들고 08-02 는 06-02 머지 뒤 재사용한다(D-TSK-06-02-2) |
+| TSK-08-02(룰 화면, 동시 진행) | 소유권 액션 이름 확정과 `allActions`·`PERM_MDM_EDIT`·`MdmActions`·seed-check 의 소유권 부분은 **08-02 몫**(팀장 확정 D-075). 이 Task 는 `lock/unlock/handover` 를 문자열로 참조만 한다. 공용 부품 P1·P2(§10)는 이 Task 가 만들고 08-02 는 06-02 머지 뒤 재사용한다(D-076) |
 | TSK-07-02(마스터데이터 등록) | 운영 `MaruIdNamespace(MASTER_DATA)` 빈은 07-02 몫(D4). 이 Task 가 만든 `MasterCodeIdNamespace` 를 07-02 등록 검사가 쓴다 |
 | 공유 파일 | DataInitializer·page-registry·tsup·셸 index·식별자 사전은 줄 추가만. 기존 줄을 바꾸는 곳은 없다. `VersionScenarioTestConfig` 는 bean 메서드 하나 추가 |
 
@@ -516,7 +516,7 @@ $W/.claude/skills/dflow-dev/scripts/heavy.sh release
 
 ---
 
-## 10. 공용 부품 — 다른 Task 가 재사용한다(팀장 확정 D-TSK-06-02-2)
+## 10. 공용 부품 — 다른 Task 가 재사용한다(팀장 확정 D-076)
 
 두 부품은 이 Task 가 만들고, 06-02 머지 뒤 08-02·06-03·06-04·06-05 가 그대로 재사용한다. 다른 Task 는 같은 파일을 새로 만들거나 모양을 바꾸지 않는다.
 
@@ -540,7 +540,7 @@ import com.dongkuk.dmes.mdm.contract.security.MdmRoles;
 import org.springframework.stereotype.Component;
 
 /**
- * 담당자 쓰기 가드(TSK-06-02, 공용 부품 D-TSK-06-02-2). BFF 액션 권한(1차)과 별도로 서비스가 요청 역할을 직접 본다.
+ * 담당자 쓰기 가드(TSK-06-02, 공용 부품 D-076). BFF 액션 권한(1차)과 별도로 서비스가 요청 역할을 직접 본다.
  * SYSADMIN·MDM_STD_ADMIN 만으로는 거부한다 — {@link MdmStdAdminGuard} 와 같은 모양이다.
  */
 @Component
@@ -605,7 +605,7 @@ public class MdmStewardGuard {
 
 ## 담당자 확인 필요 결정
 
-> D2 는 팀장 확정 사항(D-TSK-06-02-1, 소유권 액션 범위 제외)으로 옮겨 이 절에서 뺐다. 번호는 비워 둔다.
+> D2 는 팀장 확정 사항(D-075, 소유권 액션 범위 제외)으로 옮겨 이 절에서 뺐다. 번호는 비워 둔다.
 
 ### D1 — 화면 그룹 코드 `dmc`(spec 의 `mdc` 대신)
 - **질문**: spec entry-point 는 `mdc/codeMng`·`mdc/codeEdit` 인데 wbs.md tech-spec(`dmc.codeMng`, `services/dmc/…`, `pages/dmc/…`, componentPath `dmc/…`), TRD.md T2(2026-09-24 확정, 86·124행), `docs/mdm/screens/README.md` 42~43행, `MdmScreenGroup.DMC("dmc")`, DataInitializer `dmc` 폴더, `mdm-groups.ts` 는 모두 `dmc` 다.
@@ -722,7 +722,7 @@ public class MdmStewardGuard {
 | TSK-06-03 | `MasterCodeSegmentService` 구현 클래스를 만들 때 `createBaseCategory`·`fillFrom` 을 `MasterCodeVersionSegments` 에 위임(D6). 조회는 `MasterCodeLedgerQueries`·`MasterCodeVersionSegments.rowsAt` 재사용. 화면 진입 파라미터는 `useMdmPageParams("dmc/codeItemEdit", tabId, …)` → `{maruCodeId, ver}` |
 | TSK-06-05 | 진입 파라미터 `useMdmPageParams("dmc/codeConfirm", tabId, …)` → `{maruCodeId, ver}`. 운영 확정 SPI 를 등록해도 `VersionScenarioTestConfig` 가 시나리오 테스트를 지킨다(§6.13). 운영 `CodeLookup` 등록 판단(D5) — `MdmCodeLookup` 에 `@Component` 만 붙이면 된다 |
 | TSK-07-02 | `MasterCodeIdNamespace`(MASTER_CODE) 운영 빈이 있다. MASTER_DATA 빈은 07-02 가 만든다(D4) — 그때 columnMng 동작이 바뀐다 |
-| TSK-08-02 | 소유권 액션을 `MdmActions`·`MdmPermissions`·`allActions`·`PERM_MDM_EDIT`(·기존 DB 보정)·seed-check 에 더한다(D-TSK-06-02-1). 이름이 `lock/unlock/handover` 가 아니면 06-02 의 BPMN 3분기·`DmcCodeBpmnActionTest` 로컬 상수·FE 문자열을 함께 바꾼다. 공용 부품 P1 `MdmStewardGuard`·P2(§10)를 재사용하고, BUSINESS_RULE 삭제 훅을 운영 빈으로 등록해도 P2 가 시나리오 테스트를 지킨다 |
+| TSK-08-02 | 소유권 액션을 `MdmActions`·`MdmPermissions`·`allActions`·`PERM_MDM_EDIT`(·기존 DB 보정)·seed-check 에 더한다(D-075). 이름이 `lock/unlock/handover` 가 아니면 06-02 의 BPMN 3분기·`DmcCodeBpmnActionTest` 로컬 상수·FE 문자열을 함께 바꾼다. 공용 부품 P1 `MdmStewardGuard`·P2(§10)를 재사용하고, BUSINESS_RULE 삭제 훅을 운영 빈으로 등록해도 P2 가 시나리오 테스트를 지킨다 |
 | 로컬 개발자 | 08-02 머지 전에는 화면의 선점·해제·넘기기 버튼이 권한 없음으로 비활성이다. 넘기기는 그 뒤에도 D3 어댑터 전까지 항상 거부된다 |
 | 08-02 머지 뒤 연결(후속) | `mdm-codeEdit.spec.ts` 에 [해제] → "선점 가능", [선점] → "편집 중(나)" 단계와 넘기기 거부(MDM005) 단계를 더한다 |
 | 팀장 | E2E 전체 목록(§9 7단계)에 `mdm-codeMng.spec.ts`·`mdm-codeEdit.spec.ts` 가 더해졌다. 머지 뒤 dialect_check 에 `MasterCodeNativeSqlMssqlTest` 가 포함된다 |

@@ -930,7 +930,7 @@ public class DataInitializer implements ApplicationRunner {
         log.info("[DataInitializer] TSK-05-02 MDM 레이아웃 메뉴 시드 — headerMng·layoutMng");
 
         // ── TSK-06-02 — 마루 코드 조회·등록(codeMng) + 마루 코드 수정(codeEdit), 폴더 dmc. DRAFT 소유권 액션
-        //    (lock·unlock·handover) 권한은 여기서 더하지 않는다 — TSK-08-02 몫(D-TSK-06-02-1).
+        //    (lock·unlock·handover) 권한은 여기서 더하지 않는다 — TSK-08-02 몫(D-075).
         insertMcmSecObjIfAbsent("codeMng", "마루 코드", "mdm");
         insertMcmSecObjIfAbsent("codeEdit", "마루 코드 수정", "mdm");
         insertMcmSecMenuIfAbsent("codeMng", "001", "5030100", "마루 코드", "dmc", "codeMng");

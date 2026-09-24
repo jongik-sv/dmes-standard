@@ -35,7 +35,7 @@ class DmcCodeBpmnActionTest {
 
     /**
      * DRAFT 소유권 액션 — ADR-0003 D5 권장 이름을 문자열로만 참조한다. 08-02 가 MdmActions 에 더하면 그 상수로 바꾼다
-     * (D-TSK-06-02-1).
+     * (D-075).
      */
     private static final Set<String> OWNERSHIP_ACTIONS = Set.of("lock", "unlock", "handover");
 

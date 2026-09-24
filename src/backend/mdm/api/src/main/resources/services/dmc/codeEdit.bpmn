@@ -14,7 +14,7 @@ action=delete   -&gt; deleteTask   (codeEditService.deleteDraft)    — DRAFT �
 action=lock     -&gt; lockTask     (codeEditService.acquire)        — DRAFT 선점
 action=unlock   -&gt; unlockTask   (codeEditService.release)        — DRAFT 해제
 action=handover -&gt; handoverTask (codeEditService.handover)       — DRAFT 넘기기
-lock·unlock·handover 는 ADR-0003 D5 권장 이름을 문자열로만 쓴다. BFF 권한(MdmActions·PERM_MDM_EDIT)은 TSK-08-02 머지 뒤 연결(D-TSK-06-02-1).
+lock·unlock·handover 는 ADR-0003 D5 권장 이름을 문자열로만 쓴다. BFF 권한(MdmActions·PERM_MDM_EDIT)은 TSK-08-02 머지 뒤 연결(D-075).
 
 BPMN 의 action(RBAC 키)과 서비스의 method(자바 메서드명)는 별개다.</bpmn:documentation>
     <bpmn:startEvent id="start" name="시작">

@@ -11,7 +11,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  *      B: 버전 삭제 → [폐기] → DEPRECATED, 새버전 비활성(스모크 3).
  *   E4 서버 오류: 다른 세션이 먼저 저장(auditVer 증가) → 화면 저장이 MDM001 모달 → 닫으면 다시 불러온다(스모크 4).
  *
- * 선점·해제·넘기기 버튼은 누르지 않고 활성 여부도 단언하지 않는다 — 권한 시드는 TSK-08-02 몫이라(D-TSK-06-02-1) 머지 전에는
+ * 선점·해제·넘기기 버튼은 누르지 않고 활성 여부도 단언하지 않는다 — 권한 시드는 TSK-08-02 몫이라(D-075) 머지 전에는
  * 비활성이고 뒤에는 활성이다. 동작은 서비스·HTTP·vitest 가 본다. 담당자(e2e_mdm_steward)로 돈다.
  * 전제는 design.md §9. SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다.
  */

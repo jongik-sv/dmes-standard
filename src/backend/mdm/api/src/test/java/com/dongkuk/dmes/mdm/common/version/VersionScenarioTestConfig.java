@@ -71,7 +71,7 @@ public class VersionScenarioTestConfig {
     }
 
     /**
-     * TSK-06-02 공용 부품 P2(design.md §10.2, D-TSK-06-02-2) — 이 설정의 가짜 SPI 와 같은 대상의 운영 SPI 빈 정의를 지운다
+     * TSK-06-02 공용 부품 P2(design.md §10.2, D-076) — 이 설정의 가짜 SPI 와 같은 대상의 운영 SPI 빈 정의를 지운다
      * ({@link VersionSpiRegistry} 는 대상 중복이면 기동 실패). 가짜가 두 대상을 모두 덮으므로 가짜({@link VersionScenarioFakes}
      * 의 중첩 클래스)가 아닌 {@link VersionDraftDeletionSpi}·{@link VersionConfirmCheckSpi} 정의를 모두 지운다. 이 설정을
      * import 하지 않은 컨텍스트에는 영향이 없다.

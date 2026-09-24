@@ -41,7 +41,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * TSK-06-02 design.md §3.2 G1·G2 — 폐기 뒤 CODE_LIST 는 비고 MASTER 판정은 유지된다(수용 기준 5, 불변 규칙 I16).
  *
- * <p>운영 {@code CodeLookup} 빈은 등록하지 않는다(D-TSK-06-02-3). DB 를 읽는 {@link MdmCodeLookup} 을 실제
+ * <p>운영 {@code CodeLookup} 빈은 등록하지 않는다(D-077). DB 를 읽는 {@link MdmCodeLookup} 을 실제
  * {@link DefaultCodeResolver} 에 직접 붙이고, resolver 는 서비스 트랜잭션 <b>밖에서</b> 부른다(엔진 호출 경로와 같다).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)

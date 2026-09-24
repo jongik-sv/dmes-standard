@@ -2,7 +2,7 @@
  * codeEdit 화면의 OASIS BFF 호출 래퍼 — `POST /api/mdm/oasis/codeEdit/{action}`(TSK-06-02 design.md §6.1).
  *   search·view(읽기), save(saveHeader)·execute(deprecate)·reg(createVersion)·restore(restoreVersion)·delete(deleteDraft),
  *   lock(acquire)·unlock(release)·handover(handover).
- * lock·unlock·handover 는 ADR-0003 D5 권장 이름을 문자열로만 쓴다 — BFF 권한은 TSK-08-02 머지 뒤 연결(D-TSK-06-02-1).
+ * lock·unlock·handover 는 ADR-0003 D5 권장 이름을 문자열로만 쓴다 — BFF 권한은 TSK-08-02 머지 뒤 연결(D-075).
  * 모든 쓰기는 헤더 `auditVer` 또는 선택 버전의 `rowVersion` 을 함께 보낸다.
  */
 import { callMdmOasis } from "../codeMng/api";

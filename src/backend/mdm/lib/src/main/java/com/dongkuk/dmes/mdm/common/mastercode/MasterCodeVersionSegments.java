@@ -22,7 +22,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * 마루 코드 선분 조작 — 계약 {@code MasterCodeSegmentService} 의 {@code createBaseCategory}·{@code fillFrom} 의 06-02 구현
- * (TSK-06-02 design.md §6.5, D-TSK-06-02-4).
+ * (TSK-06-02 design.md §6.5, D-078).
  *
  * <p>계약 인터페이스를 implements 하지 않는다 — 06-03 이 같은 인터페이스의 구현 클래스를 만들며, 그때 이 두 메서드를
  * 여기에 위임한다(형제 Task 와 add/add 충돌 회피, D6). 버전 번호의 범위 비교는 Java 에서 한다(I20).

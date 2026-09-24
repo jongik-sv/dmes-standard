@@ -8,7 +8,7 @@ import kr.dongkuk.maru.mdm.engine.spi.CodeLookup;
 /**
  * 판정 엔진 {@link CodeLookup} 의 원장 구현 — 04 표 다섯 개를 해석 없이 그대로 돌려준다(TSK-06-02 design.md §6.6).
  *
- * <p><b>Spring 빈으로 등록하지 않는다(D-TSK-06-02-3, D5).</b> 운영 {@code CodeLookup} 빈이 생기면 도메인 저장의 R10 거부와
+ * <p><b>Spring 빈으로 등록하지 않는다(D-077, D5).</b> 운영 {@code CodeLookup} 빈이 생기면 도메인 저장의 R10 거부와
  * MASTER 판정이 자동으로 켜진다(decisions.md:449, TSK-04-03 동작 변경). 지금은 폐기 뒤 CODE_LIST·MASTER 판정을 시험이
  * {@code DefaultCodeResolver} 에 직접 붙여 확인한다. 운영 등록 판단은 06-05 이후다 — 그때 {@code @Component} 만 붙인다.
  *
