@@ -824,6 +824,9 @@ cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 | B4 | view 응답 issues·저장 응답 issues 는 값이 없는 칸(varId·lower·upper)을 싣지 않고 `message` 는 싣는다 | TS `RuleIssue` 를 JSON 으로 옮긴 모양과 같아 화면 `sameIssues` 가 그대로 견준다 |
 | B4 | 헤더 저장 응답의 `rowVersion` 은 요청 값 그대로(헤더는 버전 row_version 을 바꾸지 않는다), 폐기 응답은 `ver`·`rowVersion` 이 null 이다 | §6.2 가 HEADER 응답 칸을 정하지 않았다 |
 | B4 | 외부 원천 룰의 쓰기 거부 오류는 `BusinessException(BUSINESS_ERROR, "외부 원천(EXTERNAL) 룰은 조회만…")`, 폐기 조건(INUSE 아님)·폐기한 룰의 새 버전은 `MDM009`(허용되지 않는 상태 전이), 복사할 RELEASED 가 없는데 다른 버전(CANCELLED 등)만 있으면 `BUSINESS_ERROR`, 없는 룰·버전은 `INVALID_VALUE` 다 | §6.3 이 코드를 정하지 않은 자리. 가장 가까운 기존 코드를 골랐다 |
+| B5 | `AgDataGrid` 의 열 정의 변환을 순수 함수 `buildColumnDefs`·`displayedRowKeys`·`hasEditableColumn` 으로 빼 export 했다 | shared 단위 테스트는 ag-grid 렌더 없이 순수 함수로 본다(`grid-check-row-on-edit` 선례). 편집 열 탐지는 그룹 안까지 봐야 해서(안 보면 셀 포커스가 꺼져 편집이 안 된다) 재귀로 바꿨다 |
+| B6 | dme 두 화면의 OASIS 호출을 화면별 `api.ts` 에 되풀이하지 않고 `M/src/dme/oasis-call.ts`(`callOasis`·`OasisCallError`·`isRowVersionConflict`)에 두고 화면 `api.ts` 가 이것을 쓴다 | `grids` 전송·null 제거·MDM001 판별이 두 화면에 같다. `src/dme` 는 page-registry 스캔 대상 밖이다 |
+| B6 | dme 렌더 테스트는 공용 도우미 `M/tests/dme/helpers/render.ts` 의 `installDomStorage()` 로 메모리 `localStorage` 를 넣는다 | Node 26 은 `--localstorage-file` 없이 전역 `localStorage` 를 undefined 로 두고 happy-dom window 도 그 값을 본다. shared `apiRequest` 가 `localStorage.getItem` 에서 죽어 모든 요청이 실패했다(기존 termMng 렌더 테스트도 같은 오류를 모달에 띄우지만 단언하지 않아 드러나지 않았다) |
 
 ## Build 변이 검증 기록
 
@@ -966,6 +969,23 @@ B4 테스트는 구현보다 먼저 썼으나 골격 상태에서 빨강을 따�
 | D8 | 그룹 `groupId` 누락 | 「children 이 있으면 ColGroupDef…」 | 빨강 |
 
 `onRowDragEnd` → `onRowOrderChange` 연결과 `defaultColDef.sortable` 끄기는 컴포넌트 안(ag-grid 렌더 필요)이라 단위 테스트로 덮지 못했다 — e2e S5(드래그로 순서 바꿈)가 확인한다.
+
+**B6**
+
+| 규칙 | 변이 | 잡은 테스트 | 결과 |
+|---|---|---|---|
+| I28 | `takeRuleEditTarget` 이 읽고 지우지 않음 | `rule-handoff` 「한 번 읽고 지운다」·「깨져 있으면…지운다」 | 빨강 |
+| I28 | 두 이벤트 순서 뒤바꿈 | 「대상 이벤트를 먼저, 포털 탭 열기를 다음에」 | 빨강 |
+| I28 | sessionStorage 쓰기 누락 | 「sessionStorage 에 대상을 쓴다」 | 빨강 |
+| I1 | 화면 정규식을 `^[A-Z][A-Z0-9_]*$` 로 완화 | `rule-mng-page` 「ruleIdError…」 | 빨강 |
+| I1 | 화면 길이 검사 삭제 | 같은 테스트(51자) | 빨강 |
+| I1 | ID 오류여도 등록 버튼 활성 | 「물리명 규칙을 어기면 즉시 안내하고 저장을 막는다」 | 빨강 |
+| I2 | 등록 요청에 `sourceKind:"EXTERNAL"` 을 실음 | 「요청 본문은 원천 없이…」 | 빨강 |
+| §6.7.0 | reg 권한 무시 | 「등록 권한(reg)이 없으면 … 비활성」 | 빨강 |
+| I29 | 페이지 크기 20→10 | 「처음 조회는 page 0·size 20」·「다음 페이지…」 | 빨강 |
+| I29 | 다음 페이지가 0 페이지를 다시 요청 | 「다음 페이지를 누르면 page 1…」 | 빨강 |
+| 스모크 3 | 등록 성공 뒤 룰 화면 이동 누락 | 「등록에 성공하면 … 룰 화면으로 이동」 | 빨강 |
+| 스모크 4 | 서버 오류 표시 누락 | 「서버가 거부하면 오류를 화면에 보인다」 | 빨강 |
 
 ## Build 게이트 결과(백엔드, B1~B4 끝)
 
