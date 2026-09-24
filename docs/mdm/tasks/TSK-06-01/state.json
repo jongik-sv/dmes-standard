@@ -2,5 +2,24 @@
   "tsk": "TSK-06-01",
   "order": "087bc67d-ad17-4c40-bda2-3999117ed0ab",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "build",
+  "baseline": {
+    "failures": 0,
+    "tests": 1878,
+    "backend_testAll": {
+      "tests": 1878,
+      "failures": 0,
+      "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain"
+    },
+    "count_cmd": "find src/backend -path '*/build/test-results/*' -not -path '*mssqlMigrationTest*' -name 'TEST-*.xml' | xargs grep -h -o '<testsuite [^>]*' (tests/failures/errors 합산)",
+    "mssqlMigrationTest": "제외 — 사용자 결정(팀장 지시 2026-09-24): 도커 금지로 MSSQL 실측 생략, DDL 리뷰로 대체. 게이트 비교 대상 아님"
+  },
+  "flyway_version": "V6 (팀장 배정 2026-09-24)",
+  "complexity": "3점(depends 2 +1, Flyway=마이그레이션 +2) → opus, spec model=opus",
+  "model": "opus",
+  "last": {
+    "phase": "design",
+    "event": "design.ok"
+  },
+  "design_commit": "22fd710"
 }
