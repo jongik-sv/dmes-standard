@@ -604,6 +604,15 @@ function AgDataGridComponent({
   const shouldAutoSizeColumns = resolvedColumnSizing === "auto" && autoSizeColumns !== false;
 
   const dragEnabled = !!rowDragField;
+  // isRowDraggable 은 ref 로 읽는다 — 호출자가 인라인 함수를 넘겨도 열 정의를 다시 만들지 않게 한다(열 그룹 정의가 렌더마다
+  // 바뀌면 ag-grid 가 머리 그룹 셀을 다시 붙이고, React 개발 모드 효과 재실행에서 null 그룹을 읽어 죽는다 — mdm TSK-08-02 실측).
+  const isRowDraggableRef = useRef(isRowDraggable);
+  isRowDraggableRef.current = isRowDraggable;
+  const hasRowDraggable = !!isRowDraggable;
+  const stableIsRowDraggable = useMemo(
+    () => (hasRowDraggable ? (row: Record<string, unknown>) => isRowDraggableRef.current?.(row) ?? true : undefined),
+    [hasRowDraggable]
+  );
   const columnDefs = useMemo<(ColDef | ColGroupDef)[]>(
     () =>
       buildColumnDefs(columns, {
@@ -611,10 +620,10 @@ function AgDataGridComponent({
         columnSizing: resolvedColumnSizing,
         shouldAutoSizeColumns,
         rowDragField,
-        isRowDraggable,
+        isRowDraggable: stableIsRowDraggable,
       }),
     // 체크박스는 rowSelection 설정에서 자동 관리 (수동 컬럼 불필요)
-    [columns, sortable, shouldAutoSizeColumns, resolvedColumnSizing, rowDragField, isRowDraggable]
+    [columns, sortable, shouldAutoSizeColumns, resolvedColumnSizing, rowDragField, stableIsRowDraggable]
   );
 
   // 셀 텍스트가 컬럼 폭 초과로 잘려서 ... 으로 표시될 때 마우스오버 시 전체 값을 tooltip 으로 표시.

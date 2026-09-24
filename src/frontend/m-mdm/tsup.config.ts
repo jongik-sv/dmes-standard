@@ -36,6 +36,8 @@ export default defineConfig([
       "pages/dma/termMng/page": "pages/dma/termMng/page.tsx",
       "pages/dma/domainMng/page": "pages/dma/domainMng/page.tsx",
       "pages/dma/columnMng/page": "pages/dma/columnMng/page.tsx",
+      "pages/dme/ruleMng/page": "pages/dme/ruleMng/page.tsx",
+      "pages/dme/ruleEdit/page": "pages/dme/ruleEdit/page.tsx",
     },
   },
 ]);

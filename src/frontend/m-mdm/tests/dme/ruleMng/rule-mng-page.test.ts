@@ -118,6 +118,7 @@ describe("RuleMngPage", () => {
     await render();
     expect(visibleText(container)).toContain("룰 목록");
     expect(visibleText(container)).toContain("0건");
+    expect(visibleText(container)).toContain("조회된 룰이 없습니다.");
   });
 
   it("등록 폼은 원천 선택 칸 없이 MDM 고정 표시다", async () => {

@@ -90,7 +90,8 @@ export default function RuleMngPage() {
       {
         key: "maruRuleId",
         header: "룰 ID",
-        width: 180,
+        width: 170,
+        minWidth: 110,
         render: (value) => (
           <button
             type="button"
@@ -111,18 +112,20 @@ export default function RuleMngPage() {
           </button>
         ),
       },
-      { key: "maruRuleName", header: "룰명", width: 200 },
+      { key: "maruRuleName", header: "룰명", width: 180, minWidth: 90 },
       {
         key: "ruleKind",
         header: "종류",
         width: 110,
+        minWidth: 80,
         render: (value) => RULE_KIND_LABELS[value as keyof typeof RULE_KIND_LABELS] ?? String(value ?? ""),
       },
-      { key: "sourceKind", header: "원천", width: 80, align: "center" },
+      { key: "sourceKind", header: "원천", width: 70, minWidth: 50, align: "center" },
       {
         key: "status",
         header: "상태",
-        width: 90,
+        width: 80,
+        minWidth: 60,
         align: "center",
         render: (value) => (
           <span style={badgeStyle(value === "INUSE" ? "success" : value === "DEPRECATED" ? "muted" : "neutral")}>
@@ -130,9 +133,9 @@ export default function RuleMngPage() {
           </span>
         ),
       },
-      { key: "releasedVer", header: "적용 버전", width: 90, align: "center" },
-      { key: "hitPolicy", header: "적중 정책", width: 100, align: "center" },
-      { key: "pendingText", header: "미적용 버전", width: 200 },
+      { key: "releasedVer", header: "적용 버전", width: 80, minWidth: 60, align: "center" },
+      { key: "hitPolicy", header: "적중 정책", width: 90, minWidth: 70, align: "center" },
+      { key: "pendingText", header: "미적용 버전", width: 180, minWidth: 90 },
     ],
     [],
   );
@@ -191,6 +194,12 @@ export default function RuleMngPage() {
               emptyMessage="조회된 룰이 없습니다."
             />
           </GridPanel>
+          {/* shared AgDataGrid 는 loading 해제 때 hideOverlay() 로 빈 행 오버레이까지 지우므로 빈 상태를 직접 적는다. */}
+          {!isBusy && rows.length === 0 && (
+            <p data-testid="rule-list-empty" style={{ margin: 0, padding: "var(--spacing-sm) var(--spacing-md)", color: "var(--color-text-muted)" }}>
+              조회된 룰이 없습니다.
+            </p>
+          )}
           <Pagination
             page={page}
             totalPages={totalPages}
@@ -200,7 +209,7 @@ export default function RuleMngPage() {
           />
         </ContentPanel>
 
-        <ContentPanel width={440}>
+        <ContentPanel width={380}>
           <RuleRegisterForm
             canRegister={canDoButton(rbac, SCREEN_ID, "reg")}
             onRegistered={() => void load(applied, 0)}

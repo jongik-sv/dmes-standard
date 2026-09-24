@@ -836,6 +836,14 @@ cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 | B8 | 셀 강조 색은 shared `grid.css` 에 셀 상태 클래스 셋(`cell-warning`·`cell-edited`·`cell-emphasis`, 의미 토큰만)을 더해 쓰고, 오류는 기존 `cell-light-pink`, ADDED 행은 기존 `ag-row-inserted` 를 쓴다. Part B §6 에 등재 | §6.7.4 "색은 shared 토큰 클래스를 쓴다(화면 CSS 에 색 값 직접 금지)" — 경고·바뀐 칸·강조에 맞는 shared 클래스가 없었다 |
 | B8 | `opsFor` 의 코드 도메인 String 목록은 `IN 카테고리` 를 `NOT IN` 바로 뒤에 둔다. 목록 op(IN·NOT_IN)에서 단일 op·구간으로 바꾸면 목록 첫 원소를 값으로 옮긴다 | 06:310 은 "더해진다" 만 적고 자리를 정하지 않았다(IN 계열 옆이 찾기 쉽다). §6.7.4 표에 목록 → 단일 칸이 없다 |
 | B8 | 산출(DERIVE) 룰의 표는 서버 `editable` 이 참이어도 읽기 전용이다(표 상태 `editable = view.editable && DECISION`) | §6.7.4 "DERIVE 는 … 안내와 읽기 전용 표"(DERIVE 편집은 08-03) |
+| B9 | (e2e 에서 드러난 결함) ruleMng 목록 칸에 `minWidth` 를 주어 `fit` 에서 줄어들게 하고 등록 패널을 380 으로 좁혔다 | 등록 폼과 나란히 두면 1280 폭에서 칸 합계가 넘쳐 ag-grid 가 칸을 가상화했고 적중 정책·미적용 버전 칸이 그려지지 않았다(T2 실측) |
+| B9 | (e2e 에서 드러난 결함) ruleMng 빈 상태 문구를 그리드 오버레이가 아니라 목록 아래 글자(`rule-list-empty`)로 보인다. 렌더 테스트에 문구 단언을 더했다 | shared `AgDataGrid` 는 `loading` 이 풀릴 때 `hideOverlay()` 로 빈 행 오버레이까지 지운다(T2 실측). shared 동작은 바꾸지 않았다 |
+| B9 | (e2e 에서 드러난 결함) 룰 화면이 헤더 저장·새 버전 뒤 "Application error" 로 죽었다 — ag-grid `getProvidedColumnGroup of null`(React 개발 모드 효과 재실행 중 머리 그룹 셀 재부착). 원인은 카드가 `isRowDraggable` 를 인라인 함수로 넘겨 렌더마다 열 정의가 다시 만들어진 것이다. shared `AgDataGrid` 는 `isRowDraggable` 을 ref 로 읽어 열 정의를 흔들지 않고, 카드는 모듈 수준 함수를 넘기며, 열은 변수 구조가 같으면 다시 만들지 않고 구조·편집 여부·버전이 바뀌면 그리드를 `key` 로 새로 마운트한다 | 탐침 스펙으로 pageerror 스택을 잡아 재현했고(버전 1 → 2 전환·헤더 저장 뒤 새로 고침), 고친 뒤 같은 탐침에서 오류 0 건, e2e S3·S4 통과로 확인했다. 컴포넌트 안(ag-grid 렌더·StrictMode)이라 단위 테스트로 덮지 못했다 |
+| B9 | e2e 기동 절차: mcm 은 "Started" 로그 뒤에 `DataInitializer`(runner)가 돌므로 시드 대조·픽스처는 "초기 데이터 삽입 완료" 로그를 기다린 뒤 넣는다 | 포트 LISTEN 직후 넣었더니 `TB_MCM_SEC_MENU_FLD` 없음·`database is locked` 로 픽스처가 들어가지 않았다(첫 실행 실측, 다시 넣음) |
+| B9 | e2e 스펙의 메뉴 열기는 하위 항목이 이미 보이면 상위를 누르지 않는다 | 새로 고친 뒤 트리가 펼친 채 남아 "마루 MDM" 을 누르면 접혔다(S3 실측) |
+| B9 | S5·S6 기대 이슈는 픽스처 룰에 같은 편집을 한 표 상태를 scratchpad 에서 TS 분석기로 돌려 얻었다(`OVERLAP 1·2`·`UNREACHABLE 2←1`, UNIQUE 면 OVERLAP ERROR, ALL_NA_ROW 는 겹침을 만들지 않음) | advisor 권고 — 추측으로 단언을 쓰지 않는다 |
+| B9 | pageId `mdm:dme/ruleEdit` 는 메뉴 탭과 같다 — 포털이 `{moduleId}:{PARENT_MENU_ID}/{OBJECT_ID}` 로 조립하고, 등록 전 탐침에서 메뉴 클릭 탭이 "등록된 페이지를 찾을 수 없습니다: mdm:dme/ruleEdit" 로 같은 값을 보였다. e2e T3 는 등록 뒤 `portal-open-tab`(`mdm:dme/ruleEdit`)으로 룰 화면 탭이 열려 새 룰을 보이는 것을 확인했다(메뉴 탭과 같은 탭으로 합쳐지는지는 pageId 가 같다는 것으로만 확인) | §6.9 "Build 가 포털에서 한 번 확인" |
+| B9 | 메뉴 시드의 FULL_SEQ 는 `3050100`·`3050110` 으로 들어갔다(§2.2-S 가 적은 `5050100`·`5050200` 과 다름) | `insertMcmSecMenuIfAbsent` 가 부모 폴더 기준으로 계산한다(1부 산출물). 메뉴 순서(룰 → 룰 화면)는 맞고 e2e 가 확인한다 — 보고 |
 
 ## Build 변이 검증 기록
 
@@ -1061,6 +1069,14 @@ B7 테스트는 구현 전에 썼으나 구현 전 빨강을 따로 돌리지 �
 
 I15 의 "한쪽 러너에만 사례 추가" 는 하나의 러너 안에서 잡을 수 없다 — 두 러너의 하한(Java `RuleAnalysisCorpusTest`·TS `MIN_CASES` 모두 30)이 같다는 것은 관례로 지키고, 한 벌 코퍼스를 둘 다 전수로 도므로 사례 추가는 두 러너에 함께 걸린다(보고).
 
+**B9**
+
+| 규칙 | 변이 | 잡은 테스트 | 결과 |
+|---|---|---|---|
+| I24 | mcm `seedMdmRuleMenus` 의 메뉴 부모를 `dme` → `dmd` 로(B3 에서 미룬 변이) | e2e `mdm-ruleMng` T1·`mdm-ruleEdit` S1(새 DB 로 mcm 을 다시 띄워 실행) | 빨강 |
+| (e2e 결함) | 열 정의가 렌더마다 바뀜(`isRowDraggable` 인라인) | 고치기 전 e2e S3(헤더 저장 뒤)·S4(새 버전 뒤) "Application error" — 고친 뒤 통과 | 빨강 → 초록(실측) |
+| (e2e 결함) | 목록 칸 가상화·빈 행 오버레이 사라짐 | 고치기 전 e2e T2 — 고친 뒤 통과. 빈 상태 문구는 `rule-mng-page` 렌더 테스트도 본다 | 빨강 → 초록(실측) |
+
 ## Build 게이트 결과(백엔드, B1~B4 끝)
 
 - `cd src/backend && … ./gradlew testAll --no-daemon --console=plain`(heavy.sh, 도커 금지 모드): exit 0, 테스트 태스크 7개 전부 실행,
@@ -1068,3 +1084,17 @@ I15 의 "한쪽 러너에만 사례 추가" 는 하나의 러너 안에서 잡�
 - `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .`: **ERROR 0 / WARN 0 / INFO 29**(기준선과 같음).
 - `:api:compileMssqlTestJava`: 컴파일 통과(`DefaultMdmRuleIdIssuerMssqlTest` 실행은 도커 금지로 생략 — 「도커 금지로 생략한 검증」).
 - 프런트 게이트 3종과 mcm `DataInitializer` 시드 대조(e2e 절차 5)는 B5~B9 담당이 돈다.
+
+## Build 게이트 결과(프런트·e2e, B5~B9 끝)
+
+- `cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test`(heavy.sh): **475 / 0**(35 파일) — 기준선 330/0 대비 +145.
+- `cd src/frontend && pnpm test:unit:shared`: **166 / 0**(24 파일) — 기준선 156/0 대비 +10.
+- `cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint`: 통과(tsc --noEmit exit 0). shared `tsc --noEmit` 도 통과.
+- mantine-aggrid-ui audit 두 명령(§3.5 대상 + 바꾼 `grid.css`): 의심 0건.
+- `check_oasis_contract.py --root .`: ERROR 0 / WARN 0 / INFO 29(기준선과 같음). 백엔드는 이 Phase 에서 고치지 않아 testAll 을 다시 돌리지 않았다.
+- e2e(「E2E 서버 절차」, 빈 포트 mcm 18213·mdm 18306·포털 15213, `--workers=1`, 슬롯 `e2e-TSK-08-02`):
+  - 새 DB A(`mdm-rbac-users.sql`·`mdm-ruleEdit-users.sql`·`mdm-ruleEdit-data.sql`): 시드 대조 diff 출력 없음, `mdm-shell-rbac-smoke` 4/4, `mdm-ruleMng` 7/7, `mdm-ruleEdit` 11/11 passed(skipped·failed 0).
+  - 새 DB B(`mdm-rbac-users.sql`·`mdm-columnMng-dict.sql`): `mdm-columnMng` 4/4.
+  - 새 DB C(`mdm-rbac-users.sql`): `mdm-sample-smoke` 1/1, `mdm-termMng` 4/4, `mdm-unitMng` 4/4, `mdm-domainMng` 3/3.
+  - 스크린샷 `docs/mdm/tasks/TSK-08-02/screens/` 6장. 다른 Task 스크린샷(TSK-01-02·01-03·04-02·04-03·04-04)은 덮어쓴 것을 되돌렸다.
+

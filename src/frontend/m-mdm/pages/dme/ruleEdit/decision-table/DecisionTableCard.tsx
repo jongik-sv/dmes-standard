@@ -39,6 +39,11 @@ const HIT_POLICIES: Array<{ value: HitPolicyCode; label: string; desc: string }>
   { value: "ANY", label: "ANY", desc: "맞는 행이 여럿이어도 결과가 모두 같아야 한다." },
 ];
 
+/** 그리드 표시 행의 드래그 가능 여부 — 모듈 수준 함수라 렌더마다 바뀌지 않는다. */
+function isDraggableDisplayRow(row: Record<string, unknown>): boolean {
+  return isRowDraggable({ rowKind: row.rowKind as "NORMAL" | "DEFAULT" });
+}
+
 interface ServerCheck {
   same: boolean;
   issues: RuleIssueView[];
@@ -83,19 +88,23 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
   const split = useMemo(() => splitIssues(shown), [shown]);
   const diff = useMemo(() => diffTable(selected?.baseVer != null ? view.baseRows : null, state.rows), [selected?.baseVer, view.baseRows, state.rows]);
 
-  const ctxRef = useRef({ edit });
-  ctxRef.current = { edit };
+  const ctxRef = useRef({ edit, vars: state.vars });
+  ctxRef.current = { edit, vars: state.vars };
+  // ag-grid 는 열 그룹 정의가 바뀌면 머리 그룹 컴포넌트를 다시 붙이다 죽는다(실측: getProvidedColumnGroup of null). 그래서 열은
+  // 변수 구조가 같으면 다시 만들지 않고(저장 뒤 새로 불러와도 같은 정의), 구조·편집 여부·버전이 바뀌면 그리드를 새로 마운트한다(gridKey).
+  const varsSig = JSON.stringify(state.vars);
   const columns = useMemo(
     () =>
       buildTableColumns({
-        vars: state.vars,
+        vars: ctxRef.current.vars,
         editable,
         onEdit: (rowId, varId, key, value) => ctxRef.current.edit({ type: "editCell", rowId, varId, key, value }),
         onSelectRow: (rowId) => dispatch({ type: "selectRow", rowId }),
         onDeleteRow: (rowId) => ctxRef.current.edit({ type: "deleteRow", rowId }),
       }),
-    [state.vars, editable],
+    [varsSig, editable],
   );
+  const gridKey = `${view.rule.maruRuleId}:${view.selectedVer ?? "-"}:${editable ? "edit" : "read"}:${varsSig}`;
   const data = useMemo(
     () => displayRows(state.rows, state.vars, { diff, split, selectedRowId: state.selectedRowId, serverShown: !dirty }),
     [state.rows, state.vars, diff, split, state.selectedRowId, dirty],
@@ -161,6 +170,7 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
 
       <div data-testid="dt-grid" style={{ height: gridHeight }}>
         <AgDataGrid
+          key={gridKey}
           columns={columns}
           data={data}
           rowKey="rowKey"
@@ -169,7 +179,7 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
           sortable={false}
           singleClickEdit
           rowDragField={editable ? ROW_LABEL_FIELD : undefined}
-          isRowDraggable={(row) => isRowDraggable({ rowKind: row.rowKind as "NORMAL" | "DEFAULT" })}
+          isRowDraggable={isDraggableDisplayRow}
           onRowOrderChange={(keys) => edit({ type: "reorder", keys })}
           onCellValueChanged={handleCellChange}
           highlightedRowKey={state.selectedRowId == null ? null : String(state.selectedRowId)}

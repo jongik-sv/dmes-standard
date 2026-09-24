@@ -231,6 +231,8 @@ A.1.1 모듈 외 기 구축·공유 모듈은 본 표로 분리 등재. 신규 �
 | `domainMng` | — (To-Be only) | `mdm` | `dma` | `domainMng` | 2026-09-24 | 도메인 관리 — As-Is 없음, 원천 02 maru03020/03030 계승. 상속 트리·검증식 두 칸·테스트 케이스·영향도(TSK-04-03). 기능설계서 1종(`docs/mdm/screens/domainMng/`) |
 | `columnMng` | — (To-Be only) | `mdm` | `dma` | `columnMng` | 2026-09-24 | 컬럼 사전 — As-Is 없음(신규). TSK-04-04. 기능설계서 1종(`docs/mdm/screens/columnMng/`, 팝업 termRegPop 절 포함) |
 | `termRegPop` | — (To-Be only) | `mdm` | `dma` | `termRegPop` | 2026-09-24 | 용어 인라인 등록 팝업(columnMng 에서 호출, 메뉴 leaf 없음). TSK-04-04 |
+| `ruleMng` | — (To-Be only) | `mdm` | `dme` | `ruleMng` | 2026-09-24 | 룰 — As-Is 없음, 원천 06 룰 목록·등록. 서버 페이징 목록 + MDM 원천 등록(VER 1 DRAFT 자동 선점). TSK-08-02. 기능설계서 1종(`docs/mdm/screens/ruleMng/`) |
+| `ruleEdit` | — (To-Be only) | `mdm` | `dme` | `ruleEdit` | 2026-09-24 | 룰 화면 — As-Is 없음, 원천 06 룰 화면. 헤더·버전·의사결정표·활용처 카드(08-03·08-04 가 카드를 더한다). TSK-08-02. 기능설계서 1종(`docs/mdm/screens/ruleEdit/`) |
 
 **등재 절차**:
 1. 신규 화면 분석 시 본 표에 행 추가
