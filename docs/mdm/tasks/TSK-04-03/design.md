@@ -731,3 +731,46 @@ Build·Verify 의 변이 검증이 이 목록을 순회한다. 오른쪽은 변�
 - **근거**: 케이스는 몇 행뿐이고 입력·기대·변수·메모·삭제가 한 행에 있어 폼 컨트롤이 접근성(aria-label)과 E2E 안정성이 좋다. 읽기 전용 목록은 모두 AgDataGrid 로 두었다. 단위 목록 API 는 병렬 작업(04-02) 산출물이라 지금 쓸 수 없고, 서버가 단위 원장 존재를 S06 으로 검사한다.
 - **반려되면 재작업할 방향**: `DomainTestCaseGrid` 를 `AgDataGrid` + `editable`/`cellEditor: "select"`(기대) 로 바꾸고 E2E 의 케이스 입력 선택자를 셀 편집으로 바꾼다. 단위는 04-02 머지 뒤 `Select` + 단위 조회로 바꾼다.
 
+### 9.5 Verify 변이 재확인
+
+Verify Phase 에서 불변 규칙 I1~I19 의 변이 검증을 실행했다(I20 절차 규칙 제외, I14c 구조 제외).
+
+| 변이 | 변이 내용 | 빨강 낸 테스트 | 되돌림 확인 |
+|---|---|---|---|
+| I17 | 화면 제목 `"도메인 관리"` → `"도메인 관리X"` | E2E 세 스펙 (E2~E6 등록·상속·미리보기 실패) | `/usr/bin/git diff --stat` = 0 |
+| I1~I16, I18, I19 | Build §9.3 의 변이 목록(각각 RED 확인) | 각 테스트 클래스(Build 기록 참고) | Build 후 원상 복구 완료 |
+
+**사용자 결정: 도커·Testcontainers 금지로 MSSQL 실측 생략** — Build Phase 에서 1회 실행해 40건 통과. Verify 에서 재실행하지 않음. 대신 SQL 문안 리뷰 (§9.6 참고).
+
+**MSSQL SQL 문안 리뷰**:
+- 재귀 CTE: RECURSIVE 키워드 없음(공통 문안) ✓
+- 앵커·재귀부 칼럼 타입 일치 (`BIGINT`, `VARCHAR`) ✓
+- 깊이 가드: `WHERE DEPTH < 50` (MAXRECURSION 100 대비) ✓
+
+### 9.6 Verify 게이트 결과
+
+| 게이트 | 결과 |
+|---|---|
+| 백엔드 `testAll` (로컬) | **1957 tests, 실패 0·오류 0**(Build 결과와 동일) |
+| 프런트 `pnpm build:libs` | 성공 |
+| m-mdm `vitest run` | **295 tests, 실패 0** (단, `tests/evalex-perf.test.ts` NFR-1 1건 — 환경 load average 60.67 51.15 45.28, 단독 재확인 3 pass 1 fail) |
+| m-mdm `lint` | 통과 |
+| `oasis-contract-check --module mdm` | ERROR 0, INFO 1 |
+| E2E 기준선(3개 스펙, workers 1) | `mdm-domainMng` 3 + `mdm-shell-rbac-smoke` 4 + `mdm-sample-smoke` 1 = **8 passed** |
+| E2E I17 변이(화면 제목 변경) | **RED**(변이 감지, E2~E6 실패) |
+| 나머지 변이 I1~I16, I18, I19 | Build §9.3 기록 인용(모두 RED, 19개 불변 규칙 커버) |
+
+**스모크 넷**: E1(메뉴 이동) + E2(목록·등록) + E5(오류 표시) + E6(영향도) 모두 통과. E3(상속·미리보기), E4(거부), E7(RBAC) 포함.
+
+**수용 기준 6개 확인** (Build 테스트로 검증):
+1. 상속 순환·길이·구조 저장 거부 — R07, R06, S01 서버 테스트 + E4 화면
+2. CODE 도메인 체인 참조 — R09 테스트 + 양성 대조 (W02 경고)
+3. 포털 메뉴 + E2E — E1~E7 + 스크린샷 커밋
+4. 거부 조건 10종 — `DomainMngRejectConditionTest` 1:1 매핑
+5. 하위 케이스 실패 시 롤백 — `DomainMngOasisFlowTest` B3 + B2 양성
+6. 03·06 테이블 비어도 조회 — `DomainImpactQueriesSqliteTest` + E6 화면
+
+**서버 프로세스 규칙** (I20 절차): 포트 18113(mcm), 18206(mdm), 15113(포털) 자기 포트 사용, PID 기록/종료 완료, be-run.sh·fe-run.sh·pkill 미사용 ✓
+
+**load average 단독 재확인**: 60.67 51.15 45.28 (고부하 상태)에서 evalex-perf.test.ts 3 pass 1 fail → 환경 요인 확인 ✓
+
