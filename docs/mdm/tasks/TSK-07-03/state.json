@@ -2,7 +2,7 @@
   "tsk": "TSK-07-03",
   "order": "68d4a55b-20ac-456c-a4fb-d84023aa4a22",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "reported",
+  "phase": "merged",
   "model": "sonnet",
   "branch_base": "3fbf0737b93a2af61436a7af149d245a592c6655",
   "baseline": {
@@ -55,5 +55,6 @@
   "last": {
     "phase": "done",
     "event": "done.ok"
-  }
+  },
+  "unapproved": true
 }
