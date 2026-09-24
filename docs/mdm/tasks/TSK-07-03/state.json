@@ -2,5 +2,58 @@
   "tsk": "TSK-07-03",
   "order": "68d4a55b-20ac-456c-a4fb-d84023aa4a22",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "reported",
+  "model": "sonnet",
+  "branch_base": "3fbf0737b93a2af61436a7af149d245a592c6655",
+  "baseline": {
+    "failures": 0,
+    "tests": 2823,
+    "docker": "banned:spawn",
+    "cmds": [
+      {
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 2337,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "3fbf0737b93a2af61436a7af149d245a592c6655-5a99c8ef20f3",
+        "measured_at": "2026-09-24T04:44:35Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 330,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "3fbf0737b93a2af61436a7af149d245a592c6655-70ad4dddc2e4",
+        "measured_at": "2026-09-24T04:44:42Z"
+      },
+      {
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "3fbf0737b93a2af61436a7af149d245a592c6655-773190afc491",
+        "measured_at": "2026-09-24T04:45:27Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "3fbf0737b93a2af61436a7af149d245a592c6655-79066bca5c4b",
+        "measured_at": "2026-09-24T04:45:21Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 156,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "3fbf0737b93a2af61436a7af149d245a592c6655-85eac351cb59",
+        "measured_at": "2026-09-24T04:45:23Z"
+      }
+    ]
+  },
+  "last": {
+    "phase": "done",
+    "event": "done.ok"
+  }
 }
