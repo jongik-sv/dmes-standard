@@ -765,54 +765,139 @@ Build(Phase 03, 2026-09-24)가 이 문서에서 벗어난 지점과 그 사유�
 
 요약: 변이 65건(시험으로 잡는 64 + 게이트 1). 1차에 살아남은 변이 2건(I22 정렬, I26 캐시)은 시험을 보강해 잡았다. 최종 생존 0건. 처음 넣은 I3 "한 글자씩" 변이(`while (false)`)는 Java 도달 불가 문장이라 컴파일 오류였고, 도달 가능한 모양(`while (j < i)`)으로 바꿔 다시 돌렸다.
 
-## Verify 기록 (Phase 04, 2026-09-24)
+## Verify 기록 (Phase 04, 2026-09-24 재시도 — sonnet 승격, 실측)
+
+이전 Verify(haiku, 17분)는 변이를 하나도 다시 넣지 않고 Build 의 변이 기록을 인용만 했고, E2E 를
+새 DB 로 돌렸다는 근거(워크트리 `src/backend/data/` 의 mcm.db·mdm.db)가 없어 오케스트레이터가
+반려했다. 이 절은 그 반려를 받은 뒤 **이 Verify 담당이 직접 실행해 얻은 결과**로 통째로 다시 썼다.
+스크래치패드 하네스: `mutate_backend.py`(백엔드 변이 스윕, ElementTree 로 JUnit XML 을 정확히 파싱),
+`mutate_fe.py`(FE 변이 스윕), `e2e-cycle.sh`(E2E 사이클, 재사용).
 
 ### 게이트 결과
 
-전체 게이트가 기준선 대비 신규 실패 0 + 총수 미감소로 통과했다.
+전체 게이트를 포그라운드로 끝까지 돌렸다. 기준선·Build 수치 대비 신규 실패 0, 총수 미감소.
 
-| 게이트 | 결과 | 기준선 대비 |
-|---|---|---|
-| 백엔드 전체 | 1387 tests / 0 failures | 신규 0 ✓ |
-| FE m-mdm test | 8 files / 46 passed | 신규 0 ✓ |
-| FE m-mdm lint | pass | 통과 ✓ |
-| FE shared | 23 files / 156 passed | 신규 0 ✓ |
-| OASIS 기본 | ERROR 0 / WARN 0 | 신규 0 ✓ |
-| OASIS mdm 모듈 | ERROR 0 / WARN 0 | 신규 0 ✓ |
-| page-registry 동기 | diff 없음 | 통과 ✓ |
-| 마이그레이션 불변(3d08db7 대비) | diff 없음 | 통과 ✓ |
+| 게이트 | 명령 | 결과 | 기준선/Build 대비 |
+|---|---|---|---|
+| 백엔드 전체 | `./gradlew testAll --console=plain` + XML 집계 | **1387 tests / 0 failures** | Build 수치와 동일, 신규 0 ✓ |
+| FE m-mdm test(`pnpm build:libs` 먼저) | `pnpm --filter @dk-oasis/m-mdm test` | **8 files / 46 passed** | Build 수치와 동일 ✓ |
+| FE m-mdm lint | `pnpm --filter @dk-oasis/m-mdm lint` | pass(`tsc --noEmit`) | 통과 ✓ |
+| FE shared | `pnpm test:unit:shared` | **23 files / 156 passed** | 기준선과 동일 ✓ |
+| OASIS 기본 | `check_oasis_contract.py --root .` | ERROR 0 / WARN 0 / INFO 29 | 기준선과 동일 ✓ |
+| OASIS mdm 모듈 | `check_oasis_contract.py --root . --module mdm` | ERROR 0 / WARN 0 / INFO 2 | Build 수치와 동일 ✓ |
+| page-registry 동기 | codegen 재실행 후 `git diff --exit-code` | diff 없음(22 pages) | 통과 ✓ |
+| 마이그레이션 불변(기점 3d08db7 대비) | `git diff --stat 3d08db7 HEAD -- .../db/migration` | 출력 없음 | 통과 ✓(I24) |
 
-### E2E 전체 스위트
+세 게이트(백엔드 전체·FE m-mdm test·OASIS mdm 모듈)는 변이 스윕을 모두 끝낸 뒤 **한 번 더 재실행**해
+게이트가 여전히 초록임을 재확인했다(위 표의 수치가 그 재확인 결과다).
 
-§3.6 절차대로 새 mcm.db·mdm.db 로 서버를 띄우고 세 스펙을 `--workers=1` 로 한 번에 돌렸다.
+### E2E 전체 스위트 (최종 클린 사이클)
 
-| 스펙 | 케이스 | 결과 |
-|---|---|---|
-| `mdm-shell-rbac-smoke.spec.ts` | T1·T2·T3·T4 | 4 passed ✓ |
-| `mdm-sample-smoke.spec.ts` | login → mdmSample | 1 passed ✓ |
-| `mdm-columnMng.spec.ts` | E1·E2~E4·E5·E6 | 4 passed ✓ |
-| **합계** | | **9 passed** ✓ |
+§3.6 절차대로 새 mcm.db·mdm.db 로 서버 셋(mcm 18404 / mdm 18496 / 포털 15404)을 직접 띄우고 세
+스펙을 `--workers=1` 로 한 번에 돌렸다. 아래는 변이 사이클을 모두 마친 뒤 마지막에 돌린 **클린
+사이클**(스크래치패드 `e2e-final/`)의 결과이며, 이 사이클의 mcm.db·mdm.db 와 스크린샷을 그대로
+남겼다.
 
-거짓 통과 방지 증거:
-- SQLite 경로: `jdbc:sqlite:../data/mdm.db` → 워크트리 `src/backend/data/mdm.db` 확인
-- 포털 포트: 15404 (자체 포트, 5100 메인 체크아웃 제외)
-- 스모크 데이터: mcm 시드 diff 없음, mdm 사전 픽스처 term 5건 + domain 4건 정확히 로드
-
-### 변이 검증
-
-Build Phase 에서 65개 변이(I1~I30, 규칙당 1~3개)를 모두 검증했고, 최종 생존 0건으로 기록되었다. Verify Phase 에서 게이트와 E2E 전체 스위트가 통과했으므로, 모든 불변 규칙이 여전히 지켜지고 있음이 확인되었다.
-
-### 수용 기준 매핑
-
-| 수용 기준 | Verify 검증 결과 |
+| 스펙 | 결과 |
 |---|---|
-| AC1 한 시스템 안 같은 필드명의 두 번째 등록 거부 | E2E E5 통과 ✓ (MDM017 문구 표시) |
-| AC2 라벨이 비면 더 긴 쪽으로 대체해 표시 | E2E E4 통과 ✓ (중간값 대체) |
-| AC3 포털 메뉴에서 화면이 열리고 E2E 통과 | E2E E1~E6 전체 9 passed ✓ |
-| AC4 *** 가 남으면 저장 불가 | E2E E2 통과 ✓ (오류 메시지 표시) |
-| AC5 권한 없는 사용자는 인라인 등록 불가 | E2E E6 통과 ✓ (팝업·저장 비활성) |
+| `mdm-shell-rbac-smoke.spec.ts` | T1·T2·T3·T4 — 4 passed ✓ |
+| `mdm-sample-smoke.spec.ts` | login → mdmSample — 1 passed ✓ |
+| `mdm-columnMng.spec.ts` | E1·E2~E4·E5·E6 — 4 passed ✓ |
+| **합계** | **9 passed**(29.5s) ✓ |
+
+거짓 통과 방지 증거(요구된 ①~④):
+1. **SQLite 경로**: mcm 로그가 절대 경로를 직접 찍는다 —
+   `[Cactus] extras DataSource — bean='cactusDataSourceCmn' alias='cmn' url=jdbc:sqlite:/Users/jji/project/dmes-standard/dflow-88a2e470/src/backend/data/mcm.db`.
+   mdm 로그는 상대 경로 `Database: jdbc:sqlite:../data/mdm.db` 를 찍는데, mdm 서버는
+   `$W/src/backend/mdm` 에서 기동했으므로 `../data/mdm.db` 는 `os.path.normpath` 로 확인한 대로
+   정확히 `/Users/jji/project/dmes-standard/dflow-88a2e470/src/backend/data/mdm.db`(워크트리)로
+   풀린다 — `ls -la` 로 이 파일이 사이클 실행 시각(10:50~10:52)에 갱신된 것도 확인했다.
+2. **포털 포트**: `fe.log` — `- Local: http://localhost:15404`(자체 포트, 5100 메인 체크아웃 아님).
+3. **playwright 출력**: `9 passed (29.5s)`(위 표, `e2e-final/playwright.log`).
+4. **E2E 뒤 DB 상태**: `sqlite3 src/backend/data/mdm.db "SELECT COUNT(*) FROM TB_MDM_COLUMN"` →
+   **1**행, `1|원재료 코일 두께 편차|RMTL_COIL_THK_DEV` — E4 가 저장한 행이 그대로 남아 있다. mcm
+   시드 대조(`mdm-rbac-seed-check.sql`)는 diff 0줄, mdm 사전 픽스처는 term 5건·domain 4건 정확히
+   로드됐다.
+
+### 변이 검증(직접 재실행)
+
+Build 의 변이 기록을 인용하지 않고 **65건 중 30건**(백엔드 27 + FE 3, 규칙 I1~I30 전부를 최소 1건씩
+덮음)을 이 Verify 가 직접 다시 넣고 스위트를 돌려 빨강을 확인한 뒤 되돌렸다. 매 변이마다
+`git diff --stat` 으로 적용을 확인하고, 실행 뒤 `git diff --stat` 으로 되돌림과
+`git status --short`(state.json 제외)로 작업 트리 청결을 확인했다 — 전 건 이상 없음. E2E 로만
+잡히는 I17(2건)·I29 는 요구대로 새 mcm.db·mdm.db 로 서버를 다시 띄운 **전체 E2E 스위트**(세 스펙,
+`--workers=1`)로 검증했다. 나머지는 `:mdm:lib:test :mdm:api:test --rerun-tasks --no-daemon
+--continue --console=plain`(백엔드, mdm 모듈 전체 388 tests 기준) 또는
+`pnpm --filter @dk-oasis/m-mdm test`(FE) 로 검증했다.
+
+I24 는 앞 절의 마이그레이션 불변 diff 게이트가 그대로 잡는다(diff 없음 재확인, 코드 변이 대상이
+아니다).
+
+| 규칙 | 넣은 변이 | 스위트 | 잡은 시험(대표) | 결과 |
+|---|---|---|---|---|
+| I1 | `NamingRules.PLACEHOLDER` `"***"`→`"??"` | 백엔드 | D2, R3, F6, F7 외 12건 | KILLED |
+| I1(FE) | `tokens.ts PLACEHOLDER` `"***"`→`"??"` | FE vitest | tokens.test.ts | KILLED |
+| I2 | 최장 일치 루프를 최단 일치로 뒤집음 | 백엔드 | F1, F3, F2, 영문 덩어리 | KILLED |
+| I3 | 미등록 구간 탐색을 덩어리 끝까지로 | 백엔드 | F8a, F8b | KILLED |
+| I4 | `CHUNK_SEPARATOR` 에서 `(` 제외(글자 취급) | 백엔드 | F7 | KILLED |
+| I5 | 별칭을 표면형 색인에서 제외 | 백엔드 | T4, F5b, 영문 덩어리 | KILLED |
+| I6 | `CANDIDATE_ORDER` 에 `.reversed()` | 백엔드 | TermDictionaryTest, F5b, F5 | KILLED |
+| I7 | 논리명에 항상 표면형(`surface()`)만 사용 | 백엔드 | F4 | KILLED |
+| I8 | 역분해 다중 조각 대조를 1개로 고정 | 백엔드 | R2 | KILLED |
+| I9 | 꼬리 정렬 대신 머리(`offset=0`) 정렬 | 백엔드 | D2, D3, D1, 머리/중간 케이스 | KILLED |
+| I10 | `LabelSuggester` 중간·짧은 한도 인자 교체 | 백엔드 | L1, L3, 중간 후보, C23 | KILLED |
+| I11(FE) | `labels.ts` 짧은 폴백이 중간을 건너뛰고 논리명으로 | FE vitest | labels.test.ts | KILLED |
+| I12 | 저장 시 자리 표시자 검사(`if (...)`)를 `if (false)` 로 | 백엔드 | C5, C6, C7b, 약어 없는 용어 | KILLED |
+| I13 | 매핑 충돌 검사에서 자기 컬럼 제외 삭제 | 백엔드 | C13, C14 | KILLED |
+| I14 | `ColumnMngService.save` 의 `guard.requireStdAdmin()` 주석 처리 | 백엔드 | C3, C4, P1 | KILLED |
+| I15 | `search` 첫 줄에 `guard.requireStdAdmin()` 추가 | 백엔드 | P5 | KILLED |
+| I16 | BPMN `flow_compare` 의 `name` 을 `compare`→`validate` | 백엔드 | DmaBpmnActionTest, P5 | KILLED |
+| I16(FE) | `saveColumn` 이 빈 `terms` 그리드를 생략하게 | FE vitest | api.test.ts | KILLED |
+| I18 | `TermDictionary` 약어 색인을 대소문자 구분으로 | 백엔드 | R4 | KILLED |
+| I19 | `AbbrSuggester` 대안 길이 증가 순서를 감소로 | 백엔드 | A1, A2, A3, A4 | KILLED |
+| I20 | `LABEL_SHORT_MAX` 6→7 | 백엔드 | L1, L3, C16, C23 | KILLED |
+| I21 | 매핑 차분 저장을 전체 삭제 후 전체 삽입으로 | 백엔드 | C14(VER 리셋) | KILLED |
+| I22 | 저장 전 `termIds` 를 정렬 | 백엔드 | C2b(보강 시험) | KILLED |
+| I23 | `TermDictionary.of` 가 빈 사전이면 NPE 던지게 | 백엔드 | 빈 사전 테스트, F6, C24, S5 | KILLED |
+| I25 | `MdmErrors.of` 의 message 를 상세만으로 | 백엔드 | MdmErrorsTest, C27, C19, C17 | KILLED |
+| I26 | `ColumnMngService.loadDictionary()` 에 인스턴스 캐시 추가 | 백엔드 | R7(보강 시험), C8, C23, C24 | KILLED |
+| I27 | 유사어 편집 거리 한도 1→2 | 백엔드 | S1, "편집 거리는 1 까지만" | KILLED |
+| I28 | `MdmErrorCode.NAME_PLACEHOLDER_REMAINS` 기본 문구 변경 | 백엔드 | CommonContractTest | KILLED |
+| I30 | 검색에서 시스템 필드명 매치 제거(`return false`) | 백엔드 | C21 | KILLED |
+| **I17a** | `DataInitializer` RBAC 루프에서 `"termRegPop"` 제거 | **E2E 전체**(mcm 새 DB) | E2~E4(팝업 유사어 표 빈 채로 타임아웃) | KILLED |
+| **I17b** | 메뉴 leaf 이름 `"컬럼 사전"`→`"컬럼사전"` | **E2E 전체**(mcm 새 DB) | E1(메뉴 클릭 실패) | KILLED |
+| **I29** | `termRegPop.tsx` `disabled={busy \|\| !canReg}`→`disabled={busy}`(m-mdm 재빌드) | **E2E 전체**(mdm 재빌드+포털 재기동) | E6(`toBeDisabled` 실패) | KILLED |
+
+요약: **30건 실행, 30건 KILLED, 생존 0건, 무효 0건**(전부 `git diff --stat` 으로 적용 확인, 컴파일
+실패 없음). I17a·I17b·I29 는 예상한 정확한 이유로 죽었다 — I17a 는 E2~E4 가 termRegPop 검색 403 으로
+유사어 표가 비어 타임아웃, I17b 는 E1 이 정규식 `/^컬럼 사전$/` 로 메뉴를 못 찾아 실패, I29 는 E6 의
+`toBeDisabled()` 단언이 실패했다(각 로그는 `e2e-i17a/`, `e2e-i17b/`, `e2e-i29b/` 에 있다). 남은
+65-30=35건(주로 Build 표의 보조 케이스·중복 근거)은 시간 제약으로 다시 넣지 않았다 — Build 1차
+스윕에서 이미 KILLED 로 기록됐고, 이번에 다시 넣은 30건이 각 규칙(I1~I30)을 최소 1건씩 덮었으므로
+빠뜨린 규칙은 없다. I22·I26(Build 1차 스윕 생존 뒤 보강)도 이번에 다시 넣어 보강 시험(C2b·R7)이
+여전히 잡는 것을 재확인했다.
+
+인프라 메모(변이 결과가 아님): 첫 I29 사이클(`e2e-i29`)은 이전 사이클 종료 직후 곧바로 시작해
+mcm.db 조회가 `database is locked`·`no such table` 로 오염되었다(mcm 프로세스 종료 타이밍과 포트
+재사용 경합으로 추정). `e2e-cycle.sh` 에 포트 대기 루프(0단계)와 시드 조회 재시도(4단계, 최대 8회)를
+추가한 뒤 `e2e-i29b` 로 다시 돌려 깨끗하게 재현했다(위 표는 i29b 결과). 이 사고는 하네스 문제이며
+I29 자체의 판정과는 무관하다.
+
+### 수용 기준 매핑(실측)
+
+| 수용 기준 | 서버 시험(testAll, 1387/0 안에 포함) | E2E |
+|---|---|---|
+| AC1 한 시스템 안 같은 필드명의 두 번째 등록 거부 | `ColumnMngServiceSqliteTest#C9·C10·C11·C12·C13`, `DmaOasisHttpTest#P8` 통과 | `mdm-columnMng.spec.ts` E5 통과(MDM017 문구) ✓ |
+| AC2 라벨이 비면 더 긴 쪽으로 대체해 표시 | `labels.test.ts`(FE, 46 passed 안에 포함) | E4 통과(표시명 칸이 중간값으로 폴백) ✓ |
+| AC3 포털 메뉴에서 화면이 열리고 E2E 가 통과 | 시드 시험(`DataInitializer` 기동 성공, mcm 시드 diff 0) | E1~E6 9 passed 전체 ✓ |
+| AC4 `***` 가 남으면 저장 불가 | `ColumnMngServiceSqliteTest#C5·C6·C7·C7b`, `DmaOasisHttpTest#P2` 통과 | E2~E4 통과(오류 문구 표시, 목록 불변) ✓ |
+| AC5 권한 없는 사용자는 인라인 등록 불가 | `TermRegPopServiceSqliteTest#R2`, `DmaOasisHttpTest#P6`(서버 403 상당), BFF 403 은 `mdm-shell-rbac-smoke#T3` 패턴과 동일 | E6 통과(팝업 비활성·저장 비활성) ✓ |
 
 ---
 
-**Verify Phase 판정**: **PASS**  
-게이트 8개 전부 통과, E2E 9 passed, 수용 기준 5개 전부 검증.
+**Verify Phase 판정**: **PASS**
+
+게이트 8개 전부 기준선/Build 대비 신규 실패 0, E2E 최종 클린 사이클 9 passed(증거 ①~④ 확보), 변이
+30건(백엔드 27+FE 3, I1~I30 전 규칙 최소 1건, E2E 전용 I17a·I17b·I29 포함) 전부 KILLED·생존 0, 수용
+기준 5개 전부 실측 시험명으로 대조 완료.
+
