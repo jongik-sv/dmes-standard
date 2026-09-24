@@ -254,3 +254,31 @@ BPMN 을 고쳤으면 `.claude/skills/bpmn-skill/SKILL.md` 검증을, Flyway 는
   케이스 입력뿐이다(서버 평가 API 를 새로 만들지 않는다).
 - 상신(확정) 화면 확인란은 08-05 — 이 작업은 `contractWarnings` 데이터·경고 표시까지.
 - mssqlMigrationTest 는 이번 작업에서 뺀다(도커 런타임 꺼짐 — 머지 뒤 방언 검증 재시도).
+
+### Build 이탈 기록 (단계 2 잔여·3·4, 담당 A)
+
+- **BPMN action 어휘**: mcm 시드의 action 은 16종 고정(`MdmOasisActionVocabularyTest`)이라 `parseExpr`·`searchDomains` 이름의 새 action 을 만들 수 없다.
+  ① `parseExpr` → 기존 `validate`(EDIT 세트)에 연결(method=parseExpr). 08-04 가 값 테스트에 `validate` 를 쓰려면 요청 `target` 으로 Java 가 가른다(BPMN 머리 주석에 적음).
+  ② `searchDomains` → `search`(READ)의 `target=DOMAIN` 으로 합쳤다. `search` 의 method 를 `searchRules` 에서 디스패처 `search` 로 바꿨다(target 없으면 기존 룰 고르기).
+  화면은 `validate` 권한(`canDo("validate")`)과 편집 가능일 때만 `parseExpr` 를 부른다(READ 사용자 403 방지).
+- **view 확장 추가 `varMeta`**: `ResolvedVar` 는 해석값(도메인·타입)이라 되돌려 보내면 사전 타입 열이 선언 타입으로 바뀌고, axis·res_grp·grp_cond 는 아예 없어 적용 시 NULL 로 지워진다.
+  그래서 `RuleEditViewResult.varMeta`(varId·axis·resGrp·grpCond·collectAgg·prioList·domainId·dataType 저장 원값)를 더했다(`ResolvedVar` 불변).
+- **그리드 Expression 셀은 읽기 전용 유지(D7)**: TABLE 저장 경로가 셀 식의 AST 를 만들지 않아 셀 입력을 편집으로 열면 AST 없는 식이 저장된다. 그래서 `ExprField` 는 열 설정의 식 칸(조건 식·열 조건·산출 결과 식)에만 적용했다.
+- **열 머리 드래그**: 공용 `AgDataGrid` 에 열 이동을 저장하는 동작이 없어 차단할 대상이 없다. 차단 판정(`columnDragBlocked`)은 순수 함수로 두었고 표 저장은 실제로 막는다.
+- **미리보기**: 저장된 테스트 케이스가 view 에 없어(08-04 몫) 열 설정 섹션의 "미리보기 입력(변수=값)" 한 줄로 서버 AST 를 화면 evalex 로 평가한다.
+- **화면 검사 목록 = 서버 목록**: `column-draft.ts` 의 `COLUMN_RULES`(27개, 서버 reject 문구 조각 포함)를 `column-draft.test.ts` 가 `RuleColumnsService.java` 와 양방향 대조한다. 화면이 다루지 않는 서버 전용 검사는 그 테스트의 `SERVER_ONLY_MESSAGES`(기존 var_id 검증·적중 정책 거부·없는 도메인 등). 축 조합 완전성 경고(`PIVOT_COVER_INCOMPLETE`)는 서버 응답 issues 로만 보인다.
+- **BPMN 편집**: 처음 XML 을 직접 고쳐 다이어그램 좌표가 빠졌고, `npx -y @cothe/bpmn-tool modify` 로 다시 적용해 바로잡았다(`validate` 경고 1건은 기존의 default flow 미설정).
+
+## 변이 검증 기록
+
+| 불변 규칙 | 변이 | 잡은 테스트 | 결과 |
+|---|---|---|---|
+| 2 원자 적용 | `applyColumnDraft` 가 거부가 있어도 요청 본문을 만든다 | `column-draft.test.ts` 거부 줄이 하나라도 있으면 요청 본문을 만들지 않는다 | 잡힘 |
+| 4 DERIVE 순서 | 뒤 seq 참조 검사를 무력화(`slice(i+99)`) | `column-draft.test.ts` 앞 순서 결과 참조는 허용하고 자기 자신·뒤 순서 참조는 거부한다 | 잡힘 |
+| 5 결과 열 그룹 | 기본 열이 마지막이 아니어도 통과 | `column-draft.test.ts` 기본 열은 하나뿐이고 그룹의 마지막 | 잡힘 |
+| 8 셀 비움 | 표시 타입 변경 알림 누락 | `column-draft.test.ts` 표시 타입을 바꾼 열은 셀을 비운다는 알림 | 잡힘 |
+| 9 서버 파싱 단일 진원 | 디바운스 지연 0 | `expr-field.test.ts` 디바운스 서버 파싱 | 잡힘 |
+| 9 서버 파싱 단일 진원 | expr 폴더가 evalex `usedVariables` 를 import | `expr-field.test.ts` 화면 JS 파서 금지 | 잡힘 |
+| 13 초안 dirty 차단 | `tableSaveBlocked` 가 항상 false | `column-draft.test.ts`, `sections-render.test.ts` | 잡힘 |
+| 13 초안 dirty 차단 | 카드가 `saveBlocked` 를 무시하고 표 저장 활성 | `sections-render.test.ts` 초안이 dirty 이면 표 저장이 꺼진다 | 잡힘 |
+| 11 BPMN 구조 | validate 태스크 method 를 `view` 로 | `DmeBpmnActionTest` (Gradle `--fail-fast`) | 잡힘 |
