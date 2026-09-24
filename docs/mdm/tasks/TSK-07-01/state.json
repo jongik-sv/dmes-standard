@@ -14,11 +14,11 @@
     "count_cmd": "find src/backend -path '*/build/test-results/*' -not -path '*mssqlMigrationTest*' -name 'TEST-*.xml' | xargs grep -h -o '<testsuite [^>]*' | awk (tests/failures/errors 합산)"
   },
   "complexity": "3점(depends 2 +1, Flyway=마이그레이션 +2) → opus 판정이나 spec model=sonnet 오버라이드",
-  "flyway_version": "V7 (팀장 배정)",
+  "flyway_version": "V10 (당초 팀장 배정 V7, 배정표 폐기 후 dev 최대 V9+1 재채번)",
   "model": "haiku",
   "last": {
-    "phase": "verify",
-    "event": "verify.ok"
+    "phase": "done",
+    "event": "pre-push"
   },
   "mssql": "사용자 결정: 도커 금지로 MSSQL 실측(mssqlMigrationTest) 생략, SQLite testAll + MSSQL/SQLite DDL 줄 대조 리뷰로 대체. 기준선·게이트 비교 대상 아님",
   "design_commit": "52eb0a1",
@@ -45,5 +45,15 @@
       "11"
     ]
   },
-  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\""
+  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\"",
+  "final_gate": {
+    "dev_merge": "7551c5d",
+    "backend_testAll": {
+      "tests": 2280,
+      "failures": 0,
+      "errors": 0
+    },
+    "compileMssqlTestJava": "ok",
+    "mssqlMigrationTest": "실행 안 함(사용자 결정: 도커 금지)"
+  }
 }
