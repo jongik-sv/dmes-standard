@@ -685,7 +685,7 @@ cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 - **질문**: 지시는 TSK-03-04 의 서버 분석을 호출하라고 했지만 서버 분석기가 없다(F17). 수용 기준 7 을 어떻게 채우나?
 - **선택지**: (a) TS 분석기를 `engine.rule` Java 로 알고리즘 그대로 이식하고, 저장이 이것을 돌려 이슈를 돌려주며, 분석 코퍼스 한 벌을 JUnit·Vitest 가 함께 읽는다(TSK-03-04 D1 반려 방향) / (b) 서버는 분석하지 않고 셀 코퍼스(`engine-corpus.json`)의 셀 판정 동치만으로 해석한다 / (c) 서버 분석을 08-04 로 미루고 이 기준을 "확인하지 못함"으로 둔다
 - **택한 것**: (a)
-- **근거와 강약**: spec 수용 기준 원문이 "서버 저장 검사 결과"와의 동치를 요구한다(spec 본문, 가장 강함) — (b) 는 서버 결과가 없어 기준을 채우지 못하고, (c) 는 이 Task 의 기준을 버린다. (a) 는 승인된 선행 산출물 TSK-03-04 D1 이 적어 둔 이식 방향(`engine.rule` + `R/analysis/analysis-corpus.json`)을 그대로 따르고, 06:458 이 겹침·빈틈 계산을 `engine.rule` 에 두라고 한 원문과도 맞는다. 저장 시 검사의 나머지 20여 종은 08-04 에 남긴다. **팀장 지시 2026-09-24로 확정**: 이식과 공용 코퍼스는 08-02 가 맡고, 08-03·08-04 는 08-02 가 dev 에 머지된 뒤 착수한다. 그래서 08-04 가 그대로 쓰도록 공개 API 를 §6.6.3 으로 고정한다. 공용 기록 `docs/mdm/decisions.md` D-TSK-08-02-1.
+- **근거와 강약**: spec 수용 기준 원문이 "서버 저장 검사 결과"와의 동치를 요구한다(spec 본문, 가장 강함) — (b) 는 서버 결과가 없어 기준을 채우지 못하고, (c) 는 이 Task 의 기준을 버린다. (a) 는 승인된 선행 산출물 TSK-03-04 D1 이 적어 둔 이식 방향(`engine.rule` + `R/analysis/analysis-corpus.json`)을 그대로 따르고, 06:458 이 겹침·빈틈 계산을 `engine.rule` 에 두라고 한 원문과도 맞는다. 저장 시 검사의 나머지 20여 종은 08-04 에 남긴다. **팀장 지시 2026-09-24로 확정**: 이식과 공용 코퍼스는 08-02 가 맡고, 08-03·08-04 는 08-02 가 dev 에 머지된 뒤 착수한다. 그래서 08-04 가 그대로 쓰도록 공개 API 를 §6.6.3 으로 고정한다. 공용 기록 `docs/mdm/decisions.md` D-092.
 - **반려되면 재작업 방향**: (b) 면 Java 분석기·분석 코퍼스·저장 응답 issues 를 빼고, 수용 기준 7 을 "그리드 셀 JSON 왕복이 `engine-corpus.json` 셀 모양과 같고 두 셀 러너가 통과"로 바꿔 증명한다. (c) 면 이식 파일을 08-04 로 넘기고 매핑에 "확인하지 못함"을 적는다.
 
 ### D3 — 저장할 때 분석 ERROR 가 있으면 거부하나
@@ -700,14 +700,14 @@ cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 - **선택지**: (a) 새 action `lock`·`unlock`·`handover` 를 `MdmActions`·`MdmPermissions`·`allActions`·`PERM_MDM_EDIT/CONFIRM`·시드 대조에 더한다 / (b) 기존 13종 안에서 `execute` + 파라미터로 가른다
 - **택한 것**: (a)
 - **근거와 강약**: 승인된 선행 산출물 TSK-01-03 §7 인계(`design.md:598`)가 "`lock/unlock/handover` 액션 이름을 확정하면 `allActions`·`PERM_MDM_EDIT`·`MdmActions` 와 기대 출력을 함께 고친다"고 첫 소유권 화면 Task 에 넘겼고, `MdmActions` javadoc 도 같다. ADR-0003 D5 가 이 이름을 권장하지만 PROPOSED(미승인)라 보조 근거다. (b) 는 두 번째 게이트웨이 선례가 없고(F34) RBAC 키가 뜻을 잃는다. 이미 있는 로컬 DB 를 위해 `ensurePermActions` 보정을 더한다.
-- **팀장 지시 2026-09-24로 확정**: action 추가와 `allActions`·`PERM_MDM_EDIT`(·`PERM_MDM_CONFIRM`)·`MdmActions`·`MdmPermissions`·`mdm-rbac-seed-check.expected.txt` 수정은 08-02 가 맡고, 06-02 는 이 파일들을 건드리지 않는다. 공용 기록 D-TSK-08-02-2.
+- **팀장 지시 2026-09-24로 확정**: action 추가와 `allActions`·`PERM_MDM_EDIT`(·`PERM_MDM_CONFIRM`)·`MdmActions`·`MdmPermissions`·`mdm-rbac-seed-check.expected.txt` 수정은 08-02 가 맡고, 06-02 는 이 파일들을 건드리지 않는다. 공용 기록 D-093.
 - **반려되면 재작업 방향**: 새 action 을 빼고 `execute` 한 갈래에 `op ∈ {LOCK, UNLOCK, HANDOVER}` 를 두어 `RuleEditService.execute` 가 가른다. 시드·어휘·기대 출력 변경을 되돌린다.
 
 ### D5 — 넘기기 대상 담당자 조회 어댑터를 만드나
 - **질문**: `MdmStewardDirectory` 기본 구현은 늘 거부라 운영에서 넘기기가 MDM005 로 막힌다(F14). 이 Task 가 mcm 역할 조회 어댑터를 만드나?
 - **선택지**: (a) 만들지 않는다 — 넘기기 UI·API 는 공통 서비스에 연결하고 대상 검사는 포트에 맡긴다 / (b) mcm 에 client-key 전용 역할 조회 API 와 mdm RestClient 어댑터를 만든다
 - **택한 것**: (a)
-- **근거와 강약**: TSK-01-03 §7 은 이 일을 "06-02·08-02 중 먼저 오는 것"에 넘겼고 mcm 에 역할 조회 경로를 새로 두는 일을 **보안 검토 대상**으로 적었다(승인된 선행 산출물). 06-02 가 같은 기점에서 병렬로 돌고 있어 두 Task 가 같은 교차 모듈 작업을 따로 할 위험이 있다. spec 수용 기준에는 넘기기 성공이 없다. BE 테스트는 가짜 디렉터리로 넘기기 성공·실패를 모두 확인한다. **팀장 지시 2026-09-24로 확정**: 담당자 조회 어댑터는 만들지 않는다. 공용 기록 D-TSK-08-02-3.
+- **근거와 강약**: TSK-01-03 §7 은 이 일을 "06-02·08-02 중 먼저 오는 것"에 넘겼고 mcm 에 역할 조회 경로를 새로 두는 일을 **보안 검토 대상**으로 적었다(승인된 선행 산출물). 06-02 가 같은 기점에서 병렬로 돌고 있어 두 Task 가 같은 교차 모듈 작업을 따로 할 위험이 있다. spec 수용 기준에는 넘기기 성공이 없다. BE 테스트는 가짜 디렉터리로 넘기기 성공·실패를 모두 확인한다. **팀장 지시 2026-09-24로 확정**: 담당자 조회 어댑터는 만들지 않는다. 공용 기록 D-094.
 - **반려되면 재작업 방향**: TSK-01-03 D7 의 (c) 방향 — mcm/lib 에 `GET /api/sec/internal/user-roles?userId=`(client-key 전용)를 두고 mdm 에 `RestClientStewardDirectory` 를 `@Primary` 로 더한 뒤 e2e 에 넘기기 성공 시나리오(steward → steward2)를 넣는다. 보안 검토를 먼저 받는다.
 
 ### D6 — 헤더(룰명·설명·활용처 메모) 저장과 폐기는 누가 하나
@@ -812,7 +812,7 @@ cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 - **Vitest**: 렌더 테스트는 첫 줄 `// @vitest-environment happy-dom`, `DmesUiProvider` 로 감싸고 `globalThis.fetch` 를 `vi.fn` 으로 바꾼다(`M/tests/dma/termMng/term-mng-page.test.ts`). 테스트에서 evalex 는 상대경로 `../../../src/evalex` 로 가져온다. `pnpm build:libs` 를 먼저 돌리지 않으면 m-mdm 테스트 3개 파일이 실패한다.
 - **분석 코퍼스 경로**: Vitest 는 `M/tests/helpers/engine-paths.ts` 의 `ANALYSIS_CORPUS_PATH`, mdm/lib JUnit 은 프로젝트 디렉터리 기준 `../../maru-mdm-engine/src/test/resources/kr/dongkuk/maru/mdm/engine/analysis/analysis-corpus.json`(Gradle 테스트 작업 디렉터리 = `src/backend/mdm/lib`). 파일이 없으면 실패시킨다.
 - **e2e 스크린샷 덮어쓰기**: `mdm-shell-rbac-smoke.spec.ts` 가 TSK-01-03 스크린샷을 덮어쓴다 — E2E 절차 8) 로 되돌린다.
-- **decisions.md**: 팀장이 확정한 D2·D4·D5 는 공용 `docs/mdm/decisions.md` 에 임시 ID `D-TSK-08-02-1`~`D-TSK-08-02-3` 블록으로 적었다. 더할 일이 생기면 `D-TSK-08-02-4` 부터 이어 쓰고 전역 번호를 매기지 않으며 기존 블록은 고치지 않는다.
+- **decisions.md**: 팀장이 확정한 D2·D4·D5 는 공용 `docs/mdm/decisions.md` 에 임시 ID `D-092`~`D-094` 블록으로 적었다. 더할 일이 생기면 `D-TSK-08-02-4` 부터 이어 쓰고 전역 번호를 매기지 않으며 기존 블록은 고치지 않는다.
 - **겪은 문제는 `.issues` 에 직접 쓰지 않고 Phase 보고에 올린다.**
 
 ---
@@ -867,7 +867,7 @@ cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 | B9 | S5·S6 기대 이슈는 픽스처 룰에 같은 편집을 한 표 상태를 scratchpad 에서 TS 분석기로 돌려 얻었다(`OVERLAP 1·2`·`UNREACHABLE 2←1`, UNIQUE 면 OVERLAP ERROR, ALL_NA_ROW 는 겹침을 만들지 않음) | advisor 권고 — 추측으로 단언을 쓰지 않는다 |
 | B9 | pageId `mdm:dme/ruleEdit` 는 메뉴 탭과 같다 — 포털이 `{moduleId}:{PARENT_MENU_ID}/{OBJECT_ID}` 로 조립하고, 등록 전 탐침에서 메뉴 클릭 탭이 "등록된 페이지를 찾을 수 없습니다: mdm:dme/ruleEdit" 로 같은 값을 보였다. e2e T3 는 등록 뒤 `portal-open-tab`(`mdm:dme/ruleEdit`)으로 룰 화면 탭이 열려 새 룰을 보이는 것을 확인했다(메뉴 탭과 같은 탭으로 합쳐지는지는 pageId 가 같다는 것으로만 확인) | §6.9 "Build 가 포털에서 한 번 확인" |
 | B9 | 새 DB 의 메뉴 FULL_SEQ 는 `3050100`·`3050110` 이다(§2.2-S 의 `5050100`·`5050200` 과 다름) | `seedMdmRuleMenus` 는 설계 값 `5050100`·`5050200` 을 넣지만, 기동 끝의 FULL_SEQ 7자리 재계산(`DataInitializer` "모든 메뉴 시드 적재 후 FULL_SEQ 7자리 인코딩 강제 재계산", 화면 = 그룹 +100 부터 +10)이 다시 매긴다. 1부 산출물의 설계 값과 실제 값이 다르다는 사실만 보고하고 백엔드는 고치지 않았다. 메뉴 순서(룰 → 룰 화면)는 맞고 e2e 가 확인한다 |
-| 머지 | origin/dev(4432658)를 머지했다(aeea5a7). 충돌 7건: 식별자 사전·tsup entry 는 양쪽 행 합집합, decisions.md 는 dev 의 전역 번호 블록(D-066~D-091)을 모두 살리고 이 Task 의 임시 ID 블록 `D-TSK-08-02-1~3` 을 파일 끝에 두었다(새 전역 번호 없음). `DataInitializer` 는 05-02 레이아웃·06-02 마루 코드·07-03 항목 관리 시드와 이 Task 의 `seedMdmRuleMenus` 를 모두 부른다. action 어휘(allActions·read/edit/confirm)는 dev 가 바꾸지 않아 이 Task 의 lock·unlock·handover 추가가 그대로이고, 06-02 가 문자열로 남긴 소유권 action 이름과 같다. seed-check 기대 출력은 mdmSample 행만 보므로 새 OBJECT 가 늘어도 그대로다. page-registry 는 `node scripts/generate-page-registry.mjs` 로 다시 만들었고 두 부모 줄의 합집합과 같다. Flyway 는 dev 가 V12(layout version) 한 쌍을 더했고 이 Task 는 마이그레이션이 없어 겹치지 않는다 | 팀장 지시(머지 충돌 해소 — 양쪽 의도 보존) |
+| 머지 | origin/dev(4432658)를 머지했다(aeea5a7). 충돌 7건: 식별자 사전·tsup entry 는 양쪽 행 합집합, decisions.md 는 dev 의 전역 번호 블록(D-066~D-091)을 모두 살리고 이 Task 의 임시 ID 블록 `D-092~3` 을 파일 끝에 두었다(새 전역 번호 없음). `DataInitializer` 는 05-02 레이아웃·06-02 마루 코드·07-03 항목 관리 시드와 이 Task 의 `seedMdmRuleMenus` 를 모두 부른다. action 어휘(allActions·read/edit/confirm)는 dev 가 바꾸지 않아 이 Task 의 lock·unlock·handover 추가가 그대로이고, 06-02 가 문자열로 남긴 소유권 action 이름과 같다. seed-check 기대 출력은 mdmSample 행만 보므로 새 OBJECT 가 늘어도 그대로다. page-registry 는 `node scripts/generate-page-registry.mjs` 로 다시 만들었고 두 부모 줄의 합집합과 같다. Flyway 는 dev 가 V12(layout version) 한 쌍을 더했고 이 Task 는 마이그레이션이 없어 겹치지 않는다 | 팀장 지시(머지 충돌 해소 — 양쪽 의도 보존) |
 | 머지 | `AgDataGrid` 는 두 Task 가 같은 기능(managed 행 드래그)을 서로 다른 모양으로 더해 충돌했다. 05-02 의 `GridColumn.rowDrag`·`resolveRowDrag`(onRowOrderChange 가 없으면 정렬 값 그대로·AgGridReact prop 추가 없음, 05-02 I22)를 그대로 두고, 이 Task 의 `rowDragField`·`isRowDraggable`(ref 로 읽기)·열 그룹·headerTooltip 을 그 위에 얹었다. 드래그를 켜는 조건은 05-02 규칙(`onRowOrderChange` 가 있을 때) 하나로 하고, 정렬은 드래그가 켜졌거나 `rowDragField` 가 있으면 끈다. 손잡이 열은 `rowDragField` 와 key 가 같은 열 또는 `rowDrag: true` 열이다. 끝 콜백은 `useCallback` 없이 인라인으로 `displayedRowKeys`(화면 순서·임시 ID 우선)를 부른다 — dmb 행에는 임시 ID 칸이 없어 05-02 의 `forEachNode`·rowKey 결과와 같다. 룰 표는 이미 `sortable={false}` 라 읽기 전용 표의 정렬 동작은 바뀌지 않는다(읽기 전용일 때도 `rowDragManaged` 는 켜지지만 손잡이 열이 없어 끌 수 없다) | 두 쪽 shared 단위 테스트(`grid-row-drag`·`grid-column-group-drag`)가 모두 통과해야 한다 |
 | 머지 뒤 | 06-02 `DmcCodeBpmnActionTest` 의 로컬 상수 `OWNERSHIP_ACTIONS`("08-02 가 MdmActions 에 더하면 그 상수로 바꾼다", D-075)를 지우고, 모든 분기 action 이 `MdmActions` 안·EDIT 세트 안이라고 단언하게 좁혔다 | 06-02 design 인계. 이 Task 가 `MdmActions`·`EDIT_ACTIONS` 에 소유권 action 을 더했으므로 예외 갈래가 필요 없다 |
 
