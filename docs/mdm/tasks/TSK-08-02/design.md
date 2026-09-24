@@ -803,6 +803,13 @@ cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 | B2 | `RuleAnalysisInputMapper` 는 `DISP_TYPE` 이 비어 있으면 조건 열은 1 타입, 결과 열은 상수로 본다 | DDL 이 `DISP_TYPE` 을 NULL 허용으로 둔다. 모르는 값은 `IllegalArgumentException` 이다 |
 | B2 | `RuleQueries` 는 B2 에서 타입 해석에 필요한 `latestReleasedResultVarsExcept(ruleId)` 만 두고, §2.1-C 의 나머지 조회는 그 조회를 쓰는 B3·B4 에서 테스트와 함께 더한다. `RuleStewardCheck`(B3)·`RuleUsageFinder`(B4)도 쓰는 단계에서 만든다 | 테스트 먼저 규율 — 소비자 테스트 없이 조회 메서드를 먼저 두지 않는다 |
 | B2 | `DefaultMdmRuleIdIssuerMssqlTest` 는 작성하고 `:api:compileMssqlTestJava` 로 **컴파일만** 확인했다(실행은 도커 금지로 생략) | testAll 은 mssqlTest 소스 세트를 컴파일하지도 않으므로 컴파일 오류가 숨지 않게 따로 컴파일했다 |
+| B3 | 버전 고르기(현재 RELEASED·미적용·최신 RELEASED)를 `BL/common/rule/RuleVersions`(정적 유틸)로 따로 두었다 | 목록(ruleMng)·view·새 버전(ruleEdit)이 같은 정의를 써야 한다. 미적용 정의는 `VersionWriteGuard` 와 같다(DRAFT·REQUESTED·APPROVED·`APPLY_FROM > now` RELEASED) |
+| B3 | 목록의 `releasedVer`·`hitPolicy` 는 **지금 적용 중인** RELEASED(`APPLY_FROM <= now < APPLY_TO`), `pending*` 은 미적용 버전 중 VER 최대다. 룰명 키워드도 대문자로 바꿔 부분 일치로 본다 | §2.1-RM 이 칸만 적고 어느 RELEASED 인지 적지 않았다. 적용 전 RELEASED 는 미적용 칸에 나온다(e2e T2 의 "RELEASED 버전 1·FIRST" 와 맞다) |
+| B3 | `RuleQueries` 에 `RuleFilter` record·`pageRules`·`countRules`·`versionsOf(ids)` 를 두고, 목록 한 페이지의 버전은 한 번에 읽는다 | N+1 조회를 피한다 |
+| B3 | I23 을 단위 테스트로도 덮으려고 `MdmOasisActionVocabularyTest` 에 "mcm `DataInitializer` 의 allActions 가 mdm BPMN 의 모든 action 을 담고 readActions·editActions 문자열이 `MdmPermissions` 와 같다"는 소스 대조를 더했다 | mcm 에는 테스트가 없고 e2e 시드 대조는 PERM_ALL 을 보지 않아 allActions 에서 action 을 빼는 변이가 아무 테스트에도 잡히지 않았다. `DataInitializer` 주석이 이미 "목록 정본 = BPMN actionGateway 분기명 전수"라고 적는다 |
+| B3 | I30 을 grep 대신 ArchUnit(`BLT/dme/DmeRoleCheckArchitectureTest` — dme 는 `MdmCurrentUser.roleIds()` 를 부르지 않는다)으로 막는다 | `MdmRoles.STEWARD` 는 컴파일 상수라 클래스 파일에 참조가 남지 않는다. 역할 집합을 여는 호출을 막아야 변이가 잡힌다 |
+| B3 | `ensurePermAllActions` 는 새 `ensurePermActions(permissionId, csv)` 에 위임하고, `seedMdmRbac` 가 세 권한 세트마다 `ensurePermActions` 를 부른다 | §2.2-S (3). 같은 보정을 두 번 쓰지 않는다 |
+| B3 | `SecurityScreenContractTest` 의 "잠금 계열(lock·unlock·handover)은 없다" 단언을 "16종이 모두 세트에 있고 소유권 액션은 EDIT·CONFIRM 에만(restore 뒤) 있다"로 바꿨다 | §2.2-S — 첫 소유권 화면이 이름을 확정하면 바꾸라고 TSK-01-03 이 적어 둔 가드다(D4) |
 
 ## Build 변이 검증 기록
 
@@ -866,3 +873,25 @@ B1 스윕의 복원 상태도 엔진 전체 테스트(1223건)를 강제로 다�
 scratchpad 에서 저장 형태 → `RuleDef` 변환(§6.5 규칙: 06 표기 → `EQUAL|ONE|TWO|EXPRESSION|VALUE`, 식 변수는 `varName=null`,
 셀은 `JSON.parse`)을 거쳐 m-mdm `analyzeRule` 을 돌려 얻었고, 골든 28건은 원래 TS 테스트의 기대값과 같음을 대조했다.
 B8 의 `ruleDefFromStored` 가 같은 규칙이면 TS 러너도 그대로 통과한다.
+
+**B3**
+
+| 규칙 | 변이 | 잡은 테스트 | 결과 |
+|---|---|---|---|
+| I2 | EXTERNAL 거부 분기 삭제 | `RuleMngServiceTest` EXTERNAL | 빨강 |
+| I3 | VER INSERT 를 트랜잭션 밖으로 | `RuleMngServiceTest` 「버전 INSERT 가 실패하면 룰 행도 롤백」(SQLite 트리거) | 빨강 |
+| I3 | owner 누락 | `RuleMngServiceTest` 등록·목록 사례 | 빨강 |
+| I3 | 역할 검사(`requireSteward`) 삭제 | `RuleMngServiceTest` MDM013 | 빨강 |
+| I3 | DERIVE 도 hit FIRST | 「산출 룰의 적중 정책은 비운다」 | 빨강 |
+| I29 | count 를 필터 없이 | 「종류와 상태로 거른다」·「페이지 경계와 totalCount」 | 빨강 |
+| I29 | `%`·`_` 이스케이프 삭제 | 「키워드의 퍼센트와 밑줄은 글자 그대로다」 | 빨강 |
+| I29 | 최대 크기 100 삭제 | 「크기는 최대 100…」 | 빨강 |
+| I29 | 정렬 삭제 | 조회 세 사례 | 빨강 |
+| I29 | 오프셋을 `page * size` 대신 `page` | 「페이지 경계…」 | 빨강 |
+| I23 | `MdmPermissions.EDIT_ACTIONS` 에서 lock 빼기 | `SecurityScreenContractTest` 두 건 + `MdmOasisActionVocabularyTest` 시드 대조 | 빨강 |
+| I23 | mcm `editActions` 에서 unlock 빼기 | `MdmOasisActionVocabularyTest` 시드 대조 | 빨강 |
+| I23 | mcm `allActions` 에서 handover 빼기 | B3 시점엔 초록 — handover 를 쓰는 `ruleEdit.bpmn` 이 B4 에서 생긴다. B4 에서 다시 본다 | (B4) |
+| I23 | BPMN 분기 이름 `reg`→`register` | `DmeBpmnActionTest`·`MdmOasisActionVocabularyTest` | 빨강 |
+| I23 | BPMN method `register`→`reg` | `DmeBpmnActionTest` | 빨강 |
+| I30 | 서비스가 `currentUser.roleIds().contains(STEWARD)` 로 직접 검사 | 처음엔 초록(행동이 같다) — `DmeRoleCheckArchitectureTest` 를 더해 덮음 | 빨강 |
+| I24 | 메뉴 부모 오기 | 단위 테스트 없음(mcm 테스트 없음) — B9 e2e T1·S1 이 잡는다 | (B9) |

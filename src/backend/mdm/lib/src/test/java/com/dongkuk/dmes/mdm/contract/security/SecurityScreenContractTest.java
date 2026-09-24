@@ -27,7 +27,7 @@ class SecurityScreenContractTest {
 
     private static final Set<String> READ = Set.of("search", "view", "export", "compare");
     private static final Set<String> EDIT = Set.of("search", "view", "export", "compare",
-            "save", "delete", "reg", "import", "validate", "execute", "copy", "restore");
+            "save", "delete", "reg", "import", "validate", "execute", "copy", "restore", "lock", "unlock", "handover");
 
     @Test
     void 역할은_표준관리자와_담당자_2종이다() {
@@ -63,14 +63,25 @@ class SecurityScreenContractTest {
     }
 
     @Test
-    void 액션_상수_13종은_모두_어느_세트엔가_있고_잠금_계열은_없다() throws IllegalAccessException {
+    void 액션_상수_16종은_모두_어느_세트엔가_있다() throws IllegalAccessException {
         Set<String> actions = stringConstants(MdmActions.class);
         assertEquals(Set.of("search", "view", "export", "compare", "save", "delete", "reg", "import",
-                "validate", "execute", "copy", "restore", "confirm"), actions);
+                "validate", "execute", "copy", "restore", "lock", "unlock", "handover", "confirm"), actions);
         assertTrue(new HashSet<>(MdmPermissions.CONFIRM_ACTIONS).containsAll(actions));
-        for (String forbidden : List.of("lock", "unlock", "handover")) {
-            assertFalse(actions.contains(forbidden), forbidden + " 는 화면 Task 가 이름을 확정한다(ADR-0003)");
+    }
+
+    @Test
+    void DRAFT_소유권_액션_lock_unlock_handover_는_EDIT_와_CONFIRM_에만_있다() {
+        // TSK-08-02 D4 — 선점·해제·넘기기는 편집 권한이다. 조회 권한(READ)으로는 할 수 없다.
+        for (String action : List.of(MdmActions.LOCK, MdmActions.UNLOCK, MdmActions.HANDOVER)) {
+            assertFalse(MdmPermissions.READ_ACTIONS.contains(action), action + " 이 READ 에 있다");
+            assertTrue(MdmPermissions.EDIT_ACTIONS.contains(action), action + " 이 EDIT 에 없다");
+            assertTrue(MdmPermissions.CONFIRM_ACTIONS.contains(action), action + " 이 CONFIRM 에 없다");
         }
+        assertEquals(List.of("lock", "unlock", "handover"),
+                MdmPermissions.EDIT_ACTIONS.subList(MdmPermissions.EDIT_ACTIONS.indexOf("restore") + 1, MdmPermissions.EDIT_ACTIONS.size()),
+                "EDIT 순서는 restore 뒤 lock·unlock·handover(시드 PERMISSION_ACTION 과 같은 순서)");
+        assertEquals("confirm", MdmPermissions.CONFIRM_ACTIONS.get(MdmPermissions.CONFIRM_ACTIONS.size() - 1), "confirm 이 맨 끝");
     }
 
     @Test

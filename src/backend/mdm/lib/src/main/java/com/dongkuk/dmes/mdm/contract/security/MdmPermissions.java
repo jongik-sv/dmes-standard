@@ -5,11 +5,14 @@ import static com.dongkuk.dmes.mdm.contract.security.MdmActions.COPY;
 import static com.dongkuk.dmes.mdm.contract.security.MdmActions.DELETE;
 import static com.dongkuk.dmes.mdm.contract.security.MdmActions.EXECUTE;
 import static com.dongkuk.dmes.mdm.contract.security.MdmActions.EXPORT;
+import static com.dongkuk.dmes.mdm.contract.security.MdmActions.HANDOVER;
 import static com.dongkuk.dmes.mdm.contract.security.MdmActions.IMPORT;
+import static com.dongkuk.dmes.mdm.contract.security.MdmActions.LOCK;
 import static com.dongkuk.dmes.mdm.contract.security.MdmActions.REG;
 import static com.dongkuk.dmes.mdm.contract.security.MdmActions.RESTORE;
 import static com.dongkuk.dmes.mdm.contract.security.MdmActions.SAVE;
 import static com.dongkuk.dmes.mdm.contract.security.MdmActions.SEARCH;
+import static com.dongkuk.dmes.mdm.contract.security.MdmActions.UNLOCK;
 import static com.dongkuk.dmes.mdm.contract.security.MdmActions.VALIDATE;
 import static com.dongkuk.dmes.mdm.contract.security.MdmActions.VIEW;
 
@@ -29,11 +32,12 @@ public final class MdmPermissions {
 
     public static final List<String> READ_ACTIONS = List.of(SEARCH, VIEW, EXPORT, COMPARE);
 
+    /** 편집 — DRAFT 소유권(lock·unlock·handover)은 restore 뒤에 둔다(TSK-08-02 D4, 시드 PERMISSION_ACTION 과 같은 순서). */
     public static final List<String> EDIT_ACTIONS = List.of(SEARCH, VIEW, EXPORT, COMPARE,
-            SAVE, DELETE, REG, IMPORT, VALIDATE, EXECUTE, COPY, RESTORE);
+            SAVE, DELETE, REG, IMPORT, VALIDATE, EXECUTE, COPY, RESTORE, LOCK, UNLOCK, HANDOVER);
 
     public static final List<String> CONFIRM_ACTIONS = List.of(SEARCH, VIEW, EXPORT, COMPARE,
-            SAVE, DELETE, REG, IMPORT, VALIDATE, EXECUTE, COPY, RESTORE, MdmActions.CONFIRM);
+            SAVE, DELETE, REG, IMPORT, VALIDATE, EXECUTE, COPY, RESTORE, LOCK, UNLOCK, HANDOVER, MdmActions.CONFIRM);
 
     /** 그룹 × 역할 → PERM ID. SYSADMIN 은 여기 없다(기존대로 PERM_ALL). */
     public static final Map<MdmScreenGroup, Map<String, String>> MATRIX = Map.of(

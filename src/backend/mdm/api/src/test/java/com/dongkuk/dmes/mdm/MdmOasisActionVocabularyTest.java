@@ -1,9 +1,11 @@
 package com.dongkuk.dmes.mdm;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.contract.security.MdmActions;
+import com.dongkuk.dmes.mdm.contract.security.MdmPermissions;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,9 +20,9 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
 /**
- * 불변 규칙 I14 정적 검사 — {@code services/dma/unitMng.bpmn}·{@code termMng.bpmn} 을 파싱해
- * {@code actionGateway} 에서 나가는 모든 {@code sequenceFlow} 의 {@code name}(액션 이름)이
- * {@link MdmActions} 13개 상수의 부분집합인지 단언한다.
+ * 불변 규칙 I14 정적 검사 — {@code services/dma/unitMng.bpmn}·{@code termMng.bpmn}(TSK-04-02)과
+ * {@code services/dme/ruleMng.bpmn}·{@code ruleEdit.bpmn}(TSK-08-02 I23)을 파싱해 {@code actionGateway} 에서 나가는 모든
+ * {@code sequenceFlow} 의 {@code name}(액션 이름)이 {@link MdmActions} 16개 상수의 부분집합이고 권한 세트 안에 있는지 단언한다.
  *
  * <p>스프링 컨텍스트 없이 XML 파싱만 하는 순수 단위 테스트다(빠르다). {@code e2e} 스모크1 은
  * {@code search} 하나만 실행하므로 이것만으로는 {@code compare}/{@code execute} 오타를 못 잡는다 —
@@ -31,16 +33,24 @@ class MdmOasisActionVocabularyTest {
     private static final Set<String> ALLOWED_ACTIONS = Set.of(
             MdmActions.SEARCH, MdmActions.VIEW, MdmActions.EXPORT, MdmActions.COMPARE, MdmActions.SAVE,
             MdmActions.DELETE, MdmActions.REG, MdmActions.IMPORT, MdmActions.VALIDATE, MdmActions.EXECUTE,
-            MdmActions.COPY, MdmActions.RESTORE, MdmActions.CONFIRM);
+            MdmActions.COPY, MdmActions.RESTORE, MdmActions.LOCK, MdmActions.UNLOCK, MdmActions.HANDOVER,
+            MdmActions.CONFIRM);
 
     @Test
-    void unitMng_bpmn_의_모든_액션이_13개_어휘_안에_있다() throws Exception {
+    void unitMng_bpmn_의_모든_액션이_16개_어휘_안에_있다() throws Exception {
         assertActionsWithinVocabulary(bpmnPath("unitMng.bpmn"));
     }
 
     @Test
-    void termMng_bpmn_의_모든_액션이_13개_어휘_안에_있다() throws Exception {
+    void termMng_bpmn_의_모든_액션이_16개_어휘_안에_있다() throws Exception {
         assertActionsWithinVocabulary(bpmnPath("termMng.bpmn"));
+    }
+
+    @Test
+    void dme_ruleMng_bpmn_의_모든_액션이_어휘와_편집_권한_세트_안에_있다() throws Exception {
+        Path path = bpmnPath("dme", "ruleMng.bpmn");
+        assertActionsWithinVocabulary(path);
+        assertTrue(new java.util.HashSet<>(MdmPermissions.EDIT_ACTIONS).containsAll(actionsFromGateway(path)), actionsFromGateway(path).toString());
     }
 
     @Test
@@ -56,11 +66,54 @@ class MdmOasisActionVocabularyTest {
         assertTrue(actions.containsAll(Set.of("search", "save", "delete", "compare", "execute")), actions.toString());
     }
 
+    /**
+     * TSK-08-02 I23 — mcm {@code DataInitializer} 는 mdm lib 을 의존하지 않아 action 을 문자열로 적는다. PERM_ALL 의 allActions 에
+     * 없는 action 은 SYSADMIN 도 403 이고, PERM_MDM_EDIT 문자열이 계약과 어긋나면 역할 사용자가 403 이다. 단위 테스트가 없는
+     * 모듈이라 소스 문자열을 읽어 mdm 계약·BPMN 과 대조한다.
+     */
+    @Test
+    void mcm_시드의_allActions_는_mdm_BPMN_의_모든_action_을_담고_editActions_는_계약과_같다() throws Exception {
+        String source = Files.readString(DATA_INITIALIZER);
+        int from = source.indexOf("String allActions = String.join(\",\",");
+        assertTrue(from >= 0, "allActions 선언을 찾지 못했다");
+        Set<String> allActions = quoted(source.substring(from, source.indexOf(");", from)));
+        Set<String> bpmnActions = new LinkedHashSet<>();
+        Set<String> scanned = new LinkedHashSet<>();
+        try (var files = Files.walk(Path.of("src/main/resources/services"))) {
+            for (Path bpmn : files.filter(f -> f.toString().endsWith(".bpmn")).toList()) {
+                bpmnActions.addAll(actionsFromGateway(bpmn));
+                scanned.add(bpmn.getParent().getFileName() + "/" + bpmn.getFileName());
+            }
+        }
+        assertTrue(scanned.contains("dme/ruleMng.bpmn"), "dme BPMN 이 스캔되지 않았다: " + scanned);
+        Set<String> missing = new LinkedHashSet<>(bpmnActions);
+        missing.removeAll(allActions);
+        assertEquals(Set.of(), missing, "mcm DataInitializer allActions 에 없는 mdm BPMN action");
+
+        java.util.regex.Matcher read = java.util.regex.Pattern.compile("String readActions = \"([^\"]*)\";").matcher(source);
+        java.util.regex.Matcher edit = java.util.regex.Pattern.compile("String editActions = readActions \\+ \"([^\"]*)\";").matcher(source);
+        assertTrue(read.find() && edit.find(), "readActions·editActions 선언을 찾지 못했다");
+        assertEquals(String.join(",", MdmPermissions.READ_ACTIONS), read.group(1));
+        assertEquals(String.join(",", MdmPermissions.EDIT_ACTIONS), read.group(1) + edit.group(1));
+    }
+
+    private static final Path DATA_INITIALIZER =
+            Path.of("../../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer.java");
+
+    private static Set<String> quoted(String text) {
+        Set<String> out = new LinkedHashSet<>();
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\"([^\"]+)\"").matcher(text);
+        while (m.find()) {
+            out.add(m.group(1));
+        }
+        return out;
+    }
+
     private void assertActionsWithinVocabulary(Path bpmnFile) throws Exception {
         Set<String> actions = actionsFromGateway(bpmnFile);
         assertFalse(actions.isEmpty(), bpmnFile + " 에서 액션을 하나도 찾지 못했다 — 파싱 로직을 확인하라.");
         assertTrue(ALLOWED_ACTIONS.containsAll(actions),
-                bpmnFile + " 의 액션이 MdmActions 13개 어휘 밖이다: " + actions);
+                bpmnFile + " 의 액션이 MdmActions 16개 어휘 밖이다: " + actions);
     }
 
     /** {@code actionGateway} 에서 나가는(sourceRef=actionGateway) sequenceFlow 들의 name 집합. */
@@ -83,7 +136,11 @@ class MdmOasisActionVocabularyTest {
     }
 
     private Path bpmnPath(String fileName) {
-        Path path = Path.of("src/main/resources/services/dma", fileName);
+        return bpmnPath("dma", fileName);
+    }
+
+    private Path bpmnPath(String group, String fileName) {
+        Path path = Path.of("src/main/resources/services", group, fileName);
         assertTrue(Files.isRegularFile(path), path.toAbsolutePath() + " 가 없다");
         return path;
     }
