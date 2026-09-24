@@ -58,8 +58,8 @@
   },
   "model": "sonnet",
   "last": {
-    "phase": "verify",
-    "event": "verify.pass"
+    "phase": "refactor",
+    "event": "refactor.skip"
   },
   "build_gate": {
     "head": "4e75464",
@@ -98,5 +98,20 @@
     "oasis": "ERROR 0 / WARN 0",
     "e2e_mdm_full": "28/28 (Verify 서브에이전트, 청크 2개·같은 서버/DB)",
     "mutations": "I1 I2 I5 I6 I7 I8 I9 I14 I15 I28 전부 RED, I26 E2E 전체 스위트 RED"
+  },
+  "refactor": "생략 — 워커(무인) 실행이며 dev-discipline 「Phase 05」 무인 모드 비실행 원칙·선행 선례(TSK-01-03) 따름. 변경 규모(약 8천 줄)와 형제 Task 동시 진행으로 동작 보존 위험 대비 이득 작음",
+  "merge_gate": {
+    "merge": "2db87f4 origin/dev(022bd71: TSK-05-02·TSK-06-03) 반영, 충돌 6건 — 목록 5건 양쪽 보존, DmcBpmnActionTest add/add 는 06-02 쪽을 DmcCodeBpmnActionTest 로 개명(B12)",
+    "backend_testAll": {
+      "tests": 2593,
+      "failures": 0,
+      "errors": 0,
+      "expect": "06-03 머지 뒤 2520 + 06-02 신규 73"
+    },
+    "m_mdm_test": "43 files / 428 passed (첫 실행 load 10.6 에서 evalex-perf NFR-1 2건 실패 — evalex 무변경, 단독 4/4, load 7.6 재실행 428/0)",
+    "m_mdm_lint": "exit 0",
+    "shared": "158 passed",
+    "oasis": "ERROR 0 / WARN 0 / INFO 29",
+    "e2e": "새 DB — seed-check diff 없음, dmc 메뉴 codeMng·codeEdit·codeItemEdit 공존. codeMng 4·codeEdit 4·codeItemEdit 6·shell-rbac-smoke 4 전부 통과(codeItemEdit 는 06-03 픽스처 mdm-codeItemEdit.sql 을 넣은 뒤)"
   }
 }
