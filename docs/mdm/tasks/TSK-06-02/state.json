@@ -2,7 +2,7 @@
   "tsk": "TSK-06-02",
   "order": "16de6362-6033-4d08-b45a-20e107d40853",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "design",
+  "phase": "build",
   "baseline": {
     "failures": 0,
     "tests": 2823,
@@ -56,5 +56,9 @@
       }
     ]
   },
-  "model": "opus"
+  "model": "opus",
+  "last": {
+    "phase": "design",
+    "event": "design.pass"
+  }
 }
