@@ -13,6 +13,7 @@ import { RuleHeaderCard } from "./cards/RuleHeaderCard";
 import { RuleUsageCard } from "./cards/RuleUsageCard";
 import { RuleVersionCard } from "./cards/RuleVersionCard";
 import { DecisionTableCard } from "./decision-table/DecisionTableCard";
+import { TABLE_SECTIONS } from "./sections";
 
 export interface RuleEditCardProps {
   view: RuleEditView;
@@ -44,7 +45,8 @@ export interface RuleTableSection {
   Component: ComponentType<RuleEditCardProps>;
 }
 
-export const RULE_TABLE_SECTIONS: RuleTableSection[] = [];
+/** 섹션은 `sections/index.ts` 의 `TABLE_SECTIONS` 에 줄을 더해 늘린다(TSK-08-03: 열 설정, 다음 단계: 피벗·입력 계약). */
+export const RULE_TABLE_SECTIONS: RuleTableSection[] = TABLE_SECTIONS;
 
 /** 카드 ③ — 표 아래 섹션 목록을 넘긴다. */
 function TableCardSlot(props: RuleEditCardProps) {

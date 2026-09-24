@@ -10,11 +10,19 @@ export interface VarHeaderProps {
   physName?: string;
   typeBadge?: string;
   dispBadge?: string;
+  /** 머리 클릭 — 열 설정 표의 대응 줄을 하이라이트한다(design §6). */
+  onSelect?: () => void;
+  varId?: number;
 }
 
-export function VarHeader({ displayName, label, physName, typeBadge, dispBadge }: VarHeaderProps) {
+export function VarHeader({ displayName, label, physName, typeBadge, dispBadge, onSelect, varId }: VarHeaderProps) {
   return (
-    <span className="dt-var-header" style={{ display: "inline-flex", alignItems: "center", gap: 4, overflow: "hidden", whiteSpace: "nowrap" }}>
+    <span
+      className="dt-var-header"
+      data-testid={varId != null ? `dt-var-header-${varId}` : undefined}
+      onClick={onSelect}
+      style={{ display: "inline-flex", alignItems: "center", gap: 4, overflow: "hidden", whiteSpace: "nowrap", cursor: onSelect ? "pointer" : undefined }}
+    >
       <strong>{label ?? displayName}</strong>
       {physName && physName !== label ? <span style={{ color: "var(--color-text-muted)" }}>{physName}</span> : null}
       {typeBadge ? <span style={badgeStyle(typeBadge === "타입 없음" ? "warning" : "neutral")}>{typeBadge}</span> : null}

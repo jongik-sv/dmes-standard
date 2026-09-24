@@ -1,11 +1,14 @@
 /**
- * ruleEdit 화면의 OASIS 호출(TSK-08-02 design §6.1) — search·view·save(HEADER|TABLE)·delete(VERSION|RULE)·copy·lock·unlock·handover.
+ * ruleEdit 화면의 OASIS 호출(TSK-08-02 design §6.1) — search·view·save(HEADER|TABLE|COLUMNS)·delete(VERSION|RULE)·copy·lock·unlock·handover.
  * 표 저장의 행은 params 가 아니라 `grids.rows.rows` 로 보낸다(Build 이탈 B4). 쓰기 뒤에는 화면이 view 를 다시 불러 row_version 을 맞춘다.
  */
 import { callOasis } from "@/dme/oasis-call";
 
 import type {
+  ColumnsSaveResult,
+  DomainRow,
   HitPolicyCode,
+  ParseExprResult,
   RuleEditView,
   RulePickRow,
   RuleTableSaveResult,
@@ -90,3 +93,31 @@ export function unlockVersion(ruleId: string, ver: number, rowVersion: number): 
 export function handoverVersion(ruleId: string, ver: number, rowVersion: number, newOwnerId: string): Promise<RuleVersionResult> {
   return callOasis<RuleVersionResult>(SERVICE, "handover", { maruRuleId: ruleId, ver, rowVersion, newOwnerId });
 }
+
+/**
+ * 열 설정 적용(part COLUMNS, TSK-08-03) — 줄 배열은 표 저장과 같이 `grids.rows.rows` 로 보낸다(B4). 적중 정책은 보내지 않는다
+ * (산출 룰에 보내면 거부되고, 안 보내면 서버가 현재 값을 쓴다). null·빈 칸은 뺀다(OASIS 가 null 을 받지 못한다).
+ */
+export function saveColumnDraft(
+  ruleId: string,
+  ver: number,
+  rowVersion: number,
+  rows: Array<Record<string, unknown>>,
+): Promise<ColumnsSaveResult> {
+  const gridRows = rows.map((r) => Object.fromEntries(Object.entries(r).filter(([, v]) => v !== null && v !== undefined)));
+  return callOasis<ColumnsSaveResult>(SERVICE, "save", { part: "COLUMNS", maruRuleId: ruleId, ver, rowVersion }, { rows: { rows: gridRows } });
+}
+
+/** 식 서버 파싱 — BPMN action=validate(EDIT). 파싱은 서버 EvalEx 만 한다(불변 9). 파싱 오류는 OasisCallError 로 온다. */
+export function parseExpr(text: string, slot: ExprSlot): Promise<ParseExprResult> {
+  return callOasis<ParseExprResult>(SERVICE, "validate", { text, slot });
+}
+
+/** 값 타입 도메인 검색 — BPMN action=search target=DOMAIN(8건). */
+export async function searchDomains(keyword: string): Promise<DomainRow[]> {
+  const res = await callOasis<{ rows?: DomainRow[] }>(SERVICE, "search", { target: "DOMAIN", keyword: keyword.trim() || undefined });
+  return res.rows ?? [];
+}
+
+/** 서버 `FunctionSets.Slot` — 식 칸 종류가 허용 함수 집합을 정한다. */
+export type ExprSlot = "RULE_COND_EXPR" | "RULE_GRP_COND" | "RULE_RESULT_EXPR";

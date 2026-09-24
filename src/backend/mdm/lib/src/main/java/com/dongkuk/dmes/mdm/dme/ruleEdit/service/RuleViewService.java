@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mdm.dme.ruleEdit.service;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
+import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
 import com.dongkuk.dmes.mdm.common.rule.RuleAnalysisInputMapper;
 import com.dongkuk.dmes.mdm.common.rule.RuleAnalysisInputMapper.StoredRow;
@@ -14,12 +15,18 @@ import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewResult.RowInfo;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewResult.RuleInfo;
+import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewResult.VarCandidate;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewResult.VersionInfo;
+import com.dongkuk.dmes.mdm.entity.MdmColumn;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.entity.MdmRuleRow;
+import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
+import com.dongkuk.dmes.mdm.repository.MdmColumnRepository;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -43,15 +50,17 @@ public class RuleViewService {
     private final RuleHeaderService headerService;
     private final RuleUsageService usageService;
     private final MdmTemporalBinder temporal;
+    private final MdmColumnRepository columnRepository;
 
     public RuleViewService(RuleEditSupport support, RuleQueries queries, RuleVarTypeResolver resolver, RuleHeaderService headerService,
-                           RuleUsageService usageService, MdmTemporalBinder temporal) {
+                           RuleUsageService usageService, MdmTemporalBinder temporal, MdmColumnRepository columnRepository) {
         this.support = support;
         this.queries = queries;
         this.resolver = resolver;
         this.headerService = headerService;
         this.usageService = usageService;
         this.temporal = temporal;
+        this.columnRepository = columnRepository;
     }
 
     public RuleEditViewResult view(RuleEditViewRequest request) {
@@ -76,6 +85,10 @@ public class RuleViewService {
             out.setVars(List.of());
             out.setRows(List.of());
             out.setBaseRows(List.of());
+            out.setBaseVars(List.of());
+            out.setVarCandidates(List.of());
+            out.setVarMeta(List.of());
+            out.setBaseVarMeta(List.of());
             out.setIssues(List.of());
             out.setEditable(false);
         } else {
@@ -87,6 +100,13 @@ public class RuleViewService {
             out.setRows(rows.stream().map(RuleViewService::rowInfo).toList());
             out.setBaseRows(selected.getBaseVer() == null ? List.of()
                     : queries.rows(id, selected.getBaseVer()).stream().map(RuleViewService::rowInfo).toList());
+            out.setBaseVars(selected.getBaseVer() == null ? List.of()
+                    : resolver.resolve(id, selected.getBaseVer(), queries.vars(id, selected.getBaseVer())));
+            out.setVarCandidates(varCandidates(id));
+            out.setVarMeta(queries.vars(id, ver).stream().map(RuleViewService::varMeta).toList());
+            // base 버전의 저장 원값 — 입력 계약 diff 가 base 의 열 조건(grp_cond) 참조를 지금 값과 섞지 않게 한다.
+            out.setBaseVarMeta(selected.getBaseVer() == null ? List.of()
+                    : queries.vars(id, selected.getBaseVer()).stream().map(RuleViewService::varMeta).toList());
             List<StoredRow> stored = rows.stream().map(r -> new StoredRow(r.getRowId(), r.getSeq(), r.getRowKind(), r.getCells())).toList();
             out.setIssues(RuleIssueMaps.of(RuleAnalyzer.analyze(
                     RuleAnalysisInputMapper.toAnalysisRule(id, rule.getRuleKind(), selected.getHitPolicy(), vars, stored))));
@@ -94,6 +114,37 @@ public class RuleViewService {
                     && me != null && me.equals(selected.getOwnerId()));
         }
         out.setUsage(usageService.usage(id, out.getSelectedVer()));
+        return out;
+    }
+
+    private static RuleEditViewResult.VarMeta varMeta(MdmRuleVar v) {
+        List<String> prio = v.getPrioList() == null || v.getPrioList().isBlank() ? null
+                : DomainJson.readList(v.getPrioList()).stream().map(String::valueOf).toList();
+        return new RuleEditViewResult.VarMeta(v.getVarId(), v.getAxis(), v.getResGrp(), v.getGrpCond(), v.getCollectAgg(), prio,
+                v.getDomainId(), v.getDataType());
+    }
+
+    /** 식 입력 칸 datalist 소스 — 컬럼 사전 물리명·앞 룰 결과 변수(resolver 가 쓰는 것과 같은 조회, TSK-08-03). */
+    private List<VarCandidate> varCandidates(String id) {
+        List<VarCandidate> out = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (MdmColumn c : columnRepository.findAllByOrderByPhysNameAsc()) {
+            if (c.getPhysName() != null && seen.add(c.getPhysName())) {
+                String label = c.getLabelMid() != null ? c.getLabelMid() : c.getLabelLong();
+                out.add(new VarCandidate(c.getPhysName(), label, "COLUMN"));
+            }
+        }
+        for (MdmRuleVar r : queries.latestReleasedResultVarsExcept(id)) {
+            if (r.getVarName() != null && r.getVarName().isBlank()) {
+                continue;
+            }
+            if (r.getVarName() != null && seen.add(r.getVarName())) {
+                out.add(new VarCandidate(r.getVarName(), r.getLabel(), "RULE_RESULT"));
+            }
+            if (r.getResGrp() != null && !r.getResGrp().isBlank() && seen.add(r.getResGrp())) {
+                out.add(new VarCandidate(r.getResGrp(), r.getLabel(), "RULE_RESULT"));
+            }
+        }
         return out;
     }
 

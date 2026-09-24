@@ -16,8 +16,12 @@ import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSearchRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSearchResult;
+import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleDomainSearchRequest;
+import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleDomainSearchResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewResult;
+import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleExprParseRequest;
+import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleExprParseResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleVersionRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditService;
 import java.nio.file.Path;
@@ -218,7 +222,7 @@ class RuleEditViewTest {
     @Test
     void 저장과_삭제는_모르는_part_와_target_을_거부한다() {
         RuleEditSaveRequest save = new RuleEditSaveRequest();
-        save.setPart("COLUMNS");
+        save.setPart("NOSUCH"); // COLUMNS 는 TSK-08-03 이 실현 — 모르는 part 는 없는 이름으로 잣는다
         save.setMaruRuleId("QLTY_GRD_JDG");
         assertEquals(ErrorCode.INVALID_VALUE, assertThrows(BusinessException.class, () -> service.save(save)).getErrorCode());
         RuleVersionRequest delete = new RuleVersionRequest();
@@ -251,5 +255,115 @@ class RuleEditViewTest {
         assertEquals("DEPRECATED", jdbc.queryForObject("SELECT STATUS FROM TB_MDM_RULE WHERE MARU_RULE_ID = 'QLTY_GRD_JDG'", String.class));
         Map<String, Object> rule = jdbc.queryForMap("SELECT * FROM TB_MDM_RULE WHERE MARU_RULE_ID = 'QLTY_GRD_JDG'");
         assertEquals("파사드로 바꿈", rule.get("MARU_RULE_NAME"));
+    }
+
+    // ── TSK-08-03: parseExpr·searchDomains 액션, view 확장(varCandidates·baseVars) ──
+
+    private RuleExprParseRequest expr(String text) {
+        RuleExprParseRequest r = new RuleExprParseRequest();
+        r.setText(text);
+        r.setSlot("RULE_RESULT_EXPR");
+        return r;
+    }
+
+    @Test
+    void parseExpr_은_AST_참조변수_화면평가_가능여부를_돌려준다() {
+        RuleExprParseResult ok = service.parseExpr(expr("ROUND(COIL_THK * 2, 1)"));
+        assertTrue(ok.isSupported(), "BASE 함수만 쓰면 화면이 평가한다(evalex-guide §8.5)");
+        assertEquals(List.of("COIL_THK"), ok.getRefVars());
+        assertFalse(ok.getAst().isEmpty(), "서버 EvalEx 파싱 결과 AST 를 내려준다(불변 9)");
+        assertTrue(ok.getProblems().isEmpty());
+
+        RuleExprParseResult master = service.parseExpr(expr("MASTER(\"GRADE\", \"CODE\", \"attr01\")"));
+        assertFalse(master.isSupported(), "MDM 함수는 화면이 못 평가한다 — 서버 평가로 넘긴다");
+
+        assertEquals(ErrorCode.INVALID_VALUE, assertThrows(BusinessException.class,
+                () -> service.parseExpr(expr("COIL_THK +"))).getErrorCode(), "파싱 오류");
+    }
+
+    @Test
+    void searchDomains_는_ID_앞일치_우선으로_8건까지_돌려준다() {
+        for (int i = 1; i <= 10; i++) {
+            DmeTestSupport.domain(jdbc, "SPD_D_" + i, "QTY", "NUMBER", 0);
+        }
+        DmeTestSupport.domain(jdbc, "X_SPD_D", "TEXT", "STRING", null);
+        long spd = DmeTestSupport.domain(jdbc, "SPEED_MPM_D", "QTY", "NUMBER", 0);
+        jdbc.update("UPDATE TB_MDM_DOMAIN SET STD_RULE = 'v > 0' WHERE DOMAIN_ID = ?", spd);
+
+        RuleDomainSearchRequest q = new RuleDomainSearchRequest();
+        q.setKeyword("SPD");
+        List<RuleDomainSearchResult.Row> rows = service.searchDomains(q).getRows();
+        assertEquals(8, rows.size(), "많이 겹쳐도 8건");
+        assertEquals("SPD_D_1", rows.get(0).getStdName(), "ID 앞일치가 먼저");
+        assertTrue(rows.stream().allMatch(r -> r.getStdName().startsWith("SPD_D")), "앞일치 그룹이 우선한다");
+
+        q.setKeyword("SPEED");
+        RuleDomainSearchResult.Row speed = service.searchDomains(q).getRows().get(0);
+        assertEquals("SPEED_MPM_D", speed.getStdName());
+        assertEquals("NUMBER", speed.getDataType());
+        assertEquals("v > 0", speed.getStdRule(), "검증식을 함께 보여준다");
+    }
+
+    @Test
+    void view_는_변수_후보와_base_버전_변수를_싣는다() {
+        DmeTestSupport.rule(jdbc, "PREV_JDG", "앞 룰", "DECISION", "INUSE");
+        jdbc.update("UPDATE TB_MDM_RULE SET LAST_VAR_ID = 1 WHERE MARU_RULE_ID = 'PREV_JDG'");
+        DmeTestSupport.released(jdbc, "PREV_JDG", 1, "FIRST", "2026-01-01 00:00:00", null);
+        DmeTestSupport.var(jdbc, "PREV_JDG", 1, 1, "RESULT", "Value", "PREV_GRADE", 1, "STRING");
+        DmeTestSupport.pending(jdbc, "QLTY_GRD_JDG", 2, "DRAFT", "kim", "FIRST", 1);
+        DmeTestSupport.sampleDefinition(jdbc, "QLTY_GRD_JDG", 2);
+
+        RuleEditViewResult v = view("QLTY_GRD_JDG", 2);
+        List<RuleEditViewResult.VarCandidate> cand = v.getVarCandidates();
+        assertTrue(cand.stream().anyMatch(c -> "COIL_THK".equals(c.getName()) && "COLUMN".equals(c.getKind())),
+                "컬럼 사전 물리명(datalist 소스)");
+        assertTrue(cand.stream().anyMatch(c -> "PREV_GRADE".equals(c.getName()) && "RULE_RESULT".equals(c.getKind())),
+                "앞 룰 결과 변수");
+        assertEquals(List.of(1, 2, 3, 4, 5), v.getBaseVars().stream().map(ResolvedVar::varId).toList(),
+                "base(RELEASED) 버전의 변수 — 계약 diff 몫");
+        assertEquals("QLTY_GRD", v.getBaseVars().get(3).varName());
+    }
+
+    @Test
+    void view_는_열_설정이_되돌려_보낼_저장_원값을_varMeta_로_싣는다() {
+        DmeTestSupport.pending(jdbc, "QLTY_GRD_JDG", 2, "DRAFT", "kim", "FIRST", 1);
+        DmeTestSupport.sampleDefinition(jdbc, "QLTY_GRD_JDG", 2);
+        jdbc.update("UPDATE TB_MDM_RULE_VAR SET AXIS = 'ROW' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 AND VAR_ID = 1");
+        jdbc.update("UPDATE TB_MDM_RULE_VAR SET RES_GRP = 'GRD', GRP_COND = 'COIL_THK > 1', COLLECT_AGG = 'LIST',"
+                + " PRIO_LIST = '[\"A\",\"B\"]' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 AND VAR_ID = 4");
+
+        Map<Integer, RuleEditViewResult.VarMeta> meta = new java.util.HashMap<>();
+        view("QLTY_GRD_JDG", 2).getVarMeta().forEach(m -> meta.put(m.getVarId(), m));
+
+        assertEquals(5, meta.size());
+        assertEquals("ROW", meta.get(1).getAxis());
+        assertNull(meta.get(1).getDomainId(), "사전 컬럼 조건 열은 저장 원값이 null 이다(해석된 ResolvedVar.domainId 와 다르다)");
+        assertNull(meta.get(4).getDomainId());
+        assertEquals("STRING", meta.get(4).getDataType());
+        assertEquals("GRD", meta.get(4).getResGrp());
+        assertEquals("COIL_THK > 1", meta.get(4).getGrpCond());
+        assertEquals("LIST", meta.get(4).getCollectAgg());
+        assertEquals(List.of("A", "B"), meta.get(4).getPrioList());
+    }
+
+    @Test
+    void view_는_base_버전의_저장_원값을_baseVarMeta_로_싣는다_지금_버전_값과_섞이지_않는다() {
+        DmeTestSupport.pending(jdbc, "QLTY_GRD_JDG", 2, "DRAFT", "kim", "FIRST", 1);
+        DmeTestSupport.sampleDefinition(jdbc, "QLTY_GRD_JDG", 2);
+        jdbc.update("UPDATE TB_MDM_RULE_VAR SET RES_GRP = 'GRD', GRP_COND = 'COIL_THK > 1' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 AND VAR_ID = 4");
+
+        RuleEditViewResult v = view("QLTY_GRD_JDG", 2);
+        Map<Integer, RuleEditViewResult.VarMeta> base = new java.util.HashMap<>();
+        v.getBaseVarMeta().forEach(m -> base.put(m.getVarId(), m));
+
+        assertEquals(v.getBaseVars().size(), base.size(), "base 변수마다 한 건");
+        assertNull(base.get(4).getGrpCond(), "base(v1) 의 열 조건은 지금(v2) 초안에서 고친 값이 아니다");
+        assertEquals("COIL_THK > 1", v.getVarMeta().stream().filter(m -> m.getVarId() == 4).findFirst().orElseThrow().getGrpCond());
+    }
+
+    @Test
+    void base_버전이_없으면_baseVarMeta_는_빈_목록이다() {
+        RuleEditViewResult v = view("QLTY_GRD_JDG", 1);
+        assertEquals(List.of(), v.getBaseVarMeta());
     }
 }

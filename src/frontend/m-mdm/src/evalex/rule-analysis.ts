@@ -2,7 +2,8 @@ import type { CellJson } from "../contract/engine-contract.generated";
 import { D, PLAIN_DECIMAL, type Dec } from "./decimal";
 import { cellSummary } from "./input-contract";
 import { PatternRejected, classify, succ } from "./pattern";
-import { condVars, effectivePolicy, isExpressionColumn, normalRows, type RuleDef, type RuleRowDef, type RuleVarDef } from "./rule-model";
+import { usedVariables } from "./interpreter";
+import { condVars, effectivePolicy, isExpressionColumn, normalRows, resultVars, type RuleDef, type RuleRowDef, type RuleVarDef } from "./rule-model";
 import {
   complementNonNull,
   exact,
@@ -25,7 +26,7 @@ import {
  * 겹침·빈틈·도달 불가 분석(TSK-03-04 design §6.8, 06 「저장 시 검사」). 조건 열마다 셀을 값 집합으로 바꿔 행끼리 견준다.
  * UNIQUE 표의 겹침은 오류, 나머지는 경고다(06:364).
  */
-export type RuleIssueCode = "ALL_NA_ROW" | "UNRESOLVED_CELL" | "OVERLAP" | "OVERLAP_UNRESOLVED" | "UNREACHABLE" | "VALUE_GAP" | "NULL_GAP";
+export type RuleIssueCode = "ALL_NA_ROW" | "UNRESOLVED_CELL" | "OVERLAP" | "OVERLAP_UNRESOLVED" | "UNREACHABLE" | "VALUE_GAP" | "NULL_GAP" | "DERIVE_ORDER";
 
 export interface RuleIssue {
   code: RuleIssueCode;
@@ -377,4 +378,33 @@ function covered(sets: ExactSet[][], cols: Column[], r: number, prev: number[], 
     sub.forEach((x) => used.add(x));
   }
   return used;
+}
+
+/**
+ * DERIVE 산출 순서 검사(TSK-08-03 design §3.2, 불변 4). 결과 셀은 seq 순서로 평가되므로 결과 식은 앞 seq 결과 변수만 읽을 수 있고
+ * 자기 자신·뒤 seq 결과 변수를 읽으면 오류다. 서버 저장 검사(`RuleColumnsService`)와 같은 규칙이며 `analyzeRule`(겹침·빈틈 분석, 서버와 코퍼스 동치)의
+ * 결과에는 섞지 않고 열 설정 화면이 따로 부른다. DERIVE 가 아니면 빈 목록. 이슈는 결과 열 seq 순서로 돌려준다.
+ */
+export function analyzeDeriveOrder(rule: RuleDef): RuleIssue[] {
+  if (rule.ruleKind !== "DERIVE") return [];
+  const results = resultVars(rule);
+  const issues: RuleIssue[] = [];
+  for (const r of normalRows(rule)) {
+    results.forEach((v, i) => {
+      const cell = r.cells[v.varId];
+      if (!cell || !("ast" in cell)) return;
+      const forbidden = new Set(results.slice(i).flatMap((x) => (x.varName ? [x.varName.toUpperCase()] : [])));
+      const hit = usedVariables(cell.ast).filter((n) => forbidden.has(n.toUpperCase()));
+      if (hit.length > 0) {
+        issues.push({
+          code: "DERIVE_ORDER",
+          severity: "ERROR",
+          rowIds: [r.rowId],
+          varId: v.varId,
+          message: `${labelOf(v)} 식이 자기 자신·뒤 순서의 결과 변수를 참조한다: ${hit.join(", ")}`,
+        });
+      }
+    });
+  }
+  return issues;
 }

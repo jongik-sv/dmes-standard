@@ -1,5 +1,8 @@
 // TSK-08-02 — 룰 화면 테스트 공용 view 응답(06 샘플 QLTY_GRD_JDG 를 저장 형태로).
-import type { RuleEditView } from "../../../pages/dme/ruleEdit/types";
+import type { AstNode } from "../../../src/contract/engine-contract.generated";
+import type { RuleDef, RuleVarDef } from "../../../src/evalex";
+import type { ContractSource } from "../../../pages/dme/ruleEdit/sections/contract/contract-view";
+import type { ResolvedVar, RuleEditView, VarMeta } from "../../../pages/dme/ruleEdit/types";
 
 export const SAMPLE_VARS: RuleEditView["vars"] = [
   { varId: 1, varKind: "COND", dispType: "2", seq: 1, varName: "COIL_THK", exprVar: false, label: "두께", dataType: "NUMBER", scale: 2, dateString: false, maruCodeId: null, domainId: 1, domainName: "코일 두께", typeSource: "COLUMN", description: "코일 한 개의 두께" },
@@ -66,3 +69,34 @@ export function releasedView(me = "e2e_mdm_steward", overrides: Partial<RuleEdit
     ...overrides,
   };
 }
+
+const DISP: Record<RuleVarDef["dispType"], ResolvedVar["dispType"]> = { EQUAL: "Equal", ONE: "1", TWO: "2", EXPRESSION: "Expression", VALUE: "Value" };
+
+/** evalex 테스트 룰 → 화면이 view 로 받는 저장 형태(ResolvedVar·varMeta·StoredRow). 식 텍스트는 `texts`(varId → 텍스트)로 준다. */
+export function sourceOf(rule: RuleDef, texts: Record<number, string> = {}): { src: ContractSource; asts: Record<string, AstNode> } {
+  const asts: Record<string, AstNode> = {};
+  const vars: ResolvedVar[] = rule.vars.map((v) => {
+    const exprVar = v.varKind === "COND" && v.exprAst != null;
+    if (exprVar) asts[texts[v.varId]] = v.exprAst!;
+    return {
+      varId: v.varId,
+      varKind: v.varKind,
+      dispType: DISP[v.dispType],
+      seq: v.seq,
+      varName: exprVar ? texts[v.varId] : v.varName,
+      exprVar,
+      label: v.label ?? null,
+      dataType: v.dataType,
+      scale: v.scale ?? null,
+      dateString: false,
+      typeSource: "COLUMN",
+    };
+  });
+  const meta: VarMeta[] = rule.vars.map((v) => {
+    if (v.grpCondAst) asts[texts[v.varId]] = v.grpCondAst;
+    return { varId: v.varId, axis: "NONE", resGrp: v.resGrp ?? null, grpCond: v.grpCondAst ? texts[v.varId] : null };
+  });
+  const rows = rule.rows.map((r) => ({ rowId: r.rowId, seq: r.seq, rowKind: r.rowKind, cells: JSON.stringify(r.cells), note: null }));
+  return { src: { ruleId: rule.ruleId, ruleKind: rule.ruleKind, hitPolicy: rule.hitPolicy, vars, meta, rows }, asts };
+}
+

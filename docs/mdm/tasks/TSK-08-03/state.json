@@ -2,5 +2,138 @@
   "tsk": "TSK-08-03",
   "order": "a7491aaa-b87a-4a78-b68d-79d917bfe3bc",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "reported",
+  "baseline": {
+    "docker": "off",
+    "cmds": [
+      {
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3055,
+        "failures": 0,
+        "source": "measured",
+        "measured_at": "2026-09-24T13:18:28Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 607,
+        "failures": 0,
+        "source": "measured",
+        "measured_at": "2026-09-24T13:18:28Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0,
+        "source": "measured",
+        "measured_at": "2026-09-24T13:18:28Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0,
+        "result": "pass",
+        "source": "measured",
+        "measured_at": "2026-09-24T13:18:28Z"
+      },
+      {
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0,
+        "result": "ERROR 0 / WARN 0 / INFO 29",
+        "source": "measured",
+        "measured_at": "2026-09-24T13:18:28Z"
+      }
+    ],
+    "failures": 0,
+    "tests": 3830,
+    "excluded": "mssqlMigrationTest (도커 런타임 꺼짐 — 켜는 것은 사람 몫, 방언 검증이 머지 뒤 재시도)"
+  },
+  "model": "sonnet",
+  "last": {
+    "phase": "reported",
+    "event": "done"
+  },
+  "build_gate": {
+    "head": "784c46f",
+    "cmds": [
+      {
+        "cwd": "src/backend",
+        "cmd": "./gradlew testAll --no-daemon --console=plain",
+        "tests": 3118,
+        "failures": 0
+      },
+      {
+        "cwd": "src/frontend",
+        "cmd": "pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 756,
+        "failures": 0
+      },
+      {
+        "cwd": "src/frontend",
+        "cmd": "pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0
+      },
+      {
+        "cwd": "src/frontend",
+        "cmd": "pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0
+      }
+    ],
+    "new_failures": []
+  },
+  "verify_gate": {
+    "head": "7f65258",
+    "cmds": [
+      {
+        "cwd": "src/backend",
+        "cmd": "./gradlew testAll --no-daemon --console=plain",
+        "tests": 3120,
+        "failures": 0
+      },
+      {
+        "cwd": "src/frontend",
+        "cmd": "pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 760,
+        "failures": 0
+      },
+      {
+        "cwd": "src/frontend",
+        "cmd": "pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0
+      },
+      {
+        "cwd": "src/frontend",
+        "cmd": "pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0
+      },
+      {
+        "cwd": "src/frontend",
+        "cmd": "playwright e2e mdm-ruleEdit.spec.ts + mdm-ruleMng.spec.ts --workers=1 (격리 서버)",
+        "tests": 26,
+        "failures": 0
+      }
+    ],
+    "new_failures": [],
+    "findings": [
+      "피벗·표 카드 상호 미저장 편집 소실(수정 95b6aa6)",
+      "입력 계약 base diff 가 grp_cond 변경 누락(수정 9e7035b)",
+      "PROD_WGT_CALC 결과 식 화면 미리보기 미검증 — 08-04 몫(기록 7f65258)"
+    ]
+  }
 }

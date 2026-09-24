@@ -21,6 +21,10 @@ public class RuleEditViewResult {
     private List<ResolvedVar> vars;
     private List<RowInfo> rows;
     private List<RowInfo> baseRows;
+    private List<ResolvedVar> baseVars;
+    private List<VarCandidate> varCandidates;
+    private List<VarMeta> varMeta;
+    private List<VarMeta> baseVarMeta;
     private List<Map<String, Object>> issues;
     private UsageInfo usage;
 
@@ -35,6 +39,10 @@ public class RuleEditViewResult {
     public List<ResolvedVar> getVars() { return vars; }
     public List<RowInfo> getRows() { return rows; }
     public List<RowInfo> getBaseRows() { return baseRows; }
+    public List<ResolvedVar> getBaseVars() { return baseVars; }
+    public List<VarCandidate> getVarCandidates() { return varCandidates; }
+    public List<VarMeta> getVarMeta() { return varMeta; }
+    public List<VarMeta> getBaseVarMeta() { return baseVarMeta; }
     public List<Map<String, Object>> getIssues() { return issues; }
     public UsageInfo getUsage() { return usage; }
 
@@ -49,8 +57,84 @@ public class RuleEditViewResult {
     public void setVars(List<ResolvedVar> v) { this.vars = v; }
     public void setRows(List<RowInfo> v) { this.rows = v; }
     public void setBaseRows(List<RowInfo> v) { this.baseRows = v; }
+    public void setBaseVars(List<ResolvedVar> v) { this.baseVars = v; }
+    public void setVarCandidates(List<VarCandidate> v) { this.varCandidates = v; }
+    public void setVarMeta(List<VarMeta> v) { this.varMeta = v; }
+    public void setBaseVarMeta(List<VarMeta> v) { this.baseVarMeta = v; }
     public void setIssues(List<Map<String, Object>> v) { this.issues = v; }
     public void setUsage(UsageInfo v) { this.usage = v; }
+
+    /**
+     * 열 설정 초안이 되돌려 보낼 저장 원값(TSK-08-03). {@code ResolvedVar} 는 해석된 값(도메인·타입)이라 그대로 되보내면 사전 타입 열이
+     * 선언 타입으로 바뀌어 저장되므로, 저장된 칼럼 값을 새 필드로 따로 싣는다({@code ResolvedVar} 필드 추가 금지 — 08-01 불변).
+     */
+    public static class VarMeta {
+        private Integer varId;
+        private String axis;
+        private String resGrp;
+        private String grpCond;
+        private String collectAgg;
+        private List<String> prioList;
+        private Long domainId;
+        private String dataType;
+
+        public VarMeta() {
+        }
+
+        public VarMeta(Integer varId, String axis, String resGrp, String grpCond, String collectAgg, List<String> prioList,
+                       Long domainId, String dataType) {
+            this.varId = varId;
+            this.axis = axis;
+            this.resGrp = resGrp;
+            this.grpCond = grpCond;
+            this.collectAgg = collectAgg;
+            this.prioList = prioList;
+            this.domainId = domainId;
+            this.dataType = dataType;
+        }
+
+        public Integer getVarId() { return varId; }
+        public String getAxis() { return axis; }
+        public String getResGrp() { return resGrp; }
+        public String getGrpCond() { return grpCond; }
+        public String getCollectAgg() { return collectAgg; }
+        public List<String> getPrioList() { return prioList; }
+        public Long getDomainId() { return domainId; }
+        public String getDataType() { return dataType; }
+
+        public void setVarId(Integer v) { this.varId = v; }
+        public void setAxis(String v) { this.axis = v; }
+        public void setResGrp(String v) { this.resGrp = v; }
+        public void setGrpCond(String v) { this.grpCond = v; }
+        public void setCollectAgg(String v) { this.collectAgg = v; }
+        public void setPrioList(List<String> v) { this.prioList = v; }
+        public void setDomainId(Long v) { this.domainId = v; }
+        public void setDataType(String v) { this.dataType = v; }
+    }
+
+    /** 식 입력 칸 datalist 소스 — 컬럼 사전 물리명(COLUMN)·앞 룰 결과 변수(RULE_RESULT, TSK-08-03). */
+    public static class VarCandidate {
+        private String name;
+        private String label;
+        private String kind;
+
+        public VarCandidate() {
+        }
+
+        public VarCandidate(String name, String label, String kind) {
+            this.name = name;
+            this.label = label;
+            this.kind = kind;
+        }
+
+        public String getName() { return name; }
+        public String getLabel() { return label; }
+        public String getKind() { return kind; }
+
+        public void setName(String v) { this.name = v; }
+        public void setLabel(String v) { this.label = v; }
+        public void setKind(String v) { this.kind = v; }
+    }
 
     /** 룰 헤더(카드 ①). */
     public static class RuleInfo {
