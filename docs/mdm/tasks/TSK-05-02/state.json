@@ -2,7 +2,7 @@
   "tsk": "TSK-05-02",
   "order": "8c8a2080-52fc-4922-a174-5cafa300657f",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "build",
+  "phase": "verify",
   "baseline": {
     "failures": 0,
     "tests": 2369,
@@ -37,9 +37,17 @@
     ]
   },
   "branch_base": "86baa20404f2c94921542e2d815912cd8ad24539",
-  "model": "opus",
+  "model": "haiku",
   "last": {
     "phase": "build",
-    "event": "build.start"
+    "event": "build.pass"
+  },
+  "gates": {
+    "build": {
+      "head": "08c0f6d",
+      "backend": "2156/0",
+      "frontend": "341 passed, lint pass",
+      "e2e": "12 passed"
+    }
   }
 }
