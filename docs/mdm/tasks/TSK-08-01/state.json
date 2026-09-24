@@ -2,7 +2,7 @@
   "tsk": "TSK-08-01",
   "order": "84b388b9-c06c-48c2-8942-9945f95a0fff",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "reported",
+  "phase": "merged",
   "baseline": {
     "failures": 0,
     "tests": 1878,
@@ -47,5 +47,6 @@
     "gaps_diff": "22·26·27 확인",
     "merge_tree_origin_dev": "6855c6c 와 충돌 없음"
   },
-  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\""
+  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\"",
+  "unapproved": true
 }
