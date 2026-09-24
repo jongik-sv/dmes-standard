@@ -34,7 +34,8 @@
 | F17 | **`ArchUnit` 은 `mdm/lib` 모듈에만 `testImplementation`으로 있다**(`lib/build.gradle:50`). `MdmContractArchitectureTest`·`MdmEntityArchitectureTest`(둘 다 `mdm/lib/src/test/java/.../{contract,entity}/`)는 `com.dongkuk.dmes.mdm` 패키지를 스캔하므로 이 Task 의 새 엔티티 7개·`contract.data` 서브패키지에 **수정 없이 자동 적용**된다(TSK-05-01 F13 과 같은 패턴). 다만 "저장 코어 인터페이스의 `src/main` 구현체가 없다"를 증명하려면 `lib` 와 `api` 양쪽 main 클래스를 함께 스캔해야 하는데(TSK-07-03 의 서비스 구현체는 `api` 모듈에 생긴다, `com.dongkuk.dmes.mdm.dmd.*` 패턴), `lib` 모듈 테스트 클래스패스는 `api` 메인 클래스를 보지 못한다(의존 방향이 `api → lib`이지 반대가 아니다). **새 ArchUnit 테스트는 `api/src/test`에 둬야 하고, `api/build.gradle` 에 `archunit-junit5` `testImplementation` 을 새로 추가해야 한다**(현재 `api/build.gradle` 에 선언 없음, 직접 확인) | `lib/build.gradle:50`, `api/build.gradle` 전문 확인(archunit 없음), TSK-05-01 F13 |
 | F18 | **`TB_MDM_DATA_CATE` 의 DEF_TARGET 허용값을 DB CHECK 로 한 번 더 못박으면 "계약 재사용"을 DDL 수준에서 증명할 수 있다.** TSK-02-03 ERD 초안은 `DEF_KIND`(REGEX/TABLE) CHECK 와 "REGEX면 EXPR·TARGET 둘 다 NOT NULL" CHECK 만 두고 `DEF_TARGET` 의 허용값 나열 CHECK 는 두지 않았다. 05:157 이 "def_target 허용값은 KEY, LVL1-LVL5, ATTR01-ATTR10"이라고 명시하고 이는 정확히 `CategoryOwner.MASTER_DATA.allowedDefTargets()`(F10)와 같다 — 이 Task 가 `CK_TB_MDM_DATA_CATE_TARGET`(`DEF_TARGET IS NULL OR DEF_TARGET IN ('KEY','LVL1'...'ATTR10')`)을 **추가**하고, 그 IN 목록 문자열 집합이 `CategoryOwner.MASTER_DATA.allowedDefTargets()`의 `name()` 집합과 정확히 같은지 테스트로 대조한다(TSK-02-03 ERD 대비 추가이므로 이탈 기록) | `05-master-data.md:157`, `CategoryOwner.java`(F10) |
 | F19 | **`TB_MDM_DATA.CODE_PATTERN`·`TB_MDM_DATA_CATE.DEF_EXPR`(정규식 원문)은 `TXT_A` 토큰(ASCII 전용, MSSQL `VARCHAR(MAX)`)이다** — naming-dialect-rules §6.0 자신이 "EvalEx 식·정규식 원문"을 `TXT_A` 의 대표 쓰임으로 명시해 뒀다. `ATTR01-10`(항목 값)은 반대로 `NVARCHAR(500)`(한글 허용, ATTR500)이라 정규식이 한글 값을 대조할 수 있는 데는 문제가 없다(정규식 자체가 ASCII 라는 것과 대조 대상 값이 한글이라는 것은 별개다) | `naming-dialect-rules.md:151`, `docs/mdm/erd/05-master-data.mssql.sql:92`(`DEF_EXPR VARCHAR(MAX)`) |
-| F20 | **MSSQL `mssqlTest` 소스셋 실행은 Docker(Testcontainers) 가 필요하고 Design Phase 에서 실행하지 않는다**(오케스트레이터 지시, 같은 워크트리에서 팀장의 기준선 측정과 경합). 이 design.md 의 MSSQL 관련 결정(F5·F16 등)은 코드·문서 정적 대조로만 확인했다(TSK-02-03 F4 와 같은 처지) | 위임자 지시, TSK-02-03 F4 |
+| F20 | **[갱신] 도커를 띄우는 모든 검증이 금지됐다(사용자 결정, 오케스트레이터 추가 지시).** Design Phase 국한이 아니라 **기준선·Build·Verify 어디에서도** `mssqlMigrationTest`·Testcontainers·docker 명령을 실행하지 않는다. 기준선은 `testAll` 1878/0 하나뿐이다(mssql 기준선 측정 자체가 없어졌다). MSSQL 방언 정확성은 (1) SQLite 쪽 §3.1·§3.2 가 testAll 로 통과하는 것과 (2) §3.3 의 DDL 대조 체크리스트(테이블·칼럼·순서·타입 매핑·NULL·기본값·PK·FK·UNIQUE·INDEX·CHECK)로 대신한다 — 자동화된 빨간불이 아니라 사람이 수행하는 정적 대조다. 이 design.md 의 MSSQL 관련 결정(F5·F16 등)도 코드·문서 정적 대조로만 확인했다(TSK-02-03 F4 와 같은 처지). `docker`·`OrbStack`·`Testcontainers` 를 쓰는 명령이나 설정 파일 변경으로 우회하지 않는다 | 위임자 지시(오케스트레이터 추가 메시지), TSK-02-03 F4 |
+| F21 | **MSSQL 테스트 파일(`MdmMasterDataMssqlMigrationTest.java`)은 작성하되 실행하지 않는다.** `compileMssqlTestJava`(컴파일 전용, docker 불필요)로 컴파일만 확인하고 `:api:mssqlMigrationTest`(Testcontainers 실행)는 호출하지 않는다 — 도커 금지 정책이 바뀌면 즉시 쓸 수 있게 남겨 둔다. 이미 dev 에 있는 3개 기존 mssqlTest 파일(`MdmMssqlMigrationTest`·`MdmInterfaceLayoutMssqlMigrationTest`·`MdmTermDomainColumnMssqlMigrationTest`)의 V7 버전 집합 수정(F2)도 같은 방식 — 텍스트 수정은 하되(V7 이 머지되면 어차피 필요한 정정) 컴파일 확인만 하고 실행은 하지 않는다 | 위임자 지시(오케스트레이터 추가 메시지) |
 
 ---
 
@@ -49,6 +50,8 @@
 기존 ArchUnit 테스트(`MdmContractArchitectureTest`·`MdmEntityArchitectureTest`, `mdm/lib`)는 패키지 접두사 전체를 스캔하므로 새 서브패키지·엔티티에 수정 없이 자동 적용된다(F17). 다만 "저장 코어 인터페이스의 실 구현체가 `src/main` 에 없다"는 이 Task 만의 수용 기준("실행 로직 없음")을 증명하려면 `lib`+`api` 양쪽 main 클래스를 함께 스캔하는 **새** ArchUnit 테스트가 필요하고, 이는 `api/src/test`에 두며 `api/build.gradle` 에 archunit 의존성을 새로 추가한다(F17).
 
 이 Task 는 일시 `LocalDateTime` 칼럼을 mdm 에서 처음 매핑하므로(F7·F8), mcm 의 알려진 SQLite temporal 라운드트립 결함 선례를 그대로 재현하지 않도록 **mdm 전용 SQLite 컨버터를 처음부터 함께 만든다**(F8) — "실측해 보고 깨지면 고친다"가 아니라 "이미 알려진 결함을 선제적으로 우회한다." Build 는 §3.2 의 `typeof()` 단정 테스트로 그 결과를 실제로 검증한다. 경계 시각의 반개구간 규칙(F6)과 방언별 정밀도(MSSQL `DATETIME2(0)`, 초 단위)는 §5 불변 규칙에 직접 명시하고, 네이티브 SQL 경계 질의 테스트(§3.1)로 검증한다.
+
+**사용자 결정: 도커 금지로 MSSQL 실측 생략, DDL 리뷰로 대체**(F20 — 담당자 확인 필요 결정 절이 아니라 이미 정해진 사항으로 여기 기록한다).
 
 ---
 
@@ -95,9 +98,11 @@
 - `src/backend/mdm/api/src/mssqlTest/java/com/dongkuk/dmes/mdm/MdmMssqlMigrationTest.java` — `migrationsExecuted==4`→`5`, `targetSchemaVersion=="4"`→`"7"`, `Set.of("1","2","3","4")`→`Set.of("1","2","3","4","7")`, 메서드명 `..._V1_V2_V3_V4_가_적용된다()`(78행) → `..._V1_V2_V3_V4_V7_가_적용된다()`(F2, 새 버전 반영)
 - `src/backend/mdm/api/src/mssqlTest/java/com/dongkuk/dmes/mdm/MdmInterfaceLayoutMssqlMigrationTest.java` — `Set.of("1","2","3","4")`→`+"7"`(82·91행), 메서드명에 `_V7_` 추가(F2)
 - `src/backend/mdm/api/src/mssqlTest/java/com/dongkuk/dmes/mdm/MdmTermDomainColumnMssqlMigrationTest.java` — `Set.of("1","2","3","4")`→`+"7"`(87·96행), 메서드명에 `_V7_` 추가(F2)
+
+**위 3개 mssqlTest 파일 수정과 신규 `MdmMasterDataMssqlMigrationTest.java`(§2 생성) 공통 사항(F20·F21)**: 텍스트 수정은 하되(V7 이 dev 에 머지되면 어차피 필요한 정정이다), `:api:compileMssqlTestJava`(컴파일 전용, docker 불필요)로 컴파일만 확인한다. `:api:mssqlMigrationTest`(Testcontainers 실행)는 기준선·Build·Verify 어디에서도 호출하지 않는다.
 - `src/backend/mdm/lib/src/test/java/com/dongkuk/dmes/mdm/contract/stub/ContractStubCompileTest.java` — `MdmTemporalSegmentStoreConsumerStub`을 예시하는 `@Test` 메서드 1개 추가(기존 파일이 계약 스텁 컴파일 검증의 단일 진입점이라 TSK-05-01 선례를 따른다). `MaruIdNamespace`/`MASTER_DATA` 재사용 증명은 이미 있는 `MasterDataIdNamespaceStub` 케이스를 인용만 하고 새로 추가하지 않는다(F10)
 - `src/backend/mdm/api/src/main/resources/application-local.yml` — `spring.jpa.properties.hibernate.metadata_builder_contributor: com.dongkuk.dmes.mdm.persistence.MdmSqliteTemporalConverterContributor` 추가(F8, SQLite 전용 프로파일 파일이라 MSSQL 에는 영향 없음)
-- `docs/mdm/naming-dialect-rules.md` — §3 #16(업무 LocalDateTime) 행을 "실측 필요 → TSK-06-01" 에서 이 Task 실측 결과로 갱신(F7, Build 완료 시 실제 관찰 결과 반영), §3 #2(recv_id AUTOINCREMENT)·#19(BIN2 대소문자 구분) 05 해당분을 "확인(TSK-07-01 실측)"으로 갱신, §6.1 인계 표의 "TSK-07-01(05)" 행을 완료로 갱신 — **Build 가 실제 테스트 결과를 확인한 뒤에 이 파일을 고친다**(Design 은 무엇을 고칠지만 예고한다)
+- `docs/mdm/naming-dialect-rules.md` — §3 #16(업무 LocalDateTime) 행은 **SQLite 쪽만** 이 Task 실측 결과로 갱신 가능하다(F7, §3.2 가 도커 없이 실행되므로 — Build 완료 시 "확인(TSK-07-01 실측, SQLite)"으로). §3 #2(recv_id AUTOINCREMENT)·#19(BIN2 대소문자 구분)의 05 해당분은 **"확인"으로 닫지 않는다**(F20·F21) — 정적 DDL 텍스트 확인만 했다는 문구를 추가하고 "실측 필요"는 그대로 남긴다(도커 정책이 바뀌면 §3.3 의 작성해 둔 MSSQL 테스트 파일로 닫을 수 있다는 인계도 남긴다). §6.1 인계 표의 "TSK-07-01(05)" 행은 완료로 표시하지 않는다 — **Build 가 실제 테스트 결과를 확인한 뒤에 이 파일을 고친다**(Design 은 무엇을 어떻게 고칠지만 예고한다)
 - `docs/mdm/decisions.md` — Build 완료 시 D1(저장 코어 인터페이스 시그니처, 이 design.md 확정분을 그대로 append)과, SQLite LocalDateTime 컨버터(F8) 실측 결과를 새 번호로 append(Build 시점 작업, 이 design.md 가 무엇을 append 할지만 예고)
 
 ### 변경하지 않음(참고만)
@@ -110,9 +115,9 @@
 
 ## 3. 테스트 전략
 
-**기준선**(오케스트레이터 실측, 팀장 지시 원문): testAll 1878 tests / 0 failures / 0 errors. mssqlMigrationTest 는 오케스트레이터가 측정 중(Design 은 실행하지 않는다).
+**기준선**(오케스트레이터 실측, 팀장 지시 원문): `testAll` 1878 tests / 0 failures / 0 errors — **이것이 유일한 기준선이다**(F20, 사용자 결정으로 도커 검증 전면 금지). `mssqlMigrationTest`·Testcontainers·docker 명령은 기준선·Build·Verify 어디에서도 실행하지 않는다.
 
-게이트 판정 = 기준선 대비 신규 실패 0 + 테스트 총수 미감소(신규 테스트는 늘어난다).
+게이트 판정 = `testAll` 기준선 대비 신규 실패 0 + 테스트 총수 미감소(신규 테스트는 늘어난다). MSSQL 방언은 게이트가 아니라 §3.3 의 DDL 대조 체크리스트(정적 리뷰)로 확인한다.
 
 ### 3.1 `MdmMasterDataMigrationTest`(SQLite, `api/src/test`)
 
@@ -145,18 +150,23 @@
 2. `name`(감사 대상 아닌 업무 필드)을 바꾸고 `flush()`+`clear()`.
 3. 같은 PK 로 재조회 — `rowVersion`이 저장 시점 값과 같음을 단언(자동 증가하지 않음), 감사 `getVersion()`(`VER`)은 UPDATE 가 있었으므로 증가했는지 별도 확인 — `rowVersion`과 `VER`이 서로 독립임을 증명한다. `rowVersion`을 `@Version`으로 바꾸는 변이를 넣으면 이 절차의 2번째 save 이후 `rowVersion`이 예상과 다르게 증가해 이 테스트가 빨개진다.
 
-### 3.3 `MdmMasterDataMssqlMigrationTest`(MSSQL, `api/src/mssqlTest`)
+### 3.3 MSSQL 방언 검증 — DDL 대조 체크리스트(도커 금지, 실행하지 않는다, F20)
 
-`MdmInterfaceLayoutMssqlMigrationTest` 패턴(`@SpringBootTest`+`local-db`+Testcontainers, Hibernate 매핑까지 실제로 거친다). naming-dialect-rules §6.1 인계 지목분(05 의 #2·#19)을 닫는다:
+**사용자 결정으로 도커를 띄우는 모든 검증이 금지됐다.** `mssqlMigrationTest`(Testcontainers)는 기준선·Build·Verify 어디에서도 실행하지 않는다. MSSQL 방언의 정확성은 (1) SQLite 쪽 §3.1·§3.2 가 `testAll`로 통과하는 것(업무 로직·제약 논리는 방언 무관하게 같은 DDL 구조에서 나온다)과 (2) 아래 **DDL 대조 체크리스트**로 확인한다. 체크리스트는 자동화된 빨간불이 아니라 Build·Verify 가 `sqlite/V7__create_mdm_master_data.sql`과 `mssql/V7__create_mdm_master_data.sql`을 나란히 놓고 §6.0 최종 칼럼표 대비 줄 단위로 대조하는 사람 검토다. 7테이블 각각에 대해 확인한다:
 
-1. 마이그레이션 5건 적용, `flyway_schema_history`에 `{"1","2","3","4","7"}`.
-2. **#2(F5류)**: `TB_MDM_DATA_RECV.RECV_ID`의 `IDENTITY(1,1)`이 연속 증가함을 확인한다 — `TB_MDM_DATA_RECV`는 리포지토리가 없으므로(F4, D-019) `EntityManager.persist()`+`flush()`를 연속 호출하거나 네이티브 INSERT 를 연속 실행해 확인한다.
-3. **#19**: `MARU_DATA_ID`·`CODE`·`CATE_ID`·`SYSTEM_CODE`·`SOURCE_SYSTEM`·`STATUS`·`SOURCE_KIND`·`DEF_KIND`·`DEF_TARGET`·`LVL1-5` 등 BIN2 콜레이션 칼럼에 `sys.columns.collation_name='Latin1_General_100_BIN2'`을 확인하고, 대소문자만 다른 두 `MARU_DATA_ID`('PORTx'/'portx') 값이 서로 다른 행으로 INSERT 됨을 실제로 확인한다.
-4. `TB_MDM_DATA.SOURCE_SYSTEM`·`TB_MDM_DATA_SYSTEM.SYSTEM_CODE`·`TB_MDM_DATA_RECV.SOURCE_SYSTEM` FK 가 MSSQL 에서도 강제됨을 확인(F5 대조군).
-5. **F7·F8 재확인(MSSQL 쪽)** — `DATETIME2(0)`에 초 단위 미만 값을 넣었을 때 반올림·절삭 동작을 실측하고, `MdmDataItem` 왕복이 SQLite 결과(§3.2)와 논리적으로 같은 시각을 돌려주는지 확인(§5 불변 규칙 9, 정밀도).
-6. 예약어 칼럼 `[RESULT]`·`[ACTION]` 매핑 왕복 — 엔티티로 저장 후 조회한 값이 저장한 값과 일치.
-7. **복합키 왕복** — 복합 PK 엔티티 5개(`MdmDataSystem`·`MdmDataItem`·`MdmDataCate`·`MdmDataCateItem`·`MdmDataRecvItem`)를 저장하고 `*Id`로 조회해 값이 일치함을 확인한다. 리포지토리가 있는 `MdmDataItem`·`MdmDataCate`·`MdmDataCateItem`은 `save()`/`findById()`로, 리포지토리가 없는 `MdmDataSystem`·`MdmDataRecvItem`(F4, D-019)은 `EntityManager.persist()`+`flush()`+`find(Class, id)`로 확인한다.
-8. **F13(FK 없음) MSSQL 대조군** — `TB_MDM_DATA_CATE_ITEM`에 존재하지 않는 `CATE_ID`·`CODE` 로 INSERT 가 MSSQL 에서도 성공함을 확인(SQLite §3.1-5 와 대조).
+1. **테이블 존재·순서** — 7테이블 모두 두 파일에 있고, `CREATE TABLE` 순서가 같다(DATA → DATA_SYSTEM → DATA_ITEM → DATA_CATE → DATA_CATE_ITEM → DATA_RECV → DATA_RECV_ITEM).
+2. **칼럼 개수·이름·순서** — 두 방언의 칼럼 목록이 순서까지 같다(§6.0 칼럼표와 대조).
+3. **타입 매핑** — 각 칼럼이 §6.0 토큰표(`CD20`·`CD50`·`NM100`·`TXT`·`TXT_A`·`INT4`·`BIGI`·`DTS`·`ATTR500`·`ID_AI`)와 정확히 대응하는지, 특히 코드성 칼럼(`MARU_DATA_ID`·`CODE`·`CATE_ID`·`SYSTEM_CODE`·`SOURCE_SYSTEM`·`STATUS`·`SOURCE_KIND`·`DEF_KIND`·`DEF_TARGET`·`LVL1-5`)에 MSSQL `COLLATE Latin1_General_100_BIN2`가 빠짐없이 붙었는지(F5·naming-dialect-rules §3 #19).
+4. **NULL/NOT NULL** — §6.0 표의 NULL 칸과 일치.
+5. **기본값** — 리터럴 텍스트까지 일치(`'9999-12-31 00:00:00'`, `0`, `'INUSE'`, `'^[0-9A-Z]{1,20}$'` 등). SQLite `VER`는 F15 대로 `BIGINT` 리터럴인지도 확인.
+6. **PK** — 칼럼 구성·제약명(`PK_TB_MDM_...`)이 두 방언에서 같다.
+7. **FK** — 대상·칼럼·제약명이 같고(F5), **`TB_MDM_DATA_CATE_ITEM.CATE_ID`·`CODE`는 두 방언 모두 FK 가 없어야 한다**(F13 — 있으면 이탈).
+8. **UNIQUE/INDEX** — `IX_TB_MDM_DATA_ITEM_NAME`이 두 방언 모두 있고 대상 칼럼이 같다.
+9. **CHECK** — 제약명·`IN(...)` 값 집합이 두 방언에서 같다(`CK_TB_MDM_DATA_CATE_TARGET`, F18 포함 — 이 값 집합은 §3.1-9 에서 SQLite 쪽만 `CategoryOwner.MASTER_DATA.allowedDefTargets()`와 자동 대조되므로, MSSQL 쪽은 **SQLite 파일과 문자열이 같다**는 것만 이 체크리스트가 확인하면 간접적으로 같이 보장된다).
+10. **예약어 칼럼 인용** — `RESULT`·`ACTION`이 SQLite `"..."`, MSSQL `[...]`로 일관되게 감싸졌는지.
+11. **IDENTITY/AUTOINCREMENT** — `RECV_ID`가 SQLite `INTEGER PRIMARY KEY AUTOINCREMENT`, MSSQL `BIGINT IDENTITY(1,1)`로 선언됐는지 텍스트만 확인한다. **알려진 커버리지 갭**: 실제 단조 증가 동작(naming-dialect-rules §3 #2 05 해당분)과 콜레이션의 실제 대소문자 구분 동작(§3 #19 05 해당분)은 도커 없이 검증할 수 없다 — 두 행은 이 Task 완료 후에도 "실측 필요"로 남는다(정적 확인만 했다는 사실을 naming-dialect-rules.md 에 기록한다, §2).
+
+**MSSQL 테스트 파일은 작성하되 실행하지 않는다**(F21) — `MdmMasterDataMssqlMigrationTest.java`(§2 생성)는 `MdmInterfaceLayoutMssqlMigrationTest` 패턴을 그대로 따라 위 11개 항목에 대응하는 테스트 메서드를 작성해 도커 정책이 바뀌면 즉시 쓸 수 있게 남겨 두되, 이번 Task 의 게이트가 아니다. Build 는 `:api:compileMssqlTestJava`(컴파일 전용, docker 불필요)로 컴파일만 확인하고 `:api:mssqlMigrationTest`는 호출하지 않는다.
 
 ### 3.4 계약 스텁 컴파일 테스트(`ContractStubCompileTest` 확장)
 
@@ -186,26 +196,26 @@
 | 엔티티(7개, 위임자 지시) | §3.2 |
 | 일시 선분 저장 코어 인터페이스 | §3.4, §6.1 |
 | 카테고리·ID 이름 공간은 전사 계약 재사용 | §3.1-9(DDL CHECK ↔ `CategoryOwner`/`CategoryKind` 대조), §3.4(스텁이 `contract.category` 무변경으로 컴파일) |
-| naming-dialect-rules §6.1 인계 #2·#19(05, F5·F9) | §3.3-2·3 |
+| naming-dialect-rules §6.1 인계 #2·#19(05 해당분) | **닫지 못함**(F20·F21) — §3.3 체크리스트 항목 3·11 로 DDL 텍스트만 정적 확인했고, 실제 동작(단조 증가·대소문자 구분)은 도커 금지로 실측하지 못해 naming-dialect-rules.md 에 "실측 필요"로 남긴다 |
 
 ---
 
 ## 5. 불변 규칙 — 이 작업에서 바꾸면 안 되는 것 (규칙 · 변이 · 빨개지는 테스트)
 
-1. **7테이블 전부(보류 대상 3개 포함)를 만든다** — `TB_MDM_DATA_SYSTEM`·`TB_MDM_DATA_RECV`·`TB_MDM_DATA_RECV_ITEM`을 빼지 않는다(PRD §2 규칙 7, F3). **변이**: 3테이블 제거 → §3.1-1(7테이블 생성 확인)·§3.2(엔티티 왕복)·§3.3 전부 빨개진다.
+1. **7테이블 전부(보류 대상 3개 포함)를 만든다** — `TB_MDM_DATA_SYSTEM`·`TB_MDM_DATA_RECV`·`TB_MDM_DATA_RECV_ITEM`을 빼지 않는다(PRD §2 규칙 7, F3). **변이**: 3테이블 제거 → §3.1-1(7테이블 생성 확인)·§3.2(엔티티 왕복)이 빨개지고, §3.3 DDL 체크리스트 항목 1(테이블 존재)에서도 사람이 바로 알아챈다(자동 빨간불은 아니다, F20).
 2. **선분 PK 는 `원래 키 + valid_from`이다**(F6) — `DATA_ITEM`·`DATA_CATE`·`DATA_CATE_ITEM` 세 테이블 모두. **변이**: `VALID_FROM`을 PK 에서 빼고 별도 대리키로 바꿈 → §3.1-6(같은 키·다른 VALID_FROM 공존 확인)이 빨개진다.
 2-1. **경계는 `valid_from`(포함)–`valid_to`(배타)인 반개구간이다**(F6, `[T1,T2)`). 방언별 칼럼 타입은 SQLite `TEXT`(포맷 `yyyy-MM-dd HH:mm:ss`, F7·F8), MSSQL `DATETIME2(0)`(초 단위, 불변 규칙 9)이다. **변이**: 경계 비교를 `<=`/`<`가 아니라 둘 다 `<=`(폐구간)로 바꿈 → §3.1-11(경계 산술 테스트, `t=T2`일 때 0건이어야 하는데 1건이 되어) 빨개진다.
 3. **열린 행의 `VALID_TO`는 `'9999-12-31 00:00:00'`이다**(F6). **변이**: 다른 센티넬(예: NULL)로 바꿈 → §3.1-7(DDL 텍스트 확인)·§3.2-4(`OPEN_END` 상수와 왕복 값 비교)가 빨개진다.
-4. **`CATE_ITEM`은 `CATE_ID`·`CODE`에 FK 를 걸지 않는다**(F13, 선분 때문에 앱이 검사한다). **변이**: FK 를 추가 → §3.1-5·§3.3-8(존재하지 않는 조합 INSERT 가 더 이상 성공하지 못함)이 빨개진다.
+4. **`CATE_ITEM`은 `CATE_ID`·`CODE`에 FK 를 걸지 않는다**(F13, 선분 때문에 앱이 검사한다). **변이**: FK 를 추가 → SQLite 쪽은 §3.1-5(존재하지 않는 조합 INSERT 가 더 이상 성공하지 못함)가 빨개진다. MSSQL 쪽은 §3.3 체크리스트 항목 7이 정적으로 잡는다(자동 빨간불 아님, F20 — 도커 금지로 실행 기반 대조군은 없다).
 5. **`TB_MDM_DATA_ITEM.ROW_VERSION`은 `@Version`으로 매핑하지 않는다**(F9). **변이**: `@Version`으로 바꿈 → §3.2(더티 업데이트 후 `rowVersion` 불변·`VER`과 독립 확인)가 빨개진다.
 6. **`contract.data.MdmTemporalSegmentStore`의 `src/main` 구현체를 이 Task 에 넣지 않는다**(TSK-07-03 몫). **변이**: 실 구현체를 `api` 또는 `lib` main 에 추가 → §3.5(ArchUnit `노_구현체_테스트`)가 빨개진다.
 7. **`contract/category/*` 파일을 고치지 않는다**(F10, 카테고리·ID 이름공간은 재사용만). **알려진 커버리지 갭**: 이 규칙을 어겨 그 패키지 파일을 몰래 고쳐도 이를 직접 잡는 테스트는 없다(공유 계약이라 이 Task 의 ArchUnit 대상이 아니다) — Build·Verify 가 `/usr/bin/git diff --name-only`로 그 패키지 경로 변경 여부만 확인할 수 있다는 점을 보고에 남긴다.
 8. **일시 칼럼(`VALID_FROM`·`VALID_TO`·`CLOSED_AT`·`RECEIVED_AT`·`PROCESSED_AT`)은 SQLite 에 `TEXT`(포맷 `yyyy-MM-dd HH:mm:ss`, 소수초 없음)로 저장돼야 한다**(F7·F8, `MdmSqliteTemporalConverterContributor`가 이를 강제한다) — `typeof()` 단정(§3.2)이 이를 직접 증명한다. **변이**: `application-local.yml`의 `metadata_builder_contributor` 등록을 빼거나 컨버터의 출력 포맷에 소수초(`.SSS`)를 남김 → §3.2(F7·F8 단정)가 빨개진다.
-9. **경계 시각은 초 단위로 절삭해 다룬다**(MSSQL `DATETIME2(0)` 정밀도, TSK-07-03 인계). **변이**: 밀리초·나노초가 남은 `LocalDateTime`을 PK 값으로 저장 → MSSQL `DATETIME2(0)` 반올림으로 SQLite 와 다른 값이 되어 §3.3-5(SQLite·MSSQL 논리적 동치 확인)가 빨개진다(왕복 테스트가 초 단위 값만 쓰므로 이 변이는 테스트 픽스처 자체를 바꿔야 재현된다 — Build 가 픽스처에 나노초 있는 값을 한 번 추가해 이 규칙을 실측하길 권장한다).
+9. **경계 시각은 초 단위로 절삭해 다룬다**(MSSQL `DATETIME2(0)` 정밀도, TSK-07-03 인계). **알려진 커버리지 갭(F20)**: 도커 금지로 MSSQL `DATETIME2(0)`의 실제 반올림·절삭 동작은 이 Task 가 검증하지 못한다 — SQLite 쪽(§3.1-11·§3.2)은 초 단위 값만 써서 픽스처 자체가 이 문제를 드러내지 않는다. 이 규칙은 **코드 리뷰로만** 지킨다: TSK-07-03 구현이 저장 전 `LocalDateTime.truncatedTo(ChronoUnit.SECONDS)`(또는 동등한 절삭)를 거치는지 Build·Verify 가 코드를 직접 읽어 확인하고, 자동 빨간불이 없다는 사실을 보고에 남긴다.
 10. **SQLite `VER` 칼럼은 7테이블 전부 `BIGINT`로 선언한다**(F15, ERD 초안의 `INTEGER`가 아니다). **변이**: `INTEGER`로 되돌림 → §3.1-8(DDL 텍스트 확인)이 빨개진다.
 11. **`CK_TB_MDM_DATA_CATE_TARGET`(F18)의 허용값 집합은 `CategoryOwner.MASTER_DATA.allowedDefTargets()`와 정확히 같다**(`CODE`를 포함하지 않는다). **변이**: CHECK 목록에 `'CODE'`를 끼워 넣음 → §3.1-9(리플렉션 대조)가 빨개진다.
 12. **두 방언의 Flyway V 번호 집합은 항상 같다**(`{"1","2","3","4","7"}`). **변이**: 한쪽에만 V7 추가 → `MdmFlywayVersionParityTest`(기존, F2 확인상 이 Task 수정 없이도 이미 이 불변식을 검사한다)가 빨개진다.
-13. **예약어 칼럼(`RESULT`·`ACTION`)은 방언별 인용 문자로 DDL 을 쓰고 엔티티는 방언-중립 백틱으로 인용한다**(naming-dialect-rules §1, TSK-05-01 D1 선례). **변이**: 인용을 제거 → **알려진 커버리지 갭**: TSK-05-01 D-047 실측대로 SQLite community dialect·MSSQL dialect 모두 이 정도 이름을 예약어로 취급하지 않을 가능성이 높다(둘 다 SQL-99 예약어이지 방언 고유 예약어가 아닐 수 있다). Build 가 실제로 변이를 넣어 §3.1·§3.3 이 빨개지는지 반드시 실측하고, 안 빨개지면 은폐하지 않고 보고한다.
+13. **예약어 칼럼(`RESULT`·`ACTION`)은 방언별 인용 문자로 DDL 을 쓰고 엔티티는 방언-중립 백틱으로 인용한다**(naming-dialect-rules §1, TSK-05-01 D1 선례). **변이**: 인용을 제거 → SQLite 쪽은 §3.1 에서 Build 가 실제로 변이를 넣어 빨개지는지 실측해야 한다(**알려진 커버리지 갭**: TSK-05-01 D-047 실측대로 SQLite community dialect 가 이 정도 이름을 예약어로 취급하지 않을 가능성이 높다 — 안 빨개지면 은폐하지 않고 보고한다). MSSQL 쪽은 §3.3 체크리스트 항목 10(정적 텍스트 확인)만 가능하고, 인용 여부가 MSSQL 파싱·매핑에 실제로 영향을 주는지는 도커 금지로 이 Task 가 검증하지 못한다(추가 알려진 갭, F20).
 
 ---
 
