@@ -2,5 +2,38 @@
   "tsk": "TSK-05-03",
   "order": "975c6c21-1c7a-4d3c-bbb0-f0ec7b0d3701",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "build",
+  "model": "opus",
+  "branch_base": "49656a3a42352e4cf7f5f107e50057886c310b8c",
+  "risk": "선행 3건(TSK-05-01·01-03·03-02)은 dev 반영 확인(REFLECTED, 증거 2)·승인 대기. 형식상 선행이 아닌 TSK-05-02(merged, unapproved)의 layoutMng 산출물 위에 확장한다 — 05-02 반려 시 재작업",
+  "baseline": {
+    "failures": 0,
+    "tests": 2803,
+    "docker": "banned:spawn",
+    "cmds": [
+      {
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 2427,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "49656a3a42352e4cf7f5f107e50057886c310b8c-5a99c8ef20f3",
+        "measured_at": "2026-09-24T05:35:57Z",
+        "count_cmd": "fresh worktree testAll 뒤 find src/backend -path '*/build/test-results/*' -name 'TEST-*.xml' 의 testsuite tests/failures/errors 합산"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 376,
+        "failures": 0,
+        "lint": "pass",
+        "source": "measured",
+        "cache_key": "49656a3a42352e4cf7f5f107e50057886c310b8c-67dcdef0fbb0",
+        "measured_at": "2026-09-24T05:36:00Z"
+      }
+    ]
+  },
+  "last": {
+    "phase": "design",
+    "event": "design.pass",
+    "head": "b638940"
+  }
 }
