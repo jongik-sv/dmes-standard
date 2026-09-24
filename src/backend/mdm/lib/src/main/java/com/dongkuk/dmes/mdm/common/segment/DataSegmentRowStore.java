@@ -28,7 +28,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class DataSegmentRowStore {
 
-    static final String ITEM_COLUMNS = "MARU_DATA_ID, CODE, VALID_FROM, VALID_TO, NAME, ALTER_NAME, SEQ, DESCRIPTION, "
+    public static final String ITEM_COLUMNS = "MARU_DATA_ID, CODE, VALID_FROM, VALID_TO, NAME, ALTER_NAME, SEQ, DESCRIPTION, "
             + "LVL1, LVL2, LVL3, LVL4, LVL5, ATTR01, ATTR02, ATTR03, ATTR04, ATTR05, ATTR06, ATTR07, ATTR08, ATTR09, "
             + "ATTR10, ROW_VERSION, CHG_SEQ";
     static final String CATE_COLUMNS = "MARU_DATA_ID, CATE_ID, VALID_FROM, VALID_TO, CATE_NAME, DEF_KIND, DEF_EXPR, "
@@ -232,7 +232,8 @@ public class DataSegmentRowStore {
         return out;
     }
 
-    ItemSegmentRow toItem(Object[] r) {
+    /** {@link #ITEM_COLUMNS} 순서의 네이티브 행을 선분 행으로 바꾼다(목록 쿼리도 같은 변환을 쓴다). */
+    public ItemSegmentRow toItem(Object[] r) {
         List<String> lvl = new ArrayList<>(DataItemValue.LVL_COUNT);
         for (int i = 0; i < DataItemValue.LVL_COUNT; i++) {
             lvl.add((String) r[8 + i]);

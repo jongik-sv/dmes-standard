@@ -925,6 +925,33 @@ public class DataInitializer implements ApplicationRunner {
             seedMdmObjectRbac(objectId, "dma");
         }
         log.info("[DataInitializer] TSK-04-04 MDM 컬럼 사전 시드 — OBJECT 2 + 메뉴 leaf 1 + RBAC(SYSADMIN 2 + MDM 역할 4)");
+        seedMdmDataItemMenus();
+    }
+
+    /**
+     * TSK-07-03 — 항목 관리(dmd/dataItemMng)·항목 이력(dmd/dataHistory). 부모 폴더 mdm·dmd 는 seedMdmMenus() 가 이미 멱등
+     * 시드한다. OBJECT_ID = screenId = BPMN process id. action(view·search·reg·save·delete·restore)은 모두 기존 권한 세트·
+     * allActions 안에 있다(design.md D9). MENU_SEQ 001~003 은 TSK-07-02(dataMng·dataEdit·dataCateEdit) 몫으로 비워 둔다.
+     * FULL_SEQ 는 부팅 끝 recomputeMenuFullSeq() 가 다시 매긴다.
+     */
+    private void seedMdmDataItemMenus() {
+        final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
+        final String AUDIT_VALS = ", 'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', "
+                                + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
+        insertMcmSecObjIfAbsent("dataItemMng", "항목 관리", "mdm");
+        insertMcmSecObjIfAbsent("dataHistory", "항목 이력", "mdm");
+        insertMcmSecMenuIfAbsent("dataItemMng", "004", "5040400", "항목 관리", "dmd", "dataItemMng");
+        insertMcmSecMenuIfAbsent("dataHistory", "005", "5040500", "항목 이력", "dmd", "dataHistory");
+        for (String objectId : new String[]{"dataItemMng", "dataHistory"}) {
+            insertIfAbsentComposite(
+                    "TB_MCM_SEC_ROLE_MAPPING",
+                    new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
+                    new String[]{"SYSADMIN", objectId,    "PERM_ALL"},
+                    "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                    "VALUES ('SYSADMIN', '" + objectId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
+            seedMdmObjectRbac(objectId, "dmd");
+        }
+        log.info("[DataInitializer] TSK-07-03 MDM 항목 관리·이력 시드 — OBJECT 2 + 메뉴 leaf 2 + RBAC(SYSADMIN 2 + MDM 역할 4)");
     }
 
     /**
