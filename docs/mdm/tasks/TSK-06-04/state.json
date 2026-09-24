@@ -2,7 +2,7 @@
   "tsk": "TSK-06-04",
   "order": "8ebe4885-e37e-4933-8e83-039ab58da750",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "refactor",
+  "phase": "reported",
   "branch_base": "17c6784fd65f47fe8a334fce40ea7d25398703d1",
   "baseline": {
     "failures": 0,
@@ -55,8 +55,8 @@
   },
   "model": "sonnet",
   "last": {
-    "phase": "refactor",
-    "event": "refactor.pass"
+    "phase": "close",
+    "event": "done.ok"
   },
   "build_gate": {
     "head": "50ae46f5e8cda0efa7d7d1787269ded470858b65",
