@@ -2,5 +2,44 @@
   "tsk": "TSK-05-02",
   "order": "8c8a2080-52fc-4922-a174-5cafa300657f",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "build",
+  "baseline": {
+    "failures": 0,
+    "tests": 2369,
+    "docker": "banned:spawn",
+    "cmds": [
+      {
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 2066,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "86baa20404f2c94921542e2d815912cd8ad24539-5a99c8ef20f3",
+        "measured_at": "2026-09-24T11:20:00+09:00",
+        "count_cmd": "rm -rf src/backend/*/build/test-results src/backend/mdm/*/build/test-results 후 testAll, find src/backend -path '*/build/test-results/*' -name 'TEST-*.xml' 의 testsuite tests/failures/errors 합산"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 295,
+        "failures": 0,
+        "lint": "pass",
+        "source": "measured",
+        "cache_key": "86baa20404f2c94921542e2d815912cd8ad24539-67dcdef0fbb0",
+        "measured_at": "2026-09-24T11:20:40+09:00"
+      },
+      {
+        "cmd": "cd $W/src/frontend && SMOKE_MCM_BASE_URL=http://127.0.0.1:$FE SMOKE_LOGIN_USER=admin SMOKE_LOGIN_PASSWORD=admin123 SMOKE_MDM_DB=$W/src/backend/data/mdm.db pnpm exec playwright test e2e/mdm-*.spec.ts --workers=1",
+        "tests": 8,
+        "failures": 0,
+        "source": "measured",
+        "measured_at": "2026-09-24T11:57:00+09:00",
+        "note": "design.md §3.7 1~6 절차로 서버 기동(BE_MCM 18521, BE_MDM 18596, FE 15521), HEAD 431cfc2(기점+설계 문서만). domainMng 3·sample-smoke 1·shell-rbac-smoke 4"
+      }
+    ]
+  },
+  "branch_base": "86baa20404f2c94921542e2d815912cd8ad24539",
+  "model": "opus",
+  "last": {
+    "phase": "build",
+    "event": "build.start"
+  }
 }
