@@ -53,10 +53,18 @@ function waitAction(page: Page, action: string, service = "dataItemMng") {
   );
 }
 
+/** 그 마루 데이터의 search 응답을 기다린다(첫 로드의 자동 선택 조회 응답과 섞이지 않게). */
 async function selectMaru(page: Page, id: string) {
-  const searched = waitAction(page, "search");
+  const searched = page.waitForResponse(
+    (r) =>
+      r.url().includes("/api/mdm/oasis/dataItemMng/search") &&
+      r.status() === 200 &&
+      (r.request().postData() ?? "").includes(`"maruDataId":"${id}"`),
+    { timeout: 30_000 },
+  );
   await page.getByTestId("item-search-maru").selectOption(id);
   await searched;
+  await expect(page.locator(".grid-panel-count").first()).toBeVisible();
 }
 
 async function search(page: Page) {
@@ -185,7 +193,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
     await page.getByTestId(`item-close-${NEW_KEY}`).click();
     await closed;
     await expect(listRow(page, NEW_KEY)).toHaveCount(0, { timeout: 20_000 });
-    await page.getByText("닫힌 항목 보기").click();
+    await page.getByTestId("item-search-closed").selectOption("Y");
     await search(page);
     await expect(cell(page, NEW_KEY, "open")).toHaveText("닫힘", { timeout: 20_000 });
 

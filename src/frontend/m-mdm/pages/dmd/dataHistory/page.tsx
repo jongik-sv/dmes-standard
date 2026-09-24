@@ -6,7 +6,7 @@
  * (마루 데이터, 대상 = 항목·카테고리·소속, 키)의 선분 행을 시간순으로 본다. 조회 전용이다. 사건·닫혀 있던 구간·마지막
  * 상태는 서버가 계산하고 화면은 {@link DataHistoryTimeline} 으로 그대로 그린다. 키 필수 판정은 서버가 한다(H3).
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ContentBody, ContentPanel, ErrorModal, SearchArea, SearchField } from "@dk-oasis/shared/layout";
 import { Input, Select } from "@dk-oasis/shared/form";
@@ -30,8 +30,11 @@ export default function DataHistoryPage() {
   const [result, setResult] = useState<DataHistoryResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** 요청 순번 — 늦게 도착한 옛 머리 응답이 새 선택을 덮지 않게 한다. */
+  const selectSeq = useRef(0);
 
   const selectMaruData = useCallback(async (maruDataId: string) => {
+    const seq = ++selectSeq.current;
     setFilters((prev) => ({ ...prev, maruDataId, cateId: "" }));
     setResult(null);
     if (!maruDataId) {
@@ -40,9 +43,9 @@ export default function DataHistoryPage() {
     }
     try {
       const view = await viewDataHistory(maruDataId);
-      setHeader(view.header ?? null);
+      if (seq === selectSeq.current) setHeader(view.header ?? null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (seq === selectSeq.current) setError(e instanceof Error ? e.message : String(e));
     }
   }, []);
 

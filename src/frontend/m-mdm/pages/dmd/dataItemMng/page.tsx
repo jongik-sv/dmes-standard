@@ -25,7 +25,7 @@ import {
   useUserButtonRbac,
 } from "@dk-oasis/shared/layout";
 import { AgDataGrid, GridPanel, Pagination } from "@dk-oasis/shared/grid";
-import { Button, Checkbox, Input, Select } from "@dk-oasis/shared/form";
+import { Button, Input, Select } from "@dk-oasis/shared/form";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { MdmPageLayout } from "@/shell";
 
@@ -76,21 +76,26 @@ export default function DataItemMngPage() {
 
   /** 마지막으로 조회한 조건·쪽 — 쪽 이동과 재조회(F1)가 쓴다. */
   const applied = useRef<{ filters: DataItemFilters; page: number }>({ filters: emptyFilters(), page: 0 });
+  /** 요청 순번 — 늦게 도착한 옛 응답(예: 첫 로드의 자동 선택 조회)이 새 결과를 덮지 않게 한다. */
+  const searchSeq = useRef(0);
+  const selectSeq = useRef(0);
 
   const runSearch = useCallback(async (f: DataItemFilters, p: number) => {
     if (!f.maruDataId) return;
+    const seq = ++searchSeq.current;
     setBusy(true);
     try {
       const res = await searchDataItems(f, p, PAGE_SIZE);
+      if (seq !== searchSeq.current) return;
       setRows(res.list ?? []);
       setTotal(res.totalCount ?? 0);
       setPage(res.page ?? p);
       setDrafts({});
       applied.current = { filters: f, page: res.page ?? p };
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (seq === searchSeq.current) setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setBusy(false);
+      if (seq === searchSeq.current) setBusy(false);
     }
   }, []);
 
@@ -128,21 +133,24 @@ export default function DataItemMngPage() {
 
   const selectMaruData = useCallback(
     async (maruDataId: string) => {
+      const seq = ++selectSeq.current;
       const next = { ...emptyFilters(), maruDataId };
       setFilters(next);
       setForm(null);
       setHistory(null);
       setRows([]);
       setTotal(0);
+      searchSeq.current++;
       if (!maruDataId) {
         setHeader(null);
         return;
       }
       try {
         const view = await viewDataItems(maruDataId);
+        if (seq !== selectSeq.current) return;
         setHeader(view.header ?? null);
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        if (seq === selectSeq.current) setError(e instanceof Error ? e.message : String(e));
         return;
       }
       await runSearch(next, 0);
@@ -394,12 +402,17 @@ export default function DataItemMngPage() {
             onChange={(v) => setFilters((prev) => ({ ...prev, cateId: v }))}
           />
         </SearchField>
+        {/* 05 「화면」 "닫힌 항목 보기". 조회영역 안 Checkbox 는 shared page-layout.css 가 네모를 지워 Select 로 둔다. */}
         <SearchField label="닫힌 항목">
-          <Checkbox
-            label="닫힌 항목 보기"
+          <Select
+            data-testid="item-search-closed"
             aria-label="닫힌 항목 보기"
-            checked={filters.showClosed}
-            onChange={(checked) => setFilters((prev) => ({ ...prev, showClosed: checked }))}
+            value={filters.showClosed ? "Y" : "N"}
+            options={[
+              { value: "N", label: "숨김" },
+              { value: "Y", label: "보기" },
+            ]}
+            onChange={(v) => setFilters((prev) => ({ ...prev, showClosed: v === "Y" }))}
           />
         </SearchField>
       </SearchArea>

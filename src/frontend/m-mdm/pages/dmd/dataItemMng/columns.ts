@@ -25,33 +25,43 @@ export function isRowEditable(header: DataItemHeader | null | undefined, row: Re
 export function buildItemColumns(header: DataItemHeader | null, handlers: ItemColumnHandlers = {}): GridColumn[] {
   const editable = (row: Record<string, unknown>) => isRowEditable(header, row);
   const cols: GridColumn[] = [
-    { key: "code", header: "키", width: 130, align: "left" },
-    { key: "name", header: "이름", width: 160, align: "left", editable },
-    { key: "alterName", header: "약칭", width: 110, align: "left", editable },
-    { key: "seq", header: "순서", width: 70, align: "right", editable, cellEditor: "number" },
+    { key: "code", header: "키", width: 120, minWidth: 100, align: "left", pinned: "left" },
+    { key: "name", header: "이름", width: 150, minWidth: 100, align: "left", editable },
+    { key: "alterName", header: "약칭", width: 100, minWidth: 70, align: "left", editable },
+    { key: "seq", header: "순서", width: 60, minWidth: 50, align: "right", editable, cellEditor: "number" },
   ];
   const lvlCnt = Math.max(0, Math.min(5, header?.lvlCnt ?? 0));
   LVL_FIELDS.slice(0, lvlCnt).forEach((field, i) => {
-    cols.push({ key: field, header: `${i + 1}차`, width: 100, align: "left", editable });
+    cols.push({ key: field, header: `${i + 1}차`, width: 80, minWidth: 60, align: "left", editable });
   });
   for (const label of header?.attrLabels ?? []) {
     if ((ATTR_FIELDS as readonly string[]).includes(label.field)) {
-      cols.push({ key: label.field, header: label.label, width: 120, align: "left", editable });
+      cols.push({ key: label.field, header: label.label, width: 110, minWidth: 70, align: "left", editable });
     }
   }
   cols.push(
     {
       key: "open",
       header: "상태",
-      width: 70,
+      width: 60,
+      minWidth: 56,
       align: "center",
       render: (value) => (value === true ? "열림" : "닫힘"),
     },
-    { key: "validFrom", header: "시작 일시", width: 150, align: "center" },
+    { key: "validFrom", header: "시작 일시", width: 140, minWidth: 130, align: "center" },
   );
   if (handlers.renderActions) {
     const render = handlers.renderActions;
-    cols.push({ key: "actions", header: "작업", width: 170, align: "center", render: (_v, row) => render(row) });
+    // 키·작업 열은 고정한다 — 동적 열이 많아 가로로 밀려도 어느 행의 버튼인지 보인다.
+    cols.push({
+      key: "actions",
+      header: "작업",
+      width: 150,
+      minWidth: 150,
+      align: "center",
+      pinned: "right",
+      render: (_v, row) => render(row),
+    });
   }
   return cols;
 }

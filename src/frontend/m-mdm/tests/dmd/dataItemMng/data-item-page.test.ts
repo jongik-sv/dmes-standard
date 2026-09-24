@@ -16,6 +16,8 @@ let container: HTMLDivElement;
 let root: Root | null = null;
 const originalFetch = globalThis.fetch;
 let calls: { action: string; params: Record<string, unknown> }[] = [];
+/** 설정하면 PORT 의 search 응답을 이 약속이 풀릴 때까지 붙잡는다(늦게 도착한 옛 응답 흉내). */
+let holdPortSearch: Promise<void> | null = null;
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -79,6 +81,7 @@ function button(text: string): HTMLButtonElement | undefined {
 describe("DataItemMngPage", () => {
   beforeEach(() => {
     calls = [];
+    holdPortSearch = null;
     // apiRequest 가 토큰을 localStorage 에서 읽는데 이 happy-dom 환경에는 localStorage 가 없다.
     const store = new Map<string, string>();
     vi.stubGlobal("localStorage", {
@@ -103,7 +106,11 @@ describe("DataItemMngPage", () => {
                 ],
               });
         }
-        if (m[1] === "search") return ok({ list: [row], totalCount: 1, page: 0, size: 50 });
+        if (m[1] === "search") {
+          if (params.maruDataId === "PORT" && holdPortSearch) await holdPortSearch;
+          const list = params.maruDataId === "CUST" ? [{ ...row, code: "C0001", name: "동국철강" }] : [row];
+          return ok({ list, totalCount: 1, page: 0, size: 50 });
+        }
         if (m[1] === "delete" || m[1] === "save") {
           return jsonResponse({ data: {}, meta: { success: false, message: CONFLICT } });
         }
@@ -152,8 +159,30 @@ describe("DataItemMngPage", () => {
     expect(calls.filter((c) => c.action === "view").at(-1)?.params.maruDataId).toBe("CUST");
     expect(button("항목 추가")?.disabled).toBe(true);
     expect(container.querySelector('[data-testid="item-readonly"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="item-close-C0001"]')).toBeNull();
+    expect(container.querySelector('[data-testid="item-history-C0001"]')).not.toBeNull();
+  });
+
+  it("늦게 도착한 옛 조회 응답은 새 선택의 목록을 덮지 않는다", async () => {
+    let release!: () => void;
+    holdPortSearch = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await render();
+    const select = container.querySelector('[data-testid="item-search-maru"]') as HTMLSelectElement;
+    await act(async () => {
+      select.value = "CUST";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await flush();
+    expect(container.querySelector('[data-testid="item-history-C0001"]')).not.toBeNull();
+
+    await act(async () => {
+      release();
+    });
+    await flush();
+    expect(container.querySelector('[data-testid="item-history-C0001"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="item-close-KRPUS"]')).toBeNull();
-    expect(container.querySelector('[data-testid="item-history-KRPUS"]')).not.toBeNull();
   });
 
   it("충돌 문구를 받으면 안내를 보이고 목록을 다시 부른다(F1)", async () => {
