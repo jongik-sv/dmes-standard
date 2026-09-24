@@ -530,3 +530,19 @@
 - **Rationale**: "실측 후 대응"이 아니라 "알려진 결함을 선제적으로 우회"한다는 design.md F8 원칙을 그대로 따르고, 그 우회가 실제로 유효한지 등록 전/후 두 상태를 모두 실행해 비교했다(mutation 증거 겸용)
 - **Reversible**: yes(컨버터·UserType 구현을 교체해도 이 Task 의 다른 결정에 영향 없음)
 - **Source**: docs/mdm/tasks/TSK-07-01/design.md F7·F8·§3.2, `MdmMasterDataEntityJpaRoundtripTest.java`
+
+## D-TSK-06-02-1 (2026-09-24T05:30:57Z)
+- **Phase**: design (TSK-06-02)
+- **Decision needed**: TSK-01-03 §7 인계가 DRAFT 소유권 action(선점·해제·넘기기)의 이름 확정과 권한 등록을 「06-02·08-02 중 먼저 오는 쪽」에 넘겼다. 두 Task 가 같은 기점에서 동시에 돌아 같은 공유 파일(MdmActions·MdmPermissions·DataInitializer allActions/editActions·SecurityScreenContractTest·mdm-rbac-seed-check.expected.txt)을 고치게 된다
+- **Decision made**: 팀장 확정 — action 이름 확정과 allActions·PERM_MDM_EDIT·MdmActions·mdm-rbac-seed-check.expected.txt(와 짝이 되는 MdmPermissions·SecurityScreenContractTest·기존 DB 보정)의 소유권 action 부분은 TSK-08-02 가 맡는다. TSK-06-02 는 이 파일들의 소유권 action 부분을 고치지 않고, BPMN·화면은 ADR-0003 D5 권장 이름 lock/unlock/handover 를 문자열로만 참조한다. BFF 권한이 필요한 동작(화면의 선점·해제·넘기기)은 「08-02 머지 뒤 연결」이며, 그 전에는 서비스·HTTP(mdm 직접)·vitest 테스트로 확인한다
+- **Rationale**: 동시 진행 Task 두 개가 같은 공유 계약·시드를 고치면 머지 충돌과 이름 불일치가 생긴다. 룰 화면(08-02)이 소유권 action 을 가진 다른 한쪽이라 한 곳에 몰았다
+- **Reversible**: yes(08-02 가 다른 이름을 확정하면 06-02 의 BPMN 3분기·DmcBpmnActionTest 로컬 상수·FE 문자열만 바꾼다)
+- **Source**: docs/mdm/tasks/TSK-06-02/design.md §1·§2「수정하지 않는 것」·§6.1·§8, docs/mdm/tasks/TSK-01-03/design.md §7, docs/mdm/adr/0003-module-boundary-screens-roles.md D5
+
+## D-TSK-06-02-2 (2026-09-24T05:30:57Z)
+- **Phase**: design (TSK-06-02)
+- **Decision needed**: 담당자 쓰기 가드와, 운영 VersionDraftDeletionSpi·VersionConfirmCheckSpi 빈이 생길 때 시나리오 테스트(VersionScenarioTestConfig 의 가짜 SPI)와 대상이 겹쳐 기동이 실패하는 문제를 어느 Task 가 공용 부품으로 해결하는가
+- **Decision made**: 팀장 확정((A)안) — TSK-06-02 가 공용 부품 두 개를 만든다. P1 `com.dongkuk.dmes.mdm.common.security.MdmStewardGuard#requireSteward()`(MDM_STEWARD 역할이 없으면 MDM013, MdmStdAdminGuard 와 같은 모양). P2 `VersionScenarioTestConfig` 의 static `@Bean BeanFactoryPostProcessor removeProductionVersionSpisShadowedByFakes()`(가짜가 아닌 VersionDraftDeletionSpi·VersionConfirmCheckSpi 빈 정의를 지우는 일반형). 08-02 등 다른 Task 는 06-02 머지 뒤 재사용한다
+- **Rationale**: 공통 서비스의 requireSteward 는 package-private 이고 deleteDraft·release·handover 는 역할을 보지 않아 영역 서비스에 가드가 필요하다. VersionSpiRegistry 는 대상 중복이면 기동을 실패시키므로 운영 SPI 를 처음 등록하는 06-02 가 테스트 설정을 대상 이름 없이 일반형으로 고친다
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-06-02/design.md §10, docs/mdm/tasks/TSK-01-03/design.md §7
