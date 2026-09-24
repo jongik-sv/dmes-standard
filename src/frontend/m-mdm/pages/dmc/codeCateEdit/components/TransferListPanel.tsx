@@ -8,7 +8,7 @@ import { useMemo, useState, type MouseEvent } from "react";
 import { Button, Checkbox, Input, Select } from "@dk-oasis/shared/form";
 import {
   lvl1Options, moveAllVisible, moveSelected, rangeSelect, removeAllVisible, removeSelected,
-  selectAllVisible, toggleSelect, visibleList, type TransferItem,
+  selectAllVisible, toggleSelect, visibleList, type TransferItem, type TransferSide,
 } from "../transfer";
 import { hint, transferButtons, transferColumn, transferGrid, transferList, transferRow } from "./styles";
 
@@ -32,7 +32,7 @@ export function TransferListPanel(props: TransferListPanelProps) {
   const available = useMemo(() => visibleList(items, memberCodes, "available", query, lvl1), [items, memberCodes, query, lvl1]);
   const member = useMemo(() => visibleList(items, memberCodes, "member", query, lvl1), [items, memberCodes, query, lvl1]);
 
-  const clickItem = (side: "available" | "member", code: string, shiftKey: boolean) => {
+  const clickItem = (side: TransferSide, code: string, shiftKey: boolean) => {
     const visible = side === "available" ? available : member;
     const setSelected = side === "available" ? setAvailableSelected : setMemberSelected;
     const anchor = side === "available" ? availableAnchor : memberAnchor;
@@ -51,7 +51,7 @@ export function TransferListPanel(props: TransferListPanelProps) {
   const moveLeftAll = () => onChange(removeAllVisible(memberCodes, member));
 
   const renderColumn = (
-    side: "available" | "member", list: TransferItem[], selected: Set<string>, setSelected: (s: Set<string>) => void,
+    side: TransferSide, list: TransferItem[], selected: Set<string>, setSelected: (s: Set<string>) => void,
   ) => (
     <div data-testid={`cate-transfer-${side}`} style={transferColumn}>
       <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-xs)", padding: "var(--spacing-xs)" }}>

@@ -8,6 +8,7 @@ import { useState, type MouseEvent } from "react";
 import { Button, Input, Select } from "@dk-oasis/shared/form";
 import { GridBadge } from "@dk-oasis/shared/grid";
 import type { CategoryDef, CategoryEditRow } from "../categories";
+import { BASE_CATE_ID } from "../types";
 import { fieldLabel, fieldRow, hint, toolbar } from "./styles";
 
 export interface CategoryListPanelProps {
@@ -20,8 +21,6 @@ export interface CategoryListPanelProps {
   onRemove: (cateId: string) => void;
   onUndo: (cateId: string) => void;
 }
-
-const BASE_CATE_ID = "BASE";
 
 function badgeOf(row: CategoryEditRow): { label: string; bg: string; color: string } | null {
   if (row.__local === "deleted") return { label: "닫기", bg: "var(--color-danger-soft)", color: "var(--color-danger)" };

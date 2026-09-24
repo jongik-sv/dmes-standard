@@ -27,10 +27,9 @@ import { RegexEditPanel } from "./components/RegexEditPanel";
 import { TransferListPanel } from "./components/TransferListPanel";
 import { hint, toolbar } from "./components/styles";
 import { diffMembers, type TransferItem } from "./transfer";
-import type { CodeSummary, PreviewResult, ViewResult } from "./types";
+import { BASE_CATE_ID, type CodeSummary, type PreviewResult, type ViewResult } from "./types";
 
 const SCREEN_ID = "codeCateEdit";
-const BASE_CATE_ID = "BASE";
 
 export default function CodeCateEditPage() {
   const rbac = useUserButtonRbac();

@@ -104,3 +104,6 @@ export const DEF_TARGET_OPTIONS = [
   "CODE", "LVL1", "LVL2", "LVL3", "LVL4", "LVL5",
   "ATTR01", "ATTR02", "ATTR03", "ATTR04", "ATTR05", "ATTR06", "ATTR07", "ATTR08", "ATTR09", "ATTR10",
 ] as const;
+
+/** 예약 카테고리 ID — 편집·닫기 대상이 아니다(불변 규칙 2, 서버 CategoryConventions.BASE_CATE_ID 와 짝). */
+export const BASE_CATE_ID = "BASE";

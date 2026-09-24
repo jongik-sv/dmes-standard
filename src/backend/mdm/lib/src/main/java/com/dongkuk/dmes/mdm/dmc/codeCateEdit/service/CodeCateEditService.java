@@ -13,6 +13,7 @@ import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeRejections;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeRows;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.contract.category.CategoryConventions;
 import com.dongkuk.dmes.mdm.contract.category.CategoryDefTarget;
 import com.dongkuk.dmes.mdm.contract.category.CategoryDefinition;
 import com.dongkuk.dmes.mdm.contract.category.CategoryKind;
@@ -51,6 +52,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 /**
@@ -224,8 +226,9 @@ public class CodeCateEditService {
             throw MasterCodeRejections.saveRejected(projected.issues());
         }
         // 여기까지 쓰기가 없다. BASE 는 그리드에 섞여 와도 여기서 미리 거른다(rowVersion 증가 전).
-        if (projected.categoryChanges().stream().anyMatch(c -> "BASE".equals(c.cateId()))
-                || projected.memberChanges().stream().anyMatch(c -> "BASE".equals(c.cateId()))) {
+        if (projected.categoryChanges().stream().anyMatch(c -> CategoryConventions.BASE_CATE_ID.equals(c.cateId()))
+                || projected.memberChanges().stream()
+                        .anyMatch(c -> CategoryConventions.BASE_CATE_ID.equals(c.cateId()))) {
             throw MdmErrors.of(MdmErrorCode.RESERVED_CATEGORY);
         }
         VersionRef ref = ref(code.getMaruCodeId(), v);
@@ -293,7 +296,7 @@ public class CodeCateEditService {
             catAfterById.put(def.cateId(), def);
         }
         Set<String> validCodes = viewAtV.items().stream().map(MasterCodeItemRow::code)
-                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+                .collect(Collectors.toCollection(LinkedHashSet::new));
 
         List<MasterCodeCateMemberProjection.Change> memberChanges = MasterCodeCateMemberProjection.parse(memberRows);
         for (MasterCodeCateMemberProjection.Change c : memberChanges) {
