@@ -46,6 +46,7 @@
 | F29 | 06:938 은 SQLite 일시를 "TEXT(ISO 8601)"로 적었지만 규칙표 #16 은 `'YYYY-MM-DD HH:MM:SS'`(공백 구분, 초 단위)다. 규칙표가 우선한다(규칙표 머리말). 06:931 의 "05의 `last_key_no`" 는 오기다(TSK-02-03 F14) | 06:931·938, naming-dialect-rules 머리말·§3 #16 |
 | F30 | `MdmDomainReferenceSpi`(refKind `"RULE_VAR"`)는 06 이 구현하기로 되어 있으나(D-037) 어느 08 Task 가 맡는지 wbs 에 명시가 없다. "실행 로직 없음" 수용 기준상 이 Task 에는 넣지 않고 인계만 한다 | decisions D-037, TSK-04-01 design §7 |
 | F31 | 로컬 Flyway 주의(팀장 결정의 결과이며 설계 결정이 아니다): V8 이 적용된 개발자 로컬 `data/mdm.db` 는 나중에 V5~V7 이 들어오면 `outOfOrder=false` 기본값 때문에 validate 에서 실패한다. 테스트는 `@TempDir` 새 DB 라 영향이 없다. 로컬 DB 를 다시 만들면 된다 | Flyway 기본 동작, 팀장 배정 V8 |
+| F32 | **02 영역이 main 에 `DefinitionLookup` 구현을 둘 예정이다**: 형제 워크트리 `dflow-2ca988a4`(TSK-04-03, dev 미머지, 커밋 `f93861e`)의 `mdm/lib/.../common/engine/MdmEngineConfig.java` 가 `EngineLookups` 를 만들 때 쓰는 **익명 빈 구현** `EMPTY_DEFINITIONS`(세 메서드 모두 `Optional.empty()`)를 static 필드로 둔다. 스프링 빈으로 등록하지는 않는다. 그 javadoc 은 "검증 정의(DefinitionLookup)는 도메인 검증기에 호출자가 따로 준다"고 적는다. 따라서 "main 에 `DefinitionLookup` 구현 클래스 0개" 같은 정적 가드는 그 Task 가 머지되면 깨진다. 이 Task 는 런타임 빈 검사만 둔다(§3.1-12·§3.7). 06 의 값 테스트 구현(08-04)은 자기 `DefinitionLookup` 을 따로 만들고 `column()` 은 02 계약에 위임한다(§6.4) | `dflow-2ca988a4` main 소스 grep(`implements DefinitionLookup`·`EngineLookups(`), 다른 형제 워크트리·dev 는 0건 |
 
 ---
 
@@ -238,11 +239,10 @@ TSK-01-03 인계 ③(F8)을 이행한다. `@SpringBootTest(MOCK) @ActiveProfiles
 
 `importPackages("com.dongkuk.dmes.mdm")` + `DO_NOT_INCLUDE_TESTS`.
 1. `MdmRuleIdIssuer` 를 구현하는 main 클래스가 없다.
-2. `kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup` 을 구현하는 main 클래스가 없다.
-3. 06 리포지토리 6개(`MdmRule*Repository`)는 메서드를 선언하지 않는다(`getDeclaredMethods().length == 0`, 리플렉션).
-4. 공허 통과 방지: 1·2 규칙을 테스트 전용 위반 샘플 클래스(`LT/contract/rule/violation/ViolatingIssuer`)에 적용하면 위반으로 잡힌다(`MdmContractArchitectureTest` 규칙 10 관례. 샘플은 `ClassFileImporter` 로 직접 가져온다).
+2. 06 리포지토리 6개(`MdmRule*Repository`)는 메서드를 선언하지 않는다(`getDeclaredMethods().length == 0`, 리플렉션).
+3. 공허 통과 방지: 1번 규칙을 테스트 전용 위반 샘플 클래스(`LT/contract/rule/violation/ViolatingIssuer`)에 적용하면 위반으로 잡힌다(`MdmContractArchitectureTest` 규칙 10 관례. 샘플은 `ClassFileImporter` 로 직접 가져온다).
 
-§3.1-12(런타임 빈 검사)와 합쳐 "실행 로직 없음"을 증명한다. 계약 패키지 자체의 모양은 `MdmContractArchitectureTest` 가 자동으로 본다(F22).
+`DefinitionLookup` 은 정적 규칙으로 막지 않는다(F32: 02 영역이 빈 등록 없는 익명 빈 구현을 main 에 둘 예정이다). `DefinitionLookup` 부재는 §3.1-12 의 런타임 빈 검사만 본다. §3.1-12 와 합쳐 "실행 로직 없음"을 증명한다. 계약 패키지 자체의 모양은 `MdmContractArchitectureTest` 가 자동으로 본다(F22).
 
 ### 3.8 ArchUnit 자동 적용
 
@@ -272,7 +272,7 @@ find src/backend -path '*/build/test-results/*' -not -path '*mssqlMigrationTest*
 
 | spec 수용 기준·요구사항 | 검증 방법 |
 |---|---|
-| 실행 로직 없음(contract-only) | §3.7 정적 가드(발급기·`DefinitionLookup` 구현 0, 리포지토리 메서드 0) + §3.1-12 런타임 가드(BUSINESS_RULE 확정·삭제 SPI 빈 0, 발급기·`DefinitionLookup` 빈 0) + `MdmContractArchitectureTest` 자동 적용(계약 패키지는 선언만). 유일한 예외인 SQLite 일시 컨버터는 영속성 매핑 인프라이고 업무 로직이 아니다(D5, 불변 규칙 19) |
+| 실행 로직 없음(contract-only) | §3.7 정적 가드(발급기 구현 0, 리포지토리 메서드 0) + §3.1-12 런타임 가드(BUSINESS_RULE 확정·삭제 SPI 빈 0, 발급기·`DefinitionLookup` 빈 0) + `MdmContractArchitectureTest` 자동 적용(계약 패키지는 선언만). 유일한 예외인 SQLite 일시 컨버터는 영속성 매핑 인프라이고 업무 로직이 아니다(D5, 불변 규칙 19) |
 | 06 테이블 8개 Flyway 두 방언(JSON 칼럼) | §3.1(SQLite 제약 동작), §3.2(두 방언 구조·타입·JSON CHECK 대조), §3.3(MSSQL 줄 단위 리뷰). 사용자 결정: 도커 금지로 MSSQL 실측 생략, DDL 리뷰로 대체 |
 | 엔티티 | §3.4(6엔티티 왕복, AUD_VER, updatable=false, 일시), §3.5(공통 버전 서비스와 같은 행 공유), §3.8 |
 | 식별자 발급(last_var_id 등) 인터페이스 | §6.3 `MdmRuleIdIssuer`, §3.6 소비자 스텁 컴파일, §3.1-9(카운터 기본값 0) |
@@ -305,7 +305,7 @@ find src/backend -path '*/build/test-results/*' -not -path '*mssqlMigrationTest*
 18. **SQLite 업무 일시는 `'yyyy-MM-dd HH:mm:ss'` 텍스트로 저장·읽기되고, 이 형식은 `MdmTemporalBinder` 와 글자까지 같다.** 변이: `application-local.yml` 의 contributor 줄 제거 → §3.4-4(`typeof = integer`)·§3.5-R1. 컨버터 쓰기 형식을 `.SSS` 로 → `MdmSqliteLocalDateTimeConverterTest`·§3.4-4.
 19. **SQLite 일시 컨버터는 MSSQL 경로에 적용되지 않는다(`@Converter` 없음, local 프로파일에만 등록). 이 컨버터와 contributor 가 이 Task 의 유일한 실행 main 코드다.** 변이: 컨버터에 `@Converter(autoApply = true)` 추가 → §3.4-7. `application-local-db.yml` 에 contributor 추가 → §3.4-7.
 20. **`contract.rule` 은 인터페이스·enum·record·상수 클래스만 두고, 엔진·Spring·JPA 에 의존하지 않는다.** 변이: `MdmRuleIdIssuer` 에 default 메서드 추가 → `MdmContractArchitectureTest.계약_인터페이스의_메서드는_모두_추상이다`. `contract.rule` 에 `DefinitionLookup` 을 확장하는 인터페이스 추가 → `계약_패키지는_엔진_타입에_의존하지_않는다`.
-21. **업무 실행 구현(발급기·`DefinitionLookup` 구현·BUSINESS_RULE 확정/삭제 SPI 빈)을 이 Task 에 넣지 않고, 06 리포지토리는 메서드를 선언하지 않는다.** 변이: `common` 에 `@Component class DefaultRuleIdIssuer implements MdmRuleIdIssuer` 추가 → §3.7-1·§3.1-12. `MdmRuleRepository` 에 `@Query` 메서드 추가 → §3.7-3.
+21. **업무 실행 구현(발급기·`DefinitionLookup` 구현·BUSINESS_RULE 확정/삭제 SPI 빈)을 이 Task 에 넣지 않고, 06 리포지토리는 메서드를 선언하지 않는다.** 변이: `common` 에 `@Component class DefaultRuleIdIssuer implements MdmRuleIdIssuer` 추가 → §3.7-1·§3.1-12. `@Component` 로 등록한 `DefinitionLookup` 구현 추가 → §3.1-12. `MdmRuleRepository` 에 `@Query` 메서드 추가 → §3.7-2. 빈으로 등록하지 않은 `DefinitionLookup` 구현 클래스는 잡지 못한다: **알려진 커버리지 갭**(F32 때문에 정적 가드를 두지 않았다).
 22. **엔진 `DefinitionLookup` 서명을 바꾸지 않는다.** 변이: `rule(String, Instant)` 의 인자 변경 → `RuleDefinitionLookupStub` 컴파일 실패(§3.6). 엔진 파일의 다른 변경(주석 등)은 테스트가 잡지 못한다: **알려진 커버리지 갭**이며 §3.10-4 의 `git diff --stat` 이 비어 있는지로만 확인한다.
 23. **`MdmRuleIdIssuer.issue(String, MdmRuleIdKind, int) → MdmRuleIdRange` 서명과 `MdmRuleIdKind.counterColumn()` 값을 유지한다.** 변이: `count` 인자 제거 → `RuleIdIssuerConsumerStub` 컴파일 실패. `counterColumn` 값 변경 → §3.6 단언.
 24. **06 diff 관례: key = `row_id` 10진 문자열, 값 맵 키 = `SEQ`·`CELLS`. 확정 검사 항목은 넷이고 룰 참조 검사가 없다.** 변이: `MdmRuleDiffConventions.CELLS = "CELL"` → §3.6. `MdmRuleConfirmCheckItem` 에 `RULE_REFERENCE` 추가 → §3.6.
@@ -631,9 +631,10 @@ public class MdmSqliteTemporalContributor implements MetadataBuilderContributor 
 
 | 받는 Task | 인계 내용 |
 |---|---|
-| TSK-08-02 (룰 등록·DRAFT) | `MdmRuleIdIssuer` 구현(단일 UPDATE RETURNING/OUTPUT, 규칙표 #1 실측, 감사 칼럼 명시). `VersionDraftDeletionSpi`(BUSINESS_RULE) 빈 구현 등록. 이 둘을 넣을 때 §3.7-1 과 §3.1-12 의 해당 줄(발급기·삭제 훅)을 지운다. 새 버전·룰 등록 INSERT 는 엔티티 생성자로 하고, 서비스 소유 칼럼은 엔티티로 바꾸지 않는다(D7). 공통 서비스를 부른 뒤에는 엔티티를 다시 읽는다(TSK-01-03 §2.4). `DISP_TYPE` 은 06 표기로 저장한다(D4) |
+| TSK-08-02 (룰 등록·DRAFT) | `MdmRuleIdIssuer` 구현(단일 UPDATE RETURNING/OUTPUT, 규칙표 #1 실측, 감사 칼럼 명시). `VersionDraftDeletionSpi`(BUSINESS_RULE) 빈 구현 등록. 이 둘을 넣을 때 §3.7-1 과 §3.1-12 의 해당 줄(발급기·삭제 훅)을 지운다. 새 버전·룰 등록 INSERT 는 엔티티 생성자로 하고, 서비스 소유 칼럼은 엔티티로 바꾸지 않는다(D7). 공통 서비스를 부른 뒤에는 엔티티를 다시 읽는다(TSK-01-03 §2.4). `DISP_TYPE` 은 06 표기로 저장한다(D4). 엔티티에 넣는 일시는 호출자가 초 단위로 잘라서 넣는다: SQLite 컨버터는 소수초를 절삭하지만 MSSQL `DATETIME2(0)` 은 JPA 로 쓸 때 반올림하므로(`.789` 는 다음 초) 두 방언의 저장값이 1초 갈릴 수 있다(네이티브 쓰기는 바인더가 두 방언 모두 절삭한다) |
 | TSK-08-03 (열 설정) | `COLLECT_AGG` 기본값 `'LIST'` 는 엔티티 저장 때 채운다(§6.0 ④ 주의). `VAR_NAME` 길이는 1,000자 이하로 검사한다(D3, 규칙표 #18) |
-| TSK-08-04 (저장 시 검사·값 테스트) | `DefinitionLookup` 구현(§6.4 매핑표, `MdmRuleDefinitionSource` 두 방식). 넣을 때 §3.7-2 와 §3.1-12 의 `DefinitionLookup` 줄을 지운다. 어긋남 ①~④ 는 구현에서 변환한다(엔진 서명 불변) |
+| TSK-08-04 (저장 시 검사·값 테스트) | `DefinitionLookup` 구현(§6.4 매핑표, `MdmRuleDefinitionSource` 두 방식). 빈으로 등록하면 §3.1-12 의 `DefinitionLookup` 줄을 지운다. `column()` 은 02 계약에 위임하고, 02 가 먼저 `DefinitionLookup` 빈을 등록했다면 06 은 `rule()`·`ruleSet()` 을 합성으로 붙인다(F32). 어긋남 ①~④ 는 구현에서 변환한다(엔진 서명 불변) |
+| 02 영역(TSK-04-03 등) | `DefinitionLookup` 을 스프링 빈으로 등록하게 되면 §3.1-12 의 `DefinitionLookup` 줄을 지운다(F32) |
 | TSK-08-05 (확정) | `VersionConfirmCheckSpi`(BUSINESS_RULE) 구현(§6.5, `MdmRuleDiffConventions`·`MdmRuleConfirmCheckItem`). 넣을 때 §3.1-12 의 확정 검사 줄을 지운다. 규칙표 #12 FULL OUTER JOIN 실측 |
 | TSK-08-06 (룰 세트) | `MdmRuleSet` 엔티티. `ROW_VERSION` 은 조건부 네이티브 UPDATE 로만 올린다(규칙표 #13, D7) |
 | 06 `MdmDomainReferenceSpi`(refKind `RULE_VAR`) 담당(미정) | 실구현은 이 Task 에 없다(F30) |
