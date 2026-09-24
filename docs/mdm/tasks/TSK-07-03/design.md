@@ -512,6 +512,13 @@ Build·Verify 의 변이 검증이 이 목록을 순회한다. "잡는 테스트
 - 근거: BPMN 경로에서는 화면이 코드를 받지 못하고 `meta.message` 만 받는다(F12). 그래서 새 코드가 화면 판정에 주는 이득이 없다. 새 코드는 `CommonContractTest` 의 개수 21 고정을 깨고 형제 Task 와 충돌한다(F13).
 - 반려되면: `MdmErrorCode` 에 코드를 더하고 `CommonContractTest` 개수를 고치며, 코어가 새 코드를 던지게 바꾼다. 화면 판정 문구(A2)는 새 코드의 `defaultMessage` 로 옮긴다.
 
+### D12. API 경로(일괄 upsert)의 닫힌 키 — 받은 값으로 다시 연다(Build 추가)
+- 질문: 수신 API 의 `closed` 플래그는 만들지 않았다(D2). 그러면 API 경로 upsert 에 닫힌 키가 오면 어떻게 하는가. design 은 CSV 의 닫힌 키 거부만 정했다.
+- 선택지: (a) 받은 값으로 새 행을 열고 동작 REOPEN(마지막 행 +1, 닫힌 구간 보존). (b) CSV 처럼 이슈로 모아 요청 전체를 거부한다.
+- 택한 것: (a).
+- 근거: spec 본문은 이 경우를 정하지 않았다. 05 「저장 경로와 검증」은 API 를 upsert 로 두고 "닫기·다시 열기는 `closed` 플래그로 한다"와 "행 단위 거부가 없다(PARTIAL 없음), 요청 단위 거부는 모르는 마루 데이터·DEPRECATED·원천 불일치·본문 형식 오류뿐"을 정했다. 플래그가 없는 행은 `closed:false` 와 같고, 닫힌 키에 `closed:false` 가 오면 다시 열기다. (b)는 05 의 요청 단위 거부 목록에 없는 거부를 만든다. 검증: `DataItemChecksSqliteTest.C6_API_는_닫힌_키를_받은_값으로_다시_연다_D12`.
+- 반려되면: `DataItemSaveCore.upsert` 의 닫힌 키 분기에서 API 도 CSV 와 같이 `CHK6` 이슈를 모으게 바꾸고, `DataItemSegmentStore.reopenWith` 와 위 시험을 지운다. 수신 API Task 가 `closed` 플래그를 만들 때 이 분기를 다시 정한다.
+
 ---
 
 ## E2E 서버 절차
@@ -595,3 +602,118 @@ cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 - **탭 스냅샷**: 화면 상태는 `PageProps` 의 `snapshot`/`onSnapshotChange` 로만 보존된다. 이 Task 는 스냅샷을 쓰지 않아도 된다(선례 화면도 쓰지 않는다).
 - **형제 Task 공유 파일은 추가만**: `DataInitializer.java`(새 메서드 + 호출 한 줄), `tsup.config.ts`(엔트리 두 줄), `page-registry.ts`(codegen 재생성), e2e 픽스처는 새 파일. 기존 줄을 고치지 않는다. 머지 충돌이 나면 양쪽 줄을 모두 유지한다.
 - **스크린샷 산출물**: `docs/mdm/tasks/TSK-07-03/screens/` 폴더는 아직 없다. spec 이 `mkdirSync` 하거나 Playwright `screenshot({ path })` 가 폴더를 만든다(Playwright 는 부모 폴더를 만든다).
+
+---
+
+## Build 게이트 결과
+
+기준선 합계 tests=2823, failures=0. 모두 리포 루트에서 글자 그대로 돌렸다(1·2 는 `heavy.sh` 로 감쌈).
+
+| # | 명령 | 결과 |
+|---|---|---|
+| 1 | backend `testAll` | exit 0, tests 2436(기준선 2337, +99), failures 0, errors 0 |
+| 2 | `pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test` | 첫 실행 exit 1 — 이 작업과 무관한 `tests/evalex-perf.test.ts` NFR-1 성능 2건(중앙값 118.7ms·105.4ms > 100ms, load average 약 21). 같은 명령 재실행 exit 0, tests 346(기준선 330, +16), failures 0 |
+| 3 | `check_oasis_contract.py --root .` | exit 0(BPMN 26 / bean 26 해석, ERROR 0 WARN 0) |
+| 4 | `pnpm --filter @dk-oasis/m-mdm lint` | exit 0 |
+| 5 | `pnpm test:unit:shared` | exit 0, tests 156, failures 0 |
+
+추가 점검: `mantine_docs.py audit`·`aggrid_docs.py audit`(pages/dmd) 둘 다 의심 0건.
+
+E2E(「E2E 서버 절차」, mcm 18731·mdm 18732·포털 15731, 격리 mcm.db·mdm.db, 시드 대조 diff 없음): `mdm-dataItemMng.spec.ts` 4건·`mdm-dataHistory.spec.ts` 4건, 8 passed(첫 실행). 스크린샷 6장은 `screens/` 에 있다. 전체 mdm 스위트(§3.5)는 Verify 몫이라 돌리지 않았다.
+
+## Build 변이 검증 결과
+
+방법: 초록 커밋 위에서 파일 하나를 고치고 → 그 변이를 잡을 시험 클래스만 돌리고(백엔드 `:api:test --tests …`, 프런트 `vitest run <파일>`) → `/usr/bin/git checkout -- <파일>` 로 되돌렸다(A3 는 새 파일을 만들었다 지움). 컴파일 실패로만 빨강이 된 변이는 없다(Q1b 첫 형태는 파라미터 바인딩 오류로 빨강이라 의미 변이가 아니어서 형태를 바꿔 다시 돌렸다).
+
+요약: 변이 64개(불변 규칙 41개 중 40개 대상) 모두 빨강(CAUGHT). 그중 둘(S4c, C3b)은 첫 스윕에서 살아남아 시험을 보탠 뒤 잡혔다. 스윕 전에 설계를 다시 보며 기존 시험이 못 잡을 변이 셋(S9b 절삭 제거, A2 서버 문구 변경, A4 omitNullish 제거)을 찾아 시험을 먼저 보탰다(`910fca3`).
+
+**못 잡은 것·SQLite 로 확인하지 못한 것(은폐 금지)**
+- S11(키당 열린 행 1개·겹침 0의 **동시** 부분): 변이를 돌리지 않았다. SQLite 는 DB 전체 쓰기 잠금이라 잠금·CAS 를 빼도 동시 저장이 겹치지 않는다(F10). 직렬 50사건 겹침 0 만 SQLite 로 확인했다. 동시 부분은 mssqlTest `DataSegmentConcurrencyMssqlTest` M1~M4 로 설계했으나 도커 금지로 컴파일·실행하지 않았다.
+- L1·L2 의 실제 직렬화 효과(MSSQL 행 X 잠금 보유): SQLite 게이트가 잡는 것은 호출 순서·잠금 뒤 재조회·쓰기 잠금 탐침·값 불변뿐이다(표의 L1·L1b·L2). X 잠금 보유는 M5(미실행)가 맡는다.
+- S4c 는 코어 경유로는 드러나지 않는다(코어가 잠금 뒤 먼저 비교하므로 CAS 는 두 번째 방어선). 저장소 계약을 직접 부르는 `S4_저장소의_닫는_UPDATE_는_ROW_VERSION_조건부_CAS_다` 로 덮었다.
+- C3b 는 코어 경유로 도달하지 않는다(EXTERNAL 은 API 경로만 통과하고 API 는 행 내용 검사를 건너뛴다). 검사 컴포넌트 단위 시험 `DataItemChecksTest` 로 덮었다.
+- e2e 변이(§3.5 — 충돌 재조회 제거, 열 머리 번호화 등을 전체 e2e 스위트로 확인)는 Verify 몫이라 돌리지 않았다. 같은 변이는 위 표에서 vitest 로 잡힌다(F1, Q5).
+
+| 변이 | 규칙 | 대표 변이 | 결과 | 잡은 시험(첫 실패) | 비고 |
+|---|---|---|---|---|---|
+| S1 | S1 | 수정 새 행 valid_from = at+1s | CAUGHT | `MasterDataExamplesScenarioTest.X2 (X1 수신 로그는 보류라 재현하지 않음) 내용 검사 없이 C1·C2·C4 저장` |  |
+| S1b | S1 | 수정에서 옛 행을 닫지 않음(닫기 UPDATE 생략) | CAUGHT | `MasterDataExamplesScenarioTest.X2 (X1 수신 로그는 보류라 재현하지 않음) 내용 검사 없이 C1·C2·C4 저장` |  |
+| S2 | S2 | 다시 열기에 빈 값 사용 | CAUGHT | `DataItemSegmentCoreSqliteTest.S7_S2_다시_열기는_마지막_값을_복사하고_닫힌_구간을_남긴다()` |  |
+| S3 | S3 | 수정 새 행 row_version 0 | CAUGHT | `DataItemSegmentCoreSqliteTest.S1_S2_S3_수정은_옛_행을_같은_시각에_닫고_새_행_row_version_을_올린다()` |  |
+| S3b | S3 | 닫기에서 row_version 을 올리지 않음 | CAUGHT | `DataItemSegmentCoreSqliteTest.S6_S3_닫기는_열린_행_valid_to_만_적고_row_version_을_올린다()` |  |
+| S4 | S4 | row_version 비교 제거 | CAUGHT | `DataItemSegmentCoreSqliteTest.S3_S4_남이_닫은_뒤_옛_row_version_으로_다시_열면_충돌한다()` |  |
+| S4b | S4 | 마지막 행 대신 첫 행과 비교(수정) | CAUGHT | `DataItemSegmentCoreSqliteTest.S9_같은_초의_사건은_경계를_1초씩_민다()` |  |
+| S4c | S4 | 닫는 UPDATE 조건에서 ROW_VERSION 제거 | CAUGHT | `DataItemSegmentCoreSqliteTest.S4_저장소의_닫는_UPDATE_는_ROW_VERSION_조건부_CAS_다()` | 첫 실행 SURVIVED → 시험 보강 뒤 CAUGHT |
+| S5 | S5 | 비교 필드 attr10 누락 | CAUGHT | `DataItemSegmentCoreSqliteTest.비교 필드 18` |  |
+| S5b | S5 | 값이 같아도 항상 새 행 | CAUGHT | `DataItemSegmentCoreSqliteTest.S5_값이_같은_수정은_NONE_이고_아무것도_쓰지_않는다()` |  |
+| S5c | S5 | 정규화 제거(trim·빈 문자열) | CAUGHT | `DataItemSegmentCoreSqliteTest.S5_값이_같은_수정은_NONE_이고_아무것도_쓰지_않는다()` |  |
+| S5d | S5 | FE 저장 파라미터 trim·빈 값 제외 제거 | CAUGHT | `toSaveParams (A4·S5) > 빈 문자열·공백·null 값은 키를 뺀다` |  |
+| S6 | S6 | 닫기에서 새 행 생성 | CAUGHT | `MasterDataExamplesScenarioTest.E6 항목 KRINC 닫기` |  |
+| S7 | S7 | 다시 열기가 닫힌 구간을 메움(새 행 valid_from = 마지막 valid_to) | CAUGHT | `DataHistoryServiceSqliteTest.H1_H2_생성_변경_닫힘_다시_열기_변경은_사건과_빈_구간으로_보인다()` |  |
+| S8 | S8 | 닫힌 키 등록 허용 | CAUGHT | `DmdOasisHttpTest.A2_닫힌_키_reg_는_다시_열기_안내가_meta_message_에_온다()` |  |
+| S9 | S9 | 같은 초 밀기 제거 | CAUGHT | `DataItemSegmentCoreSqliteTest.S9_저장_시각은_초_단위로_자른다()` |  |
+| S9b | S9 | 저장 시각 절삭 제거 | CAUGHT | `DataItemSegmentCoreSqliteTest.S9_저장_시각은_초_단위로_자른다()` |  |
+| S10 | S10 | 새 열린 행에 다른 센티넬 | CAUGHT | `DataItemSegmentCoreSqliteTest.S1_S2_S3_수정은_옛_행을_같은_시각에_닫고_새_행_row_version_을_올린다()` |  |
+| S12 | S12 | 잠금 문이 순번을 올림 | CAUGHT | `DataSegmentLockSqliteTest.L2_S12_잠금과_사건은_TB_MDM_DATA_의_순번_감사_칼럼을_바꾸지_않는다()` |  |
+| S12b | S12 | 새 행에 순번 1 | CAUGHT | `MasterDataExamplesScenarioTest.X4 동기화 — tx2 에 경계가 생긴 ITEM 5행, C3 은 없다` |  |
+| S13 | S13 | UPDATE 감사 VER 증가 누락 | CAUGHT | `DataItemSegmentCoreSqliteTest.S13_새_행은_감사_9칼럼을_쓰고_닫는_UPDATE_는_U_와_VER_을_올린다()` |  |
+| S13b | S13 | INSERT 감사 사용자 누락 | CAUGHT | `DataItemSegmentCoreSqliteTest.S13_새_행은_감사_9칼럼을_쓰고_닫는_UPDATE_는_U_와_VER_을_올린다()` |  |
+| S14 | S14 | BASE 가드 제거 | CAUGHT | `DataCategorySegmentCoreSqliteTest.S14_BASE_는_수정_닫기를_거부한다()` |  |
+| C0 | C0 | API 경로에서 행 내용 검사 실행 | CAUGHT | `MasterDataExamplesScenarioTest.X2 (X1 수신 로그는 보류라 재현하지 않음) 내용 검사 없이 C1·C2·C4 저장` |  |
+| C1 | C1 | DEPRECATED 검사 제거 | CAUGHT | `DataItemChecksSqliteTest.C1_C2_는_즉시_거부라_다른_검사_이슈가_섞이지_않는다()` |  |
+| C1b | C0 | 검사 1 을 즉시 거부 대신 이슈로 모아 계속 검사 | CAUGHT | `DataItemChecksSqliteTest.C1_C2_는_즉시_거부라_다른_검사_이슈가_섞이지_않는다()` |  |
+| C2 | C2 | 원천 검사 제거 | CAUGHT | `DataItemChecksSqliteTest.C1_C2_는_즉시_거부라_다른_검사_이슈가_섞이지_않는다()` |  |
+| C3 | C3 | 키 패턴 find() 부분 일치 | CAUGHT | `DataItemChecksSqliteTest.C3_MDM_원천_키는_code_pattern_전체_일치()` |  |
+| C3b | C3 | EXTERNAL 에도 키 패턴 적용 | CAUGHT | `DataItemChecksTest.C3_키_패턴은_MDM_원천의_신규_키에만_적용한다()` | 첫 실행 SURVIVED → 시험 보강 뒤 CAUGHT |
+| C4 | C4 | 이름 필수 검사 제거 | CAUGHT | `DataItemChecksSqliteTest.C4_화면_CSV_는_이름이_필수다()` |  |
+| C5 | C5 | 라벨 없는 칸 검사 제거 | CAUGHT | `DataItemChecksSqliteTest.C5_라벨_없는_칸의_값은_화면_CSV_거부_API_통과()` |  |
+| C5-1 | C5-1 | 계층 대조에서 닫힌 키 제외 | CAUGHT | `DataItemChecksSqliteTest.C5_1_닫힌_키의_마지막_행도_비교한다()` |  |
+| C5-1b | C5-1 | 중간 칸 비움 검사 제거 | CAUGHT | `DataItemChecksSqliteTest.C5_1_중간_칸_비움과_콤마_공백을_거부한다()` |  |
+| C5-2 | C5-2 | lvl_cnt 경계 off-by-one | CAUGHT | `DataItemChecksSqliteTest.C5_2_lvl_cnt_보다_뒤_칸의_값은_거부한다()` |  |
+| C6 | C6 | CSV 가 닫힌 키를 다시 엶 | CAUGHT | `DataItemChecksSqliteTest.C6_CSV_는_닫힌_키를_다시_열지_않고_거부한다()` |  |
+| C7 | C7 | 소속 검사 제거 | CAUGHT | `DataCategorySegmentCoreSqliteTest.C7_소속은_항목_열림_카테고리_열림_TABLE_일_때만()` |  |
+| L1 | L1 | 선분 읽기를 잠금 앞으로(수정) | CAUGHT | `DataSegmentLockSqliteTest.L1_모든_쓰기_사건은_첫_사건으로_잠금을_정확히_한_번_부른다()` |  |
+| L1b | L1 | 카테고리 등록에서 잠금 호출 누락 | CAUGHT | `DataSegmentLockSqliteTest.L1_모든_쓰기_사건은_첫_사건으로_잠금을_정확히_한_번_부른다()` |  |
+| L2 | L2 | 잠금 문을 SELECT 로 | CAUGHT | `DataSegmentLockSqliteTest.L2_잠금은_쓰기_잠금이라_다른_연결의_BEGIN_IMMEDIATE_가_막힌다()` |  |
+| L3 | L3 | 잠금 0행 무시 | CAUGHT | `DataSegmentLockSqliteTest.L3_없는_마루_데이터는_거부하고_아무것도_쓰지_않는다()` |  |
+| Q1 | Q1 | 키별 마지막 행 조건 제거(모든 행) | CAUGHT | `DataItemMngServiceSqliteTest.Q1_목록은_키별_마지막_행이고_닫힌_키는_showClosed_일_때만()` |  |
+| Q1b | Q1 | showClosed 무시(닫힌 키 늘 표시) | CAUGHT | `DataItemMngServiceSqliteTest.Q1_목록은_키별_마지막_행이고_닫힌_키는_showClosed_일_때만()` | 첫 형태는 파라미터 바인딩 오류로 빨강(의미 변이 아님) → 조건만 무력화한 형태로 재실행 |
+| Q2 | Q2 | seq NULL 을 앞으로 | CAUGHT | `DataItemMngServiceSqliteTest.Q2_Q3_서버_페이징은_0부터_50건씩이고_seq_NULL_은_뒤_같으면_code_순()` |  |
+| Q3 | Q3 | size 상한 제거 | CAUGHT | `DataItemMngServiceSqliteTest.Q3_size_는_기본_50_상한_200()` |  |
+| Q3b | Q3 | REGEX totalCount 를 필터 전 수로 | CAUGHT | `DataItemMngServiceSqliteTest.Q4_카테고리_REGEX_는_서버_정규식_대상_NULL_불일치_TABLE_은_열린_소속_BASE_는_전체()` |  |
+| Q3c | Q3 | LIKE 이스케이프 제거 | CAUGHT | `DataItemMngServiceSqliteTest.Q3_퍼센트_밑줄_역슬래시는_와일드카드가_아니다()` |  |
+| Q4 | Q4 | REGEX 대상 NULL 을 빈 문자열로 일치 | CAUGHT | `DataItemMngServiceSqliteTest.Q4_카테고리_REGEX_는_서버_정규식_대상_NULL_불일치_TABLE_은_열린_소속_BASE_는_전체()` |  |
+| Q4b | Q4 | TABLE 필터에서 닫힌 소속 포함 | CAUGHT | `DataItemMngServiceSqliteTest.Q4_카테고리_REGEX_는_서버_정규식_대상_NULL_불일치_TABLE_은_열린_소속_BASE_는_전체()` |  |
+| Q5 | Q5 | FE 추가 컬럼 열 머리를 번호로 | CAUGHT | `buildItemColumns (Q5) > 추가 컬럼 열은 라벨이 있는 번호만이고 머리는 라벨 원문이다` |  |
+| Q5b | Q5 | FE 계층 열 전 칸 표시 | CAUGHT | `buildItemColumns (Q5) > 계층 열은 1차~lvlCnt차만 만든다` |  |
+| Q5c | Q5 | BE 라벨 없는 번호도 머리에 포함 | CAUGHT | `DataItemMngServiceSqliteTest.Q5_Q6_머리는_계층_칸_수_라벨_있는_번호만_편집_가능_여부를_준다()` |  |
+| Q6 | Q6 | FE EXTERNAL 편집 허용 | CAUGHT | `isRowEditable (Q6) > MDM·INUSE 머리이고 그 행이 열려 있을 때만 편집한다` |  |
+| Q6b | Q6 | BE editable 에서 INUSE 조건 제거 | CAUGHT | `DataItemMngServiceSqliteTest.Q5_Q6_머리는_계층_칸_수_라벨_있는_번호만_편집_가능_여부를_준다()` |  |
+| H1 | H1 | 이력 행 정렬 뒤바꿈 | CAUGHT | `DataHistoryServiceSqliteTest.H2_마지막_사건이_닫기면_마지막_행은_CLOSED_상태는_소멸()` |  |
+| H2 | H2 | 빈 구간 판정 부등호 뒤바꿈 | CAUGHT | `DataHistoryServiceSqliteTest.H1_H2_생성_변경_닫힘_다시_열기_변경은_사건과_빈_구간으로_보인다()` |  |
+| H2b | H2 | FE 가 빈 구간 줄을 끼우지 않음 | CAUGHT | `DataHistoryPage > 빈 구간이 있는 행 앞에 닫혀 있던 구간 줄을 하나 끼운다` |  |
+| H3 | H3 | 이력 키 필수 검사 제거 | CAUGHT | `DataHistoryServiceSqliteTest.H3_키가_없으면_거부하고_없는_키는_빈_목록()` |  |
+| A1 | A1 | BPMN 액션 이름 restore→reopen | CAUGHT | `DmdBpmnActionTest.dataItemMng_액션은_view_search_reg_save_delete_restore()` |  |
+| A1b | A1 | BPMN method 매핑 reg→save 뒤바꿈 | CAUGHT | `DmdBpmnActionTest.dataItemMng_액션은_view_search_reg_save_delete_restore()` |  |
+| A2 | A2 | 서버 닫힌 키 문구 변경 | CAUGHT | `DmdScreenMessageParityTest.화면_판정_상수는_서버_문구와_같은_글자다()` |  |
+| A2b | A2 | FE 충돌 접두어 변경 | CAUGHT | `문구 판정 (A2·F1) > 충돌 문구는 서버 기본 문구로 시작하면 참이다` |  |
+| A3 | A3 | 다른 패키지에 네 번째 구현체 | CAUGHT | `MdmTemporalSegmentStoreNoImplementationTest.MdmTemporalSegmentStore_구현체는_common_segment_의_정해진_세_클래스뿐이다()` |  |
+| A4 | A4 | FE omitNullish 제거 | CAUGHT | `dataItemMng api > 빈 조건은 params 키에서 빠지고 null 이 없다` |  |
+| F1 | F1 | 충돌 뒤 재조회 제거 | CAUGHT | `DataItemMngPage > 충돌 문구를 받으면 안내를 보이고 목록을 다시 부른다(F1)` |  |
+| S11 | S11 | 잠금·CAS 제거 뒤 동시 저장 | 미실행 | — | SQLite 로 못 잡음(위 설명). M1~M4 미실행(도커 금지) |
+
+## Build 이탈
+
+design 과 다르게 한 것과 design 에 없던 것을 적는다.
+
+1. **보조 타입·파일 추가**(변경 파일 목록에 없음): `common.segment` 에 `SegmentRow`(열린 행 판정 공통 인터페이스, S10), `HierarchyIndex`(검사 5-1 메모리 색인 — 일괄 upsert 3,000행을 행마다 재조회하지 않으려고), `SaveOutcome`·`SegmentOutcome`(결과 record)을 두었다. `dmd.dataItemMng.service.DataItemRows`(DTO 변환·일시 문자열화)를 두었다. 목록 쿼리가 같은 칼럼 목록·변환을 쓰도록 `DataSegmentRowStore.ITEM_COLUMNS`·`toItem` 을 public 으로 열고, 머리의 카테고리 목록용 `openCateRows` 를 더했다.
+2. **저장소 오버로드**: 계약에 row_version 인자가 없어(F7) `DataItemSegmentStore` 에 `modify(key, value, at, expected)`·`close(key, at, expected)`·`modifyOpen(openRow, …)`(일괄 upsert 가 이미 읽은 열린 행으로 부름)·`reopenWith(last, value, at)`(D12)를 더했다. 계약 메서드 넷은 그대로 구현한다.
+3. **일괄 upsert 의 거부 방식**: 검사 1·2 는 던지고(즉시 거부), 검사 3~6 은 던지지 않고 `UpsertResult.issues` 로 돌려준다(`written=false`). 07-04 CSV 검증 결과 표가 행별 이슈를 그리게 하려는 것이다. design 의 "이슈가 있으면 쓰지 않는다"와 같은 뜻이다. 한 파일 안의 같은 키는 `CHK6` 이슈다.
+4. **화면 서비스 읽기 트랜잭션**: `DataItemMngService`·`DataHistoryService` 의 읽기는 읽기 전용 `TransactionTemplate` 으로 감쌌다(`DataSegmentRowStore` 가 쿼리 전에 flush 해서 트랜잭션 밖 호출이 실패한다). OASIS 에서는 프로세스 트랜잭션에 합류한다. `@Transactional` 은 쓰지 않았다(F11).
+5. **시험 보강**(design §3 에 없던 것): `DmdScreenMessageParityTest`(A2 — 서버 문구와 `messages.ts` 상수를 글자 그대로 대조), `DataItemChecksTest`(C3b), T-S 의 `S4_저장소의_닫는_UPDATE_는_ROW_VERSION_조건부_CAS_다`(S4c)·절삭 시험의 같은 순간 두 번째 사건(S9b), `DataItemChecksSqliteTest.C6_API_는_닫힌_키를_받은_값으로_다시_연다_D12`, 프런트 `data-item-api.test.ts`(A4).
+6. **F1 렌더 시험의 동작**: design 은 "`save` 응답을 충돌 문구로 주면 search 가 다시 불린다"였다. happy-dom 에서 ag-grid 셀 편집을 흉내 내기 어려워 행의 「닫기」(`delete`) 응답을 충돌 문구로 주었다. 재조회는 쓰기 넷이 같은 오류 처리 함수(`handleWriteError`)를 거치므로 판정 대상은 같다. `save` 경로의 충돌 재조회는 e2e 스모크 4 가 실제로 확인한다.
+7. **프런트 렌더 시험 순서**: 순수 함수 시험(`data-item-columns.test.ts`)은 구현 전에 썼지만, 두 렌더 시험은 화면을 쓴 뒤에 썼다(happy-dom 에서 ag-grid 가 머리·셀을 그리는지 먼저 확인해야 했다). 대신 변이 검증(Q5·F1·H2b)으로 그 시험이 틀린 구현을 잡는지 확인했다. 두 렌더 시험은 이 happy-dom 환경에 `localStorage` 가 없어 `vi.stubGlobal` 로 대신 넣는다(`apiRequest` 가 토큰을 읽는다).
+8. **화면 세부**: 첫 로드 때 마루 데이터 목록의 첫 항목을 자동으로 고른다. 조회조건 입력은 `SearchField` children 으로 넣어 `data-testid`·`aria-label` 을 달았다(e2e 선택자). 이력 타임라인의 열린 행 끝 일시는 "열림"으로 보인다. 소속 이력의 카테고리 선택지는 열린 카테고리만이다.
+9. **BPMN 작성 도구**: `bpmn-tool` 이 전역 설치돼 있지 않아 `npx -y @cothe/bpmn-tool create`(같은 패키지 v1.3.0)로 만들고 validate 했다. 경고는 default flow 미설정 1건으로 `unitMng.bpmn` 선례와 같다(OASIS 는 분기 이름으로 라우팅).
+10. **mssqlTest**: `DataSegmentConcurrencyMssqlTest` 는 작성만 했고 컴파일도 확인하지 않았다(`compileMssqlTestJava` 는 이름에 mssql 이 들어 금지). `MdmMasterDataMssqlMigrationTest` 의 import·어노테이션을 따랐다. 머지 뒤 팀장 dialect_check 에서 처음 컴파일된다.
+11. **알려진 화면 모양 문제(동작 판정 무관)**: `dmd-dataItemMng-edit.png` 에서 등록 패널이 닫힌 뒤 그리드가 가로로 밀려 키·이름 열이 왼쪽으로 가려져 찍혔다. 「닫힌 항목 보기」 체크박스는 스크린샷에서 네모 없이 글자만 보인다(클릭으로 켜지는 것은 e2e S3 가 확인). 둘 다 Verify·리뷰에서 볼 대상으로 남긴다.
