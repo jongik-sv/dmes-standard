@@ -1,7 +1,9 @@
 // TSK-05-02 design.md §3.4 — layoutMng OASIS 호출 래퍼. save 는 grid headers·consts·items 셋을 늘 보낸다(F11).
 // 헤더 항목을 보내는 grid 는 없다(불변 I8).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanParams, saveLayout, searchColumns, searchHeaders, searchLayouts, viewLayout } from "../../../pages/dmb/layoutMng/api";
+import {
+  cleanParams, exportSnapshot, renderSample, saveLayout, searchColumns, searchHeaders, searchImpact, searchLayouts, validateLayout, viewLayout,
+} from "../../../pages/dmb/layoutMng/api";
 
 const originalFetch = globalThis.fetch;
 let calls: Array<{ url: string; body: Record<string, unknown> }>;
@@ -57,6 +59,49 @@ describe("layoutMng api", () => {
       items: { rows: [{ SEQ: 1, FILL_KIND: "DATA", COLUMN_PHYS: "COIL_THK", NUM_FORMAT: "SIGN=N;ZERO=Y;SCALE=1;WIDTH=4" }] },
     });
     expect(Object.keys(calls[1].body.grids as object)).toEqual(["headers", "consts", "items"]);
+  });
+
+  // ── TSK-05-03 design.md §3.5 — validate·execute·export·search(IMPACT) ──
+  const DRAFT = { layoutId: 7, ver: 3, layoutName: "전문", eaiCode: "G", sndSystem: "L2", rcvSystem: "MES" };
+  const ITEM = { KEY: "a", SEQ: 1, FILL_KIND: "DATA" as const, COLUMN_PHYS: "COIL_ID", OFFSET: 130, LENGTH: 20 };
+
+  it("validate 는 grid 셋을 빈 배열이라도 보낸다", async () => {
+    await validateLayout(DRAFT, [], [], []);
+    expect(calls[0].url).toBe("/api/mdm/oasis/layoutMng/validate");
+    expect(calls[0].body.params).toEqual({ layoutId: 7, ver: 3, layoutName: "전문", eaiCode: "G", sndSystem: "L2", rcvSystem: "MES" });
+    expect(calls[0].body.grids).toEqual({ headers: { rows: [] }, consts: { rows: [] }, items: { rows: [] } });
+  });
+
+  it("execute 는 samples 를 포함한 grid 넷을 보낸다", async () => {
+    await renderSample(DRAFT, [{ HEADER_LAYOUT_ID: 10 }], [], [ITEM], { COIL_ID: "C1", PROD_DT: "" }, { sendTime: "20260922143015", seq: 1 });
+    expect(calls[0].url).toBe("/api/mdm/oasis/layoutMng/execute");
+    expect(calls[0].body.params).toEqual({ ...{ layoutId: 7, ver: 3, layoutName: "전문", eaiCode: "G", sndSystem: "L2", rcvSystem: "MES" },
+      sendTime: "20260922143015", seq: 1 });
+    expect(Object.keys(calls[0].body.grids as object)).toEqual(["headers", "consts", "items", "samples"]);
+    expect(calls[0].body.grids).toEqual({
+      headers: { rows: [{ SEQ: 1, HEADER_LAYOUT_ID: 10 }] }, consts: { rows: [] },
+      items: { rows: [{ SEQ: 1, FILL_KIND: "DATA", COLUMN_PHYS: "COIL_ID" }] },
+      samples: { rows: [{ COLUMN_PHYS: "COIL_ID", VALUE: "C1" }, { COLUMN_PHYS: "PROD_DT", VALUE: "" }] },
+    });
+    await renderSample(DRAFT, [], [], [], {});
+    expect(calls[1].body.grids).toEqual({ headers: { rows: [] }, consts: { rows: [] }, items: { rows: [] }, samples: { rows: [] } });
+  });
+
+  it("export 는 layoutId·layoutVersion 을 보낸다", async () => {
+    await exportSnapshot(7, 2);
+    await exportSnapshot(7);
+    expect(calls[0].url).toBe("/api/mdm/oasis/layoutMng/export");
+    expect(calls[0].body.params).toEqual({ layoutId: 7, layoutVersion: 2 });
+    expect(calls[1].body.params).toEqual({ layoutId: 7 });
+    expect(calls[0].body.grids).toBeUndefined();
+  });
+
+  it("영향도 검색은 search 의 target=IMPACT 다", async () => {
+    stub({ meta: { success: true }, data: { result: { impacts: [{ COLUMN_PHYS: "COIL_THK" }] } } });
+    const rows = await searchImpact("COIL_THK");
+    expect(calls[0].url).toBe("/api/mdm/oasis/layoutMng/search");
+    expect(calls[0].body.params).toEqual({ target: "IMPACT", keyword: "COIL_THK" });
+    expect(rows).toEqual([{ COLUMN_PHYS: "COIL_THK" }]);
   });
 
   it("meta.success=false 면 meta.message 로 던진다", async () => {

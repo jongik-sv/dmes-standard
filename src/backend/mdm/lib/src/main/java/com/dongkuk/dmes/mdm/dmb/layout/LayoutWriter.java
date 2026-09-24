@@ -81,7 +81,7 @@ public class LayoutWriter {
 
     /**
      * 이 헤더를 쌓은 전문 전체의 본문 오프셋·총 길이를 다시 민다(§6.4, 불변 I12). 본문 항목 길이는 저장된 LENGTH 를 그대로 쓴다.
-     * 업무 버전({@code VERSION})은 올리지 않는다(I17).
+     * 업무 버전({@code VERSION})은 여기서 올리지 않는다 — 호출자가 같은 action 에서 {@link LayoutVersioner} 로 기록한다(TSK-05-03 I18).
      *
      * @return 바뀐 전문 {@code [LAYOUT_ID, LAYOUT_NAME, TOTAL_LENGTH_BEFORE, TOTAL_LENGTH_AFTER]}
      */

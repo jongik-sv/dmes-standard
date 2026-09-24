@@ -233,7 +233,7 @@ class ContractStubCompileTest {
     void 레이아웃_직렬화기_스텁이_컨텍스트를_받아_컴파일_동작한다() {
         MdmLayoutItemSnapshot bodyItem = new MdmLayoutItemSnapshot(
                 1, MdmFillKind.DATA, MdmLayoutItemType.CHAR, "COIL_ID", null, null, null,
-                null, null, null, 0, 20);
+                null, null, null, 0, 20, null, null);
         MdmLayoutSnapshot snapshot = new MdmLayoutSnapshot(
                 201L, "M201", "IFL2MES201", "L2", "MES", "EUC-KR", "패딩 규칙",
                 2L, 20, List.of(), List.of(bodyItem));
@@ -261,7 +261,7 @@ class ContractStubCompileTest {
     void 레이아웃_스냅샷이_헤더_0_1_2_경우를_생성자_호출로_담을_수_있다() {
         MdmLayoutItemSnapshot headerItem = new MdmLayoutItemSnapshot(
                 2, MdmFillKind.CONST, MdmLayoutItemType.CHAR, "SND_FAC_TP", null, null, null,
-                "B0", "B1", null, 8, 4);
+                "B0", "B1", null, 8, 4, null, null);
         MdmLayoutHeaderRef h100 = new MdmLayoutHeaderRef(1, 100L, "L100 GLUE 공통 헤더", 0, 100, List.of(headerItem));
         MdmLayoutHeaderRef h110 = new MdmLayoutHeaderRef(2, 110L, "L110 L2 구간 헤더", 100, 30, List.of());
 

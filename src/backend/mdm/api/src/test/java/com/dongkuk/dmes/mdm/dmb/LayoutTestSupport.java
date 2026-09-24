@@ -85,6 +85,42 @@ public abstract class LayoutTestSupport {
         column("COIL_THK", "코일 두께", null, domain("COIL_THK", "QTY", "NUMBER", 3, 1, null));
     }
 
+    // ------------------------------------------------------------------ 사전(TSK-05-03 — 단위·유효 식 도메인, design.md §3.2)
+
+    /** 단위 원장 한 행(몇 번 불러도 같다). 계수 = 차원 기준 단위로의 배수. */
+    protected void unit(String code, String dimension, String base, String factor) {
+        jdbc.update("INSERT OR IGNORE INTO TB_MDM_UNIT (UNIT_CODE, DIMENSION, BASE_UNIT, FACTOR, CHG_SEQ) VALUES (?, ?, ?, ?, 0)",
+                code, dimension, base, new java.math.BigDecimal(factor));
+    }
+
+    /** 기준 단위가 있는 도메인 — 단위는 먼저 {@link #unit} 으로 넣는다. */
+    protected long domainWithUnit(String std, String type, int length, Integer scale, String unit) {
+        jdbc.update("INSERT INTO TB_MDM_DOMAIN (DOMAIN_NAME, STD_NAME, DOMAIN_KIND, DATA_TYPE, LENGTH, SCALE, UNIT_CODE, CHG_SEQ, VER) "
+                + "SELECT ?, ?, 'QTY', ?, ?, ?, ?, 0, 0 WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_DOMAIN WHERE STD_NAME = ?)",
+                "도메인 " + std, std, type, length, scale, unit, std);
+        return jdbc.queryForObject("SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = ?", Long.class, std);
+    }
+
+    /** 유효 표준식이 있는 도메인(F21 — 판정은 STD_RULE 텍스트만으로 된다). */
+    protected long ruleDomain(String std, String type, int length, Integer scale, String stdRule) {
+        jdbc.update("INSERT INTO TB_MDM_DOMAIN (DOMAIN_NAME, STD_NAME, DOMAIN_KIND, DATA_TYPE, LENGTH, SCALE, STD_RULE, CHG_SEQ, VER) "
+                + "SELECT ?, ?, 'QTY', ?, ?, ?, ?, 0, 0 WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_DOMAIN WHERE STD_NAME = ?)",
+                "도메인 " + std, std, type, length, scale, stdRule, std);
+        return jdbc.queryForObject("SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = ?", Long.class, std);
+    }
+
+    protected List<Map<String, Object>> versionRows(long layoutId) {
+        return jdbc.queryForList("SELECT * FROM TB_MDM_LAYOUT_VER WHERE LAYOUT_ID = ? ORDER BY LAYOUT_VERSION", layoutId);
+    }
+
+    /** 샘플 렌더 예시 값 한 행(grid {@code samples}). */
+    protected static Map<String, Object> sample(String phys, String value) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("COLUMN_PHYS", phys);
+        m.put("VALUE", value);
+        return m;
+    }
+
     // ------------------------------------------------------------------ 행
 
     protected static Map<String, Object> item(String fillKind, String phys, String defaultValue) {

@@ -193,6 +193,79 @@ class LayoutOasisFlowTest extends LayoutTestSupport {
         assertEquals(4, ((Number) itemRows(l100).get(1).get("LENGTH")).intValue());
     }
 
+    // ── TSK-05-03 design.md §3.3 — validate·execute·export·search(IMPACT) 분기·DTO·grid 이름 바인딩 ──
+
+    private record Http201(String eai, long l100, long l110, long message, String name) {
+    }
+
+    private Http201 http201() throws Exception {
+        String eai = uniq("H");
+        long l100 = saveHeaderHttp(uniq("GLUE 공통 헤더 "), eai, l100Items());
+        long l110 = saveHeaderHttp(uniq("L2 구간 헤더 "), null, l110Items());
+        String name = uniq("흐름 ");
+        JsonNode r = post("layoutMng", "save", layoutParams(name, eai),
+                grids("headers", headerRows(l110), "consts", json.createArrayNode(), "items", rows(m201Items(), false)));
+        assertTrue(r.path("meta").path("success").asBoolean(), r.toString());
+        return new Http201(eai, l100, l110, r.path("data").path("result").path("layoutId").asLong(), name);
+    }
+
+    @Test
+    void validate_는_HTTP_로_7행_표를_돌려준다() throws Exception {
+        Http201 m = http201();
+        JsonNode r = post("layoutMng", "validate", layoutParams(uniq("검증 "), m.eai()),
+                grids("headers", headerRows(m.l110()), "consts", json.createArrayNode(), "items", rows(m201Items(), false)));
+        assertTrue(r.path("meta").path("success").asBoolean(), r.toString());
+        JsonNode checks = r.path("data").path("result").path("checks");
+        assertEquals(7, checks.size(), r.toString());
+        assertEquals("PASS", checks.get(3).path("RESULT").asText());
+        assertTrue(r.path("data").path("result").path("passed").asBoolean());
+    }
+
+    @Test
+    void execute_는_HTTP_로_samples_grid_를_받아_렌더한다() throws Exception {
+        Http201 m = http201();
+        ArrayNode samples = json.createArrayNode();
+        samples.addObject().put("COLUMN_PHYS", "COIL_ID").put("VALUE", "C26A0012345");
+        samples.addObject().put("COLUMN_PHYS", "COIL_THK").put("VALUE", "3.5");
+        ObjectNode p = layoutParams(m.name(), m.eai()).put("layoutId", m.message()).put("sendTime", "20260922143015").put("seq", 1);
+        JsonNode r = post("layoutMng", "execute", p, grids("headers", headerRows(m.l110()), "consts", json.createArrayNode(),
+                "items", rows(m201Items(), false), "samples", samples));
+        assertTrue(r.path("meta").path("success").asBoolean(), r.toString());
+        JsonNode result = r.path("data").path("result");
+        assertEquals(187, result.path("totalBytes").asInt(), r.toString());
+        assertEquals(23, result.path("segments").size());
+        boolean thk = false;
+        for (JsonNode s : result.path("segments")) {
+            if ("COIL_THK".equals(s.path("COLUMN_PHYS").asText())) {
+                thk = "0035".equals(s.path("TEXT").asText());
+            }
+        }
+        assertTrue(thk, "samples grid 의 COIL_THK 3.5 가 0035 로 렌더되어야 한다: " + r);
+    }
+
+    @Test
+    void export_는_HTTP_로_스냅샷을_돌려준다() throws Exception {
+        Http201 m = http201();
+        JsonNode r = post("layoutMng", "export", json.createObjectNode().put("layoutId", m.message()), null);
+        assertTrue(r.path("meta").path("success").asBoolean(), r.toString());
+        JsonNode result = r.path("data").path("result");
+        assertEquals(187, result.path("snapshot").path("totalLength").asInt(), r.toString());
+        assertEquals(1, result.path("layoutVersion").asInt());
+        assertEquals("layout-" + m.message() + "-v1", result.path("fileBase").asText());
+    }
+
+    @Test
+    void search_target_IMPACT_는_HTTP_로_영향_목록을_돌려준다() throws Exception {
+        Http201 m = http201();
+        JsonNode r = post("layoutMng", "search", json.createObjectNode().put("target", "IMPACT").put("keyword", "COIL_THK"), null);
+        assertTrue(r.path("meta").path("success").asBoolean(), r.toString());
+        boolean found = false;
+        for (JsonNode row : r.path("data").path("result").path("impacts")) {
+            found |= m.name().equals(row.path("LAYOUT_NAME").asText()) && "L2 → MES".equals(row.path("SND_RCV").asText());
+        }
+        assertTrue(found, r.toString());
+    }
+
     @Test
     void search_target_COLUMN_은_컬럼_목록을_돌려준다() throws Exception {
         for (String service : List.of("headerMng", "layoutMng")) {

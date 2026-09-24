@@ -90,6 +90,21 @@ public class LayoutQueries {
                 .getResultList();
     }
 
+    /** 이 컬럼들을 쓰는 항목과 그 레이아웃 — {@code [MdmLayoutItem, MdmLayout]}(TSK-05-03 영향 목록). 빈 목록이면 부르지 않는다. */
+    public List<Object[]> itemsUsingColumns(Collection<String> physNames) {
+        if (physNames.isEmpty()) {
+            return List.of();
+        }
+        return em.createQuery("SELECT i, l FROM MdmLayoutItem i, MdmLayout l WHERE l.layoutId = i.layoutId AND i.columnPhys IN :phys "
+                + "ORDER BY l.layoutName, i.seq", Object[].class).setParameter("phys", physNames).getResultList();
+    }
+
+    /** 이 헤더를 쌓은 전문 수. */
+    public long messagesStacking(Long headerLayoutId) {
+        return em.createQuery("SELECT COUNT(h) FROM MdmLayoutHeader h WHERE h.headerLayoutId = :id", Long.class)
+                .setParameter("id", headerLayoutId).getSingleResult();
+    }
+
     public List<MdmEai> eaiOfHeader(Long headerLayoutId) {
         return em.createQuery("SELECT e FROM MdmEai e WHERE e.headerLayoutId = :id ORDER BY e.eaiCode", MdmEai.class)
                 .setParameter("id", headerLayoutId).getResultList();

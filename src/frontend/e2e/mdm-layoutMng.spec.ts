@@ -13,6 +13,8 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  *   L8 드래그 순서 → 즉시 재계산(serial 에서 불안정할 수 있어 맨 뒤)
  *
  * 전제·실행은 mdm-headerMng.spec.ts 와 같다(design.md §3.7). beforeAll 이 SMOKE_MDM_DB 에 M201 픽스처를 넣는다(멱등).
+ * TSK-05-03 design.md §3.6 — L9 등록 검증 7종·인코딩 바이트 샘플 한 줄, L10 표현 자리 부족 거부(검증 표·저장), L11 여분 쪼개기 → 버전 2
+ * 순차 전환·스냅샷 JSON·엑셀 내려받기, L12 영향 전문 목록. 스크린샷은 docs/mdm/tasks/TSK-05-03/screens.
  */
 
 const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
@@ -25,6 +27,7 @@ const NEW_LAYOUT = `출측검사 ${STAMP}`;
 const FIXTURE_LAYOUT = "출측검사 실적 수신(E2E)";
 
 const screenshot = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-05-02/screens", name);
+const SHOT_0503 = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-05-03/screens", name);
 
 function loadFixture() {
   const db = process.env.SMOKE_MDM_DB;
@@ -239,6 +242,173 @@ test.describe("mdm 전문 레이아웃", () => {
     await expect(bodyRow(layout, "EXIT_COIL_THK").locator('.ag-cell[col-id="OFFSET"]')).toHaveText("183");
     await expect(layout.getByTestId("layout-total-length")).toContainText("187");
     await page.screenshot({ path: screenshot("dmb-layoutMng-drag.png"), fullPage: true });
+  });
+
+  // ── TSK-05-03 ─────────────────────────────────────────────────────────────
+
+  test("L9 등록 검증 표 7종과 인코딩 바이트 기준 샘플 전문 한 줄", async ({ page }) => {
+    await login(page);
+    const layout = await openScreen(page);
+    await search(layout, "(E2E)");
+    await selectLayout(layout, FIXTURE_LAYOUT);
+    await layout.getByTestId("layout-tab-check").click();
+    await layout.getByTestId("layout-check-run").click();
+    await expect(layout.getByTestId("layout-check-table").locator('[data-testid^="layout-check-row-"]')).toHaveCount(7, { timeout: 30_000 });
+    for (let n = 1; n <= 7; n++) {
+      await expect(layout.getByTestId(`layout-check-result-${n}`)).toHaveText(/^(통과|경고)$/);
+    }
+    await page.screenshot({ path: SHOT_0503("dmb-layoutMng-check.png"), fullPage: true });
+
+    await layout.getByTestId("sample-input-COIL_ID").fill("C26A0012345");
+    await layout.getByTestId("sample-input-PROD_DT").fill("20260922");
+    await layout.getByTestId("sample-input-EXIT_COIL_THK").fill("3.5");
+    await layout.getByTestId("sample-render").click();
+    await expect(layout.getByTestId("sample-length")).toContainText("187", { timeout: 30_000 });
+    await expect(layout.getByTestId("sample-length")).toContainText("EUC-KR");
+    const segs = layout.getByTestId("sample-line").locator('[data-testid^="sample-seg-"]');
+    await expect(segs).toHaveCount(23);
+    const thk = layout.getByTestId("sample-line").locator('[title$=" 159-162"]');
+    await expect(thk).toHaveText("0035");
+    await expect(thk).toHaveAttribute("title", /출측 코일 두께 159-162$/);
+    const zones = new Set(await segs.evaluateAll((els) => els.map((e) => e.getAttribute("data-zone"))));
+    expect(zones).toEqual(new Set(["h1", "h2", "body", "filler"]));
+    await expect(layout.getByTestId("sample-parsed-EXIT_COIL_THK")).toHaveText("3.5");
+    await page.screenshot({ path: SHOT_0503("dmb-layoutMng-sample.png"), fullPage: true });
+
+    // 한글 — EUC-KR 한 글자 2바이트. 다음 항목의 위치는 바이트로 그대로다
+    await layout.getByTestId("sample-input-COIL_ID").fill("코일A");
+    await layout.getByTestId("sample-render").click();
+    const coil = layout.getByTestId("sample-line").locator('[title$=" 131-150"]');
+    await expect(coil).toHaveText(`코일A${"·".repeat(15)}`, { timeout: 30_000 });
+    await expect(layout.getByTestId("sample-line").locator('[title$=" 151-158"]')).toHaveText("20260922");
+    await expect(layout.getByTestId("sample-length")).toContainText("187");
+    await page.screenshot({ path: SHOT_0503("dmb-layoutMng-sample-hangul.png"), fullPage: true });
+  });
+
+  test("L10 표현 자리가 부족하면 검증 표와 저장이 거부를 보인다", async ({ page }) => {
+    await login(page);
+    const layout = await openScreen(page);
+    await search(layout, "(E2E)");
+    await selectLayout(layout, FIXTURE_LAYOUT);
+    await bodyRow(layout, "EXIT_COIL_THK").click();
+    await layout.getByTestId("item-detail-width").fill("2");
+    await layout.getByTestId("layout-tab-check").click();
+    await layout.getByTestId("layout-check-run").click();
+    await expect(layout.getByTestId("layout-check-result-4")).toHaveText("거부", { timeout: 30_000 });
+    await expect(layout.getByTestId("layout-check-message-4")).toContainText("표현 자리 2는 도메인");
+    for (const n of [1, 2, 3, 5, 6, 7]) {
+      await expect(layout.getByTestId(`layout-check-result-${n}`)).toHaveText(/^(통과|경고)$/);
+    }
+    await layout.getByRole("button", { name: "저장", exact: true }).click();
+    const error = page.locator(".error-modal__body");
+    await expect(error).toBeVisible({ timeout: 30_000 });
+    await expect(error).toContainText("L14");
+    await expect(error).toContainText("표현 자리 2");
+    await page.screenshot({ path: SHOT_0503("dmb-layoutMng-reject.png"), fullPage: true });
+    await page.getByRole("button", { name: "확인" }).click();
+    // 픽스처는 바뀌지 않았다 — 다시 고르면 폭 4
+    await layout.getByTestId("layout-tab-edit").click();
+    await search(layout, "(E2E)");
+    await selectLayout(layout, FIXTURE_LAYOUT);
+    await expect(bodyRow(layout, "EXIT_COIL_THK").locator('.ag-cell[col-id="LENGTH"]')).toHaveText("4");
+  });
+
+  test("L11 여분을 쪼개 항목을 더하면 버전 2 순차 전환, 스냅샷 JSON·엑셀 내려받기", async ({ page }) => {
+    const name = `버전 ${STAMP}`;
+    await login(page);
+    const layout = await openScreen(page);
+    await search(layout, "(E2E)");
+    await selectLayout(layout, FIXTURE_LAYOUT);
+    await layout.getByTestId("layout-tab-version").click();
+    await expect(layout.getByTestId("version-list-empty")).toHaveText("저장된 버전이 없습니다");
+    await expect(layout.getByTestId("change-class-table")).toContainText("여분을 쪼개 항목 추가");
+    await page.screenshot({ path: SHOT_0503("dmb-layoutMng-version-empty.png"), fullPage: true });
+
+    // v1 — [COIL_ID, PROD_DT, FILLER 29]
+    await layout.getByRole("button", { name: "신규", exact: true }).click();
+    await layout.getByTestId("layout-form-name").fill(name);
+    await layout.getByTestId("layout-form-eai").selectOption("E2EGLUE");
+    const stack = layout.getByTestId("layout-header-stack");
+    await expect(stack.locator(".ag-center-cols-container .ag-row")).toHaveCount(1, { timeout: 30_000 });
+    await layout.getByTestId("layout-header-add").click();
+    await page.getByTestId("header-pick-modal").locator(".ag-row").filter({ hasText: "L2 구간 헤더(E2E)" }).first().click();
+    await expect(stack.locator(".ag-center-cols-container .ag-row")).toHaveCount(2);
+    await layout.getByTestId("layout-form-snd").selectOption("L2");
+    await layout.getByTestId("layout-form-rcv").selectOption("MES");
+    await pickColumn(page, layout, "COIL_ID");
+    await pickColumn(page, layout, "PROD_DT");
+    await layout.getByTestId("layout-item-add-filler").click();
+    await layout.getByTestId("item-detail-filler-length").fill("29");
+    await expect(layout.getByTestId("layout-total-length")).toContainText("187");
+    await layout.getByRole("button", { name: "저장", exact: true }).click();
+    await expect(page.getByText("저장했습니다.").first()).toBeVisible({ timeout: 30_000 });
+    await expect(layout.getByTestId("layout-form-name")).toHaveValue(name, { timeout: 30_000 });
+    await layout.getByTestId("layout-tab-version").click();
+    const versions = layout.getByTestId("version-list");
+    const vrow = (i: number) => versions.locator(`.ag-center-cols-container .ag-row[row-index="${i}"]`);
+    await expect(versions.locator(".ag-center-cols-container .ag-row")).toHaveCount(1, { timeout: 30_000 });
+    await expect(vrow(0)).toContainText("최초 등록");
+    await expect(vrow(0).locator('.ag-cell[col-id="TOTAL_LENGTH"]')).toHaveText("187");
+    await expect(vrow(0).locator('.ag-cell[col-id="SWITCH_MODE"]')).toHaveText("-");
+
+    // v2 — 여분 29 를 25 로 줄이고 뒤에 EXIT_COIL_THK 4(여분 안)
+    await layout.getByTestId("layout-tab-edit").click();
+    await bodyRow(layout, "FILLER").click();
+    await layout.getByTestId("item-detail-filler-length").fill("25");
+    await pickColumn(page, layout, "EXIT_COIL_THK");
+    await layout.getByTestId("item-detail-width").fill("4");
+    await layout.getByTestId("item-detail-zero").selectOption("Y");
+    await layout.getByTestId("item-detail-implied").selectOption("1");
+    await expect(bodyCells(layout, "OFFSET")).toHaveText(["130", "150", "158", "183"]);
+    await expect(layout.getByTestId("layout-total-length")).toContainText("187");
+    await layout.getByRole("button", { name: "저장", exact: true }).click();
+    await expect(page.getByText("저장했습니다.").first()).toBeVisible({ timeout: 30_000 });
+    await expect(bodyCells(layout, "OFFSET")).toHaveText(["130", "150", "158", "183"], { timeout: 30_000 });
+    await layout.getByTestId("layout-tab-version").click();
+    await expect(versions.locator(".ag-center-cols-container .ag-row")).toHaveCount(2, { timeout: 30_000 });
+    await expect(vrow(0).locator('.ag-cell[col-id="LAYOUT_VERSION"]')).toHaveText("2");
+    await expect(vrow(0).locator('.ag-cell[col-id="SWITCH_MODE"]')).toHaveText("순차 전환");
+    await expect(vrow(0).locator('.ag-cell[col-id="TOTAL_LENGTH"]')).toHaveText("187");
+    await expect(vrow(0)).toContainText("여분 29 → 여분 25 + 출측 코일 두께 4 (여분 쪼개 쓰기)");
+    await expect(vrow(1).locator('.ag-cell[col-id="LAYOUT_VERSION"]')).toHaveText("1");
+    await expect(layout.getByTestId("snapshot-preview")).toContainText('"layoutVersion": 2', { timeout: 30_000 });
+    await page.screenshot({ path: SHOT_0503("dmb-layoutMng-version.png"), fullPage: true });
+
+    const layoutId = await findLayoutId(page, name);
+    const [json] = await Promise.all([page.waitForEvent("download"), layout.getByTestId("snapshot-download-json").click()]);
+    expect(json.suggestedFilename()).toBe(`layout-${layoutId}-v2.json`);
+    const snap = JSON.parse(readFileSync(await json.path(), "utf8"));
+    expect(snap.layoutVersion).toBe(2);
+    expect(snap.totalLength).toBe(187);
+    expect(snap.items[3].columnPhys).toBe("EXIT_COIL_THK");
+    expect(snap.items[3].offset).toBe(183);
+    expect(snap.items[3].length).toBe(4);
+    expect(snap.items[3].numFormat.impliedScale).toBe(1);
+    expect(snap.items[3].scale).toBe(1);
+    const [xlsx] = await Promise.all([page.waitForEvent("download"), layout.getByTestId("snapshot-download-excel").click()]);
+    expect(xlsx.suggestedFilename()).toBe(`layout-${layoutId}-v2.xlsx`);
+  });
+
+  test("L12 컬럼·도메인 변경 영향 전문 목록", async ({ page }) => {
+    await login(page);
+    const layout = await openScreen(page);
+    await layout.getByTestId("layout-tab-version").click();
+    const list = layout.getByTestId("impact-list");
+    const fixtureRow = list.locator(".ag-center-cols-container .ag-row").filter({ hasText: FIXTURE_LAYOUT }).first();
+    await layout.getByTestId("impact-keyword").fill("EXIT_COIL_THK");
+    await layout.getByTestId("impact-search").click();
+    await expect(fixtureRow).toBeVisible({ timeout: 30_000 });
+    await expect(fixtureRow).toContainText("L2 → MES");
+    await expect(fixtureRow).toContainText("158 / 4");
+    await page.screenshot({ path: SHOT_0503("dmb-layoutMng-impact.png"), fullPage: true });
+    // 도메인 표준명 — 도메인 → 컬럼 → 전문
+    await layout.getByTestId("impact-keyword").fill("COIL_THK");
+    await layout.getByTestId("impact-search").click();
+    await expect(fixtureRow).toBeVisible({ timeout: 30_000 });
+    await expect(fixtureRow).toContainText("158 / 4");
+    await layout.getByTestId("impact-keyword").fill(`없음-${STAMP}`);
+    await layout.getByTestId("impact-search").click();
+    await expect(layout.getByTestId("impact-list-empty")).toHaveText("찾은 컬럼·도메인이 없습니다", { timeout: 30_000 });
   });
 });
 

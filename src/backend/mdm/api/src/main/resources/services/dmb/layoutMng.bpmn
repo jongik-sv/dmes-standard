@@ -18,6 +18,9 @@ action=search|view|save -&gt; {action}Task (layoutMngService.{action}). 쓰기�
       <bpmn:outgoing>flow_search</bpmn:outgoing>
       <bpmn:outgoing>flow_view</bpmn:outgoing>
       <bpmn:outgoing>flow_save</bpmn:outgoing>
+      <bpmn:outgoing>flow_validate</bpmn:outgoing>
+      <bpmn:outgoing>flow_execute</bpmn:outgoing>
+      <bpmn:outgoing>flow_export</bpmn:outgoing>
     </bpmn:exclusiveGateway>
     <bpmn:serviceTask id="searchTask" name="전문 목록 조회" camunda:class="layoutMngService">
       <bpmn:documentation>target=LAYOUT(기본) 전문 목록·시스템·EAI·헤더 / HEADER 헤더 선택 / COLUMN 컬럼 사전 검색(D8).</bpmn:documentation>
@@ -71,6 +74,57 @@ action=search|view|save -&gt; {action}Task (layoutMngService.{action}). 쓰기�
     <bpmn:sequenceFlow id="flow_view_end" sourceRef="viewTask" targetRef="end_view" />
     <bpmn:sequenceFlow id="flow_save" name="save" sourceRef="actionGateway" targetRef="saveTask" />
     <bpmn:sequenceFlow id="flow_save_end" sourceRef="saveTask" targetRef="end_save" />
+    <bpmn:serviceTask id="validateTask" name="등록 검증" camunda:class="layoutMngService">
+      <bpmn:documentation>03 등록 거부 7종 표(L01·L12·L13·L14·L02 FILLER_LENGTH·L05·L15, TSK-05-03 §6.2). grid headers·consts·items. 쓰기 없음.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="validate" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngSaveRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_validate</bpmn:incoming>
+      <bpmn:outgoing>flow_validate_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_validate" name="등록 검증 완료">
+      <bpmn:incoming>flow_validate_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="executeTask" name="샘플 전문 렌더" camunda:class="layoutMngService">
+      <bpmn:documentation>예시 값 → 인코딩 바이트 기준 한 줄(서버 직렬화기, TSK-05-03 D13). grid headers·consts·items·samples. 쓰기 없음.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="execute" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngExecuteRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_execute</bpmn:incoming>
+      <bpmn:outgoing>flow_execute_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_execute" name="샘플 전문 렌더 완료">
+      <bpmn:incoming>flow_execute_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="exportTask" name="스냅샷 출력" camunda:class="layoutMngService">
+      <bpmn:documentation>저장된 버전의 스냅샷 JSON(TSK-05-03 §6.1). 버전 생략 시 최신. 쓰기 없음.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="export" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngExportRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_export</bpmn:incoming>
+      <bpmn:outgoing>flow_export_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_export" name="스냅샷 출력 완료">
+      <bpmn:incoming>flow_export_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_validate" name="validate" sourceRef="actionGateway" targetRef="validateTask" />
+    <bpmn:sequenceFlow id="flow_validate_end" sourceRef="validateTask" targetRef="end_validate" />
+    <bpmn:sequenceFlow id="flow_execute" name="execute" sourceRef="actionGateway" targetRef="executeTask" />
+    <bpmn:sequenceFlow id="flow_execute_end" sourceRef="executeTask" targetRef="end_execute" />
+    <bpmn:sequenceFlow id="flow_export" name="export" sourceRef="actionGateway" targetRef="exportTask" />
+    <bpmn:sequenceFlow id="flow_export_end" sourceRef="exportTask" targetRef="end_export" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="layoutMng">
@@ -136,6 +190,60 @@ action=search|view|save -&gt; {action}Task (layoutMngService.{action}). 쓰기�
       <bpmndi:BPMNEdge id="flow_save_end_di" bpmnElement="flow_save_end">
         <di:waypoint x="480" y="460" />
         <di:waypoint x="562" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="validateTask_di" bpmnElement="validateTask">
+        <dc:Bounds x="380" y="580" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_validate_di" bpmnElement="end_validate">
+        <dc:Bounds x="562" y="602" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="executeTask_di" bpmnElement="executeTask">
+        <dc:Bounds x="380" y="740" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_execute_di" bpmnElement="end_execute">
+        <dc:Bounds x="562" y="762" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="exportTask_di" bpmnElement="exportTask">
+        <dc:Bounds x="380" y="900" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_export_di" bpmnElement="end_export">
+        <dc:Bounds x="562" y="922" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_validate_di" bpmnElement="flow_validate">
+        <di:waypoint x="270" y="325" />
+        <di:waypoint x="270" y="620" />
+        <di:waypoint x="380" y="620" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="305" y="308" width="64" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_validate_end_di" bpmnElement="flow_validate_end">
+        <di:waypoint x="480" y="620" />
+        <di:waypoint x="562" y="620" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_execute_di" bpmnElement="flow_execute">
+        <di:waypoint x="270" y="325" />
+        <di:waypoint x="270" y="780" />
+        <di:waypoint x="380" y="780" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="305" y="308" width="56" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_execute_end_di" bpmnElement="flow_execute_end">
+        <di:waypoint x="480" y="780" />
+        <di:waypoint x="562" y="780" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_export_di" bpmnElement="flow_export">
+        <di:waypoint x="270" y="325" />
+        <di:waypoint x="270" y="940" />
+        <di:waypoint x="380" y="940" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="305" y="308" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_export_end_di" bpmnElement="flow_export_end">
+        <di:waypoint x="480" y="940" />
+        <di:waypoint x="562" y="940" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

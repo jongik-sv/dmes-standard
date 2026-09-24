@@ -11,16 +11,21 @@ import com.dongkuk.dmes.mdm.contract.layout.MdmFillKind;
 import com.dongkuk.dmes.mdm.dmb.headerMng.dto.HeaderMngSaveRequest;
 import com.dongkuk.dmes.mdm.dmb.headerMng.dto.HeaderMngSearchRequest;
 import com.dongkuk.dmes.mdm.dmb.headerMng.dto.HeaderMngViewRequest;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutCodecs;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutColumnInfo;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutConstJudge;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutDictionary;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutDraftBuilder;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutIssue;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutIssueCode;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutItemDraft;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutItemRules;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutOffsetCalculator;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutQueries;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutRegistrationRules;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutRejections;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutRows;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutVersioner;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutWriter;
 import com.dongkuk.dmes.mdm.entity.MdmEai;
 import com.dongkuk.dmes.mdm.entity.MdmLayout;
@@ -43,6 +48,8 @@ import org.springframework.stereotype.Service;
  * <p>BPMN {@code services/dmb/headerMng.bpmn} 의 {@code actionGateway} 3 분기와 1:1 이다. 쓰기는 {@code save} 만 한다.
  * 헤더 항목 오프셋은 그 헤더 안 상대값이고(F8), 헤더 저장은 그 헤더를 쌓은 전문 전체의 오프셋·총 길이를 같은 트랜잭션에서
  * 다시 계산하며, 재정의는 물리명으로 다시 짝짓는다(D7 — 불변 I12·I13). 인코딩·패딩은 EAI 소유라 EAI 행을 함께 쓴다(D2).
+ * TSK-05-03 이 헤더 항목에도 03 등록 거부 #2·#3·#4·#7(L12~L15)을 걸고, 다시 계산한 사용 전문마다 같은 action 에서 스냅샷 버전을
+ * 기록한다(TSK-05-03 I18 — 응답 {@code versioned}).
  *
  * <p><b>{@code @Transactional} 을 붙이지 않는다</b> — CGLIB 프록시가 파라미터 이름을 잃어 OASIS 바인딩이 죽는다(F11). 트랜잭션은
  * OASIS action 한 건이며, 쓰기 전에 모든 검사를 끝낸다.
@@ -58,14 +65,21 @@ public class HeaderMngService {
     private final LayoutWriter writer;
     private final MdmLayoutRepository layoutRepository;
     private final MdmEaiRepository eaiRepository;
+    private final LayoutConstJudge constJudge;
+    private final LayoutCodecs codecs;
+    private final LayoutVersioner versioner;
 
     public HeaderMngService(LayoutQueries queries, LayoutDictionary dictionary, LayoutWriter writer,
-                            MdmLayoutRepository layoutRepository, MdmEaiRepository eaiRepository) {
+                            MdmLayoutRepository layoutRepository, MdmEaiRepository eaiRepository, LayoutConstJudge constJudge,
+                            LayoutCodecs codecs, LayoutVersioner versioner) {
         this.queries = queries;
         this.dictionary = dictionary;
         this.writer = writer;
         this.layoutRepository = layoutRepository;
         this.eaiRepository = eaiRepository;
+        this.constJudge = constJudge;
+        this.codecs = codecs;
+        this.versioner = versioner;
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -179,6 +193,9 @@ public class HeaderMngService {
         }
         Map<String, LayoutColumnInfo> dict = dictionary.byPhysNames(LayoutRows.physNames(drafts));
         issues.addAll(LayoutItemRules.check(drafts, dict));
+        // 03 등록 거부 #2·#3·#4·#7(TSK-05-03 L12~L15) — 헤더 인코딩: 요청 → 이 헤더를 가리키는 EAI → 고른 EAI → UTF-8
+        issues.addAll(LayoutRegistrationRules.check(drafts, dict, codecs.units(), LayoutDraftBuilder.charset(encoding(request, layout, eai)),
+                LayoutDraftBuilder.lengthsBySeq(drafts, dict), constJudge.forColumns(LayoutRows.physNames(drafts)), new ArrayList<>()));
         if (!issues.isEmpty()) {
             throw LayoutRejections.reject(LayoutRejections.HEADER_PREFIX, issues);
         }
@@ -249,13 +266,39 @@ public class HeaderMngService {
         writer.insertConsts(repaired);
         // ⑩ 사용 전문 재계산
         List<Map<String, Object>> recalculated = writer.recalculateUsers(headerId);
+        // ⑪ 사용 전문마다 스냅샷 버전(TSK-05-03 I18) — 스냅샷이 바뀐 전문만 새 버전이 생긴다
+        List<Map<String, Object>> versioned = new ArrayList<>();
+        for (Map<String, Object> r : recalculated) {
+            LayoutVersioner.Outcome o = versioner.record(((Number) r.get("LAYOUT_ID")).longValue());
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("LAYOUT_ID", r.get("LAYOUT_ID"));
+            row.put("LAYOUT_VERSION", o.layoutVersion());
+            row.put("SWITCH_MODE", o.switchMode());
+            row.put("CREATED", o.created());
+            versioned.add(row);
+        }
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("layoutId", headerId);
         out.put("ver", layout.getVersion());
         out.put("totalLength", placed.total());
         out.put("recalculated", recalculated);
         out.put("droppedOverrides", dropped);
+        out.put("versioned", versioned);
         return out;
+    }
+
+    private String encoding(HeaderMngSaveRequest request, MdmLayout layout, MdmEai chosen) {
+        String requested = LayoutRows.text(request.getEncoding());
+        if (requested != null) {
+            return requested;
+        }
+        if (layout != null) {
+            MdmEai own = queries.eaiOfHeader(layout.getLayoutId()).stream().findFirst().orElse(null);
+            if (own != null) {
+                return own.getEncoding();
+            }
+        }
+        return chosen == null ? null : chosen.getEncoding();
     }
 
     private MdmLayout header(Long layoutId) {

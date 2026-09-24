@@ -289,11 +289,13 @@ class LayoutMngServiceSqliteTest extends LayoutTestSupport {
     }
 
     @Test
-    void 저장은_전문_버전을_올리지_않는다() {
+    void 같은_내용을_두_번_저장해도_버전은_1이다() {
+        // TSK-05-03 D4 — 05-02 의 "버전을 올리지 않는다"(I17)를 "스냅샷이 바뀔 때만 버전을 만든다"(05-03 I15)로 대체한다
         M201 m = m201();
         saveLayout(resave(m.message()), List.of(headerRow(m.l110())), List.of(), m201Items());
         saveLayout(resave(m.message()), List.of(headerRow(m.l110())), List.of(), m201Items());
-        assertEquals(0L, ((Number) layoutRow(m.message()).get("VERSION")).longValue());
+        assertEquals(1L, ((Number) layoutRow(m.message()).get("VERSION")).longValue());
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_LAYOUT_VER WHERE LAYOUT_ID = ?", Integer.class, m.message()));
     }
 
     @Test
@@ -334,7 +336,7 @@ class LayoutMngServiceSqliteTest extends LayoutTestSupport {
         assertEquals(l100Name + " (100) + " + l110Name + " (30)", row.get("HEADER_SUMMARY"));
         assertEquals(187, row.get("TOTAL_LENGTH"));
         assertEquals(4, ((Number) row.get("ITEM_COUNT")).intValue());
-        assertEquals(0L, ((Number) row.get("LAYOUT_VERSION")).longValue());
+        assertEquals(1L, ((Number) row.get("LAYOUT_VERSION")).longValue(), "저장 즉시 버전 1(TSK-05-03 D4)");
         assertTrue(((List<Map<String, Object>>) out.get("systems")).stream().anyMatch(s -> "L2".equals(s.get("SYSTEM_CODE"))));
         assertTrue(((List<Map<String, Object>>) out.get("headers")).stream()
                 .anyMatch(h -> ((Number) h.get("LAYOUT_ID")).longValue() == m.l110()));
