@@ -723,3 +723,121 @@ design 과 다르게 한 것과 design 에 없던 것을 적는다.
 9. **BPMN 작성 도구**: `bpmn-tool` 이 전역 설치돼 있지 않아 `npx -y @cothe/bpmn-tool create`(같은 패키지 v1.3.0)로 만들고 validate 했다. 경고는 default flow 미설정 1건으로 `unitMng.bpmn` 선례와 같다(OASIS 는 분기 이름으로 라우팅).
 10. **mssqlTest**: `DataSegmentConcurrencyMssqlTest` 는 작성만 했고 컴파일도 확인하지 않았다(`compileMssqlTestJava` 는 이름에 mssql 이 들어 금지). `MdmMasterDataMssqlMigrationTest` 의 import·어노테이션을 따랐다. 머지 뒤 팀장 dialect_check 에서 처음 컴파일된다.
 11. **화면 모양 수정(e2e 1차 스크린샷에서 발견)**: 그리드 가로 밀림(키·이름 열 가림)과 조회영역 체크박스 네모 없음을 이탈 8 의 방식으로 고쳤다(`072d703`). 고친 뒤 스크린샷을 다시 찍어 눈으로 확인했다. 시작 일시 열은 좁은 폭에서 뒤가 잘려 보일 수 있다.
+
+---
+
+## 공용 코어 명세 (TSK-07-02·07-04 재사용용)
+
+팀장 확정: D4 (a)(카테고리·소속 선분 코어를 이 Task 가 만든다), D1(그룹 코드 `dmd`). 아래는 **실제로 구현한** 공용 코어다(커밋 `2be6fa0` 기준, 이후 시그니처 변경 없음). 새로 만들지 말고 이것을 주입받아 쓴다.
+
+### 위치와 구성
+
+- 패키지: `com.dongkuk.dmes.mdm.common.segment` (lib, `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/segment/`).
+- 모두 스프링 빈이다(`@Component`·`@Repository`). 생성자 주입으로 받는다.
+
+| 층 | 클래스 | 역할 |
+|---|---|---|
+| 위층(진입) | `DataItemSaveCore` | 항목 사건 — 화면 1건(등록·수정·닫기·다시 열기)과 일괄 upsert(CSV·API) |
+| 위층(진입) | `DataCategorySegmentCore` | 카테고리 사건(등록·수정·닫기·다시 열기)과 소속(TABLE) 등록·해제 |
+| 잠금 | `DataSegmentLock` | `TB_MDM_DATA` 행 잠금 + 잠금 뒤 마루 데이터 행 재조회 |
+| 아래층 | `DataItemSegmentStore`·`DataCateSegmentStore`·`DataCateItemSegmentStore` | 계약 `MdmTemporalSegmentStore` 구현체 셋. 검사 없이 선분 연산만 한다 |
+| 저장소 | `DataSegmentRowStore` | 세 선분 테이블 네이티브 SQL 읽기·쓰기 |
+| 검사 | `DataItemChecks`, `HierarchyIndex` | 05 검사 1~7, 검사 5-1 계층 색인 |
+| 보조 | `SegmentBoundary`, `DataItemMessages` | 경계(저장 시각) 확정, 고정 오류 문구 |
+| 값·결과 타입 | `DataItemKey`·`DataCateKey`·`DataCateItemKey`, `DataItemValue`·`DataCateValue`, `ItemSegmentRow`·`CateSegmentRow`·`CateItemSegmentRow`(공통 `SegmentRow`), `LockedMaruData`, `DataSavePath`, `UpsertRow`·`UpsertResult`(`RowAction`), `SaveOutcome`, `SegmentOutcome` | record·enum |
+
+**후속 Task 는 위층 두 클래스(`DataItemSaveCore`·`DataCategorySegmentCore`)만 부른다.** 잠금·아래층·저장소를 직접 조합하지 않는다(잠금 순서 L1 을 깨기 쉽다).
+
+### public 시그니처
+
+```java
+// DataItemSaveCore — 화면 경로는 모두 DataSavePath.SCREEN 검사 집합
+SaveOutcome register(String maruDataId, String code, DataItemValue value)
+SaveOutcome modify(String maruDataId, String code, DataItemValue value, int expectedRowVersion)
+SaveOutcome close(String maruDataId, String code, int expectedRowVersion)
+SaveOutcome reopen(String maruDataId, String code, int expectedRowVersion)
+UpsertResult upsert(String maruDataId, DataSavePath path, String callerSystem, List<UpsertRow> input, boolean dryRun)
+
+// DataCategorySegmentCore
+SegmentOutcome registerCate(String maruDataId, String cateId, DataCateValue value)
+SegmentOutcome modifyCate(String maruDataId, String cateId, DataCateValue value)
+SegmentOutcome closeCate(String maruDataId, String cateId)
+SegmentOutcome reopenCate(String maruDataId, String cateId)
+SegmentOutcome addMember(String maruDataId, String cateId, String code)     // 닫힌 소속이 있으면 REOPEN, 없으면 INSERT
+SegmentOutcome removeMember(String maruDataId, String cateId, String code)  // 열린 소속 행을 닫는다(CLOSE)
+
+// 결과·입력 타입
+record SaveOutcome(MdmTemporalSegmentAction action, ItemSegmentRow latest, LocalDateTime at)  // latest = 사건 뒤 그 키의 마지막 행
+record SegmentOutcome(MdmTemporalSegmentAction action, LocalDateTime at)
+record UpsertRow(String code, DataItemValue value)
+record UpsertResult(List<RowAction> rows, List<MdmCheckIssue> issues, LocalDateTime at, boolean written)
+    record RowAction(String code, MdmTemporalSegmentAction action);   List<MdmTemporalSegmentAction> actions()
+record DataItemValue(String name, String alterName, Integer seq, String description, List<String> lvl, List<String> attr)
+    // 생성자가 정규화: trim, 빈 문자열→null, lvl 5칸·attr 10칸으로 맞춤. lvl(1..5)·attr(1..10)·lvlChain()·sameAs(other)
+record DataCateValue(String cateName, String defKind, String defExpr, String defTarget, String description)
+    // defKind = "REGEX"·"TABLE"(상수 DataCateValue.REGEX·TABLE), defTarget = KEY·LVL1~5·ATTR01~10
+enum DataSavePath { SCREEN, CSV, API }
+
+// 잠금·검사(직접 부를 일은 드물다)
+LockedMaruData DataSegmentLock.lock(String maruDataId)      // LOCK_SQL = "UPDATE TB_MDM_DATA SET LAST_CHG_SEQ = LAST_CHG_SEQ WHERE MARU_DATA_ID = :id"
+void DataItemChecks.requireActive(LockedMaruData)            // 검사 1
+void DataItemChecks.requireSourcePath(DataSavePath, LockedMaruData, String callerSystem)   // 검사 2
+List<MdmCheckIssue> DataItemChecks.contentIssues(DataSavePath, LockedMaruData, String code, DataItemValue, boolean isNew, HierarchyIndex)  // 3~5-2, API 는 빈 목록
+List<MdmCheckIssue> DataItemChecks.rowIssues(LockedMaruData, String code, DataItemValue, boolean isNew)
+List<MdmCheckIssue> DataItemChecks.hierarchyIssues(HierarchyIndex, String code, DataItemValue)
+List<MdmCheckIssue> DataItemChecks.membershipIssues(String code, List<ItemSegmentRow>, List<CateSegmentRow>)  // 검사 7
+List<MdmCheckIssue> DataItemChecks.cateDefIssues(String cateId, DataCateValue)
+static BusinessException DataItemChecks.rejected(List<MdmCheckIssue>)   // INVALID_INPUT + 이슈 문구를 "; " 로 이음
+static LocalDateTime SegmentBoundary.next(LocalDateTime now, Collection<? extends SegmentRow> rows)
+```
+
+아래층 `DataItemSegmentStore` 에는 계약 네 메서드 말고 `modify(key, value, at, Integer expected)`·`close(key, at, Integer expected)`·`modifyOpen(ItemSegmentRow open, value, at, Integer expected)`·`reopenWith(ItemSegmentRow last, value, at)` 가 더 있다. 위층이 쓰는 것이고 후속 Task 가 직접 부르지 않는다.
+
+### 호출 전제
+
+- **트랜잭션**: 위층 메서드는 스스로 `TransactionTemplate`(전파 REQUIRED)을 쓴다. OASIS 서비스 안에서 부르면 프로세스 트랜잭션(`cactus.oasis.transactional: true`)에 합류하고, 밖에서 부르면 새로 열어 커밋한다. 호출하는 서비스에 `@Transactional` 을 붙이지 않는다(F11 — OASIS 파라미터 이름이 지워진다). 여러 사건을 한 트랜잭션으로 묶으려면 호출자가 `TransactionTemplate` 으로 감싼다.
+- **잠금 순서(L1)**: 위층이 사건마다 ① 저장 시각 → ② `DataSegmentLock.lock(maruDataId)`(선분·마루 데이터 행을 읽기 전, 정확히 1회) → ③ 잠금 뒤 네이티브 재조회 → ④ 검사 → ⑤ row_version 비교 → ⑥ 경계 확정 → ⑦ 선분 연산 순서를 지킨다. 호출자가 미리 읽은 값으로 판정하지 않는다. 잠금은 같은 마루 데이터의 모든 사건(항목·카테고리·소속)을 직렬화한다.
+- **row_version 인자**: 항목의 `modify`·`close`·`reopen` 은 `expectedRowVersion` 이 필수다. 화면이 본 **그 키 마지막 행**(valid_from 최대, 닫힌 키면 닫힌 행)의 `ROW_VERSION` 을 넘긴다. 다르면 충돌이다. 값 증가 규칙(D7): 등록 0 / 수정 새 행 = 옛 행 +1 / 닫기 = 닫는 행 +1 / 다시 열기 새 행 = 마지막 행 +1. 카테고리·소속에는 row_version 이 없다(인자 없음). upsert 는 잠금 뒤 읽은 값으로 스스로 비교한다(인자 없음).
+- **저장 시각**: `Clock` 빈(KST)으로 정하고 초 단위로 자른다. 같은 키에 같은 초 사건이 오면 그 키의 최대 경계 +1초로 민다(D5). 순번(`CHG_SEQ`·`LAST_CHG_SEQ`)은 발급하지 않는다(모두 0, S12).
+- **감사 칼럼**: `MdmNativeAuditSupport.currentStamp()`(OASIS 문맥 → 없으면 `UserContextHolder` 사용자)로 채운다.
+- **upsert 규칙**: 한 호출 = 한 트랜잭션·한 저장 시각. 검사 1·2 는 던진다. 검사 3~6 은 **던지지 않고** `UpsertResult.issues` 에 행별로 모으며(`MdmCheckIssue.itemKey` = 키), 이슈가 하나라도 있거나 `dryRun=true` 면 아무 행도 쓰지 않고 `written=false`·`at=null` 로 행별 예정 동작만 돌려준다. 동작: 없는 키 INSERT, 값이 바뀐 열린 키 UPDATE, 같은 값 NONE. 닫힌 키는 CSV 면 `CHK6` 이슈(CSV 로 다시 열지 않음), API 면 받은 값으로 REOPEN(D12). 한 입력 안의 같은 키는 `CHK6`. API 경로는 `callerSystem` = 마루 데이터 `SOURCE_SYSTEM` 이어야 하고 행 내용 검사를 하지 않는다(NAME NOT NULL 위반은 DB 오류로 요청 전체 롤백).
+- **카테고리 규칙**: BASE(`CategoryConventions.BASE_CATE_ID`)는 수정·닫기 거부. 원천 검사(2)는 돌지 않는다(정의는 원천과 무관하게 MDM 담당자 몫). 소속 등록은 항목 열림·카테고리 열림·`defKind = TABLE` 일 때만(검사 7). 닫힌 카테고리의 소속 행은 그대로 둔다.
+
+### 오류와 메시지 접두어
+
+BPMN 안에서 던진 예외는 화면에 `meta.message` 만 간다(F12). 판정은 문구로 한다. 모두 cactus `BusinessException`(`MdmErrors.of`)이다.
+
+| 경우 | 코드 | `getMessage()` 형태 |
+|---|---|---|
+| row_version 충돌(스테일 expected, 닫는 UPDATE CAS 0행) | `ROW_VERSION_CONFLICT`(MDM001) | `다른 사용자가 수정했습니다. 다시 불러오세요` 로 **시작**(상세 없음) |
+| BASE 수정·닫기 | `RESERVED_CATEGORY`(MDM012) | `예약 카테고리 BASE 는 편집·삭제할 수 없습니다` 로 시작 |
+| 없는 마루 데이터(잠금 0행) | `INVALID_INPUT`(MDM021) | `입력값이 올바르지 않습니다: 없는 마루 데이터입니다: <id>` |
+| 검사 1 | `INVALID_INPUT` | `입력값이 올바르지 않습니다: 폐기된 마루 데이터입니다: <id>` |
+| 검사 2 | `INVALID_INPUT` | `입력값이 올바르지 않습니다: 원천이 맞지 않아 저장할 수 없습니다: …` |
+| 검사 3~7·키 상태(모아서 거부) | `INVALID_INPUT` | `입력값이 올바르지 않습니다: <이슈 문구>; <이슈 문구>…` |
+
+이슈 문구는 `DataItemMessages` 상수로 시작한다(판정은 `contains`): `CLOSED_KEY_REOPEN`("닫힌 키입니다. 새로 등록할 수 없으니 다시 여세요") · `KEY_EXISTS`("이미 있는 키입니다") · `NOT_OPEN`("열린 행이 없습니다(닫힌 항목)") · `ALREADY_OPEN`("이미 열려 있습니다") · `KEY_NOT_FOUND`("없는 키입니다") · `KEY_PATTERN`("키가 키 패턴에 맞지 않습니다") · `KEY_REQUIRED`("키를 입력하세요") · `NAME_REQUIRED` · `ATTR_NO_LABEL` · `LVL_GAP` · `LVL_FORMAT` · `LVL_CONFLICT` · `LVL_OVER_COUNT` · `DUPLICATE_IN_BATCH`("같은 키가 두 번 있습니다") · `MEMBER_NOT_ALLOWED`("소속을 등록할 수 없습니다") · `CATE_DEF_INVALID`("카테고리 정의가 올바르지 않습니다"). 이슈 코드(`MdmCheckIssue.code`)는 `CHK3`~`CHK7`·`CHK5-1`·`CHK5-2`·`KEY`·`CATE` 다. 화면 상수는 `m-mdm/pages/dmd/dataItemMng/messages.ts` 에 있고 `DmdScreenMessageParityTest` 가 서버 문구와 글자 일치를 확인한다 — 문구를 바꾸면 두 곳을 같이 바꾼다.
+
+### 사용 예
+
+```java
+// TSK-07-02 — 마루 데이터 생성과 같은 트랜잭션에서 BASE 를 만들고, 카테고리 편집·TABLE 소속 적용
+categoryCore.registerCate(md, "BASE", new DataCateValue("전체", DataCateValue.REGEX, ".*", "KEY", null));
+categoryCore.registerCate(md, "KR", new DataCateValue("한국 항구", DataCateValue.REGEX, "^KR$", "ATTR01", null));
+categoryCore.addMember(md, "MAJOR", "KRPUS");      // TABLE 카테고리 소속
+categoryCore.removeMember(md, "MAJOR", "KRPUS");   // 소속 해제 = 닫기
+
+// TSK-07-04 — CSV 검증(dryRun) 뒤 저장. issues 가 비어 있을 때만 written=true
+UpsertResult check = itemCore.upsert(md, DataSavePath.CSV, null, rows, true);   // 검증 결과 표: check.issues(), check.rows()
+UpsertResult saved = itemCore.upsert(md, DataSavePath.CSV, null, rows, false);  // 한 트랜잭션·한 저장 시각
+```
+
+화면에서 쓸 때는 OASIS 서비스 메서드에서 위와 같이 부르고 `@Transactional` 을 붙이지 않는다. 마루 데이터 생성과 BASE 등록을 한 트랜잭션으로 묶으려면 서비스 안에서 `TransactionTemplate.execute(…)` 로 감싼다(코어가 그 트랜잭션에 합류한다). 마루 데이터 행 INSERT 는 07-02 가 직접 한다(`TB_MDM_DATA` 는 선분이 아니어서 이 코어에 없다). 행을 먼저 넣고 나서 `registerCate` 를 불러야 잠금이 0행으로 거부되지 않는다.
+
+### 주의
+
+- **ArchUnit 고정**: `MdmTemporalSegmentStoreNoImplementationTest` 가 `MdmTemporalSegmentStore` 구현체 집합을 `common.segment` 의 `DataItemSegmentStore`·`DataCateSegmentStore`·`DataCateItemSegmentStore` 셋으로 **정확히** 고정한다. 다른 패키지에 구현체를 더하거나 넷째 구현체를 만들면 빨강이다. 카테고리 선분을 따로 구현하지 말고 이 코어를 쓴다.
+- **계약 파일 무변경**: `contract/data/*` 는 고치지 않았다(계약 javadoc 의 "구현은 이 Task 밖" 문구도 그대로다).
+- **메뉴**: `DataInitializer.seedMdmDataItemMenus()` 가 dmd 폴더 아래 `dataItemMng`(MENU_SEQ 004)·`dataHistory`(005)를 시드한다. **MENU_SEQ 001~003 은 TSK-07-02(dataMng·dataEdit·dataCateEdit) 몫으로 비워 두었다.** 07-02 는 새 메서드를 더하고 `seedMdmMenus()` 끝에 호출 한 줄만 더한다(기존 줄 무수정, 머지 충돌 시 양쪽 유지).
+- **shared 체크박스 문제**: shared `page-layout.css` 의 `.page-layout .search-field input[type="checkbox"] { border: 0; background: none; … }` 규칙이 조회영역(`SearchField`) 안 Mantine `Checkbox` 의 네모를 지워 보이지 않게 한다. 이 Task 는 화면 CSS 로 덮지 않고 `Select`(숨김/보기)로 우회했다. 07-02·07-04 화면도 조회영역에 체크박스를 두면 같은 문제를 겪는다. shared 에서 고칠지는 팀장 결정 사항이다.
+- **동시성 검증 공백**: 잠금에 의한 실제 직렬화(동시 저장 겹침 0)는 SQLite 로 확인되지 않았다. mssqlTest `DataSegmentConcurrencyMssqlTest` 는 작성만 했다(도커 금지, 컴파일 미확인).
