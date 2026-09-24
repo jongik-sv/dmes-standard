@@ -2,5 +2,65 @@
   "tsk": "TSK-05-03",
   "order": "975c6c21-1c7a-4d3c-bbb0-f0ec7b0d3701",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "merged",
+  "model": "sonnet",
+  "branch_base": "49656a3a42352e4cf7f5f107e50057886c310b8c",
+  "risk": "선행 3건(TSK-05-01·01-03·03-02)은 dev 반영 확인(REFLECTED, 증거 2)·승인 대기. 형식상 선행이 아닌 TSK-05-02(merged, unapproved)의 layoutMng 산출물 위에 확장한다 — 05-02 반려 시 재작업",
+  "baseline": {
+    "failures": 1,
+    "tests": 2827,
+    "docker": "banned:spawn",
+    "cmds": [
+      {
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 2427,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "49656a3a42352e4cf7f5f107e50057886c310b8c-5a99c8ef20f3",
+        "measured_at": "2026-09-24T05:35:57Z",
+        "count_cmd": "fresh worktree testAll 뒤 find src/backend -path '*/build/test-results/*' -name 'TEST-*.xml' 의 testsuite tests/failures/errors 합산"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 376,
+        "failures": 0,
+        "lint": "pass",
+        "source": "measured",
+        "cache_key": "49656a3a42352e4cf7f5f107e50057886c310b8c-67dcdef0fbb0",
+        "measured_at": "2026-09-24T05:36:00Z"
+      },
+      {
+        "cmd": "cd $W/src/frontend && SMOKE_MCM_BASE_URL=http://127.0.0.1:$FE SMOKE_LOGIN_USER=admin SMOKE_LOGIN_PASSWORD=admin123 SMOKE_MDM_DB=$W/src/backend/data/mdm.db pnpm exec playwright test <7a: columnMng domainMng headerMng> 뒤 <layoutMng sample-smoke shell-rbac-smoke termMng unitMng> --workers=1",
+        "tests": 24,
+        "failures": 1,
+        "flaky": [
+          "mdm-layoutMng.spec.ts L2~L8 (178행 openConst 재오픈 시 const-edit-modal 미표시) — 같은 DB 단독 재실행 2회 모두 통과"
+        ],
+        "source": "measured",
+        "measured_at": "2026-09-24T06:20:00Z",
+        "note": "design.md §3.7 1~6 절차(BE_MCM 18533, BE_MDM 18598, FE 15533), HEAD 0c0e9df(기점+설계 문서만). 7a 9 passed, 7b+7c 14 passed 1 failed"
+      }
+    ]
+  },
+  "last": {
+    "phase": "done",
+    "event": "done.reported"
+  },
+  "gates": {
+    "build": {
+      "head": "57e2035",
+      "backend": "2558/0",
+      "frontend": "393 passed, lint pass",
+      "e2e": "28 passed/0 failed/0 skipped (7a 9, 7b 6, 7c 13)",
+      "mutations": "I1~I24 빨강(동등 변이 2건 보고)"
+    },
+    "verify": {
+      "head": "44d627e",
+      "backend": "2558/0 (오케스트레이터 재실행)",
+      "frontend": "393 passed, lint pass (오케스트레이터 재실행)",
+      "e2e": "28/0/0 (verify2 새 DB, src=57e2035 와 동일)",
+      "mutations": "I1·I2·I6·I7·I11·I12·I13·I14·I15·I17 빨강 + E2E 변이 1건 빨강"
+    }
+  },
+  "unapproved": true
 }

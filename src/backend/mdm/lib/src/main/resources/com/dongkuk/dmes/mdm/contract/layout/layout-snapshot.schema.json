@@ -46,7 +46,7 @@
     },
     "MdmLayoutItemSnapshot": {
       "title": "MdmLayoutItemSnapshot",
-      "description": "전문 항목 스냅샷(F22). defaultValue(헤더 기본값)와 overrideValue(이 전문의 재정의 값)를 별도 필드로 담는다(불변 규칙 14).",
+      "description": "전문 항목 스냅샷(F22). defaultValue(헤더 기본값)와 overrideValue(이 전문의 재정의 값)를 별도 필드로 담는다(불변 규칙 14). unitCode·scale 은 도메인 파생값(기준 단위·소수 자리) — 전송 단위 환산·소수점 문자 형식에 쓴다(TSK-05-03 D3).",
       "type": "object",
       "properties": {
         "seq": { "type": "integer" },
@@ -65,10 +65,12 @@
         "overrideValue": { "type": ["string", "null"] },
         "fillerLength": { "type": ["integer", "null"] },
         "offset": { "type": "integer" },
-        "length": { "type": "integer" }
+        "length": { "type": "integer" },
+        "unitCode": { "type": ["string", "null"] },
+        "scale": { "type": ["integer", "null"] }
       },
       "required": ["seq", "fillKind", "dataType", "columnPhys", "transUnit", "unitItem", "numFormat",
-        "defaultValue", "overrideValue", "fillerLength", "offset", "length"],
+        "defaultValue", "overrideValue", "fillerLength", "offset", "length", "unitCode", "scale"],
       "additionalProperties": false
     },
     "MdmLayoutNumFormat": {

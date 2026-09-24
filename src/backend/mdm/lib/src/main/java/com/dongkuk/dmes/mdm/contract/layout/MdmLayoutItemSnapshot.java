@@ -8,6 +8,9 @@ package com.dongkuk.dmes.mdm.contract.layout;
  *
  * <p>{@code defaultValue}는 헤더 자신의 기본값, {@code overrideValue}는 이 전문이 재정의한 값이다(F22,
  * 불변 규칙 14) — 둘 다 별도 필드로 담아 헤더 기본값과 전문별 재정의를 구분한다.
+ *
+ * <p>{@code unitCode}·{@code scale} 은 도메인 파생값(기준 단위·소수 자리)이다 — 전송 단위 환산·소수점 문자 형식에 쓴다
+ * (TSK-05-03 design.md D3). 직렬화기·파서가 스냅샷 밖의 도메인 정보를 읽지 않게 스냅샷에 풀어 넣는다. FILLER 는 둘 다 null.
  */
 public record MdmLayoutItemSnapshot(
         int seq,
@@ -21,5 +24,7 @@ public record MdmLayoutItemSnapshot(
         String overrideValue,
         Integer fillerLength,
         int offset,
-        int length) {
+        int length,
+        String unitCode,
+        Integer scale) {
 }

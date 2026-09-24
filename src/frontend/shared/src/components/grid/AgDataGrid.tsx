@@ -208,6 +208,11 @@ export interface GridColumn {
   cellClass?: string | string[] | ((row: Record<string, unknown>) => string | string[] | undefined);
   /** 조건부 셀 클래스 규칙 — { 클래스명: (row) => boolean } 형태. ag-grid 의 cellClassRules 패스스루. */
   cellClassRules?: Record<string, (row: Record<string, unknown>) => boolean>;
+  /**
+   * 행 드래그 손잡이를 이 컬럼에 둔다(ag-grid ColDef.rowDrag, community managed row drag).
+   * 그리드에 `onRowOrderChange` 가 있을 때만 의미가 있다(TSK-05-02 D6).
+   */
+  rowDrag?: boolean;
   /** 머리 툴팁 (ag-grid ColDef/ColGroupDef.headerTooltip 패스스루). */
   headerTooltip?: string;
   /**
@@ -326,14 +331,32 @@ export interface AgDataGridProps {
   /** 헤더 높이를 헤더 내용(줄바꿈 포함)에 맞춰 자동 계산. wrapHeaderText 와 함께 사용. */
   autoHeaderHeight?: boolean;
   /**
-   * 행 드래그(managed) — 이 key 의 열에 드래그 손잡이를 둔다. 지정하면 정렬(sortable)을 끈다
-   * (ag-grid managed row drag 는 정렬 중 동작하지 않는다).
+   * 행 드래그 손잡이를 둘 열의 key — `GridColumn.rowDrag` 대신 그리드에서 지정한다. 지정하면 정렬(sortable)을 끈다
+   * (ag-grid managed row drag 는 정렬 중 동작하지 않는다). `onRowOrderChange` 와 함께 쓴다.
    */
   rowDragField?: string;
   /** 행마다 드래그 가능 여부(rowDragField 와 함께). */
   isRowDraggable?: (row: Record<string, unknown>) => boolean;
-  /** 드래그를 놓은 뒤 화면 순서대로 rowKey 목록을 넘긴다(rowDragField 와 함께). */
+  /**
+   * 행을 끌어 순서를 바꾸면 끝난 뒤 새 순서의 행 키(rowKey 값, 임시 ID 칸이 있으면 그 값) 목록으로 호출한다(TSK-05-02 D6).
+   * 이 prop 이 있을 때만 ag-grid managed row drag(rowDragManaged·onRowDragEnd)를 켜고 정렬을 끈다
+   * (managed drag 는 정렬 중 동작하지 않는다). 손잡이는 `GridColumn.rowDrag` 또는 `rowDragField` 로 둔다. 없으면 기존 동작 그대로다.
+   * 순서 상태의 주인은 호출자다 — 콜백에서 data 를 새 순서로 바꿔 넘긴다.
+   */
   onRowOrderChange?: (orderedKeys: (string | number)[]) => void;
+}
+
+/**
+ * 행 드래그 설정(TSK-05-02 D6). `onRowOrderChange` 가 없으면 정렬 값을 그대로 두고 AgGridReact 에 더 넘기는 prop 이 없다
+ * — 기존 그리드와 같은 prop 을 넘긴다. 있으면 정렬을 끄고 managed row drag 와 끝 콜백을 켠다.
+ */
+export function resolveRowDrag(
+  onRowOrderChange: ((orderedKeys: (string | number)[]) => void) | undefined,
+  sortable: boolean,
+  onRowDragEnd: (event: RowDragEndEvent) => void
+): { sortable: boolean; gridProps: { rowDragManaged?: boolean; onRowDragEnd?: (event: RowDragEndEvent) => void } } {
+  if (!onRowOrderChange) return { sortable, gridProps: {} };
+  return { sortable: false, gridProps: { rowDragManaged: true, onRowDragEnd } };
 }
 
 /** buildColumnDefs 옵션 — AgDataGrid props 에서 열 정의에 필요한 값만 받는다. */
@@ -356,7 +379,9 @@ function leafColDef(col: GridColumn, opts: BuildColumnDefsOptions): ColDef {
       ? isRowDraggable
         ? (params: { data?: unknown }) => isRowDraggable((params.data ?? {}) as Record<string, unknown>)
         : true
-      : undefined;
+      : col.rowDrag
+        ? true
+        : undefined;
   const editableProp: ColDef["editable"] =
     typeof col.editable === "function"
       ? (params: EditableCallbackParams) =>
@@ -603,7 +628,13 @@ function AgDataGridComponent({
   const resolvedColumnSizing = columnSizing ?? "auto";
   const shouldAutoSizeColumns = resolvedColumnSizing === "auto" && autoSizeColumns !== false;
 
-  const dragEnabled = !!rowDragField;
+  // 행 드래그(TSK-05-02 D6) — onRowOrderChange 가 없으면 핸들러를 만들지 않고 AgGridReact 에 더 넘기는 prop 이 없어 기존 그리드와
+  // 렌더가 같다. managed row drag 가 끝나면 화면에 보이는 행 순서대로 행 키를 모아 알린다. 드래그를 켠 그리드와
+  // rowDragField 를 준 그리드는 정렬을 끈다.
+  const rowDrag = resolveRowDrag(onRowOrderChange, sortable, (event: RowDragEndEvent) => {
+    onRowOrderChange?.(displayedRowKeys(event.api, rowKey));
+  });
+  const effectiveSortable = rowDrag.sortable && !rowDragField;
   // isRowDraggable 은 ref 로 읽는다 — 호출자가 인라인 함수를 넘겨도 열 정의를 다시 만들지 않게 한다(열 그룹 정의가 렌더마다
   // 바뀌면 ag-grid 가 머리 그룹 셀을 다시 붙이고, React 개발 모드 효과 재실행에서 null 그룹을 읽어 죽는다 — mdm TSK-08-02 실측).
   const isRowDraggableRef = useRef(isRowDraggable);
@@ -616,28 +647,28 @@ function AgDataGridComponent({
   const columnDefs = useMemo<(ColDef | ColGroupDef)[]>(
     () =>
       buildColumnDefs(columns, {
-        sortable,
+        sortable: effectiveSortable,
         columnSizing: resolvedColumnSizing,
         shouldAutoSizeColumns,
         rowDragField,
         isRowDraggable: stableIsRowDraggable,
       }),
     // 체크박스는 rowSelection 설정에서 자동 관리 (수동 컬럼 불필요)
-    [columns, sortable, shouldAutoSizeColumns, resolvedColumnSizing, rowDragField, stableIsRowDraggable]
+    [columns, effectiveSortable, shouldAutoSizeColumns, resolvedColumnSizing, rowDragField, stableIsRowDraggable]
   );
 
   // 셀 텍스트가 컬럼 폭 초과로 잘려서 ... 으로 표시될 때 마우스오버 시 전체 값을 tooltip 으로 표시.
   // tooltipValueGetter 는 ag-grid 의 browser-native title 속성 사용 (별도 라이브러리 불필요).
   const defaultColDef = useMemo<ColDef>(
     () => ({
-      sortable: sortable && !dragEnabled,
+      sortable: effectiveSortable,
       resizable: true,
       wrapHeaderText,
       autoHeaderHeight,
       tooltipValueGetter: (params: { value?: unknown }) =>
         params.value == null ? "" : String(params.value),
     }),
-    [sortable, dragEnabled, wrapHeaderText, autoHeaderHeight]
+    [effectiveSortable, wrapHeaderText, autoHeaderHeight]
   );
 
   const hasEditableColumns = useMemo(() => hasEditableColumn(columns), [columns]);
@@ -1129,13 +1160,6 @@ function AgDataGridComponent({
     [onRowSelect, rowKey]
   );
 
-  const handleRowDragEnd = useCallback(
-    (event: RowDragEndEvent) => {
-      onRowOrderChange?.(displayedRowKeys(event.api, rowKey));
-    },
-    [onRowOrderChange, rowKey]
-  );
-
   const sortedData = useMemo(() => {
     const addedRows = data.filter((row) => row.nativeeditor_status === "inserted");
     const otherRows = data.filter((row) => row.nativeeditor_status !== "inserted");
@@ -1206,8 +1230,6 @@ function AgDataGridComponent({
         onRowDoubleClicked={handleRowDoubleClicked}
         onSelectionChanged={handleSelectionChanged}
         onCellValueChanged={handleCellValueChanged}
-        rowDragManaged={dragEnabled}
-        onRowDragEnd={dragEnabled ? handleRowDragEnd : undefined}
         singleClickEdit={singleClickEdit}
         suppressClickEdit={false}
         stopEditingWhenCellsLoseFocus={stopEditingWhenCellsLoseFocus}
@@ -1237,6 +1259,7 @@ function AgDataGridComponent({
         suppressHorizontalScroll={false}
         alwaysShowHorizontalScroll={alwaysShowHorizontalScroll}
         domLayout="normal"
+        {...rowDrag.gridProps}
       />
     </div>
   );

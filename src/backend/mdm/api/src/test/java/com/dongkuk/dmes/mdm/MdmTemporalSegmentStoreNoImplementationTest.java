@@ -1,7 +1,11 @@
 package com.dongkuk.dmes.mdm;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.dongkuk.dmes.mdm.common.segment.DataCateItemSegmentStore;
+import com.dongkuk.dmes.mdm.common.segment.DataCateSegmentStore;
+import com.dongkuk.dmes.mdm.common.segment.DataItemSegmentStore;
 import com.dongkuk.dmes.mdm.contract.data.MdmTemporalSegmentAction;
 import com.dongkuk.dmes.mdm.contract.data.MdmTemporalSegmentResult;
 import com.dongkuk.dmes.mdm.contract.data.MdmTemporalSegmentStore;
@@ -15,7 +19,10 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
 /**
- * TSK-07-01 design.md §3.5·F17 — "실행 로직 없음"(수용 기준) 의 직접 증거. {@code lib}+{@code api} 양쪽
+ * TSK-07-01 design.md §3.5·F17 이 두고 TSK-07-03 design.md F5·A3 가 뒤집은 구현체 위치 검사. TSK-07-01 시점에는
+ * "구현체 0개"(실행 로직 없음)를 단언했고, 인계대로 TSK-07-03 이 실 구현체를 넣으면서 "구현체 집합 = 저장 코어 패키지
+ * {@code com.dongkuk.dmes.mdm.common.segment} 의 정해진 세 클래스"로 바뀌었다(완화가 아니라 인계받은 교정이다 — 다른
+ * 패키지나 네 번째 구현체가 생기면 여전히 빨강이다). {@code lib}+{@code api} 양쪽
  * main 클래스를 함께 스캔해야 하는데({@code MdmTemporalSegmentStore} 는 {@code lib}, 실 구현체가 생긴다면
  * {@code api}), {@code api} 모듈의 테스트 클래스패스에는 둘 다 있다({@code api → lib} 의존 방향) — 그래서
  * 이 테스트를 {@code lib} 가 아니라 {@code api/src/test} 에 둔다.
@@ -31,6 +38,8 @@ import org.junit.jupiter.api.Test;
  */
 class MdmTemporalSegmentStoreNoImplementationTest {
 
+    private static final String SEGMENT_PACKAGE = "com.dongkuk.dmes.mdm.common.segment";
+
     private static final JavaClasses MDM = new ClassFileImporter()
             .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
             .importPackages("com.dongkuk.dmes.mdm");
@@ -44,11 +53,16 @@ class MdmTemporalSegmentStoreNoImplementationTest {
     }
 
     @Test
-    void MdmTemporalSegmentStore_의_실_구현체가_com_dongkuk_dmes_mdm_에_없다() {
-        Set<JavaClass> implementations = findImplementations(MDM);
-        assertTrue(implementations.isEmpty(),
-                "com.dongkuk.dmes.mdm.. 안에 MdmTemporalSegmentStore 구현체가 없어야 한다"
-                        + "(TSK-07-01 수용 기준 「실행 로직 없음」, TSK-07-03 몫): " + implementations);
+    void MdmTemporalSegmentStore_구현체는_common_segment_의_정해진_세_클래스뿐이다() {
+        Set<String> implementations = findImplementations(MDM).stream()
+                .map(JavaClass::getName)
+                .collect(Collectors.toSet());
+        assertEquals(Set.of(DataItemSegmentStore.class.getName(), DataCateSegmentStore.class.getName(),
+                        DataCateItemSegmentStore.class.getName()), implementations,
+                "MdmTemporalSegmentStore 구현체는 항목·카테고리·소속 저장소 셋뿐이어야 한다(TSK-07-03 A3)");
+        for (JavaClass impl : findImplementations(MDM)) {
+            assertEquals(SEGMENT_PACKAGE, impl.getPackageName(), impl.getName() + " 는 저장 코어 패키지 밖에 있다");
+        }
     }
 
     /**

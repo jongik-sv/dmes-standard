@@ -37,6 +37,8 @@ subprojects {
 
     test {
         useJUnitPlatform()
+        // 화면 Task 가 늘며 @SpringBootTest 컨텍스트 캐시가 커져 기본 힙(512m)에서 OOM 이 난다(2026-09-24 TSK-07-03 머지 뒤 api 14건).
+        maxHeapSize = '1536m'
     }
 }
 
