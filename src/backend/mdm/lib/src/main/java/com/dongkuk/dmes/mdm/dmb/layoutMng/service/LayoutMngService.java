@@ -152,7 +152,7 @@ public class LayoutMngService {
             systems.add(s);
         }
         out.put("systems", systems);
-        out.put("eais", queries.allEais().stream().map(LayoutMngService::eaiRow).toList());
+        out.put("eais", queries.allEais().stream().map(LayoutRows::eaiRow).toList());
         out.put("headers", headerLayouts.stream().map(LayoutMngService::headerOption).toList());
         return out;
     }
@@ -374,16 +374,6 @@ public class LayoutMngService {
         row.put("LAYOUT_ID", h.getLayoutId());
         row.put("LAYOUT_NAME", h.getLayoutName());
         row.put("TOTAL_LENGTH", h.getTotalLength());
-        return row;
-    }
-
-    private static Map<String, Object> eaiRow(MdmEai e) {
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("EAI_CODE", e.getEaiCode());
-        row.put("EAI_NAME", e.getEaiName());
-        row.put("ENCODING", e.getEncoding());
-        row.put("PAD_RULE", e.getPadRule());
-        row.put("HEADER_LAYOUT_ID", e.getHeaderLayoutId());
         return row;
     }
 }

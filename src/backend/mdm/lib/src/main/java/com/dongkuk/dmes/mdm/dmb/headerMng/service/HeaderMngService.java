@@ -105,7 +105,7 @@ public class HeaderMngService {
             headers.add(row);
         }
         out.put("headers", headers);
-        out.put("eais", eais.stream().map(HeaderMngService::eaiRow).toList());
+        out.put("eais", eais.stream().map(LayoutRows::eaiRow).toList());
         return out;
     }
 
@@ -201,17 +201,20 @@ public class HeaderMngService {
             }
         }
         if (eaiCode != null) {
+            String eaiName = LayoutRows.text(request.getEaiName());
+            String encoding = LayoutRows.text(request.getEncoding());
+            String padRule = LayoutRows.text(request.getPadRule());
             if (eai == null) {
-                eai = new MdmEai(eaiCode, LayoutRows.text(request.getEaiName()), LayoutRows.text(request.getEncoding()));
+                eai = new MdmEai(eaiCode, eaiName, encoding);
             }
-            if (LayoutRows.text(request.getEaiName()) != null) {
-                eai.setEaiName(LayoutRows.text(request.getEaiName()));
+            if (eaiName != null) {
+                eai.setEaiName(eaiName);
             }
-            if (LayoutRows.text(request.getEncoding()) != null) {
-                eai.setEncoding(LayoutRows.text(request.getEncoding()));
+            if (encoding != null) {
+                eai.setEncoding(encoding);
             }
-            if (LayoutRows.text(request.getPadRule()) != null) {
-                eai.setPadRule(LayoutRows.text(request.getPadRule()));
+            if (padRule != null) {
+                eai.setPadRule(padRule);
             }
             eai.setHeaderLayoutId(headerId);
             eaiRepository.saveAndFlush(eai);
@@ -261,15 +264,5 @@ public class HeaderMngService {
             throw LayoutRejections.notFound(layoutId, HEADER);
         }
         return layout;
-    }
-
-    static Map<String, Object> eaiRow(MdmEai e) {
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("EAI_CODE", e.getEaiCode());
-        row.put("EAI_NAME", e.getEaiName());
-        row.put("ENCODING", e.getEncoding());
-        row.put("PAD_RULE", e.getPadRule());
-        row.put("HEADER_LAYOUT_ID", e.getHeaderLayoutId());
-        return row;
     }
 }

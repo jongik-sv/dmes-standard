@@ -7,19 +7,13 @@
 import { useMemo } from "react";
 import { Button } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
-import { displayRows } from "@/layout/item-rows";
+import { baseItemColumns, displayRows } from "@/layout/item-rows";
 import { hint, sectionTitle } from "@/layout/styles";
 import type { LayoutItemRow } from "@/layout/types";
 
 export function itemColumns(readOnly: boolean): GridColumn[] {
   return [
-    { key: "SEQ", header: "순서", width: 70, align: "center", rowDrag: !readOnly },
-    { key: "ITEM_NAME", header: "항목명", width: 150 },
-    { key: "COLUMN_PHYS", header: "표준 물리명", width: 140 },
-    { key: "FILL_KIND", header: "채움", width: 80, align: "center" },
-    { key: "OFFSET", header: "오프셋", width: 70, align: "right" },
-    { key: "LENGTH", header: "길이", width: 60, align: "right" },
-    { key: "POSITION", header: "위치", width: 90, align: "center" },
+    ...baseItemColumns(readOnly),
     { key: "DERIVED", header: "도메인(파생)", width: 140 },
     { key: "SETTING", header: "설정", width: 200 },
   ];

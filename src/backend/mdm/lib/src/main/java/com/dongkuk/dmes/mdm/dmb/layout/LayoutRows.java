@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.dmb.layout;
 
+import com.dongkuk.dmes.mdm.entity.MdmEai;
 import com.dongkuk.dmes.mdm.entity.MdmLayoutItem;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -96,6 +97,17 @@ public final class LayoutRows {
             }
         }
         return out;
+    }
+
+    /** EAI 한 행({@code EAI_CODE, EAI_NAME, ENCODING, PAD_RULE, HEADER_LAYOUT_ID}) — headerMng·layoutMng search 공용. */
+    public static Map<String, Object> eaiRow(MdmEai e) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("EAI_CODE", e.getEaiCode());
+        row.put("EAI_NAME", e.getEaiName());
+        row.put("ENCODING", e.getEncoding());
+        row.put("PAD_RULE", e.getPadRule());
+        row.put("HEADER_LAYOUT_ID", e.getHeaderLayoutId());
+        return row;
     }
 
     /** {@code [UNIT_CODE, DIMENSION, BASE_UNIT]} → 행. */

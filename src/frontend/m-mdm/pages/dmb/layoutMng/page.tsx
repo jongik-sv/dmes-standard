@@ -16,6 +16,7 @@ import { useMessage } from "@dk-oasis/shared/message-provider";
 import { ColumnPickModal } from "@/layout/ColumnPickModal";
 import { LayoutItemDetail } from "@/layout/LayoutItemDetail";
 import { precheck } from "@/layout/fill-kind";
+import { newColumnRow, newFillerRow } from "@/layout/item-rows";
 import { placeHeader, placeMessage, reorder, renumber, summaryText } from "@/layout/layout-calc";
 import { hint, sectionBody, sectionTitle } from "@/layout/styles";
 import type { ColumnInfo, HeaderStackRow, LayoutItemRow, UnitRow } from "@/layout/types";
@@ -175,16 +176,13 @@ export default function LayoutMngPage() {
   // ── 본문 항목 ──
   const addColumn = (c: ColumnInfo) => {
     const key = newKey("b");
-    setBody((b) => renumber([...b, {
-      KEY: key, SEQ: 0, FILL_KIND: "DATA", COLUMN_PHYS: c.PHYS_NAME, DISPLAY_NAME: c.DISPLAY_NAME, DOMAIN_NAME: c.DOMAIN_NAME,
-      DATA_TYPE: c.DATA_TYPE, DOMAIN_LENGTH: c.LENGTH, SCALE: c.SCALE, UNIT_CODE: c.UNIT_CODE,
-    }]));
+    setBody((b) => renumber([...b, newColumnRow(key, c)]));
     setSelectedKey(key);
   };
 
   const addFiller = () => {
     const key = newKey("b");
-    setBody((b) => renumber([...b, { KEY: key, SEQ: 0, FILL_KIND: "FILLER", FILLER_LENGTH: 1 }]));
+    setBody((b) => renumber([...b, newFillerRow(key)]));
     setSelectedKey(key);
   };
 
