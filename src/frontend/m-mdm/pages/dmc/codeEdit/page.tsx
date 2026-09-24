@@ -28,11 +28,24 @@ import {
   DraftLockBadge,
   MdmPageLayout,
   VersionStatusBadge,
+  openMdmPage,
   useMdmPageParams,
   type MdmVersionStatus,
 } from "@/shell";
 
-import { deprecateCode, saveHeader, searchCodeOptions, viewCode } from "./api";
+import {
+  createVersion,
+  deprecateCode,
+  draftAction,
+  restoreVersion,
+  saveHeader,
+  searchCodeOptions,
+  viewCode,
+  type DraftAction,
+} from "./api";
+import { versionButtons } from "./buttons";
+import { HandoverModal } from "./HandoverModal";
+import { NewVersionModal, type VerKind } from "./NewVersionModal";
 import {
   ATTR_KEYS,
   CONFLICT_PREFIX,
@@ -73,6 +86,8 @@ export default function CodeEditPage({ tabId, snapshot, onSnapshotChange }: Code
   const [selectedVer, setSelectedVer] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ message: string; reload: boolean } | null>(null);
+  const [newVersionKind, setNewVersionKind] = useState<VerKind | null>(null);
+  const [handoverOpen, setHandoverOpen] = useState(false);
   const handedOff = useRef(false);
   const snapshotRef = useRef(snapshot);
   snapshotRef.current = snapshot;
@@ -177,9 +192,49 @@ export default function CodeEditPage({ tabId, snapshot, onSnapshotChange }: Code
     [options],
   );
 
-  const canSaveHeader = editable && unappliedCount < 2 && canDoButton(rbac, "codeEdit", "save");
-  const canDeprecate =
-    editable && header?.storedStatus !== "DEPRECATED" && unappliedCount === 0 && canDoButton(rbac, "codeEdit", "execute");
+  const buttons = useMemo(() => versionButtons(view, selectedVer), [view, selectedVer]);
+  const allowed = (enabled: boolean, action: string) => !busy && enabled && canDoButton(rbac, "codeEdit", action);
+  const canSaveHeader = allowed(buttons.headerSave.enabled, "save");
+  const canDeprecate = allowed(buttons.deprecate.enabled, "execute");
+  const selected = view?.versions.find((v) => v.ver === selectedVer) ?? null;
+
+  const runDraft = useCallback(
+    (action: DraftAction, done: string, newOwnerId?: string) => {
+      if (!header || !selected) return;
+      void run(() => draftAction(action, header.maruCodeId, selected.ver, selected.rowVersion, newOwnerId), done);
+    },
+    [header, selected, run],
+  );
+
+  const handleDelete = useCallback(() => {
+    if (!selected) return;
+    showMessage({
+      title: "확인",
+      message: `${selected.verLabel} DRAFT 를 삭제할까요? 이 버전에서 바꾼 코드·카테고리도 되돌립니다.`,
+      alertType: "confirm",
+      onConfirm: () => runDraft("delete", "삭제했습니다"),
+    });
+  }, [selected, runDraft, showMessage]);
+
+  const handleNewVersion = useCallback(
+    (kind: VerKind, sourceVer: string | null) => {
+      if (!header) return;
+      setNewVersionKind(null);
+      void run(
+        () => (sourceVer ? restoreVersion(header.maruCodeId, kind, sourceVer) : createVersion(header.maruCodeId, kind)),
+        "새 버전을 만들었습니다",
+      );
+    },
+    [header, run],
+  );
+
+  const moveTo = useCallback(
+    (componentPath: string) => {
+      if (!header || !selected) return;
+      openMdmPage(componentPath, { maruCodeId: header.maruCodeId, ver: selected.ver });
+    },
+    [header, selected],
+  );
 
   return (
     <MdmPageLayout
@@ -275,10 +330,10 @@ export default function CodeEditPage({ tabId, snapshot, onSnapshotChange }: Code
                 이름·설명·계층 칸 수·라벨은 버전 밖의 값이라 결재 없이 고친다
               </p>
               <div style={{ display: "flex", gap: "var(--spacing-sm)", justifyContent: "flex-end", padding: "var(--spacing-sm) var(--spacing-md)" }}>
-                <Button data-testid="header-save" variant="primary" disabled={busy || !canSaveHeader} onClick={handleSaveHeader}>
+                <Button data-testid="header-save" variant="primary" disabled={!canSaveHeader} onClick={handleSaveHeader}>
                   경미 수정 저장
                 </Button>
-                <Button data-testid="header-deprecate" variant="danger" disabled={busy || !canDeprecate} onClick={handleDeprecate}>
+                <Button data-testid="header-deprecate" variant="danger" disabled={!canDeprecate} onClick={handleDeprecate}>
                   폐기
                 </Button>
               </div>
@@ -315,9 +370,50 @@ export default function CodeEditPage({ tabId, snapshot, onSnapshotChange }: Code
 
           <ContentPanel>
             <p style={cardTitle}>③ 버전 목록</p>
-            {unappliedCount >= 2 ? (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-xs)", padding: "var(--spacing-xs) var(--spacing-md)" }}>
+              <Button data-testid="ver-new-major" disabled={!allowed(buttons.newMajor.enabled, "reg")} onClick={() => setNewVersionKind("MAJOR")}>
+                새버전(major)
+              </Button>
+              <Button
+                data-testid="ver-new-minor"
+                title={buttons.newMinor.hint}
+                disabled={!allowed(buttons.newMinor.enabled, "reg")}
+                onClick={() => setNewVersionKind("MINOR")}
+              >
+                새버전(minor)
+              </Button>
+              <Button data-testid="ver-delete" variant="danger" disabled={!allowed(buttons.delete.enabled, "delete")} onClick={handleDelete}>
+                삭제
+              </Button>
+              <Button data-testid="ver-lock" disabled={!allowed(buttons.lock.enabled, "lock")} onClick={() => runDraft("lock", "선점했습니다")}>
+                선점
+              </Button>
+              <Button data-testid="ver-unlock" disabled={!allowed(buttons.unlock.enabled, "unlock")} onClick={() => runDraft("unlock", "해제했습니다")}>
+                해제
+              </Button>
+              <Button data-testid="ver-handover" disabled={!allowed(buttons.handover.enabled, "handover")} onClick={() => setHandoverOpen(true)}>
+                넘기기
+              </Button>
+              <Button
+                data-testid="ver-confirm-move"
+                variant="primary"
+                disabled={!allowed(buttons.confirmMove.enabled, "confirm")}
+                onClick={() => moveTo("dmc/codeConfirm")}
+              >
+                확정 이동
+              </Button>
+              <Button data-testid="ver-item-edit" disabled={!allowed(buttons.itemEdit.enabled, "save")} onClick={() => moveTo("dmc/codeItemEdit")}>
+                코드 편집
+              </Button>
+            </div>
+            {buttons.newVersionHint ? (
+              <p data-testid="ver-new-hint" style={{ padding: "0 var(--spacing-md)", ...mutedText }}>
+                {buttons.newVersionHint}
+              </p>
+            ) : null}
+            {buttons.warning ? (
               <p data-testid="ver-unapplied-warning" style={{ padding: "0 var(--spacing-md)", color: "var(--color-danger)" }}>
-                미적용 버전이 2개입니다. 하나를 삭제하세요
+                {buttons.warning}
               </p>
             ) : null}
             {view.versions.length === 0 ? (
@@ -373,6 +469,27 @@ export default function CodeEditPage({ tabId, snapshot, onSnapshotChange }: Code
           </ContentPanel>
         </ContentBody>
       )}
+
+      {view ? (
+        <NewVersionModal
+          open={newVersionKind !== null}
+          initialKind={newVersionKind ?? "MAJOR"}
+          flags={view.flags}
+          restoreSources={view.restoreSources}
+          busy={busy}
+          onClose={() => setNewVersionKind(null)}
+          onSubmit={handleNewVersion}
+        />
+      ) : null}
+      <HandoverModal
+        open={handoverOpen}
+        busy={busy}
+        onClose={() => setHandoverOpen(false)}
+        onSubmit={(newOwnerId) => {
+          setHandoverOpen(false);
+          runDraft("handover", "넘겼습니다", newOwnerId);
+        }}
+      />
 
       {error && (
         <ErrorModal

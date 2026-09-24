@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mdm.dmc.codeEdit.service;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeLedgerQueries;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeLedgerQueries.Header;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionNumbers;
+import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionSegments;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionSummary;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionSummary.Summary;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionSummary.VerRow;
@@ -12,19 +13,30 @@ import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeConventions;
 import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeSourceKind;
+import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeVerKind;
 import com.dongkuk.dmes.mdm.contract.security.MdmRoles;
+import com.dongkuk.dmes.mdm.contract.version.DraftOwnershipService;
 import com.dongkuk.dmes.mdm.contract.version.MaruObjectStatus;
+import com.dongkuk.dmes.mdm.contract.version.VersionRef;
+import com.dongkuk.dmes.mdm.contract.version.VersionStateService;
 import com.dongkuk.dmes.mdm.contract.version.VersionStatus;
+import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
+import com.dongkuk.dmes.mdm.contract.version.VersionWriteGuard;
 import com.dongkuk.dmes.mdm.dmc.codeEdit.dto.CodeDeprecateRequest;
+import com.dongkuk.dmes.mdm.dmc.codeEdit.dto.CodeDraftRequest;
 import com.dongkuk.dmes.mdm.dmc.codeEdit.dto.CodeEditFlags;
 import com.dongkuk.dmes.mdm.dmc.codeEdit.dto.CodeEditSearchRequest;
 import com.dongkuk.dmes.mdm.dmc.codeEdit.dto.CodeEditView;
 import com.dongkuk.dmes.mdm.dmc.codeEdit.dto.CodeEditViewRequest;
 import com.dongkuk.dmes.mdm.dmc.codeEdit.dto.CodeHeaderSaveRequest;
 import com.dongkuk.dmes.mdm.dmc.codeEdit.dto.CodeHeaderView;
+import com.dongkuk.dmes.mdm.dmc.codeEdit.dto.CodeVersionCreateRequest;
+import com.dongkuk.dmes.mdm.dmc.codeEdit.dto.CodeVersionRestoreRequest;
 import com.dongkuk.dmes.mdm.dmc.codeEdit.dto.CodeVersionRow;
 import com.dongkuk.dmes.mdm.entity.MdmCode;
+import com.dongkuk.dmes.mdm.entity.MdmCodeVer;
 import com.dongkuk.dmes.mdm.repository.MdmCodeRepository;
+import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -58,16 +70,28 @@ public class CodeEditService {
     static final int LABEL_MAX = 100;
     private static final DateTimeFormatter TEXT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
+    private final EntityManager entityManager;
     private final MdmCodeRepository codes;
     private final MasterCodeLedgerQueries ledger;
+    private final MasterCodeVersionSegments segments;
+    private final VersionWriteGuard writeGuard;
+    private final VersionStateService versionState;
+    private final DraftOwnershipService ownership;
     private final MdmStewardGuard stewardGuard;
     private final MdmCurrentUser currentUser;
     private final Clock clock;
 
-    public CodeEditService(MdmCodeRepository codes, MasterCodeLedgerQueries ledger, MdmStewardGuard stewardGuard,
-                           MdmCurrentUser currentUser, Clock clock) {
+    public CodeEditService(EntityManager entityManager, MdmCodeRepository codes, MasterCodeLedgerQueries ledger,
+                           MasterCodeVersionSegments segments, VersionWriteGuard writeGuard,
+                           VersionStateService versionState, DraftOwnershipService ownership,
+                           MdmStewardGuard stewardGuard, MdmCurrentUser currentUser, Clock clock) {
+        this.entityManager = entityManager;
         this.codes = codes;
         this.ledger = ledger;
+        this.segments = segments;
+        this.writeGuard = writeGuard;
+        this.versionState = versionState;
+        this.ownership = ownership;
         this.stewardGuard = stewardGuard;
         this.currentUser = currentUser;
         this.clock = clock;
@@ -177,6 +201,166 @@ public class CodeEditService {
         code.setStatus(MaruObjectStatus.DEPRECATED.name());
         log.info("[codeEdit] execute(deprecate) — id={}", code.getMaruCodeId());
         return buildView(code.getMaruCodeId());
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // action: reg(method=createVersion)·restore(method=restoreVersion) — 새 버전(I1~I5·I11·I13·I15)
+    // ────────────────────────────────────────────────────────────────
+
+    public CodeEditView createVersion(CodeVersionCreateRequest request) {
+        MdmCode code = requireWritable(request == null ? null : request.getMaruCodeId());
+        requireNotDeprecated(code);
+        MasterCodeVerKind kind = parseKind(request.getVerKind());
+        Summary summary = summary(code);
+        writeGuard.checkCanCreateVersion(VersionTarget.MASTER_CODE, code.getMaruCodeId()); // I5 — MDM006
+        BigDecimal next = nextNumber(summary.maxVer(), kind);
+        insertDraft(code, next, kind, null);
+        markInUseIfApplied(code, summary); // I18
+        log.info("[codeEdit] reg — id={} ver={} kind={}", code.getMaruCodeId(), next, kind);
+        return buildView(code.getMaruCodeId());
+    }
+
+    public CodeEditView restoreVersion(CodeVersionRestoreRequest request) {
+        MdmCode code = requireWritable(request == null ? null : request.getMaruCodeId());
+        requireNotDeprecated(code);
+        MasterCodeVerKind kind = parseKind(request.getVerKind());
+        Summary summary = summary(code);
+        writeGuard.checkCanCreateVersion(VersionTarget.MASTER_CODE, code.getMaruCodeId()); // I5
+        BigDecimal next = nextNumber(summary.maxVer(), kind);
+        BigDecimal source = parseVer(request.getSourceVer());
+        boolean released = ledger.versions(code.getMaruCodeId()).stream()
+                .anyMatch(v -> v.ver().compareTo(source) == 0 && VersionStatus.RELEASED.name().equals(v.status()));
+        if (!released || source.compareTo(next) >= 0) {
+            throw invalid("복원 원본은 확정(RELEASED)된 버전이어야 합니다"); // D13
+        }
+        VersionRef draft = insertDraft(code, next, kind, source);
+        segments.fillFrom(draft, source);
+        markInUseIfApplied(code, summary);
+        log.info("[codeEdit] restore — id={} ver={} from={}", code.getMaruCodeId(), next, source);
+        return buildView(code.getMaruCodeId());
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // action: delete·lock·unlock·handover — 공통 서비스에 행위자 = 요청 사용자(I22)
+    // ────────────────────────────────────────────────────────────────
+
+    public CodeEditView deleteDraft(CodeDraftRequest request) {
+        stewardGuard.requireSteward(); // I12 — 공통 서비스는 삭제에 역할을 보지 않는다
+        VersionRef ref = draftRef(request);
+        versionState.deleteDraft(ref, rowVersion(request), currentUser.userId()); // 미적용 2개여도 허용(I6)
+        log.info("[codeEdit] delete — {}", ref);
+        return buildView(ref.objectId());
+    }
+
+    public CodeEditView acquire(CodeDraftRequest request) {
+        VersionRef ref = ownershipTarget(request);
+        ownership.acquire(ref, rowVersion(request), currentUser.userId());
+        return buildView(ref.objectId());
+    }
+
+    public CodeEditView release(CodeDraftRequest request) {
+        VersionRef ref = ownershipTarget(request);
+        ownership.release(ref, rowVersion(request), currentUser.userId());
+        return buildView(ref.objectId());
+    }
+
+    public CodeEditView handover(CodeDraftRequest request) {
+        VersionRef ref = ownershipTarget(request);
+        ownership.handover(ref, rowVersion(request), currentUser.userId(), trimToNull(request.getNewOwnerId()));
+        return buildView(ref.objectId());
+    }
+
+    /** 소유권 연산 머리: 담당자 가드(I12) → 미적용 2개 이상이면 MDM007(D7 — 공통 서비스는 막지 않는다). */
+    private VersionRef ownershipTarget(CodeDraftRequest request) {
+        stewardGuard.requireSteward();
+        VersionRef ref = draftRef(request);
+        LocalDateTime now = now();
+        long unapplied = ledger.versions(ref.objectId()).stream()
+                .filter(v -> MasterCodeVersionSummary.isUnapplied(v, now)).count();
+        if (unapplied >= 2) {
+            throw MdmErrors.of(MdmErrorCode.MULTIPLE_UNAPPLIED_VERSIONS);
+        }
+        return ref;
+    }
+
+    private VersionRef draftRef(CodeDraftRequest request) {
+        String id = request == null ? null : trimToNull(request.getMaruCodeId());
+        if (id == null) {
+            throw invalid("마루 코드를 고르세요");
+        }
+        return new VersionRef(VersionTarget.MASTER_CODE, id, parseVer(request.getVer()));
+    }
+
+    private static long rowVersion(CodeDraftRequest request) {
+        if (request.getRowVersion() == null) {
+            throw MdmErrors.of(MdmErrorCode.ROW_VERSION_CONFLICT);
+        }
+        return request.getRowVersion();
+    }
+
+    /** 새 DRAFT 행 — 소유자는 요청 사용자(I11), rv 0. 1.000 이면 같은 트랜잭션에서 BASE 를 만든다(I4). */
+    private VersionRef insertDraft(MdmCode code, BigDecimal ver, MasterCodeVerKind kind, BigDecimal restoredFrom) {
+        MdmCodeVer row = new MdmCodeVer(code.getMaruCodeId(), ver, kind.name());
+        row.setOwnerId(currentUser.userId());
+        row.setRestoredFrom(restoredFrom);
+        entityManager.persist(row);
+        entityManager.flush();
+        VersionRef ref = new VersionRef(VersionTarget.MASTER_CODE, code.getMaruCodeId(), ver);
+        if (ver.compareTo(MasterCodeConventions.FIRST_VER) == 0) {
+            segments.createBaseCategory(ref);
+        }
+        return ref;
+    }
+
+    /** I1~I4 — max 는 모든 버전(CANCELLED·DRAFT 포함). 불가하면 MDM021. */
+    static BigDecimal nextNumber(BigDecimal max, MasterCodeVerKind kind) {
+        if (kind == MasterCodeVerKind.MAJOR) {
+            if (!MasterCodeVersionNumbers.canMajor(max)) {
+                throw invalid("major 번호가 상한(" + MasterCodeConventions.MAX_MAJOR + ")을 넘습니다");
+            }
+            return MasterCodeVersionNumbers.nextMajor(max);
+        }
+        if (max == null) {
+            throw invalid("버전이 없으면 major 만 만들 수 있습니다");
+        }
+        if (!MasterCodeVersionNumbers.canMinor(max)) {
+            throw invalid("minor 번호가 " + MasterCodeConventions.MAX_MINOR + " 에 닿았습니다. major 를 올리십시오");
+        }
+        return MasterCodeVersionNumbers.nextMinor(max);
+    }
+
+    private static void requireNotDeprecated(MdmCode code) {
+        if (MaruObjectStatus.DEPRECATED.name().equals(code.getStatus())) {
+            throw MdmErrors.of(MdmErrorCode.TRANSITION_NOT_ALLOWED, "폐기된 마루 코드는 새 버전을 만들 수 없습니다", List.of());
+        }
+    }
+
+    private static MasterCodeVerKind parseKind(String value) {
+        String v = trimToNull(value);
+        for (MasterCodeVerKind kind : MasterCodeVerKind.values()) {
+            if (kind.name().equals(v)) {
+                return kind;
+            }
+        }
+        throw invalid("버전 종류는 MAJOR 또는 MINOR 여야 합니다");
+    }
+
+    /** "1.001" → 1.001(scale 3). 음수·소수 넷째 자리 이상·형식 오류는 MDM021. */
+    static BigDecimal parseVer(String value) {
+        String v = trimToNull(value);
+        if (v == null) {
+            throw invalid("버전 번호가 없습니다");
+        }
+        BigDecimal ver;
+        try {
+            ver = new BigDecimal(v);
+        } catch (NumberFormatException e) {
+            throw invalid("버전 번호 형식이 올바르지 않습니다: " + v);
+        }
+        if (ver.signum() < 0 || ver.stripTrailingZeros().scale() > MasterCodeConventions.FIRST_VER.scale()) {
+            throw invalid("버전 번호 형식이 올바르지 않습니다: " + v);
+        }
+        return ver.setScale(MasterCodeConventions.FIRST_VER.scale());
     }
 
     // ── 공통 ──

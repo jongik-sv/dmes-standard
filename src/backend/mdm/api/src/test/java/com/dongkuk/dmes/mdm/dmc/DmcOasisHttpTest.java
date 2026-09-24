@@ -114,6 +114,32 @@ class DmcOasisHttpTest {
         assertTrue(search.path("meta").path("success").asBoolean(false), "조회는 가드가 없다 " + search);
     }
 
+    @Test
+    void H4_codeEdit_lock_unlock_분기가_서비스로_라우팅된다() throws Exception {
+        // 소유권 액션 권한은 BFF(TSK-08-02 몫)가 본다. mdm 서버를 직접 부르면 BPMN 분기·서비스 경로만 시험한다.
+        post("codeMng", "reg", STEWARD, envelope("codeMng", regParams("PROC_CD")));
+
+        JsonNode unlock = post("codeEdit", "unlock", STEWARD, envelope("codeEdit", draftParams(0)));
+        assertTrue(unlock.path("meta").path("success").asBoolean(false), unlock.toString());
+        JsonNode row = unlock.path("data").path("result").path("versions").path(0);
+        assertTrue(row.path("ownerId").isNull(), unlock.toString());
+        assertEquals(1, row.path("rowVersion").asInt(), unlock.toString());
+
+        JsonNode lock = post("codeEdit", "lock", STEWARD, envelope("codeEdit", draftParams(1)));
+        assertTrue(lock.path("meta").path("success").asBoolean(false), lock.toString());
+        assertEquals("steward", lock.path("data").path("result").path("versions").path(0).path("ownerId").asText());
+        assertEquals("steward", jdbc.queryForObject("SELECT OWNER_ID FROM TB_MDM_CODE_VER", String.class));
+
+        JsonNode byAdmin = post("codeEdit", "unlock", STD_ADMIN, envelope("codeEdit", draftParams(2)));
+        assertFalse(byAdmin.path("meta").path("success").asBoolean(true), byAdmin.toString());
+        assertTrue(byAdmin.path("meta").path("message").asText().startsWith(
+                MdmErrorCode.STEWARD_ROLE_REQUIRED.defaultMessage()), byAdmin.toString());
+    }
+
+    private ObjectNode draftParams(int rowVersion) {
+        return json.createObjectNode().put("maruCodeId", "PROC_CD").put("ver", "1.000").put("rowVersion", rowVersion);
+    }
+
     // ── 도우미 ──
 
     ObjectNode regParams(String id) {

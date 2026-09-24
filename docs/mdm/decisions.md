@@ -546,3 +546,19 @@
 - **Rationale**: 공통 서비스의 requireSteward 는 package-private 이고 deleteDraft·release·handover 는 역할을 보지 않아 영역 서비스에 가드가 필요하다. VersionSpiRegistry 는 대상 중복이면 기동을 실패시키므로 운영 SPI 를 처음 등록하는 06-02 가 테스트 설정을 대상 이름 없이 일반형으로 고친다
 - **Reversible**: yes
 - **Source**: docs/mdm/tasks/TSK-06-02/design.md §10, docs/mdm/tasks/TSK-01-03/design.md §7
+
+## D-TSK-06-02-3 (2026-09-24T06:39:20Z)
+- **Phase**: build (TSK-06-02)
+- **Decision needed**: 수용 기준 5(폐기 뒤 CODE_LIST 에서 숨고 MASTER 판정은 유지)를 보려면 판정 엔진이 04 원장을 읽어야 한다. 운영 `CodeLookup` 빈을 등록하면 decisions.md 의 TSK-04-03 기록대로 도메인 저장 R10 거부·MASTER 판정이 자동으로 켜져 TSK-04-03 동작·테스트가 바뀐다
+- **Decision made**: 원장 구현체 `com.dongkuk.dmes.mdm.common.mastercode.MdmCodeLookup`(04 표 다섯 개를 해석 없이 돌려주고 헤더 status 는 저장값)을 만들되 Spring 빈으로 등록하지 않는다. 시험(`MasterCodeDeprecateEngineSqliteTest`)이 실제 `DefaultCodeResolver` 에 직접 붙여 폐기 전·후를 본다. 운영 등록 여부는 TSK-06-05 이후 판단한다(그때 `@Component` 만 붙인다)
+- **Rationale**: spec 수용 기준 5 는 엔진 판정 결과를 요구할 뿐 운영 빈 등록을 요구하지 않는다. 빈 등록의 부작용(도메인 저장 동작 변경)은 이 Task 범위 밖이다
+- **Reversible**: yes(`@Component` 한 줄과 TSK-04-03 테스트 기대값 조정)
+- **Source**: docs/mdm/tasks/TSK-06-02/design.md D5·§6.6
+
+## D-TSK-06-02-4 (2026-09-24T06:39:20Z)
+- **Phase**: build (TSK-06-02)
+- **Decision needed**: 계약 `MasterCodeSegmentService`(12개 메서드)를 06-02(`createBaseCategory`·`fillFrom`)·06-03·06-04 가 나눠 구현하게 돼 있고 06-03 이 동시에 돈다. 06-02 가 구현 클래스를 만들면 add/add 충돌과 미완성 빈이 생긴다
+- **Decision made**: 06-02 는 `MasterCodeSegmentService` 구현 클래스를 만들지 않는다. 06-02 몫 두 메서드는 같은 이름·시그니처의 공개 메서드로 `com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionSegments`(@Component, 인터페이스 미구현)에 두고, 구현 클래스를 만드는 Task(06-03)가 두 메서드를 여기에 위임한다
+- **Rationale**: 형제 Task 범위 경계와 충돌 최소화(팀장 지시). 미승인 선행 산출물(TSK-06-01 계약의 구현 배정)의 메서드 의미를 그대로 지킨다
+- **Reversible**: yes(구현 클래스를 만들어 두 메서드를 옮긴다)
+- **Source**: docs/mdm/tasks/TSK-06-02/design.md D6·§6.5

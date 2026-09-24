@@ -187,6 +187,44 @@ describe("CodeEditPage", () => {
     expect((byTestId("header-name") as HTMLInputElement).value).toBe("E2E 동시");
   });
 
+  it("내 DRAFT 를 고르고 확정 이동하면 codeConfirm 탭을 코드·버전과 함께 연다", async () => {
+    const opened: unknown[] = [];
+    const listener = (e: Event) => opened.push((e as CustomEvent).detail);
+    window.addEventListener("portal-open-tab", listener);
+    try {
+      await render({ snapshot: { maruCodeId: "PROC_CD" } });
+      expect((byTestId("ver-confirm-move") as HTMLButtonElement).disabled).toBe(true);
+      await click(byTestId("version-row-1.000"));
+      expect((byTestId("ver-confirm-move") as HTMLButtonElement).disabled).toBe(false);
+      await click(byTestId("ver-confirm-move"));
+      expect(opened).toEqual([{ pageId: "mdm:dmc/codeConfirm" }]);
+      expect(takeMdmPageParams("dmc/codeConfirm")).toEqual({ maruCodeId: "PROC_CD", ver: "1.000" });
+      expect(actions("confirm")).toHaveLength(0);
+    } finally {
+      window.removeEventListener("portal-open-tab", listener);
+    }
+  });
+
+  it("새 버전 모달은 서버의 다음 번호를 보이고 빈 버전이면 reg 를 부른다", async () => {
+    nextView = () => viewResult({
+      versions: [{ ...viewResult().versions[0], status: "RELEASED", applyFrom: "2026-01-01 00:00:00", applyTo: "9999-12-31 00:00:00", unapplied: false }],
+      flags: { ...viewResult().flags, unappliedCount: 0, canNewMajor: true, canNewMinor: true, nextMajor: "2.000", nextMinor: "1.001" },
+      restoreSources: ["1.000"],
+    });
+    await render({ snapshot: { maruCodeId: "PROC_CD" } });
+    await click(byTestId("ver-new-major"));
+    expect(byTestId("newver-number")?.textContent).toBe("v2.000");
+    expect(byTestId("newver-content-restore-1.000")).toBeTruthy();
+    await click(byTestId("newver-ok"));
+    expect(actions("reg")[0].params).toEqual({ maruCodeId: "PROC_CD", verKind: "MAJOR" });
+
+    await click(byTestId("ver-new-minor"));
+    expect(byTestId("newver-number")?.textContent).toBe("v1.001");
+    await click(byTestId("newver-content-restore-1.000")?.querySelector("input"));
+    await click(byTestId("newver-ok"));
+    expect(actions("restore")[0].params).toEqual({ maruCodeId: "PROC_CD", verKind: "MINOR", sourceVer: "1.000" });
+  });
+
   it("미적용 버전이 2개면 경고 문구가 보인다", async () => {
     const draft2 = { ...viewResult().versions[0], ver: "1.001", verLabel: "v1.001", ownerId: "other" };
     nextView = () => viewResult({ versions: [draft2, viewResult().versions[0]], flags: { ...viewResult().flags, unappliedCount: 2 } });

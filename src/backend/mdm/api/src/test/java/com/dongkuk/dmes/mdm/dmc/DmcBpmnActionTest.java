@@ -57,6 +57,12 @@ class DmcBpmnActionTest {
         table.put("view", new String[]{"view", EDIT_DTO + "CodeEditViewRequest"});
         table.put("save", new String[]{"saveHeader", EDIT_DTO + "CodeHeaderSaveRequest"});
         table.put("execute", new String[]{"deprecate", EDIT_DTO + "CodeDeprecateRequest"});
+        table.put("reg", new String[]{"createVersion", EDIT_DTO + "CodeVersionCreateRequest"});
+        table.put("restore", new String[]{"restoreVersion", EDIT_DTO + "CodeVersionRestoreRequest"});
+        table.put("delete", new String[]{"deleteDraft", EDIT_DTO + "CodeDraftRequest"});
+        table.put("lock", new String[]{"acquire", EDIT_DTO + "CodeDraftRequest"});
+        table.put("unlock", new String[]{"release", EDIT_DTO + "CodeDraftRequest"});
+        table.put("handover", new String[]{"handover", EDIT_DTO + "CodeDraftRequest"});
         assertActions("services/dmc/codeEdit.bpmn", "codeEdit", "codeEditService", table);
     }
 

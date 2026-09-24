@@ -584,6 +584,22 @@ public class MdmStewardGuard {
 
 ---
 
+## Build 이탈
+
+| # | 이탈 | 이유 |
+|---|---|---|
+| B1 | `VersionScenarioTestConfig` 에 후처리기 하나를 더하는 것에 더해, 기존 가짜 SPI 빈 메서드 4개 이름에 `scenario` 접두를 붙였다(`scenarioMasterCodeDraftDeletion` 등) | 운영 `MasterCodeDraftDeletion` 의 기본 빈 이름이 가짜 빈 이름 `masterCodeDraftDeletion` 과 같아, 후처리기가 돌기 전에 `BeanDefinitionOverrideException` 으로 기동이 실패했다(실측). 가짜는 타입(`List<FakeDraftDeletion>`)으로만 주입되어 이름 참조가 없다. 같은 설정의 기존 빈(`scenarioEvents`·`scenarioClock`)과 같은 접두다. 06-05·08-02 가 `MasterCodeConfirmCheck`·`BusinessRuleDraftDeletion` 같은 이름의 운영 빈을 더해도 충돌하지 않는다 |
+| B2 | `MasterCodeLedgerQueries` 는 트랜잭션이 있을 때만 flush 한다(§6.4 는 "모든 메서드 첫 줄에서 flush") | `MdmCodeLookup` 은 트랜잭션 밖에서 불린다(§6.6). 공유 EntityManager 는 트랜잭션 없이 flush 하면 `TransactionRequiredException` 을 낸다 |
+| B3 | `MasterCodeLedgerQueries` 에 `items`·`cates`·`cateItems`(선분 전부 네이티브 읽기)를 더했고 `MdmCodeLookup` 생성자는 `(MasterCodeLedgerQueries)` 하나다 | §6.6 은 "§6.4·§6.5-2 쿼리 재사용"이라 했지만 `rowsAt` 은 한 시점만 거르고 JPA 엔티티를 쓴다. 엔진은 전 선분을 트랜잭션 없이 읽어야 해서 조회 모델에 네이티브 읽기를 두었다 |
+| B4 | codeEdit BPMN 은 조각 c 에서 `bpmn-tool create` 로 10분기 전체를 다시 만들었다(`modify` 대신) | 같은 생성 스펙(분기 표)에 6분기를 더해 도구로 재생성했다. 손 편집은 없고 모양·속성은 §6.1 표와 같다(`DmcBpmnActionTest`) |
+| B5 | 버전 목록은 `AgDataGrid` 가 아니라 표(`<table>`)로 그렸다 | 행 안에 `VersionStatusBadge`·`DraftLockBadge` 컴포넌트를 넣고 행 선택·`version-row-<ver>` testid 를 붙인다. columnMng 토큰 표 선례와 같은 `DETAIL_TABLE_STYLE` 을 쓴다. 몇 행뿐이고 정렬·필터가 필요 없다 |
+| B6 | 새 버전 모달의 종류·내용 Radio 를 옵션마다 단일 선택 `Radio` 로 두었다 | shared `Radio` 는 옵션별 `disabled`·testid 를 받지 않는다(래퍼 소스 확인). 불가한 종류만 비활성으로 보이려면 옵션을 나눠야 한다 |
+| B7 | 테스트 보강: `CodeMngServiceSqliteTest` R2 금지 문자 사유 문구, `CodeEditHeaderSqliteTest` E4c(9.500 vs 10.000 수 비교)·E4d(늘리기 무검사), `MasterCodeDraftDeletionSqliteTest` D4(두 DRAFT 중 하나 삭제), `MasterCodeRestoreSqliteTest` P3b(선분 부품 직접 원본 검사)·값이 같은 키 D | 변이 검증에서 살아남은 변이(I9 금지 문자 검사 제거, I19 늘리기 검사, I20 문자열 비교·범위 삭제, I15 같은 키 닫기·원본 상태 검사 제거)를 잡으려고 더했다 |
+| B8 | P3 의 "원본이 DRAFT" 경우는 MDM021 이 아니라 MDM006 으로 막힌다 | §6.8 순서(미적용 검사 → 번호 → 원본 검사)상 DRAFT 가 있으면 미적용 검사가 먼저 걸린다. 테스트는 이 순서대로 단언한다 |
+| B9 | mssqlTest `MasterCodeNativeSqlMssqlTest` 는 테스트 소스의 `MasterCodeSeeds`·`DmaTestSupport` 를 재사용한다 | mssqlTest 소스셋은 test 출력을 클래스패스에 둔다(build.gradle). 게이트에서 돌리지 않고 컴파일만 확인했다(도커 금지) |
+
+---
+
 ## 담당자 확인 필요 결정
 
 > D2 는 팀장 확정 사항(D-TSK-06-02-1, 소유권 액션 범위 제외)으로 옮겨 이 절에서 뺐다. 번호는 비워 둔다.
@@ -672,6 +688,27 @@ public class MdmStewardGuard {
 - **택한 것**: ①.
 - **근거**: spec 가 지목한 원천 04 「되돌리기와 철회」(철회 때 행 삭제)와 「한 번에 하나」(미적용이 있으면 새 버전 불가).
 - **반려 시 재작업**: `restoreSources`·P3 검사 조건만 바꾼다.
+
+### D14 — codeEdit 코드 선택 목록의 상태는 저장값을 보인다
+- **질문**: `codeEdit/search`(코드 선택 콤보) 행의 `status` 를 저장값으로 줄지, 버전 행까지 읽어 계산 상태로 줄지 설계(§6.1 표)에 정해져 있지 않다.
+- **선택지**: ① 저장값(TB_MDM_CODE.STATUS) — 강도 약(쿼리 한 번). ② 계산 상태 — 강도 약(코드 수만큼 버전 조회, 콤보 라벨에는 상태가 보이지 않는다).
+- **택한 것**: ①.
+- **근거**: 콤보는 `ID 이름` 라벨만 보이고 상태를 쓰지 않는다. 계산 상태가 필요한 곳(헤더·목록)은 `view`·`codeMng/search` 가 따로 준다.
+- **반려 시 방향**: `searchCodes` 에서 `ledger.versions(ids)` 를 읽어 `MasterCodeVersionSummary` 로 계산한다(한 메서드).
+
+### D15 — DRAFT 삭제에 확인 대화상자를 둔다
+- **질문**: §6.12 버튼 표는 [삭제]의 확인 여부를 정하지 않았고 §3.4 E2 는 "[삭제] 확인" 이라고 적었다.
+- **선택지**: ① `showMessage` 확인("…DRAFT 를 삭제할까요? 이 버전에서 바꾼 코드·카테고리도 되돌립니다") — 강도 중(E2 문구, 되돌릴 수 없는 삭제). ② 바로 삭제 — 강도 약.
+- **택한 것**: ①.
+- **근거**: DRAFT 삭제는 되돌릴 수 없고 선분 복구까지 함께 일어난다. E2E 문구("[삭제] 확인")와도 맞다.
+- **반려 시 방향**: `handleDelete` 에서 확인을 빼고 E2E 의 `confirmDialog` 호출을 지운다.
+
+### D16 — 빠진 낙관적 잠금 값·계층 칸 수의 처리
+- **질문**: `auditVer`·`rowVersion` 이 요청에 없을 때, 헤더 저장의 `lvlCnt` 가 없을 때 어떻게 할지 설계에 없다.
+- **선택지**: ① `auditVer`·`rowVersion` 이 없으면 MDM001(다시 불러오기), `lvlCnt` 가 없으면 지금 값 유지 — 강도 중. ② 없으면 검사를 건너뜀 — 강도 약(낙관적 잠금 우회 경로가 생긴다).
+- **택한 것**: ①.
+- **근거**: 낙관적 잠금 값이 없는 쓰기는 옛 화면·잘못된 호출이라 "다시 불러오세요" 가 맞다. `lvlCnt` 는 줄이기 검사가 있는 값이라 빠졌을 때 바꾸지 않는 쪽이 안전하다.
+- **반려 시 방향**: `requireAuditVer`·`rowVersion(request)` 의 null 분기와 `saveHeader` 의 `lvlCnt` 기본값만 바꾼다.
 
 ---
 

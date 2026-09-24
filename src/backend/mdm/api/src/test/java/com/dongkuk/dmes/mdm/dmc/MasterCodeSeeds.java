@@ -1,8 +1,15 @@
 package com.dongkuk.dmes.mdm.dmc;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.dongkuk.dmes.cactus.common.BusinessException;
+import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Supplier;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -11,6 +18,14 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * {@code 'yyyy-MM-dd HH:mm:ss'} 문자열, 버전 번호는 문자열("1.001")로 넘겨 NUMERIC 친화도에 맡긴다(운영 쓰기와 같은 저장 형식).
  */
 public final class MasterCodeSeeds {
+
+    /** 호출이 기대한 mdm 오류 코드(첫 detail 코드와 문구 접두)로 실패하는지 본다. */
+    public static BusinessException assertMdmError(MdmErrorCode expected, Supplier<?> call) {
+        BusinessException e = assertThrows(BusinessException.class, call::get);
+        assertEquals(expected.code(), e.getErrors().get(0).code(), e.getMessage());
+        assertTrue(e.getMessage().startsWith(expected.defaultMessage()), e.getMessage());
+        return e;
+    }
 
     /** 과거 적용 시각(실시간 시계로도 결정적). */
     public static final String PAST = "2026-01-01 00:00:00";
@@ -102,6 +117,52 @@ public final class MasterCodeSeeds {
 
     public int count(String table, String id) {
         return jdbc.queryForObject("SELECT COUNT(*) FROM " + table + " WHERE MARU_CODE_ID = ?", Integer.class, id);
+    }
+
+    /**
+     * 세 선분 표의 업무 칼럼 스냅숏(감사 칼럼 제외). 버전 번호는 scale 3 문자열로 맞춘다(SQLite 1.000 → 1 저장 대응).
+     * 행 집합 비교용으로 정렬한 목록을 돌려준다.
+     */
+    public List<String> segments(String id) {
+        List<String> out = new ArrayList<>();
+        jdbc.query("SELECT CODE, CAST(FROM_VER AS VARCHAR(40)) F, CAST(TO_VER AS VARCHAR(40)) T, NAME, ALTER_NAME, SEQ,"
+                        + " DESCRIPTION, LVL1, LVL2, LVL3, LVL4, LVL5, ATTR01, ATTR10 FROM TB_MDM_CODE_ITEM WHERE MARU_CODE_ID = ?",
+                rs -> {
+                    out.add("ITEM|" + rs.getString("CODE") + "|" + v(rs.getString("F")) + "|" + v(rs.getString("T")) + "|"
+                            + rs.getString("NAME") + "|" + rs.getString("ALTER_NAME") + "|" + rs.getString("SEQ") + "|"
+                            + rs.getString("DESCRIPTION") + "|" + rs.getString("LVL1") + "|" + rs.getString("LVL2") + "|"
+                            + rs.getString("LVL3") + "|" + rs.getString("LVL4") + "|" + rs.getString("LVL5") + "|"
+                            + rs.getString("ATTR01") + "|" + rs.getString("ATTR10"));
+                }, id);
+        jdbc.query("SELECT CATE_ID, CAST(FROM_VER AS VARCHAR(40)) F, CAST(TO_VER AS VARCHAR(40)) T, CATE_NAME, DEF_KIND,"
+                        + " DEF_EXPR, DEF_TARGET, DESCRIPTION FROM TB_MDM_CODE_CATE WHERE MARU_CODE_ID = ?",
+                rs -> {
+                    out.add("CATE|" + rs.getString("CATE_ID") + "|" + v(rs.getString("F")) + "|" + v(rs.getString("T")) + "|"
+                            + rs.getString("CATE_NAME") + "|" + rs.getString("DEF_KIND") + "|" + rs.getString("DEF_EXPR") + "|"
+                            + rs.getString("DEF_TARGET") + "|" + rs.getString("DESCRIPTION"));
+                }, id);
+        jdbc.query("SELECT CATE_ID, CODE, CAST(FROM_VER AS VARCHAR(40)) F, CAST(TO_VER AS VARCHAR(40)) T"
+                        + " FROM TB_MDM_CODE_CATE_ITEM WHERE MARU_CODE_ID = ?",
+                rs -> {
+                    out.add("CATE_ITEM|" + rs.getString("CATE_ID") + "," + rs.getString("CODE") + "|" + v(rs.getString("F"))
+                            + "|" + v(rs.getString("T")));
+                }, id);
+        out.sort(null);
+        return out;
+    }
+
+    /** 한 선분 표에서 FROM_VER 또는 TO_VER 가 ver 인 행 수(세 표 합). */
+    public int touching(String id, String column, String ver) {
+        int n = 0;
+        for (String table : List.of("TB_MDM_CODE_ITEM", "TB_MDM_CODE_CATE", "TB_MDM_CODE_CATE_ITEM")) {
+            n += jdbc.queryForObject("SELECT COUNT(*) FROM " + table + " WHERE MARU_CODE_ID = ? AND " + column + " = ?",
+                    Integer.class, id, num(ver));
+        }
+        return n;
+    }
+
+    private static String v(String s) {
+        return s == null ? null : new java.math.BigDecimal(s).setScale(3).toPlainString();
     }
 
     /** "1.000" → 1.0 등 수 값으로 바인딩(NUMERIC 친화도가 운영 쓰기와 같은 형식으로 저장). */
