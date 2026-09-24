@@ -2,7 +2,7 @@
   "tsk": "TSK-06-04",
   "order": "8ebe4885-e37e-4933-8e83-039ab58da750",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "design",
+  "phase": "verify",
   "branch_base": "17c6784fd65f47fe8a334fce40ea7d25398703d1",
   "baseline": {
     "failures": 0,
@@ -53,5 +53,46 @@
       }
     ]
   },
-  "model": "sonnet"
+  "model": "sonnet",
+  "last": {
+    "phase": "build",
+    "event": "build.pass"
+  },
+  "build_gate": {
+    "head": "50ae46f5e8cda0efa7d7d1787269ded470858b65",
+    "cmds": [
+      {
+        "cwd": ".",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3093,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 635,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0,
+        "note": "ERROR 0 / WARN 0 / INFO 29"
+      }
+    ],
+    "new_failures": []
+  }
 }
