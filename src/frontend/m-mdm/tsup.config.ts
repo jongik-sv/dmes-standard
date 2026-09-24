@@ -20,7 +20,7 @@ const common: Options = {
 };
 
 export default defineConfig([
-  { ...common, entry: { index: "src/index.ts" } },
+  { ...common, entry: { index: "src/index.ts", "evalex/index": "src/evalex/index.ts" } },
   {
     ...common,
     entry: {

@@ -83,10 +83,12 @@ class MdmTermDomainColumnMssqlMigrationTest {
         registry.add("spring.datasource.password", MSSQL::getPassword);
     }
 
-    /** TSK-04-02 F18/D1 — V4(약어 인덱스 비유일화) 추가 반영. Build 이탈 항목 — design.md §2 목록에는 없었으나
-     * V4 를 새로 채번하면 이 단언도 사실상 깨지므로 함께 고친다(완화가 아니라 새 버전 반영). */
+    /** TSK-05-01 — V4(03 인터페이스 레이아웃) 추가 반영. TSK-04-02 F18/D1 — V5(약어 인덱스 비유일화,
+     * dev 의 V4 와 번호가 겹쳐 팀장 배정표대로 V5 로 재채번) 추가 반영. Build 이탈 항목 — design.md §2
+     * 목록에는 없었으나 새 버전을 채번하면 이 단언도 사실상 깨지므로 함께 고친다(완화가 아니라 새 버전
+     * 반영). */
     @Test
-    void local_db_설정으로_V1_V2_V3_V4_가_적용된다() throws SQLException {
+    void local_db_설정으로_V1_V2_V3_V4_V5_가_적용된다() throws SQLException {
         Set<String> versions = new HashSet<>();
         try (Connection c = dataSource.getConnection(); Statement s = c.createStatement();
              ResultSet rs = s.executeQuery("SELECT version FROM flyway_schema_history WHERE success = 1")) {
@@ -94,7 +96,7 @@ class MdmTermDomainColumnMssqlMigrationTest {
                 versions.add(rs.getString(1));
             }
         }
-        assertEquals(Set.of("1", "2", "3", "4"), versions);
+        assertEquals(Set.of("1", "2", "3", "4", "5"), versions);
     }
 
     /** #3 — CHECK(ISJSON(...) = 1) 8개, 부정형 JSON INSERT 는 오류 547(CHECK 위반)로 거부. */

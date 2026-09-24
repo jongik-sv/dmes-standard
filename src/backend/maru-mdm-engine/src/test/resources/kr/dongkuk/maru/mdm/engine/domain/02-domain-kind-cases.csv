@@ -1,0 +1,48 @@
+domain,value,extraVars,evalTs,valid,step
+# 출처: docs/mdm/design/basic/02-term-domain-column.md:55-60(도메인 종류), 91-101(중량 트리), 994-1025(상속·일자 정규식)
+# value 는 레코드에 넣는 원시 문자열이다. extraVars: NAME:N:19 = BigDecimal, NAME:S:x = 문자열, NAME:NULL = 키만 있음, 여럿은 ';'.
+# evalTs 가 비면 2026-09-09T15:00:00Z(KST 2026-09-10 00:00). step 은 실패일 때의 단계다.
+COIL_THK,0.1,,,true,
+COIL_THK,3.5,,,true,
+COIL_THK,2.0,,,true,
+COIL_THK,0.05,,,false,STD_EXPR
+COIL_THK,3.6,,,false,STD_EXPR
+COIL_THK,1.25,,,false,STD_EXPR
+RMTL_COIL_THK,1.6,,,true,
+RMTL_COIL_THK,1.5,,,false,STD_EXPR
+RMTL_COIL_THK,3.5,,,true,
+COIL_WGT,30,,,true,
+COIL_WGT,30.001,,,false,STD_EXPR
+COIL_WGT,0,,,false,STD_EXPR
+COIL_PAK_WGT,25,,,true,
+COIL_PAK_WGT,26,,,false,STD_EXPR
+COIL_PAK_WGT,0.5,,,false,STD_EXPR
+COIL_GRS_WGT,20,COIL_NET_WGT:N:19,,true,
+COIL_GRS_WGT,20,COIL_NET_WGT:N:21,,false,BIZ_EXPR
+COIL_GRS_WGT,20,,,false,BIZ_VAR_MISSING
+PROC_CD,82,,2026-09-09T15:00:00Z,true,
+PROC_CD,81,,2026-09-09T15:00:00Z,false,STD_EXPR
+PROC_CD,83,,2026-09-09T15:00:00Z,true,
+PROC_CD,83,,2026-07-14T15:00:00Z,false,STD_EXPR
+COIL_ID,ABCDE12345,,,true,
+COIL_ID,ABCDEFGHIJ0123456789,,,true,
+COIL_ID,abcde12345,,,false,STD_EXPR
+COIL_ID,AB12,,,false,STD_EXPR
+CUST_NM,동국,,,true,
+CUST_NM," a ",,,true,
+DT,20240229,,,true,
+DT,20000229,,,true,
+DT,99991231,,,true,
+DT,20230229,,,false,STD_EXPR
+DT,19000229,,,false,STD_EXPR
+DT,20260231,,,false,STD_EXPR
+DT,20261301,,,false,STD_EXPR
+DT,2026-01-01,,,false,STD_EXPR
+SHIP_DT,20260905,PROD_START_DT:S:20260901,,true,
+SHIP_DT,20260830,PROD_START_DT:S:20260901,,false,BIZ_EXPR
+USE_YN,Y,,,true,
+USE_YN,N,,,true,
+USE_YN,y,,,false,STD_EXPR
+GRADE_FLAG,1,,,true,
+GRADE_FLAG,D,,,true,
+GRADE_FLAG,5,,,false,STD_EXPR
