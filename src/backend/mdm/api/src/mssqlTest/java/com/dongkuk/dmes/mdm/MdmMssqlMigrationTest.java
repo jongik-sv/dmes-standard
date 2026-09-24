@@ -31,10 +31,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.core.io.ClassPathResource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.mssqlserver.MSSQLServerContainer;
-import org.testcontainers.utility.DockerImageName;
 
 /**
  * TSK-01-02 design.md §3.3 T12 — mdm Flyway 마이그레이션을 실제 SQL Server 2022(Testcontainers)에 적용해
@@ -46,41 +42,36 @@ import org.testcontainers.utility.DockerImageName;
  * <p>locations 는 하드코딩하지 않고 {@code application-local-db.yml} 의 {@code spring.flyway.locations} 를
  * 읽는다 — 앱 설정과 이 게이트를 묶는다. 쓰기 단언은 한 트랜잭션에서 하고 rollback 으로 끝낸다.
  */
-@Testcontainers
 class MdmMssqlMigrationTest {
-
-    @Container
-    static final MSSQLServerContainer MSSQL = new MSSQLServerContainer(
-            DockerImageName.parse("mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04")).acceptLicense();
 
     private static String mdmUrl;
     private static MigrateResult migrateResult;
 
     @BeforeAll
     static void migrate() throws SQLException {
-        try (Connection master = DriverManager.getConnection(MSSQL.getJdbcUrl(), MSSQL.getUsername(), MSSQL.getPassword());
+        try (Connection master = DriverManager.getConnection(
+                MdmMssqlServer.serverUrl(), MdmMssqlServer.user(), MdmMssqlServer.password());
              Statement s = master.createStatement()) {
-            s.execute("CREATE DATABASE mdm");
             try (ResultSet rs = s.executeQuery("SELECT @@VERSION")) {
                 rs.next();
                 System.out.println("[MdmMssqlMigrationTest] @@VERSION = " + rs.getString(1).replace('\n', ' '));
             }
         }
-        mdmUrl = MSSQL.getJdbcUrl() + ";databaseName=mdm";
+        mdmUrl = MdmMssqlServer.newDatabase("migration");
         migrateResult = Flyway.configure()
-                .dataSource(mdmUrl, MSSQL.getUsername(), MSSQL.getPassword())
+                .dataSource(mdmUrl, MdmMssqlServer.user(), MdmMssqlServer.password())
                 .locations(localDbFlywayLocations())
                 .load()
                 .migrate();
     }
 
     @Test
-    void local_db_설정의_locations_로_V1_V2_V3_V4_V5_가_적용된다() throws SQLException {
+    void local_db_설정의_locations_로_V1_V2_V3_V4_V5_V8_이_적용된다() throws SQLException {
         // TSK-04-01 F12 — V3(02 용어·도메인·컬럼) 반영. TSK-05-01 — V4(03 인터페이스 레이아웃) 추가 반영.
-        // TSK-04-02 F18/D1 — V5(약어 인덱스 비유일화, dev 의 V4 와 번호가 겹쳐 팀장 배정표대로 V5 로
-        // 재채번) 추가 반영. 전부 완화가 아니라 새 버전 반영이다.
-        assertEquals(5, migrateResult.migrationsExecuted);
-        assertEquals("5", migrateResult.targetSchemaVersion);
+        // TSK-04-02 F18/D1 — V5(약어 인덱스 비유일화, 팀장 배정표 V5), TSK-08-01 — V8(06 업무기준, 팀장 배정 번호)
+        // 추가 반영. 모두 완화가 아니라 새 버전 반영이다.
+        assertEquals(6, migrateResult.migrationsExecuted);
+        assertEquals("8", migrateResult.targetSchemaVersion);
 
         Set<String> versions = new HashSet<>();
         try (Connection c = connect(); Statement s = c.createStatement();
@@ -89,7 +80,7 @@ class MdmMssqlMigrationTest {
                 versions.add(rs.getString(1));
             }
         }
-        assertEquals(Set.of("1", "2", "3", "4", "5"), versions);
+        assertEquals(Set.of("1", "2", "3", "4", "5", "8"), versions);
     }
 
     @Test
@@ -185,7 +176,7 @@ class MdmMssqlMigrationTest {
     }
 
     private static Connection connect() throws SQLException {
-        return DriverManager.getConnection(mdmUrl, MSSQL.getUsername(), MSSQL.getPassword());
+        return DriverManager.getConnection(mdmUrl, MdmMssqlServer.user(), MdmMssqlServer.password());
     }
 
     private static void insertSystem(Connection c, String code, String name, String selfYn) throws SQLException {
