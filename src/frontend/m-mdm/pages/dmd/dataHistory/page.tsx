@@ -12,7 +12,7 @@ import { ContentBody, ContentPanel, ErrorModal, SearchArea, SearchField } from "
 import { Input, Select } from "@dk-oasis/shared/form";
 import { MdmPageLayout } from "@/shell";
 
-import type { DataItemHeader, MaruDataOption } from "../dataItemMng/types";
+import { errorMessage, toMaruOptions, type DataItemHeader, type MaruDataOption } from "../dataItemMng/types";
 import { searchDataHistory, viewDataHistory } from "./api";
 import { DataHistoryTimeline } from "./DataHistoryTimeline";
 import {
@@ -45,7 +45,7 @@ export default function DataHistoryPage() {
       const view = await viewDataHistory(maruDataId);
       if (seq === selectSeq.current) setHeader(view.header ?? null);
     } catch (e) {
-      if (seq === selectSeq.current) setError(e instanceof Error ? e.message : String(e));
+      if (seq === selectSeq.current) setError(errorMessage(e));
     }
   }, []);
 
@@ -57,7 +57,7 @@ export default function DataHistoryPage() {
         setOptions(list);
         if (list.length > 0) await selectMaruData(list[0].maruDataId);
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(errorMessage(e));
       }
     })();
   }, [selectMaruData]);
@@ -68,16 +68,13 @@ export default function DataHistoryPage() {
       setResult(await searchDataHistory(filters));
     } catch (e) {
       setResult(null);
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }
   }, [filters]);
 
-  const maruOptions = useMemo(
-    () => options.map((o) => ({ value: o.maruDataId, label: `${o.maruDataName} (${o.maruDataId})` })),
-    [options],
-  );
+  const maruOptions = useMemo(() => toMaruOptions(options), [options]);
   const cateOptions = useMemo(
     () => [
       { value: "", label: "선택" },

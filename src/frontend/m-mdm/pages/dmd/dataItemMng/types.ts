@@ -100,6 +100,16 @@ export function emptyFilters(): DataItemFilters {
   return { maruDataId: "", code: "", name: "", cateId: "", showClosed: false };
 }
 
+/** 마루 데이터 옵션 → Select 옵션(dataItemMng·dataHistory 공용). */
+export function toMaruOptions(options: MaruDataOption[]): { value: string; label: string }[] {
+  return options.map((o) => ({ value: o.maruDataId, label: `${o.maruDataName} (${o.maruDataId})` }));
+}
+
+/** 잡힌 오류에서 보일 문구를 뽑는다(dataItemMng·dataHistory 공용). */
+export function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
 /** 등록 패널 입력값 — 모두 문자열로 들고 있다가 저장 때 toSaveParams 로 바꾼다. */
 export type DataItemForm = { code: string; name: string; alterName: string; seq: string; description: string } & Record<
   LvlField,

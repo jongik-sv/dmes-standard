@@ -46,6 +46,8 @@ import {
   PAGE_SIZE,
   emptyFilters,
   emptyItemForm,
+  errorMessage,
+  toMaruOptions,
   type AttrField,
   type DataItemFilters,
   type DataItemForm,
@@ -93,7 +95,7 @@ export default function DataItemMngPage() {
       setDrafts({});
       applied.current = { filters: f, page: res.page ?? p };
     } catch (e) {
-      if (seq === searchSeq.current) setError(e instanceof Error ? e.message : String(e));
+      if (seq === searchSeq.current) setError(errorMessage(e));
     } finally {
       if (seq === searchSeq.current) setBusy(false);
     }
@@ -111,7 +113,7 @@ export default function DataItemMngPage() {
   /** 쓰기 실패 — 문구를 그대로 보이고, 충돌이면 목록을 다시 부른다(F1). */
   const handleWriteError = useCallback(
     async (e: unknown) => {
-      const message = e instanceof Error ? e.message : String(e);
+      const message = errorMessage(e);
       setError(message);
       if (isRowVersionConflict(message)) {
         await reload();
@@ -150,7 +152,7 @@ export default function DataItemMngPage() {
         if (seq !== selectSeq.current) return;
         setHeader(view.header ?? null);
       } catch (e) {
-        if (seq === selectSeq.current) setError(e instanceof Error ? e.message : String(e));
+        if (seq === selectSeq.current) setError(errorMessage(e));
         return;
       }
       await runSearch(next, 0);
@@ -166,7 +168,7 @@ export default function DataItemMngPage() {
         setOptions(list);
         if (list.length > 0) await selectMaruData(list[0].maruDataId);
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(errorMessage(e));
       }
     })();
   }, [selectMaruData]);
@@ -328,10 +330,7 @@ export default function DataItemMngPage() {
     return fields;
   }, [header]);
 
-  const maruOptions = useMemo(
-    () => options.map((o) => ({ value: o.maruDataId, label: `${o.maruDataName} (${o.maruDataId})` })),
-    [options],
-  );
+  const maruOptions = useMemo(() => toMaruOptions(options), [options]);
   const cateOptions = useMemo(
     () => [
       { value: "", label: "전체" },
