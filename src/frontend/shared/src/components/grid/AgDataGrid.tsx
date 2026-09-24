@@ -14,6 +14,7 @@ import type {
   RowClassParams,
   CellValueChangedEvent,
   EditableCallbackParams,
+  RowDragEndEvent,
 } from "ag-grid-community";
 import { GRID_TEMP_ID_FIELD } from "./GridPanel";
 import { GRID_SIZE_CHANGE_SETTLE_MS, resolveGridSizeChangeAction } from "./grid-size-change";
@@ -206,6 +207,11 @@ export interface GridColumn {
   cellClass?: string | string[] | ((row: Record<string, unknown>) => string | string[] | undefined);
   /** 조건부 셀 클래스 규칙 — { 클래스명: (row) => boolean } 형태. ag-grid 의 cellClassRules 패스스루. */
   cellClassRules?: Record<string, (row: Record<string, unknown>) => boolean>;
+  /**
+   * 행 드래그 손잡이를 이 컬럼에 둔다(ag-grid ColDef.rowDrag, community managed row drag).
+   * 그리드에 `onRowOrderChange` 가 있을 때만 의미가 있다(TSK-05-02 D6).
+   */
+  rowDrag?: boolean;
 }
 
 export interface AgDataGridProps {
@@ -316,6 +322,26 @@ export interface AgDataGridProps {
   wrapHeaderText?: boolean;
   /** 헤더 높이를 헤더 내용(줄바꿈 포함)에 맞춰 자동 계산. wrapHeaderText 와 함께 사용. */
   autoHeaderHeight?: boolean;
+  /**
+   * 행을 끌어 순서를 바꾸면 끝난 뒤 새 순서의 행 키(rowKey 값) 목록으로 호출한다(TSK-05-02 D6).
+   * 이 prop 이 있을 때만 ag-grid managed row drag(rowDragManaged·onRowDragEnd)를 켜고 정렬을 끈다
+   * (managed drag 는 정렬 중 동작하지 않는다). 손잡이는 `GridColumn.rowDrag` 로 둔다. 없으면 기존 동작 그대로다.
+   * 순서 상태의 주인은 호출자다 — 콜백에서 data 를 새 순서로 바꿔 넘긴다.
+   */
+  onRowOrderChange?: (orderedKeys: (string | number)[]) => void;
+}
+
+/**
+ * 행 드래그 설정(TSK-05-02 D6). `onRowOrderChange` 가 없으면 정렬 값을 그대로 두고 AgGridReact 에 더 넘기는 prop 이 없다
+ * — 기존 그리드와 같은 prop 을 넘긴다. 있으면 정렬을 끄고 managed row drag 와 끝 콜백을 켠다.
+ */
+export function resolveRowDrag(
+  onRowOrderChange: ((orderedKeys: (string | number)[]) => void) | undefined,
+  sortable: boolean,
+  onRowDragEnd: (event: RowDragEndEvent) => void
+): { sortable: boolean; gridProps: { rowDragManaged?: boolean; onRowDragEnd?: (event: RowDragEndEvent) => void } } {
+  if (!onRowOrderChange) return { sortable, gridProps: {} };
+  return { sortable: false, gridProps: { rowDragManaged: true, onRowDragEnd } };
 }
 
 export function selectEditedRow(
@@ -370,6 +396,7 @@ function AgDataGridComponent({
   onRowExpandCollapse,
   wrapHeaderText = false,
   autoHeaderHeight = false,
+  onRowOrderChange,
 }: AgDataGridProps) {
   const gridRef = useRef<AgGridReact>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -381,6 +408,22 @@ function AgDataGridComponent({
   const lastGridWidthRef = useRef(0);
   const resolvedColumnSizing = columnSizing ?? "auto";
   const shouldAutoSizeColumns = resolvedColumnSizing === "auto" && autoSizeColumns !== false;
+  // managed row drag 가 끝나면 화면에 보이는 노드 순서대로 행 키를 모아 알린다(TSK-05-02 D6).
+  const handleRowDragEnd = useCallback(
+    (event: RowDragEndEvent) => {
+      if (!onRowOrderChange) return;
+      const keys: (string | number)[] = [];
+      event.api.forEachNode((node) => {
+        const data = (node.data ?? {}) as Record<string, unknown>;
+        keys.push(data[rowKey] as string | number);
+      });
+      onRowOrderChange(keys);
+    },
+    [onRowOrderChange, rowKey]
+  );
+  // 행 드래그를 켠 그리드는 정렬을 끈다 — 없으면 sortable 그대로이고 AgGridReact 에 더 넘기는 prop 이 없다.
+  const rowDrag = resolveRowDrag(onRowOrderChange, sortable, handleRowDragEnd);
+  const effectiveSortable = rowDrag.sortable;
 
   const columnDefs = useMemo<ColDef[]>(() => {
     const defs: ColDef[] = columns.map((col) => {
@@ -482,7 +525,8 @@ function AgDataGridComponent({
           resolvedColumnSizing === "fit"
             ? (col.minWidth ?? explicitWidth ?? 50)
             : col.minWidth || 50,
-        sortable: sortable && col.sortable !== false,
+        sortable: effectiveSortable && col.sortable !== false,
+        ...(col.rowDrag ? { rowDrag: true } : {}),
         resizable: true,
         editable: editableProp,
         cellEditor,
@@ -519,20 +563,20 @@ function AgDataGridComponent({
     // 체크박스는 rowSelection 설정에서 자동 관리 (수동 컬럼 불필요)
 
     return defs;
-  }, [columns, selectable, multiSelect, sortable, shouldAutoSizeColumns, resolvedColumnSizing]);
+  }, [columns, selectable, multiSelect, effectiveSortable, shouldAutoSizeColumns, resolvedColumnSizing]);
 
   // 셀 텍스트가 컬럼 폭 초과로 잘려서 ... 으로 표시될 때 마우스오버 시 전체 값을 tooltip 으로 표시.
   // tooltipValueGetter 는 ag-grid 의 browser-native title 속성 사용 (별도 라이브러리 불필요).
   const defaultColDef = useMemo<ColDef>(
     () => ({
-      sortable,
+      sortable: effectiveSortable,
       resizable: true,
       wrapHeaderText,
       autoHeaderHeight,
       tooltipValueGetter: (params: { value?: unknown }) =>
         params.value == null ? "" : String(params.value),
     }),
-    [sortable, wrapHeaderText, autoHeaderHeight]
+    [effectiveSortable, wrapHeaderText, autoHeaderHeight]
   );
 
   const hasEditableColumns = useMemo(() => columns.some((c) => !!c.editable), [columns]);
@@ -1123,6 +1167,7 @@ function AgDataGridComponent({
         suppressHorizontalScroll={false}
         alwaysShowHorizontalScroll={alwaysShowHorizontalScroll}
         domLayout="normal"
+        {...rowDrag.gridProps}
       />
     </div>
   );
