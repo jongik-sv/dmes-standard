@@ -12,6 +12,7 @@ import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingRepository;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendCandidate;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermDeleteRequest;
+import com.dongkuk.dmes.mdm.dma.termMng.dto.TermRow;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSaveRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSaveResult;
 import com.dongkuk.dmes.mdm.dma.termMng.service.TermMngService;
@@ -109,6 +110,28 @@ class TermMngServiceTest {
         assertThrows(BusinessException.class, () -> service.save(req("허공2", 1, null)));
     }
 
+    /**
+     * D-006·D-009·D-010 회귀 — synonyms/aliases/systems 는 콤마 구분 문자열로 받아야 한다(배열이 아니다).
+     * 실측(curl)으로 배열을 params 에 직접 실으면 OASIS 가 "Generic type" 오류로 죽는 것을 확인했다
+     * (design.md Build 이탈 참고). 이 테스트는 서비스가 콤마 문자열을 올바르게 배열로 분해해 저장하는지만
+     * 확인한다 — OASIS 바인딩 자체는 이 단위 테스트가 거치지 않으므로 e2e 가 실제 HTTP 경로를 커버한다.
+     */
+    @Test
+    void 콤마_구분_문자열이_배열로_분해되어_저장된다() {
+        TermSaveRequest request = req("콤마파싱", 1, "정의");
+        request.setSynonyms(" 배치(ERP) , 뱃치(MES) ");
+        request.setAliases("코일ID,COIL_ID");
+        request.setSystems("MES, ERP");
+        TermSaveResult result = service.save(request);
+
+        TermRow row = result.getList().stream()
+                .filter(r -> "콤마파싱".equals(r.getTermName()))
+                .findFirst().orElseThrow();
+        assertEquals(List.of("배치(ERP)", "뱃치(MES)"), row.getSynonyms());
+        assertEquals(List.of("코일ID", "COIL_ID"), row.getAliases());
+        assertEquals(List.of("MES", "ERP"), row.getSystems());
+    }
+
     // ── I8 ──
 
     @Test
@@ -169,11 +192,11 @@ class TermMngServiceTest {
     @Test
     void I18_정확히_일치하면_점수1_0이고_동의어_접미사를_뗀_이름으로도_매치된다() {
         TermSaveRequest batch = req("배치", 1, "ERP 용어");
-        batch.setSystems(List.of("ERP"));
+        batch.setSystems("ERP");
         service.save(batch);
 
         TermSaveRequest existing = req("일괄처리", 2, "이미 등록된 용어");
-        existing.setSynonyms(List.of("배치(ERP)"));
+        existing.setSynonyms("배치(ERP)");
         service.save(existing);
 
         // 지금 새로 등록 중인(termId 없음) 용어의 표기가 "배치" — "일괄처리"의 동의어 "배치(ERP)"

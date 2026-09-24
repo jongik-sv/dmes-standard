@@ -22,6 +22,7 @@ import com.dongkuk.dmes.mdm.repository.MdmTermRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -164,9 +165,9 @@ public class TermMngService {
         entity.setContext(trimToNull(request.getContext()));
         entity.setEngName(engName);
         entity.setEngAbbr(engAbbr);
-        entity.setSynonyms(writeJson(request.getSynonyms()));
-        entity.setAliases(writeJson(request.getAliases()));
-        entity.setSystems(writeJson(request.getSystems()));
+        entity.setSynonyms(writeJson(parseCommaList(request.getSynonyms())));
+        entity.setAliases(writeJson(parseCommaList(request.getAliases())));
+        entity.setSystems(writeJson(parseCommaList(request.getSystems())));
         entity.setStdBasis(trimToNull(request.getStdBasis()));
 
         // advisor 지적 — JPA insert 가 아직 flush 되지 않으면 뒤이은 네이티브 UPDATE(EMBEDDING)가 0건이 된다.
@@ -420,6 +421,20 @@ public class TermMngService {
         row.setSystems(readStringList(t.getSystems()));
         row.setStdBasis(t.getStdBasis());
         return row;
+    }
+
+    /**
+     * D-006·D-009·D-010 — 콤마 구분 원본 텍스트를 배열로 나눈다. 각 항목은 trim 하고 빈 항목은 버린다.
+     * OASIS 바인딩 제약(위 클래스 주석)때문에 화면은 배열이 아니라 이 형식의 문자열을 보낸다.
+     */
+    private static List<String> parseCommaList(String commaSeparated) {
+        if (commaSeparated == null || commaSeparated.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(commaSeparated.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
     }
 
     private String writeJson(List<String> list) {
