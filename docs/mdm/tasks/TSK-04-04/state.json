@@ -2,7 +2,7 @@
   "tsk": "TSK-04-04",
   "order": "88a2e470-4463-49fd-a8d3-a1c7cbc3eeb1",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "build",
+  "phase": "verify",
   "baseline": {
     "failures": 0,
     "tests": 1274,
@@ -32,8 +32,21 @@
   },
   "base_note": "선행 TSK-04-01·TSK-01-03: reached=true, head_sha 없음 → pred-reflected.sh REFLECTED(증거 2) → origin/dev 3d08db7 기점, 스택 없음",
   "last": {
-    "phase": "design",
-    "event": "design.ok"
+    "phase": "build",
+    "event": "build.ok"
   },
-  "model": "opus"
+  "model": "opus",
+  "build_gate": {
+    "backend_testAll": {
+      "tests": 1387,
+      "failures": 0
+    },
+    "m_mdm_test": "8 files / 46 passed",
+    "m_mdm_lint": "pass",
+    "shared": "23 files / 156 passed",
+    "oasis": "ERROR 0 / WARN 0",
+    "oasis_mdm": "BPMN 2, ERROR 0 / WARN 0",
+    "e2e": "9 passed (Build 보고, 새 mcm.db·mdm.db, 포털 15404)",
+    "docker": "사용자 결정: 도커 금지로 MSSQL 실측 생략(새 마이그레이션 없음)"
+  }
 }
