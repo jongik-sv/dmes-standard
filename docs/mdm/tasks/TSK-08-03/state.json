@@ -2,5 +2,51 @@
   "tsk": "TSK-08-03",
   "order": "a7491aaa-b87a-4a78-b68d-79d917bfe3bc",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "design",
+  "baseline": {
+    "docker": "off",
+    "cmds": [
+      {
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3055,
+        "failures": 0,
+        "source": "measured",
+        "measured_at": "2026-09-24T13:18:28Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 607,
+        "failures": 0,
+        "source": "measured",
+        "measured_at": "2026-09-24T13:18:28Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0,
+        "source": "measured",
+        "measured_at": "2026-09-24T13:18:28Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0,
+        "result": "pass",
+        "source": "measured",
+        "measured_at": "2026-09-24T13:18:28Z"
+      },
+      {
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0,
+        "result": "ERROR 0 / WARN 0 / INFO 29",
+        "source": "measured",
+        "measured_at": "2026-09-24T13:18:28Z"
+      }
+    ],
+    "failures": 0,
+    "tests": 3830,
+    "excluded": "mssqlMigrationTest (도커 런타임 꺼짐 — 켜는 것은 사람 몫, 방언 검증이 머지 뒤 재시도)"
+  },
+  "model": "sonnet"
 }
