@@ -2,7 +2,7 @@
   "tsk": "TSK-06-03",
   "order": "f93163b8-a0cc-4308-a5b1-df6ff14f7cf6",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "refactor",
+  "phase": "reported",
   "baseline": {
     "failures": 0,
     "tests": 2823,
@@ -62,8 +62,8 @@
   "complexity": "점수 1(depends 3 +1, 키워드 없음) → sonnet 이나 spec model=opus 오버라이드 → Design opus·Build opus",
   "model": "sonnet",
   "last": {
-    "phase": "verify",
-    "event": "verify.ok"
+    "phase": "done",
+    "event": "done.ok"
   },
   "design": {
     "commits": [
