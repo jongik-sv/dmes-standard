@@ -2,5 +2,59 @@
   "tsk": "TSK-06-02",
   "order": "16de6362-6033-4d08-b45a-20e107d40853",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "design",
+  "baseline": {
+    "failures": 0,
+    "tests": 2823,
+    "docker": "banned:spawn",
+    "base": "3fbf0737b93a2af61436a7af149d245a592c6655",
+    "cmds": [
+      {
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 2337,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "3fbf0737b93a2af61436a7af149d245a592c6655-5a99c8ef20f3",
+        "measured_at": "2026-09-24T04:44:35Z",
+        "note": "testAll 은 mssqlMigrationTest 비포함(build.gradle 주석) — 도커 제외 인자 불필요"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 330,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "3fbf0737b93a2af61436a7af149d245a592c6655-70ad4dddc2e4",
+        "measured_at": "2026-09-24T04:44:42Z",
+        "note": "27 files"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "3fbf0737b93a2af61436a7af149d245a592c6655-79066bca5c4b",
+        "measured_at": "2026-09-24T04:45:21Z",
+        "note": "tsc --noEmit exit 0"
+      },
+      {
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "3fbf0737b93a2af61436a7af149d245a592c6655-773190afc491",
+        "measured_at": "2026-09-24T04:45:27Z",
+        "note": "ERROR 0 / WARN 0 / INFO 29"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 156,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "3fbf0737b93a2af61436a7af149d245a592c6655-85eac351cb59",
+        "measured_at": "2026-09-24T04:45:23Z",
+        "note": "23 files"
+      }
+    ]
+  },
+  "model": "opus"
 }
