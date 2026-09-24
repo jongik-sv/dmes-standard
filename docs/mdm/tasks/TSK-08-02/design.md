@@ -827,6 +827,9 @@ cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 | B5 | `AgDataGrid` 의 열 정의 변환을 순수 함수 `buildColumnDefs`·`displayedRowKeys`·`hasEditableColumn` 으로 빼 export 했다 | shared 단위 테스트는 ag-grid 렌더 없이 순수 함수로 본다(`grid-check-row-on-edit` 선례). 편집 열 탐지는 그룹 안까지 봐야 해서(안 보면 셀 포커스가 꺼져 편집이 안 된다) 재귀로 바꿨다 |
 | B6 | dme 두 화면의 OASIS 호출을 화면별 `api.ts` 에 되풀이하지 않고 `M/src/dme/oasis-call.ts`(`callOasis`·`OasisCallError`·`isRowVersionConflict`)에 두고 화면 `api.ts` 가 이것을 쓴다 | `grids` 전송·null 제거·MDM001 판별이 두 화면에 같다. `src/dme` 는 page-registry 스캔 대상 밖이다 |
 | B6 | dme 렌더 테스트는 공용 도우미 `M/tests/dme/helpers/render.ts` 의 `installDomStorage()` 로 메모리 `localStorage` 를 넣는다 | Node 26 은 `--localstorage-file` 없이 전역 `localStorage` 를 undefined 로 두고 happy-dom window 도 그 값을 본다. shared `apiRequest` 가 `localStorage.getItem` 에서 죽어 모든 요청이 실패했다(기존 termMng 렌더 테스트도 같은 오류를 모달에 띄우지만 단언하지 않아 드러나지 않았다) |
+| B7 | `RuleEditCardProps` 에 `runWrite`(쓰기 한 번 + 다시 불러오기)·`setDirty`(저장 안 한 변경)·`canDo`(카드 버튼 RBAC)·`busy` 를 더했다. B7 의 `RULE_EDIT_CARDS` 는 header·versions·usage 셋이고 table 은 B8 에서 더한다 | §6.8 은 `{view, reload, me, editable, selectVer, notify}` 만 적었으나, 모든 쓰기가 같은 방식으로 row_version 을 서버 값으로 다시 맞추고(§6.2 MDM001) §6.7.0 RBAC·§6.9 "저장 안 한 변경 확인"을 카드마다 되풀이하지 않게 한다 |
+| B7 | 헤더 저장 버튼은 값을 바꾸지 않아도 `headerEditable` 이면 켠다. 넘기기 버튼도 대상 ID 가 비어 있으면 누를 때 안내만 한다 | 편집 가능 여부를 서버 판정 하나로 읽게 한다(I7). 화면 비활성은 보조다 |
+| B7 | 상단 바에 룰 ID 옆 룰명을 글자로 보인다 | 헤더 카드는 룰명을 입력 칸 값으로만 가진다. e2e S2 "헤더(룰명)가 보인다"를 글자로 확인한다 |
 
 ## Build 변이 검증 기록
 
@@ -986,6 +989,27 @@ B4 테스트는 구현보다 먼저 썼으나 골격 상태에서 빨강을 따�
 | I29 | 다음 페이지가 0 페이지를 다시 요청 | 「다음 페이지를 누르면 page 1…」 | 빨강 |
 | 스모크 3 | 등록 성공 뒤 룰 화면 이동 누락 | 「등록에 성공하면 … 룰 화면으로 이동」 | 빨강 |
 | 스모크 4 | 서버 오류 표시 누락 | 「서버가 거부하면 오류를 화면에 보인다」 | 빨강 |
+
+**B7**
+
+| 규칙 | 변이 | 잡은 테스트 | 결과 |
+|---|---|---|---|
+| I7 | 헤더 편집을 `headerEditable` 대신 원천만으로 | `rule-edit-page` 「소유자가 아니면 잠김 배지…(I7)」 | 빨강 |
+| I7 | DRAFT 삭제를 소유자가 아니어도 켬 | 같은 테스트 | 빨강 |
+| I7 | 해제를 소유자가 아니어도 켬 | 같은 테스트 | 빨강 |
+| I7 | 소유자가 있어도 선점 버튼을 보임 | 같은 테스트 | 빨강 |
+| 수용 5 | 미적용 버전이 있어도 새 버전 켬 | 「미적용 버전이 있으면 새 버전을 끄고 안내」 | 빨강 |
+| D11 | 외부 원천도 헤더 편집 | 「외부 원천 룰은 조회 전용 배지…」 | 빨강 |
+| I28 | 이벤트로 받은 대상을 지우지 않음 | 처음엔 테스트가 저장소에 대상을 쓰지 않아 덮지 못할 구조였다 — 저장소에 쓰고 이벤트를 보내도록 고친 「이미 열린 화면은 대상 이벤트를 받으면…」 | 빨강 |
+| I28 | 마운트 때 대상 읽기 누락 | 「handoff 대상이 있으면 그 룰을 열고 대상을 지운다」 | 빨강 |
+| §6.2 | MDM001 판별 누락 | 「서버가 거부하면 … MDM001 이면 다시 불러오기」 | 빨강 |
+| §6.2 | 쓰기 뒤 view 다시 불러오기 누락 | 「선점 … 다시 불러온다」·「새 버전 … 새 버전으로 다시 불러온다」 | 빨강 |
+| §6.3.3 | 새 버전 뒤 새 버전 번호로 열지 않음 | 「새 버전으로 다시 불러온다」 | 빨강 |
+| §6.7.1 | 폐기를 한 번 눌러 바로 보냄 | 「폐기는 두 번 눌러야…」 | 빨강 |
+| §6.1 | DRAFT 삭제 요청에 target 누락 | 「DRAFT 삭제는 target VERSION…」 | 빨강 |
+| §6.7.0 | 카드 버튼 RBAC 무시 | 처음엔 초록(모든 사례가 와일드카드 권한) — 「쓰기 권한(RBAC)이 없으면 소유자라도 카드 버튼을 … 끈다」를 더해 덮음 | 빨강 |
+
+B7 테스트는 구현 전에 썼으나 구현 전 빨강을 따로 돌리지 않았다(화면 모듈이 없어 가져오기부터 실패하는 상태였다). 틀린 구현을 잡는다는 증명은 위 변이 14건으로 한다.
 
 ## Build 게이트 결과(백엔드, B1~B4 끝)
 
