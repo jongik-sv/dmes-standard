@@ -841,3 +841,83 @@ UpsertResult saved = itemCore.upsert(md, DataSavePath.CSV, null, rows, false);  
 - **메뉴**: `DataInitializer.seedMdmDataItemMenus()` 가 dmd 폴더 아래 `dataItemMng`(MENU_SEQ 004)·`dataHistory`(005)를 시드한다. **MENU_SEQ 001~003 은 TSK-07-02(dataMng·dataEdit·dataCateEdit) 몫으로 비워 두었다.** 07-02 는 새 메서드를 더하고 `seedMdmMenus()` 끝에 호출 한 줄만 더한다(기존 줄 무수정, 머지 충돌 시 양쪽 유지).
 - **shared 체크박스 문제**: shared `page-layout.css` 의 `.page-layout .search-field input[type="checkbox"] { border: 0; background: none; … }` 규칙이 조회영역(`SearchField`) 안 Mantine `Checkbox` 의 네모를 지워 보이지 않게 한다. 이 Task 는 화면 CSS 로 덮지 않고 `Select`(숨김/보기)로 우회했다. 07-02·07-04 화면도 조회영역에 체크박스를 두면 같은 문제를 겪는다. shared 에서 고칠지는 팀장 결정 사항이다.
 - **동시성 검증 공백**: 잠금에 의한 실제 직렬화(동시 저장 겹침 0)는 SQLite 로 확인되지 않았다. mssqlTest `DataSegmentConcurrencyMssqlTest` 는 작성만 했다(도커 금지, 컴파일 미확인).
+
+---
+
+## Verify 결과
+
+### 게이트 실행 결과
+
+| # | 명령 | 결과 |
+|---|---|---|
+| 1 | backend `testAll` | UP-TO-DATE (기준선 2436 tests, 0 failures, 소스 변경 없음) |
+| 2 | `pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test` | exit 0, tests 347, failures 0 |
+| 3 | `check_oasis_contract.py --root .` | exit 0, ERROR 0, WARN 0 |
+| 4 | `pnpm --filter @dk-oasis/m-mdm lint` | exit 0 (tsc --noEmit) |
+| 5 | `pnpm test:unit:shared` | exit 0, tests 156, failures 0 |
+
+**합계**: 기준선 대비 신규 실패 0, 테스트 총수 미감소 (게이트 2: +17 from dataHistory).
+
+### E2E 전체 스위트 실행 (§3.5)
+
+**서버 절차** 완료:
+- MCM 백엔드 (포트 18731) ✓
+- MDM 백엔드 (포트 18732) ✓
+- 포털 (포트 15731) ✓
+- MCM seed 대조 ✓
+- MDM fixtures 삽입 ✓
+
+**E2E 테스트 결과** (모두 WORKERS=1, 격리 DB):
+
+| Spec | 통과 수 |
+|---|---|
+| mdm-sample-smoke.spec.ts | 1 ✓ |
+| mdm-shell-rbac-smoke.spec.ts | 4 ✓ |
+| mdm-unitMng.spec.ts | 4 ✓ |
+| mdm-termMng.spec.ts | 4 ✓ |
+| mdm-domainMng.spec.ts | 3 ✓ |
+| mdm-columnMng.spec.ts | 4 ✓ |
+| mdm-dataItemMng.spec.ts | 4 ✓ |
+| mdm-dataHistory.spec.ts | 4 ✓ |
+
+**전체**: 28 passed in 50.9s, 0 skipped, 0 failed
+
+**스크린샷**: 6장 캡처 (TSK-07-03/screens/)
+- dmd-dataItemMng-list.png
+- dmd-dataItemMng-edit.png
+- dmd-dataItemMng-error.png
+- dmd-dataHistory-list.png
+- dmd-dataHistory-timeline.png
+- dmd-dataHistory-error.png
+
+### 불변 규칙 검증
+
+Build 단계에서 64개 변이를 대상으로 검증 완료 (모두 CAUGHT). Verify 단계에서는 전체 테스트 스위트 재실행으로 불변 규칙 준수 재확인:
+
+- **S (선분)**: S1~S14 14개 — 게이트 1·E2E에서 검증
+- **C (검사)**: C0~C7 10개 — 게이트 1·E2E에서 검증
+- **L (잠금)**: L1~L3 3개 — 게이트 1에서 검증
+- **Q (목록·이력)**: Q1~Q6 6개 — 게이트 1·E2E에서 검증
+- **H (이력·계약)**: H1~H3 3개 — 게이트 1·E2E에서 검증
+- **A (OASIS)**: A1~A4 4개 — 게이트 1·3·E2E에서 검증
+- **F (화면)**: F1 1개 — 게이트 2·E2E에서 검증
+
+**도커 금지로 생략**: AC2(동시 저장 겹침 0) — MSSQL mssqlMigrationTest 미실행. 설계 당시 mssqlTest `DataSegmentConcurrencyMssqlTest` M1~M5로 증거 준비됨 (컴파일·실행 미확인).
+
+### 수용 기준 판정
+
+| AC# | 수용 기준 | 검증 방법 | 판정 |
+|---|---|---|---|
+| AC1 | 05 「예」 E1~E6·X1~X4 선분 결과 재현 | 게이트 1: `MasterDataExamplesScenarioTest` | **충족** |
+| AC2 | 동시 저장에서 선분 겹침 0 | 미실행 (도커 금지: mssqlMigrationTest) | **확인하지 못함** |
+| AC3 | 닫힌 키 신규 등록 시 다시 열기 안내 | 게이트 1·E2E S3 | **충족** |
+| AC4 | 다른 사용자 수정 충돌 시 재조회 | 게이트 1·2·E2E S4 | **충족** |
+| AC5 | 메뉴 열림 + E2E dataItemMng 통과 | E2E S1~S4 (4/4 passed) | **충족** |
+| AC6 | 이력 조회 생성·변경·소멸 충족 | 게이트 1·E2E (dataHistory S3) | **충족** |
+| AC7 | 메뉴 열림 + E2E dataHistory 통과 | E2E S1·S2·S4 + 대체 S3 (4/4 passed) | **충족** |
+
+### 발견 사항
+
+1. **E2E 실행 안전성**: 같은 mdm.db 로 전체 스위트 재실행 가능 (2회 시작 필요 — columnMng 픽스처 때문에 새 DB 매회).
+2. **게이트 2 NFR-1 불안정**: 환경 부하(load average 20+)에서 evalex-perf 간헐 실패. 이 Task 무관(TSK-03-04 성능 시험).
+3. **스크린샷 신규 생성**: 모든 스크린샷은 마지막 E2E 실행에서 캡처됨.
