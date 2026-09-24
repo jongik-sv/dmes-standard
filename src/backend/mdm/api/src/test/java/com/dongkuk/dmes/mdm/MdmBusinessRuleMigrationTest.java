@@ -12,9 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.dongkuk.dmes.mdm.contract.rule.MdmRuleIdIssuer;
 import com.dongkuk.dmes.mdm.contract.version.VersionConfirmCheckSpi;
-import com.dongkuk.dmes.mdm.contract.version.VersionDraftDeletionSpi;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -513,17 +511,14 @@ class MdmBusinessRuleMigrationTest {
     // ── §3.1-12: 계약 전용 가드(런타임) ──
 
     /**
-     * 가짜 빈이 없는 평범한 컨텍스트에서 06 업무 실행 구현 빈이 하나도 없다(spec 수용 기준 "실행 로직 없음", 불변 규칙 21).
-     * 해제 조건(design.md §7): 08-02 가 발급기·삭제 훅을, 08-04 가 DefinitionLookup 을, 08-05 가 확정 검사를 넣을 때
-     * 해당 줄을 지운다. 02 영역이 DefinitionLookup 을 빈으로 등록해도 그 줄을 지운다(F32).
+     * 가짜 빈이 없는 평범한 컨텍스트에서 06 확정 검사·정의 조회 구현 빈이 없다(spec 수용 기준 "실행 로직 없음", 불변 규칙 21).
+     * 해제 조건(design.md §7): 08-04 가 DefinitionLookup 을, 08-05 가 확정 검사를 넣을 때 해당 줄을 지운다. 02 영역이
+     * DefinitionLookup 을 빈으로 등록해도 그 줄을 지운다(F32). 발급기·DRAFT 삭제 훅 줄은 TSK-08-02 가 구현을 넣으며 지웠다.
      */
     @Test
-    void 계약_전용_06_업무_실행_구현_빈이_없다() {
+    void 계약_전용_06_확정_검사와_정의_조회_빈이_없다() {
         assertEquals(0, context.getBeansOfType(VersionConfirmCheckSpi.class).values().stream()
                 .filter(spi -> spi.target() == VersionTarget.BUSINESS_RULE).count(), "BUSINESS_RULE 확정 검사 SPI 빈(TSK-08-05 몫)");
-        assertEquals(0, context.getBeansOfType(VersionDraftDeletionSpi.class).values().stream()
-                .filter(hook -> hook.target() == VersionTarget.BUSINESS_RULE).count(), "BUSINESS_RULE DRAFT 삭제 훅 빈(TSK-08-02 몫)");
-        assertEquals(Map.of(), context.getBeansOfType(MdmRuleIdIssuer.class), "식별자 발급기 빈(TSK-08-02 몫)");
         assertEquals(Map.of(), context.getBeansOfType(DefinitionLookup.class), "DefinitionLookup 빈(TSK-08-04 몫)");
     }
 

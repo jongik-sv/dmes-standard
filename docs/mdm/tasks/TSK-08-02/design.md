@@ -604,6 +604,7 @@ BPMN 은 선례대로 `actionGateway` 하나에 action 마다 serviceTask 하나
 - **Build 착수 때 origin/dev 확인**: `/usr/bin/git fetch origin` 뒤 `origin/dev` 의 `VersionScenarioTestConfig` 에 06-02 의 일반형 `BeanFactoryPostProcessor` 가 있으면 origin/dev 를 먼저 머지하고 이 파일을 고치지 않는다(가짜 `businessRuleDraftDeletion` 이 남고 실물 `RuleDraftDeletionHook` 정의가 그 테스트 컨텍스트에서 지워진다).
 - **없으면**: 가짜 `businessRuleDraftDeletion()` 빈 한 개만 지워 실물 훅으로 컨텍스트가 뜨게 한다(§2.2-T). 06-02 가 뒤에 머지돼 이 파일이 충돌하면 06-02 쪽을 받아 가짜 빈을 되살린다 — 그러면 BFPP 가 실물 정의를 지우므로 두 방식 모두에서 `BusinessRuleVersionScenarioSqliteTest` 가 통과해야 한다.
 - 어느 경로였는지 Build 보고와 이 절 끝에 한 줄로 적는다.
+- **Build 결과(B2, 2026-09-24)**: `/usr/bin/git fetch origin` 뒤 origin/dev(3fbf073, 기점과 같음)의 `VersionScenarioTestConfig` 에 06-02 일반형 BFPP 가 없어 **"없으면" 경로**를 탔다 — 가짜 `businessRuleDraftDeletion()` 빈 하나만 지웠고, 그 가짜의 호출 기록을 단언하던 `BusinessRuleVersionScenarioSqliteTest` R2 한 줄은 "가짜가 등록돼 있으면 호출 기록을, 아니면 CASCADE 결과로" 판정하도록 바꿨다(두 방식 모두에서 성립).
 
 ---
 
@@ -795,8 +796,17 @@ cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 | B1 | §6.6.1 표의 "행은 입력 `rows` 순서"와 달리, 분석기는 TS `normalRows`·`condVars` 처럼 행을 `seq`→`rowId`, 조건 열을 `seq`→`varId` 로 정렬해 본다 | 같은 절이 "정본은 TS, 함수 경계·순회 순서를 그대로 옮긴다"고 했고 TS 가 정렬한다. 정렬을 빼면 입력 순서가 다른 두 호출(그리드·서버)의 이슈 순서가 갈린다. `RuleAnalyzerTest` 「행은 seq 다음 rowId 순으로…」가 고정한다 |
 | B1 | TS 가 예외를 던지는 입력 두 가지(값 칸이 없는 셀 — 예 `{"op":"GE"}`, NUMBER 열 IN 목록에 숫자 아닌 원소가 둘 이상)를 Java 는 못 푸는 셀·문자열 순서로 대신 처리하고 던지지 않는다 | §6.6.3 의 "예외 없음" 계약. 이 입력은 코퍼스에 넣지 않았다(두 러너가 갈린다). TS 동작 이상으로 보고에 올린다 |
 | B1 | `AnalysisVar` 에 `label` 칸이 없어 메시지의 열 이름은 `varName` 이 없으면 `_V<varId>` 다(TS 는 `label` 을 한 번 더 본다) | record 칼럼은 §2.1-E 로 고정됐다. message 는 비교 대상이 아니다 |
+| B2 | 변수 타입 해석의 도메인 상속을 "`parentDomainId` 사슬을 올라가 첫 값"으로 직접 짜지 않고 도메인 화면·계약이 쓰는 조립기(`DomainTreeReader.load()` + `DomainChainAssembler.assemble`)의 `EffectiveDomainView` 로 푼다 | 저장소에 이미 "조회·검증·저장·미리보기·계약이 모두 이것을 불러 같은 답을 낸다"는 조립기가 있다. 그 규칙은 종류·데이터 타입은 최상위 조상, 길이·scale 은 가까운 조상부터이고 유효 코드 참조도 같이 준다. 따로 짜면 도메인 화면과 해석 결과가 갈릴 수 있다 |
+| B2 | 해석 갈래 2(변수에 `DOMAIN_ID` 가 있다)의 `typeSource` 는 `DECLARED` 다 | §6.4 표가 이 갈래의 `typeSource` 를 적지 않았다. 컬럼 사전·앞 룰에서 가져온 값이 아니라 변수에 선언한 값이라 `DECLARED` 로 묶었다 |
+| B2 | 발급기에서 룰이 없을 때의 오류는 `BusinessException(ErrorCode.INVALID_VALUE, "룰을 찾을 수 없습니다: <id>")` 다 | cactus `ErrorCode` 에 NOT_FOUND 가 없다. mdm 서비스의 "찾을 수 없습니다" 관례(`UnitMngService` 등)가 `INVALID_VALUE` 다 |
+| B2 | `RuleCellsCodec` 은 정적 유틸이고, `validateShape` 에 행 표시를 받는 오버로드 `validateShape(cells, varIds, rowLabel)` 를 더했다 | 정적 `RuleAnalysisInputMapper.toAnalysisRule` 이 셀을 읽어야 한다. 행 번호를 오류 메시지에 싣기 위해(§2.1-C) 호출자가 행 표시를 넘긴다 |
+| B2 | `RuleAnalysisInputMapper` 는 `DISP_TYPE` 이 비어 있으면 조건 열은 1 타입, 결과 열은 상수로 본다 | DDL 이 `DISP_TYPE` 을 NULL 허용으로 둔다. 모르는 값은 `IllegalArgumentException` 이다 |
+| B2 | `RuleQueries` 는 B2 에서 타입 해석에 필요한 `latestReleasedResultVarsExcept(ruleId)` 만 두고, §2.1-C 의 나머지 조회는 그 조회를 쓰는 B3·B4 에서 테스트와 함께 더한다. `RuleStewardCheck`(B3)·`RuleUsageFinder`(B4)도 쓰는 단계에서 만든다 | 테스트 먼저 규율 — 소비자 테스트 없이 조회 메서드를 먼저 두지 않는다 |
+| B2 | `DefaultMdmRuleIdIssuerMssqlTest` 는 작성하고 `:api:compileMssqlTestJava` 로 **컴파일만** 확인했다(실행은 도커 금지로 생략) | testAll 은 mssqlTest 소스 세트를 컴파일하지도 않으므로 컴파일 오류가 숨지 않게 따로 컴파일했다 |
 
 ## Build 변이 검증 기록
+
+**B1**
 
 | 규칙 | 변이 | 잡은 테스트 | 결과 |
 |---|---|---|---|
@@ -820,3 +830,39 @@ cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 
 추가 사례(1.10=1.1 경계, 다축 끝 0, 지수 경계, 격자 올림·내림, 접두 `succ`·0xFFFF, 정책별 도달 불가, 정렬)의 기대값은 scratchpad 에서
 m-mdm `src/evalex/rule-analysis.ts` 의 `analyzeRule` 을 직접 돌려 같은 출력임을 확인했다(프런트 파일은 고치지 않았다).
+
+**B2**
+
+| 규칙 | 변이 | 잡은 테스트 | 결과 |
+|---|---|---|---|
+| I1 | 정규식을 `^[A-Z][A-Z0-9_]*$` 로 완화 | `RuleIdRulesTest`(`QLTY__GRD`·`QLTY_`) | 빨강 |
+| I1 | 길이 검사 삭제 | `RuleIdRulesTest` 51자 | 빨강 |
+| I17 | parse 가 문자열 값을 트림 | `RuleCellsCodecTest` 무변경 왕복(`" 1000 "`) | 빨강 |
+| I17 | 일곱 키 밖의 키 허용 | 처음엔 초록(문자열 값 `text` 는 다른 검사에 걸림) — 객체 값을 가진 모르는 키(`meta:{}`) 사례를 더해 덮음 | 빨강 |
+| I17 | 문자열 칸에 숫자 허용 | `RuleCellsCodecTest` 숫자 값 | 빨강 |
+| I17 | 그 버전에 없는 var_id 허용 | `RuleCellsCodecTest` var_id | 빨강 |
+| I12 | 06 표기 `1`↔`2` 대응 뒤바꿈 | `RuleAnalysisInputMapperTest` | 빨강 |
+| I12 | 식 변수·Expression 조건 열의 varName 을 null 로 두지 않음 | `RuleAnalysisInputMapperTest` 두 사례 | 빨강 |
+| I15 | 코퍼스 파일을 치움 | `RuleAnalysisCorpusTest` 두 건 실패(건너뛰지 않음) | 빨강 |
+| I27 | `MdmRuleRepository` 에 파생 쿼리 메서드 추가 | `MdmRuleContractOnlyArchitectureTest._06_리포지토리는_메서드를_선언하지_않는다` | 빨강 |
+| I11 | SELECT 뒤 UPDATE 두 문으로 발급 | `DefaultMdmRuleIdIssuerSqliteTest` 「UPDATE 한 문이다」(StatementInspector) 외 | 빨강 |
+| I11 | `first = last - count`(오프바이원) | `DefaultMdmRuleIdIssuerSqliteTest` 두 사례 | 빨강 |
+| I11 | 종류와 무관하게 LAST_ROW_ID 를 올림 | 「종류마다 자기 카운터만 올린다」 | 빨강 |
+| I11 | 감사 카운터 VER 증가 누락 | 「감사 칼럼을 쓰고 감사 카운터 VER 를 올린다」 | 빨강 |
+| I16 | 일자 String 판정 길이를 8 만 | `RuleVarTypeResolverTest` 길이 4·6·8 | 빨강 |
+| I16 | 선언 DATA_TYPE 보다 컬럼 사전을 먼저 | 「선언한 DATA_TYPE 은 컬럼 사전보다 먼저다」 | 빨강 |
+| I16 | 앞 룰 결과에 자기 룰을 포함 | 「대상 룰 자신의 결과는 앞 룰이 아니다」 | 빨강 |
+| I16 | 최신 RELEASED 대신 최초 RELEASED(MAX→MIN) | 「앞 룰의 최신 RELEASED…」·「결과 열 그룹…」 | 빨강 |
+| I16 | 해석 불가 기본 타입을 NUMBER 로 | 「해석할 수 없으면 STRING UNRESOLVED」·식 변수 사례 | 빨강 |
+| I16 | 도메인 상속 무시(자기 행 값만) | 「자식 도메인이 비운 scale 은 부모 사슬에서」 | 빨강 |
+| I26 | `RuleDraftDeletionHook` 의 `@Component` 삭제 | `BusinessRuleVersionScenarioSqliteTest` R2(DRAFT 삭제가 훅 없음으로 실패) | 빨강 |
+| I26 | 테스트 설정에 BUSINESS_RULE 가짜 훅 재추가 | `BusinessRuleVersionScenarioSqliteTest` 컨텍스트 기동 실패(27건) | 빨강 |
+
+B2 스윕 중 변이 스크립트가 원본을 되돌릴 때 수정 시각이 변이 직전으로 돌아가, 크기가 같은 변이(`MAX`→`MIN`)에서 Gradle 이 재컴파일하지 않아
+뒤 변이 몇 개가 오염된 채 돌았다. 스크립트가 복원 뒤 수정 시각을 갱신하게 고치고 영향을 받은 변이를 모두 다시 돌렸다(위 표는 다시 돈 결과다).
+B1 스윕의 복원 상태도 엔진 전체 테스트(1223건)를 강제로 다시 돌려 확인했다.
+
+분석 코퍼스(`ER/analysis/analysis-corpus.json`, 45건 = TS 골든 21건의 expect 28건 + 그리드 고유 17건)의 `expect` 는 Java 출력에서 뽑지 않았다.
+scratchpad 에서 저장 형태 → `RuleDef` 변환(§6.5 규칙: 06 표기 → `EQUAL|ONE|TWO|EXPRESSION|VALUE`, 식 변수는 `varName=null`,
+셀은 `JSON.parse`)을 거쳐 m-mdm `analyzeRule` 을 돌려 얻었고, 골든 28건은 원래 TS 테스트의 기대값과 같음을 대조했다.
+B8 의 `ruleDefFromStored` 가 같은 규칙이면 TS 러너도 그대로 통과한다.
