@@ -928,6 +928,23 @@ public class DataInitializer implements ApplicationRunner {
         log.info("[DataInitializer] TSK-04-04 MDM 컬럼 사전 시드 — OBJECT 2 + 메뉴 leaf 1 + RBAC(SYSADMIN 2 + MDM 역할 4)");
         seedMdmLayoutMenus();
         log.info("[DataInitializer] TSK-05-02 MDM 레이아웃 메뉴 시드 — headerMng·layoutMng");
+
+        // ── TSK-06-02 — 마루 코드 조회·등록(codeMng) + 마루 코드 수정(codeEdit), 폴더 dmc. DRAFT 소유권 액션
+        //    (lock·unlock·handover) 권한은 여기서 더하지 않는다 — TSK-08-02 몫(D-TSK-06-02-1).
+        insertMcmSecObjIfAbsent("codeMng", "마루 코드", "mdm");
+        insertMcmSecObjIfAbsent("codeEdit", "마루 코드 수정", "mdm");
+        insertMcmSecMenuIfAbsent("codeMng", "001", "5030100", "마루 코드", "dmc", "codeMng");
+        insertMcmSecMenuIfAbsent("codeEdit", "002", "5030200", "마루 코드 수정", "dmc", "codeEdit");
+        for (String objectId : new String[]{"codeMng", "codeEdit"}) {
+            insertIfAbsentComposite(
+                    "TB_MCM_SEC_ROLE_MAPPING",
+                    new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
+                    new String[]{"SYSADMIN", objectId,    "PERM_ALL"},
+                    "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                    "VALUES ('SYSADMIN', '" + objectId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
+            seedMdmObjectRbac(objectId, "dmc");
+        }
+        log.info("[DataInitializer] TSK-06-02 MDM 마루 코드 시드 — OBJECT 2 + 메뉴 leaf 2 + RBAC(SYSADMIN 2 + MDM 역할 4)");
     }
 
     /**

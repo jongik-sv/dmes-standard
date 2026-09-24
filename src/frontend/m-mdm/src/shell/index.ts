@@ -4,3 +4,4 @@ export { MdmPageLayout, type MdmPageLayoutProps } from "./MdmPageLayout";
 export { badgeStyle, type MdmBadgeTone } from "./badge-style";
 export { VersionStatusBadge, type VersionStatusBadgeProps, type MdmVersionStatus } from "./VersionStatusBadge";
 export { DraftLockBadge, type DraftLockBadgeProps } from "./DraftLockBadge";
+export { openMdmPage, takeMdmPageParams, useMdmPageParams, type MdmPageParams } from "./page-handoff";

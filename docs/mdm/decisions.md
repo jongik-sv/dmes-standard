@@ -611,3 +611,35 @@
 - **Rationale**: 실측 — ag-grid 가 `rowClicked` 를 비동기 큐로 약 19ms 늦게 보내는데 `selectRow` 의 대기 조건(도메인명 값)은 저장 직후 같은 행이 이미 열려 있어 처음부터 참이었다. 늦게 온 view 응답이 미리보기 입력값을 비웠다. 공허한 대기를 실제 왕복 대기로 바꾸는 강화다. 수정 뒤 새 DB 전체 실행 연속 2회 12 passed
 - **Reversible**: yes
 - **Source**: docs/mdm/tasks/TSK-05-02/design.md D9
+
+## D-TSK-06-02-1 (2026-09-24T05:30:57Z)
+- **Phase**: design (TSK-06-02)
+- **Decision needed**: TSK-01-03 §7 인계가 DRAFT 소유권 action(선점·해제·넘기기)의 이름 확정과 권한 등록을 「06-02·08-02 중 먼저 오는 쪽」에 넘겼다. 두 Task 가 같은 기점에서 동시에 돌아 같은 공유 파일(MdmActions·MdmPermissions·DataInitializer allActions/editActions·SecurityScreenContractTest·mdm-rbac-seed-check.expected.txt)을 고치게 된다
+- **Decision made**: 팀장 확정 — action 이름 확정과 allActions·PERM_MDM_EDIT·MdmActions·mdm-rbac-seed-check.expected.txt(와 짝이 되는 MdmPermissions·SecurityScreenContractTest·기존 DB 보정)의 소유권 action 부분은 TSK-08-02 가 맡는다. TSK-06-02 는 이 파일들의 소유권 action 부분을 고치지 않고, BPMN·화면은 ADR-0003 D5 권장 이름 lock/unlock/handover 를 문자열로만 참조한다. BFF 권한이 필요한 동작(화면의 선점·해제·넘기기)은 「08-02 머지 뒤 연결」이며, 그 전에는 서비스·HTTP(mdm 직접)·vitest 테스트로 확인한다
+- **Rationale**: 동시 진행 Task 두 개가 같은 공유 계약·시드를 고치면 머지 충돌과 이름 불일치가 생긴다. 룰 화면(08-02)이 소유권 action 을 가진 다른 한쪽이라 한 곳에 몰았다
+- **Reversible**: yes(08-02 가 다른 이름을 확정하면 06-02 의 BPMN 3분기·DmcBpmnActionTest 로컬 상수·FE 문자열만 바꾼다)
+- **Source**: docs/mdm/tasks/TSK-06-02/design.md §1·§2「수정하지 않는 것」·§6.1·§8, docs/mdm/tasks/TSK-01-03/design.md §7, docs/mdm/adr/0003-module-boundary-screens-roles.md D5
+
+## D-TSK-06-02-2 (2026-09-24T05:30:57Z)
+- **Phase**: design (TSK-06-02)
+- **Decision needed**: 담당자 쓰기 가드와, 운영 VersionDraftDeletionSpi·VersionConfirmCheckSpi 빈이 생길 때 시나리오 테스트(VersionScenarioTestConfig 의 가짜 SPI)와 대상이 겹쳐 기동이 실패하는 문제를 어느 Task 가 공용 부품으로 해결하는가
+- **Decision made**: 팀장 확정((A)안) — TSK-06-02 가 공용 부품 두 개를 만든다. P1 `com.dongkuk.dmes.mdm.common.security.MdmStewardGuard#requireSteward()`(MDM_STEWARD 역할이 없으면 MDM013, MdmStdAdminGuard 와 같은 모양). P2 `VersionScenarioTestConfig` 의 static `@Bean BeanFactoryPostProcessor removeProductionVersionSpisShadowedByFakes()`(가짜가 아닌 VersionDraftDeletionSpi·VersionConfirmCheckSpi 빈 정의를 지우는 일반형). 08-02 등 다른 Task 는 06-02 머지 뒤 재사용한다
+- **Rationale**: 공통 서비스의 requireSteward 는 package-private 이고 deleteDraft·release·handover 는 역할을 보지 않아 영역 서비스에 가드가 필요하다. VersionSpiRegistry 는 대상 중복이면 기동을 실패시키므로 운영 SPI 를 처음 등록하는 06-02 가 테스트 설정을 대상 이름 없이 일반형으로 고친다
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-06-02/design.md §10, docs/mdm/tasks/TSK-01-03/design.md §7
+
+## D-TSK-06-02-3 (2026-09-24T06:39:20Z)
+- **Phase**: build (TSK-06-02)
+- **Decision needed**: 수용 기준 5(폐기 뒤 CODE_LIST 에서 숨고 MASTER 판정은 유지)를 보려면 판정 엔진이 04 원장을 읽어야 한다. 운영 `CodeLookup` 빈을 등록하면 decisions.md 의 TSK-04-03 기록대로 도메인 저장 R10 거부·MASTER 판정이 자동으로 켜져 TSK-04-03 동작·테스트가 바뀐다
+- **Decision made**: 원장 구현체 `com.dongkuk.dmes.mdm.common.mastercode.MdmCodeLookup`(04 표 다섯 개를 해석 없이 돌려주고 헤더 status 는 저장값)을 만들되 Spring 빈으로 등록하지 않는다. 시험(`MasterCodeDeprecateEngineSqliteTest`)이 실제 `DefaultCodeResolver` 에 직접 붙여 폐기 전·후를 본다. 운영 등록 여부는 TSK-06-05 이후 판단한다(그때 `@Component` 만 붙인다)
+- **Rationale**: spec 수용 기준 5 는 엔진 판정 결과를 요구할 뿐 운영 빈 등록을 요구하지 않는다. 빈 등록의 부작용(도메인 저장 동작 변경)은 이 Task 범위 밖이다
+- **Reversible**: yes(`@Component` 한 줄과 TSK-04-03 테스트 기대값 조정)
+- **Source**: docs/mdm/tasks/TSK-06-02/design.md D5·§6.6
+
+## D-TSK-06-02-4 (2026-09-24T06:39:20Z)
+- **Phase**: build (TSK-06-02)
+- **Decision needed**: 계약 `MasterCodeSegmentService`(12개 메서드)를 06-02(`createBaseCategory`·`fillFrom`)·06-03·06-04 가 나눠 구현하게 돼 있고 06-03 이 동시에 돈다. 06-02 가 구현 클래스를 만들면 add/add 충돌과 미완성 빈이 생긴다
+- **Decision made**: 06-02 는 `MasterCodeSegmentService` 구현 클래스를 만들지 않는다. 06-02 몫 두 메서드는 같은 이름·시그니처의 공개 메서드로 `com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionSegments`(@Component, 인터페이스 미구현)에 두고, 구현 클래스를 만드는 Task(06-03)가 두 메서드를 여기에 위임한다
+- **Rationale**: 형제 Task 범위 경계와 충돌 최소화(팀장 지시). 미승인 선행 산출물(TSK-06-01 계약의 구현 배정)의 메서드 의미를 그대로 지킨다
+- **Reversible**: yes(구현 클래스를 만들어 두 메서드를 옮긴다)
+- **Source**: docs/mdm/tasks/TSK-06-02/design.md D6·§6.5
