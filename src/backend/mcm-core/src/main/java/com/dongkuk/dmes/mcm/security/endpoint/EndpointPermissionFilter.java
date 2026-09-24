@@ -78,6 +78,8 @@ public class EndpointPermissionFilter extends OncePerRequestFilter {
             "secuser/mybuttonendpoints",
             "secfavorite/search",
             "secfavorite/toggle",
+            "secfavorite/addfolder",    // 사이드바 즐겨찾기 그룹 추가
+            "secfavorite/deletefolder", // 사이드바 즐겨찾기 그룹 삭제
             "ntfnotification/"          // 포털 알림 (list/unreadCount/markRead/markAllRead) — 본인 데이터
     );
 

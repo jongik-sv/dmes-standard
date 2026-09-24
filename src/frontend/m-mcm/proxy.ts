@@ -44,6 +44,8 @@ const RBAC_POLICY: RbacPolicyConfig = {
     "/api/mcm/oasis/secUser/myButtonEndpoints",
     "/api/mcm/oasis/secFavorite/search",
     "/api/mcm/oasis/secFavorite/toggle",
+    "/api/mcm/oasis/secFavorite/addFolder", // 사이드바 즐겨찾기 그룹 추가
+    "/api/mcm/oasis/secFavorite/deleteFolder", // 사이드바 즐겨찾기 그룹 삭제
     // 포털 알림(STOMP push) 스택 도입 시 아래 2건을 추가한다 — BE 의 AUTH_ONLY 접두 목록과 동기화할 것.
     //   "/api/mcm/oasis/ntfNotification/"  알림 조회/읽음 처리
     //   "/api/mcm/notify/ws-ticket"        WS 단명 티켓 발급 (본인 티켓)

@@ -121,7 +121,7 @@ const key = (m: string, o: string, a: string) =>
 세션(`token.sub`) 검증은 하되 **RBAC는 스킵**한다. 데이터 필터링은 서비스 레이어가 사용자/역할 기준으로 처리.
 
 - **PUBLIC** (인증조차 스킵): `/api/auth/`, `/api/{module}/auth/`
-- **AUTH_ONLY**: `secUser/myMenus*`, `secUser/myPermissions`, `secUser/myButtonEndpoints`, `secFavorite/search`, `secFavorite/toggle`
+- **AUTH_ONLY**: `secUser/myMenus*`, `secUser/myPermissions`, `secUser/myButtonEndpoints`, `secFavorite/search`, `secFavorite/toggle`, `secFavorite/addFolder`, `secFavorite/deleteFolder`
 - **LoV (확정 — 3종 모두 auth-only)**:
   | 경로 | 메서드 | 비고 |
   |---|---|---|
