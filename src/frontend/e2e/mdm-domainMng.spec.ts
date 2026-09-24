@@ -61,7 +61,13 @@ function gridRow(layout: Locator, text: string): Locator {
 }
 
 async function selectRow(layout: Locator, name: string) {
+  // 저장 직후에는 같은 행이 이미 열려 있어 도메인명 대기가 곧바로 참이 된다. ag-grid 는 rowClicked 를 비동기 큐로 늦게
+  // 보내므로(TSK-05-02 Build 실측), 클릭이 부른 view 응답과 그 반영까지 기다린 뒤 다음 조작을 한다.
+  const page = layout.page();
+  const viewed = page.waitForResponse((r) => r.url().includes(`${API}/view`), { timeout: 30_000 });
   await gridRow(layout, name).click();
+  await viewed;
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))));
   await expect(layout.locator('input[aria-label="도메인명"]')).toHaveValue(name, { timeout: 30_000 });
 }
 
