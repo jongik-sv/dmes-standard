@@ -7,8 +7,8 @@
   "branch_base": "49656a3a42352e4cf7f5f107e50057886c310b8c",
   "risk": "선행 3건(TSK-05-01·01-03·03-02)은 dev 반영 확인(REFLECTED, 증거 2)·승인 대기. 형식상 선행이 아닌 TSK-05-02(merged, unapproved)의 layoutMng 산출물 위에 확장한다 — 05-02 반려 시 재작업",
   "baseline": {
-    "failures": 0,
-    "tests": 2803,
+    "failures": 1,
+    "tests": 2827,
     "docker": "banned:spawn",
     "cmds": [
       {
@@ -28,6 +28,17 @@
         "source": "measured",
         "cache_key": "49656a3a42352e4cf7f5f107e50057886c310b8c-67dcdef0fbb0",
         "measured_at": "2026-09-24T05:36:00Z"
+      },
+      {
+        "cmd": "cd $W/src/frontend && SMOKE_MCM_BASE_URL=http://127.0.0.1:$FE SMOKE_LOGIN_USER=admin SMOKE_LOGIN_PASSWORD=admin123 SMOKE_MDM_DB=$W/src/backend/data/mdm.db pnpm exec playwright test <7a: columnMng domainMng headerMng> 뒤 <layoutMng sample-smoke shell-rbac-smoke termMng unitMng> --workers=1",
+        "tests": 24,
+        "failures": 1,
+        "flaky": [
+          "mdm-layoutMng.spec.ts L2~L8 (178행 openConst 재오픈 시 const-edit-modal 미표시) — 같은 DB 단독 재실행 2회 모두 통과"
+        ],
+        "source": "measured",
+        "measured_at": "2026-09-24T06:20:00Z",
+        "note": "design.md §3.7 1~6 절차(BE_MCM 18533, BE_MDM 18598, FE 15533), HEAD 0c0e9df(기점+설계 문서만). 7a 9 passed, 7b+7c 14 passed 1 failed"
       }
     ]
   },
