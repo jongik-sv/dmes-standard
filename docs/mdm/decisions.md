@@ -459,7 +459,7 @@
 - **Reversible**: yes
 - **Source**: docs/mdm/tasks/TSK-04-03/design.md D6
 
-## D-055 (2026-09-24T00:00:00Z)
+## D-TSK-06-01-1 (2026-09-24T00:00:00Z)
 - **Phase**: build (TSK-06-01)
 - **Decision needed**: TSK-04-01 D1 이 넘긴 02→04 교차 FK `FK_TB_MDM_DOMAIN_CODE` 를 어떻게 거는가(SQLite 는 `ALTER TABLE ADD CONSTRAINT` 가 없다)
 - **Decision made**: V9 에서 두 방언 모두 건다(당초 팀장 배정 V6, 2026-09-24 팀장 정정으로 origin/dev 머지 뒤 최대 버전+1 인 V9 로 재채번 — design.md D1). MSSQL 은 파일 끝 `ALTER TABLE TB_MDM_DOMAIN ADD CONSTRAINT`, SQLite 는 Flyway 기본 트랜잭션 안에서 `TB_MDM_DOMAIN` 을 재생성한다(V3 정의 글자 그대로 + FK 한 줄, 행 복사, `sqlite_sequence` 상한 보존, DROP·RENAME, 인덱스 재생성). `PRAGMA defer_foreign_keys`·`.sql.conf` 는 쓰지 않는다
@@ -467,7 +467,7 @@
 - **Reversible**: no(교차 FK 추가 — 되돌리려면 SQLite 재생성을 한 번 더 하는 후속 마이그레이션이 필요하다)
 - **Source**: docs/mdm/tasks/TSK-06-01/design.md D3·§6.0.8·F6·F7
 
-## D-056 (2026-09-24T00:00:00Z)
+## D-TSK-06-01-2 (2026-09-24T00:00:00Z)
 - **Phase**: build (TSK-06-01)
 - **Decision needed**: ERD `CK_TB_MDM_CODE_VER_APPLY`(DRAFT 가 아니면 APPLY_FROM·APPLY_TO 둘 다 필수)가 원천 04 의 REQUESTED 행(희망 apply_from 만 있고 apply_to 는 승인 때 채움)을 거부한다. 그대로 옮기는가
 - **Decision made**: 두 방언 V9 CHECK 를 `STATUS = 'DRAFT' OR (APPLY_FROM IS NOT NULL AND (STATUS = 'REQUESTED' OR APPLY_TO IS NOT NULL))` 로 넓힌다
@@ -475,7 +475,7 @@
 - **Reversible**: yes(CHECK 만 바꾸는 후속 마이그레이션으로 ERD 원문으로 되돌릴 수 있다)
 - **Source**: docs/mdm/tasks/TSK-06-01/design.md D4·F15
 
-## D-057 (2026-09-24T00:00:00Z)
+## D-TSK-06-01-3 (2026-09-24T00:00:00Z)
 - **Phase**: build (TSK-06-01)
 - **Decision needed**: MSSQL `TB_MDM_CODE_CATE.DEF_EXPR` 를 ERD 대로 `VARCHAR(MAX)`(ASCII 전용)로 두는가
 - **Decision made**: `NVARCHAR(MAX)` 로 둔다(SQLite 는 `TEXT` 그대로)
@@ -483,7 +483,7 @@
 - **Reversible**: yes(칼럼 타입 변경 마이그레이션. 되돌리면 06-04 에 비 ASCII 정규식 저장 거부 검사를 인계한다)
 - **Source**: docs/mdm/tasks/TSK-06-01/design.md D6·F16
 
-## D-058 (2026-09-24T00:00:00Z)
+## D-TSK-06-01-4 (2026-09-24T00:00:00Z)
 - **Phase**: build (TSK-06-01)
 - **Decision needed**: SQLite 에서 엔티티의 업무 `LocalDateTime`(04 `TB_MDM_CODE_VER` 일시 6칼럼 등)을 어떤 형식으로 쓰는가(규칙표 #16 이 이 Task 에 배정)
 - **Decision made**: mdm 전용 `MdmSqliteLocalDateTimeConverter`(TSK-08-01 D-053 과 같은 클래스 — dev 머지 때 한 벌로 합쳤다)(쓰기 = `MdmTemporalBinder.SQLITE_TEXT_PATTERN` 19자, 읽기 = `fromDb` 문자열 규칙)를 `MdmSqliteTemporalContributor` 로 auto-apply 하고, `application-local.yml` 의 `spring.jpa.properties.hibernate.metadata_builder_contributor` 로만 켠다. `MdmCodeVer` 세터는 초 단위로 자른다
@@ -491,9 +491,9 @@
 - **Reversible**: yes(yml 한 줄과 두 클래스를 지우면 원복. 이미 저장된 SQLite 로컬 데이터는 형식이 섞일 수 있다)
 - **Source**: docs/mdm/tasks/TSK-06-01/design.md D7·F10·F11, naming-dialect-rules.md §3 #16
 
-## D-059 (2026-09-24T00:00:00Z)
+## D-TSK-06-01-5 (2026-09-24T00:00:00Z)
 - **Phase**: build (TSK-06-01)
-- **Decision needed**: `FK_TB_MDM_DOMAIN_CODE`(D-055) 때문에 깨지는 기존·병렬 Task 테스트 픽스처를 누가 어떻게 고치는가
+- **Decision needed**: `FK_TB_MDM_DOMAIN_CODE`(D-TSK-06-01-1) 때문에 깨지는 기존·병렬 Task 테스트 픽스처를 누가 어떻게 고치는가
 - **Decision made**: 이 Task 가 자기 브랜치에서만 고친다(코드 참조가 필요하면 `TB_MDM_CODE` 행을 먼저 seed, 아니면 `MARU_CODE_ID` 를 NULL 로). Build 시점 전체 스위트 결과 dev 에 있는 기존 픽스처(`MdmDictionaryExpectations`·`VersionFixtureTables`·`VersionStateServiceSqliteTest`·`MdmTermDomainColumnMigrationTest`)는 FK 로 깨지지 않아 고친 파일이 없다. `MdmTermDomainColumnMigrationTest`·`MdmTermDomainColumnMssqlMigrationTest` 의 "FK 부재" 이름만 사실에 맞게 "FK 추가 뒤에도 NULL 통과" 로 고쳤다(본문·기대값 불변). TSK-04-03(`dflow-2ca988a4`) 브랜치는 직접 고치지 않는다. Phase 06 전 dev 머지로 들어온 TSK-04-03 테스트 5건이 FK 로 깨져 세 파일 모두 **seed** 로 고쳤다(검증 대상이 코드 참조라 NULL 로 바꾸면 검증이 사라진다): `DefaultMdmEffectiveDomainResolverTest`(`tree()` 앞에 `TB_MDM_CODE` `PROC_CD` 헤더), `DomainMngRejectConditionTest`·`DomainMngWithoutCodeLedgerTest`(`setUp` 에서 `DomainMngApiSupport.seedCodeHeader("PROC_CD")`). 헤더 한 행만 넣는다 — FK 는 `MARU_CODE_ID` 만 보고 DB 행을 읽는 `CodeLookup` 빈이 없어 "코드 원장 없음" 전제가 바뀌지 않는다
 - **Rationale**: 팀장 지시(D3 유지·04-03 브랜치 직접 수정 금지·깨지는 픽스처는 이 Task 가 고침). 기대값을 완화하지 않는다. TSK-04-03 이 Phase 06 전에 dev 에 머지되면 design.md §7 절차대로 다시 확인한다
 - **Reversible**: yes
