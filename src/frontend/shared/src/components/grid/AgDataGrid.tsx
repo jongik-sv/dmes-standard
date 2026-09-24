@@ -408,21 +408,16 @@ function AgDataGridComponent({
   const lastGridWidthRef = useRef(0);
   const resolvedColumnSizing = columnSizing ?? "auto";
   const shouldAutoSizeColumns = resolvedColumnSizing === "auto" && autoSizeColumns !== false;
-  // managed row drag 가 끝나면 화면에 보이는 노드 순서대로 행 키를 모아 알린다(TSK-05-02 D6).
-  const handleRowDragEnd = useCallback(
-    (event: RowDragEndEvent) => {
-      if (!onRowOrderChange) return;
-      const keys: (string | number)[] = [];
-      event.api.forEachNode((node) => {
-        const data = (node.data ?? {}) as Record<string, unknown>;
-        keys.push(data[rowKey] as string | number);
-      });
-      onRowOrderChange(keys);
-    },
-    [onRowOrderChange, rowKey]
-  );
-  // 행 드래그를 켠 그리드는 정렬을 끈다 — 없으면 sortable 그대로이고 AgGridReact 에 더 넘기는 prop 이 없다.
-  const rowDrag = resolveRowDrag(onRowOrderChange, sortable, handleRowDragEnd);
+  // 행 드래그(TSK-05-02 D6) — onRowOrderChange 가 없으면 hook·핸들러를 만들지 않아 기존 그리드와 렌더가 같다.
+  // managed row drag 가 끝나면 화면에 보이는 노드 순서대로 행 키를 모아 알린다. 드래그를 켠 그리드는 정렬을 끈다.
+  const rowDrag = resolveRowDrag(onRowOrderChange, sortable, (event: RowDragEndEvent) => {
+    const keys: (string | number)[] = [];
+    event.api.forEachNode((node) => {
+      const data = (node.data ?? {}) as Record<string, unknown>;
+      keys.push(data[rowKey] as string | number);
+    });
+    onRowOrderChange?.(keys);
+  });
   const effectiveSortable = rowDrag.sortable;
 
   const columnDefs = useMemo<ColDef[]>(() => {
