@@ -1,0 +1,293 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_codeItemEdit" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-tool" exporterVersion="1.3.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="codeItemEdit" name="코드 편집" isExecutable="true">
+    <bpmn:documentation>codeItemEdit — 코드 편집 (To-Be only 신규 화면. As-Is 레거시 없음).
+정본: docs/mdm/tasks/TSK-06-03/design.md §6.6·§6.7
+
+action=search   -&gt; searchTask   (codeItemEditService.search)    READ
+action=view     -&gt; viewTask     (codeItemEditService.view)      READ
+action=compare  -&gt; compareTask  (codeItemEditService.preview)   READ — 카테고리 미리보기(D6)
+action=validate -&gt; validateTask (codeItemEditService.validate)  EDIT — 저장 검사 이슈를 성공 응답으로
+action=save     -&gt; saveTask     (codeItemEditService.save)      EDIT — DRAFT 코드 행 저장
+action=restore  -&gt; restoreTask  (codeItemEditService.revert)    EDIT — 행 되돌리기
+action=execute  -&gt; executeTask  (codeItemEditService.patch)     EDIT — RELEASED 행 경미 수정</bpmn:documentation>
+    <bpmn:startEvent id="start" name="시작">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="actionGateway" name="action 분기">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_search</bpmn:outgoing>
+      <bpmn:outgoing>flow_view</bpmn:outgoing>
+      <bpmn:outgoing>flow_compare</bpmn:outgoing>
+      <bpmn:outgoing>flow_validate</bpmn:outgoing>
+      <bpmn:outgoing>flow_save</bpmn:outgoing>
+      <bpmn:outgoing>flow_restore</bpmn:outgoing>
+      <bpmn:outgoing>flow_execute</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="searchTask" name="마루 코드 목록 조회" camunda:class="codeItemEditService">
+      <bpmn:documentation>design.md §6.6 — 마루 코드 목록(ID 순). READ.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="search" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dmc.codeItemEdit.dto.CodeItemSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_search</bpmn:incoming>
+      <bpmn:outgoing>flow_search_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endSearch" name="조회 완료">
+      <bpmn:incoming>flow_search_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="viewTask" name="버전 V 모습 조회" camunda:class="codeItemEditService">
+      <bpmn:documentation>design.md §6.6 — 헤더·버전·선택 버전·행·닫힌 행·카테고리. READ.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="view" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dmc.codeItemEdit.dto.CodeItemViewRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_view</bpmn:incoming>
+      <bpmn:outgoing>flow_view_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endView" name="모습 완료">
+      <bpmn:incoming>flow_view_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="compareTask" name="카테고리 미리보기" camunda:class="codeItemEditService">
+      <bpmn:documentation>design.md §6.5 — 저장된 정의 기준 해석 결과·근거(D11). READ(D6).</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="preview" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dmc.codeItemEdit.dto.CodeItemPreviewRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_compare</bpmn:incoming>
+      <bpmn:outgoing>flow_compare_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endCompare" name="미리보기 완료">
+      <bpmn:incoming>flow_compare_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="validateTask" name="저장 검사" camunda:class="codeItemEditService">
+      <bpmn:documentation>design.md §6.3·§6.4 — 이슈를 성공 응답으로 돌려준다(F11). grids.rows.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="validate" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dmc.codeItemEdit.dto.CodeItemSaveRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_validate</bpmn:incoming>
+      <bpmn:outgoing>flow_validate_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endValidate" name="검사 완료">
+      <bpmn:incoming>flow_validate_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="saveTask" name="DRAFT 코드 행 저장" camunda:class="codeItemEditService">
+      <bpmn:documentation>design.md §6.6 — 검사 → beginDraftWrite → 선분 조작. grids.rows 를 파라미터 이름으로 바인딩.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="save" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dmc.codeItemEdit.dto.CodeItemSaveRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_save</bpmn:incoming>
+      <bpmn:outgoing>flow_save_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endSave" name="저장 완료">
+      <bpmn:incoming>flow_save_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="restoreTask" name="행 되돌리기" camunda:class="codeItemEditService">
+      <bpmn:documentation>design.md §6.6 — beginDraftWrite → revert(ITEM) → 계층 재검사(D6 restore).</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="revert" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dmc.codeItemEdit.dto.CodeItemRevertRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_restore</bpmn:incoming>
+      <bpmn:outgoing>flow_restore_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endRestore" name="되돌리기 완료">
+      <bpmn:incoming>flow_restore_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="executeTask" name="경미 수정" camunda:class="codeItemEditService">
+      <bpmn:documentation>design.md §6.6 — RELEASED 행의 이름·약칭·순서·설명만(D6 execute, 잠김 I28).</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="patch" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dmc.codeItemEdit.dto.CodeItemPatchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_execute</bpmn:incoming>
+      <bpmn:outgoing>flow_execute_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endExecute" name="경미 수정 완료">
+      <bpmn:incoming>flow_execute_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+    <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
+    <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="endSearch" />
+    <bpmn:sequenceFlow id="flow_view" name="view" sourceRef="actionGateway" targetRef="viewTask" />
+    <bpmn:sequenceFlow id="flow_view_end" sourceRef="viewTask" targetRef="endView" />
+    <bpmn:sequenceFlow id="flow_compare" name="compare" sourceRef="actionGateway" targetRef="compareTask" />
+    <bpmn:sequenceFlow id="flow_compare_end" sourceRef="compareTask" targetRef="endCompare" />
+    <bpmn:sequenceFlow id="flow_validate" name="validate" sourceRef="actionGateway" targetRef="validateTask" />
+    <bpmn:sequenceFlow id="flow_validate_end" sourceRef="validateTask" targetRef="endValidate" />
+    <bpmn:sequenceFlow id="flow_save" name="save" sourceRef="actionGateway" targetRef="saveTask" />
+    <bpmn:sequenceFlow id="flow_save_end" sourceRef="saveTask" targetRef="endSave" />
+    <bpmn:sequenceFlow id="flow_restore" name="restore" sourceRef="actionGateway" targetRef="restoreTask" />
+    <bpmn:sequenceFlow id="flow_restore_end" sourceRef="restoreTask" targetRef="endRestore" />
+    <bpmn:sequenceFlow id="flow_execute" name="execute" sourceRef="actionGateway" targetRef="executeTask" />
+    <bpmn:sequenceFlow id="flow_execute_end" sourceRef="executeTask" targetRef="endExecute" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="codeItemEdit">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="152" y="472" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="245" y="465" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchTask_di" bpmnElement="searchTask">
+        <dc:Bounds x="380" y="60" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearch_di" bpmnElement="endSearch">
+        <dc:Bounds x="560" y="82" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="viewTask_di" bpmnElement="viewTask">
+        <dc:Bounds x="380" y="190" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endView_di" bpmnElement="endView">
+        <dc:Bounds x="560" y="212" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="compareTask_di" bpmnElement="compareTask">
+        <dc:Bounds x="380" y="320" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endCompare_di" bpmnElement="endCompare">
+        <dc:Bounds x="560" y="342" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="validateTask_di" bpmnElement="validateTask">
+        <dc:Bounds x="380" y="450" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endValidate_di" bpmnElement="endValidate">
+        <dc:Bounds x="560" y="472" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="saveTask_di" bpmnElement="saveTask">
+        <dc:Bounds x="380" y="580" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSave_di" bpmnElement="endSave">
+        <dc:Bounds x="560" y="602" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="restoreTask_di" bpmnElement="restoreTask">
+        <dc:Bounds x="380" y="710" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endRestore_di" bpmnElement="endRestore">
+        <dc:Bounds x="560" y="732" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="executeTask_di" bpmnElement="executeTask">
+        <dc:Bounds x="380" y="840" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endExecute_di" bpmnElement="endExecute">
+        <dc:Bounds x="560" y="862" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="188" y="490" />
+        <di:waypoint x="245" y="490" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_di" bpmnElement="flow_search">
+        <di:waypoint x="270" y="465" />
+        <di:waypoint x="270" y="100" />
+        <di:waypoint x="380" y="100" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="305" y="83" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_end_di" bpmnElement="flow_search_end">
+        <di:waypoint x="480" y="100" />
+        <di:waypoint x="560" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_view_di" bpmnElement="flow_view">
+        <di:waypoint x="270" y="465" />
+        <di:waypoint x="270" y="230" />
+        <di:waypoint x="380" y="230" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="305" y="213" width="32" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_view_end_di" bpmnElement="flow_view_end">
+        <di:waypoint x="480" y="230" />
+        <di:waypoint x="560" y="230" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_compare_di" bpmnElement="flow_compare">
+        <di:waypoint x="270" y="465" />
+        <di:waypoint x="270" y="360" />
+        <di:waypoint x="380" y="360" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="305" y="343" width="56" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_compare_end_di" bpmnElement="flow_compare_end">
+        <di:waypoint x="480" y="360" />
+        <di:waypoint x="560" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_validate_di" bpmnElement="flow_validate">
+        <di:waypoint x="295" y="490" />
+        <di:waypoint x="380" y="490" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="317.5" y="473" width="64" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_validate_end_di" bpmnElement="flow_validate_end">
+        <di:waypoint x="480" y="490" />
+        <di:waypoint x="560" y="490" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_di" bpmnElement="flow_save">
+        <di:waypoint x="270" y="515" />
+        <di:waypoint x="270" y="620" />
+        <di:waypoint x="380" y="620" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="305" y="498" width="32" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_end_di" bpmnElement="flow_save_end">
+        <di:waypoint x="480" y="620" />
+        <di:waypoint x="560" y="620" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_restore_di" bpmnElement="flow_restore">
+        <di:waypoint x="270" y="515" />
+        <di:waypoint x="270" y="750" />
+        <di:waypoint x="380" y="750" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="305" y="498" width="56" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_restore_end_di" bpmnElement="flow_restore_end">
+        <di:waypoint x="480" y="750" />
+        <di:waypoint x="560" y="750" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_execute_di" bpmnElement="flow_execute">
+        <di:waypoint x="270" y="515" />
+        <di:waypoint x="270" y="880" />
+        <di:waypoint x="380" y="880" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="305" y="498" width="56" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_execute_end_di" bpmnElement="flow_execute_end">
+        <di:waypoint x="480" y="880" />
+        <di:waypoint x="560" y="880" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
+

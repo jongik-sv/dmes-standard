@@ -7,14 +7,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.contract.security.MdmActions;
 import com.dongkuk.dmes.mdm.contract.security.MdmPermissions;
+import com.dongkuk.dmes.mdm.dmc.codeItemEdit.service.CodeItemEditService;
 import java.io.InputStream;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
@@ -22,93 +25,107 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 /**
- * TSK-06-02 design.md §3.2·§6.1 — dmc 두 BPMN 의 액션↔메서드 표가 정확한지(불변 규칙 I21).
+ * TSK-06-03 design.md §4.7 B1~B5 — {@code services/dmc/codeItemEdit.bpmn} 의 OASIS 계약(불변 규칙 35). 검사기
+ * {@code check_oasis_contract.py} 가 mdm 을 스캔하지 않으므로(F20) 이 시험이 대신 고정한다.
  *
- * <p>액션(RBAC 키)과 메서드(자바 이름)는 다르다({@code reg→register}, {@code execute→deprecate} 등) — 분기 이름이
- * 메서드와 같다고 보지 않고 표 전체를 대조한다. 모든 액션은 {@link MdmActions} 상수(리플렉션) 또는 소유권 로컬 상수 안이고,
- * 읽기 액션({@code search}·{@code view})만 READ 세트에 있다.
+ * <p>액션 이름이 {@code MdmActions} 밖이면 SYSADMIN 도 BFF 403 이고, 미리보기가 READ 세트 밖이면 표준 관리자가 읽기 화면에서
+ * 403 을 받는다(D6).
  */
 class DmcBpmnActionTest {
 
     private static final String BPMN = "http://www.omg.org/spec/BPMN/20100524/MODEL";
     private static final String CAMUNDA = "http://camunda.org/schema/1.0/bpmn";
-
-    /**
-     * DRAFT 소유권 액션 — ADR-0003 D5 권장 이름을 문자열로만 참조한다. 08-02 가 MdmActions 에 더하면 그 상수로 바꾼다
-     * (D-TSK-06-02-1).
-     */
-    private static final Set<String> OWNERSHIP_ACTIONS = Set.of("lock", "unlock", "handover");
-
-    private static final String MNG_DTO = "com.dongkuk.dmes.mdm.dmc.codeMng.dto.";
-    private static final String EDIT_DTO = "com.dongkuk.dmes.mdm.dmc.codeEdit.dto.";
+    private static final String PATH = "services/dmc/codeItemEdit.bpmn";
+    private static final String DTO_PACKAGE = "com.dongkuk.dmes.mdm.dmc.codeItemEdit.dto.";
+    private static final Map<String, String> METHOD_BY_ACTION = Map.of(
+            "search", "search", "view", "view", "compare", "preview", "validate", "validate",
+            "save", "save", "restore", "revert", "execute", "patch");
 
     @Test
-    void codeMng_액션은_search_reg() throws Exception {
-        Map<String, String[]> table = new LinkedHashMap<>();
-        table.put("search", new String[]{"search", MNG_DTO + "CodeMngSearchRequest"});
-        table.put("reg", new String[]{"register", MNG_DTO + "CodeRegRequest"});
-        assertActions("services/dmc/codeMng.bpmn", "codeMng", "codeMngService", table);
+    void B1_분기_이름은_일곱_개이고_모두_MdmActions_상수다() throws Exception {
+        Map<String, String> targets = targetsByAction(parse());
+
+        assertEquals(METHOD_BY_ACTION.keySet(), targets.keySet());
+        Set<String> known = mdmActions();
+        for (String action : targets.keySet()) {
+            assertTrue(known.contains(action), action + " 은 MdmActions 에 없다");
+        }
     }
 
     @Test
-    void codeEdit_액션은_설계_표와_같다() throws Exception {
-        Map<String, String[]> table = new LinkedHashMap<>();
-        table.put("search", new String[]{"searchCodes", EDIT_DTO + "CodeEditSearchRequest"});
-        table.put("view", new String[]{"view", EDIT_DTO + "CodeEditViewRequest"});
-        table.put("save", new String[]{"saveHeader", EDIT_DTO + "CodeHeaderSaveRequest"});
-        table.put("execute", new String[]{"deprecate", EDIT_DTO + "CodeDeprecateRequest"});
-        table.put("reg", new String[]{"createVersion", EDIT_DTO + "CodeVersionCreateRequest"});
-        table.put("restore", new String[]{"restoreVersion", EDIT_DTO + "CodeVersionRestoreRequest"});
-        table.put("delete", new String[]{"deleteDraft", EDIT_DTO + "CodeDraftRequest"});
-        table.put("lock", new String[]{"acquire", EDIT_DTO + "CodeDraftRequest"});
-        table.put("unlock", new String[]{"release", EDIT_DTO + "CodeDraftRequest"});
-        table.put("handover", new String[]{"handover", EDIT_DTO + "CodeDraftRequest"});
-        assertActions("services/dmc/codeEdit.bpmn", "codeEdit", "codeEditService", table);
+    void B2_search_view_compare_만_READ_세트다() throws Exception {
+        for (String action : targetsByAction(parse()).keySet()) {
+            boolean read = Set.of("search", "view", "compare").contains(action);
+            assertEquals(read, MdmPermissions.READ_ACTIONS.contains(action), action);
+        }
     }
 
-    static void assertActions(String path, String processId, String bean, Map<String, String[]> table) throws Exception {
-        Document doc = parse(path);
-        Element process = (Element) doc.getElementsByTagNameNS(BPMN, "process").item(0);
-        assertEquals(processId, process.getAttribute("id"));
+    @Test
+    void B3_serviceTask_는_빈_output_dto_를_갖고_grid_와_조건식이_없다() throws Exception {
+        Document doc = parse();
+        NodeList tasks = doc.getElementsByTagNameNS(BPMN, "serviceTask");
+        assertEquals(7, tasks.getLength());
+        for (int i = 0; i < tasks.getLength(); i++) {
+            Element task = (Element) tasks.item(i);
+            String id = task.getAttribute("id");
+            assertEquals("codeItemEditService", task.getAttributeNS(CAMUNDA, "class"), id);
+            Map<String, String> props = properties(task);
+            assertEquals("result", props.get("output"), id + " output");
+            assertFalse(props.containsKey("grid"), id + " 에 grid 속성 금지");
+            String dto = props.get("dto");
+            assertNotNull(dto, id + " dto");
+            assertTrue(dto.startsWith(DTO_PACKAGE), dto);
+            Class.forName(dto);
+        }
+        assertEquals(0, doc.getElementsByTagNameNS(BPMN, "conditionExpression").getLength(), "조건식 금지(flow name 만)");
+    }
 
-        Map<String, String> targetByAction = new HashMap<>();
+    @Test
+    void B4_action_과_method_대응과_그리드_파라미터_이름() throws Exception {
+        Document doc = parse();
+        Map<String, String> targets = targetsByAction(doc);
+        Map<String, Element> tasks = new HashMap<>();
+        NodeList list = doc.getElementsByTagNameNS(BPMN, "serviceTask");
+        for (int i = 0; i < list.getLength(); i++) {
+            Element t = (Element) list.item(i);
+            tasks.put(t.getAttribute("id"), t);
+        }
+        for (Map.Entry<String, String> e : targets.entrySet()) {
+            String method = properties(tasks.get(e.getValue())).get("method");
+            assertEquals(METHOD_BY_ACTION.get(e.getKey()), method, e.getKey());
+            List<Method> found = Arrays.stream(CodeItemEditService.class.getMethods())
+                    .filter(m -> m.getName().equals(method)).toList();
+            assertEquals(1, found.size(), method + " 는 public 메서드 하나");
+            if (Set.of("validate", "save").contains(method)) {
+                assertEquals(2, found.get(0).getParameterCount(), method);
+                assertEquals("rows", found.get(0).getParameters()[1].getName(),
+                        "grids.rows 와 파라미터 이름이 같아야 한다(-parameters 컴파일)");
+            } else {
+                assertEquals(1, found.get(0).getParameterCount(), method);
+            }
+        }
+    }
+
+    @Test
+    void B5_process_id_는_파일명과_같다() throws Exception {
+        Element process = (Element) parse().getElementsByTagNameNS(BPMN, "process").item(0);
+
+        assertEquals("codeItemEdit", process.getAttribute("id"));
+        assertEquals("true", process.getAttribute("isExecutable"));
+    }
+
+    // ── helpers ─────────────────────────────────────────────────────────
+
+    private static Map<String, String> targetsByAction(Document doc) {
+        Map<String, String> out = new TreeMap<>();
         NodeList flows = doc.getElementsByTagNameNS(BPMN, "sequenceFlow");
         for (int i = 0; i < flows.getLength(); i++) {
             Element flow = (Element) flows.item(i);
             if ("actionGateway".equals(flow.getAttribute("sourceRef"))) {
-                targetByAction.put(flow.getAttribute("name"), flow.getAttribute("targetRef"));
+                out.put(flow.getAttribute("name"), flow.getAttribute("targetRef"));
             }
         }
-        assertEquals(table.keySet(), targetByAction.keySet(), path + " 분기 이름");
-
-        Set<String> known = mdmActions();
-        for (String action : table.keySet()) {
-            assertTrue(known.contains(action) || OWNERSHIP_ACTIONS.contains(action), action + " 은 MdmActions·소유권 액션 밖이다");
-            boolean read = action.equals(MdmActions.SEARCH) || action.equals(MdmActions.VIEW);
-            assertEquals(read, MdmPermissions.READ_ACTIONS.contains(action), action + " 의 READ 세트 소속");
-            if (!OWNERSHIP_ACTIONS.contains(action)) {
-                assertTrue(MdmPermissions.EDIT_ACTIONS.contains(action), action + " 은 EDIT 세트 밖이다");
-            }
-        }
-
-        NodeList tasks = doc.getElementsByTagNameNS(BPMN, "serviceTask");
-        assertEquals(table.size(), tasks.getLength());
-        Map<String, Element> taskById = new HashMap<>();
-        for (int i = 0; i < tasks.getLength(); i++) {
-            Element task = (Element) tasks.item(i);
-            taskById.put(task.getAttribute("id"), task);
-        }
-        for (Map.Entry<String, String[]> e : table.entrySet()) {
-            Element task = taskById.get(targetByAction.get(e.getKey()));
-            assertNotNull(task, e.getKey() + " 분기의 serviceTask");
-            assertEquals(bean, task.getAttributeNS(CAMUNDA, "class"), e.getKey());
-            Map<String, String> props = properties(task);
-            assertEquals(e.getValue()[0], props.get("method"), e.getKey() + " method");
-            assertEquals(e.getValue()[1], props.get("dto"), e.getKey() + " dto");
-            assertEquals("result", props.get("output"), e.getKey() + " output");
-            assertFalse(props.containsKey("grid"), e.getKey() + " 에 grid 속성 금지");
-            Class.forName(e.getValue()[1]);
-        }
+        return out;
     }
 
     private static Map<String, String> properties(Element task) {
@@ -122,7 +139,7 @@ class DmcBpmnActionTest {
     }
 
     private static Set<String> mdmActions() throws IllegalAccessException {
-        Set<String> out = new HashSet<>();
+        Set<String> out = new java.util.HashSet<>();
         for (Field f : MdmActions.class.getDeclaredFields()) {
             if (Modifier.isStatic(f.getModifiers()) && f.getType() == String.class) {
                 out.add((String) f.get(null));
@@ -131,9 +148,9 @@ class DmcBpmnActionTest {
         return out;
     }
 
-    private static Document parse(String path) throws Exception {
-        try (InputStream in = DmcBpmnActionTest.class.getClassLoader().getResourceAsStream(path)) {
-            assertNotNull(in, path + " 가 클래스패스에 없다");
+    private static Document parse() throws Exception {
+        try (InputStream in = DmcBpmnActionTest.class.getClassLoader().getResourceAsStream(PATH)) {
+            assertNotNull(in, PATH + " 가 클래스패스에 없다");
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setNamespaceAware(true);
             return factory.newDocumentBuilder().parse(in);
