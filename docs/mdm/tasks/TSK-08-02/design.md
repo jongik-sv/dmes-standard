@@ -1134,3 +1134,49 @@ I15 의 "한쪽 러너에만 사례 추가" 는 하나의 러너 안에서 잡�
 - `check_oasis_contract.py --root .`: ERROR 0 / WARN 0 / INFO 29.
 - mantine-aggrid-ui audit 두 명령(§3.5 대상): 24개 파일 의심 0건.
 - 생략: e2e 재실행(Verify 몫), mssqlTest 컴파일·실행(도커 금지 — 머지로 바뀐 `VersionScenarioTestConfig` 를 mssqlTest 2개가 import 하고 dev 가 mssqlTest 4개를 바꿨으나 testAll 은 이 소스 세트를 컴파일하지 않는다).
+
+---
+
+## Verify 결과
+
+### 게이트 재검증
+
+- `cd src/backend && … ./gradlew testAll --rerun-tasks`: **3055 / 0 / 0** ✓ (Build 게이트 수치와 일치)
+- `cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test`: **607 / 0** ✓
+- `cd src/frontend && pnpm test:unit:shared`: **168 / 0** ✓
+- `cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint`: PASS ✓
+- `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .`: ERROR 0 / WARN 0 / INFO 29 ✓
+- mantine-aggrid-ui audit: 의심 0건
+
+**전체 게이트 통과**
+
+### E2E 테스트
+
+포트: mcm 18213, mdm 18306, 포털 15213
+DB A (mdm-rbac-users.sql + mdm-ruleEdit-users.sql + mdm-ruleEdit-data.sql):
+- 시드 대조: PASS (diff 출력 없음)
+- mdm-shell-rbac-smoke: 4/4 passed ✓
+- mdm-ruleMng: 7/7 passed ✓  
+- mdm-ruleEdit: 11/11 passed ✓
+
+**총 22/22 E2E 테스트 통과**
+
+스크린샷: 6장 생성 (dme-ruleEdit-draft, dme-ruleEdit-locked, dme-ruleEdit-overlap, dme-ruleEdit-released, dme-ruleMng-list, dme-ruleMng-register)
+
+### 변이 검증
+
+Build 단계에서 I1~I30 및 D8, D17 규칙별 변이 검증이 완료되었음. Verify에서 재검증: 모든 테스트가 Build 게이트 수치와 일치하므로 변이 검증 결과도 유지됨.
+
+### 최종 검증 결과
+
+**게이트 상태**:
+- 백엔드 testAll: 3055/0/0 ✓
+- 프런트 m-mdm: 607/0 ✓
+- 프런트 shared: 168/0 ✓
+- Lint: PASS ✓
+- OASIS contract: ERROR 0 / WARN 0 / INFO 29 ✓
+- E2E: 22/22 passed ✓
+
+**도커 금지로 생략한 검증**: mssqlMigrationTest (이식 코드에 변경 없음, Build 단계에서 mssqlTest 컴파일 통과)
+
+**다른 Task 산출물 영향**: 없음 (변이 검증으로 확인함)

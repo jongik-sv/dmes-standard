@@ -2,5 +2,61 @@
   "tsk": "TSK-08-02",
   "order": "f65cffff-5402-496b-822c-9e51d1e3f83b",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "verify",
+  "model": "haiku",
+  "branch_base": "3fbf0737b93a2af61436a7af149d245a592c6655",
+  "baseline": {
+    "failures": 0,
+    "tests": 2823,
+    "docker": "banned:spawn",
+    "cmds": [
+      {
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 2337,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "3fbf0737b93a2af61436a7af149d245a592c6655-5a99c8ef20f3",
+        "measured_at": "2026-09-24T04:44:35Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 330,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "3fbf0737b93a2af61436a7af149d245a592c6655-70ad4dddc2e4",
+        "measured_at": "2026-09-24T04:44:42Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 156,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "3fbf0737b93a2af61436a7af149d245a592c6655-85eac351cb59",
+        "measured_at": "2026-09-24T04:45:23Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0,
+        "result": "pass",
+        "source": "cache",
+        "cache_key": "3fbf0737b93a2af61436a7af149d245a592c6655-79066bca5c4b",
+        "measured_at": "2026-09-24T04:45:21Z"
+      },
+      {
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0,
+        "result": "ERROR 0 / WARN 0 / INFO 29",
+        "source": "cache",
+        "cache_key": "3fbf0737b93a2af61436a7af149d245a592c6655-773190afc491",
+        "measured_at": "2026-09-24T04:45:27Z"
+      }
+    ],
+    "excluded": "mssqlMigrationTest (도커 금지 모드, 출처 spawn — testAll 에 포함되지 않는 별도 태스크)"
+  },
+  "last": {
+    "phase": "verify",
+    "event": "verify.ok(all gates passed, e2e 22/22)"
+  }
 }
