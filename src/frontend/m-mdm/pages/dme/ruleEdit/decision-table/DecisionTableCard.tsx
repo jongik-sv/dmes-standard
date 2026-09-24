@@ -69,8 +69,7 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
   // 열 설정 섹션과 나누는 상태 — 초안이 dirty 면 표 저장을 막고(불변 13), 열 머리를 누르면 열 설정 표의 그 줄을 하이라이트한다(design §6).
   const [colDirty, setColDirty] = useState(false);
   const [highlightVarId, setHighlightVarId] = useState<number | null>(null);
-  const columnShared = useMemo(() => ({ colDirty, setColDirty, highlightVarId, setHighlightVarId }), [colDirty, highlightVarId]);
-  const saveBlocked = tableSaveBlocked(colDirty);
+  const [pivotDirty, setPivotDirty] = useState(false);
 
   useEffect(() => {
     dispatch({ type: "load", view });
@@ -82,6 +81,11 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
   }, []);
 
   const dirty = isDirty(state);
+  const columnShared = useMemo(
+    () => ({ colDirty, setColDirty, highlightVarId, setHighlightVarId, tableDirty: dirty, pivotDirty, setPivotDirty }),
+    [colDirty, highlightVarId, dirty, pivotDirty],
+  );
+  const saveBlocked = tableSaveBlocked(colDirty) || pivotDirty;
   useEffect(() => {
     setDirty("table", dirty);
   }, [dirty, setDirty]);
@@ -213,9 +217,14 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
           <Button variant="primary" disabled={!canSave} onClick={() => void handleSave()}>
             표 저장
           </Button>
-          {saveBlocked && (
+          {tableSaveBlocked(colDirty) && (
             <span data-testid="dt-col-block" style={{ color: "var(--color-danger)", alignSelf: "center" }}>
               열 설정 초안이 있어 표를 저장할 수 없습니다. 열 설정을 적용하거나 초안을 버리세요.
+            </span>
+          )}
+          {pivotDirty && (
+            <span data-testid="dt-pivot-block" style={{ color: "var(--color-danger)", alignSelf: "center" }}>
+              피벗에 저장 안 한 변경이 있어 표를 저장할 수 없습니다. 피벗을 저장하거나 되돌리세요.
             </span>
           )}
         </div>

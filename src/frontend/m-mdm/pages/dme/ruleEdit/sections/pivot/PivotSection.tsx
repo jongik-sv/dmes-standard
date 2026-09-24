@@ -77,6 +77,11 @@ export function PivotSection({ view, editable, runWrite, notify, setDirty, canDo
     setDirty("pivot", dirty);
   }, [dirty, setDirty]);
   useEffect(() => () => setDirty("pivot", false), [setDirty]);
+  const { setPivotDirty } = shared;
+  useEffect(() => {
+    setPivotDirty(dirty);
+  }, [dirty, setPivotDirty]);
+  useEffect(() => () => setPivotDirty(false), [setPivotDirty]);
 
   const pv = useMemo(() => (spec ? buildPivot(spec, state.rows) : null), [spec, state.rows]);
   const edit = useCallback(
@@ -94,8 +99,9 @@ export function PivotSection({ view, editable, runWrite, notify, setDirty, canDo
 
   if (!spec || !pv) return null;
   const { rv, cv, res } = spec;
-  const blocked = tableSaveBlocked(shared.colDirty);
-  const canSave = canEdit && dirty && canDo("save") && !busy && !blocked;
+  const colBlocked = tableSaveBlocked(shared.colDirty);
+  const tableBlocked = shared.tableDirty;
+  const canSave = canEdit && dirty && canDo("save") && !busy && !colBlocked && !tableBlocked;
 
   const save = async () => {
     if (!selected) return;
@@ -245,9 +251,14 @@ export function PivotSection({ view, editable, runWrite, notify, setDirty, canDo
             <Button data-testid="pivot-revert" disabled={!dirty || busy} onClick={discard}>
               피벗 되돌리기
             </Button>
-            {blocked && (
+            {colBlocked && (
               <span data-testid="pivot-col-block" style={{ color: "var(--color-danger)" }}>
                 열 설정 초안이 있어 피벗을 저장할 수 없습니다. 열 설정을 적용하거나 초안을 버리세요.
+              </span>
+            )}
+            {tableBlocked && (
+              <span data-testid="pivot-table-block" style={{ color: "var(--color-danger)" }}>
+                표 카드에 저장 안 한 변경이 있어 피벗을 저장할 수 없습니다. 표를 저장하거나 되돌리세요.
               </span>
             )}
           </div>

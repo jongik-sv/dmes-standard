@@ -388,6 +388,30 @@ test.describe("mdm dme/ruleEdit", () => {
     await expect(page.getByTestId("pivot-section")).toHaveCount(0); // 결과 열 1개가 아니면 피벗이 보이지 않는다(pvSpec)
   });
 
+  test("C2c 피벗·표 저장 상호 차단: 표 카드에 저장 안 한 행이 있으면 피벗 저장이, 피벗에 저장 안 한 편집이 있으면 표 저장이 막힌다", async ({ page }) => {
+    await openRuleVer(page, "E2E_PVT_LKP", 1);
+    await expect(page.getByTestId("pivot-section")).toBeVisible();
+    await page.getByRole("button", { name: "행 추가", exact: true }).click();
+    await expect(page.getByTestId("dt-dirty")).toBeVisible();
+
+    const cellInput = page.locator('input[data-pvc="1"][data-col="2A"]');
+    await cellInput.fill("94");
+    await cellInput.press("Enter");
+    await expect(page.getByTestId("pivot-dirty")).toBeVisible();
+    await expect(page.getByTestId("pivot-save")).toBeDisabled();
+    await expect(page.getByTestId("pivot-table-block")).toContainText("표 카드에 저장 안 한 변경이 있어");
+    await expect(page.getByRole("button", { name: "표 저장", exact: true })).toBeDisabled();
+    await expect(page.getByTestId("dt-pivot-block")).toContainText("피벗에 저장 안 한 변경이 있어");
+
+    // 표를 되돌리면 피벗 쪽 차단이, 피벗을 되돌리면 표 쪽 차단이 풀린다(둘 다 저장하지 않는다).
+    await page.getByRole("button", { name: "되돌리기", exact: true }).click();
+    await expect(page.getByTestId("pivot-table-block")).toHaveCount(0);
+    await expect(page.getByTestId("pivot-save")).toBeEnabled();
+    await page.getByTestId("pivot-revert").click();
+    await expect(page.getByTestId("pivot-dirty")).toHaveCount(0);
+    await expect(page.getByTestId("dt-pivot-block")).toHaveCount(0);
+  });
+
   test("C3 산출 룰: COIL_WGT_CALC 새 버전에서 앞 결과를 읽는 열은 되고 자기 참조는 거부되어 아무 것도 반영되지 않으며 식 미리보기가 25434.0 이다", async ({ page }) => {
     await openRule(page, STEWARD, "COIL_WGT_CALC");
     await page.getByRole("button", { name: "새 버전", exact: true }).click();

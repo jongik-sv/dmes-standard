@@ -163,7 +163,7 @@ describe("열 설정 섹션 렌더", () => {
   });
 
   it("열 머리 클릭이 정한 varId 의 줄은 하이라이트된다", async () => {
-    const shared = { colDirty: false, setColDirty: () => {}, highlightVarId: 3, setHighlightVarId: () => {} };
+    const shared = { colDirty: false, tableDirty: false, pivotDirty: false, setPivotDirty: () => {}, setColDirty: () => {}, highlightVarId: 3, setHighlightVarId: () => {} };
     await mount(createElement(ColumnDraftSharedContext.Provider, { value: shared }, createElement(ColumnSettingsSection, props(view()))));
     expect(q("[data-testid='col-row-v3']").getAttribute("data-highlight")).toBe("true");
     expect(q("[data-testid='col-row-v1']").getAttribute("data-highlight")).toBeNull();
@@ -316,7 +316,7 @@ describe("피벗 섹션", () => {
   });
 
   it("열 설정 초안이 dirty 이면 피벗 저장이 꺼지고 안내가 나온다(불변 13)", async () => {
-    const shared = { colDirty: true, setColDirty: () => {}, highlightVarId: null, setHighlightVarId: () => {} };
+    const shared = { colDirty: true, tableDirty: false, pivotDirty: false, setPivotDirty: () => {}, setColDirty: () => {}, highlightVarId: null, setHighlightVarId: () => {} };
     await mount(createElement(ColumnDraftSharedContext.Provider, { value: shared }, createElement(PivotSection, props(pivotView()))));
     await typeInto(q<HTMLInputElement>("input[data-pvc='1'][data-col='6']"), "95");
     await act(async () => {
@@ -324,6 +324,44 @@ describe("피벗 섹션", () => {
     });
     expect(q<HTMLButtonElement>("[data-testid='pivot-save']").disabled).toBe(true);
     expect(visibleText(q("[data-testid='pivot-col-block']"))).toContain("열 설정 초안이 있어");
+  });
+
+  const commitPivotCell = async () => {
+    await typeInto(q<HTMLInputElement>("input[data-pvc='1'][data-col='6']"), "95");
+    await act(async () => {
+      q<HTMLInputElement>("input[data-pvc='1'][data-col='6']").dispatchEvent(new Event("focusout", { bubbles: true }));
+    });
+  };
+
+  it("표 카드에 저장 안 한 변경이 있으면 피벗 저장이 꺼지고 안내가 나오며, 되돌리면 다시 켜진다(같은 표 파트를 덮어쓰지 않게)", async () => {
+    await mount(createElement(DecisionTableCard, { ...props(pivotView()), extraSections: [{ id: "pivot", Component: PivotSection }] }));
+    await act(async () => {
+      findButton(container, "행 추가").click();
+    });
+    await commitPivotCell();
+    expect(q<HTMLButtonElement>("[data-testid='pivot-save']").disabled).toBe(true);
+    expect(visibleText(q("[data-testid='pivot-table-block']"))).toContain("표 카드에 저장 안 한 변경이 있어");
+    await act(async () => {
+      findButton(container, "되돌리기").click();
+    });
+    expect(container.querySelector("[data-testid='pivot-table-block']")).toBeNull();
+  });
+
+  it("피벗에 저장 안 한 편집이 있으면 표 저장이 꺼지고 안내가 나오며, 피벗을 버리면 다시 켜진다", async () => {
+    await mount(createElement(DecisionTableCard, { ...props(pivotView()), extraSections: [{ id: "pivot", Component: PivotSection }] }));
+    await act(async () => {
+      findButton(container, "행 추가").click();
+    });
+    expect(findButton(container, "표 저장").disabled).toBe(false);
+    expect(container.querySelector("[data-testid='dt-pivot-block']")).toBeNull();
+    await commitPivotCell();
+    expect(findButton(container, "표 저장").disabled).toBe(true);
+    expect(visibleText(q("[data-testid='dt-pivot-block']"))).toContain("피벗에 저장 안 한 변경이 있어");
+    await act(async () => {
+      q<HTMLButtonElement>("[data-testid='pivot-revert']").click();
+    });
+    expect(findButton(container, "표 저장").disabled).toBe(false);
+    expect(container.querySelector("[data-testid='dt-pivot-block']")).toBeNull();
   });
 
   it("구간 추가·삭제 버튼이 행 수를 바꾼다", async () => {
