@@ -231,6 +231,8 @@ A.1.1 모듈 외 기 구축·공유 모듈은 본 표로 분리 등재. 신규 �
 | `domainMng` | — (To-Be only) | `mdm` | `dma` | `domainMng` | 2026-09-24 | 도메인 관리 — As-Is 없음, 원천 02 maru03020/03030 계승. 상속 트리·검증식 두 칸·테스트 케이스·영향도(TSK-04-03). 기능설계서 1종(`docs/mdm/screens/domainMng/`) |
 | `columnMng` | — (To-Be only) | `mdm` | `dma` | `columnMng` | 2026-09-24 | 컬럼 사전 — As-Is 없음(신규). TSK-04-04. 기능설계서 1종(`docs/mdm/screens/columnMng/`, 팝업 termRegPop 절 포함) |
 | `termRegPop` | — (To-Be only) | `mdm` | `dma` | `termRegPop` | 2026-09-24 | 용어 인라인 등록 팝업(columnMng 에서 호출, 메뉴 leaf 없음). TSK-04-04 |
+| `headerMng` | — (To-Be only) | `mdm` | `dmb` | `headerMng` | 2026-09-24 | 전문 헤더 정의 — As-Is 없음(신규). TSK-05-02. 기능설계서 1종(`docs/mdm/screens/headerMng/`) |
+| `layoutMng` | — (To-Be only) | `mdm` | `dmb` | `layoutMng` | 2026-09-24 | 전문 레이아웃 — As-Is 없음(신규). 헤더 적층·상수 재정의·본문 항목·오프셋 자동 계산(TSK-05-02). 기능설계서 1종(`docs/mdm/screens/layoutMng/`) |
 | `codeItemEdit` | — (To-Be only) | `mdm` | `dmc` | `codeItemEdit` | 2026-09-24 | 코드 편집 — As-Is 없음(신규). TSK-06-03. 기능설계서 1종(`docs/mdm/screens/codeItemEdit/`) |
 
 **등재 절차**:

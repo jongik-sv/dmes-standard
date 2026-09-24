@@ -530,3 +530,84 @@
 - **Rationale**: "실측 후 대응"이 아니라 "알려진 결함을 선제적으로 우회"한다는 design.md F8 원칙을 그대로 따르고, 그 우회가 실제로 유효한지 등록 전/후 두 상태를 모두 실행해 비교했다(mutation 증거 겸용)
 - **Reversible**: yes(컨버터·UserType 구현을 교체해도 이 Task 의 다른 결정에 영향 없음)
 - **Source**: docs/mdm/tasks/TSK-07-01/design.md F7·F8·§3.2, `MdmMasterDataEntityJpaRoundtripTest.java`
+
+## D-066 (2026-09-24T04:25:00Z)
+- **Temp ID**: D-TSK-05-02-1
+- **Phase**: build (TSK-05-02)
+- **Decision needed**: spec entry-point 의 `mdl/headerMng`·`mdl/layoutMng` 와 리포 정본 그룹 코드 `dmb` 중 무엇으로 메뉴·componentPath·패키지·BPMN 경로를 만드는가
+- **Decision made**: `dmb` 로 만든다(componentPath `dmb/headerMng`·`dmb/layoutMng`, 패키지 `…mdm.dmb.*`, BPMN `services/dmb/*.bpmn`). spec 이 적은 메뉴 이름(마루 MDM > 레이아웃 > 전문 헤더 정의/전문 레이아웃)은 그대로 지킨다
+- **Rationale**: D-015 가 옛 `mdt/mdl` 을 `dma~dme` 로 바꿨고 screens/README §3·wbs tech-spec·DataInitializer 의 `dmb "레이아웃"` 폴더·`MdmScreenGroup.DMB`·권한 매트릭스가 모두 `dmb` 다. TSK-04-03 의 `mdt→dma` 선례
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-05-02/design.md D1
+
+## D-067 (2026-09-24T04:25:00Z)
+- **Temp ID**: D-TSK-05-02-2
+- **Phase**: build (TSK-05-02)
+- **Decision needed**: 헤더별 인코딩·패딩을 어디에 담는가(확정 스키마는 `TB_MDM_EAI` 에만 칸이 있다)
+- **Decision made**: 인코딩·패딩은 EAI 가 소유한다. 헤더 상세에서 EAI 를 고르거나 새 코드로 만들고 그 EAI 의 이름·인코딩·패딩을 함께 저장하며, `TB_MDM_EAI.HEADER_LAYOUT_ID` 를 그 헤더(EAI 표준 헤더)로 둔다. 스키마 변경 없음
+- **Rationale**: 03 테이블 설계와 TSK-05-01 D5(encoding·padRule 은 EAI 소유, 스냅샷 최상위). V9 마이그레이션은 TSK-02-03 ERD·05-01 계약을 함께 바꿔야 해 권한 밖이다
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-05-02/design.md D2
+
+## D-068 (2026-09-24T04:25:00Z)
+- **Temp ID**: D-TSK-05-02-3
+- **Phase**: build (TSK-05-02)
+- **Decision needed**: `TB_MDM_LAYOUT_ITEM.NUM_FORMAT VARCHAR(50)` 의 문자열 형식과 숫자 표현 자리수(M201 COIL_THK 4바이트)를 담을 곳
+- **Decision made**: `SIGN=Y|N;ZERO=Y|N;SCALE=<0 또는 도메인 소수>;WIDTH=<1 이상>`(키 순서 고정, 네 키 필수, 최대 29자). WIDTH 가 항목 길이가 된다. Java `LayoutNumFormatCodec`·TS `num-format.ts` 가 같은 벡터를 통과한다
+- **Rationale**: 시안 항목 상세가 부호 자리·0 채움·암묵 소수점·표현 자리수를 항목 칸으로 두고, 등록 거부 #4 가 표현 자리수와 도메인 길이가 다름을 전제한다. JSON 은 50자를 넘는다
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-05-02/design.md D3
+
+## D-069 (2026-09-24T04:25:00Z)
+- **Temp ID**: D-TSK-05-02-4
+- **Phase**: build (TSK-05-02)
+- **Decision needed**: 레이아웃 저장 거부를 공유 enum `MdmErrorCode` 에 새 상수로 더하는가
+- **Decision made**: 더하지 않는다. `LayoutRejections` 가 cactus `BusinessException(BUSINESS_ERROR, "… 저장 거부: Lnn[seq] …", details)` 를 직접 만들고(첫 detail 코드 `LAYOUT_SAVE_REJECTED`), 동시 수정만 기존 MDM001 을 쓴다. 거부 코드 L01~L11
+- **Rationale**: 기점 이후 dev 가 MDM016~021 을 가져가 같은 줄·번호 충돌이 확정적이다. OASIS 서비스 예외는 `meta.message` 원문만 화면에 가므로 기능 차이가 없다
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-05-02/design.md D4
+
+## D-070 (2026-09-24T04:25:00Z)
+- **Temp ID**: D-TSK-05-02-5
+- **Phase**: build (TSK-05-02)
+- **Decision needed**: "표준 관리자 역할만 등록·수정"을 서버 서비스가 직접 검사하는가
+- **Decision made**: 기점 방식대로 메뉴·API 액션 RBAC 는 mcm 시드와 BFF 가 맡고(dmb: MDM_STD_ADMIN EDIT, MDM_STEWARD READ, SYSADMIN PERM_ALL) 서비스는 역할을 보지 않는다
+- **Rationale**: D-041(TSK-01-03 D6). 서버 가드 클래스(dev 의 TSK-04-04 `MdmStdAdminGuard`)는 기점에 없고 서버 승인 전이다. 모듈 안 방식이 갈리므로 사람이 통일 여부를 정한다
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-05-02/design.md D5
+
+## D-071 (2026-09-24T04:25:00Z)
+- **Temp ID**: D-TSK-05-02-6
+- **Phase**: build (TSK-05-02)
+- **Decision needed**: 본문·헤더 항목의 드래그 순서를 어떻게 구현하는가(shared `AgDataGrid` 에 행 드래그가 없다)
+- **Decision made**: shared `AgDataGrid` 에 선택형 `GridColumn.rowDrag`·`AgDataGridProps.onRowOrderChange` 를 더한다. prop 이 있을 때만 community managed row drag 를 켜고 정렬을 끈다. 없으면 기존 그리드와 같은 prop 을 넘긴다
+- **Rationale**: spec 본문이 드래그를 요구하고, mantine-aggrid-ui §3·FrontEnd Part B §17 이 "래퍼가 못 채우면 화면에서 우회하지 말고 shared 에 추가"라 한다. `AllCommunityModule` 이 이미 등록돼 있어 새 의존성·Enterprise 가 없다
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-05-02/design.md D6
+
+## D-072 (2026-09-24T04:25:00Z)
+- **Temp ID**: D-TSK-05-02-7
+- **Phase**: build (TSK-05-02)
+- **Decision needed**: 형제 TSK-05-03 과의 경계, 헤더를 바꿀 때 그 헤더를 쓰는 전문의 저장값(오프셋·총 길이·재정의) 처리
+- **Decision made**: 이 작업은 L01~L11 만 검사한다. 헤더 저장 트랜잭션에서 사용 전문의 본문 오프셋·총 길이를 다시 계산하고, 재정의는 헤더 항목의 COLUMN_PHYS 로 다시 짝지으며 짝이 없거나 CONST 가 아니게 되면 지운다. 업무 `VERSION` 은 올리지 않는다. 거부 #2·#3·#4·#7, 버전·스냅샷·직렬화, `MdmDomainReferenceSpi(LAYOUT_ITEM)` 는 TSK-05-03
+- **Rationale**: 03 "오프셋과 전문 총 길이는 저장 시 계산 — 수작업으로 맞추는 값이 없다". 재정의는 SEQ 로만 걸려 있어 항목을 다시 넣으면 물리명으로 짝지어야 한다. wbs 가 거부 7종·버전·영향 목록을 05-03 요구사항으로 적었다
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-05-02/design.md D7
+
+## D-073 (2026-09-24T04:25:00Z)
+- **Temp ID**: D-TSK-05-02-8
+- **Phase**: build (TSK-05-02)
+- **Decision needed**: 컬럼 사전 검색·헤더 선택 팝업이 부를 API 를 새 액션·새 팝업 서비스로 둘 것인가
+- **Decision made**: 각 서비스 `search` 에 `target=COLUMN`(·`HEADER`)을 두고 공용 `LayoutDictionary.search` 를 부른다. 액션은 search·view·save 셋만 쓴다. `target=HEADER` 응답은 저장 전 상수 편집을 위해 헤더 항목을 함께 싣는다(Build 이탈 B1)
+- **Rationale**: 액션은 `MdmActions` 13종 안에서만 고를 수 있고 밖의 이름은 SYSADMIN 도 403 이다. 새 팝업 OBJECT 는 screens/README §3·식별자 사전·RBAC 시드를 늘린다
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-05-02/design.md D8
+
+## D-074 (2026-09-24T04:25:00Z)
+- **Temp ID**: D-TSK-05-02-9
+- **Phase**: build (TSK-05-02)
+- **Decision needed**: E2E 게이트에서 TSK-04-03 스펙 `mdm-domainMng.spec.ts` E2~E6 가 새 DB 첫 실행마다 실패했다 — 다른 Task 의 테스트를 고치는가
+- **Decision made**: 그 스펙의 `selectRow` 도우미만 고쳐, 클릭이 부른 view 응답과 두 프레임 반영을 기다린 뒤 기존 단언을 둔다. 단언·기대값은 바꾸지 않는다
+- **Rationale**: 실측 — ag-grid 가 `rowClicked` 를 비동기 큐로 약 19ms 늦게 보내는데 `selectRow` 의 대기 조건(도메인명 값)은 저장 직후 같은 행이 이미 열려 있어 처음부터 참이었다. 늦게 온 view 응답이 미리보기 입력값을 비웠다. 공허한 대기를 실제 왕복 대기로 바꾸는 강화다. 수정 뒤 새 DB 전체 실행 연속 2회 12 passed
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-05-02/design.md D9
