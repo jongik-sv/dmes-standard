@@ -391,7 +391,11 @@ export default function CodeItemEditPage() {
                       singleClickEdit
                       stopEditingWhenCellsLoseFocus
                       highlightedRowKey={selectedKey}
-                      onRowClick={(row) => setSelectedKey(String(row.__key))}
+                      onRowClick={(row) => {
+                        // 행 선택은 경미 수정 패널만 쓴다. DRAFT 편집 중에 선택을 바꾸면 그리드가 다시 그려져
+                        // 한 번 클릭 편집 시작과 겹친다(E2E T4 실측) — RELEASED(경미 수정 가능)에서만 고른다.
+                        if (patchable) setSelectedKey(String(row.__key));
+                      }}
                       onCellValueChanged={({ rowKey, field, newValue }) => {
                         const next = editCell(rows, String(rowKey), field, newValue);
                         setRows(next);
