@@ -2,7 +2,7 @@
   "tsk": "TSK-05-02",
   "order": "8c8a2080-52fc-4922-a174-5cafa300657f",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "verify",
+  "phase": "refactor",
   "baseline": {
     "failures": 0,
     "tests": 2369,
@@ -37,10 +37,10 @@
     ]
   },
   "branch_base": "86baa20404f2c94921542e2d815912cd8ad24539",
-  "model": "haiku",
+  "model": "sonnet",
   "last": {
-    "phase": "build",
-    "event": "build.pass"
+    "phase": "verify",
+    "event": "verify.pass"
   },
   "gates": {
     "build": {
@@ -48,6 +48,13 @@
       "backend": "2156/0",
       "frontend": "341 passed, lint pass",
       "e2e": "12 passed"
+    },
+    "verify": {
+      "head": "fbc0eda",
+      "backend": "2156/0",
+      "frontend": "341 passed, lint pass",
+      "e2e": "12 passed(verify2 실행, src 는 build 게이트와 동일)",
+      "mutations": "I1~I23 23건 빨강 + E2E 변이 2건 빨강"
     }
   }
 }
