@@ -2,7 +2,7 @@
   "tsk": "TSK-04-04",
   "order": "88a2e470-4463-49fd-a8d3-a1c7cbc3eeb1",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "reported",
+  "phase": "merged",
   "baseline": {
     "failures": 0,
     "tests": 1274,
@@ -66,5 +66,6 @@
     "verify1": "haiku 1차는 변이 미실행으로 실패 판정",
     "docker": "사용자 결정: 도커 금지로 MSSQL 실측 생략"
   },
-  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\""
+  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\"",
+  "unapproved": true
 }
