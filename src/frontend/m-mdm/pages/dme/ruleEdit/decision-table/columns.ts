@@ -129,6 +129,8 @@ export interface TableColumnContext {
   onEdit: (rowId: number, varId: number, key: CellKey, value: string | boolean) => void;
   onSelectRow: (rowId: number) => void;
   onDeleteRow: (rowId: number) => void;
+  /** 열 머리 클릭(열 설정 표의 대응 줄 하이라이트). */
+  onSelectVar?: (varId: number) => void;
 }
 
 export interface TableMarks {
@@ -222,6 +224,8 @@ function varGroup(ctx: TableColumnContext, v: ResolvedVar): GridColumn {
       physName: v.exprVar || v.dispType === "Expression" ? "" : (v.varName ?? ""),
       typeBadge: typeBadge(v),
       dispBadge: dispBadge(v),
+      varId: v.varId,
+      onSelect: ctx.onSelectVar ? () => ctx.onSelectVar?.(v.varId) : undefined,
     },
     children: leafKeys(v).map(({ key, header }) => {
       const col: GridColumn = {

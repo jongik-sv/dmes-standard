@@ -14,6 +14,9 @@ import { AgDataGrid } from "@dk-oasis/shared/grid";
 import { Button, Select } from "@dk-oasis/shared/form";
 import { badgeStyle } from "@/shell";
 
+import { ColumnDraftSharedContext } from "../sections/column-draft-context";
+import { tableSaveBlocked } from "../sections/columns/column-draft";
+
 import { saveTable } from "../api";
 import type { RuleEditCardProps, RuleTableSection } from "../cards";
 import { CardFrame, MutedText } from "../cards/CardFrame";
@@ -63,6 +66,11 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
   const { view, runWrite, setDirty, canDo, busy, extraSections = [] } = props;
   const [state, dispatch] = useReducer(tableReducer, view, initTableState);
   const [serverCheck, setServerCheck] = useState<ServerCheck | null>(null);
+  // 열 설정 섹션과 나누는 상태 — 초안이 dirty 면 표 저장을 막고(불변 13), 열 머리를 누르면 열 설정 표의 그 줄을 하이라이트한다(design §6).
+  const [colDirty, setColDirty] = useState(false);
+  const [highlightVarId, setHighlightVarId] = useState<number | null>(null);
+  const columnShared = useMemo(() => ({ colDirty, setColDirty, highlightVarId, setHighlightVarId }), [colDirty, highlightVarId]);
+  const saveBlocked = tableSaveBlocked(colDirty);
 
   useEffect(() => {
     dispatch({ type: "load", view });
@@ -101,6 +109,7 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
         onEdit: (rowId, varId, key, value) => ctxRef.current.edit({ type: "editCell", rowId, varId, key, value }),
         onSelectRow: (rowId) => dispatch({ type: "selectRow", rowId }),
         onDeleteRow: (rowId) => ctxRef.current.edit({ type: "deleteRow", rowId }),
+        onSelectVar: setHighlightVarId,
       }),
     [varsSig, editable],
   );
@@ -140,7 +149,7 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
   const warnings = shown.length - errors;
   const hasDefault = state.rows.some((r) => r.rowKind === "DEFAULT");
   const policy = HIT_POLICIES.find((p) => p.value === state.hitPolicy);
-  const canSave = editable && dirty && canDo("save") && !busy;
+  const canSave = editable && dirty && canDo("save") && !busy && !saveBlocked;
   const gridHeight = Math.min(560, 3 * 28 + Math.max(state.rows.length, 3) * 26 + 24);
 
   return (
@@ -204,6 +213,11 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
           <Button variant="primary" disabled={!canSave} onClick={() => void handleSave()}>
             표 저장
           </Button>
+          {saveBlocked && (
+            <span data-testid="dt-col-block" style={{ color: "var(--color-danger)", alignSelf: "center" }}>
+              열 설정 초안이 있어 표를 저장할 수 없습니다. 열 설정을 적용하거나 초안을 버리세요.
+            </span>
+          )}
         </div>
       )}
 
@@ -257,9 +271,11 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
         )}
       </div>
 
-      {extraSections.map((s) => (
-        <s.Component key={s.id} {...props} />
-      ))}
+      <ColumnDraftSharedContext.Provider value={columnShared}>
+        {extraSections.map((s) => (
+          <s.Component key={s.id} {...props} />
+        ))}
+      </ColumnDraftSharedContext.Provider>
     </CardFrame>
   );
 }

@@ -79,6 +79,45 @@ export interface RuleSetUsage {
   dependedBy: string[];
 }
 
+/** 식 입력 칸 자동완성 소스 — 컬럼 사전 물리명(COLUMN)·앞 룰 결과 변수(RULE_RESULT). 서버 `varCandidates`. */
+export interface VarCandidate {
+  name: string;
+  label?: string | null;
+  kind: "COLUMN" | "RULE_RESULT";
+}
+
+/** 열 설정 초안이 되돌려 보낼 저장 원값(서버 `varMeta`) — `ResolvedVar` 는 해석된 값이라 따로 싣는다. */
+export interface VarMeta {
+  varId: number;
+  axis?: "NONE" | "ROW" | "COL" | null;
+  resGrp?: string | null;
+  grpCond?: string | null;
+  collectAgg?: string | null;
+  prioList?: string[] | null;
+  domainId?: number | null;
+  dataType?: "BOOLEAN" | "NUMBER" | "STRING" | "DATE" | null;
+}
+
+/** `parseExpr` 응답 — 서버 EvalEx 파싱 결과. `supported=false` 면 화면이 평가하지 못 한다(서버 평가로 넘긴다). */
+export interface ParseExprResult {
+  ast: Record<string, unknown>;
+  refVars: string[];
+  supported: boolean;
+  problems: Array<{ kind: string; detail: string }>;
+}
+
+/** 도메인 검색 한 줄(서버 `searchDomains`). */
+export interface DomainRow {
+  domainId: number;
+  stdName: string;
+  domainName?: string | null;
+  domainKind?: string | null;
+  dataType: "BOOLEAN" | "NUMBER" | "STRING" | "DATE";
+  length?: number | null;
+  scale?: number | null;
+  stdRule?: string | null;
+}
+
 export interface RuleEditView {
   me: string;
   /** 표 편집 = 원천 MDM && 선택 버전 DRAFT && 소유자 == 나(서버 판정, I7). */
@@ -93,6 +132,10 @@ export interface RuleEditView {
   vars: ResolvedVar[];
   rows: StoredRow[];
   baseRows: StoredRow[];
+  /** base(RELEASED) 버전의 해석된 변수 — 입력 계약 diff 용. */
+  baseVars?: ResolvedVar[];
+  varCandidates?: VarCandidate[];
+  varMeta?: VarMeta[];
   issues: RuleIssueView[];
   usage: { usageNote?: string | null; sets: RuleSetUsage[] };
 }
@@ -117,6 +160,14 @@ export interface RuleTableSaveResult {
   rowIdMap?: Record<string, number>;
   issues?: RuleIssueView[];
   rows?: StoredRow[];
+}
+
+/** 열 설정 적용 응답. `rowIdMap` 은 새 열의 임시 ID → 발급 var_id. */
+export interface ColumnsSaveResult {
+  part?: string;
+  rowVersion?: number;
+  rowIdMap?: Record<string, number>;
+  issues?: RuleIssueView[];
 }
 
 /** 화면 알림 한 줄. */
