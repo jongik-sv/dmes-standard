@@ -19,7 +19,7 @@ import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
 /**
- * TSK-07-01 design.md §3.3′-A — 두 V7 DDL 파일을 DB 에 적용하지 않고 클래스패스 리소스 텍스트로 읽어
+ * TSK-07-01 design.md §3.3′-A — 두 V10 DDL 파일을 DB 에 적용하지 않고 클래스패스 리소스 텍스트로 읽어
  * 파싱·대조한다(도커·SQLite 커넥션 모두 불필요, 순수 문자열 처리, {@code testAll} 에 포함).
  *
  * <p>파싱은 괄호 깊이를 추적해 {@code VARCHAR(50)}·{@code CHECK (...)} 같은 중첩 괄호를 안전하게
@@ -47,9 +47,9 @@ class MdmMasterDataDdlParityTest {
     }
 
     @Test
-    void 두_방언_V7_DDL_이_테이블_칼럼_제약_인덱스_이름에서_정확히_대응한다() {
-        DdlFile sqlite = parse(readClasspath("db/migration/mdm/sqlite/V7__create_mdm_master_data.sql"));
-        DdlFile mssql = parse(readClasspath("db/migration/mdm/mssql/V7__create_mdm_master_data.sql"));
+    void 두_방언_V10_DDL_이_테이블_칼럼_제약_인덱스_이름에서_정확히_대응한다() {
+        DdlFile sqlite = parse(readClasspath("db/migration/mdm/sqlite/V10__create_mdm_master_data.sql"));
+        DdlFile mssql = parse(readClasspath("db/migration/mdm/mssql/V10__create_mdm_master_data.sql"));
 
         assertEquals(sqlite.tableOrder(), mssql.tableOrder(), "테이블 이름 순서 있는 목록");
         assertEquals(MdmMasterDataExpectations.TABLES, sqlite.tableOrder(), "SQLite 테이블 순서가 기대값과 다르다");
@@ -71,8 +71,8 @@ class MdmMasterDataDdlParityTest {
 
     @Test
     void 공허_통과_방지_두_방언_파일이_실제로_읽혔다() {
-        DdlFile sqlite = parse(readClasspath("db/migration/mdm/sqlite/V7__create_mdm_master_data.sql"));
-        DdlFile mssql = parse(readClasspath("db/migration/mdm/mssql/V7__create_mdm_master_data.sql"));
+        DdlFile sqlite = parse(readClasspath("db/migration/mdm/sqlite/V10__create_mdm_master_data.sql"));
+        DdlFile mssql = parse(readClasspath("db/migration/mdm/mssql/V10__create_mdm_master_data.sql"));
         assertFalse(sqlite.tableOrder().isEmpty());
         assertFalse(mssql.tableOrder().isEmpty());
         assertEquals(7, sqlite.tableOrder().size());

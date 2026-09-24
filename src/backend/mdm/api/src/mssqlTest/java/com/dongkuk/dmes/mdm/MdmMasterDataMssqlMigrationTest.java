@@ -28,7 +28,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * TSK-07-01 design.md §3.3′-B — V7(05 마스터데이터)을 {@code @SpringBootTest}+{@code local-db} 프로파일로
+ * TSK-07-01 design.md §3.3′-B — V10(05 마스터데이터, 당초 V7)을 {@code @SpringBootTest}+{@code local-db} 프로파일로
  * 실제 SQL Server 에 적용한다. §3.3′-B 11개 항목에 대응하는 메서드를 둔다.
  *
  * <p>테스트 클래스마다 컨테이너를 새로 띄우지 않고 {@link MdmMssqlServer}(2026-09-24 dev 반영, 사용자
@@ -60,9 +60,9 @@ class MdmMasterDataMssqlMigrationTest {
         registry.add("spring.datasource.password", MdmMssqlServer::password);
     }
 
-    /** 항목 1·2·6·7·8(참고, §3.3′-A 가 자동 확인) — V7 이 성공적으로 적용됐다. */
+    /** 항목 1·2·6·7·8(참고, §3.3′-A 가 자동 확인) — V10 이 성공적으로 적용됐다. */
     @Test
-    void local_db_설정으로_V1_V2_V3_V4_V7_가_적용된다() throws SQLException {
+    void local_db_설정으로_V1_V2_V3_V4_V8_V9_V10_가_적용된다() throws SQLException {
         Set<String> versions = new HashSet<>();
         try (Connection c = dataSource.getConnection(); Statement s = c.createStatement();
              ResultSet rs = s.executeQuery("SELECT version FROM flyway_schema_history WHERE success = 1")) {
@@ -70,7 +70,7 @@ class MdmMasterDataMssqlMigrationTest {
                 versions.add(rs.getString(1));
             }
         }
-        assertEquals(Set.of("1", "2", "3", "4", "7"), versions);
+        assertEquals(Set.of("1", "2", "3", "4", "8", "9", "10"), versions);
     }
 
     /** 항목 3 — 코드성 칼럼에 BIN2 콜레이션이 빠짐없이 붙었다(F5, naming-dialect-rules §3 #19). */

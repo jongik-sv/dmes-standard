@@ -31,7 +31,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * TSK-07-01 design.md §3.1 — V7(05 마스터데이터 7테이블, SQLite) 실제 적용을 실측한다.
+ * TSK-07-01 design.md §3.1 — V10(05 마스터데이터 7테이블, SQLite. 당초 V7, 머지 뒤 재채번) 실제 적용을 실측한다.
  * {@code MdmInterfaceLayoutMigrationTest} 와 같은 패턴(@TempDir + local 프로파일). 쓰기 단언은
  * 트랜잭션을 열고 rollback 으로 끝낸다.
  */
@@ -54,12 +54,12 @@ class MdmMasterDataMigrationTest {
     }
 
     @Test
-    void flyway_가_V7_을_success_로_적용했다() throws SQLException {
+    void flyway_가_V10_을_success_로_적용했다() throws SQLException {
         try (Connection c = dataSource.getConnection();
              Statement s = c.createStatement();
-             ResultSet rs = s.executeQuery("SELECT success FROM flyway_schema_history WHERE version = '7'")) {
-            assertTrue(rs.next(), "flyway_schema_history 에 version=7 행이 없다");
-            assertTrue(rs.getBoolean("success"), "V7 마이그레이션이 success=true 가 아니다");
+             ResultSet rs = s.executeQuery("SELECT success FROM flyway_schema_history WHERE version = '10'")) {
+            assertTrue(rs.next(), "flyway_schema_history 에 version=10 행이 없다");
+            assertTrue(rs.getBoolean("success"), "V10 마이그레이션이 success=true 가 아니다");
         }
     }
 

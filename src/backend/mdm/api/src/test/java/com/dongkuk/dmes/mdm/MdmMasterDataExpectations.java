@@ -14,7 +14,7 @@ import java.util.Set;
  */
 final class MdmMasterDataExpectations {
 
-    /** V7 이 만드는 7테이블, DDL 순서 그대로(순환 FK 없음, §1). */
+    /** V10 이 만드는 7테이블, DDL 순서 그대로(순환 FK 없음, §1). */
     static final List<String> TABLES = List.of(
             "TB_MDM_DATA", "TB_MDM_DATA_SYSTEM", "TB_MDM_DATA_ITEM", "TB_MDM_DATA_CATE",
             "TB_MDM_DATA_CATE_ITEM", "TB_MDM_DATA_RECV", "TB_MDM_DATA_RECV_ITEM");

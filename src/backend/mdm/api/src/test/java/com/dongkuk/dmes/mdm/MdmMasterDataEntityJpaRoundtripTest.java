@@ -38,7 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 각각 최소 1건 저장→조회 왕복을 수행한다. 리포지토리가 없는 {@code MdmDataSystem}·{@code MdmDataRecv}·
  * {@code MdmDataRecvItem}(F4, D-019)은 {@code EntityManager}로 직접 저장·조회한다.
  *
- * <p>F7·F8 단정(§5 불변 규칙 8) — {@code MdmSqliteTemporalConverterContributor}가 SQLite 프로파일에
+ * <p>F7·F8 단정(§5 불변 규칙 8) — {@code MdmSqliteTemporalContributor}(dev 머지 뒤 TSK-08-01·06-01 과 한 벌로 합친 컨트리뷰터)가 SQLite 프로파일에
  * 등록돼 있다는 전제로 {@code typeof()}로 저장 형식을 단정한다(관찰이 아니라 단정). {@code VALID_FROM}은
  * {@code MdmDataItem}의 PK 구성 요소({@code @Id})이고 {@code VALID_TO}는 아니다 — JPA 스펙상 컨버터가
  * Id 속성에는 자동 적용되지 않을 수 있어 둘 다 따로 단정한다.

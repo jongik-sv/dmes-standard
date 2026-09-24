@@ -45,7 +45,7 @@ class CommonContractTest {
             assertTrue(code.defaultMessage() != null && !code.defaultMessage().isBlank(), code + " 기본 메시지");
             assertTrue(Set.of(400, 403, 409).contains(code.httpStatus()), code + " 의미 HTTP 상태");
         }
-        assertEquals(14, MdmErrorCode.values().length);
+        assertEquals(21, MdmErrorCode.values().length);
     }
 
     @Test
@@ -58,6 +58,38 @@ class CommonContractTest {
         assertEquals(409, MdmErrorCode.CONFIRM_WARNINGS_NOT_ACKNOWLEDGED.httpStatus());
         assertEquals(com.dongkuk.dmes.cactus.common.ErrorCode.BUSINESS_ERROR,
                 MdmErrorCode.CONFIRM_WARNINGS_NOT_ACKNOWLEDGED.transport());
+    }
+
+    @Test
+    void TSK_04_03_이_더한_도메인_저장_거부_코드() {
+        assertEquals("MDM015", MdmErrorCode.DOMAIN_SAVE_REJECTED.code());
+        assertEquals(400, MdmErrorCode.DOMAIN_SAVE_REJECTED.httpStatus());
+        assertEquals(com.dongkuk.dmes.cactus.common.ErrorCode.BUSINESS_ERROR, MdmErrorCode.DOMAIN_SAVE_REJECTED.transport());
+    }
+
+    @Test
+    void TSK_04_04_가_더한_오류_코드_여섯_개() {
+        // TSK-04-04 design.md §6.11(D2) — 컬럼 사전·용어 인라인 등록. 화면에는 message 만 오므로(F12) 문구가 계약이다.
+        assertCode(MdmErrorCode.STD_ADMIN_ROLE_REQUIRED, "MDM016", 403,
+                com.dongkuk.dmes.cactus.common.ErrorCode.ACCESS_DENIED, "표준 관리자 역할이 있어야 할 수 있습니다");
+        assertCode(MdmErrorCode.NAME_PLACEHOLDER_REMAINS, "MDM017", 400,
+                com.dongkuk.dmes.cactus.common.ErrorCode.INVALID_VALUE, "미등록 용어(***)가 남아 있어 저장할 수 없습니다");
+        assertCode(MdmErrorCode.SYSTEM_FIELD_ALREADY_MAPPED, "MDM018", 409,
+                com.dongkuk.dmes.cactus.common.ErrorCode.DUPLICATE_DATA, "한 시스템 안에서 필드명 하나는 컬럼 하나에만 붙일 수 있습니다");
+        assertCode(MdmErrorCode.COLUMN_DUPLICATED, "MDM019", 409,
+                com.dongkuk.dmes.cactus.common.ErrorCode.DUPLICATE_DATA, "같은 논리명 또는 물리명의 컬럼이 이미 있습니다");
+        assertCode(MdmErrorCode.TERM_DUPLICATED, "MDM020", 409,
+                com.dongkuk.dmes.cactus.common.ErrorCode.DUPLICATE_DATA, "같은 표기·의미 번호 또는 영문 약어의 용어가 이미 있습니다");
+        assertCode(MdmErrorCode.INVALID_INPUT, "MDM021", 400,
+                com.dongkuk.dmes.cactus.common.ErrorCode.INVALID_VALUE, "입력값이 올바르지 않습니다");
+    }
+
+    private static void assertCode(MdmErrorCode code, String id, int status,
+                                   com.dongkuk.dmes.cactus.common.ErrorCode transport, String message) {
+        assertEquals(id, code.code());
+        assertEquals(status, code.httpStatus());
+        assertEquals(transport, code.transport());
+        assertEquals(message, code.defaultMessage());
     }
 
     @Test

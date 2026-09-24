@@ -1,8 +1,14 @@
 import { defineConfig, type Options } from "tsup";
 
 const external = [
-  "react", "react-dom", "next", "next/navigation", "next-auth", "next-auth/react",
-  "@dk-oasis/shared", /^@dk-oasis\/shared\/.*/,
+  "react",
+  "react-dom",
+  "next",
+  "next/navigation",
+  "next-auth",
+  "next-auth/react",
+  "@dk-oasis/shared",
+  /^@dk-oasis\/shared\/.*/,
 ];
 
 const common: Options = {
@@ -26,6 +32,8 @@ export default defineConfig([
     entry: {
       // 화면 엔트리는 업무 영역이 늘어날 때마다 여기에 1줄씩 추가한다.
       "pages/dma/mdmSample/page": "pages/dma/mdmSample/page.tsx",
+      "pages/dma/domainMng/page": "pages/dma/domainMng/page.tsx",
+      "pages/dma/columnMng/page": "pages/dma/columnMng/page.tsx",
     },
   },
 ]);

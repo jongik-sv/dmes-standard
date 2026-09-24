@@ -70,9 +70,9 @@ class MdmTermDomainColumnMssqlMigrationTest {
     }
 
     @Test
-    void local_db_설정으로_V1_V2_V3_V4_V7_가_적용된다() throws SQLException {
-        // TSK-05-01 — V4(03 인터페이스 레이아웃) 추가 반영. TSK-07-01 F2 — V7(05 마스터데이터) 추가 반영.
-        // 둘 다 완화가 아니라 새 버전 반영이다. 실행하지 않는다(도커 금지, F20·F21) — 컴파일 유지 목적.
+    void local_db_설정으로_V1_V2_V3_V4_V8_V9_V10_가_적용된다() throws SQLException {
+        // TSK-05-01 — V4(03 인터페이스 레이아웃), TSK-08-01 — V8(06 업무기준), TSK-06-01 — V9(04 마스터코드) 추가 반영.
+        // 완화가 아니라 새 버전 반영이다.
         Set<String> versions = new HashSet<>();
         try (Connection c = dataSource.getConnection(); Statement s = c.createStatement();
              ResultSet rs = s.executeQuery("SELECT version FROM flyway_schema_history WHERE success = 1")) {
@@ -80,7 +80,8 @@ class MdmTermDomainColumnMssqlMigrationTest {
                 versions.add(rs.getString(1));
             }
         }
-        assertEquals(Set.of("1", "2", "3", "4", "7"), versions);
+        // TSK-07-01 — V10(05 마스터데이터, 당초 V7 → 머지 뒤 재채번) 추가 반영. 완화가 아니라 새 버전 반영이다.
+        assertEquals(Set.of("1", "2", "3", "4", "8", "9", "10"), versions);
     }
 
     /** #3 — CHECK(ISJSON(...) = 1) 8개, 부정형 JSON INSERT 는 오류 547(CHECK 위반)로 거부. */
@@ -297,9 +298,13 @@ class MdmTermDomainColumnMssqlMigrationTest {
         assertTrue(second.getDomainId() > first.getDomainId());
     }
 
-    /** F1 대조군을 MSSQL 에서도 실행 — TB_MDM_CODE 가 없어도 MARU_CODE_ID=NULL INSERT 는 정상 동작한다(D1 이 실제 파일에 반영됐음을 고정). */
+    /**
+     * MARU_CODE_ID=NULL INSERT 는 MSSQL 에서도 정상 동작한다. TSK-06-01 V9 가 {@code FK_TB_MDM_DOMAIN_CODE} 를 건 뒤에도
+     * NULL 은 FK 검사 대상이 아니라 그대로 통과한다(FK 강제 단언은 {@code MdmMasterCodeMssqlMigrationTest}). V3 시점의
+     * "TB_MDM_CODE 없이도" 이름은 더 이상 사실이 아니라 이름·주석만 고쳤다.
+     */
     @Test
-    void F1_대조군_TB_MDM_CODE_없이도_MARU_CODE_ID_NULL_INSERT_가_성공한다() throws SQLException {
+    void MARU_CODE_ID_NULL_INSERT_는_FK_추가_뒤에도_성공한다() throws SQLException {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try (PreparedStatement ps = c.prepareStatement(

@@ -18,16 +18,16 @@ import org.hibernate.usertype.UserType;
  * {@code @Id} 필드에 쓰는 LocalDateTime 커스텀 타입(TSK-07-01 design.md D3).
  *
  * <p>Hibernate 7 은 {@code @jakarta.persistence.Id}가 붙은 속성에 {@code AttributeConverter}(JPA 계층,
- * {@link LocalDateTimeAttributeConverter}가 그 계층이다)를 거는 것을 하드 금지한다(실측: {@code
+ * {@link com.dongkuk.dmes.mdm.common.support.MdmSqliteLocalDateTimeConverter}가 그 계층이다)를 거는 것을 하드 금지한다(실측: {@code
  * org.hibernate.AnnotationException: 'AttributeConverter' not allowed for attribute ... annotated
- * '@jakarta.persistence.Id'}) — {@code MdmSqliteTemporalConverterContributor}의 auto-apply 도 이
+ * '@jakarta.persistence.Id'}) — {@code MdmSqliteTemporalContributor}의 auto-apply 도 이
  * 제약을 피하지 못한다. {@code TB_MDM_DATA_ITEM}·{@code TB_MDM_DATA_CATE}·{@code TB_MDM_DATA_CATE_ITEM}
  * 은 {@code VALID_FROM}이 PK 구성 요소라(F6, 선분 모델) 이 제약을 정면으로 맞는다.
  *
  * <p>{@code UserType}(Hibernate 네이티브 타입 계층, JPA {@code AttributeConverter}와 다른 경로)은 이
  * 제약을 받지 않는다(실측 확인) — 대신 이 클래스가 방언을 직접 감지해 SQLite 는 naming-dialect-rules
  * §3 #16 형식(TEXT, {@code yyyy-MM-dd HH:mm:ss})으로, 그 밖(MSSQL 포함)은 네이티브 {@code Timestamp}
- * 로 바인딩한다 — {@code MdmSqliteTemporalConverterContributor}가 SQLite 프로파일에만 컨버터를
+ * 로 바인딩한다 — {@code MdmSqliteTemporalContributor}가 SQLite 프로파일에만 컨버터를
  * 등록하는 것과 같은 효과를 방언 감지로 낸다(정적 등록 대신 런타임 분기).
  */
 public class MdmLocalDateTimeIdUserType implements UserType<LocalDateTime> {
