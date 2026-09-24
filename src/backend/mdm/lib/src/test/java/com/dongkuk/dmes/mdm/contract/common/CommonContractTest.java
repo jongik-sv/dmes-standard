@@ -45,7 +45,7 @@ class CommonContractTest {
             assertTrue(code.defaultMessage() != null && !code.defaultMessage().isBlank(), code + " 기본 메시지");
             assertTrue(Set.of(400, 403, 409).contains(code.httpStatus()), code + " 의미 HTTP 상태");
         }
-        assertEquals(21, MdmErrorCode.values().length);
+        assertEquals(23, MdmErrorCode.values().length);
     }
 
     @Test
@@ -82,6 +82,15 @@ class CommonContractTest {
                 com.dongkuk.dmes.cactus.common.ErrorCode.DUPLICATE_DATA, "같은 표기·의미 번호 또는 영문 약어의 용어가 이미 있습니다");
         assertCode(MdmErrorCode.INVALID_INPUT, "MDM021", 400,
                 com.dongkuk.dmes.cactus.common.ErrorCode.INVALID_VALUE, "입력값이 올바르지 않습니다");
+    }
+
+    @Test
+    void TSK_06_03_이_더한_코드_편집_거부_코드_두_개() {
+        // TSK-06-03 design.md D5 — 코드 행 저장 검사(MDM022)·경미 수정 거부(MDM023). 세부는 이슈 코드로 싣는다.
+        assertCode(MdmErrorCode.CODE_SAVE_REJECTED, "MDM022", 400,
+                com.dongkuk.dmes.cactus.common.ErrorCode.BUSINESS_ERROR, "코드 저장 검사를 통과하지 못했습니다");
+        assertCode(MdmErrorCode.CODE_PATCH_REJECTED, "MDM023", 409,
+                com.dongkuk.dmes.cactus.common.ErrorCode.BUSINESS_ERROR, "경미 수정을 할 수 없습니다");
     }
 
     private static void assertCode(MdmErrorCode code, String id, int status,
