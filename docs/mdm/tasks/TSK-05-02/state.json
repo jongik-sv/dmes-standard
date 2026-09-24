@@ -39,8 +39,8 @@
   "branch_base": "86baa20404f2c94921542e2d815912cd8ad24539",
   "model": "sonnet",
   "last": {
-    "phase": "verify",
-    "event": "verify.pass"
+    "phase": "refactor",
+    "event": "refactor.pass"
   },
   "gates": {
     "build": {
@@ -55,6 +55,12 @@
       "frontend": "341 passed, lint pass",
       "e2e": "12 passed(verify2 실행, src 는 build 게이트와 동일)",
       "mutations": "I1~I23 23건 빨강 + E2E 변이 2건 빨강"
+    },
+    "refactor": {
+      "head": "0dd24bc",
+      "backend": "2156/0",
+      "frontend": "341 passed, lint pass",
+      "e2e": "12 passed"
     }
   }
 }

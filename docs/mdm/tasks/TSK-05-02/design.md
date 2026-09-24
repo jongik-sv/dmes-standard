@@ -540,7 +540,7 @@ cd $W && /usr/bin/git checkout -- docs/mdm/tasks/TSK-01-02/screens/dma-mdmSample
 
 - 금지 모드 출처: 워커 기본(DOCKER=allow 아님)
 - 도커 금지로 생략: cd src/backend/mdm && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ../gradlew :api:mssqlMigrationTest --no-daemon --console=plain
-- 위 명령이 돌릴 새 테스트는 `LayoutQueriesMssqlTest`(네이티브 SQL 3개의 MSSQL 실행) 하나다. 수용 기준 6개는 모두 SQLite 통합·vitest·E2E 로 확인하므로 이 생략 때문에 확인하지 못하는 수용 기준은 없다. MSSQL 방언 확인은 머지 뒤 팀장 방언 검증(`dialect_check`)이 한다.
+- 위 명령이 돌릴 새 테스트는 `LayoutQueriesMssqlTest`(네이티브 SQL 4개의 MSSQL 실행 — Build 이탈 B3 로 3개에서 4개가 됐다) 하나다. 수용 기준 6개는 모두 SQLite 통합·vitest·E2E 로 확인하므로 이 생략 때문에 확인하지 못하는 수용 기준은 없다. MSSQL 방언 확인은 머지 뒤 팀장 방언 검증(`dialect_check`)이 한다.
 
 ---
 
