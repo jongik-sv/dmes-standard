@@ -70,7 +70,7 @@ class MdmTermDomainColumnMssqlMigrationTest {
     }
 
     @Test
-    void local_db_설정으로_V1_V2_V3_V4_V8_V9_가_적용된다() throws SQLException {
+    void local_db_설정으로_V1_V2_V3_V4_V8_V9_V10_가_적용된다() throws SQLException {
         // TSK-05-01 — V4(03 인터페이스 레이아웃), TSK-08-01 — V8(06 업무기준), TSK-06-01 — V9(04 마스터코드) 추가 반영.
         // 완화가 아니라 새 버전 반영이다.
         Set<String> versions = new HashSet<>();
@@ -80,7 +80,8 @@ class MdmTermDomainColumnMssqlMigrationTest {
                 versions.add(rs.getString(1));
             }
         }
-        assertEquals(Set.of("1", "2", "3", "4", "8", "9"), versions);
+        // TSK-07-01 — V10(05 마스터데이터, 당초 V7 → 머지 뒤 재채번) 추가 반영. 완화가 아니라 새 버전 반영이다.
+        assertEquals(Set.of("1", "2", "3", "4", "8", "9", "10"), versions);
     }
 
     /** #3 — CHECK(ISJSON(...) = 1) 8개, 부정형 JSON INSERT 는 오류 547(CHECK 위반)로 거부. */
