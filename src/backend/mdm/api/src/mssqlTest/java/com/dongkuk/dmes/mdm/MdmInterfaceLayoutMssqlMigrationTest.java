@@ -80,7 +80,9 @@ class MdmInterfaceLayoutMssqlMigrationTest {
     }
 
     @Test
-    void local_db_설정으로_V1_V2_V3_V4_가_적용된다() throws SQLException {
+    void local_db_설정으로_V1_V2_V3_V4_V7_가_적용된다() throws SQLException {
+        // TSK-07-01 F2 — V7(05 마스터데이터) 추가 반영. 완화가 아니라 새 버전 반영이다. 실행하지 않는다
+        // (도커 금지, F20·F21) — 컴파일 유지 목적으로만 텍스트를 정정한다.
         Set<String> versions = new HashSet<>();
         try (Connection c = dataSource.getConnection(); Statement s = c.createStatement();
              ResultSet rs = s.executeQuery("SELECT version FROM flyway_schema_history WHERE success = 1")) {
@@ -88,7 +90,7 @@ class MdmInterfaceLayoutMssqlMigrationTest {
                 versions.add(rs.getString(1));
             }
         }
-        assertEquals(Set.of("1", "2", "3", "4"), versions);
+        assertEquals(Set.of("1", "2", "3", "4", "7"), versions);
     }
 
     /**

@@ -424,27 +424,77 @@ public interface MdmTemporalSegmentStore<K, V> {
 - **근거**: `wbs.md:1079`(TSK-07-01 PRD 요구사항 절)도 spec 과 똑같은 문구 "05 테이블 7개 Flyway 두 방언, 엔티티"를 쓴다 — 두 문서가 독립적으로 같은 병렬 구조를 반복하는 것은 "테이블"과 "엔티티"가 같은 스코프(7개)를 가리키는 의도적 서술일 가능성을 높인다. 05 원문(`05-master-data.md:601`)도 "원장 테이블 7개"라고 못박아 이 Task 의 대상 자체가 7개임을 거듭 확인한다. `PRD.md:62`(§2 규칙 7)도 "DDL 은 원천 설계 그대로 만든다... 배포 순번 칸·표... 수신 로그 표는 만들되 이번 범위의 코드는 쓰지 않는다"고 해서, 보류 테이블도 **스키마 계층**(DDL+엔티티는 스키마를 코드로 옮긴 것)은 만들고 **동작 계층**(서비스·화면)만 뺀다는 원칙을 시사한다 — 이는 D-019 의 "엔티티도 없음"보다 이 Task(스키마 확정 Task)의 문맥에 더 맞는다. 근거 순위상 spec 본문(및 이를 반복하는 wbs)이 D-019(다른 Task 의 미승인 일반 원칙)보다 세다. **근거 강도: 중**(spec 문언 자체는 여전히 모호하고, D-019 명문과 정면으로 충돌하는 선택이라 사람 확인이 필요하다).
 - **반려 시 재작업**: 선택지 (2)로 되돌리면 `MdmDataSystem.java`·`MdmDataSystemId.java`·`MdmDataRecv.java`·`MdmDataRecvItem.java`·`MdmDataRecvItemId.java`(엔티티 3개+Id 2개)를 §2 생성 목록·§6.0 에서 제거하고, §3.2(JPA 왕복)에서 이 세 테이블 관련 항목을 빼며, §3.3′-A(자동 파싱 테스트)·§3.3′-B(리뷰 체크리스트)는 DDL 만 남으므로 영향 없다. `TB_MDM_DATA`·`TB_MDM_DATA_ITEM`·`TB_MDM_DATA_CATE`·`TB_MDM_DATA_CATE_ITEM`(활성 4테이블) 관련 결정(F5~F19 대부분)은 그대로 유지된다 — 이 반려는 엔티티 파일 3+2개 삭제로 국한된다.
 
+### D3(Build 신설) — 선분 PK 인 LocalDateTime(`VALID_FROM`) 을 Hibernate 7 에서 어떻게 매핑할 것인가
+- **질문**: design.md F8 은 mcm `SqliteTemporalConverterContributor` 선례(JPA `AttributeConverter` + `MetadataBuilderContributor` auto-apply)를 그대로 이식할 계획이었다. Build 1단계 실제 구현·테스트 과정에서, `MdmDataItem.validFrom`(F6 — 선분 PK 구성 요소, `@Id`)에 이 방식을 그대로 적용하자 `org.hibernate.AnnotationException: 'AttributeConverter' not allowed for attribute 'validFrom' annotated '@jakarta.persistence.Id'`(Hibernate 7.2.12.Final 실측)가 발생했다 — Hibernate 7 은 `@Id` 속성에 JPA `AttributeConverter`(auto-apply 여부와 무관)를 거는 것 자체를 하드 금지한다. `MdmDataCate.validFrom`·`MdmDataCateItem.validFrom` 도 같은 처지다(F6, 세 테이블 모두 `valid_from` 이 PK). 이 문제는 design.md 작성 시점에는 드러나지 않았다(F8 은 "실측 후 대응이 아니라 선제 우회"라고 적었지만, 우회 메커니즘 자체가 Id 필드에는 물리적으로 적용 불가능하다는 사실은 실제 컴파일·부팅 전에는 드러나지 않는다).
+- **선택지**: (1) `@Convert(disableConversion=true)` 로 auto-apply 대상에서 이 필드를 빼고, Hibernate 네이티브 `UserType<LocalDateTime>`(`org.hibernate.usertype.UserType`, JPA `AttributeConverter` 와 다른 코드 경로라 이 제약을 받지 않음 — 실측 확인)을 만들어 `@org.hibernate.annotations.Type` 으로 명시 적용한다. `UserType` 안에서 `SharedSessionContractImplementor.getJdbcServices().getDialect()` 로 런타임에 SQLite 인지 감지해 텍스트/네이티브 바인딩을 가른다. (2) `VALID_FROM` 자체를 엔티티에서 `String` 필드로 선언해(포맷은 애플리케이션이 직접 관리) 컨버터·UserType 어느 쪽도 쓰지 않는다 — 그러나 MSSQL 에 문자열을 `DATETIME2` 칼럼으로 바인딩하는 신뢰성이 떨어지고, `contract.data.MdmTemporalSegmentRules.OPEN_END`(`LocalDateTime` 상수, §6.1) 와 타입이 어긋나 §3.2-4(`VALID_TO` ↔ `OPEN_END` 비교) 테스트도 다시 설계해야 한다. (3) 낙관을 버리고 세 테이블의 PK 에서 `VALID_FROM` 을 빼고 대리키(surrogate key)를 두는 방향으로 전체 스키마를 다시 설계한다 — design.md F6 의 "원래 키 + valid_from" PK 원칙(05 원문 근거) 자체를 깨므로 Build 권한 밖의 재설계다.
+- **택한 것**: (1).
+- **근거**: 선택지 3 은 이미 승인 경계에 있는 F6(05 원문 직접 근거)을 건드리므로 Build 가 판단할 사안이 아니다(배제). 선택지 2 는 `LocalDateTime` 타입을 포기해 계약(`MdmTemporalSegmentRules.OPEN_END`)과의 정합을 스스로 깨고, MSSQL 네이티브 `DATETIME2` 바인딩을 문자열 경유로 우회해야 해 F7(MSSQL 은 네이티브 사용) 원칙과도 어긋난다. 선택지 1 은 실제로 컴파일·부팅·왕복 테스트(§3.2, `VALID_FROM_과_VALID_TO_가_SQLite_에_naming_dialect_rules_형식_TEXT_로_저장된다()`)까지 통과함을 실측으로 확인했고, `LocalDateTime` 타입·계약 정합·MSSQL 네이티브 바인딩(방언 감지로 유지) 셋 다 지킨다. **근거 강도: 강**(대안이 사실상 없다 — Hibernate 프레임워크 제약이지 이 Task 의 설계 취향이 아니다).
+- **반려 시 재작업**: 선택지 2 로 바꾸려면 `MdmDataItemId`·`MdmDataCateId`·`MdmDataCateItemId` 의 `validFrom` 필드 타입을 `String`(naming-dialect-rules §3 #16 형식 문자열)으로 바꾸고, `MdmTemporalSegmentRules.OPEN_END` 를 문자열 상수로 바꾸거나 엔티티 쪽에서만 변환 계층을 하나 더 둬야 한다 — 계약(§6.1)·§3.2 테스트 다시 작성.
+- **Source**: 실측(Hibernate 7.2.12.Final `BasicValueBinder.disallowConverter`), `decisions.md` D-051
+
+---
+
+## Build Phase 기록
+
+Build 가 design.md 원안에서 이탈하거나(파싱 로직 등), 원안에 없던 새 사실을 발견한 지점을 여기 남긴다(D3 는 위에 별도 절로 이미 남겼다).
+
+### 이탈 1 — §3.3′-A DDL 파싱 절차 보완(RECV_ID 인라인 PK·문자열 리터럴 내 콤마)
+design.md §3.3′-A 원안의 파싱 절차 3번("각 항목이 `CONSTRAINT (\w+)`로 시작하면 그 이름을...")은 두 가지를 놓친다 — advisor 재검토로 발견, Build 가 구현하며 확인:
+1. SQLite `TB_MDM_DATA_RECV.RECV_ID` 는 V4 선례대로 `RECV_ID INTEGER CONSTRAINT PK_TB_MDM_DATA_RECV PRIMARY KEY AUTOINCREMENT` 로 PK 를 칼럼 선언 **안에** 인라인으로 건다(AUTOINCREMENT 제약상 필수). 이 항목은 "CONSTRAINT 로 시작"하지 않으므로 원안 절차로는 PK 이름을 놓친다.
+2. `TB_MDM_DATA.CODE_PATTERN` 의 기본값 리터럴 `'^[0-9A-Z]{1,20}$'` 안의 콤마(`{1,20}`)가 괄호 밖에 있어 괄호 깊이만 추적하는 콤마 분리 로직이 이 항목을 둘로 잘못 쪼갠다.
+
+**조치**: `MdmMasterDataDdlParityTest` 는 (1) 각 항목에서 위치와 무관하게 `CONSTRAINT (\w+)` 를 전부 찾아 `PK_`/`FK_`/`CK_`/`UX_` 접두만 제약 집합에 담고(MSSQL 전용 `DF_...` 기본값 이름은 제외), 칼럼 이름은 항목의 첫 토큰으로 별도로 판정한다. (2) 콤마·괄호 깊이 추적 모두 작은따옴표 문자열 리터럴 안에서는 무시하도록 `inQuote` 상태를 추가했다. 두 수정 모두 실제 V7 DDL 로 실행해 정상 동작을 확인했다(수정 전 테스트가 `TB_MDM_DATA` 칼럼 목록을 `{1`·`20}$'` 두 개로 잘못 쪼개는 것으로 실패 확인 → 수정 후 통과).
+
+### 이탈 2 — `ArchUnit` `noClasses().should(customCondition)` 조합 대신 직접 스트림 필터링
+`MdmTemporalSegmentStoreNoImplementationTest`(§3.5)를 처음에는 `noClasses().should(커스텀 ArchCondition)` fluent DSL 로 작성했으나, 공허 통과 방지 음성 테스트에서 `FakeSegmentStoreImpl`(고립 클래스, 실제로 인터페이스를 구현)을 두고도 `rule.evaluate(isolated).hasViolation()` 이 `false` 를 돌려주는 것을 실측했다(커스텀 조건의 `check()` 안에서 `events.add(SimpleConditionEvent.violated(...))` 가 호출되는 것을 디버그 로그로 직접 확인했음에도 최종 결과가 위반 없음으로 나옴 — `noClasses()` 와 커스텀 `ArchCondition` 조합의 이벤트 극성이 fluent DSL 문서화 예제와 실측이 어긋났다). 원인을 더 파고드는 대신, `JavaClasses`/`JavaClass` API(`isAssignableTo`·`isInterface`·`isEquivalentTo`)로 직접 스트림 필터링하는 방식으로 바꿔 재작성했고, 공허 통과 방지 테스트가 실제로 통과함을 확인했다. 이 방식도 ArchUnit 의 공식 API 를 쓴다는 점에서 "ArchUnit 테스트"라는 design.md 의도(§3.5)를 그대로 满족한다.
+
+### 이탈 3 — `MdmSqliteTemporalConverterContributor` 의 `autoApply` 값은 design.md 원안(true) 유지, 별도 UserType 신설로 Id 필드만 우회
+design.md §2 가 예고한 두 파일(`LocalDateTimeAttributeConverter.java`·`MdmSqliteTemporalConverterContributor.java`)은 원안 그대로 만들었다(`autoApply=true`, 비-Id 필드 전용). D3 에서 다룬 Id 필드 문제는 새 파일 `MdmLocalDateTimeIdUserType.java`(design.md §2 에 없던 파일, 이 이탈로 추가)로 해결했다 — §2 파일 목록에 이 파일이 없었던 것은 design.md 가 D3 의 존재 자체를 몰랐기 때문이다(Build 신설 사실).
+
+---
+
+## 불변 규칙 변이 검증(Build)
+
+design.md §5 의 13개 규칙(2-1 포함) 전부 실제로 변이를 넣어 빨간불을 확인했다(각 변이는 확인 직후 원복, `/usr/bin/git status`로 작업 트리 복원을 확인했다).
+
+| 규칙 | 넣은 변이 | 빨개진 테스트 | 결과 |
+|---|---|---|---|
+| 1(7테이블 전부) | sqlite V7 에서 `TB_MDM_DATA_RECV_ITEM` 테이블 블록 삭제 | `_7테이블_전부_생성되고_칼럼_집합이_기대값과_같다`·`F15 직접 증거`·`ADR-0002`·`CHECK_제약들이_위반을_거부한다`·`F18 직접 증거`(5건) | 빨강 확인 |
+| 2(선분 PK) | sqlite V7 `TB_MDM_DATA_ITEM` PK 에서 `VALID_FROM` 제거 | `F6_직접_증거_같은_키_다른_VALID_FROM_행이_공존하고_완전_중복은_거부된다`(PK 위반 대신 성공) | 빨강 확인 |
+| 2-1(반개구간 경계) | 경계 테스트 쿼리의 `? < VALID_TO` 를 `? <= VALID_TO` 로 변경(앱 비교 연산자 자리의 대리 변이 — TSK-07-03 코드가 아직 없어 픽스처 쿼리로 대신함) | `반개구간_경계_산술이_T1_포함_T2_배타이다`(T2 에서도 1건) | 빨강 확인 |
+| 3(VALID_TO=9999-12-31) | sqlite V7 세 테이블의 DEFAULT 를 `'2099-12-31 00:00:00'` 로 변경 | `VALID_TO_기본값이_9999_12_31_이다` | 빨강 확인 |
+| 4(CATE_ITEM FK 없음) | sqlite V7 에 `FK_TB_MDM_DATA_CATE_ITEM_CATE`(CATE_ID,VALID_FROM 참조) 추가 | `F13_직접_증거_CATE_ITEM_은_CATE_ID_CODE_에_FK_가_없다`·`MdmMasterDataDdlParityTest`(제약 집합 불일치) | 빨강 확인 |
+| 5(ROW_VERSION ≠ @Version) | `MdmDataItem.rowVersion` 에 `@jakarta.persistence.Version` 추가 | `ROW_VERSION_은_Version_이_아니라_더티_업데이트에도_자동_증가하지_않는다` | 빨강 확인 |
+| 6(src/main 구현체 없음) | `lib/persistence` 에 `TempMutationSegmentStoreImpl implements MdmTemporalSegmentStore` 임시 추가 | `MdmTemporalSegmentStore_의_실_구현체가_com_dongkuk_dmes_mdm_에_없다` | 빨강 확인(확인 후 파일 삭제) |
+| 7(contract/category 무변경) | — | (자동 테스트 없음) | **알려진 갭**: `/usr/bin/git diff --name-only` 로 그 패키지 경로 변경 여부만 사람/Verify 가 확인할 수 있다(design.md 원안 그대로) |
+| 8(SQLite TEXT 저장 형식) | `application-local.yml` 의 `metadata_builder_contributor` 등록 전 상태(Build 초기 TDD 빨강 단계)에서 이미 실측 — `VALID_FROM_과_VALID_TO_가_SQLite_에_naming_dialect_rules_형식_TEXT_로_저장된다`가 `ParseException`(epoch millis 저장)으로 빨강이었음을 확인 후 컨버터 등록으로 초록 전환 | 위 테스트 | 빨강 확인(등록 전) |
+| 9(MSSQL 초 단위 절삭) | — | (자동 빨간불 없음) | **알려진 갭(F20)**: 도커 금지로 `DATETIME2(0)` 실제 반올림·절삭 동작을 검증 못함. TSK-07-03 코드 리뷰로만 지킨다(design.md 원안 그대로) |
+| 10(SQLite VER BIGINT) | sqlite V7 전체 `VER BIGINT,` → `VER INTEGER,` | `F15_직접_증거_VER_칼럼_모두_BIGINT_로_선언됐다` | 빨강 확인 |
+| 11(CK_TARGET = CategoryOwner) | sqlite V7 `CK_TB_MDM_DATA_CATE_TARGET` IN 목록에 `'CODE'` 추가 | `F18_직접_증거_CATE_CHECK_값_목록이_계약과_정확히_같다`·`CHECK_제약들이_위반을_거부한다` | 빨강 확인 |
+| 12(V 번호 집합 일치) | sqlite 디렉터리에 더미 `V8__mutation_test_only.sql` 추가 | `MdmFlywayVersionParityTest`(기존, 수정 없이도 잡음) | 빨강 확인(확인 후 파일 삭제) |
+| 13(예약어 칼럼 인용) | sqlite V7 의 `"RESULT"`/`"ACTION"` 인용 제거 | (없음 — 전체 초록 유지) | **확인된 갭(은폐하지 않음)**: TSK-05-01 D-047 선례대로 SQLite community dialect 는 `RESULT`·`ACTION` 을 실제 예약어로 취급하지 않는다 — 인용을 빼도 DDL 생성·INSERT·CHECK 모두 그대로 동작해 자동 빨간불이 없다. MSSQL 쪽은 §3.3′-B 항목 10(정적 텍스트 확인)만 가능하고 §3.3′-A 는 인용 문자를 정규화해서 비교하므로 인용 누락 자체를 잡지 못한다(design.md 가 이미 예견한 대로) |
+
 ---
 
 ## §3.3′-B DDL 대조 결과표(Build·Verify 가 완료 시 채운다)
 
 Build 는 §3.3′-B 11개 항목을 실제로 대조한 뒤 아래 표를 채우고, Verify 는 재대조한 결과를 별도 표로 덧붙인다(불일치를 발견하면 그 사실과 조치를 함께 적는다 — 은폐하지 않는다).
 
-### Build 대조 결과(미기입 — Build 가 채운다)
+### Build 대조 결과
 
 | 항목 | PASS/FAIL | 비고 |
 |---|---|---|
-| 1 테이블 존재·순서 | - | §3.3′-A 자동 확인 결과 인용 |
-| 2 칼럼 이름·순서 | - | §3.3′-A 자동 확인 결과 인용 |
-| 3 타입 매핑(§6.0 토큰표) | - | |
-| 4 NULL/NOT NULL | - | |
-| 5 기본값 | - | |
-| 6 PK/FK 이름·대상 | - | |
-| 7 CATE_ITEM FK 없음 | - | §3.3′-A 자동 확인 결과 인용 |
-| 8 UNIQUE/INDEX | - | |
-| 9 CHECK 값 목록 | - | |
-| 10 예약어 칼럼 인용 | - | |
-| 11 IDENTITY/AUTOINCREMENT(텍스트만) | - | 실제 동작은 알려진 갭(F20) |
+| 1 테이블 존재·순서 | PASS | §3.3′-A(`MdmMasterDataDdlParityTest`) 자동 확인 — 7테이블 순서 일치, `MdmMasterDataExpectations.TABLES` 와도 일치 |
+| 2 칼럼 이름·순서 | PASS | §3.3′-A 자동 확인 — 7테이블 전부 칼럼 순서 있는 목록 일치 |
+| 3 타입 매핑(§6.0 토큰표) | PASS | 사람 리뷰: `CD50`(VARCHAR(50)/VARCHAR(50) COLLATE BIN2)·`CD20`·`NM100`·`TXT`·`TXT_A`·`INT4`·`BIGI`·`DTS`·`ATTR500`·`ID_AI` 전부 §6.0 표대로 적용됨을 두 파일 나란히 대조해 확인. 코드성 칼럼(MARU_DATA_ID·CODE·CATE_ID·SYSTEM_CODE·SOURCE_SYSTEM·STATUS·SOURCE_KIND·DEF_KIND·DEF_TARGET·LVL1-5)에 MSSQL `COLLATE Latin1_General_100_BIN2` 빠짐없이 붙음 |
+| 4 NULL/NOT NULL | PASS | 두 파일 칼럼별 NULL/NOT NULL 이 §6.0 표와 일치 |
+| 5 기본값 | PASS | 리터럴까지 일치 확인: `'9999-12-31 00:00:00'`·`0`·`'INUSE'`·`'^[0-9A-Z]{1,20}\$'`. SQLite `VER` 는 F15 대로 `BIGINT`(ERD 초안의 `INTEGER` 아님) |
+| 6 PK/FK 이름·대상 | PASS | §3.3′-A 가 이름 집합 자동 확인 + 사람 리뷰로 대상 칼럼·참조 테이블 확인(F5: SOURCE_SYSTEM·SYSTEM_CODE→TB_MDM_SYSTEM, 나머지→TB_MDM_DATA) |
+| 7 CATE_ITEM FK 없음 | PASS | §3.3′-A 자동 확인(F13) — 제약 이름 집합에 `{PK_TB_MDM_DATA_CATE_ITEM, FK_TB_MDM_DATA_CATE_ITEM_DATA}` 만 있음, mutation 으로 FK 추가 시 실제로 빨개짐을 확인(아래 불변 규칙 4 행) |
+| 8 UNIQUE/INDEX | PASS | §3.3′-A 가 이름·대상 테이블 자동 확인(`IX_TB_MDM_DATA_ITEM_NAME` on `TB_MDM_DATA_ITEM`) + 사람 리뷰로 대상 칼럼(MARU_DATA_ID,NAME) 확인 |
+| 9 CHECK 값 목록 | PASS | 사람 리뷰로 두 방언 문자열 일치 확인(`CK_TB_MDM_DATA_CATE_TARGET` 포함) + SQLite 쪽은 §3.1-9 가 `CategoryOwner.MASTER_DATA` 와 자동 대조(mutation 확인, 아래 불변 규칙 11 행) |
+| 10 예약어 칼럼 인용 | PASS | SQLite `"RESULT"`/`"ACTION"`, MSSQL `[RESULT]`/`[ACTION]` 로 일관되게 인용됨을 사람 리뷰로 확인 |
+| 11 IDENTITY/AUTOINCREMENT(텍스트만) | PASS | `RECV_ID`가 SQLite `INTEGER ... PRIMARY KEY AUTOINCREMENT`, MSSQL `BIGINT IDENTITY(1,1)` 로 선언됨을 텍스트로 확인. **실제 단조 증가·콜레이션 대소문자 구분 동작은 도커 금지로 검증 못함**(알려진 갭, F20 — naming-dialect-rules.md 에 반영) |
 
 ### Verify 재대조 결과(미기입 — Verify 가 채운다)
 

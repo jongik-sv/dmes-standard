@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.contract.category.MaruIdKind;
 import com.dongkuk.dmes.mdm.contract.category.MaruIdNamespace;
+import com.dongkuk.dmes.mdm.contract.data.MdmTemporalSegmentAction;
+import com.dongkuk.dmes.mdm.contract.data.MdmTemporalSegmentResult;
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmColumnDictionaryEntry;
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmDomainDraft;
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmDomainKind;
@@ -245,4 +247,33 @@ class ContractStubCompileTest {
         assertEquals("B0", fromStacked.defaultValue());
         assertEquals("B1", fromStacked.overrideValue());
     }
+
+    // ── TSK-07-01 design.md §3.4 — 05(마스터데이터) 일시 선분 저장 코어 계약 스텁 컴파일 ──
+
+    @Test
+    void 일시_선분_저장_코어_스텁이_등록_수정_닫기_다시열기_네_메서드를_컴파일_동작한다() {
+        MdmTemporalSegmentStoreConsumerStub stub = new MdmTemporalSegmentStoreConsumerStub();
+        LocalDateTime t1 = LocalDateTime.of(2026, 9, 24, 10, 0, 0);
+        LocalDateTime t2 = LocalDateTime.of(2026, 9, 25, 10, 0, 0);
+
+        MdmTemporalSegmentResult<String> registered = stub.register("K1", "V1", t1);
+        assertEquals(MdmTemporalSegmentAction.INSERT, registered.action());
+        assertEquals("V1", registered.value());
+
+        MdmTemporalSegmentResult<String> modified = stub.modify("K1", "V2", t2);
+        assertEquals(MdmTemporalSegmentAction.UPDATE, modified.action());
+        assertEquals("V2", modified.value());
+
+        MdmTemporalSegmentResult<String> reopened = stub.reopen("K1", t2);
+        assertEquals(MdmTemporalSegmentAction.REOPEN, reopened.action());
+        assertEquals("V2", reopened.value());
+
+        MdmTemporalSegmentResult<String> closed = stub.close("K1", t2);
+        assertEquals(MdmTemporalSegmentAction.CLOSE, closed.action());
+        assertNull(closed.value(), "닫기 결과는 value 를 강제하지 않는다(계약, §6.1)");
+    }
+
+    // MaruIdNamespace/MASTER_DATA 재사용 증명은 새 스텁을 만들지 않는다(F10, TSK-07-01 design.md §3.4)
+    // — 위 이름_공간_SPI_구현이_두_종류를_하나씩_덮는다()·마스터데이터_등록이_마스터코드에_있는_ID_의_소유자를_찾는다()
+    // (TSK-01-02 산출, 이 파일 상단)가 MasterDataIdNamespaceStub 로 이미 증명하고 있다.
 }
