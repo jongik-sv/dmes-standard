@@ -2,7 +2,7 @@
   "tsk": "TSK-06-02",
   "order": "16de6362-6033-4d08-b45a-20e107d40853",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "reported",
+  "phase": "merged",
   "baseline": {
     "failures": 0,
     "tests": 2823,
@@ -113,5 +113,6 @@
     "shared": "158 passed",
     "oasis": "ERROR 0 / WARN 0 / INFO 29",
     "e2e": "새 DB — seed-check diff 없음, dmc 메뉴 codeMng·codeEdit·codeItemEdit 공존. codeMng 4·codeEdit 4·codeItemEdit 6·shell-rbac-smoke 4 전부 통과(codeItemEdit 는 06-03 픽스처 mdm-codeItemEdit.sql 을 넣은 뒤)"
-  }
+  },
+  "unapproved": true
 }
