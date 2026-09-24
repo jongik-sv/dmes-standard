@@ -2,7 +2,7 @@
   "tsk": "TSK-04-02",
   "order": "91b83c83-f885-4522-8e2d-330acd1fd51f",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "reported",
+  "phase": "merged",
   "baseline": {
     "failures": 0,
     "tests": 1274,
@@ -100,5 +100,6 @@
     "oasis": "ERROR 0 / WARN 0",
     "migration": "V11__term_abbr_index_relax (V4→V5→V10→V11)",
     "mutation_raw": "tasks/bgksvfp3c.output 23건 RED·원복 경고 0, mut-I21.log RED"
-  }
+  },
+  "unapproved": true
 }
