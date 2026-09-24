@@ -27,7 +27,9 @@ public enum MdmErrorCode {
     /** TSK-01-03 D3 — 확정·선점은 담당자(MDM_STEWARD) 역할만 할 수 있다. */
     STEWARD_ROLE_REQUIRED("MDM013", 403, ErrorCode.ACCESS_DENIED, "담당자 역할이 있어야 할 수 있습니다"),
     /** TSK-01-03 D3 — 확정 검사 경고가 있는데 확인(warningsAcknowledged) 없이 확정을 요청했다. */
-    CONFIRM_WARNINGS_NOT_ACKNOWLEDGED("MDM014", 409, ErrorCode.BUSINESS_ERROR, "확정 검사 경고를 확인한 뒤 다시 확정하세요");
+    CONFIRM_WARNINGS_NOT_ACKNOWLEDGED("MDM014", 409, ErrorCode.BUSINESS_ERROR, "확정 검사 경고를 확인한 뒤 다시 확정하세요"),
+    /** TSK-04-03 D9 — 도메인 저장 검사(거부 조건 R01~R10·보충 S01~S06)를 통과하지 못했다. 세부는 이슈 코드로 싣는다. */
+    DOMAIN_SAVE_REJECTED("MDM015", 400, ErrorCode.BUSINESS_ERROR, "도메인 저장 검사를 통과하지 못했습니다");
 
     private final String code;
     private final int httpStatus;

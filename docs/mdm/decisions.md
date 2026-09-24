@@ -435,6 +435,29 @@
 - **Reversible**: no(TSK-08-02·08-04·08-05 가 이 서명과 관례 위에 구현한다)
 - **Source**: docs/mdm/tasks/TSK-08-01/design.md D8·D9·D10, F18·F21
 
+## D-050 (2026-09-24T08:20:00Z)
+- **Phase**: build (TSK-04-03)
+- **Decision needed**: 도메인 영향도의 03 레이아웃·06 룰 결과 변수 참조와 배포 시스템을 어떻게 얻는가
+- **Decision made**: 02 는 자신의 테이블(`TB_MDM_DOMAIN`·`TB_MDM_COLUMN`)만 재귀 CTE 로 읽고, 03·06 참조는 `MdmDomainReferenceSpi` 빈 목록(0개 가능)을 모아 합친다. 03·06 SPI 구현은 각 영역 작업(TSK-05-02·05-03·08-01) 몫이다. 배포 시스템은 빈 목록 + "배포 보류" 표시
+- **Rationale**: TSK-04-01 D9 계약과 wbs 의존 방향(02→03·06 단방향)을 따른다. 03·06 테이블이 없든 비어 있든 같은 코드로 참조 0건이 된다. 배포는 TRD T4·D-019 로 보류다
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-04-03/design.md D1
+
+## D-051 (2026-09-24T08:20:00Z)
+- **Phase**: build (TSK-04-03)
+- **Decision needed**: 마스터코드 원장(서버 `CodeLookup`)이 없을 때 R10(카테고리 유효성)과 `MASTER` 판정을 어떻게 다루는가
+- **Decision made**: R10 은 `CodeLookup` 빈이 있을 때만 거부하고, 없으면 경고 W02 로 저장을 허용한다. `MASTER`·`MASTER_AT` 가 들었거나 CODE 종류인 테스트 케이스·미리보기는 UNDECIDED(기대값과 비교하지 않음)로 둔다. TSK-06-01 이 `CodeLookup` 빈을 등록하면 자동으로 켜진다(그 구현은 요청 트랜잭션에 기대면 안 된다 — 평가는 가상 스레드)
+- **Rationale**: 수용 기준 2(CODE 도메인은 체인에 참조가 있으면 저장)를 04 원장 없이도 만족해야 한다. TSK-04-01 §8 인계가 "구현체가 없으면 건너뛰거나 확인 불가로 표시"를 정했다
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-04-03/design.md D2
+
+## D-052 (2026-09-24T08:20:00Z)
+- **Phase**: build (TSK-04-03)
+- **Decision needed**: 도메인 변경 분류(호환/좁히기·넓히기/구조 변경)의 효과와 "새 버전"·배포 순번
+- **Decision made**: 분류는 계산·표시만 하고 효과는 "값 정의 칼럼(LENGTH·SCALE·STD_RULE·BIZ_RULE·MARU_CODE_ID·CATE_ID) 변경이면 같은 트랜잭션에서 하위 도메인 재검사"로 한정한다. 구조 칼럼(DOMAIN_KIND·DATA_TYPE·UNIT_CODE·PARENT_DOMAIN_ID) 변경은 거부(S01). 버전은 감사 `VER` 이 대신하고 `CHG_SEQ` 는 쓰지 않는다
+- **Rationale**: TSK-02-03 D3(버전은 감사 VER 과 즉시 반영 정책으로 갈음)과 TRD T4·D-019(배포 순번 코드 금지). spec 이 요구한 것은 분류 표시와 구조 변경 금지다
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-04-03/design.md D6
 
 ## D-055 (2026-09-24T00:00:00Z)
 - **Phase**: build (TSK-06-01)
