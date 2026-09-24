@@ -89,12 +89,15 @@ TSK-05-01(03 영역 계약)과 같은 구성을 04 에 옮긴다: **두 방언 F
 - `$AT/MdmDomainCodeFkRebuildTest.java`(SQLite, Flyway 직접 호출, §3.2)
 - `$AT/MdmMasterCodeEntityJpaRoundtripTest.java`(SQLite, §3.3)
 - `$AT/common/version/MasterCodeVersionStateSqliteTest.java`(키트 상속, §3.7)
-- `$AM/MdmMasterCodeMssqlMigrationTest.java`(MSSQL, §3.8)
-- `$AM/common/version/MasterCodeVersionStateMssqlTest.java`(키트 상속, §3.7)
+- `$AT/MdmMasterCodeDialectDdlParityTest.java`(docker 없이 두 방언 V6 파일을 읽어 대조, §3.11 — MSSQL 검증의 게이트 대체)
+- `$LT/entity/MdmCodeEntityValueTest.java`(순수 단위: 세터 초 절단·게터 scale 3·IdClass scale 무관 동등, §3.12)
+- `$AM/MdmMasterCodeMssqlMigrationTest.java`(MSSQL, §3.8 — **게이트에서 실행하지 않는다**, 사용자 결정 도커 금지)
+- `$AM/common/version/MasterCodeVersionStateMssqlTest.java`(키트 상속, §3.7 — **게이트에서 실행하지 않는다**)
 
 ### 수정
 
 - `$AT/MdmSharedContractMigrationTest.java` — `Set.of("1","2","3","4")` → `Set.of("1","2","3","4","6")`, 메서드명 `flyway_가_V1_V2_V3_V4_를_적용했다` → `flyway_가_V1_V2_V3_V4_V6_을_적용했다`. **새 버전 반영이지 기대값 완화가 아니다.**
+- (아래 `$AM/…` 세 파일은 mssqlTest 소스셋이라 **게이트에서 실행되지 않는다** — 관례 유지를 위해 고치고, 컴파일은 `testAll` 이 아닌 `compileMssqlTestJava` 로만 확인된다. Build 는 `../gradlew :api:compileMssqlTestJava`(docker 불필요)로 컴파일만 확인한다)
 - `$AM/MdmMssqlMigrationTest.java` — `migrationsExecuted` 4→5, `targetSchemaVersion` "4"→"6", 집합에 "6", 메서드명 `…V1_V2_V3_V4_V6_가_적용된다`(새 버전 반영)
 - `$AM/MdmTermDomainColumnMssqlMigrationTest.java` — 집합에 "6", 메서드명 동일 방식. `F1_대조군_TB_MDM_CODE_없이도_MARU_CODE_ID_NULL_INSERT_가_성공한다` → 이름·주석을 "FK 가 걸린 뒤에도 NULL 은 통과한다"로 고친다(본문 그대로 통과한다 — 이름이 거짓이 되므로 고친다)
 - `$AM/MdmInterfaceLayoutMssqlMigrationTest.java` — 집합에 "6", 메서드명(팀장 목록에 없던 네 번째 고정 테스트, F3)
@@ -104,7 +107,7 @@ TSK-05-01(03 영역 계약)과 같은 구성을 04 에 옮긴다: **두 방언 F
 - `$L/entity/MdmDomain.java` — Javadoc 의 "DB FK 없음(D1)" 두 곳을 "V6(TSK-06-01)이 `FK_TB_MDM_DOMAIN_CODE` 를 걸었다"로 고친다(코드 변경 없음)
 - `$L/common/support/MdmTemporalBinder.java` — 형식 문자열을 `public static final String SQLITE_TEXT_PATTERN = "yyyy-MM-dd HH:mm:ss"` 로 꺼내 기존 `TEXT` 포매터가 그 상수를 쓰게 한다(동작 불변, 컨버터와 형식 단일화)
 - `$B/api/src/main/resources/application-local.yml` — `spring.jpa.properties.hibernate.metadata_builder_contributor: com.dongkuk.dmes.mdm.common.support.MdmSqliteTemporalContributor`(local 프로파일만, D7). `application-local-db.yml`·`application.yml` 은 건드리지 않는다
-- `docs/mdm/naming-dialect-rules.md` — §3 #2·#16·#19 의 04 몫을 `확인(TSK-06-01 실측)` 으로 갱신, #16 규칙 칸에 "SQLite 엔티티 `LocalDateTime` 은 `MdmSqliteTemporalContributor`(local 전용)로 네이티브와 같은 19자 TEXT" 추가, #17 에 엔티티 왕복 관찰만 덧붙이고 상태(`→ TSK-06-02`)는 유지, §6.1 인계 표의 TSK-06-01 행 갱신
+- `docs/mdm/naming-dialect-rules.md` — §3 #2·#16·#19 의 04 몫 중 **SQLite 쪽만** `확인(TSK-06-01 실측)` 으로 적고, MSSQL 쪽은 `실측 필요` 를 유지한 채 "사용자 결정: 도커 금지로 MSSQL 실측 생략, DDL 리뷰(`MdmMasterCodeDialectDdlParityTest`)로 대체" 를 덧붙인다, #16 규칙 칸에 "SQLite 엔티티 `LocalDateTime` 은 `MdmSqliteTemporalContributor`(local 전용)로 네이티브와 같은 19자 TEXT" 추가, #17 에 엔티티 왕복 관찰만 덧붙이고 상태(`→ TSK-06-02`)는 유지, §6.1 인계 표의 TSK-06-01 행 갱신
 - `docs/mdm/decisions.md` — Build 완료 시 D3·D4·D6·D7(되돌리기 어려운 결정)을 현재 마지막 번호 뒤에 append(머지 때 번호 충돌은 머지 규약이 다시 매긴다)
 
 ### 수정하지 않음(자동 적용·참고만)
@@ -122,10 +125,10 @@ TSK-05-01(03 영역 계약)과 같은 구성을 04 에 옮긴다: **두 방언 F
 ```
 cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain
 # → 1878 tests / 0 failures (TEST-*.xml 합산, mssqlMigrationTest 제외)
-cd src/backend/mdm && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ../gradlew :api:mssqlMigrationTest --no-daemon --console=plain
-# → docker(OrbStack) 필요. 기준선 수치는 오케스트레이터 재측정값을 쓴다(TSK-05-01 머지 결과 트리에서 46건 통과 기록)
 ```
-게이트 = 두 명령 모두 기준선 대비 신규 실패 0 + 총수 미감소. 새 테스트의 Flyway 버전 단언은 **"6 이 포함된다"** 로 쓴다(전체 집합을 고정하는 것은 §2 의 기존 4개 테스트뿐이다 — V5 가 먼저 들어오면 그 4개만 "5" 를 더하면 된다).
+**사용자 결정: 도커 금지로 MSSQL 실측 생략, DDL 리뷰로 대체**(2026-09-24, 팀장 경유). `mssqlMigrationTest` 와 docker·Testcontainers 명령은 기준선·게이트·Build·Verify 어디에서도 돌리지 않는다.
+
+게이트 = **`testAll` 하나**, 기준선 대비 신규 실패 0 + 총수 미감소(기준선 1878 / 0). MSSQL 방언 검증은 ① SQLite 테스트(`testAll`) 통과와 ② MSSQL DDL 을 SQLite DDL 과 대조하는 리뷰로 대체한다. ②는 기계 부분(§3.11 `MdmMasterCodeDialectDdlParityTest`, `testAll` 에 포함, docker 없이 파일만 읽음)과 사람 부분(Verify 가 두 V6 파일을 줄 단위로 나란히 읽고 §6.0 표·G1~G5 와 대조한 결과를 design.md Verify 기록에 남김)으로 나눈다. mssqlTest 소스셋의 새 파일(§3.7 MSSQL 판·§3.8)과 수정 파일은 선례·관례 유지를 위해 계획하지만 **게이트에서 실행되지 않으며**, 그 파일들이 잡는다고 적은 변이는 게이트 기준으로는 잡히지 않는다(아래 §5 는 게이트에서 실제로 잡는 테스트를 먼저 적고 mssqlTest 는 괄호로 참고 표시한다). 새 테스트의 Flyway 버전 단언은 **"6 이 포함된다"** 로 쓴다(전체 집합을 고정하는 것은 §2 의 기존 4개 테스트뿐이다 — V5 가 먼저 들어오면 그 4개만 "5" 를 더하면 된다).
 
 ### 3.1 `MdmMasterCodeMigrationTest`(SQLite, `api/src/test`)
 
@@ -190,10 +193,12 @@ Spring 컨텍스트 없이 `Flyway.configure().dataSource("jdbc:sqlite:<tempfile
 - `@Primary VersionTableRegistry` = MASTER_CODE 는 `new DefaultVersionTableRegistry().spec(…)`(실제 V6 표), BUSINESS_RULE 은 `VersionFixtureTables.RULE_SPEC`(06 표가 아직 없음). `createSchema` 는 픽스처 RULE 표만 만든다(`VersionFixtureTables.sqliteDdl()`/`mssqlDdl()` 중 RULE 두 문장).
 - `seedObject` 재정의(MASTER_CODE 일 때): `MARU_CODE_NAME`(=objectId), `SOURCE_KIND='MDM'`, `SOURCE_SYSTEM` NULL 을 채운다(`CK_TB_MDM_CODE_SRC_SYS`). `seedVersion` 재정의: `VER_KIND='MAJOR'` 를 채운다. BUSINESS_RULE 은 `super` 로 넘긴다.
 - `clearTables`: `TB_MDM_CODE_CATE_ITEM → TB_MDM_CODE_CATE → TB_MDM_CODE_ITEM → TB_MDM_CODE_VER → TB_MDM_CODE` 순(FK 역순) + `TB_MDM_DOMAIN` 의 `MARU_CODE_ID` 참조 행이 없음을 전제(키트는 도메인을 만들지 않는다) + 픽스처 RULE 두 표.
-- MSSQL 판은 컨테이너에 별도 DB(`mdm_code_version`)를 만든다. S14(트리거 원자성)·S24(저장 형식)처럼 방언 전용 시나리오는 옮기지 않는다(키트 본체 44개만).
-- 이 테스트가 "V6 DDL 이 공통 서비스의 고정 칼럼·이름·CHECK(`CK_TB_MDM_CODE_VER_APPLY` 포함)를 만족한다"의 **유일한 직접 증거**다(불변 규칙 31).
+- MSSQL 판은 컨테이너에 별도 DB(`mdm_code_version`)를 만든다 — **게이트에서 실행하지 않는다**(도커 금지). S14(트리거 원자성)·S24(저장 형식)처럼 방언 전용 시나리오는 옮기지 않는다(키트 본체 44개만).
+- SQLite 판이 "V6 DDL 이 공통 서비스의 고정 칼럼·이름·CHECK(`CK_TB_MDM_CODE_VER_APPLY` 포함)를 만족한다"의 **유일한 직접 증거**다(불변 규칙 31). MSSQL 쪽은 §3.11 이 칼럼 이름·CHECK 식이 두 방언에서 같음을 대조해 간접으로 잇는다.
 
-### 3.8 `MdmMasterCodeMssqlMigrationTest`(MSSQL, `api/src/mssqlTest`)
+### 3.8 `MdmMasterCodeMssqlMigrationTest`(MSSQL, `api/src/mssqlTest`) — 게이트 비실행
+
+**사용자 결정(도커 금지)으로 이 테스트는 기준선·게이트·Verify 에서 돌리지 않는다.** 선례(`MdmInterfaceLayoutMssqlMigrationTest`)와 관례를 유지하려고 작성만 하며, 나중에 docker 사용이 허용되면 그대로 돌릴 수 있게 둔다. Build 는 `compileMssqlTestJava` 로 컴파일만 확인한다. 게이트 대체는 §3.11·§3.12 다.
 
 `MdmInterfaceLayoutMssqlMigrationTest` 패턴(`@SpringBootTest`+`local-db`+Testcontainers, 별도 DB 이름). §3.1 의 1~10·13 을 MSSQL 로 반복하고(기대값 공유), 아래를 더한다:
 1. **#19**: `MdmMasterCodeExpectations.BIN2_COLUMNS`(§6.0 표의 BIN2 표시 칼럼 전부)의 `sys.columns.collation_name='Latin1_General_100_BIN2'`, ITEM `CODE` 'A1'/'a1' 두 행이 PK 위반 없이 들어간다.
@@ -212,6 +217,33 @@ Spring 컨텍스트 없이 `Flyway.configure().dataSource("jdbc:sqlite:<tempfile
 
 **해당 없음** — `entry-point: -`, `domain: database`(화면 작업이 아니다). dev-discipline 「화면 작업의 브라우저 E2E」 트리거에 해당하지 않는다.
 
+### 3.11 `MdmMasterCodeDialectDdlParityTest`(SQLite 소스셋 `api/src/test`, docker 없음 — MSSQL DDL 리뷰의 기계 부분)
+
+Spring 컨텍스트 없이 classpath 의 `db/migration/mdm/sqlite/V6__create_mdm_master_code.sql`·`mssql/V6__…` 두 파일을 문자열로 읽는다. `--` 주석을 지우고 `;` 로 문장을 나눈 뒤, 정규식으로 `CREATE TABLE <이름> ( … )` 블록과 `ALTER TABLE … ADD CONSTRAINT` 문을 파싱한다. 식별자 인용(`"…"`·`[…]`)은 벗겨서 비교한다. 파서는 V6 파일 작성 모양(한 줄에 칼럼 하나 또는 쉼표로 이은 같은 타입 칼럼, 제약은 `CONSTRAINT 이름 …`)만 다루면 되며, 그 전제는 테스트 Javadoc 에 적는다(전제가 깨지면 파싱 실패로 빨개져 조용히 통과하지 않는다 — "파싱한 표가 7개, 칼럼이 기대 수 이상" 을 먼저 단언한다).
+
+두 방언 **같아야 하는 것**:
+1. 테이블 이름 집합(7개, `MdmMasterCodeExpectations.TABLES` 와도 같음).
+2. 표마다 칼럼 이름 집합과 NOT NULL 여부.
+3. PK 이름과 칼럼 목록(순서 포함). SQLite RECV 의 인라인 `CONSTRAINT PK_… PRIMARY KEY AUTOINCREMENT` 도 PK 로 읽는다.
+4. FK 이름 → (자식 칼럼 목록, 부모 표, 부모 칼럼 목록). MSSQL 파일 끝 `ALTER TABLE TB_MDM_DOMAIN ADD CONSTRAINT FK_TB_MDM_DOMAIN_CODE …` 와 SQLite 재생성 표 안의 같은 이름 FK 가 같은 3순組다.
+5. CHECK 이름 집합, 그리고 CHECK 식을 정규화(공백 제거·인용 벗김·대문자화)한 문자열이 같다 — `CK_TB_MDM_CODE_VER_APPLY`(D4) 식이 두 방언에서 글자 단위로 같다.
+6. DEFAULT 가 있는 칼럼 집합과 기본값 리터럴(`'CREATED'`·`0`·`'DRAFT'`·`'N'`·`9999`). MSSQL 은 `CONSTRAINT DF_… DEFAULT (…)` 에서 괄호를 벗겨 비교한다.
+7. 두 파일 어디에도 `ON DELETE CASCADE`·`ON UPDATE CASCADE` 가 없다.
+
+**MSSQL 에만 있는 것**(ERD 규칙표 대조):
+8. BIN2: `MdmMasterCodeExpectations.BIN2_COLUMNS` 의 칼럼 정의에 `COLLATE Latin1_General_100_BIN2` 가 있고, 그 목록 밖의 `VARCHAR` 칼럼(감사 `VARCHAR(100)` 제외)에는 없다.
+9. 타입: 버전 칼럼(`VER`·`FROM_VER`·`TO_VER`·`RESTORED_FROM`·RECV `VER`)이 `DECIMAL(7,3)`, `ROW_VERSION`·감사 `VER`/`AUD_VER`·`LAST_CHG_SEQ`·`CHG_SEQ` 가 `BIGINT`, 업무 일시 8칼럼이 `DATETIME2(0)`, 감사 `C_AT`/`U_AT` 가 `DATETIME2`, `DEF_EXPR` 가 `NVARCHAR(MAX)`(D6), 한글 칼럼(`MARU_CODE_NAME`·`NAME`·`ALTER_NAME`·`CATE_NAME`·`ATTRnn_NAME`)이 `NVARCHAR(100)`, `ATTR01..10` 이 `NVARCHAR(500)`, `RECV_ID` 가 `BIGINT IDENTITY(1,1)`.
+10. SQLite 쪽 대응: 버전 칼럼 `NUMERIC(7,3)`, `ROW_VERSION`·감사 카운터 `BIGINT`(F5·D5), `RECV_ID` `INTEGER … AUTOINCREMENT`.
+
+한계(보고 대상): 이 테스트는 **텍스트 대조**라 MSSQL 이 그 DDL 을 실제로 받아들이는지(문법·FK 대상 타입 일치로 인한 생성 실패), `DATETIME2(0)` 반올림, IDENTITY 단조 증가, BIN2 비교 결과 같은 **실행 동작**은 증명하지 못한다. 이 부분은 사람의 DDL 리뷰(Verify)와 D7 세터 절단 단위 테스트(§3.12)로만 덮고, 규칙표 #2·#16·#19 의 MSSQL 열은 `실측 필요` 로 남긴다.
+
+### 3.12 `MdmCodeEntityValueTest`(`lib/src/test/.../entity`, 순수 단위)
+
+Spring·DB 없이 엔티티·IdClass 객체만 다룬다(MSSQL 실측을 못 하는 대신 방언과 무관한 값 규칙을 직접 고정한다).
+1. `MdmCodeVer` 의 `LocalDateTime` 세터 6개에 `…00.700` 을 넣으면 게터가 `…00` 을 돌려준다(불변 규칙 22 — MSSQL `DATETIME2(0)` 반올림 대비).
+2. `new BigDecimal("1")` 을 넣은 `MdmCodeVer.ver`·`MdmCodeItem.fromVer/toVer` 의 게터가 `new BigDecimal("1.000")` 과 `equals` 로 같다(불변 규칙 23 ①).
+3. `MdmCodeVerId("PROC_CD", 1)` 과 `MdmCodeVerId("PROC_CD", 1.000)` 이 `equals` 이고 `hashCode` 가 같다(4개 IdClass 모두, 불변 규칙 23 ②).
+
 ---
 
 ## 4. 수용 기준 매핑
@@ -219,27 +251,27 @@ Spring 컨텍스트 없이 `Flyway.configure().dataSource("jdbc:sqlite:<tempfile
 | spec 수용 기준 / 요구사항 | 검증 방법 |
 |---|---|
 | 실행 로직 없음 (contract-only) | ① `MdmContractArchitectureTest` 자동 적용(F20): `contract.mastercode` 는 인터페이스(추상 메서드만)·enum·record(접근자만)·상수 클래스뿐이고 Spring·JPA·엔티티에 의존하지 않는다 ② §3.4 스텁 컴파일 ③ §3.5-5·6(재정의 금지·선분 서비스 경계) ④ "main 에 구현 클래스가 없다"는 테스트로 고정하지 않는다(F22, TSK-05-01 방식) — Verify 가 변경 파일을 §2 목록과 diff 해 확인하는 **알려진 커버리지 갭**이다(불변 규칙 30). **`MdmSqliteLocalDateTimeConverter`·`MdmSqliteTemporalContributor` 는 영속성 설정(엔티티 매핑 인프라)이지 계약 로직이 아니다** — `common.support` 에 두고 계약 패키지와 무관하다(TSK-01-03 `MdmTemporalBinder` 와 같은 층) |
-| 04 테이블 7개 Flyway 두 방언 | §3.1, §3.8, §3.2(교차 FK 재생성) |
-| 엔티티 | §3.3, §3.8-6 (범위 5개 = D2, §3.5-7) |
+| 04 테이블 7개 Flyway 두 방언 | SQLite: §3.1, §3.2(교차 FK 재생성). MSSQL: **사용자 결정(도커 금지)으로 실측 생략** — §3.11 DDL 대조 테스트(`testAll` 포함) + Verify 의 줄 단위 DDL 리뷰로 대체. §3.8 은 작성만 하고 게이트에서 돌리지 않는다 |
+| 엔티티 | §3.3, §3.12 (범위 5개 = D2, §3.5-7). §3.8-6 은 게이트 비실행 |
 | 선분 조작 서비스 인터페이스(카테고리 모델·ID 이름 공간은 전사 계약 재사용) | §6.1 `MasterCodeSegmentService`, §3.4, §3.5-5·6. ID 이름 공간은 `MaruIdNamespace`(MASTER_CODE) 를 그대로 쓰며 구현은 TSK-06-02(`MdmCodeRepository.existsById`) — 새 타입을 만들지 않는다 |
 | 확정 검사 SPI(diff·검사 8항) 구현 대상 선언 | §6.1 `MasterCodeConfirmCheckSpi`·`MasterCodeConfirmCheckItem`·`MasterCodeConfirmCheckReport`·`MasterCodeDiffConventions`, §3.4, §3.5-1·3 |
-| naming-dialect-rules 인계 #2·#16·#19(04) | §3.1-11·12, §3.3-4, §3.8-1·2·3 |
-| TSK-01-03 인계 ③(시나리오 키트 실제 표) | §3.7 |
-| TSK-04-01 D1 인계(`FK_TB_MDM_DOMAIN_CODE`) | §3.1-13, §3.2, §3.8-5 |
+| naming-dialect-rules 인계 #2·#16·#19(04) | SQLite 쪽만 닫는다: §3.1-11·12, §3.3-4. MSSQL 쪽은 도커 금지로 `실측 필요` 유지, 텍스트 수준은 §3.11-8·9 가 확인 |
+| TSK-01-03 인계 ③(시나리오 키트 실제 표) | §3.7 SQLite 판(게이트). MSSQL 판은 게이트 비실행 |
+| TSK-04-01 D1 인계(`FK_TB_MDM_DOMAIN_CODE`) | §3.1-13, §3.2, §3.11-4(MSSQL `ALTER` 텍스트) |
 
 ---
 
 ## 5. 불변 규칙 — 이 작업에서 바꾸면 안 되는 것 (규칙 · 잡는 테스트 · 변이 예)
 
-1. **V6 은 7테이블을 만든다**(`TB_MDM_CODE`·`_SYSTEM`·`_VER`·`_ITEM`·`_CATE`·`_CATE_ITEM`·`_RECV`). 잡는 테스트: §3.1-2, §3.8. 변이: `TB_MDM_CODE_RECV` 블록 삭제 → §3.1-2·12 빨강.
+1. **V6 은 7테이블을 만든다**(`TB_MDM_CODE`·`_SYSTEM`·`_VER`·`_ITEM`·`_CATE`·`_CATE_ITEM`·`_RECV`). 잡는 테스트: §3.1-2, §3.11-1. 변이: SQLite `TB_MDM_CODE_RECV` 블록 삭제 → §3.1-2·12 빨강. MSSQL 만 삭제 → §3.11-1 빨강.
 2. **두 방언 모두 파일명 `V6__create_mdm_master_code.sql`, V5 를 쓰지 않는다**(D1). §3.1-1, `MdmFlywayVersionParityTest`, §2 수정 4개. 변이: SQLite 만 V6 → 패리티 테스트 빨강. `V5__…` 로 개명 → `MdmSharedContractMigrationTest` 집합 빨강.
 3. **선분 칼럼 `FROM_VER`·`TO_VER` 는 NOT NULL, `TO_VER` 기본값 9999**(ITEM·CATE·CATE_ITEM, 04:32). §3.1-5, §3.3-1. 변이: `DEFAULT 9999` 제거 → 원시 INSERT 가 NOT NULL 위반으로 빨강. 엔티티 `toVer` 초기값 제거 → §3.3-1 빨강.
-4. **버전 칼럼은 `DECIMAL(7,3)`/`NUMERIC(7,3)`**(`VER`·`FROM_VER`·`TO_VER`·`RESTORED_FROM`·RECV `VER`, 04:271·994, 규칙표 #17). §3.1-4, §3.8-7. 변이: `DECIMAL(9,3)` → 두 단언 빨강.
+4. **버전 칼럼은 `DECIMAL(7,3)`/`NUMERIC(7,3)`**(`VER`·`FROM_VER`·`TO_VER`·`RESTORED_FROM`·RECV `VER`, 04:271·994, 규칙표 #17). §3.1-4, §3.11-9·10. 변이: SQLite `NUMERIC(9,3)` → §3.1-4 빨강, MSSQL `DECIMAL(9,3)` → §3.11-9 빨강.
 5. **PK**: CODE(MARU_CODE_ID) · CODE_SYSTEM(MARU_CODE_ID,SYSTEM_CODE) · VER(MARU_CODE_ID,VER) · ITEM(MARU_CODE_ID,CODE,FROM_VER) · CATE(MARU_CODE_ID,CATE_ID,FROM_VER) · CATE_ITEM(MARU_CODE_ID,CATE_ID,CODE,FROM_VER) · RECV(RECV_ID). §3.1-3, §3.3-2(82@1.000·82@1.001 두 행). 변이: ITEM PK 에서 FROM_VER 제거 → §3.3-2 두 번째 저장이 PK 위반으로 빨강.
-6. **FK 대상**: VER·ITEM·CATE·CATE_ITEM·CODE_SYSTEM·RECV 의 `MARU_CODE_ID → TB_MDM_CODE`, ITEM·CATE·CATE_ITEM 의 `(MARU_CODE_ID, FROM_VER) → TB_MDM_CODE_VER(MARU_CODE_ID, VER)`, `TB_MDM_CODE.SOURCE_SYSTEM`·`CODE_SYSTEM.SYSTEM_CODE`·`RECV.SOURCE_SYSTEM → TB_MDM_SYSTEM`(04:957). 이름 `FK_TB_MDM_CODE_SYSTEM_SRC`(형제 표 이름과 겹침 회피, TSK-02-03 §6.0). §3.1-8, §3.3-5. 변이: `FK_TB_MDM_CODE_ITEM_VER` 제거 → `FROM_VER=1.002` INSERT 통과로 빨강.
+6. **FK 대상**: VER·ITEM·CATE·CATE_ITEM·CODE_SYSTEM·RECV 의 `MARU_CODE_ID → TB_MDM_CODE`, ITEM·CATE·CATE_ITEM 의 `(MARU_CODE_ID, FROM_VER) → TB_MDM_CODE_VER(MARU_CODE_ID, VER)`, `TB_MDM_CODE.SOURCE_SYSTEM`·`CODE_SYSTEM.SYSTEM_CODE`·`RECV.SOURCE_SYSTEM → TB_MDM_SYSTEM`(04:957). 이름 `FK_TB_MDM_CODE_SYSTEM_SRC`(형제 표 이름과 겹침 회피, TSK-02-03 §6.0). §3.1-8, §3.3-5, §3.11-4. 변이: MSSQL 만 FK 제거 → §3.11-4 빨강. SQLite `FK_TB_MDM_CODE_ITEM_VER` 제거 → `FROM_VER=1.002` INSERT 통과로 빨강.
 7. **FK 를 걸지 않는 자리**: CATE_ITEM → CATE·ITEM, 모든 `TO_VER`(04:958 — `9999` 는 실제 버전이 아니다). §3.1-9. 변이: `CATE_ITEM(MARU_CODE_ID,CODE,FROM_VER) → ITEM` FK 추가 → ITEM 없는 CATE_ITEM INSERT 거부로 빨강.
-8. **V6 어디에도 `ON DELETE CASCADE` 가 없다.** §3.1-10. 변이: `FK_TB_MDM_CODE_ITEM_VER` 에 CASCADE → VER DELETE 가 성공해 빨강.
-9. **CHECK 전부 유지**(§6.0 목록, `LVL_CNT BETWEEN 0 AND 5` 경계 포함). §3.1-6. 변이: `BETWEEN 0 AND 6` → LVL_CNT=6 통과로 빨강. `CK_TB_MDM_CODE_ITEM_CODE` 제거 → `'A B'` 통과로 빨강.
+8. **V6 어디에도 `ON DELETE CASCADE` 가 없다.** §3.1-10, §3.11-7. 변이: MSSQL 에만 CASCADE → §3.11-7 빨강. SQLite `FK_TB_MDM_CODE_ITEM_VER` 에 CASCADE → VER DELETE 가 성공해 빨강.
+9. **CHECK 전부 유지**(§6.0 목록, `LVL_CNT BETWEEN 0 AND 5` 경계 포함). §3.1-6, §3.11-5. 변이: MSSQL CHECK 식만 바꿈 → §3.11-5 빨강. SQLite `BETWEEN 0 AND 6` → LVL_CNT=6 통과로 빨강. `CK_TB_MDM_CODE_ITEM_CODE` 제거 → `'A B'` 통과로 빨강.
 10. **DDL 기본값**: CODE `STATUS='CREATED'`·`LVL_CNT=0`·`LAST_CHG_SEQ=0`, VER `STATUS='DRAFT'`·`EMERGENCY_YN='N'`·`ROW_VERSION=0`, `TO_VER=9999`. 엔티티 필드 초기값이 같은 값이다. §3.1-5, §3.3-1. 변이: `MdmCodeVer.emergencyYn` 초기값 제거 → Hibernate 가 NULL 을 넣어 NOT NULL 위반으로 빨강.
 11. **`AUD_VER` 예외**: `TB_MDM_CODE_VER`·`TB_MDM_CODE_RECV` 만 감사 카운터가 `AUD_VER`, 나머지 5표는 `VER`. `MdmCodeVer` 는 `@AttributeOverride(name="version", column=@Column(name="AUD_VER"))`. §3.1-2, §3.3-3, §3.7. 변이: `@AttributeOverride` 제거 → 감사 `version` 과 업무 `ver` 가 같은 `VER` 칼럼에 매핑돼 부팅 실패(중복 칼럼) → 그 컨텍스트의 테스트 전부 빨강.
 12. **SQLite 감사 `VER`/`AUD_VER` 는 `BIGINT`**(F5). §3.1-4. 변이: ERD 대로 `INTEGER` → 빨강.
@@ -247,13 +279,13 @@ Spring 컨텍스트 없이 `Flyway.configure().dataSource("jdbc:sqlite:<tempfile
 14. **`MdmCode` 는 `LAST_CHG_SEQ` 를 매핑하지 않는다**(D2). §3.3-6, §3.5-7. 변이: `@Column(name="LAST_CHG_SEQ") long lastChgSeq` 추가 → §3.5-7 빨강.
 15. **엔티티는 5개뿐 — `TB_MDM_CODE_SYSTEM`·`TB_MDM_CODE_RECV` 엔티티·리포지토리를 만들지 않는다**(D2). §3.5-7. 변이: `MdmCodeRecv` 엔티티 추가 → 빨강.
 16. **엔티티는 JPA 연관관계를 쓰지 않는다**(원시 ID 필드). `MdmEntityArchitectureTest`(자동 적용). 변이: `MdmCodeItem` 에 `@ManyToOne MdmCodeVer` → 빨강.
-17. **MSSQL 코드·키 칼럼은 `COLLATE Latin1_General_100_BIN2`**(§6.0 BIN2 표시, 규칙표 #19). §3.8-1. 변이: ITEM `CODE` 의 COLLATE 제거 → 'A1'/'a1' 가 PK 위반으로 빨강.
-18. **MSSQL `DEF_EXPR` 는 `NVARCHAR(MAX)`**(D6). §3.8-4. 변이: ERD 대로 `VARCHAR(MAX)` → 한글 정규식이 `?` 로 돌아와 빨강.
-19. **`FK_TB_MDM_DOMAIN_CODE` 를 두 방언 모두 V6 에서 건다**(D3). SQLite 재생성은 V3(또는 머지 시점 직전 버전)의 `TB_MDM_DOMAIN` 정의를 칼럼·CHECK·FK·인덱스·AUTOINCREMENT 상한까지 보존한다. §3.1-13, §3.2-A, §3.8-5, 기존 `MdmTermDomainColumnMigrationTest` 전체. 변이 ①: FK 줄 누락 → §3.1-13·§3.2-A④ 빨강. ②: `CREATE INDEX IX_TB_MDM_DOMAIN_PARENT` 재생성 누락 → §3.2-A③ 과 V3 인덱스 테스트 빨강. ③: `sqlite_sequence` 보존 문장 누락 → §3.2-A② 빨강. ④: JSON CHECK 하나 누락 → §3.2-A③ 빨강.
+17. **MSSQL 코드·키 칼럼은 `COLLATE Latin1_General_100_BIN2`**(§6.0 BIN2 표시, 규칙표 #19). §3.11-8(게이트). 변이: ITEM `CODE` 의 COLLATE 제거 → §3.11-8 빨강. (실행 동작 'A1'/'a1' 은 §3.8-1 이 보지만 게이트 비실행.)
+18. **MSSQL `DEF_EXPR` 는 `NVARCHAR(MAX)`**(D6). §3.11-9(게이트). 변이: ERD 대로 `VARCHAR(MAX)` → §3.11-9 빨강. (한글 왕복 실측 §3.8-4 는 게이트 비실행.)
+19. **`FK_TB_MDM_DOMAIN_CODE` 를 두 방언 모두 V6 에서 건다**(D3). SQLite 재생성은 V3(또는 머지 시점 직전 버전)의 `TB_MDM_DOMAIN` 정의를 칼럼·CHECK·FK·인덱스·AUTOINCREMENT 상한까지 보존한다. §3.1-13, §3.2-A, §3.11-4, 기존 `MdmTermDomainColumnMigrationTest` 전체. 변이 ①: FK 줄 누락 → §3.1-13·§3.2-A④ 빨강. ②: `CREATE INDEX IX_TB_MDM_DOMAIN_PARENT` 재생성 누락 → §3.2-A③ 과 V3 인덱스 테스트 빨강. ③: `sqlite_sequence` 보존 문장 누락 → §3.2-A② 빨강. ④: JSON CHECK 하나 누락 → §3.2-A③ 빨강.
 20. **SQLite 재생성은 한 트랜잭션이다 — 실패하면 부분 적용이 남지 않는다**(D3). §3.2-B. 변이: `V6__…sql.conf` 로 `executeInTransaction=false` 를 주고 재생성을 파일 끝으로 옮긴다 → 실패 뒤 `TB_MDM_CODE` 가 남아 빨강.
 21. **SQLite 엔티티 업무 일시 = 네이티브와 같은 19자 TEXT**(`'yyyy-MM-dd HH:mm:ss'`, `typeof=text`, D7, 규칙표 #16). §3.3-4, §3.6. 변이 ①: 컨버터 쓰기 형식에 `.SSS` 추가 → §3.3-4①·§3.6 빨강. ②: `application-local.yml` 의 contributor 줄 삭제 → `typeof=integer` 로 §3.3-4① 빨강, ④ 에서 `fromDb` 예외로 빨강.
-22. **`MdmCodeVer` 의 `LocalDateTime` 세터는 초 단위로 자른다**(두 방언이 같은 값을 갖도록 — `MdmTemporalBinder` 와 같은 규칙). §3.3-4②, §3.8-3. 변이: 절단 제거 → MSSQL `DATETIME2(0)` 반올림으로 `:01` 이 돼 §3.8-3 빨강. SQLite 는 컨버터도 자르므로 초록이다(두 겹 방어, 이 사실은 커버리지 갭이 아니라 의도다).
-23. **DECIMAL 키는 scale 무관하게 같고, 엔티티 게터는 scale 3 을 돌려준다**(F26). IdClass `equals`/`hashCode` 는 `compareTo`·`stripTrailingZeros()` 기반. §3.3-2, §3.8-6. 변이 ①: 게터 정규화 제거 → SQLite 에서 `getVer()` 가 `1` 로 돌아와 `assertEquals(new BigDecimal("1.000"), …)` 빨강. ②: IdClass 에 `Objects.equals` 사용 → `clear()` 뒤 `findById` 의 식별자 대조가 어긋나는지 Build 가 실측한다 — **안 빨개지면 커버리지 갭으로 보고한다**(Hibernate 가 IdClass 인스턴스를 요청 키로 만들면 드러나지 않을 수 있다).
+22. **`MdmCodeVer` 의 `LocalDateTime` 세터는 초 단위로 자른다**(두 방언이 같은 값을 갖도록 — `MdmTemporalBinder` 와 같은 규칙). §3.12-1(게이트), §3.3-4②. 변이: 세터 절단 제거 → §3.12-1 빨강. (MSSQL 반올림 실측 §3.8-3 은 게이트 비실행. SQLite 왕복 §3.3-4② 는 컨버터도 자르므로 이 변이에 초록 — 그래서 §3.12 가 필요하다.)
+23. **DECIMAL 키는 scale 무관하게 같고, 엔티티 게터는 scale 3 을 돌려준다**(F26). IdClass `equals`/`hashCode` 는 `compareTo`·`stripTrailingZeros()` 기반. §3.3-2, §3.12-2·3. 변이 ①: 게터 정규화 제거 → §3.12-2 와 SQLite `getVer()` 단언 빨강. ②: IdClass 에 `Objects.equals` 사용 → §3.12-3 빨강(§3.3-2 의 `findById` 가 함께 빨개지는지는 Build 가 관찰해 기록한다).
 24. **계약 패키지 모양**: `contract.mastercode` 는 인터페이스(추상 메서드만)·enum·record(접근자만)·상수 클래스뿐, Spring·JPA·JDBC·엔티티·엔진에 의존하지 않는다. `MdmContractArchitectureTest`(자동 적용). 변이: `MasterCodeSegmentService` 에 `default` 메서드 추가 → 빨강. `MasterCodeItemValues` 에 `lvl(int)` 메서드 추가 → 빨강.
 25. **전사 계약을 재정의·복제하지 않는다**(카테고리 종류·대상 칸·BASE·`.*`·ID 규칙·ID 이름 공간·버전 상태·마루 객체 상태·diff 종류). §3.5-5. 변이: `enum MasterCodeCateKind{REGEX,TABLE}` 추가 → 빨강. `MasterCodeConventions.BASE_CATE_ID="BASE"` 추가 → 빨강.
 26. **선분 조작 서비스는 ROW_VERSION 을 받지도 올리지도 않고, DRAFT 삭제 복구를 다시 선언하지 않는다**(D8). §3.5-6. 변이: `addItem(VersionRef, long expectedRowVersion, …)` → 빨강. `deleteDraft(VersionRef)` 추가 → 빨강. (구현이 실제로 ROW_VERSION 을 올리지 않는지는 이 Task 에 구현이 없어 06-03 이 지킨다 — 계약 Javadoc 으로 넘긴다.)
@@ -261,8 +293,8 @@ Spring 컨텍스트 없이 `Flyway.configure().dataSource("jdbc:sqlite:<tempfile
 28. **diff 키 규약: `{표}:{부분}[,{부분}]`, 구분자 `,` 는 cate_id·code 금지 문자**(D10). §3.5-3. 변이: `KEY_PART_SEPARATOR="/"` → 빨강.
 29. **MASTER_CODE 확정 검사 SPI 구현은 target 당 하나**(`MasterCodeConfirmCheckSpi extends VersionConfirmCheckSpi`). `ContractStubCompileTest.확정_검사_SPI_구현이_모든_버전_대상을_하나씩_덮는다`(기존). 변이: `CONFIRM_CHECKS` 에 MASTER_CODE 스텁 하나 더 → 빨강.
 30. **main 에 `MasterCodeSegmentService`·`MasterCodeConfirmCheckSpi` 구현 클래스를 넣지 않는다**(수용 기준). **알려진 커버리지 갭**(F22, TSK-05-01 불변 규칙 13 과 같음): 잡는 테스트가 없다. Verify 가 `git diff --name-status <기점>..HEAD` 를 §2 목록과 대조해 확인하고 결과를 보고한다.
-31. **V6 버전 표·부모 표가 공통 버전 서비스의 고정 칼럼과 CHECK 를 만족한다**(F12). §3.7(두 방언). 변이: `RELEASED_AT` 을 `RELEASE_AT` 으로 오타 → 확정 시나리오 빨강. `CK_TB_MDM_CODE_VER_APPLY` 를 `STATUS='DRAFT' OR APPLY_TO IS NULL` 처럼 틀리게 → 확정 시나리오 빨강.
-32. **`RECV_ID` 는 서버 채번이고 지운 값을 재사용하지 않는다**(SQLite `AUTOINCREMENT`, MSSQL `IDENTITY(1,1)`, 규칙표 #2). §3.1-12, §3.8-2. 변이: SQLite `AUTOINCREMENT` 제거 → 지운 최댓값 재사용으로 빨강.
+31. **V6 버전 표·부모 표가 공통 버전 서비스의 고정 칼럼과 CHECK 를 만족한다**(F12). §3.7 SQLite 판(게이트), MSSQL 판은 게이트 비실행. 변이: `RELEASED_AT` 을 `RELEASE_AT` 으로 오타 → 확정 시나리오 빨강. `CK_TB_MDM_CODE_VER_APPLY` 를 `STATUS='DRAFT' OR APPLY_TO IS NULL` 처럼 틀리게 → 확정 시나리오 빨강.
+32. **`RECV_ID` 는 서버 채번이고 지운 값을 재사용하지 않는다**(SQLite `AUTOINCREMENT`, MSSQL `IDENTITY(1,1)`, 규칙표 #2). §3.1-12, §3.11-9·10. 변이: SQLite `AUTOINCREMENT` 제거 → §3.1-12·§3.11-10 빨강. MSSQL `IDENTITY(1,1)` 제거 → §3.11-9 빨강(단조 증가 실측 §3.8-2 는 게이트 비실행).
 
 ---
 
