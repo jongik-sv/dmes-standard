@@ -2,7 +2,7 @@
   "tsk": "TSK-06-01",
   "order": "087bc67d-ad17-4c40-bda2-3999117ed0ab",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "build",
+  "phase": "refactor",
   "baseline": {
     "failures": 0,
     "tests": 1878,
@@ -16,10 +16,45 @@
   },
   "flyway_version": "V6 (팀장 배정 2026-09-24)",
   "complexity": "3점(depends 2 +1, Flyway=마이그레이션 +2) → opus, spec model=opus",
-  "model": "opus",
+  "model": "haiku",
   "last": {
-    "phase": "design",
-    "event": "design.ok"
+    "phase": "verify",
+    "event": "verify.ok"
   },
-  "design_commit": "22fd710"
+  "design_commit": "22fd710",
+  "build_gate": {
+    "backend_testAll": {
+      "tests": 1950,
+      "failures": 0,
+      "errors": 0
+    },
+    "compileMssqlTestJava": "ok",
+    "mutations": "52/52 red (rule 30 = known gap)",
+    "commits": [
+      "6b5705e",
+      "9c6c069",
+      "5ad967b"
+    ]
+  },
+  "verify_gate": {
+    "backend_testAll": {
+      "tests": 1950,
+      "failures": 0,
+      "errors": 0,
+      "note": "--rerun-tasks 전체 재실행"
+    },
+    "mutations_rechecked": [
+      "1a",
+      "4b",
+      "14",
+      "24a",
+      "19a",
+      "D4",
+      "29",
+      "21a"
+    ],
+    "rule30": "main 구현 0건",
+    "mssql_ddl_review": "§3.13 8/8 통과(도커 금지로 실측 대체)"
+  },
+  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\""
 }
