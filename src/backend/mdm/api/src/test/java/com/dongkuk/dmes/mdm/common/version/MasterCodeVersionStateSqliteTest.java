@@ -17,8 +17,8 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * TSK-06-01 design.md §3.7 — TSK-01-03 §7 ③ 인계. 버전 상태 서비스 시나리오 키트를 <b>실제 V6 테이블</b>
- * ({@code TB_MDM_CODE}·{@code TB_MDM_CODE_VER})로 local(SQLite) 컨텍스트에서 돌린다. V6 DDL 이 공통 서비스의 고정 칼럼·이름·
+ * TSK-06-01 design.md §3.7 — TSK-01-03 §7 ③ 인계. 버전 상태 서비스 시나리오 키트를 <b>실제 V9 테이블</b>
+ * ({@code TB_MDM_CODE}·{@code TB_MDM_CODE_VER})로 local(SQLite) 컨텍스트에서 돌린다. V9 DDL 이 공통 서비스의 고정 칼럼·이름·
  * CHECK({@code CK_TB_MDM_CODE_VER_APPLY} 포함)를 만족한다는 유일한 직접 증거다(불변 규칙 31).
  *
  * <p>MASTER_CODE 는 {@link DefaultVersionTableRegistry} 의 실제 명세, BUSINESS_RULE 은 06 표가 아직 없어 픽스처
@@ -49,7 +49,7 @@ class MasterCodeVersionStateSqliteTest extends AbstractVersionStateScenarioTest 
         }
     }
 
-    /** 픽스처 RULE 두 표만 만든다(MASTER_CODE 는 Flyway V6 표). 트리거 문장은 TC_CODE_VER 를 가리켜 넣지 않는다. */
+    /** 픽스처 RULE 두 표만 만든다(MASTER_CODE 는 Flyway V9 표). 트리거 문장은 TC_CODE_VER 를 가리켜 넣지 않는다. */
     @Override
     protected void createSchema(JdbcTemplate jdbc) {
         List<String> ddl = VersionFixtureTables.sqliteDdl();

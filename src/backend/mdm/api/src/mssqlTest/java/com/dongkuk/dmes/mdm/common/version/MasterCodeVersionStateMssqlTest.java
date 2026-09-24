@@ -15,7 +15,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * TSK-06-01 design.md §3.7 — 버전 상태 서비스 시나리오 키트를 실제 V6 테이블로 SQL Server 2022(Testcontainers)에서 돌린다
+ * TSK-06-01 design.md §3.7 — 버전 상태 서비스 시나리오 키트를 실제 V9 테이블로 SQL Server 2022(Testcontainers)에서 돌린다
  * ({@code MasterCodeVersionStateSqliteTest} 의 MSSQL 판, 공용 {@code MdmMssqlServer} 에 실행마다 새 DB).
  *
  * <p><b>사용자 결정(2026-09-24, 도커 금지)으로 이 테스트는 게이트에서 실행하지 않는다.</b> {@code :api:mssqlMigrationTest}
@@ -48,7 +48,7 @@ class MasterCodeVersionStateMssqlTest extends AbstractVersionStateScenarioTest {
         }
     }
 
-    /** 픽스처 RULE 두 표만 만든다(MASTER_CODE 는 Flyway V6 표). */
+    /** 픽스처 RULE 두 표만 만든다(MASTER_CODE 는 Flyway V9 표). */
     @Override
     protected void createSchema(JdbcTemplate jdbc) {
         VersionFixtureTables.mssqlDdl().stream().filter(sql -> sql.contains("TB_MDM_TC_RULE")).forEach(jdbc::execute);

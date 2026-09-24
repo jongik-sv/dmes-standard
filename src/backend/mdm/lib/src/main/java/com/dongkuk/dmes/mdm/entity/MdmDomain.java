@@ -16,7 +16,7 @@ import jakarta.persistence.Table;
  * 모두 원시 ID 필드로만 매핑한다.
  *
  * <p><b>{@code MARU_CODE_ID} 는 {@code TB_MDM_CODE} 를 가리키는 FK 다.</b> V3 는 {@code TB_MDM_CODE}(04 영역)가
- * 없어 걸지 않았고(TSK-04-01 D1), V6(TSK-06-01 D3)이 {@code FK_TB_MDM_DOMAIN_CODE} 를 걸었다 — 없는 코드 ID 는 DB 가
+ * 없어 걸지 않았고(TSK-04-01 D1), V9(TSK-06-01 D3)가 {@code FK_TB_MDM_DOMAIN_CODE} 를 걸었다 — 없는 코드 ID 는 DB 가
  * 거부하고 NULL 은 통과한다. 저장 전 존재 검사·사용자 오류 코드는 후속 Task 가 {@code MaruIdNamespace} SPI 로 한다.
  *
  * <p>ID 채번은 {@link GenerationType#IDENTITY} 로 고정한다(불변 규칙 10).
@@ -55,7 +55,7 @@ public class MdmDomain extends CactusAuditEntity {
     @Column(name = "UNIT_CODE", length = 20)
     private String unitCode;
 
-    /** {@code TB_MDM_CODE.MARU_CODE_ID} FK(V6 {@code FK_TB_MDM_DOMAIN_CODE}, TSK-06-01 D3) — 원시 ID 필드. */
+    /** {@code TB_MDM_CODE.MARU_CODE_ID} FK(V9 {@code FK_TB_MDM_DOMAIN_CODE}, TSK-06-01 D3) — 원시 ID 필드. */
     @Column(name = "MARU_CODE_ID", length = 50)
     private String maruCodeId;
 

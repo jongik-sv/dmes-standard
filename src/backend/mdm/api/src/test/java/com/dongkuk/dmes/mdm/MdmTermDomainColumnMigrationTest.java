@@ -110,7 +110,7 @@ class MdmTermDomainColumnMigrationTest {
     }
 
     /**
-     * {@code TB_MDM_DOMAIN.MARU_CODE_ID=NULL} 인 QTY 종류 행 INSERT 는 성공해야 한다. TSK-06-01 V6 이
+     * {@code TB_MDM_DOMAIN.MARU_CODE_ID=NULL} 인 QTY 종류 행 INSERT 는 성공해야 한다. TSK-06-01 V9 가
      * {@code FK_TB_MDM_DOMAIN_CODE} 를 건 뒤에도 NULL 은 FK 검사 대상이 아니라 그대로 통과한다(FK 강제 단언은
      * {@code MdmMasterCodeMigrationTest} 가 한다). V3 시점의 "FK 부재" 이름은 더 이상 사실이 아니라 이름·주석만 고쳤다.
      */

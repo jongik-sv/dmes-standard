@@ -70,8 +70,8 @@ class MdmTermDomainColumnMssqlMigrationTest {
     }
 
     @Test
-    void local_db_설정으로_V1_V2_V3_V4_V6_V8_이_적용된다() throws SQLException {
-        // TSK-05-01 — V4(03 인터페이스 레이아웃), TSK-06-01 — V6(04 마스터코드), TSK-08-01 — V8(06 업무기준) 추가 반영.
+    void local_db_설정으로_V1_V2_V3_V4_V8_V9_가_적용된다() throws SQLException {
+        // TSK-05-01 — V4(03 인터페이스 레이아웃), TSK-08-01 — V8(06 업무기준), TSK-06-01 — V9(04 마스터코드) 추가 반영.
         // 완화가 아니라 새 버전 반영이다.
         Set<String> versions = new HashSet<>();
         try (Connection c = dataSource.getConnection(); Statement s = c.createStatement();
@@ -80,7 +80,7 @@ class MdmTermDomainColumnMssqlMigrationTest {
                 versions.add(rs.getString(1));
             }
         }
-        assertEquals(Set.of("1", "2", "3", "4", "6", "8"), versions);
+        assertEquals(Set.of("1", "2", "3", "4", "8", "9"), versions);
     }
 
     /** #3 — CHECK(ISJSON(...) = 1) 8개, 부정형 JSON INSERT 는 오류 547(CHECK 위반)로 거부. */
@@ -298,7 +298,7 @@ class MdmTermDomainColumnMssqlMigrationTest {
     }
 
     /**
-     * MARU_CODE_ID=NULL INSERT 는 MSSQL 에서도 정상 동작한다. TSK-06-01 V6 이 {@code FK_TB_MDM_DOMAIN_CODE} 를 건 뒤에도
+     * MARU_CODE_ID=NULL INSERT 는 MSSQL 에서도 정상 동작한다. TSK-06-01 V9 가 {@code FK_TB_MDM_DOMAIN_CODE} 를 건 뒤에도
      * NULL 은 FK 검사 대상이 아니라 그대로 통과한다(FK 강제 단언은 {@code MdmMasterCodeMssqlMigrationTest}). V3 시점의
      * "TB_MDM_CODE 없이도" 이름은 더 이상 사실이 아니라 이름·주석만 고쳤다.
      */

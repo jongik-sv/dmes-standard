@@ -14,10 +14,10 @@ import java.util.Set;
  */
 final class MdmMasterCodeExpectations {
 
-    /** 팀장 배정 버전(D1). V5 는 다른 Task 몫이라 비워 둔다. */
-    static final String VERSION = "6";
+    /** 머지 시점 두 방언 최대 버전 V8 + 1(D1 — 당초 팀장 배정 V6, 2026-09-24 팀장 정정으로 재채번). */
+    static final String VERSION = "9";
 
-    /** V6 이 만드는 7테이블. */
+    /** V9 가 만드는 7테이블. */
     static final Set<String> TABLES = Set.of(
             "TB_MDM_CODE", "TB_MDM_CODE_SYSTEM", "TB_MDM_CODE_VER", "TB_MDM_CODE_ITEM",
             "TB_MDM_CODE_CATE", "TB_MDM_CODE_CATE_ITEM", "TB_MDM_CODE_RECV");

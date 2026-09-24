@@ -1,5 +1,6 @@
 -- TSK-06-01 design.md §1·§2·§6.0 — 04 영역(마스터코드) 7테이블(SQLite) + FK_TB_MDM_DOMAIN_CODE 후행 추가.
--- 버전 번호는 팀장 배정 V6 이다(D1 — V5 는 다른 Task 몫이라 비워 둔다).
+-- 버전 번호는 V9 다(D1 — origin/dev 머지 뒤 mdm 두 방언 폴더의 최대 버전 V8 + 1). 당초 팀장 배정 V6 이었고
+-- 2026-09-24 팀장 정정(배정표 폐기, done 직전 머지 뒤 최대 버전+1)으로 V9 로 재채번했다. DDL 본문은 그대로다.
 -- 1차 텍스트는 docs/mdm/erd/04-master-code.sqlite.sql(TSK-02-03) 이되, 이 Task 가 실측·원천 대조로 갈라진
 -- 지점만 바꾼다(§6.0 G1~G5):
 --   G1 감사 VER(5표)·AUD_VER(VER·RECV) 는 INTEGER 가 아니라 BIGINT — F5(naming-dialect-rules §2, V2~V4 선례).
@@ -201,11 +202,14 @@ CREATE TABLE TB_MDM_CODE_RECV (
 
 -- ── G5: TB_MDM_DOMAIN 재생성으로 FK_TB_MDM_DOMAIN_CODE 추가(D3, §6.0.8) ──────────────────────────────
 -- SQLite 는 ALTER TABLE ADD CONSTRAINT 가 없어 12단계 재생성 패턴을 쓴다. Flyway 기본 동작대로 이 파일 전체가 한
--- 트랜잭션이라 실패하면 V6 전체가 롤백된다(불변 규칙 20). PRAGMA defer_foreign_keys 는 쓰지 않는다 — 도메인을
--- 참조하는 행(TB_MDM_COLUMN·자식 도메인)이 있으면 DROP 의 암묵 DELETE 가 곧바로 FK 위반으로 실패한다(F7-②, 원인이
--- 분명하다). 그런 로컬 DB 는 src/backend/data/mdm.db 를 지우고 다시 띄운다(D3 대가 ①).
--- ① 직전 버전(V3)의 TB_MDM_DOMAIN 정의를 글자 그대로 옮기고, V3 의 "걸지 않는다" 주석 자리에 FK 한 줄만 넣는다.
---    V6 앞에 TB_MDM_DOMAIN 을 바꾸는 마이그레이션이 들어오면 이 정의를 그 모습으로 맞춘다(MdmDomainCodeFkRebuildTest A 가 잡는다).
+-- 트랜잭션이라 실패하면 V9 전체가 롤백된다(불변 규칙 20). PRAGMA defer_foreign_keys 는 쓰지 않는다 — 도메인을
+-- 참조하는 행(TB_MDM_COLUMN·자식 도메인·V8 의 TB_MDM_RULE_VAR)이 있으면 DROP 의 암묵 DELETE 가 곧바로 FK 위반으로
+-- 실패한다(F7-②, 원인이 분명하다). 그런 로컬 DB 는 src/backend/data/mdm.db 를 지우고 다시 띄운다(D3 대가 ①).
+-- 다른 표의 FK(TB_MDM_COLUMN·V8 FK_TB_MDM_RULE_VAR_DOMAIN)는 표 이름으로 TB_MDM_DOMAIN 을 가리키므로 ⑤ RENAME 뒤
+-- 새 표를 그대로 가리킨다(MdmDomainCodeFkRebuildTest A 가 확인한다).
+-- ① TB_MDM_DOMAIN 을 마지막으로 정의한 V3 의 정의를 글자 그대로 옮기고(V4·V8 은 이 표를 바꾸지 않는다), V3 의
+--    "걸지 않는다" 주석 자리에 FK 한 줄만 넣는다.
+--    V9 앞에 TB_MDM_DOMAIN 을 바꾸는 마이그레이션이 들어오면 이 정의를 그 모습으로 맞춘다(MdmDomainCodeFkRebuildTest A 가 잡는다).
 CREATE TABLE TB_MDM_DOMAIN_NEW (
     DOMAIN_ID INTEGER CONSTRAINT PK_TB_MDM_DOMAIN PRIMARY KEY AUTOINCREMENT,
     DOMAIN_NAME TEXT NOT NULL,

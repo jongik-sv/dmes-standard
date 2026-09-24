@@ -51,7 +51,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * TSK-06-01 design.md §3.8 — V6(04 마스터코드 7테이블 + FK_TB_MDM_DOMAIN_CODE)을 {@code @SpringBootTest}+{@code local-db}
+ * TSK-06-01 design.md §3.8 — V9(04 마스터코드 7테이블 + FK_TB_MDM_DOMAIN_CODE)을 {@code @SpringBootTest}+{@code local-db}
  * 프로파일로 실제 SQL Server(Testcontainers)에 적용한다({@code MdmInterfaceLayoutMssqlMigrationTest} 패턴).
  *
  * <p><b>사용자 결정(2026-09-24, 도커 금지)으로 이 테스트는 기준선·게이트·Build·Verify 에서 돌리지 않는다.</b> 선례와 관례를
@@ -95,7 +95,7 @@ class MdmMasterCodeMssqlMigrationTest {
     // ── §3.1 1~4 반복 ──
 
     @Test
-    void local_db_설정으로_V6_이_적용되고_7테이블_칼럼_집합이_기대값과_같다() throws SQLException {
+    void local_db_설정으로_V9_가_적용되고_7테이블_칼럼_집합이_기대값과_같다() throws SQLException {
         try (Connection c = dataSource.getConnection()) {
             assertTrue(column(c, "SELECT version FROM flyway_schema_history WHERE success = 1").contains(VERSION));
             for (String table : TABLES) {

@@ -27,10 +27,10 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 /**
- * TSK-06-01 design.md §3.11 — 사용자 결정(도커 금지)으로 MSSQL 실측을 생략하는 대신, 두 방언 V6 파일을 문자열로 읽어
+ * TSK-06-01 design.md §3.11 — 사용자 결정(도커 금지)으로 MSSQL 실측을 생략하는 대신, 두 방언 V9 파일을 문자열로 읽어
  * 구조를 대조한다(MSSQL DDL 리뷰의 기계 부분). Spring·DB 없이 classpath 리소스만 읽는다.
  *
- * <p><b>파서 전제</b>(V6 파일 작성 모양): 문장은 {@code ;} 로 끝나고 {@code --} 는 줄 주석뿐이며 문자열 리터럴 안에
+ * <p><b>파서 전제</b>(V9 파일 작성 모양): 문장은 {@code ;} 로 끝나고 {@code --} 는 줄 주석뿐이며 문자열 리터럴 안에
  * {@code --}·{@code ;} 가 없다. {@code CREATE TABLE 이름 ( … )} 본문은 최상위 쉼표로 칼럼·제약을 나누고, 제약은
  * {@code CONSTRAINT 이름 …} 모양이다. 칼럼 정의는 {@code 이름 타입 [IDENTITY(1,1)] [COLLATE x] [NOT NULL|NULL]
  * [CONSTRAINT DF_x DEFAULT (v) | DEFAULT v] [CONSTRAINT PK_x PRIMARY KEY AUTOINCREMENT]} 모양이다. 전제가 깨지면
@@ -41,8 +41,8 @@ import org.junit.jupiter.api.Test;
  */
 class MdmMasterCodeDialectDdlParityTest {
 
-    private static final String SQLITE_V6 = "db/migration/mdm/sqlite/V6__create_mdm_master_code.sql";
-    private static final String MSSQL_V6 = "db/migration/mdm/mssql/V6__create_mdm_master_code.sql";
+    private static final String SQLITE_V9 = "db/migration/mdm/sqlite/V9__create_mdm_master_code.sql";
+    private static final String MSSQL_V9 = "db/migration/mdm/mssql/V9__create_mdm_master_code.sql";
     private static final String DOMAIN_FK = "FK_TB_MDM_DOMAIN_CODE";
     private static final String BIN2 = "Latin1_General_100_BIN2";
 
@@ -53,8 +53,8 @@ class MdmMasterCodeDialectDdlParityTest {
 
     @BeforeAll
     static void parse() throws IOException {
-        sqliteText = stripComments(read(SQLITE_V6));
-        mssqlText = stripComments(read(MSSQL_V6));
+        sqliteText = stripComments(read(SQLITE_V9));
+        mssqlText = stripComments(read(MSSQL_V9));
         sqlite = Ddl.parse(sqliteText);
         mssql = Ddl.parse(mssqlText);
     }

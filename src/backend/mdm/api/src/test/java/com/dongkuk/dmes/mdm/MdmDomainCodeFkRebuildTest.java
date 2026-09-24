@@ -31,17 +31,18 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * TSK-06-01 design.md §3.2 — V6 의 SQLite {@code TB_MDM_DOMAIN} 재생성(D3, §6.0.8)을 데이터가 든 DB 에 적용한다.
+ * TSK-06-01 design.md §3.2 — V9 의 SQLite {@code TB_MDM_DOMAIN} 재생성(D3, §6.0.8)을 데이터가 든 DB 에 적용한다.
  * Spring 컨텍스트 없이 Flyway API 를 직접 부른다({@code MdmMssqlMigrationTest} 선례). 앱과 같게 외래키 강제를 켠다
  * (F7 이 {@code foreign_keys=ON} 에서만 성립한다).
  *
- * <p>이전 버전은 하드코딩하지 않는다 — 해석된 마이그레이션 중 6 보다 작은 최댓값까지 먼저 적용한다(V5 가 머지되면
- * 자동으로 5 가 된다. V5 가 {@code TB_MDM_DOMAIN} 을 바꾸면 A 의 구조 비교가 V6 재생성 DDL 누락을 잡는다).
+ * <p>이전 버전은 하드코딩하지 않는다 — 해석된 마이그레이션 중 9 보다 작은 최댓값까지 먼저 적용한다(지금은 V8. 그
+ * 사이에 {@code TB_MDM_DOMAIN} 을 바꾸는 버전이 들어오면 A 의 구조 비교가 V9 재생성 DDL 누락을 잡는다). V8 의
+ * {@code TB_MDM_RULE_VAR.DOMAIN_ID} FK 도 재생성 뒤 새 표를 가리켜야 한다(A·B_업무기준).
  */
 class MdmDomainCodeFkRebuildTest {
 
     private static final String LOCATION = "classpath:db/migration/mdm/sqlite";
-    private static final MigrationVersion V6 = MigrationVersion.fromVersion(MdmMasterCodeExpectations.VERSION);
+    private static final MigrationVersion V9 = MigrationVersion.fromVersion(MdmMasterCodeExpectations.VERSION);
     private static final Pattern CONSTRAINT_NAME = Pattern.compile("CONSTRAINT\\s+((?:CK|FK|PK)_\\w+)");
 
     @TempDir
@@ -49,12 +50,14 @@ class MdmDomainCodeFkRebuildTest {
 
     /** A — 참조 없는 도메인 데이터가 있는 DB: 행·구조·AUTOINCREMENT 상한을 보존하고 FK 하나만 늘린다. */
     @Test
-    void A_참조_없는_도메인_행이_있으면_V6_이_행과_구조를_보존하고_FK_하나만_더한다() throws SQLException {
+    void A_참조_없는_도메인_행이_있으면_V9_가_행과_구조를_보존하고_FK_하나만_더한다() throws SQLException {
         String url = url("rebuild-a.db");
         migrateTo(url, previousVersion(url));
 
         long deletedMax;
         Snapshot before;
+        String ruleVarSqlBefore;
+        Set<String> ruleVarFksBefore;
         try (Connection c = DriverManager.getConnection(url)) {
             exec(c, "INSERT INTO TB_MDM_UNIT (UNIT_CODE, DIMENSION, BASE_UNIT, FACTOR) VALUES ('MM', 'LEN', 'MM', 1)");
             insertDomain(c, "길이", "LEN_MM", "QTY", "NUMBER", null, "MM", null);
@@ -62,8 +65,11 @@ class MdmDomainCodeFkRebuildTest {
             deletedMax = insertDomain(c, "지울행", "DEL_ME", "QTY", "NUMBER", null, null, null);
             exec(c, "DELETE FROM TB_MDM_DOMAIN WHERE DOMAIN_ID = " + deletedMax);
             before = Snapshot.of(c);
+            ruleVarSqlBefore = tableSql(c, "TB_MDM_RULE_VAR");
+            ruleVarFksBefore = ruleVarForeignKeys(c);
         }
         assertEquals(2, before.domainRows.size());
+        assertTrue(ruleVarFksBefore.contains("TB_MDM_DOMAIN(DOMAIN_ID->DOMAIN_ID)"), "V8 의 RULE_VAR→DOMAIN FK 전제: " + ruleVarFksBefore);
 
         migrateTo(url, null);
 
@@ -87,6 +93,16 @@ class MdmDomainCodeFkRebuildTest {
             assertThrows(SQLException.class,
                     () -> insertDomain(c, "코드", "CODE_NOPE", "CODE", "CHAR", "NOPE", null, null),
                     "④ 없는 코드 ID 는 FK_TB_MDM_DOMAIN_CODE 가 거부해야 한다");
+
+            // ⑤ V8 TB_MDM_RULE_VAR 는 재생성 뒤에도 그대로이고, FK 가 새 TB_MDM_DOMAIN 을 실제로 가리킨다.
+            assertEquals(ruleVarSqlBefore, tableSql(c, "TB_MDM_RULE_VAR"), "⑤ RULE_VAR 정의가 바뀌었다");
+            assertEquals(ruleVarFksBefore, ruleVarForeignKeys(c), "⑤ RULE_VAR FK 목록이 바뀌었다");
+            seedRuleVer(c, "RULE_A");
+            insertRuleVar(c, "RULE_A", 1, next);
+            assertThrows(SQLException.class, () -> insertRuleVar(c, "RULE_A", 2, next + 1000),
+                    "⑤ 없는 도메인을 가리키는 RULE_VAR 는 FK_TB_MDM_RULE_VAR_DOMAIN 이 거부해야 한다");
+            assertEquals(Set.of(), column(c, "SELECT \"table\" || '->' || parent FROM pragma_foreign_key_check"),
+                    "⑤ foreign_key_check 위반이 있다");
         }
     }
 
@@ -95,7 +111,7 @@ class MdmDomainCodeFkRebuildTest {
      * 부분 적용이 남지 않는다(불변 규칙 20).
      */
     @Test
-    void B_참조_행이_있으면_V6_은_실패하고_부분_적용이_남지_않는다() throws SQLException {
+    void B_참조_행이_있으면_V9_는_실패하고_부분_적용이_남지_않는다() throws SQLException {
         String url = url("rebuild-b.db");
         migrateTo(url, previousVersion(url));
 
@@ -118,11 +134,11 @@ class MdmDomainCodeFkRebuildTest {
             columnRowsBefore = rows(c, "SELECT * FROM TB_MDM_COLUMN ORDER BY COLUMN_ID");
         }
 
-        assertThrows(FlywayException.class, () -> migrateTo(url, null), "참조 행이 있는 DB 에서 V6 은 실패해야 한다(F7-②)");
+        assertThrows(FlywayException.class, () -> migrateTo(url, null), "참조 행이 있는 DB 에서 V9 는 실패해야 한다(F7-②)");
 
         try (Connection c = DriverManager.getConnection(url)) {
             Set<String> tables = column(c, "SELECT name FROM sqlite_master WHERE type = 'table'");
-            assertFalse(tables.contains("TB_MDM_CODE"), "실패한 V6 의 TB_MDM_CODE 가 남았다(부분 적용)");
+            assertFalse(tables.contains("TB_MDM_CODE"), "실패한 V9 의 TB_MDM_CODE 가 남았다(부분 적용)");
             assertFalse(tables.contains("TB_MDM_DOMAIN_NEW"), "재생성 임시 표가 남았다(부분 적용)");
             Snapshot after = Snapshot.of(c);
             assertEquals(before.domainRows, after.domainRows);
@@ -131,7 +147,43 @@ class MdmDomainCodeFkRebuildTest {
             assertEquals(columnSqlBefore, tableSql(c, "TB_MDM_COLUMN"));
             assertEquals(columnRowsBefore, rows(c, "SELECT * FROM TB_MDM_COLUMN ORDER BY COLUMN_ID"));
             assertEquals(Set.of(), column(c, "SELECT version FROM flyway_schema_history WHERE version = '"
-                    + MdmMasterCodeExpectations.VERSION + "' AND success = 1"), "V6 success 행이 기록됐다");
+                    + MdmMasterCodeExpectations.VERSION + "' AND success = 1"), "V9 success 행이 기록됐다");
+        }
+    }
+
+    /** B_업무기준 — 도메인을 참조하는 것이 V8 {@code TB_MDM_RULE_VAR} 한 행뿐이어도 V9 는 실패하고 부분 적용이 남지 않는다. */
+    @Test
+    void B_업무기준_변수만_도메인을_참조해도_V9_는_실패하고_부분_적용이_남지_않는다() throws SQLException {
+        String url = url("rebuild-b-rule.db");
+        migrateTo(url, previousVersion(url));
+
+        Snapshot before;
+        String ruleVarSqlBefore;
+        List<Map<String, Object>> ruleVarRowsBefore;
+        try (Connection c = DriverManager.getConnection(url)) {
+            long domain = insertDomain(c, "변수", "VAR_D", "QTY", "NUMBER", null, null, null);
+            seedRuleVer(c, "RULE_B");
+            insertRuleVar(c, "RULE_B", 1, domain);
+            before = Snapshot.of(c);
+            ruleVarSqlBefore = tableSql(c, "TB_MDM_RULE_VAR");
+            ruleVarRowsBefore = rows(c, "SELECT * FROM TB_MDM_RULE_VAR ORDER BY VAR_ID");
+        }
+
+        FlywayException failure = assertThrows(FlywayException.class, () -> migrateTo(url, null),
+                "RULE_VAR 가 참조하는 DB 에서 V9 는 실패해야 한다(F7-②)");
+        assertTrue(failure.getMessage().contains("FOREIGN KEY"), "실패 원인이 FK 위반이 아니다: " + failure.getMessage());
+
+        try (Connection c = DriverManager.getConnection(url)) {
+            Set<String> tables = column(c, "SELECT name FROM sqlite_master WHERE type = 'table'");
+            assertFalse(tables.contains("TB_MDM_CODE"), "실패한 V9 의 TB_MDM_CODE 가 남았다(부분 적용)");
+            assertFalse(tables.contains("TB_MDM_DOMAIN_NEW"), "재생성 임시 표가 남았다(부분 적용)");
+            Snapshot after = Snapshot.of(c);
+            assertEquals(before.domainRows, after.domainRows);
+            assertEquals(before.foreignKeys, after.foreignKeys);
+            assertEquals(ruleVarSqlBefore, tableSql(c, "TB_MDM_RULE_VAR"));
+            assertEquals(ruleVarRowsBefore, rows(c, "SELECT * FROM TB_MDM_RULE_VAR ORDER BY VAR_ID"), "RULE_VAR 행이 바뀌었다");
+            assertEquals(Set.of(), column(c, "SELECT version FROM flyway_schema_history WHERE version = '"
+                    + MdmMasterCodeExpectations.VERSION + "' AND success = 1"), "V9 success 행이 기록됐다");
         }
     }
 
@@ -153,16 +205,16 @@ class MdmDomainCodeFkRebuildTest {
         flyway(url, target).migrate();
     }
 
-    /** 해석된 마이그레이션 중 V6 보다 작은 최댓값(지금은 4, V5 머지 뒤 5). */
+    /** 해석된 마이그레이션 중 V9 보다 작은 최댓값(지금은 8). */
     private static MigrationVersion previousVersion(String url) {
         MigrationVersion previous = null;
         for (MigrationInfo info : flyway(url, null).info().all()) {
             MigrationVersion v = info.getVersion();
-            if (v != null && v.compareTo(V6) < 0 && (previous == null || v.compareTo(previous) > 0)) {
+            if (v != null && v.compareTo(V9) < 0 && (previous == null || v.compareTo(previous) > 0)) {
                 previous = v;
             }
         }
-        assertNotNull(previous, "V6 앞 버전을 찾지 못했다");
+        assertNotNull(previous, "V9 앞 버전을 찾지 못했다");
         return previous;
     }
 
@@ -185,6 +237,28 @@ class MdmDomainCodeFkRebuildTest {
                 return keys.getLong(1);
             }
         }
+    }
+
+    /** V8 업무기준 부모 두 행(RULE·DRAFT RULE_VER 1) — RULE_VAR 를 넣기 위한 seed-only 전제. */
+    private static void seedRuleVer(Connection c, String ruleId) throws SQLException {
+        exec(c, "INSERT INTO TB_MDM_RULE (MARU_RULE_ID, MARU_RULE_NAME, RULE_KIND, SOURCE_KIND) VALUES ('" + ruleId
+                + "', '기준', 'DECISION', 'MDM')");
+        exec(c, "INSERT INTO TB_MDM_RULE_VER (MARU_RULE_ID, VER) VALUES ('" + ruleId + "', 1)");
+    }
+
+    private static void insertRuleVar(Connection c, String ruleId, int varId, long domainId) throws SQLException {
+        try (PreparedStatement ps = c.prepareStatement(
+                "INSERT INTO TB_MDM_RULE_VAR (MARU_RULE_ID, VER, VAR_ID, VAR_KIND, DOMAIN_ID, SEQ) VALUES (?, 1, ?, 'COND', ?, ?)")) {
+            ps.setString(1, ruleId);
+            ps.setInt(2, varId);
+            ps.setLong(3, domainId);
+            ps.setInt(4, varId);
+            ps.executeUpdate();
+        }
+    }
+
+    private static Set<String> ruleVarForeignKeys(Connection c) throws SQLException {
+        return column(c, "SELECT \"table\" || '(' || \"from\" || '->' || \"to\" || ')' FROM pragma_foreign_key_list('TB_MDM_RULE_VAR')");
     }
 
     private static void exec(Connection c, String sql) throws SQLException {
@@ -226,7 +300,7 @@ class MdmDomainCodeFkRebuildTest {
         }
     }
 
-    /** V6 전후 비교용 TB_MDM_DOMAIN 모습. */
+    /** V9 전후 비교용 TB_MDM_DOMAIN 모습. */
     private record Snapshot(List<Map<String, Object>> domainRows, List<String> columns, Set<String> indexes,
                             Set<String> keysAndChecks, Set<String> foreignKeys, Set<String> foreignKeyNames) {
 

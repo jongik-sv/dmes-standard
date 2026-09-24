@@ -37,7 +37,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * TSK-06-01 design.md §3.1 — V6(04 마스터코드 7테이블 + {@code FK_TB_MDM_DOMAIN_CODE}, SQLite) 실제 적용을 실측한다.
+ * TSK-06-01 design.md §3.1 — V9(04 마스터코드 7테이블 + {@code FK_TB_MDM_DOMAIN_CODE}, SQLite) 실제 적용을 실측한다.
  * {@code MdmInterfaceLayoutMigrationTest} 와 같은 패턴(@TempDir + local 프로파일). 쓰기 단언은 한 연결에서 트랜잭션을
  * 열고 rollback 으로 끝낸다(공유 DB 에 흔적을 남기지 않는다). 직접 INSERT 는 생성 API 가 없는 계약 전용 Task 의
  * seed-only 경로다(F27 ④).
@@ -61,13 +61,13 @@ class MdmMasterCodeMigrationTest {
     // ── 1~4: 이력·구조 ──
 
     @Test
-    void flyway_가_V6_을_success_로_적용했다() throws SQLException {
+    void flyway_가_V9_를_success_로_적용했다() throws SQLException {
         try (Connection c = dataSource.getConnection();
              Statement s = c.createStatement();
              ResultSet rs = s.executeQuery(
                      "SELECT success FROM flyway_schema_history WHERE version = '" + VERSION + "'")) {
-            assertTrue(rs.next(), "flyway_schema_history 에 version=6 행이 없다");
-            assertTrue(rs.getBoolean("success"), "V6 마이그레이션이 success=true 가 아니다");
+            assertTrue(rs.next(), "flyway_schema_history 에 version=" + VERSION + " 행이 없다");
+            assertTrue(rs.getBoolean("success"), "V" + VERSION + " 마이그레이션이 success=true 가 아니다");
         }
     }
 
