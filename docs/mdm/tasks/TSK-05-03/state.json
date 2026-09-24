@@ -2,7 +2,7 @@
   "tsk": "TSK-05-03",
   "order": "975c6c21-1c7a-4d3c-bbb0-f0ec7b0d3701",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "reported",
+  "phase": "merged",
   "model": "sonnet",
   "branch_base": "49656a3a42352e4cf7f5f107e50057886c310b8c",
   "risk": "선행 3건(TSK-05-01·01-03·03-02)은 dev 반영 확인(REFLECTED, 증거 2)·승인 대기. 형식상 선행이 아닌 TSK-05-02(merged, unapproved)의 layoutMng 산출물 위에 확장한다 — 05-02 반려 시 재작업",
@@ -61,5 +61,6 @@
       "e2e": "28/0/0 (verify2 새 DB, src=57e2035 와 동일)",
       "mutations": "I1·I2·I6·I7·I11·I12·I13·I14·I15·I17 빨강 + E2E 변이 1건 빨강"
     }
-  }
+  },
+  "unapproved": true
 }
