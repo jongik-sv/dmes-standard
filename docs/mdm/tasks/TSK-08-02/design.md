@@ -950,3 +950,11 @@ B8 의 `ruleDefFromStored` 가 같은 규칙이면 TS 러너도 그대로 통과
 
 B4 테스트는 구현보다 먼저 썼으나 골격 상태에서 빨강을 따로 돌리지는 않았다(클래스가 없어 컴파일이 되지 않는 상태였다). 틀린 구현을 잡는다는
 증명은 위 변이 33건으로 대신했다. B4 스윕은 하네스가 10분 한도로 백그라운드에 옮겼고, 끝날 때까지 기다려 결과를 읽은 뒤 이어 갔다.
+
+## Build 게이트 결과(백엔드, B1~B4 끝)
+
+- `cd src/backend && … ./gradlew testAll --no-daemon --console=plain`(heavy.sh, 도커 금지 모드): exit 0, 테스트 태스크 7개 전부 실행,
+  **2566 tests / 0 failures / 0 errors** — 기준선 2337/0 대비 +229(새 테스트 231건, 해제 조건이 충족돼 지운 TSK-08-01 가드 2건).
+- `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .`: **ERROR 0 / WARN 0 / INFO 29**(기준선과 같음).
+- `:api:compileMssqlTestJava`: 컴파일 통과(`DefaultMdmRuleIdIssuerMssqlTest` 실행은 도커 금지로 생략 — 「도커 금지로 생략한 검증」).
+- 프런트 게이트 3종과 mcm `DataInitializer` 시드 대조(e2e 절차 5)는 B5~B9 담당이 돈다.
