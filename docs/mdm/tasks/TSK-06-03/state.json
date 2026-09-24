@@ -2,7 +2,7 @@
   "tsk": "TSK-06-03",
   "order": "f93163b8-a0cc-4308-a5b1-df6ff14f7cf6",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "verify",
+  "phase": "refactor",
   "baseline": {
     "failures": 0,
     "tests": 2823,
@@ -60,10 +60,10 @@
   "branch_base": "3fbf0737b93a2af61436a7af149d245a592c6655",
   "base_note": "선행 TSK-06-01 head_sha cdb7b14 origin/dev 조상. TSK-01-03·TSK-03-02: reached=true, head_sha 없음 → pred-reflected.sh REFLECTED → origin/dev 3fbf073 기점, 스택 없음",
   "complexity": "점수 1(depends 3 +1, 키워드 없음) → sonnet 이나 spec model=opus 오버라이드 → Design opus·Build opus",
-  "model": "opus",
+  "model": "sonnet",
   "last": {
-    "phase": "build",
-    "event": "build.ok"
+    "phase": "verify",
+    "event": "verify.ok"
   },
   "design": {
     "commits": [
@@ -98,5 +98,24 @@
       "43aa6ff"
     ],
     "head": "43aa6ff"
-  }
+  },
+  "verify_gate": {
+    "backend_testAll": {
+      "tests": 2430,
+      "failures": 0,
+      "errors": 0
+    },
+    "m_mdm_test": "31 files / 355 passed",
+    "m_mdm_lint": "pass",
+    "shared": "23 files / 156 passed",
+    "oasis": "ERROR 0 / WARN 0 / INFO 29",
+    "e2e": "mdm-*.spec 전체 24 passed / 1 failed(domainMng E2~E6 간헐, 단독 3/3) / 1 skip(연쇄), codeItemEdit 6/6. 포트 mcm 18603·mdm 18698·FE 15603",
+    "mutation": "8/8 RED·원복 확인(verify2 sonnet 재시도)",
+    "retry": "1회차 haiku 변이 6개 미실행 → sonnet 재시도",
+    "commits": [
+      "aea3e29",
+      "db9e69d"
+    ]
+  },
+  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\""
 }
