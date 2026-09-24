@@ -6,13 +6,13 @@ import { empty } from "@/layout/styles";
 import type { LayoutRow } from "../types";
 
 const COLUMNS: GridColumn[] = [
-  { key: "LAYOUT_ID", header: "레이아웃 ID", width: 90, align: "center" },
-  { key: "LAYOUT_NAME", header: "전문 이름", width: 200 },
-  { key: "SND_SYSTEM", header: "송신→수신", width: 110, render: (_v, r) => `${r.SND_SYSTEM ?? "-"} → ${r.RCV_SYSTEM ?? "-"}` },
-  { key: "HEADER_SUMMARY", header: "헤더 구성", width: 260 },
-  { key: "ITEM_COUNT", header: "본문 항목", width: 80, align: "right" },
-  { key: "TOTAL_LENGTH", header: "총 길이", width: 80, align: "right" },
-  { key: "LAYOUT_VERSION", header: "버전", width: 60, align: "right" },
+  { key: "LAYOUT_ID", header: "ID", width: 60, align: "center" },
+  { key: "LAYOUT_NAME", header: "전문 이름", width: 170 },
+  { key: "TOTAL_LENGTH", header: "총 길이", width: 70, align: "right" },
+  { key: "SND_SYSTEM", header: "송신→수신", width: 100, render: (_v, r) => `${r.SND_SYSTEM ?? "-"} → ${r.RCV_SYSTEM ?? "-"}` },
+  { key: "HEADER_SUMMARY", header: "헤더 구성", width: 240 },
+  { key: "ITEM_COUNT", header: "본문 항목", width: 70, align: "right" },
+  { key: "LAYOUT_VERSION", header: "버전", width: 50, align: "right" },
 ];
 
 export interface LayoutListProps {
@@ -28,7 +28,7 @@ export function LayoutList({ rows, selectedId, loading, onSelect }: LayoutListPr
       {rows.length === 0 && !loading ? (
         <p data-testid="layout-list-empty" style={empty}>조회된 전문이 없습니다</p>
       ) : (
-        <div data-testid="layout-list">
+        <div data-testid="layout-list" style={{ position: "absolute", inset: 0 }}>
           <AgDataGrid
             columnSizing="fit"
             columns={COLUMNS}

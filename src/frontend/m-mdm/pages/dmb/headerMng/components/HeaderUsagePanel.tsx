@@ -1,8 +1,8 @@
 "use client";
 
 /** 사용 전문 영향도(TSK-05-02 design.md §2) — 이 헤더를 쌓은 전문 전체. 헤더를 저장하면 이 전문들의 오프셋·총 길이가 다시 계산된다. */
-import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
-import { empty } from "@/layout/styles";
+import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
+import { empty, sectionTitle } from "@/layout/styles";
 import type { UsedByRow } from "../types";
 
 const COLUMNS: GridColumn[] = [
@@ -14,8 +14,9 @@ const COLUMNS: GridColumn[] = [
 
 export function HeaderUsagePanel({ rows }: { rows: UsedByRow[] }) {
   return (
-    <GridPanel title="사용 전문(헤더 변경 영향도)" count={rows.length}>
-      <div data-testid="header-usage">
+    <div data-testid="header-usage">
+      <p style={{ ...sectionTitle, padding: "var(--spacing-xs) 0" }}>{`사용 전문(헤더 변경 영향도) ${rows.length}건`}</p>
+      <div>
         {rows.length === 0 ? (
           <p style={empty}>이 헤더를 쓰는 전문이 없습니다</p>
         ) : (
@@ -28,6 +29,6 @@ export function HeaderUsagePanel({ rows }: { rows: UsedByRow[] }) {
           />
         )}
       </div>
-    </GridPanel>
+    </div>
   );
 }

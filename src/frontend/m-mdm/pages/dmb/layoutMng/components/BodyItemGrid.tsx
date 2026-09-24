@@ -6,33 +6,22 @@
  */
 import { useMemo } from "react";
 import { Button } from "@dk-oasis/shared/form";
-import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
-import { derivedLabel } from "@/layout/LayoutItemDetail";
-import { positionLabel } from "@/layout/layout-calc";
-import { hint } from "@/layout/styles";
+import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
+import { displayRows } from "@/layout/item-rows";
+import { hint, sectionTitle } from "@/layout/styles";
 import type { LayoutItemRow } from "@/layout/types";
-
-export function itemSetting(r: LayoutItemRow): string {
-  const parts: string[] = [];
-  if (r.DEFAULT_VALUE) parts.push(r.FILL_KIND === "AUTO" ? `AUTO ${r.DEFAULT_VALUE}` : `기본값 ${r.DEFAULT_VALUE}`);
-  if (r.NUM_FORMAT) parts.push(r.NUM_FORMAT);
-  if (r.TRANS_UNIT) parts.push(`전송 단위 ${r.TRANS_UNIT}`);
-  if (r.UNIT_ITEM) parts.push(`단위 항목 ${r.UNIT_ITEM}`);
-  return parts.join(" · ");
-}
 
 export function itemColumns(readOnly: boolean): GridColumn[] {
   return [
     { key: "SEQ", header: "순서", width: 70, align: "center", rowDrag: !readOnly },
-    { key: "DISPLAY_NAME", header: "항목명", width: 150, render: (v, r) => (r.FILL_KIND === "FILLER" ? "FILLER" : String(v ?? "")) },
+    { key: "ITEM_NAME", header: "항목명", width: 150 },
     { key: "COLUMN_PHYS", header: "표준 물리명", width: 140 },
     { key: "FILL_KIND", header: "채움", width: 80, align: "center" },
-    { key: "DATA_TYPE", header: "도메인(파생)", width: 140, render: (_v, r) => derivedLabel(r as unknown as LayoutItemRow) },
-    { key: "DEFAULT_VALUE", header: "설정", width: 200, render: (_v, r) => itemSetting(r as unknown as LayoutItemRow) },
     { key: "OFFSET", header: "오프셋", width: 70, align: "right" },
     { key: "LENGTH", header: "길이", width: 60, align: "right" },
-    { key: "POSITION", header: "위치", width: 90, align: "center",
-      render: (_v, r) => positionLabel(Number(r.OFFSET ?? 0), Number(r.LENGTH ?? 0)) },
+    { key: "POSITION", header: "위치", width: 90, align: "center" },
+    { key: "DERIVED", header: "도메인(파생)", width: 140 },
+    { key: "SETTING", header: "설정", width: 200 },
   ];
 }
 
@@ -51,8 +40,10 @@ export interface BodyItemGridProps {
 export function BodyItemGrid(props: BodyItemGridProps) {
   const { rows, headerLength, selectedKey, readOnly } = props;
   const columns = useMemo(() => itemColumns(readOnly), [readOnly]);
+  const data = useMemo(() => displayRows(rows), [rows]);
   return (
-    <GridPanel title="본문 항목" count={rows.length}>
+    <div>
+      <p style={{ ...sectionTitle, padding: "var(--spacing-xs) 0" }}>{`본문 항목 ${rows.length}건`}</p>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "var(--spacing-sm)", marginBottom: "var(--spacing-xs)" }}>
         <span data-testid="layout-body-summary">{`헤더 ${headerLength} — 본문 첫 오프셋 ${headerLength}`}</span>
         {!readOnly && (
@@ -68,7 +59,7 @@ export function BodyItemGrid(props: BodyItemGridProps) {
         <AgDataGrid
           columnSizing="fit"
           columns={columns}
-          data={rows as unknown as Record<string, unknown>[]}
+          data={data}
           rowKey="KEY"
           height={220}
           highlightedRowKey={selectedKey}
@@ -77,6 +68,6 @@ export function BodyItemGrid(props: BodyItemGridProps) {
           onRowOrderChange={readOnly ? undefined : props.onReorder}
         />
       </div>
-    </GridPanel>
+    </div>
   );
 }

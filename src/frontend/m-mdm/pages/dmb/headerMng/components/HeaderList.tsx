@@ -28,7 +28,7 @@ export function HeaderList({ rows, selectedId, loading, onSelect }: HeaderListPr
       {rows.length === 0 && !loading ? (
         <p data-testid="header-list-empty" style={empty}>조회된 헤더가 없습니다</p>
       ) : (
-        <div data-testid="header-list">
+        <div data-testid="header-list" style={{ position: "absolute", inset: 0 }}>
           <AgDataGrid
             columnSizing="fit"
             columns={COLUMNS}

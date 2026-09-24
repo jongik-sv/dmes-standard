@@ -6,9 +6,9 @@
  */
 import { useMemo, useRef } from "react";
 import { Button } from "@dk-oasis/shared/form";
-import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
+import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { positionLabel } from "@/layout/layout-calc";
-import { hint } from "@/layout/styles";
+import { hint, sectionTitle } from "@/layout/styles";
 import type { HeaderStackRow } from "@/layout/types";
 
 export function overrideSummary(h: HeaderStackRow): string {
@@ -31,14 +31,12 @@ export function HeaderStackGrid({ rows, readOnly, onAdd, onRemove, onEditConst, 
   actions.current = { onRemove, onEditConst };
   const columns = useMemo<GridColumn[]>(() => [
     { key: "SEQ", header: "순서", width: 70, align: "center", rowDrag: !readOnly },
-    { key: "HEADER_NAME", header: "헤더", width: 180 },
+    { key: "HEADER_NAME", header: "헤더", width: 160 },
     { key: "EAI_CODE", header: "EAI", width: 90 },
     { key: "TOTAL_LENGTH", header: "길이", width: 70, align: "right" },
-    { key: "OFFSET", header: "위치", width: 90, align: "center",
-      render: (_v, r) => positionLabel(Number(r.OFFSET ?? 0), Number(r.TOTAL_LENGTH ?? 0)) },
-    { key: "OVERRIDES", header: "재정의한 상수", width: 200,
-      render: (_v, r) => overrideSummary(r as unknown as HeaderStackRow) || <span style={hint}>없음</span> },
-    { key: "ACTIONS", header: "", width: 170,
+    { key: "POSITION", header: "위치", width: 90, align: "center" },
+    { key: "OVERRIDES", header: "재정의한 상수", width: 160, render: (v) => (v ? String(v) : <span style={hint}>없음</span>) },
+    { key: "ACTIONS", header: "", width: 150,
       render: (_v, r) => (
         <span style={{ display: "inline-flex", gap: "var(--spacing-xs)" }}>
           <Button size="mini" data-testid={`const-edit-open-${r.SEQ}`} onClick={() => actions.current.onEditConst(String(r.KEY))}>상수 편집</Button>
@@ -46,8 +44,13 @@ export function HeaderStackGrid({ rows, readOnly, onAdd, onRemove, onEditConst, 
         </span>
       ) },
   ], [readOnly]);
+  // 계산 칸은 행 데이터에 넣는다 — ag-grid 는 필드 값이 바뀐 셀만 다시 그린다
+  const data = useMemo(() => rows.map((r) => ({
+    ...r, POSITION: positionLabel(r.OFFSET ?? 0, r.TOTAL_LENGTH), OVERRIDES: overrideSummary(r), ACTIONS: `${r.KEY}:${r.SEQ}`,
+  })) as unknown as Record<string, unknown>[], [rows]);
   return (
-    <GridPanel title="헤더 구성" count={rows.length}>
+    <div>
+      <p style={{ ...sectionTitle, padding: "var(--spacing-xs) 0" }}>{`헤더 구성 ${rows.length}건`}</p>
       <div style={{ marginBottom: "var(--spacing-xs)" }}>
         {!readOnly && <Button data-testid="layout-header-add" size="sm" onClick={onAdd}>+ 헤더 추가</Button>}
         <span style={hint}> 헤더 안 항목의 구성·길이는 헤더 정의 화면에서만 바꿉니다. 여기서는 상수만 재정의합니다.</span>
@@ -56,13 +59,13 @@ export function HeaderStackGrid({ rows, readOnly, onAdd, onRemove, onEditConst, 
         <AgDataGrid
           columnSizing="fit"
           columns={columns}
-          data={rows as unknown as Record<string, unknown>[]}
+          data={data}
           rowKey="KEY"
           height={150}
           emptyMessage="쌓인 헤더가 없습니다"
           onRowOrderChange={readOnly ? undefined : onReorder}
         />
       </div>
-    </GridPanel>
+    </div>
   );
 }

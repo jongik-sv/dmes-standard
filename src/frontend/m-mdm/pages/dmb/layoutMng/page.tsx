@@ -248,7 +248,7 @@ export default function LayoutMngPage() {
       </SearchArea>
 
       <ContentBody root>
-        <ContentPanel width="36%">
+        <ContentPanel width="40%">
           <LayoutList rows={rows} selectedId={selectedId} loading={loading} onSelect={(r) => void openLayout(r.LAYOUT_ID)} />
         </ContentPanel>
         <ContentPanel>

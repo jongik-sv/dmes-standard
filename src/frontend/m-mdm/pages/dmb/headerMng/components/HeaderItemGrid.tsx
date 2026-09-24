@@ -6,22 +6,21 @@
  */
 import { useMemo } from "react";
 import { Button } from "@dk-oasis/shared/form";
-import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
-import { positionLabel } from "@/layout/layout-calc";
-import { hint } from "@/layout/styles";
+import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
+import { hint, sectionTitle } from "@/layout/styles";
 import type { LayoutItemRow } from "@/layout/types";
+import { displayRows } from "@/layout/item-rows";
 
 function columns(readOnly: boolean): GridColumn[] {
   return [
     { key: "SEQ", header: "순서", width: 70, align: "center", rowDrag: !readOnly },
-    { key: "DISPLAY_NAME", header: "항목명", width: 150, render: (v, r) => (r.FILL_KIND === "FILLER" ? "FILLER" : String(v ?? "")) },
+    { key: "ITEM_NAME", header: "항목명", width: 150 },
     { key: "COLUMN_PHYS", header: "표준 물리명", width: 140 },
     { key: "FILL_KIND", header: "채움", width: 80, align: "center" },
-    { key: "DEFAULT_VALUE", header: "기본값", width: 110 },
     { key: "OFFSET", header: "오프셋", width: 70, align: "right" },
     { key: "LENGTH", header: "길이", width: 60, align: "right" },
-    { key: "POSITION", header: "위치", width: 90, align: "center",
-      render: (_v, r) => positionLabel(Number(r.OFFSET ?? 0), Number(r.LENGTH ?? 0)) },
+    { key: "POSITION", header: "위치", width: 90, align: "center" },
+    { key: "DEFAULT_VALUE", header: "기본값", width: 110 },
   ];
 }
 
@@ -39,8 +38,10 @@ export interface HeaderItemGridProps {
 export function HeaderItemGrid(props: HeaderItemGridProps) {
   const { rows, selectedKey, readOnly } = props;
   const cols = useMemo(() => columns(readOnly), [readOnly]);
+  const data = useMemo(() => displayRows(rows), [rows]);
   return (
-    <GridPanel title="헤더 항목" count={rows.length}>
+    <div>
+      <p style={{ ...sectionTitle, padding: "var(--spacing-xs) 0" }}>{`헤더 항목 ${rows.length}건`}</p>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "var(--spacing-sm)", marginBottom: "var(--spacing-xs)" }}>
         {!readOnly && (
           <>
@@ -55,7 +56,7 @@ export function HeaderItemGrid(props: HeaderItemGridProps) {
         <AgDataGrid
           columnSizing="fit"
           columns={cols}
-          data={rows as unknown as Record<string, unknown>[]}
+          data={data}
           rowKey="KEY"
           height={260}
           highlightedRowKey={selectedKey}
@@ -64,6 +65,6 @@ export function HeaderItemGrid(props: HeaderItemGridProps) {
           onRowOrderChange={readOnly ? undefined : props.onReorder}
         />
       </div>
-    </GridPanel>
+    </div>
   );
 }
