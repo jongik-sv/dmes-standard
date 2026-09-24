@@ -787,6 +787,13 @@ cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 - **근거와 강약**: 스모크 넷 2(빈 상태가 보인다, dev-discipline)를 지금 채워야 한다. (b) 는 shared 그리드의 모든 화면 동작을 바꾸는 변경이라 이 Task 범위의 승인 없이 하지 않는다 — 기존 화면(termMng 등)은 오버레이 대신 "0건" 으로 빈 상태를 확인해 왔다. 다만 스킬은 "래퍼 빈틈을 화면에서 우회하지 말고 올리라" 고 하므로(리포 관례) 이 결정으로 올린다.
 - **반려되면 재작업 방향**: shared `AgDataGrid` 의 `loading` 효과를 `loading ? showLoadingOverlay() : data.length === 0 ? showNoRowsOverlay() : hideOverlay()` 로 고치고 shared 단위·렌더 확인을 더한 뒤, ruleMng 의 `<p data-testid="rule-list-empty">` 를 지우고 e2e T2 를 오버레이 문구로 바꾼다.
 
+### D17 — 머지에서 shared `AgDataGrid` 의 두 행 드래그 API 를 어느 규칙으로 합치나
+- **질문**: TSK-05-02(`GridColumn.rowDrag`·`onRowOrderChange` 만으로 켜기·`resolveRowDrag`·키는 `forEachNode`+rowKey)와 이 Task(`rowDragField`·`isRowDraggable`·키는 `displayedRowKeys`)가 같은 기능을 다른 모양으로 더해 origin/dev 머지에서 충돌했다. 드래그를 켜는 조건과 키 수집을 어떻게 하나?
+- **선택지**: (a) 켜는 조건은 05-02 규칙(`onRowOrderChange` 가 있을 때) 하나로 두고, 손잡이는 `rowDragField` 열 또는 `rowDrag: true` 열, 키 수집은 `displayedRowKeys`(화면 순서·임시 ID 우선)로 통일한다 / (b) 두 API 를 따로 둔다 — `rowDragField` 가 있으면 이 Task 방식, 없고 `onRowOrderChange` 만 있으면 05-02 방식 / (c) 이 Task 규칙(`rowDragField` 가 있을 때 켜기)으로 합치고 05-02 화면을 `rowDragField` 로 옮긴다
+- **택한 것**: (a)
+- **근거와 강약**: 05-02 의 I22(드래그가 없는 그리드는 정렬 값·AgGridReact prop 이 기존과 같다)와 단위 테스트 `grid-row-drag` 를 그대로 지키고, 이 Task 의 열 그룹·`isRowDraggable` ref(B9 크래시 수정)도 그대로 둔다. (b) 는 같은 그리드에 드래그 경로가 둘이라 뒤 Task 가 헷갈리고, (c) 는 다른 Task 화면(headerMng·layoutMng)을 고친다. 바뀐 점은 셋이다 — `rowDragField` 만 주고 `onRowOrderChange` 가 없으면 이제 managed drag 가 켜지지 않는다(병합 전 이 Task 에서는 켜졌으나 그런 호출자는 없다). 05-02 호출자의 키는 `displayedRowKeys` 로 모이지만 dmb 행에는 임시 ID 칸이 없고 정렬이 꺼져 있어 결과가 같다. 룰 표는 `onRowOrderChange` 를 늘 넘기므로 읽기 전용일 때도 `rowDragManaged` 가 켜지지만 손잡이 열이 없어 끌 수 없고, 이미 `sortable={false}` 라 정렬 동작도 같다. 단위 테스트로 덮이지 않는 브라우저 동작(ruleEdit 드래그·B9 크래시, dmb 세 화면 드래그)은 Verify e2e 가 다시 본다
+- **반려되면 재작업 방향**: (b) 라면 `AgDataGrid` 에서 `rowDragField` 가 있을 때 `rowDragManaged`·`onRowDragEnd`(displayedRowKeys)를 따로 넘기고, 없을 때만 `resolveRowDrag` 를 쓴다. (c) 라면 05-02 의 `GridColumn.rowDrag`·`resolveRowDrag` 를 지우고 headerMng·layoutMng 세 그리드에 `rowDragField="SEQ"` 를 넘기며 `grid-row-drag` 테스트를 옮긴다. 어느 쪽이든 shared 단위 테스트 두 벌과 dme·dmb e2e 를 다시 돌린다.
+
 ---
 
 ## 코드베이스 지식·함정 (Build 가 그대로 따른다)
@@ -1117,3 +1124,13 @@ I15 의 "한쪽 러너에만 사례 추가" 는 하나의 러너 안에서 잡�
   - 새 DB C(`mdm-rbac-users.sql`): `mdm-sample-smoke` 1/1, `mdm-termMng` 4/4, `mdm-unitMng` 4/4, `mdm-domainMng` 3/3.
   - 스크린샷 `docs/mdm/tasks/TSK-08-02/screens/` 6장. 다른 Task 스크린샷(TSK-01-02·01-03·04-02·04-03·04-04)은 덮어쓴 것을 되돌렸다.
 
+## Build 게이트 결과(origin/dev 머지·06-02 연결 뒤)
+
+- 머지 aeea5a7(origin/dev 4432658), 연결 814499a.
+- `testAll`(heavy.sh): **3055 / 0 / 0**(skipped 0) — 기준선 2566 대비 +489(dev 가 들여온 테스트 포함). 이 실행에서 실제로 돈 테스트 태스크는 `:mdm:api:test`·`:mdm:lib:test` 둘이고 나머지는 입력이 같아 Gradle up-to-date 였다. 합계는 `build/test-results` XML 전체(mssql 제외) 합산이다.
+- `pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test`(heavy.sh): **607 / 0**(59 파일).
+- `pnpm test:unit:shared`(heavy.sh): **168 / 0**(25 파일) — `grid-row-drag`(05-02)·`grid-column-group-drag`(이 Task) 모두 통과.
+- `pnpm --filter @dk-oasis/m-mdm lint`: 통과.
+- `check_oasis_contract.py --root .`: ERROR 0 / WARN 0 / INFO 29.
+- mantine-aggrid-ui audit 두 명령(§3.5 대상): 24개 파일 의심 0건.
+- 생략: e2e 재실행(Verify 몫), mssqlTest 컴파일·실행(도커 금지 — 머지로 바뀐 `VersionScenarioTestConfig` 를 mssqlTest 2개가 import 하고 dev 가 mssqlTest 4개를 바꿨으나 testAll 은 이 소스 세트를 컴파일하지 않는다).
