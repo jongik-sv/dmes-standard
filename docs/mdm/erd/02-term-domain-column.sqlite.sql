@@ -47,7 +47,7 @@ CREATE TABLE TB_MDM_TERM (
     VER INTEGER
 );
 CREATE UNIQUE INDEX UX_TB_MDM_TERM_NAME_SENSE ON TB_MDM_TERM (TERM_NAME, SENSE_NO);
--- TSK-04-02 V4 로 실제 배포 스키마(src/backend/mdm)는 이 유일 인덱스를 비유일 IX_TB_MDM_TERM_ABBR 로
+-- TSK-04-02 V5(원래 V4 로 채번했으나 dev 의 TSK-05-01 V4 와 겹쳐 재채번)로 실제 배포 스키마(src/backend/mdm)는 이 유일 인덱스를 비유일 IX_TB_MDM_TERM_ABBR 로
 -- 교체했다(수용 기준 "약어 중복 경고"와 상충, design.md D1). 이 파일은 TSK-02-03 원문 스냅샷이라 각주만
 -- 달고 DDL 자체는 고치지 않는다.
 CREATE UNIQUE INDEX UX_TB_MDM_TERM_ABBR ON TB_MDM_TERM (ENG_ABBR) WHERE ENG_ABBR IS NOT NULL;

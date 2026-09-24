@@ -50,7 +50,7 @@ TSK-02-01(ADR-0003)이 식별자 사전 §A.2.1 규칙에 맞춰 `mdt→dma` 로
   02 설계 문서가 "환산은 decimal 연산으로 한다"고 명시했고, 계산이 두 곳에 있으면 반올림·스케일이
   갈릴 위험이 있다.
 - **스키마**: TSK-04-01 이 만든 V3 를 고치지 않는다. 다만 `UX_TB_MDM_TERM_ABBR`(영문 약어 부분 유일
-  인덱스)가 수용 기준 "약어 중복 경고"(거부 아님)와 정면으로 상충한다(담당자 확인 필요 결정 D1) — V4 를
+  인덱스)가 수용 기준 "약어 중복 경고"(거부 아님)와 정면으로 상충한다(담당자 확인 필요 결정 D1) — V5 를
   새로 채번해 유일 인덱스를 비유일로 교체하고, 이 인덱스의 유일성을 전제로 하던 기존 회귀 테스트 2개를
   함께 고친다(§2, §3.2).
 - **MSSQL 의 `UNIT_CODE`/`BASE_UNIT`/`DIMENSION` 은 비유니코드 콜레이션이다.** 02 설계 문서 예시대로
@@ -84,8 +84,8 @@ TSK-02-01(ADR-0003)이 식별자 사전 §A.2.1 규칙에 맞춰 `mdt→dma` 로
 | `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/embedding/TermEmbeddingCodec.java` | `byte[](4096)` ↔ `float[](1024)` 변환, L2 노름 검증 |
 | `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/embedding/TermEmbeddingRepository.java` | EMBEDDING/EMBEDDING_MODEL 전용 네이티브 SQL(`JdbcTemplate`) — JPA 로는 못 다룸(I10) |
 | `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dma/termMng/TermRecommendationCache.java` | 인메모리 캐시(`termId → {termName, senseNo, engName, synonyms[], aliases[], embedding float[]|null}`). **`ApplicationReadyEvent` 리스너에서 전체 적재한다(`@PostConstruct` 아님 — 부팅 초기에는 Flyway 마이그레이션이 아직 끝나지 않았을 수 있어 `JdbcTemplate` 조회가 부팅을 실패시킬 위험이 있다)**, save/delete 때 해당 행만 갱신(전체 재적재 아님) — 1차·2차 추천이 매 요청 DB 를 훑지 않게 하는 성능 전제(I19) |
-| `src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/V4__term_abbr_index_relax.sql` | `DROP INDEX UX_TB_MDM_TERM_ABBR;`<br>`CREATE INDEX IX_TB_MDM_TERM_ABBR ON TB_MDM_TERM(ENG_ABBR) WHERE ENG_ABBR IS NOT NULL;`(비유일, 필터는 그대로 유지 — NULL 행은 색인 안 함) |
-| `src/backend/mdm/api/src/main/resources/db/migration/mdm/mssql/V4__term_abbr_index_relax.sql` | `DROP INDEX UX_TB_MDM_TERM_ABBR ON TB_MDM_TERM;`<br>`CREATE INDEX IX_TB_MDM_TERM_ABBR ON TB_MDM_TERM(ENG_ABBR) WHERE ENG_ABBR IS NOT NULL;`(양쪽 방언 동일 의미: 비유일·필터 유지) |
+| `src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/V5__term_abbr_index_relax.sql` | `DROP INDEX UX_TB_MDM_TERM_ABBR;`<br>`CREATE INDEX IX_TB_MDM_TERM_ABBR ON TB_MDM_TERM(ENG_ABBR) WHERE ENG_ABBR IS NOT NULL;`(비유일, 필터는 그대로 유지 — NULL 행은 색인 안 함) |
+| `src/backend/mdm/api/src/main/resources/db/migration/mdm/mssql/V5__term_abbr_index_relax.sql` | `DROP INDEX UX_TB_MDM_TERM_ABBR ON TB_MDM_TERM;`<br>`CREATE INDEX IX_TB_MDM_TERM_ABBR ON TB_MDM_TERM(ENG_ABBR) WHERE ENG_ABBR IS NOT NULL;`(양쪽 방언 동일 의미: 비유일·필터 유지) |
 | `src/backend/mdm/api/src/onnxTest/java/com/dongkuk/dmes/mdm/embedding/OnnxKureEmbeddingEncoderManualTest.java` | 수동 게이트 전용(§3.3). **스프링 컨텍스트를 띄우지 않는 순수 JUnit 테스트** — `OnnxKureEmbeddingEncoder` 를 `new` 로 직접 만든다. `mdm.embedding.encoder=onnx` 로 스프링 컨텍스트를 띄우면 모델 경로가 비어 있을 때 빈 생성 자체가 실패해 SKIPPED 대신 빨강이 난다. 모델 파일 유무 확인(`Assumptions.assumeTrue`)은 `@BeforeAll` 에서 하고, 없으면 이후 전부 스킵 |
 | `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/dma/unitMng/UnitMngServiceTest.java` | I3~I5 |
 | `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/dma/unitMng/UnitConvertPreviewTest.java` | I1, I2 |
@@ -105,12 +105,12 @@ TSK-02-01(ADR-0003)이 식별자 사전 §A.2.1 규칙에 맞춰 `mdt→dma` 로
 | `src/backend/mdm/lib/build.gradle` | ORT 1.30.0, DJL tokenizers 0.38.0 의존성 추가(라이브러리 jar 만 — 모델 파일 아님, 항상 의존해도 testAll 영향 없음) |
 | `src/backend/mdm/api/src/main/resources/application.yml` | `mdm.embedding.encoder: none`(운영 기본), `mdm.embedding.model-dir: ""` 추가 |
 | `src/backend/mdm/api/build.gradle` | `mssqlTest` 와 같은 패턴으로 `onnxTest` sourceSet(`compileClasspath`/`runtimeClasspath` 에 `sourceSets.main.output + sourceSets.test.output` 추가, `onnxTestImplementation.extendsFrom testImplementation`)을 신설하고, `onnxEmbeddingManualTest` Test 태스크를 등록한다(`testClassesDirs = sourceSets.onnxTest.output.classesDirs`, testAll 미포함). 태스크 안에서 `systemProperty 'mdm.embedding.model-dir', System.getenv('MDM_EMBEDDING_MODEL_DIR') ?: ''`, `systemProperty 'mdm.embedding.encoder', 'onnx'` 로 환경변수를 JVM 시스템 프로퍼티로 전달한다 |
-| `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/MdmTermDomainColumnMigrationTest.java` | **두 메서드** 수정: ① `UX_TB_MDM_TERM_ABBR_만_NULL_다건_허용_동일_비NULL_은_거부한다()` → V4 이후 사실이 바뀌었으므로 이름·본문을 "동일 비NULL 중복은 이제 허용되고 비유일 인덱스로만 존재한다"로 고친다(요구사항이 시킨 교정이지 완화가 아니다, D1). ② `제약_인덱스_이름이_규칙표를_따른다()`(84행)의 `indexNames.containsAll(Set.of("UX_TB_MDM_TERM_ABBR", ...))` 도 `"IX_TB_MDM_TERM_ABBR"` 로 바꾼다 — 안 바꾸면 이 단언도 V4 이후 사라진 이름을 찾다 빨강이 된다 |
+| `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/MdmTermDomainColumnMigrationTest.java` | **두 메서드** 수정: ① `UX_TB_MDM_TERM_ABBR_만_NULL_다건_허용_동일_비NULL_은_거부한다()` → V5 이후 사실이 바뀌었으므로 이름·본문을 "동일 비NULL 중복은 이제 허용되고 비유일 인덱스로만 존재한다"로 고친다(요구사항이 시킨 교정이지 완화가 아니다, D1). ② `제약_인덱스_이름이_규칙표를_따른다()`(84행)의 `indexNames.containsAll(Set.of("UX_TB_MDM_TERM_ABBR", ...))` 도 `"IX_TB_MDM_TERM_ABBR"` 로 바꾼다 — 안 바꾸면 이 단언도 V5 이후 사라진 이름을 찾다 빨강이 된다 |
 | `src/backend/mdm/api/src/mssqlTest/java/com/dongkuk/dmes/mdm/MdmTermDomainColumnMssqlMigrationTest.java` | `필터_인덱스는_UX_TB_MDM_TERM_ABBR_만이고_NULL_다건_중복_비NULL_거부를_강제한다()` → 동일 취지로 고친다(`is_unique=1` 단언 제거, 중복 INSERT 가 이제 성공하는지로 단언 반전) |
-| `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/MdmSharedContractMigrationTest.java` | `flyway_가_V1_V2_V3_를_적용했다()` 의 `assertEquals(Set.of("1","2","3"), versions)` → `Set.of("1","2","3","4")`(F18 이 이미 예고한 대로, 이름도 `...V4_를_적용했다` 로 바꾼다) |
-| `docs/mdm/erd/verify/expected-columns.json`, `docs/mdm/erd/verify/Verify.java` | `expected-columns.json:162` 의 `{"name": "UX_TB_MDM_TERM_ABBR", ...}` 를 `"IX_TB_MDM_TERM_ABBR"` 로 바꾼다. `Verify.java` 의 "약어 중복 거부" 스모크(879-883행 부근)는 docs 전용 검증기이므로 실제 게이트는 아니지만, 문서 자체가 모순된 채로 남지 않도록 "V4 로 비유일 전환, 중복 허용" 으로 고친다(팀장 지시 #8) |
-| `docs/mdm/erd/02-term-domain-column.sqlite.sql`, `docs/mdm/erd/02-term-domain-column.mssql.sql` | `CREATE UNIQUE INDEX UX_TB_MDM_TERM_ABBR ...` 줄에 "TSK-04-02 V4 로 비유일 전환" 주석 추가(원문은 TSK-02-03 스냅샷이라 고치지 않고 각주만 단다) |
-| `docs/mdm/naming-dialect-rules.md` | `UX_TB_MDM_TERM_ABBR` 예시 각주에 "TSK-04-02 V4 에서 비유일 `IX_TB_MDM_TERM_ABBR` 로 교체" 인계 한 줄 추가 |
+| `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/MdmSharedContractMigrationTest.java` | `flyway_가_V1_V2_V3_를_적용했다()` 의 `assertEquals(Set.of("1","2","3"), versions)` → `Set.of("1","2","3","4")`(F18 이 이미 예고한 대로, 이름도 `...V5_를_적용했다` 로 바꾼다) |
+| `docs/mdm/erd/verify/expected-columns.json`, `docs/mdm/erd/verify/Verify.java` | `expected-columns.json:162` 의 `{"name": "UX_TB_MDM_TERM_ABBR", ...}` 를 `"IX_TB_MDM_TERM_ABBR"` 로 바꾼다. `Verify.java` 의 "약어 중복 거부" 스모크(879-883행 부근)는 docs 전용 검증기이므로 실제 게이트는 아니지만, 문서 자체가 모순된 채로 남지 않도록 "V5 로 비유일 전환, 중복 허용" 으로 고친다(팀장 지시 #8) |
+| `docs/mdm/erd/02-term-domain-column.sqlite.sql`, `docs/mdm/erd/02-term-domain-column.mssql.sql` | `CREATE UNIQUE INDEX UX_TB_MDM_TERM_ABBR ...` 줄에 "TSK-04-02 V5 로 비유일 전환" 주석 추가(원문은 TSK-02-03 스냅샷이라 고치지 않고 각주만 단다) |
+| `docs/mdm/naming-dialect-rules.md` | `UX_TB_MDM_TERM_ABBR` 예시 각주에 "TSK-04-02 V5 에서 비유일 `IX_TB_MDM_TERM_ABBR` 로 교체" 인계 한 줄 추가 |
 
 ### 생성 — 프런트
 
@@ -195,7 +195,7 @@ temp DB 라 다른 클래스에 영향이 없다.
 - `UnitConvertPreviewTest`: I1(차원 다름 거부), I2(35 min → 0.583333... h, `MathContext(34, HALF_UP)` 로
   나눈 뒤 `setScale(9, HALF_UP)`, ton/kg/g 등 다경로 왕복이 일치하는지).
 - `TermMngServiceTest`: I6((표기,의미번호) 중복 거부), I7(정의 필수), I8(약어 중복은 저장을 막지 않고
-  `TermSaveResult.warnings`에 `ENG_ABBR_DUP` 가 실리는지 — V4 전제), I12(인코더가 `NoopTermEmbeddingEncoder`
+  `TermSaveResult.warnings`에 `ENG_ABBR_DUP` 가 실리는지 — V5 전제), I12(인코더가 `NoopTermEmbeddingEncoder`
   인 상태에서 저장해도 성공하고 EMBEDDING 이 NULL 로 남는지, `recommend` 호출 시 2차 결과가 빈 배열 +
   `stage2Enabled:false` 인지).
 - `TermReencodeBatchTest`: I11(EMBEDDING_MODEL 이 NULL 이거나 현재 활성 모델과 다른 행만 대상), I12
@@ -218,14 +218,14 @@ temp DB 라 다른 클래스에 영향이 없다.
 - `NoopTermEmbeddingEncoderTest`: I12, I13 — `ApplicationContextRunner`(DB 없이) 로 프로퍼티 오버라이드가
   전혀 없으면 `NoopTermEmbeddingEncoder`, `mdm.embedding.encoder=fake` 면 `DeterministicHashTermEmbeddingEncoder`
   가 뜨는지(운영 기본이 fake 로 새는 사고 방지).
-- 기존 회귀(수정): `MdmTermDomainColumnMigrationTest`(V4 반영, 약어 중복 이제 허용),
-  `MdmTermDomainColumnMssqlMigrationTest`(동일), `MdmSharedContractMigrationTest`(V4 포함 4개 버전 확인),
+- 기존 회귀(수정): `MdmTermDomainColumnMigrationTest`(V5 반영, 약어 중복 이제 허용),
+  `MdmTermDomainColumnMssqlMigrationTest`(동일), `MdmSharedContractMigrationTest`(V5 포함 4개 버전 확인),
   `MdmEntityJpaRoundtripTest`(I10 가드, 회귀만 — 신규 아님).
 
 ### 3.3 수동 게이트(testAll 밖)
 
 - `cd src/backend/mdm && JAVA_HOME=... ../gradlew :api:mssqlMigrationTest --no-daemon --console=plain`
-  — V4 포함 마이그레이션 MSSQL 실제 적용 확인(기존 태스크 재사용, docker 필요).
+  — V5 포함 마이그레이션 MSSQL 실제 적용 확인(기존 태스크 재사용, docker 필요).
 - `cd src/backend/mdm && MDM_EMBEDDING_MODEL_DIR=<모델 경로> JAVA_HOME=... ../gradlew :api:onnxEmbeddingManualTest --no-daemon --console=plain`
   — 신설(환경변수는 반드시 `cd` 뒤·같은 논리 줄에서 준다 — `cd` 앞에 두면 `cd` 에만 적용되고 `gradlew`
   는 못 본다). 실제 ONNX 모델 파일로 단건 인코딩 p50/p95, `recommend` 1만 건 p50/p95 를 재측정하고
@@ -263,7 +263,7 @@ Verify 단계에서 mdm e2e 전체(`mdm-sample-smoke`, `mdm-shell-rbac-smoke`, `
 | AC2 | 월·년·영업일 단위 등록 거부 | `UnitMngServiceTest`(I4, `UnitForbiddenCodes`) + e2e `mdm-unitMng.spec.ts` 스모크4 |
 | AC3 | 포털 메뉴에서 화면이 열리고 `mdm-unitMng.spec.ts` 통과 | e2e 스모크1 + 전체 통과 |
 | AC4 | (표기, 의미 번호) 중복 저장 거부 | `TermMngServiceTest`(I6) + e2e `mdm-termMng.spec.ts` 스모크4 |
-| AC5 | 약어 중복 경고 | `TermMngServiceTest`(I8) — 담당자 확인 필요 결정 D1(V4 로 유일 인덱스 제거) 전제 |
+| AC5 | 약어 중복 경고 | `TermMngServiceTest`(I8) — 담당자 확인 필요 결정 D1(V5 로 유일 인덱스 제거) 전제 |
 | AC6 | 포털 메뉴에서 화면이 열리고 `mdm-termMng.spec.ts` 통과 | e2e 스모크1 + 전체 통과 |
 | AC7 | 용어 1만 건 추천 응답 500 ms 이내 | `TermRecommendPerformanceTest`(`compare` 액션 하나가 1차+2차 결합 응답이므로 해석 무관하게 커버, 담당자 확인 필요 결정 D4) |
 | AC8 | embedding_model 이 다른 행은 재인코딩 대상으로 잡힌다 | `TermReencodeBatchTest`(I11) |
@@ -289,7 +289,7 @@ Build·Verify 의 변이 검증이 이 목록을 순회한다.
 - **I6**: `(term_name, sense_no)` 키 중복은 저장을 거부한다(애플리케이션 사전 조회 + DB
   `UX_TB_MDM_TERM_NAME_SENSE` 이중 방어). — `TermMngServiceTest`, e2e 스모크4.
 - **I7**: `definition` 은 필수다(NULL·빈 문자열 거부). — `TermMngServiceTest`.
-- **I8**: `eng_abbr` 중복은 저장을 막지 않고 `TermSaveResult.warnings` 로 경고만 낸다(V4 이후 DB 도
+- **I8**: `eng_abbr` 중복은 저장을 막지 않고 `TermSaveResult.warnings` 로 경고만 낸다(V5 이후 DB 도
   비유일 `IX_TB_MDM_TERM_ABBR`). — `TermMngServiceTest`, `MdmTermDomainColumnMigrationTest`(수정).
 - **I9**: 임베딩 벡터는 L2 정규화 float32 little-endian 1024개(4,096바이트), 풀링은 CLS+L2, 인코딩 입력
   문자열은 `"{표기}: {정의} ({영문명})"` 고정이다(TSK-02-02 D-024·D-025 계승, 이 작업에서 바꾸지 않음).
@@ -326,7 +326,7 @@ Build·Verify 의 변이 검증이 이 목록을 순회한다.
   않는다(decisions.md "활성 테이블 배포 칸은 DEFAULT 0" — 실제 배포 순번 증가 메커니즘은 이 작업 범위
   밖). — 정적 확인, 신규 테스트 없음.
 - **I17**: `V3__create_mdm_term_domain_column.sql`(sqlite·mssql)의 기존 칼럼·타입·제약은 고치지 않는다.
-  변경이 필요한 지점(D1)은 `V4` 로만 한다. — `MdmTermDomainColumnMigrationTest`/`MssqlMigrationTest`
+  변경이 필요한 지점(D1)은 `V5` 로만 한다. — `MdmTermDomainColumnMigrationTest`/`MssqlMigrationTest`
   (수정분 제외 나머지 케이스) 그대로 초록이어야 함.
 - **I18**: `recommend` 호출의 질의는 두 갈래다 — **1차(문자열) 질의는 편집 폼의 "표기"(termName) 입력
   값 하나**이고, 후보의 `termName`·`synonyms`(각 항목에서 `"(시스템)"` 접미사를 잘라낸 순수 명칭)·
@@ -369,19 +369,19 @@ Build·Verify 의 변이 검증이 이 목록을 순회한다.
 
 ## 담당자 확인 필요 결정
 
-- **D1. 영문 약어(ENG_ABBR) 중복 처리 — V4 로 유일 인덱스 제거**
+- **D1. 영문 약어(ENG_ABBR) 중복 처리 — V5 로 유일 인덱스 제거**
   - 질문: 기존 V3 의 `UX_TB_MDM_TERM_ABBR`(부분 유일 인덱스, `ENG_ABBR IS NOT NULL`)와 수용 기준 "약어
     중복 경고"(거부 아님)가 상충한다. 어떻게 조정하는가.
-  - 선택지: (a) V4 로 유일 인덱스를 비유일로 교체하고 애플리케이션 경고로 대체 (b) 요구사항을 "중복
+  - 선택지: (a) V5 로 유일 인덱스를 비유일로 교체하고 애플리케이션 경고로 대체 (b) 요구사항을 "중복
     거부"로 재해석해 기존 유일 인덱스를 그대로 쓴다.
   - 택한 것: (a).
   - 근거: spec.md 수용 기준(근거 강도 최상) 원문이 "약어 중복 경고"라고 명시했고, prd-ref 시안
     HTML(`design/basic/html/02-term-domain-column.html`)도 "영문 약어 … 중복이면 경고"라고 적었다.
     유일 인덱스는 ERD 원문(TSK-02-03)을 그대로 옮긴 것일 뿐 이 요구사항을 검토하고 정한 결정이 아니다
-    (미승인 선행 산출물 중에서도 근거 강도가 가장 약함). V4 를 만들면 기존 회귀 테스트 2개(§2)가 깨지는
+    (미승인 선행 산출물 중에서도 근거 강도가 가장 약함). V5 를 만들면 기존 회귀 테스트 2개(§2)가 깨지는
     것을 확인했다 — 이건 완화가 아니라 요구사항이 강제하는 교정이므로 Verify 가 빨강으로 오판하지
     않도록 이 D1 을 근거로 남긴다.
-  - 반려되면: V4 를 되돌리고, 서비스가 저장 전 사전 조회로 중복이면 즉시 거부하도록 구현해 "경고"를
+  - 반려되면: V5 를 되돌리고, 서비스가 저장 전 사전 조회로 중복이면 즉시 거부하도록 구현해 "경고"를
     "확인 후 진행 가능한 거부"로 재정의한다. 되돌린 테스트 2개도 원래 단언으로 복원한다. spec.md 문구를
     담당자와 재확인해야 한다.
 
@@ -395,7 +395,7 @@ Build·Verify 의 변이 검증이 이 목록을 순회한다.
   - 근거: 02 설계 문서(773-798행)와 HTML 시안이 차원별 기준 단위를 `TB_MDM_UNIT` 행들의 집합적 사실로
     다루고, TSK-04-01 이 이미 `TB_MDM_UNIT` 하나만 두기로 확정했다(별도 차원 마스터 없음). 새 테이블
     신설은 이 작업 범위(스키마 최소 변경)를 벗어난다.
-  - 반려되면: `TB_MDM_DIMENSION(DIMENSION, BASE_UNIT)` 마스터를 V4 에 추가하고 `TB_MDM_UNIT.dimension`
+  - 반려되면: `TB_MDM_DIMENSION(DIMENSION, BASE_UNIT)` 마스터를 V5 에 추가하고 `TB_MDM_UNIT.dimension`
     을 그 테이블 참조로 바꾸는 재작업이 필요하다(스키마 영향 큼).
 
 - **D3. 금지 단위 코드 목록을 코드 상수로 하드코딩**
@@ -515,15 +515,15 @@ Build·Verify 의 변이 검증이 이 목록을 순회한다.
     이 MSSQL 에서 조용히 무력화된다 — SQLite 는 전부 UTF-8 이라 이 문제가 재현되지 않으므로 testAll·
     e2e 어느 것도 이 결함을 잡지 못한다. 어떻게 막는가.
   - 선택지: (a) `UNIT_CODE`/`BASE_UNIT`/`DIMENSION` 값 자체를 ASCII 코드로 강제하고(서비스 레벨 정규식
-    검증, I20) 화면은 FE 상수 맵으로 한글 라벨만 보여준다(I21) (b) V4 에서 이 세 칼럼을
+    검증, I20) 화면은 FE 상수 맵으로 한글 라벨만 보여준다(I21) (b) V5 에서 이 세 칼럼을
     `NVARCHAR`(+ 유니코드 콜레이션)로 바꾼다.
   - 택한 것: (a).
   - 근거: (b)는 `UNIT_CODE` 가 PK 이자 `TB_MDM_DOMAIN.UNIT_CODE` 의 FK 대상이라 칼럼 타입을 바꾸면
-    그 FK 관계까지 재검증해야 해서 이 작업 범위(V4 = 인덱스 하나 교체)를 크게 벗어난다. 02 설계 문서
+    그 FK 관계까지 재검증해야 해서 이 작업 범위(V5 = 인덱스 하나 교체)를 크게 벗어난다. 02 설계 문서
     예시의 실제 단위 코드(kg, ton, g, mm, day, h, min, s, ms, us, EA)는 전부 원래 ASCII 라 (a)로도
     실사용에 지장이 없고, 차원명도 짧은 ASCII 코드(MASS/LENGTH/TIME/COUNT)로 못 쓸 이유가 없다 —
     화면에서 한글로 보여주는 것과 DB 에 한글을 저장하는 것은 다른 문제다.
-  - 반려되면: V4 를 `UNIT_CODE`(및 이를 참조하는 `TB_MDM_DOMAIN.UNIT_CODE` FK)·`BASE_UNIT`·`DIMENSION`
+  - 반려되면: V5 를 `UNIT_CODE`(및 이를 참조하는 `TB_MDM_DOMAIN.UNIT_CODE` FK)·`BASE_UNIT`·`DIMENSION`
     까지 `NVARCHAR` 로 바꾸는 재작업이 필요하다 — 기존 FK·인덱스를 전부 다시 만들어야 하므로 TSK-04-01
     산출물에 대한 상당한 재작업이다.
 
@@ -689,13 +689,13 @@ lsof -tiTCP:18203 -sTCP:LISTEN | xargs -r kill
 - **ERD 문서(`docs/mdm/erd/02-term-domain-column.*`)와 실제 스키마가 다르다.** `.mmd`/`.sqlite.sql`
   파일에는 `EMBEDDING`/`EMBEDDING_MODEL` 이 없지만 실제 V3 마이그레이션·엔티티에는 있다(TSK-04-01 D7,
   decisions.md D-036, ERD 문서 갱신은 안 됨). **항상 실제 V3 마이그레이션 파일 + 엔티티를 스키마 기준
-  으로 삼는다.** 이번 작업이 V4 로 `UX_TB_MDM_TERM_ABBR` 를 비유일로 바꾸면 이 divergence 가 하나 더
+  으로 삼는다.** 이번 작업이 V5 로 `UX_TB_MDM_TERM_ABBR` 를 비유일로 바꾸면 이 divergence 가 하나 더
   생기므로 ERD 문서·naming-dialect-rules.md 에 각주를 남긴다(§2).
   - **`EMBEDDING`/`EMBEDDING_MODEL` 은 JPA 로 못 만진다.** `MdmTerm.java` 가 의도적으로 매핑을 안 했다
   (주석에 이유 명시). `JdbcTemplate` 네이티브 SQL 전용.
 - **기존 회귀 테스트 2개가 `UX_TB_MDM_TERM_ABBR` 의 유일성을 실제로 단언한다.**
   `MdmTermDomainColumnMigrationTest.UX_TB_MDM_TERM_ABBR_만_NULL_다건_허용_동일_비NULL_은_거부한다()` 와
-  `MdmTermDomainColumnMssqlMigrationTest.필터_인덱스는_UX_TB_MDM_TERM_ABBR_만이고_...`. V4 를 만들면 이
+  `MdmTermDomainColumnMssqlMigrationTest.필터_인덱스는_UX_TB_MDM_TERM_ABBR_만이고_...`. V5 를 만들면 이
   둘을 반드시 함께 고쳐야 하고(§2), `MdmSharedContractMigrationTest.flyway_가_V1_V2_V3_를_적용했다()`
   의 `assertEquals(Set.of("1","2","3"), versions)` 도 `"4"` 를 더해야 한다(TSK-04-05 design.md F18 이
   이미 이 테스트의 존재를 경고해 뒀다).
@@ -716,7 +716,7 @@ lsof -tiTCP:18203 -sTCP:LISTEN | xargs -r kill
   스캔해 `page-registry.ts` 를 자동 생성한다 — 새 화면을 만들면 사람이 라우트를 등록할 필요가 없다
   (빌드/`predev` 훅이 자동 처리).
 - **`mssqlMigrationTest`(`src/backend/mdm/api/build.gradle`)는 mdm 마이그레이션 전체를 도는 범용
-  게이트다.** 이 작업이 V4 를 추가하면 이 태스크가 자동으로 V4 도 검증한다(임베딩 인코딩 성능은
+  게이트다.** 이 작업이 V5 를 추가하면 이 태스크가 자동으로 V5 도 검증한다(임베딩 인코딩 성능은
   별도로 이 작업이 새로 만드는 `onnxEmbeddingManualTest` 가 다룬다). mdm api 의 `src/test` 아래에는
   프로파일별 `application-*.yml` 이 없다 — 기존 테스트는 전부 `@ActiveProfiles("local")` + main
   `application.yml` 을 쓴다. 새 임베딩 테스트가 `fake` 인코더를 켤 때는 새 yml 을 만들지 않고
@@ -728,8 +728,8 @@ lsof -tiTCP:18203 -sTCP:LISTEN | xargs -r kill
   직접 받아야 한다(§3.3 의 repo/rev/sha256).
 - **flyway-migration-add 스킬은 mdm 에 적용되지 않는다**(`SKILL.md` 에 `mdm` 언급이 전혀 없고
   `aps-core`/`mcm-core` 전용이라고 RULE.md 가 명시한다). mdm 은 TSK-04-01 선례대로 버전 번호를 손으로
-  채번한다(양쪽 방언 파일명 동일하게). V4 는 이 시점 기준 어느 병렬 mdm 작업도 아직 채번하지 않았다
-  (TSK-04-03/04 는 `phase:"ready"`, TSK-04-05 는 F18 에서 V4 를 "만들면 깨진다"고 경고만 했을 뿐 실제로
+  채번한다(양쪽 방언 파일명 동일하게). V5 는 이 시점 기준 어느 병렬 mdm 작업도 아직 채번하지 않았다
+  (TSK-04-03/04 는 `phase:"ready"`, TSK-04-05 는 F18 에서 V5 를 "만들면 깨진다"고 경고만 했을 뿐 실제로
   만들지는 않았다 — `docs/mdm/tasks/TSK-04-0{3,4}/state.json` 확인 완료).
 
 ## 게이트 명령 표
@@ -738,7 +738,7 @@ lsof -tiTCP:18203 -sTCP:LISTEN | xargs -r kill
 |---|---|---|
 | 백엔드 전체 | `cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain` | 1274 tests / 0 failures |
 | 백엔드 테스트 집계 | `find src/backend -path '*/build/test-results/*' -name 'TEST-*.xml' \| xargs grep -h -o '<testsuite [^>]*'`(tests/failures/errors 합산) | 위와 동일 |
-| MSSQL 수동 게이트 | `cd src/backend/mdm && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ../gradlew :api:mssqlMigrationTest --no-daemon --console=plain` | 38 passed(docker 필요, testAll 비포함) — V4 추가 후 검증 항목 늘어남 |
+| MSSQL 수동 게이트 | **사용자 결정으로 실행 금지**(도커가 시스템 부하를 유발) — 대체 검증은 "MSSQL/SQLite 방언 대조" 표(Build 이탈) 참고 | 게이트 비교 대상에서 제외 |
 | ONNX 수동 게이트(신설) | `cd src/backend/mdm && MDM_EMBEDDING_MODEL_DIR=<모델 경로> JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ../gradlew :api:onnxEmbeddingManualTest --no-daemon --console=plain` | 모델 파일(+토크나이저 파일) 있으면 pass(macOS 재측정치를 로그에 남김), 없으면 SKIPPED(testAll 비포함) |
 | 프런트 m-mdm 테스트 | `cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test` | 5 files/26 passed 이상(신규 테스트 추가분 포함) — build:libs 선행 없으면 3 files 실패 |
 | 프런트 m-mdm lint | `cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint` | tsc --noEmit pass |
@@ -749,14 +749,36 @@ lsof -tiTCP:18203 -sTCP:LISTEN | xargs -r kill
 
 ## Build 이탈
 
+- **V4 → V5 재채번 + origin/dev 머지(팀장 지시)**: 이 작업이 처음 채번한 마이그레이션 V4 가
+  origin/dev 에 이미 머지된 TSK-05-01(`V4__create_mdm_interface_layout.sql`, 03 인터페이스 레이아웃
+  5테이블)와 번호가 겹쳤다. 팀장 배정표대로 이 작업의 파일을 V5 로 재채번했다(`term_abbr_index_relax`,
+  두 방언, `git mv`). `origin/dev` 를 `merge --no-ff` 로 반영하며 충돌 2건을 해소했다 —
+  `MdmSharedContractMigrationTest`(버전 집합을 `{1,2,3,4}`→`{1,2,3,4,5}` 로, 양쪽 코멘트 결합)와
+  `MdmTermDomainColumnMssqlMigrationTest`(동일 패턴, 메서드명도 `...V4_가_적용된다`→`...V4_V5_가_적용된다`).
+  design.md·ERD 각주·테스트 코멘트의 "이 작업의 V4" 표현을 전부 "V5" 로 바꾸고, dev 쪽 V4(interface_layout)
+  언급은 그대로 뒀다(해당 없음 — 이 문서엔 언급이 없었다).
+- **사용자 결정: 도커 금지로 MSSQL 실측 생략** — `mssqlMigrationTest`(Testcontainers, docker 필요)는
+  시스템 부하 문제로 이후 어디서도 실행하지 않는다. 대체로 sqlite 쪽 testAll 통과 + 아래 "MSSQL/SQLite
+  방언 대조" 표로 V5 두 방언 파일의 동등성을 리뷰로 확인한다.
+
+  **MSSQL/SQLite 방언 대조 — `V5__term_abbr_index_relax.sql`**(`diff -y` 실측, 실행문 2줄만 존재)
+
+  | 줄 | SQLite | MSSQL | 대조 |
+  |---|---|---|---|
+  | DROP | `DROP INDEX UX_TB_MDM_TERM_ABBR;` | `DROP INDEX UX_TB_MDM_TERM_ABBR ON TB_MDM_TERM;` | 문법 차이만(MSSQL 은 `DROP INDEX` 에 대상 테이블 명시가 필수) — 의미 동일 |
+  | CREATE | `CREATE INDEX IX_TB_MDM_TERM_ABBR ON TB_MDM_TERM(ENG_ABBR) WHERE ENG_ABBR IS NOT NULL;` | `CREATE INDEX IX_TB_MDM_TERM_ABBR ON TB_MDM_TERM(ENG_ABBR) WHERE ENG_ABBR IS NOT NULL;` | 완전히 동일한 문자열(필터 조건 포함) |
+
+  결론: 두 방언 파일은 `DROP INDEX` 구문(방언 고유 문법)만 다르고 나머지는 완전히 동일하다 — MSSQL
+  쪽만 별도로 틀릴 여지가 구조적으로 없다(TSK-04-01 이 이미 검증한 `UX_TB_MDM_TERM_ABBR`·필터 인덱스
+  문법을 그대로 역으로 적용했을 뿐이므로 신규 문법 리스크가 없다).
 - **테스트 파일 수 정정(팀장 지시 "기존 테스트 2개"보다 많음)**: 팀장 지시는 "D1 로 인해 사실이 바뀐 기존 테스트
-  2개"라고 했으나, 실제로 V4(약어 유일 인덱스→비유일)를 반영하면 4곳이 깨진다 — ①
+  2개"라고 했으나, 실제로 V5(약어 유일 인덱스→비유일)를 반영하면 4곳이 깨진다 — ①
   `MdmTermDomainColumnMigrationTest.UX_TB_MDM_TERM_ABBR_만_NULL_다건_허용_동일_비NULL_은_거부한다()`(이름·본문
   교정) ② 같은 파일의 `제약_인덱스_이름이_규칙표를_따른다()`(인덱스 이름 문자열 하나만 교정) ③
   `MdmTermDomainColumnMssqlMigrationTest.필터_인덱스는_UX_TB_MDM_TERM_ABBR_만이고_...()`(이름·본문 교정) ④
-  같은 파일의 `local_db_설정으로_V1_V2_V3_가_적용된다()`(V4 포함 버전 집합, 팀장 지시에 명시되지 않았던
-  누락분) ⑤ `MdmSharedContractMigrationTest.flyway_가_V1_V2_V3_를_적용했다()`(V4 포함, 지시에 있던 것).
-  모두 완화가 아니라 V4 반영이 강제하는 사실 교정이라 그대로 고쳤다.
+  같은 파일의 `local_db_설정으로_V1_V2_V3_가_적용된다()`(V5 포함 버전 집합, 팀장 지시에 명시되지 않았던
+  누락분) ⑤ `MdmSharedContractMigrationTest.flyway_가_V1_V2_V3_를_적용했다()`(V5 포함, 지시에 있던 것).
+  모두 완화가 아니라 V5 반영이 강제하는 사실 교정이라 그대로 고쳤다.
 - **D12 실제 채택 확인**: design.md 본문에 D12(동의어 확정 시 "후보의 termName+후보의 systems")와
   "코드베이스 지식" 절(§"동의어로 확정...편집 중인 용어 자신의 systems")이 서로 반대로 적혀 있었다(advisor
   지적). 기능설계서(`termMng_기능설계서.md` §5.2 B-005, GAP-103)가 D12(a)를 명시적으로 구현 대상으로

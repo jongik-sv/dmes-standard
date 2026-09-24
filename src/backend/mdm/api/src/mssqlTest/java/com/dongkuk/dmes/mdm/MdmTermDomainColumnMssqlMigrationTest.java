@@ -242,7 +242,7 @@ class MdmTermDomainColumnMssqlMigrationTest {
     }
 
     /**
-     * TSK-04-02 V4(D1) — 요구사항이 강제하는 교정. UX_TB_MDM_TERM_ABBR(유일 필터 인덱스)가
+     * TSK-04-02 V5(D1) — 요구사항이 강제하는 교정. UX_TB_MDM_TERM_ABBR(유일 필터 인덱스)가
      * IX_TB_MDM_TERM_ABBR(비유일 필터 인덱스)로 바뀌어, NULL 다건은 물론 동일 비NULL 값도 다건 INSERT 가
      * 성공해야 한다(경고는 애플리케이션 레벨, TermMngService.warnings).
      */
@@ -262,7 +262,7 @@ class MdmTermDomainColumnMssqlMigrationTest {
                 s.execute("INSERT INTO TB_MDM_TERM (TERM_NAME, SENSE_NO, DEFINITION) VALUES (N'약어없음2', 1, N'd')");
                 s.execute("INSERT INTO TB_MDM_TERM (TERM_NAME, SENSE_NO, DEFINITION, ENG_ABBR) "
                         + "VALUES (N'약어있음1', 1, N'd', 'DUPABBR')");
-                // V4 이후 — 같은 비NULL ENG_ABBR 재삽입도 통과해야 한다(유일 인덱스가 아니므로).
+                // V5 이후 — 같은 비NULL ENG_ABBR 재삽입도 통과해야 한다(유일 인덱스가 아니므로).
                 s.execute("INSERT INTO TB_MDM_TERM (TERM_NAME, SENSE_NO, DEFINITION, ENG_ABBR) "
                         + "VALUES (N'약어있음2', 1, N'd', 'DUPABBR')");
                 assertEquals(2, count(c, "SELECT COUNT(*) FROM TB_MDM_TERM WHERE ENG_ABBR = 'DUPABBR'"));
