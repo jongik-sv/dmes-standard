@@ -1,21 +1,35 @@
 /*
  * 작성자: Agent
  * 작성일: 2026-09-24
- * 내용: layoutMng (전문 레이아웃) OASIS 서비스 — search / view / save 3 action
+ * 내용: layoutMng (전문 레이아웃) OASIS 서비스 — search / view / save / validate / execute / export 6 action
  */
 package com.dongkuk.dmes.mdm.dmb.layoutMng.service;
 
-import com.dongkuk.dmes.mdm.common.support.MdmErrors;
-import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
-import com.dongkuk.dmes.mdm.contract.layout.MdmFillKind;
+import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutHeaderRef;
+import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutItemSnapshot;
+import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutSnapshot;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutCheckTable;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutImpactFinder;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutIssue;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutIssueCode;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutSampleRenderer;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutSnapshotAssembler;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutSnapshotJson;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutVersionStore;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutVersioner;
+import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngExecuteRequest;
+import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngExportRequest;
+import com.dongkuk.dmes.mdm.entity.MdmLayoutVer;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Optional;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutColumnInfo;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutConstResolver;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutDictionary;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutDraft;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutDraftBuilder;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutFillKinds;
-import com.dongkuk.dmes.mdm.dmb.layout.LayoutIssue;
-import com.dongkuk.dmes.mdm.dmb.layout.LayoutIssueCode;
-import com.dongkuk.dmes.mdm.dmb.layout.LayoutItemDraft;
-import com.dongkuk.dmes.mdm.dmb.layout.LayoutItemRules;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutOffsetCalculator;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutQueries;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutRejections;
@@ -29,16 +43,13 @@ import com.dongkuk.dmes.mdm.entity.MdmLayout;
 import com.dongkuk.dmes.mdm.entity.MdmLayoutConst;
 import com.dongkuk.dmes.mdm.entity.MdmLayoutHeader;
 import com.dongkuk.dmes.mdm.entity.MdmLayoutItem;
-import com.dongkuk.dmes.mdm.repository.MdmEaiRepository;
 import com.dongkuk.dmes.mdm.repository.MdmLayoutRepository;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
@@ -48,7 +59,8 @@ import org.springframework.stereotype.Service;
  * <p>BPMN {@code services/dmb/layoutMng.bpmn} 의 {@code actionGateway} 3 분기와 1:1 이다. 쓰기는 {@code save} 만 한다.
  * <b>{@code save} 에는 헤더 항목을 받는 입력이 없다</b> — 전문에서 헤더 구성·길이는 잠기고, 재정의는
  * {@code TB_MDM_LAYOUT_CONST} 에만 쓴다(불변 I8). EAI 를 고른 전문에는 그 EAI 표준 헤더가 헤더 구성 1번에 들어간다(I14).
- * 업무 버전({@code VERSION})은 올리지 않는다(I17, 05-03 몫).
+ * 저장하면 그 자리에서 스냅샷 버전을 만든다(TSK-05-03 I15 — 05-02 I17 대체, D4). TSK-05-03 이 등록 검증 7종(validate)·샘플 전문
+ * 렌더(execute)·스냅샷 출력(export)·영향 전문 목록(search target=IMPACT)을 더했다 — 넷 다 쓰지 않는다(I20).
  *
  * <p><b>{@code @Transactional} 을 붙이지 않는다</b>(F11). 트랜잭션은 OASIS action 한 건이며, 쓰기 전에 모든 검사를 끝낸다.
  */
@@ -58,28 +70,48 @@ public class LayoutMngService {
     private static final String HEADER = "HEADER";
     private static final String MESSAGE = "MESSAGE";
     private static final String COLUMN = "COLUMN";
+    private static final String IMPACT = "IMPACT";
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    private static final DateTimeFormatter SAVED_AT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(KST);
+    private static final DateTimeFormatter SEND_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final LayoutQueries queries;
     private final LayoutDictionary dictionary;
     private final LayoutWriter writer;
     private final MdmLayoutRepository layoutRepository;
-    private final MdmEaiRepository eaiRepository;
+    private final LayoutDraftBuilder draftBuilder;
+    private final LayoutVersioner versioner;
+    private final LayoutVersionStore versionStore;
+    private final LayoutSnapshotAssembler assembler;
+    private final LayoutSampleRenderer renderer;
+    private final LayoutImpactFinder impactFinder;
 
     public LayoutMngService(LayoutQueries queries, LayoutDictionary dictionary, LayoutWriter writer,
-                            MdmLayoutRepository layoutRepository, MdmEaiRepository eaiRepository) {
+                            MdmLayoutRepository layoutRepository, LayoutDraftBuilder draftBuilder, LayoutVersioner versioner,
+                            LayoutVersionStore versionStore, LayoutSnapshotAssembler assembler, LayoutSampleRenderer renderer,
+                            LayoutImpactFinder impactFinder) {
         this.queries = queries;
         this.dictionary = dictionary;
         this.writer = writer;
         this.layoutRepository = layoutRepository;
-        this.eaiRepository = eaiRepository;
+        this.draftBuilder = draftBuilder;
+        this.versioner = versioner;
+        this.versionStore = versionStore;
+        this.assembler = assembler;
+        this.renderer = renderer;
+        this.impactFinder = impactFinder;
     }
 
     // ────────────────────────────────────────────────────────────────
-    // action: search — target LAYOUT(기본) 전문 목록 · HEADER 헤더 선택 · COLUMN 컬럼 사전 검색(D8)
+    // action: search — target LAYOUT(기본) 전문 목록 · HEADER 헤더 선택 · COLUMN 컬럼 사전 검색(D8) · IMPACT 영향 전문(TSK-05-03)
     // ────────────────────────────────────────────────────────────────
 
     public Map<String, Object> search(LayoutMngSearchRequest request) {
         Map<String, Object> out = new LinkedHashMap<>();
+        if (IMPACT.equals(request.getTarget())) {
+            out.put("impacts", impactFinder.search(request.getKeyword()));
+            return out;
+        }
         if (COLUMN.equals(request.getTarget())) {
             out.put("columns", dictionary.search(request.getKeyword()).stream().map(LayoutColumnInfo::toRow).toList());
             return out;
@@ -225,7 +257,25 @@ public class LayoutMngService {
         out.put("headers", headers);
         out.put("items", LayoutRows.items(body, dict));
         out.put("units", LayoutRows.units(queries.units()));
+        out.put("versions", versions(layout.getLayoutId()));
         return out;
+    }
+
+    /** 버전 이력(최신부터) — 저장 일시·저장자는 감사 C_AT(KST)·C_USR_ID. */
+    private List<Map<String, Object>> versions(Long layoutId) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (MdmLayoutVer v : versionStore.history(layoutId)) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("LAYOUT_VERSION", v.getLayoutVersion());
+            row.put("SAVED_AT", v.getCreatedAt() == null ? null : SAVED_AT.format(v.getCreatedAt()));
+            row.put("SAVED_BY", v.getCreatedBy());
+            row.put("TOTAL_LENGTH", v.getTotalLength());
+            row.put("SWITCH_MODE", v.getSwitchMode());
+            row.put("CHANGE_KINDS", v.getChangeKinds());
+            row.put("CHANGE_SUMMARY", v.getChangeSummary());
+            rows.add(row);
+        }
+        return rows;
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -234,129 +284,130 @@ public class LayoutMngService {
 
     public Map<String, Object> save(LayoutMngSaveRequest request, List<Map<String, Object>> headers,
                                     List<Map<String, Object>> consts, List<Map<String, Object>> items) {
-        // ① 대상·동시 수정
-        MdmLayout layout = null;
-        if (request.getLayoutId() != null) {
-            layout = message(request.getLayoutId());
-            if (!Objects.equals(request.getVer(), layout.getVersion())) {
-                throw MdmErrors.of(MdmErrorCode.ROW_VERSION_CONFLICT);
-            }
+        // ①~⑤ 대상·동시 수정 → 검사 → 길이·배치(LayoutDraftBuilder 한 곳, TSK-05-03 I19)
+        LayoutDraftBuilder.Built built = draftBuilder.build(request, headers, consts, items, true);
+        if (!built.issues().isEmpty()) {
+            throw LayoutRejections.reject(LayoutRejections.MESSAGE_PREFIX, built.issues());
         }
-        List<LayoutIssue> issues = new ArrayList<>();
-        String name = LayoutRows.text(request.getLayoutName());
-        String eaiCode = LayoutRows.text(request.getEaiCode());
-        String snd = LayoutRows.text(request.getSndSystem());
-        String rcv = LayoutRows.text(request.getRcvSystem());
-        if (name == null) {
-            issues.add(LayoutIssue.of(LayoutIssueCode.L11, null, "LAYOUT_NAME", "전문 이름이 비었다"));
-        }
-        Set<Object> systems = queries.systems().stream().map(r -> r[0]).collect(Collectors.toSet());
-        if (snd == null || !systems.contains(snd)) {
-            issues.add(LayoutIssue.of(LayoutIssueCode.L11, null, "SND_SYSTEM", "송신 시스템이 없다: " + snd));
-        }
-        if (rcv == null || !systems.contains(rcv)) {
-            issues.add(LayoutIssue.of(LayoutIssueCode.L11, null, "RCV_SYSTEM", "수신 시스템이 없다: " + rcv));
-        }
-        MdmEai eai = eaiCode == null ? null : eaiRepository.findById(eaiCode).orElse(null);
-        if (eaiCode != null && eai == null) {
-            issues.add(LayoutIssue.of(LayoutIssueCode.L11, null, "EAI_CODE", "EAI 가 없다: " + eaiCode));
-        }
-        // ② 헤더 구성 — EAI 표준 헤더가 없으면 맨 앞에 끼운다(I14)
-        List<Long> headerIds = new ArrayList<>();
-        for (Map<String, Object> row : headers == null ? List.<Map<String, Object>>of() : headers) {
-            headerIds.add(LayoutRows.id(row.get("HEADER_LAYOUT_ID")));
-        }
-        if (eai != null && eai.getHeaderLayoutId() != null && !headerIds.contains(eai.getHeaderLayoutId())) {
-            headerIds.add(0, eai.getHeaderLayoutId());
-        }
-        List<MdmLayout> headerLayouts = new ArrayList<>();
-        Set<Long> seen = new HashSet<>();
-        for (int i = 0; i < headerIds.size(); i++) {
-            Long id = headerIds.get(i);
-            MdmLayout h = id == null ? null : layoutRepository.findById(id).orElse(null);
-            if (h == null || !HEADER.equals(h.getLayoutKind())) {
-                issues.add(LayoutIssue.of(LayoutIssueCode.L09, i + 1, "HEADER_LAYOUT_ID", "헤더 레이아웃이 아니다: " + id));
-            } else if (!seen.add(id)) {
-                issues.add(LayoutIssue.of(LayoutIssueCode.L09, i + 1, "HEADER_LAYOUT_ID", "같은 헤더를 두 번 쌓을 수 없다: " + id));
-            }
-            headerLayouts.add(h);
-        }
-        // ③ 재정의 — 이 전문에 쌓인 헤더의 CONST 항목만. 빈 값은 "재정의 없음"(I10)
-        List<long[]> constKeys = new ArrayList<>();
-        List<String> constValues = new ArrayList<>();
-        Map<Long, Map<Integer, MdmLayoutItem>> itemsByHeader = new HashMap<>();
-        for (Map<String, Object> row : consts == null ? List.<Map<String, Object>>of() : consts) {
-            String value = row.get("CONST_VALUE") == null ? null : LayoutRows.text(String.valueOf(row.get("CONST_VALUE")));
-            if (value == null) {
-                continue;
-            }
-            Long headerId = LayoutRows.id(row.get("HEADER_LAYOUT_ID"));
-            Long seqValue = LayoutRows.id(row.get("HEADER_SEQ"));
-            if (headerId == null || seqValue == null || !seen.contains(headerId)) {
-                issues.add(LayoutIssue.of(LayoutIssueCode.L10, null, "HEADER_LAYOUT_ID",
-                        "이 전문에 쌓이지 않은 헤더의 상수는 재정의할 수 없다: " + headerId));
-                continue;
-            }
-            MdmLayoutItem target = itemsByHeader.computeIfAbsent(headerId, this::itemsBySeq).get(seqValue.intValue());
-            if (target == null || !MdmFillKind.CONST.name().equals(target.getFillKind())) {
-                issues.add(LayoutIssue.of(LayoutIssueCode.L10, seqValue.intValue(), "HEADER_SEQ",
-                        "CONST 항목만 재정의할 수 있다: 헤더 " + headerId + " 항목 " + seqValue
-                                + (target == null ? "(없음)" : "(" + target.getFillKind() + ")")));
-                continue;
-            }
-            constKeys.add(new long[] {headerId, seqValue});
-            constValues.add(value);
-        }
-        // ④ 본문 항목
-        List<LayoutItemDraft> drafts = LayoutRows.drafts(items);
-        Map<String, LayoutColumnInfo> dict = dictionary.byPhysNames(LayoutRows.physNames(drafts));
-        issues.addAll(LayoutItemRules.check(drafts, dict));
-        if (!issues.isEmpty()) {
-            throw LayoutRejections.reject(LayoutRejections.MESSAGE_PREFIX, issues);
-        }
-        // ⑤ 계산 — 헤더 길이는 저장된 헤더 TOTAL_LENGTH 그대로(헤더는 쓰지 않는다, I8)
-        List<Integer> lengths = LayoutRows.lengths(drafts, dict);
-        LayoutOffsetCalculator.Stacked s = LayoutOffsetCalculator.placeMessage(
-                headerLayouts.stream().map(MdmLayout::getTotalLength).toList(), lengths);
+        LayoutDraft d = built.draft();
+        LayoutOffsetCalculator.Stacked s = d.placed();
         // ⑥ 전문 행
-        if (layout == null) {
-            layout = new MdmLayout(MESSAGE, name);
-        }
-        layout.setLayoutName(name);
-        layout.setEaiCode(eaiCode);
-        layout.setSndSystem(snd);
-        layout.setRcvSystem(rcv);
+        MdmLayout layout = built.target() == null ? new MdmLayout(MESSAGE, d.layoutName()) : built.target();
+        layout.setLayoutName(d.layoutName());
+        layout.setEaiCode(d.eaiCode());
+        layout.setSndSystem(d.sndSystem());
+        layout.setRcvSystem(d.rcvSystem());
         layout.setTotalLength(s.total());
         layout = writer.saveLayout(layout);
         Long messageId = layout.getLayoutId();
         // ⑦ 헤더 적층·재정의 ⑧ 본문 항목
         List<MdmLayoutConst> constRows = new ArrayList<>();
-        Map<String, Integer> index = new HashMap<>();
-        for (int i = 0; i < constKeys.size(); i++) {
-            long[] k = constKeys.get(i);
-            String key = k[0] + ":" + k[1];
-            MdmLayoutConst c = new MdmLayoutConst(messageId, k[0], (int) k[1], constValues.get(i));
-            if (index.containsKey(key)) {
-                constRows.set(index.get(key), c);
-            } else {
-                index.put(key, constRows.size());
-                constRows.add(c);
-            }
+        for (LayoutDraft.ConstRow c : d.consts()) {
+            constRows.add(new MdmLayoutConst(messageId, c.headerLayoutId(), c.headerSeq(), c.value()));
         }
-        writer.replaceStack(messageId, headerIds, constRows);
-        writer.replaceItems(messageId, LayoutRows.entities(messageId, drafts, lengths, s.bodyOffsets()));
+        writer.replaceStack(messageId, d.headerIds(), constRows);
+        writer.replaceItems(messageId, LayoutRows.entities(messageId, d.items(), d.itemLengths(), s.bodyOffsets()));
+        // ⑨ 스냅샷 버전 — 바뀌었을 때만(I15). 응답 ver 는 버전을 올린 뒤의 감사 VER(I16)
+        LayoutVersioner.Outcome v = versioner.record(messageId);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("layoutId", messageId);
-        out.put("ver", layout.getVersion());
+        out.put("ver", v.ver());
         out.put("totalLength", s.total());
         out.put("headerLength", s.headerLength());
+        out.put("layoutVersion", v.layoutVersion());
+        out.put("versionCreated", v.created());
+        out.put("switchMode", v.switchMode());
+        out.put("changeSummary", v.changeSummary());
         return out;
     }
 
-    private Map<Integer, MdmLayoutItem> itemsBySeq(Long headerId) {
-        Map<Integer, MdmLayoutItem> out = new HashMap<>();
-        for (MdmLayoutItem i : queries.itemsOf(headerId)) {
-            out.put(i.getSeq(), i);
+    // ────────────────────────────────────────────────────────────────
+    // action: validate — 등록 검증 7종 표(TSK-05-03 §6.2). 쓰지 않는다
+    // ────────────────────────────────────────────────────────────────
+
+    public Map<String, Object> validate(LayoutMngSaveRequest request, List<Map<String, Object>> headers,
+                                        List<Map<String, Object>> consts, List<Map<String, Object>> items) {
+        LayoutDraftBuilder.Built built = draftBuilder.build(request, headers, consts, items, false);
+        LayoutCheckTable.Result r = LayoutCheckTable.build(built.issues(), built.warnings());
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("checks", r.checks());
+        out.put("otherIssues", r.otherIssues());
+        out.put("passed", r.passed());
+        return out;
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // action: execute — 예시 값 → 인코딩 바이트 기준 한 줄(TSK-05-03 D13). 쓰지 않는다
+    // ────────────────────────────────────────────────────────────────
+
+    public Map<String, Object> execute(LayoutMngExecuteRequest request, List<Map<String, Object>> headers,
+                                       List<Map<String, Object>> consts, List<Map<String, Object>> items,
+                                       List<Map<String, Object>> samples) {
+        LayoutDraftBuilder.Built built = draftBuilder.build(request.toSaveRequest(), headers, consts, items, false);
+        if (!built.issues().isEmpty()) {
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("issues", issueRows(built.issues()));
+            return out;
+        }
+        MdmLayoutSnapshot snapshot = assembler.fromDraft(built.draft());
+        Map<String, String> values = new LinkedHashMap<>();
+        for (Map<String, Object> row : samples == null ? List.<Map<String, Object>>of() : samples) {
+            Object phys = row.get("COLUMN_PHYS");
+            if (phys != null) {
+                values.put(String.valueOf(phys), row.get("VALUE") == null ? null : String.valueOf(row.get("VALUE")));
+            }
+        }
+        LocalDateTime sendTime = request.getSendTime() == null || request.getSendTime().isBlank() ? LocalDateTime.now(KST)
+                : LocalDateTime.parse(request.getSendTime().trim(), SEND_TIME);
+        Map<String, String> names = displayNames(snapshot);
+        return renderer.render(snapshot, values, sendTime, request.getSeq() == null ? 1L : request.getSeq(), names::get);
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // action: export — 스냅샷 JSON(파생·계산값이 풀려 들어간 배포 대상, html p-ver). 엑셀은 화면이 이 JSON 으로 만든다
+    // ────────────────────────────────────────────────────────────────
+
+    public Map<String, Object> export(LayoutMngExportRequest request) {
+        MdmLayout layout = message(request.getLayoutId());
+        Optional<MdmLayoutVer> v = request.getLayoutVersion() == null ? versionStore.latest(layout.getLayoutId())
+                : versionStore.find(layout.getLayoutId(), request.getLayoutVersion());
+        if (v.isEmpty()) {
+            throw LayoutRejections.reject(EXPORT_PREFIX, LayoutIssue.of(LayoutIssueCode.L11, null, "LAYOUT_VERSION",
+                    "저장된 버전이 없습니다: " + layout.getLayoutId() + (request.getLayoutVersion() == null ? "" : " v" + request.getLayoutVersion())));
+        }
+        MdmLayoutSnapshot snapshot = LayoutSnapshotJson.read(v.get().getSnapshotJson());
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("layoutId", layout.getLayoutId());
+        out.put("layoutVersion", v.get().getLayoutVersion());
+        out.put("fileBase", "layout-" + layout.getLayoutId() + "-v" + v.get().getLayoutVersion());
+        out.put("snapshot", LayoutSnapshotJson.toMap(snapshot));
+        out.put("names", displayNames(snapshot));
+        return out;
+    }
+
+    private static final String EXPORT_PREFIX = "스냅샷 출력 거부: ";
+
+    /** 스냅샷에 쓰인 물리명 → 표시명(label_long ?? 논리명). */
+    private Map<String, String> displayNames(MdmLayoutSnapshot snapshot) {
+        List<String> phys = new ArrayList<>();
+        for (MdmLayoutHeaderRef h : snapshot.headers()) {
+            h.items().stream().map(MdmLayoutItemSnapshot::columnPhys).filter(Objects::nonNull).forEach(phys::add);
+        }
+        snapshot.items().stream().map(MdmLayoutItemSnapshot::columnPhys).filter(Objects::nonNull).forEach(phys::add);
+        Map<String, String> out = new LinkedHashMap<>();
+        dictionary.byPhysNames(phys).forEach((k, c) -> out.put(k, c.displayName()));
+        return out;
+    }
+
+    private static List<Map<String, Object>> issueRows(List<LayoutIssue> issues) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (LayoutIssue i : issues) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("CODE", i.code().name());
+            m.put("SEQ", i.seq());
+            m.put("FIELD", i.field());
+            m.put("MESSAGE", i.message());
+            out.add(m);
         }
         return out;
     }

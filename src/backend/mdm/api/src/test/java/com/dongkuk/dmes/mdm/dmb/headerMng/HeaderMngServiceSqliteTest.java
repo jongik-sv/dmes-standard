@@ -175,7 +175,11 @@ class HeaderMngServiceSqliteTest extends LayoutTestSupport {
         assertEquals(190, ((Number) msg.get("TOTAL_LENGTH")).intValue());
         assertEquals(List.of(133, 153, 161, 165), column(itemRows(m.message()), "OFFSET"));
         assertEquals(List.of(20, 8, 4, 25), column(itemRows(m.message()), "LENGTH"));
-        assertEquals(0L, ((Number) msg.get("VERSION")).longValue(), "업무 버전은 05-03 몫(I17)");
+        assertEquals(2L, ((Number) msg.get("VERSION")).longValue(), "M201 저장 v1 → 헤더 변경으로 v2(TSK-05-03 D4)");
+        List<Map<String, Object>> versioned = (List<Map<String, Object>>) out.get("versioned");
+        assertEquals(1, versioned.size());
+        assertEquals(m.message(), ((Number) versioned.get(0).get("LAYOUT_ID")).longValue());
+        assertEquals("SIMULTANEOUS", versioned.get(0).get("SWITCH_MODE"));
         assertTrue(ver(msg) > msgVerBefore, "감사 VER 는 오른다 — 화면을 띄워 둔 사용자는 다음 저장에서 MDM001");
         List<Map<String, Object>> recalculated = (List<Map<String, Object>>) out.get("recalculated");
         assertEquals(1, recalculated.size());
