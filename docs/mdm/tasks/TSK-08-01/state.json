@@ -2,5 +2,24 @@
   "tsk": "TSK-08-01",
   "order": "84b388b9-c06c-48c2-8942-9945f95a0fff",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "design",
+  "baseline": {
+    "failures": 0,
+    "tests": 1878,
+    "backend_testAll": {
+      "tests": 1878,
+      "failures": 0,
+      "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain"
+    },
+    "count_cmd": "find src/backend -path '*/build/test-results/*' -not -path '*mssqlMigrationTest*' -name 'TEST-*.xml' | xargs grep -h -o '<testsuite [^>]*' (tests/failures/errors 합산)",
+    "mssqlMigrationTest": "제외: 사용자 결정(팀장 지시 2026-09-24) — 도커를 띄우는 검증 전면 금지. MSSQL DDL 은 SQLite DDL 과 줄 단위 대조 리뷰로 대체"
+  },
+  "pred_note": "선행 mdm/TSK-02-03·01-02·03-01·04-01: reached=true·head_sha 없음 → 행 G 갈래 2, pred-reflected.sh REFLECTED(4건) → origin/dev 기점 스택 없이 진행",
+  "flyway_version": "V8 (팀장 배정)",
+  "complexity": "4점(depends 4 +2, 마이그레이션 +2) → opus, spec model=opus 일치",
+  "last": {
+    "phase": "baseline",
+    "event": "baseline.ok"
+  },
+  "model": "opus"
 }
