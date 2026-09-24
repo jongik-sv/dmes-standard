@@ -454,6 +454,9 @@ design.md §2 가 예고한 두 파일(`LocalDateTimeAttributeConverter.java`·`
 ### 이탈 4 — §3.1-11(반개구간 경계) 은 네이티브 리터럴을 써서 컨버터를 거치지 않는다
 design.md §3.1-11 은 "이 테스트가 §5 불변 규칙 8(저장 형식)도 함께 검증한다"고 적었지만, 실제 구현은 두 값 모두 JDBC `PreparedStatement` 로 SQLite TEXT 리터럴을 직접 INSERT 한다 — JPA 엔티티·컨버터를 전혀 거치지 않는다. 따라서 규칙 8(SQLite TEXT 저장 형식)의 실질 커버리지는 §3.2 의 `VALID_FROM_과_VALID_TO_가_SQLite_에_naming_dialect_rules_형식_TEXT_로_저장된다()`(typeof 단정) 하나뿐이다 — 아래 불변 규칙 변이 검증표 8행 참고.
 
+### 이탈 5 — origin/dev(6855c6c, MdmMssqlServer 공유 서버) 반영
+Build 완료 후 팀장 지시로 origin/dev 의 6855c6c(mssqlTest 가 서버 하나를 같이 쓰게 `MdmMssqlServer` 신설)를 `--no-ff` 머지했다(충돌 없음, auto-merge — 이 Task 가 바꾼 버전 집합 `{1,2,3,4,7}`과 dev 의 `MdmMssqlServer` 패턴이 서로 다른 줄이라 자동 병합됨). 머지 후 이 Task 가 새로 만든 `MdmMasterDataMssqlMigrationTest`(dev 는 이 파일의 존재를 몰랐다)만 수동으로 `@Testcontainers`/`@Container`/`MSSQLServerContainer` 직접 기동 방식에서 `MdmMssqlServer.newDatabase("masterdata")` 공유 서버 방식으로 다시 썼다 — 실행은 여전히 하지 않는다(F20·F21, `:api:compileMssqlTestJava` 로만 확인). 머지 커밋 sha 는 끝 보고에 적는다.
+
 ---
 
 ## 불변 규칙 변이 검증(Build)

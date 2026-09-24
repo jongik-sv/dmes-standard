@@ -26,14 +26,14 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.mssqlserver.MSSQLServerContainer;
-import org.testcontainers.utility.DockerImageName;
 
 /**
  * TSK-07-01 design.md §3.3′-B — V7(05 마스터데이터)을 {@code @SpringBootTest}+{@code local-db} 프로파일로
- * 실제 SQL Server(Testcontainers)에 적용한다. §3.3′-B 11개 항목에 대응하는 메서드를 둔다.
+ * 실제 SQL Server 에 적용한다. §3.3′-B 11개 항목에 대응하는 메서드를 둔다.
+ *
+ * <p>테스트 클래스마다 컨테이너를 새로 띄우지 않고 {@link MdmMssqlServer}(2026-09-24 dev 반영, 사용자
+ * 결정 "같은 목적의 도커는 한 곳에 모아 쓴다")가 공유하는 서버 하나를 같이 쓴다 — 다른 mssqlTest 클래스
+ * (`MdmMssqlMigrationTest` 등)와 같은 패턴.
  *
  * <p><b>작성만 하고 실행하지 않는다(F20·F21, 도커 금지 정책).</b> {@code :api:compileMssqlTestJava}
  * (컴파일 전용, docker 불필요)로 컴파일만 확인하고 {@code :api:mssqlMigrationTest}(Testcontainers 실행)는
@@ -41,12 +41,7 @@ import org.testcontainers.utility.DockerImageName;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local-db")
-@Testcontainers
 class MdmMasterDataMssqlMigrationTest {
-
-    @Container
-    static final MSSQLServerContainer MSSQL = new MSSQLServerContainer(
-            DockerImageName.parse("mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04")).acceptLicense();
 
     @Autowired
     DataSource dataSource;
@@ -59,15 +54,10 @@ class MdmMasterDataMssqlMigrationTest {
 
     @DynamicPropertySource
     static void registerMssql(DynamicPropertyRegistry registry) throws SQLException {
-        try (Connection master = java.sql.DriverManager.getConnection(
-                MSSQL.getJdbcUrl(), MSSQL.getUsername(), MSSQL.getPassword());
-             Statement s = master.createStatement()) {
-            s.execute("IF DB_ID('mdm') IS NULL CREATE DATABASE mdm");
-        }
-        String mdmUrl = MSSQL.getJdbcUrl() + ";databaseName=mdm";
+        String mdmUrl = MdmMssqlServer.newDatabase("masterdata");
         registry.add("spring.datasource.url", () -> mdmUrl);
-        registry.add("spring.datasource.username", MSSQL::getUsername);
-        registry.add("spring.datasource.password", MSSQL::getPassword);
+        registry.add("spring.datasource.username", MdmMssqlServer::user);
+        registry.add("spring.datasource.password", MdmMssqlServer::password);
     }
 
     /** 항목 1·2·6·7·8(참고, §3.3′-A 가 자동 확인) — V7 이 성공적으로 적용됐다. */
