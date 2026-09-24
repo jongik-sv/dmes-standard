@@ -2,6 +2,9 @@
 
 > Phase 02 Design. 작업 디렉터리 `/Users/jji/project/dmes-standard/dflow-91b83c83`(브랜치 `agent/91b83c83-term-unit-mng`, 기점 origin/dev 3d08db7).
 
+> **마이그레이션 번호 최종값: V10**(`V10__term_abbr_index_relax.sql`). 처음 V4 로 채번했다가 V5(팀장 배정표)로, 배정표 폐기 뒤
+> 머지 시점 최대 버전+1 인 V10 으로 다시 바꿨다(「done 전 최신화」 절). 본문의 "V5" 는 이 마이그레이션을 가리키는 옛 번호다.
+
 > **화면 설계 산출물(팀장 지시, 담당자 확인 필요 결정 D14)**: 5종 대신 기능설계서 1종만 작성했다 —
 > [단위 마스터 기능설계서](../../screens/unitMng/unitMng_기능설계서.md),
 > [용어 관리 기능설계서](../../screens/termMng/termMng_기능설계서.md).
@@ -84,8 +87,8 @@ TSK-02-01(ADR-0003)이 식별자 사전 §A.2.1 규칙에 맞춰 `mdt→dma` 로
 | `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/embedding/TermEmbeddingCodec.java` | `byte[](4096)` ↔ `float[](1024)` 변환, L2 노름 검증 |
 | `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/embedding/TermEmbeddingRepository.java` | EMBEDDING/EMBEDDING_MODEL 전용 네이티브 SQL(`JdbcTemplate`) — JPA 로는 못 다룸(I10) |
 | `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dma/termMng/TermRecommendationCache.java` | 인메모리 캐시(`termId → {termName, senseNo, engName, synonyms[], aliases[], embedding float[]|null}`). **`ApplicationReadyEvent` 리스너에서 전체 적재한다(`@PostConstruct` 아님 — 부팅 초기에는 Flyway 마이그레이션이 아직 끝나지 않았을 수 있어 `JdbcTemplate` 조회가 부팅을 실패시킬 위험이 있다)**, save/delete 때 해당 행만 갱신(전체 재적재 아님) — 1차·2차 추천이 매 요청 DB 를 훑지 않게 하는 성능 전제(I19) |
-| `src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/V5__term_abbr_index_relax.sql` | `DROP INDEX UX_TB_MDM_TERM_ABBR;`<br>`CREATE INDEX IX_TB_MDM_TERM_ABBR ON TB_MDM_TERM(ENG_ABBR) WHERE ENG_ABBR IS NOT NULL;`(비유일, 필터는 그대로 유지 — NULL 행은 색인 안 함) |
-| `src/backend/mdm/api/src/main/resources/db/migration/mdm/mssql/V5__term_abbr_index_relax.sql` | `DROP INDEX UX_TB_MDM_TERM_ABBR ON TB_MDM_TERM;`<br>`CREATE INDEX IX_TB_MDM_TERM_ABBR ON TB_MDM_TERM(ENG_ABBR) WHERE ENG_ABBR IS NOT NULL;`(양쪽 방언 동일 의미: 비유일·필터 유지) |
+| `src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/V10__term_abbr_index_relax.sql` | `DROP INDEX UX_TB_MDM_TERM_ABBR;`<br>`CREATE INDEX IX_TB_MDM_TERM_ABBR ON TB_MDM_TERM(ENG_ABBR) WHERE ENG_ABBR IS NOT NULL;`(비유일, 필터는 그대로 유지 — NULL 행은 색인 안 함) |
+| `src/backend/mdm/api/src/main/resources/db/migration/mdm/mssql/V10__term_abbr_index_relax.sql` | `DROP INDEX UX_TB_MDM_TERM_ABBR ON TB_MDM_TERM;`<br>`CREATE INDEX IX_TB_MDM_TERM_ABBR ON TB_MDM_TERM(ENG_ABBR) WHERE ENG_ABBR IS NOT NULL;`(양쪽 방언 동일 의미: 비유일·필터 유지) |
 | `src/backend/mdm/api/src/onnxTest/java/com/dongkuk/dmes/mdm/embedding/OnnxKureEmbeddingEncoderManualTest.java` | 수동 게이트 전용(§3.3). **스프링 컨텍스트를 띄우지 않는 순수 JUnit 테스트** — `OnnxKureEmbeddingEncoder` 를 `new` 로 직접 만든다. `mdm.embedding.encoder=onnx` 로 스프링 컨텍스트를 띄우면 모델 경로가 비어 있을 때 빈 생성 자체가 실패해 SKIPPED 대신 빨강이 난다. 모델 파일 유무 확인(`Assumptions.assumeTrue`)은 `@BeforeAll` 에서 하고, 없으면 이후 전부 스킵 |
 | `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/dma/unitMng/UnitMngServiceTest.java` | I3~I5 |
 | `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/dma/unitMng/UnitConvertPreviewTest.java` | I1, I2 |
@@ -770,7 +773,7 @@ lsof -tiTCP:18203 -sTCP:LISTEN | xargs -r kill
   자동 병합됐다(충돌 없음). 이 작업 소유 파일(unitMng/termMng 서비스·화면·V5 마이그레이션)에는 영향이
   없다 — TSK-08-01 은 업무기준(03 영역과 무관한 새 04 영역) 전용이라 겹치는 코드가 없다.
 
-  **MSSQL/SQLite 방언 대조 — `V5__term_abbr_index_relax.sql`**(`diff -y` 실측, 실행문 2줄만 존재)
+  **MSSQL/SQLite 방언 대조 — `V10__term_abbr_index_relax.sql`**(`diff -y` 실측, 실행문 2줄만 존재)
 
   | 줄 | SQLite | MSSQL | 대조 |
   |---|---|---|---|
@@ -917,3 +920,30 @@ I19 의 커밋(성공) 분기, termMng `delete` 의 캐시 제거, I18 상위 5�
     기록돼 있었다.
   - 반려되면: `TermMngPage.handleConfirmSynonym` 한 곳만 고치면 된다 — `candidate.systems` 대신 현재
     편집 중인 `form.systems` 를 콤마 분해해 붙이도록 바꾼다. DB·API 계약 변경은 없다.
+
+- **D17. 약어 중복 정책이 화면별로 갈린다 — 이 작업(termMng)은 경고, dev 의 TSK-04-04(termRegPop)는 거부**
+  - 질문: done 전 dev 머지로 들어온 TSK-04-04 `TermRegPopService` 는 영문 약어 중복(대소문자 무시)을
+    `TERM_DUPLICATED` 로 거부한다(`TermRegPopServiceSqliteTest.R4_약어는_대소문자를_무시해_중복을_보고_대안을_알려준다`).
+    이 작업의 termMng 는 D1 대로 경고만 낸다. 두 정책을 맞출 것인가.
+  - 선택지: (a) 이 작업은 spec 대로 경고를 유지하고 termRegPop 은 건드리지 않는다(정책 통일은 담당자 결정으로 넘긴다)
+    (b) termRegPop 도 경고로 바꾼다 (c) termMng 도 거부로 바꾼다.
+  - 택한 것: (a).
+  - 근거: 이 작업의 spec 수용 기준이 "약어 중복 경고"라고 명시한다(최상위 근거). termRegPop 은 다른 Task 산출물이라
+    고치면 "다른 Task 산출물 수정"이 되고, (c) 는 spec 과 어긋난다. DB 는 V10 이후 비유일 인덱스라 두 정책을 모두
+    담을 수 있다(거부는 애플리케이션 판정이므로 충돌하지 않는다).
+  - 반려되면: 담당자가 정한 한 정책으로 두 서비스를 맞춘다. 경고로 통일하면 termRegPop 의 R4 판정을 warnings 로,
+    거부로 통일하면 termMng 의 I8 판정과 V10 을 되돌리고 D1 반려 방향을 따른다.
+
+## done 전 최신화(오케스트레이터, 2026-09-24)
+
+- **3차 origin/dev 머지**(`eb80915`): TSK-04-03(domainMng)·TSK-04-04(columnMng·termRegPop)·TSK-06-01(V9 마스터코드) 반영.
+  충돌 7건 해소 — `DataInitializer`(이 작업의 unitMng·termMng 시드와 dev 의 domainMng·columnMng·termRegPop 시드를 모두 유지,
+  낡은 요약 로그 한 줄만 제거), `MdmTermRepository`(두 쪽 파생 쿼리 모두 유지), `m-mdm/tsup.config.ts`(엔트리 4개 모두 유지),
+  마이그레이션 버전 단언 4파일(dev 쪽 기준에 V10 추가).
+- **V5 → V10 재채번(팀장 정정: 번호 배정표 폐기, 머지 뒤 mdm/sqlite·mdm/mssql 최대 버전+1)**: dev 에 V8·V9 가 먼저 머지돼 V5 는
+  역순 도착으로 머지 관문(migration-check)에 걸린다. 두 방언 파일을 `V10__term_abbr_index_relax.sql` 로 바꾸고 버전 단언을
+  {1,2,3,4,8,9,10}·실행 7건·목표 10 으로 고쳤다. 파일 내용(DROP·CREATE INDEX 2줄)은 그대로다.
+- 메뉴 정렬: dev 의 domainMng(`MENU_SEQ "001"`, FULL_SEQ 5010130)·columnMng(`"004"`, 5010140)와 이 작업의 unitMng(`"002"`, 5010200)·
+  termMng(`"003"`, 5010300)가 같은 dma 폴더에 있다. 부팅 끝 `recomputeMenuFullSeq()` 가 MENU_SEQ 로 FULL_SEQ 를 다시 매기므로
+  리터럴은 고치지 않았다(domainMng 의 MENU_SEQ 는 다른 Task 산출물).
+- **사용자 결정: 도커 금지로 MSSQL 실측 생략.** mssqlTest 소스셋은 컴파일만 확인한다.

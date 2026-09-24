@@ -69,8 +69,8 @@ class MdmTermDomainColumnMssqlMigrationTest {
         registry.add("spring.datasource.password", MdmMssqlServer::password);
     }
 
-    /** TSK-05-01 — V4(03 인터페이스 레이아웃) 추가 반영. TSK-04-02 F18/D1 — V5(약어 인덱스 비유일화,
-     * dev 의 V4 와 번호가 겹쳐 팀장 배정표대로 V5 로 재채번) 추가 반영. Build 이탈 항목 — design.md §2
+    /** TSK-05-01 — V4(03 인터페이스 레이아웃) 추가 반영. TSK-04-02 F18/D1 — V10(약어 인덱스 비유일화,
+     * 당초 V4→V5, 머지 뒤 최대 버전+1 로 재채번) 추가 반영. Build 이탈 항목 — design.md §2
      * 목록에는 없었으나 새 버전을 채번하면 이 단언도 사실상 깨지므로 함께 고친다(완화가 아니라 새 버전
      * 반영). */
     @Test
@@ -231,7 +231,7 @@ class MdmTermDomainColumnMssqlMigrationTest {
     }
 
     /**
-     * TSK-04-02 V5(D1) — 요구사항이 강제하는 교정. UX_TB_MDM_TERM_ABBR(유일 필터 인덱스)가
+     * TSK-04-02 V10(D1) — 요구사항이 강제하는 교정. UX_TB_MDM_TERM_ABBR(유일 필터 인덱스)가
      * IX_TB_MDM_TERM_ABBR(비유일 필터 인덱스)로 바뀌어, NULL 다건은 물론 동일 비NULL 값도 다건 INSERT 가
      * 성공해야 한다(경고는 애플리케이션 레벨, TermMngService.warnings).
      */
@@ -251,7 +251,7 @@ class MdmTermDomainColumnMssqlMigrationTest {
                 s.execute("INSERT INTO TB_MDM_TERM (TERM_NAME, SENSE_NO, DEFINITION) VALUES (N'약어없음2', 1, N'd')");
                 s.execute("INSERT INTO TB_MDM_TERM (TERM_NAME, SENSE_NO, DEFINITION, ENG_ABBR) "
                         + "VALUES (N'약어있음1', 1, N'd', 'DUPABBR')");
-                // V5 이후 — 같은 비NULL ENG_ABBR 재삽입도 통과해야 한다(유일 인덱스가 아니므로).
+                // V10 이후 — 같은 비NULL ENG_ABBR 재삽입도 통과해야 한다(유일 인덱스가 아니므로).
                 s.execute("INSERT INTO TB_MDM_TERM (TERM_NAME, SENSE_NO, DEFINITION, ENG_ABBR) "
                         + "VALUES (N'약어있음2', 1, N'd', 'DUPABBR')");
                 assertEquals(2, count(c, "SELECT COUNT(*) FROM TB_MDM_TERM WHERE ENG_ABBR = 'DUPABBR'"));
