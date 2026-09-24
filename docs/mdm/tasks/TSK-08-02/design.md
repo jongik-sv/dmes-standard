@@ -31,7 +31,7 @@
 | F9 | 공통 버전 서비스(TSK-01-03): `VersionStateService.deleteDraft(VersionRef, long expectedRowVersion, String userId)`, `DraftOwnershipService.acquire/release(VersionRef, long, String)`·`handover(VersionRef, long, String ownerId, String newOwnerId)`(반환 = 새 row_version), `VersionWriteGuard.checkCanCreateVersion(VersionTarget, String objectId)`(미적용 버전이 있으면 MDM006)·`long beginDraftWrite(VersionRef, long expected, String userId)`(DRAFT·소유자·row_version 검사 후 rv+1). `VersionRef(VersionTarget target, String objectId, BigDecimal ver)`. `VersionTarget.BUSINESS_RULE` 과 테이블 명세는 이미 있다 | `BL/contract/version/`, `BL/common/version/` |
 | F10 | 오류는 `MdmErrors.of(MdmErrorCode)`(cactus `BusinessException`, 첫 `ErrorDetail.code` = `MDMnnn`). MDM001 row_version 충돌, MDM002 DRAFT 아님, MDM003 소유자 아님, MDM004 이미 선점, MDM005 넘기기 대상 아님, MDM006 미적용 버전 있음, MDM013 담당자 역할 필요 | `BL/contract/common/MdmErrorCode.java` |
 | F11 | `VersionSpiRegistry` 는 생성자에서 target 별 SPI 가 **둘이면** 기동을 실패시키고, 없으면 **호출할 때** `IllegalStateException` 을 낸다. 확정 SPI 없이도 앱은 뜬다. DRAFT 삭제는 `BUSINESS_RULE` 삭제 훅이 있어야 된다 | `BL/common/version/VersionSpiRegistry.java:25-52` |
-| F12 | 테스트 설정 `BAT/common/version/VersionScenarioTestConfig.java:61-64` 가 가짜 `FakeDraftDeletion(BUSINESS_RULE)` 빈을 등록한다. 실물 훅을 `@Component` 로 넣으면 이 설정을 쓰는 컨텍스트가 "같은 대상에 둘" 로 기동 실패한다 → 가짜 빈을 지운다 | 코드 |
+| F12 | 테스트 설정 `BAT/common/version/VersionScenarioTestConfig.java:61-64` 가 가짜 `FakeDraftDeletion(BUSINESS_RULE)` 빈을 등록한다. 실물 훅을 `@Component` 로 넣으면 이 설정을 쓰는 컨텍스트가 "같은 대상에 둘" 로 기동 실패한다. 이 충돌의 일반 해법(가짜가 있는 대상의 운영 SPI 빈 정의를 지우는 `BeanFactoryPostProcessor`)은 **TSK-06-02 가 만든다**(팀장 지시 2026-09-24) → §7.2 | 코드, 팀장 지시 |
 | F13 | 현재 사용자: `BL/common/security/MdmCurrentUser{String userId(); Set<String> roleIds();}`(cactus `UserContextHolder`, `ROLE_` 접두 제거). 담당자 역할 상수 `MdmRoles.STEWARD` = `MDM_STEWARD` | 코드 |
 | F14 | 넘기기 대상 검사 포트 `MdmStewardDirectory.isSteward(String)` 의 기본 구현 `UnresolvedStewardDirectory` 는 늘 false 다(fail-closed, MDM005) | TSK-01-03 D7 |
 | F15 | RBAC 1차는 BFF `evaluateApiPolicy` 가 `mdm/{serviceId}/{action}` 을 사용자 권한키와 문자열로 대조한다. 권한 세트 `PERM_MDM_READ = search,view,export,compare`, `PERM_MDM_EDIT = READ + save,delete,reg,import,validate,execute,copy,restore`, `PERM_MDM_CONFIRM = EDIT + confirm`(`DI:978-983`, `BL/contract/security/MdmPermissions.java:30-37`, `MdmActions`). `allActions`(PERM_ALL, `DI:298-329`)에 없는 action 은 SYSADMIN 도 403 이다. `lock/unlock/handover` 는 어디에도 없다 | 코드, ADR-0003 §D5 |
@@ -126,6 +126,7 @@ EXTERNAL 등록은 보류다(D11). 마이그레이션은 만들지 않는다.
 | `ResolvedVar.java` | `record ResolvedVar(int varId, String varKind, String dispType, int seq, String varName, boolean exprVar, String label, String dataType, Integer scale, boolean dateString, String maruCodeId, Long domainId, String domainName, String typeSource, String description)`. `typeSource ∈ {COLUMN, RULE_RESULT, DECLARED, EXPRESSION_COLUMN, UNRESOLVED}` |
 | `RuleAnalysisInputMapper.java` | `static AnalysisRule toAnalysisRule(String ruleId, String ruleKind, String hitPolicy, List<ResolvedVar> vars, List<StoredRow> rows)` — 06 표기 `DISP_TYPE` → 엔진 `DispType`(`Equal→EQUAL, 1→ONE, 2→TWO, Expression→EXPRESSION, Value→VALUE`), 셀 JSON → `RuleCell`(`text` 는 null). `StoredRow` 는 `record StoredRow(int rowId, int seq, String rowKind, String cells)` |
 | `RuleUsageFinder.java` | `@Component`. 카드 ⑧ 계산(§6.3.9) |
+| `RuleStewardCheck.java` | `@Component`. **담당자 역할 판단의 유일한 연결 지점**(§7.1). `void requireSteward()`·`boolean isSteward()` 두 메서드만 둔다. 06-02 머지 전 몸체는 `MdmCurrentUser.roleIds().contains(MdmRoles.STEWARD)` 이고 아니면 `MdmErrors.of(MdmErrorCode.STEWARD_ROLE_REQUIRED)`(MDM013). 06-02 머지 뒤 몸체를 `MdmStewardGuard.requireSteward()` 위임으로 바꾼다. 이 Task 의 서비스는 역할을 직접 보지 않고 이 클래스만 부른다 |
 
 **RM — BE 룰 조회·등록(B3)**
 
@@ -210,7 +211,7 @@ EXTERNAL 등록은 보류다(D11). 마이그레이션은 만들지 않는다.
 |---|---|
 | **T** `BLT/contract/rule/MdmRuleContractOnlyArchitectureTest.java` | `main_에_MdmRuleIdIssuer_구현_클래스가_없다` 와 `공허_통과_방지_위반_표본은_발급기_구현_규칙에_잡힌다`, `noIssuerImplementation()` 을 지운다(TSK-08-01 §7 의 해제 조건). `_06_리포지토리는_메서드를_선언하지_않는다` 는 **남긴다**(D12). 위반 표본 `BLT/contract/rule/violation/ViolatingIssuer.java` 는 더 쓰는 곳이 없으면 함께 지운다 |
 | **T** `BAT/MdmBusinessRuleMigrationTest.java:521-528` | `BUSINESS_RULE DRAFT 삭제 훅 빈` 줄과 `식별자 발급기 빈` 줄을 지운다. 확정 SPI(08-05 몫)와 `DefinitionLookup`(08-04 몫) 줄은 남긴다. 메서드 이름은 `계약_전용_06_확정_검사와_정의_조회_빈이_없다` 로 바꾼다 |
-| **T** `BAT/common/version/VersionScenarioTestConfig.java:61-64` | `businessRuleDraftDeletion()` 가짜 빈을 지운다(F12). 이 가짜 훅의 호출 기록(`Events`)을 단언하는 BUSINESS_RULE 시나리오가 있으면 실물 훅으로 바꾼 뒤에도 성립하는 단언(버전 행·VAR·ROW 가 지워졌다)으로 고친다 |
+| **T** `BAT/common/version/VersionScenarioTestConfig.java:61-64` | §7.2 의 두 경로 중 하나. 06-02 가 먼저 dev 에 머지돼 있으면 이 파일을 고치지 않고 06-02 의 일반형 `BeanFactoryPostProcessor` 가 실물 훅 정의를 지우게 둔다. 아니면 임시로 `businessRuleDraftDeletion()` 가짜 빈 한 개만 지우고(이 가짜 훅의 `Events` 를 단언하는 BUSINESS_RULE 시나리오가 있으면 실물 훅으로도 성립하는 단언으로 고친다), 06-02 머지 뒤 origin/dev 를 머지할 때 06-02 쪽 파일을 받아 가짜 빈을 되살린다 |
 | **S** `BL/contract/security/MdmActions.java` | `LOCK = "lock"`, `UNLOCK = "unlock"`, `HANDOVER = "handover"` 추가, javadoc "16종" |
 | **S** `BL/contract/security/MdmPermissions.java` | `EDIT_ACTIONS`·`CONFIRM_ACTIONS` 에 `LOCK, UNLOCK, HANDOVER` 를 `RESTORE` 뒤에 추가(READ 는 그대로) |
 | **S** `DI` | (1) `allActions` 에 `"lock", "unlock", "handover"` 추가. (2) `editActions = readActions + ",save,delete,reg,import,validate,execute,copy,restore,lock,unlock,handover"`. (3) PERM_MDM_EDIT·PERM_MDM_CONFIRM 이 이미 있는 DB 를 위한 보정 `ensurePermActions(String permissionId, String desiredCsv)` — `ensurePermAllActions`(`DI:1497`)와 같은 방식으로 빠진 action 만 덧붙인다. (4) `seedMdmRuleMenus()` 새 메서드를 `seedMdmMenus()` 끝에서 부른다: `ruleMng`("룰", menuSeq "001", fullSeq "5050100")·`ruleEdit`("룰 화면", "002", "5050200") 각각 `insertMcmSecObjIfAbsent(id, 이름, "mdm")` → `insertMcmSecMenuIfAbsent(id, seq, fullSeq, 이름, "dme", id)` → SYSADMIN×PERM_ALL → `seedMdmObjectRbac(id, "dme")`. `seedMdmDomainMngMenu()`(`DI:1058`) 모양을 그대로 따른다 |
@@ -375,11 +376,11 @@ BPMN 은 `.claude/skills/bpmn-skill/SKILL.md`(bpmn-tool 로 생성·검증)와 `
 |---|---|---|
 | I1 | **룰 ID = `NamingRules.STD_PHYS_NAME` 정규식 + 50자 이하**. 서버가 판정하고 화면 검사는 보조다 | 정규식을 `^[A-Z][A-Z0-9_]*$` 로 느슨하게 → `RuleIdRulesTest`(`QLTY__GRD`) / 길이 검사 삭제 → 51자 사례 |
 | I2 | **등록은 원천 MDM 만**: 서버가 `SOURCE_KIND='MDM'`, `SOURCE_SYSTEM=NULL` 로 쓰고, 요청의 `sourceKind` 가 비어 있지 않고 `MDM` 이 아니면 거부한다 | 거부 분기 삭제 → `RuleMngServiceTest` EXTERNAL 사례 |
-| I3 | **등록 = TB_MDM_RULE(CREATED) + TB_MDM_RULE_VER(ver 1, DRAFT, owner=등록자, row_version 0, base_ver NULL, hit = DECISION 이면 FIRST·DERIVE 면 NULL) 한 트랜잭션**. 변수·행은 넣지 않는다. 등록자는 담당자 역할(`MdmRoles.STEWARD`)이어야 한다(MDM013) | VER INSERT 를 트랜잭션 밖으로 / owner 누락 / 역할 검사 삭제 → `RuleMngServiceTest` |
+| I3 | **등록 = TB_MDM_RULE(CREATED) + TB_MDM_RULE_VER(ver 1, DRAFT, owner=등록자, row_version 0, base_ver NULL, hit = DECISION 이면 FIRST·DERIVE 면 NULL) 한 트랜잭션**. 변수·행은 넣지 않는다. 등록자는 담당자 역할이어야 하고 이 판단은 `RuleStewardCheck.requireSteward()` 한 곳으로만 한다(MDM013, §7.1) | VER INSERT 를 트랜잭션 밖으로 / owner 누락 / 역할 검사 삭제 → `RuleMngServiceTest` |
 | I4 | **새 버전 전에 `VersionWriteGuard.checkCanCreateVersion(BUSINESS_RULE, ruleId)` 를 부른다**(미적용 = DRAFT·REQUESTED·APPROVED·`APPLY_FROM > now` 인 RELEASED). 새 버전 번호 = 그 룰 버전 최대값 + 1(없으면 1) | 호출 삭제 → `RuleVersionServiceTest` MDM006 네 사례 |
 | I5 | **새 버전 = 직전 RELEASED(= RELEASED 중 ver 최대) 복사**: VAR·ROW 모든 칼럼과 `var_id`·`row_id`·`seq` 유지, `hit_policy` 복사, `base_ver` = 그 버전, owner = 만든 사람. RELEASED 가 없고 버전이 하나도 없으면 빈 VER 1. RELEASED 가 없는데 다른 버전이 있으면 거부. DEPRECATED·EXTERNAL 룰은 거부 | row_id 재발급 / base_ver 누락 / collect_agg 등 일부 칼럼 누락 → `RuleVersionServiceTest` 칼럼 전수 비교 |
 | I6 | **소유권·삭제는 공통 서비스로만 한다**: 선점 `DraftOwnershipService.acquire`, 해제 `release`, 넘기기 `handover`, DRAFT 삭제 `VersionStateService.deleteDraft`, DRAFT 저장 직전 `VersionWriteGuard.beginDraftWrite`. OWNER_ID·ROW_VERSION·STATUS 를 영역 코드가 직접 UPDATE 하지 않는다(폐기의 부모 STATUS 만 예외, I9) | 표 저장에서 `beginDraftWrite` 호출 삭제 → `RuleTableServiceTest` 비소유자·충돌 사례 |
-| I7 | **비소유자는 쓰기 불가**: 표 저장·DRAFT 삭제·해제·넘기기는 공통 서비스의 소유자 검사(MDM003)로, 헤더 저장·폐기는 D6 규칙으로 막는다. `view` 는 누구나 된다. `editable = sourceKind=='MDM' && ver.status=='DRAFT' && ver.ownerId==me` 이고 화면은 이것만으로 표 편집을 켠다. `headerEditable = sourceKind=='MDM' && (미적용 버전 중 소유자가 있는 것이 있으면 그 ownerId==me, 없으면 me 가 담당자 역할)`(D6)이고 화면은 이것만으로 헤더 편집을 켠다 | `editable` 에서 owner 조건 삭제 → `RuleEditViewTest` / 헤더 소유자 검사 삭제 → `RuleHeaderServiceTest` |
+| I7 | **비소유자는 쓰기 불가**: 표 저장·DRAFT 삭제·해제·넘기기는 공통 서비스의 소유자 검사(MDM003)로, 헤더 저장·폐기는 D6 규칙으로 막는다. `view` 는 누구나 된다. `editable = sourceKind=='MDM' && ver.status=='DRAFT' && ver.ownerId==me` 이고 화면은 이것만으로 표 편집을 켠다. `headerEditable = sourceKind=='MDM' && (미적용 버전 중 소유자가 있는 것이 있으면 그 ownerId==me, 없으면 `RuleStewardCheck.isSteward()`)`(D6)이고 화면은 이것만으로 헤더 편집을 켠다 | `editable` 에서 owner 조건 삭제 → `RuleEditViewTest` / 헤더 소유자 검사 삭제 → `RuleHeaderServiceTest` |
 | I8 | **표 저장이 쓰는 범위는 그 DRAFT 버전의 TB_MDM_RULE_ROW 전체 교체와 TB_MDM_RULE_VER.HIT_POLICY 뿐이다.** TB_MDM_RULE_VAR 는 읽기만 한다(열 편집은 08-03). 교체 순서: `beginDraftWrite` → 그 버전 ROW 전부 삭제 → 새 행 INSERT(부분 유일 인덱스 `UX_TB_MDM_RULE_ROW_SEQ` 때문에 UPDATE 로 순서를 바꾸지 않는다) → HIT_POLICY UPDATE, 모두 한 트랜잭션 | VAR 를 다시 쓰게 변경 → `RuleTableServiceTest` "VAR 불변" / UPDATE 로 seq 교체 → 순서 바꿈 사례 |
 | I9 | **폐기 = TB_MDM_RULE.STATUS 를 INUSE → DEPRECATED 로 네이티브 UPDATE**(감사 칼럼 포함). 조건: 원천 MDM, 현재 INUSE, 미적용 버전 없음(`checkCanCreateVersion` 재사용, 04:513). 폐기한 룰은 새 버전 거부 | 조건 삭제 → `RuleHeaderServiceTest` |
 | I10 | **seq 는 서버가 정한다**: 요청 rows 순서대로 NORMAL 은 1..n, DEFAULT 는 0. 기본 행은 DECISION 룰에만, 많아야 하나. 기존 row_id 는 그 DRAFT 버전(저장 전)에 있던 것만 받는다. 새 행은 음수 임시 ID 이고 `MdmRuleIdIssuer.issue(ruleId, ROW, 새 행 수)` 한 번으로 번호를 받으며 응답 `rowIdMap{"-1": 5, …}` 로 돌려준다. 지운 번호는 다시 쓰지 않는다 | 클라이언트 seq 사용 / 기본 행 둘 허용 / 임시 ID 를 그대로 저장 → `RuleTableServiceTest` |
@@ -402,6 +403,7 @@ BPMN 은 `.claude/skills/bpmn-skill/SKILL.md`(bpmn-tool 로 생성·검증)와 `
 | I27 | **마이그레이션을 만들지 않는다**. 06 리포지토리 6개에 메서드를 선언하지 않는다(조회는 `RuleQueries`) | 리포지토리 메서드 추가 → `_06_리포지토리는_메서드를_선언하지_않는다` |
 | I28 | **화면 간 이동은 `@/dme/rule-handoff` 로만**: sessionStorage 키 `mdm.dme.ruleEdit.target` 에 `{ruleId, ver?}` 를 쓰고, `mdm-rule-edit-target` 이벤트 → `portal-open-tab`(`mdm:dme/ruleEdit`) 순으로 보낸다. ruleEdit 는 읽은 뒤 지운다 | 읽고 안 지움 → `rule-handoff.test.ts` |
 | I29 | **서버 페이징**: `page`(0부터)·`size`(기본 20, 최대 100) 로 JPQL `setFirstResult/setMaxResults`, 정렬 `maruRuleId`, `totalCount` 는 같은 필터의 count. 키워드는 ID 대문자 포함 또는 룰명 포함(`%`·`_` 이스케이프) | 필터 없이 count → `RuleMngServiceTest` 페이지 경계 |
+| I30 | **담당자 역할 판단은 `RuleStewardCheck` 한 곳**이고, 소유자 판단은 공통 버전 서비스의 `OWNER_ID` 로만 한다. 이 Task 의 서비스·화면 코드에 `MdmRoles.STEWARD` 를 직접 쓰지 않는다(06-02 `MdmStewardGuard` 머지 뒤 이 한 곳만 바꾼다, §7.1) | 서비스에 역할 직접 검사 추가 → 코드 리뷰 + `grep -rn "MdmRoles.STEWARD" BL/dme` 가 0건 |
 
 ---
 
@@ -444,8 +446,8 @@ BPMN 은 선례대로 `actionGateway` 하나에 action 마다 serviceTask 하나
 ### 6.3 서비스 규칙
 
 1. **view**: `ver` 가 없으면 06 시안 `curVer` 순서로 고른다 — 미적용 DRAFT → 그 밖의 미적용(REQUESTED·APPROVED) → 현재 RELEASED(`apply_from <= now < apply_to`) → 가장 큰 ver. 버전이 없으면 `selectedVer=null`·빈 표. `now` 는 `LocalDateTime.now(clock).truncatedTo(SECONDS)`(공통 `Clock` 빈).
-2. **register**(`ruleMngService`): `RuleIdRules.validateRuleId` → 룰명 필수·100자 이하 → `ruleKind ∈ {DECISION, DERIVE}` → `sourceKind` 검사(I2) → 담당자 역할(I3) → `existsById` 면 `DUPLICATE_DATA` → `TransactionTemplate` 안에서 `new MdmRule(id, name, kind, "MDM")`(설명·메모 setter) 저장 → `new MdmRuleVer(id, 1, me)` + `setHitPolicy`·`setBaseVer(null)` 저장.
-3. **newVersion**: 원천 MDM·상태 != DEPRECATED·담당자 역할 → `checkCanCreateVersion` → 직전 RELEASED 찾기 → `new MdmRuleVer(id, next, me)` + base·hit 복사 → VAR·ROW 칼럼 전수 복사(엔티티 생성자 + setter, `collectAgg` 등 null 이면 null 그대로 — 원본 값을 복사하므로 DB 기본값 문제 없음) — 한 트랜잭션.
+2. **register**(`ruleMngService`): `RuleIdRules.validateRuleId` → 룰명 필수·100자 이하 → `ruleKind ∈ {DECISION, DERIVE}` → `sourceKind` 검사(I2) → `RuleStewardCheck.requireSteward()`(I3) → `existsById` 면 `DUPLICATE_DATA` → `TransactionTemplate` 안에서 `new MdmRule(id, name, kind, "MDM")`(설명·메모 setter) 저장 → `new MdmRuleVer(id, 1, me)` + `setHitPolicy`·`setBaseVer(null)` 저장.
+3. **newVersion**: 원천 MDM·상태 != DEPRECATED·`RuleStewardCheck.requireSteward()` → `checkCanCreateVersion` → 직전 RELEASED 찾기 → `new MdmRuleVer(id, next, me)` + base·hit 복사 → VAR·ROW 칼럼 전수 복사(엔티티 생성자 + setter, `collectAgg` 등 null 이면 null 그대로 — 원본 값을 복사하므로 DB 기본값 문제 없음) — 한 트랜잭션.
 4. **deleteDraft**: 원천 MDM → `VersionStateService.deleteDraft(ref, rowVersion, me)`(소유자·DRAFT·row_version·훅은 공통 서비스가 본다).
 5. **lock/unlock/handover**: 원천 MDM → `DraftOwnershipService.acquire/release/handover(ref, rowVersion, me[, newOwnerId])` → 새 row_version 반환. 선점은 공통 서비스가 담당자 역할을 본다.
 6. **saveHeader**(part HEADER): 원천 MDM → D6 권한 규칙 → 룰명 필수·100자 이하 → 엔티티 setter 로 `maruRuleName`·`description`·`usageNote` 저장(이 셋은 `updatable=false` 가 아니다). TB_MDM_RULE 에 row_version 이 없으므로 헤더는 마지막 저장이 이긴다(버전과 무관한 값, 06:913).
@@ -509,6 +511,20 @@ BPMN 은 선례대로 `actionGateway` 하나에 action 마다 serviceTask 하나
 
 - `vars` 원소는 `ResolvedVar` 의 분석용 부분 집합, `rows` 는 저장 형태(`cells` 는 문자열)다. `expect` 에서 없는 칸(`varId`·`lower`·`upper`)은 생략한다(null 과 같게 본다).
 - 최소 사례(러너 하한 **30**): TS 골든 21건 전부 이전, `QLTY_GRD_JDG`·`BASE_SPD_LKP`(`M/tests/fixtures/evalex-rules.ts`) 원형, 그리드 고유 사례(새 행 ALL_NA_ROW, 콤마 목록 IN, 2 타입 열의 1 타입 op, Expression 조건 열 NA·비NA, 일자 String 구간, 코드 도메인 CODE_IN, 해석 불가 STRING 열) 8건 이상.
+
+#### 6.6.3 08-04 가 그대로 쓰는 공개 API (고정)
+
+팀장 지시(2026-09-24)로 08-04 는 이 분석기를 다시 만들지 않고 쓴다. 아래 서명과 뜻은 이 Task 가 고정하고, 08-04 는 **더하기만** 한다(바꾸려면 새 결정이 필요하다).
+
+| 자리 | 고정하는 것 |
+|---|---|
+| `kr.dongkuk.maru.mdm.engine.rule.RuleAnalyzer` | `public static List<RuleIssue> analyze(AnalysisRule rule)` — 상태 없음·스레드 안전·예외 없음(못 푸는 셀은 이슈로 낸다). 입력 리스트를 바꾸지 않는다. 결과는 불변 리스트 |
+| `AnalysisRule`·`AnalysisVar`·`RuleIssue`·`RuleIssueCode`·`RuleIssue.Severity` | §2.1-E 의 record 칼럼 순서·이름·enum 상수. 새 칼럼이 필요하면 record 를 바꾸지 말고 오버로드(`analyze(AnalysisRule, AnalysisOptions)`)를 더한다 |
+| 이슈 순서와 심각도 규칙 | I14(TS 와 같음). 저장 거부 여부는 분석기가 정하지 않는다 — `RuleSaveCheck`(§6.8)가 정한다 |
+| `com.dongkuk.dmes.mdm.common.rule.RuleAnalysisInputMapper` | `static AnalysisRule toAnalysisRule(String ruleId, String ruleKind, String hitPolicy, List<ResolvedVar> vars, List<StoredRow> rows)` — 저장 형태(06 표기 `DISP_TYPE`, 셀 JSON 문자열) 입력. 값 테스트의 "본문 정의" 경로도 이 모양을 쓴다 |
+| `RuleVarTypeResolver.resolve(ruleId, ver, vars)`·`ResolvedVar` | §6.4 규칙과 record 칼럼 |
+| `RuleCellsCodec.parse/write/validateShape` | 모양 검사만 한다(값 무변경, I17). 08-04 의 정규화는 별도 클래스로 더한다 |
+| 코퍼스 `ER/analysis/analysis-corpus.json` | `version: 1` 형식(§6.6.2). 08-04 는 사례를 **추가만** 하고 두 러너(Java `RuleAnalysisCorpusTest`, TS `rule-analysis-corpus.test.ts`)의 사례 수 하한을 함께 올린다 |
 
 ### 6.7 화면
 
@@ -574,6 +590,20 @@ BPMN 은 선례대로 `actionGateway` 하나에 action 마다 serviceTask 하나
 - 목록 ID 링크·등록 성공·활용처의 룰 링크는 `openRuleEdit(ruleId, ver?)` 를 부른다.
 - ruleEdit 는 마운트할 때 `takeRuleEditTarget()` 을 읽고, 이미 열린 탭은 `mdm-rule-edit-target` 이벤트를 듣고 그 룰로 바꾼다. 저장 안 한 변경이 있으면 확인을 받는다.
 - pageId 가 `mdm:dme/ruleEdit` 인지 Build 가 포털에서 한 번 확인하고(메뉴 클릭 뒤 탭의 pageId), 다르면 상수 한 곳만 고친다.
+
+## 7. TSK-06-02 공용 부품과의 연결 (06-02 머지 뒤 연결)
+
+팀장 지시(2026-09-24): `common/security/MdmStewardGuard`(`requireSteward()` → MDM013)와 `VersionScenarioTestConfig` 의 일반형 `BeanFactoryPostProcessor`(가짜가 있는 대상의 운영 SPI 빈 정의를 지운다)는 TSK-06-02 가 만든다. 08-02 는 같은 것을 새로 만들지 않고, 그 부품 없이도 Build 가 진행되게 연결 지점을 한 곳씩으로 모은다.
+
+### 7.1 담당자 역할 판단 — `RuleStewardCheck` 한 곳
+- 이 Task 의 모든 역할 판단(등록 I3, 새 버전 §6.3.3, 헤더·폐기 D6, `headerEditable`)은 `BL/common/rule/RuleStewardCheck` 만 부른다. 소유자 판단은 역할과 별개로 TSK-01-03 공통 서비스의 `OWNER_ID`(`beginDraftWrite`·`DraftOwnershipService`·`VersionStateService`)를 직접 쓴다. 선점·확정의 역할 검사는 공통 서비스 안(`VersionPreconditions.requireSteward`)에 이미 있으므로 이 Task 가 따로 부르지 않는다.
+- **06-02 머지 전**: `RuleStewardCheck` 몸체는 `MdmCurrentUser.roleIds().contains(MdmRoles.STEWARD)`, 아니면 `MdmErrors.of(MdmErrorCode.STEWARD_ROLE_REQUIRED)`. javadoc 에 "06-02 `MdmStewardGuard` 머지 뒤 위임으로 바꾼다"를 적는다. 이 클래스는 가드의 사본이 아니라 연결 지점이다 — 메서드 두 개 외에 규칙을 두지 않는다.
+- **06-02 머지 뒤**(origin/dev 를 머지했을 때 `MdmStewardGuard` 가 있으면): `requireSteward()` 는 `mdmStewardGuard.requireSteward()` 위임, `isSteward()` 는 가드가 판단 메서드(불리언)를 공개하면 그것에 위임하고, 공개하지 않으면 지금 몸체를 그대로 둔다(예외를 잡아 불리언으로 바꾸지 않는다). 서비스 코드는 고치지 않는다. 테스트(`RuleMngServiceTest`·`RuleHeaderServiceTest` 의 MDM013 사례)는 그대로 통과해야 한다.
+
+### 7.2 테스트 설정의 SPI 중복 — `VersionScenarioTestConfig`
+- **Build 착수 때 origin/dev 확인**: `/usr/bin/git fetch origin` 뒤 `origin/dev` 의 `VersionScenarioTestConfig` 에 06-02 의 일반형 `BeanFactoryPostProcessor` 가 있으면 origin/dev 를 먼저 머지하고 이 파일을 고치지 않는다(가짜 `businessRuleDraftDeletion` 이 남고 실물 `RuleDraftDeletionHook` 정의가 그 테스트 컨텍스트에서 지워진다).
+- **없으면**: 가짜 `businessRuleDraftDeletion()` 빈 한 개만 지워 실물 훅으로 컨텍스트가 뜨게 한다(§2.2-T). 06-02 가 뒤에 머지돼 이 파일이 충돌하면 06-02 쪽을 받아 가짜 빈을 되살린다 — 그러면 BFPP 가 실물 정의를 지우므로 두 방식 모두에서 `BusinessRuleVersionScenarioSqliteTest` 가 통과해야 한다.
+- 어느 경로였는지 Build 보고와 이 절 끝에 한 줄로 적는다.
 
 ---
 
@@ -652,8 +682,7 @@ cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 - **질문**: 지시는 TSK-03-04 의 서버 분석을 호출하라고 했지만 서버 분석기가 없다(F17). 수용 기준 7 을 어떻게 채우나?
 - **선택지**: (a) TS 분석기를 `engine.rule` Java 로 알고리즘 그대로 이식하고, 저장이 이것을 돌려 이슈를 돌려주며, 분석 코퍼스 한 벌을 JUnit·Vitest 가 함께 읽는다(TSK-03-04 D1 반려 방향) / (b) 서버는 분석하지 않고 셀 코퍼스(`engine-corpus.json`)의 셀 판정 동치만으로 해석한다 / (c) 서버 분석을 08-04 로 미루고 이 기준을 "확인하지 못함"으로 둔다
 - **택한 것**: (a)
-- **근거와 강약**: spec 수용 기준 원문이 "서버 저장 검사 결과"와의 동치를 요구한다(spec 본문, 가장 강함) — (b) 는 서버 결과가 없어 기준을 채우지 못하고, (c) 는 이 Task 의 기준을 버린다. (a) 는 승인된 선행 산출물 TSK-03-04 D1 이 적어 둔 이식 방향(`engine.rule` + `R/analysis/analysis-corpus.json`)을 그대로 따르고, 06:458 이 겹침·빈틈 계산을 `engine.rule` 에 두라고 한 원문과도 맞는다. 저장 시 검사의 나머지 20여 종은 08-04 에 남긴다.
-- **위험(보고)**: wbs 상 08-04 도 이 분석기를 쓴다. 08-04 가 08-02 머지 전에 시작하면 같은 이식을 다시 할 수 있다 — 팀장 조율 대상으로 보고했다.
+- **근거와 강약**: spec 수용 기준 원문이 "서버 저장 검사 결과"와의 동치를 요구한다(spec 본문, 가장 강함) — (b) 는 서버 결과가 없어 기준을 채우지 못하고, (c) 는 이 Task 의 기준을 버린다. (a) 는 승인된 선행 산출물 TSK-03-04 D1 이 적어 둔 이식 방향(`engine.rule` + `R/analysis/analysis-corpus.json`)을 그대로 따르고, 06:458 이 겹침·빈틈 계산을 `engine.rule` 에 두라고 한 원문과도 맞는다. 저장 시 검사의 나머지 20여 종은 08-04 에 남긴다. **팀장 지시 2026-09-24로 확정**: 이식과 공용 코퍼스는 08-02 가 맡고, 08-03·08-04 는 08-02 가 dev 에 머지된 뒤 착수한다. 그래서 08-04 가 그대로 쓰도록 공개 API 를 §6.6.3 으로 고정한다. 공용 기록 `docs/mdm/decisions.md` D-TSK-08-02-1.
 - **반려되면 재작업 방향**: (b) 면 Java 분석기·분석 코퍼스·저장 응답 issues 를 빼고, 수용 기준 7 을 "그리드 셀 JSON 왕복이 `engine-corpus.json` 셀 모양과 같고 두 셀 러너가 통과"로 바꿔 증명한다. (c) 면 이식 파일을 08-04 로 넘기고 매핑에 "확인하지 못함"을 적는다.
 
 ### D3 — 저장할 때 분석 ERROR 가 있으면 거부하나
@@ -668,14 +697,14 @@ cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 - **선택지**: (a) 새 action `lock`·`unlock`·`handover` 를 `MdmActions`·`MdmPermissions`·`allActions`·`PERM_MDM_EDIT/CONFIRM`·시드 대조에 더한다 / (b) 기존 13종 안에서 `execute` + 파라미터로 가른다
 - **택한 것**: (a)
 - **근거와 강약**: 승인된 선행 산출물 TSK-01-03 §7 인계(`design.md:598`)가 "`lock/unlock/handover` 액션 이름을 확정하면 `allActions`·`PERM_MDM_EDIT`·`MdmActions` 와 기대 출력을 함께 고친다"고 첫 소유권 화면 Task 에 넘겼고, `MdmActions` javadoc 도 같다. ADR-0003 D5 가 이 이름을 권장하지만 PROPOSED(미승인)라 보조 근거다. (b) 는 두 번째 게이트웨이 선례가 없고(F34) RBAC 키가 뜻을 잃는다. 이미 있는 로컬 DB 를 위해 `ensurePermActions` 보정을 더한다.
-- **위험(보고)**: 같은 기점의 TSK-06-02 가 같은 줄을 고칠 수 있다(팀장에 보고). 이름이 같으면 머지 충돌은 기계적으로 풀린다.
+- **팀장 지시 2026-09-24로 확정**: action 추가와 `allActions`·`PERM_MDM_EDIT`(·`PERM_MDM_CONFIRM`)·`MdmActions`·`MdmPermissions`·`mdm-rbac-seed-check.expected.txt` 수정은 08-02 가 맡고, 06-02 는 이 파일들을 건드리지 않는다. 공용 기록 D-TSK-08-02-2.
 - **반려되면 재작업 방향**: 새 action 을 빼고 `execute` 한 갈래에 `op ∈ {LOCK, UNLOCK, HANDOVER}` 를 두어 `RuleEditService.execute` 가 가른다. 시드·어휘·기대 출력 변경을 되돌린다.
 
 ### D5 — 넘기기 대상 담당자 조회 어댑터를 만드나
 - **질문**: `MdmStewardDirectory` 기본 구현은 늘 거부라 운영에서 넘기기가 MDM005 로 막힌다(F14). 이 Task 가 mcm 역할 조회 어댑터를 만드나?
 - **선택지**: (a) 만들지 않는다 — 넘기기 UI·API 는 공통 서비스에 연결하고 대상 검사는 포트에 맡긴다 / (b) mcm 에 client-key 전용 역할 조회 API 와 mdm RestClient 어댑터를 만든다
 - **택한 것**: (a)
-- **근거와 강약**: TSK-01-03 §7 은 이 일을 "06-02·08-02 중 먼저 오는 것"에 넘겼고 mcm 에 역할 조회 경로를 새로 두는 일을 **보안 검토 대상**으로 적었다(승인된 선행 산출물). 06-02 가 같은 기점에서 병렬로 돌고 있어 두 Task 가 같은 교차 모듈 작업을 따로 할 위험이 있다. spec 수용 기준에는 넘기기 성공이 없다. BE 테스트는 가짜 디렉터리로 넘기기 성공·실패를 모두 확인한다.
+- **근거와 강약**: TSK-01-03 §7 은 이 일을 "06-02·08-02 중 먼저 오는 것"에 넘겼고 mcm 에 역할 조회 경로를 새로 두는 일을 **보안 검토 대상**으로 적었다(승인된 선행 산출물). 06-02 가 같은 기점에서 병렬로 돌고 있어 두 Task 가 같은 교차 모듈 작업을 따로 할 위험이 있다. spec 수용 기준에는 넘기기 성공이 없다. BE 테스트는 가짜 디렉터리로 넘기기 성공·실패를 모두 확인한다. **팀장 지시 2026-09-24로 확정**: 담당자 조회 어댑터는 만들지 않는다. 공용 기록 D-TSK-08-02-3.
 - **반려되면 재작업 방향**: TSK-01-03 D7 의 (c) 방향 — mcm/lib 에 `GET /api/sec/internal/user-roles?userId=`(client-key 전용)를 두고 mdm 에 `RestClientStewardDirectory` 를 `@Primary` 로 더한 뒤 e2e 에 넘기기 성공 시나리오(steward → steward2)를 넣는다. 보안 검토를 먼저 받는다.
 
 ### D6 — 헤더(룰명·설명·활용처 메모) 저장과 폐기는 누가 하나
@@ -752,5 +781,5 @@ cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 - **Vitest**: 렌더 테스트는 첫 줄 `// @vitest-environment happy-dom`, `DmesUiProvider` 로 감싸고 `globalThis.fetch` 를 `vi.fn` 으로 바꾼다(`M/tests/dma/termMng/term-mng-page.test.ts`). 테스트에서 evalex 는 상대경로 `../../../src/evalex` 로 가져온다. `pnpm build:libs` 를 먼저 돌리지 않으면 m-mdm 테스트 3개 파일이 실패한다.
 - **분석 코퍼스 경로**: Vitest 는 `M/tests/helpers/engine-paths.ts` 의 `ANALYSIS_CORPUS_PATH`, mdm/lib JUnit 은 프로젝트 디렉터리 기준 `../../maru-mdm-engine/src/test/resources/kr/dongkuk/maru/mdm/engine/analysis/analysis-corpus.json`(Gradle 테스트 작업 디렉터리 = `src/backend/mdm/lib`). 파일이 없으면 실패시킨다.
 - **e2e 스크린샷 덮어쓰기**: `mdm-shell-rbac-smoke.spec.ts` 가 TSK-01-03 스크린샷을 덮어쓴다 — E2E 절차 8) 로 되돌린다.
-- **decisions.md**: 이 Task 는 공용 `docs/mdm/decisions.md` 에 블록을 더하지 않는다. 더할 일이 생기면 전역 번호가 아니라 임시 ID `D-TSK-08-02-<n>` 을 쓴다.
+- **decisions.md**: 팀장이 확정한 D2·D4·D5 는 공용 `docs/mdm/decisions.md` 에 임시 ID `D-TSK-08-02-1`~`D-TSK-08-02-3` 블록으로 적었다. 더할 일이 생기면 `D-TSK-08-02-4` 부터 이어 쓰고 전역 번호를 매기지 않으며 기존 블록은 고치지 않는다.
 - **겪은 문제는 `.issues` 에 직접 쓰지 않고 Phase 보고에 올린다.**
