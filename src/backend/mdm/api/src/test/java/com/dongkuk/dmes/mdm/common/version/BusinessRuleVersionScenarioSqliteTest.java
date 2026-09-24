@@ -156,10 +156,9 @@ class BusinessRuleVersionScenarioSqliteTest extends AbstractVersionStateScenario
         versionStateService.deleteDraft(v1, 0, KIM);
 
         assertNull(readVersionOrNull(v1));
-        // 가짜 훅이 등록된 설정(TSK-06-02 일반형 BFPP 뒤)이면 호출 기록을 보고, 실물 훅(TSK-08-02 RuleDraftDeletionHook)이면
-        // 할 일이 없으므로 아래 CASCADE 결과로 판정한다(TSK-08-02 design §7.2 — 두 방식 모두에서 성립).
-        draftDeletions.stream().filter(h -> h.target() == VersionTarget.BUSINESS_RULE).findFirst()
-                .ifPresent(h -> assertEquals(List.of(v1), h.calls()));
+        // 이 설정에서는 가짜 훅이 BUSINESS_RULE 삭제를 받는다 — 실물 RuleDraftDeletionHook 정의는 TSK-06-02 후처리기가 지운다
+        // (TSK-08-02 design §7.2). 실물 훅의 CASCADE 는 운영 컨텍스트의 RuleVersionServiceTest 가 본다.
+        assertEquals(List.of(v1), draftDeletion(VersionTarget.BUSINESS_RULE).calls());
         assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'CASCADE_RULE'", Integer.class));
         assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'CASCADE_RULE'", Integer.class));
     }
