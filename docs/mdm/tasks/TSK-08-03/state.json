@@ -2,7 +2,7 @@
   "tsk": "TSK-08-03",
   "order": "a7491aaa-b87a-4a78-b68d-79d917bfe3bc",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "build",
+  "phase": "verify",
   "baseline": {
     "docker": "off",
     "cmds": [
@@ -48,5 +48,45 @@
     "tests": 3830,
     "excluded": "mssqlMigrationTest (도커 런타임 꺼짐 — 켜는 것은 사람 몫, 방언 검증이 머지 뒤 재시도)"
   },
-  "model": "sonnet"
+  "model": "sonnet",
+  "last": {
+    "phase": "build",
+    "event": "gate.pass"
+  },
+  "build_gate": {
+    "head": "784c46f",
+    "cmds": [
+      {
+        "cwd": "src/backend",
+        "cmd": "./gradlew testAll --no-daemon --console=plain",
+        "tests": 3118,
+        "failures": 0
+      },
+      {
+        "cwd": "src/frontend",
+        "cmd": "pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 756,
+        "failures": 0
+      },
+      {
+        "cwd": "src/frontend",
+        "cmd": "pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0
+      },
+      {
+        "cwd": "src/frontend",
+        "cmd": "pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0
+      }
+    ],
+    "new_failures": []
+  }
 }
