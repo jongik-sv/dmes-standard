@@ -172,8 +172,8 @@ export function contractSourceOfView(view: RuleEditView, which: "current" | "bas
   if (!selected) return null;
   if (which === "base") {
     if (selected.baseVer == null || !view.baseVars || view.baseVars.length === 0) return null;
-    // base 버전의 저장 원값(varMeta)은 응답에 없다 — var_id 는 버전 복사에서 유지되므로 같은 var_id 의 지금 값을 쓴다(열 조건 참조가 같다고 본다).
-    return { ruleId: view.rule.maruRuleId, ruleKind: view.rule.ruleKind, hitPolicy: null, vars: view.baseVars, meta: view.varMeta ?? [], rows: view.baseRows };
+    // base 버전의 저장 원값은 `baseVarMeta` 다. 없는 응답(옛 서버)이면 var_id 가 버전 복사에서 유지되므로 지금 varMeta 로 대신한다.
+    return { ruleId: view.rule.maruRuleId, ruleKind: view.rule.ruleKind, hitPolicy: null, vars: view.baseVars, meta: view.baseVarMeta ?? view.varMeta ?? [], rows: view.baseRows };
   }
   return {
     ruleId: view.rule.maruRuleId,

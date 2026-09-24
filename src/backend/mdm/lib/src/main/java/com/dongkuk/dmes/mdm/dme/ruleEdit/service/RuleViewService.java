@@ -88,6 +88,7 @@ public class RuleViewService {
             out.setBaseVars(List.of());
             out.setVarCandidates(List.of());
             out.setVarMeta(List.of());
+            out.setBaseVarMeta(List.of());
             out.setIssues(List.of());
             out.setEditable(false);
         } else {
@@ -103,6 +104,9 @@ public class RuleViewService {
                     : resolver.resolve(id, selected.getBaseVer(), queries.vars(id, selected.getBaseVer())));
             out.setVarCandidates(varCandidates(id));
             out.setVarMeta(queries.vars(id, ver).stream().map(RuleViewService::varMeta).toList());
+            // base 버전의 저장 원값 — 입력 계약 diff 가 base 의 열 조건(grp_cond) 참조를 지금 값과 섞지 않게 한다.
+            out.setBaseVarMeta(selected.getBaseVer() == null ? List.of()
+                    : queries.vars(id, selected.getBaseVer()).stream().map(RuleViewService::varMeta).toList());
             List<StoredRow> stored = rows.stream().map(r -> new StoredRow(r.getRowId(), r.getSeq(), r.getRowKind(), r.getCells())).toList();
             out.setIssues(RuleIssueMaps.of(RuleAnalyzer.analyze(
                     RuleAnalysisInputMapper.toAnalysisRule(id, rule.getRuleKind(), selected.getHitPolicy(), vars, stored))));

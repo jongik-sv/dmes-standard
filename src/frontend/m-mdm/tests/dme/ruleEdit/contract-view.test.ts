@@ -180,6 +180,45 @@ describe("contractOfView — view 응답(baseVars·baseRows)에서 계약과 dif
     expect(r.contractWarnings[0]).toContain("SPEC_GRAV");
   });
 
+  // BASE_SPD_LKP: 열 조건(grp_cond)이 TOP_RESIN_CD·COAT_SIDE 를 읽어 필수가 된다. base(v1)는 열 조건이 없던 버전으로 본다.
+  const GRP_TEXTS: Record<number, string> = {
+    2: 'STR_STARTS_WITH(TOP_RESIN_CD, "2")',
+    3: 'STR_STARTS_WITH(TOP_RESIN_CD, "6")',
+    4: 'TOP_RESIN_CD == "F"',
+    5: 'STR_STARTS_WITH(TOP_RESIN_CD, "W") && COAT_SIDE == "1"',
+    6: 'STR_STARTS_WITH(TOP_RESIN_CD, "W") && COAT_SIDE == "2"',
+    7: 'STR_STARTS_WITH(TOP_RESIN_CD, "B") && COAT_SIDE == "1"',
+    8: 'STR_STARTS_WITH(TOP_RESIN_CD, "B") && COAT_SIDE == "2"',
+  };
+  function grpView(withBaseMeta: boolean): { v: RuleEditView; asts: Record<string, ReturnType<typeof ast>> } {
+    const { src } = sourceOf(BASE_SPD_LKP, GRP_TEXTS);
+    const noGrp = src.meta.map((m) => ({ ...m, grpCond: null }));
+    const cur = draftView("me", "me");
+    const v: RuleEditView = {
+      ...cur,
+      rule: { ...cur.rule, maruRuleId: "BASE_SPD_LKP" },
+      vars: src.vars,
+      varMeta: src.meta,
+      rows: src.rows,
+      baseVars: src.vars,
+      baseRows: src.rows,
+      ...(withBaseMeta ? { baseVarMeta: noGrp } : {}),
+    };
+    return { v, asts: Object.fromEntries(Object.values(GRP_TEXTS).map((t) => [t, ast(t)])) };
+  }
+
+  it("DRAFT 에서 grp_cond 가 새 변수를 참조하면 필수 입력 증가 경고가 난다(base 는 baseVarMeta 로 계산한다)", () => {
+    const { v, asts } = grpView(true);
+    const r = contractOfView(v, asts);
+    expect(r.contractWarnings.some((w) => w.includes("TOP_RESIN_CD"))).toBe(true);
+    expect(r.contractWarnings.some((w) => w.includes("COAT_SIDE"))).toBe(true);
+  });
+
+  it("baseVarMeta 가 없으면(옛 응답) base 도 지금 varMeta 로 계산한다 — 열 조건 변경은 잡히지 않는다(기존 동작)", () => {
+    const { v, asts } = grpView(false);
+    expect(contractOfView(v, asts).diffs).toEqual([]);
+  });
+
   it("baseVars 가 없거나 base_ver 가 없으면 diff 없이 지금 계약만 계산한다", () => {
     const v = viewOf(PROD_WGT_CALC, PROD_WGT_CALC);
     expect(contractOfView({ ...v, baseVars: undefined }, {}).base).toBeNull();

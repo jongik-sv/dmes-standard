@@ -345,4 +345,25 @@ class RuleEditViewTest {
         assertEquals("LIST", meta.get(4).getCollectAgg());
         assertEquals(List.of("A", "B"), meta.get(4).getPrioList());
     }
+
+    @Test
+    void view_는_base_버전의_저장_원값을_baseVarMeta_로_싣는다_지금_버전_값과_섞이지_않는다() {
+        DmeTestSupport.pending(jdbc, "QLTY_GRD_JDG", 2, "DRAFT", "kim", "FIRST", 1);
+        DmeTestSupport.sampleDefinition(jdbc, "QLTY_GRD_JDG", 2);
+        jdbc.update("UPDATE TB_MDM_RULE_VAR SET RES_GRP = 'GRD', GRP_COND = 'COIL_THK > 1' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 AND VAR_ID = 4");
+
+        RuleEditViewResult v = view("QLTY_GRD_JDG", 2);
+        Map<Integer, RuleEditViewResult.VarMeta> base = new java.util.HashMap<>();
+        v.getBaseVarMeta().forEach(m -> base.put(m.getVarId(), m));
+
+        assertEquals(v.getBaseVars().size(), base.size(), "base 변수마다 한 건");
+        assertNull(base.get(4).getGrpCond(), "base(v1) 의 열 조건은 지금(v2) 초안에서 고친 값이 아니다");
+        assertEquals("COIL_THK > 1", v.getVarMeta().stream().filter(m -> m.getVarId() == 4).findFirst().orElseThrow().getGrpCond());
+    }
+
+    @Test
+    void base_버전이_없으면_baseVarMeta_는_빈_목록이다() {
+        RuleEditViewResult v = view("QLTY_GRD_JDG", 1);
+        assertEquals(List.of(), v.getBaseVarMeta());
+    }
 }

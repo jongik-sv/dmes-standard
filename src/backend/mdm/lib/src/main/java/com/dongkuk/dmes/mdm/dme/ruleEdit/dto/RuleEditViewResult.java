@@ -24,6 +24,7 @@ public class RuleEditViewResult {
     private List<ResolvedVar> baseVars;
     private List<VarCandidate> varCandidates;
     private List<VarMeta> varMeta;
+    private List<VarMeta> baseVarMeta;
     private List<Map<String, Object>> issues;
     private UsageInfo usage;
 
@@ -41,6 +42,7 @@ public class RuleEditViewResult {
     public List<ResolvedVar> getBaseVars() { return baseVars; }
     public List<VarCandidate> getVarCandidates() { return varCandidates; }
     public List<VarMeta> getVarMeta() { return varMeta; }
+    public List<VarMeta> getBaseVarMeta() { return baseVarMeta; }
     public List<Map<String, Object>> getIssues() { return issues; }
     public UsageInfo getUsage() { return usage; }
 
@@ -58,6 +60,7 @@ public class RuleEditViewResult {
     public void setBaseVars(List<ResolvedVar> v) { this.baseVars = v; }
     public void setVarCandidates(List<VarCandidate> v) { this.varCandidates = v; }
     public void setVarMeta(List<VarMeta> v) { this.varMeta = v; }
+    public void setBaseVarMeta(List<VarMeta> v) { this.baseVarMeta = v; }
     public void setIssues(List<Map<String, Object>> v) { this.issues = v; }
     public void setUsage(UsageInfo v) { this.usage = v; }
 

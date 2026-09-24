@@ -136,6 +136,8 @@ export interface RuleEditView {
   baseVars?: ResolvedVar[];
   varCandidates?: VarCandidate[];
   varMeta?: VarMeta[];
+  /** base(RELEASED) 버전의 저장 원값 — 입력 계약 diff 가 base 의 열 조건(grp_cond) 참조를 지금 값과 섞지 않게 한다. */
+  baseVarMeta?: VarMeta[];
   issues: RuleIssueView[];
   usage: { usageNote?: string | null; sets: RuleSetUsage[] };
 }
