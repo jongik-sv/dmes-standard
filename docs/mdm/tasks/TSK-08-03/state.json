@@ -2,7 +2,7 @@
   "tsk": "TSK-08-03",
   "order": "a7491aaa-b87a-4a78-b68d-79d917bfe3bc",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "refactor",
+  "phase": "reported",
   "baseline": {
     "docker": "off",
     "cmds": [
@@ -50,8 +50,8 @@
   },
   "model": "sonnet",
   "last": {
-    "phase": "verify",
-    "event": "gate.pass"
+    "phase": "reported",
+    "event": "done"
   },
   "build_gate": {
     "head": "784c46f",
