@@ -47,6 +47,8 @@ class DefaultMdmEffectiveDomainResolverTest {
         if (jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_DOMAIN", Integer.class) > 0) {
             return;
         }
+        // 3·4 번 도메인의 PROC_CD 참조는 FK_TB_MDM_DOMAIN_CODE 라 부모 코드 행이 먼저 있어야 한다(TSK-06-01 D11).
+        jdbc.update("INSERT OR IGNORE INTO TB_MDM_CODE (MARU_CODE_ID, MARU_CODE_NAME, STATUS, SOURCE_KIND) VALUES ('PROC_CD', '공정', 'INUSE', 'MDM')");
         String ins = "INSERT INTO TB_MDM_DOMAIN (DOMAIN_ID, DOMAIN_NAME, STD_NAME, PARENT_DOMAIN_ID, DOMAIN_KIND, DATA_TYPE, "
                 + "MARU_CODE_ID, CATE_ID, STD_RULE, STD_AST, BIZ_RULE, BIZ_AST, CHG_SEQ, VER) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,0)";
         jdbc.update(ins, 1, "두께", "THK", null, "TEXT", "STRING", null, null, "STR_LENGTH(value) > 0",
