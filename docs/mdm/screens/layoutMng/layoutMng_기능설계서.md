@@ -102,3 +102,70 @@ L01~L08 은 headerMng 와 같다(본문 항목 기준). 추가로:
 - 등록 거부 #2(값 유효 식)·#3(전송 단위 차원)·#4(자리 용량)·#7(unit_item 대상), 버전 증가·스냅샷·직렬화, `MdmDomainReferenceSpi(LAYOUT_ITEM)`
   는 TSK-05-03 몫이다(design.md D7).
 - 헤더를 전문마다 고를지 송수신 시스템으로 자동 정할지는 원천이 미결이다 — 이 화면은 EAI 표준 헤더 자동 부착 + 수동 추가를 한다(F25).
+
+## 9. TSK-05-03 추가 — 등록 검증·샘플 전문·버전·영향도
+
+구현 설계·테스트 정본은 [TSK-05-03 design.md](../../tasks/TSK-05-03/design.md) 다. §8 의 "TSK-05-03 몫" 항목은 이 절로 닫는다.
+
+### 9.1 탭 구성(오른쪽 패널)
+
+| 탭(testid) | 내용 | 액션 |
+|---|---|---|
+| 편집(`layout-tab-edit`, 기본) | §2 의 05-02 편집 화면 그대로 | search·view·save |
+| 등록 검증·샘플 전문(`layout-tab-check`) | 현재 편집 상태로 등록 거부 7종 표(#·거부 조건·코드·결과·메시지) + 본문 DATA 항목 예시 값 → 인코딩 바이트 기준 한 줄(눈금자·구역 색·가운뎃점·구간 표·파싱 결과) | validate·execute(쓰지 않는다) |
+| 버전·영향도(`layout-tab-version`) | 버전 이력(버전·저장 일시·저장자·변경·총 길이·전환 방식) + 변경 분류 표(시안 5행) + 스냅샷 미리보기·JSON·엑셀 내려받기 + 영향 전문 목록 | view(versions)·export·search(IMPACT) |
+
+- 전문을 고르지 않았으면 검증·샘플 탭은 안내만 보인다. 영향 전문 목록은 전문 선택과 무관하게 쓴다.
+- [신규] 는 편집 탭으로 돌아간다. 목록 선택은 요청을 늘리지 않는다(버전 이력은 view 응답에 실린다). export 는 버전 탭에서 이력 행을 고르거나 탭에 들어갈 때만 부른다.
+- 검증·렌더 버튼은 validate·execute 권한(표준 관리자)만 보인다. 담당자는 조회·내려받기만 한다.
+- 저장 성공 토스트 문구 `저장했습니다.` 는 그대로다.
+
+### 9.2 액션·요청·응답(행 키 UPPER_SNAKE)
+
+| action | 요청 | 응답(`data.result`) |
+|---|---|---|
+| search(target=IMPACT) | `keyword` — 컬럼 표준 물리명 또는 도메인 표준명·이름(둘 다 맞으면 합친다) | `impacts[{COLUMN_PHYS, COLUMN_NAME, DOMAIN_NAME, LAYOUT_ID, LAYOUT_NAME, LAYOUT_KIND, SEQ, ITEM("3 코일 두께 (158 / 4)"), SND_RCV("L2 → MES"), USED_BY_COUNT(헤더만), IMPACT}]` — 안 쓰는 컬럼은 `IMPACT="레이아웃에서 쓰지 않는다"` 한 줄 |
+| view(추가 키) | 그대로 | `versions[{LAYOUT_VERSION, SAVED_AT(yyyy-MM-dd HH:mm KST), SAVED_BY, TOTAL_LENGTH, SWITCH_MODE, CHANGE_KINDS, CHANGE_SUMMARY}]`(최신부터) |
+| save(추가 키) | 그대로 | `layoutVersion, versionCreated, switchMode, changeSummary`. `ver` 는 버전을 올린 뒤의 감사 VER |
+| validate | save 와 같은 params, grid `headers`·`consts`·`items` | `checks[{NO, CONDITION, CODE, RESULT(PASS/FAIL/WARN), MESSAGES[]}]`(7행), `otherIssues[{CODE, SEQ, FIELD, MESSAGE}]`, `passed` |
+| execute | save 칸 + `sendTime`(yyyyMMddHHmmss, 없으면 서버 KST)·`seq`(없으면 1), grid `headers`·`consts`·`items`·`samples[{COLUMN_PHYS, VALUE}]` | `encoding, totalBytes, line, segments[{INDEX, ZONE, HEADER_SEQ, ZONE_LABEL, SEQ, NAME, COLUMN_PHYS, FILL_KIND, OFFSET, LENGTH, POSITION, TEXT}], parsed[{COLUMN_PHYS, NAME, VALUE}], errors[{SEQ, COLUMN_PHYS, MESSAGE}], issues[]` — 초안 이슈가 있으면 `issues` 만 |
+| export | `layoutId`, `layoutVersion`(없으면 최신) | `layoutId, layoutVersion, fileBase("layout-{id}-v{n}"), snapshot(계약 스냅샷), names{물리명: 표시명}`. 버전이 없으면 `스냅샷 출력 거부: L11 저장된 버전이 없습니다` |
+
+headerMng.save 응답에 `versioned[{LAYOUT_ID, LAYOUT_VERSION, SWITCH_MODE, CREATED}]` 가 더해진다(그 헤더를 쌓은 전문마다 버전 기록).
+
+### 9.3 등록 거부 7종(03 원문 순서)과 새 코드
+
+| 행 | 거부 조건 | 코드 | 판정 |
+|---|---|---|---|
+| 1 | 본문 항목의 컬럼이 컬럼 사전에 없음 | L01 | §6 |
+| 2 | CONST 값이 도메인 유효 식 위반 | **L12** | 본문 CONST 기본값·헤더 CONST 기본값(헤더 저장)·전문 상수 재정의 값을 ① 타입 변환 ② 표준식(도메인 화면 판정기) ③ 인코딩 바이트 ≤ 항목 길이로 본다. 판정 불가(CODE·MASTER)는 경고(WARN)이고 저장을 막지 않는다 |
+| 3 | 전송 단위의 차원 불일치 | **L13** | 전송 단위가 단위 마스터에 없다 / 도메인 기준 단위가 없다 / 차원이 다르다 |
+| 4 | 숫자 표현 자리 부족 | **L14** | 폭 < (정수 자리 + 전송 단위 증가 자리 + 소수 자리 + 소수점 문자 + 부호). 문구 `표현 자리 {w}는 도메인 {이름}(숫자 {p},{s})를 담지 못합니다` |
+| 5 | FILLER 가 아닌 항목에 길이 직접 입력 | L02(`FILLER_LENGTH` 칸만) | §6 |
+| 6 | trans_unit 과 unit_item 동시 입력 | L05 | §6 |
+| 7 | unit_item 이 같은 레이아웃의 항목을 가리키지 않음 | **L15** | 단위 항목이 같은 목록의 다른 항목 물리명이 아니다 |
+
+나머지 L 코드는 표 밖 이슈(`otherIssues`)로 보인다. 저장은 L01~L15 를 모두 모은 뒤 하나라도 있으면 쓰기 전에 거부한다. 헤더 저장도 헤더 항목에 L12~L15 를 건다(`헤더 저장 거부: L12[…] …`).
+
+### 9.4 버전·전환 방식
+
+- 저장해 스냅샷(버전 번호 제외)이 바뀌면 새 버전 = max(최신 이력, 현재 버전) + 1, 같으면 만들지 않는다. 최초 1. 헤더를 저장하면 그 헤더를 쌓은 전문마다 같은 규칙. 배포는 하지 않는다.
+- 전환 방식: 여분(FILLER) 안에 항목을 쪼개 넣기·CONST 값·기본 속성만 바뀌면 **순차 전환**, 항목 길이·순서·헤더 구성·형식(타입·숫자 형식·단위·인코딩)·삽입·삭제·총 길이가 바뀌면 **동시 전환**. 최초 등록은 `-`.
+- 변경 요약 예: `여분 29 → 코일 두께 4 + 여분 25 (여분 쪼개 쓰기)`, `상수 송신공정구분 L2 → L3`, `헤더 구성 변경`.
+
+### 9.5 샘플 전문 표시 규칙
+
+숫자는 왼쪽 0(형식이 공백 채움이면 왼쪽 공백), 문자는 오른쪽 공백, 공백은 `·` 로 보인다. 구역 색은 첫째 헤더·둘째 헤더·본문·FILLER 네 가지(셋째 헤더부터 앞 두 색을 돌려 쓴다). 구간에 마우스를 올리면 `{구역} {이름} {위치}`(1부터, 길이 1이면 한 숫자). 넘치는 값·인코딩이 담지 못하는 문자는 잘라내지 않고 그 칸을 `#` 로 채운 뒤 항목 오류로 보인다. AUTO 는 SEND_TIME(항목 길이 14·8·6 → `yyyyMMddHHmmss`·`yyyyMMdd`·`HHmmss`)·MSG_LENGTH(전문 총 길이)·SEQ·LAYOUT_ID(대리키)로 채운다.
+
+### 9.6 testid(추가)
+
+탭 `layout-tab-edit`·`layout-tab-check`·`layout-tab-version` / 검증 `layout-check-run`·`layout-check-table`·`layout-check-row-{n}`·`layout-check-result-{n}`·`layout-check-message-{n}`·`layout-check-other` / 샘플 `sample-input-{COLUMN_PHYS}`·`sample-render`·`sample-ruler`·`sample-line`·`sample-seg-{index}`(`data-zone`, `title`)·`sample-length`·`sample-segments`·`sample-parsed-{COLUMN_PHYS}`·`sample-errors` / 버전 `version-list`·`version-list-empty`·`change-class-table`·`snapshot-preview`·`snapshot-download-json`·`snapshot-download-excel` / 영향도 `impact-keyword`·`impact-search`·`impact-list`·`impact-list-empty`.
+
+### 9.7 권한(추가)
+
+| 기능 | MDM_STD_ADMIN | MDM_STEWARD | SYSADMIN |
+|---|---|---|---|
+| 등록 검증(validate)·샘플 렌더(execute) | O | X | O |
+| 버전 이력 보기·스냅샷 내려받기(export)·영향 전문(search) | O | O | O |
+
+새 권한 시드는 없다 — validate·execute 는 PERM_MDM_EDIT, export·search 는 PERM_MDM_READ 에 이미 있다.

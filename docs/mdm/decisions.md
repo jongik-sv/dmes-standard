@@ -611,3 +611,107 @@
 - **Rationale**: 실측 — ag-grid 가 `rowClicked` 를 비동기 큐로 약 19ms 늦게 보내는데 `selectRow` 의 대기 조건(도메인명 값)은 저장 직후 같은 행이 이미 열려 있어 처음부터 참이었다. 늦게 온 view 응답이 미리보기 입력값을 비웠다. 공허한 대기를 실제 왕복 대기로 바꾸는 강화다. 수정 뒤 새 DB 전체 실행 연속 2회 12 passed
 - **Reversible**: yes
 - **Source**: docs/mdm/tasks/TSK-05-02/design.md D9
+
+## D-TSK-05-03-1 (2026-09-24T07:32:23Z)
+- **Phase**: build (TSK-05-03)
+- **Decision needed**: 승인 전인 TSK-05-02 의 layoutMng 코드 위에 확장할 것인가, 독립 경로로 만들 것인가
+- **Decision made**: 05-02 코드 위에 추가만 한다(서비스 메서드·BPMN 분기·탭·E2E 블록 추가, dmb.layout 재사용). 05-02 에서 바꾼 것은 05-02 가 "05-03 몫"이라 적은 VERSION 단언 3개뿐이다
+- **Rationale**: wbs TSK-05-03 tech-spec 이 05-02 와 같은 패키지·BPMN·page.tsx·E2E 파일을 적었다. 별도 화면은 식별자 목록에 없고 메뉴·RBAC 시드를 늘린다
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-05-03/design.md D1
+
+## D-TSK-05-03-2 (2026-09-24T07:32:23Z)
+- **Phase**: build (TSK-05-03)
+- **Decision needed**: 저장 즉시 스냅샷 버전·버전 이력·같은 스냅샷 버전으로 직렬화·파싱을 어디에 저장하는가
+- **Decision made**: 새 테이블 TB_MDM_LAYOUT_VER(V12, LAYOUT_ID·LAYOUT_VERSION PK, TOTAL_LENGTH·SWITCH_MODE·CHANGE_KINDS·CHANGE_SUMMARY·SNAPSHOT_JSON)에 정규화 스냅샷 JSON 을 쌓고 TB_MDM_LAYOUT.VERSION 을 최신 번호로 맞춘다. 상태 칼럼은 두지 않는다
+- **Rationale**: 버전 이력과 수용 기준 2 는 옛 버전 스냅샷을 다시 꺼낼 수 있어야 성립한다. 03:72 상태·승인·소유자 없음. ERD(TSK-02-03 소유) 반영은 인계
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-05-03/design.md D2
+
+## D-TSK-05-03-3 (2026-09-24T07:32:23Z)
+- **Phase**: build (TSK-05-03)
+- **Decision needed**: 전송 단위 환산·소수점 문자 형식에 필요한 도메인 기준 단위·소수 자리를 스냅샷 계약에 넣을 것인가
+- **Decision made**: MdmLayoutItemSnapshot 끝에 unitCode·scale 두 칸을 더하고 스키마·샘플·ContractStubCompileTest 를 함께 고친다
+- **Rationale**: 시안 스냅샷 예시가 항목에 unit 을 싣고 파생값이 풀려 들어간다고 적었다. 계약 밖에서 받으면 직렬화기·파서가 스냅샷만으로 동작한다는 보증(I11)이 깨진다. 계약 소비자가 아직 없다
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-05-03/design.md D3
+
+## D-TSK-05-03-4 (2026-09-24T07:32:23Z)
+- **Phase**: build (TSK-05-03)
+- **Decision needed**: 언제 버전을 만들고 05-02 의 VERSION 0 단언 3개를 어떻게 다루는가
+- **Decision made**: 스냅샷(버전 번호 제외)이 바뀔 때만 max(최신 이력, VERSION)+1, 최초 1. 헤더 저장은 그 헤더를 쌓은 전문마다 같은 규칙으로 기록한다. 05-02 테스트 3개는 새 기대값으로 바꾸고 1개는 이름을 바꾼다(개수 유지)
+- **Rationale**: spec "저장 즉시 스냅샷 버전 생성". 내용이 같은 저장마다 버전을 만들면 이력이 노이즈가 된다. 05-02 I17 은 스스로 05-03 몫이라 적은 임시 규칙이다
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-05-03/design.md D4
+
+## D-TSK-05-03-5 (2026-09-24T07:32:23Z)
+- **Phase**: build (TSK-05-03)
+- **Decision needed**: AUTO 채움 — MSG_LENGTH 범위, SEND_TIME 분할, LAYOUT_ID 값
+- **Decision made**: MSG_LENGTH 는 어느 헤더에 있든 전문 총 길이, SEND_TIME 은 항목 길이 14·8·6 으로 형식을 가르고 그 밖은 오류, LAYOUT_ID 는 TB_MDM_LAYOUT.LAYOUT_ID 대리키. 수치 AUTO(MSG_LENGTH·SEQ)는 도메인과 무관하게 왼쪽 0
+- **Rationale**: 03:37 "AUTO(MSG_LENGTH)가 전문 총 길이를 쓴다", 03:21 AUTO 종류 넷 고정, LAYOUT_ID ← TB_MDM_LAYOUT.layout_id. 시안의 00087 은 스스로 가정·미결이다
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-05-03/design.md D5
+
+## D-TSK-05-03-6 (2026-09-24T07:32:23Z)
+- **Phase**: build (TSK-05-03)
+- **Decision needed**: CONST 유효 식 검증(#2)의 범위와 판정 불가 처리
+- **Decision made**: 도메인 화면 판정기(DomainTestCaseRunner.preview 의 표준식)와 엔진 ValueConverter(타입), 인코딩 바이트 ≤ 항목 길이로 본다. 대상은 본문 CONST 기본값·헤더 CONST 기본값·전문 상수 재정의 값. 비즈니스식은 보지 않는다. 판정 불가(CODE·MASTER)는 경고로 저장을 허용한다
+- **Rationale**: 비즈니스식은 레코드 변수가 필요해 CONST 에 적용할 수 없다. 판정 불가를 거부하면 코드 원장이 생길 때까지 CODE 도메인 상수를 저장할 수 없다(도메인 화면도 W02 경고)
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-05-03/design.md D6
+
+## D-TSK-05-03-7 (2026-09-24T07:32:23Z)
+- **Phase**: build (TSK-05-03)
+- **Decision needed**: 등록 거부 7종의 코드 체계
+- **Decision made**: LayoutIssueCode 에 L12(#2)·L13(#3)·L14(#4)·L15(#7) 만 더하고 #1=L01, #5=L02(FILLER_LENGTH 칸만), #6=L05 를 재사용한다. 표 밖 L 이슈는 otherIssues
+- **Rationale**: 팀장 지시 "겹치면 재사용, 새 체계를 만들지 않는다". 공유 enum MdmErrorCode 는 줄 충돌 때문에 쓰지 않는다(05-02 D4)
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-05-03/design.md D7
+
+## D-TSK-05-03-8 (2026-09-24T07:32:23Z)
+- **Phase**: build (TSK-05-03)
+- **Decision needed**: 숫자 표현 자리 용량(#4) 공식
+- **Decision made**: 필요 자리수 = (p−s) + 전송 단위 증가 자리(⌈log10(기준 계수÷전송 계수)⌉, 1 이하면 0) + s + (소수점 문자면 1) + (부호 자리면 1). 폭 = WIDTH, 형식이 없으면 도메인 길이
+- **Rationale**: 시안 거부 예시(표현 자리 2 < 3,1)와 메모(4자리 ≥ 3,1)를 만족하고, mm→μm 처럼 정수 자리가 늘어 송신 때 넘칠 항목을 등록에서 막는다
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-05-03/design.md D8
+
+## D-TSK-05-03-9 (2026-09-24T07:32:23Z)
+- **Phase**: build (TSK-05-03)
+- **Decision needed**: 단위 경계 변환 식·unit_item 송신 방향·환산 계수 위치
+- **Decision made**: value × from.factor ÷ to.factor(MathContext 34, HALF_UP), 수신은 도메인 소수 자리로 HALF_UP. unit_item 송신은 레코드의 단위 값으로 기준 → 그 단위(비면 기준 그대로). 계수는 스냅샷 밖 TB_MDM_UNIT
+- **Rationale**: unitMng convertPreview 와 같은 식. 03:46 이 단위 마스터를 별도 배포 대상으로 둔다. 한계: 계수가 바뀌면 옛 스냅샷도 새 계수로 환산된다
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-05-03/design.md D9
+
+## D-TSK-05-03-10 (2026-09-24T07:32:23Z)
+- **Phase**: build (TSK-05-03)
+- **Decision needed**: 넘침·담지 못하는 문자·빈 값·파싱 결과 범위
+- **Decision made**: 넘침과 인코딩이 담지 못하는 문자는 LayoutCodecException(잘라내거나 ? 로 바꾸지 않음, 렌더는 # 로 보이고 항목 오류). 빈 값은 칸 전체 공백·공백은 null. 파싱 결과는 본문 DATA·CONST·AUTO 만 COLUMN_PHYS 키
+- **Rationale**: 잘라내기는 데이터를 조용히 바꾸는데 받는 쪽은 값을 다시 검증하지 않는다(03:42). 빈 값을 0 으로 쓰면 0 과 값 없음을 가를 수 없다
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-05-03/design.md D10
+
+## D-TSK-05-03-11 (2026-09-24T07:32:23Z)
+- **Phase**: build (TSK-05-03)
+- **Decision needed**: html 변경 분류 5행 밖의 변경을 어떻게 분류하는가
+- **Decision made**: 상대 파서가 깨지는 변경(형식·삽입·삭제·총 길이·길이·순서·헤더 구성)은 동시, 바이트 모양이 그대로인 변경(여분 쪼개 쓰기·CONST 값·기본 속성)은 순차
+- **Rationale**: 03:47 의 기준(총 길이와 기존 오프셋 불변이면 이전 버전 파서가 깨지지 않는다)을 같은 기준으로 넓혔다
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-05-03/design.md D11
+
+## D-TSK-05-03-12 (2026-09-24T07:32:23Z)
+- **Phase**: build (TSK-05-03)
+- **Decision needed**: 컬럼·도메인 변경 영향 전문 목록을 어디에 보이는가
+- **Decision made**: layoutMng search target=IMPACT(버전·영향도 탭)와 같은 조회로 MdmDomainReferenceSpi(LAYOUT_ITEM) 실구현 빈을 더해 domainMng 영향도의 레이아웃 행을 코드 수정 없이 채운다. 키워드는 컬럼 물리명·도메인 표준명·이름을 모두 보고 합친다(Build 이탈 B4)
+- **Rationale**: 03:48 영향도 목록에 레이아웃과 상대 시스템이 포함된다. domainMng 에 이미 레이아웃 행이 있다. columnMng 에는 영향도 틀이 없다
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-05-03/design.md D12
+
+## D-TSK-05-03-13 (2026-09-24T07:32:23Z)
+- **Phase**: build (TSK-05-03)
+- **Decision needed**: 검증·렌더·내려받기를 서버와 화면 중 어디서 하고 어떤 액션을 쓰는가
+- **Decision made**: 서버 액션 validate(EDIT)·execute(EDIT)·export(READ 포함). 엑셀은 export 의 JSON 으로 화면이 shared exportToExcel 로 만든다
+- **Rationale**: 브라우저 TextEncoder 는 UTF-8 만 인코딩해 EUC-KR 바이트 렌더를 화면이 할 수 없다. 세 액션은 MdmActions·권한 행에 이미 있어 새 시드가 없다. 백엔드에 POI 가 없다
+- **Reversible**: yes
+- **Source**: docs/mdm/tasks/TSK-05-03/design.md D13

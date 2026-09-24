@@ -730,3 +730,32 @@ CREATE TABLE TB_MDM_LAYOUT_VER (
 - **단위 코드 `μm`**: 단위 화면 규칙(`^[A-Za-z0-9_]{1,20}$`)상 등록할 수 없어 테스트는 `UM` 을 쓴다. 시안의 `μm` 표기와 다르다(TSK-04-02 소유 규칙).
 - **CONST 값 칼럼 한글 손실**(05-02 인계 유지): MSSQL `VARCHAR(50) BIN2` 라 한글 상수는 저장되지 않는다. #2 의 바이트 길이 검사는 이 제약을 막지 않는다.
 - **Phase 06 직전**: `origin/dev` 의 mdm 마이그레이션 최대 번호를 다시 보고, V12 가 선점됐으면 두 방언 파일을 다음 번호로 `git mv` 하고 F29 의 단언 5개 파일과 이 문서의 V12 참조를 함께 고친다.
+
+---
+
+## Build 이탈
+
+Build(2026-09-24)가 설계에서 벗어난 곳과 그 이유다. 동작 규칙(I1~I24)은 바꾸지 않았다.
+
+| # | 이탈 | 이유 |
+|---|---|---|
+| B1 | 테스트 메서드 이름 3개를 바꿨다: `0_채움이_아니면_…` → `영_채움이_아니면_…`, `03_예시_값_왕복이_일치한다` → `원문_03_예시_값_왕복이_일치한다`, `5번_행은_…` → `번호_5_행은_…` | Java 식별자는 숫자로 시작할 수 없다 |
+| B2 | §3.1·I7 의 "94~99 = `000187`" 을 **69~74** 로 단언한다 | L100 에서 SNT_LTH 는 69~74 다(94~99 는 L100 FILLER 안). L110 LENGTH 는 106~110 `00187` |
+| B3 | 엔진 변환기는 `kr.dongkuk.maru.mdm.engine.expr.ValueConverter` 를 쓴다 | F20 이 적은 `engine.domain` 패키지에는 없다 |
+| B4 | 영향 전문 검색(§6.7)은 컬럼 물리명 일치와 도메인 표준명·이름 일치를 **합친다**("아니면" 대신 합집합) | E2E L12 둘째 조회 `COIL_THK` 는 도메인 표준명이자, 먼저 도는 컬럼 사전 스펙(E5)이 만드는 컬럼 물리명이다. "아니면" 이면 그 컬럼 하나(미사용)만 보여 "도메인 → 컬럼 → 전문" 이 성립하지 않는다 |
+| B5 | `거부_2_CONST_값이_도메인_타입이_아니면_L12` 는 `"AB"` 대신 `"A"` 를 쓴다 | `T_FLAG1` 은 길이 1 이라 `"AB"` 는 바이트 길이 검사에서 먼저 걸려 타입 변환 경로를 지나지 않는다 |
+| B6 | `layoutMng.bpmn` 의 **프로세스 문서 줄**(`action=search\|view\|save …`)은 바꾸지 못했다. 새 serviceTask 3개와 각 문서는 bpmn-tool 로 더했다 | `bpmn-tool modify` 의 `updateProps` 가 프로세스 대상에서 `Cannot read properties of undefined (reading 'isGeneric')` 로 실패한다. 손 XML 편집은 금지라 그대로 둔다(validate 오류 0, contract-check ERROR 0) |
+| B7 | `LayoutConstJudge` 생성자는 `(LayoutDictionary, DomainTestCaseRunner)` 이고 `forColumns(물리명들)` 로 도메인을 한 번 조립해 판정 함수를 돌려준다 | §2 의 `LayoutDictionary.views` 가 같은 조립 경로를 이미 가져 중복 주입이 필요 없다 |
+| B8 | `LayoutDraftBuilder.Built` 에 `eai`·`headerLayouts`·`dictionary` 를 더했고, `LayoutSnapshotAssembler.fromDraft` 는 `LayoutDraft` 만 받아 EAI·헤더를 다시 읽는다. `LayoutMngExecuteRequest` 는 독립 POJO + `toSaveRequest()` | OASIS DTO 바인딩이 상속 필드를 읽는지 확인하지 않고 쓰지 않으려고 독립 POJO 로 두었다 |
+| B9 | 스냅샷 출력 거부 문구는 `스냅샷 출력 거부: L11 저장된 버전이 없습니다: {id}` | 저장 거부 접두어(`전문 저장 거부: `)를 쓰면 저장 실패로 오해한다 |
+| B10 | 샘플 구역 색: FILLER 는 헤더 안이든 본문이든 회색(`filler`) | 시안 `render()` 가 FILLER 를 구역과 무관하게 회색으로 칠한다 |
+| B11 | `CHANGE_CLASS_TABLE` 은 시안 표 그대로 3열(변경 / 총 길이·기존 오프셋 / 전환·설명)이다 | 시안이 "총 길이·기존 오프셋"을 한 열로 둔다 |
+| B12 | 스크린샷은 7장이다: §3.6 표의 6장 + `dmb-layoutMng-sample-hangul.png`(L9 둘째 렌더) | §3.7 증거 ④ 가 7장을 요구하는데 §3.6 표는 6장만 적었다. 한글 바이트 렌더를 사람이 보게 한 장을 더했다 |
+| B13 | `LayoutSampleSqliteTest.execute_는_아무것도_쓰지_않는다` 를 **저장본과 다른 초안**(이름 변경·여분 쪼개기)으로도 렌더하도록 강화했다 | 변이 검증에서 같은 초안으로는 "execute 가 전문 행을 저장" 변이가 드러나지 않았다(바뀌지 않은 엔티티 저장은 UPDATE 가 없다) |
+| B14 | 설계에 없던 테스트를 더했다: `인코딩이_없으면_UTF_8_로_센다`, `버전_번호만_바꾼_사본을_만든다`, `헤더_항목_구조가_바뀌면_동시_전환이다`, `헤더_상수_기본값만_바뀌어도_순차_전환이다`, `전송_단위가_같은_차원이고_자리가_넉넉하면_통과한다`, `거부_4_AUTO_숫자_항목도_본다` | I2(`encoding` null)·I15·I17·I4 경계를 덮는다 |
+| B15 | E2E L10 은 거부 확인 뒤 `편집` 탭으로 돌아가서 픽스처를 다시 고른다 | `selectLayout` 도우미가 편집 탭의 이름 칸을 기다린다 |
+
+- **V12 재확인**: 파일을 만들기 직전 `/usr/bin/git fetch origin` 뒤 `origin/dev` 두 방언 폴더 최대가 V11 이었다 → V12 유지.
+- **E2E 불안정(L2~L8 178행)**: 게이트 실행(새 DB 7a→7b→7c)과 변이 뒤 재실행 모두 L2~L8 이 통과해 재현되지 않았다. 05-02 스펙은 고치지 않았다.
+- **엑셀 내려받기 위험(§3.6)**: `xlsx` 가 호스트(m-mcm)에서 해석되어 L11 이 `layout-<id>-v2.xlsx` 내려받기를 통과했다 — 대체 경로(m-mdm 의존성 추가)는 쓰지 않았다.
+- **동등 변이**: "execute 에서 `versioner.record` 만 부름"(I20)은 잡히지 않는다. execute 는 DB 를 바꾸지 않고, 버전 기록은 DB 의 스냅샷이 최신 이력과 같으면 아무것도 쓰지 않으므로(I15) 동작이 원본과 같다. execute 가 초안을 쓰고 버전을 기록하는 변이는 B13 테스트가 잡는다.
