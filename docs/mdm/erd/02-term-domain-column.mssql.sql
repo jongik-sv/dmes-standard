@@ -53,7 +53,7 @@ CREATE TABLE TB_MDM_TERM (
     CONSTRAINT CK_TB_MDM_TERM_SYSTEMS_JSON CHECK (SYSTEMS IS NULL OR ISJSON(SYSTEMS) = 1)
 );
 CREATE UNIQUE INDEX UX_TB_MDM_TERM_NAME_SENSE ON TB_MDM_TERM (TERM_NAME, SENSE_NO);
--- TSK-04-02 V10(원래 V4→V5 로 채번했으나 dev 선착 V4·V8·V9 뒤로 최대 버전+1 재채번)로 실제 배포 스키마(src/backend/mdm)는 이 유일 인덱스를 비유일 IX_TB_MDM_TERM_ABBR 로
+-- TSK-04-02 V11(원래 V4→V5→V10 으로 채번했으나 dev 선착 V4·V8·V9·V10 뒤로 최대 버전+1 재채번)로 실제 배포 스키마(src/backend/mdm)는 이 유일 인덱스를 비유일 IX_TB_MDM_TERM_ABBR 로
 -- 교체했다(수용 기준 "약어 중복 경고"와 상충, design.md D1). 이 파일은 TSK-02-03 원문 스냅샷이라 각주만
 -- 달고 DDL 자체는 고치지 않는다.
 CREATE UNIQUE INDEX UX_TB_MDM_TERM_ABBR ON TB_MDM_TERM (ENG_ABBR) WHERE ENG_ABBR IS NOT NULL;

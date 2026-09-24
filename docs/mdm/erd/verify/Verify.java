@@ -872,7 +872,7 @@ public class Verify {
         } finally { closeDb(d4); }
 
         // g#20 부분 인덱스: NULL 여러 개 허용, 비NULL 중복 거부.
-        // TSK-04-02 V10(원래 V4→V5 로 채번했으나 dev 선착 V4·V8·V9 뒤로 최대 버전+1 재채번) — 실제 배포 스키마(src/backend/mdm 의 Flyway V10)는 이 유일 인덱스를 비유일
+        // TSK-04-02 V11(원래 V4→V5→V10 으로 채번했으나 dev 선착 V4·V8·V9·V10 뒤로 최대 버전+1 재채번) — 실제 배포 스키마(src/backend/mdm 의 Flyway V11)는 이 유일 인덱스를 비유일
         // IX_TB_MDM_TERM_ABBR 로 교체해 중복 허용 + 애플리케이션 경고로 바꿨다(design.md D1). 이 검증기가
         // 쓰는 ERD 원문(02-term-domain-column.*.sql, TSK-02-03 스냅샷)은 각주만 달고 고치지 않기로 했으므로
         // (design.md §2), 아래 g#20 은 여전히 "원문 그대로"의 유일 인덱스 동작을 확인한다 — 실제 배포

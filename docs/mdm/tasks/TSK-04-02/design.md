@@ -2,8 +2,8 @@
 
 > Phase 02 Design. 작업 디렉터리 `/Users/jji/project/dmes-standard/dflow-91b83c83`(브랜치 `agent/91b83c83-term-unit-mng`, 기점 origin/dev 3d08db7).
 
-> **마이그레이션 번호 최종값: V10**(`V10__term_abbr_index_relax.sql`). 처음 V4 로 채번했다가 V5(팀장 배정표)로, 배정표 폐기 뒤
-> 머지 시점 최대 버전+1 인 V10 으로 다시 바꿨다(「done 전 최신화」 절). 본문의 "V5" 는 이 마이그레이션을 가리키는 옛 번호다.
+> **마이그레이션 번호 최종값: V11**(`V11__term_abbr_index_relax.sql`). V4 → V5(팀장 배정표) → V10(배정표 폐기, 머지 뒤 최대+1) →
+> V11(V10 을 TSK-07-01 이 선점, push 직전 최대+1)로 바뀌었다(「done 전 최신화」 절). 본문의 "V5"·"V10" 은 이 마이그레이션을 가리키는 옛 번호다.
 
 > **화면 설계 산출물(팀장 지시, 담당자 확인 필요 결정 D14)**: 5종 대신 기능설계서 1종만 작성했다 —
 > [단위 마스터 기능설계서](../../screens/unitMng/unitMng_기능설계서.md),
@@ -87,8 +87,8 @@ TSK-02-01(ADR-0003)이 식별자 사전 §A.2.1 규칙에 맞춰 `mdt→dma` 로
 | `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/embedding/TermEmbeddingCodec.java` | `byte[](4096)` ↔ `float[](1024)` 변환, L2 노름 검증 |
 | `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/embedding/TermEmbeddingRepository.java` | EMBEDDING/EMBEDDING_MODEL 전용 네이티브 SQL(`JdbcTemplate`) — JPA 로는 못 다룸(I10) |
 | `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dma/termMng/TermRecommendationCache.java` | 인메모리 캐시(`termId → {termName, senseNo, engName, synonyms[], aliases[], embedding float[]|null}`). **`ApplicationReadyEvent` 리스너에서 전체 적재한다(`@PostConstruct` 아님 — 부팅 초기에는 Flyway 마이그레이션이 아직 끝나지 않았을 수 있어 `JdbcTemplate` 조회가 부팅을 실패시킬 위험이 있다)**, save/delete 때 해당 행만 갱신(전체 재적재 아님) — 1차·2차 추천이 매 요청 DB 를 훑지 않게 하는 성능 전제(I19) |
-| `src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/V10__term_abbr_index_relax.sql` | `DROP INDEX UX_TB_MDM_TERM_ABBR;`<br>`CREATE INDEX IX_TB_MDM_TERM_ABBR ON TB_MDM_TERM(ENG_ABBR) WHERE ENG_ABBR IS NOT NULL;`(비유일, 필터는 그대로 유지 — NULL 행은 색인 안 함) |
-| `src/backend/mdm/api/src/main/resources/db/migration/mdm/mssql/V10__term_abbr_index_relax.sql` | `DROP INDEX UX_TB_MDM_TERM_ABBR ON TB_MDM_TERM;`<br>`CREATE INDEX IX_TB_MDM_TERM_ABBR ON TB_MDM_TERM(ENG_ABBR) WHERE ENG_ABBR IS NOT NULL;`(양쪽 방언 동일 의미: 비유일·필터 유지) |
+| `src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/V11__term_abbr_index_relax.sql` | `DROP INDEX UX_TB_MDM_TERM_ABBR;`<br>`CREATE INDEX IX_TB_MDM_TERM_ABBR ON TB_MDM_TERM(ENG_ABBR) WHERE ENG_ABBR IS NOT NULL;`(비유일, 필터는 그대로 유지 — NULL 행은 색인 안 함) |
+| `src/backend/mdm/api/src/main/resources/db/migration/mdm/mssql/V11__term_abbr_index_relax.sql` | `DROP INDEX UX_TB_MDM_TERM_ABBR ON TB_MDM_TERM;`<br>`CREATE INDEX IX_TB_MDM_TERM_ABBR ON TB_MDM_TERM(ENG_ABBR) WHERE ENG_ABBR IS NOT NULL;`(양쪽 방언 동일 의미: 비유일·필터 유지) |
 | `src/backend/mdm/api/src/onnxTest/java/com/dongkuk/dmes/mdm/embedding/OnnxKureEmbeddingEncoderManualTest.java` | 수동 게이트 전용(§3.3). **스프링 컨텍스트를 띄우지 않는 순수 JUnit 테스트** — `OnnxKureEmbeddingEncoder` 를 `new` 로 직접 만든다. `mdm.embedding.encoder=onnx` 로 스프링 컨텍스트를 띄우면 모델 경로가 비어 있을 때 빈 생성 자체가 실패해 SKIPPED 대신 빨강이 난다. 모델 파일 유무 확인(`Assumptions.assumeTrue`)은 `@BeforeAll` 에서 하고, 없으면 이후 전부 스킵 |
 | `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/dma/unitMng/UnitMngServiceTest.java` | I3~I5 |
 | `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/dma/unitMng/UnitConvertPreviewTest.java` | I1, I2 |
@@ -773,7 +773,7 @@ lsof -tiTCP:18203 -sTCP:LISTEN | xargs -r kill
   자동 병합됐다(충돌 없음). 이 작업 소유 파일(unitMng/termMng 서비스·화면·V5 마이그레이션)에는 영향이
   없다 — TSK-08-01 은 업무기준(03 영역과 무관한 새 04 영역) 전용이라 겹치는 코드가 없다.
 
-  **MSSQL/SQLite 방언 대조 — `V10__term_abbr_index_relax.sql`**(`diff -y` 실측, 실행문 2줄만 존재)
+  **MSSQL/SQLite 방언 대조 — `V11__term_abbr_index_relax.sql`**(`diff -y` 실측, 실행문 2줄만 존재)
 
   | 줄 | SQLite | MSSQL | 대조 |
   |---|---|---|---|
@@ -941,12 +941,15 @@ I19 의 커밋(성공) 분기, termMng `delete` 의 캐시 제거, I18 상위 5�
   낡은 요약 로그 한 줄만 제거), `MdmTermRepository`(두 쪽 파생 쿼리 모두 유지), `m-mdm/tsup.config.ts`(엔트리 4개 모두 유지),
   마이그레이션 버전 단언 4파일(dev 쪽 기준에 V10 추가).
 - **V5 → V10 재채번(팀장 정정: 번호 배정표 폐기, 머지 뒤 mdm/sqlite·mdm/mssql 최대 버전+1)**: dev 에 V8·V9 가 먼저 머지돼 V5 는
-  역순 도착으로 머지 관문(migration-check)에 걸린다. 두 방언 파일을 `V10__term_abbr_index_relax.sql` 로 바꾸고 버전 단언을
+  역순 도착으로 머지 관문(migration-check)에 걸린다. 두 방언 파일을 `V11__term_abbr_index_relax.sql` 로 바꾸고 버전 단언을
   {1,2,3,4,8,9,10}·실행 7건·목표 10 으로 고쳤다. 파일 내용(DROP·CREATE INDEX 2줄)은 그대로다.
 - 메뉴 정렬: dev 의 domainMng(`MENU_SEQ "001"`, FULL_SEQ 5010130)·columnMng(`"004"`, 5010140)와 이 작업의 unitMng(`"002"`, 5010200)·
   termMng(`"003"`, 5010300)가 같은 dma 폴더에 있다. 부팅 끝 `recomputeMenuFullSeq()` 가 MENU_SEQ 로 FULL_SEQ 를 다시 매기므로
   리터럴은 고치지 않았다(domainMng 의 MENU_SEQ 는 다른 Task 산출물).
 - **사용자 결정: 도커 금지로 MSSQL 실측 생략.** mssqlTest 소스셋은 컴파일만 확인한다.
+- **4차 origin/dev 머지**(`ccfdb07`, push 직전): TSK-07-01 이 `V10__create_mdm_master_data` 를 먼저 머지해 번호가 다시 겹쳤다.
+  팀장 정정대로 push 직전 최대 버전+1 인 **V11** 로 재채번하고, 버전 단언 5파일(dev 의 `MdmMasterDataMssqlMigrationTest` 포함)을
+  {1,2,3,4,8,9,10,11}·실행 8건·목표 11 로 고쳤다. 충돌은 버전 단언 4파일뿐이다.
 
 ## Verify 결과(재시도, sonnet, 2026-09-24)
 
@@ -1080,10 +1083,10 @@ errors**(전건 그린, mutate 이전과 동일).
 
 8항목 전부 통과.
 
-### 5. MSSQL/SQLite `V10__term_abbr_index_relax.sql` 방언 대조(도커 없이, 직접 diff)
+### 5. MSSQL/SQLite `V11__term_abbr_index_relax.sql` 방언 대조(도커 없이, 직접 diff)
 
 ```
-diff src/backend/mdm/api/src/main/resources/db/migration/mdm/{sqlite,mssql}/V10__term_abbr_index_relax.sql
+diff src/backend/mdm/api/src/main/resources/db/migration/mdm/{sqlite,mssql}/V11__term_abbr_index_relax.sql
 ```
 결과: `DROP INDEX` 한 줄만 다르다(`DROP INDEX UX_TB_MDM_TERM_ABBR;` vs
 `DROP INDEX UX_TB_MDM_TERM_ABBR ON TB_MDM_TERM;` — MSSQL 문법상 대상 테이블 명시가 필수할 뿐 의미는
