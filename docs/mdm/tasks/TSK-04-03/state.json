@@ -2,7 +2,7 @@
   "tsk": "TSK-04-03",
   "order": "2ca988a4-33df-4025-bbd0-233467549beb",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "verify",
+  "phase": "refactor",
   "baseline": {
     "failures": 0,
     "tests": 2131,
@@ -22,10 +22,10 @@
   },
   "pred_note": "선행 mdm/TSK-04-01·01-03·03-02·03-04: 전부 reached=true·head_sha 없음 → 행 G 갈래 2, pred-reflected.sh REFLECTED 2 → origin/dev 기점 스택 없이 진행",
   "last": {
-    "phase": "build",
-    "event": "build.ok"
+    "phase": "verify",
+    "event": "verify.ok"
   },
-  "model": "opus",
+  "model": "sonnet",
   "design_commit": "a2063bf",
   "build_gate": {
     "backend_testAll": {
@@ -40,5 +40,25 @@
     "e2e": "Build 보고: mdm-domainMng 3/3, mdm-shell-rbac-smoke 4/4, mdm-sample-smoke 1/1",
     "mssqlMigrationTest": "Build 가 도커 금지 공지 전 1회 40 통과. 이후 사용자 결정: 도커 금지로 MSSQL 실측 생략",
     "head": "afb8bde"
-  }
+  },
+  "verify_gate": {
+    "backend_testAll": {
+      "tests": 1957,
+      "failures": 0,
+      "errors": 0
+    },
+    "frontend_m_mdm": {
+      "tests": 295,
+      "passed": 291,
+      "failures_env": "evalex-perf NFR-1 4건(load average 49~60, 기준선 파일만 실행해도 재현)",
+      "lint": "pass"
+    },
+    "contract_check": "ERROR 0, INFO 1",
+    "e2e": "mdm-domainMng 3 + mdm-shell-rbac-smoke 4 + mdm-sample-smoke 1 = 8 passed",
+    "mutation": "I1~I19 변이 35개 모듈 전체 스위트 재확인 RED, I16b 초록→테스트 보강(6d78008) 후 RED, I17 E2E RED",
+    "mssql": "사용자 결정: 도커 금지로 실측 생략(Build 1회 40 통과), SQL 문안 리뷰",
+    "retry": "haiku→sonnet 1회(haiku 가 변이 재확인 생략)",
+    "head": "d91bb14"
+  },
+  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\""
 }
