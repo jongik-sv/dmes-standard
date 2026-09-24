@@ -194,6 +194,8 @@ import "@dk-oasis/shared/grid.css";
 - MUST NOT: `ag-grid-react` 를 페이지에서 직접 import.
 - MUST NOT: `ag-grid-enterprise` 를 추가하거나 Enterprise 기능(행 그룹·집계·Excel Export 등)을 쓰지 않는다([전 모듈 ADR-0001](../../adr/0001-ui-library-mantine9-aggrid.md) D2). 필요하면 사용자에게 먼저 확인한다. Excel 다운로드는 `@dk-oasis/shared/utils` 의 `exportToExcel` 을 쓴다.
 - 보조 export: `DataGrid`, `CustomDataGrid`, `GridPanel` 은 특수 요건 시 사용. 일반 페이지의 기본값은 `AgDataGrid`.
+- 열 그룹(여러 줄 머리): `GridColumn.children?: GridColumn[]` 이 있으면 그 항목은 열 그룹(ag-grid `ColGroupDef`, `groupId` = `key`)이 되고 잎만 데이터 열이다. 그룹 항목의 `headerComponent`·`headerComponentParams` 는 그룹 머리 컴포넌트로 쓴다. `GridColumn.headerTooltip?: string` 은 잎·그룹 머리 툴팁이다(mdm TSK-08-02 D8).
+- 행 드래그(managed): `AgDataGrid` 의 `rowDragField?: string`(그 열에 드래그 손잡이), `isRowDraggable?: (row) => boolean`, `onRowOrderChange?: (orderedKeys) => void`(놓은 뒤 화면 순서의 `rowKey` 목록). `rowDragField` 를 주면 정렬이 꺼진다(ag-grid managed drag 는 정렬 중 동작하지 않는다). 순서는 호출자가 `data` 를 다시 넘겨 확정한다(mdm TSK-08-02 D8).
 
 ---
 

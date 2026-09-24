@@ -953,6 +953,20 @@ B4 테스트는 구현보다 먼저 썼으나 골격 상태에서 빨강을 따�
 알림을 기다리며 턴을 끝냈다(「포그라운드 실행」 규칙 위반). 팀장 지시를 받은 뒤 포그라운드 `kill -0` 생존 확인 루프로 끝까지 기다려
 결과를 읽고 이어 갔다. 이후 스윕은 한 호출이 10분 안에 끝나게 나눠 돌렸다.
 
+**B5**
+
+| 규칙 | 변이 | 잡은 테스트 | 결과 |
+|---|---|---|---|
+| D8 | 드래그 prop 이 있어도 정렬을 끄지 않음 | shared `grid-column-group-drag` 「rowDragField 가 있으면 … 정렬을 끈다」·「그룹 안의 잎도…」 | 빨강 |
+| D8 | 열 그룹을 재귀하지 않고 한 단계만 | 「children 이 있으면 ColGroupDef…(3줄 머리)」·「잎의 기존 속성…」 | 빨강 |
+| D8 | `isRowDraggable` 을 무시하고 늘 드래그 | 「isRowDraggable 이 있으면 행마다…」 | 빨강 |
+| D8 | 잎의 `headerTooltip` 누락 | 「잎의 headerTooltip 도…」 | 빨강 |
+| D8 | 드래그 뒤 순서를 표시 순서가 아닌 순서로 | `displayedRowKeys` 두 사례 | 빨강 |
+| D8 | 편집 열 탐지를 그룹 안까지 하지 않음(셀 포커스가 꺼져 편집 불가) | 「열 그룹 안의 편집 가능 잎도 찾는다」 | 빨강 |
+| D8 | 그룹 `groupId` 누락 | 「children 이 있으면 ColGroupDef…」 | 빨강 |
+
+`onRowDragEnd` → `onRowOrderChange` 연결과 `defaultColDef.sortable` 끄기는 컴포넌트 안(ag-grid 렌더 필요)이라 단위 테스트로 덮지 못했다 — e2e S5(드래그로 순서 바꿈)가 확인한다.
+
 ## Build 게이트 결과(백엔드, B1~B4 끝)
 
 - `cd src/backend && … ./gradlew testAll --no-daemon --console=plain`(heavy.sh, 도커 금지 모드): exit 0, 테스트 태스크 7개 전부 실행,

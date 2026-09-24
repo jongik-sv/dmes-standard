@@ -10,7 +10,9 @@ import type {
   SelectionChangedEvent,
   ColumnResizedEvent,
   ColDef,
+  ColGroupDef,
   GetRowIdParams,
+  RowDragEndEvent,
   RowClassParams,
   CellValueChangedEvent,
   EditableCallbackParams,
@@ -206,6 +208,13 @@ export interface GridColumn {
   cellClass?: string | string[] | ((row: Record<string, unknown>) => string | string[] | undefined);
   /** 조건부 셀 클래스 규칙 — { 클래스명: (row) => boolean } 형태. ag-grid 의 cellClassRules 패스스루. */
   cellClassRules?: Record<string, (row: Record<string, unknown>) => boolean>;
+  /** 머리 툴팁 (ag-grid ColDef/ColGroupDef.headerTooltip 패스스루). */
+  headerTooltip?: string;
+  /**
+   * 하위 열 — 있으면 이 항목은 열 그룹(ColGroupDef, groupId = key)이 되고 잎만 데이터 열이다. 여러 줄 머리를 만든다.
+   * 그룹 항목의 `headerComponent`·`headerComponentParams` 는 그룹 머리 컴포넌트(headerGroupComponent)로 쓴다.
+   */
+  children?: GridColumn[];
 }
 
 export interface AgDataGridProps {
@@ -316,6 +325,215 @@ export interface AgDataGridProps {
   wrapHeaderText?: boolean;
   /** 헤더 높이를 헤더 내용(줄바꿈 포함)에 맞춰 자동 계산. wrapHeaderText 와 함께 사용. */
   autoHeaderHeight?: boolean;
+  /**
+   * 행 드래그(managed) — 이 key 의 열에 드래그 손잡이를 둔다. 지정하면 정렬(sortable)을 끈다
+   * (ag-grid managed row drag 는 정렬 중 동작하지 않는다).
+   */
+  rowDragField?: string;
+  /** 행마다 드래그 가능 여부(rowDragField 와 함께). */
+  isRowDraggable?: (row: Record<string, unknown>) => boolean;
+  /** 드래그를 놓은 뒤 화면 순서대로 rowKey 목록을 넘긴다(rowDragField 와 함께). */
+  onRowOrderChange?: (orderedKeys: (string | number)[]) => void;
+}
+
+/** buildColumnDefs 옵션 — AgDataGrid props 에서 열 정의에 필요한 값만 받는다. */
+export interface BuildColumnDefsOptions {
+  sortable: boolean;
+  columnSizing: "auto" | "fixed" | "fit";
+  shouldAutoSizeColumns: boolean;
+  /** 이 key 의 열에 드래그 손잡이(rowDrag)를 둔다. 있으면 정렬을 끈다(managed drag 는 정렬 중 동작하지 않는다). */
+  rowDragField?: string;
+  /** 행마다 드래그 가능 여부. rowDragField 와 함께 쓴다. */
+  isRowDraggable?: (row: Record<string, unknown>) => boolean;
+}
+
+/** 잎 열 하나 → ag-grid ColDef. */
+function leafColDef(col: GridColumn, opts: BuildColumnDefsOptions): ColDef {
+  const sortableOn = opts.sortable && !opts.rowDragField;
+  const isRowDraggable = opts.isRowDraggable;
+  const rowDrag: ColDef["rowDrag"] =
+    opts.rowDragField && col.key === opts.rowDragField
+      ? isRowDraggable
+        ? (params: { data?: unknown }) => isRowDraggable((params.data ?? {}) as Record<string, unknown>)
+        : true
+      : undefined;
+  const editableProp: ColDef["editable"] =
+    typeof col.editable === "function"
+      ? (params: EditableCallbackParams) =>
+          (col.editable as (row: Record<string, unknown>) => boolean)(
+            params.data as Record<string, unknown>
+          )
+      : col.editable;
+  let cellEditor: ColDef["cellEditor"];
+  let cellEditorParams: ColDef["cellEditorParams"];
+  if (col.editable) {
+    if (col.cellEditor === "number") cellEditor = "agNumberCellEditor";
+    else if (col.cellEditor === "select") {
+      const optionsGetter = col.cellEditorOptionsGetter;
+      if (optionsGetter) {
+        // 행별 {value,label} 옵션 — 전용 SelectCellEditor(라벨 행별 정확·선택 즉시 commit).
+        cellEditor = SelectCellEditor;
+        cellEditorParams = (params: { data?: unknown }) => ({
+          options: optionsGetter((params.data ?? {}) as Record<string, unknown>),
+        });
+      } else if (col.selectNativeEditor) {
+        // ★옵트아웃: ag-grid 내장 select(자동 오픈 없음·더블클릭성 UX)가 필요한 컬럼만 명시 사용.
+        cellEditor = "agSelectCellEditor";
+        const valuesGetter = col.cellEditorValuesGetter;
+        cellEditorParams = valuesGetter
+          ? (params: { data?: unknown }) => ({
+              values: valuesGetter((params.data ?? {}) as Record<string, unknown>),
+            })
+          : { values: col.cellEditorValues ?? [] };
+      } else {
+        // ★기본(2026-07-28): 정적 옵션 select 도 전용 SelectCellEditor 로 통일 — 단일 클릭 즉시
+        //   드롭다운 오픈 + 선택 즉시 commit(v33 onValueChange). (내장 agSelectCellEditor 는 포커스만
+        //   가고 한 번 더 클릭해야 열려, 같은 그리드 안에서 동적옵션 콤보와 UX 가 갈리던 문제 해소.)
+        //   라벨 = cellEditorValueLabels(키→라벨) 적용, 없으면 키 그대로.
+        cellEditor = SelectCellEditor;
+        const valuesGetter = col.cellEditorValuesGetter;
+        const labels = col.cellEditorValueLabels;
+        cellEditorParams = (params: { data?: unknown }) => {
+          const values = valuesGetter
+            ? valuesGetter((params.data ?? {}) as Record<string, unknown>)
+            : (col.cellEditorValues ?? []);
+          return { options: values.map((v) => ({ value: v, label: labels?.[v] ?? v })) };
+        };
+      }
+    } else if (col.cellEditor === "datetime") cellEditor = DateTimeCellEditor;
+    else cellEditor = "agTextCellEditor";
+  }
+  // columnSizing 우선 — 명시 시 autoSizeColumns/sizeToFit 무시.
+  let widthProp: number | undefined;
+  let flexProp: number | undefined;
+  const explicitWidth = toColumnWidth(col.width);
+  if (opts.columnSizing === "fixed") {
+    widthProp = explicitWidth ?? Math.max(col.minWidth ?? 0, DEFAULT_FIXED_COLUMN_WIDTH);
+    flexProp = undefined;
+  } else if (opts.columnSizing === "fit") {
+    // col.width 가 있으면 그 값을 flex 가중치로, 없으면 flex=1.
+    // minWidth 는 아래 line 의 col.minWidth ?? col.width 로 보장됨 — 컬럼 합 > 그리드 시
+    // 각 컬럼이 col.width 이하로 줄지 않고 좌우 스크롤 발생.
+    widthProp = undefined;
+    flexProp = explicitWidth ?? 1;
+  } else {
+    // auto
+    widthProp = opts.shouldAutoSizeColumns
+      ? undefined
+      : (explicitWidth ?? Math.max(col.minWidth ?? 0, DEFAULT_FIXED_COLUMN_WIDTH));
+    flexProp = undefined;
+  }
+  // cellClass — 문자열/배열/함수 모두 ag-grid 가 받음. 함수형은 params.data 만 사용해 row 단위 평가.
+  const cellClassProp: ColDef["cellClass"] =
+    typeof col.cellClass === "function"
+      ? (params) =>
+          (col.cellClass as (row: Record<string, unknown>) => string | string[] | undefined)(
+            (params.data ?? {}) as Record<string, unknown>
+          )
+      : (col.cellClass as string | string[] | undefined);
+  // cellClassRules — { 클래스명: (row) => boolean } 형태를 ag-grid 시그니처 (params) => boolean 로 래핑.
+  const cellClassRulesProp: ColDef["cellClassRules"] | undefined = col.cellClassRules
+    ? Object.fromEntries(
+        Object.entries(col.cellClassRules).map(([cls, fn]) => [
+          cls,
+          (params: { data?: unknown }) => fn((params.data ?? {}) as Record<string, unknown>),
+        ])
+      )
+    : undefined;
+  return {
+    field: col.key,
+    headerName: col.header,
+    headerComponent: col.headerComponent,
+    headerComponentParams: col.headerComponentParams,
+    hide: col.hide,
+    pinned: col.pinned,
+    width: widthProp,
+    flex: flexProp,
+    // fit 모드: minWidth = col.minWidth ?? col.width ?? 50 — 컬럼 합 > 그리드 시 col.width 보장 + 좌우 스크롤.
+    // fixed/auto 모드: 기존과 동일 (col.minWidth || 50).
+    minWidth:
+      opts.columnSizing === "fit"
+        ? (col.minWidth ?? explicitWidth ?? 50)
+        : col.minWidth || 50,
+    sortable: sortableOn && col.sortable !== false,
+    resizable: true,
+    editable: editableProp,
+    cellEditor,
+    cellEditorParams,
+    // refData(키→라벨) — agSelectCellEditor 드롭다운·셀 표시를 "명칭(코드)"로, 저장값은 키.
+    refData: col.cellEditorValueLabels,
+    cellStyle: { textAlign: col.align || "left" },
+    cellClass: cellClassProp,
+    cellClassRules: cellClassRulesProp,
+    headerClass: col.headerAlign ? `header-${col.headerAlign}` : "header-center",
+    headerTooltip: col.headerTooltip,
+    rowDrag,
+    cellRenderer: col.render
+      ? (params: { value: unknown; data: Record<string, unknown> }) =>
+          col.render!(params.value, params.data)
+      : undefined,
+    valueFormatter: !col.render
+      ? (params: { value: unknown }) => {
+          const value = params.value;
+          if (value == null) return "";
+          const label = col.cellEditorValueLabels?.[String(value)];
+          if (label != null) return label;
+          switch (col.type) {
+            case "number":
+              return typeof value === "number" ? value.toLocaleString() : String(value);
+            case "boolean":
+              return value ? "Y" : "N";
+            default:
+              return String(value);
+          }
+        }
+      : undefined,
+  };
+}
+
+/**
+ * GridColumn 트리 → ag-grid 열 정의. `children` 이 있으면 ColGroupDef(groupId = key)로, 잎만 ColDef 로 바꾼다(여러 줄 머리).
+ * 순수 함수라 단위 테스트가 ag-grid 렌더 없이 확인한다.
+ */
+export function buildColumnDefs(columns: GridColumn[], opts: BuildColumnDefsOptions): (ColDef | ColGroupDef)[] {
+  return columns.map((col) => {
+    if (col.children && col.children.length > 0) {
+      const group: ColGroupDef = {
+        groupId: col.key,
+        headerName: col.header,
+        headerGroupComponent: col.headerComponent,
+        headerGroupComponentParams: col.headerComponentParams,
+        headerTooltip: col.headerTooltip,
+        headerClass: col.headerAlign ? `header-${col.headerAlign}` : "header-center",
+        children: buildColumnDefs(col.children, opts),
+      };
+      return group;
+    }
+    return leafColDef(col, opts);
+  });
+}
+
+/** 편집 가능한 잎 열이 하나라도 있는가(열 그룹 안까지 본다). 없으면 셀 포커스를 끈다. */
+export function hasEditableColumn(columns: GridColumn[]): boolean {
+  return columns.some((c) => (c.children && c.children.length > 0 ? hasEditableColumn(c.children) : !!c.editable));
+}
+
+/** 화면에 보이는 행 순서대로 rowKey 값을 모은다(임시 ID 칸이 있으면 그 값). 드래그가 끝난 뒤 순서를 넘길 때 쓴다. */
+export function displayedRowKeys(
+  api: {
+    getDisplayedRowCount: () => number;
+    getDisplayedRowAtIndex: (index: number) => { data?: unknown } | undefined | null;
+  },
+  rowKey: string,
+): (string | number)[] {
+  const keys: (string | number)[] = [];
+  const count = api.getDisplayedRowCount();
+  for (let i = 0; i < count; i++) {
+    const data = (api.getDisplayedRowAtIndex(i)?.data ?? {}) as Record<string, unknown>;
+    const tempId = data[GRID_TEMP_ID_FIELD];
+    keys.push(typeof tempId === "string" && tempId ? tempId : (data[rowKey] as string | number));
+  }
+  return keys;
 }
 
 export function selectEditedRow(
@@ -370,6 +588,9 @@ function AgDataGridComponent({
   onRowExpandCollapse,
   wrapHeaderText = false,
   autoHeaderHeight = false,
+  rowDragField,
+  isRowDraggable,
+  onRowOrderChange,
 }: AgDataGridProps) {
   const gridRef = useRef<AgGridReact>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -382,160 +603,35 @@ function AgDataGridComponent({
   const resolvedColumnSizing = columnSizing ?? "auto";
   const shouldAutoSizeColumns = resolvedColumnSizing === "auto" && autoSizeColumns !== false;
 
-  const columnDefs = useMemo<ColDef[]>(() => {
-    const defs: ColDef[] = columns.map((col) => {
-      const editableProp: ColDef["editable"] =
-        typeof col.editable === "function"
-          ? (params: EditableCallbackParams) =>
-              (col.editable as (row: Record<string, unknown>) => boolean)(
-                params.data as Record<string, unknown>
-              )
-          : col.editable;
-      let cellEditor: ColDef["cellEditor"];
-      let cellEditorParams: ColDef["cellEditorParams"];
-      if (col.editable) {
-        if (col.cellEditor === "number") cellEditor = "agNumberCellEditor";
-        else if (col.cellEditor === "select") {
-          const optionsGetter = col.cellEditorOptionsGetter;
-          if (optionsGetter) {
-            // 행별 {value,label} 옵션 — 전용 SelectCellEditor(라벨 행별 정확·선택 즉시 commit).
-            cellEditor = SelectCellEditor;
-            cellEditorParams = (params: { data?: unknown }) => ({
-              options: optionsGetter((params.data ?? {}) as Record<string, unknown>),
-            });
-          } else if (col.selectNativeEditor) {
-            // ★옵트아웃: ag-grid 내장 select(자동 오픈 없음·더블클릭성 UX)가 필요한 컬럼만 명시 사용.
-            cellEditor = "agSelectCellEditor";
-            const valuesGetter = col.cellEditorValuesGetter;
-            cellEditorParams = valuesGetter
-              ? (params: { data?: unknown }) => ({
-                  values: valuesGetter((params.data ?? {}) as Record<string, unknown>),
-                })
-              : { values: col.cellEditorValues ?? [] };
-          } else {
-            // ★기본(2026-07-28): 정적 옵션 select 도 전용 SelectCellEditor 로 통일 — 단일 클릭 즉시
-            //   드롭다운 오픈 + 선택 즉시 commit(v33 onValueChange). (내장 agSelectCellEditor 는 포커스만
-            //   가고 한 번 더 클릭해야 열려, 같은 그리드 안에서 동적옵션 콤보와 UX 가 갈리던 문제 해소.)
-            //   라벨 = cellEditorValueLabels(키→라벨) 적용, 없으면 키 그대로.
-            cellEditor = SelectCellEditor;
-            const valuesGetter = col.cellEditorValuesGetter;
-            const labels = col.cellEditorValueLabels;
-            cellEditorParams = (params: { data?: unknown }) => {
-              const values = valuesGetter
-                ? valuesGetter((params.data ?? {}) as Record<string, unknown>)
-                : (col.cellEditorValues ?? []);
-              return { options: values.map((v) => ({ value: v, label: labels?.[v] ?? v })) };
-            };
-          }
-        } else if (col.cellEditor === "datetime") cellEditor = DateTimeCellEditor;
-        else cellEditor = "agTextCellEditor";
-      }
-      // columnSizing 우선 — 명시 시 autoSizeColumns/sizeToFit 무시.
-      let widthProp: number | undefined;
-      let flexProp: number | undefined;
-      const explicitWidth = toColumnWidth(col.width);
-      if (resolvedColumnSizing === "fixed") {
-        widthProp = explicitWidth ?? Math.max(col.minWidth ?? 0, DEFAULT_FIXED_COLUMN_WIDTH);
-        flexProp = undefined;
-      } else if (resolvedColumnSizing === "fit") {
-        // col.width 가 있으면 그 값을 flex 가중치로, 없으면 flex=1.
-        // minWidth 는 아래 line 의 col.minWidth ?? col.width 로 보장됨 — 컬럼 합 > 그리드 시
-        // 각 컬럼이 col.width 이하로 줄지 않고 좌우 스크롤 발생.
-        widthProp = undefined;
-        flexProp = explicitWidth ?? 1;
-      } else {
-        // auto
-        widthProp = shouldAutoSizeColumns
-          ? undefined
-          : (explicitWidth ?? Math.max(col.minWidth ?? 0, DEFAULT_FIXED_COLUMN_WIDTH));
-        flexProp = undefined;
-      }
-      // cellClass — 문자열/배열/함수 모두 ag-grid 가 받음. 함수형은 params.data 만 사용해 row 단위 평가.
-      const cellClassProp: ColDef["cellClass"] =
-        typeof col.cellClass === "function"
-          ? (params) =>
-              (col.cellClass as (row: Record<string, unknown>) => string | string[] | undefined)(
-                (params.data ?? {}) as Record<string, unknown>
-              )
-          : (col.cellClass as string | string[] | undefined);
-      // cellClassRules — { 클래스명: (row) => boolean } 형태를 ag-grid 시그니처 (params) => boolean 로 래핑.
-      const cellClassRulesProp: ColDef["cellClassRules"] | undefined = col.cellClassRules
-        ? Object.fromEntries(
-            Object.entries(col.cellClassRules).map(([cls, fn]) => [
-              cls,
-              (params: { data?: unknown }) => fn((params.data ?? {}) as Record<string, unknown>),
-            ])
-          )
-        : undefined;
-      return {
-        field: col.key,
-        headerName: col.header,
-        headerComponent: col.headerComponent,
-        headerComponentParams: col.headerComponentParams,
-        hide: col.hide,
-        pinned: col.pinned,
-        width: widthProp,
-        flex: flexProp,
-        // fit 모드: minWidth = col.minWidth ?? col.width ?? 50 — 컬럼 합 > 그리드 시 col.width 보장 + 좌우 스크롤.
-        // fixed/auto 모드: 기존과 동일 (col.minWidth || 50).
-        minWidth:
-          resolvedColumnSizing === "fit"
-            ? (col.minWidth ?? explicitWidth ?? 50)
-            : col.minWidth || 50,
-        sortable: sortable && col.sortable !== false,
-        resizable: true,
-        editable: editableProp,
-        cellEditor,
-        cellEditorParams,
-        // refData(키→라벨) — agSelectCellEditor 드롭다운·셀 표시를 "명칭(코드)"로, 저장값은 키.
-        refData: col.cellEditorValueLabels,
-        cellStyle: { textAlign: col.align || "left" },
-        cellClass: cellClassProp,
-        cellClassRules: cellClassRulesProp,
-        headerClass: col.headerAlign ? `header-${col.headerAlign}` : "header-center",
-        cellRenderer: col.render
-          ? (params: { value: unknown; data: Record<string, unknown> }) =>
-              col.render!(params.value, params.data)
-          : undefined,
-        valueFormatter: !col.render
-          ? (params: { value: unknown }) => {
-              const value = params.value;
-              if (value == null) return "";
-              const label = col.cellEditorValueLabels?.[String(value)];
-              if (label != null) return label;
-              switch (col.type) {
-                case "number":
-                  return typeof value === "number" ? value.toLocaleString() : String(value);
-                case "boolean":
-                  return value ? "Y" : "N";
-                default:
-                  return String(value);
-              }
-            }
-          : undefined,
-      };
-    });
-
+  const dragEnabled = !!rowDragField;
+  const columnDefs = useMemo<(ColDef | ColGroupDef)[]>(
+    () =>
+      buildColumnDefs(columns, {
+        sortable,
+        columnSizing: resolvedColumnSizing,
+        shouldAutoSizeColumns,
+        rowDragField,
+        isRowDraggable,
+      }),
     // 체크박스는 rowSelection 설정에서 자동 관리 (수동 컬럼 불필요)
-
-    return defs;
-  }, [columns, selectable, multiSelect, sortable, shouldAutoSizeColumns, resolvedColumnSizing]);
+    [columns, sortable, shouldAutoSizeColumns, resolvedColumnSizing, rowDragField, isRowDraggable]
+  );
 
   // 셀 텍스트가 컬럼 폭 초과로 잘려서 ... 으로 표시될 때 마우스오버 시 전체 값을 tooltip 으로 표시.
   // tooltipValueGetter 는 ag-grid 의 browser-native title 속성 사용 (별도 라이브러리 불필요).
   const defaultColDef = useMemo<ColDef>(
     () => ({
-      sortable,
+      sortable: sortable && !dragEnabled,
       resizable: true,
       wrapHeaderText,
       autoHeaderHeight,
       tooltipValueGetter: (params: { value?: unknown }) =>
         params.value == null ? "" : String(params.value),
     }),
-    [sortable, wrapHeaderText, autoHeaderHeight]
+    [sortable, dragEnabled, wrapHeaderText, autoHeaderHeight]
   );
 
-  const hasEditableColumns = useMemo(() => columns.some((c) => !!c.editable), [columns]);
+  const hasEditableColumns = useMemo(() => hasEditableColumn(columns), [columns]);
 
   const handleCellValueChanged = useCallback(
     (event: CellValueChangedEvent) => {
@@ -1024,6 +1120,13 @@ function AgDataGridComponent({
     [onRowSelect, rowKey]
   );
 
+  const handleRowDragEnd = useCallback(
+    (event: RowDragEndEvent) => {
+      onRowOrderChange?.(displayedRowKeys(event.api, rowKey));
+    },
+    [onRowOrderChange, rowKey]
+  );
+
   const sortedData = useMemo(() => {
     const addedRows = data.filter((row) => row.nativeeditor_status === "inserted");
     const otherRows = data.filter((row) => row.nativeeditor_status !== "inserted");
@@ -1094,6 +1197,8 @@ function AgDataGridComponent({
         onRowDoubleClicked={handleRowDoubleClicked}
         onSelectionChanged={handleSelectionChanged}
         onCellValueChanged={handleCellValueChanged}
+        rowDragManaged={dragEnabled}
+        onRowDragEnd={dragEnabled ? handleRowDragEnd : undefined}
         singleClickEdit={singleClickEdit}
         suppressClickEdit={false}
         stopEditingWhenCellsLoseFocus={stopEditingWhenCellsLoseFocus}
