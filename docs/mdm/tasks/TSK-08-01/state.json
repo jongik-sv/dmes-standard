@@ -2,7 +2,7 @@
   "tsk": "TSK-08-01",
   "order": "84b388b9-c06c-48c2-8942-9945f95a0fff",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "verify",
+  "phase": "refactor",
   "baseline": {
     "failures": 0,
     "tests": 1878,
@@ -18,10 +18,10 @@
   "flyway_version": "V8 (팀장 배정)",
   "complexity": "4점(depends 4 +2, 마이그레이션 +2) → opus, spec model=opus 일치",
   "last": {
-    "phase": "build",
-    "event": "build.ok"
+    "phase": "verify",
+    "event": "verify.ok"
   },
-  "model": "opus",
+  "model": "haiku",
   "design_commit": "9b2d50d",
   "build_gate": {
     "backend_testAll": {
@@ -31,5 +31,21 @@
     "compileMssqlTestJava": "pass (no docker)",
     "mssqlMigrationTest": "skipped: 사용자 결정(도커 금지)",
     "mutation": "62/62 killed (I1~I25, P2~P15); 갭 22·26·27 diff 확인"
-  }
+  },
+  "verify_gate": {
+    "backend_testAll": {
+      "tests": 1962,
+      "failures": 0,
+      "note": "--rerun-tasks 전체 재실행(1차는 cactus-core 컴파일 경합으로 실패, 재시도 성공)"
+    },
+    "compileMssqlTestJava": "pass",
+    "mutations_rechecked": [
+      "4",
+      "16",
+      "24"
+    ],
+    "gaps_diff": "22·26·27 확인",
+    "merge_tree_origin_dev": "6855c6c 와 충돌 없음"
+  },
+  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\""
 }
