@@ -296,8 +296,12 @@ class DataItemSegmentCoreSqliteTest {
         clock.setLocal(T0.withNano(700_000_000));
 
         core.register(MD, "KRPUS", value("부산"));
+        core.modify(MD, "KRPUS", value("부산항"), 0);
 
-        assertEquals(text(T0), itemRows(jdbc, MD, "KRPUS").get(0).get("VALID_FROM"));
+        List<Map<String, Object>> rows = itemRows(jdbc, MD, "KRPUS");
+        assertEquals(text(T0), rows.get(0).get("VALID_FROM"));
+        assertEquals(text(T0.plusSeconds(1)), rows.get(1).get("VALID_FROM"),
+                "잘린 경계와 비교해야 같은 초 사건을 민다(절삭 없이 .700 과 비교하면 PK 충돌)");
     }
 
     @Test
