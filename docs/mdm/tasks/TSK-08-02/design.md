@@ -783,3 +783,40 @@ cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 - **e2e 스크린샷 덮어쓰기**: `mdm-shell-rbac-smoke.spec.ts` 가 TSK-01-03 스크린샷을 덮어쓴다 — E2E 절차 8) 로 되돌린다.
 - **decisions.md**: 팀장이 확정한 D2·D4·D5 는 공용 `docs/mdm/decisions.md` 에 임시 ID `D-TSK-08-02-1`~`D-TSK-08-02-3` 블록으로 적었다. 더할 일이 생기면 `D-TSK-08-02-4` 부터 이어 쓰고 전역 번호를 매기지 않으며 기존 블록은 고치지 않는다.
 - **겪은 문제는 `.issues` 에 직접 쓰지 않고 Phase 보고에 올린다.**
+
+---
+
+## Build 이탈 기록
+
+| 단계 | 이탈 | 사유 |
+|---|---|---|
+| B1 | `E/src/test/.../contract/EngineContractSchemaTest.java` 의 `JAVA_ONLY` 에 `AnalysisRule`·`AnalysisVar`·`RuleIssue`·`RuleIssue.Severity`·`RuleIssueCode` 다섯을 등재했다(§2 목록에 없던 수정) | 이 테스트가 `engine.expr`·`engine.rule` 의 record·enum 전부를 "스키마 대응표 ∪ Java 전용 목록"과 대조한다. 분석 입출력은 엔진 계약 스키마가 아니라 분석 코퍼스로 TS 와 묶이므로 Java 전용으로 적었다 |
+| B1 | `ValueSets`·`PatternShapes`·`RuleAnalyzer` 안의 내부 타입(값 집합·구간·끝·패턴 모양·열)과 종류 값은 record·enum 이 아니라 일반 클래스·정수 상수로 두었다 | 같은 대조 테스트가 패키지 전용 record·enum 도 세는데, 다른 패키지의 테스트는 그 클래스 리터럴을 쓸 수 없어 목록에 올릴 수 없다 |
+| B1 | §6.6.1 표의 "행은 입력 `rows` 순서"와 달리, 분석기는 TS `normalRows`·`condVars` 처럼 행을 `seq`→`rowId`, 조건 열을 `seq`→`varId` 로 정렬해 본다 | 같은 절이 "정본은 TS, 함수 경계·순회 순서를 그대로 옮긴다"고 했고 TS 가 정렬한다. 정렬을 빼면 입력 순서가 다른 두 호출(그리드·서버)의 이슈 순서가 갈린다. `RuleAnalyzerTest` 「행은 seq 다음 rowId 순으로…」가 고정한다 |
+| B1 | TS 가 예외를 던지는 입력 두 가지(값 칸이 없는 셀 — 예 `{"op":"GE"}`, NUMBER 열 IN 목록에 숫자 아닌 원소가 둘 이상)를 Java 는 못 푸는 셀·문자열 순서로 대신 처리하고 던지지 않는다 | §6.6.3 의 "예외 없음" 계약. 이 입력은 코퍼스에 넣지 않았다(두 러너가 갈린다). TS 동작 이상으로 보고에 올린다 |
+| B1 | `AnalysisVar` 에 `label` 칸이 없어 메시지의 열 이름은 `varName` 이 없으면 `_V<varId>` 다(TS 는 `label` 을 한 번 더 본다) | record 칼럼은 §2.1-E 로 고정됐다. message 는 비교 대상이 아니다 |
+
+## Build 변이 검증 기록
+
+| 규칙 | 변이 | 잡은 테스트 | 결과 |
+|---|---|---|---|
+| I14 | UNIQUE 겹침 심각도를 늘 WARNING | `RuleAnalyzerTest` _08·_10·_13·_19·_21 | 빨강 |
+| I14 | UNREACHABLE 을 모든 정책에서(`first = true`) | _10·_13·_19, 「UNREACHABLE 은 DECISION 의 FIRST 에서만」 | 빨강 |
+| I14 | UNREACHABLE 의 DECISION 조건 삭제 | 「UNREACHABLE 은 DECISION 의 FIRST 에서만」(DERIVE 사례) | 빨강 |
+| I14 | 격자 끝 열림 판정을 `compareTo` 대신 `equals`(1.10≠1.1) | _03, 「격자 아래 끝은 올리고…」 | 빨강 |
+| I14 | (참고) `cmp` 앞에 `equals` 단축 추가 | — | 초록 — `equals` 가 참이면 `compareTo` 도 0 인 동치 변이라 제외하고 위 변이로 대신했다 |
+| I14 | scale 이 없을 때 리터럴 최대 소수 자리수 대신 0 | _06, 「빈틈 끝은 지수 표기 없이…」 | 빨강 |
+| I14 | 격자 아래 끝 CEILING→FLOOR | 「격자 아래 끝은 올리고 위 끝은 내린다」 | 빨강 |
+| I14 | 격자 위 끝 FLOOR→CEILING | 같은 테스트(처음엔 초록 — 위 끝이 격자보다 긴 사례 `1.357` 을 더해 덮음, TS 로 기대값 대조) | 빨강 |
+| I14 | `toFixed` 를 `toPlainString` 대신 `toString`(지수 표기) | 「빈틈 끝은 지수 표기 없이 격자 자리수로 쓴다」(`0.00000010`) | 빨강 |
+| I14 | 다축 묶음 키의 NUMBER 끝 0 제거 삭제 | 「다축 묶음 키는 끝 0 을 지운 값으로 견준다」(`1000.0`/`1000`) | 빨강 |
+| I14 | 접두 `succ` 를 +2 | _13, 「접두 패턴의 위 끝은…」 | 빨강 |
+| I14 | `succ` 의 0xFFFF 거부 삭제 | 「마지막 코드 유닛이 FFFF 인 접두는 못 푸는 셀이다」 | 빨강 |
+| I14 | 행 정렬(seq→rowId) 삭제 | 「행은 seq 다음 rowId 순으로…」 | 빨강 |
+| I14 | 단계 순서: NULL_GAP 을 VALUE_GAP 앞에서 낸다 | _01·_03·_06·_07 외 | 빨강 |
+| I14 | UNREACHABLE 의 앞 행 목록을 역순 | _18 | 빨강 |
+| I14 | 다축 묶음 키에서 EQ 를 IN 으로 접지 않음 | _18 | 빨강 |
+| I14 | NULL 덮음 판정에 ALL_NA 행을 포함 | _16 | 빨강 |
+
+추가 사례(1.10=1.1 경계, 다축 끝 0, 지수 경계, 격자 올림·내림, 접두 `succ`·0xFFFF, 정책별 도달 불가, 정렬)의 기대값은 scratchpad 에서
+m-mdm `src/evalex/rule-analysis.ts` 의 `analyzeRule` 을 직접 돌려 같은 출력임을 확인했다(프런트 파일은 고치지 않았다).
