@@ -764,3 +764,27 @@
 - **Rationale**: 브라우저 TextEncoder 는 UTF-8 만 인코딩해 EUC-KR 바이트 렌더를 화면이 할 수 없다. 세 액션은 MdmActions·권한 행에 이미 있어 새 시드가 없다. 백엔드에 POI 가 없다
 - **Reversible**: yes
 - **Source**: docs/mdm/tasks/TSK-05-03/design.md D13
+
+## D-TSK-08-02-1 (2026-09-24T05:22:12Z)
+- **Phase**: design (TSK-08-02)
+- **Decision needed**: TSK-03-04 가 겹침·빈틈·도달 불가 분석을 화면 TS(`m-mdm/src/evalex/rule-analysis.ts`·`value-set.ts`)에만 두어 서버 분석기가 없다. TSK-08-02 수용 기준 "JS 즉시 결과와 서버 저장 검사 결과가 코퍼스 범위에서 같다"를 채우려면 서버 분석기가 필요하고, wbs 상 TSK-08-04 저장 시 검사도 같은 분석을 쓴다. 누가 이식하고 코퍼스를 어디에 두나
+- **Decision made**: TSK-08-02 가 TS 분석 알고리즘을 바꾸지 않고 `kr.dongkuk.maru.mdm.engine.rule`(`RuleAnalyzer.analyze(AnalysisRule)`·`AnalysisRule`·`AnalysisVar`·`RuleIssue`·`RuleIssueCode`)로 옮기고, 저장 형태 입력의 분석 코퍼스 한 벌 `src/backend/maru-mdm-engine/src/test/resources/kr/dongkuk/maru/mdm/engine/analysis/analysis-corpus.json` 을 JUnit(운영 `RuleAnalysisInputMapper` 경유)과 Vitest(운영 `ruleDefFromStored` 경유)가 함께 읽는다. TSK-08-03·08-04 는 TSK-08-02 가 dev 에 머지된 뒤 착수하고, 08-04 는 이 공개 API 를 다시 만들지 않고 쓴다(서명 고정, 추가만)
+- **Rationale**: 팀장 지시 2026-09-24로 확정(기본안 A). spec 수용 기준이 서버 저장 검사 결과와의 동치를 요구하고, TSK-03-04 D1 의 반려 방향(`engine.rule` 이식 + `R/analysis/analysis-corpus.json`)과 06:458 의 `engine.rule` 배치를 따른다. 같은 기점에서 두 Task 가 따로 이식하는 중복을 막는다
+- **Reversible**: yes(분석기·코퍼스를 빼고 수용 기준 해석을 셀 코퍼스 동치로 좁히면 된다 — DDL 영향 없음)
+- **Source**: docs/mdm/tasks/TSK-08-02/design.md D2·§6.6.3, docs/mdm/tasks/TSK-03-04/design.md D1
+
+## D-TSK-08-02-2 (2026-09-24T05:22:12Z)
+- **Phase**: design (TSK-08-02)
+- **Decision needed**: DRAFT 소유권 action(선점·해제·넘기기)의 이름과, 그 이름을 권한 어휘·시드에 더하는 일을 어느 Task 가 맡나(TSK-01-03 §7 은 "06-02·08-02 중 먼저 오는 것"에 넘겼고 두 Task 가 같은 기점에서 병렬로 돈다)
+- **Decision made**: ADR-0003 권장 이름 `lock`·`unlock`·`handover` 를 쓴다. `MdmActions`·`MdmPermissions.EDIT_ACTIONS/CONFIRM_ACTIONS`·mcm `DataInitializer` 의 `allActions`·`PERM_MDM_EDIT`(따라서 `PERM_MDM_CONFIRM`)·기존 DB 보정(`ensurePermActions`)·`src/frontend/e2e/fixtures/mdm-rbac-seed-check.expected.txt` 수정은 TSK-08-02 가 맡는다. TSK-06-02 는 이 파일들을 건드리지 않는다
+- **Rationale**: 팀장 지시 2026-09-24로 확정(기본안 A). TSK-01-03 §7 인계와 `MdmActions` javadoc 이 이 이름을 첫 소유권 화면 Task 가 확정해 더하라고 적었다. 한 Task 만 같은 줄을 고쳐 병렬 머지 충돌을 없앤다
+- **Reversible**: yes(action 을 빼고 `execute` 한 갈래에 op 파라미터로 가르면 된다 — 시드·어휘 변경만 되돌린다)
+- **Source**: docs/mdm/tasks/TSK-08-02/design.md D4, docs/mdm/tasks/TSK-01-03/design.md §7, docs/mdm/adr/0003-module-boundary-screens-roles.md D5
+
+## D-TSK-08-02-3 (2026-09-24T05:22:12Z)
+- **Phase**: design (TSK-08-02)
+- **Decision needed**: `MdmStewardDirectory` 기본 구현(`UnresolvedStewardDirectory`)이 늘 false 라 운영에서 DRAFT 넘기기가 MDM005 로 막힌다. 넘기기 대상 담당자 조회 어댑터(mcm 역할 조회)를 이번에 만드나
+- **Decision made**: 만들지 않는다. TSK-08-02 는 넘기기 UI·API 를 공통 `DraftOwnershipService.handover` 에 연결하고 대상 검사는 포트에 맡긴다(운영에서는 어댑터가 생길 때까지 MDM005). 담당자 역할 판단 가드(`MdmStewardGuard`)와 테스트 설정의 일반형 `BeanFactoryPostProcessor` 는 TSK-06-02 가 만들고, TSK-08-02 는 연결 지점 한 곳(`RuleStewardCheck`, `VersionScenarioTestConfig`)을 06-02 머지 뒤 바꿔 끼운다
+- **Rationale**: 팀장 지시 2026-09-24로 확정. mcm 에 역할 조회 경로를 새로 두는 일은 보안 검토 대상이고(TSK-01-03 D7), spec 수용 기준에 넘기기 성공이 없다. 공용 부품은 한 Task 만 만들어 중복을 막는다
+- **Reversible**: yes(mcm client-key 전용 역할 조회 API 와 mdm RestClient 어댑터를 더하면 된다 — 별도 설계·보안 검토 필요)
+- **Source**: docs/mdm/tasks/TSK-08-02/design.md D5·§7, docs/mdm/tasks/TSK-01-03/design.md D7

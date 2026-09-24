@@ -236,6 +236,8 @@ A.1.1 모듈 외 기 구축·공유 모듈은 본 표로 분리 등재. 신규 �
 | `codeItemEdit` | — (To-Be only) | `mdm` | `dmc` | `codeItemEdit` | 2026-09-24 | 코드 편집 — As-Is 없음(신규). TSK-06-03. 기능설계서 1종(`docs/mdm/screens/codeItemEdit/`) |
 | `codeMng` | — (To-Be only) | `mdm` | `dmc` | `codeMng` | 2026-09-24 | 마루 코드 조회·등록 — As-Is 없음(신규), 원천 04 「화면」 탭1. TSK-06-02. 기능설계서 1종(`docs/mdm/screens/codeMng/`) |
 | `codeEdit` | — (To-Be only) | `mdm` | `dmc` | `codeEdit` | 2026-09-24 | 마루 코드 수정(헤더·라벨·폐기·버전 목록·새 버전·DRAFT 소유권) — As-Is 없음(신규), 원천 04 「화면」 탭2. TSK-06-02. 기능설계서 1종(`docs/mdm/screens/codeEdit/`) |
+| `ruleMng` | — (To-Be only) | `mdm` | `dme` | `ruleMng` | 2026-09-24 | 룰 — As-Is 없음, 원천 06 룰 목록·등록. 서버 페이징 목록 + MDM 원천 등록(VER 1 DRAFT 자동 선점). TSK-08-02. 기능설계서 1종(`docs/mdm/screens/ruleMng/`) |
+| `ruleEdit` | — (To-Be only) | `mdm` | `dme` | `ruleEdit` | 2026-09-24 | 룰 화면 — As-Is 없음, 원천 06 룰 화면. 헤더·버전·의사결정표·활용처 카드(08-03·08-04 가 카드를 더한다). TSK-08-02. 기능설계서 1종(`docs/mdm/screens/ruleEdit/`) |
 
 **등재 절차**:
 1. 신규 화면 분석 시 본 표에 행 추가

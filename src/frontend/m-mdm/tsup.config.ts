@@ -43,6 +43,8 @@ export default defineConfig([
       "pages/dmc/codeEdit/page": "pages/dmc/codeEdit/page.tsx",
       "pages/dmd/dataItemMng/page": "pages/dmd/dataItemMng/page.tsx",
       "pages/dmd/dataHistory/page": "pages/dmd/dataHistory/page.tsx",
+      "pages/dme/ruleMng/page": "pages/dme/ruleMng/page.tsx",
+      "pages/dme/ruleEdit/page": "pages/dme/ruleEdit/page.tsx",
     },
   },
 ]);

@@ -1,0 +1,326 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_ruleEdit" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-tool" exporterVersion="1.3.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="ruleEdit" name="룰 화면" isExecutable="true">
+    <bpmn:documentation>ruleEdit — 룰 화면 (To-Be only 신규 화면, dme 업무기준).
+정본: docs/mdm/screens/ruleEdit/ruleEdit_기능설계서.md, TSK-08-02 design.md §6.1.
+
+action=search   -&gt; searchTask (ruleEditService.searchRules) READ — 상단 룰 고르기(ID·명 앞부분 20건)
+action=view     -&gt; viewTask (ruleEditService.view) READ — 선택 버전 정의·해석된 타입·base 행·서버 검사·활용처·me·editable
+action=save     -&gt; saveTask (ruleEditService.save) EDIT — part HEADER(룰명·설명·활용처 메모)·TABLE(행·적중 정책, 행은 grids.rows). RuleEditSavePart 빈에 위임
+action=delete   -&gt; deleteTask (ruleEditService.delete) EDIT — target VERSION(DRAFT 삭제)·RULE(폐기)
+action=copy     -&gt; copyTask (ruleEditService.newVersion) EDIT — 직전 RELEASED 복사, 미적용 버전이 있으면 MDM006
+action=lock     -&gt; lockTask (ruleEditService.lock) EDIT — DraftOwnershipService.acquire
+action=unlock   -&gt; unlockTask (ruleEditService.unlock) EDIT — DraftOwnershipService.release
+action=handover -&gt; handoverTask (ruleEditService.handover) EDIT — DraftOwnershipService.handover
+
+BPMN 의 action(RBAC 키)과 서비스의 method(자바 메서드명)는 별개다. 같은 action 안의 갈래(part·target)는 Java 가 가른다(두 번째 게이트웨이를 두지 않는다).
+확장 지점: 08-04 가 validate(값 테스트) 갈래를 더한다.</bpmn:documentation>
+    <bpmn:startEvent id="start" name="시작">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="actionGateway" name="action 분기">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_search</bpmn:outgoing>
+      <bpmn:outgoing>flow_view</bpmn:outgoing>
+      <bpmn:outgoing>flow_save</bpmn:outgoing>
+      <bpmn:outgoing>flow_delete</bpmn:outgoing>
+      <bpmn:outgoing>flow_copy</bpmn:outgoing>
+      <bpmn:outgoing>flow_lock</bpmn:outgoing>
+      <bpmn:outgoing>flow_unlock</bpmn:outgoing>
+      <bpmn:outgoing>flow_handover</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="searchTask" name="룰 고르기" camunda:class="ruleEditService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchRules" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_search</bpmn:incoming>
+      <bpmn:outgoing>flow_search_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_search" name="룰 고르기 완료">
+      <bpmn:incoming>flow_search_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="viewTask" name="룰·버전·정의 조회" camunda:class="ruleEditService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="view" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_view</bpmn:incoming>
+      <bpmn:outgoing>flow_view_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_view" name="룰·버전·정의 조회 완료">
+      <bpmn:incoming>flow_view_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="saveTask" name="저장(part)" camunda:class="ruleEditService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="save" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_save</bpmn:incoming>
+      <bpmn:outgoing>flow_save_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_save" name="저장(part) 완료">
+      <bpmn:incoming>flow_save_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="deleteTask" name="삭제(target)" camunda:class="ruleEditService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="delete" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleVersionRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_delete</bpmn:incoming>
+      <bpmn:outgoing>flow_delete_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_delete" name="삭제(target) 완료">
+      <bpmn:incoming>flow_delete_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="copyTask" name="새 버전" camunda:class="ruleEditService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="newVersion" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleVersionRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_copy</bpmn:incoming>
+      <bpmn:outgoing>flow_copy_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_copy" name="새 버전 완료">
+      <bpmn:incoming>flow_copy_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="lockTask" name="선점" camunda:class="ruleEditService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="lock" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleVersionRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_lock</bpmn:incoming>
+      <bpmn:outgoing>flow_lock_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_lock" name="선점 완료">
+      <bpmn:incoming>flow_lock_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="unlockTask" name="해제" camunda:class="ruleEditService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="unlock" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleVersionRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_unlock</bpmn:incoming>
+      <bpmn:outgoing>flow_unlock_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_unlock" name="해제 완료">
+      <bpmn:incoming>flow_unlock_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="handoverTask" name="넘기기" camunda:class="ruleEditService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="handover" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleVersionRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_handover</bpmn:incoming>
+      <bpmn:outgoing>flow_handover_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_handover" name="넘기기 완료">
+      <bpmn:incoming>flow_handover_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+    <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
+    <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="end_search" />
+    <bpmn:sequenceFlow id="flow_view" name="view" sourceRef="actionGateway" targetRef="viewTask" />
+    <bpmn:sequenceFlow id="flow_view_end" sourceRef="viewTask" targetRef="end_view" />
+    <bpmn:sequenceFlow id="flow_save" name="save" sourceRef="actionGateway" targetRef="saveTask" />
+    <bpmn:sequenceFlow id="flow_save_end" sourceRef="saveTask" targetRef="end_save" />
+    <bpmn:sequenceFlow id="flow_delete" name="delete" sourceRef="actionGateway" targetRef="deleteTask" />
+    <bpmn:sequenceFlow id="flow_delete_end" sourceRef="deleteTask" targetRef="end_delete" />
+    <bpmn:sequenceFlow id="flow_copy" name="copy" sourceRef="actionGateway" targetRef="copyTask" />
+    <bpmn:sequenceFlow id="flow_copy_end" sourceRef="copyTask" targetRef="end_copy" />
+    <bpmn:sequenceFlow id="flow_lock" name="lock" sourceRef="actionGateway" targetRef="lockTask" />
+    <bpmn:sequenceFlow id="flow_lock_end" sourceRef="lockTask" targetRef="end_lock" />
+    <bpmn:sequenceFlow id="flow_unlock" name="unlock" sourceRef="actionGateway" targetRef="unlockTask" />
+    <bpmn:sequenceFlow id="flow_unlock_end" sourceRef="unlockTask" targetRef="end_unlock" />
+    <bpmn:sequenceFlow id="flow_handover" name="handover" sourceRef="actionGateway" targetRef="handoverTask" />
+    <bpmn:sequenceFlow id="flow_handover_end" sourceRef="handoverTask" targetRef="end_handover" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="ruleEdit">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="150" y="400" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="250" y="400" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchTask_di" bpmnElement="searchTask">
+        <dc:Bounds x="420" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_search_di" bpmnElement="end_search">
+        <dc:Bounds x="620" y="100" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="viewTask_di" bpmnElement="viewTask">
+        <dc:Bounds x="420" y="200" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_view_di" bpmnElement="end_view">
+        <dc:Bounds x="620" y="200" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="saveTask_di" bpmnElement="saveTask">
+        <dc:Bounds x="420" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_save_di" bpmnElement="end_save">
+        <dc:Bounds x="620" y="300" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="deleteTask_di" bpmnElement="deleteTask">
+        <dc:Bounds x="420" y="400" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_delete_di" bpmnElement="end_delete">
+        <dc:Bounds x="620" y="400" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="copyTask_di" bpmnElement="copyTask">
+        <dc:Bounds x="420" y="500" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_copy_di" bpmnElement="end_copy">
+        <dc:Bounds x="620" y="500" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lockTask_di" bpmnElement="lockTask">
+        <dc:Bounds x="420" y="600" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_lock_di" bpmnElement="end_lock">
+        <dc:Bounds x="620" y="600" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="unlockTask_di" bpmnElement="unlockTask">
+        <dc:Bounds x="420" y="700" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_unlock_di" bpmnElement="end_unlock">
+        <dc:Bounds x="620" y="700" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="handoverTask_di" bpmnElement="handoverTask">
+        <dc:Bounds x="420" y="800" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_handover_di" bpmnElement="end_handover">
+        <dc:Bounds x="620" y="800" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="186" y="418" />
+        <di:waypoint x="250" y="425" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_di" bpmnElement="flow_search">
+        <di:waypoint x="275" y="400" />
+        <di:waypoint x="275" y="140" />
+        <di:waypoint x="420" y="140" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="327.5" y="123" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_end_di" bpmnElement="flow_search_end">
+        <di:waypoint x="520" y="140" />
+        <di:waypoint x="620" y="118" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_view_di" bpmnElement="flow_view">
+        <di:waypoint x="275" y="400" />
+        <di:waypoint x="275" y="240" />
+        <di:waypoint x="420" y="240" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="327.5" y="223" width="32" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_view_end_di" bpmnElement="flow_view_end">
+        <di:waypoint x="520" y="240" />
+        <di:waypoint x="620" y="218" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_di" bpmnElement="flow_save">
+        <di:waypoint x="275" y="400" />
+        <di:waypoint x="275" y="340" />
+        <di:waypoint x="420" y="340" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="327.5" y="323" width="32" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_end_di" bpmnElement="flow_save_end">
+        <di:waypoint x="520" y="340" />
+        <di:waypoint x="620" y="318" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_delete_di" bpmnElement="flow_delete">
+        <di:waypoint x="275" y="450" />
+        <di:waypoint x="275" y="440" />
+        <di:waypoint x="420" y="440" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="327.5" y="423" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_delete_end_di" bpmnElement="flow_delete_end">
+        <di:waypoint x="520" y="440" />
+        <di:waypoint x="620" y="418" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_copy_di" bpmnElement="flow_copy">
+        <di:waypoint x="275" y="450" />
+        <di:waypoint x="275" y="540" />
+        <di:waypoint x="420" y="540" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="327.5" y="433" width="32" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_copy_end_di" bpmnElement="flow_copy_end">
+        <di:waypoint x="520" y="540" />
+        <di:waypoint x="620" y="518" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_lock_di" bpmnElement="flow_lock">
+        <di:waypoint x="275" y="450" />
+        <di:waypoint x="275" y="640" />
+        <di:waypoint x="420" y="640" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="327.5" y="433" width="32" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_lock_end_di" bpmnElement="flow_lock_end">
+        <di:waypoint x="520" y="640" />
+        <di:waypoint x="620" y="618" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_unlock_di" bpmnElement="flow_unlock">
+        <di:waypoint x="275" y="450" />
+        <di:waypoint x="275" y="740" />
+        <di:waypoint x="420" y="740" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="327.5" y="433" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_unlock_end_di" bpmnElement="flow_unlock_end">
+        <di:waypoint x="520" y="740" />
+        <di:waypoint x="620" y="718" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_handover_di" bpmnElement="flow_handover">
+        <di:waypoint x="275" y="450" />
+        <di:waypoint x="275" y="840" />
+        <di:waypoint x="420" y="840" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="327.5" y="433" width="64" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_handover_end_di" bpmnElement="flow_handover_end">
+        <di:waypoint x="520" y="840" />
+        <di:waypoint x="620" y="818" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
+

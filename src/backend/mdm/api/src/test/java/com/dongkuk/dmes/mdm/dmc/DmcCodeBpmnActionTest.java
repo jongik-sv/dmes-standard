@@ -25,19 +25,14 @@ import org.w3c.dom.NodeList;
  * TSK-06-02 design.md §3.2·§6.1 — dmc 두 BPMN 의 액션↔메서드 표가 정확한지(불변 규칙 I21).
  *
  * <p>액션(RBAC 키)과 메서드(자바 이름)는 다르다({@code reg→register}, {@code execute→deprecate} 등) — 분기 이름이
- * 메서드와 같다고 보지 않고 표 전체를 대조한다. 모든 액션은 {@link MdmActions} 상수(리플렉션) 또는 소유권 로컬 상수 안이고,
- * 읽기 액션({@code search}·{@code view})만 READ 세트에 있다.
+ * 메서드와 같다고 보지 않고 표 전체를 대조한다. 모든 액션은 {@link MdmActions} 상수(리플렉션) 안이고 EDIT 세트에 있으며,
+ * 읽기 액션({@code search}·{@code view})만 READ 세트에 있다. DRAFT 소유권 액션(lock·unlock·handover)은 TSK-08-02 가
+ * {@link MdmActions}·EDIT 세트에 더했다(D-075).
  */
 class DmcCodeBpmnActionTest {
 
     private static final String BPMN = "http://www.omg.org/spec/BPMN/20100524/MODEL";
     private static final String CAMUNDA = "http://camunda.org/schema/1.0/bpmn";
-
-    /**
-     * DRAFT 소유권 액션 — ADR-0003 D5 권장 이름을 문자열로만 참조한다. 08-02 가 MdmActions 에 더하면 그 상수로 바꾼다
-     * (D-075).
-     */
-    private static final Set<String> OWNERSHIP_ACTIONS = Set.of("lock", "unlock", "handover");
 
     private static final String MNG_DTO = "com.dongkuk.dmes.mdm.dmc.codeMng.dto.";
     private static final String EDIT_DTO = "com.dongkuk.dmes.mdm.dmc.codeEdit.dto.";
@@ -83,12 +78,10 @@ class DmcCodeBpmnActionTest {
 
         Set<String> known = mdmActions();
         for (String action : table.keySet()) {
-            assertTrue(known.contains(action) || OWNERSHIP_ACTIONS.contains(action), action + " 은 MdmActions·소유권 액션 밖이다");
+            assertTrue(known.contains(action), action + " 은 MdmActions 밖이다");
             boolean read = action.equals(MdmActions.SEARCH) || action.equals(MdmActions.VIEW);
             assertEquals(read, MdmPermissions.READ_ACTIONS.contains(action), action + " 의 READ 세트 소속");
-            if (!OWNERSHIP_ACTIONS.contains(action)) {
-                assertTrue(MdmPermissions.EDIT_ACTIONS.contains(action), action + " 은 EDIT 세트 밖이다");
-            }
+            assertTrue(MdmPermissions.EDIT_ACTIONS.contains(action), action + " 은 EDIT 세트 밖이다");
         }
 
         NodeList tasks = doc.getElementsByTagNameNS(BPMN, "serviceTask");

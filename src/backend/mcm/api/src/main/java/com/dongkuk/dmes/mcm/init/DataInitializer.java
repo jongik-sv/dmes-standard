@@ -317,7 +317,9 @@ public class DataInitializer implements ApplicationRunner {
                 "searchUserList",
                 "execute", "validate", "analyze", "view",
                 "activate", "deactivate", "compare", "restore",
-                "apply", "release", "calculate"
+                "apply", "release", "calculate",
+                // TSK-08-02 D4 — mdm DRAFT 소유권(선점·해제·넘기기). mdm MdmActions·MdmPermissions 와 같은 이름.
+                "lock", "unlock", "handover"
 
                 // ── 업무 모듈을 붙일 때 여기에 해당 모듈의 OASIS action 을 추가한다 ──────────────
                 // 본 목록은 PERM_ALL 의 PERMISSION_ACTION 이며, UserPermCache 가 콤마 분할해 PermKey
@@ -946,6 +948,7 @@ public class DataInitializer implements ApplicationRunner {
         }
         log.info("[DataInitializer] TSK-06-02 MDM 마루 코드 시드 — OBJECT 2 + 메뉴 leaf 2 + RBAC(SYSADMIN 2 + MDM 역할 4)");
         seedMdmDataItemMenus();
+        seedMdmRuleMenus();
     }
 
     /**
@@ -972,6 +975,35 @@ public class DataInitializer implements ApplicationRunner {
             seedMdmObjectRbac(objectId, "dmd");
         }
         log.info("[DataInitializer] TSK-07-03 MDM 항목 관리·이력 시드 — OBJECT 2 + 메뉴 leaf 2 + RBAC(SYSADMIN 2 + MDM 역할 4)");
+    }
+
+    /**
+     * TSK-08-02 — 업무기준(dme) 폴더의 룰 화면 두 개: 룰 조회·등록(dme/ruleMng)과 룰 화면(dme/ruleEdit). 기존 마스터관리·업무기준관리
+     * 메뉴는 고치지 않고 dme 폴더 아래 새 leaf 로 등록한다. OBJECT_ID = screenId = BPMN process id(design I23·I24). action 은
+     * ruleMng search·reg, ruleEdit search·view·save·delete·copy·lock·unlock·handover 이고 모두 allActions·권한 세트 안에 있다.
+     * FULL_SEQ 는 부팅 끝 recomputeMenuFullSeq() 가 다시 매긴다.
+     */
+    private void seedMdmRuleMenus() {
+        final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
+        final String AUDIT_VALS = ", 'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', "
+                                + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
+        String[][] screens = {
+                {"ruleMng",  "룰",      "001", "5050100"},
+                {"ruleEdit", "룰 화면", "002", "5050200"},
+        };
+        for (String[] screen : screens) {
+            String objectId = screen[0];
+            insertMcmSecObjIfAbsent(objectId, screen[1], "mdm");
+            insertMcmSecMenuIfAbsent(objectId, screen[2], screen[3], screen[1], "dme", objectId);
+            insertIfAbsentComposite(
+                    "TB_MCM_SEC_ROLE_MAPPING",
+                    new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
+                    new String[]{"SYSADMIN", objectId,    "PERM_ALL"},
+                    "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                    "VALUES ('SYSADMIN', '" + objectId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
+            seedMdmObjectRbac(objectId, "dme");
+        }
+        log.info("[DataInitializer] TSK-08-02 MDM 룰 화면 시드 — OBJECT 2 + 메뉴 leaf 2(dme) + RBAC(SYSADMIN 2 + MDM 역할 4)");
     }
 
     /**
@@ -1024,8 +1056,9 @@ public class DataInitializer implements ApplicationRunner {
         }
 
         // TB_MCM_SEC_PERM — READ ⊂ EDIT ⊂ CONFIRM (MdmPermissions.*_ACTIONS 와 같은 순서)
+        // TSK-08-02 D4 — DRAFT 소유권 액션 lock·unlock·handover 는 EDIT 부터(restore 뒤).
         String readActions = "search,view,export,compare";
-        String editActions = readActions + ",save,delete,reg,import,validate,execute,copy,restore";
+        String editActions = readActions + ",save,delete,reg,import,validate,execute,copy,restore,lock,unlock,handover";
         String confirmActions = editActions + ",confirm";
         String[][] perms = {
                 {"PERM_MDM_READ",    "MDM 조회",      "MDM 조회 권한(ADR-0003 D5)",           readActions},
@@ -1039,6 +1072,8 @@ public class DataInitializer implements ApplicationRunner {
                     "(PERMISSION_ID, PERMISSION_NM, PERMISSION_DESC, PERMISSION_ACTION, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
                     "VALUES ('" + perm[0] + "', N'" + escapeSql(perm[1]) + "', N'" + escapeSql(perm[2]) + "', " +
                     "'" + escapeSql(perm[3]) + "', 'Y', SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
+            // 이미 있는 DB 는 insert-if-absent 가 건너뛰므로 빠진 action 만 끝에 덧붙인다(TSK-08-02 — 기존 순서는 바꾸지 않는다).
+            ensurePermActions(perm[0], perm[3]);
         }
     }
 
@@ -1589,9 +1624,18 @@ public class DataInitializer implements ApplicationRunner {
      * 뒤늦게 추가된 경우 부팅 시 누락분만 append 한다.
      */
     private void ensurePermAllActions(String desiredActionsCsv) {
+        ensurePermActions("PERM_ALL", desiredActionsCsv);
+    }
+
+    /**
+     * 이미 있는 권한 세트의 PERMISSION_ACTION 에 빠진 action 만 끝에 덧붙인다(멱등). 없는 권한 세트는 건너뛴다.
+     * TSK-08-02 — PERM_ALL 전용이던 보정을 PERM_MDM_EDIT·PERM_MDM_CONFIRM 에도 쓰려고 권한 ID 를 받게 했다.
+     */
+    private void ensurePermActions(String permissionId, String desiredActionsCsv) {
         @SuppressWarnings("unchecked")
         List<Object> rows = nq(
-                "SELECT PERMISSION_ACTION FROM MCMAPUSER.TB_MCM_SEC_PERM WHERE PERMISSION_ID = 'PERM_ALL'")
+                "SELECT PERMISSION_ACTION FROM MCMAPUSER.TB_MCM_SEC_PERM WHERE PERMISSION_ID = :permissionId")
+                .setParameter("permissionId", permissionId)
                 .getResultList();
         if (rows.isEmpty()) {
             return;
@@ -1605,10 +1649,11 @@ public class DataInitializer implements ApplicationRunner {
             int updated = nq(
                     "UPDATE MCMAPUSER.TB_MCM_SEC_PERM "
                             + "SET PERMISSION_ACTION = :actions, U_USR_ID = 'admin', U_AT = SYSDATETIME() "
-                            + "WHERE PERMISSION_ID = 'PERM_ALL'")
+                            + "WHERE PERMISSION_ID = :permissionId")
                     .setParameter("actions", normalized)
+                    .setParameter("permissionId", permissionId)
                     .executeUpdate();
-            log.info("[DataInitializer] PERM_ALL action 보정 — rows={} actions={}", updated, normalized);
+            log.info("[DataInitializer] {} action 보정 — rows={} actions={}", permissionId, updated, normalized);
         }
     }
 

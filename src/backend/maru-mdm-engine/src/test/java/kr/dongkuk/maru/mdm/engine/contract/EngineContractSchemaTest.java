@@ -31,7 +31,11 @@ import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException;
 import kr.dongkuk.maru.mdm.engine.expr.EngineWarning;
 import kr.dongkuk.maru.mdm.engine.expr.FunctionSets;
 import kr.dongkuk.maru.mdm.engine.expr.MdmFunction;
+import kr.dongkuk.maru.mdm.engine.rule.AnalysisRule;
+import kr.dongkuk.maru.mdm.engine.rule.AnalysisVar;
 import kr.dongkuk.maru.mdm.engine.rule.RuleEngine;
+import kr.dongkuk.maru.mdm.engine.rule.RuleIssue;
+import kr.dongkuk.maru.mdm.engine.rule.RuleIssueCode;
 import kr.dongkuk.maru.mdm.engine.rule.RuleResult;
 import kr.dongkuk.maru.mdm.engine.rule.RuleSetResult;
 import kr.dongkuk.maru.mdm.engine.rule.RuleView;
@@ -109,7 +113,9 @@ class EngineContractSchemaTest {
             // 정의 조회 결과 — JSON 모양은 서버 API 가 정한다(TSK-03-03).
             RuleView.class, RuleView.ColumnView.class, RuleView.RowView.class, RuleView.CellView.class,
             // 입구 인자 — JSON 이 아니다.
-            RuleEngine.Part.class);
+            RuleEngine.Part.class,
+            // 겹침·빈틈 분석 입출력 — 짝은 m-mdm rule-analysis.ts 이고 분석 코퍼스(analysis-corpus.json)가 묶는다(TSK-08-02 D2).
+            AnalysisRule.class, AnalysisVar.class, RuleIssue.class, RuleIssue.Severity.class, RuleIssueCode.class);
 
     // ------------------------------------------------------------------ 테스트
 

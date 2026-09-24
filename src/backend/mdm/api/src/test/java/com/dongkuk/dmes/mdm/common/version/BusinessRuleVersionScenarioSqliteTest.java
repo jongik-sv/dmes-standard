@@ -38,8 +38,9 @@ import org.springframework.test.context.DynamicPropertySource;
  *
  * <p>명세는 혼합이다: MASTER_CODE 는 픽스처({@link VersionFixtureTables#CODE_SPEC}, 04 실제 테이블은 dev 에 아직 없다),
  * BUSINESS_RULE 은 실제 명세({@link DefaultVersionTableRegistry}, Flyway V8 의 {@code TB_MDM_RULE_VER}). 키트 S15 가
- * 실제 테이블에서 돌고, 06 전용 시나리오 R1~R4 를 더한다. 가짜 확정 검사·삭제 훅(BUSINESS_RULE)은
- * {@link VersionScenarioTestConfig} 에 이미 있으므로 여기서 다시 등록하지 않는다(같은 대상 둘이면 기동 실패).
+ * 실제 테이블에서 돌고, 06 전용 시나리오 R1~R4 를 더한다. 가짜 확정 검사(BUSINESS_RULE)는
+ * {@link VersionScenarioTestConfig} 에 이미 있으므로 여기서 다시 등록하지 않는다(같은 대상 둘이면 기동 실패). DRAFT 삭제 훅은
+ * main 의 실물(TSK-08-02 RuleDraftDeletionHook)을 쓴다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
@@ -155,6 +156,8 @@ class BusinessRuleVersionScenarioSqliteTest extends AbstractVersionStateScenario
         versionStateService.deleteDraft(v1, 0, KIM);
 
         assertNull(readVersionOrNull(v1));
+        // 이 설정에서는 가짜 훅이 BUSINESS_RULE 삭제를 받는다 — 실물 RuleDraftDeletionHook 정의는 TSK-06-02 후처리기가 지운다
+        // (TSK-08-02 design §7.2). 실물 훅의 CASCADE 는 운영 컨텍스트의 RuleVersionServiceTest 가 본다.
         assertEquals(List.of(v1), draftDeletion(VersionTarget.BUSINESS_RULE).calls());
         assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'CASCADE_RULE'", Integer.class));
         assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'CASCADE_RULE'", Integer.class));
