@@ -972,6 +972,8 @@ E2E 변이 1개, mdm e2e 전체 스위트(`e2e/mdm-*.spec.ts`, 8 spec, `--worker
 2. **`DataItemRows.blankToNull(String)` 공용화**(`dmd/dataItemMng/service/DataItemRows.java`) — `DataItemMngService`와 `DataHistoryService`가 각각 똑같은 `blankToNull` private 메서드를 갖고 있었다(리포 전체에 같은 이름의 지역 헬퍼가 여럿 있지만, 이 Task 가 만든 두 서비스끼리의 중복만 정리했다 — 다른 화면의 `blankToNull`은 이 Task 범위 밖). `DataHistoryService`가 이미 `DataItemRows`를 의존하고 있어(`text` 정적 임포트 선례) 자연스러운 위치였다. 두 서비스의 `blankToNull`을 지우고 정적 임포트로 바꿨다.
 3. **프런트 `errorMessage(e)`·`toMaruOptions(options)` 공용화**(`pages/dmd/dataItemMng/types.ts`) — `e instanceof Error ? e.message : String(e)`가 `dataItemMng/page.tsx`에 4곳, `dataHistory/page.tsx`에 3곳 그대로 반복되고 있었고, 마루 데이터 옵션 변환 `useMemo` 도 두 파일에서 완전히 같았다. `dataHistory`가 이미 `dataItemMng/types`를 의존하므로(같은 선례) 두 순수 함수를 그곳에 추가하고 두 페이지 모두 이를 쓰게 바꿨다.
 
+**public 표면 변화**: 기존 시그니처·오류 문구는 하나도 바꾸지 않았다. 이번에 새로 생긴 public 은 추가뿐이다 — `SegmentRow.firstOpen(List<T>)`(인터페이스 static, 공용 코어 패키지 안), `DataItemRows.blankToNull(String)`(화면 서비스 패키지 안). 「공용 코어 명세」가 약속한 위층 두 클래스(`DataItemSaveCore`·`DataCategorySegmentCore`)의 시그니처 목록에는 없던 메서드이고, 그 목록 자체는 바뀌지 않았다.
+
 ### 바꾸지 않은 것
 
 - **`DataItemSaveCore`의 등록/수정/닫기/다시열기 넷과 `DataCategorySegmentCore`의 등록/수정/닫기/다시열기 넷 사이의 "저장 시각 → 잠금 → 재조회 → 검사 → 경계 확정 → 저장" 흐름 반복**: 조사에서 발견했지만 추출하지 않았다. 두 Core 는 대상 타입(`ItemSegmentRow`/`CateSegmentRow`)과 아래층 저장소(`DataItemSegmentStore`/`DataCateSegmentStore`)가 다르고, 각 메서드가 검사 순서·예외 종류에서 미묘하게 갈린다(예: 카테고리는 검사 2를 건너뛰고 BASE 가드가 있다, D4·S14). 공통 템플릿으로 묶으려면 제네릭 상위 클래스나 콜백 인터페이스가 필요해 손대는 범위가 커지고, 잠금 순서(L1)를 지키는 미묘한 차이를 옮기다 깨뜨릴 위험이 이득보다 크다고 판단했다.
@@ -983,8 +985,8 @@ E2E 변이 1개, mdm e2e 전체 스위트(`e2e/mdm-*.spec.ts`, 8 spec, `--worker
 
 | # | 명령 | 결과 |
 |---|---|---|
-| 1 | backend `testAll` | exit 0, tests 2436, failures 0, errors 0 (XML 합산, `testAll` UP-TO-DATE·`:mdm:lib:test` 재실행) |
-| 2 | `pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test` | 1회차 exit 1(이 작업과 무관한 `tests/evalex-perf.test.ts` NFR-1 2건, load average 약 14) — 재실행 exit 0, tests 347/0 |
+| 1 | backend `testAll` | exit 0, tests 2436, failures 0, errors 0 (XML 합산, `testAll` 은 UP-TO-DATE 이지만 `:mdm:api:test`·`:mdm:lib:test` 는 실제로 재실행됐다 — `DataItemSegmentCoreSqliteTest`·`DataCategorySegmentCoreSqliteTest`·`DataItemMngServiceSqliteTest` XML mtime 17:06:46 로 확인, 리팩터한 코어·서비스를 직접 덮는다) |
+| 2 | `pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test` | 1회차 exit 1(이 작업과 무관한 `tests/evalex-perf.test.ts` NFR-1 2건, load average 14.34) — 재실행(load average 12.59) exit 0, tests 347/0 |
 | 3 | `check_oasis_contract.py --root .` | exit 0 (BPMN 26 / bean 26 해석, ERROR 0 WARN 0) |
 | 4 | `pnpm --filter @dk-oasis/m-mdm lint` | exit 0 |
 | 5 | `pnpm test:unit:shared` | exit 0, tests 156/0 |
