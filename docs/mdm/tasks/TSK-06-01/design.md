@@ -619,6 +619,13 @@ public final class MasterCodeDiffConventions {
 - **근거와 근거 순위**: 팀장 지시(작업 규칙)가 D3 유지·04-03 브랜치 직접 수정 금지·깨지는 픽스처는 이 Task 가 고침을 정했다. 게이트는 기준선 대비 신규 실패 0 이라 (4)는 게이트를 통과하지 못한다. 고칠 때 기대값을 완화하지 않는다 — 그 테스트가 원래 검증하던 도메인 동작은 그대로 두고 전제 데이터(부모 코드 행)만 채우거나, 코드 참조가 검증 대상이 아니면 NULL 로 바꾼다. 어느 쪽을 택했는지 파일마다 Build 기록과 decisions.md 에 남긴다.
 - **반려되면 재작업할 방향**: (2)면 04-03 담당에 수정 목록을 넘기고 이 Task 의 해당 픽스처 변경을 되돌린다. (3)이면 D3 반려 방향을 따른다.
 
+### D12 — 확정 검사 스텁을 계약 문장에 맞추려고 기존 스텁 테스트의 itemKey 기대값을 바꾼다(Build 추가)
+- **질문**: §2 는 `MasterCodeConfirmCheckStub` 을 넓혀도 기존 단언(경고 `itemKey()=="P01"`)이 그대로 통과한다고 적었다. 그런데 같은 설계의 계약 Javadoc(§6.1, D10)은 "`MdmCheckIssue.itemKey` 는 `MasterCodeDiffConventions` 키, code 는 항목 enum 의 `name()`, `check()` 는 `report()` 를 편 것"이다. 스텁이 둘 중 무엇을 따르는가.
+- **선택지**: (1) 스텁을 계약에 맞춘다 — `report()` 의 2-1 행이 `MdmCheckIssue("CATE_ITEM_CODE_MISSING", …, "CATE_ITEM:MAJOR,P01")` 를 담고 `check()` 는 `report()` 를 펴서 만든다. `ContractStubCompileTest.마스터코드_스텁은_경고만_…` 의 기대값을 `"P01"` → `"CATE_ITEM:MAJOR,P01"` 로 바꾼다. diff 키도 `"ITEM:P01"`, 값 맵 키는 물리 칼럼 `NAME`. (2) 기존 단언을 지키려고 스텁의 경고를 `("W2-1", "P01")` 로 두고 `report()` 에 같은 이슈를 넣는다(스텁이 자기 계약 문장을 어긴다).
+- **택한 것**: (1).
+- **근거와 근거 순위**: 스텁은 06-05 구현자가 계약 모양을 보고 따라 하는 예시다 — 계약 문장과 어긋난 스텁이 남으면 잘못된 모양이 복제된다. 기대값 변경은 정확한 값을 다른 정확한 값으로 바꾸는 것이지 완화가 아니다(경고 1건·오류 0건·kind·oldValues 단언은 그대로). 근거 순위: 이 설계의 계약 문장(D10·§6.1) > 같은 설계의 파일 목록 부기(§2).
+- **반려되면 재작업할 방향**: 스텁 `report()` 의 2-1 이슈를 `("W2-1", …, "P01")` 로, diff 키를 `"P01"` 로 되돌리고 `ContractStubCompileTest` 의 두 곳(`"CATE_ITEM:MAJOR,P01"` 기대값·새 메서드의 `MdmCheckIssueView` 기대값)을 그 값으로 바꾼다. 계약 Javadoc 은 그대로 둔다.
+
 ---
 
 ## 7. Phase 06(완료 보고) 전 절차
@@ -640,5 +647,117 @@ public final class MasterCodeDiffConventions {
 | TSK-06-04(카테고리 편집) | 카테고리·소속 메서드 구현. BASE → MDM012. REGEX 해석은 `java.util.regex` 전체 일치(04:187). `DEF_EXPR` 는 MSSQL 에서도 한글을 담는다(D6) |
 | TSK-06-05(확정) | `MasterCodeConfirmCheckSpi` 구현 하나(`check()` = `report()` 를 편 것), 5항 `DEFERRED`, 3항 `DELEGATED`, 최초 버전 3·4항 `EXEMPT`, diff 키 D10. 스텁 `MasterCodeConfirmCheckStub` 은 test 에 그대로 둔다 |
 | TSK-04-03(domainMng, 형제 `dflow-2ca988a4`) | V6 머지 뒤 `TB_MDM_DOMAIN.MARU_CODE_ID` 는 FK 다(D3) — CODE 도메인을 저장하는 통합 테스트는 `TB_MDM_CODE` 행을 먼저 넣는다. 그 브랜치를 이 Task 가 직접 고치지는 않는다(D11, §7). **도메인 저장 API 가 없는 코드 ID 를 받으면 DB FK 오류가 난다 — 사용자에게 보일 오류 처리(저장 전 `MaruIdNamespace` 존재 검사와 오류 코드)는 후속 Task 몫이다(이 Task 는 계약 전용)** |
-| V5 를 받은 Task | V6 이 이미 적용된 DB 에 V5 를 넣으면 Flyway 검증 오류가 날 수 있다(D1, Build 실측 결과 참고). 버전 집합 고정 테스트 4곳(§2)에 "5" 를 더한다. V5 가 `TB_MDM_DOMAIN` 을 바꾸면 V6 SQLite 재생성 DDL(§6.0.8)을 맞춘다 |
+| V5 를 받은 Task | V6 이 이미 적용된 DB 에 V5 를 넣으면 기본 설정에서 `FlywayValidateException`("Detected resolved migration not applied to database: 5")이 난다(D1, Build 기록 B3-1 실측). 새 DB·테스트(`@TempDir`)는 영향이 없다. 이미 V6 이 적용된 로컬 SQLite 는 파일을 지우고 다시 띄우는 것이 안내이며, `outOfOrder=true` 는 V5 를 적용하지만 재현성 경고가 나고 `ignoreMigrationPatterns='*:ignored'` 는 V5 를 적용하지 않는다. 버전 집합 고정 테스트 4곳(§2)에 "5" 를 더한다. V5 가 `TB_MDM_DOMAIN` 을 바꾸면 V6 SQLite 재생성 DDL(§6.0.8)을 맞춘다 |
 | 로컬 개발자 | 도메인·컬럼 데이터가 든 로컬 `src/backend/data/mdm.db` 에서는 V6 이 실패하고 롤백된다(D3) — 파일을 지우고 다시 띄운다 |
+
+---
+
+## Build 기록 (Phase 03, 2026-09-24)
+
+### B1. 커밋과 테스트 먼저 증거
+
+| 단계 | 결과 |
+|---|---|
+| 새 마이그레이션 테스트 작성 뒤 V6 없이 실행 | `MdmMasterCodeMigrationTest`·`MdmDomainCodeFkRebuildTest`·`MdmMasterCodeDialectDdlParityTest` 16건 전부 빨강 |
+| V6 두 방언 작성 뒤 | 25건 중 1건 빨강(파서 FK 수 하한 15 가 틀림 → 실제 13개로 정확 단언) → 초록 |
+| 새 lib 단위 테스트(§3.5·§3.6·§3.12) 작성 뒤 | 엔티티·계약이 없어 `:lib:compileTestJava` 컴파일 오류 78건(빨강) |
+| 엔티티만 있고 `application-local.yml` contributor 줄이 없을 때 | `MdmMasterCodeEntityJpaRoundtripTest` 6건 중 §3.3-4 빨강 — `APPLY_FROM` 이 `'1782831600000'` 으로 저장됨(아래 B3-3) |
+| contributor 등록 뒤 | 6건 초록 |
+| 키트 상속(§3.7) 첫 실행 | 22건 중 5건 빨강(S17~S21 이 부모 없이 버전을 시드 → `FK_TB_MDM_CODE_VER_CODE`) → seedVersion 이 부모를 먼저 채우도록 고친 뒤 22건 초록(B2-3) |
+| mdm `:lib:test`·`:api:test` | lib 246 / 0 실패, api 126 / 0 실패 |
+
+### B2. 설계 이탈(사유)
+
+1. **`entity/MdmCodeVerNumbers.java` 추가**(§2 목록에 없음) — package-private 상수 없는 도우미. §6.2 의 "게터 scale 3·IdClass `compareTo` 동등·`stripTrailingZeros` 해시" 규칙을 4개 IdClass·4개 엔티티가 같은 코드로 쓰게 한 곳에 뒀다. 동작은 §6.2 그대로다.
+2. **스텁 itemKey 기대값 변경** — D12(담당자 확인 필요 결정)에 적었다. `ContractStubCompileTest` 의 기존 단언 한 줄이 `"P01"` → `"CATE_ITEM:MAJOR,P01"` 로 바뀌었다(정확한 값 → 정확한 값).
+3. **§3.7 `seedVersion` 이 부모 `TB_MDM_CODE` 행을 먼저 채운다** — 키트의 S17~S21 은 `seedObject` 없이 버전만 시드한다(픽스처 표에는 FK 가 없었다). TSK-01-03 §7 ③ 인계("부모 FK 는 seedVersion 이 채운다")대로 없을 때만 CREATED 로 만든다. 또 키트 본체는 `@Test` **22개**다(§3.7·F13 의 "44개"는 MASTER_CODE·BUSINESS_RULE 을 따로 센 오기로 보인다 — 한 메서드가 두 대상을 함께 돈다).
+4. **§3.3-4 의 판별 칼럼** — 설계는 "컨버터가 빠지면 `typeof=integer`" 라고 봤으나 실측은 `typeof=text` 였다. `APPLY_FROM` 이 TEXT 친화도라 Hibernate 가 바인딩한 epoch millis 정수를 문자열 `'1782831600000'` 으로 바꿔 저장한다. 테스트는 `typeof` 와 함께 **값**(`'2026-07-01 00:00:00'`, `MdmTemporalBinder.toDb` 와 같음)을 단언하므로 변이 21② 는 값 단언과 §3.3-4④(`fromDb` 예외)로 빨개진다. 테스트 주석을 실측대로 고쳤다.
+5. **§3.11 파서 보강** — SQLite V6 의 `CREATE TABLE` 은 8개(`TB_MDM_DOMAIN_NEW` 포함)라 표 집합에서 `TB_MDM_CODE*` 만 대조하고, 재생성 표 FK 의 자식 이름에서 `_NEW` 를 벗겨 MSSQL `ALTER` 와 비교한다. 쉼표는 괄호 깊이·작은따옴표를 인식해 최상위에서만 나눈다. SQLite 인라인 PK(`RECV_ID … PRIMARY KEY AUTOINCREMENT`)는 NOT NULL 로 본다. 설계 항목 외에 "FK 정확히 13개", "`CASCADE` 키워드 자체 없음", "SQLite 에 COLLATE 없음", "비감사 `VARCHAR` 는 전부 BIN2" 를 더 단언한다.
+6. **§3.1 보강** — 표마다 CHECK 대표 외에 `TB_MDM_CODE_SYSTEM`·`TB_MDM_CODE_RECV` FK(코드·시스템 양쪽) 거부를 더했다. `CK_TB_MDM_CODE_CATE_DEF` 는 "TABLE 인데 DEF_TARGET 있음" 도 본다.
+7. **MSSQL V6 파일** — ERD 파일에서 머리 주석 4줄을 빼고 G2·G3·G4 세 줄을 바꾼 뒤 표 설명 주석 4줄과 파일 끝 G5 `ALTER` 를 더했다. `diff` 로 확인한 ERD 대비 차이는 이것뿐이다(§3.13-8 의 Verify 대조 대상). SQLite V6 의 7테이블 부분도 ERD 대비 G1(감사 카운터 7곳)·G2·G3 과 주석만 다르고, 재생성 DDL 은 V3 `TB_MDM_DOMAIN` 과 "걸지 않는다" 주석 2줄 ↔ FK 1줄만 다르다.
+8. **§3.8 MSSQL 테스트** — 별도 DB 이름은 `mdm_master_code`. 설계 항목을 한 파일에 모았고, 5·6·13 항목은 대표 단언으로 줄였다. 게이트 비실행이라 `:api:compileMssqlTestJava` 로 컴파일만 확인했다(B6).
+
+### B3. 실측 기록
+
+1. **D1 — V6 이 적용된 DB 에 V5 가 뒤늦게 들어올 때**(임시 테스트로 1회 실행, 커밋하지 않음): 임시 location 에 sqlite V1~V4·V6 을 복사해 새 DB 에 `migrate()` → `executed=5, target=6`. 같은 location 에 `V5__probe.sql`(`SELECT 1;`)을 더해 다시 `migrate()`:
+   - 기본 설정: `FlywayValidateException: Validate failed: Migrations have failed validation / Detected resolved migration not applied to database: 5. / To ignore this migration, set -ignoreMigrationPatterns='*:ignored'. To allow executing this migration, set -outOfOrder=true.`
+   - `ignoreMigrationPatterns("*:ignored")`: 오류 없이 `executed=0` — V5 는 적용되지 않은 채 남는다.
+   - `outOfOrder(true)`: `executed=1, target=5`, 경고 `outOfOrder mode is active. Migration of schema "main" may not be reproducible.`, `info()` 상태 V5 = `OUT_OF_ORDER`.
+   - Flyway 검증 규칙은 방언과 무관하므로 MSSQL 도 같다고 본다. 인계(§8 "V5 를 받은 Task")에 이 결과를 쓴다.
+2. **§3.2-B**: 부모·자식 도메인과 컬럼 행이 든 V4 DB 에 V6 을 적용하면 `FlywayException` 으로 실패하고, 실패 뒤 `TB_MDM_CODE`·`TB_MDM_DOMAIN_NEW` 가 없으며 도메인·컬럼의 행·DDL 텍스트·FK 가 V6 전과 같고 `flyway_schema_history` 에 버전 6 성공 행이 없다. 참조 행이 있어도 성공하는 기법은 찾지 않았다(D3 그대로).
+3. **§3.3-4(D7·#16)**: 컨트리뷰터 없이 저장한 `APPLY_FROM` = `'1782831600000'`(`typeof=text`), 등록 뒤 = `'2026-07-01 00:00:00'`. Hibernate 7.2 가 `spring.jpa.properties.hibernate.metadata_builder_contributor` 를 실제로 적용함을 이 값 차이로 확인했다(F11).
+4. **#17 관찰**(상태 변경 없음): 엔티티로 저장한 `TB_MDM_CODE_VER.VER` 의 `typeof` = `1:integer, 1.001:real, 2:integer`. scale 3 키 `findById` 와 게터 scale 3 단언은 통과했다.
+5. **D11**: V6 직후 `:api:test` 전체에서 빨강은 `MdmSharedContractMigrationTest` 의 버전 집합 1건뿐이었다(새 버전 반영으로 고침). `MdmDictionaryExpectations`·`VersionFixtureTables`·`VersionStateServiceSqliteTest`·`MdmTermDomainColumnMigrationTest` 는 FK 로 깨지지 않아 고친 픽스처가 없다(후자는 이름·주석만 고침). `DefaultMdmEffectiveDomainResolverTest` 는 이 브랜치(origin/dev `78813e9` 기준)에 없다 — §7 절차에서 다시 본다.
+
+### B4. 변이 검증 (§5 불변 규칙, 52건)
+
+Build 서브에이전트가 변이마다 원본을 바꾸고 관련 테스트를 돌린 뒤 되돌렸다(스크립트 기록). 결과는 **52건 전부 빨강**이다. 규칙 30(main 에 구현 클래스 없음)은 잡는 테스트가 없는 알려진 커버리지 갭이라 변이를 넣지 않았고, Verify 가 `git diff --name-status` 를 §2 목록과 대조해 확인한다. 변이를 모두 되돌린 뒤 작업 트리의 소스·테스트 파일에 변경이 남지 않았음을 오케스트레이터가 `git status` 로 확인했다.
+
+| 규칙 | 변이 | 실행한 테스트 | 결과 |
+|---|---|---|---|
+| 1 | 1a SQLite TB_MDM_CODE_RECV 블록 삭제 | MdmMasterCodeMigrationTest | **빨강** — `MdmMasterCodeMigrationTest` 빨강(13 tests, 5 fail, 0 err) |
+| 1 | 1b MSSQL TB_MDM_CODE_RECV 블록 삭제 | MdmMasterCodeDialectDdlParityTest | **빨강** — `MdmMasterCodeDialectDdlParityTest` 빨강(10 tests, 8 fail, 0 err) |
+| 2 | 2a SQLite 만 V7 로 개명 | MdmFlywayVersionParityTest | **빨강** — `MdmFlywayVersionParityTest` 빨강(1 tests, 1 fail, 0 err) |
+| 2 | 2b 두 방언 V5 로 개명 | MdmSharedContractMigrationTest | **빨강** — `MdmSharedContractMigrationTest` 빨강(6 tests, 1 fail, 0 err) |
+| 3 | 3a SQLite ITEM TO_VER DEFAULT 9999 제거 | MdmMasterCodeMigrationTest | **빨강** — `MdmMasterCodeMigrationTest` 빨강(13 tests, 4 fail, 0 err) |
+| 3 | 3b MdmCodeItem.toVer 초기값 제거 | MdmMasterCodeEntityJpaRoundtripTest | **빨강** — `MdmMasterCodeEntityJpaRoundtripTest` 빨강(6 tests, 2 fail, 0 err) |
+| 4 | 4a SQLite ITEM FROM_VER NUMERIC(9,3) | MdmMasterCodeMigrationTest | **빨강** — `MdmMasterCodeMigrationTest` 빨강(13 tests, 1 fail, 0 err) |
+| 4 | 4b MSSQL VER DECIMAL(9,3) | MdmMasterCodeDialectDdlParityTest | **빨강** — `MdmMasterCodeDialectDdlParityTest` 빨강(10 tests, 1 fail, 0 err) |
+| 5 | 5 SQLite ITEM PK 에서 FROM_VER 제거 | MdmMasterCodeEntityJpaRoundtripTest | **빨강** — `MdmMasterCodeEntityJpaRoundtripTest` 빨강(6 tests, 1 fail, 0 err) |
+| 6 | 6a MSSQL FK_TB_MDM_CODE_ITEM_VER 제거 | MdmMasterCodeDialectDdlParityTest | **빨강** — `MdmMasterCodeDialectDdlParityTest` 빨강(10 tests, 1 fail, 0 err) |
+| 6 | 6b SQLite FK_TB_MDM_CODE_ITEM_VER 제거 | MdmMasterCodeMigrationTest | **빨강** — `MdmMasterCodeMigrationTest` 빨강(13 tests, 3 fail, 0 err) |
+| 7 | 7 SQLite CATE_ITEM → ITEM FK 추가 | MdmMasterCodeMigrationTest | **빨강** — `MdmMasterCodeMigrationTest` 빨강(13 tests, 1 fail, 0 err) |
+| 8 | 8a MSSQL FK_TB_MDM_CODE_ITEM_VER ON DELETE CASCADE | MdmMasterCodeDialectDdlParityTest | **빨강** — `MdmMasterCodeDialectDdlParityTest` 빨강(10 tests, 4 fail, 0 err) |
+| 8 | 8b SQLite FK_TB_MDM_CODE_ITEM_VER ON DELETE CASCADE | MdmMasterCodeMigrationTest | **빨강** — `MdmMasterCodeMigrationTest` 빨강(13 tests, 1 fail, 0 err) |
+| 9 | 9a MSSQL LVL_CNT BETWEEN 0 AND 6 | MdmMasterCodeDialectDdlParityTest | **빨강** — `MdmMasterCodeDialectDdlParityTest` 빨강(10 tests, 1 fail, 0 err) |
+| 9 | 9b SQLite LVL_CNT BETWEEN 0 AND 6 | MdmMasterCodeMigrationTest | **빨강** — `MdmMasterCodeMigrationTest` 빨강(13 tests, 1 fail, 0 err) |
+| 9 | 9c SQLite CK_TB_MDM_CODE_ITEM_CODE 제거 | MdmMasterCodeMigrationTest | **빨강** — `MdmMasterCodeMigrationTest` 빨강(13 tests, 2 fail, 0 err) |
+| 10 | 10 MdmCodeVer.emergencyYn 초기값 제거 | MdmMasterCodeEntityJpaRoundtripTest | **빨강** — `MdmMasterCodeEntityJpaRoundtripTest` 빨강(6 tests, 5 fail, 0 err) |
+| 11 | 11 MdmCodeVer @AttributeOverride 제거 | MdmMasterCodeEntityJpaRoundtripTest | **빨강** — `MdmMasterCodeEntityJpaRoundtripTest` 빨강(6 tests, 4 fail, 0 err) |
+| 12 | 12 SQLite ITEM 감사 VER INTEGER | MdmMasterCodeMigrationTest | **빨강** — `MdmMasterCodeMigrationTest` 빨강(13 tests, 1 fail, 0 err) |
+| 13 | 13 MdmCodeVer.rowVersion 에 @Version | MdmMasterCodeEntityJpaRoundtripTest | **빨강** — `MdmMasterCodeEntityJpaRoundtripTest` 빨강(6 tests, 1 fail, 0 err) |
+| 14 | 14 MdmCode 에 LAST_CHG_SEQ 매핑 추가 | MasterCodeContractTest | **빨강** — `MasterCodeContractTest` 빨강(10 tests, 1 fail, 0 err) |
+| 15 | 15 MdmCodeRecv 엔티티 추가 | MasterCodeContractTest | **빨강** — `MasterCodeContractTest` 빨강(10 tests, 1 fail, 0 err) |
+| 16 | 16 MdmCodeItem 에 @ManyToOne | MdmEntityArchitectureTest | **빨강** — `MdmEntityArchitectureTest` 빨강(4 tests, 1 fail, 0 err) |
+| 17 | 17 MSSQL ITEM CODE COLLATE 제거 | MdmMasterCodeDialectDdlParityTest | **빨강** — `MdmMasterCodeDialectDdlParityTest` 빨강(10 tests, 1 fail, 0 err) |
+| 18 | 18 MSSQL DEF_EXPR VARCHAR(MAX) | MdmMasterCodeDialectDdlParityTest | **빨강** — `MdmMasterCodeDialectDdlParityTest` 빨강(10 tests, 2 fail, 0 err) |
+| 19 | 19a SQLite FK_TB_MDM_DOMAIN_CODE 줄 누락 | MdmMasterCodeMigrationTest · MdmDomainCodeFkRebuildTest | **빨강** — `MdmMasterCodeMigrationTest` 빨강(13 tests, 1 fail, 0 err); `MdmDomainCodeFkRebuildTest` 빨강(2 tests, 1 fail, 0 err) |
+| 19 | 19b SQLite IX_TB_MDM_DOMAIN_PARENT 재생성 누락 | MdmDomainCodeFkRebuildTest · MdmMasterCodeMigrationTest · MdmTermDomainColumnMigrationTest | **빨강** — `MdmDomainCodeFkRebuildTest` 빨강(2 tests, 1 fail, 0 err); `MdmMasterCodeMigrationTest` 빨강(13 tests, 1 fail, 0 err); `MdmTermDomainColumnMigrationTest` 빨강(12 tests, 1 fail, 0 err) |
+| 19 | 19c SQLite sqlite_sequence 보존 문장 누락 | MdmDomainCodeFkRebuildTest | **빨강** — `MdmDomainCodeFkRebuildTest` 빨강(2 tests, 1 fail, 0 err) |
+| 19 | 19d SQLite JSON CHECK(EXAMPLES) 누락 | MdmDomainCodeFkRebuildTest | **빨강** — `MdmDomainCodeFkRebuildTest` 빨강(2 tests, 1 fail, 0 err) |
+| 20 | 20 SQLite V6 executeInTransaction=false | MdmDomainCodeFkRebuildTest | **빨강** — `MdmDomainCodeFkRebuildTest` 빨강(2 tests, 1 fail, 0 err) |
+| 21 | 21a 컨버터 쓰기 형식 .SSS | MdmSqliteLocalDateTimeConverterTest · MdmMasterCodeEntityJpaRoundtripTest | **빨강** — `MdmSqliteLocalDateTimeConverterTest` 빨강(3 tests, 2 fail, 0 err); `MdmMasterCodeEntityJpaRoundtripTest` 빨강(6 tests, 1 fail, 0 err) |
+| 21 | 21b application-local.yml contributor 줄 삭제 | MdmMasterCodeEntityJpaRoundtripTest | **빨강** — `MdmMasterCodeEntityJpaRoundtripTest` 빨강(6 tests, 1 fail, 0 err) |
+| 22 | 22 MdmCodeVer 세터 초 절단 제거 | MdmCodeEntityValueTest · MdmMasterCodeEntityJpaRoundtripTest | **빨강** — `MdmCodeEntityValueTest` 빨강(3 tests, 1 fail, 0 err); `MdmMasterCodeEntityJpaRoundtripTest` 초록(6 tests, 0 fail, 0 err) |
+| 23 | 23a scaled() 정규화 제거(게터·생성자) | MdmCodeEntityValueTest · MdmMasterCodeEntityJpaRoundtripTest | **빨강** — `MdmCodeEntityValueTest` 빨강(3 tests, 1 fail, 0 err); `MdmMasterCodeEntityJpaRoundtripTest` 빨강(6 tests, 3 fail, 0 err) |
+| 23 | 23b MdmCodeVer.getVer 게터 정규화만 제거 | MdmCodeEntityValueTest · MdmMasterCodeEntityJpaRoundtripTest | **빨강** — `MdmCodeEntityValueTest` 초록(3 tests, 0 fail, 0 err); `MdmMasterCodeEntityJpaRoundtripTest` 빨강(6 tests, 2 fail, 0 err) |
+| 23 | 23c MdmCodeVerId equals/hashCode 를 Objects 기반으로 | MdmCodeEntityValueTest · MdmMasterCodeEntityJpaRoundtripTest | **빨강** — `MdmCodeEntityValueTest` 빨강(3 tests, 1 fail, 0 err); `MdmMasterCodeEntityJpaRoundtripTest` 초록(6 tests, 0 fail, 0 err) |
+| 24 | 24a MasterCodeSegmentService 에 default 메서드 | MdmContractArchitectureTest | **빨강** — `MdmContractArchitectureTest` 빨강(10 tests, 1 fail, 0 err) |
+| 24 | 24b MasterCodeItemValues 에 lvl(int) | MdmContractArchitectureTest | **빨강** — `MdmContractArchitectureTest` 빨강(10 tests, 1 fail, 0 err) |
+| 25 | 25a enum MasterCodeCateKind{REGEX,TABLE} 추가 | MasterCodeContractTest | **빨강** — `MasterCodeContractTest` 빨강(10 tests, 1 fail, 0 err) |
+| 25 | 25b MasterCodeConventions.BASE_CATE_ID="BASE" | MasterCodeContractTest | **빨강** — `MasterCodeContractTest` 빨강(10 tests, 1 fail, 0 err) |
+| 26 | 26a addItem 에 long expectedRowVersion 추가(스텁도 맞춤) | MasterCodeContractTest | **빨강** — `MasterCodeContractTest` 빨강(10 tests, 1 fail, 0 err) |
+| 26 | 26b deleteDraft(VersionRef) 재선언(스텁도 맞춤) | MasterCodeContractTest | **빨강** — `MasterCodeContractTest` 빨강(10 tests, 1 fail, 0 err) |
+| 27 | 27a 2-1 심각도 REJECT | MasterCodeContractTest | **빨강** — `MasterCodeContractTest` 빨강(10 tests, 1 fail, 0 err) |
+| 27 | 27b 5항 inScope=true | MasterCodeContractTest | **빨강** — `MasterCodeContractTest` 빨강(10 tests, 1 fail, 0 err) |
+| 28 | 28 KEY_PART_SEPARATOR="/" | MasterCodeContractTest | **빨강** — `MasterCodeContractTest` 빨강(10 tests, 1 fail, 0 err) |
+| 29 | 29 CONFIRM_CHECKS 에 MASTER_CODE 스텁 하나 더 | ContractStubCompileTest | **빨강** — `ContractStubCompileTest` 빨강(15 tests, 1 fail, 0 err) |
+| 31 | 31a SQLite RELEASED_AT → RELEASE_AT | MasterCodeVersionStateSqliteTest | **빨강** — `MasterCodeVersionStateSqliteTest` 빨강(22 tests, 12 fail, 0 err) |
+| 31 | 31b SQLite CK_TB_MDM_CODE_VER_APPLY 를 STATUS='DRAFT' OR APPLY_TO IS NULL 로 | MasterCodeVersionStateSqliteTest | **빨강** — `MasterCodeVersionStateSqliteTest` 빨강(22 tests, 16 fail, 0 err) |
+| 32 | 32a SQLite RECV AUTOINCREMENT 제거 | MdmMasterCodeMigrationTest · MdmMasterCodeDialectDdlParityTest | **빨강** — `MdmMasterCodeMigrationTest` 빨강(13 tests, 1 fail, 0 err); `MdmMasterCodeDialectDdlParityTest` 빨강(10 tests, 1 fail, 0 err) |
+| 32 | 32b MSSQL RECV IDENTITY(1,1) 제거 | MdmMasterCodeDialectDdlParityTest | **빨강** — `MdmMasterCodeDialectDdlParityTest` 빨강(10 tests, 1 fail, 0 err) |
+| 9 | D4 SQLite CK APPLY 를 ERD 원문으로(D4 되돌림) | MdmMasterCodeMigrationTest · MdmMasterCodeDialectDdlParityTest | **빨강** — `MdmMasterCodeMigrationTest` 빨강(13 tests, 1 fail, 0 err); `MdmMasterCodeDialectDdlParityTest` 빨강(10 tests, 1 fail, 0 err) |
+
+### B5. Build 게이트 (오케스트레이터 직접 실행)
+
+| 명령 | tests | failures | errors | 판정 |
+|---|---|---|---|---|
+| `cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain` (TEST-*.xml 합산, mssqlMigrationTest 제외) | 1950 | 0 | 0 | 통과. 기준선 1878 / 0 대비 신규 실패 0, 총수 +72 |
+
+mdm 테스트 결과 XML 마다 대응 소스가 있음을 확인했다(D1 임시 실측 테스트의 결과가 섞이지 않았다).
+
+### B6. MSSQL 방언
+
+- 사용자 결정: 도커 금지로 MSSQL 실측 생략, DDL 리뷰로 대체. `:api:mssqlMigrationTest` 는 실행하지 않았다.
+- `cd src/backend/mdm && ../gradlew :api:compileMssqlTestJava --no-daemon` 은 BUILD SUCCESSFUL 이다(mssqlTest 소스셋 새 파일·수정 파일 컴파일 확인, docker 불필요).
+- 기계 대조는 §3.11 `MdmMasterCodeDialectDdlParityTest`(testAll 포함)가 맡고, 남은 줄 단위 대조 리뷰는 §3.13 체크리스트로 Verify 가 수행한다.
