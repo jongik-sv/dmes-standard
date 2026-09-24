@@ -2,7 +2,7 @@
   "tsk": "TSK-06-02",
   "order": "16de6362-6033-4d08-b45a-20e107d40853",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "build",
+  "phase": "refactor",
   "baseline": {
     "failures": 0,
     "tests": 2823,
@@ -56,9 +56,47 @@
       }
     ]
   },
-  "model": "opus",
+  "model": "sonnet",
   "last": {
-    "phase": "design",
-    "event": "design.pass"
+    "phase": "verify",
+    "event": "verify.pass"
+  },
+  "build_gate": {
+    "head": "4e75464",
+    "backend_testAll": {
+      "tests": 2410,
+      "failures": 0
+    },
+    "m_mdm_test": {
+      "tests": 357,
+      "failures": 0
+    },
+    "m_mdm_lint": "exit 0",
+    "shared": {
+      "tests": 156,
+      "failures": 0
+    },
+    "oasis": "ERROR 0 / WARN 0",
+    "note": "Build 에이전트 실행 시 evalex-perf NFR-1 1~3건이 load 20~38 에서 실패, 오케스트레이터 재실행(load 5.9)에서 357/0"
+  },
+  "verify_gate": {
+    "head": "06d4dad",
+    "retry": "1회(sonnet 승격) — 1차 haiku 는 E2E 환경(Next dev Build Error 오버레이)으로 실패",
+    "backend_testAll": {
+      "tests": 2410,
+      "failures": 0
+    },
+    "m_mdm_test": {
+      "tests": 357,
+      "failures": 0
+    },
+    "m_mdm_lint": "exit 0",
+    "shared": {
+      "tests": 156,
+      "failures": 0
+    },
+    "oasis": "ERROR 0 / WARN 0",
+    "e2e_mdm_full": "28/28 (Verify 서브에이전트, 청크 2개·같은 서버/DB)",
+    "mutations": "I1 I2 I5 I6 I7 I8 I9 I14 I15 I28 전부 RED, I26 E2E 전체 스위트 RED"
   }
 }
