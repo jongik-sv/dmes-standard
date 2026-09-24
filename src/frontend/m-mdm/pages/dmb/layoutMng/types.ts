@@ -1,5 +1,6 @@
 /** layoutMng 응답·초안 타입(TSK-05-02 design.md §6.1 — 행 키 UPPER_SNAKE 그대로). */
 import type { ColumnInfo, LayoutItemRow, UnitRow } from "@/layout/types";
+import type { LayoutSnapshot } from "@/layout/snapshot-export";
 
 export interface LayoutRow {
   LAYOUT_ID: number;
@@ -48,6 +49,7 @@ export interface SearchResult {
   eais?: EaiRow[];
   headers?: HeaderOption[];
   columns?: ColumnInfo[];
+  impacts?: ImpactRow[];
 }
 
 export interface ViewHeader {
@@ -68,6 +70,7 @@ export interface ViewResult {
   headers?: ViewHeader[];
   items?: LayoutItemRow[];
   units?: UnitRow[];
+  versions?: VersionRow[];
 }
 
 export interface SaveResult {
@@ -75,6 +78,90 @@ export interface SaveResult {
   ver?: number;
   totalLength?: number;
   headerLength?: number;
+  layoutVersion?: number;
+  versionCreated?: boolean;
+  switchMode?: string | null;
+  changeSummary?: string | null;
+}
+
+// ── TSK-05-03 design.md §6.1 ──
+
+export interface CheckRow {
+  NO: number;
+  CONDITION: string;
+  CODE: string;
+  RESULT: "PASS" | "FAIL" | "WARN";
+  MESSAGES: string[];
+}
+
+export interface IssueRow {
+  CODE: string;
+  SEQ?: number | null;
+  FIELD?: string | null;
+  MESSAGE: string;
+}
+
+export interface CheckResult {
+  checks?: CheckRow[];
+  otherIssues?: IssueRow[];
+  passed?: boolean;
+}
+
+export interface SampleSegment {
+  INDEX: number;
+  ZONE: "HEADER" | "BODY";
+  HEADER_SEQ: number;
+  ZONE_LABEL?: string | null;
+  SEQ: number;
+  NAME?: string | null;
+  COLUMN_PHYS?: string | null;
+  FILL_KIND: string;
+  OFFSET: number;
+  LENGTH: number;
+  POSITION: string;
+  TEXT: string;
+}
+
+export interface SampleResult {
+  encoding?: string;
+  totalBytes?: number;
+  line?: string;
+  segments?: SampleSegment[];
+  parsed?: Array<{ COLUMN_PHYS: string; NAME?: string | null; VALUE?: string | null }>;
+  errors?: Array<{ SEQ?: number | null; COLUMN_PHYS?: string | null; MESSAGE: string }>;
+  issues?: IssueRow[];
+}
+
+export interface VersionRow {
+  LAYOUT_VERSION: number;
+  SAVED_AT?: string | null;
+  SAVED_BY?: string | null;
+  TOTAL_LENGTH: number;
+  SWITCH_MODE?: string | null;
+  CHANGE_KINDS?: string | null;
+  CHANGE_SUMMARY?: string | null;
+}
+
+export interface ExportResult {
+  layoutId?: number;
+  layoutVersion?: number;
+  fileBase?: string;
+  snapshot?: LayoutSnapshot;
+  names?: Record<string, string>;
+}
+
+export interface ImpactRow {
+  COLUMN_PHYS: string;
+  COLUMN_NAME?: string | null;
+  DOMAIN_NAME?: string | null;
+  LAYOUT_ID?: number | null;
+  LAYOUT_NAME?: string | null;
+  LAYOUT_KIND?: string | null;
+  SEQ?: number | null;
+  ITEM?: string | null;
+  SND_RCV?: string | null;
+  USED_BY_COUNT?: number | null;
+  IMPACT: string;
 }
 
 export interface LayoutDraft {

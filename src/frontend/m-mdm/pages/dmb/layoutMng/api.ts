@@ -3,10 +3,13 @@
  *
  * TSK-04-03 B0 실측 규칙(F11): grid `headers`·`consts`·`items` 셋을 **빈 배열이라도 늘 보내고**, params 의 null·빈 값 키는
  * 뺀다. 헤더 항목을 보내는 grid 는 없다 — 전문에서 헤더 구성·길이는 잠긴다(불변 I8). 공유 헬퍼는 두지 않는다.
+ * TSK-05-03: validate(등록 검증 7종)·execute(샘플 전문 렌더, grid samples 추가)·export(스냅샷)·search target=IMPACT(영향 전문).
  */
 import { apiRequest } from "@dk-oasis/shared/http";
 import type { ColumnInfo, LayoutItemRow } from "@/layout/types";
-import type { ConstRow, HeaderOption, LayoutDraft, SaveResult, SearchFilters, SearchResult, ViewResult } from "./types";
+import type {
+  CheckResult, ConstRow, ExportResult, HeaderOption, ImpactRow, LayoutDraft, SampleResult, SaveResult, SearchFilters, SearchResult, ViewResult,
+} from "./types";
 
 const OASIS_BASE = "/api/mdm/oasis/layoutMng";
 const ITEM_KEYS = ["SEQ", "FILL_KIND", "COLUMN_PHYS", "TRANS_UNIT", "UNIT_ITEM", "NUM_FORMAT", "DEFAULT_VALUE", "FILLER_LENGTH"] as const;
@@ -77,12 +80,43 @@ export function viewLayout(layoutId: number): Promise<ViewResult> {
   return callAction("view", { layoutId });
 }
 
-/** 저장 — 헤더 구성(행 순서가 쌓는 순서)·상수 재정의·본문 항목(행 순서가 SEQ). */
-export function saveLayout(draft: LayoutDraft, headers: Array<{ HEADER_LAYOUT_ID: number }>, consts: ConstRow[],
-                           items: LayoutItemRow[]): Promise<SaveResult> {
-  return callAction("save", draft, {
+/** 편집 상태 → grid 셋(헤더 구성 행 순서가 쌓는 순서, 본문 행 순서가 SEQ). save·validate·execute 가 같은 모양을 보낸다. */
+function draftGrids(headers: Array<{ HEADER_LAYOUT_ID: number }>, consts: ConstRow[], items: LayoutItemRow[]): Grids {
+  return {
     headers: { rows: headers.map((h, i) => ({ SEQ: i + 1, HEADER_LAYOUT_ID: h.HEADER_LAYOUT_ID })) },
     consts: { rows: consts.map((c) => ({ HEADER_LAYOUT_ID: c.HEADER_LAYOUT_ID, HEADER_SEQ: c.HEADER_SEQ, CONST_VALUE: c.CONST_VALUE })) },
     items: { rows: items.map((r) => cleanParams(Object.fromEntries(ITEM_KEYS.map((k) => [k, r[k]])))) },
+  };
+}
+
+/** 저장 — 헤더 구성(행 순서가 쌓는 순서)·상수 재정의·본문 항목(행 순서가 SEQ). */
+export function saveLayout(draft: LayoutDraft, headers: Array<{ HEADER_LAYOUT_ID: number }>, consts: ConstRow[],
+                           items: LayoutItemRow[]): Promise<SaveResult> {
+  return callAction("save", draft, draftGrids(headers, consts, items));
+}
+
+/** 등록 검증 7종 표(TSK-05-03 §6.2) — 쓰지 않는다. */
+export function validateLayout(draft: LayoutDraft, headers: Array<{ HEADER_LAYOUT_ID: number }>, consts: ConstRow[],
+                               items: LayoutItemRow[]): Promise<CheckResult> {
+  return callAction("validate", draft, draftGrids(headers, consts, items));
+}
+
+/** 샘플 전문 렌더(TSK-05-03 D13) — 예시 값은 grid samples, 인코딩 바이트 구간은 서버가 만든다. */
+export function renderSample(draft: LayoutDraft, headers: Array<{ HEADER_LAYOUT_ID: number }>, consts: ConstRow[], items: LayoutItemRow[],
+                             samples: Record<string, string>, opts: { sendTime?: string; seq?: number } = {}): Promise<SampleResult> {
+  return callAction("execute", { ...draft, ...opts }, {
+    ...draftGrids(headers, consts, items),
+    samples: { rows: Object.entries(samples).map(([COLUMN_PHYS, VALUE]) => ({ COLUMN_PHYS, VALUE })) },
   });
+}
+
+/** 저장된 버전의 스냅샷(버전을 빼면 최신). */
+export function exportSnapshot(layoutId: number, layoutVersion?: number | null): Promise<ExportResult> {
+  return callAction("export", { layoutId, layoutVersion });
+}
+
+/** 컬럼·도메인 변경 영향 전문(search target=IMPACT). */
+export async function searchImpact(keyword: string): Promise<ImpactRow[]> {
+  const out = await callAction<SearchResult>("search", { target: "IMPACT", keyword });
+  return out.impacts ?? [];
 }
