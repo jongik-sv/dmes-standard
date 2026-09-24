@@ -60,7 +60,8 @@ public class DataItemSaveCore {
             List<MdmCheckIssue> issues = new ArrayList<>(checks.contentIssues(DataSavePath.SCREEN, data, code, value, true,
                     HierarchyIndex.of(rows.latestItemRows(maruDataId))));
             if (!own.isEmpty()) {
-                String message = open(own) != null ? DataItemMessages.KEY_EXISTS : DataItemMessages.CLOSED_KEY_REOPEN;
+                String message = SegmentRow.firstOpen(own) != null ? DataItemMessages.KEY_EXISTS
+                        : DataItemMessages.CLOSED_KEY_REOPEN;
                 issues.add(DataItemChecks.issue("CHK6", message, "code", code));
             }
             if (!issues.isEmpty()) {
@@ -121,7 +122,7 @@ public class DataItemSaveCore {
                 throw DataItemChecks.rejected(List.of(DataItemChecks.issue("KEY", DataItemMessages.KEY_NOT_FOUND + ": "
                         + code, "code", code)));
             }
-            if (open(own) != null) {
+            if (SegmentRow.firstOpen(own) != null) {
                 throw DataItemChecks.rejected(List.of(DataItemChecks.issue("KEY", DataItemMessages.ALREADY_OPEN,
                         "code", code)));
             }
@@ -230,7 +231,7 @@ public class DataItemSaveCore {
             throw DataItemChecks.rejected(List.of(DataItemChecks.issue("KEY", DataItemMessages.KEY_NOT_FOUND + ": " + code,
                     "code", code)));
         }
-        ItemSegmentRow open = open(own);
+        ItemSegmentRow open = SegmentRow.firstOpen(own);
         if (open == null) {
             throw DataItemChecks.rejected(List.of(DataItemChecks.issue("KEY", DataItemMessages.NOT_OPEN, "code", code)));
         }
@@ -242,10 +243,6 @@ public class DataItemSaveCore {
         if (last.rowVersion() != expectedRowVersion) {
             throw MdmErrors.of(MdmErrorCode.ROW_VERSION_CONFLICT);
         }
-    }
-
-    private static ItemSegmentRow open(List<ItemSegmentRow> own) {
-        return own.stream().filter(ItemSegmentRow::isOpen).findFirst().orElse(null);
     }
 
     private static ItemSegmentRow last(List<ItemSegmentRow> own) {

@@ -52,7 +52,8 @@ public class DataCategorySegmentCore {
             checks.requireActive(data);
             List<MdmCheckIssue> issues = new ArrayList<>(checks.cateDefIssues(cateId, value));
             if (!own.isEmpty()) {
-                String message = open(own) != null ? DataItemMessages.KEY_EXISTS : DataItemMessages.CLOSED_KEY_REOPEN;
+                String message = SegmentRow.firstOpen(own) != null ? DataItemMessages.KEY_EXISTS
+                        : DataItemMessages.CLOSED_KEY_REOPEN;
                 issues.add(DataItemChecks.issue("CHK6", message, "cateId", cateId));
             }
             if (!issues.isEmpty()) {
@@ -104,7 +105,7 @@ public class DataCategorySegmentCore {
             if (own.isEmpty()) {
                 throw keyIssue(DataItemMessages.KEY_NOT_FOUND + ": " + cateId, cateId);
             }
-            if (open(own) != null) {
+            if (SegmentRow.firstOpen(own) != null) {
                 throw keyIssue(DataItemMessages.ALREADY_OPEN, cateId);
             }
             LocalDateTime at = SegmentBoundary.next(now, own);
@@ -166,13 +167,9 @@ public class DataCategorySegmentCore {
         if (own.isEmpty()) {
             throw keyIssue(DataItemMessages.KEY_NOT_FOUND + ": " + cateId, cateId);
         }
-        if (open(own) == null) {
+        if (SegmentRow.firstOpen(own) == null) {
             throw keyIssue(DataItemMessages.NOT_OPEN, cateId);
         }
-    }
-
-    private static CateSegmentRow open(List<CateSegmentRow> own) {
-        return own.stream().filter(CateSegmentRow::isOpen).findFirst().orElse(null);
     }
 
     private static RuntimeException keyIssue(String message, String key) {

@@ -21,6 +21,11 @@ public final class DataItemRows {
         return at == null ? null : TEXT.format(at);
     }
 
+    /** 공백·null → null, 그 밖은 trim(dataItemMng·dataHistory 공용). */
+    public static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
     public static DataItemRow toRow(ItemSegmentRow row) {
         DataItemValue v = row.value();
         DataItemRow out = new DataItemRow();

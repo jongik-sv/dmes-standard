@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.dmd.dataHistory.service;
 
+import static com.dongkuk.dmes.mdm.dmd.dataItemMng.service.DataItemRows.blankToNull;
 import static com.dongkuk.dmes.mdm.dmd.dataItemMng.service.DataItemRows.text;
 
 import com.dongkuk.dmes.mdm.common.segment.CateItemSegmentRow;
@@ -171,9 +172,5 @@ public class DataHistoryService {
 
     private static RuntimeException invalid(String detail) {
         return MdmErrors.of(MdmErrorCode.INVALID_INPUT, detail, List.of());
-    }
-
-    private static String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
     }
 }

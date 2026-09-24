@@ -1,5 +1,7 @@
 package com.dongkuk.dmes.mdm.dmd.dataItemMng.service;
 
+import static com.dongkuk.dmes.mdm.dmd.dataItemMng.service.DataItemRows.blankToNull;
+
 import com.dongkuk.dmes.mdm.common.segment.CateSegmentRow;
 import com.dongkuk.dmes.mdm.common.segment.DataItemSaveCore;
 import com.dongkuk.dmes.mdm.common.segment.DataItemValue;
@@ -137,9 +139,5 @@ public class DataItemMngService {
             throw MdmErrors.of(MdmErrorCode.INVALID_INPUT, "row_version 이 없습니다. 다시 불러오세요", List.of());
         }
         return expected;
-    }
-
-    static String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
     }
 }
