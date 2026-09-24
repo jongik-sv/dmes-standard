@@ -215,7 +215,7 @@ EXTERNAL 등록은 보류다(D11). 마이그레이션은 만들지 않는다.
 | **S** `BL/contract/security/MdmPermissions.java` | `EDIT_ACTIONS`·`CONFIRM_ACTIONS` 에 `LOCK, UNLOCK, HANDOVER` 를 `RESTORE` 뒤에 추가(READ 는 그대로) |
 | **S** `DI` | (1) `allActions` 에 `"lock", "unlock", "handover"` 추가. (2) `editActions = readActions + ",save,delete,reg,import,validate,execute,copy,restore,lock,unlock,handover"`. (3) PERM_MDM_EDIT·PERM_MDM_CONFIRM 이 이미 있는 DB 를 위한 보정 `ensurePermActions(String permissionId, String desiredCsv)` — `ensurePermAllActions`(`DI:1497`)와 같은 방식으로 빠진 action 만 덧붙인다. (4) `seedMdmRuleMenus()` 새 메서드를 `seedMdmMenus()` 끝에서 부른다: `ruleMng`("룰", menuSeq "001", fullSeq "5050100")·`ruleEdit`("룰 화면", "002", "5050200") 각각 `insertMcmSecObjIfAbsent(id, 이름, "mdm")` → `insertMcmSecMenuIfAbsent(id, seq, fullSeq, 이름, "dme", id)` → SYSADMIN×PERM_ALL → `seedMdmObjectRbac(id, "dme")`. `seedMdmDomainMngMenu()`(`DI:1058`) 모양을 그대로 따른다 |
 | **S** `BAT/MdmOasisActionVocabularyTest.java`, `BLT/contract/security/SecurityScreenContractTest.java` | 16종 어휘와 권한 세트를 반영한다. dme BPMN 두 개의 action 이 모두 권한 세트 안에 있는지 검사 대상에 넣는다 |
-| **S** `src/frontend/e2e/fixtures/mdm-rbac-seed-check.expected.txt` | PERM_MDM_CONFIRM·PERM_MDM_EDIT 줄 끝에 `,lock,unlock,handover` |
+| **S** `src/frontend/e2e/fixtures/mdm-rbac-seed-check.expected.txt` | 새 DB 기준 두 줄: `PERM_MDM_EDIT|-|-|-|search,view,export,compare,save,delete,reg,import,validate,execute,copy,restore,lock,unlock,handover`, `PERM_MDM_CONFIRM|-|-|-|search,view,export,compare,save,delete,reg,import,validate,execute,copy,restore,lock,unlock,handover,confirm`(`confirm` 이 맨 끝). 기존 DB 를 고치는 `ensurePermActions` 는 빠진 action 을 **끝에** 덧붙여 CONFIRM 순서가 `…,confirm,lock,unlock,handover` 가 되므로, 시드 대조는 늘 새 DB 에서만 한다(E2E 절차 2) |
 | **S** mcm 쪽 PERM_ALL·권한 세트를 단언하는 테스트가 있으면(Build 가 `grep -rn "restore" src/backend/mcm/api/src/test` 로 찾는다) 같이 고친다 | |
 | **FS** `src/frontend/shared/src/components/grid/AgDataGrid.tsx` | (1) `GridColumn.children?: GridColumn[]` — 있으면 `ColGroupDef{headerName: header, headerGroupComponent?, children}` 로 바꾼다(잎만 `ColDef`). `headerTooltip?: string` 도 더한다. (2) props `rowDragField?: string`(그 열에 `rowDrag: true`), `isRowDraggable?: (row) => boolean`, `onRowOrderChange?: (orderedKeys: (string|number)[]) => void` — `rowDragManaged: true` 로 켜고 `onRowDragEnd` 에서 `api.forEachNode` 순서를 `rowKey` 로 넘긴다. 정렬(`sortable`)이 켜져 있으면 managed drag 가 동작하지 않으므로 이 prop 이 있으면 정렬을 끈다(Build 가 `aggrid_docs.py` 로 `rowDragManaged` 제약을 확인한다). 기존 prop 기본값·동작은 바꾸지 않는다 |
 | **FS** `src/frontend/shared/tests/unit/`(shared 단위 테스트 위치) | 열 그룹 변환·드래그 prop 테스트(§3.2) |
@@ -270,7 +270,7 @@ EXTERNAL 등록은 보류다(D11). 마이그레이션은 만들지 않는다.
 | `tests/dme/ruleEdit/diff.test.ts` | ADDED·CHANGED·SAME, `ast` 를 빼고 견준다, 행 설명만 바뀌어도 CHANGED, 지운 행 목록 |
 | `tests/dme/ruleEdit/rule-analysis-corpus.test.ts` | **코퍼스 동치(TS 쪽)**: `ANALYSIS_CORPUS_PATH` 를 읽어 사례마다 `ruleDefFromStored` → `analyzeRule` → 투영이 `expect` 와 순서까지 같다. 사례 수 하한은 Java 러너와 같은 값 |
 | `tests/dme/ruleEdit/rule-edit-page.test.ts` | 렌더: 소유자 아니면 그리드·버튼 비활성과 `DraftLockBadge` "잠김", 소유자면 활성, EXTERNAL 이면 조회 전용 배지 |
-| `tests/dme/ruleEdit/decision-table-card.test.ts` | 행 추가 → 조건 전부 `-` 행과 ALL_NA_ROW 경고 표시, 값을 고치면 JS 검사가 다시 돌아 겹침 알림, 되돌리기, 저장 요청 본문(`part: "TABLE"`, rows 순서·음수 임시 ID·cells 문자열) |
+| `tests/dme/ruleEdit/decision-table-card.test.ts` | 행 추가 → 조건 전부 `-` 행과 ALL_NA_ROW 오류 표시, 값을 고치면 JS 검사가 다시 돌아 겹침 알림, 되돌리기, 저장 요청 본문(`part: "TABLE"`, rows 순서·음수 임시 ID·cells 문자열) |
 | `tests/dme/ruleMng/rule-mng-page.test.ts` | 목록 요청 파라미터(page·size), 빈 상태 문구, 등록 폼의 ID 규칙 즉시 표시, 서버 오류 표시, 등록 성공 시 `openRuleEdit` 호출 |
 | `tests/dme/rule-handoff.test.ts` | sessionStorage 쓰기·한 번 읽고 지우기, 두 이벤트 발행 순서와 `pageId` |
 | shared: `AgDataGrid` 열 그룹·드래그 | `children` 이 `ColGroupDef` 로 바뀌고 잎의 기존 속성이 유지된다, 드래그 prop 이 없으면 기존 동작 그대로, 있으면 정렬이 꺼진다. shared 단위 테스트 관례 위치(`pnpm test:unit:shared` 가 읽는 곳)에 둔다 |
@@ -301,7 +301,7 @@ EXTERNAL 등록은 보류다(D11). 마이그레이션은 만들지 않는다.
 | T4 | 스모크 4 서버 오류 | 같은 ID `QLTY_GRD_JDG` 로 등록 → 서버 중복 오류가 화면(ErrorModal)에 보인다 |
 | T5 | 수용 1 | ID `qlty-bad` 입력 → 입력 칸에 물리명 규칙 안내가 즉시 보이고 저장 버튼이 막힌다. 요청을 가로채 규칙 위반 ID 를 보내면(`page.route` 로 본문 바꿈) 서버 오류가 보인다 |
 | T6 | 수용 2 | 등록 폼에 원천 선택 칸이 없다(원천 MDM 고정 표시). 원천 EXTERNAL 요청은 BE 테스트가 증명한다(§4) |
-| T7 | 권한 | stdadmin 로그인 → 목록은 보이고 등록 저장 버튼이 없다(READ) |
+| T7 | 권한 | stdadmin 로그인 → 목록은 보이고 등록 저장 버튼이 비활성이다(READ, `canDoButton` 은 숨기지 않고 비활성으로 둔다) |
 
 #### 3.4.2 `mdm-ruleEdit.spec.ts`
 
@@ -311,7 +311,7 @@ EXTERNAL 등록은 보류다(D11). 마이그레이션은 만들지 않는다.
 | S2 | 스모크 2 서버 데이터 | 룰 고르기에서 `QLTY_GRD_JDG` → 헤더(룰명), 버전 목록(1 RELEASED), 의사결정표 3줄 머리(“조건”/“결과” 묶음, 변수 `COIL_THK`, 칸 `OP`·`하한`·`상한`), 행 3 + 기본 행, 활용처(세트 `LS_E2E`)가 보인다. RELEASED 라 그리드는 읽기 전용. 스크린샷 `dme-ruleEdit-released.png` |
 | S3 | 스모크 3 수정 한 번(헤더) | 헤더 룰명을 "품질 등급 판정 E2E" 로 바꿔 바로 저장 → 다시 불러와도 유지 |
 | S4 | 수용 5 새 버전·거부 | 새 버전 → 버전 2 DRAFT, base 1, 잠금 "편집 중(나)", 행이 복사됨. 새 버전 버튼이 비활성이고 "미적용 버전이 있어" 안내가 보인다 |
-| S5 | 편집·드래그·저장·되돌리기·강조 | 행 추가 → 조건 `-` 새 행과 ALL_NA_ROW 경고 배지. 3행 `SURF_GRD` OP 를 `IN`, 값 `C` 로 → 칸이 base 대비 바뀐 칸으로 강조. 새 행을 드래그로 1행 위로 옮긴다(`page.mouse` down/move/up 으로 드래그 손잡이 사용) → 순서 표시가 바뀐다. 되돌리기 → 저장한 상태로 돌아온다. 다시 한 칸 고치고 저장 → 다시 불러와도 유지·"저장 안 한 변경" 배지 없음. 스크린샷 `dme-ruleEdit-draft.png` |
+| S5 | 편집·드래그·저장·되돌리기·강조 | 행 추가 → 조건 `-` 새 행과 ALL_NA_ROW 오류 배지(TS 분석기가 ERROR 로 낸다, `rule-analysis.ts:221`). 3행 `SURF_GRD` OP 를 `IN`, 값 `C` 로 → 칸이 base 대비 바뀐 칸으로 강조. 새 행을 드래그로 1행 위로 옮긴다(`page.mouse` down/move/up 으로 드래그 손잡이 사용) → 순서 표시가 바뀐다. 되돌리기 → 저장한 상태로 돌아온다. 다시 새 행을 추가하고 그 행의 결과 `QLTY_GRD` 값을 `D` 로 적은 뒤 저장 → ALL_NA_ROW 오류가 있어도 저장된다(D3), 다시 불러와도 새 행(발급된 row 번호)이 유지되고 "저장 안 한 변경" 배지가 없다. 스크린샷 `dme-ruleEdit-draft.png` |
 | S6 | 겹침 알림·서버 동치 | 2행 `SURF_GRD` 값을 `A` 로 → 1·2행 겹침 알림(FIRST: 경고, 도달 불가 경고)이 저장 전에 보인다. 적중 정책 UNIQUE → 겹침이 오류로 바뀐다. 저장 → 응답의 서버 검사 결과 목록이 저장 전 화면 목록과 같다("화면·서버 검사 일치" 표시). 스크린샷 `dme-ruleEdit-overlap.png` |
 | S7 | 적중 조건 강조 | 1행 번호 클릭 → 그 행의 `-` 가 아닌 조건 칸이 강조 클래스를 갖는다 |
 | S8 | 수용 4 비소유자 | `E2E_LOCK_JDG`(VER 1 DRAFT, 소유자 `e2e_mdm_steward2`)를 연다 → 잠금 배지 "잠김 · e2e_mdm_steward2 편집 중", 그리드 편집 불가·저장·삭제·해제·넘기기 비활성, 선점 버튼 없음. 스크린샷 `dme-ruleEdit-locked.png` |
@@ -325,7 +325,7 @@ EXTERNAL 등록은 보류다(D11). 마이그레이션은 만들지 않는다.
   컬럼 3개(`COIL_THK`·`COIL_WID`·`SURF_GRD`), 룰 `QLTY_GRD_JDG`(INUSE, `LAST_VAR_ID` 5, `LAST_ROW_ID` 4)의 VER 1 RELEASED(`APPLY_FROM`
   '2026-01-01 00:00:00', `APPLY_TO` '9999-12-31 00:00:00', CHECK 가 요구) — 변수 COND 1 `COIL_THK`(disp 2)·2 `COIL_WID`(1)·3 `SURF_GRD`(1),
   RESULT 4 `QLTY_GRD`(Value, data_type STRING)·5 `PRC_FCT`(Value, data_type NUMBER), 행 06:85-90 의 1~3행과 기본 행(결과 셀은 Value 로 적는다),
-  룰 `E2E_LOCK_JDG`(CREATED) VER 1 DRAFT owner `e2e_mdm_steward2`(변수 1·행 1), 세트 `LS_E2E`(`["QLTY_GRD_JDG"]`). 셀 JSON 은
+  룰 `E2E_LOCK_JDG`(CREATED, `LAST_VAR_ID` 1, `LAST_ROW_ID` 1) VER 1 DRAFT owner `e2e_mdm_steward2`, HIT FIRST(변수 1 = COND `COIL_THK` disp 1, 행 1 = `{"1":{"op":"GE","left":"1"}}`), 세트 `LS_E2E`(`["QLTY_GRD_JDG"]`). 셀 JSON 은
   `MdmBusinessRuleMigrationTest` 460행~ 의 06 샘플 INSERT 를 옮기되 감사 칼럼(`C_USR_ID`·`C_PGM_ID`='mdm-ruleEdit-data.sql'·`VER`/`AUD_VER`)을
   채운다. INSERT 만(DELETE 없음), 머리 주석에 "seed-only, 격리 DB 전용, 운영 시드 아님"을 적는다(`mdm-columnMng-dict.sql` 형식).
 - `mdm-ruleEdit-users.sql`(mcm.db): `e2e_mdm_steward2` 한 명.
@@ -379,7 +379,7 @@ BPMN 은 `.claude/skills/bpmn-skill/SKILL.md`(bpmn-tool 로 생성·검증)와 `
 | I4 | **새 버전 전에 `VersionWriteGuard.checkCanCreateVersion(BUSINESS_RULE, ruleId)` 를 부른다**(미적용 = DRAFT·REQUESTED·APPROVED·`APPLY_FROM > now` 인 RELEASED). 새 버전 번호 = 그 룰 버전 최대값 + 1(없으면 1) | 호출 삭제 → `RuleVersionServiceTest` MDM006 네 사례 |
 | I5 | **새 버전 = 직전 RELEASED(= RELEASED 중 ver 최대) 복사**: VAR·ROW 모든 칼럼과 `var_id`·`row_id`·`seq` 유지, `hit_policy` 복사, `base_ver` = 그 버전, owner = 만든 사람. RELEASED 가 없고 버전이 하나도 없으면 빈 VER 1. RELEASED 가 없는데 다른 버전이 있으면 거부. DEPRECATED·EXTERNAL 룰은 거부 | row_id 재발급 / base_ver 누락 / collect_agg 등 일부 칼럼 누락 → `RuleVersionServiceTest` 칼럼 전수 비교 |
 | I6 | **소유권·삭제는 공통 서비스로만 한다**: 선점 `DraftOwnershipService.acquire`, 해제 `release`, 넘기기 `handover`, DRAFT 삭제 `VersionStateService.deleteDraft`, DRAFT 저장 직전 `VersionWriteGuard.beginDraftWrite`. OWNER_ID·ROW_VERSION·STATUS 를 영역 코드가 직접 UPDATE 하지 않는다(폐기의 부모 STATUS 만 예외, I9) | 표 저장에서 `beginDraftWrite` 호출 삭제 → `RuleTableServiceTest` 비소유자·충돌 사례 |
-| I7 | **비소유자는 쓰기 불가**: 표 저장·DRAFT 삭제·해제·넘기기는 공통 서비스의 소유자 검사(MDM003)로, 헤더 저장·폐기는 D6 규칙으로 막는다. `view` 는 누구나 된다. `editable = sourceKind=='MDM' && ver.status=='DRAFT' && ver.ownerId==me` 이고 화면은 이것만으로 편집을 켠다 | `editable` 에서 owner 조건 삭제 → `RuleEditViewTest` / 헤더 소유자 검사 삭제 → `RuleHeaderServiceTest` |
+| I7 | **비소유자는 쓰기 불가**: 표 저장·DRAFT 삭제·해제·넘기기는 공통 서비스의 소유자 검사(MDM003)로, 헤더 저장·폐기는 D6 규칙으로 막는다. `view` 는 누구나 된다. `editable = sourceKind=='MDM' && ver.status=='DRAFT' && ver.ownerId==me` 이고 화면은 이것만으로 표 편집을 켠다. `headerEditable = sourceKind=='MDM' && (미적용 버전 중 소유자가 있는 것이 있으면 그 ownerId==me, 없으면 me 가 담당자 역할)`(D6)이고 화면은 이것만으로 헤더 편집을 켠다 | `editable` 에서 owner 조건 삭제 → `RuleEditViewTest` / 헤더 소유자 검사 삭제 → `RuleHeaderServiceTest` |
 | I8 | **표 저장이 쓰는 범위는 그 DRAFT 버전의 TB_MDM_RULE_ROW 전체 교체와 TB_MDM_RULE_VER.HIT_POLICY 뿐이다.** TB_MDM_RULE_VAR 는 읽기만 한다(열 편집은 08-03). 교체 순서: `beginDraftWrite` → 그 버전 ROW 전부 삭제 → 새 행 INSERT(부분 유일 인덱스 `UX_TB_MDM_RULE_ROW_SEQ` 때문에 UPDATE 로 순서를 바꾸지 않는다) → HIT_POLICY UPDATE, 모두 한 트랜잭션 | VAR 를 다시 쓰게 변경 → `RuleTableServiceTest` "VAR 불변" / UPDATE 로 seq 교체 → 순서 바꿈 사례 |
 | I9 | **폐기 = TB_MDM_RULE.STATUS 를 INUSE → DEPRECATED 로 네이티브 UPDATE**(감사 칼럼 포함). 조건: 원천 MDM, 현재 INUSE, 미적용 버전 없음(`checkCanCreateVersion` 재사용, 04:513). 폐기한 룰은 새 버전 거부 | 조건 삭제 → `RuleHeaderServiceTest` |
 | I10 | **seq 는 서버가 정한다**: 요청 rows 순서대로 NORMAL 은 1..n, DEFAULT 는 0. 기본 행은 DECISION 룰에만, 많아야 하나. 기존 row_id 는 그 DRAFT 버전(저장 전)에 있던 것만 받는다. 새 행은 음수 임시 ID 이고 `MdmRuleIdIssuer.issue(ruleId, ROW, 새 행 수)` 한 번으로 번호를 받으며 응답 `rowIdMap{"-1": 5, …}` 로 돌려준다. 지운 번호는 다시 쓰지 않는다 | 클라이언트 seq 사용 / 기본 행 둘 허용 / 임시 ID 를 그대로 저장 → `RuleTableServiceTest` |
@@ -428,7 +428,7 @@ BPMN 은 선례대로 `actionGateway` 하나에 action 마다 serviceTask 하나
 ### 6.2 DTO 모양 (OASIS 는 `params` 를 DTO 에 바인딩한다. null 은 FE 가 빼고 보낸다)
 
 - `RuleEditViewResult`
-  - `me`(현재 사용자 ID), `editable`(I7), `unappliedVersionExists`(새 버전 버튼용), `confirmScreenReady`(false 고정, §6.7.2)
+  - `me`(현재 사용자 ID), `editable`(I7), `headerEditable`(D6 규칙을 서버가 계산, I7), `unappliedVersionExists`(새 버전 버튼용), `confirmScreenReady`(false 고정, §6.7.2)
   - `rule{maruRuleId, maruRuleName, ruleKind, status, sourceKind, sourceSystem, description, usageNote}`
   - `versions[{ver, status, applyFrom, applyTo, ownerId, baseVer, hitPolicy, rowVersion}]`(ver 내림차순, 일시는 `"yyyy-MM-dd HH:mm:ss"`)
   - `selectedVer`(정수 또는 null)
@@ -477,6 +477,18 @@ BPMN 은 선례대로 `actionGateway` 하나에 action 마다 serviceTask 하나
 #### 6.6.1 이식 규칙
 - 정본은 `M/src/evalex/rule-analysis.ts`·`value-set.ts`·`pattern.ts` 다. 함수 경계·순회 순서를 그대로 옮기고 이슈 생성 순서를 바꾸지 않는다(I14). TS 에서 `Decimal` 을 쓴 자리는 `BigDecimal`(비교는 `compareTo`, 격자 계산의 나눗셈·반올림은 TS 와 같은 규칙).
 - `message` 문구는 TS 와 같게 옮기되 비교하지 않는다.
+- **순서·문자열이 조용히 갈리는 자리(확인함)** — 아래 대응을 그대로 쓴다.
+
+| TS 자리 | TS 동작 | Java 규칙 |
+|---|---|---|
+| `rule-analysis.ts:163` `new D(raw).toString()` | decimal.js 는 끝 0 을 지우고, `D` 설정(`toExpNeg -9e15`·`toExpPos 9e15`, `decimal.ts:11-12`)이라 지수 표기를 쓰지 않는다 | `new BigDecimal(raw).stripTrailingZeros().toPlainString()`(0 은 `"0"`) — `toString()` 금지(지수 표기) |
+| `rule-analysis.ts:166` 문자열 `vals.sort()` | 비교자 없는 정렬 = UTF-16 코드 유닛 사전순 | `String.compareTo`(같은 UTF-16 순서)로 정렬 |
+| `rule-analysis.ts:166` 숫자 `sort((a,b) => new D(a).cmp(b))` | 값 순서, 같은 값은 안정 정렬 | `BigDecimal.compareTo` + 안정 정렬(`List.sort`) |
+| `rule-analysis.ts:323-324` `g1.toFixed(s)` | 소수 s 자리, 지수 없음, 반올림 모드는 `D` 설정(ROUND_HALF_EVEN) | `g.setScale(s, RoundingMode.HALF_EVEN).toPlainString()` |
+| 이슈 순서 `rule-analysis.ts:205` | ALL_NA_ROW → UNRESOLVED_CELL → 겹침 → UNREACHABLE → VALUE_GAP → NULL_GAP, 각 단계 안은 행·열 순회 순서 | 같은 단계 순서, 행은 입력 `rows` 순서(NORMAL 만), 열은 `vars` 의 COND `seq` 순서 |
+
+- Map 을 도는 자리는 `LinkedHashMap`(입력 순서)이나 정렬된 키로 돈다. `cells` 의 키 순서에 기대지 않는다(TS 도 var 목록을 돌며 `cells[varId]` 로 꺼낸다 — Build 가 이식할 때 TS 가 `Object.keys` 로 도는 자리가 새로 보이면 숫자 키 오름차순으로 맞춘다).
+- 코퍼스에 지수 경계 사례를 넣는다: `0.0000001`·`1E+3` 류가 나올 수 있는 값(`"0.00000010"`, `"1000.0"`)을 가진 NUMBER 열의 VALUE_GAP 사례 하나.
 - 엔진 main 에 Jackson·Spring 을 쓰지 않는다(F21). 코퍼스 JSON 은 테스트에서만 읽는다.
 - TS 파일은 고치지 않는다. 이식 중 TS 동작이 이상해 보여도 그대로 옮기고 보고에 올린다.
 
@@ -499,6 +511,9 @@ BPMN 은 선례대로 `actionGateway` 하나에 action 마다 serviceTask 하나
 - 최소 사례(러너 하한 **30**): TS 골든 21건 전부 이전, `QLTY_GRD_JDG`·`BASE_SPD_LKP`(`M/tests/fixtures/evalex-rules.ts`) 원형, 그리드 고유 사례(새 행 ALL_NA_ROW, 콤마 목록 IN, 2 타입 열의 1 타입 op, Expression 조건 열 NA·비NA, 일자 String 구간, 코드 도메인 CODE_IN, 해석 불가 STRING 열) 8건 이상.
 
 ### 6.7 화면
+
+#### 6.7.0 버튼 권한 표시
+- `MdmPageLayout` 의 `buttons` 는 셸이 RBAC 로 비활성화하지만, 카드 안 버튼(등록 저장·헤더 저장·폐기·새 버전·삭제·선점·해제·넘기기·표 저장)은 레이아웃을 거치지 않는다. 카드는 `import { useUserButtonRbac, canDoButton } from "@dk-oasis/shared/layout"` 로 `canDoButton(state, screenId, action)`(action 은 §6.1 의 RBAC 키: `reg`·`save`·`delete`·`copy`·`lock`·`unlock`·`handover`)을 구해 `disabled` 에 더한다(팝업 선례와 같은 재노출 API, `shared/src/layout/index.ts:2-7`). 권한이 없으면 숨기지 않고 비활성으로 둔다. 서버 판정(BFF RBAC·소유자 검사)이 기준이고 화면 비활성은 보조다.
 
 #### 6.7.1 카드 ① 헤더 (`RuleHeaderCard`)
 - 룰 ID(읽기), 룰명·설명·활용처 메모 입력, 원천(MDM 또는 `EXTERNAL · 시스템`), 배지(룰 상태·종류). "바로 저장"(action save/HEADER). 폐기 버튼은 INUSE 일 때만 보이고 두 번 눌러야 폐기한다(06:766 "확인을 한 번 더").
