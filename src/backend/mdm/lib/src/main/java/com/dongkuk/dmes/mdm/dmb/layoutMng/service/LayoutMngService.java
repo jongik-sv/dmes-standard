@@ -86,8 +86,25 @@ public class LayoutMngService {
         }
         List<MdmLayout> headerLayouts = queries.layoutsOfKind(HEADER);
         if (HEADER.equals(request.getTarget())) {
-            out.put("headers", headerLayouts.stream().filter(h -> LayoutRows.matches(h.getLayoutName(), request.getKeyword()))
-                    .map(LayoutMngService::headerOption).toList());
+            // 헤더 추가 팝업 — 저장 전 전문에서도 상수 편집을 열 수 있게 헤더 항목(기본값·파생값)을 함께 준다
+            List<MdmLayout> picked = headerLayouts.stream()
+                    .filter(h -> LayoutRows.matches(h.getLayoutName(), request.getKeyword())).toList();
+            Map<Long, List<MdmLayoutItem>> items = new LinkedHashMap<>();
+            List<String> phys = new ArrayList<>();
+            for (MdmLayout h : picked) {
+                List<MdmLayoutItem> list = queries.itemsOf(h.getLayoutId());
+                items.put(h.getLayoutId(), list);
+                list.stream().map(MdmLayoutItem::getColumnPhys).filter(Objects::nonNull).forEach(phys::add);
+            }
+            Map<String, LayoutColumnInfo> dict = dictionary.byPhysNames(phys);
+            List<Map<String, Object>> rows = new ArrayList<>();
+            for (MdmLayout h : picked) {
+                Map<String, Object> row = headerOption(h);
+                row.put("EAI_CODE", queries.eaiOfHeader(h.getLayoutId()).stream().map(MdmEai::getEaiCode).findFirst().orElse(null));
+                row.put("items", LayoutRows.items(items.get(h.getLayoutId()), dict));
+                rows.add(row);
+            }
+            out.put("headers", rows);
             return out;
         }
         Map<Long, MdmLayout> headersById = new HashMap<>();

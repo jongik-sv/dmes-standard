@@ -350,7 +350,13 @@ class LayoutMngServiceSqliteTest extends LayoutTestSupport {
         LayoutMngSearchRequest headersOnly = new LayoutMngSearchRequest();
         headersOnly.setTarget("HEADER");
         headersOnly.setKeyword(l110Name);
-        assertEquals(1, ((List<?>) layoutService.search(headersOnly).get("headers")).size());
+        List<Map<String, Object>> picked = (List<Map<String, Object>>) layoutService.search(headersOnly).get("headers");
+        assertEquals(1, picked.size());
+        // 헤더 추가 팝업은 저장 전 전문에서도 상수 편집을 열 수 있게 헤더 항목(기본값)을 함께 받는다(Build 이탈 B1)
+        List<Map<String, Object>> pickedItems = (List<Map<String, Object>>) picked.get(0).get("items");
+        assertEquals(6, pickedItems.size());
+        assertEquals("B1", pickedItems.get(0).get("DEFAULT_VALUE"));
+        assertEquals("CONST", pickedItems.get(0).get("FILL_KIND"));
         LayoutMngSearchRequest cols = new LayoutMngSearchRequest();
         cols.setTarget("COLUMN");
         cols.setKeyword("COIL_THK");
