@@ -287,6 +287,21 @@
   background-color: var(--color-danger-soft) !important;
 }
 
+/* 셀 단위 상태 마킹(mdm TSK-08-02 의사결정표) — 경고 칸·바뀐 칸·강조 칸. 의미 토큰만 쓴다.
+   오류 칸은 위 cell-light-pink 를 쓴다. 강조는 배경을 덮지 않고 안쪽 테두리로 겹쳐 보인다. */
+.cm-data-grid .ag-cell.cell-warning {
+  background-color: var(--color-warning-soft) !important;
+}
+
+.cm-data-grid .ag-cell.cell-edited {
+  background-color: var(--color-edited) !important;
+}
+
+.cm-data-grid .ag-cell.cell-emphasis {
+  box-shadow: inset 0 0 0 2px var(--color-primary);
+  font-weight: 600;
+}
+
 /* Checkbox */
 .cm-data-grid .ag-selection-checkbox {
   margin-right: 0;

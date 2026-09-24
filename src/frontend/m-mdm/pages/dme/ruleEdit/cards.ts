@@ -5,13 +5,14 @@
  * 케이스 카드). 08-03 은 표 카드 아래 섹션(열 설정·입력 계약·피벗)을 `RULE_TABLE_SECTIONS` 에 더한다.
  * 카드 ⑦ 배포 대상은 그리지 않는다(D11).
  */
-import type { ComponentType } from "react";
+import { createElement, type ComponentType } from "react";
 
 import type { NextVer } from "./state/useRuleEdit";
 import type { RuleEditNotice, RuleEditView } from "./types";
 import { RuleHeaderCard } from "./cards/RuleHeaderCard";
 import { RuleUsageCard } from "./cards/RuleUsageCard";
 import { RuleVersionCard } from "./cards/RuleVersionCard";
+import { DecisionTableCard } from "./decision-table/DecisionTableCard";
 
 export interface RuleEditCardProps {
   view: RuleEditView;
@@ -45,8 +46,14 @@ export interface RuleTableSection {
 
 export const RULE_TABLE_SECTIONS: RuleTableSection[] = [];
 
+/** 카드 ③ — 표 아래 섹션 목록을 넘긴다. */
+function TableCardSlot(props: RuleEditCardProps) {
+  return createElement(DecisionTableCard, { ...props, extraSections: RULE_TABLE_SECTIONS });
+}
+
 export const RULE_EDIT_CARDS: RuleEditCardSlot[] = [
   { id: "header", span: 8, Component: RuleHeaderCard },
   { id: "versions", span: 8, Component: RuleVersionCard },
+  { id: "table", span: 16, Component: TableCardSlot },
   { id: "usage", span: 16, Component: RuleUsageCard },
 ];
