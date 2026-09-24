@@ -200,3 +200,57 @@ cd $WORKTREE/src/frontend && SMOKE_MCM_BASE_URL=http://127.0.0.1:15604 SMOKE_LOG
 
 17개 규칙 모두 최소 한 변이를 실제로 넣고 돌렸다. 16개는 빨강, 1개(17, 저장 쪽 성능)는 이 하드웨어에서 SQLite 1,000행
 규모가 두 구현을 가를 만큼 느리지 않아 안 잡혔다(위에 실측값과 함께 보고). 은폐 없이 있는 그대로 적는다.
+
+## Verify 감사 기록 (Phase 04, 2026-09-24)
+
+입력: Build 게이트 결과(HEAD 50ae46f, 백엔드 3093/실패0, `m-mdm` vitest 635/실패0, `test:unit:shared` 168/실패0, lint 통과,
+oasis-contract ERROR0/WARN0) — 전체 스위트는 다시 돌리지 않았다.
+
+- **L1·O1 재확인**: `pnpm --filter @dk-oasis/m-mdm lint`(`tsc --noEmit`) 통과. `check_oasis_contract.py --root .` →
+  `BPMN 26 / 진입점 bean 26 (해석 26, 미해석 0)`, `ERROR 0 / WARN 0`(INFO 29 는 참고성).
+- **변이 검증 기록 감사**: 「불변 규칙」 17개가 표에 빠짐없이 있고, 각 규칙마다 표의 변이를 워크트리에 그대로 다시
+  넣어 표의 대상 테스트를 Gradle `--tests '<FQCN>#<메서드>' --fail-fast --no-daemon` 으로(프런트는 vitest) 단독 실행했다.
+  스크립트 하나(변이 넣기 → 대상 테스트 → `git checkout --` 되돌리기, `trap` 으로 중단 시에도 되돌림)를 `heavy.sh` 로
+  감싸 두 호출(1~8번, 9~17번 상당)로 나눠 돌렸다(각 10분 이내). 16번(구현 빈 하나)은 표대로 테스트 소스셋에 두 번째
+  `@Service` 구현을 임시 파일로 추가해 재현했다.
+  - 1~16번(defKind 불변·BASE 보호·defTarget 허용 목록·defExpr 문법·소속 코드 유효성·Resolver 패스스루·DRAFT 전용·
+    rowVersion 불변·cate_id overlap·새 소속 행 to_ver·V 안 추가삭제 vs 이전닫기·closeCategory 연쇄·revert 연쇄 재개방·
+    cate_id 금지문자·preview 쓰기 없음·구현 빈 하나) — **16개 모두 표대로 대상 테스트가 빨강**이었다(재현). 표 밖에
+    있거나 표와 다른 행은 없었다.
+  - 17번(성능, 저장 쪽) — `안 잡힘(보고)` 는 design.md 본문에 실측값(배치 76ms 중앙값 vs 행마다 flush 120ms 중앙값,
+    둘 다 800ms 예산 안)과 함께 이미 적혀 있어 사실 확인만 했다(재실행하지 않음, 은폐 아님을 확인).
+  - 17번(이동 쪽) — `transfer.test.ts` 를 vitest 로 재실행, 14개 전부 통과(1,000건 `moveSelected`/`moveAllVisible`
+    성능 시험 포함, 각 200ms 예산 안).
+  - 감사 끝에 변이를 모두 되돌려 `git status --porcelain` 이 비었음을 확인했다(`git stash` 쓰지 않음, 변이 미커밋).
+- **화면 E2E**: 빈 포트 확인(18604 mcm·18697 mdm·15604 FE, 모두 비어 있었음) → `heavy.sh acquire e2e-TSK-06-04` →
+  `page-registry.ts` 재생성이 커밋된 내용과 동일함을 확인 → mcm·mdm 을 새 SQLite(`src/backend/data/{mcm,mdm}.db`,
+  워크트리 안, `.gitignore` 대상이라 커밋되지 않음)로 기동 → `mdm-rbac-users.sql`(mcm) + `mdm-codeCateEdit.sql`(mdm,
+  Flyway 적용 뒤) 주입, `TB_MCM_SEC_ROLE_MAPPING` 에서 `codeCateEdit` 행 3개(MDM_STD_ADMIN/READ,
+  MDM_STEWARD/CONFIRM, SYSADMIN/ALL) 확인 → `pnpm build:libs` → `next dev --turbopack --port 15604`.
+  - `e2e/mdm-codeCateEdit.spec.ts --workers=1` — **4/4 통과**(T1 메뉴 진입, T2 서버 데이터+빈 상태+BASE 버튼 비노출,
+    T3 TABLE 소속 이동·저장 반영, T4 정규식 문법 오류 거부). 스크린샷 5장 갱신
+    (`docs/mdm/tasks/TSK-06-04/screens/dmc-codeCateEdit-{empty,error,list,open,saved}.png`, `list` 는 이번 실행에서
+    바이트 변화 없어 git diff 에 안 잡힘).
+  - 회귀 확인용으로 이 Task 가 건드린 공유 지점(마스터코드 세그먼트 서비스 생성자, `codeEdit` 화면의 새 버튼, 메뉴 시드)
+    주변 스펙을 추가로 돌렸다: `mdm-shell-rbac-smoke`(4)·`mdm-codeMng`(4)·`mdm-codeEdit`(4, D5 버튼이 추가된 그 화면)·
+    `mdm-codeItemEdit`(6, `DefaultMasterCodeSegmentService` 생성자를 함께 고친 형제 Task 화면) — **18/18 통과**, 실패 0.
+    나머지 mdm-*.spec.ts(columnMng·domainMng·ruleEdit·layoutMng 등)는 이 Task 와 접점이 없고 각자 별도 픽스처가
+    필요해 시간 상 생략했다(회귀 신호는 위 18개로 충분하다고 판단).
+  - 종료: 자기 PID(FE·mdm·mcm) 먼저 kill, 세 포트(15604·18697·18604) 리스너 잔존 없음 확인 후
+    `heavy.sh release`. 다른 Task 의 스크린샷(TSK-01-03·TSK-06-02·TSK-06-03)·`next-env.d.ts`·`test-results` 는
+    `git checkout --` 로 복원. 끝난 뒤 `git status --porcelain` 은 이 Task 의 스크린샷 4개만 남았다(Task 문서
+    폴더 안).
+- **수용 기준 5개 대조**(design.md §4 그대로, 코드·테스트 확인):
+  1. 정규식 문법 오류 저장 거부 — `CodeCateEditServiceSqliteTest#정규식_문법_오류는_validate_save_모두_거부` +
+     E2E T4. 확인함.
+  2. BASE 편집·닫기 불가 — 서버 `MasterCodeCateSegmentOpsSqliteTest#BASE_는_모든_조작에_MDM012`, 화면
+     `CategoryListPanel.tsx` 가 `cateId==="BASE"` 면 편집·닫기 버튼 미렌더링(E2E T2 에서도 BASE 행에 버튼 없음을
+     확인). 확인함.
+  3. 포털 메뉴 진입 + `mdm-codeCateEdit.spec.ts` 통과 — 메뉴 시드(`DataInitializer.seedMdmCodeCateEditMenu`,
+     RBAC 행 확인함) + E2E 4/4. 확인함.
+  4. 1,000건에서 이동·저장 1초 이내 — 이동 `transfer.test.ts`(200ms 예산 통과), 저장
+     `CodeCateEditPerformanceSqliteTest`(800ms 예산, 실측 중앙값 76~120ms 대). 확인함(E2E 전체 왕복 타이밍은
+     D4 결정대로 게이팅 대상이 아님).
+  5. 소속 코드는 유효 코드여야 저장 — `MasterCodeCateSegmentOpsSqliteTest#없는_코드_addCategoryMembers_거부`
+     (변이 검증으로 재확인). 확인함.
+- **판정: PASS.** 코드 수정 없음(감사만) — 이 절과 스크린샷 갱신만 커밋한다.
