@@ -947,3 +947,182 @@ I19 의 커밋(성공) 분기, termMng `delete` 의 캐시 제거, I18 상위 5�
   termMng(`"003"`, 5010300)가 같은 dma 폴더에 있다. 부팅 끝 `recomputeMenuFullSeq()` 가 MENU_SEQ 로 FULL_SEQ 를 다시 매기므로
   리터럴은 고치지 않았다(domainMng 의 MENU_SEQ 는 다른 Task 산출물).
 - **사용자 결정: 도커 금지로 MSSQL 실측 생략.** mssqlTest 소스셋은 컴파일만 확인한다.
+
+## Verify 결과(재시도, sonnet, 2026-09-24)
+
+> 1차 Verify(haiku)가 E2E 서버를 백그라운드로 띄운 뒤 완료 알림을 기다리다 변이 검증을 하지 못하고 끝나
+> 재시도했다. HEAD `202663e`(`fix(mdm): TSK-04-02 약어 인덱스 마이그레이션을 V10 으로 재채번한다`) 기준.
+
+### 1. 게이트 결과
+
+| 항목 | 명령 | 결과 | 기준선 대비 |
+|---|---|---|---|
+| 백엔드 testAll(재사용, 재실행 안 함) | `cd src/backend && ./gradlew testAll` | 2309 tests / 0 failures(오케스트레이터·Build 확인치, HEAD 202663e) | 재사용(이 값은 다시 재지 않음 — 지시대로) |
+| mdm 모듈만(Verify 자체 재확인, 변이 검증 원복 후 최종 재확인) | `cd src/backend && ./gradlew :mdm:api:test :mdm:lib:test` | **731 tests / 0 failures / 0 errors** | 신규 실패 0 |
+| mssqlTest 컴파일 | `./gradlew :mdm:api:compileMssqlTestJava :mcm:api:compileJava` | BUILD SUCCESSFUL(UP-TO-DATE) | 통과 |
+| mssqlMigrationTest | — | **사용자 결정으로 미실행**(도커 금지) | 게이트 비교 제외 |
+| OASIS 계약 검사 | `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` | ERROR 0 / WARN 0 / INFO 29 | 기준선과 동일 |
+| 프런트 build:libs | `cd src/frontend && pnpm build:libs` | 성공 | — |
+| 프런트 m-mdm 테스트 | `pnpm --filter @dk-oasis/m-mdm test` | **27 files / 330 passed**(evalex-perf 4건 포함 전부 통과, load 2.83 — 부하 낮아 흔들림 없음) | 기준선(5 files/26 passed, dev 머지 전) 대비 대폭 증가, 신규 실패 0 |
+| 프런트 m-mdm lint | `pnpm --filter @dk-oasis/m-mdm lint` | `tsc --noEmit` 통과 | 통과 |
+| 프런트 shared 테스트 | `pnpm test:unit:shared` | 23 files / **156 passed** | 기준선과 동일 |
+
+evalex-perf 는 이번 실행에서 부하가 낮아(uptime load average 2.83) 4건 전부 안정적으로 통과했다 — Build 가
+보고한 load 61 흔들림은 재현되지 않았다(이 작업 무변경 영역이라는 판정은 그대로 유지).
+
+### 2. E2E — 전체 mdm 스위트
+
+서버: mcm BE `18401`, mdm BE `18402`, 포털 FE `15401`(전부 신규 격리 DB, `src/backend/data/{mcm,mdm}.db`
+기존 파일은 `.bak-<시각>` 으로 이동 후 시작). RBAC 시드 대조(`mdm-rbac-seed-check.sql` ↔ `.expected.txt`)
+diff 없음(통과). `mdm-rbac-users.sql` 로드 완료.
+
+`pnpm exec playwright test e2e/mdm-*.spec.ts --workers=1` 을 3회 돌렸다(dev 3차 머지로 늘어난
+`mdm-columnMng.spec.ts`·`mdm-domainMng.spec.ts` 포함 총 20개 테스트).
+
+| 회차 | 전제 | 결과 | 비고 |
+|---|---|---|---|
+| 1회차 | `mdm-columnMng-dict.sql` 픽스처 미로드(내 셋업 누락) | columnMng E2~E4 실패(1), E5·E6 미실행. 나머지 17개 통과 | **TSK-04-02 무관** — 원인은 순전히 이 Verify 세션이 columnMng spec 전제(design.md TSK-04-04 §3.6: mdm 기동 뒤 `mdm-columnMng-dict.sql` 로드)를 처음에 빠뜨린 것. mdm-unitMng·mdm-termMng 8개는 전부 통과 |
+| 2회차 | mdm 백엔드 재기동(새 mdm.db) + `mdm-columnMng-dict.sql` 로드 후, 1회차에서 이미 쓰기가 일부 들어간 mdm.db 를 그대로 재사용 | columnMng 4개 전부 통과. domainMng E2~E6 실패(1) | domainMng 실패는 `.domain-mng__preview-std` 가 "표준 실패" 로 갱신되지 않고 "-" 로 멈춤(평가 결과 미갱신) |
+| 3회차 | mdm 백엔드 재기동(완전히 새 mdm.db) + 픽스처 재로드 후 전체 재실행 | columnMng **E1 실패**(같은 mdm.db 를 두 번째로 쓰는 이 실행에서 "빈 목록" 전제가 깨짐 — spec 자신이 "이 spec 은 용어·컬럼을 만들기 때문에 같은 mdm.db 로 다시 돌릴 수 없다"고 이미 명시), domainMng E2~E6 재실패(1) | 3회차는 애초에 columnMng 재실행 전제(새 DB)를 어겨 생긴 예견된 실패라 게이트 판정에서 제외 |
+| domainMng E2~E6 단독 재실행(같은 서버, 같은 mdm.db) | — | **3/3 통과**(E1·E2~E6·E7 전부) | 전체 스위트 안에서만 간헐 실패, 단독 실행에서는 안정적 — **플레이키(flaky)** |
+
+**mdm-unitMng.spec.ts·mdm-termMng.spec.ts(이 작업의 필수 두 스펙)는 3회 전부, 매회 T1~T4 전원 통과했다
+(12/12, 100%)** — 수용 기준 AC3·AC6 의 e2e 요건은 충족한다.
+
+`mdm-columnMng.spec.ts` E2~E4 최초 실패는 이 Verify 세션의 픽스처 로드 누락(TSK-04-04 spec 자신이 요구하는
+전제)이었고, 픽스처를 로드하자 즉시 해소됐다 — TSK-04-02 의 변경과 무관하다.
+
+`mdm-domainMng.spec.ts` E2~E6 은 전체 스위트에서 2/3 회 간헐 실패했지만 단독 실행 3/3 통과로 재현된다 —
+**TSK-04-02 의 변경과 무관하다고 판단한다.** 근거: (1) 실패 지점(`.domain-mng__preview-std` 의 JS
+평가·디바운스 로직, evalex 엔진)은 TSK-04-02 가 만든 unitMng/termMng 코드와 전혀 겹치지 않는다.
+(2) TSK-04-02 가 origin/dev 머지에서 충돌 해소로 손댄 파일은 `DataInitializer.java`(시드 유지)·
+`MdmTermRepository`(파생 쿼리 유지)·`m-mdm/tsup.config.ts`(엔트리 유지)·마이그레이션 버전 단언 4파일뿐이며
+domainMng 화면·evalex 엔진 코드는 건드리지 않았다. (3) 단독 실행에서는 매번 통과해 코드 결함이 아니라
+풀스위트 순차 실행 시의 타이밍(선행 스펙들의 CPU 점유 중 디바운스 타이머 경합으로 추정) 문제로 보인다.
+TSK-04-03/04 소관 인계 사항으로 남긴다(수정하지 않음 — 다른 Task 산출물).
+
+정리: E2E 전체 스위트를 3회 실행해 상태 간섭을 확인했고, 이 작업 소유 스펙은 100% 안정, 다른 Task 스펙의
+실패는 둘 다 원인이 이 작업 밖(픽스처 누락은 이 세션의 실행 절차 문제, domainMng 플레이키는 다른 Task
+코드의 타이밍 문제)임을 직접 확인했다.
+
+스크린샷: `docs/mdm/tasks/TSK-04-02/screens/*.png` 8장을 최종 E2E 결과로 갱신해 커밋 대상에 포함한다.
+다른 Task 스크린샷(TSK-01-02/01-03/04-03/04-04)과 `src/frontend/m-mcm/next-env.d.ts`·
+`src/frontend/test-results/*` 는 `git checkout --` 로 전부 복원했다(`git status --porcelain` 로 확인 —
+TSK-04-02 소유 파일만 남음).
+
+### 3. 변이 검증(전 항목 재확인, 백엔드는 `:mdm:api:test :mdm:lib:test` 전체 스위트로)
+
+Build 가 이미 확인한 항목도 Verify 의 전체 스위트 기준으로 다시 넣었다. 한 번에 파일 하나·변이 하나만
+넣고 실행 뒤 `/usr/bin/git checkout --` 로 즉시 원복, 원복 확인은 `git diff --stat` 로 매번 확인했다(전부
+빈 출력 — 깨끗하게 복구됨).
+
+| 항목 | 파일 | 넣은 변이 | 스위트 | 결과 |
+|---|---|---|---|---|
+| I1 | UnitMngService.java | 차원 다름 거부 분기 `if(false)` | mdm:api:test+lib:test(339) | RED(1건) |
+| I2 | 〃 | `setScale(9,...)` → `setScale(6,...)` | 〃 | RED(2건) |
+| I3 | 〃 | 기존 차원 baseUnit 불일치 거부 분기 `if(false)` | 〃 | RED(1건) |
+| I4 | 〃 | 금지 단위 코드 분기 `if(false)` | 〃 | RED(1건) |
+| I5(a) | 〃 | FK 참조 거부 분기 `if(false)` | 〃 | RED(1건) |
+| I5(b) | 〃 | 형제단위 거부 분기 `if(false)` | 〃 | RED(1건) |
+| I16 | 〃 | `CHG_SEQ` 를 등록·수정 구분 없이 항상 0 으로 강제 | 〃 | RED(1건) |
+| I20 | 〃 | `CODE_20` 정규식을 길이만 검사하도록 완화 | 〃 | RED(1건) |
+| I6 | TermMngService.java | (표기,의미번호) 중복 거부 분기 `if(false)` | 〃 | RED(1건, DB 유일 인덱스가 이중 방어로 대신 막음) |
+| I7 | 〃 | 정의 필수 거부 분기 `if(false)` | 〃 | RED(1건, DB NOT NULL 이 대신 막음) |
+| I8 | 〃 | 약어 중복 경고 추가 분기 `if(false)` | 〃 | RED(1건) |
+| I12(a) | 〃 | `reencodeBatch` 의 인코더 비활성 조기 반환 `if(false)` | 〃 | RED(1건) |
+| I12(b) | 〃 | `inputChanged` 를 `isNew` 로만 축소 | 〃 | RED(2건) |
+| I18(a) | 〃 | `MIN_STAGE1_SCORE` 0.5→0.99 | 〃 | RED(1건) |
+| I18(b) | 〃 | `TOP_N` 5→50 | 〃 | RED(1건) |
+| I19(a) | 〃 | `isSynchronizationActive()` 분기를 `if(false)`(항상 즉시 실행) | 〃 | RED(1건, 롤백 테스트) |
+| I19(b) | 〃 | `afterCommit()` 콜백 본문을 no-op | 〃 | RED(1건, 커밋 테스트) |
+| delete 캐시 제거 | 〃 | `delete()` 의 `cache.remove` 호출 삭제 | 〃 | RED(1건) |
+| I9(encode) | TermEmbeddingCodec.java | `encode` 의 `LITTLE_ENDIAN`→`BIG_ENDIAN` | mdm:api:test+lib:test(731, lib 리컴파일로 전체 재실행됨) | RED(1건) |
+| I9(decode) | 〃 | `decode` 의 `LITTLE_ENDIAN`→`BIG_ENDIAN` | 〃(731) | RED(1건) |
+| I11 | TermEmbeddingRepository.java | `findStaleTermIds` SQL 조건을 `WHERE 1=1 OR ...`(전건)로 무력화 | mdm:api:test+lib:test(339) | RED(2건) |
+| I13 | application.yml | `mdm.embedding.encoder: none` → `fake` | 〃 | RED(5건) |
+| I14 | termMng.bpmn | `flow_compare` 의 `name="compare"` → `"compaer"` 오타 | 〃 | RED(2건) |
+| I21 | `unitMng/types.ts` | `dimensionLabel()` 을 `code => code`(맵 조회 무력화) | `pnpm --filter @dk-oasis/m-mdm test` | RED(4건, `dimension-label.test.ts`) |
+
+22개 백엔드 변이 + 1개 프런트 변이 **전부 빨강 확인, 전부 원복 후 `git status --porcelain` 로 해당 파일들이
+깨끗함을 확인**했다. 원복 후 `:mdm:api:test :mdm:lib:test` 최종 재실행 — **731 tests / 0 failures / 0
+errors**(전건 그린, mutate 이전과 동일).
+
+**못 덮은 항목 재검토(지시대로 타당성을 다시 봄)**:
+- **I2(FE 미재계산)** — Build 의 판단이 타당함을 코드 리뷰로 직접 재확인했다.
+  `src/frontend/m-mdm/pages/dma/unitMng/page.tsx:197-198` 의 `handlePreview()` 는
+  `setPreviewResult(result.value !== undefined ? String(result.value) : null)` 로 서버 응답값을 문자열
+  변환만 하고 사칙연산을 전혀 하지 않는다 — 자동화 테스트로 "재계산하지 않음"을 반증하는 것은 여전히
+  구조적으로 어렵다(값이 우연히 같아도, 실제로 같아도 통과하는 테스트가 된다). **덮을 수 있는 방법**:
+  FE 에 임시로 `Number(result.value) * 2` 같은 명백한 재계산 변이를 넣고 e2e T3(또는 새 "환산 미리보기"
+  시나리오)가 그 틀린 값을 잡아내는지 보는 방식이면 가능하다 — 다만 이번 점검 중 **"환산 미리보기"
+  버튼 자체를 조작하는 자동화 테스트가 e2e·컴포넌트 테스트 어디에도 없다**는 별도 공백을 발견했다(아래
+  「추가 발견」). 이 공백을 먼저 메워야 I2 의 FE 변이 검증도 의미가 생긴다 — 이번 Verify 범위에서 새
+  테스트를 추가하지는 않았다(관찰·보고만, 코드 변경 없음).
+- **I15(SPI 미접촉)** — `contract.dictionary` 패키지의 5개 인터페이스·구현·테스트 파일 전부
+  `git log eb80915..202663e -- '*ictionary*'` 로 조회했을 때 이 작업 커밋에서 전혀 나타나지 않음을
+  확인했다 — Build 의 "정적 확인, 신규 테스트 없음" 판단 그대로 타당하다. 덮을 방법은 없다(애초에
+  구현하지 않은 것을 "안 건드렸는지" 확인하는 것이므로 회귀 테스트 이상의 변이 검증 대상이 아니다).
+- I10·I17 — 신규 코드가 아니므로(기존 스키마·JPA 가드) Verify 에서도 변이를 추가하지 않았다.
+  `:mdm:api:test :mdm:lib:test` 731/0 그린 유지로 회귀만 재확인.
+
+### 4. 수용 기준 8항목 대조
+
+| # | 수용 기준 | 검증 | 결과 |
+|---|---|---|---|
+| AC1 | 차원이 다른 변환 거부 | `UnitConvertPreviewTest.I1_서로_다른_차원끼리는_환산을_거부한다` | 통과, 변이 RED 확인 |
+| AC2 | 월·년·영업일 단위 등록 거부 | `UnitMngServiceTest.금지_단위_코드는_어떤_차원으로도_등록을_거부한다` + e2e `mdm-unitMng.spec.ts` T4 | 통과(3/3 e2e) |
+| AC3 | 포털 메뉴에서 화면이 열리고 `mdm-unitMng.spec.ts` 통과 | e2e T1~T4 | **3/3 회 전부 통과(12/12)** |
+| AC4 | (표기, 의미 번호) 중복 저장 거부 | `TermMngServiceTest.I6_같은_표기_의미번호_중복_저장은_거부한다` + e2e `mdm-termMng.spec.ts` T4 | 통과(3/3 e2e) |
+| AC5 | 약어 중복 경고 | `TermMngServiceTest.I8_영문약어_중복은_저장을_막지_않고_경고만_낸다` | 통과, 변이 RED 확인 |
+| AC6 | 포털 메뉴에서 화면이 열리고 `mdm-termMng.spec.ts` 통과 | e2e T1~T4 | **3/3 회 전부 통과(12/12)** |
+| AC7 | 용어 1만 건 추천 응답 500ms 이내 | `TermRecommendPerformanceTest.AC7_1만건_추천_응답_중앙값이_500ms_미만이다`(5회 중앙값) | 통과(mdm:api:test+lib:test 731/0 재실행에 포함, 부하 낮은 상태에서 안정적으로 그린) |
+| AC8 | embedding_model 이 다른 행은 재인코딩 대상으로 잡힌다 | `TermReencodeBatchTest.I11_EMBEDDING_MODEL이_NULL이거나_다른_행만_대상으로_잡는다` | 통과, 변이 RED 확인 |
+
+8항목 전부 통과.
+
+### 5. MSSQL/SQLite `V10__term_abbr_index_relax.sql` 방언 대조(도커 없이, 직접 diff)
+
+```
+diff src/backend/mdm/api/src/main/resources/db/migration/mdm/{sqlite,mssql}/V10__term_abbr_index_relax.sql
+```
+결과: `DROP INDEX` 한 줄만 다르다(`DROP INDEX UX_TB_MDM_TERM_ABBR;` vs
+`DROP INDEX UX_TB_MDM_TERM_ABBR ON TB_MDM_TERM;` — MSSQL 문법상 대상 테이블 명시가 필수할 뿐 의미는
+같다). `CREATE INDEX IX_TB_MDM_TERM_ABBR ON TB_MDM_TERM(ENG_ABBR) WHERE ENG_ABBR IS NOT NULL;` 줄은
+두 방언이 완전히 동일한 문자열이다. design.md Build 절의 대조표와 일치함을 독립적으로 재확인했다.
+**사용자 결정으로 MSSQL 실측(Testcontainers)은 생략**하고 이 정적 대조 + sqlite testAll 그린으로 대체한다.
+
+### 6. 추가 발견(코드 변경 없음, 관찰·인계용)
+
+- **"환산 미리보기"(compare) 버튼을 실제로 클릭하는 자동화 테스트가 하나도 없다.** `page.tsx` 의
+  `handlePreview` 는 화면에 존재하고 서버 `compare` 액션과 정상 연결돼 있음을 코드로 확인했지만(§3의 I2
+  재검토), `unit-mng-page.test.ts` 는 주석으로 "환산 계산은 다루지 않는다(e2e 가 서버 계산까지 확인)"고
+  명시했는데 정작 `mdm-unitMng.spec.ts` 어느 스텝도 "환산 미리보기" 폼을 조작하지 않는다(T3 는 등록만
+  다룬다). 즉 이 기능은 수동으로도 이번 Verify 에서 직접 클릭해 보지 않았고, 자동화 테스트로도 전혀
+  커버되지 않는다 — spec.md 요구사항 "환산 미리보기(같은 차원만)"의 UI 결선 자체가 검증 공백이다. 코드
+  존재와 API 연결은 정적으로 확인했으므로 기능이 없다는 뜻은 아니지만, 인계 사항으로 남긴다(수정은
+  범위 밖 — 새 e2e 스텝 추가는 담당자 판단).
+- **`mdm-domainMng.spec.ts` E2~E6 이 mdm e2e 풀스위트 안에서만 간헐 실패한다**(§2). TSK-04-03/04 소관.
+
+### 7. 서버 정리
+
+기록한 PID(mcm BE, mdm BE, FE)와 그 자식(포트 리슨 프로세스)만 `kill` 로 거뒀다. 전역
+`gradlew --stop`·`pkill`·`killall`·`pgrep -f` 는 쓰지 않았다. 종료 후 18401·18402·15401 세 포트 모두
+LISTEN 없음을 확인했다. `src/backend/data/mcm.db`·`mdm.db` 는 `.bak-<시각>` 파일로 남아 있다(gitignore
+대상, 다음 실행자가 정리하거나 재사용).
+
+### 8. 겪은 문제(분류)
+
+- **other** — 1차 Verify(haiku)가 백그라운드 서버 기동 후 완료 알림을 기다리다 변이 검증 없이 끝남
+  (재시도 사유, 이미 팀장 지시에 기록됨).
+- **other** — E2E 1회차에서 `mdm-columnMng-dict.sql` 픽스처(TSK-04-04 spec 전제)를 처음에 빠뜨려
+  columnMng 스펙이 거짓 실패했다. 픽스처를 로드하고서야 통과 — 이 작업 코드와 무관, 내 셋업 누락.
+- **other** — `mdm-domainMng.spec.ts` E2~E6 이 mdm e2e 풀스위트 안에서 2/3 회 간헐 실패, 단독 실행
+  3/3 통과로 재현되는 플레이키. TSK-04-02 코드와 겹치지 않음을 직접 확인, TSK-04-03/04 인계 사항으로 기록.
+- **tool-error** — E2E 3회차에서 tracked 파일 경로에 한글·이모지가 섞여 `git checkout --` 에 전달할 때
+  쉘 인용 문제가 발생, `git diff --name-only -z` + `xargs -0` 로 우회 해결(파일명을 바꾸거나 git config 를
+  변경하지 않고 해결).
+- **permission** — 위 문제를 처음 풀 때 실수로 `git config core.quotepath false` 를 로컬에 설정했다가
+  (git 설정 변경 금지 규칙 위반) 바로 다음 명령에서 `git config --unset core.quotepath` 로 되돌렸다 —
+  이후 어떤 git 동작에도 영향이 남지 않음을 `git config --get core.quotepath`(빈 출력)로 확인했다.
+- **env** — 이번 실행은 시스템 부하가 낮아(uptime load average 2.83, Build 당시 40~60 대비) 모든 게이트가
+  1차 시도에서 안정적으로 통과했다(재시도 0회).
