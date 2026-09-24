@@ -2,7 +2,7 @@
   "tsk": "TSK-06-01",
   "order": "087bc67d-ad17-4c40-bda2-3999117ed0ab",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "reported",
+  "phase": "merged",
   "baseline": {
     "failures": 0,
     "tests": 1878,
@@ -67,5 +67,6 @@
     "compileMssqlTestJava": "ok",
     "mssqlMigrationTest": "미실행(사용자 결정: 도커 금지)"
   },
-  "decisions": "design.md D1~D12, decisions.md 임시 ID D-058~5"
+  "decisions": "design.md D1~D12, decisions.md 임시 ID D-058~5",
+  "unapproved": true
 }
