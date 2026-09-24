@@ -2,6 +2,8 @@ package com.dongkuk.dmes.mdm.dma.termMng;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.common.embedding.NoopTermEmbeddingEncoder;
@@ -9,10 +11,13 @@ import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingCodec;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingEncoder;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingRepository;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.ReencodeBatchRequest;
+import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSaveRequest;
+import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSaveResult;
 import com.dongkuk.dmes.mdm.dma.termMng.service.TermMngService;
 import com.dongkuk.dmes.mdm.entity.MdmTerm;
 import com.dongkuk.dmes.mdm.repository.MdmTermRepository;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,6 +28,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * TSK-04-02 design.md §3.2 — I11(EMBEDDING_MODEL 이 다르거나 NULL 인 행만 대상), I12(인코더 비활성이면
@@ -46,6 +53,8 @@ class TermReencodeBatchTest {
     TermRecommendationCache cache;
     @Autowired
     TermEmbeddingEncoder encoder; // fake(DeterministicHashTermEmbeddingEncoder)
+    @Autowired
+    PlatformTransactionManager transactionManager;
 
     @DynamicPropertySource
     static void overrideDatasource(DynamicPropertyRegistry registry) {
@@ -125,5 +134,66 @@ class TermReencodeBatchTest {
         ReencodeBatchRequest r = new ReencodeBatchRequest();
         r.setChunkSize(chunkSize);
         return r;
+    }
+
+    // ── advisor 지적 — save() 가 "인코더 활성" 상태로 실제로 호출되는 경로는 이 클래스(fake 인코더 컨텍스트)
+    // 에만 있었는데, 정작 save() 자체를 부르는 테스트가 없어 saveAndFlush→updateEmbedding==1 검증(I12
+    // "입력 필드 변경 시 재인코딩") 경로가 커버되지 않았다. 이 클래스의 fake 인코더 컨텍스트를 그대로 써서
+    // 보강한다.
+
+    private static TermSaveRequest req(String termName, int senseNo, String definition) {
+        TermSaveRequest r = new TermSaveRequest();
+        r.setTermName(termName);
+        r.setSenseNo(senseNo);
+        r.setDefinition(definition);
+        return r;
+    }
+
+    @Test
+    void 인코더가_활성이면_신규_저장에서_바로_EMBEDDING이_채워진다() {
+        TermSaveResult saved = service.save(req("활성인코딩", 1, "정의"));
+        assertEquals(encoder.modelId(), embeddingRepository.findEmbeddingModel(saved.getTermId()).orElseThrow());
+        assertTrue(embeddingRepository.findEmbedding(saved.getTermId()).isPresent());
+    }
+
+    @Test
+    void 트랜잭션이_커밋되면_임베딩과_캐시가_모두_반영된다() {
+        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        Long termId = tx.execute(status -> service.save(req("커밋확인", 1, "정의")).getTermId());
+
+        assertNotNull(termId);
+        assertTrue(embeddingRepository.findEmbedding(termId).isPresent(), "커밋 후에는 EMBEDDING 이 있어야 한다");
+        assertNotNull(cache.get(termId), "커밋 후에는 캐시에도 반영돼야 한다(afterCommit 콜백 실행 확인)");
+        assertNotNull(cache.get(termId).embedding(), "캐시 항목의 embedding 도 채워져야 한다");
+    }
+
+    @Test
+    void definition을_수정하면_EMBEDDING_벡터가_바뀐다() {
+        TermSaveResult saved = service.save(req("정의변경", 1, "원래 정의"));
+        float[] before = cache.get(saved.getTermId()).embedding();
+
+        TermSaveRequest update = req("정의변경", 1, "완전히 다른 정의");
+        update.setTermId(saved.getTermId());
+        service.save(update);
+
+        float[] after = cache.get(saved.getTermId()).embedding();
+        assertFalse(Arrays.equals(before, after), "정의가 바뀌면 임베딩 벡터도 바뀌어야 한다(I12 재인코딩)");
+    }
+
+    @Test
+    void 인코더가_비활성인_서비스로_수정하면_EMBEDDING이_NULL로_지워진다() {
+        TermSaveResult saved = service.save(req("나중에비활성", 1, "원래 정의")); // fake 인코더로 저장 — EMBEDDING 있음.
+        assertTrue(embeddingRepository.findEmbedding(saved.getTermId()).isPresent());
+
+        TermMngService disabledService = new TermMngService(
+                termRepository, embeddingRepository, cache, new NoopTermEmbeddingEncoder());
+        TermSaveRequest update = req("나중에비활성", 1, "바뀐 정의"); // 인코딩 입력 필드 변경 → clear 대상(I12).
+        update.setTermId(saved.getTermId());
+        disabledService.save(update);
+
+        assertTrue(embeddingRepository.findEmbedding(saved.getTermId()).isEmpty(),
+                "인코더가 비활성이면 재인코딩 없이 NULL 로 지워진 채 남아야 한다");
+        assertTrue(embeddingRepository.findEmbeddingModel(saved.getTermId()).isEmpty()
+                || embeddingRepository.findEmbeddingModel(saved.getTermId()).get() == null);
     }
 }

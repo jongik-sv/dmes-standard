@@ -3,17 +3,21 @@ package com.dongkuk.dmes.mdm.dma.termMng;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingRepository;
+import com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendCandidate;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendRequest;
+import com.dongkuk.dmes.mdm.dma.termMng.dto.TermDeleteRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSaveRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSaveResult;
 import com.dongkuk.dmes.mdm.dma.termMng.service.TermMngService;
 import com.dongkuk.dmes.mdm.repository.MdmTermRepository;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -237,5 +241,42 @@ class TermMngServiceTest {
         assertTrue(termRepository.findByTermNameAndSenseNo("롤백용어", 1).isEmpty(), "DB 에 남아있으면 안 된다");
         boolean cached = cache.values().stream().anyMatch(c -> "롤백용어".equals(c.termName()));
         assertFalse(cached, "롤백된 저장이 캐시에 유령 항목을 남겼다 — afterCommit 이 아니라 즉시 갱신하는 변이를 의심하라");
+    }
+
+    // ── delete ──
+
+    @Test
+    void 삭제_후_DB에도_캐시에도_남지_않는다() {
+        TermSaveResult saved = service.save(req("삭제대상", 1, "정의"));
+        assertNotNull(cache.get(saved.getTermId()), "저장 직후에는 캐시에 있어야 한다");
+
+        TermDeleteRequest del = new TermDeleteRequest();
+        del.setTermId(saved.getTermId());
+        service.delete(del);
+
+        assertTrue(termRepository.findById(saved.getTermId()).isEmpty());
+        assertNull(cache.get(saved.getTermId()), "삭제 후에도 캐시에 남아있다 — cache.remove 호출 누락을 의심하라");
+    }
+
+    // ── I18 상위 5건 + 동점 처리 ──
+
+    @Test
+    void I18_상위_5건만_반환하고_동점이면_termId_오름차순이다() {
+        List<Long> ids = new ArrayList<>();
+        for (int i = 1; i <= 7; i++) {
+            TermSaveResult saved = service.save(req("동일점수", i, "정의" + i));
+            ids.add(saved.getTermId());
+        }
+
+        RecommendRequest req = new RecommendRequest();
+        req.setTermName("동일점수"); // 7건 모두와 정확히 일치 — 전부 score=1.0 동점.
+        Map<String, Object> result = service.recommend(req);
+        @SuppressWarnings("unchecked")
+        List<RecommendCandidate> candidates = (List<RecommendCandidate>) (List<?>) result.get("candidates");
+
+        assertEquals(5, candidates.size(), "상위 5건만 반환해야 한다: " + candidates);
+        List<Long> expectedTop5 = ids.subList(0, 5); // termId 오름차순(가장 먼저 등록된 5건).
+        List<Long> actualIds = candidates.stream().map(RecommendCandidate::getTermId).toList();
+        assertEquals(expectedTop5, actualIds, "동점이면 termId 오름차순이어야 한다");
     }
 }
