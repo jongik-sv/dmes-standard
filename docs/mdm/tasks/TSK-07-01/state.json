@@ -2,7 +2,7 @@
   "tsk": "TSK-07-01",
   "order": "e2017bfa-8445-44c0-97b4-ee6bc10796e2",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "reported",
+  "phase": "merged",
   "baseline": {
     "failures": 0,
     "tests": 1878,
@@ -55,5 +55,6 @@
     },
     "compileMssqlTestJava": "ok",
     "mssqlMigrationTest": "실행 안 함(사용자 결정: 도커 금지)"
-  }
+  },
+  "unapproved": true
 }
