@@ -299,3 +299,17 @@ BPMN 을 고쳤으면 `.claude/skills/bpmn-skill/SKILL.md` 검증을, Flyway 는
 | 6 입력 계약(계산값) | 필수 늘음 경고를 알림으로 뒤바꿈 | `contract-view.test.ts` diffContract 4종·contractWarnings | 잡힘 |
 | 6 입력 계약(계산값) | 행 묶음 키가 선택 집합을 무시 | `contract-view.test.ts` 필수가 같아도 선택 집합이 다르면 다른 묶음 | 처음엔 살아남음 → 그 케이스 테스트를 더한 뒤 잡힘 |
 | 13 초안 dirty 차단 | 피벗 저장이 열 설정 dirty 를 무시 | `sections-render.test.ts` 피벗 섹션 열 설정 초안이 dirty 이면 저장이 꺼진다 | 잡힘 |
+| 1 셀 JSON 7키 | 산출 식 셀에 `note` 키를 더해 저장 | `RuleColumnsServiceTest` DERIVE 결과 식은 셀에 저장되고… (키 집합·문자열 값 단언을 이 담당이 보강) | 처음엔 살아남음 → 단언을 더한 뒤 잡힘 |
+| 2 원자 적용 | 검사 전에 적용을 돌리고 트랜잭션을 끈다(`PROPAGATION_NOT_SUPPORTED`) | `RuleColumnsServiceTest` 거부 줄이 하나라도 있으면 변수와 셀 어디도 바꾸지 않는다 | 잡힘(검사 순서만 바꾸는 변이는 롤백이 가려 동치라 트랜잭션 변이를 함께 쓴다) |
+| 4 DERIVE 순서 | 자기 자신 참조 허용(`j = i + 1`) | `RuleColumnsServiceTest` DERIVE 결과 식은 자기 자신과 뒤 seq 결과 변수를 참조할 수 없다 | 잡힘 |
+| 5 결과 열 그룹 | FIRST·UNIQUE 외 적중 정책 그룹 거부 제거 | `RuleColumnsServiceTest` 그룹은 FIRST·UNIQUE 룰에만 두고 열이 2개 이상이어야 한다 | 잡힘 |
+| 7 번호 발급 | 신규 var_id 발급 시작값을 1 낮춤 | `RuleColumnsServiceTest` 순서대로 저장하고 seq 는… 신규 열은 발급한다 | 잡힘 |
+| 8 셀 비움 | 바뀐 열의 셀을 제거하지 않음 | `RuleColumnsServiceTest` 표시 타입이나 변수가 바뀐 열의 셀은 비우고… | 잡힘 |
+| 9 서버 AST 1회 저장 | grp_cond AST 저장을 null 로 | `RuleColumnsServiceTest` grp_cond 는 파싱과 참조 변수 해결이 되어야 하고 AST 를 한 번 만든다 | 잡힘 |
+| 10 collect_agg 기본값 | COLLECT 결과 열 기본 'LIST' 를 null 로 | `RuleColumnsServiceTest` COLLECT 결과열의 기본 집계는 LIST 이고… | 잡힘 |
+| 11 파사드 `@Transactional` 금지 | `RuleEditService` 에 `@Transactional` 부착 | 새 `RuleEditFacadeContractTest` 파사드와 COLUMNS 파트에는 Transactional 을 붙이지 않는다(이 담당이 추가) | 처음엔 잡는 테스트가 없음 → 테스트를 더한 뒤 잡힘 |
+| 11 `ResolvedVar` 칼럼 고정 | 같은 타입인 `varKind`·`dispType` 순서 교환 | 새 `RuleEditFacadeContractTest` ResolvedVar 칼럼 이름과 순서는 고정이다 | 잡힘 |
+| 12 결과 변수명 유일 | 중복 결과 변수명 검사 제거 | `RuleColumnsServiceTest` 프로그램 변수는 값 타입을 선언해야 하고 결과 변수명은 버전 안에서 유일하다 | 잡힘 |
+| 12 seq 유일 | 결과 열 seq 를 항상 1 로 | `RuleColumnsServiceTest` 순서대로 저장하고 seq 는 조건과 결과 각각 1부터… | 잡힘 |
+| 14 EXTERNAL 조회 전용 | `requireMdm` 검사 제거 | `RuleColumnsServiceTest` EXTERNAL 룰 비소유자 row_version 불일치는 거부한다 | 잡힘 |
+| 15 배포 스냅샷 구성 불변 | 변이 없음 — 이 작업은 스냅샷 조립 코드를 건드리지 않았다(변경 파일에 없음) | 엔진·스냅샷 기존 테스트(오케스트레이터 회귀 게이트) | 해당 없음(보고) |

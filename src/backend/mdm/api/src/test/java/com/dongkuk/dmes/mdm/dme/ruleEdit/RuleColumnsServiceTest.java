@@ -468,6 +468,14 @@ class RuleColumnsServiceTest {
         assertTrue(cells.contains("\"expr\":\"" + expr + "\""), cells);
         String ast = String.valueOf(com.dongkuk.dmes.mdm.common.rule.RuleCellsCodec.parse(cells).get(1).get("ast"));
         assertEquals(astOf(expr), ast, "식 셀의 AST");
+        // 불변 1 — 셀 JSON 키는 7개(op,left,right,list,expr,ast,val)뿐이고 문자열 키의 값은 문자열이다.
+        for (Object cell : com.dongkuk.dmes.mdm.common.rule.RuleCellsCodec.parse(cells).values()) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> keys = (Map<String, Object>) cell;
+            assertTrue(com.dongkuk.dmes.mdm.common.rule.RuleCellsCodec.CELL_KEYS.containsAll(keys.keySet()), "셀 키: " + keys.keySet());
+            assertTrue(keys.get("expr") instanceof String, "expr 는 문자열");
+        }
+        assertFalse(cells.contains("\"note\""), cells);
     }
 
     // ── 피벗 축(화면 표현) 경고·권한 ──
