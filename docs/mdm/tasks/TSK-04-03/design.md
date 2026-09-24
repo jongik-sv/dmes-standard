@@ -579,7 +579,7 @@ Build·Verify 의 변이 검증이 이 목록을 순회한다. 오른쪽은 변�
 | X9 | 화면: 테스트 케이스 편집은 AgDataGrid 인라인 편집 대신 shared form 컨트롤 표(`.domain-mng__cases`)로, 읽기 전용 목록(트리·영향도·diff·검사 목록)은 AgDataGrid 로 그렸다. 단위(D-008)는 단위 목록 API 가 없어(unitMng 는 TSK-04-02) 텍스트 입력이다. 빈 상태는 그리드 오버레이 대신 `.domain-mng__empty` 요소로 그린다 | D12 |
 | X10 | 화면 RBAC: 툴바 `도메인 등록`·`하위 도메인 등록` 은 `action: "save"`(셸이 자동 비활성), 본문 `도메인검증`·`저장` 은 `canDoButton` 으로 save·validate 권한이 없으면 숨긴다. 편집 폼은 save 권한이 없으면 읽기 전용, execute 권한이 없으면 자동 서버 미리보기를 끈다 | §3.8, E7 |
 | X11 | `page-render.test.ts` 는 `localStorage` 를 스텁한다 | 이 happy-dom 환경에 저장소가 없어 `apiRequest` 가 토큰을 읽다가 던진다(측정) |
-| X12 | decisions.md 번호는 D-050~D-052 | 이 브랜치 끝은 D-046 이지만 `origin/dev` 가 D-049 까지 있어 겹치지 않게 이었다 |
+| X12 | decisions.md 번호는 D-055~D-057 | 머지 때 TSK-08-01 이 D-050~D-054 를 먼저 써서 팀장이 다시 매겼다(처음엔 D-050~D-052) |
 | X13 | E2E 뷰포트 1680×1200, 검사 목록·영향도는 스크롤해 찍는다 | 스크린샷이 승인 근거라 목록·상세가 한 화면에 보이게 했다 |
 | X14 | `oasis-contract-check` 기본 대상 모듈(mcm·mls·mqc·mpp·mas·mcm-core)에 mdm 이 없다. `--module mdm` 으로 따로 돌렸다 | 기본 실행만으로는 domainMng 가 검사되지 않는다(보고에 올린다) |
 
