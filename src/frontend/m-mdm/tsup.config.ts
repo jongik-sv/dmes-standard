@@ -1,8 +1,14 @@
 import { defineConfig, type Options } from "tsup";
 
 const external = [
-  "react", "react-dom", "next", "next/navigation", "next-auth", "next-auth/react",
-  "@dk-oasis/shared", /^@dk-oasis\/shared\/.*/,
+  "react",
+  "react-dom",
+  "next",
+  "next/navigation",
+  "next-auth",
+  "next-auth/react",
+  "@dk-oasis/shared",
+  /^@dk-oasis\/shared\/.*/,
 ];
 
 const common: Options = {
@@ -28,6 +34,8 @@ export default defineConfig([
       "pages/dma/mdmSample/page": "pages/dma/mdmSample/page.tsx",
       "pages/dma/unitMng/page": "pages/dma/unitMng/page.tsx",
       "pages/dma/termMng/page": "pages/dma/termMng/page.tsx",
+      "pages/dma/domainMng/page": "pages/dma/domainMng/page.tsx",
+      "pages/dma/columnMng/page": "pages/dma/columnMng/page.tsx",
     },
   },
 ]);

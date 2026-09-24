@@ -16,4 +16,10 @@ public interface MdmTermRepository extends JpaRepository<MdmTerm, Long> {
     Optional<MdmTerm> findByTermNameAndSenseNo(String termName, int senseNo);
 
     List<MdmTerm> findByEngAbbr(String engAbbr);
+
+    /** TSK-04-04 — 용어 인라인 등록 (표기, 의미 번호) 중복 검사(MDM020). */
+    boolean existsByTermNameAndSenseNo(String termName, int senseNo);
+
+    /** TSK-04-04 — 다음 의미 번호 계산. */
+    List<MdmTerm> findByTermName(String termName);
 }

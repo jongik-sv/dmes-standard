@@ -907,6 +907,24 @@ public class DataInitializer implements ApplicationRunner {
         seedMdmObjectRbac("unitMng", "dma");
         seedMdmObjectRbac("termMng", "dma");
         log.info("[DataInitializer] MDM 메뉴 시드 — 폴더 6 + OBJECT 3 + 메뉴 leaf 3 + RBAC(SYSADMIN 1 + MDM 역할 2)");
+
+        seedMdmDomainMngMenu();
+
+        // ── TSK-04-04 — 컬럼 사전(columnMng) + 용어 인라인 등록 팝업(termRegPop). 팝업은 메뉴 leaf 없이 OBJECT·권한만
+        //    둔다(screens/README §3·§5 — 버튼·API 권한은 역할 매핑에서 오고 메뉴를 보지 않는다, design.md F14·F15).
+        insertMcmSecObjIfAbsent("columnMng", "컬럼 사전", "mdm");
+        insertMcmSecObjIfAbsent("termRegPop", "용어 인라인 등록", "mdm");
+        insertMcmSecMenuIfAbsent("columnMng", "004", "5010140", "컬럼 사전", "dma", "columnMng");
+        for (String objectId : new String[]{"columnMng", "termRegPop"}) {
+            insertIfAbsentComposite(
+                    "TB_MCM_SEC_ROLE_MAPPING",
+                    new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
+                    new String[]{"SYSADMIN", objectId,    "PERM_ALL"},
+                    "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                    "VALUES ('SYSADMIN', '" + objectId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
+            seedMdmObjectRbac(objectId, "dma");
+        }
+        log.info("[DataInitializer] TSK-04-04 MDM 컬럼 사전 시드 — OBJECT 2 + 메뉴 leaf 1 + RBAC(SYSADMIN 2 + MDM 역할 4)");
     }
 
     /**
@@ -1028,6 +1046,28 @@ public class DataInitializer implements ApplicationRunner {
             log.info("[DataInitializer] MDM 샘플 그룹 이행 mdt → dma — leaf {} · 자식 폴더 {} · 폴더 {} · 즐겨찾기 {}행",
                     leaf, childFld, fld, fav);
         }
+    }
+
+    /**
+     * TSK-04-03 — 도메인 관리 화면(dma/domainMng). 기존 마스터관리·업무기준관리 메뉴는 고치지 않고 dma 폴더 아래 새 leaf 로
+     * 등록한다(design.md §3.9). 부모 폴더 mdm·dma 는 seedMdmMenus() 가 이미 멱등 시드한다. OBJECT_ID = screenId = BPMN
+     * process id(불변 I17). action(search·view·validate·execute·save)은 모두 기존 권한 세트·allActions 안에 있다.
+     * FULL_SEQ 는 screens/README §3 순서(unitMng·termMng·domainMng·columnMng)의 셋째 자리이며 부팅 끝
+     * recomputeMenuFullSeq() 가 다시 매긴다.
+     */
+    private void seedMdmDomainMngMenu() {
+        final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
+        final String AUDIT_VALS = ", 'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', "
+                                + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
+        insertMcmSecObjIfAbsent("domainMng", "도메인 관리", "mdm");
+        insertMcmSecMenuIfAbsent("domainMng", "001", "5010130", "도메인 관리", "dma", "domainMng");
+        insertIfAbsentComposite(
+                "TB_MCM_SEC_ROLE_MAPPING",
+                new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
+                new String[]{"SYSADMIN", "domainMng", "PERM_ALL"},
+                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                "VALUES ('SYSADMIN', 'domainMng', 'PERM_ALL'" + AUDIT_VALS + ")");
+        seedMdmObjectRbac("domainMng", "dma");
     }
 
 

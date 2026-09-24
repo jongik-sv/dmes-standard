@@ -66,9 +66,9 @@ class MdmInterfaceLayoutMssqlMigrationTest {
     }
 
     @Test
-    void local_db_설정으로_V1_V2_V3_V4_V5_V8_이_적용된다() throws SQLException {
-        // TSK-04-02 F18/D1 — V5(약어 인덱스 비유일화, dev 의 V4 와 번호가 겹쳐 팀장 배정표대로 V5 로
-        // 재채번), TSK-08-01 — V8(06 업무기준) 추가 반영. 완화가 아니라 새 버전 반영이다.
+    void local_db_설정으로_V1_V2_V3_V4_V8_V9_V10_이_적용된다() throws SQLException {
+        // TSK-08-01 — V8(06 업무기준), TSK-06-01 — V9(04 마스터코드, 당초 V6 → 팀장 정정 재채번) 추가 반영. 완화가 아니라 새 버전 반영이다.
+        // TSK-04-02 — V10(약어 인덱스 비유일화, D1. 당초 V4→V5, 2026-09-24 팀장 정정으로 머지 뒤 최대 버전+1 재채번) 추가 반영.
         Set<String> versions = new HashSet<>();
         try (Connection c = dataSource.getConnection(); Statement s = c.createStatement();
              ResultSet rs = s.executeQuery("SELECT version FROM flyway_schema_history WHERE success = 1")) {
@@ -76,7 +76,7 @@ class MdmInterfaceLayoutMssqlMigrationTest {
                 versions.add(rs.getString(1));
             }
         }
-        assertEquals(Set.of("1", "2", "3", "4", "5", "8"), versions);
+        assertEquals(Set.of("1", "2", "3", "4", "8", "9", "10"), versions);
     }
 
     /**

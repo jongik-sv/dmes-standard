@@ -61,7 +61,7 @@ class MdmSharedContractMigrationTest {
     }
 
     @Test
-    void flyway_가_V1_V2_V3_V4_V5_V8_을_적용했다() throws SQLException {
+    void flyway_가_V1_V2_V3_V4_V8_V9_V10_을_적용했다() throws SQLException {
         Set<String> versions = new HashSet<>();
         try (Connection c = dataSource.getConnection();
              Statement s = c.createStatement();
@@ -71,9 +71,11 @@ class MdmSharedContractMigrationTest {
             }
         }
         // TSK-04-01 F12 — V3(02 용어·도메인·컬럼) 반영. TSK-05-01 — V4(03 인터페이스 레이아웃) 추가 반영.
-        // TSK-04-02 F18/D1 — V5(약어 인덱스 비유일화, dev 의 V4 와 번호가 겹쳐 팀장 배정표대로 V5 로
-        // 재채번), TSK-08-01 — V8(06 업무기준, 팀장 배정 번호) 추가 반영. 모두 완화가 아니라 새 버전 반영이다.
-        assertEquals(Set.of("1", "2", "3", "4", "5", "8"), versions);
+        // TSK-08-01 — V8(06 업무기준, 팀장 배정 번호) 추가 반영.
+        // TSK-06-01 — V9(04 마스터코드, D1. 당초 V6, 2026-09-24 팀장 정정으로 머지 뒤 최대 버전+1 재채번) 추가 반영.
+        // TSK-04-02 — V10(약어 인덱스 비유일화, D1. 당초 V4→V5, 2026-09-24 팀장 정정으로 머지 뒤 최대 버전+1 재채번) 추가 반영.
+        // 모두 완화가 아니라 새 버전 반영이다.
+        assertEquals(Set.of("1", "2", "3", "4", "8", "9", "10"), versions);
     }
 
     @Test

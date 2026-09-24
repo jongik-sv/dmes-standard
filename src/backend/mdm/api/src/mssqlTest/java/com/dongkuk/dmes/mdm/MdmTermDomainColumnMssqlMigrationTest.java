@@ -74,9 +74,10 @@ class MdmTermDomainColumnMssqlMigrationTest {
      * 목록에는 없었으나 새 버전을 채번하면 이 단언도 사실상 깨지므로 함께 고친다(완화가 아니라 새 버전
      * 반영). */
     @Test
-    void local_db_설정으로_V1_V2_V3_V4_V5_V8_이_적용된다() throws SQLException {
-        // TSK-05-01 — V4(03 인터페이스 레이아웃), TSK-04-02 — V5(약어 인덱스 비유일화), TSK-08-01 — V8(06 업무기준)
-        // 추가 반영. 완화가 아니라 새 버전 반영이다.
+    void local_db_설정으로_V1_V2_V3_V4_V8_V9_V10_이_적용된다() throws SQLException {
+        // TSK-05-01 — V4(03 인터페이스 레이아웃), TSK-08-01 — V8(06 업무기준), TSK-06-01 — V9(04 마스터코드) 추가 반영.
+        // TSK-04-02 — V10(약어 인덱스 비유일화, D1. 당초 V4→V5, 2026-09-24 팀장 정정으로 머지 뒤 최대 버전+1 재채번) 추가 반영.
+        // 완화가 아니라 새 버전 반영이다.
         Set<String> versions = new HashSet<>();
         try (Connection c = dataSource.getConnection(); Statement s = c.createStatement();
              ResultSet rs = s.executeQuery("SELECT version FROM flyway_schema_history WHERE success = 1")) {
@@ -84,7 +85,7 @@ class MdmTermDomainColumnMssqlMigrationTest {
                 versions.add(rs.getString(1));
             }
         }
-        assertEquals(Set.of("1", "2", "3", "4", "5", "8"), versions);
+        assertEquals(Set.of("1", "2", "3", "4", "8", "9", "10"), versions);
     }
 
     /** #3 — CHECK(ISJSON(...) = 1) 8개, 부정형 JSON INSERT 는 오류 547(CHECK 위반)로 거부. */
@@ -305,9 +306,13 @@ class MdmTermDomainColumnMssqlMigrationTest {
         assertTrue(second.getDomainId() > first.getDomainId());
     }
 
-    /** F1 대조군을 MSSQL 에서도 실행 — TB_MDM_CODE 가 없어도 MARU_CODE_ID=NULL INSERT 는 정상 동작한다(D1 이 실제 파일에 반영됐음을 고정). */
+    /**
+     * MARU_CODE_ID=NULL INSERT 는 MSSQL 에서도 정상 동작한다. TSK-06-01 V9 가 {@code FK_TB_MDM_DOMAIN_CODE} 를 건 뒤에도
+     * NULL 은 FK 검사 대상이 아니라 그대로 통과한다(FK 강제 단언은 {@code MdmMasterCodeMssqlMigrationTest}). V3 시점의
+     * "TB_MDM_CODE 없이도" 이름은 더 이상 사실이 아니라 이름·주석만 고쳤다.
+     */
     @Test
-    void F1_대조군_TB_MDM_CODE_없이도_MARU_CODE_ID_NULL_INSERT_가_성공한다() throws SQLException {
+    void MARU_CODE_ID_NULL_INSERT_는_FK_추가_뒤에도_성공한다() throws SQLException {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try (PreparedStatement ps = c.prepareStatement(

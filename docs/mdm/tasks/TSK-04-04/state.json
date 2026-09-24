@@ -2,5 +2,70 @@
   "tsk": "TSK-04-04",
   "order": "88a2e470-4463-49fd-a8d3-a1c7cbc3eeb1",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "merged",
+  "baseline": {
+    "failures": 0,
+    "tests": 1274,
+    "backend_testAll": {
+      "tests": 1274,
+      "failures": 0,
+      "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --console=plain"
+    },
+    "count_cmd": "find src/backend -path '*/build/test-results/*' -name 'TEST-*.xml' | xargs grep -h -o '<testsuite [^>]*' (tests/failures/errors 합산)",
+    "frontend_m_mdm": {
+      "test": "5 files / 26 passed (cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test)",
+      "lint": "tsc --noEmit pass (cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint)",
+      "note": "build:libs 전에는 3 files 실패(shared dist 부재). 반드시 build:libs 먼저"
+    },
+    "frontend_shared": {
+      "test": "23 files / 156 passed (cd src/frontend && pnpm test:unit:shared)"
+    },
+    "oasis": {
+      "result": "ERROR 0 / WARN 0 / INFO 29",
+      "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root ."
+    },
+    "e2e": {
+      "result": "5 passed (mdm-shell-rbac-smoke 4 + mdm-sample-smoke 1), 시드 diff 없음",
+      "cmd": "TSK-01-03 design.md §3.6 절차, 포트 mcm 18404 / mdm 18496 / 포털 15404, SQLite 워크트리 src/backend/data 확인, --workers=1",
+      "byproducts_restored": "TSK-01-02·TSK-01-03 스크린샷, m-mcm/next-env.d.ts, src/frontend/test-results"
+    }
+  },
+  "base_note": "선행 TSK-04-01·TSK-01-03: reached=true, head_sha 없음 → pred-reflected.sh REFLECTED(증거 2) → origin/dev 3d08db7 기점, 스택 없음",
+  "last": {
+    "phase": "done",
+    "event": "done.ok"
+  },
+  "model": "sonnet",
+  "build_gate": {
+    "backend_testAll": {
+      "tests": 1387,
+      "failures": 0
+    },
+    "m_mdm_test": "8 files / 46 passed",
+    "m_mdm_lint": "pass",
+    "shared": "23 files / 156 passed",
+    "oasis": "ERROR 0 / WARN 0",
+    "oasis_mdm": "BPMN 2, ERROR 0 / WARN 0",
+    "e2e": "9 passed (Build 보고, 새 mcm.db·mdm.db, 포털 15404)",
+    "docker": "사용자 결정: 도커 금지로 MSSQL 실측 생략(새 마이그레이션 없음)"
+  },
+  "verify_gate": {
+    "backend_testAll": {
+      "tests": 1387,
+      "failures": 0,
+      "note": "--rerun-tasks, 오케스트레이터 직접 실행"
+    },
+    "m_mdm_test": "8 files / 46 passed",
+    "m_mdm_lint": "pass",
+    "shared": "23 files / 156 passed",
+    "oasis": "ERROR 0 / WARN 0",
+    "oasis_mdm": "ERROR 0 / WARN 0",
+    "migration_diff_vs_base": "없음",
+    "e2e": "9 passed — verify2 최종 사이클(새 mcm.db·mdm.db, mcm 18404·mdm 18496·포털 15404, 시드 diff 0, TB_MDM_COLUMN 1행) 오케스트레이터가 로그·DB 로 확인",
+    "mutation": "verify2(sonnet 재시도): 30건(백엔드 27+FE 3, I1~I30 규칙마다 1건 이상, E2E 전용 I17a·I17b·I29 는 E2E 전체 스위트) 전부 KILLED, 생존 0",
+    "verify1": "haiku 1차는 변이 미실행으로 실패 판정",
+    "docker": "사용자 결정: 도커 금지로 MSSQL 실측 생략"
+  },
+  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\"",
+  "unapproved": true
 }

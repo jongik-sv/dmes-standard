@@ -18,7 +18,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class MdmTemporalBinder {
 
-    private static final DateTimeFormatter TEXT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    /**
+     * SQLite 업무 일시 TEXT 형식(규칙표 #16). 엔티티 경로의 {@link MdmSqliteLocalDateTimeConverter} 도 이 상수를 써서
+     * 네이티브·엔티티 두 경로가 글자 단위로 같은 값을 쓴다(TSK-06-01 D7).
+     */
+    public static final String SQLITE_TEXT_PATTERN = "yyyy-MM-dd HH:mm:ss";
+
+    private static final DateTimeFormatter TEXT = DateTimeFormatter.ofPattern(SQLITE_TEXT_PATTERN);
     private static final int TEXT_LENGTH = 19;
 
     private final MdmDialectResolver dialectResolver;
