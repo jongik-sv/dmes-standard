@@ -2,7 +2,7 @@
   "tsk": "TSK-06-03",
   "order": "f93163b8-a0cc-4308-a5b1-df6ff14f7cf6",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "reported",
+  "phase": "merged",
   "baseline": {
     "failures": 0,
     "tests": 2823,
@@ -131,5 +131,6 @@
     "oasis": "ERROR 0 / WARN 0 / INFO 29",
     "sibling_check": "§8: MasterCodeSegmentService 구현·MDM022~·카테고리 해석기·codeItemEdit 메뉴·MdmStewardGuard 모두 origin/dev 에 없음",
     "e2e": "머지 뒤 재실행 안 함(충돌은 독립 메서드·목록 줄 추가라 컴파일·testAll 로 확인)"
-  }
+  },
+  "unapproved": true
 }
