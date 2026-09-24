@@ -7,10 +7,6 @@ import com.dongkuk.dmes.mdm.common.dictionary.DomainImpactQueries;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainTreeSnapshot;
 import com.dongkuk.dmes.mdm.entity.MdmDomain;
 import com.dongkuk.dmes.mdm.repository.MdmDomainRepository;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -20,24 +16,17 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.mssqlserver.MSSQLServerContainer;
-import org.testcontainers.utility.DockerImageName;
 
 /**
  * TSK-04-03 design.md §4.4 — 영향도 재귀 CTE 두 개(RECURSIVE 없는 공통 문안)와 물리명 조회를 실제 SQL Server 에서 실행해
  * SQLite 와 같은 결과(행·깊이·순서)를 낸다. 순환 데이터에서 깊이 가드 50 이 MAXRECURSION 100 전에 끊는다.
- * docker 필요 — {@code :api:mssqlMigrationTest} 로만 돈다.
+ * 공용 서버({@link MdmMssqlServer})를 쓴다 — {@code :api:mssqlMigrationTest} 로만 돈다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local-db")
-@Testcontainers
 class DomainImpactQueriesMssqlTest {
 
-    @Container
-    static final MSSQLServerContainer MSSQL = new MSSQLServerContainer(
-            DockerImageName.parse("mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04")).acceptLicense();
+    static final String DB_URL = MdmMssqlServer.newDatabase("domainimpact");
 
     @Autowired
     DomainImpactQueries queries;
@@ -47,15 +36,10 @@ class DomainImpactQueriesMssqlTest {
     JdbcTemplate jdbc;
 
     @DynamicPropertySource
-    static void registerMssql(DynamicPropertyRegistry registry) throws SQLException {
-        try (Connection master = DriverManager.getConnection(MSSQL.getJdbcUrl(), MSSQL.getUsername(), MSSQL.getPassword());
-             Statement s = master.createStatement()) {
-            s.execute("IF DB_ID('mdm') IS NULL CREATE DATABASE mdm");
-        }
-        String mdmUrl = MSSQL.getJdbcUrl() + ";databaseName=mdm";
-        registry.add("spring.datasource.url", () -> mdmUrl);
-        registry.add("spring.datasource.username", MSSQL::getUsername);
-        registry.add("spring.datasource.password", MSSQL::getPassword);
+    static void registerMssql(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", () -> DB_URL);
+        registry.add("spring.datasource.username", MdmMssqlServer::user);
+        registry.add("spring.datasource.password", MdmMssqlServer::password);
     }
 
     private long save(String name, String std, Long parent) {
