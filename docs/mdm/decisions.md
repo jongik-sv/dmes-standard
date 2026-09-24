@@ -792,7 +792,8 @@
 - **Reversible**: yes(mcm client-key 전용 역할 조회 API 와 mdm RestClient 어댑터를 더하면 된다 — 별도 설계·보안 검토 필요)
 - **Source**: docs/mdm/tasks/TSK-08-02/design.md D5·§7, docs/mdm/tasks/TSK-01-03/design.md D7
 
-## D-TSK-06-04-1 (2026-09-24T13:03:33Z)
+## D-095 (2026-09-24T13:03:33Z)
+- **Temp ID**: D-TSK-06-04-1
 - **Phase**: design (TSK-06-04)
 - **Decision needed**: 카테고리 추가·수정·닫기·TABLE 소속 이동(`addCategory`·`changeCategory`·`closeCategory`·`addCategoryMembers`·`removeCategoryMembers`)을 OASIS BPMN 세부 액션으로 새로 만드나, 아니면 기존 닫힌 액션 집합(`MdmActions` 16종)만 쓰나
 - **Decision made**: 세부 액션을 신설하지 않는다. `codeCateEdit.bpmn` 은 `codeItemEdit.bpmn` 과 같은 6액션(search·view·compare·validate·save·restore)만 쓰고, 카테고리 추가/수정/닫기는 `save` 액션의 `categories` 그리드(rowStatus ADDED/CHANGED/DELETED)로, TABLE 소속 이동은 같은 `save` 액션의 `members` 그리드(rowStatus ADDED/DELETED)로 처리한다
@@ -800,7 +801,8 @@
 - **Reversible**: yes(세부 액션을 나중에 추가해도 `save` 그리드 처리 로직을 액션별로 쪼개기만 하면 된다 — DB·계약 영향 없음)
 - **Source**: docs/mdm/tasks/TSK-06-04/design.md D2
 
-## D-TSK-06-04-2 (2026-09-24T13:03:33Z)
+## D-096 (2026-09-24T13:03:33Z)
+- **Temp ID**: D-TSK-06-04-2
 - **Phase**: design (TSK-06-04)
 - **Decision needed**: 카테고리 저장 검사 거부(정규식 문법 오류·허용 안 된 def_target·없는 소속 코드 등)를 위해 `MdmErrorCode` 에 새 값(예 MDM024)을 추가하나
 - **Decision made**: 추가하지 않는다. 기존 `MdmErrorCode.CODE_SAVE_REJECTED`(MDM022)를 우산으로 재사용하고, 세부는 새 이슈 코드 enum `MasterCodeCateIssueCode`(`common/mastercode/`)에만 담아 `MasterCodeRejections.saveRejected(List<MdmCheckIssue>)`(수정 없이) 로 싣는다. 예약 카테고리 BASE 위반은 계속 `RESERVED_CATEGORY`(MDM012)를 쓴다
