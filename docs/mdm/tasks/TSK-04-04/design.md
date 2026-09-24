@@ -567,16 +567,12 @@ log.info("[DataInitializer] TSK-04-04 MDM 컬럼 사전 시드 — OBJECT 2 + �
 
 ### 6.16 화면 `pages/dma/columnMng/page.tsx`
 
-- `<MdmPageLayout group="dma" screenId="columnMng" title="컬럼 사전" buttons={[조회(action "search", primary), 신규(action "save", light), 저장(action "save", save)]}>`. 페이지 안 권한 판정은 `const rbac = useUserButtonRbac(true)`.
-- `SearchArea`: 검색어 `Input`(placeholder `논리명·표준 물리명·시스템별 실제 필드명`), 도메인 `Select`(전체 + `domains.label`). 진입 시 자동 조회 1회.
-- 본문(`ContentBody`) 위쪽: 컬럼 목록 `AgDataGrid`(읽기 전용, 행 클릭 → `view`). 열: 논리명, 표준 물리명, 표시명(긴/중간/짧은: `resolveLabels` 결과를 `" / "` 로 연결), 도메인(`domainName (stdName)`), 필수, 구성 용어, 시스템 필드. 0건이면 빈 상태 문구(`data-testid="column-list-empty"`).
-- 아래 왼쪽 `ContentPanel` "컬럼명 자동 생성": 방향 `Select`(`FORWARD` 한국어 → 물리명 / `REVERSE` 물리명 → 논리명), 입력, [분해](`disabled={!canDoButton(rbac, "columnMng", "compare")}`). 토큰 표(순서·토큰·매칭·약어·처리). 처리 칸: MATCHED `등록됨`, SYNONYM `동의어 → <표준어>`, AMBIGUOUS 후보 `Select`(바꾸면 `replaceToken`), NO_ABBR `약어 없음 — 용어 관리에서 약어 등록`, UNKNOWN 은 `***` 버튼(클릭 → 팝업). 물리명 미리보기, 추천 도메인 `Select`(추천이 있으면 기본 선택), 중복 검사(없으면 `신규` 배지, 있으면 행마다 [열기] → `view`). [상세에 적용]: 폼에 논리명·물리명·표시명 3종(FORWARD 만)·도메인(선택값이 있을 때)·terms(토큰 선택 용어 ID, 해결 안 된 자리는 null) 를 채운다. REVERSE 결과의 논리명에 `***` 가 있어도 그대로 채우고, 저장 선검사와 서버(I12 ④)가 막는다.
-- **팝업에서 용어를 고른 뒤(새로 등록했든 기존 유사어를 골랐든)** `replaceToken` 으로 그 자리를 바꾸고, 바뀐 토큰으로 만든 `composeLogicalName(tokens)` 를 입력으로 `compare FORWARD` 를 **다시 호출**한다. 그래야 추천 도메인·중복 검사·표시명 제안이 새 물리명(`RMTL_COIL_THK_DEV`) 기준으로 다시 계산된다(E3 이 이것을 본다). 다시 받은 토큰에서 사용자가 이미 고른 동음이의어 선택은 `seq` 와 `surface` 가 같을 때 되살린다. 입력칸 값도 이 논리명으로 바꾼다.
-- 아래 오른쪽 `ContentPanel` "컬럼 상세": 논리명*, 표준 물리명*(입력 시 대문자화. terms 가 모두 해결됐는데 약어 조합과 다르면 경고 문구만, 저장은 막지 않음), 표시명 긴/중간/짧은(`maxLength` 24/12/6), 도메인*, 필수(Y/N), 기본값, 참조 종류(없음/MASTER), 참조 대상, 참조 카테고리, 설명, 활용처 메모, 라벨 파생 미리보기(`resolveLabels`).
-- 맨 아래 `GridPanel`(`showAddButton showDeleteButton`) + 편집 `AgDataGrid`: 시스템(`systems` 선택 편집기), 실제 필드명, 변환 규칙, note. 행 추가 기본값: 시스템 빈 값, 필드명 = 표준 물리명이 있으면 `ZZ_` + 표준 물리명.
-- [저장]: 화면 선검사 — 물리명이나 논리명에 `***`, 또는 terms 에 null → 오류 모달 `미등록 용어(***)가 남아 있어 저장할 수 없습니다`(서버 문구와 같게), 필수 누락 → 오류 모달. 통과하면 `save`(params + `grids.systems` + `grids.terms` 항상 포함), 성공 시 `useMessage().showMessage({ message: "저장했습니다", toast: true })`, 목록 재조회, 저장한 columnId 재선택. 실패 시 `ErrorModal` 에 `Error.message`(= `meta.message`).
-- [신규]: 폼·그리드·자동 생성 패널 초기화.
-- `tokens.ts`: `composePhysName(tokens)`, `composeLogicalName(tokens)`, `hasPlaceholder(tokens)`, `replaceToken(tokens, seq, term)`(토큰 status 를 MATCHED 로, abbr 를 용어 약어로). FE 는 분해 규칙을 따로 구현하지 않는다. 토큰을 고친 뒤의 재계산은 위의 `compare` 재호출로 서버에 맡긴다.
+화면 명세(영역·조회조건·목록 열·상세 필드·자동 생성 영역·버튼과 동작·선검사·역할별 활성·팝업 연동)는 **[columnMng 기능설계서](../../screens/columnMng/columnMng_기능설계서.md)** §2~§8 로 옮겼다(D5 ②). 여기에는 구현에 필요한 결정만 남긴다.
+
+- `<MdmPageLayout group="dma" screenId="columnMng" title="컬럼 사전" buttons={[조회(action "search", primary), 신규(action "save", light), 저장(action "save", save)]}>`. 페이지 안 권한 판정은 `const rbac = useUserButtonRbac(true)`, [분해]는 `canDoButton(rbac, "columnMng", "compare")`.
+- shared 래퍼만 쓴다: `SearchArea`·`SearchField`(검색어는 children 으로 `Input` 을 넣어 `data-testid` 를 붙임), `ContentBody`·`ContentPanel`, `AgDataGrid`·`GridPanel`(`showAddButton showDeleteButton`, `.grid-panel` 은 부모 높이 필요 — B8), `Input`·`Select`·`Textarea`·`Button`, `ErrorModal`, `useMessage().showMessage({ message: "저장했습니다", toast: true })`.
+- `tokens.ts`: `composePhysName(tokens)`, `composeLogicalName(tokens)`, `hasPlaceholder(tokens)`, `replaceToken(tokens, seq, term)`(토큰 status 를 MATCHED 로, abbr 를 용어 약어로. 약어가 없으면 NO_ABBR). FE 는 분해 규칙을 따로 구현하지 않는다. 팝업에서 용어를 고른 뒤의 재계산은 `compare` 재호출로 서버에 맡긴다.
+- `labels.ts`: `resolveLabels(row)`·`formatLabels(row)` — 폴백 규칙은 기능설계서 §3.3(I11).
 
 ### 6.17 `api.ts`
 
@@ -584,10 +580,10 @@ log.info("[DataInitializer] TSK-04-04 MDM 컬럼 사전 시드 — OBJECT 2 + �
 
 ### 6.18 팝업 `pages/dma/termRegPop/termRegPop.tsx`
 
-- `export const OBJ_ID = "termRegPop"`. `TermRegPopModal({ open, token, onSelect, onClose })`, `onSelect(term: {termId, termName, senseNo, engAbbr})`. shared `Modal` 사용(`masterRuleListPop` 선례), 제목 `용어 인라인 등록 — <token>`, `data-testid="term-pop"`.
-- 열릴 때 `search({termName: token})` 자동 호출(사용자 조작이 아니라 권한 가드 없음, 선례 주석 그대로).
-- 1단 "유사어 확인": 후보 표(표기·의미·정의·약어·근거) + 행마다 [이 용어 사용] → `onSelect` 후 닫기(서버 호출 없음).
-- 2단 "새 용어 등록": 표기(token 미리 채움), 의미 번호(`nextSenseNo`), 정의*, 맥락, 영문명, [약어 제안](`search({termName, engName})` → `abbr.suggested` 를 약어 칸에, `baseTaken` 이면 `대안: …` 표시), 영문 약어*(대문자화). [등록] `disabled={!canDoButton(rbac, OBJ_ID, "reg")}`, 비활성일 때 `data-testid="term-pop-no-permission"` 문구 `용어 등록은 표준 관리자만 할 수 있습니다. 표준 관리자에게 요청하세요`. 성공 → `onSelect(result.term)`, 실패 → 모달 안 오류 문구(`meta.message`).
+팝업 명세(유사어 확인·새 용어 등록 필드·버튼·검증·권한·반환)는 **[columnMng 기능설계서](../../screens/columnMng/columnMng_기능설계서.md)** §9 로 옮겼다(D5 ②). 구현 결정만 남긴다.
+
+- `export const OBJ_ID = "termRegPop"`. `TermRegPopModal({ open, token, onSelect, onClose })`, `onSelect(term: {termId, termName, senseNo, engAbbr})`. shared `Modal` 사용(`masterRuleListPop` 선례), 본문을 `data-testid="term-pop"` 로 감싼다.
+- 열릴 때 `search({termName: token})` 자동 호출(사용자 조작이 아니라 권한 가드 없음). [등록] `disabled={!canDoButton(rbac, OBJ_ID, "reg")}`(I29), [약어 제안] `canDoButton(rbac, OBJ_ID, "search")`(B10).
 - `index.ts`: `export { TermRegPopModal, OBJ_ID } from "./termRegPop"; export type { … }`.
 
 ---
@@ -650,11 +646,17 @@ log.info("[DataInitializer] TSK-04-04 MDM 컬럼 사전 시드 — OBJECT 2 + �
 - **택한 것**: ①.
 - **반려 시 재작업**: `DomainSuggester` 가 `***` 토큰을 걸러낸 뒤 비교하게 바꾸고 D2 테스트 기대값과 E2 의 "추천 없음" 단언을 바꾼다.
 
-### D5 — 화면 설계 산출물 5종을 이 Task 에서 쓰지 않음
+### D5 — 화면 설계 산출물을 기능설계서 1종으로 줄임(5종 중 나머지 4종은 쓰지 않음)
 - **질문**: wbs 공통 규칙("화면마다 설계 산출물 5종을 Task 설계 단계에서 작성")과 Mes-Guide 개발 진입 가드("설계 폴더 없음 → 구현 금지")를 이 Task 가 어떻게 충족할지(F27).
 - **선택지**: ① 이 design.md 가 기능·디자인·BPMN 설계를 모두 담고, `docs/mdm/screens/columnMng/` 5종은 쓰지 않는다. **강도: 중** — As-Is 가 없어 분석리포트·G1~G7 게이트가 성립하지 않고, As-Is 없는 신규 화면 `noticeMgmt` 를 사용자가 1종으로 줄인 선례가 있으며, 팀장 지시의 산출물 범위가 design.md 다. ② 기능설계서 1종만 추가(noticeMgmt 선례). **강도: 중** — 선례와 정확히 같지만 design.md 와 내용이 겹친다. ③ 5종 전부. **강도: 약** — As-Is 분석 전제 템플릿이라 대부분 "해당 없음"으로 채워진다.
-- **택한 것**: ①. mdm 의 첫 실제 화면이라 이 결정이 이후 mdm 화면 Task 의 선례가 된다.
-- **반려 시 재작업**: ② 이면 이 문서 §1·§6.1·§6.2·§6.12~6.18 을 옮겨 `docs/mdm/screens/columnMng/columnMng_기능설계서.md`(팝업 절 포함)를 만들고 식별자 사전 비고를 "기능설계서 1종"으로 고친다. ③ 이면 5종 템플릿으로 확장한다. 코드는 바뀌지 않는다.
+- **택한 것**: ②(팀장 지시로 ①에서 변경, 2026-09-24 Build 뒤). 기능설계서 1종을 **[`docs/mdm/screens/columnMng/columnMng_기능설계서.md`](../../screens/columnMng/columnMng_기능설계서.md)** 에 두고(팝업 `termRegPop` 절 포함), 이 문서의 화면 명세 절(§6.16·§6.18)은 그 파일로 가는 링크와 구현 결정만 남긴다.
+  - 근거 ① 자리: [`docs/mdm/screens/README.md`](../../screens/README.md) §1·§5 가 ADR-0003·decisions D-015 에 따라 mdm 화면 설계 산출물의 자리를 `docs/mdm/screens/{screenId}/` 로 정했다.
+  - 근거 ② 1종 축소: As-Is 가 없는 신규 화면은 [DEC-001](../../../ai-build-log/DEC-001_noticeMgmt-on-mls.md) 결정 2 에서 5종을 기능설계서 1종으로 줄인 선례가 있다(`noticeMgmt`).
+  - 분석리포트·디자인설계서·BPMN설계서·정합체크서는 만들지 않는다. 이 설계 체계는 As-Is 원본 grep 을 전제하므로(DEC-001 결정 2) As-Is 가 없는 이 화면에서는 성립하지 않는다. BPMN 액션표는 §6.14 와 BPMN 파일 `documentation` 이 대신한다.
+  - 기능설계서의 근거 칸은 원천 설계(`02-term-domain-column.md` 등)의 행 번호를 인용한다. 원천은 As-Is 가 아니라 요구사항 원천이다.
+  - mdm 모듈 전체의 5종 면제 여부는 팀장이 사람에게 확인받는 중이다. 결과가 달라지면 **문서만 보완한다**(코드 변경 없음).
+  - 식별자 사전 §A.3.2 `columnMng` 행 비고를 "기능설계서 1종"으로 맞췄다. `docs/mdm/screens/README.md` §3 표에는 비고 칸이 없어 고치지 않았다.
+- **반려 시 재작업**: ③(5종 전부)이면 나머지 4종을 템플릿으로 추가한다. ①(design.md 만)이면 기능설계서를 지우고 §6.16·§6.18 을 되살린다. 어느 쪽이든 코드는 바뀌지 않는다.
 
 ### D6 — 분해·역분해를 READ 등급 액션 `compare` 로 둠
 - **질문**: 분해·역분해·중복 검사·도메인 추천을 어떤 액션 이름에 둘지. 권한 세트를 바꿀 수 없으므로(공유 시드 불변) `MdmActions` 13개 안에서 골라야 한다.
@@ -678,12 +680,14 @@ Build(Phase 03, 2026-09-24)가 이 문서에서 벗어난 지점과 그 사유�
 | B6 | E2E E1~E6 여섯 시험 → 스모크 합계 11 passed | E2·E3·E4 를 한 시험(`E2~E4`)으로 묶었다. `mdm-columnMng` 4건 + 기존 5건 = **9 passed** | E3 는 E2 의 분해 결과(같은 화면 상태)에서 팝업을 열고, E4 는 E3 가 바꾼 토큰으로 적용한다. 시험마다 새 페이지가 열리므로 나누면 앞 단계를 다시 해야 한다. 단언 내용은 §3.5 표와 같다 |
 | B7 | [저장] 화면 선검사: 순서 명시 없음 | `***` 선검사를 필수값 검사보다 먼저 한다 | E2 처럼 미등록 꼬리는 추천 도메인이 없어(D4) 필수 누락 문구가 원인(`***`)을 가린다. 서버 순서(§6.12)는 그대로다 |
 | B8 | 시스템별 실제 필드명 그리드는 화면 맨 아래 전체 폭 | 오른쪽 "컬럼 상세" 패널 안, 폼 아래에 둔다. `GridPanel` 을 감싸는 요소에 높이를 준다 | `.grid-panel` 이 `contain: strict; height: 100%` 라 부모 높이가 없으면 0 이 되어 [행추가]가 표 뒤로 숨는다(E2E 실측). 1280×720 에서 네 영역을 세로로 쌓으면 패널마다 높이가 모자란다 |
-| B9 | AMBIGUOUS 후보 `Select` 를 바꾸면 `replaceToken` | 후보 선택은 화면 안에서만 바꾸고 compare 를 다시 부르지 않는다. compare 재호출은 팝업에서 용어를 고른 뒤에만 한다(§6.16 문구 그대로) | 재호출하면 서버 기본 선택으로 되돌아간다. 사용자가 고른 후보는 `seq`·`surface` 가 같을 때 되살린다 |
+| B9 | AMBIGUOUS 후보 `Select` 를 바꾸면 `replaceToken` | 후보 선택은 화면 안에서만 바꾸고 compare 를 다시 부르지 않는다. compare 재호출은 팝업에서 용어를 고른 뒤에만 한다(옮기기 전 §6.16 문구 그대로, 지금은 기능설계서 §5.1-1 GB-002·§5.2) | 재호출하면 서버 기본 선택으로 되돌아간다. 사용자가 고른 후보는 `seq`·`surface` 가 같을 때 되살린다 |
 | B10 | 팝업 권한 판정은 [등록](`reg`)만 | [약어 제안]도 `termRegPop × search` 로 판정한다 | 사용자 조작으로 서버를 부르는 버튼이라 masterRuleListPop 선례(자기 objId × 실제 액션명)를 따랐다. 담당자도 READ 라 동작은 같다 |
 | B11 | `bpmn-skill`(bpmn-tool CLI)로 생성 | `npx -p @cothe/bpmn-tool bpmn-tool create/validate` 로 생성·검증했다(전역 설치 없음). 경고 1건 "default flow 미설정"은 `noticeMgmt.bpmn` 선례와 같다 | 전역 환경을 바꾸지 않으려고 npx 캐시로 실행했다 |
 | B12 | `data-testid` 목록 | 목록 외에 `token-candidate-{seq}`, `gen-duplicates`, `form-label-preview`, `form-required`, `term-pop-term-name`, `term-pop-sense-no`, `term-pop-context`, `term-pop-error`, `term-pop-use-{termId}` 를 더했다 | E2E 단언 대상 |
 | B13 | MDM020 상세 예 "표시명(짧은)은 6자 이하여야 합니다" | "표시명(짧은)은(는) 6자 이하여야 합니다" 모양으로 칸 이름을 싣는다 | 칸 이름마다 조사를 고르지 않으려고 한 모양으로 통일했다. 단언은 칸 이름 포함 여부다 |
 | B14 | 시험 파일 목록 | 설계 목록 외에 `LIBT/common/security/MdmStdAdminGuardTest`, `LIBT/dma/naming/NamingFixtures`(픽스처), C2b·P4b·P8b·R7 강화를 더했다. C2b·R7 강화는 변이 검증에서 살아남은 변이를 덮으려고 넣었다(아래 기록) | 새 테스트 추가이며 기대값 완화가 아니다 |
+| B15 | (공통) MSSQL 실측 | **사용자 결정: 도커 금지로 MSSQL 실측 생략.** `mssqlMigrationTest` 등 Testcontainers·docker 명령은 돌리지 않았다. 이 Task 는 새 마이그레이션이 없어 MSSQL SQL 이 생기지 않았다(§3.1 도 이 게이트를 대상 밖으로 둠) | 2026-09-24 사용자 결정(팀장 전달) |
+| B16 | D5 ①(design.md 만) | D5 ②(기능설계서 1종)로 변경, 화면 명세 절을 기능설계서로 옮김 | 팀장 지시(2026-09-24). D5 절 참고 |
 
 `com.dongkuk.dmes.mdm.dma.naming` 패키지는 ArchUnit·계약 검사기가 거부하지 않아 옮기지 않았다(§2 커밋 A 조건부 이탈 없음).
 
