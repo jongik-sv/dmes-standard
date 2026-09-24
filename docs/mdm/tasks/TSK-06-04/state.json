@@ -2,7 +2,7 @@
   "tsk": "TSK-06-04",
   "order": "8ebe4885-e37e-4933-8e83-039ab58da750",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "reported",
+  "phase": "merged",
   "branch_base": "17c6784fd65f47fe8a334fce40ea7d25398703d1",
   "baseline": {
     "failures": 0,
@@ -169,5 +169,6 @@
     ],
     "new_failures": [],
     "note": "1차 F1 에서 evalex-perf.test.ts NFR-1(BASE_SPD_LKP 미리보기 100ms 예산, 중앙값 108ms, load avg 12)이 실패했다. 이 Task 와 무관한 시간 측정 시험이며 재실행에서 635/635 통과했다."
-  }
+  },
+  "unapproved": true
 }
