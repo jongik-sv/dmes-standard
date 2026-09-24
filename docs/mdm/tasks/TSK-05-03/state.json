@@ -2,8 +2,8 @@
   "tsk": "TSK-05-03",
   "order": "975c6c21-1c7a-4d3c-bbb0-f0ec7b0d3701",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "build",
-  "model": "opus",
+  "phase": "verify",
+  "model": "haiku",
   "branch_base": "49656a3a42352e4cf7f5f107e50057886c310b8c",
   "risk": "선행 3건(TSK-05-01·01-03·03-02)은 dev 반영 확인(REFLECTED, 증거 2)·승인 대기. 형식상 선행이 아닌 TSK-05-02(merged, unapproved)의 layoutMng 산출물 위에 확장한다 — 05-02 반려 시 재작업",
   "baseline": {
@@ -43,8 +43,17 @@
     ]
   },
   "last": {
-    "phase": "design",
-    "event": "design.pass",
-    "head": "b638940"
+    "phase": "build",
+    "event": "build.pass",
+    "head": "57e2035"
+  },
+  "gates": {
+    "build": {
+      "head": "57e2035",
+      "backend": "2558/0",
+      "frontend": "393 passed, lint pass",
+      "e2e": "28 passed/0 failed/0 skipped (7a 9, 7b 6, 7c 13)",
+      "mutations": "I1~I24 빨강(동등 변이 2건 보고)"
+    }
   }
 }
