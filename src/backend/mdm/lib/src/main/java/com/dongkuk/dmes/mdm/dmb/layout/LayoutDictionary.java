@@ -39,6 +39,32 @@ public class LayoutDictionary {
         return toInfos(queries.columnsByPhys(names));
     }
 
+    /**
+     * 물리명 → 조립한 유효 도메인(TSK-05-03 {@link LayoutConstJudge} — CONST 값 판정). {@link #byPhysNames} 와 같은 조립 경로다. 사전에
+     * 없거나 체인이 깨진 물리명은 맵에 없다.
+     */
+    public Map<String, EffectiveDomainView> views(Collection<String> physNames) {
+        LinkedHashSet<String> names = new LinkedHashSet<>();
+        for (String n : physNames) {
+            if (n != null) {
+                names.add(n);
+            }
+        }
+        Map<String, EffectiveDomainView> out = new LinkedHashMap<>();
+        List<Object[]> rows = queries.columnsByPhys(names);
+        if (rows.isEmpty()) {
+            return out;
+        }
+        DomainTreeSnapshot snapshot = reader.load();
+        for (Object[] r : rows) {
+            EffectiveDomainView view = derive(snapshot, r[3] == null ? null : ((Number) r[3]).longValue());
+            if (view != null) {
+                out.put((String) r[0], view);
+            }
+        }
+        return out;
+    }
+
     /** 물리명·논리명·표시명 부분 일치(대소문자 무시), 최대 100행. */
     public List<LayoutColumnInfo> search(String keyword) {
         return List.copyOf(toInfos(queries.searchColumns(keyword)).values());
