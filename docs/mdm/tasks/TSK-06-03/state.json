@@ -2,5 +2,76 @@
   "tsk": "TSK-06-03",
   "order": "f93163b8-a0cc-4308-a5b1-df6ff14f7cf6",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "build",
+  "baseline": {
+    "failures": 0,
+    "tests": 2823,
+    "docker": "banned:spawn",
+    "cmds": [
+      {
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 2337,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "3fbf0737b93a2af61436a7af149d245a592c6655-5a99c8ef20f3",
+        "measured_at": "2026-09-24T04:45:56Z",
+        "count_cmd": "find src/backend -path '*/build/test-results/*' -not -path '*mssqlMigrationTest*' -name 'TEST-*.xml' | xargs grep -h -o '<testsuite [^>]*' (tests/failures/errors 합산)"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 330,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "3fbf0737b93a2af61436a7af149d245a592c6655-70ad4dddc2e4",
+        "measured_at": "2026-09-24T04:45:56Z",
+        "note": "27 files / 330 passed"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "3fbf0737b93a2af61436a7af149d245a592c6655-79066bca5c4b",
+        "measured_at": "2026-09-24T04:45:56Z",
+        "note": "tsc --noEmit pass"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 156,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "3fbf0737b93a2af61436a7af149d245a592c6655-85eac351cb59",
+        "measured_at": "2026-09-24T04:45:56Z",
+        "note": "23 files / 156 passed"
+      },
+      {
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "3fbf0737b93a2af61436a7af149d245a592c6655-773190afc491",
+        "measured_at": "2026-09-24T04:45:56Z",
+        "note": "ERROR 0 / WARN 0 / INFO 29"
+      }
+    ],
+    "e2e": "기준선 시점 미실행(서버 필요) — Verify 에서 mdm-*.spec 전체 재실행",
+    "mssqlMigrationTest": "도커 금지로 생략(testAll 비포함 태스크)"
+  },
+  "branch_base": "3fbf0737b93a2af61436a7af149d245a592c6655",
+  "base_note": "선행 TSK-06-01 head_sha cdb7b14 origin/dev 조상. TSK-01-03·TSK-03-02: reached=true, head_sha 없음 → pred-reflected.sh REFLECTED → origin/dev 3fbf073 기점, 스택 없음",
+  "complexity": "점수 1(depends 3 +1, 키워드 없음) → sonnet 이나 spec model=opus 오버라이드 → Design opus·Build opus",
+  "model": "opus",
+  "last": {
+    "phase": "design",
+    "event": "design.ok"
+  },
+  "design": {
+    "commits": [
+      "60fbabc",
+      "4a67b62"
+    ],
+    "invariants": 42,
+    "decisions": "D1~D14",
+    "flyway": "불필요(origin/dev 최대 V11)"
+  }
 }
