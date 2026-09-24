@@ -50,7 +50,7 @@ Build·Verify 가 원천 문서를 다시 읽지 않아도 되게 적는다.
 
 **(가) 저장 코어**는 `com.dongkuk.dmes.mdm.common.segment` 패키지(lib)에 둔다. `common.version` 처럼 여러 Task 가 쓰는 공용 코어이기 때문이다(07-03 화면, 07-04 CSV, 07-02 카테고리가 쓸 수 있다). 코어는 두 층이다.
 - 아래층은 계약 `MdmTemporalSegmentStore<K,V>` 의 구현체 셋(`DataItemSegmentStore`·`DataCateSegmentStore`·`DataCateItemSegmentStore`)이다. 05 「선분과 닫기」의 네 연산(등록·수정·닫기·다시 열기)을 **검사 없이** 수행한다. 호출자가 잠금을 쥐었다고 가정한다.
-- 위층은 `DataItemSaveCore`·`DataCategorySegmentCore` 다. 한 사건마다 순서가 고정이다: ① 저장 시각 결정 → ② `TB_MDM_DATA` 행 잠금(트랜잭션의 첫 DB 문) → ③ 잠금 뒤 마루 데이터 행과 그 키의 선분 행을 **네이티브 SQL 로** 다시 읽기 → ④ 검사 1~7 → ⑤ row_version 비교 → ⑥ 경계 시각 확정 → ⑦ 아래층 연산.
+- 위층은 `DataItemSaveCore`·`DataCategorySegmentCore` 다. 한 사건마다 순서가 고정이다: ① 저장 시각 결정 → ② `TB_MDM_DATA` 행 잠금(선분·마루 데이터 행을 읽기 전) → ③ 잠금 뒤 마루 데이터 행과 그 키의 선분 행을 **네이티브 SQL 로** 다시 읽기 → ④ 검사 1~7 → ⑤ row_version 비교 → ⑥ 경계 시각 확정 → ⑦ 아래층 연산.
 - 읽기·쓰기는 전부 네이티브 SQL(`DataSegmentRowStore`)로 한다. 이유는 셋이다. 잠금 뒤 읽기가 영속성 컨텍스트의 옛 엔티티를 다시 쓰면 잠금이 무의미해진다. TSK-07-01 이 VALID_FROM·VALID_TO 의 HQL 비교를 검증하지 못했다(F8). 리포 선례 `VersionRowStore` 가 같은 방식이다(F9). 감사 칼럼은 `MdmNativeAuditSupport` 로 명시한다(F22).
 
 **행 잠금**은 `UPDATE TB_MDM_DATA SET LAST_CHG_SEQ = LAST_CHG_SEQ WHERE MARU_DATA_ID = :id` 다(D6). 방언 중립이고 값을 바꾸지 않는다(배포 순번 발급은 PRD §2 규칙 7 로 보류). MSSQL 은 이 문이 커밋까지 그 행에 X 잠금을 쥐어 같은 마루 데이터의 사건을 직렬화한다. SQLite 는 DB 전체 쓰기 잠금이라 어차피 직렬화된다. 그래서 **잠금을 빼는 변이는 SQLite 게이트로 잡히지 않는다**(F10). SQLite 로 잡을 수 있는 것만 SQLite 테스트로 덮는다: 잠금 호출 누락·순서 뒤바뀜(호출 순서 기록), 잠금 문이 쓰기 문이 아닌 변이(다른 JDBC 연결의 `BEGIN IMMEDIATE` 가 SQLITE_BUSY 를 받는지), 잠금 문이 값을 바꾸는 변이(LAST_CHG_SEQ·VER 불변), 0행이면 거부, row_version 충돌, 직렬 호출의 겹침 0. 실제 동시 저장의 겹침 0 은 mssqlTest 의 동시성 테스트로 설계하되 도커 금지라 워커가 돌리지 않는다. 수용 기준 매핑에 "확인하지 못함"으로 적는다.
@@ -219,7 +219,7 @@ E2E 명령은 「E2E 서버 절차」에 있다(게이트 명령과 별개).
 | 표 | 행 |
 |---|---|
 | TB_MDM_DATA | `E2E_DI_PORT`(항구, INUSE, MDM, 키 패턴 기본값, `LVL_CNT` 1, `ATTR01_NAME` '국가', `ATTR03_NAME` '비고' — attr02 는 라벨 없음) / `E2E_DI_CUST`(거래처, INUSE, EXTERNAL, `SOURCE_SYSTEM` 'ERP', `ATTR01_NAME` '사업자번호') |
-| TB_MDM_DATA_CATE | 두 마루 데이터의 `BASE`(REGEX, `.*`, KEY) / PORT `KR`(REGEX, `^KR$`, ATTR01) / PORT `MAJOR`(TABLE) |
+| TB_MDM_DATA_CATE | 두 마루 데이터의 `BASE`(REGEX, `.*`, KEY) / PORT `KR`(REGEX, `^KR$`, ATTR01) / PORT `MAJOR`(TABLE). `CK_TB_MDM_DATA_CATE_DEF` 때문에 REGEX 행은 `DEF_EXPR`·`DEF_TARGET` 둘 다 값이 있고, TABLE 행은 둘 다 NULL 이어야 한다 |
 | TB_MDM_DATA_ITEM | PORT `KRPUS`(부산, lvl1 'KR', attr01 'KR', seq 1), `KRINC`(인천, 'KR', 'KR', seq 2), `CNSHA`(상하이, 'CN', 'CN', seq 3) / CUST `C0001`(동국철강, attr01 '1234567890') |
 | TB_MDM_DATA_CATE_ITEM | PORT `MAJOR`/`KRPUS` |
 
@@ -246,7 +246,7 @@ e2e 는 픽스처 행을 **고치지 않는다**(읽기 확인에만 쓴다). �
 **T-S `DataItemSegmentCoreSqliteTest`** (선분 의미)
 - 등록 → 1행 `[t1, OPEN_END)`, row_version 0, CHG_SEQ 0 (S3·S12).
 - 수정(t2) → 옛 행 `[t1,t2)`(row_version 그대로), 새 행 `[t2,OPEN_END)`, 새 행 row_version = 1, 새 행 값 = 요청 값 (S1·S2·S3).
-- 값이 같은 수정 → `NONE`, 행 수·row_version·U_AT·VER 불변 (S5). 필드마다 한 칸씩만 다른 요청 17건(name, alterName, seq, description, lvl1~5, attr01~10 — 파라미터화)은 모두 `UPDATE` (S5 비교 대상 누락 변이를 잡는다). `" "`·`""` 만 다른 요청은 NULL 과 같아 `NONE` (S5 정규화).
+- 값이 같은 수정 → `NONE`, 행 수·row_version·U_AT·VER 불변 (S5). 비교 필드 목록 전체(name, alterName, seq, description, lvl1~5, attr01~10 = 19개)를 순회해 한 칸씩만 다른 요청을 만드는 파라미터화 테스트는 모두 `UPDATE` (S5 비교 대상 누락 변이를 잡는다). `" "`·`""` 만 다른 요청은 NULL 과 같아 `NONE` (S5 정규화).
 - 닫기(t3) → 열린 행 `valid_to = t3`, 새 행 없음, 닫힌 행 row_version +1 (S6·S3). 닫힌 키 닫기 → `NOT_OPEN` 거부.
 - 다시 열기(t4) → 새 행 `[t4,OPEN_END)`, 값 = 마지막 행 값, row_version = 마지막 행 +1, 닫힌 구간 `[t3,t4)` 행 없음 (S7). 열린 키 다시 열기 → `ALREADY_OPEN` 거부.
 - 등록 거부: 열린 키 → `KEY_EXISTS`, 닫힌 키 → 메시지가 `CLOSED_KEY_REOPEN` 을 포함 (S8, 수용 기준 3).
@@ -340,7 +340,7 @@ Verify 는 mdm e2e 전체를 한 번에 돈다: `pnpm exec playwright test e2e/m
 | # | 수용 기준(spec.md) | 검증 방법 |
 |---|---|---|
 | AC1 | 05 「예」 E1~E6·X1~X4 의 선분 결과 재현(순번 칸 제외) | `MasterDataExamplesScenarioTest`(T-EX, 표 그대로 데이터 주도). E1·E2 는 07-02 몫이라 픽스처, E3 은 CSV upsert, X 는 API 경로 upsert, X1 의 RECV 행과 모든 순번은 제외(D2·D3) |
-| AC2 | 동시 저장에서 선분 겹침 0 | **확인하지 못함(도커 금지로 생략: `cd src/backend/mdm && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ../gradlew :api:mssqlMigrationTest --no-daemon --console=plain`)** — 실제 동시성 증거는 `DataSegmentConcurrencyMssqlTest` M1~M5 로 설계했다. SQLite 게이트가 확인하는 것은 부분뿐이다: 직렬 50사건 겹침 0(T-S), 잠금 호출 순서·쓰기 잠금 탐침·값 불변·잠금 뒤 재조회(T-L), CAS 충돌(T-S). SQLite 초록만으로 이 기준을 충족했다고 보지 않는다 |
+| AC2 | 동시 저장에서 선분 겹침 0 | 확인하지 못함(도커 금지로 생략: cd src/backend/mdm && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ../gradlew :api:mssqlMigrationTest --no-daemon --console=plain). 실제 동시성 증거는 `DataSegmentConcurrencyMssqlTest` M1~M5 로 설계했다. SQLite 게이트가 확인하는 것은 부분뿐이다: 직렬 50사건 겹침 0(T-S), 잠금 호출 순서·쓰기 잠금 탐침·값 불변·잠금 뒤 재조회(T-L), CAS 충돌(T-S). SQLite 초록만으로 이 기준을 충족했다고 보지 않는다 |
 | AC3 | 닫힌 키로 신규 등록 시 다시 열기 안내 | T-S(등록 거부 문구 `CLOSED_KEY_REOPEN`), T-A(HTTP `meta.message`), e2e `mdm-dataItemMng.spec.ts` 스모크 3 후반 |
 | AC4 | 다른 사용자 수정 충돌 시 재조회 | T-S(오래된 rv 거부), T-A(`meta.message` 접두어), FE `data-item-page.test.ts`(충돌 문구 → search 재호출), e2e `mdm-dataItemMng.spec.ts` 스모크 4 후반(`page.request` 로 뒤에서 수정 → 화면 저장 → 문구 + 새 값 표시) |
 | AC5 | 포털 메뉴에서 화면이 열리고 e2e `src/frontend/e2e/mdm-dataItemMng.spec.ts` 가 통과한다 | e2e 스모크 1~4 전부 통과(「E2E 서버 절차」) |
@@ -361,7 +361,7 @@ Build·Verify 의 변이 검증이 이 목록을 순회한다. "잡는 테스트
 | S2 | 수정의 새 행 값 = 요청 값(정규화 뒤). 다시 열기의 새 행 값 = 마지막 행 값 복사 | 다시 열기에 빈 값·요청 값 사용 | T-S |
 | S3 | row_version: 등록 0 / 수정 새 행 = 옛 행 +1(옛 행은 그대로) / 닫기 = 닫는 행 +1 / 다시 열기 새 행 = 마지막 행 +1 (D7) | 새 행 0 / 닫기에서 올리지 않음 | T-S(오래된 화면 시나리오 포함) |
 | S4 | 수정·닫기·다시 열기는 `expectedRowVersion` 이 잠금 뒤 읽은 **그 키 마지막 행**의 row_version 과 같아야 한다. 다르면 `ROW_VERSION_CONFLICT` 이고 어떤 행도 쓰지 않는다. 닫는 UPDATE 는 `VALID_TO = OPEN_END AND ROW_VERSION = :expected` 조건부이고 0행이면 같은 충돌이다 | 비교 제거 / 열린 행 대신 첫 행과 비교 / UPDATE 조건에서 ROW_VERSION 제거 | T-S, T-A, M2 |
-| S5 | 값이 같으면 새 행 없음(`NONE`, 쓰기 0, row_version·감사 불변). 비교 필드는 name·alter_name·seq·description·lvl1~5·attr01~10 전부. 비교·저장 전에 문자열을 trim 하고 빈 문자열을 NULL 로 본다 | 비교 필드 하나 빼기 / 항상 새 행 / 정규화 제거 | T-S(17필드 파라미터화·공백), `data-item-columns.test.ts` |
+| S5 | 값이 같으면 새 행 없음(`NONE`, 쓰기 0, row_version·감사 불변). 비교 필드는 name·alter_name·seq·description·lvl1~5·attr01~10 전부. 비교·저장 전에 문자열을 trim 하고 빈 문자열을 NULL 로 본다 | 비교 필드 하나 빼기 / 항상 새 행 / 정규화 제거 | T-S(비교 필드 19개 전체 순회·공백), `data-item-columns.test.ts` |
 | S6 | 닫기 = 열린 행 `valid_to = at`, 새 행 없음. 물리 삭제 없음. 열린 행이 없으면 거부 | 닫기에서 DELETE / 새 행 생성 | T-S, T-EX(E6) |
 | S7 | 다시 열기는 열린 행이 없을 때만 하고, 마지막 행 `valid_to` 는 그대로 둔다(닫혀 있던 구간 보존) | 마지막 행 valid_to 를 OPEN_END 로 되돌림 | T-S, T-H |
 | S8 | 화면 등록은 그 키 행이 하나도 없을 때만 한다. 열린 키 → `KEY_EXISTS`, 닫힌 키 → `CLOSED_KEY_REOPEN` 안내 | 닫힌 키 등록 허용(새 행) | T-S, T-A, e2e |
@@ -391,7 +391,7 @@ Build·Verify 의 변이 검증이 이 목록을 순회한다. "잡는 테스트
 
 | ID | 규칙 | 대표 변이 | 잡는 테스트 |
 |---|---|---|---|
-| L1 | 모든 쓰기 사건(항목 넷·upsert·카테고리·소속)은 트랜잭션의 **첫 DB 문**으로 `DataSegmentLock.lock(md)` 을 정확히 한 번 부르고, 마루 데이터 행과 선분 행은 **그 뒤에 네이티브 SQL 로** 읽는다(영속성 컨텍스트의 엔티티를 판정에 쓰지 않는다) | 잠금 호출 제거 / 읽기 뒤로 옮김 / 잠금 전 읽은 값 재사용 | T-L(호출 순서, 잠금 뒤 재조회) — **실제 직렬화 효과는 SQLite 로 못 잡음**(M2·M4) |
+| L1 | 모든 쓰기 사건(항목 넷·upsert·카테고리·소속)은 선분·마루 데이터 행을 **읽기 전에** `DataSegmentLock.lock(md)` 을 정확히 한 번 부르고, 마루 데이터 행과 선분 행은 **그 뒤에 네이티브 SQL 로** 읽는다(영속성 컨텍스트의 엔티티를 판정에 쓰지 않는다) | 잠금 호출 제거 / 읽기 뒤로 옮김 / 잠금 전 읽은 값 재사용 | T-L(호출 순서, 잠금 뒤 재조회) — **실제 직렬화 효과는 SQLite 로 못 잡음**(M2·M4) |
 | L2 | 잠금 문은 `UPDATE TB_MDM_DATA SET LAST_CHG_SEQ = LAST_CHG_SEQ WHERE MARU_DATA_ID = :id` 다: 쓰기 문이고 값을 바꾸지 않는다 | SELECT 로 바꿈 / 값을 올림 | T-L(쓰기 잠금 탐침, 값 불변). **MSSQL X 잠금 보유는 SQLite 로 못 잡음**(M5) |
 | L3 | 잠금 문이 0행이면 "없는 마루 데이터"로 거부하고 아무것도 쓰지 않는다 | 0행 무시 | T-L |
 
