@@ -52,7 +52,7 @@ async function api(page: Page, action: string, params: Record<string, unknown>, 
 }
 
 async function pickCode(page: Page, id: string) {
-  const input = tid(page, "code-pick").locator("input");
+  const input = tid(page, "code-pick").locator('input:not([type="hidden"])');
   await input.click();
   await input.fill(id);
   await page.getByRole("option", { name: new RegExp(`^${id} `) }).first().click();
