@@ -882,21 +882,32 @@ public class DataInitializer implements ApplicationRunner {
 
         // ── OBJECT — SYSTEM_CODE='mdm' 이 FE moduleId 가 된다 ──
         insertMcmSecObjIfAbsent("mdmSample", "MDM 샘플", "mdm");
+        // TSK-04-02 — 단위 마스터·용어 관리(mdm 최초의 실제 OASIS 서비스 화면, mdmSample 선례 패턴).
+        insertMcmSecObjIfAbsent("unitMng", "단위 마스터", "mdm");
+        insertMcmSecObjIfAbsent("termMng", "용어 관리", "mdm");
 
         // ── 메뉴 leaf (parent=dma) — componentPath = 'dma/mdmSample' ──
         insertMcmSecMenuIfAbsent("mdmSample", "001", "5010100", "MDM 샘플", "dma", "mdmSample");
+        insertMcmSecMenuIfAbsent("unitMng", "002", "5010200", "단위 마스터", "dma", "unitMng");
+        insertMcmSecMenuIfAbsent("termMng", "003", "5010300", "용어 관리", "dma", "termMng");
 
-        // ── RBAC — SYSADMIN × 1 OBJECT × PERM_ALL ──
-        insertIfAbsentComposite(
-                "TB_MCM_SEC_ROLE_MAPPING",
-                new String[]{"ROLE_ID",  "OBJECT_ID",  "PERMISSION_ID"},
-                new String[]{"SYSADMIN", "mdmSample", "PERM_ALL"},
-                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
-                "VALUES ('SYSADMIN', 'mdmSample', 'PERM_ALL'" + AUDIT_VALS + ")");
+        // ── RBAC — SYSADMIN × 3 OBJECT × PERM_ALL ──
+        for (String objectId : new String[]{"mdmSample", "unitMng", "termMng"}) {
+            insertIfAbsentComposite(
+                    "TB_MCM_SEC_ROLE_MAPPING",
+                    new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
+                    new String[]{"SYSADMIN", objectId,    "PERM_ALL"},
+                    "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                    "VALUES ('SYSADMIN', '" + objectId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
+        }
 
         // ── TSK-01-03 — MDM 역할·권한 세트와 화면별 매트릭스 ──
         seedMdmRbac();
         seedMdmObjectRbac("mdmSample", "dma");
+        seedMdmObjectRbac("unitMng", "dma");
+        seedMdmObjectRbac("termMng", "dma");
+        log.info("[DataInitializer] MDM 메뉴 시드 — 폴더 6 + OBJECT 3 + 메뉴 leaf 3 + RBAC(SYSADMIN 1 + MDM 역할 2)");
+
         seedMdmDomainMngMenu();
 
         // ── TSK-04-04 — 컬럼 사전(columnMng) + 용어 인라인 등록 팝업(termRegPop). 팝업은 메뉴 leaf 없이 OBJECT·권한만
@@ -914,7 +925,6 @@ public class DataInitializer implements ApplicationRunner {
             seedMdmObjectRbac(objectId, "dma");
         }
         log.info("[DataInitializer] TSK-04-04 MDM 컬럼 사전 시드 — OBJECT 2 + 메뉴 leaf 1 + RBAC(SYSADMIN 2 + MDM 역할 4)");
-        log.info("[DataInitializer] MDM 메뉴 시드 — 폴더 6 + OBJECT 1 + 메뉴 leaf 1 + RBAC(SYSADMIN 1 + MDM 역할 2)");
     }
 
     /**

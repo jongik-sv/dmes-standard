@@ -62,7 +62,8 @@ class MdmMasterDataMssqlMigrationTest {
 
     /** 항목 1·2·6·7·8(참고, §3.3′-A 가 자동 확인) — V10 이 성공적으로 적용됐다. */
     @Test
-    void local_db_설정으로_V1_V2_V3_V4_V8_V9_V10_가_적용된다() throws SQLException {
+    void local_db_설정으로_V1_V2_V3_V4_V8_V9_V10_V11_이_적용된다() throws SQLException {
+        // TSK-04-02 — V11(약어 인덱스 비유일화, 머지 뒤 최대 버전+1 재채번) 추가 반영. 완화가 아니라 새 버전 반영이다.
         Set<String> versions = new HashSet<>();
         try (Connection c = dataSource.getConnection(); Statement s = c.createStatement();
              ResultSet rs = s.executeQuery("SELECT version FROM flyway_schema_history WHERE success = 1")) {
@@ -70,7 +71,7 @@ class MdmMasterDataMssqlMigrationTest {
                 versions.add(rs.getString(1));
             }
         }
-        assertEquals(Set.of("1", "2", "3", "4", "8", "9", "10"), versions);
+        assertEquals(Set.of("1", "2", "3", "4", "8", "9", "10", "11"), versions);
     }
 
     /** 항목 3 — 코드성 칼럼에 BIN2 콜레이션이 빠짐없이 붙었다(F5, naming-dialect-rules §3 #19). */

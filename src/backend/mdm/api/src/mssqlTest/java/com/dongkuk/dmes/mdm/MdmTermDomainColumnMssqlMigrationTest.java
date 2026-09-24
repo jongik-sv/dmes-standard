@@ -69,9 +69,14 @@ class MdmTermDomainColumnMssqlMigrationTest {
         registry.add("spring.datasource.password", MdmMssqlServer::password);
     }
 
+    /** TSK-05-01 — V4(03 인터페이스 레이아웃) 추가 반영. TSK-04-02 F18/D1 — V11(약어 인덱스 비유일화,
+     * 당초 V4→V5→V10, 머지 뒤 최대 버전+1 로 재채번) 추가 반영. Build 이탈 항목 — design.md §2
+     * 목록에는 없었으나 새 버전을 채번하면 이 단언도 사실상 깨지므로 함께 고친다(완화가 아니라 새 버전
+     * 반영). */
     @Test
-    void local_db_설정으로_V1_V2_V3_V4_V8_V9_V10_가_적용된다() throws SQLException {
+    void local_db_설정으로_V1_V2_V3_V4_V8_V9_V10_V11_이_적용된다() throws SQLException {
         // TSK-05-01 — V4(03 인터페이스 레이아웃), TSK-08-01 — V8(06 업무기준), TSK-06-01 — V9(04 마스터코드) 추가 반영.
+        // TSK-04-02 — V11(약어 인덱스 비유일화, D1. 당초 V4→V5→V10, 2026-09-24 팀장 정정으로 머지 뒤 최대 버전+1 재채번) 추가 반영.
         // 완화가 아니라 새 버전 반영이다.
         Set<String> versions = new HashSet<>();
         try (Connection c = dataSource.getConnection(); Statement s = c.createStatement();
@@ -81,7 +86,7 @@ class MdmTermDomainColumnMssqlMigrationTest {
             }
         }
         // TSK-07-01 — V10(05 마스터데이터, 당초 V7 → 머지 뒤 재채번) 추가 반영. 완화가 아니라 새 버전 반영이다.
-        assertEquals(Set.of("1", "2", "3", "4", "8", "9", "10"), versions);
+        assertEquals(Set.of("1", "2", "3", "4", "8", "9", "10", "11"), versions);
     }
 
     /** #3 — CHECK(ISJSON(...) = 1) 8개, 부정형 JSON INSERT 는 오류 547(CHECK 위반)로 거부. */
@@ -226,12 +231,16 @@ class MdmTermDomainColumnMssqlMigrationTest {
         }
     }
 
-    /** #20 — UX_TB_MDM_TERM_ABBR 만 필터 인덱스(has_filter=1), NULL 다건·중복 비NULL 1건 규칙을 강제한다. */
+    /**
+     * TSK-04-02 V11(D1) — 요구사항이 강제하는 교정. UX_TB_MDM_TERM_ABBR(유일 필터 인덱스)가
+     * IX_TB_MDM_TERM_ABBR(비유일 필터 인덱스)로 바뀌어, NULL 다건은 물론 동일 비NULL 값도 다건 INSERT 가
+     * 성공해야 한다(경고는 애플리케이션 레벨, TermMngService.warnings).
+     */
     @Test
-    void 필터_인덱스는_UX_TB_MDM_TERM_ABBR_만이고_NULL_다건_중복_비NULL_거부를_강제한다() throws SQLException {
+    void 필터_인덱스는_IX_TB_MDM_TERM_ABBR_이고_NULL_다건_비NULL_다건_모두_허용한다() throws SQLException {
         try (Connection c = dataSource.getConnection(); Statement s = c.createStatement()) {
-            assertEquals(1, count(c, "SELECT COUNT(*) FROM sys.indexes WHERE name = 'UX_TB_MDM_TERM_ABBR' "
-                    + "AND is_unique = 1 AND has_filter = 1"));
+            assertEquals(1, count(c, "SELECT COUNT(*) FROM sys.indexes WHERE name = 'IX_TB_MDM_TERM_ABBR' "
+                    + "AND is_unique = 0 AND has_filter = 1"));
             assertEquals(0, count(c, "SELECT COUNT(*) FROM sys.indexes WHERE name = 'UX_TB_MDM_COLUMN_PHYS_NAME' "
                     + "AND has_filter = 1"), "UX_TB_MDM_COLUMN_PHYS_NAME 은 필터 인덱스가 아니다");
         }
@@ -243,10 +252,10 @@ class MdmTermDomainColumnMssqlMigrationTest {
                 s.execute("INSERT INTO TB_MDM_TERM (TERM_NAME, SENSE_NO, DEFINITION) VALUES (N'약어없음2', 1, N'd')");
                 s.execute("INSERT INTO TB_MDM_TERM (TERM_NAME, SENSE_NO, DEFINITION, ENG_ABBR) "
                         + "VALUES (N'약어있음1', 1, N'd', 'DUPABBR')");
-                SQLException dup = assertThrows(SQLException.class, () -> s.execute(
-                        "INSERT INTO TB_MDM_TERM (TERM_NAME, SENSE_NO, DEFINITION, ENG_ABBR) "
-                                + "VALUES (N'약어있음2', 1, N'd', 'DUPABBR')"));
-                assertEquals(2601, dup.getErrorCode(), dup.getMessage());
+                // V11 이후 — 같은 비NULL ENG_ABBR 재삽입도 통과해야 한다(유일 인덱스가 아니므로).
+                s.execute("INSERT INTO TB_MDM_TERM (TERM_NAME, SENSE_NO, DEFINITION, ENG_ABBR) "
+                        + "VALUES (N'약어있음2', 1, N'd', 'DUPABBR')");
+                assertEquals(2, count(c, "SELECT COUNT(*) FROM TB_MDM_TERM WHERE ENG_ABBR = 'DUPABBR'"));
             } finally {
                 c.rollback();
                 c.setAutoCommit(true);

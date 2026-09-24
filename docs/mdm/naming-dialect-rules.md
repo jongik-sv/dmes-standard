@@ -14,7 +14,7 @@
 | 칼럼 | UPPER_SNAKE. 원천 snake_case 소문자를 글자 그대로 대문자로(개명 없음) | `maru_code_id` → `MARU_CODE_ID` | backend-standard §5 |
 | PK | `PK_{테이블}` | `PK_TB_MDM_CODE_VER` | mls V2 선례 |
 | FK | `FK_{테이블}_{참조테이블에서 TB_MDM_ 뗀 이름}` (같은 쌍이 둘 이상이면 뒤에 `_{칼럼}`) | `FK_TB_MDM_CODE_VER_CODE` | 새 규칙 |
-| 유일 | `UX_{테이블}_{칼럼…}` | `UX_TB_MDM_TERM_ABBR` | mcm-core `ux_` 선례(대문자화) |
+| 유일 | `UX_{테이블}_{칼럼…}` | `UX_TB_MDM_TERM_ABBR` | mcm-core `ux_` 선례(대문자화). TSK-04-02 V11(원래 V4→V5→V10 으로 채번했으나 dev 선착 V4·V8·V9·V10 뒤로 최대 버전+1 재채번)에서 이 예시 인덱스 자체는 비유일 `IX_TB_MDM_TERM_ABBR` 로 교체됐다(design.md D1) — 명명 규칙 예시로서의 표기는 그대로 두고 이 각주로 인계한다 |
 | 인덱스 | `IX_{테이블}_{칼럼…}` | `IX_TB_MDM_CODE_ITEM_CODE` | mls V2 선례 |
 | CHECK | `CK_{테이블}_{의미}`. 원천 `ck_md_domain_flag` → `CK_TB_MDM_DOMAIN_FLAG` | | 원천 02:62·114 |
 | 스키마 접두 | 쓰지 않는다. MSSQL 은 접속 계정의 기본 스키마(TSK-01-01 D8, 예 `MDMAPUSER`), SQLite 는 단일 파일 | `@Table(name="TB_MDM_CODE")` (schema 없음) | mls `Notice` 선례 |

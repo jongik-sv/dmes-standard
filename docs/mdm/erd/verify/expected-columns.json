@@ -159,7 +159,7 @@
     }
   },
   "partial_unique_indexes": [
-    {"name": "UX_TB_MDM_TERM_ABBR", "table": "TB_MDM_TERM"},
+    {"name": "UX_TB_MDM_TERM_ABBR", "table": "TB_MDM_TERM", "note": "TSK-04-02 V11(원래 V4→V5→V10 으로 채번했으나 dev 선착 V4·V8·V9·V10 뒤로 최대 버전+1 재채번)로 실제 배포 스키마는 IX_TB_MDM_TERM_ABBR(비유일)로 교체됐다. 이 ERD 원문(TSK-02-03 스냅샷) sql 파일은 각주만 달고 고치지 않기로 했으므로(design.md §2), 이 문서 전용 검증기(Verify.java, 게이트 아님)는 원문 그대로의 유일 인덱스 동작을 계속 확인한다."},
     {"name": "UX_TB_MDM_RULE_VAR_NAME", "table": "TB_MDM_RULE_VAR"},
     {"name": "UX_TB_MDM_RULE_ROW_SEQ", "table": "TB_MDM_RULE_ROW"}
   ],

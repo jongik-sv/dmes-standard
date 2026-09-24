@@ -33,3 +33,11 @@ cactus:
 
 server:
   port: 8096
+
+# TSK-04-02 — 용어 임베딩 인코더(TermEmbeddingEncoder). 운영 기본은 반드시 none(no-op, I13) —
+# 모델 파일 없이 가짜 벡터가 EMBEDDING 에 박히는 사고를 막는다(D5, TRD.md:137). fake 는 테스트 클래스의
+# @TestPropertySource 로만 켜고 이 파일에는 두지 않는다. onnx 는 onnxEmbeddingManualTest 전용이다.
+mdm:
+  embedding:
+    encoder: none
+    model-dir: ""

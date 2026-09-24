@@ -92,8 +92,9 @@ class MdmTermDomainColumnMigrationTest {
                     indexNames.add(rs.getString(1));
                 }
             }
+            // TSK-04-02 V11(D1) — UX_TB_MDM_TERM_ABBR(유일)를 IX_TB_MDM_TERM_ABBR(비유일)로 교체했다.
             assertTrue(indexNames.containsAll(Set.of(
-                    "UX_TB_MDM_TERM_NAME_SENSE", "UX_TB_MDM_TERM_ABBR", "UX_TB_MDM_COLUMN_NAME",
+                    "UX_TB_MDM_TERM_NAME_SENSE", "IX_TB_MDM_TERM_ABBR", "UX_TB_MDM_COLUMN_NAME",
                     "UX_TB_MDM_COLUMN_PHYS_NAME", "IX_TB_MDM_DOMAIN_PARENT", "IX_TB_MDM_COLUMN_SYSTEM_SYS_PHYS")),
                     indexNames.toString());
 
@@ -200,8 +201,13 @@ class MdmTermDomainColumnMigrationTest {
         assertEquals(JSON_CHECK_NAMES, ckNames);
     }
 
+    /**
+     * TSK-04-02 V11(D1) — 요구사항이 강제하는 교정. UX_TB_MDM_TERM_ABBR(유일)가 IX_TB_MDM_TERM_ABBR
+     * (비유일)로 바뀌어, 이제 동일 비NULL ENG_ABBR 도 다건 허용된다(경고는 애플리케이션 레벨에서 처리,
+     * TermMngService.warnings). NULL 다건 허용은 그대로 유지된다.
+     */
     @Test
-    void UX_TB_MDM_TERM_ABBR_만_NULL_다건_허용_동일_비NULL_은_거부한다() throws SQLException {
+    void IX_TB_MDM_TERM_ABBR_는_NULL_다건_허용_동일_비NULL_도_다건_허용한다() throws SQLException {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try {
@@ -210,9 +216,8 @@ class MdmTermDomainColumnMigrationTest {
 
                 String abbr = "ABBR" + SEQ.incrementAndGet();
                 insertTermWithAbbr(c, "약어3-" + SEQ.incrementAndGet(), abbr);
-                assertThrows(SQLException.class,
-                        () -> insertTermWithAbbr(c, "약어4-" + SEQ.incrementAndGet(), abbr),
-                        "같은 비NULL ENG_ABBR 재삽입은 거부돼야 한다");
+                // V11 이후 — 같은 비NULL ENG_ABBR 재삽입도 통과해야 한다(유일 인덱스가 아니므로).
+                insertTermWithAbbr(c, "약어4-" + SEQ.incrementAndGet(), abbr);
             } finally {
                 c.rollback();
                 c.setAutoCommit(true);
