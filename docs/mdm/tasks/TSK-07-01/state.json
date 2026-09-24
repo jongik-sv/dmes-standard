@@ -55,6 +55,5 @@
     },
     "compileMssqlTestJava": "ok",
     "mssqlMigrationTest": "실행 안 함(사용자 결정: 도커 금지)"
-  },
-  "unapproved": true
+  }
 }
