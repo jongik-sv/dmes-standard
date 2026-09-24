@@ -2,14 +2,11 @@ package com.dongkuk.dmes.mdm.common.version;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.dongkuk.dmes.mdm.MdmMssqlServer;
 import com.dongkuk.dmes.mdm.contract.common.MdmDialect;
 import com.dongkuk.dmes.mdm.contract.common.MdmDialectResolver;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -23,8 +20,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.mssqlserver.MSSQLServerContainer;
-import org.testcontainers.utility.DockerImageName;
 
 /**
  * TSK-01-03 design.md §3.3 — 버전 상태 서비스 시나리오를 실제 SQL Server 2022(Testcontainers)로 돌린다.
@@ -38,28 +33,17 @@ import org.testcontainers.utility.DockerImageName;
 @Import({VersionScenarioTestConfig.class, VersionStateServiceMssqlTest.FixtureRegistry.class})
 class VersionStateServiceMssqlTest extends AbstractVersionStateScenarioTest {
 
-    static final MSSQLServerContainer MSSQL = new MSSQLServerContainer(
-            DockerImageName.parse("mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04")).acceptLicense();
-
-    static {
-        // Spring 컨텍스트(Flyway 포함)가 뜨기 전에 컨테이너와 DB 가 있어야 한다.
-        MSSQL.start();
-        try (Connection master = DriverManager.getConnection(MSSQL.getJdbcUrl(), MSSQL.getUsername(), MSSQL.getPassword());
-             Statement s = master.createStatement()) {
-            s.execute("IF DB_ID('mdm_version') IS NULL CREATE DATABASE mdm_version");
-        } catch (SQLException e) {
-            throw new IllegalStateException(e);
-        }
-    }
+    // Spring 컨텍스트(Flyway 포함)가 뜨기 전에 서버와 DB 가 있어야 한다. 공용 서버에 실행마다 새 DB 를 만든다.
+    static final String DB_URL = MdmMssqlServer.newDatabase("version");
 
     @Autowired
     MdmDialectResolver dialectResolver;
 
     @DynamicPropertySource
     static void overrideDatasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> MSSQL.getJdbcUrl() + ";databaseName=mdm_version");
-        registry.add("spring.datasource.username", MSSQL::getUsername);
-        registry.add("spring.datasource.password", MSSQL::getPassword);
+        registry.add("spring.datasource.url", () -> DB_URL);
+        registry.add("spring.datasource.username", MdmMssqlServer::user);
+        registry.add("spring.datasource.password", MdmMssqlServer::password);
     }
 
     @TestConfiguration(proxyBeanMethods = false)

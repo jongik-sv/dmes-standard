@@ -31,10 +31,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.core.io.ClassPathResource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.mssqlserver.MSSQLServerContainer;
-import org.testcontainers.utility.DockerImageName;
 
 /**
  * TSK-01-02 design.md §3.3 T12 — mdm Flyway 마이그레이션을 실제 SQL Server 2022(Testcontainers)에 적용해
@@ -46,29 +42,24 @@ import org.testcontainers.utility.DockerImageName;
  * <p>locations 는 하드코딩하지 않고 {@code application-local-db.yml} 의 {@code spring.flyway.locations} 를
  * 읽는다 — 앱 설정과 이 게이트를 묶는다. 쓰기 단언은 한 트랜잭션에서 하고 rollback 으로 끝낸다.
  */
-@Testcontainers
 class MdmMssqlMigrationTest {
-
-    @Container
-    static final MSSQLServerContainer MSSQL = new MSSQLServerContainer(
-            DockerImageName.parse("mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04")).acceptLicense();
 
     private static String mdmUrl;
     private static MigrateResult migrateResult;
 
     @BeforeAll
     static void migrate() throws SQLException {
-        try (Connection master = DriverManager.getConnection(MSSQL.getJdbcUrl(), MSSQL.getUsername(), MSSQL.getPassword());
+        try (Connection master = DriverManager.getConnection(
+                MdmMssqlServer.serverUrl(), MdmMssqlServer.user(), MdmMssqlServer.password());
              Statement s = master.createStatement()) {
-            s.execute("CREATE DATABASE mdm");
             try (ResultSet rs = s.executeQuery("SELECT @@VERSION")) {
                 rs.next();
                 System.out.println("[MdmMssqlMigrationTest] @@VERSION = " + rs.getString(1).replace('\n', ' '));
             }
         }
-        mdmUrl = MSSQL.getJdbcUrl() + ";databaseName=mdm";
+        mdmUrl = MdmMssqlServer.newDatabase("migration");
         migrateResult = Flyway.configure()
-                .dataSource(mdmUrl, MSSQL.getUsername(), MSSQL.getPassword())
+                .dataSource(mdmUrl, MdmMssqlServer.user(), MdmMssqlServer.password())
                 .locations(localDbFlywayLocations())
                 .load()
                 .migrate();
@@ -184,7 +175,7 @@ class MdmMssqlMigrationTest {
     }
 
     private static Connection connect() throws SQLException {
-        return DriverManager.getConnection(mdmUrl, MSSQL.getUsername(), MSSQL.getPassword());
+        return DriverManager.getConnection(mdmUrl, MdmMssqlServer.user(), MdmMssqlServer.password());
     }
 
     private static void insertSystem(Connection c, String code, String name, String selfYn) throws SQLException {

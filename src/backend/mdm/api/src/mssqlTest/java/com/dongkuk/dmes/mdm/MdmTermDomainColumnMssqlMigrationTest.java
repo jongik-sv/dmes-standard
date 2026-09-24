@@ -17,7 +17,6 @@ import com.dongkuk.dmes.mdm.repository.MdmColumnRepository;
 import com.dongkuk.dmes.mdm.repository.MdmDomainRepository;
 import jakarta.persistence.EntityManager;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -37,10 +36,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.mssqlserver.MSSQLServerContainer;
-import org.testcontainers.utility.DockerImageName;
 
 /**
  * TSK-04-01 design.md §3.2 — V3(02 용어·도메인·컬럼)을 {@code @SpringBootTest}+{@code local-db} 프로파일로
@@ -54,12 +49,7 @@ import org.testcontainers.utility.DockerImageName;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local-db")
-@Testcontainers
 class MdmTermDomainColumnMssqlMigrationTest {
-
-    @Container
-    static final MSSQLServerContainer MSSQL = new MSSQLServerContainer(
-            DockerImageName.parse("mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04")).acceptLicense();
 
     @Autowired
     DataSource dataSource;
@@ -72,15 +62,11 @@ class MdmTermDomainColumnMssqlMigrationTest {
 
     @DynamicPropertySource
     static void registerMssql(DynamicPropertyRegistry registry) throws SQLException {
-        try (Connection master = DriverManager.getConnection(MSSQL.getJdbcUrl(), MSSQL.getUsername(), MSSQL.getPassword());
-             Statement s = master.createStatement()) {
-            s.execute("IF DB_ID('mdm') IS NULL CREATE DATABASE mdm");
-        }
-        String mdmUrl = MSSQL.getJdbcUrl() + ";databaseName=mdm";
+        String mdmUrl = MdmMssqlServer.newDatabase("dictionary");
         // application-local-db.yml 의 ${DB_USERNAME}/${DB_PASSWORD} 는 기본값 없는 자리표시자라 세 값 모두 덮는다.
         registry.add("spring.datasource.url", () -> mdmUrl);
-        registry.add("spring.datasource.username", MSSQL::getUsername);
-        registry.add("spring.datasource.password", MSSQL::getPassword);
+        registry.add("spring.datasource.username", MdmMssqlServer::user);
+        registry.add("spring.datasource.password", MdmMssqlServer::password);
     }
 
     @Test

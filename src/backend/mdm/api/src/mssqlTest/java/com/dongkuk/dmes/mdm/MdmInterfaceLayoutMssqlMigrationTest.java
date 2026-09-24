@@ -34,10 +34,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.mssqlserver.MSSQLServerContainer;
-import org.testcontainers.utility.DockerImageName;
 
 /**
  * TSK-05-01 design.md §3.2 — V4(03 인터페이스 레이아웃)을 {@code @SpringBootTest}+{@code local-db}
@@ -46,12 +42,7 @@ import org.testcontainers.utility.DockerImageName;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local-db")
-@Testcontainers
 class MdmInterfaceLayoutMssqlMigrationTest {
-
-    @Container
-    static final MSSQLServerContainer MSSQL = new MSSQLServerContainer(
-            DockerImageName.parse("mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04")).acceptLicense();
 
     @Autowired
     DataSource dataSource;
@@ -68,15 +59,10 @@ class MdmInterfaceLayoutMssqlMigrationTest {
 
     @DynamicPropertySource
     static void registerMssql(DynamicPropertyRegistry registry) throws SQLException {
-        try (Connection master = java.sql.DriverManager.getConnection(
-                MSSQL.getJdbcUrl(), MSSQL.getUsername(), MSSQL.getPassword());
-             Statement s = master.createStatement()) {
-            s.execute("IF DB_ID('mdm') IS NULL CREATE DATABASE mdm");
-        }
-        String mdmUrl = MSSQL.getJdbcUrl() + ";databaseName=mdm";
+        String mdmUrl = MdmMssqlServer.newDatabase("layout");
         registry.add("spring.datasource.url", () -> mdmUrl);
-        registry.add("spring.datasource.username", MSSQL::getUsername);
-        registry.add("spring.datasource.password", MSSQL::getPassword);
+        registry.add("spring.datasource.username", MdmMssqlServer::user);
+        registry.add("spring.datasource.password", MdmMssqlServer::password);
     }
 
     @Test

@@ -24,6 +24,9 @@ bootWar {
 
 // TSK-01-02 D5 — MSSQL 실제 적용 검증. docker 가 필요하므로 test/testAll 에 연결하지 않는다.
 // 실행: cd src/backend/mdm && ../gradlew :api:mssqlMigrationTest --no-daemon
+// 서버는 MdmMssqlServer 하나를 모든 테스트가 같이 쓴다. MSSQL_JDBC_URL(+MSSQL_USER·MSSQL_PASSWORD)이 있으면 그 서버에 붙고,
+// 없으면 재사용 컨테이너 하나를 띄운다(~/.testcontainers.properties 의 testcontainers.reuse.enable=true 면 실행 사이에도 재사용).
+// 워커 게이트는 SQLite(testAll)만 쓰고, 이 태스크는 개발 브랜치 머지 뒤 팀장의 방언 검증(dialect_check)에서만 돈다.
 // test 출력을 classpath 에 더하는 것은 T11(SQLite)과 기대값 헬퍼(MdmSystemSeedExpectations)를 같이 쓰기 위해서다.
 sourceSets {
     mssqlTest {
