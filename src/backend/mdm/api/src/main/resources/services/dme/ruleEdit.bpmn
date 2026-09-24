@@ -148,20 +148,6 @@ BPMN 의 action(RBAC 키, mcm 시드 어휘 16종 — 새 action 을 만들 수 
     <bpmn:endEvent id="end_handover" name="넘기기 완료">
       <bpmn:incoming>flow_handover_end</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:serviceTask id="validateTask" name="식 파싱" camunda:class="ruleEditService">
-      <bpmn:extensionElements>
-        <camunda:properties>
-          <camunda:property name="method" value="parseExpr" />
-          <camunda:property name="output" value="result" />
-          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleExprParseRequest" />
-        </camunda:properties>
-      </bpmn:extensionElements>
-      <bpmn:incoming>flow_validate</bpmn:incoming>
-      <bpmn:outgoing>flow_validate_end</bpmn:outgoing>
-    </bpmn:serviceTask>
-    <bpmn:endEvent id="end_validate" name="식 파싱 완료">
-      <bpmn:incoming>flow_validate_end</bpmn:incoming>
-    </bpmn:endEvent>
     <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
     <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
     <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="end_search" />
@@ -179,6 +165,20 @@ BPMN 의 action(RBAC 키, mcm 시드 어휘 16종 — 새 action 을 만들 수 
     <bpmn:sequenceFlow id="flow_unlock_end" sourceRef="unlockTask" targetRef="end_unlock" />
     <bpmn:sequenceFlow id="flow_handover" name="handover" sourceRef="actionGateway" targetRef="handoverTask" />
     <bpmn:sequenceFlow id="flow_handover_end" sourceRef="handoverTask" targetRef="end_handover" />
+    <bpmn:serviceTask id="validateTask" name="식 파싱" camunda:class="ruleEditService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="parseExpr" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleExprParseRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_validate</bpmn:incoming>
+      <bpmn:outgoing>flow_validate_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_validate" name="식 파싱 완료">
+      <bpmn:incoming>flow_validate_end</bpmn:incoming>
+    </bpmn:endEvent>
     <bpmn:sequenceFlow id="flow_validate" name="validate" sourceRef="actionGateway" targetRef="validateTask" />
     <bpmn:sequenceFlow id="flow_validate_end" sourceRef="validateTask" targetRef="end_validate" />
   </bpmn:process>
@@ -337,6 +337,24 @@ BPMN 의 action(RBAC 키, mcm 시드 어휘 16종 — 새 action 을 만들 수 
       <bpmndi:BPMNEdge id="flow_handover_end_di" bpmnElement="flow_handover_end">
         <di:waypoint x="520" y="840" />
         <di:waypoint x="620" y="818" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="validateTask_di" bpmnElement="validateTask">
+        <dc:Bounds x="420" y="900" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_validate_di" bpmnElement="end_validate">
+        <dc:Bounds x="620" y="918" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_validate_di" bpmnElement="flow_validate">
+        <di:waypoint x="275" y="450" />
+        <di:waypoint x="275" y="940" />
+        <di:waypoint x="420" y="940" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="327.5" y="433" width="64" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_validate_end_di" bpmnElement="flow_validate_end">
+        <di:waypoint x="520" y="940" />
+        <di:waypoint x="620" y="936" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

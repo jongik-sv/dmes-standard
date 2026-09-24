@@ -175,6 +175,28 @@ class DmeOasisHttpTest {
         assertTrue(copy.path("meta").path("message").asText().startsWith(MdmErrorCode.UNAPPLIED_VERSION_EXISTS.defaultMessage()), copy.toString());
     }
 
+    /** TSK-08-03 — COLUMNS 저장의 배열(prioList)·boolean(deleted) 이 grids.rows.rows 안에서 바인딩되는지(B4 류 오류를 E2E 전에 잡는다). */
+    @Test
+    void 열_설정_COLUMNS_저장은_grids_rows_로_바인딩되어_반영된다() throws Exception {
+        registerByKim();
+        ObjectNode body = envelope("ruleEdit", json.createObjectNode().put("part", "COLUMNS").put("maruRuleId", "HTTP_JDG")
+                .put("ver", 1).put("rowVersion", 0));
+        ArrayNode rows = body.putObject("grids").putObject("rows").putArray("rows");
+        rows.addObject().put("varId", 1).put("varKind", "COND").put("dispType", "2").put("varName", "COIL_THK").put("axis", "ROW");
+        ObjectNode result = rows.addObject().put("varId", 2).put("varKind", "RESULT").put("dispType", "Value").put("varName", "GRD")
+                .put("dataType", "STRING");
+        result.putArray("prioList");
+        rows.addObject().put("varId", -1).put("varKind", "RESULT").put("dispType", "Value").put("varName", "TMP_DEL")
+                .put("dataType", "STRING").put("deleted", true);
+
+        JsonNode save = post("ruleEdit", "save", "kim", body);
+
+        assertTrue(save.path("meta").path("success").asBoolean(false), save.toString());
+        assertEquals(2, DmeTestSupport.count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'HTTP_JDG'"),
+                "deleted:true 줄은 반영되지 않는다");
+        assertEquals("ROW", jdbc.queryForObject("SELECT AXIS FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'HTTP_JDG' AND VAR_ID = 1", String.class));
+    }
+
     /** TSK-08-03 — BPMN 이 parseExpr(validate action)·도메인 검색(search target=DOMAIN)을 실제 서비스 메서드로 잇는다. */
     @Test
     void validate_는_식을_서버에서_파싱하고_search_target_DOMAIN_은_도메인을_찾는다() throws Exception {

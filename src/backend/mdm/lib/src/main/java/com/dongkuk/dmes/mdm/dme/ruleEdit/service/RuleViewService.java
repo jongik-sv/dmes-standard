@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mdm.dme.ruleEdit.service;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
+import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
 import com.dongkuk.dmes.mdm.common.rule.RuleAnalysisInputMapper;
 import com.dongkuk.dmes.mdm.common.rule.RuleAnalysisInputMapper.StoredRow;
@@ -86,6 +87,7 @@ public class RuleViewService {
             out.setBaseRows(List.of());
             out.setBaseVars(List.of());
             out.setVarCandidates(List.of());
+            out.setVarMeta(List.of());
             out.setIssues(List.of());
             out.setEditable(false);
         } else {
@@ -100,6 +102,7 @@ public class RuleViewService {
             out.setBaseVars(selected.getBaseVer() == null ? List.of()
                     : resolver.resolve(id, selected.getBaseVer(), queries.vars(id, selected.getBaseVer())));
             out.setVarCandidates(varCandidates(id));
+            out.setVarMeta(queries.vars(id, ver).stream().map(RuleViewService::varMeta).toList());
             List<StoredRow> stored = rows.stream().map(r -> new StoredRow(r.getRowId(), r.getSeq(), r.getRowKind(), r.getCells())).toList();
             out.setIssues(RuleIssueMaps.of(RuleAnalyzer.analyze(
                     RuleAnalysisInputMapper.toAnalysisRule(id, rule.getRuleKind(), selected.getHitPolicy(), vars, stored))));
@@ -108,6 +111,13 @@ public class RuleViewService {
         }
         out.setUsage(usageService.usage(id, out.getSelectedVer()));
         return out;
+    }
+
+    private static RuleEditViewResult.VarMeta varMeta(MdmRuleVar v) {
+        List<String> prio = v.getPrioList() == null || v.getPrioList().isBlank() ? null
+                : DomainJson.readList(v.getPrioList()).stream().map(String::valueOf).toList();
+        return new RuleEditViewResult.VarMeta(v.getVarId(), v.getAxis(), v.getResGrp(), v.getGrpCond(), v.getCollectAgg(), prio,
+                v.getDomainId(), v.getDataType());
     }
 
     /** 식 입력 칸 datalist 소스 — 컬럼 사전 물리명·앞 룰 결과 변수(resolver 가 쓰는 것과 같은 조회, TSK-08-03). */
