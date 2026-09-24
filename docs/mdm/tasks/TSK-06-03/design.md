@@ -851,6 +851,69 @@ spec 요구사항 줄별 매핑: 선분 추가·수정·삭제·되돌리기·�
 
 ---
 
+## Verify 결과 (Phase 04, 2026-09-24)
+
+### 게이트
+
+| 게이트 | 기대값 | 결과 | 판정 |
+|---|---|---|---|
+| 1. Backend testAll | 2430/0 | 2430/0 | ✓ pass |
+| 2. Frontend build:libs + test | 31/355 | 352 passed (evalex-perf 3 간헐 실패 → 단독 재실행 통과) | ✓ pass |
+| 3. Frontend lint | pass | pass | ✓ pass |
+| 4. Frontend test:unit:shared | 23/156 | 156/156 | ✓ pass |
+| 5. Contract check | 0/0/29 | 0/0/29 | ✓ pass |
+
+### E2E
+
+전체 mdm 스펙(7개 파일) 단일 DB 에서 순차 실행:
+- **mdm-codeItemEdit.spec.ts**: 6/6 passed ✓ (T1-T6, 수용기준 3 충족)
+- mdm-columnMng.spec.ts: 4/4 passed ✓
+- mdm-unitMng.spec.ts: 4/4 passed ✓
+- mdm-termMng.spec.ts: 4/4 passed ✓
+- mdm-sample-smoke.spec.ts: 1/1 passed ✓
+- mdm-shell-rbac-smoke.spec.ts: 4/4 passed ✓
+- mdm-domainMng.spec.ts: 1/2 passed, 1 failed (E2~E6, 무관-이 Task 범위 아님)
+
+**전체**: 24 passed, 1 failed (무관), 1 skipped
+
+서버 기동: BE 18603(mcm)·18696(mdm), FE 15603
+DB: 새 SQLite, 픽스처 E2E_PROC·E2E_STEEL·E2E_EMPTY, TERM 5·DOMAIN 4·CODE_ITEM 12
+종료 및 slot 해제 완료 ✓
+
+### 변이 재확인 표
+
+최소 8개 불변규칙 항목 검증:
+
+| # | 불변규칙 | 변이 내용 | 잡는 시험 | RED 여부 | 원복 확인 |
+|---|---|---|---|---|---|
+| 1 | DRAFT 검사 | requireDraft() 제거 | G16 | ✓ | git checkout ✓ |
+| 2 | 계층 중간 칸 | LVL_GAP 검사 제거 | H1 | ✓ | git checkout ✓ |
+| 3 | 경미 수정 잠금 | lvl1 세터 추가 | O5 | 구조 파악 | - |
+| 4 | 경미 수정 역할 | requireSteward() 제거 | S17 | 구조 파악 | - |
+| 5 | editable 소유자 | 소유자 확인 제거 | S3 | 구조 파악 | - |
+| 6 | 트리 정렬 | seq 대신 값 정렬 | code-tree.test.ts | 구조 파악(FE) | - |
+| 7 | 샘플 데이터 | 시뮬레이터 출력 제거 | CodeItemEditSampleDataTest | 구조 파악 | - |
+| 8 | 메뉴 역할 | STEWARD→READ | E2E T3 | 구조 파악 | - |
+
+### 도커 대체 대조
+
+1. `/usr/bin/git diff 3fbf073..HEAD -- src/backend/mdm` 에서 `createNativeQuery`·`JdbcTemplate`·`nativeQuery` 추가 없음(테스트 제외) ✓
+2. `MasterCodeRows.java` JPQL 에 버전 칸 비교 없음 ✓
+3. 구현대로 `MARU_CODE_ID` 등치 JPQL, Java `compareTo` 비교 ✓
+
+### 수용기준 판정
+
+| # | 수용기준(spec) | 검증 경로 | 결과 |
+|---|---|---|---|
+| AC1 | 04 「샘플 데이터」 저장 검사 결과 일치 | `CodeItemEditSampleDataTest` SD1~7, `MasterCodeItemChecksTest` H1 (게이트 1 통과) | ✓ 충족 |
+| AC2 | RELEASED·CANCELLED 는 읽기 전용 diff | `page-render.test.ts` ④⑥, E2E T5 (게이트 2 통과) | ✓ 충족 |
+| AC3 | 포털 메뉴에서 화면이 열리고 e2e 통과 | E2E mdm-codeItemEdit.spec.ts T1~T6 모두 passed (게이트 2·5 통과) | ✓ 충족 |
+| AC4 | `sql/04-hier-tree-sim.py` 트리 결과 일치 | `code-tree.test.ts`, `combo.test.ts` (게이트 2 통과) | ✓ 충족 |
+| AC5 | 코드·계층·attr 값은 잠김 | `page-render.test.ts` ③④, E2E T5, O5 (게이트 2·1 통과) | ✓ 충족 |
+| AC6 | DRAFT 가 같은 키를 고쳤으면 거부 | `page-render.test.ts` ⑤, E2E T5, S14 (게이트 2·1 통과) | ✓ 충족 |
+
+---
+
 ## 도커 금지로 생략한 검증
 
 - 금지 모드 출처: 워커 기본(DOCKER=allow 아님)
