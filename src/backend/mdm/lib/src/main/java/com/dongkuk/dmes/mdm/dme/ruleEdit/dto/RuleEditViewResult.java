@@ -21,6 +21,8 @@ public class RuleEditViewResult {
     private List<ResolvedVar> vars;
     private List<RowInfo> rows;
     private List<RowInfo> baseRows;
+    private List<ResolvedVar> baseVars;
+    private List<VarCandidate> varCandidates;
     private List<Map<String, Object>> issues;
     private UsageInfo usage;
 
@@ -35,6 +37,8 @@ public class RuleEditViewResult {
     public List<ResolvedVar> getVars() { return vars; }
     public List<RowInfo> getRows() { return rows; }
     public List<RowInfo> getBaseRows() { return baseRows; }
+    public List<ResolvedVar> getBaseVars() { return baseVars; }
+    public List<VarCandidate> getVarCandidates() { return varCandidates; }
     public List<Map<String, Object>> getIssues() { return issues; }
     public UsageInfo getUsage() { return usage; }
 
@@ -49,8 +53,34 @@ public class RuleEditViewResult {
     public void setVars(List<ResolvedVar> v) { this.vars = v; }
     public void setRows(List<RowInfo> v) { this.rows = v; }
     public void setBaseRows(List<RowInfo> v) { this.baseRows = v; }
+    public void setBaseVars(List<ResolvedVar> v) { this.baseVars = v; }
+    public void setVarCandidates(List<VarCandidate> v) { this.varCandidates = v; }
     public void setIssues(List<Map<String, Object>> v) { this.issues = v; }
     public void setUsage(UsageInfo v) { this.usage = v; }
+
+    /** 식 입력 칸 datalist 소스 — 컬럼 사전 물리명(COLUMN)·앞 룰 결과 변수(RULE_RESULT, TSK-08-03). */
+    public static class VarCandidate {
+        private String name;
+        private String label;
+        private String kind;
+
+        public VarCandidate() {
+        }
+
+        public VarCandidate(String name, String label, String kind) {
+            this.name = name;
+            this.label = label;
+            this.kind = kind;
+        }
+
+        public String getName() { return name; }
+        public String getLabel() { return label; }
+        public String getKind() { return kind; }
+
+        public void setName(String v) { this.name = v; }
+        public void setLabel(String v) { this.label = v; }
+        public void setKind(String v) { this.kind = v; }
+    }
 
     /** 룰 헤더(카드 ①). */
     public static class RuleInfo {
