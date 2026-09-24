@@ -236,7 +236,7 @@ ORG 표본 입력(시뮬레이터 `TB_MDM_DATA_ITEM`, 모두 closed_at NULL): `H
 | `$LT/common/mastercode/MasterCodeCategoryResolverTest.java` | §4.2 |
 | `$LT/contract/common/CommonContractTest.java`(**수정**) | 48행 `21` → `23`, MDM022·MDM023 개별 단언 2개 추가(코드·HTTP 상태·transport·기본 문구). 새 상수 반영이지 기대값 완화가 아니다 |
 | `$AT/common/mastercode/MasterCodeItemSegmentOpsSqliteTest.java` | §4.3 (선분 조작·되돌리기·연쇄·ROW_VERSION 불변·DRAFT 전용) |
-| `$AT/common/mastercode/MasterCodeFixtures.java` | 시험 시드 헬퍼(네이티브 INSERT, 이름에 `seed` — Backend 가이드 §10). `seedCode`, `seedVersion`, `seedItem`, `seedCate`, `seedCateItem`, `seedProcCdBeforeDraftEdits`(§1.3 의 PROC_CD 를 v2.000 편집 **전** 상태로: 82@1.000-9999, 83@1.001-9999, CATE_ITEM MAJOR 82@1.000-9999, 나머지는 §1.3 그대로, v2.000 DRAFT 소유자 `kim`·row_version 0), `seedSteelStd`(§1.3 8행 + DRAFT 1.001 소유자 `kim`), `seedEqpCd`(EXTERNAL MES), `clear()`(F16 순서) |
+| `$AT/common/mastercode/MasterCodeFixtures.java` | 시험 시드 헬퍼(네이티브 INSERT, 이름에 `seed` — Backend 가이드 §10). `seedCode`, `seedVersion`, `seedItem`, `seedCate`, `seedCateItem`, `seedProcCdBeforeDraftEdits`(§1.3 의 PROC_CD 를 v2.000 편집 **전** 상태로: 82@1.000-9999, 83@1.001-9999, CATE_ITEM MAJOR 82@1.000-9999, 나머지는 §1.3 그대로, v2.000 DRAFT 소유자 `kim`·row_version 0), `seedSteelStd`(§1.3 8행 + DRAFT 1.001 소유자 `kim`), `seedEqpCd`(EXTERNAL MES), `clear()`(F16 순서). **시드 제약**: `CK_TB_MDM_CODE_VER_APPLY` 때문에 DRAFT 가 아닌(RELEASED·CANCELLED) 버전 행은 `APPLY_FROM`·`APPLY_TO` 를 둘 다 채운다(CANCELLED 는 예: `2026-08-01 00:00:00`/`2026-09-01 00:00:00`). `CK_TB_MDM_CODE_SRC_SYS` 때문에 MDM 은 `SOURCE_SYSTEM` NULL, EXTERNAL 은 `'MES'`(V2 시드에 있음). 업무 일시는 19자 TEXT |
 
 ### 생성 — 커밋 B: OASIS 서비스·BPMN
 
@@ -307,13 +307,20 @@ ORG 표본 입력(시뮬레이터 `TB_MDM_DATA_ITEM`, 모두 closed_at NULL): `H
 
 아래 명령을 **글자 그대로** 쓴다. 전체 스위트는 `.claude/skills/dflow-dev/scripts/heavy.sh <명령>` 으로 감싸고, `HEAVY_BUSY`(exit 75)면 같은 명령을 다시 부른다.
 
-| # | 명령 | 기준선 |
-|---|---|---|
-| 1 | `cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain` | 2337 tests / 0 failures (개수: `find src/backend -path '*/build/test-results/*' -not -path '*mssqlMigrationTest*' -name 'TEST-*.xml' \| xargs grep -h -o '<testsuite [^>]*'` 의 tests/failures/errors 합산) |
-| 2 | `cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test` | 27 files / 330 passed |
-| 3 | `cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint` | pass |
-| 4 | `cd src/frontend && pnpm test:unit:shared` | 23 files / 156 passed |
-| 5 | `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` | ERROR 0 / WARN 0 / INFO 29 (검사기가 mdm 을 스캔하지 않아 이 Task 로 INFO 가 바뀌지 않을 것으로 본다. 바뀌면 이유를 Verify 기록에 적는다) |
+```
+1. cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain
+   → 2337 tests / 0 failures (개수: find src/backend -path '*/build/test-results/*' -not -path '*mssqlMigrationTest*' -name 'TEST-*.xml' | xargs grep -h -o '<testsuite [^>]*' 의 tests/failures/errors 합산)
+2. cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test
+   → 27 files / 330 passed
+3. cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint
+   → pass
+4. cd src/frontend && pnpm test:unit:shared
+   → 23 files / 156 passed
+5. python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .
+   → ERROR 0 / WARN 0 / INFO 29
+```
+
+5번: 검사기가 mdm 모듈을 스캔하지 않으므로(F20) 이 Task 로 INFO 수가 바뀌지 않을 것으로 본다. 바뀌면 이유를 Verify 기록에 적는다. 이 Task 가 새 시험을 더하므로 1·2 의 총수는 늘어야 한다(미감소가 게이트).
 
 추가 점검(게이트 아님, 커밋 전): `python3 .claude/skills/mantine-aggrid-ui/scripts/mantine_docs.py audit <바꾼 FE 파일>`, `python3 .claude/skills/mantine-aggrid-ui/scripts/aggrid_docs.py audit <바꾼 FE 파일>` 0건. `bpmn-tool validate src/backend/mdm/api/src/main/resources/services/dmc/codeItemEdit.bpmn` 오류 0. E2E 는 §4.11 절차로 Verify 가 mdm 전체 스펙을 한 번에 돈다.
 
@@ -379,7 +386,7 @@ ORG 표본 입력(시뮬레이터 `TB_MDM_DATA_ITEM`, 모두 closed_at NULL): `H
 - SD3 **해석**: `preview(PROC_CD, "1.001", c)` 의 해당 코드 집합 = BASE `{1P,2P,82,83}`, COATING `{82,83}`, MAJOR `{1P,2P,82}`, COLD_MILL `{1P,2P}`. `preview(PROC_CD, "2.000", c)` = BASE `{1P,2P}`, COATING `{}` + 경고 `CATEGORY_EMPTY`, MAJOR `{1P,2P}`.
 - SD4 **diff(V = 2.000)**: `view(PROC_CD, "2.000")` 의 닫힌 행 = ITEM `82@1.000`, ITEM `83@1.001`, CATE_ITEM `MAJOR 82`. 추가·수정 표시 행 0.
 - SD5 **경미 수정과 닫기만 한 키**: SD1 뒤 `patch(PROC_CD, "82", "1.000", name "2CGL-P", …)` 는 통과한다(DRAFT 가 82 를 닫기만 했다, 04:544). `patch(PROC_CD, "1P", "1.000", …)` 도 통과한다.
-- SD6 **STEEL_STD 저장 검사**(04:1148 + sim 4번째): `seedSteelStd` → `validate(STEEL_STD, "1.001", rows=[ADDED X-1 (KS,NULL,KS-3-CGCH)])` 의 이슈 = `LVL_GAP`, `[ADDED X-2 (JIS,KS-3)]` = `LVL_PARENT_MISMATCH`, `[ADDED KS-3-CGCH-Z50 (KS,KS-3,KS-3-CGCH)]` = 없음, `[ADDED KS-3 (JIS)]` = `LVL_PARENT_MISMATCH`. 같은 입력의 `save` 는 앞의 셋과 넷째를 MDM022 로 거부하고, 셋째(Z50)는 저장한다.
+- SD6 **STEEL_STD 저장 검사**(04:1148 + sim 4번째): `seedSteelStd` → `validate(STEEL_STD, "1.001", rows=[ADDED X-1 (KS,NULL,KS-3-CGCH)])` 의 이슈 = `LVL_GAP`, `[ADDED X-2 (JIS,KS-3)]` = `LVL_PARENT_MISMATCH`, `[ADDED KS-3-CGCH-Z50 (KS,KS-3,KS-3-CGCH)]` = 없음, `[ADDED KS-3 (JIS)]` = `LVL_PARENT_MISMATCH`. 같은 입력의 `save` 는 첫째·둘째·넷째를 MDM022 로 거부하고(ROW_VERSION 0 그대로), 셋째(Z50)는 저장한다. 거부 셋을 먼저 보내고 Z50 을 마지막에 보내면 모두 `rowVersion 0` 으로 부를 수 있다(Z50 저장 뒤 ROW_VERSION 은 1).
 - SD7 **EQP_CD**: `view(EQP_CD, …)` 의 `editable=false`, `patchable=false`. `save`·`patch` 는 거부(MDM022 `SOURCE_EXTERNAL`, MDM023 `SOURCE_EXTERNAL`).
 
 ### 4.5 서비스 시험 (`CodeItemEditServiceSqliteTest`, 게이트 1)
@@ -449,7 +456,7 @@ ORG 표본 입력(시뮬레이터 `TB_MDM_DATA_ITEM`, 모두 closed_at NULL): `H
 
 ### 4.10 E2E 사전 데이터 `src/frontend/e2e/fixtures/mdm-codeItemEdit.sql`
 
-INSERT 만(DELETE 없음). mdm 기동(Flyway 적용) 뒤에만 넣는다. 감사 칼럼 `C_USR_ID='e2e-fixture'`, `C_PGM_ID='mdm-codeItemEdit.sql'`, `VER=0`(VER·RECV 표는 `AUD_VER=0`). 업무 일시는 19자 TEXT. 소유자는 `e2e_mdm_steward`, 모든 DRAFT 의 ROW_VERSION 0, VER_KIND 는 정수 버전 MAJOR·그 밖 MINOR.
+INSERT 만(DELETE 없음). mdm 기동(Flyway 적용) 뒤에만 넣는다. RELEASED 버전 행은 `CK_TB_MDM_CODE_VER_APPLY` 때문에 `APPLY_FROM`·`APPLY_TO` 를 둘 다 채운다. 원천 MDM 이므로 `SOURCE_SYSTEM` 은 NULL. 감사 칼럼 `C_USR_ID='e2e-fixture'`, `C_PGM_ID='mdm-codeItemEdit.sql'`, `VER=0`(VER·RECV 표는 `AUD_VER=0`). 업무 일시는 19자 TEXT. 소유자는 `e2e_mdm_steward`, 모든 DRAFT 의 ROW_VERSION 0, VER_KIND 는 정수 버전 MAJOR·그 밖 MINOR.
 
 | 마루 코드 | 헤더 | 버전 | 행 |
 |---|---|---|---|
@@ -476,39 +483,43 @@ mkdir -p $W/src/backend/data
 # 2) mcm 백엔드 — 로그의 sqlite 경로가 $W/src/backend/data/mcm.db 인지 확인(아니면 즉시 중단)
 cd $W/src/backend/mcm && JAVA_HOME=$J ../gradlew :api:bootRun --no-daemon --console=plain \
   --args='--spring.profiles.active=local --server.port=18603 --mcm.bff.invalidate-role-url=http://127.0.0.1:15603/api/mcm/internal/cache/invalidate-role --cactus.notify.publish-url=http://127.0.0.1:18603/notify/publish' > $SP/be-mcm.log 2>&1 &
-BE_MCM_PID=$!
+echo $! > $SP/be-mcm.pid   # 셸 변수는 Bash 호출 사이에 남지 않으므로 PID 는 파일로 남긴다
 # 3) mdm 백엔드 — SQLite 는 $W/src/backend/data/mdm.db
 cd $W/src/backend/mdm && JAVA_HOME=$J ../gradlew :api:bootRun --no-daemon --console=plain \
   --args='--spring.profiles.active=local --server.port=18696' > $SP/be-mdm.log 2>&1 &
-BE_MDM_PID=$!
+echo $! > $SP/be-mdm.pid
 # 4) 두 로그에 "Started ... in" 확인 뒤 mcm 시드 대조와 시험 사용자
 cd $W/src/frontend && sqlite3 $W/src/backend/data/mcm.db < e2e/fixtures/mdm-rbac-seed-check.sql | diff - e2e/fixtures/mdm-rbac-seed-check.expected.txt   # 출력 없음 = 통과
 sqlite3 $W/src/backend/data/mcm.db < e2e/fixtures/mdm-rbac-users.sql
-# 4b) mdm 사전 데이터 — mdm 기동(Flyway 적용) 뒤에만
+sqlite3 $W/src/backend/data/mcm.db "SELECT ROLE_ID, OBJECT_ID, PERMISSION_ID FROM TB_MCM_SEC_ROLE_MAPPING WHERE OBJECT_ID='codeItemEdit' ORDER BY ROLE_ID;"
+#    기대: MDM_STD_ADMIN|codeItemEdit|PERM_MDM_READ / MDM_STEWARD|codeItemEdit|PERM_MDM_CONFIRM / SYSADMIN|codeItemEdit|PERM_ALL
+# 4b) mdm 사전 데이터 — mdm 기동(Flyway 적용) 뒤에만. 전체 스위트가 columnMng 스펙도 돌리므로 그 픽스처도 넣는다(TSK-04-04 §3.6)
+( cd $W/src/frontend && sqlite3 $W/src/backend/data/mdm.db < e2e/fixtures/mdm-columnMng-dict.sql )
 ( cd $W/src/frontend && sqlite3 $W/src/backend/data/mdm.db < e2e/fixtures/mdm-codeItemEdit.sql )
+sqlite3 $W/src/backend/data/mdm.db "SELECT COUNT(*) FROM TB_MDM_TERM; SELECT COUNT(*) FROM TB_MDM_DOMAIN;"   # 5 / 4 기대
 sqlite3 $W/src/backend/data/mdm.db "SELECT COUNT(*) FROM TB_MDM_CODE WHERE MARU_CODE_ID LIKE 'E2E_%'; SELECT COUNT(*) FROM TB_MDM_CODE_ITEM;"   # 3 / 12 기대
+#    mdm-domainMng.spec.ts 는 사전 데이터가 없다(스펙 머리 주석: rbac 사용자만 전제)
 # 5) 포털 — m-mdm 을 먼저 build
 cd $W/src/frontend && pnpm build:libs
 cd $W/src/frontend/m-mcm && AUTH_SECRET=$(openssl rand -hex 32) NEXTAUTH_URL=http://127.0.0.1:15603 OIDC_ISSUER=http://127.0.0.1:15603 \
   MCM_WAS_URL=http://127.0.0.1:18603 MDM_WAS_URL=http://127.0.0.1:18696 BACKEND_API_URL=http://127.0.0.1:18603 \
   BACKEND_CLIENT_KEY=dmes-bff-local-client-key-2026 pnpm exec next dev --turbopack --port 15603 > $SP/fe.log 2>&1 &
-FE_PID=$!
+echo $! > $SP/fe.pid
 # 6) mdm e2e 전체를 한 번에(Verify 의 전체 스위트 변이 검증도 이 줄). --workers=1(SQLITE_BUSY 방지)
 cd $W/src/frontend && SMOKE_MCM_BASE_URL=http://127.0.0.1:15603 SMOKE_LOGIN_USER=admin SMOKE_LOGIN_PASSWORD=admin123 \
   $W/.claude/skills/dflow-dev/scripts/heavy.sh pnpm exec playwright test e2e/mdm-shell-rbac-smoke.spec.ts e2e/mdm-sample-smoke.spec.ts e2e/mdm-unitMng.spec.ts e2e/mdm-termMng.spec.ts e2e/mdm-domainMng.spec.ts e2e/mdm-columnMng.spec.ts e2e/mdm-codeItemEdit.spec.ts --workers=1
 # 7) 부산물 복원 — 다른 Task 스크린샷·next-env.d.ts·test-results 를 되돌린다. TSK-06-03/screens/*.png 는 커밋한다
-cd $W && /usr/bin/git checkout -- docs/mdm/tasks/TSK-01-02/screens/ docs/mdm/tasks/TSK-01-03/screens/ docs/mdm/tasks/TSK-04-02/screens/ docs/mdm/tasks/TSK-04-03/screens/ docs/mdm/tasks/TSK-04-04/screens/
-cd $W && /usr/bin/git status --porcelain docs/mdm/tasks/ src/frontend   # TSK-06-03/screens/*.png 만 남아야 한다
-# 8) 정리 — 자기 PID, 그다음 자기 포트 리스너만. 전역 gradlew --stop·pkill·killall·pgrep -f 금지
-kill $FE_PID $BE_MDM_PID $BE_MCM_PID
-lsof -tiTCP:15603 -sTCP:LISTEN | xargs kill 2>/dev/null
-lsof -tiTCP:18696 -sTCP:LISTEN | xargs kill 2>/dev/null
-lsof -tiTCP:18603 -sTCP:LISTEN | xargs kill 2>/dev/null
+cd $W && /usr/bin/git status --porcelain docs/mdm/tasks/ src/frontend   # 바뀐 경로를 먼저 본다
+cd $W && /usr/bin/git checkout -- docs/mdm/tasks/TSK-01-02/screens docs/mdm/tasks/TSK-01-03/screens src/frontend/m-mcm/next-env.d.ts   # + 위에서 바뀐 것으로 보인 다른 Task 의 screens 폴더(TSK-04-02·04-03·04-04 등)
+cd $W && /usr/bin/git status --porcelain docs/mdm/tasks/ src/frontend   # TSK-06-03/screens/*.png(와 page-registry.ts codegen 1줄)만 남아야 한다
+# 8) 정리 — 기록한 PID 먼저, 그다음 자기 포트 리스너만. 전역 gradlew --stop·pkill·killall·pgrep -f 금지
+kill $(cat $SP/fe.pid) $(cat $SP/be-mdm.pid) $(cat $SP/be-mcm.pid)
+for p in 15603 18696 18603; do pid=$(lsof -tiTCP:$p -sTCP:LISTEN); [ -n "$pid" ] && kill $pid; done
 cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 ```
 
 - 6) 은 0b) 에서 이 세션이 이미 슬롯을 쥐었으므로 `heavy.sh` 로 감싸도 새 슬롯을 기다리지 않고 `HEAVY_REUSE` 로 같은 슬롯을 쓴다.
-- 7) 의 복원 대상은 실행 뒤 `git status` 로 실제로 바뀐 다른 Task 폴더만 고른다. 없는 경로를 checkout 하면 오류가 나므로 존재하는 경로만 넘긴다.
+- 7) 의 복원 대상은 실행 뒤 `git status` 로 실제로 바뀐 다른 Task 폴더만 고른다. 없는 경로를 checkout 하면 오류가 나므로 존재하는 경로만 넘긴다. 파일 glob(`*.png`) 대신 폴더 경로를 넘긴다(zsh 에서 매치가 없으면 확장이 실패한다). `src/frontend/test-results/**` 같은 추적 파일 변경이 남으면 `git restore` 로 되돌린다.
 - E2E 가 성공·실패·중단 어느 쪽으로 끝나도 8) 을 반드시 실행한다. 서버를 켜 둔 채 Phase 를 넘기지 않는다.
 - mdm 백엔드 코드를 바꾸면 mdm 만 다시 띄우되 mdm.db 를 다시 옮기고 4b 를 다시 한다. DataInitializer 를 바꾸면 mcm 을 새 DB 로 다시 띄우고 4) 를 다시 한다(BFF 권한 캐시 60초, `UserPermCache` 10분).
 - 통과 기준: 넘긴 mdm 스펙 전부 passed, skipped·failed 0, 시드 대조 `diff` 출력 없음.
@@ -540,7 +551,10 @@ spec 요구사항 줄별 매핑: 선분 추가·수정·삭제·되돌리기·�
 
 ### 6.2 선분 조작 (`MasterCodeItemSegmentOps`)
 
-공통: `requireDraft(ref)` — `MdmCodeVer` 를 읽어 없으면 MDM001, 상태가 DRAFT 가 아니면 MDM002. 마루 코드의 ITEM 행을 모두 읽고 코드별로 모은다. `N` = 이 코드의 `from_ver = V` 행, `O` = `to_ver = V` 행, `R` = V 에 유효한 행.
+공통:
+- `requireDraft(ref)` — `MdmCodeVer` 를 읽어 없으면 MDM001, 상태가 DRAFT 가 아니면 MDM002. **쓰기 조작(`addItem`·`changeItem`·`removeItem`·`revert`)에만 적용한다. `viewAt` 은 버전 상태를 보지 않는다**(RELEASED·CANCELLED V 의 `view`·`preview`·`validate` 가 `viewAt` 을 부른다).
+- **쓰기는 행마다 리포지토리 `save`·`delete` 를 명시적으로 호출한다**(`MdmCodeItemRepository.save`, `MdmCodeCateItemRepository.save`·`delete`). 관리 엔티티의 변경 감지(dirty checking)에 기대지 않는다. G·SD·S 시험은 트랜잭션 없이 서비스를 직접 부르므로, 트랜잭션 밖에서 JPQL 로 읽은 엔티티는 곧바로 detached 가 되어 세터만으로는 DB 에 반영되지 않는다(`DomainMngService:240` 의 `saveAndFlush` 선례, `DomainMngApiSupport` 도 트랜잭션 없이 직접 부른다). PK 가 바뀌는 쓰기는 없다(닫기·열기는 `to_ver` 만, 수정은 새 PK 의 새 행).
+- 마루 코드의 ITEM 행을 모두 읽고 코드별로 모은다. `N` = 이 코드의 `from_ver = V` 행, `O` = `to_ver = V` 행, `R` = V 에 유효한 행.
 
 - `addItem(V, code, values)`: `R` 이 있으면 `MdmErrors.of(CODE_SAVE_REJECTED, List.of(issue(SEGMENT_OVERLAP, code)))`. 없으면 `new MdmCodeItem(id, code, V)` + 값 세터 + `toVer = OPEN_TO_VER` 저장. (`O` 가 있으면 결과 모양은 "수정"이 된다 — 04:62 의 빈 구간 없는 재추가다.)
 - `changeItem(V, code, values)`: `R` 이 없으면 `CODE_NOT_FOUND`. `R.from == V` 면 그 행을 값 갱신한다. 갱신 뒤 값이 `O` 의 값과 모두 같으면 `N` 을 지우고 `O.to = OPEN_TO_VER`(I25). `R.from < V` 면: 값이 `R` 과 모두 같으면 아무것도 하지 않는다. 다르면 `R.to = V` 로 닫고 새 행 `from = V` 를 넣는다. "값"은 name·alterName·seq·description·lvl1-5·attr01-10 이다.
@@ -640,7 +654,7 @@ spec 요구사항 줄별 매핑: 선분 추가·수정·삭제·되돌리기·�
 10. **삭제 되돌리기는 to_ver = V 인 CATE_ITEM 중 카테고리가 V 에 유효한 것만 다시 연다(D4).** G13. 변이: 연쇄 되돌리기 누락 → G13 빨강. 닫힌 카테고리의 항목까지 열기 → G13 빨강.
 11. **모든 선분 조작은 DRAFT V 에서만(아니면 MDM002).** G16. 변이: `requireDraft` 제거 → RELEASED 행이 바뀌어 G16 빨강.
 12. **선분 서비스는 ROW_VERSION 을 바꾸지 않고, 저장·되돌리기는 정확히 +1 이다.** G17, S8, O1. 변이: 선분 서비스에서 `casBumpRowVersion` 호출 → G17 빨강·S8(+2) 빨강.
-13. **버전 V 의 모습 = `from_ver <= V < to_ver`(비교는 `compareTo`).** G18, SD2. 변이: `v <= to` → SD2 의 2.000 모습에 82 가 끼어 빨강. `equals` 비교 → SQLite INTEGER 1.000 행에서 빨강.
+13. **버전 V 의 모습 = `from_ver <= V < to_ver`(비교는 `compareTo`).** G18, SD2. 변이: `v.compareTo(to) <= 0` → SD2 의 2.000 모습에 82 가 끼어 빨강. `from.compareTo(v) < 0` → 1.001 에서 추가된 2P 가 1.001 모습에서 빠져 빨강. (`equals` 비교는 엔티티 게터와 파싱한 V 가 모두 scale 3 이라 결과가 같아 변이로 쓰지 않는다.)
 14. **diff 표시: `ADDED`(from = V, O 없음), `CHANGED`(from = V, O 있음, prev = O 값), 닫힌 행 = to = V 이고 from = V 짝이 없는 행.** S4, SD4. 변이: CHANGED 의 옛 행을 closed 에 넣음 → SD4(닫힌 행 정확히 3개) 빨강.
 15. **코드·계층 칸 값의 콤마·공백 금지(`[,\s]`, 탭 포함).** H3. 변이: 패턴을 `[ ,]` 로 → `A\tB` 통과로 빨강.
 16. **`lvl_cnt` 뒤 칸 값 거부(경계 lvlCnt 번째 칸은 허용).** H2. 변이: `i > lvlCnt` → lvl4 통과로 빨강.
@@ -672,6 +686,21 @@ spec 요구사항 줄별 매핑: 선분 추가·수정·삭제·되돌리기·�
 42. **선분 서비스의 남의 메서드는 담당 Task 를 적은 `UnsupportedOperationException` 을 던진다(조용히 무시하지 않는다).** G15·G20. 변이: 빈 메서드로 둠 → G20 빨강.
 
 알려진 커버리지 갭(보고 대상): ① `MasterCodeRows` 가 버전 범위를 JPQL 에 넣지 않는다는 규칙(§2)은 시험이 직접 보지 못한다. SQLite 샘플 시험(1.000 INTEGER·1.001 REAL 혼재)이 결과로만 간접 확인한다. ② 시험 픽스처가 MSSQL 에서 도는지는 도커 금지로 확인하지 않는다(아래 절).
+
+---
+
+## 8. Phase 06(완료 보고) 전 절차 — 형제 Task 와의 합류 확인
+
+형제 Task(06-02·06-04·06-05)가 먼저 dev 에 머지했을 수 있다. 특히 **형제가 다른 파일명으로 `MasterCodeSegmentService` 구현 빈을 머지하면 git 충돌 없이 합쳐지고, 같은 타입 빈이 둘이 되어 `@SpringBootTest` 전부가 기동에 실패한다.** 그래서 push 전에 아래를 반드시 한다.
+
+1. `/usr/bin/git fetch origin`
+2. `/usr/bin/git grep -n "implements MasterCodeSegmentService" origin/dev -- src/backend/mdm/lib/src/main` — 결과가 있으면 D2 해소 규칙대로 한 클래스로 합친다(06-03 위임 5개와 `revert` 분기를 그 클래스로 옮기고 이 Task 의 `DefaultMasterCodeSegmentService` 를 지운다).
+3. `/usr/bin/git grep -n '"MDM02[2-9]"' origin/dev -- src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/contract/common/MdmErrorCode.java` — MDM022·MDM023 이 이미 쓰였으면 D5 규칙대로 이 Task 의 두 상수를 다음 번호로 재채번하고 `CommonContractTest` 의 개수·개별 단언을 맞춘다.
+4. `/usr/bin/git grep -n -i "CategoryResolver\|class .*Resolver" origin/dev -- src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common` — 형제가 카테고리 해석기를 따로 만들었으면 D11 대로 하나로 합치고 R 시험을 합친 쪽으로 옮긴다.
+5. `/usr/bin/git grep -n "codeItemEdit\|seedMdmCode" origin/dev -- src/backend/mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer.java` — 형제의 dmc leaf 시드와 겹치는 줄(같은 menuSeq `003` 등)이 있으면 README §3 순서대로 맞춘다.
+6. origin/dev 를 이 브랜치에 머지하고(머지 커밋의 DFlow-Order 트레일러는 `/dflow-merge` 「트레일러 고정」 방식) 게이트 1~5 를 다시 돌린다.
+
+**공유 목록 "추가만" 규칙의 불가피한 예외**(기존 줄을 고치는 곳은 이 둘뿐이다): ① `CommonContractTest.java:48` 의 개수 `21` → `23`. ② `MdmErrorCode.java` 의 마지막 상수 `INVALID_INPUT(...)` 줄 끝 `;` → `,`(새 상수를 이어 붙이기 위한 문법 변경). 둘 다 새 상수 반영이며 기대값 완화가 아니다.
 
 ---
 
