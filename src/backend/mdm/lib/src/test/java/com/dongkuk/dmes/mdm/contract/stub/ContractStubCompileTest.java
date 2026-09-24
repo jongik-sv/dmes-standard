@@ -19,6 +19,12 @@ import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutItemSnapshot;
 import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutItemType;
 import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutSerializeContext;
 import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutSnapshot;
+import com.dongkuk.dmes.mdm.contract.rule.MdmRuleConfirmCheckItem;
+import com.dongkuk.dmes.mdm.contract.rule.MdmRuleDefinitionSource;
+import com.dongkuk.dmes.mdm.contract.rule.MdmRuleDiffConventions;
+import com.dongkuk.dmes.mdm.contract.rule.MdmRuleIdIssuer;
+import com.dongkuk.dmes.mdm.contract.rule.MdmRuleIdKind;
+import com.dongkuk.dmes.mdm.contract.rule.MdmRuleIdRange;
 import com.dongkuk.dmes.mdm.contract.version.ConfirmCheckRequest;
 import com.dongkuk.dmes.mdm.contract.version.ConfirmCheckResult;
 import com.dongkuk.dmes.mdm.contract.version.DiffKind;
@@ -27,13 +33,20 @@ import com.dongkuk.dmes.mdm.contract.version.VersionDiff;
 import com.dongkuk.dmes.mdm.contract.version.VersionDraftDeletionSpi;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
+import com.dongkuk.dmes.mdm.entity.MdmRule;
+import com.dongkuk.dmes.mdm.entity.MdmRuleRow;
+import com.dongkuk.dmes.mdm.entity.MdmRuleSet;
+import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
+import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -244,5 +257,109 @@ class ContractStubCompileTest {
         MdmLayoutItemSnapshot fromStacked = stacked.headers().get(0).items().get(0);
         assertEquals("B0", fromStacked.defaultValue());
         assertEquals("B1", fromStacked.overrideValue());
+    }
+
+    // ── TSK-08-01 design.md §3.6 — 06(업무기준) 계약 스텁 컴파일 ──
+    // 기존 관례(TSK-04-01·05-01)대로 이 파일에 절을 이어 붙인다.
+
+    @Test
+    void 룰_식별자_발급_소비자_스텁이_MdmRuleIdIssuer_만으로_연속_구간을_붙인다() {
+        int[] counter = {4};
+        MdmRuleIdIssuer inMemory = (ruleId, kind, count) -> {
+            int first = counter[0] + 1;
+            counter[0] += count;
+            return new MdmRuleIdRange(ruleId, kind, first, counter[0]);
+        };
+
+        MdmRuleIdRange range = inMemory.issue("QLTY_GRD_JDG", MdmRuleIdKind.ROW, 3);
+        assertEquals(5, range.first());
+        assertEquals(7, range.last());
+        assertEquals(3, range.last() - range.first() + 1, "구간 길이 = count");
+        assertEquals(MdmRuleIdKind.ROW, range.kind());
+
+        RuleIdIssuerConsumerStub consumer = new RuleIdIssuerConsumerStub(inMemory);
+        assertEquals(List.of(8, 9), consumer.assignRowIds("QLTY_GRD_JDG", 2));
+    }
+
+    @Test
+    void 룰_식별자_종류마다_TB_MDM_RULE_카운터_칼럼이_정해져_있다() {
+        assertEquals("LAST_VAR_ID", MdmRuleIdKind.VAR.counterColumn());
+        assertEquals("LAST_ROW_ID", MdmRuleIdKind.ROW.counterColumn());
+        assertEquals("LAST_CASE_ID", MdmRuleIdKind.CASE.counterColumn());
+        assertEquals(3, MdmRuleIdKind.values().length);
+    }
+
+    @Test
+    void DefinitionLookup_구현_대상_스텁이_06_샘플을_엔진_정의로_옮긴다() {
+        MdmRule rule = new MdmRule("QLTY_GRD_JDG", "품질 등급 판정", "DECISION", "MDM");
+        MdmRuleVer ver = new MdmRuleVer("QLTY_GRD_JDG", 1, null);
+        ver.setStatus("RELEASED");
+        ver.setHitPolicy("FIRST");
+        ver.setApplyFrom(LocalDateTime.of(2026, 9, 1, 0, 0));
+        ver.setApplyTo(LocalDateTime.of(9999, 12, 31, 0, 0));
+        List<MdmRuleVar> vars = List.of(
+                sampleVar(5, "RESULT", "Expression", "PRC_FCT", 12L, 2),
+                sampleVar(1, "COND", "2", "COIL_THK", null, 1),
+                sampleVar(4, "RESULT", "Value", "QLTY_GRD", 11L, 1),
+                sampleVar(2, "COND", "1", "COIL_WID", null, 2),
+                sampleVar(3, "COND", "1", "SURF_GRD", null, 3));
+        List<MdmRuleRow> rows = List.of(
+                new MdmRuleRow("QLTY_GRD_JDG", 1, 4, "DEFAULT", 0, "{\"4\":{\"val\":\"C\"}}"),
+                new MdmRuleRow("QLTY_GRD_JDG", 1, 1, "NORMAL", 1, "{}"),
+                new MdmRuleRow("QLTY_GRD_JDG", 1, 3, "NORMAL", 3, "{}"),
+                new MdmRuleRow("QLTY_GRD_JDG", 1, 2, "NORMAL", 2, "{}"));
+        MdmRuleSet set = new MdmRuleSet("LS_A3", "3CCL 라인스피드", "[\"BASE_SPD_LKP\",\"SPD_EXC\",\"SPD_JOIN\"]");
+        RuleDefinitionLookupStub stub = new RuleDefinitionLookupStub(rule, ver, vars, rows, set);
+        DefinitionLookup lookup = stub;
+
+        DefinitionLookup.RuleDefinition definition = lookup.rule("QLTY_GRD_JDG", java.time.Instant.EPOCH).orElseThrow();
+        assertEquals(1, definition.ver());
+        assertEquals(DefinitionLookup.RuleKind.DECISION, definition.ruleKind());
+        assertEquals(DefinitionLookup.HitPolicy.FIRST, definition.hitPolicy());
+        assertEquals(5, definition.vars().size());
+        assertEquals(4, definition.rows().size());
+        assertEquals(List.of(1, 2, 3, 4, 5), definition.vars().stream().map(DefinitionLookup.RuleVar::varId).toList(),
+                "VAR_KIND, SEQ 순서(06:1216)");
+        assertEquals(List.of(DefinitionLookup.DispType.TWO, DefinitionLookup.DispType.ONE, DefinitionLookup.DispType.ONE,
+                        DefinitionLookup.DispType.VALUE, DefinitionLookup.DispType.EXPRESSION),
+                definition.vars().stream().map(DefinitionLookup.RuleVar::dispType).toList(), "D4 대응표");
+        assertEquals("11", definition.vars().get(3).domainId(), "어긋남 ① — DOMAIN_ID(Long)는 문자열로 옮긴다");
+        assertEquals(List.of(1, 2, 3, 4), definition.rows().stream().map(DefinitionLookup.RuleRow::rowId).toList(),
+                "NORMAL 먼저, SEQ, ROW_ID 순서(06:1221)");
+        DefinitionLookup.RuleRow defaultRow = definition.rows().get(3);
+        assertEquals(DefinitionLookup.RowKind.DEFAULT, defaultRow.rowKind());
+        assertEquals(0, defaultRow.seq());
+        assertEquals(Optional.empty(), lookup.column("TB_ANY", "COL"), "column() 은 02 계약 위임 몫");
+        assertEquals(Optional.empty(), lookup.rule("OTHER", java.time.Instant.EPOCH));
+        assertEquals(DefinitionLookup.SetStatus.INUSE, lookup.ruleSet("LS_A3").orElseThrow().status());
+        assertEquals(MdmRuleDefinitionSource.STORED_VERSION, stub.source());
+    }
+
+    @Test
+    void 확정_검사_06_스텁이_row_id_키와_SEQ_CELLS_값_맵_관례를_따른다() {
+        VersionConfirmCheckSpi businessRule = byTarget(VersionTarget.BUSINESS_RULE);
+        VersionDiff diff = businessRule.diff(new VersionRef(VersionTarget.BUSINESS_RULE, "QLTY_GRD_JDG", new BigDecimal("2")));
+        var entry = diff.entries().get(0);
+        Integer.parseInt(entry.key()); // row_id 10진 문자열이 아니면 NumberFormatException
+        assertEquals(Set.of(MdmRuleDiffConventions.SEQ, MdmRuleDiffConventions.CELLS), entry.oldValues().keySet());
+        assertEquals(Set.of(MdmRuleDiffConventions.SEQ, MdmRuleDiffConventions.CELLS), entry.newValues().keySet());
+        assertEquals("SEQ", MdmRuleDiffConventions.SEQ);
+        assertEquals("CELLS", MdmRuleDiffConventions.CELLS);
+    }
+
+    @Test
+    void 확정_검사_항목은_넷이고_룰_참조_검사가_없으며_정의_출처는_둘이다() {
+        assertEquals(List.of("SAVE_CHECKS", "NOT_EMPTY", "TEST_CASES", "RESULT_VAR_RELEASED"),
+                Arrays.stream(MdmRuleConfirmCheckItem.values()).map(Enum::name).toList());
+        assertEquals(List.of("STORED_VERSION", "REQUEST_BODY"),
+                Arrays.stream(MdmRuleDefinitionSource.values()).map(Enum::name).toList());
+    }
+
+    private static MdmRuleVar sampleVar(int varId, String kind, String disp, String name, Long domainId, int seq) {
+        MdmRuleVar v = new MdmRuleVar("QLTY_GRD_JDG", 1, varId, kind, seq);
+        v.setDispType(disp);
+        v.setVarName(name);
+        v.setDomainId(domainId);
+        return v;
     }
 }
