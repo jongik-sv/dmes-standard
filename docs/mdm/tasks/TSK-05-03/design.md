@@ -184,7 +184,7 @@
 | `FM/tests/dmb/layoutMng/api.test.ts` | 케이스 추가(§3.5) | 기존 케이스 불변 |
 | `FE/mdm-layoutMng.spec.ts` | 파일 머리 주석에 TSK-05-03 한 줄, 상수 `SHOT_0503 = (name) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-05-03/screens", name)`, **기존 두 test 블록 뒤에** 새 test 4개(L9~L12, §3.6) | L1~L8 한 글자도 안 고친다 |
 | `docs/mdm/screens/layoutMng/layoutMng_기능설계서.md` | 절 추가: 탭 구성, 액션 `validate`·`execute`·`export`·`search(IMPACT)`, 요청·응답 키(§6.1), 거부 코드 L12~L15, 7종 표 배정, 전환 방식 규칙, testid | 기존 절 불변 |
-| `docs/mdm/decisions.md` | Build 완료 때 아래 D1~D13 을 **임시 ID 블록** `## D-TSK-05-03-1 (<UTC>)` … `## D-TSK-05-03-13 (<UTC>)` 으로 끝에 추가(필드 Phase·Decision needed·Decision made·Rationale·Reversible·Source — 기존 블록과 같은 모양). 전역 번호 금지, `decision-log.py append` 금지, 기존 블록 수정 금지 | 추가만 |
+| `docs/mdm/decisions.md` | Build 완료 때 아래 D1~D13 을 **임시 ID 블록** `## D-079 (<UTC>)` … `## D-091 (<UTC>)` 으로 끝에 추가(필드 Phase·Decision needed·Decision made·Rationale·Reversible·Source — 기존 블록과 같은 모양). 전역 번호 금지, `decision-log.py append` 금지, 기존 블록 수정 금지 | 추가만 |
 
 ### 변경하지 않음
 
