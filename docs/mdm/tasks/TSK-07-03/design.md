@@ -612,14 +612,19 @@ cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 | # | 명령 | 결과 |
 |---|---|---|
 | 1 | backend `testAll` | exit 0, tests 2436(기준선 2337, +99), failures 0, errors 0 |
-| 2 | `pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test` | 첫 실행 exit 1 — 이 작업과 무관한 `tests/evalex-perf.test.ts` NFR-1 성능 2건(중앙값 118.7ms·105.4ms > 100ms, load average 약 21). 같은 명령 재실행 exit 0, tests 346(기준선 330, +16), failures 0 |
+| 2 | `pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test` | 화면 수정 전: 첫 실행 exit 1 — 이 작업과 무관한 `tests/evalex-perf.test.ts` NFR-1 성능 2건(중앙값 118.7ms·105.4ms > 100ms, load average 약 21), 재실행 exit 0·tests 346·failures 0. 화면 수정(`072d703`) 뒤: 아래 「게이트 2 재측정」 |
 | 3 | `check_oasis_contract.py --root .` | exit 0(BPMN 26 / bean 26 해석, ERROR 0 WARN 0) |
 | 4 | `pnpm --filter @dk-oasis/m-mdm lint` | exit 0 |
 | 5 | `pnpm test:unit:shared` | exit 0, tests 156, failures 0 |
 
+게이트 2 재측정(화면 수정 `072d703` 뒤, load average 22~30): 1회 exit 1(evalex-perf 1건, BASE_SPD_LKP 중앙값 100.5ms), 2회 exit 1(evalex-perf 2건), 3회 exit 0·tests 347(기준선 330, +17)·failures 0. `tests/evalex-perf.test.ts` 는 이 작업이 건드리지 않은 TSK-03-04 성능 시험(1만 레코드 100ms)이고, 단독으로 두 번 돌려도 같은 부하에서 통과·실패가 갈렸다(환경 부하 의존). 게이트 3·4 도 재실행 exit 0.
+
 추가 점검: `mantine_docs.py audit`·`aggrid_docs.py audit`(pages/dmd) 둘 다 의심 0건.
 
-E2E(「E2E 서버 절차」, mcm 18731·mdm 18732·포털 15731, 격리 mcm.db·mdm.db, 시드 대조 diff 없음): `mdm-dataItemMng.spec.ts` 4건·`mdm-dataHistory.spec.ts` 4건, 8 passed(첫 실행). 스크린샷 6장은 `screens/` 에 있다. 전체 mdm 스위트(§3.5)는 Verify 몫이라 돌리지 않았다.
+E2E(「E2E 서버 절차」, mcm 18731·mdm 18732·포털 15731, 격리 mcm.db·mdm.db, 시드 대조 diff 없음): 두 번 띄웠다.
+- 1차: 8 passed. 스크린샷을 눈으로 보니 그리드가 가로로 밀려 키·이름 열이 가려지고, 조회영역 체크박스의 네모가 보이지 않았다.
+- 화면을 고친 뒤(이탈 11) 새 DB 로 2차 기동: 첫 실행에서 `mdm-dataItemMng` S2 가 실패했다. 원인은 화면의 실제 경쟁 상태였다 — 첫 로드 때 자동 선택한 첫 마루 데이터(E2E_DI_CUST)의 search 응답이 뒤에 고른 E2E_DI_PORT 응답보다 늦게 와 목록을 덮었다(머리는 PORT, 행은 C0001). 1차 통과는 우연이었다. 요청 순번으로 늦은 응답을 버리게 고치고(렌더 시험 추가, 변이로 확인), e2e 는 그 마루 데이터의 응답을 기다리게 했다. 같은 mdm.db 로 두 spec 재실행 8 passed, 이어서 `mdm-dataItemMng.spec.ts` 만 두 번 더 4 passed·4 passed(재실행 안전성·경쟁 재발 없음).
+- 스크린샷 6장은 마지막 실행 것으로 `screens/` 에 있다. 전체 mdm 스위트(§3.5)는 Verify 몫이라 돌리지 않았다.
 
 ## Build 변이 검증 결과
 
@@ -701,6 +706,7 @@ E2E(「E2E 서버 절차」, mcm 18731·mdm 18732·포털 15731, 격리 mcm.db·
 | A4 | A4 | FE omitNullish 제거 | CAUGHT | `dataItemMng api > 빈 조건은 params 키에서 빠지고 null 이 없다` |  |
 | F1 | F1 | 충돌 뒤 재조회 제거 | CAUGHT | `DataItemMngPage > 충돌 문구를 받으면 안내를 보이고 목록을 다시 부른다(F1)` |  |
 | S11 | S11 | 잠금·CAS 제거 뒤 동시 저장 | 미실행 | — | SQLite 로 못 잡음(위 설명). M1~M4 미실행(도커 금지) |
+| RACE | (화면) | 늦게 도착한 옛 search 응답 무시 가드 제거 | CAUGHT | `DataItemMngPage > 늦게 도착한 옛 조회 응답은 새 선택의 목록을 덮지 않는다` | 불변 규칙 밖. e2e 2차에서 드러난 경쟁을 고치며 더한 시험 |
 
 ## Build 이탈
 
@@ -713,7 +719,7 @@ design 과 다르게 한 것과 design 에 없던 것을 적는다.
 5. **시험 보강**(design §3 에 없던 것): `DmdScreenMessageParityTest`(A2 — 서버 문구와 `messages.ts` 상수를 글자 그대로 대조), `DataItemChecksTest`(C3b), T-S 의 `S4_저장소의_닫는_UPDATE_는_ROW_VERSION_조건부_CAS_다`(S4c)·절삭 시험의 같은 순간 두 번째 사건(S9b), `DataItemChecksSqliteTest.C6_API_는_닫힌_키를_받은_값으로_다시_연다_D12`, 프런트 `data-item-api.test.ts`(A4).
 6. **F1 렌더 시험의 동작**: design 은 "`save` 응답을 충돌 문구로 주면 search 가 다시 불린다"였다. happy-dom 에서 ag-grid 셀 편집을 흉내 내기 어려워 행의 「닫기」(`delete`) 응답을 충돌 문구로 주었다. 재조회는 쓰기 넷이 같은 오류 처리 함수(`handleWriteError`)를 거치므로 판정 대상은 같다. `save` 경로의 충돌 재조회는 e2e 스모크 4 가 실제로 확인한다.
 7. **프런트 렌더 시험 순서**: 순수 함수 시험(`data-item-columns.test.ts`)은 구현 전에 썼지만, 두 렌더 시험은 화면을 쓴 뒤에 썼다(happy-dom 에서 ag-grid 가 머리·셀을 그리는지 먼저 확인해야 했다). 대신 변이 검증(Q5·F1·H2b)으로 그 시험이 틀린 구현을 잡는지 확인했다. 두 렌더 시험은 이 happy-dom 환경에 `localStorage` 가 없어 `vi.stubGlobal` 로 대신 넣는다(`apiRequest` 가 토큰을 읽는다).
-8. **화면 세부**: 첫 로드 때 마루 데이터 목록의 첫 항목을 자동으로 고른다. 조회조건 입력은 `SearchField` children 으로 넣어 `data-testid`·`aria-label` 을 달았다(e2e 선택자). 이력 타임라인의 열린 행 끝 일시는 "열림"으로 보인다. 소속 이력의 카테고리 선택지는 열린 카테고리만이다.
+8. **화면 세부**: 첫 로드 때 마루 데이터 목록의 첫 항목을 자동으로 고른다(늦게 도착한 옛 응답은 요청 순번으로 버린다). 조회조건 입력은 `SearchField` children 으로 넣어 `data-testid`·`aria-label` 을 달았다(e2e 선택자). 「닫힌 항목 보기」는 design 의 `Checkbox` 대신 `Select`(숨김/보기)다 — 조회영역 안 Mantine Checkbox 는 shared `page-layout.css` 의 `.page-layout .search-field input[type="checkbox"] { border: 0; background: none }` 규칙이 네모를 지워 보이지 않는다(shared 문제라 화면 CSS 로 덮지 않았다, 보고에 올린다). 키 열은 왼쪽·작업 열은 오른쪽에 고정(`pinned`)하고 최소 폭을 줄였다 — `columnSizing="fit"` 은 열 너비를 최소 폭으로 보장해 동적 열이 많으면 가로 스크롤이 생긴다. 이력 타임라인의 열린 행 끝 일시는 "열림"으로 보인다. 소속 이력의 카테고리 선택지는 열린 카테고리만이다.
 9. **BPMN 작성 도구**: `bpmn-tool` 이 전역 설치돼 있지 않아 `npx -y @cothe/bpmn-tool create`(같은 패키지 v1.3.0)로 만들고 validate 했다. 경고는 default flow 미설정 1건으로 `unitMng.bpmn` 선례와 같다(OASIS 는 분기 이름으로 라우팅).
 10. **mssqlTest**: `DataSegmentConcurrencyMssqlTest` 는 작성만 했고 컴파일도 확인하지 않았다(`compileMssqlTestJava` 는 이름에 mssql 이 들어 금지). `MdmMasterDataMssqlMigrationTest` 의 import·어노테이션을 따랐다. 머지 뒤 팀장 dialect_check 에서 처음 컴파일된다.
-11. **알려진 화면 모양 문제(동작 판정 무관)**: `dmd-dataItemMng-edit.png` 에서 등록 패널이 닫힌 뒤 그리드가 가로로 밀려 키·이름 열이 왼쪽으로 가려져 찍혔다. 「닫힌 항목 보기」 체크박스는 스크린샷에서 네모 없이 글자만 보인다(클릭으로 켜지는 것은 e2e S3 가 확인). 둘 다 Verify·리뷰에서 볼 대상으로 남긴다.
+11. **화면 모양 수정(e2e 1차 스크린샷에서 발견)**: 그리드 가로 밀림(키·이름 열 가림)과 조회영역 체크박스 네모 없음을 이탈 8 의 방식으로 고쳤다(`072d703`). 고친 뒤 스크린샷을 다시 찍어 눈으로 확인했다. 시작 일시 열은 좁은 폭에서 뒤가 잘려 보일 수 있다.
