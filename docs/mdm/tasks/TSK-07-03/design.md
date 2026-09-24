@@ -959,3 +959,34 @@ E2E 변이 1개, mdm e2e 전체 스위트(`e2e/mdm-*.spec.ts`, 8 spec, `--worker
 3. **스크린샷 신규 생성**: 모든 스크린샷은 마지막 E2E 실행에서 캡처됨.
 4. **(재시도) mdm-domainMng.spec.ts 간헐 실패 재현**: Verify 재시도의 변이 되돌린 뒤 전체 스위트 확인 실행(초록 확인용)에서 `E2~E6` 1건이 `.domain-mng__preview-std` 텍스트 타임아웃으로 실패했다(TSK-04-02 Verify 가 보고한 것과 같은 spec·같은 종류의 타이밍 증상). 이 Task(dataItemMng·dataHistory) 스펙은 이 초록 확인용 실행에서 8/8 전부 통과해 이 실패와 무관함을 확인했다. (빨강 확인용 실행은 변이가 의도한 대로 dataHistory S2·dataItemMng S3 만 실패했다 — 위 「Verify 변이 검증」 E2E1 행.)
 5. **`:lib:test :api:test --rerun` 의 mdm 전용 기준선**: 리포 전체 `testAll`(기준선 2337, Build 뒤 2436)과 별개로, mdm 모듈만의 기준선은 tests=858, failures=0(`--rerun --continue` 로 UP-TO-DATE 스킵 없이 강제 재실행, XML 직접 합산). 변이 판정은 이 858 을 기준으로 했다.
+
+---
+
+## Refactor 결과
+
+대상은 이 Task 가 만든·고친 파일뿐이다(`/usr/bin/git diff --stat 3fbf073..HEAD -- src`). 동작 변경은 없다 — 공용 코어(`DataItemSaveCore`·`DataCategorySegmentCore`·`DataSegmentLock`·`DataItemSegmentStore`·`DataCateSegmentStore`·`DataCateItemSegmentStore`)의 public 시그니처와 오류 문구 접두어(§「공용 코어 명세」)는 그대로다.
+
+### 바꾼 것
+
+1. **`SegmentRow.firstOpen(List<T>)` 정적 헬퍼 추가**(`common/segment/SegmentRow.java`) — `DataItemSaveCore`와 `DataCategorySegmentCore` 양쪽에 있던 "목록에서 열린 행 하나를 찾는다" 한 줄짜리 private `open(...)` 메서드가 완전히 같은 스트림 로직을 반복하고 있었다. 공통 인터페이스 `SegmentRow`에 제네릭 정적 메서드로 올리고 두 Core 의 `open(...)`을 지운 뒤 호출부를 `SegmentRow.firstOpen(own)`으로 바꿨다. 두 Core 의 private/public 메서드 시그니처는 바뀌지 않았다.
+2. **`DataItemRows.blankToNull(String)` 공용화**(`dmd/dataItemMng/service/DataItemRows.java`) — `DataItemMngService`와 `DataHistoryService`가 각각 똑같은 `blankToNull` private 메서드를 갖고 있었다(리포 전체에 같은 이름의 지역 헬퍼가 여럿 있지만, 이 Task 가 만든 두 서비스끼리의 중복만 정리했다 — 다른 화면의 `blankToNull`은 이 Task 범위 밖). `DataHistoryService`가 이미 `DataItemRows`를 의존하고 있어(`text` 정적 임포트 선례) 자연스러운 위치였다. 두 서비스의 `blankToNull`을 지우고 정적 임포트로 바꿨다.
+3. **프런트 `errorMessage(e)`·`toMaruOptions(options)` 공용화**(`pages/dmd/dataItemMng/types.ts`) — `e instanceof Error ? e.message : String(e)`가 `dataItemMng/page.tsx`에 4곳, `dataHistory/page.tsx`에 3곳 그대로 반복되고 있었고, 마루 데이터 옵션 변환 `useMemo` 도 두 파일에서 완전히 같았다. `dataHistory`가 이미 `dataItemMng/types`를 의존하므로(같은 선례) 두 순수 함수를 그곳에 추가하고 두 페이지 모두 이를 쓰게 바꿨다.
+
+### 바꾸지 않은 것
+
+- **`DataItemSaveCore`의 등록/수정/닫기/다시열기 넷과 `DataCategorySegmentCore`의 등록/수정/닫기/다시열기 넷 사이의 "저장 시각 → 잠금 → 재조회 → 검사 → 경계 확정 → 저장" 흐름 반복**: 조사에서 발견했지만 추출하지 않았다. 두 Core 는 대상 타입(`ItemSegmentRow`/`CateSegmentRow`)과 아래층 저장소(`DataItemSegmentStore`/`DataCateSegmentStore`)가 다르고, 각 메서드가 검사 순서·예외 종류에서 미묘하게 갈린다(예: 카테고리는 검사 2를 건너뛰고 BASE 가드가 있다, D4·S14). 공통 템플릿으로 묶으려면 제네릭 상위 클래스나 콜백 인터페이스가 필요해 손대는 범위가 커지고, 잠금 순서(L1)를 지키는 미묘한 차이를 옮기다 깨뜨릴 위험이 이득보다 크다고 판단했다.
+- **`DataSegmentRowStore`의 item/cate/cateItem 세 테이블 INSERT·CLOSE 네이티브 SQL 조립 반복**: 세 테이블의 컬럼 목록·CAS 조건(ROW_VERSION 유무)이 다르고, 이 Task 는 도커 금지로 MSSQL 방언 경로를 검증할 수 없다(design.md 「도커 금지로 생략한 검증」). SQL 문자열 조립을 공통 빌더로 묶으면 검증 안 된 채로 세 테이블 모두의 쓰기 경로를 건드리게 되어 손대지 않았다.
+- **`DataHistoryService.fill`의 `ItemSegmentRow → DataItemRow → DataHistoryRow` 이중 변환**: 코드 중복(같은 줄이 두 번 있음)이 아니라 두 단계 변환을 거치는 설계라서, 직접 변환으로 줄이려면 19개 필드 대입을 다른 자리에 새로 쓰게 돼 리팩터가 아니라 재작성에 가깝다. 정리 가치가 뚜렷하지 않아 손대지 않았다.
+- 그 밖에 조사에서 확인한 것: 쓰지 않는 import·죽은 코드 0건, `columns.ts`·`dataHistory/types.ts` 사이의 중복 타입·상수 0건(이미 `dataItemMng/types`를 공유해 정리돼 있었다).
+
+### 게이트 결과 (기준선: testAll 2436/0, m-mdm 347/0, shared 156/0 — 모두 Verify 뒤 값과 같음)
+
+| # | 명령 | 결과 |
+|---|---|---|
+| 1 | backend `testAll` | exit 0, tests 2436, failures 0, errors 0 (XML 합산, `testAll` UP-TO-DATE·`:mdm:lib:test` 재실행) |
+| 2 | `pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test` | 1회차 exit 1(이 작업과 무관한 `tests/evalex-perf.test.ts` NFR-1 2건, load average 약 14) — 재실행 exit 0, tests 347/0 |
+| 3 | `check_oasis_contract.py --root .` | exit 0 (BPMN 26 / bean 26 해석, ERROR 0 WARN 0) |
+| 4 | `pnpm --filter @dk-oasis/m-mdm lint` | exit 0 |
+| 5 | `pnpm test:unit:shared` | exit 0, tests 156/0 |
+
+기준선 대비 회귀 없음. 변경 파일 9개(백엔드 6·프런트 3), 삽입 44줄·삭제 38줄(`git diff --stat`).
