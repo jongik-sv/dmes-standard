@@ -78,6 +78,11 @@ abstract class DomainMngApiSupport {
         return jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_DOMAIN", Integer.class);
     }
 
+    /** 행 수만으로는 update 를 못 잡는다(I16b) — 내용 지문(B6 와 같은 칼럼 집합)으로 본다. */
+    protected List<Map<String, Object>> fingerprint() {
+        return jdbc.queryForList("SELECT DOMAIN_ID, VER, U_AT, DESCRIPTION, STD_RULE FROM TB_MDM_DOMAIN ORDER BY DOMAIN_ID");
+    }
+
     protected Map<String, Object> row(Long id) {
         return jdbc.queryForMap("SELECT * FROM TB_MDM_DOMAIN WHERE DOMAIN_ID = ?", id);
     }
@@ -93,12 +98,14 @@ abstract class DomainMngApiSupport {
      */
     protected BusinessException assertRejected(String code, DomainDraftRequest r, List<Map<String, Object>> testCases) {
         int before = rowCount();
+        List<Map<String, Object>> beforeAll = fingerprint();
         List<Map<String, Object>> target = r.getDomainId() == null ? null
                 : jdbc.queryForList("SELECT * FROM TB_MDM_DOMAIN WHERE DOMAIN_ID = ?", r.getDomainId());
         Map<String, Object> validated = service.validate(r, testCases, List.of());
         assertTrue(issueCodes(validated).contains(code), code + " 가 validate 이슈에 없다: " + validated.get("issues"));
         assertEquals(Boolean.FALSE, validated.get("ok"));
         assertEquals(before, rowCount(), "validate 가 행을 남겼다(쓰기는 save 만, I16)");
+        assertEquals(beforeAll, fingerprint(), "validate 가 기존 행을 바꿨다(쓰기는 save 만, I16b)");
         BusinessException e = assertThrows(BusinessException.class, () -> service.save(r, testCases, List.of()));
         assertTrue(e.getMessage().contains(code), e.getMessage());
         assertEquals(before, rowCount(), "거부된 저장이 행을 남겼다");
