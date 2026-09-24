@@ -248,14 +248,6 @@ class MasterCodeItemSegmentOpsSqliteTest {
                 "V 에서 넣은 소속은 지운다");
     }
 
-    @Test
-    void G15_CATE_되돌리기는_TSK_06_04_몫이다() {
-        UnsupportedOperationException e = assertThrows(UnsupportedOperationException.class,
-                () -> segments.revert(DRAFT, new MasterCodeSegmentKey(MasterCodeSegmentTable.CATE, "T1", null)));
-
-        assertTrue(e.getMessage().contains("TSK-06-04"), e.getMessage());
-    }
-
     // ── G16·G17 DRAFT 전용·ROW_VERSION 불변 ───────────────────────────────
 
     @Test
@@ -343,14 +335,8 @@ class MasterCodeItemSegmentOpsSqliteTest {
 
     @Test
     void G20_남의_메서드는_담당_Task_를_적은_UnsupportedOperationException() {
-        CategoryDefinition def = new CategoryDefinition("X", "x", CategoryKind.TABLE, null, null, null);
         assertUnsupported("TSK-06-02", () -> segments.createBaseCategory(DRAFT));
         assertUnsupported("TSK-06-02", () -> segments.fillFrom(DRAFT, V1_000));
-        assertUnsupported("TSK-06-04", () -> segments.addCategory(DRAFT, def));
-        assertUnsupported("TSK-06-04", () -> segments.changeCategory(DRAFT, def));
-        assertUnsupported("TSK-06-04", () -> segments.closeCategory(DRAFT, "X"));
-        assertUnsupported("TSK-06-04", () -> segments.addCategoryMembers(DRAFT, "X", Set.of("A")));
-        assertUnsupported("TSK-06-04", () -> segments.removeCategoryMembers(DRAFT, "X", Set.of("A")));
     }
 
     @Test
