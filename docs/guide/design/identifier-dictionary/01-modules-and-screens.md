@@ -232,6 +232,7 @@ A.1.1 모듈 외 기 구축·공유 모듈은 본 표로 분리 등재. 신규 �
 | `columnMng` | — (To-Be only) | `mdm` | `dma` | `columnMng` | 2026-09-24 | 컬럼 사전 — As-Is 없음(신규). TSK-04-04. 기능설계서 1종(`docs/mdm/screens/columnMng/`, 팝업 termRegPop 절 포함) |
 | `termRegPop` | — (To-Be only) | `mdm` | `dma` | `termRegPop` | 2026-09-24 | 용어 인라인 등록 팝업(columnMng 에서 호출, 메뉴 leaf 없음). TSK-04-04 |
 | `codeMng` | — (To-Be only) | `mdm` | `dmc` | `codeMng` | 2026-09-24 | 마루 코드 조회·등록 — As-Is 없음(신규), 원천 04 「화면」 탭1. TSK-06-02. 기능설계서 1종(`docs/mdm/screens/codeMng/`) |
+| `codeEdit` | — (To-Be only) | `mdm` | `dmc` | `codeEdit` | 2026-09-24 | 마루 코드 수정(헤더·라벨·폐기·버전 목록·새 버전·DRAFT 소유권) — As-Is 없음(신규), 원천 04 「화면」 탭2. TSK-06-02. 기능설계서 1종(`docs/mdm/screens/codeEdit/`) |
 
 **등재 절차**:
 1. 신규 화면 분석 시 본 표에 행 추가

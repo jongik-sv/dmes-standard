@@ -127,6 +127,72 @@ public class MasterCodeLedgerQueries {
         return max;
     }
 
+    /** TB_MDM_CODE_ITEM 한 행. {@code lvl} 길이 5, {@code attrs} 길이 10(빈 칸 null). */
+    public record ItemRow(String code, BigDecimal fromVer, BigDecimal toVer, String name, String alterName, Integer seq,
+                          String description, List<String> lvl, List<String> attrs) {
+    }
+
+    /** TB_MDM_CODE_CATE 한 행. */
+    public record CateRow(String cateId, BigDecimal fromVer, BigDecimal toVer, String cateName, String defKind,
+                          String defExpr, String defTarget, String description) {
+    }
+
+    /** TB_MDM_CODE_CATE_ITEM 한 행. */
+    public record CateItemRow(String cateId, String code, BigDecimal fromVer, BigDecimal toVer) {
+    }
+
+    /** 코드의 모든 코드 행(선분 전부, 코드·from 오름차순). 버전 선택은 호출자가 Java 에서 한다(I20). */
+    public List<ItemRow> items(String maruCodeId) {
+        StringBuilder sql = new StringBuilder("SELECT CODE, CAST(FROM_VER AS VARCHAR(40)), CAST(TO_VER AS VARCHAR(40)),"
+                + " NAME, ALTER_NAME, SEQ, DESCRIPTION, LVL1, LVL2, LVL3, LVL4, LVL5");
+        for (int i = 1; i <= ATTR_SLOTS; i++) {
+            sql.append(", ATTR").append(i < 10 ? "0" : "").append(i);
+        }
+        sql.append(" FROM TB_MDM_CODE_ITEM WHERE MARU_CODE_ID = :id");
+        List<ItemRow> out = new ArrayList<>();
+        for (Object row : query(sql.toString()).setParameter("id", maruCodeId).getResultList()) {
+            Object[] r = (Object[]) row;
+            List<String> lvl = new ArrayList<>(LVL_SLOTS);
+            for (int i = 0; i < LVL_SLOTS; i++) {
+                lvl.add((String) r[7 + i]);
+            }
+            List<String> attrs = new ArrayList<>(ATTR_SLOTS);
+            for (int i = 0; i < ATTR_SLOTS; i++) {
+                attrs.add((String) r[7 + LVL_SLOTS + i]);
+            }
+            out.add(new ItemRow((String) r[0], ver(r[1]), ver(r[2]), (String) r[3], (String) r[4],
+                    r[5] == null ? null : ((Number) r[5]).intValue(), (String) r[6],
+                    Collections.unmodifiableList(lvl), Collections.unmodifiableList(attrs)));
+        }
+        out.sort(Comparator.comparing(ItemRow::code).thenComparing(ItemRow::fromVer));
+        return out;
+    }
+
+    public List<CateRow> cates(String maruCodeId) {
+        List<CateRow> out = new ArrayList<>();
+        for (Object row : query("SELECT CATE_ID, CAST(FROM_VER AS VARCHAR(40)), CAST(TO_VER AS VARCHAR(40)), CATE_NAME,"
+                + " DEF_KIND, DEF_EXPR, DEF_TARGET, DESCRIPTION FROM TB_MDM_CODE_CATE WHERE MARU_CODE_ID = :id")
+                .setParameter("id", maruCodeId).getResultList()) {
+            Object[] r = (Object[]) row;
+            out.add(new CateRow((String) r[0], ver(r[1]), ver(r[2]), (String) r[3], (String) r[4], (String) r[5],
+                    (String) r[6], (String) r[7]));
+        }
+        out.sort(Comparator.comparing(CateRow::cateId).thenComparing(CateRow::fromVer));
+        return out;
+    }
+
+    public List<CateItemRow> cateItems(String maruCodeId) {
+        List<CateItemRow> out = new ArrayList<>();
+        for (Object row : query("SELECT CATE_ID, CODE, CAST(FROM_VER AS VARCHAR(40)), CAST(TO_VER AS VARCHAR(40))"
+                + " FROM TB_MDM_CODE_CATE_ITEM WHERE MARU_CODE_ID = :id").setParameter("id", maruCodeId).getResultList()) {
+            Object[] r = (Object[]) row;
+            out.add(new CateItemRow((String) r[0], (String) r[1], ver(r[2]), ver(r[3])));
+        }
+        out.sort(Comparator.comparing(CateItemRow::cateId).thenComparing(CateItemRow::code)
+                .thenComparing(CateItemRow::fromVer));
+        return out;
+    }
+
     // ── 공용 조각 ──
 
     NativeQuery<?> query(String sql) {

@@ -40,6 +40,7 @@ class DmcBpmnActionTest {
     private static final Set<String> OWNERSHIP_ACTIONS = Set.of("lock", "unlock", "handover");
 
     private static final String MNG_DTO = "com.dongkuk.dmes.mdm.dmc.codeMng.dto.";
+    private static final String EDIT_DTO = "com.dongkuk.dmes.mdm.dmc.codeEdit.dto.";
 
     @Test
     void codeMng_액션은_search_reg() throws Exception {
@@ -47,6 +48,16 @@ class DmcBpmnActionTest {
         table.put("search", new String[]{"search", MNG_DTO + "CodeMngSearchRequest"});
         table.put("reg", new String[]{"register", MNG_DTO + "CodeRegRequest"});
         assertActions("services/dmc/codeMng.bpmn", "codeMng", "codeMngService", table);
+    }
+
+    @Test
+    void codeEdit_액션은_설계_표와_같다() throws Exception {
+        Map<String, String[]> table = new LinkedHashMap<>();
+        table.put("search", new String[]{"searchCodes", EDIT_DTO + "CodeEditSearchRequest"});
+        table.put("view", new String[]{"view", EDIT_DTO + "CodeEditViewRequest"});
+        table.put("save", new String[]{"saveHeader", EDIT_DTO + "CodeHeaderSaveRequest"});
+        table.put("execute", new String[]{"deprecate", EDIT_DTO + "CodeDeprecateRequest"});
+        assertActions("services/dmc/codeEdit.bpmn", "codeEdit", "codeEditService", table);
     }
 
     static void assertActions(String path, String processId, String bean, Map<String, String[]> table) throws Exception {
