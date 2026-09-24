@@ -10,3 +10,4 @@ project_id=1bf6ce9e-128b-435f-b33e-22b03239590f
 
 # 운영 브랜치 — 개발 브랜치를 승격해서만 들어간다. 비우면 원격 기본 브랜치(origin/HEAD).
 release_branch=main
+dialect_check=cd src/backend/mdm && ../gradlew :api:mssqlMigrationTest --no-daemon --console=plain
