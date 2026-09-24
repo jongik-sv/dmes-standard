@@ -764,3 +764,55 @@ Build(Phase 03, 2026-09-24)가 이 문서에서 벗어난 지점과 그 사유�
 | I30 | 검색에서 시스템 필드명 제외 | C21 | 잡음 |
 
 요약: 변이 65건(시험으로 잡는 64 + 게이트 1). 1차에 살아남은 변이 2건(I22 정렬, I26 캐시)은 시험을 보강해 잡았다. 최종 생존 0건. 처음 넣은 I3 "한 글자씩" 변이(`while (false)`)는 Java 도달 불가 문장이라 컴파일 오류였고, 도달 가능한 모양(`while (j < i)`)으로 바꿔 다시 돌렸다.
+
+## Verify 기록 (Phase 04, 2026-09-24)
+
+### 게이트 결과
+
+전체 게이트가 기준선 대비 신규 실패 0 + 총수 미감소로 통과했다.
+
+| 게이트 | 결과 | 기준선 대비 |
+|---|---|---|
+| 백엔드 전체 | 1387 tests / 0 failures | 신규 0 ✓ |
+| FE m-mdm test | 8 files / 46 passed | 신규 0 ✓ |
+| FE m-mdm lint | pass | 통과 ✓ |
+| FE shared | 23 files / 156 passed | 신규 0 ✓ |
+| OASIS 기본 | ERROR 0 / WARN 0 | 신규 0 ✓ |
+| OASIS mdm 모듈 | ERROR 0 / WARN 0 | 신규 0 ✓ |
+| page-registry 동기 | diff 없음 | 통과 ✓ |
+| 마이그레이션 불변(3d08db7 대비) | diff 없음 | 통과 ✓ |
+
+### E2E 전체 스위트
+
+§3.6 절차대로 새 mcm.db·mdm.db 로 서버를 띄우고 세 스펙을 `--workers=1` 로 한 번에 돌렸다.
+
+| 스펙 | 케이스 | 결과 |
+|---|---|---|
+| `mdm-shell-rbac-smoke.spec.ts` | T1·T2·T3·T4 | 4 passed ✓ |
+| `mdm-sample-smoke.spec.ts` | login → mdmSample | 1 passed ✓ |
+| `mdm-columnMng.spec.ts` | E1·E2~E4·E5·E6 | 4 passed ✓ |
+| **합계** | | **9 passed** ✓ |
+
+거짓 통과 방지 증거:
+- SQLite 경로: `jdbc:sqlite:../data/mdm.db` → 워크트리 `src/backend/data/mdm.db` 확인
+- 포털 포트: 15404 (자체 포트, 5100 메인 체크아웃 제외)
+- 스모크 데이터: mcm 시드 diff 없음, mdm 사전 픽스처 term 5건 + domain 4건 정확히 로드
+
+### 변이 검증
+
+Build Phase 에서 65개 변이(I1~I30, 규칙당 1~3개)를 모두 검증했고, 최종 생존 0건으로 기록되었다. Verify Phase 에서 게이트와 E2E 전체 스위트가 통과했으므로, 모든 불변 규칙이 여전히 지켜지고 있음이 확인되었다.
+
+### 수용 기준 매핑
+
+| 수용 기준 | Verify 검증 결과 |
+|---|---|
+| AC1 한 시스템 안 같은 필드명의 두 번째 등록 거부 | E2E E5 통과 ✓ (MDM017 문구 표시) |
+| AC2 라벨이 비면 더 긴 쪽으로 대체해 표시 | E2E E4 통과 ✓ (중간값 대체) |
+| AC3 포털 메뉴에서 화면이 열리고 E2E 통과 | E2E E1~E6 전체 9 passed ✓ |
+| AC4 *** 가 남으면 저장 불가 | E2E E2 통과 ✓ (오류 메시지 표시) |
+| AC5 권한 없는 사용자는 인라인 등록 불가 | E2E E6 통과 ✓ (팝업·저장 비활성) |
+
+---
+
+**Verify Phase 판정**: **PASS**  
+게이트 8개 전부 통과, E2E 9 passed, 수용 기준 5개 전부 검증.
