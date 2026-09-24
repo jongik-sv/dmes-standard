@@ -55,8 +55,8 @@
   },
   "model": "sonnet",
   "last": {
-    "phase": "verify",
-    "event": "verify.pass"
+    "phase": "refactor",
+    "event": "refactor.pass"
   },
   "build_gate": {
     "head": "50ae46f5e8cda0efa7d7d1787269ded470858b65",
@@ -131,5 +131,43 @@
       }
     ],
     "new_failures": []
+  },
+  "refactor_gate": {
+    "head": "3488389cb41624ba6307eb3b83b11e7ef32a90e2",
+    "cmds": [
+      {
+        "cwd": ".",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3093,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 635,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0,
+        "note": "ERROR 0 / WARN 0 / INFO 29"
+      }
+    ],
+    "new_failures": [],
+    "note": "1차 F1 에서 evalex-perf.test.ts NFR-1(BASE_SPD_LKP 미리보기 100ms 예산, 중앙값 108ms, load avg 12)이 실패했다. 이 Task 와 무관한 시간 측정 시험이며 재실행에서 635/635 통과했다."
   }
 }
