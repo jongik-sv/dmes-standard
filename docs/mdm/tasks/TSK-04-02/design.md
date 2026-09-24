@@ -789,6 +789,18 @@ lsof -tiTCP:18203 -sTCP:LISTEN | xargs -r kill
   -iname "*.onnx"` 재확인 완료) 실측 불가 상태는 동일하다. 단건 인코딩 p50/p95 측정만 남기고 `recommend`
   1만 건 재측정은 이 수동 테스트에서 제외했다 — 모델 파일을 실제로 구해 이 게이트를 처음 돌리는 사람이
   필요하다면 별도로 `@SpringBootTest` 통합 시험을 추가해야 한다(인계 사항).
+- **OASIS `params` 는 배열도 `null` 도 못 받는다(실제 서버 기동+curl 로 실측, advisor 지적) — 두 건**:
+  ① `CactusRequestConverter.convert()` 가 `params` 의 각 값을 타입 힌트 없는
+  `new TypedObject(value)` 로 감싸는데, 값이 `List`(JSON 배열)이면 "Generic type. You must explicitly
+  specify the type" 로 죽는다 — `TermSaveRequest.synonyms/aliases/systems` 를 `List<String>` 에서
+  콤마 구분 `String` 으로 바꾸고 서비스가 split 하도록 고쳤다(커밋 `6688348`). ② 같은 `TypedObject`
+  단일 인자 생성자는 값이 `null` 이면(신규 등록의 `termId` 등) "The type cannot be determined because
+  object is null" 로 죽는다 — FE `api.ts` 의 `callAction` 에 `omitNullish()` 를 추가해 null/undefined
+  키를 아예 `params` 에서 빼도록 고쳤다(커밋 `5c39a0e`). 두 버그 모두 백엔드 단위 테스트는 서비스 메서드를
+  직접 호출해 OASIS 바인딩 계층을 거치지 않으므로 잡지 못했고, 실제 서버를 띄워 curl 로 두드려 보고서야
+  드러났다 — Build 규율의 "가짜 인코더만 쓰는 단위 테스트"가 이 계층의 결함까지 보장하지 않는다는 한계를
+  그대로 인계한다(e2e 는 실제 HTTP 경로를 타므로 이 두 버그가 있었다면 e2e 최초 실행에서 반드시 잡혔을
+  것이다 — 실제로 e2e 작성·실행 중 발견했다).
 
 ## Build 변이 검증
 
@@ -819,6 +831,58 @@ Build 단계에서 §5 불변 규칙 각각에 일부러 틀린 구현을 넣어
 | I19 | `afterCommitOrNow` 의 트랜잭션 동기화 분기를 `if(false)`로 무력화(항상 즉시 실행) | `TermMngServiceTest.I19_트랜잭션이_롤백되면_DB에도_캐시에도_남지_않는다` | 예 |
 | I20 | `UnitMngService.CODE_20` 정규식을 문자 종류 제한 없이 길이만 검사(`^.{1,20}$`)하도록 완화 | `UnitMngServiceTest.UNIT_CODE_DIMENSION_이_ASCII_가_아니면_거부한다` | 예 |
 
-**못 덮은 항목**: 없음 — I10·I15·I17 은 신규 코드가 아니라는 design.md 원안 판단을 그대로 따랐고(은폐가
-아니라 계획대로), 그 외 I1~I9·I11~I14·I16·I18~I20 은 전부 전용 변이로 빨강을 확인했다. I21(FE)은
-프런트 Build 완료 뒤 별도 기록한다.
+advisor 재검토로 아래 4개 공백을 추가로 발견해 커버리지를 보강했다(TermMngServiceTest·
+TermReencodeBatchTest 에 테스트 추가, 커밋 `4e5a3f4`) — `save()` 가 인코더 "활성" 상태로 실제로 호출되는
+경로(신규 등록 시 즉시 인코딩, `definition` 수정 시 재인코딩, 활성→비활성 전환 시 NULL 로 정리)와
+I19 의 커밋(성공) 분기, termMng `delete` 의 캐시 제거, I18 상위 5건·동점 처리 규칙 어느 것도 새 테스트가
+없었다(saveAndFlush→updateEmbedding==1 자체를 실행하는 테스트조차 없었다).
+
+| 항목 | 넣은 변이 | 잡은 테스트 | 빨강 |
+|---|---|---|---|
+| I12(재인코딩 분기) | `save()` 의 `inputChanged` 를 `isNew` 로만 축소(수정 시 입력 변경 감지 무력화) | `TermReencodeBatchTest.definition을_수정하면_EMBEDDING_벡터가_바뀐다`, `...인코더가_비활성인_서비스로_수정하면_EMBEDDING이_NULL로_지워진다` | 예(2건) |
+| I19(커밋 분기) | `afterCommit()` 콜백 본문을 아무 것도 안 하게 무력화(등록 분기는 그대로 두어 롤백 테스트는 안 건드림) | `TermReencodeBatchTest.트랜잭션이_커밋되면_임베딩과_캐시가_모두_반영된다` | 예 |
+| delete 캐시 제거 | `TermMngService.delete()` 의 `cache.remove` 호출을 삭제 | `TermMngServiceTest.삭제_후_DB에도_캐시에도_남지_않는다` | 예 |
+| I18(상위 5건) | `TOP_N` 을 `5`→`50` 으로 확대 | `TermMngServiceTest.I18_상위_5건만_반환하고_동점이면_termId_오름차순이다` | 예 |
+
+**못 덮은 항목(정직하게 기록, D1·D2 판단 아님 — 실제 공백)**:
+- **I2** — "FE 는 계산하지 않는다"는 프런트 코드가 서버 응답값을 그대로 표시하는지를 보는 것이라, 백엔드
+  단위 테스트로는 원천적으로 검증할 수 없다(FE 가 값을 재계산해도 백엔드 테스트는 여전히 그린이다).
+  e2e(`mdm-unitMng.spec.ts` T3)가 "서버가 계산한 값이 화면에 그대로 뜨는지"는 보지만, "화면이 그 값을
+  다시 계산하지 않는지"까지 적극적으로 반증하는 테스트는 없다 — 코드 리뷰(단위 화면이 `Number()` 연산을
+  하지 않고 서버 응답 문자열을 그대로 렌더한다는 사실)로만 확인했다.
+- **I15** — design.md 원안이 "정적 확인, 신규 테스트 없음"으로 이미 명시한 항목이라 변이를 넣지 않았다.
+- I10·I17 은 앞 절 그대로(신규 코드가 아님, testAll 그린 유지로 회귀만 확인).
+
+**프런트 변이 검증(I21)**: `dimensionLabel()` 을 `code => code`(맵 조회 무력화)로 바꾸고
+`pnpm --filter @dk-oasis/m-mdm test` 실행 → `dimension-label.test.ts` 4건 모두 빨강(맵 매핑 4종) 확인,
+원복 후 재실행 초록 확인.
+
+## 담당자 확인 필요 결정(Build 추가분)
+
+- **D15. I18 의 0.5 컷오프는 1차(문자열) 추천에만 적용, 2차(임베딩)는 컷오프 없음**
+  - 질문: 불변 규칙 I18 원문("점수가 0.5 미만인 후보는 제외한다")이 1차·2차 공통인지 1차 전용인지
+    design.md 문장 구조만으로는 확정하기 어렵다.
+  - 선택지: (a) 0.5 컷오프를 1차에만 적용, 2차는 코사인 유사도 값을 그대로 써서 상위 5건만 자른다
+    (b) 1차·2차 모두에 0.5 컷오프를 적용한다.
+  - 택한 것: (a).
+  - 근거: I18 원문에서 "점수가 0.5 미만인 후보는 제외한다" 문장이 1차 채점 방식을 설명하는 단락 안에
+    있고, 그 뒤에 이어지는 "2차 후보 점수는 코사인 유사도 값을 그대로 쓴다" 문장은 컷오프를 다시
+    언급하지 않는다 — "그대로 쓴다"는 표현이 추가 가공(컷오프 포함) 없이 원값을 쓴다는 뜻으로 더 자연
+    스럽게 읽힌다.
+  - 반려되면: `recommendStage2` 에도 `if (cosine < 0.5) continue;` 한 줄을 추가한다 — 나머지 로직(top5,
+    동점 처리)은 그대로 재사용 가능.
+
+- **D16. "코드베이스 지식" 절과 D12 가 반대로 적혀 있던 자기모순 — D12(기능설계서가 명시한 쪽)를 따른다**
+  - 질문: design.md 본문에 "동의어로 확정" 버튼이 채우는 값의 방향(후보의 systems vs 편집 중인 용어의
+    systems)이 D12 결정 블록과 "코드베이스 지식" 절에서 서로 반대로 적혀 있었다(advisor 지적). 어느
+    쪽을 구현 기준으로 삼는가.
+  - 선택지: (a) D12 결정 블록(후보의 termName+후보의 systems) (b) "코드베이스 지식" 절(편집 중인 용어
+    자신의 systems).
+  - 택한 것: (a).
+  - 근거: 기능설계서(`termMng_기능설계서.md` §5.2 B-005, GAP-103)가 D12(a)를 명시적으로 구현 대상으로
+    적어 뒀다 — 기능설계서는 Design Phase 의 확정 산출물이고 팀장이 직접 지시한 축소(D14)를 거쳐 나온
+    문서라, 같은 Phase 안에서 서로 다른 절끼리 충돌할 때 화면 계약을 직접 서술한 기능설계서 쪽이 더
+    구체적 증거다. "코드베이스 지식" 절은 근거 강도가 이미 D12 자체에서 "약함(표기 사례 하나뿐)"으로
+    기록돼 있었다.
+  - 반려되면: `TermMngPage.handleConfirmSynonym` 한 곳만 고치면 된다 — `candidate.systems` 대신 현재
+    편집 중인 `form.systems` 를 콤마 분해해 붙이도록 바꾼다. DB·API 계약 변경은 없다.
