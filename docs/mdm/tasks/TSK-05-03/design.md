@@ -393,6 +393,8 @@ BPMN 분기·DTO 바인딩·grid 이름 바인딩·`data.result.*` 모양을 증
 
 화면이 붙일 `data-testid`(Build 는 이 이름을 그대로 쓴다): 탭 `layout-tab-edit`, `layout-tab-check`, `layout-tab-version` / 검증 `layout-check-run`, `layout-check-table`, `layout-check-result-{1..7}`, `layout-check-message-{1..7}`, `layout-check-other` / 샘플 `sample-input-{COLUMN_PHYS}`, `sample-render`, `sample-ruler`, `sample-line`, `sample-seg-{index}`(속성 `data-zone`, `title`), `sample-length`, `sample-segments`, `sample-parsed-{COLUMN_PHYS}`, `sample-errors` / 버전 `version-list`, `version-list-empty`, `change-class-table`, `snapshot-preview`, `snapshot-download-json`, `snapshot-download-excel` / 영향도 `impact-keyword`, `impact-search`, `impact-list`, `impact-list-empty`. 기존 testid(05-02 §3.5)는 하나도 바꾸지 않는다.
 
+**L11 빈 상태의 전제**: 픽스처 전문 `출측검사 실적 수신(E2E)` 에는 버전 이력이 없다(픽스처 VERSION 0). 헤더를 저장하면 그 헤더를 쓰는 전문에 버전이 생기지만(I18), 먼저 도는 `mdm-headerMng.spec.ts` 는 새로 만든 헤더(`NEW_HEADER`)만 저장하고 픽스처 헤더는 선택만 한다(:135·:203 저장 대상 확인). layoutMng L1~L10 도 픽스처 전문을 저장하지 않는다(L10 저장은 거부). 이 전제가 깨지는 변경을 하면 L11 의 빈 상태 단언을 [신규] 직후(첫 저장 전) 버전 탭으로 옮긴다.
+
 **엑셀 내려받기 위험**: `exportToExcel` 은 리포 사용처가 0건이고 `xlsx` 가 호스트(m-mcm)에서 해석되는지는 L11 이 처음 증명한다. 실패하면 Build 는 m-mdm `package.json` 에 `xlsx ^0.18.5`(m-mcm 과 같은 버전)를 더하고 `snapshot-export.ts` 가 `await import("xlsx")` 로 직접 `writeFile` 하도록 바꾼 뒤 그 이탈을 이 문서 「Build 이탈」 에 적는다(tsup external 에 `xlsx` 추가 포함).
 
 ### 3.7 E2E 실행 절차 (명령 줄 확정 — 오케스트레이터 기준선·Build·Verify 공통)
@@ -434,16 +436,16 @@ cd $W/src/frontend/m-mcm && AUTH_SECRET=$(openssl rand -hex 32) NEXTAUTH_URL=htt
   MCM_WAS_URL=http://127.0.0.1:$BE_MCM MDM_WAS_URL=http://127.0.0.1:$BE_MDM BACKEND_API_URL=http://127.0.0.1:$BE_MCM \
   BACKEND_CLIENT_KEY=dmes-bff-local-client-key-2026 pnpm exec next dev --turbopack --port $FE > $SP/fe.log 2>&1 &
 echo $! > $SP/fe.pid
-# 7) E2E — mdm 스펙 전부, 반드시 자기 포털, workers 1(파일 이름순). 한 호출이 10분을 넘을 것 같으면 7a→7b→7c 로 나눠 **같은 새 DB 에서 이 순서대로** 잇는다
-E2E_ENV="SMOKE_MCM_BASE_URL=http://127.0.0.1:$FE SMOKE_LOGIN_USER=admin SMOKE_LOGIN_PASSWORD=admin123 SMOKE_MDM_DB=$W/src/backend/data/mdm.db"
-cd $W/src/frontend && env $E2E_ENV pnpm exec playwright test e2e/mdm-*.spec.ts --workers=1
+# 7) E2E — mdm 스펙 전부, 반드시 자기 포털, workers 1(파일 이름순). 한 호출이 10분을 넘을 것 같으면 7a→7b→7c 로 나눠 **같은 새 DB 에서 이 순서대로** 잇는다.
+#    환경변수는 줄마다 직접 적는다(변수 하나에 묶어 `env $X` 로 넘기면 zsh 가 단어로 나누지 않아 SMOKE_MCM_BASE_URL 하나에 전부 들어간다)
+cd $W/src/frontend && SMOKE_MCM_BASE_URL=http://127.0.0.1:$FE SMOKE_LOGIN_USER=admin SMOKE_LOGIN_PASSWORD=admin123 SMOKE_MDM_DB=$W/src/backend/data/mdm.db pnpm exec playwright test e2e/mdm-*.spec.ts --workers=1
 #   나눠 돌릴 때(합치면 위 한 줄과 같은 파일·같은 순서다):
-cd $W/src/frontend && env $E2E_ENV pnpm exec playwright test e2e/mdm-columnMng.spec.ts e2e/mdm-domainMng.spec.ts e2e/mdm-headerMng.spec.ts --workers=1   # 7a
-cd $W/src/frontend && env $E2E_ENV pnpm exec playwright test e2e/mdm-layoutMng.spec.ts --workers=1                                                        # 7b
-cd $W/src/frontend && env $E2E_ENV pnpm exec playwright test e2e/mdm-sample-smoke.spec.ts e2e/mdm-shell-rbac-smoke.spec.ts e2e/mdm-termMng.spec.ts e2e/mdm-unitMng.spec.ts --workers=1   # 7c
-# 8) 정리 — 성공·실패·중단과 무관하게. 기록한 PID 먼저, 남은 자식은 자기가 고른 포트의 리스너만
+cd $W/src/frontend && SMOKE_MCM_BASE_URL=http://127.0.0.1:$FE SMOKE_LOGIN_USER=admin SMOKE_LOGIN_PASSWORD=admin123 SMOKE_MDM_DB=$W/src/backend/data/mdm.db pnpm exec playwright test e2e/mdm-columnMng.spec.ts e2e/mdm-domainMng.spec.ts e2e/mdm-headerMng.spec.ts --workers=1   # 7a
+cd $W/src/frontend && SMOKE_MCM_BASE_URL=http://127.0.0.1:$FE SMOKE_LOGIN_USER=admin SMOKE_LOGIN_PASSWORD=admin123 SMOKE_MDM_DB=$W/src/backend/data/mdm.db pnpm exec playwright test e2e/mdm-layoutMng.spec.ts --workers=1   # 7b
+cd $W/src/frontend && SMOKE_MCM_BASE_URL=http://127.0.0.1:$FE SMOKE_LOGIN_USER=admin SMOKE_LOGIN_PASSWORD=admin123 SMOKE_MDM_DB=$W/src/backend/data/mdm.db pnpm exec playwright test e2e/mdm-sample-smoke.spec.ts e2e/mdm-shell-rbac-smoke.spec.ts e2e/mdm-termMng.spec.ts e2e/mdm-unitMng.spec.ts --workers=1   # 7c
+# 8) 정리 — 성공·실패·중단과 무관하게. 기록한 PID 먼저, 남은 자식은 자기가 고른 포트의 리스너만(명령 치환을 kill 에 바로 넘긴다 — 리스너가 여럿이어도 나뉜다)
 kill $(cat $SP/fe.pid) $(cat $SP/be-mdm.pid) $(cat $SP/be-mcm.pid)
-for p in $FE $BE_MDM $BE_MCM; do pid=$(lsof -tiTCP:$p -sTCP:LISTEN); [ -n "$pid" ] && kill $pid; done
+for p in $FE $BE_MDM $BE_MCM; do lsof -tiTCP:$p -sTCP:LISTEN >/dev/null && kill $(lsof -tiTCP:$p -sTCP:LISTEN); done
 cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 # 9) 기존 스펙이 덮어쓴 추적 파일 되돌리기(이 작업 산출물 아님). TSK-05-03 스크린샷만 커밋한다
 cd $W && /usr/bin/git checkout -- docs/mdm/tasks/TSK-01-02/screens/dma-mdmSample.png docs/mdm/tasks/TSK-01-03/screens docs/mdm/tasks/TSK-04-02/screens docs/mdm/tasks/TSK-04-03/screens docs/mdm/tasks/TSK-04-04/screens docs/mdm/tasks/TSK-05-02/screens src/frontend/m-mcm/next-env.d.ts
