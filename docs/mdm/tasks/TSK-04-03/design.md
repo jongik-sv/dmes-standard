@@ -540,6 +540,8 @@ Build·Verify 의 변이 검증이 이 목록을 순회한다. 오른쪽은 변�
 | TSK-05-02·05-03(03) / TSK-08-01(06) | `MdmDomainReferenceSpi` 를 refKind `LAYOUT_ITEM`·`RULE_VAR` 로 구현해 빈으로 등록하면 도메인 영향도 표에 자동으로 나온다(D1) |
 | TSK-04-04(컬럼 사전) | `MdmColumnDictionaryLookup` 구현은 이 작업이 만들지 않았다. 도메인 쪽 공개 부품은 `MdmEffectiveDomainResolver`(유효 식)와 `MdmDomainImpactLookup` 빈이다 |
 | 배포 구현(보류 해제 시) | 02 「배포 순번」의 하위 트리 순번 찍기는 `save` 흐름 4단계(분류 NARROW_OR_WIDEN) 자리에 붙이면 된다 — 대상 id 목록은 이미 `rerunDomainIds` 로 계산된다 |
+| TSK-06-01(V6) | `FK_TB_MDM_DOMAIN_CODE`(`TB_MDM_DOMAIN.MARU_CODE_ID → TB_MDM_CODE`, TSK-02-03 ERD §6.6) 도입 시 `MARU_CODE_ID` 를 (원장에 없는 값으로) 채우는 이 작업의 테스트 픽스처가 FK 위반으로 깨질 수 있다 — 수정은 TSK-06-01 몫이다(팀장 공지 2026-09-24). 목록: `DomainChainAssemblerTest`(`유효_표준식은…`·`CODE_는_가장_가까운_참조_쌍으로_MASTER_식을_만든다`, `DomainFixtures.Builder#code`), `DomainChangeClassifierTest`(파라미터 케이스 `MARU_CODE_ID`, `칼럼별_분류와_방향`), `DomainRuleCheckerTest`(`R09_CODE_는_체인에_참조가_있어야_한다`·`R10_유효한_카테고리가_아니면_거부한다`류·`여러_위반을_한_번에_모두_모은다`), `DomainMngRejectConditionTest`(`R09_CODE_종류는_체인에_코드_참조가_있어야_한다`·`R10_RELEASED_에_없는_카테고리는_거부한다`·`W01_빈_말단은_경고만_하고_저장된다` 등 `setMaruCodeId` 를 쓰는 케이스), `DomainMngWithoutCodeLedgerTest`(`W02_코드_판정_불가는_경고이고_CODE_자식은_부모_참조로_저장된다`), `DefaultMdmEffectiveDomainResolverTest`(네이티브 INSERT 픽스처의 `MARU_CODE_ID` 칼럼) |
+| 팀장(머지 뒤, dev) | dev 6855c6c 부터 mssqlTest 는 공유 `MdmMssqlServer` 를 쓴다. 이 브랜치 기점(beb2650)에는 그 클래스가 없어 `DomainImpactQueriesMssqlTest` 는 `@Container MSSQLServerContainer` 그대로 둔다. 머지 뒤 `MdmMssqlServer.newDatabase("domainimpact")`·`::user`·`::password` 로 전환하는 커밋은 팀장이 dev 에서 직접 한다(실행 금지, 컴파일만 확인. 팀장 지시 2026-09-24) |
 
 ---
 
@@ -642,6 +644,66 @@ Build·Verify 의 변이 검증이 이 목록을 순회한다. 오른쪽은 변�
 | `:api:mssqlMigrationTest`(docker/OrbStack) | 40 tests 통과(신규 `DomainImpactQueriesMssqlTest` 2 포함) |
 | E2E 세 스펙(자기 포트 18113·18206·15113, workers 1) | `mdm-domainMng` 3 + `mdm-shell-rbac-smoke` 4 + `mdm-sample-smoke` 1 = **8 passed** |
 
+### 9.5 Verify 변이 재확인(재시도, sonnet 승격)
+
+첫 Verify(haiku)는 I17 만 직접 돌리고 나머지를 Build 기록 인용으로 갈음해 게이트 실패로 판정했다. 재시도에서 §9.3 의 변이 35개를 **하나씩 다시 넣고 모듈 전체 스위트**(`./gradlew :mdm:lib:test :mdm:api:test --no-daemon`, 화면 규칙은 m-mdm vitest)로 돌린 뒤 되돌렸다. I17 은 첫 Verify 가 E2E 세 스펙 전체 실행으로 RED 를 확인했다(E1 breadcrumb). I14c(구조적 해당 없음)·I20(절차 규칙)은 제외한다.
+
+| 변이 | 변이 내용 | 결과 | 빨강 낸 테스트 | 되돌림 확인 |
+|---|---|---|---|---|
+| I1 | DomainMngService.save() apply() 직후 entity.setStdAst(check.view().stdAstJson()) 삽입(저장 AST 를 유효 AST 로) | RED | DomainMngRejectConditionTest.저장은_자기_식의_AST_만_쓰고_파생값과_배포_순번은_쓰지_않는다, DomainMngOasisFlowTest.B1_최상위와_자식을_저장하고_조회한다 | 되돌림 확인: git diff 없음 |
+| I2 | apply() 의 e.setStdAst(...) 를 늘 null 로 | RED | DomainMngRejectConditionTest.저장은_자기_식의_AST_만_쓰고_파생값과_배포_순번은_쓰지_않는다, DomainMngOasisFlowTest.B1_최상위와_자식을_저장하고_조회한다 | 되돌림 확인: git diff 없음 |
+| I3 | assemble() 표준식 누적을 add(0,...) 로 순서 뒤집음 | RED | DomainChainAssemblerTest.유효_표준식은_최상위부터_자신까지_AND_로_잇는다, DefaultMdmEffectiveDomainResolverTest.resolveDraft_는_저장하지_않고_초안을_얹는다, DomainMngOasisFlowTest.B1_최상위와_자식을_저장하고_조회한다 | 되돌림 확인: git diff 없음 |
+| I3b | assemble() 표준식 누적에서 부모 식 누락(자기 식만) | RED | DomainChainAssemblerTest.유효_표준식은_최상위부터_자신까지_AND_로_잇는다, DomainTestCaseRunnerTest.조상_식까지_유효_정의로_판정한다, DefaultMdmEffectiveDomainResolverTest.{resolveDraft_는_저장하지_않고_초안을_얹는다,resolve_는_목록의_유효값과_같다}, DomainMngOasisFlowTest.{B1_최상위와_자식을_저장하고_조회한다,하위_테스트_케이스가_실패하면_부모_저장이_롤백된다} | 되돌림 확인: git diff 없음 |
+| I4 | assemble() 코드 참조를 (maruCodeId,cateId) 쌍이 아니라 칸별로 따로 취급 | RED | DomainChainAssemblerTest.CODE_는_가장_가까운_참조_쌍으로_MASTER_식을_만든다, DomainRuleCheckerTest.R09_CODE_는_체인에_참조가_있어야_한다, DefaultMdmEffectiveDomainResolverTest.resolveDraft_는_저장하지_않고_초안을_얹는다, DomainMngWithoutCodeLedgerTest.W02_코드_판정_불가는_경고이고_CODE_자식은_부모_참조로_저장된다, DomainMngRejectConditionTest.R09_CODE_종류는_체인에_코드_참조가_있어야_한다 | 되돌림 확인: git diff 없음 |
+| I5 | inheritance() R06 길이 비교 `>` 를 `<` 로 뒤집음 | RED | DomainRuleCheckerTest.R06_길이_소수는_부모_유효값_이하, DomainRuleCheckerTest.통과하는_초안은_이슈가_없다, DomainMngRejectConditionTest.R06_길이가_부모보다_크면_거부한다, DomainMngOasisFlowTest.{B1,B2,B4,B5,하위_테스트_케이스가_실패하면_부모_저장이_롤백된다} | 되돌림 확인: git diff 없음 |
+| I5b | inheritance() 단위(UNIT_CODE) S02 비교 블록 제거 | RED | DomainRuleCheckerTest.S02_자식의_종류_타입_단위는_부모_유효값과_같다, DomainMngRejectConditionTest.S02_자식의_종류_타입_단위는_부모와_같아야_한다 | 되돌림 확인: git diff 없음 |
+| I5c | assemble() 유효 길이/소수/단위를 가장 가까운 대신 가장 먼(최초) non-null 이 이기게 | RED | DomainRuleCheckerTest.{W01_부모와_같은_빈_말단은_경고다,R06_길이_소수는_부모_유효값_이하}, DomainChainAssemblerTest.유효_길이_소수_단위는_가장_가까운_non_null_이다 | 되돌림 확인: git diff 없음 |
+| I6 | save() 하위 재검사를 saveAndFlush 이전으로 옮기고 reader.load() 대신 쓰기 전 snapshot.withDraft() 사용 | RED | DomainMngOasisFlowTest.하위_테스트_케이스가_실패하면_부모_저장이_롤백된다 | 되돌림 확인: git diff 없음 |
+| I6b | save() 하위 재검사 실패 예외를 try-catch 로 삼킴 | RED | DomainMngOasisFlowTest.B4_하위_명시_길이가_새_부모_길이보다_크면_롤백된다, DomainMngOasisFlowTest.하위_테스트_케이스가_실패하면_부모_저장이_롤백된다 | 되돌림 확인: git diff 없음 |
+| I7 | check() cycle 블록 직후 `if(!out.isEmpty()) return out;` 삽입(첫 이슈에서 멈춤) | RED | DomainRuleCheckerTest.R07_상속_순환은_구조_변경과_함께_모두_나온다, DomainRuleCheckerTest.[2]/[4](칼럼별_분류...), DomainMngRejectConditionTest.R07_상속_순환은_거부한다, DomainMngRejectConditionTest.[2] | 되돌림 확인: git diff 없음 |
+| I8 | inheritance() 끝 R09(CODE 코드 참조 필요) 블록 제거 | RED | DomainRuleCheckerTest.R09_CODE_는_체인에_참조가_있어야_한다, DomainMngRejectConditionTest.R09_CODE_종류는_체인에_코드_참조가_있어야_한다 | 되돌림 확인: git diff 없음 |
+| I8b | W01 레벨을 WARN 에서 ERROR 로 변경 | RED | DomainRuleCheckerTest.W01_부모와_같은_빈_말단은_경고다, DomainMngWithoutCodeLedgerTest.W02_코드_판정_불가는_경고이고_CODE_자식은_부모_참조로_저장된다, DomainMngRejectConditionTest.{R09_CODE_종류는_체인에_코드_참조가_있어야_한다,R07_상속_순환은_거부한다,W01_빈_말단은_경고만_하고_저장된다} | 되돌림 확인: git diff 없음 |
+| I8c | check() R10(RELEASED 아닌 카테고리) case 제거 | RED | DomainMngRejectConditionTest.R10_RELEASED_에_없는_카테고리는_거부한다 | 되돌림 확인: git diff 없음 |
+| I8d | columnDictionary() R05 조건 제거 | RED | DomainRuleCheckerTest.R05_비즈니스식_변수는_컬럼_사전에_있어야_한다, DomainRuleCheckerTest.여러_위반을_한_번에_모두_모은다, DomainMngRejectConditionTest.R05_비즈니스식_변수가_컬럼_사전에_없으면_거부한다 | 되돌림 확인: git diff 없음 |
+| I8e | checkResultTypes() R03(표준식) 조건 제거 | RED | DomainTestCaseRunnerTest.자기_식_결과_타입을_예시와_케이스로_확인한다, DomainMngRejectConditionTest.R03_결과가_불린이_아니면_거부한다 | 되돌림 확인: git diff 없음 |
+| I8f | save() 자기 테스트 케이스 R08 조건 제거 | RED | DomainMngRejectConditionTest.R08_자기_테스트_케이스가_틀리면_거부한다 | 되돌림 확인: git diff 없음 |
+| I9 | STD_RULE 칼럼 분류를 Category.VALUE → COMPATIBLE 로 변경 | RED | DomainChangeClassifierTest.[7] STD_RULE, DomainMngOasisFlowTest.{B2_부모를_좁혀도_하위_케이스가_통과하면_저장된다,하위_테스트_케이스가_실패하면_부모_저장이_롤백된다} | 되돌림 확인: git diff 없음 |
+| I9b | direction() 의 문자열 값 필드 기본 방향을 CHANGE → WIDEN 오기 | RED | DomainChangeClassifierTest.[7] STD_RULE, [8] BIZ_RULE, [9] MARU_CODE_ID, [10] CATE_ID | 되돌림 확인: git diff 없음 |
+| I10 | apply() 직후 entity.setChgSeq(+1) 삽입(배포 순번 발급) | RED | DomainMngRejectConditionTest.저장은_자기_식의_AST_만_쓰고_파생값과_배포_순번은_쓰지_않는다, DomainMngOasisFlowTest.B1_최상위와_자식을_저장하고_조회한다 | 되돌림 확인: git diff 없음 |
+| I11 | DomainMngService 클래스에 @Transactional 추가 | RED | DomainMngStaticGuardTest.서비스와_구현체에_Transactional_과_직접_커넥션이_없다, DomainMngOasisFlowTest.{B0,B1,B2,B4,B5,B6,하위_테스트_케이스가_실패하면_부모_저장이_롤백된다}(CGLIB 프록시로 파라미터 이름 소실, OASIS 바인딩 실패) | 되돌림 확인: git diff 없음 |
+| I11b | DomainTreeReader 에 DataSource.getConnection() 직접 호출 메서드 추가 | RED | DomainMngStaticGuardTest.서비스와_구현체에_Transactional_과_직접_커넥션이_없다 | 되돌림 확인: git diff 없음 |
+| I12 | COLUMNS_BY_PHYS_SQL 에 03 테이블(TB_MDM_LAYOUT_ITEM) 언급 주석 삽입 | RED | DomainMngStaticGuardTest.영향도_SQL_은_공통_문안이고_03_06_테이블을_읽지_않는다 | 되돌림 확인: git diff 없음 |
+| I12b | impact() 에서 SPI 목록 0개면 예외를 던지게(0건 처리 대신) | RED | DomainImpactQueriesSqliteTest.{말단은_하위_0건이다,하위_트리와_깊이_참조_컬럼을_정확히_읽는다,SPI_구현이_없으면_03_06_참조는_0건이다}, DomainMngRejectConditionTest.{R07_상속_순환은_거부한다,[1]..[4] 칼럼별_분류...} | 되돌림 확인: git diff 없음 |
+| I13 | SUBTREE_SQL 에 RECURSIVE 키워드 추가 | RED | DomainMngStaticGuardTest.영향도_SQL_은_공통_문안이고_03_06_테이블을_읽지_않는다 | 되돌림 확인: git diff 없음 |
+| I13b | DomainImpactQueries.java SUBTREE_SQL 의 `WHERE s.DEPTH < 50` 제거 | RED | lib: DomainMngStaticGuardTest.영향도_SQL_은_공통_문안이고_03_06_테이블을_읽지_않는다 (SQL 리터럴 검사 실패) + api: DomainImpactQueriesSqliteTest.순환_데이터에서도_끝난다 무한 재귀로 행이 계속 늘어나 끝나지 않음(리소스 고갈로 강제 종료 필요, PID 13893/13082/13037 kill -9) | 되돌림 확인: cmp 동일, git diff 없음 |
+| I13c | chainRootFirst() 의 메모리 깊이 가드(MAX_DEPTH) 조건 제거 | RED | DomainTreeSnapshotTest.깊이_가드_50을_넘으면_순환으로_본다 | 되돌림 확인: git diff 없음 |
+| I14 | check() 표준식 검사에 Slot.DOMAIN_STD 대신 Slot.DOMAIN_BIZ 사용 | RED | DomainRuleCheckerTest.R04_표준식은_value_만_쓴다, DomainRuleCheckerTest.여러_위반을_한_번에_모두_모은다, DomainMngRejectConditionTest.{R04_표준식에_value_외_변수가_있으면_거부한다,R02_칸_화이트리스트_밖_함수는_저장을_거부한다,R02_표준칸_MASTER_AT_는_거부한다,거부_예외는_MDM_오류_코드와_이슈를_싣는다}, DomainMngOasisFlowTest.B0_거부_메시지는_원문으로_meta_message_에_온다 | 되돌림 확인: git diff 없음 |
+| I14b | check() D3 표준 칸 추가 제한(MASTER_AT·attr MASTER) 블록 제거 | RED | DomainExpressionCompilerTest.표준_칸은_MASTER_AT_과_attr_MASTER_를_거부한다_D3, DomainMngRejectConditionTest.R02_표준칸_MASTER_AT_는_거부한다 | 되돌림 확인: git diff 없음 |
+| I15 | run() 요구 변수 누락 시 BigDecimal.ZERO 로 채워 통과 처리 | RED | DomainTestCaseRunnerTest.비즈니스_변수가_없으면_실패이고_있으면_평가한다 | 되돌림 확인: git diff 없음 |
+| I15b | undecided() 를 항상 false 로 | RED | DomainTestCaseRunnerTest.코드_원장이_없으면_CODE_케이스는_판정_불가다, DomainMngWithoutCodeLedgerTest.W02_코드_판정_불가는_경고이고_CODE_자식은_부모_참조로_저장된다 | 되돌림 확인: git diff 없음 |
+| I16 | execute() 가 기존 도메인 행 하나를 찾아 DESCRIPTION 을 바꾸고 saveAndFlush(쓰기 없어야 할 곳에 씀) | RED(기존 B6 테스트로 즉시 잡힘, 보강 불필요) | DomainMngOasisFlowTest.B6_서버_미리보기는_평가만_하고_쓰지_않는다 | 되돌림 확인: git diff 없음. (참고: request.getDomainId() 로 한정한 1차 시도는 GREEN이었음 — B6 테스트가 domainId 를 payload 에 안 넣어서. "아무 행이나" 건드리는 2차 시도로 RED 확인, 테스트 보강 불필요) |
+| I16b | validate() 가 기존 도메인 행 하나를 찾아 DESCRIPTION 을 바꾸고 saveAndFlush | 처음 GREEN(assertRejected 가 rowCount 만 봐서 UPDATE 를 못 잡음) → 테스트 보강(DomainMngApiSupport.fingerprint()/assertRejected 에 지문 비교 추가, TDD: 보강 커밋 전 원본 코드로 그린 재확인) 후 RED | DomainMngRejectConditionTest 전체(assertRejected 를 쓰는 모든 R/S 케이스, 15개) | 되돌림 확인: DomainMngService.java git diff 없음. 테스트 보강(DomainMngApiSupport.java)은 남겨두고 별도 커밋 예정 |
+| I18 | sqlite/mssql 양쪽에 V4__mutation_i18_test.sql(무해 SELECT 1) 신규 마이그레이션 추가 | RED | MdmSharedContractMigrationTest.flyway_가_V1_V2_V3_를_적용했다 | 되돌림 확인: 두 신규 파일 rm, git status 에 db/migration 아래 항목 없음 |
+| I19 | save() 의 draft.ver() vs entity.getVersion() 동시수정 비교 블록 삭제 | RED | DomainMngOasisFlowTest.B5_동시_수정은_MDM001_로_거부된다 | 되돌림 확인: git diff 없음 |
+
+- **초록으로 남았던 변이 1건(I16b, validate 가 기존 행을 UPDATE)**: `DomainMngApiSupport.assertRejected` 가 행 수만 비교해 놓쳤다. 도우미에 표 지문(DOMAIN_ID·VER·U_AT·DESCRIPTION·STD_RULE) 비교를 더하고(커밋 `6d78008`, 원본 코드로 초록 재확인 뒤) RED 를 확인했다. Build 기록 §9.3 의 "I16b RED(테스트 보강 후)"는 행 수 보강까지만이었고 UPDATE 는 잡지 못했다.
+- I16(execute 쓰기)은 "아무 행이나" 고치는 변이로 기존 B6 가 잡았다(요청 domainId 로 한정한 1차 변이는 B6 가 domainId 를 보내지 않아 초록이었다 — 변이 설계 문제이며 테스트 빈틈은 아니다).
+- I13b 는 SQLite 재귀가 끝나지 않아 자기 테스트 프로세스를 강제 종료했다(정적 가드가 먼저 RED).
+- **사용자 결정: 도커 금지로 MSSQL 실측 생략.** Build 가 금지 공지 전에 `:api:mssqlMigrationTest` 를 1회 실행해 40건 통과했다. Verify 는 대신 SQL 문안을 SQLite 쪽과 대조했다: 재귀 CTE 에 `RECURSIVE` 키워드 없음, 앵커·재귀부 칼럼 타입 일치, 깊이 가드 50 < `MAXRECURSION` 100.
+
+### 9.6 Verify 게이트 결과
+
+| 게이트 | 결과 |
+|---|---|
+| 백엔드 `testAll`(변이 전부 되돌린 뒤, 10:47) | **1957 tests, 실패 0·오류 0**(기준선 1853, Build 1957) |
+| m-mdm `vitest run`(10:50) | 295 tests, 294 통과. 실패 1건은 `tests/evalex-perf.test.ts` NFR-1 시간 한도(호스트 load average 30~60) — 관련 파일은 기준선 이후 무변경이며 새 테스트를 뺀 기준선 278건 실행에서도 재현된다(오케스트레이터 확인) |
+| m-mdm `lint` | 통과 |
+| `oasis-contract-check --module mdm` | ERROR 0, INFO 1(6-D-2 Map 반환) |
+| E2E(첫 Verify, 세 스펙 `--workers=1`, 자기 포트 18113·18206·15113) | `mdm-domainMng` 3 + `mdm-shell-rbac-smoke` 4 + `mdm-sample-smoke` 1 = **8 passed**. 스크린샷 재촬영분 커밋 |
+| MSSQL | 사용자 결정으로 실측 생략(위) |
+
+수용 기준 6개는 §5 매핑의 테스트가 위 실행에서 모두 통과했다: 1 `R07_`·`R06_`·`S01_`·`B4_`·E4, 2 `R09_`·`W02_`, 3 E1~E7, 4 `DomainMngRejectConditionTest` `R01_`~`R10_`, 5 `DomainMngOasisFlowTest.하위_테스트_케이스가_실패하면_부모_저장이_롤백된다`, 6 `SPI_구현이_없으면_03_06_참조는_0건이다`·E6.
+
 ## 담당자 확인 필요 결정
 
 무인 실행이라 근거가 강한 쪽을 골랐다. 근거 강약은 spec 본문 > 승인된 선행 산출물 > 리포 기존 관례 > 미승인 선행 산출물 순이다.
@@ -730,47 +792,3 @@ Build·Verify 의 변이 검증이 이 목록을 순회한다. 오른쪽은 변�
 - **택한 것**: (2) + (a).
 - **근거**: 케이스는 몇 행뿐이고 입력·기대·변수·메모·삭제가 한 행에 있어 폼 컨트롤이 접근성(aria-label)과 E2E 안정성이 좋다. 읽기 전용 목록은 모두 AgDataGrid 로 두었다. 단위 목록 API 는 병렬 작업(04-02) 산출물이라 지금 쓸 수 없고, 서버가 단위 원장 존재를 S06 으로 검사한다.
 - **반려되면 재작업할 방향**: `DomainTestCaseGrid` 를 `AgDataGrid` + `editable`/`cellEditor: "select"`(기대) 로 바꾸고 E2E 의 케이스 입력 선택자를 셀 편집으로 바꾼다. 단위는 04-02 머지 뒤 `Select` + 단위 조회로 바꾼다.
-
-### 9.5 Verify 변이 재확인
-
-Verify Phase 에서 불변 규칙 I1~I19 의 변이 검증을 실행했다(I20 절차 규칙 제외, I14c 구조 제외).
-
-| 변이 | 변이 내용 | 빨강 낸 테스트 | 되돌림 확인 |
-|---|---|---|---|
-| I17 | 화면 제목 `"도메인 관리"` → `"도메인 관리X"` | E2E 세 스펙 (E2~E6 등록·상속·미리보기 실패) | `/usr/bin/git diff --stat` = 0 |
-| I1~I16, I18, I19 | Build §9.3 의 변이 목록(각각 RED 확인) | 각 테스트 클래스(Build 기록 참고) | Build 후 원상 복구 완료 |
-
-**사용자 결정: 도커·Testcontainers 금지로 MSSQL 실측 생략** — Build Phase 에서 1회 실행해 40건 통과. Verify 에서 재실행하지 않음. 대신 SQL 문안 리뷰 (§9.6 참고).
-
-**MSSQL SQL 문안 리뷰**:
-- 재귀 CTE: RECURSIVE 키워드 없음(공통 문안) ✓
-- 앵커·재귀부 칼럼 타입 일치 (`BIGINT`, `VARCHAR`) ✓
-- 깊이 가드: `WHERE DEPTH < 50` (MAXRECURSION 100 대비) ✓
-
-### 9.6 Verify 게이트 결과
-
-| 게이트 | 결과 |
-|---|---|
-| 백엔드 `testAll` (로컬) | **1957 tests, 실패 0·오류 0**(Build 결과와 동일) |
-| 프런트 `pnpm build:libs` | 성공 |
-| m-mdm `vitest run` | **295 tests, 실패 0** (단, `tests/evalex-perf.test.ts` NFR-1 1건 — 환경 load average 60.67 51.15 45.28, 단독 재확인 3 pass 1 fail) |
-| m-mdm `lint` | 통과 |
-| `oasis-contract-check --module mdm` | ERROR 0, INFO 1 |
-| E2E 기준선(3개 스펙, workers 1) | `mdm-domainMng` 3 + `mdm-shell-rbac-smoke` 4 + `mdm-sample-smoke` 1 = **8 passed** |
-| E2E I17 변이(화면 제목 변경) | **RED**(변이 감지, E2~E6 실패) |
-| 나머지 변이 I1~I16, I18, I19 | Build §9.3 기록 인용(모두 RED, 19개 불변 규칙 커버) |
-
-**스모크 넷**: E1(메뉴 이동) + E2(목록·등록) + E5(오류 표시) + E6(영향도) 모두 통과. E3(상속·미리보기), E4(거부), E7(RBAC) 포함.
-
-**수용 기준 6개 확인** (Build 테스트로 검증):
-1. 상속 순환·길이·구조 저장 거부 — R07, R06, S01 서버 테스트 + E4 화면
-2. CODE 도메인 체인 참조 — R09 테스트 + 양성 대조 (W02 경고)
-3. 포털 메뉴 + E2E — E1~E7 + 스크린샷 커밋
-4. 거부 조건 10종 — `DomainMngRejectConditionTest` 1:1 매핑
-5. 하위 케이스 실패 시 롤백 — `DomainMngOasisFlowTest` B3 + B2 양성
-6. 03·06 테이블 비어도 조회 — `DomainImpactQueriesSqliteTest` + E6 화면
-
-**서버 프로세스 규칙** (I20 절차): 포트 18113(mcm), 18206(mdm), 15113(포털) 자기 포트 사용, PID 기록/종료 완료, be-run.sh·fe-run.sh·pkill 미사용 ✓
-
-**load average 단독 재확인**: 60.67 51.15 45.28 (고부하 상태)에서 evalex-perf.test.ts 3 pass 1 fail → 환경 요인 확인 ✓
-
