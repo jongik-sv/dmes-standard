@@ -291,6 +291,12 @@ BPMN 을 고쳤으면 `.claude/skills/bpmn-skill/SKILL.md` 검증을, Flyway 는
 - **화면 미구현 2건(검증 안 함, 보고만)**: 앞 룰 결과의 열 축 값 순서, base 대비 노란 칸.
 - **변이 검증 보강**: 백엔드 불변 1(셀 JSON 7키)은 처음 변이가 살아남아 DERIVE 셀 키·문자열 단언을 `RuleColumnsServiceTest` 에 더했고, 불변 11 은 잡는 테스트가 없어 `RuleEditFacadeContractTest`(Transactional 금지·ResolvedVar 칼럼 고정)를 새로 추가했다.
 
+### Verify 발견
+
+1. **피벗·표 카드 저장이 서로의 미저장 편집을 지움(사용자 데이터 유실, 수정함)**: 두 화면이 같은 TABLE 파트를 저장하고 저장 뒤 view 를 다시 불러오므로, 표 카드에 미저장 행이 있는 채로 피벗을 저장하면 그 행이 경고 없이 사라졌다. 반대 방향(피벗 미저장 편집 → 표 저장)도 같은 결함임을 테스트가 먼저 빨강으로 확인했다. `column-draft-context.tsx` 공유 상태에 `tableDirty`·`pivotDirty`·`setPivotDirty` 를 반응형으로 더했다. 피벗은 "열 설정 dirty 또는 표 카드 dirty", 표 카드는 "열 설정 dirty 또는 피벗 dirty" 면 저장 버튼을 끄고 안내(`pivot-table-block`, `dt-pivot-block`)를 낸다. 되돌리기로 풀린다. E2E `C2c` 시나리오를 더했다(미실행).
+2. **입력 계약 diff 가 열 조건(grp_cond) 참조 변경을 못 잡음(수용 기준 5 부분 충족이었음, 수정함)**: 프런트가 base 버전 계약을 지금 버전의 `varMeta` 로 계산했다. `RuleEditViewResult.baseVarMeta`(base 버전 저장 원값, `varMeta` 와 같은 모양)를 더하고 `RuleViewService` 가 base 버전 변수로 채운다(`ResolvedVar` 는 그대로, 불변 11). 프런트 `types.ts` 에 `baseVarMeta?` 를 더하고 `contractSourceOfView("base")` 가 그것을 쓴다(없는 응답이면 지금 `varMeta` 로 대신하는 기존 동작).
+3. **PROD_WGT_CALC 결과 식 미리보기(수정하지 않음, 기록만)**: DECISION 결과 식 칸이 열 설정에 없고 그리드 식 셀이 읽기 전용이라 화면에서 검증되지 않는다. 저장된 테스트 케이스·값 테스트 카드(08-04)가 채울 몫이며 수용 기준 4 의 PROD_WGT_CALC 미리보기는 부분 충족이다.
+
 ## 변이 검증 기록
 
 | 불변 규칙 | 변이 | 잡은 테스트 | 결과 |
@@ -326,3 +332,7 @@ BPMN 을 고쳤으면 `.claude/skills/bpmn-skill/SKILL.md` 검증을, Flyway 는
 | 12 seq 유일 | 결과 열 seq 를 항상 1 로 | `RuleColumnsServiceTest` 순서대로 저장하고 seq 는 조건과 결과 각각 1부터… | 잡힘 |
 | 14 EXTERNAL 조회 전용 | `requireMdm` 검사 제거 | `RuleColumnsServiceTest` EXTERNAL 룰 비소유자 row_version 불일치는 거부한다 | 잡힘 |
 | 15 배포 스냅샷 구성 불변 | 변이 없음 — 이 작업은 스냅샷 조립 코드를 건드리지 않았다(변경 파일에 없음) | 엔진·스냅샷 기존 테스트(오케스트레이터 회귀 게이트) | 해당 없음(보고) |
+| 13 초안 dirty 차단(Verify 추가) | 피벗 저장이 표 카드 dirty 를 무시(`&& !tableBlocked` 제거) | `sections-render.test.ts` 표 카드에 저장 안 한 변경이 있으면 피벗 저장이 꺼진다 | 잡힘 |
+| 13 초안 dirty 차단(Verify 추가) | 표 저장이 피벗 dirty 를 무시(`|| pivotDirty` 제거) | `sections-render.test.ts` 피벗에 저장 안 한 편집이 있으면 표 저장이 꺼진다 | 잡힘 |
+| 6 입력 계약(Verify 추가) | base 계약을 `baseVarMeta` 대신 지금 `varMeta` 로 계산 | `contract-view.test.ts` DRAFT 에서 grp_cond 가 새 변수를 참조하면 필수 입력 증가 경고가 난다 | 잡힘 |
+| 6 입력 계약(Verify 추가) | `RuleViewService` 가 `baseVarMeta` 를 base 대신 지금 버전 변수로 채움 | `RuleEditViewTest` base 버전의 저장 원값을 baseVarMeta 로 싣는다 | 잡힘 |
