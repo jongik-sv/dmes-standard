@@ -39,6 +39,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * TSK-07-03 design.md §3.2 T-S — 05 「선분과 닫기」 항목 선분 의미(S1~S13)를 local(SQLite) 실제 컨텍스트로 확인한다.
@@ -63,6 +65,10 @@ class DataItemSegmentCoreSqliteTest {
     MutableClock clock;
     @Autowired
     DataSource dataSource;
+    @Autowired
+    DataItemSegmentStore store;
+    @Autowired
+    PlatformTransactionManager transactionManager;
 
     private JdbcTemplate jdbc;
 
@@ -270,6 +276,24 @@ class DataItemSegmentCoreSqliteTest {
 
         assertConflict(() -> core.reopen(MD, "KRPUS", 0));
         assertEquals(1, itemRows(jdbc, MD, "KRPUS").size());
+    }
+
+    @Test
+    void S4_저장소의_닫는_UPDATE_는_ROW_VERSION_조건부_CAS_다() {
+        // 코어는 잠금 뒤 먼저 비교하므로 CAS 는 두 번째 방어선이다. 저장소 계약을 직접 불러 조건을 확인한다.
+        core.register(MD, "KRPUS", value("부산"));
+        DataItemKey key = new DataItemKey(MD, "KRPUS");
+        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        LocalDateTime at = T0.plusMinutes(1);
+
+        assertConflict(() -> tx.executeWithoutResult(s -> store.close(key, at, 5)));
+        assertConflict(() -> tx.executeWithoutResult(s -> store.modify(key, value("부산항"), at, 5)));
+        List<Map<String, Object>> rows = itemRows(jdbc, MD, "KRPUS");
+        assertEquals(1, rows.size());
+        assertEquals(OPEN, rows.get(0).get("VALID_TO"));
+
+        tx.executeWithoutResult(s -> store.close(key, at, 0));
+        assertEquals(text(at), itemRows(jdbc, MD, "KRPUS").get(0).get("VALID_TO"));
     }
 
     // ── 경계 ────────────────────────────────────────────────────────────────
