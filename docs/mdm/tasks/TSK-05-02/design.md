@@ -139,7 +139,7 @@
 | `src/frontend/m-mdm/tsup.config.ts` | pages entry 2줄 추가: `"pages/dmb/headerMng/page": "pages/dmb/headerMng/page.tsx"`, `"pages/dmb/layoutMng/page": "pages/dmb/layoutMng/page.tsx"` | 추가만 |
 | `src/frontend/m-mcm/lib/generated/page-registry.ts` | generator 재생성 결과(`"dmb/headerMng"`, `"dmb/layoutMng"` 2줄) | 손으로 고치지 않는다 |
 | `docs/guide/design/identifier-dictionary/01-modules-and-screens.md` | §A.3.2 표 `domainMng` 행 아래에 `headerMng`·`layoutMng` 행 2줄 추가(`\| headerMng \| — (To-Be only) \| mdm \| dmb \| headerMng \| 2026-09-24 \| 전문 헤더 정의 — As-Is 없음(신규). TSK-05-02. 기능설계서 1종 \|` 모양) | 추가만(screens/README:62 등재 절차) |
-| `docs/mdm/decisions.md` | Build 완료 때 아래 D1~D8 을 임시 ID 블록 `## D-TSK-05-02-1 (<UTC>)` … `## D-TSK-05-02-8 (<UTC>)` 으로 끝에 추가(필드: Phase·Decision needed·Decision made·Rationale·Reversible·Source, D-057 과 같은 모양). `decision-log.py append` 금지, 기존 블록 수정 금지 | 추가만 |
+| `docs/mdm/decisions.md` | Build 완료 때 아래 D1~D8 을 임시 ID 블록 `## D-066 (<UTC>)` … `## D-073 (<UTC>)` 으로 끝에 추가(필드: Phase·Decision needed·Decision made·Rationale·Reversible·Source, D-057 과 같은 모양). `decision-log.py append` 금지, 기존 블록 수정 금지 | 추가만 |
 
 ### 변경하지 않음
 
