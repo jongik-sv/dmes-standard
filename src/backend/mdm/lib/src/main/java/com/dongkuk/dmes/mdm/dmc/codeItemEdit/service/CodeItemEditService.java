@@ -339,9 +339,7 @@ public class CodeItemEditService {
      * 검사 순서: 역할 → EXTERNAL → 미적용 2개 → 행 존재 → from_ver 가 RELEASED → 확정 전 버전이 같은 키를 고쳤는가(D8).
      */
     public Map<String, Object> patch(CodeItemPatchRequest request) {
-        if (!currentUser.roleIds().contains(MdmRoles.STEWARD)) {
-            throw MdmErrors.of(MdmErrorCode.STEWARD_ROLE_REQUIRED);
-        }
+        requireSteward();
         MdmCode code = header(request.getMaruCodeId());
         if (MasterCodeSourceKind.EXTERNAL.name().equals(code.getSourceKind())) {
             throw MasterCodeRejections.patchRejected(List.of(externalIssue(code)));
@@ -379,6 +377,17 @@ public class CodeItemEditService {
     }
 
     // ── 공통 ────────────────────────────────────────────────────────────
+
+    /**
+     * 경미 수정은 마루 코드 담당자(MDM_STEWARD)만 한다(04:546) — 없으면 MDM013. 범용 가드 {@code MdmStewardGuard} 는
+     * TSK-06-02 가 만든다(팀장 지시). 이 Task 는 같은 부품을 새로 만들지 않고 이 서비스 안에 최소로 둔다.
+     */
+    private void requireSteward() {
+        // 06-02 머지 뒤 MdmStewardGuard.requireSteward 로 연결
+        if (!currentUser.roleIds().contains(MdmRoles.STEWARD)) {
+            throw MdmErrors.of(MdmErrorCode.STEWARD_ROLE_REQUIRED);
+        }
+    }
 
     private record Projected(List<MdmCheckIssue> issues, List<Change> changes) {
     }

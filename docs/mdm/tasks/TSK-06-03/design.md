@@ -698,9 +698,25 @@ spec 요구사항 줄별 매핑: 선분 추가·수정·삭제·되돌리기·�
 3. `/usr/bin/git grep -n '"MDM02[2-9]"' origin/dev -- src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/contract/common/MdmErrorCode.java` — MDM022·MDM023 이 이미 쓰였으면 D5 규칙대로 이 Task 의 두 상수를 다음 번호로 재채번하고 `CommonContractTest` 의 개수·개별 단언을 맞춘다.
 4. `/usr/bin/git grep -n -i "CategoryResolver\|class .*Resolver" origin/dev -- src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common` — 형제가 카테고리 해석기를 따로 만들었으면 D11 대로 하나로 합치고 R 시험을 합친 쪽으로 옮긴다.
 5. `/usr/bin/git grep -n "codeItemEdit\|seedMdmCode" origin/dev -- src/backend/mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer.java` — 형제의 dmc leaf 시드와 겹치는 줄(같은 menuSeq `003` 등)이 있으면 README §3 순서대로 맞춘다.
-6. origin/dev 를 이 브랜치에 머지하고(머지 커밋의 DFlow-Order 트레일러는 `/dflow-merge` 「트레일러 고정」 방식) 게이트 1~5 를 다시 돌린다.
+6. `/usr/bin/git grep -n "class MdmStewardGuard" origin/dev -- src/backend/mdm/lib/src/main` — 06-02 의 `MdmStewardGuard` 가 dev 에 있으면 `CodeItemEditService.requireSteward()`(private, 주석 `// 06-02 머지 뒤 MdmStewardGuard.requireSteward 로 연결`)의 본문을 그 가드 호출로 바꾸고(생성자 주입), S17·변이 31 이 그대로 빨강·초록으로 갈리는지 확인한다. 아래 「형제 Task 공용 부품」 절의 표를 따른다.
+7. origin/dev 를 이 브랜치에 머지하고(머지 커밋의 DFlow-Order 트레일러는 `/dflow-merge` 「트레일러 고정」 방식) 게이트 1~5 를 다시 돌린다.
 
 **공유 목록 "추가만" 규칙의 불가피한 예외**(기존 줄을 고치는 곳은 이 둘뿐이다): ① `CommonContractTest.java:48` 의 개수 `21` → `23`. ② `MdmErrorCode.java` 의 마지막 상수 `INVALID_INPUT(...)` 줄 끝 `;` → `,`(새 상수를 이어 붙이기 위한 문법 변경). 둘 다 새 상수 반영이며 기대값 완화가 아니다.
+
+---
+
+## 형제 Task 공용 부품 — 06-02/08-02 머지 뒤 연결
+
+팀장 지시(2026-09-24, 주문 f93163b8)로 공용 부품은 담당 Task 가 만든다. 06-03 은 같은 것을 새로 만들지 않고, 필요한 최소 동작만 이 Task 안에 두었다가 담당 Task 가 머지되면 연결한다.
+
+| 부품 | 담당 | 06-03 의 현재 상태 | 머지 뒤 연결 지점 |
+|---|---|---|---|
+| `MdmStewardGuard.requireSteward()`(MDM_STEWARD 아니면 MDM013) | TSK-06-02 | 만들지 않았다. 경미 수정의 역할 검사만 `lib/.../dmc/codeItemEdit/service/CodeItemEditService.java` 의 private `requireSteward()` 로 최소 구현했고 주석 `// 06-02 머지 뒤 MdmStewardGuard.requireSteward 로 연결` 을 달았다 | 그 메서드 본문을 가드 호출로 바꾸고 가드를 생성자로 주입한다(§8 6번). 시험 S17(`CodeItemEditServiceSqliteTest`)·HTTP 경로는 그대로 둔다 |
+| `VersionScenarioTestConfig` 일반형 BFPP | TSK-06-02 | 만들지 않았다. 이 Task 시험은 전용 설정 `api/src/test/.../common/mastercode/MasterCodeTestConfig`(시계 2026-09-03·가짜 사용자 `@Primary` 두 개)와 HTTP 시험 안의 `ClockOnly` 만 쓴다 | 일반형이 머지되면 `MasterCodeTestConfig` 를 그것으로 바꿀 수 있으나 필수는 아니다(시험 전용·이 Task 범위) |
+| DRAFT 소유권 action(lock·unlock·handover)과 RBAC 시드 체계 | TSK-08-02 | 만들지 않았다. BPMN 액션은 기존 `MdmActions` 13개 안(search·view·compare·validate·save·restore·execute)이고, 메뉴 시드는 기존 헬퍼 `seedMdmObjectRbac("codeItemEdit", "dmc")` 호출뿐이다 | 08-02 가 소유권 액션을 더해도 이 Task 의 BPMN·`DmcBpmnActionTest` 는 바뀌지 않는다. 08-02 가 RBAC 시드 방식을 바꾸면 `DataInitializer.seedMdmCodeItemEditMenu()` 한 곳을 그 방식으로 옮긴다 |
+
+- 메뉴 순번은 팀장 예약과 같다: 06-02 codeMng `001`·codeEdit `002`, 06-03 codeItemEdit **`003`**(커밋 C 그대로), 06-04 codeCateEdit `004`, 06-05 codeConfirm `005`.
+- 공용 `docs/mdm/decisions.md` 에는 블록을 더하지 않았다. 더해야 하면 임시 ID `D-TSK-06-03-<n>` 을 쓴다.
 
 ---
 
