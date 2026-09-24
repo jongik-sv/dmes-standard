@@ -56,6 +56,17 @@ class MasterCodeItemChecksTest {
         assertEquals("KS-3는 이미 KS 아래에 있다", issues.get(0).message());
     }
 
+    @Test
+    void H1b_다른_행의_코드값을_다른_앞_칸_아래_그룹으로_쓰면_LVL_PARENT_MISMATCH() {
+        // Build 보강(변이 18b) — KS-9 는 계층 칸 어디에도 없고 코드값으로만 KS 아래에 있다. 코드값 대조가 없으면 통과한다.
+        List<MdmCheckIssue> issues = checkAdded(entry("X-3", "x", 1, null, "JIS", "KS-9"));
+
+        assertEquals(List.of("LVL_PARENT_MISMATCH"), codes(issues));
+        assertEquals("lvl2", issues.get(0).field());
+        assertEquals("KS-9는 이미 KS 아래에 있다", issues.get(0).message());
+        assertEquals(List.of(), checkAdded(entry("X-4", "x", 1, null, "KS", "KS-9")), "같은 앞 칸이면 통과(대조군)");
+    }
+
     // ── H2 LVL_BEYOND_CNT 경계 ──────────────────────────────────────────
 
     @Test
