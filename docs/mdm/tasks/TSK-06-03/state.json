@@ -2,5 +2,134 @@
   "tsk": "TSK-06-03",
   "order": "f93163b8-a0cc-4308-a5b1-df6ff14f7cf6",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "reported",
+  "baseline": {
+    "failures": 0,
+    "tests": 2823,
+    "docker": "banned:spawn",
+    "cmds": [
+      {
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 2337,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "3fbf0737b93a2af61436a7af149d245a592c6655-5a99c8ef20f3",
+        "measured_at": "2026-09-24T04:45:56Z",
+        "count_cmd": "find src/backend -path '*/build/test-results/*' -not -path '*mssqlMigrationTest*' -name 'TEST-*.xml' | xargs grep -h -o '<testsuite [^>]*' (tests/failures/errors 합산)"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 330,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "3fbf0737b93a2af61436a7af149d245a592c6655-70ad4dddc2e4",
+        "measured_at": "2026-09-24T04:45:56Z",
+        "note": "27 files / 330 passed"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "3fbf0737b93a2af61436a7af149d245a592c6655-79066bca5c4b",
+        "measured_at": "2026-09-24T04:45:56Z",
+        "note": "tsc --noEmit pass"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 156,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "3fbf0737b93a2af61436a7af149d245a592c6655-85eac351cb59",
+        "measured_at": "2026-09-24T04:45:56Z",
+        "note": "23 files / 156 passed"
+      },
+      {
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "3fbf0737b93a2af61436a7af149d245a592c6655-773190afc491",
+        "measured_at": "2026-09-24T04:45:56Z",
+        "note": "ERROR 0 / WARN 0 / INFO 29"
+      }
+    ],
+    "e2e": "기준선 시점 미실행(서버 필요) — Verify 에서 mdm-*.spec 전체 재실행",
+    "mssqlMigrationTest": "도커 금지로 생략(testAll 비포함 태스크)"
+  },
+  "branch_base": "3fbf0737b93a2af61436a7af149d245a592c6655",
+  "base_note": "선행 TSK-06-01 head_sha cdb7b14 origin/dev 조상. TSK-01-03·TSK-03-02: reached=true, head_sha 없음 → pred-reflected.sh REFLECTED → origin/dev 3fbf073 기점, 스택 없음",
+  "complexity": "점수 1(depends 3 +1, 키워드 없음) → sonnet 이나 spec model=opus 오버라이드 → Design opus·Build opus",
+  "model": "sonnet",
+  "last": {
+    "phase": "done",
+    "event": "done.ok"
+  },
+  "design": {
+    "commits": [
+      "60fbabc",
+      "4a67b62"
+    ],
+    "invariants": 42,
+    "decisions": "D1~D14",
+    "flyway": "불필요(origin/dev 최대 V11)"
+  },
+  "build_gate": {
+    "backend_testAll": {
+      "tests": 2430,
+      "failures": 0,
+      "errors": 0
+    },
+    "m_mdm_test": "31 files / 355 passed (오케스트레이터 직접 1회 통과, load 21.7)",
+    "m_mdm_lint": "pass",
+    "shared": "23 files / 156 passed",
+    "oasis": "ERROR 0 / WARN 0 / INFO 29",
+    "e2e": "mdm 전체 26 passed(Build 에이전트, 포트 mcm 18603·mdm 18696·FE 15603)",
+    "mutation": "48 변이 중 47 RED, 3번은 JPA merge 동치 변이(design.md 기록)",
+    "commits": [
+      "0b963df",
+      "cde535b",
+      "79cae45",
+      "c184ecb",
+      "b75b2d8",
+      "f79f308",
+      "b2dcd34",
+      "3a00730",
+      "43aa6ff"
+    ],
+    "head": "43aa6ff"
+  },
+  "verify_gate": {
+    "backend_testAll": {
+      "tests": 2430,
+      "failures": 0,
+      "errors": 0
+    },
+    "m_mdm_test": "31 files / 355 passed",
+    "m_mdm_lint": "pass",
+    "shared": "23 files / 156 passed",
+    "oasis": "ERROR 0 / WARN 0 / INFO 29",
+    "e2e": "mdm-*.spec 전체 24 passed / 1 failed(domainMng E2~E6 간헐, 단독 3/3) / 1 skip(연쇄), codeItemEdit 6/6. 포트 mcm 18603·mdm 18698·FE 15603",
+    "mutation": "8/8 RED·원복 확인(verify2 sonnet 재시도)",
+    "retry": "1회차 haiku 변이 6개 미실행 → sonnet 재시도",
+    "commits": [
+      "aea3e29",
+      "db9e69d"
+    ]
+  },
+  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\"",
+  "merge_gate": {
+    "merge": "0bf0f0a origin/dev(49656a3, TSK-05-02) 반영, 충돌 4건(DataInitializer·식별자 사전·page-registry·tsup) 양쪽 줄 보존 해소",
+    "backend_testAll": {
+      "tests": 2520,
+      "failures": 0,
+      "errors": 0
+    },
+    "m_mdm_test": "39 files / 401 passed",
+    "m_mdm_lint": "pass",
+    "shared": "24 files / 158 passed",
+    "oasis": "ERROR 0 / WARN 0 / INFO 29",
+    "sibling_check": "§8: MasterCodeSegmentService 구현·MDM022~·카테고리 해석기·codeItemEdit 메뉴·MdmStewardGuard 모두 origin/dev 에 없음",
+    "e2e": "머지 뒤 재실행 안 함(충돌은 독립 메서드·목록 줄 추가라 컴파일·testAll 로 확인)"
+  }
 }

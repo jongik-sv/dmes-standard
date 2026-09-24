@@ -42,7 +42,11 @@ public enum MdmErrorCode {
     /** TSK-04-04 I18 — 같은 (표기, 의미 번호) 또는 영문 약어(대소문자 무시)의 용어가 이미 있다. */
     TERM_DUPLICATED("MDM020", 409, ErrorCode.DUPLICATE_DATA, "같은 표기·의미 번호 또는 영문 약어의 용어가 이미 있습니다"),
     /** TSK-04-04 — 형식·길이·존재 검사 실패. 어느 칸인지는 message 의 상세로 싣는다. */
-    INVALID_INPUT("MDM021", 400, ErrorCode.INVALID_VALUE, "입력값이 올바르지 않습니다");
+    INVALID_INPUT("MDM021", 400, ErrorCode.INVALID_VALUE, "입력값이 올바르지 않습니다"),
+    /** TSK-06-03 D5 — 코드 행 저장 검사(콤마·공백·계층·라벨 없는 attr·구간 겹침)를 통과하지 못했다. 세부는 이슈 코드로 싣는다. */
+    CODE_SAVE_REJECTED("MDM022", 400, ErrorCode.BUSINESS_ERROR, "코드 저장 검사를 통과하지 못했습니다"),
+    /** TSK-06-03 D5 — RELEASED 코드 행의 경미 수정 거부(EXTERNAL·RELEASED 아님·DRAFT 가 같은 키를 고침). */
+    CODE_PATCH_REJECTED("MDM023", 409, ErrorCode.BUSINESS_ERROR, "경미 수정을 할 수 없습니다");
 
     private final String code;
     private final int httpStatus;
