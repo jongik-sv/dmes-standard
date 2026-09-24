@@ -269,6 +269,15 @@ BPMN 을 고쳤으면 `.claude/skills/bpmn-skill/SKILL.md` 검증을, Flyway 는
 - **화면 검사 목록 = 서버 목록**: `column-draft.ts` 의 `COLUMN_RULES`(27개, 서버 reject 문구 조각 포함)를 `column-draft.test.ts` 가 `RuleColumnsService.java` 와 양방향 대조한다. 화면이 다루지 않는 서버 전용 검사는 그 테스트의 `SERVER_ONLY_MESSAGES`(기존 var_id 검증·적중 정책 거부·없는 도메인 등). 축 조합 완전성 경고(`PIVOT_COVER_INCOMPLETE`)는 서버 응답 issues 로만 보인다.
 - **BPMN 편집**: 처음 XML 을 직접 고쳐 다이어그램 좌표가 빠졌고, `npx -y @cothe/bpmn-tool modify` 로 다시 적용해 바로잡았다(`validate` 경고 1건은 기존의 default flow 미설정).
 
+### Build 이탈 기록 (단계 5·6, 담당 B)
+
+- **DERIVE 산출 순서 검사는 별도 함수**: `analyzeRule` 은 서버 `RuleAnalysis` 와 코퍼스 동치라 결과 목록을 바꾸지 않는다. 그래서 `analyzeDeriveOrder(rule)`(새 이슈 코드 `DERIVE_ORDER`, ERROR)를 `rule-analysis.ts` 에 따로 두고 `analyzeRule` 에 섞지 않았다. 열 설정 화면·서버 `DERIVE_SELF_REF` 저장 검사와 같은 규칙이다. 이 함수를 화면 어디서 부를지는 정하지 않았다(열 설정 초안 검사 `DERIVE_SELF_REF` 가 이미 같은 규칙으로 막는다).
+- **피벗은 표 카드 상태를 공유하지 않는다**: `PivotSection` 은 view 의 저장 행(`view.rows`)으로 자기 초안을 만들고 저장은 `saveTable`(TABLE 파트)로 한다. 표 카드의 저장 안 한 편집과 동시에 열어 두면 피벗 저장 뒤 view 가 다시 불러와져 표 카드 편집이 사라진다(기존 reload 동작). 앞 룰 결과의 열 축 값 순서(`priorOrder`)는 모델 함수가 받지만 화면은 아직 값을 넘기지 않는다(view 에 앞 룰 행이 없다). base 버전 대비 노란 칸 표시도 넣지 않았다.
+- **입력 계약의 식 AST**: 식 변수(조건)·열 조건(grp_cond)의 AST 는 view 에 실려 오지 않아 섹션이 서버 `parseExpr` 로 받는다. validate 권한이 없거나 편집 불가면 부르지 않고 `pending` 안내를 낸다(그 식이 읽는 변수는 always 에서 빠진다).
+- **base 계약의 열 조건**: view 에 base 버전의 `varMeta` 가 없어 base 계약은 지금 버전의 `varMeta`(같은 var_id)를 쓴다. 열 조건 참조가 base 와 지금 사이에 바뀐 경우 diff 가 그 변경을 못 잡는다(백엔드 `baseVarMeta` 추가 시 해소).
+- **계약 타입 표시**: 룰 열에 없는 변수(결과 식이 읽는 사전 변수)는 화면에 타입이 없다. 그 이름은 타입 툴팁 없이 이름만 보인다.
+- **`contractWarnings` 노출**: `contract-view.ts` 의 `contractOfView(view, asts).contractWarnings`(WARNING 문장 목록)와 `contractWarnings(diffs)` 로 노출한다. 08-05 확정 화면이 이 함수를 그대로 부른다.
+
 ## 변이 검증 기록
 
 | 불변 규칙 | 변이 | 잡은 테스트 | 결과 |
@@ -282,3 +291,11 @@ BPMN 을 고쳤으면 `.claude/skills/bpmn-skill/SKILL.md` 검증을, Flyway 는
 | 13 초안 dirty 차단 | `tableSaveBlocked` 가 항상 false | `column-draft.test.ts`, `sections-render.test.ts` | 잡힘 |
 | 13 초안 dirty 차단 | 카드가 `saveBlocked` 를 무시하고 표 저장 활성 | `sections-render.test.ts` 초안이 dirty 이면 표 저장이 꺼진다 | 잡힘 |
 | 11 BPMN 구조 | validate 태스크 method 를 `view` 로 | `DmeBpmnActionTest` (Gradle `--fail-fast`) | 잡힘 |
+| 3 피벗은 화면 표현 | `flattenPivot` 이 기본 행을 버림 | `pivot-model.test.ts` pivot → flatten 은 원래 행과 같다·왕복 | 잡힘 |
+| 3 피벗은 화면 표현 | 값 삭제해도 행을 안 지움 | `pivot-model.test.ts` 값을 지우면 그 행을 지운다 | 잡힘 |
+| 3 피벗은 화면 표현 | `pvSpec` 편집 조건에서 결과 Value 조건 제거 | `pivot-model.test.ts` 열 축이 Equal 이 아니거나… 편집하지 않는다 | 잡힘 |
+| 4 DERIVE 순서 | `analyzeDeriveOrder` 가 자기 자신 참조를 허용(`slice(i + 1)`) | `evalex-rule-analysis.test.ts` 자기 자신을 읽는 식은 오류다 | 잡힘 |
+| 6 입력 계약(계산값) | 열 조건 AST 를 계약에 반영하지 않음 | `contract-view.test.ts` BASE_SPD_LKP always 에 TOP_RESIN_CD·COAT_SIDE | 잡힘 |
+| 6 입력 계약(계산값) | 필수 늘음 경고를 알림으로 뒤바꿈 | `contract-view.test.ts` diffContract 4종·contractWarnings | 잡힘 |
+| 6 입력 계약(계산값) | 행 묶음 키가 선택 집합을 무시 | `contract-view.test.ts` 필수가 같아도 선택 집합이 다르면 다른 묶음 | 처음엔 살아남음 → 그 케이스 테스트를 더한 뒤 잡힘 |
+| 13 초안 dirty 차단 | 피벗 저장이 열 설정 dirty 를 무시 | `sections-render.test.ts` 피벗 섹션 열 설정 초안이 dirty 이면 저장이 꺼진다 | 잡힘 |

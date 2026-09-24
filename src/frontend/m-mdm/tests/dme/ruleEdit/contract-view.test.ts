@@ -97,6 +97,18 @@ describe("groupContractRows — 필수·선택 집합이 같은 행 묶기", () 
     };
     expect(groupContractRows(c)).toHaveLength(1);
   });
+
+  it("필수가 같아도 선택 집합이 다르면 다른 묶음이다", () => {
+    const n = (name: string) => ({ name, dataType: "NUMBER" as const });
+    const c: InputContract = {
+      always: [],
+      rows: [
+        { rowId: 1, cond: "a", required: [n("A")], optional: [n("X")] },
+        { rowId: 2, cond: "b", required: [n("A")], optional: [] },
+      ],
+    };
+    expect(groupContractRows(c).map((g) => g.rowIds)).toEqual([[1], [2]]);
+  });
 });
 
 describe("diffContract — base(RELEASED) 계약 대비 4종", () => {
