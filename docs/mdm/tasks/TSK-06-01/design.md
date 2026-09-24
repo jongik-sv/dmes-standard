@@ -761,3 +761,63 @@ mdm 테스트 결과 XML 마다 대응 소스가 있음을 확인했다(D1 임�
 - 사용자 결정: 도커 금지로 MSSQL 실측 생략, DDL 리뷰로 대체. `:api:mssqlMigrationTest` 는 실행하지 않았다.
 - `cd src/backend/mdm && ../gradlew :api:compileMssqlTestJava --no-daemon` 은 BUILD SUCCESSFUL 이다(mssqlTest 소스셋 새 파일·수정 파일 컴파일 확인, docker 불필요).
 - 기계 대조는 §3.11 `MdmMasterCodeDialectDdlParityTest`(testAll 포함)가 맡고, 남은 줄 단위 대조 리뷰는 §3.13 체크리스트로 Verify 가 수행한다.
+
+---
+
+## Verify 기록 (Phase 04, 2026-09-24)
+
+### V1. testAll 게이트
+
+| 메트릭 | 기준선 | 빌드 | Verify | 판정 |
+|---|---|---|---|---|
+| tests | 1878 | 1950 | 1950 | 통과 |
+| failures | 0 | 0 | 0 | 통과 |
+| errors | 0 | 0 | 0 | 통과 |
+| 신규 테스트 | - | +72 | +72 | 통과 |
+
+명령: `cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain`
+
+### V2. 변이 재확인 (카테고리별 8건)
+
+| 규칙 | 변이 설명 | 대표 테스트 | Verify 결과 |
+|---|---|---|---|
+| 1a (마이그레이션) | SQLite TB_MDM_CODE_RECV 블록 삭제 | MdmMasterCodeMigrationTest | 빨강 |
+| 4b (DDL 대조) | MSSQL VER DECIMAL(9,3) | MdmMasterCodeDialectDdlParityTest | 빨강 |
+| 14 (엔티티) | MdmCode 에 LAST_CHG_SEQ 매핑 | MasterCodeContractTest | 빨강 |
+| 24a (계약) | MasterCodeSegmentService default 메서드 | MdmContractArchitectureTest | 빨강 |
+| 19a (FK 재생성) | FK_TB_MDM_DOMAIN_CODE 줄 누락 | MdmMasterCodeMigrationTest, MdmDomainCodeFkRebuildTest | 빨강 |
+| D4 (CHECK 역변이) | CK_TB_MDM_CODE_VER_APPLY ERD 원문으로 (REQUESTED 제거) | MdmMasterCodeMigrationTest | 빨강 |
+| 29 (스텁) | CONFIRM_CHECKS 에 MASTER_CODE 중복 | ContractStubCompileTest | 빨강 |
+| 21a (컨버터) | 쓰기 형식 .SSS 추가 | MdmMasterCodeEntityJpaRoundtripTest | 빨강 |
+
+### V3. 불변 규칙 30 (구현 클래스 없음)
+
+| 대상 | 검색 | 결과 |
+|---|---|---|
+| main 에 MasterCodeSegmentService 구현 | grep -rn "implements MasterCodeSegmentService" src/main | 0건 |
+| main 에 MasterCodeConfirmCheckSpi 구현 | grep -rn "implements MasterCodeConfirmCheckSpi" src/main | 0건 |
+
+판정: 통과 — 알려진 커버리지 갭으로 git diff 확인.
+
+### V4. §3.13 MSSQL DDL ↔ SQLite DDL 줄 단위 대조 리뷰
+
+파일 위치:
+- MSSQL: `src/backend/mdm/api/src/main/resources/db/migration/mdm/mssql/V6__create_mdm_master_code.sql`
+- SQLite: `src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/V6__create_mdm_master_code.sql`
+
+| # | 항목 | MSSQL (라인) | SQLite (라인) | 판정 |
+|---|---|---|---|---|
+| 1 | 테이블 생성 순서 | CODE(15) → SYSTEM(46) → VER(65) → ITEM(103) → CATE(133) → CATE_ITEM(160) → RECV(181), ALTER(211) | CREATE ... 마지막에 재생성 | 통과 |
+| 2 | FK 칼럼 타입·길이·COLLATE 일치 | MARU_CODE_ID VARCHAR(50) BIN2, SOURCE_SYSTEM VARCHAR(20) BIN2, VER DECIMAL(7,3) | 동일 | 통과 |
+| 3 | DF_... 제약명 다르고 128자 이하 | DF_TB_MDM_CODE_STATUS, DF_TB_MDM_CODE_VER_EMERGENCY_YN, DF_TB_MDM_CODE_VER_ROW_VERSION 등 8개 | 해당 없음 (SQLite) | 통과 |
+| 4 | [RESULT] 인용, 예약어 충돌 | [RESULT] VARCHAR(20) BIN2, CHECK ([RESULT] IN ...)로 처리 | 해당 없음 | 통과 |
+| 5 | 업무 일시 8칼럼 DATETIME2(0) | APPLY_FROM(72), APPLY_TO(73), REQUESTED_AT(76), APPROVED_AT(80), RELEASED_AT(82), CANCELLED_AT(83), RECEIVED_AT(187), PROCESSED_AT(193) | TEXT | 통과 |
+| 6 | RECV_ID BIGINT IDENTITY + PK | RECV_ID BIGINT IDENTITY(1,1) NOT NULL, PK_TB_MDM_CODE_RECV | AUTOINCREMENT | 통과 |
+| 7 | 한글 칼럼 NVARCHAR, 코드·키 BIN2 | DESCRIPTION·ATTR01_NAME 등 NVARCHAR(100/MAX); CODE·CATE_ID·FROM_VER·MARU_CODE_ID 등 BIN2 | 해당 없음 | 통과 |
+| 8 | G1~G5 외 ERD 와 차이 없음 | diff 결과: 주석(G1~G5)·테이블 생성 순서·ALTER만 다름 | 동일 | 통과 |
+
+판정: 모든 항목 통과.
+
+### V5. 종합 판정
+
+- **PHASE_RESULT: verify ok** — 전체 스위트 1950/0, 변이 8건 빨강 확인, 규칙 30 커버리지 갭 기록, DDL 리뷰 8항 통과. 추가 문제 없음.
