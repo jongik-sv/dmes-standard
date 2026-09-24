@@ -67,5 +67,5 @@
     "compileMssqlTestJava": "ok",
     "mssqlMigrationTest": "미실행(사용자 결정: 도커 금지)"
   },
-  "decisions": "design.md D1~D12, decisions.md 임시 ID D-TSK-06-01-1~5"
+  "decisions": "design.md D1~D12, decisions.md 임시 ID D-058~5"
 }
