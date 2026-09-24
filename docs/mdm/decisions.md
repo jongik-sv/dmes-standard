@@ -791,3 +791,19 @@
 - **Rationale**: 팀장 지시 2026-09-24로 확정. mcm 에 역할 조회 경로를 새로 두는 일은 보안 검토 대상이고(TSK-01-03 D7), spec 수용 기준에 넘기기 성공이 없다. 공용 부품은 한 Task 만 만들어 중복을 막는다
 - **Reversible**: yes(mcm client-key 전용 역할 조회 API 와 mdm RestClient 어댑터를 더하면 된다 — 별도 설계·보안 검토 필요)
 - **Source**: docs/mdm/tasks/TSK-08-02/design.md D5·§7, docs/mdm/tasks/TSK-01-03/design.md D7
+
+## D-TSK-06-04-1 (2026-09-24T13:03:33Z)
+- **Phase**: design (TSK-06-04)
+- **Decision needed**: 카테고리 추가·수정·닫기·TABLE 소속 이동(`addCategory`·`changeCategory`·`closeCategory`·`addCategoryMembers`·`removeCategoryMembers`)을 OASIS BPMN 세부 액션으로 새로 만드나, 아니면 기존 닫힌 액션 집합(`MdmActions` 16종)만 쓰나
+- **Decision made**: 세부 액션을 신설하지 않는다. `codeCateEdit.bpmn` 은 `codeItemEdit.bpmn` 과 같은 6액션(search·view·compare·validate·save·restore)만 쓰고, 카테고리 추가/수정/닫기는 `save` 액션의 `categories` 그리드(rowStatus ADDED/CHANGED/DELETED)로, TABLE 소속 이동은 같은 `save` 액션의 `members` 그리드(rowStatus ADDED/DELETED)로 처리한다
+- **Rationale**: `MdmActions` 는 여러 mdm 화면이 공유하는 닫힌 상수 집합이고 `DmcBpmnActionTest` 류가 BPMN 분기 이름이 그 상수 밖이면 실패하게 고정해 뒀다. 세부 액션을 추가하려면 이 공유 파일에 상수를 더해야 하는데, 같은 카테고리 계약(`CategoryDefinition`·`CategoryOwner`)을 쓸 예정인 형제 화면(dmd/dataCateEdit, TSK-07-02)과 병렬 머지 충돌 위험이 있다. `codeItemEdit.bpmn` 이 이미 코드 행 추가·수정·삭제를 `save` 하나로 처리하는 선례와도 일관된다
+- **Reversible**: yes(세부 액션을 나중에 추가해도 `save` 그리드 처리 로직을 액션별로 쪼개기만 하면 된다 — DB·계약 영향 없음)
+- **Source**: docs/mdm/tasks/TSK-06-04/design.md D2
+
+## D-TSK-06-04-2 (2026-09-24T13:03:33Z)
+- **Phase**: design (TSK-06-04)
+- **Decision needed**: 카테고리 저장 검사 거부(정규식 문법 오류·허용 안 된 def_target·없는 소속 코드 등)를 위해 `MdmErrorCode` 에 새 값(예 MDM024)을 추가하나
+- **Decision made**: 추가하지 않는다. 기존 `MdmErrorCode.CODE_SAVE_REJECTED`(MDM022)를 우산으로 재사용하고, 세부는 새 이슈 코드 enum `MasterCodeCateIssueCode`(`common/mastercode/`)에만 담아 `MasterCodeRejections.saveRejected(List<MdmCheckIssue>)`(수정 없이) 로 싣는다. 예약 카테고리 BASE 위반은 계속 `RESERVED_CATEGORY`(MDM012)를 쓴다
+- **Rationale**: `MdmErrorCode` 는 여러 Task 가 동시에 "다음 번호"를 채번하는 공유 파일이라 병렬 머지 충돌 위험이 크다(D-093 의 "한 Task 만 같은 줄을 고쳐 병렬 머지 충돌을 없앤다" 원칙과 동일 이유). `CODE_SAVE_REJECTED` 는 이미 "세부는 이슈 코드로 싣는다"는 계약으로 설계돼 있어 카테고리 이슈에도 그대로 맞는다
+- **Reversible**: yes(전용 MdmErrorCode 를 나중에 추가하고 이슈 코드를 그쪽으로 옮기면 된다 — 응답 바디의 `meta.code` 값만 바뀐다)
+- **Source**: docs/mdm/tasks/TSK-06-04/design.md D6

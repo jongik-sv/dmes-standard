@@ -38,7 +38,7 @@ function view(opts: {
   };
 }
 
-const VERSION_KEYS = ["delete", "lock", "unlock", "handover", "confirmMove", "itemEdit"] as const;
+const VERSION_KEYS = ["delete", "lock", "unlock", "handover", "confirmMove", "itemEdit", "cateEdit"] as const;
 
 describe("versionButtons", () => {
   it("미적용 0개·RELEASED 선택: 새 버전·헤더 저장·폐기만 활성", () => {
@@ -94,13 +94,14 @@ describe("versionButtons", () => {
     expect(b.handover.enabled).toBe(true);
     expect(b.confirmMove.enabled).toBe(true);
     expect(b.itemEdit.enabled).toBe(true);
+    expect(b.cateEdit.enabled).toBe(true);
     expect(b.lock.enabled).toBe(false);
   });
 
   it("소유자 없는 DRAFT: 선점만", () => {
     const b = versionButtons(view({ versions: [row("1.001", "DRAFT", null)], unappliedCount: 1, canNewMajor: false, canNewMinor: false }), "1.001");
     expect(b.lock.enabled).toBe(true);
-    for (const k of ["delete", "unlock", "handover", "confirmMove", "itemEdit"] as const) expect(b[k].enabled, k).toBe(false);
+    for (const k of ["delete", "unlock", "handover", "confirmMove", "itemEdit", "cateEdit"] as const) expect(b[k].enabled, k).toBe(false);
   });
 
   it("남의 DRAFT: 버전 버튼 모두 비활성", () => {
@@ -113,7 +114,7 @@ describe("versionButtons", () => {
     const b = versionButtons(view({ versions, unappliedCount: 2, canNewMajor: false, canNewMinor: false }), "1.001");
     expect(b.warning).toBe("미적용 버전이 2개입니다. 하나를 삭제하세요");
     expect(b.delete.enabled).toBe(true);
-    for (const k of ["lock", "unlock", "handover", "confirmMove", "itemEdit", "newMajor", "newMinor", "headerSave", "deprecate"] as const) {
+    for (const k of ["lock", "unlock", "handover", "confirmMove", "itemEdit", "cateEdit", "newMajor", "newMinor", "headerSave", "deprecate"] as const) {
       expect(b[k].enabled, k).toBe(false);
     }
     const free = versionButtons(view({ versions: [row("1.002", "DRAFT", null), row("1.001", "DRAFT", "me")], unappliedCount: 2 }), "1.002");
