@@ -2,8 +2,8 @@
   "tsk": "TSK-08-02",
   "order": "f65cffff-5402-496b-822c-9e51d1e3f83b",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "verify",
-  "model": "haiku",
+  "phase": "reported",
+  "model": "sonnet",
   "branch_base": "3fbf0737b93a2af61436a7af149d245a592c6655",
   "baseline": {
     "failures": 0,
@@ -56,7 +56,7 @@
     "excluded": "mssqlMigrationTest (도커 금지 모드, 출처 spawn — testAll 에 포함되지 않는 별도 태스크)"
   },
   "last": {
-    "phase": "verify",
-    "event": "verify.ok(all gates passed, e2e 22/22)"
+    "phase": "done",
+    "event": "done.ok"
   }
 }
