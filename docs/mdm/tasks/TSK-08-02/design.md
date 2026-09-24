@@ -771,6 +771,20 @@ cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 - **근거와 강약**: 이 Task 설계 I4·§3.1(승인 전 산출물이지만 수용 기준 5 "미적용 버전이 있으면 새 버전 거부"의 구체화)이 네 경우를 적었다. (b) 는 TSK-01-03 공통 서비스와 MASTER_CODE(06-02 병렬 진행)의 동작을 함께 바꾸는 교차 영역 변경이라 이 Task 에서 하지 않는다. 보강 검사를 두 상태로만 한정해, 공통 가드 호출을 지우는 변이가 DRAFT·적용 전 RELEASED 사례로 여전히 잡힌다. 지금 룰 확정은 DRAFT → RELEASED 직행이라 두 상태는 결재 흐름이 생길 때 의미가 생긴다. 목록·view 의 `unapplied*` 칸(`RuleVersions.isUnapplied`)도 같은 네 상태 정의를 쓴다.
 - **반려되면 재작업 방향**: (b) 면 `VersionPreconditions.isUnapplied` 에 두 상태를 더하고 `requireNoVersionInApproval` 두 호출을 지운다. (c) 면 그 두 호출과 `RuleVersionServiceTest` REQUESTED·APPROVED 사례, `RuleHeaderServiceTest` 「결재 중 버전이 있어도 폐기하지 않는다」를 지우고 `RuleVersions.isUnapplied` 를 공통 정의로 맞춘다.
 
+### D15 — shared 그리드에 셀 상태 클래스(경고·바뀐 칸·강조)를 더하나
+- **질문**: 의사결정표는 칸마다 오류(붉게)·경고(노랗게)·base 대비 바뀐 칸·적중 조건 강조를 보여야 하는데(§6.7.4), shared `grid.css` 에는 오류용 `cell-light-pink` 만 있다. 화면 CSS 에 색 값을 두는 것은 금지다. 어떻게 칠하나?
+- **선택지**: (a) shared `grid.css` 에 의미 토큰만 쓰는 셀 상태 클래스 셋(`cell-warning`·`cell-edited`·`cell-emphasis`)을 더하고 Part B §6 에 등재한다 / (b) 화면 CSS 파일에 토큰(`var(--color-…)`) 으로 클래스를 둔다 / (c) 경고·바뀐 칸을 모두 `cell-light-pink` 하나로 칠한다
+- **택한 것**: (a)
+- **근거와 강약**: 리포 관례(mantine-aggrid-ui §3 "래퍼가 요구를 못 채우면 화면에서 우회하지 않는다", Part B §17 "필요한 것은 shared 에 추가")와 §6.7.4 "색은 shared 토큰 클래스를 쓴다(화면 CSS 에 색 값 직접 금지)" 가 (b) 를 막는다. (c) 는 원천 06 "거부 사유 칸을 붉게, 경고 칸을 노랗게"(spec 이 가리키는 원천 설계)를 채우지 못한다. D8(열 그룹·드래그)과 같은 종류의 shared 확장이라 같은 승인 대상으로 올린다.
+- **반려되면 재작업 방향**: (b) 면 세 클래스를 `m-mdm` 화면 CSS 로 옮기고 tsup css entry 와 호스트 import 를 더한다. (c) 면 `columns.ts` 의 `cellClassRules` 를 `cell-light-pink` 하나로 줄이고 `grid.css` 추가분과 Part B 줄을 지운다.
+
+### D16 — 룰 목록의 빈 상태를 어디서 보이나
+- **질문**: shared `AgDataGrid` 는 `loading` 이 풀릴 때 `hideOverlay()` 를 불러 빈 행 오버레이(`emptyMessage`)까지 지운다(e2e T2 실측). 룰 목록의 빈 상태 문구를 어떻게 보이나?
+- **선택지**: (a) 화면이 목록 아래에 "조회된 룰이 없습니다." 글자를 직접 그린다(`rule-list-empty`) / (b) shared `AgDataGrid` 의 loading 효과를 고쳐 데이터가 비었으면 `showNoRowsOverlay()` 를 부른다
+- **택한 것**: (a)
+- **근거와 강약**: 스모크 넷 2(빈 상태가 보인다, dev-discipline)를 지금 채워야 한다. (b) 는 shared 그리드의 모든 화면 동작을 바꾸는 변경이라 이 Task 범위의 승인 없이 하지 않는다 — 기존 화면(termMng 등)은 오버레이 대신 "0건" 으로 빈 상태를 확인해 왔다. 다만 스킬은 "래퍼 빈틈을 화면에서 우회하지 말고 올리라" 고 하므로(리포 관례) 이 결정으로 올린다.
+- **반려되면 재작업 방향**: shared `AgDataGrid` 의 `loading` 효과를 `loading ? showLoadingOverlay() : data.length === 0 ? showNoRowsOverlay() : hideOverlay()` 로 고치고 shared 단위·렌더 확인을 더한 뒤, ruleMng 의 `<p data-testid="rule-list-empty">` 를 지우고 e2e T2 를 오버레이 문구로 바꾼다.
+
 ---
 
 ## 코드베이스 지식·함정 (Build 가 그대로 따른다)
@@ -843,7 +857,7 @@ cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 | B9 | e2e 스펙의 메뉴 열기는 하위 항목이 이미 보이면 상위를 누르지 않는다 | 새로 고친 뒤 트리가 펼친 채 남아 "마루 MDM" 을 누르면 접혔다(S3 실측) |
 | B9 | S5·S6 기대 이슈는 픽스처 룰에 같은 편집을 한 표 상태를 scratchpad 에서 TS 분석기로 돌려 얻었다(`OVERLAP 1·2`·`UNREACHABLE 2←1`, UNIQUE 면 OVERLAP ERROR, ALL_NA_ROW 는 겹침을 만들지 않음) | advisor 권고 — 추측으로 단언을 쓰지 않는다 |
 | B9 | pageId `mdm:dme/ruleEdit` 는 메뉴 탭과 같다 — 포털이 `{moduleId}:{PARENT_MENU_ID}/{OBJECT_ID}` 로 조립하고, 등록 전 탐침에서 메뉴 클릭 탭이 "등록된 페이지를 찾을 수 없습니다: mdm:dme/ruleEdit" 로 같은 값을 보였다. e2e T3 는 등록 뒤 `portal-open-tab`(`mdm:dme/ruleEdit`)으로 룰 화면 탭이 열려 새 룰을 보이는 것을 확인했다(메뉴 탭과 같은 탭으로 합쳐지는지는 pageId 가 같다는 것으로만 확인) | §6.9 "Build 가 포털에서 한 번 확인" |
-| B9 | 메뉴 시드의 FULL_SEQ 는 `3050100`·`3050110` 으로 들어갔다(§2.2-S 가 적은 `5050100`·`5050200` 과 다름) | `insertMcmSecMenuIfAbsent` 가 부모 폴더 기준으로 계산한다(1부 산출물). 메뉴 순서(룰 → 룰 화면)는 맞고 e2e 가 확인한다 — 보고 |
+| B9 | 새 DB 의 메뉴 FULL_SEQ 는 `3050100`·`3050110` 이다(§2.2-S 의 `5050100`·`5050200` 과 다름) | `seedMdmRuleMenus` 는 설계 값 `5050100`·`5050200` 을 넣지만, 기동 끝의 FULL_SEQ 7자리 재계산(`DataInitializer` "모든 메뉴 시드 적재 후 FULL_SEQ 7자리 인코딩 강제 재계산", 화면 = 그룹 +100 부터 +10)이 다시 매긴다. 1부 산출물의 설계 값과 실제 값이 다르다는 사실만 보고하고 백엔드는 고치지 않았다. 메뉴 순서(룰 → 룰 화면)는 맞고 e2e 가 확인한다 |
 
 ## Build 변이 검증 기록
 
