@@ -158,9 +158,21 @@ class LayoutSampleSqliteTest extends LayoutTestSupport {
     void execute_는_아무것도_쓰지_않는다() {
         M201 m = m201();
         String counts = "SELECT (SELECT COUNT(*) FROM TB_MDM_LAYOUT) || '/' || (SELECT COUNT(*) FROM TB_MDM_LAYOUT_ITEM) || '/' "
-                + "|| (SELECT COUNT(*) FROM TB_MDM_LAYOUT_VER) || '/' || (SELECT SUM(VER) FROM TB_MDM_LAYOUT)";
+                + "|| (SELECT COUNT(*) FROM TB_MDM_LAYOUT_VER) || '/' || (SELECT SUM(VER) FROM TB_MDM_LAYOUT) || '/' "
+                + "|| (SELECT SUM(`VERSION`) FROM TB_MDM_LAYOUT)";
         String before = jdbc.queryForObject(counts, String.class);
+        Map<String, Object> row = layoutRow(m.message());
+        List<Map<String, Object>> items = itemRows(m.message());
         execute(m, "C26A0012345");
+        // 저장된 전문과 다른 초안(이름 변경·여분 쪼개기)으로 렌더해도 그 초안은 쓰이지 않는다
+        List<Map<String, Object>> changed = new ArrayList<>(m201Items());
+        changed.set(3, filler(20));
+        changed.add(filler(5));
+        Map<String, Object> out = layoutService.execute(req("바뀐 이름 " + m.message(), m.eai(), m.message()),
+                List.of(headerRow(m.l110())), List.of(), numbered(changed), samples("C1"));
+        assertEquals(187, out.get("totalBytes"));
         assertEquals(before, jdbc.queryForObject(counts, String.class));
+        assertEquals(row, layoutRow(m.message()));
+        assertEquals(items, itemRows(m.message()));
     }
 }
