@@ -348,7 +348,7 @@ export default function TermMngPage() {
           </p>
           <div data-testid="reco-stage1">
             {stage1Candidates.map((c) => (
-              <div key={`s1-${c.termId}`} style={{ display: "flex", justifyContent: "space-between", padding: "4px var(--spacing-md)" }}>
+              <div key={`s1-${c.termId}`} data-testid={`reco-candidate-1-${c.termId}`} style={{ display: "flex", justifyContent: "space-between", padding: "4px var(--spacing-md)" }}>
                 <span>{c.termName} ({c.score.toFixed(2)})</span>
                 <button type="button" onClick={() => handleConfirmSynonym(c)}>동의어로 확정</button>
               </div>
@@ -357,7 +357,7 @@ export default function TermMngPage() {
           {stage2Enabled && (
             <div data-testid="reco-stage2">
               {stage2Candidates.map((c) => (
-                <div key={`s2-${c.termId}`} style={{ display: "flex", justifyContent: "space-between", padding: "4px var(--spacing-md)" }}>
+                <div key={`s2-${c.termId}`} data-testid={`reco-candidate-2-${c.termId}`} style={{ display: "flex", justifyContent: "space-between", padding: "4px var(--spacing-md)" }}>
                   <span>{c.termName} ({c.score.toFixed(2)})</span>
                   <button type="button" onClick={() => handleConfirmSynonym(c)}>동의어로 확정</button>
                 </div>

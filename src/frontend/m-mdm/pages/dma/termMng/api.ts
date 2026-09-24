@@ -60,6 +60,16 @@ function unwrap<T>(res: unknown): T {
   return out as T;
 }
 
+/**
+ * OASIS `CactusRequestConverter` 는 `params` 의 각 값을 `TypedObject`(타입 힌트 없음)로 감싸는데,
+ * 그 단일 인자 생성자는 값이 `null` 이면 "The type cannot be determined because object is null" 로
+ * 즉시 죽는다(실측 확인, TermSaveRequest.termId·RecommendRequest.termId 가 신규 등록 시 null 이다).
+ * null/undefined 키는 아예 실어 보내지 않는다 — 서버 DTO 필드는 미지정 시 자연히 null 로 남는다.
+ */
+function omitNullish(params: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(params).filter(([, v]) => v !== null && v !== undefined));
+}
+
 async function callAction<T>(
   action: string,
   params: Record<string, unknown>,
@@ -67,7 +77,7 @@ async function callAction<T>(
 ): Promise<T> {
   const res = await apiRequest<unknown>(`${OASIS_BASE}/${action}`, {
     method: "POST",
-    body: JSON.stringify({ meta: { menuId: "termMng" }, params }),
+    body: JSON.stringify({ meta: { menuId: "termMng" }, params: omitNullish(params) }),
     signal,
   });
   return unwrap<T>(res);
