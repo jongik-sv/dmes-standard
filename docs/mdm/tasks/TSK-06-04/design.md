@@ -155,3 +155,48 @@ cd $WORKTREE/src/frontend && SMOKE_MCM_BASE_URL=http://127.0.0.1:15604 SMOKE_LOG
 - 무거운 명령(`gradlew`·`playwright test` 등)은 반드시 `heavy.sh` 로 감싸고, `HEAVY_BUSY`(exit 75)면 다시 부른다. `run_in_background` 금지.
 - 종료 시 PID 파일 기반 kill, 다른 Task 가 만든 스크린샷·`next-env.d.ts`·`test-results` 는 `git checkout --` 로 복원(TSK-06-03 관례 계승).
 - Playwright 는 이미 스캐폴드에 설치돼 있다(추가 설치 불필요, TSK-06-03 이 이미 이 러너를 썼다).
+
+## Build 이탈과 보강 (Phase 03, 2026-09-24)
+
+설계에서 벗어난 점과 설계에 없던 보강이다.
+
+| # | 이탈·보강 | 사유 |
+|---|---|---|
+| B1 | `MasterCodeCateSegmentOps.addCategoryMembers`/`removeCategoryMembers` 를 설계 초안(행마다 `saveAndFlush`)이 아니라 배치 저장 → 한 번 flush 로 짰다(§2 함정 4의 "우선 배치 flush 만으로 충분한지 확인" 권고를 그대로 따름) | 1,000건 소속 이동 성능(불변 규칙 17)을 위해서다. `EntityManager.persist()` 전환까지는 필요 없었다(§"변이 검증 기록" 17 참고) |
+| B2 | `CodeCateEditService.save()` 에 categories·members 그리드가 BASE 를 겨냥하면 `beginDraftWrite` 전에 먼저 MDM012 로 거른다(설계에 명시되지 않은 보강) | Ops 층의 BASE 보호만 믿으면 검사 통과 후 `beginDraftWrite` 가 이미 ROW_VERSION 을 올린 뒤에 Ops 가 던져, "거부된 저장은 ROW_VERSION 을 건드리지 않는다" 관례(§6.6 저장 순서 원칙)가 깨진다 |
+| B3 | `codeEdit` 화면의 `카테고리 편집` 버튼(D5)이 이동한 뒤 되돌아오는 경로, 그리고 저장된(서버 반영) 카테고리 변경 한 건을 되돌리는 화면 버튼(restore UI)은 만들지 않았다 — `api.ts` 의 `revertCategory` 는 두고 화면에서 부르지 않는다 | dev-discipline 스모크 4종·수용 기준 어디에도 화면에서 되돌리기를 요구하지 않는다(BE `revert` 액션 자체는 Ops·Service·HTTP 세 층에서 모두 테스트함). 범위를 넓히지 않았다 |
+| B4 | REGEX 미리보기(`compare`)의 `cateId` 는 신규/편집 중 카테고리면 `null` 로 보낸다(설계 문구 "저장 전이면 아직 없는 cateId 후보도 가능"을 `null` 로 구현) | 신규 카테고리는 서버에 cateId 가 아직 없어 `MasterCodeCateRow.definition().cateId()` 가 있어도 없어도 `resolve()` 결과에 영향이 없다(CATEGORY_EMPTY 경고의 itemKey 로만 쓰임) |
+
+**변이 검증에서 잡지 못한 것(보고 대상)**: 불변 규칙 17(성능, 저장 쪽)의 변이 — `addCategoryMembers` 를 배치 저장(B1)에서
+행마다 `saveAndFlush` 로 되돌리는 변이는 `CodeCateEditPerformanceSqliteTest` 에서 빨강이 되지 않는다. 실측: 배치 구현
+중앙값 76ms([74,76,76,86,111]), 행마다 flush 로 되돌린 변이 중앙값 120ms([66,67,120,236,292]) — 둘 다 예산 800ms 에
+크게 못 미친다. 이 워크스테이션의 SQLite 는 1,000행 규모에서 두 구현의 차이가 커밋 방식(flush 배치 vs 개별)만으로는
+800ms 예산을 넘길 만큼 벌어지지 않는다(둘 다 0.1초대). 예산을 좁혀 억지로 갈라놓으면 표본이 겹치는 구간이 있어([66,67]
+이 배치 구현의 [74,76,76] 보다 오히려 빠른 샘플도 나옴) CI 에서 flaky 해질 위험이 커서, 800ms 예산은 그대로 두고 이
+간극을 보고로 남긴다(은폐 금지). 배치 저장 자체는 설계 함정 4의 권고를 따른 것이라 되돌리지 않는다.
+
+## Build 변이 검증 기록
+
+| 불변 규칙 | 변이 | 잡은 테스트 | 결과 |
+|---|---|---|---|
+| 1 defKind 불변 | `changeCategory` 의 defKind 불일치 검사를 `if (false)` 로 비활성화 | `MasterCodeCateSegmentOpsSqliteTest#defKind_변경은_거부한다` | 잡힘 |
+| 2 BASE 보호 | `requireNotBase` 의 BASE 판정을 `if (false)` 로 비활성화 | `MasterCodeCateSegmentOpsSqliteTest#BASE_는_모든_조작에_MDM012` | 잡힘 |
+| 3 defTarget 허용 목록 | `MasterCodeCateChecks.checkDefinition` 의 defTarget 허용 판정을 `if (false)` 로 비활성화 | `MasterCodeCateSegmentOpsSqliteTest#허용되지_않는_defTarget_은_거부한다` | 잡힘 |
+| 4 defExpr 문법 | `checkDefinition` 의 `!validRegex(...)` 판정을 `if (false)` 로 비활성화 | `CodeCateEditServiceSqliteTest#정규식_문법_오류는_validate_save_모두_거부` | 잡힘 |
+| 5 소속 코드 유효성(add) | `addCategoryMembers` 의 `missing` 거부 분기를 `if (false)` 로 비활성화 | `MasterCodeCateSegmentOpsSqliteTest#없는_코드_addCategoryMembers_거부` | 잡힘 |
+| 6 Resolver 패스스루 | `CodeCateEditService.preview` 의 `result.put("hitCount", r.hitCount())` 를 `r.total()` 로 바꿔 매핑 오류를 흉내 | `CodeCateEditServiceSqliteTest#preview_는_Resolver_호출_결과의_필드를_그대로_옮긴다` | 잡힘 |
+| 7 DRAFT 전용 | `requireDraft` 의 상태 판정을 `if (false)` 로 비활성화 | `MasterCodeCateSegmentOpsSqliteTest#RELEASED_CANCELLED_버전은_MDM002` | 잡힘 |
+| 8 rowVersion 불변(검사 우선) | `save()` 의 `if (!projected.issues().isEmpty())` 를 `if (false)` 로 비활성화 | `CodeCateEditServiceSqliteTest#검사_실패시_rowVersion_이_그대로다` | 잡힘 |
+| 9 cate_id overlap | `addCategory` 의 `validAt(...).isPresent()` 판정을 `if (false)` 로 비활성화 | `MasterCodeCateSegmentOpsSqliteTest#이미_있는_cate_id_addCategory_거부` | 잡힘 |
+| 10 새 소속 행 to_ver=9999 | `addCategoryMembers` 의 신규 행 `ci.setToVer(OPEN)` 을 `ci.setToVer(v)` 로 | `MasterCodeCateSegmentOpsSqliteTest#addCategoryMembers_로_넣은_소속_행의_to_ver_는_9999다` | 잡힘 |
+| 11 V 안 추가삭제 vs 이전닫기 | `removeCategoryMembers` 의 `same(e.getFromVer(), v)` 분기를 `if (false)` 로 바꿔 늘 "닫기" 로만 처리 | `MasterCodeCateSegmentOpsSqliteTest#V_에서_추가한_것은_삭제되고_이전_것은_닫힌다` | 잡힘 |
+| 12 closeCategory 연쇄 닫기 | `closeCategory` 의 소속 순회 guard 를 `if (true) { continue; }` 로 바꿔 연쇄를 건너뜀 | `MasterCodeCateSegmentOpsSqliteTest#closeCategory_는_열린_소속을_연쇄로_닫는다` | 잡힘 |
+| 13 revert 연쇄 재개방 | `revertCate` 의 `if (n.isEmpty()) { reopenMembersCascade(...); }` 를 `if (false)` 로 비활성화 | `MasterCodeCateSegmentOpsSqliteTest#카테고리_되돌리기는_연쇄로_닫힌_소속을_다시_연다` | 잡힘 |
+| 14 cate_id 금지문자 | `checkDefinition` 의 `FORBIDDEN.matcher(cateId).find()` 판정을 `if (false)` 로 비활성화 | `MasterCodeCateSegmentOpsSqliteTest#cate_id_금지문자_거부` | 잡힘 |
+| 15 preview 는 쓰기 없음 | `preview()` 안에 `segments.addCategoryMembers(ref, "BASE", Set.of("A"))` 호출을 끼워 넣음 | `CodeCateEditServiceSqliteTest#preview_전후_행_개수가_같다`(BASE 보호에 막혀 예외로 적발) | 잡힘 |
+| 16 구현 빈 하나 | 테스트 클래스패스에 `MasterCodeSegmentService` 를 구현하는 두 번째 `@Service` 클래스를 임시로 추가 | `CodeCateEditOasisHttpTest#MasterCodeSegmentService_구현빈은_하나다`(컨텍스트 중복 빈으로 전체가 실패) | 잡힘 |
+| 17 성능(저장 쪽) | `addCategoryMembers` 의 배치 저장(saveAll+flush 한 번)을 행마다 `saveAndFlush` 로 되돌림 | `CodeCateEditPerformanceSqliteTest` | 안 잡힘(보고, 위 "변이 검증에서 잡지 못한 것" 참고) |
+| 17 성능(이동 쪽) | 해당 없음 — FE `transfer.ts` 는 이 Task 가 새로 짠 순수 함수라 되돌릴 "이전 구현"이 없다. 대신 `transfer.test.ts` 의 1,000건 성능 시험 두 개(moveSelected·moveAllVisible)가 각각 200ms 예산으로 통과함을 확인 | `transfer.test.ts` | 통과(변이 대상 없음) |
+
+17개 규칙 모두 최소 한 변이를 실제로 넣고 돌렸다. 16개는 빨강, 1개(17, 저장 쪽 성능)는 이 하드웨어에서 SQLite 1,000행
+규모가 두 구현을 가를 만큼 느리지 않아 안 잡혔다(위에 실측값과 함께 보고). 은폐 없이 있는 그대로 적는다.
