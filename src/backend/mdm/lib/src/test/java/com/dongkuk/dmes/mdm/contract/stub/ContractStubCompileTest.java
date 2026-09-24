@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.dongkuk.dmes.mdm.contract.category.CategoryDefTarget;
+import com.dongkuk.dmes.mdm.contract.category.CategoryDefinition;
+import com.dongkuk.dmes.mdm.contract.category.CategoryKind;
 import com.dongkuk.dmes.mdm.contract.category.MaruIdKind;
 import com.dongkuk.dmes.mdm.contract.category.MaruIdNamespace;
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmColumnDictionaryEntry;
@@ -19,6 +22,17 @@ import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutItemSnapshot;
 import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutItemType;
 import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutSerializeContext;
 import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutSnapshot;
+import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeCheckItemResult;
+import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeCheckStatus;
+import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeConfirmCheckItem;
+import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeConfirmCheckReport;
+import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeConfirmCheckSpi;
+import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeDiffConventions;
+import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeItemValues;
+import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeSegmentKey;
+import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeSegmentService;
+import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeSegmentTable;
+import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeVersionView;
 import com.dongkuk.dmes.mdm.contract.rule.MdmRuleConfirmCheckItem;
 import com.dongkuk.dmes.mdm.contract.rule.MdmRuleDefinitionSource;
 import com.dongkuk.dmes.mdm.contract.rule.MdmRuleDiffConventions;
@@ -30,6 +44,7 @@ import com.dongkuk.dmes.mdm.contract.version.ConfirmCheckResult;
 import com.dongkuk.dmes.mdm.contract.version.DiffKind;
 import com.dongkuk.dmes.mdm.contract.version.VersionConfirmCheckSpi;
 import com.dongkuk.dmes.mdm.contract.version.VersionDiff;
+import com.dongkuk.dmes.mdm.contract.version.VersionDiffEntry;
 import com.dongkuk.dmes.mdm.contract.version.VersionDraftDeletionSpi;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
@@ -42,7 +57,10 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -107,7 +125,9 @@ class ContractStubCompileTest {
         ConfirmCheckResult codeResult = masterCode.check(new ConfirmCheckRequest(codeDraft, now, null, "s", now));
         assertTrue(codeResult.errors().isEmpty());
         assertEquals(1, codeResult.warnings().size());
-        assertEquals("P01", codeResult.warnings().get(0).itemKey());
+        // TSK-06-01 D10 — itemKey 는 diff 키 규약({표}:{부분}) 이다. 스텁이 계약 문장을 따르도록 "P01" 에서 바꿨다
+        // (정확한 값 → 정확한 값, 완화 아님. design.md Build 이탈 기록 참고).
+        assertEquals("CATE_ITEM:MAJOR,P01", codeResult.warnings().get(0).itemKey());
 
         ConfirmCheckResult ruleResult = businessRule.check(new ConfirmCheckRequest(ruleDraft, now, now, "s", now));
         assertEquals(1, ruleResult.errors().size());
@@ -257,6 +277,95 @@ class ContractStubCompileTest {
         MdmLayoutItemSnapshot fromStacked = stacked.headers().get(0).items().get(0);
         assertEquals("B0", fromStacked.defaultValue());
         assertEquals("B1", fromStacked.overrideValue());
+    }
+
+    // ── TSK-06-01 design.md §3.4 — 04(마스터코드) 계약 스텁 컴파일 ──
+    // TSK-05-01 과 같게 이 파일(TSK-01-02 소유)에 메서드를 더한다. CONFIRM_CHECKS 목록은 늘리지 않는다 — MASTER_CODE
+    // 구현은 target 당 하나다(F21, 불변 규칙 29).
+
+    @Test
+    void 선분_조작_서비스_스텁이_06_02_03_04_역의_호출을_인터페이스_타입으로_컴파일_동작한다() {
+        MasterCodeSegmentService service = new MasterCodeSegmentServiceStub();
+        VersionRef first = new VersionRef(VersionTarget.MASTER_CODE, "PROC_CD", new BigDecimal("1.000"));
+        VersionRef draft = new VersionRef(VersionTarget.MASTER_CODE, "PROC_CD", new BigDecimal("1.001"));
+        MasterCodeItemValues values = new MasterCodeItemValues("열연", null, 1, null,
+                Arrays.asList("L1", null, null, null, null), Arrays.asList(new String[10]));
+        CategoryDefinition coating = new CategoryDefinition("COATING", "도금", CategoryKind.REGEX, "^C.*",
+                CategoryDefTarget.CODE, null);
+
+        // 06-02 — 등록·복원
+        service.createBaseCategory(first);
+        service.fillFrom(draft, new BigDecimal("1.000"));
+        // 06-03 — 코드 행
+        MasterCodeVersionView view = service.viewAt(draft);
+        service.addItem(draft, "82", values);
+        service.changeItem(draft, "82", values);
+        List<String> closedCategories = service.removeItem(draft, "82");
+        service.revert(draft, new MasterCodeSegmentKey(MasterCodeSegmentTable.ITEM, null, "82"));
+        // 06-04 — 카테고리·소속(전사 CategoryDefinition 을 그대로 넘긴다)
+        service.addCategory(draft, coating);
+        service.changeCategory(draft, coating);
+        service.addCategoryMembers(draft, "MAJOR", Set.of("82"));
+        service.removeCategoryMembers(draft, "MAJOR", Set.of("82"));
+        service.closeCategory(draft, "MAJOR");
+
+        assertEquals(draft, view.version());
+        assertEquals(List.of("MAJOR"), closedCategories);
+        assertEquals(List.of("createBaseCategory", "fillFrom:1.000", "viewAt", "addItem:82", "changeItem:82",
+                "removeItem:82", "revert:ITEM", "addCategory:COATING", "changeCategory:COATING",
+                "addCategoryMembers:MAJOR", "removeCategoryMembers:MAJOR", "closeCategory:MAJOR"),
+                ((MasterCodeSegmentServiceStub) service).calls);
+    }
+
+    @Test
+    void 마스터코드_확정_검사_보고는_10행이고_면제_위임_보류를_구분하며_check_는_report_를_편_것이다() {
+        MasterCodeConfirmCheckSpi spi = (MasterCodeConfirmCheckSpi) byTarget(VersionTarget.MASTER_CODE);
+        VersionRef draft = new VersionRef(VersionTarget.MASTER_CODE, "PROC_CD", new BigDecimal("1.001"));
+        LocalDateTime now = LocalDateTime.of(2026, 9, 24, 10, 0, 0);
+
+        MasterCodeConfirmCheckReport firstReport = spi.report(new ConfirmCheckRequest(draft, now, null, "s", now));
+        assertEquals(Arrays.asList(MasterCodeConfirmCheckItem.values()),
+                firstReport.results().stream().map(MasterCodeCheckItemResult::item).toList(), "항목 순서대로 10행");
+        assertEquals(MasterCodeCheckStatus.EXEMPT, statusOf(firstReport, MasterCodeConfirmCheckItem.APPLY_FROM_ORDER));
+        assertEquals(MasterCodeCheckStatus.EXEMPT, statusOf(firstReport, MasterCodeConfirmCheckItem.HAS_CHANGES));
+        assertEquals(MasterCodeCheckStatus.DEFERRED, statusOf(firstReport, MasterCodeConfirmCheckItem.DEPLOY_TARGET_EXISTS));
+
+        ConfirmCheckRequest next = new ConfirmCheckRequest(draft, now, now.minusDays(1), "s", now);
+        MasterCodeConfirmCheckReport nextReport = spi.report(next);
+        assertEquals(MasterCodeCheckStatus.DELEGATED, statusOf(nextReport, MasterCodeConfirmCheckItem.APPLY_FROM_ORDER));
+        assertEquals(MasterCodeCheckStatus.PASSED, statusOf(nextReport, MasterCodeConfirmCheckItem.HAS_CHANGES));
+        assertEquals(MasterCodeCheckStatus.DEFERRED, statusOf(nextReport, MasterCodeConfirmCheckItem.DEPLOY_TARGET_EXISTS));
+
+        List<MdmCheckIssueView> warned = new ArrayList<>();
+        nextReport.results().stream().filter(r -> r.status() == MasterCodeCheckStatus.WARNED)
+                .forEach(r -> r.issues().forEach(i -> warned.add(new MdmCheckIssueView(i.code(), i.itemKey()))));
+        ConfirmCheckResult flat = spi.check(next);
+        assertTrue(flat.errors().isEmpty());
+        assertEquals(warned, flat.warnings().stream().map(i -> new MdmCheckIssueView(i.code(), i.itemKey())).toList());
+        assertEquals(List.of(new MdmCheckIssueView("CATE_ITEM_CODE_MISSING", "CATE_ITEM:MAJOR,P01")), warned);
+    }
+
+    @Test
+    void diff_키는_규약_상수로만_세_표를_구분해_조립된다() {
+        String sep = MasterCodeDiffConventions.TABLE_KEY_SEPARATOR;
+        String part = MasterCodeDiffConventions.KEY_PART_SEPARATOR;
+        String itemKey = MasterCodeSegmentTable.ITEM.name() + sep + "82";
+        String cateKey = MasterCodeSegmentTable.CATE.name() + sep + "COATING";
+        String cateItemKey = MasterCodeSegmentTable.CATE_ITEM.name() + sep + "MAJOR" + part + "82";
+
+        List<VersionDiffEntry> entries = List.of(
+                new VersionDiffEntry(itemKey, DiffKind.CHANGED, Map.of("NAME", "열연"), Map.of("NAME", "열연(개정)")),
+                new VersionDiffEntry(cateKey, DiffKind.ADDED, null, Map.of("DEF_EXPR", "^C.*")),
+                new VersionDiffEntry(cateItemKey, DiffKind.REMOVED, Map.of(), null));
+        assertEquals(List.of("ITEM:82", "CATE:COATING", "CATE_ITEM:MAJOR,82"),
+                entries.stream().map(VersionDiffEntry::key).toList());
+    }
+
+    private static MasterCodeCheckStatus statusOf(MasterCodeConfirmCheckReport report, MasterCodeConfirmCheckItem item) {
+        return report.results().stream().filter(r -> r.item() == item).findFirst().orElseThrow().status();
+    }
+
+    private record MdmCheckIssueView(String code, String itemKey) {
     }
 
     // ── TSK-08-01 design.md §3.6 — 06(업무기준) 계약 스텁 컴파일 ──

@@ -40,6 +40,8 @@ class DomainMngWithoutCodeLedgerTest extends DomainMngApiSupport {
     @BeforeEach
     void setUp() {
         fixtures();
+        // 부모 CODE 도메인 저장의 FK 전제(TSK-06-01 D11). DB 행일 뿐 CodeLookup 빈을 만들지 않는다 — 아래 코드_원장이_없는_컨텍스트다 가 지킨다.
+        seedCodeHeader("PROC_CD");
     }
 
     @Test

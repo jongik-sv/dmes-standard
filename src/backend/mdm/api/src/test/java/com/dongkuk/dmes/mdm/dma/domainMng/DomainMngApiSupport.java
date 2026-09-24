@@ -38,6 +38,16 @@ abstract class DomainMngApiSupport {
         jdbc.update("INSERT OR IGNORE INTO TB_MDM_UNIT (UNIT_CODE, DIMENSION, BASE_UNIT, FACTOR, CHG_SEQ) VALUES ('ton','MASS','ton',1,0)");
     }
 
+    /**
+     * TSK-06-01 D11 — {@code TB_MDM_DOMAIN.MARU_CODE_ID} 는 {@code FK_TB_MDM_DOMAIN_CODE} 라 CODE 도메인을 저장하려면 부모
+     * {@code TB_MDM_CODE} 행이 먼저 있어야 한다. 헤더 한 행만 넣는다 — FK 는 {@code MARU_CODE_ID} 만 보고, 이 행을 읽는
+     * {@code CodeLookup} 빈은 없다(코드 원장 유무는 {@code CodeLookup} 빈으로 정해지며 이 행과 무관하다).
+     */
+    protected void seedCodeHeader(String maruCodeId) {
+        jdbc.update("INSERT OR IGNORE INTO TB_MDM_CODE (MARU_CODE_ID, MARU_CODE_NAME, STATUS, SOURCE_KIND) VALUES (?, ?, 'INUSE', 'MDM')",
+                maruCodeId, maruCodeId);
+    }
+
     protected static DomainDraftRequest req(Consumer<DomainDraftRequest> edit) {
         DomainDraftRequest r = new DomainDraftRequest();
         String std = uniq("T");

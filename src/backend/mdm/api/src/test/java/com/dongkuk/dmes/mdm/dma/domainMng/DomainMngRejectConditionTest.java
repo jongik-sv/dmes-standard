@@ -44,6 +44,8 @@ class DomainMngRejectConditionTest extends DomainMngApiSupport {
     @BeforeEach
     void setUp() {
         fixtures();
+        // R09·R10 은 PROC_CD 를 참조하는 CODE 도메인을 저장한다(FK_TB_MDM_DOMAIN_CODE 전제, TSK-06-01 D11). NO_SUCH_CODE 는 넣지 않는다(R10).
+        seedCodeHeader("PROC_CD");
     }
 
     @Test

@@ -110,11 +110,12 @@ class MdmTermDomainColumnMigrationTest {
     }
 
     /**
-     * F1 을 그대로 실증한다(D1 의 직접 증거) — TB_MDM_CODE 가 여전히 없는 상태에서
-     * {@code TB_MDM_DOMAIN.MARU_CODE_ID=NULL} 인 QTY 종류 행 INSERT 는 성공해야 한다.
+     * {@code TB_MDM_DOMAIN.MARU_CODE_ID=NULL} 인 QTY 종류 행 INSERT 는 성공해야 한다. TSK-06-01 V9 가
+     * {@code FK_TB_MDM_DOMAIN_CODE} 를 건 뒤에도 NULL 은 FK 검사 대상이 아니라 그대로 통과한다(FK 강제 단언은
+     * {@code MdmMasterCodeMigrationTest} 가 한다). V3 시점의 "FK 부재" 이름은 더 이상 사실이 아니라 이름·주석만 고쳤다.
      */
     @Test
-    void FK_TB_MDM_DOMAIN_CODE_부재_확인_MARU_CODE_ID_NULL_INSERT_가_성공한다() throws SQLException {
+    void MARU_CODE_ID_NULL_INSERT_는_FK_추가_뒤에도_성공한다() throws SQLException {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try {
