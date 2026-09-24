@@ -1,0 +1,169 @@
+package com.dongkuk.dmes.mdm.dme.ruleEdit.service;
+
+import static com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditSupport.ref;
+import static com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditSupport.requireMdm;
+import static com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditSupport.requireRowVersion;
+import static com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditSupport.requireVer;
+
+import com.dongkuk.dmes.cactus.common.BusinessException;
+import com.dongkuk.dmes.cactus.common.ErrorCode;
+import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
+import com.dongkuk.dmes.mdm.common.rule.RuleStewardCheck;
+import com.dongkuk.dmes.mdm.common.rule.RuleVersions;
+import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
+import com.dongkuk.dmes.mdm.contract.version.DraftOwnershipService;
+import com.dongkuk.dmes.mdm.contract.version.VersionStateService;
+import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
+import com.dongkuk.dmes.mdm.contract.version.VersionWriteGuard;
+import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleVersionRequest;
+import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleVersionResult;
+import com.dongkuk.dmes.mdm.entity.MdmRule;
+import com.dongkuk.dmes.mdm.entity.MdmRuleRow;
+import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
+import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
+import com.dongkuk.dmes.mdm.repository.MdmRuleRowRepository;
+import com.dongkuk.dmes.mdm.repository.MdmRuleVarRepository;
+import com.dongkuk.dmes.mdm.repository.MdmRuleVerRepository;
+import java.util.List;
+import java.util.Optional;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+/**
+ * 카드 ② 버전 — 새 버전(copy)·DRAFT 삭제·선점·해제·넘기기(TSK-08-02 design §6.3.3~§6.3.5).
+ *
+ * <p>소유권·삭제는 TSK-01-03 공통 서비스로만 한다(I6): 선점 {@link DraftOwnershipService#acquire}, 해제 {@code release}, 넘기기
+ * {@code handover}, DRAFT 삭제 {@link VersionStateService#deleteDraft}(BUSINESS_RULE 삭제 훅은 {@code RuleDraftDeletionHook}). 이
+ * 서비스는 OWNER_ID·ROW_VERSION·STATUS 를 직접 쓰지 않는다. 새 버전은 공통 가드로 미적용 버전을 거부한 뒤(I4) 직전 RELEASED 의
+ * 변수·행을 칼럼 전부, 번호 그대로 복사한다(I5).
+ */
+@Service
+public class RuleVersionService {
+
+    private final RuleEditSupport support;
+    private final RuleQueries queries;
+    private final RuleStewardCheck stewardCheck;
+    private final VersionWriteGuard writeGuard;
+    private final VersionStateService stateService;
+    private final DraftOwnershipService ownership;
+    private final MdmRuleVerRepository verRepository;
+    private final MdmRuleVarRepository varRepository;
+    private final MdmRuleRowRepository rowRepository;
+    private final TransactionTemplate tx;
+
+    public RuleVersionService(RuleEditSupport support, RuleQueries queries, RuleStewardCheck stewardCheck, VersionWriteGuard writeGuard,
+                              VersionStateService stateService, DraftOwnershipService ownership, MdmRuleVerRepository verRepository,
+                              MdmRuleVarRepository varRepository, MdmRuleRowRepository rowRepository,
+                              PlatformTransactionManager transactionManager) {
+        this.support = support;
+        this.queries = queries;
+        this.stewardCheck = stewardCheck;
+        this.writeGuard = writeGuard;
+        this.stateService = stateService;
+        this.ownership = ownership;
+        this.verRepository = verRepository;
+        this.varRepository = varRepository;
+        this.rowRepository = rowRepository;
+        this.tx = new TransactionTemplate(transactionManager);
+    }
+
+    /** 새 버전(action copy). 번호 = 그 룰 버전 최대값 + 1(없으면 1), 소유자 = 만든 사람. */
+    public RuleVersionResult newVersion(RuleVersionRequest request) {
+        MdmRule rule = support.loadRule(request.getMaruRuleId());
+        requireMdm(rule);
+        if ("DEPRECATED".equals(rule.getStatus())) {
+            throw MdmErrors.of(MdmErrorCode.TRANSITION_NOT_ALLOWED, "폐기한 룰은 새 버전을 만들 수 없습니다", List.of());
+        }
+        stewardCheck.requireSteward();
+        String id = rule.getMaruRuleId();
+        writeGuard.checkCanCreateVersion(VersionTarget.BUSINESS_RULE, id);
+        List<MdmRuleVer> versions = queries.versions(id);
+        RuleEditSupport.requireNoVersionInApproval(versions);
+        Optional<MdmRuleVer> source = RuleVersions.latestReleased(versions);
+        if (source.isEmpty() && !versions.isEmpty()) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "복사할 RELEASED 버전이 없어 새 버전을 만들 수 없습니다: " + id);
+        }
+        int next = versions.stream().mapToInt(MdmRuleVer::getVer).max().orElse(0) + 1;
+        String me = support.me();
+        tx.executeWithoutResult(status -> {
+            MdmRuleVer created = new MdmRuleVer(id, next, me);
+            if (source.isPresent()) {
+                created.setBaseVer(source.get().getVer());
+                created.setHitPolicy(source.get().getHitPolicy());
+            } else {
+                created.setBaseVer(null);
+                created.setHitPolicy("DECISION".equals(rule.getRuleKind()) ? "FIRST" : null);
+            }
+            verRepository.saveAndFlush(created);
+            source.ifPresent(src -> copyDefinition(id, src.getVer(), next));
+        });
+        return new RuleVersionResult(id, next, 0L);
+    }
+
+    /** 변수·행 칼럼 전부 복사 — var_id·row_id·seq 유지(번호를 발급하지 않는다, 06:931). */
+    private void copyDefinition(String id, int from, int to) {
+        for (MdmRuleVar v : queries.vars(id, from)) {
+            MdmRuleVar c = new MdmRuleVar(id, to, v.getVarId(), v.getVarKind(), v.getSeq());
+            c.setDispType(v.getDispType());
+            c.setAxis(v.getAxis());
+            c.setVarName(v.getVarName());
+            c.setVarAst(v.getVarAst());
+            c.setDomainId(v.getDomainId());
+            c.setDataType(v.getDataType());
+            c.setCollectAgg(v.getCollectAgg());
+            c.setPrioList(v.getPrioList());
+            c.setResGrp(v.getResGrp());
+            c.setGrpCond(v.getGrpCond());
+            c.setGrpCondAst(v.getGrpCondAst());
+            c.setLabel(v.getLabel());
+            c.setDescription(v.getDescription());
+            varRepository.save(c);
+        }
+        for (MdmRuleRow r : queries.rows(id, from)) {
+            MdmRuleRow c = new MdmRuleRow(id, to, r.getRowId(), r.getRowKind(), r.getSeq(), r.getCells());
+            c.setNote(r.getNote());
+            c.setTag(r.getTag());
+            rowRepository.save(c);
+        }
+        rowRepository.flush();
+    }
+
+    /** DRAFT 삭제(delete target VERSION). 소유자·DRAFT·row_version·삭제 훅은 공통 서비스가 본다. */
+    public RuleVersionResult deleteDraft(RuleVersionRequest request) {
+        MdmRule rule = support.loadRule(request.getMaruRuleId());
+        requireMdm(rule);
+        int ver = requireVer(request.getVer());
+        stateService.deleteDraft(ref(rule.getMaruRuleId(), ver), requireRowVersion(request.getRowVersion()), support.me());
+        return new RuleVersionResult(rule.getMaruRuleId(), ver, null);
+    }
+
+    /** 선점 — 공통 서비스가 담당자 역할·빈 소유자를 본다. 새 row_version 을 돌려준다. */
+    public RuleVersionResult lock(RuleVersionRequest request) {
+        MdmRule rule = support.loadRule(request.getMaruRuleId());
+        requireMdm(rule);
+        int ver = requireVer(request.getVer());
+        long rv = ownership.acquire(ref(rule.getMaruRuleId(), ver), requireRowVersion(request.getRowVersion()), support.me());
+        return new RuleVersionResult(rule.getMaruRuleId(), ver, rv);
+    }
+
+    /** 해제 — 소유자만(MDM003). */
+    public RuleVersionResult unlock(RuleVersionRequest request) {
+        MdmRule rule = support.loadRule(request.getMaruRuleId());
+        requireMdm(rule);
+        int ver = requireVer(request.getVer());
+        long rv = ownership.release(ref(rule.getMaruRuleId(), ver), requireRowVersion(request.getRowVersion()), support.me());
+        return new RuleVersionResult(rule.getMaruRuleId(), ver, rv);
+    }
+
+    /** 넘기기 — 소유자만(MDM003), 받는 사람은 담당자(MDM005, MdmStewardDirectory). */
+    public RuleVersionResult handover(RuleVersionRequest request) {
+        MdmRule rule = support.loadRule(request.getMaruRuleId());
+        requireMdm(rule);
+        int ver = requireVer(request.getVer());
+        long rv = ownership.handover(ref(rule.getMaruRuleId(), ver), requireRowVersion(request.getRowVersion()), support.me(),
+                request.getNewOwnerId());
+        return new RuleVersionResult(rule.getMaruRuleId(), ver, rv);
+    }
+}

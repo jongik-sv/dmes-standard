@@ -47,6 +47,13 @@ class MdmOasisActionVocabularyTest {
     }
 
     @Test
+    void dme_ruleEdit_bpmn_의_모든_액션이_어휘와_편집_권한_세트_안에_있다() throws Exception {
+        Path path = bpmnPath("dme", "ruleEdit.bpmn");
+        assertActionsWithinVocabulary(path);
+        assertTrue(new java.util.HashSet<>(MdmPermissions.EDIT_ACTIONS).containsAll(actionsFromGateway(path)), actionsFromGateway(path).toString());
+    }
+
+    @Test
     void dme_ruleMng_bpmn_의_모든_액션이_어휘와_편집_권한_세트_안에_있다() throws Exception {
         Path path = bpmnPath("dme", "ruleMng.bpmn");
         assertActionsWithinVocabulary(path);
@@ -85,7 +92,7 @@ class MdmOasisActionVocabularyTest {
                 scanned.add(bpmn.getParent().getFileName() + "/" + bpmn.getFileName());
             }
         }
-        assertTrue(scanned.contains("dme/ruleMng.bpmn"), "dme BPMN 이 스캔되지 않았다: " + scanned);
+        assertTrue(scanned.containsAll(Set.of("dme/ruleMng.bpmn", "dme/ruleEdit.bpmn")), "dme BPMN 이 스캔되지 않았다: " + scanned);
         Set<String> missing = new LinkedHashSet<>(bpmnActions);
         missing.removeAll(allActions);
         assertEquals(Set.of(), missing, "mcm DataInitializer allActions 에 없는 mdm BPMN action");

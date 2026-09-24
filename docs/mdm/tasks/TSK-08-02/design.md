@@ -764,6 +764,13 @@ cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 - **근거와 강약**: 수용 기준 7(spec 본문)은 두 분석기가 같은 입력을 받아야 성립한다 — (b) 면 해석 규칙이 두 곳에 생겨 동치가 우연에 기댄다. 06 「화면은 이렇게 보인다」 가 값 타입을 "컬럼 사전이나 앞 룰의 결과 변수에서 가져와 읽기 전용으로 채운다"고 한 규칙을 서버 한 곳에 둔다. 08-03 열 설정 표도 같은 해석기를 쓰게 된다.
 - **반려되면 재작업 방향**: 해석 규칙을 TS 로도 옮기고(컬럼 사전 조회 action 추가), 코퍼스에 "해석 입력 → 해석 결과" 사례를 더해 Java·TS 해석기 동치를 따로 증명한다.
 
+### D14 — 결재 중(REQUESTED·APPROVED) 버전을 "미적용"으로 보는가
+- **질문**: I4·§3.1 은 새 버전을 DRAFT·REQUESTED·APPROVED·적용 전 RELEASED 네 경우에 MDM006 으로 거부하라고 했는데, 공통 `VersionWriteGuard.checkCanCreateVersion`(TSK-01-03)은 DRAFT 와 적용 전 RELEASED 만 미적용으로 본다. 결재 중 두 상태를 어떻게 막나?
+- **선택지**: (a) 룰 서비스가 공통 가드를 부른 뒤 **REQUESTED·APPROVED 두 상태만** 따로 보고 MDM006 을 낸다(`RuleEditSupport.requireNoVersionInApproval`, 새 버전·폐기) / (b) 공통 `VersionPreconditions.isUnapplied` 에 두 상태를 더한다 / (c) 공통 정의를 따르고 REQUESTED·APPROVED 사례를 뺀다
+- **택한 것**: (a)
+- **근거와 강약**: 이 Task 설계 I4·§3.1(승인 전 산출물이지만 수용 기준 5 "미적용 버전이 있으면 새 버전 거부"의 구체화)이 네 경우를 적었다. (b) 는 TSK-01-03 공통 서비스와 MASTER_CODE(06-02 병렬 진행)의 동작을 함께 바꾸는 교차 영역 변경이라 이 Task 에서 하지 않는다. 보강 검사를 두 상태로만 한정해, 공통 가드 호출을 지우는 변이가 DRAFT·적용 전 RELEASED 사례로 여전히 잡힌다. 지금 룰 확정은 DRAFT → RELEASED 직행이라 두 상태는 결재 흐름이 생길 때 의미가 생긴다. 목록·view 의 `unapplied*` 칸(`RuleVersions.isUnapplied`)도 같은 네 상태 정의를 쓴다.
+- **반려되면 재작업 방향**: (b) 면 `VersionPreconditions.isUnapplied` 에 두 상태를 더하고 `requireNoVersionInApproval` 두 호출을 지운다. (c) 면 그 두 호출과 `RuleVersionServiceTest` REQUESTED·APPROVED 사례, `RuleHeaderServiceTest` 「결재 중 버전이 있어도 폐기하지 않는다」를 지우고 `RuleVersions.isUnapplied` 를 공통 정의로 맞춘다.
+
 ---
 
 ## 코드베이스 지식·함정 (Build 가 그대로 따른다)
@@ -810,6 +817,13 @@ cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 | B3 | I30 을 grep 대신 ArchUnit(`BLT/dme/DmeRoleCheckArchitectureTest` — dme 는 `MdmCurrentUser.roleIds()` 를 부르지 않는다)으로 막는다 | `MdmRoles.STEWARD` 는 컴파일 상수라 클래스 파일에 참조가 남지 않는다. 역할 집합을 여는 호출을 막아야 변이가 잡힌다 |
 | B3 | `ensurePermAllActions` 는 새 `ensurePermActions(permissionId, csv)` 에 위임하고, `seedMdmRbac` 가 세 권한 세트마다 `ensurePermActions` 를 부른다 | §2.2-S (3). 같은 보정을 두 번 쓰지 않는다 |
 | B3 | `SecurityScreenContractTest` 의 "잠금 계열(lock·unlock·handover)은 없다" 단언을 "16종이 모두 세트에 있고 소유권 액션은 EDIT·CONFIRM 에만(restore 뒤) 있다"로 바꿨다 | §2.2-S — 첫 소유권 화면이 이름을 확정하면 바꾸라고 TSK-01-03 이 적어 둔 가드다(D4) |
+| B4 | 표 저장의 `rows` 는 `params` 가 아니라 **`grids.rows.rows`** 로 받는다. 파사드 `save(RuleEditSaveRequest)` 는 DTO 하나만 받고, OASIS 가 grids 를 같은 이름의 DTO 속성 `rows` 에 채운다. HEADER 저장은 grids 를 보내지 않아도 된다 | Build 실측(탐침 HTTP 테스트): params 배열은 OASIS 가 "Generic type" 오류로 거부한다(6-E-2). 메서드에 grid 인자(`List<Map> rows`)를 따로 두면 grids 를 뺀 요청이 "No suitable method" 로 실패한다(columnMng P4b 선례). DTO 하나만 두면 두 경우 모두 된다. 이 경로에서 JSON 숫자는 `Double`(-1.0)로 오므로 서버가 정수만 받는다(`1.5`·`0` 거부). §6.2 의 DTO 모양은 그대로다 |
+| B4 | 결재 중(REQUESTED·APPROVED) 버전의 MDM006 을 룰 서비스가 공통 가드 뒤에 따로 본다(D14) | 공통 `checkCanCreateVersion` 은 DRAFT·적용 전 RELEASED 만 미적용으로 본다. I4·§3.1 이 네 경우 모두 MDM006 을 요구한다 |
+| B4 | 폐기·STATUS·HIT_POLICY 네이티브 UPDATE 를 `BL/common/rule/RuleNativeWrites`(@Repository)에, 이슈 → 응답 맵 변환을 `RuleIssueMaps` 에, 룰 서비스 공용 도우미를 `BL/dme/ruleEdit/service/RuleEditSupport` 에 두었다. `RuleSaveContext` 는 record 로 `RuleSaveCheck` 와 같은 패키지에 둔다 | §2.1 목록에 없던 파일. 같은 규칙(감사 칼럼·원천 검사·버전 키)을 서비스마다 되풀이하지 않는다 |
+| B4 | `RuleTableService` 는 `List<RuleSaveCheck>` 대신 `ObjectProvider<RuleSaveCheck>` 를 주입받는다 | 이 Task 는 구현이 0개라 빈 목록 주입이 기동 실패로 이어지지 않게 한다. 08-04 가 빈을 더하면 순서대로 돈다 |
+| B4 | view 응답 issues·저장 응답 issues 는 값이 없는 칸(varId·lower·upper)을 싣지 않고 `message` 는 싣는다 | TS `RuleIssue` 를 JSON 으로 옮긴 모양과 같아 화면 `sameIssues` 가 그대로 견준다 |
+| B4 | 헤더 저장 응답의 `rowVersion` 은 요청 값 그대로(헤더는 버전 row_version 을 바꾸지 않는다), 폐기 응답은 `ver`·`rowVersion` 이 null 이다 | §6.2 가 HEADER 응답 칸을 정하지 않았다 |
+| B4 | 외부 원천 룰의 쓰기 거부 오류는 `BusinessException(BUSINESS_ERROR, "외부 원천(EXTERNAL) 룰은 조회만…")`, 폐기 조건(INUSE 아님)·폐기한 룰의 새 버전은 `MDM009`(허용되지 않는 상태 전이), 복사할 RELEASED 가 없는데 다른 버전(CANCELLED 등)만 있으면 `BUSINESS_ERROR`, 없는 룰·버전은 `INVALID_VALUE` 다 | §6.3 이 코드를 정하지 않은 자리. 가장 가까운 기존 코드를 골랐다 |
 
 ## Build 변이 검증 기록
 
@@ -890,8 +904,49 @@ B8 의 `ruleDefFromStored` 가 같은 규칙이면 TS 러너도 그대로 통과
 | I29 | 오프셋을 `page * size` 대신 `page` | 「페이지 경계…」 | 빨강 |
 | I23 | `MdmPermissions.EDIT_ACTIONS` 에서 lock 빼기 | `SecurityScreenContractTest` 두 건 + `MdmOasisActionVocabularyTest` 시드 대조 | 빨강 |
 | I23 | mcm `editActions` 에서 unlock 빼기 | `MdmOasisActionVocabularyTest` 시드 대조 | 빨강 |
-| I23 | mcm `allActions` 에서 handover 빼기 | B3 시점엔 초록 — handover 를 쓰는 `ruleEdit.bpmn` 이 B4 에서 생긴다. B4 에서 다시 본다 | (B4) |
+| I23 | mcm `allActions` 에서 handover 빼기 | B3 시점엔 초록(`ruleEdit.bpmn` 이 B4 에서 생김) — B4 에서 다시 돌려 `MdmOasisActionVocabularyTest` 시드 대조가 잡음 | 빨강(B4) |
 | I23 | BPMN 분기 이름 `reg`→`register` | `DmeBpmnActionTest`·`MdmOasisActionVocabularyTest` | 빨강 |
 | I23 | BPMN method `register`→`reg` | `DmeBpmnActionTest` | 빨강 |
 | I30 | 서비스가 `currentUser.roleIds().contains(STEWARD)` 로 직접 검사 | 처음엔 초록(행동이 같다) — `DmeRoleCheckArchitectureTest` 를 더해 덮음 | 빨강 |
 | I24 | 메뉴 부모 오기 | 단위 테스트 없음(mcm 테스트 없음) — B9 e2e T1·S1 이 잡는다 | (B9) |
+
+**B4**
+
+| 규칙 | 변이 | 잡은 테스트 | 결과 |
+|---|---|---|---|
+| I4 | 새 버전 전 `checkCanCreateVersion` 호출 삭제 | `RuleVersionServiceTest` DRAFT·적용 전 RELEASED 사례, `DmeOasisHttpTest` copy | 빨강 |
+| I4(D14) | 결재 중(REQUESTED·APPROVED) 보강 검사 삭제 | `RuleVersionServiceTest` REQUESTED·APPROVED 사례 | 빨강 |
+| I4 | 새 번호를 `최대값+1` 대신 `버전 수+1` | 처음엔 초록(기존 사례의 번호에 빈 곳이 없었다) — 「번호에 빈 곳이 있어도…」 사례를 더해 덮음 | 빨강 |
+| I5 | 복사에서 row_id 재발급 | 「새 버전은 직전 RELEASED 의 변수와 행을 칼럼 전부 복사…」(칼럼 전수 비교) | 빨강 |
+| I5 | base_ver 누락 | 같은 테스트·「새 버전 번호는…」 | 빨강 |
+| I5 | COLLECT_AGG 복사 누락 | 칼럼 전수 비교 | 빨강 |
+| I5 | ROW TAG 복사 누락 | 칼럼 전수 비교 | 빨강 |
+| I5 | 복사 원본을 최신이 아니라 첫 RELEASED 로 | 「새 버전 번호는 … 원본은 RELEASED 중 최대다」 | 빨강 |
+| I5 | DEPRECATED 룰 허용 | 「폐기한 룰과 외부 원천 룰은…」·`RuleHeaderServiceTest` 「폐기한 룰은 새 버전을 거부」 | 빨강 |
+| I5 | RELEASED 없이 다른 버전만 있어도 허용 | 「RELEASED 가 없는데 다른 버전이 있으면 거부」 | 빨강 |
+| I6 | 표 저장의 `beginDraftWrite` 삭제(row_version 을 직접 +1) | `RuleTableServiceTest` 비소유자·충돌·RELEASED, `DmeOasisHttpTest` 비소유자 | 빨강 |
+| I6 | 선점을 공통 서비스 대신 직접 | `RuleVersionServiceTest` 선점 사례들·HTTP | 빨강 |
+| I7 | view `editable` 의 소유자 조건 삭제 | `RuleEditViewTest`·`DmeOasisHttpTest` | 빨강 |
+| I7 | view `editable` 의 원천 MDM 조건 삭제 | 「외부 원천 룰은 DRAFT 소유자라도 편집할 수 없다」 | 빨강 |
+| I7(D6) | 헤더 저장의 미적용 버전 소유자 검사 삭제 | `RuleHeaderServiceTest`·HTTP HEADER | 빨강 |
+| I7(D6) | 헤더 저장의 무소유자 담당자 역할 검사 삭제 | 「미적용 버전이 없을 때 담당자가 아니면 MDM013」 | 빨강 |
+| I8 | 표 저장이 VAR 를 다시 씀 | 「변수 행은 바뀌지 않는다」 | 빨강 |
+| I8 | 행 삭제 없이 merge(UPDATE) | 순서 바꿈·지운 번호·새 행 사례 | 빨강 |
+| I9 | 폐기의 INUSE 검사만 삭제 | 초록 — 네이티브 `UPDATE … WHERE STATUS='INUSE'` 가 같은 판정을 해 동치 변이다. 두 곳을 함께 지운 변이로 대신 확인 | (동치) |
+| I9 | INUSE 검사와 UPDATE 의 `STATUS='INUSE'` 조건을 함께 삭제 | 「INUSE 가 아니면 폐기하지 않는다」 | 빨강 |
+| I9 | 폐기 전 미적용 검사(`checkCanCreateVersion`) 삭제 | 「미적용 버전이 있으면 폐기하지 않는다」 | 빨강 |
+| I9(D14) | 폐기 전 결재 중 보강 검사 삭제 | 「결재 중 버전이 있어도 폐기하지 않는다」 | 빨강 |
+| I10 | seq 를 기본 행 포함 요청 순번으로 | 순서 바꿈·새 행 사례 | 빨강 |
+| I10 | 기본 행 둘 허용 | 「기본 행은 하나까지만」 | 빨강 |
+| I10 | 음수 임시 ID 를 발급 번호 대신 임의 번호로 저장 | 새 행·지운 번호·HTTP | 빨강 |
+| I10 | 기존 row_id 소속 검사 삭제 | 「그 DRAFT 에 없던 row_id…」 | 빨강 |
+| I10 | DERIVE 기본 행 허용 | 「산출 룰에는 기본 행을…」 | 빨강 |
+| I12 | 응답 issues 를 다른 정의(hit FIRST 고정)로 계산 | 「… 응답 issues 는 저장한 정의의 분석기 결과와 같다」 | 빨강 |
+| I12(D3) | ERROR 가 있으면 저장 거부 | 같은 테스트·HTTP 저장 | 빨강 |
+| I25 | 파사드에 `@Transactional` | `DmeOasisHttpTest` 4건(바인딩 실패) | 빨강 |
+| I26 | 삭제 훅 `@Component` 삭제 | `RuleVersionServiceTest` DRAFT 삭제·`RuleEditViewTest` 파사드 | 빨강 |
+| §6.8 | 파사드가 part 와 무관하게 HEADER 로 위임 | `RuleEditViewTest` 「모르는 part…」·HTTP TABLE | 빨강 |
+| §6.8 | 파사드 delete 대상 VERSION↔RULE 뒤바꿈 | `RuleEditViewTest` 파사드·`RuleHeaderServiceTest` | 빨강 |
+
+B4 테스트는 구현보다 먼저 썼으나 골격 상태에서 빨강을 따로 돌리지는 않았다(클래스가 없어 컴파일이 되지 않는 상태였다). 틀린 구현을 잡는다는
+증명은 위 변이 33건으로 대신했다. B4 스윕은 하네스가 10분 한도로 백그라운드에 옮겼고, 끝날 때까지 기다려 결과를 읽은 뒤 이어 갔다.

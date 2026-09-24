@@ -31,6 +31,22 @@ class DmeBpmnActionTest {
                 Map.of("search", "search", "reg", "register"), Map.of("search", true, "reg", false));
     }
 
+    @Test
+    void ruleEdit_는_search_view_save_delete_copy_lock_unlock_handover() throws Exception {
+        Map<String, String> methods = new HashMap<>();
+        methods.put("search", "searchRules");
+        methods.put("view", "view");
+        methods.put("save", "save");
+        methods.put("delete", "delete");
+        methods.put("copy", "newVersion");
+        methods.put("lock", "lock");
+        methods.put("unlock", "unlock");
+        methods.put("handover", "handover");
+        Map<String, Boolean> readOnly = new HashMap<>();
+        methods.keySet().forEach(a -> readOnly.put(a, a.equals("search") || a.equals("view")));
+        assertActions("services/dme/ruleEdit.bpmn", "ruleEdit", "ruleEditService", methods, readOnly);
+    }
+
     private void assertActions(String path, String processId, String bean, Map<String, String> methodByAction, Map<String, Boolean> readOnly)
             throws Exception {
         Document doc = parse(path);

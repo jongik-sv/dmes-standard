@@ -1,6 +1,8 @@
 package com.dongkuk.dmes.mdm.common.rule;
 
 import com.dongkuk.dmes.mdm.entity.MdmRule;
+import com.dongkuk.dmes.mdm.entity.MdmRuleRow;
+import com.dongkuk.dmes.mdm.entity.MdmRuleSet;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
 import jakarta.persistence.EntityManager;
@@ -55,6 +57,74 @@ public class RuleQueries {
                 MdmRuleVer.class).setParameter("ids", ruleIds).getResultList();
     }
 
+    /** 룰 고르기 — 룰 ID·룰명 앞부분(대문자 비교, {@code %}·{@code _} 는 글자 그대로), 룰 ID 순 {@code limit} 건. 키워드가 없으면 앞에서부터. */
+    public List<MdmRule> searchPrefix(String keyword, int limit) {
+        String jpql = "SELECT r FROM MdmRule r"
+                + (keyword == null ? "" : " WHERE UPPER(r.maruRuleId) LIKE :kw ESCAPE '\\' OR UPPER(r.maruRuleName) LIKE :kw ESCAPE '\\'")
+                + " ORDER BY r.maruRuleId";
+        TypedQuery<MdmRule> q = entityManager.createQuery(jpql, MdmRule.class);
+        if (keyword != null) {
+            q.setParameter("kw", escapeLike(keyword.toUpperCase(Locale.ROOT)) + "%");
+        }
+        return q.setMaxResults(limit).getResultList();
+    }
+
+    /** 한 룰의 버전 전부 — VER 내림차순. */
+    public List<MdmRuleVer> versions(String ruleId) {
+        return entityManager.createQuery("SELECT v FROM MdmRuleVer v WHERE v.maruRuleId = :id ORDER BY v.ver DESC", MdmRuleVer.class)
+                .setParameter("id", ruleId).getResultList();
+    }
+
+    /** 한 버전의 변수 — COND 먼저, seq·var_id 순. */
+    public List<MdmRuleVar> vars(String ruleId, int ver) {
+        return entityManager.createQuery("SELECT v FROM MdmRuleVar v WHERE v.maruRuleId = :id AND v.ver = :ver "
+                        + "ORDER BY CASE WHEN v.varKind = 'COND' THEN 0 ELSE 1 END, v.seq, v.varId", MdmRuleVar.class)
+                .setParameter("id", ruleId).setParameter("ver", ver).getResultList();
+    }
+
+    /** 한 버전의 행 — NORMAL 먼저 seq·row_id 순, 기본 행은 마지막(06:942). */
+    public List<MdmRuleRow> rows(String ruleId, int ver) {
+        return entityManager.createQuery("SELECT r FROM MdmRuleRow r WHERE r.maruRuleId = :id AND r.ver = :ver "
+                        + "ORDER BY CASE WHEN r.rowKind = 'NORMAL' THEN 0 ELSE 1 END, r.seq, r.rowId", MdmRuleRow.class)
+                .setParameter("id", ruleId).setParameter("ver", ver).getResultList();
+    }
+
+    /** 한 버전의 row_id — 엔티티를 영속성 컨텍스트에 올리지 않는다(같은 트랜잭션에서 행을 지우고 다시 넣는다). */
+    public List<Integer> rowIds(String ruleId, int ver) {
+        return entityManager.createQuery("SELECT r.rowId FROM MdmRuleRow r WHERE r.maruRuleId = :id AND r.ver = :ver", Integer.class)
+                .setParameter("id", ruleId).setParameter("ver", ver).getResultList();
+    }
+
+    /** 한 버전의 행을 모두 지운다(표 저장의 전체 교체, I8). 호출자 트랜잭션 안에서만 쓴다. */
+    public int deleteRows(String ruleId, int ver) {
+        return entityManager.createQuery("DELETE FROM MdmRuleRow r WHERE r.maruRuleId = :id AND r.ver = :ver")
+                .setParameter("id", ruleId).setParameter("ver", ver).executeUpdate();
+    }
+
+    /** 룰 세트 전부(작다) — 세트 ID 순. */
+    public List<MdmRuleSet> allSets() {
+        return entityManager.createQuery("SELECT s FROM MdmRuleSet s ORDER BY s.maruRuleSetId", MdmRuleSet.class).getResultList();
+    }
+
+    /** 룰마다 RELEASED 가운데 가장 큰 VER. RELEASED 가 없는 룰은 빠진다. */
+    public Map<String, Integer> latestReleasedVers(Collection<String> ruleIds) {
+        Map<String, Integer> out = new LinkedHashMap<>();
+        if (ruleIds.isEmpty()) {
+            return out;
+        }
+        List<Object[]> rows = entityManager.createQuery("SELECT v.maruRuleId, MAX(v.ver) FROM MdmRuleVer v "
+                        + "WHERE v.status = 'RELEASED' AND v.maruRuleId IN :ids GROUP BY v.maruRuleId", Object[].class)
+                .setParameter("ids", ruleIds).getResultList();
+        for (Object[] row : rows) {
+            out.put((String) row[0], ((Number) row[1]).intValue());
+        }
+        return out;
+    }
+
+    private static String escapeLike(String s) {
+        return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
+
     private static String where(RuleFilter f) {
         StringBuilder sb = new StringBuilder(" WHERE 1 = 1");
         if (f.keyword() != null) {
@@ -72,8 +142,7 @@ public class RuleQueries {
     private static Map<String, Object> bind(RuleFilter f) {
         Map<String, Object> params = new LinkedHashMap<>();
         if (f.keyword() != null) {
-            String escaped = f.keyword().toUpperCase(Locale.ROOT).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
-            params.put("kw", "%" + escaped + "%");
+            params.put("kw", "%" + escapeLike(f.keyword().toUpperCase(Locale.ROOT)) + "%");
         }
         if (f.ruleKind() != null) {
             params.put("kind", f.ruleKind());
