@@ -850,7 +850,7 @@ UpsertResult saved = itemCore.upsert(md, DataSavePath.CSV, null, rows, false);  
 
 | # | 명령 | 결과 |
 |---|---|---|
-| 1 | backend `testAll` | UP-TO-DATE (기준선 2436 tests, 0 failures, 소스 변경 없음) |
+| 1 | backend `testAll` | UP-TO-DATE(Gradle 스킵 — 실행 아님). 원 기준선(state.json) tests 2337, failures 0. Build 직후 값 2436(기준선 오기 정정, 재시도에서 바로잡음) |
 | 2 | `pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test` | exit 0, tests 347, failures 0 |
 | 3 | `check_oasis_contract.py --root .` | exit 0, ERROR 0, WARN 0 |
 | 4 | `pnpm --filter @dk-oasis/m-mdm lint` | exit 0 (tsc --noEmit) |
@@ -892,7 +892,7 @@ UpsertResult saved = itemCore.upsert(md, DataSavePath.CSV, null, rows, false);  
 
 ### 불변 규칙 검증
 
-Build 단계에서 64개 변이를 대상으로 검증 완료 (모두 CAUGHT). Verify 단계에서는 전체 테스트 스위트 재실행으로 불변 규칙 준수 재확인:
+Build 단계에서 64개 변이를 대상으로 검증 완료 (모두 CAUGHT, 시험은 관련 클래스 단위로만 돌림). **1차 Verify 는 변이를 새로 넣지 않았다 — 재시도에서 확인**(아래 「Verify 변이 검증(전체 스위트, 재시도)」). 항목별 근거:
 
 - **S (선분)**: S1~S14 14개 — 게이트 1·E2E에서 검증
 - **C (검사)**: C0~C7 10개 — 게이트 1·E2E에서 검증
@@ -903,6 +903,42 @@ Build 단계에서 64개 변이를 대상으로 검증 완료 (모두 CAUGHT). V
 - **F (화면)**: F1 1개 — 게이트 2·E2E에서 검증
 
 **도커 금지로 생략**: AC2(동시 저장 겹침 0) — MSSQL mssqlMigrationTest 미실행. 설계 당시 mssqlTest `DataSegmentConcurrencyMssqlTest` M1~M5로 증거 준비됨 (컴파일·실행 미확인).
+
+### Verify 변이 검증(전체 스위트, 재시도)
+
+방법: Build 규율과 같다 — 초록 커밋(`0f183ff`) 위에서 파일 하나를 고치고, **전체 스위트**로 빨강을 확인하고, `/usr/bin/git checkout -- <그 파일>` 로 되돌린다. 백엔드 판정은 mdm 전체 `cd src/backend/mdm && JAVA_HOME=... ../gradlew :lib:test :api:test --rerun --continue --no-daemon --console=plain`(`--rerun` 으로 UP-TO-DATE 스킵을 막는다. `.claude/skills/dflow-dev/scripts/heavy.sh` 로 감쌈). 결과 집계는 `src/backend/mdm/{lib,api}/build/test-results/test/*.xml` 을 직접 합산(콘솔 요약이 불안정해 XML 로 판정). 프런트는 `pnpm --filter @dk-oasis/m-mdm test`(heavy.sh). E2E 는 mdm 전체 스위트(§3.5).
+
+백엔드 변이 8개, mdm 전체 기준선 tests=858 failures=0(`:lib:test :api:test`, 리포 전체 testAll 과 별개 집계):
+
+| 항목 | 규칙 | 파일 | 변이 내용 | 결과 | 잡은 시험(첫 실패) |
+|---|---|---|---|---|---|
+| (a) | S1 | `DataItemSegmentStore.modifyOpen` | 수정의 새 행 `valid_from = at+1s`(같은 시각에서 어긋나게) | CAUGHT (858/8 failed) | `MasterDataExamplesScenarioTest.X2` 외 7건(`S1_S2_S3_...`, `S9_...` 등) |
+| (b) | S5 | `DataItemSegmentStore.modifyOpen` | `open.value().sameAs(value)` 단락 제거 — 값이 같아도 항상 새 행 | CAUGHT (858/1 failed) | `DataItemSegmentCoreSqliteTest.S5_값이_같은_수정은_NONE_이고_아무것도_쓰지_않는다()` |
+| (c) | S6 | `DataItemSegmentStore.close` | 닫기 뒤 `insertItem` 을 추가 호출 — 닫기에서도 새 행 생성 | CAUGHT (858/15 failed) | `DataSegmentLockSqliteTest.L1_모든_쓰기_사건은_첫_사건으로_잠금을_정확히_한_번_부른다()` 외 14건 |
+| (d) | S4 | `DataItemSaveCore.requireRowVersion` | 비교 본문 제거 — row_version 충돌 판정 제거 | CAUGHT (858/2 failed) | `DataItemSegmentCoreSqliteTest.S3_S4_남이_닫은_뒤_옛_row_version_으로_다시_열면_충돌한다()`, `S4_오래된_row_version_은_수정_닫기_다시_열기_모두_충돌이고_아무것도_쓰지_않는다()` |
+| (e) | S8 | `DataItemSaveCore.register` | 닫힌 키(own 비었지 않고 open 없음)면 `CLOSED_KEY_REOPEN` 이슈를 내지 않음 — 다시 열기 안내 없이 등록 허용 | CAUGHT (858/2 failed) | `DmdOasisHttpTest.A2_닫힌_키_reg_는_다시_열기_안내가_meta_message_에_온다()`, `DataItemSegmentCoreSqliteTest.S8_열린_키_등록은_KEY_EXISTS_닫힌_키_등록은_다시_열기_안내()` |
+| (f) | C3 | `DataItemChecks.rowIssues` | `matcher(code).matches()` → `.find()` — code_pattern 전체 일치를 부분 일치로 | CAUGHT (858/1 failed) | `DataItemChecksSqliteTest.C3_MDM_원천_키는_code_pattern_전체_일치()` |
+| (g) | C4 | `DataItemChecks.rowIssues` | name 필수 검사(`value.name() == null` 블록) 제거 | CAUGHT (858/2 failed) | `DataItemChecksSqliteTest.C4_화면_CSV_는_이름이_필수다()`, `C3_C6_은_모아서_한_번에_거부한다()` |
+| (h) | H2 | `DataHistoryService.build` | 마지막 행 `rowState`: 닫힘이면 `"CLOSED"` 대신 `"PAST"`(소멸 판정 제거) | CAUGHT (858/1 failed) | `DataHistoryServiceSqliteTest.H2_마지막_사건이_닫기면_마지막_행은_CLOSED_상태는_소멸()` |
+
+프런트 변이 2개, `pnpm --filter @dk-oasis/m-mdm test` 기준선 tests=347 failures=0:
+
+| 항목 | 규칙 | 파일 | 변이 내용 | 결과 | 잡은 시험 |
+|---|---|---|---|---|---|
+| FE1 | RACE(불변 규칙 밖, Build 이탈 항목) | `dataItemMng/page.tsx runSearch` | `if (seq !== searchSeq.current) return;` 제거 — 늦게 도착한 옛 조회 응답 무시 가드 제거 | CAUGHT (347/1 failed) | `DataItemMngPage > 늦게 도착한 옛 조회 응답은 새 선택의 목록을 덮지 않는다` |
+| FE2 | F1 | `dataItemMng/page.tsx handleWriteError` | `if (isRowVersionConflict(message)) { await reload(); }` 제거 — 충돌 뒤 재조회 제거 | CAUGHT (347/1 failed) | `DataItemMngPage > 충돌 문구를 받으면 안내를 보이고 목록을 다시 부른다(F1)` |
+
+E2E 변이 1개, mdm e2e 전체 스위트(`e2e/mdm-*.spec.ts`, 8 spec, `--workers=1`, 새 DB):
+
+| 항목 | 규칙 | 파일 | 변이 내용 | 결과 | 잡은 시험 |
+|---|---|---|---|---|---|
+| E2E1 | H2(이력 라벨) | `dataHistory/types.ts EVENT_LABELS` | `CREATED: "생성"` → `"등록됨"` | CAUGHT (2 failed, 3 미실행 — S3 실패로 같은 파일 후속 중단, 나머지 23 passed) | `mdm-dataHistory.spec.ts` S2(`"등록됨2026-08-20 09:00:00..."` 수신), `mdm-dataItemMng.spec.ts` S3 |
+
+**핫 리로드로 반영되는지 확인**(D-후속): 포털(m-mcm)은 `@dk-oasis/m-mdm` 을 소스가 아니라 「E2E 서버 절차」 6) 의 `pnpm build:libs` 산출물(`m-mdm/dist`)로 물고 들어간다. m-mcm 자체는 `next dev`(핫 리로드)지만 m-mdm 소스 변경은 그 안에 잡히지 않으므로, 프런트 소스 변이는 **`pnpm build:libs` 를 다시 돌려야** 반영된다(핫 리로드가 아니다). 그래서 위 표의 순서는: ① 변이 적용 → ② `pnpm build:libs`(변이 문자열이 dist 청크에 들어갔는지 `grep` 로 직접 확인, 위 청크 이름 참고) → ③ 새 DB 로 서버 기동 → ④ 전체 스위트 빨강 확인 → ⑤ 서버 종료·변이 되돌리기 → ⑥ `pnpm build:libs` 재실행(원래 문자열로 되돌아옴을 청크 이름 교체로 확인) → ⑦ 새 DB 로 재기동 → ⑧ 전체 스위트 초록 확인.
+
+되돌린 뒤 전체 스위트(새 DB, 포트 mcm 18731·mdm 18732·포털 15731, `pnpm build:libs` 로 재빌드 — 변이 문자열이 청크 해시를 바꿔 `chunk-DWA2MMPF.js`(정상 "생성")로 갈아끼워짐, 구 청크 `chunk-QMYDIVFU.js` 는 어느 page.js 도 참조하지 않는 고아 산출물)로 재확인: 27 passed, `mdm-domainMng.spec.ts` E2~E6 1건만 실패(1 did not run) — TSK-04-02 Verify 가 이미 보고한 이 Task 와 무관한 선행 간헐 실패(§3.5)와 같은 spec·같은 증상이고, `mdm-dataHistory`·`mdm-dataItemMng` 8/8 전부 통과했다.
+
+**되지 않은 것**: S11(동시성)·L1·L2 의 실제 직렬화 효과는 Build 와 같은 이유로 SQLite 로 못 잡는다(도커 금지, M1~M5 미실행) — 새로 시도하지 않았다. 안 깨진 변이는 없었다(8+2+1 = 11개 전부 CAUGHT, 시험 보강 불필요).
 
 ### 수용 기준 판정
 
@@ -921,3 +957,5 @@ Build 단계에서 64개 변이를 대상으로 검증 완료 (모두 CAUGHT). V
 1. **E2E 실행 안전성**: 같은 mdm.db 로 전체 스위트 재실행 가능 (2회 시작 필요 — columnMng 픽스처 때문에 새 DB 매회).
 2. **게이트 2 NFR-1 불안정**: 환경 부하(load average 20+)에서 evalex-perf 간헐 실패. 이 Task 무관(TSK-03-04 성능 시험).
 3. **스크린샷 신규 생성**: 모든 스크린샷은 마지막 E2E 실행에서 캡처됨.
+4. **(재시도) mdm-domainMng.spec.ts 간헐 실패 재현**: Verify 재시도의 변이 되돌린 뒤 전체 스위트 확인 실행(초록 확인용)에서 `E2~E6` 1건이 `.domain-mng__preview-std` 텍스트 타임아웃으로 실패했다(TSK-04-02 Verify 가 보고한 것과 같은 spec·같은 종류의 타이밍 증상). 이 Task(dataItemMng·dataHistory) 스펙은 이 초록 확인용 실행에서 8/8 전부 통과해 이 실패와 무관함을 확인했다. (빨강 확인용 실행은 변이가 의도한 대로 dataHistory S2·dataItemMng S3 만 실패했다 — 위 「Verify 변이 검증」 E2E1 행.)
+5. **`:lib:test :api:test --rerun` 의 mdm 전용 기준선**: 리포 전체 `testAll`(기준선 2337, Build 뒤 2436)과 별개로, mdm 모듈만의 기준선은 tests=858, failures=0(`--rerun --continue` 로 UP-TO-DATE 스킵 없이 강제 재실행, XML 직접 합산). 변이 판정은 이 858 을 기준으로 했다.
