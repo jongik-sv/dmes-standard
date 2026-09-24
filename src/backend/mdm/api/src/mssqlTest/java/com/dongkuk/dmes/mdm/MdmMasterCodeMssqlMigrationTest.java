@@ -49,10 +49,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.mssqlserver.MSSQLServerContainer;
-import org.testcontainers.utility.DockerImageName;
 
 /**
  * TSK-06-01 design.md §3.8 — V6(04 마스터코드 7테이블 + FK_TB_MDM_DOMAIN_CODE)을 {@code @SpringBootTest}+{@code local-db}
@@ -65,15 +61,10 @@ import org.testcontainers.utility.DockerImageName;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local-db")
-@Testcontainers
 class MdmMasterCodeMssqlMigrationTest {
 
     private static final BigDecimal V1_000 = new BigDecimal("1.000");
     private static final BigDecimal V1_001 = new BigDecimal("1.001");
-
-    @Container
-    static final MSSQLServerContainer MSSQL = new MSSQLServerContainer(
-            DockerImageName.parse("mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04")).acceptLicense();
 
     @Autowired
     DataSource dataSource;
@@ -93,16 +84,12 @@ class MdmMasterCodeMssqlMigrationTest {
     MdmCodeCateItemRepository cateItemRepository;
 
     @DynamicPropertySource
-    static void registerMssql(DynamicPropertyRegistry registry) throws SQLException {
-        try (Connection master = java.sql.DriverManager.getConnection(
-                MSSQL.getJdbcUrl(), MSSQL.getUsername(), MSSQL.getPassword());
-             Statement s = master.createStatement()) {
-            s.execute("IF DB_ID('mdm_master_code') IS NULL CREATE DATABASE mdm_master_code");
-        }
-        String mdmUrl = MSSQL.getJdbcUrl() + ";databaseName=mdm_master_code";
+    static void registerMssql(DynamicPropertyRegistry registry) {
+        // dev 6855c6c 부터 공용 서버(MdmMssqlServer)에 실행마다 새 DB 를 만든다(팀장 공지 2026-09-24).
+        String mdmUrl = MdmMssqlServer.newDatabase("master_code");
         registry.add("spring.datasource.url", () -> mdmUrl);
-        registry.add("spring.datasource.username", MSSQL::getUsername);
-        registry.add("spring.datasource.password", MSSQL::getPassword);
+        registry.add("spring.datasource.username", MdmMssqlServer::user);
+        registry.add("spring.datasource.password", MdmMssqlServer::password);
     }
 
     // ── §3.1 1~4 반복 ──

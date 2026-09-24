@@ -395,7 +395,48 @@
 - **Reversible**: no(스키마 신설 — 되돌리려면 두 테이블과 관련 FK·CHECK·인덱스, 계약 record 의 `headers`·`overrideValue` 필드를 모두 제거해야 함, TSK-05-01/design.md D4 "반려 시 재작업" 참조)
 - **Source**: docs/mdm/tasks/TSK-05-01/design.md D4, F4, spec.md 데이터 모델 절
 
-## D-050 (2026-09-24T00:00:00Z)
+## D-050 (2026-09-24T00:58:10Z)
+- **Phase**: build (TSK-08-01)
+- **Decision needed**: 06 의 `ROW_VERSION`(`TB_MDM_RULE_VER`·`RULE_TEST_CASE`·`RULE_SET`) 타입을 ERD 초안의 `INTEGER`/`INT` 로 둘 것인가
+- **Decision made**: 세 테이블 모두 두 방언 `BIGINT NOT NULL DEFAULT 0` 으로 V8 에 만든다. 엔티티는 `long rowVersion`(`@Version` 아님, `updatable = false`)
+- **Rationale**: TSK-01-03 인계 ②와 머지된 공통 버전 서비스가 `ROW_VERSION` 을 `long` 으로 읽고 쓴다. 같은 뜻의 낙관적 잠금 카운터를 테이블마다 다른 타입으로 두면 조건부 UPDATE 헬퍼가 갈라진다. ERD 초안은 미승인 선행 산출물이다
+- **Reversible**: no(V8 이 적용된 뒤에는 새 V 번호의 `ALTER COLUMN` 이 필요하다)
+- **Source**: docs/mdm/tasks/TSK-08-01/design.md D2, F16
+
+## D-051 (2026-09-24T00:58:10Z)
+- **Phase**: build (TSK-08-01)
+- **Decision needed**: ERD 초안의 MSSQL `RULE_VAR.VAR_NAME VARCHAR(MAX)` 는 유일 인덱스 키가 될 수 없고, 결과 열 `VAR_NAME` 이 NULL 이면 두 방언의 유일성 판정이 갈린다. 어떻게 고치는가
+- **Decision made**: MSSQL `VAR_NAME` 을 `VARCHAR(1000) COLLATE Latin1_General_100_BIN2` 로 두고(SQLite 는 `TEXT`), 두 방언에 `CK_TB_MDM_RULE_VAR_RESULT_NAME`(`VAR_KIND <> 'RESULT' OR VAR_NAME IS NOT NULL`)을 더한다. naming-dialect-rules §3 #18 에 "MSSQL 키 칼럼 MAX 금지"를 규칙으로 더했다
+- **Rationale**: 06:1011 "결과 열은 필수이고 버전 안에서 유일". 키 크기 1,054바이트로 비클러스터 인덱스 한도(1,700바이트) 안이다. 길이 1,000 은 원문 근거가 없는 선택이고, 식 변수에 한글 문자열 리터럴이 들어가면 MSSQL 에서 손실될 수 있다(TSK-05-01 F28 과 같은 종류의 위험)
+- **Reversible**: no(적용 뒤에는 새 V 번호로 인덱스를 지우고 `ALTER COLUMN` 해야 한다)
+- **Source**: docs/mdm/tasks/TSK-08-01/design.md D3, F13·F14
+
+## D-052 (2026-09-24T00:58:10Z)
+- **Phase**: build (TSK-08-01)
+- **Decision needed**: `RULE_VAR.DISP_TYPE` 에 06 표기(`Equal`·`1`·`2`·`Expression`·`Value`)와 엔진 enum 이름(`EQUAL`·`ONE`·`TWO`·`EXPRESSION`·`VALUE`) 가운데 무엇을 저장하고 DB 에서 제약할 것인가
+- **Decision made**: 06 표기로 저장하고 두 방언에 `CK_TB_MDM_RULE_VAR_DISP` 를 신설한다. 엔진 enum 으로의 변환은 `DefinitionLookup` 구현(TSK-08-04)이 대응표(`Equal→EQUAL`, `1→ONE`, `2→TWO`, `Expression→EXPRESSION`, `Value→VALUE`)로 한다
+- **Rationale**: 06 정본이 칼럼 값과 샘플을 그 표기로 적는다. 쓰는 쪽(08-02)과 읽는 쪽(08-04)이 서로 다른 코드를 쓰는 사고를 공유 계약 단계에서 DB 로 막는다
+- **Reversible**: no(저장된 행이 생기면 값 변환 마이그레이션이 필요하다)
+- **Source**: docs/mdm/tasks/TSK-08-01/design.md D4, F15
+
+## D-053 (2026-09-24T00:58:10Z)
+- **Phase**: build (TSK-08-01)
+- **Decision needed**: SQLite 에서 JPA 기본 바인딩은 업무 일시(`LocalDateTime`)를 정수로 저장해 네이티브 쓰기(KST 텍스트)와 어긋난다. mdm 에 매핑 인프라를 둘 것인가, 감사 `U_AT` 형식 혼재도 고칠 것인가
+- **Decision made**: mdm 전용 `MdmSqliteLocalDateTimeConverter`(`@Converter` 없음)를 `MdmSqliteTemporalContributor` 로 `application-local.yml` 의 `spring.jpa.properties.hibernate.metadata_builder_contributor` 에만 등록한다. 형식은 `MdmTemporalBinder` 와 같은 `'yyyy-MM-dd HH:mm:ss'`(초 절삭). 감사 `U_AT`(Instant) 형식 혼재는 고치지 않는다
+- **Rationale**: 규칙표 #16·TSK-01-03 인계 ④. Hibernate 7.0.5 + Spring Boot 기본 EMF 에서 이 등록이 실제로 먹는다(`typeof = text` 실측, 등록 줄을 지우면 빨개진다). local-db·wildfly 는 local 을 포함하지 않아 MSSQL 에 새지 않는다. **실측**: 공통 서비스가 KST 텍스트로 쓴 `U_AT` 를 엔티티 `Instant` 로 읽으면 예외 없이 9시간 어긋난다(`BusinessRuleVersionScenarioSqliteTest` R1). 원인은 TSK-01-03 바인더(D-044)와 cactus `Instant` 매핑(D-038)의 형식 규약이라 이 Task 밖이다
+- **Reversible**: yes(컨버터·contributor·yml 한 줄을 지우면 된다. 다만 그 사이 저장된 SQLite 행은 텍스트로 남는다)
+- **Source**: docs/mdm/tasks/TSK-08-01/design.md D5·D6, F10·F12
+
+## D-054 (2026-09-24T00:58:10Z)
+- **Phase**: build (TSK-08-01)
+- **Decision needed**: 06 식별자 발급(`last_var_id` 등)과 확정 검사 diff 의 06 관례를 어떤 모양으로 선언하는가
+- **Decision made**: `contract.rule` 에 `MdmRuleIdIssuer.issue(String, MdmRuleIdKind, int) → MdmRuleIdRange`(한 문장으로 count 개 연속 발급), `MdmRuleDefinitionSource`(STORED_VERSION·REQUEST_BODY), `MdmRuleDiffConventions`(diff key = `row_id` 10진 문자열, 값 맵 키 `SEQ`·`CELLS`), `MdmRuleConfirmCheckItem`(SAVE_CHECKS·NOT_EMPTY·TEST_CASES·RESULT_VAR_RELEASED, 룰 참조 검사 없음)을 선언한다. 확정 검사 SPI 는 기존 `VersionConfirmCheckSpi` 를 쓰고 엔진 `DefinitionLookup` 서명은 바꾸지 않는다
+- **Rationale**: 규칙표 #1(발급은 단일 문)과 그리드 다건 저장. 06 diff SQL(06:1255-1268)이 `cells`·`seq` 로 판정한다. 계약 패키지는 엔진 타입에 의존할 수 없어 `DefinitionLookup` 구현 대상은 enum·매핑표·테스트 스텁으로 선언한다
+- **Reversible**: no(TSK-08-02·08-04·08-05 가 이 서명과 관례 위에 구현한다)
+- **Source**: docs/mdm/tasks/TSK-08-01/design.md D8·D9·D10, F18·F21
+
+
+## D-055 (2026-09-24T00:00:00Z)
 - **Phase**: build (TSK-06-01)
 - **Decision needed**: TSK-04-01 D1 이 넘긴 02→04 교차 FK `FK_TB_MDM_DOMAIN_CODE` 를 어떻게 거는가(SQLite 는 `ALTER TABLE ADD CONSTRAINT` 가 없다)
 - **Decision made**: V6 에서 두 방언 모두 건다. MSSQL 은 파일 끝 `ALTER TABLE TB_MDM_DOMAIN ADD CONSTRAINT`, SQLite 는 Flyway 기본 트랜잭션 안에서 `TB_MDM_DOMAIN` 을 재생성한다(V3 정의 글자 그대로 + FK 한 줄, 행 복사, `sqlite_sequence` 상한 보존, DROP·RENAME, 인덱스 재생성). `PRAGMA defer_foreign_keys`·`.sql.conf` 는 쓰지 않는다
@@ -403,7 +444,7 @@
 - **Reversible**: no(교차 FK 추가 — 되돌리려면 SQLite 재생성을 한 번 더 하는 후속 마이그레이션이 필요하다)
 - **Source**: docs/mdm/tasks/TSK-06-01/design.md D3·§6.0.8·F6·F7
 
-## D-051 (2026-09-24T00:00:00Z)
+## D-056 (2026-09-24T00:00:00Z)
 - **Phase**: build (TSK-06-01)
 - **Decision needed**: ERD `CK_TB_MDM_CODE_VER_APPLY`(DRAFT 가 아니면 APPLY_FROM·APPLY_TO 둘 다 필수)가 원천 04 의 REQUESTED 행(희망 apply_from 만 있고 apply_to 는 승인 때 채움)을 거부한다. 그대로 옮기는가
 - **Decision made**: 두 방언 V6 CHECK 를 `STATUS = 'DRAFT' OR (APPLY_FROM IS NOT NULL AND (STATUS = 'REQUESTED' OR APPLY_TO IS NOT NULL))` 로 넓힌다
@@ -411,7 +452,7 @@
 - **Reversible**: yes(CHECK 만 바꾸는 후속 마이그레이션으로 ERD 원문으로 되돌릴 수 있다)
 - **Source**: docs/mdm/tasks/TSK-06-01/design.md D4·F15
 
-## D-052 (2026-09-24T00:00:00Z)
+## D-057 (2026-09-24T00:00:00Z)
 - **Phase**: build (TSK-06-01)
 - **Decision needed**: MSSQL `TB_MDM_CODE_CATE.DEF_EXPR` 를 ERD 대로 `VARCHAR(MAX)`(ASCII 전용)로 두는가
 - **Decision made**: `NVARCHAR(MAX)` 로 둔다(SQLite 는 `TEXT` 그대로)
@@ -419,17 +460,17 @@
 - **Reversible**: yes(칼럼 타입 변경 마이그레이션. 되돌리면 06-04 에 비 ASCII 정규식 저장 거부 검사를 인계한다)
 - **Source**: docs/mdm/tasks/TSK-06-01/design.md D6·F16
 
-## D-053 (2026-09-24T00:00:00Z)
+## D-058 (2026-09-24T00:00:00Z)
 - **Phase**: build (TSK-06-01)
 - **Decision needed**: SQLite 에서 엔티티의 업무 `LocalDateTime`(04 `TB_MDM_CODE_VER` 일시 6칼럼 등)을 어떤 형식으로 쓰는가(규칙표 #16 이 이 Task 에 배정)
-- **Decision made**: mdm 전용 `MdmSqliteLocalDateTimeConverter`(쓰기 = `MdmTemporalBinder.SQLITE_TEXT_PATTERN` 19자, 읽기 = `fromDb` 문자열 규칙)를 `MdmSqliteTemporalContributor` 로 auto-apply 하고, `application-local.yml` 의 `spring.jpa.properties.hibernate.metadata_builder_contributor` 로만 켠다. `MdmCodeVer` 세터는 초 단위로 자른다
+- **Decision made**: mdm 전용 `MdmSqliteLocalDateTimeConverter`(TSK-08-01 D-053 과 같은 클래스 — dev 머지 때 한 벌로 합쳤다)(쓰기 = `MdmTemporalBinder.SQLITE_TEXT_PATTERN` 19자, 읽기 = `fromDb` 문자열 규칙)를 `MdmSqliteTemporalContributor` 로 auto-apply 하고, `application-local.yml` 의 `spring.jpa.properties.hibernate.metadata_builder_contributor` 로만 켠다. `MdmCodeVer` 세터는 초 단위로 자른다
 - **Rationale**: 공통 버전 서비스가 네이티브로 쓰는 19자 TEXT 와 엔티티가 쓰는 값이 글자 단위로 같아야 한다(TSK-01-03 §7 ④). Build 실측: 컨트리뷰터가 없으면 Hibernate 가 epoch millis 정수를 바인딩하고 TEXT 친화도 칼럼이 `'1782831600000'` 문자열로 저장해 `fromDb` 가 읽지 못한다. 등록 뒤에는 네이티브와 같은 값이 저장되고 양방향 읽기가 성립한다. mcm-core 컨버터는 `.SSS` 23자라 쓰지 않는다. MSSQL(`application-local-db.yml`)에는 두지 않는다. 대가: 앞으로 mdm 의 모든 `LocalDateTime` 엔티티 필드에 SQLite 에서 같은 형식이 적용된다(의도한 일관성, `Instant` 감사 칼럼은 제외 — D-038 그대로)
 - **Reversible**: yes(yml 한 줄과 두 클래스를 지우면 원복. 이미 저장된 SQLite 로컬 데이터는 형식이 섞일 수 있다)
 - **Source**: docs/mdm/tasks/TSK-06-01/design.md D7·F10·F11, naming-dialect-rules.md §3 #16
 
-## D-054 (2026-09-24T00:00:00Z)
+## D-059 (2026-09-24T00:00:00Z)
 - **Phase**: build (TSK-06-01)
-- **Decision needed**: `FK_TB_MDM_DOMAIN_CODE`(D-050) 때문에 깨지는 기존·병렬 Task 테스트 픽스처를 누가 어떻게 고치는가
+- **Decision needed**: `FK_TB_MDM_DOMAIN_CODE`(D-055) 때문에 깨지는 기존·병렬 Task 테스트 픽스처를 누가 어떻게 고치는가
 - **Decision made**: 이 Task 가 자기 브랜치에서만 고친다(코드 참조가 필요하면 `TB_MDM_CODE` 행을 먼저 seed, 아니면 `MARU_CODE_ID` 를 NULL 로). Build 시점 전체 스위트 결과 dev 에 있는 기존 픽스처(`MdmDictionaryExpectations`·`VersionFixtureTables`·`VersionStateServiceSqliteTest`·`MdmTermDomainColumnMigrationTest`)는 FK 로 깨지지 않아 고친 파일이 없다. `MdmTermDomainColumnMigrationTest`·`MdmTermDomainColumnMssqlMigrationTest` 의 "FK 부재" 이름만 사실에 맞게 "FK 추가 뒤에도 NULL 통과" 로 고쳤다(본문·기대값 불변). TSK-04-03(`dflow-2ca988a4`) 브랜치는 직접 고치지 않는다
 - **Rationale**: 팀장 지시(D3 유지·04-03 브랜치 직접 수정 금지·깨지는 픽스처는 이 Task 가 고침). 기대값을 완화하지 않는다. TSK-04-03 이 Phase 06 전에 dev 에 머지되면 design.md §7 절차대로 다시 확인한다
 - **Reversible**: yes

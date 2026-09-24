@@ -34,10 +34,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.mssqlserver.MSSQLServerContainer;
-import org.testcontainers.utility.DockerImageName;
 
 /**
  * TSK-05-01 design.md §3.2 — V4(03 인터페이스 레이아웃)을 {@code @SpringBootTest}+{@code local-db}
@@ -46,12 +42,7 @@ import org.testcontainers.utility.DockerImageName;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local-db")
-@Testcontainers
 class MdmInterfaceLayoutMssqlMigrationTest {
-
-    @Container
-    static final MSSQLServerContainer MSSQL = new MSSQLServerContainer(
-            DockerImageName.parse("mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04")).acceptLicense();
 
     @Autowired
     DataSource dataSource;
@@ -68,20 +59,15 @@ class MdmInterfaceLayoutMssqlMigrationTest {
 
     @DynamicPropertySource
     static void registerMssql(DynamicPropertyRegistry registry) throws SQLException {
-        try (Connection master = java.sql.DriverManager.getConnection(
-                MSSQL.getJdbcUrl(), MSSQL.getUsername(), MSSQL.getPassword());
-             Statement s = master.createStatement()) {
-            s.execute("IF DB_ID('mdm') IS NULL CREATE DATABASE mdm");
-        }
-        String mdmUrl = MSSQL.getJdbcUrl() + ";databaseName=mdm";
+        String mdmUrl = MdmMssqlServer.newDatabase("layout");
         registry.add("spring.datasource.url", () -> mdmUrl);
-        registry.add("spring.datasource.username", MSSQL::getUsername);
-        registry.add("spring.datasource.password", MSSQL::getPassword);
+        registry.add("spring.datasource.username", MdmMssqlServer::user);
+        registry.add("spring.datasource.password", MdmMssqlServer::password);
     }
 
     @Test
-    void local_db_설정으로_V1_V2_V3_V4_V6_가_적용된다() throws SQLException {
-        // TSK-06-01 — V6(04 마스터코드) 추가 반영. 완화가 아니라 새 버전 반영이다.
+    void local_db_설정으로_V1_V2_V3_V4_V6_V8_이_적용된다() throws SQLException {
+        // TSK-06-01 — V6(04 마스터코드), TSK-08-01 — V8(06 업무기준) 추가 반영. 완화가 아니라 새 버전 반영이다.
         Set<String> versions = new HashSet<>();
         try (Connection c = dataSource.getConnection(); Statement s = c.createStatement();
              ResultSet rs = s.executeQuery("SELECT version FROM flyway_schema_history WHERE success = 1")) {
@@ -89,7 +75,7 @@ class MdmInterfaceLayoutMssqlMigrationTest {
                 versions.add(rs.getString(1));
             }
         }
-        assertEquals(Set.of("1", "2", "3", "4", "6"), versions);
+        assertEquals(Set.of("1", "2", "3", "4", "6", "8"), versions);
     }
 
     /**

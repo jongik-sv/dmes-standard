@@ -821,3 +821,17 @@ mdm 테스트 결과 XML 마다 대응 소스가 있음을 확인했다(D1 임�
 ### V5. 종합 판정
 
 - **PHASE_RESULT: verify ok** — 전체 스위트 1950/0, 변이 8건 빨강 확인, 규칙 30 커버리지 갭 기록, DDL 리뷰 8항 통과. 추가 문제 없음.
+
+---
+
+## Phase 06 전 dev 머지 기록 (§7, 2026-09-24)
+
+- `origin/dev` 에 새로 들어온 것은 TSK-08-01(06 업무기준, V8)과 `6855c6c`(공용 MSSQL 서버 `MdmMssqlServer`)다. TSK-04-03 은 아직 머지되지 않아 D11 의 픽스처 수정 대상은 없다.
+- 충돌 11파일을 합집합으로 풀었다:
+  - **SQLite 일시 컨버터(add/add)**: TSK-08-01 D5 와 이 Task D7 이 같은 경로·같은 이름으로 `MdmSqliteLocalDateTimeConverter`·`MdmSqliteTemporalContributor`·그 테스트를 각각 만들었다. 동작은 같아 한 벌로 합쳤다. 본문은 dev 쪽을 기반으로 하고, 이 Task 가 요구한 두 가지(빈 문자열 → `null`, 패턴은 `MdmTemporalBinder.SQLITE_TEXT_PATTERN` 상수 사용)를 얹었다. 테스트는 두 파일의 메서드를 모두 남겼다. `application-local.yml` 등록은 dev 의 중첩 키 한 줄을 쓴다.
+  - **버전 집합 테스트 4곳**(`MdmSharedContractMigrationTest` 와 MSSQL 3개): `{1,2,3,4,6,8}`, MSSQL `migrationsExecuted=6`·`target=8` 로 맞췄다(새 버전 반영이지 완화가 아니다).
+  - **`ContractStubCompileTest`**: 04 절과 06 절을 모두 남겼다.
+  - **`decisions.md`**: 두 Task 가 모두 D-050~D-054 를 썼다. dev 쪽 번호를 유지하고 이 Task 의 결정을 **D-055~D-059** 로 재번호했다(내부 참조 포함). 이 문서의 D1~D12 번호는 바뀌지 않는다.
+  - **`naming-dialect-rules.md`**: 행 2·16·19 는 dev 문장 안의 "04 몫 실측 필요 → TSK-06-01" 자리를 이 Task 의 SQLite 실측 결과로 바꿔 넣었고, 행 17·담당 표 첫 행은 이 Task 쪽, 나머지는 dev 쪽을 따랐다.
+- 팀장 공지대로 새 MSSQL 테스트 2개(`MdmMasterCodeMssqlMigrationTest`·`MasterCodeVersionStateMssqlTest`)를 `MdmMssqlServer.newDatabase(...)`·`::user`·`::password` 로 바꿨다(Testcontainers 직접 사용 제거). 실행은 여전히 하지 않고 `:api:compileMssqlTestJava` 로 컴파일만 확인했다.
+- 머지 트리 게이트: `cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain --rerun-tasks` → **2034 tests / 0 failures / 0 errors**(머지 전 1950, 증가분은 TSK-08-01 테스트). V6 FK 로 깨진 dev 쪽 테스트는 없었다.
