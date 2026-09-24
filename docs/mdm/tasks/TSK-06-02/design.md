@@ -597,6 +597,8 @@ public class MdmStewardGuard {
 | B7 | 테스트 보강: `CodeMngServiceSqliteTest` R2 금지 문자 사유 문구, `CodeEditHeaderSqliteTest` E4c(9.500 vs 10.000 수 비교)·E4d(늘리기 무검사), `MasterCodeDraftDeletionSqliteTest` D4(두 DRAFT 중 하나 삭제), `MasterCodeRestoreSqliteTest` P3b(선분 부품 직접 원본 검사)·값이 같은 키 D | 변이 검증에서 살아남은 변이(I9 금지 문자 검사 제거, I19 늘리기 검사, I20 문자열 비교·범위 삭제, I15 같은 키 닫기·원본 상태 검사 제거)를 잡으려고 더했다 |
 | B8 | P3 의 "원본이 DRAFT" 경우는 MDM021 이 아니라 MDM006 으로 막힌다 | §6.8 순서(미적용 검사 → 번호 → 원본 검사)상 DRAFT 가 있으면 미적용 검사가 먼저 걸린다. 테스트는 이 순서대로 단언한다 |
 | B9 | mssqlTest `MasterCodeNativeSqlMssqlTest` 는 테스트 소스의 `MasterCodeSeeds`·`DmaTestSupport` 를 재사용한다 | mssqlTest 소스셋은 test 출력을 클래스패스에 둔다(build.gradle). 게이트에서 돌리지 않고 컴파일만 확인했다(도커 금지) |
+| B10 | §6.4 `headers` 는 이름 쪽도 `UPPER` 로 대소문자를 무시하고, 입력의 LIKE 패턴 문자(`% _ [ \`)를 `ESCAPE '\'` 로 가린다 | 두 방언 모두 같은 결과를 내고, ID 에 흔한 `_` 가 와일드카드로 다른 코드를 끌어오지 않게 한다. R9 의 `P%C` 단언이 이 동작을 본다 |
+| B11 | §6.8 `parseVer` 는 `stripTrailingZeros()` 뒤의 scale 로 판정한다 — `1.0010` 은 받아들이고 `1.0001` 은 MDM021 이다 | 설계 문언은 "scale > 3 이면 MDM021" 이다. 값이 같은 번호를 뒤 0 때문에 거부할 이유가 없어 수 값 기준으로 보았다(V9b) |
 
 ---
 
