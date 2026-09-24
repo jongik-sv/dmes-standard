@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CellJson } from "../src/contract/engine-contract.generated";
-import { analyzeRule, type HitPolicy, type RuleDef, type RuleIssue, type RuleVarDef } from "../src/evalex";
-import { BASE_SPD_LKP, E, QLTY_GRD_JDG, row } from "./fixtures/evalex-rules";
+import { analyzeDeriveOrder, analyzeRule, type HitPolicy, type RuleDef, type RuleIssue, type RuleVarDef } from "../src/evalex";
+import { BASE_SPD_LKP, E, QLTY_GRD_JDG, result, row } from "./fixtures/evalex-rules";
 
 /**
  * TSK-03-04 design.md §3.2 「evalex-rule-analysis.test.ts (21)」·§6.8.
@@ -200,5 +200,41 @@ describe("겹침·빈틈·도달 불가 분석", () => {
       I("OVERLAP", "ERROR", [1, 2]),
       NULL_GAP(1),
     ]);
+  });
+});
+
+/** TSK-08-03 design §3.2 — DERIVE 산출 순서 검사(불변 4): 결과 식은 자기 자신·뒤 seq 결과 변수를 참조할 수 없고 앞 seq 는 읽을 수 있다. */
+describe("DERIVE 산출 순서 검사", () => {
+  function derive(exprs: Array<[string, string]>, cellVarIds?: number[]): RuleDef {
+    const vars = exprs.map(([name], i) => result(i + 1, "EXPRESSION", name, i + 1));
+    const cells = Object.fromEntries(exprs.map(([, text], i) => [cellVarIds ? cellVarIds[i] : i + 1, E(text)]));
+    return { ruleId: "COIL_WGT_CALC", ruleKind: "DERIVE", hitPolicy: null, vars, rows: [row(1, 1, cells)] };
+  }
+  const order = (varId: number, rowIds = [1]): Issue => I("DERIVE_ORDER", "ERROR", rowIds, varId);
+
+  it("앞 seq 결과를 읽는 식은 통과한다", () => {
+    expect(project(analyzeDeriveOrder(derive([["A", "COIL_THK * 2"], ["B", "A + 1"], ["C", "A * B"]])))).toEqual([]);
+  });
+
+  it("자기 자신을 읽는 식은 오류다(대소문자 무시)", () => {
+    expect(project(analyzeDeriveOrder(derive([["A", "a + 1"]])))).toEqual([order(1)]);
+  });
+
+  it("뒤 seq 결과를 읽는 식은 오류다", () => {
+    expect(project(analyzeDeriveOrder(derive([["A", "B + 1"], ["B", "COIL_THK"]])))).toEqual([order(1)]);
+  });
+
+  it("식마다 따로 판정하고 열 순서(seq)대로 이슈를 돌려준다", () => {
+    expect(project(analyzeDeriveOrder(derive([["A", "COIL_THK"], ["B", "C + A"], ["C", "B"]])))).toEqual([order(2)]); // C 는 앞 seq 의 B 를 읽어 통과
+    expect(project(analyzeDeriveOrder(derive([["A", "B"], ["B", "C"], ["C", "C"]])))).toEqual([order(1), order(2), order(3)]);
+  });
+
+  it("DERIVE 가 아니거나 식 셀이 없는 열은 건드리지 않는다", () => {
+    expect(analyzeDeriveOrder(QLTY_GRD_JDG)).toEqual([]);
+    expect(analyzeDeriveOrder({ ...derive([["A", "1"]]), rows: [] })).toEqual([]);
+  });
+
+  it("analyzeRule 결과는 그대로다(서버 분석과 같은 목록 — 산출 순서는 별도 함수)", () => {
+    expect(analyzeRule(derive([["A", "A + 1"]]))).toEqual([]);
   });
 });

@@ -15,7 +15,7 @@ export type { CellVariable, CellOutcome } from "./cell-compare";
 export type { RuleDef, RuleVarDef, RuleRowDef, HitPolicy, DispType } from "./rule-model";
 export { nullSafety } from "./null-safety";
 export { computeInputContract } from "./input-contract";
-export { analyzeRule } from "./rule-analysis";
+export { analyzeDeriveOrder, analyzeRule } from "./rule-analysis";
 export type { RuleIssue, RuleIssueCode } from "./rule-analysis";
 export { previewRule } from "./rule-preview";
 export type { RulePreview, RowPreview } from "./rule-preview";
