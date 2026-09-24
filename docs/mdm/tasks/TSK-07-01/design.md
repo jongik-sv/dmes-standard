@@ -502,7 +502,51 @@ Build 는 §3.3′-B 11개 항목을 실제로 대조한 뒤 아래 표를 채�
 | 10 예약어 칼럼 인용 | PASS | SQLite `"RESULT"`/`"ACTION"`, MSSQL `[RESULT]`/`[ACTION]` 로 일관되게 인용됨을 사람 리뷰로 확인 |
 | 11 IDENTITY/AUTOINCREMENT(텍스트만) | PASS | `RECV_ID`가 SQLite `INTEGER ... PRIMARY KEY AUTOINCREMENT`, MSSQL `BIGINT IDENTITY(1,1)` 로 선언됨을 텍스트로 확인. **실제 단조 증가·콜레이션 대소문자 구분 동작은 도커 금지로 검증 못함**(알려진 갭, F20 — naming-dialect-rules.md 에 반영) |
 
-### Verify 재대조 결과(미기입 — Verify 가 채운다)
+### Verify 재대조 결과
 
 | 항목 | PASS/FAIL | 비고 |
 |---|---|---|
+| 1 테이블 존재·순서 | PASS | §3.3′-A 자동 확인 재실행 — Build 와 동일 |
+| 2 칼럼 이름·순서 | PASS | §3.3′-A 자동 확인 재실행 — Build 와 동일 |
+| 3 타입 매핑(§6.0 토큰표) | PASS | 사람 리뷰 재확인: 코드성 칼럼 CD20/CD50 에 BIN2 빠짐없음(SOURCE_REF 포함) |
+| 4 NULL/NOT NULL | PASS | 재대조: RECV.CHG_SEQ NULL 기본값 없음 ✓, RECV_ITEM.RECV_ID 타입 일치 ✓ |
+| 5 기본값 | PASS | 리터럴 재확인 — 모두 일치 |
+| 6 PK/FK 이름·대상 | PASS | 재확인 — 모두 일치 |
+| 7 CATE_ITEM FK 없음 | PASS | §3.3′-A 재실행 + Rule 1 & 4 MSSQL 변이 시 parity 빨강 확인 |
+| 8 UNIQUE/INDEX | PASS | 재확인 — 일치 |
+| 9 CHECK 값 목록 | PASS | 두 방언 일치 확인 + Rule 11 변이 시 빨강 확인 |
+| 10 예약어 칼럼 인용 | PASS | 재확인 — SQLite `"..."`, MSSQL `[...]` 일관됨 |
+| 11 IDENTITY/AUTOINCREMENT(텍스트만) | PASS | 텍스트 재확인 — 도커 금지로 실제 동작 미검증(Build 와 동일) |
+
+---
+
+## Verify Phase 기록
+
+### 변이 검증(강화된 방식)
+
+design.md §5 의 규칙들을 Build 와 다른 방식으로 재검증:
+
+| 규칙 | 변이 | 결과 |
+|---|---|---|
+| Rule 6 (src/main 구현체 없음) | **api** main 에 임시 `TempMutationSegmentStoreImpl implements MdmTemporalSegmentStore` 추가 | `MdmTemporalSegmentStore_의_실_구현체가_com_dongkuk_dmes_mdm_에_없다()` 빨강 ✓ |
+| Rule 1 & 4 (테이블/FK) | **MSSQL 파일만** `TB_MDM_DATA_RECV_ITEM` 테이블 제거 | `MdmMasterDataDdlParityTest` 테이블 목록 불일치 빨강 ✓ |
+| Rule 11 (CHECK 값) | `CK_TB_MDM_DATA_CATE_TARGET` 에서 `'ATTR10'` 제거 | 테스트 빨강 ✓ |
+| 나머지 규칙 | Build 에서 확인됨 | — |
+
+### testAll 최종 결과
+
+- compileMssqlTestJava: BUILD SUCCESSFUL
+- testAll: tests=1906, failures=0, errors=0, skipped=0
+- 기준선(Build: 1906, 0, 0) 과 일치 ✓
+
+### 계약 전용(contract-only) 최종 확인
+
+1. `contract/category/*` 무변경: `/usr/bin/git diff --name-only 78813e9 HEAD | grep contract/category` → 없음 ✓
+2. src/main 구현체 없음: Rule 6 변이 빨강 확인 ✓
+3. `MdmTemporalSegmentStore` 인터페이스만: 확인 ✓
+
+### 발견사항
+
+**Unverified risk (MSSQL)**: `MdmLocalDateTimeIdUserType.getSqlType()` 이 방언 구분 없이 항상 `Types.VARCHAR` 반환 — Hibernate 가 VALID_FROM(VARCHAR)과 VALID_TO(DATETIME2) 타입 불일치로 직접 HQL 비교 시 예상 밖 결과 가능 (도커 금지로 검증 불가). TSK-07-03 서비스 코드에서 현장 검증 필요 (수정하지 않고 보고만 함).
+
+---
