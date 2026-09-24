@@ -2,7 +2,7 @@
   "tsk": "TSK-06-03",
   "order": "f93163b8-a0cc-4308-a5b1-df6ff14f7cf6",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "build",
+  "phase": "verify",
   "baseline": {
     "failures": 0,
     "tests": 2823,
@@ -62,8 +62,8 @@
   "complexity": "점수 1(depends 3 +1, 키워드 없음) → sonnet 이나 spec model=opus 오버라이드 → Design opus·Build opus",
   "model": "opus",
   "last": {
-    "phase": "design",
-    "event": "design.ok"
+    "phase": "build",
+    "event": "build.ok"
   },
   "design": {
     "commits": [
@@ -73,5 +73,30 @@
     "invariants": 42,
     "decisions": "D1~D14",
     "flyway": "불필요(origin/dev 최대 V11)"
+  },
+  "build_gate": {
+    "backend_testAll": {
+      "tests": 2430,
+      "failures": 0,
+      "errors": 0
+    },
+    "m_mdm_test": "31 files / 355 passed (오케스트레이터 직접 1회 통과, load 21.7)",
+    "m_mdm_lint": "pass",
+    "shared": "23 files / 156 passed",
+    "oasis": "ERROR 0 / WARN 0 / INFO 29",
+    "e2e": "mdm 전체 26 passed(Build 에이전트, 포트 mcm 18603·mdm 18696·FE 15603)",
+    "mutation": "48 변이 중 47 RED, 3번은 JPA merge 동치 변이(design.md 기록)",
+    "commits": [
+      "0b963df",
+      "cde535b",
+      "79cae45",
+      "c184ecb",
+      "b75b2d8",
+      "f79f308",
+      "b2dcd34",
+      "3a00730",
+      "43aa6ff"
+    ],
+    "head": "43aa6ff"
   }
 }
