@@ -141,6 +141,33 @@ class MdmMasterDataEntityJpaRoundtripTest {
         assertEquals("9999-12-31 00:00:00", String.valueOf(row[3]), "VALID_TO 저장 형식");
     }
 
+    /**
+     * §3.2-4(F6, §5 불변 규칙 3) — DDL {@code VALID_TO} 기본값으로 INSERT 된 행을 JPA 로 읽으면 {@code
+     * MdmTemporalSegmentRules.OPEN_END}(`contract.data`)와 {@code .equals()}로 같아야 한다.
+     *
+     * <p>네이티브 INSERT 로 {@code VALID_TO} 를 생략해야 DB DEFAULT 가 실제로 적용된다 — 위 왕복
+     * 테스트들처럼 {@code setValidTo(OPEN_END)} 를 JPA 로 명시하면 Hibernate 가 매핑 칼럼을 전부
+     * 명시해서 INSERT 하므로 DB DEFAULT 를 거치지 않는다(advisor 재검토로 발견, Build 이탈). 같은
+     * 트랜잭션 안에서 {@code em.clear()} 뒤 {@code findById()} 로 읽어야 컨버터의 읽기 경로(DDL 기본값
+     * 텍스트 리터럴 파싱)까지 실제로 거친다.
+     */
+    @Test
+    void VALID_TO_DDL_기본값으로_INSERT_된_행을_JPA_로_읽으면_OPEN_END_와_같다() {
+        saveParentData("RT-DATA-3B");
+        entityManager.flush();
+
+        entityManager.createNativeQuery(
+                        "INSERT INTO TB_MDM_DATA_ITEM (MARU_DATA_ID, CODE, VALID_FROM, NAME) "
+                                + "VALUES ('RT-DATA-3B', 'ITEM-1', '2026-09-24 10:00:00', 'DDL기본값확인')")
+                .executeUpdate();
+        entityManager.clear();
+
+        MdmDataItem reloaded = dataItemRepository.findById(
+                new MdmDataItemId("RT-DATA-3B", "ITEM-1", LocalDateTime.of(2026, 9, 24, 10, 0, 0))).orElseThrow();
+        assertEquals(MdmTemporalSegmentRules.OPEN_END, reloaded.getValidTo(),
+                "DDL DEFAULT 로 채워진 VALID_TO 를 JPA 로 읽은 값이 OPEN_END 와 같아야 한다(컨버터 읽기 경로 포함)");
+    }
+
     @Test
     void MdmDataCate_는_IdClass_복합_PK_로_저장_조회_왕복한다() {
         saveParentData("RT-DATA-4");

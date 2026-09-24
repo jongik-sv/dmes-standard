@@ -289,6 +289,29 @@ class MdmMasterDataMigrationTest {
                         assertEquals(0, rs.getLong("CHG_SEQ"));
                     }
                 }
+
+                insertDataCate(c, maruDataId, "CATE-CHGSEQ", "2026-09-24 10:00:00", "TABLE", null, null);
+                try (PreparedStatement ps = c.prepareStatement(
+                        "SELECT CHG_SEQ FROM TB_MDM_DATA_CATE WHERE MARU_DATA_ID = ? AND CATE_ID = ?")) {
+                    ps.setString(1, maruDataId);
+                    ps.setString(2, "CATE-CHGSEQ");
+                    try (ResultSet rs = ps.executeQuery()) {
+                        assertTrue(rs.next());
+                        assertEquals(0, rs.getLong("CHG_SEQ"));
+                    }
+                }
+
+                insertDataCateItem(c, maruDataId, "CATE-CHGSEQ", "CODE-CHGSEQ", "2026-09-24 10:00:00");
+                try (PreparedStatement ps = c.prepareStatement(
+                        "SELECT CHG_SEQ FROM TB_MDM_DATA_CATE_ITEM WHERE MARU_DATA_ID = ? AND CATE_ID = ? AND CODE = ?")) {
+                    ps.setString(1, maruDataId);
+                    ps.setString(2, "CATE-CHGSEQ");
+                    ps.setString(3, "CODE-CHGSEQ");
+                    try (ResultSet rs = ps.executeQuery()) {
+                        assertTrue(rs.next());
+                        assertEquals(0, rs.getLong("CHG_SEQ"));
+                    }
+                }
             } finally {
                 c.rollback();
                 c.setAutoCommit(true);

@@ -36,9 +36,11 @@ build/
 # Local dev SQLite DB (백엔드 멀티프로젝트 구조 모두 포함)
 # 주의: `**/data/`(전 깊이)는 `contract/data` 같은 소스 패키지까지 무시해버린다(TSK-07-01 Build 실측,
 # com.dongkuk.dmes.mdm.contract.data 전체가 커밋 대상에서 조용히 빠짐 — git add -f 로 개별 복구).
-# 런타임 DB 디렉터리는 항상 모듈 루트 바로 아래(`src/backend/<module>/data/`)라 한 단계 와일드카드로 좁힌다.
+# 원안(전 깊이 무시)은 되돌리고, `src/**/`(소스 트리) 안의 `data/` 디렉터리만 예외로 되살린다 — 런타임
+# DB 디렉터리(예: `src/backend/mdm/data/`)는 모듈 루트 바로 아래라 이 예외에 걸리지 않는다.
 src/backend/data/
-src/backend/*/data/
+src/backend/**/data/
+!src/backend/**/src/**/data/
 src/backend/**/*.db
 # 잘못된 작업 디렉토리에서 기동 시 repo 루트에 생기는 SQLite 런타임 아티팩트
 /data/
