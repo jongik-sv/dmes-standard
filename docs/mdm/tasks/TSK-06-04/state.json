@@ -2,5 +2,56 @@
   "tsk": "TSK-06-04",
   "order": "8ebe4885-e37e-4933-8e83-039ab58da750",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "design",
+  "branch_base": "17c6784fd65f47fe8a334fce40ea7d25398703d1",
+  "baseline": {
+    "failures": 0,
+    "tests": 3830,
+    "docker": "banned:config",
+    "docker_note": "dflow config no_docker 는 비어 있으나 사용자 지침(메모리 no-docker-in-agent-verification: SQL 테스트는 SQLite 만)으로 도커 명령을 돌리지 않는다",
+    "cmds": [
+      {
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3055,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "17c6784fd65f47fe8a334fce40ea7d25398703d1-5a99c8ef20f3",
+        "measured_at": "2026-09-24T12:50:00Z",
+        "count_cmd": "find src/backend -path '*/build/test-results/*' -not -path '*mssqlMigrationTest*' -name 'TEST-*.xml' | xargs grep -h -o '<testsuite [^>]*' (tests 합산)"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 607,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "17c6784fd65f47fe8a334fce40ea7d25398703d1-70ad4dddc2e4",
+        "measured_at": "2026-09-24T12:50:00Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "17c6784fd65f47fe8a334fce40ea7d25398703d1-85eac351cb59",
+        "measured_at": "2026-09-24T12:50:00Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "17c6784fd65f47fe8a334fce40ea7d25398703d1-79066bca5c4b",
+        "measured_at": "2026-09-24T12:50:00Z"
+      },
+      {
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "17c6784fd65f47fe8a334fce40ea7d25398703d1-773190afc491",
+        "measured_at": "2026-09-24T12:50:00Z"
+      }
+    ]
+  },
+  "model": "sonnet"
 }
