@@ -2,7 +2,7 @@
   "tsk": "TSK-08-03",
   "order": "a7491aaa-b87a-4a78-b68d-79d917bfe3bc",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "reported",
+  "phase": "merged",
   "baseline": {
     "docker": "off",
     "cmds": [
@@ -135,5 +135,6 @@
       "입력 계약 base diff 가 grp_cond 변경 누락(수정 9e7035b)",
       "PROD_WGT_CALC 결과 식 화면 미리보기 미검증 — 08-04 몫(기록 7f65258)"
     ]
-  }
+  },
+  "unapproved": true
 }
