@@ -123,6 +123,8 @@ bootWar {
 allprojects {
     tasks.withType(Test).configureEach {
         outputs.doNotCacheIf('선언되지 않은 외부 입력(작업 트리 밖 파일·../data SQLite·환경 변수)에 기대는 테스트') { true }
-        jvmArgs '-XX:TieredStopAtLevel=1'
+        // C1 만 쓰면 JVM 이 코드 캐시 기본값을 240MB → 48MB 로 줄인다. mdm/api 1060건에서 "Out of space in CodeCache for
+        // adapters" 로 OASIS 호출이 실패했다(2026-09-26) — 원래 기본값으로 되돌린다(예약 크기라 쓰는 만큼만 잡힌다).
+        jvmArgs '-XX:TieredStopAtLevel=1', '-XX:ReservedCodeCacheSize=240m'
     }
 }
