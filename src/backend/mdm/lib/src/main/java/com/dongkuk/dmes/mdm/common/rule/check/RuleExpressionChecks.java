@@ -32,7 +32,8 @@ import kr.dongkuk.maru.mdm.engine.expr.ReservedNames;
  *       DERIVE 결과 식이 자기·뒤 seq 결과를 읽으면 EXPR_DERIVE_ORDER</li>
  *   <li>(조건 식만) 같은 변수를 {@code < <= > >=} 로 두 번 이상 견주면 RANGE_IN_EXPR — 2 타입 열로 보낸다</li>
  * </ol>
- * 이름은 대소문자를 가리지 않는다. 외부 이름 판정은 원장을 읽으므로 호출자가 {@link Scope#external()} 로 넘긴다.
+ * 이 룰의 조건·결과 이름은 대소문자를 가리지 않는다. 외부 이름 판정은 원장을 읽으므로 호출자가 {@link Scope#external()} 로 넘기고, 식에 적은
+ * 표기 그대로 묻는다(컬럼 사전 조회는 대소문자를 가린다 — 08-03 {@code typeSourceOf} 와 같다).
  */
 public final class RuleExpressionChecks {
 
