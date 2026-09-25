@@ -18,6 +18,18 @@
 - 작업 완료 전에는 변경 범위에 맞게 `pnpm lint`, `pnpm build`, `pnpm test:all` 또는 대상 패키지의 동등 검증을 실행한다.
 - 수정 후 해당 파일만 포맷한다.
 
+### 2-1. 단위 게이트 명령 — 의존 패키지만 빌드한다 (2026-09-26, 새 Task 부터 적용)
+
+- D'Flow Task 의 설계서·기준선·게이트에 적는 프런트 단위 테스트 명령은 **대상 패키지가 의존하는 workspace 패키지만 빌드**한 뒤 그 패키지의 테스트를 돌린다. `pnpm build:libs`(라이브러리 7개 전체 빌드)는 쓰지 않는다.
+  - 형식: `cd src/frontend && pnpm --filter "<패키지>^..." build && pnpm --filter <패키지> test`
+  - `<패키지>^...` 는 그 패키지가 (전이적으로) 의존하는 workspace 패키지만 고르고 자기 자신은 뺀다. `^` 가 셸 특수문자일 수 있으므로 따옴표로 감싼다.
+  - m-mdm: `cd src/frontend && pnpm --filter "@dk-oasis/m-mdm^..." build && pnpm --filter @dk-oasis/m-mdm test` (shared 만 빌드한다). lint 를 게이트에 넣으면 뒤에 `&& pnpm --filter @dk-oasis/m-mdm lint` 를 붙인다.
+  - m-mpn·m-mpp·m-mqc·m-mls 도 같은 형식이다(의존 패키지 = shared). shared 는 의존 패키지가 없으므로 빌드 단계 없이 `pnpm --filter @dk-oasis/shared test:unit` 을 쓴다.
+- **새 Task 부터 적용한다.** 이미 기준선을 잰 Task 는 게이트 명령을 도중에 바꾸지 않는다. 기준선 캐시 키(기점 sha + 명령 문자열)와 총수 규칙이 어긋난다.
+- 근거: `build:libs` 는 m-mdm 이 쓰지 않는 라이브러리(m-mpn·m-mpp·m-mqc·m-mls·m-analog)와 m-mdm 자신까지 빌드한다(docs/dflow-team/perf-audit-report.md P4). 2026-09-26 실측: `m-mdm^...` 빌드 37.8초·CPU 61초, `build:libs` 44.1초·CPU 87초(동시 부하 18~28, 잡음 있음).
+- 포털 전체 기동·빌드(`fe-run.sh`, m-mcm)는 모든 모듈의 dist 가 필요하므로 지금처럼 `build:libs` 를 쓴다.
+- m-mdm 의 `test` 스크립트(`scripts/test.mjs`)는 일반 스위트(병렬)와 부하 민감 성능 스위트(`vitest.perf.config.ts`, 한 fork)를 차례로 모두 돌린다. vitest 요약이 두 번 찍히므로, **게이트 총수는 마지막 `[m-mdm test 합계]` 줄의 값을 쓴다.**
+
 ## 3. 최초 체크아웃 후 실행
 
 아래 순서는 최초 1회만 필요하다. 이후 실행부터는 `pnpm dev`만 실행한다.
