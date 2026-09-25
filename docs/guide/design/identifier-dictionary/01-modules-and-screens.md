@@ -239,6 +239,8 @@ A.1.1 모듈 외 기 구축·공유 모듈은 본 표로 분리 등재. 신규 �
 | `codeEdit` | — (To-Be only) | `mdm` | `dmc` | `codeEdit` | 2026-09-24 | 마루 코드 수정(헤더·라벨·폐기·버전 목록·새 버전·DRAFT 소유권) — As-Is 없음(신규), 원천 04 「화면」 탭2. TSK-06-02. 기능설계서 1종(`docs/mdm/screens/codeEdit/`) |
 | `ruleMng` | — (To-Be only) | `mdm` | `dme` | `ruleMng` | 2026-09-24 | 룰 — As-Is 없음, 원천 06 룰 목록·등록. 서버 페이징 목록 + MDM 원천 등록(VER 1 DRAFT 자동 선점). TSK-08-02. 기능설계서 1종(`docs/mdm/screens/ruleMng/`) |
 | `ruleEdit` | — (To-Be only) | `mdm` | `dme` | `ruleEdit` | 2026-09-24 | 룰 화면 — As-Is 없음, 원천 06 룰 화면. 헤더·버전·의사결정표·활용처 카드(08-03·08-04 가 카드를 더한다). TSK-08-02. 기능설계서 1종(`docs/mdm/screens/ruleEdit/`) |
+| `ruleSetMng` | — (To-Be only) | `mdm` | `dme` | `ruleSetMng` | 2026-09-26 | 룰 세트 — As-Is 없음, 원천 06 룰 세트 조회·등록. 계산 칸(룰 수·최종 결과 변수·입력 변수 수·세트 검사) 목록 + 빈 세트 등록(INUSE) 뒤 룰 세트 편집으로 이동. TSK-08-06. 기능설계서 1종(`docs/mdm/screens/ruleSetMng/`) |
+| `ruleSetEdit` | — (To-Be only) | `mdm` | `dme` | `ruleSetEdit` | 2026-09-26 | 룰 세트 편집 — As-Is 없음, 원천 06 룰 세트 편집. 룰 순서 편집·즉시 입출력 계산·저장 시 검사(순환 거부·중복 대입 경고)·구성 지침·폐기/되살리기. TSK-08-06. 기능설계서 1종(`docs/mdm/screens/ruleSetEdit/`) |
 
 **등재 절차**:
 1. 신규 화면 분석 시 본 표에 행 추가

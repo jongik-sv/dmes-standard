@@ -122,6 +122,8 @@ B4 변이는 python 스크립트 하나(변이 넣기 → `:api:test --fail-fast
 
 B2 변이는 python 스크립트 하나(변이 넣기 → `:api:test --fail-fast --tests RuleIoReaderTest` → scratchpad 사본으로 되돌리기, 시그널·`finally` 에서도 되돌림)를 `heavy.sh` 로 감싸 두 번(M1~M5, M6~M10) 돌렸다.
 `RuleQueries.java` 의 추가분이 아직 커밋 전이라 `git checkout --` 대신 사본 복원을 썼다. 모든 변이는 컴파일되는 형태이고, 끝난 뒤 두 파일이 사본과 같음을 `cmp` 로 확인했다.
+| I18(B8) | mcm 메뉴 시드 leaf 이름 `"룰 세트"` → `"룰세트"`(`DataInitializer.seedMdmRuleSetMenus()`), 새 mcm.db·mdm.db 로 재기동 | E2E 스위트 전체(`mdm-shell-rbac-smoke`·`mdm-ruleSetMng`·`mdm-ruleSetEdit`, `--max-failures=1`) — `mdm-ruleSetMng` M1 이 메뉴 `/^룰 세트$/` 를 찾지 못해 빨강 | 잡힘 |
+| I24(B8) | (변이 아님 — 불변 확인) `/usr/bin/git diff --stat f59cce7 -- <§2.5 파일·08-02/08-03 dme ruleMng·ruleEdit BE·FE(CardFrame 포함)·엔진 main·엔티티·마이그레이션·mdm-local-sample·mdm-ruleEdit-data·mdm-ruleEdit.spec·mdm-rbac-seed-check.*·ruleMng/ruleEdit.bpmn>` | 출력 없음. 추가만 허용된 `RuleQueries`(+14)·`DmeTestSupport`(+11) 은 삭제 줄 0, `DataInitializer` 삭제 줄 0. 새 픽스처와 같은 DB 에 `mdm-ruleEdit-data.sql` 을 넣고 기존 `mdm-ruleMng`·`mdm-ruleEdit` 스펙 26건 통과(`LS_E2E` 기대 포함) | 확인 |
 
 ## 설계 이탈
 
@@ -159,6 +161,13 @@ B2 변이는 python 스크립트 하나(변이 넣기 → `:api:test --fail-fast
   DEPRECATED 세트도 `finalResults`·`inputCount` 는 계산하고 거부·경고 수만 0 이다.
 - B4 테스트: `MdmOasisActionVocabularyTest` 의 두 새 사례는 설계가 적은 "어휘·EDIT 세트 안" 에 더해 action 집합을 정확히 단언한다(어휘 안이지만 표 밖인 action 으로 바뀌어도 잡는다). `DmeOasisHttpTest` 의 역할 오버로드는 `post(service, action, user, role, body)` 이고 기존 네 인자 호출은 STEWARD 로 넘긴다.
 - B2 PROG 판정·이름 비교: 같은 이름의 조건 열은 대소문자를 무시해 찾는다(conds 중복 제거가 대소문자 무시라서). 컬럼 사전(DICT) 판정은 `findByPhysName(name)` 정확 일치이고, 한 번의 `read` 안에서 이름마다 한 번만 조회한다.
+- B8 E3 순서: 설계는 ▼ → 드래그로 되돌리기 → dirty 확인 순서지만, dirty 는 불러온 목록·세트명·설명과 **비교**해 정하므로(`useRuleSetEdit.ts` `dirty`) 원래 순서로 되돌린 뒤에는 확인이 뜨지 않는다.
+  ▼ 직후(목록이 바뀐 상태)에 다른 세트를 골라 확인 대화상자(문구 단언 후 취소)를 보고, 그다음 드래그로 되돌린다.
+- B8 e2e 화면 크기: `mdm-ruleSetEdit.spec.ts` 는 `test.use({ viewport: { width: 2560, height: 1440 } })` 로 연다. 룰 목록 그리드 열 너비 합(약 1,160px)이 span 10 카드보다 넓어, 기본 1280 폭에서는
+  ag-grid 가 가로로 보이지 않는 의존 룰·동작 열을 그리지 않았다(E2 첫 실행이 `[col-id="deps"]` 없음으로 실패). 화면 코드는 바꾸지 않았고 기능설계서 ruleSetEdit N-12 에 적었다.
+- B8 e2e 스펙 실행 순서: Playwright 는 파일 이름 순으로 돌리므로 `mdm-ruleSetEdit` 가 `mdm-ruleSetMng` 보다 먼저 돈다. 두 스펙은 서로의 세트를 바꾸지 않거나(M3 는 새 세트), 바꿔도 단언이 성립한다
+  (M2 의 `E2S_OLDSET` DEPRECATED 는 E7 이 되살린 뒤 다시 폐기해 끝 상태가 같고, 결과 변수 `S_GRD` 조회는 포함·제외만 본다).
+- B8 픽스처 `E2S_CHAIN` 에 설명 "등급 → 계수 → 속도" 를 넣었다(§3.4.3 은 설명을 정하지 않았다, E8 이 다시 불러온 세트명만 본다).
 
 ## B1 — BE 순수 계산 (`RuleIo`·`RuleSetCheck`·`RuleSetAnalyzer`·`RuleSetGuide`·코퍼스)
 
@@ -278,3 +287,21 @@ B2 변이는 python 스크립트 하나(변이 넣기 → `:api:test --fail-fast
 - 메뉴: `ruleSetMng`("룰 세트", seq 004, fullSeq 5050400)·`ruleSetEdit`("룰 세트 편집", 005, 5050500), 부모 `dme`, componentPath `dme/ruleSetMng`·`dme/ruleSetEdit`. mcm 을 다시 띄워야 시드가 들어간다(멱등).
 - `DmeOasisHttpTest` 에 역할 오버로드 `post(service, action, user, role, body)` 가 있다.
 
+
+## B8 — 통합(e2e 픽스처·스펙 두 개·스크린샷·기능설계서 2종·식별자 사전)
+
+- 파일: `src/frontend/e2e/fixtures/mdm-ruleSet-data.sql`(자체 완결 — 도메인 3·컬럼 3·룰 7·세트 6, INSERT 만), `src/frontend/e2e/mdm-ruleSetMng.spec.ts`(M1~M6), `src/frontend/e2e/mdm-ruleSetEdit.spec.ts`(E1~E10),
+  `docs/mdm/tasks/TSK-08-06/screens/dme-ruleSetMng-{list,register}.png`·`dme-ruleSetEdit-{chain,reorder,cycle,warn,guide,deprecated}.png`(8장), `docs/mdm/screens/ruleSetMng/ruleSetMng_기능설계서.md`,
+  `docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md`(§11 N-1 에 세트 값 테스트 카드 제외 D2·사유·후속 조건), `docs/guide/design/identifier-dictionary/01-modules-and-screens.md`(두 행).
+- E2E 절차(design 「E2E 서버 절차」 그대로, be-run.sh·fe-run.sh 미사용): `heavy.sh acquire e2e-TSK-08-06` → 새 mcm.db·mdm.db → mcm BE 18213·mdm BE 18306(`bootRun --no-daemon`)·포털 15213(`next dev`)을 직접 띄움 →
+  시드 대조 diff 없음 → `mdm-rbac-users.sql`(mcm.db)·`mdm-ruleSet-data.sql`(mdm.db, `sqlite3 -bail`) → 스펙 → TSK-01-03(및 회귀로 덮인 TSK-08-02·08-03) 스크린샷 `git checkout` 복원 → 자기 PID·자기 포트만 종료 → `heavy.sh release`.
+  sqlite 경로는 두 BE 모두 워크트리 `src/backend/data/*.db` 로 확인했다. 기동 대기는 포트 응답이 아니라 기동 로그(mcm "초기 데이터 삽입 완료", mdm "Started")로 한다 — 포트만 보고 픽스처를 넣으면
+  mcm DataInitializer 와 겹쳐 `database is locked` 로 사용자 픽스처가 빠진다(한 번 겪었다, 그 실행은 버리고 새 DB 로 다시 했다).
+- 최종 결과(새 DB, 한 명령): `pnpm exec playwright test e2e/mdm-shell-rbac-smoke.spec.ts e2e/mdm-ruleSetMng.spec.ts e2e/mdm-ruleSetEdit.spec.ts --workers=1` → **20 passed**(ruleSetEdit 10 · ruleSetMng 6 · shell-rbac 4), skipped·failed 0.
+  이어서 같은 DB 에 `mdm-ruleEdit-users.sql`·`mdm-ruleEdit-data.sql` 을 더 넣고 기존 `mdm-ruleMng.spec.ts`·`mdm-ruleEdit.spec.ts` → **26 passed**(I24 회귀).
+- 스펙 작성 중 고친 것: E2 첫 실행 — 기본 폭에서 의존 룰 열이 그려지지 않아 실패(「설계 이탈」 B8 화면 크기). E3 — `page.waitForEvent("dialog")` 만 걸면 `window.confirm` 이 클릭을 붙잡아 시간 초과,
+  `page.once("dialog")` 처리기에서 문구를 기록하고 닫도록 고쳤다.
+- 변이 검증: I18 은 e2e 로만 잡히므로 메뉴 이름 오기 변이를 넣고 새 DB 로 mcm 을 다시 띄워 E2E 스위트 전체를 돌렸다(M1 빨강, 「변이 검증 기록」). 되돌린 뒤 `git status` 로 `DataInitializer.java` 무변경을 확인했다.
+  I24 는 diff 로 확인했다.
+- 하지 않은 것: 기준선 게이트 전체(testAll·m-mdm test·shared unit·lint·oasis contract)는 이 단위에서 돌리지 않았다 — 팀장 지시상 오케스트레이터가 이 단위 뒤에 직접 돈다(design §3.5 "B8" 표기보다 지시가 우선).
+  워크트리 `src/backend/data/` 에 이번 기동의 DB 백업(`*.db.bak-2026092602*`)과 마지막 E2E DB 가 남아 있다(git 무시 대상, 지우지 않았다).
