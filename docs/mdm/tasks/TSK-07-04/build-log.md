@@ -199,3 +199,19 @@ cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
   KRPUS 행 수(1)에는 영향이 없지만 트리 건수 스모크(S5)의 "빈 마루" 대조를 흐릴 수 있어, CSV 전용 대상
   `E2E_DI_CSV`(항목 없음, PORT 와 같은 모양)를 따로 두었다. 두 마루 모두 `INSERT OR IGNORE`·`E2E_DI_` 접두어
   규약을 그대로 따른다(기존 행은 고치지 않았다).
+
+## Build 게이트 (오케스트레이터)
+
+- HEAD `fafe6af`. 백엔드 `testAll` 3138/실패 0(기준선 3120 + 신규 18), `pnpm test:unit:shared` 168/0, m-mdm lint 통과,
+  OASIS 계약 검사 ERROR 0 · WARN 0 · INFO 29(기준선과 같음).
+- `cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test` — **764 중 2 실패(env: 부하 민감, 단독 통과)**.
+  실패는 `tests/evalex-perf.test.ts` NFR-1(<100ms) 두 건뿐이다(중앙값 118~140ms, 1분 부하 평균 17~32). 팀장 지시대로 부하 평균이
+  12 이하로 내려간 뒤 heavy.sh 슬롯 안에서 같은 명령을 2회 다시 돌렸으나, 실행 중 부하가 27~30 으로 다시 올라 2회 모두
+  evalex-perf 가 실패했다. 2회차에는 `tests/dme/ruleEdit/sections-render.test.ts` 한 건도 5s 타임아웃으로 실패했다.
+  두 파일 모두 이 Task 가 고치지 않은 파일이다(`git diff f59cce7 HEAD` 에 dme·evalex 경로 없음).
+- 팀장 결정(blocked 응답, 2026-09-26): (B) env 문제로 인정하고 진행한다(TSK-09-01 과 같은 판정). 기준 완화·skip·게이트 명령
+  변경은 하지 않았다.
+- 증적 — 2026-09-25T16:29:39Z, 부하 `{ 14.59 24.07 21.91 }`, `HEAVY_SLOT slot-2 k=2` 안에서
+  `cd src/frontend && pnpm --filter @dk-oasis/m-mdm exec vitest run tests/evalex-perf.test.ts tests/dme/ruleEdit/sections-render.test.ts`
+  → exit 0, `Test Files 2 passed (2)`, `Tests 27 passed (27)`(evalex-perf 4 — BASE_SPD_LKP 332ms·QLTY_GRD_JDG 388ms 포함,
+  sections-render 23 — 문제의 "열 설정 초안이 dirty…" 339ms 포함).

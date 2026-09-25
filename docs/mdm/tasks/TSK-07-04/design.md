@@ -266,6 +266,8 @@ TSK-07-03 이 이미 머지한 `dataItemMng`(항목 관리) 화면·`DataItemSav
 
 나머지는 모두 TSK-07-01·07-03 이 이미 확정한 계약 위에서 결정 가능한 범위였다.
 
+- 담당자 결정(blocked 응답): (B) Build 게이트의 m-mdm evalex-perf NFR-1 2건 실패(와 2회차 sections-render 5s 타임아웃)는 부하 민감 env 문제로 인정하고 진행한다. 두 파일 모두 단독 통과·이 Task 미변경. 기준 완화·skip·게이트 명령 변경 금지, 두 파일 밖 실패가 나오면 다시 blocked(팀장 지시, 2026-09-26).
+
 ## 도커 금지로 생략한 검증
 
 - 금지 모드 출처: 워커 기본(DOCKER=allow 아님) — `dflow.sh config no_docker` 확인 결과 빈 값(설정 스위치는 꺼짐),
