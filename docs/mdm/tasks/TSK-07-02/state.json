@@ -2,7 +2,7 @@
   "tsk": "TSK-07-02",
   "order": "4be6eb9f-e7cf-4bce-a868-00d9b77655f4",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "verify",
+  "phase": "reported",
   "baseline": {
     "failures": 0,
     "tests": 4048,
@@ -54,8 +54,8 @@
   },
   "model": "sonnet",
   "last": {
-    "phase": "verify",
-    "event": "verify.pass"
+    "phase": "done",
+    "event": "done.reported"
   },
   "build_gate": {
     "head": "4e6ece7a40aa5adfbb02b9ad2df99697fbfb5261",
