@@ -46,6 +46,18 @@ class DmdBpmnActionTest {
                 Map.of("view", "view", "search", "search"), Set.of());
     }
 
+    /**
+     * TSK-07-04 design.md B2 — validate 도 {@code writes}(EDIT 세트) 로 둔다. 팝업 진입 자체가 "CSV 업로드" 버튼(EDIT
+     * 권한 가드)으로만 열려 validate 만 따로 READ 권한으로 노출할 필요가 없고, {@link MdmPermissions#READ_ACTIONS} 는
+     * search·view·export·compare 뿐이라 validate 를 READ 로 두면 이 검사(READ 세트 소속)가 깨진다(design.md 원안의
+     * {@code Set.of("save")} 대신 {@code Set.of("validate", "save")} — build-log.md 「설계 이탈」).
+     */
+    @Test
+    void dataCsvUploadPop_액션은_validate_save() throws Exception {
+        assertActions("services/dmd/dataCsvUploadPop.bpmn", "dataCsvUploadPop", "dataCsvUploadPopService",
+                Map.of("validate", "validate", "save", "save"), Set.of("validate", "save"));
+    }
+
     private void assertActions(String path, String processId, String bean, Map<String, String> methodByAction,
                                Set<String> writes) throws Exception {
         Document doc = parse(path);
