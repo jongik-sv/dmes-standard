@@ -2,7 +2,7 @@
   "tsk": "TSK-07-02",
   "order": "4be6eb9f-e7cf-4bce-a868-00d9b77655f4",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "reported",
+  "phase": "merged",
   "baseline": {
     "failures": 0,
     "tests": 4048,
@@ -137,5 +137,6 @@
       }
     ],
     "new_failures": []
-  }
+  },
+  "unapproved": true
 }
