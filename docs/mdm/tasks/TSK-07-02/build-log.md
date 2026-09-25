@@ -174,3 +174,100 @@ design.md 「도커 금지로 생략한 검증」 절 그대로 — 이 단위�
 - D7 은 이제 완전히 `src/shell/page-handoff.ts`(`openMdmPage`/`useMdmPageParams`) 로 통일됐다 — `dataHandoff.ts` 는 더 이상 존재하지 않는다. dataCateEdit 화면에서 다른 화면으로 이동할 일이 있다면 같은 모듈을 쓴다.
 - `DmdScreenMessageParityTest` 는 이제 `@ParameterizedTest` 루프 구조다(`Case(screen, messagesPath, checkClosedKeyReopen)`). B3 는 `screens()` 메서드의 `Stream.of(...)` 에 `dataCateEdit` 항목 하나만 추가한다(루프 구조 자체는 고치지 않는다, design.md §2 지시대로).
 - `DataCategoryResolver.preview(maruDataId, defExpr, defTarget)`(B1 산출물)가 REGEX 매칭 건수까지 제공한다 — dataCateEdit 의 REGEX 미리보기(compare 액션)도 이것을 그대로 쓰면 된다(재구현 금지).
+
+## 구현 단위 B3 — 완료
+
+범위: dataCateEdit 백엔드/프런트/BPMN/e2e(작성만). 별도 워크트리 `.claude/worktrees/dflow-4be6eb9f-b3`(브랜치
+`wip/4be6eb9f-b3`)에서 B2 와 동시에 진행. `DmdScreenMessageParityTest`·dataMng·인계 코드(`dataHandoff.ts`·
+`page-handoff.ts`)는 건드리지 않았다.
+
+### 새 파일
+
+- `common/segment` 는 건드리지 않았다 — B1 이 만든 `DataCategoryResolver`·`DataSegmentRowStore.latestCateRows`/
+  `openMemberCodes` 를 호출만 한다(R2′).
+- `dmd/dataCateEdit/service/DataCateEditService.java` — 액션 7개(search·view·compare·reg·save·delete·restore).
+  `reg`·`save`(REGEX)·`delete`·`restore` 는 `DataCategorySegmentCore` 를 그대로 호출(잠금·검사 위임). `save` 는
+  대상 카테고리의 실제 defKind 를 서버가 스스로 읽어 REGEX 정의 수정과 TABLE 소속 일괄 적용(전부-아니면-전무,
+  자기 `TransactionTemplate` 로 addMember/removeMember N 회를 join)을 가른다.
+- `dmd/dataCateEdit/dto/{CateSearchRequest,CateSearchResult,CateRow,CateViewRequest,CateViewResult,CateRegRequest,
+  CateSaveRequest,CateCompareRequest,CateCompareResult,MemberApplyRequest}.java` — design.md §2 파일 목록 그대로
+  10개. `CateViewResult.Item`(코드·이름·lvl1)은 별도 파일을 늘리지 않으려고 `CateViewResult` 안 정적 중첩 클래스로
+  두었다(설계 이탈 아님 — 파일 수·이름은 그대로다).
+- `services/dmd/dataCateEdit.bpmn` — process `dataCateEdit`, bean `dataCateEditService`, 액션 7개
+  (`search→search`, `view→view`, `compare→compare`, `reg→register`, `save→save`, `delete→close`, `restore→reopen`).
+- `api/.../dmd/dataCateEdit/DataCateEditServiceSqliteTest.java` — 14 테스트(R2′·R4·R5·R6·R7·R12 전담 + reg·save·
+  search·compare 기능 확인).
+- `pages/dmd/dataCateEdit/{api.ts,types.ts,messages.ts,defTargetOptions.ts,transfer.ts,page.tsx,
+  components/{CategoryListPanel,RegexEditPanel,PreviewPanel,TransferListPanel}.tsx}`.
+- `tests/dmd/dataCateEdit/{transfer.test.ts,defTargetOptions.test.ts}` — 순수 함수 8개 테스트(카테고리 diff·D5
+  defTarget 드롭다운 제한).
+- `e2e/mdm-dataCateEdit.spec.ts` — 스모크 넷 4개(메뉴 이동, 목록/BASE, REGEX 등록, 잘못된 정규식 거부). **작성만,
+  돌리지 않았다**(마지막 단위 I 가 세 spec 을 함께 돈다).
+
+### 수정 파일
+
+- `DmdBpmnActionTest.java` — `dataCateEdit_액션은_search_view_compare_reg_save_delete_restore()` 추가(기존
+  메서드는 한 글자도 안 바꿈).
+- `DmdOasisHttpTest.java` — `C1_dataCateEdit_등록은_검색되고_닫으면_소속은_남고_매칭은_0이_된다()`·
+  `C2_dataCateEdit_BASE_수정은_예약_카테고리_문구로_거부된다()` 추가(기존 `PORT` 픽스처 재사용, 기존 메서드 무변경).
+- `m-mdm/tsup.config.ts` — `"pages/dmd/dataCateEdit/page"` 엔트리 한 줄 추가(B1 「설계 이탈」1번 그대로 적용).
+- `e2e/fixtures/mdm-dataMng.sql` — `E2E_DC_PORT`(마루 데이터, TABLE 카테고리 `DC_GROUP`, 항목 2개, 소속 1개) 새
+  `INSERT OR IGNORE` 블록만 덧붙였다. 기존 `E2E_DM_*` 행은 그대로. B2 의 dataEdit e2e 가 마루 데이터를 폐기할 수
+  있어(통합 단위가 세 spec 을 한 스위트로 돌린다) 공유 행 대신 전용 행을 썼다(design.md 는 세 화면이 픽스처를
+  공유한다고 적었지만, 마루 데이터 단위는 서로 격리해야 spec 간 상태 간섭이 없다 — 이 판단은 설계 이탈이라기보다
+  design.md 가 명시하지 않은 세부라 여기 기록만 한다).
+  DataInitializer.java 는 고치지 않았다 — B1 이 `seedMdmDataMngMenus()` 한 메서드에 세 화면(dataMng·dataEdit·
+  dataCateEdit) 메뉴·RBAC 을 이미 다 심어 뒀다(961~980행 확인).
+
+### 설계 이탈
+
+없음(B1 의 tsup.config.ts 이탈을 그대로 따랐을 뿐, 이 단위가 새로 design.md 를 벗어난 결정은 없다).
+
+### 변이 검증 기록
+
+`.claude/skills/dflow-dev/scripts/heavy.sh` 안에서 스크립트 하나로 7개를 순서대로 돌렸다(변이 → 대상 테스트
+`--fail-fast` → `git checkout --`(추적 파일)·`cp` 백업 복원(미추적 `DataCateEditService.java`) → 다음 변이).
+스윕 뒤 `git status`로 세 파일(`DataCategorySegmentCore.java`·`DataItemChecks.java`·`DataCateEditService.java`)
+모두 변이 흔적 없음을 확인했다.
+
+| 불변 규칙 | 변이 | 잡은 테스트 | 결과 |
+|---|---|---|---|
+| R2′ | `DataCategorySegmentCore.registerCate` 안에서 `lock.lock(maruDataId)` 를 한 번 더 호출(이중 잠금 흉내) | `R2_reg는_잠금을_한_번만_한다`(spy `verify(times(1))`) | 잡힘 |
+| R4 | `DataCategorySegmentCore.closeCate` 가 카테고리를 닫을 때 그 카테고리의 열린 소속 코드를 전부 `memberStore.close` 로 같이 닫도록 주입(연쇄 닫힘 흉내) | `R4_닫기는_소속_행을_지우지_않고_다시_열면_매칭이_되살아난다`(닫은 뒤 `VALID_TO = OPEN_END` 행 수를 직접 SELECT) | 잡힘 |
+| R5(REGEX) | `DataCateEditService.toCateRow` 의 `if (open)` 가드를 `if (true)` 로(닫힌 카테고리도 매칭 계산) | `R5_닫힌_REGEX_카테고리는_매칭_건수가_0이다` | 잡힘 |
+| R5(TABLE) | TABLE 매칭 계산에서 `openItemCodes` 교집합을 빼고 `openMemberCodes(...).size()` 그대로 씀(닫힌 항목도 셈) | `R5_닫힌_항목의_TABLE_소속은_매칭에_들지_않는다` | 잡힘 |
+| R6 | `DataCategorySegmentCore.requireNotBase` 본문을 비움(BASE 검사 제거) | `R6_BASE_수정은...`·`R6_BASE_닫기는...`(같은 클래스를 `--tests DataCateEditServiceSqliteTest` 로 전체 재실행, `--fail-fast` 로 첫 빨강에서 멈춤) | 잡힘 |
+| R7 | `DataItemChecks.requireActive` 본문을 비움(DEPRECATED 검사 제거) | `R7_DEPRECATED_마루_데이터는_카테고리_등록을_거부한다` | 잡힘 |
+| R12 | `DataCateEditService` 의 `applyMembers` 추가 루프에서 개별 `addMember` 실패를 `catch`로 삼키게 주입(부분 성공 흉내) | `R12_TABLE_일괄_적용은_하나가_실패하면_전체_롤백된다`(실패 코드가 유효 코드 뒤에 오게 해 실제 부분 삽입이 먼저 일어나게 함) | 잡힘 |
+
+모두 되돌린 뒤 `DataCateEditServiceSqliteTest`(14)·`DmdBpmnActionTest`(4)·`DmdOasisHttpTest`(8) 를 다시 돌려
+초록을 재확인했다.
+
+### 도커 금지로 생략한 검증
+
+design.md 「도커 금지로 생략한 검증」 절 그대로 — 이 단위는 새 `common.segment` 메서드를 추가하지 않았다(전부
+B1 산출물 재사용).
+
+### 관련 테스트 실행 결과(이 단위)
+
+- `cd src/backend && JAVA_HOME=... ./gradlew :mdm:api:test --tests DataCateEditServiceSqliteTest --tests
+  DmdBpmnActionTest --tests DmdOasisHttpTest --tests DataMngServiceSqliteTest --no-daemon --console=plain` →
+  BUILD SUCCESSFUL. XML 결과: `DataCateEditServiceSqliteTest` 14/14, `DmdBpmnActionTest` 4/4, `DmdOasisHttpTest`
+  8/8, `DataMngServiceSqliteTest` 7/7(회귀 없음).
+- `cd src/backend && JAVA_HOME=... ./gradlew :mdm:lib:test :mdm:api:test --tests SecurityScreenContractTest
+  --tests DataCategorySegmentCoreSqliteTest --tests MdmOasisActionVocabularyTest --no-daemon --console=plain` →
+  BUILD SUCCESSFUL(새 BPMN 이 두 계약 검사도 통과, TSK-07-03 코어 테스트 회귀 없음).
+- `cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test` → 70 files, 772 tests, 0 failed
+  (이번 단위가 이 워크트리에서 첫 프런트 실행이라 `build:libs` 를 먼저 돌렸다. B1 이 보고한 `evalex-perf.test.ts`
+  flaky 3건은 이번 실행에서는 재현되지 않았다 — CPU 경합 유무 차이로 보인다).
+- `cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint` → 통과(`tsc --noEmit`, 오류 0).
+- `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` → `ERROR 0 / WARN 0 /
+  INFO 29`(기준선과 같음, `dataCateEdit.bpmn`/`dataCateEditService` bean 해석됨, BPMN 26개 전부 해석).
+
+### 하지 못한 것
+
+- e2e(`mdm-dataCateEdit.spec.ts`)는 작성만 하고 돌리지 않았다(단위 제약 (c), 마지막 단위 I 가 세 spec 을 함께
+  돈다 — 이 spec 하나만으로는 dataMng 등록→dataCateEdit 이동 같은 화면 간 연결을 확인할 수 없다).
+- `DmdScreenMessageParityTest` 에 `dataCateEdit` 파리티 항목을 더하지 않았다(단위 제약 (b), 통합 단위(I) 몫 —
+  `messages.ts` 의 `RESERVED_CATEGORY_PREFIX`·`CLOSED_KEY_REOPEN` 두 상수는 서버 원문과 이미 같은 글자로
+  맞춰 뒀다).
