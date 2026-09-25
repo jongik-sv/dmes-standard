@@ -181,3 +181,9 @@ design.md §3 B3.5 는 "공개 API 로 어떻게 부르는지 먼저 grep 필요
 - 진단: 새 파일(evalex-sample-rule-parity.test.ts)을 뺀 760건에서도 같은 실패, `evalex-perf.test.ts` 단독 실행은 4/4 통과 → 코드 원인 아님(환경). 성능 기준 완화·skip 없음. 팀장 지시로 blocked.
 - 팀장 결정(blocked 응답, (B)): 환경 불안정으로 인정하고 Verify 진행. 증적: 2026-09-26 01:18 KST heavy.sh 슬롯(slot-1)을 잡고 `cd src/frontend && pnpm --filter @dk-oasis/m-mdm test tests/evalex-perf.test.ts` 단독 실행 — 4/4 통과(R2 387ms·BASE_SPD_LKP 532ms·QLTY_GRD_JDG 405ms 파일 전체, 부하 평균 30.81).
 - Build 게이트 판정 기록: m-mdm 775 중 2 실패(env: evalex-perf NFR-1 부하 민감, 기준선 동일 실패·단독 통과).
+
+## Verify 감사 (Verify 서브에이전트, 오케스트레이터 요약)
+- 변이 검증 표 6행 재현 모두 잡힘. 표에 없던 불변 규칙 2건(ALLOWED_FALLBACK_IDS 4건 고정, analysis-corpus 사본 금지)도 기존 테스트가 잡음을 확인.
+- 재현 주석: B1 변이는 `evaluate()` 가 실패를 throw 하지 않고 `{kind:"error"}` 로 돌려주므로, 결과가 error 일 때 throw 하도록 넣어야 표대로 잡힌다.
+- 프로덕션 소스 변경 없음(`git diff --stat f59cce7..HEAD -- src/` = 테스트 파일 3개). 결함 0건 → defects.md 없음.
+- Verify 게이트: Build 게이트 sha 7215f68 이후 변경은 Task 문서뿐, 작업 트리 깨끗 → build_gate 재사용.
