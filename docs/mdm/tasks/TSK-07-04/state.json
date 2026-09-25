@@ -2,7 +2,7 @@
   "tsk": "TSK-07-04",
   "order": "73c6c47e-faf0-4b11-a5f5-1a76aa148da8",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "design",
+  "phase": "build",
   "branch_base": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed",
   "baseline": {
     "failures": 0,
@@ -53,5 +53,47 @@
       }
     ]
   },
-  "model": "sonnet"
+  "model": "sonnet",
+  "last": {
+    "phase": "build",
+    "event": "build.gate.fail"
+  },
+  "build_gate": {
+    "head": "fafe6af0710f6be9595e7931d531f09ebb20f3f5",
+    "cmds": [
+      {
+        "cwd": "src/backend",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3138,
+        "failures": 0
+      },
+      {
+        "cwd": "src/frontend",
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 764,
+        "failures": 2
+      },
+      {
+        "cwd": "src/frontend",
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0
+      },
+      {
+        "cwd": "src/frontend",
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0
+      }
+    ],
+    "new_failures": [
+      "tests/evalex-perf.test.ts NFR-1 (부하 민감, 단독 실행 4/4 통과, 재실행 2회 모두 실패)"
+    ]
+  }
 }
