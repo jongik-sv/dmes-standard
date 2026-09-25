@@ -14,7 +14,7 @@ moduleGroup: dme
 > (`docs/mdm/design/basic/06-business-rule.md`)와 선행 Design 산출물(`docs/mdm/tasks/TSK-08-06/design.md`)을 근거로 삼는다.
 >
 > **Frontend 개발 연계 값** (§1.2 정본) — mesModule `m-mdm` / moduleGroup `dme` / pageName `ruleSetEdit` /
-> pageId `ruleSetEdit` / 페이지 유형 `C`(카드 편집) / tsup entry key `pages/dme/ruleSetEdit/page`
+> pageId `ruleSetEdit` / 페이지 유형 `B` / tsup entry key `pages/dme/ruleSetEdit/page`
 
 ## 1. 화면 개요
 
@@ -38,7 +38,7 @@ moduleGroup: dme
 | moduleId / moduleGroup | `mdm` / `dme` | `docs/mdm/screens/README.md`, design D1 |
 | mesModule | `m-mdm` | 01 A.4.5 |
 | 화면식별자 (screenId) = pageName = serviceId = OBJECT_ID | `ruleSetEdit` | design I17 |
-| 페이지 유형 | `C`(상단 고르기 바 + 16칸 카드 그리드) | 08-02 `ruleEdit` 골격 |
+| 페이지 유형 | `B`(상단 고르기 + 상세 편집 카드 2개) | 08-02 `ruleEdit` 골격(그 기능설계서에는 유형 칸이 없어 조회+상세 계열 `B` 로 둔다) |
 | 주요 API path (UI→BFF) | `POST /api/mdm/oasis/ruleSetEdit/{action}` | design §6.12 |
 | 주요 API path (BFF→BE) | `POST /oasis/ruleSetEdit/{action}` | 상동 |
 | Frontend 파일 | `m-mdm/pages/dme/ruleSetEdit/page.tsx`(+ `api.ts`·`types.ts`·`set-model.ts`·`links.ts`·`state/useRuleSetEdit.ts`·`cards/{RuleSetCard,RuleListGrid,SetIoTables,GuideCard}.tsx`) | design §2.3 |
@@ -214,5 +214,5 @@ moduleGroup: dme
 | N-9 | "저장 즉시 배포"는 보류 — 저장·폐기·되살리기는 `TB_MDM_RULE_SET` 한 행만 바꾼다 | design D11·I23, PRD FR-E5 |
 | N-10 | 폐기는 두 단계 버튼(폐기 → 폐기 확인/취소) | design D14 |
 | N-11 | 같은 룰을 두 번 담지 않는다 | design D15 |
-| N-12 | 룰 목록 그리드 열 너비 합(약 1,160px)이 span 10 카드보다 넓다. ag-grid 는 가로로 보이지 않는 열(의존 룰·동작)을 그리지 않으므로 좁은 화면에서는 가로 스크롤로 본다(e2e 는 2560×1440 으로 연다) | TSK-08-06 build-log B8 |
+| N-12 | **(보고한 문제, 미해결)** 룰 목록 그리드는 `columnSizing="fixed"` 이고 열 너비 합(약 1,160px)이 span 10 카드보다 넓다. e2e 실측에서 기본 폭(1280)으로 열면 ag-grid 가 가로로 보이지 않는 **의존 룰·동작(▲▼✕) 열을 그리지 않았다** — 이 화면의 핵심 조작이 기본 폭에서 보이지 않는다. TSK-08-02 N-4 는 같은 증상을 `columnSizing="fit"` + `minWidth` 로 고쳤다. 화면 코드는 B6 범위라 B8 은 고치지 않고 보고했다. e2e 와 스크린샷은 2560×1440 으로 연 것이다 | TSK-08-06 build-log B8 「설계 이탈」 |
 | N-13 | e2e `src/frontend/e2e/mdm-ruleSetEdit.spec.ts`(E1~E10, 스모크 넷 = E1·E2·E5·E8), 픽스처 `e2e/fixtures/mdm-ruleSet-data.sql` | design §3.4.2 |

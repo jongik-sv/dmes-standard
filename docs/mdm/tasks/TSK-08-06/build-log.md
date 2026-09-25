@@ -164,7 +164,7 @@ B2 변이는 python 스크립트 하나(변이 넣기 → `:api:test --fail-fast
 - B8 E3 순서: 설계는 ▼ → 드래그로 되돌리기 → dirty 확인 순서지만, dirty 는 불러온 목록·세트명·설명과 **비교**해 정하므로(`useRuleSetEdit.ts` `dirty`) 원래 순서로 되돌린 뒤에는 확인이 뜨지 않는다.
   ▼ 직후(목록이 바뀐 상태)에 다른 세트를 골라 확인 대화상자(문구 단언 후 취소)를 보고, 그다음 드래그로 되돌린다.
 - B8 e2e 화면 크기: `mdm-ruleSetEdit.spec.ts` 는 `test.use({ viewport: { width: 2560, height: 1440 } })` 로 연다. 룰 목록 그리드 열 너비 합(약 1,160px)이 span 10 카드보다 넓어, 기본 1280 폭에서는
-  ag-grid 가 가로로 보이지 않는 의존 룰·동작 열을 그리지 않았다(E2 첫 실행이 `[col-id="deps"]` 없음으로 실패). 화면 코드는 바꾸지 않았고 기능설계서 ruleSetEdit N-12 에 적었다.
+  ag-grid 가 가로로 보이지 않는 의존 룰·동작 열을 그리지 않았다(E2 첫 실행이 `[col-id="deps"]` 없음으로 실패). 화면 코드(B6 `RuleListGrid.tsx` `columnSizing="fixed"`)는 B8 범위 밖이라 고치지 않고 보고한다 — 기본 폭에서 ▲▼✕·의존 룰 열이 보이지 않는 것은 미해결 문제다(TSK-08-02 N-4 는 `fit`+`minWidth` 로 고쳤다). 스크린샷도 2560 폭이다. 기능설계서 ruleSetEdit N-12 에 같은 내용을 적었다.
 - B8 e2e 스펙 실행 순서: Playwright 는 파일 이름 순으로 돌리므로 `mdm-ruleSetEdit` 가 `mdm-ruleSetMng` 보다 먼저 돈다. 두 스펙은 서로의 세트를 바꾸지 않거나(M3 는 새 세트), 바꿔도 단언이 성립한다
   (M2 의 `E2S_OLDSET` DEPRECATED 는 E7 이 되살린 뒤 다시 폐기해 끝 상태가 같고, 결과 변수 `S_GRD` 조회는 포함·제외만 본다).
 - B8 픽스처 `E2S_CHAIN` 에 설명 "등급 → 계수 → 속도" 를 넣었다(§3.4.3 은 설명을 정하지 않았다, E8 이 다시 불러온 세트명만 본다).
