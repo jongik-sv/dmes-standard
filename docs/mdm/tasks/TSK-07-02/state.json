@@ -54,8 +54,8 @@
   },
   "model": "sonnet",
   "last": {
-    "phase": "build",
-    "event": "build.pass"
+    "phase": "verify",
+    "event": "verify.pass"
   },
   "build_gate": {
     "head": "4e6ece7a40aa5adfbb02b9ad2df99697fbfb5261",
@@ -99,5 +99,43 @@
       "tests/evalex-perf.test.ts > NFR-1 BASE_SPD_LKP",
       "tests/evalex-perf.test.ts > NFR-1 QLTY_GRD_JDG"
     ]
+  },
+  "verify_gate": {
+    "head": "7ce43dac138a8c1b7dbf9559263e8747af483259",
+    "cmds": [
+      {
+        "cwd": "",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3172,
+        "failures": 0
+      },
+      {
+        "cwd": "",
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 774,
+        "failures": 0
+      },
+      {
+        "cwd": "",
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0
+      },
+      {
+        "cwd": "",
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0,
+        "result": "pass"
+      },
+      {
+        "cwd": "",
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0,
+        "result": "ERROR 0 / WARN 0 / INFO 29"
+      }
+    ],
+    "new_failures": []
   }
 }
