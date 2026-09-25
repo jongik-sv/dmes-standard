@@ -252,10 +252,19 @@ TSK-07-03 이 이미 머지한 `dataItemMng`(항목 관리) 화면·`DataItemSav
 
 ## 담당자 확인 필요 결정
 
-없음. `dataCsvUploadPop` 화면 유형(팝업 vs 독립 화면)은 `docs/mdm/screens/README.md` §4 가 이미 이 작업에 판단을
-공식 위임했고(권장안 명시), 같은 저장소 안 동형 선례(`termRegPop`)가 있어 이번 Design 이 직접 결정했다(D2, 공용
-결정 기록 `docs/mdm/decisions.md` D-TSK-07-04-1). 나머지는 모두 TSK-07-01·07-03 이 이미 확정한 계약 위에서
-결정 가능한 범위였다.
+- **D1** — `dataCsvUploadPop` 을 독립 화면(page.tsx·메뉴 leaf)으로 만드는가, `dataItemMng` 안에서 여는 팝업으로 만드는가?
+  - 선택지: (A) 팝업 — `dataItemMng` 의 "CSV 업로드" 버튼으로 열고 page.tsx·메뉴 leaf 없음 / (B) 독립 화면 — page.tsx·메뉴
+    leaf·포털 직접 진입(screenId 에서 `Pop` 을 뗀다)
+  - 택한 것: (A) 팝업
+  - 근거: `docs/mdm/screens/README.md` §4 가 이 판단을 이 작업에 인계하며 팝업을 권장했고, 리포 규칙(팝업은 page.tsx·메뉴
+    금지)과 같은 모양의 병합된 선례 `dma/termRegPop`(TSK-04-04)이 있다(리포 관례). spec 의 entry-point 도 "항목 관리 > CSV
+    업로드" 로 항목 관리 아래에 둔다. 다만 수용 기준 문구 "포털 메뉴에서 화면이 열리고 e2e `mdm-dataCsvUploadPop.spec.ts`
+    가 통과한다" 를 "포털 메뉴로 항목 관리를 열고 CSV 업로드 버튼으로 팝업을 연다" 로 재해석했으므로 확인을 받는다.
+    공용 결정 기록 `docs/mdm/decisions.md` D-TSK-07-04-1.
+  - 반려되면: `pages/dmd/dataCsvUploadPop/page.tsx` 와 메뉴 leaf 시드를 더해 독립 화면으로 승격하고, screenId 에서 `Pop` 을
+    떼어 식별자 사전에 등재한다. e2e 는 포털 메뉴에서 직접 여는 시나리오로 바꾼다(DDL 영향 없음).
+
+나머지는 모두 TSK-07-01·07-03 이 이미 확정한 계약 위에서 결정 가능한 범위였다.
 
 ## 도커 금지로 생략한 검증
 
