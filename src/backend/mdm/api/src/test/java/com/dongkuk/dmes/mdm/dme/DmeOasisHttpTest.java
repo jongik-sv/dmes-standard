@@ -88,7 +88,7 @@ class DmeOasisHttpTest {
         ArrayNode rows = body.putObject("grids").putObject("rows").putArray("rows");
         rows.addObject().put("rowId", -1).put("rowKind", "NORMAL")
                 .put("cells", "{\"1\":{\"op\":\"<= 변수 <\",\"left\":\"1.6\",\"right\":\"2.5\"},\"2\":{\"val\":\"A\"}}").put("note", "첫 행");
-        rows.addObject().put("rowId", -2).put("rowKind", "NORMAL").put("cells", "{\"1\":{\"op\":\"NA\"}}");
+        rows.addObject().put("rowId", -2).put("rowKind", "NORMAL").put("cells", "{\"1\":{\"op\":\"GE\",\"left\":\"2.5\"},\"2\":{\"val\":\"B\"}}");
         return body;
     }
 
@@ -107,7 +107,7 @@ class DmeOasisHttpTest {
         assertEquals(1, result.path("rowVersion").asInt(), save.toString());
         assertEquals(1, result.path("rowIdMap").path("-1").asInt(), save.toString());
         assertEquals(2, result.path("rowIdMap").path("-2").asInt(), save.toString());
-        assertEquals("ALL_NA_ROW", result.path("issues").path(0).path("code").asText(), save.toString());
+        assertEquals("NULL_GAP", result.path("issues").path(0).path("code").asText(), save.toString());
         assertEquals(2, DmeTestSupport.count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'HTTP_JDG'"));
         assertEquals("kim", jdbc.queryForObject("SELECT C_USR_ID FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'HTTP_JDG' AND ROW_ID = 1", String.class),
                 "HTTP 경로에서는 감사 칼럼이 채워진다");
