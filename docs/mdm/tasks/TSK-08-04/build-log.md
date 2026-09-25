@@ -185,6 +185,60 @@
   `\` 로 막고 `.`·`.*` 만 남기므로(06:158) 생성기가 받아들인 값에서 `Pattern.compile` 이 실패할 입력이 없다. 06 이 요구하는 단계라 코드는 두었다.
 - 이 워크트리에서 다른 단위(B7·B8)가 동시에 파일을 바꾸고 있었다. B2 커밋에는 B2 파일만 stage 했다.
 
+## B8 — FE 카드 ④ 값 테스트·⑤ 테스트 결과·⑥ 테스트 케이스
+
+- `P/cards/ValueTestCard.tsx`(④): 대상 선택(`vt-target`, 값 `BODY`·`V:<ver>`) — `editable` 이고 선택 버전이 DRAFT 면 `편집본 · 버전 N 저장 전` 이 맨 앞
+  기본값(I34), 그 뒤 `버전 N · 상태`. 모드 설명(`vt-mode`), 열 초안 dirty 안내(`vt-col-draft`, 편집본만). 입력 줄은 `inputFields`(편집본은 표 카드가 올린
+  표, 다른 버전은 `viewRule` 로 받은 정의)이고 식 AST 는 `InputContractSection` 과 같은 조건(`canParseOnServer`)으로 `serverParse`. 줄마다 라벨·물리명·
+  타입 배지·계약 배지·키 보냄(`vt-key-<NAME>` 안의 확인란)·값 칸(`vt-input-<NAME>`, placeholder "비우면 NULL", 키 보냄 끔이면 비활성)·설명·도메인.
+  "돌리기"(`canDo("execute")`) → `runValueTest` → `setTestRun`. 서버 오류는 카드 안 `vt-error` 에 보인다. "케이스로 저장" 은 이름 칸(`vt-case-name`)이
+  비면 꺼지고, 방금 같은 대상·같은 입력으로 돌린 결과가 있을 때만 `expectedFromResult` 를 기대값으로 싣는다.
+- `P/cards/TestResultCard.tsx`(⑤): `vt-result-empty`(결과 없음), `vt-result-target`(대상·판정함/판정 오류·evalTs), `vt-result-errors`(단계·코드·메시지),
+  `vt-result-values`(결과 변수 seq 순, 결과 열 그룹은 그룹 이름 한 칸 + "그룹 열 N개 가운데 라벨 물리명"), `vt-result-hits`("{seq}행 (row_id id)", 기본 행이면
+  "어느 행도 참이 아니어서 기본 행 (row_id id)"), `vt-result-warnings`, `vt-result-cell-errors`(깨진 셀·뺀 행). 표에 칠했으면(`runShownOnTable`)
+  `vt-result-on-table`, 아니고 VERSION 결과면 그 버전의 읽기 전용 표 `vt-result-table`(shared `AgDataGrid` + `buildTableColumns`·`displayRows`·`testMarksOf`,
+  행 클래스 `ag-row-test-hit`), BODY 인데 rev 가 달라졌으면 `vt-result-stale`.
+- `P/cards/TestCaseCard.tsx`(⑥): 줄 `tc-row-<caseId>`, 빈 상태 `tc-empty` "테스트 케이스가 없습니다", 머리 "모두 돌리기"(④ 의 대상·입력 + `runCases`), 결과 배지
+  `tc-badge-<caseId>`(`caseBadge`) 뒤에 불일치 `키 기대 ≠ 실제`·판정 오류, 동작 "불러오기"·"기대값 갱신"(마지막 케이스 결과가 OK 일 때)·"삭제"(한 번 더 눌러
+  "삭제 확인"). 쓰기는 `runWrite`(뒤에 view 다시 불러오기). 모두 돌리기 오류는 `tc-error`.
+- `P/value-test/run-request.ts`(생성): `targetOptions`·`resolveTarget`·`targetKey`·`targetLabel`·`bodyTable`·`prepareRun`(요청 + `TestRunView` 의 rev·rowVersion)·
+  `useTargetView`(다른 버전 view 를 룰·버전·row_version 마다 한 번 받아 모듈 캐시, 테스트는 `clearVersionViewCache`)·`defaultRowIdOf`.
+- `P/cards.ts`: header·versions·table·valueTest(8)·testResult(8)·testCases(16)·usage.
+- TDD: `value-test-cards.test.ts`(14건)를 먼저 쓰고 모듈이 없어 실패하는 것을 확인한 뒤 구현했다. 변이 7개 중 "다른 입력의 결과를 기대값으로" 가 처음에
+  잡히지 않아 사례(돌린 뒤 입력을 바꾸고 저장 → 기대값 없음)를 더했다.
+
+### 설계 이탈
+
+1. **`state/workbench-context.tsx`(B7 파일)에 칸 둘을 더했다.** ⑥ "모두 돌리기" 는 ④ 가 고른 대상·입력으로 돌아야 하고(§6.7), "불러오기" 는 ④ 입력 칸을
+   채워야 하는데 두 카드는 형제 슬롯이라 props 로 나눌 수 없다. `valueTestInput{ruleId, target, ver, inputJson}`·`publishValueTestInput`(④ 가 올린다),
+   `caseLoad{ruleId, inputJson, seq}`·`loadCase`(⑥ 가 올리고 ④ 가 seq 가 오를 때 한 번 채운다)를 더했다. 기존 칸·reducer 는 그대로다.
+2. **`value-test/run-request.ts` 를 새로 두었다.** 대상 선택지·요청 모양·다른 버전 정의 캐시를 ④⑤⑥ 이 함께 써서 한 곳에 모았다(§2.5 표에 없는 파일).
+3. **값 테스트 오류는 ErrorModal 이 아니라 카드 안에 보인다.** 값 테스트는 쓰기가 아니라 `runWrite`(성공 뒤 view 다시 불러오기)를 쓰지 않고
+   `runValueTest` 를 바로 부른다. MDM021 등 서버 거부는 ④ `vt-error`(모두 돌리기는 ⑥ `tc-error`)에 남는다(e2e V5). 케이스 저장·갱신·삭제는 쓰기라
+   `runWrite` 를 쓴다(실패는 기존 ErrorModal).
+4. **같은 버전 VERSION 결과라도 표에 저장 안 한 변경이 있으면 ⑤ 에 그 버전 표를 따로 그린다.** 표 카드는 그때 칠하지 않으므로(B7 이탈 3) 결과를 볼 자리가
+   없어진다. "대상이 보이는 표와 다르면" 의 판정을 `runShownOnTable` 거짓으로 두었다.
+5. **"기대값 갱신" 은 "모두 돌리기" 로 그 케이스의 결과(판정함)가 있을 때만 켠다.** 기대값은 서버가 준 케이스 결과(`results`·`hit`)를 `expectedFromResult`
+   모양으로 바꿔 만든다(hit 은 서버 표현 그대로).
+6. **카드 폭은 design §2.5 대로 ④ 8칸·⑤ 8칸이다**(시안은 6·10).
+7. **렌더 테스트 describe 에 `timeout: 30_000`.** 다른 스위트와 함께 돌 때 한 사례가 5.2초가 나온 적이 있어 선례(`engine-contract.generated.test.ts`)처럼 늘렸다.
+
+### 보고
+
+- 입력 줄에 도메인 표준 식·예시 값은 보이지 않는다(B7 「보고」와 같다 — view 에 표준 식이 없고 컬럼 사전에 예시 칼럼이 없다, F13).
+- 식 AST 는 `validate` 권한이 있고 `editable` 일 때만 받는다(08-03 `canParseOnServer` 관례). 비소유 담당자가 식 변수가 있는 룰을 값 테스트하면 그 식이 읽는
+  변수는 입력 줄에 없고 `vt-pending` 안내만 나온다(판정은 서버가 하므로 키를 못 넣을 뿐이다).
+- `rule-edit-page.test.ts` 는 카드 수·순서를 고정하지 않아 고치지 않았다(§3.3 의 "7개로 바꾼다" 대상 없음). 카드 순서는 `value-test-cards.test.ts` 가 고정한다.
+
+### 인계 — B9(e2e)
+
+- 대상 고르기: `vt-target` 의 `selectOption({ label: "버전 1 · RELEASED" })` 또는 값 `V:1`, 편집본은 값 `BODY`.
+- 입력: `vt-input-<NAME>`, 키 보냄 끄기는 `vt-key-<NAME>` 안의 `input[type=checkbox]`. 끄면 값 칸이 비활성이다.
+- V2: 다른 버전 결과는 `vt-result-table` 안의 `.ag-row-test-hit`·`.cell-test-false`. V3: 편집본 결과는 표 카드의 `dt-test-shown`·⑤ `vt-result-on-table`,
+  키 보냄 끔 → ⑤ `vt-result-errors` 에 `MISSING_KEY`.
+- V4: `vt-case-name` 에 이름 → ④ "케이스로 저장"(view 다시 불러온 뒤 ⑥ 에 새 줄), ⑥ "모두 돌리기" → `tc-badge-<id>` 문구 "통과"·"실패 · <키>"·"돌려 보기만".
+- V5: ④ `vt-error` 에 서버 메시지(MDM021).
+
 ## 변이 검증 기록
 
 | 불변 규칙 | 변이 | 잡은 테스트 | 결과 |
@@ -233,7 +287,16 @@
 | I13 | `=` 패턴 정규식 `Pattern.compile` 끔 | `RuleGenerateTryTest` | 안 잡힘(보고) — 등가 변이, B2 「보고」 |
 | I13 | 생성해 보기에 정규화 전 셀을 넣음(§7.1 순서) | `RuleSaveValidatorTest` › 정규화한_셀로_생성해_보고_정규화한_행을_돌려준다 | 잡힘 |
 | I30 | `RuleCellsCodec.parse` 가 문자열 값을 trim | `RuleCellsCodecTest` › 값을_고치지_않고_바이트_단위로_왕복한다 | 잡힘 |
+| I34 | `RULE_EDIT_CARDS` 의 valueTest·testResult 순서를 바꿈 | `value-test-cards.test.ts` › 카드 순서는 header·…·usage 다 | 잡힘 |
+| I34 | 편집본 대상을 `editable` 없이도 제공 | `value-test-cards.test.ts` › 편집본 대상은 editable 이고 DRAFT 일 때만 … | 잡힘 |
+| I34 | 편집본 대상을 선택 버전이 DRAFT 가 아니어도 제공 | `value-test-cards.test.ts` › 편집본 대상은 editable 이고 DRAFT 일 때만 … | 잡힘 |
+| (B8) | BODY 요청에 편집 중인 표 대신 저장된 행을 실음 | `value-test-cards.test.ts` › 돌리기는 편집본 행을 grids.rows 로 싣고 … | 잡힘 |
+| (B8) | "모두 돌리기" 가 `runCases` 를 빼먹음 | `value-test-cards.test.ts` › 모두 돌리기는 … runCases 를 싣고 … | 잡힘 |
+| (B8) | "케이스로 저장" 이 다른 입력의 결과를 기대값으로 실음 | `value-test-cards.test.ts` › 케이스로 저장은 part CASE 로 … | 안 잡힘(보강함) |
+| I33 | ⑤ 가 다른 버전 결과도 "표에 칠했다" 로 봄 | `value-test-cards.test.ts` › 다른 버전을 대상으로 돌리면 … 그 버전 표를 따로 그린다 | 잡힘 |
 
 - Java 변이는 `:maru-mdm-engine:test` 태스크 실패(컴파일 통과 뒤 테스트 실패)로 확인했다. enum → 문자열 상수로 바꾼 뒤 최종 코드에 Java 변이 9개를 다시 돌려 모두 잡혔다. fail-fast 첫 실패 사례 이름은 로그에 남기지 않았다.
 - TS 변이는 확인한 뒤 곧바로 `git checkout` 으로 되돌렸다(TS 파일 무변경, I28).
 - B2 변이는 스크립트 하나(변이 → `:mdm:lib:test --tests <클래스> --fail-fast` → `git checkout`)를 `heavy.sh` 로 감싸 세 번에 나눠 돌렸다. 변이마다 `git diff` 로 실제로 바뀐 것을 확인했다. "(fail-fast)" 로 적은 행은 첫 실패 사례 이름을 로그에서 뽑지 못한 것이다.
+- B8 변이는 스크립트 하나(백업 복사 → 변이 → `vitest run value-test-cards.test.ts --bail=1` → 백업으로 되돌리기, `trap` 으로 중단 때도 되돌림)를 `heavy.sh` 로
+  감싸 돌렸다(파일이 커밋 전이라 `git checkout` 대신 백업 복사). 보강 뒤 7개 모두 잡혔다.
