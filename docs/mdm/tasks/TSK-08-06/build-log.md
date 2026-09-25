@@ -110,6 +110,8 @@
 | I17(B4) | ruleSetEdit process id → `ruleSetEditor` | `DmeBpmnActionTest.ruleSetEdit_는_…` | 잡힘 |
 | I20(B4) | `RuleSetMngService` 에 FQCN `@Transactional` | `DmeOasisHttpTest` "담당자 역할이 없으면 룰 세트 등록과 저장이 MDM013 이다"(fail-fast 첫 실패) | 잡힘 |
 | I20(B4, B3 인계) | `RuleSetEditService` 에 FQCN `@Transactional` | 같은 테스트 — B3 행의 "안 잡힘" 구멍을 HTTP 경로가 덮는다 | 잡힘 |
+| I18(B8) | mcm 메뉴 시드 leaf 이름 `"룰 세트"` → `"룰세트"`(`DataInitializer.seedMdmRuleSetMenus()`), 새 mcm.db·mdm.db 로 재기동 | E2E 스위트 전체(`mdm-shell-rbac-smoke`·`mdm-ruleSetMng`·`mdm-ruleSetEdit`, `--max-failures=1`) — `mdm-ruleSetMng` M1 이 메뉴 `/^룰 세트$/` 를 찾지 못해 빨강 | 잡힘 |
+| I24(B8) | (변이 아님 — 불변 확인) `/usr/bin/git diff --stat f59cce7 -- <§2.5 파일·08-02/08-03 dme ruleMng·ruleEdit BE·FE(CardFrame 포함)·엔진 main·엔티티·마이그레이션·mdm-local-sample·mdm-ruleEdit-data·mdm-ruleEdit.spec·mdm-rbac-seed-check.*·ruleMng/ruleEdit.bpmn>` | 출력 없음. 추가만 허용된 `RuleQueries`(+14)·`DmeTestSupport`(+11) 은 삭제 줄 0, `DataInitializer` 삭제 줄 0. 새 픽스처와 같은 DB 에 `mdm-ruleEdit-data.sql` 을 넣고 기존 `mdm-ruleMng`·`mdm-ruleEdit` 스펙 26건 통과(`LS_E2E` 기대 포함) | 확인 |
 
 B7 변이는 작업 트리에서만 넣고 규칙마다 `git checkout -- <파일>` 로 되돌렸다(`trap`). 대상 테스트 한 파일을 `vitest run … --bail=1` 로 돌렸다.
 
@@ -122,8 +124,6 @@ B4 변이는 python 스크립트 하나(변이 넣기 → `:api:test --fail-fast
 
 B2 변이는 python 스크립트 하나(변이 넣기 → `:api:test --fail-fast --tests RuleIoReaderTest` → scratchpad 사본으로 되돌리기, 시그널·`finally` 에서도 되돌림)를 `heavy.sh` 로 감싸 두 번(M1~M5, M6~M10) 돌렸다.
 `RuleQueries.java` 의 추가분이 아직 커밋 전이라 `git checkout --` 대신 사본 복원을 썼다. 모든 변이는 컴파일되는 형태이고, 끝난 뒤 두 파일이 사본과 같음을 `cmp` 로 확인했다.
-| I18(B8) | mcm 메뉴 시드 leaf 이름 `"룰 세트"` → `"룰세트"`(`DataInitializer.seedMdmRuleSetMenus()`), 새 mcm.db·mdm.db 로 재기동 | E2E 스위트 전체(`mdm-shell-rbac-smoke`·`mdm-ruleSetMng`·`mdm-ruleSetEdit`, `--max-failures=1`) — `mdm-ruleSetMng` M1 이 메뉴 `/^룰 세트$/` 를 찾지 못해 빨강 | 잡힘 |
-| I24(B8) | (변이 아님 — 불변 확인) `/usr/bin/git diff --stat f59cce7 -- <§2.5 파일·08-02/08-03 dme ruleMng·ruleEdit BE·FE(CardFrame 포함)·엔진 main·엔티티·마이그레이션·mdm-local-sample·mdm-ruleEdit-data·mdm-ruleEdit.spec·mdm-rbac-seed-check.*·ruleMng/ruleEdit.bpmn>` | 출력 없음. 추가만 허용된 `RuleQueries`(+14)·`DmeTestSupport`(+11) 은 삭제 줄 0, `DataInitializer` 삭제 줄 0. 새 픽스처와 같은 DB 에 `mdm-ruleEdit-data.sql` 을 넣고 기존 `mdm-ruleMng`·`mdm-ruleEdit` 스펙 26건 통과(`LS_E2E` 기대 포함) | 확인 |
 
 ## 설계 이탈
 
