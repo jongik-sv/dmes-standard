@@ -1,0 +1,1646 @@
+{
+  "version": 1,
+  "description": "TSK-08-06 design §6.8 — 룰 세트 계산(io·deps·checks) 코퍼스. Java RuleSetCorpusTest 와 m-mdm rule-set-corpus.test.ts 가 함께 읽는다. 기대값은 §6.2·§6.3 의사코드에서 손으로 유도했다.",
+  "cases": [
+    {
+      "name": "빈 목록",
+      "ids": [],
+      "rules": {},
+      "expect": {
+        "io": {
+          "inputs": [],
+          "results": []
+        },
+        "deps": {},
+        "checks": [
+          {
+            "code": "EMPTY",
+            "severity": "REJECT",
+            "ruleId": null,
+            "otherRuleId": null,
+            "varName": null,
+            "message": "룰이 하나도 없다"
+          }
+        ]
+      }
+    },
+    {
+      "name": "통과 사슬 3",
+      "ids": [
+        "E2S_GRD",
+        "E2S_FCT",
+        "E2S_SPD"
+      ],
+      "rules": {
+        "E2S_GRD": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "SET_THK",
+              "source": "DICT"
+            },
+            {
+              "name": "SET_SURF",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_GRD"
+            }
+          ]
+        },
+        "E2S_FCT": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "S_GRD",
+              "source": "NONE"
+            },
+            {
+              "name": "SET_WID",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_FCT"
+            }
+          ]
+        },
+        "E2S_SPD": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "S_FCT",
+              "source": "NONE"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_SPD"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "SET_THK",
+              "source": "DICT",
+              "users": [
+                "E2S_GRD"
+              ]
+            },
+            {
+              "name": "SET_SURF",
+              "source": "DICT",
+              "users": [
+                "E2S_GRD"
+              ]
+            },
+            {
+              "name": "SET_WID",
+              "source": "DICT",
+              "users": [
+                "E2S_FCT"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "S_GRD",
+              "by": [
+                "E2S_GRD"
+              ],
+              "readers": [
+                "E2S_FCT"
+              ]
+            },
+            {
+              "name": "S_FCT",
+              "by": [
+                "E2S_FCT"
+              ],
+              "readers": [
+                "E2S_SPD"
+              ]
+            },
+            {
+              "name": "S_SPD",
+              "by": [
+                "E2S_SPD"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "E2S_GRD": [],
+          "E2S_FCT": [
+            "E2S_GRD"
+          ],
+          "E2S_SPD": [
+            "E2S_FCT"
+          ]
+        },
+        "checks": []
+      }
+    },
+    {
+      "name": "순서 뒤집힘 — ORDER",
+      "ids": [
+        "E2S_FCT",
+        "E2S_GRD"
+      ],
+      "rules": {
+        "E2S_GRD": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "SET_THK",
+              "source": "DICT"
+            },
+            {
+              "name": "SET_SURF",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_GRD"
+            }
+          ]
+        },
+        "E2S_FCT": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "S_GRD",
+              "source": "NONE"
+            },
+            {
+              "name": "SET_WID",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_FCT"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "S_GRD",
+              "source": "NONE",
+              "users": [
+                "E2S_FCT"
+              ]
+            },
+            {
+              "name": "SET_WID",
+              "source": "DICT",
+              "users": [
+                "E2S_FCT"
+              ]
+            },
+            {
+              "name": "SET_THK",
+              "source": "DICT",
+              "users": [
+                "E2S_GRD"
+              ]
+            },
+            {
+              "name": "SET_SURF",
+              "source": "DICT",
+              "users": [
+                "E2S_GRD"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "S_FCT",
+              "by": [
+                "E2S_FCT"
+              ],
+              "readers": []
+            },
+            {
+              "name": "S_GRD",
+              "by": [
+                "E2S_GRD"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "E2S_FCT": [
+            "E2S_GRD"
+          ],
+          "E2S_GRD": []
+        },
+        "checks": [
+          {
+            "code": "ORDER",
+            "severity": "REJECT",
+            "ruleId": "E2S_FCT",
+            "otherRuleId": "E2S_GRD",
+            "varName": "S_GRD",
+            "message": "E2S_FCT가 뒤에 도는 E2S_GRD의 결과 변수 S_GRD를 읽는다. E2S_GRD를 E2S_FCT 앞으로 옮긴다"
+          }
+        ]
+      }
+    },
+    {
+      "name": "순환 — 두 룰",
+      "ids": [
+        "E2S_CYA",
+        "E2S_CYB"
+      ],
+      "rules": {
+        "E2S_CYA": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "S_CYB",
+              "source": "NONE"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_CYA"
+            }
+          ]
+        },
+        "E2S_CYB": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "S_CYA",
+              "source": "NONE"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_CYB"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "S_CYB",
+              "source": "NONE",
+              "users": [
+                "E2S_CYA"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "S_CYA",
+              "by": [
+                "E2S_CYA"
+              ],
+              "readers": [
+                "E2S_CYB"
+              ]
+            },
+            {
+              "name": "S_CYB",
+              "by": [
+                "E2S_CYB"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "E2S_CYA": [
+            "E2S_CYB"
+          ],
+          "E2S_CYB": [
+            "E2S_CYA"
+          ]
+        },
+        "checks": [
+          {
+            "code": "CYCLE",
+            "severity": "REJECT",
+            "ruleId": "E2S_CYA",
+            "otherRuleId": "E2S_CYB",
+            "varName": "S_CYB",
+            "message": "E2S_CYA와 E2S_CYB가 서로의 결과 변수를 읽는다(순환). 순서를 바꿔서는 풀리지 않는다"
+          }
+        ]
+      }
+    },
+    {
+      "name": "순환 — 세 룰 고리",
+      "ids": [
+        "E2S_RA",
+        "E2S_RB",
+        "E2S_RC"
+      ],
+      "rules": {
+        "E2S_RA": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "S_RC",
+              "source": "NONE"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_RA"
+            }
+          ]
+        },
+        "E2S_RB": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "S_RA",
+              "source": "NONE"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_RB"
+            }
+          ]
+        },
+        "E2S_RC": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "S_RB",
+              "source": "NONE"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_RC"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "S_RC",
+              "source": "NONE",
+              "users": [
+                "E2S_RA"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "S_RA",
+              "by": [
+                "E2S_RA"
+              ],
+              "readers": [
+                "E2S_RB"
+              ]
+            },
+            {
+              "name": "S_RB",
+              "by": [
+                "E2S_RB"
+              ],
+              "readers": [
+                "E2S_RC"
+              ]
+            },
+            {
+              "name": "S_RC",
+              "by": [
+                "E2S_RC"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "E2S_RA": [
+            "E2S_RC"
+          ],
+          "E2S_RB": [
+            "E2S_RA"
+          ],
+          "E2S_RC": [
+            "E2S_RB"
+          ]
+        },
+        "checks": [
+          {
+            "code": "CYCLE",
+            "severity": "REJECT",
+            "ruleId": "E2S_RA",
+            "otherRuleId": "E2S_RC",
+            "varName": "S_RC",
+            "message": "E2S_RA와 E2S_RC가 서로의 결과 변수를 읽는다(순환). 순서를 바꿔서는 풀리지 않는다"
+          }
+        ]
+      }
+    },
+    {
+      "name": "순환 — 겹침은 상대 조건의 출처와 무관",
+      "ids": [
+        "E2S_OA",
+        "E2S_OB"
+      ],
+      "rules": {
+        "E2S_OA": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "S_OB",
+              "source": "NONE"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_OA"
+            }
+          ]
+        },
+        "E2S_OB": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "S_OA",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_OB"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "S_OB",
+              "source": "NONE",
+              "users": [
+                "E2S_OA"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "S_OA",
+              "by": [
+                "E2S_OA"
+              ],
+              "readers": [
+                "E2S_OB"
+              ]
+            },
+            {
+              "name": "S_OB",
+              "by": [
+                "E2S_OB"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "E2S_OA": [
+            "E2S_OB"
+          ],
+          "E2S_OB": []
+        },
+        "checks": [
+          {
+            "code": "CYCLE",
+            "severity": "REJECT",
+            "ruleId": "E2S_OA",
+            "otherRuleId": "E2S_OB",
+            "varName": "S_OB",
+            "message": "E2S_OA와 E2S_OB가 서로의 결과 변수를 읽는다(순환). 순서를 바꿔서는 풀리지 않는다"
+          }
+        ]
+      }
+    },
+    {
+      "name": "없는 룰",
+      "ids": [
+        "E2S_GRD",
+        "NO_SUCH",
+        "E2S_GONE"
+      ],
+      "rules": {
+        "E2S_GRD": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "SET_THK",
+              "source": "DICT"
+            },
+            {
+              "name": "SET_SURF",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_GRD"
+            }
+          ]
+        },
+        "E2S_GONE": {
+          "exists": false
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "SET_THK",
+              "source": "DICT",
+              "users": [
+                "E2S_GRD"
+              ]
+            },
+            {
+              "name": "SET_SURF",
+              "source": "DICT",
+              "users": [
+                "E2S_GRD"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "S_GRD",
+              "by": [
+                "E2S_GRD"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "E2S_GRD": [],
+          "NO_SUCH": [],
+          "E2S_GONE": []
+        },
+        "checks": [
+          {
+            "code": "RULE_NOT_FOUND",
+            "severity": "REJECT",
+            "ruleId": "NO_SUCH",
+            "otherRuleId": null,
+            "varName": null,
+            "message": "NO_SUCH는 없는 룰이다"
+          },
+          {
+            "code": "RULE_NOT_FOUND",
+            "severity": "REJECT",
+            "ruleId": "E2S_GONE",
+            "otherRuleId": null,
+            "varName": null,
+            "message": "E2S_GONE는 없는 룰이다"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DEPRECATED 룰 — 조건도 2단계에 참여",
+      "ids": [
+        "E2S_OLD"
+      ],
+      "rules": {
+        "E2S_OLD": {
+          "exists": true,
+          "status": "DEPRECATED",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "S_Q",
+              "source": "NONE"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_OLD"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "S_Q",
+              "source": "NONE",
+              "users": [
+                "E2S_OLD"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "S_OLD",
+              "by": [
+                "E2S_OLD"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "E2S_OLD": []
+        },
+        "checks": [
+          {
+            "code": "RULE_DEPRECATED",
+            "severity": "REJECT",
+            "ruleId": "E2S_OLD",
+            "otherRuleId": null,
+            "varName": null,
+            "message": "E2S_OLD는 DEPRECATED다"
+          },
+          {
+            "code": "UNKNOWN_INPUT",
+            "severity": "REJECT",
+            "ruleId": "E2S_OLD",
+            "otherRuleId": null,
+            "varName": "S_Q",
+            "message": "E2S_OLD의 조건 변수 S_Q는 컬럼 사전에 없고 세트 안의 어느 룰도 만들지 않는다"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RELEASED 없음 — 경고",
+      "ids": [
+        "E2S_GRD",
+        "E2S_NEW"
+      ],
+      "rules": {
+        "E2S_GRD": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "SET_THK",
+              "source": "DICT"
+            },
+            {
+              "name": "SET_SURF",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_GRD"
+            }
+          ]
+        },
+        "E2S_NEW": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": null,
+          "conds": [],
+          "results": []
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "SET_THK",
+              "source": "DICT",
+              "users": [
+                "E2S_GRD"
+              ]
+            },
+            {
+              "name": "SET_SURF",
+              "source": "DICT",
+              "users": [
+                "E2S_GRD"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "S_GRD",
+              "by": [
+                "E2S_GRD"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "E2S_GRD": [],
+          "E2S_NEW": []
+        },
+        "checks": [
+          {
+            "code": "NO_RELEASED",
+            "severity": "WARN",
+            "ruleId": "E2S_NEW",
+            "otherRuleId": null,
+            "varName": null,
+            "message": "E2S_NEW는 RELEASED 버전이 없어 입출력을 계산하지 않았다. 이대로 부르면 판정 오류다"
+          }
+        ]
+      }
+    },
+    {
+      "name": "알 수 없는 입력 — NONE",
+      "ids": [
+        "E2S_FCT"
+      ],
+      "rules": {
+        "E2S_FCT": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "S_GRD",
+              "source": "NONE"
+            },
+            {
+              "name": "SET_WID",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_FCT"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "S_GRD",
+              "source": "NONE",
+              "users": [
+                "E2S_FCT"
+              ]
+            },
+            {
+              "name": "SET_WID",
+              "source": "DICT",
+              "users": [
+                "E2S_FCT"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "S_FCT",
+              "by": [
+                "E2S_FCT"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "E2S_FCT": []
+        },
+        "checks": [
+          {
+            "code": "UNKNOWN_INPUT",
+            "severity": "REJECT",
+            "ruleId": "E2S_FCT",
+            "otherRuleId": null,
+            "varName": "S_GRD",
+            "message": "E2S_FCT의 조건 변수 S_GRD는 컬럼 사전에 없고 세트 안의 어느 룰도 만들지 않는다"
+          }
+        ]
+      }
+    },
+    {
+      "name": "프로그램 변수 통과",
+      "ids": [
+        "E2S_PRG"
+      ],
+      "rules": {
+        "E2S_PRG": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "P_LINE",
+              "source": "PROG"
+            },
+            {
+              "name": "SET_THK",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_PRG"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "P_LINE",
+              "source": "PROG",
+              "users": [
+                "E2S_PRG"
+              ]
+            },
+            {
+              "name": "SET_THK",
+              "source": "DICT",
+              "users": [
+                "E2S_PRG"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "S_PRG",
+              "by": [
+                "E2S_PRG"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "E2S_PRG": []
+        },
+        "checks": []
+      }
+    },
+    {
+      "name": "프로그램 변수를 뒤 룰이 만듦 — ORDER",
+      "ids": [
+        "E2S_PRG",
+        "E2S_MKL"
+      ],
+      "rules": {
+        "E2S_PRG": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "P_LINE",
+              "source": "PROG"
+            },
+            {
+              "name": "SET_THK",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_PRG"
+            }
+          ]
+        },
+        "E2S_MKL": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "SET_WID",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "P_LINE"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "P_LINE",
+              "source": "PROG",
+              "users": [
+                "E2S_PRG"
+              ]
+            },
+            {
+              "name": "SET_THK",
+              "source": "DICT",
+              "users": [
+                "E2S_PRG"
+              ]
+            },
+            {
+              "name": "SET_WID",
+              "source": "DICT",
+              "users": [
+                "E2S_MKL"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "S_PRG",
+              "by": [
+                "E2S_PRG"
+              ],
+              "readers": []
+            },
+            {
+              "name": "P_LINE",
+              "by": [
+                "E2S_MKL"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "E2S_PRG": [
+            "E2S_MKL"
+          ],
+          "E2S_MKL": []
+        },
+        "checks": [
+          {
+            "code": "ORDER",
+            "severity": "REJECT",
+            "ruleId": "E2S_PRG",
+            "otherRuleId": "E2S_MKL",
+            "varName": "P_LINE",
+            "message": "E2S_PRG가 뒤에 도는 E2S_MKL의 결과 변수 P_LINE를 읽는다. E2S_MKL를 E2S_PRG 앞으로 옮긴다"
+          }
+        ]
+      }
+    },
+    {
+      "name": "중복 대입 둘 — 경고",
+      "ids": [
+        "E2S_GRD",
+        "E2S_DUP"
+      ],
+      "rules": {
+        "E2S_GRD": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "SET_THK",
+              "source": "DICT"
+            },
+            {
+              "name": "SET_SURF",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_GRD"
+            }
+          ]
+        },
+        "E2S_DUP": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "SET_WID",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_GRD"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "SET_THK",
+              "source": "DICT",
+              "users": [
+                "E2S_GRD"
+              ]
+            },
+            {
+              "name": "SET_SURF",
+              "source": "DICT",
+              "users": [
+                "E2S_GRD"
+              ]
+            },
+            {
+              "name": "SET_WID",
+              "source": "DICT",
+              "users": [
+                "E2S_DUP"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "S_GRD",
+              "by": [
+                "E2S_GRD",
+                "E2S_DUP"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "E2S_GRD": [],
+          "E2S_DUP": []
+        },
+        "checks": [
+          {
+            "code": "DUP_RESULT",
+            "severity": "WARN",
+            "ruleId": "E2S_DUP",
+            "otherRuleId": "E2S_GRD",
+            "varName": "S_GRD",
+            "message": "E2S_GRD와 E2S_DUP가 같은 결과 변수 S_GRD에 대입한다"
+          }
+        ]
+      }
+    },
+    {
+      "name": "중복 대입 셋 — 사이에서 읽는 룰",
+      "ids": [
+        "E2S_DA",
+        "E2S_DB",
+        "E2S_DR",
+        "E2S_DC"
+      ],
+      "rules": {
+        "E2S_DA": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [],
+          "results": [
+            {
+              "name": "S_X"
+            }
+          ]
+        },
+        "E2S_DB": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [],
+          "results": [
+            {
+              "name": "S_X"
+            }
+          ]
+        },
+        "E2S_DR": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "S_X",
+              "source": "NONE"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_R"
+            }
+          ]
+        },
+        "E2S_DC": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [],
+          "results": [
+            {
+              "name": "S_X"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [],
+          "results": [
+            {
+              "name": "S_X",
+              "by": [
+                "E2S_DA",
+                "E2S_DB",
+                "E2S_DC"
+              ],
+              "readers": [
+                "E2S_DR"
+              ]
+            },
+            {
+              "name": "S_R",
+              "by": [
+                "E2S_DR"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "E2S_DA": [],
+          "E2S_DB": [],
+          "E2S_DR": [
+            "E2S_DA",
+            "E2S_DB",
+            "E2S_DC"
+          ],
+          "E2S_DC": []
+        },
+        "checks": [
+          {
+            "code": "DUP_RESULT",
+            "severity": "WARN",
+            "ruleId": "E2S_DB",
+            "otherRuleId": "E2S_DA",
+            "varName": "S_X",
+            "message": "E2S_DA와 E2S_DB가 같은 결과 변수 S_X에 대입한다"
+          },
+          {
+            "code": "DUP_RESULT",
+            "severity": "WARN",
+            "ruleId": "E2S_DC",
+            "otherRuleId": "E2S_DB",
+            "varName": "S_X",
+            "message": "E2S_DB와 E2S_DC가 같은 결과 변수 S_X에 대입한다"
+          }
+        ]
+      }
+    },
+    {
+      "name": "결과 열 그룹 이름",
+      "ids": [
+        "E2S_GRP",
+        "E2S_USE"
+      ],
+      "rules": {
+        "E2S_GRP": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "SET_THK",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "G_SPEC"
+            }
+          ]
+        },
+        "E2S_USE": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "G_SPEC",
+              "source": "NONE"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_USE"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "SET_THK",
+              "source": "DICT",
+              "users": [
+                "E2S_GRP"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "G_SPEC",
+              "by": [
+                "E2S_GRP"
+              ],
+              "readers": [
+                "E2S_USE"
+              ]
+            },
+            {
+              "name": "S_USE",
+              "by": [
+                "E2S_USE"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "E2S_GRP": [],
+          "E2S_USE": [
+            "E2S_GRP"
+          ]
+        },
+        "checks": []
+      }
+    },
+    {
+      "name": "DICT 이름을 만드는 룰 — 의존에서 제외",
+      "ids": [
+        "E2S_MKT",
+        "E2S_GRD"
+      ],
+      "rules": {
+        "E2S_MKT": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [],
+          "results": [
+            {
+              "name": "SET_THK"
+            }
+          ]
+        },
+        "E2S_GRD": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "SET_THK",
+              "source": "DICT"
+            },
+            {
+              "name": "SET_SURF",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_GRD"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "SET_SURF",
+              "source": "DICT",
+              "users": [
+                "E2S_GRD"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "SET_THK",
+              "by": [
+                "E2S_MKT"
+              ],
+              "readers": [
+                "E2S_GRD"
+              ]
+            },
+            {
+              "name": "S_GRD",
+              "by": [
+                "E2S_GRD"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "E2S_MKT": [],
+          "E2S_GRD": []
+        },
+        "checks": []
+      }
+    },
+    {
+      "name": "뒤 생산자 여럿 — ORDER 문구에 모두",
+      "ids": [
+        "E2S_RD",
+        "E2S_P1",
+        "E2S_P2"
+      ],
+      "rules": {
+        "E2S_RD": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "S_X",
+              "source": "NONE"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_RD"
+            }
+          ]
+        },
+        "E2S_P1": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [],
+          "results": [
+            {
+              "name": "S_X"
+            }
+          ]
+        },
+        "E2S_P2": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [],
+          "results": [
+            {
+              "name": "S_X"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "S_X",
+              "source": "NONE",
+              "users": [
+                "E2S_RD"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "S_RD",
+              "by": [
+                "E2S_RD"
+              ],
+              "readers": []
+            },
+            {
+              "name": "S_X",
+              "by": [
+                "E2S_P1",
+                "E2S_P2"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "E2S_RD": [
+            "E2S_P1",
+            "E2S_P2"
+          ],
+          "E2S_P1": [],
+          "E2S_P2": []
+        },
+        "checks": [
+          {
+            "code": "ORDER",
+            "severity": "REJECT",
+            "ruleId": "E2S_RD",
+            "otherRuleId": "E2S_P1",
+            "varName": "S_X",
+            "message": "E2S_RD가 뒤에 도는 E2S_P1, E2S_P2의 결과 변수 S_X를 읽는다. E2S_P1를 E2S_RD 앞으로 옮긴다"
+          },
+          {
+            "code": "DUP_RESULT",
+            "severity": "WARN",
+            "ruleId": "E2S_P2",
+            "otherRuleId": "E2S_P1",
+            "varName": "S_X",
+            "message": "E2S_P1와 E2S_P2가 같은 결과 변수 S_X에 대입한다"
+          }
+        ]
+      }
+    },
+    {
+      "name": "단계 순서 — 1단계 먼저, 그다음 2단계",
+      "ids": [
+        "E2S_NEW",
+        "NO_SUCH",
+        "E2S_FCT",
+        "E2S_GRD"
+      ],
+      "rules": {
+        "E2S_NEW": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": null,
+          "conds": [],
+          "results": []
+        },
+        "E2S_FCT": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "S_GRD",
+              "source": "NONE"
+            },
+            {
+              "name": "SET_WID",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_FCT"
+            }
+          ]
+        },
+        "E2S_GRD": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "SET_THK",
+              "source": "DICT"
+            },
+            {
+              "name": "SET_SURF",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_GRD"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "S_GRD",
+              "source": "NONE",
+              "users": [
+                "E2S_FCT"
+              ]
+            },
+            {
+              "name": "SET_WID",
+              "source": "DICT",
+              "users": [
+                "E2S_FCT"
+              ]
+            },
+            {
+              "name": "SET_THK",
+              "source": "DICT",
+              "users": [
+                "E2S_GRD"
+              ]
+            },
+            {
+              "name": "SET_SURF",
+              "source": "DICT",
+              "users": [
+                "E2S_GRD"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "S_FCT",
+              "by": [
+                "E2S_FCT"
+              ],
+              "readers": []
+            },
+            {
+              "name": "S_GRD",
+              "by": [
+                "E2S_GRD"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "E2S_NEW": [],
+          "NO_SUCH": [],
+          "E2S_FCT": [
+            "E2S_GRD"
+          ],
+          "E2S_GRD": []
+        },
+        "checks": [
+          {
+            "code": "NO_RELEASED",
+            "severity": "WARN",
+            "ruleId": "E2S_NEW",
+            "otherRuleId": null,
+            "varName": null,
+            "message": "E2S_NEW는 RELEASED 버전이 없어 입출력을 계산하지 않았다. 이대로 부르면 판정 오류다"
+          },
+          {
+            "code": "RULE_NOT_FOUND",
+            "severity": "REJECT",
+            "ruleId": "NO_SUCH",
+            "otherRuleId": null,
+            "varName": null,
+            "message": "NO_SUCH는 없는 룰이다"
+          },
+          {
+            "code": "ORDER",
+            "severity": "REJECT",
+            "ruleId": "E2S_FCT",
+            "otherRuleId": "E2S_GRD",
+            "varName": "S_GRD",
+            "message": "E2S_FCT가 뒤에 도는 E2S_GRD의 결과 변수 S_GRD를 읽는다. E2S_GRD를 E2S_FCT 앞으로 옮긴다"
+          }
+        ]
+      }
+    }
+  ]
+}

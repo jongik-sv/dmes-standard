@@ -15,6 +15,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Path;
+import java.util.List;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,6 +44,7 @@ class DmeOasisHttpTest {
 
     static final String TEST_CLIENT_KEY = "mdm-dme-test-client-key";
     private static final String STEWARD = "MDM_STEWARD";
+    private static final String STD_ADMIN = "MDM_STD_ADMIN";
 
     @TempDir
     static Path tempDir;
@@ -88,7 +90,7 @@ class DmeOasisHttpTest {
         ArrayNode rows = body.putObject("grids").putObject("rows").putArray("rows");
         rows.addObject().put("rowId", -1).put("rowKind", "NORMAL")
                 .put("cells", "{\"1\":{\"op\":\"<= 변수 <\",\"left\":\"1.6\",\"right\":\"2.5\"},\"2\":{\"val\":\"A\"}}").put("note", "첫 행");
-        rows.addObject().put("rowId", -2).put("rowKind", "NORMAL").put("cells", "{\"1\":{\"op\":\"NA\"}}");
+        rows.addObject().put("rowId", -2).put("rowKind", "NORMAL").put("cells", "{\"1\":{\"op\":\"GE\",\"left\":\"2.5\"},\"2\":{\"val\":\"B\"}}");
         return body;
     }
 
@@ -107,7 +109,7 @@ class DmeOasisHttpTest {
         assertEquals(1, result.path("rowVersion").asInt(), save.toString());
         assertEquals(1, result.path("rowIdMap").path("-1").asInt(), save.toString());
         assertEquals(2, result.path("rowIdMap").path("-2").asInt(), save.toString());
-        assertEquals("ALL_NA_ROW", result.path("issues").path(0).path("code").asText(), save.toString());
+        assertEquals("NULL_GAP", result.path("issues").path(0).path("code").asText(), save.toString());
         assertEquals(2, DmeTestSupport.count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'HTTP_JDG'"));
         assertEquals("kim", jdbc.queryForObject("SELECT C_USR_ID FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'HTTP_JDG' AND ROW_ID = 1", String.class),
                 "HTTP 경로에서는 감사 칼럼이 채워진다");
@@ -119,6 +121,36 @@ class DmeOasisHttpTest {
         assertEquals("kim", v.path("me").asText());
         assertEquals("NUMBER", v.path("vars").path(0).path("dataType").asText(), view.toString());
         assertEquals(2, v.path("rows").size());
+    }
+
+    /** TSK-08-04 — 값 테스트(execute)는 실제 BPMN 을 타고 원장에 쓰지 않는다. 비소유 담당자도 부른다(D3). BODY 행은 grids.rows.rows. */
+    @Test
+    void 값_테스트는_저장된_버전과_편집_본문을_판정하고_비소유_담당자도_부른다() throws Exception {
+        registerByKim();
+        assertTrue(post("ruleEdit", "save", "kim", tableBody(0)).path("meta").path("success").asBoolean(false));
+
+        JsonNode version = post("ruleEdit", "execute", "lee", envelope("ruleEdit", json.createObjectNode().put("maruRuleId", "HTTP_JDG")
+                .put("target", "VERSION").put("ver", 1).put("inputJson", "{\"COIL_THK\":\"3\"}")));
+        assertTrue(version.path("meta").path("success").asBoolean(false), version.toString());
+        JsonNode v = version.path("data").path("result");
+        assertEquals("OK", v.path("outcome").asText(), version.toString());
+        assertEquals("B", v.path("results").path("GRD").asText(), version.toString());
+        assertEquals(2, v.path("hits").path(0).path("rowId").asInt(), version.toString());
+        assertEquals("COIL_THK", v.path("contract").path("always").path(0).asText(), version.toString());
+
+        ObjectNode params = json.createObjectNode().put("maruRuleId", "HTTP_JDG").put("target", "BODY").put("ver", 1).put("hitPolicy", "UNIQUE")
+                .put("inputJson", "{\"COIL_THK\":\"2\"}").put("runCases", true);
+        ObjectNode body = envelope("ruleEdit", params);
+        body.putObject("grids").putObject("rows").putArray("rows").addObject().put("rowId", -1).put("rowKind", "NORMAL")
+                .put("cells", "{\"1\":{\"op\":\"GE\",\"left\":\"1.9\"},\"2\":{\"val\":\"Z\"}}");
+        JsonNode edited = post("ruleEdit", "execute", "kim", body);
+        assertTrue(edited.path("meta").path("success").asBoolean(false), edited.toString());
+        JsonNode b = edited.path("data").path("result");
+        assertEquals("Z", b.path("results").path("GRD").asText(), edited.toString());
+        assertEquals(-1, b.path("hits").path(0).path("rowId").asInt(), edited.toString());
+        assertTrue(b.path("cases").isArray() && b.path("cases").isEmpty(), edited.toString());
+        assertEquals(2, DmeTestSupport.count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'HTTP_JDG'"), "원장에 쓰지 않는다");
+        assertEquals(1L, DmeTestSupport.rowVersion(jdbc, "HTTP_JDG", 1));
     }
 
     @Test
@@ -229,6 +261,94 @@ class DmeOasisHttpTest {
         assertEquals("kim", result.path("list").path(0).path("pendingOwnerId").asText());
     }
 
+    /** VER 1 RELEASED 룰 — 이름 조건 열 하나와 STRING 결과 열 하나(TSK-08-06). */
+    private void releasedRule(String id, String cond, String result) {
+        DmeTestSupport.rule(jdbc, id, id + " 룰", "DECISION", "INUSE");
+        DmeTestSupport.released(jdbc, id, 1, "FIRST", "2026-01-01 00:00:00", null);
+        DmeTestSupport.var(jdbc, id, 1, 1, "COND", "1", cond, 1);
+        DmeTestSupport.var(jdbc, id, 1, 2, "RESULT", "Value", result, 1, "STRING");
+    }
+
+    /** ruleSetEdit save 본문 — 룰 목록은 params 가 아니라 grids.rules.rows 로 보낸다(TSK-08-06 design F14). */
+    private ObjectNode setSaveBody(String setId, long rowVersion, String... ruleIds) {
+        ObjectNode params = json.createObjectNode().put("setId", setId).put("setName", "HTTP 세트").put("description", "HTTP 경로")
+                .put("rowVersion", rowVersion);
+        ObjectNode body = envelope("ruleSetEdit", params);
+        ArrayNode rows = body.putObject("grids").putObject("rules").putArray("rows");
+        for (String id : ruleIds) {
+            rows.addObject().put("ruleId", id);
+        }
+        return body;
+    }
+
+    private String setRuleIds(String setId) {
+        return jdbc.queryForObject("SELECT RULE_IDS FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = ?", String.class, setId);
+    }
+
+    /** TSK-08-06 수용 기준 1·3 — ruleSetMng reg 로 빈 세트를 만들고 ruleSetEdit save 가 grids.rules.rows 의 순서대로 저장한다. 순환은 MDM024. */
+    @Test
+    void 룰_세트는_등록하고_grids_rules_rows_로_저장하며_순환_목록은_거부된다() throws Exception {
+        releasedRule("HTTP_GRD", "COIL_THK", "HTTP_G");
+        releasedRule("HTTP_FCT", "HTTP_G", "HTTP_F");
+        releasedRule("HTTP_CYA", "HTTP_CB", "HTTP_CA");
+        releasedRule("HTTP_CYB", "HTTP_CA", "HTTP_CB");
+
+        JsonNode reg = post("ruleSetMng", "reg", "kim", envelope("ruleSetMng",
+                json.createObjectNode().put("setId", "HTTP_SET").put("setName", "HTTP 세트")));
+        assertTrue(reg.path("meta").path("success").asBoolean(false), reg.toString());
+        assertEquals("HTTP_SET", reg.path("data").path("result").path("setId").asText(), reg.toString());
+        assertEquals(0, reg.path("data").path("result").path("rowVersion").asInt(-1), reg.toString());
+        assertEquals("[]", setRuleIds("HTTP_SET"));
+
+        JsonNode save = post("ruleSetEdit", "save", "kim", setSaveBody("HTTP_SET", 0, "HTTP_GRD", "HTTP_FCT"));
+        assertTrue(save.path("meta").path("success").asBoolean(false), save.toString());
+        assertEquals(1, save.path("data").path("result").path("rowVersion").asInt(), save.toString());
+        assertEquals(List.of("HTTP_GRD", "HTTP_FCT"),
+                List.of(json.readValue(setRuleIds("HTTP_SET"), String[].class)), "요청 순서 그대로");
+        assertEquals("kim", jdbc.queryForObject("SELECT U_USR_ID FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = 'HTTP_SET'", String.class));
+
+        JsonNode cycle = post("ruleSetEdit", "save", "kim", setSaveBody("HTTP_SET", 1, "HTTP_CYA", "HTTP_CYB"));
+        assertFalse(cycle.path("meta").path("success").asBoolean(true), cycle.toString());
+        String message = cycle.path("meta").path("message").asText();
+        assertTrue(message.startsWith(MdmErrorCode.RULE_SET_SAVE_REJECTED.defaultMessage()), message);
+        assertTrue(message.contains("CYCLE") && message.contains("순환"), message);
+        assertEquals(1L, jdbc.queryForObject("SELECT ROW_VERSION FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = 'HTTP_SET'", Long.class));
+        assertEquals(List.of("HTTP_GRD", "HTTP_FCT"), List.of(json.readValue(setRuleIds("HTTP_SET"), String[].class)));
+
+        JsonNode search = post("ruleSetMng", "search", "lee", envelope("ruleSetMng",
+                json.createObjectNode().put("keyword", "HTTP").put("page", 0).put("size", 20)));
+        assertTrue(search.path("meta").path("success").asBoolean(false), search.toString());
+        JsonNode result = search.path("data").path("result");
+        assertEquals(1, result.path("totalCount").asInt(), search.toString());
+        JsonNode row = result.path("rows").path(0);
+        assertEquals("HTTP_SET", row.path("setId").asText(), search.toString());
+        assertEquals(2, row.path("ruleCount").asInt(), search.toString());
+        assertEquals("HTTP_F", row.path("finalResults").path(0).asText(), search.toString());
+        assertEquals(0, row.path("rejectCount").asInt(-1), search.toString());
+
+        JsonNode view = post("ruleSetEdit", "view", "lee", envelope("ruleSetEdit", json.createObjectNode().put("setId", "HTTP_SET")));
+        assertTrue(view.path("meta").path("success").asBoolean(false), view.toString());
+        assertEquals("HTTP_GRD", view.path("data").path("result").path("rules").path(0).path("ruleId").asText(), view.toString());
+    }
+
+    /** TSK-08-06 I19 — 담당자 역할이 없는 사용자의 세트 등록·저장은 서버가 MDM013 으로 막는다(BFF RBAC 403 은 e2e 가 본다). */
+    @Test
+    void 담당자_역할이_없으면_룰_세트_등록과_저장이_MDM013_이다() throws Exception {
+        releasedRule("HTTP_GRD", "COIL_THK", "HTTP_G");
+        DmeTestSupport.ruleSet(jdbc, "HTTP_SET", "HTTP 세트", "[]", "INUSE", 0);
+
+        JsonNode reg = post("ruleSetMng", "reg", "park", STD_ADMIN, envelope("ruleSetMng",
+                json.createObjectNode().put("setId", "HTTP_NEW").put("setName", "새 세트")));
+        assertFalse(reg.path("meta").path("success").asBoolean(true), reg.toString());
+        assertTrue(reg.path("meta").path("message").asText().startsWith(MdmErrorCode.STEWARD_ROLE_REQUIRED.defaultMessage()), reg.toString());
+        assertEquals(0, DmeTestSupport.count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = 'HTTP_NEW'"));
+
+        JsonNode save = post("ruleSetEdit", "save", "park", STD_ADMIN, setSaveBody("HTTP_SET", 0, "HTTP_GRD"));
+        assertFalse(save.path("meta").path("success").asBoolean(true), save.toString());
+        assertTrue(save.path("meta").path("message").asText().startsWith(MdmErrorCode.STEWARD_ROLE_REQUIRED.defaultMessage()), save.toString());
+        assertEquals("[]", setRuleIds("HTTP_SET"));
+    }
+
     private ObjectNode envelope(String menuId, ObjectNode params) {
         ObjectNode body = json.createObjectNode();
         body.putObject("meta").put("menuId", menuId);
@@ -237,12 +357,16 @@ class DmeOasisHttpTest {
     }
 
     private JsonNode post(String service, String action, String user, ObjectNode body) throws IOException, InterruptedException {
+        return post(service, action, user, STEWARD, body);
+    }
+
+    private JsonNode post(String service, String action, String user, String role, ObjectNode body) throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create("http://127.0.0.1:" + port + "/oasis/" + service + "/" + action))
                 .header("Content-Type", "application/json")
                 .header("X-Client-Key", effectiveClientKey())
                 .header("X-Authenticated-User", user)
-                .header("X-Authenticated-Role", STEWARD)
+                .header("X-Authenticated-Role", role)
                 .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body)))
                 .build();
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());

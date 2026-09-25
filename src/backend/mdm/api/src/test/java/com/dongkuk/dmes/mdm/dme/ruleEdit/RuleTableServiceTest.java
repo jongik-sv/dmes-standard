@@ -41,7 +41,8 @@ import org.springframework.test.context.ActiveProfiles;
 
 /**
  * TSK-08-02 design §3.1 「RuleTableServiceTest」 — 카드 ③ 표 저장: DRAFT 행 전체 교체(I8)와 서버가 정하는 seq·발급 번호(I10), 셀 모양
- * 검사(I17), 소유권·충돌은 공통 서비스(I6·I7, 수용 기준 4), 응답 issues = 분석기 결과이고 ERROR 가 있어도 저장한다(I12, D3).
+ * 검사(I17), 소유권·충돌은 공통 서비스(I6·I7, 수용 기준 4), 응답 issues = 분석기 결과(I12). ERROR 가 있는 표의 거부는 TSK-08-04
+ * {@code RuleTableSaveCheckTest} 가 맡는다(08-04 D10 이 08-02 D3 을 뒤집었다).
  * 시작 상태: QLTY_GRD_JDG VER 1 RELEASED + VER 2 DRAFT(소유자 kim, base 1, VER 1 과 같은 변수·행, LAST_ROW_ID 4).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
@@ -130,8 +131,10 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
     @Test
     void 새_행의_음수_임시_ID_는_발급_번호로_바뀌고_응답에_대응표를_싣는다() {
         List<Map<String, Object>> rows = sample();
-        rows.add(3, row(-1, "NORMAL", "{\"1\":{\"op\":\"NA\"},\"2\":{\"op\":\"NA\"},\"3\":{\"op\":\"NA\"}}", "새 행"));
-        rows.add(0, row(-2.0, "NORMAL", "{\"1\":{\"op\":\"LT\",\"left\":\"1.6\"},\"2\":{\"op\":\"NA\"},\"3\":{\"op\":\"NA\"},\"4\":{\"val\":\"D\"}}", null));
+        rows.add(3, row(-1, "NORMAL", "{\"1\":{\"op\":\"GE\",\"left\":\"3\"},\"2\":{\"op\":\"NA\"},\"3\":{\"op\":\"NA\"},\"4\":{\"val\":\"D\"},"
+                + "\"5\":{\"val\":\"0.5\"}}", "새 행"));
+        rows.add(0, row(-2.0, "NORMAL", "{\"1\":{\"op\":\"LT\",\"left\":\"1.6\"},\"2\":{\"op\":\"NA\"},\"3\":{\"op\":\"NA\"},\"4\":{\"val\":\"D\"},"
+                + "\"5\":{\"val\":\"0.5\"}}", null));
 
         RuleEditSaveResult r = service.save(table(0, "FIRST", rows));
 
@@ -156,14 +159,14 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
-    void 행의_셀과_설명을_받은_그대로_저장한다() {
+    void 행의_셀은_정규화해_저장하고_숫자_텍스트와_설명은_그대로_둔다() {
         List<Map<String, Object>> rows = sample();
-        String edited = "{\"1\":{\"op\":\"<= 변수 <\",\"left\":\" 1.60\",\"right\":\"2.5\"},\"2\":{\"op\":\"GT\",\"left\":\"1000\"},"
+        String edited = "{\"1\":{\"op\":\"<= 변수 <\",\"left\":\"1.60\",\"right\":\"2.5\"},\"2\":{\"op\":\"GT\",\"left\":\"1000\"},"
                 + "\"3\":{\"op\":\"IN\",\"list\":[\"C\",\"A\"]},\"4\":{\"val\":\"A\"},\"5\":{\"val\":\"1.05\"}}";
         rows.set(0, row(1, "NORMAL", edited, "메모"));
         service.save(table(0, "FIRST", rows));
         Map<String, Object> first = stored().get(0);
-        assertEquals(edited, first.get("CELLS"));
+        assertEquals(edited.replace("[\"C\",\"A\"]", "[\"A\",\"C\"]"), first.get("CELLS"), "목록만 정렬하고 1.60 은 다시 쓰지 않는다(08-04 I6·I9)");
         assertEquals("메모", first.get("NOTE"));
     }
 
@@ -235,7 +238,8 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
     void 변수_행은_바뀌지_않는다() {
         List<Map<String, Object>> before = jdbc.queryForList("SELECT * FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 ORDER BY VAR_ID");
         List<Map<String, Object>> rows = sample();
-        rows.add(row(-1, "NORMAL", "{\"1\":{\"op\":\"NA\"}}", null));
+        rows.add(3, row(-1, "NORMAL", "{\"1\":{\"op\":\"LT\",\"left\":\"1\"},\"2\":{\"op\":\"NA\"},\"3\":{\"op\":\"NA\"},\"4\":{\"val\":\"D\"},"
+                + "\"5\":{\"val\":\"0.5\"}}", null));
         service.save(table(0, "UNIQUE", rows));
         assertEquals(before, jdbc.queryForList("SELECT * FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 ORDER BY VAR_ID"));
     }
@@ -276,27 +280,24 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
-    void 조건_전부_NA_행이_ERROR_여도_저장하고_응답_issues_는_저장한_정의의_분석기_결과와_같다() {
+    void 응답_issues_는_저장한_정의의_분석기_결과와_같다() {
         List<Map<String, Object>> rows = sample();
-        rows.add(3, row(-1, "NORMAL", "{\"1\":{\"op\":\"NA\"},\"2\":{\"op\":\"NA\"},\"3\":{\"op\":\"NA\"},\"4\":{\"val\":\"D\"}}", null));
         rows.set(1, row(2, "NORMAL", Q_ROW2.replace("[\"B\"]", "[\"A\",\"B\"]"), null));
 
-        RuleEditSaveResult r = service.save(table(0, "UNIQUE", rows));
+        RuleEditSaveResult r = service.save(table(0, "FIRST", rows));
 
-        assertEquals(5, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2"));
+        assertEquals(4, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2"));
         List<MdmRuleVar> vars = varRepository.findAll().stream()
                 .filter(v -> v.getMaruRuleId().equals("QLTY_GRD_JDG") && v.getVer() == 2)
                 .sorted(Comparator.comparing(MdmRuleVar::getVarKind).thenComparing(MdmRuleVar::getSeq)).toList();
         List<StoredRow> storedRows = stored().stream().map(m -> new StoredRow(((Number) m.get("ROW_ID")).intValue(),
                 ((Number) m.get("SEQ")).intValue(), (String) m.get("ROW_KIND"), (String) m.get("CELLS"))).toList();
-        List<RuleIssue> expected = RuleAnalyzer.analyze(RuleAnalysisInputMapper.toAnalysisRule("QLTY_GRD_JDG", "DECISION", "UNIQUE",
+        List<RuleIssue> expected = RuleAnalyzer.analyze(RuleAnalysisInputMapper.toAnalysisRule("QLTY_GRD_JDG", "DECISION", "FIRST",
                 resolver.resolve("QLTY_GRD_JDG", 2, vars), storedRows));
         List<Map<String, Object>> expectedMaps = expected.stream().map(RuleTableServiceTest::issueMap).toList();
         assertEquals(expectedMaps, r.getIssues());
-        assertTrue(r.getIssues().stream().anyMatch(i -> "ALL_NA_ROW".equals(i.get("code")) && "ERROR".equals(i.get("severity"))
-                && List.of(5).equals(i.get("rowIds"))), r.getIssues().toString());
-        assertTrue(r.getIssues().stream().anyMatch(i -> "OVERLAP".equals(i.get("code")) && "ERROR".equals(i.get("severity"))),
-                "UNIQUE 표의 1·2행 겹침: " + r.getIssues());
+        assertTrue(r.getIssues().stream().anyMatch(i -> "OVERLAP".equals(i.get("code")) && "WARNING".equals(i.get("severity"))
+                && List.of(1, 2).equals(i.get("rowIds"))), "FIRST 표의 1·2행 겹침은 경고: " + r.getIssues());
     }
 
     /** 응답 이슈 모양 — 값이 없는 칸(varId·lower·upper)은 싣지 않는다(TS 이슈 JSON 과 같은 모양). */

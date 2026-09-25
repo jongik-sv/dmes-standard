@@ -45,7 +45,7 @@ class CommonContractTest {
             assertTrue(code.defaultMessage() != null && !code.defaultMessage().isBlank(), code + " 기본 메시지");
             assertTrue(Set.of(400, 403, 409).contains(code.httpStatus()), code + " 의미 HTTP 상태");
         }
-        assertEquals(23, MdmErrorCode.values().length);
+        assertEquals(24, MdmErrorCode.values().length);
     }
 
     @Test
@@ -91,6 +91,13 @@ class CommonContractTest {
                 com.dongkuk.dmes.cactus.common.ErrorCode.BUSINESS_ERROR, "코드 저장 검사를 통과하지 못했습니다");
         assertCode(MdmErrorCode.CODE_PATCH_REJECTED, "MDM023", 409,
                 com.dongkuk.dmes.cactus.common.ErrorCode.BUSINESS_ERROR, "경미 수정을 할 수 없습니다");
+    }
+
+    @Test
+    void TSK_08_06_이_더한_룰_세트_저장_거부_코드() {
+        // TSK-08-06 design.md D8 — 룰 세트 저장·되살리기 검사 거부(MDM024). 세부는 이슈 코드로 싣는다.
+        assertCode(MdmErrorCode.RULE_SET_SAVE_REJECTED, "MDM024", 400,
+                com.dongkuk.dmes.cactus.common.ErrorCode.BUSINESS_ERROR, "룰 세트 저장 검사를 통과하지 못했습니다");
     }
 
     private static void assertCode(MdmErrorCode code, String id, int status,

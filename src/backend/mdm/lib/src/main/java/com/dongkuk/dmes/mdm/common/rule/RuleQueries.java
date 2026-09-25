@@ -163,4 +163,18 @@ public class RuleQueries {
                 ORDER BY v.maruRuleId, v.seq, v.varId
                 """, MdmRuleVar.class).setParameter("ruleId", ruleId).getResultList();
     }
+
+    /**
+     * DEPRECATED 가 아닌 룰들의 최신 RELEASED 버전(VER 최대) 결과 변수 — 룰 ID·seq·var_id 순(TSK-08-06 design §6.1-7·§6.4, I16).
+     * 룰 세트 구성 지침이 결과 이름 → 만드는 룰을 찾을 때 쓴다.
+     */
+    public List<MdmRuleVar> latestReleasedResultVarsOfActiveRules() {
+        return entityManager.createQuery("""
+                SELECT v FROM MdmRuleVar v, MdmRuleVer r, MdmRule m
+                WHERE r.maruRuleId = v.maruRuleId AND r.ver = v.ver AND r.status = 'RELEASED' AND v.varKind = 'RESULT'
+                  AND m.maruRuleId = v.maruRuleId AND m.status <> 'DEPRECATED'
+                  AND r.ver = (SELECT MAX(r2.ver) FROM MdmRuleVer r2 WHERE r2.maruRuleId = r.maruRuleId AND r2.status = 'RELEASED')
+                ORDER BY v.maruRuleId, v.seq, v.varId
+                """, MdmRuleVar.class).getResultList();
+    }
 }

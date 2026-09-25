@@ -1,0 +1,2782 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "prod-wgt-pv1",
+      "note": "06:226-229 PROD_WGT_CALC — always 는 조건 열 seq 순, 행은 seq 순, 결과 식 변수는 전부 필수",
+      "rule": {
+        "ruleId": "PROD-WGT-PV1",
+        "ruleKind": "DECISION",
+        "hitPolicy": "UNIQUE",
+        "vars": [
+          {
+            "varId": 1,
+            "varKind": "COND",
+            "dispType": "Equal",
+            "seq": 1,
+            "varName": "PROD_TYPE",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          },
+          {
+            "varId": 3,
+            "varKind": "COND",
+            "dispType": "Equal",
+            "seq": 2,
+            "varName": "CALC_BASIS",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          },
+          {
+            "varId": 2,
+            "varKind": "RESULT",
+            "dispType": "Expression",
+            "seq": 1,
+            "varName": "PROD_WGT",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": 1
+          }
+        ],
+        "meta": [],
+        "rows": [
+          {
+            "rowId": 1,
+            "seq": 1,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"EQ\",\"left\":\"COIL\"},\"2\":{\"expr\":\"ROUND(COIL_THK * COIL_WID * COIL_LEN * SPEC_GRAV / 1000, 1)\",\"ast\":{\"type\":\"FUNCTION\",\"value\":\"ROUND\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"/\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"COIL_THK\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"COIL_WID\"}]},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"COIL_LEN\"}]},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"SPEC_GRAV\"}]},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1000\"}]},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1\"}]}},\"3\":{\"op\":\"EQ\",\"left\":\"LEN\"}}"
+          },
+          {
+            "rowId": 3,
+            "seq": 2,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"EQ\",\"left\":\"COIL\"},\"2\":{\"expr\":\"ROUND(PI / 4 * (COIL_OUT_DIA ^ 2 - COIL_IN_DIA ^ 2) * COIL_WID * (1 - COIL_VOID_RT / 100) * SPEC_GRAV / 1000000, 1)\",\"ast\":{\"type\":\"FUNCTION\",\"value\":\"ROUND\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"/\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"/\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"PI\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"4\"}]},{\"type\":\"INFIX_OPERATOR\",\"value\":\"-\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"^\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"COIL_OUT_DIA\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"2\"}]},{\"type\":\"INFIX_OPERATOR\",\"value\":\"^\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"COIL_IN_DIA\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"2\"}]}]}]},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"COIL_WID\"}]},{\"type\":\"INFIX_OPERATOR\",\"value\":\"-\",\"params\":[{\"type\":\"NUMBER_LITERAL\",\"value\":\"1\"},{\"type\":\"INFIX_OPERATOR\",\"value\":\"/\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"COIL_VOID_RT\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"100\"}]}]}]},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"SPEC_GRAV\"}]},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1000000\"}]},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1\"}]}},\"3\":{\"op\":\"EQ\",\"left\":\"DIA\"}}"
+          },
+          {
+            "rowId": 2,
+            "seq": 3,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"EQ\",\"left\":\"SHEET\"},\"2\":{\"expr\":\"ROUND(COIL_THK * COIL_WID * SHEET_LEN * SHEET_CNT * SPEC_GRAV / 1000000, 1)\",\"ast\":{\"type\":\"FUNCTION\",\"value\":\"ROUND\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"/\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"COIL_THK\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"COIL_WID\"}]},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"SHEET_LEN\"}]},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"SHEET_CNT\"}]},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"SPEC_GRAV\"}]},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1000000\"}]},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1\"}]}},\"3\":{\"op\":\"NA\"}}"
+          }
+        ]
+      },
+      "asts": {},
+      "types": {
+        "CALC_BASIS": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "CALC_BASIS_CD"
+        },
+        "COIL_IN_DIA": {
+          "dataType": "NUMBER",
+          "scale": 0,
+          "domainId": "LEN_MM"
+        },
+        "COIL_LEN": {
+          "dataType": "NUMBER",
+          "scale": 1,
+          "domainId": "LEN_M"
+        },
+        "COIL_OUT_DIA": {
+          "dataType": "NUMBER",
+          "scale": 0,
+          "domainId": "LEN_MM"
+        },
+        "COIL_THK": {
+          "dataType": "NUMBER",
+          "scale": 2,
+          "domainId": "THK_MM"
+        },
+        "COIL_VOID_RT": {
+          "dataType": "NUMBER",
+          "scale": 2,
+          "domainId": "PCT"
+        },
+        "COIL_WID": {
+          "dataType": "NUMBER",
+          "scale": 0,
+          "domainId": "WID_MM"
+        },
+        "PROD_TYPE": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "PROD_TYPE_CD"
+        },
+        "SHEET_CNT": {
+          "dataType": "NUMBER",
+          "scale": 0,
+          "domainId": "QTY"
+        },
+        "SHEET_LEN": {
+          "dataType": "NUMBER",
+          "scale": 0,
+          "domainId": "LEN_MM"
+        },
+        "SPEC_GRAV": {
+          "dataType": "NUMBER",
+          "scale": 3,
+          "domainId": "SG"
+        }
+      },
+      "expect": {
+        "always": [
+          "PROD_TYPE",
+          "CALC_BASIS"
+        ],
+        "rows": [
+          {
+            "rowId": 1,
+            "cond": "PROD_TYPE = COIL · CALC_BASIS = LEN",
+            "required": [
+              "COIL_THK",
+              "COIL_WID",
+              "COIL_LEN",
+              "SPEC_GRAV"
+            ],
+            "optional": []
+          },
+          {
+            "rowId": 3,
+            "cond": "PROD_TYPE = COIL · CALC_BASIS = DIA",
+            "required": [
+              "COIL_OUT_DIA",
+              "COIL_IN_DIA",
+              "COIL_WID",
+              "COIL_VOID_RT",
+              "SPEC_GRAV"
+            ],
+            "optional": []
+          },
+          {
+            "rowId": 2,
+            "cond": "PROD_TYPE = SHEET",
+            "required": [
+              "COIL_THK",
+              "COIL_WID",
+              "SHEET_LEN",
+              "SHEET_CNT",
+              "SPEC_GRAV"
+            ],
+            "optional": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "prod-wgt-pv2-coalesce",
+      "note": "시안 PV2 — COALESCE(SPEC_GRAV, 7.85) 의 SPEC_GRAV 는 선택",
+      "rule": {
+        "ruleId": "PROD-WGT-PV2-COALESCE",
+        "ruleKind": "DECISION",
+        "hitPolicy": "UNIQUE",
+        "vars": [
+          {
+            "varId": 1,
+            "varKind": "COND",
+            "dispType": "Equal",
+            "seq": 1,
+            "varName": "PROD_TYPE",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          },
+          {
+            "varId": 3,
+            "varKind": "COND",
+            "dispType": "Equal",
+            "seq": 2,
+            "varName": "CALC_BASIS",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          },
+          {
+            "varId": 2,
+            "varKind": "RESULT",
+            "dispType": "Expression",
+            "seq": 1,
+            "varName": "PROD_WGT",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": 1
+          }
+        ],
+        "meta": [],
+        "rows": [
+          {
+            "rowId": 1,
+            "seq": 1,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"EQ\",\"left\":\"COIL\"},\"2\":{\"expr\":\"ROUND(COIL_THK * COIL_WID * COIL_LEN * COALESCE(SPEC_GRAV, 7.85) / 1000, 1)\",\"ast\":{\"type\":\"FUNCTION\",\"value\":\"ROUND\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"/\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"COIL_THK\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"COIL_WID\"}]},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"COIL_LEN\"}]},{\"type\":\"FUNCTION\",\"value\":\"COALESCE\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"SPEC_GRAV\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"7.85\"}]}]},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1000\"}]},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1\"}]}},\"3\":{\"op\":\"EQ\",\"left\":\"LEN\"}}"
+          },
+          {
+            "rowId": 3,
+            "seq": 2,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"EQ\",\"left\":\"COIL\"},\"2\":{\"expr\":\"ROUND(PI / 4 * (COIL_OUT_DIA ^ 2 - COIL_IN_DIA ^ 2) * COIL_WID * (1 - COIL_VOID_RT / 100) * COALESCE(SPEC_GRAV, 7.85) / 1000000, 1)\",\"ast\":{\"type\":\"FUNCTION\",\"value\":\"ROUND\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"/\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"/\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"PI\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"4\"}]},{\"type\":\"INFIX_OPERATOR\",\"value\":\"-\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"^\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"COIL_OUT_DIA\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"2\"}]},{\"type\":\"INFIX_OPERATOR\",\"value\":\"^\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"COIL_IN_DIA\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"2\"}]}]}]},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"COIL_WID\"}]},{\"type\":\"INFIX_OPERATOR\",\"value\":\"-\",\"params\":[{\"type\":\"NUMBER_LITERAL\",\"value\":\"1\"},{\"type\":\"INFIX_OPERATOR\",\"value\":\"/\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"COIL_VOID_RT\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"100\"}]}]}]},{\"type\":\"FUNCTION\",\"value\":\"COALESCE\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"SPEC_GRAV\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"7.85\"}]}]},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1000000\"}]},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1\"}]}},\"3\":{\"op\":\"EQ\",\"left\":\"DIA\"}}"
+          },
+          {
+            "rowId": 2,
+            "seq": 3,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"EQ\",\"left\":\"SHEET\"},\"2\":{\"expr\":\"ROUND(COIL_THK * COIL_WID * SHEET_LEN * SHEET_CNT * COALESCE(SPEC_GRAV, 7.85) / 1000000, 1)\",\"ast\":{\"type\":\"FUNCTION\",\"value\":\"ROUND\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"/\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"COIL_THK\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"COIL_WID\"}]},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"SHEET_LEN\"}]},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"SHEET_CNT\"}]},{\"type\":\"FUNCTION\",\"value\":\"COALESCE\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"SPEC_GRAV\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"7.85\"}]}]},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1000000\"}]},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1\"}]}},\"3\":{\"op\":\"NA\"}}"
+          }
+        ]
+      },
+      "asts": {},
+      "types": {
+        "CALC_BASIS": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "CALC_BASIS_CD"
+        },
+        "COIL_IN_DIA": {
+          "dataType": "NUMBER",
+          "scale": 0,
+          "domainId": "LEN_MM"
+        },
+        "COIL_LEN": {
+          "dataType": "NUMBER",
+          "scale": 1,
+          "domainId": "LEN_M"
+        },
+        "COIL_OUT_DIA": {
+          "dataType": "NUMBER",
+          "scale": 0,
+          "domainId": "LEN_MM"
+        },
+        "COIL_THK": {
+          "dataType": "NUMBER",
+          "scale": 2,
+          "domainId": "THK_MM"
+        },
+        "COIL_VOID_RT": {
+          "dataType": "NUMBER",
+          "scale": 2,
+          "domainId": "PCT"
+        },
+        "COIL_WID": {
+          "dataType": "NUMBER",
+          "scale": 0,
+          "domainId": "WID_MM"
+        },
+        "PROD_TYPE": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "PROD_TYPE_CD"
+        },
+        "SHEET_CNT": {
+          "dataType": "NUMBER",
+          "scale": 0,
+          "domainId": "QTY"
+        },
+        "SHEET_LEN": {
+          "dataType": "NUMBER",
+          "scale": 0,
+          "domainId": "LEN_MM"
+        },
+        "SPEC_GRAV": {
+          "dataType": "NUMBER",
+          "scale": 3,
+          "domainId": "SG"
+        }
+      },
+      "expect": {
+        "always": [
+          "PROD_TYPE",
+          "CALC_BASIS"
+        ],
+        "rows": [
+          {
+            "rowId": 1,
+            "cond": "PROD_TYPE = COIL · CALC_BASIS = LEN",
+            "required": [
+              "COIL_THK",
+              "COIL_WID",
+              "COIL_LEN"
+            ],
+            "optional": [
+              "SPEC_GRAV"
+            ]
+          },
+          {
+            "rowId": 3,
+            "cond": "PROD_TYPE = COIL · CALC_BASIS = DIA",
+            "required": [
+              "COIL_OUT_DIA",
+              "COIL_IN_DIA",
+              "COIL_WID",
+              "COIL_VOID_RT"
+            ],
+            "optional": [
+              "SPEC_GRAV"
+            ]
+          },
+          {
+            "rowId": 2,
+            "cond": "PROD_TYPE = SHEET",
+            "required": [
+              "COIL_THK",
+              "COIL_WID",
+              "SHEET_LEN",
+              "SHEET_CNT"
+            ],
+            "optional": [
+              "SPEC_GRAV"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "qlty-grd-jdg-v1",
+      "note": "06:1324 — QLTY_GRD_JDG v1 은 row 3 만 BASE_FCT 필수, 기본 행은 끝",
+      "rule": {
+        "ruleId": "QLTY-GRD-JDG-V1",
+        "ruleKind": "DECISION",
+        "hitPolicy": "FIRST",
+        "vars": [
+          {
+            "varId": 1,
+            "varKind": "COND",
+            "dispType": "2",
+            "seq": 1,
+            "varName": "COIL_THK",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": 2
+          },
+          {
+            "varId": 2,
+            "varKind": "COND",
+            "dispType": "1",
+            "seq": 2,
+            "varName": "COIL_WID",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": 0
+          },
+          {
+            "varId": 3,
+            "varKind": "COND",
+            "dispType": "1",
+            "seq": 3,
+            "varName": "SURF_GRD",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          },
+          {
+            "varId": 4,
+            "varKind": "RESULT",
+            "dispType": "Value",
+            "seq": 1,
+            "varName": "QLTY_GRD",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          },
+          {
+            "varId": 5,
+            "varKind": "RESULT",
+            "dispType": "Expression",
+            "seq": 2,
+            "varName": "PRC_FCT",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": 2
+          }
+        ],
+        "meta": [],
+        "rows": [
+          {
+            "rowId": 1,
+            "seq": 1,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"<= 변수 <\",\"left\":\"1.6\",\"right\":\"2.5\"},\"2\":{\"op\":\"GT\",\"left\":\"1000\"},\"3\":{\"op\":\"IN\",\"list\":[\"A\"]},\"4\":{\"val\":\"A\"},\"5\":{\"expr\":\"1.05\",\"ast\":{\"type\":\"NUMBER_LITERAL\",\"value\":\"1.05\"}}}"
+          },
+          {
+            "rowId": 2,
+            "seq": 2,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"<= 변수 <\",\"left\":\"1.6\",\"right\":\"2.5\"},\"2\":{\"op\":\"GT\",\"left\":\"1000\"},\"3\":{\"op\":\"IN\",\"list\":[\"B\"]},\"4\":{\"val\":\"B\"},\"5\":{\"expr\":\"1.00\",\"ast\":{\"type\":\"NUMBER_LITERAL\",\"value\":\"1.00\"}}}"
+          },
+          {
+            "rowId": 3,
+            "seq": 3,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"GE\",\"left\":\"2.5\"},\"2\":{\"op\":\"NA\"},\"3\":{\"op\":\"NOT_IN\",\"list\":[\"C\"]},\"4\":{\"val\":\"B\"},\"5\":{\"expr\":\"ROUND(BASE_FCT * 0.98, 2)\",\"ast\":{\"type\":\"FUNCTION\",\"value\":\"ROUND\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"BASE_FCT\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"0.98\"}]},{\"type\":\"NUMBER_LITERAL\",\"value\":\"2\"}]}}}"
+          },
+          {
+            "rowId": 4,
+            "seq": 0,
+            "rowKind": "DEFAULT",
+            "cells": "{\"4\":{\"val\":\"C\"},\"5\":{\"expr\":\"0.90\",\"ast\":{\"type\":\"NUMBER_LITERAL\",\"value\":\"0.90\"}}}"
+          }
+        ]
+      },
+      "asts": {},
+      "types": {
+        "BASE_FCT": {
+          "dataType": "NUMBER",
+          "scale": 2,
+          "domainId": "FCT"
+        },
+        "COIL_THK": {
+          "dataType": "NUMBER",
+          "scale": 2,
+          "domainId": "THK_MM"
+        },
+        "COIL_WID": {
+          "dataType": "NUMBER",
+          "scale": 0,
+          "domainId": "WID_MM"
+        },
+        "SURF_GRD": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "SURF_GRD_CD"
+        }
+      },
+      "expect": {
+        "always": [
+          "COIL_THK",
+          "COIL_WID",
+          "SURF_GRD"
+        ],
+        "rows": [
+          {
+            "rowId": 1,
+            "cond": "1.6 <= COIL_THK < 2.5 · COIL_WID > 1000 · SURF_GRD IN (A)",
+            "required": [],
+            "optional": []
+          },
+          {
+            "rowId": 2,
+            "cond": "1.6 <= COIL_THK < 2.5 · COIL_WID > 1000 · SURF_GRD IN (B)",
+            "required": [],
+            "optional": []
+          },
+          {
+            "rowId": 3,
+            "cond": "COIL_THK >= 2.5 · SURF_GRD NOT IN (C)",
+            "required": [
+              "BASE_FCT"
+            ],
+            "optional": []
+          },
+          {
+            "rowId": 4,
+            "cond": "기본 행",
+            "required": [],
+            "optional": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "expression-column-and-grp-cond",
+      "note": "Expression 조건 셀·열 조건 참조는 always, 룰 결과 변수(varName·resGrp)는 빠진다",
+      "rule": {
+        "ruleId": "EXPRESSION-COLUMN-AND-GRP-COND",
+        "ruleKind": "DECISION",
+        "hitPolicy": "FIRST",
+        "vars": [
+          {
+            "varId": 1,
+            "varKind": "COND",
+            "dispType": "1",
+            "seq": 1,
+            "varName": "SURF_GRD",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          },
+          {
+            "varId": 2,
+            "varKind": "COND",
+            "dispType": "Expression",
+            "seq": 2,
+            "varName": null,
+            "exprVar": false,
+            "label": null,
+            "dataType": "BOOLEAN",
+            "scale": null
+          },
+          {
+            "varId": 3,
+            "varKind": "RESULT",
+            "dispType": "Value",
+            "seq": 1,
+            "varName": "QLTY_GRD",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          },
+          {
+            "varId": 4,
+            "varKind": "RESULT",
+            "dispType": "Expression",
+            "seq": 2,
+            "varName": "BASE_FCT",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": 2
+          }
+        ],
+        "meta": [
+          {
+            "varId": 4,
+            "resGrp": "FCT_GRP",
+            "grpCond": "STR_STARTS_WITH(TOP_RESIN_CD, \"2\")"
+          }
+        ],
+        "rows": [
+          {
+            "rowId": 1,
+            "seq": 1,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"IN\",\"list\":[\"A\"]},\"2\":{\"expr\":\"COIL_THK * COIL_WID > 3000\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\">\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"COIL_THK\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"COIL_WID\"}]},{\"type\":\"NUMBER_LITERAL\",\"value\":\"3000\"}]}},\"3\":{\"val\":\"A\"},\"4\":{\"expr\":\"QLTY_GRD + SURF_GRD + FCT_GRP\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"+\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"+\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"QLTY_GRD\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"SURF_GRD\"}]},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"FCT_GRP\"}]}}}"
+          },
+          {
+            "rowId": 2,
+            "seq": 2,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"op\":\"NA\"},\"3\":{\"val\":\"B\"},\"4\":{\"expr\":\"COIL_WID * 2\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"COIL_WID\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"2\"}]}}}"
+          }
+        ]
+      },
+      "asts": {
+        "STR_STARTS_WITH(TOP_RESIN_CD, \"2\")": {
+          "type": "FUNCTION",
+          "value": "STR_STARTS_WITH",
+          "params": [
+            {
+              "type": "VARIABLE_OR_CONSTANT",
+              "value": "TOP_RESIN_CD"
+            },
+            {
+              "type": "STRING_LITERAL",
+              "value": "2"
+            }
+          ]
+        }
+      },
+      "types": {
+        "COIL_THK": {
+          "dataType": "NUMBER",
+          "scale": 2,
+          "domainId": "THK_MM"
+        },
+        "COIL_WID": {
+          "dataType": "NUMBER",
+          "scale": 0,
+          "domainId": "WID_MM"
+        },
+        "SURF_GRD": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "SURF_GRD_CD"
+        },
+        "TOP_RESIN_CD": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "NAME20"
+        }
+      },
+      "expect": {
+        "always": [
+          "SURF_GRD",
+          "COIL_THK",
+          "COIL_WID",
+          "TOP_RESIN_CD"
+        ],
+        "rows": [
+          {
+            "rowId": 1,
+            "cond": "SURF_GRD IN (A) · COIL_THK * COIL_WID > 3000",
+            "required": [
+              "SURF_GRD"
+            ],
+            "optional": []
+          },
+          {
+            "rowId": 2,
+            "cond": "-",
+            "required": [
+              "COIL_WID"
+            ],
+            "optional": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "expr-var-label-default-row",
+      "note": "식 변수 열은 참조 변수를 always 에 넣고 cond 는 라벨로 적는다, 기본 행은 입력 순서와 무관하게 끝",
+      "rule": {
+        "ruleId": "EXPR-VAR-LABEL-DEFAULT-ROW",
+        "ruleKind": "DECISION",
+        "hitPolicy": "FIRST",
+        "vars": [
+          {
+            "varId": 7,
+            "varKind": "COND",
+            "dispType": "Equal",
+            "seq": 1,
+            "varName": "STR_SUBSTRING(MAT_CD, 1, 2)",
+            "exprVar": true,
+            "label": "품명",
+            "dataType": "STRING",
+            "scale": null
+          },
+          {
+            "varId": 8,
+            "varKind": "RESULT",
+            "dispType": "Value",
+            "seq": 1,
+            "varName": "QLTY_GRD",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          }
+        ],
+        "meta": [],
+        "rows": [
+          {
+            "rowId": 9,
+            "seq": 0,
+            "rowKind": "DEFAULT",
+            "cells": "{\"8\":{\"val\":\"C\"}}"
+          },
+          {
+            "rowId": 1,
+            "seq": 1,
+            "rowKind": "NORMAL",
+            "cells": "{\"7\":{\"op\":\"EQ\",\"left\":\"A\"},\"8\":{\"val\":\"A\"}}"
+          }
+        ]
+      },
+      "asts": {
+        "STR_SUBSTRING(MAT_CD, 1, 2)": {
+          "type": "FUNCTION",
+          "value": "STR_SUBSTRING",
+          "params": [
+            {
+              "type": "VARIABLE_OR_CONSTANT",
+              "value": "MAT_CD"
+            },
+            {
+              "type": "NUMBER_LITERAL",
+              "value": "1"
+            },
+            {
+              "type": "NUMBER_LITERAL",
+              "value": "2"
+            }
+          ]
+        }
+      },
+      "types": {
+        "MAT_CD": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "MAT_CD"
+        }
+      },
+      "expect": {
+        "always": [
+          "MAT_CD"
+        ],
+        "rows": [
+          {
+            "rowId": 1,
+            "cond": "품명 = A",
+            "required": [],
+            "optional": []
+          },
+          {
+            "rowId": 9,
+            "cond": "기본 행",
+            "required": [],
+            "optional": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "expr-var-range-label-and-nolabel",
+      "note": "구간 op 의 '변수' 자리를 라벨(없으면 _V<varId>)로 바꾼다 — 첫 자리 하나만",
+      "rule": {
+        "ruleId": "EXPR-VAR-RANGE-LABEL-AND-NOLABEL",
+        "ruleKind": "DECISION",
+        "hitPolicy": "FIRST",
+        "vars": [
+          {
+            "varId": 1,
+            "varKind": "COND",
+            "dispType": "2",
+            "seq": 1,
+            "varName": "COIL_THK + COIL_WID / 1000",
+            "exprVar": true,
+            "label": "두께합",
+            "dataType": "NUMBER",
+            "scale": null
+          },
+          {
+            "varId": 2,
+            "varKind": "COND",
+            "dispType": "1",
+            "seq": 2,
+            "varName": "COIL_LEN * 2",
+            "exprVar": true,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": null
+          },
+          {
+            "varId": 3,
+            "varKind": "RESULT",
+            "dispType": "Value",
+            "seq": 1,
+            "varName": "QLTY_GRD",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          }
+        ],
+        "meta": [],
+        "rows": [
+          {
+            "rowId": 1,
+            "seq": 1,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"<= 변수 <\",\"left\":\"1\",\"right\":\"2\"},\"2\":{\"op\":\"GE\",\"left\":\"10\"},\"3\":{\"val\":\"A\"}}"
+          },
+          {
+            "rowId": 2,
+            "seq": 2,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"< 변수 <=\",\"left\":\"2\",\"right\":\"3\"},\"2\":{\"op\":\"IN\",\"list\":[\"1\",\"2\"]},\"3\":{\"val\":\"B\"}}"
+          }
+        ]
+      },
+      "asts": {
+        "COIL_THK + COIL_WID / 1000": {
+          "type": "INFIX_OPERATOR",
+          "value": "+",
+          "params": [
+            {
+              "type": "VARIABLE_OR_CONSTANT",
+              "value": "COIL_THK"
+            },
+            {
+              "type": "INFIX_OPERATOR",
+              "value": "/",
+              "params": [
+                {
+                  "type": "VARIABLE_OR_CONSTANT",
+                  "value": "COIL_WID"
+                },
+                {
+                  "type": "NUMBER_LITERAL",
+                  "value": "1000"
+                }
+              ]
+            }
+          ]
+        },
+        "COIL_LEN * 2": {
+          "type": "INFIX_OPERATOR",
+          "value": "*",
+          "params": [
+            {
+              "type": "VARIABLE_OR_CONSTANT",
+              "value": "COIL_LEN"
+            },
+            {
+              "type": "NUMBER_LITERAL",
+              "value": "2"
+            }
+          ]
+        }
+      },
+      "types": {
+        "COIL_LEN": {
+          "dataType": "NUMBER",
+          "scale": 1,
+          "domainId": "LEN_M"
+        },
+        "COIL_THK": {
+          "dataType": "NUMBER",
+          "scale": 2,
+          "domainId": "THK_MM"
+        },
+        "COIL_WID": {
+          "dataType": "NUMBER",
+          "scale": 0,
+          "domainId": "WID_MM"
+        }
+      },
+      "expect": {
+        "always": [
+          "COIL_THK",
+          "COIL_WID",
+          "COIL_LEN"
+        ],
+        "rows": [
+          {
+            "rowId": 1,
+            "cond": "1 <= 두께합 < 2 · _V2 >= 10",
+            "required": [],
+            "optional": []
+          },
+          {
+            "rowId": 2,
+            "cond": "2 < 두께합 <= 3 · _V2 IN (1, 2)",
+            "required": [],
+            "optional": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "expr-var-without-ast",
+      "note": "서버 AST 를 아직 못 받은 식 변수(화면 pending)는 참조 변수를 싣지 않는다",
+      "rule": {
+        "ruleId": "EXPR-VAR-WITHOUT-AST",
+        "ruleKind": "DECISION",
+        "hitPolicy": "FIRST",
+        "vars": [
+          {
+            "varId": 1,
+            "varKind": "COND",
+            "dispType": "1",
+            "seq": 1,
+            "varName": "COIL_THK * 2",
+            "exprVar": true,
+            "label": "두께2",
+            "dataType": "NUMBER",
+            "scale": null
+          },
+          {
+            "varId": 2,
+            "varKind": "COND",
+            "dispType": "1",
+            "seq": 2,
+            "varName": "SURF_GRD",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          },
+          {
+            "varId": 3,
+            "varKind": "RESULT",
+            "dispType": "Value",
+            "seq": 1,
+            "varName": "QLTY_GRD",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          }
+        ],
+        "meta": [],
+        "rows": [
+          {
+            "rowId": 1,
+            "seq": 1,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"GE\",\"left\":\"1\"},\"2\":{\"op\":\"EQ\",\"left\":\"A\"},\"3\":{\"val\":\"A\"}}"
+          }
+        ]
+      },
+      "asts": {},
+      "types": {
+        "SURF_GRD": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "SURF_GRD_CD"
+        }
+      },
+      "expect": {
+        "always": [
+          "SURF_GRD"
+        ],
+        "rows": [
+          {
+            "rowId": 1,
+            "cond": "두께2 >= 1 · SURF_GRD = A",
+            "required": [],
+            "optional": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "derive-seq-reference",
+      "note": "DERIVE — 앞 seq 결과 변수를 읽는 결과 식에서 룰 결과 변수는 계약에 없다",
+      "rule": {
+        "ruleId": "DERIVE-SEQ-REFERENCE",
+        "ruleKind": "DERIVE",
+        "hitPolicy": null,
+        "vars": [
+          {
+            "varId": 1,
+            "varKind": "COND",
+            "dispType": "1",
+            "seq": 1,
+            "varName": "PROD_TYPE",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          },
+          {
+            "varId": 2,
+            "varKind": "RESULT",
+            "dispType": "Expression",
+            "seq": 1,
+            "varName": "WGT_A",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": 1
+          },
+          {
+            "varId": 3,
+            "varKind": "RESULT",
+            "dispType": "Expression",
+            "seq": 2,
+            "varName": "WGT_B",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": 1
+          },
+          {
+            "varId": 4,
+            "varKind": "RESULT",
+            "dispType": "Expression",
+            "seq": 3,
+            "varName": "WGT_C",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": 1
+          }
+        ],
+        "meta": [],
+        "rows": [
+          {
+            "rowId": 1,
+            "seq": 1,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"EQ\",\"left\":\"COIL\"},\"2\":{\"expr\":\"COIL_THK * COIL_WID\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"COIL_THK\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"COIL_WID\"}]}},\"3\":{\"expr\":\"WGT_A * SPEC_GRAV\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"WGT_A\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"SPEC_GRAV\"}]}},\"4\":{\"expr\":\"COALESCE(WGT_B, WGT_A) + COALESCE(COIL_LEN, 0)\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"+\",\"params\":[{\"type\":\"FUNCTION\",\"value\":\"COALESCE\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"WGT_B\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"WGT_A\"}]},{\"type\":\"FUNCTION\",\"value\":\"COALESCE\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"COIL_LEN\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"0\"}]}]}}}"
+          },
+          {
+            "rowId": 2,
+            "seq": 2,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"0\",\"ast\":{\"type\":\"NUMBER_LITERAL\",\"value\":\"0\"}},\"3\":{\"expr\":\"WGT_A\",\"ast\":{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"WGT_A\"}},\"4\":{\"expr\":\"WGT_B\",\"ast\":{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"WGT_B\"}}}"
+          }
+        ]
+      },
+      "asts": {},
+      "types": {
+        "COIL_LEN": {
+          "dataType": "NUMBER",
+          "scale": 1,
+          "domainId": "LEN_M"
+        },
+        "COIL_THK": {
+          "dataType": "NUMBER",
+          "scale": 2,
+          "domainId": "THK_MM"
+        },
+        "COIL_WID": {
+          "dataType": "NUMBER",
+          "scale": 0,
+          "domainId": "WID_MM"
+        },
+        "PROD_TYPE": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "PROD_TYPE_CD"
+        },
+        "SPEC_GRAV": {
+          "dataType": "NUMBER",
+          "scale": 3,
+          "domainId": "SG"
+        }
+      },
+      "expect": {
+        "always": [
+          "PROD_TYPE"
+        ],
+        "rows": [
+          {
+            "rowId": 1,
+            "cond": "PROD_TYPE = COIL",
+            "required": [
+              "COIL_THK",
+              "COIL_WID",
+              "SPEC_GRAV"
+            ],
+            "optional": [
+              "COIL_LEN"
+            ]
+          },
+          {
+            "rowId": 2,
+            "cond": "-",
+            "required": [],
+            "optional": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "result-group-grp-cond",
+      "note": "결과 열 그룹(BASE_SPD_LKP 축약) — 열 조건 참조는 always, 그룹 이름은 결과 변수라 빠진다",
+      "rule": {
+        "ruleId": "RESULT-GROUP-GRP-COND",
+        "ruleKind": "DECISION",
+        "hitPolicy": "UNIQUE",
+        "vars": [
+          {
+            "varId": 1,
+            "varKind": "COND",
+            "dispType": "2",
+            "seq": 1,
+            "varName": "COIL_THK",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": 2
+          },
+          {
+            "varId": 2,
+            "varKind": "RESULT",
+            "dispType": "Value",
+            "seq": 1,
+            "varName": "TEXTURE",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": null
+          },
+          {
+            "varId": 3,
+            "varKind": "RESULT",
+            "dispType": "Value",
+            "seq": 2,
+            "varName": "FLUORO",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": null
+          },
+          {
+            "varId": 4,
+            "varKind": "RESULT",
+            "dispType": "Value",
+            "seq": 3,
+            "varName": "WXL1",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": null
+          },
+          {
+            "varId": 5,
+            "varKind": "RESULT",
+            "dispType": "Value",
+            "seq": 4,
+            "varName": "GENERAL",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": null
+          }
+        ],
+        "meta": [
+          {
+            "varId": 2,
+            "resGrp": "BASE_SPD",
+            "grpCond": "STR_STARTS_WITH(TOP_RESIN_CD, \"2\")"
+          },
+          {
+            "varId": 3,
+            "resGrp": "BASE_SPD",
+            "grpCond": "TOP_RESIN_CD == \"F\""
+          },
+          {
+            "varId": 4,
+            "resGrp": "BASE_SPD",
+            "grpCond": "STR_STARTS_WITH(TOP_RESIN_CD, \"W\") && COAT_SIDE == \"1\""
+          },
+          {
+            "varId": 5,
+            "resGrp": "BASE_SPD",
+            "grpCond": null
+          }
+        ],
+        "rows": [
+          {
+            "rowId": 1,
+            "seq": 1,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"< 변수 <=\",\"left\":\"0\",\"right\":\"0.5\"},\"2\":{\"val\":\"100\"},\"3\":{\"val\":\"90\"},\"4\":{\"val\":\"110\"},\"5\":{\"val\":\"120\"}}"
+          },
+          {
+            "rowId": 2,
+            "seq": 2,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"<= 변수 <=\",\"left\":\"1\",\"right\":\"1.2\"},\"2\":{\"val\":\"50\"},\"3\":{\"val\":\"50\"},\"4\":{\"val\":\"70\"},\"5\":{\"val\":\"60\"}}"
+          }
+        ]
+      },
+      "asts": {
+        "STR_STARTS_WITH(TOP_RESIN_CD, \"2\")": {
+          "type": "FUNCTION",
+          "value": "STR_STARTS_WITH",
+          "params": [
+            {
+              "type": "VARIABLE_OR_CONSTANT",
+              "value": "TOP_RESIN_CD"
+            },
+            {
+              "type": "STRING_LITERAL",
+              "value": "2"
+            }
+          ]
+        },
+        "TOP_RESIN_CD == \"F\"": {
+          "type": "INFIX_OPERATOR",
+          "value": "==",
+          "params": [
+            {
+              "type": "VARIABLE_OR_CONSTANT",
+              "value": "TOP_RESIN_CD"
+            },
+            {
+              "type": "STRING_LITERAL",
+              "value": "F"
+            }
+          ]
+        },
+        "STR_STARTS_WITH(TOP_RESIN_CD, \"W\") && COAT_SIDE == \"1\"": {
+          "type": "INFIX_OPERATOR",
+          "value": "&&",
+          "params": [
+            {
+              "type": "FUNCTION",
+              "value": "STR_STARTS_WITH",
+              "params": [
+                {
+                  "type": "VARIABLE_OR_CONSTANT",
+                  "value": "TOP_RESIN_CD"
+                },
+                {
+                  "type": "STRING_LITERAL",
+                  "value": "W"
+                }
+              ]
+            },
+            {
+              "type": "INFIX_OPERATOR",
+              "value": "==",
+              "params": [
+                {
+                  "type": "VARIABLE_OR_CONSTANT",
+                  "value": "COAT_SIDE"
+                },
+                {
+                  "type": "STRING_LITERAL",
+                  "value": "1"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "types": {
+        "COAT_SIDE": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "NAME20"
+        },
+        "COIL_THK": {
+          "dataType": "NUMBER",
+          "scale": 2,
+          "domainId": "THK_MM"
+        },
+        "TOP_RESIN_CD": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "NAME20"
+        }
+      },
+      "expect": {
+        "always": [
+          "COIL_THK",
+          "TOP_RESIN_CD",
+          "COAT_SIDE"
+        ],
+        "rows": [
+          {
+            "rowId": 1,
+            "cond": "0 < COIL_THK <= 0.5",
+            "required": [],
+            "optional": []
+          },
+          {
+            "rowId": 2,
+            "cond": "1 <= COIL_THK <= 1.2",
+            "required": [],
+            "optional": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "null-arith-compare-round",
+      "note": "사칙연산·대소 비교·ROUND 인자·식 뿌리의 맨 변수는 필수",
+      "rule": {
+        "ruleId": "NULL-ARITH-COMPARE-ROUND",
+        "ruleKind": "DECISION",
+        "hitPolicy": "COLLECT",
+        "vars": [
+          {
+            "varId": 1,
+            "varKind": "COND",
+            "dispType": "1",
+            "seq": 1,
+            "varName": "SURF_GRD",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          },
+          {
+            "varId": 2,
+            "varKind": "RESULT",
+            "dispType": "Expression",
+            "seq": 1,
+            "varName": "OUT",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": null
+          }
+        ],
+        "meta": [],
+        "rows": [
+          {
+            "rowId": 1,
+            "seq": 1,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"ROUND(A * B, 1) > C\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\">\",\"params\":[{\"type\":\"FUNCTION\",\"value\":\"ROUND\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"A\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"B\"}]},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1\"}]},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"C\"}]}}}"
+          },
+          {
+            "rowId": 2,
+            "seq": 2,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"X\",\"ast\":{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"X\"}}}"
+          },
+          {
+            "rowId": 3,
+            "seq": 3,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"MIN(Y, 1)\",\"ast\":{\"type\":\"FUNCTION\",\"value\":\"MIN\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"Y\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1\"}]}}}"
+          }
+        ]
+      },
+      "asts": {},
+      "types": {
+        "A": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        },
+        "B": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        },
+        "C": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        },
+        "SURF_GRD": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "SURF_GRD_CD"
+        },
+        "X": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        },
+        "Y": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        }
+      },
+      "expect": {
+        "always": [
+          "SURF_GRD"
+        ],
+        "rows": [
+          {
+            "rowId": 1,
+            "cond": "-",
+            "required": [
+              "A",
+              "B",
+              "C"
+            ],
+            "optional": []
+          },
+          {
+            "rowId": 2,
+            "cond": "-",
+            "required": [
+              "X"
+            ],
+            "optional": []
+          },
+          {
+            "rowId": 3,
+            "cond": "-",
+            "required": [
+              "Y"
+            ],
+            "optional": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "null-eq-ne-optional",
+      "note": "== 과 != 피연산자로만 쓰인 변수는 선택",
+      "rule": {
+        "ruleId": "NULL-EQ-NE-OPTIONAL",
+        "ruleKind": "DECISION",
+        "hitPolicy": "COLLECT",
+        "vars": [
+          {
+            "varId": 1,
+            "varKind": "COND",
+            "dispType": "1",
+            "seq": 1,
+            "varName": "SURF_GRD",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          },
+          {
+            "varId": 2,
+            "varKind": "RESULT",
+            "dispType": "Expression",
+            "seq": 1,
+            "varName": "OUT",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": null
+          }
+        ],
+        "meta": [],
+        "rows": [
+          {
+            "rowId": 1,
+            "seq": 1,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"IF(K == \\\"X\\\", 1, 2)\",\"ast\":{\"type\":\"FUNCTION\",\"value\":\"IF\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"==\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"K\"},{\"type\":\"STRING_LITERAL\",\"value\":\"X\"}]},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"2\"}]}}}"
+          },
+          {
+            "rowId": 2,
+            "seq": 2,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"A != 1\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"!=\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"A\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1\"}]}}}"
+          },
+          {
+            "rowId": 3,
+            "seq": 3,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"B <> C\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"<>\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"B\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"C\"}]}}}"
+          }
+        ]
+      },
+      "asts": {},
+      "types": {
+        "A": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        },
+        "B": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        },
+        "C": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        },
+        "K": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": null
+        },
+        "SURF_GRD": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "SURF_GRD_CD"
+        }
+      },
+      "expect": {
+        "always": [
+          "SURF_GRD"
+        ],
+        "rows": [
+          {
+            "rowId": 1,
+            "cond": "-",
+            "required": [],
+            "optional": [
+              "K"
+            ]
+          },
+          {
+            "rowId": 2,
+            "cond": "-",
+            "required": [],
+            "optional": [
+              "A"
+            ]
+          },
+          {
+            "rowId": 3,
+            "cond": "-",
+            "required": [],
+            "optional": [
+              "B",
+              "C"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "null-coalesce",
+      "note": "COALESCE 의 마지막이 아닌 인자는 선택, 마지막 인자는 바깥 문맥",
+      "rule": {
+        "ruleId": "NULL-COALESCE",
+        "ruleKind": "DECISION",
+        "hitPolicy": "COLLECT",
+        "vars": [
+          {
+            "varId": 1,
+            "varKind": "COND",
+            "dispType": "1",
+            "seq": 1,
+            "varName": "SURF_GRD",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          },
+          {
+            "varId": 2,
+            "varKind": "RESULT",
+            "dispType": "Expression",
+            "seq": 1,
+            "varName": "OUT",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": null
+          }
+        ],
+        "meta": [],
+        "rows": [
+          {
+            "rowId": 1,
+            "seq": 1,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"COALESCE(A, B) * 2\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"FUNCTION\",\"value\":\"COALESCE\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"A\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"B\"}]},{\"type\":\"NUMBER_LITERAL\",\"value\":\"2\"}]}}}"
+          },
+          {
+            "rowId": 2,
+            "seq": 2,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"COALESCE(X, Y) == 1\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"==\",\"params\":[{\"type\":\"FUNCTION\",\"value\":\"COALESCE\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"X\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"Y\"}]},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1\"}]}}}"
+          },
+          {
+            "rowId": 3,
+            "seq": 3,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"COALESCE(P, Q, R)\",\"ast\":{\"type\":\"FUNCTION\",\"value\":\"COALESCE\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"P\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"Q\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"R\"}]}}}"
+          }
+        ]
+      },
+      "asts": {},
+      "types": {
+        "A": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        },
+        "B": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        },
+        "P": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        },
+        "Q": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        },
+        "R": {
+          "dataType": "NUMBER",
+          "scale": 1,
+          "domainId": null
+        },
+        "SURF_GRD": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "SURF_GRD_CD"
+        },
+        "X": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        },
+        "Y": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        }
+      },
+      "expect": {
+        "always": [
+          "SURF_GRD"
+        ],
+        "rows": [
+          {
+            "rowId": 1,
+            "cond": "-",
+            "required": [
+              "B"
+            ],
+            "optional": [
+              "A"
+            ]
+          },
+          {
+            "rowId": 2,
+            "cond": "-",
+            "required": [],
+            "optional": [
+              "X",
+              "Y"
+            ]
+          },
+          {
+            "rowId": 3,
+            "cond": "-",
+            "required": [
+              "R"
+            ],
+            "optional": [
+              "P",
+              "Q"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "null-if-guard",
+      "note": "IF 의 NULL 검사로 막은 가지는 선택, 반대 가지는 필수",
+      "rule": {
+        "ruleId": "NULL-IF-GUARD",
+        "ruleKind": "DECISION",
+        "hitPolicy": "COLLECT",
+        "vars": [
+          {
+            "varId": 1,
+            "varKind": "COND",
+            "dispType": "1",
+            "seq": 1,
+            "varName": "SURF_GRD",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          },
+          {
+            "varId": 2,
+            "varKind": "RESULT",
+            "dispType": "Expression",
+            "seq": 1,
+            "varName": "OUT",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": null
+          }
+        ],
+        "meta": [],
+        "rows": [
+          {
+            "rowId": 1,
+            "seq": 1,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"IF(X != NULL, X * 2, 0)\",\"ast\":{\"type\":\"FUNCTION\",\"value\":\"IF\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"!=\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"X\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"NULL\"}]},{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"X\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"2\"}]},{\"type\":\"NUMBER_LITERAL\",\"value\":\"0\"}]}}}"
+          },
+          {
+            "rowId": 2,
+            "seq": 2,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"IF(Y == NULL, 0, Y * 2)\",\"ast\":{\"type\":\"FUNCTION\",\"value\":\"IF\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"==\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"Y\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"NULL\"}]},{\"type\":\"NUMBER_LITERAL\",\"value\":\"0\"},{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"Y\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"2\"}]}]}}}"
+          },
+          {
+            "rowId": 3,
+            "seq": 3,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"IF(Z != NULL, 1, Z * 2)\",\"ast\":{\"type\":\"FUNCTION\",\"value\":\"IF\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"!=\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"Z\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"NULL\"}]},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1\"},{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"Z\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"2\"}]}]}}}"
+          }
+        ]
+      },
+      "asts": {},
+      "types": {
+        "SURF_GRD": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "SURF_GRD_CD"
+        },
+        "X": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        },
+        "Y": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        },
+        "Z": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        }
+      },
+      "expect": {
+        "always": [
+          "SURF_GRD"
+        ],
+        "rows": [
+          {
+            "rowId": 1,
+            "cond": "-",
+            "required": [],
+            "optional": [
+              "X"
+            ]
+          },
+          {
+            "rowId": 2,
+            "cond": "-",
+            "required": [],
+            "optional": [
+              "Y"
+            ]
+          },
+          {
+            "rowId": 3,
+            "cond": "-",
+            "required": [
+              "Z"
+            ],
+            "optional": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "null-and-or-guard",
+      "note": "&& 왼쪽 != NULL·|| 왼쪽 == NULL 은 오른쪽을 막는다",
+      "rule": {
+        "ruleId": "NULL-AND-OR-GUARD",
+        "ruleKind": "DECISION",
+        "hitPolicy": "COLLECT",
+        "vars": [
+          {
+            "varId": 1,
+            "varKind": "COND",
+            "dispType": "1",
+            "seq": 1,
+            "varName": "SURF_GRD",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          },
+          {
+            "varId": 2,
+            "varKind": "RESULT",
+            "dispType": "Expression",
+            "seq": 1,
+            "varName": "OUT",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": null
+          }
+        ],
+        "meta": [],
+        "rows": [
+          {
+            "rowId": 1,
+            "seq": 1,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"X != NULL && X > 1\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"&&\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"!=\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"X\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"NULL\"}]},{\"type\":\"INFIX_OPERATOR\",\"value\":\">\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"X\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1\"}]}]}}}"
+          },
+          {
+            "rowId": 2,
+            "seq": 2,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"Y == NULL || Y > 1\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"||\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"==\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"Y\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"NULL\"}]},{\"type\":\"INFIX_OPERATOR\",\"value\":\">\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"Y\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1\"}]}]}}}"
+          },
+          {
+            "rowId": 3,
+            "seq": 3,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"Z == NULL && Z > 1\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"&&\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"==\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"Z\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"NULL\"}]},{\"type\":\"INFIX_OPERATOR\",\"value\":\">\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"Z\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1\"}]}]}}}"
+          }
+        ]
+      },
+      "asts": {},
+      "types": {
+        "SURF_GRD": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "SURF_GRD_CD"
+        },
+        "X": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        },
+        "Y": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        },
+        "Z": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        }
+      },
+      "expect": {
+        "always": [
+          "SURF_GRD"
+        ],
+        "rows": [
+          {
+            "rowId": 1,
+            "cond": "-",
+            "required": [],
+            "optional": [
+              "X"
+            ]
+          },
+          {
+            "rowId": 2,
+            "cond": "-",
+            "required": [],
+            "optional": [
+              "Y"
+            ]
+          },
+          {
+            "rowId": 3,
+            "cond": "-",
+            "required": [
+              "Z"
+            ],
+            "optional": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "null-switch",
+      "note": "SWITCH — 첫 인자·비교 값은 선택, 결과·기본값은 바깥 문맥(인자 수 짝수면 끝이 기본값)",
+      "rule": {
+        "ruleId": "NULL-SWITCH",
+        "ruleKind": "DECISION",
+        "hitPolicy": "COLLECT",
+        "vars": [
+          {
+            "varId": 1,
+            "varKind": "COND",
+            "dispType": "1",
+            "seq": 1,
+            "varName": "SURF_GRD",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          },
+          {
+            "varId": 2,
+            "varKind": "RESULT",
+            "dispType": "Expression",
+            "seq": 1,
+            "varName": "OUT",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": null
+          }
+        ],
+        "meta": [],
+        "rows": [
+          {
+            "rowId": 1,
+            "seq": 1,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"SWITCH(K, \\\"A\\\", P * 2, \\\"B\\\", Q, R)\",\"ast\":{\"type\":\"FUNCTION\",\"value\":\"SWITCH\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"K\"},{\"type\":\"STRING_LITERAL\",\"value\":\"A\"},{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"P\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"2\"}]},{\"type\":\"STRING_LITERAL\",\"value\":\"B\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"Q\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"R\"}]}}}"
+          },
+          {
+            "rowId": 2,
+            "seq": 2,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"SWITCH(K2, \\\"A\\\", P, \\\"B\\\", Q) + 1\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"+\",\"params\":[{\"type\":\"FUNCTION\",\"value\":\"SWITCH\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"K2\"},{\"type\":\"STRING_LITERAL\",\"value\":\"A\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"P\"},{\"type\":\"STRING_LITERAL\",\"value\":\"B\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"Q\"}]},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1\"}]}}}"
+          },
+          {
+            "rowId": 3,
+            "seq": 3,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"SWITCH(S, X, Y, Z)\",\"ast\":{\"type\":\"FUNCTION\",\"value\":\"SWITCH\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"S\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"X\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"Y\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"Z\"}]}}}"
+          }
+        ]
+      },
+      "asts": {},
+      "types": {
+        "K": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": null
+        },
+        "K2": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": null
+        },
+        "P": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        },
+        "Q": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        },
+        "R": {
+          "dataType": "NUMBER",
+          "scale": 1,
+          "domainId": null
+        },
+        "S": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": null
+        },
+        "SURF_GRD": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "SURF_GRD_CD"
+        },
+        "X": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        },
+        "Y": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        },
+        "Z": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        }
+      },
+      "expect": {
+        "always": [
+          "SURF_GRD"
+        ],
+        "rows": [
+          {
+            "rowId": 1,
+            "cond": "-",
+            "required": [
+              "P",
+              "Q",
+              "R"
+            ],
+            "optional": [
+              "K"
+            ]
+          },
+          {
+            "rowId": 2,
+            "cond": "-",
+            "required": [
+              "P",
+              "Q"
+            ],
+            "optional": [
+              "K2"
+            ]
+          },
+          {
+            "rowId": 3,
+            "cond": "-",
+            "required": [
+              "Y",
+              "Z"
+            ],
+            "optional": [
+              "S",
+              "X"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "null-str-contains-instr-master",
+      "note": "STR_CONTAINS·MASTER·MASTER_AT 인자는 선택, INSTR 는 바깥 문맥",
+      "rule": {
+        "ruleId": "NULL-STR-CONTAINS-INSTR-MASTER",
+        "ruleKind": "DECISION",
+        "hitPolicy": "COLLECT",
+        "vars": [
+          {
+            "varId": 1,
+            "varKind": "COND",
+            "dispType": "1",
+            "seq": 1,
+            "varName": "SURF_GRD",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          },
+          {
+            "varId": 2,
+            "varKind": "RESULT",
+            "dispType": "Expression",
+            "seq": 1,
+            "varName": "OUT",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": null
+          }
+        ],
+        "meta": [],
+        "rows": [
+          {
+            "rowId": 1,
+            "seq": 1,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"STR_CONTAINS(S, \\\"u\\\")\",\"ast\":{\"type\":\"FUNCTION\",\"value\":\"STR_CONTAINS\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"S\"},{\"type\":\"STRING_LITERAL\",\"value\":\"u\"}]}}}"
+          },
+          {
+            "rowId": 2,
+            "seq": 2,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"INSTR(S2, \\\"C\\\") > 0\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\">\",\"params\":[{\"type\":\"FUNCTION\",\"value\":\"INSTR\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"S2\"},{\"type\":\"STRING_LITERAL\",\"value\":\"C\"}]},{\"type\":\"NUMBER_LITERAL\",\"value\":\"0\"}]}}}"
+          },
+          {
+            "rowId": 3,
+            "seq": 3,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"INSTR(S3, \\\"C\\\") == 1\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"==\",\"params\":[{\"type\":\"FUNCTION\",\"value\":\"INSTR\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"S3\"},{\"type\":\"STRING_LITERAL\",\"value\":\"C\"}]},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1\"}]}}}"
+          },
+          {
+            "rowId": 4,
+            "seq": 4,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"MASTER(\\\"C\\\", \\\"BASE\\\", K)\",\"ast\":{\"type\":\"FUNCTION\",\"value\":\"MASTER\",\"params\":[{\"type\":\"STRING_LITERAL\",\"value\":\"C\"},{\"type\":\"STRING_LITERAL\",\"value\":\"BASE\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"K\"}]}}}"
+          },
+          {
+            "rowId": 5,
+            "seq": 5,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"MASTER_AT(\\\"C\\\", \\\"BASE\\\", K2, \\\"2026-01-01\\\")\",\"ast\":{\"type\":\"FUNCTION\",\"value\":\"MASTER_AT\",\"params\":[{\"type\":\"STRING_LITERAL\",\"value\":\"C\"},{\"type\":\"STRING_LITERAL\",\"value\":\"BASE\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"K2\"},{\"type\":\"STRING_LITERAL\",\"value\":\"2026-01-01\"}]}}}"
+          }
+        ]
+      },
+      "asts": {},
+      "types": {
+        "K": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": null
+        },
+        "K2": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": null
+        },
+        "S": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": null
+        },
+        "S2": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": null
+        },
+        "S3": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": null
+        },
+        "SURF_GRD": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "SURF_GRD_CD"
+        }
+      },
+      "expect": {
+        "always": [
+          "SURF_GRD"
+        ],
+        "rows": [
+          {
+            "rowId": 1,
+            "cond": "-",
+            "required": [],
+            "optional": [
+              "S"
+            ]
+          },
+          {
+            "rowId": 2,
+            "cond": "-",
+            "required": [
+              "S2"
+            ],
+            "optional": []
+          },
+          {
+            "rowId": 3,
+            "cond": "-",
+            "required": [],
+            "optional": [
+              "S3"
+            ]
+          },
+          {
+            "rowId": 4,
+            "cond": "-",
+            "required": [],
+            "optional": [
+              "K"
+            ]
+          },
+          {
+            "rowId": 5,
+            "cond": "-",
+            "required": [],
+            "optional": [
+              "K2"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "null-prefix-and-default-fail",
+      "note": "전위 연산자와 표에 없는 함수(STR_UPPER 등) 인자는 필수 — == 안에서도",
+      "rule": {
+        "ruleId": "NULL-PREFIX-AND-DEFAULT-FAIL",
+        "ruleKind": "DECISION",
+        "hitPolicy": "COLLECT",
+        "vars": [
+          {
+            "varId": 1,
+            "varKind": "COND",
+            "dispType": "1",
+            "seq": 1,
+            "varName": "SURF_GRD",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          },
+          {
+            "varId": 2,
+            "varKind": "RESULT",
+            "dispType": "Expression",
+            "seq": 1,
+            "varName": "OUT",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": null
+          }
+        ],
+        "meta": [],
+        "rows": [
+          {
+            "rowId": 1,
+            "seq": 1,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"-X + 1\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"+\",\"params\":[{\"type\":\"PREFIX_OPERATOR\",\"value\":\"-\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"X\"}]},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1\"}]}}}"
+          },
+          {
+            "rowId": 2,
+            "seq": 2,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"!W\",\"ast\":{\"type\":\"PREFIX_OPERATOR\",\"value\":\"!\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"W\"}]}}}"
+          },
+          {
+            "rowId": 3,
+            "seq": 3,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"STR_UPPER(S) == \\\"A\\\"\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"==\",\"params\":[{\"type\":\"FUNCTION\",\"value\":\"STR_UPPER\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"S\"}]},{\"type\":\"STRING_LITERAL\",\"value\":\"A\"}]}}}"
+          },
+          {
+            "rowId": 4,
+            "seq": 4,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"NOT(FLAG) == TRUE\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"==\",\"params\":[{\"type\":\"FUNCTION\",\"value\":\"NOT\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"FLAG\"}]},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"TRUE\"}]}}}"
+          }
+        ]
+      },
+      "asts": {},
+      "types": {
+        "FLAG": {
+          "dataType": "BOOLEAN",
+          "scale": null,
+          "domainId": null
+        },
+        "S": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": null
+        },
+        "SURF_GRD": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "SURF_GRD_CD"
+        },
+        "W": {
+          "dataType": "BOOLEAN",
+          "scale": null,
+          "domainId": null
+        },
+        "X": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        }
+      },
+      "expect": {
+        "always": [
+          "SURF_GRD"
+        ],
+        "rows": [
+          {
+            "rowId": 1,
+            "cond": "-",
+            "required": [
+              "X"
+            ],
+            "optional": []
+          },
+          {
+            "rowId": 2,
+            "cond": "-",
+            "required": [
+              "W"
+            ],
+            "optional": []
+          },
+          {
+            "rowId": 3,
+            "cond": "-",
+            "required": [
+              "S"
+            ],
+            "optional": []
+          },
+          {
+            "rowId": 4,
+            "cond": "-",
+            "required": [
+              "FLAG"
+            ],
+            "optional": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "null-constants-excluded",
+      "note": "상수(PI·TRUE·FALSE·NULL·E)는 변수가 아니다",
+      "rule": {
+        "ruleId": "NULL-CONSTANTS-EXCLUDED",
+        "ruleKind": "DECISION",
+        "hitPolicy": "COLLECT",
+        "vars": [
+          {
+            "varId": 1,
+            "varKind": "COND",
+            "dispType": "1",
+            "seq": 1,
+            "varName": "SURF_GRD",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          },
+          {
+            "varId": 2,
+            "varKind": "RESULT",
+            "dispType": "Expression",
+            "seq": 1,
+            "varName": "OUT",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": null
+          }
+        ],
+        "meta": [],
+        "rows": [
+          {
+            "rowId": 1,
+            "seq": 1,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"PI * R ^ 2 + E\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"+\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"PI\"},{\"type\":\"INFIX_OPERATOR\",\"value\":\"^\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"R\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"2\"}]}]},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"E\"}]}}}"
+          },
+          {
+            "rowId": 2,
+            "seq": 2,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"IF(TRUE, A, NULL)\",\"ast\":{\"type\":\"FUNCTION\",\"value\":\"IF\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"TRUE\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"A\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"NULL\"}]}}}"
+          },
+          {
+            "rowId": 3,
+            "seq": 3,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"FALSE == B\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"==\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"FALSE\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"B\"}]}}}"
+          }
+        ]
+      },
+      "asts": {},
+      "types": {
+        "A": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        },
+        "B": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        },
+        "R": {
+          "dataType": "NUMBER",
+          "scale": 1,
+          "domainId": null
+        },
+        "SURF_GRD": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "SURF_GRD_CD"
+        }
+      },
+      "expect": {
+        "always": [
+          "SURF_GRD"
+        ],
+        "rows": [
+          {
+            "rowId": 1,
+            "cond": "-",
+            "required": [
+              "R"
+            ],
+            "optional": []
+          },
+          {
+            "rowId": 2,
+            "cond": "-",
+            "required": [
+              "A"
+            ],
+            "optional": []
+          },
+          {
+            "rowId": 3,
+            "cond": "-",
+            "required": [],
+            "optional": [
+              "B"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "mixed-case-names",
+      "note": "이름은 대문자로 견주고 처음 나온 표기를 싣는다 — 조건 열 이름은 적은 대로, 식 참조는 대문자",
+      "rule": {
+        "ruleId": "MIXED-CASE-NAMES",
+        "ruleKind": "DECISION",
+        "hitPolicy": "FIRST",
+        "vars": [
+          {
+            "varId": 1,
+            "varKind": "COND",
+            "dispType": "1",
+            "seq": 1,
+            "varName": "coil_thk",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": 2
+          },
+          {
+            "varId": 2,
+            "varKind": "COND",
+            "dispType": "Expression",
+            "seq": 2,
+            "varName": null,
+            "exprVar": false,
+            "label": null,
+            "dataType": "BOOLEAN",
+            "scale": null
+          },
+          {
+            "varId": 3,
+            "varKind": "RESULT",
+            "dispType": "Expression",
+            "seq": 1,
+            "varName": "OUT",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": null
+          },
+          {
+            "varId": 4,
+            "varKind": "RESULT",
+            "dispType": "Expression",
+            "seq": 2,
+            "varName": "out2",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": null
+          }
+        ],
+        "meta": [],
+        "rows": [
+          {
+            "rowId": 1,
+            "seq": 1,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"GE\",\"left\":\"1\"},\"2\":{\"expr\":\"Coil_Thk > 1 && coil_wid > 2\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"&&\",\"params\":[{\"type\":\"INFIX_OPERATOR\",\"value\":\">\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"Coil_Thk\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1\"}]},{\"type\":\"INFIX_OPERATOR\",\"value\":\">\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"coil_wid\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"2\"}]}]}},\"3\":{\"expr\":\"coil_thk * Spec_Grav\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"coil_thk\"},{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"Spec_Grav\"}]}},\"4\":{\"expr\":\"OUT + 1\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"+\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"OUT\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"1\"}]}}}"
+          },
+          {
+            "rowId": 2,
+            "seq": 2,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"expr\":\"SURF_GRD == \\\"A\\\"\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"==\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"SURF_GRD\"},{\"type\":\"STRING_LITERAL\",\"value\":\"A\"}]}},\"3\":{\"expr\":\"OUT2 * 2\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"OUT2\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"2\"}]}},\"4\":{\"expr\":\"COIL_LEN\",\"ast\":{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"COIL_LEN\"}}}"
+          }
+        ]
+      },
+      "asts": {},
+      "types": {
+        "COIL_LEN": {
+          "dataType": "NUMBER",
+          "scale": 1,
+          "domainId": "LEN_M"
+        },
+        "COIL_THK": {
+          "dataType": "NUMBER",
+          "scale": 2,
+          "domainId": "THK_MM"
+        },
+        "COIL_WID": {
+          "dataType": "NUMBER",
+          "scale": 0,
+          "domainId": "WID_MM"
+        },
+        "SPEC_GRAV": {
+          "dataType": "NUMBER",
+          "scale": 3,
+          "domainId": "SG"
+        },
+        "SURF_GRD": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "SURF_GRD_CD"
+        }
+      },
+      "expect": {
+        "always": [
+          "coil_thk",
+          "COIL_WID",
+          "SURF_GRD"
+        ],
+        "rows": [
+          {
+            "rowId": 1,
+            "cond": "coil_thk >= 1 · Coil_Thk > 1 && coil_wid > 2",
+            "required": [
+              "COIL_THK",
+              "SPEC_GRAV"
+            ],
+            "optional": []
+          },
+          {
+            "rowId": 2,
+            "cond": "SURF_GRD == \"A\"",
+            "required": [
+              "COIL_LEN"
+            ],
+            "optional": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "row-order-seq-then-rowid",
+      "note": "NORMAL 행은 seq 오름차순, 같으면 row_id 오름차순. 결과 셀 없는 열·Value 셀은 계약에 없다",
+      "rule": {
+        "ruleId": "ROW-ORDER-SEQ-THEN-ROWID",
+        "ruleKind": "DECISION",
+        "hitPolicy": "PRIORITY",
+        "vars": [
+          {
+            "varId": 1,
+            "varKind": "COND",
+            "dispType": "1",
+            "seq": 1,
+            "varName": "SURF_GRD",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          },
+          {
+            "varId": 2,
+            "varKind": "RESULT",
+            "dispType": "Expression",
+            "seq": 1,
+            "varName": "OUT",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": null
+          },
+          {
+            "varId": 3,
+            "varKind": "RESULT",
+            "dispType": "Value",
+            "seq": 2,
+            "varName": "QLTY_GRD",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          }
+        ],
+        "meta": [],
+        "rows": [
+          {
+            "rowId": 5,
+            "seq": 2,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"EQ\",\"left\":\"B\"},\"2\":{\"expr\":\"B * 2\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"*\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"B\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"2\"}]}}}"
+          },
+          {
+            "rowId": 3,
+            "seq": 1,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"EQ\",\"left\":\"A\"},\"2\":{\"expr\":\"A\",\"ast\":{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"A\"}}}"
+          },
+          {
+            "rowId": 4,
+            "seq": 2,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"CONTAINS\",\"left\":\"C\"},\"3\":{\"val\":\"C\"}}"
+          },
+          {
+            "rowId": 1,
+            "seq": 3,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NOT_NULL\"},\"2\":{\"expr\":\"C / 2\",\"ast\":{\"type\":\"INFIX_OPERATOR\",\"value\":\"/\",\"params\":[{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"C\"},{\"type\":\"NUMBER_LITERAL\",\"value\":\"2\"}]}},\"3\":{\"val\":\"D\"}}"
+          }
+        ]
+      },
+      "asts": {},
+      "types": {
+        "A": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        },
+        "B": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        },
+        "C": {
+          "dataType": "NUMBER",
+          "scale": null,
+          "domainId": null
+        },
+        "SURF_GRD": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "SURF_GRD_CD"
+        }
+      },
+      "expect": {
+        "always": [
+          "SURF_GRD"
+        ],
+        "rows": [
+          {
+            "rowId": 3,
+            "cond": "SURF_GRD = A",
+            "required": [
+              "A"
+            ],
+            "optional": []
+          },
+          {
+            "rowId": 4,
+            "cond": "SURF_GRD CONTAINS C",
+            "required": [],
+            "optional": []
+          },
+          {
+            "rowId": 5,
+            "cond": "SURF_GRD = B",
+            "required": [
+              "B"
+            ],
+            "optional": []
+          },
+          {
+            "rowId": 1,
+            "cond": "SURF_GRD IS NOT NULL",
+            "required": [
+              "C"
+            ],
+            "optional": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "cond-summary-ops",
+      "note": "cond 요약 — op 마다 06 문자열, NA 는 빼고 모두 NA 면 '-'",
+      "rule": {
+        "ruleId": "COND-SUMMARY-OPS",
+        "ruleKind": "DECISION",
+        "hitPolicy": "FIRST",
+        "vars": [
+          {
+            "varId": 1,
+            "varKind": "COND",
+            "dispType": "1",
+            "seq": 1,
+            "varName": "SURF_GRD",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          },
+          {
+            "varId": 2,
+            "varKind": "COND",
+            "dispType": "2",
+            "seq": 2,
+            "varName": "COIL_THK",
+            "exprVar": false,
+            "label": null,
+            "dataType": "NUMBER",
+            "scale": 2
+          },
+          {
+            "varId": 3,
+            "varKind": "COND",
+            "dispType": "Equal",
+            "seq": 3,
+            "varName": "PROD_TYPE",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          },
+          {
+            "varId": 4,
+            "varKind": "COND",
+            "dispType": "1",
+            "seq": 4,
+            "varName": "MAT_CD",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          },
+          {
+            "varId": 5,
+            "varKind": "RESULT",
+            "dispType": "Value",
+            "seq": 1,
+            "varName": "QLTY_GRD",
+            "exprVar": false,
+            "label": null,
+            "dataType": "STRING",
+            "scale": null
+          }
+        ],
+        "meta": [],
+        "rows": [
+          {
+            "rowId": 1,
+            "seq": 1,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NE\",\"left\":\"A\"},\"2\":{\"op\":\"< 변수 <\",\"left\":\"1\",\"right\":\"2\"},\"3\":{\"op\":\"EQ\",\"left\":\"COIL\"},\"4\":{\"op\":\"CODE_IN\",\"left\":\"MAT01\"},\"5\":{\"val\":\"A\"}}"
+          },
+          {
+            "rowId": 2,
+            "seq": 2,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NOT_IN\",\"list\":[\"A\",\"B\"]},\"2\":{\"op\":\"LE\",\"left\":\"3\"},\"3\":{\"op\":\"NA\"},\"4\":{\"op\":\"INSTR\",\"left\":\"X\"},\"5\":{\"val\":\"B\"}}"
+          },
+          {
+            "rowId": 3,
+            "seq": 3,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"IS_NULL\"},\"2\":{\"op\":\"LT\",\"left\":\"0\"},\"3\":{\"op\":\"NA\"},\"4\":{\"op\":\"EQ\",\"left\":\"SGC%\"},\"5\":{\"val\":\"C\"}}"
+          },
+          {
+            "rowId": 4,
+            "seq": 4,
+            "rowKind": "NORMAL",
+            "cells": "{\"1\":{\"op\":\"NA\"},\"2\":{\"op\":\"NA\"},\"3\":{\"op\":\"NA\"},\"4\":{\"op\":\"NA\"},\"5\":{\"val\":\"D\"}}"
+          }
+        ]
+      },
+      "asts": {},
+      "types": {
+        "COIL_THK": {
+          "dataType": "NUMBER",
+          "scale": 2,
+          "domainId": "THK_MM"
+        },
+        "MAT_CD": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "MAT_CD"
+        },
+        "PROD_TYPE": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "PROD_TYPE_CD"
+        },
+        "SURF_GRD": {
+          "dataType": "STRING",
+          "scale": null,
+          "domainId": "SURF_GRD_CD"
+        }
+      },
+      "expect": {
+        "always": [
+          "SURF_GRD",
+          "COIL_THK",
+          "PROD_TYPE",
+          "MAT_CD"
+        ],
+        "rows": [
+          {
+            "rowId": 1,
+            "cond": "SURF_GRD <> A · 1 < COIL_THK < 2 · PROD_TYPE = COIL · MAT_CD IN 카테고리 MAT01",
+            "required": [],
+            "optional": []
+          },
+          {
+            "rowId": 2,
+            "cond": "SURF_GRD NOT IN (A, B) · COIL_THK <= 3 · MAT_CD INSTR X",
+            "required": [],
+            "optional": []
+          },
+          {
+            "rowId": 3,
+            "cond": "SURF_GRD IS NULL · COIL_THK < 0 · MAT_CD = SGC%",
+            "required": [],
+            "optional": []
+          },
+          {
+            "rowId": 4,
+            "cond": "-",
+            "required": [],
+            "optional": []
+          }
+        ]
+      }
+    }
+  ]
+}

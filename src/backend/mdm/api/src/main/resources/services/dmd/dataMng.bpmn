@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_dataMng" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-tool" exporterVersion="1.3.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="dataMng" name="마루 데이터" isExecutable="true">
+    <bpmn:documentation>dataMng — 마루 데이터 조회·등록(05 「화면」 마루 데이터 조회·등록, TSK-07-02 design.md §1·§2).
+
+action=search -&gt; searchTask (dataMngService.search)   — ID·이름·상태 조회(D2)
+action=reg    -&gt; regTask    (dataMngService.register) — 등록(MDM 원천만, R10). TB_MDM_DATA(INUSE)+CATE BASE
+                                                          한 트랜잭션(R1). 성공 뒤 화면이 dataEdit 탭을 연다(D7).
+
+action(RBAC 키)은 MdmActions 16종 안에서만 고른다(D9). reg 는 EDIT 세트라 담당자만 쓴다.</bpmn:documentation>
+    <bpmn:startEvent id="start" name="시작">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="actionGateway" name="action 분기">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_search</bpmn:outgoing>
+      <bpmn:outgoing>flow_reg</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="searchTask" name="마루 데이터 목록 조회" camunda:class="dataMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="search" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dmd.dataMng.dto.DataMngSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_search</bpmn:incoming>
+      <bpmn:outgoing>flow_search_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_search" name="목록 조회 완료">
+      <bpmn:incoming>flow_search_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="regTask" name="마루 데이터 등록" camunda:class="dataMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="register" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dmd.dataMng.dto.DataMngRegRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_reg</bpmn:incoming>
+      <bpmn:outgoing>flow_reg_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_reg" name="등록 완료">
+      <bpmn:incoming>flow_reg_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+    <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
+    <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="end_search" />
+    <bpmn:sequenceFlow id="flow_reg" name="reg" sourceRef="actionGateway" targetRef="regTask" />
+    <bpmn:sequenceFlow id="flow_reg_end" sourceRef="regTask" targetRef="end_reg" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="dataMng">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="152" y="132" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="245" y="125" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchTask_di" bpmnElement="searchTask">
+        <dc:Bounds x="380" y="60" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_search_di" bpmnElement="end_search">
+        <dc:Bounds x="560" y="82" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="regTask_di" bpmnElement="regTask">
+        <dc:Bounds x="380" y="180" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_reg_di" bpmnElement="end_reg">
+        <dc:Bounds x="560" y="202" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="188" y="150" />
+        <di:waypoint x="245" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_di" bpmnElement="flow_search">
+        <di:waypoint x="270" y="125" />
+        <di:waypoint x="270" y="100" />
+        <di:waypoint x="380" y="100" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="305" y="83" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_end_di" bpmnElement="flow_search_end">
+        <di:waypoint x="480" y="100" />
+        <di:waypoint x="560" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_reg_di" bpmnElement="flow_reg">
+        <di:waypoint x="270" y="175" />
+        <di:waypoint x="270" y="220" />
+        <di:waypoint x="380" y="220" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="305" y="203" width="24" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_reg_end_di" bpmnElement="flow_reg_end">
+        <di:waypoint x="480" y="220" />
+        <di:waypoint x="560" y="220" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -7,12 +7,17 @@
  * 편집은 서버 판정 `editable`(DECISION 만)일 때만 켠다(I7). 편집할 때마다 evalex `analyzeRule` 로 즉시 검사하고(I13),
  * 저장 응답의 서버 검사와 저장 전 화면 검사가 같은지(`sameIssues`) 알린다(수용 7, 06:731). 저장 안 한 변경이 없으면
  * view 가 실은 서버 검사를 보인다.
+ *
+ * TSK-08-04: 편집 중인 표를 카드 공유 상태(`RuleWorkbenchContext`)에 올려 값 테스트(편집본)가 쓰게 하고, 이 표가 보이는 정의의 값 테스트
+ * 결과만 칠한다(I33). 저장 거부(서버 저장 시 검사 ERROR)면 메시지를 보이고 편집 상태를 그대로 둔다. 서버 저장 검사만 낸 이슈는 동치
+ * 배지(분석기 코드만, I26)와 따로 "서버 저장 검사" 로 보인다. view 를 다시 불러와도 표 정의(버전·row_version·열·행)가 같으면 편집을 지우지 않는다.
  */
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import { AgDataGrid } from "@dk-oasis/shared/grid";
 import { Button, Select } from "@dk-oasis/shared/form";
 import { badgeStyle } from "@/shell";
+import { isRowVersionConflict } from "@/dme/oasis-call";
 
 import { ColumnDraftSharedContext } from "../sections/column-draft-context";
 import { tableSaveBlocked } from "../sections/columns/column-draft";
@@ -20,9 +25,11 @@ import { tableSaveBlocked } from "../sections/columns/column-draft";
 import { saveTable } from "../api";
 import type { RuleEditCardProps, RuleTableSection } from "../cards";
 import { CardFrame, MutedText } from "../cards/CardFrame";
-import type { HitPolicyCode, RuleIssueView } from "../types";
-import { mapRowIds, sameIssues, splitIssues } from "./analysis";
-import { ROW_LABEL_FIELD, buildTableColumns, displayRows, parseField } from "./columns";
+import { useRuleWorkbench } from "../state/workbench-context";
+import type { HitPolicyCode, RuleEditView, RuleIssueView } from "../types";
+import { runShownOnTable, testMarksOf } from "../value-test/test-marks";
+import { mapRowIds, sameIssues, serverOnlyIssues, splitIssues } from "./analysis";
+import { ROW_LABEL_FIELD, TEST_HIT_ROW_CLASS, buildTableColumns, displayRows, parseField } from "./columns";
 import { diffTable } from "./diff";
 import {
   initTableState,
@@ -31,6 +38,7 @@ import {
   saveRowsOf,
   tableAnalysis,
   tableReducer,
+  tableStoredRows,
   type TableAction,
 } from "./table-state";
 
@@ -52,6 +60,29 @@ interface ServerCheck {
   issues: RuleIssueView[];
 }
 
+/** 그리드 행 클래스 — 새 행(초록), 값 테스트 적중 행. */
+function rowClassOf(row: Record<string, unknown>): string[] | undefined {
+  const out: string[] = [];
+  if (row.__added === true) out.push("ag-row-inserted");
+  if (row.__hit === true) out.push(TEST_HIT_ROW_CLASS);
+  return out.length > 0 ? out : undefined;
+}
+
+/** 표 정의 서명 — 이것이 같으면 view 를 다시 불러와도(케이스 저장 등 다른 카드의 쓰기 뒤) 편집 중인 표를 지우지 않는다. */
+function tableLoadSig(view: RuleEditView): string {
+  const selected = view.versions.find((v) => v.ver === view.selectedVer);
+  return JSON.stringify([
+    view.rule.maruRuleId,
+    view.rule.ruleKind,
+    view.selectedVer,
+    selected?.rowVersion ?? null,
+    selected?.hitPolicy ?? null,
+    view.editable,
+    view.vars,
+    view.rows,
+  ]);
+}
+
 function issueLine(i: RuleIssueView): string {
   const rows = i.rowIds.length > 0 ? ` 행 ${i.rowIds.join(", ")}` : "";
   return `[${i.code}]${rows}${i.message ? ` — ${i.message}` : ""}`;
@@ -70,13 +101,20 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
   const [colDirty, setColDirty] = useState(false);
   const [highlightVarId, setHighlightVarId] = useState<number | null>(null);
   const [pivotDirty, setPivotDirty] = useState(false);
+  const [saveRejected, setSaveRejected] = useState<string | null>(null);
+  const workbench = useRuleWorkbench();
+  const { publishTableDraft, setColDirty: publishColDirty } = workbench;
 
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const loadSig = tableLoadSig(view);
   useEffect(() => {
-    dispatch({ type: "load", view });
-  }, [view]);
+    dispatch({ type: "load", view: viewRef.current });
+  }, [loadSig]);
 
   const edit = useCallback((action: TableAction) => {
     setServerCheck(null);
+    setSaveRejected(null);
     dispatch(action);
   }, []);
 
@@ -86,9 +124,19 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
     [colDirty, highlightVarId, dirty, pivotDirty],
   );
   const saveBlocked = tableSaveBlocked(colDirty) || pivotDirty;
+  // view 를 다시 불러오면 useRuleEdit 가 dirty 목록을 비우므로, 편집이 남아 있으면 다시 알린다.
   useEffect(() => {
     setDirty("table", dirty);
-  }, [dirty, setDirty]);
+  }, [dirty, setDirty, view]);
+
+  // 편집 중인 표를 값 테스트(편집본)에 올린다 — 내용이 같으면 reducer 가 상태를 그대로 둔다.
+  const storedRows = useMemo(() => tableStoredRows(state), [state]);
+  useEffect(() => {
+    publishTableDraft({ ruleId: state.ruleId, ver: view.selectedVer, hitPolicy: state.hitPolicy, rows: storedRows, dirty });
+  }, [publishTableDraft, state.ruleId, view.selectedVer, state.hitPolicy, storedRows, dirty]);
+  useEffect(() => {
+    publishColDirty(colDirty);
+  }, [colDirty, publishColDirty]);
 
   const selected = view.versions.find((v) => v.ver === view.selectedVer) ?? null;
   const decision = view.rule.ruleKind === "DECISION";
@@ -99,6 +147,22 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
   const shown = dirty ? js.issues : (view.issues ?? []);
   const split = useMemo(() => splitIssues(shown), [shown]);
   const diff = useMemo(() => diffTable(selected?.baseVer != null ? view.baseRows : null, state.rows), [selected?.baseVer, view.baseRows, state.rows]);
+
+  // 값 테스트 칠하기(I33) — 이 표가 보이는 정의(BODY 는 같은 rev, VERSION 은 같은 버전·row_version·변경 없음)의 서버 결과만.
+  const shownRun = runShownOnTable(workbench.testRun, {
+    ruleId: view.rule.maruRuleId,
+    ver: view.selectedVer,
+    rowVersion: selected?.rowVersion ?? null,
+    rev: workbench.tableDraft?.rev ?? null,
+    dirty,
+  })
+    ? workbench.testRun
+    : null;
+  const defaultRowId = state.rows.find((r) => r.rowKind === "DEFAULT")?.rowId ?? null;
+  const testMarks = useMemo(
+    () => (shownRun ? testMarksOf(shownRun.result, state.vars, view.varMeta, defaultRowId) : undefined),
+    [shownRun, state.vars, view.varMeta, defaultRowId],
+  );
 
   const ctxRef = useRef({ edit, vars: state.vars });
   ctxRef.current = { edit, vars: state.vars };
@@ -119,10 +183,10 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
   );
   const gridKey = `${view.rule.maruRuleId}:${view.selectedVer ?? "-"}:${editable ? "edit" : "read"}:${varsSig}`;
   const data = useMemo(
-    () => displayRows(state.rows, state.vars, { diff, split, selectedRowId: state.selectedRowId, serverShown: !dirty }),
-    [state.rows, state.vars, diff, split, state.selectedRowId, dirty],
+    () => displayRows(state.rows, state.vars, { diff, split, selectedRowId: state.selectedRowId, serverShown: !dirty, test: testMarks }),
+    [state.rows, state.vars, diff, split, state.selectedRowId, dirty, testMarks],
   );
-  const markToken = useMemo(() => JSON.stringify(data.map((r) => [r.rowKey, r.__mk, r.__added])), [data]);
+  const markToken = useMemo(() => JSON.stringify(data.map((r) => [r.rowKey, r.__mk, r.__added, r.__hit])), [data]);
 
   const handleCellChange = useCallback(
     (p: { rowKey: string | number; field: string; newValue: unknown }) => {
@@ -140,9 +204,16 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
   const handleSave = useCallback(async () => {
     if (!selected) return;
     const before = js;
-    const res = await runWrite(() =>
-      saveTable(view.rule.maruRuleId, selected.ver, selected.rowVersion, decision ? state.hitPolicy : null, saveRowsOf(state)),
-    );
+    setSaveRejected(null);
+    const res = await runWrite(async () => {
+      try {
+        return await saveTable(view.rule.maruRuleId, selected.ver, selected.rowVersion, decision ? state.hitPolicy : null, saveRowsOf(state));
+      } catch (e) {
+        // 저장 시 검사 거부(MDM021 "룰 저장 거부: …")는 표 아래에도 남긴다 — 편집 상태는 그대로다(runWrite 는 실패 때 다시 불러오지 않는다).
+        if (!isRowVersionConflict(e)) setSaveRejected(e instanceof Error ? e.message : String(e));
+        throw e;
+      }
+    });
     if (res) {
       const server = res.issues ?? [];
       setServerCheck({ same: !before.failed && sameIssues(mapRowIds(before.issues, res.rowIdMap), server), issues: server });
@@ -196,7 +267,7 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
           onRowOrderChange={(keys) => edit({ type: "reorder", keys })}
           onCellValueChanged={handleCellChange}
           highlightedRowKey={state.selectedRowId == null ? null : String(state.selectedRowId)}
-          getRowClassExtra={(row) => (row.__added === true ? "ag-row-inserted" : undefined)}
+          getRowClassExtra={rowClassOf}
           rowClassRefreshToken={markToken}
           emptyMessage="행이 없습니다."
           ariaLabel="의사결정표"
@@ -230,6 +301,23 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
         </div>
       )}
 
+      {saveRejected && (
+        <p data-testid="dt-save-rejected" role="alert" style={{ margin: "var(--spacing-sm) 0 0", color: "var(--color-danger)", whiteSpace: "pre-wrap" }}>
+          표를 저장하지 못했습니다. 편집 내용은 그대로 있습니다. {saveRejected}
+        </p>
+      )}
+      {workbench.testRunCleared && (
+        <p data-testid="dt-test-stale" style={{ margin: "var(--spacing-sm) 0 0", color: "var(--color-text-secondary)" }}>
+          표가 바뀌어 값 테스트 결과를 지웠습니다. 다시 돌리세요.
+        </p>
+      )}
+      {shownRun && (
+        <p data-testid="dt-test-shown" style={{ margin: "var(--spacing-sm) 0 0", color: "var(--color-text-secondary)" }}>
+          값 테스트 결과({shownRun.target === "BODY" ? "편집본" : `버전 ${shownRun.ver}`})를 표에 칠했습니다 — 초록 행은 적중 행, 붉은 칸은 그 행의 첫
+          거짓 조건입니다.
+        </p>
+      )}
+
       <div data-testid="dt-check" style={{ paddingTop: "var(--spacing-sm)" }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-sm)", alignItems: "center" }}>
           <strong>검사({dirty ? "화면" : "서버"})</strong>
@@ -261,6 +349,18 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
               </li>
             ))}
         </ul>
+        {serverCheck && serverOnlyIssues(serverCheck.issues).length > 0 && (
+          <div data-testid="dt-server-checks">
+            <span style={{ fontWeight: 600 }}>서버 저장 검사</span>
+            <ul style={{ margin: "var(--spacing-xs) 0", paddingLeft: "var(--spacing-lg)" }}>
+              {serverOnlyIssues(serverCheck.issues).map((i, idx) => (
+                <li key={`${i.code}-${idx}`} style={{ color: i.severity === "ERROR" ? "var(--color-danger)" : "var(--color-text-secondary)" }}>
+                  {i.severity === "ERROR" ? "오류" : "경고"} {issueLine(i)}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {split.table.length > 0 && (
           <div data-testid="dt-check-table">
             <span style={{ fontWeight: 600 }}>표 단위 검사</span>

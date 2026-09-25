@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_ruleSetEdit" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-tool" exporterVersion="1.3.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="ruleSetEdit" name="룰 세트 편집" isExecutable="true">
+    <bpmn:documentation>ruleSetEdit — 룰 세트 편집 (To-Be only 신규 화면, dme 업무기준).
+정본: docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md, TSK-08-06 design.md §6.6·§6.12.
+
+action=search  -&gt; searchTask  (ruleSetEditService.search)  READ — target SET(세트 고르기)·RULE(룰 추가 후보 + 입출력)·GUIDE(구성 지침)
+action=view    -&gt; viewTask    (ruleSetEditService.view)    READ — 세트·멤버 입출력·검사·editable·restorable
+action=save    -&gt; saveTask    (ruleSetEditService.save)    EDIT — 서버 재계산 검사 통과 시 세트명·설명·룰 목록 저장(거부 MDM024)
+action=delete  -&gt; deleteTask  (ruleSetEditService.delete)  EDIT — 폐기(INUSE -&gt; DEPRECATED)
+action=restore -&gt; restoreTask (ruleSetEditService.restore) EDIT — 되살리기(검사 통과 시 DEPRECATED -&gt; INUSE)
+
+BPMN 의 action(RBAC 키)과 서비스의 method(자바 메서드명)는 별개다. search 의 갈래(target)는 Java 가 가른다(두 번째 게이트웨이 금지).
+세트에는 버전·DRAFT·선점이 없고 ROW_VERSION(MDM001)으로만 동시 편집을 막는다. 담당자 역할은 서버가 RuleStewardCheck 로 다시 본다(MDM013).</bpmn:documentation>
+    <bpmn:startEvent id="start" name="시작">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="actionGateway" name="action 분기">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_search</bpmn:outgoing>
+      <bpmn:outgoing>flow_view</bpmn:outgoing>
+      <bpmn:outgoing>flow_save</bpmn:outgoing>
+      <bpmn:outgoing>flow_delete</bpmn:outgoing>
+      <bpmn:outgoing>flow_restore</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="searchTask" name="세트·룰 찾기·구성 지침" camunda:class="ruleSetEditService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="search" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetEditSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_search</bpmn:incoming>
+      <bpmn:outgoing>flow_search_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="viewTask" name="세트 조회" camunda:class="ruleSetEditService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="view" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetViewRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_view</bpmn:incoming>
+      <bpmn:outgoing>flow_view_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="saveTask" name="세트 저장" camunda:class="ruleSetEditService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="save" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetSaveRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_save</bpmn:incoming>
+      <bpmn:outgoing>flow_save_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="deleteTask" name="세트 폐기" camunda:class="ruleSetEditService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="delete" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetStatusRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_delete</bpmn:incoming>
+      <bpmn:outgoing>flow_delete_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="restoreTask" name="세트 되살리기" camunda:class="ruleSetEditService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="restore" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetStatusRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_restore</bpmn:incoming>
+      <bpmn:outgoing>flow_restore_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endSearch" name="찾기 완료">
+      <bpmn:incoming>flow_search_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endView" name="조회 완료">
+      <bpmn:incoming>flow_view_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endSave" name="저장 완료">
+      <bpmn:incoming>flow_save_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endDelete" name="폐기 완료">
+      <bpmn:incoming>flow_delete_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endRestore" name="되살리기 완료">
+      <bpmn:incoming>flow_restore_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+    <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
+    <bpmn:sequenceFlow id="flow_view" name="view" sourceRef="actionGateway" targetRef="viewTask" />
+    <bpmn:sequenceFlow id="flow_save" name="save" sourceRef="actionGateway" targetRef="saveTask" />
+    <bpmn:sequenceFlow id="flow_delete" name="delete" sourceRef="actionGateway" targetRef="deleteTask" />
+    <bpmn:sequenceFlow id="flow_restore" name="restore" sourceRef="actionGateway" targetRef="restoreTask" />
+    <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="endSearch" />
+    <bpmn:sequenceFlow id="flow_view_end" sourceRef="viewTask" targetRef="endView" />
+    <bpmn:sequenceFlow id="flow_save_end" sourceRef="saveTask" targetRef="endSave" />
+    <bpmn:sequenceFlow id="flow_delete_end" sourceRef="deleteTask" targetRef="endDelete" />
+    <bpmn:sequenceFlow id="flow_restore_end" sourceRef="restoreTask" targetRef="endRestore" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="ruleSetEdit">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="150" y="400" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="250" y="393" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchTask_di" bpmnElement="searchTask">
+        <dc:Bounds x="400" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="viewTask_di" bpmnElement="viewTask">
+        <dc:Bounds x="400" y="250" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="saveTask_di" bpmnElement="saveTask">
+        <dc:Bounds x="400" y="400" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="deleteTask_di" bpmnElement="deleteTask">
+        <dc:Bounds x="400" y="550" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="restoreTask_di" bpmnElement="restoreTask">
+        <dc:Bounds x="400" y="700" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearch_di" bpmnElement="endSearch">
+        <dc:Bounds x="600" y="122" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endView_di" bpmnElement="endView">
+        <dc:Bounds x="600" y="272" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSave_di" bpmnElement="endSave">
+        <dc:Bounds x="600" y="422" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endDelete_di" bpmnElement="endDelete">
+        <dc:Bounds x="600" y="572" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endRestore_di" bpmnElement="endRestore">
+        <dc:Bounds x="600" y="722" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="186" y="418" />
+        <di:waypoint x="250" y="418" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_di" bpmnElement="flow_search">
+        <di:waypoint x="275" y="393" />
+        <di:waypoint x="275" y="140" />
+        <di:waypoint x="400" y="140" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="317.5" y="123" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_view_di" bpmnElement="flow_view">
+        <di:waypoint x="275" y="393" />
+        <di:waypoint x="275" y="290" />
+        <di:waypoint x="400" y="290" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="317.5" y="273" width="32" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_di" bpmnElement="flow_save">
+        <di:waypoint x="275" y="443" />
+        <di:waypoint x="275" y="440" />
+        <di:waypoint x="400" y="440" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="317.5" y="423" width="32" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_delete_di" bpmnElement="flow_delete">
+        <di:waypoint x="275" y="443" />
+        <di:waypoint x="275" y="590" />
+        <di:waypoint x="400" y="590" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="317.5" y="426" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_restore_di" bpmnElement="flow_restore">
+        <di:waypoint x="275" y="443" />
+        <di:waypoint x="275" y="740" />
+        <di:waypoint x="400" y="740" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="317.5" y="426" width="56" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_end_di" bpmnElement="flow_search_end">
+        <di:waypoint x="500" y="140" />
+        <di:waypoint x="600" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_view_end_di" bpmnElement="flow_view_end">
+        <di:waypoint x="500" y="290" />
+        <di:waypoint x="600" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_end_di" bpmnElement="flow_save_end">
+        <di:waypoint x="500" y="440" />
+        <di:waypoint x="600" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_delete_end_di" bpmnElement="flow_delete_end">
+        <di:waypoint x="500" y="590" />
+        <di:waypoint x="600" y="590" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_restore_end_di" bpmnElement="flow_restore_end">
+        <di:waypoint x="500" y="740" />
+        <di:waypoint x="600" y="740" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
+

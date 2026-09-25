@@ -913,6 +913,7 @@ public class DataInitializer implements ApplicationRunner {
         seedMdmDomainMngMenu();
         seedMdmCodeItemEditMenu();
         seedMdmCodeCateEditMenu();
+        seedMdmCodeConfirmMenu();
 
         // ── TSK-04-04 — 컬럼 사전(columnMng) + 용어 인라인 등록 팝업(termRegPop). 팝업은 메뉴 leaf 없이 OBJECT·권한만
         //    둔다(screens/README §3·§5 — 버튼·API 권한은 역할 매핑에서 오고 메뉴를 보지 않는다, design.md F14·F15).
@@ -948,9 +949,39 @@ public class DataInitializer implements ApplicationRunner {
             seedMdmObjectRbac(objectId, "dmc");
         }
         log.info("[DataInitializer] TSK-06-02 MDM 마루 코드 시드 — OBJECT 2 + 메뉴 leaf 2 + RBAC(SYSADMIN 2 + MDM 역할 4)");
+        seedMdmDataMngMenus();
         seedMdmDataItemMenus();
         seedMdmDataCsvUploadPopObject();
         seedMdmRuleMenus();
+        seedMdmRuleSetMenus();
+    }
+
+    /**
+     * TSK-07-02 — 마루 데이터 조회·등록(dataMng)·수정(dataEdit)·카테고리 편집(dataCateEdit), 폴더 dmd. F2 가 예약한
+     * MENU_SEQ 001~003. action(search·reg·view·save·delete·restore·compare)은 모두 기존 권한 세트·allActions 안에
+     * 있다(D9). FULL_SEQ 는 부팅 끝 recomputeMenuFullSeq() 가 다시 매긴다.
+     */
+    private void seedMdmDataMngMenus() {
+        final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
+        final String AUDIT_VALS = ", 'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', "
+                                + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
+        insertMcmSecObjIfAbsent("dataMng", "마루 데이터", "mdm");
+        insertMcmSecObjIfAbsent("dataEdit", "마루 데이터 수정", "mdm");
+        insertMcmSecObjIfAbsent("dataCateEdit", "카테고리 편집", "mdm");
+        insertMcmSecMenuIfAbsent("dataMng", "001", "5040100", "마루 데이터", "dmd", "dataMng");
+        insertMcmSecMenuIfAbsent("dataEdit", "002", "5040200", "마루 데이터 수정", "dmd", "dataEdit");
+        insertMcmSecMenuIfAbsent("dataCateEdit", "003", "5040300", "카테고리 편집", "dmd", "dataCateEdit");
+        for (String objectId : new String[]{"dataMng", "dataEdit", "dataCateEdit"}) {
+            insertIfAbsentComposite(
+                    "TB_MCM_SEC_ROLE_MAPPING",
+                    new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
+                    new String[]{"SYSADMIN", objectId,    "PERM_ALL"},
+                    "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                    "VALUES ('SYSADMIN', '" + objectId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
+            seedMdmObjectRbac(objectId, "dmd");
+        }
+        log.info("[DataInitializer] TSK-07-02 MDM 마루 데이터 조회·등록·수정·카테고리 편집 시드 — OBJECT 3 + 메뉴 leaf 3 "
+                + "+ RBAC(SYSADMIN 3 + MDM 역할 6)");
     }
 
     /**
@@ -1025,6 +1056,35 @@ public class DataInitializer implements ApplicationRunner {
             seedMdmObjectRbac(objectId, "dme");
         }
         log.info("[DataInitializer] TSK-08-02 MDM 룰 화면 시드 — OBJECT 2 + 메뉴 leaf 2(dme) + RBAC(SYSADMIN 2 + MDM 역할 4)");
+    }
+
+    /**
+     * TSK-08-06 — 업무기준(dme) 폴더의 룰 세트 화면 두 개: 룰 세트 조회·등록(dme/ruleSetMng)과 룰 세트 편집(dme/ruleSetEdit). 08-02 의
+     * seedMdmRuleMenus() 배열은 고치지 않고 같은 dme 폴더 아래 새 leaf 로 등록한다(design D12). OBJECT_ID = screenId = BPMN process id(I17·I18).
+     * action 은 ruleSetMng search·reg, ruleSetEdit search·view·save·delete(폐기)·restore(되살리기)이고 모두 allActions·권한 세트 안에 있다.
+     * FULL_SEQ 는 부팅 끝 recomputeMenuFullSeq() 가 다시 매긴다.
+     */
+    private void seedMdmRuleSetMenus() {
+        final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
+        final String AUDIT_VALS = ", 'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', "
+                                + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
+        String[][] screens = {
+                {"ruleSetMng",  "룰 세트",      "004", "5050400"},
+                {"ruleSetEdit", "룰 세트 편집", "005", "5050500"},
+        };
+        for (String[] screen : screens) {
+            String objectId = screen[0];
+            insertMcmSecObjIfAbsent(objectId, screen[1], "mdm");
+            insertMcmSecMenuIfAbsent(objectId, screen[2], screen[3], screen[1], "dme", objectId);
+            insertIfAbsentComposite(
+                    "TB_MCM_SEC_ROLE_MAPPING",
+                    new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
+                    new String[]{"SYSADMIN", objectId,    "PERM_ALL"},
+                    "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                    "VALUES ('SYSADMIN', '" + objectId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
+            seedMdmObjectRbac(objectId, "dme");
+        }
+        log.info("[DataInitializer] TSK-08-06 MDM 룰 세트 화면 시드 — OBJECT 2 + 메뉴 leaf 2(dme) + RBAC(SYSADMIN 2 + MDM 역할 4)");
     }
 
     /**
@@ -1215,6 +1275,28 @@ public class DataInitializer implements ApplicationRunner {
                 "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
                 "VALUES ('SYSADMIN', 'codeCateEdit', 'PERM_ALL'" + AUDIT_VALS + ")");
         seedMdmObjectRbac("codeCateEdit", "dmc");
+    }
+
+    /**
+     * TSK-06-05 — 버전 확정(dmc/codeConfirm). 기존 마스터관리 메뉴는 고치지 않고 dmc 폴더 아래 새 leaf 로 등록한다
+     * (design.md §6.8). 부모 폴더 mdm·dmc 는 seedMdmMenus() 가 이미 멱등 시드한다. OBJECT_ID = screenId = BPMN process id.
+     * action(search·view·validate·confirm)은 모두 기존 권한 세트 안에 있고, dmc 매트릭스는 표준 관리자 READ(search·view)·
+     * 담당자 CONFIRM(validate·confirm 포함)이다. FULL_SEQ 는 screens/README §3 순서의 다섯째 자리이며 부팅 끝
+     * recomputeMenuFullSeq() 가 다시 매긴다.
+     */
+    private void seedMdmCodeConfirmMenu() {
+        final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
+        final String AUDIT_VALS = ", 'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', "
+                                + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
+        insertMcmSecObjIfAbsent("codeConfirm", "버전 확정", "mdm");
+        insertMcmSecMenuIfAbsent("codeConfirm", "005", "5030500", "버전 확정", "dmc", "codeConfirm");
+        insertIfAbsentComposite(
+                "TB_MCM_SEC_ROLE_MAPPING",
+                new String[]{"ROLE_ID",  "OBJECT_ID",   "PERMISSION_ID"},
+                new String[]{"SYSADMIN", "codeConfirm", "PERM_ALL"},
+                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                "VALUES ('SYSADMIN', 'codeConfirm', 'PERM_ALL'" + AUDIT_VALS + ")");
+        seedMdmObjectRbac("codeConfirm", "dmc");
     }
 
     /**

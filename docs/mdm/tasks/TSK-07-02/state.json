@@ -2,5 +2,141 @@
   "tsk": "TSK-07-02",
   "order": "4be6eb9f-e7cf-4bce-a868-00d9b77655f4",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "merged",
+  "baseline": {
+    "failures": 0,
+    "tests": 4048,
+    "docker": "banned:spawn",
+    "cmds": [
+      {
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3120,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed-5a99c8ef20f3",
+        "measured_at": "2026-09-25T14:18:23Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 760,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed-70ad4dddc2e4",
+        "measured_at": "2026-09-25T14:20:02Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed-85eac351cb59",
+        "measured_at": "2026-09-25T14:20:41Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0,
+        "result": "pass",
+        "source": "cache",
+        "cache_key": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed-79066bca5c4b",
+        "measured_at": "2026-09-25T14:20:44Z"
+      },
+      {
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0,
+        "result": "ERROR 0 / WARN 0 / INFO 29",
+        "source": "cache",
+        "cache_key": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed-773190afc491",
+        "measured_at": "2026-09-25T14:20:46Z"
+      }
+    ]
+  },
+  "model": "sonnet",
+  "last": {
+    "phase": "done",
+    "event": "done.reported"
+  },
+  "build_gate": {
+    "head": "4e6ece7a40aa5adfbb02b9ad2df99697fbfb5261",
+    "cmds": [
+      {
+        "cwd": "",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3172,
+        "failures": 0
+      },
+      {
+        "cwd": "",
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 773,
+        "failures": 2,
+        "note": "env: 부하 민감(tests/evalex-perf.test.ts NFR-1 2건, 팀장 지시 허용 파일), heavy 슬롯에서 단독 실행 4/4 통과(loadavg 9.63)"
+      },
+      {
+        "cwd": "",
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0
+      },
+      {
+        "cwd": "",
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0,
+        "result": "pass"
+      },
+      {
+        "cwd": "",
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0,
+        "result": "ERROR 0 / WARN 0 / INFO 29"
+      }
+    ],
+    "new_failures": [],
+    "env_failures": [
+      "tests/evalex-perf.test.ts > NFR-1 BASE_SPD_LKP",
+      "tests/evalex-perf.test.ts > NFR-1 QLTY_GRD_JDG"
+    ]
+  },
+  "verify_gate": {
+    "head": "7ce43dac138a8c1b7dbf9559263e8747af483259",
+    "cmds": [
+      {
+        "cwd": "",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3172,
+        "failures": 0
+      },
+      {
+        "cwd": "",
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 774,
+        "failures": 0
+      },
+      {
+        "cwd": "",
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0
+      },
+      {
+        "cwd": "",
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0,
+        "result": "pass"
+      },
+      {
+        "cwd": "",
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0,
+        "result": "ERROR 0 / WARN 0 / INFO 29"
+      }
+    ],
+    "new_failures": []
+  },
+  "unapproved": true
 }

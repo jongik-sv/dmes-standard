@@ -1,5 +1,6 @@
 /**
- * ruleEdit 화면의 OASIS 호출(TSK-08-02 design §6.1) — search·view·save(HEADER|TABLE|COLUMNS)·delete(VERSION|RULE)·copy·lock·unlock·handover.
+ * ruleEdit 화면의 OASIS 호출(TSK-08-02 design §6.1) — search·view·save(HEADER|TABLE|COLUMNS|CASE)·delete(VERSION|RULE)·copy·lock·unlock·handover,
+ * 값 테스트 execute(TSK-08-04 §6.5).
  * 표 저장의 행은 params 가 아니라 `grids.rows.rows` 로 보낸다(Build 이탈 B4). 쓰기 뒤에는 화면이 view 를 다시 불러 row_version 을 맞춘다.
  */
 import { callOasis } from "@/dme/oasis-call";
@@ -13,6 +14,9 @@ import type {
   RulePickRow,
   RuleTableSaveResult,
   RuleVersionResult,
+  TestCaseSaveResult,
+  ValueTestResult,
+  ValueTestTarget,
 } from "./types";
 
 const SERVICE = "ruleEdit";
@@ -57,17 +61,83 @@ export function saveTable(
   hitPolicy: HitPolicyCode | null,
   rows: TableSaveRow[],
 ): Promise<RuleTableSaveResult> {
-  const gridRows = rows.map((r) => {
-    const out: Record<string, unknown> = { rowId: r.rowId, rowKind: r.rowKind, cells: r.cells };
-    if (r.note != null && r.note !== "") out.note = r.note;
-    return out;
-  });
   return callOasis<RuleTableSaveResult>(
     SERVICE,
     "save",
     { part: "TABLE", maruRuleId: ruleId, ver, rowVersion, hitPolicy: hitPolicy ?? undefined },
-    { rows: { rows: gridRows } },
+    { rows: { rows: tableGridRows(rows) } },
   );
+}
+
+/** 표 행 → `grids.rows.rows` 한 줄(빈 행 설명은 뺀다). 표 저장과 값 테스트 BODY 가 같은 모양을 쓴다. */
+function tableGridRows(rows: readonly TableSaveRow[]): Array<Record<string, unknown>> {
+  return rows.map((r) => {
+    const out: Record<string, unknown> = { rowId: r.rowId, rowKind: r.rowKind, cells: r.cells };
+    if (r.note != null && r.note !== "") out.note = r.note;
+    return out;
+  });
+}
+
+/** 값 테스트 요청(§6.5). BODY 는 편집 중인 행·적중 정책을 싣고(변수는 그 DRAFT 의 저장된 열, D4), VERSION 은 버전만. */
+export interface ValueTestRequest {
+  ruleId: string;
+  target: ValueTestTarget;
+  ver: number;
+  /** BODY 만 — 편집 중인 적중 정책. */
+  hitPolicy?: HitPolicyCode | null;
+  /** BODY 만 — 표 저장과 같은 모양, 새 행은 음수 임시 ID. */
+  rows?: TableSaveRow[];
+  /** JSON 객체 문자열 — 키 없음과 null 을 구분한다(I21). 중첩 Map 바인딩을 피하려고 문자열로 보낸다. */
+  inputJson: string;
+  /** 이 룰의 테스트 케이스를 같은 정의로 모두 돌린다. */
+  runCases?: boolean;
+}
+
+/** 값 테스트 — BPMN action=execute(EDIT). 원장에 쓰지 않는다(I19). 행은 `grids.rows.rows`. */
+export function runValueTest(req: ValueTestRequest): Promise<ValueTestResult> {
+  const body = req.target === "BODY";
+  return callOasis<ValueTestResult>(
+    SERVICE,
+    "execute",
+    {
+      maruRuleId: req.ruleId,
+      target: req.target,
+      ver: req.ver,
+      hitPolicy: body ? (req.hitPolicy ?? undefined) : undefined,
+      inputJson: req.inputJson,
+      runCases: req.runCases ? true : undefined,
+    },
+    body ? { rows: { rows: tableGridRows(req.rows ?? []) } } : undefined,
+  );
+}
+
+/** 케이스 저장 칸 — caseId 가 없으면 새 케이스(서버가 발급), 있으면 rowVersion 조건 수정. */
+export interface TestCaseForm {
+  caseId?: number | null;
+  rowVersion?: number | null;
+  caseName: string;
+  inputJson: string;
+  expectedJson?: string | null;
+  description?: string | null;
+}
+
+/** 테스트 케이스 저장 — action=save part=CASE(§6.6). 버전·DRAFT 소유와 무관하다(D8). */
+export function saveTestCase(ruleId: string, form: TestCaseForm): Promise<TestCaseSaveResult> {
+  return callOasis<TestCaseSaveResult>(SERVICE, "save", {
+    part: "CASE",
+    maruRuleId: ruleId,
+    caseId: form.caseId ?? undefined,
+    rowVersion: form.rowVersion ?? undefined,
+    caseName: form.caseName,
+    inputJson: form.inputJson,
+    expectedJson: form.expectedJson || undefined,
+    description: form.description || undefined,
+  });
+}
+
+/** 테스트 케이스 삭제 — action=save part=CASE caseDeleted=true, rowVersion 조건(MDM001). */
+export function deleteTestCase(ruleId: string, caseId: number, rowVersion: number): Promise<TestCaseSaveResult> {
+  return callOasis<TestCaseSaveResult>(SERVICE, "save", { part: "CASE", maruRuleId: ruleId, caseId, rowVersion, caseDeleted: true });
 }
 
 export function deleteDraft(ruleId: string, ver: number, rowVersion: number): Promise<RuleVersionResult> {

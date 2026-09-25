@@ -2,5 +2,149 @@
   "tsk": "TSK-08-06",
   "order": "5999efc9-9fdd-4974-b167-1cf68748d853",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "merged",
+  "branch_base": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed",
+  "baseline": {
+    "docker": "banned:spawn",
+    "failures": 0,
+    "tests": 4048,
+    "cmds": [
+      {
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3120,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed-5a99c8ef20f3",
+        "measured_at": "2026-09-25T14:18:23Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 760,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed-70ad4dddc2e4",
+        "measured_at": "2026-09-25T14:20:02Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed-85eac351cb59",
+        "measured_at": "2026-09-25T14:20:41Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0,
+        "result": "pass",
+        "source": "cache",
+        "cache_key": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed-79066bca5c4b",
+        "measured_at": "2026-09-25T14:20:44Z"
+      },
+      {
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0,
+        "result": "ERROR 0 / WARN 0 / INFO 29",
+        "source": "cache",
+        "cache_key": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed-773190afc491",
+        "measured_at": "2026-09-25T14:20:46Z"
+      }
+    ]
+  },
+  "model": "sonnet",
+  "last": {
+    "phase": "done",
+    "event": "done.reported"
+  },
+  "build_gate": {
+    "head": "5ef344def8580d76a977119acf014c4e723156e0",
+    "cmds": [
+      {
+        "cwd": ".",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3214,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 822,
+        "failures": 2,
+        "note": "env: 부하 민감, 단독 통과 (tests/evalex-perf.test.ts NFR-1 2건, 팀장 지시로 인정)"
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0,
+        "result": "pass"
+      },
+      {
+        "cwd": ".",
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0,
+        "result": "ERROR 0 / WARN 0 / INFO 29"
+      }
+    ],
+    "new_failures": [],
+    "env_failures": [
+      "tests/evalex-perf.test.ts > NFR-1 식 R2 1만 레코드 100ms",
+      "tests/evalex-perf.test.ts > NFR-1 BASE_SPD_LKP 미리보기 1만 레코드 100ms"
+    ]
+  },
+  "verify_gate": {
+    "head": "5ef344def8580d76a977119acf014c4e723156e0",
+    "cmds": [
+      {
+        "cwd": ".",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3214,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 822,
+        "failures": 2,
+        "note": "env: 부하 민감, 단독 통과 (tests/evalex-perf.test.ts NFR-1 2건, 팀장 지시로 인정)"
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0,
+        "result": "pass"
+      },
+      {
+        "cwd": ".",
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0,
+        "result": "ERROR 0 / WARN 0 / INFO 29"
+      }
+    ],
+    "new_failures": [],
+    "env_failures": [
+      "tests/evalex-perf.test.ts > NFR-1 식 R2 1만 레코드 100ms",
+      "tests/evalex-perf.test.ts > NFR-1 BASE_SPD_LKP 미리보기 1만 레코드 100ms"
+    ],
+    "reused_from": "build_gate",
+    "audit": "변이 검증 기록 100건 재확인 모두 잡힘, e2e 20 passed(기본 폭), I18 변이 M1 빨강, I24 무변경"
+  },
+  "unapproved": true
 }
