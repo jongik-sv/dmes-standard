@@ -49,7 +49,7 @@ wbs entry-point 에서 도출해 원천 화면 절과 대조했다. `독립` 은
 | dmd | `dataCateEdit` | 카테고리 편집 | 독립 | TSK-07-02 | 05 |
 | dmd | `dataItemMng` | 항목 관리 | 독립 | TSK-07-03·07-04 | 05 |
 | dmd | `dataHistory` | 항목 이력 | 독립 | TSK-07-03 | 05 |
-| dmd | `dataCsvUploadPop` | CSV 업로드 | **미정 — TSK-07-04 가 화면 설계에서 확정**(§4) | TSK-07-04 | 05 |
+| dmd | `dataCsvUploadPop` | CSV 업로드 | 팝업(`dataItemMng` 에서 호출) — TSK-07-04 가 확정(§4) | TSK-07-04 | 05 |
 | dme | `ruleMng` | 룰(조회·등록) | 독립 | TSK-08-02 | 06:741- |
 | dme | `ruleEdit` | 룰 화면 | 독립 | TSK-08-02~08-04 | 06 |
 | dme | `ruleConfirm` | 버전 확정 | 독립 | TSK-08-05 | PRD 규칙 7 |
@@ -61,12 +61,13 @@ wbs entry-point 에서 도출해 원천 화면 절과 대조했다. `독립` 은
 - TSK-01-01 이 만든 샘플 화면 `mdmSample` 은 아직 옛 그룹 경로에 있다. TSK-01-03 이 `dma` 로 옮기거나 샘플을 지운다(메뉴 시드·tsup entry·pages 폴더·스모크 테스트를 함께 맞춘다).
 - 새 화면을 설계하는 Task 는 식별자 사전 §A.3.2 에 화면 행을 등재한다(등재 절차 1).
 
-## 4. `dataCsvUploadPop` 인계
+## 4. `dataCsvUploadPop` 인계 — 확정(TSK-07-04, D-TSK-07-04-1)
 
-이름의 `Pop` 접미와 리포 규칙(팝업은 page.tsx·메뉴 금지)은 팝업을 가리킨다. 반면 wbs TSK-07-04 는 page.tsx·메뉴 leaf·e2e 를 요구하고, 원천 05 는 팝업 여부를 적지 않았다. 이 문서는 TSK-07-04 의 문구를 바꾸지 않고 판단을 **인계**한다.
+이름의 `Pop` 접미와 리포 규칙(팝업은 page.tsx·메뉴 금지)은 팝업을 가리킨다. 반면 wbs TSK-07-04 는 page.tsx·메뉴 leaf·e2e 를 요구하고, 원천 05 는 팝업 여부를 적지 않아, 이 문서가 판단을 TSK-07-04 에 **인계**했었다.
 
-- TSK-07-04 가 화면 설계에서 **팝업**으로 정하면(권장 — `dataItemMng` 안의 행위이고 mcm `masterCodeUploadFilePopup` 선례가 있다) page.tsx·메뉴 leaf 대신 `dataItemMng` 안에서 열고, e2e 도 그 경로로 바꾼다.
-- **독립 화면**으로 정하면 screenId 에서 `Pop` 을 빼고 식별자 사전에 등재한다.
+- **TSK-07-04 가 팝업으로 확정했다.** `dataItemMng` 안의 "CSV 업로드" 버튼으로 열고, page.tsx·메뉴 leaf 를 두지 않는다(`termRegPop` 과 같은 모양: `{screenId}.tsx` + `index.ts` 배럴). 근거: mcm `masterRuleDataUploadFilePopup`(`docs/mcm/design/masterRuleDataUploadFilePopup/`) 이 "modal popup — 단독 진입 불가, 부모의 자식" 선례이고, 이 저장소 안에는 같은 모양의 `termRegPop`(TSK-04-04)이 이미 있다.
+- e2e `mdm-dataCsvUploadPop.spec.ts` 는 파일명은 spec.md 그대로 두되, 시나리오는 "`dataItemMng` 화면의 CSV 업로드 버튼으로 팝업을 연다"로 바꾼다(TSK-07-04 design.md 「수용 기준 매핑」).
+- §3 의 `dataCsvUploadPop` 행을 "팝업(`dataItemMng` 에서 호출)"로 갱신했다.
 
 ## 5. 경로 규약
 
