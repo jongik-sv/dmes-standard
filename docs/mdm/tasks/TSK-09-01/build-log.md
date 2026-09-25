@@ -1,0 +1,64 @@
+# TSK-09-01 build-log
+
+## 구현 단위 진행
+
+| 단위 | 상태 |
+|---|---|
+| B1 | UNIT_DONE |
+| B2 | 미착수 |
+| B3 | 미착수 |
+
+## B1 — 샘플 룰 4종 서버·JS 행 고르기 동치
+
+산출물: `src/frontend/m-mdm/tests/evalex-sample-rule-parity.test.ts`(신규, 12개 `it`).
+
+### 설계 이탈 — D1 (b) 채택 방식
+
+design.md D1은 "Build 착수 시 view API·DB 시드 존재를 5분 이내로 확인하고 어렵지 않으면 (b)로 바꾼다"고 정했다. 확인
+결과:
+- `ruleEditService.view` OASIS 액션(`src/backend/mdm/api/src/main/resources/services/dme/ruleEdit.bpmn`)이 실제로
+  이 4개 룰을 조회할 수 있다. 다만 이것은 `@SpringBootTest`(HTTP) 경로라 서버가 떠 있어야 하므로, 서버를 띄우지 않는
+  순수 vitest 단위 테스트에서는 그대로 쓸 수 없다.
+- 대신 **`src/backend/mdm/sample/mdm-local-sample.sql`**(TB_MDM_RULE_VAR·TB_MDM_RULE_ROW, VER=1)에 이 4개 룰의 실제
+  DB 시드가 있고, `CELLS` 컬럼 JSON이 `SampleRules.java`의 셀 값과 바이트 단위로 일치함을 확인했다. 이 SQL 파일의
+  변수·행 값을 **그대로 옮겨** 테스트 픽스처(`QLTY_VARS`/`QLTY_ROWS` 등)를 만들었다 — `SampleRules.java`를 손으로 다시
+  읽고 옮기지 않았다. 이는 D1 (b)의 취지(전사 위험 회피)를 실제 저장 표현으로 달성한 것이고, HTTP 호출 대신 정적 시드
+  파일을 원천으로 쓴 점만 design.md D1 문구("view HTTP 응답")와 다르다. 값 자체는 (a)로 표시된 `SampleRules.java`와도
+  일치하므로 결과상 차이는 없다.
+- 예외: `StoredVar.dataType`(필수 필드)은 DB 상 대부분 NULL(런타임에 `RuleVarTypeResolver`가 해석)이라 시드에서
+  가져올 수 없다. `SampleRules.java`가 명시한 해석된 타입(NUMBER/STRING)을 그대로 썼다 — 기존 `evalex-rule-preview.test.ts`
+  픽스처(`tests/fixtures/evalex-rules.ts`)도 같은 방식(해석된 타입을 직접 명시)이라 관례와 맞는다.
+
+### 결과 열 그룹(BASE_SPD) 범위 확인
+
+`ruleDefFromStored`(`src/frontend/m-mdm/pages/dme/ruleEdit/decision-table/grid-model.ts:93-109`)는 변환 시
+`resGrp`·`grpCondAst`를 결과로 옮기지 않는다. `alwaysNames`(`input-contract.ts:33-54`)는 조건 변수와 결과 변수의
+`grpCondAst`에서만 필수 레코드 키를 뽑으므로, 그룹 조건이 애초에 비어 있는 이 변환 경로에서는 `TOP_RESIN_CD`·
+`COAT_SIDE`가 필요 없다. 따라서 `BASE_SPD_LKP` 테스트는 조건 변수 `COIL_THK` 하나로만 정해지는 행 선택만 검증한다 —
+design.md §5 불변 규칙("previewRule은 결과 값을 계산하지 않는다")과 §0.1의 스코프 설명(행 선택·폴백 분류만 비교
+대상)에 부합하는 자연스러운 결과이며, 이 작업이 새로 만든 제약이 아니다. 발견된 결함이 아니므로 defects.md는
+만들지 않았다.
+
+## 변이 검증 기록
+
+| 불변 규칙 | 변이 | 잡은 테스트 | 결과 |
+|---|---|---|---|
+| `previewRule`은 결과 값을 계산하지 않고 행 고르기(hits·trace·defaultApplied·fallback)만 낸다 | `rule-preview.ts:179` `else if (t.hit)` → `else if (!t.hit)`(적중 판정 반전) | `evalex-sample-rule-parity.test.ts` + `evalex-rule-preview.test.ts`(`--bail=1`) | 잡힘 — 21 failed / 4 passed |
+| 정합성 코퍼스(`engine-corpus.json`)는 한 벌만 존재한다(사본 금지) | `src/frontend/m-mdm/tests/fixtures/engine-corpus-copy.json`(빈 JSON) 신규 생성 | `evalex-corpus.test.ts`(`--bail=1`) | 잡힘 — "코퍼스 사본이 없다" 검사 실패 |
+
+두 변이 모두 확인 뒤 `git checkout -- <파일>`(rule-preview.ts) / `rm`(사본 파일)으로 되돌렸다. 커밋에 변이는
+포함되지 않는다.
+
+## 돈 명령과 결과
+
+- `cd src/frontend && pnpm build:libs` — 성공
+- `cd src/frontend && pnpm --filter @dk-oasis/m-mdm test tests/evalex-sample-rule-parity.test.ts` — 12 passed
+- `cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint` — 통과(`tsc --noEmit`, 오류 없음)
+- 위 변이 검증용 임시 실행 2회(각각 되돌림) — 본문 표 참고
+- 전체 `pnpm --filter @dk-oasis/m-mdm test`(기준선 명령)는 이 Build 단위에서 돌리지 않았다 — dev-discipline 규율상
+  전체 회귀는 오케스트레이터의 Build 게이트 몫이다.
+
+## 인계
+
+없음 — B1은 이 세션에서 완료했다(도구 호출 상한 이내). B2·B3는 각각 새 서브에이전트가 design.md §3 그대로 진행하면
+된다(파일이 겹치지 않아 병렬 가능).
