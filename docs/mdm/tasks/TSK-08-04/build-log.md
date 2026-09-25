@@ -354,12 +354,12 @@
 - DTO: `RuleEditSaveRequest` 에 `caseId`·`caseName`·`inputJson`·`expectedJson`·`caseDeleted`, `RuleEditSaveResult` 에 `caseId`. `RuleEditViewResult.TestCaseInfo`
   (`caseId, caseName, inputJson, expectedJson, description, rowVersion`)와 `testCases` — `RuleViewService` 가 `RuleTestCaseQueries.cases`(case_id 오름차순)로 채운다.
   모양은 화면 `types.ts` `TestCaseView`·`TestCaseSaveResult`, `api.ts` `saveTestCase`·`deleteTestCase` 의 칸 이름과 대조했다(프런트 무변경).
-- 테스트: `BAT/dme/ruleEdit/RuleTestCaseServiceTest`(14, 파사드 `RuleEditService.save` 로 part 위임까지), `RuleEditViewTest` 사례 2건(오름차순·원문 JSON·row_version,
+- 테스트: `BAT/dme/ruleEdit/RuleTestCaseServiceTest`(15, 파사드 `RuleEditService.save` 로 part 위임까지), `RuleEditViewTest` 사례 2건(오름차순·원문 JSON·row_version,
   버전이 없는 룰에도 싣는다).
 - TDD: 서비스 본문을 `UnsupportedOperationException` 스텁으로 두고 `RuleTestCaseServiceTest` 14건이 모두 실패하는 것을 본 뒤 구현했다. view 두 사례는 구현과 함께 썼고
   변이(m16·m17·m18)로 빨강을 확인했다.
 - 관련 테스트: `:mdm:lib:test` 1051 · `:mdm:api:test --tests 'com.dongkuk.dmes.mdm.dme.*' --tests '*MdmBusinessRuleMigrationTest' --tests '*Architecture*'
-  --tests '*MdmOasisActionVocabularyTest' --tests '*MdmRuleContract*'` 177 모두 통과(B4 의 161 + 새 16).
+  --tests '*MdmOasisActionVocabularyTest' --tests '*MdmRuleContract*'` 178 모두 통과(B4 의 161 + 새 17, 설계 이탈 7 수정 뒤 다시 돌림).
 
 ### 설계 이탈
 
@@ -371,6 +371,10 @@
    `json_valid` 는 배열도 통과시키므로 객체 검사는 서버만 한다. 입력은 받은 글자 그대로 저장한다(다시 쓰지 않는다).
 5. **룰당 케이스 수 상한은 새 케이스에만 건다.** 상한에 닿은 룰도 수정·삭제는 된다. 길이 상한은 파싱보다 먼저 본다.
 6. **view `testCases` 는 버전을 고르지 못한 룰(버전 0개)에도 싣는다** — 케이스는 버전과 무관하다(06:1058).
+7. **새 케이스는 리포지토리 `save` 가 아니라 `EntityManager.persist` 로 넣는다**(`RuleTestCaseWrites.insert`). ID 를 직접 넣는 `@IdClass` 엔티티라 Spring Data 가
+   새것으로 보지 않아 `save` 가 `merge` 로 가고, 발급 번호가 기존 case_id 와 겹치면(카운터가 뒤처진 룰) 그 케이스를 조용히 덮어썼다(row_version 은 `updatable=false` 라
+   그대로 남아 화면도 모른다). 처음 커밋(7c3d686)이 이 상태였고 사례 `발급_번호가_이미_있는_케이스와_겹치면_덮어쓰지_않고_실패한다` 로 확인한 뒤 고쳤다. 겹치면 PK 위반
+   예외로 트랜잭션이 되돌아가고(발급도 되돌아간다) 업무 오류 코드로 바꾸지 않았다 — 카운터가 뒤처진 것은 데이터 오류라 감추지 않는다.
 
 ### 보고
 
@@ -382,7 +386,8 @@
 ### 인계
 
 - B9(e2e): 저장 응답은 `{part:"CASE", rowVersion(새 케이스 0·수정 +1·삭제 null), caseId(새 케이스면 발급 번호), rowIdMap:{}, issues:[], rows:[]}`. view 의 `testCases[{caseId, caseName,
-  inputJson, expectedJson, description, rowVersion}]`. 픽스처에 케이스를 넣으면 `TB_MDM_RULE.LAST_CASE_ID` 를 넣은 최대 case_id 이상으로 맞춘다(아니면 화면 저장이 PK 충돌).
+  inputJson, expectedJson, description, rowVersion}]`. 픽스처에 케이스를 넣으면 `TB_MDM_RULE.LAST_CASE_ID` 를 넣은 최대 case_id 이상으로 맞춘다(아니면 화면 저장이 PK 위반
+  예외로 실패한다 — 설계 이탈 7).
   STD_ADMIN(READ) 사용자는 BFF 권한에서 save 가 막히고, 서버에서도 MDM013 이다.
 
 ## 변이 검증 기록
@@ -490,6 +495,7 @@
 | (B5) | view `testCases` 를 비움 | `RuleEditViewTest` › 테스트_케이스를_case_id_오름차순으로_저장된_글자_그대로_버전과_무관하게_싣는다 | 잡힘 |
 | (B5) | view `testCases` 를 버전을 고른 때만 채움 | `RuleEditViewTest` › 테스트_케이스를_case_id_오름차순으로_… | 잡힘 |
 | (B5) | 케이스 조회 정렬을 이름순으로 | `RuleEditViewTest` › 테스트_케이스를_case_id_오름차순으로_… | 잡힘 |
+| I25 | 새 케이스 INSERT 를 `persist` 대신 `merge` 로(겹친 PK 덮어쓰기) | `RuleTestCaseServiceTest` › 발급_번호가_이미_있는_케이스와_겹치면_덮어쓰지_않고_실패한다 | 안 잡힘(보강함) |
 
 - Java 변이는 `:maru-mdm-engine:test` 태스크 실패(컴파일 통과 뒤 테스트 실패)로 확인했다. enum → 문자열 상수로 바꾼 뒤 최종 코드에 Java 변이 9개를 다시 돌려 모두 잡혔다. fail-fast 첫 실패 사례 이름은 로그에 남기지 않았다.
 - TS 변이는 확인한 뒤 곧바로 `git checkout` 으로 되돌렸다(TS 파일 무변경, I28).
@@ -504,5 +510,6 @@
   M failed")로 잡혔다. 첫 묶음 8개는 첫 실패 사례 이름을 뽑지 않아 "(fail-fast)" 로 적었다.
 - B5 변이는 구현을 먼저 커밋(7c3d686)한 뒤 스크립트 하나(변이 → `:mdm:api:test --tests '*RuleTestCaseServiceTest'`·`'*RuleEditViewTest'` `--fail-fast` → `git checkout`,
   SIGTERM·SIGHUP 에도 되돌림)를 `heavy.sh` 로 감싸 두 번에 나눠 돌렸다. 변이마다 `git diff --stat` 으로 실제로 바뀐 것을 확인했고 18개 모두 테스트 실패(컴파일 오류 아님)로
-  잡혔다. D8 "DRAFT 소유와 무관" 은 소유자 검사를 더하는 변이를 돌리지 않았다 — 서비스가 버전 조회를 주입받지 않아 한 줄 변이로 만들 수 없다. 사례
+  잡혔다. 그 뒤 설계 이탈 7 을 찾아 사례를 더하고 고친 다음, `persist` → `merge` 변이를 백업 복사로 되돌리는 스크립트로 한 번 더 돌려 잡히는 것을 확인했다.
+  D8 "DRAFT 소유와 무관" 은 소유자 검사를 더하는 변이를 돌리지 않았다 — 서비스가 버전 조회를 주입받지 않아 한 줄 변이로 만들 수 없다. 사례
   `기대값_없이도_저장하고_버전_DRAFT_소유와_무관하게_담당자가_쓴다`(lee 소유 DRAFT 가 있는 룰에 kim 이 저장)가 그 동작을 고정한다.

@@ -156,6 +156,20 @@ class RuleTestCaseServiceTest {
     }
 
     @Test
+    void 발급_번호가_이미_있는_케이스와_겹치면_덮어쓰지_않고_실패한다() {
+        insertCase(1, "원래 케이스", INPUT, "{\"QLTY_GRD\":\"A\"}", 0);
+        lastCaseId(0);
+
+        assertThrows(RuntimeException.class, () -> service.save(newCase("새 케이스", "{\"COIL_THK\":9}", null)));
+
+        Map<String, Object> row = stored(1);
+        assertEquals("원래 케이스", row.get("CASE_NAME"), "새 케이스 INSERT 가 같은 PK 의 기존 케이스를 merge 로 덮어쓰면 안 된다");
+        assertEquals(INPUT, row.get("INPUT_JSON"));
+        assertEquals(1, caseCount());
+        assertEquals(0, lastCaseId(), "실패하면 발급도 되돌아간다");
+    }
+
+    @Test
     void 기대값_없이도_저장하고_버전_DRAFT_소유와_무관하게_담당자가_쓴다() {
         DmeTestSupport.pending(jdbc, RULE, 2, "DRAFT", "lee", "FIRST", 1);
 

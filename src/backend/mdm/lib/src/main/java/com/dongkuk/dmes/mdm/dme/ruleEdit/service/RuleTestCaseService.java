@@ -18,7 +18,6 @@ import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveResult;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.entity.MdmRuleTestCase;
-import com.dongkuk.dmes.mdm.repository.MdmRuleTestCaseRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -31,7 +30,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 카드 ⑥ 테스트 케이스 저장(part CASE, TSK-08-04 design §6.6·I25). 케이스는 버전과 무관하게 룰에 붙으므로(06:1058) 버전·DRAFT 소유를
- * 보지 않고 담당자 역할(MDM013)·원천 MDM·폐기 아님만 본다(D8). 새 케이스는 {@code issue(CASE)} 로 번호를 받아 엔티티로 넣고, 수정·삭제는
+ * 보지 않고 담당자 역할(MDM013)·원천 MDM·폐기 아님만 본다(D8). 새 케이스는 {@code issue(CASE)} 로 번호를 받아 엔티티를 persist 하고, 수정·삭제는
  * 케이스의 {@code ROW_VERSION} 조건 네이티브 쓰기다(0행이면 MDM001). JSON 두 칸은 DB CHECK({@code json_valid}) 전에 여기서 객체인지 본다.
  * 상한({@link RuleLimits})은 같으면 통과·넘으면 MDM021(I23), 룰당 케이스 수는 새 케이스에만 건다.
  */
@@ -47,17 +46,15 @@ public class RuleTestCaseService implements RuleEditSavePart {
     private final RuleStewardCheck stewardCheck;
     private final RuleTestCaseQueries queries;
     private final RuleTestCaseWrites writes;
-    private final MdmRuleTestCaseRepository repository;
     private final MdmRuleIdIssuer issuer;
     private final TransactionTemplate tx;
 
     public RuleTestCaseService(RuleEditSupport support, RuleStewardCheck stewardCheck, RuleTestCaseQueries queries, RuleTestCaseWrites writes,
-                               MdmRuleTestCaseRepository repository, MdmRuleIdIssuer issuer, PlatformTransactionManager transactionManager) {
+                               MdmRuleIdIssuer issuer, PlatformTransactionManager transactionManager) {
         this.support = support;
         this.stewardCheck = stewardCheck;
         this.queries = queries;
         this.writes = writes;
-        this.repository = repository;
         this.issuer = issuer;
         this.tx = new TransactionTemplate(transactionManager);
     }
@@ -123,7 +120,7 @@ public class RuleTestCaseService implements RuleEditSavePart {
         c.setCaseName(name);
         c.setExpectedJson(expected);
         c.setDescription(description);
-        repository.saveAndFlush(c);
+        writes.insert(c);
         return caseId;
     }
 
