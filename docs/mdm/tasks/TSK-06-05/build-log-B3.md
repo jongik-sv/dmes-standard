@@ -53,4 +53,9 @@ B3 담당 I30~I35. 대상 시험 `tests/dmc/codeConfirm`(2파일)만 `vitest run
 ## B4 에 넘기는 것
 
 - E2E 에서 쓸 testid 는 §6.7 이름 그대로다(`cf-list`·`cf-keyword`·`cf-search`·`cf-row-{id}-{ver}`·`cf-list-empty`·`cf-form`·`cf-apply-from`·`cf-validate`·`cf-confirm`·`cf-checks`·`cf-check-{no}`·`cf-check-status-{no}`·`cf-diff`·`cf-diff-empty`·`cf-cate-summary`·`cf-error`·`cf-ack`·`cf-modal-ok`). `cf-apply-from` 은 `type="datetime-local" step=1` 이라 Playwright `fill("2026-10-01T00:00:00")` 로 넣는다.
+- **B2 실제 응답과 대조할 것**(화면은 §6.5 모양의 fetch mock 으로만 초록이다. 기준 파일 `pages/dmc/codeConfirm/types.ts`):
+  1. `confirm` 의 `warningsAcknowledged` 는 JSON boolean 으로 보낸다. B2 가 문자열 `"true"` 가 필요하다고 기록했으면 `api.ts` `confirmDraft` 와 P3 기대값을 바꾼다.
+  2. `ver` 는 모든 응답(search 행, `view.version`, `previous`, `confirmed`)에서 문자열이어야 한다. BigDecimal 이 JSON number 로 나오면 `cf-row-{id}-2.000` testid 와 I33 이 깨진다.
+  3. search 결과 키는 `rows`, validate 행 `no` 는 문자열(`"2-1"` 등)이다. testid `cf-check-{no}` 가 이 값에 기댄다.
+- mantine-aggrid-ui 점검: `grep -rnE "@mantine|ag-grid" src/frontend/m-mdm/pages/dmc/codeConfirm` 0건 — shared 래퍼(`@dk-oasis/shared/form`·`modal`·`layout`)만 쓴다.
 - 성공 토스트 문구는 "확정했습니다", 확정 뒤 상태 배지는 `VersionStatusBadge`(RELEASED 이고 apply_from 이 지났으면 "확정", 미래면 "적용 대기")다.
