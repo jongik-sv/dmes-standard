@@ -8,6 +8,7 @@ import com.dongkuk.dmes.mdm.common.rule.RuleAnalysisInputMapper;
 import com.dongkuk.dmes.mdm.common.rule.RuleAnalysisInputMapper.StoredRow;
 import com.dongkuk.dmes.mdm.common.rule.RuleIssueMaps;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
+import com.dongkuk.dmes.mdm.common.rule.RuleTestCaseQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
 import com.dongkuk.dmes.mdm.common.rule.RuleVersions;
 import com.dongkuk.dmes.mdm.common.support.MdmTemporalBinder;
@@ -51,9 +52,11 @@ public class RuleViewService {
     private final RuleUsageService usageService;
     private final MdmTemporalBinder temporal;
     private final MdmColumnRepository columnRepository;
+    private final RuleTestCaseQueries testCaseQueries;
 
     public RuleViewService(RuleEditSupport support, RuleQueries queries, RuleVarTypeResolver resolver, RuleHeaderService headerService,
-                           RuleUsageService usageService, MdmTemporalBinder temporal, MdmColumnRepository columnRepository) {
+                           RuleUsageService usageService, MdmTemporalBinder temporal, MdmColumnRepository columnRepository,
+                           RuleTestCaseQueries testCaseQueries) {
         this.support = support;
         this.queries = queries;
         this.resolver = resolver;
@@ -61,6 +64,7 @@ public class RuleViewService {
         this.usageService = usageService;
         this.temporal = temporal;
         this.columnRepository = columnRepository;
+        this.testCaseQueries = testCaseQueries;
     }
 
     public RuleEditViewResult view(RuleEditViewRequest request) {
@@ -114,6 +118,9 @@ public class RuleViewService {
                     && me != null && me.equals(selected.getOwnerId()));
         }
         out.setUsage(usageService.usage(id, out.getSelectedVer()));
+        // 테스트 케이스는 버전과 무관하다(06:1058) — 버전을 고르지 못해도 싣는다.
+        out.setTestCases(testCaseQueries.cases(id).stream().map(c -> new RuleEditViewResult.TestCaseInfo(c.getCaseId(), c.getCaseName(),
+                c.getInputJson(), c.getExpectedJson(), c.getDescription(), c.getRowVersion())).toList());
         return out;
     }
 

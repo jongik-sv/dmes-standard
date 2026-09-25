@@ -366,4 +366,37 @@ class RuleEditViewTest {
         RuleEditViewResult v = view("QLTY_GRD_JDG", 1);
         assertEquals(List.of(), v.getBaseVarMeta());
     }
+    @Test
+    void 테스트_케이스를_case_id_오름차순으로_저장된_글자_그대로_버전과_무관하게_싣는다() {
+        jdbc.update("INSERT INTO TB_MDM_RULE_TEST_CASE (MARU_RULE_ID, CASE_ID, CASE_NAME, INPUT_JSON, EXPECTED_JSON, DESCRIPTION, ROW_VERSION) "
+                + "VALUES ('QLTY_GRD_JDG', 2, '둘', '{\"COIL_THK\": 1.50}', NULL, NULL, 3)");
+        jdbc.update("INSERT INTO TB_MDM_RULE_TEST_CASE (MARU_RULE_ID, CASE_ID, CASE_NAME, INPUT_JSON, EXPECTED_JSON, DESCRIPTION, ROW_VERSION) "
+                + "VALUES ('QLTY_GRD_JDG', 1, '하나', '{\"SURF_GRD\":\"A\"}', '{\"QLTY_GRD\":\"A\",\"hit\":1}', '설명', 0)");
+
+        List<RuleEditViewResult.TestCaseInfo> cases = view("QLTY_GRD_JDG", 1).getTestCases();
+
+        assertEquals(List.of(1, 2), cases.stream().map(RuleEditViewResult.TestCaseInfo::getCaseId).toList());
+        RuleEditViewResult.TestCaseInfo one = cases.get(0);
+        assertEquals("하나", one.getCaseName());
+        assertEquals("{\"SURF_GRD\":\"A\"}", one.getInputJson());
+        assertEquals("{\"QLTY_GRD\":\"A\",\"hit\":1}", one.getExpectedJson());
+        assertEquals("설명", one.getDescription());
+        assertEquals(0L, one.getRowVersion());
+        RuleEditViewResult.TestCaseInfo two = cases.get(1);
+        assertEquals("{\"COIL_THK\": 1.50}", two.getInputJson(), "JSON 을 다시 쓰지 않는다");
+        assertNull(two.getExpectedJson());
+        assertEquals(3L, two.getRowVersion());
+        DmeTestSupport.rule(jdbc, "EMPTY_OTHER", "케이스 없음", "DECISION", "CREATED");
+        assertEquals(List.of(), view("EMPTY_OTHER", null).getTestCases(), "케이스가 없는 룰은 빈 목록");
+    }
+
+    @Test
+    void 버전이_없어도_테스트_케이스는_싣는다() {
+        DmeTestSupport.rule(jdbc, "EMPTY_JDG", "빈", "DECISION", "CREATED");
+        jdbc.update("INSERT INTO TB_MDM_RULE_TEST_CASE (MARU_RULE_ID, CASE_ID, CASE_NAME, INPUT_JSON, ROW_VERSION) "
+                + "VALUES ('EMPTY_JDG', 1, '하나', '{}', 0)");
+        RuleEditViewResult v = view("EMPTY_JDG", null);
+        assertNull(v.getSelectedVer());
+        assertEquals(List.of(1), v.getTestCases().stream().map(RuleEditViewResult.TestCaseInfo::getCaseId).toList());
+    }
 }

@@ -5,7 +5,8 @@ import java.util.Map;
 
 /**
  * {@code ruleEdit} action={@code save} 응답. TABLE 은 새 row_version, 임시 ID → 발급 번호({@code {"-1": 5}}), 저장한 정의의 서버
- * 검사 결과(값이 없는 칸은 싣지 않는다), 저장한 행(seq 포함)을 싣는다. HEADER 는 {@code part} 만 의미가 있다.
+ * 검사 결과(값이 없는 칸은 싣지 않는다), 저장한 행(seq 포함)을 싣는다. HEADER 는 {@code part} 만 의미가 있다. CASE 는 케이스의 새
+ * row_version(삭제면 null)과 {@code caseId}(새 케이스면 발급 번호)를 싣는다(TSK-08-04 design §6.6).
  */
 public class RuleEditSaveResult {
 
@@ -14,6 +15,7 @@ public class RuleEditSaveResult {
     private Map<String, Integer> rowIdMap;
     private List<Map<String, Object>> issues;
     private List<Map<String, Object>> rows;
+    private Integer caseId;
 
     public RuleEditSaveResult() {
     }
@@ -32,10 +34,12 @@ public class RuleEditSaveResult {
     public Map<String, Integer> getRowIdMap() { return rowIdMap; }
     public List<Map<String, Object>> getIssues() { return issues; }
     public List<Map<String, Object>> getRows() { return rows; }
+    public Integer getCaseId() { return caseId; }
 
     public void setPart(String v) { this.part = v; }
     public void setRowVersion(Long v) { this.rowVersion = v; }
     public void setRowIdMap(Map<String, Integer> v) { this.rowIdMap = v; }
     public void setIssues(List<Map<String, Object>> v) { this.issues = v; }
     public void setRows(List<Map<String, Object>> v) { this.rows = v; }
+    public void setCaseId(Integer v) { this.caseId = v; }
 }
