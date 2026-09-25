@@ -146,6 +146,35 @@ public class DataSegmentRowStore {
         return out;
     }
 
+    /** 마루 데이터 안 카테고리별 마지막 행(닫힌 카테고리 포함, F12) — dataMng·dataEdit 의 BASE 값·카드 조회용. CATE_ID 오름차순. */
+    public List<CateSegmentRow> latestCateRows(String maruDataId) {
+        String sql = "SELECT " + prefixed("c", CATE_COLUMNS) + " FROM TB_MDM_DATA_CATE c WHERE c.MARU_DATA_ID = :md "
+                + "AND NOT EXISTS (SELECT 1 FROM TB_MDM_DATA_CATE x WHERE x.MARU_DATA_ID = c.MARU_DATA_ID "
+                + "AND x.CATE_ID = c.CATE_ID AND x.VALID_FROM > c.VALID_FROM) ORDER BY c.CATE_ID";
+        NativeQuery<?> q = query(sql);
+        bindString(q, "md", maruDataId);
+        List<CateSegmentRow> out = new ArrayList<>();
+        for (Object o : q.getResultList()) {
+            out.add(toCate((Object[]) o));
+        }
+        return out;
+    }
+
+    /** TABLE 카테고리 하나에 지금 열려 있는 소속 CODE 목록(F12, 건수·미리보기용). CODE 오름차순. */
+    public List<String> openMemberCodes(String maruDataId, String cateId) {
+        String sql = "SELECT CODE FROM TB_MDM_DATA_CATE_ITEM WHERE MARU_DATA_ID = :md AND CATE_ID = :cateId "
+                + "AND VALID_TO = :openEnd ORDER BY CODE";
+        NativeQuery<?> q = query(sql);
+        bindString(q, "md", maruDataId);
+        bindString(q, "cateId", cateId);
+        q.setParameter("openEnd", temporal.toDb(MdmTemporalSegmentRules.OPEN_END));
+        List<String> out = new ArrayList<>();
+        for (Object o : q.getResultList()) {
+            out.add((String) o);
+        }
+        return out;
+    }
+
     public void insertCate(CateSegmentRow row, AuditStamp stamp) {
         String sql = "INSERT INTO TB_MDM_DATA_CATE (" + CATE_COLUMNS + ", " + NATIVE_COLUMN_LIST + ") VALUES ("
                 + ":md, :cateId, :vf, :vt, :cateName, :defKind, :defExpr, :defTarget, :description, 0, "

@@ -41,6 +41,26 @@ class DmdBpmnActionTest {
     }
 
     @Test
+    void dataMng_액션은_search_reg() throws Exception {
+        assertActions("services/dmd/dataMng.bpmn", "dataMng", "dataMngService",
+                Map.of("search", "search", "reg", "register"), Set.of("reg"));
+    }
+
+    @Test
+    void dataEdit_액션은_view_save_delete() throws Exception {
+        assertActions("services/dmd/dataEdit.bpmn", "dataEdit", "dataEditService",
+                Map.of("view", "view", "save", "save", "delete", "deprecate"), Set.of("save", "delete"));
+    }
+
+    @Test
+    void dataCateEdit_액션은_search_view_compare_reg_save_delete_restore() throws Exception {
+        assertActions("services/dmd/dataCateEdit.bpmn", "dataCateEdit", "dataCateEditService",
+                Map.of("search", "search", "view", "view", "compare", "compare", "reg", "register", "save", "save",
+                        "delete", "close", "restore", "reopen"),
+                Set.of("reg", "save", "delete", "restore"));
+    }
+
+    @Test
     void dataHistory_액션은_view_search() throws Exception {
         assertActions("services/dmd/dataHistory.bpmn", "dataHistory", "dataHistoryService",
                 Map.of("view", "view", "search", "search"), Set.of());

@@ -1,0 +1,327 @@
+package com.dongkuk.dmes.mdm.dmd.dataCateEdit.service;
+
+import com.dongkuk.dmes.cactus.common.BusinessException;
+import com.dongkuk.dmes.mdm.common.segment.CateSegmentRow;
+import com.dongkuk.dmes.mdm.common.segment.DataCategoryResolver;
+import com.dongkuk.dmes.mdm.common.segment.DataCategorySegmentCore;
+import com.dongkuk.dmes.mdm.common.segment.DataCateValue;
+import com.dongkuk.dmes.mdm.common.segment.DataItemChecks;
+import com.dongkuk.dmes.mdm.common.segment.DataItemMessages;
+import com.dongkuk.dmes.mdm.common.segment.DataSegmentRowStore;
+import com.dongkuk.dmes.mdm.common.segment.ItemSegmentRow;
+import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
+import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
+import com.dongkuk.dmes.mdm.dmd.dataCateEdit.dto.CateCompareRequest;
+import com.dongkuk.dmes.mdm.dmd.dataCateEdit.dto.CateCompareResult;
+import com.dongkuk.dmes.mdm.dmd.dataCateEdit.dto.CateRegRequest;
+import com.dongkuk.dmes.mdm.dmd.dataCateEdit.dto.CateRow;
+import com.dongkuk.dmes.mdm.dmd.dataCateEdit.dto.CateSaveRequest;
+import com.dongkuk.dmes.mdm.dmd.dataCateEdit.dto.CateSearchRequest;
+import com.dongkuk.dmes.mdm.dmd.dataCateEdit.dto.CateSearchResult;
+import com.dongkuk.dmes.mdm.dmd.dataCateEdit.dto.CateViewRequest;
+import com.dongkuk.dmes.mdm.dmd.dataCateEdit.dto.CateViewResult;
+import com.dongkuk.dmes.mdm.dmd.dataCateEdit.dto.MemberApplyRequest;
+import jakarta.persistence.EntityManager;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.hibernate.query.NativeQuery;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+/**
+ * 카테고리 편집({@code dataCateEdit}) OASIS 진입 서비스 — design.md §1·§2. BPMN {@code services/dmd/dataCateEdit.bpmn}
+ * 의 분기와 1:1 이다: {@code search→search}, {@code view→view}, {@code compare→compare}, {@code reg→register},
+ * {@code save→save}, {@code delete→close}, {@code restore→reopen}.
+ *
+ * <p>{@code reg}·{@code save}(REGEX 정의 수정)·{@code delete}·{@code restore} 는 {@link DataCategorySegmentCore} 를
+ * 그대로 호출한다(잠금·검사는 그 6개 메서드가 이미 갖고 있다 — 이 서비스는 스스로 {@link com.dongkuk.dmes.mdm.common.segment.DataSegmentLock}
+ * 을 부르지 않는다, R2′). {@code save}(TABLE 소속 일괄 적용)만 예외로 이 서비스가 직접 쥔 {@link TransactionTemplate}
+ * 으로 {@code addMember}/{@code removeMember} 호출 N 개를 한 트랜잭션에 묶는다(전부-아니면-전무, R12) — 개별 호출은
+ * 각자 {@link DataCategorySegmentCore} 안에서 잠그므로 이 트랜잭션은 join(기본 전파 REQUIRED)일 뿐 이중 잠금이 아니다.
+ *
+ * <p><b>{@code @Transactional} 을 붙이지 않는다(MUST)</b> — CGLIB 프록시가 파라미터명을 지워 OASIS 바인딩이 죽는다(F18).
+ */
+@Service("dataCateEditService")
+public class DataCateEditService {
+
+    private static final Logger log = LoggerFactory.getLogger(DataCateEditService.class);
+
+    private final EntityManager entityManager;
+    private final DataSegmentRowStore rows;
+    private final DataCategorySegmentCore categorySegmentCore;
+    private final DataCategoryResolver resolver;
+    private final TransactionTemplate readTx;
+    private final TransactionTemplate tx;
+
+    public DataCateEditService(EntityManager entityManager, DataSegmentRowStore rows,
+                               DataCategorySegmentCore categorySegmentCore, DataCategoryResolver resolver,
+                               PlatformTransactionManager transactionManager) {
+        this.entityManager = entityManager;
+        this.rows = rows;
+        this.categorySegmentCore = categorySegmentCore;
+        this.resolver = resolver;
+        this.readTx = new TransactionTemplate(transactionManager);
+        this.readTx.setReadOnly(true);
+        this.tx = new TransactionTemplate(transactionManager);
+    }
+
+    // ── action: search ──────────────────────────────────────────────────────
+
+    public CateSearchResult search(CateSearchRequest request) {
+        String maruDataId = requireId(request == null ? null : request.getMaruDataId());
+        return readTx.execute(status -> {
+            Header header = header(maruDataId);
+            Set<String> openItemCodes = openItemCodes(maruDataId);
+            List<CateRow> list = new ArrayList<>();
+            for (CateSegmentRow cate : rows.latestCateRows(maruDataId)) {
+                list.add(toCateRow(maruDataId, cate, openItemCodes));
+            }
+            CateSearchResult result = new CateSearchResult();
+            result.setMaruDataId(maruDataId);
+            result.setMaruDataName(header.name());
+            result.setLvlCnt(header.lvlCnt());
+            result.setAttrLabels(header.attrLabels());
+            result.setList(list);
+            log.info("[dataCateEdit] search — maruDataId={} count={}", maruDataId, list.size());
+            return result;
+        });
+    }
+
+    // ── action: view ────────────────────────────────────────────────────────
+
+    public CateViewResult view(CateViewRequest request) {
+        String maruDataId = requireId(request == null ? null : request.getMaruDataId());
+        String cateId = requireCateId(request == null ? null : request.getCateId());
+        return readTx.execute(status -> buildView(maruDataId, cateId));
+    }
+
+    // ── action: compare ─────────────────────────────────────────────────────
+
+    /** REGEX 미리보기 — 저장 전 후보 defExpr·defTarget 을 재해석한다(04 선례). */
+    public CateCompareResult compare(CateCompareRequest request) {
+        String maruDataId = requireId(request == null ? null : request.getMaruDataId());
+        String defExpr = trim(request.getDefExpr());
+        String defTarget = trim(request.getDefTarget());
+        if (defExpr == null || defTarget == null) {
+            throw invalid("식과 대상을 입력하세요");
+        }
+        return readTx.execute(status -> {
+            DataCategoryResolver.Preview preview = resolver.preview(maruDataId, defExpr, defTarget);
+            CateCompareResult result = new CateCompareResult();
+            result.setInvalid(preview.invalid());
+            result.setCodes(preview.codes());
+            result.setCount(preview.count());
+            return result;
+        });
+    }
+
+    // ── action: reg ──────────────────────────────────────────────────────────
+
+    public CateViewResult register(CateRegRequest request) {
+        if (request == null) {
+            throw invalid("등록할 값이 없습니다");
+        }
+        String maruDataId = requireId(request.getMaruDataId());
+        String cateId = requireCateId(request.getCateId());
+        DataCateValue value = new DataCateValue(trim(request.getCateName()), trim(request.getDefKind()),
+                trim(request.getDefExpr()), trim(request.getDefTarget()), trim(request.getDescription()));
+        return tx.execute(status -> {
+            categorySegmentCore.registerCate(maruDataId, cateId, value);
+            log.info("[dataCateEdit] reg — maruDataId={} cateId={}", maruDataId, cateId);
+            return buildView(maruDataId, cateId);
+        });
+    }
+
+    // ── action: save — REGEX 정의 수정 또는 TABLE 소속 일괄 적용(대상 카테고리의 실제 defKind 로 가른다) ──
+
+    public CateViewResult save(CateSaveRequest request) {
+        if (request == null) {
+            throw invalid("저장할 값이 없습니다");
+        }
+        String maruDataId = requireId(request.getMaruDataId());
+        String cateId = requireCateId(request.getCateId());
+        return tx.execute(status -> {
+            CateSegmentRow current = latestCate(maruDataId, cateId);
+            if (current != null && DataCateValue.TABLE.equals(current.value().defKind())) {
+                applyMembers(new MemberApplyRequest(maruDataId, cateId, request.getAddCodes(), request.getRemoveCodes()));
+            } else {
+                DataCateValue value = new DataCateValue(trim(request.getCateName()),
+                        current == null ? DataCateValue.REGEX : current.value().defKind(), trim(request.getDefExpr()),
+                        trim(request.getDefTarget()), trim(request.getDescription()));
+                categorySegmentCore.modifyCate(maruDataId, cateId, value);
+            }
+            log.info("[dataCateEdit] save — maruDataId={} cateId={}", maruDataId, cateId);
+            return buildView(maruDataId, cateId);
+        });
+    }
+
+    /** R12 — 추가·해제 목록 중 하나라도 실패하면 전체 롤백. 개별 호출이 각자 잠그므로(R2′) 이 트랜잭션은 join 뿐이다. */
+    private void applyMembers(MemberApplyRequest request) {
+        List<String> add = request.addCodes();
+        if (add != null) {
+            for (String code : add) {
+                categorySegmentCore.addMember(request.maruDataId(), request.cateId(), code);
+            }
+        }
+        List<String> remove = request.removeCodes();
+        if (remove != null) {
+            for (String code : remove) {
+                categorySegmentCore.removeMember(request.maruDataId(), request.cateId(), code);
+            }
+        }
+    }
+
+    // ── action: delete(닫기) ───────────────────────────────────────────────
+
+    public CateViewResult close(CateViewRequest request) {
+        String maruDataId = requireId(request == null ? null : request.getMaruDataId());
+        String cateId = requireCateId(request == null ? null : request.getCateId());
+        return tx.execute(status -> {
+            categorySegmentCore.closeCate(maruDataId, cateId);
+            log.info("[dataCateEdit] delete — maruDataId={} cateId={}", maruDataId, cateId);
+            return buildView(maruDataId, cateId);
+        });
+    }
+
+    // ── action: restore(다시 열기) ─────────────────────────────────────────
+
+    public CateViewResult reopen(CateViewRequest request) {
+        String maruDataId = requireId(request == null ? null : request.getMaruDataId());
+        String cateId = requireCateId(request == null ? null : request.getCateId());
+        return tx.execute(status -> {
+            categorySegmentCore.reopenCate(maruDataId, cateId);
+            log.info("[dataCateEdit] restore — maruDataId={} cateId={}", maruDataId, cateId);
+            return buildView(maruDataId, cateId);
+        });
+    }
+
+    // ── 공통 읽기 ──────────────────────────────────────────────────────────
+
+    /** 카테고리 하나의 지금 상태 — R5(열린 항목만 매칭 대상)·R4(닫기는 소속 행에 연쇄하지 않는다, 소속은 DB 에 그대로 남는다). */
+    private CateViewResult buildView(String maruDataId, String cateId) {
+        CateSegmentRow cate = latestCate(maruDataId, cateId);
+        if (cate == null) {
+            throw keyIssue(DataItemMessages.KEY_NOT_FOUND + ": " + cateId, cateId);
+        }
+        List<ItemSegmentRow> openItems = openItemRows(maruDataId);
+        Set<String> openItemCodes = openItems.stream().map(r -> r.key().code())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        CateRow row = toCateRow(maruDataId, cate, openItemCodes);
+        CateViewResult result = new CateViewResult();
+        result.setCate(row);
+        if (row.isOpen() && DataCateValue.TABLE.equals(row.getDefKind())) {
+            List<CateViewResult.Item> items = new ArrayList<>();
+            for (ItemSegmentRow item : openItems) {
+                items.add(new CateViewResult.Item(item.key().code(), item.value().name(), item.value().lvl(1)));
+            }
+            result.setItems(items);
+            Set<String> members = new LinkedHashSet<>(rows.openMemberCodes(maruDataId, cateId));
+            members.retainAll(openItemCodes);
+            result.setMemberCodes(new ArrayList<>(members));
+        }
+        return result;
+    }
+
+    /** 카테고리별 마지막 행(닫힌 것 포함) 한 건. 없으면 null. */
+    private CateSegmentRow latestCate(String maruDataId, String cateId) {
+        List<CateSegmentRow> own = rows.cateRows(maruDataId, cateId);
+        return own.isEmpty() ? null : own.get(own.size() - 1);
+    }
+
+    /** R5 — 매칭·소속 판정은 항상 "카테고리가 지금 열려 있는가"를 먼저 본다. 닫힌 카테고리는 종류 무관 0. */
+    private CateRow toCateRow(String maruDataId, CateSegmentRow cate, Set<String> openItemCodes) {
+        boolean open = cate.isOpen();
+        int matchCount = 0;
+        DataCateValue v = cate.value();
+        if (open) {
+            if (DataCateValue.REGEX.equals(v.defKind())) {
+                matchCount = resolver.preview(maruDataId, v.defExpr(), v.defTarget()).count();
+            } else if (DataCateValue.TABLE.equals(v.defKind())) {
+                matchCount = (int) rows.openMemberCodes(maruDataId, cate.key().cateId()).stream()
+                        .filter(openItemCodes::contains).count();
+            }
+        }
+        CateRow row = new CateRow();
+        row.setCateId(cate.key().cateId());
+        row.setCateName(v.cateName());
+        row.setDefKind(v.defKind());
+        row.setDefExpr(v.defExpr());
+        row.setDefTarget(v.defTarget());
+        row.setDescription(v.description());
+        row.setOpen(open);
+        row.setMatchCount(matchCount);
+        return row;
+    }
+
+    private List<ItemSegmentRow> openItemRows(String maruDataId) {
+        return rows.latestItemRows(maruDataId).stream().filter(ItemSegmentRow::isOpen).toList();
+    }
+
+    private Set<String> openItemCodes(String maruDataId) {
+        return openItemRows(maruDataId).stream().map(r -> r.key().code())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private record Header(String maruDataId, String name, int lvlCnt, List<String> attrLabels) {
+    }
+
+    /** {@code TB_MDM_DATA} 머리(이름·계층 칸 수·라벨) — 읽기 전용, 잠그지 않는다(R2′, {@code DataItemListQuery.header()} 선례). */
+    private Header header(String maruDataId) {
+        List<?> found = entityManager.createNativeQuery("SELECT MARU_DATA_NAME, LVL_CNT, ATTR01_NAME, ATTR02_NAME, "
+                        + "ATTR03_NAME, ATTR04_NAME, ATTR05_NAME, ATTR06_NAME, ATTR07_NAME, ATTR08_NAME, ATTR09_NAME, "
+                        + "ATTR10_NAME FROM TB_MDM_DATA WHERE MARU_DATA_ID = :md").unwrap(NativeQuery.class)
+                .setParameter("md", maruDataId, String.class)
+                .getResultList();
+        if (found.isEmpty()) {
+            throw invalid(DataItemMessages.NO_MARU_DATA + ": " + maruDataId);
+        }
+        Object[] r = (Object[]) found.get(0);
+        List<String> labels = new ArrayList<>(10);
+        for (int i = 0; i < 10; i++) {
+            labels.add((String) r[2 + i]);
+        }
+        return new Header(maruDataId, (String) r[0], ((Number) r[1]).intValue(), labels);
+    }
+
+    // ── 공통 ────────────────────────────────────────────────────────────────
+
+    private static String requireId(String maruDataId) {
+        String v = trim(maruDataId);
+        if (v == null) {
+            throw invalid("마루 데이터 ID 를 입력하세요");
+        }
+        return v;
+    }
+
+    private static String requireCateId(String cateId) {
+        String v = trim(cateId);
+        if (v == null) {
+            throw DataItemChecks.rejected(List.of(new MdmCheckIssue("CHK3", DataItemMessages.KEY_REQUIRED, "cateId",
+                    cateId)));
+        }
+        return v;
+    }
+
+    private static RuntimeException keyIssue(String message, String key) {
+        return DataItemChecks.rejected(List.of(new MdmCheckIssue("KEY", message, "key", key)));
+    }
+
+    private static BusinessException invalid(String detail) {
+        return MdmErrors.of(MdmErrorCode.INVALID_INPUT, detail, List.of());
+    }
+
+    private static String trim(String s) {
+        if (s == null) {
+            return null;
+        }
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
+    }
+}

@@ -119,6 +119,78 @@ class DmdOasisHttpTest {
     }
 
     @Test
+    void M1_dataMng_등록은_TB_MDM_DATA_와_BASE_카테고리를_함께_만들고_검색된다() throws Exception {
+        JsonNode reg = post("dataMng", "reg", params().put("maruDataId", "SHIPY").put("maruDataName", "조선소")
+                .put("codePattern", "^[0-9A-Z]{1,20}$").put("lvlCnt", 1));
+        assertSuccess(reg);
+        assertEquals("SHIPY", reg.path("data").path("result").path("maruDataId").asText(), reg.toString());
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_DATA WHERE MARU_DATA_ID = 'SHIPY'", Integer.class));
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM TB_MDM_DATA_CATE WHERE MARU_DATA_ID = 'SHIPY' AND CATE_ID = 'BASE'", Integer.class));
+
+        JsonNode search = post("dataMng", "search", params().put("maruDataId", "SHIPY"));
+        assertSuccess(search);
+        assertEquals(1, search.path("data").path("result").path("list").size(), search.toString());
+        assertEquals("SHIPY", search.path("data").path("result").path("list").get(0).path("maruDataId").asText());
+    }
+
+    @Test
+    void M2_dataMng_ID_중복은_MDM011_문구로_거부된다() throws Exception {
+        // PORT 는 @BeforeEach seed() 가 이미 TB_MDM_DATA 에 넣어 뒀다(F15 — dataRepo.existsById 로 거부).
+        JsonNode dup = post("dataMng", "reg", params().put("maruDataId", "PORT").put("maruDataName", "다시")
+                .put("codePattern", "^[0-9A-Z]{1,20}$"));
+
+        assertFalse(dup.path("meta").path("success").asBoolean(true), dup.toString());
+        assertTrue(dup.path("meta").path("message").asText().startsWith(
+                MdmErrorCode.MARU_ID_NAMESPACE_CONFLICT.defaultMessage()), dup.toString());
+    }
+
+    @Test
+    void E1_dataEdit_저장은_헤더를_바꾸고_auditVer_가_오른다() throws Exception {
+        JsonNode view = post("dataEdit", "view", params().put("maruDataId", "PORT"));
+        assertSuccess(view);
+        assertEquals(0, view.path("data").path("result").path("auditVer").asLong(), view.toString());
+
+        JsonNode save = post("dataEdit", "save", params().put("maruDataId", "PORT").put("auditVer", 0)
+                .put("maruDataName", "항구(개정)").put("codePattern", "^[0-9A-Z]{1,20}$").put("lvlCnt", 1)
+                .put("attr01Name", "국가"));
+        assertSuccess(save);
+        assertEquals("항구(개정)", save.path("data").path("result").path("maruDataName").asText(), save.toString());
+        assertEquals(1, save.path("data").path("result").path("auditVer").asLong(), save.toString());
+    }
+
+    @Test
+    void C1_dataCateEdit_등록은_검색되고_닫으면_소속은_남고_매칭은_0이_된다() throws Exception {
+        JsonNode reg = post("dataCateEdit", "reg", params().put("maruDataId", "PORT").put("cateId", "DC_HTTP")
+                .put("cateName", "HTTP 카테고리").put("defKind", "REGEX").put("defExpr", "^KR.*$").put("defTarget", "KEY"));
+        assertSuccess(reg);
+        assertTrue(reg.path("data").path("result").path("cate").path("open").asBoolean(), reg.toString());
+
+        JsonNode search = post("dataCateEdit", "search", params().put("maruDataId", "PORT"));
+        assertSuccess(search);
+        boolean found = false;
+        for (JsonNode row : search.path("data").path("result").path("list")) {
+            found = found || "DC_HTTP".equals(row.path("cateId").asText());
+        }
+        assertTrue(found, search.toString());
+
+        JsonNode close = post("dataCateEdit", "delete", params().put("maruDataId", "PORT").put("cateId", "DC_HTTP"));
+        assertSuccess(close);
+        assertFalse(close.path("data").path("result").path("cate").path("open").asBoolean(), close.toString());
+        assertEquals(0, close.path("data").path("result").path("cate").path("matchCount").asInt(), close.toString());
+    }
+
+    @Test
+    void C2_dataCateEdit_BASE_수정은_예약_카테고리_문구로_거부된다() throws Exception {
+        JsonNode save = post("dataCateEdit", "save", params().put("maruDataId", "PORT").put("cateId", "BASE")
+                .put("defExpr", ".+").put("defTarget", "KEY"));
+
+        assertFalse(save.path("meta").path("success").asBoolean(true), save.toString());
+        assertTrue(save.path("meta").path("message").asText().contains(
+                MdmErrorCode.RESERVED_CATEGORY.defaultMessage()), save.toString());
+    }
+
+    @Test
     void A2_오래된_row_version_의_save_는_충돌_문구로_시작한다() throws Exception {
         assertSuccess(post("dataItemMng", "reg", params().put("maruDataId", "PORT").put("code", "KRINC").put("name", "인천")));
         assertSuccess(post("dataItemMng", "save", params().put("maruDataId", "PORT").put("code", "KRINC").put("name", "B")
