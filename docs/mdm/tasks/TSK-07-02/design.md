@@ -71,6 +71,8 @@ OBJECT 마다 동일하게 시드되므로 권한 문제가 없다, F3). `dataEd
 
 ## 2. 변경 파일 목록
 
+> **개정(Build 중)**: 이 절과 §3·§4·「구현 단위」의 `dataHandoff.ts` 언급은 D7 개정으로 `src/shell/page-handoff.ts` 재사용으로 대체된다.
+
 ### 생성 — 백엔드 공용(B1)
 - `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/segment/DataCategoryResolver.java` — REGEX 후보 매칭(열린 항목만, `rows.latestItemRows(md)` 를 `isOpen()` 으로 거른 뒤 `Pattern.matches`). **새로 만들지 않고 `DataItemListQuery` 에 있던 `targetValue`/`matches` 를 `public static` 으로 옮겨 그대로 쓴다**(F20 — null→false, KEY/LVL n/ATTR n 분기 전부 원본과 글자 그대로 같다). 문법 오류(`PatternSyntaxException`)는 던지지 않고 `invalid=true` 플래그로 응답한다(compare 액션이 사용자가 타이핑 중인 정규식을 실시간으로 보내므로, 04 `MasterCodeCategoryResolver` 와 같은 스타일).
 - `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/common/segment/DataCategoryResolverSqliteTest.java`
@@ -265,36 +267,21 @@ test`·`pnpm test:unit:shared`·lint·oasis 계약 검사)를 한 번 더 돌려
   (`latestItemRows` 는 그대로 두고 별도 메서드로 추가), `DataEditServiceSqliteTest` 의 "닫힌 행에만 값 있음" 케이스를
   "과거 선분(지금은 다른 값으로 마지막 행이 갱신됨)에만 값 있음" 케이스로 바꿔 재검증한다.
 
-### D7 — dataMng 등록 → dataEdit 탭 인계 메커니즘: `sessionStorage` + 커스텀 이벤트 병행(공유 셸은 고치지 않는다)
-- 질문: 포털 탭을 여는 수단은 창 이벤트 `portal-open-tab`(`shared/src/portal-shell/portal-shell.tsx:579-589`) 하나뿐이고
-  `{pageId}` 만 받는다 — 파라미터(방금 등록한 `maruDataId`)를 실어 보낼 수단이 없다(TSK-07-03 F17 이 이미 같은 문제를
-  겪고 「이력」 링크를 탭 이동 대신 화면 안 패널로 바꿔 피해 갔다). 게다가 같은 `pageId` 탭이 이미 열려 있으면
-  `openPageTab` 이 그 탭을 재마운트하지 않고 그냥 활성화만 한다(`portal-shell.tsx:378-386`) — "마운트 시점에 한 번
-  읽기"만으로는 이미 열려 있던 dataEdit 탭에 새 ID 를 전달할 수 없다.
-- 선택지: (1) `shared/src/portal-shell/portal-shell.tsx` 를 고쳐 `portal-open-tab` 이벤트에 임의 payload 를 실을 수
-  있게 만든다(공유 셸 변경, `pnpm test:unit:shared` 영향, 다른 모듈에도 영향). (2) 공유 셸은 고치지 않고, m-mdm 안에서
-  `sessionStorage`(탭이 새로 만들어지는 경우 — 마운트가 비동기라 그 사이에 값이 살아 있다) + `window` 커스텀 이벤트
-  (탭이 이미 열려 있어 재마운트되지 않는 경우 — 마운트된 리스너가 살아서 받는다) 를 **함께** 써서 두 경로 모두를
-  덮는다.
-- 택한 것: (2).
-- 근거: `portal-open-tab` 은 범용 셸 API 이고 이번 요구는 m-mdm 안의 화면 두 개 사이 인계일 뿐이다 — 공유 셸의 계약을
-  넓히면 영향 범위가 이 Task 밖(다른 모든 모듈의 탭 이동)까지 퍼지고 `pnpm test:unit:shared` 기준선도 건드리게 된다.
-  m-mdm 자체 모듈(`pages/dmd/dataHandoff.ts`, 신설)에 격리하면 셸을 그대로 둔 채로 목적을 이룰 수 있다. 두 메커니즘을
-  같이 쓰는 이유는 "탭이 새로 열리는가/이미 열려 있는가"라는 `portal-shell.tsx` 의 갈림길이 케이스마다 정반대 수단을
-  요구하기 때문이다(마운트 시점 읽기 vs 살아있는 리스너). **근거 강도: 중** — 이 저장소에 선례가 없는(F17) 새 패턴이라
-  담당자 확인이 필요하다.
-- 상세: `pages/dmd/dataHandoff.ts`(신설, m-mdm 자체 — 셸이 아니다) 가 `stashDataEditTarget(id)`(`sessionStorage`
-  키 `dmd:dataEdit:openId` 에 쓰기)·`consumeDataEditTarget()`(읽고 즉시 지움)·`DATA_EDIT_SELECT_EVENT`(문자열
-  상수)·`broadcastDataEditTarget(id)`(그 이름의 `CustomEvent` 를 `window.dispatchEvent`) 4개를 내보낸다. dataMng 의
-  등록 성공 핸들러가 `stashDataEditTarget(id)` → `broadcastDataEditTarget(id)` → `window.dispatchEvent(new
-  CustomEvent("portal-open-tab", {detail:{pageId:"dmd/dataEdit"}}))` 순서로 부른다. dataEdit 의 `page.tsx` 는
-  마운트 시 `consumeDataEditTarget()` 을 한 번 확인하고, 동시에 `DATA_EDIT_SELECT_EVENT` 리스너를 마운트 기간 내내
-  건다(둘 다 있으면 같은 결과로 수렴하므로 중복 처리를 신경 쓰지 않아도 된다). `sessionStorage` 접근은 `try/catch`
-  로 감싸 실패(사생활 보호 모드 등)해도 화면이 깨지지 않게 한다 — 실패하면 사용자가 상단 select 로 수동 선택한다
-  (완전한 열화, 기능 자체가 없어지지 않는다).
-- 반려 시 재작업: 선택지 1 로 바꾸면 `portal-open-tab` 이벤트에 `detail.payload`(임의 객체) 를 더하고
-  `openPageTab(pageId, payload?)` 시그니처를 바꿔 `shared` 의 기존 호출부(다른 모듈 포함) 전부를 점검해야 한다 —
-  이 Task 범위를 넘는 회귀 위험이 커서 우선순위가 낮다.
+### D7 — dataMng 등록 → dataEdit 탭 인계: 기존 `src/shell/page-handoff.ts` 재사용(Build 중 개정)
+- 질문: 포털 탭을 여는 수단 `portal-open-tab` 은 `{pageId}` 만 받고, 이미 열린 탭은 다시 마운트되지 않는다
+  (`shared/src/portal-shell/portal-shell.tsx:378-386,579-589`). 방금 등록한 `maruDataId` 를 dataEdit 에 어떻게 넘기나.
+- 선택지: (1) 공유 셸 `portal-open-tab` 에 payload 를 더한다. (2) m-mdm 안에 이 화면 전용 `pages/dmd/dataHandoff.ts`
+  (sessionStorage + 커스텀 이벤트)를 새로 만든다(개정 전 선택). (3) m-mdm 에 이미 있는 범용 인계 모듈
+  `src/shell/page-handoff.ts`(TSK-06-02 D12 — `openMdmPage(componentPath, params)`·`useMdmPageParams(componentPath,
+  tabId, onParams)`, 받는 쪽은 마운트 때와 `portal-tab-activated` 때 한 번 꺼낸다)를 그대로 쓴다.
+- 택한 것: (3).
+- 근거: 리포의 기존 관례다(06-02·06-03·06-05 가 같은 규약으로 쓴다). 설계 당시에는 이 모듈을 보지 못해 (2)를 골랐고,
+  B1 Build 가 발견해 보고했다(build-log.md 「설계 이탈」). 같은 일을 하는 모듈을 둘 두지 않는다. 근거 강도: 강(리포 관례).
+- 개정 뒤 할 일(B2): dataMng 등록 성공 핸들러를 `openMdmPage("dmd/dataEdit", { maruDataId })` 로 바꾸고, dataEdit
+  `page.tsx` 는 `useMdmPageParams("dmd/dataEdit", tabId, ...)` 로 받는다. `pages/dmd/dataHandoff.ts` 와
+  `tests/dmd/dataHandoff.test.ts` 는 지운다(이 Task 가 B1 에서 만든 파일이다). 아래 §2·§3·§4·「구현 단위」 의
+  `dataHandoff.ts` 언급은 모두 이 개정으로 대체된다.
+- 반려 시 재작업: 인계 코드를 (2)의 `dataHandoff.ts`(B1 커밋 379f728 에 있다)로 되돌린다.
 
 ---
 

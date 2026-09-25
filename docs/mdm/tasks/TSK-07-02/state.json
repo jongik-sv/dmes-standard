@@ -56,5 +56,6 @@
   "last": {
     "phase": "design",
     "event": "design.pass"
-  }
+  },
+  "build_unit": "B2+B3"
 }
