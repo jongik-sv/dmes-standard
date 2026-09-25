@@ -350,3 +350,15 @@ void invR02_allocatedExceedsOnHandRejected() {
 - 1초 예외가 필요한 비-시나리오 테스트는 `slow` 태그로 분리하고 `{module}:slowTest` 로 명시 실행한다.
 - 기존 시나리오 라벨 테스트가 실제로는 소형 통합 테스트와 다르지 않다면 모듈별 API/use-case 통합 테스트 형태로 전환한다.
 - 변경 후 최소한 관련 targeted test 를 실행하고, 기본 회귀는 해당 모듈의 `test` task 통과를 기준으로 한다. 시나리오/slow 변경 시 각각 `useCaseTest`/`slowTest` 도 확인한다.
+
+#### 10.1.1 mdm Spring 테스트 — 공유 테스트 DB 기반 클래스 (2026-09-26)
+
+- **새 mdm Spring 테스트(`@SpringBootTest`)는 `com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest` 를 상속한다.** 클래스마다 `@TempDir` + 자기 `@DynamicPropertySource` 로 DB 파일을 가리키지 않는다.
+  - 이유: `@DynamicPropertySource` 메서드가 클래스마다 다르면 Spring TestContext 캐시 키가 모두 달라져, 클래스마다 컨텍스트(Hibernate·Hikari·Flyway)를 새로 띄운다. 이 방식이 mdm/api 테스트 JVM 시간의 대부분을 차지했고 OOM 도 냈다(docs/dflow-team/perf-audit-report.md P2).
+  - 기반 클래스를 상속하면 나머지 설정(`@SpringBootTest`·`@ActiveProfiles`·`@Import`·속성)이 같은 클래스끼리 컨텍스트 하나를 나눠 쓴다. 같은 묶음의 기존 클래스와 어노테이션을 똑같이 맞추면 공유 효과가 난다.
+  - 격리는 유지된다. 각 클래스는 시작할 때 "방금 마이그레이션한 새 DB" 와 처음 상태의 테스트 가짜 빈에서 출발한다(`MdmSharedTestDb.resetForTestClass`).
+  - 테스트 설정에 값이 바뀌는 가짜 빈(사용자·시계·명부 등)을 새로 두면 `SharedContextResettable` 을 구현해 생성 직후 상태로 되돌린다. 부팅 때 DB 에서 읽어 들이는 메모리 캐시를 새로 만들면 `MdmSharedTestDb.resetForTestClass` 에 재적재를 더한다.
+- **상속하지 않는 예외**: 아래 경우는 지금처럼 자기 DB·자기 컨텍스트를 쓴다.
+  - `*MigrationTest` 처럼 테스트 DB 자체(새 파일, 마이그레이션 적용 과정)를 검증하는 테스트
+  - 고유 속성(`@TestPropertySource`, `@SpringBootTest(properties = …)`, 추가 `registry.add`)이나 그 클래스만의 `@Import` 설정을 쓰는 테스트. 상속해도 틀리지는 않지만 공유 이득이 없다.
+  - 클래스마다 클라이언트 키가 다른 RANDOM_PORT 테스트(`*OasisHttpTest` 등)
