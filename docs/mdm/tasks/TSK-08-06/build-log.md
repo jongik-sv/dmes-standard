@@ -120,7 +120,7 @@ B2 변이는 python 스크립트 하나(변이 넣기 → `:api:test --fail-fast
 - B2 Expression 셀 조회: §6.1-5 는 `RuleCellsCodec.parse(...).get(String.valueOf(varId))` 라고 적었지만 `parse` 는 `Map<Integer, …>` 를 돌려주므로 `get(v.getVarId())`(정수 키)로 읽는다. 문자열 키로는 한 번도 맞지 않아 셀 참조가 조용히 빠진다.
 - B2 `RuleQueries` 추가는 하나(`latestReleasedResultVarsOfActiveRules`)다. 구현 단위 표의 "조회 두 개" 가운데 나머지 하나가 맡을 `hitPolicy` 는 기존 `versionsOf(ids)` 로 한 번에 읽는다(기존 메서드는 고치지 않았다).
 - B3 없는 세트: 설계는 view 만 `INVALID_VALUE "룰 세트를 찾을 수 없습니다: <id>"` 로 정했다. save·delete·restore 의 없는 세트도 같은 예외다(0행 분류와 되살리기의 세트 읽기).
-- B3 `RuleSetWrites` 에 조건부 UPDATE 셋 말고 읽기 `state(setId)`(네이티브 SELECT `STATUS, ROW_VERSION, RULE_IDS`)를 더했다. 0행 분류와 되살리기 검사는 영속성 컨텍스트가 아니라 DB 에서 다시 읽는다.
+- B3 `RuleSetWrites` 에 조건부 UPDATE 셋 말고 읽기 `state(setId)`(스칼라 JPQL `s.status, s.rowVersion, s.ruleIds` — 엔티티 매핑 타입을 따르므로 MSSQL `NVARCHAR(MAX)` 도 String)를 더했다. 0행 분류와 되살리기 검사는 영속성 컨텍스트가 아니라 DB 에서 다시 읽는다.
   되살리기는 엔티티를 읽지 않고 이 값으로 상태(MDM009)·rv(MDM001)·저장된 목록 검사를 본다. 조건부 UPDATE 의 감사 조각은 `VER = COALESCE(VER,0)+1` 까지 `AUDIT_SET` 한 상수에 넣었다.
 - B3 `RuleSetRejections` detail 은 룰 ID·변수가 없으면 둘 다 `-` 로 적는다(EMPTY 는 `-[-] EMPTY 룰이 하나도 없다`, 1단계 검사는 `<룰>[-] …`). 설계는 변수 칸만 `-` 로 정했다.
 - B3 요청 룰 ID 는 `row.get("ruleId")` 원값을 `toString()` 만 하고 null 은 null 그대로 `RuleIdRules.validateRuleId` 에 넘긴다(REQUIRED_VALUE). `String.valueOf(null)` = `"null"` 이 INVALID_VALUE 로 바뀌는 것을 피한다. `rules` 가 null 이면 빈 목록(검사 EMPTY 가 거부).

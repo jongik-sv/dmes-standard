@@ -55,16 +55,19 @@ public class RuleSetWrites {
                 .setParameter("id", setId).setParameter("rv", rowVersion).executeUpdate();
     }
 
-    /** 세트 한 행의 상태·row_version·룰 목록 JSON. 없으면 빈 값. */
+    /**
+     * 세트 한 행의 상태·row_version·룰 목록 JSON. 없으면 빈 값. 엔티티가 아니라 스칼라 JPQL 이라 영속성 컨텍스트의 낡은 값을 쓰지 않고,
+     * 칼럼 타입은 엔티티 매핑(String·long)을 따른다(MSSQL {@code NVARCHAR(MAX)} 도 같다).
+     */
     public Optional<SetState> state(String setId) {
-        List<?> rows = entityManager.createNativeQuery(
-                        "SELECT STATUS, ROW_VERSION, RULE_IDS FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = :id")
+        List<Object[]> rows = entityManager.createQuery(
+                        "SELECT s.status, s.rowVersion, s.ruleIds FROM MdmRuleSet s WHERE s.maruRuleSetId = :id", Object[].class)
                 .setParameter("id", setId).getResultList();
         if (rows.isEmpty()) {
             return Optional.empty();
         }
-        Object[] r = (Object[]) rows.get(0);
-        return Optional.of(new SetState((String) r[0], ((Number) r[1]).longValue(), r[2] == null ? null : r[2].toString()));
+        Object[] r = rows.get(0);
+        return Optional.of(new SetState((String) r[0], ((Number) r[1]).longValue(), (String) r[2]));
     }
 
     private static final String AUDIT_SET = "U_USR_ID = :uUsrId, U_AT = :uAt, U_SVC_ID = :uSvcId, U_PGM_ID = :uPgmId, VER = COALESCE(VER, 0) + 1";
