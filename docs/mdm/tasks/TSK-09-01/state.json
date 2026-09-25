@@ -2,7 +2,7 @@
   "tsk": "TSK-09-01",
   "order": "d66739eb-3c77-47f6-b32c-50d1b0dfe7fa",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "design",
+  "phase": "build",
   "baseline": {
     "docker": "banned:spawn",
     "failures": 0,
@@ -59,8 +59,48 @@
     "note": "도커 금지 모드: 켜짐(출처 spawn, 워커 기본). testAll 은 mssqlMigrationTest 를 포함하지 않아 제외 없이 사용"
   },
   "last": {
-    "phase": "design",
-    "event": "start"
+    "phase": "build",
+    "event": "gate.blocked-env"
   },
-  "model": "sonnet"
+  "model": "sonnet",
+  "build_gate": {
+    "head": "7215f68da735ea0f0c75b13e8312fc5cbddcca16",
+    "cmds": [
+      {
+        "cwd": ".",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3122,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 775,
+        "failures": 2
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0
+      }
+    ],
+    "new_failures": [
+      "evalex-perf.test.ts NFR-1: 식 R2 를 1만 레코드에 100 ms 안에 평가한다",
+      "evalex-perf.test.ts NFR-1: BASE_SPD_LKP(UNIQUE 7행) 미리보기를 1만 레코드에 100 ms 안에 한다"
+    ],
+    "note": "env 판정(팀장 지시): PC 부하(loadavg 11~27)로 NFR-1 성능만 실패. 새 파일 제외 760건에서도 동일 실패, 단독 실행은 통과. 재측정 2회 모두 NFR-1 만 실패"
+  }
 }

@@ -174,3 +174,8 @@ design.md §3 B3.5 는 "공개 API 로 어떻게 부르는지 먼저 grep 필요
 
 없음 — B3는 이 세션에서 완료했다(도구 호출 상한 이내). 세 단위(B1·B2·B3) 모두 완료됐다 — design.md 대로 서로 다른
 파일이라 병렬로 끝났다.
+
+## Build 게이트 (오케스트레이터)
+- HEAD 7215f68. 백엔드 testAll 3122/0, shared 168/0, m-mdm lint 통과, oasis ERROR 0 / WARN 0 / INFO 29.
+- m-mdm test 775 중 `evalex-perf.test.ts` NFR-1 성능 2~3건 실패(중앙값 137~154ms > 100ms). 4회 실행(최초 1회·확인 1회·팀장 지시 재측정 2회) 모두 NFR-1 만 실패. 부하 평균 11~27(다른 워커 동시 실행).
+- 진단: 새 파일(evalex-sample-rule-parity.test.ts)을 뺀 760건에서도 같은 실패, `evalex-perf.test.ts` 단독 실행은 4/4 통과 → 코드 원인 아님(환경). 성능 기준 완화·skip 없음. 팀장 지시로 blocked.
