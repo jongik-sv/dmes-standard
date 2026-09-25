@@ -594,7 +594,7 @@
 | I25 | 수정 응답 row_version 을 올리지 않은 값으로 | `RuleTestCaseServiceTest` › 수정은_row_version_조건으로_… | 잡힘 |
 | (B5) | 수정에서 뺀 기대값을 기존 값으로 둠(`COALESCE`) | `RuleTestCaseServiceTest` › 수정은_row_version_조건으로_… | 잡힘 |
 | (B5) | view `testCases` 를 비움 | `RuleEditViewTest` › 테스트_케이스를_case_id_오름차순으로_저장된_글자_그대로_버전과_무관하게_싣는다 | 잡힘 |
-| (B5) | view `testCases` 를 버전을 고른 때만 채움 | `RuleEditViewTest` › 테스트_케이스를_case_id_오름차순으로_… | 잡힘 |
+| (B5) | view `testCases` 를 버전을 고른 때만 채움 | `RuleEditViewTest` › 버전이_없어도_테스트_케이스는_싣는다 | 잡힘 (Verify 재현: 원래 적힌 테스트_케이스를_case_id_오름차순으로_… 는 늘 ver=1 로 불러 이 변이를 건드리지 않아 정정) |
 | (B5) | 케이스 조회 정렬을 이름순으로 | `RuleEditViewTest` › 테스트_케이스를_case_id_오름차순으로_… | 잡힘 |
 | I25 | 새 케이스 INSERT 를 `persist` 대신 `merge` 로(겹친 PK 덮어쓰기) | `RuleTestCaseServiceTest` › 발급_번호가_이미_있는_케이스와_겹치면_덮어쓰지_않고_실패한다 | 안 잡힘(보강함) |
 | I14 | 세트 순서 "뒤 룰 결과 읽기" 조건 `j > i` → `j < i` | `RuleLedgerChecksTest`(fail-fast) | 잡힘 |

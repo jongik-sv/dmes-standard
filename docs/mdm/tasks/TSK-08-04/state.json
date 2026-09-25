@@ -58,10 +58,9 @@
       }
     ]
   },
-  "model": "sonnet",
   "last": {
-    "phase": "build",
-    "event": "build.ok"
+    "phase": "verify",
+    "event": "verify.ok"
   },
   "build_gate": {
     "head": "36f30d9a66e54140662119fd6847af8dae7a8f2a",
@@ -100,5 +99,44 @@
       }
     ],
     "new_failures": []
+  },
+  "verify_gate": {
+    "head": "36f30d9a66e54140662119fd6847af8dae7a8f2a",
+    "cmds": [
+      {
+        "cwd": ".",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3649,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 839,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0,
+        "result": "pass"
+      },
+      {
+        "cwd": ".",
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0,
+        "result": "ERROR 0 / WARN 0 / INFO 29"
+      }
+    ],
+    "new_failures": [],
+    "reused_from": "build_gate"
   }
 }
