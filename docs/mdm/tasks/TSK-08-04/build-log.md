@@ -343,7 +343,7 @@
 | I33 | ⑤ 가 다른 버전 결과도 "표에 칠했다" 로 봄 | `value-test-cards.test.ts` › 다른 버전을 대상으로 돌리면 … 그 버전 표를 따로 그린다 | 잡힘 |
 | I1 | 표 저장의 `report.hasErrors()` 거부 끔 | `RuleTableSaveCheckTest` › 셀_규칙_ERROR_는_거부한다 | 잡힘 |
 | I1 | 분석기 ERROR 를 빼고 검사 ERROR 만으로 거부 판단(`nonAnalysisIssues`) | `RuleTableSaveCheckTest` › 조건_전부_NA_행이_있으면_거부하고_아무것도_쓰지_않는다 | 잡힘 |
-| I1 | 정규화한 셀 대신 요청 셀을 저장 | `RuleTableSaveCheckTest` › 행_셀_길이_상한과_같으면_저장하고_넘으면_거부한다 | 잡힘 |
+| I5·I6 | 표 저장이 정규화한 셀 대신 요청 셀을 저장 | `RuleTableSaveCheckTest` › 행_셀_길이_상한과_같으면_저장하고_넘으면_거부한다(fail-fast 첫 실패), 한쪽_빈_구간은_1_타입_op_로_바꿔_저장하고_… 도 이 변이를 잡는다 | 잡힘 |
 | I2 | 검사 이슈 row_id 를 발급 번호로 바꾸지 않음 | `RuleTableSaveCheckTest` › 경고만_있으면_저장하고_검사_경고를_분석_이슈_뒤에_발급_번호로_싣는다 | 잡힘 |
 | I2 | 검사 이슈를 분석 이슈 앞에 붙임 | `RuleTableSaveCheckTest` › 경고만_있으면_저장하고_… | 잡힘 |
 | I2 | 검사 경고를 응답에서 뺌 | `RuleTableSaveCheckTest` › 경고만_있으면_저장하고_… | 잡힘 |
