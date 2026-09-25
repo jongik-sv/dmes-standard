@@ -130,6 +130,8 @@ FE `P/page.tsx` 다(TSK-08-02 design §0, D1). 이 설계는 `dme/ruleEdit` 를 
 | `AxisCoverageCheck` | 축 조합 완전성(`AxisCoverage`) | WARNING | TABLE, STORED(COLUMNS 는 08-03 기존 자리에서 그대로) |
 | `ExprTypeByCaseCheck` | Expression 결과 타입: 저장된 테스트 케이스로 새 정의를 돌려 조건 식이 boolean 이 아니거나 결과 타입 변환에 실패하면 경고(D9) | WARNING | TABLE, COLUMNS |
 
+(B6 이 더함) 원장 조회 도우미 빈 `RuleLedgerReads`(TB_MDM_CODE·TB_MDM_DATA·카테고리·`ATTRnn_NAME`)와 셀 순회 도우미 `LedgerCells` 를 같은 패키지에 둔다. 빈 순서(`@Order`)는 §6.1 표 순서다.
+
 ### 2.3 생성 — 백엔드 값 테스트·테스트 케이스
 
 - `BL/common/rule/definition/RuleDefinitionAssembler.java` — (규칙 헤더, `List<MdmRuleVar>`, `List<ResolvedVar>`, 행) → 엔진 `RuleDefinition`.
@@ -429,6 +431,7 @@ DOMAIN_RANGE, REQUIRED_NULL_CHECK, SET_ORDER, SET_CYCLE, SET_DUP_RESULT, CONTRAC
 - 이 룰의 위치 i 에 대해: `reads(this) ∩ produces(rule_j), j > i` → SET_ORDER("세트 {S}: {이 룰}이 뒤에 있는 {rule_j}의 결과 {X}를 읽는다. {rule_j}를 앞으로 옮긴다");
   `produces(this) ∩ reads(rule_j), j < i` → SET_ORDER("세트 {S}: 앞에 있는 {rule_j}가 이 룰의 결과 {X}를 읽는다. 이 룰을 {rule_j} 앞으로 옮긴다");
   같은 j 에서 두 방향이 다 걸리면 둘 대신 SET_CYCLE 하나("순서로 풀리지 않는 순환"). `produces(this) ∩ produces(rule_j)` → SET_DUP_RESULT(W).
+  (B6 이 바꿈) 두 방향 조건(j > i·j < i)은 한 j 에서 함께 참일 수 없으므로, 서로의 결과를 읽으면 j 의 위치와 무관하게 SET_CYCLE 하나로 알리고 SET_ORDER 는 내지 않는다(build-log 「B6」 이탈 1).
 
 ### 6.5 값 테스트 (`execute` → `RuleValueTestService.run`)
 
