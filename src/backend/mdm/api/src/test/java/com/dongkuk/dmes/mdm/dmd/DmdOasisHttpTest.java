@@ -146,6 +146,37 @@ class DmdOasisHttpTest {
     }
 
     @Test
+    void C1_dataCateEdit_등록은_검색되고_닫으면_소속은_남고_매칭은_0이_된다() throws Exception {
+        JsonNode reg = post("dataCateEdit", "reg", params().put("maruDataId", "PORT").put("cateId", "DC_HTTP")
+                .put("cateName", "HTTP 카테고리").put("defKind", "REGEX").put("defExpr", "^KR.*$").put("defTarget", "KEY"));
+        assertSuccess(reg);
+        assertTrue(reg.path("data").path("result").path("cate").path("open").asBoolean(), reg.toString());
+
+        JsonNode search = post("dataCateEdit", "search", params().put("maruDataId", "PORT"));
+        assertSuccess(search);
+        boolean found = false;
+        for (JsonNode row : search.path("data").path("result").path("list")) {
+            found = found || "DC_HTTP".equals(row.path("cateId").asText());
+        }
+        assertTrue(found, search.toString());
+
+        JsonNode close = post("dataCateEdit", "delete", params().put("maruDataId", "PORT").put("cateId", "DC_HTTP"));
+        assertSuccess(close);
+        assertFalse(close.path("data").path("result").path("cate").path("open").asBoolean(), close.toString());
+        assertEquals(0, close.path("data").path("result").path("cate").path("matchCount").asInt(), close.toString());
+    }
+
+    @Test
+    void C2_dataCateEdit_BASE_수정은_예약_카테고리_문구로_거부된다() throws Exception {
+        JsonNode save = post("dataCateEdit", "save", params().put("maruDataId", "PORT").put("cateId", "BASE")
+                .put("defExpr", ".+").put("defTarget", "KEY"));
+
+        assertFalse(save.path("meta").path("success").asBoolean(true), save.toString());
+        assertTrue(save.path("meta").path("message").asText().contains(
+                MdmErrorCode.RESERVED_CATEGORY.defaultMessage()), save.toString());
+    }
+
+    @Test
     void A2_오래된_row_version_의_save_는_충돌_문구로_시작한다() throws Exception {
         assertSuccess(post("dataItemMng", "reg", params().put("maruDataId", "PORT").put("code", "KRINC").put("name", "인천")));
         assertSuccess(post("dataItemMng", "save", params().put("maruDataId", "PORT").put("code", "KRINC").put("name", "B")

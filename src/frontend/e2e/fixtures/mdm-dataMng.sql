@@ -26,3 +26,22 @@ INSERT OR IGNORE INTO TB_MDM_DATA_ITEM (MARU_DATA_ID, CODE, VALID_FROM, VALID_TO
 
 INSERT OR IGNORE INTO TB_MDM_DATA_CATE_ITEM (MARU_DATA_ID, CATE_ID, CODE, VALID_FROM, VALID_TO, CHG_SEQ, C_USR_ID, C_PGM_ID, VER) VALUES
     ('E2E_DM_PORT', 'MAJOR', 'KRPUS', '2026-08-20 09:00:00', '9999-12-31 00:00:00', 0, 'e2e-fixture', 'mdm-dataMng.sql', 0);
+
+-- B3(dataCateEdit) 전용 — 자기 마루 데이터로 격리한다(ID 접두 E2E_DC_). B2 의 dataEdit e2e 가 마루 데이터를 폐기하는
+-- 시나리오를 가질 수 있어(통합 단위 I 가 세 spec 을 한 스위트로 돌린다) 공유 행을 쓰지 않는다.
+INSERT OR IGNORE INTO TB_MDM_DATA (MARU_DATA_ID, MARU_DATA_NAME, STATUS, SOURCE_KIND, SOURCE_SYSTEM, CODE_PATTERN,
+    ATTR01_NAME, LVL_CNT, LAST_CHG_SEQ, CHG_SEQ, C_USR_ID, C_PGM_ID, VER) VALUES
+    ('E2E_DC_PORT', '카테고리편집항구', 'INUSE', 'MDM', NULL, '^[0-9A-Z]{1,20}$', '국가', 2, 0, 0, 'e2e-fixture', 'mdm-dataMng.sql', 0);
+
+INSERT OR IGNORE INTO TB_MDM_DATA_CATE (MARU_DATA_ID, CATE_ID, VALID_FROM, VALID_TO, CATE_NAME, DEF_KIND, DEF_EXPR, DEF_TARGET,
+    CHG_SEQ, C_USR_ID, C_PGM_ID, VER) VALUES
+    ('E2E_DC_PORT', 'BASE', '2026-08-20 09:00:00', '9999-12-31 00:00:00', '전체', 'REGEX', '.*', 'KEY', 0, 'e2e-fixture', 'mdm-dataMng.sql', 0),
+    ('E2E_DC_PORT', 'DC_GROUP', '2026-08-20 09:00:00', '9999-12-31 00:00:00', '주요 그룹', 'TABLE', NULL, NULL, 0, 'e2e-fixture', 'mdm-dataMng.sql', 0);
+
+INSERT OR IGNORE INTO TB_MDM_DATA_ITEM (MARU_DATA_ID, CODE, VALID_FROM, VALID_TO, NAME, SEQ, ROW_VERSION, CHG_SEQ, LVL1, LVL2,
+    ATTR01, C_USR_ID, C_PGM_ID, VER) VALUES
+    ('E2E_DC_PORT', 'DCKRPUS', '2026-08-20 09:00:00', '9999-12-31 00:00:00', '부산', 1, 0, 0, 'KR', NULL, '국가', 'e2e-fixture', 'mdm-dataMng.sql', 0),
+    ('E2E_DC_PORT', 'DCKRINC', '2026-08-20 09:00:00', '9999-12-31 00:00:00', '인천', 2, 0, 0, 'KR', NULL, '국가', 'e2e-fixture', 'mdm-dataMng.sql', 0);
+
+INSERT OR IGNORE INTO TB_MDM_DATA_CATE_ITEM (MARU_DATA_ID, CATE_ID, CODE, VALID_FROM, VALID_TO, CHG_SEQ, C_USR_ID, C_PGM_ID, VER) VALUES
+    ('E2E_DC_PORT', 'DC_GROUP', 'DCKRPUS', '2026-08-20 09:00:00', '9999-12-31 00:00:00', 0, 'e2e-fixture', 'mdm-dataMng.sql', 0);
