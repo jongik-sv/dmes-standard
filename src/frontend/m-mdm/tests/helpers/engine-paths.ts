@@ -16,3 +16,8 @@ export const ANALYSIS_CORPUS_PATH = path.join(
 );
 export const JAVA_EXPR_DIR = path.join(ENGINE_ROOT, "src/main/java/kr/dongkuk/maru/mdm/engine/expr");
 export const PACKAGE_ROOT = path.resolve(__dirname, "../..");
+/** TSK-08-04 §2.1 — 입력 계약 코퍼스(한 벌). Java `InputContractCorpusTest` 와 함께 읽는다. */
+export const INPUT_CONTRACT_CORPUS_PATH = path.join(
+  ENGINE_ROOT,
+  "src/test/resources/kr/dongkuk/maru/mdm/engine/contract/input-contract-corpus.json",
+);
