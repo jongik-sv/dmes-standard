@@ -2,5 +2,152 @@
   "tsk": "TSK-09-01",
   "order": "d66739eb-3c77-47f6-b32c-50d1b0dfe7fa",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "reported",
+  "baseline": {
+    "docker": "banned:spawn",
+    "failures": 0,
+    "tests": 4048,
+    "cmds": [
+      {
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "cwd": ".",
+        "tests": 3120,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed-5a99c8ef20f3",
+        "measured_at": "2026-09-25T14:18:23Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "cwd": ".",
+        "tests": 760,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed-70ad4dddc2e4",
+        "measured_at": "2026-09-25T14:20:02Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "cwd": ".",
+        "tests": 168,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed-85eac351cb59",
+        "measured_at": "2026-09-25T14:20:41Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "cwd": ".",
+        "tests": 0,
+        "failures": 0,
+        "result": "pass",
+        "source": "cache",
+        "cache_key": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed-79066bca5c4b",
+        "measured_at": "2026-09-25T14:20:44Z"
+      },
+      {
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "cwd": ".",
+        "tests": 0,
+        "failures": 0,
+        "result": "pass",
+        "source": "cache",
+        "cache_key": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed-773190afc491",
+        "measured_at": "2026-09-25T14:20:46Z"
+      }
+    ],
+    "note": "도커 금지 모드: 켜짐(출처 spawn, 워커 기본). testAll 은 mssqlMigrationTest 를 포함하지 않아 제외 없이 사용"
+  },
+  "last": {
+    "phase": "done",
+    "event": "reported"
+  },
+  "model": "sonnet",
+  "build_gate": {
+    "head": "7215f68da735ea0f0c75b13e8312fc5cbddcca16",
+    "cmds": [
+      {
+        "cwd": ".",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3122,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 775,
+        "failures": 2
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0
+      }
+    ],
+    "new_failures": [
+      "evalex-perf.test.ts NFR-1: 식 R2 를 1만 레코드에 100 ms 안에 평가한다",
+      "evalex-perf.test.ts NFR-1: BASE_SPD_LKP(UNIQUE 7행) 미리보기를 1만 레코드에 100 ms 안에 한다"
+    ],
+    "note": "m-mdm 775 중 2 실패(env: evalex-perf NFR-1 부하 민감, 기준선 동일 실패·단독 통과). 팀장 결정 (B)로 env 허용 — NFR-1 외 실패 0. 증적: heavy 슬롯 단독 실행 4/4 통과(2026-09-26 01:18 KST)",
+    "env_allowed": [
+      "evalex-perf.test.ts NFR-1"
+    ]
+  },
+  "verify_gate": {
+    "head": "7215f68da735ea0f0c75b13e8312fc5cbddcca16",
+    "cmds": [
+      {
+        "cwd": ".",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3122,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 775,
+        "failures": 2
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0
+      }
+    ],
+    "new_failures": [
+      "evalex-perf.test.ts NFR-1: 식 R2 를 1만 레코드에 100 ms 안에 평가한다",
+      "evalex-perf.test.ts NFR-1: BASE_SPD_LKP(UNIQUE 7행) 미리보기를 1만 레코드에 100 ms 안에 한다"
+    ],
+    "note": "m-mdm 775 중 2 실패(env: evalex-perf NFR-1 부하 민감, 기준선 동일 실패·단독 통과). 팀장 결정 (B)로 env 허용 — NFR-1 외 실패 0. 증적: heavy 슬롯 단독 실행 4/4 통과(2026-09-26 01:18 KST)",
+    "env_allowed": [
+      "evalex-perf.test.ts NFR-1"
+    ],
+    "reused_from": "build_gate"
+  }
 }
