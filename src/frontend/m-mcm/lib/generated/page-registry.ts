@@ -39,6 +39,7 @@ export const PAGE_REGISTRY: Record<string, () => Promise<{ default: unknown }>> 
   "dmb/headerMng": () => import("@dk-oasis/m-mdm/pages/dmb/headerMng/page"),
   "dmb/layoutMng": () => import("@dk-oasis/m-mdm/pages/dmb/layoutMng/page"),
   "dmc/codeCateEdit": () => import("@dk-oasis/m-mdm/pages/dmc/codeCateEdit/page"),
+  "dmc/codeConfirm": () => import("@dk-oasis/m-mdm/pages/dmc/codeConfirm/page"),
   "dmc/codeEdit": () => import("@dk-oasis/m-mdm/pages/dmc/codeEdit/page"),
   "dmc/codeItemEdit": () => import("@dk-oasis/m-mdm/pages/dmc/codeItemEdit/page"),
   "dmc/codeMng": () => import("@dk-oasis/m-mdm/pages/dmc/codeMng/page"),
