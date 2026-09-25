@@ -160,6 +160,42 @@ describe("DataEditPage", () => {
     expect(snapshots).toContainEqual({ maruDataId: "PORT" });
   });
 
+  it("handoff 로 받은 ID 가 옵션 목록에 없으면 옵션을 다시 불러와 콤보박스에 라벨이 보인다(이미 열린 탭 인계)", async () => {
+    let searchCalls = 0;
+    const baseList = [{ maruDataId: "PORT", maruDataName: "항구", sourceKind: "MDM", status: "INUSE" }];
+    const withNew = [...baseList, { maruDataId: "NEWID", maruDataName: "새 이름", sourceKind: "MDM", status: "INUSE" }];
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const body = init?.body ? JSON.parse(String(init.body)) : {};
+      if (url.includes("/api/auth/me")) return jsonResponse({ user: { id: "tester" } });
+      if (url.includes("/api/mcm/oasis/secUser/myButtonEndpoints")) {
+        return jsonResponse({ grids: { buttons: { rows: [{ objId: "*", action: "*", endpoint: "*", httpMethod: "*" }] } } });
+      }
+      const m = url.match(/\/oasis\/(\w+)\/(\w+)/);
+      if (m) {
+        const [, service, action] = m;
+        calls.push({ service, action, params: body.params ?? {} });
+        if (service === "dataMng" && action === "search") {
+          searchCalls += 1;
+          return jsonResponse({ meta: { success: true }, data: { result: { list: searchCalls === 1 ? baseList : withNew } } });
+        }
+        if (service === "dataEdit" && action === "view") return jsonResponse({ meta: { success: true }, data: { result: nextView() } });
+        return jsonResponse({ meta: { success: true }, data: { result: nextView() } });
+      }
+      return jsonResponse({}, 404);
+    }) as typeof fetch;
+
+    nextView = () => viewResult({ maruDataId: "NEWID", maruDataName: "새 이름" });
+    openMdmPage("dmd/dataEdit", { maruDataId: "NEWID" });
+    await render();
+    await flush();
+
+    // 첫 옵션 조회(마운트)에는 NEWID 가 없다 — handoff 로 받은 ID 가 그 목록에 없으면 다시 조회해야 한다.
+    expect(searchCalls).toBeGreaterThanOrEqual(2);
+    const pickInput = document.querySelector('[data-testid="data-edit-pick"] input:not([type="hidden"])') as HTMLInputElement;
+    expect(pickInput.value).toBe("NEWID 새 이름");
+  });
+
   it("handoff 가 없으면 snapshot 의 ID 를 불러온다", async () => {
     await render({ snapshot: { maruDataId: "PORT" } });
     expect(actions("dataEdit", "view").map((c) => c.params.maruDataId)).toEqual(["PORT"]);

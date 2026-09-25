@@ -447,3 +447,96 @@ e2e 로 검증했다(새 탭이 열리는 경로). "이미 열린 dataEdit 탭" 
 - 백엔드 testAll: 3172 통과, 실패 0(기준선 3120).
 - m-mdm vitest: 773 중 2 실패(env: 부하 민감, 단독 통과) — `tests/evalex-perf.test.ts` NFR-1 BASE_SPD_LKP·QLTY_GRD_JDG. 팀장 지시(두 파일 한정 부하 민감 실패 인정)에 따라 heavy 슬롯을 잡고 `cd src/frontend && pnpm --filter @dk-oasis/m-mdm exec vitest run tests/evalex-perf.test.ts` 단독 실행 → 4/4 통과(loadavg 9.63). 신규 실패 0.
 - shared 단위: 168 통과. m-mdm lint 통과. oasis 계약 검사 ERROR 0 / WARN 0 / INFO 29.
+
+## Verify 감사
+
+Build 가 남긴 변이 검증 기록·e2e 결과를 감사했다(전체 스위트는 다시 돌리지 않는다, phase-verify.md). 코드는 감사 중엔
+고치지 않았고, 아래 「이미 열린 탭」 절의 부수 발견만 사람 지시로 뒤이어 수정했다(별도 커밋).
+
+### 변이 재주입 결과 — R1~R12 전부
+
+표의 행마다 실제로 변이를 다시 넣어 대상 테스트가 빨간불을 내는지 확인한 뒤 원복했다(`git checkout --`, 매 행 뒤
+`git status --porcelain` 이 비어 있음을 확인). 새로 채운 행(R2 폐기)과 정적 diff 2건도 포함한다.
+
+| 규칙 | 변이 | 대상 테스트 | 재확인 결과 |
+|---|---|---|---|
+| R1 | 등록 tx 래퍼 제거 | `DataMngServiceSqliteTest.R1_...` | 잡힘 |
+| R6(BASE 값) | BASE cateName 변조 | `DataMngServiceSqliteTest.R6_...` | 잡힘 |
+| R9 | `entity.setChgSeq(1)` 주입 | `DataMngServiceSqliteTest.R9_...` | 잡힘 |
+| R10 | sourceKind→EXTERNAL | `DataMngServiceSqliteTest` 전체 | 잡힘 — build-log 원본이 "간접"이라 적은 것보다 강하게, 전용 단정(`R10_...`) 도 같이 빨개짐 |
+| R1′ | 자기 트랜잭션 `PROPAGATION_NOT_SUPPORTED` | `DataEditServiceSqliteTest` | 잡힘 — build-log 가 적은 바로 그 테스트(`계층_칸_수_늘리기는_항상_허용한다`)에서 `TransactionRequiredException` |
+| R2(저장) | `save()` 이중 잠금 | `DataEditServiceSqliteTest.R2_저장은...` | 잡힘 |
+| **R2(폐기)** | `deprecate()` 이중 잠금 | `DataEditServiceSqliteTest.R2_폐기는...` | **잡힘 — 이 행은 B2 표에 없었다(테스트는 이미 있었음), 이번 감사로 채움** |
+| R7(dataEdit) | `checks.requireActive` 주석(저장·폐기 둘 다) | `DataEditServiceSqliteTest.R7_...` | 잡힘 |
+| R11/D6 | lvlCnt 축소 검사 우회 | `DataEditServiceSqliteTest.D6_...` | 잡힘 |
+| R2′ | `registerCate` 이중 잠금 | `DataCateEditServiceSqliteTest.R2_reg는...` | 잡힘 |
+| R4 | 닫기 연쇄(소속 같이 닫힘 흉내) | `DataCateEditServiceSqliteTest.R4_...` | 잡힘 |
+| R5(REGEX) | `if(open)`→`if(true)` | `DataCateEditServiceSqliteTest.R5_닫힌_REGEX_...` | 잡힘(단독 재실행으로 재확인 — 스윕 중엔 `--fail-fast` 로 R4 행이 먼저 걸렸었다) |
+| R5(TABLE) | 열린 항목 교집합 제거 | `DataCateEditServiceSqliteTest.R5_닫힌_항목의_TABLE_...` | 잡힘 |
+| R6(BASE 편집·닫기) | `requireNotBase` 본문 제거 | `DataCateEditServiceSqliteTest.R6_BASE_...` | 잡힘 |
+| R7(dataCateEdit) | 공용 `DataItemChecks.requireActive` 본문 제거 | `DataCateEditServiceSqliteTest.R7_...` | 잡힘 |
+| R12 | `applyMembers` 부분 성공 흉내 | `DataCateEditServiceSqliteTest.R12_...` | 잡힘 |
+| R3 | `common.segment` 밖에 임시 4번째 구현체 추가 | `MdmTemporalSegmentStoreNoImplementationTest` | 잡힘(끝나고 파일 삭제) |
+| R8 | `cateDefIssues` REGEX 문법 검사 제거 | `DataCateEditServiceSqliteTest.reg_는_잘못된_REGEX_문법이면_거부한다`(I 유닛 신설) | 잡힘 |
+
+정적 diff(`git diff f59cce7..HEAD`): `DataItemChecks.java`·`DataCategorySegmentCore.java`·저장 코어 3클래스(R3·R8 대상 TSK-07-03 소유 공용 파일) 전부 변경 없음. `common.segment` 밖에 `MdmTemporalSegmentStore` 구현체도 없음 — R3·R8 이 "재검사·재구현하지 않는다"고 적은 그대로 지켜졌다.
+
+### 커버리지 구멍 — R2 의 dataMng "등록" 경로
+
+R2 규칙 문구는 "등록·헤더·라벨·lvl_cnt·폐기" 를 함께 적었지만, dataMng 의 `register()` 자신은 `DataSegmentLock.lock()`
+을 직접 부르지 않는다(등록 시점엔 아직 없는 행이라 구조상 불가능 — `lock()` 은 0행이면 예외를 던진다). 대신 등록
+트랜잭션 안에서 부르는 `registerCate()`(공용, R2′ 소유) 의 단일 lock() 호출에 얹혀 간다. `registerCate()` 에 이중
+잠금을 주입하면 `DataCateEditServiceSqliteTest`(R2′) 는 빨개지지만, **`DataMngServiceSqliteTest` 만 단독으로 돌리면
+초록으로 통과한다** — dataMng 쪽에는 이 잠금 횟수를 스스로 지키는 회귀 테스트가 없다. 오늘은 R2′ 테스트가 대신
+지켜주고 있어 동작은 정상이지만(기능 결함 아님), 기록의 구멍으로 남긴다. R2′ 쪽 spy 단정이 나중에 약해지거나
+지워지면 dataMng 등록 경로의 이 불변 규칙은 아무도 못 잡는다.
+
+### 전체 mdm e2e 스위트 — Build 게이트가 미뤄 아무도 안 돌렸던 단계
+
+design.md 「E2E 서버 절차」 그대로 이 워크트리 전용 포트(mcm 18831·mdm 18832·FE 15831)로 서버를 새로 띄워 이 Task
+3 spec(10/10, I 유닛과 동일 재현)과 전체 `mdm-*.spec.ts`(19개 spec)를 직접 돌렸다. **TSK-07-02 소유 파일이 원인인
+신규 실패는 0건.**
+
+- design.md 가 "dataItem 픽스처만 추가하면 된다"고 적은 절차가 실제로는 불완전했다 — `mdm-codeCateEdit.sql`·
+  `mdm-codeItemEdit.sql`·`mdm-columnMng-dict.sql`·`mdm-layout-m201.sql`·`mdm-ruleEdit-data.sql`(mdm.db)·
+  `mdm-ruleEdit-users.sql`(mcm.db) 도 있어야 다른 화면들의 spec 이 돈다. 채운 뒤 `codeCateEdit`·`codeItemEdit`(T1~T4)
+  는 전부 통과했다.
+- `mdm-columnMng.spec.ts` 는 spec 자신의 주석에 "전용 값을 만들기 때문에 다른 spec 과 같은 mdm.db 로 돌릴 수
+  없다"고 이미 적혀 있다. `TB_MDM_COLUMN` 에 값을 넣는 픽스처는 `mdm-layout-m201.sql`·`mdm-ruleEdit-data.sql` 뿐이고
+  (grep 으로 확인) TSK-07-02 의 `mdm-dataMng.sql`(B3 가 수정)은 이 테이블을 안 건드린다 — 전용 DB(rbac-users+
+  columnMng-dict 만)로 새로 돌리니 4/4 전부 통과했다. TSK-07-02 와 무관한 절차 공백이다.
+- `mdm-codeItemEdit.spec.ts` T5 는 혼합 스윕에서 로그인 타임아웃으로 한 번 실패했다(재현 여부 미확정, 재시도는
+  DB 오염으로 다른 결과가 나 결론 못 냄). `git diff f59cce7..HEAD` 로 codeItemEdit 관련 파일은 TSK-07-02 가 전혀
+  건드리지 않았음을 확인했다(변경 파일 77개 목록 밖) — 이 Task 몫이 아니라 더 파고들지 않았다.
+- `headerMng`·`layoutMng` 두 spec 은 `SMOKE_MDM_DB` 환경변수가 있어야 자기 픽스처를 스스로 싣는다 — design.md
+  절차에 이 변수가 빠져 있다.
+- 다음 Task 의 E2E 절차 문서화에 참고할 사실로 남긴다(design.md 는 고치지 않는다 — 담당자 확인 필요 결정·도커
+  금지 절 외에는 Verify 가 design.md 를 고치지 않는다).
+
+### "이미 열린 dataEdit 탭" 경로 — 수용 기준 충족으로 판정, 콤보박스 라벨 결함은 고침
+
+build-log 원본은 이 e2e 케이스를 "원인 미확정으로 되돌렸다"고 적었다(위 통합 단위 I 절). Verify 가 직접 재현해
+결론을 냈다.
+
+- dataMng 탭 → dataEdit 탭(사이드바로 따로 열기) → 다른 항목 선택 → 탭 바 클릭으로 dataMng 복귀 → 등록 순서로
+  두 차례 재현했는데 **둘 다 성공**했다 — build-log 가 겪은 "클릭해도 요청이 안 나간다" 현상은 재현되지 않았다.
+- 등록 클릭 뒤 `POST dataEdit/view` 요청이 **새 ID 를 담아 실제로 발생**함과, 헤더 이름 입력창(`data-edit-name`)이
+  **새로 등록한 이름으로 실제로 바뀜**을 네트워크 로그·DOM 값으로 직접 확인했다. 수용 기준("등록 후 수정 화면으로
+  이동")의 핵심(새 데이터가 화면에 반영되는 것)은 충족된다 — **판정: 수용 기준 충족**.
+- **부수 발견(수정함)**: 이 경로(이미 열린 탭 재사용)에서는 콤보박스 표시값이 "ID 이름" 대신 **"ID" 단독**으로
+  보였다(신규 탭 경로는 정상적으로 "ID 이름"). 원인: `pages/dmd/dataEdit/page.tsx` 의 `useMdmPageParams` 콜백이
+  handoff ID 로 `choose()` 는 부르지만 콤보박스 옵션 목록(`options` state, 마운트 시 한 번만 `searchMaruDataOptions()`
+  로 채움)은 갱신하지 않아, 방금 등록한 ID 가 옵션 목록에 없어 라벨을 못 찾는 것이었다(`shared/ComboBox` 는 옵션에
+  없는 value 를 라벨 없이 그대로 보여주는 게 정상 동작이라 공용 컴포넌트는 안 건드렸다).
+  - 수정: handoff 로 받은 `maruDataId` 가 현재 `options` 에 없으면 `searchMaruDataOptions()` 를 다시 불러 `setOptions`
+    한다(`page.tsx` `useMdmPageParams` 콜백, 4줄 추가).
+  - 테스트 먼저: `tests/dmd/dataEdit/data-edit-page.test.ts` 에 "handoff 로 받은 ID 가 옵션 목록에 없으면 옵션을
+    다시 불러와 콤보박스에 라벨이 보인다(이미 열린 탭 인계)" 케이스를 추가 — 1차 옵션 조회엔 없고 2차(재조회)에만
+    있는 픽스처로 수정 전엔 빨강(`searchCalls` 1 vs 기대 ≥2), 수정 후 6/6 전부 초록 확인.
+  - `cd src/frontend && pnpm --filter @dk-oasis/m-mdm exec vitest run tests/dmd/dataEdit/data-edit-page.test.ts` →
+    6 passed. `pnpm --filter @dk-oasis/m-mdm lint` → 통과(`tsc --noEmit`, 오류 0).
+  - 전체 스위트·e2e 는 다시 돌리지 않았다(오케스트레이터 Verify 게이트 몫).
+- design.md §4 수용 기준 매핑 표는 이 케이스의 근거로 여전히 `dataHandoff.test.ts` 를 인용하는데, 그 파일은 B2 의
+  D7 개정(`page-handoff.ts` 로 교체)으로 이미 삭제됐다 — 지금은 `tests/shell/page-handoff.test.ts`(공유, 소비 메커니즘
+  자체) + `data-edit-page.test.ts`(화면 단, 이번에 옵션 재조회 케이스 추가) + `mdm-dataMng.spec.ts` 스모크 3(e2e, 새 탭
+  경로) 세 가지가 그 자리를 대체한다. design.md 표 문구가 낡았다는 사실만 보고에 올린다(design.md 는 고치지 않는다).

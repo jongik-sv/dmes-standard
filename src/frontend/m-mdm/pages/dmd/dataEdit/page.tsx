@@ -102,6 +102,11 @@ export default function DataEditPage({ tabId, snapshot, onSnapshotChange }: Data
     if (params.maruDataId) {
       handedOff.current = true;
       choose(params.maruDataId);
+      // 이미 열린 탭이 재활성화되며 받은 ID 는 마운트 때 한 번 조회한 options 에 아직 없을 수 있다(방금
+      // dataMng 에서 새로 등록한 경우 등) — 그러면 콤보박스가 라벨 없이 ID 만 보인다. 옵션에 없을 때만 다시 조회한다.
+      if (!options.some((o) => o.maruDataId === params.maruDataId)) {
+        void searchMaruDataOptions().then(setOptions).catch(fail);
+      }
     }
   });
 
