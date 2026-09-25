@@ -17,6 +17,10 @@ public class DataItemSearchRequest {
     private Integer page;
     /** 기본 50, 상한 200. */
     private Integer size;
+    /** "이 노드로 보기" — 코드 자신 또는 lvl1~5 어딘가의 값이 이 값과 같은 행만(열림·닫힘 무관, I5). */
+    private String nodeFilter;
+    /** true 면 결과에 트리(열린 행만, I6)를 함께 싣는다. */
+    private Boolean withTree;
 
     public String getMaruDataId() { return maruDataId; }
     public String getCode() { return code; }
@@ -25,6 +29,8 @@ public class DataItemSearchRequest {
     public Boolean getShowClosed() { return showClosed; }
     public Integer getPage() { return page; }
     public Integer getSize() { return size; }
+    public String getNodeFilter() { return nodeFilter; }
+    public Boolean getWithTree() { return withTree; }
 
     public void setMaruDataId(String v) { this.maruDataId = v; }
     public void setCode(String v) { this.code = v; }
@@ -33,4 +39,6 @@ public class DataItemSearchRequest {
     public void setShowClosed(Boolean v) { this.showClosed = v; }
     public void setPage(Integer v) { this.page = v; }
     public void setSize(Integer v) { this.size = v; }
+    public void setNodeFilter(String v) { this.nodeFilter = v; }
+    public void setWithTree(Boolean v) { this.withTree = v; }
 }

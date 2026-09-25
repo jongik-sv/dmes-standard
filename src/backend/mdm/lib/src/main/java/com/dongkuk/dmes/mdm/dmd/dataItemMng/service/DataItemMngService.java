@@ -5,12 +5,14 @@ import static com.dongkuk.dmes.mdm.dmd.dataItemMng.service.DataItemRows.blankToN
 import com.dongkuk.dmes.mdm.common.segment.CateSegmentRow;
 import com.dongkuk.dmes.mdm.common.segment.DataItemSaveCore;
 import com.dongkuk.dmes.mdm.common.segment.DataItemValue;
+import com.dongkuk.dmes.mdm.common.segment.ItemSegmentRow;
 import com.dongkuk.dmes.mdm.common.segment.SaveOutcome;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.contract.category.CategoryConventions;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.dmd.dataItemMng.dto.DataItemHeader;
 import com.dongkuk.dmes.mdm.dmd.dataItemMng.dto.DataItemKeyRequest;
+import com.dongkuk.dmes.mdm.dmd.dataItemMng.dto.DataItemRow;
 import com.dongkuk.dmes.mdm.dmd.dataItemMng.dto.DataItemSaveRequest;
 import com.dongkuk.dmes.mdm.dmd.dataItemMng.dto.DataItemSaveResult;
 import com.dongkuk.dmes.mdm.dmd.dataItemMng.dto.DataItemSearchRequest;
@@ -42,6 +44,8 @@ public class DataItemMngService {
 
     static final int DEFAULT_SIZE = 50;
     static final int MAX_SIZE = 200;
+    /** 트리 조회 상한(비페이징, design.md §2). 이만큼 왔으면 잘렸다는 뜻(treeTruncated). */
+    static final int TREE_MAX = 2000;
 
     private final DataItemSaveCore core;
     private final DataItemListQuery query;
@@ -72,18 +76,27 @@ public class DataItemMngService {
         int page = Math.max(0, request.getPage() == null ? 0 : request.getPage());
         int size = request.getSize() == null ? DEFAULT_SIZE : Math.max(1, Math.min(MAX_SIZE, request.getSize()));
         String cateId = blankToNull(request.getCateId());
+        String nodeFilter = blankToNull(request.getNodeFilter());
         boolean showClosed = Boolean.TRUE.equals(request.getShowClosed());
         DataItemListQuery.Page result = readTx.execute(status -> {
             CateSegmentRow cate = query.openCate(md, cateId == null ? CategoryConventions.BASE_CATE_ID : cateId);
             if (cate == null && cateId != null) {
                 throw MdmErrors.of(MdmErrorCode.INVALID_INPUT, "없는 카테고리입니다: " + cateId, List.of());
             }
-            return query.page(md, blankToNull(request.getCode()), blankToNull(request.getName()), cate, showClosed, page,
-                    size);
+            return query.page(md, blankToNull(request.getCode()), blankToNull(request.getName()), nodeFilter, cate,
+                    showClosed, page, size);
         });
-        log.info("[dataItemMng] search — md={} cate={} page={} size={} total={}", md, cateId, page, size, result.total());
+        log.info("[dataItemMng] search — md={} cate={} node={} page={} size={} total={}", md, cateId, nodeFilter, page,
+                size, result.total());
+        List<DataItemRow> tree = null;
+        boolean treeTruncated = false;
+        if (Boolean.TRUE.equals(request.getWithTree())) {
+            List<ItemSegmentRow> treeRows = readTx.execute(status -> query.treeRows(md, TREE_MAX));
+            tree = treeRows.stream().map(DataItemRows::toRow).toList();
+            treeTruncated = treeRows.size() == TREE_MAX;
+        }
         return new DataItemSearchResult(result.rows().stream().map(DataItemRows::toRow).toList(), result.total(), page,
-                size);
+                size, tree, treeTruncated);
     }
 
     // ── action: reg / save / delete / restore ──────────────────────────────

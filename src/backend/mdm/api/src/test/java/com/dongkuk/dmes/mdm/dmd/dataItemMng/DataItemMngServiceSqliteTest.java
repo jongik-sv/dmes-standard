@@ -212,6 +212,48 @@ class DataItemMngServiceSqliteTest {
         assertEquals(2, page.getTotalCount(), "REGEX 카테고리의 totalCount 는 필터 뒤 수");
     }
 
+    // ── I5·I6 트리·노드 필터(TSK-07-04) ────────────────────────────────────────
+
+    @Test
+    void I5_노드_필터는_코드_자신_또는_lvl1_5_어딘가의_값이_같은_행만_열림_닫힘_무관() {
+        insertItemRow(jdbc, MD, "KRPUS", "부산", T0, OPEN, 0, List.of("KR", "BUSAN"), null);
+        insertItemRow(jdbc, MD, "KRINC", "인천", T0, OPEN, 0, List.of("KR", "INCHEON"), null);
+        insertItemRow(jdbc, MD, "CNSHA", "상하이", T0, OPEN, 0, List.of("CN", "SHANGHAI"), null);
+        insertItemRow(jdbc, MD, "KR", "대한민국", T0, OPEN, 0, null, null);
+        insertItemRow(jdbc, MD, "KRCLOSED", "닫힌부산권", T0.minusDays(2), text(T0.minusDays(1)), 0, List.of("KR"), null);
+
+        assertEquals(List.of("KR", "KRCLOSED", "KRINC", "KRPUS"), codes(nodeFilter("KR", true)),
+                "코드 자신(KR) 또는 lvl1(KR)이 일치, 닫힌 키도 포함");
+        assertEquals(List.of("KR", "KRINC", "KRPUS"), codes(nodeFilter("KR", false)), "showClosed 아니면 열린 행만");
+        assertEquals(List.of("KRPUS"), codes(nodeFilter("BUSAN", false)), "코드 자신이 아니라 lvl2 에 있어도 잡힌다");
+        assertEquals(List.of(), codes(nodeFilter("NONE", false)));
+    }
+
+    @Test
+    void I6_withTree_는_열린_행만_기존_ORDER_로_돌려준다() {
+        insertItemRow(jdbc, MD, "KRPUS", "부산", T0, OPEN, 0, null, null);
+        insertItemRow(jdbc, MD, "KRINC", "인천", T0, OPEN, 0, null, null);
+        insertItemRow(jdbc, MD, "KRCLOSED", "닫힘", T0.minusDays(2), text(T0.minusDays(1)), 0, null, null);
+
+        DataItemSearchResult withTree = service.search(withTree(true));
+        assertEquals(List.of("KRINC", "KRPUS"), withTree.getTree().stream().map(DataItemRow::getCode).toList(),
+                "seq 없으면 기존 ORDER 대로 code 순, 닫힌 KRCLOSED 는 트리에 없다(I6)");
+        assertFalse(withTree.isTreeTruncated());
+
+        DataItemSearchResult noTree = service.search(withTree(false));
+        assertNull(noTree.getTree(), "withTree 아니면 tree 를 채우지 않는다");
+    }
+
+    @Test
+    void I6_withTree_는_상한_TREE_MAX_에_걸리면_treeTruncated() {
+        seedOpenItems(2000);
+
+        DataItemSearchResult withTree = service.search(withTree(true));
+
+        assertEquals(2000, withTree.getTree().size());
+        assertTrue(withTree.isTreeTruncated());
+    }
+
     // ── Q5·Q6 머리 ──────────────────────────────────────────────────────────
 
     @Test
@@ -303,6 +345,28 @@ class DataItemMngServiceSqliteTest {
         DataItemSearchRequest r = search(0, cateId);
         r.setShowClosed(showClosed);
         return service.search(r);
+    }
+
+    private DataItemSearchResult nodeFilter(String node, boolean showClosed) {
+        DataItemSearchRequest r = search(0, null);
+        r.setNodeFilter(node);
+        r.setShowClosed(showClosed);
+        return service.search(r);
+    }
+
+    private DataItemSearchRequest withTree(boolean v) {
+        DataItemSearchRequest r = search(0, null);
+        r.setWithTree(v);
+        return r;
+    }
+
+    /** N개 열린 항목, 코드 T00001~T000N(계층 칸 없음) — I6 상한(TREE_MAX) 검증용. */
+    private void seedOpenItems(int n) {
+        for (int i = 1; i <= n; i++) {
+            jdbc.update("INSERT INTO TB_MDM_DATA_ITEM (MARU_DATA_ID, CODE, VALID_FROM, VALID_TO, NAME, ROW_VERSION, "
+                    + "CHG_SEQ, VER) VALUES (?, ?, ?, ?, ?, 0, 0, 0)", MD, String.format("T%05d", i), text(T0), OPEN,
+                    "항목" + i);
+        }
     }
 
     private DataItemHeader view(String md) {
