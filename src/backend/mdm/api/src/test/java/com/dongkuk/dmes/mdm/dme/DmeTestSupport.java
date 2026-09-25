@@ -170,6 +170,17 @@ public final class DmeTestSupport {
         row(jdbc, id, ver, 4, 0, "DEFAULT", Q_DEFAULT);
     }
 
+    /**
+     * 룰 세트 한 행(TSK-08-06 design §2.4). 감사 칼럼은 픽스처 값({@code U_USR_ID='fixture'}, {@code VER=0})으로 채워 쓰기 테스트가 바뀐 값을
+     * 단언할 수 있게 한다.
+     */
+    public static void ruleSet(JdbcTemplate jdbc, String id, String name, String ruleIdsJson, String status, long rowVersion) {
+        jdbc.update("INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS, STATUS, ROW_VERSION, "
+                + "C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) "
+                + "VALUES (?, ?, ?, ?, ?, 'fixture', '2026-01-01 00:00:00', 'fixture', 'fixture', "
+                + "'fixture', '2026-01-01 00:00:00', 'fixture', 'fixture', 0)", id, name, ruleIdsJson, status, rowVersion);
+    }
+
     public static int count(JdbcTemplate jdbc, String sql, Object... args) {
         return jdbc.queryForObject(sql, Integer.class, args);
     }

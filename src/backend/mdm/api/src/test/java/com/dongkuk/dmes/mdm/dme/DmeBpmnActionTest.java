@@ -48,6 +48,22 @@ class DmeBpmnActionTest {
         assertActions("services/dme/ruleEdit.bpmn", "ruleEdit", "ruleEditService", methods, readOnly);
     }
 
+    /** TSK-08-06 I17 — 룰 세트 조회·등록. */
+    @Test
+    void ruleSetMng_는_search_reg() throws Exception {
+        assertActions("services/dme/ruleSetMng.bpmn", "ruleSetMng", "ruleSetMngService",
+                Map.of("search", "search", "reg", "register"), Map.of("search", true, "reg", false));
+    }
+
+    /** TSK-08-06 I17 — 룰 세트 편집. search 의 갈래(target SET·RULE·GUIDE)는 Java 가 가른다. delete 는 폐기, restore 는 되살리기다. */
+    @Test
+    void ruleSetEdit_는_search_view_save_delete_restore() throws Exception {
+        Map<String, String> methods = Map.of("search", "search", "view", "view", "save", "save", "delete", "delete", "restore", "restore");
+        Map<String, Boolean> readOnly = new HashMap<>();
+        methods.keySet().forEach(a -> readOnly.put(a, a.equals("search") || a.equals("view")));
+        assertActions("services/dme/ruleSetEdit.bpmn", "ruleSetEdit", "ruleSetEditService", methods, readOnly);
+    }
+
     private void assertActions(String path, String processId, String bean, Map<String, String> methodByAction, Map<String, Boolean> readOnly)
             throws Exception {
         Document doc = parse(path);

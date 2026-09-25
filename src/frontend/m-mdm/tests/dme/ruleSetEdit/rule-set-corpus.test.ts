@@ -1,0 +1,116 @@
+// TSK-08-06 design §3.3·§6.8·I9 — 세트 계산 코퍼스 동치(TS 쪽). 한 벌 코퍼스(mdm/lib test resources)를 화면 즉시 계산 `set-model.ts` 로 돌려
+// `io`·`deps`·`checks`(message 포함)가 expect 와 순서까지 같은지 본다. Java 짝은 mdm/lib `RuleSetCorpusTest`(같은 파일·같은 하한).
+// 파일이 없으면 실패한다 — 건너뛰지 않는다.
+// 읽기 규칙(두 러너 공통): `rules` 원소의 빠진 칸은 null·false·빈 목록(`exists` 를 빠뜨리면 없는 룰), `rules` 에 키가 없는 ID 는 없는 룰,
+// `checks` 의 빠진 칸과 null 은 같다. 실제 값은 투영하지 않고 그대로 비교한다(구현이 undefined 를 내면 드러난다).
+import fs from "node:fs";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+
+import { setChecks, setDeps, setIo } from "../../../pages/dme/ruleSetEdit/set-model";
+import type { IoName, IoSource, RuleIo } from "../../../pages/dme/ruleSetEdit/types";
+import { PACKAGE_ROOT, RULE_SET_CORPUS_PATH } from "../../helpers/engine-paths";
+
+/** Java `RuleSetCorpusTest.MIN_CASES` 와 같아야 한다(I9). 사례를 더하면 두 러너를 함께 올린다. */
+const MIN_CASES = 14;
+
+type Nullable<T> = { [K in keyof T]?: T[K] | null };
+
+interface CorpusRule {
+  exists?: boolean;
+  status?: string | null;
+  releasedVer?: number | null;
+  conds?: Array<{ name: string; source?: IoSource | null }>;
+  results?: Array<{ name: string }>;
+}
+
+interface CorpusCase {
+  name: string;
+  ids: string[];
+  rules?: Record<string, CorpusRule>;
+  expect: {
+    io: {
+      inputs: Array<{ name: string; source?: string | null; users: string[] }>;
+      results: Array<{ name: string; by: string[]; readers: string[] }>;
+    };
+    deps: Record<string, string[]>;
+    checks: Array<Nullable<{ code: string; severity: string; ruleId: string; otherRuleId: string; varName: string; message: string }>>;
+  };
+}
+
+const ioName = (name: string, source: IoSource | null): IoName => ({
+  name,
+  source,
+  label: null,
+  dataType: null,
+  scale: null,
+  dateString: false,
+  maruCodeId: null,
+});
+
+function rule(id: string, r: CorpusRule): RuleIo {
+  return {
+    ruleId: id,
+    ruleName: null,
+    ruleKind: null,
+    status: r.status ?? null,
+    exists: r.exists ?? false,
+    releasedVer: r.releasedVer ?? null,
+    hitPolicy: null,
+    conds: (r.conds ?? []).map((c) => ioName(c.name, c.source ?? null)),
+    results: (r.results ?? []).map((x) => ioName(x.name, null)),
+  };
+}
+
+const corpus = JSON.parse(fs.readFileSync(RULE_SET_CORPUS_PATH, "utf8")) as { version: number; cases: CorpusCase[] };
+
+describe("세트 계산 코퍼스 동치(TS)", () => {
+  it("코퍼스는 version 1 이고 사례 수가 하한 이상이며 이름이 겹치지 않는다", () => {
+    expect(corpus.version).toBe(1);
+    expect(corpus.cases.length).toBeGreaterThanOrEqual(MIN_CASES);
+    const names = corpus.cases.map((c) => c.name);
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  it.each(corpus.cases.map((c) => [c.name, c] as const))("%s", (name, c) => {
+    const rules: Record<string, RuleIo> = {};
+    for (const [id, r] of Object.entries(c.rules ?? {})) rules[id] = rule(id, r);
+
+    const io = setIo(c.ids, rules);
+    expect(
+      io.inputs.map((i) => ({ name: i.name, source: i.source, users: i.users })),
+      `${name} io.inputs`,
+    ).toEqual(c.expect.io.inputs.map((i) => ({ name: i.name, source: i.source ?? null, users: i.users })));
+    expect(
+      io.results.map((r) => ({ name: r.name, by: r.by, readers: r.readers })),
+      `${name} io.results`,
+    ).toEqual(c.expect.io.results.map((r) => ({ name: r.name, by: r.by, readers: r.readers })));
+
+    expect(Object.entries(setDeps(c.ids, rules)), `${name} deps`).toEqual(Object.entries(c.expect.deps));
+
+    expect(setChecks(c.ids, rules), `${name} checks`).toStrictEqual(
+      c.expect.checks.map((k) => ({
+        code: k.code ?? null,
+        severity: k.severity ?? null,
+        ruleId: k.ruleId ?? null,
+        otherRuleId: k.otherRuleId ?? null,
+        varName: k.varName ?? null,
+        message: k.message ?? null,
+      })),
+    );
+  });
+
+  it("m-mdm 안에 코퍼스 사본이 없다(한 벌, I9)", () => {
+    const hits: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (e.name === "node_modules" || e.name === "dist" || e.name.startsWith(".")) continue;
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) walk(p);
+        else if (/corpus.*\.json$/i.test(e.name)) hits.push(path.relative(PACKAGE_ROOT, p));
+      }
+    };
+    walk(PACKAGE_ROOT);
+    expect(hits).toEqual([]);
+  });
+});
