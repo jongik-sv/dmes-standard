@@ -2,7 +2,7 @@
   "tsk": "TSK-06-05",
   "order": "9656745e-fefa-44a8-8798-db015b618d7f",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "reported",
+  "phase": "merged",
   "branch_base": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed",
   "baseline": {
     "docker": "banned:spawn",
@@ -131,5 +131,6 @@
     ],
     "new_failures": [],
     "reused_from": "build_gate"
-  }
+  },
+  "unapproved": true
 }
