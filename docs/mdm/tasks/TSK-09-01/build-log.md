@@ -123,3 +123,54 @@ design.md 대로 `http201()`(등록) → `validate` HTTP(7행 표 재확인) →
 ## 인계 (B2)
 
 없음 — B2는 이 세션에서 완료했다(도구 호출 상한 이내).
+
+## B3 — 용어→도메인→컬럼 등록·검증 한 흐름
+
+산출물: `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/dma/TermDomainColumnChainOasisFlowTest.java`(신규,
+`@SpringBootTest` HTTP 파이프 시험 1개, `DmaOasisHttpTest`·`DomainMngOasisFlowTest`와 같은 패턴 — `DmaTestSupport`
+직접 삽입 헬퍼는 쓰지 않았다). design.md §3 B3 의 1~5단계를 한 `@Test` 메서드 안에서 순서대로 확인한다:
+termMng.save(새 용어) → domainMng.save(부모 길이20·`value<=30` → 자식 길이15·`value>=0`, AND 누적) →
+columnMng.compare(새 용어가 분해기에 반영됨, `***` 없음) → columnMng.save(자식 도메인 참조, terms 그리드를 비워
+서버 자동 재분해로 term_ids 채움) → domainMng.validate(부모·자식 누적 규칙이 값 하나는 통과·하나는 거부).
+
+### 설계 이탈 — B3.4 "응답에 domain_id·term_ids" 문구
+
+design.md §3 B3.4 는 "columnMng.save 응답에 domain_id 가 2번 도메인이고 term_ids 에 1번 용어가 들어있는지 확인"이라고
+적었지만, 실제 `ColumnMngService.save`(`src/backend/mdm/lib/.../columnMng/service/ColumnMngService.java:329-331`) 의
+응답 DTO 는 `{columnId}` 뿐이다(domain_id·term_ids 필드 없음). save 직후 `columnMng.view`를 한 번 더 호출해 그 응답의
+`column.domainId`와 `terms[].termId`로 반영을 확인했다 — 값 자체는 design 의도(2번 도메인·1번 용어가 실제로
+붙었는지)와 정확히 같고, 확인에 쓰는 API 호출 하나만 늘었다.
+
+### 설계 이탈 — B3.5 "공개 API 로 값 검증" 방법 확정
+
+design.md §3 B3.5 는 "공개 API 로 어떻게 부르는지 먼저 grep 필요 없으면 해당 없음으로 넘어간다"고 열어 뒀다. 확인
+결과: `domainMng.execute`(`DomainMngService.execute`)는 요청에 실린 `stdRule`·`parentDomainId`만 평가해 **저장된
+도메인의 부모 체인을 타지 않는다**(즉석 미리보기 전용, `DomainMngOasisFlowTest.B6`가 쓰는 방식과 같다) — 이 경로로는
+"저장된 컬럼의 상속된 유효식"을 검증할 수 없다. 대신 **`domainMng.validate`**(쓰기 없음, `DomainDraftRequest` +
+`grids.testCases`)에 자식의 실제 `domainId`·`parentDomainId`·자기 `stdRule`을 그대로 실어 호출하면, 저장 때와 같은
+`DomainChainAssembler`로 부모 체인을 다시 조립해 테스트 케이스를 판정한다(`DomainMngService.validate` →
+`check()` → `assembler.assemble(snapshot.withDraft(node).chainRootFirst(...))`). 이것이 "해당 없음"을 쓰지 않고도
+찾은 공개 API 다 — `value=25`(부모·자식 모두 통과) · `value=50`(자식 규칙만으론 통과하지만 부모 `value<=30`에 걸림)
+두 케이스의 `testResults[].ACTUAL`이 각각 true/false 로 나와, 부모 규칙이 실제로 누적 적용됨을 확인했다.
+
+## 변이 검증 기록 (B3)
+
+| 불변 규칙 | 변이 | 잡은 테스트 | 결과 |
+|---|---|---|---|
+| 도메인 상속은 부모→자식 AND 누적이다 | `EffectiveExpressions.java:37`(`maru-mdm-engine`) `sb.append(" && ")` → `sb.append(" || ")` | `TermDomainColumnChainOasisFlowTest`(`--fail-fast`) | 잡힘 — B3.5 의 "50 은 부모 규칙에 걸려 거부" 단언이 실패(OR 로는 50 이 통과) |
+| 용어 사전에 없는 조각은 `***`로 표시하고 무단 치환하지 않는다 | `ColumnMngService.java:262`(`src/backend/mdm/lib/.../columnMng/service`) `physName.contains("*") \|\| columnName.contains("*") \|\| !unresolved.isEmpty()` → `unresolved` 절 삭제 | `TermDomainColumnChainOasisFlowTest`(`--fail-fast`) | 1차: 안 잡힘(보강함) — `DmaOasisHttpTest`의 P2 는 physName 자체에 리터럴 `*`가 있어 이 분기를 안 거친다. 2차: B3.3b(신규, `columnName`엔 미등록 토큰을 섞고 `physName`엔 `*`를 안 넣는 케이스)를 추가하고 응답 메시지가 `MdmErrorCode.NAME_PLACEHOLDER_REMAINS` 로 시작하는지까지 단언해 잡힘 |
+
+두 변이 모두 확인 뒤 `git checkout -- <파일>`로 되돌렸다(`git diff --stat`로 두 파일 모두 diff 없음 확인). 커밋에
+변이는 포함되지 않는다. 첫 번째 표 행의 "안 잡힘" 은닉 없이 보강한 테스트(B3.3b)를 그대로 커밋에 포함했다.
+
+## 돈 명령과 결과 (B3)
+
+- `cd src/backend/mdm && JAVA_HOME=... ../gradlew :api:test --tests 'com.dongkuk.dmes.mdm.dma.TermDomainColumnChainOasisFlowTest' --no-daemon --console=plain` — 1 test, 0 failed
+- 같은 명령에 `--tests 'com.dongkuk.dmes.mdm.dma.DmaOasisHttpTest'` `--tests 'com.dongkuk.dmes.mdm.dma.domainMng.DomainMngOasisFlowTest'` 를 더해 함께 — 전부 통과(새 시험이 기존 두 시험과 같은 서버 인스턴스에서 상태 간섭 없이 돈다)
+- 위 변이 검증용 임시 실행 3회(각각 되돌림) — 본문 표 참고
+- 전체 `testAll`(기준선 명령)은 이 Build 단위에서 돌리지 않았다 — 전체 회귀는 오케스트레이터의 Build 게이트 몫이다
+
+## 인계 (B3)
+
+없음 — B3는 이 세션에서 완료했다(도구 호출 상한 이내). 세 단위(B1·B2·B3) 모두 완료됐다 — design.md 대로 서로 다른
+파일이라 병렬로 끝났다.
