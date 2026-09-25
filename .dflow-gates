@@ -1,0 +1,44 @@
+# dmes-standard 게이트 대응표 — 바뀐 경로 → 돌릴 게이트 명령(wbs-web 형식, 2026-09-26 chore/gradle-tuning).
+# 한 줄에 <경로 접두 또는 glob><TAB><명령>. 먼저 나온 줄이 이긴다(구체적인 경로를 위에). 명령 "-" = 게이트 대상 아님.
+# 대응표 밖 경로·공용 빌드 파일(src/backend/*.gradle·gradle/·src/frontend/package.json·pnpm-lock 등)·이 파일 자신이 바뀌면 full.
+# 명령은 리포 최상위에서 heavy.sh bash -c '<명령>' 으로 돈다. 작은따옴표를 쓰지 않는다.
+#
+# 모듈 줄 원칙
+# - 백엔드: 바뀐 모듈의 test 와, 그 모듈을 의존하거나 그 파일을 테스트 입력으로 읽는 모듈의 test 를 함께 돌린다.
+#   cactus-core·oasis(cactus-core 하위)·mcm-core·aps-core·caravan-*·localKafka·analog 는 여러 모듈이 의존하거나 의존 관계를
+#   다 확인하지 못해 적지 않는다(full 로 떨어진다).
+# - 프런트: full 이 돌리는 패키지(m-mdm test·lint, shared test:unit)만 돌린다. m-mdm lint 는 shared 의 .d.ts 가 필요하므로
+#   prepare 에서 TSUP_DTS=0 을 쓰지 않는다.
+# - OASIS 계약 검사(python)는 백엔드 전체 Java·BPMN 과 프런트 m-mcm/mls/mqc/mpp 를 보므로, 테스트 대상 모듈 줄에 함께 넣는다.
+
+full	cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain
+full	cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test
+full	cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint
+full	cd src/frontend && pnpm test:unit:shared
+full	python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .
+prepare	cd src/frontend && pnpm --filter "@dk-oasis/m-mdm^..." build
+
+# ── 게이트 대상 아님 ──
+docs/	-
+*.md	-
+.claude/skills/oasis-contract-check/	python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .
+.claude/	-
+src/frontend/e2e/	-
+
+# ── 테스트가 다른 모듈 파일을 직접 읽는 교차 입력(src/backend/mdm 의 Test inputs 선언과 같은 목록) ──
+src/frontend/m-mdm/pages/dmd/dataItemMng/messages.ts	cd src/frontend && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint && cd ../backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:api:test --no-daemon --console=plain
+src/backend/mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer.java	cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mcm:test :mdm:api:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .
+# 엔진: mdm(lib·api)이 의존하고, m-mdm 테스트가 엔진 코퍼스·식 Java·계약 스키마를 읽는다
+src/backend/maru-mdm-engine/	cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :maru-mdm-engine:test :mdm:test --no-daemon --console=plain && cd ../frontend && pnpm --filter @dk-oasis/m-mdm test && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .
+
+# ── 백엔드 업무 모듈(다른 모듈이 의존하지 않는다) ──
+src/backend/mdm/	cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .
+src/backend/mcm/	cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mcm:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .
+src/backend/mqc/	cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mqc:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .
+src/backend/mpn/	cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mpn:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .
+src/backend/mpp/	cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mpp:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .
+src/backend/mls/	cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mls:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .
+
+# ── 프런트 ──
+src/frontend/m-mdm/	cd src/frontend && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint
+src/frontend/shared/	cd src/frontend && pnpm --filter @dk-oasis/shared build && pnpm test:unit:shared && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint
