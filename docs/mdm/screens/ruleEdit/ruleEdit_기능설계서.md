@@ -40,7 +40,7 @@ moduleGroup: dme
 | screenId = serviceId = OBJECT_ID | `ruleEdit` | design I23 |
 | 주요 API path | UI→BFF `POST /api/mdm/oasis/ruleEdit/{action}`, BFF→BE `POST /oasis/ruleEdit/{action}` | design §6.1 |
 | Frontend 파일 | `m-mdm/pages/dme/ruleEdit/page.tsx`, `cards.ts`, `cards/*`, `decision-table/*`, `state/useRuleEdit.ts` | design §2.1-FE·FT |
-| action 어휘 | `search`·`view`(READ), `save`·`delete`·`copy`·`lock`·`unlock`·`handover`(EDIT) | design §6.1 |
+| action 어휘 | `search`·`view`(READ), `save`·`delete`·`copy`·`lock`·`unlock`·`handover`·`validate`·`execute`(EDIT, `execute` 는 TSK-08-04 값 테스트) | design §6.1, TSK-08-04 design D3 |
 | 화면 간 이동 | `@/dme/rule-handoff`(`openRuleEdit`·`takeRuleEditTarget`) | design D9·I28 |
 
 ## 2. 화면 영역 정의
@@ -140,7 +140,7 @@ row_version 을 서버 값으로 맞춘다. 거부가 MDM001 이면 "다른 창�
 | 행 추가 | 조건 셀 모두 `-`, 결과 셀 없음, 기본 행 앞(임시 ID 는 음수, 지운 번호를 다시 쓰지 않는다) |
 | 기본 행 추가 | 기본 행이 없을 때만 |
 | 되돌리기 | 마지막으로 불러온 상태로 |
-| 표 저장 | `save{part: TABLE, maruRuleId, ver, rowVersion, hitPolicy}` + `grids.rows.rows[{rowId, rowKind, cells(JSON 문자열), note?}]`(보이는 순서, seq 는 서버가 정한다 — I10). 조건 전부 `-` 인 행(ALL_NA_ROW 오류)이 있어도 저장한다(D3) |
+| 표 저장 | `save{part: TABLE, maruRuleId, ver, rowVersion, hitPolicy}` + `grids.rows.rows[{rowId, rowKind, cells(JSON 문자열), note?}]`(보이는 순서, seq 는 서버가 정한다 — I10). ~~조건 전부 `-` 인 행(ALL_NA_ROW 오류)이 있어도 저장한다(D3)~~ → TSK-08-04 부터 저장 시 검사 ERROR 가 하나라도 있으면 쓰기 전에 거부한다(§6.1). 거부되면 표 아래 `dt-save-rejected` 와 오류 창이 뜨고 편집은 남는다 |
 
 **강조**: base 버전 대비 새 행(초록)·바뀐 칸(노랑, `ast` 는 견주지 않는다 — I22), 선택 행의 `-` 가 아닌 조건 칸(테두리), 검사
 이슈가 걸린 칸(오류 붉게·경고 노랗게). 색은 shared 그리드 셀 상태 클래스만 쓴다.
@@ -155,6 +155,38 @@ row_version 을 서버 값으로 맞춘다. 거부가 MDM001 이면 "다른 창�
 활용처 메모, 이 룰을 담은 룰 세트(ID·이름·상태)와 세트 안 의존 룰(이 룰이 읽는 이름을 만드는 룰)·역의존 룰(이 룰이 만드는 이름을
 읽는 룰). 룰 ID 는 룰 화면 링크, 세트는 글자로만 둔다(세트 화면 TSK-08-06 이 없다).
 
+### 5.5 카드 ④ 값 테스트 (`ValueTestCard`, TSK-08-04)
+
+근거: `docs/mdm/tasks/TSK-08-04/design.md` §6.5·§6.7, 06 「값 테스트」. 액션 `execute`(EDIT 권한, 원장에 쓰지 않는다 — 수용 3).
+
+| 요소 | 내용 |
+|---|---|
+| 대상(`vt-target`) | 편집할 수 있고 고른 버전이 DRAFT 면 첫 항목 `편집본 · 버전 N 저장 전`(기본값, 값 `BODY`), 그 뒤 `버전 N · 상태`(값 `V:N`) 전부 |
+| 모드 설명(`vt-mode`) | "본문 정의"(표 카드의 저장 안 한 행·적중 정책으로 돌린다, 변수는 그 DRAFT 의 저장된 열) / "저장된 버전"(서버가 원장에서 읽어 판정). 열 설정 초안이 dirty 면 "열 설정 초안은 반영하지 않습니다"(`vt-col-draft`) |
+| 입력 줄(`vt-field-<NAME>`) | 입력 계약(`always` ∪ 행별 필수·선택)의 이름마다 라벨·물리명·타입 배지·계약 배지("조건·키 필수"/"N행 필수"/"N행 선택")·**키 보냄** 확인란(`vt-key-<NAME>`, 기본 켬)·값 칸(`vt-input-<NAME>`, placeholder "비우면 NULL")·설명·도메인. 키 보냄 끔 = 레코드에 키 없음(MISSING_KEY), 빈 칸 = 키 있고 값 null(필수면 REQUIRED_NULL) |
+| 돌리기 | `execute{maruRuleId, target, ver, hitPolicy?, inputJson}` + BODY 면 `grids.rows`. 서버 오류(요청 상한 등 MDM021)는 카드 안 `vt-error` 에 보인다 |
+| 케이스로 저장 | 이름(`vt-case-name`)이 있어야 켜진다. 같은 대상·같은 입력으로 방금 돌린 결과가 있으면 그 결과를 기대값으로 싣는다(`save` part `CASE`) |
+
+도메인 표준 식·예시 값은 보이지 않는다(view 에 표준 식이 없고 컬럼 사전에 예시 칼럼이 없다 — TSK-08-04 build-log B7·B8 보고).
+
+### 5.6 카드 ⑤ 테스트 결과 (`TestResultCard`, TSK-08-04)
+
+결과 없음이면 `vt-result-empty`. 결과가 오면 대상·"판정함/판정 오류"·평가 시각(`vt-result-target`), 판정 오류(단계·코드·메시지,
+`vt-result-errors`), 결과 변수 표(`vt-result-values`, 결과 열 그룹이면 "그룹 열 N개 가운데 라벨 물리명"), 적중 행("{seq}행 (row_id id)",
+기본 행이면 "어느 행도 참이 아니어서 기본 행"), 경고·깨진 셀·뺀 행. 결과가 표 카드에 보이는 정의(BODY 또는 같은 버전·같은 row_version·
+저장 안 한 변경 없음)면 표 카드에 칠하고 "적중 행은 위 의사결정표에 칠했다"(`vt-result-on-table`), 아니면 그 버전의 읽기 전용 표
+(`vt-result-table`)를 따로 칠한다 — 적중 행 초록(`ag-row-test-hit`), 첫 거짓 칸 붉음(`cell-test-false`), 그룹 고른 열 강조·나머지 흐림.
+BODY 결과 뒤 표가 바뀌면 칠한 것을 지우고 "표가 바뀌어 값 테스트 결과를 지웠습니다. 다시 돌리세요."(`dt-test-stale`).
+
+### 5.7 카드 ⑥ 테스트 케이스 (`TestCaseCard`, TSK-08-04)
+
+`TB_MDM_RULE_TEST_CASE · 버전과 무관`. 열 `case_id · 이름 · 입력 · 기대 · 결과(대상) · 동작`(줄 `tc-row-<caseId>`), 없으면 "테스트 케이스가
+없습니다"(`tc-empty`). 머리 "모두 돌리기"는 ④ 의 대상·입력으로 `execute{runCases: true}` 를 부르고 결과 배지(`tc-badge-<caseId>`)
+"통과"/"실패 · 불일치 키"/"돌려 보기만"(기대값 없음)을 보인다. 기대 JSON 은 결과 변수 이름 → 값과 `hit`(적중 행 하나면 row_id 숫자,
+여럿이면 배열, 기본 행이면 기본 행 row_id). 동작: "불러오기"(④ 입력 칸 채움, 키가 없는 변수는 키 보냄 끔), "기대값 갱신"(모두 돌리기
+결과로, 담당자), "삭제"(한 번 더 눌러 "삭제 확인", 담당자). 쓰기는 `save` part `CASE`(`caseId`·`rowVersion` 조건, 삭제는 `caseDeleted`)이고
+DRAFT·소유와 무관하게 담당자면 된다.
+
 ## 6. 입력값 검증 규칙
 
 | 규칙ID | 대상 | 검증 | 판정 |
@@ -162,9 +194,31 @@ row_version 을 서버 값으로 맞춘다. 거부가 MDM001 이면 "다른 창�
 | V-001 | 헤더 룰명 | 필수, 100자 이하 | 서버(화면은 빈 값이면 저장 버튼을 막는다) |
 | V-002 | 표 셀 | 셀 JSON 모양(키 일곱, 문자열 값, 그 버전의 var_id) | 서버 `RuleCellsCodec.validateShape`(I17) |
 | V-003 | 표 행 | 기본 행은 DECISION 에 하나까지, 기존 row_id 는 그 DRAFT 에 있던 것만 | 서버(I10) |
-| V-004 | 겹침·빈틈·도달 불가 | 이슈로 알리고 저장은 막지 않는다 | 화면(즉시)·서버(저장 응답) 동치(수용 7, D3) |
+| V-004 | 겹침·빈틈·도달 불가 | 이슈로 알린다. TSK-08-04 부터 ALL_NA_ROW 와 UNIQUE 표의 OVERLAP 은 저장을 거부하고 나머지는 경고다(§6.1) | 화면(즉시)·서버(저장 응답) 동치(수용 7 — 분석기 코드만 견준다) |
 
 값 테스트·저장 시 검사 20여 종은 TSK-08-04 가 이 절에 더한다.
+
+### 6.1 저장 시 검사 (TSK-08-04)
+
+근거: `docs/mdm/tasks/TSK-08-04/design.md` §6.1(검사 × 적용 지점 정본)·§6.3·§6.4, 06 「저장 시 검사」. 공용 검사기
+`common/rule/check/RuleSaveValidator` 를 표 저장(TABLE)·열 적용(COLUMNS)·값 테스트 본문(TEST_BODY)이 함께 부른다. 거부는 **쓰기 전**이다 —
+ERROR 가 하나라도 있으면 저장이 롤백되고 행·적중 정책·row_version·행 카운터가 그대로다. 거부 메시지는
+`룰 저장 거부: <코드> <메시지>; …`(MDM021), 경고는 저장 응답 issues 에 분석 이슈 뒤로 붙어 표 카드 "서버 저장 검사"(`dt-server-checks`)에 보인다.
+
+| 검사 | TABLE | COLUMNS | 값 테스트 BODY |
+|---|---|---|---|
+| 타입·op 허용·범위 자리·경계 순서(한쪽 빈 구간은 1 타입 op 로 바꿔 저장)·목록(정렬·중복 제거)·`=` 패턴·CONTAINS·INSTR | 거부 | — | 셀 오류(그 행을 판정에서 뺀다) |
+| Expression(서버 재파싱·AST 덮어쓰기·참조 변수·같은 변수 대소 비교 2회) | 거부 | 거부(08-03 파싱) | 셀 오류 |
+| 생성해 보기(셀 텍스트 생성·컴파일) | 거부 | — | 셀 오류 |
+| 미완성(NORMAL 행 조건 키 없음·결과 셀 없음) | 거부 | — | NA 로 판정 + 경고 |
+| 도달 불가(ALL_NA_ROW 거부·UNREACHABLE 경고)·겹침(UNIQUE 만 거부)·빈틈(경고) | 거부/경고 | — | — |
+| 룰 세트 순서(순서·순환 거부, 같은 결과 변수 중복 경고) | 거부/경고 | 거부/경고 | — |
+| MDM 참조(`MASTER`·`MASTER_AT` 대상·카테고리·attr 라벨) | 거부 | 거부 | — |
+| 코드 참조(값 없음 경고, `CODE_IN` 카테고리 없음 거부)·도메인 범위·필수 컬럼 IS NULL | 경고(카테고리 없음만 거부) | — | — |
+| 입력 계약 변경·축 조합 완전성·Expression 결과 타입(저장된 케이스로) | 경고 | 경고 | — |
+| 요청 크기 상한(행 수·셀 길이·입력 JSON 길이·키 수·케이스 수) | 거부 | — | 거부 |
+
+EXTERNAL 룰은 저장 자체가 막히므로 검사를 돌리지 않는다. 상한 값은 `RuleLimits` 한 곳에 있다(design D6).
 
 ## 7. 상태 정의 및 상태별 제어
 
@@ -186,6 +240,8 @@ row_version 을 서버 값으로 맞춘다. 거부가 MDM001 이면 "다른 창�
 | 헤더·표 저장(`save`) | O | O(서버: D6·소유자) | X | |
 | 새 버전(`copy`) | O | O | X | 서버 담당자 역할 검사 |
 | 삭제·선점·해제·넘기기 | O | O(서버: 소유자) | X | 선점은 공통 서비스가 담당자 역할을 본다 |
+| 값 테스트(`execute`) | O | O | X | 비소유 담당자·DRAFT 아닌 버전도 된다. 원장에 쓰지 않는다(TSK-08-04) |
+| 테스트 케이스 저장·삭제(`save` part `CASE`) | O | O(서버: 담당자 MDM013) | X | 버전·DRAFT 소유와 무관(TSK-08-04) |
 
 ## 9. 연동 화면 / 팝업
 

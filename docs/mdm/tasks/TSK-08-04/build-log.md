@@ -444,6 +444,50 @@
   SET_CYCLE 로 거부되고, 표준 식 도메인·코드 도메인이 있으면 DOMAIN_RANGE·CODE_VALUE_MISSING 경고가 붙는다. 저장 뒤 동치 배지는 분석 코드만 견주므로(B7) 경고가 배지를 깨지는
   않는다. 거부되면 먼저 픽스처가 06 규칙상 틀렸는지 본다(§3.4).
 
+## B9 — e2e V1~V6·S5·S6 수정·픽스처·스크린샷·기능설계서·연결 확인
+
+- 픽스처 `src/frontend/e2e/fixtures/mdm-ruleEdit-data.sql` 끝에 `E2E_VT_JDG`(DECISION·INUSE·UNIQUE, v1 RELEASED + v2 DRAFT 소유 `e2e_mdm_steward`, v2 행은 v1 과 같다.
+  조건 COIL_THK(2)·SURF_GRD(1), 결과 QLTY_GRD Value, 행 3 + 기본 행)와 테스트 케이스 2건(1 `중간 두께 A` 기대 맞음, 2 `후물 C` 기대 `QLTY_GRD` A — 실제 B 라 실패)을
+  넣고 `LAST_CASE_ID = 2` 로 맞췄다. 세트에는 담지 않았다.
+- e2e `src/frontend/e2e/mdm-ruleEdit.spec.ts`: `screenshot04`·`closeErrorModal` 헬퍼, C6 뒤에 V1~V6(serial). V1 카드 ④⑤⑥·케이스 2건·케이스 없는 룰 `tc-empty`·편집본 기본 대상,
+  V2 `버전 1 · RELEASED` 로 돌려 결과 값·적중 행·결과 카드 v1 표(`ag-row-test-hit`·`cell-test-false`)·보이는 표는 칠하지 않음, V3 편집본(1행 표면 A → D, 저장 안 함)으로 돌려 표 카드
+  칠하기·`dt-test-shown`, 표를 다시 고치면 `dt-test-stale` 와 칠하기 없음, 두께 키 보냄 끔 → `MISSING_KEY`, V4 `버전 1` 로 돌린 뒤 케이스로 저장(새 줄은 이름으로 찾는다) →
+  모두 돌리기 통과·실패(불일치 `QLTY_GRD`)·새 케이스 통과 → 새 케이스 삭제(삭제 확인), V5 입력 17000자 → `vt-error` "값 테스트 요청 상한", V6 UNIQUE 2행 B → A 저장 거부
+  (`룰 저장 거부`·`OVERLAP`, 편집 남음) → 다시 불러오면 B.
+- 스크린샷 `docs/mdm/tasks/TSK-08-04/screens/`: `dme-ruleEdit-valuetest-version.png`(V2)·`dme-ruleEdit-valuetest-body.png`(V3)·`dme-ruleEdit-testcases.png`(V4)·
+  `dme-ruleEdit-save-rejected.png`(V6).
+- 기능설계서 `docs/mdm/screens/ruleEdit/ruleEdit_기능설계서.md`: §5.5~5.7 카드 ④⑤⑥, §6.1 저장 시 검사, §8 권한 두 줄(`execute`·CASE), §1.2 action 어휘.
+- E2E 는 design §3.6 절차(슬롯 `e2e-TSK-08-04`, mcm 18214·mdm 18307·포털 15214, 새 mcm.db·mdm.db + 픽스처, 시드 대조 diff 없음)로 돌렸다. 픽스처를 넣은 직후 두 DB 를
+  `sqlite3 .backup` 으로 떠 두고, 변이마다 백엔드를 멈춰 백업을 복사한 뒤 다시 띄웠다(포털도 다시 띄움 — m-mdm 은 dist 로 소비되어 FE 변이는 `pnpm --filter @dk-oasis/m-mdm build` 뒤에 돈다).
+
+### 의도해서 뒤집은 기존 기대값(§3.5)
+
+- e2e S5 `…오류가 있어도 저장되고 새 행 번호가 남는다` → `…조건이 전부 - 인 행은 저장이 거부되고 조건을 채우면 저장되어 새 행 번호가 남는다`: 원래 "결과 QLTY_GRD 만 D 로 적은 새 행(ALL_NA_ROW)이
+  저장되고 `dt-row-5`·`[ALL_NA_ROW] 행 5`" → 새 기대 "결과 둘(D·0.80)을 채운 전부 NA 행 저장은 `dt-save-rejected` 에 `룰 저장 거부`·`ALL_NA_ROW` 로 거부되고 새 행 `-2`·dirty 가 남는다,
+  표면등급 IN D 를 채워 저장하면 `dt-row-5`(거부된 저장은 번호를 발급하지 않았다 — I1)" · 근거 수용 기준 1, 06:338-341, design §3.4. `[ALL_NA_ROW] 행 5` 단언은 없앴다(그 행은
+  더 이상 ALL_NA 가 아니다). 결과 칸을 둘 다 채운 것은 검사기가 앞 단계(미완성) ERROR 가 있으면 분석기를 돌리지 않아(`RuleSaveValidator` §7.12) 결과 셀이 빠진 행은 `ALL_NA_ROW` 가
+  아니라 미완성으로만 거부되기 때문이다.
+- e2e S6 `…UNIQUE 면 오류, 저장 응답의 서버 검사와 화면 검사가 같다` → `…FIRST 면 저장되어 서버 검사와 같고, UNIQUE 면 오류라 저장이 거부된다`: 원래 "UNIQUE 로 바꿔 저장 → `dt-check-same`
+  화면·서버 검사 일치·`오류 [OVERLAP]`·적중 정책 UNIQUE" → 새 기대 "FIRST 겹침 저장 → `dt-check-same` 일치·`경고 [OVERLAP]`, UNIQUE 로 바꿔 저장 → `룰 저장 거부`·`OVERLAP`·편집 남음,
+  다시 불러오면 적중 정책 FIRST·2행 A(첫 저장분)" · 근거 수용 기준 2, design §3.4.
+
+### 설계 이탈
+
+1. **V4 는 편집본이 아니라 `버전 1 · RELEASED` 로 돌려 케이스를 저장하고 모두 돌린다.** 케이스 기대값은 "같은 대상·같은 입력으로 방금 돌린 결과" 일 때만 실리고, 모두 돌리기는
+   ④ 의 대상으로 돈다. 테스트마다 새 페이지라 V3 의 편집은 남지 않지만, 저장된 버전을 쓰면 케이스 1·2 의 통과·실패가 편집과 무관하게 정해진다(v1 = v2).
+2. **V4 에 케이스 삭제를 더했다**(design §3.4 표에 없음). CASE 쓰기는 HTTP 테스트가 없어(B5 보고) e2e 가 실제 BPMN 으로 저장·삭제를 처음 태운다. "기대값 갱신" 은
+   넣지 않았다 — 케이스 2 를 바꾸면 같은 DB 로 V 시나리오를 다시 돌릴 때 "실패" 기대가 깨진다.
+3. **기능설계서의 기존 두 줄을 고쳤다**(문서 머리 "기존 절은 고치지 않는다"). §5.3 표 저장 줄의 "ALL_NA_ROW 가 있어도 저장한다(D3)" 와 §6 V-004 "저장은 막지 않는다" 는 이 Task 로
+   틀린 문장이 되어, 지운 줄 표시와 함께 새 동작과 §6.1 을 가리키게 했다. §1.2 action 어휘에 08-03 의 `validate` 도 함께 적었다.
+4. **S6 의 스크린샷 `dme-ruleEdit-overlap.png`(TSK-08-02 경로)는 거부 장면을 찍지만 §3.6 대로 되돌려 커밋하지 않았다.** 이 Task 의 거부 장면은 V6 스크린샷이다.
+
+### 보고
+
+- e2e 최종: 새 DB 로 `e2e/mdm-shell-rbac-smoke.spec.ts e2e/mdm-ruleMng.spec.ts e2e/mdm-ruleEdit.spec.ts --workers=1` 36 passed(ruleEdit 25 = S1~S11·C1~C6·C2b·C2c·V1~V6), skipped·failed 0.
+  08-03 C 시나리오(C1 열 적용·C2 피벗 저장·C3 산출 룰 열 적용)는 새 검사에 거부되지 않았다.
+- 실행 중 `src/frontend/m-mcm/next-env.d.ts`(next dev 가 고침)와 추적되는 `src/frontend/test-results/…/error-context.md`(Playwright 가 지움)가 바뀌어 `git checkout --` 으로 되돌렸다.
+- V5 는 메시지에 `MDM021` 글자가 실리는지 보지 않고 B4 문구 "값 테스트 요청 상한" 으로 확인한다.
+
 ## 변이 검증 기록
 
 | 불변 규칙 | 변이 | 잡은 테스트 | 결과 |
@@ -579,6 +623,12 @@
 | I18 | TABLE 축 조합 경고 끔(`AxisCoverageCheck`) | `RuleLedgerChecksTest` | 잡힘 |
 | I18 | `AxisCoverage` 의 UNIQUE 조건 제거 | `RuleColumnsServiceTest`·`RuleLedgerChecksTest` | 안 잡힘(보강함) — 처음엔 `RuleColumnsServiceTest` 로 안 잡혀 표 저장 FIRST 사례를 더했다 |
 | I29 | COLUMNS `requireMdm` 제거 | `RuleColumnsServiceTest` | 잡힘 |
+| I27 | Java 분석기 `unique` 를 늘 거짓(UNIQUE 겹침이 경고로 내려감, `RuleAnalyzer.java:105`) | `RuleAnalysisCorpusTest`(`:mdm:lib:test --fail-fast`) › golden-08-unique-overlap-error 외 2건 | 잡힘 |
+| I27 | TS 분석기 `unique` 를 늘 거짓(`rule-analysis.ts:211`) | `rule-analysis-corpus.test.ts`(`--bail=1`) › golden-08-unique-overlap-error | 잡힘 |
+| I31 | `ResolvedVar` 끝에 칼럼 `extra` 추가(옛 서명 생성자를 남겨 컴파일은 된다) | `RuleEditFacadeContractTest.ResolvedVar_칼럼_이름과_순서는_고정이다` | 잡힘 |
+| I33(e2e 연결) | 셀 규칙 `cell-test-false` 를 늘 거짓(`columns.ts:216`) | e2e 세 스펙 전체(새 DB) › V2(`vt-result-table` 2행 `.cell-test-false` 없음) | 잡힘 |
+| I33(e2e 연결) | 표 카드 행 클래스 `ag-row-test-hit` 끔(`DecisionTableCard.tsx:67`) | e2e 세 스펙 전체(새 DB) › V3(`dt-grid` 1행 `ag-row-test-hit` 없음) | 잡힘 |
+| I33(e2e 연결) | 결과 카드 행 클래스 `ag-row-test-hit` 끔(`TestResultCard.tsx:134`) | e2e 세 스펙 전체(새 DB) › V2(`vt-result-table` 1행 `ag-row-test-hit` 없음) | 잡힘 |
 
 - Java 변이는 `:maru-mdm-engine:test` 태스크 실패(컴파일 통과 뒤 테스트 실패)로 확인했다. enum → 문자열 상수로 바꾼 뒤 최종 코드에 Java 변이 9개를 다시 돌려 모두 잡혔다. fail-fast 첫 실패 사례 이름은 로그에 남기지 않았다.
 - TS 변이는 확인한 뒤 곧바로 `git checkout` 으로 되돌렸다(TS 파일 무변경, I28).

@@ -9,6 +9,9 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  *       C4 조건별 수식 표시, C5 입력 계약 묶음·RELEASED diff, C6 도메인 검색·화이트리스트 밖 식(design.md §3.3).
  * 고유: S4 수용 5(새 버전·거부), S5 편집·드래그·저장·되돌리기·강조, S6 겹침 알림·서버 동치(수용 7), S7 적중 조건 강조,
  *       S8 수용 4(비소유자), S9 해제·선점, S11 DRAFT 삭제.
+ * TSK-08-04 추가: V1 카드 ④⑤⑥·케이스 목록(빈 상태), V2 저장된 버전 값 테스트, V3 편집본 값 테스트·키 보냄 끔, V4 케이스 저장·모두 돌리기·삭제,
+ *       V5 요청 상한 서버 오류, V6 UNIQUE 겹침 저장 거부(design.md §3.4). S5·S6 은 저장 시 검사가 ERROR 를 거부하도록 바뀌어(08-02 D3 뒤집기,
+ *       §3.5) 거부를 확인하는 흐름으로 고쳤다.
  *
  * 전제는 mdm-ruleMng.spec.ts 와 같다(새 mcm.db·mdm.db + mdm-rbac-users.sql·mdm-ruleEdit-users.sql·mdm-ruleEdit-data.sql).
  * 시나리오가 이어지므로(버전 2 를 만들어 고치고 지운다) serial 이고 같은 DB 로 다시 돌릴 수 없다.
@@ -24,6 +27,9 @@ const screenshot = (name: string) => path.resolve(__dirname, "../../..", "docs/m
 
 /** TSK-08-03 스크린샷 — 08-02 의 경로(위 screenshot)는 그대로 두고 이 Task 디렉터리에 따로 남긴다. */
 const screenshot03 = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-08-03/screens", name);
+
+/** TSK-08-04 스크린샷 — 값 테스트·테스트 케이스·저장 거부. */
+const screenshot04 = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-08-04/screens", name);
 
 async function login(page: Page, user: string) {
   await page.goto(`${BASE_URL}/login`);
@@ -94,6 +100,14 @@ function checkRows(page: Page): Locator {
   return page.getByTestId("dt-check-rows");
 }
 
+/** 저장 거부 등 서버 오류 때 함께 뜨는 ErrorModal 을 닫는다(다음 조작을 가리지 않게). */
+async function closeErrorModal(page: Page) {
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible({ timeout: 20_000 });
+  await dialog.getByRole("button").first().click();
+  await expect(dialog).toHaveCount(0);
+}
+
 test.describe.configure({ mode: "serial" });
 
 test.describe("mdm dme/ruleEdit", () => {
@@ -152,7 +166,7 @@ test.describe("mdm dme/ruleEdit", () => {
     await expect(page.getByTestId("rule-unapplied-notice")).toContainText("미적용 버전 2");
   });
 
-  test("S5 편집: 행 추가·칸 편집 강조·드래그·되돌리기, 오류가 있어도 저장되고 새 행 번호가 남는다", async ({ page }) => {
+  test("S5 편집: 행 추가·칸 편집 강조·드래그·되돌리기, 조건이 전부 - 인 행은 저장이 거부되고 조건을 채우면 저장되어 새 행 번호가 남는다", async ({ page }) => {
     await openRule(page, STEWARD, "QLTY_GRD_JDG");
     await expect(page.getByTestId("rule-ver-select")).toHaveValue("2");
 
@@ -185,15 +199,27 @@ test.describe("mdm dme/ruleEdit", () => {
     await expect(page.getByTestId("dt-dirty")).toHaveCount(0);
     await expect(cell(page, 3, "c3_op")).not.toHaveClass(/cell-edited/);
 
-    // 다시 새 행 — 결과 QLTY_GRD 만 D 로 적고 저장. 조건 전부 - 인 ALL_NA_ROW 오류가 있어도 저장된다(D3).
+    // 다시 새 행 — 결과 칸 둘을 채우고 저장. 조건 전부 - 인 ALL_NA_ROW 는 저장 시 검사가 거부하고 편집은 남는다(TSK-08-04, 08-02 D3 뒤집기).
     await page.getByRole("button", { name: "행 추가", exact: true }).click();
     await expect(page.getByTestId("dt-row--2")).toBeVisible();
     await editText(page, -2, "c4_val", "D");
+    await editText(page, -2, "c5_val", "0.80");
+    await page.getByRole("button", { name: "표 저장", exact: true }).click();
+    await expect(page.getByTestId("dt-save-rejected")).toContainText("룰 저장 거부", { timeout: 30_000 });
+    await expect(page.getByTestId("dt-save-rejected")).toContainText("ALL_NA_ROW");
+    await closeErrorModal(page);
+    await expect(page.getByTestId("dt-row--2")).toBeVisible();
+    await expect(page.getByTestId("dt-dirty")).toBeVisible();
+
+    // 조건 칸 하나(표면등급 IN D)를 채우면 저장된다. 거부된 저장은 행 번호를 발급하지 않았으므로 새 행은 row 5 다(I1).
+    await selectOp(page, -2, "c3_op", "IN");
+    await editText(page, -2, "c3_left", "D");
     await page.getByRole("button", { name: "표 저장", exact: true }).click();
     await expect(page.getByTestId("dt-row-5")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("dt-dirty")).toHaveCount(0);
+    await expect(page.getByTestId("dt-save-rejected")).toHaveCount(0);
     await expect(cell(page, 5, "c4_val")).toHaveText("D");
-    await expect(checkRows(page)).toContainText("[ALL_NA_ROW] 행 5");
+    await expect(cell(page, 5, "c3_left")).toHaveText("D");
 
     // 다시 불러와도 새 행(row 5)이 남는다.
     await page.reload();
@@ -204,24 +230,39 @@ test.describe("mdm dme/ruleEdit", () => {
     await page.screenshot({ path: screenshot("dme-ruleEdit-draft.png"), fullPage: true });
   });
 
-  test("S6 수용 7: 겹침 알림이 저장 전에 보이고, UNIQUE 면 오류, 저장 응답의 서버 검사와 화면 검사가 같다", async ({ page }) => {
+  test("S6 수용 7: 겹침 알림이 저장 전에 보이고, FIRST 면 저장되어 서버 검사와 같고, UNIQUE 면 오류라 저장이 거부된다", async ({ page }) => {
     await openRule(page, STEWARD, "QLTY_GRD_JDG");
     await editText(page, 2, "c3_left", "A");
     await expect(checkRows(page)).toContainText("경고 [OVERLAP] 행 1, 2");
     await expect(checkRows(page)).toContainText("경고 [UNREACHABLE] 행 2, 1");
     await expect(cell(page, 2, "c3_left")).toHaveText("A");
 
+    // FIRST 겹침은 경고라 저장되고, 저장 응답의 서버 분석과 화면 분석이 같다.
+    await page.getByRole("button", { name: "표 저장", exact: true }).click();
+    await expect(page.getByTestId("dt-check-same")).toHaveText("화면·서버 검사 일치", { timeout: 30_000 });
+    await expect(page.getByTestId("dt-check")).toContainText("검사(서버)");
+    await expect(checkRows(page)).toContainText("경고 [OVERLAP] 행 1, 2");
+    await expect(page.getByTestId("dt-dirty")).toHaveCount(0);
+
+    // UNIQUE 로 바꾸면 겹침이 오류가 되고(수용 2), 저장은 거부되며 편집은 남는다.
     await page.getByTestId("dt-hit-policy").selectOption("UNIQUE");
     await expect(checkRows(page)).toContainText("오류 [OVERLAP] 행 1, 2");
     await expect(checkRows(page)).not.toContainText("[UNREACHABLE]");
     await expect(page.getByTestId("dt-check")).toContainText("검사(화면)");
-
     await page.getByRole("button", { name: "표 저장", exact: true }).click();
-    await expect(page.getByTestId("dt-check-same")).toHaveText("화면·서버 검사 일치", { timeout: 30_000 });
-    await expect(page.getByTestId("dt-check")).toContainText("검사(서버)");
-    await expect(checkRows(page)).toContainText("오류 [OVERLAP] 행 1, 2");
+    await expect(page.getByTestId("dt-save-rejected")).toContainText("룰 저장 거부", { timeout: 30_000 });
+    await expect(page.getByTestId("dt-save-rejected")).toContainText("OVERLAP");
+    await closeErrorModal(page);
     await expect(page.getByTestId("dt-hit-policy")).toHaveValue("UNIQUE");
+    await expect(page.getByTestId("dt-dirty")).toBeVisible();
     await page.screenshot({ path: screenshot("dme-ruleEdit-overlap.png"), fullPage: true });
+
+    // 다시 불러오면 적중 정책은 서버에 FIRST 로 남아 있고, 첫 저장의 칸 값은 남는다.
+    await page.reload();
+    await openRuleEdit(page);
+    await pickRule(page, "QLTY_GRD_JDG");
+    await expect(page.getByTestId("dt-hit-policy")).toHaveValue("FIRST");
+    await expect(cell(page, 2, "c3_left")).toHaveText("A");
   });
 
   test("S7 적중 조건 강조: 행 번호를 누르면 그 행의 - 가 아닌 조건 칸만 강조된다", async ({ page }) => {
@@ -511,5 +552,175 @@ test.describe("mdm dme/ruleEdit", () => {
     await expect(page.getByTestId("col-name-n1-status")).toContainText("서버 평가로 넘긴다", { timeout: 20_000 });
     await page.getByTestId("col-discard").click();
     await expect(page.getByTestId("col-dirty")).toHaveCount(0);
+  });
+
+  // ── TSK-08-04: 값 테스트·테스트 결과·테스트 케이스·저장 시 검사 ──
+  // 값 테스트는 E2E_VT_JDG 로만 한다(v1 RELEASED 와 v2 DRAFT 가 같은 행: 두께 [1.6, 2.5) × 표면 A → A, × B → B, 두께 ≥ 2.5 → B, 기본 C, UNIQUE).
+  // 변수 var_id: 1 COIL_THK · 2 SURF_GRD · 3 QLTY_GRD. 케이스 1(기대값 맞음)·2(기대값 틀림)는 픽스처에 있다.
+
+  const VT_RULE = "E2E_VT_JDG";
+
+  function valueTestCard(page: Page): Locator {
+    return page.getByTestId("rule-card-value-test");
+  }
+
+  function caseCard(page: Page): Locator {
+    return page.getByTestId("rule-card-test-cases");
+  }
+
+  /** ④ 입력 칸이 그려진 뒤(다른 버전 정의는 비동기로 받는다) 값을 넣는다. */
+  async function fillInput(page: Page, name: string, value: string) {
+    const input = page.getByTestId(`vt-input-${name}`);
+    await expect(input).toBeVisible({ timeout: 30_000 });
+    await input.fill(value);
+  }
+
+  async function runValueTest(page: Page) {
+    await valueTestCard(page).getByRole("button", { name: "돌리기", exact: true }).click();
+    await expect(page.getByTestId("vt-result-target")).toBeVisible({ timeout: 30_000 });
+  }
+
+  function resultValue(page: Page, name: string): Locator {
+    return page.getByTestId("vt-result-values").locator("tr", { hasText: name }).locator("td");
+  }
+
+  test("V1 메뉴·목록: 값 테스트·테스트 결과·테스트 케이스 카드가 보이고 케이스 표는 서버 케이스 2건, 케이스 없는 룰은 빈 상태다", async ({ page }) => {
+    await openRule(page, STEWARD, VT_RULE);
+    await expect(valueTestCard(page)).toBeVisible();
+    await expect(page.getByTestId("rule-card-test-result")).toBeVisible();
+    await expect(page.getByTestId("vt-result-empty")).toBeVisible();
+    await expect(caseCard(page)).toBeVisible();
+    await expect(page.getByTestId("tc-row-1")).toContainText("중간 두께 A");
+    await expect(page.getByTestId("tc-row-2")).toContainText("후물 C");
+    await expect(page.getByTestId("tc-empty")).toHaveCount(0);
+    // 편집할 수 있는 DRAFT 가 고른 버전이면 대상 기본값은 편집본이다(I34).
+    await expect(page.getByTestId("vt-target")).toHaveValue("BODY");
+
+    await pickRule(page, "QLTY_GRD_JDG");
+    await expect(page.getByTestId("tc-empty")).toHaveText("테스트 케이스가 없습니다", { timeout: 20_000 });
+  });
+
+  test("V2 저장된 버전: 버전 1 을 돌리면 결과 값·적중 행이 보이고, 보이는 표(v2)와 달라 결과 카드에 v1 표를 따로 칠한다", async ({ page }) => {
+    await openRule(page, STEWARD, VT_RULE);
+    await page.getByTestId("vt-target").selectOption({ label: "버전 1 · RELEASED" });
+    await expect(page.getByTestId("vt-mode")).toContainText("저장된 버전");
+    await fillInput(page, "COIL_THK", "2.0");
+    await fillInput(page, "SURF_GRD", "A");
+    await runValueTest(page);
+
+    await expect(page.getByTestId("vt-result-target")).toContainText("판정함");
+    await expect(resultValue(page, "QLTY_GRD")).toHaveText(/^\s*"?A"?\s*$/);
+    await expect(page.getByTestId("vt-result-hits")).toContainText("row_id 1");
+    // 결과 카드의 v1 표: 적중 행 초록, 평가했지만 거짓인 행의 첫 거짓 칸 붉음(2행 = 표면등급, 3행 = 두께).
+    const table = page.getByTestId("vt-result-table");
+    await expect(table).toBeVisible();
+    await expect(table.locator('.ag-center-cols-container .ag-row[row-id="1"]')).toHaveClass(/ag-row-test-hit/);
+    await expect(table.locator('.ag-center-cols-container .ag-row[row-id="2"] .cell-test-false').first()).toBeVisible();
+    await expect(table.locator('.ag-center-cols-container .ag-row[row-id="3"] .cell-test-false').first()).toBeVisible();
+    await expect(table.locator('.ag-center-cols-container .ag-row[row-id="2"]')).not.toHaveClass(/ag-row-test-hit/);
+    // 보이는 표(v2 편집본)는 칠하지 않는다(I33).
+    await expect(grid(page).locator(".ag-row-test-hit")).toHaveCount(0);
+    await expect(page.getByTestId("dt-test-shown")).toHaveCount(0);
+    await page.getByTestId("rule-card-test-result").scrollIntoViewIfNeeded();
+    await page.screenshot({ path: screenshot04("dme-ruleEdit-valuetest-version.png"), fullPage: true });
+  });
+
+  test("V3 편집본: 저장하지 않은 칸 변경으로 돌리면 의사결정표에 칠하고, 표를 다시 고치면 지우며, 키 보냄을 끄면 MISSING_KEY 다", async ({ page }) => {
+    await openRule(page, STEWARD, VT_RULE);
+    await expect(page.getByTestId("vt-target")).toHaveValue("BODY");
+    // 1행 표면등급 A → D(저장하지 않는다).
+    await editText(page, 1, "c2_left", "D");
+    await expect(page.getByTestId("dt-dirty")).toBeVisible();
+    await fillInput(page, "COIL_THK", "2.0");
+    await fillInput(page, "SURF_GRD", "D");
+    await runValueTest(page);
+
+    await expect(resultValue(page, "QLTY_GRD")).toHaveText(/^\s*"?A"?\s*$/);
+    await expect(page.getByTestId("vt-result-hits")).toContainText("row_id 1");
+    await expect(page.getByTestId("vt-result-on-table")).toBeVisible();
+    await expect(page.getByTestId("dt-test-shown")).toContainText("편집본");
+    await expect(grid(page).locator('.ag-center-cols-container .ag-row[row-id="1"]')).toHaveClass(/ag-row-test-hit/);
+    await expect(grid(page).locator('.ag-center-cols-container .ag-row[row-id="2"] .cell-test-false').first()).toBeVisible();
+    await expect(grid(page).locator('.ag-center-cols-container .ag-row[row-id="3"] .cell-test-false').first()).toBeVisible();
+    await page.getByTestId("rule-card-table").scrollIntoViewIfNeeded();
+    await page.screenshot({ path: screenshot04("dme-ruleEdit-valuetest-body.png"), fullPage: true });
+
+    // 표를 다시 고치면 칠한 것을 지우고 다시 돌리라고 안내한다(I33).
+    await editText(page, 3, "c3_val", "E");
+    await expect(page.getByTestId("dt-test-stale")).toContainText("다시 돌리세요");
+    await expect(grid(page).locator(".ag-row-test-hit")).toHaveCount(0);
+    await expect(grid(page).locator(".cell-test-false")).toHaveCount(0);
+
+    // 두께의 키 보냄을 끄면 레코드에 키가 없어 판정 오류(MISSING_KEY)다(I21).
+    await page.getByTestId("vt-key-COIL_THK").locator('input[type="checkbox"]').uncheck();
+    await expect(page.getByTestId("vt-input-COIL_THK")).toBeDisabled();
+    await runValueTest(page);
+    await expect(page.getByTestId("vt-result-target")).toContainText("판정 오류");
+    await expect(page.getByTestId("vt-result-errors")).toContainText("MISSING_KEY");
+  });
+
+  test("V4 케이스: 케이스로 저장하면 케이스 표에 새 줄이 생기고, 모두 돌리기로 통과·실패가 보이며, 삭제하면 사라진다", async ({ page }) => {
+    await openRule(page, STEWARD, VT_RULE);
+    await page.getByTestId("vt-target").selectOption({ label: "버전 1 · RELEASED" });
+    await fillInput(page, "COIL_THK", "1.8");
+    await fillInput(page, "SURF_GRD", "B");
+    await runValueTest(page);
+    await expect(resultValue(page, "QLTY_GRD")).toHaveText(/^\s*"?B"?\s*$/);
+
+    // 방금 돌린 결과가 기대값으로 실린다(같은 대상·같은 입력).
+    await page.getByTestId("vt-case-name").fill("E2E 중간 두께 B");
+    await valueTestCard(page).getByRole("button", { name: "케이스로 저장", exact: true }).click();
+    const added = caseCard(page).locator("tr", { hasText: "E2E 중간 두께 B" });
+    await expect(added).toBeVisible({ timeout: 30_000 });
+    await expect(added).toContainText('"QLTY_GRD"');
+    await expect(page.getByTestId("vt-case-name")).toHaveValue("");
+
+    await caseCard(page).getByRole("button", { name: "모두 돌리기", exact: true }).click();
+    await expect(page.getByTestId("tc-badge-1")).toHaveText(/통과/, { timeout: 30_000 });
+    await expect(page.getByTestId("tc-badge-2")).toHaveText(/실패/);
+    await expect(page.getByTestId("tc-row-2")).toContainText("QLTY_GRD");
+    await expect(added.locator('[data-testid^="tc-badge-"]')).toHaveText(/통과/);
+    await expect(page.getByTestId("tc-error")).toHaveCount(0);
+    await caseCard(page).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: screenshot04("dme-ruleEdit-testcases.png"), fullPage: true });
+
+    // 새 케이스를 지운다(한 번 더 눌러 확인).
+    await added.getByRole("button", { name: "삭제", exact: true }).click();
+    await added.getByRole("button", { name: "삭제 확인", exact: true }).click();
+    await expect(caseCard(page).locator("tr", { hasText: "E2E 중간 두께 B" })).toHaveCount(0, { timeout: 30_000 });
+    await expect(page.getByTestId("tc-row-1")).toBeVisible();
+    await expect(page.getByTestId("tc-row-2")).toBeVisible();
+  });
+
+  test("V5 서버 오류: 요청 상한을 넘는 긴 입력으로 돌리면 값 테스트 카드에 서버 오류가 보인다", async ({ page }) => {
+    await openRule(page, STEWARD, VT_RULE);
+    await page.getByTestId("vt-target").selectOption({ label: "버전 1 · RELEASED" });
+    await fillInput(page, "COIL_THK", "2.0");
+    await fillInput(page, "SURF_GRD", "A".repeat(17_000));
+    await valueTestCard(page).getByRole("button", { name: "돌리기", exact: true }).click();
+    await expect(page.getByTestId("vt-error")).toContainText("값 테스트 요청 상한", { timeout: 30_000 });
+    await expect(page.getByTestId("vt-result-target")).toHaveCount(0);
+  });
+
+  test("V6 저장 거부: UNIQUE 표에서 두 행을 겹치게 고쳐 저장하면 거부되고 편집은 남으며 다시 불러오면 바뀌지 않았다", async ({ page }) => {
+    await openRule(page, STEWARD, VT_RULE);
+    await expect(page.getByTestId("dt-hit-policy")).toHaveValue("UNIQUE");
+    // 2행 표면등급 B → A: 1행과 겹친다.
+    await editText(page, 2, "c2_left", "A");
+    await expect(checkRows(page)).toContainText("오류 [OVERLAP] 행 1, 2");
+    await page.getByRole("button", { name: "표 저장", exact: true }).click();
+    await expect(page.getByTestId("dt-save-rejected")).toContainText("룰 저장 거부", { timeout: 30_000 });
+    await expect(page.getByTestId("dt-save-rejected")).toContainText("OVERLAP");
+    await closeErrorModal(page);
+    await expect(page.getByTestId("dt-dirty")).toBeVisible();
+    await expect(cell(page, 2, "c2_left")).toHaveText("A");
+    await page.getByTestId("rule-card-table").scrollIntoViewIfNeeded();
+    await page.screenshot({ path: screenshot04("dme-ruleEdit-save-rejected.png"), fullPage: true });
+
+    await page.reload();
+    await openRuleEdit(page);
+    await pickRule(page, VT_RULE);
+    await expect(cell(page, 2, "c2_left")).toHaveText("B");
+    await expect(page.getByTestId("dt-dirty")).toHaveCount(0);
   });
 });
