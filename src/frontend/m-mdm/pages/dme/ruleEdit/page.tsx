@@ -5,7 +5,8 @@
  *
  * 상단 바(룰 고르기·버전 고르기·잠금 배지·알림)와 `cards.ts` 의 카드를 순서대로 그린다. 룰 조회 화면에서 넘어오면
  * handoff 대상(`@/dme/rule-handoff`)을 한 번 읽어 그 룰을 연다. 이미 열린 탭은 대상 이벤트를 듣고 바꾼다(D9·I28).
- * 편집 여부는 서버 판정(`editable`·`headerEditable`)만 따른다(I7).
+ * 편집 여부는 서버 판정(`editable`·`headerEditable`)만 따른다(I7). 카드 목록은 카드 사이 공유 상태(`RuleWorkbenchProvider` — 편집 중인 표·
+ * 값 테스트 결과, TSK-08-04)로 감싼다.
  */
 import { useCallback, useEffect, useState } from "react";
 
@@ -17,6 +18,7 @@ import { RULE_EDIT_TARGET_EVENT, takeRuleEditTarget, type RuleEditTarget } from 
 import { searchRulePrefix } from "./api";
 import { RULE_EDIT_CARDS, type RuleEditCardProps } from "./cards";
 import { useRuleEdit } from "./state/useRuleEdit";
+import { RuleWorkbenchProvider } from "./state/workbench-context";
 import type { RulePickRow } from "./types";
 
 const SCREEN_ID = "ruleEdit";
@@ -159,20 +161,22 @@ export default function RuleEditPage() {
           룰을 고르세요. 위 칸에 룰 ID·룰명 앞부분을 넣고 [찾기] 를 누르거나 룰 목록에서 룰 ID 를 누릅니다.
         </p>
       ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(16, minmax(0, 1fr))",
-            gap: "var(--spacing-sm)",
-            padding: "var(--spacing-sm) var(--spacing-md)",
-          }}
-        >
-          {RULE_EDIT_CARDS.map((slot) => (
-            <div key={slot.id} style={{ gridColumn: `span ${slot.span}`, minWidth: 0 }}>
-              <slot.Component {...cardProps} />
-            </div>
-          ))}
-        </div>
+        <RuleWorkbenchProvider>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(16, minmax(0, 1fr))",
+              gap: "var(--spacing-sm)",
+              padding: "var(--spacing-sm) var(--spacing-md)",
+            }}
+          >
+            {RULE_EDIT_CARDS.map((slot) => (
+              <div key={slot.id} style={{ gridColumn: `span ${slot.span}`, minWidth: 0 }}>
+                <slot.Component {...cardProps} />
+              </div>
+            ))}
+          </div>
+        </RuleWorkbenchProvider>
       )}
 
       {state.error && <ErrorModal message={state.error} onClose={state.clearError} />}
