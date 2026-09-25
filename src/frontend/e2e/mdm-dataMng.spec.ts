@@ -72,8 +72,15 @@ test.describe("mdm dmd/dataMng", () => {
     await registered;
 
     // dataEdit 탭이 새로 열리고 방금 등록한 ID 가 자동 로드된다(D7, sessionStorage 인계 — 탭이 새로 만들어지는 경우).
+    // getByText(NEW_ID) 를 전체 페이지에 그대로 쓰면 원래 dataMng 탭의 목록 행(data-mng-open-<ID> 버튼, 새 탭 뒤에
+    // 숨겨진 채로 DOM 에 남아 있다)과 새 dataEdit 탭의 선택값이 같은 글자로 두 번 걸려 strict mode violation 이 난다.
+    // data-edit-pick 으로 좁혀도 여전히 실패한다 — 그 아래에는 ComboBox(Mantine Select)의 보이는 <input>(검색
+    // 표시 텍스트) 말고도, 닫힌 드롭다운 안에 같은 글자의 <span role="option"> 이 DOM 에 남아 있어(펼치기 전에는
+    // display:none) getByText 가 그 숨은 옵션에 걸린다. 실제로 사용자에게 보이는 값은 input 의 value 이므로
+    // dataEdit spec 의 choose() 헬퍼와 같은 방식(`input:not([type="hidden"])`)으로 그 값을 확인한다.
     await expect(page.getByText("마루 데이터 수정")).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText(NEW_ID)).toBeVisible({ timeout: 20_000 });
+    const pickInput = page.getByTestId("data-edit-pick").locator('input:not([type="hidden"])');
+    await expect(pickInput).toHaveValue(new RegExp(`^${NEW_ID} `), { timeout: 20_000 });
     await page.screenshot({ path: screenshot("dmd-dataMng-register-handoff.png") });
   });
 
