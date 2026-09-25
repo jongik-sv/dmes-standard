@@ -2,7 +2,7 @@
   "tsk": "TSK-08-06",
   "order": "5999efc9-9fdd-4974-b167-1cf68748d853",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "verify",
+  "phase": "reported",
   "branch_base": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed",
   "baseline": {
     "docker": "banned:spawn",
@@ -55,8 +55,8 @@
   },
   "model": "sonnet",
   "last": {
-    "phase": "verify",
-    "event": "verify.done"
+    "phase": "done",
+    "event": "done.reported"
   },
   "build_gate": {
     "head": "5ef344def8580d76a977119acf014c4e723156e0",
