@@ -69,9 +69,7 @@ Java 로 다시 계산해 거부를 판정한다(화면 계산을 믿지 않는�
 
 ---
 
-## 2. 변경 파일 목록
-
-### 2.0 구현 단위
+## 구현 단위
 
 오케스트레이터는 이 표 순서대로 단위마다 Build 서브에이전트를 하나씩 띄운다. 단위끼리 같은 파일을 고치지 않는다(아래 파일 목록의 「단위」 열이
 정본이다). 단위마다 그 단위의 새 테스트가 초록이어야 끝난다.
@@ -80,8 +78,8 @@ Java 로 다시 계산해 거부를 판정한다(화면 계산을 믿지 않는�
 |---|---|---|---|
 | B1 | BE 순수 계산: `RuleIo`·`RuleSetCheck` 레코드, `RuleSetAnalyzer`(입출력 표·의존 룰·검사), `RuleSetGuide`(역추적·위상 정렬), 코퍼스 JSON + Java 러너 | `BLT/common/rule/RuleSetAnalyzerTest`, `RuleSetGuideTest`, `RuleSetCorpusTest` | I8·I9(Java 쪽)·I10·I11·I16 |
 | B2 | BE DB 읽기: `RuleIoReader`(룰 하나의 입출력·출처·타입), `RuleQueries` 조회 두 개 추가, `DmeTestSupport` 세트 헬퍼 | `BAT/common/rule/RuleIoReaderTest` | I4·I5·I6·I7 |
-| B3 | BE `ruleSetEdit`: DTO·서비스(search SET/RULE/GUIDE·view·save·delete·restore)·`RuleSetWrites`(네이티브 쓰기)·`MdmErrorCode.RULE_SET_SAVE_REJECTED`(MDM024)·`RuleSetRejections`·`ruleSetEdit.bpmn` | `BAT/dme/ruleSetEdit/RuleSetEditServiceTest`, `CommonContractTest` 한 줄 | I12·I13·I14·I15·I19·I20·I23 |
-| B4 | BE `ruleSetMng`: DTO·서비스(search·reg)·`ruleSetMng.bpmn`, mcm 메뉴 시드 두 leaf, BPMN·어휘 정적 테스트(두 BPMN 모두), HTTP 경로 테스트(두 서비스) | `BAT/dme/ruleSetMng/RuleSetMngServiceTest`, `DmeBpmnActionTest`·`MdmOasisActionVocabularyTest`·`DmeOasisHttpTest` 에 사례 추가 | I1·I2·I3·I17·I18 |
+| B3 | BE `ruleSetEdit`: DTO·서비스(search SET/RULE/GUIDE·view·save·delete·restore)·`RuleSetWrites`(네이티브 쓰기)·`MdmErrorCode.RULE_SET_SAVE_REJECTED`(MDM024)·`RuleSetRejections`·`ruleSetEdit.bpmn` | `BAT/dme/ruleSetEdit/RuleSetEditServiceTest`, `CommonContractTest` 한 줄 | I3·I12·I13·I14·I15·I19·I20·I23 |
+| B4 | BE `ruleSetMng`: DTO·서비스(search·reg)·`ruleSetMng.bpmn`, mcm 메뉴 시드 두 leaf, BPMN·어휘 정적 테스트(두 BPMN 모두), HTTP 경로 테스트(두 서비스) | `BAT/dme/ruleSetMng/RuleSetMngServiceTest`, `DmeBpmnActionTest`·`MdmOasisActionVocabularyTest`·`DmeOasisHttpTest` 에 사례 추가 | I1·I2·I17 |
 | B5 | FE 세트 계산 TS 이식 `set-model.ts` + 타입 + 코퍼스 Vitest 러너 + 경로 상수 | `M/tests/dme/ruleSetEdit/set-model.test.ts`, `rule-set-corpus.test.ts` | I9(TS 쪽)·I10·I11 |
 | B6 | FE `ruleSetEdit` 화면(상단 세트 고르기, 룰 세트 카드: 목록 그리드·▲▼✕·드래그·룰 추가·검사 목록·입출력 표·저장·폐기/되살리기, 구성 지침 카드) + api | `M/tests/dme/ruleSetEdit/rule-set-edit-page.test.ts` | I21·I22(받는 쪽) |
 | B7 | FE `ruleSetMng` 화면(조회 조건·목록·페이징·등록 패널·편집 이동) + api, tsup entry 두 줄, page-registry 재생성 | `M/tests/dme/ruleSetMng/rule-set-mng-page.test.ts` | I22(보내는 쪽) |
@@ -91,6 +89,12 @@ Java 로 다시 계산해 거부를 판정한다(화면 계산을 믿지 않는�
 - B5·B6·B7 은 `.claude/skills/mantine-aggrid-ui/SKILL.md` 를 읽고 따른다(RULE.md 무조건 적용 스킬). `@mantine/*`·`ag-grid-react` 를 화면에서
   직접 import 하지 않는다.
 - 각 단위의 작은 테스트(단일 JUnit 클래스)는 `heavy.sh` 로 감싼 gradlew `--tests` 로, Vitest 단일 파일은 감싸지 않고 돌린다. 전체 게이트는 B8 이 돈다.
+
+---
+
+## 2. 변경 파일 목록
+
+§2.1~§2.4 의 「단위」 열은 위 「구현 단위」 표의 단위다.
 
 ### 2.1 생성 — 백엔드
 
@@ -120,7 +124,7 @@ Java 로 다시 계산해 거부를 판정한다(화면 계산을 믿지 않는�
 | `BLT/common/rule/RuleSetCorpusTest.java` | B1 | **코퍼스 동치(Java 쪽)**: 클래스패스 `/com/dongkuk/dmes/mdm/common/rule/rule-set-corpus.json`(= `BLR/common/rule/rule-set-corpus.json`, 없으면 실패 — 건너뛰지 않는다)의 사례마다 `RuleSetAnalyzer.io`·`deps`·`checks` 결과가 `expect` 와 순서·문구까지 같다. 사례 수 하한 단언(≥ 14) |
 | `BLR/common/rule/rule-set-corpus.json` | B1 | 형식 §6.8. 사례 최소 14: 빈 목록, 통과 사슬 3, 순서 뒤집힘(ORDER), 두 룰 순환, 세 룰 고리, 없는 룰, DEPRECATED 룰, RELEASED 없음, 알 수 없는 입력(NONE), 프로그램 변수 통과, 프로그램 변수를 뒤 룰이 만듦, 중복 대입 둘·셋, 결과 열 그룹 이름, DICT 이름을 만드는 룰(의존 제외 확인) |
 | `BAT/common/rule/RuleIoReaderTest.java` | B2 | SQLite(`@TempDir`, F23 관례). §6.1 규칙 전부: 이름 조건 열, 식 변수(`VAR_AST`) 참조, Expression 조건 열의 셀 `ast` 참조(열 이름은 빼고), 결과 Expression 셀 참조, `GRP_COND_AST` 참조, 자기 결과 이름 제외(대소문자 무시), 결과 열 그룹 `resGrp` 하나, **상수 제외**(`IF(X = NULL, TRUE, PI)` 식에서 `X` 만), 중복 제거·첫 등장 순, 출처 DICT(컬럼 있고 DATA_TYPE 도 선언한 이름도 DICT)·PROG·NONE, 타입·표시명, **RELEASED 가 여럿이면 VER 최대**(적용 시작이 미래인 것 포함), RELEASED 없음 → `releasedVer` null·빈 목록, 없는 ID → `exists=false`, DEPRECATED 룰도 계산, `producersOfActiveRules` 가 DEPRECATED·RELEASED 없는 룰을 빼고 룰 ID 순 |
-| `BAT/dme/ruleSetEdit/RuleSetEditServiceTest.java` | B3 | view(세트·룰 목록 순 IO·검사·`editable`/`restorable` 담당자 여부), save 통과(경고 포함 응답, `ROW_VERSION`+1, `RULE_IDS` JSON 순서, 이름·설명, 감사 `U_USR_ID`, `VER`+1), **순환 거부 MDM024**(메시지에 `CYCLE` 과 "순환", 행 무변경), ORDER·EMPTY·RULE_NOT_FOUND·RULE_DEPRECATED·UNKNOWN_INPUT 거부, 경고만이면 저장, row_version 불일치 MDM001, DEPRECATED 세트 저장 MDM009, 없는 세트, 요청 룰 ID 형식 위반·중복 ID·세트명 빈 값·100자 초과 거부(행 무변경), 폐기 INUSE→DEPRECATED(+1)·이미 DEPRECATED 면 MDM009, 되살리기: 거부 검사가 있으면 MDM024·경고만이면 INUSE(+1)·INUSE 에 되살리기 MDM009, 비담당자 쓰기 네 개 MDM013, search SET(ID·세트명 부분 일치, 20건)·RULE(룰 20건 + IO)·GUIDE(§6.4, 응답 `rules` 에 순서의 IO) |
+| `BAT/dme/ruleSetEdit/RuleSetEditServiceTest.java` | B3 | view(세트·룰 목록 순 IO·검사·`editable`/`restorable` 담당자 여부), save 통과(경고 포함 응답, `ROW_VERSION`+1, `RULE_IDS` JSON 순서, 이름·설명, 감사 `U_USR_ID`, `VER`+1), **순환 거부 MDM024**(메시지에 `CYCLE` 과 "순환", 행 무변경), ORDER·EMPTY·RULE_NOT_FOUND·RULE_DEPRECATED·UNKNOWN_INPUT 거부, 경고만이면 저장, row_version 불일치 MDM001, DEPRECATED 세트 저장 MDM009, 없는 세트, 요청 룰 ID 형식 위반·중복 ID·세트명 빈 값·100자 초과 거부(행 무변경), 폐기 INUSE→DEPRECATED(+1)·이미 DEPRECATED 면 MDM009, 되살리기: 거부 검사가 있으면 MDM024·경고만이면 INUSE(+1)·INUSE 에 되살리기 MDM009, 비담당자 쓰기 세 개(save·delete·restore) MDM013, search SET(ID·세트명 부분 일치, 20건)·RULE(룰 20건 + IO)·GUIDE(§6.4, 응답 `rules` 에 순서의 IO) |
 | `BAT/dme/ruleSetMng/RuleSetMngServiceTest.java` | B4 | 검색 필터 넷(세트 ID·세트명 부분 일치 / 담은 룰 부분 일치 / 결과 변수 정확 일치 — **중간 결과도** / 상태), 계산 칸(룰 수·최종 결과 변수·입력 변수 수·거부·경고 수, DEPRECATED 세트는 검사 수 0), 페이지 경계(size 기본 20·최대 100, `totalCount` 는 같은 필터 전체), 등록: ID 규칙(`qlty-bad`·`A__B`·51자 거부, 메시지 "룰 세트 ID"), 중복 `DUPLICATE_DATA`, 세트명 필수·100자, 행 = INUSE·`RULE_IDS` `[]`·ROW_VERSION 0, 비담당자 MDM013 |
 | `BAT/dme/DmeBpmnActionTest.java`(수정, 메서드 추가) | B4 | `ruleSetMng_는_search_reg`(search READ), `ruleSetEdit_는_search_view_save_delete_restore`(search·view READ) |
 | `BAT/MdmOasisActionVocabularyTest.java`(수정, 메서드 추가·한 줄) | B4 | 두 BPMN 이 어휘·EDIT 세트 안, `scanned` 에 `dme/ruleSetMng.bpmn`·`dme/ruleSetEdit.bpmn` 포함 |
@@ -299,7 +303,7 @@ cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint
 |---|---|---|
 | I1 | **세트 ID = `NamingRules.STD_PHYS_NAME` + 50자 이하, 세트끼리 유일.** 서버가 판정하고(`RuleSetIdRules`, 메시지 "룰 세트 ID"), 화면 검사는 보조다. 중복은 `ErrorCode.DUPLICATE_DATA` | 정규식 느슨하게·길이 검사 삭제·중복 검사 삭제 → `RuleSetMngServiceTest` |
 | I2 | **등록 = `TB_MDM_RULE_SET` 한 행: STATUS `INUSE`, `RULE_IDS` `[]`, ROW_VERSION 0, 세트명 필수·100자 이하, 설명 선택.** 등록자는 담당자여야 한다(`RuleStewardCheck.requireSteward()`). 다른 테이블을 쓰지 않는다 | 상태·빈 배열·역할 검사 바꿈 → `RuleSetMngServiceTest` |
-| I3 | **세트에는 버전·DRAFT·선점이 없다.** 공통 버전 서비스(`VersionStateService`·`DraftOwnershipService`·`VersionWriteGuard`)를 부르지 않고 `TB_MDM_RULE_VER` 등 룰 테이블을 쓰지 않는다 | 저장에 버전 서비스 호출 추가 → `RuleSetEditServiceTest`(룰 테이블 무변경 단언) |
+| I3 | **세트에는 버전·DRAFT·선점이 없다.** 공통 버전 서비스(`VersionStateService`·`DraftOwnershipService`·`VersionWriteGuard`)를 부르지 않고 `TB_MDM_RULE_VER` 등 룰 테이블을 쓰지 않는다 | 저장·폐기·되살리기에 버전 서비스 호출이나 룰 테이블 쓰기 추가 → `RuleSetEditServiceTest`(룰 테이블 행 수·ROW_VERSION 무변경 단언) |
 | I4 | **룰 하나의 입출력 정의(`RuleIoReader`, §6.1)**: 룰의 **최신 RELEASED 버전**에서 conds = (Expression 이 아닌 조건 열: 식 변수면 `VAR_AST` 참조, 아니면 `VAR_NAME`) → (결과 열 `GRP_COND_AST` 참조) → (행 순서대로 DISP `Expression` 인 열의 셀 `ast` 참조), 첫 등장 순·대소문자 무시 중복 제거, **자기 결과 이름 제외**. results = 결과 열마다 `resGrp` 가 있으면 `resGrp`, 없으면 `varName`(엔진 `RuleEvaluator.resultNames` 와 같다), 첫 등장 순 | 자기 결과 제외 삭제·`GRP_COND_AST` 누락·Expression 열 이름을 conds 에 넣음·그룹에서 varName 도 넣음 → `RuleIoReaderTest` |
 | I5 | **EvalEx 상수는 이름이 아니다**: AST 의 `VARIABLE_OR_CONSTANT` 값이 `ReservedNames.CONSTANTS`(대소문자 무시)면 버린다 | 필터 삭제 → `RuleIoReaderTest`(`IF(X = NULL, TRUE, PI)`) |
 | I6 | **출처 우선순위 DICT > PROG > NONE**: 컬럼 사전에 그 물리명이 있으면 DICT(`findByPhysName` 존재), 아니면 그 룰이 같은 이름의 **식 변수가 아닌** 조건 열에 `DOMAIN_ID` 나 `DATA_TYPE` 을 선언했으면 PROG, 아니면 NONE. `RuleVarTypeResolver.typeSource` 로 분류하지 않는다(F8) | resolver typeSource 로 분류 → `RuleIoReaderTest`(DICT 이면서 DATA_TYPE 선언한 이름이 DICT) |
@@ -656,11 +660,14 @@ cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 - **택한 것**: (a). 세트는 작다(F4 `allSets` 선례, 06 "목록일 뿐"). 결과 변수는 대문자 정확 일치(중간 포함), 담은 룰·세트는 부분 일치다. 세트가 수천 개로 늘면 SQL 선거르기(세트 ID·이름·상태)를 더한다.
 
 ### D11 — "저장 즉시 배포"
-- **질문**: 06 은 세트 저장 = 바로 배포, PRD FR-E5 는 "저장 즉시 배포는 보류".
-- **택한 것**: 저장은 `TB_MDM_RULE_SET` 한 행 갱신으로 끝나고 배포 스냅샷·배포 목록·수신 시스템 알림 코드는 만들지 않는다(I23). 화면 안내는 "저장하면 바로 반영된다. 배포(스냅샷 발행)는 보류다".
+- **질문**: 06 은 세트 저장 = 바로 배포, PRD FR-E5 는 "저장 즉시 배포는 보류". 이번에 배포 쪽 코드를 만드나.
+- **선택지**: (a) 테이블 저장만 하고 배포는 만들지 않는다 / (b) 배포 목록 싣기·스냅샷 발행까지 만든다
+- **택한 것**: (a). 저장은 `TB_MDM_RULE_SET` 한 행 갱신으로 끝나고 배포 스냅샷·배포 목록·수신 시스템 알림 코드는 만들지 않는다(I23). 화면 안내는 "저장하면 바로 반영된다. 배포(스냅샷 발행)는 보류다".
 
 ### D12 — 메뉴 순번
-- **택한 것**: `ruleSetMng` 004/5050400, `ruleSetEdit` 005/5050500. 003/5050300 은 TSK-08-05 `ruleConfirm`(같은 폴더, ready) 자리로 비워 둔다. 멱등 키는 MENU_ID 라 순번이 겹쳐도 메뉴가 빠지지는 않는다(순서만).
+- **질문**: 같은 `dme` 폴더에 TSK-08-05 `ruleConfirm` 이 들어올 예정이다. 두 leaf 의 순번과 시드 자리를 어떻게 잡나.
+- **선택지**: (a) 004·005 로 두고 새 메서드에 시드한다 / (b) 003·004 로 두고 08-02 배열에 원소를 더한다
+- **택한 것**: (a). `ruleSetMng` 004/5050400, `ruleSetEdit` 005/5050500. 003/5050300 은 TSK-08-05 `ruleConfirm`(같은 폴더, ready) 자리로 비워 둔다. 멱등 키는 MENU_ID 라 순번이 겹쳐도 메뉴가 빠지지는 않는다(순서만).
   08-02 배열을 고치지 않고 새 메서드 `seedMdmRuleSetMenus()` 로 둔다(병렬 Task 와의 충돌 줄이기).
 
 ### D13 — 컬럼 사전 변수 링크
@@ -669,11 +676,17 @@ cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 - **택한 것**: (a). 다른 Task 의 화면(998줄)을 고치는 범위를 피한다. (b) 는 columnMng 가 파라미터를 받게 되면 `links.ts` 한 줄로 바꾼다.
 
 ### D14 — 폐기 확인 방식
-- **택한 것**: 시안은 같은 버튼을 두 번 누르게 하지만, 08-02 룰 폐기(`RuleHeaderCard` "폐기" → "폐기 확인"/"취소")와 같은 두 단계 버튼으로 한다. 06:766 "확인을 한 번 더 받는다"를 만족하고 두 화면의 조작이 같다.
+- **질문**: 06:766 "확인을 한 번 더 받는다"를 어떤 조작으로 만드나.
+- **선택지**: (a) 두 단계 버튼(폐기 → 폐기 확인/취소) / (b) 시안처럼 같은 버튼을 두 번 누름
+- **택한 것**: (a). 시안은 같은 버튼을 두 번 누르게 하지만, 08-02 룰 폐기(`RuleHeaderCard` "폐기" → "폐기 확인"/"취소")와 같은 두 단계 버튼으로 한다. 06:766 "확인을 한 번 더 받는다"를 만족하고 두 화면의 조작이 같다.
 
 ### D15 — 목록에 같은 룰을 두 번 담나
-- **택한 것**: 담지 않는다. 화면은 "이미 담은 룰이다"로 막고 서버는 MDM021 로 거부한다. 엔진은 목록을 그대로 두 번 돌리지만 같은 룰을 다시 돌려도 새 결과가 없고, 활용처 계산(`RuleUsageFinder`)은 중복을 없앤다.
+- **질문**: 06·시안은 같은 룰 중복을 정하지 않았다.
+- **선택지**: (a) 담지 않는다(화면이 막고 서버가 거부) / (b) 담을 수 있다
+- **택한 것**: (a). 화면은 "이미 담은 룰이다"로 막고 서버는 MDM021 로 거부한다. 엔진은 목록을 그대로 두 번 돌리지만 같은 룰을 다시 돌려도 새 결과가 없고, 활용처 계산(`RuleUsageFinder`)은 중복을 없앤다.
 
 ### D16 — 누가 세트를 고치나
-- **택한 것**: 쓰기(등록·저장·폐기·되살리기)는 담당자(`RuleStewardCheck.requireSteward()`)만. BFF RBAC(EDIT 세트 = STEWARD) 위에 서버 검사를 한 번 더 둔다(08-02 등록 선례). 세트에는 소유자·선점이 없으므로
+- **질문**: 세트에는 소유자·선점이 없다. 쓰기 권한을 BFF RBAC 만으로 두나, 서버에서도 역할을 보나.
+- **선택지**: (a) BFF RBAC + 서버 담당자 검사 / (b) BFF RBAC 만
+- **택한 것**: (a). 쓰기(등록·저장·폐기·되살리기)는 담당자(`RuleStewardCheck.requireSteward()`)만. BFF RBAC(EDIT 세트 = STEWARD) 위에 서버 검사를 한 번 더 둔다(08-02 등록 선례). 세트에는 소유자·선점이 없으므로
   동시 편집은 `ROW_VERSION`(MDM001)으로만 막는다.
