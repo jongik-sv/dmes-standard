@@ -22,7 +22,7 @@ FE `P/page.tsx` 다(TSK-08-02 design §0, D1). 이 설계는 `dme/ruleEdit` 를 
 | # | 사실 | 근거 |
 |---|---|---|
 | F1 | `RuleTableService.save`(part TABLE): `tx.execute{ beginDraftWrite → hitPolicy → checkRows(행 종류·기본 행·row_id·`RuleCellsCodec.validateShape`) → issue(ROW) → deleteRows → INSERT → updateHitPolicy }` 뒤, **트랜잭션 밖**(148~155행)에서 `resolver.resolve` → `RuleAnalyzer.analyze` → `RuleIssueMaps.of` → `RuleSaveContext` → `saveChecks.orderedStream().forEach(check -> issues.addAll(check.check(ctx)))`. 커밋 뒤라 `RuleSaveCheck` 로는 거부할 수 없다. 현재 `RuleSaveCheck` 구현 빈은 0개 | `BL/dme/ruleEdit/service/RuleTableService.java:93-155` |
-| F2 | `interface RuleSaveCheck { List<Map<String,Object>> check(RuleSaveContext context); }`, `record RuleSaveContext(String ruleId, int ver, String ruleKind, String hitPolicy, List<ResolvedVar> vars, List<StoredRow> rows, List<RuleIssue> analysis)`. 둘 다 `RuleTableService` 만 쓴다 | `BL/dme/ruleEdit/service/RuleSaveCheck.java`, `RuleSaveContext.java` |
+| F2 | `interface RuleSaveCheck { List<Map<String,Object>> check(RuleSaveContext context); }`, `record RuleSaveContext(String ruleId, int ver, String ruleKind, String hitPolicy, List<ResolvedVar> vars, List<StoredRow> rows, List<RuleIssue> analysis)`. 둘 다 `RuleTableService` 만 쓴다. 이 Task 는 둘을 `BL/common/rule/check/` 로 옮긴다(§2.2) — 공용 검사기가 화면 패키지 타입에 기대지 않게 한다. 패키지 순환을 막는 ArchUnit 규칙은 없다(grep `beFreeOfCycles`·`slices()` 0건) | `BL/dme/ruleEdit/service/RuleSaveCheck.java`, `RuleSaveContext.java` |
 | F3 | `RuleColumnsService`(part COLUMNS, 08-03)는 이미 거부(`BusinessException(ErrorCode.INVALID_VALUE)`, 트랜잭션 롤백)로: 프로그램 변수 타입 선언(263행), 결과 열 그룹 규칙(`checkGroups` 284~350), DERIVE 산출 순서(`checkDeriveExprs` 352~379), 변수명 예약어(`ExpressionChecker.checkVariableName`, 226행), 식 파싱·AST 저장(`parseOrReject` 556~563, `AstExporter.export`, var_ast·grp_cond_ast·DERIVE 결과 셀 expr/ast)을 한다. 경고는 `pivotCoverWarning`(382~425, 코드 `PIVOT_COVER_INCOMPLETE`, WARNING) 하나 | `BL/dme/ruleEdit/service/RuleColumnsService.java` |
 | F4 | `RuleEditService` action 메서드: `search·searchRules·view·save(part→RuleEditSavePart 빈)·delete(target VERSION|RULE)·newVersion·lock·unlock·handover·parseExpr·searchDomains`. BPMN `validate` → `parseExpr`(`RuleExprParseRequest`), target 분기 없음 | `RuleEditService.java:76-202`, `BA/resources/services/dme/ruleEdit.bpmn` |
 | F5 | `ruleEdit.bpmn` actionGateway 갈래 9개(search·view·save·delete·copy·lock·unlock·handover·validate), 전부 `camunda:class="ruleEditService"`. 두 번째 게이트웨이 금지(주석 17~18행). `DmeBpmnActionTest.ruleEdit_는_search_view_save_delete_copy_lock_unlock_handover_validate`(35~48행)가 액션 집합·readOnly 를 고정한다. 어휘 16종 `MdmActions`(`VALIDATE`·`EXECUTE`·`COMPARE` 포함), `MdmOasisActionVocabularyTest` | 코드 |
@@ -109,7 +109,8 @@ FE `P/page.tsx` 다(TSK-08-02 design §0, D1). 이 설계는 `dme/ruleEdit` 를 
 | `RuleExpressionChecks.java` | Expression 조건 셀·결과 식 셀: `ExpressionChecker.check`(Slot `RULE_COND_EXPR`/`RULE_RESULT_EXPR`) → 참조 변수 집합 검사 → 같은 변수 대소 비교 2회 이상 AST 검사 → **서버 AST 로 `ast` 를 덮어쓴다**(화면이 보낸 `ast` 는 믿지 않는다). DERIVE 결과 식의 자기·뒤 seq 참조 거부 |
 | `RuleCompleteness.java` | 미완성(NORMAL 행 × 조건 열 키 없음, 결과 셀 없음 — 기본 행 포함) |
 | `RuleGenerateTry.java` | 생성해 보기: 셀마다 `CellTextGenerator.conditionText`/`resultText` 를 따로 부르고 `MdmEvaluator.compile(text)`, `=` 패턴은 `CellTextGenerator.patternRegex` 결과를 `Pattern.compile`. 텍스트는 버린다 |
-| `RuleSaveValidator.java` | `@Component`. `RuleCheckReport validate(RuleCheckInput in)`: 순서 = 모양(이미 통과한 입력) → `RuleCellRules`(정규화) → `RuleExpressionChecks` → `RuleCompleteness` → `RuleGenerateTry` → 분석기(`RuleAnalyzer` + `RuleAnalysisInputMapper`, 정규화된 행으로) → `RuleSaveCheck` 빈(적용 지점이 맞는 것만, §6.1 표). `RuleCheckReport validateStored(String ruleId, int ver)`(08-05 용, 원장에서 읽어 `STORED` 로) |
+| `RuleSaveValidator.java` | `@Component`. `RuleCheckReport validate(RuleCheckInput in)`: 순서 = 모양(이미 통과한 입력) → `RuleCellRules`(정규화) → `RuleExpressionChecks` → `RuleCompleteness` → `RuleGenerateTry` → 분석기(`RuleAnalyzer` + `RuleAnalysisInputMapper`, 정규화된 행으로) → `RuleSaveCheck` 빈(`targets()` 에 입력의 적용 지점이 든 것만). **기본 단계(셀·식·미완성·생성·분석)도 §6.1 적용 지점 표를 따른다** — COLUMNS 에서는 기본 단계를 하나도 돌리지 않고(열 추가가 가능해야 한다, I18), TEST_BODY 에서는 셀·식·생성만 돌려 실패 셀을 `brokenRowIds` 로 모으고 미완성·분석은 돌리지 않는다. §6.1 표가 정본이다. `validateStored` 는 만들지 않는다 — 08-05 가 원장에서 읽어 `validate(… STORED)` 를 부른다(이 Task 는 `STORED` 적용 지점 값과 빈의 `targets()` 만 준비한다) |
+| `RuleSaveCheck.java`·`RuleSaveContext.java`(이동) | 08-02 의 `BL/dme/ruleEdit/service/RuleSaveCheck`·`RuleSaveContext` 를 이 패키지로 **옮긴다**(구현 빈 0개, 사용처 `RuleTableService` 하나 — B3 가 다시 엮는다). 화면 패키지(`dme.ruleEdit`)와 공용 패키지(`common.rule.check`)가 서로를 가리키지 않게 하고, 08-05(다른 화면 패키지)가 `dme.ruleEdit` 타입을 끌고 가지 않게 한다. `RuleSaveCheck { List<Map<String,Object>> check(RuleSaveContext ctx); default Set<RuleSaveTarget> targets() { return EnumSet.of(TABLE, STORED); } }`. `RuleSaveContext` 에 `RuleSaveTarget target`·`List<MdmRuleVar> rawVars` 칼럼을 더한다. javadoc: "쓰기 전에 부른다. ERROR 가 하나라도 있으면 거부한다" |
 | `RuleSaveRejections.java` | `BusinessException reject(List<Map<String,Object>> issues)`: `MdmErrorCode.INVALID_INPUT`(MDM021, D2) + 메시지 `"룰 저장 거부: " + ERROR 이슈 요약("CODE[행 r·열 v] 메시지; …")` + details `ErrorDetail.of(MDM021)` 뒤 이슈마다 `ErrorDetail.ofGrid(null, "row:"+r, "var:"+v, code, message)`. `DomainRejections` 모양을 따르고 공유 파일 `MdmErrors` 는 고치지 않는다 |
 | `RuleDefinitionReads.java` | 룰 하나가 **읽는 이름**(COND `var_name` 중 식 변수가 아닌 것 + 식 변수 `var_ast` + Expression 셀·결과 식 `ast` 의 `VARIABLE_OR_CONSTANT` 노드)과 **만드는 이름**(RESULT `var_name`, 그룹이면 `res_grp`). `RuleUsageFinder` 의 같은 계산을 이 클래스로 옮기고 `RuleUsageFinder` 는 이것을 부르게 한다(동작 불변 — `RuleUsageServiceTest` 가 지킨다) |
 | `AxisCoverage.java` | 축 조합 완전성 경고(`PIVOT_COVER_INCOMPLETE`). `RuleColumnsService.pivotCoverWarning`(382~425)을 옮긴 것. COLUMNS·TABLE 이 함께 쓴다 |
@@ -124,7 +125,7 @@ FE `P/page.tsx` 다(TSK-08-02 design §0, D1). 이 설계는 `dme/ruleEdit` 를 
 | `RequiredColumnNullCheck` | 필수 컬럼(`MdmColumn.required`)에 `IS_NULL`·`NOT_NULL` 셀 | WARNING | TABLE, STORED |
 | `RuleSetOrderCheck` | 룰 세트 순서(§6.4) | ERROR(순서·순환) / WARNING(같은 결과 변수 중복 대입) | TABLE, COLUMNS, STORED |
 | `ContractChangeCheck` | 입력 계약 변경: 지금 RELEASED 버전과 `InputContracts` 로 견준다. 필요 변수 늘음·선택→필수 | WARNING | TABLE, COLUMNS |
-| `AxisCoverageCheck` | 축 조합 완전성(`AxisCoverage`) | WARNING | TABLE(COLUMNS 는 기존 자리에서 그대로) |
+| `AxisCoverageCheck` | 축 조합 완전성(`AxisCoverage`) | WARNING | TABLE, STORED(COLUMNS 는 08-03 기존 자리에서 그대로) |
 | `ExprTypeByCaseCheck` | Expression 결과 타입: 저장된 테스트 케이스로 새 정의를 돌려 조건 식이 boolean 이 아니거나 결과 타입 변환에 실패하면 경고(D9) | WARNING | TABLE, COLUMNS |
 
 ### 2.3 생성 — 백엔드 값 테스트·테스트 케이스
@@ -149,7 +150,7 @@ FE `P/page.tsx` 다(TSK-08-02 design §0, D1). 이 설계는 `dme/ruleEdit` 를 
 | 파일 | 바꾸는 것 | 담당 |
 |---|---|---|
 | `BL/dme/ruleEdit/service/RuleTableService.java` | 흐름 재배치(§6.1): 트랜잭션 안에서 `beginDraftWrite` → `checkRows` → `RuleSaveValidator.validate(TABLE)` → ERROR 면 `RuleSaveRejections.reject` → 정규화된 행을 발급·삭제·INSERT. 트랜잭션 밖 분석(I12)은 그대로 두고, 응답 issues = 커밋 뒤 분석 이슈 + 검사기의 비분석 이슈(임시 row_id 를 `rowIdMap` 으로 바꿔서). `ObjectProvider<RuleSaveCheck>` 주입을 `RuleSaveValidator` 주입으로 바꾼다. 클래스 javadoc 의 D3 문장을 고친다 | B3 |
-| `BL/dme/ruleEdit/service/RuleSaveCheck.java`, `RuleSaveContext.java` | `RuleSaveCheck` 에 `default Set<RuleSaveTarget> targets()` 추가, javadoc 을 "쓰기 전에 부른다. ERROR 가 하나라도 있으면 거부한다" 로 고친다. `RuleSaveContext` 에 `RuleSaveTarget target`·`List<MdmRuleVar> rawVars` 칼럼을 더한다(생성 자리는 검사기 하나뿐) | B2 |
+| `BL/dme/ruleEdit/service/RuleSaveCheck.java`, `RuleSaveContext.java`(삭제) | B2 가 `BL/common/rule/check/` 에 새 계약을 만든다(§2.2). 옛 두 파일은 B2 가 남겨 두어 빌드를 초록으로 유지하고, B3 가 `RuleTableService` 를 새 검사기로 엮으면서 지운다 | B3 |
 | `BL/dme/ruleEdit/service/RuleColumnsService.java` | 원자 적용 트랜잭션 안, 커밋 직전에 `RuleSaveValidator.validate(COLUMNS)` 를 적용 뒤 정의로 부르고 ERROR 면 거부(롤백), WARNING 은 응답 issues 에 잇는다. `pivotCoverWarning` 은 `AxisCoverage` 호출로 바꾼다(동작 불변) | B6 |
 | `BL/common/rule/RuleUsageFinder.java` | 이름 계산을 `RuleDefinitionReads` 호출로 바꾼다(동작 불변) | B6 |
 | `BL/dme/ruleEdit/service/RuleEditService.java` | `public RuleTestResult runTest(RuleTestRequest)`(→ `RuleValueTestService`) 추가. 클래스 주석의 "08-04 는 validate 를 값 테스트에도…" 를 "값 테스트는 execute action(D3)" 으로 고친다 | B4 |
@@ -201,8 +202,8 @@ FE `P/page.tsx` 다(TSK-08-02 design §0, D1). 이 설계는 `dme/ruleEdit` 를 
 | 단위 | 범위(파일·기능) | 새 테스트 | 담당 불변 규칙 |
 |---|---|---|---|
 | B1 | 엔진 `InputContracts` 이식 + 입력 계약 코퍼스 + 두 러너(§2.1) | `ET/rule/InputContractCorpusTest`, `M/tests/evalex-input-contract-corpus.test.ts` | I28 |
-| B2 | 검사기 핵심 `BL/common/rule/check/`(원장 비의존): `RuleLimits`·`RuleSaveIssueCode`·`RuleSaveTarget`·`RuleCheckInput`·`RuleCheckReport`·`RuleCellRules`·`RuleExpressionChecks`·`RuleCompleteness`·`RuleGenerateTry`·`RuleSaveValidator`·`RuleSaveRejections` + `RuleSaveCheck`·`RuleSaveContext` 계약 변경 | `RuleCellRulesTest`·`RuleExpressionChecksTest`·`RuleCompletenessTest`·`RuleGenerateTryTest`(BLT, 순수) | I5·I6·I7·I8·I9·I10·I11·I12·I13·I30 |
-| B3 | `RuleTableService` 재배치·거부·응답 매핑, 기존 백엔드 테스트의 D3 기대값 뒤집기(§3.5) | `RuleTableSaveCheckTest` | I1·I2·I3·I4·I23(저장) |
+| B2 | 검사기 핵심 `BL/common/rule/check/`(원장 비의존): `RuleLimits`·`RuleSaveIssueCode`·`RuleSaveTarget`·`RuleCheckInput`·`RuleCheckReport`·`RuleCellRules`·`RuleExpressionChecks`·`RuleCompleteness`·`RuleGenerateTry`·`RuleSaveValidator`·`RuleSaveRejections` + 공용 `RuleSaveCheck`·`RuleSaveContext`(새 위치, 옛 파일은 두고) | `RuleCellRulesTest`·`RuleExpressionChecksTest`·`RuleCompletenessTest`·`RuleGenerateTryTest`(BLT, 순수) | I5·I6·I7·I8·I9·I10·I11·I12·I13·I30 |
+| B3 | `RuleTableService` 재배치·거부·응답 매핑, 옛 `RuleSaveCheck`·`RuleSaveContext` 삭제, 기존 백엔드 테스트의 D3 기대값 뒤집기(§3.5) | `RuleTableSaveCheckTest` | I1·I2·I3·I4·I23(저장) |
 | B4 | `RuleDefinitionAssembler`·`SingleRuleDefinitionLookup`·`StoredRuleDefinitions`·`RuleTestCaseQueries`·`RuleValueTestService`·DTO·`RuleEditService.runTest`·BPMN `execute`·`DmeBpmnActionTest`·`DmeOasisHttpTest` | `RuleDefinitionAssemblerTest`·`RuleValueTestServiceTest` | I19·I20·I21·I22·I23(값 테스트)·I24·I32 |
 | B5 | `RuleTestCaseService`(part CASE)·`RuleTestCaseWrites`·`RuleEditSaveRequest/Result` 칸·view `testCases` | `RuleTestCaseServiceTest`(+`RuleEditViewTest` 사례 1건) | I25 |
 | B6 | 원장 검사 빈 8개(§2.2 표)·`RuleDefinitionReads`·`AxisCoverage` 추출·`RuleUsageFinder`·`RuleColumnsService` 연결 | `RuleLedgerChecksTest` | I14·I15·I16·I17·I18·I29 |
@@ -213,7 +214,7 @@ FE `P/page.tsx` 다(TSK-08-02 design §0, D1). 이 설계는 `dme/ruleEdit` 를 
 - B2 는 `RuleSaveValidator` 가 `RuleSaveCheck` 빈을 부르는 자리까지 만든다(빈 0개로도 동작). B6 은 새 파일(빈)만 더하고 `RuleColumnsService`·`RuleUsageFinder` 를 고친다.
 - `ExprTypeByCaseCheck`(B6)는 B4 의 `RuleDefinitionAssembler`·`RuleTestCaseQueries` 를 쓴다 → B6 은 B4 뒤에 돈다(표 순서대로).
 - 공유 파일 소유: BPMN·`RuleEditService`·`DmeBpmnActionTest`·`DmeOasisHttpTest` = B4, `RuleEditSaveRequest/Result`·`RuleEditViewResult`·`RuleViewService` = B5,
-  `RuleTableService` = B3, `RuleSaveCheck`·`RuleSaveContext` = B2, `RuleColumnsService`·`RuleUsageFinder` = B6, `api.ts`·`types.ts`·`DecisionTableCard`·`columns.ts` = B7,
+  `RuleTableService`·옛 `dme/ruleEdit/service/RuleSaveCheck`·`RuleSaveContext` 삭제 = B3, 새 `common/rule/check/RuleSaveCheck`·`RuleSaveContext` = B2, `RuleColumnsService`·`RuleUsageFinder` = B6, `api.ts`·`types.ts`·`DecisionTableCard`·`columns.ts` = B7,
   `cards.ts` = B8, e2e spec·픽스처 = B9.
 
 ## 3. 테스트 전략
@@ -337,7 +338,7 @@ TSK-08-02 design.md 「E2E 서버 절차」(613~666행)를 그대로 따르되 �
 | I28 | Java `InputContracts` 와 TS `computeInputContract` 는 한 벌 코퍼스에서 같다. TS `input-contract.ts` 는 고치지 않는다 | `InputContractCorpusTest`·`evalex-input-contract-corpus.test.ts` |
 | I29 | EXTERNAL 룰은 저장 시 검사를 돌리지 않는다(저장 자체가 `requireMdm` 으로 막힌다 — 순서 불변). 케이스 쓰기도 MDM 원천만 | `RuleTestCaseServiceTest`, 기존 `RuleTableServiceTest` |
 | I30 | `RuleCellsCodec` 은 값을 고치지 않는다(정규화는 `RuleCellRules`) | 기존 `RuleCellsCodecTest` |
-| I31 | `ResolvedVar` record 칼럼 불변 | 컴파일(기존 사용처) |
+| I31 | `ResolvedVar` record 칼럼 불변(검사기가 더 필요한 값은 `RuleCheckInput.rawVars` 로 받는다) | 기존 `BAT/dme/ruleEdit/RuleEditViewTest`(view 의 vars 모양) |
 | I32 | 액션은 `execute` 하나만 더한다. 권한 세트·어휘 불변 | `DmeBpmnActionTest`, `MdmOasisActionVocabularyTest`, e2e `mdm-shell-rbac-smoke`(시드 대조) |
 | I33 | 값 테스트 칠하기는 서버 결과로만 하고, 이 카드가 보이는 정의(BODY 또는 같은 버전)일 때만 표에 칠한다. BODY 결과 뒤 표가 바뀌면 칠한 것을 지운다 | `value-test-marks.test.ts`, e2e V3 |
 | I34 | 카드 순서 = header·versions·table·valueTest·testResult·testCases·usage. 편집본 대상은 `editable` 일 때만 고를 수 있다 | `value-test-cards.test.ts`, `rule-edit-page.test.ts` |
@@ -364,7 +365,7 @@ TSK-08-02 design.md 「E2E 서버 절차」(613~666행)를 그대로 따르되 �
 | CONTAINS·INSTR | `RuleCellRules` | E | — | 셀오류 | E |
 | 도메인 범위 | `DomainRangeCheck` | W | — | — | W |
 | 코드 참조 | `CodeReferenceCheck` | W/E | — | — | W/E |
-| MDM 참조 | `MasterReferenceCheck` | E | E | 셀오류(식 셀) | E |
+| MDM 참조 | `MasterReferenceCheck` | E | E | —(BODY 는 `ExpressionChecker` 의 인자 모양·화이트리스트만, 06:1077) | E |
 | 필수 컬럼 | `RequiredColumnNullCheck` | W | — | — | W |
 | 미완성 | `RuleCompleteness` | E | — | —(NA 로 판정 + 경고) | E |
 | 도달 불가 행 | 분석기 ALL_NA_ROW(E)·UNREACHABLE(W) | E/W | — | — | E/W |
@@ -568,10 +569,10 @@ cases[{caseId, caseName, outcome, pass(true|false|null), mismatches[{key, expect
 
 ### D11 — `view` 도 새 검사를 돌리나
 - **질문**: 읽기 전용 화면에서도 서버 검사 경고(코드 참조 등)를 보이나.
-- **선택지**: (a) `view.issues` 는 지금처럼 분석기 결과만 (b) view 도 `validateStored` 를 돌려 싣는다
+- **선택지**: (a) `view.issues` 는 지금처럼 분석기 결과만 (b) view 도 원장에서 읽은 정의로 `validate(… STORED)` 를 돌려 싣는다
 - **택한 것**: (a)
 - **근거와 강약**: (b) 는 08-02 `RuleEditViewTest` 의 issues 기대와 화면 즉시 검사 동치(`sameIssues`)를 흔들고, 조회마다 원장 조회가 는다. 저장 응답과 상신 검사(08-05)가 경고를 보인다.
-- **반려되면 재작업 방향**: `RuleViewService` 가 선택 버전으로 `validateStored` 를 불러 `serverIssues` 새 칸으로 싣고, 화면은 그 칸을 표 아래 "서버 검사" 로 보인다.
+- **반려되면 재작업 방향**: `RuleViewService` 가 선택 버전으로 `validate(… STORED)` 를 불러 `serverIssues` 새 칸으로 싣고, 화면은 그 칸을 표 아래 "서버 검사" 로 보인다.
 
 ### D12 — 기대 JSON 의 `hit` 표현
 - **질문**: 06 예 `{"…","hit":1}` 은 단일 적중만 보인다. 여러 행 적중·기본 행·적중 없음은 어떻게 적나.
