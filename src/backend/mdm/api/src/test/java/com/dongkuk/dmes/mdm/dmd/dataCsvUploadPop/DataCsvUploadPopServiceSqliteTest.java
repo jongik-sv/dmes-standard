@@ -14,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.security.context.UserContextHolder;
 import com.dongkuk.dmes.mdm.common.segment.DmdSegmentTestSupport;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.MutableClock;
 import com.dongkuk.dmes.mdm.dmd.dataCsvUploadPop.dto.DataCsvRow;
 import com.dongkuk.dmes.mdm.dmd.dataCsvUploadPop.dto.DataCsvSaveRequest;
@@ -23,21 +24,17 @@ import com.dongkuk.dmes.mdm.dmd.dataCsvUploadPop.dto.DataCsvValidateResult;
 import com.dongkuk.dmes.mdm.dmd.dataCsvUploadPop.service.DataCsvUploadPopService;
 import com.dongkuk.dmes.mdm.dmd.dataCsvUploadPop.service.Rfc4180Csv;
 import com.dongkuk.oasis.audit.AuditHolder;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-07-04 design.md B2 — {@code dataCsvUploadPop} 화면 경로(검사 1~7 은 {@code DataItemChecksSqliteTest} 와 같은
@@ -46,12 +43,9 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(DmdSegmentTestSupport.Config.class)
-class DataCsvUploadPopServiceSqliteTest {
+class DataCsvUploadPopServiceSqliteTest extends AbstractMdmSharedDbTest {
 
     private static final String MD = "PORT";
-
-    @TempDir
-    static Path tempDir;
 
     @Autowired
     DataCsvUploadPopService service;
@@ -61,11 +55,6 @@ class DataCsvUploadPopServiceSqliteTest {
     DataSource dataSource;
 
     private JdbcTemplate jdbc;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + tempDir.resolve("mdm-dmd-csv-upload.db"));
-    }
 
     @BeforeEach
     void setUp() {

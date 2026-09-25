@@ -1,6 +1,7 @@
 package com.dongkuk.dmes.mdm.dma;
 
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
+import com.dongkuk.dmes.mdm.common.testdb.SharedContextResettable;
 import com.dongkuk.dmes.mdm.contract.category.MaruIdKind;
 import com.dongkuk.dmes.mdm.contract.category.MaruIdNamespace;
 import com.dongkuk.dmes.mdm.entity.MdmColumn;
@@ -43,9 +44,15 @@ public final class DmaTestSupport {
         }
     }
 
-    public static final class MutableCurrentUser implements MdmCurrentUser {
+    public static final class MutableCurrentUser implements MdmCurrentUser, SharedContextResettable {
         private volatile String userId;
         private volatile Set<String> roles = Set.of();
+
+        @Override
+        public void resetForTestClass() {
+            this.userId = null;
+            this.roles = Set.of();
+        }
 
         public void set(String userId, Set<String> roles) {
             this.userId = userId;
@@ -63,13 +70,18 @@ public final class DmaTestSupport {
         }
     }
 
-    public static final class FakeMaruIdNamespace implements MaruIdNamespace {
+    public static final class FakeMaruIdNamespace implements MaruIdNamespace, SharedContextResettable {
         private volatile MaruIdKind kind = MaruIdKind.MASTER_CODE;
         private final Set<String> ids = new HashSet<>();
 
         public void reset() {
             kind = MaruIdKind.MASTER_CODE;
             ids.clear();
+        }
+
+        @Override
+        public void resetForTestClass() {
+            reset();
         }
 
         public void set(MaruIdKind kind, Set<String> ids) {

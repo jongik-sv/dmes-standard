@@ -6,10 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeFixtures;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeTestConfig;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.security.MdmRoles;
 import com.dongkuk.dmes.mdm.dma.DmaTestSupport.MutableCurrentUser;
 import com.dongkuk.dmes.mdm.dmc.codeCateEdit.service.CodeCateEditService;
-import java.nio.file.Path;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -21,15 +21,12 @@ import java.util.Set;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-06-04 design.md §4 수용 기준 4·§5 불변 규칙 17(저장 쪽) — {@code TermRecommendPerformanceTest} 패턴대로(워밍업 1회 후
@@ -40,13 +37,10 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(MasterCodeTestConfig.class)
-class CodeCateEditPerformanceSqliteTest {
+class CodeCateEditPerformanceSqliteTest extends AbstractMdmSharedDbTest {
 
     private static final int CODE_COUNT = 1_000;
     private static final long MAX_MEDIAN_MS = 800L;
-
-    @TempDir
-    static Path tempDir;
 
     @Autowired
     CodeCateEditService service;
@@ -56,12 +50,6 @@ class CodeCateEditPerformanceSqliteTest {
     DataSource dataSource;
 
     private Set<String> allCodes;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("code-cate-edit-performance-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seedThousandCodes() {

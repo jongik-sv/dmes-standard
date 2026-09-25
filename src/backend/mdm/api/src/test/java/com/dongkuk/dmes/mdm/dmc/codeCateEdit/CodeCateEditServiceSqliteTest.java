@@ -21,6 +21,7 @@ import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeCategoryResolver.Resolve
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeCategoryResolver.Resolution;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeFixtures;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeTestConfig;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.category.CategoryDefTarget;
 import com.dongkuk.dmes.mdm.contract.category.CategoryDefinition;
 import com.dongkuk.dmes.mdm.contract.category.CategoryKind;
@@ -34,21 +35,17 @@ import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import com.dongkuk.dmes.mdm.dma.DmaTestSupport.MutableCurrentUser;
 import com.dongkuk.dmes.mdm.dmc.codeCateEdit.service.CodeCateEditService;
 import java.math.BigDecimal;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-06-04 design.md §5 불변 규칙 4·6·8·15 — codeCateEdit 서비스(조회·모습·저장·되돌리기·검사·미리보기)를 local(SQLite)
@@ -59,12 +56,9 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(MasterCodeTestConfig.class)
-class CodeCateEditServiceSqliteTest {
+class CodeCateEditServiceSqliteTest extends AbstractMdmSharedDbTest {
 
     private static final long RV = 3L;
-
-    @TempDir
-    static Path tempDir;
 
     @Autowired
     CodeCateEditService service;
@@ -76,12 +70,6 @@ class CodeCateEditServiceSqliteTest {
     DataSource dataSource;
 
     private MasterCodeFixtures fx;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-code-cate-edit-service-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seed() {

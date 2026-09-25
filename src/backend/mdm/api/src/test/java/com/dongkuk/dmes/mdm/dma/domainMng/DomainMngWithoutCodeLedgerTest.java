@@ -5,17 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.common.engine.MdmCodeLookupAvailability;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * design.md §4.2·§5 수용 기준 2 — 마스터코드 원장(서버 CodeLookup)이 없는 기본 컨텍스트(D2). R10 은 거부하지 않고 W02,
@@ -25,17 +21,8 @@ import org.springframework.test.context.DynamicPropertySource;
 @ActiveProfiles("local")
 class DomainMngWithoutCodeLedgerTest extends DomainMngApiSupport {
 
-    @TempDir
-    static Path tempDir;
-
     @Autowired
     MdmCodeLookupAvailability availability;
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        Path db = tempDir.resolve("domain-no-code.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + db);
-    }
 
     @BeforeEach
     void setUp() {

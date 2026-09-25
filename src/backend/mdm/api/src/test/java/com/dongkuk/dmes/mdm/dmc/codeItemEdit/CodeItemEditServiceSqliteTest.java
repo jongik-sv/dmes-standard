@@ -20,26 +20,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeFixtures;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeTestConfig;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.security.MdmRoles;
 import com.dongkuk.dmes.mdm.dma.DmaTestSupport.MutableCurrentUser;
 import com.dongkuk.dmes.mdm.dmc.codeItemEdit.dto.CodeItemSearchRequest;
 import com.dongkuk.dmes.mdm.dmc.codeItemEdit.service.CodeItemEditService;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-06-03 design.md §4.5 S1~S17 — codeItemEdit 서비스(조회·모습·저장·되돌리기·검사·경미 수정)를 local(SQLite)
@@ -51,12 +48,9 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(MasterCodeTestConfig.class)
-class CodeItemEditServiceSqliteTest {
+class CodeItemEditServiceSqliteTest extends AbstractMdmSharedDbTest {
 
     private static final long RV = 3L;
-
-    @TempDir
-    static Path tempDir;
 
     @Autowired
     CodeItemEditService service;
@@ -67,12 +61,6 @@ class CodeItemEditServiceSqliteTest {
 
     private MasterCodeFixtures fx;
     private JdbcTemplate jdbc;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-code-item-edit-service-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seed() {

@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeConfirmCheck;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeFixtures;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeTestConfig;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.common.version.VersionSpiRegistry;
 import com.dongkuk.dmes.mdm.contract.security.MdmRoles;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
@@ -28,21 +29,17 @@ import com.dongkuk.dmes.mdm.dmc.codeItemEdit.dto.CodeItemSaveRequest;
 import com.dongkuk.dmes.mdm.dmc.codeItemEdit.service.CodeItemEditService;
 import com.dongkuk.dmes.mdm.dmc.codeMng.dto.CodeRegRequest;
 import com.dongkuk.dmes.mdm.dmc.codeMng.service.CodeMngService;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -56,12 +53,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(MasterCodeTestConfig.class)
-class CodeConfirmSampleHistorySqliteTest {
+class CodeConfirmSampleHistorySqliteTest extends AbstractMdmSharedDbTest {
 
     private static final String ID = "PROC_CD";
-
-    @TempDir
-    static Path tempDir;
 
     @Autowired
     CodeMngService codeMngService;
@@ -87,12 +81,6 @@ class CodeConfirmSampleHistorySqliteTest {
     private MasterCodeFixtures fx;
     private Map<String, Object> validate1000;
     private Map<String, Object> confirm1000;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-code-confirm-sample-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void replaySampleHistory() {

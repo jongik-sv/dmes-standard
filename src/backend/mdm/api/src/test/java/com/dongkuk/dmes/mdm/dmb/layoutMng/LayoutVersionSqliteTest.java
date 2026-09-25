@@ -22,7 +22,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.InputStream;
 import java.math.BigDecimal;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -32,12 +31,9 @@ import java.util.Map;
 import java.util.TreeSet;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-05-03 design.md §3.2 — 저장 즉시 스냅샷 버전(불변 I15·I16·I18·I19), 여분 쪼개 쓰기는 순차 전환(수용 기준 6), 옛 버전 스냅샷으로
@@ -46,9 +42,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 class LayoutVersionSqliteTest extends LayoutTestSupport {
-
-    @TempDir
-    static Path tempDir;
 
     @Autowired
     LayoutVersionStore store;
@@ -60,12 +53,6 @@ class LayoutVersionSqliteTest extends LayoutTestSupport {
     LayoutDraftBuilder draftBuilder;
 
     private final ObjectMapper mapper = new ObjectMapper();
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        Path db = tempDir.resolve("layout-version.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + db);
-    }
 
     @BeforeEach
     void setUp() {

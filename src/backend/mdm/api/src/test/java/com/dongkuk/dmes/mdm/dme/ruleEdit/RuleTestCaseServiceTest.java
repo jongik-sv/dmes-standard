@@ -9,27 +9,24 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.dongkuk.dmes.cactus.audit.CactusAudit;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleLimits;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditService;
 import com.dongkuk.oasis.audit.AuditHolder;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-08-04 design §3.2 「RuleTestCaseServiceTest」·I25 — 테스트 케이스 쓰기(save part CASE, §6.6): 담당자(MDM013)·MDM 원천·폐기 아님,
@@ -39,13 +36,10 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(DmeTestSupport.Config.class)
-class RuleTestCaseServiceTest {
+class RuleTestCaseServiceTest extends AbstractMdmSharedDbTest {
 
     private static final String RULE = "QLTY_GRD_JDG";
     private static final String INPUT = "{\"COIL_THK\":1.5,\"COIL_WID\":1200,\"SURF_GRD\":\"A\"}";
-
-    @TempDir
-    static Path tempDir;
 
     @Autowired
     RuleEditService service;
@@ -53,12 +47,6 @@ class RuleTestCaseServiceTest {
     MutableCurrentUser currentUser;
     @Autowired
     JdbcTemplate jdbc;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-rule-test-case-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seed() {

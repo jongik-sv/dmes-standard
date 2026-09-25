@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
 import com.dongkuk.dmes.mdm.dme.ruleMng.dto.RuleListRow;
@@ -17,19 +18,15 @@ import com.dongkuk.dmes.mdm.dme.ruleMng.dto.RuleRegResult;
 import com.dongkuk.dmes.mdm.dme.ruleMng.dto.RuleSearchRequest;
 import com.dongkuk.dmes.mdm.dme.ruleMng.dto.RuleSearchResult;
 import com.dongkuk.dmes.mdm.dme.ruleMng.service.RuleMngService;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-08-02 design §3.1 「RuleMngServiceTest」 — 조회(I29 서버 페이징·필터·RELEASED·미적용 칸)와 등록(I1·I2·I3, 수용 기준 1·2).
@@ -38,10 +35,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(DmeTestSupport.Config.class)
-class RuleMngServiceTest {
-
-    @TempDir
-    static Path tempDir;
+class RuleMngServiceTest extends AbstractMdmSharedDbTest {
 
     @Autowired
     RuleMngService service;
@@ -49,12 +43,6 @@ class RuleMngServiceTest {
     MutableCurrentUser currentUser;
     @Autowired
     JdbcTemplate jdbc;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-rule-mng-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seed() {

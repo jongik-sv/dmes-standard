@@ -8,19 +8,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.dma.domainMng.dto.DomainDraftRequest;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * design.md §4.2 — 저장 거부 조건 R01~R10(02:177) 각 1개 + 보충 S01~S06 + 경고 W01. 실제 SQLite(Flyway 적용),
@@ -31,15 +27,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @ActiveProfiles("local")
 @Import({DomainMngTestConfig.Functions.class, DomainMngTestConfig.Codes.class})
 class DomainMngRejectConditionTest extends DomainMngApiSupport {
-
-    @TempDir
-    static Path tempDir;
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        Path db = tempDir.resolve("domain-reject.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + db);
-    }
 
     @BeforeEach
     void setUp() {

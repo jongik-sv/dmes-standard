@@ -20,6 +20,7 @@ import com.dongkuk.dmes.cactus.web.response.ErrorDetail;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeFixtures;
 import com.dongkuk.dmes.mdm.common.rule.RuleCellsCodec;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveRequest;
@@ -27,7 +28,6 @@ import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleColumnsService;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleTableService;
 import com.ezylang.evalex.parser.ParseException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -36,14 +36,11 @@ import kr.dongkuk.maru.mdm.engine.expr.AstExporter;
 import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-08-04 design §3.1 「RuleLedgerChecksTest」 — 원장을 읽는 저장 시 검사 빈(§2.2 표): 도메인 범위·코드 참조·MDM 참조·필수 컬럼·룰 세트
@@ -53,10 +50,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(DmeTestSupport.Config.class)
-class RuleLedgerChecksTest {
-
-    @TempDir
-    static Path tempDir;
+class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
 
     @Autowired
     RuleTableService tableService;
@@ -68,12 +62,6 @@ class RuleLedgerChecksTest {
     MdmEvaluator evaluator;
     @Autowired
     JdbcTemplate jdbc;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-rule-ledger-checks-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seed() {

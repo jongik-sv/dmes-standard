@@ -11,6 +11,7 @@ import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.security.context.UserContextHolder;
 import com.dongkuk.dmes.mdm.common.segment.DataSegmentLock;
 import com.dongkuk.dmes.mdm.common.segment.DmdSegmentTestSupport;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dmd.dataEdit.dto.CategorySummaryRow;
 import com.dongkuk.dmes.mdm.dmd.dataEdit.dto.DataEditDeprecateRequest;
 import com.dongkuk.dmes.mdm.dmd.dataEdit.dto.DataEditHeaderSaveRequest;
@@ -18,7 +19,6 @@ import com.dongkuk.dmes.mdm.dmd.dataEdit.dto.DataEditView;
 import com.dongkuk.dmes.mdm.dmd.dataEdit.dto.DataEditViewRequest;
 import com.dongkuk.dmes.mdm.dmd.dataEdit.service.DataEditService;
 import com.dongkuk.oasis.audit.AuditHolder;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
@@ -26,14 +26,11 @@ import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 /**
@@ -48,10 +45,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(DmdSegmentTestSupport.Config.class)
-class DataEditServiceSqliteTest {
-
-    @TempDir
-    static Path tempDir;
+class DataEditServiceSqliteTest extends AbstractMdmSharedDbTest {
 
     @Autowired
     DataEditService service;
@@ -61,11 +55,6 @@ class DataEditServiceSqliteTest {
     DataSource dataSource;
 
     private JdbcTemplate jdbc;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + tempDir.resolve("mdm-dmd-data-edit.db"));
-    }
 
     @BeforeEach
     void setUp() {

@@ -9,10 +9,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.security.context.UserContextHolder;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.MutableClock;
 import com.dongkuk.dmes.mdm.contract.data.MdmTemporalSegmentAction;
 import com.dongkuk.oasis.audit.AuditHolder;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -25,14 +25,11 @@ import java.util.stream.Stream;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-07-03 수용 기준 1 — 05 「예」 두 표(E1~E6, X1~X4)의 선분 결과를 데이터 주도로 재현한다(design.md §3.2 T-EX).
@@ -46,7 +43,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(DmdSegmentTestSupport.Config.class)
-class MasterDataExamplesScenarioTest {
+class MasterDataExamplesScenarioTest extends AbstractMdmSharedDbTest {
 
     private static final LocalDateTime T1 = LocalDateTime.of(2026, 9, 10, 9, 0, 0);
     private static final LocalDateTime T2 = T1.plusHours(1);
@@ -56,9 +53,6 @@ class MasterDataExamplesScenarioTest {
     private static final LocalDateTime T6 = T1.plusHours(5);
     private static final LocalDateTime TX0 = LocalDateTime.of(2026, 9, 11, 9, 0, 0);
     private static final LocalDateTime TX2 = TX0.plusHours(1);
-
-    @TempDir
-    static Path tempDir;
 
     @Autowired
     DataItemSaveCore itemCore;
@@ -70,11 +64,6 @@ class MasterDataExamplesScenarioTest {
     DataSource dataSource;
 
     private JdbcTemplate jdbc;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + tempDir.resolve("mdm-dmd-segment-examples.db"));
-    }
 
     /** 선분 행 식별(순번 제외): 표·키·valid_from·valid_to. */
     record SegRow(String table, String key, String from, String to) {

@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mdm.common.dictionary;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmCodeRef;
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmDomainDraft;
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmDomainKind;
@@ -10,25 +11,18 @@ import com.dongkuk.dmes.mdm.contract.dictionary.MdmEffectiveDomain;
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmEffectiveDomainResolver;
 import com.dongkuk.dmes.mdm.dma.domainMng.dto.DomainMngSearchRequest;
 import com.dongkuk.dmes.mdm.dma.domainMng.service.DomainMngService;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /** design.md §4.2 — 계약 구현 resolve = 목록 조립값(세 자리가 같은 답, 불변 I3), resolveDraft 는 저장 없이 초안을 얹는다. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
-class DefaultMdmEffectiveDomainResolverTest {
-
-    @TempDir
-    static Path tempDir;
+class DefaultMdmEffectiveDomainResolverTest extends AbstractMdmSharedDbTest {
 
     @Autowired
     MdmEffectiveDomainResolver resolver;
@@ -36,12 +30,6 @@ class DefaultMdmEffectiveDomainResolverTest {
     DomainMngService service;
     @Autowired
     JdbcTemplate jdbc;
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        Path db = tempDir.resolve("domain-resolver.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + db);
-    }
 
     private void tree() {
         if (jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_DOMAIN", Integer.class) > 0) {

@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingRepository;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendCandidate;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermDeleteRequest;
@@ -17,18 +18,14 @@ import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSaveRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSaveResult;
 import com.dongkuk.dmes.mdm.dma.termMng.service.TermMngService;
 import com.dongkuk.dmes.mdm.repository.MdmTermRepository;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -40,10 +37,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
-class TermMngServiceTest {
-
-    @TempDir
-    static Path tempDir;
+class TermMngServiceTest extends AbstractMdmSharedDbTest {
 
     @Autowired
     TermMngService service;
@@ -55,12 +49,6 @@ class TermMngServiceTest {
     TermRecommendationCache cache;
     @Autowired
     PlatformTransactionManager transactionManager;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("term-mng-service-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void cleanUp() {

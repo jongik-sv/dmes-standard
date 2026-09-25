@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mdm.dmb;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dmb.headerMng.dto.HeaderMngSaveRequest;
 import com.dongkuk.dmes.mdm.dmb.headerMng.service.HeaderMngService;
 import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngSaveRequest;
@@ -20,7 +21,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * IGNORE}), **헤더 L100·L110 은 반드시 {@link HeaderMngService#save} 로 만든다**(SQL 로 넣으면 헤더 오프셋·총 길이 계산을 아무도
  * 거치지 않는다). 서비스는 트랜잭션 없이 부른다. 한 클래스가 DB 하나를 쓰므로 EAI 코드·레이아웃 이름은 호출마다 새로 만든다.
  */
-public abstract class LayoutTestSupport {
+public abstract class LayoutTestSupport extends AbstractMdmSharedDbTest {
 
     public static final String W4 = "SIGN=N;ZERO=Y;SCALE=1;WIDTH=4";
 

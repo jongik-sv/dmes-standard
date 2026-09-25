@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.entity.MdmColumn;
 import com.dongkuk.dmes.mdm.entity.MdmColumnSystem;
 import com.dongkuk.dmes.mdm.entity.MdmColumnSystemId;
@@ -18,17 +19,13 @@ import com.dongkuk.dmes.mdm.repository.MdmTermRepository;
 import com.dongkuk.dmes.mdm.repository.MdmUnitRepository;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
-import java.nio.file.Path;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -44,10 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Transactional
-class MdmEntityJpaRoundtripTest {
-
-    @TempDir
-    static Path tempDir;
+class MdmEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
 
     @Autowired
     MdmUnitRepository unitRepository;
@@ -61,12 +55,6 @@ class MdmEntityJpaRoundtripTest {
     MdmColumnSystemRepository columnSystemRepository;
     @Autowired
     EntityManager entityManager;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-entity-roundtrip-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @Test
     void MdmUnit_은_지정_PK_로_저장_조회_왕복한다() {

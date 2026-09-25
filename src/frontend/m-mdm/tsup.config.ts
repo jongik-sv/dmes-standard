@@ -15,7 +15,9 @@ const common: Options = {
   format: ["esm"],
   target: "es2022",
   charset: "utf8",
-  dts: true,
+  // .d.ts 생성(가장 오래 걸리는 단계)은 기본으로 켠다. 소비 패키지의 tsc(lint)를 돌리지 않는 단위 테스트 게이트만
+  // TSUP_DTS=0 으로 끈다(next dev·vitest 는 .d.ts 를 쓰지 않는다. perf-audit (B) 표).
+  dts: process.env.TSUP_DTS !== "0",
   sourcemap: true,
   // clean: false 유지 — 호스트(m-mcm) dev 서버가 dist/ 를 watch 하므로
   // 빌드 시작 순간 dist 가 비면 번들러 캐시가 깨진다(m-mls/m-mqc 와 동일 이유).

@@ -3,23 +3,20 @@ package com.dongkuk.dmes.mdm.common.dictionary;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmDomainImpact;
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmDomainImpactLookup;
 import com.dongkuk.dmes.mdm.dma.domainMng.dto.DomainMngViewRequest;
 import com.dongkuk.dmes.mdm.dma.domainMng.service.DomainMngService;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * design.md §4.2 — 재귀 CTE(하위 트리·참조 컬럼·조상 체인)와 03·06 참조 0건(수용 기준 6). 이 컨텍스트에는
@@ -28,10 +25,7 @@ import org.springframework.test.context.DynamicPropertySource;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
-class DomainImpactQueriesSqliteTest {
-
-    @TempDir
-    static Path tempDir;
+class DomainImpactQueriesSqliteTest extends AbstractMdmSharedDbTest {
 
     @Autowired
     DomainImpactQueries queries;
@@ -41,12 +35,6 @@ class DomainImpactQueriesSqliteTest {
     DomainMngService service;
     @Autowired
     JdbcTemplate jdbc;
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        Path db = tempDir.resolve("domain-impact.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + db);
-    }
 
     /** 1 ─ 2 ─ 3, 1 ─ 4 / 컬럼: 2(COL_B), 3(COL_C1, COL_C2). 5 ↔ 6 은 순환 데이터. */
     static void tree(JdbcTemplate jdbc) {

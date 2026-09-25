@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.category.CategoryDefTarget;
 import com.dongkuk.dmes.mdm.contract.category.CategoryDefinition;
 import com.dongkuk.dmes.mdm.contract.category.CategoryKind;
@@ -19,20 +20,16 @@ import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import com.dongkuk.dmes.mdm.dma.DmaTestSupport.MutableCurrentUser;
 import java.math.BigDecimal;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-06-04 design.md §5 불변 규칙 1·2·3·5·7·9·10·11·12·13·14 — 카테고리·TABLE 소속 선분 조작({@link MasterCodeCateSegmentOps},
@@ -44,7 +41,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(MasterCodeTestConfig.class)
-class MasterCodeCateSegmentOpsSqliteTest {
+class MasterCodeCateSegmentOpsSqliteTest extends AbstractMdmSharedDbTest {
 
     private static final BigDecimal V1_000 = new BigDecimal("1.000");
     private static final BigDecimal V1_001 = new BigDecimal("1.001");
@@ -52,9 +49,6 @@ class MasterCodeCateSegmentOpsSqliteTest {
     private static final VersionRef RELEASED = ref(V1_000);
     private static final VersionRef DRAFT = ref(V1_001);
     private static final long SEED_ROW_VERSION = 5L;
-
-    @TempDir
-    static Path tempDir;
 
     @Autowired
     MasterCodeSegmentService segments;
@@ -64,12 +58,6 @@ class MasterCodeCateSegmentOpsSqliteTest {
     DataSource dataSource;
 
     private MasterCodeFixtures fx;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-master-code-cate-segment-ops-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seed() {

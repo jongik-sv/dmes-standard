@@ -30,7 +30,7 @@
     "format": "prettier --write .",
     "gen:contract": "node scripts/gen-engine-contract.mjs",
     "lint": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "node scripts/test.mjs"
   },
   "dependencies": {
     "@dk-oasis/shared": "workspace:*",

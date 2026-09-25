@@ -77,3 +77,16 @@ tasks.register('onnxEmbeddingManualTest', Test) {
     systemProperty 'mdm.embedding.encoder', 'onnx'
     testLogging { events 'passed', 'failed', 'skipped'; showStandardStreams = true; exceptionFormat = 'full' }
 }
+
+// perf-audit P6 — 선언되지 않은 테스트 입력(루트 build.gradle 주석 참고).
+tasks.named('test') {
+    // DmdScreenMessageParityTest — 화면 메시지 사본
+    inputs.files(rootProject.file('../../frontend/m-mdm/pages/dmd/dataItemMng/messages.ts'))
+            .withPropertyName('mdmScreenMessages').withPathSensitivity(PathSensitivity.RELATIVE)
+    // MdmOasisActionVocabularyTest — mcm 메뉴·버튼 시드
+    inputs.files(rootProject.file('../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer.java'))
+            .withPropertyName('mcmDataInitializer').withPathSensitivity(PathSensitivity.RELATIVE)
+    // *OasisHttpTest·MdmSecurityChainTest 등 — 클라이언트 키, application.yml 의 JWT 비밀 기본값을 덮는 환경 변수
+    inputs.property('env.BACKEND_CLIENT_KEY.sha256', rootProject.mdmEnvFingerprint.call('BACKEND_CLIENT_KEY'))
+    inputs.property('env.CACTUS_JWT_SECRET.sha256', rootProject.mdmEnvFingerprint.call('CACTUS_JWT_SECRET'))
+}

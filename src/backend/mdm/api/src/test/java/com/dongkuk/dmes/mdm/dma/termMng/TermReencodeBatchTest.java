@@ -10,23 +10,20 @@ import com.dongkuk.dmes.mdm.common.embedding.NoopTermEmbeddingEncoder;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingCodec;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingEncoder;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingRepository;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.ReencodeBatchRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSaveRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSaveResult;
 import com.dongkuk.dmes.mdm.dma.termMng.service.TermMngService;
 import com.dongkuk.dmes.mdm.entity.MdmTerm;
 import com.dongkuk.dmes.mdm.repository.MdmTermRepository;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -38,10 +35,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @TestPropertySource(properties = "mdm.embedding.encoder=fake")
-class TermReencodeBatchTest {
-
-    @TempDir
-    static Path tempDir;
+class TermReencodeBatchTest extends AbstractMdmSharedDbTest {
 
     @Autowired
     TermMngService service;
@@ -55,12 +49,6 @@ class TermReencodeBatchTest {
     TermEmbeddingEncoder encoder; // fake(DeterministicHashTermEmbeddingEncoder)
     @Autowired
     PlatformTransactionManager transactionManager;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("term-reencode-batch-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void cleanUp() {

@@ -113,3 +113,18 @@ tasks.named('test') {
 bootWar {
     archiveFileName = 'caravan-hub.war'
 }
+
+// ── 빌드 부하·속도 설정(chore/gradle-tuning, 2026-09-26) — 모든 Test 태스크 공통 ──
+// - 빌드 캐시(gradle.properties org.gradle.caching=true)에서 Test 를 뺀다. 테스트가 선언되지 않은 외부 입력에 기댄다 —
+//   작업 트리 밖 파일(mdm: frontend messages.ts·mcm DataInitializer·maru-mdm-engine 코퍼스), 기본 application.yml 의
+//   상태 있는 ../data/*.db, BACKEND_CLIENT_KEY 환경 변수. 캐시가 다른 워크트리의 통과 결과를 꺼내 실패를 숨길 수 있다.
+//   컴파일 등 다른 태스크는 그대로 캐시한다. 루트 composite 에서 켠 캐시는 모든 includeBuild 에 적용되므로 모듈마다 둔다.
+// - 테스트 JVM 은 짧게 돌아 C2 JIT 컴파일이 CPU 만 먹고(측정 시 350% 가까이) 이득이 없다 — C1 까지만 쓴다.
+allprojects {
+    tasks.withType(Test).configureEach {
+        outputs.doNotCacheIf('선언되지 않은 외부 입력(작업 트리 밖 파일·../data SQLite·환경 변수)에 기대는 테스트') { true }
+        // C1 만 쓰면 JVM 이 코드 캐시 기본값을 240MB → 48MB 로 줄인다. mdm/api 1060건에서 "Out of space in CodeCache for
+        // adapters" 로 OASIS 호출이 실패했다(2026-09-26) — 원래 기본값으로 되돌린다(예약 크기라 쓰는 만큼만 잡힌다).
+        jvmArgs '-XX:TieredStopAtLevel=1', '-XX:ReservedCodeCacheSize=240m'
+    }
+}

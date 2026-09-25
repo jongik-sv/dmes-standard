@@ -67,3 +67,13 @@ tasks.register('sapDictCandidates', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'com.dongkuk.dmes.mdm.batch.sapdict.SapDictCandidateCli'
 }
+
+// perf-audit P6 — 선언되지 않은 테스트 입력(루트 build.gradle 주석 참고).
+tasks.named('test') {
+    // NoopTermEmbeddingEncoderTest — api 모듈의 application.yml(lib 테스트 classpath 밖)
+    inputs.files(rootProject.file('api/src/main/resources/application.yml'))
+            .withPropertyName('apiApplicationYml').withPathSensitivity(PathSensitivity.RELATIVE)
+    // RuleAnalysisCorpusTest — 엔진 테스트 리소스의 분석 코퍼스
+    inputs.files(rootProject.file('../maru-mdm-engine/src/test/resources/kr/dongkuk/maru/mdm/engine/analysis/analysis-corpus.json'))
+            .withPropertyName('engineAnalysisCorpus').withPathSensitivity(PathSensitivity.RELATIVE)
+}
