@@ -17,11 +17,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeFixtures;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeTestConfig;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.security.MdmRoles;
 import com.dongkuk.dmes.mdm.dma.DmaTestSupport.MutableCurrentUser;
 import com.dongkuk.dmes.mdm.dmc.codeItemEdit.service.CodeItemEditService;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,14 +29,11 @@ import java.util.TreeSet;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-06-03 design.md §4.4 SD1~SD7 — 수용 기준 1 「04 샘플 데이터 저장 검사 결과 일치」. 기대값은 원천
@@ -46,10 +43,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(MasterCodeTestConfig.class)
-class CodeItemEditSampleDataTest {
-
-    @TempDir
-    static Path tempDir;
+class CodeItemEditSampleDataTest extends AbstractMdmSharedDbTest {
 
     @Autowired
     CodeItemEditService service;
@@ -59,12 +53,6 @@ class CodeItemEditSampleDataTest {
     DataSource dataSource;
 
     private MasterCodeFixtures fx;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-code-item-edit-sample-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seed() {

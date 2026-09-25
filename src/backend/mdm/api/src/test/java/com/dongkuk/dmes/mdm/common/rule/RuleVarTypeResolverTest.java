@@ -2,22 +2,19 @@ package com.dongkuk.dmes.mdm.common.rule;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.entity.MdmColumn;
 import com.dongkuk.dmes.mdm.entity.MdmDomain;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import com.dongkuk.dmes.mdm.repository.MdmColumnRepository;
 import com.dongkuk.dmes.mdm.repository.MdmDomainRepository;
-import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-08-02 design §3.1 「RuleVarTypeResolverTest」·§6.4·I16 — 변수 타입은 서버 한 곳에서 여섯 갈래 순서로 해석한다.
@@ -25,10 +22,7 @@ import org.springframework.test.context.DynamicPropertySource;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
-class RuleVarTypeResolverTest {
-
-    @TempDir
-    static Path tempDir;
+class RuleVarTypeResolverTest extends AbstractMdmSharedDbTest {
 
     @Autowired
     RuleVarTypeResolver resolver;
@@ -43,12 +37,6 @@ class RuleVarTypeResolverTest {
     long code;
     long date;
     long lenChild;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-rule-var-type-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seed() {

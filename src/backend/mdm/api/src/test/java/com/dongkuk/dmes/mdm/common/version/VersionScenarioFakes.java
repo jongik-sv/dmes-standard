@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mdm.common.version;
 
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
 import com.dongkuk.dmes.mdm.common.security.MdmStewardDirectory;
+import com.dongkuk.dmes.mdm.common.testdb.SharedContextResettable;
 import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
 import com.dongkuk.dmes.mdm.contract.version.ConfirmCheckRequest;
 import com.dongkuk.dmes.mdm.contract.version.ConfirmCheckResult;
@@ -47,12 +48,19 @@ public final class VersionScenarioFakes {
     }
 
     /** 테스트가 옮길 수 있는 시계(Asia/Seoul). */
-    public static final class MutableClock extends Clock {
+    public static final class MutableClock extends Clock implements SharedContextResettable {
         private final ZoneId zone;
+        private final LocalDateTime initial;
         private volatile Instant instant;
 
         public MutableClock(ZoneId zone, LocalDateTime initial) {
             this.zone = zone;
+            this.initial = initial;
+            setLocal(initial);
+        }
+
+        @Override
+        public void resetForTestClass() {
             setLocal(initial);
         }
 
@@ -104,8 +112,13 @@ public final class VersionScenarioFakes {
     }
 
     /** 담당자 ID 집합을 받는 디렉터리 가짜. */
-    public static final class FakeStewardDirectory implements MdmStewardDirectory {
+    public static final class FakeStewardDirectory implements MdmStewardDirectory, SharedContextResettable {
         private volatile Set<String> stewards = Set.of();
+
+        @Override
+        public void resetForTestClass() {
+            this.stewards = Set.of();
+        }
 
         public void set(Set<String> stewards) {
             this.stewards = Set.copyOf(stewards);

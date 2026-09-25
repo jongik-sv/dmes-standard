@@ -7,17 +7,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.dmb.LayoutTestSupport;
 import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngSaveRequest;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-05-03 design.md §3.2 — 03 등록 거부 7종을 원문 순서대로 서버에서(수용 기준 3), CONST 값은 도메인 유효 식으로(수용 기준 4).
@@ -26,15 +22,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 class LayoutRegistrationSqliteTest extends LayoutTestSupport {
-
-    @TempDir
-    static Path tempDir;
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        Path db = tempDir.resolve("layout-registration.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + db);
-    }
 
     @BeforeEach
     void setUp() {

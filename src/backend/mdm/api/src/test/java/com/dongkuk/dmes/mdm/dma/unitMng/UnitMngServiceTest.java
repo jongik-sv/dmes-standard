@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dma.unitMng.dto.UnitDeleteRequest;
 import com.dongkuk.dmes.mdm.dma.unitMng.dto.UnitSaveRequest;
 import com.dongkuk.dmes.mdm.dma.unitMng.service.UnitMngService;
@@ -12,14 +13,10 @@ import com.dongkuk.dmes.mdm.entity.MdmDomain;
 import com.dongkuk.dmes.mdm.entity.MdmUnit;
 import com.dongkuk.dmes.mdm.repository.MdmDomainRepository;
 import com.dongkuk.dmes.mdm.repository.MdmUnitRepository;
-import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -29,10 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Transactional
-class UnitMngServiceTest {
-
-    @TempDir
-    static Path tempDir;
+class UnitMngServiceTest extends AbstractMdmSharedDbTest {
 
     @Autowired
     UnitMngService service;
@@ -40,12 +34,6 @@ class UnitMngServiceTest {
     MdmDomainRepository domainRepository;
     @Autowired
     MdmUnitRepository unitRepository;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("unit-mng-service-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     private static UnitSaveRequest req(String unitCode, String dimension, String baseUnit, String factor) {
         UnitSaveRequest r = new UnitSaveRequest();

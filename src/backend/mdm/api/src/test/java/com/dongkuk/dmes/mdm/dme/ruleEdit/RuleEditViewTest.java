@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveRequest;
@@ -24,19 +25,15 @@ import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleExprParseRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleExprParseResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleVersionRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditService;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-08-02 design §3.1 「RuleEditViewTest」 — view 조립(§6.2·§6.3.1): 기본 버전 고르기, {@code editable}(I7: MDM·DRAFT·소유자),
@@ -46,10 +43,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(DmeTestSupport.Config.class)
-class RuleEditViewTest {
-
-    @TempDir
-    static Path tempDir;
+class RuleEditViewTest extends AbstractMdmSharedDbTest {
 
     @Autowired
     RuleEditService service;
@@ -57,12 +51,6 @@ class RuleEditViewTest {
     MutableCurrentUser currentUser;
     @Autowired
     JdbcTemplate jdbc;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-rule-edit-view-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seed() {

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dma.domainMng.dto.DomainDraftRequest;
 import com.dongkuk.dmes.mdm.dma.domainMng.service.DomainMngService;
 import java.util.ArrayList;
@@ -19,7 +20,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * TSK-04-03 api 통합 테스트 공용 — 픽스처는 네이티브 SQL, 호출은 {@link DomainMngService} 빈 직접(트랜잭션 없이 부른다.
  * 쓰기 전에 거부해야 하므로 앞서 쓴 행이 있으면 그 쓰기는 커밋돼 "행 불변" 단언이 잡는다 — 불변 I7).
  */
-abstract class DomainMngApiSupport {
+abstract class DomainMngApiSupport extends AbstractMdmSharedDbTest {
 
     @Autowired
     protected DomainMngService service;

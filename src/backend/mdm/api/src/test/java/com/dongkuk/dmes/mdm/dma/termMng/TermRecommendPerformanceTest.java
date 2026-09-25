@@ -5,20 +5,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.dongkuk.dmes.mdm.common.embedding.DeterministicHashTermEmbeddingEncoder;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingCodec;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingEncoder;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.service.TermMngService;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 
 /**
@@ -31,13 +28,10 @@ import org.springframework.test.context.TestPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @TestPropertySource(properties = "mdm.embedding.encoder=fake")
-class TermRecommendPerformanceTest {
+class TermRecommendPerformanceTest extends AbstractMdmSharedDbTest {
 
     private static final int TERM_COUNT = 10_000;
     private static final long MAX_MEDIAN_MS = 500L;
-
-    @TempDir
-    static Path tempDir;
 
     @Autowired
     TermMngService service;
@@ -47,12 +41,6 @@ class TermRecommendPerformanceTest {
     TermEmbeddingEncoder encoder; // fake
     @Autowired
     JdbcTemplate jdbcTemplate;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("term-recommend-performance-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seedTenThousandTerms() {

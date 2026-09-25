@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.entity.MdmEai;
 import com.dongkuk.dmes.mdm.entity.MdmLayout;
 import com.dongkuk.dmes.mdm.entity.MdmLayoutConst;
@@ -19,15 +20,11 @@ import com.dongkuk.dmes.mdm.repository.MdmLayoutHeaderRepository;
 import com.dongkuk.dmes.mdm.repository.MdmLayoutItemRepository;
 import com.dongkuk.dmes.mdm.repository.MdmLayoutRepository;
 import jakarta.persistence.EntityManager;
-import java.nio.file.Path;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -38,10 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Transactional
-class MdmLayoutEntityJpaRoundtripTest {
-
-    @TempDir
-    static Path tempDir;
+class MdmLayoutEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
 
     @Autowired
     MdmEaiRepository eaiRepository;
@@ -55,12 +49,6 @@ class MdmLayoutEntityJpaRoundtripTest {
     MdmLayoutConstRepository layoutConstRepository;
     @Autowired
     EntityManager entityManager;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-layout-entity-roundtrip-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @Test
     void MdmEai_는_지정_PK_로_저장_조회_왕복한다() {

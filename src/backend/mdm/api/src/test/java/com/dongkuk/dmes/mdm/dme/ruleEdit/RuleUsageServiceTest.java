@@ -3,23 +3,20 @@ package com.dongkuk.dmes.mdm.dme.ruleEdit;
 import static com.dongkuk.dmes.mdm.dme.DmeTestSupport.STEWARD;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewResult.SetInfo;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewResult.UsageInfo;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleUsageService;
-import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-08-02 design §3.1 「RuleUsageServiceTest」·§6.3.9 — 카드 ⑧ 활용처: 이 룰을 담은 세트와 세트 안의 의존 룰(이 룰이 읽는 이름을
@@ -29,10 +26,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(DmeTestSupport.Config.class)
-class RuleUsageServiceTest {
-
-    @TempDir
-    static Path tempDir;
+class RuleUsageServiceTest extends AbstractMdmSharedDbTest {
 
     @Autowired
     RuleUsageService service;
@@ -40,12 +34,6 @@ class RuleUsageServiceTest {
     MutableCurrentUser currentUser;
     @Autowired
     JdbcTemplate jdbc;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-rule-usage-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seed() {

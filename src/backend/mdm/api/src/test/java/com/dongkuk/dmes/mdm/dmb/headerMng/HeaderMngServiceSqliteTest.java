@@ -10,17 +10,13 @@ import com.dongkuk.dmes.mdm.dmb.LayoutTestSupport;
 import com.dongkuk.dmes.mdm.dmb.headerMng.dto.HeaderMngSaveRequest;
 import com.dongkuk.dmes.mdm.dmb.headerMng.dto.HeaderMngSearchRequest;
 import com.dongkuk.dmes.mdm.dmb.headerMng.dto.HeaderMngViewRequest;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-05-02 design.md §3.2 — 헤더 저장·EAI·사용 전문 재계산·재정의 재짝짓기(불변 I2·I3·I5·I6·I12·I13·I16·I17·I23).
@@ -28,15 +24,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 class HeaderMngServiceSqliteTest extends LayoutTestSupport {
-
-    @TempDir
-    static Path tempDir;
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        Path db = tempDir.resolve("header-mng.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + db);
-    }
 
     @BeforeEach
     void setUp() {

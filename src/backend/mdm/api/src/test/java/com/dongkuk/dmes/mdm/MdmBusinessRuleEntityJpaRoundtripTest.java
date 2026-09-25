@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.common.support.MdmSqliteLocalDateTimeConverter;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.entity.MdmRuleRow;
 import com.dongkuk.dmes.mdm.entity.MdmRuleRowId;
@@ -28,18 +29,14 @@ import jakarta.persistence.EntityManager;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -52,10 +49,7 @@ import org.springframework.transaction.annotation.Transactional;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Transactional
-class MdmBusinessRuleEntityJpaRoundtripTest {
-
-    @TempDir
-    static Path tempDir;
+class MdmBusinessRuleEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
 
     @Autowired
     MdmRuleRepository ruleRepository;
@@ -71,12 +65,6 @@ class MdmBusinessRuleEntityJpaRoundtripTest {
     MdmRuleSetRepository setRepository;
     @Autowired
     EntityManager entityManager;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-business-rule-entity-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     // ── 6엔티티 왕복 ──
 

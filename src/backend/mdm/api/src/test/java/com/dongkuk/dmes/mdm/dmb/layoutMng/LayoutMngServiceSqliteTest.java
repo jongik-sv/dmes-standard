@@ -10,17 +10,13 @@ import com.dongkuk.dmes.mdm.dmb.LayoutTestSupport;
 import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngSaveRequest;
 import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngSearchRequest;
 import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngViewRequest;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-05-02 design.md §3.2 — 전문 저장: M201 재현(수용 기준 6), 헤더 잠김·상수 재정의(수용 기준 3), EAI 자동 부착, 거부 L01·L02·
@@ -29,15 +25,6 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 class LayoutMngServiceSqliteTest extends LayoutTestSupport {
-
-    @TempDir
-    static Path tempDir;
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        Path db = tempDir.resolve("layout-mng.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + db);
-    }
 
     @BeforeEach
     void setUp() {

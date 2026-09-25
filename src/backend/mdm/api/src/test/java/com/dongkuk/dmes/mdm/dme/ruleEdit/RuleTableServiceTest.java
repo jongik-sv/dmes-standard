@@ -15,6 +15,7 @@ import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.common.rule.RuleAnalysisInputMapper;
 import com.dongkuk.dmes.mdm.common.rule.RuleAnalysisInputMapper.StoredRow;
 import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveRequest;
@@ -22,7 +23,6 @@ import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleTableService;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import com.dongkuk.dmes.mdm.repository.MdmRuleVarRepository;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -33,14 +33,11 @@ import kr.dongkuk.maru.mdm.engine.rule.RuleIssue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-08-02 design §3.1 「RuleTableServiceTest」 — 카드 ③ 표 저장: DRAFT 행 전체 교체(I8)와 서버가 정하는 seq·발급 번호(I10), 셀 모양
@@ -50,10 +47,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(DmeTestSupport.Config.class)
-class RuleTableServiceTest {
-
-    @TempDir
-    static Path tempDir;
+class RuleTableServiceTest extends AbstractMdmSharedDbTest {
 
     @Autowired
     RuleTableService service;
@@ -65,12 +59,6 @@ class RuleTableServiceTest {
     MutableCurrentUser currentUser;
     @Autowired
     JdbcTemplate jdbc;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-rule-table-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seed() {

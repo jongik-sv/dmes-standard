@@ -10,13 +10,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.FakeStewardDirectory;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleVersionRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleVersionResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleVersionService;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -24,14 +24,11 @@ import java.util.TreeMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-08-02 design §3.1 「RuleVersionServiceTest」 — 카드 ② 버전: 새 버전(I4 미적용 거부·I5 직전 RELEASED 전수 복사), DRAFT 삭제
@@ -40,10 +37,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(DmeTestSupport.Config.class)
-class RuleVersionServiceTest {
-
-    @TempDir
-    static Path tempDir;
+class RuleVersionServiceTest extends AbstractMdmSharedDbTest {
 
     @Autowired
     RuleVersionService service;
@@ -53,12 +47,6 @@ class RuleVersionServiceTest {
     FakeStewardDirectory stewards;
     @Autowired
     JdbcTemplate jdbc;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-rule-version-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seed() {

@@ -17,7 +17,6 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -26,13 +25,10 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-05-02 design.md §3.3 — 실제 BPMN({@code services/dmb/headerMng.bpmn}·{@code layoutMng.bpmn}) + OASIS 트랜잭션을 HTTP 로
@@ -46,9 +42,6 @@ class LayoutOasisFlowTest extends LayoutTestSupport {
 
     static final String CLIENT_KEY = "mdm-test-client-key";
 
-    @TempDir
-    static Path tempDir;
-
     @LocalServerPort
     int port;
 
@@ -60,12 +53,6 @@ class LayoutOasisFlowTest extends LayoutTestSupport {
 
     private final HttpClient http = HttpClient.newHttpClient();
     private final ObjectMapper json = new ObjectMapper();
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        Path db = tempDir.resolve("layout-oasis-flow.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + db);
-    }
 
     @BeforeEach
     void setUp() {

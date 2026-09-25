@@ -15,11 +15,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.security.context.UserContextHolder;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.MutableClock;
 import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
 import com.dongkuk.dmes.mdm.contract.data.MdmTemporalSegmentAction;
 import com.dongkuk.oasis.audit.AuditHolder;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import javax.sql.DataSource;
@@ -27,14 +27,11 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-07-03 design.md §3.2 T-C — 05 「저장 경로와 검증」 검사 순서 1~7 을 경로(SCREEN·CSV·API)별로 확인한다(C0~C6).
@@ -43,15 +40,12 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(DmdSegmentTestSupport.Config.class)
-class DataItemChecksSqliteTest {
+class DataItemChecksSqliteTest extends AbstractMdmSharedDbTest {
 
     private static final String PORT = "PORT";
     private static final String CUST = "CUST";
     private static final String DEP = "DEPR";
     private static final String HIER = "HIER";
-
-    @TempDir
-    static Path tempDir;
 
     @Autowired
     DataItemSaveCore core;
@@ -61,11 +55,6 @@ class DataItemChecksSqliteTest {
     DataSource dataSource;
 
     private JdbcTemplate jdbc;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + tempDir.resolve("mdm-dmd-segment-checks.db"));
-    }
 
     @BeforeEach
     void setUp() {

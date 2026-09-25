@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mdm.dme;
 
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
 import com.dongkuk.dmes.mdm.common.support.MdmClockConfig;
+import com.dongkuk.dmes.mdm.common.testdb.SharedContextResettable;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.FakeStewardDirectory;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.MutableClock;
 import com.dongkuk.dmes.mdm.contract.security.MdmRoles;
@@ -50,9 +51,15 @@ public final class DmeTestSupport {
         }
     }
 
-    public static final class MutableCurrentUser implements MdmCurrentUser {
+    public static final class MutableCurrentUser implements MdmCurrentUser, SharedContextResettable {
         private volatile String userId;
         private volatile Set<String> roles = Set.of();
+
+        @Override
+        public void resetForTestClass() {
+            this.userId = null;
+            this.roles = Set.of();
+        }
 
         public void set(String userId, Set<String> roles) {
             this.userId = userId;

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.dongkuk.dmes.mdm.common.support.MdmTemporalBinder;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.common.version.VersionRow;
 import com.dongkuk.dmes.mdm.common.version.VersionRowStore;
 import com.dongkuk.dmes.mdm.contract.version.VersionConventions;
@@ -27,15 +28,11 @@ import com.dongkuk.dmes.mdm.repository.MdmCodeVerRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceException;
 import java.math.BigDecimal;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -47,14 +44,11 @@ import org.springframework.transaction.annotation.Transactional;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Transactional
-class MdmMasterCodeEntityJpaRoundtripTest {
+class MdmMasterCodeEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
 
     private static final BigDecimal V1_000 = new BigDecimal("1.000");
     private static final BigDecimal V1_001 = new BigDecimal("1.001");
     private static final BigDecimal V2_000 = new BigDecimal("2.000");
-
-    @TempDir
-    static Path tempDir;
 
     @Autowired
     MdmCodeRepository codeRepository;
@@ -72,12 +66,6 @@ class MdmMasterCodeEntityJpaRoundtripTest {
     MdmTemporalBinder temporalBinder;
     @Autowired
     EntityManager entityManager;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-master-code-entity-roundtrip-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     /** 1 — 엔티티 필드 초기값이 DDL 기본값과 같다(Hibernate 는 매핑한 칼럼에 null 을 명시해 DB 기본값을 무력화한다, F27 ①). */
     @Test

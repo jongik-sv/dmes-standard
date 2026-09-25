@@ -4,39 +4,27 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dma.unitMng.dto.ConvertPreviewRequest;
 import com.dongkuk.dmes.mdm.dma.unitMng.dto.ConvertPreviewResult;
 import com.dongkuk.dmes.mdm.dma.unitMng.dto.UnitSaveRequest;
 import com.dongkuk.dmes.mdm.dma.unitMng.service.UnitMngService;
 import java.math.BigDecimal;
-import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 /** TSK-04-02 design.md §3.2 — I1(차원 다름 거부), I2(환산 계산식·반올림 규칙). */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Transactional
-class UnitConvertPreviewTest {
-
-    @TempDir
-    static Path tempDir;
+class UnitConvertPreviewTest extends AbstractMdmSharedDbTest {
 
     @Autowired
     UnitMngService service;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("unit-convert-preview-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     private static UnitSaveRequest req(String unitCode, String dimension, String baseUnit, String factor) {
         UnitSaveRequest r = new UnitSaveRequest();

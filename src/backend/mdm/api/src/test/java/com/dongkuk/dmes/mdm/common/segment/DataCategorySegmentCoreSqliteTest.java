@@ -11,11 +11,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.security.context.UserContextHolder;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.MutableClock;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.data.MdmTemporalSegmentAction;
 import com.dongkuk.oasis.audit.AuditHolder;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -24,14 +24,11 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-07-03 design.md §3.2 T-K — 카테고리·소속 선분(S1·S6·S7 을 CATE 에), BASE 가드(S14), 소속 검사 7(C7).
@@ -39,15 +36,12 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(DmdSegmentTestSupport.Config.class)
-class DataCategorySegmentCoreSqliteTest {
+class DataCategorySegmentCoreSqliteTest extends AbstractMdmSharedDbTest {
 
     private static final String MD = "PORT";
     private static final DataCateValue KR = new DataCateValue("한국 항구", "REGEX", "^KR$", "ATTR01", null);
     private static final DataCateValue BASE = new DataCateValue("전체", "REGEX", ".*", "KEY", null);
     private static final DataCateValue TABLE = new DataCateValue("주요 항구", "TABLE", null, null, null);
-
-    @TempDir
-    static Path tempDir;
 
     @Autowired
     DataCategorySegmentCore core;
@@ -57,11 +51,6 @@ class DataCategorySegmentCoreSqliteTest {
     DataSource dataSource;
 
     private JdbcTemplate jdbc;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + tempDir.resolve("mdm-dmd-segment-cate.db"));
-    }
 
     @BeforeEach
     void setUp() {

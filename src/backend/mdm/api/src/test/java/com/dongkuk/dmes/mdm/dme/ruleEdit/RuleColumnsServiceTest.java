@@ -11,13 +11,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleColumnsService;
 import com.ezylang.evalex.parser.ParseException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -26,14 +26,11 @@ import kr.dongkuk.maru.mdm.engine.expr.AstExporter;
 import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-08-03 design §3.1 「RuleColumnsServiceTest」 — 열 설정 저장(part COLUMNS): 초안 전체를 한 번에 검사해 거부가 하나라도 있으면
@@ -44,10 +41,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(DmeTestSupport.Config.class)
-class RuleColumnsServiceTest {
-
-    @TempDir
-    static Path tempDir;
+class RuleColumnsServiceTest extends AbstractMdmSharedDbTest {
 
     @Autowired
     RuleColumnsService service;
@@ -57,12 +51,6 @@ class RuleColumnsServiceTest {
     MdmEvaluator evaluator;
     @Autowired
     JdbcTemplate jdbc;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-rule-columns-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seed() {

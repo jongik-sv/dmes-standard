@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mdm;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.data.MdmTemporalSegmentRules;
 import com.dongkuk.dmes.mdm.entity.MdmData;
 import com.dongkuk.dmes.mdm.entity.MdmDataCate;
@@ -21,16 +22,12 @@ import com.dongkuk.dmes.mdm.repository.MdmDataCateRepository;
 import com.dongkuk.dmes.mdm.repository.MdmDataItemRepository;
 import com.dongkuk.dmes.mdm.repository.MdmDataRepository;
 import jakarta.persistence.EntityManager;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -46,10 +43,7 @@ import org.springframework.transaction.annotation.Transactional;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Transactional
-class MdmMasterDataEntityJpaRoundtripTest {
-
-    @TempDir
-    static Path tempDir;
+class MdmMasterDataEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
 
     @Autowired
     MdmDataRepository dataRepository;
@@ -61,12 +55,6 @@ class MdmMasterDataEntityJpaRoundtripTest {
     MdmDataCateItemRepository dataCateItemRepository;
     @Autowired
     EntityManager entityManager;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-master-data-roundtrip-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     private MdmData saveParentData(String maruDataId) {
         MdmData data = new MdmData(maruDataId, "왕복용 마스터데이터", "INUSE", "MDM", "^[0-9A-Z]{1,20}$");

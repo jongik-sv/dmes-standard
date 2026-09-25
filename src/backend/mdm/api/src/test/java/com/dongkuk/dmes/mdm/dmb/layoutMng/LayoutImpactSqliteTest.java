@@ -8,17 +8,13 @@ import com.dongkuk.dmes.mdm.dma.domainMng.dto.DomainMngViewRequest;
 import com.dongkuk.dmes.mdm.dma.domainMng.service.DomainMngService;
 import com.dongkuk.dmes.mdm.dmb.LayoutTestSupport;
 import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngSearchRequest;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-05-03 design.md §3.2·§6.7 — 컬럼·도메인 변경 영향 전문 목록(search target=IMPACT)과 domainMng 영향도의 LAYOUT_ITEM 행
@@ -28,17 +24,8 @@ import org.springframework.test.context.DynamicPropertySource;
 @ActiveProfiles("local")
 class LayoutImpactSqliteTest extends LayoutTestSupport {
 
-    @TempDir
-    static Path tempDir;
-
     @Autowired
     DomainMngService domainService;
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        Path db = tempDir.resolve("layout-impact.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + db);
-    }
 
     @BeforeEach
     void setUp() {

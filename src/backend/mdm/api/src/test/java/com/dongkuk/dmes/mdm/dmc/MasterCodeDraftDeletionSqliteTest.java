@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.security.context.UserContextHolder;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeDraftDeletion;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.version.VersionDraftDeletionSpi;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionStateService;
@@ -18,21 +19,17 @@ import com.dongkuk.dmes.mdm.dma.DmaTestSupport;
 import com.dongkuk.dmes.mdm.dma.DmaTestSupport.MutableCurrentUser;
 import com.dongkuk.oasis.audit.AuditHolder;
 import java.math.BigDecimal;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -46,12 +43,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(DmaTestSupport.Config.class)
-class MasterCodeDraftDeletionSqliteTest {
+class MasterCodeDraftDeletionSqliteTest extends AbstractMdmSharedDbTest {
 
     private static final String ID = "PROC_CD";
-
-    @TempDir
-    static Path tempDir;
 
     @Autowired
     VersionStateService versionState;
@@ -67,12 +61,6 @@ class MasterCodeDraftDeletionSqliteTest {
     private JdbcTemplate jdbc;
     private TransactionTemplate tx;
     private MasterCodeSeeds seeds;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-code-draft-deletion-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void setUp() {
