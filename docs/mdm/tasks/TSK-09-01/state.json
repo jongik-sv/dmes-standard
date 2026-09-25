@@ -2,7 +2,7 @@
   "tsk": "TSK-09-01",
   "order": "d66739eb-3c77-47f6-b32c-50d1b0dfe7fa",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "verify",
+  "phase": "reported",
   "baseline": {
     "docker": "banned:spawn",
     "failures": 0,
@@ -59,8 +59,8 @@
     "note": "도커 금지 모드: 켜짐(출처 spawn, 워커 기본). testAll 은 mssqlMigrationTest 를 포함하지 않아 제외 없이 사용"
   },
   "last": {
-    "phase": "verify",
-    "event": "gate.pass"
+    "phase": "done",
+    "event": "reported"
   },
   "model": "sonnet",
   "build_gate": {
