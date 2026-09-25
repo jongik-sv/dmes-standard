@@ -39,7 +39,9 @@ export default defineConfig((options) => ({
   },
   format: ["esm"],
   target: "es2022",
-  dts: true,
+  // .d.ts 생성(가장 오래 걸리는 단계)은 기본으로 켠다. 소비 패키지의 tsc(lint)를 돌리지 않는 단위 테스트 게이트만
+  // TSUP_DTS=0 으로 끈다(next dev·vitest 는 .d.ts 를 쓰지 않는다. perf-audit (B) 표).
+  dts: process.env.TSUP_DTS !== "0",
   sourcemap: true,
   clean: !options.watch,
   splitting: false,

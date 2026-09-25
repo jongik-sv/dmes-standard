@@ -27,6 +27,9 @@
   - m-mpn·m-mpp·m-mqc·m-mls 도 같은 형식이다(의존 패키지 = shared). shared 는 의존 패키지가 없으므로 빌드 단계 없이 `pnpm --filter @dk-oasis/shared test:unit` 을 쓴다.
 - **새 Task 부터 적용한다.** 이미 기준선을 잰 Task 는 게이트 명령을 도중에 바꾸지 않는다. 기준선 캐시 키(기점 sha + 명령 문자열)와 총수 규칙이 어긋난다.
 - 근거: `build:libs` 는 m-mdm 이 쓰지 않는 라이브러리(m-mpn·m-mpp·m-mqc·m-mls·m-analog)와 m-mdm 자신까지 빌드한다(docs/dflow-team/perf-audit-report.md P4). 2026-09-26 실측: `m-mdm^...` 빌드 37.8초·CPU 61초, `build:libs` 44.1초·CPU 87초(동시 부하 18~28, 잡음 있음).
+- 게이트가 **lint 를 돌리지 않으면** 의존 패키지 빌드에서 `.d.ts` 생성을 끌 수 있다: `TSUP_DTS=0 pnpm --filter "<패키지>^..." build`. vitest·next dev 는 `.d.ts` 를 쓰지 않는다.
+  lint(`tsc --noEmit`)는 의존 패키지(shared)의 `dist/*.d.ts` 로 타입을 읽으므로, **lint 가 들어간 게이트에서는 `TSUP_DTS=0` 을 쓰지 않는다.** 기본값(환경 변수 없음)은 지금처럼 `.d.ts` 를 만든다.
+- vitest 워커는 m-mdm·shared 모두 기본 4개다. 동시에 도는 게이트가 많으면 `VITEST_MAX_WORKERS=<수>` 로 더 줄인다(테스트 총수는 변하지 않는다).
 - 포털 전체 기동·빌드(`fe-run.sh`, m-mcm)는 모든 모듈의 dist 가 필요하므로 지금처럼 `build:libs` 를 쓴다.
 - m-mdm 의 `test` 스크립트(`scripts/test.mjs`)는 일반 스위트(병렬)와 부하 민감 성능 스위트(`vitest.perf.config.ts`, 한 fork)를 차례로 모두 돌린다. vitest 요약이 두 번 찍히므로, **게이트 총수는 마지막 `[m-mdm test 합계]` 줄의 값을 쓴다.**
 
