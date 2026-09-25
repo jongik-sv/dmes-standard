@@ -2,7 +2,7 @@
   "tsk": "TSK-09-01",
   "order": "d66739eb-3c77-47f6-b32c-50d1b0dfe7fa",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "reported",
+  "phase": "merged",
   "baseline": {
     "docker": "banned:spawn",
     "failures": 0,
@@ -149,5 +149,6 @@
       "evalex-perf.test.ts NFR-1"
     ],
     "reused_from": "build_gate"
-  }
+  },
+  "unapproved": true
 }
