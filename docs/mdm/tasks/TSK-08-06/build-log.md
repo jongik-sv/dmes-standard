@@ -70,6 +70,23 @@
 | I16(B2) | 생산자 쿼리에서 DEPRECATED 조건 삭제 | `RuleIoReaderTest` "생산자는 …" | 잡힘 |
 | I16(B2) | 생산자 정렬 뒤집음(룰 ID 내림차순) | `RuleIoReaderTest` "생산자는 …" | 잡힘 |
 | I16(B2) | 생산자 쿼리의 최신 RELEASED 조건 삭제(예전 RELEASED 결과 포함) | `RuleIoReaderTest` "생산자는 …" | 잡힘 |
+| I12(B3) | save 의 서버 검사 생략(`rejectIfAny` 삭제) | `RuleSetEditServiceTest` "순서_빈_목록_없는_룰_…_각각_MDM024_다" | 잡힘 |
+| I12(B3) | update WHERE 의 rv 조건 무력화(`ROW_VERSION = :rv` → `:rv = :rv`) | `RuleSetEditServiceTest` "row_version_이_다르면_MDM001_…" | 잡힘 |
+| I12(B3) | `RULE_IDS` 를 요청 순서가 아니라 정렬 순서로 씀 | `RuleSetEditServiceTest` "save_는_RELEASED_없음_경고만_…" | 잡힘 |
+| I12(B3) | 0행 분류를 늘 MDM001 로(상태 비교 삭제) | `RuleSetEditServiceTest` "이미_폐기한_세트는_MDM009_…" | 잡힘 |
+| I13(B3) | 같은 룰 두 번 허용(중복 검사 무력화) | `RuleSetEditServiceTest` "요청_검사는_쓰기_전에_거부한다" | 잡힘 |
+| I13(B3) | 세트명 100자 검사 느슨하게(101자 허용) | `RuleSetEditServiceTest` "요청_검사는_쓰기_전에_거부한다" | 잡힘 |
+| I14(B3) | save update 의 `STATUS='INUSE'` 조건 삭제(DEPRECATED 세트 저장 허용) | `RuleSetEditServiceTest` "row_version_이_다르면_MDM001_폐기한_세트는_MDM009_…" | 잡힘 |
+| I14(B3) | deprecate 의 `STATUS='INUSE'` 조건 삭제 | `RuleSetEditServiceTest` "이미_폐기한_세트는_MDM009_…" | 잡힘 |
+| I15(B3) | restore 의 검사 생략(`rejectIfAny` 삭제) | `RuleSetEditServiceTest` "저장된_목록에_거부가_있으면_되살리기는_MDM024_…" | 잡힘 |
+| I19(B3) | save 의 `requireSteward()` 삭제 | `RuleSetEditServiceTest` "담당자가_아니면_…_MDM013_이다" | 잡힘 |
+| I19(B3) | delete 의 `requireSteward()` 삭제 | 같은 테스트 | 잡힘 |
+| I19(B3) | restore 의 `requireSteward()` 삭제 | 같은 테스트 | 잡힘 |
+| I19(B3) | view `editable` 에서 `isSteward` 제외 | `RuleSetEditServiceTest` "view_는_세트_행과_…_담당자_쓰기_여부를_준다" | 잡힘 |
+| I3·I23(B3) | save 안에서 `TB_MDM_RULE` 을 한 번 씀 | `RuleSetEditServiceTest` "save_는_검사를_통과하면_…"(룰 테이블 스냅샷) | 잡힘 |
+| I3·I23(B3) | 폐기 WHERE 를 `(id OR STATUS='INUSE')` 로 넓힘(다른 세트 행도 씀) | `RuleSetEditServiceTest` "이미_폐기한_세트는_…"(없는 세트 폐기 거부 뒤 행 무변경 단언) | 잡힘 |
+| I20(B3) | 서비스 클래스에 `@Transactional`(import 뒤 단순 이름) | `check_oasis_contract.py --root . --module mdm` 6-B-1 ERROR 1 | 잡힘 |
+| I20(B3) | 서비스 클래스에 `@org.springframework.transaction.annotation.Transactional`(FQCN) | `check_oasis_contract.py`(기본 모듈·`--module mdm` 모두 ERROR 0), `DmeOasisHttpTest` 에 ruleSetEdit 사례 없음(B4 몫) | 안 잡힘(보고) |
 
 B7 변이는 작업 트리에서만 넣고 규칙마다 `git checkout -- <파일>` 로 되돌렸다(`trap`). 대상 테스트 한 파일을 `vitest run … --bail=1` 로 돌렸다.
 
@@ -102,6 +119,13 @@ B2 변이는 python 스크립트 하나(변이 넣기 → `:api:test --fail-fast
   거부 때는 view 를 다시 불러오지 않고 편집 중 목록을 둔다. 되살리기 성공 문구에도 서버가 준 WARN 을 붙인다.
 - B2 Expression 셀 조회: §6.1-5 는 `RuleCellsCodec.parse(...).get(String.valueOf(varId))` 라고 적었지만 `parse` 는 `Map<Integer, …>` 를 돌려주므로 `get(v.getVarId())`(정수 키)로 읽는다. 문자열 키로는 한 번도 맞지 않아 셀 참조가 조용히 빠진다.
 - B2 `RuleQueries` 추가는 하나(`latestReleasedResultVarsOfActiveRules`)다. 구현 단위 표의 "조회 두 개" 가운데 나머지 하나가 맡을 `hitPolicy` 는 기존 `versionsOf(ids)` 로 한 번에 읽는다(기존 메서드는 고치지 않았다).
+- B3 없는 세트: 설계는 view 만 `INVALID_VALUE "룰 세트를 찾을 수 없습니다: <id>"` 로 정했다. save·delete·restore 의 없는 세트도 같은 예외다(0행 분류와 되살리기의 세트 읽기).
+- B3 `RuleSetWrites` 에 조건부 UPDATE 셋 말고 읽기 `state(setId)`(네이티브 SELECT `STATUS, ROW_VERSION, RULE_IDS`)를 더했다. 0행 분류와 되살리기 검사는 영속성 컨텍스트가 아니라 DB 에서 다시 읽는다.
+  되살리기는 엔티티를 읽지 않고 이 값으로 상태(MDM009)·rv(MDM001)·저장된 목록 검사를 본다. 조건부 UPDATE 의 감사 조각은 `VER = COALESCE(VER,0)+1` 까지 `AUDIT_SET` 한 상수에 넣었다.
+- B3 `RuleSetRejections` detail 은 룰 ID·변수가 없으면 둘 다 `-` 로 적는다(EMPTY 는 `-[-] EMPTY 룰이 하나도 없다`, 1단계 검사는 `<룰>[-] …`). 설계는 변수 칸만 `-` 로 정했다.
+- B3 요청 룰 ID 는 `row.get("ruleId")` 원값을 `toString()` 만 하고 null 은 null 그대로 `RuleIdRules.validateRuleId` 에 넘긴다(REQUIRED_VALUE). `String.valueOf(null)` = `"null"` 이 INVALID_VALUE 로 바뀌는 것을 피한다. `rules` 가 null 이면 빈 목록(검사 EMPTY 가 거부).
+- B3 `CommonContractTest` 의 오류 코드 개수 단언 `23` → `24` 로 고쳤다(설계 §2.2 는 "한 줄 추가"만 적었다).
+- B3 search SET 의 세트명 비교는 설계 그대로 대소문자를 구분한 포함(ID 만 대문자 비교), 알 수 없는 `target` 은 INVALID_VALUE 다.
 - B2 PROG 판정·이름 비교: 같은 이름의 조건 열은 대소문자를 무시해 찾는다(conds 중복 제거가 대소문자 무시라서). 컬럼 사전(DICT) 판정은 `findByPhysName(name)` 정확 일치이고, 한 번의 `read` 안에서 이름마다 한 번만 조회한다.
 
 ## B1 — BE 순수 계산 (`RuleIo`·`RuleSetCheck`·`RuleSetAnalyzer`·`RuleSetGuide`·코퍼스)
@@ -180,3 +204,24 @@ B2 변이는 python 스크립트 하나(변이 넣기 → `:api:test --fail-fast
   14건 모두 잡혔다. 끝난 뒤 `git status` 로 작업 트리가 커밋과 같음을 확인했다.
 - B8 에 넘길 것: e2e 가 쓸 testid 는 §6.9 그대로이고 위 「설계 이탈」 B6 항목의 것이 더 있다. 현재 세트 표시(`set-edit-current`)는 `ID · 세트명` 이라 e2e 는 `toContainText` 로 본다.
   서버 거부 문구(E4)와 MDM001 안내(E8)는 `set-message` 에, MDM001 의 "다시 불러오기" 버튼은 카드 버튼 줄에 있다.
+
+## B3 — BE `ruleSetEdit` (DTO·서비스·`RuleSetWrites`·`RuleSetRejections`·MDM024·BPMN)
+
+- 파일: `BL/dme/ruleSetEdit/dto/*`(10개), `BL/dme/ruleSetEdit/service/{RuleSetEditService,RuleSetWrites,RuleSetRejections}.java`, `BA/resources/services/dme/ruleSetEdit.bpmn`,
+  `BL/contract/common/MdmErrorCode.java`(MDM024 한 줄), `BLT/contract/common/CommonContractTest.java`(MDM024 단언·개수 24), `BAT/dme/ruleSetEdit/RuleSetEditServiceTest.java`(새, 16건).
+- TDD: 다섯 메서드가 `UnsupportedOperationException` 인 스텁 서비스로 먼저 돌려 16건 모두 실패를 본 뒤 구현했다. 구현 뒤 `RuleSetEditServiceTest` 16건·`MdmOasisActionVocabularyTest` 7건(services 전체를 walk 하므로
+  새 BPMN 도 어휘·EDIT 세트 검사를 받는다)·`CommonContractTest`·`MdmRuleContractOnlyArchitectureTest` 통과.
+- BPMN 은 `bpmn-tool create`(npx 캐시 `~/.npm/_npx/e4e274a914f2e47f/node_modules/.bin/bpmn-tool`, 전역 설치 없음)로 만들고 `validate` 했다. 경고 1건(`actionGateway` default flow 없음)은 `ruleMng.bpmn` 과 같다.
+- oasis-contract-check: 기준선 명령(`--root .`) ERROR 0 / WARN 0 / INFO 29. 이 명령의 기본 모듈은 `mcm·mls·mqc·mpp·mas·mcm-core` 라 **mdm BPMN 을 보지 않는다** — `--module mdm` 으로 따로 돌려 ERROR 0 / WARN 0 / INFO 10.
+- §3.5 I19 grep(`MdmRoles.STEWARD`, ruleSetEdit 패키지): 0줄.
+- 변이 검증: 원본 두 파일(`RuleSetEditService`·`RuleSetWrites`)을 scratchpad 로 복사해 두고, 변이 넣기 → `:api:test --fail-fast --tests RuleSetEditServiceTest` → 사본 복원을 규칙마다 반복하는 python 스크립트
+  (SIGTERM·SIGHUP·`finally` 에서 복원, 끝에 사본과 같은지 확인)를 `heavy.sh` 로 감싸 돌렸다. 15건 모두 컴파일되는 형태이고 모두 잡혔다. I20 은 contract-check 로 따로 넣고 되돌린 뒤 `cmp` 로 확인했다.
+
+### B4 가 쓸 것
+
+- `RuleSetEditService` 는 `ruleSetEditService` 빈, BPMN action → method 는 `search→search`·`view→view`·`save→save`·`delete→delete`·`restore→restore`(search·view 는 READ, 나머지 EDIT).
+  `DmeBpmnActionTest`·`MdmOasisActionVocabularyTest` 의 ruleSetEdit 사례와 `scanned` 포함 한 줄은 B4 몫이다(B3 는 고치지 않았다).
+- `DmeOasisHttpTest` save 경로: 요청은 `params {setId, setName, description, rowVersion}` + `grids.rules.rows [{ruleId}]`. 순환 목록이면 `meta.message` 가
+  `"룰 세트 저장 검사를 통과하지 못했습니다: <룰>[<변수>] CYCLE …(순환). …"` 다. 비담당자는 MDM013. rowVersion 은 `Long` 속성이다.
+- I20 인계: 서비스에 FQCN 으로 단 `@org.springframework.transaction.annotation.Transactional` 은 contract-check 정규식(`@Transactional\b`)이 못 잡는다 — B4 의 `DmeOasisHttpTest` 사례가 HTTP 경로로 잡는지 확인하면 좋다.
+- MDM024 는 병렬 Task(08-04·08-05)와 번호가 겹칠 수 있다(D8) — 머지하는 쪽이 `CommonContractTest` 의 코드 값·개수와 이 Task 의 BE·테스트를 다음 번호로 바꾼다.

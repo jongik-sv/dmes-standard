@@ -46,7 +46,9 @@ public enum MdmErrorCode {
     /** TSK-06-03 D5 — 코드 행 저장 검사(콤마·공백·계층·라벨 없는 attr·구간 겹침)를 통과하지 못했다. 세부는 이슈 코드로 싣는다. */
     CODE_SAVE_REJECTED("MDM022", 400, ErrorCode.BUSINESS_ERROR, "코드 저장 검사를 통과하지 못했습니다"),
     /** TSK-06-03 D5 — RELEASED 코드 행의 경미 수정 거부(EXTERNAL·RELEASED 아님·DRAFT 가 같은 키를 고침). */
-    CODE_PATCH_REJECTED("MDM023", 409, ErrorCode.BUSINESS_ERROR, "경미 수정을 할 수 없습니다");
+    CODE_PATCH_REJECTED("MDM023", 409, ErrorCode.BUSINESS_ERROR, "경미 수정을 할 수 없습니다"),
+    /** TSK-08-06 D8 — 룰 세트 저장·되살리기 검사(순서·순환·입력 출처·룰 존재)에 거부가 있다. 세부는 이슈 코드로 싣는다. */
+    RULE_SET_SAVE_REJECTED("MDM024", 400, ErrorCode.BUSINESS_ERROR, "룰 세트 저장 검사를 통과하지 못했습니다");
 
     private final String code;
     private final int httpStatus;
