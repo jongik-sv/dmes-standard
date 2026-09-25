@@ -103,6 +103,8 @@ B1 은 B2 가, B2 는 B3 가(응답 모양), B3 은 B4 가 기댄다. 단위끼�
 
 ### 3.2 api SQLite(`$AT`, `@SpringBootTest` + `@ActiveProfiles("local")` + 임시 파일 SQLite, `MasterCodeTestConfig`(시계 2026-09-03 KST·`MutableCurrentUser`) import)
 
+**codeConfirm·SPI 시험은 `MasterCodeTestConfig` 만 import 하고 `VersionScenarioTestConfig` 를 import 하지 않는다.** 그 설정의 후처리기가 운영 SPI 를 지우고 `VersionScenarioFakes.FakeConfirmCheck` 로 바꾸므로, import 하면 확정 시험이 실제 검사 없이 초록이 된다. 그래서 `CodeConfirmServiceSqliteTest`·`CodeConfirmSampleHistorySqliteTest` 는 각각 `VersionSpiRegistry.confirmCheck(VersionTarget.MASTER_CODE)` 가 `MasterCodeConfirmCheck` 인스턴스인지 한 번 단언한다(I28).
+
 - `common/mastercode/MasterCodeConfirmCheckSqliteTest` — 운영 SPI 빈을 원장으로 시험한다. `MasterCodeFixtures` 의 PROC_CD 샘플을 쓴다.
   - SP1 `diff(PROC_CD@2.000)` 가 DF1 과 같고 `base` 가 `PROC_CD@1.001` 이다.
   - SP2 `report(PROC_CD@2.000, applyFrom 미래)` — 2-2 COATING WARNED, 4항 PASSED, 3항 DELEGATED, 나머지 PASSED.
@@ -219,7 +221,7 @@ E2E 는 게이트 명령 목록(기준선 5줄)에 없다. **B4 와 Verify 가 `
 - I25 **D5 결재 칸: `REQUESTED_BY`=확정자, `REQUESTED_AT`=`RELEASED_AT`=확정 시각, 결재·긴급·반려·철회 칸은 NULL.** 이 Task 는 긴급·사유·결재 입력을 만들지 않는다(spec 제약). (`CodeConfirmServiceSqliteTest` S6, `CodeConfirmSampleHistorySqliteTest` H1)
 - I26 **04 샘플 이력(v1.000 → v1.001)이 확정 경로만으로 원천 표와 글자 그대로 같게 재현된다.** (`CodeConfirmSampleHistorySqliteTest` H1~H4)
 - I27 **BPMN 액션 표: `search→search`·`view→view`·`validate→validate`·`confirm→confirm`, bean `codeConfirmService`. `confirm` 은 CONFIRM 세트에만 있다(EDIT 세트 밖).** (`CodeConfirmBpmnActionTest`)
-- I28 **운영 컨텍스트에서 MASTER_CODE 확정 검사 SPI 빈은 `MasterCodeConfirmCheck` 하나다.** 테스트 스텁(`MasterCodeConfirmCheckStub`)과 `ContractStubCompileTest.CONFIRM_CHECKS` 는 고치지 않는다. (`CodeConfirmOasisHttpTest` HT3, 기존 `ContractStubCompileTest`)
+- I28 **운영 컨텍스트에서 MASTER_CODE 확정 검사 SPI 빈은 `MasterCodeConfirmCheck` 하나다.** 테스트 스텁(`MasterCodeConfirmCheckStub`)과 `ContractStubCompileTest.CONFIRM_CHECKS` 는 고치지 않는다. codeConfirm 시험 컨텍스트는 가짜 SPI 를 쓰지 않는다(§3.2 머리). (`CodeConfirmOasisHttpTest` HT3, `CodeConfirmServiceSqliteTest`·`CodeConfirmSampleHistorySqliteTest` 의 레지스트리 단언, 기존 `ContractStubCompileTest`)
 - I29 **메뉴는 dmc 폴더 아래 새 leaf(`OBJECT_ID`=`codeConfirm`, MENU_SEQ `005`, 이름 "버전 확정")이고 기존 마스터관리 메뉴를 고치지 않는다. 권한은 `seedMdmObjectRbac("codeConfirm","dmc")`(표준 관리자 READ·담당자 CONFIRM) + SYSADMIN PERM_ALL.** (E2E T1·T6 — 백엔드 단위 테스트가 없는 알려진 커버리지 갭. Verify 가 diff 로 확인한다)
 
 **B3 — 화면**
@@ -342,7 +344,7 @@ public static Summary summarize(MasterCodeVersionView base /* nullable */, Maste
 - **함정 1 — fail-closed**: 운영 MASTER_CODE SPI 가 없으면 `VersionSpiRegistry.confirmCheck` 가 `IllegalStateException` 을 던진다. B1 이 `MasterCodeConfirmCheck` 를 등록하면 풀린다. 시나리오 테스트(`VersionScenarioTestConfig` import)는 후처리기가 운영 SPI 를 지우므로 손대지 않아도 초록이다(06-02 §10.2). 같은 target 에 운영 빈이 둘이면 기동이 실패한다.
 - **함정 2 — `@Transactional` 금지(F9)**: OASIS 진입 서비스에 붙이면 CGLIB 프록시가 파라미터 이름을 잃어 `ParameterName must not be null` 로 실패한다.
 - **함정 3 — 요청 모양**: FE 는 null 파라미터를 빼고 보낸다(F23). ver 는 문자열. 그리드가 없는 액션이므로 `grids` 를 보내지 않는다. boolean `warningsAcknowledged` 바인딩은 Build 가 HTTP 테스트로 확인한다(문자열 `"true"` 가 필요하면 build-log.md 에 적는다).
-- **함정 4 — `DmcCodeBpmnActionTest.assertActions`** 는 모든 액션이 EDIT 세트 안이라고 단언한다. `confirm` 은 CONFIRM 세트에만 있으므로 이 도우미를 재사용하지 말고 `CodeConfirmBpmnActionTest` 에서 따로 단언한다.
+- **함정 4 — `DmcCodeBpmnActionTest.assertActions`** 는 모든 액션이 EDIT 세트 안이라고 단언한다. `confirm` 은 CONFIRM 세트에만 있으므로 이 도우미를 재사용하지 말고 `CodeConfirmBpmnActionTest` 에서 따로 단언한다. BPMN 전체를 훑는 기존 테스트는 `MdmOasisActionVocabularyTest.mcm_시드의_allActions_는_mdm_BPMN_의_모든_action_을_담고…` 하나이고, 이 테스트는 "mcm `allActions`(PERM_ALL) 안" 만 단언한다(EDIT 세트 단언은 dme 두 파일에만 건다, 확인함). `search`·`view`·`validate`·`confirm` 은 모두 `DataInitializer` 298-322행 `allActions` 에 있으므로 새 BPMN 이 자동으로 스캔되어도 초록이다 — 기존 테스트를 고치지 않는다. 다른 `*BpmnActionTest`(dma·dmd·dme·codeItemEdit·codeCateEdit)는 자기 BPMN 파일만 읽는다.
 - **함정 5 — 2-1 재현**: 화면·서비스 저장 경로는 없는 코드의 소속 저장을 막고(06-04 불변 규칙 5), 코드 삭제는 소속을 연쇄로 닫는다. 그래서 2-1 은 픽스처 직접 INSERT 로만 만든다(SP3).
 - **함정 6 — 시계**: api 시험은 `MasterCodeTestConfig` 의 `MutableClock`(2026-09-03 00:00 KST)을 쓴다. 04 샘플의 apply_from(2024-01-01, 2026-07-01)은 둘 다 이 시계보다 앞이라 확정 즉시 INUSE 가 되고 미적용 버전도 남지 않는다(F15 와 같은 이유).
 - **함정 7 — page-registry**: `src/frontend/m-mcm/lib/generated/page-registry.ts` 는 생성 파일이지만 git 에 추적된다. 손으로 고치지 말고 생성 스크립트로 다시 만든 결과를 커밋한다.
