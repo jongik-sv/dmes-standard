@@ -18,6 +18,7 @@ import com.dongkuk.dmes.mdm.common.segment.DataItemMessages;
 import com.dongkuk.dmes.mdm.common.segment.DataSegmentLock;
 import com.dongkuk.dmes.mdm.common.segment.DataSegmentRowStore;
 import com.dongkuk.dmes.mdm.common.segment.DmdSegmentTestSupport;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.MutableClock;
 import com.dongkuk.dmes.mdm.dmd.dataCateEdit.dto.CateCompareRequest;
 import com.dongkuk.dmes.mdm.dmd.dataCateEdit.dto.CateRegRequest;
@@ -29,20 +30,16 @@ import com.dongkuk.dmes.mdm.dmd.dataCateEdit.dto.CateViewResult;
 import com.dongkuk.dmes.mdm.dmd.dataCateEdit.service.DataCateEditService;
 import com.dongkuk.oasis.audit.AuditHolder;
 import jakarta.persistence.EntityManager;
-import java.nio.file.Path;
 import java.util.List;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 
 /**
@@ -53,10 +50,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(DmdSegmentTestSupport.Config.class)
-class DataCateEditServiceSqliteTest {
-
-    @TempDir
-    static Path tempDir;
+class DataCateEditServiceSqliteTest extends AbstractMdmSharedDbTest {
 
     @Autowired
     DataCateEditService service;
@@ -82,11 +76,6 @@ class DataCateEditServiceSqliteTest {
     DataSource dataSource;
 
     private JdbcTemplate jdbc;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + tempDir.resolve("mdm-dmd-data-cate-edit.db"));
-    }
 
     @BeforeEach
     void setUp() {

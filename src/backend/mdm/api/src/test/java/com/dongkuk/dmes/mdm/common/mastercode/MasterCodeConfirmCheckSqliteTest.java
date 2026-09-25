@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.common.version.VersionSpiRegistry;
 import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
 import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeCheckItemResult;
@@ -18,21 +19,17 @@ import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import com.dongkuk.dmes.mdm.dma.DmaTestSupport.MutableCurrentUser;
 import java.math.BigDecimal;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-06-05 design.md §3.2 SP1~SP5 — 운영 확정 검사 SPI 빈({@link MasterCodeConfirmCheck})을 실제 V9 표로 local(SQLite)
@@ -43,16 +40,13 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(MasterCodeTestConfig.class)
-class MasterCodeConfirmCheckSqliteTest {
+class MasterCodeConfirmCheckSqliteTest extends AbstractMdmSharedDbTest {
 
     private static final VersionRef V2_000 = ref("PROC_CD", "2.000");
     private static final LocalDateTime FUTURE = LocalDateTime.of(2026, 10, 1, 0, 0);
     private static final LocalDateTime V1_001_APPLY_FROM = LocalDateTime.of(2026, 7, 1, 0, 0);
     private static final List<String> TABLES =
             List.of("TB_MDM_CODE", "TB_MDM_CODE_VER", "TB_MDM_CODE_ITEM", "TB_MDM_CODE_CATE", "TB_MDM_CODE_CATE_ITEM");
-
-    @TempDir
-    static Path tempDir;
 
     @Autowired
     MasterCodeConfirmCheck spi;
@@ -65,12 +59,6 @@ class MasterCodeConfirmCheckSqliteTest {
 
     private JdbcTemplate jdbc;
     private MasterCodeFixtures fx;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-master-code-confirm-check-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seed() {

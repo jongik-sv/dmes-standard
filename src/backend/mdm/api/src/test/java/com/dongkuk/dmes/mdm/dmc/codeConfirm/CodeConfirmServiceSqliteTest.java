@@ -22,6 +22,7 @@ import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeConfirmCheck;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeFixtures;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeTestConfig;
+import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.MutableClock;
 import com.dongkuk.dmes.mdm.common.version.VersionSpiRegistry;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
@@ -32,7 +33,6 @@ import com.dongkuk.dmes.mdm.dmc.codeConfirm.service.CodeConfirmService;
 import com.dongkuk.dmes.mdm.dmc.codeMng.dto.CodeMngRow;
 import com.dongkuk.dmes.mdm.dmc.codeMng.dto.CodeMngSearchRequest;
 import com.dongkuk.dmes.mdm.dmc.codeMng.service.CodeMngService;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -40,14 +40,11 @@ import java.util.Set;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * TSK-06-05 design.md §3.2 S1~S9 — codeConfirm 서비스(목록·모습·검사·확정)를 local(SQLite) 컨텍스트로 돌린다. 서비스에는
@@ -67,13 +64,10 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 @Import(MasterCodeTestConfig.class)
-class CodeConfirmServiceSqliteTest {
+class CodeConfirmServiceSqliteTest extends AbstractMdmSharedDbTest {
 
     private static final long RV = 3L;
     private static final String PREV_FROM = "2026-01-01 00:00:00";
-
-    @TempDir
-    static Path tempDir;
 
     @Autowired
     CodeConfirmService service;
@@ -90,12 +84,6 @@ class CodeConfirmServiceSqliteTest {
 
     private JdbcTemplate jdbc;
     private MasterCodeFixtures fx;
-
-    @DynamicPropertySource
-    static void overrideDatasource(DynamicPropertyRegistry registry) {
-        Path dbFile = tempDir.resolve("mdm-code-confirm-service-test.db");
-        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
-    }
 
     @BeforeEach
     void seed() {
