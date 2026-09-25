@@ -123,6 +123,68 @@
   밖만 본다). e2e V2·V3 은 정확한 클래스 이름(`ag-row-test-hit`, `cell-test-false`)으로 확인한다.
 - 저장 거부 때 표 아래 `dt-save-rejected` 와 함께 기존 `ErrorModal` 도 뜬다. S5·S6·V6 은 다음 조작 전에 모달을 닫는다.
 
+## B2 — 검사기 핵심(`BL/common/rule/check/`, 원장 비의존)
+
+- 만든 것: `RuleLimits`·`RuleSaveIssueCode`·`RuleSaveTarget`·`RuleCheckInput`(+`DraftRow`)·`RuleCheckReport`·`RuleCellRules`·`RuleExpressionChecks`·
+  `RuleCompleteness`·`RuleGenerateTry`·`RuleSaveValidator`(`@Component`)·`RuleSaveRejections`, 새 위치의 `RuleSaveCheck`·`RuleSaveContext`.
+  옛 `dme/ruleEdit/service/RuleSaveCheck`·`RuleSaveContext` 는 그대로 두었다(삭제는 B3).
+- 테스트(BLT, 스프링 없음): `RuleCellRulesTest`(320, op 허용 행렬 270 파라미터 포함)·`RuleExpressionChecksTest`(20)·`RuleCompletenessTest`(4)·
+  `RuleGenerateTryTest`(5)·`RuleSaveValidatorTest`(11, 해석기·빈 공급자는 Mockito)·픽스처 `CheckFixtures`. 모두 360건.
+- TDD: 로직 클래스 다섯을 입력을 그대로 돌려주는 스텁으로 두고 360건 중 235건 실패를 확인한 뒤 구현했다.
+- 관련 테스트: `:mdm:lib:test` 전체 1026건 통과, `:mdm:api:test --tests '*RuleTableServiceTest' --tests '*RuleColumnsServiceTest'
+  --tests '*MdmBusinessRuleMigrationTest'` 46건 통과(새 `@Component` 가 api 컨텍스트에 주입되고 `DefinitionLookup` 빈 0개 가드도 그대로다).
+
+### 설계 이탈
+
+1. **`ANALYSIS_FAILED` 를 enum 에 더했다.** §7.12 에는 있고 §6.2 목록에는 없다. 분석기 예외를 이 ERROR 하나로 바꿔 저장을 막는다.
+2. **이슈 맵은 값이 없는 칸을 싣지 않는다.** §6.2 는 `lower: null, upper: null` 을 적었지만 `RuleIssueMaps` 모양(varId·lower·upper 는 있을 때만)에 맞췄다.
+   모양은 `{code, severity, rowIds, varId?, message}` 다. 만드는 도우미는 `RuleCheckReport.issue`·`cellIssue`·`where` 이고 B3·B6 빈도 이것을 쓴다.
+3. **기본 단계에 ERROR 가 있으면 `RuleSaveCheck` 빈을 부르지 않는다.** 정규화되지 않은 셀을 원장 검사가 다시 보지 않게 하려는 것이다.
+   COLUMNS 는 기본 단계를 돌리지 않으므로 빈이 늘 불린다. 분석기도 셀·미완성에 ERROR 가 없을 때만 부른다(§7.12).
+4. **`report.issues()` 에 분석기 이슈가 섞인다**(거부 판단에 분석기 ERROR 가 들어가므로). 분석 이슈를 따로 싣는 호출자는
+   `report.nonAnalysisIssues()`(코드가 `RuleIssueCode` 이름이 아닌 것)를 쓴다.
+5. **1 타입 op 는 13종이다.** design §6.3 은 "단항 12종"이라 적었지만 06 op-code 표(정본)의 1 타입 op 는 EQ·NE·LT·LE·GT·GE·IN·NOT_IN·CODE_IN·CONTAINS·
+   INSTR·IS_NULL·NOT_NULL 13개다. 06 표를 따랐다.
+6. **거부 메시지 요약은 `"CODE 메시지"` 다.** 셀 이슈 메시지가 이미 "행 r·열 라벨: " 로 시작하므로(§6.2) §2.2 의 `"CODE[행 r·열 v] 메시지"` 로
+   다시 적으면 겹친다. 예: `룰 저장 거부: BOUND_ORDER 새 행 -1·COIL_THK: 하한 2.5 이(가) 상한 1.6 보다 크다; OVERLAP …`. details 는
+   `ErrorDetail.of(MDM021)` 뒤 이슈마다 `ofGrid(null, "row:"+rowIds 쉼표 연결, "var:"+varId, code, message)`.
+7. **외부 이름 판정은 검사기 밖에서 넣는다.** `RuleExpressionChecks` 는 순수 클래스로 두고 `Scope.external()`(이름 → 컬럼 사전 또는 다른 룰의 최신
+   RELEASED 결과인가)를 받는다. `RuleSaveValidator` 가 08-03 `typeSourceOf` 와 같은 방식(이름 하나짜리 임시 변수를 `RuleVarTypeResolver` 에
+   물어 COLUMN·RULE_RESULT 인지)으로 만들고 요청 안에서 캐시한다. 이 룰의 조건 변수(프로그램 변수 포함)는 `Scope.condNames` 로 본다.
+8. **셀 규칙에서 design 이 정하지 않은 자리**:
+   - 결과 셀의 `{"op":"NA"}` 는 OP_NOT_ALLOWED(06:387 "모든 결과 셀을 채우게 해 사실상 금지"), Value 열의 식 셀은 OP_NOT_ALLOWED, 값도 식도 없는
+     결과 셀은 INCOMPLETE_RESULT. Expression 결과 열의 `val` 은 상수로 받아 타입만 본다.
+   - Expression 조건 열은 NA 와 식 셀만 받는다(다른 op·빈 셀은 OP_NOT_ALLOWED). op-code 열의 식 셀도 OP_NOT_ALLOWED.
+   - Number 변수의 `=` 값에 `%`·`_` 가 있으면 TYPE_LITERAL 대신 PATTERN_NOT_STRING 으로 알린다.
+   - 구간 op 의 "빈칸"은 키 없음·null·공백뿐인 문자열이다.
+   - 데이터 타입 DATE(초 정밀도 등, 일자 String 이 아닌 것)는 EQ·IS_NULL·NOT_NULL·NA 만 받는다(06 "초 정밀도 DATE 에는 열지 않는다").
+   - `RuleLimits.MAX_TEXT_CHARS`(100)는 CONTAINS·INSTR 과 함께 IN 카테고리 값에도 건다. 패턴 길이 상한은 연속 `%` 를 접은 뒤 잰다.
+   - RANGE_IN_EXPR(같은 변수 대소 비교 2회)는 조건 식 셀에만 건다. 결과 식의 `IF(A > 1 && A < 3, …)` 는 범위 자리 문제가 아니다.
+9. **테스트 파일을 더했다**: design 이 적은 네 파일 밖에 `RuleSaveValidatorTest`(적용 지점·순서·빈 호출·거부 예외)와 픽스처 `CheckFixtures`.
+
+### 인계 — B3(`RuleTableService`)
+
+- 입력: `checkRows` 가 돌려준 행을 `DraftRow(rowId, seq, rowKind, RuleCellsCodec.parse(cells))` 로(seq 는 NORMAL 순번, DEFAULT 0), 변수는
+  `resolver.resolve(id, ver, rawVars)`, `rawVars = queries.vars(id, ver)`. 행 수·셀 길이 상한(`RuleLimits.MAX_ROWS`·`MAX_ROW_CELLS_CHARS`·
+  `MAX_TOTAL_CELLS_CHARS`)은 검사기가 보지 않는다 — design §6.1 흐름의 `limits(rows)` 는 B3 몫이다.
+- `report.hasErrors()` 면 `throw RuleSaveRejections.reject(report.issues())`(ERROR 만 싣는다). 아니면 `report.normalizedRows()` 의 셀을
+  `RuleCellsCodec.write` 로 저장한다(Expression 셀의 `ast` 는 서버 AST 로 바뀌어 있다).
+- 응답 issues = 커밋 뒤 분석(`RuleIssueMaps.of`) + `report.nonAnalysisIssues()` 의 임시 row_id 를 `rowIdMap` 으로 바꾼 것.
+- 기존 테스트에서 새로 거부될 수 있는 것: 결과 셀 `{"op":"NA"}`, 조건 셀이 빠진 NORMAL 행, 한쪽 빈 구간(이제 GE/GT/LE/LT 로 저장된다).
+
+### 인계 — B4(값 테스트 BODY)·B6(원장 검사 빈)
+
+- B4: `validate(… TEST_BODY)` 는 셀·식·생성만 돈다. `report.brokenRowIds()` = ERROR 이슈의 행, `report.issues()` 가 `cellErrors` 의 원천이다
+  (`{code, severity, rowIds:[r], varId, message}`). 미완성·분석·빈은 돌지 않는다.
+- B6: 빈은 `targets()` 로 적용 지점을 고른다(기본 TABLE·STORED). `RuleSaveContext.rows` 는 정규화한 행이고 새 행 번호는 음수다. COLUMNS·
+  TEST_BODY 에서는 `analysis` 가 비어 있다. 기본 단계에 ERROR 가 있으면 빈은 불리지 않는다(이탈 3). 이슈는 `RuleCheckReport.issue`·`cellIssue` 로 만든다.
+
+### 보고
+
+- **변이 1건은 잡히지 않는다(등가 변이).** `RuleGenerateTry` 의 `= 패턴 정규식 Pattern.compile` 을 끄는 변이다. 생성기 정규식은 메타문자를 모두
+  `\` 로 막고 `.`·`.*` 만 남기므로(06:158) 생성기가 받아들인 값에서 `Pattern.compile` 이 실패할 입력이 없다. 06 이 요구하는 단계라 코드는 두었다.
+- 이 워크트리에서 다른 단위(B7·B8)가 동시에 파일을 바꾸고 있었다. B2 커밋에는 B2 파일만 stage 했다.
+
 ## 변이 검증 기록
 
 | 불변 규칙 | 변이 | 잡은 테스트 | 결과 |
@@ -147,6 +209,31 @@
 | I33 | `testRunAfterTableChange` 가 BODY 결과 뒤 rev 변경에도 결과 유지 | `value-test-marks.test.ts` › BODY 결과 뒤 표가 바뀌면 지우고 안내 | 잡힘 |
 | I33 | `DecisionTableCard` 가 `runShownOnTable` 없이 늘 칠함 | `decision-table-value-test.test.ts` › VERSION 결과는 … 칠하고 | 잡힘 |
 | I33 | `testMarksOf` 가 적중 행·평가 안 한 행에도 첫 거짓 칸을 칠함 | `value-test-marks.test.ts` › 적중한 행의 firstFalseVarId … 칠하지 않는다 | 잡힘 |
+| I5 | 한쪽 빈 구간 하한 `<=`→GE·`<`→GT 를 뒤바꿈 | `RuleCellRulesTest` › 한쪽_빈_구간은_1_타입_op_로_바꾼다 | 잡힘 |
+| I5 | 경계 비교를 숫자도 문자열로 | `RuleCellRulesTest`(fail-fast) | 잡힘 |
+| I5 | 양쪽 빈칸 거부 끔 | `RuleCellRulesTest`(fail-fast) | 잡힘 |
+| I6 | 목록 중복 제거 끔 | `RuleCellRulesTest`(fail-fast) | 잡힘 |
+| I6 | 목록 정렬 끔 | `RuleCellRulesTest` › 숫자_목록은_값으로_중복을_지우고_앞_원소를_남겨_값_순서로_정렬한다 | 잡힘 |
+| I6 | 원소 수 상한 +1 | `RuleCellRulesTest` › 목록_원소_수_상한과_같으면_통과하고_넘으면_거부한다 | 잡힘 |
+| I7 | 연속 `%` 접은 값을 저장하지 않음 | `RuleCellRulesTest` › 연속한_퍼센트는_하나로_접어_저장한다 | 잡힘 |
+| I7 | `%` 개수에 막은 `\%` 도 셈 | `RuleCellRulesTest`(fail-fast) | 잡힘 |
+| I7 | 일자 도메인 와일드카드 거부 끔 | `RuleCellRulesTest` › 일자_도메인은_와일드카드를_거부한다 | 잡힘 |
+| I8 | CONTAINS·INSTR·IN 카테고리 빈 문자열 허용 | `RuleCellRulesTest` › IN_카테고리는_빈_값을_거부한다 | 잡힘 |
+| I9 | 숫자 리터럴에 지수 허용 | `RuleCellRulesTest` › 숫자_리터럴이_아니면_거부한다[1e3] | 잡힘 |
+| I9 | 불린 대문자 정규화 끔 | `RuleCellRulesTest` › 결과_Value_도_결과_변수_타입으로_검사한다 | 잡힘 |
+| I10 | CONTAINS·INSTR 를 모든 데이터 타입에 허용 | `RuleCellRulesTest` › op_허용_행렬[1 열 NUM CONTAINS] | 잡힘 |
+| I11 | 구간 op 범위 자리 검사 끔 | `RuleCellRulesTest` › op_허용_행렬[1 열 NUM `<= 변수 <=`] | 잡힘 |
+| I11 | 식 안 같은 변수 대소 비교 기준 2회 → 3회 | `RuleExpressionChecksTest` › 같은_변수를_대소_비교로_두_번_이상_견주면_거부한다 | 잡힘 |
+| I12 | 서버 AST 덮어쓰기 끔 | `RuleExpressionChecksTest` › 화면이_보낸_ast_를_서버_AST_로_덮어쓴다 | 잡힘 |
+| I12 | 모르는 변수 검사 끔 | `RuleExpressionChecksTest` › 모르는_변수는_거부한다 | 잡힘 |
+| I12 | DERIVE 결과 식 자기 참조 허용(`>=` → `>`) | `RuleExpressionChecksTest` › 산출_룰_결과_식은_앞_seq_결과만_읽는다 | 잡힘 |
+| I12 | `ExpressionChecker` 문제(함수·정규식·MASTER 인자) 버림 | `RuleExpressionChecksTest` › MASTER_인자_모양이_틀리면_거부한다 | 잡힘 |
+| I13 | 조건 셀 생성 텍스트 컴파일 끔 | `RuleGenerateTryTest` › 정규화하지_않은_한쪽_빈_구간은_생성기가_거부한다 | 잡힘 |
+| I13 | 결과 Value 셀 생성 끔 | `RuleGenerateTryTest` › 생성기가_막는_값은_셀_단위로_거부한다 | 잡힘 |
+| I13 | `=` 패턴 정규식 `Pattern.compile` 끔 | `RuleGenerateTryTest` | 안 잡힘(보고) — 등가 변이, B2 「보고」 |
+| I13 | 생성해 보기에 정규화 전 셀을 넣음(§7.1 순서) | `RuleSaveValidatorTest` › 정규화한_셀로_생성해_보고_정규화한_행을_돌려준다 | 잡힘 |
+| I30 | `RuleCellsCodec.parse` 가 문자열 값을 trim | `RuleCellsCodecTest` › 값을_고치지_않고_바이트_단위로_왕복한다 | 잡힘 |
 
 - Java 변이는 `:maru-mdm-engine:test` 태스크 실패(컴파일 통과 뒤 테스트 실패)로 확인했다. enum → 문자열 상수로 바꾼 뒤 최종 코드에 Java 변이 9개를 다시 돌려 모두 잡혔다. fail-fast 첫 실패 사례 이름은 로그에 남기지 않았다.
 - TS 변이는 확인한 뒤 곧바로 `git checkout` 으로 되돌렸다(TS 파일 무변경, I28).
+- B2 변이는 스크립트 하나(변이 → `:mdm:lib:test --tests <클래스> --fail-fast` → `git checkout`)를 `heavy.sh` 로 감싸 세 번에 나눠 돌렸다. 변이마다 `git diff` 로 실제로 바뀐 것을 확인했다. "(fail-fast)" 로 적은 행은 첫 실패 사례 이름을 로그에서 뽑지 못한 것이다.
