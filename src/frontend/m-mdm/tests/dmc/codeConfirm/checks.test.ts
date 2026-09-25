@@ -1,7 +1,7 @@
 // TSK-06-05 design.md §3.3 — codeConfirm 순수 판정: 상태 라벨, 확정 버튼 활성(I30), apply_from 변환(I34).
 import { describe, expect, it } from "vitest";
 import {
-  canConfirm, checkStatusLabel, toServerDateTime, warningLines, type ConfirmGate,
+  canConfirm, checkStatusLabel, checkTitle, toServerDateTime, warningLines, type ConfirmGate,
 } from "../../../pages/dmc/codeConfirm/checks";
 import type { CheckRow } from "../../../pages/dmc/codeConfirm/types";
 
@@ -33,6 +33,14 @@ describe("checkStatusLabel", () => {
 
   it("모르는 값은 그대로 보인다", () => {
     expect(checkStatusLabel("SOMETHING")).toBe("SOMETHING");
+  });
+});
+
+describe("checkTitle", () => {
+  it("검사 번호의 설명을 돌려주고, 모르는 번호는 서버 item 을 그대로 쓴다", () => {
+    expect(checkTitle("3", "APPLY_FROM_ORDER")).toBe("apply_from 이 직전 RELEASED 보다 뒤");
+    expect(checkTitle("2-2", "CATEGORY_EMPTY")).toBe("해석 결과가 빈 카테고리");
+    expect(checkTitle("9", "NEW_ITEM")).toBe("NEW_ITEM");
   });
 });
 

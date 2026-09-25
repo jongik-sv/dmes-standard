@@ -20,7 +20,7 @@ import { useMessage } from "@dk-oasis/shared/message-provider";
 import { DraftLockBadge, MdmPageLayout, VersionStatusBadge, useMdmPageParams } from "@/shell";
 
 import { confirmDraft, searchDrafts, validateDraft, viewDraft } from "./api";
-import { canConfirm, checkStatusLabel, toServerDateTime, warningLines } from "./checks";
+import { canConfirm, checkStatusLabel, checkTitle, toServerDateTime, warningLines } from "./checks";
 import { ConfirmModal } from "./ConfirmModal";
 import type { CategoryChange, CheckRow, DiffEntry, PendingDraft, ViewResult } from "./types";
 
@@ -353,7 +353,10 @@ function CheckTable({ rows }: { rows: CheckRow[] }) {
                 <tr key={r.no} data-testid={`cf-check-${r.no}`} data-rejected={rejected ? "true" : "false"}
                   style={rejected ? { background: "var(--color-danger-soft, #fee2e2)" } : undefined}>
                   <td style={cellStyle}>{r.no}</td>
-                  <td style={cellStyle}>{r.item}</td>
+                  <td style={cellStyle}>
+                    {checkTitle(r.no, r.item)}
+                    <div style={mutedText}>{r.item}</div>
+                  </td>
                   <td style={cellStyle}>
                     <span data-testid={`cf-check-status-${r.no}`} style={rejected ? strongWarn : undefined}>
                       {checkStatusLabel(r.status)}

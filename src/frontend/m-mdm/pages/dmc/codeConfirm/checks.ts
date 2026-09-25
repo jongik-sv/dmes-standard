@@ -17,6 +17,24 @@ export function checkStatusLabel(status: CheckStatus | string): string {
   return STATUS_LABELS[status as CheckStatus] ?? status;
 }
 
+/** 검사 번호별 설명(04 「상신 시 검사」 표). 서버 `item`(enum 이름)은 표에 함께 보인다. */
+const CHECK_TITLES: Record<string, string> = {
+  "1": "코드값에 콤마·공백이 없다",
+  "2": "카테고리 해석(REGEX 문법)",
+  "2-1": "CATE_ITEM 에 이 버전에 없는 코드",
+  "2-2": "해석 결과가 빈 카테고리",
+  "3": "apply_from 이 직전 RELEASED 보다 뒤",
+  "4": "직전 RELEASED 대비 바뀐 행이 있다",
+  "5": "배포 대상 시스템",
+  "6": "계층 칸: 빈 중간 칸·앞 칸 불일치",
+  "7": "추가 컬럼: 라벨 없는 번호에 값",
+  "8": "계층 칸: lvl_cnt 뒤 칸에 값",
+};
+
+export function checkTitle(no: string, item: string): string {
+  return CHECK_TITLES[no] ?? item;
+}
+
 /** 확정 버튼 활성 판정 입력. applyFrom·checkedApplyFrom 은 둘 다 `toServerDateTime` 결과다. */
 export interface ConfirmGate {
   status: string | null | undefined;
