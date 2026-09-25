@@ -60,6 +60,24 @@ class MdmOasisActionVocabularyTest {
         assertTrue(new java.util.HashSet<>(MdmPermissions.EDIT_ACTIONS).containsAll(actionsFromGateway(path)), actionsFromGateway(path).toString());
     }
 
+    /** TSK-08-06 I17. */
+    @Test
+    void dme_ruleSetMng_bpmn_의_모든_액션이_어휘와_편집_권한_세트_안에_있다() throws Exception {
+        Path path = bpmnPath("dme", "ruleSetMng.bpmn");
+        assertActionsWithinVocabulary(path);
+        assertEquals(Set.of("search", "reg"), actionsFromGateway(path));
+        assertTrue(new java.util.HashSet<>(MdmPermissions.EDIT_ACTIONS).containsAll(actionsFromGateway(path)), actionsFromGateway(path).toString());
+    }
+
+    /** TSK-08-06 I17. */
+    @Test
+    void dme_ruleSetEdit_bpmn_의_모든_액션이_어휘와_편집_권한_세트_안에_있다() throws Exception {
+        Path path = bpmnPath("dme", "ruleSetEdit.bpmn");
+        assertActionsWithinVocabulary(path);
+        assertEquals(Set.of("search", "view", "save", "delete", "restore"), actionsFromGateway(path));
+        assertTrue(new java.util.HashSet<>(MdmPermissions.EDIT_ACTIONS).containsAll(actionsFromGateway(path)), actionsFromGateway(path).toString());
+    }
+
     @Test
     void unitMng_는_search_save_delete_compare_4개_액션을_쓴다() throws Exception {
         Set<String> actions = actionsFromGateway(bpmnPath("unitMng.bpmn"));
@@ -92,7 +110,8 @@ class MdmOasisActionVocabularyTest {
                 scanned.add(bpmn.getParent().getFileName() + "/" + bpmn.getFileName());
             }
         }
-        assertTrue(scanned.containsAll(Set.of("dme/ruleMng.bpmn", "dme/ruleEdit.bpmn")), "dme BPMN 이 스캔되지 않았다: " + scanned);
+        assertTrue(scanned.containsAll(Set.of("dme/ruleMng.bpmn", "dme/ruleEdit.bpmn", "dme/ruleSetMng.bpmn", "dme/ruleSetEdit.bpmn")),
+                "dme BPMN 이 스캔되지 않았다: " + scanned);
         Set<String> missing = new LinkedHashSet<>(bpmnActions);
         missing.removeAll(allActions);
         assertEquals(Set.of(), missing, "mcm DataInitializer allActions 에 없는 mdm BPMN action");

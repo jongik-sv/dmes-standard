@@ -87,11 +87,38 @@
 | I3·I23(B3) | 폐기 WHERE 를 `(id OR STATUS='INUSE')` 로 넓힘(다른 세트 행도 씀) | `RuleSetEditServiceTest` "이미_폐기한_세트는_…"(없는 세트 폐기 거부 뒤 행 무변경 단언) | 잡힘 |
 | I20(B3) | 서비스 클래스에 `@Transactional`(import 뒤 단순 이름) | `check_oasis_contract.py --root . --module mdm` 6-B-1 ERROR 1 | 잡힘 |
 | I20(B3) | 서비스 클래스에 `@org.springframework.transaction.annotation.Transactional`(FQCN) | `check_oasis_contract.py`(기본 모듈·`--module mdm` 모두 ERROR 0), `DmeOasisHttpTest` 에 ruleSetEdit 사례 없음(B4 몫) | 안 잡힘(보고) |
+| I1(B4) | 세트 ID 정규식 검사 삭제(`RuleSetIdRules`) | `RuleSetMngServiceTest` "세트 ID 는 컬럼 물리명 규칙과 50자 이하를 따른다" | 잡힘 |
+| I1(B4) | 세트 ID 정규식을 `^[A-Za-z0-9_-]+$` 로 느슨하게 | 같은 테스트 | 잡힘 |
+| I1(B4) | 세트 ID 길이(50자) 검사 삭제 — 51자 사례는 정규식을 통과하는 `A`×51 | 같은 테스트 | 잡힘 |
+| I1(B4) | 중복 세트 ID 검사 삭제(`existsById` → `false`) | `RuleSetMngServiceTest` "같은 세트 ID 는 DUPLICATE_DATA 다" | 잡힘 |
+| I2(B4) | 등록 상태를 DEPRECATED 로 | `RuleSetMngServiceTest` "등록은 INUSE 빈 목록 ROW_VERSION 0 한 행이다" | 잡힘 |
+| I2(B4) | 등록 `RULE_IDS` 를 `["R_GRD"]` 로 | 같은 테스트 | 잡힘 |
+| I2(B4) | 등록 `ROW_VERSION` 을 1 로 | 같은 테스트 | 잡힘 |
+| I2·I19(B4) | 등록의 `requireSteward()` 삭제 | `RuleSetMngServiceTest` "담당자가 아니면 등록이 MDM013 이다" | 잡힘 |
+| I2(B4) | 세트명 100자 경계를 101자로 | `RuleSetMngServiceTest` "세트명은 필수이고 100자 이하다" | 잡힘 |
+| I2(B4) | 세트명 필수 검사 삭제 | 같은 테스트 | 잡힘 |
+| §6.7(B4) | DEPRECATED 세트도 거부·경고 수를 셈 | `RuleSetMngServiceTest` "DEPRECATED 세트는 검사 수가 0이고 …" | 잡힘 |
+| §6.7(B4) | 결과 변수 조건을 최종 결과로만 봄 | `RuleSetMngServiceTest` "결과 변수 조건은 중간 결과까지 정확 일치다" | 잡힘 |
+| §6.7(B4) | size 최대 100 자르기 삭제 | `RuleSetMngServiceTest` "페이지는 size 기본 20 최대 100 …" | 잡힘 |
+| §6.7(B4) | `totalCount` 를 페이지 행 수로 | 같은 테스트 | 잡힘 |
+| I17(B4) | ruleSetMng `reg` 분기 이름 → `regist`(어휘 밖) | `MdmOasisActionVocabularyTest`(ruleSetMng) | 잡힘 |
+| I17(B4) | ruleSetMng `reg` 의 method `register` → `reg` | `DmeBpmnActionTest.ruleSetMng_는_search_reg` | 잡힘 |
+| I17(B4) | ruleSetMng process id → `ruleSetMgr` | 같은 테스트 | 잡힘 |
+| I17(B4) | ruleSetMng serviceTask 빈 이름(두 곳) → `ruleSetService` | 같은 테스트 | 잡힘 |
+| I17(B4) | ruleSetEdit `restore` 분기 이름 → `revive`(어휘 밖) | `DmeBpmnActionTest.ruleSetEdit_는_…`·`MdmOasisActionVocabularyTest`(ruleSetEdit) | 잡힘 |
+| I17(B4) | ruleSetEdit `delete` 분기 이름 → `lock`(어휘 안, 표 밖) | `MdmOasisActionVocabularyTest`(ruleSetEdit, action 집합 단언) | 잡힘 |
+| I17(B4) | ruleSetEdit process id → `ruleSetEditor` | `DmeBpmnActionTest.ruleSetEdit_는_…` | 잡힘 |
+| I20(B4) | `RuleSetMngService` 에 FQCN `@Transactional` | `DmeOasisHttpTest` "담당자 역할이 없으면 룰 세트 등록과 저장이 MDM013 이다"(fail-fast 첫 실패) | 잡힘 |
+| I20(B4, B3 인계) | `RuleSetEditService` 에 FQCN `@Transactional` | 같은 테스트 — B3 행의 "안 잡힘" 구멍을 HTTP 경로가 덮는다 | 잡힘 |
 
 B7 변이는 작업 트리에서만 넣고 규칙마다 `git checkout -- <파일>` 로 되돌렸다(`trap`). 대상 테스트 한 파일을 `vitest run … --bail=1` 로 돌렸다.
 
 B1 변이는 스크립트 하나(변이 넣기 → `:lib:test --fail-fast --tests <대상 클래스>` → `git checkout --` 로 되돌리기)를 `heavy.sh` 로 감싸 두 번(분석기·지침) 돌렸다. 모든 변이는 컴파일되는 형태다.
 B1 담당 범위 밖: I8 의 "REJECT 가 있으면 저장·되살리기 거부"는 B3, I9 의 TS 쪽과 I11 의 "뒤에 있음 비교 반대로"는 B5, I16 의 "생산자에서 DEPRECATED·RELEASED 없는 룰 제외·룰 ID 순 정렬"(`producersOfActiveRules`)은 B2 가 돈다.
+
+B4 변이는 python 스크립트 하나(변이 넣기 → `:api:test --fail-fast --tests <대상 클래스>` → scratchpad 사본으로 되돌리기, 시그널·`finally` 에서도 되돌림, 끝에 사본과 `filecmp` 비교)를
+`heavy.sh` 로 감싸 두 번(서비스 14건, BPMN·I20 8건) 돌렸다. 새 파일·`DataInitializer`·테스트가 커밋 전이라 `git checkout --` 을 쓰지 않았다. ruleSetMng 빈 이름 변이는 두 곳이라
+스크립트가 건너뛰어 따로 한 번(`sed` 전체 바꿈 → `DmeBpmnActionTest` → 사본 복원·`cmp`) 돌렸다. 모든 변이는 컴파일되는 형태다. I18(메뉴)은 e2e 로만 잡혀 B8 몫이다.
 
 B2 변이는 python 스크립트 하나(변이 넣기 → `:api:test --fail-fast --tests RuleIoReaderTest` → scratchpad 사본으로 되돌리기, 시그널·`finally` 에서도 되돌림)를 `heavy.sh` 로 감싸 두 번(M1~M5, M6~M10) 돌렸다.
 `RuleQueries.java` 의 추가분이 아직 커밋 전이라 `git checkout --` 대신 사본 복원을 썼다. 모든 변이는 컴파일되는 형태이고, 끝난 뒤 두 파일이 사본과 같음을 `cmp` 로 확인했다.
@@ -126,6 +153,11 @@ B2 변이는 python 스크립트 하나(변이 넣기 → `:api:test --fail-fast
 - B3 요청 룰 ID 는 `row.get("ruleId")` 원값을 `toString()` 만 하고 null 은 null 그대로 `RuleIdRules.validateRuleId` 에 넘긴다(REQUIRED_VALUE). `String.valueOf(null)` = `"null"` 이 INVALID_VALUE 로 바뀌는 것을 피한다. `rules` 가 null 이면 빈 목록(검사 EMPTY 가 거부).
 - B3 `CommonContractTest` 의 오류 코드 개수 단언 `23` → `24` 로 고쳤다(설계 §2.2 는 "한 줄 추가"만 적었다).
 - B3 search SET 의 세트명 비교는 설계 그대로 대소문자를 구분한 포함(ID 만 대문자 비교), 알 수 없는 `target` 은 INVALID_VALUE 다.
+- B4 `RuleSetIdRules`: 빈 값은 `REQUIRED_VALUE` "룰 세트 ID 는 필수입니다.", 규칙 위반은 `INVALID_VALUE` `MESSAGE + ": " + id`(`RuleIdRules` 형식). `MESSAGE` 는 B7 `SET_ID_RULE_MESSAGE` 와 글자까지 같다.
+- B4 등록: 세트명·설명은 앞뒤 공백을 떼고(`blankToNull` = trim), 빈 설명은 null 로 저장한다. 세트 목록의 JSON 풀이(`ruleIdsOf`)는 B3 서비스의 private 메서드라 `RuleSetMngService` 안에 같은 것을 한 벌 두었다(B3 파일은 고치지 않는다).
+- B4 조회: 세트명 비교는 B3 search SET 과 같이 대소문자를 구분한 포함이고, 세트 ID·담은 룰·결과 변수는 대문자로 비교한다. 입출력은 싼 조건(상태·세트·담은 룰)으로 거른 뒤 남은 세트의 멤버 룰 합집합을 `RuleIoReader.read` 한 번으로 읽는다.
+  DEPRECATED 세트도 `finalResults`·`inputCount` 는 계산하고 거부·경고 수만 0 이다.
+- B4 테스트: `MdmOasisActionVocabularyTest` 의 두 새 사례는 설계가 적은 "어휘·EDIT 세트 안" 에 더해 action 집합을 정확히 단언한다(어휘 안이지만 표 밖인 action 으로 바뀌어도 잡는다). `DmeOasisHttpTest` 의 역할 오버로드는 `post(service, action, user, role, body)` 이고 기존 네 인자 호출은 STEWARD 로 넘긴다.
 - B2 PROG 판정·이름 비교: 같은 이름의 조건 열은 대소문자를 무시해 찾는다(conds 중복 제거가 대소문자 무시라서). 컬럼 사전(DICT) 판정은 `findByPhysName(name)` 정확 일치이고, 한 번의 `read` 안에서 이름마다 한 번만 조회한다.
 
 ## B1 — BE 순수 계산 (`RuleIo`·`RuleSetCheck`·`RuleSetAnalyzer`·`RuleSetGuide`·코퍼스)
@@ -225,3 +257,24 @@ B2 변이는 python 스크립트 하나(변이 넣기 → `:api:test --fail-fast
   `"룰 세트 저장 검사를 통과하지 못했습니다: <룰>[<변수>] CYCLE …(순환). …"` 다. 비담당자는 MDM013. rowVersion 은 `Long` 속성이다.
 - I20 인계: 서비스에 FQCN 으로 단 `@org.springframework.transaction.annotation.Transactional` 은 contract-check 정규식(`@Transactional\b`)이 못 잡는다 — B4 의 `DmeOasisHttpTest` 사례가 HTTP 경로로 잡는지 확인하면 좋다.
 - MDM024 는 병렬 Task(08-04·08-05)와 번호가 겹칠 수 있다(D8) — 머지하는 쪽이 `CommonContractTest` 의 코드 값·개수와 이 Task 의 BE·테스트를 다음 번호로 바꾼다.
+
+## B4 — BE `ruleSetMng`(DTO·서비스·BPMN)·mcm 메뉴 시드·BPMN/어휘/HTTP 정적·경로 테스트
+
+- 파일: `BL/dme/ruleSetMng/dto/{RuleSetSearchRequest,RuleSetListRow,RuleSetSearchResult,RuleSetRegRequest,RuleSetRegResult}.java`, `BL/dme/ruleSetMng/service/{RuleSetMngService,RuleSetIdRules}.java`,
+  `BA/resources/services/dme/ruleSetMng.bpmn`, `DI`(`seedMdmRuleSetMenus()` 새 메서드 + `seedMdmMenus()` 호출 한 줄), `BAT/dme/ruleSetMng/RuleSetMngServiceTest.java`(새, 14건),
+  `BAT/dme/DmeBpmnActionTest.java`(ruleSetMng·ruleSetEdit 두 사례), `BAT/MdmOasisActionVocabularyTest.java`(두 사례, `scanned` 에 두 경로), `BAT/dme/DmeOasisHttpTest.java`(두 사례, 역할 오버로드).
+- TDD: 두 메서드가 `UnsupportedOperationException` 인 스텁 서비스와 BPMN 없는 상태로 새 테스트를 먼저 돌려 19건 실패(서비스 14·HTTP 2·ruleSetMng BPMN 2·`scanned` 1)를 본 뒤 구현했다.
+  ruleSetEdit BPMN 사례 둘은 B3 BPMN 이 이미 있어 처음부터 초록이다(회귀 고정용).
+- 구현 뒤: `RuleSetMngServiceTest` 14·`DmeBpmnActionTest` 4·`MdmOasisActionVocabularyTest` 9·`DmeOasisHttpTest` 8·`RuleSetEditServiceTest` 16, lib `MdmContractArchitectureTest` 10·`MdmRuleContractOnlyArchitectureTest` 1·
+  `DmeRoleCheckArchitectureTest` 1·`MdmEntityArchitectureTest` 4 모두 통과. mcm `:api:compileJava` 통과(시드는 mcm 테스트가 없어 컴파일로만 확인, 메뉴는 e2e M1·E1 이 본다).
+- BPMN 은 `bpmn-tool create`(npx 캐시)로 만들고 `validate` 했다. 경고 1건(`actionGateway` default flow 없음)은 `ruleMng.bpmn`·`ruleSetEdit.bpmn` 과 같다.
+- oasis-contract-check: 기준선 명령(`--root .`) ERROR 0 / WARN 0 / INFO 29, 보조 `--module mdm` ERROR 0 / WARN 0 / INFO 10. §3.5 I19 grep(ruleSetMng·ruleSetEdit 패키지) 0줄.
+- HTTP 경로 실측: 역할 헤더 `MDM_STD_ADMIN` 의 ruleSetMng reg·ruleSetEdit save 는 HTTP 200 + `meta.success=false` + MDM013 문구다(mdm 서버에 action 단위 RBAC 403 이 없다 — BFF RBAC 는 e2e M6·E9 몫).
+
+### B8 이 쓸 것
+
+- ruleSetMng search 응답은 `{rows:[…], totalCount}`(ruleMng 의 `list`·`page`·`size` 모양이 아니다, B7 `types.ts` 와 같다). 행 칸은 `setId, setName, ruleCount, finalResults[], inputCount, description, rejectCount, warnCount, status`.
+  reg 응답은 `{setId, rowVersion: 0}`, 중복은 `DUPLICATE_DATA` "이미 있는 룰 세트 ID 입니다: <id>"(e2e M4 의 ErrorModal 문구).
+- 메뉴: `ruleSetMng`("룰 세트", seq 004, fullSeq 5050400)·`ruleSetEdit`("룰 세트 편집", 005, 5050500), 부모 `dme`, componentPath `dme/ruleSetMng`·`dme/ruleSetEdit`. mcm 을 다시 띄워야 시드가 들어간다(멱등).
+- `DmeOasisHttpTest` 에 역할 오버로드 `post(service, action, user, role, body)` 가 있다.
+
