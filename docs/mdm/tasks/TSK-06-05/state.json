@@ -2,5 +2,57 @@
   "tsk": "TSK-06-05",
   "order": "9656745e-fefa-44a8-8798-db015b618d7f",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "design",
+  "branch_base": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed",
+  "baseline": {
+    "docker": "banned:spawn",
+    "cmds": [
+      {
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3120,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed-5a99c8ef20f3",
+        "measured_at": "2026-09-25T14:18:23Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 760,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed-70ad4dddc2e4",
+        "measured_at": "2026-09-25T14:20:02Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed-85eac351cb59",
+        "measured_at": "2026-09-25T14:20:41Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed-79066bca5c4b",
+        "measured_at": "2026-09-25T14:20:44Z",
+        "result": "pass"
+      },
+      {
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed-773190afc491",
+        "measured_at": "2026-09-25T14:20:46Z",
+        "result": "ERROR 0 / WARN 0 / INFO 29"
+      }
+    ],
+    "failures": 0,
+    "tests": 4048,
+    "excluded": "없음 — testAll 은 mssqlMigrationTest(Testcontainers, mssqlTest sourceSet)를 포함하지 않는다"
+  },
+  "model": "opus"
 }
