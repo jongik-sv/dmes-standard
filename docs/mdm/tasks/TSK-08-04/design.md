@@ -170,14 +170,14 @@ FE `P/page.tsx` 다(TSK-08-02 design §0, D1). 이 설계는 `dme/ruleEdit` 를 
 
 | 파일 | 내용 | 담당 |
 |---|---|---|
-| `P/state/workbench-context.tsx`(생성) | `RuleWorkbenchContext{ tableDraft: {ver, hitPolicy, rows: StoredRow[] (saveRowsOf 모양), dirty, rev} \| null, publishTableDraft, testRun: TestRunView \| null, setTestRun, colDirty }`. `page.tsx` 가 카드 목록을 감싼다 | B7 |
+| `P/state/workbench-context.tsx`(생성) | `RuleWorkbenchContext{ tableDraft: {ver, hitPolicy, rows: StoredRow[] (saveRowsOf 모양), dirty, rev} \| null, publishTableDraft, testRun: TestRunView \| null, setTestRun, colDirty }`. `page.tsx` 가 카드 목록을 감싼다. (B7 이 바꿈) `tableDraft` 에 `ruleId`, 값에 `testRunCleared`·`setColDirty`, `TestRunView{ruleId, target, ver, rowVersion, rev, result}` — build-log 「B7」 인계 | B7 |
 | `P/page.tsx` | 위 Provider 로 카드 목록을 감싼다 | B7 |
 | `P/decision-table/DecisionTableCard.tsx` | ① 표 상태가 바뀔 때 `publishTableDraft`(rev 증가) ② `testRun` 이 이 카드가 보이는 정의(BODY 또는 `view.selectedVer` 와 같은 버전)의 결과면 `TableMarks.test` 로 넘긴다 ③ BODY 결과를 받은 뒤 표가 바뀌면(rev 가 다르면) 표시를 지우고 안내 ④ 저장 실패(거부) 때 메시지를 보이고 편집 상태를 유지 | B7 |
-| `P/decision-table/columns.ts` | `TableMarks.test?: {hitRowIds, firstFalse: Map<rowId,varId>, chosenVarIds, dimmedVarIds}`, `CellMark` 에 `t`(`hit`\|`false`\|`chosen`\|`dim`), `cellRules` 에 클래스 4개, 행 클래스(적중 행) | B7 |
+| `P/decision-table/columns.ts` | `TableMarks.test?: {hitRowIds, firstFalse: Map<rowId,varId>, chosenVarIds, dimmedVarIds}`, `CellMark` 에 `t`(`hit`\|`false`\|`chosen`\|`dim`), `cellRules` 에 클래스 4개, 행 클래스(적중 행). (B7 이 바꿈) `TableMarks.test` 는 `{hitRowIds, firstFalse, chosen: Map<rowId,Set<varId>>, dimmed: Map<rowId,Set<varId>>}`(행마다) | B7 |
 | `P/decision-table/analysis.ts` | `sameIssues` 비교 범위를 분석기 코드(`ALL_NA_ROW, UNRESOLVED_CELL, OVERLAP, OVERLAP_UNRESOLVED, UNREACHABLE, VALUE_GAP, NULL_GAP, DERIVE_ORDER`)로 좁힌다(`ANALYZER_CODES` 상수). 나머지 서버 이슈는 "서버 저장 검사" 목록으로 따로 보인다 | B7 |
-| `P/value-test/test-input.ts`(생성) | 입력 줄 모델: `inputFields(rule: RuleDef, view, varMeta) → {name, label, typeBadge, contractBadge, domainDef, description}[]`(이름 = `always` ∪ 행별 필수·선택, `computeInputContract` 재사용), `buildInputJson(fields, values, keySent) → string`(키 보냄 끔 = 키 없음, 빈 칸 = `null`) | B7 |
-| `P/value-test/test-marks.ts`(생성) | 서버 결과 → `TableMarks.test` 변환, 그룹 고른 열·흐린 열 계산 | B7 |
-| `P/value-test/case-model.ts`(생성) | 결과 → 기대 JSON(`expectedFromResult`, §6.5 hit 표현), 케이스 결과 배지 문구 | B7 |
+| `P/value-test/test-input.ts`(생성) | 입력 줄 모델: `inputFields(rule: RuleDef, view, varMeta) → {name, label, typeBadge, contractBadge, domainDef, description}[]`(이름 = `always` ∪ 행별 필수·선택, `computeInputContract` 재사용), `buildInputJson(fields, values, keySent) → string`(키 보냄 끔 = 키 없음, 빈 칸 = `null`). (B7 이 바꿈) `inputFields(src: ContractSource, asts, candidates?)`·`fieldsOfContract(contract, vars, candidates)`·`inputFromCase` | B7 |
+| `P/value-test/test-marks.ts`(생성) | 서버 결과 → `TableMarks.test` 변환, 그룹 고른 열·흐린 열 계산. (B7 이 더함) `testMarksOf(result, vars, meta, defaultRowId)`·`runShownOnTable`(VERSION 은 같은 row_version·변경 없음일 때만)·`testRunAfterTableChange` | B7 |
+| `P/value-test/case-model.ts`(생성) | 결과 → 기대 JSON(`expectedFromResult`, §6.5 hit 표현), 케이스 결과 배지 문구. (B7 이 바꿈) `expectedFromResult(result, vars, defaultRowId)`(기본 행 적용 때 엔진 hits 가 비어 기본 행 row_id 를 받는다)·`hitValue`·`caseBadge` | B7 |
 | `P/api.ts`, `P/types.ts` | `runValueTest(req)`(action `execute`, 본문 행은 `grids.rows`), `saveTestCase`·`deleteTestCase`(action `save`, part `CASE`), 타입 `ValueTestResult`·`TestCaseView`·`RuleEditView.testCases` | B7 |
 | `P/cards/ValueTestCard.tsx`(생성) | 카드 ④(§6.7) | B8 |
 | `P/cards/TestResultCard.tsx`(생성) | 카드 ⑤ | B8 |

@@ -117,6 +117,12 @@
   결과 카드의 다른 버전 표도 shared `AgDataGrid` 로 그려야 같은 색이 난다.
 - B4 에게: 기대 JSON 의 숫자는 JSON 숫자(위 7), 결과 값은 문자열로 온다고 보고 비교해야 한다(I24).
 
+### 인계 — B9(e2e)
+
+- 그리드 칸·행 클래스 연결(`cellRules` 의 `t` → `cell-test-*`, `rowClassOf` → `ag-row-test-hit`)은 단위 테스트가 잡지 못한다(렌더 테스트는 그리드
+  밖만 본다). e2e V2·V3 은 정확한 클래스 이름(`ag-row-test-hit`, `cell-test-false`)으로 확인한다.
+- 저장 거부 때 표 아래 `dt-save-rejected` 와 함께 기존 `ErrorModal` 도 뜬다. S5·S6·V6 은 다음 조작 전에 모달을 닫는다.
+
 ## 변이 검증 기록
 
 | 불변 규칙 | 변이 | 잡은 테스트 | 결과 |
