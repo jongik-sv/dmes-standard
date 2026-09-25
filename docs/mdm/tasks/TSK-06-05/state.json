@@ -92,7 +92,44 @@
     "new_failures": []
   },
   "last": {
-    "phase": "build",
-    "event": "build.pass"
+    "phase": "verify",
+    "event": "verify.pass"
+  },
+  "verify_gate": {
+    "head": "179c433",
+    "cmds": [
+      {
+        "cwd": "src/backend",
+        "cmd": "./gradlew testAll --no-daemon --console=plain",
+        "tests": 3200,
+        "failures": 0
+      },
+      {
+        "cwd": "src/frontend",
+        "cmd": "pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 814,
+        "failures": 0
+      },
+      {
+        "cwd": "src/frontend",
+        "cmd": "pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0
+      },
+      {
+        "cwd": "src/frontend",
+        "cmd": "pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0
+      }
+    ],
+    "new_failures": [],
+    "reused_from": "build_gate"
   }
 }
