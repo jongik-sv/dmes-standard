@@ -39,6 +39,9 @@ subprojects {
         useJUnitPlatform()
         // 화면 Task 가 늘며 @SpringBootTest 컨텍스트 캐시가 커져 기본 힙(512m)에서 OOM 이 난다(2026-09-24 TSK-07-03 머지 뒤 api 14건).
         maxHeapSize = '1536m'
+        // 테스트 컨텍스트마다 Hikari 풀(기본 10연결)을 쥔다. SQLite 는 쓰기가 직렬이라 2개면 충분하다(perf-audit P2).
+        // 시스템 속성이라 application*.yml 보다 우선한다. DataSegmentLockSqliteTest 의 두 스레드 동시 수정도 2개로 돈다.
+        systemProperty 'spring.datasource.hikari.maximum-pool-size', '2'
     }
 }
 
