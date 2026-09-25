@@ -138,7 +138,8 @@ FE `P/page.tsx` 다(TSK-08-02 design §0, D1). 이 설계는 `dme/ruleEdit` 를 
   `CellTextGenerator` 로 채우고(`withTexts` 를 쓰지 않는다 — 첫 실패에서 멈추므로), 계약은 `InputContracts.compute`. 타입 해석은
   `ResolvedVar`(`dataType`·`scale`·`domainId`)를 쓴다. 화면 계약(`contract-view.ts` `computeContract`)과 같아지려면(B1 기록): 라벨 오버로드에
   `ResolvedVar.label` 을 var_id 별로 넘기고, 식 변수 `refVars` 는 **null** 로 둔다(`InputContracts` 는 null 일 때만 `exprAst` 를 걷는다 — 화면은
-  AST 가 있으면 참조 변수 목록을 쓰지 않는다). `resGrp` 는 공백뿐이면 null·아니면 저장값 그대로. `RuleDefinitionAssemblerTest` 는 QLTY_GRD_JDG 와
+  AST 가 있으면 참조 변수 목록을 쓰지 않는다). (B4 가 바꿈) 실제로는 `refVars = InputContracts.usedVariables(exprAst)`(AST 가 없으면 null)다 — 엔진이 `refVars` 로 참조 변수 NULL 가드를
+  돌기 때문이고, 같은 값·순서라 계약은 그대로다(build-log 「B4」 이탈 1). `resGrp` 는 공백뿐이면 null·아니면 저장값 그대로. `RuleDefinitionAssemblerTest` 는 QLTY_GRD_JDG 와
   함께 라벨 있는 식 변수 사례(코퍼스 `expr-var-label-default-row` 모양)로 계약을 확인한다.
 - `BL/common/rule/definition/SingleRuleDefinitionLookup.java` — `implements DefinitionLookup`. 정의 하나를 들고 `rule(id, ts)` 는 id 가 같으면 그 정의,
   `column`·`ruleSet` 는 `Optional.empty()`. **스프링 빈으로 등록하지 않는다**(요청마다 `new`) → `BAT/.../MdmBusinessRuleMigrationTest` 의

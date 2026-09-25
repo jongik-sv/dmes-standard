@@ -286,6 +286,64 @@
 - B9: e2e S5·S6·V6 의 거부 메시지는 `룰 저장 거부: <CODE> <message>; …`(분석기 ERROR 는 `ALL_NA_ROW …`, UNIQUE 겹침은 `OVERLAP …`)다. 표 저장은 이제 셀을 정규화해
   저장하므로(목록 정렬·한쪽 빈 구간 → 1 타입 op) 저장 뒤 그리드 칸이 보낸 글자와 다를 수 있다.
 
+## B4 — 값 테스트(`execute`)·정의 조립기·요청마다 만든 정의 조회
+
+- `BL/common/rule/definition/RuleDefinitionAssembler`(순수 static `assemble(ruleId, ver, ruleKind, hitPolicy, applyFrom, applyTo, rawVars, vars, rows,
+  externalType) → Assembled(definition, failures, skippedRows)`): TSK-08-01 §6.4 매핑, 셀마다 `CellTextGenerator`(CODE_IN 은 `ResolvedVar.maruCodeId`),
+  계약은 `InputContracts.compute(…, labels)`. 타입은 이 룰의 이름 변수 → `externalType` → STRING(화면 `contract-view.ts` 기본값과 같다).
+- `SingleRuleDefinitionLookup`(빈 아님, 요청마다 `new`), `StoredRuleDefinitions`(`@Component`, `read(ruleId, ver)`·`assemble`·`externalTypes(ruleId, ver)` —
+  룰 밖 이름은 해석기에 이름 하나짜리 임시 변수를 물어 컬럼 사전·다른 룰 결과만 받는다, 요청 안 캐시), `BL/common/rule/RuleTestCaseQueries`(`cases`·`count`).
+- `BL/dme/ruleEdit/service/RuleValueTestService.run`: 상한(본문 행 수·행 셀 길이·합 → 입력 JSON 길이 → 객체 파싱 → 키 수) → 버전 읽기 → BODY 면 표 저장과 같은
+  모양 검사(`RuleTableService.checkRows`·`hitPolicy`) + `validate(TEST_BODY)` 로 깨진 행 빼기 → 조립(생성 실패 행도 뺀다) → `new MdmRuleEngine(evaluator.configuration(),
+  new SingleRuleDefinitionLookup(def))` → 응답(§6.5 모양, 화면 `types.ts` `ValueTestResult` 와 칸 이름·모양 대조함) → `runCases` 면 케이스마다 같은 엔진으로 돌려 비교.
+  쓰기 트랜잭션·발급기·`beginDraftWrite` 를 부르지 않는다. 평가 시각은 주입한 `Clock`(초 단위), `evalTs` 는 그 시간대의 `yyyy-MM-dd HH:mm:ss`.
+- DTO `RuleTestRequest`(setter POJO, `rows` 는 `grids.rows.rows`)·`RuleTestResult`, `RuleEditService.runTest`, BPMN `execute` 갈래(`executeTask`, method `runTest`,
+  dto `RuleTestRequest`)와 DI·documentation, `DmeBpmnActionTest`(execute, readOnly 아님), `DmeOasisHttpTest`(실제 BPMN 으로 VERSION 을 비소유 담당자 lee 가·BODY 를
+  kim 이 `grids.rows.rows` 로 돌리고 원장 무변경).
+- 테스트: `BLT/common/rule/definition/RuleDefinitionAssemblerTest`(25 — 샘플 DISP·06:1326-1328 텍스트·엔진 판정 06:1322, 생성 실패 행 제외, 식 변수, **입력 계약
+  코퍼스 21건 전부**), `BAT/dme/ruleEdit/RuleValueTestServiceTest`(12 — design §3.2 ①~⑩, ⑨ 는 상한 다섯 개 각각 같으면 통과·+1 거부).
+- TDD: 조립기·서비스 본문을 `UnsupportedOperationException` 스텁으로 두고 새 테스트 37건이 모두 실패하는 것을 본 뒤 구현했다.
+- 관련 테스트: `:mdm:lib:test` 전체 1051 · `:mdm:api:test --tests 'com.dongkuk.dmes.mdm.dme.*' --tests '*MdmBusinessRuleMigrationTest' --tests '*Architecture*'
+  --tests '*MdmOasisActionVocabularyTest' --tests '*MdmRuleContract*'` 161 모두 통과. oasis 계약 검사 ERROR 0 / WARN 0 / INFO 29(기준선과 같다).
+
+### 설계 이탈
+
+1. **식 변수 `refVars` 는 null 이 아니라 `InputContracts.usedVariables(exprAst)` 다**(§2.3 은 null). 엔진 `RuleEvaluator.expressionVariables` 가 `refVars` 로 참조
+   변수 NULL 가드를 돌므로 null 이면 참조 입력이 NULL 이어도 식을 평가한다. B1 인계가 허용한 둘째 선택지(같은 값·순서)라 계약은 화면과 같다(코퍼스 21건 확인).
+   AST 가 없으면 null 이다.
+2. **`RuleDefinitionAssemblerTest` 는 BAT 가 아니라 BLT(스프링 없음)에 두었다.** 조립기가 원장을 읽지 않는 순수 클래스라서다. 코퍼스는 `RuleAnalysisCorpusTest` 처럼
+   상대 경로로 읽고 사례 하나가 아니라 21건 전부를 조립기로 돌린다. 06:1324 "row 3 만 BASE_FCT" 는 코퍼스 `qlty-grd-jdg-v1` 이 맡는다(원장 샘플 QLTY_GRD_JDG 는
+   결과 셀이 모두 Value 라 그 계약이 나오지 않는다). 코퍼스에 코드 도메인이 없어 테스트가 조건 열에 가짜 마루 코드를 준다(CODE_IN 셀 텍스트용, 계약과 무관).
+3. **B3 파일 `RuleTableService` 의 `RequestedRow`·`checkRows`·`hitPolicy`·`draftRows` 를 package-private 으로 풀었다.** BODY 행이 표 저장과 같은 모양 검사를
+   받게 하려는 것이다(동작 불변, `RuleTableServiceTest`·`RuleTableSaveCheckTest` 통과).
+4. **생성에 실패한 셀은 VERSION 에서도 그 행을 빼고 `cellErrors`(GENERATE_FAILED)·`skippedRows` 로 돌려준다.** 조립기가 셀마다 텍스트를 만들며 실패를 모으므로
+   BODY·VERSION 이 같은 경로다(D5 를 저장된 버전에도 적용).
+5. **`MISSING_CELL_AS_NA` 는 결과 셀이 없는 칸에도 붙인다**(엔진은 NULL 로 낸다). 기본 행의 조건 칸은 원래 없으므로 경고하지 않는다. VERSION 에도 붙는다.
+6. **상한 거부 메시지는 `MdmErrors.of(INVALID_INPUT, "값 테스트 요청 상한 — …")`** → "입력값이 올바르지 않습니다: 값 테스트 요청 상한 — …"(MDM021). 값 테스트는
+   저장이 아니라 `RuleSaveRejections`("룰 저장 거부:")를 쓰지 않았다. 상한은 버전을 읽기 전에 본다.
+7. **"발급기 미호출" 은 `@SpyBean` 대신 원장 스냅샷으로 본다.** api 테스트에 스파이 빈 선례가 없고, 발급기는 `TB_MDM_RULE.LAST_*_ID` 를 올리므로 표 여섯
+   (`TB_MDM_RULE`·`_VER`·`_VAR`·`_ROW`·`_TEST_CASE`·`_SET`) 전체 행 전후 비교가 카운터·row_version 까지 덮는다. JDBC 쓰기를 넣는 변이로 잡히는 것을 확인했다.
+8. **케이스 비교는 엔진 결과 값의 타입으로 한다.** 엔진이 결과를 결과 변수 타입(NUMBER → BigDecimal 등)으로 바꿔 내므로 그 값이 BigDecimal 이면 기대값(JSON 숫자·숫자 모양
+   문자열)을 BigDecimal 로 `compareTo`, Boolean 이면 불린·`TRUE`/`FALSE` 문자열, 나머지는 글자 비교다. 기대 키는 결과 이름과 정확히 같은 것 → 대소문자 무시 순으로 찾고
+   없으면 실패(`actual` null). 판정 오류면 기대값이 있을 때 `pass=false`·`mismatches` 비움(화면 배지 "실패 · 판정 오류"). 케이스 결과에도 `hit` 을 같은 표현으로 싣는다.
+9. **BODY 의 `ver` 가 DRAFT 인지 서버가 보지 않는다.** 그 버전의 저장된 변수만 읽고 쓰지 않으므로 막을 까닭이 없다. 화면은 DRAFT 일 때만 편집본 대상을 준다(I34).
+10. **BPMN 은 손으로 고쳤다.** `bpmn-tool` 이 PATH 에 없다. 기존 `validateTask` 모양 그대로 serviceTask·endEvent·sequenceFlow 둘과 DI(shape 둘·edge 둘)를 더했고
+    `xmllint --noout`·oasis 계약 검사·`DmeBpmnActionTest`·`DmeOasisHttpTest`(실제 BPMN 실행)로 확인했다.
+
+### 보고
+
+- 값 테스트는 운영 평가기(`mdmEvaluator`)를 그대로 쓰므로 `MASTER`·`CODE_IN` 셀·식은 늘 빈 결과로 판정된다(D-077 알려진 한계, design §7.5). 이 경로의 테스트는 두지 않았다.
+- 엔진이 `EngineEvaluationException` 밖의 예외(예: 저장된 식 변수 텍스트가 컴파일되지 않음)를 던지면 그대로 500 이 된다 — 감추지 않았다.
+
+### 인계
+
+- B5: 케이스 조회는 `RuleTestCaseQueries.cases(ruleId)`(case_id 오름차순, 상한 100)·`count(ruleId)`(룰당 상한 검사용). view `testCases` 도 `cases` 를 쓰면 된다.
+- B6(`ExprTypeByCaseCheck`): `RuleSaveContext.rows`(StoredRow)를 `DraftRow(rowId, seq, rowKind, RuleCellsCodec.parse(cells))` 로 바꿔 `RuleDefinitionAssembler.assemble(…,
+  storedRuleDefinitions.externalTypes(ruleId, ver))` 에 넣고 `new MdmRuleEngine(evaluator.configuration(), new SingleRuleDefinitionLookup(def))` 로 케이스마다 돌린다.
+  케이스 입력 파싱은 `USE_BIG_DECIMAL_FOR_FLOATS`(값 테스트와 같게). `EngineEvaluationException` 의 `TYPE_CONVERSION`·`EVALUATION_ERROR` 가 결과 타입 경고 후보다.
+- B9(e2e): V5 서버 오류 문구는 "입력값이 올바르지 않습니다: 값 테스트 요청 상한 — 입력 JSON 이 N자다. 16384자까지 받는다"(④ `vt-error`). V3 키 보냄 끔 →
+  `errors[].code` `MISSING_KEY`. V4 케이스 결과 `hit` 은 적중 하나면 숫자·기본 행이면 기본 행 row_id.
+
 ## 변이 검증 기록
 
 | 불변 규칙 | 변이 | 잡은 테스트 | 결과 |
@@ -355,6 +413,24 @@
 | I23 | 행 수 상한 `>` → `>=` | `RuleTableSaveCheckTest` › 행_수_상한과_같으면_저장하고_넘으면_거부한다 | 잡힘 |
 | I23 | 행 셀 길이 상한 `>` → `>=` | `RuleTableSaveCheckTest` › 행_셀_길이_상한과_같으면_저장하고_넘으면_거부한다 | 잡힘 |
 | I23 | 셀 길이 합 상한 `>` → `>=` | `RuleTableSaveCheckTest` › 셀_길이_합_상한과_같으면_저장하고_넘으면_거부한다 | 잡힘 |
+| I19 | 값 테스트 끝에 JDBC 로 `TB_MDM_RULE.LAST_ROW_ID` 를 올림 | `RuleValueTestServiceTest` › 본문_정의는_새_행과_미완성_행도_판정하고_원장에_쓰지_않는다 | 잡힘 |
+| I20 | `SingleRuleDefinitionLookup.rule` 이 늘 빈 값(요청 정의가 엔진에 가지 않음) | `RuleValueTestServiceTest` › UNIQUE_다중_적중은_판정_오류다(fail-fast 첫 실패) | 잡힘 |
+| I21 | 계약 always 이름 중 레코드에 없는 키를 null 로 채움 | `RuleValueTestServiceTest`(fail-fast) | 잡힘 |
+| I22 | BODY 의 깨진 행을 빼지 않음(`filter(r -> true)`) | `RuleValueTestServiceTest`(fail-fast) | 잡힘 |
+| I22 | 빠진 셀 경고 `MISSING_CELL_AS_NA` 를 싣지 않음 | `RuleValueTestServiceTest`(fail-fast) | 잡힘 |
+| I22·D5 | 조립기가 생성 실패 셀의 행을 정의에 남김 | `RuleDefinitionAssemblerTest` › 생성에_실패한_셀의_행은_정의에서_빼고_실패로_돌려준다 | 잡힘 |
+| I23 | 값 테스트 본문 행 수 상한 `>` → `>=` | `RuleValueTestServiceTest`(fail-fast) | 잡힘 |
+| I23 | 값 테스트 행 셀 길이 상한 `>` → `>=` | `RuleValueTestServiceTest`(fail-fast) | 잡힘 |
+| I23 | 값 테스트 셀 길이 합 상한 `>` → `>=` | `RuleValueTestServiceTest`(fail-fast) | 잡힘 |
+| I23 | 입력 JSON 길이 상한 `>` → `>=` | `RuleValueTestServiceTest`(fail-fast) | 잡힘 |
+| I23 | 입력 키 수 상한 `>` → `>=` | `RuleValueTestServiceTest`(fail-fast) | 잡힘 |
+| I24 | NUMBER 비교 `compareTo` → `equals`(1.050 대 1.05) | `RuleValueTestServiceTest` › 케이스를_같은_정의로_돌려_결과_변수_타입으로_견준다 | 잡힘 |
+| I24 | 기대에 모르는 키를 통과시킴 | `RuleValueTestServiceTest` › 케이스를_같은_정의로_돌려_… | 잡힘 |
+| I24 | 기대값 없음을 통과로 봄 | `RuleValueTestServiceTest` › 케이스를_같은_정의로_돌려_… | 잡힘 |
+| I24 | 기본 행 적용의 hit 을 null 로 | `RuleValueTestServiceTest` › 케이스를_같은_정의로_돌려_… | 잡힘 |
+| I32 | BPMN execute 갈래 이름을 compare 로 | `DmeBpmnActionTest` › ruleEdit_는_…_validate_execute | 잡힘 |
+| (B4) | 조립기가 식 변수 `refVars` 를 null 로(설계 이탈 1) | `RuleDefinitionAssemblerTest` › 식_변수는_식_텍스트와_AST_와_AST_에서_뽑은_참조_변수를_싣는다 | 잡힘 |
+| (B4) | 조립기가 라벨을 계약 계산에 넘기지 않음 | `RuleDefinitionAssemblerTest` › 식_변수는_… | 잡힘 |
 
 - Java 변이는 `:maru-mdm-engine:test` 태스크 실패(컴파일 통과 뒤 테스트 실패)로 확인했다. enum → 문자열 상수로 바꾼 뒤 최종 코드에 Java 변이 9개를 다시 돌려 모두 잡혔다. fail-fast 첫 실패 사례 이름은 로그에 남기지 않았다.
 - TS 변이는 확인한 뒤 곧바로 `git checkout` 으로 되돌렸다(TS 파일 무변경, I28).
@@ -364,3 +440,6 @@
 - B3 변이는 구현을 먼저 커밋(5669e8a)한 뒤 스크립트 하나(변이 → `:mdm:api:test --tests '*RuleTableSaveCheckTest'` 또는 `:mdm:lib:test --tests '*RuleCompletenessTest'`
   `--fail-fast` → `git checkout`)를 `heavy.sh` 로 감싸 두 번에 나눠 돌렸다. 변이마다 `git diff --stat` 으로 실제로 바뀐 것을 확인했고 14개 모두 잡혔다. "쓰기 뒤 같은
   트랜잭션 안에서 거부" 변이는 롤백 때문에 결과가 같은 등가 변이라 돌리지 않았다.
+- B4 변이는 구현을 먼저 커밋(9bd735f)한 뒤 스크립트 하나(변이 → `:mdm:api:test`·`:mdm:lib:test --tests <클래스> --fail-fast` → `git checkout`, `trap` 으로 중단 때도
+  되돌림)를 `heavy.sh` 로 감싸 두 번에 나눠 돌렸다. 변이마다 `git diff --stat` 으로 실제로 바뀐 것을 확인했고 18개 모두 테스트 실패(컴파일 오류 아님, "N tests completed,
+  M failed")로 잡혔다. 첫 묶음 8개는 첫 실패 사례 이름을 뽑지 않아 "(fail-fast)" 로 적었다.
