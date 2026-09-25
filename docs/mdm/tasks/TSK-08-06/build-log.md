@@ -39,7 +39,7 @@
 | I10(TS, B5) | 같은 변이 — 코퍼스만 | `rule-set-corpus.test.ts` | 잡힘 |
 | I10(TS, B5) | 최종 결과 판정 바꿈(`isFinalResult`: readers 비었음 → by 1개) | `set-model.test.ts` | 잡힘 |
 | I11(TS, B5) | `setDeps` 의 DICT 제외 삭제 | `rule-set-corpus.test.ts`("DICT 이름을 만드는 룰" 사례) | 잡힘 |
-| I11(TS, B5) | 같은 변이 — `set-model.test.ts` 만 | `set-model.test.ts` "의존은 DICT 가 아닌 …" | 안 잡힘(보강함) — DICT 이름만 만드는 룰 `K` 를 더해 다시 돌려 잡힘 |
+| I11(TS, B5) | 같은 변이 — `set-model.test.ts` 만(보강: DICT 이름만 만드는 룰 `K` 를 더한 뒤 다시 돌려 잡힘) | `set-model.test.ts` "의존은 DICT 가 아닌 …" | 안 잡힘(보강함) |
 | I11(TS, B5) | `setDeps` 의 자기 제외 삭제 | `set-model.test.ts` | 잡힘 |
 | I11(TS, B5) | 뒤에 있음 비교 반대로(`laterDeps` `>` → `<`) | `set-model.test.ts` "뒤에 있음은 …" | 잡힘 |
 | I8(TS, B5) | 순환을 직접 의존·겹침으로만 봄(`reaches` 삭제) | `set-model.test.ts` 세 룰 고리 | 잡힘 |
@@ -59,6 +59,9 @@ B1 담당 범위 밖: I8 의 "REJECT 가 있으면 저장·되살리기 거부"�
 - B7 세트 검사 칸 문구: 거부·경고가 함께 있으면 `거부 N · 경고 N`, 경고만 있으면 `통과 · 경고 N`(§6.11 "뒤에 경고 N" 의 구분자를 ` · ` 로 정했다). 계산은 `types.ts` 의 `setCheckText` 한 곳이다. 상태 배지는 코드 그대로(`INUSE`·`DEPRECATED`, 시안 선택지와 같다) 보인다.
 - B1 `RuleSetCheck` 에 편의 메서드 `rejected()`(= severity 가 REJECT)를 더했다. B3 서비스가 거부 여부를 가를 때 쓴다. 레코드 컴포넌트가 아니므로 JSON 에 나가지 않는다.
   `RuleIo` 에 출처 상수 `DICT`·`PROG`·`NONE`, `RuleSetCheck` 에 코드·심각도 상수를 두었다(§6.3 표의 값 그대로).
+- B5 `set-model.ts` 에 설계 목록 밖 공개 함수 `isFinalResult(row)`(Java `ResultRow.finalResult()` 짝)와 타입 `CondMark` 를 더했다. 설계가 모양을 정하지 않은 두 함수는
+  `condMarks` 가 ids 와 같은 자리의 `CondMark[][]`, `laterDeps` 가 ids 를 키로 삼는 `Record<룰 ID, 뒤에 있는 의존 룰[]>` 을 돌려주도록 정했다.
+- B5 `types.ts` 에 §2.3 의 열 타입 밖으로 search 응답 `RuleSetPick`·`RuleSetPickResult`·`RuleSetRuleSearchResult`, view 의 `set` 칸 `RuleSetHeader`, 입력 맵 `RuleIoMap` 을 더했다(B6 가 이 파일을 고치지 않게).
 
 ## B1 — BE 순수 계산 (`RuleIo`·`RuleSetCheck`·`RuleSetAnalyzer`·`RuleSetGuide`·코퍼스)
 
