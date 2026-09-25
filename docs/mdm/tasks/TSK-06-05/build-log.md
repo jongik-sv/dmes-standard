@@ -200,6 +200,10 @@ B3 가 §6.5 모양 mock 으로만 시험한 가정을 B2 실제 코드와 맞�
 
 design 「서버·E2E 기동 방법」 그대로 슬롯 `e2e-TSK-06-05` 를 잡고 mcm 18605·mdm 18698·FE 15605 에 새 mcm.db·mdm.db 로 직접 띄웠다. 끝난 뒤 기록한 PID 와 자기 포트 리스너만 종료하고 슬롯을 풀었다. 다른 Task 스크린샷(TSK-01-02·01-03)·`next-env.d.ts`·`test-results` 변경은 `git checkout --`·`git restore` 로 되돌렸다.
 
+- 기동 순서의 함정 두 가지(Verify 가 같은 절차를 밟을 때 참고):
+  - mcm 로그에 "Started McmApplication" 이 찍힌 뒤에도 `DataInitializer`(러너)가 계속 쓴다. 그 직후 `mdm-rbac-users.sql` 을 넣으면 `database is locked` 로 사용자가 들어가지 않는다. `TB_MCM_SEC_MENU` 에 `codeConfirm` 행이 생긴 것을 확인한 뒤에 넣는다.
+  - `mdm-rbac-seed-check.sql` 대조는 시험 사용자를 넣기 **전에** 돌린다. 뒤에 돌리면 17번째 줄이 `3` 대 `0` 으로 어긋난다(시험 사용자 수를 센다).
+- 다른 mdm E2E 영향: 메뉴 개수를 세거나 codeConfirm 으로 이동하는 기존 spec 은 없다(`grep` 결과 `mdm-shell-rbac-smoke.spec.ts:137` 의 "마루 MDM 없음" 단언 하나뿐이고, 이 spec 은 최종 실행에서 통과했다). 그래서 나머지 mdm spec 은 돌리지 않았다.
 - 시드 대조: 첫 기동 직후 `mdm-rbac-seed-check.sql` diff 출력 없음. `codeConfirm` 권한 행 `MDM_STD_ADMIN|PERM_MDM_READ`·`MDM_STEWARD|PERM_MDM_CONFIRM`·`SYSADMIN|PERM_ALL`, 메뉴 행 1건.
 - 최종 실행: `pnpm exec playwright test e2e/mdm-codeConfirm.spec.ts e2e/mdm-sample-smoke.spec.ts e2e/mdm-shell-rbac-smoke.spec.ts --workers=1` → **11 passed**(codeConfirm 6·sample-smoke 1·shell-rbac-smoke 4). 메뉴 시드(B2)와 page-registry(B3)가 함께 들어가 기존 스모크가 깨지지 않는다.
 - 확정 뒤 원장: E2E_CF_OK 1.000 RELEASED `2026-01-01 00:00:00`~`9999-12-31 00:00:00`, ROW_VERSION 1, REQUESTED_BY `e2e_mdm_steward`, TB_MDM_CODE.STATUS INUSE(과거 apply_from 이라 확정 트랜잭션에서 올랐다).
