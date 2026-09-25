@@ -106,7 +106,7 @@ design.md 「도커 금지로 생략한 검증」 절 그대로 — 이 단위�
 
 ## 진행 방식 변경(오케스트레이터, B1 뒤)
 
-- 사람(담당자) 요청 "동시에 여러 빌드 실행이 가능하면 실행"에 따라 B2(dataEdit)·B3(dataCateEdit)를 B1 커밋 위에서 **각자 별도 워크트리로 동시에** 구현하고, 오케스트레이터가 agent 브랜치로 머지한다.
+- 사람(담당자) 요청 "동시에 여러 빌드 실행이 가능하면 실행"에 따라 B2(dataEdit)는 이 워크트리에서, B3(dataCateEdit)는 별도 워크트리 `/Users/jji/project/dmes-standard/.claude/worktrees/dflow-4be6eb9f-b3`(브랜치 `wip/4be6eb9f-b3`, push 하지 않음)에서 동시에 구현하고, 오케스트레이터가 B3 를 agent 브랜치로 머지한다. 픽스처 키 접두는 B2 `E2E_DE_`, B3 `E2E_DC_`.
 - 충돌 회피 규칙: B3 는 `DmdScreenMessageParityTest` 를 건드리지 않는다(B2 의 루프 구조 리팩터 뒤에 통합 단위가 `dataCateEdit` 항목을 더한다). B3 는 dataMng·인계 코드도 건드리지 않는다. 공유 파일(`DmdBpmnActionTest`·`DmdOasisHttpTest`·`m-mdm/tsup.config.ts`·`e2e/fixtures/mdm-dataMng.sql`)은 각자 덧붙이기만 하고, 머지 충돌은 오케스트레이터가 양쪽을 모두 살려 푼다.
 - E2E 스모크(세 spec)와 통합 확인은 머지 뒤 마지막 단위 `I`(통합)가 이 워크트리에서 돈다.
 - D7 개정: `pages/dmd/dataHandoff.ts` 대신 기존 `src/shell/page-handoff.ts` 를 쓴다(design.md D7). 교체는 B2 몫이다.

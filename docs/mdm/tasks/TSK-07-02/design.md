@@ -193,10 +193,11 @@ OBJECT 마다 동일하게 시드되므로 권한 문제가 없다, F3). `dataEd
 | 단위 | 범위(파일·기능) | 새 테스트 | 담당 불변 규칙 |
 |---|---|---|---|
 | B1 | 공용(`DataCategoryResolver` 신설 + `DataItemListQuery.targetValue`/`matches` 추출, `DataSegmentRowStore` 메서드 2개 추가, `dataHandoff.ts` 신설) + dataMng 백엔드/프런트/BPMN/e2e + 메뉴 시드 3개(`seedMdmDataMngMenus`) + `e2e/fixtures/mdm-dataMng.sql` 신설 | `DataCategoryResolverSqliteTest`, `DataMngServiceSqliteTest`, `dataHandoff.test.ts`, `mdm-dataMng.spec.ts` | R1, R3(공용 파일을 건드리지 않았음을 스스로 확인), R6(BASE 값), R9, R10, D7(전반부 — stash·broadcast) |
-| B2 | dataEdit 백엔드/프런트/BPMN/e2e(공용 파일·픽스처·`dataHandoff.ts` 는 B1 산출물을 **읽기만** 한다) + `DmdScreenMessageParityTest` 를 루프 구조로 리팩터(F24) | `DataEditServiceSqliteTest`, `mdm-dataEdit.spec.ts` | R1′, R2, R7(헤더/라벨/lvl_cnt/폐기), R11(lvl_cnt 축소), D7(후반부 — consume·리스너) |
-| B3 | dataCateEdit 백엔드/프런트/BPMN/e2e + `DmdScreenMessageParityTest` 루프에 항목 추가 + 세 화면 통합 게이트 스윕(마지막 단위) | `DataCateEditServiceSqliteTest`, `mdm-dataCateEdit.spec.ts` | R2′, R4, R5, R6(BASE 편집·닫기 거부), R7(카테고리), R12 |
+| B2 | dataEdit 백엔드/프런트/BPMN/e2e(공용 파일·픽스처는 B1 산출물을 **읽기만** 한다) + D7 개정 교체(dataMng 등록 핸들러를 `openMdmPage` 로, dataEdit 는 `useMdmPageParams`, `dataHandoff.ts`·그 테스트 삭제) + `DmdScreenMessageParityTest` 를 루프 구조로 리팩터(F24) | `DataEditServiceSqliteTest`, `mdm-dataEdit.spec.ts` | R1′, R2, R7(헤더/라벨/lvl_cnt/폐기), R11(lvl_cnt 축소), D7(후반부 — consume·리스너) |
+| B3 | dataCateEdit 백엔드/프런트/BPMN/e2e (e2e 는 작성만, 마지막 단위 아님. `DmdScreenMessageParityTest`·dataMng·인계 코드는 건드리지 않는다. B2 와 별도 워크트리에서 동시 진행) | `DataCateEditServiceSqliteTest`, `mdm-dataCateEdit.spec.ts` | R2′, R4, R5, R6(BASE 편집·닫기 거부), R7(카테고리), R12 |
+| I | 통합(마지막 단위): B3 머지 뒤 `DmdScreenMessageParityTest` 루프에 `dataCateEdit` 항목 추가 + 세 화면 e2e(`mdm-dataMng`·`mdm-dataEdit`·`mdm-dataCateEdit`) 실행·스크린샷 + 세 화면 연결 확인 | (새 테스트 없음, 파리티 항목 추가) | 전 단위 규칙의 e2e 쪽 확인 |
 
-B1→B2→B3 순서로 돈다(B2·B3 는 B1 이 만든 `DataCategoryResolver`/`DataSegmentRowStore` 신규 메서드·`dataHandoff.ts` 를
+B1 → (B2 ∥ B3, 오케스트레이터 개정: 사람 요청으로 동시 진행) → I 순서로 돈다(B2·B3 는 B1 이 만든 `DataCategoryResolver`/`DataSegmentRowStore` 신규 메서드·`dataHandoff.ts` 를
 호출만 하고 고치지 않는다). 공유 셸(`src/frontend/shared`)은 이 Task 어느 유닛도 고치지 않는다(D7) — `pnpm test:unit:shared`
 는 기준선과 같은 결과(168/0)를 재확인하는 회귀 게이트로만 돈다. 공유 테스트 파일(`DmdBpmnActionTest` 등)은 각 유닛이
 **자기 화면 메서드만 추가**한다(§2 「수정 — 공유 파일」). B3 가 끝나면 전체 게이트(`testAll`·`pnpm --filter @dk-oasis/m-mdm
