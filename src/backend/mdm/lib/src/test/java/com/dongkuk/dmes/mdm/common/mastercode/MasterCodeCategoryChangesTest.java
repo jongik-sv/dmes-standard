@@ -65,7 +65,8 @@ class MasterCodeCategoryChangesTest {
         List<CateRow> cates = List.of(
                 new CateRow("BASE", V1_000, OPEN, "전체", "REGEX", ".*", "CODE", null),
                 new CateRow("COATING", V1_000, V1_001, "도금 공정", "REGEX", "8[0-9]", "CODE", null),
-                new CateRow("PLTCM", V1_001, OPEN, "산세 공정", "REGEX", ".P", "CODE", null));
+                new CateRow("PLTCM", V1_001, OPEN, "산세 공정", "REGEX", ".P", "CODE", null),
+                new CateRow("NONE", V1_000, V1_001, "빈 공정", "REGEX", "Z.*", "CODE", null));
 
         Summary summary = MasterCodeCategoryChanges.summarize(
                 viewAt(V1_000, items(), cates, cateItems()), viewAt(V1_001, items(), cates, cateItems()));
@@ -81,6 +82,10 @@ class MasterCodeCategoryChangesTest {
         assertEquals("NEW", added.kind());
         assertFalse(added.reduced());
         assertEquals(List.of("1P", "2P"), added.addedCodes());
+        Change closedEmpty = find(summary, "NONE");
+        assertEquals("CLOSED", closedEmpty.kind());
+        assertEquals(List.of(), closedEmpty.removedCodes());
+        assertTrue(closedEmpty.reduced());
     }
 
     @Test

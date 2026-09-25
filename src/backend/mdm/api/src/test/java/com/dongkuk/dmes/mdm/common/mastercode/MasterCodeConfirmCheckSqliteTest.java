@@ -151,17 +151,29 @@ class MasterCodeConfirmCheckSqliteTest {
     }
 
     @Test
+    void SP4_I3_RELEASED_없는_2_000_도_최초_버전이라_3_4항_면제() {
+        fx.seedCode("S", "S 코드", "MDM", 0);
+        fx.seedVersion("S", "2.000", "DRAFT", "kim", null, null, 0);
+        fx.seedCate("S", "BASE", "2.000", OPEN, "전체", "REGEX", ".*", "CODE");
+        fx.seedItem("S", "A", "2.000", OPEN, "에이", null, 1, null);
+
+        MasterCodeConfirmCheckReport report = spi.report(request(ref("S", "2.000"), null));
+
+        assertEquals(MasterCodeCheckStatus.EXEMPT, row(report, "3").status());
+        assertEquals(MasterCodeCheckStatus.EXEMPT, row(report, "4").status());
+        assertEquals(null, spi.diff(ref("S", "2.000")).base());
+    }
+
+    @Test
     void SP5_SPI_는_쓰기를_하지_않는다() {
         fx.seedCateItem("PROC_CD", "MAJOR", "83", "1.000", OPEN);
-        List<Long> before = counts();
-        long rowVersion = fx.rowVersion("PROC_CD", "2.000");
+        List<Object> before = snapshot();
 
         spi.diff(V2_000);
         spi.report(request(V2_000, V1_001_APPLY_FROM));
         spi.check(request(V2_000, V1_001_APPLY_FROM));
 
-        assertEquals(before, counts());
-        assertEquals(rowVersion, fx.rowVersion("PROC_CD", "2.000"));
+        assertEquals(before, snapshot());
         assertEquals(List.of("82@1.000-2.000", "83@1.000-1.001", "83@1.001-2.000"),
                 fx.itemSegments("PROC_CD").stream().filter(s -> s.startsWith("8")).toList());
         assertTrue(fx.cateItemSegments("PROC_CD").contains("MAJOR 83@1.000-9999"));
@@ -173,8 +185,12 @@ class MasterCodeConfirmCheckSqliteTest {
         fx.seedCate(id, "BASE", "1.000", OPEN, "전체", "REGEX", ".*", "CODE");
     }
 
-    private List<Long> counts() {
-        return TABLES.stream().map(t -> jdbc.queryForObject("SELECT COUNT(*) FROM " + t, Long.class)).toList();
+    /** 다섯 표 행 수, 세 선분 표의 행 모습, DRAFT 의 ROW_VERSION. */
+    private List<Object> snapshot() {
+        return List.of(
+                TABLES.stream().map(t -> jdbc.queryForObject("SELECT COUNT(*) FROM " + t, Long.class)).toList(),
+                fx.itemRows("PROC_CD"), fx.cateSegments("PROC_CD"), fx.cateItemSegments("PROC_CD"),
+                fx.rowVersion("PROC_CD", "2.000"));
     }
 
     private static ConfirmCheckRequest request(VersionRef draft, LocalDateTime previousApplyFrom) {
