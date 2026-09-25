@@ -102,6 +102,11 @@ B1 담당 I1~I16. 대상 시험만 `--fail-fast` 로 돌렸다(lib 29건 한 스
 | I27 | BPMN confirm 분기 method 를 `validate` 로 | `CodeConfirmBpmnActionTest` B4 | 잡힘 |
 | I28 | `MasterCodeConfirmCheck` 의 `@Component` 제거 | `CodeConfirmOasisHttpTest` HT3 | 잡힘 |
 | I29 | — | — | 안 잡힘(보고) — 메뉴 시드는 백엔드 단위 시험이 없는 알려진 갭(design §5). B4 E2E T1·T6 와 Verify diff 확인 |
+| I29 (B4) | `seedMdmMenus()` 의 `seedMdmCodeConfirmMenu();` 호출 제거 → mcm 새 DB 로 재기동 | E2E `mdm-codeConfirm.spec.ts` T1(마스터코드 폴더까지 열리고 "버전 확정" 항목 없음) | 잡힘 |
+| I36 (B4) | page-registry 에서 `"dmc/codeConfirm"` 항목 제거 | E2E T1(`cf-list` 없음) | 잡힘 |
+| I37 (B4) | 확정 뒤 `refreshList(keyword)` 를 부르지 않음 | E2E T4(`cf-row-E2E_CF_OK-1.000` 남음) | 잡힘 |
+| I37 (B4) | 확정 뒤 `load({maruCodeId, ver})` 를 부르지 않음 | E2E T4(RELEASED 배지 없음) | 잡힘 |
+| I38 (B4) | `canValidate` 를 `true` 로 고정(RBAC 무시) | E2E T6(`cf-validate` 활성) | 잡힘 |
 
 - 동등 변이라 싣지 않은 것: I4 "EXEMPT·DELEGATED 행에도 이슈 목록을 남김"은 `report` 가 그 행에 이슈를 만들지 않아 관찰되지 않는다(`flatten` 쪽 변이로 대신 잡았다). I11 "`!firstVersion &&` 제거"는 최초 버전이면 4항이 이슈 판정 전에 EXEMPT 가 되어 관찰되지 않는다.
 - (B2) 변이 검증: B2 담당 I17~I29 를 대상 시험만 `--fail-fast` 로 돌렸다(스크립트 두 번, 각각 `heavy.sh` 로 감쌈). 공통 서비스(`DefaultVersionStateService`·`DefaultApplyFromOrderCheck`·`VersionRowStore`)와 B1 파일(`MasterCodeConfirmCheck`)에는 작업 트리에서만 변이를 넣고 되돌렸다. 첫 스윕은 새 파일(추적 전)에 넣은 변이가 `git checkout --` 로 되돌려지지 않아 변이가 쌓였으므로 결과를 버리고, 구현을 복원·커밋(98f9b9f)한 뒤 전부 다시 돌렸다. 위 표는 다시 돌린 결과다. 끝난 뒤 작업 트리가 깨끗한 것을 확인했다.
@@ -169,3 +174,47 @@ B3 담당 I30~I35. 대상 시험 `tests/dmc/codeConfirm`(2파일)만 `vitest run
   3. search 결과 키는 `rows`, validate 행 `no` 는 문자열(`"2-1"` 등)이다. testid `cf-check-{no}` 가 이 값에 기댄다.
 - mantine-aggrid-ui 점검: `grep -rnE "@mantine|ag-grid" src/frontend/m-mdm/pages/dmc/codeConfirm` 0건 — shared 래퍼(`@dk-oasis/shared/form`·`modal`·`layout`)만 쓴다.
 - 성공 토스트 문구는 "확정했습니다", 확정 뒤 상태 배지는 `VersionStatusBadge`(RELEASED 이고 apply_from 이 지났으면 "확정", 미래면 "적용 대기")다.
+
+---
+
+## B4 — 연결 확인·E2E
+
+- 커밋: 이 기록과 함께 커밋(E2E 스펙·픽스처·스크린샷, `DFlow-Unit: B4 done`)
+- 새 시험: `src/frontend/e2e/mdm-codeConfirm.spec.ts` T1~T6(design §3.4), 픽스처 `src/frontend/e2e/fixtures/mdm-codeConfirm.sql`(E2E_CF_OK·NOCHG·RACE)
+- 스크린샷: `screens/dmc-codeConfirm-{open,list,rejected,confirmed,error,readonly}.png`
+
+### B2 응답 ↔ B3 화면 대조(고칠 곳 없음)
+
+B3 가 §6.5 모양 mock 으로만 시험한 가정을 B2 실제 코드와 맞대었다. 다섯 항목이 모두 맞아 FE·BE 모두 고치지 않았다. E2E T1~T6 가 실제 서버로 같은 결론을 확인했다.
+
+| 항목 | B3 가정(`pages/dmc/codeConfirm`) | B2 실제(`CodeConfirmService.java`) | 판정 |
+|---|---|---|---|
+| confirm 응답 | view 키를 쓰지 않고 확정 뒤 `load({maruCodeId, ver: version.ver})` 로 다시 부른다(`page.tsx:185`) | `buildView(target(id, ver))` 를 최상위에 병합(214행). view 는 ver 가 비면 DRAFT, 없으면 MDM021(233-244행) | 맞음 — 다시 그릴 때 ver 를 넘기므로 MDM021 이 나지 않는다(T4 가 RELEASED 배지로 확인) |
+| `warningsAcknowledged` | JSON boolean(`api.ts` `confirmDraft`) | `Boolean` 필드, `Boolean.TRUE.equals(...)`(`CodeConfirmRequest`, 208행) | 맞음 — T4(true)·T5(false) 가 실제로 통과 |
+| ver | 문자열(`types.ts`) | `MasterCodeLedgerQueries` 가 `setScale(3)` 한 BigDecimal 을 `toPlainString()`(125·265·279행) → `"1.000"` | 맞음 — T2 의 `cf-row-E2E_CF_NOCHG-1.001` testid 가 실제 값으로 잡힌다 |
+| search 결과 키 | `rows` | `result.put("rows", rows)`(134행) | 맞음 |
+| validate 행 `no` | 문자열(`"2-1"` 등) | `r.item().no()`(176행, enum 의 문자열 번호) | 맞음 — T4 의 `cf-check-status-2-2` 가 잡힌다 |
+| 현재 사용자(B3 설계 이탈) | `useUserButtonRbac().userId` = `/api/auth/me` 의 `user.id` | 소유자 `OWNER_ID` = 로그인 USER_ID | 맞음 — T4 에서 확정 버튼이 켜진다(소유자 본인 판정) |
+
+### 서버·E2E 실행
+
+design 「서버·E2E 기동 방법」 그대로 슬롯 `e2e-TSK-06-05` 를 잡고 mcm 18605·mdm 18698·FE 15605 에 새 mcm.db·mdm.db 로 직접 띄웠다. 끝난 뒤 기록한 PID 와 자기 포트 리스너만 종료하고 슬롯을 풀었다. 다른 Task 스크린샷(TSK-01-02·01-03)·`next-env.d.ts`·`test-results` 변경은 `git checkout --`·`git restore` 로 되돌렸다.
+
+- 시드 대조: 첫 기동 직후 `mdm-rbac-seed-check.sql` diff 출력 없음. `codeConfirm` 권한 행 `MDM_STD_ADMIN|PERM_MDM_READ`·`MDM_STEWARD|PERM_MDM_CONFIRM`·`SYSADMIN|PERM_ALL`, 메뉴 행 1건.
+- 최종 실행: `pnpm exec playwright test e2e/mdm-codeConfirm.spec.ts e2e/mdm-sample-smoke.spec.ts e2e/mdm-shell-rbac-smoke.spec.ts --workers=1` → **11 passed**(codeConfirm 6·sample-smoke 1·shell-rbac-smoke 4). 메뉴 시드(B2)와 page-registry(B3)가 함께 들어가 기존 스모크가 깨지지 않는다.
+- 확정 뒤 원장: E2E_CF_OK 1.000 RELEASED `2026-01-01 00:00:00`~`9999-12-31 00:00:00`, ROW_VERSION 1, REQUESTED_BY `e2e_mdm_steward`, TB_MDM_CODE.STATUS INUSE(과거 apply_from 이라 확정 트랜잭션에서 올랐다).
+- 일시적 실패 1회(보고): 스크린샷 대기를 더한 뒤 서버를 다시 띄운 첫 실행에서 codeConfirm T2·shell-rbac T3 가 로그인 단계에서 실패했다. mcm 로그에 로그인 요청의 `SQLITE_BUSY`(mcm.db 잠금)가 남았고 화면·시험 코드와 무관하다. 데이터가 소모되지 않은 상태(serial 이라 T4 전에 멈춤)에서 같은 명령을 다시 돌려 11건 모두 통과했다.
+
+### B4 설계 이탈
+
+- **apply_from 입력 형식**: B3 인계는 `fill("2026-10-01T00:00:00")` 을 권했으나, 초가 0 이면 Chromium 이 `datetime-local`(step 1) 값을 분 단위로 정규화해 Playwright 가 `Malformed value` 로 실패한다. 스펙은 `yyyy-MM-ddTHH:mm` 으로 넣고, 화면의 `toServerDateTime` 이 `:00` 을 붙여 보낸다(I34). 화면 코드는 고치지 않았다.
+- **T6 무조건 통과 방지**: 권한 조회(`/secUser/myButtonEndpoints`) 응답을 기다린 뒤 버튼 비활성을 단언한다. RBAC 를 불러오기 전에는 버튼이 늘 꺼져 있기 때문이다. 아래 I38 변이가 T6 에서 잡히는 것으로 확인했다.
+- **스크린샷 대기**: T4·T5 는 닫히는 확정 대화상자가 화면을 가리지 않도록 `dialog` 가 사라진 뒤 찍는다.
+- **T7(codeEdit → 확정 이동) 넣지 않음**: 선택 항목이다. 핸드오프는 `code-confirm-page.test.ts` P1 과 codeEdit 기존 vitest 가 잡는다.
+
+### B4 변이 검증
+
+B4 담당 I36~I38 과 B2 가 넘긴 I29 를 돌렸다(위 「변이 검증 기록」 표의 `(B4)` 행). 스크립트 두 개(변이 넣기 → mdm.db 의 `E2E_CF_%` 행을 지우고 픽스처 다시 넣기 → E2E `--max-failures=1` → `git checkout --` 되돌리기, `trap` 으로 중단 시에도 되돌림)를 각각 `heavy.sh` 로 감쌌다. m-mdm 변이(I37·I38)는 `pnpm --filter @dk-oasis/m-mdm build` 뒤 돌렸고 끝에 되돌린 소스로 다시 빌드했다. I29 는 mcm 을 새 DB 로 재기동해 돌리고, 되돌린 뒤 다시 새 DB 로 재기동했다. 각 실패가 의도한 단언(메뉴 항목·`cf-list`·목록 행 수·RELEASED 배지·`cf-validate` 비활성)에서 났는지 로그로 확인했다. 스윕 뒤 작업 트리가 깨끗하고, 최종 실행 11건이 통과했다.
+
+- **대상 범위를 좁힌 것(보고)**: phase-build 는 E2E 로만 잡히는 규칙의 대상을 E2E 스위트 전체로 정한다. 이번에는 `mdm-codeConfirm.spec.ts` 만 대상으로 했다. mdm E2E 전체는 스펙마다 다른 픽스처(columnMng·codeItemEdit·codeCateEdit·ruleEdit 등)가 필요하고 확정·저장으로 데이터를 소모해 변이마다 재설정해야 하기 때문이다. 네 변이 모두 이 스펙에서 빨강이 났으므로 잡힘 판정에는 영향이 없다. 스위트 간 상태 간섭은 codeConfirm·sample-smoke·shell-rbac-smoke 를 한 번에 돈 최종 실행으로만 확인했다.
+- 동등 변이라 싣지 않은 것: I38 "`confirmPermitted` 를 true 로 고정"은 표준 관리자가 DRAFT 소유자가 아니고 검사 결과도 없어 확정 버튼이 어차피 꺼져 있다. 이 조건은 vitest P5 가 잡는다(B3 표).
