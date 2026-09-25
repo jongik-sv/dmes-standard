@@ -11,8 +11,14 @@ import java.util.List;
  */
 public record UpsertResult(List<RowAction> rows, List<MdmCheckIssue> issues, LocalDateTime at, boolean written) {
 
-    /** 행 하나의 동작(05 RECV_ITEM.ACTION 과 같은 이름). */
-    public record RowAction(String code, MdmTemporalSegmentAction action) {
+    /**
+     * 행 하나의 동작(05 RECV_ITEM.ACTION 과 같은 이름). {@code issues} 는 이 행에서 난 이슈만(전역 {@link #issues()} 는 순서
+     * 없이 모두 쌓이므로 CSV 줄 번호로 되짚을 수 없다 — CSV 업로드(TSK-07-04)가 줄 번호별 오류를 보고하려고 추가했다, I7).
+     */
+    public record RowAction(String code, MdmTemporalSegmentAction action, List<MdmCheckIssue> issues) {
+        public RowAction {
+            issues = issues == null ? List.of() : List.copyOf(issues);
+        }
     }
 
     public List<MdmTemporalSegmentAction> actions() {

@@ -20,7 +20,7 @@ import { Tree } from "@dk-oasis/shared/tree";
 import "@dk-oasis/shared/tree.css";
 import { MdmPageLayout, VersionStatusBadge } from "@/shell";
 import { patchRow, previewCategory, revertRow, saveRows, searchCodes, validateRows, viewCode } from "./api";
-import { allNodeValues, buildCodeTree, LVL_KEYS, toTreeItems, type HierRow } from "./code-tree";
+import { allNodeValues, buildCodeTree, LVL_KEYS, toTreeItems, type HierRow } from "@/hier-tree";
 import {
   addRow, changesOf, editCell, filterByNode, isCellEditable, pathOf, removeRow, toEditRows, undoLocal,
   type EditRow, type ServerRow,

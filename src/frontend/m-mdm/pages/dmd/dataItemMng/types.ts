@@ -80,6 +80,10 @@ export interface DataItemSearchResult {
   totalCount?: number;
   page?: number;
   size?: number;
+  /** withTree 요청일 때만 온다(TSK-07-04 design.md §2) — 열린 행만(I6). */
+  tree?: DataItemRow[];
+  /** 트리가 상한(TREE_MAX)에 걸려 일부만 왔다. */
+  treeTruncated?: boolean;
 }
 
 export interface DataItemSaveResult {
@@ -94,10 +98,12 @@ export interface DataItemFilters {
   name: string;
   cateId: string;
   showClosed: boolean;
+  /** "이 노드로 보기" 칩(트리 탭, TSK-07-04 design.md §2) — 코드 자신 또는 lvl1~5 값이 같은 행만(I5). */
+  nodeFilter: string | null;
 }
 
 export function emptyFilters(): DataItemFilters {
-  return { maruDataId: "", code: "", name: "", cateId: "", showClosed: false };
+  return { maruDataId: "", code: "", name: "", cateId: "", showClosed: false, nodeFilter: null };
 }
 
 /** 마루 데이터 옵션 → Select 옵션(dataItemMng·dataHistory 공용). */

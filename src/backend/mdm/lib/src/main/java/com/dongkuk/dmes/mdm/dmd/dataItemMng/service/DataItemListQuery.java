@@ -104,8 +104,8 @@ public class DataItemListQuery {
         return rowStore.cateRows(maruDataId, cateId).stream().filter(CateSegmentRow::isOpen).findFirst().orElse(null);
     }
 
-    public Page page(String maruDataId, String code, String name, CateSegmentRow cate, boolean showClosed, int page,
-                     int size) {
+    public Page page(String maruDataId, String code, String name, String nodeFilter, CateSegmentRow cate,
+                     boolean showClosed, int page, int size) {
         StringBuilder where = new StringBuilder(LATEST);
         if (!showClosed) {
             where.append(" AND i.VALID_TO = :openEnd");
@@ -115,6 +115,10 @@ public class DataItemListQuery {
         }
         if (name != null) {
             where.append(" AND i.NAME LIKE :name ESCAPE '\\'");
+        }
+        if (nodeFilter != null) {
+            where.append(" AND (i.CODE = :node OR i.LVL1 = :node OR i.LVL2 = :node OR i.LVL3 = :node "
+                    + "OR i.LVL4 = :node OR i.LVL5 = :node)");
         }
         String cateId = cate == null ? null : cate.key().cateId();
         boolean base = cate == null || CategoryConventions.BASE_CATE_ID.equals(cateId);
@@ -131,7 +135,7 @@ public class DataItemListQuery {
             Pattern pattern = Pattern.compile(cate.value().defExpr());
             String target = cate.value().defTarget();
             List<ItemSegmentRow> all = rows(bind(query("SELECT " + prefixed() + where + ORDER), maruDataId, code, name,
-                    null, needsOpenEnd));
+                    nodeFilter, null, needsOpenEnd));
             List<ItemSegmentRow> kept = all.stream()
                     .filter(row -> !row.isOpen() || matches(pattern, targetValue(row, target)))
                     .toList();
@@ -139,21 +143,30 @@ public class DataItemListQuery {
             return new Page(kept.subList(from, Math.min(from + size, kept.size())), kept.size());
         }
 
-        long total = ((Number) bind(query("SELECT COUNT(*)" + where), maruDataId, code, name, cateId, needsOpenEnd)
-                .getSingleResult()).longValue();
-        NativeQuery<?> q = bind(query("SELECT " + prefixed() + where + ORDER), maruDataId, code, name, cateId,
-                needsOpenEnd);
+        long total = ((Number) bind(query("SELECT COUNT(*)" + where), maruDataId, code, name, nodeFilter, cateId,
+                needsOpenEnd).getSingleResult()).longValue();
+        NativeQuery<?> q = bind(query("SELECT " + prefixed() + where + ORDER), maruDataId, code, name, nodeFilter,
+                cateId, needsOpenEnd);
         q.setFirstResult(page * size);
         q.setMaxResults(size);
         return new Page(rows(q), total);
+    }
+
+    /** 트리 전용(비페이징) — 열린 행만, {@link #ORDER} 그대로, 최대 {@code max}건(I6). */
+    public List<ItemSegmentRow> treeRows(String maruDataId, int max) {
+        NativeQuery<?> q = query("SELECT " + prefixed() + LATEST + " AND i.VALID_TO = :openEnd" + ORDER);
+        q.setParameter("md", maruDataId, String.class);
+        q.setParameter("openEnd", temporal.toDb(MdmTemporalSegmentRules.OPEN_END));
+        q.setMaxResults(max);
+        return rows(q);
     }
 
     private NativeQuery<?> query(String sql) {
         return entityManager.createNativeQuery(sql).unwrap(NativeQuery.class);
     }
 
-    private NativeQuery<?> bind(NativeQuery<?> q, String maruDataId, String code, String name, String cateId,
-                                boolean openEnd) {
+    private NativeQuery<?> bind(NativeQuery<?> q, String maruDataId, String code, String name, String nodeFilter,
+                                String cateId, boolean openEnd) {
         q.setParameter("md", maruDataId, String.class);
         if (openEnd) {
             q.setParameter("openEnd", temporal.toDb(MdmTemporalSegmentRules.OPEN_END));
@@ -163,6 +176,9 @@ public class DataItemListQuery {
         }
         if (name != null) {
             q.setParameter("name", "%" + escapeLike(name) + "%", String.class);
+        }
+        if (nodeFilter != null) {
+            q.setParameter("node", nodeFilter, String.class);
         }
         if (cateId != null && !CategoryConventions.BASE_CATE_ID.equals(cateId)) {
             q.setParameter("cateId", cateId, String.class);

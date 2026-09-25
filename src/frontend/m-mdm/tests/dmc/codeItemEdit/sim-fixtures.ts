@@ -1,6 +1,6 @@
 // TSK-06-03 design.md §1.4·§3 커밋 D — 시뮬레이터 docs/mdm/design/basic/sql/04-hier-tree-sim.py 의 입력 행과 출력 전문.
 // SIM_OUTPUT 은 2026-09-24 실행 결과를 글자 그대로 옮겼다(앞 공백 2칸은 시뮬레이터의 들여쓰기). 수용 기준 4 의 기대값 원천이다.
-import type { HierRow } from "../../../pages/dmc/codeItemEdit/code-tree";
+import type { HierRow } from "@/hier-tree";
 
 /** 시뮬레이터 TB_MDM_CODE_ITEM — STEEL_STD 8행. */
 export const STEEL_STD: HierRow[] = [

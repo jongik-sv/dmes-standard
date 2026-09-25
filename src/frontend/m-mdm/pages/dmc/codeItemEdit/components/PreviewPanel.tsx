@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Radio, Select } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { comboSteps } from "../combo";
-import { LVL_KEYS } from "../code-tree";
+import { LVL_KEYS } from "@/hier-tree";
 import { fmtVer } from "../grid-state";
 import type { CategoryInfo, PreviewResult, PreviewRow } from "../types";
 import { hint, issueText, toolbar } from "./styles";

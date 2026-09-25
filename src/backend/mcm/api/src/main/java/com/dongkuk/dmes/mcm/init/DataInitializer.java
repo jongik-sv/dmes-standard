@@ -949,6 +949,7 @@ public class DataInitializer implements ApplicationRunner {
         }
         log.info("[DataInitializer] TSK-06-02 MDM 마루 코드 시드 — OBJECT 2 + 메뉴 leaf 2 + RBAC(SYSADMIN 2 + MDM 역할 4)");
         seedMdmDataItemMenus();
+        seedMdmDataCsvUploadPopObject();
         seedMdmRuleMenus();
     }
 
@@ -976,6 +977,25 @@ public class DataInitializer implements ApplicationRunner {
             seedMdmObjectRbac(objectId, "dmd");
         }
         log.info("[DataInitializer] TSK-07-03 MDM 항목 관리·이력 시드 — OBJECT 2 + 메뉴 leaf 2 + RBAC(SYSADMIN 2 + MDM 역할 4)");
+    }
+
+    /**
+     * TSK-07-04 — CSV 업로드({@code dataCsvUploadPop}). 독립 화면이 아니라 {@code dataItemMng} 화면이 여는 팝업이라
+     * 메뉴 leaf 는 만들지 않는다(D2, TSK-04-04 {@code termRegPop} 선례와 같은 모양 — OBJECT·역할 매핑만 둔다).
+     */
+    private void seedMdmDataCsvUploadPopObject() {
+        final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
+        final String AUDIT_VALS = ", 'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', "
+                                + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
+        insertMcmSecObjIfAbsent("dataCsvUploadPop", "CSV 업로드", "mdm");
+        insertIfAbsentComposite(
+                "TB_MCM_SEC_ROLE_MAPPING",
+                new String[]{"ROLE_ID",  "OBJECT_ID",         "PERMISSION_ID"},
+                new String[]{"SYSADMIN", "dataCsvUploadPop",  "PERM_ALL"},
+                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                "VALUES ('SYSADMIN', 'dataCsvUploadPop', 'PERM_ALL'" + AUDIT_VALS + ")");
+        seedMdmObjectRbac("dataCsvUploadPop", "dmd");
+        log.info("[DataInitializer] TSK-07-04 MDM CSV 업로드 팝업 시드 — OBJECT 1(메뉴 leaf 없음) + RBAC(SYSADMIN 1 + MDM 역할 2)");
     }
 
     /**

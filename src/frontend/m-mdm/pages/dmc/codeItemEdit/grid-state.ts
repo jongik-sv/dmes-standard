@@ -5,7 +5,7 @@
  * 만든다. CHANGED 는 행 전체 값을 보낸다(부분 갱신이 아니다, §6.1). 빈 문자열·null 칸은 페이로드에서 뺀다 — 서버는 빠진
  * 키를 null 로 본다. 판정(저장 검사)은 서버가 한다.
  */
-import { LVL_KEYS } from "./code-tree";
+import { LVL_KEYS } from "@/hier-tree";
 
 export const VALUE_KEYS = [
   "name", "alterName", "seq", "description",

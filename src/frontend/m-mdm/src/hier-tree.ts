@@ -1,6 +1,7 @@
 /**
  * 계층 칸(lvl1~lvl5) 트리 — 시뮬레이터 `docs/mdm/design/basic/sql/04-hier-tree-sim.py` 의 `tree()`·`order()` 규칙
  * (TSK-06-03 design.md §1.4-1, D9). 행은 최종 코드만 두고 그룹은 lvl 칸의 값이다. 같은 문자열은 같은 노드다.
+ * codeItemEdit·dataItemMng 공용(TSK-07-04 design.md D1 — `pages/dmc/codeItemEdit/code-tree.ts` 에서 이동).
  *
  * 표시 순서는 앱이 정한다(04:808): 한 노드의 자식 가운데 코드 행이 있는 노드(코드이자 그룹인 노드 포함)를 먼저
  * (seq, 값) 오름차순으로, 그다음 순수 그룹을 값 오름차순으로 둔다. 뿌리도 같다. 문자열 비교는 시뮬레이터(Python)와 같은

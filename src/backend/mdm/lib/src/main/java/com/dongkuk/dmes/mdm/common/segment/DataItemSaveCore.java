@@ -171,12 +171,15 @@ public class DataItemSaveCore {
             for (UpsertRow row : input) {
                 String code = row.code();
                 if (!seen.add(code)) {
-                    issues.add(DataItemChecks.issue("CHK6", DataItemMessages.DUPLICATE_IN_BATCH + ": " + code, "code", code));
-                    actions.add(new UpsertResult.RowAction(code, MdmTemporalSegmentAction.NONE));
+                    MdmCheckIssue dup = DataItemChecks.issue("CHK6", DataItemMessages.DUPLICATE_IN_BATCH + ": " + code,
+                            "code", code);
+                    issues.add(dup);
+                    actions.add(new UpsertResult.RowAction(code, MdmTemporalSegmentAction.NONE, List.of(dup)));
                     continue;
                 }
                 ItemSegmentRow current = latest.get(code);
-                List<MdmCheckIssue> rowIssues = checks.contentIssues(path, data, code, row.value(), current == null, index);
+                List<MdmCheckIssue> rowIssues = new ArrayList<>(checks.contentIssues(path, data, code, row.value(),
+                        current == null, index));
                 issues.addAll(rowIssues);
                 MdmTemporalSegmentAction action;
                 if (current == null) {
@@ -185,8 +188,10 @@ public class DataItemSaveCore {
                     if (path == DataSavePath.API) {
                         action = MdmTemporalSegmentAction.REOPEN;
                     } else {
-                        issues.add(DataItemChecks.issue("CHK6", DataItemMessages.CLOSED_KEY_REOPEN + ": " + code, "code",
-                                code));
+                        MdmCheckIssue closed = DataItemChecks.issue("CHK6", DataItemMessages.CLOSED_KEY_REOPEN + ": "
+                                + code, "code", code);
+                        issues.add(closed);
+                        rowIssues.add(closed);
                         action = MdmTemporalSegmentAction.NONE;
                     }
                 } else if (current.value().sameAs(row.value())) {
@@ -200,7 +205,7 @@ public class DataItemSaveCore {
                 if (current != null && action != MdmTemporalSegmentAction.NONE) {
                     touched.add(current);
                 }
-                actions.add(new UpsertResult.RowAction(code, action));
+                actions.add(new UpsertResult.RowAction(code, action, rowIssues));
             }
             if (!issues.isEmpty() || dryRun) {
                 return new UpsertResult(actions, issues, null, false);

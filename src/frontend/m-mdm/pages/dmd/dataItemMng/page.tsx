@@ -9,6 +9,11 @@
  *
  * 충돌 문구("다른 사용자가 수정했습니다")를 받으면 안내를 보이고 목록을 다시 부른다(F1, 수용 기준 4). 「이력」은 탭을
  * 옮기지 않고 아래 이력 패널에 같은 타임라인 컴포넌트로 연다(D8).
+ *
+ * 트리 보기·CSV 업로드(TSK-07-04 design.md §2): 그리드/트리 탭(`iView`)을 전환하면 트리는 그리드 페이징과 별개로
+ * `searchDataItems(..., withTree=true)` 로 한 번 받는다(§2 "별도(비페이징) 조회"). 트리에서 "이 노드로 보기"를 누르면
+ * `nodeFilter` 를 검색 조건에 실어 그리드를 다시 조회하고 칩으로 보인다. "CSV 업로드" 버튼은 `dataCsvUploadPop` 의
+ * OBJECT_ID 로 판정한다(팝업 버튼은 팝업의 OBJECT_ID, PageButton.objId).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -24,14 +29,17 @@ import {
   canDoButton,
   useUserButtonRbac,
 } from "@dk-oasis/shared/layout";
-import { AgDataGrid, GridPanel, Pagination } from "@dk-oasis/shared/grid";
+import { AgDataGrid, GridBadge, GridPanel, Pagination } from "@dk-oasis/shared/grid";
 import { Button, Input, Select } from "@dk-oasis/shared/form";
+import { Tabs } from "@dk-oasis/shared/tabs";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { MdmPageLayout } from "@/shell";
 
 import { DataHistoryTimeline } from "../dataHistory/DataHistoryTimeline";
 import { searchDataHistory } from "../dataHistory/api";
 import type { DataHistoryResult } from "../dataHistory/types";
+import { DataCsvUploadPopModal, OBJ_ID as CSV_UPLOAD_OBJ_ID } from "../dataCsvUploadPop";
+import { ItemTreePanel } from "./ItemTreePanel";
 import {
   closeDataItem,
   modifyDataItem,
@@ -59,6 +67,7 @@ import {
 const SCREEN_ID = "dataItemMng";
 
 type Draft = Record<string, unknown>;
+type ItemView = "grid" | "tree";
 
 export default function DataItemMngPage() {
   const rbac = useUserButtonRbac(true);
@@ -76,11 +85,18 @@ export default function DataItemMngPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [iView, setIView] = useState<ItemView>("grid");
+  const [tree, setTree] = useState<DataItemRow[]>([]);
+  const [treeTruncated, setTreeTruncated] = useState(false);
+  const [treeLoading, setTreeLoading] = useState(false);
+  const [csvOpen, setCsvOpen] = useState(false);
+
   /** 마지막으로 조회한 조건·쪽 — 쪽 이동과 재조회(F1)가 쓴다. */
   const applied = useRef<{ filters: DataItemFilters; page: number }>({ filters: emptyFilters(), page: 0 });
   /** 요청 순번 — 늦게 도착한 옛 응답(예: 첫 로드의 자동 선택 조회)이 새 결과를 덮지 않게 한다. */
   const searchSeq = useRef(0);
   const selectSeq = useRef(0);
+  const treeSeq = useRef(0);
 
   const runSearch = useCallback(async (f: DataItemFilters, p: number) => {
     if (!f.maruDataId) return;
@@ -106,6 +122,54 @@ export default function DataItemMngPage() {
     [runSearch],
   );
 
+  /**
+   * 트리는 그리드 페이징과 별개 조회다(design.md §2) — `list`/`totalCount` 는 무시하고 `tree`/`treeTruncated` 만 쓴다.
+   * `size` 는 최소값(1)으로 보낸다(그리드 목록 자체는 필요 없다).
+   */
+  const loadTree = useCallback(async (maruDataId: string) => {
+    if (!maruDataId) {
+      setTree([]);
+      setTreeTruncated(false);
+      return;
+    }
+    const seq = ++treeSeq.current;
+    setTreeLoading(true);
+    try {
+      const res = await searchDataItems({ ...emptyFilters(), maruDataId }, 0, 1, true);
+      if (seq !== treeSeq.current) return;
+      setTree(res.tree ?? []);
+      setTreeTruncated(res.treeTruncated ?? false);
+    } catch (e) {
+      if (seq === treeSeq.current) setError(errorMessage(e));
+    } finally {
+      if (seq === treeSeq.current) setTreeLoading(false);
+    }
+  }, []);
+
+  const changeView = useCallback(
+    (next: ItemView) => {
+      setIView(next);
+      if (next === "tree") void loadTree(applied.current.filters.maruDataId);
+    },
+    [loadTree],
+  );
+
+  const viewNode = useCallback(
+    (value: string) => {
+      const next = { ...filters, nodeFilter: value };
+      setFilters(next);
+      setIView("grid");
+      void runSearch(next, 0);
+    },
+    [filters, runSearch],
+  );
+
+  const clearNodeFilter = useCallback(() => {
+    const next = { ...filters, nodeFilter: null };
+    setFilters(next);
+    void runSearch(next, 0);
+  }, [filters, runSearch]);
+
   const loadHistory = useCallback(async (maruDataId: string, code: string) => {
     setHistory(await searchDataHistory({ maruDataId, target: "ITEM", cateId: "", key: code }));
   }, []);
@@ -129,9 +193,16 @@ export default function DataItemMngPage() {
       if (history?.key === code && filters.maruDataId) {
         await loadHistory(filters.maruDataId, code);
       }
+      if (iView === "tree") await loadTree(filters.maruDataId);
     },
-    [filters.maruDataId, history?.key, loadHistory, reload, showMessage],
+    [filters.maruDataId, history?.key, iView, loadHistory, loadTree, reload, showMessage],
   );
+
+  /** CSV 저장 뒤(design.md §2) — 팝업이 부른다. 목록·(보이는 중이면) 트리를 다시 부른다. */
+  const afterCsvSaved = useCallback(async () => {
+    await reload();
+    if (iView === "tree") await loadTree(filters.maruDataId);
+  }, [filters.maruDataId, iView, loadTree, reload]);
 
   const selectMaruData = useCallback(
     async (maruDataId: string) => {
@@ -142,7 +213,11 @@ export default function DataItemMngPage() {
       setHistory(null);
       setRows([]);
       setTotal(0);
+      setIView("grid");
+      setTree([]);
+      setTreeTruncated(false);
       searchSeq.current++;
+      treeSeq.current++;
       if (!maruDataId) {
         setHeader(null);
         return;
@@ -364,6 +439,15 @@ export default function DataItemMngPage() {
           disabled: busy || !header?.editable || !canReg,
           action: "reg",
         },
+        {
+          id: "btn_csv_upload",
+          label: "CSV 업로드",
+          onClick: () => setCsvOpen(true),
+          disabled: busy || !header?.editable || !filters.maruDataId,
+          // 팝업을 여는 버튼 — 팝업 자신의 OBJECT_ID 로 판정한다(design.md §2, PageButton.objId).
+          objId: CSV_UPLOAD_OBJ_ID,
+          action: "save",
+        },
       ]}
     >
       <SearchArea onSearch={() => void runSearch(filters, 0)}>
@@ -420,32 +504,60 @@ export default function DataItemMngPage() {
         <ContentBody>
           <ContentPanel flex={1}>
             <div data-testid="item-list" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-              <GridPanel title={header ? `항목 — ${header.maruDataName}` : "항목"} count={total}>
-                {header && !header.editable && (
-                  <p data-testid="item-readonly" style={{ color: "var(--color-text-muted)", margin: 0 }}>
-                    조회 전용입니다(원천 {header.sourceSystem ?? header.sourceKind}, 상태 {header.status}).
-                  </p>
-                )}
-                <AgDataGrid
-                  columns={columns}
-                  data={gridRows}
-                  rowKey="code"
-                  sortable={false}
-                  columnSizing="fit"
-                  singleClickEdit
-                  onCellValueChanged={handleCellChange}
-                  loading={busy}
-                  loadingMessage="조회 중..."
-                  emptyMessage="조회된 항목이 없습니다."
-                />
-                <Pagination
-                  page={page}
-                  totalPages={totalPages}
-                  totalElements={total}
-                  onPageChange={(p) => void runSearch(applied.current.filters, p)}
-                  disabled={busy}
-                />
-              </GridPanel>
+              <Tabs
+                activeKey={iView}
+                onChange={(k) => changeView(k as ItemView)}
+                items={[
+                  { key: "grid", label: <span data-testid="item-tab-grid">그리드</span> },
+                  { key: "tree", label: <span data-testid="item-tab-tree">트리 보기</span> },
+                ]}
+              />
+              {iView === "grid" && (
+                <GridPanel
+                  title={header ? `항목 — ${header.maruDataName}` : "항목"}
+                  count={total}
+                  titleExtra={
+                    filters.nodeFilter ? (
+                      <span data-testid="item-node-filter-chip" style={{ display: "inline-flex", gap: "var(--spacing-xs)" }}>
+                        <GridBadge label={`${filters.nodeFilter} 아래`} strong />
+                        <Button data-testid="item-node-filter-clear" size="mini" onClick={clearNodeFilter}>
+                          ✕ 거르기 풀기
+                        </Button>
+                      </span>
+                    ) : undefined
+                  }
+                >
+                  {header && !header.editable && (
+                    <p data-testid="item-readonly" style={{ color: "var(--color-text-muted)", margin: 0 }}>
+                      조회 전용입니다(원천 {header.sourceSystem ?? header.sourceKind}, 상태 {header.status}).
+                    </p>
+                  )}
+                  <AgDataGrid
+                    columns={columns}
+                    data={gridRows}
+                    rowKey="code"
+                    sortable={false}
+                    columnSizing="fit"
+                    singleClickEdit
+                    onCellValueChanged={handleCellChange}
+                    loading={busy}
+                    loadingMessage="조회 중..."
+                    emptyMessage="조회된 항목이 없습니다."
+                  />
+                  <Pagination
+                    page={page}
+                    totalPages={totalPages}
+                    totalElements={total}
+                    onPageChange={(p) => void runSearch(applied.current.filters, p)}
+                    disabled={busy}
+                  />
+                </GridPanel>
+              )}
+              {iView === "tree" && (
+                <div style={{ flex: 1, minHeight: 0 }}>
+                  <ItemTreePanel rows={tree} truncated={treeTruncated} loading={treeLoading} onViewNode={viewNode} />
+                </div>
+              )}
             </div>
           </ContentPanel>
 
@@ -506,6 +618,18 @@ export default function DataItemMngPage() {
       </ContentBody>
 
       {error && <ErrorModal message={error} onClose={() => setError(null)} />}
+
+      {header && (
+        <DataCsvUploadPopModal
+          open={csvOpen}
+          maruDataId={filters.maruDataId}
+          maruDataName={header.maruDataName}
+          lvlCnt={header.lvlCnt}
+          attrLabels={header.attrLabels}
+          onClose={() => setCsvOpen(false)}
+          onSaved={() => void afterCsvSaved()}
+        />
+      )}
     </MdmPageLayout>
   );
 }

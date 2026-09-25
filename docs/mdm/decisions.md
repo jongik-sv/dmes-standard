@@ -809,3 +809,21 @@
 - **Rationale**: `MdmErrorCode` 는 여러 Task 가 동시에 "다음 번호"를 채번하는 공유 파일이라 병렬 머지 충돌 위험이 크다(D-093 의 "한 Task 만 같은 줄을 고쳐 병렬 머지 충돌을 없앤다" 원칙과 동일 이유). `CODE_SAVE_REJECTED` 는 이미 "세부는 이슈 코드로 싣는다"는 계약으로 설계돼 있어 카테고리 이슈에도 그대로 맞는다
 - **Reversible**: yes(전용 MdmErrorCode 를 나중에 추가하고 이슈 코드를 그쪽으로 옮기면 된다 — 응답 바디의 `meta.code` 값만 바뀐다)
 - **Source**: docs/mdm/tasks/TSK-06-04/design.md D6
+
+## D-TSK-07-04-1 (2026-09-25T14:36:00Z)
+- **Phase**: design (TSK-07-04)
+- **Decision needed**: `dataCsvUploadPop` 을 독립 화면(page.tsx + 메뉴 leaf + 포털 진입)으로 만드나, 팝업(page.tsx·메뉴
+  leaf 없이 `dataItemMng` 화면 안에서 여는 모달)으로 만드나. `docs/mdm/screens/README.md` §4 가 이 판단을 TSK-07-04 에
+  인계해 뒀다(screenId 의 `Pop` 접미와 팝업 금지 규칙이 충돌하는데도 wbs 는 page.tsx·메뉴 leaf·독립 e2e 를 요구)
+- **Decision made**: 팝업으로 확정한다. `dataItemMng` 화면의 "CSV 업로드" 버튼으로 열고, `page.tsx`·메뉴 leaf 를 두지
+  않는다. 화면 폴더는 `{screenId}.tsx` + `index.ts` 배럴만 둔다(`termRegPop` 과 같은 모양). e2e 파일명(`mdm-dataCsvUploadPop.spec.ts`)
+  은 spec.md 문구를 그대로 두되, 시나리오를 "`dataItemMng` 화면의 CSV 업로드 버튼으로 연다"로 바꾼다
+- **Rationale**: `docs/mdm/screens/README.md` §4 가 이미 팝업을 권장안으로 명시했고, 근거로 든 mcm
+  `masterRuleDataUploadFilePopup`(modal popup, 부모 `masterRuleData` 의 자식, `docs/mcm/design/masterRuleDataUploadFilePopup/`)
+  이 실제로 이 저장소 As-Is 분석에 있다. 더 결정적으로, 같은 저장소 안에 이미 병합된 **같은 모양의 선례**
+  `dma/termRegPop`(TSK-04-04) — `page.tsx`·메뉴 leaf 없이 `{screenId}.tsx` + `index.ts`, 부모(`columnMng`)가 props 로
+  여는 모달, 자기 OBJECT_ID 로 RBAC 판정 — 가 있어 독립 결정이 아니라 기존 관례를 그대로 따른 것이다. CSV 업로드는
+  스펙상으로도 "선택된 마루 데이터(항목 관리 화면 맥락)의 실데이터 일괄 등록"이라 부모 없이 단독 진입할 의미가 없다
+- **Reversible**: yes(page.tsx + 메뉴 leaf 로 승격하고 screenId 에서 `Pop` 을 떼면 된다 — DB 영향은 OBJECT_ID·RBAC 행
+  재시드뿐, DDL 없음)
+- **Source**: docs/mdm/tasks/TSK-07-04/design.md D2, docs/mdm/screens/README.md §4
