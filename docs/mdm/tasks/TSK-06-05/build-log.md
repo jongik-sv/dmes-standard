@@ -42,7 +42,8 @@ B1 담당 I1~I16. 대상 시험만 `--fail-fast` 로 돌렸다(lib 29건 한 스
 | I9 | BASE 를 2항 검사에서 뺌 | `MasterCodeConfirmChecksTest` | 잡힘 |
 | I10 | 2항 거부 카테고리도 2-1·2-2 해석 | `MasterCodeConfirmChecksTest` CK7 | 잡힘 |
 | I10 | 2-1 itemKey 를 CATE 키로 | `MasterCodeConfirmChecksTest` | 잡힘 |
-| I10 | 2-2 경고를 버림 | `MasterCodeConfirmChecksTest` | 잡힘 |
+| I10 | 2-2 경고 분기를 다른 코드로 바꿔 경고가 default 로 빠짐(예외) | `MasterCodeConfirmChecksTest` | 잡힘 |
+| I10 | 2-2 경고를 버려진 목록에 넣어 조용히 버림 | `MasterCodeConfirmChecksTest` CK2_2_2·CK4 | 잡힘 |
 | I11 | 4항 판정 반전(diff 있으면 거부) | `MasterCodeConfirmChecksTest` | 잡힘 |
 | I12 | 값이 같은 닫힘·새 쌍도 CHANGED | `MasterCodeVersionDiffsTest` | 잡힘 |
 | I12 | REMOVED 의 newValues 를 채움 | `MasterCodeVersionDiffsTest` | 잡힘 |
