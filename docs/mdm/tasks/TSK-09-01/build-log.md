@@ -76,3 +76,50 @@ design.md §5 불변 규칙("previewRule은 결과 값을 계산하지 않는다
 
 없음 — B1은 이 세션에서 완료했다(도구 호출 상한 이내). B2·B3는 각각 새 서브에이전트가 design.md §3 그대로 진행하면
 된다(파일이 겹치지 않아 병렬 가능).
+
+## B2 — 레이아웃 등록→검증→스냅샷→왕복 단일 체인
+
+산출물: `LayoutOasisFlowTest.java`(수정) — 새 `@Test register_validate_export_직렬화_파싱_왕복이_일치한다()` 1개,
+`@Autowired LayoutSnapshotAssembler`·`LayoutCodecs` 필드 2개, import 4개(`MdmLayoutSnapshot`·`MdmLayoutSerializeContext`·
+`LayoutCodecs`·`LayoutSnapshotAssembler`) 추가. 기존 메서드는 건드리지 않았다(design.md §2 변경 파일 목록 그대로).
+
+design.md 대로 `http201()`(등록) → `validate` HTTP(7행 표 재확인) → `export` HTTP(스냅샷 총 길이 187 재확인) →
+`snapshotAssembler.read(m.message())`(DB 스냅샷 조립, 손 조립 아님 — `LayoutSerializerRoundTripTest`의 갭을 정확히
+닫는 지점) → `layoutCodecs.serializer().serialize(...)`로 인코딩 → `layoutCodecs.parser().parse(...)`로 재파싱 →
+넣은 값(`COIL_ID=C26A0012345`·`PROD_DT=20260922`·`COIL_THK=3.5`, 기존 `execute`·`LayoutSerializerRoundTripTest`가 이미
+검증해 둔 상수와 동일)과 파싱 값이 같은지 단언하는 순서로 짰다.
+
+### 설계 이탈 — 없음, 다만 세부 시그니처 확정
+
+- `LayoutSerializer`·`LayoutParser`를 직접 `new`하지 않고, 이미 `@Component`로 등록되어 `HeaderMngService` 등
+  프로덕션 경로가 실제로 쓰는 `LayoutCodecs`(`mdm/lib`)를 `@Autowired`해 `.serializer()`/`.parser()`로 얻었다.
+  design.md는 "테스트에서 바로 new 할 수 있다"고 적었지만, `LayoutCodecs`를 통하면 단위 마스터(`TB_MDM_UNIT`)를
+  실제 배포 경로와 같은 방식(DB 조회)으로 채운 상태로 얻어 손으로 `LayoutUnitTable`을 구성하는 것보다 실행 시
+  의존 관계에 더 가깝다. 결과(직렬화·파싱 값)에는 차이가 없다 — 설계 의도(§0.3 "이미 mdm/api가 실행 시 의존하는
+  클래스") 그대로다.
+- `LayoutParser.parse`의 실제 시그니처는 `parse(MdmLayoutSnapshot snapshot, byte[] message)`(design.md 초안의
+  `parse(bytes, snapshot)`과 인자 순서만 다름) — design.md가 이미 "Build 가 실제 시그니처 확인"이라고 열어 둔 부분이라
+  이탈로 기록하지 않는다.
+
+## 변이 검증 기록 (B2)
+
+| 불변 규칙 | 변이 | 잡은 테스트 | 결과 |
+|---|---|---|---|
+| 직렬화·파싱 왕복은 DB 에서 나온 스냅샷 그대로 값이 같아야 한다 | `LayoutSnapshotAssembler.java` `item()`의 `MdmLayoutItemType type = filler ? null : col != null && NUMBER.equals(col.dataType()) ? MdmLayoutItemType.NUM : MdmLayoutItemType.CHAR;` → 늘 `MdmLayoutItemType.CHAR`(DB 스냅샷의 숫자 칸 판정 무력화) | `LayoutOasisFlowTest.register_validate_export_직렬화_파싱_왕복이_일치한다`(단독 실행) | 잡힘 — `ClassCastException`(COIL_THK 가 String 으로 파싱됨) |
+| 레이아웃 등록 거부 조건은 7종이다(L12 — CONST 값이 도메인 유효 식을 위반) | `LayoutRegistrationRules.java` `constValue()`의 `if (Judgement.FAIL.equals(j.result()))` → `if (Judgement.PASS.equals(j.result()))`(유효 식 위반 판정 무력화) | `LayoutRegistrationSqliteTest.거부_2_CONST_값이_도메인_유효_식을_위반하면_L12`(단독 실행) | 잡힘 — `AssertionFailedError`(거부되지 않고 저장됨) |
+
+두 변이 모두 확인 뒤 `git checkout -- <파일>`로 되돌렸다(`git status --porcelain` 로 두 파일 모두 원상태 확인). 커밋에
+변이는 포함되지 않는다. "등록 거부 7종"은 `LayoutRegistrationSqliteTest`(기존, 안 바꿈)가 전담하고 B2 신규 `@Test`는
+"7행 표" 구조(개수·PASS 여부)만 재확인하므로, 변이도 `LayoutRegistrationSqliteTest`(거부 7종 중 하나, L12)를 대상으로
+돌렸다 — design.md §5 매핑 그대로.
+
+## 돈 명령과 결과 (B2)
+
+- `cd src/backend/mdm && JAVA_HOME=.../openjdk@21/... ../gradlew :api:test --tests 'com.dongkuk.dmes.mdm.dmb.LayoutOasisFlowTest' --no-daemon --console=plain`(heavy.sh 로 감쌈) — `tests="9" failures="0" errors="0"`(기존 8개 + 신규 1개, 전부 통과)
+- 변이 검증용 좁힌 실행 2회(각각 되돌림) — 본문 표 참고. `register_validate_export_직렬화_파싱_왕복이_일치한다`
+  단독 1회, `거부_2_CONST_값이_도메인_유효_식을_위반하면_L12` 단독 1회
+- 전체 `testAll`(기준선 명령)은 이 Build 단위에서 돌리지 않았다 — 전체 회귀는 오케스트레이터의 Build 게이트 몫이다.
+
+## 인계 (B2)
+
+없음 — B2는 이 세션에서 완료했다(도구 호출 상한 이내).

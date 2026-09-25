@@ -4,15 +4,22 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutSerializeContext;
+import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutSnapshot;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutCodecs;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutSnapshotAssembler;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -20,6 +27,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.ActiveProfiles;
@@ -43,6 +51,12 @@ class LayoutOasisFlowTest extends LayoutTestSupport {
 
     @LocalServerPort
     int port;
+
+    @Autowired
+    private LayoutSnapshotAssembler snapshotAssembler;
+
+    @Autowired
+    private LayoutCodecs layoutCodecs;
 
     private final HttpClient http = HttpClient.newHttpClient();
     private final ObjectMapper json = new ObjectMapper();
@@ -252,6 +266,43 @@ class LayoutOasisFlowTest extends LayoutTestSupport {
         assertEquals(187, result.path("snapshot").path("totalLength").asInt(), r.toString());
         assertEquals(1, result.path("layoutVersion").asInt());
         assertEquals("layout-" + m.message() + "-v1", result.path("fileBase").asText());
+    }
+
+    // ── TSK-09-01 design.md §3 B2 — 등록→검증→스냅샷→왕복 단일 체인(LayoutSerializerRoundTripTest 갭: 손 조립이
+    // 아니라 DB 에 실제 저장된 스냅샷으로 왕복을 확인한다) ──
+
+    @Test
+    void register_validate_export_직렬화_파싱_왕복이_일치한다() throws Exception {
+        Http201 m = http201();
+
+        JsonNode v = post("layoutMng", "validate", layoutParams(uniq("왕복검증 "), m.eai()),
+                grids("headers", headerRows(m.l110()), "consts", json.createArrayNode(), "items", rows(m201Items(), false)));
+        assertTrue(v.path("meta").path("success").asBoolean(), v.toString());
+        assertEquals(7, v.path("data").path("result").path("checks").size(), v.toString());
+        assertTrue(v.path("data").path("result").path("passed").asBoolean(), v.toString());
+
+        JsonNode e = post("layoutMng", "export", json.createObjectNode().put("layoutId", m.message()), null);
+        assertTrue(e.path("meta").path("success").asBoolean(), e.toString());
+        assertEquals(187, e.path("data").path("result").path("snapshot").path("totalLength").asInt(), e.toString());
+
+        // 손 조립이 아니라 DB 에서 실제로 저장된 스냅샷을 그대로 읽는다 — LayoutSerializerRoundTripTest 의 갭.
+        MdmLayoutSnapshot snapshot = snapshotAssembler.read(m.message());
+        assertEquals(187, snapshot.totalLength());
+
+        Map<String, Object> record = new LinkedHashMap<>();
+        record.put("COIL_ID", "C26A0012345");
+        record.put("PROD_DT", "20260922");
+        record.put("COIL_THK", new BigDecimal("3.5"));
+        MdmLayoutSerializeContext ctx = new MdmLayoutSerializeContext(LocalDateTime.of(2026, 9, 22, 14, 30, 15), 1L);
+
+        byte[] bytes = layoutCodecs.serializer().serialize(snapshot, record, ctx);
+        assertEquals(187, bytes.length);
+
+        Map<String, Object> parsed = layoutCodecs.parser().parse(snapshot, bytes);
+        assertEquals("C26A0012345", parsed.get("COIL_ID"));
+        assertEquals("20260922", parsed.get("PROD_DT"));
+        assertEquals(0, new BigDecimal("3.5").compareTo((BigDecimal) parsed.get("COIL_THK")),
+                "COIL_THK 3.5 왕복: " + parsed.get("COIL_THK"));
     }
 
     @Test
