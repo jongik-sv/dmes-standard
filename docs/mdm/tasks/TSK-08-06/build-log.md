@@ -309,3 +309,18 @@ B2 변이는 python 스크립트 하나(변이 넣기 → `:api:test --fail-fast
   I24 는 diff 로 확인했다.
 - 하지 않은 것: 기준선 게이트 전체(testAll·m-mdm test·shared unit·lint·oasis contract)는 이 단위에서 돌리지 않았다 — 팀장 지시상 오케스트레이터가 이 단위 뒤에 직접 돈다(design §3.5 "B8" 표기보다 지시가 우선).
   워크트리 `src/backend/data/` 에 이번 기동의 DB 백업(`*.db.bak-2026092602*`)과 마지막 E2E DB 가 남아 있다(git 무시 대상, 지우지 않았다).
+
+## Build 게이트 (오케스트레이터, HEAD 5ef344d)
+
+| 명령 | 기준선 | 게이트 |
+|---|---|---|
+| `cd src/backend && … ./gradlew testAll --no-daemon --console=plain` | 3120 / 실패 0 | 3214 / 실패 0 (BUILD SUCCESSFUL, JUnit XML 295개 합) |
+| `cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test` | 760 / 실패 0 | 822 중 2 실패 — env: 부하 민감, 단독 통과 |
+| `cd src/frontend && pnpm test:unit:shared` | 168 / 실패 0 | 168 / 실패 0 |
+| `cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint` | pass | pass |
+| `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` | E0 / W0 / I29 | E0 / W0 / I29 (보조 `--module mdm`: E0 / W0 / I10) |
+
+- m-mdm 실패 2건은 `tests/evalex-perf.test.ts` NFR-1 두 건(1455ms·2376ms, 기준 100ms)뿐이다. 팀장 지시(부하 민감 env 인정 — evalex-perf NFR-1·sections-render 두 파일 한정)에 따라
+  `heavy.sh` 로 슬롯을 잡고 그 파일만 단독 실행했다: `pnpm --filter @dk-oasis/m-mdm exec vitest run tests/evalex-perf.test.ts` → Test Files 1 passed, Tests 4 passed(494ms·578ms·546ms…).
+  그때 `sysctl -n vm.loadavg` = `{ 24.44 16.73 13.84 }`. 기준·타임아웃 완화·skip 없음, 게이트 명령 변경 없음.
+- 신규 실패 0(위 env 2건 제외), 테스트 총수 미감소 → 통과.
