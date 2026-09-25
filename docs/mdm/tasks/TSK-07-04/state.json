@@ -55,8 +55,8 @@
   },
   "model": "sonnet",
   "last": {
-    "phase": "build",
-    "event": "build.gate.pass.env"
+    "phase": "verify",
+    "event": "verify.pass"
   },
   "build_gate": {
     "head": "fafe6af0710f6be9595e7931d531f09ebb20f3f5",
@@ -97,5 +97,46 @@
       "tests/evalex-perf.test.ts NFR-1 x2 (env: 부하 민감, 단독 통과, 팀장 (B) 결정)"
     ],
     "env_accepted": true
+  },
+  "verify_gate": {
+    "head": "fafe6af0710f6be9595e7931d531f09ebb20f3f5",
+    "reused_from": "build_gate",
+    "cmds": [
+      {
+        "cwd": "src/backend",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3138,
+        "failures": 0
+      },
+      {
+        "cwd": "src/frontend",
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 764,
+        "failures": 2,
+        "note": "env: 부하 민감, 단독 통과(evalex-perf 4/4·sections-render 23/23, 2026-09-25T16:29:39Z heavy 슬롯)"
+      },
+      {
+        "cwd": "src/frontend",
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0
+      },
+      {
+        "cwd": "src/frontend",
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0
+      }
+    ],
+    "new_failures": [
+      "tests/evalex-perf.test.ts NFR-1 x2 (env: 부하 민감, 단독 통과, 팀장 (B) 결정)"
+    ],
+    "audit": "변이 표 I1~I8 10행 재현 잡힘, E2E 14 passed(47.9s)"
   }
 }
