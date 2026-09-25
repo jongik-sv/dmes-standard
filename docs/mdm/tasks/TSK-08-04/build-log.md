@@ -390,6 +390,60 @@
   예외로 실패한다 — 설계 이탈 7).
   STD_ADMIN(READ) 사용자는 BFF 권한에서 save 가 막히고, 서버에서도 MDM013 이다.
 
+## B6 — 원장 검사 빈 8개·`RuleDefinitionReads`·`AxisCoverage`·`RuleUsageFinder`·`RuleColumnsService` 연결
+
+- `BL/common/rule/check/RuleDefinitionReads`(읽는·만드는 이름, `RuleUsageFinder` 계산을 글자 그대로 옮김 — 대문자화·상수 제외 없음)와 `AxisCoverage`(08-03
+  `pivotCoverWarning` 계산, 메시지만 돌려준다)를 만들고, `RuleUsageFinder.names` 와 `RuleColumnsService.pivotCoverWarning` 이 이것을 부르게 했다(동작 불변).
+- `BL/common/rule/check/ledger/`: 빈 8개(`@Order` 는 §6.1 표 순서) — `RuleSetOrderCheck`(1, TABLE·COLUMNS·STORED)·`ContractChangeCheck`(2, TABLE·COLUMNS)·
+  `DomainRangeCheck`(3)·`CodeReferenceCheck`(4)·`MasterReferenceCheck`(5, TABLE·COLUMNS·STORED)·`RequiredColumnNullCheck`(6)·`AxisCoverageCheck`(7)·
+  `ExprTypeByCaseCheck`(8, TABLE·COLUMNS). 표에 없는 적용 지점은 기본값 TABLE·STORED. 도우미 `LedgerCells`(셀 순회·값 리터럴)와 `RuleLedgerReads`(`@Component`,
+  TB_MDM_CODE·TB_MDM_DATA·그 카테고리·`ATTRnn_NAME` 네이티브 조회).
+- `RuleColumnsService`: 원자 적용 트랜잭션 안에서 `apply` 뒤 정의(JPQL 로 다시 읽음)로 `RuleSaveValidator.validate(COLUMNS)` → ERROR 면 `RuleSaveRejections.reject`(롤백),
+  경고는 기존 issues(축 조합 경고) 뒤에 잇는다. 생성자에 `RuleSaveValidator` 를 더했다(직접 `new` 하는 테스트 없음).
+- 새 테스트 `BAT/dme/ruleEdit/RuleLedgerChecksTest`(16): 도메인 범위 경고, 코드 값 없음·등록 시각 뒤 버전 값 경고 + 코드 도메인은 도메인 범위 건너뜀, `CODE_IN` 카테고리
+  없음 거부, `MASTER`·`MASTER_AT` 대상·카테고리·attr 라벨 거부와 통과(마루 코드·마루 데이터), 필수 컬럼 `IS_NULL` 경고, 표 저장 축 조합 경고(FIRST 는 보지 않음),
+  세트 순서 두 방향 거부(메시지에 세트 ID·옮길 룰·이름)·순환 거부·중복 대입 경고·DEPRECATED 세트 무시, 계약 변경(필요 변수 늘음·선택→필수) 경고, 케이스로 결과 타입
+  변환 실패 경고, COLUMNS 세트 순서 거부·식 변수 `MASTER` 대상 없음 거부(롤백)·셀 없는 새 열 적용 성공. 거부 사례는 VER 2 의 행·변수·row_version 전후가 같은지 본다.
+- TDD: 빈 없이 새 테스트 14건을 먼저 돌려 13건 실패(셀 없는 새 열 적용은 원래 통과)를 확인한 뒤 구현했다. 뒤에 2건을 더했다(축 조합 TABLE·식 변수 MASTER).
+- 관련 테스트: `:mdm:lib:test` 1051 · `:mdm:api:test --tests 'com.dongkuk.dmes.mdm.dme.*' --tests '*MdmBusinessRuleMigrationTest' --tests '*Architecture*'
+  --tests '*MdmOasisActionVocabularyTest' --tests '*MdmRuleContract*' --tests '*RuleUsage*'` 192(B5 의 178 + 새 14) 모두 통과. 그 뒤 2건을 더한 `RuleLedgerChecksTest` 16 통과.
+- **기존 테스트 기대값은 하나도 바꾸지 않았다.** 기존 저장 경로 픽스처(QLTY_GRD_JDG)에는 표준 식 도메인·코드 도메인·세트·테스트 케이스가 없고 v1·v2 정의가 같아 새 빈이
+  경고를 내지 않는다(`RuleTableServiceTest.응답_issues_는_…_같다` 전부 일치 비교, `RuleTableSaveCheckTest` ④ "PROBE 앞은 분석 코드" 그대로 통과).
+
+### 설계 이탈
+
+1. **순환은 위치와 무관하게 본다.** §6.4 는 "같은 j 에서 두 방향이 다 걸리면 SET_CYCLE" 이라 적었지만 두 방향의 조건(j > i·j < i)이 한 j 에서 함께 참일 수 없다.
+   이 룰이 j 의 결과를 읽고 j 가 이 룰의 결과를 읽으면 j 의 위치와 무관하게 SET_CYCLE 하나(ERROR)로 알리고 SET_ORDER 는 내지 않는다. 중복 대입(SET_DUP_RESULT)은 순서·순환과 따로 본다.
+2. **코드 참조의 판정**: `EQ`·`NE`·`IN`·`NOT_IN` 값은 검사 안에서 만든 `new DefaultCodeResolver(new MdmCodeLookup(ledger), CodeEffLookup.NONE).isMember(코드, 카테고리, 값, 등록 시각)`
+   이다 — `MASTER(id, cate, key)` 와 같은 해석. 카테고리는 도메인 유효 코드 참조의 `cateId`(없으면 BASE), 등록 시각은 주입한 `Clock` 의 지금이다. `CODE_IN` 카테고리는
+   TB_MDM_CODE_CATE 에 행이 있으면(적용 버전 무관) 있다고 본다.
+3. **MDM 참조의 범위**: 셀 `ast` 와 함께 `VAR_AST`·`GRP_COND_AST` 를 훑는다(열 이슈는 `rowIds: []`·`varId` 로, 메시지 앞에 "열 {라벨}"). 카테고리는 적용 구간과 무관하게
+   행이 있으면 있다. 리터럴이 아닌 인자는 건너뛴다(모양은 `ExpressionChecker` 몫). attr 은 `MASTER` 넷째·`MASTER_AT` 다섯째 인자다.
+4. **도메인 범위가 보는 값**: 조건 op-code 셀의 비교 값(`EQ`·`NE`·`LT`·`LE`·`GT`·`GE`)·구간 경계·`IN`/`NOT_IN` 원소와 결과 Value 셀이다. `CONTAINS`·`INSTR`·`CODE_IN` 값과 String 의
+   `=` 패턴 값(막지 않은 `%`·`_`)은 변수 값 하나가 아니라 보지 않는다. 평가 예외도 "통과하지 못함" 으로 경고한다. 도메인이 없거나(해석기 예외) 유효 코드 참조가 있으면 건너뛴다.
+5. **계약 변경은 행을 모아 견준다.** 필요 = always ∪ 행별 필수 ∪ 선택, 필수 = always ∪ 행별 필수. 늘어난 필요 이름 하나와 "선택이던(필요였지만 필수가 아니던) 것이 필수" 하나를
+   각각 경고 한 건(이름 목록)으로 싣는다. 비교 대상은 VER 최대 RELEASED(적용 구간이 아니라)이고 저장하는 버전과 같으면 보지 않는다. 조건 열은 늘 always 에 들어서 표 저장만으로
+   계약이 바뀌는 자리는 식이다 — 테스트는 사전에 COIL_LEN 을 두고 결과 식 셀로 계약을 바꾼다.
+6. **케이스 결과 타입 테스트는 결과 식 타입 변환 실패로 한다**(§3.1 은 "조건 식 비불린"). 두 경우 모두 같은 걸러내기(단계 ROW_SELECT·RESULT_CHECK·RESULT_EVAL × 코드
+   EVALUATION_ERROR·TYPE_CONVERSION)를 지나고, 결과 열을 식으로 바꾸는 편이 픽스처가 작다. 엔진이 `EngineEvaluationException` 밖의 예외를 던지면 저장을 500 으로 만들지 않고
+   "돌리지 못했다" 경고로 바꾼다.
+7. **`AxisCoverage` 는 메시지만 돌려준다.** COLUMNS 는 08-03 이슈 모양(`{code, severity, message}`, rowIds 없음)을 그대로 두고, TABLE(`AxisCoverageCheck`)은
+   `RuleCheckReport.issue` 모양(`rowIds: []`)으로 싣는다.
+8. **`RuleLedgerReads`(원장 조회 도우미 빈)와 `LedgerCells` 를 더했다**(§2.2 표에 없음). 원장 조회를 검사 패키지 안에 가두려는 것이다(D7).
+
+### 보고
+
+- 변이 m11(도메인 범위의 코드 도메인 건너뛰기 조건 하나 제거)은 잡히지 않는다 — 등가 변이다. CODE 도메인은 `CK_TB_MDM_DOMAIN_CODE` 로 표준 식을 가질 수 없고 유효 코드 참조
+  조건이 한 번 더 거른다. 부모 도메인의 표준 식을 물려받는 CODE 도메인이 가능한지는 확인하지 않았다.
+- `RuleLedgerReads` 의 네이티브 조회(`?1` 위치 인자, 표준 SQL)는 MSSQL 에서 돌려 보지 않았다(도커 금지). 방언 차이가 없는 모양이다.
+- 코드 참조의 등록 시각 판정은 운영 해석기와 같은 규칙이지만 `CodeEffLookup.NONE` 이라 해마다 행으로 해석한다 — 저장 한 번에 코드마다 원장을 읽는다(캐시는 요청 안에서만).
+
+### 인계
+
+- B9(e2e): 새 빈이 e2e 픽스처에서 표 저장·열 적용을 막거나 경고할 수 있다. 특히 `LS_E2E` 세트(QLTY_GRD_JDG 포함)의 다른 룰이 QLTY_GRD_JDG 와 이름을 주고받으면 SET_ORDER·
+  SET_CYCLE 로 거부되고, 표준 식 도메인·코드 도메인이 있으면 DOMAIN_RANGE·CODE_VALUE_MISSING 경고가 붙는다. 저장 뒤 동치 배지는 분석 코드만 견주므로(B7) 경고가 배지를 깨지는
+  않는다. 거부되면 먼저 픽스처가 06 규칙상 틀렸는지 본다(§3.4).
+
 ## 변이 검증 기록
 
 | 불변 규칙 | 변이 | 잡은 테스트 | 결과 |
@@ -496,6 +550,35 @@
 | (B5) | view `testCases` 를 버전을 고른 때만 채움 | `RuleEditViewTest` › 테스트_케이스를_case_id_오름차순으로_… | 잡힘 |
 | (B5) | 케이스 조회 정렬을 이름순으로 | `RuleEditViewTest` › 테스트_케이스를_case_id_오름차순으로_… | 잡힘 |
 | I25 | 새 케이스 INSERT 를 `persist` 대신 `merge` 로(겹친 PK 덮어쓰기) | `RuleTestCaseServiceTest` › 발급_번호가_이미_있는_케이스와_겹치면_덮어쓰지_않고_실패한다 | 안 잡힘(보강함) |
+| I14 | 세트 순서 "뒤 룰 결과 읽기" 조건 `j > i` → `j < i` | `RuleLedgerChecksTest`(fail-fast) | 잡힘 |
+| I14 | "앞 룰이 이 룰 결과 읽기" 조건 `j < i` → `j > i` | `RuleLedgerChecksTest` | 잡힘 |
+| I14 | 순환 판정 끔 | `RuleLedgerChecksTest` | 잡힘 |
+| I14 | 중복 대입 경고 끔 | `RuleLedgerChecksTest` | 잡힘 |
+| I14 | DEPRECATED 세트 거르기 끔 | `RuleLedgerChecksTest` | 잡힘 |
+| I15 | 계약 변경 WARNING → ERROR | `RuleLedgerChecksTest` | 잡힘 |
+| I15 | 선택→필수 판정 끔 | `RuleLedgerChecksTest` | 잡힘 |
+| I15 | 필요 변수 늘음 판정 끔 | `RuleLedgerChecksTest` | 잡힘 |
+| I16 | 도메인 표준 식 평가를 늘 통과로 | `RuleLedgerChecksTest` | 잡힘 |
+| I16 | 도메인 범위 WARNING → ERROR | `RuleLedgerChecksTest` | 잡힘 |
+| I16 | 도메인 범위의 코드 도메인(`maruCodeId`) 건너뛰기 제거 | `RuleLedgerChecksTest` | 안 잡힘(보고) — 등가 변이(B6 보고) |
+| I16 | 코드 값 소속 판정 끔 | `RuleLedgerChecksTest` | 잡힘 |
+| I16 | 코드 값 없음 WARNING → ERROR | `RuleLedgerChecksTest` | 잡힘 |
+| I16 | `CODE_IN` 카테고리 없음 ERROR → WARNING | `RuleLedgerChecksTest` | 잡힘 |
+| I16 | 코드 판정 시각을 등록 시각 대신 2030-01-01 로 | `RuleLedgerChecksTest` | 잡힘 |
+| I16 | 필수 컬럼 여부를 늘 false 로 | `RuleLedgerChecksTest` | 잡힘 |
+| I16 | 필수 컬럼 WARNING → ERROR | `RuleLedgerChecksTest` | 잡힘 |
+| I17 | `MASTER` 대상 존재 판정 끔 | `RuleLedgerChecksTest` | 잡힘 |
+| I17 | 카테고리 존재 판정 끔 | `RuleLedgerChecksTest` | 잡힘 |
+| I17 | attr 라벨 판정 끔 | `RuleLedgerChecksTest` | 잡힘 |
+| I17 | `MASTER_AT` attr 자리를 넷째 인자로 | `RuleLedgerChecksTest` | 잡힘 |
+| I17 | 식 변수·열 조건 AST 훑기 끔 | `RuleLedgerChecksTest` | 잡힘 |
+| I18 | COLUMNS 적용 뒤 검사 호출 제거 | `RuleLedgerChecksTest` | 잡힘 |
+| I18 | COLUMNS 적용 지점을 TABLE 로(기본 단계가 돈다) | `RuleLedgerChecksTest` | 잡힘 |
+| I18 | `MasterReferenceCheck` 적용 지점에서 COLUMNS 제거 | `RuleLedgerChecksTest` | 잡힘 |
+| I18 | `RuleSetOrderCheck` 적용 지점에서 COLUMNS 제거 | `RuleLedgerChecksTest` | 잡힘 |
+| I18 | TABLE 축 조합 경고 끔(`AxisCoverageCheck`) | `RuleLedgerChecksTest` | 잡힘 |
+| I18 | `AxisCoverage` 의 UNIQUE 조건 제거 | `RuleColumnsServiceTest`·`RuleLedgerChecksTest` | 안 잡힘(보강함) — 처음엔 `RuleColumnsServiceTest` 로 안 잡혀 표 저장 FIRST 사례를 더했다 |
+| I29 | COLUMNS `requireMdm` 제거 | `RuleColumnsServiceTest` | 잡힘 |
 
 - Java 변이는 `:maru-mdm-engine:test` 태스크 실패(컴파일 통과 뒤 테스트 실패)로 확인했다. enum → 문자열 상수로 바꾼 뒤 최종 코드에 Java 변이 9개를 다시 돌려 모두 잡혔다. fail-fast 첫 실패 사례 이름은 로그에 남기지 않았다.
 - TS 변이는 확인한 뒤 곧바로 `git checkout` 으로 되돌렸다(TS 파일 무변경, I28).
@@ -513,3 +596,6 @@
   잡혔다. 그 뒤 설계 이탈 7 을 찾아 사례를 더하고 고친 다음, `persist` → `merge` 변이를 백업 복사로 되돌리는 스크립트로 한 번 더 돌려 잡히는 것을 확인했다.
   D8 "DRAFT 소유와 무관" 은 소유자 검사를 더하는 변이를 돌리지 않았다 — 서비스가 버전 조회를 주입받지 않아 한 줄 변이로 만들 수 없다. 사례
   `기대값_없이도_저장하고_버전_DRAFT_소유와_무관하게_담당자가_쓴다`(lee 소유 DRAFT 가 있는 룰에 kim 이 저장)가 그 동작을 고정한다.
+
+- B6 변이 29개: 변이 넣기 → `:mdm:api:test --tests <대상> --fail-fast`(Gradle 데몬 재사용) → `git checkout --` 되돌리기를 스크립트 하나로 두 번에 나눠 `heavy.sh` 로 감싸
+  돌렸다(커밋된 파일만 바꿨다). "잡힘" 은 대상 테스트 태스크의 실패 종료다. 변이는 문장 안 글자 바꾸기라 컴파일 오류를 만들지 않는 모양으로 골랐고 실패 테스트 이름까지는 모으지 않았다.

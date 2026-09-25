@@ -257,7 +257,9 @@ class RuleLedgerChecksTest {
         jdbc.update("UPDATE TB_MDM_RULE_VAR SET AXIS = 'ROW' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 AND VAR_ID = 1");
         jdbc.update("UPDATE TB_MDM_RULE_VAR SET AXIS = 'COL' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 AND VAR_ID = 3");
 
-        RuleEditSaveResult r = tableService.save(table(0, "UNIQUE", sample()));
+        assertTrue(issues(save(sample()), "PIVOT_COVER_INCOMPLETE").isEmpty(), "UNIQUE 가 아닌 표는 보지 않는다");
+
+        RuleEditSaveResult r = tableService.save(table(DmeTestSupport.rowVersion(jdbc, "QLTY_GRD_JDG", 2), "UNIQUE", sample()));
 
         List<Map<String, Object>> w = issues(r, "PIVOT_COVER_INCOMPLETE");
         assertEquals(1, w.size(), r.getIssues().toString());
