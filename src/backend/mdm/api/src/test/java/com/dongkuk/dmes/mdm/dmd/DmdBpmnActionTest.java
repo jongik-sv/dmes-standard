@@ -47,6 +47,12 @@ class DmdBpmnActionTest {
     }
 
     @Test
+    void dataEdit_액션은_view_save_delete() throws Exception {
+        assertActions("services/dmd/dataEdit.bpmn", "dataEdit", "dataEditService",
+                Map.of("view", "view", "save", "save", "delete", "deprecate"), Set.of("save", "delete"));
+    }
+
+    @Test
     void dataHistory_액션은_view_search() throws Exception {
         assertActions("services/dmd/dataHistory.bpmn", "dataHistory", "dataHistoryService",
                 Map.of("view", "view", "search", "search"), Set.of());

@@ -110,3 +110,67 @@ design.md 「도커 금지로 생략한 검증」 절 그대로 — 이 단위�
 - 충돌 회피 규칙: B3 는 `DmdScreenMessageParityTest` 를 건드리지 않는다(B2 의 루프 구조 리팩터 뒤에 통합 단위가 `dataCateEdit` 항목을 더한다). B3 는 dataMng·인계 코드도 건드리지 않는다. 공유 파일(`DmdBpmnActionTest`·`DmdOasisHttpTest`·`m-mdm/tsup.config.ts`·`e2e/fixtures/mdm-dataMng.sql`)은 각자 덧붙이기만 하고, 머지 충돌은 오케스트레이터가 양쪽을 모두 살려 푼다.
 - E2E 스모크(세 spec)와 통합 확인은 머지 뒤 마지막 단위 `I`(통합)가 이 워크트리에서 돈다.
 - D7 개정: `pages/dmd/dataHandoff.ts` 대신 기존 `src/shell/page-handoff.ts` 를 쓴다(design.md D7). 교체는 B2 몫이다.
+
+## 구현 단위 B2 — 완료
+
+범위: dataEdit 백엔드(`DataEditService`·DTO 5개·`dataEdit.bpmn`)·프런트(`pages/dmd/dataEdit/{api,page,types,messages}.ts`)·e2e(`mdm-dataEdit.spec.ts`, 작성만) + D7 개정 적용(dataMng 등록 핸들러를 `openMdmPage` 로 교체, `dataHandoff.ts`·그 테스트 삭제) + `DmdScreenMessageParityTest` 루프 구조 리팩터(dataItemMng·dataEdit 두 항목).
+
+### 새 파일
+
+- `src/backend/mdm/lib/.../dmd/dataEdit/service/DataEditService.java` — `view`·`save`·`deprecate`(액션 `delete`). `save`·`deprecate` 는 자기 `TransactionTemplate`(R1′), `view` 는 읽기 전용 `TransactionTemplate`(dataItemMng `view` 선례 — design.md 는 "트랜잭션이 필요 없다"고 적었지만 `DataSegmentRowStore` 네이티브 읽기가 활성 트랜잭션을 요구해(B1 기록) 그대로 하면 `TransactionRequiredException` 이 난다, 아래 「설계 이탈」1).
+- `src/backend/mdm/lib/.../dmd/dataEdit/dto/{DataEditViewRequest,DataEditView,DataEditHeaderSaveRequest,DataEditDeprecateRequest,CategorySummaryRow}.java`.
+- `src/backend/mdm/api/src/main/resources/services/dmd/dataEdit.bpmn` — process `dataEdit`, bean `dataEditService`, 액션 `view`·`save`·`delete`(method=`deprecate`).
+- `src/backend/mdm/api/src/test/java/.../dmd/dataEdit/DataEditServiceSqliteTest.java`.
+- `src/frontend/m-mdm/pages/dmd/dataEdit/{api.ts,page.tsx,types.ts,messages.ts}` — `page.tsx` 는 `useMdmPageParams("dmd/dataEdit", tabId, ...)` 로 handoff 를 소비하고(D7 후반부), `api.ts` 는 마루 데이터 select 목록을 `dataMng/api.ts` 의 `searchDataMng`(읽기만, 고치지 않음)로 채운다.
+- `src/frontend/m-mdm/tests/dmd/dataEdit/data-edit-page.test.ts` — codeEdit 렌더 스모크 선례(handoff 로드·헤더 저장·MDM001 충돌 재조회).
+- `src/frontend/e2e/mdm-dataEdit.spec.ts` — 스모크 넷(메뉴 이동·select 로드·헤더 저장·잘못된 키 패턴 정규식 거부). **작성만, 실행하지 않음**(통합 단위 I 가 돈다).
+
+### 수정 파일
+
+- `src/frontend/m-mdm/pages/dmd/dataMng/page.tsx` — 등록 성공 핸들러를 `stashDataEditTarget`/`broadcastDataEditTarget`/수동 `portal-open-tab` 대신 `openMdmPage("dmd/dataEdit", { maruDataId })` 로 교체(D7 개정). `DATA_EDIT_PAGE_ID` 상수·관련 import 제거.
+- `src/frontend/m-mdm/tsup.config.ts` — `"pages/dmd/dataEdit/page"` 엔트리 추가(B1 「설계 이탈」1 이 남긴 규칙).
+- `src/backend/mdm/api/src/test/java/.../dmd/DmdBpmnActionTest.java` — `dataEdit_액션은_view_save_delete()` 추가(`view→view`, `save→save`, `delete→deprecate`).
+- `src/backend/mdm/api/src/test/java/.../dmd/DmdOasisHttpTest.java` — `E1_dataEdit_저장은_헤더를_바꾸고_auditVer_가_오른다()` 추가(대표 쓰기 1개 왕복).
+- `src/backend/mdm/api/src/test/java/.../dmd/DmdScreenMessageParityTest.java` — 화면 목록 `@ParameterizedTest` 루프로 리팩터. `dataItemMng`(`ROW_VERSION_CONFLICT_PREFIX`+`CLOSED_KEY_REOPEN`)·`dataEdit`(`ROW_VERSION_CONFLICT_PREFIX`만) 두 항목. 기존 `dataItemMng` 단정 내용은 바꾸지 않았다.
+
+### 삭제 파일(D7 개정)
+
+- `src/frontend/m-mdm/pages/dmd/dataHandoff.ts`, `src/frontend/m-mdm/tests/dmd/dataHandoff.test.ts` — B1 이 만든 전용 인계 모듈. `src/shell/page-handoff.ts` 재사용으로 대체.
+
+## 설계 이탈(B2)
+
+1. **`buildView` 안 `auditVer` 읽기 순서 버그, HTTP 왕복 테스트로 처음 잡힘.** 처음 구현은 `view.setAuditVer(entity.getVersion())` 을 `categorySummaries(...)` 호출보다 먼저 했다. `DataSegmentRowStore` 네이티브 읽기가 호출 전에 `entityManager.flush()` 를 하고, `MdmData.VER` 증가는 `CactusAuditListener.onPreUpdate`(`@PreUpdate`, flush 시점에만 발동)가 하므로, `categorySummaries` 를 부르기 **전에** `auditVer` 를 읽으면 아직 flush 가 안 일어나 증가 전 값(0)이 나간다. `DataEditServiceSqliteTest` 는 저장 뒤 **트랜잭션 커밋 후** DB 를 raw JDBC 로 읽어 확인했으므로(커밋 시점엔 이미 flush 가 끝나 있어) 이 버그를 못 잡았다 — `DmdOasisHttpTest.E1`(응답 JSON 의 `auditVer` 필드를 직접 확인)이 처음 빨강을 냈다. 고친 뒤 `buildView` 는 `categorySummaries` 를 먼저 호출해 그 flush 를 먼저 겪고 그 다음에 `auditVer` 를 읽는다. `DataEditServiceSqliteTest` 의 R1 테스트에도 `saved.getAuditVer()` 단정을 추가해 회귀를 잡게 했다. **교훈**: 트랜잭션 내부에서 리스너가 올리는 감사 필드를 응답 DTO 에 실어 보낼 때는, 그 필드를 읽기 전에 flush 를 강제하는 호출이 먼저 일어나는지 순서를 반드시 확인해야 한다(다음 화면에서 비슷한 패턴을 쓸 때 참고).
+2. **`view` 의 트랜잭션 필요 여부 — design.md 문구와 다르게 구현.** design.md §2 는 "view 는 트랜잭션이 필요 없다(읽기 전용, 잠금도 걸지 않는다)"고 적었다. "잠금(`DataSegmentLock.lock`)을 걸지 않는다"는 그대로 따랐지만, 실제로는 읽기 전용 `TransactionTemplate`(`dataItemMngService.view()` 선례)으로 감쌌다 — 감싸지 않으면 `DataSegmentRowStore`(카테고리 요약 카드 조회에 씀)의 네이티브 쿼리가 `entityManager.flush()` 에서 `TransactionRequiredException` 을 던진다(B1 이 build-log 「B2 가 참고할 공개 시그니처」에 이미 남긴 경고). 동작에는 영향 없음(읽기 전용이라 커밋할 것이 없다) — design.md 문구가 "잠금 없음"을 "트랜잭션 자체가 없음"으로 과장해 적은 것으로 보인다.
+3. **키 패턴 정규식 문법 검사를 `save` 에 추가(design.md §2 DTO 목록에는 명시되지 않음).** design.md §3.3 스모크 넷 4(dataEdit)가 "잘못된 코드 패턴 문법(또는 DEPRECATED 후 저장) 오류 모달"을 수용 기준으로 들었는데, `DataMngService.register()`(등록)는 codePattern 문법을 검사하지 않는다(등록 시점엔 항목이 없어 당장 못 씀 — 첫 `dataItemMng` 등록에서야 `DataItemChecks.pattern()` 이 늦게 걸러낸다). dataEdit 의 `save` 는 기존 마루 데이터의 키 패턴을 즉시 바꿀 수 있어 문법 오류를 방치하면 이후 모든 항목 등록이 막힌다 — 그래서 `save()` 에 `Pattern.compile(codePattern)` 검사(문법 오류 시 `INVALID_INPUT`, "키 패턴 정규식이 올바르지 않습니다: ...")를 추가했다. R 불변 규칙표에는 없는 추가 검사라 여기 기록한다. e2e 스모크 4 는 이 경로를 쓴다.
+
+## 변이 검증 기록(B2)
+
+`.claude/skills/dflow-dev/scripts/heavy.sh` 로 감싼 스크립트 하나(`mutate-dataedit.sh`, cp 백업/복구 — `DataEditService.java` 가 아직 git 미추적 새 파일이라 `git checkout --` 불가) 안에서 규칙마다 변이→대상 테스트(`DataEditServiceSqliteTest`, `--fail-fast`)→복구를 반복했다. 프런트(D7 후반부)는 별도로 `data-edit-page.test.ts` 하나만 대상으로 돌렸다(단일 파일 러너라 `heavy.sh` 불필요).
+
+| 불변 규칙 | 변이 | 잡은 테스트 | 결과 |
+|---|---|---|---|
+| R1′ | 생성자에서 `tx` 를 `PROPAGATION_NOT_SUPPORTED` 로 재설정(자기 트랜잭션 무력화) | `계층_칸_수_늘리기는_항상_허용한다`(`TransactionRequiredException` — 트랜잭션 없이 `lock.lock()` 의 `entityManager.flush()` 호출이 죽는다) | 잡힘 |
+| R2 | `save()` 안 `lock.lock(id)` 를 한 줄 더 추가(이중 호출) | `R2_저장은_잠금을_정확히_한_번_부른다`(Mockito `TooManyActualInvocations`) | 잡힘 |
+| R7 | `save()`·`deprecate()` 의 `checks.requireActive(locked);` 두 줄을 주석 처리 | `R7_DEPRECATED_마루_데이터는_저장을_거부한다`(예외가 안 남) | 잡힘 |
+| R11/D6 | `if (lvlCnt < locked.lvlCnt())` 를 `if (false && ...)` 로(축소 검사 자체를 건너뜀) | `D6_닫힌_채로_남은_키의_마지막_행에_값이_있으면_lvl_cnt_축소를_거부한다`(예외가 안 남) | 잡힘 |
+| D7(후반부 — consume·리스너) | `dataEdit/page.tsx` 의 `useMdmPageParams` 콜백 조건을 `if (false && params.maruDataId)` 로(handoff 값을 무시) | `data-edit-page.test.ts > handoff 로 받은 ID 를 불러와 헤더·카테고리 요약을 보인다`(`view` 호출이 `OTHER`(snapshot) 로 감, `PORT`(handoff) 가 아님) | 잡힘 |
+| R5(카드4 매칭 건수) | (변이 아님) `DataCategoryResolver.preview`(B1 산출물)를 그대로 호출하도록 구현 — 별도 재구현이 없다는 것 자체가 코드 리뷰 대상. 테스트는 REGEX(BASE 포함, 열린 항목만)·TABLE(열린 소속 수)·닫힌 카테고리(매칭 0) 세 조합을 직접 확인했다 | 해당 없음(재구현 없음 확인) |
+
+## 미실행 검증(B2)
+
+- **e2e(`mdm-dataEdit.spec.ts`)는 이 단위에서 돌리지 않았다** — phase-build.md 규칙상 E2E 스모크 실행은 마지막 단위(I)의 몫이다. 문법은 `pnpm --filter @dk-oasis/m-mdm lint`(전체 tsc, e2e 디렉터리 포함하지 않는 구성이면 별도 확인 필요 — 이 워크트리의 `m-mdm lint` 는 `tsc --noEmit` 으로 m-mdm 패키지만 본다. e2e TS 파일 자체의 구문 오류는 실제 `playwright test` 실행(통합 단위 I) 때 처음 잡힌다) 확인.
+- mssqlTest 관련 2개 명령은 design.md 가 이미 생략을 기록했다(위 절 그대로 인용, B2 도 새 mssqlTest 를 추가하지 않는다).
+
+## 관련 테스트 실행 결과(B2)
+
+- `cd src/backend && JAVA_HOME=... ./gradlew :mdm:api:test --tests DataEditServiceSqliteTest --tests DmdBpmnActionTest --tests DmdScreenMessageParityTest --tests DmdOasisHttpTest --tests DataMngServiceSqliteTest --tests DataItemMngServiceSqliteTest --no-daemon --console=plain`(heavy.sh) → BUILD SUCCESSFUL(전부 통과, 여러 차례 재확인).
+- `cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test`(heavy.sh) → 765 tests, 762 passed, 3 failed(전부 `tests/evalex-perf.test.ts` 타이밍 성능 단정 — B1 이 이미 기록한 것과 같은, 동시 무거운 명령 부하로 인한 무관 flaky. `data-edit-page.test.ts` 5개·`tsup-entries.smoke.test.ts` 모두 통과).
+- `pnpm build:libs` 1차 시도는 `Button variant="secondary"` 타입 오류(`ButtonVariant` 는 `"default"|"primary"|"danger"` 뿐)로 실패 → `data-edit-deprecate` 버튼을 `variant="default"` 로 고쳐 재통과(사소한 설계 이탈은 아니고 단순 오타 수정이라 위 「설계 이탈」에는 안 올림).
+- `cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint` → 통과(오류 0).
+- `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` → `ERROR 0 / WARN 0 / INFO 29`(기준선과 같음, `dataEdit.bpmn`/`dataEditService` bean 해석됨).
+
+## B3 가 참고할 사실(B2, B1 이어서)
+
+- D7 은 이제 완전히 `src/shell/page-handoff.ts`(`openMdmPage`/`useMdmPageParams`) 로 통일됐다 — `dataHandoff.ts` 는 더 이상 존재하지 않는다. dataCateEdit 화면에서 다른 화면으로 이동할 일이 있다면 같은 모듈을 쓴다.
+- `DmdScreenMessageParityTest` 는 이제 `@ParameterizedTest` 루프 구조다(`Case(screen, messagesPath, checkClosedKeyReopen)`). B3 는 `screens()` 메서드의 `Stream.of(...)` 에 `dataCateEdit` 항목 하나만 추가한다(루프 구조 자체는 고치지 않는다, design.md §2 지시대로).
+- `DataCategoryResolver.preview(maruDataId, defExpr, defTarget)`(B1 산출물)가 REGEX 매칭 건수까지 제공한다 — dataCateEdit 의 REGEX 미리보기(compare 액션)도 이것을 그대로 쓰면 된다(재구현 금지).

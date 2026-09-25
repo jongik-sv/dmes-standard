@@ -146,6 +146,20 @@ class DmdOasisHttpTest {
     }
 
     @Test
+    void E1_dataEdit_저장은_헤더를_바꾸고_auditVer_가_오른다() throws Exception {
+        JsonNode view = post("dataEdit", "view", params().put("maruDataId", "PORT"));
+        assertSuccess(view);
+        assertEquals(0, view.path("data").path("result").path("auditVer").asLong(), view.toString());
+
+        JsonNode save = post("dataEdit", "save", params().put("maruDataId", "PORT").put("auditVer", 0)
+                .put("maruDataName", "항구(개정)").put("codePattern", "^[0-9A-Z]{1,20}$").put("lvlCnt", 1)
+                .put("attr01Name", "국가"));
+        assertSuccess(save);
+        assertEquals("항구(개정)", save.path("data").path("result").path("maruDataName").asText(), save.toString());
+        assertEquals(1, save.path("data").path("result").path("auditVer").asLong(), save.toString());
+    }
+
+    @Test
     void A2_오래된_row_version_의_save_는_충돌_문구로_시작한다() throws Exception {
         assertSuccess(post("dataItemMng", "reg", params().put("maruDataId", "PORT").put("code", "KRINC").put("name", "인천")));
         assertSuccess(post("dataItemMng", "save", params().put("maruDataId", "PORT").put("code", "KRINC").put("name", "B")

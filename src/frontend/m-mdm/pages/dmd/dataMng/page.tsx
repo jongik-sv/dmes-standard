@@ -5,9 +5,8 @@
  *
  * 조회는 ID·이름·상태(D2, 배포 대상·항목 수 등은 뺀다). 등록은 MDM 원천만 받고(R10) ID·이름·설명·키 패턴·계층 칸 수를
  * 입력받는다 — 원천 종류·원천 시스템·배포 대상 시스템 카드는 만들지 않는다(D1). 등록이 성공하면 dataEdit 탭을 그 ID 로
- * 연다(D7, `dataHandoff` 모듈 — sessionStorage + 커스텀 이벤트 병행, 공유 셸은 고치지 않는다). pageId 형식은
- * `{moduleId}:{componentPath}`(m-mcm portal/page.tsx 주석·기존 page-handoff.ts·rule-handoff.ts 선례) — 그래서
- * `mdm:dmd/dataEdit` 다.
+ * 연다(D7 개정 — 전용 `dataHandoff` 모듈 대신 기존 범용 인계 모듈 `src/shell/page-handoff.ts`(TSK-06-02 D12)의
+ * `openMdmPage`를 쓴다, `dmc/codeMng` 선례와 동일).
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -26,14 +25,11 @@ import {
 import { AgDataGrid, GridPanel } from "@dk-oasis/shared/grid";
 import { Button, Input, Select } from "@dk-oasis/shared/form";
 import { useMessage } from "@dk-oasis/shared/message-provider";
-import { MdmPageLayout } from "@/shell";
+import { MdmPageLayout, openMdmPage } from "@/shell";
 
 import { registerDataMng, searchDataMng } from "./api";
 import { buildDataMngColumns } from "./columns";
-import { broadcastDataEditTarget, stashDataEditTarget } from "../dataHandoff";
 import { LVL_CNT_OPTIONS, STATUS_OPTIONS, emptyRegForm, errorMessage, type DataMngRegForm, type DataMngRow } from "./types";
-
-const DATA_EDIT_PAGE_ID = "mdm:dmd/dataEdit";
 
 const mutedText = { color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)" } as const;
 
@@ -50,9 +46,7 @@ export default function DataMngPage() {
   const [error, setError] = useState<string | null>(null);
 
   const openEdit = useCallback((maruDataId: string) => {
-    stashDataEditTarget(maruDataId);
-    broadcastDataEditTarget(maruDataId);
-    window.dispatchEvent(new CustomEvent("portal-open-tab", { detail: { pageId: DATA_EDIT_PAGE_ID } }));
+    openMdmPage("dmd/dataEdit", { maruDataId });
   }, []);
 
   const load = useCallback(async (i: string, n: string, s: string) => {
