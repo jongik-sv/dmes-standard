@@ -344,6 +344,47 @@
 - B9(e2e): V5 서버 오류 문구는 "입력값이 올바르지 않습니다: 값 테스트 요청 상한 — 입력 JSON 이 N자다. 16384자까지 받는다"(④ `vt-error`). V3 키 보냄 끔 →
   `errors[].code` `MISSING_KEY`. V4 케이스 결과 `hit` 은 적중 하나면 숫자·기본 행이면 기본 행 row_id.
 
+## B5 — 테스트 케이스 저장(part CASE)·view `testCases`
+
+- `BL/dme/ruleEdit/service/RuleTestCaseService`(`RuleEditSavePart`, part `CASE`): 룰 읽기 → `requireMdm` → 폐기(DEPRECATED) 거부(MDM009) → `requireSteward`(MDM013) →
+  칸 검사(이름 필수·길이, 입력 필수, 입력·기대 JSON 길이 → JSON 객체) → `TransactionTemplate`. 새 케이스는 트랜잭션 안에서 룰당 케이스 수 상한을 보고
+  `issue(ruleId, CASE, 1)` 번호로 엔티티 INSERT(row_version 0). 수정·삭제는 `RuleTestCaseWrites` 의 `ROW_VERSION` 조건 네이티브 쓰기이고 0행이면 MDM001.
+  버전·DRAFT 소유는 보지 않는다(D8).
+- `BL/common/rule/RuleTestCaseWrites`: 조건부 UPDATE(이름·입력·기대·설명 통째로, `ROW_VERSION + 1`, 감사 U_*·`VER + 1`)·조건부 DELETE. `RuleNativeWrites` 의 감사 모양을 따른다.
+- DTO: `RuleEditSaveRequest` 에 `caseId`·`caseName`·`inputJson`·`expectedJson`·`caseDeleted`, `RuleEditSaveResult` 에 `caseId`. `RuleEditViewResult.TestCaseInfo`
+  (`caseId, caseName, inputJson, expectedJson, description, rowVersion`)와 `testCases` — `RuleViewService` 가 `RuleTestCaseQueries.cases`(case_id 오름차순)로 채운다.
+  모양은 화면 `types.ts` `TestCaseView`·`TestCaseSaveResult`, `api.ts` `saveTestCase`·`deleteTestCase` 의 칸 이름과 대조했다(프런트 무변경).
+- 테스트: `BAT/dme/ruleEdit/RuleTestCaseServiceTest`(14, 파사드 `RuleEditService.save` 로 part 위임까지), `RuleEditViewTest` 사례 2건(오름차순·원문 JSON·row_version,
+  버전이 없는 룰에도 싣는다).
+- TDD: 서비스 본문을 `UnsupportedOperationException` 스텁으로 두고 `RuleTestCaseServiceTest` 14건이 모두 실패하는 것을 본 뒤 구현했다. view 두 사례는 구현과 함께 썼고
+  변이(m16·m17·m18)로 빨강을 확인했다.
+- 관련 테스트: `:mdm:lib:test` 1051 · `:mdm:api:test --tests 'com.dongkuk.dmes.mdm.dme.*' --tests '*MdmBusinessRuleMigrationTest' --tests '*Architecture*'
+  --tests '*MdmOasisActionVocabularyTest' --tests '*MdmRuleContract*'` 177 모두 통과(B4 의 161 + 새 16).
+
+### 설계 이탈
+
+1. **`description`·`rowVersion` 칸은 새로 만들지 않았다**(§2.4 는 `description` 추가). 헤더 저장이 쓰는 기존 칸을 CASE 도 쓴다. `rowVersion` 은 CASE 에서 케이스의 row_version 이다.
+2. **수정은 칸을 통째로 바꾼다.** 화면은 null 을 빼고 보내므로(`omitNullish`) 기대값·설명을 빼고 보낸 수정은 그 칸을 지운다. 화면 "기대값 갱신"은 네 칸을 모두 싣는다(`TestCaseCard`).
+3. **거부 코드**: 폐기 룰은 MDM009(`RuleVersionService.newVersion` 과 같은 모양), JSON 이 객체가 아니면 `ErrorCode.INVALID_VALUE`(MDM 코드 없음), 상한은 MDM021
+   ("입력값이 올바르지 않습니다: 테스트 케이스 상한 — …"). 이름·입력이 비면 REQUIRED_VALUE, 수정·삭제에 row_version 이 없거나 삭제에 caseId 가 없으면 REQUIRED_VALUE.
+4. **JSON 검사는 뒤에 붙은 글자도 거부한다**(`FAIL_ON_TRAILING_TOKENS`). Jackson 기본 설정은 `{"a":1} x` 를 통과시켜 DB CHECK 에서야 `DataIntegrityViolationException` 이 나고,
+   `json_valid` 는 배열도 통과시키므로 객체 검사는 서버만 한다. 입력은 받은 글자 그대로 저장한다(다시 쓰지 않는다).
+5. **룰당 케이스 수 상한은 새 케이스에만 건다.** 상한에 닿은 룰도 수정·삭제는 된다. 길이 상한은 파싱보다 먼저 본다.
+6. **view `testCases` 는 버전을 고르지 못한 룰(버전 0개)에도 싣는다** — 케이스는 버전과 무관하다(06:1058).
+
+### 보고
+
+- CASE 저장은 HTTP(OASIS) 테스트가 없다. `DmeOasisHttpTest` 는 B4 소유 파일이라 건드리지 않았고, 파라미터 바인딩(`caseId` Integer·`caseDeleted` Boolean·JSON 문자열)은
+  기존 `ver`(Integer)·`rowVersion`(Long) 과 같은 경로라 같다고 보았다. e2e V4 가 실제 BPMN 으로 처음 태운다.
+- 케이스 조건부 UPDATE·DELETE 와 `issue(CASE)` 의 MSSQL 경로는 도커 금지로 확인하지 못했다(방언 중립 SQL, design 「도커 금지로 생략한 검증」).
+- 케이스 입력 JSON 의 키 수는 상한을 걸지 않았다(design §6.6 에 없다). 값 테스트 `runCases` 가 케이스를 돌릴 때의 처리는 B4 몫이다.
+
+### 인계
+
+- B9(e2e): 저장 응답은 `{part:"CASE", rowVersion(새 케이스 0·수정 +1·삭제 null), caseId(새 케이스면 발급 번호), rowIdMap:{}, issues:[], rows:[]}`. view 의 `testCases[{caseId, caseName,
+  inputJson, expectedJson, description, rowVersion}]`. 픽스처에 케이스를 넣으면 `TB_MDM_RULE.LAST_CASE_ID` 를 넣은 최대 case_id 이상으로 맞춘다(아니면 화면 저장이 PK 충돌).
+  STD_ADMIN(READ) 사용자는 BFF 권한에서 save 가 막히고, 서버에서도 MDM013 이다.
+
 ## 변이 검증 기록
 
 | 불변 규칙 | 변이 | 잡은 테스트 | 결과 |
@@ -431,6 +472,24 @@
 | I32 | BPMN execute 갈래 이름을 compare 로 | `DmeBpmnActionTest` › ruleEdit_는_…_validate_execute | 잡힘 |
 | (B4) | 조립기가 식 변수 `refVars` 를 null 로(설계 이탈 1) | `RuleDefinitionAssemblerTest` › 식_변수는_식_텍스트와_AST_와_AST_에서_뽑은_참조_변수를_싣는다 | 잡힘 |
 | (B4) | 조립기가 라벨을 계약 계산에 넘기지 않음 | `RuleDefinitionAssemblerTest` › 식_변수는_… | 잡힘 |
+| I25 | 담당자 검사(`requireSteward`) 제거 | `RuleTestCaseServiceTest` › 담당자가_아니면_MDM013_이다 | 잡힘 |
+| I25·I29 | 원천 검사(`requireMdm`) 제거 | `RuleTestCaseServiceTest` › 외부_원천_룰과_폐기한_룰에는_케이스를_쓰지_않는다 | 잡힘 |
+| I25 | 폐기 룰 검사 끔 | `RuleTestCaseServiceTest` › 외부_원천_룰과_폐기한_룰에는_케이스를_쓰지_않는다 | 잡힘 |
+| I25 | 새 번호를 발급기 대신 케이스 수 + 1 로 | `RuleTestCaseServiceTest` › 새_케이스는_발급기로_번호를_받아_row_version_0_으로_넣는다 | 잡힘 |
+| I25 | 수정 UPDATE 의 `ROW_VERSION` 조건 무력화 | `RuleTestCaseServiceTest` › 틀린_row_version_의_수정은_MDM001_이고_바꾸지_않는다 | 잡힘 |
+| I25 | 삭제 DELETE 의 `ROW_VERSION` 조건 무력화 | `RuleTestCaseServiceTest` › 삭제는_row_version_조건이고_틀리면_MDM001_로_남긴다 | 잡힘 |
+| I25 | JSON 객체 검사 끔(배열·문자열 통과) | `RuleTestCaseServiceTest` › JSON_객체가_아닌_입력과_기대는_DB_보다_먼저_INVALID_VALUE_로_… | 잡힘 |
+| I25 | JSON 뒤 토큰 허용(`FAIL_ON_TRAILING_TOKENS` 끔) | `RuleTestCaseServiceTest` › JSON_객체가_아닌_입력과_기대는_DB_보다_먼저_INVALID_VALUE_로_… | 잡힘 |
+| I23 | 룰당 케이스 수 상한 `>=` → `>` | `RuleTestCaseServiceTest` › 룰당_케이스_수_상한까지는_새로_넣고_넘으면_거부하되_수정은_된다 | 잡힘 |
+| I23 | 룰당 케이스 수 상한을 수정에도 적용 | `RuleTestCaseServiceTest` › 룰당_케이스_수_상한까지는_새로_넣고_… | 잡힘 |
+| I23 | 케이스 이름 길이 상한 `>` → `>=` | `RuleTestCaseServiceTest` › 케이스_이름_길이_상한과_같으면_저장하고_넘으면_MDM021_로_거부한다 | 잡힘 |
+| I23 | 케이스 JSON 길이 상한 `>` → `>=` | `RuleTestCaseServiceTest` › 입력_JSON_길이_상한과_같으면_저장하고_넘으면_MDM021_로_거부한다 | 잡힘 |
+| I25 | 수정이 row_version 을 올리지 않음 | `RuleTestCaseServiceTest` › 수정은_row_version_조건으로_칸을_통째로_바꾸고_row_version_을_올린다 | 잡힘 |
+| I25 | 수정 응답 row_version 을 올리지 않은 값으로 | `RuleTestCaseServiceTest` › 수정은_row_version_조건으로_… | 잡힘 |
+| (B5) | 수정에서 뺀 기대값을 기존 값으로 둠(`COALESCE`) | `RuleTestCaseServiceTest` › 수정은_row_version_조건으로_… | 잡힘 |
+| (B5) | view `testCases` 를 비움 | `RuleEditViewTest` › 테스트_케이스를_case_id_오름차순으로_저장된_글자_그대로_버전과_무관하게_싣는다 | 잡힘 |
+| (B5) | view `testCases` 를 버전을 고른 때만 채움 | `RuleEditViewTest` › 테스트_케이스를_case_id_오름차순으로_… | 잡힘 |
+| (B5) | 케이스 조회 정렬을 이름순으로 | `RuleEditViewTest` › 테스트_케이스를_case_id_오름차순으로_… | 잡힘 |
 
 - Java 변이는 `:maru-mdm-engine:test` 태스크 실패(컴파일 통과 뒤 테스트 실패)로 확인했다. enum → 문자열 상수로 바꾼 뒤 최종 코드에 Java 변이 9개를 다시 돌려 모두 잡혔다. fail-fast 첫 실패 사례 이름은 로그에 남기지 않았다.
 - TS 변이는 확인한 뒤 곧바로 `git checkout` 으로 되돌렸다(TS 파일 무변경, I28).
@@ -443,3 +502,7 @@
 - B4 변이는 구현을 먼저 커밋(9bd735f)한 뒤 스크립트 하나(변이 → `:mdm:api:test`·`:mdm:lib:test --tests <클래스> --fail-fast` → `git checkout`, `trap` 으로 중단 때도
   되돌림)를 `heavy.sh` 로 감싸 두 번에 나눠 돌렸다. 변이마다 `git diff --stat` 으로 실제로 바뀐 것을 확인했고 18개 모두 테스트 실패(컴파일 오류 아님, "N tests completed,
   M failed")로 잡혔다. 첫 묶음 8개는 첫 실패 사례 이름을 뽑지 않아 "(fail-fast)" 로 적었다.
+- B5 변이는 구현을 먼저 커밋(7c3d686)한 뒤 스크립트 하나(변이 → `:mdm:api:test --tests '*RuleTestCaseServiceTest'`·`'*RuleEditViewTest'` `--fail-fast` → `git checkout`,
+  SIGTERM·SIGHUP 에도 되돌림)를 `heavy.sh` 로 감싸 두 번에 나눠 돌렸다. 변이마다 `git diff --stat` 으로 실제로 바뀐 것을 확인했고 18개 모두 테스트 실패(컴파일 오류 아님)로
+  잡혔다. D8 "DRAFT 소유와 무관" 은 소유자 검사를 더하는 변이를 돌리지 않았다 — 서비스가 버전 조회를 주입받지 않아 한 줄 변이로 만들 수 없다. 사례
+  `기대값_없이도_저장하고_버전_DRAFT_소유와_무관하게_담당자가_쓴다`(lee 소유 DRAFT 가 있는 룰에 kim 이 저장)가 그 동작을 고정한다.
