@@ -441,3 +441,9 @@ e2e 로 검증했다(새 탭이 열리는 경로). "이미 열린 dataEdit 탭" 
   전체 스위트를 돌리지 않는다, 오케스트레이터의 Build 게이트 몫).
 - **단위 상한 초과**: phase-build.md 의 단위 상한(도구 호출 약 80회)을 이 단위 도중 크게 넘겼다(변이 검증
   표 점검·재현 시도·다섯 차례 E2E 사이클 때문). 커밋 경계를 지킬 수 있는 지점(현재 시점)에서 마무리했다.
+
+## Build 게이트(오케스트레이터 직접 실행, HEAD 4e6ece7)
+
+- 백엔드 testAll: 3172 통과, 실패 0(기준선 3120).
+- m-mdm vitest: 773 중 2 실패(env: 부하 민감, 단독 통과) — `tests/evalex-perf.test.ts` NFR-1 BASE_SPD_LKP·QLTY_GRD_JDG. 팀장 지시(두 파일 한정 부하 민감 실패 인정)에 따라 heavy 슬롯을 잡고 `cd src/frontend && pnpm --filter @dk-oasis/m-mdm exec vitest run tests/evalex-perf.test.ts` 단독 실행 → 4/4 통과(loadavg 9.63). 신규 실패 0.
+- shared 단위: 168 통과. m-mdm lint 통과. oasis 계약 검사 ERROR 0 / WARN 0 / INFO 29.

@@ -2,7 +2,7 @@
   "tsk": "TSK-07-02",
   "order": "4be6eb9f-e7cf-4bce-a868-00d9b77655f4",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "build",
+  "phase": "verify",
   "baseline": {
     "failures": 0,
     "tests": 4048,
@@ -54,8 +54,50 @@
   },
   "model": "sonnet",
   "last": {
-    "phase": "design",
-    "event": "design.pass"
+    "phase": "build",
+    "event": "build.pass"
   },
-  "build_unit": "B2+B3"
+  "build_gate": {
+    "head": "4e6ece7a40aa5adfbb02b9ad2df99697fbfb5261",
+    "cmds": [
+      {
+        "cwd": "",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3172,
+        "failures": 0
+      },
+      {
+        "cwd": "",
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 773,
+        "failures": 2,
+        "note": "env: 부하 민감(tests/evalex-perf.test.ts NFR-1 2건, 팀장 지시 허용 파일), heavy 슬롯에서 단독 실행 4/4 통과(loadavg 9.63)"
+      },
+      {
+        "cwd": "",
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0
+      },
+      {
+        "cwd": "",
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0,
+        "result": "pass"
+      },
+      {
+        "cwd": "",
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0,
+        "result": "ERROR 0 / WARN 0 / INFO 29"
+      }
+    ],
+    "new_failures": [],
+    "env_failures": [
+      "tests/evalex-perf.test.ts > NFR-1 BASE_SPD_LKP",
+      "tests/evalex-perf.test.ts > NFR-1 QLTY_GRD_JDG"
+    ]
+  }
 }
