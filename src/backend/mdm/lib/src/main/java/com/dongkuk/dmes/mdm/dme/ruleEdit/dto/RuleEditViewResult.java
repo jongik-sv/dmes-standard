@@ -27,6 +27,7 @@ public class RuleEditViewResult {
     private List<VarMeta> baseVarMeta;
     private List<Map<String, Object>> issues;
     private UsageInfo usage;
+    private List<TestCaseInfo> testCases;
 
     public String getMe() { return me; }
     public boolean isEditable() { return editable; }
@@ -45,6 +46,7 @@ public class RuleEditViewResult {
     public List<VarMeta> getBaseVarMeta() { return baseVarMeta; }
     public List<Map<String, Object>> getIssues() { return issues; }
     public UsageInfo getUsage() { return usage; }
+    public List<TestCaseInfo> getTestCases() { return testCases; }
 
     public void setMe(String v) { this.me = v; }
     public void setEditable(boolean v) { this.editable = v; }
@@ -63,6 +65,7 @@ public class RuleEditViewResult {
     public void setBaseVarMeta(List<VarMeta> v) { this.baseVarMeta = v; }
     public void setIssues(List<Map<String, Object>> v) { this.issues = v; }
     public void setUsage(UsageInfo v) { this.usage = v; }
+    public void setTestCases(List<TestCaseInfo> v) { this.testCases = v; }
 
     /**
      * 열 설정 초안이 되돌려 보낼 저장 원값(TSK-08-03). {@code ResolvedVar} 는 해석된 값(도메인·타입)이라 그대로 되보내면 사전 타입 열이
@@ -226,6 +229,42 @@ public class RuleEditViewResult {
         public void setRowKind(String v) { this.rowKind = v; }
         public void setCells(String v) { this.cells = v; }
         public void setNote(String v) { this.note = v; }
+    }
+
+    /** 테스트 케이스(카드 ⑥, TSK-08-04 design §6.6) — 버전과 무관하다. JSON 두 칸은 저장된 글자 그대로다. */
+    public static class TestCaseInfo {
+        private Integer caseId;
+        private String caseName;
+        private String inputJson;
+        private String expectedJson;
+        private String description;
+        private long rowVersion;
+
+        public TestCaseInfo() {
+        }
+
+        public TestCaseInfo(Integer caseId, String caseName, String inputJson, String expectedJson, String description, long rowVersion) {
+            this.caseId = caseId;
+            this.caseName = caseName;
+            this.inputJson = inputJson;
+            this.expectedJson = expectedJson;
+            this.description = description;
+            this.rowVersion = rowVersion;
+        }
+
+        public Integer getCaseId() { return caseId; }
+        public String getCaseName() { return caseName; }
+        public String getInputJson() { return inputJson; }
+        public String getExpectedJson() { return expectedJson; }
+        public String getDescription() { return description; }
+        public long getRowVersion() { return rowVersion; }
+
+        public void setCaseId(Integer v) { this.caseId = v; }
+        public void setCaseName(String v) { this.caseName = v; }
+        public void setInputJson(String v) { this.inputJson = v; }
+        public void setExpectedJson(String v) { this.expectedJson = v; }
+        public void setDescription(String v) { this.description = v; }
+        public void setRowVersion(long v) { this.rowVersion = v; }
     }
 
     /** 활용처(카드 ⑧). */

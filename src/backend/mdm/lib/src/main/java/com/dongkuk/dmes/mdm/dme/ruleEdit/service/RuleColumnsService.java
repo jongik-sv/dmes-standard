@@ -12,6 +12,13 @@ import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
 import com.dongkuk.dmes.mdm.common.rule.RuleCellsCodec;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
+import com.dongkuk.dmes.mdm.common.rule.check.AxisCoverage;
+import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckInput;
+import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckInput.DraftRow;
+import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckReport;
+import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveRejections;
+import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveTarget;
+import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveValidator;
 import com.dongkuk.dmes.mdm.contract.rule.MdmRuleIdIssuer;
 import com.dongkuk.dmes.mdm.contract.rule.MdmRuleIdKind;
 import com.dongkuk.dmes.mdm.contract.rule.MdmRuleIdRange;
@@ -71,12 +78,13 @@ public class RuleColumnsService implements RuleEditSavePart {
     private final MdmRuleVarRepository varRepository;
     private final MdmRuleRowRepository rowRepository;
     private final EntityManager entityManager;
+    private final RuleSaveValidator validator;
     private final TransactionTemplate tx;
 
     public RuleColumnsService(RuleEditSupport support, RuleQueries queries, VersionWriteGuard writeGuard, MdmRuleIdIssuer issuer,
                               RuleVarTypeResolver resolver, ExpressionChecker checker, MdmEvaluator evaluator,
                               MdmRuleVarRepository varRepository, MdmRuleRowRepository rowRepository, EntityManager entityManager,
-                              PlatformTransactionManager transactionManager) {
+                              RuleSaveValidator validator, PlatformTransactionManager transactionManager) {
         this.support = support;
         this.queries = queries;
         this.writeGuard = writeGuard;
@@ -87,6 +95,7 @@ public class RuleColumnsService implements RuleEditSavePart {
         this.varRepository = varRepository;
         this.rowRepository = rowRepository;
         this.entityManager = entityManager;
+        this.validator = validator;
         this.tx = new TransactionTemplate(transactionManager);
     }
 
@@ -133,6 +142,7 @@ public class RuleColumnsService implements RuleEditSavePart {
             List<Map<String, Object>> issues = new ArrayList<>();
             check(id, ver, derive, hit, lines, before, issues);
             Map<String, Integer> rowIdMap = apply(id, ver, hit, lines, before, derive);
+            issues.addAll(saveChecks(id, ver, rule.getRuleKind(), hit));
             return new RuleEditSaveResult(PART, rowVersion, rowIdMap, issues, null);
         });
     }
@@ -380,9 +390,6 @@ public class RuleColumnsService implements RuleEditSavePart {
 
     /** 축 조합 완전성은 경고로만(불변 3 — 저장은 평탄화 그대로). */
     private void pivotCoverWarning(String id, int ver, String hit, List<Line> kept, List<Map<String, Object>> issues) {
-        if (!"UNIQUE".equals(hit)) {
-            return;
-        }
         Integer rowVar = null;
         Integer colVar = null;
         for (Line line : kept) {
@@ -396,42 +403,26 @@ public class RuleColumnsService implements RuleEditSavePart {
                 colVar = line.req.varId();
             }
         }
-        if (rowVar == null || colVar == null) {
-            return;
-        }
-        Set<String> rowKeys = new HashSet<>();
-        Set<String> colKeys = new HashSet<>();
-        int normal = 0;
-        for (MdmRuleRow row : queries.rows(id, ver)) {
-            if (!"NORMAL".equals(row.getRowKind())) {
-                continue;
-            }
-            normal++;
-            Map<Integer, Map<String, Object>> cells = RuleCellsCodec.parse(row.getCells());
-            String rk = cellKey(cells.get(rowVar));
-            String ck = cellKey(cells.get(colVar));
-            if (rk != null) {
-                rowKeys.add(rk);
-            }
-            if (ck != null) {
-                colKeys.add(ck);
-            }
-        }
-        if (!rowKeys.isEmpty() && !colKeys.isEmpty() && rowKeys.size() * colKeys.size() > normal) {
-            issues.add(Map.of("code", "PIVOT_COVER_INCOMPLETE", "severity", "WARNING",
-                    "message", "행 축 " + rowKeys.size() + " × 열 축 " + colKeys.size() + " = " + rowKeys.size() * colKeys.size()
-                            + " 조각이 행 " + normal + "개보다 많습니다 — 비어 있는 축 조합이 있습니다."));
-        }
+        List<Map<Integer, Map<String, Object>>> normal = queries.rows(id, ver).stream().filter(r -> "NORMAL".equals(r.getRowKind()))
+                .map(r -> RuleCellsCodec.parse(r.getCells())).toList();
+        AxisCoverage.gap(hit, rowVar, colVar, normal)
+                .ifPresent(message -> issues.add(Map.of("code", AxisCoverage.CODE, "severity", "WARNING", "message", message)));
     }
 
-    private static String cellKey(Map<String, Object> cell) {
-        if (cell == null) {
-            return null;
+    /**
+     * 적용 뒤 정의로 저장 시 검사(TSK-08-04 design §6.1 COLUMNS 열) — 커밋 전이라 ERROR 면 거부해 적용 전체를 되돌린다. COLUMNS 는 셀·미완성·
+     * 생성·분석을 돌리지 않으므로(I18, 열 추가가 가능해야 한다) 세트 순서·MDM 참조가 거부하고 계약 변경·케이스 결과 타입이 경고한다.
+     */
+    private List<Map<String, Object>> saveChecks(String id, int ver, String ruleKind, String hit) {
+        List<MdmRuleVar> rawVars = queries.vars(id, ver);
+        List<DraftRow> rows = queries.rows(id, ver).stream()
+                .map(r -> new DraftRow(r.getRowId(), r.getSeq(), r.getRowKind(), RuleCellsCodec.parse(r.getCells()))).toList();
+        RuleCheckReport report = validator.validate(new RuleCheckInput(id, ver, ruleKind, hit, rawVars, resolver.resolve(id, ver, rawVars), rows,
+                RuleSaveTarget.COLUMNS));
+        if (report.hasErrors()) {
+            throw RuleSaveRejections.reject(report.issues());
         }
-        String op = String.valueOf(cell.get("op"));
-        String left = cell.get("left") == null ? "" : String.valueOf(cell.get("left"));
-        String right = cell.get("right") == null ? "" : String.valueOf(cell.get("right"));
-        return op + "|" + left + "|" + right;
+        return report.issues();
     }
 
     // ── 적용 — 전체 DELETE → 재 INSERT + 셀 비움·삭제·산출 식 반영. ──

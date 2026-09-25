@@ -1,9 +1,9 @@
 package com.dongkuk.dmes.mdm.common.rule;
 
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
-import com.dongkuk.dmes.mdm.entity.MdmRuleRow;
+import com.dongkuk.dmes.mdm.common.rule.check.RuleDefinitionReads;
+import com.dongkuk.dmes.mdm.common.rule.check.RuleDefinitionReads.Names;
 import com.dongkuk.dmes.mdm.entity.MdmRuleSet;
-import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -26,9 +26,6 @@ public class RuleUsageFinder {
 
     /** 세트 하나의 활용처 — 의존·역의존 룰은 세트에 적힌 순서다. */
     public record SetUsage(String setId, String setName, String status, List<String> dependsOn, List<String> dependedBy) {
-    }
-
-    private record Names(Set<String> reads, Set<String> produces) {
     }
 
     private final RuleQueries queries;
@@ -67,50 +64,10 @@ public class RuleUsageFinder {
         return out;
     }
 
+    /** 이름 계산은 {@link RuleDefinitionReads} 가 맡는다(TSK-08-04 — 세트 순서 검사와 같은 계산). */
     private Names names(String ruleId, int ver) {
-        Set<String> reads = new LinkedHashSet<>();
-        Set<String> produces = new LinkedHashSet<>();
-        for (MdmRuleVar v : queries.vars(ruleId, ver)) {
-            boolean exprVar = v.getVarAst() != null && !v.getVarAst().isBlank();
-            if ("COND".equals(v.getVarKind())) {
-                if (exprVar) {
-                    collect(DomainJson.readMap(v.getVarAst()), reads);
-                } else if (v.getVarName() != null && !v.getVarName().isBlank()) {
-                    reads.add(v.getVarName());
-                }
-            } else {
-                if (v.getVarName() != null && !v.getVarName().isBlank()) {
-                    produces.add(v.getVarName());
-                }
-                if (v.getResGrp() != null && !v.getResGrp().isBlank()) {
-                    produces.add(v.getResGrp());
-                }
-            }
-        }
-        for (MdmRuleRow row : queries.rows(ruleId, ver)) {
-            for (Map<String, Object> cell : RuleCellsCodec.parse(row.getCells()).values()) {
-                if (cell.get("ast") instanceof Map<?, ?> ast) {
-                    collect(ast, reads);
-                }
-            }
-        }
-        return new Names(reads, produces);
-    }
-
-    private static void collect(Map<?, ?> node, Set<String> into) {
-        if (node == null) {
-            return;
-        }
-        if ("VARIABLE_OR_CONSTANT".equals(node.get("type")) && node.get("value") instanceof String name) {
-            into.add(name);
-        }
-        if (node.get("params") instanceof List<?> params) {
-            for (Object p : params) {
-                if (p instanceof Map<?, ?> child) {
-                    collect(child, into);
-                }
-            }
-        }
+        return RuleDefinitionReads.of(queries.vars(ruleId, ver),
+                queries.rows(ruleId, ver).stream().map(r -> RuleCellsCodec.parse(r.getCells())).toList());
     }
 
     private static boolean intersects(Set<String> a, Set<String> b) {

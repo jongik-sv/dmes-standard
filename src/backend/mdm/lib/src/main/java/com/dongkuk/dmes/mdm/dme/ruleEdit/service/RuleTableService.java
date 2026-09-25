@@ -15,6 +15,14 @@ import com.dongkuk.dmes.mdm.common.rule.RuleIssueMaps;
 import com.dongkuk.dmes.mdm.common.rule.RuleNativeWrites;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
+import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckInput;
+import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckInput.DraftRow;
+import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckReport;
+import com.dongkuk.dmes.mdm.common.rule.check.RuleLimits;
+import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveIssueCode;
+import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveRejections;
+import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveTarget;
+import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveValidator;
 import com.dongkuk.dmes.mdm.contract.rule.MdmRuleIdIssuer;
 import com.dongkuk.dmes.mdm.contract.rule.MdmRuleIdKind;
 import com.dongkuk.dmes.mdm.contract.rule.MdmRuleIdRange;
@@ -34,7 +42,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import kr.dongkuk.maru.mdm.engine.rule.RuleAnalyzer;
 import kr.dongkuk.maru.mdm.engine.rule.RuleIssue;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -43,10 +50,12 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 카드 ③ 의사결정표 저장(part TABLE, TSK-08-02 design §6.3.8).
  *
  * <p>한 트랜잭션: {@code beginDraftWrite}(소유자·DRAFT·row_version 검사 후 +1 — 판정은 공통 서비스만 한다, I6·I7) → 요청 행 검사(행
- * 종류·기본 행 하나·DERIVE 에 기본 행 금지·기존 row_id 는 이 DRAFT 에 있던 것만·셀 모양 I17·적중 정책) → 새 행 수만큼 한 번 발급 →
- * 그 버전 행 전부 삭제 → 요청 순서로 INSERT(NORMAL seq 1..n, DEFAULT 0 — 부분 유일 인덱스 때문에 UPDATE 로 순서를 바꾸지 않는다, I8·
- * I10) → HIT_POLICY 네이티브 UPDATE. 변수(TB_MDM_RULE_VAR)는 읽기만 한다. 트랜잭션 밖에서 저장한 정의로 서버 분석을 돌려 응답에
- * 싣는다(I12). ERROR 가 있어도 저장한다(D3) — 거부 정책은 {@link RuleSaveCheck}(08-04) 몫이다.
+ * 종류·기본 행 하나·DERIVE 에 기본 행 금지·기존 row_id 는 이 DRAFT 에 있던 것만·셀 모양 I17·적중 정책) → 행 수·셀 길이 상한 →
+ * 저장 시 검사({@link RuleSaveValidator}, 적용 지점 TABLE — TSK-08-04 design §6.1) → 새 행 수만큼 한 번 발급 → 그 버전 행 전부 삭제 →
+ * 요청 순서로 정규화한 셀을 INSERT(NORMAL seq 1..n, DEFAULT 0 — 부분 유일 인덱스 때문에 UPDATE 로 순서를 바꾸지 않는다, I8·I10) →
+ * HIT_POLICY 네이티브 UPDATE. 변수(TB_MDM_RULE_VAR)는 읽기만 한다. 상한·검사에 ERROR 가 하나라도 있으면 쓰기 전에 MDM021 로 거부하고
+ * 트랜잭션이 row_version 까지 되돌린다(08-04 D10 — 08-02 D3 의 "ERROR 가 있어도 저장한다"를 뒤집었다). 트랜잭션 밖에서 저장한 정의로
+ * 서버 분석을 돌려 응답에 싣고(I12), 그 뒤에 검사기의 비분석 이슈(경고)를 발급 번호로 바꿔 잇는다.
  */
 @Service
 public class RuleTableService implements RuleEditSavePart {
@@ -62,12 +71,12 @@ public class RuleTableService implements RuleEditSavePart {
     private final MdmRuleIdIssuer issuer;
     private final RuleVarTypeResolver resolver;
     private final MdmRuleRowRepository rowRepository;
-    private final ObjectProvider<RuleSaveCheck> saveChecks;
+    private final RuleSaveValidator validator;
     private final TransactionTemplate tx;
 
     public RuleTableService(RuleEditSupport support, RuleQueries queries, RuleNativeWrites writes, VersionWriteGuard writeGuard,
                             MdmRuleIdIssuer issuer, RuleVarTypeResolver resolver, MdmRuleRowRepository rowRepository,
-                            ObjectProvider<RuleSaveCheck> saveChecks, PlatformTransactionManager transactionManager) {
+                            RuleSaveValidator validator, PlatformTransactionManager transactionManager) {
         this.support = support;
         this.queries = queries;
         this.writes = writes;
@@ -75,7 +84,7 @@ public class RuleTableService implements RuleEditSavePart {
         this.issuer = issuer;
         this.resolver = resolver;
         this.rowRepository = rowRepository;
-        this.saveChecks = saveChecks;
+        this.validator = validator;
         this.tx = new TransactionTemplate(transactionManager);
     }
 
@@ -84,10 +93,11 @@ public class RuleTableService implements RuleEditSavePart {
         return PART;
     }
 
-    private record RequestedRow(int rowId, String rowKind, String cells, String note) {
+    record RequestedRow(int rowId, String rowKind, String cells, Map<Integer, Map<String, Object>> parsed, String note) {
     }
 
-    private record Saved(long rowVersion, Map<String, Integer> rowIdMap, List<Map<String, Object>> rows, List<StoredRow> stored) {
+    private record Saved(long rowVersion, Map<String, Integer> rowIdMap, List<Map<String, Object>> rows, List<StoredRow> stored,
+                         List<Map<String, Object>> checkIssues) {
     }
 
     @Override
@@ -103,8 +113,16 @@ public class RuleTableService implements RuleEditSavePart {
         Saved saved = tx.execute(status -> {
             long rowVersion = writeGuard.beginDraftWrite(ref(id, ver), expected, me);
             String hit = hitPolicy(rule.getRuleKind(), request.getHitPolicy());
-            Set<Integer> varIds = queries.vars(id, ver).stream().map(MdmRuleVar::getVarId).collect(Collectors.toSet());
+            List<MdmRuleVar> rawVars = queries.vars(id, ver);
+            Set<Integer> varIds = rawVars.stream().map(MdmRuleVar::getVarId).collect(Collectors.toSet());
             List<RequestedRow> rows = checkRows(rule, requested, varIds, new HashSet<>(queries.rowIds(id, ver)));
+            limits(rows);
+            List<ResolvedVar> vars = resolver.resolve(id, ver, rawVars);
+            RuleCheckReport report = validator.validate(new RuleCheckInput(id, ver, rule.getRuleKind(), hit, rawVars, vars, draftRows(rows),
+                    RuleSaveTarget.TABLE));
+            if (report.hasErrors()) {
+                throw RuleSaveRejections.reject(report.issues());
+            }
 
             Map<Integer, Integer> issued = new LinkedHashMap<>();
             long fresh = rows.stream().filter(r -> r.rowId() < 0).count();
@@ -118,31 +136,32 @@ public class RuleTableService implements RuleEditSavePart {
                 }
             }
             queries.deleteRows(id, ver);
-            int seq = 0;
             List<MdmRuleRow> entities = new ArrayList<>();
             List<Map<String, Object>> out = new ArrayList<>();
             List<StoredRow> stored = new ArrayList<>();
-            for (RequestedRow r : rows) {
+            for (int i = 0; i < rows.size(); i++) {
+                RequestedRow r = rows.get(i);
+                DraftRow normalized = report.normalizedRows().get(i);
                 int rowId = r.rowId() < 0 ? issued.get(r.rowId()) : r.rowId();
-                int rowSeq = "NORMAL".equals(r.rowKind()) ? ++seq : 0;
-                MdmRuleRow e = new MdmRuleRow(id, ver, rowId, r.rowKind(), rowSeq, r.cells());
+                String cells = RuleCellsCodec.write(normalized.cells());
+                MdmRuleRow e = new MdmRuleRow(id, ver, rowId, r.rowKind(), normalized.seq(), cells);
                 e.setNote(r.note());
                 entities.add(e);
                 Map<String, Object> m = new LinkedHashMap<>();
                 m.put("rowId", rowId);
-                m.put("seq", rowSeq);
+                m.put("seq", normalized.seq());
                 m.put("rowKind", r.rowKind());
-                m.put("cells", r.cells());
+                m.put("cells", cells);
                 m.put("note", r.note());
                 out.add(m);
-                stored.add(new StoredRow(rowId, rowSeq, r.rowKind(), r.cells()));
+                stored.add(new StoredRow(rowId, normalized.seq(), r.rowKind(), cells));
             }
             rowRepository.saveAll(entities);
             rowRepository.flush();
             writes.updateHitPolicy(id, ver, hit);
             Map<String, Integer> rowIdMap = new LinkedHashMap<>();
             issued.forEach((tmp, real) -> rowIdMap.put(String.valueOf(tmp), real));
-            return new Saved(rowVersion, rowIdMap, out, stored);
+            return new Saved(rowVersion, rowIdMap, out, stored, withIssuedRowIds(report.nonAnalysisIssues(), issued));
         });
 
         String hit = request.getHitPolicy() == null || request.getHitPolicy().isBlank() ? null : request.getHitPolicy().trim();
@@ -150,13 +169,62 @@ public class RuleTableService implements RuleEditSavePart {
         List<RuleIssue> analysis = RuleAnalyzer.analyze(
                 RuleAnalysisInputMapper.toAnalysisRule(id, rule.getRuleKind(), hit, vars, saved.stored()));
         List<Map<String, Object>> issues = new ArrayList<>(RuleIssueMaps.of(analysis));
-        RuleSaveContext context = new RuleSaveContext(id, ver, rule.getRuleKind(), hit, vars, saved.stored(), analysis);
-        saveChecks.orderedStream().forEach(check -> issues.addAll(check.check(context)));
+        issues.addAll(saved.checkIssues());
         return new RuleEditSaveResult(PART, saved.rowVersion(), saved.rowIdMap(), issues, saved.rows());
     }
 
-    /** DECISION 은 다섯 정책 중 하나(필수), DERIVE 는 비어 있어야 한다. */
-    private static String hitPolicy(String ruleKind, String raw) {
+    /** 저장 요청 크기 상한(D6) — 행 수, 행마다 {@code cells} 문자열 길이, 그 합. 같으면 통과, 넘으면 MDM021(I23). */
+    private static void limits(List<RequestedRow> rows) {
+        List<Map<String, Object>> issues = new ArrayList<>();
+        if (rows.size() > RuleLimits.MAX_ROWS) {
+            issues.add(limitIssue(List.of(), "행이 " + rows.size() + "개다. 한 번에 " + RuleLimits.MAX_ROWS + "개까지 저장한다"));
+        }
+        long total = 0;
+        for (RequestedRow r : rows) {
+            int length = r.cells().length();
+            total += length;
+            if (length > RuleLimits.MAX_ROW_CELLS_CHARS) {
+                issues.add(limitIssue(List.of(r.rowId()), RuleCheckReport.rowLabel(r.rowId()) + ": 셀 JSON 이 " + length + "자다. 행마다 "
+                        + RuleLimits.MAX_ROW_CELLS_CHARS + "자까지 받는다"));
+            }
+        }
+        if (total > RuleLimits.MAX_TOTAL_CELLS_CHARS) {
+            issues.add(limitIssue(List.of(), "셀 JSON 이 모두 " + total + "자다. 한 번에 " + RuleLimits.MAX_TOTAL_CELLS_CHARS + "자까지 받는다"));
+        }
+        if (!issues.isEmpty()) {
+            throw RuleSaveRejections.reject(issues);
+        }
+    }
+
+    private static Map<String, Object> limitIssue(List<Integer> rowIds, String message) {
+        return RuleCheckReport.issue(RuleSaveIssueCode.LIMIT_EXCEEDED.name(), RuleCheckReport.ERROR, rowIds, null, message);
+    }
+
+    /** 검사기 입력 행(값 테스트 BODY 도 쓴다) — 모양 검사를 통과한 셀, 새 행은 임시 번호 그대로, seq 는 INSERT 와 같은 규칙(NORMAL 1..n, DEFAULT 0). */
+    static List<DraftRow> draftRows(List<RequestedRow> rows) {
+        List<DraftRow> out = new ArrayList<>(rows.size());
+        int seq = 0;
+        for (RequestedRow r : rows) {
+            out.add(new DraftRow(r.rowId(), "NORMAL".equals(r.rowKind()) ? ++seq : 0, r.rowKind(), r.parsed()));
+        }
+        return out;
+    }
+
+    /** 검사 이슈의 임시 row_id(음수)를 발급 번호로 바꾼 새 맵(design §7.4). 메시지는 그대로 둔다. */
+    private static List<Map<String, Object>> withIssuedRowIds(List<Map<String, Object>> issues, Map<Integer, Integer> issued) {
+        List<Map<String, Object>> out = new ArrayList<>(issues.size());
+        for (Map<String, Object> issue : issues) {
+            Map<String, Object> m = new LinkedHashMap<>(issue);
+            if (issue.get("rowIds") instanceof List<?> ids) {
+                m.put("rowIds", ids.stream().map(o -> (Integer) o).map(r -> issued.getOrDefault(r, r)).toList());
+            }
+            out.add(m);
+        }
+        return out;
+    }
+
+    /** DECISION 은 다섯 정책 중 하나(필수), DERIVE 는 비어 있어야 한다. 값 테스트 BODY 도 쓴다. */
+    static String hitPolicy(String ruleKind, String raw) {
         String hit = raw == null || raw.isBlank() ? null : raw.trim();
         if ("DERIVE".equals(ruleKind)) {
             if (hit != null) {
@@ -173,7 +241,7 @@ public class RuleTableService implements RuleEditSavePart {
         return hit;
     }
 
-    private static List<RequestedRow> checkRows(MdmRule rule, List<Map<String, Object>> requested, Set<Integer> varIds, Set<Integer> existing) {
+    static List<RequestedRow> checkRows(MdmRule rule, List<Map<String, Object>> requested, Set<Integer> varIds, Set<Integer> existing) {
         List<RequestedRow> rows = new ArrayList<>(requested.size());
         Set<Integer> seen = new HashSet<>();
         int defaults = 0;
@@ -205,9 +273,10 @@ public class RuleTableService implements RuleEditSavePart {
             if (!(raw.get("cells") instanceof String cells)) {
                 throw invalid(label + ": cells 는 JSON 문자열이어야 합니다");
             }
-            RuleCellsCodec.validateShape(RuleCellsCodec.parse(cells), varIds, label + "(row_id " + rowId + ")");
+            Map<Integer, Map<String, Object>> parsed = RuleCellsCodec.parse(cells);
+            RuleCellsCodec.validateShape(parsed, varIds, label + "(row_id " + rowId + ")");
             Object note = raw.get("note");
-            rows.add(new RequestedRow(rowId, kind, cells, note == null ? null : note.toString()));
+            rows.add(new RequestedRow(rowId, kind, cells, parsed, note == null ? null : note.toString()));
         }
         return rows;
     }

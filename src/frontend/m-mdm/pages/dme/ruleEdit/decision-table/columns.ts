@@ -3,11 +3,13 @@
  *
  * 행 데이터 필드는 `c{varId}_{k}`(k ∈ op,left,right,na,expr,val). 강조는 표시 행의 표시(`__mk`)를 `cellClassRules` 가 읽는다 —
  * 색은 shared 그리드 토큰 클래스(`cell-light-pink`·`cell-warning`·`cell-edited`·`cell-emphasis`, 행 `ag-row-inserted`)만 쓴다.
+ * 값 테스트 표시(TSK-08-04)는 `cell-test-hit`·`cell-test-false`·`cell-test-chosen`·`cell-test-dim`, 적중 행 `ag-row-test-hit`.
  */
 import { createElement, type ReactNode } from "react";
 import type { GridColumn } from "@dk-oasis/shared/grid";
 
 import type { ResolvedVar } from "../types";
+import type { TableTestMarks } from "../value-test/test-marks";
 import type { SplitIssues } from "./analysis";
 import type { TableDiff } from "./diff";
 import type { CellKey, CellObj, GridRow } from "./grid-model";
@@ -115,13 +117,20 @@ export function typeBadge(v: ResolvedVar): string {
   return "String";
 }
 
-/** 칸 강조 표시 — e 오류, w 경고, c base 대비 바뀐 칸, h 선택 행의 적중 조건 칸. */
+/**
+ * 칸 강조 표시 — e 오류, w 경고, c base 대비 바뀐 칸, h 선택 행의 적중 조건 칸, t 값 테스트(hit 적중 행 칸, false 첫 거짓 칸,
+ * chosen 그룹에서 고른 열, dim 같은 그룹 나머지 열).
+ */
 interface CellMark {
   e?: boolean;
   w?: boolean;
   c?: boolean;
   h?: boolean;
+  t?: "hit" | "false" | "chosen" | "dim";
 }
+
+/** 적중 행 클래스(shared 그리드 테마). */
+export const TEST_HIT_ROW_CLASS = "ag-row-test-hit";
 
 export interface TableColumnContext {
   vars: ResolvedVar[];
@@ -139,6 +148,16 @@ export interface TableMarks {
   selectedRowId: number | null;
   /** 지금 보이는 검사가 서버 결과인가. */
   serverShown: boolean;
+  /** 이 표가 보이는 정의의 값 테스트 결과(I33) — 없으면 칠하지 않는다. */
+  test?: TableTestMarks;
+}
+
+function testMark(test: TableTestMarks | undefined, rowId: number, varId: number): CellMark["t"] {
+  if (!test) return undefined;
+  if (test.firstFalse.get(rowId) === varId) return "false";
+  if (test.chosen.get(rowId)?.has(varId)) return "chosen";
+  if (test.dimmed.get(rowId)?.has(varId)) return "dim";
+  return test.hitRowIds.has(rowId) ? "hit" : undefined;
 }
 
 function markOf(row: Record<string, unknown>, varId: number): CellMark {
@@ -171,6 +190,7 @@ export function displayRows(rows: readonly GridRow[], vars: readonly ResolvedVar
         w: sev === "WARNING",
         c: d?.status === "CHANGED" && d.changedVarIds.has(v.varId),
         h: marks.selectedRowId === r.rowId && v.varKind === "COND" && !!cell && cell.op !== "NA" && cell.op !== undefined,
+        t: testMark(marks.test, r.rowId, v.varId),
       };
     }
     out.__mk = mk;
@@ -180,6 +200,7 @@ export function displayRows(rows: readonly GridRow[], vars: readonly ResolvedVar
     if (counts?.warnings) parts.push(`경고 ${counts.warnings}`);
     out.check = parts.length > 0 ? `${parts.join(" · ")}${marks.serverShown ? " (서버)" : ""}` : "";
     out.__added = d?.status === "ADDED";
+    out.__hit = !!marks.test?.hitRowIds.has(r.rowId);
     out.__noteChanged = !!d?.noteChanged;
     return out;
   });
@@ -191,6 +212,10 @@ function cellRules(varId: number): GridColumn["cellClassRules"] {
     "cell-warning": (row) => !!markOf(row, varId).w && !markOf(row, varId).e,
     "cell-edited": (row) => !!markOf(row, varId).c && !markOf(row, varId).e && !markOf(row, varId).w,
     "cell-emphasis": (row) => !!markOf(row, varId).h,
+    "cell-test-hit": (row) => markOf(row, varId).t === "hit",
+    "cell-test-false": (row) => markOf(row, varId).t === "false",
+    "cell-test-chosen": (row) => markOf(row, varId).t === "chosen",
+    "cell-test-dim": (row) => markOf(row, varId).t === "dim",
   };
 }
 

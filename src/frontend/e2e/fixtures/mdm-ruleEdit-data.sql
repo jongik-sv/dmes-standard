@@ -203,3 +203,42 @@ INSERT INTO TB_MDM_RULE_ROW (MARU_RULE_ID, VER, ROW_ID, SEQ, ROW_KIND, CELLS, NO
     ('E2E_PVT_LKP', 1, 12, 12, 'NORMAL', '{"1":{"op":"<= 변수 <","left":"0.9","right":"1"},"2":{"op":"EQ","left":"6A"},"3":{"val":"60"}}', NULL, NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
     ('E2E_PVT_LKP', 1, 13, 13, 'NORMAL', '{"1":{"op":"<= 변수 <=","left":"1","right":"1.2"},"2":{"op":"EQ","left":"2A"},"3":{"val":"50"}}', NULL, NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
     ('E2E_PVT_LKP', 1, 14, 14, 'NORMAL', '{"1":{"op":"<= 변수 <=","left":"1","right":"1.2"},"2":{"op":"EQ","left":"6A"},"3":{"val":"50"}}', NULL, NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0);
+
+-- ─────────────────────────────────────────────────────────────────────────────────────────────
+-- TSK-08-04 추가분(design.md §3.4): 값 테스트·테스트 케이스 E2E 용 룰. QLTY_GRD_JDG 는 S4~S6 이 바꾸므로 값 테스트는 이 룰로만 한다.
+--   E2E_VT_JDG — INUSE, UNIQUE, v1 RELEASED + v2 DRAFT(소유 e2e_mdm_steward, v1 과 같은 행), 조건 COIL_THK(2)·SURF_GRD(1), 결과 QLTY_GRD Value,
+--                행 3 + 기본 행. 테스트 케이스 2건(1: 기대값 맞음, 2: 기대값 틀림 — 실패 시연), LAST_CASE_ID = 2(0 이면 화면 케이스 저장이 PK 충돌).
+--   COIL_THK·SURF_GRD 컬럼은 위 TSK-08-02 분을 쓴다. 세트에 담지 않는다(세트 순서 검사와 무관하게).
+-- ─────────────────────────────────────────────────────────────────────────────────────────────
+
+INSERT INTO TB_MDM_RULE (MARU_RULE_ID, MARU_RULE_NAME, RULE_KIND, STATUS, SOURCE_KIND, DESCRIPTION, USAGE_NOTE,
+                         LAST_VAR_ID, LAST_ROW_ID, LAST_CASE_ID, C_USR_ID, C_PGM_ID, VER) VALUES
+    ('E2E_VT_JDG', 'E2E 값 테스트 판정', 'DECISION', 'INUSE', 'MDM', '두께·표면등급으로 품질 등급을 정한다 — 값 테스트 E2E', '값 테스트·테스트 케이스 확인용',
+     3, 4, 2, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0);
+
+INSERT INTO TB_MDM_RULE_VER (MARU_RULE_ID, VER, STATUS, BASE_VER, OWNER_ID, HIT_POLICY, APPLY_FROM, APPLY_TO, RELEASED_AT,
+                             ROW_VERSION, C_USR_ID, C_PGM_ID, AUD_VER) VALUES
+    ('E2E_VT_JDG', 1, 'RELEASED', NULL, NULL, 'UNIQUE', '2026-09-01 00:00:00', '9999-12-31 00:00:00', '2026-09-01 00:00:00', 0, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('E2E_VT_JDG', 2, 'DRAFT', 1, 'e2e_mdm_steward', 'UNIQUE', NULL, NULL, NULL, 0, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0);
+
+INSERT INTO TB_MDM_RULE_VAR (MARU_RULE_ID, VER, VAR_ID, VAR_KIND, DISP_TYPE, VAR_NAME, DATA_TYPE, SEQ, LABEL, C_USR_ID, C_PGM_ID, AUD_VER) VALUES
+    ('E2E_VT_JDG', 1, 1, 'COND', '2', 'COIL_THK', NULL, 1, '두께', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('E2E_VT_JDG', 1, 2, 'COND', '1', 'SURF_GRD', NULL, 2, '표면등급', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('E2E_VT_JDG', 1, 3, 'RESULT', 'Value', 'QLTY_GRD', 'STRING', 1, '판정등급', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('E2E_VT_JDG', 2, 1, 'COND', '2', 'COIL_THK', NULL, 1, '두께', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('E2E_VT_JDG', 2, 2, 'COND', '1', 'SURF_GRD', NULL, 2, '표면등급', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('E2E_VT_JDG', 2, 3, 'RESULT', 'Value', 'QLTY_GRD', 'STRING', 1, '판정등급', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0);
+
+INSERT INTO TB_MDM_RULE_ROW (MARU_RULE_ID, VER, ROW_ID, SEQ, ROW_KIND, CELLS, NOTE, C_USR_ID, C_PGM_ID, AUD_VER) VALUES
+    ('E2E_VT_JDG', 1, 1, 1, 'NORMAL', '{"1":{"op":"<= 변수 <","left":"1.6","right":"2.5"},"2":{"op":"IN","list":["A"]},"3":{"val":"A"}}', '중간 두께 A', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('E2E_VT_JDG', 1, 2, 2, 'NORMAL', '{"1":{"op":"<= 변수 <","left":"1.6","right":"2.5"},"2":{"op":"IN","list":["B"]},"3":{"val":"B"}}', '중간 두께 B', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('E2E_VT_JDG', 1, 3, 3, 'NORMAL', '{"1":{"op":"GE","left":"2.5"},"2":{"op":"NA"},"3":{"val":"B"}}', '후물', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('E2E_VT_JDG', 1, 4, 0, 'DEFAULT', '{"3":{"val":"C"}}', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('E2E_VT_JDG', 2, 1, 1, 'NORMAL', '{"1":{"op":"<= 변수 <","left":"1.6","right":"2.5"},"2":{"op":"IN","list":["A"]},"3":{"val":"A"}}', '중간 두께 A', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('E2E_VT_JDG', 2, 2, 2, 'NORMAL', '{"1":{"op":"<= 변수 <","left":"1.6","right":"2.5"},"2":{"op":"IN","list":["B"]},"3":{"val":"B"}}', '중간 두께 B', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('E2E_VT_JDG', 2, 3, 3, 'NORMAL', '{"1":{"op":"GE","left":"2.5"},"2":{"op":"NA"},"3":{"val":"B"}}', '후물', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('E2E_VT_JDG', 2, 4, 0, 'DEFAULT', '{"3":{"val":"C"}}', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0);
+
+INSERT INTO TB_MDM_RULE_TEST_CASE (MARU_RULE_ID, CASE_ID, CASE_NAME, INPUT_JSON, EXPECTED_JSON, DESCRIPTION, ROW_VERSION, C_USR_ID, C_PGM_ID, VER) VALUES
+    ('E2E_VT_JDG', 1, '중간 두께 A', '{"COIL_THK":2.0,"SURF_GRD":"A"}', '{"QLTY_GRD":"A","hit":1}', '기대값 맞음', 0, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('E2E_VT_JDG', 2, '후물 C', '{"COIL_THK":3.0,"SURF_GRD":"C"}', '{"QLTY_GRD":"A"}', '기대값 틀림(실제 B) — 실패 시연', 0, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0);

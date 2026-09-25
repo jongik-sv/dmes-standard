@@ -12,6 +12,9 @@ import type { RuleEditNotice, RuleEditView } from "./types";
 import { RuleHeaderCard } from "./cards/RuleHeaderCard";
 import { RuleUsageCard } from "./cards/RuleUsageCard";
 import { RuleVersionCard } from "./cards/RuleVersionCard";
+import { TestCaseCard } from "./cards/TestCaseCard";
+import { TestResultCard } from "./cards/TestResultCard";
+import { ValueTestCard } from "./cards/ValueTestCard";
 import { DecisionTableCard } from "./decision-table/DecisionTableCard";
 import { TABLE_SECTIONS } from "./sections";
 
@@ -57,5 +60,8 @@ export const RULE_EDIT_CARDS: RuleEditCardSlot[] = [
   { id: "header", span: 8, Component: RuleHeaderCard },
   { id: "versions", span: 8, Component: RuleVersionCard },
   { id: "table", span: 16, Component: TableCardSlot },
+  { id: "valueTest", span: 8, Component: ValueTestCard },
+  { id: "testResult", span: 8, Component: TestResultCard },
+  { id: "testCases", span: 16, Component: TestCaseCard },
   { id: "usage", span: 16, Component: RuleUsageCard },
 ];

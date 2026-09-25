@@ -2,6 +2,7 @@
  * ruleEdit 화면 타입 — 서버 `RuleEditViewResult`·`ResolvedVar`·`RuleEditSaveResult` 와 같은 칸 이름(TSK-08-02 design §6.2).
  * 일시는 KST `"yyyy-MM-dd HH:mm:ss"`. 셀은 저장 형태 JSON 문자열이다.
  */
+import type { RowTrace, RuleHit } from "@/contract/engine-contract.generated";
 import type { MdmVersionStatus } from "@/shell";
 
 export type RuleKind = "DECISION" | "DERIVE";
@@ -140,6 +141,8 @@ export interface RuleEditView {
   baseVarMeta?: VarMeta[];
   issues: RuleIssueView[];
   usage: { usageNote?: string | null; sets: RuleSetUsage[] };
+  /** 룰의 테스트 케이스(case_id 오름차순, 버전과 무관 — TSK-08-04 §2.4). 옛 서버 응답이면 없다. */
+  testCases?: TestCaseView[];
 }
 
 export interface RulePickRow {
@@ -176,4 +179,88 @@ export interface ColumnsSaveResult {
 export interface RuleEditNotice {
   kind: "info" | "warning" | "error";
   text: string;
+}
+
+/** 테스트 케이스 한 건(TB_MDM_RULE_TEST_CASE, TSK-08-04 §6.6). 입력·기대는 JSON 객체 문자열. */
+export interface TestCaseView {
+  caseId: number;
+  caseName: string;
+  inputJson: string;
+  expectedJson?: string | null;
+  description?: string | null;
+  rowVersion: number;
+}
+
+/** 케이스 저장·삭제 응답(part CASE). 삭제면 rowVersion 이 없다. */
+export interface TestCaseSaveResult {
+  part?: string;
+  rowVersion?: number | null;
+  caseId?: number | null;
+}
+
+/** 값 테스트 대상 — 편집 중인 표(BODY) 또는 저장된 버전(VERSION). 06 `MdmRuleDefinitionSource`. */
+export type ValueTestTarget = "BODY" | "VERSION";
+
+/** 결과 값 — NUMBER 는 BigDecimal `toPlainString` 문자열, 목록은 COLLECT. */
+export type ValueTestValue = string | boolean | null | Array<string | boolean | null>;
+
+/** 판정 오류 하나(엔진 `Violation`). trace 는 없다(엔진 한계 G4). */
+export interface ValueTestError {
+  stage: string;
+  code: string;
+  rowId?: number | null;
+  name?: string | null;
+  message: string;
+}
+
+/** 판정을 멈추지 않는 경고 — 엔진 경고와 `MISSING_CELL_AS_NA`(빠진 셀을 NA 로 본 칸). */
+export interface ValueTestWarning {
+  code: string;
+  rowId?: number | null;
+  varId?: number | null;
+  message: string;
+}
+
+/** BODY 의 깨진 셀 — 이 셀이 든 행은 판정에서 빠진다(`skippedRows`, D5). */
+export interface ValueTestCellError {
+  rowId: number;
+  varId?: number | null;
+  code: string;
+  message: string;
+}
+
+export interface ValueTestMismatch {
+  key: string;
+  expected: unknown;
+  actual: unknown;
+}
+
+/** 케이스 한 건을 같은 정의로 돌린 결과. pass 가 null 이면 기대값이 없어 돌려 보기만 한 것. */
+export interface ValueTestCaseResult {
+  caseId: number;
+  caseName: string;
+  outcome: "OK" | "ERROR";
+  pass: boolean | null;
+  mismatches: ValueTestMismatch[];
+  results?: Record<string, ValueTestValue>;
+  hit?: number | number[] | null;
+  errors?: ValueTestError[];
+}
+
+/** 값 테스트 응답(서버 `RuleTestResult`, TSK-08-04 §6.5). 판정 오류(outcome ERROR)면 results·hits·trace 가 없을 수 있다. */
+export interface ValueTestResult {
+  target: ValueTestTarget;
+  ver: number | null;
+  evalTs: string;
+  outcome: "OK" | "ERROR";
+  results?: Record<string, ValueTestValue>;
+  hits?: RuleHit[];
+  defaultApplied?: boolean;
+  trace?: RowTrace[];
+  errors?: ValueTestError[];
+  warnings?: ValueTestWarning[];
+  cellErrors?: ValueTestCellError[];
+  skippedRows?: number[];
+  contract?: { always: string[]; rows: Array<{ rowId: number; required: string[]; optional: string[] }> };
+  cases?: ValueTestCaseResult[];
 }

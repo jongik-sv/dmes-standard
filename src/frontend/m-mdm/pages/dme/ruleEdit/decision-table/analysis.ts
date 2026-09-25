@@ -73,9 +73,33 @@ function projection(i: RuleIssueView) {
   };
 }
 
-/** 서버·화면 이슈가 같은가 — message 를 빼고 순서까지 견준다. 없는 칸과 null 은 같다(서버는 값이 없는 칸을 싣지 않는다). */
+/**
+ * 분석기(TSK-03-04 이식본·서버 `RuleAnalyzer`)가 내는 코드 — 7종 + TS 의 `DERIVE_ORDER`. 저장 응답에는 이 밖에 서버 저장 검사의 이슈
+ * (TSK-08-04 `RuleSaveIssueCode`·`PIVOT_COVER_INCOMPLETE`)가 분석 이슈 뒤에 붙는다.
+ */
+export const ANALYZER_CODES: ReadonlySet<string> = new Set([
+  "ALL_NA_ROW",
+  "UNRESOLVED_CELL",
+  "OVERLAP",
+  "OVERLAP_UNRESOLVED",
+  "UNREACHABLE",
+  "VALUE_GAP",
+  "NULL_GAP",
+  "DERIVE_ORDER",
+]);
+
+/** 서버 저장 검사만 낸 이슈(분석기 코드가 아닌 것) — 표 아래 "서버 저장 검사" 목록으로 따로 보인다. */
+export function serverOnlyIssues(issues: readonly RuleIssueView[]): RuleIssueView[] {
+  return issues.filter((i) => !ANALYZER_CODES.has(i.code));
+}
+
+/**
+ * 서버·화면 분석이 같은가 — 분석기 코드만 견준다(I26, 서버 저장 검사의 이슈는 화면이 계산하지 않는다). message 를 빼고 순서까지
+ * 견준다. 없는 칸과 null 은 같다(서버는 값이 없는 칸을 싣지 않는다).
+ */
 export function sameIssues(a: readonly RuleIssueView[], b: readonly RuleIssueView[]): boolean {
-  return JSON.stringify(a.map(projection)) === JSON.stringify(b.map(projection));
+  const analyzed = (xs: readonly RuleIssueView[]) => JSON.stringify(xs.filter((i) => ANALYZER_CODES.has(i.code)).map(projection));
+  return analyzed(a) === analyzed(b);
 }
 
 /** 저장 전 임시 row_id(음수)를 발급 번호로 바꾼다 — 저장 응답 `rowIdMap{"-1": 5}`. */

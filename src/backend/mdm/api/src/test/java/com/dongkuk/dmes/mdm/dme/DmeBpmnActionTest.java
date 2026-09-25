@@ -32,7 +32,7 @@ class DmeBpmnActionTest {
     }
 
     @Test
-    void ruleEdit_는_search_view_save_delete_copy_lock_unlock_handover_validate() throws Exception {
+    void ruleEdit_는_search_view_save_delete_copy_lock_unlock_handover_validate_execute() throws Exception {
         Map<String, String> methods = new HashMap<>();
         methods.put("search", "search"); // target=RULE|DOMAIN 을 Java 가 가른다(TSK-08-03 — 새 action 은 mcm 시드 어휘 16종 밖이라 못 만든다)
         methods.put("validate", "parseExpr");
@@ -43,6 +43,7 @@ class DmeBpmnActionTest {
         methods.put("lock", "lock");
         methods.put("unlock", "unlock");
         methods.put("handover", "handover");
+        methods.put("execute", "runTest"); // 값 테스트(TSK-08-04 D3) — 원장에 쓰지 않지만 EDIT 권한 액션이라 readOnly 가 아니다
         Map<String, Boolean> readOnly = new HashMap<>();
         methods.keySet().forEach(a -> readOnly.put(a, a.equals("search") || a.equals("view")));
         assertActions("services/dme/ruleEdit.bpmn", "ruleEdit", "ruleEditService", methods, readOnly);

@@ -302,6 +302,35 @@
   font-weight: 600;
 }
 
+/* 값 테스트 표시(mdm TSK-08-04 룰 화면) — 서버 판정 결과로 적중 행(초록)·첫 거짓 칸(붉음)·결과 열 그룹에서 고른 열(강조)·
+   같은 그룹 나머지 열(흐림)을 칠한다. 의미 토큰만 쓰고, 위 검사 표시보다 뒤에 두어 같은 칸이면 값 테스트 표시가 보인다. */
+.cm-data-grid .ag-row-test-hit {
+  background-color: var(--color-success-soft);
+}
+
+.cm-data-grid .ag-row-test-hit.ag-row-highlighted {
+  background-color: color-mix(in srgb, var(--color-success-soft) 55%, var(--color-selection));
+}
+
+.cm-data-grid .ag-cell.cell-test-hit {
+  background-color: var(--color-success-soft) !important;
+}
+
+.cm-data-grid .ag-cell.cell-test-false {
+  background-color: var(--color-danger-soft) !important;
+  box-shadow: inset 0 0 0 2px var(--color-danger);
+}
+
+.cm-data-grid .ag-cell.cell-test-chosen {
+  background-color: var(--color-success-soft) !important;
+  box-shadow: inset 0 0 0 2px var(--color-success);
+  font-weight: 600;
+}
+
+.cm-data-grid .ag-cell.cell-test-dim {
+  color: var(--color-text-disabled);
+}
+
 /* Checkbox */
 .cm-data-grid .ag-selection-checkbox {
   margin-right: 0;
