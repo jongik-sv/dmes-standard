@@ -239,6 +239,53 @@
 - V4: `vt-case-name` 에 이름 → ④ "케이스로 저장"(view 다시 불러온 뒤 ⑥ 에 새 줄), ⑥ "모두 돌리기" → `tc-badge-<id>` 문구 "통과"·"실패 · <키>"·"돌려 보기만".
 - V5: ④ `vt-error` 에 서버 메시지(MDM021).
 
+## B3 — `RuleTableService` 재배치·거부·응답 매핑
+
+- `BL/dme/ruleEdit/service/RuleTableService.java`: 트랜잭션 안 `beginDraftWrite → hitPolicy → rawVars(한 번 읽음) → checkRows → limits(rows) →
+  resolver.resolve → RuleSaveValidator.validate(TABLE) → ERROR 면 RuleSaveRejections.reject(report.issues())` 뒤에야 발급·삭제·INSERT·HIT_POLICY 를 쓴다
+  (§6.1). 검사기에 넘기는 적중 정책은 트랜잭션 안에서 검사한 값(DERIVE 는 null), 행은 임시 번호 그대로·seq 는 INSERT 와 같은 규칙.
+  INSERT 와 응답 `rows.cells` 는 `RuleCellsCodec.write(normalizedRows[i].cells)`(입력 순서라 인덱스로 짝짓는다). 응답 issues = 커밋 뒤 분석
+  (`RuleIssueMaps.of`) + `report.nonAnalysisIssues()` 의 rowIds 를 발급 번호로 바꾼 새 맵(메시지의 "새 행 -1" 글자는 그대로). `ObjectProvider<RuleSaveCheck>`
+  주입을 `RuleSaveValidator` 로 바꾸고 클래스 javadoc 의 D3 문장을 고쳤다. `checkRows` 가 파싱한 셀을 `RequestedRow.parsed` 로 들고 가 다시 파싱하지 않는다.
+- `limits(rows)`: 행 수(`MAX_ROWS`, rowIds 없음)·행마다 셀 JSON 길이(`MAX_ROW_CELLS_CHARS`, 그 행 임시 번호)·합(`MAX_TOTAL_CELLS_CHARS`) → 넘는 것마다
+  LIMIT_EXCEEDED ERROR 를 모아 `RuleSaveRejections.reject`(MDM021). 길이는 `String.length()`(UTF-16 글자 수)다.
+- 옛 `BL/dme/ruleEdit/service/RuleSaveCheck.java`·`RuleSaveContext.java` 를 지웠다(사용처는 `RuleTableService` 하나였다).
+- 새 테스트 `BAT/dme/ruleEdit/RuleTableSaveCheckTest`(11건): ① ALL_NA_ROW 거부 ② UNIQUE 겹침 거부·같은 표 FIRST 저장+OVERLAP 경고 ③ 미완성(조건·기본 행 결과)
+  거부 ④ 경고만이면 저장, 검사 경고가 분석 이슈 뒤·발급 번호 ⑤ 한쪽 빈 구간 → GE·IN 정렬로 저장, 응답 rows = 저장 셀 ⑥ 비소유자 MDM003 이 검사보다 먼저
+  ⑦ 행 수·행 셀 길이·셀 길이 합 — 같으면 저장, +1 거부(셀 길이는 JSON 공백으로 정확히 맞추고 저장값은 공백 없는 JSON). 셀 규칙 ERROR(TYPE_LITERAL) 거부,
+  검사 빈 ERROR 거부 각 1건. 거부 사례는 모두 `TB_MDM_RULE_ROW`·`HIT_POLICY`·`ROW_VERSION`·`LAST_ROW_ID` 전후가 같은지 본다(요청 적중 정책을 저장값과
+  다르게 보내 HIT_POLICY 무변경이 뜻을 갖게 했다). ④·검사 빈 ERROR 는 비분석 WARNING 을 내는 빈이 아직 없어(B6 전) 테스트 안 `@TestConfiguration` 가짜
+  `RuleSaveCheck`(static 스위치, 기본 꺼짐, 새 행마다 코드 `PROBE`)로 확인한다.
+- TDD: 테스트를 먼저 쓰고 옛 구현에서 11건 중 10건 실패(비소유자 MDM003 은 원래 통과)를 확인한 뒤 구현했다.
+- 관련 테스트: `:mdm:lib:test` 1026건, `:mdm:api:test --tests 'com.dongkuk.dmes.mdm.dme.*' --tests '*MdmBusinessRuleMigrationTest' --tests '*Architecture*'`
+  141건 모두 통과.
+
+### 의도해서 뒤집은 기존 기대값(§3.5)
+
+- `RuleTableServiceTest.조건_전부_NA_행이_ERROR_여도_저장하고_응답_issues_는_…` → `응답_issues_는_저장한_정의의_분석기_결과와_같다`: 원래 "ALL_NA_ROW·UNIQUE OVERLAP
+  ERROR 가 있어도 저장" → 새 기대 "FIRST 겹침(경고) 표를 저장하고 응답 issues 가 분석기 결과와 **전부** 같다"(거부 사례는 `RuleTableSaveCheckTest` ①②로 옮김) ·
+  근거 수용 기준 1·2, 06:338-341. 비분석 경고가 지금은 나오지 않으므로 전부 일치 비교를 유지했다(§3.5 조건).
+- `RuleTableServiceTest.행의_셀과_설명을_받은_그대로_저장한다` → `행의_셀은_정규화해_저장하고_숫자_텍스트와_설명은_그대로_둔다`: 원래 " 1.60"·IN `["C","A"]` 를
+  글자 그대로 저장 → 새 기대 " 1.60" 은 TYPE_LITERAL 이므로 "1.60" 으로 바꿔 보내고, IN 은 `["A","C"]` 로 정렬해 저장, `1.60` 은 다시 쓰지 않는다 · 근거 I6·I9.
+- `RuleTableServiceTest.새_행의_음수_임시_ID_…`·`변수_행은_바뀌지_않는다`: 새 행이 전부 NA·결과 셀 없음(미완성)이라 이제 거부된다 → 조건·결과가 다 찬 행으로
+  바꿨다(검사 대상이 아닌 발급·seq·변수 불변 기대는 그대로) · 근거 I4.
+- `DmeOasisHttpTest.tableBody`(B4 소유 파일, B4 가 아직 돌지 않아 B3 가 최소로 고침): 둘째 행 `{"1":{"op":"NA"}}`(ALL_NA·결과 없음·UNIQUE 겹침) →
+  `{"1":{"op":"GE","left":"2.5"},"2":{"val":"B"}}`. `등록자는_표를_저장하고_…` 의 `issues[0].code` 기대 `ALL_NA_ROW` → `NULL_GAP`(실제 분석 결과) · 근거 수용 기준 1.
+
+### 설계 이탈
+
+1. `DmeOasisHttpTest` 는 design 「공유 파일 소유」 에서 B4 몫이지만, 표 저장 기대값 뒤집기(§3.5, B3 범위) 때문에 `tableBody` 한 줄과 단언 한 줄을 고쳤다.
+2. 순서는 design 대로 `checkRows` 뒤 `limits` 다 — 상한을 넘는 요청도 모양 검사(파싱)는 먼저 받는다.
+
+### 인계
+
+- B4: `DmeOasisHttpTest.tableBody` 를 위처럼 바꿨다. `execute` 사례를 더할 때 이 표(두께 [1.6, 2.5) → A, ≥ 2.5 → B, UNIQUE)를 그대로 쓸 수 있다.
+- B6: 원장 검사 빈이 `RuleTableServiceTest` 픽스처(QLTY_GRD_JDG, 사전은 COIL_THK·COIL_WID·SURF_GRD 만, 코드 없음)에서 경고를 내면 `응답_issues_는_…_같다` 의
+  전부 일치 비교를 §3.5 대로 앞부분 비교로 바꾼다. `RuleTableSaveCheckTest` 의 가짜 빈은 코드 `PROBE` 만 내고 ④ 는 "마지막 이슈가 PROBE, 그 앞은 분석 코드" 를
+  보므로 B6 빈이 TABLE 에서 경고를 내면 ④ 의 "그 앞은 분석 코드" 단언을 "PROBE 가 분석 이슈 뒤" 로 좁혀야 한다.
+- B9: e2e S5·S6·V6 의 거부 메시지는 `룰 저장 거부: <CODE> <message>; …`(분석기 ERROR 는 `ALL_NA_ROW …`, UNIQUE 겹침은 `OVERLAP …`)다. 표 저장은 이제 셀을 정규화해
+  저장하므로(목록 정렬·한쪽 빈 구간 → 1 타입 op) 저장 뒤 그리드 칸이 보낸 글자와 다를 수 있다.
+
 ## 변이 검증 기록
 
 | 불변 규칙 | 변이 | 잡은 테스트 | 결과 |
@@ -294,9 +341,26 @@
 | (B8) | "모두 돌리기" 가 `runCases` 를 빼먹음 | `value-test-cards.test.ts` › 모두 돌리기는 … runCases 를 싣고 … | 잡힘 |
 | (B8) | "케이스로 저장" 이 다른 입력의 결과를 기대값으로 실음 | `value-test-cards.test.ts` › 케이스로 저장은 part CASE 로 … | 안 잡힘(보강함) |
 | I33 | ⑤ 가 다른 버전 결과도 "표에 칠했다" 로 봄 | `value-test-cards.test.ts` › 다른 버전을 대상으로 돌리면 … 그 버전 표를 따로 그린다 | 잡힘 |
+| I1 | 표 저장의 `report.hasErrors()` 거부 끔 | `RuleTableSaveCheckTest` › 셀_규칙_ERROR_는_거부한다 | 잡힘 |
+| I1 | 분석기 ERROR 를 빼고 검사 ERROR 만으로 거부 판단(`nonAnalysisIssues`) | `RuleTableSaveCheckTest` › 조건_전부_NA_행이_있으면_거부하고_아무것도_쓰지_않는다 | 잡힘 |
+| I1 | 정규화한 셀 대신 요청 셀을 저장 | `RuleTableSaveCheckTest` › 행_셀_길이_상한과_같으면_저장하고_넘으면_거부한다 | 잡힘 |
+| I2 | 검사 이슈 row_id 를 발급 번호로 바꾸지 않음 | `RuleTableSaveCheckTest` › 경고만_있으면_저장하고_검사_경고를_분석_이슈_뒤에_발급_번호로_싣는다 | 잡힘 |
+| I2 | 검사 이슈를 분석 이슈 앞에 붙임 | `RuleTableSaveCheckTest` › 경고만_있으면_저장하고_… | 잡힘 |
+| I2 | 검사 경고를 응답에서 뺌 | `RuleTableSaveCheckTest` › 경고만_있으면_저장하고_… | 잡힘 |
+| I3 | 경고만 있어도 거부(`issues` 가 비지 않으면) | `RuleTableSaveCheckTest` › 경고만_있으면_저장하고_… | 잡힘 |
+| I4 | NORMAL 행 조건 키 없음 허용 | `RuleCompletenessTest` › NORMAL_행의_조건_셀이_없으면_거부한다 | 잡힘 |
+| I4 | 기본 행의 결과 셀 없음 허용 | `RuleCompletenessTest` › 결과_셀이_없으면_기본_행도_거부한다 | 잡힘 |
+| I4 | `{"op":"NA"}` 를 미완성으로 봄 | `RuleCompletenessTest` › 완성된_표는_이슈가_없고_무관_셀은_완성이다 | 잡힘 |
+| I23 | 표 저장 `limits(rows)` 호출 뺌 | `RuleTableSaveCheckTest` › 행_셀_길이_상한과_같으면_저장하고_넘으면_거부한다 | 잡힘 |
+| I23 | 행 수 상한 `>` → `>=` | `RuleTableSaveCheckTest` › 행_수_상한과_같으면_저장하고_넘으면_거부한다 | 잡힘 |
+| I23 | 행 셀 길이 상한 `>` → `>=` | `RuleTableSaveCheckTest` › 행_셀_길이_상한과_같으면_저장하고_넘으면_거부한다 | 잡힘 |
+| I23 | 셀 길이 합 상한 `>` → `>=` | `RuleTableSaveCheckTest` › 셀_길이_합_상한과_같으면_저장하고_넘으면_거부한다 | 잡힘 |
 
 - Java 변이는 `:maru-mdm-engine:test` 태스크 실패(컴파일 통과 뒤 테스트 실패)로 확인했다. enum → 문자열 상수로 바꾼 뒤 최종 코드에 Java 변이 9개를 다시 돌려 모두 잡혔다. fail-fast 첫 실패 사례 이름은 로그에 남기지 않았다.
 - TS 변이는 확인한 뒤 곧바로 `git checkout` 으로 되돌렸다(TS 파일 무변경, I28).
 - B2 변이는 스크립트 하나(변이 → `:mdm:lib:test --tests <클래스> --fail-fast` → `git checkout`)를 `heavy.sh` 로 감싸 세 번에 나눠 돌렸다. 변이마다 `git diff` 로 실제로 바뀐 것을 확인했다. "(fail-fast)" 로 적은 행은 첫 실패 사례 이름을 로그에서 뽑지 못한 것이다.
 - B8 변이는 스크립트 하나(백업 복사 → 변이 → `vitest run value-test-cards.test.ts --bail=1` → 백업으로 되돌리기, `trap` 으로 중단 때도 되돌림)를 `heavy.sh` 로
   감싸 돌렸다(파일이 커밋 전이라 `git checkout` 대신 백업 복사). 보강 뒤 7개 모두 잡혔다.
+- B3 변이는 구현을 먼저 커밋(5669e8a)한 뒤 스크립트 하나(변이 → `:mdm:api:test --tests '*RuleTableSaveCheckTest'` 또는 `:mdm:lib:test --tests '*RuleCompletenessTest'`
+  `--fail-fast` → `git checkout`)를 `heavy.sh` 로 감싸 두 번에 나눠 돌렸다. 변이마다 `git diff --stat` 으로 실제로 바뀐 것을 확인했고 14개 모두 잡혔다. "쓰기 뒤 같은
+  트랜잭션 안에서 거부" 변이는 롤백 때문에 결과가 같은 등가 변이라 돌리지 않았다.
