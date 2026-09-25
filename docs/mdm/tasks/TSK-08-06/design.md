@@ -605,6 +605,7 @@ cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
 - 이 Task 는 마이그레이션과 mssqlTest 를 만들지 않는다. 새 네이티브 SQL(`RuleSetWrites` 의 조건부 UPDATE 세 개)은 방언 전용 구문(RETURNING·OUTPUT·json 함수)을 쓰지 않는
   표준 UPDATE 이고, `RULE_IDS` 는 `DomainJson.write` 가 만든 JSON 이라 MSSQL `ISJSON` CHECK 도 통과해야 한다 — 이 두 가지는 머지 뒤 팀장 방언 검증(`dialect_check`)에서 한 번 확인된다.
   이 생략 때문에 확인하지 못하는 수용 기준은 없다(수용 기준 5건은 모두 SQLite·Vitest·e2e 로 확인한다).
+- mcm `DataInitializer.seedMdmRuleSetMenus()`(B4)는 컴파일만 확인했다. 시드 SQL(`SYSDATETIME()` 등)은 기존 `seedMdmRuleMenus()` 를 그대로 옮긴 것이며 MSSQL 실행은 도커 금지로 확인하지 못했다(메뉴 노출 자체는 e2e M1·E1 이 로컬 SQLite 기동으로 본다).
 
 ## 담당자 확인 필요 결정
 
