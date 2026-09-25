@@ -179,3 +179,5 @@ design.md §3 B3.5 는 "공개 API 로 어떻게 부르는지 먼저 grep 필요
 - HEAD 7215f68. 백엔드 testAll 3122/0, shared 168/0, m-mdm lint 통과, oasis ERROR 0 / WARN 0 / INFO 29.
 - m-mdm test 775 중 `evalex-perf.test.ts` NFR-1 성능 2~3건 실패(중앙값 137~154ms > 100ms). 4회 실행(최초 1회·확인 1회·팀장 지시 재측정 2회) 모두 NFR-1 만 실패. 부하 평균 11~27(다른 워커 동시 실행).
 - 진단: 새 파일(evalex-sample-rule-parity.test.ts)을 뺀 760건에서도 같은 실패, `evalex-perf.test.ts` 단독 실행은 4/4 통과 → 코드 원인 아님(환경). 성능 기준 완화·skip 없음. 팀장 지시로 blocked.
+- 팀장 결정(blocked 응답, (B)): 환경 불안정으로 인정하고 Verify 진행. 증적: 2026-09-26 01:18 KST heavy.sh 슬롯(slot-1)을 잡고 `cd src/frontend && pnpm --filter @dk-oasis/m-mdm test tests/evalex-perf.test.ts` 단독 실행 — 4/4 통과(R2 387ms·BASE_SPD_LKP 532ms·QLTY_GRD_JDG 405ms 파일 전체, 부하 평균 30.81).
+- Build 게이트 판정 기록: m-mdm 775 중 2 실패(env: evalex-perf NFR-1 부하 민감, 기준선 동일 실패·단독 통과).

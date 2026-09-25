@@ -2,7 +2,7 @@
   "tsk": "TSK-09-01",
   "order": "d66739eb-3c77-47f6-b32c-50d1b0dfe7fa",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "build",
+  "phase": "verify",
   "baseline": {
     "docker": "banned:spawn",
     "failures": 0,
@@ -60,7 +60,7 @@
   },
   "last": {
     "phase": "build",
-    "event": "gate.blocked-env"
+    "event": "gate.pass-env"
   },
   "model": "sonnet",
   "build_gate": {
@@ -101,6 +101,9 @@
       "evalex-perf.test.ts NFR-1: 식 R2 를 1만 레코드에 100 ms 안에 평가한다",
       "evalex-perf.test.ts NFR-1: BASE_SPD_LKP(UNIQUE 7행) 미리보기를 1만 레코드에 100 ms 안에 한다"
     ],
-    "note": "env 판정(팀장 지시): PC 부하(loadavg 11~27)로 NFR-1 성능만 실패. 새 파일 제외 760건에서도 동일 실패, 단독 실행은 통과. 재측정 2회 모두 NFR-1 만 실패"
+    "note": "m-mdm 775 중 2 실패(env: evalex-perf NFR-1 부하 민감, 기준선 동일 실패·단독 통과). 팀장 결정 (B)로 env 허용 — NFR-1 외 실패 0. 증적: heavy 슬롯 단독 실행 4/4 통과(2026-09-26 01:18 KST)",
+    "env_allowed": [
+      "evalex-perf.test.ts NFR-1"
+    ]
   }
 }
