@@ -228,7 +228,8 @@ class RuleLedgerChecksTest {
             assertTrue(codes(e).contains(code), expr + " → " + codes(e));
         });
 
-        for (String expr : List.of("MASTER(\"PROC_CD\", \"BASE\", SURF_GRD)", "MASTER(\"COIL_DATA\", \"HOT\", SURF_GRD, \"attr01\")")) {
+        for (String expr : List.of("MASTER(\"PROC_CD\", \"BASE\", SURF_GRD)", "MASTER(\"COIL_DATA\", \"HOT\", SURF_GRD, \"attr01\")",
+                "MASTER_AT(\"COIL_DATA\", \"HOT\", SURF_GRD, \"2026-06-15 00:00:00\", \"attr01\")")) {
             RuleEditSaveResult r = save(rowsWith(0, withCell(Q_ROW1, 4, Map.of("expr", expr))));
             assertTrue(r.getIssues().stream().noneMatch(i -> String.valueOf(i.get("code")).startsWith("MASTER_")), expr + " → " + r.getIssues());
         }
@@ -247,6 +248,22 @@ class RuleLedgerChecksTest {
         assertEquals("WARNING", w.get(0).get("severity"));
         assertEquals(List.of(3), w.get(0).get("rowIds"));
         assertEquals(2, w.get(0).get("varId"));
+    }
+
+    // ── 축 조합 완전성(TABLE) ──
+
+    @Test
+    void 표_저장도_UNIQUE_축_조합이_비면_경고한다() {
+        jdbc.update("UPDATE TB_MDM_RULE_VAR SET AXIS = 'ROW' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 AND VAR_ID = 1");
+        jdbc.update("UPDATE TB_MDM_RULE_VAR SET AXIS = 'COL' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 AND VAR_ID = 3");
+
+        RuleEditSaveResult r = tableService.save(table(0, "UNIQUE", sample()));
+
+        List<Map<String, Object>> w = issues(r, "PIVOT_COVER_INCOMPLETE");
+        assertEquals(1, w.size(), r.getIssues().toString());
+        assertEquals("WARNING", w.get(0).get("severity"));
+        assertEquals(List.of(), w.get(0).get("rowIds"));
+        assertTrue(String.valueOf(w.get(0).get("message")).contains("2 × 열 축 2"), w.toString());
     }
 
     // ── 룰 세트 순서(I14) ──
@@ -362,6 +379,19 @@ class RuleLedgerChecksTest {
         BusinessException e = rejected(() -> columnsService.save(columns(0, qCols())));
 
         assertEquals(List.of("SET_ORDER"), codes(e));
+    }
+
+    @Test
+    void 열_설정_적용도_식_변수의_MASTER_대상이_없으면_거부한다() {
+        List<Map<String, Object>> cols = qCols();
+        Map<String, Object> exprVar = col(-1, "COND", "Expression", "MASTER(\"NO_SUCH\", \"BASE\", SURF_GRD)");
+        exprVar.put("label", "마스터 확인");
+        cols.add(3, exprVar);
+
+        BusinessException e = rejected(() -> columnsService.save(columns(0, cols)));
+
+        assertEquals(List.of("MASTER_TARGET_MISSING"), codes(e));
+        assertTrue(e.getMessage().contains("마스터 확인"), e.getMessage());
     }
 
     @Test
