@@ -46,6 +46,20 @@
 | I8(TS, B5) | PROG 통과 삭제(PROG 도 UNKNOWN_INPUT) | `set-model.test.ts` | 잡힘 |
 | §6.9 condMarks(B5) | "앞에 없음" 을 붉은 칩 전부에 붙임 | `set-model.test.ts` | 잡힘 |
 | §6.9 condMarks(B5) | 앞에서 이미 만든 PROG 도 보통 칩 | `set-model.test.ts` | 잡힘 |
+| I21(B6) | 검사 목록을 편집 중 목록 대신 불러온 목록으로 계산(`RuleSetCard` `setChecks(view.set.ruleIds, …)`) | `rule-set-edit-page.test.ts` "▼·▲·✕ 는 서버를 부르지 않고 …" | 잡힘 |
+| I21(B6) | 입출력 표를 불러온 목록으로 계산(`setIo(view.set.ruleIds, …)`) | 같은 테스트 | 잡힘 |
+| I21(B6) | 드래그(`reorder`)에 서버 호출(view) 추가 | `rule-set-edit-page.test.ts` "행을 끌어 놓으면 …" | 잡힘 |
+| I21(B6) | 지침 적용(`applyGuide`)에 서버 호출(view) 추가 | `rule-set-edit-page.test.ts` "구성 지침 — … 적용하면 서버 호출 없이 …" | 잡힘 |
+| I21·D9(B6) | 화면 검사에 REJECT 가 있으면 세트 저장 버튼을 막음 | `rule-set-edit-page.test.ts` "화면 검사에 거부가 있어도 …" | 잡힘 |
+| I22(받는 쪽, B6) | 받는 경로 `dme/ruleSetEdit` → `dme/ruleSetEdt`(`page.tsx` `COMPONENT_PATH`) | `rule-set-edit-page.test.ts` "넘겨받은 setId 로 view 를 …" | 잡힘 |
+| I22(받는 쪽, B6) | 받는 키 `params.setId` → `params.id` | 같은 테스트 | 잡힘 |
+| I22(받는 쪽, B6) | 세트를 바꿀 때 dirty 확인 생략(`open` 의 `confirmLeave`) | `rule-set-edit-page.test.ts` "탭이 다시 활성화될 때 …" | 잡힘 |
+| I14(화면 쪽, B6) | 폐기를 한 번에(`set-deprecate` 가 곧바로 delete) | `rule-set-edit-page.test.ts` "폐기는 두 단계다 …" | 잡힘 |
+| §6.9 편집 게이트(B6) | DEPRECATED·비담당자도 목록 편집 허용(`canEditList` 를 RBAC 만으로) | `rule-set-edit-page.test.ts` "DEPRECATED 세트는 …" | 잡힘 |
+| §6.10 룰 링크(B6) | `openRule` 이 다른 룰 ID 로 이동 | `rule-set-edit-page.test.ts` "룰 ID 링크는 …" | 잡힘 |
+| D15 화면(B6) | 이미 담은 룰도 목록에 더함 | `rule-set-edit-page.test.ts` "룰 추가 — …" | 잡힘 |
+| §2.3 저장 grids(B6) | `grids.rules.rows` 순서를 뒤집음(`api.ts`) | `rule-set-edit-page.test.ts` "세트 저장은 params 에 …" | 잡힘 |
+| §6.9 ▲▼(B6) | 동작 칸 값(`actions`) 제거 — ag-grid 가 끝 자리 바뀐 ▲▼ 칸을 다시 그리지 않음 | `rule-set-edit-page.test.ts` "▼·▲·✕ …" | 잡힘 |
 | I4(B2) | 자기 결과 이름 제외 삭제(`Names.add` 의 `selfResults` 조건) | `RuleIoReaderTest` "읽는 이름은 …" | 잡힘 |
 | I4(B2) | `GRP_COND_AST` 참조 누락 | `RuleIoReaderTest` "읽는 이름은 …" | 잡힘 |
 | I4(B2) | Expression 조건 열의 이름을 conds 에 넣음 | `RuleIoReaderTest` "타입과 표시명은 …" | 잡힘 |
@@ -75,6 +89,17 @@ B2 변이는 python 스크립트 하나(변이 넣기 → `:api:test --fail-fast
 - B5 `set-model.ts` 에 설계 목록 밖 공개 함수 `isFinalResult(row)`(Java `ResultRow.finalResult()` 짝)와 타입 `CondMark` 를 더했다. 설계가 모양을 정하지 않은 두 함수는
   `condMarks` 가 ids 와 같은 자리의 `CondMark[][]`, `laterDeps` 가 ids 를 키로 삼는 `Record<룰 ID, 뒤에 있는 의존 룰[]>` 을 돌려주도록 정했다.
 - B5 `types.ts` 에 §2.3 의 열 타입 밖으로 search 응답 `RuleSetPick`·`RuleSetPickResult`·`RuleSetRuleSearchResult`, view 의 `set` 칸 `RuleSetHeader`, 입력 맵 `RuleIoMap` 을 더했다(B6 가 이 파일을 고치지 않게).
+- B6 거부 배지: `@/shell` `badgeStyle` 에 위험 톤이 없어 `RuleSetCard` 가 `badgeStyle("neutral")` 모양에 `var(--color-danger)`·`var(--color-danger-soft)` 토큰을 입혀 쓴다(셸은 B6 범위 밖이라 고치지 않았다).
+  "앞에 없음"·"뒤에 있음"·"덮어씀"·"고르기" 배지는 `warning` 톤이다.
+- B6 목록 편집 게이트: 세트명·설명 입력, ▲▼✕·드래그, 룰 추가, 지침 적용은 `canEditList` = `view.editable && status === INUSE && canDo("save")` 한 값으로 켠다(§6.9 는
+  "editable=false 거나 DEPRECATED 면 드래그·▲▼✕ 가 없다"만 정했다 — 저장 권한 없이 목록을 바꿔도 저장할 수 없으므로 RBAC 도 함께 본다). 세트 저장·폐기·되살리기는 §6.9 그대로.
+- B6 파일 구성: 카드 틀은 08-02 의 `ruleEdit/cards/CardFrame`(`CardFrame`·`MutedText`)을 가져다 쓴다(고치지 않음). 타입 표시 `typeText` 는 `SetIoTables.tsx` 에 둔다.
+  세트 고르기 후보·현재 세트 표시는 `ID · 세트명`(`set-edit-current`), 룰 후보는 `ID · 룰명 · 상태` 다. 테스트·e2e 용 testid 를 더했다: 입출력 표 행 `set-io-input-{이름}`·`set-io-result-{이름}`,
+  입출력 표의 변수 링크 `set-var-link-{이름}`(DICT 입력 → 컬럼 화면, 결과 → 만드는 첫 룰), 머리 `set-card-id`·`set-row-version`, 빈 목록 `set-rules-empty`, 추가 알림 `set-rule-add-notice`, 후보 묶음 `set-rule-cands`·`set-pick-list`.
+- B6 그리드 칸 값: 조건 변수·결과 변수·의존 룰 칸은 배열 대신 문자열 서명(JSON)을 칸 값으로 싣고 그리는 데는 행의 `condChips`·`resultNames`·`depCells` 를 쓴다. 배열 값은 ag-grid 가
+  object 로 추론해 오류 #48 을 내고, ag-grid 는 값이 바뀐 칸만 다시 그리므로 ▲▼ 동작 칸에도 끝 자리 값(`actions`)을 싣는다.
+- B6 메시지: 저장·폐기·되살리기 결과와 서버 거부(`meta.message`)·MDM001 안내는 모두 `set-message` 한 줄에 보인다(ErrorModal 은 view·찾기 실패에만). 폐기 확인 단계에서는 같은 자리에 폐기 경고 문구가 보인다.
+  거부 때는 view 를 다시 불러오지 않고 편집 중 목록을 둔다. 되살리기 성공 문구에도 서버가 준 WARN 을 붙인다.
 - B2 Expression 셀 조회: §6.1-5 는 `RuleCellsCodec.parse(...).get(String.valueOf(varId))` 라고 적었지만 `parse` 는 `Map<Integer, …>` 를 돌려주므로 `get(v.getVarId())`(정수 키)로 읽는다. 문자열 키로는 한 번도 맞지 않아 셀 참조가 조용히 빠진다.
 - B2 `RuleQueries` 추가는 하나(`latestReleasedResultVarsOfActiveRules`)다. 구현 단위 표의 "조회 두 개" 가운데 나머지 하나가 맡을 `hitPolicy` 는 기존 `versionsOf(ids)` 로 한 번에 읽는다(기존 메서드는 고치지 않았다).
 - B2 PROG 판정·이름 비교: 같은 이름의 조건 열은 대소문자를 무시해 찾는다(conds 중복 제거가 대소문자 무시라서). 컬럼 사전(DICT) 판정은 `findByPhysName(name)` 정확 일치이고, 한 번의 `read` 안에서 이름마다 한 번만 조회한다.
@@ -141,3 +166,17 @@ B2 변이는 python 스크립트 하나(변이 넣기 → `:api:test --fail-fast
   `RuleSetGuide.suggest(target, n -> producers.getOrDefault(n, List.of()), io)` 모양으로 넘기면 된다.
 - 조회 경로에 쓰기가 없다. DICT 이름의 타입 해석용 합성 `MdmRuleVar` 는 영속화하지 않고, `vars()` 로 읽은 엔티티는 바꾸지 않는다(B3 가 트랜잭션 안에서 불러도 flush 로 DB 가 바뀌지 않는다).
 - `DmeTestSupport.ruleSet(jdbc, id, name, ruleIdsJson, status, rowVersion)`: 감사 칼럼을 `'fixture'`·`'2026-01-01 00:00:00'`, `VER=0` 으로 채운다 — 쓰기 뒤 `U_USR_ID`(예: `kim`)·`VER+1` 변화를 단언할 수 있다.
+
+## B6 — FE `ruleSetEdit` 화면 (세트 고르기·룰 세트 카드·구성 지침 카드·api)
+
+- 파일: `M/pages/dme/ruleSetEdit/{api,links,page}.ts(x)`, `state/useRuleSetEdit.ts`, `cards/{RuleSetCard,RuleListGrid,SetIoTables,GuideCard}.tsx`,
+  `M/tests/dme/ruleSetEdit/rule-set-edit-page.test.ts`(17건), `M/tsup.config.ts`(ruleSetEdit 한 줄), `src/frontend/m-mcm/lib/generated/page-registry.ts`(생성기로 재생성, `dme/ruleSetEdit` 한 줄).
+  B5 의 `set-model.ts`·`types.ts` 는 고치지 않고 그대로 썼다(어긋난 곳 없음).
+- TDD: 레이아웃만 그리는 `page.tsx` 스텁으로 새 테스트 17건 모두 실패를 확인한 뒤 구현했다. 구현 뒤 17건 통과, `vitest related <바꾼 파일> --run` 1파일 17건 통과,
+  m-mdm lint(`tsc --noEmit`) 통과, mantine·aggrid audit 두 명령 모두 `pages/dme/ruleSetEdit` 10파일 의심 0건, `heavy.sh pnpm build:libs` 가 새 entry(`dist/pages/dme/ruleSetEdit/page.js`)까지 빌드했다.
+- 드래그는 `@dk-oasis/shared/grid` 를 부분 모의해 룰 목록 그리드(rowKey `ruleId`)의 props 를 잡고 `onRowOrderChange` 를 직접 불러 모사한다(실제 그리드는 그대로 그린다).
+  브라우저의 실제 끌어 놓기는 B8 e2e E3 가 본다.
+- 변이 검증: 원본을 scratchpad 로 복사해 두고 변이 넣기 → 대상 한 파일 `vitest run … --bail=1` → 사본으로 되돌리기를 규칙마다 반복하는 스크립트를 `heavy.sh` 로 감싸 두 번(7건씩) 돌렸다(예외·SIGTERM 에도 되돌림).
+  14건 모두 잡혔다. 끝난 뒤 `git status` 로 작업 트리가 커밋과 같음을 확인했다.
+- B8 에 넘길 것: e2e 가 쓸 testid 는 §6.9 그대로이고 위 「설계 이탈」 B6 항목의 것이 더 있다. 현재 세트 표시(`set-edit-current`)는 `ID · 세트명` 이라 e2e 는 `toContainText` 로 본다.
+  서버 거부 문구(E4)와 MDM001 안내(E8)는 `set-message` 에, MDM001 의 "다시 불러오기" 버튼은 카드 버튼 줄에 있다.
