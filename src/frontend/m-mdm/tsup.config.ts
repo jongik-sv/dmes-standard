@@ -47,6 +47,7 @@ export default defineConfig([
       "pages/dme/ruleMng/page": "pages/dme/ruleMng/page.tsx",
       "pages/dme/ruleEdit/page": "pages/dme/ruleEdit/page.tsx",
       "pages/dme/ruleSetMng/page": "pages/dme/ruleSetMng/page.tsx",
+      "pages/dme/ruleSetEdit/page": "pages/dme/ruleSetEdit/page.tsx",
     },
   },
 ]);
