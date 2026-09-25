@@ -322,7 +322,8 @@ public static Summary summarize(MasterCodeVersionView base /* nullable */, Maste
 ## 도커 금지로 생략한 검증
 
 - 금지 모드 출처: 워커 기본(DOCKER=allow 아님)
-- 해당 없음 — 이번 Task 는 Flyway 마이그레이션도 새 네이티브 SQL 도 추가하지 않는다. 확정 UPDATE 는 TSK-01-03 의 `VersionRowStore` 가 이미 가진 SQL 을 그대로 쓰고, 새 조회는 기존 `MasterCodeLedgerQueries`·`viewAt` 만 쓴다. 그래서 이 Task 몫의 MSSQL 실측 대상이 없다. 기존 `mssqlMigrationTest`(`MasterCodeVersionStateMssqlTest` 등)는 기준선 명령에 원래 들어 있지 않아 제외할 것도 없다.
+- 도커 금지로 생략: cd src/backend/mdm && ../gradlew :api:mssqlMigrationTest
+- 사유(마감 때 오케스트레이터가 보정): 이번 Task 는 Flyway 마이그레이션도 새 네이티브 SQL 도 추가하지 않는다(확정 UPDATE 는 TSK-01-03 `VersionRowStore` 의 기존 SQL, 새 조회는 기존 `MasterCodeLedgerQueries`·`viewAt`). 다만 운영 SPI `@Component` `MasterCodeConfirmCheck` 를 등록해 `VersionScenarioTestConfig` 로 컨텍스트를 올리는 `VersionStateServiceMssqlTest`·`MasterCodeVersionStateMssqlTest` 의 컨텍스트가 바뀐다. 같은 설정의 SQLite 쌍(`VersionStateServiceSqliteTest`·`MasterCodeVersionStateSqliteTest`)은 게이트에서 통과했으나 MSSQL 쌍은 도커 금지로 돌리지 못했다. 머지 뒤 방언 검증(dialect_check)이 확인한다. 수용 기준 1~5 는 SQLite·vitest·Playwright 로 모두 확인했으므로 이 생략으로 확인하지 못한 수용 기준은 없다.
 
 ## 담당자 확인 필요 결정
 
