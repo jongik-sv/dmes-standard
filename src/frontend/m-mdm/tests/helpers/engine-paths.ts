@@ -14,5 +14,10 @@ export const ANALYSIS_CORPUS_PATH = path.join(
   ENGINE_ROOT,
   "src/test/resources/kr/dongkuk/maru/mdm/engine/analysis/analysis-corpus.json",
 );
+/** TSK-08-06 §3.3 — 세트 계산 코퍼스(한 벌, mdm/lib test resources). Java `RuleSetCorpusTest` 와 함께 읽는다. */
+export const RULE_SET_CORPUS_PATH = path.resolve(
+  __dirname,
+  "../../../../backend/mdm/lib/src/test/resources/com/dongkuk/dmes/mdm/common/rule/rule-set-corpus.json",
+);
 export const JAVA_EXPR_DIR = path.join(ENGINE_ROOT, "src/main/java/kr/dongkuk/maru/mdm/engine/expr");
 export const PACKAGE_ROOT = path.resolve(__dirname, "../..");

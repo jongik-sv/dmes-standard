@@ -30,6 +30,22 @@
 | I16(B1) | DICT·PROG 이름도 거슬러 찾음 | `RuleSetGuideTest` | 잡힘 |
 | I16(B1) | 생산자 없는 NONE 이름 오류를 건너뜀 | `RuleSetGuideTest` | 잡힘 |
 | I16(B1) | 순환 검출 삭제 | `RuleSetGuideTest` | 잡힘 |
+| I9(TS, B5) | TS CYCLE 문구만 바꿈("결과 변수"→"결과변수", `set-model.ts`) | `rule-set-corpus.test.ts` | 잡힘 |
+| I9(TS, B5) | TS 검사 순서 뒤집음(`setChecks` 결과 reverse) | `rule-set-corpus.test.ts` | 잡힘 |
+| I9(TS, B5) | ORDER 문구에 뒤 생산자 첫 룰만(`later.join` → `later[0]`) | `rule-set-corpus.test.ts` | 잡힘 |
+| I9(TS, B5) | DUP_RESULT 심각도 WARN→REJECT | `rule-set-corpus.test.ts` | 잡힘 |
+| I9(TS, B5) | 순환 겹침에서 상대의 DICT 조건 제외 | `rule-set-corpus.test.ts` | 잡힘 |
+| I10(TS, B5) | readers 계산에 뒤 룰 포함(결과 행을 목록 전체에서 먼저 만듦) | `set-model.test.ts` "앞 룰이 만든 이름만 readers …" | 잡힘 |
+| I10(TS, B5) | 같은 변이 — 코퍼스만 | `rule-set-corpus.test.ts` | 잡힘 |
+| I10(TS, B5) | 최종 결과 판정 바꿈(`isFinalResult`: readers 비었음 → by 1개) | `set-model.test.ts` | 잡힘 |
+| I11(TS, B5) | `setDeps` 의 DICT 제외 삭제 | `rule-set-corpus.test.ts`("DICT 이름을 만드는 룰" 사례) | 잡힘 |
+| I11(TS, B5) | 같은 변이 — `set-model.test.ts` 만 | `set-model.test.ts` "의존은 DICT 가 아닌 …" | 안 잡힘(보강함) — DICT 이름만 만드는 룰 `K` 를 더해 다시 돌려 잡힘 |
+| I11(TS, B5) | `setDeps` 의 자기 제외 삭제 | `set-model.test.ts` | 잡힘 |
+| I11(TS, B5) | 뒤에 있음 비교 반대로(`laterDeps` `>` → `<`) | `set-model.test.ts` "뒤에 있음은 …" | 잡힘 |
+| I8(TS, B5) | 순환을 직접 의존·겹침으로만 봄(`reaches` 삭제) | `set-model.test.ts` 세 룰 고리 | 잡힘 |
+| I8(TS, B5) | PROG 통과 삭제(PROG 도 UNKNOWN_INPUT) | `set-model.test.ts` | 잡힘 |
+| §6.9 condMarks(B5) | "앞에 없음" 을 붉은 칩 전부에 붙임 | `set-model.test.ts` | 잡힘 |
+| §6.9 condMarks(B5) | 앞에서 이미 만든 PROG 도 보통 칩 | `set-model.test.ts` | 잡힘 |
 
 B7 변이는 작업 트리에서만 넣고 규칙마다 `git checkout -- <파일>` 로 되돌렸다(`trap`). 대상 테스트 한 파일을 `vitest run … --bail=1` 로 돌렸다.
 
@@ -68,3 +84,22 @@ B1 담당 범위 밖: I8 의 "REJECT 가 있으면 저장·되살리기 거부"�
 - 중간 이름의 "`{x}`를 만드는 룰이 없다" 오류는 곧바로 돌려준다(`order`·`ambiguous` 빈 목록).
 - `cyc` 는 의사코드대로 방문 중(state 1)인 노드를 만날 때마다 덮어쓴다. 두 룰 순환(`E2S_CYA`↔`E2S_CYB`, 대상 `S_CYA`)의 메시지는 "순환이 있다(E2S_CYA). …" 다.
 - `producers` 가 null 을 돌려주면 빈 목록으로 본다. 화면 이식은 없다(서버 전용).
+
+## B5 — FE 세트 계산 TS 이식 (`set-model.ts`·타입·코퍼스 Vitest 러너)
+
+- 파일: `M/pages/dme/ruleSetEdit/{types,set-model}.ts`, `M/tests/dme/ruleSetEdit/{set-model,rule-set-corpus}.test.ts`, `M/tests/helpers/engine-paths.ts`(`RULE_SET_CORPUS_PATH` 한 줄).
+- TDD: 시그니처만 둔 스텁(빈 값 반환)으로 두 파일을 먼저 돌려 32건 중 29건 실패를 확인한 뒤 구현했다(스텁에서 통과한 셋은 빈 목록 입출력 표·코퍼스 version/하한·사본 없음). 구현 뒤 32건 통과,
+  `vitest related <바꾼 파일> --run` 8파일 286건 통과, m-mdm lint(`tsc --noEmit`) 통과.
+- 이식 기준은 Java `RuleSetAnalyzer`(d21125f) 코드다 — 1단계는 ids 를 중복 제거 없이 훑고, `setDeps` 만 첫 자리 하나를 키로 둔다. `reaches` 는 시작점을 방문 집합에 먼저 넣고 `b === target` 을 방문 여부보다 먼저 본다.
+  UNKNOWN_INPUT 은 `source !== "PROG"`(source 가 null 인 조건도 거부)다. 비어 있는 칸은 null 로 낸다(코퍼스 러너는 기대값만 `?? null` 로 채우고 실제 값은 그대로 `toStrictEqual`).
+- 코퍼스 러너: Java 러너와 같은 단언(version 1·하한 `MIN_CASES = 14`·name 중복 없음·빠진 칸 채우기)에 더해, 08-02 선례대로 "m-mdm 안에 코퍼스 사본이 없다" 를 본다. `deps` 는 `Object.entries` 로 키 순서까지 비교한다.
+- 변이 검증: 원본을 scratchpad 로 복사해 두고, 변이 넣기 → 대상 한 파일 `vitest run … --bail=1` → 사본으로 되돌리기를 규칙마다 반복하는 스크립트 하나를 `heavy.sh` 로 감싸 돌렸다(SIGTERM·예외에도 되돌림).
+  보강한 한 건(I11 DICT 제외, `set-model.test.ts`)은 테스트를 고친 뒤 그 변이 하나만 다시 돌려 잡힘을 확인하고 되돌렸다.
+
+### B6 가 쓰는 공개 함수·타입
+
+- `setIo(ids, rules)`·`setDeps(ids, rules)`·`setChecks(ids, rules)`: 서버와 같은 결과. `rules` 는 `RuleIoMap`(= `Record<룰 ID, RuleIo | undefined>`, 없는 키는 없는 룰).
+- `isFinalResult(row)`: 결과 표의 최종/중간 구분(readers 가 비면 최종).
+- `condMarks(ids, rules)`: ids 와 같은 자리의 `CondMark[]` 배열. `red` = 붉은 칩, `missingBefore` = "앞에 없음" 배지. 시안 H:2196 그대로 앞 룰이 이미 만든 이름도 DICT 가 아니면 붉은 칩(배지 없음)이다.
+- `laterDeps(ids, setDeps(...))`: 룰 ID → 목록에서 그 룰보다 뒤에 있는 의존 룰(= "뒤에 있음" 배지 `set-dep-later-{id}-{dep}` 를 달 대상).
+- `types.ts` 에 §6.5 view·save·status 응답과 search 세 갈래(SET `RuleSetPickResult`·RULE `RuleSetRuleSearchResult`·GUIDE `GuideResult`) 모양을 모두 두었다 — B6 는 이 파일을 고치지 않고 쓴다.
