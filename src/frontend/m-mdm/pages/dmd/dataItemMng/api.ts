@@ -47,15 +47,26 @@ export function viewDataItems(maruDataId?: string): Promise<DataItemViewResult> 
   return callOasis<DataItemViewResult>("dataItemMng", "view", { maruDataId });
 }
 
-export function searchDataItems(filters: DataItemFilters, page: number, size: number): Promise<DataItemSearchResult> {
+/**
+ * withTree=true 면 응답에 `tree`(열린 행만, I6)가 함께 온다 — 그리드 페이징(list/totalCount)과는 별개 조회라
+ * `ItemTreePanel` 을 처음 그릴 때만 부른다(design.md §2 "별도(비페이징) 조회").
+ */
+export function searchDataItems(
+  filters: DataItemFilters,
+  page: number,
+  size: number,
+  withTree = false,
+): Promise<DataItemSearchResult> {
   return callOasis<DataItemSearchResult>("dataItemMng", "search", {
     maruDataId: filters.maruDataId,
     code: filters.code.trim(),
     name: filters.name.trim(),
     cateId: filters.cateId,
     showClosed: filters.showClosed,
+    nodeFilter: filters.nodeFilter,
     page,
     size,
+    withTree,
   });
 }
 

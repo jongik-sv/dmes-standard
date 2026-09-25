@@ -2,7 +2,7 @@
 // 트리 블록과 buildCodeTree 결과를 같은 줄 모양으로 그려 글자 단위로 비교한다. 줄 모양(§1.4-1): 깊이마다 공백 3칸 +
 // 마커 2글자(▸ 자식 있음 / · 코드 행 있음) + " " + 값 + (코드면 "  (" + 이름 + ")").
 import { describe, expect, it } from "vitest";
-import { buildCodeTree, toTreeItems, type CodeTreeNode } from "../../../pages/dmc/codeItemEdit/code-tree";
+import { buildCodeTree, toTreeItems, type CodeTreeNode } from "@/hier-tree";
 import { ORG, STEEL_STD, simBlock } from "./sim-fixtures";
 
 /** 시험 전용 출력기 — 제품 코드에 두지 않는다(§4.8). */

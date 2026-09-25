@@ -28,9 +28,16 @@ describe("dataItemMng api", () => {
   it("빈 조건은 params 키에서 빠지고 null 이 없다", async () => {
     await searchDataItems({ ...emptyFilters(), maruDataId: "PORT" }, 0, 50);
     const params = bodies[0].params as Record<string, unknown>;
-    expect(params).toEqual({ maruDataId: "PORT", showClosed: false, page: 0, size: 50 });
+    // nodeFilter 는 emptyFilters() 가 null 이라 A4(F14)로 키째 빠진다. withTree 는 boolean(false)이라 빠지지 않는다.
+    expect(params).toEqual({ maruDataId: "PORT", showClosed: false, page: 0, size: 50, withTree: false });
     expect(Object.values(params).some((v) => v === null || v === "" || Array.isArray(v))).toBe(false);
     expect((bodies[0].meta as Record<string, unknown>).menuId).toBe("dataItemMng");
+  });
+
+  it("withTree=true·nodeFilter 를 주면 그대로 실린다(TSK-07-04 design.md §2)", async () => {
+    await searchDataItems({ ...emptyFilters(), maruDataId: "PORT", nodeFilter: "KR" }, 0, 1, true);
+    const params = bodies[0].params as Record<string, unknown>;
+    expect(params).toEqual({ maruDataId: "PORT", showClosed: false, nodeFilter: "KR", page: 0, size: 1, withTree: true });
   });
 
   it("닫기는 row_version 을 expectedRowVersion 으로 보낸다", async () => {

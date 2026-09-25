@@ -3,7 +3,7 @@
  * 그 칸이 비지 않은 행은 그룹, 비어 있는 행은 코드다. 앞 단계에서 고른 값 하나가 조건이다(그룹 값은 마루 코드 안에서 유일).
  * 정렬은 `ORDER BY is_code DESC, value` — 코드인 항목(그룹+코드 포함)을 먼저, 그 안은 값 순이다(seq 가 아니다).
  */
-import { cmp, LVL_KEYS, type HierRow } from "./code-tree";
+import { cmp, LVL_KEYS, type HierRow } from "@/hier-tree";
 
 export type ComboKind = "그룹" | "코드" | "그룹+코드";
 
