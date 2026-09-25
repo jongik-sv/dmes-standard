@@ -13,9 +13,10 @@ action=lock     -&gt; lockTask (ruleEditService.lock) EDIT — DraftOwnershipSer
 action=unlock   -&gt; unlockTask (ruleEditService.unlock) EDIT — DraftOwnershipService.release
 action=handover -&gt; handoverTask (ruleEditService.handover) EDIT — DraftOwnershipService.handover
 action=validate -&gt; validateTask (ruleEditService.parseExpr) EDIT — 식 입력 칸 서버 파싱(AST·참조 변수·화면 평가 가능 여부, TSK-08-03). 열 편집자만 부르므로 EDIT
+action=execute  -&gt; executeTask (ruleEditService.runTest) EDIT — 값 테스트(TSK-08-04 D3): target VERSION(저장된 버전)·BODY(편집 중인 행, grids.rows) 판정 + runCases. 원장에 쓰지 않는다
 
 BPMN 의 action(RBAC 키, mcm 시드 어휘 16종 — 새 action 을 만들 수 없다)과 서비스의 method(자바 메서드명)는 별개다. 같은 action 안의 갈래(part·target)는 Java 가 가른다(두 번째 게이트웨이를 두지 않는다).
-확장 지점: 08-04 는 validate action 을 값 테스트에도 쓴다면 요청의 target 으로 Java 가 가른다(두 번째 게이트웨이 금지).</bpmn:documentation>
+값 테스트는 validate 가 아니라 execute action 이다(TSK-08-04 D3 — validate 는 식 파싱 DTO 를 쓴다). 대상(VERSION·BODY)은 Java 가 가른다(두 번째 게이트웨이 금지).</bpmn:documentation>
     <bpmn:startEvent id="start" name="시작">
       <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
     </bpmn:startEvent>
@@ -35,6 +36,7 @@ BPMN 의 action(RBAC 키, mcm 시드 어휘 16종 — 새 action 을 만들 수 
       <bpmn:outgoing>flow_unlock</bpmn:outgoing>
       <bpmn:outgoing>flow_handover</bpmn:outgoing>
       <bpmn:outgoing>flow_validate</bpmn:outgoing>
+      <bpmn:outgoing>flow_execute</bpmn:outgoing>
     </bpmn:exclusiveGateway>
     <bpmn:serviceTask id="searchTask" name="룰 고르기" camunda:class="ruleEditService">
       <bpmn:extensionElements>
@@ -181,6 +183,22 @@ BPMN 의 action(RBAC 키, mcm 시드 어휘 16종 — 새 action 을 만들 수 
     </bpmn:endEvent>
     <bpmn:sequenceFlow id="flow_validate" name="validate" sourceRef="actionGateway" targetRef="validateTask" />
     <bpmn:sequenceFlow id="flow_validate_end" sourceRef="validateTask" targetRef="end_validate" />
+    <bpmn:serviceTask id="executeTask" name="값 테스트" camunda:class="ruleEditService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="runTest" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleTestRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_execute</bpmn:incoming>
+      <bpmn:outgoing>flow_execute_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_execute" name="값 테스트 완료">
+      <bpmn:incoming>flow_execute_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_execute" name="execute" sourceRef="actionGateway" targetRef="executeTask" />
+    <bpmn:sequenceFlow id="flow_execute_end" sourceRef="executeTask" targetRef="end_execute" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="ruleEdit">
@@ -355,6 +373,24 @@ BPMN 의 action(RBAC 키, mcm 시드 어휘 16종 — 새 action 을 만들 수 
       <bpmndi:BPMNEdge id="flow_validate_end_di" bpmnElement="flow_validate_end">
         <di:waypoint x="520" y="940" />
         <di:waypoint x="620" y="936" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="executeTask_di" bpmnElement="executeTask">
+        <dc:Bounds x="420" y="1000" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_execute_di" bpmnElement="end_execute">
+        <dc:Bounds x="620" y="1018" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_execute_di" bpmnElement="flow_execute">
+        <di:waypoint x="275" y="450" />
+        <di:waypoint x="275" y="1040" />
+        <di:waypoint x="420" y="1040" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="327.5" y="1023" width="56" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_execute_end_di" bpmnElement="flow_execute_end">
+        <di:waypoint x="520" y="1040" />
+        <di:waypoint x="620" y="1036" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

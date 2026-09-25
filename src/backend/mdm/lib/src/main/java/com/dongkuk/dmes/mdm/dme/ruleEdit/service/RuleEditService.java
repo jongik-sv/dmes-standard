@@ -15,6 +15,8 @@ import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleExprParseRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleExprParseResult;
+import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleTestRequest;
+import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleTestResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleVersionRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleVersionResult;
 import com.ezylang.evalex.parser.ParseException;
@@ -34,7 +36,8 @@ import org.springframework.stereotype.Service;
 
 /**
  * 룰 화면({@code ruleEdit}) OASIS 진입 파사드 — TSK-08-02 design §6.1. BPMN {@code services/dme/ruleEdit.bpmn} 의 분기와 1:1:
- * search({@link #searchRules})·view·save·delete·copy({@link #newVersion})·lock·unlock·handover·parseExpr·searchDomains(TSK-08-03).
+ * search({@link #searchRules})·view·save·delete·copy({@link #newVersion})·lock·unlock·handover·parseExpr·searchDomains(TSK-08-03)·
+ * execute({@link #runTest}, 값 테스트 — TSK-08-04 D3).
  * 업무 규칙은 두지 않고 카드별 서비스에 넘긴다. save 는 {@code part} 로 {@link RuleEditSavePart} 빈을, delete 는 {@code target}(VERSION·RULE)으로
  * 서비스를 고른다.
  *
@@ -53,11 +56,13 @@ public class RuleEditService {
     private final ExpressionChecker checker;
     private final MdmEvaluator evaluator;
     private final DomainTreeReader domainTreeReader;
+    private final RuleValueTestService valueTestService;
     private final Map<String, RuleEditSavePart> parts = new HashMap<>();
 
     public RuleEditService(RuleQueries queries, RuleViewService viewService, RuleVersionService versionService,
                            RuleHeaderService headerService, ExpressionChecker checker, MdmEvaluator evaluator,
-                           DomainTreeReader domainTreeReader, List<RuleEditSavePart> saveParts) {
+                           DomainTreeReader domainTreeReader, RuleValueTestService valueTestService,
+                           List<RuleEditSavePart> saveParts) {
         this.queries = queries;
         this.viewService = viewService;
         this.versionService = versionService;
@@ -65,6 +70,7 @@ public class RuleEditService {
         this.checker = checker;
         this.evaluator = evaluator;
         this.domainTreeReader = domainTreeReader;
+        this.valueTestService = valueTestService;
         for (RuleEditSavePart part : saveParts) {
             if (parts.put(part.part(), part) != null) {
                 throw new IllegalStateException("같은 저장 부분이 둘이다: " + part.part());
@@ -137,6 +143,11 @@ public class RuleEditService {
     // action: handover
     public RuleVersionResult handover(RuleVersionRequest request) {
         return versionService.handover(request);
+    }
+
+    // action: execute(BPMN) → runTest — 값 테스트(TSK-08-04 D3). 저장된 버전·편집 중인 본문을 판정하고 원장에 쓰지 않는다.
+    public RuleTestResult runTest(RuleTestRequest request) {
+        return valueTestService.run(request);
     }
 
     // action: validate(BPMN) → parseExpr — 식 입력 칸의 디바운스 파싱(서버 EvalEx 단일 진원, 불변 9). 화면은 파싱 결과만 해석한다.

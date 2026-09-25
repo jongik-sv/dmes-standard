@@ -121,6 +121,36 @@ class DmeOasisHttpTest {
         assertEquals(2, v.path("rows").size());
     }
 
+    /** TSK-08-04 — 값 테스트(execute)는 실제 BPMN 을 타고 원장에 쓰지 않는다. 비소유 담당자도 부른다(D3). BODY 행은 grids.rows.rows. */
+    @Test
+    void 값_테스트는_저장된_버전과_편집_본문을_판정하고_비소유_담당자도_부른다() throws Exception {
+        registerByKim();
+        assertTrue(post("ruleEdit", "save", "kim", tableBody(0)).path("meta").path("success").asBoolean(false));
+
+        JsonNode version = post("ruleEdit", "execute", "lee", envelope("ruleEdit", json.createObjectNode().put("maruRuleId", "HTTP_JDG")
+                .put("target", "VERSION").put("ver", 1).put("inputJson", "{\"COIL_THK\":\"3\"}")));
+        assertTrue(version.path("meta").path("success").asBoolean(false), version.toString());
+        JsonNode v = version.path("data").path("result");
+        assertEquals("OK", v.path("outcome").asText(), version.toString());
+        assertEquals("B", v.path("results").path("GRD").asText(), version.toString());
+        assertEquals(2, v.path("hits").path(0).path("rowId").asInt(), version.toString());
+        assertEquals("COIL_THK", v.path("contract").path("always").path(0).asText(), version.toString());
+
+        ObjectNode params = json.createObjectNode().put("maruRuleId", "HTTP_JDG").put("target", "BODY").put("ver", 1).put("hitPolicy", "UNIQUE")
+                .put("inputJson", "{\"COIL_THK\":\"2\"}").put("runCases", true);
+        ObjectNode body = envelope("ruleEdit", params);
+        body.putObject("grids").putObject("rows").putArray("rows").addObject().put("rowId", -1).put("rowKind", "NORMAL")
+                .put("cells", "{\"1\":{\"op\":\"GE\",\"left\":\"1.9\"},\"2\":{\"val\":\"Z\"}}");
+        JsonNode edited = post("ruleEdit", "execute", "kim", body);
+        assertTrue(edited.path("meta").path("success").asBoolean(false), edited.toString());
+        JsonNode b = edited.path("data").path("result");
+        assertEquals("Z", b.path("results").path("GRD").asText(), edited.toString());
+        assertEquals(-1, b.path("hits").path(0).path("rowId").asInt(), edited.toString());
+        assertTrue(b.path("cases").isArray() && b.path("cases").isEmpty(), edited.toString());
+        assertEquals(2, DmeTestSupport.count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'HTTP_JDG'"), "원장에 쓰지 않는다");
+        assertEquals(1L, DmeTestSupport.rowVersion(jdbc, "HTTP_JDG", 1));
+    }
+
     @Test
     void 다른_담당자는_읽기만_되고_쓰기는_모두_MDM003_이다() throws Exception {
         registerByKim();

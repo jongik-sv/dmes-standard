@@ -93,7 +93,7 @@ public class RuleTableService implements RuleEditSavePart {
         return PART;
     }
 
-    private record RequestedRow(int rowId, String rowKind, String cells, Map<Integer, Map<String, Object>> parsed, String note) {
+    record RequestedRow(int rowId, String rowKind, String cells, Map<Integer, Map<String, Object>> parsed, String note) {
     }
 
     private record Saved(long rowVersion, Map<String, Integer> rowIdMap, List<Map<String, Object>> rows, List<StoredRow> stored,
@@ -200,8 +200,8 @@ public class RuleTableService implements RuleEditSavePart {
         return RuleCheckReport.issue(RuleSaveIssueCode.LIMIT_EXCEEDED.name(), RuleCheckReport.ERROR, rowIds, null, message);
     }
 
-    /** 검사기 입력 행 — 모양 검사를 통과한 셀, 새 행은 임시 번호 그대로, seq 는 INSERT 와 같은 규칙(NORMAL 1..n, DEFAULT 0). */
-    private static List<DraftRow> draftRows(List<RequestedRow> rows) {
+    /** 검사기 입력 행(값 테스트 BODY 도 쓴다) — 모양 검사를 통과한 셀, 새 행은 임시 번호 그대로, seq 는 INSERT 와 같은 규칙(NORMAL 1..n, DEFAULT 0). */
+    static List<DraftRow> draftRows(List<RequestedRow> rows) {
         List<DraftRow> out = new ArrayList<>(rows.size());
         int seq = 0;
         for (RequestedRow r : rows) {
@@ -223,8 +223,8 @@ public class RuleTableService implements RuleEditSavePart {
         return out;
     }
 
-    /** DECISION 은 다섯 정책 중 하나(필수), DERIVE 는 비어 있어야 한다. */
-    private static String hitPolicy(String ruleKind, String raw) {
+    /** DECISION 은 다섯 정책 중 하나(필수), DERIVE 는 비어 있어야 한다. 값 테스트 BODY 도 쓴다. */
+    static String hitPolicy(String ruleKind, String raw) {
         String hit = raw == null || raw.isBlank() ? null : raw.trim();
         if ("DERIVE".equals(ruleKind)) {
             if (hit != null) {
@@ -241,7 +241,7 @@ public class RuleTableService implements RuleEditSavePart {
         return hit;
     }
 
-    private static List<RequestedRow> checkRows(MdmRule rule, List<Map<String, Object>> requested, Set<Integer> varIds, Set<Integer> existing) {
+    static List<RequestedRow> checkRows(MdmRule rule, List<Map<String, Object>> requested, Set<Integer> varIds, Set<Integer> existing) {
         List<RequestedRow> rows = new ArrayList<>(requested.size());
         Set<Integer> seen = new HashSet<>();
         int defaults = 0;
