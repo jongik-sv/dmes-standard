@@ -463,7 +463,7 @@
 ### 의도해서 뒤집은 기존 기대값(§3.5)
 
 - e2e S5 `…오류가 있어도 저장되고 새 행 번호가 남는다` → `…조건이 전부 - 인 행은 저장이 거부되고 조건을 채우면 저장되어 새 행 번호가 남는다`: 원래 "결과 QLTY_GRD 만 D 로 적은 새 행(ALL_NA_ROW)이
-  저장되고 `dt-row-5`·`[ALL_NA_ROW] 행 5`" → 새 기대 "결과 둘(D·0.80)을 채운 전부 NA 행 저장은 `dt-save-rejected` 에 `룰 저장 거부`·`ALL_NA_ROW` 로 거부되고 새 행 `-2`·dirty 가 남는다,
+  저장되고 `dt-row-5`·`[ALL_NA_ROW] 행 5`" → 새 기대 "결과 QLTY_GRD 만 채운 새 행 저장은 `INCOMPLETE_RESULT`(미완성, I4)로 거부되고, 결과 둘(D·0.80)을 채운 전부 NA 행 저장은 `dt-save-rejected` 에 `룰 저장 거부`·`ALL_NA_ROW` 로 거부되고 새 행 `-2`·dirty 가 남는다,
   표면등급 IN D 를 채워 저장하면 `dt-row-5`(거부된 저장은 번호를 발급하지 않았다 — I1)" · 근거 수용 기준 1, 06:338-341, design §3.4. `[ALL_NA_ROW] 행 5` 단언은 없앴다(그 행은
   더 이상 ALL_NA 가 아니다). 결과 칸을 둘 다 채운 것은 검사기가 앞 단계(미완성) ERROR 가 있으면 분석기를 돌리지 않아(`RuleSaveValidator` §7.12) 결과 셀이 빠진 행은 `ALL_NA_ROW` 가
   아니라 미완성으로만 거부되기 때문이다.
@@ -484,9 +484,12 @@
 ### 보고
 
 - e2e 최종: 새 DB 로 `e2e/mdm-shell-rbac-smoke.spec.ts e2e/mdm-ruleMng.spec.ts e2e/mdm-ruleEdit.spec.ts --workers=1` 36 passed(ruleEdit 25 = S1~S11·C1~C6·C2b·C2c·V1~V6), skipped·failed 0.
-  08-03 C 시나리오(C1 열 적용·C2 피벗 저장·C3 산출 룰 열 적용)는 새 검사에 거부되지 않았다.
+  08-03 C 시나리오(C1 열 적용·C2 피벗 저장·C3 산출 룰 열 적용)는 새 검사에 거부되지 않았다. S5 에 미완성 거부 단계(I4)를 더한 뒤 새 DB 로 다시 돌린 첫 실행은
+  V6 로그인에서 mcm `SQLITE_BUSY`(`TB_MCM_SEC_USER` 실패 횟수 UPDATE, 부하 평균 약 5)로 1건 실패했고(35 passed), 바꾼 것 없이 새 DB 로 다시 돌려 36 passed 였다.
 - 실행 중 `src/frontend/m-mcm/next-env.d.ts`(next dev 가 고침)와 추적되는 `src/frontend/test-results/…/error-context.md`(Playwright 가 지움)가 바뀌어 `git checkout --` 으로 되돌렸다.
 - V5 는 메시지에 `MDM021` 글자가 실리는지 보지 않고 B4 문구 "값 테스트 요청 상한" 으로 확인한다.
+- B9 담당 규칙 → e2e 사례: I1(거부는 쓰기 전) → S5(거부 두 번 뒤 새 행이 row 5)·S6·V6(다시 불러오면 바뀌지 않음), I3(분석기 ERROR 거부·경고 통과) → S5(`ALL_NA_ROW`)·
+  S6(FIRST 겹침 저장·UNIQUE `OVERLAP` 거부)·V6, I4(미완성 거부) → S5(`INCOMPLETE_RESULT`), 스모크 넷 1 → V1·S1, 2 → V1(케이스 표·`tc-empty`), 3 → V4(케이스로 저장), 4 → V5.
 
 ## 변이 검증 기록
 

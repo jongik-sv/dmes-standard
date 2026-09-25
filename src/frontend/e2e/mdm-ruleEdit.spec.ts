@@ -203,6 +203,13 @@ test.describe("mdm dme/ruleEdit", () => {
     await page.getByRole("button", { name: "행 추가", exact: true }).click();
     await expect(page.getByTestId("dt-row--2")).toBeVisible();
     await editText(page, -2, "c4_val", "D");
+    // 결과 PRC_FCT 칸이 없으면 미완성으로 거부된다(I4).
+    await page.getByRole("button", { name: "표 저장", exact: true }).click();
+    await expect(page.getByTestId("dt-save-rejected")).toContainText("룰 저장 거부", { timeout: 30_000 });
+    await expect(page.getByTestId("dt-save-rejected")).toContainText("INCOMPLETE_RESULT");
+    await closeErrorModal(page);
+    await expect(page.getByTestId("dt-row--2")).toBeVisible();
+
     await editText(page, -2, "c5_val", "0.80");
     await page.getByRole("button", { name: "표 저장", exact: true }).click();
     await expect(page.getByTestId("dt-save-rejected")).toContainText("룰 저장 거부", { timeout: 30_000 });
