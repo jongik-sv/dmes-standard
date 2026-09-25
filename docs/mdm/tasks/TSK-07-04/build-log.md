@@ -88,6 +88,89 @@ B2 를 커밋(14db376)하고, 위 표는 그 커밋 뒤 다시 돈 결과로 교
 - 변이 검증(I8, 이 단위 담당): 위 「변이 검증 기록」 표 참고.
 - 도커 금지로 생략한 검증: 없음(이 단위는 프런트엔드 vitest·lint만 다뤘다, gradlew 호출 없음).
 
+## B4
+
+마지막 단위(design.md 「구현 단위」 표) — e2e·통합. B1·B2·B3 완료 뒤 시작, 이 단위가 만든 파일만 고쳤다
+(`src/frontend/e2e/mdm-dataItemMng.spec.ts` 확장, `src/frontend/e2e/mdm-dataCsvUploadPop.spec.ts` 신규,
+`src/frontend/e2e/fixtures/mdm-dataItem.sql` 추가, 스크린샷).
+
+- **변이 검증 담당 없음** — design.md 「구현 단위」 표의 B4 행이 명시한 대로 I1~I8 은 모두 B1~B3 가 담당 단위에서
+  끝냈다(위 「변이 검증 기록」 표). 이 단위는 그 결과가 E2E 로도 관통되는지만 확인한다 — 「변이 검증 기록」 표에 B4
+  행이 없는 것은 커버리지 구멍이 아니라 표대로다.
+- **`mdm-dataItemMng.spec.ts`(확장)** — 기존 S1~S4 는 그대로 두고 S5·S6 을 더했다. S5: PORT 선택 → 트리 탭 전환 →
+  `withTree=true` 응답으로 `KR (n건)`·`CN (n건)` 그룹 노드가 채워짐(건수는 다른 시나리오가 늘릴 수 있어 정규식으로
+  검사) + "CSV 업로드" 버튼이 PORT(MDM·편집 가능)에서 활성·CUST(EXTERNAL)에서 비활성(Q6 과 같은 판정) + `EMPTY`
+  선택 시 트리 빈 상태(`item-tree-empty`). S6: KR 그룹 노드 선택 → "이 노드로 보기" → `nodeFilter=KR` 로 그리드 재조회
+  → KRPUS·KRINC 는 보이고 CNSHA 는 빠짐 + 칩("KR 아래") → 칩 ✕ 로 해제 → CNSHA 복귀(I5). 트리 로드와 그리드 조회가
+  같은 `dataItemMng/search` 엔드포인트를 쓰므로(design.md §2) `waitAction(page,"search")` 만으로는 응답을 가르지
+  못해 postData 로 좁히는 `waitTree`/`waitNodeFilter` 헬퍼를 추가했다(`selectMaru` 와 같은 방식).
+- **`mdm-dataCsvUploadPop.spec.ts`(신규)** — `dataCsvUploadPop` 은 팝업이라(D2) `dataItemMng` 화면으로 이동해 "CSV
+  업로드" 버튼으로 연다. C1 팝업 열림, C2 헤더만 있는(0행) CSV 검증 → 결과 0/0/0/0 + 그리드 빈 상태
+  (`.ag-overlay-no-rows-wrapper` 가 ag-grid 컨테이너·우리 컴포넌트 둘 다에 같은 클래스명을 써 `getByText` 로
+  문구를 찾도록 고쳤다), C4 키 패턴 위반 행이 그 줄에만 오류로 붙고(I7, 레코드 번호 헤더=1·데이터=2부터) 저장
+  버튼 비활성, C3 오류 0건 CSV 저장 → 팝업 닫힘 + 목록 반영 + 같은 파일 재업로드 시 전부 NONE(I4, C3 안에서
+  이어서 확인). 대상 마루는 새로 만든 `E2E_DI_CSV`(항목 없음) — `E2E_DI_PORT` 의 KRPUS·KRINC·CNSHA 는 건드리지
+  않는다(아래 「설계 이탈」).
+- **대상 명령**(도커 금지 모드, gradlew 호출 없음 — 이 단위는 프런트엔드 e2e만 다룬다):
+  1. `pnpm exec playwright test e2e/mdm-dataCsvUploadPop.spec.ts e2e/mdm-dataItemMng.spec.ts --list` — 컴파일
+     확인(10 tests, 실패 0).
+  2. 「E2E 서버 절차(TSK-07-04)」(아래)로 서버를 띄우고 `pnpm exec playwright test
+     e2e/mdm-dataCsvUploadPop.spec.ts e2e/mdm-dataItemMng.spec.ts e2e/mdm-dataHistory.spec.ts --workers=1` —
+     `dataHistory` 는 이 단위가 픽스처 파일을 고쳤으므로 함께 돌렸다. 1차 시도(load average 23~30, 같은 머신에서
+     동시에 다른 팀원 e2e·mutation 스윕이 돌고 있었다)는 두 번 연속 서로 다른 테스트가 타임아웃(그리드 overlay
+     렌더 지연·`waitForResponse` 30s 초과)으로 플레이크됐다 — 재현되지 않고 매번 다른 테스트가 걸려 코드 결함이
+     아니라 부하로 판단했다(TSK-07-03 build-log 의 `evalex-perf` 부하 의존 플레이크와 같은 유형). `.ag-overlay-no-rows-wrapper`
+     중복 클래스명 문제(C2)만 실제 버그라 `getByText` 로 고쳤고, 그 뒤 재시도 3차에서 **14 passed(44.7s), 실패 0**.
+  3. `.ag-overlay-no-rows-wrapper` 수정 뒤 `mdm-dataCsvUploadPop.spec.ts` 단독 4/4 통과도 별도로 확인했다.
+- 스크린샷: `docs/mdm/tasks/TSK-07-04/screens/`(신규 폴더) — `dmd-dataItemMng-tree.png`·
+  `dmd-dataItemMng-node-filter.png`·`dmd-dataCsvUploadPop-open.png`·`dmd-dataCsvUploadPop-error.png`·
+  `dmd-dataCsvUploadPop-saved.png`. `dataHistory` 재실행이 `TSK-07-03/screens/*.png` 를 덮어써 커밋 전
+  `git checkout --`로 되돌렸다(TSK-07-03 절차의 8번과 같다).
+- 도커 금지로 생략한 검증: 없음(이 단위는 gradlew 를 부르지 않는다).
+
+### E2E 서버 절차(TSK-07-04)
+
+TSK-07-03 design.md 「E2E 서버 절차」를 이 워크트리·이 Task 값으로 옮겼다(design.md 에는 이 절이 없어 Verify 가
+재현할 수 있도록 여기 남긴다). `be-run.sh`·`fe-run.sh` 는 쓰지 않는다. 포트는 실행 시점에 빈 번호로 다시 고른다.
+
+```bash
+W=<이 워크트리>
+SP=<Build/Verify 실행자의 scratchpad>
+J=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+lsof -iTCP:18741 -sTCP:LISTEN; lsof -iTCP:18742 -sTCP:LISTEN; lsof -iTCP:15741 -sTCP:LISTEN   # 비어 있어야 한다
+cd $W && .claude/skills/dflow-dev/scripts/heavy.sh acquire e2e-TSK-07-04
+mkdir -p $W/src/backend/data
+[ -f $W/src/backend/data/mcm.db ] && mv $W/src/backend/data/mcm.db $W/src/backend/data/mcm.db.bak-$(date +%Y%m%d%H%M%S)
+[ -f $W/src/backend/data/mdm.db ] && mv $W/src/backend/data/mdm.db $W/src/backend/data/mdm.db.bak-$(date +%Y%m%d%H%M%S)
+cd $W/src/backend/mcm && JAVA_HOME=$J ../gradlew :api:bootRun --no-daemon --console=plain \
+  --args='--spring.profiles.active=local --server.port=18741 --mcm.bff.invalidate-role-url=http://127.0.0.1:15741/api/mcm/internal/cache/invalidate-role --cactus.notify.publish-url=http://127.0.0.1:18741/notify/publish' > $SP/be-mcm.log 2>&1 &
+BE_MCM_PID=$!
+cd $W/src/backend/mdm && JAVA_HOME=$J ../gradlew :api:bootRun --no-daemon --console=plain \
+  --args='--spring.profiles.active=local --server.port=18742' > $SP/be-mdm.log 2>&1 &
+BE_MDM_PID=$!
+# 기동 로그(mcm: DataInitializer 완료 줄, mdm: "Started MdmApplication")를 기다린 뒤 SQLite 경로가 $W 안인지 확인.
+cd $W/src/frontend && sqlite3 $W/src/backend/data/mcm.db < e2e/fixtures/mdm-rbac-seed-check.sql | diff - e2e/fixtures/mdm-rbac-seed-check.expected.txt   # 출력 없음 = 통과
+sqlite3 $W/src/backend/data/mcm.db < e2e/fixtures/mdm-rbac-users.sql
+sqlite3 $W/src/backend/data/mdm.db < e2e/fixtures/mdm-dataItem.sql
+cd $W/src/frontend && pnpm build:libs
+cd $W/src/frontend/m-mcm && AUTH_SECRET=$(openssl rand -hex 32) NEXTAUTH_URL=http://127.0.0.1:15741 OIDC_ISSUER=http://127.0.0.1:15741 \
+  MCM_WAS_URL=http://127.0.0.1:18741 MDM_WAS_URL=http://127.0.0.1:18742 BACKEND_API_URL=http://127.0.0.1:18741 \
+  BACKEND_CLIENT_KEY=dmes-bff-local-client-key-2026 pnpm exec next dev --turbopack --port 15741 > $SP/fe.log 2>&1 &
+FE_PID=$!
+cd $W/src/frontend && SMOKE_MCM_BASE_URL=http://127.0.0.1:15741 SMOKE_LOGIN_USER=admin SMOKE_LOGIN_PASSWORD=admin123 \
+  $W/.claude/skills/dflow-dev/scripts/heavy.sh pnpm exec playwright test e2e/mdm-dataCsvUploadPop.spec.ts e2e/mdm-dataItemMng.spec.ts e2e/mdm-dataHistory.spec.ts --workers=1
+cd $W && /usr/bin/git checkout -- docs/mdm/tasks/TSK-07-03/screens/ src/frontend/m-mcm/next-env.d.ts
+cd $W && /usr/bin/git diff --name-only -z -- src/frontend/test-results/ | xargs -0 -I{} /usr/bin/git checkout -- "{}"
+kill $FE_PID $BE_MDM_PID $BE_MCM_PID
+lsof -tiTCP:15741 -sTCP:LISTEN | xargs -r kill
+lsof -tiTCP:18742 -sTCP:LISTEN | xargs -r kill
+lsof -tiTCP:18741 -sTCP:LISTEN | xargs -r kill
+cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
+```
+
+- 통과 기준: 이 Task 의 두 spec + `mdm-dataHistory.spec.ts`(픽스처 공유) 전부 passed, 실패 0.
+- `SMOKE_MCM_BASE_URL` 을 반드시 자기 포털(이 절차의 포트)로 두고, 5100(메인 체크아웃)을 쓰지 않는다.
+
 ## 설계 이탈
 
 - **DmdBpmnActionTest 의 writes 인자** — design.md §2 「생성」 B2 절이 예시로 든 호출 줄은
@@ -108,3 +191,11 @@ B2 를 커밋(14db376)하고, 위 표는 그 커밋 뒤 다시 돈 결과로 교
   없다" 케이스의 기대값(`{maruDataId, showClosed, page, size}`)이 실제 payload(`withTree: false` 추가)와 어긋나
   실패했다 — API 계약 변경의 직접 결과라 이 단위(B3)가 함께 고쳤다(테스트 완화가 아니라 새 매개변수를 기대값에
   반영, `withTree`/`nodeFilter` 케이스도 하나 추가).
+- **(B4) `mdm-dataItem.sql` 픽스처에 마루 데이터 2건 추가** — design.md §2 는 이 파일을 변경 목록에 올리지 않았다.
+  트리 "데이터 없는 마루는 빈 상태"(e2e 스모크 넷 2) 시험에 쓸, 항목이 하나도 없는 마루 데이터가 기존 픽스처
+  (`E2E_DI_PORT`·`E2E_DI_CUST`)에는 없었다 — 같은 리포의 `mdm-codeItemEdit.sql`(`E2E_EMPTY`)·
+  `mdm-codeCateEdit.sql`(`E2E_CATE_EMPTY`) 선례를 따라 `E2E_DI_EMPTY`(항상 빈 상태)를 더했다. CSV 업로드
+  시험도 `E2E_DI_PORT` 를 그대로 쓰면 실행마다 그 마루에 새 키가 쌓여 `mdm-dataHistory.spec.ts` 가 기대하는
+  KRPUS 행 수(1)에는 영향이 없지만 트리 건수 스모크(S5)의 "빈 마루" 대조를 흐릴 수 있어, CSV 전용 대상
+  `E2E_DI_CSV`(항목 없음, PORT 와 같은 모양)를 따로 두었다. 두 마루 모두 `INSERT OR IGNORE`·`E2E_DI_` 접두어
+  규약을 그대로 따른다(기존 행은 고치지 않았다).

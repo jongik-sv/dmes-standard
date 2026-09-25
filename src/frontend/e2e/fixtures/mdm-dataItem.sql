@@ -28,3 +28,15 @@ INSERT OR IGNORE INTO TB_MDM_DATA_ITEM (MARU_DATA_ID, CODE, VALID_FROM, VALID_TO
 
 INSERT OR IGNORE INTO TB_MDM_DATA_CATE_ITEM (MARU_DATA_ID, CATE_ID, CODE, VALID_FROM, VALID_TO, CHG_SEQ, C_USR_ID, C_PGM_ID, VER) VALUES
     ('E2E_DI_PORT', 'MAJOR', 'KRPUS', '2026-08-20 09:00:00', '9999-12-31 00:00:00', 0, 'e2e-fixture', 'mdm-dataItem.sql', 0);
+
+-- TSK-07-04 추가 — 트리 빈 상태·CSV 업로드 대상. 둘 다 항목 행을 두지 않는다(빈 마루는 항상 빈 상태, CSV 대상은
+-- KRPUS·KRINC·CNSHA 를 건드리지 않고 e2e 가 새 키만 더한다 — mdm-dataHistory.spec.ts 가 KRPUS 행 수를 그대로 기대한다).
+INSERT OR IGNORE INTO TB_MDM_DATA (MARU_DATA_ID, MARU_DATA_NAME, STATUS, SOURCE_KIND, SOURCE_SYSTEM, CODE_PATTERN,
+    ATTR01_NAME, LVL_CNT, LAST_CHG_SEQ, CHG_SEQ, C_USR_ID, C_PGM_ID, VER) VALUES
+    ('E2E_DI_EMPTY', '빈 항구', 'INUSE', 'MDM', NULL, '^[0-9A-Z]{1,20}$', '국가', 1, 0, 0, 'e2e-fixture', 'mdm-dataItem.sql', 0),
+    ('E2E_DI_CSV', 'CSV 항구', 'INUSE', 'MDM', NULL, '^[0-9A-Z]{1,20}$', '국가', 1, 0, 0, 'e2e-fixture', 'mdm-dataItem.sql', 0);
+
+INSERT OR IGNORE INTO TB_MDM_DATA_CATE (MARU_DATA_ID, CATE_ID, VALID_FROM, VALID_TO, CATE_NAME, DEF_KIND, DEF_EXPR, DEF_TARGET,
+    CHG_SEQ, C_USR_ID, C_PGM_ID, VER) VALUES
+    ('E2E_DI_EMPTY', 'BASE', '2026-08-20 09:00:00', '9999-12-31 00:00:00', '전체', 'REGEX', '.*', 'KEY', 0, 'e2e-fixture', 'mdm-dataItem.sql', 0),
+    ('E2E_DI_CSV', 'BASE', '2026-08-20 09:00:00', '9999-12-31 00:00:00', '전체', 'REGEX', '.*', 'KEY', 0, 'e2e-fixture', 'mdm-dataItem.sql', 0);
