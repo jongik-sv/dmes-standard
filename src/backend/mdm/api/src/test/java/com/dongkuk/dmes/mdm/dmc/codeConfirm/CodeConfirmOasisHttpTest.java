@@ -12,6 +12,7 @@ import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeFixtures;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeTestConfig;
 import com.dongkuk.dmes.mdm.common.support.MdmClockConfig;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.MutableClock;
+import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.version.VersionConfirmCheckSpi;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -151,7 +152,8 @@ class CodeConfirmOasisHttpTest {
         JsonNode body = post("confirm", confirmBody("N", true));
 
         assertFalse(body.path("meta").path("success").asBoolean(true), body.toString());
-        assertFalse(body.path("meta").path("message").asText("").isBlank(), body.toString());
+        assertTrue(body.path("meta").path("message").asText("")
+                .contains(MdmErrorCode.CONFIRM_CHECK_FAILED.defaultMessage()), body.toString());
         assertEquals(before, draftState("N"));
     }
 

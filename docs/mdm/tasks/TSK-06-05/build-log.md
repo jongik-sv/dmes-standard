@@ -12,7 +12,7 @@
 - 커밋: 98f9b9f(구현·시험), 이 기록 커밋
 - 새 시험(api, 33건): `CodeConfirmServiceSqliteTest`(19)·`CodeConfirmSampleHistorySqliteTest`(6)·`CodeConfirmOasisHttpTest`(3)·`CodeConfirmBpmnActionTest`(5)
 - 빨강 확인: 서비스 네 메서드를 `UnsupportedOperationException` 골격으로 두고 새 시험을 돌려 33건 중 25건 실패를 확인한 뒤 구현했다(BPMN 계약 시험 5건·HT2·HT3·레지스트리 단언은 골격에서도 통과하는 계약 시험이다).
-- 관련 시험: `./gradlew :mdm:api:test` 전체 886건 통과(실패 0, B1 뒤 853 + 새 33). 새 `@Service` 빈이 모든 api 컨텍스트에 들어가므로 모듈 전체를 돌렸다. mcm 은 `:mcm:api:compileJava` 성공(mcm api 에는 시험 소스가 없다).
+- 관련 시험: `./gradlew :mdm:api:test` 전체 886건 통과(실패 0, B1 뒤 853 + 새 33), `:mdm:lib:test` 705건 통과(새 main 소스가 lib 에 있어 함께 돌렸다). HT2 에 `meta.message` 가 MDM010 문구를 담는지 단언을 더한 뒤 `CodeConfirmOasisHttpTest` 3건을 다시 돌려 통과했다. 새 `@Service` 빈이 모든 api 컨텍스트에 들어가므로 모듈 전체를 돌렸다. mcm 은 `:mcm:api:compileJava` 성공(mcm api 에는 시험 소스가 없다).
 - 계약 검사 `check_oasis_contract.py --root .`: ERROR 0·WARN 0·INFO 29(기준선과 같다). 이 검사기는 MES 모듈만 스캔해 mdm BPMN 을 보지 않는다(F20). 새 BPMN 의 계약은 `CodeConfirmBpmnActionTest` 가 고정한다.
 - I29(메뉴 시드)는 백엔드 단위 시험이 없는 알려진 갭이다(design §5). B4 E2E T1·T6 와 Verify 의 diff 확인이 맡는다.
 
@@ -25,6 +25,8 @@
   - `categoryChanges[]` = `{cateId, cateName, kind(NEW|CLOSED|CHANGED), beforeCount, afterCount, addedCodes, removedCodes, reduced}`, cateId 오름차순. 없는 쪽 건수는 null.
 - `validate` → `rows[]` 10행 `{no, item, severity, status, issues[{code, message, field, itemKey}]}`. `no` 는 `"1"`·`"2"`·`"2-1"`·`"2-2"`·`"3"`~`"8"`, `item` 은 `MasterCodeConfirmCheckItem` enum name(`APPLY_FROM_ORDER` 등), `severity` 는 `REJECT`·`WARNING`, `status` 는 `PASSED`·`WARNED`·`REJECTED`·`EXEMPT`·`DEFERRED`(3항은 D3 로 덮어 `DELEGATED` 가 나오지 않는다). 3항 거부 이슈의 code 는 `MDM008`. 그 밖에 `rejectedCount`, `warnedCount`, `applyFrom`(정규화), `futureApplyFrom`(서버 시계), `serverNow`.
 - `confirm` → 확정 뒤 `view` 와 같은 키를 **최상위에 병합**하고(`header`·`version`·… ), 더해 `confirmed{ver, rowVersion}`, `closedPreviousVer`(최초 버전이면 null), `warnings[]`(확인한 경고 이슈)를 싣는다.
+- `view` 는 ver 를 비우면 DRAFT 를 고르고, DRAFT 가 없으면 MDM021("확정할 DRAFT 가 없습니다")을 던진다. 확정 성공 뒤 화면을 다시 그릴 때는 ver 를 넘겨 `view` 를 부르거나, `confirm` 응답에 병합된 view 키를 그대로 쓴다(ver 없이 부르면 T4 에서 RELEASED 배지 대신 오류가 보인다).
+- 순서 의존: 메뉴 시드(B2)가 page-registry 항목(B3)보다 먼저 들어갔다. B3 가 끝나기 전에는 `mdm-sample-smoke.spec.ts` 가 "등록된 페이지를 찾을 수 없습니다"로 깨질 수 있다(design 「관례·함정」 마지막 항목).
 - 요청: `confirm` 의 `warningsAcknowledged` 는 JSON boolean 으로 바인딩된다(HT1 이 false → 실패, true → 확정으로 확인). 문자열 `"true"` 는 필요 없다. `rowVersion` 은 숫자.
 
 ## 설계 이탈
