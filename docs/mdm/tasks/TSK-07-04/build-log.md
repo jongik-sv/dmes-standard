@@ -7,7 +7,7 @@
 | I5 | `DataItemListQuery.page()` 의 nodeFilter WHERE 절에서 `i.LVL1..LVL5 = :node` 를 모두 빼고 `i.CODE = :node` 만 남김 | `DataItemMngServiceSqliteTest.I5_노드_필터는_코드_자신_또는_lvl1_5_어딘가의_값이_같은_행만_열림_닫힘_무관` | 잡힘 |
 | I6 | `DataItemListQuery.treeRows()` 에서 `AND i.VALID_TO = :openEnd` 를 빼 닫힌 행도 트리에 포함되게 함 | `DataItemMngServiceSqliteTest.I6_withTree_는_열린_행만_기존_ORDER_로_돌려준다` | 잡힘 |
 | I6 | `DataItemMngService.search()` 의 `treeTruncated` 계산을 `treeRows.size() == TREE_MAX` 에서 상수 `false` 로 고정 | `DataItemMngServiceSqliteTest.I6_withTree_는_상한_TREE_MAX_에_걸리면_treeTruncated` | 잡힘 |
-| I1 | `DataItemSaveCore.upsert()` 의 `checks.contentIssues(path, ...)` 호출을 `checks.contentIssues(DataSavePath.API, ...)` 로 고정(검사 3~7 무력화, CSV 도 API 처럼 행 내용 검사를 건너뛰게 함) | `DataCsvUploadPopServiceSqliteTest.이름_없는_행은_열은_맞아도_검사4로_오류다` | 잡힘 |
+| I1 | `DataItemSaveCore.upsert()` 의 `checks.contentIssues(path, ...)` 호출을 `checks.contentIssues(DataSavePath.API, ...)` 로 고정(검사 3~7 무력화, CSV 도 API 처럼 행 내용 검사를 건너뛰게 함) | `DataCsvUploadPopServiceSqliteTest.검사_이슈가_있는_CSV_저장_시도도_전부_미저장이다`(fail-fast 로 이 케이스에서 먼저 빨강, `이름_없는_행은_열은_맞아도_검사4로_오류다` 도 같은 변이로 깨짐) | 잡힘 |
 | I2 | `DataItemSaveCore.upsert()` 의 저장 가드 `if (!issues.isEmpty() \|\| dryRun)` 을 `if (dryRun)` 으로 약화(이슈 있어도 실제 저장 진행) | `DataCsvUploadPopServiceSqliteTest.검사_이슈가_있는_CSV_저장_시도도_전부_미저장이다` | 잡힘 |
 | I3 | `DataItemSaveCore.upsert()` 의 `if (path == DataSavePath.API)` 를 `if (true)` 로 바꿔 CSV 도 닫힌 키를 REOPEN 하게 함 | `DataCsvUploadPopServiceSqliteTest.닫힌_키가_든_CSV_는_거부되고_close_액션은_생기지_않는다` | 잡힘 |
 | I4 | `DataItemSaveCore.upsert()` 의 `current.value().sameAs(row.value())` 판정을 `!current.value().sameAs(row.value())` 로 뒤집음(같은 값도 UPDATE) | `DataCsvUploadPopServiceSqliteTest.같은_파일_재업로드는_전부_NONE_이고_새_선분이_없다` | 잡힘 |
@@ -15,11 +15,18 @@
 | I7 | `DataCsvUploadPopService.validate()` 의 줄 번호 매핑 `outcome.lineNoOf().get(i)` 를 `outcome.lineNoOf().get(0)` 으로 고정(모든 행이 첫 줄 번호로 뒤섞임) | `DataCsvUploadPopServiceSqliteTest.오류_없는_CSV_는_검증에서_행별_동작이_입력_순서와_1대1이다` | 잡힘 |
 | I8 | `src/hier-tree.ts` `order()` 의 `return [...codes, ...groups]` 를 `return [...groups, ...codes]` 로 뒤집음(코드 행 있는 노드를 그룹 뒤로 보냄) | `tests/dmc/codeItemEdit/code-tree.test.ts`(STEEL_STD 트리) + `tests/dmd/dataItemMng/item-tree.test.ts` | 잡힘 |
 
-I1~I4·I7 여섯 변이 모두 대상 테스트에서 fail-fast 로 빨강을 확인했다(gradle `BUILD FAILED` 6/6). `DataItemSaveCore.java`
-는 기존 커밋 파일이라 `/usr/bin/git checkout --` 로 되돌렸고, `Rfc4180Csv.java`·`DataCsvUploadPopService.java` 는 이번
-단위가 새로 만든 미추적 파일이라 `git checkout --` 가 되돌리지 못해(스크립트가 놓친 부분) 변이 문구가 남아 있었다 —
-Edit 로 손으로 원 코드(`!HEADER.equals(header)`, `outcome.lineNoOf().get(i)`)를 복원한 뒤 대상 테스트 전체를 다시 돌려
-초록을 확인했다. 변이는 모두 작업 트리에서만 넣었고 커밋하지 않았다.
+I1~I4·I7 여섯 변이 모두 커밋 14db376(B2 코드 커밋) 뒤 다시 돌려 대상 테스트(`DataCsvUploadPopServiceSqliteTest`·
+`Rfc4180CsvTest`)에서 fail-fast 로 빨강(테스트 실패, 컴파일 오류 아님)을 확인했다. 되돌린 뒤 세 파일
+(`DataItemSaveCore.java`·`Rfc4180Csv.java`·`DataCsvUploadPopService.java`) 모두 `git diff --quiet` 로 원 상태 복귀를
+확인했고, 대상 테스트를 다시 돌려 초록(9건)도 확인했다. 변이는 모두 작업 트리에서만 넣었고 커밋하지 않았다.
+
+**앞선 기록 정정** — 이 절의 첫 버전(커밋 14db376 이전)은 무효였다. B2 코드가 아직 커밋되지 않은 상태에서
+`/usr/bin/git checkout -- $CORE` 로 변이를 되돌렸는데, 이는 변이만이 아니라 B2 가 그 파일에 낸 진짜 수정(`RowAction`
+3-인자 생성자 호출)까지 커밋 시점(B1 상태)으로 되돌렸다. 그 뒤 이어진 M-I2·M-I3·M-I4·M-I7a·M-I7b 는 모두 그 깨진
+2-인자 상태 위에서 돌아 `BUILD FAILED` 가 났지만, 원인은 컴파일 오류(`UpsertResult` 3-인자 레코드에 2-인자를 넘김)
+였지 변이가 잡힌 게 아니었다. `Rfc4180Csv.java`·`DataCsvUploadPopService.java` 는 그 시점엔 미추적 파일이라
+`git checkout --` 가 아예 되돌리지 못해 변이 문구가 그대로 남기도 했다. Edit 로 두 파일의 변이를 손으로 복원한 뒤
+B2 를 커밋(14db376)하고, 위 표는 그 커밋 뒤 다시 돈 결과로 교체했다.
 
 ## 구현 단위 진행
 
@@ -33,7 +40,11 @@ Edit 로 손으로 원 코드(`!HEADER.equals(header)`, `outcome.lineNoOf().get(
 - 대상 테스트: `DataCsvUploadPopServiceSqliteTest`(9건)·`Rfc4180CsvTest`(5건)·`DmdBpmnActionTest`(3건, 기존 2 + 신규 1)
   — 전체 초록. 회귀 확인으로 `common.segment.*`(변경 파일을 공유하는 기존 스위트: `DataItemChecksSqliteTest`·
   `DataItemChecksTest`·`DataItemSegmentCoreSqliteTest`·`DataSegmentLockSqliteTest`·`DataCategorySegmentCoreSqliteTest`·
-  `MasterDataExamplesScenarioTest`)도 함께 돌려 전체 초록을 확인했다(합계 92건, 실패 0).
+  `MasterDataExamplesScenarioTest`)와 B1 의 `dataItemMng.DataItemMngServiceSqliteTest`(같은 `UpsertResult`·
+  `DataItemSaveCore` 를 쓰는 형제 코드는 아니지만 같은 패키지 회귀 확인 차원)도 함께 돌려 전체 초록을 확인했다
+  (9+5+6+21+1+33+5+11+3+12 = 106건, 실패 0). `mcm/api` 쪽 `DataInitializer.seedMdmDataCsvUploadPopObject()` 를 도는
+  전용 테스트는 찾지 못했다 — `mcm/api` 시드 테스트 목록에 시드 함수별 개별 테스트가 없고(기존 시드 함수들도 마찬가지),
+  전체 부팅 스모크만 있어 이 단위 범위(무거운 명령 최소화)에서 따로 돌리지 않았다.
 
 ## B3
 
