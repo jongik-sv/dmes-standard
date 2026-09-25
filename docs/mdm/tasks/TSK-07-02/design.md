@@ -32,7 +32,7 @@
 | F20 | `DataItemListQuery` 의 `targetValue(ItemSegmentRow, String)`(package-private)·`matches(Pattern, String)`(private, **null → false 로 항상 미매칭**)이 REGEX 매칭의 유일한 기존 구현이다. `DataCategoryResolver` 를 별도로 새로 구현하면 null 처리·대상 분기가 갈라질 위험이 있다(05 의 "매칭 0건" 전제가 깨질 수 있다) — **재구현하지 않고 이 두 메서드를 `DataCategoryResolver` 로 옮겨 `public static` 으로 공개하고, `DataItemListQuery` 는 그것을 호출하도록 고친다**(동작 변경 없는 추출) | `DataItemListQuery.java:185-201` 전문 확인 |
 | F21 | `src/frontend/m-mcm/lib/generated/page-registry.ts` 는 **자동 생성 파일**(`scripts/generate-page-registry.mjs`, prebuild/predev 훅)이다. `page.tsx` 를 올바른 경로(`pages/dmd/{screen}/page.tsx`)에 두기만 하면 빌드 시 자동으로 항목이 생긴다 — **수동 편집 대상이 아니다**(TSK-07-03 도 손대지 않았다) | 파일 헤더 "AUTO-GENERATED", `dmd/dataItemMng`·`dmd/dataHistory` 항목이 이미 존재 |
 | F22 | `e2e/fixtures/mdm-rbac-seed-check.{sql,expected.txt}`(TSK-01-03 계약 대조)은 `dma`/`dmb`/`dmc`/`dmd`/`dme` **폴더**·MDM 역할·권한 **세트**(`PERM_MDM_READ/EDIT/CONFIRM`)·`mdmSample` **OBJECT** 하나만 본다. 새 OBJECT(`dataMng` 등)를 기존 권한 세트로 시드해도 이 대조 대상에 없으므로 **고칠 필요가 없다** | `mdm-rbac-seed-check.sql`·`.expected.txt` 전문 확인 |
-| F23 | 화면 스모크 넷은 TSK-07-03 의 `mdm-dataItemMng.spec.ts`/`mdm-dataHistory.spec.ts` 관례를 그대로 따른다: `BASE_URL=http://127.0.0.1:5100`(이미 떠 있는 로컬 포털, 이 세션이 새로 띄우지 않는다 — 도커 금지와 무관, 「로컬 기동 사전조건」 메모 참고), 로그인 계정 `e2e_mdm_steward`/`admin123`, `SUFFIX=Date.now().toString(36)` 로 유니크 키, 픽스처는 `e2e/fixtures/mdm-dataMng.sql`(신설, `INSERT OR IGNORE`)로 최소 데이터를 깔고 e2e 는 그 행을 고치지 않는다(쓰기는 항상 새 키로) | TSK-07-03 design.md §3.1(213-242행) 전문 인용 |
+| F23 | 화면 스모크 넷은 TSK-07-03 의 `mdm-dataItemMng.spec.ts`/`mdm-dataHistory.spec.ts` 관례(로그인 계정 `e2e_mdm_steward`/`admin123`, `SUFFIX=Date.now().toString(36)` 로 유니크 키, 픽스처는 `e2e/fixtures/mdm-dataMng.sql`(신설, `INSERT OR IGNORE`)로 최소 데이터를 깔고 e2e 는 그 행을 고치지 않는다)를 그대로 따른다. **`BASE_URL=http://127.0.0.1:5100` 는 쓰지 않는다** — 그것은 메인 체크아웃 포털이라 이 워크트리의 코드를 시험하지 않아 거짓 통과가 난다(`references/e2e.md` 「서버 프로세스」·「E2E 서버 슬롯」). 이 Task 도 TSK-07-03 design.md 「E2E 서버 절차」와 같은 방식으로 **자기 워크트리 안에서 빈 포트로 직접 서버를 띄운다** — 아래 「E2E 서버 절차」 절 참고 | TSK-07-03 design.md §3.1·「E2E 서버 절차」 전문 인용, `references/e2e.md` 「서버 프로세스」·「E2E 서버 슬롯」 |
 | F24 | `DmdOasisHttpTest.java`(187행)·`DmdScreenMessageParityTest.java`(40행)는 지금 **`dataItemMng` 전용으로 하드코딩**돼 있다(`MESSAGES = Path.of(".../dataItemMng/messages.ts")` 리터럴 하나뿐). 이 Task 가 화면마다 메시지 정합·HTTP 왕복 검증을 받으려면 `DmdScreenMessageParityTest` 를 화면별 루프/파라미터화로 바꿔야 한다(§2 「수정 — 공유 파일」) | 두 파일 전문 확인 |
 
 Build 는 위 F 목록을 그대로 인용하고, 구현 중 새로 확인한 사실은 design.md 를 고치지 않고 build-log.md 에 적는다(공통 규칙 2).
@@ -84,7 +84,9 @@ OBJECT 마다 동일하게 시드되므로 권한 문제가 없다, F3). `dataEd
 - `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dmd/dataMng/service/DataMngService.java`
 - `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dmd/dataMng/dto/{DataMngSearchRequest,DataMngSearchResult,DataMngRow,DataMngRegRequest,DataMngRegResult}.java`
 - `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/dmd/dataMng/DataMngServiceSqliteTest.java`
-- `src/frontend/m-mdm/pages/dmd/dataMng/{api.ts,page.tsx,types.ts,columns.ts}`
+- `src/frontend/m-mdm/pages/dmd/dataMng/{api.ts,page.tsx,types.ts,columns.ts}` — `page.tsx` 의 등록 성공 핸들러가 `dataHandoff.ts`(아래) 로 dataEdit 인계를 시작한다(D7).
+- `src/frontend/m-mdm/pages/dmd/dataHandoff.ts`(신설) — dataMng→dataEdit 탭 인계 전용 모듈(공유 셸이 아니다, D7). `stashDataEditTarget`·`consumeDataEditTarget`·`DATA_EDIT_SELECT_EVENT`·`broadcastDataEditTarget` 4개를 내보낸다. dataEdit 이 import 해서 쓴다(B2, 이 파일은 B1 이 만들고 B2 는 읽기만 한다).
+- `src/frontend/m-mdm/tests/dmd/dataHandoff.test.ts`(신설) — 순수 함수 단위 테스트(`stash`→`consume` 왕복, 빈 상태에서 `consume` 은 null, `sessionStorage` 접근 실패를 흉내 내도 던지지 않음).
 - `src/frontend/e2e/mdm-dataMng.spec.ts`
 - `src/frontend/e2e/fixtures/mdm-dataMng.sql`(신설, `INSERT OR IGNORE`) — 세 화면(dataMng·dataEdit·dataCateEdit) e2e 가 공유하는 최소 픽스처(TB_MDM_DATA 2행 정도 + BASE 카테고리 + REGEX/TABLE 카테고리 각 1개 + 항목 몇 개, `mdm-dataItem.sql` 과 같은 형식). B1 이 만들고 B2·B3 는 기존 행을 고치지 않는다(모자라면 build-log.md 에 적고 새 `INSERT OR IGNORE` 행만 덧붙인다).
 
@@ -93,7 +95,7 @@ OBJECT 마다 동일하게 시드되므로 권한 문제가 없다, F3). `dataEd
 - `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dmd/dataEdit/service/DataEditService.java` — `save`·`delete`(폐기) 는 **자기 `TransactionTemplate`**(`PlatformTransactionManager` 주입, `DataCategorySegmentCore`·`DataMngService` 와 같은 패턴)으로 `lock → 검사 → 갱신` 을 한 번에 감싼다(F7 — OASIS 앰비언트 트랜잭션에 기대지 않는다). `view` 는 트랜잭션이 필요 없다(읽기 전용, 잠금도 걸지 않는다 — 05 문서에 조회 시 잠금 요구가 없다).
 - `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dmd/dataEdit/dto/{DataEditViewRequest,DataEditView,DataEditHeaderSaveRequest,DataEditDeprecateRequest,CategorySummaryRow}.java`
 - `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/dmd/dataEdit/DataEditServiceSqliteTest.java`
-- `src/frontend/m-mdm/pages/dmd/dataEdit/{api.ts,page.tsx,types.ts,messages.ts}`
+- `src/frontend/m-mdm/pages/dmd/dataEdit/{api.ts,page.tsx,types.ts,messages.ts}` — `page.tsx` 마운트 시 `dataHandoff.consumeDataEditTarget()` 을 한 번 확인하고, 마운트 기간 내내 `DATA_EDIT_SELECT_EVENT` 리스너를 걸어 이미 열려 있던 탭도 새 ID 를 받게 한다(D7).
 - `src/frontend/e2e/mdm-dataEdit.spec.ts`
 
 ### 생성 — dataCateEdit(B3)
@@ -132,15 +134,15 @@ OBJECT 마다 동일하게 시드되므로 권한 문제가 없다, F3). `dataEd
 - `DataCateEditServiceSqliteTest` — REGEX/TABLE 등록·수정·닫기·다시열기, BASE 편집·닫기 거부(RESERVED_CATEGORY), 닫힌 카테고리의 매칭 건수 0(소속 행은 DB 에 남아 있는 채로 확인, F10), TABLE 일괄 적용 전부-아니면-전무(addMember 중 하나가 실패하도록 의도적으로 유효하지 않은 코드를 섞어 전체 롤백 확인).
 
 ### 3.2 프런트 단위 테스트(`pnpm --filter @dk-oasis/m-mdm test`)
-각 화면의 순수 로직(예: dataCateEdit 의 TransferList 추가/해제 diff 계산, dataEdit 의 lvl_cnt 축소 클라이언트측 즉시 경고)을 `dataItemMng`/`codeCateEdit` 선례처럼 훅·유틸 단위로 분리해 테스트한다.
+각 화면의 순수 로직(예: dataCateEdit 의 TransferList 추가/해제 diff 계산, dataEdit 의 lvl_cnt 축소 클라이언트측 즉시 경고)을 `dataItemMng`/`codeCateEdit` 선례처럼 훅·유틸 단위로 분리해 테스트한다. `dataHandoff.test.ts`(신설, B1)는 `stashDataEditTarget`→`consumeDataEditTarget` 왕복(1회 소비 후 재소비 시 null)·`broadcastDataEditTarget` 가 올바른 이름·payload 로 `CustomEvent` 를 디스패치하는지·`sessionStorage` 가 없는 환경(모킹으로 접근 시 예외를 던지게 만듦)에서도 두 함수가 예외를 던지지 않는지를 확인한다(D7).
 
 ### 3.3 화면 스모크 넷(`references/e2e.md` 「스모크 넷」, 화면마다 4개, 총 12개)
 1. **메뉴 이동**: `MDM > 마스터데이터 > 마루 데이터`/`마루 데이터 수정`/`카테고리 편집` 클릭 → breadcrumb·URL 확인.
 2. **목록/빈 상태**: dataMng 는 결과 그리드(또는 빈 상태 문구), dataEdit 는 마루 데이터 select 로 전환 시 헤더 채워짐, dataCateEdit 는 카테고리 목록(BASE 1건 이상) 또는 빈 상태.
-3. **화면 조작 한 번**: dataMng 는 등록 1건(→ dataEdit 로 이동 확인, F19 라우팅), dataEdit 는 헤더 또는 라벨 저장 1건, dataCateEdit 는 REGEX 카테고리 등록 또는 TABLE 소속 적용 1건 → 목록 재조회로 반영 확인.
+3. **화면 조작 한 번**: dataMng 는 등록 1건(→ dataEdit 탭이 열리고 방금 등록한 ID 가 자동 로드됨을 확인, D7 인계 메커니즘), dataEdit 는 헤더 또는 라벨 저장 1건, dataCateEdit 는 REGEX 카테고리 등록 또는 TABLE 소속 적용 1건 → 목록 재조회로 반영 확인.
 4. **서버 오류 노출**: dataMng 는 중복 ID 재등록(MDM011 모달, F15 문구), dataEdit 는 잘못된 코드 패턴 문법(또는 DEPRECATED 후 저장) 오류 모달, dataCateEdit 는 잘못된 REGEX 문법 저장 거부 모달(04 `mdm-codeCateEdit.spec.ts` T4 와 동일 패턴).
 
-로그인 계정은 `e2e_mdm_steward`/`admin123`(F3, EDIT 권한). 스크린샷은 `docs/mdm/tasks/TSK-07-02/screens/dmd-{screen}-{step}.png`.
+로그인 계정은 `e2e_mdm_steward`/`admin123`(F3, EDIT 권한). 스크린샷은 `docs/mdm/tasks/TSK-07-02/screens/dmd-{screen}-{step}.png`. **서버는 아래 「E2E 서버 절차」대로 이 워크트리 안에서 빈 포트로 직접 띄운다** — `http://127.0.0.1:5100`(메인 체크아웃 포털)을 쓰지 않는다(F23).
 
 ### 3.4 oasis 계약 검사
 `check_oasis_contract.py --root .` — 새 BPMN 3개가 선언한 bean(`dataMngService` 등)이 실제 Spring 빈으로 해석되는지 자동 검사(기존 baseline INFO 29 에 새 BPMN·bean 쌍만큼 늘어날 수 있다, ERROR/WARN 0 유지가 게이트).
@@ -152,7 +154,7 @@ OBJECT 마다 동일하게 시드되므로 권한 문제가 없다, F3). `dataEd
 | 수용 기준 | 검증 방법 |
 |---|---|
 | 마루 코드와 ID 중복 거부 | `DataMngServiceSqliteTest`(F15, `dataRepo.existsById\|\|codeRepo.existsById` → MDM011) + 스모크 넷 4(dataMng) |
-| 등록 후 수정 화면으로 이동 | `mdm-dataMng.spec.ts` 스모크 넷 3(등록 뒤 URL/화면이 dataEdit 로 전환되고 방금 등록한 ID 가 로드됨) |
+| 등록 후 수정 화면으로 이동 | `dataHandoff.test.ts`(stash→consume 왕복, 이벤트 브로드캐스트) + `mdm-dataMng.spec.ts` 스모크 넷 3(등록 뒤 dataEdit 탭이 열리고 방금 등록한 ID 가 로드됨 — dataEdit 탭이 이미 열려 있던 경우도 한 케이스로 확인, D7) |
 | 포털 메뉴에서 화면이 열리고 e2e `mdm-dataMng.spec.ts` 가 통과한다 | F2 메뉴 시드 + 스모크 넷 1~4 |
 | lvl_cnt 축소는 뒤 칸 값이 있는 행이 없을 때만 | `DataEditServiceSqliteTest`(§3.1, `latestItemRows` 스캔 — 닫힌 행 포함) |
 | DEPRECATED 후 저장 거부 | `DataEditServiceSqliteTest`(헤더·라벨·lvl_cnt·폐기 자체 전부 `requireActive` 로 거부) + 스모크 넷 4(dataEdit) |
@@ -188,14 +190,15 @@ OBJECT 마다 동일하게 시드되므로 권한 문제가 없다, F3). `dataEd
 
 | 단위 | 범위(파일·기능) | 새 테스트 | 담당 불변 규칙 |
 |---|---|---|---|
-| B1 | 공용(`DataCategoryResolver` 신설 + `DataItemListQuery.targetValue`/`matches` 추출, `DataSegmentRowStore` 메서드 2개 추가) + dataMng 백엔드/프런트/BPMN/e2e + 메뉴 시드 3개(`seedMdmDataMngMenus`) + `e2e/fixtures/mdm-dataMng.sql` 신설 | `DataCategoryResolverSqliteTest`, `DataMngServiceSqliteTest`, `mdm-dataMng.spec.ts` | R1, R3(공용 파일을 건드리지 않았음을 스스로 확인), R6(BASE 값), R9, R10 |
-| B2 | dataEdit 백엔드/프런트/BPMN/e2e(공용 파일·픽스처는 B1 산출물을 **읽기만** 한다) + `DmdScreenMessageParityTest` 를 루프 구조로 리팩터(F24) | `DataEditServiceSqliteTest`, `mdm-dataEdit.spec.ts` | R1′, R2, R7(헤더/라벨/lvl_cnt/폐기), R11(lvl_cnt 축소) |
+| B1 | 공용(`DataCategoryResolver` 신설 + `DataItemListQuery.targetValue`/`matches` 추출, `DataSegmentRowStore` 메서드 2개 추가, `dataHandoff.ts` 신설) + dataMng 백엔드/프런트/BPMN/e2e + 메뉴 시드 3개(`seedMdmDataMngMenus`) + `e2e/fixtures/mdm-dataMng.sql` 신설 | `DataCategoryResolverSqliteTest`, `DataMngServiceSqliteTest`, `dataHandoff.test.ts`, `mdm-dataMng.spec.ts` | R1, R3(공용 파일을 건드리지 않았음을 스스로 확인), R6(BASE 값), R9, R10, D7(전반부 — stash·broadcast) |
+| B2 | dataEdit 백엔드/프런트/BPMN/e2e(공용 파일·픽스처·`dataHandoff.ts` 는 B1 산출물을 **읽기만** 한다) + `DmdScreenMessageParityTest` 를 루프 구조로 리팩터(F24) | `DataEditServiceSqliteTest`, `mdm-dataEdit.spec.ts` | R1′, R2, R7(헤더/라벨/lvl_cnt/폐기), R11(lvl_cnt 축소), D7(후반부 — consume·리스너) |
 | B3 | dataCateEdit 백엔드/프런트/BPMN/e2e + `DmdScreenMessageParityTest` 루프에 항목 추가 + 세 화면 통합 게이트 스윕(마지막 단위) | `DataCateEditServiceSqliteTest`, `mdm-dataCateEdit.spec.ts` | R2′, R4, R5, R6(BASE 편집·닫기 거부), R7(카테고리), R12 |
 
-B1→B2→B3 순서로 돈다(B2·B3 는 B1 이 만든 `DataCategoryResolver`/`DataSegmentRowStore` 신규 메서드를 호출만 하고 고치지 않는다).
-공유 테스트 파일(`DmdBpmnActionTest` 등)은 각 유닛이 **자기 화면 메서드만 추가**한다(§2 「수정 — 공유 파일」). B3 가 끝나면
-전체 게이트(`testAll`·`pnpm --filter @dk-oasis/m-mdm test`·`pnpm test:unit:shared`·lint·oasis 계약 검사)를 한 번 더 돌려
-세 화면이 서로 깨지지 않았는지 확인한다.
+B1→B2→B3 순서로 돈다(B2·B3 는 B1 이 만든 `DataCategoryResolver`/`DataSegmentRowStore` 신규 메서드·`dataHandoff.ts` 를
+호출만 하고 고치지 않는다). 공유 셸(`src/frontend/shared`)은 이 Task 어느 유닛도 고치지 않는다(D7) — `pnpm test:unit:shared`
+는 기준선과 같은 결과(168/0)를 재확인하는 회귀 게이트로만 돈다. 공유 테스트 파일(`DmdBpmnActionTest` 등)은 각 유닛이
+**자기 화면 메서드만 추가**한다(§2 「수정 — 공유 파일」). B3 가 끝나면 전체 게이트(`testAll`·`pnpm --filter @dk-oasis/m-mdm
+test`·`pnpm test:unit:shared`·lint·oasis 계약 검사)를 한 번 더 돌려 세 화면이 서로 깨지지 않았는지 확인한다.
 
 ---
 
@@ -262,6 +265,37 @@ B1→B2→B3 순서로 돈다(B2·B3 는 B1 이 만든 `DataCategoryResolver`/`D
   (`latestItemRows` 는 그대로 두고 별도 메서드로 추가), `DataEditServiceSqliteTest` 의 "닫힌 행에만 값 있음" 케이스를
   "과거 선분(지금은 다른 값으로 마지막 행이 갱신됨)에만 값 있음" 케이스로 바꿔 재검증한다.
 
+### D7 — dataMng 등록 → dataEdit 탭 인계 메커니즘: `sessionStorage` + 커스텀 이벤트 병행(공유 셸은 고치지 않는다)
+- 질문: 포털 탭을 여는 수단은 창 이벤트 `portal-open-tab`(`shared/src/portal-shell/portal-shell.tsx:579-589`) 하나뿐이고
+  `{pageId}` 만 받는다 — 파라미터(방금 등록한 `maruDataId`)를 실어 보낼 수단이 없다(TSK-07-03 F17 이 이미 같은 문제를
+  겪고 「이력」 링크를 탭 이동 대신 화면 안 패널로 바꿔 피해 갔다). 게다가 같은 `pageId` 탭이 이미 열려 있으면
+  `openPageTab` 이 그 탭을 재마운트하지 않고 그냥 활성화만 한다(`portal-shell.tsx:378-386`) — "마운트 시점에 한 번
+  읽기"만으로는 이미 열려 있던 dataEdit 탭에 새 ID 를 전달할 수 없다.
+- 선택지: (1) `shared/src/portal-shell/portal-shell.tsx` 를 고쳐 `portal-open-tab` 이벤트에 임의 payload 를 실을 수
+  있게 만든다(공유 셸 변경, `pnpm test:unit:shared` 영향, 다른 모듈에도 영향). (2) 공유 셸은 고치지 않고, m-mdm 안에서
+  `sessionStorage`(탭이 새로 만들어지는 경우 — 마운트가 비동기라 그 사이에 값이 살아 있다) + `window` 커스텀 이벤트
+  (탭이 이미 열려 있어 재마운트되지 않는 경우 — 마운트된 리스너가 살아서 받는다) 를 **함께** 써서 두 경로 모두를
+  덮는다.
+- 택한 것: (2).
+- 근거: `portal-open-tab` 은 범용 셸 API 이고 이번 요구는 m-mdm 안의 화면 두 개 사이 인계일 뿐이다 — 공유 셸의 계약을
+  넓히면 영향 범위가 이 Task 밖(다른 모든 모듈의 탭 이동)까지 퍼지고 `pnpm test:unit:shared` 기준선도 건드리게 된다.
+  m-mdm 자체 모듈(`pages/dmd/dataHandoff.ts`, 신설)에 격리하면 셸을 그대로 둔 채로 목적을 이룰 수 있다. 두 메커니즘을
+  같이 쓰는 이유는 "탭이 새로 열리는가/이미 열려 있는가"라는 `portal-shell.tsx` 의 갈림길이 케이스마다 정반대 수단을
+  요구하기 때문이다(마운트 시점 읽기 vs 살아있는 리스너). **근거 강도: 중** — 이 저장소에 선례가 없는(F17) 새 패턴이라
+  담당자 확인이 필요하다.
+- 상세: `pages/dmd/dataHandoff.ts`(신설, m-mdm 자체 — 셸이 아니다) 가 `stashDataEditTarget(id)`(`sessionStorage`
+  키 `dmd:dataEdit:openId` 에 쓰기)·`consumeDataEditTarget()`(읽고 즉시 지움)·`DATA_EDIT_SELECT_EVENT`(문자열
+  상수)·`broadcastDataEditTarget(id)`(그 이름의 `CustomEvent` 를 `window.dispatchEvent`) 4개를 내보낸다. dataMng 의
+  등록 성공 핸들러가 `stashDataEditTarget(id)` → `broadcastDataEditTarget(id)` → `window.dispatchEvent(new
+  CustomEvent("portal-open-tab", {detail:{pageId:"dmd/dataEdit"}}))` 순서로 부른다. dataEdit 의 `page.tsx` 는
+  마운트 시 `consumeDataEditTarget()` 을 한 번 확인하고, 동시에 `DATA_EDIT_SELECT_EVENT` 리스너를 마운트 기간 내내
+  건다(둘 다 있으면 같은 결과로 수렴하므로 중복 처리를 신경 쓰지 않아도 된다). `sessionStorage` 접근은 `try/catch`
+  로 감싸 실패(사생활 보호 모드 등)해도 화면이 깨지지 않게 한다 — 실패하면 사용자가 상단 select 로 수동 선택한다
+  (완전한 열화, 기능 자체가 없어지지 않는다).
+- 반려 시 재작업: 선택지 1 로 바꾸면 `portal-open-tab` 이벤트에 `detail.payload`(임의 객체) 를 더하고
+  `openPageTab(pageId, payload?)` 시그니처를 바꿔 `shared` 의 기존 호출부(다른 모듈 포함) 전부를 점검해야 한다 —
+  이 Task 범위를 넘는 회귀 위험이 커서 우선순위가 낮다.
+
 ---
 
 ## 도커 금지로 생략한 검증
@@ -281,3 +315,68 @@ B1→B2→B3 순서로 돈다(B2·B3 는 B1 이 만든 `DataCategoryResolver`/`D
 - 이 Task 의 수용 기준 9개는 모두 SQLite 로 검증 가능하다 — MSSQL 고유 동시성 경로(행 잠금의 실제 X-lock 효과)는
   TSK-07-03 의 `DataSegmentConcurrencyMssqlTest`(작성만, 미실행)가 이미 다루는 대상이고 이 Task 가 새 동시성 메커니즘을
   추가하지 않는다. 그래서 위 두 생략 줄이 가리는 수용 기준은 없다(해당 줄을 이 절에 별도로 더하지 않는다).
+
+---
+
+## E2E 서버 절차
+
+TSK-07-03 design.md 「E2E 서버 절차」(TSK-04-02 design.md 에서 옮겨 온 것)를 이 워크트리(`/Users/jji/project/dmes-standard/.claude/worktrees/dflow-4be6eb9f`)·이 Task 값으로 다시 옮긴다. `be-run.sh`·`fe-run.sh` 는 쓰지 않는다(`references/e2e.md` 「서버 프로세스」). **`SMOKE_MCM_BASE_URL=http://127.0.0.1:5100` 은 메인 체크아웃 포털이라 절대 쓰지 않는다** — 이 워크트리 코드를 시험하지 않아 거짓 통과가 난다. 포트는 실행 시점에 비어 있는 번호로 다시 고른다(아래 번호는 예시). 전역 `gradlew --stop`, 이름 기반 `pkill`·`killall`·`pgrep -f` 종료, 남의 포트 종료는 금지다.
+
+```bash
+W=/Users/jji/project/dmes-standard/.claude/worktrees/dflow-4be6eb9f
+SP=<Build/Verify 실행자의 scratchpad>
+J=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+# 0) 빈 포트 고르기 — 셋 다 LISTEN 이 없어야 한다(예: mcm BE 18831, mdm BE 18832, FE 15831). 있으면 다른 번호.
+lsof -iTCP:18831 -sTCP:LISTEN; lsof -iTCP:18832 -sTCP:LISTEN; lsof -iTCP:15831 -sTCP:LISTEN
+# 0-1) PC 전역 무거운 명령 슬롯을 붙잡는다. HEAVY_ACQUIRED 를 확인한다(HEAVY_BUSY 면 같은 명령을 다시 부른다).
+cd $W && .claude/skills/dflow-dev/scripts/heavy.sh acquire e2e-TSK-07-02
+# 1) 격리 DB — mcm.db·mdm.db 둘 다 옮겨 새 DB 로 시작한다(gitignore 대상).
+mkdir -p $W/src/backend/data
+[ -f $W/src/backend/data/mcm.db ] && mv $W/src/backend/data/mcm.db $W/src/backend/data/mcm.db.bak-$(date +%Y%m%d%H%M%S)
+[ -f $W/src/backend/data/mdm.db ] && mv $W/src/backend/data/mdm.db $W/src/backend/data/mdm.db.bak-$(date +%Y%m%d%H%M%S)
+# 2) mcm 백엔드(이 Task 가 고친 DataInitializer 의 새 메뉴 시드가 여기서 돈다)
+cd $W/src/backend/mcm && JAVA_HOME=$J ../gradlew :api:bootRun --no-daemon --console=plain \
+  --args='--spring.profiles.active=local --server.port=18831 --mcm.bff.invalidate-role-url=http://127.0.0.1:15831/api/mcm/internal/cache/invalidate-role --cactus.notify.publish-url=http://127.0.0.1:18831/notify/publish' > $SP/be-mcm.log 2>&1 &
+BE_MCM_PID=$!   # 기동 로그의 sqlite 경로가 $W/src/backend/data/mcm.db 인지 반드시 확인(아니면 즉시 중단)
+# 3) mdm 백엔드. SQLite 는 ../data/mdm.db = $W/src/backend/data/mdm.db
+cd $W/src/backend/mdm && JAVA_HOME=$J ../gradlew :api:bootRun --no-daemon --console=plain \
+  --args='--spring.profiles.active=local --server.port=18832' > $SP/be-mdm.log 2>&1 &
+BE_MDM_PID=$!   # 기동 로그의 sqlite 경로가 $W/src/backend/data/mdm.db 인지 확인
+# 4) mcm 기동 완료(DataInitializer 로그 — 이 Task 가 추가한 "MDM 마루 데이터 시드"(가칭, 실제 log.info 문구는 Build 가
+#    seedMdmDataMngMenus() 에 적는 그대로) 한 줄 포함) 뒤 시드 대조와 시험 사용자. 새 leaf 를 더해도 대조는 그대로
+#    통과한다(F22 — 이 대조는 dma/dmb/dmc/dmd/dme 폴더·역할·권한 세트·mdmSample 하나만 본다, dmd 의 새 OBJECT 3개는
+#    안 본다).
+cd $W/src/frontend && sqlite3 $W/src/backend/data/mcm.db < e2e/fixtures/mdm-rbac-seed-check.sql | diff - e2e/fixtures/mdm-rbac-seed-check.expected.txt   # 출력 없음 = 통과
+sqlite3 $W/src/backend/data/mcm.db < e2e/fixtures/mdm-rbac-users.sql
+# 5) mdm 기동 완료(Flyway 로그, 이 Task 는 마이그레이션이 없으므로 TSK-07-01 의 V10 적용 로그만 확인) 뒤 mdm.db 픽스처.
+cd $W/src/frontend && sqlite3 $W/src/backend/data/mdm.db < e2e/fixtures/mdm-dataMng.sql
+# 6) 포털 — m-mdm 을 먼저 build, 레지스트리는 predev 가 재생성한다(재생성 결과가 커밋본과 다르면 커밋 대상, F21)
+cd $W/src/frontend && pnpm build:libs
+cd $W/src/frontend/m-mcm && AUTH_SECRET=$(openssl rand -hex 32) NEXTAUTH_URL=http://127.0.0.1:15831 OIDC_ISSUER=http://127.0.0.1:15831 \
+  MCM_WAS_URL=http://127.0.0.1:18831 MDM_WAS_URL=http://127.0.0.1:18832 BACKEND_API_URL=http://127.0.0.1:18831 \
+  BACKEND_CLIENT_KEY=dmes-bff-local-client-key-2026 pnpm exec next dev --turbopack --port 15831 > $SP/fe.log 2>&1 &
+FE_PID=$!
+# 7) 시험 — 반드시 자기 포털(기본값 5100 은 메인 체크아웃 포털 → 거짓 통과). --workers=1(병렬 로그인 SQLITE_BUSY 방지).
+#    이 Task 세 spec 만:
+cd $W/src/frontend && SMOKE_MCM_BASE_URL=http://127.0.0.1:15831 SMOKE_LOGIN_USER=admin SMOKE_LOGIN_PASSWORD=admin123 \
+  $W/.claude/skills/dflow-dev/scripts/heavy.sh pnpm exec playwright test e2e/mdm-dataMng.spec.ts e2e/mdm-dataEdit.spec.ts e2e/mdm-dataCateEdit.spec.ts --workers=1
+#    전체 mdm 스위트(회귀 확인용) — 1)부터 새 DB 로 다시 시작한 뒤 dataItem 픽스처도 함께 깔고:
+cd $W/src/frontend && sqlite3 $W/src/backend/data/mdm.db < e2e/fixtures/mdm-dataItem.sql
+cd $W/src/frontend && SMOKE_MCM_BASE_URL=http://127.0.0.1:15831 SMOKE_LOGIN_USER=admin SMOKE_LOGIN_PASSWORD=admin123 \
+  $W/.claude/skills/dflow-dev/scripts/heavy.sh pnpm exec playwright test e2e/mdm-*.spec.ts --workers=1
+# 8) 다른 Task 의 추적 파일 복원 — 다른 spec 들이 자기 Task 스크린샷을 덮어쓴다. 이 Task 폴더(TSK-07-02/screens)는 되돌리지 않는다.
+cd $W && /usr/bin/git checkout -- docs/mdm/tasks/TSK-01-02/screens/ docs/mdm/tasks/TSK-01-03/screens/ docs/mdm/tasks/TSK-04-02/screens/ docs/mdm/tasks/TSK-04-03/screens/ docs/mdm/tasks/TSK-04-04/screens/ docs/mdm/tasks/TSK-07-03/screens/
+cd $W && /usr/bin/git checkout -- src/frontend/m-mcm/next-env.d.ts 2>/dev/null; /usr/bin/git status --porcelain
+#    남아야 하는 것: docs/mdm/tasks/TSK-07-02/screens/*.png, (재생성됐다면) src/frontend/m-mcm/lib/generated/page-registry.ts.
+#    src/frontend/test-results/ 같은 산출물은 stage 하지 않는다. 한글 경로는 git diff --name-only -z | xargs -0 로 다룬다.
+# 9) 정리 — 성공·실패·중단과 무관하게 반드시. 자기 PID 와 자기가 고른 포트만 거둔다.
+kill $FE_PID $BE_MDM_PID $BE_MCM_PID
+lsof -tiTCP:15831 -sTCP:LISTEN | xargs -r kill
+lsof -tiTCP:18832 -sTCP:LISTEN | xargs -r kill
+lsof -tiTCP:18831 -sTCP:LISTEN | xargs -r kill
+cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
+```
+
+- 통과 기준: 이 Task 세 spec 전부 passed, skipped·failed 0. 시드 대조 `diff` 출력 없음.
+- 서버를 백그라운드로 띄우는 것은 서버 프로세스이고, 시험 명령과 게이트는 포그라운드로 끝까지 돌린다(dev-discipline 「포그라운드 실행」). 서버를 켜 둔 채 다음 Phase 로 넘기지 않는다.
+- 기동 로그로 SQLite 경로가 이 워크트리 안인지 반드시 확인한다. 아니면 메인 체크아웃 DB 를 공유해 거짓 통과·데이터 오염이 난다.
