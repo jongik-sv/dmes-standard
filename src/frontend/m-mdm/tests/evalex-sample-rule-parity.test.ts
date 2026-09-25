@@ -8,11 +8,13 @@
  * `grpCondAst`에서만 필수 키를 뽑는데, 그룹 조건이 없으므로 뽑히지 않는다).
  *
  * 변수·행(cells JSON)은 수기 전사가 아니라 `src/backend/mdm/sample/mdm-local-sample.sql`(TB_MDM_RULE_VAR·
- * TB_MDM_RULE_ROW, MARU_RULE_ID='QLTY_GRD_JDG'|'COIL_WGT_CALC'|'PROD_WGT_CALC'|'BASE_SPD_LKP', VER=1)에서
- * 그대로 옮겼다 — 이 시드의 셀 값이 `SampleRules.java`(06:1295-1329·H:440-461·465-497·520-531)와 바이트 단위로
- * 같음을 Build 착수 시 확인했다(design.md D1 (b) — 뚜렷한 실제 저장 표현이 있어 수기 전사 대신 이 경로를 썼다).
+ * TB_MDM_RULE_ROW, MARU_RULE_ID='QLTY_GRD_JDG'|'COIL_WGT_CALC'|'PROD_WGT_CALC'|'BASE_SPD_LKP', VER=1)의 INSERT 문에서
+ * 그대로 옮겼다 — 이 시드의 op·left·right·list·val·expr 값이 `SampleRules.java`(06:1295-1329·H:440-461·465-497·
+ * 520-531)의 리터럴과 같음을 Build 착수 시 육안으로 대조했다(자동 바이트 비교는 아니다, design.md D1 (b) — 뚜렷한
+ * 실제 저장 표현이 있어 수기 전사 대신 이 경로를 썼다).
  * 기대 hitRows 는 `SampleRuleValueTest.java`(수용 기준 1)의 각 `@Test`가 `hitRows(r)`로 단언하는 값을 그대로 가져왔다
- * (새로 계산하지 않는다 — Java 테스트 결과가 정답).
+ * (새로 계산하지 않는다 — Java 테스트 결과가 정답). `QLTY_Q6`·`QLTY_Q7`·`PROD_P4`처럼 Java 가 결과 계약 오류를 던지거나
+ * 조건 셀 타입 변환을 확인하는 케이스도 조용히 빼지 않고 아래에 명시적 경계 테스트로 옮겼다.
  */
 import { describe, expect, it } from "vitest";
 
@@ -89,6 +91,19 @@ describe("QLTY_GRD_JDG — FIRST(SampleRuleValueTest.QLTY_*)", () => {
   it("Q3 두께 2.5·표면 A: 3행 적중(BASE_FCT 식 행 — 식 값 자체는 비교 대상 아님)", () => {
     const p = previewRule(qltyRule, { COIL_THK: 2.5, COIL_WID: 900, SURF_GRD: "A" });
     expect(hitRowIds(p)).toEqual([3]);
+    expect(ok(p).defaultApplied).toBe(false);
+  });
+
+  it("Q6 경계 — Java 는 BASE_FCT 없이 3행 적중 시 RESULT_CHECK 로 던지지만(SampleRuleValueTest.QLTY_Q6), " +
+    "previewRule 은 결과 계약을 보지 않으므로(불변 규칙 1) 3행 적중만 내고 통과한다 — 설계대로이며 결함이 아니다", () => {
+    const p = previewRule(qltyRule, { COIL_THK: 2.5, COIL_WID: 900, SURF_GRD: "A" });
+    expect(hitRowIds(p)).toEqual([3]);
+    expect(p.kind).toBe("ok");
+  });
+
+  it("Q7 조건 셀 입력이 문자열·정수로 섞여 와도 선언 타입으로 바꿔 1행 적중(SampleRuleValueTest.QLTY_Q7)", () => {
+    const p = previewRule(qltyRule, { COIL_THK: "1.8", COIL_WID: 1200, SURF_GRD: "A" });
+    expect(hitRowIds(p)).toEqual([1]);
     expect(ok(p).defaultApplied).toBe(false);
   });
 
@@ -180,6 +195,14 @@ describe("PROD_WGT_CALC — UNIQUE(SampleRuleValueTest.PROD_P1~P3)", () => {
   it("P3 시트(CALC_BASIS 무관): 2행 적중", () => {
     const p = previewRule(prodRule, { PROD_TYPE: "SHEET", CALC_BASIS: null });
     expect(hitRowIds(p)).toEqual([2]);
+  });
+
+  it("P4 경계 — Java 는 SHEET_CNT 없음·SPEC_GRAV NULL 로 2행 적중 시 RESULT_CHECK 를 두 건 던지지만" +
+    "(SampleRuleValueTest.PROD_P4), previewRule 은 결과 계약을 보지 않으므로(불변 규칙 1) 2행 적중만 내고 통과한다" +
+    " — 설계대로이며 결함이 아니다", () => {
+    const p = previewRule(prodRule, { PROD_TYPE: "SHEET", CALC_BASIS: null });
+    expect(hitRowIds(p)).toEqual([2]);
+    expect(p.kind).toBe("ok");
   });
 });
 
