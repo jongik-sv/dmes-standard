@@ -35,7 +35,7 @@ TSK-07-03 이 이미 머지한 `dataItemMng`(항목 관리) 화면·`DataItemSav
 - **D1** — 트리 알고리즘·렌더 유틸(`buildCodeTree`·`toTreeItems`)을 새로 만들지 않고 `pages/dmc/codeItemEdit/code-tree.ts`
   를 `src/hier-tree.ts`(m-mdm 공용)로 옮겨 `dataItemMng` 도 쓴다. 「이동(D1)」 절.
 - **D2** — `dataCsvUploadPop` 을 독립 화면이 아니라 팝업으로 만든다(`dataItemMng` 이 연다, page.tsx·메뉴 leaf 없음).
-  공용 결정 기록 `docs/mdm/decisions.md` D-TSK-07-04-1 로 승격.
+  공용 결정 기록 `docs/mdm/decisions.md` D-097 로 승격.
 - **D3** — CSV 는 서버에서만 파싱·검증한다(화면은 `FileReader` 로 원문만 전달). 검증 결과를 CSV 줄 번호에 정확히
   대응시키기 위해 `UpsertResult.RowAction` 에 행별 `issues` 를 추가한다(기존 API 하위 호환 유지).
 - CSV 파싱은 **서버에서만** 한다(D3). 05 시안(`html/05-master-data.html` `#p-csv`)의 프로토타입은 검증 로직을
@@ -260,7 +260,7 @@ TSK-07-03 이 이미 머지한 `dataItemMng`(항목 관리) 화면·`DataItemSav
     금지)과 같은 모양의 병합된 선례 `dma/termRegPop`(TSK-04-04)이 있다(리포 관례). spec 의 entry-point 도 "항목 관리 > CSV
     업로드" 로 항목 관리 아래에 둔다. 다만 수용 기준 문구 "포털 메뉴에서 화면이 열리고 e2e `mdm-dataCsvUploadPop.spec.ts`
     가 통과한다" 를 "포털 메뉴로 항목 관리를 열고 CSV 업로드 버튼으로 팝업을 연다" 로 재해석했으므로 확인을 받는다.
-    공용 결정 기록 `docs/mdm/decisions.md` D-TSK-07-04-1.
+    공용 결정 기록 `docs/mdm/decisions.md` D-097.
   - 반려되면: `pages/dmd/dataCsvUploadPop/page.tsx` 와 메뉴 leaf 시드를 더해 독립 화면으로 승격하고, screenId 에서 `Pop` 을
     떼어 식별자 사전에 등재한다. e2e 는 포털 메뉴에서 직접 여는 시나리오로 바꾼다(DDL 영향 없음).
 

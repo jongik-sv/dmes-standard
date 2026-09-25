@@ -810,7 +810,8 @@
 - **Reversible**: yes(전용 MdmErrorCode 를 나중에 추가하고 이슈 코드를 그쪽으로 옮기면 된다 — 응답 바디의 `meta.code` 값만 바뀐다)
 - **Source**: docs/mdm/tasks/TSK-06-04/design.md D6
 
-## D-TSK-07-04-1 (2026-09-25T14:36:00Z)
+## D-097 (2026-09-25T14:36:00Z)
+- **Temp ID**: D-TSK-07-04-1
 - **Phase**: design (TSK-07-04)
 - **Decision needed**: `dataCsvUploadPop` 을 독립 화면(page.tsx + 메뉴 leaf + 포털 진입)으로 만드나, 팝업(page.tsx·메뉴
   leaf 없이 `dataItemMng` 화면 안에서 여는 모달)으로 만드나. `docs/mdm/screens/README.md` §4 가 이 판단을 TSK-07-04 에
