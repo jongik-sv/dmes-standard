@@ -6,8 +6,16 @@ import { expect, test, type Page } from "@playwright/test";
  *
  *   1. 메뉴 이동 — 담당자(e2e_mdm_steward)로 로그인해 사이드바에서 화면을 연다(dmd 쓰기는 EDIT 세트라 담당자만, F2).
  *   2. 목록 — 결과 그리드에 픽스처 행이 보인다.
- *   3. 등록 1건 → dataEdit 탭이 열리고 방금 등록한 ID 가 자동 로드됨을 확인(D7 인계 메커니즘).
+ *   3. 등록 1건 → dataEdit 탭이 열리고 방금 등록한 ID 가 자동 로드됨을 확인(D7 인계 메커니즘, R10 원천 UI 없음도 확인).
  *   4. 서버 오류 노출 — 중복 ID 재등록(MDM011 모달, F15 문구).
+ *
+ * design.md §4 는 "등록 후 수정 화면으로 이동"에 "dataEdit 탭이 이미 열려 있던 경우도 한 케이스로 확인"을 요구하지만,
+ * 그 근거로 든 dataHandoff.test.ts 는 B2 의 D7 개정(page-handoff.ts 로 교체)으로 이미 사라졌다. 이 케이스의 메커니즘
+ * (같은 탭이 활성화될 때 새 파라미터를 다시 소비하는 것)은 공유 모듈 src/shell/page-handoff.ts 의 기존
+ * tests/shell/page-handoff.test.ts(`useMdmPageParams 는 마운트 때와 자기 탭 활성화 때 소비한다`)가 이미 단위
+ * 수준에서 덮는다. 이 화면 조합으로 새 e2e 케이스를 시도했으나 탭 전환 직후 등록 버튼 클릭이 서버 요청을 내지
+ * 않는 재현 가능한 문제에 부딪혔다(포털 탭 전환의 e2e 조작 가능성 자체의 한계로 보이며, build-log 「하지 못한
+ * 것」에 기록·보고했다). 이 스펙은 새 탭이 열리는 경로(스모크 3)만 확인한다.
  *
  * 픽스처: e2e/fixtures/mdm-dataMng.sql(mdm.db, dataEdit·dataCateEdit 와 공유). 서버 절차는 design.md 「E2E 서버 절차」.
  * SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다(127.0.0.1:5100 은 메인 체크아웃 포털이라 쓰지 않는다, F23).
@@ -64,6 +72,12 @@ test.describe("mdm dmd/dataMng", () => {
   });
 
   test("3. 등록 1건 → dataEdit 탭이 열리고 방금 등록한 ID 가 자동 로드된다(D7)", async ({ page }) => {
+    // R10 — 등록 폼에 원천 선택 UI 자체가 없다(MDM 원천만 받는다, D1). 값은 고정 텍스트일 뿐 select·input·
+    // combobox 같은 조작 가능한 컨트롤이 없어야 한다 — 나중에 누가 원천 선택 드롭다운을 더하면 이 단정이 걸린다.
+    const sourceCell = page.getByTestId("data-mng-reg-source");
+    await expect(sourceCell).toHaveText("MDM");
+    await expect(sourceCell.locator("select, input, [role='combobox']")).toHaveCount(0);
+
     const registered = waitAction(page, "reg");
     await page.getByTestId("data-mng-reg-id").fill(NEW_ID);
     await page.getByTestId("data-mng-reg-name").fill("E2E 등록 테스트");
@@ -71,7 +85,8 @@ test.describe("mdm dmd/dataMng", () => {
     await page.getByTestId("data-mng-reg-save").click();
     await registered;
 
-    // dataEdit 탭이 새로 열리고 방금 등록한 ID 가 자동 로드된다(D7, sessionStorage 인계 — 탭이 새로 만들어지는 경우).
+    // dataEdit 탭이 새로 열리고 방금 등록한 ID 가 자동 로드된다(D7 개정 — src/shell/page-handoff.ts 의
+    // openMdmPage/useMdmPageParams, B2 가 sessionStorage 전용 dataHandoff.ts 를 이걸로 교체했다).
     // getByText(NEW_ID) 를 전체 페이지에 그대로 쓰면 원래 dataMng 탭의 목록 행(data-mng-open-<ID> 버튼, 새 탭 뒤에
     // 숨겨진 채로 DOM 에 남아 있다)과 새 dataEdit 탭의 선택값이 같은 글자로 두 번 걸려 strict mode violation 이 난다.
     // data-edit-pick 으로 좁혀도 여전히 실패한다 — 그 아래에는 ComboBox(Mantine Select)의 보이는 <input>(검색

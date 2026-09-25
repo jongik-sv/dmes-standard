@@ -276,7 +276,7 @@ B1 산출물 재사용).
 
 범위: B1·B2·B3 를 합친 뒤(오케스트레이터 커밋 6d6088a) `DmdScreenMessageParityTest` 루프에 `dataCateEdit` 항목 추가,
 좁힌 백엔드·프런트 회귀 확인, 세 화면 e2e 실행·스크린샷, dataMng→dataEdit 인계(수용 기준 "등록 후 수정 화면으로
-이동") 확인.
+이동") 확인, 변이 검증 표 R1~R12 커버리지 점검(advisor 재검토로 R3·R8 누락을 발견해 채움).
 
 ### 수정 파일
 
@@ -284,9 +284,12 @@ B1 산출물 재사용).
   `expectedPrefix` 두 필드를 추가해(기존엔 `ROW_VERSION_CONFLICT_PREFIX` 하나로 고정) 화면마다 다른 접두어 상수를
   대조할 수 있게 넓혔다. `dataCateEdit` 항목(`RESERVED_CATEGORY_PREFIX` ↔ `MdmErrorCode.RESERVED_CATEGORY`,
   `checkClosedKeyReopen=true`)을 추가했다. dataItemMng·dataEdit 두 기존 항목의 단정 내용은 바꾸지 않았다 —
-  `ROW_VERSION_CONFLICT_PREFIX`/`MdmErrorCode.ROW_VERSION_CONFLICT.defaultMessage()` 인자를 그대로 넘긴다(설계
-  이탈 아님, 루프 구조 확장일 뿐).
-- `src/frontend/e2e/mdm-dataMng.spec.ts` — 스모크 3(등록→dataEdit 인계) 단정을 두 번 고쳤다(아래 「설계 이탈」).
+  `ROW_VERSION_CONFLICT_PREFIX`/`MdmErrorCode.ROW_VERSION_CONFLICT.defaultMessage()` 인자를 그대로 넘긴다.
+- `src/backend/mdm/api/src/test/java/.../dmd/dataCateEdit/DataCateEditServiceSqliteTest.java` — R8 커버리지
+  점검 중 찾은 구멍을 메우는 새 테스트 `reg_는_잘못된_REGEX_문법이면_거부한다` 1개 추가(아래 「변이 검증 기록」).
+- `src/frontend/e2e/mdm-dataMng.spec.ts` — 스모크 3(등록→dataEdit 인계)의 로케이터 버그 2건을 고쳤고(아래
+  「설계 이탈」), 스모크 3 안에 R10(등록 폼에 원천 선택 UI 없음) 단정을 추가했다. "이미 열린 dataEdit 탭" 케이스의
+  새 e2e 테스트는 시도했으나 원인 불명의 재현 가능한 문제로 되돌렸다(아래 「하지 못한 것」).
 
 ### 설계 이탈
 
@@ -300,8 +303,9 @@ B1 산출물 재사용).
    반영돼 있지 않았다. `cd m-mcm && node scripts/generate-page-registry.mjs` 를 수동으로 한 번 돌려(38 pages,
    19 from module packages) 세 항목을 채운 뒤 포털을 다시 띄우니 정상 렌더됐다. design.md 「E2E 서버 절차」
    6번 항목은 "레지스트리는 predev 가 재생성한다"고만 적어 이 함정을 언급하지 않는다 — 다음 Task 의 E2E 절차
-   문서에 반영할 사실로 여기 남긴다. 재생성 결과(`m-mcm/lib/generated/page-registry.ts`)는 커밋 대상이다(F21,
-   design.md 원문 그대로).
+   문서에 반영할 사실로 여기 남긴다. 재생성 결과(`m-mcm/lib/generated/page-registry.ts`)는 커밋했다(F21, design.md
+   원문 그대로 — 화면·서버 코드가 아니라 자동 생성 산출물이라 「설계 이탈」이라기보다 절차 함정에 가깝지만,
+   design.md 문구와 실제 동작이 다르므로 여기 기록한다).
 2. **`mdm-dataMng.spec.ts` 스모크 3 단정 — 두 차례 고침.**
    - 1차: `page.getByText(NEW_ID)` 를 페이지 전체에 그대로 쓰면, 새로 열린 dataEdit 탭 뒤에 숨겨진 채 DOM 에
      남아 있는 원래 dataMng 탭의 목록 행 버튼(`data-mng-open-<ID>`)과 dataEdit 쪽 값이 같은 글자로 두 번 걸려
@@ -314,77 +318,119 @@ B1 산출물 재사용).
      헬퍼가 쓰는 같은 패턴(`input:not([type="hidden"])`)으로 `toHaveValue(new RegExp(`^${NEW_ID} `))` 로
      바꿔 고쳤다. 둘 다 spec 쪽 로케이터 버그였고, 화면·서버 코드는 고치지 않았다(기대값 완화가 아니라 올바른
      로케이터로 교체).
+3. **파리티 `Case` 확장은 design.md §2 "루프 구조 자체는 고치지 않는다"(B2 기록)를 살짝 벗어난다.** B2 는
+   B3 가 `screens()` 의 `Stream.of(...)` 에 항목 하나만 더하면 된다고 적었지만, dataCateEdit 의 접두어 상수
+   이름이 `ROW_VERSION_CONFLICT_PREFIX` 가 아니라 `RESERVED_CATEGORY_PREFIX`(R6, MDM012)라 항목 추가만으로는
+   안 되고 `Case` 자체(대조할 상수 이름·기대 문구)를 넓혀야 했다. 대조 로직(`assertTrue(... startsWith ...)`)과
+   기존 두 화면의 실제 대조 내용은 그대로다 — 필드를 인자화했을 뿐 회귀는 없다(`DmdScreenMessageParityTest`
+   3/3 그대로 통과).
 
-### 변이 검증 기록 — 표 커버리지 점검(추가 변이 없음)
+### 변이 검증 기록 — 표 커버리지 점검(R3·R8 추가)
 
-phase-build.md 「변이 검증」 규칙대로 B1~B3 기록 표가 불변 규칙 R1~R12 를 모두 덮는지 점검했다. 결과:
-R1(B1)·R1′(B2)·R2(B2)·R2′(B3)·R4(B3)·R5(B3, REGEX+TABLE 둘 다)·R6(B1 BASE 값 + B3 BASE 수정·닫기 거부)·
-R7(B2 헤더/라벨/lvl_cnt/폐기 + B3 카테고리 등록 거부)·R9(B1)·R10(B1, 간접)·R11(B2)·R12(B3) — R1~R12 전부
-적어도 한 단위에서 실제 변이로 확인됐다. design.md §5 불변 규칙 표에서 대상 테스트가 "없음"으로 명시된
-R3(`MdmTemporalSegmentStoreNoImplementationTest`, ArchUnit, 이 Task 가 건드리지 않는 기존 정적 테스트)와
-R8(정적 — 코드 리뷰 대상, TSK-07-03 소유 `DataItemChecksTest` 로만 방어)은 phase-build.md 가 말하는 "열에 없는
-규칙"이 아니라 design.md 가 그 자체로 변이 검증 대상이 아니라고 명시한 항목이라, 이 단위에서 새 변이를 추가하지
-않았다. 빠진 규칙 없음 — 추가 변이 불필요.
+phase-build.md 「변이 검증」 규칙대로 B1~B3 기록 표가 불변 규칙 R1~R12 를 모두 덮는지 점검했다. R1(B1)·R1′(B2)·
+R2(B2)·R2′(B3)·R4(B3)·R5(B3, REGEX+TABLE 둘 다)·R6(B1 BASE 값 + B3 BASE 수정·닫기 거부)·R7(B2 헤더/라벨/lvl_cnt/
+폐기 + B3 카테고리 등록 거부)·R9(B1)·R10(B1 SELECT 확인, 이번 단위가 e2e 로 UI 부재까지 추가 확인)·R11(B2)·
+R12(B3) 는 이미 실제 변이로 확인돼 있었다. 그런데 R3·R8 은 design.md §5 의 대상 테스트 칸이 "없음"/기존 정적
+테스트로만 적혀 있어 B1~B3 어느 단위도 실제 변이를 넣지 않았다 — advisor 재검토로 이 누락을 찾아 이번 단위가
+채웠다(`.claude/skills/dflow-dev/scripts/heavy.sh` 로 감싼 스크립트 하나, `trap` 으로 원복).
+
+| 불변 규칙 | 변이 | 잡은 테스트 | 결과 |
+|---|---|---|---|
+| R3 | `com.dongkuk.dmes.mdm._r3mutation.TempSegmentStoreImpl`(`common.segment` 패키지 밖, `mdm/lib/src/main`)를 `MdmTemporalSegmentStore<String,String>` 의 네 번째 구현체로 임시 추가 | `MdmTemporalSegmentStoreNoImplementationTest.MdmTemporalSegmentStore_구현체는_common_segment_의_정해진_세_클래스뿐이다`(ArchUnit, TSK-07-03 소유·이 Task 는 고치지 않음) | 잡힘(제거 뒤 재실행으로 회귀 없음도 확인) |
+| R8 | `DataItemChecks.cateDefIssues` 의 REGEX 정규식 문법 검사(`Pattern.compile` try/catch) 블록을 주석 한 줄로 치환 | `DataCateEditServiceSqliteTest.reg_는_잘못된_REGEX_문법이면_거부한다`(이번 단위가 새로 추가) | 잡힘(원복 뒤 `DataCateEditServiceSqliteTest` 15/15 재확인) |
+
+R8 은 design.md 원문이 "재검사하지 않는다"고 적은 공용 코어 파일(`DataItemChecks`)의 검사이지만, 그 결과를
+소비하는 `reg`/`save` 경로(이 Task 소유, `DataCateEditServiceSqliteTest`)에 REGEX 문법 거부를 직접 확인하는
+단위 테스트가 하나도 없었다 — e2e `mdm-dataCateEdit.spec.ts` 스모크 4(잘못된 REGEX 문법 저장 거부)가 화면을
+거쳐 같은 경로를 확인하지만, 서버 없이 빠르게 도는 단위 테스트가 없으면 다음 변경에서 회귀를 e2e 에서야 늦게
+발견한다 — 그래서 새 테스트를 추가했다(파일 소유·시그니처는 바꾸지 않았다, R8 자체는 여전히 지켜진다).
 
 ### 관련 테스트 실행 결과(이 단위)
 
 - `cd src/backend && JAVA_HOME=... ./gradlew :mdm:api:test --tests DmdBpmnActionTest --tests DmdOasisHttpTest
   --tests DmdScreenMessageParityTest --tests DataMngServiceSqliteTest --tests DataEditServiceSqliteTest --tests
   DataCateEditServiceSqliteTest --tests DataCategoryResolverSqliteTest --tests DataItemMngServiceSqliteTest
-  --no-daemon --console=plain`(heavy.sh) → BUILD SUCCESSFUL. XML 결과: `DmdBpmnActionTest` 5/5,
-  `DmdOasisHttpTest` 9/9, `DmdScreenMessageParityTest` 3/3(`dataCateEdit` 포함, 전부 초록),
-  `DataMngServiceSqliteTest` 7/7, `DataEditServiceSqliteTest` 16/16, `DataCateEditServiceSqliteTest` 14/14,
-  `DataCategoryResolverSqliteTest` 4/4, `DataItemMngServiceSqliteTest` 9/9 — 회귀 없음.
-- `cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test`(heavy.sh, 백그라운드로 자동
-  전환된 `build:libs` 는 완료를 foreground 로 확인한 뒤 이어갔다) → 70 files, 773 tests, 3 failed(전부
-  `tests/evalex-perf.test.ts` NFR-1 — B1·B2 가 이미 기록한 것과 같은, 동시 무거운 명령 부하로 인한 무관
-  flaky). 팀장 지시대로 그 파일만 단독으로 heavy.sh 슬롯 안에서 재실행:
-  `cd src/frontend/m-mcm... pnpm exec vitest run tests/evalex-perf.test.ts` → 4 tests, 4 passed(중앙값 모두
+  --no-daemon --console=plain`(heavy.sh, R8 새 테스트 추가 뒤 마지막으로 재확인) → BUILD SUCCESSFUL. XML 결과:
+  `DmdBpmnActionTest` 5/5, `DmdOasisHttpTest` 9/9, `DmdScreenMessageParityTest` 3/3(`dataCateEdit` 포함),
+  `DataMngServiceSqliteTest` 7/7, `DataEditServiceSqliteTest` 16/16, `DataCateEditServiceSqliteTest` 15/15(R8
+  새 테스트 포함), `DataCategoryResolverSqliteTest` 4/4, `DataItemMngServiceSqliteTest` 9/9 — 회귀 없음.
+- `cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test`(heavy.sh) → 70 files, 773 tests,
+  3 failed(전부 `tests/evalex-perf.test.ts` NFR-1 — B1·B2 가 이미 기록한 것과 같은, 동시 무거운 명령 부하로
+  인한 무관 flaky). 팀장 지시대로 그 파일만 단독으로 heavy.sh 슬롯 안에서 재실행:
+  `cd src/frontend/m-mdm && pnpm exec vitest run tests/evalex-perf.test.ts` → 4 tests, 4 passed(중앙값 모두
   100ms 미만). 부하 민감 env 실패로 인정, 본 실행 통과 로그로 갈음.
-- `cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint` → 통과(`tsc --noEmit`, 오류 0).
-- `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` → B3 가 이미 이 단위
-  직전에 `ERROR 0 / WARN 0 / INFO 29` 로 확인했고, 이 단위는 oasis 계약에 영향 없는 테스트·spec 파일만 고쳐 다시
+- `cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint` → 통과(`tsc --noEmit`, 오류 0, `mdm-dataMng.spec.ts`
+  수정 뒤 재확인 포함).
+- `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` → B3 가 이 단위 직전에
+  이미 `ERROR 0 / WARN 0 / INFO 29` 로 확인했고, 이 단위는 oasis 계약에 영향 없는 테스트·spec 파일만 고쳐 다시
   돌리지 않았다.
 
 ### E2E 서버 절차 실행
 
 design.md 「E2E 서버 절차」 그대로(포트 mcm BE 18831·mdm BE 18832·FE 15831, 모두 이 워크트리 안에서 새로 고른
-빈 포트) `heavy.sh acquire e2e-TSK-07-02` 로 슬롯을 쥐고 진행했다. 1차 시도는 위 「설계 이탈」1(레지스트리 미생성)
-로 10개 spec 전부 실패해 DB·서버를 처음부터 다시 띄웠고, 2차 시도는 1차 실패 때 이미 등록한 `E2E_DM_CUST` 헤더
-저장이 DB 에 남아 있는 채로(같은 DB 를 재사용) 돌려 두 케이스가 상태 간섭으로 실패했다 — 3차(DB·서버를 처음부터
-다시 띄워 완전히 새로 시작)에서 10개 전부 통과했다. 기동 로그로 `mcm.db`/`mdm.db` 가 각각
-`$W/src/backend/data/mcm.db`·`../data/mdm.db`(= 같은 경로)로, 이 워크트리 안임을 확인했다(메인 체크아웃 DB 공유
-없음). RBAC 시드 대조(`mdm-rbac-seed-check.sql` → `.expected.txt`) diff 출력 없음(통과). `DataInitializer` 로그에
-`[DataInitializer] TSK-07-02 MDM 마루 데이터 조회·등록·수정·카테고리 편집 시드 — OBJECT 3 + 메뉴 leaf 3 + RBAC(SYSADMIN
-3 + MDM 역할 6)` 한 줄을 확인했다.
+빈 포트) `heavy.sh acquire e2e-TSK-07-02` 로 슬롯을 쥐고 진행했다. DB·서버를 처음부터 새로 띄운 전체 사이클을
+**다섯 차례** 돌렸다 — 사이클마다 원인이 남아 다음 사이클로 넘어갔다:
+1. 1차: 레지스트리 미생성(위 「설계 이탈」1)으로 10개 spec 전부 `beforeEach` 단계에서 실패.
+2. 2차: 레지스트리를 수동 재생성한 뒤 재시도했으나 DB 를 그대로 재사용해(1차 실행 때 이미 등록·저장이 일부
+   반영됨) 두 테스트가 픽스처 값 충돌로 실패 — spec 로케이터 버그(위 「설계 이탈」2)의 1차 수정본을 이때 넣었다.
+3. 3차: DB·서버를 처음부터 다시 띄워 10개 전부 통과(로케이터 2차 수정 전이라 이 통과는 R10 단정·「하지
+   못한 것」의 3b 시도 이전 버전 기준).
+4. 4차: R10 단정과 "이미 열린 dataEdit 탭"(3b) 새 테스트를 추가한 뒤 재확인 — 11개 중 3b 만 재현 가능하게
+   실패(아래 「하지 못한 것」). 같은 서버 세션에서 `--grep 3b` 로 두 차례 더 시도(타임아웃 연장·안정화 대기 추가)
+   했으나 동일하게 실패해 3b 를 되돌렸다.
+5. 5차: 3b 를 뺀 최종본으로 DB·서버를 처음부터 다시 띄워 10개 전부 통과 — 이 결과를 최종 스크린샷·게이트
+   결과로 쓴다.
 
-최종 실행: `SMOKE_MCM_BASE_URL=http://127.0.0.1:15831 SMOKE_LOGIN_USER=admin SMOKE_LOGIN_PASSWORD=admin123
+기동 로그로 `mcm.db`/`mdm.db` 가 각각 `$W/src/backend/data/mcm.db`·`../data/mdm.db`(= 같은 경로)로, 이
+워크트리 안임을 매 사이클 확인했다(메인 체크아웃 DB 공유 없음). RBAC 시드 대조(`mdm-rbac-seed-check.sql` →
+`.expected.txt`) diff 출력 없음(매 사이클 통과). `DataInitializer` 로그에 `[DataInitializer] TSK-07-02 MDM
+마루 데이터 조회·등록·수정·카테고리 편집 시드 — OBJECT 3 + 메뉴 leaf 3 + RBAC(SYSADMIN 3 + MDM 역할 6)` 한 줄을
+확인했다.
+
+최종 실행(5차): `SMOKE_MCM_BASE_URL=http://127.0.0.1:15831 SMOKE_LOGIN_USER=admin SMOKE_LOGIN_PASSWORD=admin123
 heavy.sh pnpm exec playwright test e2e/mdm-dataMng.spec.ts e2e/mdm-dataEdit.spec.ts e2e/mdm-dataCateEdit.spec.ts
---workers=1` → **10 passed (25.7s)**, skipped 0, failed 0.
+--workers=1` → **10 passed (33.1s)**, skipped 0, failed 0.
 
 - `e2e/mdm-dataCateEdit.spec.ts` 3개: 메뉴 이동·목록(BASE 포함), REGEX 카테고리 등록→목록 반영, 잘못된 REGEX
   문법 거부.
 - `e2e/mdm-dataEdit.spec.ts` 4개: 메뉴 이동, select 로 헤더 채움, 헤더 저장→재조회 반영, 잘못된 키 패턴 거부.
 - `e2e/mdm-dataMng.spec.ts` 3개: 메뉴 이동·목록, **등록 1건 → dataEdit 탭이 열리고 방금 등록한 ID 가 자동
-  로드된다(D7, 수용 기준 "등록 후 수정 화면으로 이동")**, 중복 ID 재등록 MDM011 거부.
+  로드된다(D7, 수용 기준 "등록 후 수정 화면으로 이동", R10 원천 UI 없음도 이 테스트 안에서 확인)**, 중복 ID
+  재등록 MDM011 거부.
 
 세 화면 연결 확인(수용 기준): `mdm-dataMng.spec.ts` 스모크 3 이 등록 직후 새로 열린 `dataEdit` 탭에서
 `data-edit-pick` 입력값이 `^{등록한 ID} ` 로 시작함을 확인해, dataMng 등록 → dataEdit 화면 자동 이동·로드를
-e2e 로 검증했다.
+e2e 로 검증했다(새 탭이 열리는 경로). "이미 열린 dataEdit 탭" 경로는 아래 「하지 못한 것」 참고.
 
-**스크린샷 목록**(`docs/mdm/tasks/TSK-07-02/screens/`, 9개, 이번 3차 실행 결과로 커밋):
+**스크린샷 목록**(`docs/mdm/tasks/TSK-07-02/screens/`, 9개, 5차 최종 실행 결과로 커밋):
 `dmd-dataMng-list.png`, `dmd-dataMng-register-handoff.png`, `dmd-dataMng-duplicate-id.png`,
 `dmd-dataEdit-view.png`, `dmd-dataEdit-save.png`, `dmd-dataEdit-invalid-pattern.png`,
 `dmd-dataCateEdit-list.png`, `dmd-dataCateEdit-register.png`, `dmd-dataCateEdit-invalid-regex.png`.
 
-서버 정리: 자기 PID(FE·mdm BE·mcm BE)와 자기가 고른 세 포트(15831·18832·18831)만 `kill`, 이후 `lsof
--tiTCP:<포트> -sTCP:LISTEN` 으로 잔존 프로세스 없음 확인, `heavy.sh release` 로 슬롯 반환. 다른 Task 추적
-스크린샷(TSK-01-02/01-03/04-02/04-03/04-04/07-03) 과 `m-mcm/next-env.d.ts` 는 `git checkout --` 로 되돌렸다.
-`src/frontend/test-results/`(이번 실행이 지운 이전 라운드의 잔재 파일 1개 포함) 는 stage 하지 않았다(design.md
-지시대로 산출물이라 커밋 대상이 아니다).
+서버 정리: 자기 PID(FE·mdm BE·mcm BE)와 자기가 고른 세 포트(15831·18832·18831)만 매 사이클 `kill`, 이후 `lsof
+-tiTCP:<포트> -sTCP:LISTEN` 으로 잔존 프로세스 없음 확인, 마지막에 `heavy.sh release` 로 슬롯 반환. 다른 Task
+추적 스크린샷(TSK-01-02/01-03/04-02/04-03/04-04/07-03)과 `m-mcm/next-env.d.ts`·`src/frontend/test-results/`
+는 매 사이클 뒤 `git checkout --` 로 되돌렸다.
 
 ### 하지 못한 것 / 생략
 
+- **"dataEdit 탭이 이미 열려 있는 경우"(design.md §4 가 "등록 후 수정 화면으로 이동" 수용 기준에 요구하는 두
+  번째 케이스)를 e2e 로 새로 확인하지 못했다.** design.md §4 가 이 케이스의 근거로 든 `dataHandoff.test.ts`
+  는 B2 의 D7 개정(`page-handoff.ts` 로 교체)으로 이미 삭제됐다 — 표가 가리키는 검증 방법 자체가 낡았다.
+  이 케이스의 메커니즘(같은 탭이 재활성화될 때 새 파라미터를 다시 소비하는 것)은 공유 모듈
+  `src/shell/page-handoff.ts` 의 기존 `tests/shell/page-handoff.test.ts`(`useMdmPageParams 는 마운트 때와
+  자기 탭 활성화 때 소비한다`, TSK-06-02 소유, 이번 단위의 `pnpm --filter @dk-oasis/m-mdm test` 실행에서
+  4/4 통과 확인)가 이미 단위 수준에서 덮는다. 이 화면 조합(dataMng↔dataEdit)으로 새 e2e 케이스를 두 차례
+  시도했으나(사이드바로 dataEdit 열기 → 다른 마루 데이터 선택 → 탭 바 클릭으로 dataMng 탭 복귀 → 등록),
+  탭 전환 뒤 `data-mng-list`/`data-mng-reg-save` 가 Playwright 기준 visible·enabled 로 확인되는데도 등록
+  버튼 클릭이 서버에 `POST /api/mdm/oasis/dataMng/reg` 요청을 전혀 내지 않는 현상이 두 시도 모두 재현됐다
+  (`fe.log` 로 직접 확인 — 해당 시간대에 그 요청 자체가 없다). 타임아웃 연장·클릭 전 "enabled" 명시적 대기를
+  더해도 같았다. a11y 스냅샷에는 여전히 dataEdit 화면의 breadcrumb(`generic: dataEdit`)이 남아 있어, 탭 전환이
+  실제로는 완전히 반영되지 않은 상태에서 두 화면의 testid 가 동시에 "보임"으로 잡히는(포털 탭 전환의 실제 화면
+  전환과 Playwright 의 actionability 판정 사이 괴리로 보이는) 현상일 가능성이 커 보이지만, 확정하지 못했다 —
+  화면 코드의 실제 버그인지 e2e 조작 가능성의 한계인지 가르려면 Playwright trace(`--trace on`)로 클릭 시점의
+  실제 DOM 스냅샷을 봐야 하는데, 이번 단위 예산(아래 참고) 안에서는 더 못 돌렸다. 다음에 이 케이스를 다시
+  시도할 사람을 위해 시도한 spec 코드와 증상을 여기 남긴다(코드 자체는 되돌려 커밋하지 않았다).
 - design.md 「E2E 서버 절차」의 "전체 mdm 스위트(회귀 확인용)" 단계(`mdm-*.spec.ts` 전체 + `dataItem` 픽스처)는
   돌리지 않았다 — 이 단위에 배정된 범위는 세 spec(`mdm-dataMng`·`mdm-dataEdit`·`mdm-dataCateEdit`)이고, 팀장
   지시도 그 세 spec 만 명시했다. 전체 mdm e2e 회귀는 이 Task 의 Build 게이트(오케스트레이터)가 별도로 판단할
@@ -393,3 +439,5 @@ e2e 로 검증했다.
   mssqlTest 를 추가하지 않았다.
 - 전체 백엔드 `testAll`·`pnpm test:unit:shared` 는 이 단위에서 돌리지 않았다(phase-build.md — Build 서브에이전트는
   전체 스위트를 돌리지 않는다, 오케스트레이터의 Build 게이트 몫).
+- **단위 상한 초과**: phase-build.md 의 단위 상한(도구 호출 약 80회)을 이 단위 도중 크게 넘겼다(변이 검증
+  표 점검·재현 시도·다섯 차례 E2E 사이클 때문). 커밋 경계를 지킬 수 있는 지점(현재 시점)에서 마무리했다.

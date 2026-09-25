@@ -115,6 +115,22 @@ class DataCateEditServiceSqliteTest {
         assertTrue(view.getCate().isOpen());
     }
 
+    /**
+     * R8 — 이 Task 는 {@code DataItemChecks.cateDefIssues}(TSK-07-03 소유 공용 코어)를 재검사하지 않지만,
+     * {@code reg}/{@code save} 는 그 결과를 그대로 거쳐 거부한다(design.md §5 R8). 통합 단위(I)에서 커버리지
+     * 점검 중 이 경로(REGEX 등록의 문법 거부)가 어떤 단위 테스트로도 확인되지 않은 구멍을 찾아 채웠다 —
+     * e2e `mdm-dataCateEdit.spec.ts` 스모크 4 는 화면을 거쳐 같은 경로를 확인하지만, 서버 없이 빠르게 도는
+     * 단위 테스트가 없으면 다음 변경에서 회귀를 늦게(e2e 에서야) 발견한다.
+     */
+    @Test
+    void reg_는_잘못된_REGEX_문법이면_거부한다() {
+        DmdSegmentTestSupport.insertMdm(jdbc, "MD1", 0);
+
+        CateRegRequest req = regRequest("MD1", "C2", "잘못된식", "REGEX", "[", "KEY", null);
+
+        assertThrows(BusinessException.class, () -> service.register(req));
+    }
+
     @Test
     void reg_는_TABLE_카테고리를_만든다() {
         DmdSegmentTestSupport.insertMdm(jdbc, "MD1", 0);
