@@ -46,11 +46,24 @@
 | I8(TS, B5) | PROG 통과 삭제(PROG 도 UNKNOWN_INPUT) | `set-model.test.ts` | 잡힘 |
 | §6.9 condMarks(B5) | "앞에 없음" 을 붉은 칩 전부에 붙임 | `set-model.test.ts` | 잡힘 |
 | §6.9 condMarks(B5) | 앞에서 이미 만든 PROG 도 보통 칩 | `set-model.test.ts` | 잡힘 |
+| I4(B2) | 자기 결과 이름 제외 삭제(`Names.add` 의 `selfResults` 조건) | `RuleIoReaderTest` "읽는 이름은 …" | 잡힘 |
+| I4(B2) | `GRP_COND_AST` 참조 누락 | `RuleIoReaderTest` "읽는 이름은 …" | 잡힘 |
+| I4(B2) | Expression 조건 열의 이름을 conds 에 넣음 | `RuleIoReaderTest` "타입과 표시명은 …" | 잡힘 |
+| I4(B2) | 결과 열 그룹에서 `varName` 도 results 에 넣음 | `RuleIoReaderTest` "타입과 표시명은 …" | 잡힘 |
+| I5(B2) | EvalEx 상수 필터 삭제 | `RuleIoReaderTest` "읽는 이름은 …"(`IF(C_IN = NULL, TRUE, PI)`) | 잡힘 |
+| I6(B2) | 선언(DECLARED)을 컬럼 사전보다 먼저 봄(resolver typeSource 순서) | `RuleIoReaderTest` "타입과 표시명은 …"(사전에 있고 DATA_TYPE 도 선언한 `COIL_THK`) | 잡힘 |
+| I7(B2) | 적용 시작이 지난 RELEASED 가운데 VER 최대로 고름 | `RuleIoReaderTest` "지금 RELEASED 는 …" | 잡힘 |
+| I16(B2) | 생산자 쿼리에서 DEPRECATED 조건 삭제 | `RuleIoReaderTest` "생산자는 …" | 잡힘 |
+| I16(B2) | 생산자 정렬 뒤집음(룰 ID 내림차순) | `RuleIoReaderTest` "생산자는 …" | 잡힘 |
+| I16(B2) | 생산자 쿼리의 최신 RELEASED 조건 삭제(예전 RELEASED 결과 포함) | `RuleIoReaderTest` "생산자는 …" | 잡힘 |
 
 B7 변이는 작업 트리에서만 넣고 규칙마다 `git checkout -- <파일>` 로 되돌렸다(`trap`). 대상 테스트 한 파일을 `vitest run … --bail=1` 로 돌렸다.
 
 B1 변이는 스크립트 하나(변이 넣기 → `:lib:test --fail-fast --tests <대상 클래스>` → `git checkout --` 로 되돌리기)를 `heavy.sh` 로 감싸 두 번(분석기·지침) 돌렸다. 모든 변이는 컴파일되는 형태다.
 B1 담당 범위 밖: I8 의 "REJECT 가 있으면 저장·되살리기 거부"는 B3, I9 의 TS 쪽과 I11 의 "뒤에 있음 비교 반대로"는 B5, I16 의 "생산자에서 DEPRECATED·RELEASED 없는 룰 제외·룰 ID 순 정렬"(`producersOfActiveRules`)은 B2 가 돈다.
+
+B2 변이는 python 스크립트 하나(변이 넣기 → `:api:test --fail-fast --tests RuleIoReaderTest` → scratchpad 사본으로 되돌리기, 시그널·`finally` 에서도 되돌림)를 `heavy.sh` 로 감싸 두 번(M1~M5, M6~M10) 돌렸다.
+`RuleQueries.java` 의 추가분이 아직 커밋 전이라 `git checkout --` 대신 사본 복원을 썼다. 모든 변이는 컴파일되는 형태이고, 끝난 뒤 두 파일이 사본과 같음을 `cmp` 로 확인했다.
 
 ## 설계 이탈
 
@@ -62,6 +75,9 @@ B1 담당 범위 밖: I8 의 "REJECT 가 있으면 저장·되살리기 거부"�
 - B5 `set-model.ts` 에 설계 목록 밖 공개 함수 `isFinalResult(row)`(Java `ResultRow.finalResult()` 짝)와 타입 `CondMark` 를 더했다. 설계가 모양을 정하지 않은 두 함수는
   `condMarks` 가 ids 와 같은 자리의 `CondMark[][]`, `laterDeps` 가 ids 를 키로 삼는 `Record<룰 ID, 뒤에 있는 의존 룰[]>` 을 돌려주도록 정했다.
 - B5 `types.ts` 에 §2.3 의 열 타입 밖으로 search 응답 `RuleSetPick`·`RuleSetPickResult`·`RuleSetRuleSearchResult`, view 의 `set` 칸 `RuleSetHeader`, 입력 맵 `RuleIoMap` 을 더했다(B6 가 이 파일을 고치지 않게).
+- B2 Expression 셀 조회: §6.1-5 는 `RuleCellsCodec.parse(...).get(String.valueOf(varId))` 라고 적었지만 `parse` 는 `Map<Integer, …>` 를 돌려주므로 `get(v.getVarId())`(정수 키)로 읽는다. 문자열 키로는 한 번도 맞지 않아 셀 참조가 조용히 빠진다.
+- B2 `RuleQueries` 추가는 하나(`latestReleasedResultVarsOfActiveRules`)다. 구현 단위 표의 "조회 두 개" 가운데 나머지 하나가 맡을 `hitPolicy` 는 기존 `versionsOf(ids)` 로 한 번에 읽는다(기존 메서드는 고치지 않았다).
+- B2 PROG 판정·이름 비교: 같은 이름의 조건 열은 대소문자를 무시해 찾는다(conds 중복 제거가 대소문자 무시라서). 컬럼 사전(DICT) 판정은 `findByPhysName(name)` 정확 일치이고, 한 번의 `read` 안에서 이름마다 한 번만 조회한다.
 
 ## B1 — BE 순수 계산 (`RuleIo`·`RuleSetCheck`·`RuleSetAnalyzer`·`RuleSetGuide`·코퍼스)
 
@@ -106,3 +122,22 @@ B1 담당 범위 밖: I8 의 "REJECT 가 있으면 저장·되살리기 거부"�
 - `condMarks(ids, rules)`: ids 와 같은 자리의 `CondMark[]` 배열. `red` = 붉은 칩, `missingBefore` = "앞에 없음" 배지. 시안 H:2196 그대로 앞 룰이 이미 만든 이름도 DICT 가 아니면 붉은 칩(배지 없음)이다.
 - `laterDeps(ids, setDeps(...))`: 룰 ID → 목록에서 그 룰보다 뒤에 있는 의존 룰(= "뒤에 있음" 배지 `set-dep-later-{id}-{dep}` 를 달 대상).
 - `types.ts` 에 §6.5 view·save·status 응답과 search 세 갈래(SET `RuleSetPickResult`·RULE `RuleSetRuleSearchResult`·GUIDE `GuideResult`) 모양을 모두 두었다 — B6 는 이 파일을 고치지 않고 쓴다.
+
+## B2 — BE DB 읽기 (`RuleIoReader`·`RuleQueries` 추가·`DmeTestSupport.ruleSet`)
+
+- 파일: `BL/common/rule/RuleIoReader.java`(새), `BL/common/rule/RuleQueries.java`(`latestReleasedResultVarsOfActiveRules()` 추가만), `BAT/dme/DmeTestSupport.java`(`ruleSet(...)` 추가만),
+  `BAT/common/rule/RuleIoReaderTest.java`(새, 9건).
+- TDD: `read`·`producersOfActiveRules` 가 빈 맵, 새 쿼리가 `List.of()` 인 스텁으로 먼저 돌려 9건 중 8건 실패(나머지 1건은 세트 헬퍼 확인)를 본 뒤 구현했다.
+  구현 뒤 `RuleIoReaderTest` 9건·`RuleVarTypeResolverTest` 14건·`MdmRuleContractOnlyArchitectureTest` 통과.
+
+### B3·B4 가 쓸 것
+
+- `RuleIoReader.read(ids)`: 입력 순서를 지킨 `LinkedHashMap`(같은 ID 는 첫 자리 하나, null ID 는 건너뜀). 없는 룰 `exists=false`·나머지 null·빈 목록,
+  RELEASED 없는 룰은 룰명·종류·상태만 싣고 `releasedVer`·`hitPolicy` null·빈 목록. DEPRECATED 룰도 계산한다. 목록은 불변 리스트다.
+- 이름 표기는 처음 나온 표기 그대로다(대소문자를 정규화하지 않는다). 결과 이름은 결과 열 그룹이면 `RES_GRP`, 아니면 `VAR_NAME`(같은 이름은 한 번).
+- 타입: DICT 는 컬럼의 도메인(표시명 = 컬럼 중간명, 없으면 긴 이름), PROG 는 선언한 조건 열, 결과는 그 결과 열(그룹이면 첫 열)을 `RuleVarTypeResolver` 로 푼다. NONE 은 표시명·타입이 null.
+  결과의 `source` 는 null.
+- `producersOfActiveRules()`: 결과 이름 → 룰 ID 목록(룰 ID 순, 중복 없음). 그룹 열은 그룹 이름만 키가 되고 열의 `VAR_NAME` 은 키가 아니다.
+  `RuleSetGuide.suggest(target, n -> producers.getOrDefault(n, List.of()), io)` 모양으로 넘기면 된다.
+- 조회 경로에 쓰기가 없다. DICT 이름의 타입 해석용 합성 `MdmRuleVar` 는 영속화하지 않고, `vars()` 로 읽은 엔티티는 바꾸지 않는다(B3 가 트랜잭션 안에서 불러도 flush 로 DB 가 바뀌지 않는다).
+- `DmeTestSupport.ruleSet(jdbc, id, name, ruleIdsJson, status, rowVersion)`: 감사 칼럼을 `'fixture'`·`'2026-01-01 00:00:00'`, `VER=0` 으로 채운다 — 쓰기 뒤 `U_USR_ID`(예: `kim`)·`VER+1` 변화를 단언할 수 있다.

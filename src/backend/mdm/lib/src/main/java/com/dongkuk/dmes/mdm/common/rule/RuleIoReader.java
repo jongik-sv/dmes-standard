@@ -1,0 +1,245 @@
+package com.dongkuk.dmes.mdm.common.rule;
+
+import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
+import com.dongkuk.dmes.mdm.common.rule.RuleIo.IoName;
+import com.dongkuk.dmes.mdm.entity.MdmRule;
+import com.dongkuk.dmes.mdm.entity.MdmRuleRow;
+import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
+import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
+import com.dongkuk.dmes.mdm.repository.MdmColumnRepository;
+import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import kr.dongkuk.maru.mdm.engine.expr.ReservedNames;
+import org.springframework.stereotype.Component;
+
+/**
+ * 룰 하나의 입출력을 DB 에서 계산하는 유일한 자리(TSK-08-06 design §6.1, I4~I7, D3·D4). 룰 세트 조회 목록·편집 view·저장 검사·되살리기·룰
+ * 검색·구성 지침이 모두 이것을 쓴다.
+ *
+ * <ul>
+ *   <li>버전 — 룰마다 RELEASED 가운데 VER 최대({@link RuleQueries#latestReleasedVers}). 적용 시점은 보지 않는다.</li>
+ *   <li>results — 결과 열마다 {@code RES_GRP} 가 있으면 그 이름, 없으면 {@code VAR_NAME}(엔진 {@code RuleEvaluator.resultNames} 와 같다).</li>
+ *   <li>conds — (Expression 이 아닌 조건 열: 식 변수면 {@code VAR_AST} 참조, 아니면 {@code VAR_NAME}) → (결과 열 {@code GRP_COND_AST} 참조) →
+ *       (행 순서대로 DISP {@code Expression} 열의 셀 {@code ast} 참조). EvalEx 상수·자기 결과 이름·이미 나온 이름은 대소문자 무시로 버리고,
+ *       처음 나온 표기를 그대로 둔다.</li>
+ *   <li>출처 — 컬럼 사전에 있으면 DICT, 아니면 같은 이름의 이름 조건 열에 도메인·데이터 타입을 선언했으면 PROG, 아니면 NONE.
+ *       {@link RuleVarTypeResolver} 의 typeSource 로 가르지 않는다(DECLARED 가 COLUMN 보다 먼저라서).</li>
+ * </ul>
+ * 타입·표시명은 룰마다 {@link RuleVarTypeResolver#resolve} 한 번으로 푼다. NONE 은 비운다.
+ */
+@Component
+public class RuleIoReader {
+
+    private static final String EXPRESSION = "Expression";
+
+    private final MdmRuleRepository ruleRepository;
+    private final MdmColumnRepository columnRepository;
+    private final RuleQueries queries;
+    private final RuleVarTypeResolver resolver;
+
+    public RuleIoReader(MdmRuleRepository ruleRepository, MdmColumnRepository columnRepository, RuleQueries queries,
+                        RuleVarTypeResolver resolver) {
+        this.ruleRepository = ruleRepository;
+        this.columnRepository = columnRepository;
+        this.queries = queries;
+        this.resolver = resolver;
+    }
+
+    /** 입력 순서를 지킨다(같은 ID 는 한 번). 없는 룰은 {@code exists=false}, RELEASED 가 없는 룰은 {@code releasedVer=null}·빈 목록. */
+    public Map<String, RuleIo> read(Collection<String> ruleIds) {
+        Set<String> ids = new LinkedHashSet<>();
+        for (String id : ruleIds) {
+            if (id != null) {
+                ids.add(id);
+            }
+        }
+        Map<String, MdmRule> rules = new HashMap<>();
+        ruleRepository.findAllById(ids).forEach(r -> rules.put(r.getMaruRuleId(), r));
+        Map<String, Integer> vers = queries.latestReleasedVers(rules.keySet());
+        Map<String, String> hitPolicies = new HashMap<>();
+        for (MdmRuleVer v : queries.versionsOf(vers.keySet())) {
+            if (v.getVer().equals(vers.get(v.getMaruRuleId()))) {
+                hitPolicies.put(v.getMaruRuleId(), v.getHitPolicy());
+            }
+        }
+        Map<String, Boolean> dictionary = new HashMap<>();
+        Map<String, RuleIo> out = new LinkedHashMap<>();
+        for (String id : ids) {
+            MdmRule rule = rules.get(id);
+            Integer ver = vers.get(id);
+            if (rule == null) {
+                out.put(id, new RuleIo(id, null, null, null, false, null, null, List.of(), List.of()));
+            } else if (ver == null) {
+                out.put(id, new RuleIo(id, rule.getMaruRuleName(), rule.getRuleKind(), rule.getStatus(), true, null, null, List.of(), List.of()));
+            } else {
+                out.put(id, compute(rule, ver, hitPolicies.get(id), dictionary));
+            }
+        }
+        return out;
+    }
+
+    /** 결과 이름 → 그 이름을 만드는 룰 ID(룰 ID 순, 중복 없음). DEPRECATED 가 아니고 RELEASED 가 있는 룰의 최신 RELEASED 만 본다(§6.4, I16). */
+    public Map<String, List<String>> producersOfActiveRules() {
+        Map<String, List<String>> out = new LinkedHashMap<>();
+        for (MdmRuleVar v : queries.latestReleasedResultVarsOfActiveRules()) {
+            String name = resName(v);
+            if (notBlank(name)) {
+                List<String> ids = out.computeIfAbsent(name, k -> new ArrayList<>());
+                if (!ids.contains(v.getMaruRuleId())) {
+                    ids.add(v.getMaruRuleId());
+                }
+            }
+        }
+        return out;
+    }
+
+    private RuleIo compute(MdmRule rule, int ver, String hitPolicy, Map<String, Boolean> dictionary) {
+        String id = rule.getMaruRuleId();
+        List<MdmRuleVar> vars = queries.vars(id, ver);
+
+        Map<String, MdmRuleVar> results = new LinkedHashMap<>();          // 결과 이름 → 대표 열(그룹이면 첫 열)
+        for (MdmRuleVar v : vars) {
+            String name = resName(v);
+            if ("RESULT".equals(v.getVarKind()) && notBlank(name)) {
+                results.putIfAbsent(name, v);
+            }
+        }
+        Names conds = new Names(results.keySet());
+        for (MdmRuleVar v : vars) {
+            if ("COND".equals(v.getVarKind()) && !EXPRESSION.equals(v.getDispType())) {
+                if (notBlank(v.getVarAst())) {
+                    collect(DomainJson.readMap(v.getVarAst()), conds);
+                } else {
+                    conds.add(v.getVarName());
+                }
+            }
+        }
+        for (MdmRuleVar v : vars) {
+            if ("RESULT".equals(v.getVarKind()) && notBlank(v.getGrpCondAst())) {
+                collect(DomainJson.readMap(v.getGrpCondAst()), conds);
+            }
+        }
+        List<MdmRuleVar> expressionColumns = vars.stream().filter(v -> EXPRESSION.equals(v.getDispType())).toList();
+        if (!expressionColumns.isEmpty()) {
+            for (MdmRuleRow row : queries.rows(id, ver)) {
+                Map<Integer, Map<String, Object>> cells = RuleCellsCodec.parse(row.getCells());
+                for (MdmRuleVar v : expressionColumns) {
+                    Map<String, Object> cell = cells.get(v.getVarId());
+                    if (cell != null) {
+                        collect(cell.get("ast"), conds);
+                    }
+                }
+            }
+        }
+
+        // 출처를 가르고, 타입을 풀 열을 한 목록에 모아 resolver 를 한 번 부른다.
+        List<String> condNames = conds.list;
+        List<String> sources = new ArrayList<>(condNames.size());
+        List<MdmRuleVar> typed = new ArrayList<>();
+        List<Integer> typedIndex = new ArrayList<>();                       // cond 자리 → typed 자리(없으면 -1)
+        for (int k = 0; k < condNames.size(); k++) {
+            String name = condNames.get(k);
+            MdmRuleVar source = null;
+            if (dictionary.computeIfAbsent(name, n -> columnRepository.findByPhysName(n).isPresent())) {
+                sources.add(RuleIo.DICT);
+                source = new MdmRuleVar(id, ver, -(k + 1), "COND", k + 1);
+                source.setVarName(name);
+            } else {
+                source = declaring(vars, name);
+                sources.add(source == null ? RuleIo.NONE : RuleIo.PROG);
+            }
+            typedIndex.add(source == null ? -1 : typed.size());
+            if (source != null) {
+                typed.add(source);
+            }
+        }
+        int resultStart = typed.size();
+        typed.addAll(results.values());
+        List<ResolvedVar> resolved = typed.isEmpty() ? List.of() : resolver.resolve(id, ver, typed);
+
+        List<IoName> condOut = new ArrayList<>(condNames.size());
+        for (int k = 0; k < condNames.size(); k++) {
+            int at = typedIndex.get(k);
+            condOut.add(at < 0 ? new IoName(condNames.get(k), RuleIo.NONE, null, null, null, false, null)
+                    : ioName(condNames.get(k), sources.get(k), resolved.get(at)));
+        }
+        List<IoName> resultOut = new ArrayList<>(results.size());
+        int k = resultStart;
+        for (String name : results.keySet()) {
+            resultOut.add(ioName(name, null, resolved.get(k++)));
+        }
+        return new RuleIo(id, rule.getMaruRuleName(), rule.getRuleKind(), rule.getStatus(), true, ver, hitPolicy, List.copyOf(condOut),
+                List.copyOf(resultOut));
+    }
+
+    /** 같은 이름(대소문자 무시)의 이름 조건 열이 도메인·데이터 타입을 선언했으면 그 열. */
+    private static MdmRuleVar declaring(List<MdmRuleVar> vars, String name) {
+        for (MdmRuleVar v : vars) {
+            if ("COND".equals(v.getVarKind()) && !EXPRESSION.equals(v.getDispType()) && !notBlank(v.getVarAst())
+                    && name.equalsIgnoreCase(v.getVarName()) && (v.getDomainId() != null || notBlank(v.getDataType()))) {
+                return v;
+            }
+        }
+        return null;
+    }
+
+    private static IoName ioName(String name, String source, ResolvedVar r) {
+        return new IoName(name, source, r.label(), r.dataType(), r.scale(), r.dateString(), r.maruCodeId());
+    }
+
+    private static String resName(MdmRuleVar v) {
+        return notBlank(v.getResGrp()) ? v.getResGrp() : v.getVarName();
+    }
+
+    /** EvalEx AST 의 {@code VARIABLE_OR_CONSTANT} 값을 {@code params} 를 따라 재귀로 모은다. */
+    private static void collect(Object node, Names into) {
+        if (!(node instanceof Map<?, ?> map)) {
+            return;
+        }
+        if ("VARIABLE_OR_CONSTANT".equals(map.get("type")) && map.get("value") instanceof String name) {
+            into.add(name);
+        }
+        if (map.get("params") instanceof List<?> params) {
+            for (Object p : params) {
+                collect(p, into);
+            }
+        }
+    }
+
+    private static boolean notBlank(String s) {
+        return s != null && !s.isBlank();
+    }
+
+    /** 읽는 이름 — 상수·자기 결과 이름·이미 나온 이름을 대소문자 무시로 버리고 첫 표기를 남긴다. */
+    private static final class Names {
+        private final Set<String> selfResults = new HashSet<>();
+        private final Set<String> seen = new HashSet<>();
+        private final List<String> list = new ArrayList<>();
+
+        Names(Collection<String> results) {
+            for (String r : results) {
+                selfResults.add(r.toUpperCase(Locale.ROOT));
+            }
+        }
+
+        void add(String name) {
+            if (!notBlank(name)) {
+                return;
+            }
+            String key = name.toUpperCase(Locale.ROOT);
+            if (ReservedNames.CONSTANTS.contains(key) || selfResults.contains(key) || !seen.add(key)) {
+                return;
+            }
+            list.add(name);
+        }
+    }
+}
