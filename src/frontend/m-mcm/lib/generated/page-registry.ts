@@ -46,6 +46,7 @@ export const PAGE_REGISTRY: Record<string, () => Promise<{ default: unknown }>> 
   "dmd/dataItemMng": () => import("@dk-oasis/m-mdm/pages/dmd/dataItemMng/page"),
   "dme/ruleEdit": () => import("@dk-oasis/m-mdm/pages/dme/ruleEdit/page"),
   "dme/ruleMng": () => import("@dk-oasis/m-mdm/pages/dme/ruleMng/page"),
+  "dme/ruleSetMng": () => import("@dk-oasis/m-mdm/pages/dme/ruleSetMng/page"),
   "home": () => import("@/page-components/home/page"),
   "lsh/noticeMgmt": () => import("@dk-oasis/m-mls/pages/lsh/noticeMgmt/page"),
   "operations-queue": () => import("@/page-components/operations-queue/page"),
