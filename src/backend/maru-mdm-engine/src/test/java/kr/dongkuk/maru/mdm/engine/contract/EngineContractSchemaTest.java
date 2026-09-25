@@ -33,6 +33,7 @@ import kr.dongkuk.maru.mdm.engine.expr.FunctionSets;
 import kr.dongkuk.maru.mdm.engine.expr.MdmFunction;
 import kr.dongkuk.maru.mdm.engine.rule.AnalysisRule;
 import kr.dongkuk.maru.mdm.engine.rule.AnalysisVar;
+import kr.dongkuk.maru.mdm.engine.rule.InputContracts;
 import kr.dongkuk.maru.mdm.engine.rule.RuleEngine;
 import kr.dongkuk.maru.mdm.engine.rule.RuleIssue;
 import kr.dongkuk.maru.mdm.engine.rule.RuleIssueCode;
@@ -115,7 +116,9 @@ class EngineContractSchemaTest {
             // 입구 인자 — JSON 이 아니다.
             RuleEngine.Part.class,
             // 겹침·빈틈 분석 입출력 — 짝은 m-mdm rule-analysis.ts 이고 분석 코퍼스(analysis-corpus.json)가 묶는다(TSK-08-02 D2).
-            AnalysisRule.class, AnalysisVar.class, RuleIssue.class, RuleIssue.Severity.class, RuleIssueCode.class);
+            AnalysisRule.class, AnalysisVar.class, RuleIssue.class, RuleIssue.Severity.class, RuleIssueCode.class,
+            // 입력 계약 계산의 NULL 안전 결과 — 짝은 m-mdm null-safety.ts 이고 입력 계약 코퍼스(input-contract-corpus.json)가 묶는다(TSK-08-04 I28).
+            InputContracts.NullSafety.class);
 
     // ------------------------------------------------------------------ 테스트
 

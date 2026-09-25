@@ -276,40 +276,43 @@ public final class InputContracts {
     /** 필수·선택 변수(대문자·첫 등장 순·상수 제외, 필수 ∩ 선택 = ∅). */
     public record NullSafety(List<String> required, List<String> optional) {}
 
-    private enum Ctx { FAIL, SAFE }
+    // 문맥 Ctx 와 인자 문맥 ArgContext 는 TS 문자열 리터럴 그대로 둔다(expr·rule 패키지에 새 enum 을 두지 않는다 — EngineContractSchemaTest).
+    private static final String FAIL = "FAIL";
+    private static final String SAFE = "SAFE";
+    private static final String ARG_FAIL = "fail";
+    private static final String ARG_SAFE = "safe";
+    private static final String ARG_INHERIT = "inherit";
 
-    private enum Arg { FAIL, SAFE, INHERIT }
-
-    /** 함수 인자 i(전체 count 개)의 문맥. 06:208 "함수마다 인자가 NULL 을 받는지는 함수 화이트리스트에 함께 적는다". */
+    /** 함수 인자 i(전체 count 개)의 ArgContext. 06:208 "함수마다 인자가 NULL 을 받는지는 함수 화이트리스트에 함께 적는다". */
     @FunctionalInterface
     private interface NullPolicy {
-        Arg arg(int i, int count);
+        String arg(int i, int count);
     }
 
-    private static final NullPolicy FAIL_ALL = (i, count) -> Arg.FAIL;
+    private static final NullPolicy FAIL_ALL = (i, count) -> ARG_FAIL;
 
     /** m-mdm {@code functions.ts} 의 {@code nullPolicy} 표. 없는 함수는 fail. */
     private static final Map<String, NullPolicy> POLICIES = Map.of(
-            "IF", args(Arg.SAFE, Arg.INHERIT, Arg.INHERIT),
+            "IF", args(ARG_SAFE, ARG_INHERIT, ARG_INHERIT),
             // SWITCH(v, m1, r1, m2, r2, …[, 기본값]) — 첫 인자와 비교 값은 SAFE, 결과·기본값은 바깥 문맥.
             "SWITCH", (i, count) -> {
                 if (i == 0) {
-                    return Arg.SAFE;
+                    return ARG_SAFE;
                 }
                 boolean isDefault = count % 2 == 0 && i == count - 1;
-                return !isDefault && i % 2 == 1 ? Arg.SAFE : Arg.INHERIT;
+                return !isDefault && i % 2 == 1 ? ARG_SAFE : ARG_INHERIT;
             },
-            "COALESCE", (i, count) -> i < count - 1 ? Arg.SAFE : Arg.INHERIT,
-            "STR_CONTAINS", (i, count) -> Arg.SAFE,
-            "INSTR", (i, count) -> Arg.INHERIT,
-            "MASTER", args(Arg.SAFE, Arg.SAFE, Arg.SAFE, Arg.SAFE),
-            "MASTER_AT", args(Arg.SAFE, Arg.SAFE, Arg.SAFE, Arg.SAFE, Arg.SAFE));
+            "COALESCE", (i, count) -> i < count - 1 ? ARG_SAFE : ARG_INHERIT,
+            "STR_CONTAINS", (i, count) -> ARG_SAFE,
+            "INSTR", (i, count) -> ARG_INHERIT,
+            "MASTER", args(ARG_SAFE, ARG_SAFE, ARG_SAFE, ARG_SAFE),
+            "MASTER_AT", args(ARG_SAFE, ARG_SAFE, ARG_SAFE, ARG_SAFE, ARG_SAFE));
 
     private static final Set<String> EQ_INFIX = Set.of("==", "=", "!=", "<>");
     private static final Set<String> NE_OPS = Set.of("!=", "<>");
     private static final Set<String> EQ_OPS = Set.of("==", "=");
 
-    private static NullPolicy args(Arg... list) {
+    private static NullPolicy args(String... list) {
         return (i, count) -> list[Math.min(i, list.length - 1)];
     }
 
@@ -318,13 +321,13 @@ public final class InputContracts {
         List<String> seen = new ArrayList<>();
         Set<String> seenSet = new HashSet<>();
         Set<String> required = new HashSet<>();
-        visit(ast, Ctx.FAIL, Set.of(), seen, seenSet, required);
+        visit(ast, FAIL, Set.of(), seen, seenSet, required);
         return new NullSafety(
                 seen.stream().filter(required::contains).toList(),
                 seen.stream().filter(x -> !required.contains(x)).toList());
     }
 
-    private static void visit(Map<String, Object> n, Ctx ctx, Set<String> g, List<String> seen, Set<String> seenSet,
+    private static void visit(Map<String, Object> n, String ctx, Set<String> g, List<String> seen, Set<String> seenSet,
             Set<String> required) {
         List<Map<String, Object>> params = params(n);
         switch (type(n)) {
@@ -336,28 +339,28 @@ public final class InputContracts {
                 if (seenSet.add(name)) {
                     seen.add(name);
                 }
-                if (ctx == Ctx.FAIL && !g.contains(name)) {
+                if (FAIL.equals(ctx) && !g.contains(name)) {
                     required.add(name);
                 }
             }
-            case "PREFIX_OPERATOR" -> visit(params.get(0), Ctx.FAIL, g, seen, seenSet, required);
+            case "PREFIX_OPERATOR" -> visit(params.get(0), FAIL, g, seen, seenSet, required);
             case "INFIX_OPERATOR" -> {
                 Map<String, Object> l = params.get(0);
                 Map<String, Object> r = params.get(1);
                 String op = value(n);
                 if (EQ_INFIX.contains(op)) {
-                    visit(l, Ctx.SAFE, g, seen, seenSet, required);
-                    visit(r, Ctx.SAFE, g, seen, seenSet, required);
+                    visit(l, SAFE, g, seen, seenSet, required);
+                    visit(r, SAFE, g, seen, seenSet, required);
                 } else if ("&&".equals(op)) {
-                    visit(l, Ctx.FAIL, g, seen, seenSet, required);
-                    visit(r, Ctx.FAIL, union(g, nonNullIfTrue(l)), seen, seenSet, required);
+                    visit(l, FAIL, g, seen, seenSet, required);
+                    visit(r, FAIL, union(g, nonNullIfTrue(l)), seen, seenSet, required);
                 } else if ("||".equals(op)) {
-                    visit(l, Ctx.FAIL, g, seen, seenSet, required);
-                    visit(r, Ctx.FAIL, union(g, nonNullIfFalse(l)), seen, seenSet, required);
+                    visit(l, FAIL, g, seen, seenSet, required);
+                    visit(r, FAIL, union(g, nonNullIfFalse(l)), seen, seenSet, required);
                 } else {
                     // 사칙연산·대소 비교(+ - * / % ^ < <= > >=)와 모르는 연산자 모두 양쪽 FAIL.
-                    visit(l, Ctx.FAIL, g, seen, seenSet, required);
-                    visit(r, Ctx.FAIL, g, seen, seenSet, required);
+                    visit(l, FAIL, g, seen, seenSet, required);
+                    visit(r, FAIL, g, seen, seenSet, required);
                 }
             }
             case "FUNCTION" -> {
@@ -365,7 +368,7 @@ public final class InputContracts {
                 NullPolicy policy = POLICIES.getOrDefault(name, FAIL_ALL);
                 if ("IF".equals(name) && params.size() == 3) {
                     Map<String, Object> c = params.get(0);
-                    visit(c, Ctx.SAFE, g, seen, seenSet, required);
+                    visit(c, SAFE, g, seen, seenSet, required);
                     visit(params.get(1), ctx, union(g, nonNullIfTrue(c)), seen, seenSet, required);
                     visit(params.get(2), ctx, union(g, nonNullIfFalse(c)), seen, seenSet, required);
                     return;
@@ -380,11 +383,11 @@ public final class InputContracts {
         }
     }
 
-    private static Ctx ctxOf(Arg a, Ctx parent) {
+    private static String ctxOf(String a, String parent) {
         return switch (a) {
-            case INHERIT -> parent;
-            case FAIL -> Ctx.FAIL;
-            case SAFE -> Ctx.SAFE;
+            case ARG_INHERIT -> parent;
+            case ARG_FAIL -> FAIL;
+            default -> SAFE;
         };
     }
 

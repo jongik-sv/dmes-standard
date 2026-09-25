@@ -91,6 +91,8 @@ FE `P/page.tsx` 다(TSK-08-02 design §0, D1). 이 설계는 `dme/ruleEdit` 를 
 - `EJ/rule/InputContracts.java` — `public static InputContract compute(List<RuleVar> vars, List<RuleRow> rows, RuleKind kind, Function<String, VarType> resolveType)`.
   TS `input-contract.ts` 의 함수 경계·순회 순서·이름 정렬을 그대로 옮긴다(TS 파일은 고치지 않는다, 이상해 보여도 그대로 옮기고 보고).
   입력 모양은 엔진 `RuleVar`·`RuleRow`(셀 `ast` 는 `Map`). Jackson·Spring 금지(G11).
+  (B1 이 더함) 라벨 오버로드 `compute(vars, rows, kind, resolveType, Map<Integer, String> labels)` — 엔진 `RuleVar` 에 라벨이 없어 cond 요약의
+  이름 없는 열(식 변수) 이름을 TS 처럼 `label ?? _V<varId>` 로 적으려면 var_id → 라벨을 따로 받는다. `kind` 는 계산에 쓰지 않는다(TS 와 같은 경계).
 - `ER/contract/input-contract-corpus.json` — `{"version":1, "cases":[{"id", "rule":{저장 형태 — analysis-corpus 의 rule 과 같은 모양 + 변수 타입 표}, "expect":{"always":[…], "rows":[{rowId, cond, required, optional}]}}]}`.
   사례: `M/tests/evalex-input-contract.test.ts` 의 사례 전부 + `QLTY_GRD_JDG`(06:1324 "row 3 만 BASE_FCT 필수") + 식 변수·Expression 조건 열·DERIVE seq 참조·결과 열 그룹 열 조건 각 1건 이상. 하한 **12**.
 - `ET/rule/InputContractCorpusTest.java` — 엔진 test classpath 에 이미 `jackson-databind`(`E/build.gradle:39`, 선례 `ET/corpus/CorpusConformanceTest`)가 있으므로 엔진 모듈 안에서 코퍼스를 읽는다. 코퍼스의 저장 형태(06 표기 DISP_TYPE·셀 JSON 문자열)를 엔진 `RuleVar`·`RuleRow` 로 바꾸는 변환은 이 테스트 안의 도우미로 둔다(엔진 main 에 Jackson 금지, G11). 운영 변환 경로(`RuleDefinitionAssembler`)의 계약 결과는 B4 의 `RuleDefinitionAssemblerTest` 가 코퍼스 사례 하나 이상으로 따로 확인한다.
@@ -134,7 +136,10 @@ FE `P/page.tsx` 다(TSK-08-02 design §0, D1). 이 설계는 `dme/ruleEdit` 를 
   매핑은 TSK-08-01 design §6.4 그대로(`DISP_TYPE` 06 표기 → enum, `DOMAIN_ID Long → String`, `VAR_KIND`·`ROW_KIND`·`HIT_POLICY` valueOf,
   식 변수 `exprText`·`exprAst`·`refVars`, 결과 열 `collectAgg`·`prioList`·`resGrp`·`grpCond`·`grpCondAst`). 셀 텍스트는 셀마다
   `CellTextGenerator` 로 채우고(`withTexts` 를 쓰지 않는다 — 첫 실패에서 멈추므로), 계약은 `InputContracts.compute`. 타입 해석은
-  `ResolvedVar`(`dataType`·`scale`·`domainId`)를 쓴다.
+  `ResolvedVar`(`dataType`·`scale`·`domainId`)를 쓴다. 화면 계약(`contract-view.ts` `computeContract`)과 같아지려면(B1 기록): 라벨 오버로드에
+  `ResolvedVar.label` 을 var_id 별로 넘기고, 식 변수 `refVars` 는 **null** 로 둔다(`InputContracts` 는 null 일 때만 `exprAst` 를 걷는다 — 화면은
+  AST 가 있으면 참조 변수 목록을 쓰지 않는다). `resGrp` 는 공백뿐이면 null·아니면 저장값 그대로. `RuleDefinitionAssemblerTest` 는 QLTY_GRD_JDG 와
+  함께 라벨 있는 식 변수 사례(코퍼스 `expr-var-label-default-row` 모양)로 계약을 확인한다.
 - `BL/common/rule/definition/SingleRuleDefinitionLookup.java` — `implements DefinitionLookup`. 정의 하나를 들고 `rule(id, ts)` 는 id 가 같으면 그 정의,
   `column`·`ruleSet` 는 `Optional.empty()`. **스프링 빈으로 등록하지 않는다**(요청마다 `new`) → `BAT/.../MdmBusinessRuleMigrationTest` 의
   `계약_전용_06_확정_검사와_정의_조회_빈이_없다` 가 그대로 통과한다.
