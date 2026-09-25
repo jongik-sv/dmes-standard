@@ -88,6 +88,10 @@ Java 로 다시 계산해 거부를 판정한다(화면 계산을 믿지 않는�
 - B3·B4 는 BPMN 을 쓰므로 `.claude/skills/bpmn-skill/SKILL.md`(bpmn-tool 로 생성·검증)와 `.claude/skills/oasis-project-support/SKILL.md` 를 읽고 따른다.
 - B5·B6·B7 은 `.claude/skills/mantine-aggrid-ui/SKILL.md` 를 읽고 따른다(RULE.md 무조건 적용 스킬). `@mantine/*`·`ag-grid-react` 를 화면에서
   직접 import 하지 않는다.
+- **병렬 실행(담당자 지시, 2026-09-26)**: 단위를 의존 관계에 따라 동시에 띄운다. 물결 1: B1 ∥ B7 / 물결 2(B1 뒤): B2 ∥ B5 /
+  물결 3: B3(B2 뒤) ∥ B6(B5·B7 뒤) / 물결 4: B4(B3 뒤) / 물결 5: B8. 같은 작업 트리를 함께 쓰므로 커밋은 반드시 경로 지정
+  커밋(`git commit -m … --trailer … -- <파일…>`)으로 하고 `git add` 로 index 에 올려 두지 않는다(남의 stage 가 섞인다).
+  `index.lock` 오류는 잠시 뒤 다시 한다. 다른 단위의 파일은 고치지 않는다.
 - 각 단위의 작은 테스트(단일 JUnit 클래스)는 `heavy.sh` 로 감싼 gradlew `--tests` 로, Vitest 단일 파일은 감싸지 않고 돌린다. 전체 게이트는 B8 이 돈다.
 
 ---
@@ -164,8 +168,8 @@ Java 로 다시 계산해 거부를 판정한다(화면 계산을 믿지 않는�
 | `BAT/dme/DmeTestSupport.java` | B2 | 헬퍼 **추가만**: `ruleSet(JdbcTemplate, String id, String name, String ruleIdsJson, String status, long rowVersion)`(감사 칼럼 채움) |
 | `BL/contract/common/MdmErrorCode.java` | B3 | `RULE_SET_SAVE_REJECTED("MDM024", 400, ErrorCode.BUSINESS_ERROR, "룰 세트 저장 검사를 통과하지 못했습니다")` 한 줄 추가(D8) |
 | `DI`(`DataInitializer.java`) | B4 | 새 메서드 `seedMdmRuleSetMenus()`(javadoc: TSK-08-06, action 목록) — `{"ruleSetMng","룰 세트","004","5050400"}`, `{"ruleSetEdit","룰 세트 편집","005","5050500"}` 를 `seedMdmRuleMenus()` 와 같은 네 호출로 넣는다. `seedMdmMenus()` 의 `seedMdmRuleMenus();` 다음 줄에 호출 한 줄. `seedMdmRuleMenus()` 배열은 고치지 않는다(D12) |
-| `M/tsup.config.ts` | B7 | `"pages/dme/ruleSetMng/page": "pages/dme/ruleSetMng/page.tsx"`, `"pages/dme/ruleSetEdit/page": "pages/dme/ruleSetEdit/page.tsx"` 두 줄 |
-| `src/frontend/m-mcm/lib/generated/page-registry.ts` | B7 | `cd src/frontend/m-mcm && node scripts/generate-page-registry.mjs` 로 재생성(`dme/ruleSetEdit`·`dme/ruleSetMng` 두 줄이 늘어야 한다, 손으로 고치지 않는다) |
+| `M/tsup.config.ts` | B7·B6 | B7 이 `"pages/dme/ruleSetMng/page": "pages/dme/ruleSetMng/page.tsx"` 한 줄, B6 이 `"pages/dme/ruleSetEdit/page": "pages/dme/ruleSetEdit/page.tsx"` 한 줄(병렬 실행 — 없는 page.tsx 를 entry 로 걸면 `pnpm build:libs` 가 깨진다) |
+| `src/frontend/m-mcm/lib/generated/page-registry.ts` | B7·B6 | `cd src/frontend/m-mcm && node scripts/generate-page-registry.mjs` 로 재생성(생성기는 page.tsx 를 스캔한다. B7 뒤 `dme/ruleSetMng` 한 줄, B6 뒤 `dme/ruleSetEdit` 한 줄이 늘어야 한다, 손으로 고치지 않는다) |
 | `M/tests/helpers/engine-paths.ts` | B5 | `RULE_SET_CORPUS_PATH = path.resolve(__dirname, "../../../../backend/mdm/lib/src/test/resources/com/dongkuk/dmes/mdm/common/rule/rule-set-corpus.json")` 한 줄(주석: TSK-08-06, Java `RuleSetCorpusTest` 와 함께 읽는다) |
 | `docs/guide/design/identifier-dictionary/01-modules-and-screens.md` | B8 | `ruleMng`·`ruleEdit` 행 아래 `ruleSetMng`·`ruleSetEdit` 두 행(08-02 커밋 3b4a534 형식) |
 
