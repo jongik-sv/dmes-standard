@@ -40,11 +40,16 @@ B2 를 커밋(14db376)하고, 위 표는 그 커밋 뒤 다시 돈 결과로 교
 - 대상 테스트: `DataCsvUploadPopServiceSqliteTest`(9건)·`Rfc4180CsvTest`(5건)·`DmdBpmnActionTest`(3건, 기존 2 + 신규 1)
   — 전체 초록. 회귀 확인으로 `common.segment.*`(변경 파일을 공유하는 기존 스위트: `DataItemChecksSqliteTest`·
   `DataItemChecksTest`·`DataItemSegmentCoreSqliteTest`·`DataSegmentLockSqliteTest`·`DataCategorySegmentCoreSqliteTest`·
-  `MasterDataExamplesScenarioTest`)와 B1 의 `dataItemMng.DataItemMngServiceSqliteTest`(같은 `UpsertResult`·
-  `DataItemSaveCore` 를 쓰는 형제 코드는 아니지만 같은 패키지 회귀 확인 차원)도 함께 돌려 전체 초록을 확인했다
-  (9+5+6+21+1+33+5+11+3+12 = 106건, 실패 0). `mcm/api` 쪽 `DataInitializer.seedMdmDataCsvUploadPopObject()` 를 도는
-  전용 테스트는 찾지 못했다 — `mcm/api` 시드 테스트 목록에 시드 함수별 개별 테스트가 없고(기존 시드 함수들도 마찬가지),
-  전체 부팅 스모크만 있어 이 단위 범위(무거운 명령 최소화)에서 따로 돌리지 않았다.
+  `MasterDataExamplesScenarioTest`)와 B1 의 `dataItemMng.DataItemMngServiceSqliteTest`(`DataItemSaveCore` 를
+  register·modify·close·reopen 경유로 같이 쓰는 형제 코드라 회귀 확인 — `upsert()`·`UpsertResult` 자체는 안 씀)도
+  함께 돌려 전체 초록을 확인했다(9+5+6+21+1+33+5+11+3+12 = 106건, 실패 0).
+- `mcm/api`(`DataInitializer.java` 소속 모듈) — `src/backend/mcm/api/src/test` 디렉토리 자체가 없다(테스트 소스셋
+  없음, `mcm` 전체에 테스트가 있는 곳은 `mcm/lib/src/test`의 `SampleNoticeServiceTest` 하나뿐이고 `DataInitializer`
+  와 무관). `ApplicationRunner`(부팅 시드)라 SQLite 단위 테스트로 값 검증도 어렵다. 대신
+  `heavy.sh bash -c 'cd src/backend/mcm && ../gradlew :api:compileJava --no-daemon --console=plain'` 로 컴파일만
+  확인했다 — BUILD SUCCESSFUL.
+- `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` — BPMN 26/진입점 bean 26(해석
+  26, 미해석 0), ERROR 0 / WARN 0 / INFO 29(기준선과 동일). 신규 `dataCsvUploadPop.bpmn` 이 정상 해석됨을 확인.
 
 ## B3
 
