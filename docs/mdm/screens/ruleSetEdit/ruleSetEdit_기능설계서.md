@@ -214,5 +214,5 @@ moduleGroup: dme
 | N-9 | "저장 즉시 배포"는 보류 — 저장·폐기·되살리기는 `TB_MDM_RULE_SET` 한 행만 바꾼다 | design D11·I23, PRD FR-E5 |
 | N-10 | 폐기는 두 단계 버튼(폐기 → 폐기 확인/취소) | design D14 |
 | N-11 | 같은 룰을 두 번 담지 않는다 | design D15 |
-| N-12 | **(보고한 문제, 미해결)** 룰 목록 그리드는 `columnSizing="fixed"` 이고 열 너비 합(약 1,160px)이 span 10 카드보다 넓다. e2e 실측에서 기본 폭(1280)으로 열면 ag-grid 가 가로로 보이지 않는 **의존 룰·동작(▲▼✕) 열을 그리지 않았다** — 이 화면의 핵심 조작이 기본 폭에서 보이지 않는다. TSK-08-02 N-4 는 같은 증상을 `columnSizing="fit"` + `minWidth` 로 고쳤다. 화면 코드는 B6 범위라 B8 은 고치지 않고 보고했다. e2e 와 스크린샷은 2560×1440 으로 연 것이다 | TSK-08-06 build-log B8 「설계 이탈」 |
+| N-12 | 룰 목록 그리드는 `columnSizing="fit"` + 열마다 `minWidth` 로 카드 폭에 맞춰 줄인다(TSK-08-02 ruleMng N-4 선례). 고정 폭(열 합 약 1,160px)일 때는 기본 폭 1280 에서 ag-grid 가 의존 룰·동작(▲▼✕) 열을 그리지 않았다. **해결됨(fit + minWidth)** — 동작 열 minWidth 120 은 세 버튼이 잘리지 않는 폭이고, 좁은 폭에서는 룰명·종류·정책·결과 변수 칸이 말줄임으로 줄어든다. e2e E2 가 기본 폭에서 동작·의존 룰 열을 단언한다 | TSK-08-06 build-log B8 「설계 이탈」 |
 | N-13 | e2e `src/frontend/e2e/mdm-ruleSetEdit.spec.ts`(E1~E10, 스모크 넷 = E1·E2·E5·E8), 픽스처 `e2e/fixtures/mdm-ruleSet-data.sql` | design §3.4.2 |

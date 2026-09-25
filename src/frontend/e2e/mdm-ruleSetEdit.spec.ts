@@ -88,8 +88,6 @@ async function addRule(page: Page, keyword: string, ruleIds: string[]) {
 }
 
 test.describe.configure({ mode: "serial" });
-// 룰 목록 그리드는 열 너비 합(약 1,160px)이 span 10 카드보다 넓다 — ag-grid 는 가로로 보이지 않는 열(의존 룰·동작)을 그리지 않으므로 넓은 화면으로 연다.
-test.use({ viewport: { width: 2560, height: 1440 } });
 
 test.describe("mdm dme/ruleSetEdit", () => {
   test.setTimeout(180_000);
@@ -112,6 +110,17 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await expect(grd.locator('[col-id="kindPolicy"]')).toHaveText("DECISION · FIRST");
     await expect(ruleRow(page, "E2S_FCT").locator('[col-id="deps"]')).toContainText("E2S_GRD");
     await expect(page.getByTestId("set-dep-later-E2S_FCT-E2S_GRD")).toHaveCount(0);
+    // 기본 폭(1280)에서도 의존 룰·동작 열이 카드 안에 보인다(열은 fit + minWidth 로 줄어든다).
+    // 세 버튼이 동작 칸 안에 잘리지 않고 들어간다(칸 밖으로 넘치면 ag-grid 가 말줄임으로 가린다).
+    const actionCell = ruleRow(page, "E2S_SPD").locator('[col-id="actions"]');
+    const cellBox = await actionCell.boundingBox();
+    for (const testId of ["set-rule-up-E2S_SPD", "set-rule-down-E2S_SPD", "set-rule-remove-E2S_SPD"]) {
+      const button = page.getByTestId(testId);
+      await expect(button).toBeVisible();
+      const box = await button.boundingBox();
+      expect(box && cellBox && box.x + box.width <= cellBox.x + cellBox.width).toBe(true);
+    }
+    await expect(ruleRow(page, "E2S_SPD").locator('[col-id="deps"]')).toBeVisible();
 
     const inputs = page.getByTestId("set-io-inputs");
     await expect(inputs.locator("tbody tr")).toHaveCount(3);

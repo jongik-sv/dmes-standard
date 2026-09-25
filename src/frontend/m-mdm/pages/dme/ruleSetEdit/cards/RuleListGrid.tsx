@@ -123,32 +123,32 @@ export function RuleListGrid({ ids, rules, canEdit, onUp, onDown, onRemove, onRe
 
   const columns = useMemo<GridColumn[]>(() => {
     const cols: GridColumn[] = [
-      { key: "seqNo", header: "순서", width: 70, minWidth: 60, align: "center" },
+      { key: "seqNo", header: "순서", width: 70, minWidth: 52, align: "center" },
       {
         key: "ruleId",
         header: "룰 ID",
         width: 150,
-        minWidth: 100,
+        minWidth: 84,
         render: (value) => (
           <button type="button" data-testid={`set-rule-link-${String(value)}`} style={LINK_STYLE} onClick={() => openRule(String(value))}>
             {String(value)}
           </button>
         ),
       },
-      { key: "ruleName", header: "룰명", width: 150, minWidth: 90 },
-      { key: "kindPolicy", header: "종류·정책", width: 130, minWidth: 90 },
+      { key: "ruleName", header: "룰명", width: 150, minWidth: 48 },
+      { key: "kindPolicy", header: "종류·정책", width: 130, minWidth: 56 },
       {
         key: "conds",
         header: "조건 변수",
         width: 220,
-        minWidth: 120,
+        minWidth: 80,
         render: (_value, row) => (row.condChips as CondChip[]).map((c) => <Chip key={c.name} chip={c} />),
       },
       {
         key: "results",
         header: "결과 변수",
         width: 140,
-        minWidth: 90,
+        minWidth: 56,
         render: (_value, row) =>
           (row.resultNames as string[]).map((n) => (
             <code key={n} style={CHIP_STYLE}>
@@ -160,7 +160,7 @@ export function RuleListGrid({ ids, rules, canEdit, onUp, onDown, onRemove, onRe
         key: "deps",
         header: "의존 룰",
         width: 190,
-        minWidth: 100,
+        minWidth: 72,
         render: (_value, row) => {
           const deps = row.depCells as DepCell[];
           if (deps.length === 0) return "없음";
@@ -185,7 +185,7 @@ export function RuleListGrid({ ids, rules, canEdit, onUp, onDown, onRemove, onRe
         key: "actions",
         header: "동작",
         width: 110,
-        minWidth: 100,
+        minWidth: 120,
         align: "center",
         render: (_value, row) => {
           const id = String(row.ruleId);
@@ -208,6 +208,8 @@ export function RuleListGrid({ ids, rules, canEdit, onUp, onDown, onRemove, onRe
     return cols;
   }, [canEdit, onUp, onDown, onRemove]);
 
+  // 열은 `columnSizing="fit"` + `minWidth` 로 카드 폭에 맞춰 줄인다(TSK-08-02 ruleMng N-4 선례). 고정 폭이면 열 합이 span 10 카드보다 넓어
+  // ag-grid 가 가로로 보이지 않는 의존 룰·동작 열을 그리지 않았다(1280 폭 e2e 실측). 동작 열 minWidth 는 ▲▼✕ 세 버튼이 잘리지 않는 폭이다.
   const height = Math.min(420, 32 + Math.max(data.length, 2) * 28 + 8);
 
   return (
@@ -218,7 +220,7 @@ export function RuleListGrid({ ids, rules, canEdit, onUp, onDown, onRemove, onRe
         data={data}
         rowKey="ruleId"
         height={height}
-        columnSizing="fixed"
+        columnSizing="fit"
         sortable={false}
         getRowHeight={() => 28}
         rowDragField={canEdit ? "seqNo" : undefined}
