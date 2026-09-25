@@ -948,8 +948,37 @@ public class DataInitializer implements ApplicationRunner {
             seedMdmObjectRbac(objectId, "dmc");
         }
         log.info("[DataInitializer] TSK-06-02 MDM 마루 코드 시드 — OBJECT 2 + 메뉴 leaf 2 + RBAC(SYSADMIN 2 + MDM 역할 4)");
+        seedMdmDataMngMenus();
         seedMdmDataItemMenus();
         seedMdmRuleMenus();
+    }
+
+    /**
+     * TSK-07-02 — 마루 데이터 조회·등록(dataMng)·수정(dataEdit)·카테고리 편집(dataCateEdit), 폴더 dmd. F2 가 예약한
+     * MENU_SEQ 001~003. action(search·reg·view·save·delete·restore·compare)은 모두 기존 권한 세트·allActions 안에
+     * 있다(D9). FULL_SEQ 는 부팅 끝 recomputeMenuFullSeq() 가 다시 매긴다.
+     */
+    private void seedMdmDataMngMenus() {
+        final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
+        final String AUDIT_VALS = ", 'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', "
+                                + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
+        insertMcmSecObjIfAbsent("dataMng", "마루 데이터", "mdm");
+        insertMcmSecObjIfAbsent("dataEdit", "마루 데이터 수정", "mdm");
+        insertMcmSecObjIfAbsent("dataCateEdit", "카테고리 편집", "mdm");
+        insertMcmSecMenuIfAbsent("dataMng", "001", "5040100", "마루 데이터", "dmd", "dataMng");
+        insertMcmSecMenuIfAbsent("dataEdit", "002", "5040200", "마루 데이터 수정", "dmd", "dataEdit");
+        insertMcmSecMenuIfAbsent("dataCateEdit", "003", "5040300", "카테고리 편집", "dmd", "dataCateEdit");
+        for (String objectId : new String[]{"dataMng", "dataEdit", "dataCateEdit"}) {
+            insertIfAbsentComposite(
+                    "TB_MCM_SEC_ROLE_MAPPING",
+                    new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
+                    new String[]{"SYSADMIN", objectId,    "PERM_ALL"},
+                    "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                    "VALUES ('SYSADMIN', '" + objectId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
+            seedMdmObjectRbac(objectId, "dmd");
+        }
+        log.info("[DataInitializer] TSK-07-02 MDM 마루 데이터 조회·등록·수정·카테고리 편집 시드 — OBJECT 3 + 메뉴 leaf 3 "
+                + "+ RBAC(SYSADMIN 3 + MDM 역할 6)");
     }
 
     /**

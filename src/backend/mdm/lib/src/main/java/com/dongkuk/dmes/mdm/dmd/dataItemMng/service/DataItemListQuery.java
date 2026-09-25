@@ -1,6 +1,7 @@
 package com.dongkuk.dmes.mdm.dmd.dataItemMng.service;
 
 import com.dongkuk.dmes.mdm.common.segment.CateSegmentRow;
+import com.dongkuk.dmes.mdm.common.segment.DataCategoryResolver;
 import com.dongkuk.dmes.mdm.common.segment.DataCateValue;
 import com.dongkuk.dmes.mdm.common.segment.DataSegmentRowStore;
 import com.dongkuk.dmes.mdm.common.segment.ItemSegmentRow;
@@ -133,7 +134,8 @@ public class DataItemListQuery {
             List<ItemSegmentRow> all = rows(bind(query("SELECT " + prefixed() + where + ORDER), maruDataId, code, name,
                     null, needsOpenEnd));
             List<ItemSegmentRow> kept = all.stream()
-                    .filter(row -> !row.isOpen() || matches(pattern, targetValue(row, target)))
+                    .filter(row -> !row.isOpen() || DataCategoryResolver.matches(pattern,
+                            DataCategoryResolver.targetValue(row, target)))
                     .toList();
             int from = Math.min(page * size, kept.size());
             return new Page(kept.subList(from, Math.min(from + size, kept.size())), kept.size());
@@ -180,24 +182,6 @@ public class DataItemListQuery {
 
     static String escapeLike(String value) {
         return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_").replace("[", "\\[");
-    }
-
-    private static boolean matches(Pattern pattern, String value) {
-        return value != null && pattern.matcher(value).matches();
-    }
-
-    /** REGEX 대상 칸(KEY·LVL1~5·ATTR01~10)의 값. */
-    static String targetValue(ItemSegmentRow row, String target) {
-        if ("KEY".equals(target)) {
-            return row.key().code();
-        }
-        if (target.startsWith("LVL")) {
-            return row.value().lvl(Integer.parseInt(target.substring(3)));
-        }
-        if (target.startsWith("ATTR")) {
-            return row.value().attr(Integer.parseInt(target.substring(4)));
-        }
-        return null;
     }
 
     private static String prefixed() {

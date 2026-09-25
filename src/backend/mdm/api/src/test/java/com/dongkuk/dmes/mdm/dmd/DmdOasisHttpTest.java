@@ -119,6 +119,33 @@ class DmdOasisHttpTest {
     }
 
     @Test
+    void M1_dataMng_등록은_TB_MDM_DATA_와_BASE_카테고리를_함께_만들고_검색된다() throws Exception {
+        JsonNode reg = post("dataMng", "reg", params().put("maruDataId", "SHIPY").put("maruDataName", "조선소")
+                .put("codePattern", "^[0-9A-Z]{1,20}$").put("lvlCnt", 1));
+        assertSuccess(reg);
+        assertEquals("SHIPY", reg.path("data").path("result").path("maruDataId").asText(), reg.toString());
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_DATA WHERE MARU_DATA_ID = 'SHIPY'", Integer.class));
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM TB_MDM_DATA_CATE WHERE MARU_DATA_ID = 'SHIPY' AND CATE_ID = 'BASE'", Integer.class));
+
+        JsonNode search = post("dataMng", "search", params().put("maruDataId", "SHIPY"));
+        assertSuccess(search);
+        assertEquals(1, search.path("data").path("result").path("list").size(), search.toString());
+        assertEquals("SHIPY", search.path("data").path("result").path("list").get(0).path("maruDataId").asText());
+    }
+
+    @Test
+    void M2_dataMng_ID_중복은_MDM011_문구로_거부된다() throws Exception {
+        // PORT 는 @BeforeEach seed() 가 이미 TB_MDM_DATA 에 넣어 뒀다(F15 — dataRepo.existsById 로 거부).
+        JsonNode dup = post("dataMng", "reg", params().put("maruDataId", "PORT").put("maruDataName", "다시")
+                .put("codePattern", "^[0-9A-Z]{1,20}$"));
+
+        assertFalse(dup.path("meta").path("success").asBoolean(true), dup.toString());
+        assertTrue(dup.path("meta").path("message").asText().startsWith(
+                MdmErrorCode.MARU_ID_NAMESPACE_CONFLICT.defaultMessage()), dup.toString());
+    }
+
+    @Test
     void A2_오래된_row_version_의_save_는_충돌_문구로_시작한다() throws Exception {
         assertSuccess(post("dataItemMng", "reg", params().put("maruDataId", "PORT").put("code", "KRINC").put("name", "인천")));
         assertSuccess(post("dataItemMng", "save", params().put("maruDataId", "PORT").put("code", "KRINC").put("name", "B")

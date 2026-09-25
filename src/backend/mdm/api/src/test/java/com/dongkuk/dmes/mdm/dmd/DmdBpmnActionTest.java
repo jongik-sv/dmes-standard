@@ -41,6 +41,12 @@ class DmdBpmnActionTest {
     }
 
     @Test
+    void dataMng_액션은_search_reg() throws Exception {
+        assertActions("services/dmd/dataMng.bpmn", "dataMng", "dataMngService",
+                Map.of("search", "search", "reg", "register"), Set.of("reg"));
+    }
+
+    @Test
     void dataHistory_액션은_view_search() throws Exception {
         assertActions("services/dmd/dataHistory.bpmn", "dataHistory", "dataHistoryService",
                 Map.of("view", "view", "search", "search"), Set.of());
