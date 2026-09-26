@@ -13,6 +13,7 @@
 | 2026-09-26T07:44:55Z | verify | `cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint` | 전체 | 3 | 29.42 | 통과(exit 0) |
 | 2026-09-26T07:45:09Z | verify | `cd src/frontend && pnpm test:unit:shared` | 전체 | 14 | 27.06 | 통과(168건, 신규 0) |
 | 2026-09-26T07:45:10Z | verify | `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` | 전체 | 1 | 27.06 | 통과(ERROR 0) |
+| 2026-09-26T14:33:00Z | 기준선(재작업 1회차, 기점 1e8ccfa8) | `cd src/backend && … ./gradlew :mdm:test … && … check_oasis_contract.py --root .` | 모듈 | 8 | 2.54 | 기준선 측정(2276건, 실패 0) |
 
 ## 변이 검증 기록
 
@@ -52,3 +53,4 @@
 | B1 | TSK-09-02-build-B1 | sonnet | 아니오 | - | UNIT_DONE | - | - | 0 |
 | B2 | TSK-09-02-build-B2 | sonnet | 아니오 | - | UNIT_DONE | - | - | 0 |
 | B3 | TSK-09-02-build-B3 | sonnet | 아니오 | - | UNIT_DONE | - | - | 1 |
+| B4 | TSK-09-02-build | sonnet | 아니오 | - | - | - | - | - |
