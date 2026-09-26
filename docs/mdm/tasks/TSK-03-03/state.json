@@ -5,8 +5,8 @@
   "phase": "verify",
   "pred_note": "선행 mdm/TSK-03-01: reached=true·head_sha 없음 → 행 G 갈래 2, pred-reflected.sh REFLECTED → origin/dev 기점 스택 없이 진행",
   "last": {
-    "phase": "build",
-    "event": "build.ok"
+    "phase": "verify",
+    "event": "verify.ok"
   },
   "model": "sonnet",
   "design_commit": "3d7fb0c2",
@@ -171,5 +171,55 @@
     ],
     "new_failures": [],
     "mutation": "M1-M12 12/12 빨강(I41-I48·개정 I28), 원복 확인"
-  }
+  },
+  "verify_findings": {
+    "tests": 0,
+    "review": 1,
+    "spec": 1
+  },
+  "verify_advisor": {
+    "writer": 0,
+    "audit": 2
+  },
+  "verify_gate": {
+    "head": "44c8a417",
+    "scope": "full",
+    "cmds": [
+      {
+        "cwd": ".",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3989,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 1064,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0,
+        "exit": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 170,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0,
+        "exit": 0
+      }
+    ],
+    "new_failures": [],
+    "mutation": "Verify 표본 M6·M8 재실행 잡힘, 감사 수용 M13 추가 잡힘, 앵커 갱신 M1·M2·M4 오케스트레이터 재실행 잡힘"
+  },
+  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\""
 }
