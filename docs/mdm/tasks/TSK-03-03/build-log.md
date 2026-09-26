@@ -39,10 +39,27 @@
 | I48 | M10 — 공개 `(EngineLookups, Duration)` 위임에서 이름 집합을 `Set.of()`(빈 집합)로 바꿈 | `ExpressionCacheWiringTest`(fail-fast) | 잡힘 |
 | I28(개정) | M11 — `MdmEvaluator.evaluate` 의 `copy.with(EVAL_TS, ts)` 를 KST 벽시계 `LocalDateTime` 으로 바꿈(새 캐시 경로의 평가기 쪽 주입 지점) | `RuleEngineStageTest`(fail-fast, `EVAL_TS_는_설정_시간대와_무관하게_Instant_로_넣는다`) | 잡힘 |
 | I28(개정) | M12 — `MdmRuleEngine.truncate` 의 `truncatedTo(SECONDS)` 제거(세트/룰 진입점의 절삭) | `RuleEngineStageTest`(fail-fast, `EVAL_TS_는_초_미만을_자른다`) | 잡힘 |
+| §6.17 표 넷째 행 | M13(Verify 추가) — `ExpressionRunner.run` 의 `catch (RuntimeException e) { throw new ExpressionFailure(e); }` 갈래 제거(평가기가 감싸지 않고 흘린 RuntimeException, 예: `requireNonNull`, 이 판정 밖으로 새는지) | `ExpressionCacheWiringTest`(fail-fast, `평가기가_감싸지_않은_RuntimeException_도_ExpressionFailure_로_감싼다`) | 잡힘 |
 
-변이 기록 파일: `docs/mdm/tasks/TSK-03-03/mutations/M1.mut` ~ `M12.mut`.
+변이 기록 파일: `docs/mdm/tasks/TSK-03-03/mutations/M1.mut` ~ `M13.mut`(M13 은 Verify 감사 수용 뒤 추가).
 
-덮지 못한 변이: 없음(계획한 12개 모두 잡힘, 각 로그의 실패 테스트 메서드 이름으로 확인).
+덮지 못한 변이: 없음(계획한 12개 + Verify 추가 1개 모두 잡힘, 각 로그의 실패 테스트 메서드 이름으로 확인).
+
+## Verify 수정 (감사 지적 수용, 2026-09-26)
+
+감사자 review·spec 이 같은 결함을 지적: design §6.17 예외 변환 표의 넷째 행("그 밖의 `RuntimeException e`(평가기가 싸지 않고 흘린 것, 예: `requireNonNull`) → `throw new ExpressionFailure(e)`")이 구현에 없었다. `ExpressionRunner.run` 은 `catch (kr...expr.ExpressionFailure f)` 한 갈래뿐이었고, `MdmEvaluator.evaluate` 의 `Objects.requireNonNull(evalTs, "evalTs")` 처럼 평가기가 `expr.ExpressionFailure` 로 감싸지 않고 흘리는 `RuntimeException` 은 `RuleEvaluator` 의 `catch` 에도 걸리지 않아 판정 밖으로 새는 경로가 있었다(실전 도달 경로는 `MdmRuleEngine.truncate` 가 막아 없었지만, 표의 넷째 행은 코드·테스트·이 로그 어디에도 증거가 없었다).
+
+**수용.** 판정: 수용(review 원문 그대로 채택, spec 은 같은 결함의 중복 지적이라 review 처리로 갈음).
+
+**고친 것.**
+- `src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/rule/ExpressionRunner.java`: `run` 에 `catch (RuntimeException e) { throw new ExpressionFailure(e); }` 갈래를 더했다(기존 `expr.ExpressionFailure` catch 뒤, `RuntimeException` 이 더 넓으므로 순서상 문제없다).
+- `ExpressionCacheWiringTest.평가기가_감싸지_않은_RuntimeException_도_ExpressionFailure_로_감싼다`: `runner.run(text, values, null)` 로 `MdmEvaluator.evaluate` 의 `requireNonNull` 을 직접 유발해 그 예외가 `rule.ExpressionFailure`(메시지 `NullPointerException: ...`)로 감싸이는지 확인.
+- 변이 M13(위 표)으로 새 갈래를 지우면 빨강이 되는지 확인 — `MUTATION_RESULT M13 caught rc=1 sec=1`, 로그에 `평가기가_감싸지_않은_RuntimeException_도_ExpressionFailure_로_감싼다() FAILED`(원인 `NullPointerException`)로 의도한 자리에서 실패함을 확인 뒤 원복.
+- 기존 `M1.mut`·`M2.mut`·`M4.mut` 는 `find` 블록이 `run` 메서드 전체(닫는 중괄호 포함)를 앵커로 삼아 이번에 더한 `catch` 절 때문에 더 이상 파일과 바이트가 같지 않게 됐다 — 세 파일의 `find` 블록에 새 `catch` 절을 반영해 앵커가 다시 서게 고쳤다(`replace` 는 그대로, 여전히 평가기를 완전히 우회하거나 메서드를 단순화하는 내용이라 각 항목의 의도와 다르지 않다).
+
+**좁힌 재확인.** `cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :maru-mdm-engine:test --tests "kr.dongkuk.maru.mdm.engine.rule.ExpressionCacheWiringTest" --console=plain` — BUILD SUCCESSFUL(수정 뒤 그린), 이어서 M13 변이로 빨강 확인 뒤 원복. `git status --porcelain` 은 되돌린 뒤 Task 문서 밖에서 비어 있음을 확인.
+
+전체 스위트는 돌리지 않았다 — 오케스트레이터의 Verify 게이트가 코드 변경을 보고 전체를 한 번 돈다(phase-verify.md, `{BUILD_GATE}` scope=module).
 
 ## 설계 이탈
 

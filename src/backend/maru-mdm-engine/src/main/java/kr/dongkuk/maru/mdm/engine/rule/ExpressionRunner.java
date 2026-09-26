@@ -35,6 +35,8 @@ final class ExpressionRunner {
                 throw new ExpressionFailure(cause);
             }
             throw new ExpressionFailure(f);
+        } catch (RuntimeException e) {
+            throw new ExpressionFailure(e);
         }
     }
 }

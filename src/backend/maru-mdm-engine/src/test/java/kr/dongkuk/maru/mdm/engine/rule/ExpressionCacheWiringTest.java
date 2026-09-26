@@ -121,6 +121,15 @@ class ExpressionCacheWiringTest {
     }
 
     @Test
+    void 평가기가_감싸지_않은_RuntimeException_도_ExpressionFailure_로_감싼다() {
+        MdmEvaluator evaluator = MdmEvaluatorFixtures.of(TestExpressionConfig.create());
+        ExpressionRunner runner = new ExpressionRunner(evaluator);
+        ExpressionFailure e = assertThrows(ExpressionFailure.class,
+                () -> runner.run("1 == 1", Map.of(), null));
+        assertTrue(e.getMessage().startsWith("NullPointerException: "), e.getMessage());
+    }
+
+    @Test
     void 평가_타임아웃은_단계의_EVALUATION_ERROR_다() {
         assertTimeoutPreemptively(Duration.ofSeconds(5), () -> {
             InMemoryDefinitionLookup lookup = new InMemoryDefinitionLookup();
