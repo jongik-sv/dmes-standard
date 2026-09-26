@@ -2,15 +2,14 @@
   "tsk": "TSK-03-03",
   "order": "e1205c87-681d-44be-90b1-0965067683f3",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "verify",
+  "phase": "reported",
   "pred_note": "선행 mdm/TSK-03-01: reached=true·head_sha 없음 → 행 G 갈래 2, pred-reflected.sh REFLECTED → origin/dev 기점 스택 없이 진행",
   "last": {
-    "phase": "verify",
-    "event": "verify.ok"
+    "phase": "done",
+    "event": "done.ok"
   },
   "model": "sonnet",
   "design_commit": "3d7fb0c2",
-  "unapproved": true,
   "rework": {
     "review_note": "D17 캐시 연결 누락 — ExpressionRunner 를 03-02 MdmEvaluator 캐시에 연결",
     "base": "origin/dev 6d2110fc (원 agent 브랜치는 dev 에 머지·삭제됨)"
