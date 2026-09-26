@@ -124,6 +124,7 @@
   - SP6 비어 있음: 변수만 있고 행이 없는 DRAFT → NOT_EMPTY REJECTED.
   - SP7 쓰기 없음: `report`·`diff`·`check` 호출 전후 TB_MDM_RULE·RULE_VER·RULE_VAR·RULE_ROW·RULE_TEST_CASE 행 수와 VER 의 `ROW_VERSION`·`AUD_VER` 가 같다(I14).
   - SP8 `check(request)` 의 errors·warnings 가 `RuleConfirmReport.flatten(report(ref))` 와 같다(I11). 레지스트리의 BUSINESS_RULE SPI 가 `RuleConfirmCheck` 인스턴스다(I16).
+  - SP9 깨진 셀(SP2 와 같은 방식)과 기대값 있는 테스트 케이스가 함께 있는 DRAFT 에서 `report` 가 예외 없이 4행을 돌려주고 SAVE_CHECKS·TEST_CASES 가 모두 REJECTED 다. 정의 조립이 예외를 던지게 만들 수 있으면 TEST_CASES 이슈 code 가 `CASE_RUN_FAILED` 인지도 본다(만들 수 없으면 build-log.md 에 적고 `RuleConfirmReportTest` 에서 예외를 던지는 가짜 실행기로 대신한다).
 - `dme/ruleEdit/RuleEffectiveStatusTest`(B2) — `MutableClock` 을 옮겨 가며 본다.
   - EF1 저장 CREATED 이고 v1 RELEASED 의 applyFrom 이 미래인 룰: `ruleMngService` 검색 행 status CREATED, `ruleEditService.view` 의 `rule.status` CREATED. 시계를 applyFrom 뒤로 옮기면 둘 다 INUSE 이고 저장값은 여전히 CREATED 다.
   - EF2 상태 필터: 위 룰은 시계를 옮긴 뒤 status=INUSE 로 검색하면 나오고 CREATED 로 검색하면 나오지 않는다(I19).
@@ -144,7 +145,7 @@
   - S11 EXTERNAL 원천 룰에 `validate`·`confirm` → 오류(ruleEdit `requireMdm` 과 같은 `BUSINESS_ERROR` 문구).
   - 모든 S 시험의 데이터는 처음에 한 번, 레지스트리의 BUSINESS_RULE SPI 가 `RuleConfirmCheck` 인지 단언한다(I16).
 - `dme/ruleConfirm/RuleConfirmOasisHttpTest`(B3) — `MockMvc` 로 `/api/mdm/oasis/ruleConfirm/{action}` 을 부른다(`DmeOasisHttpTest`·`CodeConfirmOasisHttpTest` 관례).
-  - HT1 search·view·validate·confirm 성공 봉투(`data.result`). `warningsAcknowledged` 불리언 바인딩을 이 시험이 확인한다.
+  - HT1 search·view·validate·confirm 성공 봉투(`data.result`). `warningsAcknowledged` 불리언 바인딩을 이 시험이 확인한다. confirm 응답의 `version.status == "RELEASED"`, `version.applyFrom` 이 요청값, 과거 apply_from 으로 최초 버전을 확정했으면 `rule.status == "INUSE"` 다(I22a — 오래된 엔티티가 응답에 실리지 않는다).
   - HT2 confirm 이 MDM010 으로 실패하면 봉투 `meta.success=false` 이고 DRAFT 가 그대로다(OASIS 트랜잭션 롤백).
   - HT3 컨텍스트에 target BUSINESS_RULE 인 `VersionConfirmCheckSpi` 빈이 정확히 하나이고 그 클래스가 `RuleConfirmCheck` 다.
 - `dme/ruleConfirm/RuleConfirmBpmnActionTest`(B3) — `DmeBpmnActionTest.assertActions` 는 모든 액션이 EDIT 세트 안이라고 단언하므로 `confirm` 에 쓸 수 없다. 같은 파싱 방식으로 따로 짠다: 분기 이름 집합이 `{search, view, validate, confirm}`, 메서드 표 `search→search`·`view→view`·`validate→validate`·`confirm→confirm`, bean `ruleConfirmService`, `search`·`view` 는 `MdmPermissions.READ_ACTIONS` 안, `validate` 는 `EDIT_ACTIONS` 안, `confirm` 은 `CONFIRM_ACTIONS` 에만 있고 `EDIT_ACTIONS` 에는 없다, 모든 액션이 `MdmActions` 상수 안.
@@ -162,6 +163,7 @@
   - P6 `confirm` 권한이 없는 RBAC 가짜에서는 확정 버튼·검사 버튼이 비활성이다.
   - P7 서버가 `meta.success=false` 를 돌려주면 그 message 가 화면 오류 영역(`rc-error`)에 보인다.
   - P8 apply_from 을 검사 뒤 바꾸면 확정 버튼이 다시 비활성이 된다(검사를 다시 해야 한다).
+  - P9 SAVE_CHECKS 가 REJECTED 인 `validate` 응답(계약 경고 없음)을 받으면 `rc-contract` 에 "저장 시 검사 오류가 있어 계약 변경을 보지 못했습니다" 가 보이고, "입력 계약 변경 없음" 문구는 없다(I41).
 - `rule-edit-page.test.ts` 추가 케이스(B4)
   - RE1 `confirmScreenReady: true`, 선택 버전 DRAFT, MDM 원천이면 "확정 이동" 이 활성이고, 누르면 `openMdmPage` 가 `mdm:dme/ruleConfirm` 을 열며 `takeMdmPageParams("dme/ruleConfirm")` 가 `{maruRuleId, ver: "<선택 버전>"}` 이다(`code-edit-page.test.ts` 190-203행 관례).
   - RE2 `confirmScreenReady: true` 라도 선택 버전이 RELEASED 이거나 원천이 EXTERNAL 이면 비활성이다.
@@ -221,7 +223,7 @@ spec 요구사항과의 대응: "저장 시 검사 전부 + 변수·행 1개 이
 - I5 **SAVE_CHECKS = `RuleSaveValidator.validate(new RuleCheckInput(…, RuleSaveTarget.STORED))` 의 이슈 전부**다. 저장된 DRAFT 의 변수·행을 `StoredRuleDefinitions.read` 로 읽어 넣고, 적중 정책은 버전 행의 값을 쓴다. 검사 목록을 따로 만들거나 이슈를 걸러 버리지 않는다. (`RuleConfirmCheckSqliteTest` SP2)
 - I6 **입력 계약 변경은 STORED 에서도 돈다(`ContractChangeCheck.targets()` ⊇ {TABLE, COLUMNS, STORED}). 심각도 WARNING 이므로 확정을 막지 않고 경고 확인(MDM014)만 요구한다.** (`RuleConfirmCheckSqliteTest` SP3, `RuleConfirmServiceTest` S5)
 - I7 **NOT_EMPTY: 변수 0개면 `NO_VARS`, 행 0개면 `NO_ROWS`(모두 ERROR). 행 수는 NORMAL·DEFAULT 를 가리지 않는다(06:1131 "기본 행은 요구하지 않는다").** (`RuleConfirmReportTest` CR5, `RuleConfirmCheckSqliteTest` SP6)
-- I8 **TEST_CASES: 이 룰의 모든 케이스를 저장된 DRAFT 정의로 값 테스트와 같은 판정 코드(`RuleCaseJudge.runCase`, `SingleRuleDefinitionLookup` + 운영 평가기, 평가 시각 = 시계 현재 초 단위)로 돌린다. 기대값 없는 케이스는 보지 않고, `pass == false`(판정 오류 포함)이면 ERROR, 케이스가 없으면 PASSED.** 같은 픽스처에서 SPI 판정과 `RuleValueTestService.run(VERSION, runCases=true)` 의 `pass` 가 같다. (`RuleConfirmReportTest` CR6, `RuleConfirmCheckSqliteTest` SP4)
+- I8 **TEST_CASES: 이 룰의 모든 케이스를 저장된 DRAFT 정의로 값 테스트와 같은 판정 코드(`RuleCaseJudge.runCase`, `SingleRuleDefinitionLookup` + 운영 평가기, 평가 시각 = 시계 현재 초 단위)로 돌린다. 기대값 없는 케이스는 보지 않고, `pass == false`(판정 오류 포함)이면 ERROR, 케이스가 없으면 PASSED. 실행 중 런타임 예외는 `CASE_RUN_FAILED` ERROR 로 바꾸고 `report` 는 예외 없이 4행을 돌려준다.** 같은 픽스처에서 SPI 판정과 `RuleValueTestService.run(VERSION, runCases=true)` 의 `pass` 가 같다. (`RuleConfirmReportTest` CR6, `RuleConfirmCheckSqliteTest` SP4·SP9)
 - I9 **`RuleCaseJudge` 로 옮긴 뒤에도 값 테스트 동작은 그대로다 — `RuleValueTestServiceTest` 가 수정 없이 초록이다.** (`RuleValueTestServiceTest` 전체)
 - I10 **RESULT_VAR_RELEASED: 대상 이름 = `RuleDefinitionReads.of(vars, rowCells).reads` − 이 룰의 `produces` − 컬럼 사전 이름. 생산 룰 = 이 룰이 아닌 룰의 **모든 버전**에서 RESULT 변수의 `VAR_NAME` 또는 `RES_GRP` 가 그 이름인 룰. 생산 룰이 있고 그 가운데 RELEASED 버전이 있는 룰이 하나도 없으면 ERROR. 생산 룰이 없는 이름은 보지 않는다.** (`RuleConfirmReportTest` CR7, `RuleConfirmCheckSqliteTest` SP5)
 - I11 **SPI `check(request)` = `RuleConfirmReport.flatten(checks.report(request.draft()))`, SPI `diff(draft)` = `checks.diff(draft)`.** SPI 어댑터에는 판정 코드가 없다. (`RuleConfirmCheckSqliteTest` SP8)
@@ -242,6 +244,7 @@ spec 요구사항과의 대응: "저장 시 검사 전부 + 변수·행 1개 이
 **B3 — 서비스·BPMN·메뉴**
 
 - I22 **확정은 `VersionStateService.confirm` 하나로만 한다.** `RuleConfirmService` 는 VER·RULE 표를 직접 UPDATE 하지 않고 `VersionWriteGuard.beginDraftWrite` 를 부르지 않는다(ROW_VERSION 이중 증가 금지). (`RuleConfirmServiceTest` S6·S9)
+- I22a **confirm 응답은 확정 뒤 원장 값을 싣는다: `version.status == RELEASED`, `version.applyFrom` = 요청값, apply_from 이 과거면 `rule.status == INUSE`.** 공통 서비스 호출 뒤 영속성 컨텍스트를 비우고 다시 읽는다. 실제 트랜잭션 경로를 거치는 HTTP 시험만 이 결함을 잡는다. (`RuleConfirmOasisHttpTest` HT1)
 - I23 **`RuleConfirmService` 에 `@Transactional` 을 붙이지 않는다**(CGLIB 프록시가 OASIS 파라미터 이름을 잃는다). (`RuleConfirmOasisHttpTest` HT1 — 붙이면 파라미터 바인딩 실패로 빨강)
 - I24 **확정 실패는 전부 롤백된다: 어느 거부 경로에서도 DRAFT 의 STATUS·APPLY_FROM·ROW_VERSION 과 직전 RELEASED 의 APPLY_TO 가 그대로다.** (`RuleConfirmServiceTest` S5, `RuleConfirmOasisHttpTest` HT2)
 - I25 **확정 권한 = 담당자 역할(MDM013) + DRAFT 소유자(MDM003).** 서비스 `confirm` 첫 줄에서 `RuleStewardCheck.requireSteward()` 를 부르고(`MdmCurrentUser.roleIds()` 를 직접 보지 않는다 — `DmeRoleCheckArchitectureTest`), 소유자 판정은 공통 서비스에 맡긴다. (`RuleConfirmServiceTest` S5, 기존 `DmeRoleCheckArchitectureTest`)
@@ -263,7 +266,7 @@ spec 요구사항과의 대응: "저장 시 검사 전부 + 변수·행 1개 이
 - I38 **apply_from 은 `yyyy-MM-dd HH:mm:ss`(KST, 초 단위)로 보낸다.** (`checks.test.ts`)
 - I39 **서버 거부 message 를 화면 오류 영역에 그대로 보인다.** (`rule-confirm-page.test.ts` P7)
 - I40 **ruleEdit "확정 이동" 활성 = `confirmScreenReady` && MDM 원천 && 선택 버전 DRAFT. 누르면 `openMdmPage("dme/ruleConfirm", {maruRuleId, ver: String(ver)})`.** (`rule-edit-page.test.ts` RE1·RE2)
-- I41 **계약 변경 경고를 "계약 변경 없음" 으로 단정해 보이지 않는다** — 저장 시 검사에 ERROR 가 있으면 원장 검사(계약 변경 포함)가 돌지 않으므로, 그때 화면은 계약 영역에 "저장 시 검사 오류가 있어 계약 변경을 보지 못했습니다" 를 보인다. (`rule-confirm-page.test.ts` P4 의 보조 케이스)
+- I41 **계약 변경 경고를 "계약 변경 없음" 으로 단정해 보이지 않는다** — 저장 시 검사에 ERROR 가 있으면 원장 검사(계약 변경 포함)가 돌지 않으므로, 그때 화면은 계약 영역에 "저장 시 검사 오류가 있어 계약 변경을 보지 못했습니다" 를 보인다. (`rule-confirm-page.test.ts` P9)
 
 **B5 — 통합**
 
@@ -299,6 +302,7 @@ public class RuleConfirmCheck implements VersionConfirmCheckSpi {       // 판�
 - TEST_CASES: `StoredRuleDefinitions.assemble(id, ruleKind, s)` → `new MdmRuleEngine(evaluator.configuration(), new SingleRuleDefinitionLookup(def))` → `RuleTestCaseQueries.cases(id)` 마다 `RuleCaseJudge.runCase(engine, id, c, ts, defaultRowId)`. 값 테스트 VERSION 분기와 같은 조립이다(I8).
 - RESULT_VAR_RELEASED: `RuleDefinitionReads.of(s.rawVars(), rowCells)` → 대상 이름 → `RuleConfirmQueries.producers(ruleId, names)` → `RuleQueries.latestReleasedVers(producerRuleIds)`(맵에 키가 있으면 RELEASED 있음). 컬럼 사전 판정은 `RuleVarTypeResolver` 에 이름 하나짜리 COND 탐침을 물어 `typeSource == COLUMN` 인지 본다(`StoredRuleDefinitions.externalTypes`·`RuleSaveValidator.externalNames` 와 같은 방식, 한 호출 안에서 캐시).
 - 네 항목은 서로 독립으로 모두 돈다(앞 항목이 거부여도 뒤 항목을 돌린다). 화면이 한 번에 모든 문제를 보이게 하기 위해서다.
+- **항목 실행 중 예외는 조용히 통과시키지도, 500 으로 흘리지도 않는다.** 저장 시 검사에 ERROR 가 있는 DRAFT 에서는 정의 조립·엔진이 `EngineEvaluationException` 이 아닌 런타임 예외를 던질 수 있다. TEST_CASES 실행(정의 조립·엔진 생성·케이스 판정)에서 난 `RuntimeException` 은 그 항목의 ERROR 이슈 `CASE_RUN_FAILED`(itemKey null, message "값 테스트를 끝내지 못했다: " + 예외 message)로 바꾼다. RESULT_VAR_RELEASED 조회 예외도 같은 방식(`PRODUCER_CHECK_FAILED`)이다. 검사기의 `ANALYSIS_FAILED`(08-04 §7.12)와 같은 원칙이다.
 - **알려진 동작**: `RuleSaveValidator` 는 앞 단계(셀·식·미완성·분석)에 ERROR 가 있으면 `RuleSaveCheck` 빈(계약 변경·세트 순서·코드 참조 등)을 부르지 않는다. 그래서 SAVE_CHECKS 가 거부일 때는 계약 변경 경고가 나오지 않을 수 있다. 어차피 확정이 막히므로 이 동작을 바꾸지 않고 화면 문구로만 알린다(I41).
 
 ### 6.2 diff(`RuleVersionDiffs`)
@@ -334,7 +338,9 @@ static String itemKey(List<Integer> rowIds, Integer varId)
 | SAVE_CHECKS | 저장 시 검사 이슈의 `code`(`RuleSaveIssueCode`·`RuleIssueCode` 이름) | 이슈 맵의 `severity` | rowIds 가 있으면 `ROW:{오름차순 콤마}`, varId 가 있으면 `VAR:{varId}`, 둘 다면 `;` 로 잇는다(`ROW:15,16;VAR:2`), 둘 다 없으면 null | 이슈 맵의 `message` |
 | NOT_EMPTY | `NO_VARS` / `NO_ROWS` | ERROR | null | "변수가 하나 이상이어야 합니다" / "행이 하나 이상이어야 합니다" |
 | TEST_CASES | `CASE_FAILED` | ERROR | `CASE:{caseId}` | "케이스 {caseId} {caseName}: " + mismatches 요약(`키 기대 → 실제`) 또는 판정 오류 message |
+| TEST_CASES | `CASE_RUN_FAILED` | ERROR | null | "값 테스트를 끝내지 못했다: " + 예외 message(§6.1) |
 | RESULT_VAR_RELEASED | `PRODUCER_NOT_RELEASED` | ERROR | `NAME:{이름}` | "조건 변수 {이름} 을(를) 만드는 룰 {ID 목록} 에 RELEASED 버전이 없습니다" |
+| RESULT_VAR_RELEASED | `PRODUCER_CHECK_FAILED` | ERROR | null | "결과 변수 참조 검사를 끝내지 못했다: " + 예외 message(§6.1) |
 
 ### 6.4 케이스 판정 옮기기(`RuleCaseJudge`)
 
@@ -353,7 +359,7 @@ static String itemKey(List<Integer> rowIds, Integer varId)
 
 - 날짜 문자열은 `yyyy-MM-dd HH:mm:ss` 로 주고받는다. 파싱 실패는 `ErrorCode.INVALID_VALUE`(field `applyFrom`), 빈 값은 `REQUIRED_VALUE`. 서버는 초 단위로 자른다.
 - `changedVarIds` 는 CHANGED 행에서 정규화 셀이 다른 var_id 목록이다(화면이 바뀐 칸만 강조하게). 계산은 서비스에서 `RuleVersionDiffs.canonicalCells` 를 칸마다 적용해 한다.
-- `confirm` 은 `ruleStewardCheck.requireSteward()` → 입력 검사 → `versionState.confirm(new ConfirmCommand(ref, rowVersion, applyFrom, currentUser.userId(), warningsAcknowledged))` → 조회 모델로 응답(I22·I25).
+- `confirm` 은 `ruleStewardCheck.requireSteward()` → 입력 검사 → `versionState.confirm(new ConfirmCommand(ref, rowVersion, applyFrom, currentUser.userId(), warningsAcknowledged))` → **`EntityManager.clear()`(또는 새로 읽기)** → 조회 모델로 응답(I22·I25·I22a). OASIS 경로에서는 SPI 검사가 같은 트랜잭션에서 `MdmRuleVer`·`MdmRule` 을 관리 엔티티로 읽어 두고 공통 서비스가 네이티브 UPDATE 로 바꾸므로, 비우지 않으면 응답에 DRAFT·CREATED 가 실린다(08-01 design 634행 "공통 서비스를 부른 뒤에는 엔티티를 다시 읽는다").
 - 업무 오류는 BPMN 안에서 던지면 봉투에 `meta.message` 만 오고 `errors[]` 는 비어 있다(06-04 F11). 그래서 화면은 경고 목록을 MDM014 오류에서 읽지 않고 `validate` 응답에서 읽는다(D9).
 - 이 서비스는 `dme.ruleEdit` 패키지 타입(`RuleEditSupport` 등)을 쓰지 않는다(08-04 design §2 방침). EXTERNAL 원천 검사·룰 로드는 자체 private 메서드로 둔다.
 
@@ -369,7 +375,7 @@ public static String effectiveStatus(String storedStatus, Collection<MdmRuleVer>
 ```
 - 조회: `RuleMngService` 목록 행, `RuleViewService.RuleInfo.status`, `RuleConfirmService` 의 search·view 가 이 값을 싣는다. 06-02 `MasterCodeVersionSummary.effectiveStatus` 와 같은 정의다.
 - ruleMng 상태 필터(`RuleQueries.where`): `INUSE` = `r.status = 'INUSE' OR (r.status = 'CREATED' AND EXISTS(RELEASED v, v.applyFrom <= :now))`, `CREATED` = `r.status = 'CREATED' AND NOT EXISTS(…)`, `DEPRECATED` = 저장값. JPQL 로 쓴다(네이티브 SQL 없음). 페이지·건수 쿼리가 같은 조건을 쓴다.
-- 쓰기 경로 승격: `RuleHeaderService` 헤더 저장·폐기, `RuleVersionService` 새 버전의 쓰기 트랜잭션 안에서 계산 상태가 INUSE 이고 저장 CREATED 면 `TB_MDM_RULE.STATUS` 를 INUSE 로 저장한다. 방법은 Build 판단(엔티티 `setStatus` + flush 또는 `VersionRowStore.markParentInUse(BUSINESS_RULE, id, audit.currentStamp())`). 06-02 `CodeEditService` 386-391행이 선례다.
+- 쓰기 경로 승격: `RuleHeaderService` 헤더 저장·폐기, `RuleVersionService` 새 버전의 쓰기 트랜잭션 안에서 계산 상태가 INUSE 이고 저장 CREATED 면 `TB_MDM_RULE.STATUS` 를 INUSE 로 저장한다. **`MdmRule` 엔티티를 읽어 고치는 경로(헤더 저장 등)에서는 엔티티 `setStatus("INUSE")` 로 하고 네이티브 UPDATE 를 쓰지 않는다** — 네이티브로 올리면 flush 때 엔티티에 남은 CREATED 가 다시 덮어쓴다. 엔티티를 건드리지 않는 경로(네이티브 쓰기만 하는 폐기 등)에서만 `VersionRowStore.markParentInUse(BUSINESS_RULE, id, audit.currentStamp())` 를 쓴다. 06-02 `CodeEditService` 386-391행이 선례다.
 - 폐기 가능 판정(`RuleHeaderService.deprecate` 120행)은 계산 상태 INUSE 로 바꾼다. 폐기 UPDATE 가 `STATUS = 'INUSE'` 조건을 쓰면 승격을 먼저 한다(같은 트랜잭션).
 
 ### 6.8 화면 `dme/ruleConfirm`
