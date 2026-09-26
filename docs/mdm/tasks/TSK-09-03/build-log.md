@@ -7,6 +7,10 @@
 | 2026-09-26T06:34:46Z | 기준선 | `cd src/backend && … ./gradlew :mdm:test … && … check_oasis_contract.py --root .` | 모듈 | 1 | 1.65 | 기준선 재사용 (2263/0) |
 | 2026-09-26T06:34:46Z | 기준선 | `cd src/frontend && pnpm --filter @dk-oasis/shared build && pnpm test:unit:shared && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint` | 모듈 | 31 | 6.45 | 기준선 측정 (1232/0) |
 | 2026-09-26T16:51 | Build B3 | `cd src/backend && … ./gradlew :mdm:api:test --tests "com.dongkuk.dmes.mdm.itest.CodeDataRuleLedgerChainTest" --no-daemon --console=plain` | 신규 시험(관련 테스트) | 20s | 1 | 통과 (1/0) |
+| 2026-09-26T08:06:55Z | build | `cd src/backend && … ./gradlew :mdm:test … && … check_oasis_contract.py --root .` | 모듈 | 293 | 28.09 | 통과(부하 민감 단독) — api 1114(실패 1: 부하 민감)·lib 1157(실패로 멈춰 따로 1회, 70s)·계약 ERROR 0, 총 2271 ≥ 2263 |
+| 2026-09-26T08:06:55Z | build | `cd src/frontend && pnpm --filter @dk-oasis/shared build && pnpm test:unit:shared && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint` | 모듈 | 99 | 21.41 | 통과 (170+1064=1234 ≥ 1232) |
+
+env: 부하 민감, 단독 통과(CodeCateEditPerformanceSqliteTest.AC4_1000건_소속_이동_저장은_중앙값이_800ms_미만이다, 로그 /Users/jji/project/dmes-standard/.git/worktrees/dflow-5e57e895/dflow-solo-CodeCateEditPerformanceSqliteTest.log, 게이트 때 부하 28.09 → 단독 때 부하 24.87, heavy.sh --exclusive, 28s)
 
 ## 변이 검증 기록
 
