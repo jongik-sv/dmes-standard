@@ -220,10 +220,10 @@ spec의 수용 기준은 두 줄뿐이라, spec 「요구사항」 절의 세 �
 | PORT 화면·CSV 선분 규칙 + 원장 판정 7케이스 | B2 `MasterDataLedgerJudgmentSqliteTest`(신규, 05 판정 참고 구현 절 7행 그대로) |
 | ORG 화면·CSV 선분 규칙(계층) | B2 동일 파일 — 05:71-77 5행 재현. 화면·CSV 대조 포함 |
 | CUST 화면·CSV 경로 | B2 동일 파일 — 원천 불일치 거부(음성 케이스)만. 수신 API·판정은 범위 밖(D3, DF-2) |
-| 룰 4종·LS_A3 편집→확정 통과 | B3 `RuleSetLifecycleOasisFlowTest`(신규) |
-| 룰 4종·LS_A3 서버 판정이 샘플 기대값과 일치 | B3 `SampleRuleSetValueTest`(신규, 엔진 레벨 `evaluateSet`) |
+| 룰 4종·LS_A3 편집→확정 통과 | BASE_SPD_LKP·SPD_EXC·SPD_JOIN·`LS_A3`는 B3 `RuleSetLifecycleOasisFlowTest`(신규)가 실제 편집→확정 전 과정을 확인한다. 나머지 3종(QLTY_GRD_JDG·COIL_WGT_CALC·PROD_WGT_CALC)의 편집→확정 성공 케이스는 **확인하지 못함** — 기존 `RuleConfirmOasisHttpTest`는 `QLTY_GRD_JDG`(Q)로 검색·조회·검증과 확정 **실패**(HT2, MDM010)만 돌리고 확정 **성공**은 같은 06 샘플 정의를 쓰는 별도 시험 전용 ID `FIRST_JDG`로만 확인한다(QLTY_GRD_JDG 자신은 아니다). `PROD_WGT_CALC`는 `RuleMngServiceTest`가 검색용으로 JDBC 직접 시딩만 하고 `service.register`를 부르지 않으며, `COIL_WGT_CALC`는 `SampleRuleValueTest`의 값 계산에만 쓰인다 — 셋 다 확정을 도는 시험이 없다(DF-4). |
+| 룰 4종·LS_A3 서버 판정이 샘플 기대값과 일치 | SPD_EXC·SPD_JOIN·`evaluateSet(LS_A3)`는 B3 `SampleRuleSetValueTest`(신규, 엔진 레벨). 나머지 4종 개별 값은 기존 `SampleRuleValueTest`(안 바꿈, "수용 기준 1 — 06 샘플 룰 넷의 값 테스트")가 이미 확인한다. |
 | 수용 기준 "시나리오 통과" | 위 항목 중 "확인하지 못함"으로 적은 것 외 전부가 기준선 5개 명령 중 backend testAll에서 통과 |
-| 수용 기준 "발견 결함은 WP에 defect Task로 등록" | `defects.md`에 DF-1(EQP_CD 수신 미구현)·DF-2(CUST 수신 미구현) 기록, 대상 WP 불명(06/07 시리즈 스펙 어디에도 수신 API 구현 요구가 없어 오케스트레이터·사람이 WP를 정한다) |
+| 수용 기준 "발견 결함은 WP에 defect Task로 등록" | `defects.md`에 DF-1(EQP_CD 수신 미구현)·DF-2(CUST 수신 미구현)·DF-3(DERIVE 룰 결과식 외부 변수 타입 변환 결함, TSK-08-04)·DF-4(룰 4종 중 3종 편집→확정 시험 없음, 추정 TSK-03-03) 기록. DF-1·DF-2·DF-4는 대상 WP 불명 — 오케스트레이터·사람이 정한다 |
 
 ## 5. 불변 규칙 — 이 작업에서 바꾸면 안 되는 것
 

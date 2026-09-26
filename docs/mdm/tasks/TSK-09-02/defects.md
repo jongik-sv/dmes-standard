@@ -51,3 +51,26 @@ design.md 「1. 접근 방식」의 결함 발견 처리 절차대로 기록한�
   `SampleRuleSetValueTest`(엔진 레벨 `evaluateSet`, 시험 코드 안에서 손으로 조립한 `RuleDefinition`)가 이미 확정했다 — 이 결함은
   엔진 로직이 아니라 mdm/api의 저장·재조립 경로에만 있다. 재현·수정은 `RuleColumnsService.checkDeriveExprs`가 `exprAst`를
   `Map<String,Object>`로 들고 있다가(또는 `RuleCellsCodec.write` 전에 역직렬화해) 저장하도록 고치는 별도 dev Task가 맡는다.
+
+## DF-4 — 샘플 룰 4종 가운데 QLTY_GRD_JDG·COIL_WGT_CALC·PROD_WGT_CALC 는 성공 편집→확정 시험이 하나도 없다
+
+- **대상 기능 WP**: 불명(추정 TSK-03-03 — `SampleRules.java`·`SampleRuleValueTest.java` 원 소유). 06/07/08 시리즈
+  어디에도 이 세 ID로 확정을 도는 시험 요구가 없다.
+- **재현 절차**: `grep -rn "QLTY_GRD_JDG\|COIL_WGT_CALC\|PROD_WGT_CALC" src/backend --include='*.java'`(build 산출물 제외).
+  - `QLTY_GRD_JDG`: `RuleConfirmOasisHttpTest`의 `Q`가 search·view·validate와 확정 **실패**(HT2, MDM010 CONFIRM_CHECK_FAILED)만
+    돈다. 확정 **성공**(HT1)은 같은 06 샘플 정의를 쓰는 시험 전용 별도 ID `FIRST_JDG`로 돈다 — QLTY_GRD_JDG 자신이 확정에
+    성공하는 케이스는 없다.
+  - `PROD_WGT_CALC`: `RuleMngServiceTest`가 검색·페이지네이션 시험용으로 `DmeTestSupport.rule/pending`(JDBC 직접 시딩)만
+    쓰고 `RuleMngService.register()`(화면 등록 경로)도 확정도 부르지 않는다.
+  - `COIL_WGT_CALC`: `SampleRuleValueTest`의 값 계산(`engine.evaluate`)에만 쓰이고, OASIS `ruleEdit`/`ruleConfirm` 경로는
+    전혀 안 탄다.
+- **기대 결과**: design.md §4 "룰 4종·LS_A3 편집→확정 통과"가 요구하는 대로면 4종 모두 자신의 ID로 편집(register/save)부터
+  확정까지 성공하는 시험이 있어야 한다.
+- **실제 결과**: 이 diff(B3)가 만든 `RuleSetLifecycleOasisFlowTest`는 `BASE_SPD_LKP`·`SPD_EXC`·`SPD_JOIN`만 편집→확정한다.
+  나머지 3종은 기존 자산으로도 새 시험으로도 성공 확정 케이스가 없다 — design.md §0.3이 설계 단계에서 이미 "이 7개 ID를
+  실제로 쓰는 OASIS/DB 레벨 테스트는 전부 구조 검사·JPA 왕복·계약 스텁의 픽스처 이름으로만 쓰였을 뿐, 값 판정을 검증한
+  적이 없다"고 적어 둔 그 갭이 편집→확정 쪽에도 그대로 남아 있다(Verify 감사 지적으로 2026-09-26 재확인, §4 매핑 문구를
+  "확인하지 못함"으로 고쳤다).
+- **범위 처리**: B3(design.md §3 B3-2)는 SPD_EXC·SPD_JOIN·LS_A3(BASE_SPD_LKP 포함) 세 룰만 담당 범위다 — QLTY_GRD_JDG·
+  COIL_WGT_CALC·PROD_WGT_CALC를 실제로 등록·확정하는 시험은 이 작업 범위 밖이다. 확정 메커니즘 자체는 `FIRST_JDG`(HT1)로
+  이미 증명돼 있어 기능 결함은 아니고, 3종 고유 픽스처로 도는 시험이 없다는 커버리지 갭이다.
