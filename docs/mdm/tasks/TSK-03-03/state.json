@@ -2,8 +2,20 @@
   "tsk": "TSK-03-03",
   "order": "e1205c87-681d-44be-90b1-0965067683f3",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "merged",
-  "baseline": {
+  "phase": "build",
+  "pred_note": "선행 mdm/TSK-03-01: reached=true·head_sha 없음 → 행 G 갈래 2, pred-reflected.sh REFLECTED → origin/dev 기점 스택 없이 진행",
+  "last": {
+    "phase": "design",
+    "event": "design.ok"
+  },
+  "model": "sonnet",
+  "design_commit": "3d7fb0c2",
+  "unapproved": true,
+  "rework": {
+    "review_note": "D17 캐시 연결 누락 — ExpressionRunner 를 03-02 MdmEvaluator 캐시에 연결",
+    "base": "origin/dev 6d2110fc (원 agent 브랜치는 dev 에 머지·삭제됨)"
+  },
+  "prev_baseline": {
     "failures": 0,
     "tests": 524,
     "backend_testAll": {
@@ -18,49 +30,124 @@
       "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint"
     }
   },
-  "pred_note": "선행 mdm/TSK-03-01: reached=true·head_sha 없음 → 행 G 갈래 2, pred-reflected.sh REFLECTED → origin/dev 기점 스택 없이 진행",
-  "last": {
-    "phase": "done",
-    "event": "done.ok"
-  },
-  "model": "haiku",
-  "design_commit": "69f1a03",
-  "build_gate": {
-    "backend_testAll": {
-      "tests": 1055,
-      "failures": 0,
-      "exit": 0
-    },
-    "frontend_m_mdm": {
-      "tests": 6,
-      "failures": 0,
-      "lint": "pass"
-    },
-    "planned_deletion": [
-      "ContractOnlyPhaseTest.main_클래스_집합이_계약_타입과_스캐폴드로_닫혀_있다",
-      "ContractOnlyPhaseTest.EvalEx_실행_타입은_스캐폴드_ExpressionEvaluator_만_쓴다"
-    ],
-    "mutation": "I1-I39 변이 74개 전부 빨강, I40 변이 없음(수정 금지 파일)",
-    "commits": [
-      "2e4d7c6",
-      "f7e05e4",
-      "789728e"
+  "baseline": {
+    "base": "6d2110fcaf256b2d1e9d98c47231d6d2b66859ef",
+    "failures": 0,
+    "tests": 5194,
+    "docker": "banned:spawn",
+    "docker_note": "도커 금지 모드: 켜짐(출처 spawn, 워커 기본). testcontainers·컨테이너 태스크 없음 — 제외 명령 없음",
+    "cmds": [
+      {
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3960,
+        "failures": 0,
+        "exit": 0,
+        "scope": "full",
+        "source": "measured",
+        "cache_key": "6d2110fcaf256b2d1e9d98c47231d6d2b66859ef-5a99c8ef20f3",
+        "measured_at": "2026-09-26T11:16:52Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 1064,
+        "failures": 0,
+        "exit": 0,
+        "scope": "full",
+        "source": "measured",
+        "cache_key": "6d2110fcaf256b2d1e9d98c47231d6d2b66859ef-70ad4dddc2e4",
+        "measured_at": "2026-09-26T11:16:52Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0,
+        "exit": 0,
+        "scope": "full",
+        "source": "measured",
+        "cache_key": "6d2110fcaf256b2d1e9d98c47231d6d2b66859ef-79066bca5c4b",
+        "measured_at": "2026-09-26T11:16:52Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 170,
+        "failures": 0,
+        "exit": 0,
+        "scope": "full",
+        "source": "measured",
+        "cache_key": "6d2110fcaf256b2d1e9d98c47231d6d2b66859ef-85eac351cb59",
+        "measured_at": "2026-09-26T11:16:52Z"
+      },
+      {
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0,
+        "exit": 0,
+        "scope": "full",
+        "source": "measured",
+        "cache_key": "6d2110fcaf256b2d1e9d98c47231d6d2b66859ef-773190afc491",
+        "measured_at": "2026-09-26T11:16:52Z"
+      },
+      {
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :maru-mdm-engine:test :mdm:test --no-daemon --console=plain && cd ../frontend && pnpm --filter @dk-oasis/m-mdm test && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 4638,
+        "junit": 3574,
+        "vitest": 1064,
+        "failures": 0,
+        "scope": "module",
+        "source": "measured",
+        "cache_key": "6d2110fcaf256b2d1e9d98c47231d6d2b66859ef-b4ee8f008c76",
+        "measured_at": "2026-09-26T11:40:00Z"
+      },
+      {
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 2252,
+        "failures": 0,
+        "scope": "module",
+        "source": "measured",
+        "cache_key": "6d2110fcaf256b2d1e9d98c47231d6d2b66859ef-9c34264b6ba7",
+        "measured_at": "2026-09-26T11:40:00Z"
+      }
     ]
   },
-  "verify_gate": {
-    "backend_testAll": {
-      "tests": 1055,
-      "failures": 0,
-      "exit": 0
+  "build_model_base": "opus",
+  "build_model_trial": true,
+  "prev_gates": {
+    "build_gate": {
+      "backend_testAll": {
+        "tests": 1055,
+        "failures": 0,
+        "exit": 0
+      },
+      "frontend_m_mdm": {
+        "tests": 6,
+        "failures": 0,
+        "lint": "pass"
+      },
+      "planned_deletion": [
+        "ContractOnlyPhaseTest.main_클래스_집합이_계약_타입과_스캐폴드로_닫혀_있다",
+        "ContractOnlyPhaseTest.EvalEx_실행_타입은_스캐폴드_ExpressionEvaluator_만_쓴다"
+      ],
+      "mutation": "I1-I39 변이 74개 전부 빨강, I40 변이 없음(수정 금지 파일)",
+      "commits": [
+        "2e4d7c6",
+        "f7e05e4",
+        "789728e"
+      ]
     },
-    "frontend_m_mdm": {
-      "tests": 6,
-      "failures": 0,
-      "lint": "pass",
-      "note": "Build 게이트 이후 frontend 변경 없음"
+    "verify_gate": {
+      "backend_testAll": {
+        "tests": 1055,
+        "failures": 0,
+        "exit": 0
+      },
+      "frontend_m_mdm": {
+        "tests": 6,
+        "failures": 0,
+        "lint": "pass",
+        "note": "Build 게이트 이후 frontend 변경 없음"
+      },
+      "mutation": "I1·I3·I8·I10·I12·I17·I20·I22·I23·I28·I31·I34 전체 엔진 스위트로 12/12 빨강, 원복 확인"
     },
-    "mutation": "I1·I3·I8·I10·I12·I17·I20·I22·I23·I28·I31·I34 전체 엔진 스위트로 12/12 빨강, 원복 확인"
-  },
-  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\"",
-  "unapproved": true
+    "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\""
+  }
 }
