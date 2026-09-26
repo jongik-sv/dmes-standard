@@ -57,7 +57,7 @@
   - `E2E_RC_CASEFAIL`(2026-10-01): SAVE_CHECKS WARNED · TEST_CASES REJECTED(`CASE_FAILED` CASE:1) · EXEMPT.
   - `E2E_RC_CONTRACT` v2(2030-01-01): SAVE_CHECKS WARNED(`NULL_GAP` VAR:1·VAR:4, `CONTRACT_CHANGED`) · 적용 순서 PASSED · `contractWarnings` = [CONTRACT_CHANGED] · futureApplyFrom true · view diffCounts 수정 2(나머지 0) · previous v1 2026-01-01.
   - `E2E_RC_RACE`(2026-02-01): SAVE_CHECKS WARNED(`NULL_GAP`) · 나머지 PASSED · EXEMPT. 경고가 있으므로 T7 의 선행 확정 요청은 `warningsAcknowledged: true` 를 보낸다(false 면 MDM014 로 경합이 만들어지지 않는다).
-- 첫 실행: 6 통과 전 T6 에서 1 실패 — 계약 영역은 이슈 code 가 아니라 message 를 보이므로 `CONTRACT_CHANGED` 대신 `[COIL_WID]` 를 단언하도록 고쳤다(화면 문구 확인, 기대값 완화 아님: 같은 영역의 `data-state="CHANGED"` 단언은 그대로).
+- 첫 실행: 4 통과 · T6 1 실패 · 2 미실행(serial) — 계약 영역은 이슈 code 가 아니라 message 를 보이므로 `CONTRACT_CHANGED` 대신 `[COIL_WID]` 를 단언하도록 고쳤다(화면 문구 확인, 기대값 완화 아님: 같은 영역의 `data-state="CHANGED"` 단언은 그대로).
 - 스모크 넷 대응: 1 메뉴 이동 T1, 2 목록·빈 상태 T2, 3 화면 조작만으로 확정·목록 반영 T5(T6), 4 서버 오류 표시 T7.
 - 최종 실행(변이를 모두 되돌린 원본, 새 mcm.db + 픽스처 재투입): `cd src/frontend && SMOKE_MCM_BASE_URL=http://127.0.0.1:51684 SMOKE_LOGIN_USER=admin SMOKE_LOGIN_PASSWORD=admin123 ../../.claude/skills/dflow-dev/scripts/heavy.sh pnpm exec playwright test e2e/mdm-ruleConfirm.spec.ts e2e/mdm-shell-rbac-smoke.spec.ts --workers=1` — exit 0, **11 passed**(ruleConfirm 7 · shell-rbac 4), failed·skipped 0. 새 메뉴 leaf 가 기존 MDM 셸·RBAC 스모크를 깨지 않는다.
 - 정리: 기록한 PID(포털·mdm·mcm)를 죽이고 세 포트에 남은 리스너가 0 인 것을 확인한 뒤 `heavy.sh release`(HEAVY_RELEASED e2e-1). shell-rbac 스모크가 덮어쓴 `docs/mdm/tasks/TSK-01-03/screens/` 두 장과 `m-mcm/next-env.d.ts`, 첫 실패 때 바뀐 `src/frontend/test-results/` 는 `git checkout --` 로 되돌렸다. 격리 DB(`src/backend/data/*.db`, 무시 대상)는 커밋하지 않는다.
