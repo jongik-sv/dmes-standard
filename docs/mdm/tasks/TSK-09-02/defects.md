@@ -76,3 +76,7 @@ design.md 「1. 접근 방식」의 결함 발견 처리 절차대로 기록한�
 - **범위 처리**: B3(design.md §3 B3-2)는 SPD_EXC·SPD_JOIN·LS_A3(BASE_SPD_LKP 포함) 세 룰만 담당 범위다 — QLTY_GRD_JDG·
   COIL_WGT_CALC·PROD_WGT_CALC를 실제로 등록·확정하는 시험은 이 작업 범위 밖이다. 확정 메커니즘 자체는 `FIRST_JDG`(HT1)로
   이미 증명돼 있어 기능 결함은 아니고, 3종 고유 픽스처로 도는 시험이 없다는 커버리지 갭이다.
+- **해소**: 반려 재작업 1회차(design.md 「반려 재작업 1회차」)의 B4 `SampleRuleLifecycleOasisFlowTest`가 QLTY_GRD_JDG·
+  COIL_WGT_CALC·PROD_WGT_CALC 세 룰을 자기 ID로 `ruleMng.reg → ruleEdit.save COLUMNS·TABLE → ruleEdit.save CASE →
+  ruleEdit.execute runCases → ruleConfirm.confirm` 경로로 등록·편집·확정하고, 케이스 값은 `SampleRuleValueTest`(엔진 레벨)
+  것을 그대로 옮겨 서버 판정과 대조한다.
