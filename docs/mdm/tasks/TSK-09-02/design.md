@@ -237,6 +237,7 @@ spec의 수용 기준은 두 줄뿐이라, spec 「요구사항」 절의 세 �
 | `TB_MDM_RULE_TEST_CASE`는 룰 1개당 케이스다(세트 케이스를 담지 않는다) | `MdmBusinessRuleEntityJpaRoundtripTest`(기존, 안 바꿈) |
 | 룰 세트 실행 순서는 세트가 담은 목록 순서(위상 정렬 결과)대로다 | `RuleSetAnalyzerTest`(기존, 안 바꿈) + B3 `evaluateSet("LS_A3")` 신규 |
 | 이 작업은 선행 WP의 프로덕션 소스(`src/**/main/**`)를 고치지 않는다 — 시험 파일만 만든다 | 커밋 diff로 확인(`git show --stat`) |
+| MSSQL 은 폐지 예정이다(팀장 지시 2026-09-26) — MSSQL 마이그레이션(`db/migration/mdm/mssql`)·`mssqlTest`·MSSQL 방언 분기·MSSQL 관련 문서를 새로 만들거나 고치거나 지우지 않는다. SQLite 만 다룬다. 이 작업은 마이그레이션을 추가하지 않는다(추가하게 되면 MSSQL 짝 부재만으로 실패하는 `MdmFlywayVersionParityTest`·`*DdlParityTest` 는 예상 실패로 허용하되 짝 파일은 만들지 않는다) | 커밋 diff 에 `mssql` 경로가 없는지 확인(`git diff --name-only <기점>..HEAD \| grep -i mssql` 0건) |
 
 ## 구현 단위
 
