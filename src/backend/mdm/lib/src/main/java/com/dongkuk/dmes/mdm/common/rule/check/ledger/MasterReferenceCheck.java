@@ -1,6 +1,7 @@
 package com.dongkuk.dmes.mdm.common.rule.check.ledger;
 
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
+import com.dongkuk.dmes.mdm.common.rule.RuleCellsCodec;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckReport;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveCheck;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveContext;
@@ -46,7 +47,8 @@ public class MasterReferenceCheck implements RuleSaveCheck {
     public List<Map<String, Object>> check(RuleSaveContext ctx) {
         List<Map<String, Object>> out = new ArrayList<>();
         for (LedgerCells.Cell c : LedgerCells.cells(ctx)) {
-            if (c.cell().get("ast") instanceof Map<?, ?> ast) {
+            Map<String, Object> ast = RuleCellsCodec.ast(c.cell().get("ast"));
+            if (ast != null) {
                 walk(ast, (code, message) -> out.add(RuleCheckReport.cellIssue(code, RuleCheckReport.ERROR, c.row().rowId(), c.var(), message)));
             }
         }

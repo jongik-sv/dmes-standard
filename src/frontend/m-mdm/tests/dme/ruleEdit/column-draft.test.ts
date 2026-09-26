@@ -67,7 +67,7 @@ describe("draftFromView", () => {
     const v = draftView("e2e_mdm_steward", "e2e_mdm_steward", {
       rule: { ...draftView(null).rule, ruleKind: "DERIVE" },
       vars: [{ ...SAMPLE_VARS[3], dispType: "Expression", varId: 1, seq: 1, varName: "WGT" }],
-      rows: [{ rowId: 1, seq: 1, rowKind: "NORMAL", cells: '{"1":{"expr":"A * 2","ast":"{}"}}', note: null }],
+      rows: [{ rowId: 1, seq: 1, rowKind: "NORMAL", cells: '{"1":{"expr":"A * 2","ast":{}}}', note: null }],
     });
     expect(draftFromView(v)[0].expr).toBe("A * 2");
   });

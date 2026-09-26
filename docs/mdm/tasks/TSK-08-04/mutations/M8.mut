@@ -1,0 +1,10 @@
+rule: RR8 — SPD_JOIN(IF(EXC_SPD == NULL, BASE_SPD, MIN(BASE_SPD, EXC_SPD)))은 90·70 → 70, 90·NULL → 90 이다(OASIS 저장 → execute → confirm)
+file: src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/rule/definition/RuleDefinitionAssembler.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:api:test --tests "com.dongkuk.dmes.mdm.dme.RuleSetLifecycleOasisFlowTest" --console=plain
+e2e: no
+--- find
+        Map<String, Object> ast = RuleCellsCodec.ast(c.get("ast"));
+        if (RuleExpressionChecks.exprCell(resolved.varKind(), resolved.dispType(), c) && ast == null) {
+--- replace
+        Map<String, Object> ast = null;
+        if (false) {

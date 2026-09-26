@@ -51,6 +51,8 @@ design.md 「1. 접근 방식」의 결함 발견 처리 절차대로 기록한�
   `SampleRuleSetValueTest`(엔진 레벨 `evaluateSet`, 시험 코드 안에서 손으로 조립한 `RuleDefinition`)가 이미 확정했다 — 이 결함은
   엔진 로직이 아니라 mdm/api의 저장·재조립 경로에만 있다. 재현·수정은 `RuleColumnsService.checkDeriveExprs`가 `exprAst`를
   `Map<String,Object>`로 들고 있다가(또는 `RuleCellsCodec.write` 전에 역직렬화해) 저장하도록 고치는 별도 dev Task가 맡는다.
+- **해소**: TSK-08-04 반려 재작업(1회차)에서 저장(객체 ast)·읽기(레거시 문자열 디코드)·명시 오류를 고쳤다. `RuleSetLifecycleOasisFlowTest`
+  가 MIN 분기(90·70 → 70)를 OASIS 경로로 확인한다.
 
 ## DF-4 — 샘플 룰 4종 가운데 QLTY_GRD_JDG·COIL_WGT_CALC·PROD_WGT_CALC 는 성공 편집→확정 시험이 하나도 없다
 

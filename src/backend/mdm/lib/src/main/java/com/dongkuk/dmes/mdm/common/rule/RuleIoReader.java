@@ -135,7 +135,7 @@ public class RuleIoReader {
                 for (MdmRuleVar v : expressionColumns) {
                     Map<String, Object> cell = cells.get(v.getVarId());
                     if (cell != null) {
-                        collect(cell.get("ast"), conds);
+                        collect(RuleCellsCodec.ast(cell.get("ast")), conds);
                     }
                 }
             }

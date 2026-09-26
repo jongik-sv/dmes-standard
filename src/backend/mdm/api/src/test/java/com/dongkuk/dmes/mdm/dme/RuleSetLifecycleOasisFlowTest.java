@@ -154,14 +154,9 @@ class RuleSetLifecycleOasisFlowTest {
         long joinRv = saveJoinColumns();
         // JSON 에 키 자체가 없으면 EvalEx 가 "변수 없음" 오류를 낸다 — NULL 가드(IF(EXC_SPD == NULL, ...))를 타려면 키는 두고 값만
         // NULL 이어야 한다(evaluateSet 이 SPD_EXC 결과를 그대로 ctx 에 놓는 것과 같은 모양, SampleRuleSetValueTest 참고).
-        // DF-3(defects.md) — MIN(BASE_SPD, EXC_SPD) 분기(EXC_SPD 가 NULL 이 아닌 경우)의 값은 이 OASIS 경로로 확인하지 못한다.
-        // RuleColumnsService.checkDeriveExprs 가 결과 식의 AST 를 셀에 문자열로 이중 인코딩해 저장해(exprAst 필드가 String), 그 필드를
-        // 다시 읽는 RuleDefinitionAssembler.astOf 가 Map 이 아니라며 null 로 버린다 — InputContracts.compute 의 널 안전 분석이 그래서
-        // BASE_SPD·EXC_SPD 를 못 찾고, 결과 계약 required/optional 이 비어 둘 다 선언 타입(NUMBER)으로 변환되지 않는다. 원시 JSON 문자열이
-        // 그대로 MIN 에 들어가 조용히 0 이 된다. IF 의 참 분기(EXC_SPD NULL)만 이 결함을 비켜 간다 — 식 결과 자체가 BASE_SPD 값 그대로라
-        // 바깥의 결과 열 자체 타입 변환(LINE_SPD 선언 NUMBER)이 뒤늦게 문자열을 되돌려 놓기 때문이다. MIN 분기의 값 자체는
-        // SampleRuleSetValueTest(엔진 레벨 evaluateSet)가 이미 확정했다(design.md D4 「1번이 확정 답」과 같은 구조).
         saveCase("SPD_JOIN", "예외_없음", "{\"BASE_SPD\":\"90\",\"EXC_SPD\":null}", "{\"LINE_SPD\":90}");
+        // TSK-08-04 반려 재작업(1회차) — MIN(BASE_SPD, EXC_SPD) 분기(EXC_SPD 가 NULL 이 아닌 경우)도 이 OASIS 경로로 확인한다(DF-3 해소).
+        saveCase("SPD_JOIN", "예외_있음_MIN", "{\"BASE_SPD\":\"90\",\"EXC_SPD\":\"70\"}", "{\"LINE_SPD\":70}");
         assertCasePasses("SPD_JOIN", 1, "{\"BASE_SPD\":\"90\",\"EXC_SPD\":null}");
 
         // ── 4. 셋 다 RELEASED 로 확정(TEST_CASES 재실행 포함) ──

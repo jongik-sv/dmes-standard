@@ -1,0 +1,8 @@
+rule: RR2 — VAR_AST·GRP_COND_AST 는 문자열 JSON 컬럼 그대로다(값 = DomainJson.write(AST), 바이트 동일)
+file: src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dme/ruleEdit/service/RuleColumnsService.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:api:test --tests "com.dongkuk.dmes.mdm.dme.ruleEdit.RuleColumnsServiceTest" --console=plain
+e2e: no
+--- find
+                line.varAst = DomainJson.write(parseOrReject(req.varName(), Slot.RULE_COND_EXPR, "조건 식"));
+--- replace
+                line.varAst = String.valueOf(parseOrReject(req.varName(), Slot.RULE_COND_EXPR, "조건 식"));

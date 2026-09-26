@@ -60,15 +60,46 @@ public final class RuleVersionDiffs {
         return out.stream().map(Sorted::entry).toList();
     }
 
-    /** 객체 키를 재귀로 정렬하고 공백 없이 쓴다. 배열 순서는 보존한다. null 이면 null, JSON 이 아니면 앞뒤 공백만 뺀 원문. */
+    /**
+     * 객체 키를 재귀로 정렬하고 공백 없이 쓴다. 배열 순서는 보존한다. null 이면 null, JSON 이 아니면 앞뒤 공백만 뺀 원문.
+     *
+     * <p>TSK-08-04 반려 재작업 D19 — 최상위가 var_id → 셀 객체 모양일 때만 셀의 문자열 {@code ast} 를 객체로 푼다(레거시 RELEASED 와
+     * 수정된 DRAFT 가 식이 같아도 CHANGED 로 갈리지 않게). 풀리지 않는 문자열은 그대로 둔다 — diff 는 판정이 아니다.
+     */
     public static String canonicalCells(String cellsJson) {
         if (cellsJson == null) {
             return null;
         }
         try {
-            return JSON.writeValueAsString(JSON.readValue(cellsJson, Object.class));
+            Object parsed = JSON.readValue(cellsJson, Object.class);
+            decodeStringAsts(parsed);
+            return JSON.writeValueAsString(parsed);
         } catch (JsonProcessingException e) {
             return cellsJson.trim();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void decodeStringAsts(Object parsed) {
+        if (!(parsed instanceof Map<?, ?> top)) {
+            return;
+        }
+        for (Object cellObj : top.values()) {
+            if (!(cellObj instanceof Map<?, ?> cell)) {
+                continue;
+            }
+            Object ast = cell.get("ast");
+            if (!(ast instanceof String s) || s.isBlank()) {
+                continue;
+            }
+            try {
+                Object decoded = JSON.readValue(s, Object.class);
+                if (decoded instanceof Map<?, ?>) {
+                    ((Map<String, Object>) cell).put("ast", decoded);
+                }
+            } catch (JsonProcessingException ignored) {
+                // 풀리지 않는 문자열은 그대로 둔다 — diff 는 판정이 아니다.
+            }
         }
     }
 

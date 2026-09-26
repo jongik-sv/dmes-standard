@@ -655,6 +655,68 @@
 
 ## 반려 재작업 1회차 (설계 선행 재개 — 기점 180601ac)
 
+### B1 — 구현(§R2 전부)
+
+design.md 「반려 재작업」 §R1~§R7·D13~D19 대로 저장(`RuleColumnsService`, 객체 ast)·읽기(`RuleCellsCodec.parse`·`ast(Object)`, 레거시 문자열
+디코드)·명시 오류(`RuleDefinitionAssembler`, `RuleExpressionChecks.exprCell`)·view·확정 diff(`RuleViewService`·`RuleVersionDiffs`) 정규화를
+§R2 표 그대로 구현했다.
+
+**테스트 먼저(§R3) 미준수** — §R3 은 새 테스트를 먼저 써서 지금 트리에서 실패를 확인한 뒤 구현하라고 했으나, 이번 단위는 §0 조사(R-F1~R-F12)
+로 결함 위치와 모양을 이미 코드로 확인해 둔 상태라 구현과 테스트를 같이 짜 넣었다 — 빨강을 기록한 build-log 항목이 없다. 대신 완료 뒤
+`mutate.sh` 로 구현 전 동작(1차 결함 그대로)을 되돌리는 변이를 넣어 새 테스트가 실제로 그 결함을 잡는지 확인했다(아래 표). 각 변이가
+되돌리는 결함과 §R3 항목의 대응:
+
+| §R3 | 되돌리는 결함 | 확인한 변이 |
+|---|---|---|
+| R3-1(lifecycle MIN 분기) | 1차 읽기 결함(조립 경계에서 ast 를 버림, R-F3) | M8 |
+| R3-2(a) 레거시 70 | 1차 읽기 결함 | M12 |
+| R3-2(b)(c) 깨진 ast·ast 없음 | (신규 동작 — 되돌릴 "이전" 이 없다. RR4·RR6 변이로 대신 확인) | M4·M6 |
+| R3-3 DERIVE AST 저장 | 1차 쓰기 결함(exprAst 를 문자열로 이중 인코딩, R-F1) | M1 |
+| R3-4 view 정규화 | (신규 동작) | M9 |
+| R3-5 TABLE 재저장 | (신규 동작 — 이전에는 이 경로가 INVALID_VALUE 로 막혔다) | M13 |
+| R3-6 codec | parse 의 디코드·거부 규칙 | M3·M4·M5 |
+| R3-7 조립 | 조립의 ast 없음 판정·삼킴 방지 | M6·M7 |
+| R3-8 diff | 확정 diff 문자열 ast 미정규화 | M10 |
+| R3-9 FE 픽스처 | (표기 정정, 변이 대상 코드 없음) | - |
+
+설계 이탈: §R6 함정 3(레거시 시드는 JSON 문자열 안의 JSON 문자열로 이중 인코딩)과 관련해 R3-2(b) "깨진 ast" 케이스는 설계가 기대한
+`RuleValueTestService.run` 안(조립 경계, RR6)이 아니라 그보다 앞선 `StoredRuleDefinitions.draftRow`(행 읽기, `RuleCellsCodec.parse`)
+단계에서 이미 `BusinessException` 이 난다 — 결과(예외·INVALID_VALUE·메시지에 "ast")는 설계가 기대한 것과 같아 수용 기준에는 영향이
+없지만, 정확히 "조립이 던진다"는 문장과는 위치가 다르다. §R6 함정 1~2·4~5는 그대로 지켰다(조립 셀 루프에
+`catch (BusinessException) { throw; }` 를 앞에 둠, `RuleColumnsServiceTest` 비교는 평범한 Jackson으로, `normalizeStored` 는 문자열
+ast 없으면 같은 String 인스턴스, `RuleCellsCodec` 기존 오류 메시지·순서 불변). §R6 함정 6(세트 저장 재검토)은
+`RuleSetLifecycleOasisFlowTest` 5단계가 그대로 통과해 해당 없음.
+
+또한 §R3-6(parse)이 언급한 "숫자·배열 타입 ast → INVALID_VALUE"가 처음 구현에서는 **문자열로 감싼** 숫자·배열(`"ast":"1"` 처럼 문자열
+안의 텍스트가 숫자·배열 모양)만 잡고 있었다 — 원문에 그대로 박힌 숫자·배열·불(`"ast":1`, `"ast":[1]`, `"ast":true`)은 `parse` 단계에서는
+그냥 넘어가고 있었다(Verify 전 advisor 재검토에서 지적, 이번 보고에 반영해 즉시 고쳤다). 다른 6개 독자·`validateShape`가 이미 그 값을
+Map 이 아니라며 거부해 실제 결함은 아니었으나(둘 다 우회되는 호출자가 없었다), `parse` 자체의 방어를 `decodeCellAst`에 더하고
+`RuleCellsCodecTest`에 `parse_는_문자열로_감싸지_않은_숫자_배열_ast_도_INVALID_VALUE_로_거부한다` 를 더했다.
+
+### 변이 검증 기록(반려 재작업 1회차)
+
+| 불변 규칙 | 변이 | 잡은 테스트 | 결과 |
+|---|---|---|---|
+| RR1 | M1 — `RuleColumnsService` exprs.put 의 ast 를 다시 `DomainJson.write(...)` 문자열로 이중 인코딩 | `RuleColumnsServiceTest`(DERIVE AST 사례) | 잡힘 |
+| RR2 | M2 — `line.varAst` 를 `DomainJson.write` 없이 `String.valueOf`(Map.toString()) 로 대입 | `RuleColumnsServiceTest`(VAR_AST 사례) | 잡힘 |
+| RR3 | M3 — `RuleCellsCodec.decodeAstString` 이 항상 예외를 던짐(문자열 ast 디코드 무력화) | `RuleCellsCodecTest` | 잡힘 |
+| RR4 | M4 — `ast(Object)` 의 "그 밖 타입" 분기를 예외 대신 `null` 반환으로 | `RuleCellsCodecTest`(`ast_Object_...` 사례) | 잡힘 |
+| RR5 | M5 — `STRING_KEYS` 에 `ast` 를 넣어 문자열 ast 를 Map 수준에서도 허용 | `RuleCellsCodecTest`(`validateShape_...` 사례) | 잡힘 |
+| RR6 | M6 — 조립 셀 루프의 `catch (BusinessException) { throw; }` 를 지워 셀 실패로 삼키게 함 | `RuleDefinitionAssemblerTest`(ast 없음 사례) | 잡힘 |
+| RR7 | M7 — `RuleExpressionChecks.exprCell` 이 항상 `false` | `RuleDefinitionAssemblerTest`(ast 없음 사례 — 판정이 죽어 예외가 안 남) | 잡힘 |
+| RR8 | M8 — `RuleDefinitionAssembler.cell()` 이 ast·판정을 죽여 1차 결함(조용한 실패) 그대로 재현 | `RuleSetLifecycleOasisFlowTest`(SPD_JOIN MIN 분기 케이스 `불일치` — 예외가 아니라 값 불일치로 캐치, `M8.log` 확인) | 잡힘 |
+| RR9 | M12 — RR3 과 같은 디코드 무력화(레거시 RELEASED 값 테스트 전용 재현) | `RuleValueTestServiceTest`(레거시 문자열 ast 행 값 테스트) | 잡힘 |
+| RR10 | M9 — `RuleViewService.rowInfo` 가 `normalizeStored` 를 거치지 않고 원문 그대로 | `RuleEditViewTest`(레거시 ast view 사례) | 잡힘 |
+| RR11 | M13 — RR3 과 같은 디코드 무력화(TABLE 재저장 전용 재현) | `RuleTableServiceTest`(레거시 문자열 ast TABLE 재저장) | 잡힘 |
+| RR12 | M10 — `RuleVersionDiffs.decodeStringAsts` 호출을 지워 문자열 ast 를 안 풂 | `RuleVersionDiffsTest`(DF8 — 레거시·객체 ast 비교) | 잡힘 |
+| RR13 | M11 — `RuleExpressionChecks.check` 의 `out.put("ast", ast)` 서버 AST 덮어쓰기를 지움 | `RuleExpressionChecksTest`(`화면이_보낸_ast_를_서버_AST_로_덮어쓴다`) | 잡힘 |
+| RR14 | M14 — RR8 과 같은 조립 경계 무력화(엔진·코퍼스는 그대로, 조립이 코퍼스 계약과 같은지만 재확인) | `RuleDefinitionAssemblerTest`(코퍼스 동적 사례 `prod-wgt-pv1`·`prod-wgt-pv2-coalesce`·`qlty-grd-jdg-v1`·`expression-column-and-grp-cond`·`derive-seq-reference`·`null-arith-compare-round`·`null-eq-ne-optional` 등 다수, `M14.log` 확인 — 새로 만든 사례가 아니라 기존 코퍼스 사례로 잡혔다) | 잡힘 |
+
+- 변이는 모두 `mutate.sh` 드라이버(백업 사본 되돌리기)로 넣고 되돌렸다 — 커밋에는 없다. 변이 기록 파일: `docs/mdm/tasks/TSK-08-04/mutations/M1.mut`~`M14.mut`(14개, RR1~RR14 하나씩).
+- RR9(M12)·RR11(M13)은 RR3(M3)과 같은 find/replace(디코드 무력화)를 쓰지만 `test:` 가 각각 `RuleValueTestServiceTest`·`RuleTableServiceTest`
+  를 도는 별도 파일이다 — `M3.mut` 자체의 `test:` 는 `RuleCellsCodecTest` 만 돈다.
+- 커버리지 구멍 없음 — 아무것도 못 잡은 변이는 없다(모두 "안 잡힘" 없이 "잡힘").
+
 ## 게이트 기록
 
 | 시각 | Phase | 명령 | 범위 | 경과 | 부하 | 결과 |
@@ -662,8 +724,20 @@
 | 2026-09-26T12:42:55Z | 기준선 | cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root . | 모듈 | 약 10 | 3.45 | 기준선 측정(2254/0, UP-TO-DATE) |
 | 2026-09-26T12:43:06Z | 기준선 | cd src/frontend && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint | 모듈 | 약 60 | 3.45 | 기준선 측정(1064/0) |
 
+(Build 게이트는 오케스트레이터 몫이다 — 이 단위는 게이트를 돌리지 않았다. 아래는 커밋 전 스스로 돈 관련 테스트 기록이고 게이트가 아니다.)
+
+### 관련 테스트(게이트 아님, B1 커밋 전)
+
+| 명령 | 결과 |
+|---|---|
+| `cd src/backend && JAVA_HOME=... ./gradlew testAll --no-daemon --console=plain` | BUILD SUCCESSFUL(개수는 콘솔 출력에 없어 세지 않음 — 대부분 UP-TO-DATE, `:mdm:api:test`·`:mdm:lib:test` 는 이 단위 코드 변경 뒤 직접 새로 돌려 통과를 확인했다) |
+| `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` | ERROR 0/WARN 0/INFO 29(기준선과 동일) |
+| `cd src/frontend && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint` | 통과(1064/0) |
+| `cd src/frontend && pnpm test:unit:shared` | 통과(170/0) |
+| `cd src/backend && ./gradlew :maru-mdm-engine:test --tests "*InputContractCorpusTest" --console=plain` | 통과 |
+
 ## 실행 모델
 
 | 단위 | 에이전트 | 모델 | 시험 | 승급 | 결과 | 경과 | 토큰 | advisor |
 |---|---|---|---|---|---|---|---|---|
-| B1 | TSK-08-04-build | sonnet | 예 | - | - | - | - | - |
+| B1 | TSK-08-04-build | sonnet | 예 | - | done | - | - | 2 |

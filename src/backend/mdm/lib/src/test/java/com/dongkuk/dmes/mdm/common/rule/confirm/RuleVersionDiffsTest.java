@@ -131,6 +131,22 @@ class RuleVersionDiffsTest {
     }
 
     @Test
+    void DF8_레거시_문자열_ast_와_객체_ast_는_식이_같으면_SAME이다() {
+        // TSK-08-04 반려 재작업(1회차) RR12 — 레거시 RELEASED(문자열 ast)와 수정 뒤 DRAFT(객체 ast)가 식이 같으면 CHANGED 로 갈리지 않는다.
+        String legacy = "{\"1\":{\"expr\":\"BASE_SPD + 1\",\"ast\":\"{\\\"type\\\":\\\"X\\\",\\\"value\\\":\\\"BASE_SPD\\\"}\"}}";
+        String modern = "{\"1\":{\"expr\":\"BASE_SPD + 1\",\"ast\":{\"type\":\"X\",\"value\":\"BASE_SPD\"}}}";
+
+        assertEquals(List.of(DiffKind.SAME), kinds(RuleVersionDiffs.diff(List.of(new Row(1, 1, legacy)), List.of(new Row(1, 1, modern)))));
+
+        String different = "{\"1\":{\"expr\":\"BASE_SPD + 2\",\"ast\":{\"type\":\"X\",\"value\":\"BASE_SPD\"}}}";
+        assertEquals(List.of(DiffKind.CHANGED), kinds(RuleVersionDiffs.diff(List.of(new Row(1, 1, legacy)), List.of(new Row(1, 1, different)))));
+
+        String unparseable = "{\"1\":{\"expr\":\"BASE_SPD + 1\",\"ast\":\"x\"}}";
+        assertEquals("{\"1\":{\"ast\":\"x\",\"expr\":\"BASE_SPD + 1\"}}", RuleVersionDiffs.canonicalCells(unparseable),
+                "풀리지 않는 문자열은 그대로 둔다 — diff 는 판정이 아니다");
+    }
+
+    @Test
     void DF7_key_는_row_id_의_10진_문자열() {
         List<VersionDiffEntry> d = RuleVersionDiffs.diff(List.of(), List.of(new Row(15, 1, C12)));
 

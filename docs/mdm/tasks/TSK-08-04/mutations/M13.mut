@@ -1,0 +1,23 @@
+rule: RR11 — 레거시 문자열 ast 셀을 되돌려 보낸 TABLE 저장은 성공하고 객체 ast 로 저장된다
+file: src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/rule/RuleCellsCodec.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:api:test --tests "com.dongkuk.dmes.mdm.dme.ruleEdit.RuleTableServiceTest" --console=plain
+e2e: no
+--- find
+    private static Map<String, Object> decodeAstString(String s, String errorMessage) {
+        Object decoded;
+        try {
+            decoded = MAPPER.readValue(s, Object.class);
+        } catch (JsonProcessingException | IllegalArgumentException e) {
+            throw invalid(errorMessage);
+        }
+        if (!(decoded instanceof Map<?, ?> map)) {
+            throw invalid(errorMessage);
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> typed = (Map<String, Object>) map;
+        return typed;
+    }
+--- replace
+    private static Map<String, Object> decodeAstString(String s, String errorMessage) {
+        throw invalid(errorMessage);
+    }

@@ -1,6 +1,7 @@
 package com.dongkuk.dmes.mdm.common.rule.check;
 
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
+import com.dongkuk.dmes.mdm.common.rule.RuleCellsCodec;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -47,7 +48,8 @@ public final class RuleDefinitionReads {
         }
         for (Map<Integer, Map<String, Object>> cells : rowCells) {
             for (Map<String, Object> cell : cells.values()) {
-                if (cell.get("ast") instanceof Map<?, ?> ast) {
+                Map<String, Object> ast = RuleCellsCodec.ast(cell.get("ast"));
+                if (ast != null) {
                     collect(ast, reads);
                 }
             }

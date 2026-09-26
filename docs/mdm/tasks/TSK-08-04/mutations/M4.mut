@@ -1,0 +1,8 @@
+rule: RR4 — 풀 수 없는 ast(Map 밖 타입)는 INVALID_VALUE 다 — null 로 떨어지지 않는다
+file: src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/rule/RuleCellsCodec.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:lib:test --tests "com.dongkuk.dmes.mdm.common.rule.RuleCellsCodecTest" --console=plain
+e2e: no
+--- find
+        throw invalid("셀의 ast 를 읽을 수 없습니다: " + raw);
+--- replace
+        return null;

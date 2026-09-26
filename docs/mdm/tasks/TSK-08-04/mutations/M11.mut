@@ -1,0 +1,8 @@
+rule: RR13 — 검사기는 식 셀 ast 를 서버 AST 로 덮어쓴다(화면이 보낸 AST 를 믿지 않는다 — 1차 I11)
+file: src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/rule/check/RuleExpressionChecks.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:lib:test --tests "com.dongkuk.dmes.mdm.common.rule.check.RuleExpressionChecksTest" --console=plain
+e2e: no
+--- find
+        out.put("ast", ast);
+--- replace
+        // mutated: skip overwrite
