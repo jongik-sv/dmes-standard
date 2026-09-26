@@ -1,0 +1,10 @@
+rule: MASTER_AT/MASTER의 버전·카테고리 소급 규칙(최초 행/버전으로 소급, 코드는 항상 V 기준)은 04 「판정 참고 구현」 그대로다
+file: src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/code/DefaultCodeResolver.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:api:test --tests "com.dongkuk.dmes.mdm.dmc.codeConfirm.CodeConfirmSampleHistorySqliteTest" --no-daemon --console=plain
+e2e: no
+--- find
+        return Segments.covering(released, CodeVersionRow::applyFrom, CodeVersionRow::applyTo, baseDt)
+                .or(() -> released.stream().min(Comparator.comparing(CodeVersionRow::ver)))
+                .map(CodeVersionRow::ver);
+--- replace
+        return released.stream().min(Comparator.comparing(CodeVersionRow::ver)).map(CodeVersionRow::ver);
