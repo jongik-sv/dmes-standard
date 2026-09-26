@@ -2,7 +2,7 @@
   "tsk": "TSK-08-04",
   "order": "f2517d41-76fe-4a85-ad4e-f946a2d11a2b",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "reported",
+  "phase": "merged",
   "branch_base": "180601aca1ccbe54028dd9bbdfaa0ed96d503cf5",
   "baseline": {
     "base": "180601aca1ccbe54028dd9bbdfaa0ed96d503cf5",
@@ -161,5 +161,6 @@
       }
     ],
     "new_failures": []
-  }
+  },
+  "unapproved": true
 }
