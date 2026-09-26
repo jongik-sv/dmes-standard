@@ -1,0 +1,8 @@
+rule: DataInitializer 의 시드 SQL(값 포함)은 고치지 않는다 — B1 은 대조만 하고 시드를 상수에 맞춰 고치지 않는다(프로덕션 불변). 이 변이는 그 대조(화면 커버리지)가 실제로 빠진 시드를 잡는지 확인한다.
+file: src/backend/mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:api:test --tests "com.dongkuk.dmes.mdm.MdmOasisActionVocabularyTest" --no-daemon --console=plain
+e2e: no
+--- find
+        for (String objectId : new String[]{"headerMng", "layoutMng"}) {
+--- replace
+        for (String objectId : new String[]{"headerMng"}) {

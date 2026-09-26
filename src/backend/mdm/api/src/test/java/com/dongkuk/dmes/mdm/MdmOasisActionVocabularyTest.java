@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.dongkuk.dmes.mdm.contract.screen.MdmScreenGroup;
 import com.dongkuk.dmes.mdm.contract.security.MdmActions;
 import com.dongkuk.dmes.mdm.contract.security.MdmPermissions;
 import java.io.IOException;
@@ -121,6 +122,155 @@ class MdmOasisActionVocabularyTest {
         assertTrue(read.find() && edit.find(), "readActions·editActions 선언을 찾지 못했다");
         assertEquals(String.join(",", MdmPermissions.READ_ACTIONS), read.group(1));
         assertEquals(String.join(",", MdmPermissions.EDIT_ACTIONS), read.group(1) + edit.group(1));
+    }
+
+    /** design.md B1 (i)-1 — 기존 시험은 readActions·editActions 까지만 본다. confirmActions 까지 마저 본다. */
+    @Test
+    void mcm_시드의_confirmActions_는_MdmPermissions_CONFIRM_ACTIONS_와_같다() throws Exception {
+        String source = Files.readString(DATA_INITIALIZER);
+        java.util.regex.Matcher read = java.util.regex.Pattern.compile("String readActions = \"([^\"]*)\";").matcher(source);
+        java.util.regex.Matcher edit = java.util.regex.Pattern.compile("String editActions = readActions \\+ \"([^\"]*)\";").matcher(source);
+        java.util.regex.Matcher confirm = java.util.regex.Pattern.compile("String confirmActions = editActions \\+ \"([^\"]*)\";").matcher(source);
+        assertTrue(read.find() && edit.find() && confirm.find(), "readActions·editActions·confirmActions 선언을 찾지 못했다");
+        String editValue = read.group(1) + edit.group(1);
+        String confirmValue = editValue + confirm.group(1);
+        assertEquals(String.join(",", MdmPermissions.CONFIRM_ACTIONS), confirmValue);
+    }
+
+    /**
+     * design.md B1 (i)-2 — {@code seedMdmObjectRbac} 의 {@code matrix} 리터럴(그룹 × 역할 → PERM ID)을 정규식으로 파싱해
+     * {@link MdmPermissions#MATRIX} 5그룹 모두와 대조한다.
+     */
+    @Test
+    void mcm_시드의_그룹_역할_매트릭스는_MdmPermissions_MATRIX_와_같다() throws Exception {
+        String source = Files.readString(DATA_INITIALIZER);
+        String marker = "java.util.Map<String, java.util.Map<String, String>> matrix = java.util.Map.of";
+        int markerIdx = source.indexOf(marker);
+        assertTrue(markerIdx >= 0, "seedMdmObjectRbac 의 matrix 선언을 찾지 못했다");
+        int openParen = source.indexOf('(', markerIdx + marker.length());
+        String matrixBody = extractBalancedParens(source, openParen);
+
+        java.util.Map<String, java.util.Map<String, String>> parsed = new java.util.LinkedHashMap<>();
+        java.util.regex.Matcher group = java.util.regex.Pattern.compile("\"([a-z]+)\",\\s*java\\.util\\.Map\\.of\\(").matcher(matrixBody);
+        while (group.find()) {
+            String inner = extractBalancedParens(matrixBody, group.end() - 1);
+            java.util.Map<String, String> byRole = new java.util.LinkedHashMap<>();
+            java.util.regex.Matcher kv = java.util.regex.Pattern.compile("\"([A-Z_]+)\",\\s*\"([A-Z_]+)\"").matcher(inner);
+            while (kv.find()) {
+                byRole.put(kv.group(1), kv.group(2));
+            }
+            parsed.put(group.group(1), byRole);
+        }
+
+        assertEquals(MdmScreenGroup.values().length, parsed.size(), "시드 matrix 의 그룹 수: " + parsed.keySet());
+        for (MdmScreenGroup screenGroup : MdmScreenGroup.values()) {
+            assertEquals(MdmPermissions.MATRIX.get(screenGroup), parsed.get(screenGroup.code()),
+                    "그룹 " + screenGroup.code() + " 의 역할→권한 매핑이 다르다");
+        }
+    }
+
+    /**
+     * design.md B1 (i)-3 — BPMN 23개(`find src/main/resources/services -iname "*.bpmn"`) 화면 목록과 mcm
+     * {@code DataInitializer} 의 모든 {@code seedMdmObjectRbac(...)} 호출에서 뽑은 objectId 목록을 대조한다.
+     * {@code mdmSample} 은 BPMN 없는 샘플 화면이라 예외로 둔다(원천이 원래 다르다).
+     */
+    @Test
+    void mcm_시드가_BPMN_23개_화면을_모두_커버한다() throws Exception {
+        String source = Files.readString(DATA_INITIALIZER);
+        Set<String> bpmnScreens = new LinkedHashSet<>();
+        try (var files = Files.walk(Path.of("src/main/resources/services"))) {
+            for (Path bpmn : files.filter(f -> f.toString().endsWith(".bpmn")).toList()) {
+                String name = bpmn.getFileName().toString();
+                bpmnScreens.add(name.substring(0, name.length() - ".bpmn".length()));
+            }
+        }
+        assertEquals(23, bpmnScreens.size(), "BPMN 화면 수가 23개가 아니다(늘거나 줄었으면 이 상수를 갱신한다): " + bpmnScreens);
+
+        Set<String> seeded = objectIdsFromSeedCalls(source);
+        Set<String> missing = new LinkedHashSet<>(bpmnScreens);
+        missing.removeAll(seeded);
+        assertEquals(Set.of(), missing, "BPMN 에 있는데 mcm 시드 RBAC(seedMdmObjectRbac) 호출이 없는 화면: " + missing);
+
+        Set<String> extra = new LinkedHashSet<>(seeded);
+        extra.removeAll(bpmnScreens);
+        extra.remove("mdmSample");
+        assertEquals(Set.of(), extra, "시드에는 있는데 BPMN 에 없는 화면(원천이 다르면 의도된 것이니 design.md 를 확인한다): " + extra);
+    }
+
+    /** {@code Map.of(} 처럼 여는 괄호부터 짝이 맞는 닫는 괄호까지(양끝 제외) 잘라낸다. */
+    private static String extractBalancedParens(String source, int openParenIdx) {
+        int depth = 0;
+        for (int i = openParenIdx; i < source.length(); i++) {
+            char c = source.charAt(i);
+            if (c == '(') {
+                depth++;
+            } else if (c == ')') {
+                depth--;
+                if (depth == 0) {
+                    return source.substring(openParenIdx + 1, i);
+                }
+            }
+        }
+        throw new IllegalStateException("괄호 짝을 찾지 못했다: " + openParenIdx);
+    }
+
+    /** 여는 중괄호부터 짝이 맞는 닫는 중괄호까지(양끝 포함) 잘라낸다. */
+    private static String extractBracedBlock(String source, int openBraceIdx) {
+        int depth = 0;
+        for (int i = openBraceIdx; i < source.length(); i++) {
+            char c = source.charAt(i);
+            if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+                if (depth == 0) {
+                    return source.substring(openBraceIdx, i + 1);
+                }
+            }
+        }
+        throw new IllegalStateException("중괄호 짝을 찾지 못했다: " + openBraceIdx);
+    }
+
+    /**
+     * mcm {@code DataInitializer} 의 {@code seedMdmObjectRbac(...)} 호출에서 objectId 를 모두 뽑는다(design.md B1 (i)-3,
+     * 세 모양). ① 리터럴 {@code seedMdmObjectRbac("codeConfirm", "dmc")} ② 배열 루프 {@code for (String objectId : new
+     * String[]{"a","b"}) { ...; seedMdmObjectRbac(objectId, "dma"); }} ③ 2차원 배열 루프 {@code String[][] screens =
+     * {{"a",...}, ...}; for (String[] screen : screens) { String objectId = screen[0]; ...; seedMdmObjectRbac(objectId,
+     * "dme"); }}.
+     */
+    private static Set<String> objectIdsFromSeedCalls(String source) {
+        Set<String> ids = new LinkedHashSet<>();
+
+        java.util.regex.Matcher literal = java.util.regex.Pattern.compile(
+                "seedMdmObjectRbac\\(\"([a-zA-Z]+)\",\\s*\"[a-z]+\"\\)").matcher(source);
+        while (literal.find()) {
+            ids.add(literal.group(1));
+        }
+
+        java.util.regex.Matcher arrayLoop = java.util.regex.Pattern.compile(
+                "for \\(String objectId : new String\\[\\]\\{([^}]*)\\}\\)\\s*(\\{)").matcher(source);
+        while (arrayLoop.find()) {
+            String block = extractBracedBlock(source, arrayLoop.start(2));
+            if (block.contains("seedMdmObjectRbac(objectId,")) {
+                java.util.regex.Matcher items = java.util.regex.Pattern.compile("\"([a-zA-Z]+)\"").matcher(arrayLoop.group(1));
+                while (items.find()) {
+                    ids.add(items.group(1));
+                }
+            }
+        }
+
+        java.util.regex.Matcher arr2dDecl = java.util.regex.Pattern.compile("String\\[\\]\\[\\] (\\w+) = (\\{)").matcher(source);
+        while (arr2dDecl.find()) {
+            String varName = arr2dDecl.group(1);
+            String arrLiteral = extractBracedBlock(source, arr2dDecl.start(2));
+            if (source.contains("for (String[] screen : " + varName + ")")) {
+                java.util.regex.Matcher rowMatcher = java.util.regex.Pattern.compile("\\{\\s*\"([a-zA-Z]+)\"").matcher(arrLiteral);
+                while (rowMatcher.find()) {
+                    ids.add(rowMatcher.group(1));
+                }
+            }
+        }
+        return ids;
     }
 
     private static final Path DATA_INITIALIZER =
