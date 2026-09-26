@@ -3,7 +3,7 @@
 /**
  * 상수 편집 팝업(TSK-05-02 design.md §2 — 3층 기본값 F9·불변 I10·I20). 행은 그 헤더의 CONST 항목만(AUTO·FILLER 는 나오지 않는다),
  * 열은 항목 / 헤더 기본값(텍스트, 입력 아님) / 이 전문의 값(placeholder = 헤더 기본값) / 재정의 배지. [적용] 은 화면 상태만 바꾸고
- * 저장은 [저장] 이 한다. 값은 코드값 전제다(MSSQL VARCHAR BIN2 — 한글 손실, design.md 인계).
+ * 저장은 [저장] 이 한다. 값은 코드값 전제다(design.md 인계).
  */
 import { useEffect, useState } from "react";
 import { Button, Input } from "@dk-oasis/shared/form";
