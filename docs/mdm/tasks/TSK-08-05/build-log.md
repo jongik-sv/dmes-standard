@@ -20,6 +20,18 @@
 - JPQL 날짜 비교(`v.applyFrom <= :now`)는 SQLite 에서 엔티티 변환기(`MdmSqliteLocalDateTimeConverter`)를 타고 같은 텍스트 형식으로 바인드된다. EF2 의 경계 두 케이스(시계 = applyFrom 이면 INUSE, 1초 전이면 CREATED)로 확인했다.
 - 범위에서 뺀 것(D11): 룰 세트 화면이 싣는 룰 상태(`RuleIoReader` 82·180행 `rule.getStatus()`)는 저장 상태 그대로다.
 
+## B3 — 서비스·BPMN·메뉴
+
+- 새 테스트: api `RuleConfirmServiceTest` 15건(S1~S11), `RuleConfirmOasisHttpTest` 3건(HT1~HT3), `RuleConfirmBpmnActionTest` 5건. 서비스를 `UnsupportedOperationException` 스텁으로 두고 돌려 23건 가운데 17건이 빨강인 것을 확인한 뒤 구현했다. 초록이던 6건은 BPMN 시험 5건(BPMN 을 테스트보다 먼저 복제했다)과 HT3(B1 의 SPI 빈)이다. BPMN 시험이 실제로 규칙을 잡는지는 아래 변이 I32 두 건으로 확인했다.
+- 구현 뒤: `:mdm:api:test --tests 'com.dongkuk.dmes.mdm.dme.ruleConfirm.*'` 23건 통과(실패 0).
+- 관련 테스트(초록): `:mdm:lib:test --tests 'com.dongkuk.dmes.mdm.dme.*'` 1건(`DmeRoleCheckArchitectureTest`), `:mdm:api:test --tests 'com.dongkuk.dmes.mdm.dme.*' --tests 'com.dongkuk.dmes.mdm.common.version.*' --tests 'com.dongkuk.dmes.mdm.common.rule.*' --tests 'com.dongkuk.dmes.mdm.MdmOasisActionVocabularyTest' --tests 'com.dongkuk.dmes.mdm.MdmBusinessRuleMigrationTest' --tests 'com.dongkuk.dmes.mdm.dmc.codeConfirm.*'` 411건, 실패 0. 이 안에 `BusinessRuleVersionScenarioSqliteTest`·`VersionStateServiceSqliteTest`(새 `@Service` 가 들어가도 시나리오 후처리기 컨텍스트가 뜬다, I16)·`DmeBpmnActionTest`·`DmeOasisHttpTest`·`MdmOasisActionVocabularyTest`(전체 스캔이 새 BPMN 도 읽는다)가 수정 없이 들어 있다.
+- mcm: 프롬프트의 좁힌 명령 `:mcm:test` 는 NO-SOURCE 라 `DataInitializer` 를 컴파일하지 않는다. 그래서 `:mcm:api:compileJava :mcm:api:test` 를 따로 돌렸다. 컴파일은 성공했고, mcm api 에는 테스트가 없다(NO-SOURCE).
+- OASIS 계약 검사: `check_oasis_contract.py --root .` ERROR 0 / WARN 0 / INFO 29. 다만 이 검사기는 mdm BPMN 을 스캔하지 않는다(`--all` 출력에 ruleConfirm·codeConfirm 이 없음, 06-05 F20 과 같다). 새 BPMN 을 실제로 지키는 시험은 `RuleConfirmBpmnActionTest` 다.
+- 응답 JSON 모양은 B4 `pages/dme/ruleConfirm/types.ts` 와 대조했다. 키 이름, 정수 ver, `oldCells`·`newCells` 문자열, `diffCounts` 네 종류(0 포함), 이슈의 `severity` 가 모두 일치한다.
+- 변이는 스크립트 하나(`mutate.py` + `run.sh`)로 세 번에 나눠 돌렸다. 각 묶음을 heavy.sh 로 한 번 감쌌고, Gradle 데몬을 재사용했으며 `--fail-fast` 를 썼다. 되돌리기는 백업 사본(`<git-dir>/dflow-bak/B3/`)을 `cp` 로 복사하는 방식이다. 끝난 뒤 백업 폴더에 남은 파일이 없음을 확인했다. 모든 변이에서 컴파일 오류는 0건이었다.
+- 첫 I24 변이(JPA 엔티티 `setApplyTo` 뒤 `save`)는 잡히지 않았다. `MdmRuleVer.APPLY_TO` 가 `updatable = false` 라 원장에 닿지 않는, 효과 없는 변이였기 때문이다. 별도 `TransactionTemplate` 안의 네이티브 UPDATE(커밋되는 부분 쓰기)로 바꿔 다시 돌렸고, 잡혔다.
+- I30 의 D5 칸(`REQUESTED_BY`·`REQUESTED_AT`·`RELEASED_AT`, 결재·긴급·반려 칸 비움)을 쓰는 것은 공통 서비스(`casConfirm`)다. 이 서비스가 바꿀 수 있는 것은 확정자 ID 전달뿐이고, 그 변이는 공통 서비스의 소유자 판정에서 먼저 빨강이 된다. D5 칸 값 자체는 S6 이 원장에서 단언한다.
+
 ## 변이 검증 기록
 
 | 불변 규칙 | 변이 | 잡은 테스트 | 결과 |
@@ -61,6 +73,26 @@
 | I20 | 폐기 가능 판정을 저장값 INUSE 기준으로 | `RuleEffectiveStatusTest` EF3 | 잡힘 |
 | I20 | 새 버전의 승격 호출을 뺌 | `RuleEffectiveStatusTest` EF4(새 버전) | 잡힘 |
 | I21 | `setConfirmScreenReady(true)` → `false` | `RuleEffectiveStatusTest` EF5 | 잡힘 |
+| I16 | 서비스에 SPI 빈(`RuleConfirmCheck`) 필드 주입을 더함 | `BusinessRuleVersionScenarioSqliteTest`(후처리기가 SPI 정의를 지워 컨텍스트 기동 실패, 전건) | 잡힘 |
+| I19 | ruleConfirm view 의 `rule.status` 를 저장값으로 | `RuleConfirmServiceTest` S7 | 잡힘 |
+| I19 | ruleConfirm search 의 `ruleStatus` 를 저장값으로 | `RuleConfirmServiceTest` S7(확정 대기 목록 계산 상태) | 잡힘 |
+| I22 | `versionState.confirm` 을 부르지 않고 가짜 결과를 돌려줌 | `RuleConfirmServiceTest` S10(확정 뒤 RELEASED) | 잡힘 |
+| I22 | 확정 전에 `VersionWriteGuard.beginDraftWrite` 를 불러 ROW_VERSION 을 한 번 더 올림 | `RuleConfirmOasisHttpTest` HT1(`confirmed.rowVersion == 1`) | 잡힘 |
+| I22a | 공통 서비스 호출 뒤 `entityManager.clear()` 를 뺌 | `RuleConfirmOasisHttpTest` HT1(`version.status == RELEASED`) | 잡힘 |
+| I23 | 서비스 클래스에 `@Transactional` 을 붙임 | `RuleConfirmOasisHttpTest` HT2(응답 message 가 `ParameterName must not be null` — 파라미터 바인딩 실패, 테스트 결과 XML 로 확인) | 잡힘 |
+| I24 | 확정 전에 직전 RELEASED 의 APPLY_TO 를 별도 트랜잭션으로 커밋(부분 쓰기) | `RuleConfirmServiceTest` S8(거부 뒤 직전 RELEASED APPLY_TO 불변 단언) | 잡힘 |
+| I25 | `confirm` 첫 줄 `requireSteward()` 를 뺌 | `RuleConfirmServiceTest` S5(빈 입력에 MDM013 이 아니라 REQUIRED_VALUE) | 잡힘 |
+| I26 | 최초 버전 `applyFromCheck` 를 EXEMPT 대신 PASSED 로 | `RuleConfirmServiceTest` S3 | 잡힘 |
+| I26 | `ApplyFromOrderCheck` 를 부르지 않고 늘 통과 | `RuleConfirmServiceTest` S8 | 잡힘 |
+| I27 | validate 안에서 룰명을 고쳐 저장 | `RuleConfirmServiceTest` S4(원장 스냅숏) | 잡힘 |
+| I27 | validate 의 DRAFT 판정(MDM002)을 끔 | `RuleConfirmServiceTest` S4 | 잡힘 |
+| I28 | `warningsAcknowledged` 를 늘 true 로 | `RuleConfirmServiceTest` S5(MDM014) | 잡힘 |
+| I29 | 확정 응답·view 의 `rule.status` 를 저장값으로 | `RuleConfirmServiceTest` S7 | 잡힘 |
+| I30 | `ConfirmCommand` 확정자를 현재 사용자 대신 다른 ID 로 | `RuleConfirmServiceTest` S10(공통 서비스 소유자 판정 `DRAFT 소유자만 할 수 있습니다`(MDM003) 로 빨강, 테스트 결과 XML 로 확인) | 잡힘 |
+| I31 | validate 항목에 다섯째 항목(`RULE_REFERENCE`)을 더함 | `RuleConfirmServiceTest` S10(항목 이름 집합) | 잡힘 |
+| I32 | BPMN confirm 분기의 method 를 `validate` 로 | `RuleConfirmBpmnActionTest` B4 | 잡힘 |
+| I32 | BPMN serviceTask bean 을 `ruleEditService` 로 | `RuleConfirmBpmnActionTest` B3 | 잡힘 |
+| I33 | (변이 없음 — 메뉴 시드는 E2E T1·T8 로만 잡힌다) | 없음, B5 E2E·Verify diff 확인 몫 | 안 잡힘(보고) |
 
 - 첫 I14 변이(`rule.setStatus("DEPRECATED")`)는 잡히지 않았다. `MdmRule.STATUS` 가 `updatable = false` 라 엔티티 변경이 원장에 닿지 않는, 효과 없는 변이였기 때문이다. 쓰기가 실제로 flush 되는 칸(`MARU_RULE_NAME`)으로 바꿔 다시 돌렸고 잡혔다.
 
@@ -76,3 +108,12 @@
 - **B2 — `RuleEditViewTest` 한 줄**: 설계 §3.2 가 놓친 기존 단언 `assertFalse(v.isConfirmScreenReady())`(RuleEditViewTest 78행)가 I21(`confirmScreenReady` = true)과 정면으로 부딪친다. 설계가 87행을 true 로 바꾸라고 정했으므로 이 단언을 `assertTrue` 로 뒤집었다(기대값 완화가 아니라 설계가 정한 새 값). 이 파일은 B2 범위 표에 없다.
 - **B2 — `RuleFilter` 에 기준 시각 칸**: `RuleFilter(keyword, ruleKind, status, now)`. 생성 지점은 `RuleMngService.search` 하나이고 목록 표시와 같은 `now` 를 쓴다.
 - 오케스트레이터(B2 뒤): 구현 단위 표의 B4 를 B3 과 같은 묶음 3 으로 옮기고 B5 를 묶음 4 로 당겼다. B3(백엔드 mdm·mcm 시드·BPMN)과 B4(프런트 m-mdm·page-registry)는 컴파일 범위와 파일이 겹치지 않고, B4 가 기대는 응답 모양은 §6.5 에 이미 고정돼 있으며 B4 vitest 는 fetch 목으로 돈다. 마지막 단위 B5 는 혼자 마지막 묶음이다.
+- **B3 — 응답을 POJO 가 아니라 `Map` 으로**: §2 는 "응답 DTO(§6.5 모양), ruleEdit dto 관례 POJO" 라고 했다. 그러나 §1 이 화면 선례로 지정한 06-05 `CodeConfirmService` 와 같게 `Map<String, Object>` 로 응답한다. JSON 키·타입은 §6.5 그대로다(ver·baseVer·closedPreviousVer 는 정수, `oldCells`·`newCells` 는 정규화 JSON 문자열, `diffCounts` 는 네 종류 모두, 이슈마다 `severity`). 서비스 테스트 S1~S3·S6 과 HT1 이 이 키 이름으로 단언하고, B4 `types.ts` 와도 대조했다. 요청 DTO 4종은 설계대로 게터·세터 POJO 다.
+- **B3 — HTTP 시험은 MockMvc 가 아니라 RANDOM_PORT + HttpClient**: 설계 §3.2 는 `MockMvc` 라고 적었지만, 같은 절이 관례로 든 `DmeOasisHttpTest`·`CodeConfirmOasisHttpTest` 가 모두 실제 포트와 `HttpClient`, 헤더 인증(`X-Authenticated-User`·`X-Authenticated-Role`)을 쓴다. URL 은 `/oasis/ruleConfirm/{action}` 이다. 시계는 운영 시계라 HT1 의 과거 apply_from(2026-01-01)으로 최초 버전을 확정해 `rule.status == INUSE` 를 본다.
+- **B3 — 입력 오류 코드**: `confirm` 의 ver·rowVersion 이 비면 `REQUIRED_VALUE`(ruleEdit `requireVer`·`requireRowVersion` 문구), 룰 ID 가 비면 `REQUIRED_VALUE`, 룰이 없거나 버전이 없으면 `INVALID_VALUE`(ruleEdit `loadRule` 과 같은 모양)다. view 에서 ver 를 비웠는데 DRAFT 가 없으면 `INVALID_VALUE` "확정할 DRAFT 가 없습니다" 를 낸다. 06-05 는 MDM021 을 썼지만 dme 서비스 관례를 따랐다. EXTERNAL 원천은 validate·confirm 모두 ruleEdit `requireMdm` 과 같은 `BUSINESS_ERROR` 문구이고, validate 에서는 이 검사가 MDM002 판정보다 앞선다. view 는 EXTERNAL 도 읽는다.
+- **B3 — `changedVarIds`**: CHANGED 행에서 칸(var_id)마다 `RuleVersionDiffs.canonicalCells` 로 정규화해 비교한다. 한쪽에만 있는 칸도 바뀐 칸으로 센다. ADDED·REMOVED·SAME 행은 빈 목록이다.
+- **B3 — confirm 응답의 `warnings`**: 공통 서비스 `ConfirmResult.warnings()` 에는 심각도가 없다. 화면이 같은 이슈 모양을 쓰도록 `severity: "WARNING"` 을 붙여 싣는다.
+- **B3 — S10 픽스처**: 룰의 DEF 시스템 행(`TB_MDM_RULE_SYSTEM` MES/DEF)과, 그 시스템에 코드 배포 행이 0건인 상태로 만들었다(설계 S10 이 허용한 경량판). 코드 도메인 변수·`IN 카테고리` 셀은 넣지 않았다.
+- **B3 — S7 에 확정 대기 목록 계산 상태 단언 추가**: 설계 S7 은 view·ruleMng 만 본다. 그러나 I19 는 ruleConfirm search 의 상태 표시도 대상으로 삼는다. 기존 픽스처로는 저장값과 계산 상태가 같아 search 변이가 잡히지 않으므로, 미래 확정 룰에 v2 DRAFT 를 더해 시계 이동 전후의 `ruleStatus`(CREATED→INUSE)를 단언했다.
+- **B3 — BPMN 을 텍스트 복제로 작성**: §6.6 은 `bpmn-skill`(bpmn-tool)·`oasis-project-support` 규칙을 따르라고 했지만, 이 PC 에 `bpmn-tool` 이 PATH 에 없어 06-05 `dmc/codeConfirm.bpmn` 을 텍스트 치환으로 복제했다. 구조(분기 4개·serviceTask·DI 좌표)는 바꾸지 않았고 process id·bean·dto 패키지·문서 문구만 바꿨다. `RuleConfirmBpmnActionTest` 5건과 HT1(네 분기를 실제로 탄다), 변이 I32 두 건이 계약을 고정한다.
+- **B3 — 메뉴 시드 로그 한 줄**: `seedMdmRuleConfirmMenu()` 끝에 08-02·08-06 시드와 같은 모양의 `log.info` 한 줄을 두었다(06-05 `seedMdmCodeConfirmMenu` 에는 없다). 메뉴 값은 §6.9 그대로다(OBJECT `ruleConfirm`, MENU_SEQ 003, FULL_SEQ 5050300, "버전 확정", 폴더 dme, SYSADMIN PERM_ALL, `seedMdmObjectRbac("ruleConfirm","dme")`). 호출 위치는 `seedMdmRuleMenus();` 바로 다음 줄이다.

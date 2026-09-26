@@ -953,6 +953,7 @@ public class DataInitializer implements ApplicationRunner {
         seedMdmDataItemMenus();
         seedMdmDataCsvUploadPopObject();
         seedMdmRuleMenus();
+        seedMdmRuleConfirmMenu();
         seedMdmRuleSetMenus();
     }
 
@@ -1056,6 +1057,28 @@ public class DataInitializer implements ApplicationRunner {
             seedMdmObjectRbac(objectId, "dme");
         }
         log.info("[DataInitializer] TSK-08-02 MDM 룰 화면 시드 — OBJECT 2 + 메뉴 leaf 2(dme) + RBAC(SYSADMIN 2 + MDM 역할 4)");
+    }
+
+    /**
+     * TSK-08-05 — 룰 버전 확정(dme/ruleConfirm). 08-02·08-06 의 메뉴 배열은 고치지 않고 같은 dme 폴더 아래 새 leaf 로 등록한다
+     * (design §6.9). MENU_SEQ 003·FULL_SEQ 5050300 은 08-06 D12 가 이 Task 몫으로 비워 두었다. OBJECT_ID = screenId = BPMN process id.
+     * action(search·view·validate·confirm)은 모두 기존 권한 세트·allActions 안에 있고, dme 매트릭스는 표준 관리자 READ(search·view)·
+     * 담당자 CONFIRM(validate·confirm 포함)이다. FULL_SEQ 는 부팅 끝 recomputeMenuFullSeq() 가 다시 매긴다.
+     */
+    private void seedMdmRuleConfirmMenu() {
+        final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
+        final String AUDIT_VALS = ", 'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', "
+                                + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
+        insertMcmSecObjIfAbsent("ruleConfirm", "버전 확정", "mdm");
+        insertMcmSecMenuIfAbsent("ruleConfirm", "003", "5050300", "버전 확정", "dme", "ruleConfirm");
+        insertIfAbsentComposite(
+                "TB_MCM_SEC_ROLE_MAPPING",
+                new String[]{"ROLE_ID",  "OBJECT_ID",   "PERMISSION_ID"},
+                new String[]{"SYSADMIN", "ruleConfirm", "PERM_ALL"},
+                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                "VALUES ('SYSADMIN', 'ruleConfirm', 'PERM_ALL'" + AUDIT_VALS + ")");
+        seedMdmObjectRbac("ruleConfirm", "dme");
+        log.info("[DataInitializer] TSK-08-05 MDM 룰 버전 확정 시드 — OBJECT 1 + 메뉴 leaf 1(dme) + RBAC(SYSADMIN 1 + MDM 역할 2)");
     }
 
     /**
