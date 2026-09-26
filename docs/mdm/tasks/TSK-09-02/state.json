@@ -2,7 +2,7 @@
   "tsk": "TSK-09-02",
   "order": "ccf6acd2-a91c-4fa2-a056-f4eebdc6f9a0",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "design",
+  "phase": "build",
   "baseline": {
     "docker": "banned:spawn",
     "base": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada",
@@ -55,6 +55,26 @@
         "source": "cache",
         "cache_key": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada-773190afc491",
         "measured_at": "2026-09-26T05:43:17Z"
+      },
+      {
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "cwd": ".",
+        "tests": 2263,
+        "failures": 0,
+        "scope": "module",
+        "source": "measured",
+        "cache_key": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada-9c34264b6ba7",
+        "measured_at": "2026-09-26T06:07:25Z"
+      },
+      {
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :maru-mdm-engine:test :mdm:test --no-daemon --console=plain && cd ../frontend && pnpm --filter @dk-oasis/m-mdm test && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "cwd": ".",
+        "tests": 4637,
+        "failures": 0,
+        "scope": "module",
+        "source": "measured",
+        "cache_key": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada-b4ee8f008c76",
+        "measured_at": "2026-09-26T06:07:38Z"
       }
     ],
     "note": "도커 금지 모드: 켜짐(출처 spawn, 워커 기본 DOCKER=ban). Testcontainers 는 mdm/api 의 mssqlTest sourceSet(mssqlMigrationTest)뿐이고 testAll 비포함(build.gradle 확인) — 제외 인자 없이 사용"
@@ -62,5 +82,9 @@
   "branch_base": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada",
   "build_model_base": "sonnet",
   "build_model_trial": false,
-  "model": "sonnet"
+  "model": "sonnet",
+  "last": {
+    "phase": "design",
+    "event": "done"
+  }
 }
