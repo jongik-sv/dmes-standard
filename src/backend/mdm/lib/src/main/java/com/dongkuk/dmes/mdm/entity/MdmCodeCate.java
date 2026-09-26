@@ -13,8 +13,8 @@ import java.math.BigDecimal;
  * 카테고리 행 — {@code TB_MDM_CODE_CATE}(TSK-06-01 design.md §6.0.5). 복합 PK 는 {@link MdmCodeCateId}.
  *
  * <p>정의 종류·대상 칸은 전사 계약 {@code CategoryKind}·{@code CategoryDefTarget} 의 {@code name()} 을 문자열로 담는다
- * (mdm 엔티티는 상태·종류 칼럼을 {@code String} 으로 매핑하는 관례, F27 ①). MSSQL {@code DEF_EXPR} 는 한글 정규식을 담도록
- * {@code NVARCHAR(MAX)} 다(D6).
+ * (mdm 엔티티는 상태·종류 칼럼을 {@code String} 으로 매핑하는 관례, F27 ①). {@code DEF_EXPR} 는 한글 정규식을 담는 길이
+ * 제한 없는 문자열이다(D6).
  */
 @Entity
 @Table(name = "TB_MDM_CODE_CATE")

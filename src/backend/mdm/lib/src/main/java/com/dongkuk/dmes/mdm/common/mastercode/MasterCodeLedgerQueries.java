@@ -236,7 +236,7 @@ public class MasterCodeLedgerQueries {
                 ((Number) r[9]).longValue(), (String) r[10]);
     }
 
-    /** LIKE 패턴 문자({@code % _ [ \})를 {@code \} 로 가린다(두 방언 모두 {@code ESCAPE '\'}). */
+    /** LIKE 패턴 문자({@code % _ [ \})를 {@code \} 로 가린다({@code ESCAPE '\'}). */
     private static String escapeLike(String s) {
         StringBuilder sb = new StringBuilder(s.length());
         for (char c : s.toCharArray()) {

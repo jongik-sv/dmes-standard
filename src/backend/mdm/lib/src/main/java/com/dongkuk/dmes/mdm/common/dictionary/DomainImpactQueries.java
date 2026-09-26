@@ -11,8 +11,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * 도메인 영향도·컬럼 사전 네이티브 조회(TSK-04-03 design.md §3.6). 모두 {@code EntityManager.createNativeQuery} 로
- * 요청 트랜잭션의 커넥션에서 읽는다(불변 I11). 재귀 CTE 는 두 방언 공통 문안이다 — {@code RECURSIVE} 키워드 없음, 앵커와
- * 재귀부 칼럼 타입 동일, 깊이 가드 50(MSSQL 기본 MAXRECURSION 100 보다 작다, 불변 I13).
+ * 요청 트랜잭션의 커넥션에서 읽는다(불변 I11). 재귀 CTE 는 방언 중립 문안이다 — {@code RECURSIVE} 키워드 없음, 앵커와
+ * 재귀부 칼럼 타입 동일, 깊이 가드 50(불변 I13).
  *
  * <p>02 자신의 테이블({@code TB_MDM_DOMAIN}·{@code TB_MDM_COLUMN})만 읽는다. 03·06 참조는
  * {@code MdmDomainReferenceSpi} 로만 받는다(불변 I12, D1).

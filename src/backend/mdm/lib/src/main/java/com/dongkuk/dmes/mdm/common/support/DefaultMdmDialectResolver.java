@@ -33,7 +33,6 @@ public class DefaultMdmDialectResolver implements MdmDialectResolver {
         }
         return switch (product) {
             case "SQLite" -> MdmDialect.SQLITE;
-            case "Microsoft SQL Server" -> MdmDialect.MSSQL;
             default -> throw new IllegalStateException("mdm 이 지원하지 않는 DB 입니다: " + product);
         };
     }

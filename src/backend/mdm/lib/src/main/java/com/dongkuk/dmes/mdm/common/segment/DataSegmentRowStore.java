@@ -21,7 +21,7 @@ import org.springframework.stereotype.Repository;
  *   <li>일시는 {@link MdmTemporalBinder} 를 거친다. DB 시각 함수를 쓰지 않는다. 새 열린 행은 {@code OPEN_END} 를 명시한다(S10).</li>
  *   <li>INSERT 는 감사 9칼럼(C_*·U_* = 요청 감사 값, VER = 0)과 {@code CHG_SEQ = 0} 을 명시한다(S12·S13).
  *       UPDATE 는 U_* 와 {@code VER = COALESCE(VER,0)+1} 을 쓴다(S13).</li>
- *   <li>문자열 null 은 문자열 타입으로 바인딩한다(MSSQL 이 타입 없는 null 을 varbinary 로 보낼 수 있다).</li>
+ *   <li>문자열 null 은 문자열 타입으로 바인딩한다(드라이버가 타입 없는 null 을 다른 타입으로 추론하지 않게 한다).</li>
  *   <li>호출자 트랜잭션 안에서만 쓴다. native 쿼리 전에 flush 한다.</li>
  * </ul>
  */

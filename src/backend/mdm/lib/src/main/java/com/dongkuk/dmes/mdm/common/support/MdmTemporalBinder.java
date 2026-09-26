@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 /**
  * 네이티브 SQL 일시 바인딩·읽기의 유일한 자리(TSK-01-03 B4, D9, 규칙표 #16).
  *
- * <p>SQLite 는 KST 초 단위 문자열 {@code 'yyyy-MM-dd HH:mm:ss'}, MSSQL 은 {@link LocalDateTime}(DATETIME2)으로 쓴다.
+ * <p>SQLite 는 KST 초 단위 문자열 {@code 'yyyy-MM-dd HH:mm:ss'} 로 쓴다(방언별 형식은 {@link MdmDialect} 분기에 둔다).
  * 모든 값은 초 단위로 자른다. TSK-04-01 이 실측 뒤 형식을 바꾸면 이 클래스만 고친다.
  */
 @Component
@@ -38,7 +38,9 @@ public class MdmTemporalBinder {
             return null;
         }
         LocalDateTime seconds = value.truncatedTo(ChronoUnit.SECONDS);
-        return dialectResolver.current() == MdmDialect.SQLITE ? TEXT.format(seconds) : seconds;
+        return switch (dialectResolver.current()) {
+            case SQLITE -> TEXT.format(seconds);
+        };
     }
 
     public Object toDb(Instant value) {
