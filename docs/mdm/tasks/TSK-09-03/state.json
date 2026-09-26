@@ -111,6 +111,44 @@
     "spec": 0
   },
   "verify_advisor": {
-    "audit": 0
+    "audit": 0,
+    "writer": 0
+  },
+  "verify_gate": {
+    "head": "cc3eb6570122a9eb9b45babd747efa6a8ec939d7",
+    "scope": "full",
+    "cmds": [
+      {
+        "cwd": "",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3967,
+        "failures": 0
+      },
+      {
+        "cwd": "",
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 1064,
+        "failures": 0
+      },
+      {
+        "cwd": "",
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0
+      },
+      {
+        "cwd": "",
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 170,
+        "failures": 0
+      },
+      {
+        "cwd": "",
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0
+      }
+    ],
+    "new_failures": []
   }
 }
