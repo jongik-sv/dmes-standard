@@ -2,7 +2,7 @@
   "tsk": "TSK-03-03",
   "order": "e1205c87-681d-44be-90b1-0965067683f3",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "reported",
+  "phase": "merged",
   "pred_note": "선행 mdm/TSK-03-01: reached=true·head_sha 없음 → 행 G 갈래 2, pred-reflected.sh REFLECTED → origin/dev 기점 스택 없이 진행",
   "last": {
     "phase": "done",
@@ -220,5 +220,6 @@
     "new_failures": [],
     "mutation": "Verify 표본 M6·M8 재실행 잡힘, 감사 수용 M13 추가 잡힘, 앵커 갱신 M1·M2·M4 오케스트레이터 재실행 잡힘"
   },
-  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\""
+  "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\"",
+  "unapproved": true
 }
