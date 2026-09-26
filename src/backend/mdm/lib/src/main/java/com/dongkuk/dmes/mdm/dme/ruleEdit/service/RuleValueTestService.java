@@ -1,10 +1,15 @@
 package com.dongkuk.dmes.mdm.dme.ruleEdit.service;
 
+import static com.dongkuk.dmes.mdm.common.rule.RuleCaseJudge.evaluate;
+import static com.dongkuk.dmes.mdm.common.rule.RuleCaseJudge.object;
+import static com.dongkuk.dmes.mdm.common.rule.RuleCaseJudge.results;
+import static com.dongkuk.dmes.mdm.common.rule.RuleCaseJudge.runCase;
 import static com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditSupport.requireVer;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
+import com.dongkuk.dmes.mdm.common.rule.RuleCaseJudge.Evaluated;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleTestCaseQueries;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckInput;
@@ -24,13 +29,7 @@ import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleTestRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleTestResult;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
-import com.dongkuk.dmes.mdm.entity.MdmRuleTestCase;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -41,13 +40,9 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException;
-import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Violation;
 import kr.dongkuk.maru.mdm.engine.expr.EngineWarning;
 import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
 import kr.dongkuk.maru.mdm.engine.rule.MdmRuleEngine;
@@ -76,11 +71,8 @@ public class RuleValueTestService {
     static final String BODY = "BODY";
     static final String VERSION = "VERSION";
     static final String MISSING_CELL_AS_NA = "MISSING_CELL_AS_NA";
-    static final String HIT_KEY = "hit";
 
-    private static final ObjectMapper INPUT = new ObjectMapper().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-    private static final Pattern NUMBER_TEXT = Pattern.compile("^[+-]?\\d+(\\.\\d+)?$");
 
     private final RuleEditSupport support;
     private final RuleQueries queries;
@@ -99,12 +91,6 @@ public class RuleValueTestService {
         this.caseQueries = caseQueries;
         this.evaluator = evaluator;
         this.clock = clock;
-    }
-
-    private record Evaluated(RuleResult result, List<Map<String, Object>> errors) {
-        boolean ok() {
-            return result != null;
-        }
     }
 
     public RuleTestResult run(RuleTestRequest request) {
@@ -222,32 +208,11 @@ public class RuleValueTestService {
         return input;
     }
 
-    /** JSON 객체면 맵, 아니면 null. */
-    private static Map<String, Object> object(String json) {
-        try {
-            Object v = INPUT.readValue(json, Object.class);
-            if (v instanceof Map<?, ?> m) {
-                return INPUT.convertValue(m, new TypeReference<LinkedHashMap<String, Object>>() {});
-            }
-            return null;
-        } catch (JsonProcessingException e) {
-            return null;
-        }
-    }
-
     private static BusinessException limit(String detail) {
         return MdmErrors.of(MdmErrorCode.INVALID_INPUT, "값 테스트 요청 상한 — " + detail, List.of());
     }
 
     // ------------------------------------------------------------------ 판정
-
-    private static Evaluated evaluate(MdmRuleEngine engine, String ruleId, Map<String, Object> input, Instant ts) {
-        try {
-            return new Evaluated(engine.evaluate(ruleId, input, ts), null);
-        } catch (EngineEvaluationException e) {
-            return new Evaluated(null, e.violations().stream().map(RuleValueTestService::error).toList());
-        }
-    }
 
     /** 셀이 없는 칸 — NORMAL 행의 조건 칸은 무관(NA), 결과 칸은 NULL 로 판정된다(엔진 동작). 경고만 붙인다(D5). */
     private static List<Map<String, Object>> missingCells(RuleDefinition def, List<ResolvedVar> vars) {
@@ -265,170 +230,7 @@ public class RuleValueTestService {
         return out;
     }
 
-    private Map<String, Object> runCase(MdmRuleEngine engine, String ruleId, MdmRuleTestCase c, Instant ts, Integer defaultRowId) {
-        Map<String, Object> input = object(c.getInputJson());
-        Evaluated e = input == null
-                ? new Evaluated(null, List.of(error("INPUT_CHECK", "INVALID_INPUT_JSON", null, null, "케이스 입력이 JSON 객체가 아니다")))
-                : evaluate(engine, ruleId, input, ts);
-        Object hitValue = e.ok() ? hitValue(e.result(), defaultRowId) : null;
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("caseId", c.getCaseId());
-        m.put("caseName", c.getCaseName());
-        m.put("outcome", e.ok() ? "OK" : "ERROR");
-        List<Map<String, Object>> mismatches = new ArrayList<>();
-        m.put("pass", compare(c.getExpectedJson(), e, hitValue, mismatches));
-        m.put("mismatches", mismatches);
-        m.put("results", e.ok() ? results(e.result()) : null);
-        m.put("hit", hitValue);
-        m.put("errors", e.errors());
-        return m;
-    }
-
-    // ------------------------------------------------------------------ 케이스 비교(I24, D12)
-
-    /** hit 표현 — 적중 하나는 row_id, 여럿은 엔진 hits 순서의 배열, 기본 행 적용은 기본 행 row_id, 없음은 null. */
-    static Object hitValue(RuleResult r, Integer defaultRowId) {
-        if (r.hits().size() == 1) {
-            return r.hits().get(0).rowId();
-        }
-        if (r.hits().size() > 1) {
-            return r.hits().stream().map(RuleResult.Hit::rowId).toList();
-        }
-        return r.defaultApplied() ? defaultRowId : null;
-    }
-
-    /**
-     * 기대값이 없으면 null(돌려 보기만). 판정 오류면 false. 기대 JSON 의 키마다 — {@code hit} 은 hit 표현으로, 나머지는 결과 변수 값으로
-     * 견준다. 엔진 결과는 결과 변수 타입으로 바뀌어 있으므로 그 값의 타입으로 비교한다(NUMBER 는 BigDecimal {@code compareTo}). 결과에 없는 키는
-     * 실패다.
-     */
-    static Boolean compare(String expectedJson, Evaluated e, Object hitValue, List<Map<String, Object>> mismatches) {
-        if (expectedJson == null || expectedJson.isBlank()) {
-            return null;
-        }
-        Map<String, Object> expected = object(expectedJson);
-        if (expected == null) {
-            mismatches.add(mismatch("(expected)", expectedJson, null));
-            return false;
-        }
-        if (!e.ok()) {
-            return false;
-        }
-        Map<String, Object> results = e.result().results();
-        for (Map.Entry<String, Object> x : expected.entrySet()) {
-            if (HIT_KEY.equals(x.getKey())) {
-                if (!sameHit(x.getValue(), hitValue)) {
-                    mismatches.add(mismatch(HIT_KEY, x.getValue(), hitValue));
-                }
-                continue;
-            }
-            String key = resultKey(results, x.getKey());
-            if (key == null) {
-                mismatches.add(mismatch(x.getKey(), x.getValue(), null));
-                continue;
-            }
-            Object actual = results.get(key);
-            if (!sameValue(x.getValue(), actual)) {
-                mismatches.add(mismatch(x.getKey(), x.getValue(), value(actual)));
-            }
-        }
-        return mismatches.isEmpty();
-    }
-
-    private static String resultKey(Map<String, Object> results, String key) {
-        if (results.containsKey(key)) {
-            return key;
-        }
-        return results.keySet().stream().filter(k -> k.equalsIgnoreCase(key)).findFirst().orElse(null);
-    }
-
-    static boolean sameValue(Object expected, Object actual) {
-        if (expected == null || actual == null) {
-            return expected == null && actual == null;
-        }
-        if (actual instanceof List<?> list) {
-            if (!(expected instanceof List<?> exp) || exp.size() != list.size()) {
-                return false;
-            }
-            for (int i = 0; i < list.size(); i++) {
-                if (!sameValue(exp.get(i), list.get(i))) {
-                    return false;
-                }
-            }
-            return true;
-        }
-        if (actual instanceof BigDecimal number) {
-            BigDecimal exp = decimal(expected);
-            return exp != null && exp.compareTo(number) == 0;
-        }
-        if (actual instanceof Boolean flag) {
-            return expected instanceof Boolean b ? b.equals(flag)
-                    : expected instanceof String text && text.trim().toUpperCase(Locale.ROOT).equals(flag ? "TRUE" : "FALSE");
-        }
-        return expected.toString().equals(actual.toString());
-    }
-
-    private static boolean sameHit(Object expected, Object actual) {
-        if (expected == null || actual == null) {
-            return expected == null && actual == null;
-        }
-        if (actual instanceof List<?> list) {
-            if (!(expected instanceof List<?> exp) || exp.size() != list.size()) {
-                return false;
-            }
-            for (int i = 0; i < list.size(); i++) {
-                if (!sameHit(exp.get(i), list.get(i))) {
-                    return false;
-                }
-            }
-            return true;
-        }
-        BigDecimal exp = decimal(expected);
-        return exp != null && !(expected instanceof List) && exp.compareTo(new BigDecimal(actual.toString())) == 0;
-    }
-
-    private static BigDecimal decimal(Object value) {
-        if (value instanceof BigDecimal d) {
-            return d;
-        }
-        if (value instanceof Number n) {
-            return new BigDecimal(n.toString());
-        }
-        if (value instanceof String s && NUMBER_TEXT.matcher(s.trim()).matches()) {
-            return new BigDecimal(s.trim());
-        }
-        return null;
-    }
-
-    private static Map<String, Object> mismatch(String key, Object expected, Object actual) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("key", key);
-        m.put("expected", expected);
-        m.put("actual", actual);
-        return m;
-    }
-
     // ------------------------------------------------------------------ 응답 모양
-
-    private static Map<String, Object> results(RuleResult r) {
-        Map<String, Object> out = new LinkedHashMap<>();
-        r.results().forEach((k, v) -> out.put(k, value(v)));
-        return out;
-    }
-
-    /** NUMBER 는 {@code toPlainString} 문자열, 목록은 원소마다. */
-    static Object value(Object v) {
-        if (v instanceof BigDecimal d) {
-            return d.toPlainString();
-        }
-        if (v instanceof List<?> list) {
-            return list.stream().map(RuleValueTestService::value).toList();
-        }
-        if (v == null || v instanceof Boolean || v instanceof String) {
-            return v;
-        }
-        return v.toString();
-    }
 
     private static Map<String, Object> hit(RuleResult.Hit h) {
         Map<String, Object> m = new LinkedHashMap<>();
@@ -445,20 +247,6 @@ public class RuleValueTestService {
         m.put("evaluated", t.evaluated());
         m.put("hit", t.hit());
         m.put("firstFalseVarId", t.firstFalseVarId());
-        return m;
-    }
-
-    private static Map<String, Object> error(Violation v) {
-        return error(v.stage().name(), v.code().name(), v.rowId(), v.name(), v.message());
-    }
-
-    private static Map<String, Object> error(String stage, String code, Integer rowId, String name, String message) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("stage", stage);
-        m.put("code", code);
-        m.put("rowId", rowId);
-        m.put("name", name);
-        m.put("message", message);
         return m;
     }
 
