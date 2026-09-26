@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException;
+import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluatorFixtures;
 import kr.dongkuk.maru.mdm.engine.rule.fixture.SampleRules;
 import kr.dongkuk.maru.mdm.engine.rule.fixture.TestExpressionConfig;
 import org.junit.jupiter.api.Test;
@@ -23,7 +24,8 @@ import org.junit.jupiter.api.Test;
  */
 class SampleRuleValueTest {
 
-    private final MdmRuleEngine engine = new MdmRuleEngine(TestExpressionConfig.create(), SampleRules.lookup());
+    private final MdmRuleEngine engine =
+            new MdmRuleEngine(MdmEvaluatorFixtures.of(TestExpressionConfig.create()), SampleRules.lookup());
 
     static void assertNum(String expected, Object actual) {
         assertInstanceOf(BigDecimal.class, actual, String.valueOf(actual));

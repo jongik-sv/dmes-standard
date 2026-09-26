@@ -261,7 +261,7 @@ final class RuleEvaluator {
         private int test(String text, Integer rowId, int varId, boolean groupCondition) {
             EvaluationValue v;
             try {
-                v = runner.run(text, values);
+                v = runner.run(text, values, evalTs);
             } catch (ExpressionFailure f) {
                 violations.add(violation(Stage.ROW_SELECT, Code.EVALUATION_ERROR, groupCondition ? null : rowId, null,
                         where(rowId, varId, groupCondition) + " 식 '" + text + "' 평가 오류: " + f.getMessage()));
@@ -374,7 +374,7 @@ final class RuleEvaluator {
                 Stage stage, Integer rowId, String name, String where) {
             Object raw;
             try {
-                raw = ValueConverter.fromEvalEx(runner.run(text, values));
+                raw = ValueConverter.fromEvalEx(runner.run(text, values, evalTs));
             } catch (ExpressionFailure | IllegalArgumentException e) {
                 violations.add(violation(stage, Code.EVALUATION_ERROR, rowId,
                         stage == Stage.ROW_SELECT ? name : null, where + " 식 '" + text + "' 평가 오류: " + e.getMessage()));

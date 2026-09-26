@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException;
 import kr.dongkuk.maru.mdm.engine.expr.EngineWarning;
+import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluatorFixtures;
 import kr.dongkuk.maru.mdm.engine.rule.fixture.InMemoryDefinitionLookup;
 import kr.dongkuk.maru.mdm.engine.rule.fixture.TestExpressionConfig;
 import kr.dongkuk.maru.mdm.engine.rule.fixture.TestFunctions;
@@ -48,7 +49,7 @@ class ResultGroupTest {
     private final TestFunctions.CountingFn counter = new TestFunctions.CountingFn();
     private final InMemoryDefinitionLookup lookup = new InMemoryDefinitionLookup();
     private final MdmRuleEngine engine = new MdmRuleEngine(
-            TestExpressionConfig.create(new TestFunctions(), Map.of("COUNT_CALL", counter)), lookup);
+            MdmEvaluatorFixtures.of(TestExpressionConfig.create(new TestFunctions(), Map.of("COUNT_CALL", counter))), lookup);
 
     private RuleResult run(RuleDefinition d, Map<String, Object> record) {
         lookup.add(CellTextGenerator.withTexts(d, x -> null));

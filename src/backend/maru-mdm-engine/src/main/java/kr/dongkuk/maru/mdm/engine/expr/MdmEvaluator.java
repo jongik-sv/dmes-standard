@@ -37,6 +37,8 @@ import kr.dongkuk.maru.mdm.engine.spi.FunctionProvider.BusinessFunction;
  * <p>타임아웃: EvalEx 에는 범용 평가 타임아웃이 없어(정규식만 있다) 평가를 가상 스레드에서 돌리고 기다림을 끊는다.
  * 시간을 넘기면 작업을 인터럽트하고 {@code EVALUATION_ERROR}(reason TIMEOUT)를 던진다. 한계: 인터럽트를 보지 않고
  * CPU 만 쓰는 평가는 인터럽트로 멈추지 않는다. 호출자는 타임아웃으로 풀려나지만 그 작업은 끝날 때까지 돈다.
+ *
+ * <p>룰 엔진도 이 평가기로 평가한다(TSK-03-03 D20).
  */
 public final class MdmEvaluator {
 
@@ -54,12 +56,25 @@ public final class MdmEvaluator {
 
     /** @throws IllegalArgumentException 비즈니스 함수 적재 규칙에 어긋날 때 */
     public MdmEvaluator(EngineLookups lookups, Duration timeout) {
-        this.configuration = MdmExpressionConfig.create(lookups);
-        this.businessFunctionNames = lookups.functions().functions().stream()
+        this(MdmExpressionConfig.create(lookups), businessFunctionNames(lookups), timeout);
+    }
+
+    /**
+     * 패키지 전용 — 룰 엔진 테스트가 fixture 설정을 이 평가기의 캐시·{@code copy()}·가상 스레드 경로에 태울 때만 쓴다
+     * (TSK-03-03 D21). 공개 생성자가 실제로 위임하는 경로라 테스트 전용 뒷문이 아니다. 부르는 곳은
+     * {@code kr.dongkuk.maru.mdm.engine.expr.MdmEvaluatorFixtures}(test) 하나다.
+     */
+    MdmEvaluator(ExpressionConfiguration configuration, Set<String> businessFunctionNames, Duration timeout) {
+        this.configuration = Objects.requireNonNull(configuration, "configuration");
+        this.businessFunctionNames = Set.copyOf(Objects.requireNonNull(businessFunctionNames, "businessFunctionNames"));
+        this.timeout = Objects.requireNonNull(timeout, "timeout");
+    }
+
+    private static Set<String> businessFunctionNames(EngineLookups lookups) {
+        return lookups.functions().functions().stream()
                 .map(BusinessFunction::name)
                 .map(n -> n.toUpperCase(Locale.ROOT))
                 .collect(Collectors.toUnmodifiableSet());
-        this.timeout = Objects.requireNonNull(timeout, "timeout");
     }
 
     /** {@link MdmExpressionConfig#create} 로 한 번 만든 설정. 저장 시 검사·AST 내보내기가 같은 설정을 쓴다. */

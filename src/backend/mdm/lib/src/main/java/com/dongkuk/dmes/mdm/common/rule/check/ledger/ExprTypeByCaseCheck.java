@@ -68,7 +68,7 @@ public class ExprTypeByCaseCheck implements RuleSaveCheck {
         if (list.isEmpty()) {
             return List.of();
         }
-        MdmRuleEngine engine = new MdmRuleEngine(evaluator.configuration(), new SingleRuleDefinitionLookup(RuleDefinitionAssembler.assemble(ctx.ruleId(),
+        MdmRuleEngine engine = new MdmRuleEngine(evaluator, new SingleRuleDefinitionLookup(RuleDefinitionAssembler.assemble(ctx.ruleId(),
                 ctx.ver(), ctx.ruleKind(), ctx.hitPolicy(), null, null, ctx.rawVars(), ctx.vars(), LedgerCells.draftRows(ctx.rows()),
                 stored.externalTypes(ctx.ruleId(), ctx.ver())).definition()));
         Instant ts = clock.instant().truncatedTo(ChronoUnit.SECONDS);

@@ -6,6 +6,25 @@
 > 에이전트 프롬프트: state.json 에 `agent_prompt` 가 없다. 위임 지시는 팀장(오케스트레이터) 메시지이고, 그 "확정된 제약" 7개를 전 Phase 에서 제약으로 지킨다(아래 §1·§5·D1·D2 에 반영).
 > RULE.md: 「작업 분기 — 가이드 라우팅」 세 분기(MES 화면 설계·APS·MES 개발)는 화면·업무 모듈 작업용이다. 이 작업은 엔진 jar(`maru-mdm-engine`)의 `engine.rule` 구현만 다루므로 해당 분기가 없다. 패키지는 엔진 group `kr.dongkuk.maru.mdm`(TSK-01-01 D7)을 따른다.
 > 겪은 문제는 `.issues` 에 직접 쓰지 않고 Phase 끝 보고에 분류(tool-error·gate-retry·permission·skill-unclear·env·other)와 함께 올린다.
+> **개정 2026-09-26 (반려 재작업, Design opus).** 기점 `origin/dev` 6d2110fc(TSK-03-02·03-04·08-04 등 머지 뒤). 아래 「재작업 범위」 가 이번 Build 의 범위이고, 나머지 절은 최초 구현의 설계 기록이다. 개정한 곳에는 `(재작업)` 을 붙였다.
+
+## 재작업 범위 (2026-09-26)
+
+**반려 사유(review_note 원문, 요구사항 데이터):** "이 Task의 설계 D17에 \"03-02 머지 뒤 ExpressionRunner에 캐시 연결\"이 후속 일로 적혀 있는데, 그 연결이 빠졌습니다. 03-02는 MdmEvaluator에 캐시를 만들었지만 룰 판정은 여전히 평가할 때마다 새로 컴파일합니다. 설계에 적힌 \"반려되면 재작업 방향\"대로 연결하도록 요구했습니다."
+
+**이번에 하는 일(요약).**
+
+1. `ExpressionRunner` 가 `new Expression` 대신 주입받은 `MdmEvaluator.evaluate(text, values, evalTs)` 로 평가한다 — 03-02 캐시에서 원본을 꺼내 `copy()` 로 평가하고 타임아웃·`EVAL_TS` 주입이 함께 붙는다(D17 개정·D20).
+2. `MdmRuleEngine` 의 생성자를 `MdmRuleEngine(MdmEvaluator, DefinitionLookup)` 하나로 바꾸고 `(ExpressionConfiguration, DefinitionLookup)` 생성자는 지운다. 엔진은 요청마다 새로 만들어도 캐시는 공유 평가기에 있다(D19).
+3. mdm 운영 호출부 3곳(`ExprTypeByCaseCheck`·`RuleConfirmChecks`·`RuleValueTestService`)과 mdm 테스트 2곳이 앱에 하나인 `MdmEvaluator` 빈을 엔진에 넘긴다. mdm 쪽 아키텍처 테스트가 "평가기는 `MdmEngineConfig` 만 만든다"를 붙잡는다(D19, I47).
+4. 엔진 테스트는 fixture 설정을 `MdmEvaluator` 에 태워(패키지 전용 생성자 + test 도우미, D21) 모두 캐시 경로로 돈다. 캐시 연결 증명 테스트와 운영 설정 대조 테스트를 더한다(D22, §3.6).
+5. `## 후속` 의 "03-02 머지 뒤" 항목 넷을 모두 처리하거나 결정으로 남긴다(§후속 개정): 캐시 연결(이번 본체), `ContractOnlyPhaseTest` 기준선(이미 해소, F17), `rule/package-info.java`(이번에 고친다, F11 개정), `TestExpressionConfig`·`TestFunctions` 이관(부분 이관 + 대조 테스트, D22). 03-02 인계 중 `ValueConverter`·`RecordKeys` 통합은 D24 로 결정한다.
+
+**바꾸지 않는 것.** `RuleEngine` 계약·결과 타입·스키마·TS, 판정 규칙(§5 I1-I39), 생성기와 스냅샷, `MdmEvaluator` 의 공개 생성자·공개 메서드(새 생성자는 패키지 전용), 위반의 Stage·Code 와 메시지 형식(D20).
+
+**정본 절.** 파일 §2.5, 동작 §6.17, 테스트 §3.6, 게이트 §3.4 「재작업 게이트」, 불변 규칙 §5.3(I41-I48)과 개정 I28, 결정 D17(개정)·D19-D24, 후속 §후속 개정.
+
+**구현 단위: 표 없음(단위 하나 B1).** 엔진 main 6파일 + 엔진 test 생성자 바꾸기 10개 + 새 테스트 3개 + mdm 5파일 + mdm 새 테스트 1개로, 도구 호출 약 100회 안에 끝날 것으로 본다. mdm 수정은 엔진 새 생성자에 기대므로 병렬로 묶을 수 없고, 나누면 단위 하나가 50회 미만이 된다(phase-design 「구현 단위 표」).
 
 ---
 
@@ -25,7 +44,7 @@
 | F8 | 계약 필드 확인(팀장 제약 4): `RuleCell.ast`(Expression 셀 AST), `RuleVar.exprAst`(식 변수 AST), `RuleVar.grpCondAst`(열 조건 AST), `RuleDefinition.contract`(입력 계약)가 **모두 있다**. view 의 AST·CONTRACT 는 이 필드를 그대로 꺼내면 된다. 반면 `RuleView.ColumnView` 에는 `resGrp`·`grpCond`·`grpCondAst` 칸이 없고, 06:495 의 `RuleView.row(rowId)` 는 계약 record 에 메서드가 필요해 F5 가 막는다(D9) | `spi/DefinitionLookup.java`, `rule/RuleView.java` |
 | F9 | `RuleCell.text` 는 `@Nullable` 이 아니다. NA 셀의 텍스트도 null 이 아니라 빈 문자열 `""` 이어야 계약을 지킨다 | `spi/DefinitionLookup.java` RuleCell |
 | F10 | `RuleEngine` Javadoc: `evalTs` 필수, 엔진은 초 미만을 잘라 `EVAL_TS` 로 넣는다. 레코드 키는 표준 물리명 그대로다. `text`·`textAndAst` 는 `view` 위임 default 다 | `rule/RuleEngine.java` |
-| F11 | `rule/package-info.java` 의 설명("계약 전용 단계")은 이 Task 뒤에는 낡는다. 그러나 TSK-03-04 도 rule 에 파일을 더하므로 충돌을 피하려고 **고치지 않는다**. 머지 뒤 정리 대상으로 끝 보고에 올린다 | `rule/package-info.java` |
+| F11 | `rule/package-info.java` 의 설명("계약 전용 단계")은 이 Task 뒤에는 낡는다. 그러나 TSK-03-04 도 rule 에 파일을 더하므로 충돌을 피하려고 **고치지 않는다**. 머지 뒤 정리 대상으로 끝 보고에 올린다. **(재작업) 03-04 가 dev 에 머지돼(`RuleAnalyzer` 등) 충돌 사유가 사라졌다. 이번에 고친다(§2.5)** | `rule/package-info.java` |
 | F12 | 원천 샘플의 출처: md 본문에 전체 정의(변수·행·셀)가 있는 룰은 `QLTY_GRD_JDG`(06:1295-1329) 하나뿐이다. `COIL_WGT_CALC`·`PROD_WGT_CALC`·`BASE_SPD_LKP` 의 전체 정의와 값 테스트 케이스는 화면 목업 데이터(`H:455-535`)에만 있다. `SPD_EXC`·`SPD_JOIN`(세트 `LS_A3` 의 2·3단계)은 메타데이터(`H:532-533`)와 개념(`WR:30-38`)만 있고 행·셀·기대값이 없다(D10) | 06, H, WR |
 | F13 | 원천끼리 어긋나는 곳 둘: ① 06:1326 은 3행 결과 식을 `ROUND(BASE_FCT * 0.97, 2)` 로 적었지만 같은 표의 3행 셀(06:1315)과 RELEASED 목업 `QV1`(H:447)은 `0.98` 이다. `0.97` 은 DRAFT 목업 `QV2`(H:451)의 값이다. ② 06:258 은 `A.B%` 를 정규식 `STR_MATCHES(V, "A\\.B.*")` 예로 들었지만, 바로 위 06:257 은 "`%` 가 끝에 하나뿐이고 A 에 `%`·`_` 가 없으면 `STR_STARTS_WITH`" 라고 정한다. `A.B%` 는 단순형 조건을 만족한다(D11) | 06:257-258·1315·1326, H:447·451 |
 
@@ -57,11 +76,36 @@
 | E20 | `STR_SUBSTRING("ABCDE", 1, 2)` = `"B"`(0부터, 끝 배타). `V == "1"`(V 문자열 "1") true, `V < 3`(V 문자열 "10")은 문자열 비교로 true. 타입이 섞이면 조용히 틀린다(06:198) | 타입 변환 계약의 근거 |
 | E21 | 정규식 `STR_MATCHES(V, "A\\.B.*")` 는 EvalEx 문자열 이스케이프를 푼 뒤 `A\.B.*` 로 전체 일치 검사를 한다(`A.BCD` true, `AxBCD` false) | 패턴 정규식(I10) |
 
+### 0.3 (재작업) 기점 6d2110fc 에서 조사한 사실
+
+루트 약어는 §2 와 같다. 추가로 `X` = `E/src/main/java/kr/dongkuk/maru/mdm/engine/expr`, `M` = `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm`.
+
+| # | 사실 | 근거 |
+|---|---|---|
+| F13a | 지금 룰 판정의 EvalEx 호출은 `R/ExpressionRunner.run` 한 곳이고, 평가마다 `new Expression(text, configuration).withValues(values).evaluate()` 한다. `ParseException`·`EvaluationException`·`RuntimeException` 을 rule 의 `ExpressionFailure`(checked, 메시지 = 원인 단순 이름 + `": "` + 원인 메시지)로 싸고 `Error` 는 잡지 않는다. 부르는 곳은 `RuleEvaluator` 두 곳(`test` — 조건 셀·열 조건, `evaluateValue` — 식 변수·결과 셀)뿐이다 | `R/ExpressionRunner.java:23-29`, `R/RuleEvaluator.java:264·377` |
+| F13b | `MdmEvaluator`(03-02, `public final`): 공개 생성자 `(EngineLookups)`·`(EngineLookups, Duration)`, 공개 메서드 `configuration()`·`businessFunctionNames()`·`compile`·`usedVariables`·`evaluate(String, Map<String,?>, Instant)`, 패키지 전용 `cacheSize()`·`cachedOriginal(text)`. 생성자는 `MdmExpressionConfig.create(lookups)` 로 설정을 **직접** 만든다 — 임의의 `ExpressionConfiguration` 을 받는 길이 없다. 캐시는 `ConcurrentHashMap<String, Expression>`(상한 없음), `computeIfAbsent` 안에서 `validate()` 뒤에만 넣고 파싱 실패는 `expr.ExpressionFailure(PARSE)` 로 호출 스레드에서 던진다(캐시에 안 남음) | `X/MdmEvaluator.java:41-146` |
+| F13c | `MdmEvaluator.evaluate` 는 원본 `copy()` → `withValues(values)` → `with(EVAL_TS, evalTs 초 절삭)` → `evaluate()` 를 **가상 스레드**(인스턴스당 `newVirtualThreadPerTaskExecutor`)에서 돌리고 `future.get(timeout)` 으로 기다린다(기본 1초). 시간 초과 → `ExpressionFailure(EVALUATION_ERROR, TIMEOUT)` + `cancel(true)`. `ExecutionException` 은 원인이 무엇이든(**`Error` 포함**) `translate` 가 `ExpressionFailure` 로 싼다: 상수 이름 키 UOE → `CONSTANT_KEY`, 그 밖 → `EVALUATION`(cause = 원래 예외). 호출 스레드 인터럽트 → `EVALUATION`(cause = `InterruptedException`), 인터럽트 표지 복원 | `X/MdmEvaluator.java:98-162` |
+| F13d | `expr.ExpressionFailure` 는 `public final class … extends RuntimeException`, `code()`·`reason()`(`PARSE`·`EVALUATION`·`TIMEOUT`·`CONSTANT_KEY`)·`name()`. 생성자는 패키지 전용이다. rule 의 `ExpressionFailure`(패키지 전용, checked)와 **단순 이름이 같다** — 한 파일에서 둘을 쓰면 하나는 정규 이름으로 적어야 한다 | `X/ExpressionFailure.java` |
+| F13e | 운영 평가기 빈은 앱에 하나다: `MdmEngineConfig.mdmEvaluator(...)`(`@Bean @ConditionalOnMissingBean`). 조회는 빈이 있으면 쓰고 없으면 빈 구현: `CodeLookup` = `EMPTY_CODES`(늘 빈 값), `MasterLookup.NONE`, `FunctionProvider.NONE`, `CodeEffLookup.NONE`. `MdmCodeLookup`(DB 원장 구현)은 **빈으로 등록하지 않는다**(D-077, "운영 등록은 06-05 이후") — 그래서 지금 운영 평가기의 함수는 DB 를 부르지 않는다. `MdmCodeLookup` Javadoc 은 "트랜잭션에 기대지 않는다(엔진은 가상 스레드에서 부를 수 있다)" 라고 이미 적어 두었다. mdm main 에서 `new MdmEvaluator` 는 이 빈 메서드 한 곳뿐이다 | `M/common/engine/MdmEngineConfig.java:61-66`, `M/common/mastercode/MdmCodeLookup.java` |
+| F13f | 운영 호출부 셋 모두 `MdmEvaluator` 빈을 이미 생성자 주입으로 갖고 있고, 요청마다 `new MdmRuleEngine(evaluator.configuration(), new SingleRuleDefinitionLookup(def))` 를 만든다: `M/common/rule/check/ledger/ExprTypeByCaseCheck.java:71`, `M/common/rule/confirm/RuleConfirmChecks.java:134`, `M/dme/ruleEdit/service/RuleValueTestService.java:133`. `SingleRuleDefinitionLookup` 은 요청마다 만드는 정의라("스프링 빈으로 등록하지 않는다") 엔진을 싱글턴으로 둘 수 없다 → **캐시는 엔진이 아니라 공유 평가기에 있어야 한다** | 위 파일, `M/common/rule/definition/SingleRuleDefinitionLookup.java:10` |
+| F13g | mdm 테스트의 같은 호출: `mdm/lib/src/test/.../common/rule/definition/RuleDefinitionAssemblerTest.java:106`(`EVALUATOR.configuration()`), `mdm/api/src/test/.../itest/CodeDataRuleLedgerChainTest.java:229`(`evaluator.configuration()`, 평가기는 운영 `MdmCodeLookup` + 시험 `DataItemMasterLookup(jdbc)` 로 225행에서 직접 만든다). `DomainMngTestConfig` 는 `CodeLookup`·`FunctionProvider` 빈만 등록하고 `MdmRuleEngine` 을 만들지 않는다 — 고칠 것이 없다 | 위 파일 |
+| F13h | 트랜잭션: mdm 서비스는 `@Transactional` 을 쓰지 않고 OASIS 프로세스·`TransactionTemplate` 이 트랜잭션을 건다(`RuleConfirmService`·`RuleEditService` Javadoc I23·I25). 그래서 확정 검사·저장 검사의 룰 판정은 바깥 트랜잭션 안에서 돌 수 있다. `CodeDataRuleLedgerChainTest` 는 `@SpringBootTest(RANDOM_PORT)` 이고 `@Transactional` 이 없다. SQLite 데이터소스는 `hikari` 풀 크기를 적지 않아 기본값(10)이다 — 풀 1 교착 조건이 아니다 | `api/src/main/resources/application-local.yml:1-10` |
+| F13i | 도메인 검증기(`DefaultDomainValidator`, 운영 경로)는 이미 `MdmEvaluator.evaluate`(가상 스레드 + 1초)로 평가하고 같은 mdm 테스트 스위트가 기준선에서 초록이다 | `E/src/main/java/.../domain/DefaultDomainValidator.java:116-140` |
+| F13j | `RuleEvaluator` 는 값 맵에 `EVAL_TS` 를 직접 넣고(107행), 식 변수의 참조 변수 NULL 검사가 **그 값 맵을 읽는다**(159행 `values.get(ref) == null`). 그래서 값 맵의 `EVAL_TS` 를 지우면 `refVars` 에 `EVAL_TS` 가 든 식 변수가 NULL 로 바뀐다. `MdmEvaluator.evaluate` 는 `withValues` 뒤에 `with(EVAL_TS, …)` 로 같은 값을 다시 넣는다(덮어쓰기, 결과 동일) | `R/RuleEvaluator.java:106-107·159`, `X/MdmEvaluator.java:104-106` |
+| F13k | 대조 테스트: `ContractTypeShapeTest.CONTRACT_TYPES` 에 `MdmEvaluator`·`MdmRuleEngine` 은 **없다**(형태 규칙 밖). `EngineContractSchemaTest` 는 main 의 record·enum 만 본다(생성자·메서드를 더해도 무관, 새 record·enum 은 금지). `EnginePackageDependencyTest` 는 rule → expr 를 허용한다. `MaruMdmEngineArchitectureTest` 는 `java.util.concurrent` 를 허용한다. 엔진 테스트에 공개 생성자·메서드를 리플렉션으로 세는 검사는 없다. m-mdm 테스트가 읽는 엔진 Java 파일은 `FunctionSets`·`MdmFunction`·`ReservedNames`·`MdmExpressionConfig`(`tests/helpers/engine-paths.ts` `JAVA_EXPR_DIR`, `evalex-contract-parity.test.ts`)와 test 리소스 코퍼스뿐이다 — `MdmEvaluator`·`MdmRuleEngine` 을 바꿔도 걸리지 않는다 | `arch/ContractTypeShapeTest.java:40-86`, `src/frontend/m-mdm/tests/**` |
+| F13l | `ContractOnlyPhaseTest` 는 dev 에 없다 — 03-03 이 2건(789728e6), 03-02 가 파일째(be433b63) 지웠다. §3.4 의 "나머지 3건 뒤 기준선 재설정"은 오케스트레이터가 기점 6d2110fc 에서 다시 잰 기준선(testAll 3960 실패 0)으로 이미 해소됐다 | `/usr/bin/git log -- …/arch/ContractOnlyPhaseTest.java` |
+| F13m | 룰 엔진 테스트 fixture: `T/fixture/TestExpressionConfig.create(functions, extra, zone)` 는 `MdmExpressionConfig` 상수 + `FunctionSets.BASE` + `TestFunctions`(가짜 `INSTR`·`MASTER`·`MASTER_AT`, `code(id, cate, keys…)` 코드 집합, `seenEvalTs()` 기록) + `extra`(카운팅 `CountingFn`, 필드 `int calls`)를 넣는다. 엔진을 만드는 테스트 10개: `HitPolicyTest:54`·`SampleRuleValueTest:26`·`ResultGroupTest:50-51`(COUNT_CALL)·`RuleEngineStageTest:60`·`:169-170`(UTC 시간대)·`RuleSetEvaluationTest:34`·`ExpressionVariableTest:43-44`(COUNT_CALL)·`DeriveRuleTest:38`·`SampleRuleSetValueTest:23`·`RuleViewTest:54`. `GeneratedTextParseTest`·`CellTextGeneratorTest` 는 엔진이 아니라 생성 텍스트를 테스트 안에서 `new Expression(text, CONFIG)` 로 바로 평가한다(생성기 테스트, 판정 경로 아님). 샘플 룰(`SampleRules`)에는 CODE_IN 셀이 없다(`SampleRules.java:53`). 03-04 코퍼스 하네스(`corpus/CorpusEvalExHarness.configuration`)도 같은 방식의 fixture 설정을 쓴다 | 위 파일 |
+| F13n | main 에 남는 다른 `new Expression`: `X/AstExporter`(AST 내보내기, 파싱만)·`X/ExpressionChecker`(저장 시 검사, 파싱만)·`X/ExpressionEvaluator`(TSK-01-01 스캐폴드 공개 진입점, mdm 이 부르지 않음). 셋 다 03-02 산출물이고 룰 판정 경로가 아니다. rule 패키지에서 `com.ezylang` 을 import 하는 파일은 `ExpressionRunner`·`MdmRuleEngine`(`ExpressionConfiguration`)·`RuleEvaluator`(`EvaluationValue`)·`ValueConverter`(`EvaluationValue`) 넷이다 | grep |
+| F13o | 03-02 인계(03-02 design §8): "셀 평가는 `MdmEvaluator.evaluate`(캐시·`copy()`·타임아웃·`EVAL_TS`)를 쓴다. 레코드 값 변환은 `ValueConverter.convert`, 레코드 키 검사는 `RecordKeys.violations` 를 쓴다." rule 에는 자체 `ValueConverter`·`RecordKeys` 가 있고 규칙이 다르다: rule 은 NUMBER 선언에서 문자열을 `new BigDecimal(s)` 로 받아 지수 표기(`1e3`)도 통과시키고, STRING·DATE 선언에서 `Double` 을 `toPlainString()` 문자열로 바꾸고, DATE 를 STRING 과 같게(문자열로) 다루고, `List` 를 그대로 둔다. expr 는 지수·16진 문자열을 거부하고, STRING 에 `Double` 을 받지 않고, DATE 는 `Instant` 만 받는다. `arch/TypeConversionEntryTest` 는 도메인 검증기만 결속하고 "rule 쪽 결속은 TSK-03-03 이 더한다"고 적었다 | `X/ValueConverter.java`, `R/ValueConverter.java`, `arch/TypeConversionEntryTest.java:1-12` |
+| F13p | 06:449 안전장치는 "컴파일 결과 캐시, 식 길이 제한, **평가 타임아웃**, … 평가할 때는 `copy()`로 사본"이고, 06:438 은 서버·하위 시스템이 "똑같은 코드로 써야 결과가 일치한다"고 정한다. EvalEx 설정의 `regexTimeoutMillis` 는 100 ms 라 정규식 폭주는 평가기 1초 타임아웃보다 먼저 `EvaluationException` 으로 끊긴다(03-02 §8 표) | 06:436-449, `X/MdmExpressionConfig.java` |
+
 ---
 
 ## 1. 접근 방식
 
 이 Task 는 `engine.rule` 에 **구현 클래스만** 더한다. 계약 타입(`RuleEngine`·`RuleResult`·`RuleSetResult`·`RuleView`·`DefinitionLookup` 레코드)과 스키마·TS 생성물, `MdmExpressionConfig` 는 한 글자도 고치지 않는다. 판정 엔진 `MdmRuleEngine` 은 생성자에서 `ExpressionConfiguration` 과 `DefinitionLookup` 을 주입받는다. 운영 설정(`MdmExpressionConfig.create`)과 `INSTR`·`MASTER` 계열 함수는 병렬 TSK-03-02 몫이므로, 테스트는 `MdmExpressionConfig` 의 **상수**로 빌더를 조립하고 계약(`MdmFunction`)과 같은 이름·인자 수의 **테스트 전용 함수**를 등록한 fixture 설정을 쓴다(D1). 평가 입력은 원천 의존성 규칙 5(06:471)대로 **배포 스냅샷의 식 텍스트**(`RuleCell.text`, `RuleVar.exprText`·`grpCond`)이고, op-code 셀 → EvalEx 텍스트 생성기 `CellTextGenerator` 는 스냅샷 조립·값 테스트를 위해 서버가 부르는 공개 API 로 둔다(06:273·426, D4). 판정은 06:210-219 의 4단계(조건 검사 → 행 고르기 → 결과 검사 → 결과 평가)를 한 클래스(`RuleEvaluator`)에 순서대로 두고, 단계마다 위반을 모아 한 번에 던진다. 결정성은 두 겹으로 붙잡는다. 생성기는 텍스트 규칙(§6.10-6.11)을 바이트 단위 회귀 스냅샷(JSON 파일)으로 고정하고, 판정은 06 샘플 룰의 값 테스트로 고정한다. 영구 아키텍처 테스트 F6 때문에 rule 의 내부 타입은 **record·enum 없이 final class** 로 만든다(D3). 이 방식을 고른 이유는 셋이다. 첫째, 계약·설정 파일을 건드리지 않아 병렬 Task(03-02·03-04)와 같은 파일에서 충돌하지 않는다. 둘째, 운영과 테스트가 같은 엔진 경로를 돌고 바뀌는 것은 주입한 설정뿐이라, 03-02 머지 뒤 설정만 바꿔 재검증할 수 있다. 셋째, 원천이 "하위 시스템은 생성기를 돌리지 않는다"(06:269·426)고 정했으므로 평가와 생성을 떼어 두어야 판정이 쓴 식과 view 가 보여 주는 식이 같다(06:494).
+
+**(재작업) 캐시 연결.** 반려의 실체는 `ExpressionRunner` 한 줄이 아니라 **엔진을 요청마다 새로 만드는 호출부**다(F13f). 캐시를 엔진이나 `ExpressionRunner` 안에 두면 요청마다 빈 캐시로 시작한다. 그래서 캐시의 주인은 앱에 하나인 `MdmEvaluator` 빈으로 두고, 엔진은 그 평가기를 생성자로 받는다(`MdmRuleEngine(MdmEvaluator, DefinitionLookup)`, D19). 설정만 받던 옛 생성자는 지운다. 남겨 두면 `new Expression` 판정 경로가 공개 API 로 남고, 같은 사유로 다시 반려될 수 있다. `ExpressionRunner` 는 평가를 `MdmEvaluator.evaluate` 에 넘긴다(D20). 그러면 캐시 원본의 `copy()` 평가·`EVAL_TS` 주입·1초 타임아웃이 도메인 검증기와 같은 한 경로에서 붙는다(06:438·449, 03-02 인계). 호출자 스레드에서 사본을 평가하는 방식(선택지 1)은 `MdmEvaluator` 에 캐시 사본을 내주는 공개 메서드를 새로 만들어야 하고 타임아웃을 빼 버린다. 스레드가 바뀌어 생기는 위험(트랜잭션·ThreadLocal 이 따라가지 않음)은 조사해 보니 지금 운영 평가기에서는 일어나지 않고, 앞으로 쓸 DB 조회 구현도 이미 그 전제로 쓰여 있다(F13e·F13h·F13i). 바뀌면 안 되는 동작은 `ExpressionRunner` 가 붙잡는다: `Error` 는 다시 던지고, 원인 예외를 풀어 위반 메시지 형식을 지킨다(D20). 엔진 단위 테스트는 fixture 설정(가짜 `MASTER`·카운팅 함수·UTC 시간대)이 계속 필요하다. 그래서 `MdmEvaluator` 에 설정을 받는 **패키지 전용** 생성자를 두고, test 도우미가 그 생성자로 fixture 평가기를 만든다(D21). 공개 표면은 바뀌지 않고 모든 엔진 테스트가 캐시 경로를 탄다. fixture 와 운영 설정의 차이는 운영 설정 대조 테스트가 붙잡는다(D22).
 
 ---
 
@@ -73,10 +117,10 @@
 
 | 파일 | 가시성 | 역할 |
 |---|---|---|
-| `R/MdmRuleEngine.java` | `public final class … implements RuleEngine` | 입구. 생성자 `MdmRuleEngine(ExpressionConfiguration configuration, DefinitionLookup definitions)`. `evaluate`·`evaluateSet`·`view`·`setView`. 예약 키 검사, 세트 사전 검사, 세트 순차 실행, view 조립 |
+| `R/MdmRuleEngine.java` | `public final class … implements RuleEngine` | 입구. 생성자 `MdmRuleEngine(ExpressionConfiguration configuration, DefinitionLookup definitions)`(**재작업: `MdmRuleEngine(MdmEvaluator evaluator, DefinitionLookup definitions)` 로 바꾼다, D19**). `evaluate`·`evaluateSet`·`view`·`setView`. 예약 키 검사, 세트 사전 검사, 세트 순차 실행, view 조립 |
 | `R/RuleEvaluator.java` | package-private final | 룰 하나의 4단계 판정(§6.2). 식 변수·열 그룹·적중 정책·기본 행·DERIVE |
 | `R/ResultAggregator.java` | package-private final | PRIORITY 행 선택, COLLECT 집계, ANY 일치 검사(§6.3) |
-| `R/ExpressionRunner.java` | package-private final | EvalEx 호출 한 곳. `new Expression(text, config)` → `withValues` → `evaluate`, 예외를 `ExpressionFailure` 로 모은다. TSK-03-02 컴파일 캐시가 끼어들 자리(D17) |
+| `R/ExpressionRunner.java` | package-private final | EvalEx 호출 한 곳. `new Expression(text, config)` → `withValues` → `evaluate`, 예외를 `ExpressionFailure` 로 모은다. TSK-03-02 컴파일 캐시가 끼어들 자리(D17). **재작업: `MdmEvaluator.evaluate` 에 넘긴다(§6.17, D20)** |
 | `R/ExpressionFailure.java` | package-private final class `extends Exception` | EvalEx 파싱·평가·런타임 예외를 한 타입으로 싣는다(메시지 = 원인 클래스 단순 이름 + `: ` + 원인 메시지) |
 | `R/ValueConverter.java` | package-private final | 입력·결과 값을 선언 데이터 타입으로 바꾼다(§6.7). EvalEx 결과 → Java 값 변환도 여기 |
 | `R/RecordKeys.java` | package-private final | 예약 키·대소문자 중복 키 검사(§6.8), ctx 에 대소문자 무시로 덮어쓰는 `put` |
@@ -123,6 +167,59 @@
 - `rule/package-info.java`(F11), 스캐폴드 `expr/ExpressionEvaluator.java` 와 그 테스트.
 - `docs/mdm/engine-contract/**` 초안.
 - `state.json`(오케스트레이터 관리).
+
+> (재작업) §2.3·§2.4 는 최초 구현 기준이다. `ContractOnlyPhaseTest` 는 이미 없고(F13l), `rule/package-info.java` 는 이번에 고친다. 이번 Build 의 파일 목록과 금지 목록은 §2.5 가 정본이다.
+
+### 2.5 (재작업) 변경 파일 목록
+
+추가 약어: `X` = `E/src/main/java/kr/dongkuk/maru/mdm/engine/expr`, `XT` = `E/src/test/java/kr/dongkuk/maru/mdm/engine/expr`, `ML` = `src/backend/mdm/lib`, `MA` = `src/backend/mdm/api`, `M` = `ML/src/main/java/com/dongkuk/dmes/mdm`.
+
+**수정 — 엔진 main**
+
+| 파일 | 변경 |
+|---|---|
+| `X/MdmEvaluator.java` | 패키지 전용 생성자 `MdmEvaluator(ExpressionConfiguration configuration, Set<String> businessFunctionNames, Duration timeout)` 를 더한다(세 인자 모두 `requireNonNull`, 이름 집합은 `Set.copyOf`). 공개 생성자 `(EngineLookups, Duration)` 은 `this(MdmExpressionConfig.create(lookups), 이름 집합(lookups), timeout)` 으로 위임한다. 인자 평가 순서 때문에 예외 순서(설정 IAE → lookups NPE → timeout NPE)가 지금과 같다. 공개 멤버·Javadoc 의 계약 문장은 바꾸지 않는다. 클래스 Javadoc 에 "룰 엔진도 이 평가기로 평가한다(TSK-03-03 D20)" 한 줄만 더한다(D21) |
+| `R/ExpressionRunner.java` | 필드 `MdmEvaluator evaluator`. `run(String text, Map<String, Object> values, Instant evalTs)` 가 `evaluator.evaluate(text, values, evalTs)` 를 부른다. 예외 변환은 §6.17(D20). Javadoc 을 새 동작으로 고친다 |
+| `R/ExpressionFailure.java` | 생성자는 그대로 `(Throwable cause)` 다. Javadoc 에 "원인은 EvalEx·런타임 예외, 또는 타임아웃·인터럽트면 `expr.ExpressionFailure` 자신"(§6.17) 한 줄을 더한다 |
+| `R/RuleEvaluator.java` | `runner.run(text, values)` 두 곳(`test`, `evaluateValue`)에 `evalTs`(Run 필드)를 셋째 인자로 넘긴다. 값 맵의 `EVAL_TS` 넣기(107행)는 **그대로 둔다**(F13j, D23). 그 밖의 줄은 고치지 않는다 |
+| `R/MdmRuleEngine.java` | 생성자를 `public MdmRuleEngine(MdmEvaluator evaluator, DefinitionLookup definitions)` 하나로 바꾼다(둘 다 `requireNonNull`, 메시지 `"evaluator"`·`"definitions"`). `ExpressionConfiguration` import 를 지운다. 클래스 Javadoc 의 D1 문단을 "공유 평가기를 받는다(D19), 캐시는 평가기에 있다"로 고친다 |
+| `R/package-info.java` | "TSK-03-01 계약 전용 단계. interface·record·enum·상수만 둔다" 를 지금 상태(계약 타입 + 판정 엔진 `MdmRuleEngine`·생성기·겹침 분석 구현, 식 평가는 `MdmEvaluator` 에 맡긴다)로 고친다(F11). 패키지 선언은 그대로 |
+
+**생성 — 엔진 test**
+
+| 파일 | 역할 |
+|---|---|
+| `XT/MdmEvaluatorFixtures.java` | `public final class`(private 생성자). 같은 패키지라 패키지 전용 멤버를 부른다. `public static final Duration FIXTURE_TIMEOUT = Duration.ofSeconds(10)`, `of(ExpressionConfiguration cfg)`(= `of(cfg, FIXTURE_TIMEOUT)`), `of(ExpressionConfiguration cfg, Duration timeout)`(이름 집합은 빈 집합), `cacheSize(MdmEvaluator)`, `isCached(MdmEvaluator, String text)`(= `cachedOriginal(text) != null`). 다른 로직은 두지 않는다 |
+| `T/ExpressionCacheWiringTest.java` | 캐시 연결 증명·동작 동일성(§3.6 표). I41-I46·I48 |
+| `T/ProductionConfigParityTest.java` | 운영 설정(`new MdmEvaluator(EngineLookups)`)으로 샘플 판정·LS_A3·스냅샷 파싱·CODE_IN 한 벌을 돌려 fixture 경로와 같은지 본다(§3.6, D22) |
+
+**수정 — 엔진 test (생성자 바꾸기만)**
+
+`T/HitPolicyTest`·`T/SampleRuleValueTest`·`T/ResultGroupTest`·`T/RuleEngineStageTest`(두 곳)·`T/RuleSetEvaluationTest`·`T/ExpressionVariableTest`·`T/DeriveRuleTest`·`T/SampleRuleSetValueTest`·`T/RuleViewTest`: `new MdmRuleEngine(<설정 식>, lookup)` → `new MdmRuleEngine(MdmEvaluatorFixtures.of(<설정 식>), lookup)`. `<설정 식>` 과 단언은 한 글자도 바꾸지 않는다. 예외: `T/ExpressionVariableTest` 에 사례 1건을 더한다(§3.6, I46). `T/fixture/TestExpressionConfig.java` 는 Javadoc 의 "`create()` 는 TSK-03-02 전에는 UOE 라 부르지 않는다" 문장만 "엔진 단위 테스트용 fixture 설정이다. 운영 설정과의 차이는 `ProductionConfigParityTest` 가 본다(D22)" 로 고친다.
+
+**수정 — mdm**
+
+| 파일 | 변경 |
+|---|---|
+| `M/common/rule/check/ledger/ExprTypeByCaseCheck.java` | 71행 `new MdmRuleEngine(evaluator.configuration(), …)` → `new MdmRuleEngine(evaluator, …)` |
+| `M/common/rule/confirm/RuleConfirmChecks.java` | 134행 같은 변경 |
+| `M/dme/ruleEdit/service/RuleValueTestService.java` | 133행 같은 변경 |
+| `ML/src/test/java/com/dongkuk/dmes/mdm/common/rule/definition/RuleDefinitionAssemblerTest.java` | 106행 `EVALUATOR.configuration()` → `EVALUATOR` |
+| `MA/src/test/java/com/dongkuk/dmes/mdm/itest/CodeDataRuleLedgerChainTest.java` | 229행 `evaluator.configuration()` → `evaluator`. 225행 평가기 생성은 그대로 둔다(§7 재작업 함정 참조) |
+
+**생성 — mdm test**
+
+| 파일 | 역할 |
+|---|---|
+| `ML/src/test/java/com/dongkuk/dmes/mdm/common/engine/MdmEngineWiringArchitectureTest.java` | ArchUnit(lib 에 이미 `archunit-junit5:1.3.0` test 의존이 있다). `com.dongkuk.dmes.mdm` main(`DO_NOT_INCLUDE_TESTS`)을 읽어 ① `MdmEngineConfig` 밖의 클래스는 `MdmEvaluator` 생성자를 부르지 않는다 ② 어느 클래스도 `com.ezylang.evalex.Expression` 생성자를 부르지 않는다(I47). 가져오기 방식은 같은 모듈의 `contract/MdmContractArchitectureTest` 를 따른다 |
+
+**수정하지 않는 것(재작업, 바꾸면 게이트 실패로 본다)**
+
+- 계약 타입(`rule/RuleEngine`·`RuleResult`·`RuleSetResult`·`RuleView`, `spi/**`, `expr/EngineEvaluationException`·`EngineWarning`·`FunctionSets`·`ReservedNames`·`MdmExpressionConfig`·`MdmFunction` 등 `CONTRACT_TYPES`), 스키마·TS 생성물, `engine-contract.md`.
+- `MdmEvaluator` 의 공개 생성자 두 개·공개 메서드 다섯 개의 시그니처와 동작, `expr/ExpressionFailure`, `expr/ValueConverter`·`RecordKeys`(D24).
+- 판정 규칙 코드: `RuleEvaluator`(§2.5 의 두 호출 인자 외)·`ResultAggregator`·rule `ValueConverter`·`RecordKeys`·`CellTextGenerator`·`CellSummary`·`InputContracts`·`RuleAnalyzer`·`PatternShapes`·`ValueSets`, 스냅샷 JSON.
+- 기존 테스트의 단언·기대값·fixture 동작(`TestFunctions`·`InMemoryDefinitionLookup`·`RuleFixtures`·`SampleRules`), `arch/**`·`contract/**`·`corpus/**` 테스트.
+- 다른 Task 의 문서(`docs/mdm/tasks/TSK-08-04/**` 등이 옛 생성자를 적은 것은 그 Task 의 기록이라 고치지 않는다), `state.json`.
 
 ---
 
@@ -198,9 +295,37 @@ cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test && pnpm
 - frontend 는 이 Task 가 건드리지 않지만 게이트로 그대로 돌려 6건·lint 통과를 확인한다.
 - **브라우저 E2E 스모크 넷: 해당 없음.** 사유: entry-point 없음(`-`), domain backend, 화면이 없다.
 
+**(재작업) 게이트 — 위 명령과 기준선은 최초 구현 때 것이다. 이번 재작업의 정본은 아래다.** 기점 6d2110fc 에서 오케스트레이터가 잰 기준선: testAll 3960건 실패 0 / m-mdm test 1064건 실패 0 / m-mdm lint 통과 / shared test:unit 170건 실패 0 / OASIS 계약 검사 exit 0. 명령(글자 그대로):
+
+```
+cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain
+cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test
+cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint
+cd src/frontend && pnpm test:unit:shared
+python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .
+```
+
+- 게이트 = 다섯 명령 모두 실패 0·exit 0 + 테스트 이름 단위로 기준선과 차분했을 때 사라진 테스트 없음(이번엔 계획 삭제가 **없다**) + 총수 미감소(testAll ≥ 3960, m-mdm ≥ 1064, shared ≥ 170). 늘어나는 수는 §3.6 의 새 테스트 수다.
+- 조사·Build 중 좁힌 명령(무거운 명령 규칙대로 `heavy.sh` 로 감싼다): `cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :maru-mdm-engine:test :mdm:test --no-daemon --console=plain`, 단일 클래스 `… ./gradlew :maru-mdm-engine:test --tests <클래스> --no-daemon --console=plain`.
+- frontend·OASIS 는 이 재작업이 건드리지 않지만 기준선 명령 그대로 게이트로 돌린다.
+
 ### 3.5 변이 검증 대상
 
 §5 불변 규칙 I1-I40 전부다. 각 항목의 "변이 → 빨강" 칸이 Build·Verify 의 순회 목록이다. 덮지 못하는 변이는 §5 표에 적었고, 발견하면 테스트를 늘리거나 보고한다.
+
+**(재작업)** 이번 Build·Verify 의 변이 순회 목록은 §5.3 의 I41-I48 과 개정한 I28 이다. I1-I27·I29-I39 는 판정 코드를 고치지 않으므로 다시 돌리지 않는다. 대신 생성자를 바꾼 기존 엔진 테스트 10개가 초록이면 그 불변 규칙들이 캐시 경로에서도 지켜진다고 본다(같은 단언이 새 경로를 탄다).
+
+### 3.6 (재작업) 새 테스트
+
+| 테스트 | 사례 | 데이터·방법 |
+|---|---|---|
+| `T/ExpressionCacheWiringTest` | ① `룰_판정은_주입한_평가기의_캐시로_평가한다`: 빈 fixture 평가기로 QLTY 샘플 Q1(§6.15.1)을 판정 → `cacheSize > 0`, Q1 에서 평가된 조건 셀 텍스트(1행의 NA 가 아닌 첫 조건 셀)와 적중 행의 결과 셀 텍스트가 모두 `isCached`(두 텍스트가 서로 다름을 테스트가 먼저 확인한다) ② `요청마다_새_엔진이어도_평가기_캐시를_공유한다`: 같은 평가기로 엔진 A 를 만들어 Q1 판정 → 캐시 크기 n, 엔진 B 를 **새로** 만들어 같은 판정 → 크기 그대로 n, 결과 동일 ③ `rule_main_은_Expression_을_직접_만들지_않는다`(ArchUnit, main 만): `..engine.rule..` 이 `com.ezylang.evalex.Expression` 의 생성자를 부르지 않는다 ④ `평가_중_Error_는_잡지_않고_그대로_던진다`: extra 함수 `THROW_ERROR()`(본문 `throw new AssertionError("boom")`)를 조건 셀 식에 두고 `assertThrows(AssertionError.class, …)`, 메시지 `boom` ⑤ `평가_타임아웃은_단계의_EVALUATION_ERROR_다`: extra 함수 `BLOCK()`(03-02 `SLOW` 와 같은 모양: `entered` 래치 내림 → 아무도 내리지 않는 래치를 10 초까지 기다림)를 조건 셀·결과 셀에 각각 두고 평가기 타임아웃 50 ms(`MdmEvaluatorFixtures.of(cfg, Duration.ofMillis(50))`) → 조건 셀이면 `ROW_SELECT`·`EVALUATION_ERROR`, 결과 셀이면 `RESULT_EVAL`·`EVALUATION_ERROR`, 메시지에 `ms 안에 끝나지 않았다` 가 든다. `assertTimeoutPreemptively(5 초)` 로 상한 ⑥ `실패_메시지는_원인_예외_형식을_지킨다`: 입력 계약 밖 변수 `Q` 를 읽는 조건 셀 → 위반 메시지에 `EvaluationException: Variable or constant value for 'Q' not found` 가 들고 `ExpressionFailure` 라는 글자는 없다. 파싱 실패 식(`V ==`) → `ParseException: ` 이 든다 ⑦ `MdmEvaluator_의_공개_생성자는_두_개_그대로다`: 리플렉션으로 `MdmEvaluator.class.getConstructors()` 의 인자 타입 목록이 정확히 `[EngineLookups]`·`[EngineLookups, Duration]` 이고, 비즈니스 함수 `THK_OK`(인자 1개) 하나를 주는 `FunctionProvider` 로 만든 `new MdmEvaluator(lookups).businessFunctionNames()` 가 `{"THK_OK"}` 다(위임 뒤에도 이름 집합이 채워진다) | 테스트 안 작은 정의(`RuleFixtures`) + `SampleRules`. extra 함수는 `TestExpressionConfig.create(new TestFunctions(), Map.of(…))` 로 넣는다 |
+| `T/ProductionConfigParityTest` | ① `샘플_룰_판정이_운영_설정과_fixture_설정에서_같다`(매개변수화): §6.15 의 QLTY·COIL·PROD·BASE_SPD 레코드 전부(값 테스트와 같은 레코드)를 fixture 엔진(`MdmEvaluatorFixtures.of(TestExpressionConfig.create())`)과 운영 엔진(`new MdmEvaluator(lookups)`)으로 판정해 결과가 같다(숫자 `compareTo`, 적중 rowId·`defaultApplied`·경고 code, 위반이면 Stage·Code 목록) ② `LS_A3_세트가_운영_설정에서_같은_값이다`: §6.15.5 S1·S2 는 `finalValues` 동일, S3·S4 는 같은 위반 ③ `스냅샷_텍스트는_운영_설정으로_파싱된다`: `CellTextSnapshotTest.cases()` 의 빈 문자열이 아닌 텍스트 전부 운영 평가기 `compile(text)` 가 예외 없이 끝난다(수용 기준 3 을 운영 설정으로 확인) ④ `CODE_IN_생성_텍스트는_운영_MASTER_로도_같은_소속을_낸다`: `CellTextGenerator.conditionText`(CODE_IN, 마루 코드 `PROC_CD`, 카테고리 `PLATING`)의 텍스트를 V = `P1`·`P3`·null 로 두 설정에서 평가 → 둘 다 true·false·false | 운영 `lookups` = `new EngineLookups(SampleRules.lookup(), codes, CodeEffLookup.NONE, MasterLookup.NONE, FunctionProvider.NONE)`. `codes` 는 `PROC_CD` 하나만 아는 `CodeLookup` 람다: 헤더 `INUSE`, 버전 v1 RELEASED(적용 2020-01-01 ~ 9999-12-31), 항목 P1·P2·P3, 카테고리 `PLATING`(TABLE) 소속 P1·P2. 행 모양은 mdm `DomainMngTestConfig.procCd()`(F13g)를 그대로 따른다(`lvl` 5칸·`attrs` 10칸은 `Arrays.asList(new String[n])`). fixture 쪽은 `new TestFunctions().code("PROC_CD", "PLATING", "P1", "P2")` |
+| `T/ExpressionVariableTest`(사례 추가) | `참조_변수에_EVAL_TS_가_있어도_식_변수를_평가한다`: `refVars = [EVAL_TS]`, `exprText = "EVAL_TS != NULL"`(BOOLEAN) 식 변수 → `_V<id>` 가 true 이고, 그 식 변수 셀 `_V<id> == TRUE` 행이 적중한다(값 맵에서 `EVAL_TS` 를 빼는 변이면 NULL 로 건너뛰어 적중하지 않는다) | 테스트 안 정의 |
+| `ML/.../common/engine/MdmEngineWiringArchitectureTest` | ① `평가기는_MdmEngineConfig_만_만든다` ② `mdm_은_EvalEx_Expression_을_직접_만들지_않는다` | ArchUnit, mdm lib main |
+
+- 캐시 증명의 대상 메서드는 `MdmEvaluator` 의 패키지 전용 `cacheSize()`·`cachedOriginal()` 이고, 엔진 test 는 `XT/MdmEvaluatorFixtures` 를 거쳐서만 부른다.
+- 가상 스레드와 fixture 상태: `TestFunctions.seenEvalTs`(ArrayList)·`CountingFn.calls`(int)는 가상 스레드에서 쓰고 테스트 스레드에서 읽는다. `Future.get` 이 끝나는 것과 작업 안 쓰기 사이에 happens-before 가 있고, 평가는 한 번에 하나씩(앞 평가의 `get` 뒤에 다음 제출) 돌므로 동기화를 더하지 않는다. 타임아웃 사례(⑤)의 `BLOCK` 은 카운터를 쓰지 않는다.
 
 ---
 
@@ -213,6 +338,15 @@ cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test && pnpm
 | 생성 텍스트가 EvalEx 파싱을 통과 | `GeneratedTextParseTest` ①-⑤ | 원천: 06:345 "생성해 보기". 설계: 파싱 설정은 테스트 전용 fixture 설정(D1) |
 | 세트 LS_A3 샘플 실행 결과 일치 | `RuleSetEvaluationTest` LS_A3 두 케이스 | 원천: 세트 순서(06:1087·1324), 1단계 BASE_SPD 값(H:530-531 → 90), 세트 입력 키 규칙(06:420). **설계: 2·3단계 `SPD_EXC`·`SPD_JOIN` 의 행·셀과 그 기대값(`EXC_SPD`·`LINE_SPD`)은 원천에 없어 이 설계가 정의했다(D10)** |
 | 폐기된 세트 판정 시 명시적 오류 | `RuleSetEvaluationTest.폐기된_세트는_…` — `EngineEvaluationException`, 위반 1건 `Stage.SET_CHECK`·`Code.SET_DEPRECATED`, 룰 조회 0회 | 원천: 06:419 "어느 룰도 돌리지 않고 판정 오류", 06:1089. 폐기 세트 예 `WID_OLD`(H:540) |
+
+**(재작업) 매핑 보강.** 수용 기준 다섯은 그대로이고, 모든 엔진 테스트가 캐시 경로(`MdmEvaluator`)로 다시 확인한다. 반려 요구는 아래처럼 붙잡는다.
+
+| 항목 | 검증 방법 | 비고 |
+|---|---|---|
+| 수용 기준 1·4(샘플 값·LS_A3) — 운영 설정에서도 | 기존 `SampleRuleValueTest`·`SampleRuleSetValueTest`·`RuleSetEvaluationTest`(fixture 평가기, 캐시 경로) + `ProductionConfigParityTest` ①② | fixture 와 운영 설정의 결과가 같음을 직접 비교한다(D22) |
+| 수용 기준 3(파싱) — 운영 설정에서도 | 기존 `GeneratedTextParseTest` + `ProductionConfigParityTest` ③ | 운영 평가기 `compile` 은 캐시에 넣는 그 파싱이다 |
+| 반려 요구: 룰 판정이 03-02 캐시에서 원본을 받아 `copy()` 로 평가한다 | `ExpressionCacheWiringTest` ①②③, `MdmEngineWiringArchitectureTest` ①②, `MdmRuleEngine` 생성자 제거(컴파일로 보장) | ② 가 "요청마다 새 엔진"인 운영 호출 모양을 그대로 재현한다. 호출부가 평가기를 새로 만드는 회귀는 mdm 아키텍처 테스트 ① 이 잡는다 |
+| 반려 요구의 부수 조건: 동작이 바뀌지 않는다 | 생성자만 바꾼 기존 엔진 테스트 10개 초록(단언 불변) + `ExpressionCacheWiringTest` ④⑥ + mdm·api 테스트 초록 | 새로 생기는 동작은 타임아웃 하나(D20, ⑤) |
 
 ---
 
@@ -256,7 +390,7 @@ cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test && pnpm
 | I25 | 기본 행: 적중이 없을 때만 쓰고 `defaultApplied=true`, `hits` 는 비운다. 기본 행이 없으면 결과 변수 키는 모두 있고 값은 null(06:31, D8) | 기본 행을 적중으로 `hits` 에 넣음 → `HitPolicyTest.기본_행_…`. 결과 키 생략 → 같은 테스트 |
 | I26 | 결과 검사: 결과를 낼 행(FIRST·UNIQUE 적중 행, PRIORITY·COLLECT·ANY 적중 행 전부, 없으면 기본 행)의 `RowContract` 만 본다. required 는 키 없음 `MISSING_KEY`·NULL `REQUIRED_NULL`, optional 은 키 없음만. 이 단계에서 그 변수들을 선언 타입으로 바꾼다(06:216, D16) | 모든 행 계약을 봄 → PROD 코일 케이스(시트 키 없음)가 빨강. REQUIRED_NULL 누락 → PROD 결과 검사 사례 |
 | I27 | 적중하지 않은 행의 결과 식은 평가하지 않는다(06:219) | 모든 행 결과 평가 → `RuleEngineStageTest.적중하지_않은_행의_결과_식은_평가하지_않는다` |
-| I28 | EVAL_TS: `evalTs.truncatedTo(ChronoUnit.SECONDS)` 를 `Instant` 로 값 맵 `EVAL_TS` 에 넣고, `DefinitionLookup.rule` 에도 그 값을 넘기고, `RuleResult.evalTs`·`RuleSetResult.evalTs` 도 그 값이다(06:422) | 절삭 제거 → `RuleEngineStageTest.EVAL_TS_는_초_미만을_자른다`(테스트 MASTER 가 본 값). `LocalDateTime` 으로 넣음 → 같은 테스트(타입 DATE_TIME 확인) |
+| I28 | EVAL_TS: `evalTs.truncatedTo(ChronoUnit.SECONDS)` 를 `Instant` 로 값 맵 `EVAL_TS` 에 넣고, `DefinitionLookup.rule` 에도 그 값을 넘기고, `RuleResult.evalTs`·`RuleSetResult.evalTs` 도 그 값이다(06:422). **(재작업) EvalEx 에 넣는 일은 `MdmEvaluator.evaluate` 도 같은 값으로 한 번 더 한다(D23). `ExpressionRunner` 에는 같은 절삭 값(Run 의 `evalTs`)을 넘긴다** | 절삭 제거 → `RuleEngineStageTest.EVAL_TS_는_초_미만을_자른다`(`RuleResult.evalTs`·lookup 에 넘긴 값 단언이 빨강. 식이 본 값은 평가기가 다시 자르므로 가려진다). `LocalDateTime` 으로 넣음 → (재작업) 평가기가 `Instant` 로 덮어써 식 쪽은 가려진다. 값 맵 쪽 변이는 I46 이, 평가기 쪽 변이(`MdmEvaluator` 의 `with(EVAL_TS, …)` 를 `LocalDateTime` 으로)는 `RuleEngineStageTest.EVAL_TS_는_설정_시간대와_무관하게_Instant_로_넣는다` 가 잡는다 |
 | I29 | 예약 키: 상수 8종(대소문자 무시) `CONSTANT_KEY`, `EVAL_TS`(대소문자 무시) `EVAL_TS_KEY`, `_` 로 시작 `RESERVED_KEY`, 대소문자만 다른 키 둘 이상 `RESERVED_KEY`(06:199·422·424, D13) | 상수 비교를 대소문자 구분으로 → `pi` 키 사례. `eval_ts` 허용 → 사례. 중복 검사 제거 → 사례 |
 | I30 | 식 변수: 행을 돌기 전에 레코드마다 한 번, 참조 변수 중 하나라도 NULL 이면 평가하지 않고 NULL, 결과는 선언 타입으로 변환, 실패 `TYPE_CONVERSION`·예외 `EVALUATION_ERROR`(둘 다 `ROW_SELECT`, name `_V<id>`)(06:121·424) | 참조 NULL 에서도 평가 → `ExpressionVariableTest`(카운팅 함수 호출 0회 단언). 변환 생략 → 변환 실패 사례 |
 | I31 | 결과 열 그룹: 그룹마다 열 조건을 열 seq 순으로 평가해 첫 참 열, 빈 열 조건은 기본 열(참), 고른 열 셀만 평가, 결과 키는 `res_grp`, 고른 열이 없으면 값 null·`groupChoices` 값 null, 열 조건은 레코드마다 한 번(06:69·425) | 모든 그룹 열 셀 평가 → `ResultGroupTest.고르지_않은_열_셀은_평가하지_않는다`. 결과 키를 열 코드로 → BASE_SPD 값 테스트. 행마다 열 조건 재평가 → 카운팅 사례 |
@@ -268,7 +402,20 @@ cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test && pnpm
 | I37 | 셀 요약 규칙(§6.12) | `IN (A, B)` 구분자를 `,` 로 → `CellSummaryTest`. Equal 셀에 `= ` 접두 → 같은 테스트 |
 | I38 | 결과 표현: `results` 키는 결과 열 seq 순(그룹은 첫 열 자리), null 값을 담을 수 있는 불변 맵, 숫자는 EvalEx 가 낸 `BigDecimal` 그대로 | `Map.copyOf` 사용 → null 결과 사례에서 NPE. 키 순서 흔들림 → 키 순서 단언 |
 | I39 | 아키텍처: rule main 에 record·enum 이 없고(F6), rule 은 `engine.code`·`engine.domain` 을 보지 않으며(F4), main 의존은 EvalEx·java 표준뿐이다(F3) | rule 에 `private record X(int a)` 추가 → `EngineContractSchemaTest.expr_rule_패키지의_…`. `CodeResolver` import → `EnginePackageDependencyTest.rule_은_…`. `java.io.UncheckedIOException` 사용 → `MaruMdmEngineArchitectureTest` |
-| I40 | 계약·설정 불변: `MdmExpressionConfig`·계약 타입·스키마·TS 생성물·arch/contract 테스트 파일은 바이트 동일(단 `ContractOnlyPhaseTest` 는 §2.3 의 메서드 2건 삭제만), `ContractOnlyPhaseTest` 나머지 3건 초록 | `MdmExpressionConfig.baseBuilder` 에 몸체 추가 → `ContractOnlyPhaseTest` 3건 빨강. 자동 테스트가 없는 부분(스키마·TS·테스트 파일 자체)은 Verify 가 `/usr/bin/git diff <머지 기준> -- <경로>` 가 비어 있는지 본다(덮지 못하는 변이로 보고) |
+| I40 | 계약·설정 불변: `MdmExpressionConfig`·계약 타입·스키마·TS 생성물·arch/contract 테스트 파일은 바이트 동일(단 `ContractOnlyPhaseTest` 는 §2.3 의 메서드 2건 삭제만), `ContractOnlyPhaseTest` 나머지 3건 초록. **(재작업) `ContractOnlyPhaseTest` 는 없다(F13l). 재작업의 파일 불변은 §2.5 「수정하지 않는 것」 이고 Verify 가 `/usr/bin/git diff 6d2110fc -- <경로>` 가 비어 있는지 본다** | `MdmExpressionConfig.baseBuilder` 에 몸체 추가 → `ContractOnlyPhaseTest` 3건 빨강. 자동 테스트가 없는 부분(스키마·TS·테스트 파일 자체)은 Verify 가 `/usr/bin/git diff <머지 기준> -- <경로>` 가 비어 있는지 본다(덮지 못하는 변이로 보고) |
+
+### 5.3 (재작업) 캐시 연결
+
+| # | 불변 규칙 | 넣을 변이 → 빨강이 되는 테스트 |
+|---|---|---|
+| I41 | 룰 판정의 모든 식 평가(조건 셀·열 조건·식 변수·결과 셀·DERIVE)는 생성자로 받은 `MdmEvaluator` 의 `evaluate` 를 거친다. rule main 은 `Expression` 을 직접 만들지 않는다 | `ExpressionRunner.run` 을 `new Expression(text, evaluator.configuration()).withValues(values).evaluate()` 로 되돌림 → `ExpressionCacheWiringTest` ①(캐시 0)·③(ArchUnit). `test` 경로만 되돌림 → ①(조건 셀 텍스트 미캐시). `evaluateValue` 경로만 되돌림 → ①(결과 셀 텍스트 미캐시) |
+| I42 | 캐시는 평가기 인스턴스에 있고 엔진 인스턴스와 무관하다 — 같은 평가기로 만든 엔진끼리 같은 텍스트를 다시 컴파일하지 않는다 | `ExpressionRunner` 가 엔진 인스턴스마다 자체 캐시(`Map<String, Expression>`)를 두고 거기서 `copy()` 평가 → `ExpressionCacheWiringTest` ①(주입 평가기 캐시 0)·②. 운영 호출부가 요청마다 평가기를 새로 만듦 → I47 |
+| I43 | 평가 중 `Error` 는 잡지 않는다 — 평가기가 싼 `Error` 원인을 `ExpressionRunner` 가 그대로 다시 던진다(최초 §6.9 "Error 는 잡지 않는다" 유지) | Error 다시 던지기 제거 → `ExpressionCacheWiringTest` ④(위반으로 바뀌어 `assertThrows` 빨강) |
+| I44 | 평가 타임아웃은 그 식을 평가한 단계의 `EVALUATION_ERROR` 위반이다(조건 셀·열 조건·식 변수 → `ROW_SELECT`, 결과 셀 → `RESULT_EVAL`). 단계 안 일괄 수집(I17)도 그대로다 | `ExpressionRunner` 가 `expr.ExpressionFailure` 를 잡지 않고 흘림 → ⑤ 빨강(런타임 예외가 판정 밖으로 샘). `TIMEOUT` 을 `Error` 처럼 다시 던짐 → ⑤ 빨강 |
+| I45 | 위반 메시지 형식: 원인이 EvalEx `BaseException`·`RuntimeException` 이면 그 원인의 단순 이름 + `": "` + 메시지(최초와 같다), 타임아웃·인터럽트면 `expr.ExpressionFailure` 자신의 이름·메시지 | 원인을 풀지 않고 `expr.ExpressionFailure` 로 싸기 → `ExpressionCacheWiringTest` ⑥(`ExpressionFailure` 글자가 들어가고 `EvaluationException: Variable…` 이 없음) |
+| I46 | `RuleEvaluator` 값 맵의 `EVAL_TS`(절삭 `Instant`)는 그대로 둔다 — 식 변수 참조 NULL 검사가 그 맵을 읽는다(F13j, D23) | 값 맵 `values.put(EVAL_TS, …)` 제거 → `ExpressionVariableTest.참조_변수에_EVAL_TS_가_있어도_식_변수를_평가한다` |
+| I47 | mdm 은 평가기를 `MdmEngineConfig` 빈 한 곳에서만 만들고, 룰 엔진은 그 빈으로 만든다. mdm main 은 `Expression` 을 직접 만들지 않는다 | `ExprTypeByCaseCheck` 가 `new MdmEvaluator(MdmEngineConfig.lookups(null, null, null))` 로 엔진을 만듦 → `MdmEngineWiringArchitectureTest` ①. mdm main 에 `new Expression(…)` 추가 → ② |
+| I48 | `MdmEvaluator` 의 공개 표면 불변: 공개 생성자 `(EngineLookups)`·`(EngineLookups, Duration)` 둘, 새 생성자는 패키지 전용. 공개 생성자의 동작(설정 = `MdmExpressionConfig.create(lookups)`, 이름 집합, 타임아웃 null 검사)은 그대로 | 새 생성자를 `public` 으로 → `ExpressionCacheWiringTest` ⑦. 위임에서 이름 집합을 빈 집합으로 → ⑦ 의 이름 집합 단언(기점의 expr 테스트에는 `businessFunctionNames` 단언이 없어 ⑦ 이 맡는다) |
 
 ---
 
@@ -279,6 +426,8 @@ cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test && pnpm
 ```java
 public final class MdmRuleEngine implements RuleEngine {
     public MdmRuleEngine(ExpressionConfiguration configuration, DefinitionLookup definitions);  // 둘 다 requireNonNull
+    // (재작업) 위 생성자는 지우고 아래 하나만 둔다(D19)
+    public MdmRuleEngine(MdmEvaluator evaluator, DefinitionLookup definitions);                 // 둘 다 requireNonNull
     // RuleEngine 네 메서드 구현. text·textAndAst 는 계약 default 그대로 쓴다
 }
 
@@ -411,7 +560,7 @@ public final class CellSummary {
 
 - `EVALUATION_ERROR` 의 name 은 원천 계약상 "함수 이름"이지만 EvalEx 예외에서 함수 이름을 안정적으로 뽑을 수 없어 null 로 두고, 메시지에 var_id·식 텍스트·원인을 적는다(한 줄 기본값).
 - 경고: `EXPR_CELL_NULL(ruleId, rowId, varId)`, `GRP_COND_NULL(ruleId, null, varId)`. 평가 순서대로 쌓는다.
-- `ExpressionRunner` 가 잡는 예외: `ParseException`, `EvaluationException`, `RuntimeException`(NPE·UOE·IAE·ArithmeticException 포함). `Error` 는 잡지 않는다.
+- `ExpressionRunner` 가 잡는 예외: `ParseException`, `EvaluationException`, `RuntimeException`(NPE·UOE·IAE·ArithmeticException 포함). `Error` 는 잡지 않는다. **(재작업) 평가기 경유 뒤의 변환은 §6.17. 타임아웃(`EVALUATION_ERROR`)이 새로 생긴다.**
 
 ### 6.10 생성기 명세 (`CellTextGenerator`)
 
@@ -695,6 +844,29 @@ SPD_JOIN (DERIVE, 메타 H:533 · WR:34): var 1 RESULT EXPRESSION `LINE_SPD` NUM
 - `MASTER_AT`: `id`, `cate`, `key`, `base_dt`, `attr`(vararg) → 4·5 인자, 6 이상이면 오류. base_dt 는 NULL 검사만 하고 소속 판정은 MASTER 와 같다.
 - 카운팅 함수(`COUNT_CALL(x)` 같은 이름은 `FunctionSets` 와 겹치지 않게 테스트 안에서만): I30·I31 의 "평가하지 않음" 단언용. 이 함수를 쓰는 식은 생성 텍스트가 아니라 식 변수·열 조건 텍스트다.
 - 이름을 `TestFunctions`·`TestExpressionConfig` 로 두어 TSK-03-02 가 expr 에 만들 이름(`MasterFunction`, `InstrFunction` 류)과 겹치지 않게 한다. 03-02 머지 뒤에는 D1 대로 교체한다.
+- **(재작업)** fixture 설정은 엔진에 바로 넣지 않고 `XT/MdmEvaluatorFixtures.of(cfg)` 로 평가기에 태워 넣는다(D21). 전면 교체 대신 부분 이관 + 운영 설정 대조 테스트로 정했다(D22).
+
+### 6.17 (재작업) `ExpressionRunner` — 평가기 경유와 예외 변환
+
+```java
+final class ExpressionRunner {
+    ExpressionRunner(MdmEvaluator evaluator)                       // requireNonNull
+    EvaluationValue run(String text, Map<String, Object> values, Instant evalTs) throws ExpressionFailure
+}
+```
+
+`run` 은 `evaluator.evaluate(text, values, evalTs)` 를 부르고 결과를 그대로 돌려준다. 값 맵은 복사하지 않는다(평가기는 작업 안에서 `withValues` 로 곧바로 자기 데이터 접근자에 옮겨 담고, 호출은 한 번에 하나다). 예외는 아래 순서로 바꾼다. 두 `ExpressionFailure` 의 이름이 같으므로(F13d) expr 쪽은 정규 이름 `kr.dongkuk.maru.mdm.engine.expr.ExpressionFailure` 로 적는다.
+
+| 잡은 것 | 처리 |
+|---|---|
+| `expr.ExpressionFailure f`, `f.getCause() instanceof Error e` | `throw e` — `Error` 는 잡지 않는다(I43). 평가기가 가상 스레드의 `Error` 를 `EVALUATION` 으로 싸기 때문에 여기서 푼다 |
+| `expr.ExpressionFailure f`, 원인이 `com.ezylang.evalex.BaseException`(= `ParseException`·`EvaluationException`) 또는 `RuntimeException` | `throw new ExpressionFailure(f.getCause())` — 메시지가 최초와 같다(원인 단순 이름 + `": "` + 원인 메시지, I45). reason `PARSE`·`EVALUATION`·`CONSTANT_KEY` 가 여기로 온다 |
+| `expr.ExpressionFailure f`, 그 밖(원인 없음·`TimeoutException`·`InterruptedException`) | `throw new ExpressionFailure(f)` — 메시지 `ExpressionFailure: 식 평가가 N ms 안에 끝나지 않았다: …` 처럼 평가기 메시지가 그대로 실린다(I44). 인터럽트 표지는 평가기가 이미 되살렸다 |
+| 그 밖의 `RuntimeException e`(평가기가 싸지 않고 흘린 것, 예: `requireNonNull`) | `throw new ExpressionFailure(e)` — 최초 `catch RuntimeException` 과 같다 |
+
+- 부르는 쪽(`RuleEvaluator.test`·`evaluateValue`)의 위반 조립·Stage·Code 는 바꾸지 않는다. 그래서 타임아웃은 그 식이 속한 단계의 `EVALUATION_ERROR` 가 된다(I44).
+- `CONSTANT_KEY` 는 엔진이 예약 키를 먼저 막으므로(§6.8) 실제로는 오지 않는다. 오면 위 둘째 행대로 `EVALUATION_ERROR` 위반이 된다(최초의 UOE 처리와 같다).
+- 타임아웃 뒤 멈추지 않은 작업(CPU 만 쓰는 식)은 평가기 Javadoc 의 한계 그대로다. 엔진은 다음 식을 계속 평가한다.
 
 ---
 
@@ -708,10 +880,16 @@ SPD_JOIN (DERIVE, 메타 H:533 · WR:34): var 1 RESULT EXPRESSION `LINE_SPD` NUM
 - **`java.io` 금지**(F3). `Serializable` 구현, `UncheckedIOException`, 리소스 읽기를 main 에 두지 않는다. 스냅샷 파일은 test 만 읽는다.
 - **`MdmExpressionConfig` 를 import 해도 되지만 고치지 않는다.** main rule 코드는 그 클래스가 필요 없다.
 - **ContractOnlyPhaseTest 는 무효가 된 메서드 2건만 지운다**(D2 개정). 파일을 지우거나 `@Disabled` 하지 않고, 나머지 3건은 초록이어야 한다.
-- **게이트는 `--continue`** 로 돌리고 XML 보고서로 센다(F1, §3.4).
+- **게이트는 `--continue`** 로 돌리고 XML 보고서로 센다(F1, §3.4). (재작업: 게이트 명령은 §3.4 「재작업 게이트」 다섯 줄 그대로다. `--continue` 를 붙이지 않는다)
 - **스냅샷 JSON 이스케이프**: §6.10.4 의 텍스트는 원문이다. JSON 에 옮길 때 `\` 는 `\\`, `"` 는 `\"` 로 한 번 더 이스케이프한다. 스냅샷을 코드로 재생성하지 않는다.
 - **샘플 기대값의 출처를 테스트 주석에 적는다**(06 줄 번호·H 줄 번호·"설계 정의 D10"). D10 의 값은 원천이 아니다.
-- **`copy()` 도 `ParseException` 을 던진다**(E1). 캐시 없이 매번 `new Expression` 으로 평가하므로 `copy()` 는 쓰지 않아도 된다.
+- **`copy()` 도 `ParseException` 을 던진다**(E1). 캐시 없이 매번 `new Expression` 으로 평가하므로 `copy()` 는 쓰지 않아도 된다. (재작업: `copy()` 는 `MdmEvaluator` 안에서만 부른다. rule 은 `Expression` 을 만들지도 복사하지도 않는다, I41)
+- **(재작업) `ExpressionFailure` 이름이 둘이다**(F13d). `ExpressionRunner` 에서 expr 쪽은 정규 이름으로 적고 import 하지 않는다. rule 쪽 `ExpressionFailure` 는 이름·가시성·생성자를 바꾸지 않는다(`RuleEvaluator` 두 곳이 checked 예외로 잡는다).
+- **(재작업) 옛 생성자를 `@Deprecated` 로 남기지 않는다.** 남기면 `new Expression` 판정 경로가 공개로 남아 같은 사유로 반려된다(D19). 지운 뒤 컴파일 오류가 나는 곳이 §2.5 의 호출부 목록과 같아야 한다 — 다른 곳이 나오면 build-log 에 적고 같은 방식(공유 평가기 넘기기)으로 고친다.
+- **(재작업) 엔진 test 가 `MdmEvaluator` 의 패키지 전용 멤버를 부르는 길은 `XT/MdmEvaluatorFixtures` 하나다.** rule test 에서 리플렉션으로 `cacheSize` 를 열지 않는다.
+- **(재작업) 타임아웃 테스트는 유한하게 기다린다.** `BLOCK()` 은 10 초 상한 래치, 테스트는 `assertTimeoutPreemptively(5 초)`(03-02 §7 과 같은 이유). 무한 대기면 변이 검증에서 테스트 스레드가 남는다.
+- **(재작업) `CodeDataRuleLedgerChainTest` 의 평가기 타임아웃은 기본 1초 그대로 둔다**(운영과 같은 조건). MASTER 판정이 SQLite 를 5번 읽는 가상 스레드 작업이라 게이트에서 이 테스트가 `TIMEOUT` 위반으로 실패하면, 기대값을 바꾸지 말고 225행 평가기만 `new MdmEvaluator(…, Duration.ofSeconds(10))` 로 바꾼 뒤 그 사실과 실패 출력을 build-log 「설계 이탈」 에 적고 보고에 올린다(fixture 의 시간 여유이고 단언 완화가 아니다).
+- **(재작업) 무거운 명령은 `heavy.sh` 로 감싼다.** 엔진·mdm 을 함께 보는 좁힌 명령은 §3.4 「재작업 게이트」 의 조사용 명령이다. mdm 은 엔진을 포함 빌드로 읽으므로 엔진을 따로 설치할 필요가 없다.
 - 커밋에서 뺄 것: `state.json`, `.dflow*`, `.result`, `.issues`, 빌드 산출물. `git add -A` 금지. 모든 커밋에 `--trailer "DFlow-Order: e1205c87-681d-44be-90b1-0965067683f3"`.
 
 ---
@@ -724,6 +902,7 @@ SPD_JOIN (DERIVE, 메타 H:533 · WR:34): var 1 RESULT EXPRESSION `LINE_SPD` NUM
 - **택한 것**: (a). 런타임 스텁도 Spring bean 같은 운영 배선도 만들지 않는다.
 - **근거**: 오케스트레이터 확정 제약 2. (b) 는 03-02 와 같은 파일을 고쳐 충돌하고 `ContractOnlyPhaseTest` 3건을 깬다. (c) 는 운영 경로에 가짜 판정을 남긴다. (d) 는 병렬 일정을 막는다. 주입 방식이면 운영과 테스트가 같은 엔진 코드를 돌고 설정만 다르다.
 - **반려되면 재작업 방향**: 03-02 머지 뒤 `TestExpressionConfig` 를 `MdmExpressionConfig.create(new EngineLookups(…코드 사본 fixture…))` 로 바꾸고, `TestFunctions` 를 지우고, `SampleRuleValueTest`·`GeneratedTextParseTest`·`RuleSetEvaluationTest` 를 다시 돌린다. CODE_IN 사례는 코퍼스 규칙(engine-contract §11 가짜 사본 합성)으로 `CodeLookup`·`CodeEffLookup` fixture 를 만든다.
+- **(재작업 2026-09-26)** 03-02 가 머지돼 이 결정의 후속을 처리한다. 전면 교체 대신 부분 이관 + 운영 설정 대조 테스트로 정했다 — D22.
 
 ### D2 — `ContractOnlyPhaseTest` 를 어떻게 다루는가
 > **개정(Build, 2026-09-24, 팀장 지시).** 처음 택한 (a) "허용 실패 2건"은 폐기했다. dev 에 실패 테스트가 들어가면 뒤에 착수하는 모든 워커의 기준선이 깨지기 때문이다.
@@ -833,11 +1012,15 @@ SPD_JOIN (DERIVE, 메타 H:533 · WR:34): var 1 RESULT EXPRESSION `LINE_SPD` NUM
 - **반려되면 재작업 방향**: (b) 면 1단계에서 모든 `RowContract` 이름 중 레코드에 있는 것을 변환하고, 실패는 `INPUT_CHECK`·`TYPE_CONVERSION` 으로 낸다.
 
 ### D17 — 컴파일 캐시를 이 Task 에 두지 않는다
+> **개정(2026-09-26, 반려 재작업).** 승인 심사가 이 결정의 후속을 이유로 반려했다(review_note 원문): "이 Task의 설계 D17에 \"03-02 머지 뒤 ExpressionRunner에 캐시 연결\"이 후속 일로 적혀 있는데, 그 연결이 빠졌습니다. 03-02는 MdmEvaluator에 캐시를 만들었지만 룰 판정은 여전히 평가할 때마다 새로 컴파일합니다. 설계에 적힌 \"반려되면 재작업 방향\"대로 연결하도록 요구했습니다." 03-02 가 이미 머지됐으므로 이 결정의 전제("캐시는 03-02 몫, 아직 없다")가 끝났다. 이제 택한 것은 **(c) 03-02 의 캐시를 쓴다**이고, 방법은 D19(평가기 주입)·D20(평가기 `evaluate` 에 넘김)이다. 최초 방향 문장의 "공개 API 는 바뀌지 않는다"는 지키지 못한다. 조사해 보니 캐시를 쓰려면 엔진 생성자가 공유 평가기를 받아야 한다(F13f, D19). 계약 인터페이스 `RuleEngine` 은 바뀌지 않는다.
+
 - **질문**: 06:449 는 컴파일 결과 캐시 + `copy()` 평가를 요구한다. 이 Task 가 캐시를 만드는가?
 - **선택지**: (a) 두지 않고 평가마다 `new Expression(text, config)`, 캐시가 끼어들 자리는 `ExpressionRunner` 하나로 모은다 / (b) rule 에 자체 캐시
 - **택한 것**: (a).
 - **근거**: 컴파일 캐시는 TSK-03-02 요구사항("컴파일 캐시 + copy()")이다. rule 에 따로 두면 03-02 의 캐시와 두 벌이 된다. 새 인스턴스 평가는 스레드 안전하다.
 - **반려되면 재작업 방향**: 03-02 머지 뒤 `ExpressionRunner` 가 03-02 캐시에서 원본을 받아 `copy()` 로 평가하게 바꾼다. 공개 API 는 바뀌지 않는다.
+- **(개정) 선택지 추가·택한 것**: (c) 03-02 머지 뒤 `MdmEvaluator` 의 캐시를 쓴다 — 택함(D19·D20). (a) 는 전제가 끝나 폐기, (b) 는 캐시가 두 벌이 되어 계속 탈락.
+- **(개정) 반려되면 재작업 방향**: 캐시 경로 자체가 거부되면(예: 룰 판정은 타임아웃 없이 호출자 스레드에서만) D20 의 (1) 로 바꾼다. 캐시 연결은 D19 그대로 둔다.
 
 ### D18 — 세트 입력 키 일괄 확인이 DERIVE 행 계약의 optional 이름까지 요구하는가
 - **질문**: §6.13 4 는 세트 실행 전 입력 키 확인의 대상을 "조건 변수 ∪ DERIVE 룰 행 변수(required·optional)"로 정했다. 그러면 앞 룰이 채우지 않는 optional 이름(예: `SPD_JOIN` 만 담은 세트의 `EXC_SPD`)도 레코드 키로 있어야 한다. optional 의 뜻인 "키가 없어도 된다"(§6.2 3단계, I26)와 어긋나는가?
@@ -845,6 +1028,54 @@ SPD_JOIN (DERIVE, 메타 H:533 · WR:34): var 1 RESULT EXPRESSION `LINE_SPD` NUM
 - **택한 것**: (a). 설계 §6.13 그대로 구현했다(Build 이탈 기록 6).
 - **근거**: 원천 06:420 "세트 입력 키를 한꺼번에 본다"는 DERIVE 행 변수의 required·optional 구분을 따로 말하지 않는다. 사전 검사는 판정 도중 "변수 없음" 오류가 나지 않게 하는 목적이므로 넓게 요구하는 쪽이 안전하다. LS_A3 는 `EXC_SPD` 를 앞 룰(`SPD_EXC`)이 채우므로 영향이 없다.
 - **반려되면 재작업 방향**: (b) 면 `MdmRuleEngine.missingInputKeys` 에서 DERIVE `RowContract.optional()` 을 `needed` 에 넣지 않는다. `RuleSetEvaluationTest.CREATED_세트는_실행하고_빈_세트는_빈_결과` 의 레코드에서 `EXC_SPD` 를 빼고, optional 누락이 오류가 아님을 확인하는 사례를 더한다. 이 경우 단독 DERIVE 식이 optional 이름을 참조하면 판정 중 `EVALUATION_ERROR` 가 날 수 있으니 식 작성 규칙을 함께 정해야 한다.
+
+### D19 — (재작업) 엔진은 공유 `MdmEvaluator` 를 받고, 설정만 받는 생성자는 지운다
+- **질문**: 운영 호출부 셋은 요청마다 `new MdmRuleEngine(evaluator.configuration(), new SingleRuleDefinitionLookup(def))` 를 만든다(F13f). `ExpressionRunner` 에 캐시를 달아도 엔진이 요청마다 새로 생기면 캐시는 늘 비어 있다. 캐시를 어디에 두고, 기존 `MdmRuleEngine(ExpressionConfiguration, DefinitionLookup)` 생성자는 어떻게 하는가?
+- **선택지**: (a) 새 생성자 `MdmRuleEngine(MdmEvaluator, DefinitionLookup)` 하나만 두고 옛 생성자는 지운다. 호출부는 앱에 하나인 평가기 빈을 넘긴다 / (b) 새 생성자를 더하고 옛 생성자는 남긴다(유지·`@Deprecated`) / (c) 옛 생성자가 설정으로 평가기를 만들어 새 생성자에 위임한다 / (d) 엔진을 싱글턴 빈으로 두고 정의 조회를 호출마다 넘긴다
+- **택한 것**: (a). 호출부 5곳(운영 3, 테스트 2)과 엔진 테스트 10개를 새 생성자로 바꾼다(§2.5). mdm 쪽은 ArchUnit 으로 "평가기는 `MdmEngineConfig` 만 만든다"를 붙잡는다(I47).
+- **근거**: 캐시는 인스턴스 필드라서 캐시가 공유되는지는 누가 인스턴스를 만드는지에 달렸다. 앱에 하나인 평가기 빈(F13e)이 이미 도메인 검증·저장 시 검사·AST 내보내기의 공유 캐시다("평가기는 앱에 하나다 — 파싱 캐시를 모든 API 가 공유한다", `MdmEngineConfig` Javadoc). (b) 는 `new Expression` 판정 경로를 공개로 남긴다. 누가 다시 설정으로 엔진을 만들면 반려 사유가 그대로 돌아온다. (c) 는 불가능하다: `MdmEvaluator` 는 `EngineLookups` 로 설정을 스스로 만들 뿐 설정을 받지 않는다(F13b). 받게 하더라도 엔진마다 새 평가기, 곧 새 빈 캐시가 된다. (d) 는 계약 `RuleEngine.evaluate(ruleId, record, evalTs)` 에 정의 조회를 넘길 자리가 없다. 요청마다 정의를 만드는 `SingleRuleDefinitionLookup` 구조(F13f)도 바꿔야 해 범위를 넘는다.
+- **반려되면 재작업 방향**: 옛 생성자를 꼭 남겨야 한다면 (b) 로 되돌리되, 설정만으로는 판정할 수 없게 `@Deprecated(forRemoval = true)` + 몸체에서 즉시 `UnsupportedOperationException` 을 던진다. 엔진 싱글턴이 요구되면 (d) 를 계약 변경(TSK-03-01 후속)으로 올린다.
+
+### D20 — (재작업) 평가 스레드: `MdmEvaluator.evaluate` 에 넘긴다(타임아웃 동반)
+- **질문**: 캐시 원본을 어떻게 평가하는가? (1) 캐시 원본의 `copy()` 를 받아 호출자 스레드에서 평가(D17 최초 방향 문구 그대로) (2) `MdmEvaluator.evaluate()` 에 넘긴다 — 가상 스레드에서 돌고 1초 타임아웃이 붙는다. (2) 면 CODE_IN·MASTER 같은 조회 함수가 호출자의 Spring 트랜잭션·ThreadLocal 밖에서 돈다.
+- **선택지**: (1) `MdmEvaluator` 에 캐시 사본을 내주는 공개 메서드(예: `Expression copyOf(text)` 또는 `evaluateInCallerThread(...)`)를 더하고 `ExpressionRunner` 가 호출자 스레드에서 평가 / (2) `evaluate(text, values, evalTs)` 에 넘기고, 바뀌면 안 되는 동작(`Error` 전파·메시지 형식)은 `ExpressionRunner` 의 변환으로 지킨다(§6.17)
+- **택한 것**: (2).
+- **근거**: 조사 결과(F13e·F13h·F13i). ① 운영 평가기 빈의 조회는 `EMPTY_CODES`·`MasterLookup.NONE`·`FunctionProvider.NONE` 이라 지금 판정 중에 DB·트랜잭션·ThreadLocal 을 읽는 함수가 없다. ② 앞으로 붙을 DB 구현 `MdmCodeLookup` 은 "트랜잭션에 기대지 않는다(엔진은 가상 스레드에서 부를 수 있다)"를 전제로 이미 쓰였다. ③ SQLite 풀은 기본값(10)이라 바깥 트랜잭션이 커넥션 하나를 쥐어도 가상 스레드가 다른 커넥션을 받는다. 풀 1 교착 조건이 아니다. ④ 도메인 검증기가 이미 같은 경로(가상 스레드 + 1초)로 운영·테스트에서 돈다. ⑤ 원천 06:449 가 평가 타임아웃을 안전장치로 요구하고, 06:438·03-02 인계가 "서버·룰 엔진이 같은 평가기 한 곳"을 요구한다(F13o·F13p). (1) 은 타임아웃을 빼고, 캐시 사본(`Expression`)을 공개 API 로 내보내 03-02 의 "캐시 원본은 밖으로 내보내지 않는다, 공개 메서드는 늘 사본에만 값을 넣는다" 규칙을 약하게 만든다. 동작 차이는 셋이고 모두 설계로 정한다. `Error` 는 평가기가 싸므로 `ExpressionRunner` 가 풀어 다시 던진다(I43). 위반 메시지는 원인 예외를 풀어 최초 형식을 지킨다(I45). 타임아웃은 새로 생기는 동작이며 `EVALUATION_ERROR` 위반이다(I44). 정규식 폭주는 EvalEx `regexTimeoutMillis`(100 ms)가 먼저 끊으므로 1초 타임아웃과 겹치지 않는다(F13p). 부하 민감성은 fixture 평가기의 넉넉한 타임아웃(10 초, D21)으로 테스트에서 떼어 낸다.
+- **남는 위험(보고 대상)**: DB 를 읽는 조회 빈(`MdmCodeLookup` 등)을 운영에 등록하면(06-05 이후), 확정·저장 검사 중의 MASTER 판정은 바깥 `TransactionTemplate` 의 **커밋 전 쓰기를 보지 못한다**(다른 커넥션). 지금은 조회 빈이 없어 드러나지 않는다. 조회 빈을 등록하는 Task 가 이 전제를 확인해야 한다(§후속).
+- **반려되면 재작업 방향**: (1) 로 바꾼다. `MdmEvaluator` 에 `public EvaluationValue evaluateInCallerThread(String text, Map<String,?> values, Instant evalTs)`(캐시 원본 `copy()` → `withValues` → `with(EVAL_TS)` → `evaluate`, 예외 변환은 `evaluate` 와 같게, 타임아웃 없음)를 더하고 `ExpressionRunner` 가 그것을 부른다. I44 와 `ExpressionCacheWiringTest` ⑤ 는 "타임아웃이 없다"로 바꾼다. 03-02 문서 인계와 달라지므로 담당자에게 알린다.
+
+### D21 — (재작업) fixture 설정을 평가기에 태우는 길: 패키지 전용 생성자 + test 도우미
+- **질문**: 엔진이 평가기만 받으면 엔진 단위 테스트는 fixture 설정(`TestExpressionConfig` — 가짜 `MASTER`·`INSTR`, 카운팅 함수, UTC 시간대)을 어떻게 넣는가? `MdmEvaluator` 는 `MdmExpressionConfig.create(lookups)` 로만 설정을 만들고, `create` 는 표준 이름(`MASTER`·`INSTR`)과 겹치는 함수를 거부하며 시간대가 KST 로 고정이다(F13b).
+- **선택지**: (a) `MdmEvaluator` 에 패키지 전용 생성자 `(ExpressionConfiguration, Set<String>, Duration)` 을 두고 공개 생성자가 그것에 위임한다. test 소스의 같은 패키지 도우미 `MdmEvaluatorFixtures` 만 부른다 / (b) 공개 생성자로 연다 / (c) 엔진 테스트용으로 옛 `MdmRuleEngine(ExpressionConfiguration, …)` 생성자를 남긴다 / (d) 모든 엔진 테스트를 운영 설정으로 옮긴다(D22 전면 이관)
+- **택한 것**: (a). 도우미의 기본 타임아웃은 10 초(`FIXTURE_TIMEOUT`)이고, 타임아웃 사례만 50 ms 로 만든다.
+- **근거**: (a) 는 공개 표면을 바꾸지 않는다(I48, `ContractTypeShapeTest` 목록 밖이라 형태 규칙에도 안 걸린다, F13k). 모든 엔진 테스트가 운영과 같은 캐시·`copy()`·가상 스레드 경로를 탄다. 새 생성자는 공개 생성자가 실제로 거치는 길이라 테스트 전용 뒷문이 아니다. (b) 는 06 「설정 고정」(설정은 모듈이 만든다)을 약하게 한다. 누구든 다른 사전·시간대로 평가기를 만들 수 있게 된다. (c) 는 D19 에서 탈락한 `new Expression` 경로를 다시 남긴다. (d) 는 D22 에서 다룬다. 기본 10 초는 03-02 가 1,000 스레드 테스트에 30 초를 둔 것과 같은 이유다(전체 스위트 부하에서 거짓 타임아웃 방지). 운영 기본값(1초)은 대조 테스트(D22)와 mdm·api 테스트가 그대로 쓴다.
+- **반려되면 재작업 방향**: 03-02 산출물에 생성자를 더하는 것이 거부되면, 엔진 테스트를 (d) 로 옮긴다(D22 반려 방향과 같다). UTC 시간대 사례는 `MdmEvaluatorTest`(expr)로 옮겨 평가기의 `EVAL_TS` 주입을 직접 검사한다.
+
+### D22 — (재작업) D1 후속(`TestExpressionConfig`·`TestFunctions` 이관): 부분 이관 + 운영 설정 대조 테스트
+- **질문**: D1 의 반려 방향은 "03-02 머지 뒤 `TestExpressionConfig` 를 `MdmExpressionConfig.create(...)` 로 바꾸고 `TestFunctions` 를 지운 뒤 샘플·파싱·세트 테스트를 다시 돌린다"였다. 전면 이관하는가?
+- **선택지**: (a) 전면 이관: 모든 엔진 테스트를 `new MdmEvaluator(EngineLookups)` 로 만들고 `TestFunctions` 를 지운다 / (b) 부분 이관: 엔진 단위 테스트는 fixture 설정을 평가기에 태워(D21) 쓰고, 운영 설정(`new MdmEvaluator(lookups)`)으로 샘플 판정·LS_A3·스냅샷 파싱·CODE_IN 한 벌을 돌려 fixture 결과와 같은지 보는 대조 테스트를 더한다 / (c) 그대로 둔다
+- **택한 것**: (b). `ProductionConfigParityTest`(§3.6). `TestExpressionConfig` 의 낡은 Javadoc 한 문장만 고친다.
+- **근거**: D1 반려 방향의 목적은 "운영 설정에서 다시 확인한다"이고 (b) 의 대조 테스트가 그것을 직접 한다(수용 기준 1·3·4 를 운영 설정으로). 전면 이관을 하지 않는 이유는 fixture 에만 있는 도구 넷이다. ① 카운팅 함수(`COUNT_CALL`, I30·I31 "평가하지 않음" 단언). 비즈니스 함수로 옮길 수는 있지만 이름 규칙·칸 제한이 따라붙는다. ② UTC 시간대 엔진(`RuleEngineStageTest.EVAL_TS_는_설정_시간대와_무관하게_…`). `create` 는 시간대를 KST 로 고정해 만들 수 없다. ③ `MASTER` 가 본 `EVAL_TS` 기록(`seenEvalTs`, I28). 운영 `MASTER` 는 이 값을 밖에 드러내지 않는다. ④ 코드 집합 한 줄 선언(`code(id, cate, keys…)`). 운영 `MASTER` 로 옮기면 CODE_IN 사례 전부에 `CodeRows`(헤더·버전·항목·카테고리·소속)를 합성해야 한다. 이 넷을 옮기면 기존 단언을 다시 써야 하고, 반려 사유(캐시)와 무관한 테스트 재작성이 커진다. (c) 는 D1 후속을 조용히 남겨 같은 논리로 다시 반려될 수 있다. 03-04 코퍼스 하네스도 같은 방식의 fixture 설정을 쓴다(F13m).
+- **반려되면 재작업 방향**: (a) 로 간다. `TestFunctions` 의 코드 집합을 `CodeLookup` fixture(`CodeRows` 합성 도우미, engine-contract §11)로, `COUNT_CALL` 을 `FunctionProvider` 비즈니스 함수로 바꾼다. UTC·`seenEvalTs` 사례는 `MdmEvaluatorTest` 로 옮긴다(D21 반려 방향). 그 뒤 `TestFunctions`·`TestExpressionConfig` 를 지우고 `GeneratedTextParseTest`·`CellTextGeneratorTest` 의 `CONFIG` 도 운영 설정으로 바꾼다.
+
+### D23 — (재작업) `EVAL_TS` 는 값 맵과 평가기 두 곳에서 넣는다
+- **질문**: `RuleEvaluator` 는 값 맵에 `EVAL_TS` 를 넣고 `MdmEvaluator.evaluate` 도 `with(EVAL_TS, …)` 로 넣는다(F13j). 한 곳을 지우는가?
+- **선택지**: (a) 둘 다 둔다(값이 같은 절삭 `Instant` 라 결과가 같다) / (b) 값 맵에서 지운다 / (c) 평가기 쪽을 끈다
+- **택한 것**: (a).
+- **근거**: (b) 는 식 변수의 참조 NULL 검사(`values.get(ref) == null`)가 `EVAL_TS` 를 NULL 로 보게 만들어 `refVars` 에 `EVAL_TS` 가 든 식 변수가 평가되지 않는다. 동작이 바뀐다(I46). (c) 는 03-02 산출물의 공개 동작을 바꾼다. 두 값은 같은 `Run.evalTs`(이미 절삭)에서 오고 평가기가 한 번 더 자르는 것은 멱등이다. `with` 가 `withValues` 뒤라 평가기 값이 이긴다.
+- **반려되면 재작업 방향**: (b) 면 참조 NULL 검사를 `ctx` + `EVAL_TS` 예외 처리로 바꾸고 I46 사례의 기대를 그대로 유지한다.
+
+### D24 — (재작업) 03-02 인계의 `ValueConverter.convert`·`RecordKeys.violations` 통합은 이번에 하지 않는다
+- **질문**: 03-02 인계(F13o)는 룰 엔진도 expr 의 `ValueConverter.convert`·`RecordKeys.violations` 를 쓰라고 했다. rule 에는 자체 변환·키 검사가 있다. 이번 재작업에서 통합하는가?
+- **선택지**: (a) 하지 않고 결정으로 남긴다 / (b) rule 의 `ValueConverter.toDeclared`·`RecordKeys.check` 를 expr 것으로 바꾼다
+- **택한 것**: (a).
+- **근거**: 반려 사유는 캐시 연결 하나다. 두 변환기는 규칙이 다르다(F13o). NUMBER 문자열의 지수 표기, STRING·DATE 에 들어오는 `Double`, DATE 의 문자열 처리, `List` 통과가 갈린다. 통합하면 판정 결과(입력 검사 위반 여부·결과 값 타입)가 바뀐다. 캐시 재작업에 판정 규칙 변경을 섞으면 "동작 동일"을 증명할 수 없다. 키 검사도 rule 은 대소문자만 다른 키 거부(D13)와 `_` 접두 예약을 더 본다. 어느 규칙이 맞는지는 담당자가 정할 일이다(06:198 "같은 함수" 요구 vs 이 Task 의 §6.7·D13 결정).
+- **반려되면 재작업 방향**: (b) 로 간다. 먼저 두 표의 차이를 사례로 적어 담당자가 기준 쪽을 정하고, rule `ValueConverter.toDeclared` 가 `expr.ValueConverter.convert` 를 부르되 `List` 통과·DATE 처리만 rule 에 남긴다. `arch/TypeConversionEntryTest` 에 rule 결속 규칙을 더한다. `ValueConverterTest`(rule)의 기대값 변경은 그 결정에 따른다.
+
+## 도커 금지로 생략한 검증
+
+- 금지 모드 출처: 워커 기본(DOCKER=allow 아님)
+- 생략한 명령 없음 — 이 재작업이 닿는 `maru-mdm-engine`·`mdm`(lib·api) 테스트에는 docker·Testcontainers 를 쓰는 테스트가 없다(`testcontainers` grep 0건, mdm 은 SQLite 만). 게이트는 §3.4 「재작업 게이트」 의 기준선 명령 다섯 줄을 제외 없이 그대로 쓴다. 이 절 때문에 확인하지 못하는 수용 기준은 없다.
 
 ---
 
@@ -876,3 +1107,18 @@ TSK-03-02 머지 뒤에 할 일이다.
 - `ExpressionRunner` 에 03-02 의 컴파일 캐시 + `copy()` 를 연결한다(D17).
 - `ContractOnlyPhaseTest` 나머지 3건이 사라진 뒤 기준선을 다시 잡는다(§3.4).
 - `rule/package-info.java` 의 "계약 전용 단계" 설명을 정리한다(F11).
+
+**(재작업 2026-09-26) 위 네 항목의 처리.** 조용히 남기는 항목은 없다.
+
+| 항목 | 처리 |
+|---|---|
+| `TestExpressionConfig`·`TestFunctions` 이관(D1) | 부분 이관 + 운영 설정 대조 테스트 `ProductionConfigParityTest`(D22). 전면 이관은 D22 의 반려 방향 |
+| `ExpressionRunner` 캐시 연결(D17) | 이번 재작업의 본체(D17 개정·D19·D20·D21) |
+| `ContractOnlyPhaseTest` 뒤 기준선(§3.4) | 이미 해소 — 파일이 dev 에 없고 기준선은 6d2110fc 에서 다시 쟀다(F13l, §3.4 「재작업 게이트」) |
+| `rule/package-info.java`(F11) | 이번에 고친다(§2.5) |
+
+**(재작업) 새로 남는 후속(이 재작업에서 하지 않는다).**
+
+- 03-02 인계의 `ValueConverter`·`RecordKeys` 통합(D24) — 담당자가 기준 규칙을 정한 뒤.
+- DB 조회 빈(`MdmCodeLookup` 등)을 운영에 등록하는 Task(06-05 이후)는 룰·도메인 판정이 가상 스레드에서 바깥 트랜잭션의 커밋 전 쓰기를 보지 못한다는 전제를 확인한다(D20 남는 위험).
+- `MdmEvaluator` 캐시는 상한이 없다(03-02 설계). 값 테스트·저장 검사가 편집 중인 DRAFT 식을 평가할 때마다 새 텍스트가 쌓인다. 상한·축출 정책은 03-02 쪽 결정으로 올린다.

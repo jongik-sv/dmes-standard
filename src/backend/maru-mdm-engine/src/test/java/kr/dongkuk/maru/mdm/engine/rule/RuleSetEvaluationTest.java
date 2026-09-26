@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException;
+import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluatorFixtures;
 import kr.dongkuk.maru.mdm.engine.rule.fixture.InMemoryDefinitionLookup;
 import kr.dongkuk.maru.mdm.engine.rule.fixture.SampleRules;
 import kr.dongkuk.maru.mdm.engine.rule.fixture.TestExpressionConfig;
@@ -31,7 +32,7 @@ class RuleSetEvaluationTest {
             .addSet(new RuleSetDefinition("NO_RULE", List.of("BASE_SPD_LKP", "NOPE"), SetStatus.INUSE),
                     new RuleSetDefinition("CREATED_SET", List.of("SPD_JOIN"), SetStatus.CREATED),
                     new RuleSetDefinition("EMPTY", List.of(), SetStatus.INUSE));
-    private final MdmRuleEngine engine = new MdmRuleEngine(TestExpressionConfig.create(), lookup);
+    private final MdmRuleEngine engine = new MdmRuleEngine(MdmEvaluatorFixtures.of(TestExpressionConfig.create()), lookup);
 
     private static Map<String, Object> ls(String wid) {
         return rec("COIL_THK", new BigDecimal("0.65"), "TOP_RESIN_CD", "2A", "COAT_SIDE", "1", "COIL_WID", new BigDecimal(wid));

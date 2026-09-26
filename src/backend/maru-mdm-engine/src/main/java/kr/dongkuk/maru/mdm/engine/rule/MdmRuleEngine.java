@@ -1,6 +1,5 @@
 package kr.dongkuk.maru.mdm.engine.rule;
 
-import com.ezylang.evalex.config.ExpressionConfiguration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -19,6 +18,7 @@ import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Code;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Stage;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Violation;
+import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RowContract;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RowKind;
@@ -35,8 +35,9 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.VarType;
 /**
  * 룰 판정 엔진(06-business-rule.md:394-430 엔진 골격, 06:473-498 정의 조회, TSK-03-03 design §6.1·§6.13·§6.14).
  *
- * <p>EvalEx 설정과 정의 조회를 생성자로 받는다(D1). 운영 설정은 {@code MdmExpressionConfig.create(...)}(TSK-03-02),
- * 테스트는 같은 상수로 조립한 fixture 설정을 넣는다 — 엔진 코드는 같고 설정만 다르다.
+ * <p>공유 {@link MdmEvaluator} 를 생성자로 받는다(D19) — 컴파일 캐시는 엔진이 아니라 공유 평가기에 있다. 운영
+ * 호출부는 요청마다 새 엔진을 만들어도 같은 평가기 빈을 넘기면 캐시를 공유한다. 테스트는 패키지 전용 생성자로 만든
+ * fixture 평가기를 넣는다(D21) — 엔진 코드는 같고 평가기 설정만 다르다.
  * 평가 입력은 스냅샷의 식 텍스트이고 op-code 생성기는 부르지 않는다(06:269·426·471, D4).
  */
 public final class MdmRuleEngine implements RuleEngine {
@@ -44,9 +45,9 @@ public final class MdmRuleEngine implements RuleEngine {
     private final DefinitionLookup definitions;
     private final RuleEvaluator evaluator;
 
-    public MdmRuleEngine(ExpressionConfiguration configuration, DefinitionLookup definitions) {
+    public MdmRuleEngine(MdmEvaluator evaluator, DefinitionLookup definitions) {
         this.definitions = Objects.requireNonNull(definitions, "definitions");
-        this.evaluator = new RuleEvaluator(new ExpressionRunner(Objects.requireNonNull(configuration, "configuration")));
+        this.evaluator = new RuleEvaluator(new ExpressionRunner(Objects.requireNonNull(evaluator, "evaluator")));
     }
 
     @Override

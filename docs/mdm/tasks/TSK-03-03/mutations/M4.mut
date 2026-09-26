@@ -1,0 +1,25 @@
+rule: I44 — 평가 타임아웃은 그 식을 평가한 단계의 EVALUATION_ERROR 위반이다(단계 안 일괄 수집도 그대로다)
+file: src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/rule/ExpressionRunner.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :maru-mdm-engine:test --tests "kr.dongkuk.maru.mdm.engine.rule.ExpressionCacheWiringTest" --fail-fast --console=plain
+e2e: no
+--- find
+    EvaluationValue run(String text, Map<String, Object> values, Instant evalTs) throws ExpressionFailure {
+        try {
+            return evaluator.evaluate(text, values, evalTs);
+        } catch (kr.dongkuk.maru.mdm.engine.expr.ExpressionFailure f) {
+            Throwable cause = f.getCause();
+            if (cause instanceof Error error) {
+                throw error;
+            }
+            if (cause instanceof BaseException || cause instanceof RuntimeException) {
+                throw new ExpressionFailure(cause);
+            }
+            throw new ExpressionFailure(f);
+        } catch (RuntimeException e) {
+            throw new ExpressionFailure(e);
+        }
+    }
+--- replace
+    EvaluationValue run(String text, Map<String, Object> values, Instant evalTs) throws ExpressionFailure {
+        return evaluator.evaluate(text, values, evalTs);
+    }
