@@ -652,3 +652,18 @@
 
 - B6 변이 29개: 변이 넣기 → `:mdm:api:test --tests <대상> --fail-fast`(Gradle 데몬 재사용) → `git checkout --` 되돌리기를 스크립트 하나로 두 번에 나눠 `heavy.sh` 로 감싸
   돌렸다(커밋된 파일만 바꿨다). "잡힘" 은 대상 테스트 태스크의 실패 종료이고, 스크립트가 출력에서 `compileJava`·`error:` 를 따로 찾아 표시했는데 29건 모두 그 표시가 없었다(컴파일 오류가 아니라 테스트 실패). 실패 테스트 이름까지는 모으지 않았다.
+
+## 반려 재작업 1회차 (설계 선행 재개 — 기점 180601ac)
+
+## 게이트 기록
+
+| 시각 | Phase | 명령 | 범위 | 경과 | 부하 | 결과 |
+|---|---|---|---|---|---|---|
+| 2026-09-26T12:42:55Z | 기준선 | cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root . | 모듈 | 약 10 | 3.45 | 기준선 측정(2254/0, UP-TO-DATE) |
+| 2026-09-26T12:43:06Z | 기준선 | cd src/frontend && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint | 모듈 | 약 60 | 3.45 | 기준선 측정(1064/0) |
+
+## 실행 모델
+
+| 단위 | 에이전트 | 모델 | 시험 | 승급 | 결과 | 경과 | 토큰 | advisor |
+|---|---|---|---|---|---|---|---|---|
+| B1 | TSK-08-04-build | sonnet | 예 | - | - | - | - | - |
