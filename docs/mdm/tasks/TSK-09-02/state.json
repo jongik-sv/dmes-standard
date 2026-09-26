@@ -2,7 +2,7 @@
   "tsk": "TSK-09-02",
   "order": "ccf6acd2-a91c-4fa2-a056-f4eebdc6f9a0",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "build",
+  "phase": "verify",
   "baseline": {
     "docker": "banned:spawn",
     "base": "1e8ccfa89d86e00070479ec27856a5334658a20a",
@@ -74,7 +74,7 @@
   "build_model_trial": false,
   "model": "sonnet",
   "last": {
-    "phase": "design",
+    "phase": "build",
     "event": "gate.pass"
   },
   "prev_round": {
@@ -82,5 +82,17 @@
     "head_sha": "f3c01bee8b4d830980939ee4294339c3036e291e",
     "baseline_tests": 5191
   },
-  "build_unit": "B4"
+  "build_gate": {
+    "head": "762168beb4b09367ce121450f0ce278a5d16a930",
+    "scope": "module",
+    "cmds": [
+      {
+        "cwd": ".",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 2279,
+        "failures": 0
+      }
+    ],
+    "new_failures": []
+  }
 }
