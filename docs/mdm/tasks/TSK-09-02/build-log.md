@@ -6,6 +6,8 @@
 |---|---|---|---|---|---|---|
 | 2026-09-26T06:07:25Z | 기준선 | `cd src/backend && … ./gradlew :mdm:test … && … check_oasis_contract.py --root .` | 모듈 | 6 | 2.96 | 기준선 측정(2263건, 실패 0) |
 | 2026-09-26T06:07:38Z | 기준선 | `cd src/backend && … ./gradlew :maru-mdm-engine:test :mdm:test … && cd ../frontend && pnpm --filter @dk-oasis/m-mdm test && … check_oasis_contract.py --root .` | 모듈 | 19 | 2.96 | 기준선 측정(4637건, 실패 0) |
+| 2026-09-26T07:27:53Z | build | `cd src/backend && … ./gradlew :maru-mdm-engine:test :mdm:test … && cd ../frontend && pnpm --filter @dk-oasis/m-mdm test && … check_oasis_contract.py --root .` | 모듈 | 39 | 4.37 | 통과(4660건, 신규 0) |
+| 2026-09-26T07:28:11Z | build | `cd src/backend && … ./gradlew :mdm:test … && … check_oasis_contract.py --root .` | 모듈 | 9 | 4.36 | 통과(2274건, 신규 0) |
 
 ## 변이 검증 기록
 

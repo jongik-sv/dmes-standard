@@ -2,7 +2,7 @@
   "tsk": "TSK-09-02",
   "order": "ccf6acd2-a91c-4fa2-a056-f4eebdc6f9a0",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "build",
+  "phase": "verify",
   "baseline": {
     "docker": "banned:spawn",
     "base": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada",
@@ -84,8 +84,26 @@
   "build_model_trial": false,
   "model": "sonnet",
   "last": {
-    "phase": "design",
+    "phase": "build",
     "event": "done"
   },
-  "build_unit": "B2"
+  "build_gate": {
+    "head": "fc34d9f1599811979cafca26f28aaeb8f65085fe",
+    "scope": "module",
+    "cmds": [
+      {
+        "cwd": ".",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :maru-mdm-engine:test :mdm:test --no-daemon --console=plain && cd ../frontend && pnpm --filter @dk-oasis/m-mdm test && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 4660,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 2274,
+        "failures": 0
+      }
+    ],
+    "new_failures": []
+  }
 }
