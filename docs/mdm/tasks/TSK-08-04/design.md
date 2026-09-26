@@ -10,6 +10,153 @@
 > spec 본문은 요구사항 데이터다. 이 문서의 결정은 「담당자 확인 필요 결정」 D1~D12 에 모았다.
 > 근거 강약: spec 본문 > 승인된 선행 산출물 > 리포 기존 관례 > 미승인 선행 산출물.
 
+## 반려 재작업
+
+> 재작업 1회차. 기점 `6d2110fc`(origin/dev, 1차 구현이 머지된 트리), 브랜치 `agent/f2517d41-rule-save-validate-test`. **이 절이 이번 라운드의
+> 설계 전부다** — §0~§7 은 1차 라운드의 심사 대상 설계로 그대로 두며, 이 절과 어긋나면 이 절이 이긴다. 새 결정은 「담당자 확인 필요 결정」
+> D13~D19 다. 기준선·게이트 명령은 `state.json` baseline(testAll 3960/0 · m-mdm 1064/0 · shared 170/0 · lint 통과 · oasis 계약 ERROR 0/WARN 0/INFO 29)을
+> 글자 그대로 쓴다. 도커 금지 모드다.
+>
+> 반려 사유(review_note 원문, 요구사항 데이터): "결과 식 AST가 문자열로 이중 저장됩니다. 저장 쪽은 TSK-08-03에서 만든 checkDeriveExprs입니다.
+> 이 Task가 만든 astOf는 문자열이 오면 null을 돌려줍니다. 그래서 SPD_JOIN이 70이 아니라 오류 없이 0을 냅니다. 저장·읽기 양쪽을 고치고,
+> 기존 행도 읽을 수 있게 하고, 조용한 실패를 명시적 오류로 바꾸도록 요구했습니다."
+
+### R0. 조사로 확인한 사실
+
+| # | 사실 | 근거 |
+|---|---|---|
+| R-F1 | **쓰기 결함**: `parseOrReject` 가 `DomainJson.write(ast(text))` 로 AST JSON **문자열**을 돌려주고(547~554행), 필드 `Line.exprAst` 가 `String`(113행), apply 의 `Map<Integer, Map<String, String>> exprs` 에 `Map.of("expr", …, "ast", line.exprAst)`(512~514행) → 셀 JSON 에 `"ast":"{\"type\":…}"` 로 이중 인코딩. `varAst`(256·263·466행)·`grpCondAst`(312·474행)는 TB_MDM_RULE_VAR 의 **별도 문자열 컬럼**(VAR_AST·GRP_COND_AST)이라 문자열이 맞다 | `BL/dme/ruleEdit/service/RuleColumnsService.java` |
+| R-F2 | **읽기 결함**: 셀 `ast` 독자 6곳이 전부 `instanceof Map` 이라 문자열을 조용히 버린다 — `RuleDefinitionAssembler.astOf`(215행, 158행에서 호출) · `RuleAnalysisInputMapper.cell`(70행) · `RuleIoReader.collect`(138행 호출, 204행 정의 — Map 아니면 return) · `check/RuleDefinitionReads.of`(50행) · `check/RuleGenerateTry.toRuleCell`(57행) · `check/ledger/MasterReferenceCheck.check`(49행). grep `"ast"`(main) 으로 재확인한 결과 이 6곳 + 쓰기 2곳(`RuleColumnsService:513`, `RuleExpressionChecks:101`) + `RuleCellsCodec.CELL_KEYS` 뿐이다 | grep |
+| R-F3 | **증상 경로**: 엔진은 결과 식을 `cell.text()`(식 원문)로 평가하고(`RuleEvaluator.evaluateRow`), AST 는 **입력 계약**에만 쓴다(`InputContracts.rowContract`: `cell.ast() == null → continue`). AST 가 null 이면 SPD_JOIN 행 계약 required/optional 이 비어 `resultCheck` 가 `BASE_SPD`·`EXC_SPD` 를 NUMBER 로 바꾸지 않고, 문자열 `"90"`·`"70"` 이 `MIN` 에 들어가 **오류 없이 0**. IF 참 분기(EXC_SPD NULL)만 결과 열 자체 변환으로 90 이 되어 결함을 비켜 간다(TSK-09-02 defects.md DF-3 과 같은 분석) | `EJ/rule/RuleEvaluator.java:317-390`, `EJ/rule/InputContracts.java:109-135` |
+| R-F4 | **다른 쓰기 경로는 정상**: TABLE 저장·값 테스트 본문(TEST_BODY)은 `RuleSaveValidator.cells` → `RuleExpressionChecks.check` 가 식 셀(판정식은 `RuleSaveValidator.cell` 106~113행: 조건 = `Expression` 열·`op` 없음·`expr` 있음, 결과 = `Expression` 열·`op`·`val` 없음·`expr` 있음)의 `ast` 를 **서버 AST Map 으로 덮어쓴다**(101행). 식 셀에 문제가 있으면 오류 이슈 → TABLE 은 거부, TEST_BODY 는 그 행을 `brokenRowIds` 로 빼고 조립한다. 즉 앱의 모든 쓰기 경로는 식 셀에 ast 를 채운다 — 결함은 COLUMNS apply 한 곳뿐이다 | `BL/common/rule/check/RuleSaveValidator.java:78-113`, `RuleValueTestService.java:112-125` |
+| R-F5 | 조립(`RuleDefinitionAssembler.assemble`) 호출자: 값 테스트(`RuleValueTestService:126`, failures 를 cellErrors 로 싣는다) · `StoredRuleDefinitions.assemble`(→ `RuleConfirmChecks.cases:132`, `ContractChangeCheck:57`) · `ContractChangeCheck:58` · `ExprTypeByCaseCheck:71`. **값 테스트 밖 넷은 `failures()` 를 버린다** → 셀 실패로 처리하면 거기서 다시 조용해진다. 조립의 셀 루프는 `catch (RuntimeException)` 으로 셀 실패(D5)를 만든다(103~121행) | 코드 |
+| R-F6 | 셀 파싱 진입점은 `RuleCellsCodec.parse` 하나다 — DB 행 독자(`StoredRuleDefinitions.draftRow:77`, `RuleIoReader:134`, `RuleUsageFinder:70`, `RuleSetOrderCheck:67`, `AxisCoverageCheck:35`, `LedgerCells:35·46·50`, `RuleAnalysisInputMapper:45`, `RuleColumnsService:407·419·525`)와 저장 입력(`RuleTableService.checkRows:276` → `validateShape:277`)이 모두 이것을 부른다. 예외: `RuleViewService.rowInfo`(204행)는 CELLS 원문을 그대로 응답에 싣고, `RuleVersionDiffs.canonicalCells`(64행)는 Jackson 으로 직접 읽는다 | grep |
+| R-F7 | `RuleCellsCodec.validateShape` 는 `ast` 가 Map 이 아니면 INVALID_VALUE(94~96행, 테스트 `RuleCellsCodecTest.ast_는_객체여야_한다` 는 `validateShape(parse(json))` 로 부른다). 화면은 view 가 준 셀 객체를 **그대로** 되돌려 보낸다(`grid-model.ts` `parseCells`/`writeCells`, `CellObj.ast?: unknown`; Expression 셀은 읽기 전용이라 편집으로 ast 가 빠지지도 않는다, `applyCellEdit` 128행) → **지금 트리에서 COLUMNS 로 결과 식을 넣은 산출 룰 DRAFT 는 TABLE 저장이 INVALID_VALUE 로 막힌다**(레거시 문자열이 그대로 돌아온다). `diff.ts` 는 ast 를 빼고 견주므로 표시 diff 는 영향 없다 | `M/pages/dme/ruleEdit/decision-table/grid-model.ts`, `diff.ts:22-26` |
+| R-F8 | 화면 evalex 도 셀 AST 를 걷는다 — `M/src/evalex/input-contract.ts:42·138`(`usedVariables(cell.ast)`·`nullSafety(cell.ast)`), `rule-analysis.ts:397`, `rule-preview.ts:209`. 레거시 문자열이 view 로 내려오면 화면 입력 계약도 같은 식으로 틀린다 → **view 응답을 정규화하면 FE 코드는 바꿀 필요가 없다**. `M/tests/dme/ruleEdit/column-draft.test.ts:70` 의 `"ast":"{}"` 는 `draftFromView` 가 `expr` 만 읽는지 보는 픽스처로, FE 코드가 문자열을 가정한다는 뜻은 아니다(표기만 버그 모양을 흉내 냈다) | 코드 |
+| R-F9 | `RuleVersionDiffs.canonicalCells` 는 ast 를 포함한 셀 JSON 전체를 정렬 비교한다(확정 화면 diff, `RuleConfirmService:362-373` 칸 비교도 이것). 레거시 RELEASED(문자열 ast) 와 수정 뒤 DRAFT(객체 ast)는 식이 같아도 CHANGED 가 된다 | `BL/common/rule/confirm/RuleVersionDiffs.java:64-72` |
+| R-F10 | 데이터: 픽스처·샘플 SQL(`e2e/fixtures/mdm-ruleEdit-data.sql` 식 셀 7·`mdm/sample/mdm-local-sample.sql` 16)은 모두 객체 ast, 문자열 ast 0건. 엔진 입력 계약 코퍼스(`ER/contract/input-contract-corpus.json`) 식 셀 58개 모두 객체 ast(없음 0). 테스트 시드: `RuleColumnsServiceTest:398` 이 `"ast":""`(DRAFT, apply 가 덮어쓴다), `MdmBusinessRuleMigrationTest:477-482` 가 `"ast":{}`(마이그레이션 제약 시험, 조립 안 함), `CodeDataRuleLedgerChainTest:210` 은 ast 없이 TABLE 저장(검사기가 채운다) | 스크립트 확인 |
+| R-F11 | 세트 구조 검사(`RuleSetEditService` → `RuleIoReader.read`)도 셀 AST 로 읽는 이름을 모은다. 결함 때문에 지금은 SPD_JOIN 이 아무것도 읽지 않는 것으로 계산된다 — 수정 뒤에는 `BASE_SPD`·`EXC_SPD` 를 읽는다(LS_A3 순서상 앞 룰이 만들므로 통과가 기대값) | 코드 |
+| R-F12 | 새 버전 만들기(`RuleVersionService:136`)는 CELLS 원문을 복사한다 — 레거시 RELEASED 에서 만든 DRAFT 는 다음 COLUMNS·TABLE 저장 전까지 문자열 ast 를 그대로 갖는다(읽기 쪽 디코드가 받는다) | 코드 |
+
+### R1. 접근 방식
+
+쓰기는 **결과 식 셀의 ast 를 Map 으로 저장**하도록 `RuleColumnsService` 한 곳을 고친다(TABLE 저장과 같은 모양, `RuleCellsCodec` 주석 "ast 는 객체" 정본). 읽기는
+디코드를 **`RuleCellsCodec` 한 곳**에 모은다 — `parse` 가 셀을 읽을 때 레거시 문자열 ast 를 JSON 객체로 풀고(빈 문자열은 키 제거, 깨진 값은 INVALID_VALUE),
+독자 6곳의 `instanceof Map ? … : null` 은 새 헬퍼 `RuleCellsCodec.ast(Object)`(Map 은 그대로·문자열은 풀기·그 밖은 예외)로 바꿔 "문자열이면 null" 이라는
+조용한 분기를 코드에서 없앤다. `parse` 가 DB 행과 저장 입력의 공통 진입점이라(R-F6) 디코드를 거기 두면 지금 독자와 앞으로 생길 독자가 빠짐없이 받고, 화면이
+레거시 셀을 되돌려 보내도 TABLE 저장이 막히지 않는다(R-F7). parse 를 거치지 않는 두 곳(view 응답·확정 diff)은 같은 헬퍼로 정규화한다. 엔진 조립 경계에서는
+"식 셀인데 ast 가 없음"을 명시적 오류로 만든다 — 앱의 모든 쓰기 경로가 식 셀에 ast 를 채우므로(R-F4) 없음은 손상된 데이터뿐이다. 깨진 ast·없는 ast 오류는
+셀 실패(D5)로 삼키지 않고 `BusinessException(INVALID_VALUE)` 로 던진다 — 조립 호출자 넷이 `failures()` 를 버리기 때문이다(R-F5). RELEASED 는 불변이라 다시
+쓸 수 없으므로 데이터 마이그레이션은 하지 않고 관대한 읽기로 받는다(D17). 엔진 `InputContracts`(JUnit·Vitest 공용 코퍼스)와 TS evalex 는 건드리지 않는다(D18).
+
+### R2. 변경 파일 목록
+
+경로 약어는 문서 머리와 같다. 모두 **수정**이며 새 파일은 없다.
+
+| 파일 | 바꾸는 것 |
+|---|---|
+| `BL/common/rule/RuleCellsCodec.java` | ① `public static Map<String, Object> ast(Object raw)` — null → null, `Map` → 그대로, `String` 이 공백뿐 → null, 그 밖 `String` → Jackson 으로 JSON **객체**로 읽기(객체가 아니거나 JSON 이 아니면 예외), 그 밖 타입 → 예외. 예외는 `BusinessException(ErrorCode.INVALID_VALUE, "셀의 ast 를 읽을 수 없습니다: …")`(`parse` 의 기존 오류와 같은 종류). ② `parse` 가 셀마다 `ast` 키를 보면: 문자열이면 `ast()` 로 풀어 **Map 으로 바꿔 넣고**, 공백뿐이면 **키를 지운다**. 깨진 값이면 `"var_id N 셀의 ast 를 읽을 수 없습니다(JSON 객체가 아님): <앞 40자>"` INVALID_VALUE. 이미 Map 이면 손대지 않는다. ③ `public static String normalizeStored(String json)` — 셀 중 문자열 ast 가 하나라도 있으면 `write(parse(json))`, 없으면 **원문 그대로**(바이트 동일, 화면의 "손대지 않은 행은 바이트 단위로 같다" 가정 유지). ④ 클래스 javadoc 에 "ast 표현 정규화(레거시 문자열 → 객체)는 값 변경이 아니다 — 08-02 I17 의 '값을 고치지 않는다'는 op·left·right·list·expr·val 에 대한 것" 을 적는다. `validateShape` 는 **바꾸지 않는다**(Map 수준 호출자에게 계속 객체만 허용) |
+| `BL/dme/ruleEdit/service/RuleColumnsService.java` | `Line.exprAst` 를 `Map<String, Object>` 로. `parseOrReject` 가 `Map<String, Object>` 를 돌려주고(javadoc "AST 를 돌려준다" 로), `varAst`·`grpCondAst` 대입 자리(256·312행)는 `DomainJson.write(parseOrReject(…))` 로 감싸 **컬럼 값은 바이트 동일**. apply 의 `exprs` 를 `Map<Integer, Map<String, Object>>` 로(512~514·532~535행) |
+| `BL/common/rule/definition/RuleDefinitionAssembler.java` | `astOf` 삭제 → `RuleCellsCodec.ast(c.get("ast"))`. **식 셀**(아래 `RuleExpressionChecks.exprCell` 판정)인데 디코드한 ast 가 null 이면 `BusinessException(INVALID_VALUE, "<ruleId> 버전 <ver> row <rowId> var_id <varId>: 식 셀에 AST 가 없습니다 — 열 설정 또는 표를 다시 저장하세요")`. 이 두 오류(디코드·없음)는 셀 루프의 `catch (RuntimeException)`(셀 실패 D5)에 **먹히지 않게** 한다 — 판정과 디코드를 try 밖에서 하거나 `catch (BusinessException ex) { throw ex; }` 를 앞에 둔다. `CellTextGenerator` 의 IAE 는 지금처럼 셀 실패다. 클래스 javadoc 에 이 규칙 한 줄 |
+| `BL/common/rule/check/RuleExpressionChecks.java` | `public static boolean exprCell(String varKind, String dispType, Map<String, Object> cell)` — `RuleSaveValidator.cell`(106~113행)의 식 셀 판정을 **글자 그대로** 옮긴다(조건: `Expression`·`op` 없음·`expr` 있음 / 결과: `Expression`·`op`·`val` 없음·`expr` 있음) |
+| `BL/common/rule/check/RuleSaveValidator.java` | `cell()` 의 `exprCell` 계산을 `RuleExpressionChecks.exprCell(var.varKind(), var.dispType(), cell)` 로 바꾼다(동작 불변) |
+| `BL/common/rule/RuleAnalysisInputMapper.java` · `BL/common/rule/check/RuleGenerateTry.java` | `c.get("ast") instanceof Map<?, ?> ast ? (Map) ast : null` → `RuleCellsCodec.ast(c.get("ast"))` |
+| `BL/common/rule/RuleIoReader.java` | 138행 `collect(cell.get("ast"), conds)` → `collect(RuleCellsCodec.ast(cell.get("ast")), conds)`(`collect(Object…)` 의 Map 검사는 AST 내부 노드용이라 둔다) |
+| `BL/common/rule/check/RuleDefinitionReads.java` · `BL/common/rule/check/ledger/MasterReferenceCheck.java` | `if (cell.get("ast") instanceof Map<?, ?> ast)` → `Map<String, Object> ast = RuleCellsCodec.ast(cell.get("ast")); if (ast != null)` |
+| `BL/dme/ruleEdit/service/RuleViewService.java` | `rowInfo`(204행 — rows·baseRows 가 함께 쓴다)가 `RuleCellsCodec.normalizeStored(r.getCells())` 를 싣는다. 114행 분석 입력(`StoredRow`)은 mapper 가 parse 로 받으므로 그대로 둔다 |
+| `BL/common/rule/confirm/RuleVersionDiffs.java` | `canonicalCells` 가 정렬 쓰기 전에 **셀 객체의 문자열 ast 만** 객체로 푼다(최상위가 var_id→셀 객체 모양일 때만. 풀리지 않는 문자열은 그대로 두고 — diff 는 판정이 아니며 이 메서드는 원래 "JSON 이 아니면 원문" 으로 관대하다). javadoc 에 한 줄 |
+| `BAT/dme/RuleSetLifecycleOasisFlowTest.java` (TSK-09-02 산출물) | 155~163행 DF-3 우회 주석을 지우고(156~157행의 "키는 두고 값만 NULL" 설명은 남긴다) MIN 분기 케이스를 더한다(§R3) |
+| `BAT/dme/ruleEdit/RuleColumnsServiceTest.java` (TSK-08-03 산출물) | 457~458행 `String.valueOf` 비교(문자열 저장을 굳힌 기대)를 **원문 CELLS** 기준 검사로 바꾼다(§R3). 398행 시드 `"ast":""` 는 둔다(D15 로 "없음" — apply 가 덮어쓴다) |
+| `BAT/dme/ruleEdit/RuleValueTestServiceTest.java` · `RuleEditViewTest.java` · `RuleTableServiceTest.java` | 새 사례(§R3) |
+| `BLT/common/rule/RuleCellsCodecTest.java` · `BLT/common/rule/definition/RuleDefinitionAssemblerTest.java` · `BLT/common/rule/confirm/RuleVersionDiffsTest.java` | 새 사례(§R3) |
+| `M/tests/dme/ruleEdit/column-draft.test.ts` | 70행 픽스처 `"ast":"{}"` → `"ast":{}`(계약 모양에 맞춘 표기 정정, 기대값 불변) |
+| `docs/mdm/tasks/TSK-09-02/defects.md` (TSK-09-02 산출물) | DF-3 절 끝에 `- **해소**: TSK-08-04 반려 재작업(1회차)에서 저장(객체 ast)·읽기(레거시 문자열 디코드)·명시 오류를 고쳤다. `RuleSetLifecycleOasisFlowTest` 가 MIN 분기(90·70 → 70)를 OASIS 경로로 확인한다.` 한 줄(본문은 고치지 않는다) |
+
+**수정하지 않는 것**: 엔진 `E/**`(특히 `InputContracts`·코퍼스 JSON), `M/src/evalex/**`, FE 화면 코드(`P/**`), `RuleExpressionChecks.check` 본문, `RuleVersionService`(복사는 원문 그대로), `RuleCellsCodec.validateShape`, 마이그레이션·DDL, 1차 라운드 설계 §0~§7·D1~D12.
+
+**다른 Task 산출물 변경(done 요약에 싣는다)**: TSK-08-03 — 결과 식 셀 AST 저장 형식(문자열 → 객체)과 `RuleColumnsServiceTest` 의 그 기대. TSK-08-02 —
+`RuleCellsCodec.parse` 가 레거시 문자열 ast 를 객체로 푼다(I17 해석 명시). TSK-08-05 — `RuleVersionDiffs.canonicalCells` 가 문자열 ast 를 풀어 비교한다.
+TSK-09-02 — `RuleSetLifecycleOasisFlowTest` 우회 주석 정리·MIN 케이스 추가, defects.md DF-3 해소 줄.
+
+### R3. 테스트 전략 (빨강 먼저)
+
+Build 는 아래 새·바뀐 테스트를 **먼저** 써서 지금 트리에서 실패하는 것을 확인하고(빨강 기록은 build-log.md) 구현한다. 모두 SQLite·순수 JUnit·Vitest 이며 도커를 쓰지 않는다.
+
+1. `BAT/dme/RuleSetLifecycleOasisFlowTest`(RANDOM_PORT, 실제 BPMN) — 3단계에서 `saveCase("SPD_JOIN", "예외_있음_MIN", "{\"BASE_SPD\":\"90\",\"EXC_SPD\":\"70\"}", "{\"LINE_SPD\":70}")` 를
+   더하고 기존 `assertCasePasses("SPD_JOIN", 1, …)` 가 두 케이스를 모두 통과시키는지 본다(헬퍼는 케이스 전부를 돈다). 4단계 `confirm` 이 케이스를 다시 돌리므로
+   확정 경로(`StoredRuleDefinitions` → `RuleConfirmChecks`)도 70 으로 통과해야 한다. **빨강**: 지금 트리에서 `pass:false`(LINE_SPD 0). 5단계 세트 저장이 R-F11 대로
+   계속 통과하는지도 이 시험이 본다(깨지면 세트 검사가 새로 드러낸 사실이므로 build-log 「설계 이탈」에 올리고 오케스트레이터에 인계).
+2. `BAT/dme/ruleEdit/RuleValueTestServiceTest` — (a) **레거시 행 70**: jdbc 로 DERIVE 룰(예 `SPD_JOIN_OLD`)을 VER 1 **RELEASED** 로 심고(`DmeTestSupport.rule`·`pending` 과 같은
+   방식), 결과 열 `LINE_SPD`(RESULT·Expression·NUMBER 도메인), 컬럼 사전 `BASE_SPD`·`EXC_SPD`(NUMBER), 행 CELLS 는
+   `{"<id>":{"expr":"IF(EXC_SPD == NULL, BASE_SPD, MIN(BASE_SPD, EXC_SPD))","ast":"<AstExporter.export 결과를 JSON 문자열로 한 번 더 인코딩>"}}` — 1차 결함이 만든 모양 그대로.
+   `runTest(target VERSION, ver 1, {"BASE_SPD":"90","EXC_SPD":"70"})` → outcome OK, `LINE_SPD` = 70, 계약 행 required/optional 에 두 이름. (b) **깨진 ast**: 같은 행의 ast 를 `"x"`
+   로 심으면 `runTest` 가 `BusinessException(INVALID_VALUE)`(메시지에 `ast`)를 던진다 — 0 이나 OK 가 나오면 안 된다. (c) **식 셀 ast 없음**: ast 키 없이 심으면 같은 예외(메시지에 `AST 가 없`).
+   빨강: (a) 0, (b)(c) 예외 없이 OK.
+3. `BAT/dme/ruleEdit/RuleColumnsServiceTest.DERIVE_결과_식은_셀에_저장되고_AST_는_파싱_결과와_같다` — 457~458행을 바꾼다: 원문 `cells` 에 `"ast":{` 가 있고 `"ast":"` 가 **없음**을
+   `assertTrue/assertFalse` 로 보고, 값은 **`RuleCellsCodec.parse` 를 거치지 않고**(parse 가 이제 문자열도 풀어 주므로 회귀를 못 잡는다) 평범한 `ObjectMapper.readTree(cells)` 로 읽어
+   `get("1").get("ast")` 가 객체 노드이고 `AstExporter.export(expr, …)` 를 `valueToTree` 한 것과 같은지 본다. 빨강: 지금 문자열 노드.
+   같은 클래스에 VAR_AST 단언을 하나 더한다 — 식 변수 조건 열(COND·`Expression`, varName 이 식)을 COLUMNS 로 저장한 뒤 `SELECT VAR_AST` 가
+   `DomainJson.write(AstExporter.export(varName, …))` 와 **문자열로** 같다(RR2 — `parseOrReject` 반환형을 바꾸며 컬럼 쪽이 흔들리지 않는지. 지금 트리에서도 초록이며 변이 검증용이다).
+4. `BAT/dme/ruleEdit/RuleEditViewTest` — DRAFT(또는 RELEASED) 행 CELLS 에 문자열 ast 를 jdbc 로 심고 `view` 를 부르면 그 행 `cells` 원문에 `"ast":{` 가 있고 `"ast":"` 가 없다.
+   문자열 ast 가 없는 행의 `cells` 는 DB 원문과 **바이트 동일**. 빨강: 문자열 그대로.
+5. `BAT/dme/ruleEdit/RuleTableServiceTest` — 산출 룰 DRAFT 에 문자열 ast 행을 심고, 그 CELLS 원문을 그대로 TABLE 저장 요청으로 보내면(오래된 화면이 되돌려 보내는 모양) 성공하고
+   저장된 CELLS 는 객체 ast 다. 빨강: 지금 INVALID_VALUE(`validateShape`).
+6. `BLT/common/rule/RuleCellsCodecTest` — `parse`: 문자열 ast(객체 JSON) → Map, 공백·빈 문자열 → 키 없음, `"x"`·`"[1]"`·`"1"` → INVALID_VALUE(메시지 `ast`), 숫자·배열 타입 ast → INVALID_VALUE.
+   `ast(Object)`: null·Map·문자열·기타 각 1건. `normalizeStored`: 문자열 ast 없는 입력은 **같은 String**(공백 포함 원문 그대로), 있는 입력은 객체로. `validateShape` 에 **손으로 만든**
+   `Map`(ast = 문자열)을 넣으면 여전히 INVALID_VALUE(parse 를 거치지 않는 호출자 보호). 기존 `ast_는_객체여야_한다` 는 그대로 통과해야 한다(이제 parse 단계에서 같은 코드·`ast` 메시지로 난다).
+7. `BLT/common/rule/definition/RuleDefinitionAssemblerTest` — 결과 Expression 셀 `{expr, ast:"<문자열 JSON>"}` 은 조립되고 계약 행에 식의 변수가 든다. 식 셀 ast 없음·깨진 문자열은
+   `BusinessException` 이 `assemble` 밖으로 나온다(**`failures()` 로 삼켜지지 않는다**). `op` 가 있는 Expression 조건 셀(식 셀 아님)은 ast 가 없어도 오류가 아니다. 기존 코퍼스 동적 테스트는 그대로 통과.
+8. `BLT/common/rule/confirm/RuleVersionDiffsTest` — 같은 식의 셀이 한쪽은 문자열 ast, 한쪽은 객체 ast 면 `canonicalCells` 가 같고 diff 가 SAME(변경 없음).
+9. FE — `column-draft.test.ts` 픽스처 정정만. 새 FE 테스트는 없다(FE 코드 불변, R-F8).
+
+화면 스모크 넷(e2e.md): 이번 라운드는 화면 코드를 바꾸지 않고, e2e 픽스처에 문자열 ast 행이 없으며(R-F10) view 응답이 바뀌는 것은 레거시 행뿐이라 e2e
+`src/frontend/e2e/mdm-ruleEdit.spec.ts` 의 동작이 달라지지 않는다 — e2e 는 다시 돌리지 않는다(1차 라운드 통과 결과를 유지, 게이트 명령에도 없다). 보고에 "e2e 미실행(화면 무변경)" 으로 올린다.
+
+게이트: `state.json` baseline 명령 5개를 글자 그대로. 기대 — testAll 3960 + 새 사례(감소 없음)·실패 0, m-mdm 1064/0(픽스처 정정만, 수 불변), shared 170/0, lint 통과, oasis 계약 ERROR 0/WARN 0.
+
+### R4. 수용 기준 매핑 (이번 라운드가 닿는 것)
+
+spec 수용 기준 5건의 1차 매핑(§4)은 그대로다. 이번 라운드는 반려 사유 네 요구와, 그것이 걸친 spec 항목을 아래로 확인한다.
+
+| 요구 | 검증 |
+|---|---|
+| 저장 쪽 수정(결과 식 AST 객체 저장) — spec 「Expression 파싱·AST 저장」 | §R3-3 `RuleColumnsServiceTest`(원문 CELLS `"ast":{`), §R3-1 lifecycle |
+| 읽기 쪽 수정(SPD_JOIN 70) — spec 「대상: 편집본/저장 버전」·「결과 표시」 | §R3-1 `RuleSetLifecycleOasisFlowTest`(OASIS execute·confirm), §R3-7 `RuleDefinitionAssemblerTest` |
+| 기존 행도 읽는다 | §R3-2(a) `RuleValueTestServiceTest`(RELEASED 레거시 → 70, `StoredRuleDefinitions` 경로), §R3-4 view, §R3-5 TABLE 재저장, §R3-6 codec, §R3-8 diff |
+| 조용한 실패 → 명시적 오류 | §R3-2(b)(c) `RuleValueTestServiceTest`, §R3-6 codec, §R3-7 조립(failures 로 삼키지 않음) |
+| 06 「저장 시 검사」·UNIQUE·원장 미기록·요청 크기·e2e(1차 기준) | 1차 테스트 전부가 게이트 testAll·m-mdm 에서 그대로 통과(기대값 불변). e2e 는 미실행(화면 무변경, §R3 끝) |
+
+### R5. 불변 규칙 — 이번 라운드에서 바꾸면 안 되는 것
+
+변이 검증은 규칙마다 적힌 대상 테스트만 돌린다.
+
+| # | 규칙 | 대상 테스트 |
+|---|---|---|
+| RR1 | COLUMNS apply 가 쓰는 결과 식 셀의 `ast` 는 JSON **객체**다(원문에 `"ast":"` 없음) | `RuleColumnsServiceTest`(DERIVE AST 사례) |
+| RR2 | VAR_AST·GRP_COND_AST 는 문자열 JSON 컬럼 그대로다(값 = `DomainJson.write(AST)`, 바이트 동일) | `RuleColumnsServiceTest.grp_cond_는_파싱과_참조_변수_해결이_되어야_하고_AST_를_한_번_만든다` 와 새 VAR_AST 단언(§R3-3) |
+| RR3 | `parse` 는 문자열 ast 를 객체로 풀고, 공백뿐이면 키를 지우며, Map ast 와 다른 키 값은 바꾸지 않는다 | `RuleCellsCodecTest` |
+| RR4 | 풀 수 없는 ast(JSON 아님·객체 아님·문자열·Map 밖 타입)는 INVALID_VALUE 다 — null 로 떨어지지 않는다 | `RuleCellsCodecTest`, `RuleValueTestServiceTest`(깨진 ast) |
+| RR5 | `validateShape` 는 Map 수준에서 문자열 ast 를 계속 거부한다 | `RuleCellsCodecTest` |
+| RR6 | 식 셀(`exprCell` 판정)에 ast 가 없으면 조립이 `BusinessException` 을 던지고, 이 오류와 디코드 오류는 `failures()` 로 삼켜지지 않는다. 식 셀이 아닌 셀은 이 규칙에 걸리지 않는다 | `RuleDefinitionAssemblerTest`, `RuleValueTestServiceTest`(ast 없음) |
+| RR7 | 식 셀 판정은 검사기와 조립이 같은 함수(`RuleExpressionChecks.exprCell`)를 쓴다 — 검사기가 ast 를 채우는 셀 집합 = 조립이 ast 를 요구하는 셀 집합 | `RuleDefinitionAssemblerTest`, `RuleSaveValidatorTest`, `RuleValueTestServiceTest`(TEST_BODY 기존 사례 `키를_보내지_않으면_MISSING_KEY…`) |
+| RR8 | SPD_JOIN(`IF(EXC_SPD == NULL, BASE_SPD, MIN(BASE_SPD, EXC_SPD))`)은 90·70 → 70, 90·NULL → 90 이다(OASIS 저장 → execute → confirm) | `RuleSetLifecycleOasisFlowTest` |
+| RR9 | 레거시 문자열 ast 를 가진 RELEASED 버전의 값 테스트는 객체 ast 와 같은 결과·계약을 낸다 | `RuleValueTestServiceTest`(레거시 70) |
+| RR10 | view 는 문자열 ast 행만 객체로 바꿔 내려주고, 그 밖 행의 CELLS 는 원문 바이트 그대로다 | `RuleEditViewTest`, `RuleCellsCodecTest`(`normalizeStored`) |
+| RR11 | 레거시 문자열 ast 셀을 되돌려 보낸 TABLE 저장은 성공하고 객체 ast 로 저장된다 | `RuleTableServiceTest` |
+| RR12 | 확정 diff 는 ast 표현(문자열·객체)만 다른 같은 셀을 같은 것으로 본다 | `RuleVersionDiffsTest` |
+| RR13 | 검사기는 식 셀 ast 를 서버 AST 로 덮어쓴다(화면이 보낸 AST 를 믿지 않는다 — 1차 I11) | `RuleExpressionChecksTest` |
+| RR14 | 엔진 입력 계약 계산과 공용 코퍼스는 바뀌지 않는다 | `ET/rule/InputContractCorpusTest`, `RuleDefinitionAssemblerTest`(코퍼스 동적 사례), `M/tests/evalex-input-contract-corpus.test.ts` |
+
+### R6. Build 가 주의할 함정
+
+1. 조립 셀 루프의 `catch (RuntimeException)` 은 `BusinessException` 도 잡는다 — RR6 의 두 오류를 try 밖에서 내거나 먼저 다시 던진다.
+2. `RuleColumnsServiceTest` 의 값 비교를 `RuleCellsCodec.parse` 로 하면 이제 문자열도 객체로 풀려 RR1 회귀를 못 잡는다 — 원문 문자열·평범한 Jackson 으로 본다(§R3-3).
+3. 레거시 시드의 ast 문자열은 **JSON 문자열 안의 JSON 문자열**이다 — Java 에서 `mapper.writeValueAsString(mapper.writeValueAsString(astMap))` 처럼 두 번 인코딩해 셀 JSON 에 넣는다(손으로 이스케이프하지 않는다).
+4. `normalizeStored` 는 문자열 ast 가 없으면 **입력 String 을 그대로** 돌려준다 — `write(parse(x))` 는 공백·이스케이프를 바꿔 화면 diff·바이트 동일 가정을 흔든다.
+5. `RuleCellsCodec` 는 08-02 공용 클래스다 — `parse` 의 기존 오류 메시지(객체 아님·정수 키·셀 객체 아님)와 순서를 바꾸지 않는다.
+6. lifecycle 시험 5단계(세트 저장)가 새로 실패하면 결함 수정으로 SPD_JOIN 이 읽는 이름이 생겨서다(R-F11). 기대값을 바꾸지 말고 원인을 build-log 에 적어 인계한다.
+7. 겪은 문제는 `.issues` 에 쓰지 않고 보고에 분류와 함께 올린다.
+
 ## 0. 조사로 확인한 사실 (Build 가 다시 조사하지 않도록 적는다)
 
 ### 0.1 entry-point
@@ -208,23 +355,13 @@ FE `P/page.tsx` 다(TSK-08-02 design §0, D1). 이 설계는 `dme/ruleEdit` 를 
 
 ## 구현 단위
 
-| 단위 | 범위(파일·기능) | 새 테스트 | 담당 불변 규칙 |
-|---|---|---|---|
-| B1 | 엔진 `InputContracts` 이식 + 입력 계약 코퍼스 + 두 러너(§2.1) | `ET/rule/InputContractCorpusTest`, `M/tests/evalex-input-contract-corpus.test.ts` | I28 |
-| B2 | 검사기 핵심 `BL/common/rule/check/`(원장 비의존): `RuleLimits`·`RuleSaveIssueCode`·`RuleSaveTarget`·`RuleCheckInput`·`RuleCheckReport`·`RuleCellRules`·`RuleExpressionChecks`·`RuleCompleteness`·`RuleGenerateTry`·`RuleSaveValidator`·`RuleSaveRejections` + 공용 `RuleSaveCheck`·`RuleSaveContext`(새 위치, 옛 파일은 두고) | `RuleCellRulesTest`·`RuleExpressionChecksTest`·`RuleCompletenessTest`·`RuleGenerateTryTest`(BLT, 순수) | I5·I6·I7·I8·I9·I10·I11·I12·I13·I30 |
-| B3 | `RuleTableService` 재배치·거부·응답 매핑, 옛 `RuleSaveCheck`·`RuleSaveContext` 삭제, 기존 백엔드 테스트의 D3 기대값 뒤집기(§3.5) | `RuleTableSaveCheckTest` | I1·I2·I3·I4·I23(저장) |
-| B4 | `RuleDefinitionAssembler`·`SingleRuleDefinitionLookup`·`StoredRuleDefinitions`·`RuleTestCaseQueries`·`RuleValueTestService`·DTO·`RuleEditService.runTest`·BPMN `execute`·`DmeBpmnActionTest`·`DmeOasisHttpTest` | `RuleDefinitionAssemblerTest`·`RuleValueTestServiceTest` | I19·I20·I21·I22·I23(값 테스트)·I24·I32 |
-| B5 | `RuleTestCaseService`(part CASE)·`RuleTestCaseWrites`·`RuleEditSaveRequest/Result` 칸·view `testCases` | `RuleTestCaseServiceTest`(+`RuleEditViewTest` 사례 1건) | I25 |
-| B6 | 원장 검사 빈 8개(§2.2 표)·`RuleDefinitionReads`·`AxisCoverage` 추출·`RuleUsageFinder`·`RuleColumnsService` 연결 | `RuleLedgerChecksTest` | I14·I15·I16·I17·I18·I29 |
-| B7 | FE 기반: workbench context·`page.tsx`·`DecisionTableCard`·`columns.ts`·`analysis.ts`·`value-test/*.ts`·`api.ts`·`types.ts`·shared 셀 클래스 | `value-test-input`·`value-test-marks`·`case-model`·`analysis-same` Vitest | I26·I33 |
-| B8 | FE 카드 ④⑤⑥·`cards.ts` | `value-test-cards.test.ts`(렌더) | I34 |
-| B9 | e2e V1~V6·S5·S6 수정·픽스처·스크린샷·기능설계서·전체 게이트·oasis 계약 검사 | e2e | I1·I3·I4(e2e 증명)·스모크 넷 |
+반려 재작업(1회차) 단위 표다. 1차 라운드 표(B1~B9, 모두 머지됨)는 `0d27c254:docs/mdm/tasks/TSK-08-04/design.md` 에 있으며 다시 돌리지 않는다.
 
-- B2 는 `RuleSaveValidator` 가 `RuleSaveCheck` 빈을 부르는 자리까지 만든다(빈 0개로도 동작). B6 은 새 파일(빈)만 더하고 `RuleColumnsService`·`RuleUsageFinder` 를 고친다.
-- `ExprTypeByCaseCheck`(B6)는 B4 의 `RuleDefinitionAssembler`·`RuleTestCaseQueries` 를 쓴다 → B6 은 B4 뒤에 돈다(표 순서대로).
-- 공유 파일 소유: BPMN·`RuleEditService`·`DmeBpmnActionTest`·`DmeOasisHttpTest` = B4, `RuleEditSaveRequest/Result`·`RuleEditViewResult`·`RuleViewService` = B5,
-  `RuleTableService`·옛 `dme/ruleEdit/service/RuleSaveCheck`·`RuleSaveContext` 삭제 = B3, 새 `common/rule/check/RuleSaveCheck`·`RuleSaveContext` = B2, `RuleColumnsService`·`RuleUsageFinder` = B6, `api.ts`·`types.ts`·`DecisionTableCard`·`columns.ts` = B7,
-  `cards.ts` = B8, e2e spec·픽스처 = B9.
+| 단위 | 묶음 | 범위(파일·기능) | 새 테스트 | 담당 불변 규칙 |
+|---|---|---|---|---|
+| B1 | 1 | §R2 표 전부 — `BL/common/rule/RuleCellsCodec.java`, `BL/dme/ruleEdit/service/RuleColumnsService.java`, `BL/common/rule/definition/RuleDefinitionAssembler.java`, `BL/common/rule/check/RuleExpressionChecks.java`, `BL/common/rule/check/RuleSaveValidator.java`, `BL/common/rule/RuleAnalysisInputMapper.java`, `BL/common/rule/check/RuleGenerateTry.java`, `BL/common/rule/RuleIoReader.java`, `BL/common/rule/check/RuleDefinitionReads.java`, `BL/common/rule/check/ledger/MasterReferenceCheck.java`, `BL/dme/ruleEdit/service/RuleViewService.java`, `BL/common/rule/confirm/RuleVersionDiffs.java`, 테스트 `BAT/dme/RuleSetLifecycleOasisFlowTest.java`·`BAT/dme/ruleEdit/{RuleColumnsServiceTest,RuleValueTestServiceTest,RuleEditViewTest,RuleTableServiceTest}.java`·`BLT/common/rule/{RuleCellsCodecTest,definition/RuleDefinitionAssemblerTest,confirm/RuleVersionDiffsTest}.java`, `M/tests/dme/ruleEdit/column-draft.test.ts`, `docs/mdm/tasks/TSK-09-02/defects.md` | §R3 1~9 | RR1~RR14 |
+
+- 단위 하나다 — 도구 호출 약 60~100회로 보이고 백엔드 한 모듈(mdm) 안이라 나눌 이득이 없다(FE 는 픽스처 한 줄).
 
 ## 3. 테스트 전략
 
@@ -500,10 +637,9 @@ cases[{caseId, caseName, outcome, pass(true|false|null), mismatches[{key, expect
 ## 도커 금지로 생략한 검증
 
 - 금지 모드 출처: 워커 기본(DOCKER=allow 아님)
-- 도커 금지로 생략: cd src/backend/mdm && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ../gradlew :api:mssqlMigrationTest --no-daemon --console=plain
-- 이 Task 는 마이그레이션을 만들지 않는다. MSSQL 에서만 달라지는 경로는 케이스 id 발급(`issue(CASE)` 의 MSSQL `OUTPUT inserted`, 기존 `DefaultMdmRuleIdIssuerMssqlTest` 가
-  다루는 같은 코드)과 케이스 조건부 UPDATE·DELETE(방언 중립 SQL 로 쓴다)다. 머지 뒤 팀장 방언 검증(`dialect_check`)에서 한 번 확인된다. 이 생략 때문에 확인하지
-  못하는 수용 기준은 없다(수용 기준 5건은 SQLite·Vitest·e2e 로 확인한다).
+- 반려 재작업(1회차, 기점 6d2110fc): 이번 라운드에 도커 때문에 생략하는 검증은 없다. 1차 라운드가 적었던 `:api:mssqlMigrationTest` 는 기점 트리에
+  태스크가 없다(MDM MSSQL 폐지, `docs/mdm/adr/0004-drop-mssql-production-assumption.md`, mdm 마이그레이션은 `sqlite/` 만). 이번 수정은 마이그레이션·방언 SQL 을
+  만들지 않고, 새 테스트는 모두 SQLite·순수 JUnit·Vitest 다. 이 절 때문에 확인하지 못하는 수용 기준은 없다.
 
 ## 담당자 확인 필요 결정
 
@@ -590,3 +726,52 @@ cases[{caseId, caseName, outcome, pass(true|false|null), mismatches[{key, expect
 - **택한 것**: (a)
 - **근거와 강약**: 06 샘플(06:1063·1322)이 숫자 하나를 쓰므로 그 모양을 그대로 받는다. 여러 행은 COLLECT·ANY·PRIORITY 에서만 나온다.
 - **반려되면 재작업 방향**: 비교기와 `expectedFromResult` 만 배열로 바꾸고, 기존 케이스의 숫자를 한 원소 배열로 읽는다.
+
+### D13 — 결과 식 셀 `ast` 의 저장 형식 (반려 재작업)
+- **질문**: COLUMNS apply 가 결과 식 셀 `ast` 에 AST JSON 문자열을 넣어 왔다(R-F1). 무엇으로 저장하나.
+- **선택지**: (a) JSON 객체(Map) — TABLE 저장·검사기와 같은 모양 (b) 문자열로 두고 독자가 늘 푼다
+- **택한 것**: (a)
+- **근거와 강약**: `RuleCellsCodec` javadoc(08-02)과 06 셀 JSON 이 "ast 는 객체" 라고 정했고(승인된 선행 산출물), TABLE 저장 경로는 이미 객체를 쓴다(리포 기존 관례). (b) 는 한 셀 JSON 안에 두 표현을 영구히 남긴다. VAR_AST·GRP_COND_AST 는 별도 문자열 컬럼이라 이 결정과 무관하게 문자열 그대로다.
+- **반려되면 재작업 방향**: 없음에 가깝다 — 반려 사유가 이것을 요구했다.
+
+### D14 — 디코드를 어디에 모으나 (반려 재작업)
+- **질문**: 레거시 문자열 ast 를 읽는 곳이 여섯이고(R-F2) 화면 되돌림(R-F7)·view(R-F8)·확정 diff(R-F9)도 걸린다.
+- **선택지**: (a) `RuleCellsCodec.parse` 가 문자열 ast 를 객체로 풀고, 독자는 `RuleCellsCodec.ast(Object)` 헬퍼로 읽으며, parse 를 거치지 않는 view·diff 는 같은 헬퍼로 정규화한다 (b) 독자 여섯만 헬퍼로 바꾸고 parse 는 그대로 (c) view 응답과 저장 입력만 정규화
+- **택한 것**: (a)
+- **근거와 강약**: parse 는 DB 행 독자와 저장 입력의 공통 진입점이라(R-F6) 거기 두면 빠지는 독자가 없고, 오래된 화면이 레거시 셀을 되돌려 보내도 TABLE 저장이 막히지 않는다(지금은 막힌다, R-F7). (b) 는 저장 입력 막힘과 앞으로 생길 독자를 못 막는다. (c) 는 원장 독자(값 테스트·확정)의 결함을 남긴다. parse 가 값을 고치지 않는다는 08-02 I17 은 셀 값(op·left·right·list·expr·val)에 대한 것으로 해석해 javadoc 에 적는다(ast 는 expr 에서 파생된 표현). `validateShape` 는 그대로 둬 Map 수준 호출자에게는 객체만 허용한다.
+- **반려되면 재작업 방향**: (b) 면 parse 디코드를 빼고 `RuleTableService.checkRows` 에서 validateShape 전에 셀마다 `ast()` 로 정규화한다. 독자 헬퍼 교체는 그대로다.
+
+### D15 — 빈 문자열 `ast` (반려 재작업)
+- **질문**: `"ast":""`(예 `RuleColumnsServiceTest:398` 시드)를 어떻게 읽나.
+- **선택지**: (a) 없음 — parse 가 키를 지운다 (b) 깨진 값으로 보고 INVALID_VALUE
+- **택한 것**: (a)
+- **근거와 강약**: 빈 문자열은 정보가 없고, 같은 레포의 VAR_AST·GRP_COND_AST 독자(`RuleDefinitionAssembler.map`)가 공백을 null 로 읽는 관례와 같다(리포 기존 관례). 식 셀이면 D16 의 "ast 없음" 오류가 따로 걸리므로 조용히 통과하지 않는다. 키를 지우는 것은 null 값이 `validateShape` 에 걸리지 않게 하려는 것이다.
+- **반려되면 재작업 방향**: (b) 면 `ast()` 의 공백 분기를 예외로 바꾸고 398행 시드를 객체 ast 로 고친다.
+
+### D16 — 깨진 ast·식 셀 ast 없음을 어떻게 알리나 (반려 재작업)
+- **질문**: 반려 사유는 조용한 실패를 명시적 오류로 바꾸라고 한다. 조립(`RuleDefinitionAssembler`)의 셀 실패(D5)로 돌릴까, 예외로 던질까.
+- **선택지**: (a) `BusinessException(INVALID_VALUE)` 를 던지고 셀 실패로 삼키지 않는다 (b) 셀 실패(`CellFailure`)로 행을 빼고 `failures()` 로 알린다 (c) 식 셀 ast 가 없으면 조립이 식 원문에서 AST 를 새로 만든다
+- **택한 것**: (a)
+- **근거와 강약**: 조립 호출자 다섯 가운데 넷(확정 케이스 재실행·계약 변경 검사 두 곳·케이스 결과 타입 검사)이 `failures()` 를 버린다(R-F5) — (b) 면 그 경로에서 다시 조용해진다. D5 의 셀 실패는 편집 중인 표의 셀을 위한 것이고, 저장된 AST 를 못 읽는 것은 데이터 손상이다. (c) 는 앱의 모든 쓰기 경로가 식 셀에 AST 를 채우므로(R-F4) 채우지 않는 경로가 없어 필요 없고, 손상을 가린다. 예외 종류는 저장된 셀 JSON 이 깨졌을 때 `RuleCellsCodec.parse` 가 이미 던지는 `INVALID_VALUE` 와 같게 해 OASIS 응답 `meta.message` 로 화면에 뜬다(F10). "식 셀" 판정은 검사기가 AST 를 채우는 판정과 같은 함수(`RuleExpressionChecks.exprCell`)라 값 테스트 본문의 정상 행은 걸리지 않는다.
+- **반려되면 재작업 방향**: (b) 면 예외를 셀 루프 안으로 옮기고 `failures()` 를 버리는 네 호출자가 실패가 있으면 오류·경고를 내게 고친다.
+
+### D17 — 기존 행 데이터 마이그레이션 (반려 재작업)
+- **질문**: 이미 저장된 문자열 ast 행을 고쳐 쓸까.
+- **선택지**: (a) 하지 않는다 — 관대한 읽기(D14)로 받는다 (b) Flyway 데이터 마이그레이션으로 CELLS 의 문자열 ast 를 객체로 바꾼다
+- **택한 것**: (a)
+- **근거와 강약**: RELEASED 버전은 불변이라 다시 쓰면 안 된다(06 버전 규칙, 확정 이력의 diff 기준). DRAFT 는 다음 COLUMNS·TABLE 저장 때 parse → write 로 저절로 객체가 된다. 읽기 디코드는 어차피 필요하므로 (b) 는 불변 원칙만 깨고 얻는 것이 없다.
+- **반려되면 재작업 방향**: DRAFT 행만 대상으로 하는 반복 가능 마이그레이션(또는 기동 시 일회 작업)을 더하고, RELEASED 는 읽기 디코드로 남긴다.
+
+### D18 — 엔진 `InputContracts` 를 고치나 (반려 재작업)
+- **질문**: 명시적 오류를 엔진(AST 없는 결과 셀에서 계약 계산을 거부)에 둘까, mdm 에 둘까.
+- **선택지**: (a) mdm 조립 경계(`RuleDefinitionAssembler`)에서 막고 엔진은 그대로 (b) 엔진 `InputContracts.rowContract` 가 AST 없는 결과 셀을 오류로
+- **택한 것**: (a)
+- **근거와 강약**: `InputContracts` 는 JUnit·Vitest 공용 코퍼스로 TS 포팅과 동치가 고정돼 있고(1차 B1·I28), 엔진은 AST 가 없는 정의(식 원문만 있는 외부 호출자)도 받아야 한다. 결함은 mdm 저장·재조립 경로에만 있다(DF-3 분석과 같다).
+- **반려되면 재작업 방향**: 엔진·TS 양쪽 `rowContract` 에 같은 검사를 넣고 코퍼스에 사례를 더한다(엔진 라운드가 따로 필요).
+
+### D19 — view 응답과 확정 diff 도 정규화하나 (반려 재작업)
+- **질문**: view 는 CELLS 원문을, 확정 diff 는 ast 까지 포함한 JSON 을 쓴다(R-F6·R-F9). 레거시 행을 여기서도 바꿀까.
+- **선택지**: (a) view 는 문자열 ast 가 든 행만 객체로 다시 써서 내려주고(나머지는 원문 바이트), diff 는 문자열 ast 를 풀어 비교한다 (b) 둘 다 원문 그대로 두고 FE 가 문자열 ast 를 푼다
+- **택한 것**: (a)
+- **근거와 강약**: 화면 evalex(입력 계약·분석·미리보기)가 셀 AST 를 걷으므로(R-F8) 서버가 한 번 정규화하면 FE 코드를 바꾸지 않아도 된다. 문자열 ast 가 없는 행을 원문 그대로 두는 것은 "손대지 않은 행은 바이트 단위로 같다"(grid-model.ts) 가정을 지키기 위해서다. diff 를 풀지 않으면 레거시 RELEASED 와 수정된 DRAFT 가 식이 같아도 CHANGED 로 보인다. (b) 는 FE 여러 곳(evalex 세 파일)을 고쳐야 하고 코퍼스 동치 대상인 evalex 를 흔든다.
+- **반려되면 재작업 방향**: (b) 면 `M/src/evalex` 에 셀 ast 디코드를 넣고 `RuleViewService`·`RuleVersionDiffs` 수정을 되돌린다.
