@@ -37,26 +37,43 @@ CodeEffLookup.NONE)` 을 직접 만들어 붙이는 선례)를 그대로 확장�
 7케이스(원장 기준)"를 이미 04·05 자체 작업(TSK-06-05·07-03)의 수용 기준으로 걸어 뒀다 — 이것은 **각 모듈 자신의
 판정**(마루코드 존재, PORT 분류)이고 새로 확인할 것이 없는 기존 자산이다. TSK-09-03 이 요구하는 "판정"은 그와
 다르다 — 룰의 `MASTER(...)` 가 **다른 두 모듈이 방금 확정·등록한 값**을 참조해 내는 판정이며, 이 조합을 시험하는
-기존 자산은 없다(mdc/mdd/dme 어디에도 서로를 잇는 `*Flow*Test`·`*Chain*Test` 가 없음, 확인함).
+기존 자산은 없다(dmc/dmd/dme 어디에도 서로를 잇는 `*Flow*Test`·`*Chain*Test` 가 없음, 확인함).
 
 ### 0.2 "역할 2종 × 화면·액션 권한 매트릭스, DRAFT 소유권 교차(비소유자 저장 거부)"
 
-- 매트릭스의 **단일 진실 소스**는 `mdm/lib/contract/security/MdmPermissions.java`의 `MATRIX`(그룹×역할→권한 3종
-  READ/EDIT/CONFIRM)·`READ_ACTIONS`/`EDIT_ACTIONS`/`CONFIRM_ACTIONS`(포함 관계 READ⊂EDIT⊂CONFIRM, CONFIRM−EDIT=
-  {confirm})다. 역할 2종은 `MdmRoles.STD_ADMIN`(`MDM_STD_ADMIN`)·`STEWARD`(`MDM_STEWARD`). 이 작업의 depends 4그룹
-  (DMA 용어도메인·DMC 마스터코드·DMD 마스터데이터·DME 업무기준)의 실제 매트릭스: DMA(STD_ADMIN=EDIT,STEWARD=READ),
-  DMC(STD_ADMIN=READ,STEWARD=CONFIRM), DMD(STD_ADMIN=READ,STEWARD=EDIT), DME(STD_ADMIN=READ,STEWARD=CONFIRM).
-- 그런데 실제 시드(`mcm/api/.../init/DataInitializer.java`의 `seedMdmObjectRbac(objectId, groupCode)`)는 **이 상수를
-  import 하지 않는 하드코딩 복제본**이다 — 시드가 상수에서 드리프트할 위험이 이미 있다(확인함, 아직 아무 시험도 이를
-  보지 않는다).
-- 서버 가드는 2단이다: ① `EndpointPermissionFilter`(mcm-core, `OncePerRequestFilter`)가 URL 을 `PermKey`로 파싱해
-  `SecRoleMapping` 캐시로 403/통과를 가른다(화면·액션 단위). ② `MdmStdAdminGuard`/`MdmStewardGuard`(`mdm/lib/common/
-  security`)는 역할만 보는 보조 가드(dme 는 `RuleStewardCheck` 경유만 허용되고 `DmeRoleCheckArchitectureTest`(ArchUnit)
-  가 강제한다).
-- 기존 `MdmSecurityChainTest`(`common/security`, TSK-01-03)는 인증 헤더 유무만 보고(401/actuator), 역할별 화면·액션
-  통과/거부는 안 본다. 인증 헤더 패턴은 이미 확인함: `X-Client-Key`·`X-Authenticated-User`·`X-Authenticated-Role`.
-  `SecurityScreenContractTest`는 상수만 단위검증(HTTP 없음). `MdmOasisActionVocabularyTest`는 04·08 BPMN 만 보고
-  06(codeConfirm)·07(dataItemMng)은 빠졌다. **04·06·07·08 을 실제 HTTP 로 가로지르는 권한 매트릭스 시험은 없다.**
+**정정(1차 조사 오류 — 판정 층을 잘못 짚었다)**: 최초 조사는 `EndpointPermissionFilter`(mcm-core)가 mdm 요청을 403
+으로 막는다고 적었으나 틀렸다. **mdm 백엔드에는 서버 쪽 권한 필터가 없다** — TSK-01-03 design.md F38·D6(택한 것
+(a))이 이미 이렇게 정했다: "API RBAC 는 BFF 한 곳"이고, mdm 은 mcm 보안 테이블을 볼 수 없다(F40). `MdmSecurityChainTest`
+가 확인하는 것도 "신뢰 헤더가 있으면 인증만 통과한다"이지 역할별 화면·액션 403 이 아니다. 실제 판정 경로는 3단이다:
+  1. **mcm 시드**: `mcm/api/.../init/DataInitializer.java`의 `seedMdmRbac()`(역할 2종·역할그룹·권한 3종
+     READ/EDIT/CONFIRM 의 액션 CSV)와 `seedMdmObjectRbac(objectId, groupCode)`(화면별 그룹×역할→권한ID, `Map.of`
+     로 dma/dmb/dmc/dmd/dme 매트릭스를 하드코딩)가 `TB_MCM_SEC_ROLE_MAPPING`·`TB_MCM_SEC_PERM`을 채운다. 이 매트릭스는
+     현재 값을 대조해 보니 **`MdmPermissions.MATRIX`·`*_ACTIONS`(mdm/lib 계약)와 내용이 같지만, import 관계가 없는
+     손 복제본**이다(mcm 은 mdm/lib 을 의존하지 않는다 — 방향이 반대면 순환 의존) — 값이 갈라져도 컴파일이 잡지 못한다.
+  2. **mcm-core**: `UserPermCache.toKeyStrings(userId)`(mcm-core, `RBAC chain`을 펼쳐 `PermKey`Set 을 만든다)가 그
+     시드로 `"module/objId/action"` 문자열 목록을 만든다. `PermKey`(`mcm-core/.../security/endpoint/PermKey.java`)의
+     compact constructor 가 `objId`를 `.toLowerCase()` 하는 것을 코드로 확인함 — camelCase 화면 ID(`domainMng`)가
+     `domainmng`로 내려간다.
+  3. **BFF**: `m-mcm/proxy.ts` → `shared/src/auth/rbac-policy.ts`의 `evaluateApiPolicy`가 요청 경로를 `parseRbacKey`
+     로 같은 포맷의 키로 바꿔 1·2 번이 만든 목록에 있는지로 pass/`forbidden-perm`을 가른다(순수 함수, 이미 광범위한
+     기존 vitest 있음, mdm 전용 사례는 없음).
+- **이미 있는 시험**: `MdmOasisActionVocabularyTest`(`mdm/api` 테스트, `com.dongkuk.dmes.mdm`)가 이 갭을 절반 메워
+  뒀다 — `mcm_시드의_allActions_는_mdm_BPMN_의_모든_action_을_담고_editActions_는_계약과_같다()`가 이미
+  `DataInitializer.java`를 **소스 텍스트로 읽어**(스프링 컨텍스트 없이, 클래스 주석 "단위 테스트가 없는 모듈이라 소스
+  문자열을 읽어 mdm 계약·BPMN 과 대조한다") `readActions`/`editActions` 리터럴이 `MdmPermissions.READ_ACTIONS`/
+  `EDIT_ACTIONS`와 같은지, BPMN 의 모든 액션이 `allActions`에 있는지 확인한다. **빠진 것**: `confirmActions` 대조,
+  `seedMdmObjectRbac`의 그룹×역할 매트릭스(`Map.of` 리터럴) 대 `MdmPermissions.MATRIX` 대조, 그리고 이 시험이 개별
+  `@Test`로 스캔하는 BPMN 은 `unitMng`·`termMng`(dma) + `ruleEdit`·`ruleMng`·`ruleSetMng`·`ruleSetEdit`(dme) 6개뿐
+  (전체 커버리지 검사는 `allActions` 대조 하나뿐이고 이것도 dme 4개만 `scanned` 검사로 강제한다) — dmc(마루코드)·
+  dmd(마스터데이터) 그룹은 어떤 검사에도 안 걸린다.
+- **게이트 배치 함정(확인함, dry-run 으로 재확인)**: `mcm`(포함 빌드)의 `build.gradle`에는 `mdm/build.gradle:59-64`
+  같은 `tasks.named('test') { dependsOn(subprojects.collect { ... }) }` 집계 줄이 **없다**. 루트 `testAll`은
+  `gradle.includedBuild('mcm').task(':test')` 하나에만 기대므로, `./gradlew testAll --dry-run`(실행함)의 그래프에
+  `:mcm:test`(무소스)만 있고 `:mcm:api:test`·`:mcm:lib:test`는 **아예 없다** — `mcm/api`엔 `src/test`조차 없고,
+  `mcm/lib/src/test`의 유일한 파일(`SampleNoticeServiceTest.java`, mdm 무관)도 지금 게이트 밖이다. 그래서 **새 시험을
+  `mcm/api`나 `mcm/lib`에 두면 `testAll`이 그 파일을 영원히 돌리지 않는다** — 만든 커버리지가 허상이 된다. 반면
+  `mdm/build.gradle`은 이 집계 줄이 있어 `:mdm:api:test`가 실제로 돈다(`MdmOasisActionVocabularyTest`가 그 증거).
+  이 판단은 「담당자 확인 필요 결정」 D5 로 올린다.
 - DRAFT 소유권: 공용 계약 `VersionStateService`/`DraftOwnershipService`/`VersionWriteGuard`(`mdm/lib/contract/
   version`)를 **dmc**(`CodeConfirmService`·`CodeEditService` 등)와 **dme**(`RuleConfirmService`·`RuleVersionService`
   등)가 재사용한다(확인함). 반면 **domainMng**(dma)·**dataItemMng**(dmd)는 이 세 인터페이스를 전혀 부르지 않고,
@@ -89,9 +106,11 @@ PRD.md:162 원문: "화면 AST 평가 1건 0.3~2.7µs, **1만 행 판정 100 ms 
 
 ## 1. 접근 방식
 
-세 요구사항 모두 **프로덕션 코드를 고치지 않고 시험만 추가한다**(itest 범위, TSK-09-01 과 같은 원칙). 세 갭은 서로
-다른 새 파일에 있어 파일이 겹치지 않는 독립 구현 단위 셋(B1~B3)으로 나눈다. 세 단위 모두 같은 Gradle 모듈(`mdm/api`
-테스트 소스셋)에 있어 병렬 묶음 조건(컴파일 범위가 다를 것)을 만족하지 못하므로 **순차로 진행한다**(TSK-09-01 의
+세 요구사항 모두 **프로덕션 코드를 고치지 않고 시험만 추가한다**(itest 범위, TSK-09-01 과 같은 원칙 — 예외: D5 가
+(b)로 뒤집히면 `mcm/build.gradle`의 test 집계 줄 1개, 시험 실행 여부를 결정하는 빌드 설정이라 별도로 담당자 확인을
+받는다). 세 갭은 서로 다른 파일에 있어 겹치지 않는 독립 구현 단위 셋(B1~B3)으로 나눈다. B2·B3 는 같은 Gradle 모듈
+(`mdm/api` 테스트 소스셋)에 있어 병렬 묶음 조건(컴파일 범위가 다를 것)을 만족하지 못하고, B1 은 기존 파일 2개(mdm/api
+Java 1개 + shared TS 1개)를 수정하는 성격이라 확신 없이 묶지 않는다 — 세 단위 모두 **순차로 진행한다**(TSK-09-01 의
 "병렬 가능" 문구를 옮기지 않는다).
 
 시험 중 기존 코드의 결함(가장 크게는 위 0.1·0.3 의 두 배선 부재)을 발견해도 고치지 않고 완료 보고에 재현 절차와
@@ -110,23 +129,32 @@ PRD.md:162 원문: "화면 AST 평가 1건 0.3~2.7µs, **1만 행 판정 100 ms 
 (`db/migration/mdm/mssql`)·`mssqlTest` 소스셋·MSSQL 방언 분기·MSSQL 관련 문서를 새로 만들거나 고치지 않는다. 기존
 MSSQL 코드는 그대로 두고 지우지 않는다(팀장이 별도 브랜치에서 지운다). B1~B3 는 모두 SQLite(`test` 소스셋)만 다루고,
 새 Flyway 마이그레이션 자체도 추가하지 않는다(B1~B3 가 쓰는 테이블은 모두 선행 WP 가 이미 만들어 둔 스키마이고, 이
-작업은 그 스키마에 서비스 API 로 행만 넣는다 — 마이그레이션 파일을 만들 이유가 없다). 이 작업은 새 마이그레이션을
-추가하지 않으므로 `MdmFlywayVersionParityTest`·`*DdlParityTest` 류(SQLite·MSSQL 버전·DDL 짝 맞춤 검사)에 이 작업이
-새로 노출시키는 실패는 없다 — 다만 기점에 남아 있는 이 시험들 자체가 다른 이유로 실패하면(짝 없는 MSSQL, 팀장 쪽
-별도 브랜치가 그 코드를 지울 예정) 그 실패는 팀장 지시로 예상된 실패로 인정하고 이 작업 탓이 아니면 신규 실패로
-세지 않는다.
+작업은 그 스키마에 서비스 API 로 행만 넣는다 — 마이그레이션 파일을 만들 이유가 없다). **이 작업은 새 마이그레이션을
+추가하지 않으므로 `MdmFlywayVersionParityTest`·`*DdlParityTest` 류(SQLite·MSSQL 버전·DDL 짝 맞춤 검사)에 허용 조항을
+쓸 일이 없다** — SQLite 마이그레이션을 더하지 않으니 "짝 없는 MSSQL" 실패 자체가 이 작업에서는 생기지 않는다. 이
+시험들의 다른 실패는(이 작업이 만든 것이 아니어도) 평소대로 신규 실패로 센다(팀장 지시 2026-09-26 — 허용 범위는
+"SQLite 마이그레이션에 MSSQL 짝이 없다는 이유"뿐이고 그 밖은 넓히지 않는다). `DataInitializer` 의 시드 SQL 은
+고치지 않는다(프로덕션 불변, §0.2).
 
 ## 2. 변경 파일 목록
 
 **생성**
 - `docs/mdm/tasks/TSK-09-03/design.md` — 이 문서
-- `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/common/security/RolePermissionMatrixHttpTest.java` — B1
 - `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/contract/version/DraftOwnershipCrossModuleTest.java` — B2
 - `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/itest/CodeDataRuleLedgerChainTest.java` — B3
-- `docs/mdm/tasks/TSK-09-03/defects.md` — 조건부. B1~B3 실행 중 기존 코드 결함(0.1·0.3 의 배선 부재 포함)이 실제로
-  판정을 막으면 만든다. 결함이 없으면 만들지 않는다.
+- `docs/mdm/tasks/TSK-09-03/defects.md` — 조건부. B1~B3 실행 중 기존 코드 결함(0.1·0.3 의 배선 부재, D5 미결정 포함)이
+  실제로 판정을 막으면 만든다. 결함이 없으면 만들지 않는다.
 
-**수정**: 없음(선행 WP 의 프로덕션 소스·기존 테스트 파일을 고치지 않는다).
+**수정** (기존 시험 파일에 새 `@Test`/새 `it()`만 더한다 — 기존 메서드는 그대로 둔다)
+- `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/MdmOasisActionVocabularyTest.java` — B1(i). `confirmActions`
+  대조·`seedMdmObjectRbac` 매트릭스(그룹×역할→권한) 대조·전 화면 커버리지 새 `@Test` 추가.
+- `src/frontend/shared/tests/unit/rbac-policy.unit.test.ts` — B1(ii)/(iii). 실제 MDM OASIS 경로
+  (`/api/mdm/oasis/domainMng/save`)로 `parseRbacKey`의 소문자화(`domainmng`)와 `evaluateApiPolicy`의 pass/
+  `forbidden-perm`을 확인하는 새 `it()` 추가.
+
+D5 가 (b)로 뒤집히면(§0.2·「담당자 확인 필요 결정」 D5) 추가로 `src/backend/mcm/build.gradle`(집계 줄 1개, `mdm/
+build.gradle:63-64` 그대로 복사) + `src/backend/mcm/api/src/test/java/...`(신규, `DataInitializer` 실제 시드 →
+`UserPermCache.toKeyStrings` 를 직접 확인)가 늘어난다 — 기본값 (a) 에서는 이 두 파일을 만들지 않는다.
 
 ## 3. 테스트 전략
 
@@ -134,25 +162,41 @@ MSSQL 코드는 그대로 두고 지우지 않는다(팀장이 별도 브랜치�
 
 | 단위 | 새 시험 | 도는 명령 |
 |---|---|---|
-| B1 | `RolePermissionMatrixHttpTest` | `cd src/backend && … ./gradlew testAll …` |
-| B2 | `DraftOwnershipCrossModuleTest` | 〃 |
+| B1 | `MdmOasisActionVocabularyTest`(수정, mdm/api) + `rbac-policy.unit.test.ts`(수정, shared) | `cd src/backend && … ./gradlew testAll …` + `cd src/frontend && pnpm test:unit:shared` |
+| B2 | `DraftOwnershipCrossModuleTest` | `cd src/backend && … ./gradlew testAll …` |
 | B3 | `CodeDataRuleLedgerChainTest` | 〃 |
 
-### B1 — 역할 2종 × 화면·액션 권한 매트릭스 (HTTP)
+### B1 — 역할 2종 × 화면·액션 권한 매트릭스 (§0.2 재설계 — 실제 판정 층 3단에 맞춘다)
 
-`@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)` + `MdmSecurityChainTest` 와 같은 인증 헤더 패턴
-(`X-Client-Key`·`X-Authenticated-User`·`X-Authenticated-Role`)으로 실제 OASIS 엔드포인트를 두드린다. **시드나
-하드코딩 복제본을 쓰지 않고 `MdmPermissions.MATRIX`·`READ_ACTIONS`/`EDIT_ACTIONS`/`CONFIRM_ACTIONS` 상수에서 매트릭스
-를 만든다** — 그래야 `DataInitializer.seedMdmObjectRbac` 시드가 상수에서 드리프트하면 이 시험이 그 자체로 드러낸다
-(드러나면 결함으로 기록, 상수 쪽을 정답으로 본다).
+**판정 층마다 시험을 건다(§0.2). mdm 백엔드에 HTTP 403 을 기대하지 않는다** — 그 층이 없다.
 
-이 작업 depends 범위의 4그룹 각 1개 대표 화면(`MdmScreenGroup`): DMA→`mdt/domainMng`, DMC→`mdc/codeConfirm`,
-DMD→`mdd/dataItemMng`, DME→`mdr/ruleConfirm`. 그룹마다 "허용 tier 안 액션 1개(예: search 또는 tier 고유 액션)"와
-"허용 tier 바로 위 액션 1개(예: DMA STEWARD 의 save, DMC STD_ADMIN 의 save·confirm, DMD STD_ADMIN 의 save)"를
-호출해 200(또는 컨트롤러 도달 — 바디 검증 없이 403 이 아님만 본다)·403 을 확인한다(2역할×4그룹×2액션=16 호출).
-**Build 착수 시 먼저 할 일**: `EndpointPermissionFilter` 가 실제로 만드는 `PermKey`(module/objId/action) 모양과
-`SecRoleMapping` 시드 조회 조건을 grep 해, 위 16 호출이 403/200 을 가르는 진짜 조건과 맞는지 확인하고 다르면 여기
-설계를 그대로 두고 build-log.md 「설계 이탈」에 실제 조건을 적는다.
+**(i) mcm 시드 ↔ `MdmPermissions` 계약** — `MdmOasisActionVocabularyTest`(`mdm/api`, 이미 있음, `DataInitializer.java`
+를 소스 텍스트로 읽는 기존 패턴)에 새 `@Test`를 더한다. 이 파일은 `testAll` 그래프에 실제로 있다(`:mdm:api:test`,
+`mdm/build.gradle`의 집계 줄로 확인됨) — `mcm`쪽에는 이 집계가 없어(§0.2) 못 둔다.
+1. `confirmActions` 리터럴(`String confirmActions = editActions + "..."`) 을 `String.join(",", MdmPermissions.
+   CONFIRM_ACTIONS)` 와 대조한다(기존 시험은 `read`/`editActions`까지만 본다).
+2. `seedMdmObjectRbac`의 `java.util.Map<String, java.util.Map<String, String>> matrix = java.util.Map.of(...)`
+   블록을 정규식으로 파싱해(`"dma", java.util.Map.of("MDM_STD_ADMIN", "PERM_MDM_EDIT", ...)` 모양) 그룹마다
+   역할→권한ID 를 뽑고, `MdmPermissions.MATRIX.get(MdmScreenGroup.<그룹>)`과 같은지 5그룹 모두 대조한다.
+3. **화면 커버리지**: `find src/main/resources/services -iname "*.bpmn"`(23개, 이미 `wc -l` 로 확인)로 만든 화면
+   목록과, `DataInitializer.java` 안의 모든 `seedMdmObjectRbac(...)` 호출에서 뽑은 (objectId, groupCode) 목록을
+   대조한다. 호출은 세 모양이다 — ① 리터럴 `seedMdmObjectRbac("codeConfirm", "dmc")` ② 배열 루프
+   `for (String objectId : new String[]{"a","b"}) { ...; seedMdmObjectRbac(objectId, "dma"); }` ③ 2차원 배열 루프
+   `String[][] screens = {{"ruleSetMng",...}, ...}; for (String[] s : screens) { ...; seedMdmObjectRbac(s[0], "dme"); }`
+   — 세 모양 모두 잡는 파서가 부담되면 ②·③을 접어 "BPMN 에 있는데 시드 호출이 하나도 안 잡히면" DF 로 남기고, 최소
+   ①(리터럴)만으로 놓친 화면이 있는지부터 본다. `mdmSample`(BPMN 없음, 샘플 화면)처럼 시드에만 있고 BPMN 에 없는
+   이름은 실패가 아니라 DF 로 기록한다(원천끼리 원래 다른 것).
+**Build 착수 시 먼저 할 일**: 위 정규식이 실제 `DataInitializer.java`(3300줄대) 문법과 맞는지 대상 텍스트에 바로
+대 보고, 안 맞으면 이 설계를 그대로 두고 build-log.md 「설계 이탈」에 실제 파싱 방식을 적는다.
+
+**(ii)/(iii) BE 키 생성 ↔ FE 키 파싱 이음매** — 한 단언이면 된다(팀장 지시 "필요하면"). `rbac-policy.unit.test.ts`
+(이미 있음, `describe("parseRbacKey")`/`describe("evaluateApiPolicy 매트릭스")`에 새 `it()` 추가):
+1. `parseRbacKey("/api/mdm/oasis/domainMng/save")` 가 `"mdm/domainmng/save"`(소문자화 확인 — `PermKey` compact
+   constructor 의 `objId.toLowerCase()`와 대응, §0.2 에서 코드로 확인함)를 낸다.
+2. 그 키가 `perms`에 있으면 `evaluateApiPolicy`가 `"pass"`, 없으면 `"forbidden-perm"`을 낸다(기존 T1/T2 패턴을
+   MDM 실제 경로로 재사용).
+새 파일을 만들지 않으므로 `pnpm test:unit:shared`(기준선 명령, `include: ["tests/**/*.test.ts"]`) 글롭에 자동으로
+잡힌다(확인함).
 
 ### B2 — DRAFT 소유권 교차(비소유자 저장 거부)
 
@@ -169,9 +213,9 @@ dmc(`CodeConfirmService`)·dme(`RuleConfirmService`)가 **같은** `VersionState
 ### B3 — 관통 시나리오: CODE 참조 → 코드 확정 → 데이터 등록 → 룰 MASTER 확정 판정
 
 `@SpringBootTest`(HTTP 또는 서비스 직접 호출, `DmaOasisHttpTest`류 패턴)로 아래를 한 흐름에 잇는다:
-1. `mdt/domainMng.save` 로 CODE 종류 도메인(마루 코드 참조 포함)을 등록한다(TSK-04-03 자체 검증 재사용).
-2. `mdc/codeConfirm` 경로로 새 마루 코드 버전을 확정(DRAFT→RELEASED)한다(TSK-06-05 확정 경로 그대로 재현).
-3. `mdd/dataItemMng`(또는 CSV 업로드)로 2번 마루 코드 값을 참조하는 마스터데이터 항목을 등록한다.
+1. `dma/domainMng.save` 로 CODE 종류 도메인(마루 코드 참조 포함)을 등록한다(TSK-04-03 자체 검증 재사용).
+2. `dmc/codeConfirm` 경로로 새 마루 코드 버전을 확정(DRAFT→RELEASED)한다(TSK-06-05 확정 경로 그대로 재현).
+3. `dmd/dataItemMng`(또는 CSV 업로드)로 2번 마루 코드 값을 참조하는 마스터데이터 항목을 등록한다.
 4. **여기서 이 작업이 새로 조립하는 것**: 운영 빈이 없는 `CodeLookup`·`MasterLookup`을 시험 전용으로 만든다 —
    `new MdmCodeLookup(ledger)`(`ledger`=`MasterCodeLedgerQueries`, 2번이 만든 실제 원장)와, 3번이 만든 실제
    TB_MDM_DATA_ITEM 행을 읽어 `MasterDataRows`로 매핑하는 새 어댑터(이 시험 파일 안의 private 헬퍼, 프로덕션 코드
@@ -181,8 +225,8 @@ dmc(`CodeConfirmService`)·dme(`RuleConfirmService`)가 **같은** `VersionState
    **Build 착수 시 먼저 할 일**: TB_MDM_DATA_ITEM(+카테고리·소속) 을 읽는 기존 클래스가 있는지(`DataItemListQuery`
    등) grep 하고, 있으면 그것을 재사용해 매핑하고 없으면 JPA 엔티티를 직접 읽어 매핑한다. 어느 쪽인지 build-log.md
    에 남긴다.
-5. `mdr/ruleEdit`로 `MASTER("<2번 마루코드>", "<카테고리>", <3번에서 등록한 키>)`를 참조하는 룰을 만들고, 룰 저장
-   시 검사(TSK-08-04)를 통과시킨 뒤 `mdr/ruleConfirm`으로 확정(TSK-08-05 확정 경로 재현)한다.
+5. `dme/ruleEdit`로 `MASTER("<2번 마루코드>", "<카테고리>", <3번에서 등록한 키>)`를 참조하는 룰을 만들고, 룰 저장
+   시 검사(TSK-08-04)를 통과시킨 뒤 `dme/ruleConfirm`으로 확정(TSK-08-05 확정 경로 재현)한다.
 6. 확정된 룰을 4번에서 조립한 평가기로 "값 테스트"(`RuleCaseJudge.evaluate`, `RuleValueTestService`가 쓰는 것과
    같은 함수)를 돌려, `MASTER(...)` 판정이 2·3번에서 **실제로 등록한 값**과 일치하는지 확인한다("원장 기준 판정
    일치"의 핵심 단언). 이어서 같은 룰·같은 평가기로 **1만 건 규모**(같은 키의 반복이 아니라 유효/무효 키가 섞인
@@ -197,7 +241,7 @@ dmc(`CodeConfirmService`)·dme(`RuleConfirmService`)가 **같은** `VersionState
 |---|---|
 | 시나리오 통과 — CODE→코드확정→데이터등록→룰 MASTER 확정→원장 기준 판정 일치 | B3(신규). 0.1 의 MASTER 배선 부재로 6단계가 막히면 그 사실을 defects.md 에 남기고 "부분 통과(1~3단계 확인, 4~6 은 DF-n)"로 보고 — 「담당자 확인 필요 결정」 D1 참조 |
 | 발견 결함은 해당 기능 WP 에 defect Task 로 등록됨 | 이 작업은 코드 대상이 아니다. B1~B3 실행 중 발견한 기존 코드 결함(D-077 미결정, MasterLookup 부재, 컴파일 캐시 부재 포함)은 완료 보고에 대상 WP 추정·재현 절차와 함께 올린다(등록 자체는 오케스트레이터·사람 몫, TSK-09-01 D3 와 동일 원칙) |
-| 권한 매트릭스 전 항목 통과 | B1(신규) `RolePermissionMatrixHttpTest` — `MdmPermissions.MATRIX` 기준 4그룹×2역할×2액션. 시드(`DataInitializer`)가 상수와 다르면 실패로 드러나고 결함으로 기록 |
+| 권한 매트릭스 전 항목 통과 | B1(수정, §0.2·§3 재설계) — `MdmOasisActionVocabularyTest`가 mcm 시드(`DataInitializer` 소스 텍스트) 전체 5그룹×`confirmActions`까지 `MdmPermissions` 계약과 대조하고, BPMN 23개 화면 커버리지를 확인한다. `rbac-policy.unit.test.ts`가 BE 키 생성(소문자화)↔FE 키 파싱 이음매를 확인한다. 시드가 상수와 다르거나 화면이 빠지면 결함으로 기록. D5 가 (b)로 바뀌면 mcm 쪽에서 `UserPermCache.toKeyStrings` 실측까지 추가 |
 | DRAFT 소유권 교차(비소유자 저장 거부) | B2(신규) `DraftOwnershipCrossModuleTest` — dmc·dme 교차만(domainMng·dataItemMng 는 해당 없음) |
 | 성능 기준 충족 — 화면 NFR-1(1만 행 100ms) | 기존 자산 `m-mdm/tests/evalex-perf.test.ts`(TSK-03-04). 손대지 않는다. 이미 기준선 m-mdm test 안에서 통과 중(부하 민감 flake 는 TSK-09-01 D 결정과 같은 취급) |
 | 성능 기준 충족 — 서버 NFR-1(컴파일 캐시) | **확인 불가(결함)**: `ExpressionRunner`에 컴파일 캐시가 없다(§0.3). 새 ms 기준 시험을 만들지 않고 DF 로 기록한다 — 이 항목은 이 작업만으로 "충족"으로 판정할 수 없다(「담당자 확인 필요 결정」 D2) |
@@ -207,26 +251,29 @@ dmc(`CodeConfirmService`)·dme(`RuleConfirmService`)가 **같은** `VersionState
 
 | 규칙 | 대상 테스트 |
 |---|---|
-| `MdmPermissions.MATRIX`·`READ_ACTIONS`/`EDIT_ACTIONS`/`CONFIRM_ACTIONS` 는 권한 매트릭스의 단일 진실 소스다(READ⊂EDIT⊂CONFIRM) | `RolePermissionMatrixHttpTest`(신규) — 이 상수에서 매트릭스를 만들어야 하고, 하드코딩 복제본을 새로 만들지 않는다 |
-| `EndpointPermissionFilter`는 인증 헤더 없는 호출을 401, 권한 밖 호출을 403 으로 막는다 | `MdmSecurityChainTest`(기존, 안 바꿈) + B1 신규 |
+| `MdmPermissions.MATRIX`·`READ_ACTIONS`/`EDIT_ACTIONS`/`CONFIRM_ACTIONS` 는 권한 매트릭스의 단일 진실 소스다(READ⊂EDIT⊂CONFIRM) | B1 수정 — mcm 시드는 이 상수의 손 복제본이므로, 시험은 이 상수를 기준(정답)으로 시드를 대조한다(반대로 상수를 시드에 맞춰 바꾸지 않는다) |
+| mdm 백엔드에는 서버 쪽 권한 필터가 없다 — API RBAC 는 BFF(`m-mcm/proxy.ts`→`evaluateApiPolicy`) 한 곳이다(TSK-01-03 D6 (a)) | `MdmSecurityChainTest`(기존, 안 바꿈 — 신뢰 헤더 유무만 봄) + B1 수정(mcm 시드·BFF 키 이음매만 봄, mdm HTTP 403 을 기대하지 않는다) |
 | DRAFT 비소유자 저장·확정 거부는 dmc·dme 가 같은 `VersionStateService`/`VersionWriteGuard`/`DraftOwnershipService` 로 판정한다 | `CodeConfirmServiceSqliteTest`·`RuleConfirmServiceTest`(기존, 안 바꿈) + B2 신규 |
 | domainMng·dataItemMng 에는 DRAFT 소유권 개념이 없다(스키마에 OWNER_ID 없음) | B2 — 두 화면을 대상에서 뺀다(지어내지 않는다) |
 | `RuleEvaluator`/`ExpressionRunner`는 평가마다 새 `Expression`을 만든다(컴파일 캐시 없음, D17 미해결) — 이 사실 자체를 이 작업이 고치지 않는다 | build-log.md·defects.md 기록으로만 남긴다(테스트 단언 없음) |
 | `MdmEngineConfig`의 `CodeLookup`·`MasterLookup` 빈은 등록하지 않는다(D-077, 프로덕션 불변) | B3 — 시험 전용 `MdmEvaluator` 인스턴스로만 우회하고 `MdmEngineConfig`·`@Component` 는 건드리지 않는다 |
-| 이 작업은 선행 WP 의 프로덕션 소스(`src/**/main/**`)를 고치지 않는다 — 시험 파일만 만든다 | 커밋 diff 로 확인(`git show --stat`) |
-| MSSQL 은 폐지 대상이다 — 이 작업은 MSSQL 마이그레이션·`mssqlTest` 소스셋·MSSQL 방언 분기·MSSQL 관련 문서를 새로 만들거나 고치지 않고, 기존 MSSQL 코드를 지우지도 않는다(2026-09-26 결정) | 커밋 diff 로 확인(`db/migration/mdm/mssql`·`mssqlTest` 경로 무변경) |
+| 이 작업은 선행 WP 의 프로덕션 소스(`src/**/main/**`)를 고치지 않는다 — 시험 파일만 만든다(D5 가 (b)로 뒤집히면 `mcm/build.gradle`집계 줄 1개는 예외) | 커밋 diff 로 확인(`git show --stat`) |
+| MSSQL 은 폐지 대상이다 — 이 작업은 MSSQL 마이그레이션·`mssqlTest` 소스셋·MSSQL 방언 분기·MSSQL 관련 문서를 새로 만들거나 고치지 않고, SQLite 만 다룬다(팀장 지시 2026-09-26). 기존 MSSQL 코드는 지우지도 않는다 | 커밋 diff 로 확인(`db/migration/mdm/mssql`·`mssqlTest` 경로 무변경) |
+| `DataInitializer`의 시드 SQL(값 포함)은 고치지 않는다 — B1 은 대조만 하고 시드를 상수에 맞춰 고치지 않는다(프로덕션 불변) | 커밋 diff 로 확인(`DataInitializer.java` 무변경) |
 
 ## 구현 단위
 
 | 단위 | 범위(파일·기능) | 새 테스트 | 담당 불변 규칙 |
 |---|---|---|---|
-| B1 | `.../common/security/RolePermissionMatrixHttpTest.java`(신규) | 역할 2종×화면·액션 권한 매트릭스(HTTP) | `MdmPermissions` 상수가 단일 진실 소스, `EndpointPermissionFilter` 401/403 |
+| B1 | `mdm/api/.../MdmOasisActionVocabularyTest.java`(수정, mcm 시드↔`MdmPermissions` 대조) + `shared/tests/unit/rbac-policy.unit.test.ts`(수정, BE↔FE 키 이음매) | 역할 2종×화면·액션 권한 매트릭스(23개 BPMN 화면 커버리지 포함) | `MdmPermissions` 상수가 단일 진실 소스, `DataInitializer` 시드 SQL 불변 |
 | B2 | `.../contract/version/DraftOwnershipCrossModuleTest.java`(신규) | dmc·dme DRAFT 비소유자 거부 교차 | 공용 버전 상태 서비스, domainMng·dataItemMng 해당 없음 |
 | B3 | `.../itest/CodeDataRuleLedgerChainTest.java`(신규) | CODE→코드확정→데이터등록→룰 MASTER 확정→판정(+1만 행) | `MdmEngineConfig` 빈 미등록 불변, 컴파일 캐시 미단언 |
 
-세 단위는 같은 Gradle 모듈(`mdm/api` 테스트) 안이라 병렬 묶음 조건(다른 컴파일 범위)을 만족하지 못한다. 순차로
-진행한다. B3 가 가장 크고 다른 두 단위의 조사 결과(특히 B1 의 `PermKey` 확인)에 기대지 않으므로 순서는 자유롭다 —
-다만 실패 시 재현·롤백 범위를 좁히려면 B1→B2→B3 순으로 한다.
+B1 은 `mdm/api`(Java)와 `shared`(TS) 양쪽에 걸치지만 B2·B3 와 파일이 겹치지 않고 서로의 산출물에 기대지 않으므로
+따로 묶을 수는 있다. 다만 확신이 서지 않아(phase-design.md 「확신이 없으면 묶지 않는다」) B2·B3 는 같은 Gradle
+모듈(`mdm/api` 테스트) 안이라 병렬 묶음 조건(다른 컴파일 범위)을 만족하지 못한다 — 세 단위 모두 순차로 진행한다.
+B3 가 가장 크고 다른 두 단위의 조사 결과에 기대지 않으므로 순서는 자유롭다 — 다만 실패 시 재현·롤백 범위를 좁히려면
+B1→B2→B3 순으로 한다.
 
 ## 도커 금지로 생략한 검증
 
@@ -274,10 +321,54 @@ dmc(`CodeConfirmService`)·dme(`RuleConfirmService`)가 **같은** `VersionState
 
 ### D3 — itest 관통 시나리오를 브라우저(Playwright)로도 만들 것인가 (TSK-09-01 D2 재사용)
 
-- **택한 것**: 백엔드 `@SpringBootTest`(HTTP)로만 관통 시나리오를 확인하고 새 Playwright spec 은 만들지 않는다.
-- **근거**: TSK-09-01 D2 와 완전히 같은 상황(기준선 5개 명령에 `pnpm test:e2e` 없음). 그 판단을 그대로 재사용한다.
+- **질문**: `e2e.md`는 itest 의 관통 시나리오도 브라우저로 돌리라 하지만, 이 작업 검증 명령 5개에 `pnpm test:e2e`
+  (Playwright)가 없다. TSK-09-01 이 이미 같은 충돌을 겪었다.
+- **선택지**: (a) 백엔드 `@SpringBootTest`(HTTP)로만 관통 시나리오를 확인하고 새 Playwright spec 은 만들지 않는다
+  (각 화면의 기존 독립 E2E 가 화면별 등록·검증은 이미 본다) / (b) 새 Playwright spec 을 게이트 밖(정보 제공용)으로
+  추가해 한 번 실행하고 결과만 보고한다 / (c) 기준선에 `pnpm test:e2e` 를 추가하도록 오케스트레이터에게 요청한다
+- **택한 것**: (a)
+- **근거와 강약**: TSK-09-01 D2 와 완전히 같은 상황(기준선 5개 명령에 Playwright 없음, 프롬프트 "검증 명령은 기준선
+  명령 줄만 쓴다"가 spec 본문보다 이 세션에서 더 강하게 작용)이라 그 판단을 그대로 재사용한다. 강도: 중(선례 재사용).
+- **반려되면 재작업 방향**: (b) 로 바뀌면 B3 완료 뒤 새 구현 단위 B4 를 만들어 Playwright spec 하나(예:
+  `mdm-code-data-rule-ledger-chain.spec.ts`)를 추가하고, 완료 보고에 "게이트 밖, 실행 결과: …"를 명시한다. (c) 면
+  오케스트레이터가 기준선을 다시 재는 별도 절차를 밟는다.
 
 ### D4 — 발견 결함의 defect Task 등록을 이 작업에서 할 것인가 (TSK-09-01 D3 재사용)
 
-- **택한 것**: 결함을 `defects.md` 에 WP·재현 절차와 함께 기록하고 완료 보고에 건수를 실어, 등록은 팀장·사람이 한다.
-- **근거**: 팀원 서버 쓰기 범위 규칙이 직접 등록을 금지한다. TSK-09-01 D3 와 동일.
+- **질문**: 수용 기준 2 는 "발견 결함은 해당 기능 WP 에 defect Task 로 등록됨"이다. 팀원(워커)은 서버 쓰기가 자기
+  주문 하나로 제한되어 다른 WP 에 Task 를 만들 수 없다.
+- **선택지**: (a) 결함을 `defects.md` 에 WP·재현 절차와 함께 기록하고 완료 보고에 건수를 실어, 등록은 팀장·사람이
+  한다 / (b) 이 작업에서 D'Flow 에 defect Task 를 직접 만든다
+- **택한 것**: (a)
+- **근거와 강약**: 팀원 서버 쓰기 범위 규칙(worker-prompt 「5」)이 (b)를 금지한다. spec 은 등록 주체를 정하지
+  않았다(중립). TSK-09-01 D3 와 동일한 상황이라 그 판단을 재사용한다. 강도: 중(리포 확립 관례).
+- **반려되면 재작업 방향**: 팀장·사람이 `defects.md` 의 항목을 그대로 해당 WP 의 defect Task 로 옮긴다(코드
+  재작업 없음).
+
+### D5 — B1 을 어디에 두는가 — 게이트 실행 그래프 밖에 두지 않는다
+
+- **질문**: §0.2 에서 dry-run 으로 확인한 대로 `mcm`(포함 빌드)의 `build.gradle`엔 `mdm/build.gradle:63-64`같은
+  서브프로젝트 `test` 집계 줄이 없다. `./gradlew testAll --dry-run`(직접 실행함) 의 태스크 그래프에 `:mcm:api:test`·
+  `:mcm:lib:test`가 없고 `:mcm:test`(무소스)만 있다 — `mcm/api`에는 `src/test`조차 없고, `mcm/lib/src/test`의 유일한
+  파일(`SampleNoticeServiceTest.java`, mdm 무관)도 지금 이 이유로 게이트 밖이다(이 사실 자체는 이 작업이 만든 게
+  아닌 기존 게이트 사각지대라 별도 DF 로도 남긴다). B1(i)("mcm 시드가 `MdmPermissions`와 같은가")를 가장 직접적으로
+  검증하려면 mcm 쪽에 `@SpringBootTest`를 두고 실제 `DataInitializer`를 돌려 `UserPermCache.toKeyStrings`를 보는
+  것이 이상적이지만, 그 위치에 두면 `testAll`이 영원히 그 시험을 돌리지 않는다.
+- **선택지**: (a) 게이트 안에서 실제로 도는 위치(`mdm/api`의 `MdmOasisActionVocabularyTest`, 이미 `testAll`에
+  포함됨이 확인된 파일)에 두고, `DataInitializer.java`를 소스 텍스트로 읽어 대조한다(§3 B1 로 이미 설계함) — 실제
+  시드 실행·`UserPermCache` 호출은 타지 않고 "소스가 계약과 같은가"만 본다 / (b) `mcm/build.gradle`에
+  `tasks.named('test') { dependsOn(subprojects.collect { "${it.path}:test" }) }`(mdm 과 완전히 같은 줄) 를 더해
+  집계를 켜고, `mcm/api`에 새 `@SpringBootTest`를 둬 실제 `DataInitializer`가 채운 임시 SQLite 를 `UserPermCache.
+  toKeyStrings`로 직접 확인한다 / (c) B1(i) 자체를 이번 회차에서 빼고 DF 로만 남긴다
+- **택한 것**: (a)
+- **근거와 강약**: (b) 는 팀 전체의 mcm 게이트 구성을 바꾸는 공유 자원 변경이고, 켜는 순간 `mcm/lib`의 기존
+  `SampleNoticeServiceTest`가 처음으로 게이트에 들어와 그 시험의 현재 통과 여부(지금까지 한 번도 검증된 적 없음)
+  까지 이 작업의 책임 범위로 끌려온다 — itest 범위(시험 파일만 추가, 공유 게이트 구성은 안 바꿈)를 벗어난다. (a) 는
+  "소스 텍스트 대조"라 `UserPermCache`의 실제 런타임 동작(캐시 TTL, 역할그룹 체인)까지는 못 보지만, 그 부분은
+  이미 §0.2(ii)에서 코드로 확인한(`PermKey`의 `toLowerCase()`) 안정된 계약이라 실행까지 재확인할 필요가 적다.
+  강도: 중(게이트 안전이 spec 의 "전 항목 통과"보다 이 세션에서는 우선 — 실행되지 않는 시험은 "통과"의 증거가
+  못 된다).
+- **반려되면 재작업 방향**: (b) 로 바뀌면 팀장이 `mcm/build.gradle` 집계 변경을 별도로 승인하고, `SampleNoticeServiceTest`
+  가 새로 게이트에 들어와 실패하면(가능성 있음, 지금까지 미검증) 그 실패를 이 작업 탓으로 셀지 먼저 정해야 한다.
+  그 뒤 B1 은 `mcm/api`에 새 `@SpringBootTest`로 다시 쓴다. (c) 면 B1 은 (ii)/(iii)(공용 셸)만 남기고 (i)은
+  `defects.md`에 "게이트 배치 결정 전이라 확인 못함"으로 올린다.
