@@ -1,0 +1,8 @@
+rule: MdmPermissions.MATRIX·READ_ACTIONS/EDIT_ACTIONS/CONFIRM_ACTIONS 는 권한 매트릭스의 단일 진실 소스다(READ⊂EDIT⊂CONFIRM)
+file: src/backend/mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:api:test --tests "com.dongkuk.dmes.mdm.MdmOasisActionVocabularyTest" --no-daemon --console=plain
+e2e: no
+--- find
+                "dmc", java.util.Map.of("MDM_STD_ADMIN", "PERM_MDM_READ", "MDM_STEWARD", "PERM_MDM_CONFIRM"),
+--- replace
+                "dmc", java.util.Map.of("MDM_STD_ADMIN", "PERM_MDM_EDIT", "MDM_STEWARD", "PERM_MDM_CONFIRM"),

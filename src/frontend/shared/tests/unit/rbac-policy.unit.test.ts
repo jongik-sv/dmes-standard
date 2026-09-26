@@ -66,6 +66,9 @@ describe("parseRbacKey", () => {
     expect(parseRbacKey("/api/mcm/oasis")).toBeNull();
     expect(parseRbacKey("/portal/x")).toBeNull();
   });
+  it("MDM 실제 OASIS 경로도 소문자화 (TSK-09-03 B1 (ii) — BE 키 생성 ↔ FE 키 파싱 이음매)", () => {
+    expect(parseRbacKey("/api/mdm/oasis/domainMng/save")).toBe("mdm/domainmng/save");
+  });
 });
 
 describe("hasAnyRole", () => {
@@ -136,5 +139,10 @@ describe("evaluateApiPolicy 매트릭스 (방식 C — perms 는 로더로 lazy 
   });
   it("로더가 빈 권한 반환 → 보유했던 화면도 forbidden-perm (fail-closed)", async () => {
     expect(await evaluateApiPolicy("/api/mcm/oasis/tcErrorList/search", viewer, CFG, loadEmpty)).toBe("forbidden-perm");
+  });
+  it("MDM 실제 경로(domainMng.save) — 권한 보유 pass / 미보유 forbidden-perm (TSK-09-03 B1 (iii))", async () => {
+    const loadMdm: PermsLoader = () => ["mdm/domainmng/save"];
+    expect(await evaluateApiPolicy("/api/mdm/oasis/domainMng/save", viewer, CFG, loadMdm)).toBe("pass");
+    expect(await evaluateApiPolicy("/api/mdm/oasis/domainMng/save", viewer, CFG, loadEmpty)).toBe("forbidden-perm");
   });
 });
