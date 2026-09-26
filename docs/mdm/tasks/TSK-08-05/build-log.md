@@ -185,3 +185,13 @@
 - **B5** — T7 의 선행 확정 요청은 `warningsAcknowledged: true`, `ver` 정수로 보낸다(06-05 선례는 false·문자열). 픽스처에 빈틈 경고가 있어 false 면 MDM014 로 선행 확정이 실패한다.
 - **B5** — 메뉴 항목은 보이는 것만 고른다(`.item-name:visible`). "버전 확정" leaf 가 마스터코드(codeConfirm) 아래에도 있기 때문이다.
 - **B5** — `dme-ruleConfirm-contract.png` 는 검사 직후(확정 버튼이 켜지기 전 순간)에 찍혀 확정 버튼이 옅게 보인다. 바로 다음 단언이 확정 버튼 활성을 기다려 통과하므로 동작 문제는 아니다.
+
+## 게이트 기록
+
+| 시각 | Phase | 명령 | 범위 | 경과(초) | 부하 | 결과 |
+|---|---|---|---|---|---|---|
+| 2026-09-26T02:11:02Z | build | `cd src/backend && … ./gradlew testAll --no-daemon --console=plain` | 전체 | 57 | 2.76 | 통과(3959건, 신규 0) |
+| 2026-09-26T02:11:49Z | build | `cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test` | 전체 | 41 | 3.93 | 통과(1064건, 신규 0) |
+| 2026-09-26T02:11:49Z | build | `cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint` | 전체 | 0 | 3.93 | 통과(exit 0) |
+| 2026-09-26T02:11:52Z | build | `cd src/frontend && pnpm test:unit:shared` | 전체 | 3 | 3.93 | 통과(168건, 신규 0) |
+| 2026-09-26T02:11:53Z | build | `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` | 전체 | 1 | 3.93 | 통과(ERROR 0) |
