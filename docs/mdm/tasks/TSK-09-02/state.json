@@ -2,5 +2,65 @@
   "tsk": "TSK-09-02",
   "order": "ccf6acd2-a91c-4fa2-a056-f4eebdc6f9a0",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "design",
+  "baseline": {
+    "docker": "banned:spawn",
+    "base": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada",
+    "failures": 0,
+    "tests": 5191,
+    "cmds": [
+      {
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "cwd": ".",
+        "tests": 3959,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada-5a99c8ef20f3",
+        "measured_at": "2026-09-26T05:41:05Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "cwd": ".",
+        "tests": 1064,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada-70ad4dddc2e4",
+        "measured_at": "2026-09-26T05:42:23Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "cwd": ".",
+        "tests": 0,
+        "failures": 0,
+        "result": "pass",
+        "source": "cache",
+        "cache_key": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada-79066bca5c4b",
+        "measured_at": "2026-09-26T05:43:10Z"
+      },
+      {
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "cwd": ".",
+        "tests": 168,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada-85eac351cb59",
+        "measured_at": "2026-09-26T05:43:13Z"
+      },
+      {
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "cwd": ".",
+        "tests": 0,
+        "failures": 0,
+        "result": "pass",
+        "source": "cache",
+        "cache_key": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada-773190afc491",
+        "measured_at": "2026-09-26T05:43:17Z"
+      }
+    ],
+    "note": "도커 금지 모드: 켜짐(출처 spawn, 워커 기본 DOCKER=ban). Testcontainers 는 mdm/api 의 mssqlTest sourceSet(mssqlMigrationTest)뿐이고 testAll 비포함(build.gradle 확인) — 제외 인자 없이 사용"
+  },
+  "branch_base": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada",
+  "build_model_base": "sonnet",
+  "build_model_trial": false,
+  "model": "sonnet"
 }
