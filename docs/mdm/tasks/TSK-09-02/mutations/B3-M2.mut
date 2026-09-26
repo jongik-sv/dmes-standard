@@ -1,0 +1,11 @@
+rule: TB_MDM_RULE_TEST_CASE는 룰 1개당 케이스다(세트 케이스를 담지 않는다)
+file: src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/entity/MdmRuleTestCase.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:api:test --tests "com.dongkuk.dmes.mdm.MdmBusinessRuleEntityJpaRoundtripTest" --no-daemon --console=plain
+e2e: no
+--- find
+    @Id
+    @Column(name = "CASE_ID")
+    private Integer caseId;
+--- replace
+    @Column(name = "CASE_ID")
+    private Integer caseId;

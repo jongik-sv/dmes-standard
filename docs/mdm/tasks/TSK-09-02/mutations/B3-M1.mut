@@ -1,0 +1,11 @@
+rule: 룰 세트 실행 순서는 세트가 담은 목록 순서(위상 정렬 결과)대로다
+file: src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/rule/MdmRuleEngine.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :maru-mdm-engine:test --tests "kr.dongkuk.maru.mdm.engine.rule.SampleRuleSetValueTest" --no-daemon --console=plain
+e2e: no
+--- find
+        for (RuleDefinition def : defs) {
+            RuleResult r = evaluator.evaluate(def, ctx, ts);
+--- replace
+        for (RuleDefinition def : java.util.stream.Stream.of(defs).map(java.util.ArrayList::new)
+                .peek(java.util.Collections::reverse).findFirst().orElseThrow()) {
+            RuleResult r = evaluator.evaluate(def, ctx, ts);

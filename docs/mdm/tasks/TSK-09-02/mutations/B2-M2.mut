@@ -1,0 +1,23 @@
+rule: `CodeLookup`·`MasterLookup`을 운영 Spring 빈으로 등록하지 않는다(D-077/D5, "04 원장 미구축" D2) — 이 작업이 그 결정을 뒤집지 않는다
+file: src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/engine/MdmEngineConfig.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:api:test --tests "com.dongkuk.dmes.mdm.common.segment.MasterDataLedgerJudgmentSqliteTest" --console=plain
+e2e: no
+--- find
+    @Bean
+    @ConditionalOnMissingBean
+    public ExpressionChecker expressionChecker(MdmEvaluator mdmEvaluator) {
+        return new ExpressionChecker(mdmEvaluator);
+    }
+}
+--- replace
+    @Bean
+    @ConditionalOnMissingBean
+    public ExpressionChecker expressionChecker(MdmEvaluator mdmEvaluator) {
+        return new ExpressionChecker(mdmEvaluator);
+    }
+
+    @Bean
+    public MasterLookup masterLookup() {
+        return MasterLookup.NONE;
+    }
+}

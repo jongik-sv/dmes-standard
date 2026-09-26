@@ -14,7 +14,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeConfirmCheck;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeFixtures;
+import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeLedgerQueries;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeTestConfig;
+import com.dongkuk.dmes.mdm.common.mastercode.MdmCodeLookup;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.common.version.VersionSpiRegistry;
 import com.dongkuk.dmes.mdm.contract.security.MdmRoles;
@@ -29,10 +31,15 @@ import com.dongkuk.dmes.mdm.dmc.codeItemEdit.dto.CodeItemSaveRequest;
 import com.dongkuk.dmes.mdm.dmc.codeItemEdit.service.CodeItemEditService;
 import com.dongkuk.dmes.mdm.dmc.codeMng.dto.CodeRegRequest;
 import com.dongkuk.dmes.mdm.dmc.codeMng.service.CodeMngService;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import javax.sql.DataSource;
+import kr.dongkuk.maru.mdm.engine.code.CodeResolver.CodeListEntry;
+import kr.dongkuk.maru.mdm.engine.code.DefaultCodeResolver;
+import kr.dongkuk.maru.mdm.engine.spi.CodeEffLookup;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -75,6 +82,8 @@ class CodeConfirmSampleHistorySqliteTest extends AbstractMdmSharedDbTest {
     DataSource dataSource;
     @Autowired
     PlatformTransactionManager transactionManager;
+    @Autowired
+    MasterCodeLedgerQueries ledger;
 
     private TransactionTemplate tx;
     private JdbcTemplate jdbc;
@@ -210,5 +219,40 @@ class CodeConfirmSampleHistorySqliteTest extends AbstractMdmSharedDbTest {
         assertEquals("EXEMPT", status(validate1000, "4"));
         assertEquals(0, ((Number) validate1000.get("rejectedCount")).intValue());
         assertEquals(0, ((Number) validate1000.get("warnedCount")).intValue());
+    }
+
+    /**
+     * TSK-09-02 design.md §3 B1 D1 — 이 체인이 실제로 심은 원장(1P/82/83/2P)에 04 「샘플 데이터」의 "해석 결과(V = 1.001)"
+     * 문장을 그대로 대조한다. 판정기는 운영 빈이 아니라 시험 코드 안에서만 조립한다(D2,
+     * {@code MasterCodeDeprecateEngineSqliteTest} 와 같은 방식).
+     */
+    @Test
+    void H6_MASTER_AT_원장_판정이_04_샘플_데이터_해석_결과와_같다() {
+        DefaultCodeResolver resolver = new DefaultCodeResolver(new MdmCodeLookup(ledger), CodeEffLookup.NONE);
+        LocalDateTime baseDt = LocalDateTime.of(2026, 9, 3, 0, 0);
+
+        assertEquals(Set.of("1P", "2P", "82", "83"), members(resolver, "BASE", baseDt));
+        assertEquals(Set.of("82", "83"), members(resolver, "COATING", baseDt));
+        assertEquals(Set.of("1P", "2P", "82"), members(resolver, "MAJOR", baseDt));
+        assertEquals(Set.of("1P", "2P"), members(resolver, "COLD_MILL", baseDt));
+    }
+
+    /**
+     * TSK-09-02 design.md §3 B1 4항 — 기준일을 v1.001 applyFrom(2026-07-01) 이전으로 주면 버전이 v1.000 으로 소급되고,
+     * 그 버전에는 아직 없던 2P 가 어느 카테고리에도 없어야 한다(04 「판정 참고 구현」 버전·카테고리 소급 규칙).
+     */
+    @Test
+    void H7_기준일이_v1_000_구간이면_판정도_v1_000_모습으로_소급된다() {
+        DefaultCodeResolver resolver = new DefaultCodeResolver(new MdmCodeLookup(ledger), CodeEffLookup.NONE);
+        LocalDateTime baseDt = LocalDateTime.of(2025, 1, 1, 0, 0);
+
+        assertEquals(Set.of("1P", "82", "83"), members(resolver, "BASE", baseDt));
+        assertEquals(Set.of("82", "83"), members(resolver, "COATING", baseDt));
+        assertEquals(Set.of("1P", "82"), members(resolver, "MAJOR", baseDt));
+        assertEquals(Set.of("1P"), members(resolver, "COLD_MILL", baseDt));
+    }
+
+    private static Set<String> members(DefaultCodeResolver resolver, String cateId, LocalDateTime baseDt) {
+        return resolver.codeList(ID, cateId, baseDt).stream().map(CodeListEntry::code).collect(Collectors.toSet());
     }
 }
