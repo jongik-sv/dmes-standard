@@ -38,16 +38,6 @@ public final class VersionFixtureTables {
                         + "BEGIN SELECT RAISE(ABORT, 'TSK-01-03 S14 atomic failure'); END");
     }
 
-    /** MSSQL 문안. 업무 일시 DATETIME2(0), 코드 칼럼은 대소문자 구분 정렬(규칙표 §3). */
-    public static List<String> mssqlDdl() {
-        String code = "VARCHAR(50) COLLATE Latin1_General_100_BIN2";
-        return List.of(
-                ifAbsent("TB_MDM_TC_CODE", parent("TB_MDM_TC_CODE", "MARU_CODE_ID", code, "DATETIME2(0)")),
-                ifAbsent("TB_MDM_TC_CODE_VER", version("TB_MDM_TC_CODE_VER", "MARU_CODE_ID", code, "DECIMAL(7,3)", "DATETIME2(0)")),
-                ifAbsent("TB_MDM_TC_RULE", parent("TB_MDM_TC_RULE", "MARU_RULE_ID", code, "DATETIME2(0)")),
-                ifAbsent("TB_MDM_TC_RULE_VER", version("TB_MDM_TC_RULE_VER", "MARU_RULE_ID", code, "INT", "DATETIME2(0)")));
-    }
-
     public static void clear(JdbcTemplate jdbc) {
         jdbc.update("DELETE FROM TB_MDM_TC_CODE_VER");
         jdbc.update("DELETE FROM TB_MDM_TC_CODE");
@@ -77,9 +67,5 @@ public final class VersionFixtureTables {
                 + "U_USR_ID VARCHAR(50), U_AT " + timeType + ", U_SVC_ID VARCHAR(100), U_PGM_ID VARCHAR(100), "
                 + "AUD_VER BIGINT, "
                 + "PRIMARY KEY (" + idColumn + ", VER))";
-    }
-
-    private static String ifAbsent(String table, String ddl) {
-        return "IF OBJECT_ID('" + table + "', 'U') IS NULL " + ddl;
     }
 }

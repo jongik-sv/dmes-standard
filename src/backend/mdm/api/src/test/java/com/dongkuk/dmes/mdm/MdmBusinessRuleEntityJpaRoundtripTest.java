@@ -364,15 +364,15 @@ class MdmBusinessRuleEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
         assertFalse(managedTableNames.contains("TB_MDM_RULE_RECV"), "D1 — TB_MDM_RULE_RECV 는 엔티티를 붙이지 않는다");
     }
 
-    // ── §3.4-7: 컨버터가 MSSQL 에 새지 않는다(D5, 정적 검사) ──
+    // ── §3.4-7: 컨버터가 SQLite 밖으로 새지 않는다(D5, 정적 검사) ──
 
     @Test
     void SQLite_일시_컨버터는_local_프로파일에만_등록되고_Converter_어노테이션이_없다() {
         assertFalse(MdmSqliteLocalDateTimeConverter.class.isAnnotationPresent(Converter.class),
-                "@Converter 가 붙으면 엔티티 스캔이 MSSQL 에도 적용한다");
+                "@Converter 가 붙으면 엔티티 스캔이 SQLite 가 아닌 DB 에도 적용한다");
         assertTrue(classpathText("application-local.yml").contains("metadata_builder_contributor"),
                 "local 프로파일에는 contributor 가 있어야 한다");
-        for (String yml : new String[] {"application.yml", "application-local-db.yml", "application-wildfly.yml"}) {
+        for (String yml : new String[] {"application.yml", "application-wildfly.yml"}) {
             assertFalse(classpathText(yml).contains("metadata_builder_contributor"), yml + " 에 SQLite contributor 가 있다");
         }
     }

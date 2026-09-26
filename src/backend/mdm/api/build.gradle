@@ -26,37 +26,8 @@ bootWar {
     archiveFileName = 'mdm.war'
 }
 
-// TSK-01-02 D5 — MSSQL 실제 적용 검증. docker 가 필요하므로 test/testAll 에 연결하지 않는다.
-// 실행: cd src/backend/mdm && ../gradlew :api:mssqlMigrationTest --no-daemon
-// 서버는 MdmMssqlServer 하나를 모든 테스트가 같이 쓴다. MSSQL_JDBC_URL(+MSSQL_USER·MSSQL_PASSWORD)이 있으면 그 서버에 붙고,
-// 없으면 재사용 컨테이너 하나를 띄운다(~/.testcontainers.properties 의 testcontainers.reuse.enable=true 면 실행 사이에도 재사용).
-// 워커 게이트는 SQLite(testAll)만 쓰고, 이 태스크는 개발 브랜치 머지 뒤 팀장의 방언 검증(dialect_check)에서만 돈다.
-// test 출력을 classpath 에 더하는 것은 T11(SQLite)과 기대값 헬퍼(MdmSystemSeedExpectations)를 같이 쓰기 위해서다.
-sourceSets {
-    mssqlTest {
-        compileClasspath += sourceSets.main.output + sourceSets.test.output
-        runtimeClasspath += sourceSets.main.output + sourceSets.test.output
-    }
-}
-configurations {
-    mssqlTestImplementation.extendsFrom testImplementation
-    mssqlTestRuntimeOnly.extendsFrom testRuntimeOnly
-}
-dependencies {
-    mssqlTestImplementation 'org.testcontainers:testcontainers-mssqlserver'   // 버전은 Boot 4.0.6 BOM(2.0.5)
-    mssqlTestImplementation 'org.testcontainers:testcontainers-junit-jupiter'
-}
-tasks.register('mssqlMigrationTest', Test) {
-    description = 'mdm Flyway 마이그레이션을 Testcontainers MSSQL(2022-CU27)에 실제 적용한다. docker 필요, testAll 비포함.'
-    group = 'verification'
-    testClassesDirs = sourceSets.mssqlTest.output.classesDirs
-    classpath = sourceSets.mssqlTest.runtimeClasspath
-    useJUnitPlatform()
-    testLogging { events 'passed', 'failed', 'skipped'; showStandardStreams = true; exceptionFormat = 'full' }
-}
-
-// TSK-04-02 — OnnxKureEmbeddingEncoder 실측 수동 게이트. mssqlTest 와 같은 패턴(sourceSet 신설, testAll
-// 미포함 — check/test 어느 것도 이 태스크에 의존하지 않는다). 모델 파일이 없으면 SKIPPED(빨강 아님).
+// TSK-04-02 — OnnxKureEmbeddingEncoder 실측 수동 게이트. 별도 sourceSet(testAll 미포함 — check/test 어느 것도
+// 이 태스크에 의존하지 않는다). 모델 파일이 없으면 SKIPPED(빨강 아님).
 sourceSets {
     onnxTest {
         compileClasspath += sourceSets.main.output + sourceSets.test.output

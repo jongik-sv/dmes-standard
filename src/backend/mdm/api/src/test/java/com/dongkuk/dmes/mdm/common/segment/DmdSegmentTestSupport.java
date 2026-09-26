@@ -103,7 +103,7 @@ public final class DmdSegmentTestSupport {
                 + "VALUES (?, ?, ?, ?, ?, 0, 0)", md, cateId, code, text(from), to);
     }
 
-    /** 한 키의 선분이 서로 겹치는 쌍의 수(두 방언 공용 질의, design.md §3.3). */
+    /** 한 키의 선분이 서로 겹치는 쌍의 수(방언 중립 질의, design.md §3.3). */
     public static int overlapCount(JdbcTemplate jdbc, String md) {
         return jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_DATA_ITEM a JOIN TB_MDM_DATA_ITEM b "
                 + "ON a.MARU_DATA_ID = b.MARU_DATA_ID AND a.CODE = b.CODE AND a.VALID_FROM < b.VALID_FROM "
