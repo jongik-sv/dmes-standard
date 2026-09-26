@@ -2,7 +2,7 @@
   "tsk": "TSK-09-03",
   "order": "5e57e895-a95c-45bf-8582-3bb5a76f898b",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "reported",
+  "phase": "merged",
   "baseline": {
     "base": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada",
     "docker": "banned:spawn",
@@ -154,5 +154,6 @@
   "last": {
     "phase": "reported",
     "event": "done"
-  }
+  },
+  "unapproved": true
 }
