@@ -1,7 +1,11 @@
 package com.dongkuk.dmes.mdm.common.rule.definition;
 
+import com.dongkuk.dmes.cactus.common.BusinessException;
+import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
+import com.dongkuk.dmes.mdm.common.rule.RuleCellsCodec;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckInput.DraftRow;
+import com.dongkuk.dmes.mdm.common.rule.check.RuleExpressionChecks;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -47,6 +51,8 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.VarType;
  *       {@link CellFailure} 로 돌려준다(D5 — 셀 하나를 지우면 NA 가 되어 행 뜻이 바뀐다).</li>
  *   <li>입력 계약은 {@code InputContracts.compute} 에 {@code ResolvedVar.label} 을 넘겨 계산한다. 타입은 이 룰의 이름 변수 → {@code externalType}
  *       (컬럼 사전·다른 룰 결과) → STRING 순으로 찾는다(화면 {@code contract-view.ts} 와 같은 기본값).</li>
+ *   <li>식 셀(TSK-08-04 반려 재작업 D16·RR6 — {@link RuleExpressionChecks#exprCell})에 디코드한 ast 가 없으면 {@code BusinessException
+ *       (INVALID_VALUE)} 를 조립 밖으로 던진다 — 셀 실패(D5)로 삼키지 않는다(조립 호출자 다섯 가운데 넷이 {@code failures()} 를 버린다).</li>
  * </ul>
  */
 public final class RuleDefinitionAssembler {
@@ -108,7 +114,10 @@ public final class RuleDefinitionAssembler {
                     continue;
                 }
                 try {
-                    cells.put(e.getKey(), cell(var, resolvedById.get(e.getKey()), e.getValue()));
+                    cells.put(e.getKey(), cell(ruleId, ver, row.rowId(), var, resolvedById.get(e.getKey()), e.getValue()));
+                } catch (BusinessException ex) {
+                    // RR6 — 디코드 실패·식 셀 ast 없음은 데이터 손상이다. 셀 실패(D5)로 삼키지 않고 조립 밖으로 던진다.
+                    throw ex;
                 } catch (RuntimeException ex) {
                     failures.add(new CellFailure(row.rowId(), e.getKey(), "식을 만들 수 없다: " + ex.getMessage()));
                     broken = true;
@@ -153,9 +162,14 @@ public final class RuleDefinitionAssembler {
                 v.domainId() == null ? null : String.valueOf(v.domainId()), agg, prio, resGrp, grpCond, grpCondAst, v.seq());
     }
 
-    private static RuleCell cell(RuleVar var, ResolvedVar resolved, Map<String, Object> c) {
+    private static RuleCell cell(String ruleId, int ver, int rowId, RuleVar var, ResolvedVar resolved, Map<String, Object> c) {
+        Map<String, Object> ast = RuleCellsCodec.ast(c.get("ast"));
+        if (RuleExpressionChecks.exprCell(resolved.varKind(), resolved.dispType(), c) && ast == null) {
+            throw new BusinessException(ErrorCode.INVALID_VALUE,
+                    ruleId + " 버전 " + ver + " row " + rowId + " var_id " + var.varId() + ": 식 셀에 AST 가 없습니다 — 열 설정 또는 표를 다시 저장하세요");
+        }
         RuleCell bare = new RuleCell(str(c.get("op")), str(c.get("left")), str(c.get("right")), strings(c.get("list")), str(c.get("expr")),
-                astOf(c.get("ast")), str(c.get("val")), null);
+                ast, str(c.get("val")), null);
         String text;
         if (var.varKind() == VarKind.RESULT) {
             text = CellTextGenerator.resultText(bare, var.dataType());
@@ -209,11 +223,6 @@ public final class RuleDefinitionAssembler {
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("저장된 우선순위 목록을 읽을 수 없다: " + e.getOriginalMessage(), e);
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> astOf(Object ast) {
-        return ast instanceof Map<?, ?> m ? (Map<String, Object>) m : null;
     }
 
     private static List<String> strings(Object list) {

@@ -1,0 +1,23 @@
+rule: RR3 — parse 는 문자열 ast 를 객체로 풀고, 공백뿐이면 키를 지우며, Map ast 와 다른 키 값은 바꾸지 않는다
+file: src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/rule/RuleCellsCodec.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:lib:test --tests "com.dongkuk.dmes.mdm.common.rule.RuleCellsCodecTest" --console=plain
+e2e: no
+--- find
+    private static Map<String, Object> decodeAstString(String s, String errorMessage) {
+        Object decoded;
+        try {
+            decoded = MAPPER.readValue(s, Object.class);
+        } catch (JsonProcessingException | IllegalArgumentException e) {
+            throw invalid(errorMessage);
+        }
+        if (!(decoded instanceof Map<?, ?> map)) {
+            throw invalid(errorMessage);
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> typed = (Map<String, Object>) map;
+        return typed;
+    }
+--- replace
+    private static Map<String, Object> decodeAstString(String s, String errorMessage) {
+        throw invalid(errorMessage);
+    }

@@ -63,11 +63,10 @@ public final class RuleAnalysisInputMapper {
         };
     }
 
-    @SuppressWarnings("unchecked")
     private static RuleCell cell(Map<String, Object> c) {
         return new RuleCell(str(c.get("op")), str(c.get("left")), str(c.get("right")),
                 c.get("list") instanceof List<?> list ? list.stream().map(x -> x == null ? null : x.toString()).toList() : null,
-                str(c.get("expr")), c.get("ast") instanceof Map<?, ?> ast ? (Map<String, Object>) ast : null, str(c.get("val")), null);
+                str(c.get("expr")), RuleCellsCodec.ast(c.get("ast")), str(c.get("val")), null);
     }
 
     private static String str(Object value) {

@@ -1,0 +1,14 @@
+rule: RR7 — 식 셀 판정은 검사기와 조립이 같은 함수(RuleExpressionChecks.exprCell)를 쓴다
+file: src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/rule/check/RuleExpressionChecks.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:lib:test --tests "com.dongkuk.dmes.mdm.common.rule.definition.RuleDefinitionAssemblerTest" --tests "com.dongkuk.dmes.mdm.common.rule.check.RuleSaveValidatorTest" --console=plain; rc1=$?; JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:api:test --tests "com.dongkuk.dmes.mdm.dme.ruleEdit.RuleValueTestServiceTest.키를_보내지_않으면_MISSING_KEY_이고_NULL_을_보내면_필수_변수는_REQUIRED_NULL_이다" --console=plain; rc2=$?; [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ]
+e2e: no
+--- find
+    public static boolean exprCell(String varKind, String dispType, Map<String, Object> cell) {
+        boolean cond = "COND".equals(varKind);
+        return cell.get("expr") != null && (cond ? "Expression".equals(dispType) && cell.get("op") == null
+                : cell.get("val") == null && cell.get("op") == null && "Expression".equals(dispType));
+    }
+--- replace
+    public static boolean exprCell(String varKind, String dispType, Map<String, Object> cell) {
+        return false;
+    }

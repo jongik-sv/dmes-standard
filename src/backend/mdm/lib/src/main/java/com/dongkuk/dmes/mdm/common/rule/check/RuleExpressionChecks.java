@@ -66,6 +66,17 @@ public final class RuleExpressionChecks {
         return new Scope(cond, results, "DERIVE".equals(ruleKind), external);
     }
 
+    /**
+     * 식 셀 판정(TSK-08-04 반려 재작업 D16·RR7 — 검사기와 조립이 같은 함수를 쓴다. 검사기가 ast 를 채우는 셀 집합 = 조립이 ast 를
+     * 요구하는 셀 집합). 조건: {@code Expression}·{@code op} 없음·{@code expr} 있음. 결과: {@code Expression}·{@code op}·{@code val}
+     * 없음·{@code expr} 있음.
+     */
+    public static boolean exprCell(String varKind, String dispType, Map<String, Object> cell) {
+        boolean cond = "COND".equals(varKind);
+        return cell.get("expr") != null && (cond ? "Expression".equals(dispType) && cell.get("op") == null
+                : cell.get("val") == null && cell.get("op") == null && "Expression".equals(dispType));
+    }
+
     /** Expression 조건 셀({@code expr} 이 있다). */
     public Result condition(Scope scope, Map<String, Object> cell) {
         return check(scope, null, cell, Slot.RULE_COND_EXPR);

@@ -1,0 +1,8 @@
+rule: RR10 — view 는 문자열 ast 행만 객체로 바꿔 내려주고, 그 밖 행의 CELLS 는 원문 바이트 그대로다
+file: src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dme/ruleEdit/service/RuleViewService.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:api:test --tests "com.dongkuk.dmes.mdm.dme.ruleEdit.RuleEditViewTest" --console=plain
+e2e: no
+--- find
+        return new RowInfo(r.getRowId(), r.getSeq(), r.getRowKind(), RuleCellsCodec.normalizeStored(r.getCells()), r.getNote());
+--- replace
+        return new RowInfo(r.getRowId(), r.getSeq(), r.getRowKind(), r.getCells(), r.getNote());

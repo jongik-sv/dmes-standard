@@ -1,0 +1,23 @@
+rule: RR9 — 레거시 문자열 ast 를 가진 RELEASED 버전의 값 테스트는 객체 ast 와 같은 결과·계약을 낸다
+file: src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/rule/RuleCellsCodec.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:api:test --tests "com.dongkuk.dmes.mdm.dme.ruleEdit.RuleValueTestServiceTest" --console=plain
+e2e: no
+--- find
+    private static Map<String, Object> decodeAstString(String s, String errorMessage) {
+        Object decoded;
+        try {
+            decoded = MAPPER.readValue(s, Object.class);
+        } catch (JsonProcessingException | IllegalArgumentException e) {
+            throw invalid(errorMessage);
+        }
+        if (!(decoded instanceof Map<?, ?> map)) {
+            throw invalid(errorMessage);
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> typed = (Map<String, Object>) map;
+        return typed;
+    }
+--- replace
+    private static Map<String, Object> decodeAstString(String s, String errorMessage) {
+        throw invalid(errorMessage);
+    }

@@ -110,7 +110,7 @@ public class RuleColumnsService implements RuleEditSavePart {
         final int tmpId;
         String varAst;
         String grpCondAst;
-        String exprAst;
+        Map<String, Object> exprAst;
         ResolvedVar resolved;
 
         Line(RuleColumnsSaveRequest req, int tmpId) {
@@ -253,7 +253,7 @@ public class RuleColumnsService implements RuleEditSavePart {
             RuleColumnsSaveRequest req = line.req;
             boolean cond = "COND".equals(req.varKind());
             if (cond && "Expression".equals(req.dispType())) {
-                line.varAst = parseOrReject(req.varName(), Slot.RULE_COND_EXPR, "조건 식");
+                line.varAst = DomainJson.write(parseOrReject(req.varName(), Slot.RULE_COND_EXPR, "조건 식"));
             }
             MdmRuleVar v = new MdmRuleVar(id, ver, line.tmpId, req.varKind(), 0);
             v.setDispType(req.dispType());
@@ -309,7 +309,7 @@ public class RuleColumnsService implements RuleEditSavePart {
                 continue;
             }
             if (line.req.grpCond() != null) {
-                line.grpCondAst = parseOrReject(line.req.grpCond(), Slot.RULE_GRP_COND, "열 조건");
+                line.grpCondAst = DomainJson.write(parseOrReject(line.req.grpCond(), Slot.RULE_GRP_COND, "열 조건"));
             }
             groups.computeIfAbsent(line.req.resGrp(), k -> new ArrayList<>()).add(line);
         }
@@ -506,7 +506,7 @@ public class RuleColumnsService implements RuleEditSavePart {
                 clear.add(req.varId());
             }
         }
-        Map<Integer, Map<String, String>> exprs = new LinkedHashMap<>();
+        Map<Integer, Map<String, Object>> exprs = new LinkedHashMap<>();
         if (derive) {
             for (Line line : kept) {
                 if (line.req.expr() != null) {
@@ -529,7 +529,7 @@ public class RuleColumnsService implements RuleEditSavePart {
                     dirty = true;
                 }
             }
-            for (Map.Entry<Integer, Map<String, String>> e : exprs.entrySet()) {
+            for (Map.Entry<Integer, Map<String, Object>> e : exprs.entrySet()) {
                 cells.put(e.getKey(), new LinkedHashMap<>(e.getValue()));
                 dirty = true;
             }
@@ -543,14 +543,14 @@ public class RuleColumnsService implements RuleEditSavePart {
 
     // ── 파싱 헬퍼(불변 9 — 서버 EvalEx 단일 진원). ──
 
-    /** 검사를 통과하면 AST JSON 을 돌려준다 — 파싱은 여기서 1회, apply 는 이 값을 그대로 저장한다. */
-    private String parseOrReject(String text, Slot slot, String field) {
+    /** 검사를 통과하면 AST 를 돌려준다(TSK-08-04 반려 재작업 D13 — 객체로) — 파싱은 여기서 1회, apply 는 이 값을 그대로 저장한다. */
+    private Map<String, Object> parseOrReject(String text, Slot slot, String field) {
         for (Problem p : checker.check(text, slot)) {
             if (!ExpressionChecker.VARIABLE.equals(p.kind())) {
                 throw reject(field + " 검사 실패(" + p.kind() + "): " + p.detail());
             }
         }
-        return DomainJson.write(ast(text));
+        return ast(text);
     }
 
     private Map<String, Object> ast(String text) {

@@ -104,8 +104,7 @@ public class RuleSaveValidator {
     private RuleCellRules.Result cell(Scope scope, ResolvedVar var, Map<String, Object> cell) {
         boolean cond = "COND".equals(var.varKind());
         RuleCellRules.Result r = cond ? RuleCellRules.condition(var, cell) : RuleCellRules.result(var, cell);
-        boolean exprCell = cell.get("expr") != null && (cond ? "Expression".equals(var.dispType()) && cell.get("op") == null
-                : cell.get("val") == null && cell.get("op") == null && "Expression".equals(var.dispType()));
+        boolean exprCell = RuleExpressionChecks.exprCell(var.varKind(), var.dispType(), cell);
         if (!r.ok() || !exprCell) {
             return r;
         }

@@ -2,142 +2,164 @@
   "tsk": "TSK-08-04",
   "order": "f2517d41-76fe-4a85-ad4e-f946a2d11a2b",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "merged",
-  "branch_base": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed",
+  "phase": "reported",
+  "branch_base": "180601aca1ccbe54028dd9bbdfaa0ed96d503cf5",
   "baseline": {
+    "base": "180601aca1ccbe54028dd9bbdfaa0ed96d503cf5",
     "docker": "banned:spawn",
     "failures": 0,
-    "tests": 4048,
+    "tests": 5223,
     "cmds": [
       {
         "cwd": ".",
         "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
-        "tests": 3120,
+        "tests": 3989,
         "failures": 0,
-        "source": "cache",
-        "cache_key": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed-5a99c8ef20f3",
-        "measured_at": "2026-09-25T14:18:23Z"
+        "source": "measured",
+        "cache_key": "180601aca1ccbe54028dd9bbdfaa0ed96d503cf5-5a99c8ef20f3",
+        "measured_at": "2026-09-26T12:37:52Z"
       },
       {
         "cwd": ".",
         "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
-        "tests": 760,
+        "tests": 1064,
         "failures": 0,
-        "source": "cache",
-        "cache_key": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed-70ad4dddc2e4",
-        "measured_at": "2026-09-25T14:20:02Z"
+        "source": "measured",
+        "cache_key": "180601aca1ccbe54028dd9bbdfaa0ed96d503cf5-70ad4dddc2e4",
+        "measured_at": "2026-09-26T12:39:08Z"
       },
       {
         "cwd": ".",
         "cmd": "cd src/frontend && pnpm test:unit:shared",
-        "tests": 168,
+        "tests": 170,
         "failures": 0,
-        "source": "cache",
-        "cache_key": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed-85eac351cb59",
-        "measured_at": "2026-09-25T14:20:41Z"
+        "source": "measured",
+        "cache_key": "180601aca1ccbe54028dd9bbdfaa0ed96d503cf5-85eac351cb59",
+        "measured_at": "2026-09-26T12:39:59Z"
       },
       {
         "cwd": ".",
         "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
         "tests": 0,
         "failures": 0,
-        "result": "pass",
-        "source": "cache",
-        "cache_key": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed-79066bca5c4b",
-        "measured_at": "2026-09-25T14:20:44Z"
+        "source": "measured",
+        "cache_key": "180601aca1ccbe54028dd9bbdfaa0ed96d503cf5-79066bca5c4b",
+        "measured_at": "2026-09-26T12:40:03Z",
+        "result": "pass"
       },
       {
         "cwd": ".",
         "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
         "tests": 0,
         "failures": 0,
-        "result": "ERROR 0 / WARN 0",
-        "source": "cache",
-        "cache_key": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed-773190afc491",
-        "measured_at": "2026-09-25T14:20:46Z"
+        "source": "measured",
+        "cache_key": "180601aca1ccbe54028dd9bbdfaa0ed96d503cf5-773190afc491",
+        "measured_at": "2026-09-26T12:40:06Z",
+        "result": "ERROR 0 / WARN 0 / INFO 29"
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 2254,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "180601aca1ccbe54028dd9bbdfaa0ed96d503cf5-9c34264b6ba7",
+        "measured_at": "2026-09-26T12:42:55Z",
+        "scope": "module"
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 1064,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "180601aca1ccbe54028dd9bbdfaa0ed96d503cf5-d6408a6cbf6b",
+        "measured_at": "2026-09-26T12:43:06Z",
+        "scope": "module"
       }
     ]
   },
   "last": {
-    "phase": "done",
-    "event": "done.ok"
+    "phase": "reported",
+    "event": "done"
   },
+  "prev_round": {
+    "branch_base": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed",
+    "head_sha": "0d27c254a14e058e9861fe4f03feaa21e39260c6",
+    "baseline_tests": 4048
+  },
+  "build_model_base": "opus",
+  "build_model_trial": true,
+  "model": "sonnet",
+  "design_first": {
+    "unmet": [
+      "mdm/TSK-03-03"
+    ]
+  },
+  "build_unit": "B1",
   "build_gate": {
-    "head": "36f30d9a66e54140662119fd6847af8dae7a8f2a",
+    "head": "25850723ad7a23c48d1e690328ade5672932d1a7",
+    "scope": "module",
     "cmds": [
       {
         "cwd": ".",
-        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
-        "tests": 3649,
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 2276,
         "failures": 0
       },
       {
         "cwd": ".",
-        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
-        "tests": 839,
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 1064,
         "failures": 0
-      },
-      {
-        "cwd": ".",
-        "cmd": "cd src/frontend && pnpm test:unit:shared",
-        "tests": 168,
-        "failures": 0
-      },
-      {
-        "cwd": ".",
-        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
-        "tests": 0,
-        "failures": 0,
-        "result": "pass"
-      },
-      {
-        "cwd": ".",
-        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
-        "tests": 0,
-        "failures": 0,
-        "result": "ERROR 0 / WARN 0 / INFO 29"
       }
     ],
     "new_failures": []
   },
+  "verify_advisor": {
+    "writer": 0,
+    "audit": 2
+  },
+  "verify_findings": {
+    "spec": 1,
+    "review": 1,
+    "tests": 5
+  },
   "verify_gate": {
-    "head": "36f30d9a66e54140662119fd6847af8dae7a8f2a",
+    "head": "91e94713",
+    "scope": "full",
     "cmds": [
       {
         "cwd": ".",
         "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
-        "tests": 3649,
+        "tests": 4011,
         "failures": 0
       },
       {
         "cwd": ".",
         "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
-        "tests": 839,
+        "tests": 1064,
         "failures": 0
       },
       {
         "cwd": ".",
         "cmd": "cd src/frontend && pnpm test:unit:shared",
-        "tests": 168,
+        "tests": 170,
         "failures": 0
       },
       {
         "cwd": ".",
         "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
         "tests": 0,
-        "failures": 0,
-        "result": "pass"
+        "failures": 0
       },
       {
         "cwd": ".",
         "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
         "tests": 0,
-        "failures": 0,
-        "result": "ERROR 0 / WARN 0 / INFO 29"
+        "failures": 0
       }
     ],
-    "new_failures": [],
-    "reused_from": "build_gate"
-  },
-  "unapproved": true
+    "new_failures": []
+  }
 }

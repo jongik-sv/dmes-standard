@@ -1,0 +1,8 @@
+rule: RR12 — 확정 diff 는 ast 표현(문자열·객체)만 다른 같은 셀을 같은 것으로 본다
+file: src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/rule/confirm/RuleVersionDiffs.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:lib:test --tests "com.dongkuk.dmes.mdm.common.rule.confirm.RuleVersionDiffsTest" --console=plain
+e2e: no
+--- find
+            decodeStringAsts(parsed);
+--- replace
+            // mutated: skip

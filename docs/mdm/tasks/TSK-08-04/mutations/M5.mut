@@ -1,0 +1,8 @@
+rule: RR5 — validateShape 는 Map 수준에서 문자열 ast 를 계속 거부한다
+file: src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/rule/RuleCellsCodec.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:lib:test --tests "com.dongkuk.dmes.mdm.common.rule.RuleCellsCodecTest" --console=plain
+e2e: no
+--- find
+    private static final Set<String> STRING_KEYS = Set.of("op", "left", "right", "expr", "val");
+--- replace
+    private static final Set<String> STRING_KEYS = Set.of("op", "left", "right", "expr", "val", "ast");

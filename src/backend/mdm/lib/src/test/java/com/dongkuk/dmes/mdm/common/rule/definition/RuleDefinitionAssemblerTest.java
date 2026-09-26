@@ -2,8 +2,11 @@ package com.dongkuk.dmes.mdm.common.rule.definition;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.dongkuk.dmes.cactus.common.BusinessException;
+import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainFixtures;
 import com.dongkuk.dmes.mdm.common.engine.MdmEngineConfig;
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
@@ -150,6 +153,64 @@ class RuleDefinitionAssemblerTest {
         assertEquals("_V7 != NULL && _V7 == \"A\"", a.definition().rows().get(0).cells().get(7).text());
         assertEquals("품명 = A", a.definition().contract().rows().get(0).cond(), "라벨을 넘겨 화면 계약과 같게 적는다");
         assertEquals("STRING", a.definition().contract().always().get(0).dataType().name(), "룰 밖 이름은 외부 타입이 없으면 STRING");
+    }
+
+    // ------------------------------------------------------------------ TSK-08-04 반려 재작업(1회차) — RR6·RR7
+
+    private static List<MdmRuleVar> deriveRaw() {
+        return List.of(raw(1, "RESULT", "Expression", "OUT_V", 1));
+    }
+
+    private static List<ResolvedVar> deriveVars() {
+        return List.of(var(1, "RESULT", "Expression", 1, "OUT_V", "NUMBER", null, null));
+    }
+
+    @Test
+    void 결과_Expression_셀은_문자열_ast_도_풀어_조립되고_계약에_식의_변수가_든다() {
+        List<DraftRow> rows = List.of(row(1, 1, "NORMAL",
+                "{\"1\":{\"expr\":\"BASE_SPD + 1\",\"ast\":\"{\\\"type\\\":\\\"INFIX_OPERATOR\\\",\\\"value\\\":\\\"+\\\","
+                        + "\\\"params\\\":[{\\\"type\\\":\\\"VARIABLE_OR_CONSTANT\\\",\\\"value\\\":\\\"BASE_SPD\\\",\\\"params\\\":[]},"
+                        + "{\\\"type\\\":\\\"NUMBER_LITERAL\\\",\\\"value\\\":\\\"1\\\",\\\"params\\\":[]}]}\"}}"));
+
+        Assembled a = RuleDefinitionAssembler.assemble("DERIVE_JDG", 1, "DERIVE", null, null, null, deriveRaw(), deriveVars(), rows, name -> null);
+
+        assertTrue(a.failures().isEmpty(), a.failures().toString());
+        RowContract rc = a.definition().contract().rows().get(0);
+        List<String> names = new ArrayList<>(rc.required().stream().map(VarType::name).toList());
+        names.addAll(rc.optional().stream().map(VarType::name).toList());
+        assertTrue(names.contains("BASE_SPD"), names.toString());
+    }
+
+    @Test
+    void 식_셀에_AST_가_없으면_조립_밖으로_예외가_난다() {
+        List<DraftRow> rows = List.of(row(1, 1, "NORMAL", "{\"1\":{\"expr\":\"BASE_SPD + 1\"}}"));
+
+        BusinessException e = assertThrows(BusinessException.class,
+                () -> RuleDefinitionAssembler.assemble("DERIVE_JDG", 1, "DERIVE", null, null, null, deriveRaw(), deriveVars(), rows, name -> null));
+        assertTrue(e.getMessage().contains("AST 가 없"), e.getMessage());
+        assertTrue(e.getMessage().contains("DERIVE_JDG"), e.getMessage());
+    }
+
+    @Test
+    void 식_셀의_ast_가_깨졌으면_row_구성_자체가_예외를_낸다() {
+        // RuleCellsCodec.parse 는 DB 행 읽기의 공통 진입점이라(R-F6) 깨진 ast 는 assemble 이전, row() 헬퍼(parse 를 부른다) 단계에서 이미 난다.
+        BusinessException e = assertThrows(BusinessException.class,
+                () -> row(1, 1, "NORMAL", "{\"1\":{\"expr\":\"BASE_SPD + 1\",\"ast\":\"x\"}}"));
+        assertEquals(ErrorCode.INVALID_VALUE, e.getErrorCode());
+        assertTrue(e.getMessage().contains("ast"), e.getMessage());
+    }
+
+    @Test
+    void op_이_있는_Expression_조건_셀은_식_셀이_아니라_ast_없어도_통과한다() {
+        List<MdmRuleVar> raws = List.of(raw(1, "COND", "Expression", " X ", 1), raw(2, "RESULT", "Value", "OUT", 1));
+        List<ResolvedVar> vars = List.of(
+                new ResolvedVar(1, "COND", "Expression", 1, " X ", false, null, "STRING", null, false, null, null, null, "EXPRESSION_COLUMN", null),
+                var(2, "RESULT", "Value", 1, "OUT", "STRING", null, null));
+        List<DraftRow> rows = List.of(row(1, 1, "NORMAL", "{\"1\":{\"op\":\"EQ\",\"left\":\"A\"},\"2\":{\"val\":\"B\"}}"));
+
+        Assembled a = RuleDefinitionAssembler.assemble("R", 1, "DECISION", "FIRST", null, null, raws, vars, rows, name -> null);
+
+        assertTrue(a.failures().isEmpty(), a.failures().toString());
     }
 
     // ------------------------------------------------------------------ 한 벌 입력 계약 코퍼스

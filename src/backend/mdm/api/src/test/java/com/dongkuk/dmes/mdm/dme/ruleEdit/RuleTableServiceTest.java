@@ -8,6 +8,7 @@ import static com.dongkuk.dmes.mdm.dme.DmeTestSupport.STEWARD;
 import static com.dongkuk.dmes.mdm.dme.DmeTestSupport.count;
 import static com.dongkuk.dmes.mdm.dme.DmeTestSupport.rowVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -110,6 +111,33 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
 
     private static List<Integer> ints(List<Map<String, Object>> rows, String key) {
         return rows.stream().map(r -> ((Number) r.get(key)).intValue()).toList();
+    }
+
+    // ── TSK-08-04 반려 재작업(1회차) RR11 — 레거시 문자열 ast 셀을 되돌려 보낸 TABLE 저장 ──
+
+    @Test
+    void 레거시_문자열_ast_행을_그대로_되돌려도_TABLE_저장이_성공하고_객체_ast_가_된다() {
+        DmeTestSupport.rule(jdbc, "WGT_CALC2", "코일 중량 산출 재저장", "DERIVE", "CREATED");
+        DmeTestSupport.pending(jdbc, "WGT_CALC2", 1, "DRAFT", "kim", null, null);
+        DmeTestSupport.var(jdbc, "WGT_CALC2", 1, 1, "RESULT", "Expression", "OUT_V", 1, "NUMBER");
+        DmeTestSupport.row(jdbc, "WGT_CALC2", 1, 1, 1, "NORMAL", "{\"1\":{\"expr\":\"1 + 1\",\"ast\":\"{\\\"type\\\":\\\"X\\\"}\"}}");
+        String legacyCells = jdbc.queryForObject(
+                "SELECT CELLS FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'WGT_CALC2' AND VER = 1 AND ROW_ID = 1", String.class);
+        assertTrue(legacyCells.contains("\"ast\":\""), legacyCells);
+
+        RuleEditSaveRequest req = new RuleEditSaveRequest();
+        req.setPart("TABLE");
+        req.setMaruRuleId("WGT_CALC2");
+        req.setVer(1);
+        req.setRowVersion(0L);
+        req.setRows(List.of(row(1, "NORMAL", legacyCells, null)));
+        RuleEditSaveResult r = service.save(req);
+        assertEquals(1L, r.getRowVersion());
+
+        String savedCells = jdbc.queryForObject(
+                "SELECT CELLS FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'WGT_CALC2' AND VER = 1 AND ROW_ID = 1", String.class);
+        assertTrue(savedCells.contains("\"ast\":{"), savedCells);
+        assertFalse(savedCells.contains("\"ast\":\""), savedCells);
     }
 
     @Test

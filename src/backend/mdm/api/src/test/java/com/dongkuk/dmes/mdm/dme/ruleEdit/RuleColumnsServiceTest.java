@@ -448,14 +448,20 @@ class RuleColumnsServiceTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
-    void DERIVE_결과_식은_셀에_저장되고_AST_는_파싱_결과와_같다() {
+    void DERIVE_결과_식은_셀에_저장되고_AST_는_파싱_결과와_같다() throws Exception {
         seedDerive();
         String expr = "ROUND(COIL_THK * COIL_WID * COIL_LEN * SPEC_GRAV / 1000, 1)";
         service.save(deriveColumns(0, List.of(deriveCol(1, "COIL_WGT", expr))));
         String cells = jdbc.queryForObject("SELECT CELLS FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'WGT_CALC' AND VER = 1", String.class);
         assertTrue(cells.contains("\"expr\":\"" + expr + "\""), cells);
-        String ast = String.valueOf(com.dongkuk.dmes.mdm.common.rule.RuleCellsCodec.parse(cells).get(1).get("ast"));
-        assertEquals(astOf(expr), ast, "식 셀의 AST");
+        // RR1(TSK-08-04 반려 재작업) — 결과 식 셀의 ast 는 JSON 객체다. RuleCellsCodec.parse 는 문자열도 풀어 주므로 회귀를 못
+        // 잡는다(§R6-2) — 원문 CELLS·평범한 Jackson 으로 본다.
+        assertTrue(cells.contains("\"ast\":{"), cells);
+        assertFalse(cells.contains("\"ast\":\""), cells);
+        com.fasterxml.jackson.databind.ObjectMapper plain = new com.fasterxml.jackson.databind.ObjectMapper();
+        com.fasterxml.jackson.databind.JsonNode ast = plain.readTree(cells).get("1").get("ast");
+        assertTrue(ast.isObject(), cells);
+        assertEquals(plain.valueToTree(AstExporter.export(expr, evaluator.configuration())), ast, "식 셀의 AST");
         // 불변 1 — 셀 JSON 키는 7개(op,left,right,list,expr,ast,val)뿐이고 문자열 키의 값은 문자열이다.
         for (Object cell : com.dongkuk.dmes.mdm.common.rule.RuleCellsCodec.parse(cells).values()) {
             @SuppressWarnings("unchecked")
@@ -464,6 +470,20 @@ class RuleColumnsServiceTest extends AbstractMdmSharedDbTest {
             assertTrue(keys.get("expr") instanceof String, "expr 는 문자열");
         }
         assertFalse(cells.contains("\"note\""), cells);
+    }
+
+    @Test
+    void 식_변수_조건_열의_VAR_AST_는_문자열_저장_형식이_바뀌지_않는다() {
+        // RR2(TSK-08-04 반려 재작업) — VAR_AST·GRP_COND_AST 는 결과 식 ast(RR1)와 달리 별도 문자열 컬럼이라 문자열 그대로다.
+        // parseOrReject 의 반환형을 Map 으로 바꾸며 컬럼 쪽(varAst)이 흔들리지 않는지 본다(지금 트리에서도 초록이며 변이 검증용).
+        List<Map<String, Object>> cols = qCols();
+        String expr = "COIL_THK * 2";
+        cols.add(with(col(-1, "COND", "Expression", expr), "label", "두께*2"));
+        RuleEditSaveResult r = service.save(columns(0, cols));
+        int varId = r.getRowIdMap().get("-1");
+        String varAst = jdbc.queryForObject(
+                "SELECT VAR_AST FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 AND VAR_ID = " + varId, String.class);
+        assertEquals(astOf(expr), varAst, "VAR_AST 는 문자열 컬럼 그대로다");
     }
 
     // ── 피벗 축(화면 표현) 경고·권한 ──

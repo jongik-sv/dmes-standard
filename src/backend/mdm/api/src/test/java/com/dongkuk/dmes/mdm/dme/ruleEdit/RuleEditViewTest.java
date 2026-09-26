@@ -164,6 +164,25 @@ class RuleEditViewTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void 레거시_문자열_ast_행은_view_가_객체로_내려주고_그_밖은_원문_바이트_그대로다() {
+        // TSK-08-04 반려 재작업(1회차) D19·RR10.
+        DmeTestSupport.rule(jdbc, "AST_VIEW", "레거시 ast 화면 확인", "DERIVE", "CREATED");
+        DmeTestSupport.pending(jdbc, "AST_VIEW", 1, "DRAFT", "kim", null, null);
+        DmeTestSupport.var(jdbc, "AST_VIEW", 1, 1, "RESULT", "Expression", "OUT_V", 1, "NUMBER");
+        String legacy = "{\"1\":{\"expr\":\"1 + 1\",\"ast\":\"{\\\"type\\\":\\\"X\\\"}\"}}";
+        DmeTestSupport.row(jdbc, "AST_VIEW", 1, 1, 1, "NORMAL", legacy);
+        String plain = "{\"1\":{\"op\":\"NA\"}}";
+        DmeTestSupport.row(jdbc, "AST_VIEW", 1, 2, 2, "NORMAL", plain);
+
+        RuleEditViewResult v = view("AST_VIEW", 1);
+        RuleEditViewResult.RowInfo row1 = v.getRows().stream().filter(r -> r.getRowId() == 1).findFirst().orElseThrow();
+        RuleEditViewResult.RowInfo row2 = v.getRows().stream().filter(r -> r.getRowId() == 2).findFirst().orElseThrow();
+        assertTrue(row1.getCells().contains("\"ast\":{"), row1.getCells());
+        assertFalse(row1.getCells().contains("\"ast\":\""), row1.getCells());
+        assertEquals(plain, row2.getCells(), "문자열 ast 가 없는 행은 DB 원문과 바이트 동일");
+    }
+
+    @Test
     void 외부_원천_룰은_DRAFT_소유자라도_편집할_수_없다() {
         DmeTestSupport.externalRule(jdbc, "EXT_JDG", "외부");
         DmeTestSupport.pending(jdbc, "EXT_JDG", 1, "DRAFT", "kim", "FIRST", null);

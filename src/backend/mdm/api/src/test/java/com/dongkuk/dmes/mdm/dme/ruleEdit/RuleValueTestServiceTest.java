@@ -65,8 +65,12 @@ class RuleValueTestServiceTest extends AbstractMdmSharedDbTest {
     // ------------------------------------------------------------------ 요청 도우미
 
     private static RuleTestRequest version(int ver, String inputJson) {
+        return version("QLTY_GRD_JDG", ver, inputJson);
+    }
+
+    private static RuleTestRequest version(String ruleId, int ver, String inputJson) {
         RuleTestRequest r = new RuleTestRequest();
-        r.setMaruRuleId("QLTY_GRD_JDG");
+        r.setMaruRuleId(ruleId);
         r.setTarget("VERSION");
         r.setVer(ver);
         r.setInputJson(inputJson);
@@ -358,5 +362,83 @@ class RuleValueTestServiceTest extends AbstractMdmSharedDbTest {
         bad.setTarget("CASE");
         assertThrows(BusinessException.class, () -> service.runTest(bad));
         assertThrows(BusinessException.class, () -> service.runTest(version(1, "[1,2]")), "입력은 JSON 객체");
+    }
+
+    // ------------------------------------------------------------------ ⑥ 레거시 문자열 ast(TSK-08-04 반려 재작업 1회차 — D14·D17·RR9)
+
+    @Autowired
+    kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator evaluator;
+
+    /** SPD_JOIN_OLD VER 1 RELEASED — 결과 식 셀 ast 가 1차 결함 모양(문자열 안의 문자열)로 저장된 레거시 행. */
+    private void seedLegacySpdJoin(String cells) {
+        DmeTestSupport.rule(jdbc, "SPD_JOIN_OLD", "레거시 결합", "DERIVE", "INUSE");
+        DmeTestSupport.released(jdbc, "SPD_JOIN_OLD", 1, null, "2020-01-01 00:00:00", null);
+        DmeTestSupport.column(jdbc, "BASE_SPD", DmeTestSupport.domain(jdbc, "BASE_SPD_D", "QTY", "NUMBER", 0));
+        DmeTestSupport.column(jdbc, "EXC_SPD", DmeTestSupport.domain(jdbc, "EXC_SPD_D", "QTY", "NUMBER", 0));
+        DmeTestSupport.var(jdbc, "SPD_JOIN_OLD", 1, 1, "RESULT", "Expression", "LINE_SPD", 1, "NUMBER");
+        DmeTestSupport.row(jdbc, "SPD_JOIN_OLD", 1, 1, 1, "NORMAL", cells);
+    }
+
+    /** 결과 식 셀을 1차 결함 그대로(ast 가 AST JSON 을 한 번 더 인코딩한 문자열) 만든다. */
+    private String legacyCells(String expr) throws Exception {
+        Map<String, Object> ast = kr.dongkuk.maru.mdm.engine.expr.AstExporter.export(expr, evaluator.configuration());
+        com.fasterxml.jackson.databind.ObjectMapper om = new com.fasterxml.jackson.databind.ObjectMapper();
+        Map<String, Object> cell = new LinkedHashMap<>();
+        cell.put("expr", expr);
+        cell.put("ast", om.writeValueAsString(ast));
+        return om.writeValueAsString(Map.of("1", cell));
+    }
+
+    private String brokenAstCells(String expr) {
+        Map<String, Object> cell = new LinkedHashMap<>();
+        cell.put("expr", expr);
+        cell.put("ast", "x");
+        return new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(Map.of("1", cell)).toString();
+    }
+
+    private String noAstCells(String expr) {
+        Map<String, Object> cell = new LinkedHashMap<>();
+        cell.put("expr", expr);
+        return new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(Map.of("1", cell)).toString();
+    }
+
+    private static final String SPD_JOIN_EXPR = "IF(EXC_SPD == NULL, BASE_SPD, MIN(BASE_SPD, EXC_SPD))";
+
+    @Test
+    void 레거시_문자열_ast_행도_읽어_판정하고_계약_행에_두_이름이_든다() throws Exception {
+        seedLegacySpdJoin(legacyCells(SPD_JOIN_EXPR));
+
+        RuleTestResult r = service.runTest(version("SPD_JOIN_OLD", 1, "{\"BASE_SPD\":\"90\",\"EXC_SPD\":\"70\"}"));
+
+        assertEquals("OK", r.getOutcome(), String.valueOf(r.getErrors()));
+        assertEquals("70", r.getResults().get("LINE_SPD"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) r.getContract().get("rows");
+        java.util.Set<Object> names = new java.util.HashSet<>();
+        rows.forEach(row -> {
+            names.addAll((List<?>) row.get("required"));
+            names.addAll((List<?>) row.get("optional"));
+        });
+        assertTrue(names.contains("BASE_SPD") && names.contains("EXC_SPD"), names.toString());
+    }
+
+    @Test
+    void 깨진_ast_는_INVALID_VALUE_로_거부한다() {
+        seedLegacySpdJoin(brokenAstCells(SPD_JOIN_EXPR));
+
+        BusinessException e = assertThrows(BusinessException.class,
+                () -> service.runTest(version("SPD_JOIN_OLD", 1, "{\"BASE_SPD\":\"90\",\"EXC_SPD\":\"70\"}")));
+        assertEquals(com.dongkuk.dmes.cactus.common.ErrorCode.INVALID_VALUE, e.getErrorCode());
+        assertTrue(e.getMessage().contains("ast"), e.getMessage());
+    }
+
+    @Test
+    void 식_셀_ast_없음도_명시적_오류다() {
+        seedLegacySpdJoin(noAstCells(SPD_JOIN_EXPR));
+
+        BusinessException e = assertThrows(BusinessException.class,
+                () -> service.runTest(version("SPD_JOIN_OLD", 1, "{\"BASE_SPD\":\"90\",\"EXC_SPD\":\"70\"}")));
+        assertEquals(com.dongkuk.dmes.cactus.common.ErrorCode.INVALID_VALUE, e.getErrorCode());
+        assertTrue(e.getMessage().contains("AST 가 없"), e.getMessage());
     }
 }

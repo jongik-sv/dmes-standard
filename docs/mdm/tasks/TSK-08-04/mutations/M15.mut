@@ -1,0 +1,8 @@
+rule: RR2 — VAR_AST·GRP_COND_AST 는 문자열 JSON 컬럼 그대로다(값 = DomainJson.write(AST), 바이트 동일) — grpCondAst 절반(Verify 감사 T4 보강, M2 는 varAst 만 덮었다)
+file: src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dme/ruleEdit/service/RuleColumnsService.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:api:test --tests "com.dongkuk.dmes.mdm.dme.ruleEdit.RuleColumnsServiceTest.grp_cond_는_파싱과_참조_변수_해결이_되어야_하고_AST_를_한_번_만든다" --console=plain
+e2e: no
+--- find
+                line.grpCondAst = DomainJson.write(parseOrReject(line.req.grpCond(), Slot.RULE_GRP_COND, "열 조건"));
+--- replace
+                line.grpCondAst = String.valueOf(parseOrReject(line.req.grpCond(), Slot.RULE_GRP_COND, "열 조건"));

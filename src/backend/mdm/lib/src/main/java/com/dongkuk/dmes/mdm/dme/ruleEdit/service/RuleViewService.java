@@ -6,6 +6,7 @@ import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
 import com.dongkuk.dmes.mdm.common.rule.RuleAnalysisInputMapper;
 import com.dongkuk.dmes.mdm.common.rule.RuleAnalysisInputMapper.StoredRow;
+import com.dongkuk.dmes.mdm.common.rule.RuleCellsCodec;
 import com.dongkuk.dmes.mdm.common.rule.RuleIssueMaps;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleTestCaseQueries;
@@ -201,6 +202,6 @@ public class RuleViewService {
     }
 
     private static RowInfo rowInfo(MdmRuleRow r) {
-        return new RowInfo(r.getRowId(), r.getSeq(), r.getRowKind(), r.getCells(), r.getNote());
+        return new RowInfo(r.getRowId(), r.getSeq(), r.getRowKind(), RuleCellsCodec.normalizeStored(r.getCells()), r.getNote());
     }
 }

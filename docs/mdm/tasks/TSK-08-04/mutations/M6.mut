@@ -1,0 +1,15 @@
+rule: RR6 — 식 셀에 ast 가 없으면 조립이 BusinessException 을 던지고 failures() 로 삼키지 않는다
+file: src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/rule/definition/RuleDefinitionAssembler.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:lib:test --tests "com.dongkuk.dmes.mdm.common.rule.definition.RuleDefinitionAssemblerTest" --console=plain
+e2e: no
+--- find
+                try {
+                    cells.put(e.getKey(), cell(ruleId, ver, row.rowId(), var, resolvedById.get(e.getKey()), e.getValue()));
+                } catch (BusinessException ex) {
+                    // RR6 — 디코드 실패·식 셀 ast 없음은 데이터 손상이다. 셀 실패(D5)로 삼키지 않고 조립 밖으로 던진다.
+                    throw ex;
+                } catch (RuntimeException ex) {
+--- replace
+                try {
+                    cells.put(e.getKey(), cell(ruleId, ver, row.rowId(), var, resolvedById.get(e.getKey()), e.getValue()));
+                } catch (RuntimeException ex) {
