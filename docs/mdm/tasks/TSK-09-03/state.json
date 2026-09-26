@@ -2,7 +2,7 @@
   "tsk": "TSK-09-03",
   "order": "5e57e895-a95c-45bf-8582-3bb5a76f898b",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "design",
+  "phase": "build",
   "baseline": {
     "base": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada",
     "docker": "banned:spawn",
@@ -50,6 +50,25 @@
         "failures": 0,
         "source": "measured",
         "cache_key": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada-773190afc491"
+      },
+      {
+        "cwd": "",
+        "scope": "module",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 2263,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada-9c34264b6ba7",
+        "measured_at": "2026-09-26T06:07:25Z"
+      },
+      {
+        "cwd": "",
+        "scope": "module",
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/shared build && pnpm test:unit:shared && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 1232,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada-435c0b6bc1e7"
       }
     ]
   },
