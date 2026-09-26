@@ -15,6 +15,11 @@
 | 2026-09-26T07:45:10Z | verify | `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` | 전체 | 1 | 27.06 | 통과(ERROR 0) |
 | 2026-09-26T14:33:00Z | 기준선(재작업 1회차, 기점 1e8ccfa8) | `cd src/backend && … ./gradlew :mdm:test … && … check_oasis_contract.py --root .` | 모듈 | 8 | 2.54 | 기준선 측정(2276건, 실패 0) |
 | 2026-09-26T14:41:33Z | build | `cd src/backend && … ./gradlew :mdm:test … && … check_oasis_contract.py --root .` | 모듈 | 76 | 2.88 | 통과(2279건, 신규 0) |
+| 2026-09-26T14:48:21Z | verify | `cd src/backend && … ./gradlew testAll --no-daemon --console=plain` | 전체 | 90 | 5.79 | 통과(4014건, 신규 0) |
+| 2026-09-26T14:49:47Z | verify | `cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test` | 전체 | 79 | 7.54 | 통과(1064건, 신규 0) |
+| 2026-09-26T14:49:48Z | verify | `cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint` | 전체 | 1 | 7.54 | 통과(exit 0) |
+| 2026-09-26T14:49:54Z | verify | `cd src/frontend && pnpm test:unit:shared` | 전체 | 6 | 7.58 | 통과(170건, 신규 0) |
+| 2026-09-26T14:49:55Z | verify | `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` | 전체 | 1 | 7.58 | 통과(ERROR 0) |
 
 ## 변이 검증 기록
 
