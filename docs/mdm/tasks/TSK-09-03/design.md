@@ -106,6 +106,16 @@ PRD.md:162 원문: "화면 AST 평가 1건 0.3~2.7µs, **1만 행 판정 100 ms 
 `@SpringBootTest`(HTTP, `RANDOM_PORT`)로만 관통 시나리오를 확인**하고 새 Playwright spec 은 만들지 않는다(각 화면의
 기존 독립 E2E 가 화면별 등록·검증은 이미 본다).
 
+**MSSQL 폐지(2026-09-26 결정)**: MDM 운영 DB 는 아직 정하지 않았고 MSSQL 은 폐지 대상이다. 이 작업은 MSSQL 마이그레이션
+(`db/migration/mdm/mssql`)·`mssqlTest` 소스셋·MSSQL 방언 분기·MSSQL 관련 문서를 새로 만들거나 고치지 않는다. 기존
+MSSQL 코드는 그대로 두고 지우지 않는다(팀장이 별도 브랜치에서 지운다). B1~B3 는 모두 SQLite(`test` 소스셋)만 다루고,
+새 Flyway 마이그레이션 자체도 추가하지 않는다(B1~B3 가 쓰는 테이블은 모두 선행 WP 가 이미 만들어 둔 스키마이고, 이
+작업은 그 스키마에 서비스 API 로 행만 넣는다 — 마이그레이션 파일을 만들 이유가 없다). 이 작업은 새 마이그레이션을
+추가하지 않으므로 `MdmFlywayVersionParityTest`·`*DdlParityTest` 류(SQLite·MSSQL 버전·DDL 짝 맞춤 검사)에 이 작업이
+새로 노출시키는 실패는 없다 — 다만 기점에 남아 있는 이 시험들 자체가 다른 이유로 실패하면(짝 없는 MSSQL, 팀장 쪽
+별도 브랜치가 그 코드를 지울 예정) 그 실패는 팀장 지시로 예상된 실패로 인정하고 이 작업 탓이 아니면 신규 실패로
+세지 않는다.
+
 ## 2. 변경 파일 목록
 
 **생성**
@@ -204,6 +214,7 @@ dmc(`CodeConfirmService`)·dme(`RuleConfirmService`)가 **같은** `VersionState
 | `RuleEvaluator`/`ExpressionRunner`는 평가마다 새 `Expression`을 만든다(컴파일 캐시 없음, D17 미해결) — 이 사실 자체를 이 작업이 고치지 않는다 | build-log.md·defects.md 기록으로만 남긴다(테스트 단언 없음) |
 | `MdmEngineConfig`의 `CodeLookup`·`MasterLookup` 빈은 등록하지 않는다(D-077, 프로덕션 불변) | B3 — 시험 전용 `MdmEvaluator` 인스턴스로만 우회하고 `MdmEngineConfig`·`@Component` 는 건드리지 않는다 |
 | 이 작업은 선행 WP 의 프로덕션 소스(`src/**/main/**`)를 고치지 않는다 — 시험 파일만 만든다 | 커밋 diff 로 확인(`git show --stat`) |
+| MSSQL 은 폐지 대상이다 — 이 작업은 MSSQL 마이그레이션·`mssqlTest` 소스셋·MSSQL 방언 분기·MSSQL 관련 문서를 새로 만들거나 고치지 않고, 기존 MSSQL 코드를 지우지도 않는다(2026-09-26 결정) | 커밋 diff 로 확인(`db/migration/mdm/mssql`·`mssqlTest` 경로 무변경) |
 
 ## 구현 단위
 
