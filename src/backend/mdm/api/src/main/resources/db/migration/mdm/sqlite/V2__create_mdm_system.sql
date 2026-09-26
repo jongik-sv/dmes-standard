@@ -1,4 +1,4 @@
--- TSK-01-02 design.md §2.3 — 연계 시스템 원장 TB_MDM_SYSTEM(SQLite). 두 방언 버전 집합은 항상 같다(규칙표 §5).
+-- TSK-01-02 design.md §2.3 — 연계 시스템 원장 TB_MDM_SYSTEM(SQLite).
 -- 자기 행(SELF_YN='Y')은 하나뿐이다(부분 유일 인덱스). 시드 감사 시각은 NULL(규칙표 #16, design.md D10).
 CREATE TABLE TB_MDM_SYSTEM (
     SYSTEM_CODE VARCHAR(20)  NOT NULL,

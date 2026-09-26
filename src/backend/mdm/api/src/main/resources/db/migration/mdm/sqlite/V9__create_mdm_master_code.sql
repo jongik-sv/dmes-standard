@@ -1,5 +1,5 @@
 -- TSK-06-01 design.md §1·§2·§6.0 — 04 영역(마스터코드) 7테이블(SQLite) + FK_TB_MDM_DOMAIN_CODE 후행 추가.
--- 버전 번호는 V9 다(D1 — origin/dev 머지 뒤 mdm 두 방언 폴더의 최대 버전 V8 + 1). 당초 팀장 배정 V6 이었고
+-- 버전 번호는 V9 다(D1 — origin/dev 머지 뒤 mdm 마이그레이션 최대 버전 V8 + 1). 당초 팀장 배정 V6 이었고
 -- 2026-09-24 팀장 정정(배정표 폐기, done 직전 머지 뒤 최대 버전+1)으로 V9 로 재채번했다. DDL 본문은 그대로다.
 -- 1차 텍스트는 docs/mdm/erd/04-master-code.sqlite.sql(TSK-02-03) 이되, 이 Task 가 실측·원천 대조로 갈라진
 -- 지점만 바꾼다(§6.0 G1~G5):
