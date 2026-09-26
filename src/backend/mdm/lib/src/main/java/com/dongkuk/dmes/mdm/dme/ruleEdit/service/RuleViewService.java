@@ -80,11 +80,11 @@ public class RuleViewService {
 
         RuleEditViewResult out = new RuleEditViewResult();
         out.setMe(me);
-        out.setRule(ruleInfo(rule));
+        out.setRule(ruleInfo(rule, versions, now));
         out.setVersions(versions.stream().map(this::versionInfo).toList());
         out.setUnappliedVersionExists(versions.stream().anyMatch(v -> RuleVersions.isUnapplied(v, now)));
         out.setHeaderEditable(headerService.headerEditable(rule, versions));
-        out.setConfirmScreenReady(false);
+        out.setConfirmScreenReady(true);
         if (selected == null) {
             out.setVars(List.of());
             out.setRows(List.of());
@@ -169,12 +169,13 @@ public class RuleViewService {
         return current.isPresent() ? current : versions.stream().max(byVer);
     }
 
-    private static RuleInfo ruleInfo(MdmRule rule) {
+    /** 상태는 계산 상태다(TSK-08-05 design §6.7, I19). */
+    private static RuleInfo ruleInfo(MdmRule rule, List<MdmRuleVer> versions, LocalDateTime now) {
         RuleInfo info = new RuleInfo();
         info.setMaruRuleId(rule.getMaruRuleId());
         info.setMaruRuleName(rule.getMaruRuleName());
         info.setRuleKind(rule.getRuleKind());
-        info.setStatus(rule.getStatus());
+        info.setStatus(RuleVersions.effectiveStatus(rule.getStatus(), versions, now));
         info.setSourceKind(rule.getSourceKind());
         info.setSourceSystem(rule.getSourceSystem());
         info.setDescription(rule.getDescription());
