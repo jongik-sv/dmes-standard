@@ -32,6 +32,20 @@
 - 첫 I24 변이(JPA 엔티티 `setApplyTo` 뒤 `save`)는 잡히지 않았다. `MdmRuleVer.APPLY_TO` 가 `updatable = false` 라 원장에 닿지 않는, 효과 없는 변이였기 때문이다. 별도 `TransactionTemplate` 안의 네이티브 UPDATE(커밋되는 부분 쓰기)로 바꿔 다시 돌렸고, 잡혔다.
 - I30 의 D5 칸(`REQUESTED_BY`·`REQUESTED_AT`·`RELEASED_AT`, 결재·긴급·반려 칸 비움)을 쓰는 것은 공통 서비스(`casConfirm`)다. 이 서비스가 바꿀 수 있는 것은 확정자 ID 전달뿐이고, 그 변이는 공통 서비스의 소유자 판정에서 먼저 빨강이 된다. D5 칸 값 자체는 S6 이 원장에서 단언한다.
 
+## B4 — 확정 화면·ruleEdit 연결
+
+- 테스트 먼저(빨강 확인): `cd src/frontend/m-mdm && pnpm exec vitest run tests/dme/ruleConfirm tests/dme/ruleEdit/rule-edit-page.test.ts` — 구현 전 checks.test.ts·rule-confirm-page.test.ts 는 모듈 없음으로 실패, rule-edit-page.test.ts 는 RE1·RE2 3건 실패(20건 통과).
+- 구현 뒤 같은 명령: 3 파일 95건 통과, 실패 0.
+- 관련 테스트: `cd src/frontend/m-mdm && pnpm exec vitest related pages/dme/ruleConfirm/{page.tsx,api.ts,types.ts,checks.ts,ConfirmModal.tsx} pages/dme/ruleEdit/cards/RuleVersionCard.tsx --run` — 4 파일 109건 통과, 실패 0(tsup.config.ts 포함 실행 때 6 파일 113건 통과).
+- 린트: `cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint`(tsc --noEmit) — exit 0.
+- page-registry: `cd src/frontend/m-mcm && node scripts/generate-page-registry.mjs` — `"dme/ruleConfirm"` 한 줄만 추가(42 pages).
+- 변이 검증: 스크립트 하나(heavy.sh 한 번, `vitest run <대상> --bail=1`, 백업 사본 `dflow-bak/B4/` 로 되돌림) — 17개 모두 잡힘. 되돌린 뒤 관련 테스트·린트 초록 재확인.
+- B3 가 같은 시각 만든 `RuleConfirmService` 의 응답 키(`rule`·`version`·`previous`·`diff`·`diffCounts`·`vars`·`items`·`applyFromCheck`·`contractWarnings`·`caseSummary`·`closedPreviousVer` 등, ver 정수)를 grep 으로 대조했고 types.ts 와 어긋나는 키는 없었다(읽기만 함).
+- 전체 스위트(m-mdm test 전체·testAll 등)와 E2E 는 돌리지 않았다(Build 단위 규칙, E2E 는 B5 몫).
+- 화면을 브라우저로 보는 시각 확인은 하지 않았다(B5 E2E 몫).
+- `mantine-aggrid-ui` 스킬 점검: `mantine_docs.py audit`(ruleConfirm 5 파일 + RuleVersionCard) 의심 0건, `aggrid_docs.py audit` 의심 0건. 새 파일은 codeConfirm 과 같은 shared 래퍼(`@dk-oasis/shared/form` Button·Input·Checkbox, `modal` Modal, `layout` ContentBody·ContentPanel·DETAIL_* ·RBAC)만 쓰고 `@mantine`·`ag-grid` 직접 import 가 없다. prop 은 tsc(lint) 로 확인했다. 색은 codeConfirm 과 같이 의미 토큰에 대체값을 붙인 `var(--color-danger, #b91c1c)` 모양을 그대로 따랐다.
+- 옛 "확정 이동 비활성" 단언 탐색: `grep -rn '확정 이동\|confirmScreenReady\|버전 확정 화면(TSK-08-05)' src/frontend/e2e src/frontend/m-mdm/tests` — e2e 스펙에는 없고, m-mdm 에는 fixtures.ts(false, 그대로 둠)와 기존 비활성 케이스(여전히 초록)뿐이다. B5 가 고칠 기존 단언은 없다.
+
 ## 변이 검증 기록
 
 | 불변 규칙 | 변이 | 잡은 테스트 | 결과 |
@@ -93,6 +107,23 @@
 | I32 | BPMN confirm 분기의 method 를 `validate` 로 | `RuleConfirmBpmnActionTest` B4 | 잡힘 |
 | I32 | BPMN serviceTask bean 을 `ruleEditService` 로 | `RuleConfirmBpmnActionTest` B3 | 잡힘 |
 | I33 | (변이 없음 — 메뉴 시드는 E2E T1·T8 로만 잡힌다) | 없음, B5 E2E·Verify diff 확인 몫 | 안 잡힘(보고) |
+| I34 | `canConfirm` 에서 적용 순서 REJECTED 조건을 뺌 | `checks.test.ts` canConfirm "적용 순서 REJECTED → false" | 잡힘 |
+| I34 | 검사한 apply_from 과 입력값 일치 조건을 뺌 | `checks.test.ts` canConfirm "검사한 apply_from 과 입력값이 다름 → false" | 잡힘 |
+| I34 | 화면이 confirm 권한 대신 늘 true 를 넘김 | `rule-confirm-page.test.ts` P6(validate 는 있음) | 잡힘 |
+| I35 | 확인 활성에서 계약 변경 확인란 조건을 뺌 | `rule-confirm-page.test.ts` P4(둘 다 체크) | 잡힘 |
+| I35 | 계약 변경 경고만 있을 때 warningsAcknowledged=false 를 보냄 | `rule-confirm-page.test.ts` P4(계약 경고만) | 잡힘 |
+| I35 | 경고가 없어도 warningsAcknowledged=true 를 보냄 | `rule-confirm-page.test.ts` P3(경고 없음) | 잡힘 |
+| I36 | 미래 적용을 브라우저 시계로 판정 | `rule-confirm-page.test.ts` P5(futureApplyFrom=true) | 잡힘 |
+| I37 | view 요청의 ver 를 문자열로 보냄 | `rule-confirm-page.test.ts` 목록 행 → view(정수) | 잡힘 |
+| I37 | handoff ver 문자열을 정수로 바꾸지 않음 | `rule-confirm-page.test.ts` P1 | 잡힘 |
+| I37 | null 파라미터를 빼지 않고 보냄 | `rule-confirm-page.test.ts` P1(ver 없음) | 잡힘 |
+| I38 | apply_from 에서 초를 뺌 | `checks.test.ts` toServerDateTime | 잡힘 |
+| I39 | 서버 message 대신 고정 문구를 보임 | `rule-confirm-page.test.ts` P7 | 잡힘 |
+| I40 | 확정 이동 활성에서 confirmScreenReady 를 뺌 | `rule-edit-page.test.ts` "확정 이동은 확정 화면이 없어 비활성이다" | 잡힘 |
+| I40 | 확정 이동 활성에서 MDM 원천 조건을 뺌 | `rule-edit-page.test.ts` RE2(EXTERNAL) | 잡힘 |
+| I40 | 확정 이동 활성에서 DRAFT 조건을 뺌 | `rule-edit-page.test.ts` RE2(RELEASED) | 잡힘 |
+| I40 | 확정 이동이 ver 를 넘기지 않음 | `rule-edit-page.test.ts` RE1 | 잡힘 |
+| I41 | 저장 시 검사 거부여도 계약 영역을 변경 없음으로 | `checks.test.ts` contractState BLOCKED | 잡힘 |
 
 - 첫 I14 변이(`rule.setStatus("DEPRECATED")`)는 잡히지 않았다. `MdmRule.STATUS` 가 `updatable = false` 라 엔티티 변경이 원장에 닿지 않는, 효과 없는 변이였기 때문이다. 쓰기가 실제로 flush 되는 칸(`MARU_RULE_NAME`)으로 바꿔 다시 돌렸고 잡혔다.
 
@@ -117,3 +148,9 @@
 - **B3 — S7 에 확정 대기 목록 계산 상태 단언 추가**: 설계 S7 은 view·ruleMng 만 본다. 그러나 I19 는 ruleConfirm search 의 상태 표시도 대상으로 삼는다. 기존 픽스처로는 저장값과 계산 상태가 같아 search 변이가 잡히지 않으므로, 미래 확정 룰에 v2 DRAFT 를 더해 시계 이동 전후의 `ruleStatus`(CREATED→INUSE)를 단언했다.
 - **B3 — BPMN 을 텍스트 복제로 작성**: §6.6 은 `bpmn-skill`(bpmn-tool)·`oasis-project-support` 규칙을 따르라고 했지만, 이 PC 에 `bpmn-tool` 이 PATH 에 없어 06-05 `dmc/codeConfirm.bpmn` 을 텍스트 치환으로 복제했다. 구조(분기 4개·serviceTask·DI 좌표)는 바꾸지 않았고 process id·bean·dto 패키지·문서 문구만 바꿨다. `RuleConfirmBpmnActionTest` 5건과 HT1(네 분기를 실제로 탄다), 변이 I32 두 건이 계약을 고정한다.
 - **B3 — 메뉴 시드 로그 한 줄**: `seedMdmRuleConfirmMenu()` 끝에 08-02·08-06 시드와 같은 모양의 `log.info` 한 줄을 두었다(06-05 `seedMdmCodeConfirmMenu` 에는 없다). 메뉴 값은 §6.9 그대로다(OBJECT `ruleConfirm`, MENU_SEQ 003, FULL_SEQ 5050300, "버전 확정", 폴더 dme, SYSADMIN PERM_ALL, `seedMdmObjectRbac("ruleConfirm","dme")`). 호출 위치는 `seedMdmRuleMenus();` 바로 다음 줄이다.
+- **B4** — `checks.ts` 에 설계에 없던 순수 함수 `contractState(firstVersion, items, contractWarnings)` 를 두었다. 계약 영역(§6.8-4)의 다섯 상태(FIRST·NOT_CHECKED·BLOCKED·CHANGED·NONE)를 한 곳에서 정해 I41 을 순수 테스트로 덮기 위해서다. 검사 전(NOT_CHECKED)에는 "변경 없음" 으로 단정하지 않고 "검사를 하면 … 보입니다" 를 보인다(설계는 검사 전 문구를 정하지 않았다).
+- **B4** — `splitWarnings(items, contractWarnings = [])` 는 항목의 WARNING 을 code 로 나누고, validate 의 `contractWarnings` 도 계약 변경으로 받되 같은 경고(code·message·itemKey)는 한 번만 담는다. 서버가 CONTRACT_CHANGED 를 SAVE_CHECKS 이슈와 `contractWarnings` 양쪽에 싣기 때문에 대화상자 중복을 막고, 한쪽만 실려도 계약 확인란이 빠지지 않게 하려는 것이다.
+- **B4** — 설계에 없던 testid 를 더했다: `rc-modal-cancel`(대화상자 취소), `rc-modal-contract`·`rc-modal-warnings`(대화상자 목록), `rc-diff-show-same`(같은 행 보기 토글), `rc-closed-previous`(확정 뒤 "직전 버전 n 의 적용을 닫았습니다", E2E T6 의 `closedPreviousVer` 표시용). `rc-contract` 에는 `data-state` 속성을 단다.
+- **B4** — `rc-previous` 문구는 `직전 RELEASED 버전 1 · 2026-01-01 00:00:00` 이다(설계 예시 `버전 1 · …` 앞에 codeConfirm 과 같은 "직전 RELEASED " 를 붙였다. 설계 예시 문자열을 부분으로 포함한다).
+- **B4** — `RuleVersionCard.tsx` 의 확정 이동 활성 조건에 소유자 조건을 넣지 않았다(I40 그대로). 비소유 DRAFT 도 확정 화면으로 넘어가고, 확정 화면·서버가 소유자를 판정한다. 이것을 RE1 추가 케이스("소유자가 아닌 DRAFT 도 확정 이동은 활성")로 고정했다.
+- **B4** — 기능설계서 목차는 ruleEdit 의 1~11 번호를 따르되 제목을 화면에 맞게 바꿨다(3 "편집(확정) 가능 여부", 4 "상단 바 (A-LIST)", 5 "영역").

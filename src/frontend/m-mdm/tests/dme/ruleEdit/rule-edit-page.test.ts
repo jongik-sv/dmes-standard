@@ -6,6 +6,7 @@ import { createElement, act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
+import { takeMdmPageParams } from "@/shell";
 
 import RuleEditPage from "../../../pages/dme/ruleEdit/page";
 import { RULE_EDIT_TARGET_EVENT, RULE_EDIT_TARGET_KEY } from "../../../src/dme/rule-handoff";
@@ -216,6 +217,48 @@ describe("RuleEditPage", () => {
   });
 
   it("확정 이동은 확정 화면이 없어 비활성이다", async () => {
+    await openByHandoff();
+    expect(findButton(container, "확정 이동").disabled).toBe(true);
+  });
+
+  // TSK-08-05 §3.3 RE1·RE2 (I40) — confirmScreenReady 가 켜지면 MDM 원천 DRAFT 에서 확정 화면으로 넘긴다.
+  it("RE1 확정 화면이 준비됐고 선택 버전이 MDM 원천 DRAFT 면 확정 이동이 활성이고, 누르면 ruleConfirm 탭을 룰·버전과 함께 연다", async () => {
+    view = draftView("e2e_mdm_steward", "e2e_mdm_steward", { confirmScreenReady: true });
+    const opened: unknown[] = [];
+    const listener = (e: Event) => opened.push((e as CustomEvent).detail);
+    window.addEventListener("portal-open-tab", listener);
+    try {
+      await openByHandoff();
+      const move = findButton(container, "확정 이동");
+      expect(move.disabled).toBe(false);
+      await act(async () => {
+        move.click();
+      });
+      await flush();
+      expect(opened).toEqual([{ pageId: "mdm:dme/ruleConfirm" }]);
+      expect(takeMdmPageParams("dme/ruleConfirm")).toEqual({ maruRuleId: "QLTY_GRD_JDG", ver: "2" });
+      expect(requests.filter((r) => r.action === "confirm")).toHaveLength(0);
+    } finally {
+      window.removeEventListener("portal-open-tab", listener);
+      takeMdmPageParams("dme/ruleConfirm");
+    }
+  });
+
+  it("RE1 소유자가 아닌 DRAFT 도 확정 이동은 활성이다(소유자 판정은 확정 화면·서버가 한다)", async () => {
+    view = draftView("someone_else", "e2e_mdm_steward", { confirmScreenReady: true });
+    await openByHandoff();
+    expect(findButton(container, "확정 이동").disabled).toBe(false);
+  });
+
+  it("RE2 확정 화면이 준비됐어도 선택 버전이 RELEASED 면 확정 이동이 비활성이다", async () => {
+    view = releasedView("e2e_mdm_steward", { confirmScreenReady: true });
+    await openByHandoff();
+    expect(findButton(container, "확정 이동").disabled).toBe(true);
+  });
+
+  it("RE2 확정 화면이 준비됐어도 원천이 EXTERNAL 이면 확정 이동이 비활성이다", async () => {
+    const base = draftView("e2e_mdm_steward", "e2e_mdm_steward", { confirmScreenReady: true });
+    view = { ...base, rule: { ...base.rule, sourceKind: "EXTERNAL", sourceSystem: "L2" } };
     await openByHandoff();
     expect(findButton(container, "확정 이동").disabled).toBe(true);
   });
