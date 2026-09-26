@@ -723,6 +723,8 @@ Map 이 아니라며 거부해 실제 결함은 아니었으나(둘 다 우회�
 |---|---|---|---|---|---|---|
 | 2026-09-26T12:42:55Z | 기준선 | cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root . | 모듈 | 약 10 | 3.45 | 기준선 측정(2254/0, UP-TO-DATE) |
 | 2026-09-26T12:43:06Z | 기준선 | cd src/frontend && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint | 모듈 | 약 60 | 3.45 | 기준선 측정(1064/0) |
+| 2026-09-26T13:40:04Z | build | cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root . | 모듈 | 4 | 2.70 | 통과(2276/0, 기준선 2254 대비 +22, UP-TO-DATE — 단위가 커밋 전 전체 :mdm:api·lib 테스트를 돌린 결과, 변이 사본 잔재 없음) |
+| 2026-09-26T13:40:38Z | build | cd src/frontend && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint | 모듈 | 15 | 3.82 | 통과(1064/0, lint 통과) |
 
 (Build 게이트는 오케스트레이터 몫이다 — 이 단위는 게이트를 돌리지 않았다. 아래는 커밋 전 스스로 돈 관련 테스트 기록이고 게이트가 아니다.)
 
