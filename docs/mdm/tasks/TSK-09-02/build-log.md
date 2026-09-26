@@ -13,6 +13,13 @@
 | 2026-09-26T07:44:55Z | verify | `cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint` | 전체 | 3 | 29.42 | 통과(exit 0) |
 | 2026-09-26T07:45:09Z | verify | `cd src/frontend && pnpm test:unit:shared` | 전체 | 14 | 27.06 | 통과(168건, 신규 0) |
 | 2026-09-26T07:45:10Z | verify | `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` | 전체 | 1 | 27.06 | 통과(ERROR 0) |
+| 2026-09-26T14:33:00Z | 기준선(재작업 1회차, 기점 1e8ccfa8) | `cd src/backend && … ./gradlew :mdm:test … && … check_oasis_contract.py --root .` | 모듈 | 8 | 2.54 | 기준선 측정(2276건, 실패 0) |
+| 2026-09-26T14:41:33Z | build | `cd src/backend && … ./gradlew :mdm:test … && … check_oasis_contract.py --root .` | 모듈 | 76 | 2.88 | 통과(2279건, 신규 0) |
+| 2026-09-26T14:48:21Z | verify | `cd src/backend && … ./gradlew testAll --no-daemon --console=plain` | 전체 | 90 | 5.79 | 통과(4014건, 신규 0) |
+| 2026-09-26T14:49:47Z | verify | `cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test` | 전체 | 79 | 7.54 | 통과(1064건, 신규 0) |
+| 2026-09-26T14:49:48Z | verify | `cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint` | 전체 | 1 | 7.54 | 통과(exit 0) |
+| 2026-09-26T14:49:54Z | verify | `cd src/frontend && pnpm test:unit:shared` | 전체 | 6 | 7.58 | 통과(170건, 신규 0) |
+| 2026-09-26T14:49:55Z | verify | `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` | 전체 | 1 | 7.58 | 통과(ERROR 0) |
 
 ## 변이 검증 기록
 
@@ -23,6 +30,8 @@
 | 화면·CSV·API 세 경로는 `DataItemSaveCore`/`DataItemChecks` 공용 코드로 검사 1~7을 돈다(따로 구현하지 않는다) | B2-M1(`mutations/B2-M1.mut`) — `DataItemChecks.requireSourcePath`의 검사 2(원천 불일치)에서 CSV 경로만 `case CSV -> true`로 늘 통과시켜, CSV 가 SCREEN 과 다른 자체 검사를 갖는 것처럼 흉내냄 | `DataItemChecksSqliteTest.C2_경로와_원천이_맞아야_한다`(기존, 안 바꿈 — design.md §5 지정 대상 테스트, 116~117행 `core.upsert(CUST, CSV, ...)` 가 SOURCE_MISMATCH 를 잃어 어긋남) + `MasterDataLedgerJudgmentSqliteTest.CUST_CSV_경로도_원천_불일치로_거부한다`(신규) | 잡힘(Verify 감사 지적으로 2026-09-26 재확인 — Build 기록은 신규 테스트만 돌렸었다, `mutations/B2-M1.mut` 의 `test:` 두 클래스로 보강) |
 | `CodeLookup`·`MasterLookup`을 운영 Spring 빈으로 등록하지 않는다(D-077/D5, "04 원장 미구축" D2) — 이 작업이 그 결정을 뒤집지 않는다 | B2-M2(`mutations/B2-M2.mut`) — `MdmEngineConfig`에 `MasterLookup` 운영 `@Bean`(`MasterLookup.NONE`)을 추가해 등록되게 함 | `MasterDataLedgerJudgmentSqliteTest.G0_운영_MasterLookup_빈은_없다` | 잡힘 |
 | 룰 세트 실행 순서는 세트가 담은 목록 순서(위상 정렬 결과)대로다 | B3-M1(`mutations/B3-M1.mut`) — `MdmRuleEngine.evaluateSet`의 실행 루프(`for (RuleDefinition def : defs)`)가 도는 목록을 뒤집어 세트 목록 순서를 무시하게 함 | `SampleRuleSetValueTest`(evaluateSet 케이스 전부 — SPD_JOIN 이 BASE_SPD_LKP·SPD_EXC 보다 먼저 돌아 BASE_SPD 가 없어 MISSING_KEY 판정 오류) | 잡힘 |
+| 행별 Expression 결과 셀(TABLE)의 ast는 서버가 새로 만든 객체로 저장되고, 그 식이 참조하는 외부 변수(자기 열로 선언하지 않은 이름)는 컬럼 사전의 선언 타입(NUMBER)으로 변환돼 계산에 들어간다(RR-F4, design.md 「반려 재작업 1회차」 RR3) | B4-M1(`mutations/B4-M1.mut`) — `RuleExpressionChecks.check()`의 `out.put("ast", ast);`(112행)를 지워 서버가 결과 식 셀의 ast 를 안 채우게 함 | `SampleRuleLifecycleOasisFlowTest`(B4) + `RuleSetLifecycleOasisFlowTest`(B3, MIN 케이스) — `--fail-fast`로 `PROD_WGT_CALC` 케이스에서 먼저 빨강(3 tests completed, 1 failed, 1 skipped) | 잡힘(Verify 재확인 — 2026-09-26, `mutate.sh run … --ids B4-M1`, `MUTATION_RESULT B4-M1 caught rc=1 sec=9`) |
+| D6(RR-F1) — SPD_JOIN 의 MIN 분기(`예외_있음_MIN`)는 TSK-08-04 재작업에서 이미 되살아 있고 새 기점 testAll 에 포함돼 통과한다(이번 라운드는 새로 만들 것이 없다는 판단) — 이 판단을 이 작업 쪽 증거로 가늠 | 반려 사유 대응(수기, 기록 파일 없음) — `RuleSetLifecycleOasisFlowTest.java:159` `saveCase("SPD_JOIN", "예외_있음_MIN", ...)` 의 기대값 `{"LINE_SPD":70}` 을 `{"LINE_SPD":90}` 으로 뒤집음 | `RuleSetLifecycleOasisFlowTest`(`:mdm:api:test --tests …RuleSetLifecycleOasisFlowTest`) — `BASE_SPD_LKP_SPD_EXC_SPD_JOIN_이_편집_확정을_거쳐_LS_A3_세트로_등록된다()` FAILED(`AssertionFailedError` at :321, 1 test completed, 1 failed) | 잡힘(되돌림 확인 — `git status --porcelain` 해당 파일 빈 diff) |
 | `TB_MDM_RULE_TEST_CASE`는 룰 1개당 케이스다(세트 케이스를 담지 않는다) | B3-M2(`mutations/B3-M2.mut`) — `MdmRuleTestCase.caseId`에서 `@Id`를 떼 복합 PK 를 `maruRuleId` 하나로 좁힘(같은 룰에 케이스가 둘 이상이면 구분이 깨져야 한다) | `MdmBusinessRuleEntityJpaRoundtripTest.MdmRuleTestCase_는_IdClass_복합_PK_로_저장_조회_왕복한다`(기존, 안 바꿈) | 안 잡힘(보고) — 그 테스트가 한 룰에 케이스 하나만 저장해 왕복하고 `caseId`값 자체는 단언하지 않아, `@Id`가 빠져도 `findById`가 `maruRuleId`만으로 같은 행을 찾아 통과한다. 같은 룰에 `caseId`가 둘 이상인 왕복(둘을 저장하고 각각 다른 값으로 읽는 단언)을 추가해야 잡힌다 — 기존 테스트 파일이라 이 단위(B3) 범위 밖이라 보강하지 않았다. |
 | `previewRule`은 결과 값을 계산하지 않고 행 고르기만 낸다(TSK-09-01 불변 규칙) | 해당 없음(diff-check, 변이할 새 코드가 없다) | `git diff --name-only fc8e875c..HEAD \| grep evalex-rule-preview` 0건 | 확인됨(안 건드림) |
 | 이 작업은 선행 WP의 프로덕션 소스(`src/**/main/**`)를 고치지 않는다 — 시험 파일만 만든다 | 해당 없음(diff-check) | `git diff --name-only fc8e875c..HEAD -- src/backend src/frontend`의 파일이 전부 `test`/`tests` 경로(B1·B2·B3 신규 파일 포함) | 확인됨 |
@@ -52,3 +61,4 @@
 | B1 | TSK-09-02-build-B1 | sonnet | 아니오 | - | UNIT_DONE | - | - | 0 |
 | B2 | TSK-09-02-build-B2 | sonnet | 아니오 | - | UNIT_DONE | - | - | 0 |
 | B3 | TSK-09-02-build-B3 | sonnet | 아니오 | - | UNIT_DONE | - | - | 1 |
+| B4 | TSK-09-02-build | sonnet | 아니오 | - | UNIT_DONE | - | - | 0 |

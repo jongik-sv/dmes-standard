@@ -1,0 +1,7 @@
+rule: 행별 Expression 결과 셀(TABLE)의 ast는 서버가 새로 만든 객체로 저장되고, 그 식이 참조하는 외부 변수(자기 열로 선언하지 않은 이름)는 컬럼 사전의 선언 타입(NUMBER)으로 변환돼 계산에 들어간다(RR-F4)
+file: src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/rule/check/RuleExpressionChecks.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:api:test --tests com.dongkuk.dmes.mdm.dme.SampleRuleLifecycleOasisFlowTest --tests com.dongkuk.dmes.mdm.dme.RuleSetLifecycleOasisFlowTest --fail-fast --console=plain
+e2e: no
+--- find
+        out.put("ast", ast);
+--- replace

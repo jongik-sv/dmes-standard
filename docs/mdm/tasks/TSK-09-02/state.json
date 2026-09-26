@@ -2,21 +2,21 @@
   "tsk": "TSK-09-02",
   "order": "ccf6acd2-a91c-4fa2-a056-f4eebdc6f9a0",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "merged",
+  "phase": "reported",
   "baseline": {
     "docker": "banned:spawn",
-    "base": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada",
+    "base": "1e8ccfa89d86e00070479ec27856a5334658a20a",
     "failures": 0,
-    "tests": 5191,
+    "tests": 5245,
     "cmds": [
       {
         "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
         "cwd": ".",
-        "tests": 3959,
+        "tests": 4011,
         "failures": 0,
         "source": "measured",
-        "cache_key": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada-5a99c8ef20f3",
-        "measured_at": "2026-09-26T05:41:05Z"
+        "cache_key": "1e8ccfa89d86e00070479ec27856a5334658a20a-5a99c8ef20f3",
+        "measured_at": "2026-09-26T14:08:54Z"
       },
       {
         "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
@@ -24,62 +24,52 @@
         "tests": 1064,
         "failures": 0,
         "source": "measured",
-        "cache_key": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada-70ad4dddc2e4",
-        "measured_at": "2026-09-26T05:42:23Z"
+        "cache_key": "1e8ccfa89d86e00070479ec27856a5334658a20a-70ad4dddc2e4",
+        "measured_at": "2026-09-26T14:10:11Z"
       },
       {
         "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
         "cwd": ".",
         "tests": 0,
         "failures": 0,
-        "result": "pass",
-        "source": "cache",
-        "cache_key": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada-79066bca5c4b",
-        "measured_at": "2026-09-26T05:43:10Z"
+        "source": "measured",
+        "cache_key": "1e8ccfa89d86e00070479ec27856a5334658a20a-79066bca5c4b",
+        "measured_at": "2026-09-26T14:11:00Z",
+        "result": "pass"
       },
       {
         "cmd": "cd src/frontend && pnpm test:unit:shared",
         "cwd": ".",
-        "tests": 168,
+        "tests": 170,
         "failures": 0,
-        "source": "cache",
-        "cache_key": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada-85eac351cb59",
-        "measured_at": "2026-09-26T05:43:13Z"
+        "source": "measured",
+        "cache_key": "1e8ccfa89d86e00070479ec27856a5334658a20a-85eac351cb59",
+        "measured_at": "2026-09-26T14:11:02Z"
       },
       {
         "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
         "cwd": ".",
         "tests": 0,
         "failures": 0,
-        "result": "pass",
-        "source": "cache",
-        "cache_key": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada-773190afc491",
-        "measured_at": "2026-09-26T05:43:17Z"
+        "source": "measured",
+        "cache_key": "1e8ccfa89d86e00070479ec27856a5334658a20a-773190afc491",
+        "measured_at": "2026-09-26T14:11:06Z",
+        "result": "pass"
       },
       {
         "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
         "cwd": ".",
-        "tests": 2263,
+        "tests": 2276,
         "failures": 0,
         "scope": "module",
         "source": "measured",
-        "cache_key": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada-9c34264b6ba7",
-        "measured_at": "2026-09-26T06:07:25Z"
-      },
-      {
-        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :maru-mdm-engine:test :mdm:test --no-daemon --console=plain && cd ../frontend && pnpm --filter @dk-oasis/m-mdm test && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
-        "cwd": ".",
-        "tests": 4637,
-        "failures": 0,
-        "scope": "module",
-        "source": "measured",
-        "cache_key": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada-b4ee8f008c76",
-        "measured_at": "2026-09-26T06:07:38Z"
+        "cache_key": "1e8ccfa89d86e00070479ec27856a5334658a20a-9c34264b6ba7",
+        "measured_at": "2026-09-26T14:33:00Z"
       }
     ],
-    "note": "도커 금지 모드: 켜짐(출처 spawn, 워커 기본 DOCKER=ban). Testcontainers 는 mdm/api 의 mssqlTest sourceSet(mssqlMigrationTest)뿐이고 testAll 비포함(build.gradle 확인) — 제외 인자 없이 사용"
+    "note": "반려 재작업 1회차: 새 기점 1e8ccfa8(origin/dev, TSK-08-04 재작업 머지 포함)에서 재측정. 도커 금지 모드 켜짐(출처 spawn, DOCKER=ban). Testcontainers 는 mssqlTest sourceSet 뿐, testAll 비포함"
   },
-  "branch_base": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada",
+  "branch_base": "1e8ccfa89d86e00070479ec27856a5334658a20a",
   "build_model_base": "sonnet",
   "build_model_trial": false,
   "model": "sonnet",
@@ -87,20 +77,19 @@
     "phase": "done",
     "event": "reported"
   },
+  "prev_round": {
+    "branch_base": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada",
+    "head_sha": "f3c01bee8b4d830980939ee4294339c3036e291e",
+    "baseline_tests": 5191
+  },
   "build_gate": {
-    "head": "fc34d9f1599811979cafca26f28aaeb8f65085fe",
+    "head": "762168beb4b09367ce121450f0ce278a5d16a930",
     "scope": "module",
     "cmds": [
       {
         "cwd": ".",
-        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :maru-mdm-engine:test :mdm:test --no-daemon --console=plain && cd ../frontend && pnpm --filter @dk-oasis/m-mdm test && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
-        "tests": 4660,
-        "failures": 0
-      },
-      {
-        "cwd": ".",
         "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
-        "tests": 2274,
+        "tests": 2279,
         "failures": 0
       }
     ],
@@ -108,21 +97,21 @@
   },
   "verify_findings": {
     "spec": 0,
-    "tests": 1,
-    "review": 1
+    "review": 0,
+    "tests": 0
   },
   "verify_advisor": {
-    "audit": 0,
-    "writer": 0
+    "writer": 0,
+    "audit": 0
   },
   "verify_gate": {
-    "head": "6ad7664d80ab3a5b9917ee68a980173721152c57",
+    "head": "be97f1576a6aca57c17b9325b2ed69380239c1a1",
     "scope": "full",
     "cmds": [
       {
         "cwd": ".",
         "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
-        "tests": 3982,
+        "tests": 4014,
         "failures": 0
       },
       {
@@ -141,7 +130,7 @@
       {
         "cwd": ".",
         "cmd": "cd src/frontend && pnpm test:unit:shared",
-        "tests": 168,
+        "tests": 170,
         "failures": 0
       },
       {
