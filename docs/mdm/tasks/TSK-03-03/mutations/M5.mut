@@ -1,0 +1,11 @@
+rule: I45 — 위반 메시지 형식(원인이 EvalEx BaseException·RuntimeException 이면 그 원인의 단순 이름 + ": " + 메시지, 그 밖은 expr.ExpressionFailure 자신)
+file: src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/rule/ExpressionRunner.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :maru-mdm-engine:test --tests "kr.dongkuk.maru.mdm.engine.rule.ExpressionCacheWiringTest" --fail-fast --console=plain
+e2e: no
+--- find
+            if (cause instanceof BaseException || cause instanceof RuntimeException) {
+                throw new ExpressionFailure(cause);
+            }
+            throw new ExpressionFailure(f);
+--- replace
+            throw new ExpressionFailure(f);

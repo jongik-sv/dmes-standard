@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluatorFixtures;
 import kr.dongkuk.maru.mdm.engine.rule.fixture.SampleRules;
 import kr.dongkuk.maru.mdm.engine.rule.fixture.TestExpressionConfig;
 import org.junit.jupiter.api.Test;
@@ -20,7 +21,8 @@ import org.junit.jupiter.api.Test;
  */
 class SampleRuleSetValueTest {
 
-    private final MdmRuleEngine engine = new MdmRuleEngine(TestExpressionConfig.create(), SampleRules.lookup());
+    private final MdmRuleEngine engine =
+            new MdmRuleEngine(MdmEvaluatorFixtures.of(TestExpressionConfig.create()), SampleRules.lookup());
 
     private static void assertNum(String expected, Object actual) {
         SampleRuleValueTest.assertNum(expected, actual);

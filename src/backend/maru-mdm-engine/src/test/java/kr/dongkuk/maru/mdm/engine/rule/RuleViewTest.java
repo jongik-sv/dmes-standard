@@ -15,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException;
+import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluatorFixtures;
 import kr.dongkuk.maru.mdm.engine.rule.RuleEngine.Part;
 import kr.dongkuk.maru.mdm.engine.rule.RuleView.CellView;
 import kr.dongkuk.maru.mdm.engine.rule.RuleView.ColumnView;
@@ -51,7 +52,7 @@ class RuleViewTest {
             .addSet(SampleRules.lsA3(),
                     new RuleSetDefinition("OLD", List.of("QLTY_GRD_JDG", "PROD_WGT_CALC"), SetStatus.DEPRECATED),
                     new RuleSetDefinition("MISSING", List.of("QLTY_GRD_JDG", "NOPE1", "NOPE2"), SetStatus.INUSE));
-    private final MdmRuleEngine engine = new MdmRuleEngine(TestExpressionConfig.create(), lookup);
+    private final MdmRuleEngine engine = new MdmRuleEngine(MdmEvaluatorFixtures.of(TestExpressionConfig.create()), lookup);
 
     private static RuleDefinition exprVarRule() {
         return CellTextGenerator.withTexts(RuleFixtures.decision("EXV", 2, HitPolicy.FIRST,

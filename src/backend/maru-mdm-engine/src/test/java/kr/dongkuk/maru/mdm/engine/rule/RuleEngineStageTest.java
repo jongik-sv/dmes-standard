@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException;
 import kr.dongkuk.maru.mdm.engine.expr.EngineWarning;
+import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluatorFixtures;
 import kr.dongkuk.maru.mdm.engine.rule.fixture.InMemoryDefinitionLookup;
 import kr.dongkuk.maru.mdm.engine.rule.fixture.RuleFixtures;
 import kr.dongkuk.maru.mdm.engine.rule.fixture.TestExpressionConfig;
@@ -57,7 +58,8 @@ class RuleEngineStageTest {
 
     private final TestFunctions functions = new TestFunctions().code("C", "K", "A");
     private final InMemoryDefinitionLookup lookup = new InMemoryDefinitionLookup();
-    private final MdmRuleEngine engine = new MdmRuleEngine(TestExpressionConfig.create(functions), lookup);
+    private final MdmRuleEngine engine =
+            new MdmRuleEngine(MdmEvaluatorFixtures.of(TestExpressionConfig.create(functions)), lookup);
 
     private static RuleDefinition gen(RuleDefinition d) {
         return CellTextGenerator.withTexts(d, x -> null);
@@ -167,7 +169,7 @@ class RuleEngineStageTest {
         // KST 벽시계 LocalDateTime 으로 넣으면 설정 시간대가 KST 일 때만 같은 순간이 된다. UTC 설정에서 차이가 드러난다.
         TestFunctions utcFunctions = new TestFunctions().code("C", "K", "A");
         MdmRuleEngine utc = new MdmRuleEngine(
-                TestExpressionConfig.create(utcFunctions, Map.of(), java.time.ZoneOffset.UTC), lookup);
+                MdmEvaluatorFixtures.of(TestExpressionConfig.create(utcFunctions, Map.of(), java.time.ZoneOffset.UTC)), lookup);
         lookup.add(gen(decision("TZ", 1, HitPolicy.FIRST, FROM,
                 List.of(exprCondVar(1, 1), resultVar(2, DispType.VALUE, "R", STRING, 1)),
                 contract(vts("K", STRING)),

@@ -27,7 +27,7 @@ import kr.dongkuk.maru.mdm.engine.expr.FunctionSets;
 /**
  * 테스트 전용 EvalEx 설정(TSK-03-03 design §6.16, D1). {@code MdmExpressionConfig} 의 상수 14개를 빌더에 그대로 넣고,
  * 함수 사전은 {@link FunctionSets#BASE}(EvalEx 기본 사전에서 꺼냄) + {@link TestFunctions} + 테스트가 더한 함수다.
- * {@code MdmExpressionConfig.baseBuilder()}·{@code create()} 는 TSK-03-02 전에는 UOE 라 부르지 않는다.
+ * 엔진 단위 테스트용 fixture 설정이다. 운영 설정과의 차이는 {@code ProductionConfigParityTest} 가 본다(D22).
  */
 public final class TestExpressionConfig {
 

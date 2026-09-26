@@ -1,0 +1,11 @@
+rule: I47 — mdm 은 평가기를 MdmEngineConfig 빈 한 곳에서만 만든다(D19)
+file: src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/rule/check/ledger/ExprTypeByCaseCheck.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:lib:test --tests "com.dongkuk.dmes.mdm.common.engine.MdmEngineWiringArchitectureTest" --fail-fast --console=plain
+e2e: no
+--- find
+        MdmRuleEngine engine = new MdmRuleEngine(evaluator, new SingleRuleDefinitionLookup(RuleDefinitionAssembler.assemble(ctx.ruleId(),
+--- replace
+        MdmRuleEngine engine = new MdmRuleEngine(
+                new kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator(
+                        com.dongkuk.dmes.mdm.common.engine.MdmEngineConfig.lookups(null, null, null)),
+                new SingleRuleDefinitionLookup(RuleDefinitionAssembler.assemble(ctx.ruleId(),

@@ -1,0 +1,13 @@
+rule: I47 — mdm main 은 Expression 을 직접 만들지 않는다
+file: src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/rule/confirm/RuleConfirmChecks.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:lib:test --tests "com.dongkuk.dmes.mdm.common.engine.MdmEngineWiringArchitectureTest" --fail-fast --console=plain
+e2e: no
+--- find
+        MdmRuleEngine engine = new MdmRuleEngine(evaluator, new SingleRuleDefinitionLookup(def));
+--- replace
+        MdmRuleEngine engine = new MdmRuleEngine(evaluator, new SingleRuleDefinitionLookup(def));
+        try {
+            new com.ezylang.evalex.Expression("1", evaluator.configuration());
+        } catch (com.ezylang.evalex.parser.ParseException ignored) {
+            // 변이 검증 전용 — 컴파일만 맞추면 된다
+        }

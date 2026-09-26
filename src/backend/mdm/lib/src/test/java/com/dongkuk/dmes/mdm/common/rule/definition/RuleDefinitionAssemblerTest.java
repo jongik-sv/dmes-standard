@@ -103,7 +103,7 @@ class RuleDefinitionAssemblerTest {
     @Test
     void 조립한_정의를_엔진이_06_샘플_케이스대로_판정한다() {
         RuleDefinition def = sample(sampleRows()).definition();
-        MdmRuleEngine engine = new MdmRuleEngine(EVALUATOR.configuration(), new SingleRuleDefinitionLookup(def));
+        MdmRuleEngine engine = new MdmRuleEngine(EVALUATOR, new SingleRuleDefinitionLookup(def));
         Map<String, Object> record = new LinkedHashMap<>();
         record.put("COIL_THK", new BigDecimal("1.8"));
         record.put("COIL_WID", 1200);

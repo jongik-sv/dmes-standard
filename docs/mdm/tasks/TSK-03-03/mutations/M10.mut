@@ -1,0 +1,12 @@
+rule: I48 — 공개 생성자의 위임에서 이름 집합이 채워진다(비즈니스 함수 이름 집합을 빈 집합으로 두지 않는다)
+file: src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/expr/MdmEvaluator.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :maru-mdm-engine:test --tests "kr.dongkuk.maru.mdm.engine.rule.ExpressionCacheWiringTest" --fail-fast --console=plain
+e2e: no
+--- find
+    public MdmEvaluator(EngineLookups lookups, Duration timeout) {
+        this(MdmExpressionConfig.create(lookups), businessFunctionNames(lookups), timeout);
+    }
+--- replace
+    public MdmEvaluator(EngineLookups lookups, Duration timeout) {
+        this(MdmExpressionConfig.create(lookups), Set.of(), timeout);
+    }
