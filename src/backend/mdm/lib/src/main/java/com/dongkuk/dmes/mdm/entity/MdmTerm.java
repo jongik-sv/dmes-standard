@@ -11,8 +11,8 @@ import jakarta.persistence.Table;
 /**
  * 용어 사전 — {@code TB_MDM_TERM}(TSK-04-01 design.md §2, ERD {@code 02-term-domain-column.sql}).
  *
- * <p>ID 채번은 {@link GenerationType#IDENTITY} 로 고정한다 — SQLite community dialect·MSSQL 모두 이 전략만
- * {@code AUTOINCREMENT}/{@code IDENTITY(1,1)} DDL 과 대응한다(불변 규칙 10).
+ * <p>ID 채번은 {@link GenerationType#IDENTITY} 로 고정한다 — SQLite community dialect 에서 이 전략만
+ * {@code AUTOINCREMENT} DDL 과 대응한다(불변 규칙 10).
  *
  * <p><b>{@code EMBEDDING}/{@code EMBEDDING_MODEL} 은 이 엔티티에 매핑하지 않는다</b>(불변 규칙 7, D7,
  * term-embedding.md) — 값은 L2 정규화 float32 little-endian 1024개(4,096바이트)로 고정된 이진 포맷이라
@@ -45,7 +45,7 @@ public class MdmTerm extends CactusAuditEntity {
     @Column(name = "ENG_ABBR", length = 50)
     private String engAbbr;
 
-    /** 정규화 직렬화(키 정렬·공백 없음) JSON 문자열. DB CHECK(json_valid/ISJSON)가 형식을 강제한다(규칙표 §3 #3). */
+    /** 정규화 직렬화(키 정렬·공백 없음) JSON 문자열. DB CHECK(json_valid)가 형식을 강제한다(규칙표 §3 #3). */
     @Column(name = "SYNONYMS")
     private String synonyms;
 

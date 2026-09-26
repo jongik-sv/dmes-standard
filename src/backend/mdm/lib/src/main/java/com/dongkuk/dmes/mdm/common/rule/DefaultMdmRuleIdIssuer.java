@@ -24,9 +24,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * <ul>
  *   <li>SQLite: {@code UPDATE … RETURNING <카운터>}(3.35 이상). JPA 네이티브 {@code getResultList()} 가 {@code executeQuery} 로 실행해
  *       한 행을 돌려준다(DefaultMdmRuleIdIssuerSqliteTest 실측).</li>
- *   <li>MSSQL: {@code UPDATE … OUTPUT inserted.<카운터> WHERE …}.</li>
  * </ul>
- * 감사 U_* 와 감사 카운터 {@code VER}(TB_MDM_RULE 은 VER, D-034)를 함께 쓴다. 호출자 트랜잭션에 합류하고 없으면 새로 연다.
+ * 운영 DB 가 정해지면 그 방언 문안을 {@link MdmDialect} 분기에 더한다(ADR-0004). 감사 U_* 와 감사 카운터 {@code VER}(TB_MDM_RULE 은 VER, D-034)를 함께 쓴다. 호출자 트랜잭션에 합류하고 없으면 새로 연다.
  */
 @Component
 public class DefaultMdmRuleIdIssuer implements MdmRuleIdIssuer {
@@ -62,9 +61,9 @@ public class DefaultMdmRuleIdIssuer implements MdmRuleIdIssuer {
         String counter = kind.counterColumn();
         String set = "SET " + counter + " = " + counter + " + :n, U_USR_ID = :uUsrId, U_AT = :uAt, U_SVC_ID = :uSvcId, "
                 + "U_PGM_ID = :uPgmId, VER = COALESCE(VER, 0) + 1";
-        String sql = dialectResolver.current() == MdmDialect.MSSQL
-                ? "UPDATE TB_MDM_RULE " + set + " OUTPUT inserted." + counter + " WHERE MARU_RULE_ID = :id"
-                : "UPDATE TB_MDM_RULE " + set + " WHERE MARU_RULE_ID = :id RETURNING " + counter;
+        String sql = switch (dialectResolver.current()) {
+            case SQLITE -> "UPDATE TB_MDM_RULE " + set + " WHERE MARU_RULE_ID = :id RETURNING " + counter;
+        };
         entityManager.flush();
         AuditStamp stamp = auditSupport.currentStamp();
         NativeQuery<?> q = entityManager.createNativeQuery(sql).unwrap(NativeQuery.class)

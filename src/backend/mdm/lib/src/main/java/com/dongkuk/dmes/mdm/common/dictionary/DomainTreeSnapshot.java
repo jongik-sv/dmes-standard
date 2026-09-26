@@ -22,7 +22,7 @@ import java.util.Set;
  */
 public final class DomainTreeSnapshot {
 
-    /** 체인 깊이 가드 — 재귀 CTE 와 같은 값. MSSQL 기본 MAXRECURSION 100 보다 작다. */
+    /** 체인 깊이 가드 — 재귀 CTE 와 같은 값. */
     public static final int MAX_DEPTH = 50;
 
     /** 아직 저장되지 않은 신규 초안의 임시 id. */

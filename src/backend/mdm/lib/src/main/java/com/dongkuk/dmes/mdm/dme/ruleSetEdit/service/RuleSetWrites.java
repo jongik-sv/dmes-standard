@@ -57,7 +57,7 @@ public class RuleSetWrites {
 
     /**
      * 세트 한 행의 상태·row_version·룰 목록 JSON. 없으면 빈 값. 엔티티가 아니라 스칼라 JPQL 이라 영속성 컨텍스트의 낡은 값을 쓰지 않고,
-     * 칼럼 타입은 엔티티 매핑(String·long)을 따른다(MSSQL {@code NVARCHAR(MAX)} 도 같다).
+     * 칼럼 타입은 엔티티 매핑(String·long)을 따른다.
      */
     public Optional<SetState> state(String setId) {
         List<Object[]> rows = entityManager.createQuery(

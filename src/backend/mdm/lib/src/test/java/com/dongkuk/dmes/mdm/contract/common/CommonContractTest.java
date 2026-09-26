@@ -120,8 +120,8 @@ class CommonContractTest {
     }
 
     @Test
-    void 방언은_SQLITE_와_MSSQL_이다() {
-        assertEquals(List.of("SQLITE", "MSSQL"), Arrays.stream(MdmDialect.values()).map(Enum::name).toList());
+    void 방언은_SQLITE_하나다_운영_DB_미정() {
+        assertEquals(List.of("SQLITE"), Arrays.stream(MdmDialect.values()).map(Enum::name).toList());
     }
 
     @Test

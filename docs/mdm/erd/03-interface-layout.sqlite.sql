@@ -1,6 +1,6 @@
 -- TSK-02-03 영역 03 (dmb) SQLite DDL — TB_MDM_EAI · LAYOUT · LAYOUT_ITEM · LAYOUT_HEADER(신설) · LAYOUT_CONST(신설)
 -- 근거: docs/mdm/tasks/TSK-02-03/design.md §6.2. D1(헤더 적층)·D2(상수 재정의) 신설 테이블 포함.
--- EAI↔LAYOUT 은 영역 내부 순환 FK(F19) — SQLite 는 인라인 전방 참조를 허용해 문제 없다(MSSQL 은 §6.6 후행 ALTER).
+-- EAI↔LAYOUT 은 영역 내부 순환 FK(F19) — SQLite 는 인라인 전방 참조를 허용해 문제 없다.
 -- 예약어 충돌 칼럼(LAYOUT."VERSION", LAYOUT_ITEM."OFFSET"·"LENGTH")은 큰따옴표로 감싼다(F18).
 
 CREATE TABLE TB_MDM_EAI (

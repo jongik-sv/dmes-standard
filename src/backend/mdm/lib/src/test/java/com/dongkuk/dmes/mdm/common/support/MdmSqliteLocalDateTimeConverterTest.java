@@ -61,7 +61,7 @@ class MdmSqliteLocalDateTimeConverterTest {
 
     @Test
     void 컨버터에는_Converter_어노테이션이_없다() {
-        // 엔티티 스캔이 @Converter(autoApply) 를 자동 적용하면 MSSQL 에도 켜진다(D5, 불변 규칙 19).
+        // 엔티티 스캔이 @Converter(autoApply) 를 자동 적용하면 SQLite 가 아닌 DB 에도 켜진다(D5, 불변 규칙 19).
         assertFalse(MdmSqliteLocalDateTimeConverter.class.isAnnotationPresent(Converter.class));
     }
 

@@ -18,7 +18,7 @@ import jakarta.persistence.Table;
  * 프로퍼티·{@code getVersion()}을 갖고 있어 이름이 겹치므로 엔티티 필드명은 {@code layoutVersion}으로
  * 짓는다(F14·F19, 불변 규칙 6). {@code @Version}(JPA 낙관적 락)으로 매핑하지 않는다 — 증가는 저장 로직
  * (TSK-05-03)의 몫이다(불변 규칙 6). 예약어 칼럼 {@code VERSION}은 방언-중립 백틱 인용으로 매핑한다(D1,
- * 불변 규칙 7) — Hibernate 가 MSSQL {@code [VERSION]}·SQLite {@code "VERSION"}으로 자동 변환한다.
+ * 불변 규칙 7) — Hibernate 가 방언별 인용(SQLite {@code "VERSION"})으로 자동 변환한다.
  *
  * <p>{@code EAI_CODE}·{@code SND_SYSTEM}·{@code RCV_SYSTEM}은 모두 FK 이지만 연관관계 매핑을 쓰지
  * 않는다(불변 규칙 9) — 원시 필드로만 둔다. ID 채번은 {@link GenerationType#IDENTITY}로 고정한다(불변

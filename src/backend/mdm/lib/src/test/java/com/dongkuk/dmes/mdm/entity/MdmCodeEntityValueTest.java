@@ -11,8 +11,8 @@ import java.util.function.Function;
 import org.junit.jupiter.api.Test;
 
 /**
- * TSK-06-01 design.md §3.12 — Spring·DB 없이 04 엔티티·IdClass 값 규칙을 직접 고정한다. MSSQL 실측을 하지 못하는
- * 대신(사용자 결정: 도커 금지) 방언과 무관한 규칙을 단위 테스트로 잡는다.
+ * TSK-06-01 design.md §3.12 — Spring·DB 없이 04 엔티티·IdClass 값 규칙을 직접 고정한다. 방언과 무관한 규칙을
+ * 단위 테스트로 잡는다.
  */
 class MdmCodeEntityValueTest {
 
@@ -21,7 +21,7 @@ class MdmCodeEntityValueTest {
     private static final BigDecimal ONE = new BigDecimal("1");
     private static final BigDecimal ONE_SCALE3 = new BigDecimal("1.000");
 
-    /** 불변 규칙 22 — MSSQL DATETIME2(0) 는 반올림하므로(…:00.700 → …:01) 세터가 먼저 초 단위로 자른다. */
+    /** 불변 규칙 22 — 초 미만을 반올림하는 DB 도 있어(…:00.700 → …:01) 세터가 먼저 초 단위로 자른다. */
     @Test
     void MdmCodeVer_의_일시_세터_6개는_초_단위로_자른다() {
         record Slot(String name, BiConsumer<MdmCodeVer, LocalDateTime> setter, Function<MdmCodeVer, LocalDateTime> getter) {

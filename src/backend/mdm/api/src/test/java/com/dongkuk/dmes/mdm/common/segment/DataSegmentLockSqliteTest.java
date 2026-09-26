@@ -50,8 +50,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * TSK-07-03 design.md §3.2 T-L — 행 잠금(L1~L3·S12) 중 SQLite 로 잡을 수 있는 부분.
  *
  * <p>SQLite 는 쓰기 잠금이 DB 전체 단위라 "잠금을 빼면 동시 저장이 겹친다"는 드러낼 수 없다(F10). 대신 호출 순서 기록,
- * 다른 연결의 {@code BEGIN IMMEDIATE} 탐침, 값 불변, 잠금 뒤 재조회를 본다. 실제 동시 직렬화는 mssqlTest
- * {@code DataSegmentConcurrencyMssqlTest}(도커 금지로 워커 미실행)가 맡는다.
+ * 다른 연결의 {@code BEGIN IMMEDIATE} 탐침, 값 불변, 잠금 뒤 재조회를 본다. 행 잠금 DB 에서의 실제 동시 직렬화
+ * 검증은 운영 DB 가 정해지면 그 방언으로 더한다(ADR-0004).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")

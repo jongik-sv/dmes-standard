@@ -16,7 +16,7 @@
 |--------|-------------|-----------|----------|------------|---------|
 | backend | mdm 모듈·엔진 jar (Spring Boot 4, OASIS BPMN, EvalEx 3.7.0) | `cd src/backend/mdm && ../gradlew :lib:test :api:test` | - | - | - |
 | frontend | m-mdm 화면 라이브러리·JS 평가기 | `cd src/frontend && pnpm --filter @dk-oasis/m-mdm test` | `cd src/frontend && pnpm exec playwright test e2e/mdm-*.spec.ts` | `./be-run.sh --mcm --mdm & ./fe-run.sh --all -q` | `http://localhost:5100` |
-| database | Flyway 두 방언(SQLite·MSSQL) | `cd src/backend/mdm && ../gradlew :api:test` | - | - | - |
+| database | Flyway SQLite(운영 DB 미정) | `cd src/backend/mdm && ../gradlew :api:test` | - | - | - |
 | fullstack | 화면 + OASIS 서비스 + 전용 테이블 수직 슬라이스 | - | - | - | - |
 | infra | 모듈 뼈대·공통 기반·설계 | `cd src/backend && ./gradlew testAll` | - | - | - |
 | test | 통합 시나리오 | - | `cd src/frontend && pnpm exec playwright test e2e/mdm-*.spec.ts` | `./be-run.sh --mcm --mdm & ./fe-run.sh --all -q` | `http://localhost:5100` |
@@ -24,7 +24,7 @@
 ### Design Guidance
 | domain | architecture |
 |--------|-------------|
-| backend | RULE.md MES 분기(`docs/guide/MES/Mes-Guide.md`). 업무 API 는 OASIS BPMN(`services/{group}/{screenId}.bpmn` → 서비스 빈), `@RestController` 우회 금지. 패키지 `com.dongkuk.dmes.mdm.{group}.{screenId}`. 스키마는 Flyway 두 방언(`flyway-migration-add`). BPMN 수정 후 `oasis-contract-check` ERROR 0. 엔진 jar 는 EvalEx 외 의존·DB·네트워크 호출 금지 |
+| backend | RULE.md MES 분기(`docs/guide/MES/Mes-Guide.md`). 업무 API 는 OASIS BPMN(`services/{group}/{screenId}.bpmn` → 서비스 빈), `@RestController` 우회 금지. 패키지 `com.dongkuk.dmes.mdm.{group}.{screenId}`. 스키마는 Flyway SQLite(운영 DB 미정). BPMN 수정 후 `oasis-contract-check` ERROR 0. 엔진 jar 는 EvalEx 외 의존·DB·네트워크 호출 금지 |
 | frontend | 공통 FE 가이드(`docs/guide/FrontEnd/README.md`). 화면 `m-mdm/pages/{group}/{screenId}/page.tsx`, 팝업은 `page.tsx` 금지. 라우팅과 메뉴 연결: 신규 페이지는 즉시 page-registry 에 등록하고 `DataInitializer` 메뉴·OBJECT·RBAC 시드를 같은 Task 에서 추가한다. 라우터·메뉴 배선을 분리된 후속 Task 로 미루면 orphan page 가 발생한다. 화면마다 설계 산출물 5종(RULE.md)을 Task 설계 단계에서 작성한다 |
 
 ### Quality Commands
@@ -60,7 +60,7 @@ node, vitest, java
 - requirements:
   - `src/backend/mdm`(lib+api) 생성 — mqc 모듈 구조를 본뜬다
   - `src/backend/settings.gradle` includeBuild, 루트 `includedProjectNames` 에 mdm 추가(testAll 대상)
-  - application.yml 프로파일(local=SQLite, local-db=MSSQL, wildfly=JNDI), Flyway `db/migration/mdm/{sqlite,mssql}` 빈 V1
+  - application.yml 프로파일(local=SQLite, wildfly=JNDI), Flyway `db/migration/mdm/sqlite` 빈 V1
   - `src/frontend/m-mdm`(@dk-oasis/m-mdm) tsup 라이브러리 + Vitest `test` 스크립트, pnpm workspace 등록
   - `be-run.sh --mdm`(포트 8096) 추가, m-mcm 이 m-mdm 화면을 page-registry 로 적재
   - `src/backend/maru-mdm-engine` 독립 java-library, 의존은 EvalEx 3.7.0 하나
@@ -102,7 +102,7 @@ node, vitest, java
 #### PRD 요구사항
 - prd-ref: [02 「테이블 설계 샘플」](design/basic/02-term-domain-column.md) · [01 「2. 관리 대상별 원장과 흐름」](design/basic/01-mdm-overview.md) · [04 「버전 상태와 적용시점」](design/basic/04-master-code-deploy-full.md) · [06 「테이블 설계」](design/basic/06-business-rule.md) · PRD FR-A6, FR-F1 · PRD §2 규칙 7
 - requirements:
-  - `TB_MDM_SYSTEM` DDL(두 방언) + 초기 적재 시드(ERP/MES/APS/DKMS/L2 + MDM 자기 행)
+  - `TB_MDM_SYSTEM` DDL(SQLite) + 초기 적재 시드(ERP/MES/APS/DKMS/L2 + MDM 자기 행)
   - 공통 관리 속성(등록·수정자·일시) 칼럼 규약과 적용 방식(TB 명명 결정 반영)
   - 역할 상수(표준 관리자·담당자)·권한 액션 코드, 공통 오류 코드·응답 DTO
   - OASIS 서비스 ID·화면 그룹 코드(dma/dmb/dmc/dmd/dme — [screens/README.md](screens/README.md)) 규칙
@@ -113,7 +113,7 @@ node, vitest, java
   - 대상별 확정 검사 SPI(04 마루 코드·06 룰이 구현: diff 조회·확정 검사 호출)
 - acceptance:
   - 실행 로직 없음 (contract-only)
-  - 두 방언 마이그레이션이 SQLite·MSSQL 에서 적용된다
+  - SQLite 마이그레이션이 적용된다
   - 공통 DTO·상수가 mdm lib 에 컴파일된다
   - 04·06 이 같은 인터페이스를 구현할 수 있음을 스텁 컴파일로 확인
 - constraints: -
@@ -191,7 +191,7 @@ node, vitest, java
 #### PRD 요구사항
 - prd-ref: [05 「보내는 쪽」](design/basic/05-master-data.md) · [05 「저장 경로와 검증」](design/basic/05-master-data.md) · PRD FR-F2, FR-F3 · PRD §5 「보류」
 - requirements:
-  - 배포 순번 발급기(SQLite RETURNING / MSSQL OUTPUT), 스냅샷 읽기(SQLite WAL / MSSQL SNAPSHOT)
+  - 배포 순번 발급기(SQLite RETURNING), 스냅샷 읽기(SQLite WAL)
   - 전달(수단 미정) + 실패 재시도 + 주기 pull 안전망(05 「안전망」)
   - 수신 API 공통 처리기(원천 인증, 2단 커밋 로그)
   - 통합테스트용 하위 시스템 수신 스텁(옛 묶음 폐기, 멱등 적용, last_seq_received 기록)
@@ -229,7 +229,7 @@ node, vitest, java
 - prd-ref: [01 「MDM 전체 아키텍처」](design/basic/01-mdm-overview.md) · [02 「ERD」](design/basic/02-term-domain-column.md) · [04 「상신 시 검사」](design/basic/04-master-code-deploy-full.md) · [06 「DRAFT와 시험 사본」](design/basic/06-business-rule.md) · PRD §2 규칙 2·7 · PRD TRD §1·§4·§5·§8 · PRD FR-F1
 - requirements:
   - 테이블 명명 `TB_MDM_*` 확정(사용자 결정 2026-09-23) 반영: 식별자 사전 정규식에 mdm 추가, 감사 칼럼 자동 주입(`McmAuditStatementInspector`) 적용 범위 결정, ADR
-  - 방언 매핑 확정(RETURNING/OUTPUT, JSON 칼럼, 스냅샷 격리, 재귀 CTE)
+  - 방언 매핑 확정(RETURNING, JSON 칼럼, 스냅샷 격리, 재귀 CTE)
   - 화면 그룹 코드·screenId 목록, 화면 설계 산출물 위치(`docs/mdm/design` 은 외부 링크 → `docs/mdm/screens/` 안)
   - 기존 mcm `cma`/`cmb` 와의 병존 원칙, 공통 관리 속성 정의
   - 04·06 공통 버전 상태·DRAFT 정책과 담당자 확정 규칙 확정(PRD §2 규칙 7. 07·08 은 적용하지 않는다)
@@ -271,7 +271,7 @@ node, vitest, java
   - EvalEx 설정 고정값·칸별 허용 함수 집합·AST JSON 스키마
   - MASTER/MASTER_AT/CODE_LIST 시그니처(05 기준), 평가 시각(EVAL_TS) 주입
   - 화면 JS 평가기 범위(op-code 직접 비교 + AST 인터프리터 미리보기), 정합성 코퍼스 형식
-  - pgvector 전제를 SQLite·MSSQL 환경으로 옮기는 방법(파일 인덱스, 메모리 전수 비교 등) 비교
+  - pgvector 전제를 SQLite 환경(운영 DB 미정)으로 옮기는 방법(파일 인덱스, 메모리 전수 비교 등) 비교
   - KURE-v1 ONNX INT8 + ONNX Runtime Java CPU 추론 시간 실측(용어 1만 건 기준)
 - acceptance:
   - 엔진 계약 Task 가 그대로 옮길 수 있는 인터페이스 초안
@@ -302,14 +302,14 @@ node, vitest, java
 #### PRD 요구사항
 - prd-ref: [02 「테이블 설계」](design/basic/02-term-domain-column.md) · [03 「테이블 설계」](design/basic/03-interface-layout.md) · [04 「테이블 설계」](design/basic/04-master-code-deploy-full.md) · [05 「테이블 설계」](design/basic/05-master-data.md) · [06 「테이블 설계」](design/basic/06-business-rule.md) · PRD FR-A · PRD FR-B · PRD FR-C · PRD FR-D · PRD FR-E
 - requirements:
-  - 테이블 TB_MDM_UNIT, TB_MDM_TERM, TB_MDM_DOMAIN, TB_MDM_COLUMN, TB_MDM_COLUMN_SYSTEM, TB_MDM_DICT_SEQ, TB_MDM_DICT_SYSTEM 의 두 방언 DDL 초안(명명 결정 반영)
+  - 테이블 TB_MDM_UNIT, TB_MDM_TERM, TB_MDM_DOMAIN, TB_MDM_COLUMN, TB_MDM_COLUMN_SYSTEM, TB_MDM_DICT_SEQ, TB_MDM_DICT_SYSTEM 의 SQLite DDL 초안(명명 결정 반영)
   - 원장 내부 FK·인덱스·CHECK, 하위 업무 테이블로의 FK 금지 확인
-  - 테이블 TB_MDM_EAI, TB_MDM_LAYOUT, TB_MDM_LAYOUT_ITEM (+ 헤더 적층·상수 재정의 테이블) 의 두 방언 DDL 초안(명명 결정 반영)
+  - 테이블 TB_MDM_EAI, TB_MDM_LAYOUT, TB_MDM_LAYOUT_ITEM (+ 헤더 적층·상수 재정의 테이블) 의 SQLite DDL 초안(명명 결정 반영)
   - 목업의 헤더 다중 적층(EAI 구간 + 시스템 구간)과 md 의 전문당 헤더 하나 중 확정, 상수 재정의 저장 테이블 설계
-  - 테이블 TB_MDM_CODE, TB_MDM_CODE_SYSTEM, TB_MDM_CODE_VER, TB_MDM_CODE_ITEM, TB_MDM_CODE_CATE, TB_MDM_CODE_CATE_ITEM, TB_MDM_CODE_RECV 의 두 방언 DDL 초안(명명 결정 반영)
-  - 테이블 TB_MDM_DATA, TB_MDM_DATA_SYSTEM, TB_MDM_DATA_ITEM, TB_MDM_DATA_CATE, TB_MDM_DATA_CATE_ITEM, TB_MDM_DATA_RECV, TB_MDM_DATA_RECV_ITEM 의 두 방언 DDL 초안(명명 결정 반영)
-  - 테이블 TB_MDM_RULE, TB_MDM_RULE_SYSTEM, TB_MDM_RULE_VER, TB_MDM_RULE_VAR, TB_MDM_RULE_ROW, TB_MDM_RULE_TEST_CASE, TB_MDM_RULE_SET, TB_MDM_RULE_RECV 의 두 방언 DDL 초안(명명 결정 반영)
-  - JSON 칼럼(cells, rule_ids) 방언 표현과 json_each/OPENJSON 참조 검사 쿼리
+  - 테이블 TB_MDM_CODE, TB_MDM_CODE_SYSTEM, TB_MDM_CODE_VER, TB_MDM_CODE_ITEM, TB_MDM_CODE_CATE, TB_MDM_CODE_CATE_ITEM, TB_MDM_CODE_RECV 의 SQLite DDL 초안(명명 결정 반영)
+  - 테이블 TB_MDM_DATA, TB_MDM_DATA_SYSTEM, TB_MDM_DATA_ITEM, TB_MDM_DATA_CATE, TB_MDM_DATA_CATE_ITEM, TB_MDM_DATA_RECV, TB_MDM_DATA_RECV_ITEM 의 SQLite DDL 초안(명명 결정 반영)
+  - 테이블 TB_MDM_RULE, TB_MDM_RULE_SYSTEM, TB_MDM_RULE_VER, TB_MDM_RULE_VAR, TB_MDM_RULE_ROW, TB_MDM_RULE_TEST_CASE, TB_MDM_RULE_SET, TB_MDM_RULE_RECV 의 SQLite DDL 초안(명명 결정 반영)
+  - JSON 칼럼(cells, rule_ids) 방언 표현과 json_each 참조 검사 쿼리
   - 배포 대상(`*_SYSTEM`)·배포 순번(`TB_MDM_DICT_SEQ`, `chg_seq`)·수신 로그(`*_RECV*`) 표는 설계대로 두고 ERD 에 보류 표시(PRD §2 규칙 7)
 - acceptance:
   - ERD(Mermaid 또는 dbml)와 DDL 초안을 `docs/mdm/erd/` 에 커밋
@@ -504,7 +504,7 @@ node, vitest, java
 #### PRD 요구사항
 - prd-ref: [02 「테이블 설계 샘플」](design/basic/02-term-domain-column.md) · PRD FR-A
 - requirements:
-  - 02 테이블 7개 Flyway(두 방언), JPA 엔티티·리포지토리
+  - 02 테이블 7개 Flyway(SQLite), JPA 엔티티·리포지토리
   - 유효 식·유효 코드 참조 해석 함수 인터페이스(저장·조회 공유), 영향도 조회 인터페이스
   - 컬럼 사전 조회 인터페이스(03 레이아웃·06 룰 변수가 사용)
 - acceptance:
@@ -723,7 +723,7 @@ node, vitest, java
 #### PRD 요구사항
 - prd-ref: [03 「구조: 전문 = EAI 헤더 + 업무 본문」](design/basic/03-interface-layout.md) · [03 「항목 채움 방식(fill_kind)과 기본값」](design/basic/03-interface-layout.md) · PRD FR-B
 - requirements:
-  - 03 테이블(적층 모델 확정분 포함) Flyway 두 방언, 엔티티
+  - 03 테이블(적층 모델 확정분 포함) Flyway SQLite, 엔티티
   - 레이아웃 스냅샷 JSON 스키마, 직렬화기·파서 인터페이스
 - acceptance:
   - 실행 로직 없음 (contract-only)
@@ -857,7 +857,7 @@ node, vitest, java
 #### PRD 요구사항
 - prd-ref: [04 「테이블 설계」](design/basic/04-master-code-deploy-full.md) · [04 「구조: 마루 코드 → 버전 · 코드 · 카테고리」](design/basic/04-master-code-deploy-full.md) · PRD FR-C
 - requirements:
-  - 04 테이블 7개 Flyway 두 방언, 엔티티
+  - 04 테이블 7개 Flyway SQLite, 엔티티
   - 선분 조작 서비스 인터페이스(카테고리 모델·ID 이름 공간은 전사 계약 재사용)
   - 확정 검사 SPI(diff·검사 8항) 구현 대상 선언
 - acceptance:
@@ -1076,7 +1076,7 @@ node, vitest, java
 #### PRD 요구사항
 - prd-ref: [05 「테이블 설계」](design/basic/05-master-data.md) · PRD FR-D
 - requirements:
-  - 05 테이블 7개 Flyway 두 방언, 엔티티
+  - 05 테이블 7개 Flyway SQLite, 엔티티
   - 일시 선분 저장 코어 인터페이스, 카테고리·ID 이름 공간은 전사 계약 재사용
 - acceptance:
   - 실행 로직 없음 (contract-only)
@@ -1263,7 +1263,7 @@ node, vitest, java
 #### PRD 요구사항
 - prd-ref: [06 「테이블 설계」](design/basic/06-business-rule.md) · PRD FR-E
 - requirements:
-  - 06 테이블 8개 Flyway 두 방언(JSON 칼럼), 엔티티
+  - 06 테이블 8개 Flyway SQLite(JSON 칼럼), 엔티티
   - 식별자 발급(last_var_id 등) 인터페이스, 엔진 DefinitionLookup 구현 대상 선언
   - 확정 검사 SPI(row_id diff·확정 검사) 구현 대상 선언
 - acceptance:

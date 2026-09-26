@@ -13,8 +13,8 @@ import org.springframework.stereotype.Repository;
  * {@code TB_MDM_TERM.EMBEDDING}/{@code EMBEDDING_MODEL} 전용 네이티브 SQL 접근 — 불변 규칙 I10.
  * 이 두 칼럼은 {@code MdmTerm} 엔티티에 매핑돼 있지 않으므로(D7, term-embedding.md) JPA 로 다룰 수 없다.
  *
- * <p>페이징은 SQLite/MSSQL 방언에 공통인 {@code LIMIT}/{@code OFFSET-FETCH} 문법을 쓰지 않고, 대상
- * {@code TERM_ID} 전체를 정렬해 가져온 뒤 호출부(자바)가 청크로 자른다 — 두 방언 모두에서 동작하는
+ * <p>페이징은 방언마다 다른 {@code LIMIT}/{@code OFFSET-FETCH} 문법을 쓰지 않고, 대상
+ * {@code TERM_ID} 전체를 정렬해 가져온 뒤 호출부(자바)가 청크로 자른다 — 방언과 무관하게 동작하는
  * 가장 단순한 방법이다.
  */
 @Repository

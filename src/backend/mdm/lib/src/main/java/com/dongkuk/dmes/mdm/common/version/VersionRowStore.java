@@ -227,7 +227,7 @@ public class VersionRowStore {
         return q;
     }
 
-    /** null 도 문자열 타입으로 바인딩한다(MSSQL 은 타입 없는 null 을 varbinary 로 보낼 수 있다). */
+    /** null 도 문자열 타입으로 바인딩한다(드라이버가 타입 없는 null 을 다른 타입으로 추론하지 않게 한다). */
     private static void bindString(NativeQuery<?> q, String name, String value) {
         q.setParameter(name, value, String.class);
     }

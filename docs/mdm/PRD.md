@@ -164,7 +164,7 @@ MDM 은 시스템(ERP·MES·APS 등) 사이에서 필드명·코드·용어·업
 - NFR-3 동시성: 편집 충돌은 `row_version` 낙관적 잠금으로 막는다. 배포 순번 직렬화는 배포와 함께 보류한다.
 - NFR-4 가용성: MDM 은 단일 장애점이 아니다. 하위 시스템은 마지막 배포본으로 독립 운영하고, MDM 은 실시간 조회 API 를 하위 시스템 판정 경로에 두지 않는다(01 원칙 1).
 - NFR-5 보안: 모든 업무 API 는 RBAC PermKey 로 인가한다.
-- NFR-6 이식성: 원장 DDL 은 SQLite(로컬)와 MSSQL(운영) 두 방언으로 작성한다. 엔진 jar 는 EvalEx 외 의존이 없다.
+- NFR-6 이식성: 운영 DB 는 미정이다(로컬·테스트는 SQLite, [ADR-0004](adr/0004-drop-mssql-production-assumption.md)). 원장 DDL 은 지금 SQLite 한 벌로 작성하고, 방언 차이는 방언 이음매(`MdmDialect`) 한 곳에 모아 운영 DB 확정 시 방언을 더할 수 있게 둔다. 엔진 jar 는 EvalEx 외 의존이 없다.
 
 ## 8. 제약 사항 (Constraints)
 

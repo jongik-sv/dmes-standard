@@ -14,7 +14,7 @@ import java.time.temporal.ChronoUnit;
  * ({@link MdmTemporalBinder#SQLITE_TEXT_PATTERN}), 읽기는 앞 19자를 {@code 'T'→' '} 로 바꿔 파싱한다. 빈 문자열은
  * {@code null} 로 읽는다. epoch 정수 문자열은 받지 않는다 — 형식을 하나로 고정하는 것이 목적이다.
  *
- * <p>{@code @Converter} 를 붙이지 않는다: 엔티티 스캔이 이 클래스를 자동 적용하면 MSSQL 에도 켜진다. 등록은
+ * <p>{@code @Converter} 를 붙이지 않는다: 엔티티 스캔이 이 클래스를 자동 적용하면 SQLite 가 아닌 DB 에도 켜진다. 등록은
  * {@link MdmSqliteTemporalContributor} 로만 한다(application-local.yml).
  */
 public class MdmSqliteLocalDateTimeConverter implements AttributeConverter<LocalDateTime, String> {

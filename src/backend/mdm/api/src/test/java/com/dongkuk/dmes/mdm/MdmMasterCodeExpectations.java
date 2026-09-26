@@ -8,13 +8,12 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * TSK-06-01 design.md §2·§6.0 — SQLite({@code MdmMasterCodeMigrationTest}·{@code MdmMasterCodeDialectDdlParityTest})·
- * MSSQL({@code MdmMasterCodeMssqlMigrationTest}) 테스트가 같은 기대값을 보도록 한 곳에 둔다
- * ({@code MdmInterfaceLayoutExpectations} 와 같은 모양).
+ * TSK-06-01 design.md §2·§6.0 — SQLite 마이그레이션 테스트({@code MdmMasterCodeMigrationTest} 등)가 같은 기대값을 보도록
+ * 한 곳에 둔다({@code MdmInterfaceLayoutExpectations} 와 같은 모양).
  */
 final class MdmMasterCodeExpectations {
 
-    /** 머지 시점 두 방언 최대 버전 V8 + 1(D1 — 당초 팀장 배정 V6, 2026-09-24 팀장 정정으로 재채번). */
+    /** 머지 시점 최대 버전 V8 + 1(D1 — 당초 팀장 배정 V6, 2026-09-24 팀장 정정으로 재채번). */
     static final String VERSION = "9";
 
     /** V9 가 만드는 7테이블. */
@@ -27,7 +26,6 @@ final class MdmMasterCodeExpectations {
 
     private static final Map<String, Set<String>> BUSINESS_COLUMNS = new LinkedHashMap<>();
     private static final Map<String, List<String>> PK_COLUMNS = new LinkedHashMap<>();
-    private static final Map<String, Set<String>> BIN2 = new LinkedHashMap<>();
 
     static {
         BUSINESS_COLUMNS.put("TB_MDM_CODE", Set.of(
@@ -59,18 +57,9 @@ final class MdmMasterCodeExpectations {
         PK_COLUMNS.put("TB_MDM_CODE_CATE", List.of("MARU_CODE_ID", "CATE_ID", "FROM_VER"));
         PK_COLUMNS.put("TB_MDM_CODE_CATE_ITEM", List.of("MARU_CODE_ID", "CATE_ID", "CODE", "FROM_VER"));
         PK_COLUMNS.put("TB_MDM_CODE_RECV", List.of("RECV_ID"));
-
-        BIN2.put("TB_MDM_CODE", Set.of("MARU_CODE_ID", "STATUS", "SOURCE_KIND", "SOURCE_SYSTEM"));
-        BIN2.put("TB_MDM_CODE_SYSTEM", Set.of("MARU_CODE_ID", "SYSTEM_CODE"));
-        BIN2.put("TB_MDM_CODE_VER", Set.of(
-                "MARU_CODE_ID", "VER_KIND", "STATUS", "OWNER_ID", "REQUESTED_BY", "EMERGENCY_YN", "APPROVED_BY"));
-        BIN2.put("TB_MDM_CODE_ITEM", Set.of("MARU_CODE_ID", "CODE", "LVL1", "LVL2", "LVL3", "LVL4", "LVL5"));
-        BIN2.put("TB_MDM_CODE_CATE", Set.of("MARU_CODE_ID", "CATE_ID", "DEF_KIND", "DEF_TARGET"));
-        BIN2.put("TB_MDM_CODE_CATE_ITEM", Set.of("MARU_CODE_ID", "CATE_ID", "CODE"));
-        BIN2.put("TB_MDM_CODE_RECV", Set.of("MARU_CODE_ID", "SOURCE_SYSTEM", "SOURCE_REF", "REQ_KIND", "RESULT"));
     }
 
-    /** 표 → 제약 이름(PK·FK·CK). 두 방언이 같은 이름을 쓴다(§6.0). */
+    /** 표 → 제약 이름(PK·FK·CK)(§6.0). */
     static final Map<String, Set<String>> CONSTRAINTS = Map.of(
             "TB_MDM_CODE", Set.of("PK_TB_MDM_CODE", "FK_TB_MDM_CODE_SYSTEM_SRC", "CK_TB_MDM_CODE_STATUS",
                     "CK_TB_MDM_CODE_SRC_KIND", "CK_TB_MDM_CODE_SRC_SYS", "CK_TB_MDM_CODE_LVL_CNT"),
@@ -87,19 +76,13 @@ final class MdmMasterCodeExpectations {
             "TB_MDM_CODE_RECV", Set.of("PK_TB_MDM_CODE_RECV", "FK_TB_MDM_CODE_RECV_CODE", "FK_TB_MDM_CODE_RECV_SYSTEM",
                     "CK_TB_MDM_CODE_RECV_REQ", "CK_TB_MDM_CODE_RECV_RESULT"));
 
-    /** 버전 번호 칼럼(DECIMAL(7,3)/NUMERIC(7,3), 04:271·994, 규칙표 #17). 표 → 칼럼. */
+    /** 버전 번호 칼럼(NUMERIC(7,3), 04:271·994, 규칙표 #17). 표 → 칼럼. */
     static final Map<String, Set<String>> VERSION_NUMBER_COLUMNS = Map.of(
             "TB_MDM_CODE_VER", Set.of("VER", "RESTORED_FROM"),
             "TB_MDM_CODE_ITEM", Set.of("FROM_VER", "TO_VER"),
             "TB_MDM_CODE_CATE", Set.of("FROM_VER", "TO_VER"),
             "TB_MDM_CODE_CATE_ITEM", Set.of("FROM_VER", "TO_VER"),
             "TB_MDM_CODE_RECV", Set.of("VER"));
-
-    /** 업무 일시 8칼럼(MSSQL DATETIME2(0), SQLite TEXT, 규칙표 #16). 표 → 칼럼. */
-    static final Map<String, Set<String>> BUSINESS_DATETIME_COLUMNS = Map.of(
-            "TB_MDM_CODE_VER", Set.of("APPLY_FROM", "APPLY_TO", "REQUESTED_AT", "APPROVED_AT", "RELEASED_AT",
-                    "CANCELLED_AT"),
-            "TB_MDM_CODE_RECV", Set.of("RECEIVED_AT", "PROCESSED_AT"));
 
     private MdmMasterCodeExpectations() {
     }
@@ -121,10 +104,5 @@ final class MdmMasterCodeExpectations {
     /** PK 칼럼 순서(§6.0, 불변 규칙 5). */
     static List<String> pkColumns(String table) {
         return PK_COLUMNS.get(table);
-    }
-
-    /** MSSQL 에서 {@code COLLATE Latin1_General_100_BIN2} 여야 하는 칼럼(§6.0 BIN2 목록, 규칙표 #19). */
-    static Set<String> bin2Columns(String table) {
-        return BIN2.get(table);
     }
 }

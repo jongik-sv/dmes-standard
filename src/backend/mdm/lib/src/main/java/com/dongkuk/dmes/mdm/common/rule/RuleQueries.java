@@ -17,7 +17,7 @@ import org.springframework.stereotype.Repository;
 
 /**
  * 06 룰 조회 전용(TSK-08-02 design §2.1-C, D12). 06 리포지토리 6개는 메서드를 선언하지 않으므로(TSK-08-01 가드) 조회는 여기에
- * JPQL 로 모은다. JPQL 은 SQLite·MSSQL 에서 같은 코드로 돈다. 버전 비교는 정수 VER 라 SQL 에서 해도 된다.
+ * JPQL 로 모은다. JPQL 은 방언과 무관하게 같은 코드로 돈다. 버전 비교는 정수 VER 라 SQL 에서 해도 된다.
  */
 @Repository
 public class RuleQueries {
@@ -39,7 +39,7 @@ public class RuleQueries {
     private static final String APPLIED_RELEASED = "EXISTS (SELECT v.ver FROM MdmRuleVer v WHERE v.maruRuleId = r.maruRuleId "
             + "AND v.status = 'RELEASED' AND v.applyFrom <= :now)";
 
-    /** 한 페이지 — 정렬 {@code maruRuleId}, JPQL {@code setFirstResult/setMaxResults}(SQLite·MSSQL 같은 코드). */
+    /** 한 페이지 — 정렬 {@code maruRuleId}, JPQL {@code setFirstResult/setMaxResults}(방언 무관 같은 코드). */
     public List<MdmRule> pageRules(RuleFilter filter, int page, int size) {
         TypedQuery<MdmRule> q = entityManager.createQuery("SELECT r FROM MdmRule r" + where(filter) + " ORDER BY r.maruRuleId", MdmRule.class);
         bind(filter).forEach(q::setParameter);

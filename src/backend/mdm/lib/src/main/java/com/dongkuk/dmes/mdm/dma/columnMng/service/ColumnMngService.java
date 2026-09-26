@@ -92,7 +92,7 @@ public class ColumnMngService {
     // ── action: search ────────────────────────────────────────────────────
 
     /**
-     * 목록·도메인 콤보·시스템 목록. 방언별 LIKE·BIN2 차이와 {@code _} 와일드카드를 피하려고 Java 에서 거른다(규모 수천 행).
+     * 목록·도메인 콤보·시스템 목록. 방언별 LIKE·대소문자 비교 차이와 {@code _} 와일드카드를 피하려고 Java 에서 거른다(규모 수천 행).
      * 검색어는 논리명·표준 물리명·시스템별 실제 필드명에 대소문자 무시 부분 일치한다(I30).
      */
     public Map<String, Object> search(ColumnMngSearchRequest request) {

@@ -32,7 +32,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * TSK-06-01 design.md §3.2 — V9 의 SQLite {@code TB_MDM_DOMAIN} 재생성(D3, §6.0.8)을 데이터가 든 DB 에 적용한다.
- * Spring 컨텍스트 없이 Flyway API 를 직접 부른다({@code MdmMssqlMigrationTest} 선례). 앱과 같게 외래키 강제를 켠다
+ * Spring 컨텍스트 없이 Flyway API 를 직접 부른다. 앱과 같게 외래키 강제를 켠다
  * (F7 이 {@code foreign_keys=ON} 에서만 성립한다).
  *
  * <p>이전 버전은 하드코딩하지 않는다 — 해석된 마이그레이션 중 9 보다 작은 최댓값까지 먼저 적용한다(지금은 V8. 그

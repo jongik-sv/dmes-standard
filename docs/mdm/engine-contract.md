@@ -341,5 +341,5 @@ CODE_LIST(id, cate, baseDt)               → List<CodeListEntry(code,name,alter
 | TSK-03-03 룰 판정 엔진 | `RuleEngine`·`RuleResult`·`RuleSetResult`·`RuleView`·`EngineEvaluationException` 구현. 생성 텍스트는 `FunctionSets.GENERATED` 안에서 만든다 |
 | TSK-03-04 JS 평가기·코퍼스 | §10 범위. 원천 인터프리터에 `INSTR`·`STR_LEFT`·`STR_RIGHT`·`STR_SUBSTRING` 을 더하고 NULL 동작을 서버에 맞춘다. §11 코퍼스 필수 사례 |
 | TSK-02-03 DB 설계 | `TB_MDM_TERM` 에 `EMBEDDING`·`EMBEDDING_MODEL`([term-embedding.md](term-embedding.md) §5 DDL) |
-| TSK-04-01 02 계약 | Flyway 두 방언 칼럼, MSSQL `VARBINARY(4096)` JDBC 왕복 실측(naming-dialect-rules §3 #23 상태 갱신), 엔티티 미매핑 |
+| TSK-04-01 02 계약 | Flyway 칼럼(SQLite `BLOB`), JDBC 왕복 실측(naming-dialect-rules §3 #23 상태 갱신), 엔티티 미매핑 |
 | TSK-04-02 용어 관리 | ORT 1.30.0·DJL tokenizers 0.38.0 을 `mdm/lib` 에, 모델 경로 설정, [term-embedding.md](term-embedding.md) §6 동작 규칙 1~6, 모델 파일 출처 결정(design D3) 결과, 메모리 산정(RSS 약 1.3 GB) |

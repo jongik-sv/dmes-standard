@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
  *
  * <p>예약어 칼럼({@code OFFSET}·{@code LENGTH}·{@code VERSION})이 있는 테이블은 엔티티(JPQL)로만 읽는다 — 엔티티 매핑의 백틱
  * 인용이 방언별 인용으로 바뀐다(D-047). 네이티브 SQL 은 예약어가 없는 칼럼에만 쓰고, 행 수 제한은 {@code setMaxResults} 로 한다.
- * 널 파라미터 비교({@code :p IS NULL})는 Hibernate 6 가 타입을 추론하지 못해 MSSQL 에서 깨질 수 있어 쓰지 않는다.
+ * 널 파라미터 비교({@code :p IS NULL})는 Hibernate 가 타입을 추론하지 못해 방언에 따라 깨질 수 있어 쓰지 않는다.
  */
 @Component
 public class LayoutQueries {

@@ -274,8 +274,7 @@ class MdmTermDomainColumnMigrationTest {
 
     /**
      * #5 — json_extract(COL, '$.type') 이 경로 문법으로 값을 뽑는다. {@code MdmDictionaryExpectations}의
-     * 같은 픽스처/기대값을 {@code MdmTermDomainColumnMssqlMigrationTest.JSON_VALUE_가_경로_로_값을_추출한다()}
-     * 와 공유해, 두 방언에 실제로 같은 입력을 넣고 같은 경로로 값을 뽑아 비교한다(§3.2-③).
+     * 픽스처/기대값을 쓴다(§3.2-③).
      */
     @Test
     void json_extract_이_경로_로_값을_추출한다() throws SQLException {

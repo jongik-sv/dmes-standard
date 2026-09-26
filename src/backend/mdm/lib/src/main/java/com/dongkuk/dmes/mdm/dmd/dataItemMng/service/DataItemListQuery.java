@@ -26,9 +26,9 @@ import org.springframework.stereotype.Repository;
  *
  * <ul>
  *   <li>Q1 — 목록 행은 키별 마지막 행(valid_from 최대)이다. {@code showClosed} 가 아니면 열린 키만.</li>
- *   <li>Q2 — 정렬은 seq(NULL 뒤) → code. MSSQL 페이징은 ORDER BY 가 있어야 하므로 늘 정렬한다.</li>
+ *   <li>Q2 — 정렬은 seq(NULL 뒤) → code. 페이징 결과가 흔들리지 않게 늘 정렬한다.</li>
  *   <li>Q3 — 키는 대소문자 무시 부분 일치, 이름은 부분 일치. {@code %}·{@code _}·{@code \}·{@code [} 는 이스케이프한다
- *       ({@code [} 는 MSSQL LIKE 문자 집합). totalCount 는 모든 필터 뒤 수.</li>
+ *       ({@code [} 는 일부 DB 의 LIKE 문자 집합이라 방언 중립으로 막는다). totalCount 는 모든 필터 뒤 수.</li>
  *   <li>Q4 — BASE 는 전체, TABLE 은 열린 소속 행, REGEX 는 서버 Java {@code Pattern.matches}(대상 칸 NULL 은 불일치, SQL 에
  *       정규식을 쓰지 않는다 — 05 「카테고리 정의 방식」). 닫힌 키는 카테고리 필터를 거치지 않는다(시안 renderItems).</li>
  * </ul>

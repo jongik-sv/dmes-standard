@@ -13,7 +13,7 @@ import jakarta.persistence.Table;
  *
  * <p>{@code COLUMN_ID}({@code TB_MDM_COLUMN})·{@code SYSTEM_CODE}({@code TB_MDM_SYSTEM}) 모두 FK 이지만
  * 연관관계 매핑을 쓰지 않는다(불변 규칙 9) — 원시 ID 필드로만 둔다. {@code SYSTEM_CODE} 는 부모
- * {@code TB_MDM_SYSTEM.SYSTEM_CODE} 와 같은 콜레이션({@code Latin1_General_100_BIN2})을 유지해야
+ * {@code TB_MDM_SYSTEM.SYSTEM_CODE} 와 같은 콜레이션(대소문자 구분)을 유지해야
  * FK 비교가 어긋나지 않는다(불변 규칙 11, F17) — DDL 쪽 책임이고 엔티티는 문자열 그대로 다룬다.
  */
 @Entity

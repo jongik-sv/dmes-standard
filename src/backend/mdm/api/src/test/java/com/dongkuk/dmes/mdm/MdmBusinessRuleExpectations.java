@@ -8,8 +8,8 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * TSK-08-01 design.md §3.1·§3.2·§6.0 — SQLite 마이그레이션 테스트({@code MdmBusinessRuleMigrationTest})와 두 방언
- * DDL 대조 테스트({@code MdmBusinessRuleDdlParityTest})가 같은 기대값을 보도록 한 곳에 둔다
+ * TSK-08-01 design.md §3.1·§3.2·§6.0 — SQLite 마이그레이션 테스트({@code MdmBusinessRuleMigrationTest})가 보는
+ * 기대값을 한 곳에 둔다
  * ({@code MdmInterfaceLayoutExpectations} 관례).
  */
 final class MdmBusinessRuleExpectations {

@@ -27,24 +27,13 @@ dependencies {
     api 'org.springframework.boot:spring-boot-starter-web'
     api 'org.springframework.boot:spring-boot-starter-validation'
 
-    // local(SQLite)
+    // local·테스트(SQLite). 운영 DB 는 미정이라 다른 DB 드라이버는 두지 않는다(운영 DB 확정 때 더한다).
     api 'org.xerial:sqlite-jdbc:3.45.3.0'
     api 'org.hibernate.orm:hibernate-community-dialects:7.0.5.Final'
-
-    // local-db(MSSQL 직결) — mcm 의 application-local-db.yml 이 이미 요구하는데 선언이 빠져 있던
-    // 리포 전체 공백(design.md §6.2)을 mdm 에서 명시. 버전은 mssql-jdbc 기존 캐시(12.8.1.jre11,
-    // aps-core 등에서 이미 쓰는 좌표)와 맞춘다.
-    runtimeOnly 'com.microsoft.sqlserver:mssql-jdbc:12.8.1.jre11'
 
     // Flyway — Spring Boot 4 부터 FlywayAutoConfiguration 이 별도 모듈로 빠졌다(mqc 주석 그대로).
     api 'org.flywaydb:flyway-core'
     api 'org.springframework.boot:spring-boot-flyway'
-    // design.md 「Build Phase 이탈 기록」 참고(D10 아님 — 대안 있는 결정이 아니라 §6.2 원안의 사실
-    // 오류 정정). 원안은 'org.flywaydb:flyway-database-sqlserver' 였으나 Build 1단계 실제 resolve 로
-    // 확인한 결과 그 아티팩트는 존재하지 않는다(mavenCentral 404). Flyway 의 MSSQL 모듈은 다른
-    // 방언(postgresql 등)과 달리 'database-' 접두가 없는 'flyway-sqlserver' 다(repo1.maven.org/
-    // maven2/org/flywaydb/ 목록 재검증 완료. postgresql 쪽만 flyway-database-postgresql).
-    runtimeOnly 'org.flywaydb:flyway-sqlserver'
 
     // TSK-01-02 T1 — 계약 패키지 전용 규칙·As-Is 마스터 import 금지(mcm-core·maru-mdm-engine 선례와 같은 버전).
     testImplementation 'com.tngtech.archunit:archunit-junit5:1.3.0'

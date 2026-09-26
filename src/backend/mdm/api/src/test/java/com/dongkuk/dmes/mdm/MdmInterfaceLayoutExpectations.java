@@ -7,9 +7,8 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * TSK-05-01 design.md §3.1·§3.2 — SQLite({@code MdmInterfaceLayoutMigrationTest})·MSSQL({@code
- * MdmInterfaceLayoutMssqlMigrationTest}) 양쪽 마이그레이션 테스트가 같은 기대값을 보도록 한 곳에
- * 둔다({@code MdmDictionaryExpectations} 와 같은 패턴). design.md §2 에 이 파일이 명시돼 있지 않았다
+ * TSK-05-01 design.md §3.1·§3.2 — SQLite 마이그레이션 테스트({@code MdmInterfaceLayoutMigrationTest} 등)가 보는
+ * 기대값을 한 곳에 둔다({@code MdmDictionaryExpectations} 와 같은 패턴). design.md §2 에 이 파일이 명시돼 있지 않았다
  * — TSK-04-01 이 {@code ContractStubCompileTest} 확장에서 남긴 것과 같은 종류의 design 누락이며,
  * 두 테스트 파일의 중복을 피하려고 이 Phase 에서 새로 추가한다(design.md 이탈 기록 참고).
  */

@@ -8,9 +8,8 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * TSK-07-01 design.md §3.1·§3.3′ — SQLite({@code MdmMasterDataMigrationTest})·MSSQL({@code
- * MdmMasterDataMssqlMigrationTest})·DDL 대조({@code MdmMasterDataDdlParityTest}) 세 테스트가 같은
- * 기대값을 보도록 한 곳에 둔다({@code MdmInterfaceLayoutExpectations} 와 같은 패턴).
+ * TSK-07-01 design.md §3.1·§3.3′ — SQLite 마이그레이션 테스트({@code MdmMasterDataMigrationTest} 등)가 보는
+ * 기대값을 한 곳에 둔다({@code MdmInterfaceLayoutExpectations} 와 같은 패턴).
  */
 final class MdmMasterDataExpectations {
 

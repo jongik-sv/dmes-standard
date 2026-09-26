@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * TSK-01-02 design.md §3.3 끝 — SQLite(T11)·MSSQL(T12)가 같은 기대값을 보도록 한 곳에 둔다.
+ * TSK-01-02 design.md §3.3 끝 — SQLite 마이그레이션 테스트(T11)가 보는 기대값을 한 곳에 둔다.
  * 코드 집합·자기 행·감사 칼럼은 계약 상수에서 가져오고, 이름(D10)만 여기 적는다.
  */
 final class MdmSystemSeedExpectations {

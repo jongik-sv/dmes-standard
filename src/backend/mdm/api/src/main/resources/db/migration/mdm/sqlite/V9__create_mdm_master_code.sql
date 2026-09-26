@@ -1,12 +1,12 @@
 -- TSK-06-01 design.md §1·§2·§6.0 — 04 영역(마스터코드) 7테이블(SQLite) + FK_TB_MDM_DOMAIN_CODE 후행 추가.
--- 버전 번호는 V9 다(D1 — origin/dev 머지 뒤 mdm 두 방언 폴더의 최대 버전 V8 + 1). 당초 팀장 배정 V6 이었고
+-- 버전 번호는 V9 다(D1 — origin/dev 머지 뒤 mdm 마이그레이션 최대 버전 V8 + 1). 당초 팀장 배정 V6 이었고
 -- 2026-09-24 팀장 정정(배정표 폐기, done 직전 머지 뒤 최대 버전+1)으로 V9 로 재채번했다. DDL 본문은 그대로다.
 -- 1차 텍스트는 docs/mdm/erd/04-master-code.sqlite.sql(TSK-02-03) 이되, 이 Task 가 실측·원천 대조로 갈라진
 -- 지점만 바꾼다(§6.0 G1~G5):
 --   G1 감사 VER(5표)·AUD_VER(VER·RECV) 는 INTEGER 가 아니라 BIGINT — F5(naming-dialect-rules §2, V2~V4 선례).
 --   G2 TB_MDM_CODE_VER.ROW_VERSION 은 BIGINT — D5(TSK-01-03 §7 ② 인계, VersionConventions long).
 --   G3 CK_TB_MDM_CODE_VER_APPLY 는 REQUESTED 행(apply_from 만 있고 apply_to NULL)을 받는다 — D4(원천 04:999-1000).
---   G4 (MSSQL 전용 — DEF_EXPR NVARCHAR(MAX), D6) SQLite 는 TEXT 그대로다.
+--   G4 DEF_EXPR 는 TEXT 그대로다(D6).
 --   G5 파일 끝에서 TB_MDM_DOMAIN 을 재생성해 FK_TB_MDM_DOMAIN_CODE 를 건다 — D3(TSK-04-01 D1 인계).
 -- 업무 칼럼 LAST_CHG_SEQ·CHG_SEQ(BIGI 토큰)는 V3 선례대로 SQLite INTEGER 를 유지한다(F5).
 -- CASCADE 는 어디에도 쓰지 않는다(불변 규칙 8).

@@ -7,9 +7,8 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * TSK-04-01 design.md §3.1·§3.2 — SQLite(T13)·MSSQL(T14 상당) 양쪽 마이그레이션 테스트가 같은 기대값을
- * 보도록 한 곳에 둔다({@code MdmSystemSeedExpectations} 와 같은 패턴). {@code api} 의 {@code mssqlTest}
- * 소스셋은 {@code test} 출력을 classpath 에 더하므로(F11, api/build.gradle) 그대로 공유된다.
+ * TSK-04-01 design.md §3.1·§3.2 — SQLite 마이그레이션 테스트(T13)가 보는 기대값을 한 곳에 둔다
+ * ({@code MdmSystemSeedExpectations} 와 같은 패턴).
  */
 final class MdmDictionaryExpectations {
 
@@ -22,7 +21,7 @@ final class MdmDictionaryExpectations {
     static final Set<String> ENTITY_TABLES = Set.of(
             "TB_MDM_UNIT", "TB_MDM_TERM", "TB_MDM_DOMAIN", "TB_MDM_COLUMN", "TB_MDM_COLUMN_SYSTEM");
 
-    /** §3.2-③ — SQLite json_extract·MSSQL JSON_VALUE 를 같은 입력·같은 경로로 비교할 때 쓰는 공유 픽스처. */
+    /** §3.2-③ — json_extract 를 경로 문법으로 확인할 때 쓰는 픽스처. */
     static final String JSON_VALUE_FIXTURE = "{\"type\":\"foo\"}";
     static final String JSON_VALUE_EXPECTED = "foo";
 

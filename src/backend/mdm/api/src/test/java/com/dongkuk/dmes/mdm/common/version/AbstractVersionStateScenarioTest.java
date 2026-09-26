@@ -758,7 +758,7 @@ public abstract class AbstractVersionStateScenarioTest {
         return row[0] + "|" + row[1];
     }
 
-    /** SQLite TEXT·MSSQL DATETIME2 를 같은 문자열로 읽는다. */
+    /** SQLite TEXT 일시를 같은 문자열로 읽는다. */
     protected static String text(Object value) {
         if (value == null) {
             return null;
