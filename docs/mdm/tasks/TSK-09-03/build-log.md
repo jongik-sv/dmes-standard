@@ -16,9 +16,10 @@
 | `DataInitializer` 의 시드 SQL(값 포함)은 고치지 않는다(B1 은 대조만 한다) — 이 변이는 그 대조가 실제로 빠진 시드를 잡는지 확인 | B1-M3 — `seedMdmLayoutMenus` 배열에서 `layoutMng` 제거(시드 호출 1건 누락) | `MdmOasisActionVocabularyTest.mcm_시드가_BPMN_23개_화면을_모두_커버한다` | 잡힘 |
 | mdm 백엔드에는 서버 쪽 권한 필터가 없다 — API RBAC 는 BFF(`evaluateApiPolicy`) 한 곳(B1 이 새로 잇는 BE 키 생성↔FE 키 파싱 이음매) | B1-M4 — `rbac-policy.ts` `makeKey` 의 `.toLowerCase()` 제거 | `rbac-policy.unit.test.ts` `parseRbacKey > MDM 실제 OASIS 경로도 소문자화` | 잡힘 |
 | `DRAFT 비소유자 저장·확정 거부는 dmc·dme 가 같은 VersionStateService/VersionWriteGuard/DraftOwnershipService 로 판정한다` | B2-M1 — `VersionPreconditions.requireOwner`(mdm/lib 공용, `DefaultVersionStateService.confirm` 이 부른다)의 소유자 비교를 `if (false)`로 바꿔 항상 통과시킴 | `CodeConfirmServiceSqliteTest` + `RuleConfirmServiceTest` + `DraftOwnershipCrossModuleTest`(신규, `--fail-fast`) | 잡힘(`DraftOwnershipCrossModuleTest.소유자가_아니면_dmc_dme_모두_MDM003_같은_공용_VersionStateService_판정`에서 먼저 빨강, fail-fast 로 나머지 스킵) |
+| `DRAFT 비소유자 저장·확정 거부는 dmc·dme 가 같은 VersionStateService/VersionWriteGuard/DraftOwnershipService 로 판정한다` | B2-M2 — `DefaultVersionWriteGuard.beginDraftWrite`(저장 경로)의 `requireOwner(row, userId);` 호출을 지움(팀장 지시 보강 — 저장(beginDraftWrite)도 확인) | `CodeItemEditServiceSqliteTest` + `RuleTableServiceTest` + `DraftOwnershipCrossModuleTest`(신규, `--fail-fast`) | 잡힘(`DraftOwnershipCrossModuleTest.비소유자는_dmc_dme_모두_DRAFT_저장을_할_수_없다_MDM003_같은_공용_VersionWriteGuard_판정`에서 먼저 빨강, fail-fast 로 나머지 스킵) |
 | `domainMng·dataItemMng 에는 DRAFT 소유권 개념이 없다(스키마에 OWNER_ID 없음)` | 해당 없음 — 스키마 부재 자체(코드 로직이 아니다). `DraftOwnershipCrossModuleTest.domainMng_dataItemMng_스키마에는_DRAFT_소유권_컬럼이_없다`가 `TB_MDM_DOMAIN`·`TB_MDM_DATA_ITEM`에 OWNER_ID/STATUS 컬럼이 없음을 SQLite `PRAGMA table_info`로 고정(변이 대상 없음) | 〃 | 해당 없음 |
 
-변이 파일: `docs/mdm/tasks/TSK-09-03/mutations/B1-M1.mut`~`B1-M4.mut`(B1), `B2-M1.mut`(B2).
+변이 파일: `docs/mdm/tasks/TSK-09-03/mutations/B1-M1.mut`~`B1-M4.mut`(B1), `B2-M1.mut`~`B2-M2.mut`(B2).
 
 ## 실행 모델
 
