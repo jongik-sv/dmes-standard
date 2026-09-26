@@ -38,6 +38,21 @@ public final class RuleVersions {
         return versions.stream().filter(v -> isCurrentReleased(v, now)).max(Comparator.comparing(MdmRuleVer::getVer));
     }
 
+    /**
+     * 룰의 계산 상태(TSK-08-05 design §6.7, ADR-0002 D6) — 저장 CREATED 이면서 {@code APPLY_FROM <= now} 인 RELEASED 가 있으면 INUSE, 그 밖에는
+     * 저장값. 공통 확정 서비스는 확정 시각에 apply_from 이 지났을 때만 저장 상태를 올리므로 미래 적용으로 첫 확정한 룰은 조회가 이 값을 쓴다.
+     */
+    public static String effectiveStatus(String storedStatus, Collection<MdmRuleVer> versions, LocalDateTime now) {
+        boolean applied = versions.stream().anyMatch(v -> "RELEASED".equals(v.getStatus()) && v.getApplyFrom() != null
+                && !v.getApplyFrom().isAfter(now));
+        return "CREATED".equals(storedStatus) && applied ? "INUSE" : storedStatus;
+    }
+
+    /** 쓰기 경로 승격 대상 — 저장 CREATED 인데 계산 상태가 INUSE 다(design §6.7, I20). */
+    public static boolean needsInUsePromotion(String storedStatus, Collection<MdmRuleVer> versions, LocalDateTime now) {
+        return "CREATED".equals(storedStatus) && "INUSE".equals(effectiveStatus(storedStatus, versions, now));
+    }
+
     /** RELEASED 가운데 VER 가 가장 큰 것(적용 시점과 무관 — 새 버전의 복사 원본, 세트 계산 관례 06:754). */
     public static Optional<MdmRuleVer> latestReleased(Collection<MdmRuleVer> versions) {
         return versions.stream().filter(v -> "RELEASED".equals(v.getStatus())).max(Comparator.comparing(MdmRuleVer::getVer));

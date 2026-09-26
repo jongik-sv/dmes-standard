@@ -7,6 +7,7 @@ import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -29,10 +30,14 @@ public class RuleQueries {
 
     /**
      * 룰 목록 필터(design I29). 빈 값은 조건에서 뺀다. 키워드는 룰 ID·룰명을 대문자로 바꿔 부분 일치로 보고 {@code %}·{@code _}·{@code \}
-     * 는 글자 그대로다.
+     * 는 글자 그대로다. 상태는 계산 상태로 거른다(TSK-08-05 design §6.7, I19) — {@code now} 는 그 기준 시각이다.
      */
-    public record RuleFilter(String keyword, String ruleKind, String status) {
+    public record RuleFilter(String keyword, String ruleKind, String status, LocalDateTime now) {
     }
+
+    /** 적용된 RELEASED 가 있다 — {@link RuleVersions#effectiveStatus} 의 JPQL 판(경계 포함). */
+    private static final String APPLIED_RELEASED = "EXISTS (SELECT v.ver FROM MdmRuleVer v WHERE v.maruRuleId = r.maruRuleId "
+            + "AND v.status = 'RELEASED' AND v.applyFrom <= :now)";
 
     /** 한 페이지 — 정렬 {@code maruRuleId}, JPQL {@code setFirstResult/setMaxResults}(SQLite·MSSQL 같은 코드). */
     public List<MdmRule> pageRules(RuleFilter filter, int page, int size) {
@@ -133,7 +138,11 @@ public class RuleQueries {
         if (f.ruleKind() != null) {
             sb.append(" AND r.ruleKind = :kind");
         }
-        if (f.status() != null) {
+        if ("INUSE".equals(f.status())) {
+            sb.append(" AND (r.status = 'INUSE' OR (r.status = 'CREATED' AND " + APPLIED_RELEASED + "))");
+        } else if ("CREATED".equals(f.status())) {
+            sb.append(" AND r.status = 'CREATED' AND NOT " + APPLIED_RELEASED);
+        } else if (f.status() != null) {
             sb.append(" AND r.status = :status");
         }
         return sb.toString();
@@ -147,7 +156,9 @@ public class RuleQueries {
         if (f.ruleKind() != null) {
             params.put("kind", f.ruleKind());
         }
-        if (f.status() != null) {
+        if ("INUSE".equals(f.status()) || "CREATED".equals(f.status())) {
+            params.put("now", f.now());
+        } else if (f.status() != null) {
             params.put("status", f.status());
         }
         return params;

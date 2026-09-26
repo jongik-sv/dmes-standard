@@ -73,7 +73,8 @@ public class RuleMngService {
         RuleSearchRequest r = request != null ? request : new RuleSearchRequest();
         int page = r.getPage() == null || r.getPage() < 0 ? 0 : r.getPage();
         int size = r.getSize() == null || r.getSize() < 1 ? DEFAULT_SIZE : Math.min(r.getSize(), MAX_SIZE);
-        RuleFilter filter = new RuleFilter(blankToNull(r.getKeyword()), blankToNull(r.getRuleKind()), blankToNull(r.getStatus()));
+        LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS);
+        RuleFilter filter = new RuleFilter(blankToNull(r.getKeyword()), blankToNull(r.getRuleKind()), blankToNull(r.getStatus()), now);
 
         List<MdmRule> rules = queries.pageRules(filter, page, size);
         long total = queries.countRules(filter);
@@ -81,7 +82,6 @@ public class RuleMngService {
         for (MdmRuleVer v : queries.versionsOf(rules.stream().map(MdmRule::getMaruRuleId).toList())) {
             versions.computeIfAbsent(v.getMaruRuleId(), k -> new ArrayList<>()).add(v);
         }
-        LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS);
         List<RuleListRow> rows = new ArrayList<>(rules.size());
         for (MdmRule rule : rules) {
             rows.add(toRow(rule, versions.getOrDefault(rule.getMaruRuleId(), List.of()), now));
@@ -95,7 +95,7 @@ public class RuleMngService {
         row.setMaruRuleName(rule.getMaruRuleName());
         row.setRuleKind(rule.getRuleKind());
         row.setSourceKind(rule.getSourceKind());
-        row.setStatus(rule.getStatus());
+        row.setStatus(RuleVersions.effectiveStatus(rule.getStatus(), versions, now)); // 필터와 같은 계산 상태(I19)
         RuleVersions.currentReleased(versions, now).ifPresent(v -> {
             row.setReleasedVer(v.getVer());
             row.setHitPolicy(v.getHitPolicy());

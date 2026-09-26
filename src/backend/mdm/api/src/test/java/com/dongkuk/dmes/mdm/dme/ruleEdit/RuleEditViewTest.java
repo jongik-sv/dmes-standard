@@ -75,7 +75,7 @@ class RuleEditViewTest extends AbstractMdmSharedDbTest {
         assertFalse(v.isEditable());
         assertTrue(v.isHeaderEditable(), "미적용 버전이 없으면 담당자가 헤더를 고친다(D6)");
         assertFalse(v.isUnappliedVersionExists());
-        assertFalse(v.isConfirmScreenReady());
+        assertTrue(v.isConfirmScreenReady(), "확정 화면이 있다(TSK-08-05 I21)");
         assertEquals("품질 등급 판정", v.getRule().getMaruRuleName());
         assertEquals("MDM", v.getRule().getSourceKind());
         assertEquals("INUSE", v.getRule().getStatus());

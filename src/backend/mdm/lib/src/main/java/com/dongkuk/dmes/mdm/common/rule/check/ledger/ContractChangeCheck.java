@@ -25,6 +25,7 @@ import org.springframework.stereotype.Component;
 /**
  * 입력 계약 변경(06:328) — 지금 RELEASED 버전(VER 최대)과 저장하려는 정의의 입력 계약({@code InputContracts})을 견준다. 필요 변수
  * (always ∪ 행별 필수·선택)가 늘거나, 선택이던 변수(어느 자리에서도 필수가 아니던 것)가 필수가 되면 경고한다. 막지는 않는다(I15).
+ * 저장뿐 아니라 상신·확정(TSK-08-05, 적용 지점 STORED)에서도 돈다(06:232).
  */
 @Component
 @Order(2)
@@ -40,7 +41,7 @@ public class ContractChangeCheck implements RuleSaveCheck {
 
     @Override
     public Set<RuleSaveTarget> targets() {
-        return EnumSet.of(RuleSaveTarget.TABLE, RuleSaveTarget.COLUMNS);
+        return EnumSet.of(RuleSaveTarget.TABLE, RuleSaveTarget.COLUMNS, RuleSaveTarget.STORED);
     }
 
     @Override

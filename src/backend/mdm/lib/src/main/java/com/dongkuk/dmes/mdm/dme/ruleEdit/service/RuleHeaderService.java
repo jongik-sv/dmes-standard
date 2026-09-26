@@ -10,7 +10,9 @@ import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleStewardCheck;
 import com.dongkuk.dmes.mdm.common.rule.RuleVersions;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.common.version.VersionRowStore;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
+import com.dongkuk.dmes.mdm.contract.common.MdmNativeAuditSupport;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import com.dongkuk.dmes.mdm.contract.version.VersionWriteGuard;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveRequest;
@@ -36,6 +38,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  * <p>쓰는 사람(D6): 미적용 버전에 소유자가 있으면 그 소유자만(아니면 MDM003), 없으면 담당자 역할(아니면 MDM013). 헤더는 버전과
  * 무관한 값이고 TB_MDM_RULE 에 row_version 이 없으므로 마지막 저장이 이긴다(06:913). 폐기(I9)는 원천 MDM·INUSE·미적용 버전 없음일
  * 때만 STATUS 를 네이티브로 바꾼다 — 그때는 소유자가 있을 수 없으므로 담당자 역할로 판정한다.
+ *
+ * <p>INUSE 는 계산 상태다(TSK-08-05 design §6.7, I20): 저장 CREATED 이고 적용된 RELEASED 가 있으면 헤더 저장·폐기 트랜잭션에서 저장값을
+ * INUSE 로 먼저 올린다. {@code MdmRule.STATUS} 가 {@code updatable = false} 라 엔티티가 아니라 공통 저장소의 네이티브 UPDATE 로 한다.
  */
 @Service
 public class RuleHeaderService implements RuleEditSavePart {
@@ -49,16 +54,21 @@ public class RuleHeaderService implements RuleEditSavePart {
     private final VersionWriteGuard writeGuard;
     private final RuleNativeWrites writes;
     private final MdmRuleRepository ruleRepository;
+    private final VersionRowStore versionStore;
+    private final MdmNativeAuditSupport audit;
     private final TransactionTemplate tx;
 
     public RuleHeaderService(RuleEditSupport support, RuleQueries queries, RuleStewardCheck stewardCheck, VersionWriteGuard writeGuard,
-                             RuleNativeWrites writes, MdmRuleRepository ruleRepository, PlatformTransactionManager transactionManager) {
+                             RuleNativeWrites writes, MdmRuleRepository ruleRepository, VersionRowStore versionStore,
+                             MdmNativeAuditSupport audit, PlatformTransactionManager transactionManager) {
         this.support = support;
         this.queries = queries;
         this.stewardCheck = stewardCheck;
         this.writeGuard = writeGuard;
         this.writes = writes;
         this.ruleRepository = ruleRepository;
+        this.versionStore = versionStore;
+        this.audit = audit;
         this.tx = new TransactionTemplate(transactionManager);
     }
 
@@ -71,7 +81,9 @@ public class RuleHeaderService implements RuleEditSavePart {
     public RuleEditSaveResult save(RuleEditSaveRequest request) {
         MdmRule rule = support.loadRule(request.getMaruRuleId());
         requireMdm(rule);
-        requireHeaderWriter(queries.versions(rule.getMaruRuleId()));
+        List<MdmRuleVer> versions = queries.versions(rule.getMaruRuleId());
+        LocalDateTime now = support.now();
+        requireHeaderWriter(versions);
         String name = blankToNull(request.getMaruRuleName());
         if (name == null) {
             throw new BusinessException(ErrorCode.REQUIRED_VALUE, "룰명은 필수입니다.");
@@ -85,6 +97,7 @@ public class RuleHeaderService implements RuleEditSavePart {
             target.setDescription(blankToNull(request.getDescription()));
             target.setUsageNote(blankToNull(request.getUsageNote()));
             ruleRepository.saveAndFlush(target);
+            promoteIfApplied(rule, versions, now);
         });
         return new RuleEditSaveResult(PART, request.getRowVersion(), Map.of(), List.of(), List.of());
     }
@@ -117,15 +130,27 @@ public class RuleHeaderService implements RuleEditSavePart {
         MdmRule rule = support.loadRule(request.getMaruRuleId());
         requireMdm(rule);
         stewardCheck.requireSteward();
-        if (!"INUSE".equals(rule.getStatus())) {
+        List<MdmRuleVer> versions = queries.versions(rule.getMaruRuleId());
+        LocalDateTime now = support.now();
+        if (!"INUSE".equals(RuleVersions.effectiveStatus(rule.getStatus(), versions, now))) {
             throw MdmErrors.of(MdmErrorCode.TRANSITION_NOT_ALLOWED, "사용 중(INUSE)인 룰만 폐기할 수 있습니다", List.of());
         }
         writeGuard.checkCanCreateVersion(VersionTarget.BUSINESS_RULE, rule.getMaruRuleId());
-        RuleEditSupport.requireNoVersionInApproval(queries.versions(rule.getMaruRuleId()));
-        Integer changed = tx.execute(status -> writes.deprecate(rule.getMaruRuleId()));
+        RuleEditSupport.requireNoVersionInApproval(versions);
+        Integer changed = tx.execute(status -> {
+            promoteIfApplied(rule, versions, now); // 폐기 UPDATE 가 STATUS = 'INUSE' 를 조건으로 쓴다
+            return writes.deprecate(rule.getMaruRuleId());
+        });
         if (changed == null || changed == 0) {
             throw MdmErrors.of(MdmErrorCode.TRANSITION_NOT_ALLOWED, "사용 중(INUSE)인 룰만 폐기할 수 있습니다", List.of());
         }
         return new RuleVersionResult(rule.getMaruRuleId(), null, null);
+    }
+
+    /** 저장 CREATED·계산 INUSE 면 저장값을 INUSE 로 올린다. 호출자 트랜잭션 안에서만 부른다. */
+    private void promoteIfApplied(MdmRule rule, List<MdmRuleVer> versions, LocalDateTime now) {
+        if (RuleVersions.needsInUsePromotion(rule.getStatus(), versions, now)) {
+            versionStore.markParentInUse(VersionTarget.BUSINESS_RULE, rule.getMaruRuleId(), audit.currentStamp());
+        }
     }
 }

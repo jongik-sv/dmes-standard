@@ -101,7 +101,7 @@ moduleGroup: dme
 | 버튼 | action | 켜지는 조건(화면) | 서버 판정 |
 |---|---|---|---|
 | 새 버전 | `copy{maruRuleId}` → 새 버전으로 다시 불러온다 | MDM && 미적용 버전 없음 && DEPRECATED 아님 | 직전 RELEASED 복사(I5), 미적용 버전이 있으면 MDM006(수용 5) |
-| 확정 이동 | — | `confirmScreenReady`(지금 false — 확정 화면 TSK-08-05 가 켠다) | — |
+| 확정 이동 | — | `confirmScreenReady`(TSK-08-05 부터 true) && MDM 원천 && 선택 버전 DRAFT. 누르면 버전 확정(`dme/ruleConfirm`)을 그 룰·버전으로 연다 | — |
 | 삭제 | `delete{maruRuleId, ver, rowVersion, target: VERSION}` | DRAFT && 소유자 = 나 | 공통 `VersionStateService.deleteDraft`(I6) |
 | 선점 | `lock{maruRuleId, ver, rowVersion}` | 소유자 없는 DRAFT 에서만 보인다 | 공통 `DraftOwnershipService.acquire` |
 | 해제 | `unlock{…}` | DRAFT && 소유자 = 나 | `release` |
@@ -249,7 +249,7 @@ EXTERNAL 룰은 저장 자체가 막히므로 검사를 돌리지 않는다. 상
 |---|---|
 | 룰 목록(`ruleMng`) → 이 화면 | `openRuleEdit` — sessionStorage 대상 + `mdm-rule-edit-target` 이벤트 + `portal-open-tab`(`mdm:dme/ruleEdit`). 이 화면은 마운트할 때 대상을 한 번 읽고 지우며, 열린 뒤에는 이벤트를 듣는다 |
 | 활용처의 룰 링크 → 이 화면(다른 룰) | 같은 방식 |
-| 확정 화면(`ruleConfirm`, TSK-08-05) | 아직 없음 — 확정 이동 버튼 비활성 |
+| 이 화면 → 확정 화면(`ruleConfirm`, TSK-08-05) | 카드 ② `확정 이동` — `openMdmPage("dme/ruleConfirm", {maruRuleId, ver: String(선택 버전)})`(`mdm:dme/ruleConfirm` 탭). 활성 = `confirmScreenReady` && MDM 원천 && 선택 버전 DRAFT(08-05 I40). 소유자 판정은 확정 화면·서버가 한다 |
 
 ## 10. 기타 열거형 (LoV)
 

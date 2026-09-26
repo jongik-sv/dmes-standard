@@ -52,6 +52,7 @@ export default defineConfig([
       "pages/dmd/dataHistory/page": "pages/dmd/dataHistory/page.tsx",
       "pages/dme/ruleMng/page": "pages/dme/ruleMng/page.tsx",
       "pages/dme/ruleEdit/page": "pages/dme/ruleEdit/page.tsx",
+      "pages/dme/ruleConfirm/page": "pages/dme/ruleConfirm/page.tsx",
       "pages/dme/ruleSetMng/page": "pages/dme/ruleSetMng/page.tsx",
       "pages/dme/ruleSetEdit/page": "pages/dme/ruleSetEdit/page.tsx",
     },

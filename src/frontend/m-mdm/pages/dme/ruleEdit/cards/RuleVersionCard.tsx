@@ -3,12 +3,13 @@
 /**
  * 카드 ② 버전 목록(TSK-08-02 design §6.7.2). 행을 누르면 그 버전을 연다.
  * 새 버전(copy)은 미적용 버전이 없을 때만(수용 5), 삭제·해제·넘기기는 DRAFT 소유자만, 선점은 소유자 없는 DRAFT 에서만 보인다.
- * 소유·삭제 판정은 서버 공통 버전 서비스가 한다(I6) — 화면 비활성은 보조다. 확정 이동은 확정 화면(TSK-08-05)이 생길 때까지 끈다.
+ * 소유·삭제 판정은 서버 공통 버전 서비스가 한다(I6) — 화면 비활성은 보조다. 확정 이동은 MDM 원천의 DRAFT 를 고르면 켜지고
+ * 버전 확정 화면(dme/ruleConfirm, TSK-08-05 I40)을 그 룰·버전으로 연다. 소유자 판정은 확정 화면·서버가 한다.
  */
 import { useState } from "react";
 
 import { Button, Input } from "@dk-oasis/shared/form";
-import { DraftLockBadge, VersionStatusBadge } from "@/shell";
+import { DraftLockBadge, VersionStatusBadge, openMdmPage } from "@/shell";
 
 import { deleteDraft, handoverVersion, lockVersion, newVersion, unlockVersion } from "../api";
 import type { RuleEditCardProps } from "../cards";
@@ -42,6 +43,7 @@ export function RuleVersionCard({ view, me, selectVer, runWrite, canDo, busy, no
   const canUnlock = mdm && mine && canDo("unlock") && !busy;
   const canHandover = mdm && mine && canDo("handover") && !busy;
   const showLock = mdm && draft && !selected?.ownerId;
+  const canMoveToConfirm = view.confirmScreenReady && mdm && draft && !busy;
 
   const id = rule.maruRuleId;
 
@@ -102,8 +104,13 @@ export function RuleVersionCard({ view, me, selectVer, runWrite, canDo, busy, no
         <Button disabled={!canCopy} onClick={() => void runWrite(() => newVersion(id), (r) => r.ver ?? null)}>
           새 버전
         </Button>
-        <span title={view.confirmScreenReady ? "" : "버전 확정 화면(TSK-08-05)에서 한다"}>
-          <Button disabled={!view.confirmScreenReady}>확정 이동</Button>
+        <span title={canMoveToConfirm ? "" : "DRAFT 버전만 확정할 수 있습니다"}>
+          <Button
+            disabled={!canMoveToConfirm}
+            onClick={() => selected && openMdmPage("dme/ruleConfirm", { maruRuleId: id, ver: String(selected.ver) })}
+          >
+            확정 이동
+          </Button>
         </span>
         {selected && (
           <>

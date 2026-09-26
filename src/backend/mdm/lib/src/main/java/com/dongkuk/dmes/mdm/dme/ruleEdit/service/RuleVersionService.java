@@ -11,7 +11,9 @@ import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleStewardCheck;
 import com.dongkuk.dmes.mdm.common.rule.RuleVersions;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.common.version.VersionRowStore;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
+import com.dongkuk.dmes.mdm.contract.common.MdmNativeAuditSupport;
 import com.dongkuk.dmes.mdm.contract.version.DraftOwnershipService;
 import com.dongkuk.dmes.mdm.contract.version.VersionStateService;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
@@ -36,8 +38,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p>소유권·삭제는 TSK-01-03 공통 서비스로만 한다(I6): 선점 {@link DraftOwnershipService#acquire}, 해제 {@code release}, 넘기기
  * {@code handover}, DRAFT 삭제 {@link VersionStateService#deleteDraft}(BUSINESS_RULE 삭제 훅은 {@code RuleDraftDeletionHook}). 이
- * 서비스는 OWNER_ID·ROW_VERSION·STATUS 를 직접 쓰지 않는다. 새 버전은 공통 가드로 미적용 버전을 거부한 뒤(I4) 직전 RELEASED 의
- * 변수·행을 칼럼 전부, 번호 그대로 복사한다(I5).
+ * 서비스는 OWNER_ID·ROW_VERSION·버전 STATUS 를 직접 쓰지 않는다. 새 버전은 공통 가드로 미적용 버전을 거부한 뒤(I4) 직전 RELEASED 의
+ * 변수·행을 칼럼 전부, 번호 그대로 복사한다(I5). 룰 STATUS 는 새 버전 트랜잭션에서 저장 CREATED·계산 INUSE 일 때만 공통 저장소
+ * {@link VersionRowStore#markParentInUse} 로 INUSE 로 올린다(TSK-08-05 design §6.7, I20).
  */
 @Service
 public class RuleVersionService {
@@ -51,12 +54,14 @@ public class RuleVersionService {
     private final MdmRuleVerRepository verRepository;
     private final MdmRuleVarRepository varRepository;
     private final MdmRuleRowRepository rowRepository;
+    private final VersionRowStore versionStore;
+    private final MdmNativeAuditSupport audit;
     private final TransactionTemplate tx;
 
     public RuleVersionService(RuleEditSupport support, RuleQueries queries, RuleStewardCheck stewardCheck, VersionWriteGuard writeGuard,
                               VersionStateService stateService, DraftOwnershipService ownership, MdmRuleVerRepository verRepository,
-                              MdmRuleVarRepository varRepository, MdmRuleRowRepository rowRepository,
-                              PlatformTransactionManager transactionManager) {
+                              MdmRuleVarRepository varRepository, MdmRuleRowRepository rowRepository, VersionRowStore versionStore,
+                              MdmNativeAuditSupport audit, PlatformTransactionManager transactionManager) {
         this.support = support;
         this.queries = queries;
         this.stewardCheck = stewardCheck;
@@ -66,6 +71,8 @@ public class RuleVersionService {
         this.verRepository = verRepository;
         this.varRepository = varRepository;
         this.rowRepository = rowRepository;
+        this.versionStore = versionStore;
+        this.audit = audit;
         this.tx = new TransactionTemplate(transactionManager);
     }
 
@@ -87,6 +94,7 @@ public class RuleVersionService {
         }
         int next = versions.stream().mapToInt(MdmRuleVer::getVer).max().orElse(0) + 1;
         String me = support.me();
+        boolean promote = RuleVersions.needsInUsePromotion(rule.getStatus(), versions, support.now());
         tx.executeWithoutResult(status -> {
             MdmRuleVer created = new MdmRuleVer(id, next, me);
             if (source.isPresent()) {
@@ -98,6 +106,9 @@ public class RuleVersionService {
             }
             verRepository.saveAndFlush(created);
             source.ifPresent(src -> copyDefinition(id, src.getVer(), next));
+            if (promote) {
+                versionStore.markParentInUse(VersionTarget.BUSINESS_RULE, id, audit.currentStamp());
+            }
         });
         return new RuleVersionResult(id, next, 0L);
     }

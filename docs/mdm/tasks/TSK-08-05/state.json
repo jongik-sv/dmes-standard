@@ -2,5 +2,145 @@
   "tsk": "TSK-08-05",
   "order": "6874fe36-f73b-4c82-8458-29caca46257d",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "reported",
+  "baseline": {
+    "base": "9458368514045ffd5a256cdacac2c34f0ea122c9",
+    "docker": "banned:spawn",
+    "failures": 0,
+    "tests": 5051,
+    "cmds": [
+      {
+        "cwd": ".",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "scope": "full",
+        "tests": 3895,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "9458368514045ffd5a256cdacac2c34f0ea122c9-5a99c8ef20f3",
+        "measured_at": "2026-09-26T00:25:18Z"
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "scope": "full",
+        "tests": 988,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "9458368514045ffd5a256cdacac2c34f0ea122c9-70ad4dddc2e4",
+        "measured_at": "2026-09-26T00:25:18Z"
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "scope": "full",
+        "tests": 0,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "9458368514045ffd5a256cdacac2c34f0ea122c9-79066bca5c4b",
+        "measured_at": "2026-09-26T00:25:18Z"
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "scope": "full",
+        "tests": 168,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "9458368514045ffd5a256cdacac2c34f0ea122c9-85eac351cb59",
+        "measured_at": "2026-09-26T00:25:18Z"
+      },
+      {
+        "cwd": ".",
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "scope": "full",
+        "tests": 0,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "9458368514045ffd5a256cdacac2c34f0ea122c9-773190afc491",
+        "measured_at": "2026-09-26T00:25:18Z"
+      }
+    ]
+  },
+  "branch_base": "9458368514045ffd5a256cdacac2c34f0ea122c9",
+  "model": "sonnet",
+  "last": {
+    "phase": "done",
+    "event": "reported"
+  },
+  "gate_scope_predicted": "full",
+  "build_gate": {
+    "head": "bf4553c4bfda5fbc61fead2d1d748543ff7cbbc0",
+    "scope": "full",
+    "cmds": [
+      {
+        "cwd": ".",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3959,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 1064,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0
+      }
+    ],
+    "new_failures": []
+  },
+  "verify_gate": {
+    "head": "bf4553c4bfda5fbc61fead2d1d748543ff7cbbc0",
+    "scope": "full",
+    "cmds": [
+      {
+        "cwd": ".",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3959,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 1064,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0
+      }
+    ],
+    "new_failures": [],
+    "reused_from": "build_gate"
+  }
 }
