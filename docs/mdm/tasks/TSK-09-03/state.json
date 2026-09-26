@@ -104,5 +104,13 @@
         "load1": 28.09
       }
     ]
+  },
+  "verify_findings": {
+    "review": 0,
+    "tests": 2,
+    "spec": 0
+  },
+  "verify_advisor": {
+    "audit": 0
   }
 }
