@@ -199,3 +199,10 @@
 | 2026-09-26T02:11:49Z | build | `cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint` | 전체 | 0 | 3.93 | 통과(exit 0) |
 | 2026-09-26T02:11:52Z | build | `cd src/frontend && pnpm test:unit:shared` | 전체 | 3 | 3.93 | 통과(168건, 신규 0) |
 | 2026-09-26T02:11:53Z | build | `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` | 전체 | 1 | 3.93 | 통과(ERROR 0) |
+| 2026-09-26T03:05:00Z | verify | (Build 게이트 5줄 재사용 — bf4553c4 이후 Task 문서만 바뀜) | 재사용 | 0 | - | 통과 |
+
+## Verify 결과(오케스트레이터 기록)
+
+- 변이 검증 표 재확인: 백엔드 54행·프런트 17행을 다시 넣어 모두 잡힘(I15 는 grep 코드 리뷰). E2E 변이 5건(I33 둘·I43·I44·I45) 잡힘.
+- E2E: `mdm-ruleConfirm.spec.ts` 7/7 통과, 회귀 확인 `mdm-codeConfirm.spec.ts` 6/6 통과(같은 이름 "버전 확정" 메뉴 영향 없음).
+- 도커 금지로 생략: `cd src/backend/mdm && ../gradlew :api:mssqlMigrationTest`(머지 뒤 dialect_check 몫).
