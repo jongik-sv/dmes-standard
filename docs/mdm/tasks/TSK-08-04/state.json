@@ -2,7 +2,7 @@
   "tsk": "TSK-08-04",
   "order": "f2517d41-76fe-4a85-ad4e-f946a2d11a2b",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "verify",
+  "phase": "reported",
   "branch_base": "180601aca1ccbe54028dd9bbdfaa0ed96d503cf5",
   "baseline": {
     "base": "180601aca1ccbe54028dd9bbdfaa0ed96d503cf5",
@@ -80,8 +80,8 @@
     ]
   },
   "last": {
-    "phase": "verify",
-    "event": "verify.gate.pass"
+    "phase": "reported",
+    "event": "done"
   },
   "prev_round": {
     "branch_base": "f59cce7f0de5ff1c17f5c693c51f2563fe56d5ed",
