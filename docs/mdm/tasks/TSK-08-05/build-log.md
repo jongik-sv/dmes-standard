@@ -46,6 +46,24 @@
 - `mantine-aggrid-ui` 스킬 점검: `mantine_docs.py audit`(ruleConfirm 5 파일 + RuleVersionCard) 의심 0건, `aggrid_docs.py audit` 의심 0건. 새 파일은 codeConfirm 과 같은 shared 래퍼(`@dk-oasis/shared/form` Button·Input·Checkbox, `modal` Modal, `layout` ContentBody·ContentPanel·DETAIL_* ·RBAC)만 쓰고 `@mantine`·`ag-grid` 직접 import 가 없다. prop 은 tsc(lint) 로 확인했다. 색은 codeConfirm 과 같이 의미 토큰에 대체값을 붙인 `var(--color-danger, #b91c1c)` 모양을 그대로 따랐다.
 - 옛 "확정 이동 비활성" 단언 탐색: `grep -rn '확정 이동\|confirmScreenReady\|버전 확정 화면(TSK-08-05)' src/frontend/e2e src/frontend/m-mdm/tests` — e2e 스펙에는 없고, m-mdm 에는 fixtures.ts(false, 그대로 둠)와 기존 비활성 케이스(여전히 초록)뿐이다. B5 가 고칠 기존 단언은 없다.
 
+## B5 — 연결 E2E·픽스처·스크린샷
+
+- 새 파일: `src/frontend/e2e/mdm-ruleConfirm.spec.ts`(7 테스트, T3·T4 는 한 테스트로 이어 돈다), `src/frontend/e2e/fixtures/mdm-ruleConfirm-data.sql`, `docs/mdm/tasks/TSK-08-05/screens/dme-ruleConfirm-{open,list,rejected,confirmed,contract,error,readonly}.png`. 소스(BE·FE)는 고치지 않았다.
+- 서버(be-run.sh·fe-run.sh 미사용): `heavy.sh pnpm build:libs`(exit 0) → `heavy.sh acquire e2e-TSK-08-05`(HEAVY_ACQUIRED e2e-1) → `free-port.sh` 로 받은 mcm BE 51682·mdm BE 51683·포털 51684 → 새 `src/backend/data/{mcm,mdm}.db`(이 워크트리에는 data 폴더가 없어 새로 만들었다. mcm 로그의 JDBC URL 이 이 워크트리 경로임을 확인) → mcm·mdm `:api:bootRun --no-daemon`, 포털 `next dev --turbopack`(08-06 절차와 같은 환경변수, 포트만 바꿈).
+- 시드 대조: `sqlite3 mcm.db < e2e/fixtures/mdm-rbac-seed-check.sql | diff - …expected.txt` 출력 없음. 이어 `mdm-rbac-users.sql`(mcm.db), `mdm-ruleConfirm-data.sql`(mdm.db, `sqlite3 -bail`, 두 번 연속 넣어도 exit 0).
+- 메뉴 시드(I33) 원장 확인(새 mcm.db): `TB_MCM_SEC_MENU` = `ruleConfirm|버전 확정|dme`(MENU_SEQ·FULL_SEQ 는 `recomputeMenuFullSeq` 가 다시 계산해 `00000003`·`3050120` — 시드 대조 SQL 이 FULL_SEQ 를 대조하지 않는 까닭과 같다), `TB_MCM_SEC_ROLE_MAPPING` = `MDM_STD_ADMIN|PERM_MDM_READ`·`MDM_STEWARD|PERM_MDM_CONFIRM`·`SYSADMIN|PERM_ALL`. §6.9 와 같다.
+- 스펙을 쓰기 전에 픽스처를 넣은 mdm BE 에 `ruleConfirm/validate` 를 직접 불러(헤더 인증, `RuleConfirmOasisHttpTest` 와 같은 모양) 기대 상태를 확인했다.
+  - `E2E_RC_OK`(2026-01-01): SAVE_CHECKS WARNED(`NULL_GAP` VAR:1) · NOT_EMPTY·TEST_CASES·RESULT_VAR_RELEASED PASSED · 적용 순서 EXEMPT · 케이스 1/1 통과 · futureApplyFrom false.
+  - `E2E_RC_CASEFAIL`(2026-10-01): SAVE_CHECKS WARNED · TEST_CASES REJECTED(`CASE_FAILED` CASE:1) · EXEMPT.
+  - `E2E_RC_CONTRACT` v2(2030-01-01): SAVE_CHECKS WARNED(`NULL_GAP` VAR:1·VAR:4, `CONTRACT_CHANGED`) · 적용 순서 PASSED · `contractWarnings` = [CONTRACT_CHANGED] · futureApplyFrom true · view diffCounts 수정 2(나머지 0) · previous v1 2026-01-01.
+  - `E2E_RC_RACE`(2026-02-01): SAVE_CHECKS WARNED(`NULL_GAP`) · 나머지 PASSED · EXEMPT. 경고가 있으므로 T7 의 선행 확정 요청은 `warningsAcknowledged: true` 를 보낸다(false 면 MDM014 로 경합이 만들어지지 않는다).
+- 첫 실행: 6 통과 전 T6 에서 1 실패 — 계약 영역은 이슈 code 가 아니라 message 를 보이므로 `CONTRACT_CHANGED` 대신 `[COIL_WID]` 를 단언하도록 고쳤다(화면 문구 확인, 기대값 완화 아님: 같은 영역의 `data-state="CHANGED"` 단언은 그대로).
+- 스모크 넷 대응: 1 메뉴 이동 T1, 2 목록·빈 상태 T2, 3 화면 조작만으로 확정·목록 반영 T5(T6), 4 서버 오류 표시 T7.
+- 최종 실행(변이를 모두 되돌린 원본, 새 mcm.db + 픽스처 재투입): `cd src/frontend && SMOKE_MCM_BASE_URL=http://127.0.0.1:51684 SMOKE_LOGIN_USER=admin SMOKE_LOGIN_PASSWORD=admin123 ../../.claude/skills/dflow-dev/scripts/heavy.sh pnpm exec playwright test e2e/mdm-ruleConfirm.spec.ts e2e/mdm-shell-rbac-smoke.spec.ts --workers=1` — exit 0, **11 passed**(ruleConfirm 7 · shell-rbac 4), failed·skipped 0. 새 메뉴 leaf 가 기존 MDM 셸·RBAC 스모크를 깨지 않는다.
+- 정리: 기록한 PID(포털·mdm·mcm)를 죽이고 세 포트에 남은 리스너가 0 인 것을 확인한 뒤 `heavy.sh release`(HEAVY_RELEASED e2e-1). shell-rbac 스모크가 덮어쓴 `docs/mdm/tasks/TSK-01-03/screens/` 두 장과 `m-mcm/next-env.d.ts`, 첫 실패 때 바뀐 `src/frontend/test-results/` 는 `git checkout --` 로 되돌렸다. 격리 DB(`src/backend/data/*.db`, 무시 대상)는 커밋하지 않는다.
+- 연결 테스트: E2E 가 화면 → 포털 BFF → mdm OASIS(`ruleConfirm` search·view·validate·confirm, `ruleEdit` view) → 원장 → mcm 메뉴·RBAC 시드를 한 번에 지난다. 서버 쪽 연결(BPMN↔서비스)은 B3 `RuleConfirmOasisHttpTest` 가 맡는다.
+- 전체 게이트(기준선 5줄)는 돌리지 않았다 — phase-build.md 「완료와 커밋」(Build 서브에이전트는 전체 스위트를 돌리지 않고 오케스트레이터의 Build 게이트가 본다). B5 는 BE·FE 소스를 바꾸지 않아 관련 단위 테스트 대상도 없다.
+
 ## 변이 검증 기록
 
 | 불변 규칙 | 변이 | 잡은 테스트 | 결과 |
@@ -124,8 +142,15 @@
 | I40 | 확정 이동 활성에서 DRAFT 조건을 뺌 | `rule-edit-page.test.ts` RE2(RELEASED) | 잡힘 |
 | I40 | 확정 이동이 ver 를 넘기지 않음 | `rule-edit-page.test.ts` RE1 | 잡힘 |
 | I41 | 저장 시 검사 거부여도 계약 영역을 변경 없음으로 | `checks.test.ts` contractState BLOCKED | 잡힘 |
+| I33·I42 | `seedMdmRuleConfirmMenu` 의 메뉴 부모 폴더 `dme` → `dmc`(새 mcm.db 로 재기동) | `mdm-ruleConfirm.spec.ts` T1(업무기준 아래 "버전 확정" 없음 — 로그인 뒤 메뉴 단계에서 첫 실패) | 잡힘 |
+| I33 | `seedMdmObjectRbac("ruleConfirm","dme")` 호출을 뺌(새 mcm.db 로 재기동) | `mdm-ruleConfirm.spec.ts` T1(담당자에게 메뉴가 안 보임 — 메뉴 단계에서 첫 실패) | 잡힘 |
+| I43 | 확정 성공 뒤 `refreshList(keyword)` 를 부르지 않음(m-mdm 재빌드·포털 재기동) | `mdm-ruleConfirm.spec.ts` T5(확정한 행이 목록에 남음, 첫 실패) | 잡힘 |
+| I44 | 대화상자 확인 활성에서 계약 변경 확인란 조건을 늘 참으로 | `mdm-ruleConfirm.spec.ts` T6(일반 경고만 체크했는데 확인 활성, 첫 실패) | 잡힘 |
+| I45 | 검사 버튼 비활성에서 `validate` 권한 조건을 뺌 | `mdm-ruleConfirm.spec.ts` T8(표준 관리자에게 검사 활성, 첫 실패) | 잡힘 |
 
 - 첫 I14 변이(`rule.setStatus("DEPRECATED")`)는 잡히지 않았다. `MdmRule.STATUS` 가 `updatable = false` 라 엔티티 변경이 원장에 닿지 않는, 효과 없는 변이였기 때문이다. 쓰기가 실제로 flush 되는 칸(`MARU_RULE_NAME`)으로 바꿔 다시 돌렸고 잡혔다.
+
+- B5 변이는 스크립트 하나(`heavy.sh --detach` 한 번, 변이마다 백업 사본 `dflow-bak/B5/` → 변이 → 필요한 서버만 재기동(화면 변이는 `pnpm --filter @dk-oasis/m-mdm build` 뒤 포털, 메뉴 변이는 새 mcm.db 로 mcm) → 픽스처 재투입 → **스펙 전체** → `cp` 되돌림)로 돌렸다. serial 모드라 첫 실패 뒤는 돌지 않으므로, 첫 실패가 대상 테스트인지로 판정했다. 첫 시도의 메뉴 변이 두 건은 무효였다 — 재기동 대기 함수가 새 로그가 만들어지기 전의 옛 로그에서 "Started" 를 읽었고, `DataInitializer` 는 `ApplicationRunner` 라 "Started" 뒤에 시드를 넣어 사용자 픽스처가 먼저 들어가 실패했다(로그인 단계 실패). 옛 로그를 지우고 "초기 데이터 삽입 완료" 로그를 기다리도록 고쳐 두 건만 다시 돌렸고, 로그인 뒤 메뉴 단계에서 실패하는 것을 확인했다. 끝난 뒤 백업 폴더에 남은 파일 0, `git status` 에 소스 변경 없음을 확인했다. 되돌린 뒤 새 mcm.db 의 메뉴·역할 매핑이 원래 값(위 B5 절)인 것도 확인했다. I33 의 "안 잡힘(보고)" 행(B3)은 이 두 행으로 덮였다.
 
 - B2 변이는 스크립트 하나(heavy.sh 한 번, Gradle 데몬 재사용, `--fail-fast`, 백업 사본 `dflow-bak/B2/` 로 되돌림)로 돌렸다. ruleMng 필터 변이는 `:now` 파라미터가 쿼리에 남도록 조건을 끄는 방식(`AND 1 = 0`·`1 = 1 OR`)으로 넣었다 — 파라미터를 지우면 Hibernate 가 바인드 오류로 빨강을 내어 규칙이 아니라 다른 이유로 잡힌다. `-q` 출력이라 실패한 메서드 이름은 남지 않았고, 표의 잡은 테스트 열은 대상 클래스에서 그 규칙을 보는 케이스다(각 변이에서 대상 클래스 1건 실패, 컴파일 오류 없음).
 
@@ -154,3 +179,9 @@
 - **B4** — `rc-previous` 문구는 `직전 RELEASED 버전 1 · 2026-01-01 00:00:00` 이다(설계 예시 `버전 1 · …` 앞에 codeConfirm 과 같은 "직전 RELEASED " 를 붙였다. 설계 예시 문자열을 부분으로 포함한다).
 - **B4** — `RuleVersionCard.tsx` 의 확정 이동 활성 조건에 소유자 조건을 넣지 않았다(I40 그대로). 비소유 DRAFT 도 확정 화면으로 넘어가고, 확정 화면·서버가 소유자를 판정한다. 이것을 RE1 추가 케이스("소유자가 아닌 DRAFT 도 확정 이동은 활성")로 고정했다.
 - **B4** — 기능설계서 목차는 ruleEdit 의 1~11 번호를 따르되 제목을 화면에 맞게 바꿨다(3 "편집(확정) 가능 여부", 4 "상단 바 (A-LIST)", 5 "영역").
+- **B5** — 픽스처를 **다시 넣을 수 있게** 만들었다. 맨 앞에서 `E2E_RC_*` 룰의 케이스·행·변수·시스템·버전·헤더를 지우고 다시 넣으며, 사전 도메인·컬럼은 같은 물리명이 이미 있으면 건너뛴다(`NOT EXISTS`). 설계 §3.4 는 "같은 mdm.db 로 다시 돌릴 수 없다" 고 했지만, e2e.md 「서버 프로세스」 가 서버 재기동 대신 픽스처 재투입을 권하고 변이 검증에서 스펙을 여러 번 돌려야 해서 바꿨다. 다른 픽스처(`mdm-ruleEdit-data.sql` 등)와 같은 mdm.db 에 넣어도 룰 ID 가 겹치지 않는다.
+- **B5** — T6 의 apply_from 을 설계의 `2026-10-01 00:00:00` 대신 `2030-01-01 00:00:00` 으로 했다. 오늘(2026-09-26) 기준 2026-10-01 은 며칠 뒤 과거가 되어 미래 적용 경고(`rc-future-warning`, 서버 `futureApplyFrom`) 단언이 실행 날짜에 따라 깨진다. 먼 미래 일시로 그 단언을 날짜와 무관하게 두었다. T4(2026-10-01)는 최초 버전이라 적용 순서가 면제이므로 날짜에 기대는 단언이 없어 그대로 두었다.
+- **B5** — T3·T4 를 테스트 하나로 이었다(설계 "(T3 에 이어)"). 확정 이동으로 열린 탭에서 그대로 검사한다.
+- **B5** — T7 의 선행 확정 요청은 `warningsAcknowledged: true`, `ver` 정수로 보낸다(06-05 선례는 false·문자열). 픽스처에 빈틈 경고가 있어 false 면 MDM014 로 선행 확정이 실패한다.
+- **B5** — 메뉴 항목은 보이는 것만 고른다(`.item-name:visible`). "버전 확정" leaf 가 마스터코드(codeConfirm) 아래에도 있기 때문이다.
+- **B5** — `dme-ruleConfirm-contract.png` 는 검사 직후(확정 버튼이 켜지기 전 순간)에 찍혀 확정 버튼이 옅게 보인다. 바로 다음 단언이 확정 버튼 활성을 기다려 통과하므로 동작 문제는 아니다.
