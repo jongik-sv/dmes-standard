@@ -1,0 +1,17 @@
+rule: 화면·CSV·API 세 경로는 `DataItemSaveCore`/`DataItemChecks` 공용 코드로 검사 1~7을 돈다(따로 구현하지 않는다)
+file: src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/segment/DataItemChecks.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:api:test --tests "com.dongkuk.dmes.mdm.common.segment.MasterDataLedgerJudgmentSqliteTest" --console=plain
+e2e: no
+--- find
+        boolean ok = switch (path) {
+            case SCREEN, CSV -> LockedMaruData.MDM.equals(data.sourceKind());
+            case API -> LockedMaruData.EXTERNAL.equals(data.sourceKind()) && callerSystem != null
+                    && callerSystem.equals(data.sourceSystem());
+        };
+--- replace
+        boolean ok = switch (path) {
+            case SCREEN -> LockedMaruData.MDM.equals(data.sourceKind());
+            case CSV -> true;
+            case API -> LockedMaruData.EXTERNAL.equals(data.sourceKind()) && callerSystem != null
+                    && callerSystem.equals(data.sourceSystem());
+        };
