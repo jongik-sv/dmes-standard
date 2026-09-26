@@ -29,3 +29,25 @@ design.md 「1. 접근 방식」의 결함 발견 처리 절차대로 기록한�
   `MasterDataLedgerJudgmentSqliteTest.CUST_화면_경로는_원천_불일치로_거부한다`·
   `CUST_CSV_경로도_원천_불일치로_거부한다`(B2)로 확인했다.
 - **범위 처리**: B2(design.md §3 B2-6)가 화면·CSV 거부(음성 케이스)만 확인하고 수신 API·판정은 범위 밖으로 남긴다.
+
+## DF-3 — DERIVE 룰의 결과 식이 참조하는 외부 변수는 실제로 원장에 심어 값 테스트를 돌리면 조용히 틀린 값을 낸다
+
+- **대상 기능 WP**: TSK-08-04(`RuleColumnsService`/`RuleDefinitionAssembler`, `mdm/lib`).
+- **재현 절차**: DERIVE 룰(예 SPD_JOIN)을 `ruleEdit.save`(part COLUMNS)로 등록하며 결과 열에 자기 자신이 선언하지 않은 이름
+  (예 `BASE_SPD`·`EXC_SPD`, 다른 룰의 결과나 컬럼 사전 물리명)을 참조하는 식(`IF(EXC_SPD == NULL, BASE_SPD, MIN(BASE_SPD, EXC_SPD))`)을
+  저장한다. `TB_MDM_RULE_ROW.CELLS`를 읽으면 `"ast"` 값이 중첩 JSON 객체가 아니라 이스케이프된 **문자열**로 이중 인코딩돼 있다
+  (`RuleColumnsService.checkDeriveExprs`의 `line.exprAst` 필드가 `String`이라 `Map.of("expr", ..., "ast", line.exprAst)`에 문자열이
+  그대로 들어간다 — `RuleCellsCodec` 주석 "ast 는 객체"를 어긴다). `ruleEdit.execute`(target VERSION, runCases=true)로 그 값을
+  숫자로 참조하는 케이스(`EXC_SPD`가 NULL이 아닌 분기, 예 `{"BASE_SPD":"90","EXC_SPD":"70"}` → 기대 `MIN(90,70)=70`)를 돌린다.
+- **기대 결과**: `BASE_SPD`·`EXC_SPD`가 선언 타입(NUMBER)으로 변환돼 `MIN`이 70을 낸다.
+- **실제 결과**: `RuleDefinitionAssembler.astOf(Object)`가 `instanceof Map` 검사에서 실패해 `null`을 돌려주고,
+  `InputContracts.compute`의 널 안전 분석이 그 결과 셀의 AST를 못 읽어 `RowContract.required()`·`optional()`이 **빈 리스트**가
+  된다. 그래서 `RuleEvaluator.resultCheck()`가 `BASE_SPD`·`EXC_SPD`를 선언 타입으로 변환하지 않고, 원시 JSON 문자열/배열이
+  그대로 EvalEx `MIN`에 들어가 **조용히 0**을 낸다(오류를 던지지 않는다 — `outcome:"OK"`, `pass:false`). `IF`의 참 분기(NULL
+  가드로 `EXC_SPD`를 참조하지 않는 경로)만 이 결함을 비켜 간다 — 식 결과가 `BASE_SPD` 값 그대로라 결과 열 자기 자신의 선언 타입
+  변환(`evaluateRow`의 바깥 `ValueConverter.toDeclared`)이 뒤늦게 문자열을 되돌리기 때문이다.
+- **범위 처리**: B3(design.md §3 B3-2)의 `RuleSetLifecycleOasisFlowTest`가 SPD_JOIN을 실제 화면 경로로 등록·확정하다 이 결함과
+  마주쳐, `MIN` 분기의 값 검증을 이 OASIS 시험에서 뺐다(참 분기만 케이스로 남긴다). `MIN` 분기의 값 자체는
+  `SampleRuleSetValueTest`(엔진 레벨 `evaluateSet`, 시험 코드 안에서 손으로 조립한 `RuleDefinition`)가 이미 확정했다 — 이 결함은
+  엔진 로직이 아니라 mdm/api의 저장·재조립 경로에만 있다. 재현·수정은 `RuleColumnsService.checkDeriveExprs`가 `exprAst`를
+  `Map<String,Object>`로 들고 있다가(또는 `RuleCellsCodec.write` 전에 역직렬화해) 저장하도록 고치는 별도 dev Task가 맡는다.
