@@ -1,0 +1,18 @@
+rule: MdmEngineConfig 의 CodeLookup·MasterLookup 빈은 등록하지 않는다(D-077, 프로덕션 불변)
+file: src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/engine/MdmEngineConfig.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:api:test --tests "com.dongkuk.dmes.mdm.itest.CodeDataRuleLedgerChainTest" --fail-fast --console=plain
+e2e: no
+--- find
+    @Bean
+    @ConditionalOnMissingBean
+    public MdmEvaluator mdmEvaluator(ObjectProvider<CodeLookup> codes, ObjectProvider<MasterLookup> masters,
+--- replace
+    // B3-M1(변이 검증용) — 운영 CodeLookup 빈을 실제로 등록해보면 D-077 을 확인하는 시험(W02 경고)이 빨개지는지 본다.
+    @Bean
+    public CodeLookup mutationTestCodeLookup() {
+        return id -> Optional.empty();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public MdmEvaluator mdmEvaluator(ObjectProvider<CodeLookup> codes, ObjectProvider<MasterLookup> masters,
