@@ -84,7 +84,7 @@
   "build_model_trial": false,
   "model": "sonnet",
   "last": {
-    "phase": "build",
+    "phase": "verify",
     "event": "done"
   },
   "build_gate": {
@@ -102,6 +102,54 @@
         "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
         "tests": 2274,
         "failures": 0
+      }
+    ],
+    "new_failures": []
+  },
+  "verify_findings": {
+    "spec": 0,
+    "tests": 1,
+    "review": 1
+  },
+  "verify_advisor": {
+    "audit": 0,
+    "writer": 0
+  },
+  "verify_gate": {
+    "head": "6ad7664d80ab3a5b9917ee68a980173721152c57",
+    "scope": "full",
+    "cmds": [
+      {
+        "cwd": ".",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3982,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 1064,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0,
+        "result": "pass"
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0,
+        "result": "pass"
       }
     ],
     "new_failures": []
