@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException;
+import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Violation;
 import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
 import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluatorFixtures;
 import kr.dongkuk.maru.mdm.engine.rule.fixture.SampleRules;
@@ -41,10 +42,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * 운영 설정(D22) 대조 — fixture 설정(D21, 캐시 경로는 같다)으로 확인한 판정이 {@code new MdmEvaluator(EngineLookups)} 로
- * 만든 운영 설정에서도 같은지 본다(TSK-03-03 design §3.6, 수용 기준 1·3·4).
- *
- * <p>①은 §6.15 값 테스트의 대표 사례(QLTY·COIL·PROD·BASE_SPD 각 1건)로 좁힌다 — 전 사례 대조는 이 재작업의 반려 사유
- * (캐시 연결)와 무관한 범위 확장이라 build-log 「설계 이탈」 에 적는다.
+ * 만든 운영 설정에서도 같은지 본다(TSK-03-03 design §3.6, 수용 기준 1·3·4). ①은 §6.15 값 테스트의 레코드 전부
+ * (QLTY Q1-Q7·COIL·PROD P1-P4·BASE_SPD B1-B3)를 매개변수화한다.
  */
 class ProductionConfigParityTest {
 
@@ -73,29 +72,73 @@ class ProductionConfigParityTest {
         return new MdmEvaluator(productionLookups());
     }
 
+    /** 룰 판정 결과 또는(예외면) 위반의 {@code Stage/Code} 목록. */
+    private record Outcome(RuleResult result, List<String> violations) {}
+
+    private static Outcome evaluate(MdmEvaluator evaluator, String ruleId, Map<String, Object> record) {
+        MdmRuleEngine engine = new MdmRuleEngine(evaluator, SampleRules.lookup());
+        try {
+            return new Outcome(engine.evaluate(ruleId, record, SampleRules.EVAL_TS), List.of());
+        } catch (EngineEvaluationException e) {
+            return new Outcome(null, e.violations().stream().map(v -> v.stage() + "/" + v.code()).toList());
+        }
+    }
+
+    // §6.15.1 QLTY_GRD_JDG(Q1-Q7)·§6.15.2 COIL_WGT_CALC·§6.15.3 PROD_WGT_CALC(P1-P4)·§6.15.4 BASE_SPD_LKP(B1-B3).
     static Stream<Arguments> sampleCases() {
         return Stream.of(
-                Arguments.of("QLTY_GRD_JDG", rec("COIL_THK", new BigDecimal("1.8"), "COIL_WID", new BigDecimal("1200"),
+                Arguments.of("Q1", "QLTY_GRD_JDG", rec("COIL_THK", new BigDecimal("1.8"), "COIL_WID", new BigDecimal("1200"),
                         "SURF_GRD", "A", "BASE_FCT", new BigDecimal("1.0"))),
-                Arguments.of("COIL_WGT_CALC", rec("COIL_THK", new BigDecimal("1.8"), "COIL_WID", new BigDecimal("1200"),
+                Arguments.of("Q2", "QLTY_GRD_JDG", rec("COIL_THK", new BigDecimal("1.8"), "COIL_WID", new BigDecimal("1200"),
+                        "SURF_GRD", "B", "BASE_FCT", new BigDecimal("1.0"))),
+                Arguments.of("Q3", "QLTY_GRD_JDG", rec("COIL_THK", new BigDecimal("2.5"), "COIL_WID", new BigDecimal("900"),
+                        "SURF_GRD", "A", "BASE_FCT", new BigDecimal("1.0"))),
+                Arguments.of("Q4", "QLTY_GRD_JDG", rec("COIL_THK", new BigDecimal("2.0"), "COIL_WID", new BigDecimal("900"),
+                        "SURF_GRD", "A", "BASE_FCT", new BigDecimal("1.0"))),
+                Arguments.of("Q5", "QLTY_GRD_JDG",
+                        rec("COIL_THK", new BigDecimal("3.0"), "COIL_WID", new BigDecimal("900"), "SURF_GRD", null)),
+                Arguments.of("Q6", "QLTY_GRD_JDG", rec("COIL_THK", new BigDecimal("2.5"), "COIL_WID", new BigDecimal("900"),
+                        "SURF_GRD", "A")),
+                Arguments.of("Q7", "QLTY_GRD_JDG", rec("COIL_THK", "1.8", "COIL_WID", 1200, "SURF_GRD", "A", "BASE_FCT", "1.0")),
+                Arguments.of("COIL", "COIL_WGT_CALC", rec("COIL_THK", new BigDecimal("1.8"), "COIL_WID", new BigDecimal("1200"),
                         "COIL_LEN", new BigDecimal("1500"), "SPEC_GRAV", new BigDecimal("7.85"))),
-                Arguments.of("PROD_WGT_CALC", rec("PROD_TYPE", "COIL", "CALC_BASIS", "LEN", "COIL_THK", new BigDecimal("1.8"),
-                        "COIL_WID", new BigDecimal("1200"), "COIL_LEN", new BigDecimal("1500"),
+                Arguments.of("P1", "PROD_WGT_CALC", rec("PROD_TYPE", "COIL", "CALC_BASIS", "LEN",
+                        "COIL_THK", new BigDecimal("1.8"), "COIL_WID", new BigDecimal("1200"),
+                        "COIL_LEN", new BigDecimal("1500"), "SPEC_GRAV", new BigDecimal("7.85"))),
+                Arguments.of("P2", "PROD_WGT_CALC", rec("PROD_TYPE", "COIL", "CALC_BASIS", "DIA",
+                        "COIL_WID", new BigDecimal("1200"), "COIL_OUT_DIA", new BigDecimal("1800"),
+                        "COIL_IN_DIA", new BigDecimal("610"), "COIL_VOID_RT", new BigDecimal("1.5"),
                         "SPEC_GRAV", new BigDecimal("7.85"))),
-                Arguments.of("BASE_SPD_LKP", rec("COIL_THK", new BigDecimal("0.65"), "TOP_RESIN_CD", "2A", "COAT_SIDE", "1")));
+                Arguments.of("P3", "PROD_WGT_CALC", rec("PROD_TYPE", "SHEET", "CALC_BASIS", null,
+                        "COIL_THK", new BigDecimal("0.8"), "COIL_WID", new BigDecimal("1219"),
+                        "SHEET_LEN", new BigDecimal("2438"), "SHEET_CNT", new BigDecimal("120"),
+                        "SPEC_GRAV", new BigDecimal("7.85"))),
+                Arguments.of("P4", "PROD_WGT_CALC", rec("PROD_TYPE", "SHEET", "CALC_BASIS", null,
+                        "COIL_THK", new BigDecimal("0.8"), "COIL_WID", new BigDecimal("1219"),
+                        "SHEET_LEN", new BigDecimal("2438"), "SPEC_GRAV", null)),
+                Arguments.of("B1", "BASE_SPD_LKP",
+                        rec("COIL_THK", new BigDecimal("0.65"), "TOP_RESIN_CD", "2A", "COAT_SIDE", "1")),
+                Arguments.of("B2", "BASE_SPD_LKP",
+                        rec("COIL_THK", new BigDecimal("1.1"), "TOP_RESIN_CD", "SF", "COAT_SIDE", "1")),
+                Arguments.of("B3", "BASE_SPD_LKP",
+                        rec("COIL_THK", new BigDecimal("0.3"), "TOP_RESIN_CD", "W1", "COAT_SIDE", "2")));
     }
 
     @ParameterizedTest(name = "{displayName} [{0}]")
     @MethodSource("sampleCases")
-    void 샘플_룰_판정이_운영_설정과_fixture_설정에서_같다(String ruleId, Map<String, Object> record) {
-        MdmRuleEngine fixture = new MdmRuleEngine(fixtureEvaluator(), SampleRules.lookup());
-        MdmRuleEngine production = new MdmRuleEngine(productionEvaluator(), SampleRules.lookup());
-        RuleResult a = fixture.evaluate(ruleId, record, SampleRules.EVAL_TS);
-        RuleResult b = production.evaluate(ruleId, record, SampleRules.EVAL_TS);
-        assertSameResults(a.results(), b.results());
-        assertEquals(a.hits().stream().map(RuleResult.Hit::rowId).toList(), b.hits().stream().map(RuleResult.Hit::rowId).toList());
-        assertEquals(a.defaultApplied(), b.defaultApplied());
-        assertEquals(a.warnings().stream().map(w -> w.code()).toList(), b.warnings().stream().map(w -> w.code()).toList());
+    void 샘플_룰_판정이_운영_설정과_fixture_설정에서_같다(String caseId, String ruleId, Map<String, Object> record) {
+        Outcome a = evaluate(fixtureEvaluator(), ruleId, record);
+        Outcome b = evaluate(productionEvaluator(), ruleId, record);
+        assertEquals(a.violations(), b.violations(), caseId);
+        if (!a.violations().isEmpty()) {
+            return;
+        }
+        assertSameResults(a.result().results(), b.result().results());
+        assertEquals(a.result().hits().stream().map(RuleResult.Hit::rowId).toList(),
+                b.result().hits().stream().map(RuleResult.Hit::rowId).toList(), caseId);
+        assertEquals(a.result().defaultApplied(), b.result().defaultApplied(), caseId);
+        assertEquals(a.result().warnings().stream().map(w -> w.code()).toList(),
+                b.result().warnings().stream().map(w -> w.code()).toList(), caseId);
     }
 
     @Test
@@ -103,26 +146,38 @@ class ProductionConfigParityTest {
         MdmRuleEngine fixture = new MdmRuleEngine(fixtureEvaluator(), SampleRules.lookup());
         MdmRuleEngine production = new MdmRuleEngine(productionEvaluator(), SampleRules.lookup());
 
-        // S1(예외 없음): thk=1.1, resin=SF, side=1, COIL_WID=1000.
-        Map<String, Object> s1 = rec("COIL_THK", new BigDecimal("1.1"), "TOP_RESIN_CD", "SF", "COAT_SIDE", "1",
-                "COIL_WID", new BigDecimal("1000"));
+        // §6.15.5 S1: 0.65 / 2A / 1 / COIL_WID 1250.
+        Map<String, Object> s1 = rec("COIL_THK", new BigDecimal("0.65"), "TOP_RESIN_CD", "2A", "COAT_SIDE", "1",
+                "COIL_WID", new BigDecimal("1250"));
         RuleSetResult a1 = fixture.evaluateSet("LS_A3", s1, SampleRules.EVAL_TS);
         RuleSetResult b1 = production.evaluateSet("LS_A3", s1, SampleRules.EVAL_TS);
         assertSameResults(a1.finalValues(), b1.finalValues());
 
-        // S2(1행 예외만): thk=0.65, resin=F, side=1, COIL_WID=1300.
-        Map<String, Object> s2 = rec("COIL_THK", new BigDecimal("0.65"), "TOP_RESIN_CD", "F", "COAT_SIDE", "1",
-                "COIL_WID", new BigDecimal("1300"));
+        // §6.15.5 S2: 같은 값, COIL_WID 1000(무적중).
+        Map<String, Object> s2 = rec("COIL_THK", new BigDecimal("0.65"), "TOP_RESIN_CD", "2A", "COAT_SIDE", "1",
+                "COIL_WID", new BigDecimal("1000"));
         RuleSetResult a2 = fixture.evaluateSet("LS_A3", s2, SampleRules.EVAL_TS);
         RuleSetResult b2 = production.evaluateSet("LS_A3", s2, SampleRules.EVAL_TS);
         assertSameResults(a2.finalValues(), b2.finalValues());
 
-        // S4(폐기 세트): 두 설정 모두 SET_DEPRECATED, 룰 조회 0회(원 구현이 이미 보장 — 여기선 위반 코드만 대조).
-        EngineEvaluationException ea = assertThrows(EngineEvaluationException.class,
+        // §6.15.5 S3: COAT_SIDE·COIL_WID 없음 → 두 설정 모두 같은 MISSING_KEY 위반.
+        Map<String, Object> s3 = rec("COIL_THK", new BigDecimal("0.65"), "TOP_RESIN_CD", "2A");
+        EngineEvaluationException e3a = assertThrows(EngineEvaluationException.class,
+                () -> fixture.evaluateSet("LS_A3", s3, SampleRules.EVAL_TS));
+        EngineEvaluationException e3b = assertThrows(EngineEvaluationException.class,
+                () -> production.evaluateSet("LS_A3", s3, SampleRules.EVAL_TS));
+        assertEquals(codes(e3a), codes(e3b));
+
+        // §6.15.5 S4: 폐기 세트 WID_OLD — 두 설정 모두 SET_DEPRECATED.
+        EngineEvaluationException e4a = assertThrows(EngineEvaluationException.class,
                 () -> fixture.evaluateSet("WID_OLD", rec(), SampleRules.EVAL_TS));
-        EngineEvaluationException eb = assertThrows(EngineEvaluationException.class,
+        EngineEvaluationException e4b = assertThrows(EngineEvaluationException.class,
                 () -> production.evaluateSet("WID_OLD", rec(), SampleRules.EVAL_TS));
-        assertEquals(ea.violations().get(0).code(), eb.violations().get(0).code());
+        assertEquals(codes(e4a), codes(e4b));
+    }
+
+    private static List<String> codes(EngineEvaluationException e) {
+        return e.violations().stream().map(Violation::code).map(Object::toString).toList();
     }
 
     @Test

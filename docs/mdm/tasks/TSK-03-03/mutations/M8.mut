@@ -6,8 +6,4 @@ e2e: no
         MdmRuleEngine engine = new MdmRuleEngine(evaluator, new SingleRuleDefinitionLookup(def));
 --- replace
         MdmRuleEngine engine = new MdmRuleEngine(evaluator, new SingleRuleDefinitionLookup(def));
-        try {
-            new com.ezylang.evalex.Expression("1", evaluator.configuration());
-        } catch (com.ezylang.evalex.parser.ParseException ignored) {
-            // 변이 검증 전용 — 컴파일만 맞추면 된다
-        }
+        new com.ezylang.evalex.Expression("1", evaluator.configuration());
