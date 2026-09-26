@@ -2,11 +2,11 @@
   "tsk": "TSK-03-03",
   "order": "e1205c87-681d-44be-90b1-0965067683f3",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "build",
+  "phase": "verify",
   "pred_note": "선행 mdm/TSK-03-01: reached=true·head_sha 없음 → 행 G 갈래 2, pred-reflected.sh REFLECTED → origin/dev 기점 스택 없이 진행",
   "last": {
-    "phase": "design",
-    "event": "design.ok"
+    "phase": "build",
+    "event": "build.ok"
   },
   "model": "sonnet",
   "design_commit": "3d7fb0c2",
@@ -149,5 +149,27 @@
       "mutation": "I1·I3·I8·I10·I12·I17·I20·I22·I23·I28·I31·I34 전체 엔진 스위트로 12/12 빨강, 원복 확인"
     },
     "refactor": "skipped: 워커(무인) 실행 — dev-discipline Phase 05 \"무인 모드에서는 실행하지 않는다\""
+  },
+  "build_gate": {
+    "head": "fa259b46",
+    "scope": "module",
+    "cmds": [
+      {
+        "cwd": ".",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :maru-mdm-engine:test :mdm:test --no-daemon --console=plain && cd ../frontend && pnpm --filter @dk-oasis/m-mdm test && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 4666,
+        "junit": 3602,
+        "vitest": 1064,
+        "failures": 0
+      },
+      {
+        "cwd": ".",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 2254,
+        "failures": 0
+      }
+    ],
+    "new_failures": [],
+    "mutation": "M1-M12 12/12 빨강(I41-I48·개정 I28), 원복 확인"
   }
 }

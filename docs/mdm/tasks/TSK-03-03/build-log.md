@@ -14,6 +14,8 @@
 |---|---|---|---|---|---|---|
 | 2026-09-26T11:16:52Z | 기준선 | full 5줄(testAll·m-mdm test·m-mdm lint·shared test:unit·OASIS 계약) | 전체 | 70 | - | 기준선 측정 |
 | 2026-09-26T11:40:00Z | 기준선 | 모듈: `:maru-mdm-engine:test :mdm:test` + m-mdm test + OASIS / `:mdm:test` + OASIS | 모듈 | 10 | - | 기준선 측정 |
+| 2026-09-26T12:19:30Z | build | `:maru-mdm-engine:test :mdm:test` + m-mdm test + OASIS | 모듈 | 19 | 2.44 | 통과 |
+| 2026-09-26T12:19:42Z | build | `:mdm:test` + OASIS | 모듈 | 3 | 2.39 | 통과 |
 | 2026-09-26T21:02Z | Build B1 | `:maru-mdm-engine:test :mdm:test --no-daemon --console=plain` | 모듈(engine+mdm lib+mdm api) | 61 | - | 통과(JUnit 1337+1158+1096=3591건, 실패 0. 기준선 3574 대비 +17, 미감소) |
 | 2026-09-26T21:05Z | Build B1 재확인 | 위와 동일(변이 11개 되돌린 뒤 재확인) | 모듈 | 9 | - | 통과(BUILD SUCCESSFUL, 재컴파일 확인) |
 | 2026-09-26T21:20Z | Build B1 | `:maru-mdm-engine:test --tests ProductionConfigParityTest --tests ExpressionCacheWiringTest`(§6.15 전 사례 반영 뒤) | 좁힌 | 1 | - | 통과(ParityTest 18건·WiringTest 7건, 실패 0) |
