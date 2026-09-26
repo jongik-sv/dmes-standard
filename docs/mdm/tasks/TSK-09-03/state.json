@@ -2,5 +2,59 @@
   "tsk": "TSK-09-03",
   "order": "5e57e895-a95c-45bf-8582-3bb5a76f898b",
   "api_base": "https://wbs-web.vercel.app",
-  "phase": "ready"
+  "phase": "design",
+  "baseline": {
+    "base": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada",
+    "docker": "banned:spawn",
+    "failures": 0,
+    "tests": 5191,
+    "cmds": [
+      {
+        "cwd": "",
+        "cmd": "cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew testAll --no-daemon --console=plain",
+        "tests": 3959,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada-5a99c8ef20f3",
+        "measured_at": "2026-09-26T05:41:05Z"
+      },
+      {
+        "cwd": "",
+        "cmd": "cd src/frontend && pnpm build:libs && pnpm --filter @dk-oasis/m-mdm test",
+        "tests": 1064,
+        "failures": 0,
+        "source": "cache",
+        "cache_key": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada-70ad4dddc2e4",
+        "measured_at": "2026-09-26T05:42:23Z"
+      },
+      {
+        "cwd": "",
+        "cmd": "cd src/frontend && pnpm --filter @dk-oasis/m-mdm lint",
+        "tests": 0,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada-79066bca5c4b"
+      },
+      {
+        "cwd": "",
+        "cmd": "cd src/frontend && pnpm test:unit:shared",
+        "tests": 168,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada-85eac351cb59"
+      },
+      {
+        "cwd": "",
+        "cmd": "python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .",
+        "tests": 0,
+        "failures": 0,
+        "source": "measured",
+        "cache_key": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada-773190afc491"
+      }
+    ]
+  },
+  "build_model_base": "sonnet",
+  "build_model_trial": false,
+  "branch_base": "fc8e875c9f648eca94a2675fb5eb6057b13c0ada",
+  "model": "sonnet"
 }
