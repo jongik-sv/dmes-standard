@@ -115,5 +115,14 @@
       }
     ],
     "new_failures": []
+  },
+  "verify_advisor": {
+    "writer": 0,
+    "audit": 2
+  },
+  "verify_findings": {
+    "spec": 1,
+    "review": 1,
+    "tests": 5
   }
 }
