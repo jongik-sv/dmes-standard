@@ -1,0 +1,14 @@
+rule: §6.17 예외 변환 표 넷째 행 — 그 밖의 RuntimeException e(평가기가 싸지 않고 흘린 것, 예: requireNonNull) → throw new ExpressionFailure(e)
+file: src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/rule/ExpressionRunner.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :maru-mdm-engine:test --tests "kr.dongkuk.maru.mdm.engine.rule.ExpressionCacheWiringTest" --fail-fast --console=plain
+e2e: no
+--- find
+            throw new ExpressionFailure(f);
+        } catch (RuntimeException e) {
+            throw new ExpressionFailure(e);
+        }
+    }
+--- replace
+            throw new ExpressionFailure(f);
+        }
+    }

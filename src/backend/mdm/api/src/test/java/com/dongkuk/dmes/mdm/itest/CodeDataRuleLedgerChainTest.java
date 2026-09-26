@@ -226,7 +226,7 @@ class CodeDataRuleLedgerChainTest {
         Stored stored = storedRuleDefinitions.read("CHAIN_JDG", 1).orElseThrow();
         Assembled assembled = storedRuleDefinitions.assemble("CHAIN_JDG", "DERIVE", stored);
         assertTrue(assembled.failures().isEmpty(), assembled.failures().toString());
-        MdmRuleEngine engine = new MdmRuleEngine(evaluator.configuration(), new SingleRuleDefinitionLookup(assembled.definition()));
+        MdmRuleEngine engine = new MdmRuleEngine(evaluator, new SingleRuleDefinitionLookup(assembled.definition()));
         Instant ts = Instant.now();
 
         RuleCaseJudge.Evaluated hit = RuleCaseJudge.evaluate(engine, "CHAIN_JDG", Map.of("ITEM_KEY", ledgerItemCode), ts);

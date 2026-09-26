@@ -130,7 +130,7 @@ public class RuleValueTestService {
         RuleDefinition def = assembled.definition();
         Integer defaultRowId = def.rows().stream().filter(r -> r.rowKind() == RowKind.DEFAULT).map(RuleRow::rowId).findFirst().orElse(null);
 
-        MdmRuleEngine engine = new MdmRuleEngine(evaluator.configuration(), new SingleRuleDefinitionLookup(def));
+        MdmRuleEngine engine = new MdmRuleEngine(evaluator, new SingleRuleDefinitionLookup(def));
         Instant ts = clock.instant().truncatedTo(ChronoUnit.SECONDS);
         Evaluated e = evaluate(engine, id, input, ts);
 

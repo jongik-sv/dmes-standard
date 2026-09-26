@@ -1,0 +1,8 @@
+rule: I48 — MdmEvaluator 의 공개 생성자는 (EngineLookups)·(EngineLookups, Duration) 둘, 새 생성자는 패키지 전용
+file: src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/expr/MdmEvaluator.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :maru-mdm-engine:test --tests "kr.dongkuk.maru.mdm.engine.rule.ExpressionCacheWiringTest" --fail-fast --console=plain
+e2e: no
+--- find
+    MdmEvaluator(ExpressionConfiguration configuration, Set<String> businessFunctionNames, Duration timeout) {
+--- replace
+    public MdmEvaluator(ExpressionConfiguration configuration, Set<String> businessFunctionNames, Duration timeout) {

@@ -1,29 +1,41 @@
 package kr.dongkuk.maru.mdm.engine.rule;
 
-import com.ezylang.evalex.EvaluationException;
-import com.ezylang.evalex.Expression;
-import com.ezylang.evalex.config.ExpressionConfiguration;
+import com.ezylang.evalex.BaseException;
 import com.ezylang.evalex.data.EvaluationValue;
-import com.ezylang.evalex.parser.ParseException;
+import java.time.Instant;
 import java.util.Map;
+import java.util.Objects;
+import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
 
 /**
- * EvalEx 를 부르는 유일한 곳(TSK-03-03 design §2.1). 평가마다 {@code new Expression(text, config)} 를 만든다.
- * 컴파일 캐시 + {@code copy()} 는 TSK-03-02 몫이라 여기에 끼워 넣는다(D17). 새 인스턴스 평가라 스레드 안전하다.
+ * EvalEx 를 부르는 유일한 곳(TSK-03-03 design §2.1·§6.17). 공유 {@link MdmEvaluator} 의 컴파일 캐시로 평가한다
+ * (D17 개정·D19·D20) — 캐시는 평가기 인스턴스에 있고 엔진 인스턴스와 무관하다.
  */
 final class ExpressionRunner {
 
-    private final ExpressionConfiguration configuration;
+    private final MdmEvaluator evaluator;
 
-    ExpressionRunner(ExpressionConfiguration configuration) {
-        this.configuration = configuration;
+    ExpressionRunner(MdmEvaluator evaluator) {
+        this.evaluator = Objects.requireNonNull(evaluator, "evaluator");
     }
 
-    /** 값 맵은 null 값을 담을 수 있어야 한다(E2). {@code Error} 는 잡지 않는다. */
-    EvaluationValue run(String text, Map<String, Object> values) throws ExpressionFailure {
+    /**
+     * 값 맵은 null 값을 담을 수 있어야 한다(E2). {@code Error} 는 잡지 않는다(I43). 두 {@code ExpressionFailure} 의
+     * 이름이 같으므로(F13d) expr 쪽은 정규 이름으로 적는다.
+     */
+    EvaluationValue run(String text, Map<String, Object> values, Instant evalTs) throws ExpressionFailure {
         try {
-            return new Expression(text, configuration).withValues(values).evaluate();
-        } catch (ParseException | EvaluationException | RuntimeException e) {
+            return evaluator.evaluate(text, values, evalTs);
+        } catch (kr.dongkuk.maru.mdm.engine.expr.ExpressionFailure f) {
+            Throwable cause = f.getCause();
+            if (cause instanceof Error error) {
+                throw error;
+            }
+            if (cause instanceof BaseException || cause instanceof RuntimeException) {
+                throw new ExpressionFailure(cause);
+            }
+            throw new ExpressionFailure(f);
+        } catch (RuntimeException e) {
             throw new ExpressionFailure(e);
         }
     }

@@ -35,6 +35,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException;
+import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluatorFixtures;
 import kr.dongkuk.maru.mdm.engine.rule.fixture.InMemoryDefinitionLookup;
 import kr.dongkuk.maru.mdm.engine.rule.fixture.TestExpressionConfig;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.CollectAgg;
@@ -51,7 +52,7 @@ import org.junit.jupiter.api.Test;
 class HitPolicyTest {
 
     private final InMemoryDefinitionLookup lookup = new InMemoryDefinitionLookup();
-    private final MdmRuleEngine engine = new MdmRuleEngine(TestExpressionConfig.create(), lookup);
+    private final MdmRuleEngine engine = new MdmRuleEngine(MdmEvaluatorFixtures.of(TestExpressionConfig.create()), lookup);
 
     private RuleResult run(RuleDefinition d, Map<String, Object> record) {
         lookup.add(CellTextGenerator.withTexts(d, x -> null));

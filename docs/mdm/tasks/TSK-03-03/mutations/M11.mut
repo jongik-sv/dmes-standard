@@ -1,0 +1,8 @@
+rule: I28(개정) — EvalEx 에 넣는 EVAL_TS 는 MdmEvaluator.evaluate 도 같은 절삭 Instant 값으로 한 번 더 한다(D23)
+file: src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/expr/MdmEvaluator.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :maru-mdm-engine:test --tests "kr.dongkuk.maru.mdm.engine.rule.RuleEngineStageTest" --fail-fast --console=plain
+e2e: no
+--- find
+            copy.with(ReservedNames.EVAL_TS, ts);
+--- replace
+            copy.with(ReservedNames.EVAL_TS, java.time.LocalDateTime.ofInstant(ts, java.time.ZoneId.of("Asia/Seoul")));

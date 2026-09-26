@@ -15,6 +15,7 @@ import static kr.dongkuk.maru.mdm.engine.rule.fixture.RuleFixtures.row;
 import static kr.dongkuk.maru.mdm.engine.rule.fixture.RuleFixtures.val;
 import static kr.dongkuk.maru.mdm.engine.rule.fixture.RuleFixtures.violations;
 import static kr.dongkuk.maru.mdm.engine.rule.fixture.RuleFixtures.vts;
+import static kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.DataType.BOOLEAN;
 import static kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.DataType.NUMBER;
 import static kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.DataType.STRING;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -24,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.util.List;
 import java.util.Map;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException;
+import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluatorFixtures;
 import kr.dongkuk.maru.mdm.engine.rule.fixture.InMemoryDefinitionLookup;
 import kr.dongkuk.maru.mdm.engine.rule.fixture.TestExpressionConfig;
 import kr.dongkuk.maru.mdm.engine.rule.fixture.TestFunctions;
@@ -41,7 +43,7 @@ class ExpressionVariableTest {
     private final TestFunctions.CountingFn counter = new TestFunctions.CountingFn();
     private final InMemoryDefinitionLookup lookup = new InMemoryDefinitionLookup();
     private final MdmRuleEngine engine = new MdmRuleEngine(
-            TestExpressionConfig.create(new TestFunctions(), Map.of("COUNT_CALL", counter)), lookup);
+            MdmEvaluatorFixtures.of(TestExpressionConfig.create(new TestFunctions(), Map.of("COUNT_CALL", counter))), lookup);
 
     private RuleDefinition add(RuleDefinition d) {
         RuleDefinition filled = CellTextGenerator.withTexts(d, x -> null);
@@ -119,5 +121,21 @@ class ExpressionVariableTest {
         rule("E6", "STR_LEFT(SPEC_NM, 1)", STRING);
         RuleResult r = engine.evaluate("E6", rec("SPEC_NM", "ABC"), TS);
         assertEquals(List.of("R"), List.copyOf(r.results().keySet()));
+    }
+
+    /**
+     * 값 맵의 {@code EVAL_TS}(D23)는 참조 변수 NULL 검사가 읽는 같은 맵에 있다(F13j) — 식 변수가 EVAL_TS 를 참조 변수로
+     * 둬도 NULL 로 건너뛰지 않고 평가한다(I46).
+     */
+    @Test
+    void 참조_변수에_EVAL_TS_가_있어도_식_변수를_평가한다() {
+        add(decision("E7", 1, HitPolicy.FIRST, FROM,
+                List.of(exprVar(9, DispType.ONE, "EVAL_TS != NULL", List.of("EVAL_TS"), BOOLEAN, 1),
+                        resultVar(2, DispType.VALUE, "R", STRING, 1)),
+                contract(List.of()),
+                row(1, 1, 9, op("EQ", "TRUE"), 2, val("hit"))));
+        RuleResult r = engine.evaluate("E7", rec(), TS);
+        assertEquals("hit", r.results().get("R"));
+        assertEquals(List.of(1), hitRows(r));
     }
 }

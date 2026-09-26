@@ -131,7 +131,7 @@ public class RuleConfirmChecks {
         }
         RuleDefinition def = stored.assemble(id, ruleKind, s).definition();
         Integer defaultRowId = def.rows().stream().filter(r -> r.rowKind() == RowKind.DEFAULT).map(RuleRow::rowId).findFirst().orElse(null);
-        MdmRuleEngine engine = new MdmRuleEngine(evaluator.configuration(), new SingleRuleDefinitionLookup(def));
+        MdmRuleEngine engine = new MdmRuleEngine(evaluator, new SingleRuleDefinitionLookup(def));
         Instant ts = clock.instant().truncatedTo(ChronoUnit.SECONDS);
         return cases.stream().map(c -> RuleCaseJudge.runCase(engine, id, c, ts, defaultRowId)).toList();
     }

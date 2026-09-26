@@ -1,0 +1,12 @@
+rule: I28(개정) — EVAL_TS 는 초 미만을 자른 Instant 다. 캐시 경로(주입 평가기)에서도 절삭 값이 RuleResult.evalTs·lookup 에 넘어간다
+file: src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/rule/MdmRuleEngine.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :maru-mdm-engine:test --tests "kr.dongkuk.maru.mdm.engine.rule.RuleEngineStageTest" --fail-fast --console=plain
+e2e: no
+--- find
+    private static Instant truncate(Instant evalTs) {
+        return Objects.requireNonNull(evalTs, "evalTs").truncatedTo(ChronoUnit.SECONDS);
+    }
+--- replace
+    private static Instant truncate(Instant evalTs) {
+        return Objects.requireNonNull(evalTs, "evalTs");
+    }
