@@ -237,7 +237,7 @@ design.md I3(차원별 기준 단위 공유).
 | ID | 항목 | 영향도 | 후속 조치 | 상태 |
 |---|---|---|---|---|
 | GAP-001 | 본 화면은 As-Is 가 없어 분석리포트·G1~G7 게이트가 성립하지 않는다(DEC-001 과 동일 사유) | 높음 | TSK-04-02 design.md 담당자 확인 필요 결정 D14 로 기록, 기능설계서 1종만 작성 | resolved(문서화) |
-| GAP-002 | MSSQL 의 `UNIT_CODE`/`BASE_UNIT`/`DIMENSION` 이 비유니코드 콜레이션이라 한글을 그대로 저장하면 값이 뭉개질 수 있었다(TSK-04-01 이 물려준 기존 스키마의 결함) | 높음 | TSK-04-02 design.md D11 로 ASCII 제한 + FE 라벨맵으로 해결 | resolved(설계 반영) |
+| GAP-002 | `UNIT_CODE`/`BASE_UNIT`/`DIMENSION` 은 코드 칼럼이라 한글 값을 저장하는 것을 전제하지 않는다(TSK-04-01 이 물려준 기존 스키마) | 높음 | TSK-04-02 design.md D11 로 ASCII 제한 + FE 라벨맵으로 해결 | resolved(설계 반영) |
 | GAP-003 | 권한 표(§8)의 열이 템플릿 기본(ADMIN/MANAGER/USER)과 다르다 — mdm 은 2역할 모델이다 | 낮음 | 열을 `SYSADMIN`/`MDM_STD_ADMIN`/`MDM_STEWARD` 로 대체(본 문서 §8) | resolved |
 
 ### 11.2 검토한 대안
@@ -245,5 +245,5 @@ design.md I3(차원별 기준 단위 공유).
 | 대안 | 장점 | 단점 | 채택 여부 | 사유 |
 |---|---|---|---|---|
 | 차원별 기준 단위를 `TB_MDM_DIMENSION` 마스터로 명시 관리 | 기준 단위 조회가 단순해짐 | 신규 테이블·화면 필요, 이번 범위(V4 = 인덱스 하나) 초과 | X | TSK-04-02 design.md D2 — 새 차원 첫 등록 행이 스스로 기준 단위가 되는 규칙으로 대체 |
-| `UNIT_CODE`/`DIMENSION` 을 MSSQL `NVARCHAR` 로 바꿔 한글을 직접 저장 | 화면이 DB 값을 그대로 보여줄 수 있음 | `UNIT_CODE` 가 PK·FK 대상이라 재작업 범위가 큼 | X | TSK-04-02 design.md D11 — ASCII 코드 + FE 라벨맵 채택 |
+| `UNIT_CODE`/`DIMENSION` 에 한글을 직접 저장 | 화면이 DB 값을 그대로 보여줄 수 있음 | `UNIT_CODE` 가 PK·FK 대상이라 재작업 범위가 큼 | X | TSK-04-02 design.md D11 — ASCII 코드 + FE 라벨맵 채택 |
 | 금지 단위 코드를 관리 테이블로 운영자가 수정 가능하게 함 | 유연함 | 스키마·화면 추가로 범위 초과, 02 설계 문서의 목록이 고정 개념(달력 의존)이라 실익 적음 | X | TSK-04-02 design.md D3 — 코드 상수로 하드코딩 |

@@ -167,9 +167,5 @@
     {"table": "TB_MDM_RULE_VAR", "name": "FK_TB_MDM_RULE_VAR_VER"},
     {"table": "TB_MDM_RULE_ROW", "name": "FK_TB_MDM_RULE_ROW_VER"}
   ],
-  "sqlite_only_checks_comment": "REQUIRED(BOOLI) CK 는 SQLite 에만 있다(MSSQL 은 BIT). §6.0 비대칭.",
-  "sqlite_only_checks": [
-    {"table": "TB_MDM_COLUMN", "name": "CK_TB_MDM_COLUMN_REQUIRED"}
-  ],
   "autoincrement_tables": ["TB_MDM_TERM","TB_MDM_DOMAIN","TB_MDM_COLUMN","TB_MDM_LAYOUT","TB_MDM_CODE_RECV","TB_MDM_DATA_RECV","TB_MDM_RULE_RECV"]
 }

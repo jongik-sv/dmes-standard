@@ -26,7 +26,7 @@
 | 언어·런타임 | Java 21, Spring Boot 4.0.6, Gradle 9.3.1 wrapper(`src/backend/gradlew`) | `src/backend/mcm/build.gradle`, wrapper properties |
 | 프레임워크 | cactus-core 1.0.22-SNAPSHOT(보안·JWT·다중 DS/TX), OASIS 5.1.1(BPMN 서비스) | 각 `build.gradle` |
 | 영속성 | JPA(엔티티·Repository) + JPA native 쿼리(방언별 SQL). MyBatis 는 쓰지 않는다 | backend-standard 04 MES 모듈 규칙, [명명·방언 규칙](naming-dialect-rules.md) §4 |
-| DB | 로컬 SQLite, local-db·운영 MSSQL(WildFly JNDI), 테스트 H2 | `application-*.yml` |
+| DB | 로컬·테스트 SQLite. 운영 DB 는 미정(WildFly JNDI 프로파일만 둔다, [ADR-0004](adr/0004-drop-mssql-production-assumption.md)) | `application-*.yml` |
 | 식 엔진 | EvalEx 3.7.0 (precision 68, HALF_EVEN, allowOverwriteConstants=false, 시간대 Asia/Seoul·로캘 ROOT 고정) | 06, evalex-guide, [engine-contract.md](engine-contract.md) |
 | 임베딩(용어 유사어 2차) | KURE-v1 ONNX INT8 + ONNX Runtime Java 1.30.0(CPU) + DJL tokenizers 0.38.0, CLS 풀링·L2. mdm 서버 모듈에만 둔다(엔진 jar 금지). 저장은 원장 칼럼 + 서버 메모리 전수 비교 | 02 「유사어 추천 방식」, [term-embedding.md](term-embedding.md) |
 | 프론트 | Next.js 16.1.6(App Router, m-mcm), React 19, TypeScript 5.9, Mantine 9, AG Grid 33, decimal.js | `m-mcm/package.json`, `shared/package.json` |
@@ -57,17 +57,19 @@
 
 확정 규칙표(2026-09-24, TSK-02-01): [naming-dialect-rules.md](naming-dialect-rules.md) §3. 아래 표는 요약이며 충돌하면 규칙표가 우선한다.
 
-| 설계 문법 | SQLite(로컬) | MSSQL(운영) |
-|---|---|---|
-| `UPDATE … RETURNING` (배포 순번·식별자 발급) | `RETURNING` 지원(3.35+) | `OUTPUT inserted.*` |
-| JSONB (`TB_MDM_RULE_ROW.cells`, `TB_MDM_RULE_SET.rule_ids` 등) | TEXT + `json_each` | `NVARCHAR(MAX)` + `ISJSON` CHECK, `OPENJSON` |
-| REPEATABLE READ 한 스냅샷 읽기 | WAL 읽기 트랜잭션 | `SNAPSHOT` 격리 수준 |
-| `vector` (용어 임베딩) | `BLOB`(float32 LE 4,096바이트) | `VARBINARY(4096)`(네이티브 `VECTOR` 는 SQL Server 2025 이상 전용이라 쓰지 않음) — [term-embedding.md](term-embedding.md) |
-| 재귀 CTE(영향도·상속 트리) | 지원 | 지원(RECURSIVE 키워드 없음 — 공통 문안은 WITH + UNION ALL) |
+운영 DB 는 미정이라 방언 열은 SQLite(로컬·테스트) 하나다. 운영 DB 가 정해지면 열을 더한다.
+
+| 설계 문법 | SQLite(로컬·테스트) |
+|---|---|
+| `UPDATE … RETURNING` (배포 순번·식별자 발급) | `RETURNING` 지원(3.35+) |
+| JSONB (`TB_MDM_RULE_ROW.cells`, `TB_MDM_RULE_SET.rule_ids` 등) | TEXT + `json_valid` CHECK, `json_each` |
+| REPEATABLE READ 한 스냅샷 읽기 | WAL 읽기 트랜잭션 |
+| `vector` (용어 임베딩) | `BLOB`(float32 LE 4,096바이트). DB 벡터 타입·확장은 쓰지 않는다 — [term-embedding.md](term-embedding.md) |
+| 재귀 CTE(영향도·상속 트리) | 지원(공통 문안은 `RECURSIVE` 없이 WITH + UNION ALL) |
 
 ### 4.3 스키마 관리
-- 새 모듈이므로 Flyway 를 쓴다. 위치 `mdm/api/src/main/resources/db/migration/mdm/{sqlite,mssql}` (mqc 관례).
-- 번호는 두 방언 합집합에서 채번한다: `flyway-migration-add` 스킬.
+- 새 모듈이므로 Flyway 를 쓴다. 위치 `mdm/api/src/main/resources/db/migration/mdm/sqlite` (mqc 관례). 운영 DB 가 정해지면 방언 폴더를 더한다.
+- 번호는 기존 최대 버전 다음으로 채번한다.
 - 테이블 명명(사용자 결정 2026-09-23): 원천 설계의 `MD_*` 를 저장소 규칙 `TB_{모듈}_*` 에 맞춰 **`TB_MDM_*`** 로 바꾼다. 예: `MD_UNIT` → `TB_MDM_UNIT`, `MD_CODE_ITEM` → `TB_MDM_CODE_ITEM`.
   - 원천 설계 문서·HTML 시안·sql 도 2026-09-23 에 `TB_MDM_*` 로 바꿨다(백업: `/Users/jji/project/mdm/old/basic-before-tb-mdm-rename-2026-09-23.tar.gz`).
   - 확정(2026-09-24, TSK-02-01): 식별자 사전에 mdm 모듈을 등재하고 §A.12.7 에 mdm 대문자 예외(`TB_MDM_{역할}`, 칼럼 UPPER_SNAKE)를 둔다. 감사 칼럼 자동 주입(`McmAuditStatementInspector`)은 `TB_MDM_*` 에 적용하지 않는다 — 감사 9칼럼은 `CactusAuditEntity` 리스너가 채운다. [ADR-0001](adr/0001-physical-naming-audit-dialect.md)
@@ -125,13 +127,13 @@
 | T3 | 로컬 포트 8096 | 스캐폴드 |
 | T4 | 결재·배포·수신은 이번에 구현하지 않는다(PRD §2 규칙 7). 배포 대상·순번·수신 로그 테이블은 설계대로 만들되 코드는 쓰지 않는다 | **확정** 2026-09-24 — [ADR-0002](adr/0002-version-confirm-without-approval.md) |
 | T5 | 엔진 jar 는 사내 Maven 저장소 배포를 전제로 버전을 붙이되, 1차는 composite build 의존으로 쓴다 | **확정** 2026-09-24 — group `kr.dongkuk.maru.mdm`·`0.1.0-SNAPSHOT`·`maven-publish`, 1차 composite build. 스냅샷 헤더 엔진 버전 검사는 배포와 함께 보류 — [engine-contract.md](engine-contract.md) |
-| T6 | 용어 임베딩은 원장 DB 밖(파일 인덱스 또는 별도 저장)에 둘 수 있다. 결정 전까지 1차 문자열 유사어로 기능한다 | **확정** 2026-09-24 — 원장 DB 안 `TB_MDM_TERM.EMBEDDING`(BLOB/VARBINARY float32 LE) + 서버 메모리 전수 비교. 파일 인덱스·네이티브 vector 는 쓰지 않는다. 활성 벡터 10만 건 또는 추천 p95 250 ms 에서 재검토 — [term-embedding.md](term-embedding.md) |
+| T6 | 용어 임베딩은 원장 DB 밖(파일 인덱스 또는 별도 저장)에 둘 수 있다. 결정 전까지 1차 문자열 유사어로 기능한다 | **확정** 2026-09-24 — 원장 DB 안 `TB_MDM_TERM.EMBEDDING`(BLOB float32 LE) + 서버 메모리 전수 비교. 파일 인덱스·네이티브 vector 는 쓰지 않는다. 활성 벡터 10만 건 또는 추천 p95 250 ms 에서 재검토 — [term-embedding.md](term-embedding.md) |
 
 ## 10. 기술 제약 사항 (Constraints)
 
 - 엔진 jar(`maru-mdm-engine`)는 EvalEx 외 라이브러리에 의존하지 않고 DB·네트워크를 직접 부르지 않는다. 정의·사본 조회는 `engine.spi` 인터페이스로만 받는다(01 §8).
 - 업무 API 는 OASIS BPMN 으로만 노출한다.
-- 원장 DDL 은 SQLite 와 MSSQL 두 방언을 같은 Flyway 번호로 함께 낸다.
+- 원장 DDL 은 지금 SQLite 한 벌로 낸다. 운영 DB 가 정해지면 같은 Flyway 번호로 그 방언을 더한다.
 - 화면은 m-mdm 라이브러리에 두고 m-mcm 포털로 적재한다. 팝업에 `page.tsx` 를 쓰지 않는다.
 - 파생값(유효 식·유효 AST·요구 변수·입력 계약)은 저장하지 않고 조회 시 계산한다. 단 EvalEx 텍스트와 함께 AST JSON 은 저장한다(02 「검증식 계약」).
 - 임베딩 런타임(ONNX Runtime·토크나이저)과 모델 파일은 mdm 서버 모듈 몫이다. 모델 파일(약 568 MB)은 WAR·저장소에 넣지 않고 서버 파일 경로로 준다. 모델이 없으면 2차 추천을 끄고 1차 문자열 추천만 한다.
@@ -139,13 +141,13 @@
 ## 11. 기술 비기능 요구사항 (Non-functional Requirements)
 
 - 성능: 엔진 컴파일 캐시 적용 후 의사결정표 1건 판정 1 ms 이내(행 200개 기준), 화면 AST 평가 1만 행 100 ms 이내.
-- 동시성: 식별자 발급은 단일 UPDATE 문(`RETURNING`/`OUTPUT`)으로 직렬화한다(배포 순번 발급은 보류). 편집 충돌은 `row_version` 으로 409 를 돌려준다.
+- 동시성: 식별자 발급은 단일 UPDATE … RETURNING 문으로 직렬화한다(배포 순번 발급은 보류). 편집 충돌은 `row_version` 으로 409 를 돌려준다.
 - 호환성: 엔진 jar 는 Java 21 에서 동작한다. 배포 스냅샷 헤더의 엔진 모듈 버전(06)은 배포와 함께 보류한다.
 
 ## 12. 기술 인수 조건 (Acceptance Criteria)
 
 - `./gradlew testAll` 이 mdm·엔진을 포함해 통과한다.
-- 두 방언 마이그레이션이 로컬 SQLite 기동과 MSSQL(local-db 프로파일) 기동에서 모두 적용된다.
+- SQLite 마이그레이션이 로컬 SQLite 기동에서 적용된다.
 - `oasis-contract-check` ERROR 0.
 - 서버 엔진과 화면 JS 평가기의 정합성 코퍼스 불일치 0건.
 - 새 화면마다 메뉴·OBJECT·RBAC 시드가 있고 m-mcm 포털에서 열린다.

@@ -70,7 +70,7 @@ moduleGroup: dme
 | 컬럼ID | DB 컬럼명 | 화면 표시명 | 데이터 설명 | 정렬 | 표시 형식 |
 |---|---|---|---|---|---|
 | G-001 | `MARU_RULE_SET_ID` | 세트 ID | 링크 — 누르면 룰 세트 편집 탭(`openMdmPage("dme/ruleSetEdit", {setId})`) | Left | varchar(50) |
-| G-002 | `MARU_RULE_SET_NAME` | 세트명 | | Left | nvarchar(100) |
+| G-002 | `MARU_RULE_SET_NAME` | 세트명 | | Left | varchar(100) |
 | G-003 | (계산) | 룰 수 | `RULE_IDS` 목록 길이 | Center | int |
 | G-004 | (계산) | 최종 결과 변수 | 세트 입출력 표에서 어느 룰도 다시 읽지 않는 결과 변수(코드 칩), 없으면 "-" | Left | |
 | G-005 | (계산) | 입력 변수 수 | 세트를 부를 때 레코드에 넣어야 하는 이름 수 | Center | int |

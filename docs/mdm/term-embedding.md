@@ -6,7 +6,7 @@
 
 ## 1. 결정 요약
 
-용어 벡터는 원장 `TB_MDM_TERM` 의 칼럼 `EMBEDDING`(SQLite `BLOB`, MSSQL `VARBINARY(4096)`)에 L2 정규화한 float32 little-endian 1024개(4,096바이트)로 두고, 비교는 서버 메모리에서 전수 내적으로 한다(선택안 ①). 원천 02:533 이 정한 "`TB_MDM_TERM.embedding` 칼럼 하나"를 그대로 따르고, 두 방언이 같은 코드 경로를 쓴다. 모델은 KURE-v1 INT8 이고 풀링은 **CLS + L2** 다(INT8 변환본 README 가 적은 masked mean 이 아니다). 벡터를 만든 모델을 적는 `EMBEDDING_MODEL` 값은 `KURE-v1/int8-{model.onnx sha256 앞 8자}/cls-l2/in{입력 형식 버전}` 이고, PoC 파일 기준으로 `KURE-v1/int8-1808718e/cls-l2/in1` 이다. 1만 건 기준 질의 p95 가 22 ms 로 500 ms 기준을 크게 밑돌아 ANN 인덱스나 DB 네이티브 벡터는 필요하지 않다. 현재 모델 벡터가 100,000 건에 이르거나 운영 추천 응답 p95 가 250 ms 에 이르면 방식을 다시 검토한다.
+용어 벡터는 원장 `TB_MDM_TERM` 의 칼럼 `EMBEDDING`(SQLite `BLOB`)에 L2 정규화한 float32 little-endian 1024개(4,096바이트)로 두고, 비교는 서버 메모리에서 전수 내적으로 한다(선택안 ①). 원천 02:533 이 정한 "`TB_MDM_TERM.embedding` 칼럼 하나"를 그대로 따르고, DB 벡터 기능에 기대지 않아 운영 DB(미정)가 정해져도 같은 코드 경로를 쓴다. 모델은 KURE-v1 INT8 이고 풀링은 **CLS + L2** 다(INT8 변환본 README 가 적은 masked mean 이 아니다). 벡터를 만든 모델을 적는 `EMBEDDING_MODEL` 값은 `KURE-v1/int8-{model.onnx sha256 앞 8자}/cls-l2/in{입력 형식 버전}` 이고, PoC 파일 기준으로 `KURE-v1/int8-1808718e/cls-l2/in1` 이다. 1만 건 기준 질의 p95 가 22 ms 로 500 ms 기준을 크게 밑돌아 ANN 인덱스나 DB 네이티브 벡터는 필요하지 않다. 현재 모델 벡터가 100,000 건에 이르거나 운영 추천 응답 p95 가 250 ms 에 이르면 방식을 다시 검토한다.
 
 ## 2. 모델·런타임·입력 형식
 
@@ -61,34 +61,29 @@ PoC 는 [`poc/mdm-embedding-bench`](../../poc/mdm-embedding-bench/) 에 있다. 
 
 ## 4. 저장 방식 비교
 
-원천은 PostgreSQL pgvector 를 전제로 `TB_MDM_TERM.embedding` 칼럼 하나를 두었다(02:533). 이 저장소는 SQLite(로컬)와 MSSQL(운영) 두 방언을 같은 Flyway 번호로 낸다(NFR-6). 측정 결과 속도는 어느 안이든 충분하므로, 선택은 방언 이식성과 원천 DDL 불변으로 갈랐다.
+원천은 PostgreSQL pgvector 를 전제로 `TB_MDM_TERM.embedding` 칼럼 하나를 두었다(02:533). 이 저장소의 로컬·테스트 DB 는 SQLite 이고 운영 DB 는 미정이다(NFR-6, [ADR-0004](adr/0004-drop-mssql-production-assumption.md)). 측정 결과 속도는 어느 안이든 충분하므로, 선택은 방언 이식성과 원천 DDL 불변으로 갈랐다.
 
 | 후보 | 방언 | 속도(1만 건) | 판단 |
 |---|---|---|---|
-| ① `TB_MDM_TERM` 칼럼 `EMBEDDING`(BLOB/VARBINARY, float32 LE) + 서버 메모리 전수 비교 | SQLite·MSSQL 이 같은 방식 | 질의 p95 22 ms | **선택**. 원천 02:533 "칼럼 하나"와 원천 DDL 불변에 맞고, 두 방언이 같은 코드 경로다 |
+| ① `TB_MDM_TERM` 칼럼 `EMBEDDING`(BLOB, float32 LE) + 서버 메모리 전수 비교 | 이진 칼럼만 있으면 어느 DB 든 같은 방식 | 질의 p95 22 ms | **선택**. 원천 02:533 "칼럼 하나"와 원천 DDL 불변에 맞고, 방언과 무관한 코드 경로다 |
 | ② 별도 테이블(`TB_MDM_TERM_EMB` 등) + 메모리 비교 | 같음 | 같음 | 감사 칼럼·그리드 조회 부담을 떼어 내는 장점이 있으나 원천 DDL 을 바꾼다. ①에 엔티티 미매핑 규칙(§6 규칙 1)을 두면 같은 이점을 얻는다 |
 | ③ 파일 인덱스(HNSW 등 ANN) | DB 밖 | 필요 없음 | 원장과 동기화·백업하는 경로가 하나 더 생기고 라이브러리 의존이 늘어난다. 전수 비교가 10만 건에서도 51 ms 라 이득이 없다 |
-| ④ MSSQL 네이티브 `VECTOR(1024)` + `VECTOR_DISTANCE` | SQL Server 2025(17.x)·Azure SQL DB/MI·Fabric 전용, SQLite 대응 없음 | 재지 않음 | 운영 MSSQL 버전은 저장소에서 **확인 불가**다. 단서는 cactus 문서의 Testcontainers 이미지 `mssql/server:2022-latest` 한 줄뿐이고, 2022 면 타입이 없다. JDBC 네이티브 전송은 Microsoft JDBC 13.1.0 부터인데 리포 드라이버는 `mssql-jdbc 12.8.1.jre11` 이다. 방언이 갈라져 NFR-6 에 어긋난다 |
-| ⑤ sqlite-vec | SQLite 로컬 전용 확장 | 재지 않음 | 확장을 적재해야 하고 MSSQL 대응이 없다. NFR-6 에 어긋난다 |
-
-근거: MSSQL `VECTOR` 타입은 Microsoft Learn "Vector Data Type"(ms.date 2026-02-18)을 따랐다. 최대 1998 차원, float32 기본이고 DEFAULT·CHECK·키 제약·B-tree 인덱스를 둘 수 없다. 운영 버전 단서는 `docs/cactus/001_…/cactus-core-data-access-migration-plan.md:1095`, 드라이버 버전은 `src/backend/mdm/lib/build.gradle:37` 이다.
+| ④ DB 네이티브 벡터 타입·거리 함수 | 특정 DBMS·버전 전용, SQLite 대응 없음 | 재지 않음 | 운영 DB 가 미정이고, 방언이 갈라져 NFR-6 에 어긋난다 |
+| ⑤ sqlite-vec | SQLite 로컬 전용 확장 | 재지 않음 | 확장을 적재해야 하고 다른 DB 대응이 없다. NFR-6 에 어긋난다 |
 
 ## 5. 선택안 DDL
 
-TSK-02-03 ERD 와 TSK-04-01 Flyway 가 이 DDL 을 옮긴다. 칼럼 이름은 원천 그대로 대문자로 쓴다(D-012).
+TSK-02-03 ERD 와 TSK-04-01 Flyway 가 이 DDL 을 옮긴다. 운영 DB 가 정해지면 그 DB 의 이진 타입(4,096바이트)으로 같은 두 칼럼을 둔다. 칼럼 이름은 원천 그대로 대문자로 쓴다(D-012).
 
 ```sql
 -- SQLite (TB_MDM_TERM 의 다른 칼럼은 02 원문대로)
 EMBEDDING        BLOB,             -- float32 LE × 1024 = 4096 bytes, L2 정규화. 인코딩 전 NULL
 EMBEDDING_MODEL  VARCHAR(100),     -- 예 'KURE-v1/int8-1808718e/cls-l2/in1'. EMBEDDING 이 NULL 이면 NULL
--- MSSQL
-EMBEDDING        VARBINARY(4096) NULL,
-EMBEDDING_MODEL  VARCHAR(100) NULL,
 ```
 
 - 인덱스·CHECK·DB 벡터 함수는 두지 않는다. 길이 검사(4,096바이트)는 애플리케이션이 쓸 때 한다.
 - 값 형식은 L2 정규화한 float32 little-endian 1024개로 고정한다. 그래서 코사인 유사도는 내적과 같다. 이 형식이 바뀌면 `EMBEDDING_MODEL` 값도 바뀌어야 한다.
-- SQLite 왕복은 PoC 에서 비트 단위로 일치함을 확인했다. MSSQL `VARBINARY(4096)` 왕복은 로컬에 MSSQL 이 없어 재지 않았으므로 TSK-04-01 이 실측한다(naming-dialect-rules §3 #23).
+- SQLite 왕복은 PoC 에서 비트 단위로 일치함을 확인했다(naming-dialect-rules §3 #23).
 
 ## 6. 동작 규칙
 
@@ -108,5 +103,5 @@ TSK-04-02 가 구현한다.
 | 받는 Task | 인계 |
 |---|---|
 | TSK-02-03 DB 설계 | ERD 의 `TB_MDM_TERM` 에 `EMBEDDING`·`EMBEDDING_MODEL` 칼럼(§5 DDL) |
-| TSK-04-01 02 계약 | Flyway 두 방언 칼럼, MSSQL `VARBINARY(4096)` JDBC 왕복 실측과 naming-dialect-rules §3 #23 상태 갱신, 엔티티 미매핑 |
+| TSK-04-01 02 계약 | Flyway 칼럼(SQLite `BLOB`), JDBC 왕복 실측과 naming-dialect-rules §3 #23 상태 갱신, 엔티티 미매핑 |
 | TSK-04-02 용어 관리 | ORT 1.30.0·DJL tokenizers 0.38.0 을 `mdm/lib` 에 둔다. 모델 경로 설정, §6 동작 규칙 1~6(캐시·재인코딩 배치·임계 감시), design D3 결과에 따른 모델 파일(원본 FP32 직접 변환이면 변환 스크립트와 sha256 기록), 메모리 산정(RSS 약 1.3 GB). §3 수치는 개발 PC(macOS·Apple M5)에서 잰 값이므로 운영 WildFly 서버의 OS·CPU 에서 단건 인코딩·질의 p95 를 다시 잰다. DJL tokenizers 0.38.0 jar 에 든 네이티브는 osx-aarch64·linux-x86_64·linux-aarch64 뿐이고 Windows 는 없다(`unzip -l` 확인) — 운영 서버가 Windows 면 토크나이저 네이티브 확보 방법을 먼저 정한다 |

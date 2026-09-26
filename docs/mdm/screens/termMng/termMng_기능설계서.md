@@ -82,10 +82,10 @@ moduleGroup: dma
 
 | 컬럼ID | DB 컬럼명 | 화면 표시명 | 데이터 설명 | 정렬 | 표시 형식 |
 |---|---|---|---|---|---|
-| G-001 | `TERM_NAME` | 표기 | 한글 표기, UNIQUE 아님(동음이의어는 의미 번호로 구분) | Left | nvarchar(100) |
+| G-001 | `TERM_NAME` | 표기 | 한글 표기, UNIQUE 아님(동음이의어는 의미 번호로 구분) | Left | varchar(100) |
 | G-002 | `SENSE_NO` | 의미 | 동음이의어 구분 번호 | Center | int |
 | G-003 | `ENG_ABBR` | 영문 약어 | 중복 허용 + 경고(I8) | Left | varchar(50) |
-| G-004 | `CONTEXT` | 맥락 | 자유 텍스트 | Left | nvarchar(100) |
+| G-004 | `CONTEXT` | 맥락 | 자유 텍스트 | Left | varchar(100) |
 | G-005 | `SYSTEMS` | 사용 시스템 | JSON 배열을 콤마 조인해 표시(예: `MES, ERP`) | Left | text |
 | G-006 | `SYNONYMS` | 동의어 | JSON 배열(`"명칭(시스템)"`)을 콤마 조인해 표시 | Left | text |
 

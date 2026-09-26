@@ -22,15 +22,6 @@ public class Verify {
         ERD_DIR.resolve("05-master-data.sqlite.sql"),
         ERD_DIR.resolve("06-business-rule.sqlite.sql")
     );
-    static final List<Path> MSSQL_AREA_FILES = List.of(
-        ERD_DIR.resolve("02-term-domain-column.mssql.sql"),
-        ERD_DIR.resolve("03-interface-layout.mssql.sql"),
-        ERD_DIR.resolve("04-master-code.mssql.sql"),
-        ERD_DIR.resolve("05-master-data.mssql.sql"),
-        ERD_DIR.resolve("06-business-rule.mssql.sql")
-    );
-    static final Path MSSQL_CROSS_FK = ERD_DIR.resolve("99-cross-area-fk.mssql.sql");
-
     static boolean anyFail = false;
 
     public static void main(String[] args) throws Exception {
@@ -289,7 +280,7 @@ public class Verify {
         } finally { closeDb(d); }
     }
 
-    // ───────────────────────── 체크 b (두 방언 정적 대조) ─────────────────────────
+    // ───────────────────────── 체크 b (제약·인덱스 이름 전역 유일성) ─────────────────────────
 
     static class ColDef { String name; boolean notNull; String defaultLit; String typeText; }
     static class ConstraintDef { String name; String kind; List<String> cols; String refTable; List<String> refCols; String ownerTable; }
@@ -462,153 +453,29 @@ public class Verify {
     static String readAll(Path p) throws IOException { return stripLineComments(Files.readString(p)); }
     static String readAllRaw(Path p) throws IOException { return Files.readString(p); }
 
-    static String fkTripleKey(String childTable, List<String> childCols, String refTable, List<String> refCols) {
-        return childTable + "(" + String.join(",", childCols) + ")->" + refTable + "(" + String.join(",", refCols) + ")";
-    }
-
     static void checkB() throws Exception {
         StringBuilder sqliteText = new StringBuilder();
         for (Path p : SQLITE_FILES) sqliteText.append(readAll(p)).append("\n");
-        StringBuilder mssqlText = new StringBuilder();
-        for (Path p : MSSQL_AREA_FILES) mssqlText.append(readAll(p)).append("\n");
-        String mssqlCross = readAll(MSSQL_CROSS_FK);
-        String mssqlAllText = mssqlText.toString() + "\n" + mssqlCross;
 
         Map<String, TableDef> sqliteTables = parseCreateTables(sqliteText.toString());
-        Map<String, TableDef> mssqlTables = parseCreateTables(mssqlText.toString());
         List<IndexDef> sqliteIdx = parseIndexes(sqliteText.toString());
-        List<IndexDef> mssqlIdx = parseIndexes(mssqlText.toString());
-        List<ConstraintDef> mssqlAlterFks = parseAlterFks(mssqlAllText);
+        List<ConstraintDef> sqliteAlterFks = parseAlterFks(sqliteText.toString());
 
         List<String> problems = new ArrayList<>();
 
-        // 1) 테이블 집합
-        Set<String> sqliteTableNames = sqliteTables.keySet();
-        Set<String> mssqlTableNames = mssqlTables.keySet();
-        if (!sqliteTableNames.equals(mssqlTableNames)) {
-            Set<String> onlySqlite = new TreeSet<>(sqliteTableNames); onlySqlite.removeAll(mssqlTableNames);
-            Set<String> onlyMssql = new TreeSet<>(mssqlTableNames); onlyMssql.removeAll(sqliteTableNames);
-            problems.add("테이블 집합 불일치: sqlite-only=" + onlySqlite + " mssql-only=" + onlyMssql);
-        }
-
-        Map<String, Object> expected = loadExpected();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> expTables = (Map<String, Object>) expected.get("tables");
-        Set<String> sqliteOnlyCheckNames = new HashSet<>();
-        for (Object o : (List<?>) expected.get("sqlite_only_checks")) {
-            @SuppressWarnings("unchecked") Map<String,Object> m = (Map<String,Object>) o;
-            sqliteOnlyCheckNames.add((String) m.get("name"));
-        }
-
-        // 2) 칼럼 집합 · NOT NULL · DEFAULT (공통 테이블만)
-        for (String t : sqliteTableNames) {
-            if (!mssqlTables.containsKey(t)) continue;
-            TableDef st = sqliteTables.get(t), mt = mssqlTables.get(t);
-            Map<String, ColDef> sCols = new HashMap<>(); for (ColDef c : st.cols) sCols.put(c.name, c);
-            Map<String, ColDef> mCols = new HashMap<>(); for (ColDef c : mt.cols) mCols.put(c.name, c);
-            if (!sCols.keySet().equals(mCols.keySet())) {
-                Set<String> onlyS = new TreeSet<>(sCols.keySet()); onlyS.removeAll(mCols.keySet());
-                Set<String> onlyM = new TreeSet<>(mCols.keySet()); onlyM.removeAll(sCols.keySet());
-                problems.add(t + " 칼럼 집합 불일치: sqlite-only=" + onlyS + " mssql-only=" + onlyM);
-            }
-            for (String cn : sCols.keySet()) {
-                if (!mCols.containsKey(cn)) continue;
-                ColDef sc = sCols.get(cn), mc = mCols.get(cn);
-                if (sc.notNull != mc.notNull) problems.add(t + "." + cn + " NOT NULL 불일치: sqlite=" + sc.notNull + " mssql=" + mc.notNull);
-                if (sc.defaultLit != null || mc.defaultLit != null) {
-                    String a = sc.defaultLit, b = mc.defaultLit;
-                    if (!Objects.equals(norm(a), norm(b))) problems.add(t + "." + cn + " DEFAULT 불일치: sqlite=" + a + " mssql=" + b);
-                }
-            }
-        }
-
-        // 3) CK/UX/IX 이름 집합 (테이블별)
-        for (String t : sqliteTableNames) {
-            if (!mssqlTables.containsKey(t)) continue;
-            Set<String> sCk = ckNames(sqliteTables.get(t));
-            Set<String> mCk = ckNames(mssqlTables.get(t));
-            Set<String> sCkAdj = new TreeSet<>(sCk); sCkAdj.removeAll(sqliteOnlyCheckNames);
-            if (!sCkAdj.equals(mCk)) problems.add(t + " CK 이름 집합 불일치(SQLite 전용 제외): sqlite=" + sCkAdj + " mssql=" + mCk);
-            Set<String> sIdx = idxNames(sqliteIdx, t);
-            Set<String> mIdx = idxNames(mssqlIdx, t);
-            if (!sIdx.equals(mIdx)) problems.add(t + " UX/IX 이름 집합 불일치: sqlite=" + sIdx + " mssql=" + mIdx);
-        }
-
-        // 4) FK 3순組 집합 (파일 경계 무시)
-        Set<String> sqliteFkTriples = new TreeSet<>();
+        // 제약·인덱스 이름 전역 유일성(파일 경계 무시)
+        Map<String,Integer> nameCount = new HashMap<>();
         for (TableDef td : sqliteTables.values())
             for (ConstraintDef cd : td.constraints)
-                if ("FOREIGN KEY".equals(cd.kind) && cd.refTable != null)
-                    sqliteFkTriples.add(fkTripleKey(td.name, cd.cols, cd.refTable, cd.refCols));
-
-        Set<String> mssqlFkTriples = new TreeSet<>();
-        for (TableDef td : mssqlTables.values())
-            for (ConstraintDef cd : td.constraints)
-                if ("FOREIGN KEY".equals(cd.kind) && cd.refTable != null)
-                    mssqlFkTriples.add(fkTripleKey(td.name, cd.cols, cd.refTable, cd.refCols));
-        for (ConstraintDef cd : mssqlAlterFks)
-            mssqlFkTriples.add(fkTripleKey(cd.ownerTable, cd.cols, cd.refTable, cd.refCols));
-
-        if (!sqliteFkTriples.equals(mssqlFkTriples)) {
-            Set<String> onlyS = new TreeSet<>(sqliteFkTriples); onlyS.removeAll(mssqlFkTriples);
-            Set<String> onlyM = new TreeSet<>(mssqlFkTriples); onlyM.removeAll(sqliteFkTriples);
-            problems.add("FK 3순組 불일치: sqlite-only=" + onlyS + " mssql-only=" + onlyM);
-        }
-
-        // 5) ID_AI 부모를 향하는 FK 자식칼럼은 MSSQL 에서 BIGINT 여야 한다
-        Set<String> aiParents = new HashSet<>(List.of("TB_MDM_TERM.TERM_ID","TB_MDM_DOMAIN.DOMAIN_ID","TB_MDM_COLUMN.COLUMN_ID",
-            "TB_MDM_LAYOUT.LAYOUT_ID","TB_MDM_CODE_RECV.RECV_ID","TB_MDM_DATA_RECV.RECV_ID","TB_MDM_RULE_RECV.RECV_ID"));
-        for (TableDef td : mssqlTables.values()) {
-            for (ConstraintDef cd : td.constraints) {
-                if (!"FOREIGN KEY".equals(cd.kind) || cd.refTable == null) continue;
-                for (int i = 0; i < cd.cols.size(); i++) {
-                    String key = cd.refTable + "." + cd.refCols.get(i);
-                    if (aiParents.contains(key)) {
-                        ColDef childCol = colByName(td, cd.cols.get(i));
-                        if (childCol == null || childCol.typeText == null || !childCol.typeText.startsWith("BIGINT"))
-                            problems.add(td.name + "." + cd.cols.get(i) + " → " + key + " 는 BIGINT 여야 하는데 " + (childCol == null ? "?" : childCol.typeText));
-                    }
-                }
-            }
-        }
-        for (ConstraintDef cd : mssqlAlterFks) {
-            for (int i = 0; i < cd.cols.size(); i++) {
-                String key = cd.refTable + "." + cd.refCols.get(i);
-                if (aiParents.contains(key)) {
-                    TableDef owner = mssqlTables.get(cd.ownerTable);
-                    ColDef childCol = owner == null ? null : colByName(owner, cd.cols.get(i));
-                    if (childCol == null || childCol.typeText == null || !childCol.typeText.startsWith("BIGINT"))
-                        problems.add(cd.ownerTable + "." + cd.cols.get(i) + " → " + key + " 는 BIGINT 여야 하는데 " + (childCol == null ? "?" : (childCol == null ? "?" : childCol.typeText)));
-                }
-            }
-        }
-
-        // 6) MSSQL 제약 이름 전역 유일성
-        Map<String,Integer> nameCount = new HashMap<>();
-        for (TableDef td : mssqlTables.values())
-            for (ConstraintDef cd : td.constraints)
                 if (cd.name != null && !cd.name.isEmpty()) nameCount.merge(cd.name, 1, Integer::sum);
-        for (ConstraintDef cd : mssqlAlterFks) nameCount.merge(cd.name, 1, Integer::sum);
-        for (IndexDef ix : mssqlIdx) nameCount.merge(ix.name, 1, Integer::sum);
+        for (ConstraintDef cd : sqliteAlterFks) nameCount.merge(cd.name, 1, Integer::sum);
+        for (IndexDef ix : sqliteIdx) nameCount.merge(ix.name, 1, Integer::sum);
         List<String> dups = nameCount.entrySet().stream().filter(e -> e.getValue() > 1).map(Map.Entry::getKey).sorted().collect(Collectors.toList());
-        if (!dups.isEmpty()) problems.add("MSSQL 제약/인덱스 이름 중복: " + dups);
+        if (!dups.isEmpty()) problems.add("제약/인덱스 이름 중복: " + dups);
 
         if (problems.isEmpty())
-            pass("b", "테이블 " + sqliteTableNames.size() + "개: 칼럼 집합·NOT NULL·DEFAULT·CK/UX/IX 이름 집합·FK 3순組·FK자식BIGINT·MSSQL 이름 유일성 모두 일치");
-        else fail("b", problems.size() + "건 불일치: " + problems);
-    }
-
-    static String norm(String s) { return s == null ? null : s.trim(); }
-    static ColDef colByName(TableDef td, String name) { for (ColDef c : td.cols) if (c.name.equals(name)) return c; return null; }
-    static Set<String> ckNames(TableDef td) {
-        Set<String> out = new TreeSet<>();
-        for (ConstraintDef cd : td.constraints) if ("CHECK".equals(cd.kind) && cd.name != null && !cd.name.isEmpty()) out.add(cd.name);
-        return out;
-    }
-    static Set<String> idxNames(List<IndexDef> idxs, String table) {
-        Set<String> out = new TreeSet<>();
-        for (IndexDef ix : idxs) if (ix.table.equals(table)) out.add(ix.name);
-        return out;
+            pass("b", "테이블 " + sqliteTables.size() + "개: 제약·인덱스 이름 " + nameCount.size() + "개 전역 유일");
+        else fail("b", problems.size() + "건: " + problems);
     }
 
     // ───────────────────────── 체크 c ─────────────────────────
@@ -961,12 +828,9 @@ public class Verify {
         List<String> problems = new ArrayList<>();
         List<Path> allFiles = new ArrayList<>();
         allFiles.addAll(SQLITE_FILES);
-        allFiles.addAll(MSSQL_AREA_FILES);
-        allFiles.add(MSSQL_CROSS_FK);
 
         for (Path p : allFiles) {
             String text = readAll(p);
-            boolean isSqlite = p.toString().contains(".sqlite.sql");
             Map<String, TableDef> tables = parseCreateTables(text);
             List<IndexDef> idxs = parseIndexes(text);
             List<ConstraintDef> alterFks = parseAlterFks(text);
@@ -977,7 +841,7 @@ public class Verify {
                         problems.add(p.getFileName() + ": " + td.name + " 에 이름 없는 " + cd.kind + " 제약");
                         continue;
                     }
-                    checkConstraintName(p, cd.name, td.name, isSqlite, problems);
+                    checkConstraintName(p, cd.name, td.name, problems);
                 }
                 // 원시 개수 대 이름붙은 개수 대조(스트립 뮤테이션 탐지)
                 long rawCount = countRawKeyword(readTableBodyOnly(text, td.name));
@@ -988,21 +852,16 @@ public class Verify {
                 if (rawCount != namedCount)
                     problems.add(p.getFileName() + ": " + td.name + " 원시 PK/FK/CHECK 개수(" + rawCount + ") != 이름붙은 개수(" + namedCount + ")");
             }
-            for (IndexDef ix : idxs) checkConstraintName(p, ix.name, ix.table, isSqlite, problems);
-            for (ConstraintDef cd : alterFks) checkConstraintName(p, cd.name, cd.ownerTable, isSqlite, problems);
+            for (IndexDef ix : idxs) checkConstraintName(p, ix.name, ix.table, problems);
+            for (ConstraintDef cd : alterFks) checkConstraintName(p, cd.name, cd.ownerTable, problems);
         }
-        if (problems.isEmpty()) pass("i", "모든 제약·인덱스 이름이 PK_/FK_/UX_/IX_/CK_(+MSSQL DF_) 접두·128자 이하·대문자·테이블명 포함을 만족, 이름 없는 제약 0건");
+        if (problems.isEmpty()) pass("i", "모든 제약·인덱스 이름이 PK_/FK_/UX_/IX_/CK_ 접두·128자 이하·대문자·테이블명 포함을 만족, 이름 없는 제약 0건");
         else fail("i", problems.size() + "건: " + problems);
     }
 
-    static void checkConstraintName(Path file, String name, String table, boolean isSqlite, List<String> problems) {
+    static void checkConstraintName(Path file, String name, String table, List<String> problems) {
         if (name.length() > 128) problems.add(file.getFileName() + ": " + name + " 128자 초과");
         if (!name.equals(name.toUpperCase())) problems.add(file.getFileName() + ": " + name + " 대문자 아님");
-        boolean isDf = name.startsWith("DF_");
-        if (isDf) {
-            if (!name.contains(table)) problems.add(file.getFileName() + ": " + name + " 에 테이블명(" + table + ") 없음");
-            return;
-        }
         if (!name.matches("^(PK|FK|UX|IX|CK)_.*")) {
             problems.add(file.getFileName() + ": " + name + " PK_/FK_/UX_/IX_/CK_ 접두 아님");
             return;
