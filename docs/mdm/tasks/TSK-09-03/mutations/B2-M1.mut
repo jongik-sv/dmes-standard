@@ -1,0 +1,16 @@
+rule: DRAFT 비소유자 저장·확정 거부는 dmc·dme 가 같은 VersionStateService/VersionWriteGuard/DraftOwnershipService 로 판정한다
+file: src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/version/VersionPreconditions.java
+test: cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:api:test --tests "com.dongkuk.dmes.mdm.dmc.codeConfirm.CodeConfirmServiceSqliteTest" --tests "com.dongkuk.dmes.mdm.dme.ruleConfirm.RuleConfirmServiceTest" --tests "com.dongkuk.dmes.mdm.contract.version.DraftOwnershipCrossModuleTest" --fail-fast --console=plain
+e2e: no
+--- find
+    static void requireOwner(VersionRow row, String userId) {
+        if (row.ownerId() == null || !row.ownerId().equals(userId)) {
+            throw MdmErrors.of(MdmErrorCode.NOT_DRAFT_OWNER);
+        }
+    }
+--- replace
+    static void requireOwner(VersionRow row, String userId) {
+        if (false) {
+            throw MdmErrors.of(MdmErrorCode.NOT_DRAFT_OWNER);
+        }
+    }
