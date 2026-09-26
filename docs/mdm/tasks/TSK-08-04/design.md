@@ -14,8 +14,14 @@
 
 > 재작업 1회차. 기점 `6d2110fc`(origin/dev, 1차 구현이 머지된 트리), 브랜치 `agent/f2517d41-rule-save-validate-test`. **이 절이 이번 라운드의
 > 설계 전부다** — §0~§7 은 1차 라운드의 심사 대상 설계로 그대로 두며, 이 절과 어긋나면 이 절이 이긴다. 새 결정은 「담당자 확인 필요 결정」
-> D13~D19 다. 기준선·게이트 명령은 `state.json` baseline(testAll 3960/0 · m-mdm 1064/0 · shared 170/0 · lint 통과 · oasis 계약 ERROR 0/WARN 0/INFO 29)을
+> D13~D19 다. 기준선·게이트 명령은 `state.json` baseline(testAll 3989/0 · m-mdm 1064/0 · shared 170/0 · lint 통과 · oasis 계약 ERROR 0/WARN 0/INFO 29)을
 > 글자 그대로 쓴다. 도커 금지 모드다.
+>
+> **설계 선행 재개(2026-09-26)**: 선행 mdm/TSK-03-03 이 dev 에 반영되어 기점을 `180601ac`(origin/dev)로 옮겨 agent 브랜치에 한 번 머지했다(머지 커밋 메시지에 사유). 기준선은 새 기점에서 다시 쟀다(testAll 3989/0 · m-mdm 1064/0 · shared 170/0 · lint 통과 · oasis ERROR 0/WARN 0/INFO 29).
+> 이 설계에는 `## 선행 기준` 절이 없다(재작업 설계가 build-start 에서야 선행 미충족을 알았다). 대신 `6d2110fc..180601ac` 의 선행 변경을 대조했다 —
+> 이 설계가 참조하는 파일에서 바뀐 것은 `MdmRuleEngine(evaluator.configuration(), …)` → `MdmRuleEngine(evaluator, …)`(RuleValueTestService·RuleConfirmChecks·ExprTypeByCaseCheck·RuleDefinitionAssemblerTest·CodeDataRuleLedgerChainTest)와 `RuleEvaluator` 의 `runner.run(text, values, evalTs)` 뿐이다. 평가는 여전히
+> 식 원문을 `withValues` 로 넣어 돌리고(`MdmEvaluator.evaluate` 의 `copy().withValues`), `InputContracts` 는 바뀌지 않았다 → R-F3·R-F5 의 결론과 §R3-1 빨강 모양(LINE_SPD 0)은 그대로다.
+> 계약 무변경이라 검토 모드 Design 은 생략했다. 새 테스트에서 엔진을 만들 때는 `new MdmRuleEngine(evaluator, …)` 로 평가기 빈을 넘긴다.
 >
 > 반려 사유(review_note 원문, 요구사항 데이터): "결과 식 AST가 문자열로 이중 저장됩니다. 저장 쪽은 TSK-08-03에서 만든 checkDeriveExprs입니다.
 > 이 Task가 만든 astOf는 문자열이 오면 null을 돌려줍니다. 그래서 SPD_JOIN이 70이 아니라 오류 없이 0을 냅니다. 저장·읽기 양쪽을 고치고,
@@ -112,7 +118,7 @@ Build 는 아래 새·바뀐 테스트를 **먼저** 써서 지금 트리에서 
 화면 스모크 넷(e2e.md): 이번 라운드는 화면 코드를 바꾸지 않고, e2e 픽스처에 문자열 ast 행이 없으며(R-F10) view 응답이 바뀌는 것은 레거시 행뿐이라 e2e
 `src/frontend/e2e/mdm-ruleEdit.spec.ts` 의 동작이 달라지지 않는다 — e2e 는 다시 돌리지 않는다(1차 라운드 통과 결과를 유지, 게이트 명령에도 없다). 보고에 "e2e 미실행(화면 무변경)" 으로 올린다.
 
-게이트: `state.json` baseline 명령 5개를 글자 그대로. 기대 — testAll 3960 + 새 사례(감소 없음)·실패 0, m-mdm 1064/0(픽스처 정정만, 수 불변), shared 170/0, lint 통과, oasis 계약 ERROR 0/WARN 0.
+게이트: `state.json` baseline 명령 5개를 글자 그대로. 기대 — testAll 3989 + 새 사례(감소 없음)·실패 0, m-mdm 1064/0(픽스처 정정만, 수 불변), shared 170/0, lint 통과, oasis 계약 ERROR 0/WARN 0.
 
 ### R4. 수용 기준 매핑 (이번 라운드가 닿는 것)
 
