@@ -10,6 +10,7 @@ import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 import { openMdmPage, takeMdmPageParams } from "@/shell";
 
 import RuleConfirmPage from "../../../pages/dme/ruleConfirm/page";
+import { pickDateTime } from "../../helpers/datetime-picker";
 import { RBAC_STORE_KEY, flush, installDomStorage, jsonResponse, typeInto, visibleText } from "../helpers/render";
 
 const ITEMS = ["SAVE_CHECKS", "NOT_EMPTY", "TEST_CASES", "RESULT_VAR_RELEASED"] as const;
@@ -116,11 +117,16 @@ const actions = (name: string) => calls.filter((c) => c.action === name);
 const confirmButton = () => byTestId("rc-confirm") as HTMLButtonElement;
 const okButton = () => byTestId("rc-modal-ok") as HTMLButtonElement;
 
+/** 희망 적용 시작 일시를 넣는다 — 달력 + 24시간제 시·분·초 칸(`datetime-local` 이 아니다). */
+async function pickApplyFrom(value: string) {
+  await pickDateTime(() => byTestId("rc-apply-from") as HTMLElement, value);
+}
+
 /** 핸드오프로 QLTY_GRD_JDG 2 를 열고 apply_from 을 넣어 검사까지 한다. */
-async function openAndValidate(applyFrom = "2026-10-01T00:00") {
+async function openAndValidate(applyFrom = "2026-10-01 00:00:00") {
   openMdmPage("dme/ruleConfirm", { maruRuleId: "QLTY_GRD_JDG", ver: "2" });
   await render();
-  await typeTestId("rc-apply-from", applyFrom);
+  await pickApplyFrom(applyFrom);
   await click(byTestId("rc-validate"));
 }
 
@@ -376,8 +382,8 @@ describe("RuleConfirmPage", () => {
   });
 
   it("P5 서버가 futureApplyFrom=true 를 주면 과거 일시라도 미래 적용 경고를 보인다", async () => {
-    nextValidate = () => validateResult(items(), { applyFrom: "2020-01-01 00:00:00", futureApplyFrom: true });
-    await openAndValidate("2020-01-01T00:00");
+    nextValidate = () => validateResult(items(), { applyFrom: "2026-01-01 00:00:00", futureApplyFrom: true });
+    await openAndValidate("2026-01-01 00:00:00");
     await click(confirmButton());
     const warning = byTestId("rc-future-warning")?.textContent ?? "";
     // D8 — 경고는 철회 불가 안내가 아니라 확정 취소 안내가 된다.
@@ -387,8 +393,8 @@ describe("RuleConfirmPage", () => {
   });
 
   it("P5 확정 취소의 부작용(06 교차 효과)을 안내한다 — 룰 세트와 다른 룰의 확정이 잠시 막힘(D8-10)", async () => {
-    nextValidate = () => validateResult(items(), { applyFrom: "2020-01-01 00:00:00", futureApplyFrom: true });
-    await openAndValidate("2020-01-01T00:00");
+    nextValidate = () => validateResult(items(), { applyFrom: "2026-01-01 00:00:00", futureApplyFrom: true });
+    await openAndValidate("2026-01-01 00:00:00");
     await click(confirmButton());
     const body = visibleText(document.body);
     expect(body).toContain("룰 세트");
@@ -397,8 +403,8 @@ describe("RuleConfirmPage", () => {
   });
 
   it("P5 서버가 futureApplyFrom=false 를 주면 먼 미래 일시라도 미래 경고를 보이지 않는다", async () => {
-    nextValidate = () => validateResult(items(), { applyFrom: "2099-01-01 00:00:00", futureApplyFrom: false });
-    await openAndValidate("2099-01-01T00:00");
+    nextValidate = () => validateResult(items(), { applyFrom: "2075-01-01 00:00:00", futureApplyFrom: false });
+    await openAndValidate("2075-01-01 00:00:00");
     await click(confirmButton());
     expect(okButton()).toBeTruthy();
     expect(byTestId("rc-future-warning")).toBeNull();
@@ -435,9 +441,43 @@ describe("RuleConfirmPage", () => {
   it("P8 검사 뒤 apply_from 을 바꾸면 확정 버튼이 다시 비활성이 된다", async () => {
     await openAndValidate();
     expect(confirmButton().disabled).toBe(false);
-    await typeTestId("rc-apply-from", "2026-10-02T00:00");
+    await pickApplyFrom("2026-10-02 00:00:00");
     expect(confirmButton().disabled).toBe(true);
-    await typeTestId("rc-apply-from", "2026-10-01T00:00");
+    await pickApplyFrom("2026-10-01 00:00:00");
+    expect(confirmButton().disabled).toBe(false);
+  });
+
+  it("희망 적용 시작 일시는 24시간제·초까지 입력된다 — picker 값이 초를 보존해 검사·확정에 그대로 실린다", async () => {
+    openMdmPage("dme/ruleConfirm", { maruRuleId: "QLTY_GRD_JDG", ver: "2" });
+    await render();
+    // datetime-local 이 아니다 — 클릭해서 여는 picker 다.
+    const trigger = byTestId("rc-apply-from") as HTMLElement;
+    expect(trigger.tagName).toBe("BUTTON");
+    expect(trigger.textContent).toContain("YYYY-MM-DD HH:mm:ss");
+
+    await pickApplyFrom("2026-10-01 21:45:37");
+    // 트리거 표기가 24시간제(오후 표시 없음) + 초.
+    expect(trigger.textContent).toBe("2026-10-01 21:45:37");
+    // 시·분·초 세 칸만 있고 오전/오후 select 는 없다.
+    await act(async () => {
+      trigger.click();
+    });
+    await flush();
+    const panel = document.body.querySelector("[data-dates-dropdown]")!;
+    expect(panel.querySelectorAll('input[aria-label="시"], input[aria-label="분"], input[aria-label="초"]')).toHaveLength(3);
+    // select 은 달력의 연·월 2개뿐 — 오전/오후 select 는 없다(24시간제).
+    expect(panel.querySelectorAll("select")).toHaveLength(2);
+    expect(panel.textContent).not.toMatch(/AM|PM/);
+    await act(async () => {
+      trigger.click();
+    });
+    await flush();
+
+    await click(byTestId("rc-validate"));
+    // 초까지 서버로 간다(I38).
+    expect(actions("validate").map((c) => c.params)).toEqual([
+      { maruRuleId: "QLTY_GRD_JDG", ver: 2, applyFrom: "2026-10-01 21:45:37" },
+    ]);
     expect(confirmButton().disabled).toBe(false);
   });
 

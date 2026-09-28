@@ -69,8 +69,9 @@ export function canConfirm(gate: ConfirmGate): boolean {
 const DATE_TIME = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::(\d{2})(?:\.\d+)?)?$/;
 
 /**
- * I38 — `datetime-local` 입력(`2026-07-01T00:00`, 초 있을 수 있음)을 서버 형식 `yyyy-MM-dd HH:mm:ss`(KST 벽시계 그대로)로
- * 바꾼다. 초가 없으면 `:00`, 소수 초는 버린다. 빈 값이나 읽을 수 없는 값은 null 이다.
+ * I38 — `DateTimePicker` 입력(`2026-07-01 09:30:15`, 시·분·초가 항상 있다)을 서버 형식 `yyyy-MM-dd HH:mm:ss`
+ * (KST 벽시계 그대로)로 바꾼다. 초가 있는 입력은 초까지 보존한다. 옛 `datetime-local` 값(`2026-07-01T00:00`,
+ * 초 없음)도 받으려고 초가 없으면 `:00` 을 붙이고, 소수 초는 버린다. 빈 값이나 읽을 수 없는 값은 null 이다.
  */
 export function toServerDateTime(input: string | null | undefined): string | null {
   const m = DATE_TIME.exec((input ?? "").trim());

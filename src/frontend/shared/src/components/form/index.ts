@@ -3,6 +3,7 @@ export { Input, type InputProps } from "./Input";
 export { Select, type SelectProps, type SelectOption } from "./Select";
 export { Checkbox, type CheckboxProps } from "./Checkbox";
 export { DatePicker, type DatePickerProps } from "./DatePicker";
+export { DateTimePicker, type DateTimePickerProps } from "./DateTimePicker";
 export { Radio, type RadioProps, type RadioOption } from "./Radio";
 export { Textarea, type TextareaProps } from "./Textarea";
 export { FormGroup, type FormGroupProps } from "./FormGroup";

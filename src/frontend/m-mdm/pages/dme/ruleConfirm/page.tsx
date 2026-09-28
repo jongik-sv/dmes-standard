@@ -15,7 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ContentBody, ContentPanel, DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL, canDoButton, useUserButtonRbac,
 } from "@dk-oasis/shared/layout";
-import { Button, Checkbox, Input } from "@dk-oasis/shared/form";
+import { Button, Checkbox, DateTimePicker, Input } from "@dk-oasis/shared/form";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { DraftLockBadge, MdmPageLayout, VersionStatusBadge, useMdmPageParams } from "@/shell";
 
@@ -250,8 +250,8 @@ export default function RuleConfirmPage({ tabId, snapshot, onSnapshotChange }: R
                   {isDraft ? (
                     <div style={{ ...section, ...rowFlex }}>
                       <span>희망 적용 시작 일시</span>
-                      <Input
-                        data-testid="rc-apply-from" type="datetime-local" step={1} value={applyInput}
+                      <DateTimePicker
+                        data-testid="rc-apply-from" value={applyInput}
                         onChange={setApplyInput} disabled={busy}
                       />
                       <Button data-testid="rc-validate" disabled={busy || !canValidate} onClick={() => void handleValidate()}>

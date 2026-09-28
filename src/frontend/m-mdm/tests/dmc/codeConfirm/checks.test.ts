@@ -72,6 +72,15 @@ describe("canConfirm (I30)", () => {
 });
 
 describe("toServerDateTime (I34)", () => {
+  it("DateTimePicker 값(항상 시·분·초)을 초까지 그대로 보낸다", () => {
+    expect(toServerDateTime("2026-10-01 21:45:37")).toBe("2026-10-01 21:45:37");
+  });
+
+  it("자정과 23시 59시 59초도 초까지 보존한다", () => {
+    expect(toServerDateTime("2026-10-01 00:00:00")).toBe("2026-10-01 00:00:00");
+    expect(toServerDateTime("2026-10-01 23:59:59")).toBe("2026-10-01 23:59:59");
+  });
+
   it("datetime-local 의 분 단위 값에 초를 붙인다", () => {
     expect(toServerDateTime("2026-07-01T00:00")).toBe("2026-07-01 00:00:00");
   });

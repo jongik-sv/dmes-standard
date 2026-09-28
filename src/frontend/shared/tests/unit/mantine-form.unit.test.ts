@@ -1,13 +1,14 @@
 /** @vitest-environment happy-dom */
-import { act, createElement } from "react";
+import { act, createElement, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MantineProvider } from "@mantine/core";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   Button,
   Checkbox,
   ComboBox,
   DatePicker,
+  DateTimePicker,
   FormGroup,
   Input,
   MultiSelectComboBox,
@@ -169,5 +170,135 @@ describe("form (Mantine 구현) 계약", () => {
     const inputTag = html.match(/<input[^>]*>/)?.[0] ?? "";
     expect(inputTag).toContain('aria-invalid="true"');
     expect(inputTag).toMatch(/aria-describedby="[^"]+"/);
+  });
+});
+
+describe("DateTimePicker 계약 (24시간제 · 초)", () => {
+  async function flush() {
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+  }
+
+  function panel(): HTMLElement {
+    const el = document.body.querySelector("[data-dates-dropdown]");
+    if (!el) throw new Error("패널이 열려 있지 않습니다");
+    return el as HTMLElement;
+  }
+
+  function setNativeValue(el: HTMLInputElement | HTMLSelectElement, value: string) {
+    const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
+    Object.getOwnPropertyDescriptor(proto, "value")!.set!.call(el, value);
+  }
+
+  /** 트리거 → 연·월 → 날짜 → 시·분·초 순으로 실제 조작한다. */
+  async function pick(trigger: () => HTMLElement, value: string) {
+    const [, y, mo, d, hh, mm, ss] = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/.exec(value)!;
+    await act(async () => {
+      trigger().click();
+    });
+    await flush();
+    for (const [which, v] of [["year", y], ["month", String(Number(mo) - 1)]] as const) {
+      await act(async () => {
+        const sel = panel().querySelector(`select[data-select="${which}"]`) as HTMLSelectElement;
+        setNativeValue(sel, v);
+        sel.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+      await flush();
+    }
+    const day = Array.from(panel().querySelectorAll("button"))
+      .find((b) => b.textContent?.trim() === String(Number(d)) && !b.hasAttribute("data-outside"))!;
+    await act(async () => {
+      (day as HTMLElement).click();
+    });
+    await flush();
+    for (const [label, v] of [["시", hh], ["분", mm], ["초", ss]] as const) {
+      await act(async () => {
+        const input = panel().querySelector(`input[aria-label="${label}"]`) as HTMLInputElement;
+        setNativeValue(input, v);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      await flush();
+    }
+  }
+
+  /** controlled 로 쓰는 실제 사용 형태(값을 상태로 들고 있다). */
+  function Controlled({ initial = "" }: { initial?: string }) {
+    const [value, setValue] = useState(initial);
+    return createElement(DateTimePicker, { value, onChange: setValue, id: "dt1", "data-testid": "dt-trigger" });
+  }
+
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("datetime-local 이 아니라 클릭해서 여는 picker 다 — 트리거는 button 이고 24시간제·초까지 표기한다", async () => {
+    const r = renderWithMantine(createElement(Controlled));
+    const trigger = r.host.querySelector("#dt1") as HTMLElement;
+    expect(trigger.tagName).toBe("BUTTON");
+    expect(trigger.textContent).toBe("YYYY-MM-DD HH:mm:ss");
+    // data-testid 같은 속성이 트리거 버튼에 그대로 실린다.
+    expect(r.host.querySelector('[data-testid="dt-trigger"]')).toBe(trigger);
+    r.unmount();
+  });
+
+  it("값을 YYYY-MM-DD HH:mm:ss 문자열로 주고받는다 — 오후 표기가 없고 초가 보존된다", async () => {
+    const onChange = vi.fn();
+    function Controlled2() {
+      const [value, setValue] = useState("");
+      return createElement(DateTimePicker, {
+        value,
+        onChange: (v: string) => {
+          onChange(v);
+          setValue(v);
+        },
+        id: "dt1",
+      });
+    }
+    const r = renderWithMantine(createElement(Controlled2));
+    const trigger = () => r.host.querySelector("#dt1") as HTMLElement;
+    await pick(trigger, "2026-10-01 21:45:37");
+    expect(onChange).toHaveBeenLastCalledWith("2026-10-01 21:45:37");
+    expect(trigger().textContent).toBe("2026-10-01 21:45:37");
+    expect(trigger().textContent).not.toMatch(/오후|AM|PM/);
+    r.unmount();
+  });
+
+  it("시·분·초 세 칸(24시간제)만 있고 오전/오후 select 는 없다", async () => {
+    const r = renderWithMantine(createElement(Controlled));
+    const trigger = () => r.host.querySelector("#dt1") as HTMLElement;
+    await act(async () => {
+      trigger().click();
+    });
+    await flush();
+    const p = panel();
+    expect(p.querySelectorAll('input[aria-label="시"], input[aria-label="분"], input[aria-label="초"]')).toHaveLength(3);
+    // select 은 달력의 연·월 2개뿐이다(AmPmInput 의 오전/오후 select 가 없다는 뜻).
+    expect(p.querySelectorAll("select")).toHaveLength(2);
+    expect(p.textContent).not.toMatch(/AM|PM/);
+    r.unmount();
+  });
+
+  it("읽을 수 없는 값은 빈 값으로 보고 placeholder 를 보인다", () => {
+    const onChange = vi.fn();
+    const r = renderWithMantine(createElement(DateTimePicker, { value: "잘못된 값", onChange, id: "dt1" }));
+    const trigger = r.host.querySelector("#dt1") as HTMLElement;
+    expect(trigger.textContent).toBe("YYYY-MM-DD HH:mm:ss");
+    r.unmount();
+  });
+
+  it("error 는 role=alert 메시지를 렌더하고 트리거에 aria-invalid/aria-describedby 를 건다", () => {
+    const r = renderWithMantine(createElement(DateTimePicker, { value: "", error: "필수", id: "dt1" }));
+    expect(r.host.querySelector('[role="alert"]')?.textContent).toContain("필수");
+    const trigger = r.host.querySelector("#dt1") as HTMLElement;
+    expect(trigger.getAttribute("aria-invalid")).toBe("true");
+    expect(trigger.getAttribute("aria-describedby")).toBe("dt1-error");
+    r.unmount();
+  });
+
+  it("disabled 는 트리거 버튼에 그대로 실린다", () => {
+    const r = renderWithMantine(createElement(DateTimePicker, { value: "", disabled: true, id: "dt1" }));
+    expect((r.host.querySelector("#dt1") as HTMLButtonElement).disabled).toBe(true);
+    r.unmount();
   });
 });

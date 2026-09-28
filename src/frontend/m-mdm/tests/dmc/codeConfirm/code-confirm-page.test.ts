@@ -8,6 +8,7 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 import { openMdmPage, takeMdmPageParams } from "@/shell";
+import { pickDateTime } from "../../helpers/datetime-picker";
 import CodeConfirmPage from "../../../pages/dmc/codeConfirm/page";
 
 const RBAC_STORE_KEY = "__dkOasisButtonRbacStore__";
@@ -139,11 +140,16 @@ async function typeInto(testId: string, value: string) {
 const actions = (name: string) => calls.filter((c) => c.action === name);
 const confirmButton = () => byTestId("cf-confirm") as HTMLButtonElement;
 
+/** 희망 적용 시작 일시를 넣는다 — 달력 + 24시간제 시·분·초 칸(`datetime-local` 이 아니다). */
+async function pickApplyFrom(value: string) {
+  await pickDateTime(() => byTestId("cf-apply-from") as HTMLElement, value);
+}
+
 /** 핸드오프로 PROC_CD 2.000 을 열고 apply_from 을 넣어 검사까지 한다. */
-async function openAndValidate(applyFrom = "2026-10-01T00:00") {
+async function openAndValidate(applyFrom = "2026-10-01 00:00:00") {
   openMdmPage("dmc/codeConfirm", { maruCodeId: "PROC_CD", ver: "2.000" });
   await render();
-  await typeInto("cf-apply-from", applyFrom);
+  await pickApplyFrom(applyFrom);
   await click(byTestId("cf-validate"));
 }
 
@@ -335,8 +341,8 @@ describe("CodeConfirmPage", () => {
   });
 
   it("P4 서버가 futureApplyFrom=true 를 주면 과거 일시라도 미래 적용 경고를 보인다", async () => {
-    nextValidate = () => validateResult(checkRows(), { applyFrom: "2020-01-01 00:00:00", futureApplyFrom: true });
-    await openAndValidate("2020-01-01T00:00");
+    nextValidate = () => validateResult(checkRows(), { applyFrom: "2026-01-01 00:00:00", futureApplyFrom: true });
+    await openAndValidate("2026-01-01 00:00:00");
     await click(confirmButton());
     const warning = byTestId("cf-future-warning")?.textContent ?? "";
     expect(warning).toContain("적용 시작 일시가 미래입니다");
@@ -346,8 +352,8 @@ describe("CodeConfirmPage", () => {
   });
 
   it("P4 서버가 futureApplyFrom=false 를 주면 먼 미래 일시라도 미래 경고를 보이지 않는다", async () => {
-    nextValidate = () => validateResult(checkRows(), { applyFrom: "2099-01-01 00:00:00", futureApplyFrom: false });
-    await openAndValidate("2099-01-01T00:00");
+    nextValidate = () => validateResult(checkRows(), { applyFrom: "2075-01-01 00:00:00", futureApplyFrom: false });
+    await openAndValidate("2075-01-01 00:00:00");
     await click(confirmButton());
     expect(byTestId("cf-modal-ok")).toBeTruthy();
     expect(byTestId("cf-future-warning")).toBeNull();
@@ -384,9 +390,42 @@ describe("CodeConfirmPage", () => {
   it("P7 검사 뒤 apply_from 을 바꾸면 확정 버튼이 다시 비활성이 된다", async () => {
     await openAndValidate();
     expect(confirmButton().disabled).toBe(false);
-    await typeInto("cf-apply-from", "2026-10-02T00:00");
+    await pickApplyFrom("2026-10-02 00:00:00");
     expect(confirmButton().disabled).toBe(true);
-    await typeInto("cf-apply-from", "2026-10-01T00:00");
+    await pickApplyFrom("2026-10-01 00:00:00");
+    expect(confirmButton().disabled).toBe(false);
+  });
+
+  it("희망 적용 시작 일시는 24시간제·초까지 입력된다 — picker 값이 초를 보존해 검사·확정에 그대로 실린다", async () => {
+    openMdmPage("dmc/codeConfirm", { maruCodeId: "PROC_CD", ver: "2.000" });
+    await render();
+    // datetime-local 이 아니다 — 클릭해서 여는 picker 다.
+    const trigger = byTestId("cf-apply-from") as HTMLElement;
+    expect(trigger.tagName).toBe("BUTTON");
+    expect(trigger.textContent).toContain("YYYY-MM-DD HH:mm:ss");
+
+    await pickApplyFrom("2026-10-01 21:45:37");
+    // 트리거 표기가 24시간제(오후 표시 없음) + 초.
+    expect(trigger.textContent).toBe("2026-10-01 21:45:37");
+    await act(async () => {
+      trigger.click();
+    });
+    await flush();
+    const panel = document.body.querySelector("[data-dates-dropdown]")!;
+    expect(panel.querySelectorAll('input[aria-label="시"], input[aria-label="분"], input[aria-label="초"]')).toHaveLength(3);
+    // select 은 달력의 연·월 2개뿐 — 오전/오후 select 는 없다(24시간제).
+    expect(panel.querySelectorAll("select")).toHaveLength(2);
+    expect(panel.textContent).not.toMatch(/AM|PM/);
+    await act(async () => {
+      trigger.click();
+    });
+    await flush();
+
+    await click(byTestId("cf-validate"));
+    // 초까지 서버로 간다(I34).
+    expect(actions("validate").map((c) => c.params)).toEqual([
+      { maruCodeId: "PROC_CD", ver: "2.000", applyFrom: "2026-10-01 21:45:37" },
+    ]);
     expect(confirmButton().disabled).toBe(false);
   });
 
