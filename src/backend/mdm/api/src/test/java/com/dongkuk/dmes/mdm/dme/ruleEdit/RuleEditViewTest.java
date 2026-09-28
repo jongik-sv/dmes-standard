@@ -152,6 +152,28 @@ class RuleEditViewTest extends AbstractMdmSharedDbTest {
         assertEquals(3, view("QLTY_GRD_JDG", null).getSelectedVer());
     }
 
+    /**
+     * D8 진입 결함 회귀 — 미래 적용으로 확정(예정 확정)한 버전이 있으면 그 버전을 먼저 연다.
+     *
+     * <p>확정 취소는 {@code APPLY_FROM > now} 인 RELEASED 에서만 가능하다(ADR-0002 D8·TSK-02-01 D4-1). 그런 버전이 있는데
+     * 화면이 지금 적용 중인 RELEASED 로 먼저 떨어지면, 그 버전은 확정 취소를 할 수 없어 ② 버전 카드의 동작(확정 취소·삭제·
+     * 해제·넘기기·확정 이동·새 버전)이 전부 꺼진 채로 뜬다. 사용자는 버전 행을 눌러야 처음으로 그 버전에 닿는다.
+     * 그래서 {@code pickDefault} 의 1순위는 {@code RuleVersions.isUnapplied}(= DRAFT·REQUESTED·APPROVED·예정 확정 RELEASED)다.
+     */
+    @Test
+    void 예정_확정_버전이_현재_RELEASED_보다_먼저다() {
+        jdbc.update("UPDATE TB_MDM_RULE_VER SET APPLY_TO = '2026-12-31 00:00:00' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG'");
+        DmeTestSupport.released(jdbc, "QLTY_GRD_JDG", 2, "FIRST", "2026-12-31 00:00:00", null);
+        jdbc.update("UPDATE TB_MDM_RULE_VER SET OWNER_ID = 'kim' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2");
+
+        RuleEditViewResult v = view("QLTY_GRD_JDG", null);
+        assertEquals(2, v.getSelectedVer(), "적용 시각이 오지 않은 확정 버전이 먼저 열린다");
+        assertTrue(v.getVersions().stream().filter(x -> x.getVer() == 2).findFirst().orElseThrow().isCancelConfirmable(),
+                "선택 버전이 확정 취소 가능해야 첫 진입에서 취소할 수 있다");
+        assertEquals("2026-12-31 00:00:00",
+                v.getVersions().stream().filter(x -> x.getVer() == 2).findFirst().orElseThrow().getApplyFrom());
+    }
+
     @Test
     void 버전이_없으면_선택_버전이_없고_빈_표다() {
         DmeTestSupport.rule(jdbc, "EMPTY_JDG", "빈", "DECISION", "CREATED");

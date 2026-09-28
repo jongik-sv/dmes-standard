@@ -142,6 +142,16 @@ moduleGroup: dmc
 0행이면 `version-empty` "버전이 없습니다". 미적용 버전이 2개면 `ver-unapplied-warning` "미적용 버전이 2개입니다.
 하나를 삭제하세요".
 
+**이 화면에는 서버가 고르는 "기본 버전"이 없다.** `codeEdit` view 는 선택 버전(`selectedVer` 류)을 내려주지 않고
+`versions[]` 각 행에 `unapplied`·`cancelConfirmable` 판정값만 실어 보낸다(§7 확정 취소 행). 선택은 화면이 들고 있다 —
+목록 행을 누르면 `selectedVer=null`(미선택), 버전 행을 누르면 그 `ver`(handoff·snapshot 이 `ver` 를 주면 그것부터).
+미선택 상태에서는 §7 의 버전 동작 버튼이 전부 비활성이고 [코드 편집] 도 꺼진다(D-102, 시험
+`version-buttons.test.ts` "버전을 고르지 않으면 코드 편집도 비활성"). 곧 **첫 진입에서 확정 취소까지 한 번의 행 클릭이 더
+필요하다** — 룰 화면처럼 서버가 고르지 않기 때문에 벌이는 일이 아니라, 코드가 3단계(목록·상세·버전) 화면이기 때문이다.
+무엇을 먼저 골라야 하는지는 서버가 이미 정해 준다 — 예정 확정(미래 적용 RELEASED) 버전이 `unapplied=true`·
+`cancelConfirmable=true` 로 내려온다(룰 영역과 같은 `미적용 = DRAFT·결재 중·apply_from > now 인 RELEASED` 정의,
+회귀 시험 `CodeEditVersionSqliteTest.D8_예정_확정_RELEASED_는_미적용이고_확정_취소할_수_있다`).
+
 ## 7. 버튼 및 기능 동작 정의
 
 | 버튼 | action | 권한 | 동작 |

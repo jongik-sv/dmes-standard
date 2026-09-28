@@ -445,7 +445,7 @@ BPMN 은 선례대로 `actionGateway` 하나에 action 마다 serviceTask 하나
 
 ### 6.3 서비스 규칙
 
-1. **view**: `ver` 가 없으면 06 시안 `curVer` 순서로 고른다 — 미적용 DRAFT → 그 밖의 미적용(REQUESTED·APPROVED) → 현재 RELEASED(`apply_from <= now < apply_to`) → 가장 큰 ver. 버전이 없으면 `selectedVer=null`·빈 표. `now` 는 `LocalDateTime.now(clock).truncatedTo(SECONDS)`(공통 `Clock` 빈).
+1. **view**: `ver` 가 없으면 06 시안 `curVer` 순서로 고른다 — **미적용(작성 중 DRAFT·결재 중 REQUESTED·APPROVED·`apply_from > now` 인 RELEASED=예정 확정) 가운데 가장 큰 ver** → 현재 RELEASED(`apply_from <= now < apply_to`) → 가장 큰 ver. 버전이 없으면 `selectedVer=null`·빈 표. `now` 는 `LocalDateTime.now(clock).truncatedTo(SECONDS)`(공통 `Clock` 빈). 미적용 판정은 같은 view 의 `unappliedVersionExists`·`RuleVersions.isUnapplied` 와 한 정의다(공통 버전 서비스가 미적용 2개를 막으므로 실제로는 0~1개). **예정 확정 RELEASED 를 1순위에 둔다** — 확정 취소(D8)는 `apply_from > now` 인 RELEASED 에서만 가능하므로, 지금 적용 중인 RELEASED 로 먼저 떨어지면 첫 진입에서 ② 버전 카드의 동작(확정 취소·삭제·해제·넘기기·확정 이동·새 버전)이 전부 꺼진 채 뜬다.
 2. **register**(`ruleMngService`): `RuleIdRules.validateRuleId` → 룰명 필수·100자 이하 → `ruleKind ∈ {DECISION, DERIVE}` → `sourceKind` 검사(I2) → `RuleStewardCheck.requireSteward()`(I3) → `existsById` 면 `DUPLICATE_DATA` → `TransactionTemplate` 안에서 `new MdmRule(id, name, kind, "MDM")`(설명·메모 setter) 저장 → `new MdmRuleVer(id, 1, me)` + `setHitPolicy`·`setBaseVer(null)` 저장.
 3. **newVersion**: 원천 MDM·상태 != DEPRECATED·`RuleStewardCheck.requireSteward()` → `checkCanCreateVersion` → 직전 RELEASED 찾기 → `new MdmRuleVer(id, next, me)` + base·hit 복사 → VAR·ROW 칼럼 전수 복사(엔티티 생성자 + setter, `collectAgg` 등 null 이면 null 그대로 — 원본 값을 복사하므로 DB 기본값 문제 없음) — 한 트랜잭션.
 4. **deleteDraft**: 원천 MDM → `VersionStateService.deleteDraft(ref, rowVersion, me)`(소유자·DRAFT·row_version·훅은 공통 서비스가 본다).

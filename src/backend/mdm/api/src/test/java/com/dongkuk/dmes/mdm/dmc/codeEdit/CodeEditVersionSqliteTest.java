@@ -340,6 +340,45 @@ class CodeEditVersionSqliteTest {
         assertEquals("INUSE", jdbc.queryForObject("SELECT STATUS FROM TB_MDM_CODE", String.class));
     }
 
+    /**
+     * D8-1 계약 — 예정 확정(미래 적용 RELEASED)은 <b>미적용</b>이고 확정 취소할 수 있다. 룰 영역 `RuleVersions.isUnapplied` 와
+     * 같은 정의(DRAFT·결재 중·{@code applyFrom > now} 인 RELEASED)여야 화면의 확정 취소·새 버전 막힘이 두 영역에서 어긋나지 않는다.
+     *
+     * <p>{@code codeEdit} view 는 선택 버전을 내려주지 않는다(04 「버전 목록」) — 그래서 이 판정이 행별로 내려가는 값이다.
+     * 화면이 그 행을 골랐을 때 확정 취소가 켜지는지는 `codeMng/buttons.ts` {@code versionButtons} 가 이 값만 본다.
+     */
+    @Test
+    void D8_예정_확정_RELEASED_는_미적용이고_확정_취소할_수_있다() {
+        seeds.seedCode(ID, "INUSE", "MDM");
+        seeds.released(ID, "1.000", PAST, OPEN_END);
+        seeds.seedVer(ID, "1.001", "MINOR", "RELEASED", FUTURE, OPEN_END, "stw1");
+        as("stw1");
+
+        CodeEditView v = view();
+        CodeVersionRow current = v.getVersions().stream().filter(r -> "1.000".equals(r.getVer())).findFirst().orElseThrow();
+        CodeVersionRow scheduled = v.getVersions().stream().filter(r -> "1.001".equals(r.getVer())).findFirst().orElseThrow();
+
+        assertFalse(current.isUnapplied(), "지금 적용 중인 RELEASED 는 적용된 것이다");
+        assertFalse(current.isCancelConfirmable(), "이미 적용된 뒤에는 되돌릴 수 없다(D8)");
+        assertTrue(scheduled.isUnapplied(), "적용 시각이 오지 않은 확정 RELEASED 는 미적용이다");
+        assertTrue(scheduled.isCancelConfirmable(), "소유자고 미적용 1개면 확정 취소할 수 있다(D8-1)");
+        assertEquals(1, v.getFlags().getUnappliedCount());
+        assertEquals("v1.001 RELEASED", v.getHeader().getUnappliedLabel());
+    }
+
+    /** 소유자가 아니면 예정 확정 버전도 확정 취소할 수 없다 — 서버 판정값을 화면이 재계산하지 않아도 되는 전제. */
+    @Test
+    void D8_예정_확정도_소유자가_아니면_확정_취소가_안_된다() {
+        seeds.seedCode(ID, "INUSE", "MDM");
+        seeds.released(ID, "1.000", PAST, OPEN_END);
+        seeds.seedVer(ID, "1.001", "MINOR", "RELEASED", FUTURE, OPEN_END, "stw1");
+        as("stw2");
+
+        CodeVersionRow scheduled = view().getVersions().stream().filter(r -> "1.001".equals(r.getVer())).findFirst().orElseThrow();
+        assertTrue(scheduled.isUnapplied());
+        assertFalse(scheduled.isCancelConfirmable());
+    }
+
     // ── 도우미 ──
 
     private void as(String userId) {

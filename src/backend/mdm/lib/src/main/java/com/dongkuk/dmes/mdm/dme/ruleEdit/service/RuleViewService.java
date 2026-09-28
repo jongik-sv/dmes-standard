@@ -36,14 +36,13 @@ import kr.dongkuk.maru.mdm.engine.rule.RuleAnalyzer;
 import org.springframework.stereotype.Service;
 
 /**
- * view 조립(TSK-08-02 design §6.2·§6.3.1). 버전을 고르지 않으면 06 시안 {@code curVer} 순서로 고른다: 미적용 DRAFT → 그 밖의 미적용
- * (REQUESTED·APPROVED) → 현재 RELEASED({@code APPLY_FROM <= now < APPLY_TO}) → 가장 큰 ver. 읽기는 누구나 된다.
+ * view 조립(TSK-08-02 design §6.2·§6.3.1). 버전을 고르지 않으면 06 시안 {@code curVer} 순서로 고른다: 미적용(작성 중 DRAFT·결재 중·
+ * 적용 시각이 아직 오지 않은 확정 RELEASED) → 현재 RELEASED({@code APPLY_FROM <= now < APPLY_TO}) → 가장 큰 ver. 읽기는 누구나 된다.
  * {@code editable} = 원천 MDM && 선택 버전 DRAFT && 소유자 = 나(I7), {@code headerEditable} 은 {@link RuleHeaderService} 규칙(D6).
  */
 @Service
 public class RuleViewService {
 
-    private static final Set<String> IN_APPROVAL = Set.of("REQUESTED", "APPROVED");
     private static final String TEXT_PATTERN = "yyyy-MM-dd HH:mm:ss";
 
     private final RuleEditSupport support;
@@ -158,17 +157,16 @@ public class RuleViewService {
     }
 
     private static Optional<MdmRuleVer> pickDefault(List<MdmRuleVer> versions, LocalDateTime now) {
-        Comparator<MdmRuleVer> byVer = Comparator.comparing(MdmRuleVer::getVer);
-        Optional<MdmRuleVer> draft = versions.stream().filter(v -> "DRAFT".equals(v.getStatus())).max(byVer);
-        if (draft.isPresent()) {
-            return draft;
+        // 1순위는 공통 정의(04 「버전 상태와 적용시점」)의 미적용 버전이다 — DRAFT·REQUESTED·APPROVED 에 {@code APPLY_FROM > now} 인
+        // RELEASED(예정 확정)까지 한 정의로 센다.(공통 버전 서비스가 미적용 2개를 막아 실제로는 0~1개다.)
+        // 확정 취소(D8)는 예정 확정 버전에만 가능하므로, 지금 적용 중인 RELEASED 로 먼저 떨어지면 ② 버전 카드의 동작이
+        // 전부 꺼진 채로 첫 진입한다(사용자가 버전 행을 눌러야 그 버전에 닿는다).
+        Optional<MdmRuleVer> unapplied = RuleVersions.unapplied(versions, now);
+        if (unapplied.isPresent()) {
+            return unapplied;
         }
-        Optional<MdmRuleVer> approval = versions.stream().filter(v -> IN_APPROVAL.contains(v.getStatus())).max(byVer);
-        if (approval.isPresent()) {
-            return approval;
-        }
-        Optional<MdmRuleVer> current = RuleVersions.currentReleased(versions, now);
-        return current.isPresent() ? current : versions.stream().max(byVer);
+        return RuleVersions.currentReleased(versions, now)
+                .or(() -> versions.stream().max(Comparator.comparing(MdmRuleVer::getVer)));
     }
 
     /** 상태는 계산 상태다(TSK-08-05 design §6.7, I19). */

@@ -78,7 +78,9 @@ moduleGroup: dme
 | T-002 | 버전 | ComboBox | 고르면 `view{maruRuleId, ver}` |
 | T-003 | (배지) | 표시 | `VersionStatusBadge`·`DraftLockBadge`("편집 중(나)"·"잠김 · {소유자} 편집 중"·"선점 가능") |
 
-`view` 에 버전을 주지 않으면 서버가 고른다: 미적용 DRAFT → 그 밖의 미적용 → 현재 RELEASED → 가장 큰 버전(§6.3.1).
+`view` 에 버전을 주지 않으면 서버가 고른다: **미적용(작성 중 DRAFT·결재 중 REQUESTED·APPROVED·`apply_from > now` 인 RELEASED=예정 확정) 가운데 가장 큰 ver → 현재 RELEASED(`apply_from <= now < apply_to`) → 가장 큰 버전**(§6.3.1). 이 미적용 판정은 같은 응답의 `unappliedVersionExists`·룰 목록의 "미적용 버전" 칸과 한 정의다(공통 `RuleVersions.isUnapplied`) — 공통 버전 서비스가 미적용 2개를 막으므로 실제로는 0~1개다.
+
+예정 확정 RELEASED 를 1순위에 두는 이유: **확정 취소(D8)는 `apply_from > now` 인 RELEASED 에서만 가능하다.** 지금 적용 중인 RELEASED 로 먼저 떨어지면 그 버전은 확정 취소를 할 수 없어, 첫 진입에서 ② 버전 카드의 동작이 전부 꺼진 채 뜬다(확정 취소·삭제·해제·넘기기·확정 이동·새 버전). 룰 목록은 이미 그 버전을 "미적용"으로 가리키는데 룰 화면이 다른 버전을 여는 불일치가 있었다 — 회귀 시험 `RuleEditViewTest.예정_확정_버전이_현재_RELEASED_보다_먼저다`.
 저장 안 한 변경이 있는 채 룰·버전을 바꾸면 확인을 받는다(§6.9).
 
 ## 5. 카드
@@ -230,13 +232,18 @@ EXTERNAL 룰은 저장 자체가 막히므로 검사를 돌리지 않는다. 상
 
 ## 7. 상태 정의 및 상태별 제어
 
-| 버전 상태 | 표 편집 | 새 버전 | 삭제·해제·넘기기 | 선점 |
-|---|---|---|---|---|
-| DRAFT(소유자 = 나) | O | X(미적용) | O | — |
-| DRAFT(다른 소유자) | X | X | X | — (버튼 없음) |
-| DRAFT(소유자 없음) | X | X | X | O |
-| REQUESTED·APPROVED·적용 전 RELEASED | X | X | X | — |
-| 현재 RELEASED(미적용 없음) | X | O | — | — |
+| 버전 상태 | 표 편집 | 새 버전 | 삭제·해제·넘기기 | 선점 | 확정 취소 |
+|---|---|---|---|---|---|
+| DRAFT(소유자 = 나) | O | X(미적용) | O | — | — |
+| DRAFT(다른 소유자) | X | X | X | — (버튼 없음) | — |
+| DRAFT(소유자 없음) | X | X | X | O | — |
+| REQUESTED·APPROVED | X | X | X | — | — |
+| **예정 확정 RELEASED**(`apply_from > now`, 소유자 = 나, 미적용 1개) | X | X | — | — (버튼 없음) | **O** |
+| **예정 확정 RELEASED**(소유자 ≠ 나) | X | X | — | — (버튼 없음) | X |
+| 현재 RELEASED(미적용 없음) | X | O | — | — | X |
+| 이미 적용된 RELEASED(`apply_from <= now`) | X | O | — | — (버튼 없음) | X |
+
+예정 확정 RELEASED 행은 확정 취소(D8)의 유일한 근거다 — 서버 `RuleVersions.isUnapplied` 와 `cancelConfirmable` 판정(`RELEASED && apply_from > now && owner==me && 미적용 1개`)이 같으므로 §4 의 기본 버전 선택이 이 버전을 1순위로 고른다. D8 도입 이전 이 표에는 확정 취소 열이 없어 "REQUESTED·APPROVED·적용 전 RELEASED" 를 한 행으로 묶고 전부 X 로 적어 놓았다.
 
 룰 상태 DEPRECATED 면 새 버전을 거부한다. EXTERNAL 룰은 모든 쓰기를 거부하고 "조회 전용" 배지를 단다.
 
