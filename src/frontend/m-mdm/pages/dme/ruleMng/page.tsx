@@ -192,14 +192,9 @@ export default function RuleMngPage() {
               loading={isBusy}
               loadingMessage="조회 중..."
               emptyMessage="조회된 룰이 없습니다."
+              emptyTestId="rule-list-empty"
             />
           </GridPanel>
-          {/* shared AgDataGrid 는 loading 해제 때 hideOverlay() 로 빈 행 오버레이까지 지우므로 빈 상태를 직접 적는다. */}
-          {!isBusy && rows.length === 0 && (
-            <p data-testid="rule-list-empty" style={{ margin: 0, padding: "var(--spacing-sm) var(--spacing-md)", color: "var(--color-text-muted)" }}>
-              조회된 룰이 없습니다.
-            </p>
-          )}
           <Pagination
             page={page}
             totalPages={totalPages}

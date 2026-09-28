@@ -15,7 +15,7 @@ import {
   ContentBody, ContentPanel, ErrorModal, SearchArea, SearchField, canDoButton, useUserButtonRbac,
 } from "@dk-oasis/shared/layout";
 import { useMessage } from "@dk-oasis/shared/message-provider";
-import { MdmPageLayout, VersionStatusBadge } from "@/shell";
+import { MdmPageLayout, VersionStatusBadge, useMdmPageParams } from "@/shell";
 import { previewRegex, saveGrids, searchCodes, viewCategories } from "./api";
 import {
   addCategoryRow, categoryChangesOf, editCategoryRow, removeCategoryRow, toCategoryRows, undoCategoryLocal,
@@ -30,8 +30,9 @@ import { diffMembers, type TransferItem } from "./transfer";
 import { BASE_CATE_ID, type CodeSummary, type PreviewResult, type ViewResult } from "./types";
 
 const SCREEN_ID = "codeCateEdit";
+const COMPONENT_PATH = "dmc/codeCateEdit";
 
-export default function CodeCateEditPage() {
+export default function CodeCateEditPage({ tabId }: { tabId?: string }) {
   const rbac = useUserButtonRbac();
   const canSave = canDoButton(rbac, SCREEN_ID, "save");
   const { showMessage } = useMessage();
@@ -77,6 +78,13 @@ export default function CodeCateEditPage() {
       setBusy(false);
     }
   }, []);
+
+  // 코드 수정 화면이 [코드 편집]·[카테고리 편집]으로 넘긴 마루 코드·버전(openMdmPage)을 받는다(§6.10).
+  useMdmPageParams(COMPONENT_PATH, tabId, (params) => {
+    if (!params.maruCodeId) return;
+    setMaruCodeId(params.maruCodeId);
+    void load(params.maruCodeId, params.ver ?? null);
+  });
 
   const chooseCode = (id: string) => {
     setMaruCodeId(id);

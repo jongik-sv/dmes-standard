@@ -164,6 +164,8 @@ export interface GridColumn {
   headerAlign?: "left" | "center" | "right";
   type?: "string" | "number" | "boolean";
   sortable?: boolean;
+  /** false 면 이 칸의 마우스오버 툴팁(셀 값)을 끈다 — 값이 화면 표시용이 아닌 render 전용 칸에 쓴다. */
+  tooltip?: boolean;
   render?: (value: unknown, row: Record<string, unknown>) => React.ReactNode;
   /** 인라인 편집 허용 여부.
    * true → 모든 행 편집 가능, false → 모든 행 편집 불가, 함수 → 행별 동적 판단. */
@@ -246,6 +248,8 @@ export interface AgDataGridProps {
   onRowDoubleClick?: (row: Record<string, unknown>, event: Event) => void;
   sortable?: boolean;
   emptyMessage?: string;
+  /** 데이터 없음 안내 문구에 붙일 data-testid(화면·E2E 가 빈 상태를 확인할 때). */
+  emptyTestId?: string;
   className?: string;
   highlightedRowKey?: string | number | null;
   scrollToRow?: string | number | null;
@@ -485,6 +489,9 @@ function leafColDef(col: GridColumn, opts: BuildColumnDefsOptions): ColDef {
     editable: editableProp,
     cellEditor,
     cellEditorParams,
+    // 숫자 편집기 칸은 숫자형으로 못박는다 — 추론에 맡기면 첫 행 값이 ""(새 행)일 때 문자열형이 되어
+    // 편집기가 돌려준 숫자를 ag-grid 가 #135(형 불일치)로 버린다.
+    cellDataType: cellEditor === "agNumberCellEditor" ? "number" : undefined,
     // refData(키→라벨) — agSelectCellEditor 드롭다운·셀 표시를 "명칭(코드)"로, 저장값은 키.
     refData: col.cellEditorValueLabels,
     cellStyle: { textAlign: col.align || "left" },
@@ -493,6 +500,7 @@ function leafColDef(col: GridColumn, opts: BuildColumnDefsOptions): ColDef {
     headerClass: col.headerAlign ? `header-${col.headerAlign}` : "header-center",
     headerTooltip: col.headerTooltip,
     rowDrag,
+    ...(col.tooltip === false ? { tooltipValueGetter: () => "" } : {}),
     cellRenderer: col.render
       ? (params: { value: unknown; data: Record<string, unknown> }) =>
           col.render!(params.value, params.data)
@@ -591,6 +599,7 @@ function AgDataGridComponent({
   onRowDoubleClick,
   sortable = true,
   emptyMessage = "데이터가 없습니다.",
+  emptyTestId,
   className = "",
   highlightedRowKey = null,
   scrollToRow = null,
@@ -924,8 +933,13 @@ function AgDataGridComponent({
   useEffect(() => {
     if (!gridReady || !gridRef.current?.api) return;
     const api = gridRef.current.api;
-    if (loading) api.showLoadingOverlay();
-    else api.hideOverlay();
+    if (loading) {
+      api.showLoadingOverlay();
+      return;
+    }
+    // hideOverlay 는 "데이터 없음" 안내까지 숨긴다 — 조회가 끝났는데 행이 없으면 안내를 다시 띄운다.
+    api.hideOverlay();
+    if (api.getDisplayedRowCount() === 0) api.showNoRowsOverlay();
   }, [loading, gridReady]);
 
   useEffect(() => {
@@ -1171,11 +1185,11 @@ function AgDataGridComponent({
       function NoRowsOverlay() {
         return (
           <div className="ag-overlay-no-rows-wrapper">
-            <span>{emptyMessage}</span>
+            <span data-testid={emptyTestId}>{emptyMessage}</span>
           </div>
         );
       },
-    [emptyMessage]
+    [emptyMessage, emptyTestId]
   );
 
   const loadingOverlayComponent = useMemo(

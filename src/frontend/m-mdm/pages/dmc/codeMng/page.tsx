@@ -40,7 +40,6 @@ export default function CodeMngPage() {
   const [rows, setRows] = useState<CodeMngRow[]>([]);
   const [form, setForm] = useState<CodeRegForm>(emptyRegForm);
   const [busy, setBusy] = useState(false);
-  const [loaded, setLoaded] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const openEdit = useCallback((maruCodeId: string) => {
@@ -83,7 +82,6 @@ export default function CodeMngPage() {
       setErrorMessage(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
-      setLoaded(true);
     }
   }, []);
 
@@ -158,14 +156,10 @@ export default function CodeMngPage() {
                   loading={busy}
                   loadingMessage="조회 중..."
                   emptyMessage="조회된 마루 코드가 없습니다"
+                  emptyTestId="code-list-empty"
                 />
               </GridPanel>
             </div>
-            {loaded && rows.length === 0 && !busy ? (
-              <p data-testid="code-list-empty" style={{ ...mutedText, margin: "0 var(--spacing-sm)" }}>
-                조회된 마루 코드가 없습니다
-              </p>
-            ) : null}
           </div>
         </ContentPanel>
 

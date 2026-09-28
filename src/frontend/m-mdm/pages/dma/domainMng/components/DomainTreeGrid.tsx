@@ -61,7 +61,6 @@ export function DomainTreeGrid({ rows, selectedId, loading, onSelect }: DomainTr
           columns={COLUMNS}
           data={rows as unknown as Record<string, unknown>[]}
           rowKey="DOMAIN_ID"
-          height={360}
           highlightedRowKey={selectedId}
           loading={loading}
           loadingMessage="조회 중..."

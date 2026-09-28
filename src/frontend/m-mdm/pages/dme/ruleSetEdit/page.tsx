@@ -77,49 +77,54 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
         )}
       </div>
 
-      {picks && (
-        <div data-testid="set-pick-list" style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-xs)", padding: "var(--spacing-xs) var(--spacing-md)" }}>
-          {picks.length === 0 ? (
-            <span style={{ color: "var(--color-text-muted)" }}>찾은 세트가 없다</span>
-          ) : (
-            picks.map((p) => (
-              <Button
-                key={p.setId}
-                size="sm"
-                data-testid={`set-pick-${p.setId}`}
-                onClick={() => {
-                  setPicks(null);
-                  void open(p.setId);
-                }}
-              >
-                {`${p.setId} · ${p.setName} · ${p.status}`}
-              </Button>
-            ))
-          )}
-        </div>
-      )}
+      {/* 본문 영역: PageLayout 은 children 에 스크롤 컨테이너를 두지 않고 overflow:hidden 이라
+          카드가 넘치면 잘린다. flex:1 + minHeight:0 로 남는 공간을 흡수해 푸터를 맨 아래에 밀고,
+          넘칠 때만 이 div 가 스크롤된다(ContentBody 가 하는 역할의 로컬 버전). */}
+      <div style={{ flex: "1 1 0", minHeight: 0, overflowY: "auto" }}>
+        {picks && (
+          <div data-testid="set-pick-list" style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-xs)", padding: "var(--spacing-xs) var(--spacing-md)" }}>
+            {picks.length === 0 ? (
+              <span style={{ color: "var(--color-text-muted)" }}>찾은 세트가 없다</span>
+            ) : (
+              picks.map((p) => (
+                <Button
+                  key={p.setId}
+                  size="sm"
+                  data-testid={`set-pick-${p.setId}`}
+                  onClick={() => {
+                    setPicks(null);
+                    void open(p.setId);
+                  }}
+                >
+                  {`${p.setId} · ${p.setName} · ${p.status}`}
+                </Button>
+              ))
+            )}
+          </div>
+        )}
 
-      {!view ? (
-        <p data-testid="set-edit-empty" style={{ padding: "var(--spacing-lg) var(--spacing-md)", color: "var(--color-text-muted)" }}>
-          세트를 골라 편집한다. 새 세트는 룰 세트 화면에서 등록한다
-        </p>
-      ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(16, minmax(0, 1fr))",
-            gap: "var(--spacing-sm)",
-            padding: "var(--spacing-sm) var(--spacing-md)",
-          }}
-        >
-          <div style={{ gridColumn: "span 10", minWidth: 0 }}>
-            <RuleSetCard state={state} canDo={canDo} canEditList={canEditList} />
+        {!view ? (
+          <p data-testid="set-edit-empty" style={{ padding: "var(--spacing-lg) var(--spacing-md)", color: "var(--color-text-muted)" }}>
+            세트를 골라 편집한다. 새 세트는 룰 세트 화면에서 등록한다
+          </p>
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(16, minmax(0, 1fr))",
+              gap: "var(--spacing-sm)",
+              padding: "var(--spacing-sm) var(--spacing-md)",
+            }}
+          >
+            <div style={{ gridColumn: "span 10", minWidth: 0 }}>
+              <RuleSetCard state={state} canDo={canDo} canEditList={canEditList} />
+            </div>
+            <div style={{ gridColumn: "span 6", minWidth: 0 }}>
+              <GuideCard canApply={canEditList && !state.loading} onApply={state.applyGuide} onError={state.reportError} />
+            </div>
           </div>
-          <div style={{ gridColumn: "span 6", minWidth: 0 }}>
-            <GuideCard canApply={canEditList && !state.loading} onApply={state.applyGuide} onError={state.reportError} />
-          </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {state.error && <ErrorModal message={state.error} onClose={state.clearError} />}
     </MdmPageLayout>

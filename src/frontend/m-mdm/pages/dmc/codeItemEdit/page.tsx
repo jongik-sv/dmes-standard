@@ -18,7 +18,7 @@ import { useMessage } from "@dk-oasis/shared/message-provider";
 import { Tabs } from "@dk-oasis/shared/tabs";
 import { Tree } from "@dk-oasis/shared/tree";
 import "@dk-oasis/shared/tree.css";
-import { MdmPageLayout, VersionStatusBadge } from "@/shell";
+import { MdmPageLayout, VersionStatusBadge, useMdmPageParams } from "@/shell";
 import { patchRow, previewCategory, revertRow, saveRows, searchCodes, validateRows, viewCode } from "./api";
 import { allNodeValues, buildCodeTree, LVL_KEYS, toTreeItems, type HierRow } from "@/hier-tree";
 import {
@@ -31,6 +31,7 @@ import { hint, issueText, struck, toolbar } from "./components/styles";
 import type { CodeSummary, Issue, PreviewResult, ViewResult } from "./types";
 
 const SCREEN_ID = "codeItemEdit";
+const COMPONENT_PATH = "dmc/codeItemEdit";
 const EMPTY_TEXT = "보일 코드가 없습니다";
 
 type Tab = "grid" | "tree";
@@ -53,7 +54,7 @@ function badgeOf(row: EditRow): { label: string; bg: string; color: string } | n
   return null;
 }
 
-export default function CodeItemEditPage() {
+export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
   const rbac = useUserButtonRbac();
   const canSave = canDoButton(rbac, SCREEN_ID, "save");
   const canValidate = canDoButton(rbac, SCREEN_ID, "validate");
@@ -122,6 +123,13 @@ export default function CodeItemEditPage() {
     }
     previewCategory(maruCodeId, ver, cateId).then(setPreview).catch(() => setPreview(null));
   }, [view, maruCodeId, cateId]);
+
+  // 코드 수정 화면이 [코드 편집]·[카테고리 편집]으로 넘긴 마루 코드·버전(openMdmPage)을 받는다(§6.10).
+  useMdmPageParams(COMPONENT_PATH, tabId, (params) => {
+    if (!params.maruCodeId) return;
+    setMaruCodeId(params.maruCodeId);
+    void load(params.maruCodeId, params.ver ?? null);
+  });
 
   const chooseCode = (id: string) => {
     setMaruCodeId(id);
@@ -221,10 +229,15 @@ export default function CodeItemEditPage() {
   const closedRows = useMemo<EditRow[]>(() => (view?.closed ?? []).map((r: ServerRow) => ({
     ...r, __key: `__closed_${r.code}`, __local: "none", __server: null, __closed: true,
   })), [view]);
+  // 변경·동작 칸은 값 없이 행 상태로 그린다. 상태를 그 칸 값으로 실어야 ag-grid 가 행 갱신 때 두 칸을 다시 그린다
+  // (값이 그대로인 칸은 다시 그리지 않아 [취소]·"삭제" 배지가 저장 전에 안 보였다).
   const visibleRows = useMemo(() => [
     ...filterByNode(rows, filter),
     ...(showClosed ? filterByNode(closedRows, filter) : []),
-  ], [rows, closedRows, filter, showClosed]);
+  ].map((r) => {
+    const state = `${r.__local}|${String(r.change ?? "")}`;
+    return { ...r, __change: state, __action: state };
+  }), [rows, closedRows, filter, showClosed]);
 
   const columns = useMemo<GridColumn[]>(() => {
     const cell = (key: string, header: string, width: number, extra: Partial<GridColumn> = {}): GridColumn => ({
@@ -249,7 +262,7 @@ export default function CodeItemEditPage() {
       ...attrLabels.map((a) => cell(`attr${String(a.no).padStart(2, "0")}`, a.label, 120)),
       cell("description", "설명", 180),
       {
-        key: "__change", header: "변경", width: 220,
+        key: "__change", header: "변경", width: 220, tooltip: false,
         render: (_v, row) => {
           const r = row as EditRow;
           const badge = badgeOf(r);
@@ -270,7 +283,7 @@ export default function CodeItemEditPage() {
     ];
     if (editable) {
       cols.push({
-        key: "__action", header: "동작", width: 110, align: "center",
+        key: "__action", header: "동작", width: 110, align: "center", tooltip: false,
         render: (_v, row) => {
           const r = row as EditRow;
           if (r.__closed) {
@@ -365,9 +378,6 @@ export default function CodeItemEditPage() {
             ]} />
             {tab === "grid" && (
               <div data-testid="code-grid" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-                {view && visibleRows.length === 0 && (
-                  <p data-testid="code-grid-empty" style={{ ...hint, padding: "var(--spacing-sm)" }}>{EMPTY_TEXT}</p>
-                )}
                 <div style={{ flex: 1, minHeight: 0 }}>
                   <GridPanel
                     title="코드"
@@ -405,6 +415,7 @@ export default function CodeItemEditPage() {
                       loading={busy}
                       loadingMessage="조회 중..."
                       emptyMessage={EMPTY_TEXT}
+                      emptyTestId="code-grid-empty"
                     />
                   </GridPanel>
                 </div>

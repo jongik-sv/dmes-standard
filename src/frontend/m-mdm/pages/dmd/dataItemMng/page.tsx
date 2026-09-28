@@ -513,45 +513,55 @@ export default function DataItemMngPage() {
                 ]}
               />
               {iView === "grid" && (
-                <GridPanel
-                  title={header ? `항목 — ${header.maruDataName}` : "항목"}
-                  count={total}
-                  titleExtra={
-                    filters.nodeFilter ? (
-                      <span data-testid="item-node-filter-chip" style={{ display: "inline-flex", gap: "var(--spacing-xs)" }}>
-                        <GridBadge label={`${filters.nodeFilter} 아래`} strong />
-                        <Button data-testid="item-node-filter-clear" size="mini" onClick={clearNodeFilter}>
-                          ✕ 거르기 풀기
-                        </Button>
-                      </span>
-                    ) : undefined
-                  }
-                >
-                  {header && !header.editable && (
-                    <p data-testid="item-readonly" style={{ color: "var(--color-text-muted)", margin: 0 }}>
-                      조회 전용입니다(원천 {header.sourceSystem ?? header.sourceKind}, 상태 {header.status}).
-                    </p>
-                  )}
-                  <AgDataGrid
-                    columns={columns}
-                    data={gridRows}
-                    rowKey="code"
-                    sortable={false}
-                    columnSizing="fit"
-                    singleClickEdit
-                    onCellValueChanged={handleCellChange}
-                    loading={busy}
-                    loadingMessage="조회 중..."
-                    emptyMessage="조회된 항목이 없습니다."
-                  />
-                  <Pagination
-                    page={page}
-                    totalPages={totalPages}
-                    totalElements={total}
-                    onPageChange={(p) => void runSearch(applied.current.filters, p)}
-                    disabled={busy}
-                  />
-                </GridPanel>
+                <>
+                  <GridPanel
+                    title={header ? `항목 — ${header.maruDataName}` : "항목"}
+                    count={total}
+                    titleExtra={
+                      filters.nodeFilter ? (
+                        <span data-testid="item-node-filter-chip" style={{ display: "inline-flex", gap: "var(--spacing-xs)" }}>
+                          <GridBadge label={`${filters.nodeFilter} 아래`} strong />
+                          <Button data-testid="item-node-filter-clear" size="mini" onClick={clearNodeFilter}>
+                            ✕ 거르기 풀기
+                          </Button>
+                        </span>
+                      ) : undefined
+                    }
+                  >
+                    {/* 안내 문구와 그리드를 한 세로 흐름에 두어 그리드가 남은 높이만 쓰게 한다. */}
+                    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+                      {header && !header.editable && (
+                        <p data-testid="item-readonly" style={{ color: "var(--color-text-muted)", margin: 0 }}>
+                          조회 전용입니다(원천 {header.sourceSystem ?? header.sourceKind}, 상태 {header.status}).
+                        </p>
+                      )}
+                      <div style={{ flex: 1, minHeight: 0 }}>
+                        <AgDataGrid
+                          columns={columns}
+                          data={gridRows}
+                          rowKey="code"
+                          sortable={false}
+                          columnSizing="fit"
+                          singleClickEdit
+                          onCellValueChanged={handleCellChange}
+                          loading={busy}
+                          loadingMessage="조회 중..."
+                          emptyMessage="조회된 항목이 없습니다."
+                        />
+                      </div>
+                    </div>
+                  </GridPanel>
+                  {/* 쪽 이동은 그리드 패널 밖에 둔다. 안에 두면 높이 100% 그리드가 이전/다음 버튼을 덮는다. */}
+                  <div style={{ flexShrink: 0 }}>
+                    <Pagination
+                      page={page}
+                      totalPages={totalPages}
+                      totalElements={total}
+                      onPageChange={(p) => void runSearch(applied.current.filters, p)}
+                      disabled={busy}
+                    />
+                  </div>
+                </>
               )}
               {iView === "tree" && (
                 <div style={{ flex: 1, minHeight: 0 }}>

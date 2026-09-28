@@ -117,7 +117,9 @@ describe("CodeMngPage", () => {
 
   it("0건이면 빈 상태 문구를 보인다", async () => {
     await render();
-    expect(container.querySelector('[data-testid="code-list-empty"]')?.textContent).toContain("조회된 마루 코드가 없습니다");
+    // 빈 상태 문구는 그리드의 "데이터 없음" 안내(emptyTestId)다 — 조회 중 표시가 풀린 뒤 그려진다.
+    await vi.waitFor(() =>
+      expect(container.querySelector('[data-testid="code-list-empty"]')?.textContent).toContain("조회된 마루 코드가 없습니다"));
   });
 
   it("등록은 원천을 보내지 않고, 성공하면 codeEdit 탭을 코드 ID 와 함께 연다", async () => {

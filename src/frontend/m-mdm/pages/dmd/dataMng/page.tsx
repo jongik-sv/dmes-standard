@@ -42,7 +42,6 @@ export default function DataMngPage() {
   const [rows, setRows] = useState<DataMngRow[]>([]);
   const [form, setForm] = useState<DataMngRegForm>(emptyRegForm);
   const [busy, setBusy] = useState(false);
-  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const openEdit = useCallback((maruDataId: string) => {
@@ -58,7 +57,6 @@ export default function DataMngPage() {
       setError(errorMessage(e));
     } finally {
       setBusy(false);
-      setLoaded(true);
     }
   }, []);
 
@@ -145,14 +143,10 @@ export default function DataMngPage() {
                   loading={busy}
                   loadingMessage="조회 중..."
                   emptyMessage="조회된 마루 데이터가 없습니다"
+                  emptyTestId="data-mng-list-empty"
                 />
               </GridPanel>
             </div>
-            {loaded && rows.length === 0 && !busy ? (
-              <p data-testid="data-mng-list-empty" style={{ ...mutedText, margin: "0 var(--spacing-sm)" }}>
-                조회된 마루 데이터가 없습니다
-              </p>
-            ) : null}
           </div>
         </ContentPanel>
 

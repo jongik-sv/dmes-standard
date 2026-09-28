@@ -34,7 +34,6 @@ export function HeaderList({ rows, selectedId, loading, onSelect }: HeaderListPr
             columns={COLUMNS}
             data={rows as unknown as Record<string, unknown>[]}
             rowKey="LAYOUT_ID"
-            height={420}
             highlightedRowKey={selectedId}
             loading={loading}
             emptyMessage="조회된 헤더가 없습니다"

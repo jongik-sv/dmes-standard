@@ -555,7 +555,7 @@ export default function ColumnMngPage() {
                 data-testid="column-list-empty"
                 style={{ ...mutedText, margin: "0 var(--spacing-sm)" }}
               >
-                조회된 컬럼이 없습니다. 아래 자동 생성으로 첫 컬럼을 만드세요.
+                아래 자동 생성으로 첫 컬럼을 만드세요.
               </p>
             ) : null}
           </div>

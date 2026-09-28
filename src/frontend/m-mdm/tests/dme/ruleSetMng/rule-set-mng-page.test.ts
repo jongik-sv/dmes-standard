@@ -197,7 +197,9 @@ describe("RuleSetMngPage", () => {
     await render();
     expect(visibleText(container)).toContain("룰 세트 목록");
     expect(visibleText(container)).toContain("0건");
-    expect(byTestId("set-list-empty").textContent).toBe("조건에 맞는 룰 세트가 없다");
+    // 빈 상태 문구는 그리드의 "데이터 없음" 안내(emptyTestId)다 — 조회 중 표시가 풀린 뒤 그려진다.
+    await vi.waitFor(() =>
+      expect(container.querySelector('[data-testid="set-list-empty"]')?.textContent).toBe("조건에 맞는 룰 세트가 없다"));
   });
 
   it("세트 ID 가 물리명 규칙을 어기면 즉시 안내하고 저장을 막는다", async () => {

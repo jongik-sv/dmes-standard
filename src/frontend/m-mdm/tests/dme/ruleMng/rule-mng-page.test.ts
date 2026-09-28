@@ -118,7 +118,9 @@ describe("RuleMngPage", () => {
     await render();
     expect(visibleText(container)).toContain("룰 목록");
     expect(visibleText(container)).toContain("0건");
-    expect(visibleText(container)).toContain("조회된 룰이 없습니다.");
+    // 빈 상태 문구는 그리드의 "데이터 없음" 안내(emptyTestId)다 — 조회 중 표시가 풀린 뒤 그려진다.
+    await vi.waitFor(() =>
+      expect(container.querySelector('[data-testid="rule-list-empty"]')?.textContent).toBe("조회된 룰이 없습니다."));
   });
 
   it("등록 폼은 원천 선택 칸 없이 MDM 고정 표시다", async () => {

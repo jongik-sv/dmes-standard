@@ -34,7 +34,6 @@ export function LayoutList({ rows, selectedId, loading, onSelect }: LayoutListPr
             columns={COLUMNS}
             data={rows as unknown as Record<string, unknown>[]}
             rowKey="LAYOUT_ID"
-            height={260}
             highlightedRowKey={selectedId}
             loading={loading}
             emptyMessage="조회된 전문이 없습니다"
