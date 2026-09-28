@@ -12,6 +12,7 @@
     "test:api": "pnpm --filter @dk-oasis/shared test:api",
     "test:auth": "pnpm --filter @dk-oasis/shared test:auth",
     "test:e2e": "pnpm exec playwright test e2e",
+    "test:e2e:mdm-user": "pnpm exec playwright test -c playwright.mdm-user.config.ts",
     "test:all": "pnpm test:unit && pnpm test:api && pnpm test:e2e",
     "test:smoke:login": "pnpm exec playwright test e2e/login-smoke.spec.ts",
     "test:smoke:auth-guard": "pnpm exec playwright test e2e/auth-guard-smoke.spec.ts",

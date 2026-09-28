@@ -9,6 +9,7 @@ const external = [
   "next-auth/react",
   "@dk-oasis/shared",
   /^@dk-oasis\/shared\/.*/,
+  "@tabler/icons-react",
 ];
 
 const common: Options = {
