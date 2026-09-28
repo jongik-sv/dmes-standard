@@ -1,7 +1,8 @@
 package com.dongkuk.dmes.mdm.dmc.codeItemEdit.dto;
 
 /**
- * {@code codeItemEdit} action={@code validate·save} 요청 params(TSK-06-03 design.md §6.6). 그리드 {@code rows} 는 메서드 파라미터로 따로 받는다(F9). validate 는 rowVersion 을 보지 않는다.
+ * {@code codeItemEdit} action={@code validate·save} 요청 params(TSK-06-03 design.md §6.6). 그리드 {@code rows}·{@code categories}·{@code members}
+ * 는 메서드 파라미터로 따로 받는다(F9, 2026-09-28 화면 합치기로 카테고리 두 그리드가 더해졌다). validate 는 rowVersion 을 보지 않는다.
  * getter/setter 일반 클래스다(record·Lombok 없음 — OASIS dto 바인딩 관례).
  */
 public class CodeItemSaveRequest {

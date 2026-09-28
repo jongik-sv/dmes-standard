@@ -10,7 +10,8 @@ action=save    -&gt; saveTask    (codeEditService.saveHeader)  — 헤더 경미
 action=execute -&gt; executeTask (codeEditService.deprecate)   — DEPRECATED 전이(I13)
 action=reg      -&gt; regTask      (codeEditService.createVersion)  — 빈 새 버전(I1~I5·I11)
 action=restore  -&gt; restoreTask  (codeEditService.restoreVersion) — 복원 새 버전(I15)
-action=delete   -&gt; deleteTask   (codeEditService.deleteDraft)    — DRAFT 삭제(선분 복구 I14)
+action=delete   -&gt; deleteTask   (codeEditService.delete)         — target 없음: DRAFT 삭제(선분 복구 I14, deleteDraft)
+                                                                  target=CODE: RELEASED 된 적 없는 마루 코드 통째 삭제(2026-09-28)
 action=lock     -&gt; lockTask     (codeEditService.acquire)        — DRAFT 선점
 action=unlock   -&gt; unlockTask   (codeEditService.release)        — DRAFT 해제
 action=handover -&gt; handoverTask (codeEditService.handover)       — DRAFT 넘기기
@@ -122,10 +123,11 @@ BPMN 의 action(RBAC 키)과 서비스의 method(자바 메서드명)는 별개�
     <bpmn:endEvent id="end_restore" name="복원 완료">
       <bpmn:incoming>flow_restore_end</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:serviceTask id="deleteTask" name="DRAFT 삭제" camunda:class="codeEditService">
+    <bpmn:serviceTask id="deleteTask" name="DRAFT·마루 코드 삭제" camunda:class="codeEditService">
+      <bpmn:documentation>params.target 으로 메서드 안에서 가른다(조건 흐름을 두지 않는다 — RuleEditService.delete 선례). 비면 DRAFT 삭제, CODE 면 마루 코드 삭제.</bpmn:documentation>
       <bpmn:extensionElements>
         <camunda:properties>
-          <camunda:property name="method" value="deleteDraft" />
+          <camunda:property name="method" value="delete" />
           <camunda:property name="output" value="result" />
           <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dmc.codeEdit.dto.CodeDraftRequest" />
         </camunda:properties>

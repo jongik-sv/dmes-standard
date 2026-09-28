@@ -114,7 +114,7 @@ public class RuleEditService {
         return part.save(request);
     }
 
-    // action: delete — VERSION(DRAFT 삭제)·RULE(폐기)
+    // action: delete — VERSION(DRAFT 삭제)·RULE(폐기)·CONFIRM(확정 취소, ADR-0002 D8)
     public RuleVersionResult delete(RuleVersionRequest request) {
         if ("VERSION".equals(request.getTarget())) {
             return versionService.deleteDraft(request);
@@ -122,7 +122,12 @@ public class RuleEditService {
         if ("RULE".equals(request.getTarget())) {
             return headerService.deprecate(request);
         }
-        throw new BusinessException(ErrorCode.INVALID_VALUE, "삭제 대상은 VERSION·RULE 중 하나여야 합니다: " + request.getTarget());
+        // D8-13 — 04 와 같은 target 문자열을 쓴다. 액션을 새로 만들지 않으므로 어휘 16종이 그대로다.
+        if (RuleVersionRequest.TARGET_CONFIRM.equals(request.getTarget())) {
+            return versionService.cancelConfirm(request);
+        }
+        throw new BusinessException(ErrorCode.INVALID_VALUE,
+                "삭제 대상은 VERSION·RULE·CONFIRM 중 하나여야 합니다: " + request.getTarget());
     }
 
     // action: copy

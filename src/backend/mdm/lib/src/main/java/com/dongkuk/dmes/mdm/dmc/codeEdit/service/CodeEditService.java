@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mdm.dmc.codeEdit.service;
 
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeLedgerQueries;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeLedgerQueries.Header;
+import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeRemoval;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionNumbers;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionSegments;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionSummary;
@@ -62,6 +63,10 @@ import org.springframework.stereotype.Service;
  * 정했고 공통 {@code DefaultDraftOwnershipService}·룰 영역 {@code RuleVersionService.unlock} 과 같은 판정이다. TB_MDM_CODE
  * 쓰기는 {@link MdmCode} 엔티티 경로 하나로 한다(네이티브 UPDATE 와 섞으면 flush 때 옛 감사 카운터로 덮어쓴다). 응답은 flush
  * 뒤 네이티브 조회 모델로 만든다(I23).
+ *
+ * <p>2026-09-28 사용자 결정: 한 번도 RELEASED 된 적 없는 마루 코드는 [폐기] 대신 [삭제] 로 행째 지운다. 새 action 을 만들지
+ * 않고 기존 {@code delete} 에 {@code target: "CODE"} 를 실어 {@link #delete} 안에서 가른다(action 어휘는 MdmActions 16개로
+ * 닫혀 있다). 버튼 판정은 {@link CodeEditFlags#isNeverReleased()}·{@link CodeEditFlags#isCanDeleteCode()} 다.
  */
 @Service("codeEditService")
 public class CodeEditService {
@@ -81,12 +86,14 @@ public class CodeEditService {
     private final DraftOwnershipService ownership;
     private final MdmStewardGuard stewardGuard;
     private final MdmCurrentUser currentUser;
+    private final MasterCodeRemoval removal;
     private final Clock clock;
 
     public CodeEditService(EntityManager entityManager, MdmCodeRepository codes, MasterCodeLedgerQueries ledger,
                            MasterCodeVersionSegments segments, VersionWriteGuard writeGuard,
                            VersionStateService versionState, DraftOwnershipService ownership,
-                           MdmStewardGuard stewardGuard, MdmCurrentUser currentUser, Clock clock) {
+                           MdmStewardGuard stewardGuard, MdmCurrentUser currentUser, MasterCodeRemoval removal,
+                           Clock clock) {
         this.entityManager = entityManager;
         this.codes = codes;
         this.ledger = ledger;
@@ -96,6 +103,7 @@ public class CodeEditService {
         this.ownership = ownership;
         this.stewardGuard = stewardGuard;
         this.currentUser = currentUser;
+        this.removal = removal;
         this.clock = clock;
     }
 
@@ -243,7 +251,124 @@ public class CodeEditService {
     }
 
     // ────────────────────────────────────────────────────────────────
-    // action: delete·lock·unlock·handover — 공통 서비스에 행위자 = 요청 사용자(I22)
+    // action: delete(method=delete) — target 으로 가른다: 비면 DRAFT 삭제, "CODE" 면 마루 코드 통째 삭제
+    // ────────────────────────────────────────────────────────────────
+
+    /**
+     * BPMN 게이트웨이는 action 으로만 가르므로 delete 한 분기 안에서 {@code target} 으로 가른다({@code RuleEditService.delete}
+     * 선례). 응답은 DRAFT 삭제면 {@link CodeEditView}, 마루 코드 삭제면 {@code {deleted: "CODE", maruCodeId}} 다.
+     *
+     * <p>{@code target="CONFIRM"} 는 확정 취소다(D8) — 같은 delete 분기를 쓰되 의미가 다르므로 값을 분리했다.
+     */
+    public Object delete(CodeDraftRequest request) {
+        String target = request == null ? null : trimToNull(request.getTarget());
+        if (target == null) {
+            return deleteDraft(request);
+        }
+        if (CodeDraftRequest.TARGET_CODE.equals(target)) {
+            return deleteCode(request);
+        }
+        if (CodeDraftRequest.TARGET_CONFIRM.equals(target)) {
+            return cancelConfirm(request);
+        }
+        throw invalid("삭제 대상은 비우거나 CODE·CONFIRM 이어야 합니다: " + target);
+    }
+
+    /**
+     * 확정 취소 — 아직 적용 시각이 오지 않은 확정 버전을 작성 중으로 되돌린다(ADR-0002 D8, TSK-02-01 D4-1).
+     *
+     * <p>판정·구간 복구·상위 상태는 공용 버전 상태 서비스가 한다. 여기서는 담당자 가드(I12)와 요청 조립만 맡는다.
+     */
+    public CodeEditView cancelConfirm(CodeDraftRequest request) {
+        stewardGuard.requireSteward(); // I12
+        VersionRef ref = draftRef(request);
+        versionState.cancelConfirm(ref, rowVersion(request), currentUser.userId());
+        log.info("[codeEdit] delete(CONFIRM) — {}", ref);
+        return buildView(ref.objectId());
+    }
+
+    /**
+     * 한 번도 RELEASED 된 적 없는 마루 코드를 행째 지운다(2026-09-28 사용자 결정 — 원천 04 에 물리 삭제 규정이 없어 새로 둔 규칙).
+     * 판정 "RELEASED 된 적 없음" 은 TB_MDM_CODE_VER 의 RELEASED·CANCELLED 행 유무와 RELEASED_AT 값으로 한다
+     * (TB_MDM_CODE.STATUS 는 늦게 INUSE 로 올라 기준이 못 된다). {@code RELEASED_AT} 도 보는 이유: 확정 취소(D8)가
+     * 되돌린 행의 STATUS 를 DRAFT 로 만들므로, 상태만 보면 "확정한 적 없는 코드"가 되어 이력째 지워 버린다(D8-9).
+     * 검사 순서: 담당자·원천 MDM → RELEASED 이력 → 다른 사용자 DRAFT → auditVer → 도메인 참조 →
+     * 수신 로그 → 식 참조. 모두 쓰기 전에 끝내고, 통과하면 자식 표 → TB_MDM_CODE 순으로 지운다.
+     */
+    private Map<String, Object> deleteCode(CodeDraftRequest request) {
+        MdmCode code = requireWritable(request.getMaruCodeId());
+        String id = code.getMaruCodeId();
+        List<VerRow> versions = ledger.versions(id);
+        if (!neverReleased(versions)) {
+            throw MdmErrors.of(MdmErrorCode.TRANSITION_NOT_ALLOWED,
+                    "확정(RELEASED)된 적이 있는 마루 코드는 삭제할 수 없습니다. 폐기하세요", List.of());
+        }
+        for (VerRow v : versions) {
+            if (ownedByOther(v)) {
+                throw MdmErrors.of(MdmErrorCode.DRAFT_ALREADY_OWNED,
+                        MasterCodeVersionNumbers.label(v.ver()) + " 을(를) " + v.ownerId() + " 이(가) 편집 중이라 삭제할 수 없습니다",
+                        List.of());
+            }
+        }
+        requireAuditVer(code, request.getAuditVer());
+        List<String> domains = removal.referencingDomainIds(id);
+        if (!domains.isEmpty()) {
+            throw MdmErrors.of(MdmErrorCode.TRANSITION_NOT_ALLOWED,
+                    "이 마루 코드를 참조하는 도메인이 있어 삭제할 수 없습니다(도메인 ID " + String.join(", ", domains) + ")",
+                    List.of());
+        }
+        if (removal.receiptCount(id) > 0) {
+            throw MdmErrors.of(MdmErrorCode.TRANSITION_NOT_ALLOWED,
+                    "수신 이력(TB_MDM_CODE_RECV)이 있는 마루 코드는 삭제할 수 없습니다", List.of());
+        }
+        List<String> exprRefs = removal.expressionReferences(id);
+        if (!exprRefs.isEmpty()) {
+            throw MdmErrors.of(MdmErrorCode.TRANSITION_NOT_ALLOWED,
+                    "이 마루 코드를 MASTER 식으로 참조하는 곳이 있어 삭제할 수 없습니다(" + summarize(exprRefs) + ")", List.of());
+        }
+        removal.deleteChildRows(id);
+        codes.delete(code);
+        entityManager.flush();
+        log.info("[codeEdit] delete(CODE) — id={} versions={}", id, versions.size());
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("deleted", CodeDraftRequest.TARGET_CODE);
+        result.put("maruCodeId", id);
+        return result;
+    }
+
+    /**
+     * RELEASED 된 적 없음 = RELEASED·CANCELLED 버전이 없고 확정 시각이 남은 버전도 없다(CANCELLED 는 RELEASED 에서만
+     * 간다). 버전 0개도 해당.
+     *
+     * <p>{@code RELEASED_AT} 을 함께 보는 게 D8-9 다 — 확정 취소로 되돌린 행은 STATUS 가 DRAFT 이지만 확정 시각이 남으므로
+     * "확정된 적 없음"을 통과하면 안 된다.
+     */
+    private static boolean neverReleased(List<VerRow> versions) {
+        return versions.stream().noneMatch(v -> VersionStatus.RELEASED.name().equals(v.status())
+                || VersionStatus.CANCELLED.name().equals(v.status())
+                || v.releasedAt() != null);
+    }
+
+    /** 다른 사용자가 소유한 DRAFT. 소유자 없는(해제된) DRAFT 는 막지 않는다. */
+    private boolean ownedByOther(VerRow v) {
+        return VersionStatus.DRAFT.name().equals(v.status()) && v.ownerId() != null
+                && !v.ownerId().equals(currentUser.userId());
+    }
+
+    /** null 안전 소유자 비교(확정 취소 판정용). */
+    private static boolean ownedBy(VerRow v, String userId) {
+        return v.ownerId() != null && v.ownerId().equals(userId);
+    }
+
+    /** 메시지가 길어지지 않게 앞 5건만 적는다. */
+    private static String summarize(List<String> refs) {
+        int shown = Math.min(5, refs.size());
+        String head = String.join(", ", refs.subList(0, shown));
+        return refs.size() > shown ? head + " 외 " + (refs.size() - shown) + "건" : head;
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // action: delete(target 없음)·lock·unlock·handover — 공통 서비스에 행위자 = 요청 사용자(I22)
     // ────────────────────────────────────────────────────────────────
 
     public CodeEditView deleteDraft(CodeDraftRequest request) {
@@ -460,6 +585,12 @@ public class CodeEditService {
             if (VersionStatus.RELEASED.name().equals(v.status())) {
                 restoreSources.add(v.ver().toPlainString()); // D13 — RELEASED 만, ver 내림차순
             }
+            // D8-1 — 확정 취소 가능 여부(미래 적용 RELEASED + 소유자 + 담당자 + 미적용 1개). 화면 버튼 판정이 이 값을 쓴다.
+            boolean cancelConfirmable = VersionStatus.RELEASED.name().equals(v.status())
+                    && v.applyFrom() != null && v.applyFrom().isAfter(now())
+                    && ownedBy(v, currentUser.userId())
+                    && s.unapplied().size() == 1;
+            row.setCancelConfirmable(cancelConfirmable);
         }
 
         BigDecimal max = s.maxVer();
@@ -473,6 +604,9 @@ public class CodeEditService {
         flags.setMinorLimit(max != null && !MasterCodeVersionNumbers.canMinor(max));
         flags.setCanDeprecate(!deprecated && s.unapplied().isEmpty() && sourceMdm);
         flags.setEditable(sourceMdm && steward);
+        boolean never = neverReleased(versions);
+        flags.setNeverReleased(never);
+        flags.setCanDeleteCode(never && sourceMdm && steward && versions.stream().noneMatch(this::ownedByOther));
 
         CodeEditView view = new CodeEditView();
         view.setHeader(header);

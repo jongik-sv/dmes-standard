@@ -34,10 +34,32 @@ export const USERS: Record<Exclude<Role, "admin">, { id: string; name: string; e
 
 export const authFile = (role: Role) => path.join(AUTH_DIR, `${role}.json`);
 
-/** 실행마다 다른 접미어 — 재실행·순서에 무관하게 새 ID 를 만든다. 대문자·숫자만. */
-export const RUN = Date.now().toString(36).toUpperCase().slice(-6);
-/** 사용자가 만든 시험 데이터 ID. 주 DB 에 남아도 E2E_USR_ 로 알아볼 수 있다. */
-export const uid = (tag: string) => `E2E_USR_${tag}_${RUN}`;
+/**
+ * 사용자가 만든 시험 데이터 ID.
+ *
+ * ★실행 번호(RUN)를 붙이지 않는다 — 2026-09-28 정리. 이전에는 `E2E_USR_${tag}_${RUN}` 처럼 실행마다
+ * 다른 접미어를 붙였는데, 그래서 (1) 같은 스크린을 두 번 돌리면 마루 코드 목록에 `E2E_USR_CD_L1H8E1`·
+ * `E2E_USR_CD_L3R8S2` 처럼 실행치마다 한 벌씩 쌓였고(6회 실행 → 57건), (2) 그때 만든 인스턴스를
+ * E2E 가 끝나고도 모른다. 어느 것이 이번 실행 것인지 화면에서 구분되지 않는다.
+ *
+ * 지금은 태그 하나 = ID 하나다. 재실행하면 같은 ID 를 다시 쓰므로 화면·DB 에 늘 한 벌만 남고,
+ * 이전 실행치가 새 실행에 덮여써진다. 시험 데이터가 주 DB 에 남는 것 자체는 `E2E_` 접두로
+ * 언제든 식별된다 — `tools/e2e-clean-data.sh` 가 그 접두로 한 번에 지운다.
+ */
+export const uid = (tag: string) => `E2E_USR_${tag}`;
+
+/**
+ * 유일성 제약이 걸린 칸(용어 표기·영문 약어·도메인 표준명 등)에 쓰는 고정 접미.
+ *
+ * `uid()` 와 달리 ID 로 쓰지 않는다 — 밑줄이 금지된 칸이 있고(NamingRules.TERM_NAME), 값을 고르는
+ * 칸이라 "이전 실행 것이 화면에 남아 있으면 그 값을 고르면 된다" 로도 충분하지 않기 때문이다.
+ * 화면 목록에 시험 데이터가 한 벌만 보인다는 요구를 여기서 얻는다.
+ * 아무래도 고정이므로 `E2E` + 대문자 영숫자만 쓴다(한글·밑줄·특수문자 금지 대상 칸이 있다).
+ */
+export const RUN = "E2EX";
+
+/** 이 규약이 지키려는 것 — 시험 데이터 ID 는 위 접두로 시작하고 길이는 50자 이하다(룰 변수명 규칙과 같다). */
+export const E2E_ID_PREFIX = "E2E_";
 
 // ─────────────────────────── 로그인 ───────────────────────────
 

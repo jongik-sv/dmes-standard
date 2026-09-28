@@ -7,8 +7,8 @@
 action=search   -&gt; searchTask   (codeItemEditService.search)    READ
 action=view     -&gt; viewTask     (codeItemEditService.view)      READ
 action=compare  -&gt; compareTask  (codeItemEditService.preview)   READ — 카테고리 미리보기(D6)
-action=validate -&gt; validateTask (codeItemEditService.validate)  EDIT — 저장 검사 이슈를 성공 응답으로
-action=save     -&gt; saveTask     (codeItemEditService.save)      EDIT — DRAFT 코드 행 저장
+action=validate -&gt; validateTask (codeItemEditService.validate)  EDIT — 저장 검사 이슈(코드 행·카테고리)를 성공 응답으로
+action=save     -&gt; saveTask     (codeItemEditService.save)      EDIT — DRAFT 코드 행·카테고리·소속 합친 저장
 action=restore  -&gt; restoreTask  (codeItemEditService.revert)    EDIT — 행 되돌리기
 action=execute  -&gt; executeTask  (codeItemEditService.patch)     EDIT — RELEASED 행 경미 수정</bpmn:documentation>
     <bpmn:startEvent id="start" name="시작">
@@ -75,7 +75,7 @@ action=execute  -&gt; executeTask  (codeItemEditService.patch)     EDIT — RELE
       <bpmn:incoming>flow_compare_end</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:serviceTask id="validateTask" name="저장 검사" camunda:class="codeItemEditService">
-      <bpmn:documentation>design.md §6.3·§6.4 — 이슈를 성공 응답으로 돌려준다(F11). grids.rows.</bpmn:documentation>
+      <bpmn:documentation>design.md §6.3·§6.4 — 이슈를 성공 응답으로 돌려준다(F11). grids.rows·categories·members(2026-09-28 화면 합치기).</bpmn:documentation>
       <bpmn:extensionElements>
         <camunda:properties>
           <camunda:property name="method" value="validate" />
@@ -89,8 +89,8 @@ action=execute  -&gt; executeTask  (codeItemEditService.patch)     EDIT — RELE
     <bpmn:endEvent id="endValidate" name="검사 완료">
       <bpmn:incoming>flow_validate_end</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:serviceTask id="saveTask" name="DRAFT 코드 행 저장" camunda:class="codeItemEditService">
-      <bpmn:documentation>design.md §6.6 — 검사 → beginDraftWrite → 선분 조작. grids.rows 를 파라미터 이름으로 바인딩.</bpmn:documentation>
+    <bpmn:serviceTask id="saveTask" name="DRAFT 코드 행·카테고리 저장" camunda:class="codeItemEditService">
+      <bpmn:documentation>design.md §6.6 — 세 그리드 검사 → beginDraftWrite 한 번 → 코드 행·카테고리·소속 순 선분 조작. grids.rows·categories·members 를 파라미터 이름으로 바인딩.</bpmn:documentation>
       <bpmn:extensionElements>
         <camunda:properties>
           <camunda:property name="method" value="save" />

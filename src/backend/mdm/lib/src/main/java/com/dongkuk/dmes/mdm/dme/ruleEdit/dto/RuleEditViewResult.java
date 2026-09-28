@@ -73,7 +73,6 @@ public class RuleEditViewResult {
      */
     public static class VarMeta {
         private Integer varId;
-        private String axis;
         private String resGrp;
         private String grpCond;
         private String collectAgg;
@@ -84,10 +83,9 @@ public class RuleEditViewResult {
         public VarMeta() {
         }
 
-        public VarMeta(Integer varId, String axis, String resGrp, String grpCond, String collectAgg, List<String> prioList,
+        public VarMeta(Integer varId, String resGrp, String grpCond, String collectAgg, List<String> prioList,
                        Long domainId, String dataType) {
             this.varId = varId;
-            this.axis = axis;
             this.resGrp = resGrp;
             this.grpCond = grpCond;
             this.collectAgg = collectAgg;
@@ -97,7 +95,6 @@ public class RuleEditViewResult {
         }
 
         public Integer getVarId() { return varId; }
-        public String getAxis() { return axis; }
         public String getResGrp() { return resGrp; }
         public String getGrpCond() { return grpCond; }
         public String getCollectAgg() { return collectAgg; }
@@ -106,7 +103,6 @@ public class RuleEditViewResult {
         public String getDataType() { return dataType; }
 
         public void setVarId(Integer v) { this.varId = v; }
-        public void setAxis(String v) { this.axis = v; }
         public void setResGrp(String v) { this.resGrp = v; }
         public void setGrpCond(String v) { this.grpCond = v; }
         public void setCollectAgg(String v) { this.collectAgg = v; }
@@ -179,6 +175,11 @@ public class RuleEditViewResult {
         private Integer baseVer;
         private String hitPolicy;
         private long rowVersion;
+        /**
+         * 확정 취소 가능 여부(ADR-0002 D8) — 아직 적용 시각이 오지 않은 확정 버전이고 소유자가 요청 사용자이며
+         * 미적용 버전이 이 하나일 때만 true. 화면 버튼 판정용이고, 실제 거부는 서버가 다시 검사한다.
+         */
+        private boolean cancelConfirmable;
 
         public Integer getVer() { return ver; }
         public String getStatus() { return status; }
@@ -188,6 +189,7 @@ public class RuleEditViewResult {
         public Integer getBaseVer() { return baseVer; }
         public String getHitPolicy() { return hitPolicy; }
         public long getRowVersion() { return rowVersion; }
+        public boolean isCancelConfirmable() { return cancelConfirmable; }
 
         public void setVer(Integer v) { this.ver = v; }
         public void setStatus(String v) { this.status = v; }
@@ -197,6 +199,7 @@ public class RuleEditViewResult {
         public void setBaseVer(Integer v) { this.baseVer = v; }
         public void setHitPolicy(String v) { this.hitPolicy = v; }
         public void setRowVersion(long v) { this.rowVersion = v; }
+        public void setCancelConfirmable(boolean v) { this.cancelConfirmable = v; }
     }
 
     /** 행 하나(저장 형태 — {@code cells} 는 JSON 문자열). NORMAL 먼저 seq·row_id 순, 기본 행은 마지막. */

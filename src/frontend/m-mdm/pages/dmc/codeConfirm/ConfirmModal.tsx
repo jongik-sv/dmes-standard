@@ -26,7 +26,8 @@ export interface ConfirmModalProps {
 }
 
 export const FUTURE_APPLY_WARNING =
-  "적용 시작 일시가 미래입니다. 그 시각이 올 때까지 이 버전을 고치거나 새 버전을 만들 수 없습니다(철회 없음).";
+  "적용 시작 일시가 미래입니다. 그 시각이 올 때까지 새 버전을 만들 수 없습니다. "
+  + "적용 시각이 오기 전에는 확정 취소로 작성 중인 상태로 되돌릴 수 있습니다.";
 
 const hintStyle = { color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)" } as const;
 const warnStyle = { color: "var(--color-warning, #b45309)", padding: "var(--spacing-xs) 0" } as const;
@@ -79,7 +80,7 @@ export function ConfirmModal({
           </span>
         </div>
       )}
-      <p style={hintStyle}>확정한 버전은 철회할 수 없습니다. 서버가 확정 직전에 검사를 다시 합니다.</p>
+      <p style={hintStyle}>적용 시각이 지난 뒤에는 확정 취소를 할 수 없습니다. 서버가 확정 직전에 검사를 다시 합니다.</p>
     </Modal>
   );
 }

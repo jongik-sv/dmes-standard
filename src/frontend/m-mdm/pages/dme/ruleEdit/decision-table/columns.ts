@@ -5,7 +5,8 @@
  * 색은 shared 그리드 토큰 클래스(`cell-light-pink`·`cell-warning`·`cell-edited`·`cell-emphasis`, 행 `ag-row-inserted`)만 쓴다.
  * 값 테스트 표시(TSK-08-04)는 `cell-test-hit`·`cell-test-false`·`cell-test-chosen`·`cell-test-dim`, 적중 행 `ag-row-test-hit`.
  */
-import { createElement, type ReactNode } from "react";
+import { createElement, type CSSProperties, type ReactNode } from "react";
+import { IconTrash } from "@tabler/icons-react";
 import type { GridColumn } from "@dk-oasis/shared/grid";
 
 import type { ResolvedVar } from "../types";
@@ -17,6 +18,23 @@ import { OP_LABELS, isListOp, isNoValueOp, isRangeOp, opsFor } from "./ops";
 import { VarHeader } from "./VarHeader";
 
 export const ROW_LABEL_FIELD = "rowLabel";
+
+/** 삭제 칸 아이콘 크기 — 열 설정 그리드(`column-grid.tsx` ICON)와 같은 값으로 맞춘다. */
+const ICON_SIZE = 14;
+
+/** 테두리 없는 작은 아이콘 버튼 — 열 설정 그리드의 `iconButton` 와 같은 모양. */
+const DEL_BTN_STYLE: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: 20,
+  height: 20,
+  padding: 0,
+  border: "none",
+  borderRadius: "var(--radius-sm)",
+  background: "none",
+  color: "var(--color-text-secondary)",
+};
 
 export function fieldOf(varId: number, key: CellKey): string {
   return `c${varId}_${key}`;
@@ -329,6 +347,8 @@ export function buildTableColumns(ctx: TableColumnContext): GridColumn[] {
       align: "center",
       render: (_v, row) => {
         const src = sourceRow(row);
+        // 글자 "✕" 대신 휴지통 아이콘 — 열 설정 그리드의 삭제 칸(`column-grid.tsx` IconTrash)과 같은
+        // 모양으로 맞춘다. 여기서 지운 건 "어느 행" 이지 창을 닫는 게 아니라서 ✕ 는 겉으로 헷갈렸다.
         return createElement(
           "button",
           {
@@ -337,9 +357,13 @@ export function buildTableColumns(ctx: TableColumnContext): GridColumn[] {
             "data-testid": `dt-del-${src.rowId}`,
             disabled: !ctx.editable,
             onClick: () => ctx.onDeleteRow(src.rowId),
-            style: { border: "none", background: "none", cursor: ctx.editable ? "pointer" : "default", color: "var(--color-text-secondary)" },
+            style: {
+              ...DEL_BTN_STYLE,
+              cursor: ctx.editable ? "pointer" : "default",
+              opacity: ctx.editable ? 1 : 0.4,
+            },
           },
-          "✕",
+          createElement(IconTrash, { size: ICON_SIZE }),
         );
       },
     },

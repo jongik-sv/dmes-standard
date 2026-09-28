@@ -2,7 +2,7 @@ package com.dongkuk.dmes.mdm.common.rule.check;
 
 /**
  * 저장 시 검사 이슈 코드(TSK-08-04 design §6.2). 분석기 코드({@code RuleIssueCode})와 이름이 겹치지 않는다 — 화면 {@code sameIssues} 는
- * 분석기 코드만 견준다(I26). 축 조합 경고는 08-03 의 {@code PIVOT_COVER_INCOMPLETE} 를 그대로 쓴다.
+ * 분석기 코드만 견준다(I26).
  */
 public enum RuleSaveIssueCode {
     LIMIT_EXCEEDED,

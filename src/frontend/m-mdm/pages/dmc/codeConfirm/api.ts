@@ -1,5 +1,5 @@
 /**
- * codeConfirm 화면의 OASIS BFF 호출(TSK-06-05 design.md §6.5). 모양은 codeCateEdit/api.ts 를 복제했다 — 공유 파일을
+ * codeConfirm 화면의 OASIS BFF 호출(TSK-06-05 design.md §6.5). 모양은 codeItemEdit/cate/api.ts 를 복제했다 — 공유 파일을
  * 바꾸지 않는다.
  *
  * 호출: `POST /api/mdm/oasis/codeConfirm/{action}` — search·view(READ), validate(EDIT), confirm(CONFIRM).

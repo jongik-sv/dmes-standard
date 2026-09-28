@@ -108,7 +108,7 @@ class CodeConfirmSampleHistorySqliteTest extends AbstractMdmSharedDbTest {
         tx.executeWithoutResult(st -> codeItemEditService.save(itemSave("1.000"), List.of(
                 itemRow("ADDED", "1P", "PLTCM", "PLTCM", 11),
                 itemRow("ADDED", "82", "2CGL", "CGL", 21),
-                itemRow("ADDED", "83", "3CGl", "CGL", 22))));
+                itemRow("ADDED", "83", "3CGl", "CGL", 22)), List.of(), List.of()));
         tx.executeWithoutResult(st -> codeCateEditService.save(cateSave("1.000"), List.of(
                 cateRow("ADDED", "COATING", "도금 공정", "REGEX", "8[0-9]", "CODE"),
                 cateRow("ADDED", "MAJOR", "주요 공정", "TABLE", null, null),
@@ -124,7 +124,7 @@ class CodeConfirmSampleHistorySqliteTest extends AbstractMdmSharedDbTest {
         tx.executeWithoutResult(st -> codeEditService.createVersion(minor));
         tx.executeWithoutResult(st -> codeItemEditService.save(itemSave("1.001"), List.of(
                 itemRow("CHANGED", "83", "3CGL", "CGL", 22),
-                itemRow("ADDED", "2P", "PLTCM2", "PLTCM", 12))));
+                itemRow("ADDED", "2P", "PLTCM2", "PLTCM", 12)), List.of(), List.of()));
         tx.executeWithoutResult(st -> codeCateEditService.save(cateSave("1.001"), List.of(),
                 List.of(memberRow("MAJOR", "2P"), memberRow("COLD_MILL", "2P"))));
         tx.executeWithoutResult(st -> codeConfirmService.confirm(

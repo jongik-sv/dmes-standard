@@ -133,7 +133,7 @@ moduleGroup: dmc
 | 목록 행 선택 | `view(maruCodeId, ver)` — 헤더·대상 버전·직전 RELEASED·diff·카테고리 요약을 받는다. 입력·검사 결과를 비운다 | §6.5 view |
 | 검사 | 입력을 `yyyy-MM-dd HH:mm:ss` 로 바꿔 `validate` 를 부른다(쓰기 없음). 10행·`futureApplyFrom` 을 받고, 보낸 apply_from 을 "검사한 값"으로 기억한다. 입력이 비면 오류 영역에 "적용 시작 일시를 입력하세요" | §6.5 validate, D3 |
 | apply_from 변경 | 검사한 값과 달라지면 확정 버튼이 꺼진다 — 다시 검사해야 한다 | I30 |
-| 확정 | 대화상자를 연다. 경고 목록과 체크, `futureApplyFrom` 이면 "적용 시작 일시가 미래입니다. 그 시각이 올 때까지 이 버전을 고치거나 새 버전을 만들 수 없습니다(철회 없음)." | D6·D7, ADR-0002 Consequences |
+| 확정 | 대화상자를 연다. 경고 목록과 체크, `futureApplyFrom` 이면 "적용 시작 일시가 미래입니다. 그 시각이 올 때까지 새 버전을 만들 수 없습니다. 적용 시각이 오기 전에는 확정 취소로 작성 중인 상태로 되돌릴 수 있습니다." 힌트 문장 "적용 시각이 지난 뒤에는 확정 취소를 할 수 없습니다." (확정 취소는 이 화면이 아니라 `codeMng` 버전에 있는 버튼) | D6·D7, ADR-0002 D8 |
 | 확인 | `confirm(maruCodeId, ver, rowVersion, applyFrom, warningsAcknowledged)` — 경고가 없으면 `false`, 있으면 체크했을 때만 `true`. 성공 → 토스트 `확정했습니다` → `view`·`search` 다시 부름. 실패 → 대화상자를 닫고 서버 message 를 오류 영역에 그대로 | I31·I35, F11 |
 
 ver 는 늘 문자열로 보내고(`2.000` 의 자릿수 보존), null·undefined 파라미터는 빼고 보낸다(I33, F23).

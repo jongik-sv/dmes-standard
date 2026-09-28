@@ -912,7 +912,7 @@ public class DataInitializer implements ApplicationRunner {
 
         seedMdmDomainMngMenu();
         seedMdmCodeItemEditMenu();
-        seedMdmCodeCateEditMenu();
+        seedMdmCodeCateEditObject();
         seedMdmCodeConfirmMenu();
 
         // ── TSK-04-04 — 컬럼 사전(columnMng) + 용어 인라인 등록 팝업(termRegPop). 팝업은 메뉴 leaf 없이 OBJECT·권한만
@@ -935,10 +935,12 @@ public class DataInitializer implements ApplicationRunner {
 
         // ── TSK-06-02 — 마루 코드 조회·등록(codeMng) + 마루 코드 수정(codeEdit), 폴더 dmc. DRAFT 소유권 액션
         //    (lock·unlock·handover) 권한은 여기서 더하지 않는다 — TSK-08-02 몫(D-075).
+        //    D-101(2026-09-28): codeEdit 는 codeMng 화면에 합쳐 메뉴 leaf 가 없다. 합친 화면이 codeEdit 서비스를
+        //    그대로 부르므로 OBJECT·권한은 남긴다(메뉴 없는 OBJECT 도 권한 키를 받는다 — dataCsvUploadPop 과 같다).
         insertMcmSecObjIfAbsent("codeMng", "마루 코드", "mdm");
         insertMcmSecObjIfAbsent("codeEdit", "마루 코드 수정", "mdm");
         insertMcmSecMenuIfAbsent("codeMng", "001", "5030100", "마루 코드", "dmc", "codeMng");
-        insertMcmSecMenuIfAbsent("codeEdit", "002", "5030200", "마루 코드 수정", "dmc", "codeEdit");
+        removeMergedMdmCodeMenus();
         for (String objectId : new String[]{"codeMng", "codeEdit"}) {
             insertIfAbsentComposite(
                     "TB_MCM_SEC_ROLE_MAPPING",
@@ -948,7 +950,7 @@ public class DataInitializer implements ApplicationRunner {
                     "VALUES ('SYSADMIN', '" + objectId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
             seedMdmObjectRbac(objectId, "dmc");
         }
-        log.info("[DataInitializer] TSK-06-02 MDM 마루 코드 시드 — OBJECT 2 + 메뉴 leaf 2 + RBAC(SYSADMIN 2 + MDM 역할 4)");
+        log.info("[DataInitializer] TSK-06-02 MDM 마루 코드 시드 — OBJECT 2 + 메뉴 leaf 1 + RBAC(SYSADMIN 2 + MDM 역할 4)");
         seedMdmDataMngMenus();
         seedMdmDataItemMenus();
         seedMdmDataCsvUploadPopObject();
@@ -1260,8 +1262,8 @@ public class DataInitializer implements ApplicationRunner {
      * TSK-06-03 — 코드 편집 화면(dmc/codeItemEdit). 기존 마스터관리 메뉴는 고치지 않고 dmc 폴더 아래 새 leaf 로 등록한다
      * (design.md §3 커밋 C). 부모 폴더 mdm·dmc 는 seedMdmMenus() 가 이미 멱등 시드한다. OBJECT_ID = screenId = BPMN
      * process id. action(search·view·compare·validate·save·restore·execute)은 모두 기존 권한 세트 안에 있고, dmc 매트릭스는
-     * 표준 관리자 READ·담당자 CONFIRM 이다. FULL_SEQ 는 screens/README §3 순서(codeMng·codeEdit·codeItemEdit·codeCateEdit·
-     * codeConfirm)의 셋째 자리이며 부팅 끝 recomputeMenuFullSeq() 가 다시 매긴다.
+     * 표준 관리자 READ·담당자 CONFIRM 이다. FULL_SEQ 는 screens/README §3 순서(codeMng·codeItemEdit·codeConfirm,
+     * D-101 로 codeEdit·codeCateEdit 메뉴 없음)의 둘째 자리이며 부팅 끝 recomputeMenuFullSeq() 가 다시 매긴다.
      */
     private void seedMdmCodeItemEditMenu() {
         final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
@@ -1279,18 +1281,16 @@ public class DataInitializer implements ApplicationRunner {
     }
 
     /**
-     * TSK-06-04 — 카테고리 편집(dmc/codeCateEdit). 기존 마스터관리 메뉴는 고치지 않고 dmc 폴더 아래 새 leaf 로 등록한다
-     * (design.md §1). 부모 폴더 mdm·dmc 는 seedMdmMenus() 가 이미 멱등 시드한다. OBJECT_ID = screenId = BPMN process id.
-     * action(search·view·compare·validate·save·restore)은 모두 기존 권한 세트 안에 있고, dmc 매트릭스는 표준 관리자 READ·
-     * 담당자 CONFIRM 이다. FULL_SEQ 는 screens/README §3 순서(codeMng·codeEdit·codeItemEdit·codeCateEdit·codeConfirm)의
-     * 넷째 자리이며 부팅 끝 recomputeMenuFullSeq() 가 다시 매긴다.
+     * TSK-06-04 — 카테고리 편집(codeCateEdit) OBJECT·권한. OBJECT_ID = BPMN process id. action(search·view·compare·
+     * validate·save·restore)은 모두 기존 권한 세트 안에 있고, dmc 매트릭스는 표준 관리자 READ·담당자 CONFIRM 이다.
+     * D-101(2026-09-28): 화면은 코드 편집(codeItemEdit)의 카테고리 탭으로 합쳐 메뉴 leaf 가 없다. 그 탭이 codeCateEdit
+     * 서비스를 그대로 부르므로 OBJECT·권한만 둔다. 이미 있는 메뉴 행은 {@link #removeMergedMdmCodeMenus()} 가 지운다.
      */
-    private void seedMdmCodeCateEditMenu() {
+    private void seedMdmCodeCateEditObject() {
         final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
         final String AUDIT_VALS = ", 'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', "
                                 + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
         insertMcmSecObjIfAbsent("codeCateEdit", "카테고리 편집", "mdm");
-        insertMcmSecMenuIfAbsent("codeCateEdit", "004", "5030400", "카테고리 편집", "dmc", "codeCateEdit");
         insertIfAbsentComposite(
                 "TB_MCM_SEC_ROLE_MAPPING",
                 new String[]{"ROLE_ID",  "OBJECT_ID",    "PERMISSION_ID"},
@@ -1301,10 +1301,24 @@ public class DataInitializer implements ApplicationRunner {
     }
 
     /**
+     * D-101(2026-09-28) — 마루 코드 화면 4개를 2개로 합치며 없앤 메뉴 leaf(codeEdit·codeCateEdit)를 잔존 DB 에서 지운다.
+     * 메뉴 행만 지운다. OBJECT·역할 매핑은 합친 화면이 두 서비스를 계속 부르므로 남긴다. 멱등(없으면 0행).
+     */
+    private void removeMergedMdmCodeMenus() {
+        for (String menuId : new String[]{"codeEdit", "codeCateEdit"}) {
+            int del = nq("DELETE FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :m")
+                    .setParameter("m", menuId).executeUpdate();
+            if (del > 0) {
+                log.info("[DataInitializer] D-101 — 합친 화면의 메뉴 leaf DELETE MENU_ID={} rows={}", menuId, del);
+            }
+        }
+    }
+
+    /**
      * TSK-06-05 — 버전 확정(dmc/codeConfirm). 기존 마스터관리 메뉴는 고치지 않고 dmc 폴더 아래 새 leaf 로 등록한다
      * (design.md §6.8). 부모 폴더 mdm·dmc 는 seedMdmMenus() 가 이미 멱등 시드한다. OBJECT_ID = screenId = BPMN process id.
      * action(search·view·validate·confirm)은 모두 기존 권한 세트 안에 있고, dmc 매트릭스는 표준 관리자 READ(search·view)·
-     * 담당자 CONFIRM(validate·confirm 포함)이다. FULL_SEQ 는 screens/README §3 순서의 다섯째 자리이며 부팅 끝
+     * 담당자 CONFIRM(validate·confirm 포함)이다. FULL_SEQ 는 screens/README §3 순서의 셋째 자리(D-101)이며 부팅 끝
      * recomputeMenuFullSeq() 가 다시 매긴다.
      */
     private void seedMdmCodeConfirmMenu() {

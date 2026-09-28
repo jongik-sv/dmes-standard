@@ -866,3 +866,59 @@
 - **Rationale**: 사용자 결정(2026-09-28 "기본 무관으로 하고 값을 넣으면 무관이 꺼지고 값을 지우면 무관이 켜지게", "1.0 도 expr 이잖아")
 - **Reversible**: yes(RuleColumnsService.updateCells 의 무관 채움, RuleCellRules.result 의 Expression 값 칸 거부를 지우면 된다. DDL 없음)
 - **Source**: RuleColumnsService, RuleCellRules, column-draft.ts(알림 naFill), RuleColumnsServiceTest·RuleTableServiceTest
+
+## D-101 (2026-09-28T10:30:00Z)
+- **Phase**: refactor(dmc 마루 코드 화면)
+- **Decision needed**: 마루 코드 한 건을 다루는 데 화면이 4개(codeMng 조회·등록, codeEdit 수정, codeItemEdit 코드 편집,
+  codeCateEdit 카테고리 편집)로 나뉘어 탭을 오가야 한다
+- **Decision made**: 화면을 2개로 합친다. (1) codeMng = 목록 + 상세(헤더·추가 컬럼 라벨·버전 목록) + [신규] 등록 폼. 마루 코드
+  삭제 버튼은 두지 않는다(D-102 예외). 버전 버튼의 [코드 편집]·[카테고리 편집]은 [코드 편집] 하나로 줄이고, 버전을 고르면 늘 켠다
+  (편집 가능 여부는 코드 편집 화면이 판단해 읽기 전용으로 연다). (2) codeItemEdit = [코드]·[트리]·[카테고리] 탭. [저장] 하나가
+  코드 행·카테고리·소속 변경을 codeItemEdit `save` 한 번(한 트랜잭션, rowVersion 1 증가)으로 보낸다. 카테고리 판정은 코드 행 변경을
+  먼저 적용한 V 모습 위에서 한다. 서버 서비스·BPMN 4개는 그대로 두고, codeEdit·codeCateEdit 는 메뉴 leaf 만 없앤다(OBJECT·역할
+  매핑 유지 — 합친 화면이 두 서비스를 계속 부르고, 권한 키는 메뉴를 보지 않는다)
+- **Rationale**: 사용자 지시(2026-09-28 "마루 코드 / 마루 코드 수정 하나의 화면으로", "코드 편집 / 카테고리 편집은 하나의 화면으로",
+  "4개의 화면을 2개의 화면으로 줄이는 작업", HTML 시안 확인 뒤 "진행해")
+- **Reversible**: yes(메뉴 leaf 를 다시 시드하고 화면 폴더를 되살리면 된다. DDL 없음)
+- **Source**: DataInitializer(removeMergedMdmCodeMenus), pages/dmc/codeMng·codeItemEdit, CodeItemEditService.save·validate,
+  screens/codeMng·codeItemEdit 기능설계서
+
+## D-102 (2026-09-28T10:30:00Z)
+- **Phase**: feat(dmc 마루 코드)
+- **Decision needed**: 원천 04 「코드 삭제와 마루 코드 폐기」는 마루 코드를 행을 지우지 않는 폐기(DEPRECATED)로만 정리하고 물리 삭제
+  규정이 없다. 잘못 등록해 한 번도 쓰인 적 없는 마루 코드도 폐기로만 남는다
+- **Decision made**: 한 번도 RELEASED 된 적 없는 마루 코드(TB_MDM_CODE_VER 에 RELEASED·CANCELLED 행이 없음, 버전 0개 포함)는
+  [폐기] 자리에 [삭제] 를 보이고 코드를 통째로 지운다(CATE_ITEM·CATE·ITEM·VER·SYSTEM·CODE). 서버 flags `neverReleased`·
+  `canDeleteCode`, 실행은 codeEdit `delete` 에 `target: "CODE"`(새 action 이름 없음). 원천 EXTERNAL·담당자 아님·다른 사용자 소유
+  DRAFT·도메인 참조·수신 이력(RECV)·`MASTER('<id>'` 텍스트 참조가 있으면 거부한다. 한 번이라도 RELEASED 됐으면 지금처럼 폐기만 된다
+- **Rationale**: 사용자 결정(2026-09-28 "폐기도 있어야 한다. 다만 릴리즈 된적이 없다면 폐기버튼이 삭제가 되도록 해줘"). 확정된 적 없는
+  코드는 과거 기준일 판정·배포 사본에 흔적이 없어 행을 남길 이유가 없다
+- **Reversible**: yes(flags·delete 분기를 지우면 된다. DDL 없음). 지운 코드는 되살릴 수 없다
+- **Source**: CodeEditService(delete 분기), CodeEditFlags, codeMng 화면 헤더 버튼. 원천 04-master-code-deploy-full.md 「코드 삭제와
+  마루 코드 폐기」 절은 다른 저장소(/Users/jji/project/mdm)라 아직 고치지 않았다 — 반영 필요
+
+## D-103 (2026-09-28T19:50:00Z)
+- **Phase**: feat(dme 룰 화면 — 피벗 보기·축 제거)
+- **Decision needed**: 룰 화면 열 설정에 `축(axis)` 칸(ROW·COL·NONE)이 있고, 이 값이 있으면 표 카드의 "피벗 보기" 섹션이
+  2차원 표(행 축 × 열 축 × 결과)로 그려진다. `BASE_SPD_LKP` 처럼 **결과 열 그룹(`res_grp`/`grp_cond`)이 이미 있는 룰에도**
+  이 두 표현이 함께 들어갔다. 같은 정보를 두 벌로 유지한 것이 맞는지, 피벗과 축을 없애는 것이 맞는지
+- **Decision made**: **피벗 보기 섹션과 조건 열 `axis` 를 모두 제거한다.** 결과 열 그룹(`res_grp`/`grp_cond`) 표현만 남긴다.
+  제거 범위: 프론트 `sections/pivot/` 전체(PivotSection·pivot-model)와 열 설정의 축 칸, 백엔드 `AxisCoverage`·`AxisCoverageCheck`
+  (축 조합 완전성 경고)와 축 검사 2종(`AXIS_COND_ONLY`·`AXIS_VALUE`), `MdmRuleVar.axis`·`RuleColumnsSaveRequest.axis`·
+  `RuleEditViewResult.VarMeta.axis`, 샘플의 피벗 데모 룰 `PVT_SPD_LKP`. DB 는 Flyway `V13__drop_rule_var_axis` 로
+  `TB_MDM_RULE_VAR` 를 재생성해 AXIS 컬럼과 `CK_TB_MDM_RULE_VAR_AXIS` 제약을 지운다
+- **Rationale**: 피벗은 그룹이 조건식 안에서 하던 일을 표로 펼쳐 보여주는 것에 지나지 않았다(그룹의 `grpCond` 가 행 축 값이 되고
+  그룹의 물리명이 결과 축이 된다). 그런데 (1) **엔진은 축을 읽지 않았다** — 06 문서의 "엔진은 축을 읽지 않는다" 가 코드에서도 그대로
+  였고, `maru-mdm-engine` 에 `getAxis`/`setAxis` 호출이 한 건도 없었다. 저장된 값은 항상 평탄화 행(`TB_MDM_RULE_ROW`)이었다.
+  (2) 두 표현이 어긋나면 어느 쪽이 진짜인지 알 수 없다 — 실제로 `BASE_SPD_LKP` 의 `COIL_THK` 에는 결과 열 8개라 피벗 게이트를
+  못 통과하면서 `axis='ROW'` 값이 방치돼 있었다(누군가 한때 피벗으로 보려다 그만 둔 흔적).
+  (3) 그룹이 있는 룰은 도메인 컬럼 매핑(`TB_MDM_COLUMN` 의 `phys_name`)을 지켜야 하므로, 피벗으로 값만 채우면 그 매핑이
+  깨진다. 8개 결과 열이 `BASE_SPD` 한 물리명으로 묶인 것이 바로 그 설계다. 그룹 표현만 남기면 "어느 열이 이 물리명에 대응하는가"가
+  `grp_cond` 로 유일하게 정해진다. 사용자 결정(2026-09-28 "피벗 기능을 제거하자. 그리고 축 컬럼도 삭제하자")
+- **Reversible**: partly. UI·검사·모델은 되돌릴 수 있다(피벗은 저장 표현이 아니라 화면 표현이므로 데이터 변환 불필요). DB 는
+  **되돌릴 수 있다** — 새 마이그레이션에서 AXIS 컬럼과 CHECK 제약을 되살리면 된다(값은 소실됐지만 축은 화면 전용이라
+  재설정 대상이다). 데모 룰 `PVT_SPD_LKP` 은 샘플 시드에서 제거했으나 운영 DB 행은 이미 지웠다 — 이건 되돌릴 수 없다
+- **Source**: `docs/mdm/design/basic/06-business-rule.md`(axis 컬럼 정의·축 조합 완전성 절 삭제), 06-business-rule sqlite
+  스키마·컬럼표, `src/frontend/m-mdm/pages/dme/ruleEdit/sections/index.ts`·`column-draft.ts`·`column-grid.tsx`,
+  `RuleColumnsService`·`MdmRuleVar`·`RuleEditViewResult`, Flyway `V13__drop_rule_var_axis.sql`.
+  `docs/mdm/tasks/TSK-08-03/design.md` 와 `wbs.md` 는 그 Task 당시의 기록으로 **고치지 않았다**(역사 문서)

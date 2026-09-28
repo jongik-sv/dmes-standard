@@ -338,7 +338,11 @@ describe("CodeConfirmPage", () => {
     nextValidate = () => validateResult(checkRows(), { applyFrom: "2020-01-01 00:00:00", futureApplyFrom: true });
     await openAndValidate("2020-01-01T00:00");
     await click(confirmButton());
-    expect(byTestId("cf-future-warning")?.textContent).toContain("적용 시작 일시가 미래입니다");
+    const warning = byTestId("cf-future-warning")?.textContent ?? "";
+    expect(warning).toContain("적용 시작 일시가 미래입니다");
+    // D8 — 철회 불가 안내가 아니라 확정 취소 안내가 된다.
+    expect(warning).toContain("확정 취소로 작성 중인 상태로 되돌릴 수 있습니다");
+    expect(warning).not.toContain("철회 없음");
   });
 
   it("P4 서버가 futureApplyFrom=false 를 주면 먼 미래 일시라도 미래 경고를 보이지 않는다", async () => {

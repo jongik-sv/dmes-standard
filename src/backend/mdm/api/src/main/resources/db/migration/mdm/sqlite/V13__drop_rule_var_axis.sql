@@ -1,0 +1,76 @@
+-- 2026-09-28 — 피벗 보기 기능과 룰 변수의 AXIS 컬럼을 제거한다.
+--
+-- 왜: AXIS(행 축/열 축)는 피벗 보기 화면을 그리기 위한 값이었다. 그런데 그 화면은 결과 열 그룹
+-- (RES_GRP/GRP_COND)이 이미 하는 일을 표로 한 번 더 펼쳐 놓은 것뿐이었고, 엔진은 AXIS 를 읽지
+-- 않았다(06 문서의 "엔진은 축을 읽지 않는다"가 코드에서도 그대로였다). 같은 정보를 두 표현으로
+-- 유지하던 상태였으므로 그룹 쪽 표현만 남긴다. 그 결과 피벗 보기 섹션(08-03)과 축 조합 완전성
+-- 검사(AxisCoverage/AxisCoverageCheck)가 함께 사라졌다.
+--
+-- SQLite 는 컬럼을 참조하는 CHECK 제약이 있으면 그 컬럼을 DROP COLUMN 으로 지울 수 없다
+-- ("no such column: AXIS" 로 실패하고 파일이 손상된다). 그래서 V8 의 정의를 그대로 옮긴 새 테이블로
+-- 교체한다 — 컬럼을 한 개 줄인 것 말고는 스키마가 동일하다.
+-- 규칙 7 의 경고를 따른다: INSERT INTO new SELECT * FROM old 를 쓰지 않고 컬럼명을 모두 적는다
+-- (컬럼 순서에 의존하면 데이터가 엉뚱한 컬럼로 들어간다).
+-- 되돌리려면: 새 마이그레이션에서 AXIS 컬럼과 CK_TB_MDM_RULE_VAR_AXIS 를 되살리고, UI 의 축 열과
+-- 피벗 섹션을 되돌린다. 데이터 변환은 필요 없다 — 피벗은 원래 "저장은 평탄화 행, 축은 화면에서만
+-- 읽는 값"이라 아래 SELECT 가 남기는 데이터가 원본과 동일하다.
+--
+-- PRAGMA foreign_keys 를 쓰지 않는다: Flyway 의 SQLite 파서는 PRAGMA 를 transactional 문으로 보고
+-- 같은 파일의 DDL(non-transactional)과 섞이면 마이그레이션 전체가 거부된다("Detected both
+-- transactional and non-transactional statements"). 게다가 SQLite 에서 PRAGMA foreign_keys 는
+-- 트랜잭션 안에서 이미 무효다. 이 마이그레이션은 중간의 DROP TABLE 동안만 FK 를 끄는 게 필요한데,
+-- DROP 직후 RENAME 으로 곧바로 원래 이름으로 되돌리므로 자식 참조는 그대로 유효하다.
+
+CREATE TABLE TB_MDM_RULE_VAR_NEW (
+    MARU_RULE_ID VARCHAR(50) NOT NULL,
+    VER INTEGER NOT NULL,
+    VAR_ID INTEGER NOT NULL,
+    VAR_KIND VARCHAR(20) NOT NULL,
+    DISP_TYPE VARCHAR(20),
+    VAR_NAME TEXT,
+    VAR_AST TEXT CONSTRAINT CK_TB_MDM_RULE_VAR_VAR_AST_JSON CHECK (VAR_AST IS NULL OR json_valid(VAR_AST)),
+    DOMAIN_ID INTEGER,
+    DATA_TYPE VARCHAR(20),
+    COLLECT_AGG VARCHAR(20) DEFAULT 'LIST',
+    PRIO_LIST TEXT CONSTRAINT CK_TB_MDM_RULE_VAR_PRIO_LIST_JSON CHECK (PRIO_LIST IS NULL OR json_valid(PRIO_LIST)),
+    RES_GRP VARCHAR(50),
+    GRP_COND TEXT,
+    GRP_COND_AST TEXT CONSTRAINT CK_TB_MDM_RULE_VAR_GRP_COND_AST_JSON CHECK (GRP_COND_AST IS NULL OR json_valid(GRP_COND_AST)),
+    SEQ INTEGER NOT NULL,
+    LABEL TEXT,
+    DESCRIPTION TEXT,
+    C_USR_ID VARCHAR(100),
+    C_AT TIMESTAMP,
+    C_SVC_ID VARCHAR(100),
+    C_PGM_ID VARCHAR(100),
+    U_USR_ID VARCHAR(100),
+    U_AT TIMESTAMP,
+    U_SVC_ID VARCHAR(100),
+    U_PGM_ID VARCHAR(100),
+    AUD_VER BIGINT,
+    CONSTRAINT PK_TB_MDM_RULE_VAR PRIMARY KEY (MARU_RULE_ID, VER, VAR_ID),
+    CONSTRAINT FK_TB_MDM_RULE_VAR_VER FOREIGN KEY (MARU_RULE_ID, VER) REFERENCES TB_MDM_RULE_VER (MARU_RULE_ID, VER) ON DELETE CASCADE,
+    CONSTRAINT FK_TB_MDM_RULE_VAR_DOMAIN FOREIGN KEY (DOMAIN_ID) REFERENCES TB_MDM_DOMAIN (DOMAIN_ID),
+    CONSTRAINT CK_TB_MDM_RULE_VAR_KIND CHECK (VAR_KIND IN ('COND','RESULT')),
+    CONSTRAINT CK_TB_MDM_RULE_VAR_DISP CHECK (DISP_TYPE IS NULL OR DISP_TYPE IN ('Equal','1','2','Expression','Value')),
+    CONSTRAINT CK_TB_MDM_RULE_VAR_DTYPE CHECK (DATA_TYPE IS NULL OR DATA_TYPE IN ('BOOLEAN','NUMBER','STRING','DATE')),
+    CONSTRAINT CK_TB_MDM_RULE_VAR_AGG CHECK (COLLECT_AGG IS NULL OR COLLECT_AGG IN ('LIST','SUM','MIN','MAX','COUNT')),
+    CONSTRAINT CK_TB_MDM_RULE_VAR_RESULT_NAME CHECK (VAR_KIND <> 'RESULT' OR VAR_NAME IS NOT NULL)
+);
+
+INSERT INTO TB_MDM_RULE_VAR_NEW (
+    MARU_RULE_ID, VER, VAR_ID, VAR_KIND, DISP_TYPE, VAR_NAME, VAR_AST, DOMAIN_ID, DATA_TYPE,
+    COLLECT_AGG, PRIO_LIST, RES_GRP, GRP_COND, GRP_COND_AST, SEQ, LABEL, DESCRIPTION,
+    C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, AUD_VER
+)
+SELECT
+    MARU_RULE_ID, VER, VAR_ID, VAR_KIND, DISP_TYPE, VAR_NAME, VAR_AST, DOMAIN_ID, DATA_TYPE,
+    COLLECT_AGG, PRIO_LIST, RES_GRP, GRP_COND, GRP_COND_AST, SEQ, LABEL, DESCRIPTION,
+    C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, AUD_VER
+FROM TB_MDM_RULE_VAR;
+
+DROP TABLE TB_MDM_RULE_VAR;
+ALTER TABLE TB_MDM_RULE_VAR_NEW RENAME TO TB_MDM_RULE_VAR;
+
+CREATE UNIQUE INDEX UX_TB_MDM_RULE_VAR_SEQ ON TB_MDM_RULE_VAR (MARU_RULE_ID, VER, VAR_KIND, SEQ);
+CREATE UNIQUE INDEX UX_TB_MDM_RULE_VAR_NAME ON TB_MDM_RULE_VAR (MARU_RULE_ID, VER, VAR_NAME) WHERE VAR_KIND = 'RESULT';

@@ -4,10 +4,12 @@ import static com.dongkuk.dmes.mdm.common.mastercode.MasterCodeFixtures.OPEN;
 import static com.dongkuk.dmes.mdm.common.mastercode.MasterCodeFixtures.OPEN_END;
 import static com.dongkuk.dmes.mdm.dmc.codeItemEdit.CodeItemEditRequests.assertMdm;
 import static com.dongkuk.dmes.mdm.dmc.codeItemEdit.CodeItemEditRequests.byCode;
+import static com.dongkuk.dmes.mdm.dmc.codeItemEdit.CodeItemEditRequests.cateRow;
 import static com.dongkuk.dmes.mdm.dmc.codeItemEdit.CodeItemEditRequests.codes;
 import static com.dongkuk.dmes.mdm.dmc.codeItemEdit.CodeItemEditRequests.deleted;
 import static com.dongkuk.dmes.mdm.dmc.codeItemEdit.CodeItemEditRequests.list;
 import static com.dongkuk.dmes.mdm.dmc.codeItemEdit.CodeItemEditRequests.map;
+import static com.dongkuk.dmes.mdm.dmc.codeItemEdit.CodeItemEditRequests.memberRow;
 import static com.dongkuk.dmes.mdm.dmc.codeItemEdit.CodeItemEditRequests.patch;
 import static com.dongkuk.dmes.mdm.dmc.codeItemEdit.CodeItemEditRequests.revert;
 import static com.dongkuk.dmes.mdm.dmc.codeItemEdit.CodeItemEditRequests.row;
@@ -150,7 +152,7 @@ class CodeItemEditServiceSqliteTest extends AbstractMdmSharedDbTest {
         seedM();
         fx.seedVersion("M", "1.002", "CANCELLED", "kim", "2026-08-01 00:00:00", "2026-09-01 00:00:00", 0);
         service.save(save("M", "1.001", RV), List.of(
-                row("CHANGED", "A", "새 에이", 1, "G"), deleted("B"), row("ADDED", "D", "디", 4, "H")));
+                row("CHANGED", "A", "새 에이", 1, "G"), deleted("B"), row("ADDED", "D", "디", 4, "H")), List.of(), List.of());
 
         Map<String, Object> draft = service.view(view("M", "1.001"));
         List<Map<String, Object>> rows = list(draft, "rows");
@@ -175,7 +177,7 @@ class CodeItemEditServiceSqliteTest extends AbstractMdmSharedDbTest {
         fx.seedCate("M", "T1", "1.000", OPEN, "표1", "TABLE", null, null);
         fx.seedCateItem("M", "T1", "A", "1.000", OPEN);
         fx.seedCateItem("M", "T1", "B", "1.000", OPEN);
-        service.save(save("M", "1.001", RV), List.of(row("CHANGED", "A", "새 에이", 1, "G")));
+        service.save(save("M", "1.001", RV), List.of(row("CHANGED", "A", "새 에이", 1, "G")), List.of(), List.of());
 
         List<Map<String, Object>> rows = list(service.view(view("M", "1.000")), "rows");
         assertEquals(List.of("T1"), byCode(rows, "A").get("tableCategories"));
@@ -205,7 +207,7 @@ class CodeItemEditServiceSqliteTest extends AbstractMdmSharedDbTest {
         List<String> before = fx.itemSegments("STEEL_STD");
 
         assertMdm(MdmErrorCode.CODE_SAVE_REJECTED, () -> service.save(save("STEEL_STD", "1.001", 0L),
-                List.of(row("ADDED", "X-2", "x", 1, "JIS", "KS-3"))));
+                List.of(row("ADDED", "X-2", "x", 1, "JIS", "KS-3")), List.of(), List.of()));
 
         assertEquals(0L, fx.rowVersion("STEEL_STD", "1.001"));
         assertEquals(before, fx.itemSegments("STEEL_STD"));
@@ -216,7 +218,7 @@ class CodeItemEditServiceSqliteTest extends AbstractMdmSharedDbTest {
         seedM();
 
         Map<String, Object> r = service.save(save("M", "1.001", RV), List.of(row("ADDED", "D", "디", 4, "H"),
-                row("CHANGED", "A", "새 에이", 1, "G")));
+                row("CHANGED", "A", "새 에이", 1, "G")), List.of(), List.of());
 
         assertEquals(RV + 1, ((Number) r.get("rowVersion")).longValue());
         assertEquals(RV + 1, fx.rowVersion("M", "1.001"));
@@ -228,13 +230,13 @@ class CodeItemEditServiceSqliteTest extends AbstractMdmSharedDbTest {
         List<Map<String, Object>> add = List.of(row("ADDED", "D", "디", 4, "H"));
 
         currentUser.set("lee", Set.of(MdmRoles.STEWARD));
-        assertMdm(MdmErrorCode.NOT_DRAFT_OWNER, () -> service.save(save("M", "1.001", RV), add));
+        assertMdm(MdmErrorCode.NOT_DRAFT_OWNER, () -> service.save(save("M", "1.001", RV), add, List.of(), List.of()));
         currentUser.set("kim", Set.of(MdmRoles.STEWARD));
-        assertMdm(MdmErrorCode.ROW_VERSION_CONFLICT, () -> service.save(save("M", "1.001", RV - 1), add));
-        assertMdm(MdmErrorCode.NOT_DRAFT, () -> service.save(save("M", "1.000", 0L), add));
-        assertMdm(MdmErrorCode.INVALID_INPUT, () -> service.save(save("M", "1.001", RV), List.of()));
+        assertMdm(MdmErrorCode.ROW_VERSION_CONFLICT, () -> service.save(save("M", "1.001", RV - 1), add, List.of(), List.of()));
+        assertMdm(MdmErrorCode.NOT_DRAFT, () -> service.save(save("M", "1.000", 0L), add, List.of(), List.of()));
+        assertMdm(MdmErrorCode.INVALID_INPUT, () -> service.save(save("M", "1.001", RV), List.of(), List.of(), List.of()));
         fx.seedVersion("M", "1.002", "RELEASED", "kim", "2026-12-01 00:00:00", OPEN_END, 0);
-        assertMdm(MdmErrorCode.MULTIPLE_UNAPPLIED_VERSIONS, () -> service.save(save("M", "1.001", RV), add));
+        assertMdm(MdmErrorCode.MULTIPLE_UNAPPLIED_VERSIONS, () -> service.save(save("M", "1.001", RV), add, List.of(), List.of()));
 
         assertEquals(RV, fx.rowVersion("M", "1.001"));
         assertEquals(List.of("A@1.000-9999", "B@1.000-9999", "C@1.000-9999"), fx.itemSegments("M"));
@@ -243,7 +245,7 @@ class CodeItemEditServiceSqliteTest extends AbstractMdmSharedDbTest {
     @Test
     void S10_되돌리기는_전제를_거쳐_ROW_VERSION_을_1_올린다() {
         seedM();
-        service.save(save("M", "1.001", RV), List.of(row("CHANGED", "A", "새 에이", 1, "G")));
+        service.save(save("M", "1.001", RV), List.of(row("CHANGED", "A", "새 에이", 1, "G")), List.of(), List.of());
 
         currentUser.set("lee", Set.of(MdmRoles.STEWARD));
         assertMdm(MdmErrorCode.NOT_DRAFT_OWNER, () -> service.revert(revert("M", "1.001", RV + 1, "A")));
@@ -273,7 +275,7 @@ class CodeItemEditServiceSqliteTest extends AbstractMdmSharedDbTest {
         seedM();
         currentUser.set("lee", Set.of(MdmRoles.STD_ADMIN));
 
-        Map<String, Object> r = service.validate(save("M", "1.001", null), List.of(row("ADDED", "A B", "x", 9, "G")));
+        Map<String, Object> r = service.validate(save("M", "1.001", null), List.of(row("ADDED", "A B", "x", 9, "G")), List.of(), List.of());
 
         List<Map<String, Object>> issues = list(r, "issues");
         assertEquals(List.of("CODE_FORBIDDEN_CHAR"), issues.stream().map(i -> i.get("code")).toList());
@@ -288,7 +290,7 @@ class CodeItemEditServiceSqliteTest extends AbstractMdmSharedDbTest {
         seedM();
         fx.seedItem("M", "Q", "1.000", "1.001", "큐", null, 5, null, "X", "Z");
 
-        Map<String, Object> r = service.validate(save("M", "1.001", null), List.of(row("ADDED", "N", "엔", 7, "Y", "Z")));
+        Map<String, Object> r = service.validate(save("M", "1.001", null), List.of(row("ADDED", "N", "엔", 7, "Y", "Z")), List.of(), List.of());
 
         assertEquals(List.of(), r.get("issues"));
     }
@@ -314,7 +316,7 @@ class CodeItemEditServiceSqliteTest extends AbstractMdmSharedDbTest {
     @Test
     void S14_DRAFT_가_같은_키를_고쳤으면_거부_닫기만_했으면_허용() {
         seedM();
-        service.save(save("M", "1.001", RV), List.of(row("CHANGED", "A", "새 에이", 1, "G"), deleted("B")));
+        service.save(save("M", "1.001", RV), List.of(row("CHANGED", "A", "새 에이", 1, "G"), deleted("B")), List.of(), List.of());
 
         BusinessException e = assertMdm(MdmErrorCode.CODE_PATCH_REJECTED,
                 () -> service.patch(patch("M", "A", "1.000", "x", null, 1, null)));
@@ -329,7 +331,7 @@ class CodeItemEditServiceSqliteTest extends AbstractMdmSharedDbTest {
     @Test
     void S15_RELEASED_가_아닌_행과_없는_키() {
         seedM();
-        service.save(save("M", "1.001", RV), List.of(row("ADDED", "D", "디", 4, "H")));
+        service.save(save("M", "1.001", RV), List.of(row("ADDED", "D", "디", 4, "H")), List.of(), List.of());
 
         BusinessException e = assertMdm(MdmErrorCode.CODE_PATCH_REJECTED,
                 () -> service.patch(patch("M", "D", "1.001", "x", null, 1, null)));
@@ -354,6 +356,101 @@ class CodeItemEditServiceSqliteTest extends AbstractMdmSharedDbTest {
         currentUser.set("kim", Set.of(MdmRoles.STD_ADMIN));
 
         assertMdm(MdmErrorCode.STEWARD_ROLE_REQUIRED, () -> service.patch(patch("M", "A", "1.000", "x", null, 1, null)));
+    }
+
+    // ── S18~S22 코드 행·카테고리 합친 저장(2026-09-28 화면 합치기) ─────────────
+
+    @Test
+    void S18_새_코드를_같은_저장에서_TABLE_소속으로_넣으면_한_번에_저장되고_ROW_VERSION_은_1_오른다() {
+        seedM();
+        fx.seedCate("M", "T1", "1.000", OPEN, "표1", "TABLE", null, null);
+
+        Map<String, Object> r = service.save(save("M", "1.001", RV), List.of(row("ADDED", "D", "디", 4, "H")),
+                List.of(), List.of(memberRow("ADDED", "T1", "D")));
+
+        assertEquals(RV + 1, ((Number) r.get("rowVersion")).longValue());
+        assertEquals(RV + 1, fx.rowVersion("M", "1.001"));
+        assertTrue(fx.itemSegments("M").contains("D@1.001-9999"), fx.itemSegments("M").toString());
+        assertEquals(List.of("T1 D@1.001-9999"), fx.cateItemSegments("M"));
+        assertEquals(Map.of(), r.get("closedCategories"));
+    }
+
+    @Test
+    void S19_새_TABLE_카테고리_새_코드_소속을_한_번에_넣으면_코드_카테고리_소속_순으로_쓴다() {
+        seedM();
+
+        Map<String, Object> r = service.save(save("M", "1.001", RV), List.of(row("ADDED", "D", "디", 4, "H")),
+                List.of(cateRow("ADDED", "T2", "표2", "TABLE", null, null)),
+                List.of(memberRow("ADDED", "T2", "D"), memberRow("ADDED", "T2", "A")));
+
+        assertEquals(RV + 1, ((Number) r.get("rowVersion")).longValue());
+        assertEquals(List.of("BASE@1.000-9999", "T2@1.001-9999"), fx.cateSegments("M"));
+        assertEquals(List.of("T2 A@1.001-9999", "T2 D@1.001-9999"), fx.cateItemSegments("M"));
+    }
+
+    @Test
+    void S20_카테고리_이슈가_있으면_코드_행도_쓰지_않고_코드_행_이슈와_함께_거부한다() {
+        seedM();
+        fx.seedCate("M", "T1", "1.000", OPEN, "표1", "TABLE", null, null);
+        List<String> items = fx.itemSegments("M");
+
+        BusinessException e = assertMdm(MdmErrorCode.CODE_SAVE_REJECTED, () -> service.save(save("M", "1.001", RV),
+                List.of(row("ADDED", "D", "디", 4, "H"), deleted("B"), row("ADDED", "A B", "x", 9, "G")),
+                List.of(cateRow("ADDED", "R1", "정규식", "REGEX", "[", "CODE")),
+                List.of(memberRow("ADDED", "T1", "B"), memberRow("ADDED", "BASE", "D"))));
+
+        assertTrue(e.getMessage().contains("CODE_FORBIDDEN_CHAR"), e.getMessage());
+        assertTrue(e.getMessage().contains("B[code] MEMBER_CODE_NOT_FOUND"), "같은 저장에서 지운 코드는 소속으로 못 넣는다: "
+                + e.getMessage());
+        assertTrue(e.getMessage().contains("INVALID_REGEX"), e.getMessage());
+        assertEquals(RV, fx.rowVersion("M", "1.001"));
+        assertEquals(items, fx.itemSegments("M"));
+        assertEquals(List.of("BASE@1.000-9999", "T1@1.000-9999"), fx.cateSegments("M"));
+        assertEquals(List.of(), fx.cateItemSegments("M"));
+    }
+
+    @Test
+    void S21_BASE_소속_변경은_검사가_깨끗해도_쓰기_전에_MDM012() {
+        seedM();
+
+        assertMdm(MdmErrorCode.RESERVED_CATEGORY, () -> service.save(save("M", "1.001", RV),
+                List.of(row("ADDED", "D", "디", 4, "H")),
+                List.of(cateRow("CHANGED", "BASE", "전체 바꿈", "REGEX", ".*", "CODE")), List.of()));
+
+        assertEquals(RV, fx.rowVersion("M", "1.001"));
+        assertEquals(List.of("A@1.000-9999", "B@1.000-9999", "C@1.000-9999"), fx.itemSegments("M"));
+
+        // validate 도 같은 판정을 cateIssues 로 알린다(save 만 거부하고 validate 는 깨끗하면 화면이 이유를 못 보인다).
+        Map<String, Object> r = service.validate(save("M", "1.001", null),
+                List.of(row("ADDED", "D", "디", 4, "H")),
+                List.of(cateRow("CHANGED", "BASE", "전체 바꿈", "REGEX", ".*", "CODE")), List.of());
+        assertEquals(List.of(), r.get("issues"));
+        List<Map<String, Object>> cateIssues = list(r, "cateIssues");
+        assertEquals(List.of("RESERVED_CATEGORY"), cateIssues.stream().map(i -> i.get("code")).toList());
+        assertEquals("BASE", cateIssues.get(0).get("itemKey"));
+    }
+
+    @Test
+    void S22_validate_는_코드_행_이슈와_카테고리_이슈를_나눠_주고_save_와_같은_모습_위에서_판정한다() {
+        seedM();
+        fx.seedCate("M", "T1", "1.000", OPEN, "표1", "TABLE", null, null);
+
+        Map<String, Object> r = service.validate(save("M", "1.001", null),
+                List.of(row("ADDED", "D", "디", 4, "H"), deleted("B")), List.of(),
+                List.of(memberRow("ADDED", "T1", "D"), memberRow("ADDED", "T1", "B"), memberRow("ADDED", "NOPE", "A")));
+
+        assertEquals(List.of(), r.get("issues"));
+        List<Map<String, Object>> cateIssues = list(r, "cateIssues");
+        assertEquals(List.of("MEMBER_CODE_NOT_FOUND", "CATE_NOT_FOUND"), cateIssues.stream().map(i -> i.get("code")).toList());
+        assertEquals("B", cateIssues.get(0).get("itemKey"));
+        assertEquals("NOPE", cateIssues.get(1).get("itemKey"));
+        assertEquals(RV, fx.rowVersion("M", "1.001"));
+        assertEquals(List.of(), fx.cateItemSegments("M"));
+
+        Map<String, Object> clean = service.validate(save("M", "1.001", null), List.of(row("ADDED", "D", "디", 4, "H")),
+                List.of(), List.of(memberRow("ADDED", "T1", "D")));
+        assertEquals(List.of(), clean.get("issues"));
+        assertEquals(List.of(), clean.get("cateIssues"), "같은 저장에서 넣은 코드는 소속으로 받는다");
     }
 
     // ── helpers ─────────────────────────────────────────────────────────

@@ -301,7 +301,7 @@ ID=docs/guide/design/identifier-dictionary
 7. **식별자 사전의 기존 등재 행(mls·mcm·mpp·master·aps 행, A.3.2 화면 행)은 수정하지 않는다.** 추가만 한다.
 8. **wbs.md 는 §2.2 M2 의 6가지 치환·추가 외에는 바꾸지 않는다.** Task 수 37, Task ID, `depends`·`schedule`·`category`·`priority`·`status` 행은 불변이다.
 9. **PRD.md 는 바꾸지 않는다.** 결정은 PRD §2 규칙 7 을 해석·구체화할 뿐 범위를 넓히거나 줄이지 않는다.
-10. **버전 상태 상수 5종의 이름과 뜻은 원천 그대로다**(DRAFT/REQUESTED/APPROVED/RELEASED/CANCELLED, 상위 객체 CREATED/INUSE/DEPRECATED). 이번 범위의 전이는 담당자 확정(DRAFT→RELEASED)·DRAFT 삭제·CREATED→INUSE 자동 전이뿐이다.
+10. **버전 상태 상수 5종의 이름과 뜻은 원천 그대로다**(DRAFT/REQUESTED/APPROVED/RELEASED/CANCELLED, 상위 객체 CREATED/INUSE/DEPRECATED). 이번 범위의 전이는 담당자 확정(DRAFT→RELEASED)·확정 취소(RELEASED(미적용)→DRAFT, D4-1)·DRAFT 삭제·CREATED→INUSE 자동 전이뿐이다. 확정 취소는 `CANCELLED` 를 쓰지 않으므로 상태 값 5종의 쓰임은 그대로다.
 11. **보류 테이블(배포 대상 `*_SYSTEM`(단 `TB_MDM_COLUMN_SYSTEM` 제외)·배포 순번·수신 로그 `*_RECV*`)은 DDL 에서 빼지 않는다.** "코드 없음" 은 엔티티·리포지토리·서비스·BPMN·화면이 없다는 뜻이다.
 12. **확정 시 검사의 3항 대체 규칙은 PRD 문구 그대로다**: 희망 apply_from 이 직전 RELEASED 버전의 apply_from 보다 **뒤**(엄격한 `>`), 최초 버전 면제. 이 Task 가 하한(리드타임·현재 시각)을 새로 만들지 않는다.
 13. **screenId 는 wbs entry-point 의 값을 바꾸지 않는다**(그룹 접두만 바뀐다). 새 screenId 를 지어내지 않는다.
@@ -449,9 +449,10 @@ ID=docs/guide/design/identifier-dictionary
 |---|---|---|
 | (없음) → DRAFT | 있음 | 새 버전(04: 빈 버전/복원, 06: 정의 복사). 만든 사람이 자동 선점(`owner_id`). 미적용 버전이 있으면 거부 |
 | DRAFT → RELEASED | 있음(**담당자 확정**) | 아래 확정 트랜잭션 |
+| RELEASED(미적용) → DRAFT | 있음(**확정 취소**) | D4-1. `apply_from` 이 아직 오지 않은 확정 버전만 |
 | DRAFT → (삭제) | 있음 | 소유자만. 06 은 VAR·ROW CASCADE(06:1154) |
 | 상위 CREATED → INUSE | 있음(자동) | D5 |
-| DRAFT→REQUESTED, REQUESTED→DRAFT(반려), REQUESTED→APPROVED, APPROVED→DRAFT(승인 취소), APPROVED→RELEASED(배포), RELEASED→CANCELLED(철회) | **없음** | PRD 규칙 7. 상태 값 REQUESTED·APPROVED·CANCELLED 는 데이터에 생기지 않는다 |
+| DRAFT→REQUESTED, REQUESTED→DRAFT(반려), REQUESTED→APPROVED, APPROVED→DRAFT(승인 취소), APPROVED→RELEASED(배포), RELEASED→CANCELLED(철회) | **없음** | PRD 규칙 7. 상태 값 REQUESTED·APPROVED·CANCELLED 는 데이터에 생기지 않는다. D4-1 의 확정 취소는 철회 계열이 아니라 되돌림이라 `CANCELLED` 를 쓰지 않는다 |
 | 상위 INUSE → DEPRECATED | 원천대로(04:252 — 미적용 버전이 없을 때) | 각 영역 Task |
 
 **미적용 버전 하나 규칙**(D4): 미적용 버전 = `DRAFT` + `apply_from` 이 현재 시각보다 뒤인 `RELEASED`. 하나라도 있으면 새 버전을 만들 수 없다. 04·06 공통(04:284, 06:1146). 이번 범위에는 REQUESTED·APPROVED 가 생기지 않으므로 원천 정의와 결과가 같다. 동시 생성으로 둘이 생기면 저장·확정을 막고 DRAFT 삭제로 유도한다(04:293-301, 부분 유니크 인덱스·행 잠금 없음).
@@ -470,7 +471,7 @@ ID=docs/guide/design/identifier-dictionary
 
 **소급 적용**: 3항 대체 규칙은 "직전보다 뒤"만 요구하므로 과거 일시도 통과한다(최초 버전은 어떤 일시든). 이는 PRD 규칙 7 을 글자대로 따른 결과이며 ADR-0002 결과 절에 "소급 적용 허용"으로 명시한다. 이 Task 는 하한을 추가하지 않는다(불변 규칙 12).
 
-**철회 부재의 결과**: 철회가 없고 미적용 버전은 하나뿐이므로, 미래 apply_from 으로 잘못 확정한 버전은 그 시각이 올 때까지 고칠 수단이 없다(새 버전도 만들 수 없다). 확정 화면(TSK-06-05·08-05)은 apply_from 이 미래이면 이 사실을 확인받는 경고를 띄운다(인계 §7). ADR-0002 결과 절에 적는다.
+**확정 취소와 그 한계**(D4-1): 미래 apply_from 으로 잘못 확정한 버전을 되돌릴 수단이 생겼다 — 전이 표의 `RELEASED(미적용) → DRAFT` 행. 다만 한계가 세 가지 남는다. ① **이미 적용된 버전은 되돌릴 수 없다**(배포·수신이 보류 상태라 정합을 이룰 감시점이 없다). ② 되돌린 행은 확정 기록과 진행된 `row_version` 이 남아 "한 번도 확정하지 않은 행"과 동일하지 않다. ③ 되돌린 06 룰이 그 룰의 유일한 확정 버전이었다면 그 룰을 쓰는 룰 세트와 다른 룰의 확정이 막히며, 재확정해야 풀린다. 확정 화면(TSK-06-05·08-05)은 apply_from 이 미래이면 이 사실을 확인받는 경고를 띄우고(인계 §7), 확정 취소 경로와 그 문구는 D4-1 인계를 따른다. ADR-0002 D8·결과 절에 적는다.
 
 **owner_id**: 확정 뒤에도 지우지 않는다("RELEASED 뒤에는 기록으로만 남는다", 04 CODE_VER 표).
 
@@ -548,11 +549,11 @@ action 과 `allActions`(F18) 대조 — ADR-0003 에 이 표를 그대로 싣는
   ## References
   ```
   검사는 `python3 .claude/skills/adr-write/scripts/adr_tool.py lint <파일>` 로만 한다(ERROR 0).
-- **Status PROPOSED**: 스킬 §8 은 확정 전 적대적 검토를 요구한다. Trigger 문안(3건 공통 골격): "D'Flow 에서 mdm/TSK-02-01 이 승인(approved)되고, `docs/mdm/tasks/TSK-02-01/design.md` 「담당자 확인 필요 결정」 중 이 ADR 이 근거로 삼은 항목(○○)이 반려되지 않으면 ACCEPTED 로 전환한다. 반려된 항목이 있으면 그 결정을 고친 뒤 다시 판정한다." ○○ = ADR-0001: D1·D7, ADR-0002: D3·D4·D5, ADR-0003: D2·D6.
+- **Status PROPOSED**: 스킬 §8 은 확정 전 적대적 검토를 요구한다. Trigger 문안(3건 공통 골격): "D'Flow 에서 mdm/TSK-02-01 이 승인(approved)되고, `docs/mdm/tasks/TSK-02-01/design.md` 「담당자 확인 필요 결정」 중 이 ADR 이 근거로 삼은 항목(○○)이 반려되지 않으면 ACCEPTED 로 전환한다. 반려된 항목이 있으면 그 결정을 고친 뒤 다시 판정한다." ○○ = ADR-0001: D1·D7, ADR-0002: **D3·D4·D4-1**·D5, ADR-0003: D2·D6. (ADR-0002 의 D4-1 은 2026-09-28 신설분이라 Trigger 에서 빠지지 않게 같이 적는다.)
 - **ADR 을 셋으로 나누는 이유**: 결재·배포를 구현하면 ADR-0002 만 SUPERSEDED 되고 명명(0001)·모듈 경계(0003)는 그대로 남는다. 한 문서에 섞으면 일부만 바꾸기 위해 전체를 대체해야 한다.
 - **ADR 별 내용 요지**:
   - **ADR-0001 MDM 물리 명명·공통 관리 속성·방언 규칙** — Decision: D1 `TB_MDM_*`·칼럼 UPPER_SNAKE·제약 명명·스키마 접두 없음(§6.1), D2 감사 9칼럼·`CactusAuditEntity`·인스펙터 비적용·`row_version`/`VER` 분리(§6.2), D3 방언 규칙은 `naming-dialect-rules.md` §3 이 정본이며 실측 필요 행은 담당 Task 가 확인해 갱신(§6.3), D4 영속성 JPA + native, MyBatis 미사용(§6.4), D5 코드·키 칼럼 BIN2 콜레이션(§6.3 #19). 쉬운 설명 예: "표준 원장 테이블 이름을 저장소의 다른 테이블처럼 대문자로 통일하고, 누가 언제 고쳤는지 남기는 칸을 모든 표에 똑같이 둔다. 개발 PC 와 운영 DB 가 문법이 달라 생기는 차이를 한 표로 정리했다." Alternatives: 소문자 `TB_mdm_*`(A.12 원문), 전 모듈 대문자 전환(D1 b), 인스펙터 확장, MyBatis.
-  - **ADR-0002 결재·배포·수신 보류 하의 버전 확정 규칙과 보류 테이블 원칙** — Decision: 상태·전이 표, 미적용 버전 정의(D4), DRAFT 소유권, 확정 트랜잭션·검사(§6.7), 결재 칸 처리(§6.8, D3), CREATED→INUSE(D5), 보류 테이블 DDL-only·배포 칸 DEFAULT 0(§6.10). Consequences: 소급 적용 허용, 철회 부재로 미래 확정 오류를 그 시각까지 못 고침, 결재 구현 시 이 ADR 을 SUPERSEDED 하고 새 ADR 로 결재 흐름을 붙이며 과거 행은 `approved_by IS NULL` 로 구별. 쉬운 설명 예: "지금은 결재 없이 담당자가 직접 '확정'을 누르면 새 버전이 효력을 갖는다. 나중에 결재를 붙일 때 표를 다시 만들지 않도록 결재·배포용 칸과 표는 미리 만들어 둔다."
+  - **ADR-0002 결재·배포·수신 보류 하의 버전 확정 규칙과 보류 테이블 원칙** — Decision: 상태·전이 표(확정 취소 행 포함), 미적용 버전 정의(D4), DRAFT 소유권, 확정 트랜잭션·검사(§6.7), 결재 칸 처리(§6.8, D3), CREATED→INUSE(D5), 보류 테이블 DDL-only·배포 칸 DEFAULT 0(§6.10), **확정 취소(미래 적용 RELEASED → DRAFT, D4-1)**. Consequences: 소급 적용 허용, 미래 확정 오류는 확정 취소로 고칠 수 있으나 이미 적용된 버전은 못 고침, 되돌린 행은 확정 기록·`row_version` 이 남아 미확정 행과 동일하지 않음, 06 교차 객체 차단은 재확정으로 풀림, 결재 구현 시 이 ADR 을 SUPERSEDED 하고 새 ADR 로 결재 흐름을 붙인다. (구분자는 `approved_by IS NULL` 이 아니라 실제로 채워지는 칸을 써야 한다 — 2026-09-28 정정.) 쉬운 설명 예: "지금은 결재 없이 담당자가 직접 '확정'을 누르면 새 버전이 효력을 갖는다. 적용 시각을 미래로 잘못 정해 확정했다면 그 시각 전에 확정 취소를 눌러 되돌릴 수 있다. 나중에 결재를 붙일 때 표를 다시 만들지 않도록 결재·배포용 칸과 표는 미리 만들어 둔다."
   - **ADR-0003 MDM 모듈 경계 — 화면 그룹·산출물 위치·As-Is 병존·권한 역할** — Decision: 그룹 `dma~dme`(D2), screenId 목록은 `screens/README.md` 정본, 산출물 위치 `docs/mdm/screens/{screenId}/`, 경로 규약(§6.5), As-Is 병존 6원칙(§6.6), 역할·권한 세트·action 대조표·매트릭스(§6.9, D6). 쉬운 설명 예: "새 표준 원장 화면은 기존 마스터코드·업무기준 화면과 따로 운영한다. 용어·도메인·레이아웃은 표준 관리자가, 코드·데이터·기준은 담당자가 고치고, 조회는 둘 다 할 수 있다."
 - `docs/mdm/adr/README.md` 인덱스 표 형식은 `docs/guide/adr/README.md` 를 따른다: `| 번호 | 제목 | Status | Date | 요약 |`, 번호 칸은 `[0001](0001-physical-naming-audit-dialect.md)` 형식(V3 이 이 형식을 grep 한다).
 
@@ -617,7 +618,22 @@ action 과 `allActions`(F18) 대조 — ADR-0003 에 이 표를 그대로 싣는
 - **선택지**: (a) 넣는다 — 04:284·06:1146 기준, 04·06 공통 / (b) 06 만 빼고 04 는 넣는다 / (c) 넣되, 철회 대용으로 "미래 RELEASED 를 DRAFT 로 되돌리기" 전이를 추가한다
 - **택한 것**: (a)
 - **근거**: 04:284 와 06:1146 은 규칙을 정의하는 문장이고 06 의 나머지는 버튼·쿼리 서술이다(원천 안에서 정의 문장 우선). 04·06 을 같은 버전 상태 서비스로 묶는 PRD FR-F1 과도 맞는다. (c) 는 PRD 규칙 7 이 만들지 않기로 한 철회 계열 전이를 새로 만드는 것이다. 대가로, 미래 apply_from 으로 잘못 확정한 버전은 그 시각까지 고칠 수 없다 — ADR-0002 결과 절과 확정 화면 경고(§7 인계)로 다룬다.
+- **2026-09-28 갱신**: 위 (c) 에 대한 판단은 **D4-1 로 바뀌었다**. (c) 를 채택해 확정 취소(미래 적용 `RELEASED` → `DRAFT`)를 추가한다 — 철회 계열이 아니라 되돌림이므로 `CANCELLED` 를 쓰지 않는다. 미적용 버전 정의 자체(선택지 (a))는 그대로다. 이 줄 아래의 D4 본문은 당시 판단을 그대로 남긴 기록이다.
 - **반려되면 재작업 방향**: (b) 면 ADR-0002 미적용 정의를 대상별로 나누고, 06 은 미래 RELEASED 가 있어도 DRAFT 를 만들 수 있되 확정 때 apply_from 이 그 미래 RELEASED 보다 뒤여야 한다는 문장을 더한다. (c) 면 전이 표에 "RELEASED(미래) → DRAFT" 를 추가하고 PRD 규칙 7 개정이 필요하다고 표시한다.
+
+### D4-1 — 미래 적용 확정 버전을 DRAFT 로 되돌릴지(확정 취소)
+- **상태**: **2026-09-28 신설. D4 의 선택지 (c) 를 택한다.** D4 는 (c) 를 기각하며 "미래 apply_from 으로 잘못 확정한 버전은 그 시각까지 고칠 수 없다" 를 결과로 받아들였다. 2026-09-28 사용자 요구가 그 공백을 지적해 (c) 로 방향을 바꿨다.
+- **질문**: 확정 취소를 허용한다면 무엇을 어디까지 되돌리는가?
+- **선택지**: (a) `apply_from > 현재 시각` 인 `RELEASED` 만 `DRAFT` 로 되돌린다. 적용 시각이 지난 버전은 되돌리지 않는다 / (b) 이미 적용된 버전까지 되돌린다 / (c) `RELEASED → CANCELLED`(철회 상태 값)로 되돌린다 / (d) 상태 전이 없이 `apply_from` 만 앞당긴다
+- **택한 것**: (a). 04·06 공통, 액션은 신규 만들지 않고 기존 `delete` 에 `target` 을 더해 쓴다.
+- **근거**: (b) 는 조회가 과거로 되감기고 배포·수신이 보류 상태(§6.10·D7)라 정합을 이룰 감시점이 없다. (c) 는 되돌린 자리에 다시 확정할 수 없고 06 코드 편집 화면이 "`CANCELLED` 는 읽기 전용 diff" 로 정한 규칙과 충돌한다. (d) 는 "확정 전 상태로 돌아간다"는 요구를 충족하지 못한다(값만 바뀌면 편집이 열리지 않는다). (a) 는 사용자가 실제로 겪은 문제(적용 시각을 미래로 잘못 정해 확정하면 아무것도 못 하는 상태)를 직접 풀고, 되돌린 자리를 다시 편집해 재확정하는 경로가 남는다.
+- **되돌리는 범위**(ADR-0002 D8): 대상 버전 `status='DRAFT'`·`apply_from=NULL`·`apply_to=NULL`·`row_version`+1, 직전 `RELEASED` 의 `apply_to` 를 `9999-12-31` 로 복구, 선분 테이블은 미변경, 상위 CREATED/INUSE 는 미변경. `requested_by`·`requested_at`·`released_at` 은 **남긴다** — 확정자를 되찾을 수단이 사라지지 않고 "확정 후 취소" 흔적이 감사에서 남는다.
+- **완전히 되돌림이 아님을 명시**: 되돌린 행은 `row_version` 과 감사 칼럼이 진행된 상태이고 확정 기록이 남아 있어, "한 번도 확정하지 않은 행"과 동일하지는 않다. 다만 편집·재확정은 그대로 된다.
+- **부수 결정 3건**(같은 날 적대 검토로 확정):
+  1. **04 마루 코드 삭제 판정 변경** — "확정된 적 없음" 판정이 `STATUS` 만 보면 되돌린 행이 `DRAFT` 이므로 통과해 확정 이력이 있는 마루 코드가 통째로 지워진다. `released_at IS NOT NULL` 도 함께 보도록 바꾼다(ADR D8-9).
+  2. **06 교차 객체 효과는 문서화만** — 되돌린 룰이 그 룰의 유일한 확정 버전이었다면, 그 룰을 멤버로 가진 룰 세트 저장과 그 룰의 결과를 쓰는 다른 룰의 확정이 막힌다. 판정자가 "가장 큰 `RELEASED`" 이므로 이전 확정 버전이 있으면 영향이 없다. 시간 경과로 풀리지 않고 재확정하면 풀린다 — 화면 문구로 알린다(ADR D8-10).
+  3. **액션 재사용** — 액션 어휘 16종(`MdmActions`)과 `PERMISSION_ACTION` 시드, BPMN 액션 대조 시험을 건드리지 않으려면 신규 액션이 아니라 기존 `delete` + `target` 이어야 한다. 선례는 04 `target:"CODE"`·06 `target:"VERSION"|"RULE"` 다(ADR D8-13).
+- **반려되면 재작업 방향**: (b) 로 바꾸려면 배포·수신 계층(보류 상태)을 먼저 구현하고 되돌림의 전파 설계를 더해야 하므로 별도 ADR 이 필요하다. (c) 로 바꾸려면 되돌린 자리에 재확정 경로를 새로 만들고 06 코드 편집 화면의 `CANCELLED` 규칙까지 고쳐야 한다. 어느 쪽이든 §6.7 전이 표와 ADR-0002 D8 를 함께 고친다.
 
 ### D5 — CREATED→INUSE 자동 전이를 언제 일으킬지
 - **질문**: 원천은 "첫 RELEASED 의 apply_from 이 지나면/되면 자동 전이"라고만 하고 전이 주체를 정하지 않았다(F11). 무엇이 전이를 일으키는가, 경계는 포함인가?
@@ -649,7 +665,8 @@ action 과 `allActions`(F18) 대조 — ADR-0003 에 이 표를 그대로 싣는
 | TSK-01-02 | 감사 칼럼 명시 헬퍼(네이티브 쓰기용), 방언 판정 빈, SQLite `foreign_keys` 설정, BOOLEAN·일시 매핑 실측, `flyway-migration-add` 의 mdm 지원 판정, As-Is 마스터 엔티티 import 금지 ArchUnit 규칙, 그룹 코드 상수 `dma~dme` |
 | TSK-01-03 | 역할 2·PERM 3·매트릭스 시드(§6.9), 메뉴 폴더 `dma~dme`, 샘플 `mdmSample` 그룹 이동 또는 삭제, CREATED→INUSE 전이(D5) 공통 구현, 확정 트랜잭션(§6.7) |
 | TSK-02-03 | 규칙표 §1 명명·§3 방언의 "실측 필요 → TSK-02-03" 행, 보류 테이블 DDL·배포 칸 DEFAULT 0, 02 관리 속성, `DICT_SEQ` 초기 행 |
-| TSK-06-05 · TSK-08-05 | 미래 apply_from 확정 경고(철회 부재), 결재 칸 처리(D3), 5항 생략(04) |
+| TSK-06-05 · TSK-08-05 | 미래 apply_from 확정 경고(문구는 확정 취소 가능을 알림 — D4-1), 결재 칸 처리(D3), 5항 생략(04) |
+| TSK-02-01 후속(신규 — D4-1 확정 취소 구현) | 공통 계약 `cancelConfirm` + `REVERT_CONFIRM` + `MDM025` → 공통 저장소(되돌림 UPDATE·직전 `apply_to` 복구) → 공통 서비스·시험 → 04 `codeEdit`·06 `ruleEdit` 의 `delete` + `target` 연결 → 화면 버튼·확정 화면 문구 4곳(ADR-0002 D8 전체) |
 | TSK-07-04 | `dataCsvUploadPop` 팝업/독립 확정(§6.5) |
 | 화면 Task 전부 | 식별자 사전 A.3.2 화면 행 등재, DRAFT 소유권 action 이름 확정과 `allActions` 추가, 산출물 `docs/mdm/screens/{screenId}/` |
 

@@ -19,6 +19,11 @@ public class CodeVersionRow {
     private long rowVersion;
     private boolean unapplied;
     private String description;
+    /**
+     * 확정 취소 가능 여부(ADR-0002 D8) — 아직 적용 시각이 오지 않은 확정 버전이고 소유자가 요청 사용자이며
+     * 미적용 버전이 이 하나일 때만 true. 화면 버튼 판정용이고, 실제 거부는 서버가 다시 검사한다.
+     */
+    private boolean cancelConfirmable;
 
     public String getVer() { return ver; }
     public String getVerLabel() { return verLabel; }
@@ -32,6 +37,7 @@ public class CodeVersionRow {
     public String getRestoredLabel() { return restoredLabel; }
     public long getRowVersion() { return rowVersion; }
     public boolean isUnapplied() { return unapplied; }
+    public boolean isCancelConfirmable() { return cancelConfirmable; }
     public String getDescription() { return description; }
 
     public void setVer(String v) { this.ver = v; }
@@ -46,5 +52,6 @@ public class CodeVersionRow {
     public void setRestoredLabel(String v) { this.restoredLabel = v; }
     public void setRowVersion(long v) { this.rowVersion = v; }
     public void setUnapplied(boolean v) { this.unapplied = v; }
+    public void setCancelConfirmable(boolean v) { this.cancelConfirmable = v; }
     public void setDescription(String v) { this.description = v; }
 }

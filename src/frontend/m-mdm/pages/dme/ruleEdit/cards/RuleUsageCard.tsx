@@ -19,7 +19,7 @@ function RuleLinks({ ids }: { ids: string[] }) {
           type="button"
           data-testid={`rule-usage-link-${id}`}
           onClick={() => openRuleEdit(id)}
-          style={{ border: "none", background: "none", padding: 0, cursor: "pointer", color: "var(--color-primary)", textDecoration: "underline", font: "inherit" }}
+          style={{ minHeight: "var(--form-height)", display: "inline-flex", alignItems: "center", border: "none", background: "none", padding: 0, cursor: "pointer", color: "var(--color-primary)", textDecoration: "underline", font: "inherit" }}
         >
           {id}
         </button>

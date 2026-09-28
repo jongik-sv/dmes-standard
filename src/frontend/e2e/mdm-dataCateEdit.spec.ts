@@ -9,7 +9,7 @@ import { expect, test, type Page } from "@playwright/test";
  *   1. 메뉴 이동 — 담당자(e2e_mdm_steward)로 로그인해 사이드바에서 화면을 연다(dmd 쓰기는 EDIT 세트라 담당자만, F2).
  *   2. 목록 — 마루 데이터를 고르면 카테고리 목록(BASE 포함)이 보인다.
  *   3. REGEX 카테고리 등록 1건 → 목록 재조회로 반영 확인.
- *   4. 서버 오류 노출 — 잘못된 REGEX 문법 저장 거부 모달(04 mdm-codeCateEdit.spec.ts T4 와 같은 패턴).
+ *   4. 서버 오류 노출 — 잘못된 REGEX 문법 저장 거부 모달(04 mdm-codeItemEdit.spec.ts T10 과 같은 패턴).
  *
  * 픽스처: e2e/fixtures/mdm-dataMng.sql(mdm.db, dataMng·dataEdit 와 공유하되 이 spec 전용 행은 E2E_DC_ 접두).
  * 서버 절차는 design.md 「E2E 서버 절차」. SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다(127.0.0.1:5100 은 메인

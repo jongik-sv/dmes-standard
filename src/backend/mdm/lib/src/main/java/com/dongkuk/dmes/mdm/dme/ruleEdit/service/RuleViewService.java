@@ -82,7 +82,8 @@ public class RuleViewService {
         RuleEditViewResult out = new RuleEditViewResult();
         out.setMe(me);
         out.setRule(ruleInfo(rule, versions, now));
-        out.setVersions(versions.stream().map(this::versionInfo).toList());
+        long unappliedCount = versions.stream().filter(v -> RuleVersions.isUnapplied(v, now)).count();
+        out.setVersions(versions.stream().map(v -> versionInfo(v, now, me, unappliedCount)).toList());
         out.setUnappliedVersionExists(versions.stream().anyMatch(v -> RuleVersions.isUnapplied(v, now)));
         out.setHeaderEditable(headerService.headerEditable(rule, versions));
         out.setConfirmScreenReady(true);
@@ -128,7 +129,7 @@ public class RuleViewService {
     private static RuleEditViewResult.VarMeta varMeta(MdmRuleVar v) {
         List<String> prio = v.getPrioList() == null || v.getPrioList().isBlank() ? null
                 : DomainJson.readList(v.getPrioList()).stream().map(String::valueOf).toList();
-        return new RuleEditViewResult.VarMeta(v.getVarId(), v.getAxis(), v.getResGrp(), v.getGrpCond(), v.getCollectAgg(), prio,
+        return new RuleEditViewResult.VarMeta(v.getVarId(), v.getResGrp(), v.getGrpCond(), v.getCollectAgg(), prio,
                 v.getDomainId(), v.getDataType());
     }
 
@@ -185,6 +186,14 @@ public class RuleViewService {
     }
 
     private VersionInfo versionInfo(MdmRuleVer v) {
+        return versionInfo(v, null, null, 0);
+    }
+
+    /**
+     * D8-1 — 확정 취소 가능 여부(미래 적용 RELEASED + 소유자 + 미적용 1개). 화면 버튼 판정용이고 실제 거부는 서버가
+     * 다시 검사한다. {@code now} 이 null 이면 판정하지 않는다(06 외 호출 대비).
+     */
+    private VersionInfo versionInfo(MdmRuleVer v, LocalDateTime now, String me, long unappliedCount) {
         VersionInfo info = new VersionInfo();
         info.setVer(v.getVer());
         info.setStatus(v.getStatus());
@@ -194,6 +203,12 @@ public class RuleViewService {
         info.setBaseVer(v.getBaseVer());
         info.setHitPolicy(v.getHitPolicy());
         info.setRowVersion(v.getRowVersion());
+        if (now != null) {
+            info.setCancelConfirmable("RELEASED".equals(v.getStatus())
+                    && v.getApplyFrom() != null && v.getApplyFrom().isAfter(now)
+                    && v.getOwnerId() != null && v.getOwnerId().equals(me)
+                    && unappliedCount == 1);
+        }
         return info;
     }
 

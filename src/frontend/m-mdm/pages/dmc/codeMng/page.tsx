@@ -1,14 +1,23 @@
 "use client";
 
 /**
- * codeMng — 마루 코드 조회·등록 화면.
+ * codeMng — 마루 코드 조회·등록·수정 화면(2026-09-28 사용자 결정: codeMng+codeEdit 통합, D-101·D-102).
  *
- * 정본: docs/mdm/screens/codeMng/codeMng_기능설계서.md, TSK-06-02 design.md §6.11.
- * 목록의 현재 버전·미적용 버전·상태는 서버 계산값을 그대로 보인다(I17·I18). 등록은 MDM 원천만 받으므로 원천은
- * 읽기 전용 표기만 두고 서버로 보내지 않는다(I8). ID 형식은 서버가 검사하고 화면은 필수값만 막는다.
- * 등록이 끝나면 codeEdit 탭을 그 코드로 연다(openMdmPage, §6.10).
+ * 정본: docs/mdm/screens/codeMng/codeMng_기능설계서.md, TSK-06-02 design.md §6.7·§6.8·§6.11·§6.12.
+ * 왼쪽은 목록(조회·행 클릭으로 선택), 오른쪽은 선택한 코드의 상세(헤더·라벨·버전 목록, 옛 codeEdit 본문 — `CodeDetail.tsx`)
+ * 이거나 [신규] 를 눌렀을 때의 등록 폼이다. 새 탭을 열지 않는다 — 등록 뒤에도 같은 화면에서 방금 만든 코드를 고른 채 보인다.
+ * 오른쪽 상세의 모든 쓰기는 옛 codeEdit 그대로 `codeEdit` 서비스를 부르고 권한도 `canDoButton(rbac,"codeEdit",action)`
+ * 으로 본다(서버 OBJECT codeEdit 는 메뉴만 없어지고 남는다). 등록만 `canDoButton(rbac,"codeMng","reg")`.
+ * 진입 코드는 handoff(openMdmPage) > snapshot 순서로 정하고 받은 값은 snapshot 에 남긴다(§6.10, 옛 codeEdit 그대로).
+ *
+ * 선택과 응답의 정합(2026-09-28 검토 결함 1): 목록 강조(`selectedId`)와 상세(view·form·버전 선택)는 늘 같은 코드를
+ * 가리켜야 한다. 그래서 선택을 바꾸는 길은 `select` 하나로 모으고, 바꿀 때 이전 코드의 상세를 바로 비운다(로딩 표시).
+ * 상세 조회·쓰기 응답은 요청 순번(`detailSeq`)이 지금 것과 다르면 버린다 — 늦게 온 A 응답이 B 화면을 덮지 않는다.
+ * 조회가 실패하면 선택을 비운다. busy 는 진행 중인 요청 수(`pending`)로 센다. 쓰기(저장·폐기·새 버전·DRAFT 액션·
+ * 코드 삭제·등록)가 진행 중이면 목록 행 클릭(↑/↓ 키 이동 포함)을 받지 않는다 — 사용자가 누른 쓰기의 결과(토스트,
+ * 충돌 모달과 다시 불러오기)를 그 코드 위에서 보게 하려는 것이다. handoff 는 쓰기 중에도 받으므로 응답 가드는 그대로 둔다.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ContentBody,
@@ -25,96 +34,391 @@ import {
 import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 import { Button, Input, Select, Textarea } from "@dk-oasis/shared/form";
 import { useMessage } from "@dk-oasis/shared/message-provider";
-import { MdmPageLayout, openMdmPage } from "@/shell";
+import { MdmPageLayout, openMdmPage, useMdmPageParams } from "@/shell";
 
 import { registerCode, searchCodes } from "./api";
+import { versionButtons } from "./buttons";
+import { CodeHeaderCard, CodeLabelsCard, CodeVersionCard } from "./CodeDetail";
+import {
+  createVersion,
+  cancelConfirm,
+  deleteCode,
+  deprecateCode,
+  draftAction,
+  restoreVersion,
+  saveHeader,
+  viewCode,
+  type DraftAction,
+} from "./edit-api";
+import { CONFLICT_PREFIX, headerFormOf, type CodeEditView, type HeaderForm } from "./edit-types";
+import { HandoverModal } from "./HandoverModal";
+import { NewVersionModal, type VerKind } from "./NewVersionModal";
 import { emptyRegForm, LVL_CNT_OPTIONS, STATUS_OPTIONS, type CodeMngRow, type CodeRegForm } from "./types";
 
+export interface CodeMngPageProps {
+  tabId?: string;
+  snapshot?: unknown;
+  onSnapshotChange?: (snapshot: unknown) => void;
+}
+
+const COMPONENT_PATH = "dmc/codeMng";
 const mutedText = { color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)" } as const;
 
-export default function CodeMngPage() {
+type Mode = "none" | "detail" | "new";
+
+interface Target {
+  maruCodeId: string;
+  ver: string | null;
+}
+
+function snapshotTarget(snapshot: unknown): Target | null {
+  if (!snapshot || typeof snapshot !== "object") return null;
+  const s = snapshot as Record<string, unknown>;
+  if (typeof s.maruCodeId !== "string" || !s.maruCodeId) return null;
+  return { maruCodeId: s.maruCodeId, ver: typeof s.ver === "string" && s.ver ? s.ver : null };
+}
+
+export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeMngPageProps) {
   const { showMessage } = useMessage();
   const rbac = useUserButtonRbac(true);
+
+  // ── 목록(조회조건·그리드) ──
   const [keyword, setKeyword] = useState("");
   const [status, setStatus] = useState("");
   const [rows, setRows] = useState<CodeMngRow[]>([]);
-  const [form, setForm] = useState<CodeRegForm>(emptyRegForm);
-  const [busy, setBusy] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [listLoading, setListLoading] = useState(false);
+  // 마지막으로 조회에 쓴 조건 — 액션 뒤 목록 재조회는 입력만 하고 [조회] 하지 않은 값이 아니라 이 값을 쓴다.
+  const appliedQuery = useRef({ keyword: "", status: "" });
 
-  const openEdit = useCallback((maruCodeId: string) => {
-    openMdmPage("dmc/codeEdit", { maruCodeId });
-  }, []);
+  // ── 화면 모드·선택 ──
+  const [mode, setMode] = useState<Mode>("none");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [regForm, setRegForm] = useState<CodeRegForm>(emptyRegForm);
+  // 응답 가드용 — 지금 고른 코드와 상세 요청 순번. 선택을 바꾸거나 새 상세 요청을 낼 때마다 순번을 올린다.
+  const selectedIdRef = useRef<string | null>(null);
+  const detailSeq = useRef(0);
+  // 진행 중인 쓰기 수 — 0 이 아니면 목록 행 클릭을 받지 않는다.
+  const writing = useRef(0);
+  // [신규] 를 누르기 전 선택 — [취소] 로 돌아간다.
+  const beforeNew = useRef<Target | null>(null);
 
-  const columns = useMemo<GridColumn[]>(
-    () => [
-      {
-        key: "maruCodeId",
-        header: "마루 코드 ID",
-        width: 180,
-        align: "left",
-        render: (value) => (
-          <button
-            type="button"
-            className="mdm-link-button"
-            style={{ background: "none", border: 0, padding: 0, color: "var(--color-primary)", cursor: "pointer" }}
-            onClick={() => openEdit(String(value))}
-          >
-            {String(value)}
-          </button>
-        ),
-      },
-      { key: "maruCodeName", header: "이름", width: 200, align: "left" },
-      { key: "sourceKind", header: "원천", width: 90, align: "center" },
-      { key: "currentVerLabel", header: "현재 버전", width: 150, align: "left" },
-      { key: "status", header: "상태", width: 110, align: "center" },
-      { key: "unappliedLabel", header: "미적용 버전", width: 200, align: "left" },
-    ],
-    [openEdit],
+  // ── 오른쪽 상세(옛 codeEdit) ──
+  const [view, setView] = useState<CodeEditView | null>(null);
+  const [form, setForm] = useState<HeaderForm | null>(null);
+  const [selectedVer, setSelectedVer] = useState<string | null>(null);
+  const [pending, setPending] = useState(0);
+  const busy = pending > 0;
+  const [error, setError] = useState<{ message: string; reload: boolean } | null>(null);
+  const [newVersionKind, setNewVersionKind] = useState<VerKind | null>(null);
+  const [handoverOpen, setHandoverOpen] = useState(false);
+  const handedOff = useRef(false);
+  const snapshotRef = useRef(snapshot);
+  snapshotRef.current = snapshot;
+
+  const begin = useCallback(() => setPending((n) => n + 1), []);
+  const end = useCallback(() => setPending((n) => Math.max(0, n - 1)), []);
+
+  const writeSnapshotTarget = useCallback(
+    (id: string, ver: string | null) => {
+      const base = { ...((snapshotRef.current as Record<string, unknown> | null) ?? {}) };
+      base.maruCodeId = id;
+      if (ver) base.ver = ver;
+      else delete base.ver;
+      onSnapshotChange?.(base);
+    },
+    [onSnapshotChange],
   );
 
-  const load = useCallback(async (kw: string, st: string) => {
-    setBusy(true);
+  const clearSnapshotTarget = useCallback(() => {
+    const base = { ...((snapshotRef.current as Record<string, unknown> | null) ?? {}) };
+    delete base.maruCodeId;
+    delete base.ver;
+    onSnapshotChange?.(base);
+  }, [onSnapshotChange]);
+
+  // current=false 는 이미 다른 코드로 옮긴 뒤 도착한 쓰기 실패 — 알리기는 하되 지금 코드를 다시 불러오지는 않는다.
+  const fail = useCallback((e: unknown, current = true) => {
+    const message = e instanceof Error ? e.message : String(e);
+    setError({ message, reload: current && message.startsWith(CONFLICT_PREFIX) });
+  }, []);
+
+  const loadList = useCallback(async (kw: string, st: string) => {
+    appliedQuery.current = { keyword: kw, status: st };
+    setListLoading(true);
     try {
       const result = await searchCodes(kw, st);
       setRows(result.rows ?? []);
     } catch (e) {
-      setErrorMessage(e instanceof Error ? e.message : String(e));
+      fail(e);
     } finally {
-      setBusy(false);
+      setListLoading(false);
     }
+  }, [fail]);
+
+  const reloadList = useCallback(
+    () => loadList(appliedQuery.current.keyword, appliedQuery.current.status),
+    [loadList],
+  );
+
+  /**
+   * 선택을 바꾸는 유일한 길(목록 행·handoff·snapshot·[신규]·[취소]·삭제 성공·조회 실패). 이전 코드의 상세·버전 선택·
+   * 열린 모달을 바로 비우고 순번을 올려, 이전 코드로 가던 응답이 도착해도 버려지게 한다.
+   */
+  const select = useCallback((id: string | null, nextMode: Mode) => {
+    selectedIdRef.current = id;
+    detailSeq.current += 1;
+    setSelectedId(id);
+    setMode(nextMode);
+    setView(null);
+    setForm(null);
+    setSelectedVer(null);
+    setNewVersionKind(null);
+    setHandoverOpen(false);
   }, []);
 
+  // 상세 view 를 화면 상태로 반영. ver 를 주면(목록 선택·handoff) 그 버전을 고르고, 안 주면(액션 뒤 새로고침) 이전 선택을
+  // 버전이 아직 있으면 유지한다.
+  const apply = useCallback((next: CodeEditView, ver?: string | null) => {
+    setView(next);
+    setForm(headerFormOf(next.header));
+    setSelectedVer((prev) => {
+      const want = ver === undefined ? prev : ver;
+      return want && next.versions.some((v) => v.ver === want) ? want : null;
+    });
+  }, []);
+
+  const loadDetail = useCallback(
+    async (id: string, ver?: string | null) => {
+      if (!id) return;
+      const seq = ++detailSeq.current;
+      begin();
+      try {
+        const next = await viewCode(id);
+        if (seq !== detailSeq.current) return; // 그사이 다른 코드를 골랐거나 더 새 요청이 나갔다
+        apply(next, ver);
+      } catch (e) {
+        if (seq !== detailSeq.current) return;
+        // 강조만 남고 상세가 이전 코드로 남지 않게 선택을 비운다. snapshot 도 바로 지워 다시 열 때 같은 오류를 또 띄우지 않는다.
+        select(null, "none");
+        clearSnapshotTarget();
+        fail(e);
+      } finally {
+        end();
+      }
+    },
+    [apply, begin, end, select, clearSnapshotTarget, fail],
+  );
+
+  const chooseDetail = useCallback(
+    (id: string, ver: string | null) => {
+      select(id, "detail");
+      writeSnapshotTarget(id, ver);
+      return loadDetail(id, ver);
+    },
+    [select, writeSnapshotTarget, loadDetail],
+  );
+
+  const handleRowClick = useCallback(
+    (id: string) => {
+      if (writing.current > 0) return; // 쓰기 결과를 그 코드 위에서 보이도록 쓰기 중에는 선택을 바꾸지 않는다
+      void chooseDetail(id, null);
+    },
+    [chooseDetail],
+  );
+
+  const startNew = useCallback(() => {
+    // 이미 등록 폼이면 처음 [신규] 전의 선택을 그대로 둔다.
+    if (mode !== "new") beforeNew.current = selectedIdRef.current ? { maruCodeId: selectedIdRef.current, ver: selectedVer } : null;
+    select(null, "new");
+    setRegForm(emptyRegForm());
+    clearSnapshotTarget();
+  }, [mode, selectedVer, select, clearSnapshotTarget]);
+
+  const cancelNew = useCallback(() => {
+    const prev = beforeNew.current;
+    beforeNew.current = null;
+    setRegForm(emptyRegForm());
+    if (prev) void chooseDetail(prev.maruCodeId, prev.ver);
+    else select(null, "none");
+  }, [chooseDetail, select]);
+
+  // 진입 값: handoff(마운트 때·자기 탭 재활성화 때마다) > snapshot. handoff 는 목록도 함께 조회한다(§9) — 이미 열린
+  // 탭이 다시 handoff 를 받을 때(재활성화) 목록이 그 코드로 안 좁혀도 최소한 최신 상태를 보이게.
+  useMdmPageParams(COMPONENT_PATH, tabId, (params) => {
+    if (params.maruCodeId) {
+      handedOff.current = true;
+      beforeNew.current = null;
+      setKeyword("");
+      setStatus("");
+      void loadList("", "");
+      void chooseDetail(params.maruCodeId, params.ver || null);
+    }
+  });
+
   useEffect(() => {
-    void load("", "");
-  }, [load]);
+    const fromSnapshot = snapshotTarget(snapshotRef.current);
+    if (!handedOff.current && fromSnapshot) {
+      select(fromSnapshot.maruCodeId, "detail");
+      void loadDetail(fromSnapshot.maruCodeId, fromSnapshot.ver);
+    }
+    // handoff 콜백(위, 같은 커밋에서 먼저 실행)이 이미 목록을 조회했으면 다시 조회하지 않는다.
+    if (!handedOff.current) void loadList("", "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const handleSearch = useCallback(() => void load(keyword, status), [load, keyword, status]);
+  const handleSearch = useCallback(() => void loadList(keyword, status), [loadList, keyword, status]);
 
-  const setField = useCallback((key: keyof CodeRegForm, value: string) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
+  // 상세를 바꾸는 액션(저장·폐기·새 버전·DRAFT 삭제·선점·해제·넘기기) 뒤에는 목록의 상태·현재·미적용 칸도 다시 조회한다.
+  // 응답이 올 때 이미 다른 코드를 골랐으면(handoff) 그 view 는 버린다 — 쓰기 자체는 끝났으므로 토스트·목록 재조회는 한다.
+  const run = useCallback(
+    async (task: () => Promise<CodeEditView>, done?: string) => {
+      const seq = ++detailSeq.current;
+      writing.current += 1;
+      begin();
+      try {
+        const next = await task();
+        if (seq === detailSeq.current) apply(next);
+        if (done) showMessage({ message: done, toast: true });
+        void reloadList();
+      } catch (e) {
+        fail(e, seq === detailSeq.current);
+      } finally {
+        writing.current -= 1;
+        end();
+      }
+    },
+    [apply, begin, end, fail, showMessage, reloadList],
+  );
+
+  const header = view?.header;
+  const selected = view?.versions.find((v) => v.ver === selectedVer) ?? null;
+
+  const handleSaveHeader = useCallback(() => {
+    if (!header || !form) return;
+    void run(() => saveHeader(header.maruCodeId, header.auditVer, form), "저장했습니다");
+  }, [header, form, run]);
+
+  const handleDeprecate = useCallback(() => {
+    if (!header) return;
+    void run(() => deprecateCode(header.maruCodeId, header.auditVer), "폐기했습니다");
+  }, [header, run]);
+
+  const handleDeleteCode = useCallback(async () => {
+    if (!header) return;
+    const id = header.maruCodeId;
+    const seq = ++detailSeq.current;
+    writing.current += 1;
+    begin();
+    try {
+      await deleteCode(id, header.auditVer);
+      showMessage({ message: "삭제했습니다", toast: true });
+      // 그사이 다른 코드를 골랐으면(handoff) 그 선택은 그대로 둔다.
+      if (selectedIdRef.current === id) {
+        select(null, "none");
+        clearSnapshotTarget();
+      }
+      await reloadList();
+    } catch (e) {
+      fail(e, seq === detailSeq.current);
+    } finally {
+      writing.current -= 1;
+      end();
+    }
+  }, [header, begin, end, showMessage, select, clearSnapshotTarget, reloadList, fail]);
+
+  const setField = useCallback((key: keyof HeaderForm, value: string) => {
+    setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
+  }, []);
+
+  const handleSelectVer = useCallback(
+    (ver: string) => {
+      setSelectedVer(ver);
+      // 버전 카드에서 고른 ver 도 snapshot 에 남겨 새로고침 뒤에도 그 버전을 고른 채 연다.
+      if (selectedIdRef.current) writeSnapshotTarget(selectedIdRef.current, ver);
+    },
+    [writeSnapshotTarget],
+  );
+
+  const runDraft = useCallback(
+    (action: DraftAction, done: string, newOwnerId?: string) => {
+      if (!header || !selected) return;
+      void run(() => draftAction(action, header.maruCodeId, selected.ver, selected.rowVersion, newOwnerId), done);
+    },
+    [header, selected, run],
+  );
+
+  // 확정 취소(D8) — 같은 delete 액션에 target:"CONFIRM" 을 실어 보낸다.
+  const handleCancelConfirm = useCallback(() => {
+    if (!header || !selected) return;
+    void run(() => cancelConfirm(header.maruCodeId, selected.ver, selected.rowVersion), "확정을 취소했습니다");
+  }, [header, selected, run]);
+
+  const handleNewVersion = useCallback(
+    (kind: VerKind, sourceVer: string | null) => {
+      if (!header) return;
+      setNewVersionKind(null);
+      void run(
+        () => (sourceVer ? restoreVersion(header.maruCodeId, kind, sourceVer) : createVersion(header.maruCodeId, kind)),
+        "새 버전을 만들었습니다",
+      );
+    },
+    [header, run],
+  );
+
+  const moveTo = useCallback(
+    (componentPath: string) => {
+      if (!header || !selected) return;
+      openMdmPage(componentPath, { maruCodeId: header.maruCodeId, ver: selected.ver });
+    },
+    [header, selected],
+  );
+
+  // ── 등록(옛 codeMng 등록 카드) ──
+  const setRegField = useCallback((key: keyof CodeRegForm, value: string) => {
+    setRegForm((prev) => ({ ...prev, [key]: value }));
   }, []);
 
   const handleRegister = useCallback(async () => {
-    if (!form.maruCodeId.trim() || !form.maruCodeName.trim()) {
-      setErrorMessage("마루 코드 ID 와 이름을 입력하세요.");
+    if (!regForm.maruCodeId.trim() || !regForm.maruCodeName.trim()) {
+      setError({ message: "마루 코드 ID 와 이름을 입력하세요.", reload: false });
       return;
     }
-    setBusy(true);
+    writing.current += 1;
+    begin();
     try {
-      const result = await registerCode(form);
+      const result = await registerCode(regForm);
       showMessage({ message: "등록했습니다", toast: true });
-      setForm(emptyRegForm());
-      await load(keyword, status);
-      openEdit(result.maruCodeId);
+      setRegForm(emptyRegForm());
+      beforeNew.current = null;
+      await reloadList();
+      // 새 코드의 상세가 올 때까지 busy 를 쥐고 있는다 — 그 전에 풀리면 안내 문구가 잠깐 보인다.
+      await chooseDetail(result.maruCodeId, null);
     } catch (e) {
-      setErrorMessage(e instanceof Error ? e.message : String(e));
+      fail(e);
     } finally {
-      setBusy(false);
+      writing.current -= 1;
+      end();
     }
-  }, [form, keyword, status, load, openEdit, showMessage]);
+  }, [regForm, begin, end, reloadList, chooseDetail, showMessage, fail]);
+
+  const columns = useMemo<GridColumn[]>(
+    () => [
+      { key: "maruCodeId", header: "마루 코드 ID", width: 150, align: "left" },
+      { key: "maruCodeName", header: "이름", width: 150, align: "left" },
+      { key: "sourceKind", header: "원천", width: 70, align: "center" },
+      { key: "currentVerLabel", header: "현재", width: 80, align: "left" },
+      { key: "status", header: "상태", width: 70, align: "center" },
+      { key: "unappliedLabel", header: "미적용", width: 80, align: "left" },
+    ],
+    [],
+  );
 
   const canReg = canDoButton(rbac, "codeMng", "reg");
+  const buttons = useMemo(() => versionButtons(view, selectedVer), [view, selectedVer]);
+  const allowed = useCallback(
+    (enabled: boolean, action: string) => !busy && enabled && canDoButton(rbac, "codeEdit", action),
+    [busy, rbac],
+  );
 
   return (
     <MdmPageLayout
@@ -122,7 +426,8 @@ export default function CodeMngPage() {
       screenId="codeMng"
       title="마루 코드"
       buttons={[
-        { id: "btn_search", label: "조회", onClick: handleSearch, type: "primary" as const, disabled: busy, action: "search" },
+        { id: "btn_search", label: "조회", onClick: handleSearch, type: "primary" as const, disabled: listLoading, action: "search" },
+        ...(canReg ? [{ id: "btn_new", label: "신규", onClick: startNew, disabled: busy || listLoading, action: "reg" }] : []),
       ]}
     >
       <SearchArea onSearch={handleSearch}>
@@ -143,7 +448,7 @@ export default function CodeMngPage() {
       </SearchArea>
 
       <ContentBody root resizable storageKey="mdm.dmc.codeMng">
-        <ContentPanel flex="1 1 0">
+        <ContentPanel key="list" width="42%">
           <div data-testid="code-list" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
             <div style={{ flex: 1, minHeight: 0 }}>
               <GridPanel title="마루 코드 목록" count={rows.length}>
@@ -153,85 +458,175 @@ export default function CodeMngPage() {
                   data={rows as unknown as Record<string, unknown>[]}
                   rowKey="maruCodeId"
                   sortable
-                  loading={busy}
+                  loading={listLoading}
                   loadingMessage="조회 중..."
                   emptyMessage="조회된 마루 코드가 없습니다"
                   emptyTestId="code-list-empty"
+                  highlightedRowKey={selectedId}
+                  onRowClick={(r) => handleRowClick(String(r.maruCodeId))}
                 />
               </GridPanel>
             </div>
           </div>
         </ContentPanel>
 
-        <ContentPanel width={420}>
-          <p style={{ padding: "var(--spacing-sm) var(--spacing-md) 0", fontWeight: 600 }}>마루 코드 등록</p>
-          <table style={DETAIL_TABLE_STYLE}>
-            <tbody>
-              <tr>
-                <th style={DETAIL_LABEL_CELL}>마루 코드 ID *</th>
-                <td style={DETAIL_VALUE_CELL}>
-                  <Input
-                    data-testid="code-reg-id"
-                    value={form.maruCodeId}
-                    maxLength={50}
-                    disabled={busy}
-                    onChange={(v) => setField("maruCodeId", v)}
-                  />
-                  <span style={mutedText}>영문 대문자·숫자·_ 만. 점·공백·콤마 불가. 마루 데이터 ID 와 한 이름 공간</span>
-                </td>
-              </tr>
-              <tr>
-                <th style={DETAIL_LABEL_CELL}>이름 *</th>
-                <td style={DETAIL_VALUE_CELL}>
-                  <Input
-                    data-testid="code-reg-name"
-                    value={form.maruCodeName}
-                    maxLength={100}
-                    disabled={busy}
-                    onChange={(v) => setField("maruCodeName", v)}
-                  />
-                </td>
-              </tr>
-              <tr>
-                <th style={DETAIL_LABEL_CELL}>설명</th>
-                <td style={DETAIL_VALUE_CELL}>
-                  <Textarea
-                    data-testid="code-reg-desc"
-                    value={form.description}
-                    disabled={busy}
-                    onChange={(v) => setField("description", v)}
-                  />
-                </td>
-              </tr>
-              <tr>
-                <th style={DETAIL_LABEL_CELL}>계층 칸 수</th>
-                <td style={DETAIL_VALUE_CELL}>
-                  <Select
-                    data-testid="code-reg-lvl"
-                    value={form.lvlCnt}
-                    options={LVL_CNT_OPTIONS}
-                    disabled={busy}
-                    onChange={(v) => setField("lvlCnt", v)}
-                  />
-                </td>
-              </tr>
-              <tr>
-                <th style={DETAIL_LABEL_CELL}>원천</th>
-                <td style={DETAIL_VALUE_CELL}>
-                  <span data-testid="code-reg-source">MDM</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          <div style={{ display: "flex", justifyContent: "flex-end", padding: "var(--spacing-sm) var(--spacing-md)" }}>
-            <Button data-testid="code-reg-save" variant="primary" disabled={busy || !canReg} onClick={() => void handleRegister()}>
-              저장
-            </Button>
-          </div>
-        </ContentPanel>
+        {mode === "detail" && view && form ? (
+          // Part B §4-3 MUST: 분할 골격(ContentBody/ContentPanel)은 이 위치의 직접 자식이어야 drag bar 가 붙는다 —
+          // 그래서 CodeDetail.tsx 는 카드 "내용"만 내려주고, 골격은 여기서 직접 그린다.
+          <ContentBody key="right" direction="column" resizable storageKey="mdm.dmc.codeMng.detail" flex="1 1 0">
+            <ContentBody resizable storageKey="mdm.dmc.codeMng.detail.top">
+              <ContentPanel flex="1 1 0">
+                <CodeHeaderCard
+                  header={view.header}
+                  form={form}
+                  flags={view.flags}
+                  buttons={buttons}
+                  allowed={allowed}
+                  editable={!!view.flags.editable}
+                  busy={busy}
+                  onFieldChange={setField}
+                  onSaveHeader={handleSaveHeader}
+                  onDeprecate={handleDeprecate}
+                  onDeleteCode={() => void handleDeleteCode()}
+                />
+              </ContentPanel>
+              <ContentPanel width={360}>
+                <CodeLabelsCard form={form} editable={!!view.flags.editable} busy={busy} onFieldChange={setField} />
+              </ContentPanel>
+            </ContentBody>
+            <ContentPanel>
+              <CodeVersionCard
+                view={view}
+                selectedVer={selectedVer}
+                buttons={buttons}
+                allowed={allowed}
+                onSelectVer={handleSelectVer}
+                onDeleteDraft={() => runDraft("delete", "삭제했습니다")}
+                onCancelConfirm={handleCancelConfirm}
+                onLock={() => runDraft("lock", "선점했습니다")}
+                onUnlock={() => runDraft("unlock", "해제했습니다")}
+                onOpenNewVersion={setNewVersionKind}
+                onOpenHandover={() => setHandoverOpen(true)}
+                onConfirmMove={() => moveTo("dmc/codeConfirm")}
+                onItemEdit={() => moveTo("dmc/codeItemEdit")}
+              />
+            </ContentPanel>
+          </ContentBody>
+        ) : mode === "new" ? (
+          <ContentPanel key="right" flex="1 1 0">
+            <p style={{ padding: "var(--spacing-sm) var(--spacing-md) 0", fontWeight: 600 }}>마루 코드 등록</p>
+            <table style={DETAIL_TABLE_STYLE}>
+              <tbody>
+                <tr>
+                  <th style={DETAIL_LABEL_CELL}>마루 코드 ID *</th>
+                  <td style={DETAIL_VALUE_CELL}>
+                    <Input
+                      data-testid="code-reg-id"
+                      value={regForm.maruCodeId}
+                      maxLength={50}
+                      disabled={busy}
+                      onChange={(v) => setRegField("maruCodeId", v)}
+                    />
+                    <span style={mutedText}>영문 대문자·숫자·_ 만. 점·공백·콤마 불가. 마루 데이터 ID 와 한 이름 공간</span>
+                  </td>
+                </tr>
+                <tr>
+                  <th style={DETAIL_LABEL_CELL}>이름 *</th>
+                  <td style={DETAIL_VALUE_CELL}>
+                    <Input
+                      data-testid="code-reg-name"
+                      value={regForm.maruCodeName}
+                      maxLength={100}
+                      disabled={busy}
+                      onChange={(v) => setRegField("maruCodeName", v)}
+                    />
+                  </td>
+                </tr>
+                <tr>
+                  <th style={DETAIL_LABEL_CELL}>설명</th>
+                  <td style={DETAIL_VALUE_CELL}>
+                    <Textarea
+                      data-testid="code-reg-desc"
+                      value={regForm.description}
+                      disabled={busy}
+                      onChange={(v) => setRegField("description", v)}
+                    />
+                  </td>
+                </tr>
+                <tr>
+                  <th style={DETAIL_LABEL_CELL}>계층 칸 수</th>
+                  <td style={DETAIL_VALUE_CELL}>
+                    <Select
+                      data-testid="code-reg-lvl"
+                      value={regForm.lvlCnt}
+                      options={LVL_CNT_OPTIONS}
+                      disabled={busy}
+                      onChange={(v) => setRegField("lvlCnt", v)}
+                    />
+                  </td>
+                </tr>
+                <tr>
+                  <th style={DETAIL_LABEL_CELL}>원천</th>
+                  <td style={DETAIL_VALUE_CELL}>
+                    <span data-testid="code-reg-source">MDM</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div style={{ display: "flex", gap: "var(--spacing-sm)", justifyContent: "flex-end", padding: "var(--spacing-sm) var(--spacing-md)" }}>
+              {/* 승인 시안: [취소] 는 폼을 닫고 [신규] 전의 선택(있으면)이나 안내로 돌아간다. */}
+              <Button data-testid="code-reg-cancel" disabled={busy} onClick={cancelNew}>
+                취소
+              </Button>
+              <Button data-testid="code-reg-save" variant="primary" disabled={busy || !canReg} onClick={() => void handleRegister()}>
+                저장
+              </Button>
+            </div>
+          </ContentPanel>
+        ) : mode === "detail" ? (
+          <ContentPanel key="right" flex="1 1 0">
+            <p data-testid="detail-loading" style={{ padding: "var(--spacing-md)", ...mutedText }}>상세를 불러오는 중입니다</p>
+          </ContentPanel>
+        ) : (
+          <ContentPanel key="right" flex="1 1 0">
+            <p style={{ padding: "var(--spacing-md)", ...mutedText }}>목록에서 마루 코드를 고르거나 [신규] 를 누르세요</p>
+          </ContentPanel>
+        )}
       </ContentBody>
 
-      {errorMessage && <ErrorModal message={errorMessage} onClose={() => setErrorMessage(null)} />}
+      {/* 옛 codeEdit 그대로 — 모달은 분할 골격 바깥, 이 화면의 최상위 형제로 둔다. */}
+      {mode === "detail" && view ? (
+        <NewVersionModal
+          open={newVersionKind !== null}
+          initialKind={newVersionKind ?? "MAJOR"}
+          flags={view.flags}
+          restoreSources={view.restoreSources}
+          busy={busy}
+          onClose={() => setNewVersionKind(null)}
+          onSubmit={handleNewVersion}
+        />
+      ) : null}
+      <HandoverModal
+        open={handoverOpen}
+        busy={busy}
+        onClose={() => setHandoverOpen(false)}
+        onSubmit={(newOwnerId) => {
+          setHandoverOpen(false);
+          runDraft("handover", "넘겼습니다", newOwnerId);
+        }}
+      />
+
+      {error && (
+        <ErrorModal
+          message={error.message}
+          onClose={() => {
+            const reload = error.reload;
+            setError(null);
+            // 렌더 때 값이 아니라 지금 선택을 본다 — 모달이 떠 있는 사이 선택이 바뀌었을 수 있다.
+            if (reload && selectedIdRef.current) void loadDetail(selectedIdRef.current);
+          }}
+        />
+      )}
     </MdmPageLayout>
   );
 }

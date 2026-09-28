@@ -1,14 +1,18 @@
 "use client";
 
 /**
- * codeItemEdit — 코드 편집(TSK-06-03). 정본: docs/mdm/screens/codeItemEdit/codeItemEdit_기능설계서.md, design.md §6.8.
+ * codeItemEdit — 코드 편집(TSK-06-03, 카테고리 편집 TSK-06-04 를 합침 D-101). 정본:
+ * docs/mdm/screens/codeItemEdit/codeItemEdit_기능설계서.md, design.md §6.8.
  *
- * 마루 코드 하나의 버전 V 모습을 그리드·트리·카테고리 미리보기로 보인다. DRAFT(소유자·편집 가능)에서는 코드 행을
- * 추가·수정·삭제·되돌리고, RELEASED 에서는 이름·약칭·순서·설명만 경미 수정한다. 저장 판정(저장 검사)은 서버가 하고,
- * 거부되면 같은 변경으로 validate 를 불러 행마다 이슈를 보인다. 트리·콤보는 시뮬레이터 규칙의 FE 순수 함수다(D9).
- * OBJECT_ID = screenId = BPMN process id = 'codeItemEdit'.
+ * 마루 코드 하나의 버전 V 모습을 [코드]·[트리]·[카테고리] 탭과 오른쪽 카테고리 미리보기로 보인다. DRAFT(소유자·편집
+ * 가능)에서는 코드 행을 추가·수정·삭제·되돌리고 카테고리(REGEX·TABLE)·소속을 편집하며, RELEASED 에서는 이름·약칭·순서·
+ * 설명만 경미 수정한다. [저장] 은 하나다 — 코드 행·카테고리·소속 세 그리드를 codeItemEdit `save` 한 번으로 보낸다. 저장
+ * 판정(저장 검사)은 서버가 하고, 거부되면 같은 세 그리드로 validate 를 불러 코드 행 이슈는 그리드에, 카테고리 이슈는
+ * 카테고리 탭에 보인다. 카테고리 조회·REGEX 미리보기는 codeCateEdit 서비스 그대로다(cate/). 트리·콤보는 시뮬레이터
+ * 규칙의 FE 순수 함수다(D9). OBJECT_ID = screenId = BPMN process id = 'codeItemEdit'.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { IconAlertCircle } from "@tabler/icons-react";
 import { Button, Checkbox, Select } from "@dk-oasis/shared/form";
 import { AgDataGrid, GridBadge, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 import {
@@ -19,7 +23,9 @@ import { Tabs } from "@dk-oasis/shared/tabs";
 import { Tree } from "@dk-oasis/shared/tree";
 import "@dk-oasis/shared/tree.css";
 import { MdmPageLayout, VersionStatusBadge, useMdmPageParams } from "@/shell";
-import { patchRow, previewCategory, revertRow, saveRows, searchCodes, validateRows, viewCode } from "./api";
+import {
+  patchRow, previewCategory, revertRow, saveAll, searchCodes, validateAll, viewCode, type SaveChanges,
+} from "./api";
 import { allNodeValues, buildCodeTree, LVL_KEYS, toTreeItems, type HierRow } from "@/hier-tree";
 import {
   addRow, changesOf, editCell, filterByNode, isCellEditable, pathOf, removeRow, toEditRows, undoLocal,
@@ -28,13 +34,30 @@ import {
 import { PatchPanel, type PatchValues } from "./components/PatchPanel";
 import { PreviewPanel, type PreviewMode } from "./components/PreviewPanel";
 import { hint, issueText, struck, toolbar } from "./components/styles";
+import { CategoryTab } from "./cate/CategoryTab";
+import { PreviewPanel as CatePreviewPanel } from "./cate/components/PreviewPanel";
+import { useCategoryEdit } from "./cate/useCategoryEdit";
 import type { CodeSummary, Issue, PreviewResult, ViewResult } from "./types";
 
 const SCREEN_ID = "codeItemEdit";
 const COMPONENT_PATH = "dmc/codeItemEdit";
 const EMPTY_TEXT = "보일 코드가 없습니다";
 
-type Tab = "grid" | "tree";
+type Tab = "grid" | "tree" | "cate";
+
+/** 탭 이름 — 저장 검사 이슈가 있으면 옆에 경고 아이콘. */
+function tabLabel(testId: string, text: string, hasIssue = false): ReactNode {
+  return (
+    <span data-testid={testId} style={{ display: "inline-flex", alignItems: "center", gap: "var(--spacing-xs)" }}>
+      {text}
+      {hasIssue && (
+        <span data-testid={`${testId}-issue`} title="저장 검사 이슈가 있습니다" style={{ display: "inline-flex" }}>
+          <IconAlertCircle size={14} color="var(--color-danger)" />
+        </span>
+      )}
+    </span>
+  );
+}
 
 const blank = (v: unknown) => v === null || v === undefined || v === "";
 const same = (a: unknown, b: unknown) => (blank(a) ? "" : String(a)) === (blank(b) ? "" : String(b));
@@ -86,6 +109,19 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
   const editable = !!selected?.editable;
   const patchable = !!selected?.patchable;
   const fail = (e: unknown) => setErrorMessage(e instanceof Error ? e.message : String(e));
+  const cate = useCategoryEdit({ maruCodeId, ver: selected?.ver ?? null, codeRows: rows });
+  const { load: loadCategories, reset: resetCategories, setIssues: setCateIssues } = cate;
+
+  // 합친 저장의 세 그리드 — 저장 버튼 활성도 이것으로 판정해 보낼 것과 어긋나지 않게 한다.
+  const saveChanges = useMemo<SaveChanges>(
+    () => ({ rows: changesOf(rows), ...cate.changes }),
+    [rows, cate.changes],
+  );
+  const dirty = saveChanges.rows.length + saveChanges.categories.length + saveChanges.members.length > 0;
+  // 코드 그리드 __action 칸(handleRevert 포함)은 성능 때문에 columns useMemo 가 cate 변화로는 다시 그리지 않는다
+  // (아래 columns useMemo 주석 참고) — 그 안의 stale 클로저가 최신 카테고리 편집 여부를 보도록 ref 로 읽는다.
+  const cateChangesRef = useRef(cate.changes);
+  cateChangesRef.current = cate.changes;
 
   // ── 조회 ──
   useEffect(() => {
@@ -108,12 +144,14 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
       const cates = out.categories ?? [];
       setCateId((prev) => (cates.some((c) => c.cateId === prev) ? prev
         : cates.find((c) => c.cateId === "BASE")?.cateId ?? cates[0]?.cateId ?? ""));
+      // 카테고리는 코드 view 가 고른 버전으로 따로 읽는다 — 실패해도 코드 탭은 그대로 쓴다(카테고리 탭에 안내).
+      await loadCategories(id, out.selected?.ver ?? null);
     } catch (e) {
       fail(e);
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [loadCategories]);
 
   useEffect(() => {
     const ver = view?.selected?.ver;
@@ -124,7 +162,7 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
     previewCategory(maruCodeId, ver, cateId).then(setPreview).catch(() => setPreview(null));
   }, [view, maruCodeId, cateId]);
 
-  // 코드 수정 화면이 [코드 편집]·[카테고리 편집]으로 넘긴 마루 코드·버전(openMdmPage)을 받는다(§6.10).
+  // 마루 코드 화면이 [코드 편집]으로 넘긴 마루 코드·버전(openMdmPage)을 받는다(§6.10). RELEASED 도 열린다(읽기 전용).
   useMdmPageParams(COMPONENT_PATH, tabId, (params) => {
     if (!params.maruCodeId) return;
     setMaruCodeId(params.maruCodeId);
@@ -134,47 +172,51 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
   const chooseCode = (id: string) => {
     setMaruCodeId(id);
     if (id) void load(id);
-    else setView(null);
+    else {
+      setView(null);
+      resetCategories();
+    }
   };
 
   // ── 검사·저장·되돌리기 ──
-  const runValidate = useCallback(async (target: EditRow[]) => {
+  // 세 그리드를 인자로 받는다 — 셀 편집 직후에는 아직 state 에 없는 새 행으로 검사해야 한다.
+  const runValidate = useCallback(async (changes: SaveChanges) => {
     const ver = view?.selected?.ver;
     if (!ver || !canValidate) return;
     try {
-      const out = await validateRows(maruCodeId, ver, changesOf(target));
+      const out = await validateAll(maruCodeId, ver, changes);
       const map: Record<string, Issue[]> = {};
       for (const i of out.issues ?? []) {
         const key = i.itemKey ?? "";
         (map[key] ??= []).push(i);
       }
       setIssues(map);
+      setCateIssues(out.cateIssues ?? []);
     } catch {
       // 미리 보기 검사는 저장을 막지 않는다 — 판정은 save 가 한다.
     }
-  }, [view, maruCodeId, canValidate]);
+  }, [view, maruCodeId, canValidate, setCateIssues]);
 
   const handleSave = async () => {
     if (!selected) return;
-    const changes = changesOf(rows);
-    if (changes.length === 0) {
+    if (!dirty) {
       setErrorMessage("저장할 변경이 없습니다");
       return;
     }
     setBusy(true);
     try {
-      await saveRows(maruCodeId, selected.ver, selected.rowVersion, changes);
+      await saveAll(maruCodeId, selected.ver, selected.rowVersion, saveChanges);
       showMessage({ message: "저장했습니다", alertType: "info", toast: true });
       await load(maruCodeId, selected.ver);
     } catch (e) {
       fail(e);
-      await runValidate(rows);
+      await runValidate(saveChanges);
     } finally {
       setBusy(false);
     }
   };
 
-  const handleRevert = async (code: string) => {
+  const revertNow = async (code: string) => {
     if (!selected) return;
     setBusy(true);
     try {
@@ -186,6 +228,25 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
     } finally {
       setBusy(false);
     }
+  };
+
+  // 되돌리기는 코드 전체를 다시 조회해(load → loadCategories) 카테고리 탭의 저장 안 한 편집(카테고리·소속)이 함께
+  // 사라진다. 남겨 얹는 대신(§ 결함 2, 재조회한 서버 값 위에 편집을 다시 얹는 방식은 하지 않기로 함) 버릴 편집이 있으면
+  // 먼저 확인을 받는다 — 기존 화면의 확인 모달(handleDelete 와 같은 showMessage alertType="confirm")을 그대로 쓴다.
+  const handleRevert = async (code: string) => {
+    if (!selected) return;
+    const { categories, members } = cateChangesRef.current;
+    const hasCateEdits = categories.length > 0 || members.length > 0;
+    if (!hasCateEdits) {
+      await revertNow(code);
+      return;
+    }
+    showMessage({
+      title: "확인",
+      message: "저장하지 않은 카테고리 편집이 있습니다. 되돌리면 함께 사라집니다. 계속할까요?",
+      alertType: "confirm",
+      onConfirm: () => void revertNow(code),
+    });
   };
 
   const handleDelete = (row: EditRow) => {
@@ -320,6 +381,8 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
 
   const patchRowValue = useMemo(() => rows.find((r) => r.__key === selectedKey)?.__server ?? null, [rows, selectedKey]);
   const versions = view?.versions ?? [];
+  const codeHasIssue = Object.values(issues).some((l) => l.length > 0);
+  const cateHasIssue = cate.otherIssues.length > 0 || Object.keys(cate.issuesByCate).length > 0;
 
   return (
     <MdmPageLayout
@@ -332,7 +395,8 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
           onClick: () => (maruCodeId ? void load(maruCodeId, selected?.ver) : void searchCodes().then((o) => setCodes(o.codes ?? []))),
         },
         ...(editable ? [{
-          id: "btn_save", label: "저장", type: "save" as const, action: "save", disabled: busy, onClick: () => void handleSave(),
+          id: "btn_save", label: "저장", type: "save" as const, action: "save", disabled: busy || !dirty,
+          onClick: () => void handleSave(),
         }] : []),
       ]}
     >
@@ -373,8 +437,9 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
         <ContentPanel>
           <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
             <Tabs activeKey={tab} onChange={(k) => setTab(k as Tab)} items={[
-              { key: "grid", label: <span data-testid="code-tab-grid">코드 편집</span> },
-              { key: "tree", label: <span data-testid="code-tab-tree">트리 보기</span> },
+              { key: "grid", label: tabLabel("code-tab-grid", "코드", codeHasIssue) },
+              { key: "tree", label: tabLabel("code-tab-tree", "트리") },
+              { key: "cate", label: tabLabel("code-tab-cate", "카테고리", cateHasIssue) },
             ]} />
             {tab === "grid" && (
               <div data-testid="code-grid" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
@@ -409,7 +474,7 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
                       onCellValueChanged={({ rowKey, field, newValue }) => {
                         const next = editCell(rows, String(rowKey), field, newValue);
                         setRows(next);
-                        if (field.startsWith("lvl") || field === "code") void runValidate(next);
+                        if (field.startsWith("lvl") || field === "code") void runValidate({ ...saveChanges, rows: changesOf(next) });
                       }}
                       getRowClassExtra={(row) => (row.__closed ? "code-item-edit__row--closed" : undefined)}
                       loading={busy}
@@ -439,15 +504,27 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
                 </div>
               </div>
             )}
+            {tab === "cate" && (
+              // 카테고리 추가·닫기·REGEX 편집·소속 이동은 codeItemEdit save 로 함께 저장되므로 그 save 권한(canSave)
+              // 하나로 판정한다(codeCateEdit OBJECT 의 save 권한을 따로 보지 않는다, § 결함 3). codeCateEdit 의
+              // restore 권한은 서버 restore 를 직접 부르는 카테고리 되돌리기(서버 행)를 위한 것이라 이 판정과
+              // 분리해 둔다 — 이 화면에는 그 되돌리기 버튼이 아직 없다.
+              <CategoryTab cate={cate} loaded={!!view && !!selected} editable={editable} canEdit={canSave}
+                rowVersion={selected?.rowVersion ?? null} />
+            )}
           </div>
         </ContentPanel>
 
         <ContentBody direction="column" width="34%" resizable storageKey="mdm.dmc.codeItemEdit.right">
           <ContentPanel>
-            {view && selected && (
+            {/* 미리보기 자리는 하나다 — 코드·트리 탭은 저장된 정의 기준, 카테고리 탭은 고른 카테고리의 후보 정의 기준. */}
+            {view && selected && tab !== "cate" && (
               <PreviewPanel maruCodeId={maruCodeId} lvlCnt={lvlCnt} categories={view.categories ?? []}
                 cateId={cateId} onCateChange={setCateId} mode={previewMode} onModeChange={setPreviewMode}
                 result={preview} />
+            )}
+            {view && selected && tab === "cate" && cate.view && (
+              <CatePreviewPanel defKind={cate.selectedRow?.defKind ?? null} result={cate.preview} />
             )}
           </ContentPanel>
           {patchable && (

@@ -111,8 +111,11 @@ class CodeDataRuleLedgerChainTest {
         // ── 1b) dmc/codeItemEdit.save — DRAFT 에 실제 코드 항목 하나를 넣는다(3번이 참조할 값의 원천) ──
         ObjectNode itemParams = json.createObjectNode().put("maruCodeId", "CHAIN_CD").put("ver", "1.000").put("rowVersion", codeRowVersion);
         ObjectNode itemBody = envelope("codeItemEdit", itemParams);
-        itemBody.putObject("grids").putObject("rows").putArray("rows")
+        ObjectNode itemGrids = itemBody.putObject("grids");
+        itemGrids.putObject("rows").putArray("rows")
                 .addObject().put("rowStatus", "ADDED").put("code", "A1").put("name", "에이일").put("seq", 1);
+        itemGrids.putObject("categories").putArray("rows"); // 2026-09-28 화면 합치기 — 세 그리드를 늘 보낸다
+        itemGrids.putObject("members").putArray("rows");
         JsonNode itemSaved = post("codeItemEdit", "save", STEWARD, itemBody);
         assertSuccess(itemSaved);
         long codeRowVersionAfterItem = itemSaved.path("data").path("result").path("rowVersion").asLong();

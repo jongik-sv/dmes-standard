@@ -55,6 +55,24 @@ export function draftView(owner: string | null, me = "e2e_mdm_steward", override
   };
 }
 
+/**
+ * 미래 적용 RELEASED 버전이 선택된 룰(D8 확정 취소) — 서버가 `cancelConfirmable=true` 로 내려준 상태를 흉내낸다.
+ * 화면은 이 값만 보고 버튼을 켜므로 별도 판정 재계산은 하지 않는다.
+ */
+export function cancelConfirmableView(me = "e2e_mdm_steward", overrides: Partial<RuleEditView> = {}): RuleEditView {
+  const base = draftView(me, me);
+  return {
+    ...base,
+    unappliedVersionExists: true,
+    versions: [
+      { ver: 2, status: "RELEASED", applyFrom: "2026-12-01 00:00:00", applyTo: "9999-12-31 00:00:00", ownerId: me, baseVer: 1, hitPolicy: "FIRST", rowVersion: 1, cancelConfirmable: true },
+      base.versions[1],
+    ],
+    selectedVer: 2,
+    ...overrides,
+  };
+}
+
 /** 버전 1 RELEASED 만 있는 룰(미적용 버전 없음). */
 export function releasedView(me = "e2e_mdm_steward", overrides: Partial<RuleEditView> = {}): RuleEditView {
   const base = draftView(null, me);
@@ -94,7 +112,7 @@ export function sourceOf(rule: RuleDef, texts: Record<number, string> = {}): { s
   });
   const meta: VarMeta[] = rule.vars.map((v) => {
     if (v.grpCondAst) asts[texts[v.varId]] = v.grpCondAst;
-    return { varId: v.varId, axis: "NONE", resGrp: v.resGrp ?? null, grpCond: v.grpCondAst ? texts[v.varId] : null };
+    return { varId: v.varId, resGrp: v.resGrp ?? null, grpCond: v.grpCondAst ? texts[v.varId] : null };
   });
   const rows = rule.rows.map((r) => ({ rowId: r.rowId, seq: r.seq, rowKind: r.rowKind, cells: JSON.stringify(r.cells), note: null }));
   return { src: { ruleId: rule.ruleId, ruleKind: rule.ruleKind, hitPolicy: rule.hitPolicy, vars, meta, rows }, asts };

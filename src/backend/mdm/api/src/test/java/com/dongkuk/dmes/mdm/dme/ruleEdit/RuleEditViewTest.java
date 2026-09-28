@@ -354,7 +354,6 @@ class RuleEditViewTest extends AbstractMdmSharedDbTest {
     void view_는_열_설정이_되돌려_보낼_저장_원값을_varMeta_로_싣는다() {
         DmeTestSupport.pending(jdbc, "QLTY_GRD_JDG", 2, "DRAFT", "kim", "FIRST", 1);
         DmeTestSupport.sampleDefinition(jdbc, "QLTY_GRD_JDG", 2);
-        jdbc.update("UPDATE TB_MDM_RULE_VAR SET AXIS = 'ROW' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 AND VAR_ID = 1");
         jdbc.update("UPDATE TB_MDM_RULE_VAR SET RES_GRP = 'GRD', GRP_COND = 'COIL_THK > 1', COLLECT_AGG = 'LIST',"
                 + " PRIO_LIST = '[\"A\",\"B\"]' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 AND VAR_ID = 4");
 
@@ -362,7 +361,6 @@ class RuleEditViewTest extends AbstractMdmSharedDbTest {
         view("QLTY_GRD_JDG", 2).getVarMeta().forEach(m -> meta.put(m.getVarId(), m));
 
         assertEquals(5, meta.size());
-        assertEquals("ROW", meta.get(1).getAxis());
         assertNull(meta.get(1).getDomainId(), "사전 컬럼 조건 열은 저장 원값이 null 이다(해석된 ResolvedVar.domainId 와 다르다)");
         assertNull(meta.get(4).getDomainId());
         assertEquals("STRING", meta.get(4).getDataType());

@@ -1,5 +1,5 @@
 /**
- * TABLE 카테고리 소속 transfer-list 순수 로직(TSK-07-02 design.md §2, `dmc/codeCateEdit/transfer.ts` 축약형 —
+ * TABLE 카테고리 소속 transfer-list 순수 로직(TSK-07-02 design.md §2, `dmc/codeItemEdit/cate/transfer.ts` 축약형 —
  * 05 는 버전 드래프트가 없어(F17) 카테고리 자체의 ADDED/CHANGED/DELETED diff 는 필요 없고, TABLE 소속만
  * addCodes·removeCodes 로 diff 한다).
  */

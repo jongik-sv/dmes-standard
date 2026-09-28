@@ -12,7 +12,6 @@ import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
 import com.dongkuk.dmes.mdm.common.rule.RuleCellsCodec;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
-import com.dongkuk.dmes.mdm.common.rule.check.AxisCoverage;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckInput;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckInput.DraftRow;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckReport;
@@ -74,7 +73,6 @@ public class RuleColumnsService implements RuleEditSavePart {
     private static final Pattern VAR_NAME = Pattern.compile("[A-Za-z][A-Za-z0-9_]*");
     private static final Set<String> COND_DISPS = Set.of("Equal", "1", "2", "Expression");
     private static final Set<String> RESULT_DISPS = Set.of("Value", "Expression");
-    private static final Set<String> AXES = Set.of("ROW", "COL", "NONE");
 
     private final RuleEditSupport support;
     private final RuleQueries queries;
@@ -224,14 +222,6 @@ public class RuleColumnsService implements RuleEditSavePart {
             if (derive && !"Expression".equals(req.dispType())) {
                 throw reject("산출 룰의 결과 열은 식(Expression)이어야 합니다: " + name);
             }
-            if (req.axis() != null) {
-                if (!cond) {
-                    throw reject("축(axis)은 조건 열에만 둡니다: " + name);
-                }
-                if (!AXES.contains(req.axis())) {
-                    throw reject("축은 ROW·COL·NONE 중 하나여야 합니다: " + req.axis());
-                }
-            }
             if (cond && (req.resGrp() != null || req.grpCond() != null)) {
                 throw reject("그룹과 열 조건은 결과 열에만 둡니다: " + name);
             }
@@ -266,7 +256,6 @@ public class RuleColumnsService implements RuleEditSavePart {
         checkResultNames(kept);
         checkGroups(id, ver, hit, kept);
         checkDeriveExprs(id, ver, derive, kept);
-        pivotCoverWarning(id, ver, hit, kept, issues);
     }
 
     /** 식 파싱(불변 9)·타입 해석 — Line.resolved 를 채운다. 타입 판정은 RuleVarTypeResolver 를 그대로(I16). */
@@ -407,27 +396,6 @@ public class RuleColumnsService implements RuleEditSavePart {
         }
     }
 
-    /** 축 조합 완전성은 경고로만(불변 3 — 저장은 평탄화 그대로). */
-    private void pivotCoverWarning(String id, int ver, String hit, List<Line> kept, List<Map<String, Object>> issues) {
-        Integer rowVar = null;
-        Integer colVar = null;
-        for (Line line : kept) {
-            if (line.req.isNew() || !"COND".equals(line.req.varKind()) || line.req.axis() == null) {
-                continue;
-            }
-            if ("ROW".equals(line.req.axis()) && rowVar == null) {
-                rowVar = line.req.varId();
-            }
-            if ("COL".equals(line.req.axis()) && colVar == null) {
-                colVar = line.req.varId();
-            }
-        }
-        List<Map<Integer, Map<String, Object>>> normal = queries.rows(id, ver).stream().filter(r -> "NORMAL".equals(r.getRowKind()))
-                .map(r -> RuleCellsCodec.parse(r.getCells())).toList();
-        AxisCoverage.gap(hit, rowVar, colVar, normal)
-                .ifPresent(message -> issues.add(Map.of("code", AxisCoverage.CODE, "severity", "WARNING", "message", message)));
-    }
-
     /**
      * 적용 뒤 정의로 저장 시 검사(TSK-08-04 design §6.1 COLUMNS 열) — 커밋 전이라 ERROR 면 거부해 적용 전체를 되돌린다. COLUMNS 는 셀·미완성·
      * 생성·분석을 돌리지 않으므로(I18, 열 추가가 가능해야 한다) 세트 순서·MDM 참조가 거부하고 계약 변경·케이스 결과 타입이 경고한다.
@@ -480,7 +448,6 @@ public class RuleColumnsService implements RuleEditSavePart {
             boolean result = "RESULT".equals(req.varKind());
             MdmRuleVar v = new MdmRuleVar(id, ver, finalIds.get(line), req.varKind(), cond ? ++condSeq : ++resultSeq);
             v.setDispType(req.dispType());
-            v.setAxis(cond ? (req.axis() == null ? "NONE" : req.axis()) : null);
             v.setVarName(req.varName());
             v.setDomainId(req.domainId());
             v.setDataType(req.dataType());

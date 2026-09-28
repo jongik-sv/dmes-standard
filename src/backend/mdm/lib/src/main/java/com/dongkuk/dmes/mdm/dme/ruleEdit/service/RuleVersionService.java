@@ -118,7 +118,6 @@ public class RuleVersionService {
         for (MdmRuleVar v : queries.vars(id, from)) {
             MdmRuleVar c = new MdmRuleVar(id, to, v.getVarId(), v.getVarKind(), v.getSeq());
             c.setDispType(v.getDispType());
-            c.setAxis(v.getAxis());
             c.setVarName(v.getVarName());
             c.setVarAst(v.getVarAst());
             c.setDomainId(v.getDomainId());
@@ -147,6 +146,18 @@ public class RuleVersionService {
         requireMdm(rule);
         int ver = requireVer(request.getVer());
         stateService.deleteDraft(ref(rule.getMaruRuleId(), ver), requireRowVersion(request.getRowVersion()), support.me());
+        return new RuleVersionResult(rule.getMaruRuleId(), ver, null);
+    }
+
+    /**
+     * 확정 취소(delete target CONFIRM) — 아직 적용 시각이 오지 않은 확정 버전을 작성 중으로 되돌린다
+     * (ADR-0002 D8, TSK-02-01 D4-1). 판정·구간 복구·상위 상태는 공용 버전 상태 서비스가 한다.
+     */
+    public RuleVersionResult cancelConfirm(RuleVersionRequest request) {
+        MdmRule rule = support.loadRule(request.getMaruRuleId());
+        requireMdm(rule);
+        int ver = requireVer(request.getVer());
+        stateService.cancelConfirm(ref(rule.getMaruRuleId(), ver), requireRowVersion(request.getRowVersion()), support.me());
         return new RuleVersionResult(rule.getMaruRuleId(), ver, null);
     }
 

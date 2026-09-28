@@ -222,7 +222,7 @@ class DraftOwnershipCrossModuleTest extends AbstractMdmSharedDbTest {
         String ruleBefore = ruleDraftState();
 
         assertEquals(MdmErrorCode.NOT_DRAFT_OWNER.code(),
-                code(() -> codeItemEditService.save(itemSave(ITEM_RV), List.of(itemRow("ADDED", "D", "디", 4, "H")))));
+                code(() -> codeItemEditService.save(itemSave(ITEM_RV), List.of(itemRow("ADDED", "D", "디", 4, "H")), List.of(), List.of())));
         assertEquals(MdmErrorCode.NOT_DRAFT_OWNER.code(), code(() -> ruleTableService.save(tableSave(0L))));
 
         assertEquals(itemBefore, itemDraftState(), "거부 경로에서 dmc DRAFT 의 ROW_VERSION 이 그대로다(불변 규칙 22)");

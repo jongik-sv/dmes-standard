@@ -1,7 +1,9 @@
 package com.dongkuk.dmes.mdm.common.version;
 
 import static com.dongkuk.dmes.mdm.common.version.VersionPreconditions.requireDraft;
+import static com.dongkuk.dmes.mdm.common.version.VersionPreconditions.requireFutureUnapplied;
 import static com.dongkuk.dmes.mdm.common.version.VersionPreconditions.requireOwner;
+import static com.dongkuk.dmes.mdm.common.version.VersionPreconditions.requireReleased;
 import static com.dongkuk.dmes.mdm.common.version.VersionPreconditions.requireRowVersion;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
@@ -32,7 +34,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 버전 상태 서비스 — 담당자 확정 DRAFT→RELEASED 와 DRAFT 삭제(TSK-01-03 B18, design.md §2.3).
+ * 버전 상태 서비스 — 담당자 확정 DRAFT→RELEASED, DRAFT 삭제(TSK-01-03 B18, design.md §2.3), 확정 취소
+ * RELEASED(미적용)→DRAFT(TSK-02-01 D4-1, ADR-0002 D8).
  *
  * <p>확정은 한 트랜잭션이다(불변 규칙 I2): 사전 검사 → apply_from 순서 → 확정 검사 SPI → DRAFT 조건부 UPDATE →
  * 직전 RELEASED 닫기 → 부모 CREATED→INUSE. 하나라도 실패하면 전부 롤백되어 DRAFT 가 그대로 남는다.
@@ -124,6 +127,38 @@ public class DefaultVersionStateService implements VersionStateService {
             if (store.casDeleteDraft(draft.ref(), expectedRowVersion) == 0) {
                 throw MdmErrors.of(MdmErrorCode.ROW_VERSION_CONFLICT);
             }
+        });
+    }
+
+    @Override
+    public void cancelConfirm(VersionRef released, long expectedRowVersion, String userId) {
+        tx.executeWithoutResult(status -> {
+            LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS);
+
+            pre.requireSteward();
+            VersionRow row = pre.loadOrConflict(released);
+            requireOwner(row, userId);
+            requireRowVersion(row, expectedRowVersion);
+            requireReleased(row);          // D8-1 — RELEASED 가 아니면 MDM002
+            requireFutureUnapplied(row, now); // D8-1 — 이미 적용됐으면 MDM025
+
+            AuditStamp stamp = audit.currentStamp();
+            int reverted = store.casCancelConfirm(released, expectedRowVersion, stamp);
+            if (reverted == 0) {
+                throw MdmErrors.of(MdmErrorCode.ROW_VERSION_CONFLICT);
+            }
+            requireOneRow(reverted, "확정 취소", released);
+
+            // D8-6 — 확정이 닫은 직전 RELEASED 의 적용 구간을 다시 연다. 없으면(최초 버전) 복구 대상이 없다.
+            previousReleased(row).ifPresent(previous -> {
+                // D8-6 안전장치 — 덮어쓸 값이 확정 때 닫힌 값과 같을 때만 연다. 다르면 동시 변경이므로 멈춘다.
+                if (previous.applyTo() == null || !previous.applyTo().equals(row.applyFrom())) {
+                    throw MdmErrors.of(MdmErrorCode.ROW_VERSION_CONFLICT);
+                }
+                requireOneRow(store.reopenApplyTo(previous.ref(), stamp), "직전 버전 구간 복구", previous.ref());
+            });
+
+            // D8-8 — 상위 CREATED/INUSE 는 되돌리지 않는다(조회가 계산값을 돌려준다, D6).
         });
     }
 

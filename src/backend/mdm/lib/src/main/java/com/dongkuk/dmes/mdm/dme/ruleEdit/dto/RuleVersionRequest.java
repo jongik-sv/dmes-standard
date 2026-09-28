@@ -5,6 +5,12 @@ package com.dongkuk.dmes.mdm.dme.ruleEdit.dto;
  */
 public class RuleVersionRequest {
 
+    /**
+     * 확정 취소 대상 값({@code target}) — 아직 적용 시각이 오지 않은 확정 버전을 작성 중으로 되돌린다
+     * (ADR-0002 D8, TSK-02-01 D4-1). 04·06 이 같은 값을 쓴다.
+     */
+    public static final String TARGET_CONFIRM = "CONFIRM";
+
     private String maruRuleId;
     private Integer ver;
     private Long rowVersion;
@@ -12,7 +18,7 @@ public class RuleVersionRequest {
     /** handover 의 넘겨받을 사용자 ID. */
     private String newOwnerId;
 
-    /** delete 의 대상 VERSION·RULE. */
+    /** delete 의 대상 VERSION·RULE·CONFIRM. */
     private String target;
 
     public String getMaruRuleId() { return maruRuleId; }

@@ -45,7 +45,7 @@ class CommonContractTest {
             assertTrue(code.defaultMessage() != null && !code.defaultMessage().isBlank(), code + " 기본 메시지");
             assertTrue(Set.of(400, 403, 409).contains(code.httpStatus()), code + " 의미 HTTP 상태");
         }
-        assertEquals(24, MdmErrorCode.values().length);
+        assertEquals(25, MdmErrorCode.values().length);
     }
 
     @Test
@@ -91,6 +91,13 @@ class CommonContractTest {
                 com.dongkuk.dmes.cactus.common.ErrorCode.BUSINESS_ERROR, "코드 저장 검사를 통과하지 못했습니다");
         assertCode(MdmErrorCode.CODE_PATCH_REJECTED, "MDM023", 409,
                 com.dongkuk.dmes.cactus.common.ErrorCode.BUSINESS_ERROR, "경미 수정을 할 수 없습니다");
+    }
+
+    @Test
+    void TSK_02_01_D4_1_이_더한_확정_취소_거부_코드() {
+        // TSK-02-01 design.md D4-1 / ADR-0002 D8-11 — 이미 적용된 버전을 확정 취소하려 할 때(MDM025).
+        assertCode(MdmErrorCode.CONFIRM_CANCEL_NOT_ALLOWED, "MDM025", 409,
+                com.dongkuk.dmes.cactus.common.ErrorCode.BUSINESS_ERROR, "이미 적용된 버전은 확정 취소할 수 없습니다");
     }
 
     @Test

@@ -7,7 +7,7 @@ import { configDefaults, defineConfig } from "vitest/config";
 export const PERF_TEST_FILES = [
   "tests/evalex-perf.test.ts",
   "tests/dme/ruleEdit/sections-render.test.ts",
-  "tests/dmc/codeCateEdit/transfer.test.ts",
+  "tests/dmc/codeItemEdit/cate/transfer.test.ts",
 ];
 
 // TSK-01-03 U9 — 셸 렌더 테스트. 기본 환경은 node 이고 렌더 테스트 파일만 머리 주석으로 happy-dom 을 쓴다

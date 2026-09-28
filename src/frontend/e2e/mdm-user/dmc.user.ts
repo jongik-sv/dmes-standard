@@ -9,7 +9,6 @@ import {
   breadcrumb,
   button,
   checkLayout,
-  escapeRe,
   expectToast,
   footerScreenId,
   gridRow,
@@ -28,14 +27,17 @@ import {
 /**
  * 마루 MDM > 마스터코드(dmc) 사용자 여정 E2E.
  *
- * 담당자(stw)가 화면만으로 마루 코드 하나의 일생을 끝까지 다룬다.
- *   마루 코드 등록(codeMng) → 헤더·라벨 수정, 해제·선점, 두 사용자 잠금·충돌(codeEdit)
- *   → 코드 행 입력·수정·되돌리기(codeItemEdit) → 카테고리 추가·소속·정규식(codeCateEdit)
- *   → 검사·확정(codeConfirm) → 새 버전에서 행 삭제·카테고리 닫기·경미 수정 → 새 버전 삭제·복원 → 폐기.
+ * 담당자(stw)가 화면만으로 마루 코드 하나의 일생을 끝까지 다룬다. 2026-09-28 D-101 로 화면은 셋이다.
+ *   마루 코드(codeMng) — 왼쪽 목록, 오른쪽 [신규] 등록 폼 또는 고른 코드의 상세(헤더·라벨·버전 카드, 옛 codeEdit).
+ *     등록 → 조회 → 목록 행으로 상세 열기 → 헤더·라벨 수정, 해제·선점, 두 사용자 잠금·충돌
+ *   → 코드 편집(codeItemEdit) [코드]·[트리] 탭 — 코드 행 입력·수정·되돌리기
+ *   → 같은 화면 [카테고리] 탭 — 카테고리 추가·소속·정규식(저장은 머리 [저장] 하나, 옛 codeCateEdit)
+ *   → 버전 확정(codeConfirm) — 검사·확정
+ *   → 새 버전에서 행 삭제·카테고리 닫기·경미 수정 → 새 버전 삭제·복원 → 폐기.
  *
  * 구조
  *   A "여정"  — serial. 한 페이지를 공유하며 앞 단계가 만든 데이터를 이어 쓴다.
- *   B "연결·권한" — 테스트마다 스스로 코드를 등록하는 독립 테스트. 화면 간 인계·넘기기·읽기 전용처럼
+ *   B "연결·권한" — 테스트마다 스스로 코드를 등록하는 독립 테스트. 화면 간 인계·넘기기·코드 삭제·읽기 전용처럼
  *     실패해도 여정을 끊으면 안 되는 확인을 둔다.
  * 배치 검사(checkLayout) 위반은 여정을 멈추지 않게 모아 두었다가 마지막 TC-DMC-LAY-99 에서 한꺼번에 단언한다.
  */
@@ -43,15 +45,17 @@ import {
 const TRAIL = (leaf: string) => ["마루 MDM", "마스터코드", leaf];
 const MENU = {
   codeMng: "마루 코드",
-  codeEdit: "마루 코드 수정",
   codeItemEdit: "코드 편집",
-  codeCateEdit: "카테고리 편집",
   codeConfirm: "버전 확정",
 } as const;
 type ScreenId = keyof typeof MENU;
 
 const STW = USERS.stw.id;
 const STW2 = USERS.stw2.id;
+/** D2 보류: [넘기기]는 담당자 조회 수단이 생길 때까지 꺼져 있고 이 문구로 이유를 알린다(m-mdm src/shell/handover.ts). */
+const HANDOVER_PENDING = "넘기기는 준비 중입니다. 넘겨받는 사람의 담당자 여부를 확인할 수단이 아직 없습니다.";
+/** codeMng 오른쪽에 아무것도 고르지 않았을 때의 안내. */
+const DETAIL_GUIDE = "목록에서 마루 코드를 고르거나 [신규] 를 누르세요";
 
 /** 오늘에서 days 만큼 뺀 날의 0시 — datetime-local 입력값(yyyy-MM-ddTHH:mm)과 서버 표기(yyyy-MM-dd). */
 function daysAgo(days: number): { input: string; date: string } {
@@ -106,14 +110,35 @@ async function choose(page: Page, testId: string, value: string) {
   await waitIdle(page);
 }
 
-/** codeEdit 의 마루 코드 ComboBox(검색형)에서 코드를 고른다. */
-async function pickCode(page: Page, id: string) {
-  const input = tid(page, "code-pick").locator('input:not([type="hidden"])');
-  await input.click();
-  await input.fill(id);
-  await page.getByRole("option", { name: new RegExp(`^${escapeRe(id)} `) }).first().click();
-  await expect(tid(page, "header-name")).toBeVisible({ timeout: 30_000 });
+const codeListRow = (page: Page, id: string) => gridRow(tid(page, "code-list"), id, "maruCodeId");
+
+/**
+ * codeMng 목록 행의 칸 값을 본다. 목록이 좁아 오른쪽 열은 가로로 밀어야 그려지므로 사용자처럼 밀어 보고, 행을 ID 칸으로
+ * 찾으므로 본 뒤에는 맨 왼쪽으로 되돌린다.
+ */
+async function expectListCell(page: Page, id: string, colId: string, text: string) {
+  const grid = tid(page, "code-list");
+  const row = codeListRow(page, id);
+  await expect(row).toHaveCount(1, { timeout: 20_000 });
+  await revealColumn(grid, row, colId);
+  await expect(cellOf(row, colId)).toHaveText(text, { timeout: 20_000 });
+  await scrollGridLeft(grid);
+}
+
+/**
+ * codeMng 목록을 그 ID 로 좁혀 행을 눌러 오른쪽 상세를 (다시) 연다. [조회]는 목록만 다시 읽으므로 상세를 새로 읽을 때도
+ * 이것을 쓴다. 행을 누르면 고른 버전이 풀리니 버전 조작 전에는 selectVersion 을 다시 부른다.
+ */
+async function openCode(page: Page, id: string) {
+  await tid(page, "code-search-status").selectOption("");
+  await tid(page, "code-search-keyword").fill(id);
+  await button(page, "조회").click();
+  const row = codeListRow(page, id);
+  await expect(row).toHaveCount(1, { timeout: 20_000 });
+  await row.locator('.ag-cell[col-id="maruCodeId"]').click();
   await waitIdle(page);
+  await expect(tid(page, "header-name")).toBeVisible({ timeout: 30_000 });
+  await expect(tid(page, "version-list")).toBeVisible({ timeout: 30_000 });
 }
 
 const versionRow = (page: Page, ver: string) => tid(page, `version-row-${ver}`);
@@ -123,18 +148,31 @@ async function selectVersion(page: Page, ver: string) {
   await expect(versionRow(page, ver)).toHaveAttribute("aria-selected", "true");
 }
 
-/** codeMng 등록 카드로 마루 코드를 등록한다. 등록 뒤 열리는 codeEdit 탭까지 기다린다. */
+/** codeMng [신규] 등록 폼으로 마루 코드를 등록한다. 등록 뒤 같은 화면 오른쪽에 뜨는 상세까지 기다린다. */
 async function registerCode(page: Page, id: string, name: string, lvl = "0", desc = "") {
   await go(page, "codeMng");
+  await button(page, "신규").click();
   await tid(page, "code-reg-id").fill(id);
   await tid(page, "code-reg-name").fill(name);
   if (desc) await tid(page, "code-reg-desc").fill(desc);
   await tid(page, "code-reg-lvl").selectOption(lvl);
   await tid(page, "code-reg-save").click();
   await expectToast(page, "등록했습니다");
-  await expect(footerScreenId(page)).toHaveText("codeEdit", { timeout: 60_000 });
+  await expect(tid(page, "header-name")).toHaveValue(name, { timeout: 30_000 });
   await expect(tid(page, "version-list")).toContainText("v1.000", { timeout: 30_000 });
+  await expect(footerScreenId(page)).toHaveText("codeMng");
   await waitIdle(page);
+}
+
+// ── codeItemEdit 탭 ──
+
+type ItemTab = "grid" | "tree" | "cate";
+
+/** codeItemEdit 의 [코드]·[트리]·[카테고리] 탭을 누른다. */
+async function openTab(page: Page, tab: ItemTab) {
+  await tid(page, `code-tab-${tab}`).click();
+  const body = { grid: "code-grid", tree: "code-tree", cate: "cate-tab" }[tab];
+  await expect(tid(page, body)).toBeVisible({ timeout: 20_000 });
 }
 
 // ── ag-grid 셀 편집 ──
@@ -236,26 +274,34 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await page?.context().close();
   });
 
-  // ─────────── codeMng — 마루 코드 ───────────
+  // ─────────── codeMng — 마루 코드(목록·등록) ───────────
 
-  test("TC-DMC-MNG-01 마루 코드 화면 배치 — 메뉴로 열면 검색영역·목록·등록 카드가 보인다", async () => {
+  test("TC-DMC-MNG-01 마루 코드 화면 배치 — 메뉴로 열면 검색영역·목록·[신규]가 보이고 오른쪽은 안내만 있다", async () => {
     await go(page, "codeMng");
     await resetClicks(page); // 이 화면 버튼 커버리지를 여기서부터 센다
     await expect(breadcrumb(page)).toContainText("마루 MDM > 마스터코드 > 마루 코드");
     await expect(tid(page, "code-search-keyword")).toBeVisible();
     await expect(tid(page, "code-search-status")).toHaveValue("");
     await expect(tid(page, "code-list")).toBeVisible();
-    await expect(tid(page, "code-reg-source")).toHaveText("MDM");
-    await expect(tid(page, "code-reg-lvl")).toHaveValue("0");
-    await expect(tid(page, "code-reg-save")).toBeEnabled();
-    // 이 화면에는 삭제 수단이 없다 — 마루 코드는 codeEdit 의 [폐기]로만 끝낸다(TC-DMC-EDT-12).
+    await expect(button(page, "신규")).toBeEnabled();
+    // 아무것도 고르지 않았으면 오른쪽은 안내뿐이다 — 등록 폼·상세·삭제·폐기 버튼이 없다.
+    await expect(screen(page).getByText(DETAIL_GUIDE)).toBeVisible();
+    await expect(tid(page, "code-reg-id")).toHaveCount(0);
+    await expect(tid(page, "header-name")).toHaveCount(0);
     await expect(button(page, /^(삭제|폐기)$/)).toHaveCount(0);
     await layout(page, "codeMng");
     await snap(page, "dmc-codeMng-01-initial");
     watcher.assertClean("codeMng");
   });
 
-  test("TC-DMC-MNG-02 필수값·ID 형식 오류는 알아듣기 쉬운 문구로 막힌다", async () => {
+  test("TC-DMC-MNG-02 [신규]로 등록 폼을 열고, 필수값·ID 형식 오류는 알아듣기 쉬운 문구로 막힌다", async () => {
+    await button(page, "신규").click();
+    await expect(screen(page).getByText(DETAIL_GUIDE)).toHaveCount(0);
+    await expect(tid(page, "code-reg-source")).toHaveText("MDM");
+    await expect(tid(page, "code-reg-lvl")).toHaveValue("0");
+    await expect(tid(page, "code-reg-save")).toBeEnabled();
+    await layout(page, "codeMng 등록 폼");
+
     await tid(page, "code-reg-save").click();
     await expectErrorModal(page, "마루 코드 ID 와 이름을 입력하세요.", "dmc-codeMng-02-required");
 
@@ -268,7 +314,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     watcher.assertClean("codeMng");
   });
 
-  test("TC-DMC-MNG-03 등록(C) — ID·이름·설명·계층 칸 수를 넣고 저장하면 수정 탭이 그 코드로 열린다", async () => {
+  test("TC-DMC-MNG-03 등록(C) — ID·이름·설명·계층 칸 수를 넣고 저장하면 같은 화면 오른쪽에 그 코드의 상세가 뜬다", async () => {
     await tid(page, "code-reg-id").fill(CODE);
     await tid(page, "code-reg-name").fill(NAME);
     await tid(page, "code-reg-desc").fill("E2E 사용자 여정으로 만든 코드");
@@ -276,35 +322,32 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await tid(page, "code-reg-save").click();
     await expectToast(page, "등록했습니다");
 
-    await expect(footerScreenId(page)).toHaveText("codeEdit", { timeout: 60_000 });
+    // 새 탭을 열지 않는다 — 같은 화면에서 등록 폼 자리에 상세가 뜬다.
+    await expect(tid(page, "header-name")).toHaveValue(NAME, { timeout: 30_000 });
+    await expect(footerScreenId(page)).toHaveText("codeMng");
+    await expect(tid(page, "code-reg-id")).toHaveCount(0);
     const list = tid(page, "version-list");
     await expect(list).toContainText("v1.000", { timeout: 30_000 });
     await expect(versionRow(page, "1.000")).toContainText("MAJOR");
     await expect(versionRow(page, "1.000")).toContainText("작성 중");
     await expect(versionRow(page, "1.000")).toContainText("편집 중(나)");
-    await expect(tid(page, "header-name")).toHaveValue(NAME);
     await expect(tid(page, "header-lvl")).toHaveValue("2");
-    watcher.assertClean("codeMng→codeEdit");
+    await snap(page, "dmc-codeMng-03-registered");
+    watcher.assertClean("codeMng");
   });
 
   test("TC-DMC-MNG-04 조회(R) — 키워드·상태 조건을 바꿔 가며 방금 만든 코드를 찾는다", async () => {
-    await go(page, "codeMng");
-    // 등록이 끝나면 등록 카드는 비워진다.
-    await expect(tid(page, "code-reg-id")).toHaveValue("");
-    await expect(tid(page, "code-reg-name")).toHaveValue("");
-    await expect(tid(page, "code-reg-lvl")).toHaveValue("0");
-
     const list = tid(page, "code-list");
     await tid(page, "code-search-keyword").fill(CODE);
     await button(page, "조회").click();
-    const row = gridRow(list, CODE, "maruCodeId");
+    const row = codeListRow(page, CODE);
     await expect(row).toHaveCount(1, { timeout: 20_000 });
-    await expect(row.locator('.ag-cell[col-id="maruCodeName"]')).toHaveText(NAME);
-    await expect(row.locator('.ag-cell[col-id="sourceKind"]')).toHaveText("MDM");
-    await expect(row.locator('.ag-cell[col-id="status"]')).toHaveText("CREATED");
-    await expect(row.locator('.ag-cell[col-id="currentVerLabel"]')).toHaveText("미확정");
-    await expect(row.locator('.ag-cell[col-id="unappliedLabel"]')).toHaveText("v1.000 DRAFT");
-    await expect(screen(page).locator(".grid-panel-count").first()).toHaveText("1건");
+    await expectListCell(page, CODE, "maruCodeName", NAME);
+    await expectListCell(page, CODE, "sourceKind", "MDM");
+    await expectListCell(page, CODE, "status", "CREATED");
+    await expectListCell(page, CODE, "currentVerLabel", "미확정");
+    await expectListCell(page, CODE, "unappliedLabel", "v1.000 DRAFT");
+    await expect(list.locator(".grid-panel-count").first()).toHaveText("1건");
     await layout(page, "codeMng 목록 채워짐");
 
     // 상태 INUSE 로 좁히면 빠진다.
@@ -341,64 +384,78 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     watcher.assertClean("codeMng");
   });
 
-  test("TC-DMC-MNG-05 같은 ID 로 다시 등록하면 중복 문구가 보인다", async () => {
+  test("TC-DMC-MNG-05 같은 ID 로 다시 등록하면 중복 문구가 보이고, [취소]는 등록 폼을 닫는다", async () => {
+    // [신규]를 누르면 등록 폼이 빈 칸으로 다시 열린다.
+    await button(page, "신규").click();
+    await expect(tid(page, "code-reg-id")).toHaveValue("");
+    await expect(tid(page, "code-reg-name")).toHaveValue("");
+    await expect(tid(page, "code-reg-lvl")).toHaveValue("0");
+    await expect(tid(page, "header-name")).toHaveCount(0);
+
     await tid(page, "code-reg-id").fill(CODE);
     await tid(page, "code-reg-name").fill("중복 등록");
     await tid(page, "code-reg-save").click();
     await expectErrorModal(page, "마루 코드·마루 데이터에 같은 ID 가 있습니다", "dmc-codeMng-05-dup");
     await tid(page, "code-reg-id").fill("");
     await tid(page, "code-reg-name").fill("");
+    // [취소]는 등록 폼을 닫고 [신규] 전 상태(고른 코드의 상세 또는 안내)로 돌아간다. 다음 TC 를 위해 폼을 다시 연다.
+    await tid(page, "code-reg-cancel").click();
+    await expect(tid(page, "code-reg-id")).toHaveCount(0);
+    await button(page, "신규").click();
+    await expect(tid(page, "code-reg-id")).toHaveValue("");
     await assertAllButtonsPressed(page, "codeMng");
     watcher.assertClean("codeMng");
   });
 
-  test("TC-DMC-MNG-06 목록의 ID 링크를 누르면 수정 탭이 그 코드로 열린다", async () => {
-    await tid(page, "code-search-keyword").fill(CODE);
-    await button(page, "조회").click();
-    const row = gridRow(tid(page, "code-list"), CODE, "maruCodeId");
-    await expect(row).toHaveCount(1, { timeout: 20_000 });
-    await row.locator(".mdm-link-button").click();
-    await expect(footerScreenId(page)).toHaveText("codeEdit", { timeout: 60_000 });
+  test("TC-DMC-MNG-06 목록 행을 누르면 오른쪽 상세가 그 코드로 바뀐다(새 탭을 열지 않는다)", async () => {
+    await expect(tid(page, "code-reg-id")).toBeVisible();
+    await openCode(page, CODE);
     await expect(tid(page, "header-name")).toHaveValue(NAME, { timeout: 30_000 });
-    watcher.assertClean("codeMng→codeEdit");
+    await expect(tid(page, "code-reg-id")).toHaveCount(0);
+    await expect(footerScreenId(page)).toHaveText("codeMng");
+    await expect(breadcrumb(page)).toContainText("마루 MDM > 마스터코드 > 마루 코드");
+    watcher.assertClean("codeMng");
   });
 
-  // ─────────── codeEdit — 마루 코드 수정 ───────────
+  // ─────────── codeMng — 오른쪽 상세(옛 codeEdit) ───────────
 
-  test("TC-DMC-EDT-01 마루 코드 수정 화면 배치 — 헤더·라벨·버전 카드가 보인다", async () => {
-    await go(page, "codeEdit");
+  test("TC-DMC-EDT-01 마루 코드 상세 배치 — 오른쪽에 헤더·라벨·버전 카드가 보인다", async () => {
     await resetClicks(page);
-    await expect(breadcrumb(page)).toContainText("마루 MDM > 마스터코드 > 마루 코드 수정");
     await expect(tid(page, "header-status")).toHaveText("CREATED");
     for (let i = 1; i <= 10; i++) await expect(tid(page, `label-attr${String(i).padStart(2, "0")}`)).toBeVisible();
-    await layout(page, "codeEdit");
-    await snap(page, "dmc-codeEdit-01-initial");
-    watcher.assertClean("codeEdit");
+    await expect(tid(page, "version-list")).toBeVisible();
+    await layout(page, "codeMng 상세");
+    await snap(page, "dmc-codeMng-detail-01-initial");
+    watcher.assertClean("codeMng");
   });
 
   test("TC-DMC-EDT-02 버전 버튼은 선택한 버전·소유자·미적용 수에 따라 켜지고 꺼진다", async () => {
-    // 선택 전: 버전 조작 버튼은 모두 꺼져 있다.
-    for (const b of ["ver-delete", "ver-lock", "ver-unlock", "ver-handover", "ver-confirm-move", "ver-item-edit", "ver-cate-edit"]) {
+    // 선택 전: 버전 조작 버튼은 [코드 편집]까지 모두 꺼져 있다.
+    for (const b of ["ver-delete", "ver-lock", "ver-unlock", "ver-handover", "ver-confirm-move", "ver-item-edit"]) {
       await expect(tid(page, b), b).toBeDisabled();
     }
-    // 미적용 DRAFT 가 있어 새 버전·폐기는 막히고 안내가 보인다.
+    // 미적용 DRAFT 가 있어 새 버전은 막히고 안내가 보인다.
     await expect(tid(page, "ver-new-major")).toBeDisabled();
     await expect(tid(page, "ver-new-minor")).toBeDisabled();
     await expect(tid(page, "ver-new-hint")).toHaveText("미적용 버전 v1.000 DRAFT 이 있어 새 버전을 만들 수 없습니다");
-    await expect(tid(page, "header-deprecate")).toBeDisabled();
+    // 확정된 적 없는 코드라 [폐기] 대신 [삭제]가 선다(D-102). 삭제 동작은 TC-DMC-EDT-14 에서 따로 본다.
+    await expect(tid(page, "header-deprecate")).toHaveCount(0);
     await expect(tid(page, "header-save")).toBeEnabled();
 
-    // 내 DRAFT 를 고르면 삭제·해제·넘기기·이동 버튼이 켜지고 선점은 꺼진다.
+    // 내 DRAFT 를 고르면 삭제·해제·이동 버튼이 켜지고 선점은 꺼진다. 넘기기는 준비 중이라 꺼져 있다(D2 보류).
     await selectVersion(page, "1.000");
-    for (const b of ["ver-delete", "ver-unlock", "ver-handover", "ver-confirm-move", "ver-item-edit", "ver-cate-edit"]) {
+    for (const b of ["ver-delete", "ver-unlock", "ver-confirm-move", "ver-item-edit"]) {
       await expect(tid(page, b), b).toBeEnabled();
     }
     await expect(tid(page, "ver-lock")).toBeDisabled();
-    await layout(page, "codeEdit 버전 선택");
-    watcher.assertClean("codeEdit");
+    await expect(tid(page, "ver-handover")).toBeDisabled();
+    // [카테고리 편집]은 [코드 편집] 하나로 합쳐 없어졌다(D-101).
+    await expect(tid(page, "ver-cate-edit")).toHaveCount(0);
+    await layout(page, "codeMng 상세 버전 선택");
+    watcher.assertClean("codeMng");
   });
 
-  test("TC-DMC-EDT-03 수정(U) — 이름·설명·라벨을 고쳐 저장하면 다시 조회해도 남는다", async () => {
+  test("TC-DMC-EDT-03 수정(U) — 이름·설명·라벨을 고쳐 저장하면 목록 행으로 다시 열어도 남는다", async () => {
     await tid(page, "header-name").fill(NAME2);
     await tid(page, "header-desc").fill("열연·냉연 강종 분류(E2E)");
     await tid(page, "header-lvl").selectOption("2");
@@ -406,24 +463,26 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await tid(page, "label-attr02").fill("강종");
     await tid(page, "header-save").click();
     await expectToast(page, "저장했습니다");
+    // 저장하면 목록도 다시 읽어 새 이름이 보인다.
+    await expect(codeListRow(page, CODE)).toHaveCount(1, { timeout: 20_000 });
+    await expectListCell(page, CODE, "maruCodeName", NAME2);
 
-    await button(page, "조회").click();
-    await waitIdle(page);
+    await openCode(page, CODE);
     await expect(tid(page, "header-name")).toHaveValue(NAME2);
     await expect(tid(page, "header-desc")).toHaveValue("열연·냉연 강종 분류(E2E)");
     await expect(tid(page, "label-attr01")).toHaveValue("규격");
     await expect(tid(page, "label-attr02")).toHaveValue("강종");
     await expect(tid(page, "label-attr03")).toHaveValue("");
-    watcher.assertClean("codeEdit");
+    watcher.assertClean("codeMng");
   });
 
   test("TC-DMC-EDT-04 이름을 비우고 저장하면 이름 규칙 문구가 보이고 값은 바뀌지 않는다", async () => {
     await tid(page, "header-name").fill("");
     await tid(page, "header-save").click();
-    await expectErrorModal(page, "이름은 1~100자여야 합니다", "dmc-codeEdit-04-name-required");
-    await button(page, "조회").click();
+    await expectErrorModal(page, "이름은 1~100자여야 합니다", "dmc-codeMng-detail-04-name-required");
+    await openCode(page, CODE);
     await expect(tid(page, "header-name")).toHaveValue(NAME2, { timeout: 20_000 });
-    watcher.assertClean("codeEdit");
+    watcher.assertClean("codeMng");
   });
 
   test("TC-DMC-EDT-05 해제하면 선점 가능이 되고, 다시 선점하면 편집 중(나)로 돌아온다", async () => {
@@ -432,75 +491,77 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expectToast(page, "해제했습니다");
     await expect(versionRow(page, "1.000")).toContainText("선점 가능");
     await expect(tid(page, "ver-lock")).toBeEnabled();
-    for (const b of ["ver-delete", "ver-unlock", "ver-handover", "ver-confirm-move", "ver-item-edit", "ver-cate-edit"]) {
+    for (const b of ["ver-delete", "ver-unlock", "ver-handover", "ver-confirm-move"]) {
       await expect(tid(page, b), b).toBeDisabled();
     }
-    await snap(page, "dmc-codeEdit-05-unlocked");
+    // [코드 편집]은 버전을 고르면 소유와 무관하게 켜진다(D-101 — 편집 가능 여부는 코드 편집 화면이 판단).
+    await expect(tid(page, "ver-item-edit")).toBeEnabled();
+    await snap(page, "dmc-codeMng-detail-05-unlocked");
 
     await tid(page, "ver-lock").click();
     await expectToast(page, "선점했습니다");
     await expect(versionRow(page, "1.000")).toContainText("편집 중(나)");
     await expect(tid(page, "ver-unlock")).toBeEnabled();
-    watcher.assertClean("codeEdit");
+    watcher.assertClean("codeMng");
   });
 
   test("TC-DMC-EDT-06 두 사용자 — 남이 잡은 DRAFT 는 잠김으로 보이고, 풀면 선점을 넘겨받는다", async ({ browser }, testInfo) => {
     const other = await openAs(browser, "stw2", testInfo);
     const p2 = other.page;
     try {
-      await go(p2, "codeEdit");
-      await pickCode(p2, CODE);
+      await go(p2, "codeMng");
+      await openCode(p2, CODE);
       await expect(versionRow(p2, "1.000")).toContainText(`잠김 · ${STW} 편집 중`);
       await selectVersion(p2, "1.000");
-      for (const b of ["ver-lock", "ver-unlock", "ver-delete", "ver-handover", "ver-confirm-move", "ver-item-edit", "ver-cate-edit"]) {
+      for (const b of ["ver-lock", "ver-unlock", "ver-delete", "ver-handover", "ver-confirm-move"]) {
         await expect(tid(p2, b), `${b}(stw2)`).toBeDisabled();
       }
-      await snap(p2, "dmc-codeEdit-06-locked-by-other");
+      await snap(p2, "dmc-codeMng-detail-06-locked-by-other");
 
-      // stw 가 해제 → stw2 가 조회 후 선점
+      // stw 가 해제 → stw2 가 다시 열어 선점
       await selectVersion(page, "1.000");
       await tid(page, "ver-unlock").click();
       await expectToast(page, "해제했습니다");
-      await button(p2, "조회").click();
+      await openCode(p2, CODE);
       await expect(versionRow(p2, "1.000")).toContainText("선점 가능", { timeout: 20_000 });
       await selectVersion(p2, "1.000");
       await tid(p2, "ver-lock").click();
       await expectToast(p2, "선점했습니다");
       await expect(versionRow(p2, "1.000")).toContainText("편집 중(나)");
 
-      // stw 화면에서는 stw2 가 편집 중으로 보이고 선점할 수 없다.
-      await button(page, "조회").click();
+      // stw 화면에서는 stw2 가 편집 중으로 보이고 선점·확정 이동을 할 수 없다.
+      await openCode(page, CODE);
       await expect(versionRow(page, "1.000")).toContainText(`잠김 · ${STW2} 편집 중`, { timeout: 20_000 });
       await selectVersion(page, "1.000");
       await expect(tid(page, "ver-lock")).toBeDisabled();
-      await expect(tid(page, "ver-item-edit")).toBeDisabled();
+      await expect(tid(page, "ver-confirm-move")).toBeDisabled();
 
       // stw2 가 해제하고 stw 가 다시 선점한다.
       await tid(p2, "ver-unlock").click();
       await expectToast(p2, "해제했습니다");
-      await button(page, "조회").click();
+      await openCode(page, CODE);
       await expect(versionRow(page, "1.000")).toContainText("선점 가능", { timeout: 20_000 });
       await selectVersion(page, "1.000");
       await tid(page, "ver-lock").click();
       await expectToast(page, "선점했습니다");
       await expect(versionRow(page, "1.000")).toContainText("편집 중(나)");
-      other.watcher.assertClean("codeEdit(stw2)");
+      other.watcher.assertClean("codeMng(stw2)");
     } finally {
       await p2.context().close();
     }
-    watcher.assertClean("codeEdit");
+    watcher.assertClean("codeMng");
   });
 
   test("TC-DMC-EDT-07 두 사용자 — 남이 먼저 헤더를 저장했으면 충돌 문구가 보이고 닫으면 최신 값으로 다시 불러온다", async ({ browser }, testInfo) => {
     const other = await openAs(browser, "stw2", testInfo);
     const p2 = other.page;
     try {
-      await go(p2, "codeEdit");
-      await pickCode(p2, CODE);
+      await go(p2, "codeMng");
+      await openCode(p2, CODE);
       await tid(p2, "header-name").fill(`${NAME2} (stw2)`);
       await tid(p2, "header-save").click();
       await expectToast(p2, "저장했습니다");
-      other.watcher.assertClean("codeEdit(stw2)");
+      other.watcher.assertClean("codeMng(stw2)");
     } finally {
       await p2.context().close();
     }
@@ -509,7 +570,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expect(tid(page, "header-name")).toHaveValue(NAME2);
     await tid(page, "header-desc").fill("stw 가 늦게 고친 설명");
     await tid(page, "header-save").click();
-    await expectErrorModal(page, "다른 사용자가 수정했습니다", "dmc-codeEdit-07-conflict");
+    await expectErrorModal(page, "다른 사용자가 수정했습니다", "dmc-codeMng-detail-07-conflict");
     await expect(tid(page, "header-name")).toHaveValue(`${NAME2} (stw2)`, { timeout: 20_000 });
     await expect(tid(page, "header-desc")).toHaveValue("열연·냉연 강종 분류(E2E)");
 
@@ -518,31 +579,29 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await tid(page, "header-save").click();
     await expectToast(page, "저장했습니다");
     await expect(tid(page, "header-name")).toHaveValue(NAME2);
-    watcher.assertClean("codeEdit");
+    watcher.assertClean("codeMng");
   });
 
-  test("TC-DMC-EDT-08 넘기기 대화상자 — 받는 사람을 비우면 넘기기가 꺼지고, 취소하면 아무것도 바뀌지 않는다", async () => {
+  test("TC-DMC-EDT-08 넘기기(보류, D2) — 내 DRAFT 여도 [넘기기(준비 중)]가 꺼져 있고, 올려 보면 이유를 알린다", async () => {
     await selectVersion(page, "1.000");
-    await tid(page, "ver-handover").click();
-    const m = modal(page);
-    await expect(m).toContainText("DRAFT 넘기기");
-    await expect(tid(page, "handover-ok")).toBeDisabled();
-    await tid(page, "handover-user").fill(STW2);
-    await expect(tid(page, "handover-ok")).toBeEnabled();
-    await snapModal(page, "dmc-codeEdit-08-handover-modal");
-    await m.getByRole("button", { name: "취소", exact: true }).click();
-    await expect(m).toBeHidden();
+    await expect(tid(page, "ver-handover")).toHaveText("넘기기(준비 중)");
+    await expect(tid(page, "ver-handover")).toBeDisabled();
+    await expect(tid(page, "ver-handover-wrap")).toHaveAttribute("title", HANDOVER_PENDING);
+    await tid(page, "ver-handover-wrap").hover();
+    await expect(modal(page)).toHaveCount(0);
+    await snap(page, "dmc-codeMng-detail-08-handover-pending");
     await expect(versionRow(page, "1.000")).toContainText("편집 중(나)");
-    watcher.assertClean("codeEdit");
+    watcher.assertClean("codeMng");
   });
 
-  // ─────────── codeItemEdit — 코드 편집(v1.000) ───────────
+  // ─────────── codeItemEdit [코드]·[트리] 탭 — 코드 편집(v1.000) ───────────
 
   test("TC-DMC-ITM-01 [코드 편집]으로 코드 편집 화면을 열고 마루 코드·버전을 고르면 빈 DRAFT 가 보인다", async () => {
     await selectVersion(page, "1.000");
     await tid(page, "ver-item-edit").click();
     await expect(footerScreenId(page)).toHaveText("codeItemEdit", { timeout: 60_000 });
     await waitIdle(page);
+    // 여기부터 카테고리 탭(TC-DMC-CAT-05)까지 한 화면이라 버튼 커버리지를 한 번에 센다.
     await resetClicks(page);
     await expect(breadcrumb(page)).toContainText("마루 MDM > 마스터코드 > 코드 편집");
     // 사용자가 고른다(화면 인계는 TC-DMC-LNK-01 에서 따로 본다).
@@ -552,6 +611,8 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expect(tid(page, "code-grid-empty")).toHaveText("보일 코드가 없습니다");
     await expect(screen(page).getByText(`편집 가능 · 소유자 ${STW}`)).toBeVisible();
     await rowVersion(page, "code-row-version");
+    // [코드]·[트리]·[카테고리] 세 탭이 있다(D-101).
+    for (const t of ["code-tab-grid", "code-tab-tree", "code-tab-cate"]) await expect(tid(page, t), t).toBeVisible();
     // lvl_cnt 2·라벨 규격·강종이 열로 보인다.
     const headers = codeGrid(page).locator(".ag-header-cell-text");
     for (const h of ["코드", "이름", "약칭", "순서", "1차", "2차", "규격", "강종"]) {
@@ -563,12 +624,12 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     watcher.assertClean("codeItemEdit");
   });
 
-  test("TC-DMC-ITM-02 변경 없이 저장·콤마·공백 코드는 알아듣기 쉬운 문구로 막히고 행에 이슈가 보인다", async () => {
+  test("TC-DMC-ITM-02 변경이 없으면 [저장]이 꺼져 있고, 콤마·공백 코드는 알아듣기 쉬운 문구로 막히고 행에 이슈가 보인다", async () => {
     const before = await rowVersion(page, "code-row-version");
-    await button(page, "저장").click();
-    await expectErrorModal(page, "저장할 변경이 없습니다");
+    await expect(button(page, "저장")).toBeDisabled();
 
     await addCodeRow(page, { code: "A B", name: "공백 코드" });
+    await expect(button(page, "저장")).toBeEnabled();
     await button(page, "저장").click();
     await expectErrorModal(page, "코드 저장 검사를 통과하지 못했습니다", "dmc-codeItemEdit-02-rejected");
     await expect(tid(page, "code-row-issue-A B")).toContainText("콤마·공백", { timeout: 20_000 });
@@ -583,14 +644,14 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
 
   test("TC-DMC-ITM-03 등록(C) — 코드값·이름·약칭·순서·계층·추가 컬럼을 넣고 저장한다", async () => {
     const before = await rowVersion(page, "code-row-version");
-    // 순서(seq)는 새 행에서 입력이 되지 않는 앱 결함이 있어(TC-DMC-ITM-09) 여기서는 넣지 않는다 — 경미 수정에서 넣는다.
+    // 새 행의 순서(seq) 입력은 TC-DMC-ITM-09 에서 따로 본다 — 여정에서는 경미 수정(TC-DMC-ITM-08)에서 넣는다.
     await addCodeRow(page, {
       code: "HR01", name: "열연 1호", alterName: "HR1", lvl1: "HR", attr01: "KS", attr02: "SS400", description: "E2E 열연",
     });
     await addCodeRow(page, { code: "HR02", name: "열연 2호", lvl1: "HR", attr01: "JIS" });
     await addCodeRow(page, { code: "CR01", name: "냉연 1호", lvl1: "CR", lvl2: "CRA" });
     await addCodeRow(page, { code: "TMP1", name: "임시" });
-    await expect(screen(page).locator(".grid-panel-count").first()).toHaveText("4건");
+    await expect(codeGrid(page).locator(".grid-panel-count").first()).toHaveText("4건");
     await snap(page, "dmc-codeItemEdit-03-editing");
     await layout(page, "codeItemEdit 편집 중");
 
@@ -610,9 +671,9 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     watcher.assertClean("codeItemEdit");
   });
 
-  test("TC-DMC-ITM-04 조회(R) — 트리 보기·노드 거르기·닫힌 코드·카테고리 미리보기로 방금 넣은 코드를 본다", async () => {
+  test("TC-DMC-ITM-04 조회(R) — [트리] 탭·노드 거르기·닫힌 코드·카테고리 미리보기로 방금 넣은 코드를 본다", async () => {
     // 트리
-    await screen(page).getByRole("tab", { name: "트리 보기" }).click();
+    await openTab(page, "tree");
     const tree = tid(page, "code-tree");
     const roots = tree.locator('[role="treeitem"][data-level="1"] > .tree-item .tree-item__label');
     await expect(roots).toHaveText(["· TMP1 임시", "CR (1건)", "HR (2건)"], { timeout: 20_000 });
@@ -628,7 +689,8 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await snap(page, "dmc-codeItemEdit-04-tree");
     await tid(page, "code-tree-to-grid").click();
 
-    // 거르기
+    // 거르기 — [이 노드로 편집]은 [코드] 탭으로 돌아온다.
+    await expect(codeGrid(page)).toBeVisible();
     await expect(tid(page, "code-filter-chip")).toContainText("HR 아래");
     await expect(codeGrid(page).locator(".ag-center-cols-container .ag-row")).toHaveCount(2);
     // 거르는 중에 추가하면 계층 칸이 그 노드 경로로 채워진다 — 확인만 하고 취소한다.
@@ -669,7 +731,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
   test("TC-DMC-ITM-05 수정(U) — 저장된 행의 이름·약칭을 고쳐 저장하면 조회 뒤에도 남는다", async () => {
     const grid = codeGrid(page);
     const before = await rowVersion(page, "code-row-version");
-    // 저장된 행을 고친 뒤 [취소]로 되돌리는 흐름은 동작 칸이 갱신되지 않는 앱 결함이 있어 TC-DMC-ITM-10 에서 따로 본다.
+    // 저장된 행을 고친 뒤 [취소]로 되돌리는 흐름은 TC-DMC-ITM-10 에서 따로 본다.
     await editCell(grid, codeRow(page, "HR02"), "name", "열연 2호 고급");
     await editCell(grid, codeRow(page, "HR02"), "alterName", "HR2");
     await button(page, "저장").click();
@@ -686,38 +748,37 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expectToast(page, "되돌렸습니다");
     await expect(codeRow(page, "TMP1")).toHaveCount(0, { timeout: 20_000 });
     await expect(codeGrid(page).locator(".ag-center-cols-container .ag-row")).toHaveCount(3);
-    // 탭 버튼으로 트리 보기에 갔다가 코드 편집 탭으로 돌아온다.
-    await screen(page).getByRole("tab", { name: "트리 보기" }).click();
-    await expect(tid(page, "code-tree")).toBeVisible();
-    await screen(page).getByRole("tab", { name: "코드 편집" }).click();
-    await expect(codeGrid(page)).toBeVisible();
-    await assertAllButtonsPressed(page, "codeItemEdit");
+    // 탭 버튼으로 [트리]·[카테고리] 탭에 갔다가 [코드] 탭으로 돌아온다.
+    await openTab(page, "tree");
+    await openTab(page, "cate");
+    await openTab(page, "grid");
+    await assertAllButtonsPressed(page, "codeItemEdit [코드] 탭");
     watcher.assertClean("codeItemEdit");
   });
 
-  // ─────────── codeCateEdit — 카테고리 편집(v1.000) ───────────
+  // ─────────── codeItemEdit [카테고리] 탭 — 카테고리 편집(v1.000, 옛 codeCateEdit) ───────────
 
-  test("TC-DMC-CAT-01 [카테고리 편집]으로 카테고리 화면을 열고 코드를 고르면 BASE 만 있다", async () => {
-    await go(page, "codeEdit");
-    await selectVersion(page, "1.000");
-    await tid(page, "ver-cate-edit").click();
-    await expect(footerScreenId(page)).toHaveText("codeCateEdit", { timeout: 60_000 });
-    await waitIdle(page);
-    await resetClicks(page);
-    await expect(breadcrumb(page)).toContainText("마루 MDM > 마스터코드 > 카테고리 편집");
-    await choose(page, "cate-maru-select", CODE);
-    await expect(tid(page, "cate-ver-select")).toHaveValue("1.000", { timeout: 20_000 });
+  test("TC-DMC-CAT-01 [카테고리] 탭을 열면 위의 마루 코드·버전 그대로 BASE 만 있다", async () => {
+    await openTab(page, "cate");
+    // 카테고리 탭은 자체 마루 코드·버전 Select 없이 화면 위의 것을 쓴다.
+    await expect(tid(page, "code-maru-select")).toHaveValue(CODE);
+    await expect(tid(page, "code-ver-select")).toHaveValue("1.000");
+    await expect(tid(page, "cate-tab")).toContainText("카테고리·소속 변경은 코드 변경과 함께 상단 [저장] 한 번으로 저장합니다");
     await expect(tid(page, "cate-row-BASE")).toBeVisible();
     await expect(tid(page, "cate-list").locator('[data-testid^="cate-row-"]')).toHaveCount(1);
+    await rowVersion(page, "cate-row-version");
     // BASE 는 편집·닫기를 할 수 없다.
+    await tid(page, "cate-row-BASE").locator("span").first().click();
     await expect(tid(page, "cate-close-BASE")).toHaveCount(0);
     await expect(tid(page, "cate-base-readonly")).toHaveText("BASE 는 예약 카테고리라 편집·닫기를 할 수 없습니다");
-    await layout(page, "codeCateEdit");
-    await snap(page, "dmc-codeCateEdit-01-initial");
-    watcher.assertClean("codeCateEdit");
+    // 변경이 없으니 머리 [저장]은 꺼져 있다.
+    await expect(button(page, "저장")).toBeDisabled();
+    await layout(page, "codeItemEdit 카테고리 탭");
+    await snap(page, "dmc-codeItemEdit-cate-01-initial");
+    watcher.assertClean("codeItemEdit");
   });
 
-  test("TC-DMC-CAT-02 등록(C) — TABLE·REGEX 카테고리를 추가하고 정규식을 바꾸면 미리보기가 따라 바뀐다", async () => {
+  test("TC-DMC-CAT-02 등록(C) — TABLE·REGEX 카테고리를 추가하고 정규식을 바꾸면 오른쪽 미리보기가 따라 바뀐다", async () => {
     const before = await rowVersion(page, "cate-row-version");
     // 빈 ID·이름으로는 추가되지 않는다.
     await tid(page, "cate-add-submit").click();
@@ -730,6 +791,8 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expect(tid(page, "cate-row-TBL_HR")).toContainText("추가");
     await expect(tid(page, "cate-transfer")).toBeVisible();
     await expect(tid(page, "cate-preview")).toContainText("TABLE 카테고리는 소속 목록이 곧 결과입니다");
+    // 카테고리만 바꿔도 머리 [저장]이 켜진다.
+    await expect(button(page, "저장")).toBeEnabled();
 
     await tid(page, "cate-add-id").fill("RGX_CR");
     await tid(page, "cate-add-name").fill("냉연 식");
@@ -750,8 +813,8 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await tid(page, "cate-regex-expr").fill("CR");
     await expect(tid(page, "cate-preview-summary")).toHaveText("1 / 3건 해당", { timeout: 20_000 });
     await expect(gridRow(tid(page, "cate-preview"), "CR01", "code").locator('.ag-cell[col-id="hitMark"]')).toHaveText("●");
-    await layout(page, "codeCateEdit REGEX 편집");
-    await snap(page, "dmc-codeCateEdit-02-regex");
+    await layout(page, "codeItemEdit 카테고리 REGEX 편집");
+    await snap(page, "dmc-codeItemEdit-cate-02-regex");
 
     // 빈 TABLE 카테고리 하나를 남겨 확정 검사 2-2 경고를 받는다(TC-DMC-CNF-04).
     await tid(page, "cate-add-id").fill("TMP_EMPTY");
@@ -766,10 +829,10 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
       await expect(tid(page, `cate-row-${c}`)).not.toContainText("추가");
     }
     await expectRowVersionAbove(page, "cate-row-version", before);
-    watcher.assertClean("codeCateEdit");
+    watcher.assertClean("codeItemEdit");
   });
 
-  test("TC-DMC-CAT-03 TABLE 소속 — 검색·1차 필터·전체선택·Shift 범위·>·>>·<·<< 로 옮기고 저장한다", async () => {
+  test("TC-DMC-CAT-03 TABLE 소속 — 검색·1차 필터·전체선택·Shift 범위·>·>>·<·<< 로 옮기고 머리 [저장]으로 저장한다", async () => {
     await tid(page, "cate-row-TBL_HR").locator("span").first().click();
     const avail = tid(page, "cate-transfer-available");
     const member = tid(page, "cate-transfer-member");
@@ -810,18 +873,19 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await item("member", "CR01").click();
     await tid(page, "cate-transfer-move-left").click();
     await expect(member).toContainText("소속 2건");
-    await layout(page, "codeCateEdit TABLE 소속");
-    await snap(page, "dmc-codeCateEdit-03-transfer");
+    await layout(page, "codeItemEdit 카테고리 TABLE 소속");
+    await snap(page, "dmc-codeItemEdit-cate-03-transfer");
 
     await button(page, "저장").click();
     await expectToast(page, "저장했습니다");
     await button(page, "조회").click();
     await waitIdle(page);
+    await expect(tid(page, "cate-tab")).toBeVisible();
     await tid(page, "cate-row-TBL_HR").locator("span").first().click();
     await expect(item("member", "HR01")).toBeVisible({ timeout: 20_000 });
     await expect(item("member", "HR02")).toBeVisible();
     await expect(item("available", "CR01")).toBeVisible();
-    watcher.assertClean("codeCateEdit");
+    watcher.assertClean("codeItemEdit");
   });
 
   test("TC-DMC-CAT-04 수정(U) — 틀린 정규식은 미리보기·저장에서 막히고, [취소]로 되돌린 뒤 이름만 고쳐 저장한다", async () => {
@@ -832,7 +896,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expect(tid(page, "cate-row-RGX_CR")).toContainText("수정");
     await expect(tid(page, "cate-preview-invalid")).toHaveText("정규식 문법 오류로 해석하지 못했습니다", { timeout: 20_000 });
     await button(page, "저장").click();
-    await expectErrorModal(page, "코드 저장 검사를 통과하지 못했습니다", "dmc-codeCateEdit-04-bad-regex");
+    await expectErrorModal(page, "코드 저장 검사를 통과하지 못했습니다", "dmc-codeItemEdit-cate-04-bad-regex");
 
     await tid(page, "cate-undo-RGX_CR").click();
     await expect(tid(page, "cate-regex-expr")).toHaveValue("CR");
@@ -844,7 +908,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await button(page, "조회").click();
     await waitIdle(page);
     await expect(tid(page, "cate-row-RGX_CR")).toContainText("냉연 식 수정");
-    watcher.assertClean("codeCateEdit");
+    watcher.assertClean("codeItemEdit");
   });
 
   test("TC-DMC-CAT-05 닫기 — [닫기]로 표시했다 [취소]하면 그대로, 금지 문자 ID 는 저장에서 거부된다", async () => {
@@ -868,17 +932,18 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await tid(page, "cate-add-kind").selectOption("TABLE");
     await tid(page, "cate-add-submit").click();
     await button(page, "저장").click();
-    await expectErrorModal(page, "코드 저장 검사를 통과하지 못했습니다", "dmc-codeCateEdit-05-bad-id");
+    await expectErrorModal(page, "코드 저장 검사를 통과하지 못했습니다", "dmc-codeItemEdit-cate-05-bad-id");
     await tid(page, "cate-undo-BAD ID").click();
     await expect(tid(page, "cate-row-BAD ID")).toHaveCount(0);
-    await assertAllButtonsPressed(page, "codeCateEdit");
-    watcher.assertClean("codeCateEdit");
+    await assertAllButtonsPressed(page, "codeItemEdit [카테고리] 탭");
+    watcher.assertClean("codeItemEdit");
   });
 
   // ─────────── codeConfirm — 버전 확정(v1.000) ───────────
 
   test("TC-DMC-CNF-01 [확정 이동]으로 버전 확정 화면이 그 DRAFT 로 열린다", async () => {
-    await go(page, "codeEdit");
+    await go(page, "codeMng");
+    await openCode(page, CODE);
     await selectVersion(page, "1.000");
     await tid(page, "ver-confirm-move").click();
     await expect(footerScreenId(page)).toHaveText("codeConfirm", { timeout: 60_000 });
@@ -971,12 +1036,12 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await tid(page, "code-search-keyword").fill(CODE);
     await tid(page, "code-search-status").selectOption("INUSE");
     await button(page, "조회").click();
-    const row = gridRow(tid(page, "code-list"), CODE, "maruCodeId");
+    const row = codeListRow(page, CODE);
     await expect(row).toHaveCount(1, { timeout: 20_000 });
-    await expect(row.locator('.ag-cell[col-id="maruCodeName"]')).toHaveText(NAME2);
-    await expect(row.locator('.ag-cell[col-id="status"]')).toHaveText("INUSE");
-    await expect(row.locator('.ag-cell[col-id="currentVerLabel"]')).toHaveText("v1.000");
-    await expect(row.locator('.ag-cell[col-id="unappliedLabel"]')).toHaveText("없음");
+    await expectListCell(page, CODE, "maruCodeName", NAME2);
+    await expectListCell(page, CODE, "status", "INUSE");
+    await expectListCell(page, CODE, "currentVerLabel", "v1.000");
+    await expectListCell(page, CODE, "unappliedLabel", "없음");
     await tid(page, "code-search-status").selectOption("CREATED");
     await button(page, "조회").click();
     await expect(tid(page, "code-list-empty")).toBeVisible({ timeout: 20_000 });
@@ -986,23 +1051,25 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
   // ─────────── 새 버전 v1.001 ───────────
 
   test("TC-DMC-EDT-09 새 버전 — 대화상자에서 종류·내용을 바꿔 보고 [취소], 다시 열어 빈 minor 버전을 만든다", async () => {
-    await go(page, "codeEdit");
-    await button(page, "조회").click();
-    await waitIdle(page);
+    await openCode(page, CODE);
     await expect(tid(page, "header-status")).toHaveText("INUSE");
+    // 확정된 적이 있으니 [삭제] 대신 [폐기]가 선다(D-102).
+    await expect(tid(page, "header-delete-code")).toHaveCount(0);
+    await expect(tid(page, "header-deprecate")).toBeVisible();
     // CR01 이 2차 칸(CRA)을 쓰므로 계층 칸 수를 1 로 줄이면 거부된다.
     await tid(page, "header-lvl").selectOption("1");
     await tid(page, "header-save").click();
-    await expectErrorModal(page, "LVL2 에 값이 있는 코드가 있어 계층 칸 수를 1 로 줄일 수 없습니다", "dmc-codeEdit-09-lvl-reduce");
-    await button(page, "조회").click();
+    await expectErrorModal(page, "LVL2 에 값이 있는 코드가 있어 계층 칸 수를 1 로 줄일 수 없습니다", "dmc-codeMng-detail-09-lvl-reduce");
+    await openCode(page, CODE);
     await expect(tid(page, "header-lvl")).toHaveValue("2", { timeout: 20_000 });
     await expect(versionRow(page, "1.000")).toContainText("확정");
     await expect(versionRow(page, "1.000")).toContainText(`${CONFIRM1B.date} 00:00:00`);
     await selectVersion(page, "1.000");
-    // 확정 버전을 고르면 버전 조작 버튼은 모두 꺼지고, 새 버전·폐기가 켜진다.
-    for (const b of ["ver-delete", "ver-lock", "ver-unlock", "ver-handover", "ver-confirm-move", "ver-item-edit", "ver-cate-edit"]) {
+    // 확정 버전을 고르면 [코드 편집] 말고 버전 조작 버튼은 모두 꺼지고, 새 버전·폐기가 켜진다.
+    for (const b of ["ver-delete", "ver-lock", "ver-unlock", "ver-handover", "ver-confirm-move"]) {
       await expect(tid(page, b), b).toBeDisabled();
     }
+    await expect(tid(page, "ver-item-edit")).toBeEnabled();
     await expect(tid(page, "ver-new-hint")).toHaveCount(0);
     await expect(tid(page, "header-deprecate")).toBeEnabled();
     await expect(tid(page, "ver-new-major")).toBeEnabled();
@@ -1018,7 +1085,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expect(tid(page, "newver-number")).toHaveText("v1.001");
     await tid(page, "newver-content-restore-1.000").getByText(/복원/).click();
     await tid(page, "newver-content-empty").getByText("빈 버전").click();
-    await snapModal(page, "dmc-codeEdit-09-newver-modal");
+    await snapModal(page, "dmc-codeMng-detail-09-newver-modal");
     await m.getByRole("button", { name: "취소", exact: true }).click();
     await expect(m).toBeHidden();
     await expect(versionRow(page, "1.001")).toHaveCount(0);
@@ -1032,7 +1099,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expect(versionRow(page, "1.001")).toContainText("편집 중(나)");
     await expect(tid(page, "ver-new-hint")).toContainText("미적용 버전 v1.001 DRAFT");
     await expect(tid(page, "header-deprecate")).toBeDisabled();
-    watcher.assertClean("codeEdit");
+    watcher.assertClean("codeMng");
   });
 
   test("TC-DMC-ITM-07 삭제(D) — 새 버전에서 이어받은 행을 고치고, 카테고리 소속 행을 확인 뒤 삭제해 저장한다", async () => {
@@ -1044,19 +1111,19 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await waitIdle(page);
     await choose(page, "code-ver-select", "1.001");
     await expect(tid(page, "code-ver-select").locator("option:checked")).toHaveText("v1.001 DRAFT");
+    await openTab(page, "grid");
     const before = await rowVersion(page, "code-row-version");
     for (const c of ["HR01", "HR02", "CR01"]) {
       await expect(codeRow(page, c), c).toHaveCount(1);
       await expect(codeRow(page, c).getByRole("button", { name: "삭제" })).toBeVisible();
     }
 
-    // 삭제: HR02 는 TBL_HR 소속이라 확인을 묻는다 — [취소]하면 아무 변경도 남지 않는다(저장해 보면 "저장할 변경이 없습니다").
+    // 삭제: HR02 는 TBL_HR 소속이라 확인을 묻는다 — [취소]하면 아무 변경도 남지 않아 [저장]이 꺼져 있다.
     await codeRow(page, "HR02").getByRole("button", { name: "삭제" }).click();
     await expect(modal(page)).toContainText("카테고리 1개에서 함께 빠집니다. 삭제할까요?");
     await snapModal(page, "dmc-codeItemEdit-07-delete-confirm");
     await answerConfirm(page, "취소");
-    await button(page, "저장").click();
-    await expectErrorModal(page, "저장할 변경이 없습니다");
+    await expect(button(page, "저장")).toBeDisabled();
 
     // 수정: CR01 이름
     await editCell(codeGrid(page), codeRow(page, "CR01"), "name", "냉연 1호 변경");
@@ -1064,7 +1131,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     // [확인]이면 삭제로 표시된다.
     await codeRow(page, "HR02").getByRole("button", { name: "삭제" }).click();
     await answerConfirm(page, "확인");
-    // 저장 전 "삭제" 배지는 TC-DMC-ITM-11 에서 따로 본다(행 칸이 갱신되지 않는 결함이 있으면 여정을 멈추지 않게).
+    // 저장 전 "삭제" 배지는 TC-DMC-ITM-11 에서 따로 본다(여정을 멈추지 않게).
 
     await button(page, "저장").click();
     await expectToast(page, "저장했습니다");
@@ -1114,26 +1181,27 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expect(tid(page, "patch-code")).toHaveValue("CR01");
     await expect(tid(page, "patch-save")).toBeDisabled();
     await expect(tid(page, "patch-blocked")).toHaveText("DRAFT에서 고치세요");
-    await screen(page).getByRole("tab", { name: "트리 보기" }).click();
+
+    // RELEASED 의 [카테고리] 탭은 목록·미리보기만 — 추가 폼·닫기가 없다.
+    await openTab(page, "cate");
+    await expect(tid(page, "cate-row-TBL_HR")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "cate-add-submit")).toHaveCount(0);
+    await expect(tid(page, "cate-list").locator('[data-testid^="cate-close-"]')).toHaveCount(0);
+    await openTab(page, "tree");
     await expect(tid(page, "code-tree")).toContainText("HR01");
-    await screen(page).getByRole("tab", { name: "코드 편집" }).click();
-    await expect(codeGrid(page)).toBeVisible();
+    await openTab(page, "grid");
     await assertAllButtonsPressed(page, "codeItemEdit(RELEASED)");
     watcher.assertClean("codeItemEdit");
   });
 
-  test("TC-DMC-CAT-06 삭제(D) — 새 버전에서 빈 카테고리를 닫고 저장하면 목록에서 빠진다", async () => {
-    await go(page, "codeEdit");
-    await selectVersion(page, "1.001");
-    await tid(page, "ver-cate-edit").click();
-    await expect(footerScreenId(page)).toHaveText("codeCateEdit", { timeout: 60_000 });
-    await button(page, "조회").click();
-    await waitIdle(page);
-    await choose(page, "cate-ver-select", "1.001");
+  test("TC-DMC-CAT-06 삭제(D) — 새 버전 [카테고리] 탭에서 빈 카테고리를 닫고 머리 [저장]하면 목록에서 빠진다", async () => {
+    await choose(page, "code-ver-select", "1.001");
+    await expect(tid(page, "code-ver-select").locator("option:checked")).toHaveText("v1.001 DRAFT");
+    await openTab(page, "cate");
     await rowVersion(page, "cate-row-version");
     // HR02 를 지웠으니 TBL_HR 소속은 HR01 만 남는다.
     await tid(page, "cate-row-TBL_HR").locator("span").first().click();
-    await expect(tid(page, "cate-transfer-item-member-HR01")).toBeVisible();
+    await expect(tid(page, "cate-transfer-item-member-HR01")).toBeVisible({ timeout: 20_000 });
     await expect(tid(page, "cate-transfer-item-member-HR02")).toHaveCount(0);
 
     await tid(page, "cate-close-TMP_EMPTY").click();
@@ -1142,11 +1210,12 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expectToast(page, "저장했습니다");
     await expect(tid(page, "cate-row-TMP_EMPTY")).toHaveCount(0, { timeout: 20_000 });
     await expect(tid(page, "cate-row-TBL_HR")).toBeVisible();
-    watcher.assertClean("codeCateEdit");
+    watcher.assertClean("codeItemEdit");
   });
 
   test("TC-DMC-CNF-05 새 버전 검사 — 직전 대비 변경·카테고리 변화가 보이고, 직전보다 이른 일시는 거부된다", async () => {
-    await go(page, "codeEdit");
+    await go(page, "codeMng");
+    await openCode(page, CODE);
     await selectVersion(page, "1.001");
     await tid(page, "ver-confirm-move").click();
     await expect(footerScreenId(page)).toHaveText("codeConfirm", { timeout: 60_000 });
@@ -1175,15 +1244,14 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
   });
 
   test("TC-DMC-EDT-10 삭제(D) — 새 버전 DRAFT 를 [취소] 한 번 뒤 삭제하면 확정 버전만 남는다", async () => {
-    await go(page, "codeEdit");
-    // 다른 화면을 거쳐 돌아왔다 — 누름 기록은 화면 구분 없이 하나라서, 폐기(EDT-12)까지의 codeEdit 커버리지를 여기서부터 다시 센다.
+    await go(page, "codeMng");
+    // 다른 화면을 거쳐 돌아왔다 — 누름 기록은 화면 구분 없이 하나라서, 폐기(EDT-12)까지의 상세 커버리지를 여기서부터 다시 센다.
     await resetClicks(page);
-    await button(page, "조회").click();
-    await waitIdle(page);
+    await openCode(page, CODE);
     await selectVersion(page, "1.001");
     await tid(page, "ver-delete").click();
     await expect(modal(page)).toContainText("v1.001 DRAFT 를 삭제할까요? 이 버전에서 바꾼 코드·카테고리도 되돌립니다.");
-    await snapModal(page, "dmc-codeEdit-10-delete-confirm");
+    await snapModal(page, "dmc-codeMng-detail-10-delete-confirm");
     await answerConfirm(page, "취소");
     await expect(versionRow(page, "1.001")).toBeVisible();
 
@@ -1193,7 +1261,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expect(versionRow(page, "1.001")).toHaveCount(0, { timeout: 20_000 });
     await expect(versionRow(page, "1.000")).toBeVisible();
     await expect(tid(page, "ver-new-hint")).toHaveCount(0);
-    watcher.assertClean("codeEdit");
+    watcher.assertClean("codeMng");
   });
 
   test("TC-DMC-EDT-11 복원 — v1.000 내용으로 채운 새 major 버전을 만들었다가 지운다", async () => {
@@ -1210,14 +1278,14 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await answerConfirm(page, "확인");
     await expectToast(page, "삭제했습니다");
     await expect(versionRow(page, "2.000")).toHaveCount(0, { timeout: 20_000 });
-    watcher.assertClean("codeEdit");
+    watcher.assertClean("codeMng");
   });
 
   test("TC-DMC-EDT-12 폐기 — [취소]면 그대로, [확인]하면 DEPRECATED 가 되고 새 버전을 만들 수 없다", async () => {
     await expect(tid(page, "header-deprecate")).toBeEnabled();
     await tid(page, "header-deprecate").click();
     await expect(modal(page)).toContainText("폐기하면 새 버전을 만들 수 없습니다. 폐기할까요?");
-    await snapModal(page, "dmc-codeEdit-12-deprecate-confirm");
+    await snapModal(page, "dmc-codeMng-detail-12-deprecate-confirm");
     await answerConfirm(page, "취소");
     await expect(tid(page, "header-status")).toHaveText("INUSE");
 
@@ -1234,10 +1302,12 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expectToast(page, "저장했습니다");
     await expect(tid(page, "header-status")).toHaveText("DEPRECATED");
     await expect(tid(page, "header-desc")).toHaveValue("폐기된 코드(E2E)");
-    await layout(page, "codeEdit 폐기 뒤");
-    await snap(page, "dmc-codeEdit-12-deprecated");
-    await assertAllButtonsPressed(page, "codeEdit");
-    watcher.assertClean("codeEdit");
+    await layout(page, "codeMng 상세 폐기 뒤");
+    await snap(page, "dmc-codeMng-detail-12-deprecated");
+    await assertAllButtonsPressed(page, "codeMng 상세", {
+      신규: "등록 폼 전환 — TC-DMC-MNG-02·05 에서 눌렀다",
+    });
+    watcher.assertClean("codeMng");
   });
 
   test("TC-DMC-MNG-08 폐기 반영 — 상태 DEPRECATED 로 조회되고 INUSE 조건에서는 빠진다", async () => {
@@ -1245,9 +1315,9 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await tid(page, "code-search-keyword").fill(CODE);
     await tid(page, "code-search-status").selectOption("DEPRECATED");
     await button(page, "조회").click();
-    const row = gridRow(tid(page, "code-list"), CODE, "maruCodeId");
+    const row = codeListRow(page, CODE);
     await expect(row).toHaveCount(1, { timeout: 20_000 });
-    await expect(row.locator('.ag-cell[col-id="status"]')).toHaveText("DEPRECATED");
+    await expectListCell(page, CODE, "status", "DEPRECATED");
     await tid(page, "code-search-status").selectOption("INUSE");
     await button(page, "조회").click();
     await expect(tid(page, "code-list-empty")).toBeVisible({ timeout: 20_000 });
@@ -1262,7 +1332,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
 
 // ═══════════════════════════ B. 연결·권한 ═══════════════════════════
 
-test.describe("dmc 화면 연결·넘기기·읽기 전용", () => {
+test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () => {
   // 서로 기대지 않는다 — 하나가 실패해도 나머지는 돈다. 테스트마다 스스로 코드를 등록한다.
   test.describe.configure({ mode: "default" });
 
@@ -1278,25 +1348,29 @@ test.describe("dmc 화면 연결·넘기기·읽기 전용", () => {
       await snap(page, "dmc-link-01-codeItemEdit");
       await expect(tid(page, "code-maru-select"), "넘겨받은 마루 코드").toHaveValue(id, { timeout: 20_000 });
       await expect(tid(page, "code-ver-select"), "넘겨받은 버전").toHaveValue("1.000");
-      watcher.assertClean("codeEdit→codeItemEdit");
+      watcher.assertClean("codeMng→codeItemEdit");
     } finally {
       await page.context().close();
     }
   });
 
-  test("TC-DMC-LNK-02 [카테고리 편집]으로 열면 카테고리 화면에 그 마루 코드·버전이 골라져 있다", async ({ browser }, testInfo) => {
+  test("TC-DMC-LNK-02 [코드 편집]으로 연 화면의 [카테고리] 탭은 넘겨받은 마루 코드·버전의 카테고리를 보인다", async ({ browser }, testInfo) => {
     const { page, watcher } = await openAs(browser, "stw", testInfo);
     try {
       const id = uid("LK2");
       await registerCode(page, id, `E2E 인계2 ${RUN}`);
       await selectVersion(page, "1.000");
-      await tid(page, "ver-cate-edit").click();
-      await expect(footerScreenId(page)).toHaveText("codeCateEdit", { timeout: 60_000 });
+      await tid(page, "ver-item-edit").click();
+      await expect(footerScreenId(page)).toHaveText("codeItemEdit", { timeout: 60_000 });
       await waitIdle(page);
-      await snap(page, "dmc-link-02-codeCateEdit");
-      await expect(tid(page, "cate-maru-select"), "넘겨받은 마루 코드").toHaveValue(id, { timeout: 20_000 });
-      await expect(tid(page, "cate-ver-select"), "넘겨받은 버전").toHaveValue("1.000");
-      watcher.assertClean("codeEdit→codeCateEdit");
+      await openTab(page, "cate");
+      await snap(page, "dmc-link-02-codeItemEdit-cate");
+      await expect(tid(page, "code-maru-select"), "넘겨받은 마루 코드").toHaveValue(id, { timeout: 20_000 });
+      await expect(tid(page, "code-ver-select"), "넘겨받은 버전").toHaveValue("1.000");
+      await expect(tid(page, "cate-row-BASE"), "넘겨받은 코드의 BASE").toBeVisible({ timeout: 20_000 });
+      await expect(tid(page, "cate-row-version")).toHaveText(/^row_version = \d+$/);
+      await expect(tid(page, "cate-add-submit")).toBeVisible();
+      watcher.assertClean("codeMng→codeItemEdit[카테고리]");
     } finally {
       await page.context().close();
     }
@@ -1312,34 +1386,100 @@ test.describe("dmc 화면 연결·넘기기·읽기 전용", () => {
       await tid(page, "ver-confirm-move").click();
       await expect(footerScreenId(page)).toHaveText("codeConfirm", { timeout: 60_000 });
       await expect(tid(page, "cf-target"), "넘겨받은 DRAFT").toHaveText(`${id} v1.000 MAJOR`, { timeout: 20_000 });
-      watcher.assertClean("codeEdit→codeConfirm");
+      watcher.assertClean("codeMng→codeConfirm");
     } finally {
       await page.context().close();
     }
   });
 
-  test("TC-DMC-EDT-13 넘기기 — 내 DRAFT 를 다른 담당자에게 넘기면 그 사람이 편집 중이 된다", async ({ browser }, testInfo) => {
+  test("TC-DMC-EDT-13 넘기기(보류, D2) — 넘길 수 없으니 DRAFT 는 내 편집 중으로 남고, 다른 담당자에게는 잠김으로 보인다", async ({ browser }, testInfo) => {
     const { page, watcher } = await openAs(browser, "stw", testInfo);
     const other = await openAs(browser, "stw2", testInfo);
     try {
       const id = uid("HND");
       await registerCode(page, id, `E2E 넘기기 ${RUN}`);
       await selectVersion(page, "1.000");
-      await tid(page, "ver-handover").click();
-      await tid(page, "handover-user").fill(STW2);
-      await tid(page, "handover-ok").click();
-      await waitIdle(page);
-      await snap(page, "dmc-handover-result");
-      await expect(errorBody(page), "넘기기 거부 문구").toHaveCount(0);
-      await expectToast(page, "넘겼습니다");
-      await expect(versionRow(page, "1.000")).toContainText(`잠김 · ${STW2} 편집 중`, { timeout: 20_000 });
-      await expect(tid(page, "ver-item-edit")).toBeDisabled();
+      // 넘겨받는 사람의 담당자 여부를 확인할 수단이 없어(서버가 늘 MDM005) 버튼을 꺼 두었다.
+      await expect(tid(page, "ver-handover")).toBeDisabled();
+      await expect(tid(page, "ver-handover-wrap")).toHaveAttribute("title", HANDOVER_PENDING);
+      await expect(versionRow(page, "1.000")).toContainText("편집 중(나)");
+      await snap(page, "dmc-handover-pending");
 
-      await go(other.page, "codeEdit");
-      await pickCode(other.page, id);
-      await expect(versionRow(other.page, "1.000")).toContainText("편집 중(나)");
-      watcher.assertClean("codeEdit");
-      other.watcher.assertClean("codeEdit(stw2)");
+      await go(other.page, "codeMng");
+      await openCode(other.page, id);
+      await expect(versionRow(other.page, "1.000")).toContainText(`잠김 · ${STW} 편집 중`);
+      await selectVersion(other.page, "1.000");
+      await expect(tid(other.page, "ver-handover")).toBeDisabled();
+      // 남이 잡은 DRAFT 여도 [코드 편집]은 켜져 있다 — 코드 편집 화면이 읽기 전용으로 연다(D-101).
+      await expect(tid(other.page, "ver-item-edit")).toBeEnabled();
+      await tid(other.page, "ver-item-edit").click();
+      await expect(footerScreenId(other.page)).toHaveText("codeItemEdit", { timeout: 60_000 });
+      await expect(tid(other.page, "code-maru-select")).toHaveValue(id, { timeout: 20_000 });
+      await expect(screen(other.page).getByText("읽기 전용 · diff 보기")).toBeVisible();
+      await expect(button(other.page, "저장")).toHaveCount(0);
+      watcher.assertClean("codeMng");
+      other.watcher.assertClean("codeMng·codeItemEdit(stw2)");
+    } finally {
+      await page.context().close();
+      await other.page.context().close();
+    }
+  });
+
+  test("TC-DMC-EDT-14 코드 삭제(D-102) — 확정된 적 없는 코드는 [폐기] 자리에 [삭제]가 있고, 남이 DRAFT 를 잡고 있으면 거부되며, 풀리면 지워져 목록에서 사라진다", async ({ browser }, testInfo) => {
+    const { page, watcher } = await openAs(browser, "stw", testInfo);
+    const other = await openAs(browser, "stw2", testInfo);
+    try {
+      const id = uid("DLC");
+      await registerCode(page, id, `E2E 코드삭제 ${RUN}`);
+      await expect(tid(page, "header-deprecate")).toHaveCount(0);
+      await expect(tid(page, "header-delete-code")).toHaveText("삭제");
+      await expect(tid(page, "header-delete-code")).toBeEnabled();
+
+      // [취소]하면 아무것도 바뀌지 않는다.
+      await tid(page, "header-delete-code").click();
+      await expect(modal(page)).toContainText("이 마루 코드를 삭제하면 되돌릴 수 없습니다. 삭제할까요?");
+      await snapModal(page, "dmc-codeMng-delete-code-confirm");
+      await answerConfirm(page, "취소");
+      await expect(tid(page, "header-name")).toBeVisible();
+      await expect(versionRow(page, "1.000")).toBeVisible();
+
+      // stw 가 DRAFT 를 풀고 stw2 가 잡는다. 소유자 없는 DRAFT 는 삭제를 막지 않으니 stw 화면의 [삭제]는 켜진 채다.
+      await selectVersion(page, "1.000");
+      await tid(page, "ver-unlock").click();
+      await expectToast(page, "해제했습니다");
+      await expect(tid(page, "header-delete-code")).toBeEnabled();
+      await go(other.page, "codeMng");
+      await openCode(other.page, id);
+      await selectVersion(other.page, "1.000");
+      await tid(other.page, "ver-lock").click();
+      await expectToast(other.page, "선점했습니다");
+
+      // stw 는 다시 읽지 않은 화면에서 [삭제] → 서버가 남의 DRAFT 를 이유로 거부한다.
+      await tid(page, "header-delete-code").click();
+      // 확인 대화상자가 닫히자마자 오류 모달이 떠서 answerConfirm(닫힘 대기)을 쓰지 않는다.
+      await modal(page).getByRole("button", { name: "확인" }).click();
+      await expectErrorModal(page, new RegExp(`${STW2}.*편집 중이라 삭제할 수 없습니다`), "dmc-codeMng-delete-code-rejected");
+      // 다시 열면 남이 잡은 DRAFT 가 보이고 [삭제]는 꺼져 있다.
+      await openCode(page, id);
+      await expect(versionRow(page, "1.000")).toContainText(`잠김 · ${STW2} 편집 중`);
+      await expect(tid(page, "header-delete-code")).toBeDisabled();
+
+      // stw2 가 풀면 stw 가 지울 수 있다.
+      await tid(other.page, "ver-unlock").click();
+      await expectToast(other.page, "해제했습니다");
+      await openCode(page, id);
+      await expect(tid(page, "header-delete-code")).toBeEnabled();
+      await tid(page, "header-delete-code").click();
+      await answerConfirm(page, "확인");
+      await expectToast(page, "삭제했습니다");
+      await expect(screen(page).getByText(DETAIL_GUIDE)).toBeVisible({ timeout: 20_000 });
+      await expect(tid(page, "header-name")).toHaveCount(0);
+      await tid(page, "code-search-keyword").fill(id);
+      await button(page, "조회").click();
+      await expect(tid(page, "code-list-empty")).toBeVisible({ timeout: 20_000 });
+      await snap(page, "dmc-codeMng-delete-code-done");
+      watcher.assertClean("codeMng");
+      other.watcher.assertClean("codeMng(stw2)");
     } finally {
       await page.context().close();
       await other.page.context().close();
@@ -1419,9 +1559,8 @@ test.describe("dmc 화면 연결·넘기기·읽기 전용", () => {
       await tid(page, "cf-modal-ok").click();
       await expectToast(page, "확정했습니다");
       // 새 minor 버전에서 D1 을 삭제로 표시한다.
-      await go(page, "codeEdit");
-      await button(page, "조회").click();
-      await waitIdle(page);
+      await go(page, "codeMng");
+      await openCode(page, id);
       await tid(page, "ver-new-minor").click();
       await tid(page, "newver-ok").click();
       await expectToast(page, "새 버전을 만들었습니다");
@@ -1439,7 +1578,42 @@ test.describe("dmc 화면 연결·넘기기·읽기 전용", () => {
     }
   });
 
-  test("TC-DMC-RO-01 표준관리자(std)는 dmc 를 조회만 한다 — 등록·수정·편집·검사·확정 버튼이 막힌다", async ({ browser }, testInfo) => {
+  test("TC-DMC-ITM-12 머리 [저장]이 거부되면 이슈가 있는 탭 이름 옆에 경고 아이콘이 붙는다([코드]·[카테고리])", async ({ browser }, testInfo) => {
+    const { page, watcher } = await openAs(browser, "stw", testInfo);
+    try {
+      const id = uid("ISS");
+      await registerCode(page, id, `E2E 탭이슈 ${RUN}`);
+      await go(page, "codeItemEdit");
+      await choose(page, "code-maru-select", id);
+      await expect(tid(page, "code-ver-select")).toHaveValue("1.000", { timeout: 20_000 });
+      await expect(tid(page, "code-tab-grid-issue")).toHaveCount(0);
+      await expect(tid(page, "code-tab-cate-issue")).toHaveCount(0);
+
+      // 코드 행 이슈 → [코드] 탭 아이콘
+      await addCodeRow(page, { code: "A B", name: "공백 코드" });
+      await button(page, "저장").click();
+      await expectErrorModal(page, "코드 저장 검사를 통과하지 못했습니다");
+      await expect(tid(page, "code-tab-grid-issue"), "[코드] 탭 경고 아이콘").toBeVisible({ timeout: 20_000 });
+      await codeRow(page, "A B").getByRole("button", { name: "취소" }).click();
+
+      // 카테고리 이슈 → [카테고리] 탭 아이콘과 그 행의 이슈 문구
+      await openTab(page, "cate");
+      await tid(page, "cate-add-id").fill("BAD ID");
+      await tid(page, "cate-add-name").fill("공백 ID");
+      await tid(page, "cate-add-kind").selectOption("TABLE");
+      await tid(page, "cate-add-submit").click();
+      await button(page, "저장").click();
+      await expectErrorModal(page, "코드 저장 검사를 통과하지 못했습니다");
+      await expect(tid(page, "code-tab-cate-issue"), "[카테고리] 탭 경고 아이콘").toBeVisible({ timeout: 20_000 });
+      await expect(tid(page, "cate-row-issue-BAD ID"), "그 카테고리 행의 이슈 문구").toContainText("점·콤마·공백");
+      await snap(page, "dmc-codeItemEdit-12-tab-issues");
+      watcher.assertClean("codeItemEdit");
+    } finally {
+      await page.context().close();
+    }
+  });
+
+  test("TC-DMC-RO-01 표준관리자(std)는 dmc 를 조회만 한다 — 등록·수정·검사·확정 버튼이 막히고 [코드 편집]은 읽기 전용으로 연다", async ({ browser }, testInfo) => {
     const owner = await openAs(browser, "stw", testInfo);
     const id = uid("RO");
     try {
@@ -1451,43 +1625,40 @@ test.describe("dmc 화면 연결·넘기기·읽기 전용", () => {
 
     const { page, watcher } = await openAs(browser, "std", testInfo);
     try {
-      // codeMng — 조회는 되고(권한 조회가 끝났다는 뜻) 등록 저장은 꺼져 있다.
+      // codeMng — 조회는 되고(권한 조회가 끝났다는 뜻) [신규]가 없다.
       await go(page, "codeMng");
       await expect(button(page, "조회")).toBeEnabled({ timeout: 30_000 });
-      await tid(page, "code-search-keyword").fill(id);
-      await button(page, "조회").click();
-      await expect(gridRow(tid(page, "code-list"), id, "maruCodeId")).toHaveCount(1, { timeout: 20_000 });
-      await expect(tid(page, "code-reg-save")).toBeDisabled();
+      await expect(button(page, "신규")).toHaveCount(0);
       await snap(page, "dmc-ro-codeMng");
 
-      // codeEdit — 헤더 입력과 모든 버튼이 꺼져 있다.
-      await go(page, "codeEdit");
-      await pickCode(page, id);
+      // codeMng 오른쪽 상세 — 헤더 입력과 쓰기 버튼이 꺼져 있고 [코드 편집](조회)만 켜진다.
+      await openCode(page, id);
       await expect(tid(page, "header-name")).toBeDisabled();
       await expect(tid(page, "label-attr01")).toBeDisabled();
       await expect(tid(page, "header-save")).toBeDisabled();
-      await expect(tid(page, "header-deprecate")).toBeDisabled();
+      await expect(tid(page, "header-delete-code")).toBeDisabled();
       await selectVersion(page, "1.000");
-      for (const b of ["ver-new-major", "ver-new-minor", "ver-delete", "ver-lock", "ver-unlock", "ver-handover", "ver-confirm-move", "ver-item-edit", "ver-cate-edit"]) {
+      for (const b of ["ver-new-major", "ver-new-minor", "ver-delete", "ver-lock", "ver-unlock", "ver-handover", "ver-confirm-move"]) {
         await expect(tid(page, b), `${b}(std)`).toBeDisabled();
       }
-      await snap(page, "dmc-ro-codeEdit");
+      await expect(tid(page, "ver-item-edit"), "ver-item-edit(std) — 조회 권한으로 연다").toBeEnabled();
+      await snap(page, "dmc-ro-codeMng-detail");
 
-      // codeItemEdit — 읽기 전용, 저장·코드 추가가 없다.
-      await go(page, "codeItemEdit");
-      await choose(page, "code-maru-select", id);
-      await expect(tid(page, "code-ver-select")).toHaveValue("1.000", { timeout: 20_000 });
+      // codeItemEdit — [코드 편집]으로 열면 읽기 전용, 저장·코드 추가가 없다.
+      await tid(page, "ver-item-edit").click();
+      await expect(footerScreenId(page)).toHaveText("codeItemEdit", { timeout: 60_000 });
+      await expect(tid(page, "code-maru-select")).toHaveValue(id, { timeout: 20_000 });
+      await expect(tid(page, "code-ver-select")).toHaveValue("1.000");
       await expect(screen(page).getByText("읽기 전용 · diff 보기")).toBeVisible();
       await expect(button(page, "저장")).toHaveCount(0);
       await expect(tid(page, "code-add")).toHaveCount(0);
 
-      // codeCateEdit — 저장·카테고리 추가가 없다.
-      await go(page, "codeCateEdit");
-      await choose(page, "cate-maru-select", id);
+      // [카테고리] 탭 — 목록은 보이고 추가·닫기가 없다.
+      await openTab(page, "cate");
       await expect(tid(page, "cate-row-BASE")).toBeVisible({ timeout: 20_000 });
-      await expect(screen(page).getByText("읽기 전용", { exact: true })).toBeVisible();
-      await expect(button(page, "저장")).toHaveCount(0);
       await expect(tid(page, "cate-add-submit")).toHaveCount(0);
+      await expect(tid(page, "cate-list").locator('[data-testid^="cate-close-"]')).toHaveCount(0);
+      await snap(page, "dmc-ro-codeItemEdit-cate");
 
       // codeConfirm — 남의 DRAFT 를 골라도 검사·확정이 꺼져 있다.
       await go(page, "codeConfirm");

@@ -9,12 +9,19 @@
 import { useState } from "react";
 
 import { Button, Input } from "@dk-oasis/shared/form";
-import { DraftLockBadge, VersionStatusBadge, openMdmPage } from "@/shell";
+import { useMessage } from "@dk-oasis/shared/message-provider";
+import { DraftLockBadge, HANDOVER_AVAILABLE, HANDOVER_PENDING_TEXT, VersionStatusBadge, openMdmPage } from "@/shell";
 
-import { deleteDraft, handoverVersion, lockVersion, newVersion, unlockVersion } from "../api";
+import { cancelConfirm, deleteDraft, handoverVersion, lockVersion, newVersion, unlockVersion } from "../api";
 import type { RuleEditCardProps } from "../cards";
 import type { RuleVersionInfo } from "../types";
 import { CardFrame, MutedText } from "./CardFrame";
+
+/** D8-10 — 06 교차 효과. 되돌린 룰이 유일 확정 버전이었다면 룰 세트와 다른 룰의 확정이 막히고, 재확정하면 풀린다. */
+export const CANCEL_CONFIRM_EFFECT =
+  "적용 시각이 오기 전에는 취소할 수 있고, 이미 적용된 뒤에는 되돌릴 수 없습니다. "
+  + "확정 취소하면 이 룰을 멤버로 가진 룰 세트와 이 룰의 결과를 쓰는 다른 룰의 확정이 잠시 막힙니다. 다시 확정하면 풀립니다. "
+  + "취소해도 확정 기록은 남습니다.";
 
 /** 서버 `RuleVersions.isUnapplied` 와 같은 뜻 — DRAFT·REQUESTED·APPROVED·적용 전 RELEASED. 안내 문구에만 쓴다. */
 function isUnapplied(v: RuleVersionInfo, now: Date): boolean {
@@ -31,6 +38,7 @@ function applyRange(v: RuleVersionInfo): string {
 
 export function RuleVersionCard({ view, me, selectVer, runWrite, canDo, busy, notify }: RuleEditCardProps) {
   const [handoverTo, setHandoverTo] = useState("");
+  const { showMessage } = useMessage();
   const rule = view.rule;
   const mdm = rule.sourceKind === "MDM";
   const selected = view.versions.find((v) => v.ver === view.selectedVer) ?? null;
@@ -41,7 +49,11 @@ export function RuleVersionCard({ view, me, selectVer, runWrite, canDo, busy, no
   const canCopy = mdm && !view.unappliedVersionExists && rule.status !== "DEPRECATED" && canDo("copy") && !busy;
   const canDelete = mdm && mine && canDo("delete") && !busy;
   const canUnlock = mdm && mine && canDo("unlock") && !busy;
-  const canHandover = mdm && mine && canDo("handover") && !busy;
+  // D8 확정 취소 — 다른 판정과 달리 서버 판정값(cancelConfirmable)만 따른다. 적용 시각 경계·미적용 개수·소유자를
+  // 화면에서 다시 계산하면 서버와 어긋나므로 재계산하지 않는다. 확정 버전은 RELEASED 라 mine(draft 전용)은 걸지 않는다.
+  const canCancelConfirm = mdm && !!selected?.cancelConfirmable && canDo("delete") && !busy;
+  // D2: 넘겨받는 사람의 담당자 여부를 확인할 수단이 생길 때까지 끈다(HANDOVER_AVAILABLE).
+  const canHandover = HANDOVER_AVAILABLE && mdm && mine && canDo("handover") && !busy;
   const showLock = mdm && draft && !selected?.ownerId;
   const canMoveToConfirm = view.confirmScreenReady && mdm && draft && !busy;
 
@@ -71,7 +83,7 @@ export function RuleVersionCard({ view, me, selectVer, runWrite, canDo, busy, no
                   type="button"
                   data-testid={`rule-ver-row-${v.ver}`}
                   onClick={() => void selectVer(v.ver)}
-                  style={{ border: "none", background: "none", padding: 0, cursor: "pointer", color: "var(--color-primary)", font: "inherit" }}
+                  style={{ minHeight: "var(--form-height)", display: "inline-flex", alignItems: "center", border: "none", background: "none", padding: 0, cursor: "pointer", color: "var(--color-primary)", font: "inherit" }}
                 >
                   {v.ver}
                 </button>
@@ -120,6 +132,27 @@ export function RuleVersionCard({ view, me, selectVer, runWrite, canDo, busy, no
             >
               삭제
             </Button>
+            {/* D8 확정 취소 — 확인창에 06 교차 효과(룰 세트·다른 룰의 확정이 잠시 막힘)를 알린다. */}
+            <span
+              data-testid="rule-cancel-confirm-wrap"
+              title={canCancelConfirm ? "" : "아직 적용 시각이 오지 않은 확정 버전만 취소할 수 있습니다"}
+            >
+              <Button
+                data-testid="rule-cancel-confirm"
+                disabled={!canCancelConfirm}
+                onClick={() => {
+                  if (!selected) return;
+                  showMessage({
+                    title: "확정 취소",
+                    message: `${selected.ver} 의 확정을 취소하고 작성 중인 상태로 되돌릴까요?\n${CANCEL_CONFIRM_EFFECT}`,
+                    alertType: "confirm",
+                    onConfirm: () => void runWrite(() => cancelConfirm(id, selected.ver, selected.rowVersion), () => null),
+                  });
+                }}
+              >
+                확정 취소
+              </Button>
+            </span>
             {showLock && (
               <Button
                 disabled={!mdm || !canDo("lock") || busy}
@@ -135,11 +168,13 @@ export function RuleVersionCard({ view, me, selectVer, runWrite, canDo, busy, no
               data-testid="rule-handover-target"
               value={handoverTo}
               placeholder="넘겨받을 사용자 ID"
-              disabled={!mdm || !mine || busy}
+              disabled={!HANDOVER_AVAILABLE || !mdm || !mine || busy}
               onChange={setHandoverTo}
               style={{ width: 160 }}
             />
+            <span data-testid="rule-handover-wrap" title={HANDOVER_AVAILABLE ? "" : HANDOVER_PENDING_TEXT}>
             <Button
+              data-testid="rule-handover"
               disabled={!canHandover}
               onClick={() => {
                 if (!handoverTo.trim()) {
@@ -151,8 +186,9 @@ export function RuleVersionCard({ view, me, selectVer, runWrite, canDo, busy, no
                 });
               }}
             >
-              넘기기
+              {HANDOVER_AVAILABLE ? "넘기기" : "넘기기(준비 중)"}
             </Button>
+            </span>
           </>
         )}
         {selected && <DraftLockBadge status={selected.status} ownerId={selected.ownerId} currentUserId={me} />}

@@ -55,14 +55,11 @@ const codes = (rows: ColumnDraftRow[], ctx: ColumnDraftContext) =>
   checkColumnDraft(rows, ctx).rejects.map((c) => c.code);
 
 describe("draftFromView", () => {
-  it("조건 열 다음에 결과 열, 각 묶음은 seq 순이고 저장 원값(axis·도메인)을 싣는다", () => {
-    const v = { ...view(), varMeta: [{ varId: 1, axis: "ROW" as const, domainId: null, dataType: null }] };
+  it("조건 열 다음에 결과 열, 각 묶음은 seq 순이고 저장 원값(도메인)을 싣는다", () => {
+    const v = { ...view(), varMeta: [{ varId: 1, domainId: null, dataType: null }] };
     const rows = draftFromView(v);
     expect(rows.map((r) => r.varName)).toEqual(["COIL_THK", "COIL_WID", "SURF_GRD", "QLTY_GRD", "PRC_FCT"]);
-    expect(rows[0].axis).toBe("ROW");
-    expect(rows[1].axis).toBe("NONE");
     expect(rows[0].domainId).toBeNull();
-    expect(rows[3].axis).toBeNull();
   });
 
   it("산출 룰 결과 열은 첫 NORMAL 행의 결과 식을 초안 expr 로 가져온다", () => {
@@ -163,11 +160,9 @@ describe("줄별 검사표 — 거부(서버와 같은 목록)", () => {
     expect(codes(edit(rows, keyOf(rows, "QLTY_GRD"), { dispType: "2" }), ctxOf(view()))).toContain("DISP_TYPE");
   });
 
-  it("axis 는 조건 열에만, 그룹·열 조건은 결과 열에만, 집계·순위는 적중 정책에 맞을 때만", () => {
+  it("그룹·열 조건은 결과 열에만, 집계·순위는 적중 정책에 맞을 때만", () => {
     const rows = load();
     const ctx = ctxOf(view());
-    expect(codes(edit(rows, keyOf(rows, "QLTY_GRD"), { axis: "ROW" }), ctx)).toContain("AXIS_COND_ONLY");
-    expect(codes(edit(rows, keyOf(rows, "COIL_THK"), { axis: "DIAG" as never }), ctx)).toContain("AXIS_VALUE");
     expect(codes(edit(rows, keyOf(rows, "COIL_THK"), { resGrp: "G" }), ctx)).toContain("GRP_RESULT_ONLY");
     expect(codes(edit(rows, keyOf(rows, "QLTY_GRD"), { collectAgg: "SUM" }), ctx)).toContain("AGG_COLLECT");
     expect(codes(edit(rows, keyOf(rows, "QLTY_GRD"), { prioList: ["A"] }), ctx)).toContain("PRIO_PRIORITY");
@@ -329,7 +324,6 @@ describe("원자 적용(불변 2)과 알림 3종(불변 8)", () => {
     expect(fresh).not.toHaveProperty("resGrp");
     expect(fresh.deleted).toBeUndefined();
     expect(res.request.find((r) => r.varName === "COIL_THK")!.varId).toBe(1);
-    expect(res.request.find((r) => r.varName === "COIL_THK")!.axis).toBe("NONE");
     expect(res.request.map((r) => r.varName)).toEqual(["COIL_THK", "COIL_WID", "SURF_GRD", "QLTY_GRD", "PRC_FCT", "NEW_RES"]);
     expect(res.notices).toEqual([{ kind: "NEW_COL", varName: "NEW_RES", count: 0 }]);
   });

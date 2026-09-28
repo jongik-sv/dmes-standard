@@ -57,7 +57,7 @@ final class MdmBusinessRuleExpectations {
                 "DESCRIPTION", "REQUESTED_BY", "REQUESTED_AT", "EMERGENCY_YN", "EMERGENCY_REASON", "APPROVED_BY",
                 "APPROVED_AT", "REJECT_REASON", "RELEASED_AT", "CANCELLED_AT", "CANCEL_REASON", "ROW_VERSION"));
         BUSINESS_COLUMNS.put("TB_MDM_RULE_VAR", List.of(
-                "MARU_RULE_ID", "VER", "VAR_ID", "VAR_KIND", "DISP_TYPE", "AXIS", "VAR_NAME", "VAR_AST", "DOMAIN_ID",
+                "MARU_RULE_ID", "VER", "VAR_ID", "VAR_KIND", "DISP_TYPE", "VAR_NAME", "VAR_AST", "DOMAIN_ID",
                 "DATA_TYPE", "COLLECT_AGG", "PRIO_LIST", "RES_GRP", "GRP_COND", "GRP_COND_AST", "SEQ", "LABEL",
                 "DESCRIPTION"));
         BUSINESS_COLUMNS.put("TB_MDM_RULE_ROW", List.of(
@@ -90,7 +90,7 @@ final class MdmBusinessRuleExpectations {
                 "CK_TB_MDM_RULE_VER_APPLY", "CK_TB_MDM_RULE_VER_EMERGENCY_YN"));
         CONSTRAINTS.put("TB_MDM_RULE_VAR", List.of(
                 "PK_TB_MDM_RULE_VAR", "FK_TB_MDM_RULE_VAR_VER", "FK_TB_MDM_RULE_VAR_DOMAIN", "CK_TB_MDM_RULE_VAR_KIND",
-                "CK_TB_MDM_RULE_VAR_DISP", "CK_TB_MDM_RULE_VAR_AXIS", "CK_TB_MDM_RULE_VAR_DTYPE",
+                "CK_TB_MDM_RULE_VAR_DISP", "CK_TB_MDM_RULE_VAR_DTYPE",
                 "CK_TB_MDM_RULE_VAR_AGG", "CK_TB_MDM_RULE_VAR_RESULT_NAME", "CK_TB_MDM_RULE_VAR_VAR_AST_JSON",
                 "CK_TB_MDM_RULE_VAR_PRIO_LIST_JSON", "CK_TB_MDM_RULE_VAR_GRP_COND_AST_JSON"));
         CONSTRAINTS.put("TB_MDM_RULE_ROW", List.of(

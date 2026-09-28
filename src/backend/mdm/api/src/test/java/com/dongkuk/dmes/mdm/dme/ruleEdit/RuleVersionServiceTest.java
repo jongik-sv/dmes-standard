@@ -75,9 +75,9 @@ class RuleVersionServiceTest extends AbstractMdmSharedDbTest {
     @Test
     void 새_버전은_직전_RELEASED_의_변수와_행을_칼럼_전부_복사하고_번호를_유지한다() {
         // 칼럼 전수 비교를 위해 VAR·ROW 의 선택 칼럼을 모두 채운 행을 하나씩 더한다.
-        jdbc.update("INSERT INTO TB_MDM_RULE_VAR (MARU_RULE_ID, VER, VAR_ID, VAR_KIND, DISP_TYPE, AXIS, VAR_NAME, VAR_AST, DOMAIN_ID, DATA_TYPE, "
+        jdbc.update("INSERT INTO TB_MDM_RULE_VAR (MARU_RULE_ID, VER, VAR_ID, VAR_KIND, DISP_TYPE, VAR_NAME, VAR_AST, DOMAIN_ID, DATA_TYPE, "
                 + "COLLECT_AGG, PRIO_LIST, RES_GRP, GRP_COND, GRP_COND_AST, SEQ, LABEL, DESCRIPTION) VALUES ('QLTY_GRD_JDG', 1, 9, 'RESULT', "
-                + "'Expression', 'COL', 'SPD', '{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"A\"}', "
+                + "'Expression', 'SPD', '{\"type\":\"VARIABLE_OR_CONSTANT\",\"value\":\"A\"}', "
                 + "(SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'COIL_THK_D'), 'NUMBER', 'SUM', '[\"A\",\"B\"]', 'GRP', 'A == 1', "
                 + "'{\"type\":\"INFIX_OPERATOR\"}', 3, '속도', '설명9')");
         jdbc.update("INSERT INTO TB_MDM_RULE_ROW (MARU_RULE_ID, VER, ROW_ID, SEQ, ROW_KIND, CELLS, NOTE, TAG) VALUES ('QLTY_GRD_JDG', 1, 7, 4, "

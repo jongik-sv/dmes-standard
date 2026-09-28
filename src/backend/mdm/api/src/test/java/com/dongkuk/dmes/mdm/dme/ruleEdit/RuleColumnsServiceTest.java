@@ -35,7 +35,7 @@ import org.springframework.test.context.ActiveProfiles;
 /**
  * TSK-08-03 design §3.1 「RuleColumnsServiceTest」 — 열 설정 저장(part COLUMNS): 초안 전체를 한 번에 검사해 거부가 하나라도 있으면
  * 아무것도 반영하지 않는 원자 적용, 신규 열 var_id 발급, 표시 타입·변수 변경 열의 셀 비움, 삭제 열의 변수·셀 삭제, seq 재배열, 그룹 검사 전부,
- * DERIVE 산출 순서, axis 규칙, COLLECT_AGG 기본값(불변 규칙 1·2·5·7·8·10·12·14).
+ * DERIVE 산출 순서, COLLECT_AGG 기본값(불변 규칙 1·2·5·7·8·10·12·14).
  * 시작 상태: QLTY_GRD_JDG VER 1 RELEASED + VER 2 DRAFT(소유자 kim, base 1, FIRST, LAST_VAR_ID 5·LAST_ROW_ID 4).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
@@ -146,7 +146,7 @@ class RuleColumnsServiceTest extends AbstractMdmSharedDbTest {
         List<Map<String, Object>> rowsBefore = jdbc.queryForList("SELECT * FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 ORDER BY ROW_ID");
 
         List<Map<String, Object>> cols = qCols();
-        with(cols.get(1), "axis", "LEFT"); // COND 2 축 값 오류
+        with(cols.get(1), "dispType", "Value"); // COND 열에 결과 표시 타입
 
         assertEquals("INVALID_VALUE", mdm(() -> service.save(columns(0, cols))));
 
@@ -182,7 +182,7 @@ class RuleColumnsServiceTest extends AbstractMdmSharedDbTest {
         assertEquals("INVALID_VALUE", mdm(() -> service.save(columns(0, dup))));
     }
 
-    // ── 프로그램 변수·결과 변수명·axis ──
+    // ── 프로그램 변수·결과 변수명 ──
 
     @Test
     void 프로그램_변수는_값_타입을_선언해야_하고_결과_변수명은_버전_안에서_유일하다() {
@@ -199,24 +199,6 @@ class RuleColumnsServiceTest extends AbstractMdmSharedDbTest {
         List<Map<String, Object>> dupName = qCols();
         with(dupName.get(3), "varName", "PRC_FCT");
         assertEquals("INVALID_VALUE", mdm(() -> service.save(columns(rv, dupName))), "결과 변수명 중복");
-    }
-
-    @Test
-    void axis_는_COND_전용이고_ROW_COL_NONE_중_하나다() {
-        List<Map<String, Object>> result = qCols();
-        with(result.get(3), "axis", "ROW");
-        assertEquals("INVALID_VALUE", mdm(() -> service.save(columns(0, result))));
-        List<Map<String, Object>> bad = qCols();
-        with(bad.get(0), "axis", "LEFT");
-        assertEquals("INVALID_VALUE", mdm(() -> service.save(columns(0, bad))));
-        List<Map<String, Object>> ok = qCols();
-        with(ok.get(0), "axis", "ROW");
-        with(ok.get(1), "axis", "COL");
-        with(ok.get(2), "axis", "NONE");
-        service.save(columns(0, ok));
-        assertEquals("ROW", jdbc.queryForObject("SELECT AXIS FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 AND VAR_ID = 1", String.class));
-        assertNull(jdbc.queryForObject("SELECT AXIS FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 AND VAR_ID = 4", String.class),
-                "결과 열의 axis 는 NULL");
     }
 
     @Test
@@ -286,7 +268,7 @@ class RuleColumnsServiceTest extends AbstractMdmSharedDbTest {
     /** BASE_SPD_LKP v2 칼럼 9줄을 요청으로 옮긴다. domainId 는 SPEED_MPM_D. */
     private List<Map<String, Object>> gCols() {
         List<Map<String, Object>> out = new ArrayList<>();
-        out.add(with(col(1, "COND", "2", "COIL_THK"), "axis", "NONE"));
+        out.add(col(1, "COND", "2", "COIL_THK"));
         String[][] grp = {{"2", "TEXTURE", "STR_STARTS_WITH(TOP_RESIN_CD, \"2\")"}, {"3", "AKZO", "STR_STARTS_WITH(TOP_RESIN_CD, \"6\")"},
                 {"4", "FLUORO", "TOP_RESIN_CD == \"F\""}, {"5", "WXL1", "STR_STARTS_WITH(TOP_RESIN_CD, \"W\") && COAT_SIDE == \"1\""},
                 {"6", "WXL2", "STR_STARTS_WITH(TOP_RESIN_CD, \"W\") && COAT_SIDE == \"2\""}, {"7", "BACK1", "STR_STARTS_WITH(TOP_RESIN_CD, \"B\") && COAT_SIDE == \"1\""},
@@ -526,47 +508,6 @@ class RuleColumnsServiceTest extends AbstractMdmSharedDbTest {
         result.add(with(col(-1, "RESULT", "Value", "1ST_GRD"), "dataType", "STRING"));
         assertEquals("INVALID_VALUE", mdm(() -> service.save(columns(0, result))), "숫자로 시작하는 결과 변수명");
         assertEquals(5, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2"), "거부로 아무것도 반영되지 않는다");
-    }
-
-    // ── 피벗 축(화면 표현) 경고·권한 ──
-
-    private void seedPivot() {
-        DmeTestSupport.rule(jdbc, "PVT_LKP", "피벗 데모", "DECISION", "CREATED");
-        jdbc.update("UPDATE TB_MDM_RULE SET LAST_VAR_ID = 3, LAST_ROW_ID = 3 WHERE MARU_RULE_ID = 'PVT_LKP'");
-        DmeTestSupport.pending(jdbc, "PVT_LKP", 1, "DRAFT", "kim", "UNIQUE", null);
-        jdbc.update("INSERT INTO TB_MDM_RULE_VAR (MARU_RULE_ID, VER, VAR_ID, VAR_KIND, DISP_TYPE, VAR_NAME, SEQ, AXIS) VALUES "
-                + "('PVT_LKP', 1, 1, 'COND', '2', 'COIL_THK', 1, 'ROW')");
-        jdbc.update("INSERT INTO TB_MDM_RULE_VAR (MARU_RULE_ID, VER, VAR_ID, VAR_KIND, DISP_TYPE, VAR_NAME, SEQ, AXIS) VALUES "
-                + "('PVT_LKP', 1, 2, 'COND', 'Equal', 'SURF_GRD', 2, 'COL')");
-        jdbc.update("INSERT INTO TB_MDM_RULE_VAR (MARU_RULE_ID, VER, VAR_ID, VAR_KIND, DISP_TYPE, VAR_NAME, SEQ, DATA_TYPE) VALUES "
-                + "('PVT_LKP', 1, 3, 'RESULT', 'Value', 'PVT_OUT', 1, 'NUMBER')");
-        String[][] rows = {{"1", "{\"1\":{\"op\":\"<= 변수 <\",\"left\":\"0\",\"right\":\"0.5\"},\"2\":{\"op\":\"EQ\",\"left\":\"A\"},\"3\":{\"val\":\"10\"}}"},
-                {"2", "{\"1\":{\"op\":\"<= 변수 <\",\"left\":\"0.5\",\"right\":\"0.6\"},\"2\":{\"op\":\"EQ\",\"left\":\"A\"},\"3\":{\"val\":\"11\"}}"},
-                {"3", "{\"1\":{\"op\":\"<= 변수 <\",\"left\":\"0\",\"right\":\"0.5\"},\"2\":{\"op\":\"EQ\",\"left\":\"B\"},\"3\":{\"val\":\"12\"}}"}};
-        for (String[] r : rows) {
-            jdbc.update("INSERT INTO TB_MDM_RULE_ROW (MARU_RULE_ID, VER, ROW_ID, SEQ, ROW_KIND, CELLS) VALUES ('PVT_LKP', 1, ?, ?, 'NORMAL', ?)",
-                    Integer.parseInt(r[0]), Integer.parseInt(r[0]), r[1]);
-        }
-    }
-
-    private List<Map<String, Object>> pCols() {
-        return new ArrayList<>(List.of(
-                with(col(1, "COND", "2", "COIL_THK"), "axis", "ROW"),
-                with(col(2, "COND", "Equal", "SURF_GRD"), "axis", "COL"),
-                with(col(3, "RESULT", "Value", "PVT_OUT"), "dataType", "NUMBER")));
-    }
-
-    @Test
-    void 축_조합_빈틈은_경고만_하고_저장을_막지_않는다() {
-        seedPivot();
-        RuleEditSaveRequest r = columns(0, pCols());
-        r.setMaruRuleId("PVT_LKP");
-        r.setVer(1);
-        RuleEditSaveResult out = service.save(r); // ROW 2구간 × COL 2값 = 4조각, 행 3개 → 빈틈
-        assertEquals(1L, out.getRowVersion());
-        assertTrue(out.getIssues().stream().anyMatch(i -> "PIVOT_COVER_INCOMPLETE".equals(i.get("code")) && "WARNING".equals(i.get("severity"))),
-                String.valueOf(out.getIssues()));
-        assertEquals(3, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'PVT_LKP' AND VER = 1"), "저장은 됐다");
     }
 
     @Test

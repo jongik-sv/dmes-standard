@@ -201,7 +201,7 @@ class RuleSetLifecycleOasisFlowTest {
         ObjectNode body = envelope("ruleEdit", params);
         ArrayNode rows = body.putObject("grids").putObject("rows").putArray("rows");
         rows.addObject().put("varId", -1).put("varKind", "COND").put("dispType", "2").put("varName", "COIL_THK")
-                .put("dataType", "NUMBER").put("axis", "NONE");
+                .put("dataType", "NUMBER");
         for (int i = 0; i < GROUP_COLS.length; i++) {
             ObjectNode col = rows.addObject().put("varId", -(i + 2)).put("varKind", "RESULT").put("dispType", "Value")
                     .put("varName", GROUP_COLS[i][0]).put("dataType", "NUMBER").put("resGrp", "BASE_SPD");
@@ -241,9 +241,9 @@ class RuleSetLifecycleOasisFlowTest {
         ObjectNode body = envelope("ruleEdit", params);
         ArrayNode rows = body.putObject("grids").putObject("rows").putArray("rows");
         rows.addObject().put("varId", -1).put("varKind", "COND").put("dispType", "1").put("varName", "COIL_WID")
-                .put("dataType", "NUMBER").put("axis", "NONE");
+                .put("dataType", "NUMBER");
         rows.addObject().put("varId", -2).put("varKind", "COND").put("dispType", "1").put("varName", "BASE_SPD")
-                .put("dataType", "NUMBER").put("axis", "NONE");
+                .put("dataType", "NUMBER");
         rows.addObject().put("varId", -3).put("varKind", "RESULT").put("dispType", "Value").put("varName", "EXC_SPD")
                 .put("dataType", "NUMBER");
         JsonNode saved = post("ruleEdit", "save", body);

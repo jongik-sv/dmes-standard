@@ -42,9 +42,6 @@ public class MdmRuleVar extends CactusAuditEntity {
     @Column(name = "DISP_TYPE", length = 20)
     private String dispType;
 
-    @Column(name = "AXIS", length = 20)
-    private String axis;
-
     /** 변수 이름 또는 식 텍스트. {@code VAR_AST} 가 NULL 이면 이름이다(06:1012). */
     @Column(name = "VAR_NAME", length = 1000)
     private String varName;
@@ -100,7 +97,6 @@ public class MdmRuleVar extends CactusAuditEntity {
     public Integer getVarId() { return varId; }
     public String getVarKind() { return varKind; }
     public String getDispType() { return dispType; }
-    public String getAxis() { return axis; }
     public String getVarName() { return varName; }
     public String getVarAst() { return varAst; }
     public Long getDomainId() { return domainId; }
@@ -116,7 +112,6 @@ public class MdmRuleVar extends CactusAuditEntity {
 
     public void setVarKind(String v) { this.varKind = v; }
     public void setDispType(String v) { this.dispType = v; }
-    public void setAxis(String v) { this.axis = v; }
     public void setVarName(String v) { this.varName = v; }
     public void setVarAst(String v) { this.varAst = v; }
     public void setDomainId(Long v) { this.domainId = v; }

@@ -143,6 +143,42 @@ public class VersionRowStore {
         return bindKey(query(sql), ref).setParameter("expected", expected).executeUpdate();
     }
 
+    /**
+     * 확정 취소 RELEASED → DRAFT 조건부 UPDATE(ADR-0002 D8-4·D8-5·D8-15).
+     *
+     * <p>{@code STATUS}·{@code APPLY_FROM}·{@code APPLY_TO}·{@code ROW_VERSION} 와 감사 칼럼만 쓴다. 확정 칸
+     * ({@code REQUESTED_BY}·{@code REQUESTED_AT}·{@code RELEASED_AT})은 <b>지우지 않는다</b> — 확정자를 되찾을 수단이
+     * 사라지지 않고 "확정 후 취소" 흔적이 감사에서 남는다.
+     *
+     * <p>술어는 {@code STATUS='RELEASED'}(확정의 {@code STATUS='DRAFT'} 와 별개)다. 공용 헬퍼를 바꾸면 {@link #casConfirm}·
+     * {@link #casSetOwner}·{@link #casBumpRowVersion}·{@link #casDeleteDraft} 가 함께 오염된다.
+     */
+    public int casCancelConfirm(VersionRef ref, long expected, AuditStamp stamp) {
+        VersionTableSpec spec = spec(ref.target());
+        String sql = "UPDATE " + spec.versionTable() + " SET " + STATUS + " = '" + DRAFT + "', "
+                + APPLY_FROM + " = NULL, " + APPLY_TO + " = NULL, "
+                + rowVersionBump() + auditSet(spec.auditCounterColumn())
+                + keyWhere(spec) + releasedAndRowVersion();
+        NativeQuery<?> q = bindKey(query(sql), ref).setParameter("expected", expected);
+        return bindAudit(q, stamp).executeUpdate();
+    }
+
+    /**
+     * 직전 {@code RELEASED} 의 적용 구간을 다시 연다 — {@link #closeApplyTo} 의 역연산(ADR-0002 D8-6).
+     *
+     * <p>확정이 직전 버전의 {@code APPLY_TO} 를 새 버전의 {@code apply_from} 으로 닫았으므로, 확정 취소만 하면 그 뒤가 빈
+     * 구간이 된다. 대상은 "자신보다 {@code ver} 가 작은 {@code RELEASED} 가운데 최대"(확정이 쓰는 대상과 같다)다.
+     */
+    public int reopenApplyTo(VersionRef prev, AuditStamp stamp) {
+        VersionTableSpec spec = spec(prev.target());
+        String sql = "UPDATE " + spec.versionTable() + " SET " + APPLY_TO + " = :openEnd"
+                + auditSet(spec.auditCounterColumn())
+                + keyWhere(spec) + " AND " + STATUS + " = '" + RELEASED + "'";
+        NativeQuery<?> q = bindKey(query(sql), prev)
+                .setParameter("openEnd", temporal.toDb(VersionConventions.OPEN_END));
+        return bindAudit(q, stamp).executeUpdate();
+    }
+
     /** 부모 CREATED → INUSE. 이미 INUSE·DEPRECATED 면 손대지 않는다(ADR-0002 D6, D8). */
     public int markParentInUse(VersionTarget target, String objectId, AuditStamp stamp) {
         VersionTableSpec spec = spec(target);
@@ -194,6 +230,11 @@ public class VersionRowStore {
 
     private static String draftAndRowVersion() {
         return " AND " + STATUS + " = '" + DRAFT + "' AND " + ROW_VERSION_COLUMN + " = :expected";
+    }
+
+    /** 확정 취소용 술어 — {@link #draftAndRowVersion()} 와 상태만 다르다(ADR-0002 D8-15). */
+    private static String releasedAndRowVersion() {
+        return " AND " + STATUS + " = '" + RELEASED + "' AND " + ROW_VERSION_COLUMN + " = :expected";
     }
 
     private static String rowVersionBump() {

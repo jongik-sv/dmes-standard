@@ -19,7 +19,7 @@ import {
   SearchField,
 } from "@dk-oasis/shared/layout";
 import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
-import { Input, ProgressBar, Textarea } from "@dk-oasis/shared/form";
+import { Button, Input, ProgressBar, Textarea } from "@dk-oasis/shared/form";
 import { MdmPageLayout } from "@/shell";
 import { useDebouncedEffect } from "@/hooks/use-debounced-effect";
 
@@ -350,7 +350,7 @@ export default function TermMngPage() {
             {stage1Candidates.map((c) => (
               <div key={`s1-${c.termId}`} data-testid={`reco-candidate-1-${c.termId}`} style={{ display: "flex", justifyContent: "space-between", padding: "4px var(--spacing-md)" }}>
                 <span>{c.termName} ({c.score.toFixed(2)})</span>
-                <button type="button" onClick={() => handleConfirmSynonym(c)}>동의어로 확정</button>
+                <Button size="sm" onClick={() => handleConfirmSynonym(c)}>동의어로 확정</Button>
               </div>
             ))}
           </div>
@@ -359,7 +359,7 @@ export default function TermMngPage() {
               {stage2Candidates.map((c) => (
                 <div key={`s2-${c.termId}`} data-testid={`reco-candidate-2-${c.termId}`} style={{ display: "flex", justifyContent: "space-between", padding: "4px var(--spacing-md)" }}>
                   <span>{c.termName} ({c.score.toFixed(2)})</span>
-                  <button type="button" onClick={() => handleConfirmSynonym(c)}>동의어로 확정</button>
+                  <Button size="sm" onClick={() => handleConfirmSynonym(c)}>동의어로 확정</Button>
                 </div>
               ))}
             </div>

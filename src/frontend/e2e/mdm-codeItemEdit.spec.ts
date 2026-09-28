@@ -2,7 +2,8 @@ import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 /**
- * 코드 편집(codeItemEdit) — TSK-06-03 design.md §4.9 화면 스모크 넷.
+ * 코드 편집(codeItemEdit) — TSK-06-03 design.md §4.9 화면 스모크 넷 + 카테고리 탭(TSK-06-04 design.md §3 스모크 넷,
+ * 2026-09-28 카테고리 편집 화면을 합침 D-101 — 옛 mdm-codeCateEdit.spec.ts T1~T4 를 T7~T10 으로 옮겼다).
  *
  *   T1 담당자: 메뉴(마루 MDM > 마스터코드 > 코드 편집)로 화면이 열린다(스모크 넷 1, 수용 기준 3).
  *   T2 담당자: 빈 마루 코드는 빈 상태, E2E_PROC 는 서버 데이터와 기본 버전 v2.000 DRAFT(스모크 넷 2).
@@ -10,12 +11,19 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  *   T4 담당자: 코드 `A B` 저장 → 서버 거부 오류 모달 + 행 이슈(스모크 넷 4).
  *   T5 담당자: v1.000 RELEASED 는 읽기 전용 + 경미 수정(83 통과, 82 는 DRAFT에서 고치세요)(수용 기준 2·5·6).
  *   T6 담당자: E2E_STEEL 트리 보기 → KS-3 노드 → 이 노드로 편집 → 5행 거르기(수용 기준 4 화면).
+ *   T7 담당자: 카테고리 탭 — 탭이 코드·트리·카테고리 셋이고, 마루 코드를 고르기 전에는 빈 상태다.
+ *   T8 담당자: 카테고리 탭 — E2E_CATE 는 카테고리 목록(REGEX 1개·TABLE 1개)이 서버 데이터로 채워지고, E2E_CATE_EMPTY 는
+ *              BASE 뿐인 빈 상태다. BASE 행에는 편집·닫기 버튼이 없다(06-04 수용 기준 2).
+ *   T9 담당자: TABLE 카테고리에 코드 1건을 `>` 로 옮기고 상단 [저장] 한 번 → 소속 목록 갱신.
+ *   T10 담당자: 정규식 문법 오류(`(` 미닫힘)를 저장 시도 → 오류 문구 + 카테고리 목록 행 이슈·탭 표시(06-04 수용 기준 1).
+ *   T11 담당자: 코드 탭에서 추가만 하고 저장하지 않은 코드가 TABLE 카테고리 transfer 후보에 `미저장` 으로 보이고, 옮긴 뒤
+ *              [저장] 한 번으로 코드와 소속이 함께 저장된다.
  *
  * 전제(design.md §4.11): 새 mcm.db·mdm.db 로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고, mcm 기동 뒤
- * e2e/fixtures/mdm-rbac-users.sql, mdm 기동 뒤 e2e/fixtures/mdm-codeItemEdit.sql 을 넣는다. 이 spec 은 코드 행을
- * 만들기 때문에 **같은 mdm.db 로 다시 돌릴 수 없다**(새 mdm.db + 픽스처로 다시 시작). dmc 에서 담당자는 CONFIRM
- * 세트라 저장할 수 있고 표준 관리자는 READ 라 저장이 403 이다. SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다
- * (기본값 5100 은 메인 체크아웃 포털 → 거짓 통과).
+ * e2e/fixtures/mdm-rbac-users.sql, mdm 기동 뒤 e2e/fixtures/mdm-codeItemEdit.sql 과 e2e/fixtures/mdm-codeCateEdit.sql
+ * (E2E_CATE·E2E_CATE_EMPTY) 을 넣는다. 이 spec 은 코드 행·소속을 만들기 때문에 **같은 mdm.db 로 다시 돌릴 수
+ * 없다**(새 mdm.db + 픽스처로 다시 시작). dmc 에서 담당자는 CONFIRM 세트라 저장할 수 있고 표준 관리자는 READ 라
+ * 저장이 403 이다. SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다(기본값 5100 은 메인 체크아웃 포털 → 거짓 통과).
  */
 
 const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
@@ -28,6 +36,7 @@ const SAVE_REJECTED = "코드 저장 검사를 통과하지 못했습니다";
 
 // __dirname = src/frontend/e2e → repo root 까지 3단계 위.
 const screenshot = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-06-03/screens", name);
+const cateScreenshot = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-06-04/screens", name);
 
 async function login(page: Page, user: string) {
   await page.goto(`${BASE_URL}/login`);
@@ -49,6 +58,11 @@ async function chooseCode(page: Page, id: string) {
   await expect(page.getByTestId("code-maru-select").locator(`option[value="${id}"]`)).toHaveCount(1, { timeout: 20_000 });
   await page.getByTestId("code-maru-select").selectOption(id);
   await page.getByRole("button", { name: "조회", exact: true }).click();
+}
+
+async function openCateTab(page: Page) {
+  await page.getByTestId("code-tab-cate").click();
+  await expect(page.getByTestId("cate-tab")).toBeVisible({ timeout: 20_000 });
 }
 
 function grid(page: Page): Locator {
@@ -191,5 +205,106 @@ test.describe("mdm codeItemEdit — 코드 편집", () => {
     await expect(grid(page)).toBeVisible();
     await expect(page.getByTestId("code-filter-chip")).toContainText("KS-3 아래");
     await expect(grid(page).locator(".ag-center-cols-container .ag-row")).toHaveCount(5, { timeout: 20_000 });
+  });
+  test("T7 담당자: 탭은 코드·트리·카테고리 셋이고 마루 코드를 고르기 전 카테고리 탭은 빈 상태다", async ({ page }) => {
+    await login(page, STEWARD);
+    await openCodeItemEdit(page);
+
+    await expect(page.getByTestId("code-tab-grid")).toHaveText("코드");
+    await expect(page.getByTestId("code-tab-tree")).toHaveText("트리");
+    await expect(page.getByTestId("code-tab-cate")).toHaveText("카테고리");
+    await page.getByTestId("code-tab-cate").click();
+    await expect(page.getByTestId("cate-empty")).toHaveText("마루 코드를 고르세요");
+    await page.screenshot({ path: cateScreenshot("dmc-codeItemEdit-cate-open.png"), fullPage: true });
+  });
+
+  test("T8 담당자: 카테고리 탭 — 서버 데이터와 빈 상태, BASE 는 편집·닫기 버튼이 없다", async ({ page }) => {
+    await login(page, STEWARD);
+    await openCodeItemEdit(page);
+
+    await chooseCode(page, "E2E_CATE");
+    await openCateTab(page);
+    await expect(page.getByTestId("cate-row-RGX1")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("cate-row-TBL1")).toBeVisible();
+    await expect(page.getByTestId("cate-close-BASE")).toHaveCount(0);
+    await expect(page.getByTestId("cate-close-RGX1")).toHaveCount(1);
+    await page.screenshot({ path: cateScreenshot("dmc-codeItemEdit-cate-list.png"), fullPage: true });
+
+    await chooseCode(page, "E2E_CATE_EMPTY");
+    await expect(page.getByTestId("cate-row-BASE")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("cate-list").locator('[data-testid^="cate-row-"]')).toHaveCount(1);
+    await page.getByTestId("cate-row-BASE").click();
+    await expect(page.getByTestId("cate-base-readonly")).toBeVisible();
+    await page.screenshot({ path: cateScreenshot("dmc-codeItemEdit-cate-empty.png"), fullPage: true });
+  });
+
+  test("T9 담당자: TABLE 카테고리에 코드를 옮기고 [저장] 한 번이면 소속 목록이 갱신된다", async ({ page }) => {
+    await login(page, STEWARD);
+    await openCodeItemEdit(page);
+    await chooseCode(page, "E2E_CATE");
+    await openCateTab(page);
+
+    await page.getByTestId("cate-row-TBL1").click();
+    await expect(page.getByTestId("cate-transfer")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("cate-transfer-item-available-B")).toBeVisible();
+    await page.getByTestId("cate-transfer-item-available-B").click();
+    await page.getByTestId("cate-transfer-move-right").click();
+    await expect(page.getByTestId("cate-transfer-item-member-B")).toBeVisible();
+
+    await page.getByRole("button", { name: "저장", exact: true }).click();
+    await expect(page.getByText("저장했습니다")).toBeVisible({ timeout: 20_000 });
+    await page.screenshot({ path: cateScreenshot("dmc-codeItemEdit-cate-saved.png"), fullPage: true });
+
+    // 다시 읽은 소속 목록에 B 가 반영됐는지 재조회로 확인한다.
+    await chooseCode(page, "E2E_CATE");
+    await openCateTab(page);
+    await page.getByTestId("cate-row-TBL1").click();
+    await expect(page.getByTestId("cate-transfer-item-member-B")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("cate-transfer-item-member-A")).toBeVisible();
+  });
+
+  test("T10 담당자: 정규식 문법 오류는 저장이 거부되고 오류 문구·카테고리 이슈가 보인다", async ({ page }) => {
+    await login(page, STEWARD);
+    await openCodeItemEdit(page);
+    await chooseCode(page, "E2E_CATE");
+    await openCateTab(page);
+
+    await page.getByTestId("cate-row-RGX1").click();
+    await expect(page.getByTestId("cate-regex-edit")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("cate-regex-expr").fill("(");
+
+    await page.getByRole("button", { name: "저장", exact: true }).click();
+    const modal = page.locator(".error-modal__body");
+    await expect(modal).toBeVisible({ timeout: 20_000 });
+    await expect(modal).toContainText(SAVE_REJECTED);
+    await page.screenshot({ path: cateScreenshot("dmc-codeItemEdit-cate-error.png"), fullPage: true });
+    await page.getByRole("button", { name: "확인" }).click();
+    await expect(page.getByTestId("cate-row-issue-RGX1")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("code-tab-cate-issue")).toBeVisible();
+  });
+
+  test("T11 담당자: 저장하지 않은 새 코드도 TABLE 후보에 보이고 [저장] 한 번으로 코드와 소속이 함께 저장된다", async ({ page }) => {
+    await login(page, STEWARD);
+    await openCodeItemEdit(page);
+    await chooseCode(page, "E2E_CATE");
+    await expect(gridRow(page, "A")).toHaveCount(1, { timeout: 20_000 });
+
+    const code = `N${SUFFIX}`;
+    await addCode(page, code, "E2E 새 코드");
+    await openCateTab(page);
+    await page.getByTestId("cate-row-TBL1").click();
+    await page.getByTestId("cate-transfer-search").fill(code);
+    await expect(page.getByTestId(`cate-transfer-item-available-${code}`)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId(`cate-transfer-mark-${code}`)).toHaveText("미저장");
+    await page.getByTestId(`cate-transfer-item-available-${code}`).click();
+    await page.getByTestId("cate-transfer-move-right").click();
+    await expect(page.getByTestId(`cate-transfer-item-member-${code}`)).toBeVisible();
+
+    await page.getByRole("button", { name: "저장", exact: true }).click();
+    await expect(page.getByText("저장했습니다")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("cate-row-TBL1").click();
+    await page.getByTestId("cate-transfer-search").fill(code);
+    await expect(page.getByTestId(`cate-transfer-item-member-${code}`)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId(`cate-transfer-mark-${code}`)).toHaveCount(0);
   });
 });

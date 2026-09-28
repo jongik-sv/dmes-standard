@@ -125,11 +125,11 @@ class SampleRuleLifecycleOasisFlowTest {
         ObjectNode body = envelope("ruleEdit", params);
         ArrayNode rows = body.putObject("grids").putObject("rows").putArray("rows");
         rows.addObject().put("varId", -1).put("varKind", "COND").put("dispType", "2").put("varName", "COIL_THK")
-                .put("dataType", "NUMBER").put("axis", "NONE");
+                .put("dataType", "NUMBER");
         rows.addObject().put("varId", -2).put("varKind", "COND").put("dispType", "1").put("varName", "COIL_WID")
-                .put("dataType", "NUMBER").put("axis", "NONE");
+                .put("dataType", "NUMBER");
         rows.addObject().put("varId", -3).put("varKind", "COND").put("dispType", "1").put("varName", "SURF_GRD")
-                .put("dataType", "STRING").put("axis", "NONE");
+                .put("dataType", "STRING");
         rows.addObject().put("varId", -4).put("varKind", "RESULT").put("dispType", "Value").put("varName", "QLTY_GRD")
                 .put("dataType", "STRING");
         // RR-F3·RuleColumnsService 「결과 식은 산출 룰의 결과 열에만 둡니다」 — DECISION 룰은 COLUMNS 단계에서 expr 을 보내지 않는다.
@@ -253,9 +253,9 @@ class SampleRuleLifecycleOasisFlowTest {
         ObjectNode body = envelope("ruleEdit", params);
         ArrayNode rows = body.putObject("grids").putObject("rows").putArray("rows");
         rows.addObject().put("varId", -1).put("varKind", "COND").put("dispType", "Equal").put("varName", "PROD_TYPE")
-                .put("dataType", "STRING").put("axis", "NONE");
+                .put("dataType", "STRING");
         rows.addObject().put("varId", -2).put("varKind", "COND").put("dispType", "Equal").put("varName", "CALC_BASIS")
-                .put("dataType", "STRING").put("axis", "NONE");
+                .put("dataType", "STRING");
         rows.addObject().put("varId", -3).put("varKind", "RESULT").put("dispType", "Expression").put("varName", "PROD_WGT")
                 .put("dataType", "NUMBER");
         JsonNode saved = post("ruleEdit", "save", body);

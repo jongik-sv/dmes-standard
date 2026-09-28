@@ -2,10 +2,11 @@
  * 열 설정 그리드(의사결정표와 같은 shared `AgDataGrid`) — 열 정의·표시 행·칸 편집 → 초안 변경 변환.
  *
  * 칸은 글자로 보이고 누르면 편집한다(singleClickEdit). 편집 결과는 `cellPatch` 가 초안 줄 변경으로 바꾼다(순수 함수).
- * 버튼(순서·도메인·삭제)은 의사결정표 삭제 칸처럼 테두리 없는 작은 버튼이다. 칸이 그리는 값(검사·식 결과·잠금)은 표시 행에 싣는다 —
+ * 버튼(순서·도메인 찾기·도메인 해제·삭제)은 의사결정표 삭제 칸처럼 테두리 없는 작은 버튼이다. 도메인 버튼은 편집되는 도메인 칸 **안에** 있어
+ * `IconBtn` 의 `swallow` 로 전파를 끊는다 — 안 그러면 한 번 클릭 편집이 같이 열린다. 칸이 그리는 값(검사·식 결과·잠금)은 표시 행에 싣는다 —
  * 열 정의는 구조(산출 여부·적중 정책)가 바뀔 때만 다시 만들고 동작은 `ColumnGridHandlers`(부모의 ref)로 부른다.
  */
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 
 import { IconArrowBackUp, IconArrowDown, IconArrowUp, IconSearch, IconTrash, IconX } from "@tabler/icons-react";
 
@@ -20,7 +21,6 @@ export const COND_DISPS = ["Equal", "1", "2", "Expression"];
 export const RESULT_DISPS = ["Value", "Expression"];
 export const DATA_TYPES = ["", "BOOLEAN", "NUMBER", "STRING", "DATE"];
 export const AGGS = ["LIST", "SUM", "MIN", "MAX", "COUNT"];
-export const AXES = ["NONE", "ROW", "COL"];
 
 /** 식 칸 하나의 서버 파싱 표시(참조 변수·오류·미리보기). */
 export interface ExprInfo {
@@ -41,7 +41,6 @@ export interface ColumnGridRow extends Record<string, unknown> {
   expr: string;
   label: string;
   dataType: string;
-  axis: string;
   resGrp: string;
   /** 결과 그룹이 없으면(칸을 `-` 로 그린다) null — 그룹을 넣으면 값이 바뀌어 칸을 다시 그린다. */
   grpCond: string | null;
@@ -53,8 +52,9 @@ export interface ColumnGridRow extends Record<string, unknown> {
   /*
    * 버튼·표시 전용 칸의 값 = 그 칸이 그리는 내용의 서명. ag-grid 는 행 데이터가 바뀌어도 값이 달라진 칸만 다시 그리므로,
    * 칸이 `__row`·`__checks` 같은 다른 필드를 읽어 그리면 값에 그 내용을 담아야 갱신된다.
+   * (도메인 칸은 예외 — 도메인이 붙거나 떨어질 때 `rowClassRefreshToken` 이 domainId 를 담아 `redrawRows` 를 걸어
+   *  칸이 통째로 다시 그려진다. 그래서 `domain` 값은 편집기가 쓸 도메인명 그대로 둔다.)
    */
-  domainBtn: string;
   order: string;
   exprInfo: string;
   check: string;
@@ -84,7 +84,6 @@ function fieldValues(r: ColumnDraftRow) {
     expr: r.expr,
     label: r.label,
     dataType: r.dataType ?? "",
-    axis: r.varKind === "COND" ? (r.axis ?? "NONE") : "",
     resGrp: r.resGrp,
     grpCond: r.grpCond,
     collectAgg: r.collectAgg,
@@ -120,8 +119,6 @@ export function cellPatch(field: string, value: unknown): Partial<ColumnDraftRow
       return { [field]: text };
     case "dataType":
       return { dataType: (text || null) as ColumnDraftRow["dataType"], domainId: null, domainType: null, domainName: null };
-    case "axis":
-      return { axis: text as ColumnDraftRow["axis"] };
     case "prio":
       return {
         prioList: text
@@ -159,14 +156,12 @@ export function toGridRow(
     label: v.label,
     // 도메인·자유식이면 값 타입 칸은 잠기므로(편집기가 값을 읽지 않는다) 표시 서명을 싣는다.
     dataType: exprCond ? "@expr" : r.domainId != null ? `@domain:${r.domainId}:${r.domainType ?? ""}` : v.dataType,
-    axis: v.axis,
     resGrp: v.resGrp,
     grpCond: r.varKind === "RESULT" && r.resGrp.trim() !== "" ? v.grpCond : null,
     collectAgg: v.collectAgg,
     prio: v.prio,
     description: v.description,
     domain: exprCond || r.domainId == null ? "" : (r.domainName ?? ""),
-    domainBtn: `${exprCond}|${r.domainId ?? ""}|${editable}`,
     order: `${r.varName}|${opts.editable}`,
     exprInfo: JSON.stringify(opts.exprs),
     check: JSON.stringify(opts.checks),
@@ -197,18 +192,61 @@ const iconButton: CSSProperties = {
   cursor: "pointer",
 };
 
-function IconBtn(p: { label: string; testId?: string; disabled: boolean; onClick: () => void; children: ReactNode }) {
+/**
+ * 테두리 없는 작은 아이콘 버튼.
+ *
+ * `swallow` 는 **편집되는 칸 안에** 이 버튼을 둘 때만 쓴다. ag-grid 는 칸 요소의 click 리스너에서
+ * `singleClickEdit` 을 처리해 편집을 시작하는데(CellMouseListener.onCellClicked), React 의 `onClick` 은
+ * 루트 컨테이너에서 합성 이벤트로 처리되므로 그 칸 리스너보다 늦게 돈다 — `onClick` 에서 전파를 끊어도
+ * 편집이 먼저 열린다. 그래서 버튼 **자체 엘리먼트에 네이티브 리스너**를 걸어 칸 리스너가 아예 듣지 못하게 한다.
+ *
+ * 이때 액션도 같은 네이티브 리스너에서 불러야 한다 — 전파를 끊으면 그보다 위인 React 루트 컨테이너의
+ * 합성 `onClick` 에는 도달하지 않기 때문이다.
+ */
+function IconBtn(p: {
+  label: string;
+  testId?: string;
+  disabled: boolean;
+  onClick: () => void;
+  children: ReactNode;
+  /** 편집 칸 안에 둘지 — true 면 mousedown·click 전파를 네이티브로 끊고 액션도 거기서 부른다. */
+  swallow?: boolean;
+}) {
+  const ref = useRef<HTMLButtonElement>(null);
+  // 리스너는 swallow 값이 바뀔 때만 다시 건다 — 그 사이에 갱신된 onClick 을 보려면 ref 로 따라간다.
+  const latest = useRef(p);
+  latest.current = p;
+  useEffect(() => {
+    const el = ref.current;
+    if (!p.swallow || !el) return;
+    const stop = (e: Event) => e.stopPropagation();
+    const run = (e: Event) => {
+      e.stopPropagation();
+      latest.current.onClick();
+    };
+    el.addEventListener("mousedown", stop);
+    el.addEventListener("click", run);
+    return () => {
+      el.removeEventListener("mousedown", stop);
+      el.removeEventListener("click", run);
+    };
+  }, [p.swallow]);
   return (
     <button
+      ref={ref}
       type="button"
       aria-label={p.label}
       title={p.label}
       data-testid={p.testId}
       disabled={p.disabled}
-      onClick={(e) => {
-        e.stopPropagation();
-        p.onClick();
-      }}
+      onClick={
+        p.swallow
+          ? undefined // 네이티브 리스너가 처리한다(위 설명)
+          : (e) => {
+              e.stopPropagation();
+              p.onClick();
+            }
+      }
       style={{ ...iconButton, cursor: p.disabled ? "default" : "pointer", opacity: p.disabled ? 0.4 : 1 }}
     >
       {p.children}
@@ -386,54 +424,60 @@ export function buildColumnGridColumns(opts: ColumnGridOptions): GridColumn[] {
     {
       // 도메인명·표준명을 직접 넣는다 — 넣은 글자로 서버를 찾아 하나로 정해지면 바로 적용하고, 아니면 찾기 팝업을 연다(부모 handleCellChange).
       // 도메인 번호(domainId)는 내부 키라 보이지 않는다.
+      // 찾기·해제 버튼도 이 칸 안에 둔다 — 편집 칸이라 `swallow` 로 전파를 끊어 버튼을 눌러도 편집이 같이 열리지 않게 한다.
       key: "domain",
       header: "도메인",
-      width: 130,
+      width: 176,
       editable: (row) => can(row) && !exprCond(row),
       cellClassRules: edited("domain"),
       render: (v, row) => {
         const r = g(row);
         if (exprCond(row)) return <span style={MUTED}>-</span>;
         const text = v == null ? "" : String(v);
+        const shown = r.__row.domainId != null ? text || "이름 없는 도메인" : "";
         return (
-          <span data-testid={`col-domain-name-${r.rowKey}`} title={text || undefined}>
-            {r.__row.domainId != null ? text || "이름 없는 도메인" : ""}
-          </span>
-        );
-      },
-    },
-    {
-      // 찾기·해제 버튼은 편집하지 않는 칸에 둔다 — 편집 칸 안 버튼을 누르면 한 번 클릭 편집이 같이 열린다.
-      key: "domainBtn",
-      header: "",
-      width: 52,
-      render: (_v, row) => {
-        const r = g(row);
-        const d = r.__row;
-        if (exprCond(row)) return null;
-        return (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
-            <IconBtn label="도메인 찾기" testId={`col-domain-open-${r.rowKey}`} disabled={!r.__editable} onClick={() => h().openDomain(r.rowKey)}>
-              <IconSearch size={ICON} />
-            </IconBtn>
-            {d.domainId != null && (
-              <IconBtn label="도메인 해제" disabled={!r.__editable} onClick={() => h().clearDomain(r.rowKey)}>
-                <IconX size={ICON} />
+          // 글자는 왼쪽에, 찾기·해제 버튼은 칸 오른쪽 끝에 붙인다(space-between).
+          <span
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 4,
+              width: "100%",
+              minWidth: 0,
+            }}
+          >
+            <span
+              data-testid={`col-domain-name-${r.rowKey}`}
+              title={shown || undefined}
+              style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+            >
+              {shown}
+            </span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: "none" }}>
+              <IconBtn
+                label="도메인 찾기"
+                testId={`col-domain-open-${r.rowKey}`}
+                disabled={!r.__editable}
+                swallow
+                onClick={() => h().openDomain(r.rowKey)}
+              >
+                <IconSearch size={ICON} />
               </IconBtn>
-            )}
+              {r.__row.domainId != null && (
+                <IconBtn
+                  label="도메인 해제"
+                  disabled={!r.__editable}
+                  swallow
+                  onClick={() => h().clearDomain(r.rowKey)}
+                >
+                  <IconX size={ICON} />
+                </IconBtn>
+              )}
+            </span>
           </span>
         );
       },
-    },
-    {
-      key: "axis",
-      header: "축",
-      width: 70,
-      editable: (row) => can(row) && isCond(row),
-      cellEditor: "select",
-      cellEditorValues: AXES,
-      cellClassRules: edited("axis"),
-      render: (v, row) => (isCond(row) ? textCell("col-axis")(v, row) : <span style={MUTED}>-</span>),
     },
     {
       key: "resGrp",

@@ -180,6 +180,14 @@ export function deprecateRule(ruleId: string): Promise<RuleVersionResult> {
   return callOasis<RuleVersionResult>(SERVICE, "delete", { maruRuleId: ruleId, target: "RULE" });
 }
 
+/**
+ * 확정 취소 — 아직 적용 시각이 오지 않은 확정 버전을 작성 중으로 되돌린다(ADR-0002 D8, TSK-02-01 D4-1).
+ * `deleteDraft` 와 같은 액션(`delete`)이지만 `target:"CONFIRM"` 으로 서버가 구분한다. 04 `codeEdit` 도 같은 값을 쓴다.
+ */
+export function cancelConfirm(ruleId: string, ver: number, rowVersion: number): Promise<RuleVersionResult> {
+  return callOasis<RuleVersionResult>(SERVICE, "delete", { maruRuleId: ruleId, ver, rowVersion, target: "CONFIRM" });
+}
+
 export function newVersion(ruleId: string): Promise<RuleVersionResult> {
   return callOasis<RuleVersionResult>(SERVICE, "copy", { maruRuleId: ruleId });
 }

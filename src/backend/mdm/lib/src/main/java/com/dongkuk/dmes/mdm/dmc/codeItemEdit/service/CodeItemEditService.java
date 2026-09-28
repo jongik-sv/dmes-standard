@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mdm.dmc.codeItemEdit.service;
 import static com.dongkuk.dmes.mdm.common.mastercode.MasterCodeSegments.same;
 import static com.dongkuk.dmes.mdm.common.mastercode.MasterCodeSegments.valid;
 
+import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeCateSaves;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeCategoryResolver;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeCategoryResolver.Resolution;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeCategoryResolver.ResolvedRow;
@@ -16,6 +17,7 @@ import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeRejections;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeRows;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.contract.category.CategoryConventions;
 import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeCateRow;
@@ -51,6 +53,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -72,6 +75,10 @@ import org.springframework.stereotype.Service;
  * <p>저장은 요청 행을 메모리에서 V 모습에 먼저 적용해 검사하고({@link #validate} 와 같은 코드), 통과했을 때만
  * {@code beginDraftWrite} → 선분 서비스 순으로 쓴다. 그래서 거부된 저장은 ROW_VERSION 을 건드리지 않는다(불변 규칙 22).
  * 경미 수정은 DRAFT 경로와 분리한 별도 액션이고 ROW_VERSION·배포 순번을 올리지 않는다(D7).
+ *
+ * <p>2026-09-28 화면 합치기로 카테고리 편집이 이 화면에 들어왔다. validate·save 는 그리드 세 개({@code rows}·
+ * {@code categories}·{@code members})를 파라미터 이름으로 받는다(F9 — 프런트는 빈 배열이라도 셋을 늘 보낸다). 카테고리 쪽
+ * 판정·쓰기는 {@link MasterCodeCateSaves} 를 {@code CodeCateEditService} 와 함께 쓴다.
  */
 @Service("codeItemEditService")
 public class CodeItemEditService {
@@ -260,35 +267,63 @@ public class CodeItemEditService {
 
     // ── action: validate ──────────────────────────────────────────────────
 
-    /** 저장 검사만 한다 — 이슈를 성공 응답으로 돌려준다(F11). 소유자·상태는 보지 않는다(읽기 전용 검사). */
-    public Map<String, Object> validate(CodeItemSaveRequest request, List<Map<String, Object>> rows) {
+    /**
+     * 저장 검사만 한다 — 이슈를 성공 응답으로 돌려준다(F11). 소유자·상태는 보지 않는다(읽기 전용 검사). 판정은 save 와 같은
+     * {@link #project} 다: 코드 행 이슈는 {@code issues}, 카테고리·소속 이슈는 {@code cateIssues} 에 싣는다.
+     */
+    public Map<String, Object> validate(CodeItemSaveRequest request, List<Map<String, Object>> rows,
+                                        List<Map<String, Object>> categories, List<Map<String, Object>> members) {
         MdmCode code = header(request.getMaruCodeId());
         BigDecimal v = parseVer(request.getVer());
         version(this.rows.versions(code.getMaruCodeId()), v);
-        List<MdmCheckIssue> issues = MasterCodeSourceKind.EXTERNAL.name().equals(code.getSourceKind())
-                ? List.of(externalIssue(code))
-                : project(code, v, rows == null ? List.of() : rows).issues();
-        return Map.of("issues", issues.stream().map(CodeItemEditService::issueMap).toList());
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (MasterCodeSourceKind.EXTERNAL.name().equals(code.getSourceKind())) {
+            result.put("issues", List.of(issueMap(externalIssue(code))));
+            result.put("cateIssues", List.of());
+            return result;
+        }
+        Projected projected = project(code, v, orEmpty(rows), orEmpty(categories), orEmpty(members));
+        result.put("issues", projected.issues().stream().map(CodeItemEditService::issueMap).toList());
+        List<MdmCheckIssue> cateIssues = new ArrayList<>(projected.cate().issues());
+        if (projected.cate().touchesBase()) {
+            // save 는 RESERVED_CATEGORY 로 거부한다 — validate 도 같은 판정을 이슈로 알린다.
+            cateIssues.add(new MdmCheckIssue(MdmErrorCode.RESERVED_CATEGORY.name(),
+                    "BASE 는 예약 카테고리라 바꿀 수 없다", null, CategoryConventions.BASE_CATE_ID));
+        }
+        result.put("cateIssues", cateIssues.stream().map(CodeItemEditService::issueMap).toList());
+        return result;
     }
 
     // ── action: save ──────────────────────────────────────────────────────
 
-    public Map<String, Object> save(CodeItemSaveRequest request, List<Map<String, Object>> rows) {
+    /**
+     * 코드 행·카테고리·TABLE 소속 세 그리드를 한 번에 저장한다(2026-09-28 화면 합치기 — 카테고리 편집이 이 화면으로 들어왔다).
+     * 모든 검사(코드 행·카테고리·BASE 예약·EXTERNAL)를 쓰기 전에 끝내고, {@code beginDraftWrite} 는 한 번만 부른다
+     * (ROW_VERSION 은 한 번만 오른다). 쓰기 순서는 코드 행 → 카테고리 → 소속이다 — 같은 저장에서 넣은 코드를 소속으로 넣을
+     * 수 있어야 해서다.
+     */
+    public Map<String, Object> save(CodeItemSaveRequest request, List<Map<String, Object>> rows,
+                                    List<Map<String, Object>> categories, List<Map<String, Object>> members) {
         MdmCode code = header(request.getMaruCodeId());
         BigDecimal v = parseVer(request.getVer());
         requireVersionExists(code.getMaruCodeId(), v);
         if (MasterCodeSourceKind.EXTERNAL.name().equals(code.getSourceKind())) {
             throw MasterCodeRejections.saveRejected(List.of(externalIssue(code)));
         }
-        if (rows == null || rows.isEmpty()) {
+        if (orEmpty(rows).isEmpty() && orEmpty(categories).isEmpty() && orEmpty(members).isEmpty()) {
             throw invalid("저장할 변경이 없습니다");
         }
         if (request.getRowVersion() == null) {
             throw invalid("rowVersion 이 없습니다");
         }
-        Projected projected = project(code, v, rows);
-        if (!projected.issues().isEmpty()) {
-            throw MasterCodeRejections.saveRejected(projected.issues());
+        Projected projected = project(code, v, orEmpty(rows), orEmpty(categories), orEmpty(members));
+        if (!projected.issues().isEmpty() || !projected.cate().issues().isEmpty()) {
+            List<MdmCheckIssue> all = new ArrayList<>(projected.issues());
+            all.addAll(projected.cate().issues());
+            throw MasterCodeRejections.saveRejected(all);
+        }
+        if (projected.cate().touchesBase()) {
+            throw MdmErrors.of(MdmErrorCode.RESERVED_CATEGORY);
         }
         // 여기까지 쓰기가 없다(불변 규칙 22). 아래부터는 OASIS 트랜잭션 안에서 함께 커밋·롤백된다.
         VersionRef ref = ref(code.getMaruCodeId(), v);
@@ -301,6 +336,7 @@ public class CodeItemEditService {
                 case ADDED -> segments.addItem(ref, c.code(), c.values());
             }
         }
+        MasterCodeCateSaves.apply(segments, ref, projected.cate());
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("rowVersion", rowVersion);
         result.put("closedCategories", closedCategories);
@@ -389,16 +425,31 @@ public class CodeItemEditService {
         }
     }
 
-    private record Projected(List<MdmCheckIssue> issues, List<Change> changes) {
+    /** issues·changes 는 코드 행 몫, cate 는 카테고리·소속 두 그리드 몫이다. */
+    private record Projected(List<MdmCheckIssue> issues, List<Change> changes, MasterCodeCateSaves.Plan cate) {
     }
 
-    /** V 모습에 요청 행을 메모리로 적용하고 touched 행을 검사한다 — validate 와 save 가 같은 코드를 쓴다. */
-    private Projected project(MdmCode code, BigDecimal v, List<Map<String, Object>> requestRows) {
-        List<MasterCodeItemEntry> viewAtV = entries(segments.viewAt(ref(code.getMaruCodeId(), v)));
-        MasterCodeItemProjection.Result applied = MasterCodeItemProjection.apply(viewAtV, requestRows);
+    /**
+     * V 모습에 요청 행을 메모리로 적용하고 touched 행을 검사한 뒤, 그 적용 뒤 모습 위에서 카테고리·소속 그리드를 검사한다 —
+     * validate 와 save 가 같은 코드를 쓴다. 소속으로 넣을 수 있는 코드는 코드 행 변경을 적용한 뒤의 코드다(같은 저장에서 넣은
+     * 코드는 받고, 지운 코드는 MEMBER_CODE_NOT_FOUND).
+     */
+    private Projected project(MdmCode code, BigDecimal v, List<Map<String, Object>> requestRows,
+                              List<Map<String, Object>> categoryRows, List<Map<String, Object>> memberRows) {
+        MasterCodeVersionView view = segments.viewAt(ref(code.getMaruCodeId(), v));
+        MasterCodeItemProjection.Result applied = MasterCodeItemProjection.apply(entries(view), requestRows);
         List<MdmCheckIssue> issues = new ArrayList<>(applied.issues());
         issues.addAll(MasterCodeItemChecks.check(checkHeader(code), applied.viewAfter(), applied.touched()));
-        return new Projected(List.copyOf(issues), applied.changes());
+        Set<String> codesAfter = new LinkedHashSet<>();
+        applied.viewAfter().forEach(e -> codesAfter.add(e.code()));
+        MasterCodeCateSaves.Plan cate = MasterCodeCateSaves.project(
+                view.categories().stream().map(MasterCodeCateRow::definition).toList(), codesAfter, categoryRows,
+                memberRows);
+        return new Projected(List.copyOf(issues), applied.changes(), cate);
+    }
+
+    private static List<Map<String, Object>> orEmpty(List<Map<String, Object>> grid) {
+        return grid == null ? List.of() : grid;
     }
 
     private static List<MasterCodeItemEntry> entries(MasterCodeVersionView view) {

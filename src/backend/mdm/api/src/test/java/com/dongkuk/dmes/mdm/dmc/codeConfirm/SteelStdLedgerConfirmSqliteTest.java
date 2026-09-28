@@ -100,7 +100,7 @@ class SteelStdLedgerConfirmSqliteTest extends AbstractMdmSharedDbTest {
                 row("KS-3-CGCH-Z12", "CGCH Z12", 1, "270", "KS", "KS-3", "KS-3-CGCH"),
                 row("KS-3-CGCH-Z27", "CGCH Z27", 2, "270", "KS", "KS-3", "KS-3-CGCH"),
                 row("JIS-3-CGCC", "CGCC(JIS)", 1, "270", "JIS", "JIS-3"),
-                row("JIS-4-SPCC", "SPCC", 1, "270", "JIS", "JIS-4"))));
+                row("JIS-4-SPCC", "SPCC", 1, "270", "JIS", "JIS-4")), List.of(), List.of()));
 
         Map<String, Object> validate1000 = tx.execute(st -> codeConfirmService.validate(
                 validate(ID, "1.000", "2026-01-01 00:00:00")));

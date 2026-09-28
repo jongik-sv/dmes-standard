@@ -30,7 +30,6 @@ export interface ColumnDraftRow {
   domainType: DataTypeCode | null;
   /** 도메인 이름 — 도메인 칸 표시용(화면 전용, 저장하지 않는다). */
   domainName: string | null;
-  axis: "NONE" | "ROW" | "COL" | null;
   resGrp: string;
   grpCond: string;
   collectAgg: string;
@@ -77,8 +76,6 @@ export const COLUMN_RULES: readonly ColumnRule[] = [
   { code: "DISP_TYPE", serverMessage: "표시 타입은 " },
   { code: "DERIVE_NO_COND", serverMessage: "산출 룰에는 조건 열을 둘 수 없습니다" },
   { code: "DERIVE_EXPR_ONLY", serverMessage: "산출 룰의 결과 열은 식(Expression)이어야 합니다" },
-  { code: "AXIS_COND_ONLY", serverMessage: "축(axis)은 조건 열에만 둡니다" },
-  { code: "AXIS_VALUE", serverMessage: "축은 ROW·COL·NONE 중 하나여야 합니다" },
   { code: "GRP_RESULT_ONLY", serverMessage: "그룹과 열 조건은 결과 열에만 둡니다" },
   { code: "EXPR_DERIVE_ONLY", serverMessage: "결과 식은 산출 룰의 결과 열에만 둡니다" },
   { code: "RESULT_TYPE_REQUIRED", serverMessage: "결과 열은 값 타입(도메인 또는 기본 타입)을 선언해야 합니다" },
@@ -107,7 +104,6 @@ const MESSAGE = Object.fromEntries(COLUMN_RULES.map((r) => [r.code, r.serverMess
 
 const COND_DISPS: readonly string[] = ["Equal", "1", "2", "Expression"];
 const RESULT_DISPS: readonly string[] = ["Value", "Expression"];
-const AXES: readonly string[] = ["ROW", "COL", "NONE"];
 /** 변수 칸에 쓸 수 있는 이름 — 서버 `RuleColumnsService.VAR_NAME` 과 같다. */
 const VAR_NAME = /^[A-Za-z][A-Za-z0-9_]*$/;
 const RESERVED_UPPER = new Set<string>(RESERVED_CONSTANTS);
@@ -157,7 +153,6 @@ export function draftFromView(view: RuleEditView): ColumnDraftRow[] {
       dataType: m ? (m.dataType ?? null) : v.typeSource === "DECLARED" ? v.dataType : null,
       domainType: domainId != null ? v.dataType : null,
       domainName: domainId != null ? (v.domainName ?? null) : null,
-      axis: v.varKind === "COND" ? (m?.axis ?? "NONE") : null,
       resGrp: m?.resGrp ?? "",
       grpCond: m?.grpCond ?? "",
       collectAgg: m?.collectAgg ?? "",
@@ -181,7 +176,6 @@ export function newColumn(kind: "COND" | "RESULT", key: string): ColumnDraftRow 
     dataType: null,
     domainType: null,
     domainName: null,
-    axis: kind === "COND" ? "NONE" : null,
     resGrp: "",
     grpCond: "",
     collectAgg: "",
@@ -289,10 +283,6 @@ function checkRow(row: ColumnDraftRow, ctx: ColumnDraftContext, out: (code: stri
   if (!disps.includes(row.dispType)) out("DISP_TYPE", `표시 타입은 ${disps.join("·")} 중 하나여야 합니다: ${row.dispType}`);
   if (derive && cond) out("DERIVE_NO_COND", `산출 룰에는 조건 열을 둘 수 없습니다: ${name}`);
   if (derive && row.dispType !== "Expression") out("DERIVE_EXPR_ONLY", `산출 룰의 결과 열은 식(Expression)이어야 합니다: ${name}`);
-  if (row.axis != null) {
-    if (!cond) out("AXIS_COND_ONLY", `축(axis)은 조건 열에만 둡니다: ${name}`);
-    else if (!AXES.includes(row.axis)) out("AXIS_VALUE", `축은 ROW·COL·NONE 중 하나여야 합니다: ${row.axis}`);
-  }
   if (cond && (nonEmpty(row.resGrp) != null || nonEmpty(row.grpCond) != null)) {
     out("GRP_RESULT_ONLY", `그룹과 열 조건은 결과 열에만 둡니다: ${name}`);
   }
@@ -459,7 +449,6 @@ function lineOf(row: ColumnDraftRow, tempId: number): Record<string, unknown> {
     label: nonEmpty(row.label),
     domainId: row.domainId,
     dataType: row.dataType,
-    axis: cond ? (row.axis ?? "NONE") : null,
     resGrp: cond ? null : nonEmpty(row.resGrp),
     grpCond: cond ? null : nonEmpty(row.grpCond),
     collectAgg: nonEmpty(row.collectAgg),

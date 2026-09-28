@@ -58,6 +58,9 @@ type ScreenId = keyof typeof MENU;
 
 const STW = USERS.stw.id;
 const STW2 = USERS.stw2.id;
+/** D2 보류: [넘기기]는 담당자 조회 수단이 생길 때까지 꺼져 있고 이 문구로 이유를 알린다(m-mdm src/shell/handover.ts). */
+const HANDOVER_PENDING = "넘기기는 준비 중입니다. 넘겨받는 사람의 담당자 여부를 확인할 수단이 아직 없습니다.";
+const HANDOVER = "넘기기(준비 중)";
 
 async function go(page: Page, id: ScreenId) {
   await openMenu(page, ["마루 MDM", "업무기준", MENU[id]], id);
@@ -452,10 +455,11 @@ test.describe("A 룰 등록·편집·확정", () => {
   const RULE = uid("DME");
   const NAME = `E2E 품질 판정 ${RUN}`;
   const NAME2 = `E2E 품질 등급 판정 ${RUN}`;
-  // 변수 이름 — 결과 변수는 실행마다 달라지게 해 다른 실행의 룰과 지침·활용처에서 섞이지 않게 한다.
+  // 변수 이름 — 고정한다. 실행마다 바꾸면 같은 룰에 다른 이름의 변수가 쌓여 지침·활용처 목록이 늘어난다
+  // (2026-09-28 `uid()` 정리와 같은 이유. `tools/e2e-clean-data.sh` 로 E2E 룰을 통째로 지운다).
   const THK = "E2E_THK";
   const SURF = "E2E_SURF";
-  const GRD = `E2E_GRD_${RUN}`;
+  const GRD = "E2E_GRD";
   const CONFIRM1 = daysAgo(7);
   const CASE_A = "E2E 중간 두께 A";
   const CASE_C = "E2E 두꺼운 B 는 기본 C";
@@ -669,7 +673,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await cardButton(page, versions, "해제").click();
     await expect(topbar(page)).toContainText("선점 가능", { timeout: 20_000 });
     await expect(cardButton(page, versions, "선점")).toBeEnabled();
-    for (const b of ["해제", "넘기기", "삭제"]) await expect(cardButton(page, versions, b), b).toBeDisabled();
+    for (const b of ["해제", HANDOVER, "삭제"]) await expect(cardButton(page, versions, b), b).toBeDisabled();
     await expect(tableButton(page, "행 추가")).toBeDisabled();
     await snap(page, "dme-ruleEdit-04-unlocked");
     await cardButton(page, versions, "선점").click();
@@ -681,7 +685,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     try {
       await openRule(p2, RULE);
       await expect(topbar(p2)).toContainText(`잠김 · ${STW} 편집 중`);
-      for (const b of ["해제", "넘기기", "삭제", "확정 이동"]) {
+      for (const b of ["해제", HANDOVER, "삭제", "확정 이동"]) {
         const btn = cardButton(p2, versions, b);
         if (b === "확정 이동") await expect(btn, `${b}(stw2)`).toBeEnabled(); // 소유자 판정은 확정 화면이 한다(설계 §9)
         else await expect(btn, `${b}(stw2)`).toBeDisabled();
@@ -1162,10 +1166,10 @@ test.describe("A 룰 등록·편집·확정", () => {
       await tid(page, `${s}-toggle`).click();
       await expect(tid(page, `${s}-body`)).toBeVisible();
     }
-    // 넘기기 — 받을 사람을 비우면 서버에 보내지 않고 안내한다(실제 넘기기는 TC-DME-HND-01).
-    await expect(tid(page, "rule-handover-target")).toHaveValue("");
-    await cardButton(page, "rule-card-versions", "넘기기").click();
-    await expect(tid(page, "rule-edit-notice")).toHaveText("넘겨받을 사용자 ID 를 적으세요.");
+    // 넘기기 — 준비 중이라 받는 사람 칸과 버튼이 꺼져 있고, 올려 보면 이유를 알린다(D2 보류, TC-DME-HND-01).
+    await expect(tid(page, "rule-handover-target")).toBeDisabled();
+    await expect(cardButton(page, "rule-card-versions", HANDOVER)).toBeDisabled();
+    await expect(tid(page, "rule-handover-wrap")).toHaveAttribute("title", HANDOVER_PENDING);
     await expect(topbar(page)).toContainText("편집 중(나)");
     await tid(page, "rule-ver-row-1").click();
     await layout.layout(page, "ruleEdit 편집 끝");
@@ -1897,7 +1901,7 @@ test.describe("D 화면 연결·넘기기·충돌·드래그·읽기 전용", ()
     }
   });
 
-  test("TC-DME-HND-01 넘기기 — 내 DRAFT 를 다른 담당자에게 넘기면 그 사람이 편집 중이 된다", async ({ browser }, testInfo) => {
+  test("TC-DME-HND-01 넘기기(보류, D2) — 넘길 수 없으니 DRAFT 는 내 편집 중으로 남고, 다른 담당자에게는 잠김으로 보인다", async ({ browser }, testInfo) => {
     const { page, watcher } = await openAs(browser, "stw", testInfo);
     const other = await openAs(browser, "stw2", testInfo);
     try {
@@ -1907,15 +1911,15 @@ test.describe("D 화면 연결·넘기기·충돌·드래그·읽기 전용", ()
       await tid(page, "rule-reg-name").fill(`E2E 넘기기 ${RUN}`);
       await tid(page, "rule-register-form").getByRole("button", { name: "룰 등록", exact: true }).click();
       await expect(tid(page, "rule-edit-current")).toHaveText(id, { timeout: 60_000 });
-      await tid(page, "rule-handover-target").fill(STW2);
-      await cardButton(page, "rule-card-versions", "넘기기").click();
-      await waitIdle(page);
-      await snap(page, "dme-ruleEdit-HND-01-result");
-      await expect(errorBody(page), "넘기기 거부 문구").toHaveCount(0);
-      await expect(topbar(page)).toContainText(`잠김 · ${STW2} 편집 중`, { timeout: 20_000 });
-      await expect(tableButton(page, "행 추가")).toBeDisabled();
+      // 넘겨받는 사람의 담당자 여부를 확인할 수단이 없어(서버가 늘 MDM005) 받는 사람 칸과 버튼을 꺼 두었다.
+      await expect(tid(page, "rule-handover-target")).toBeDisabled();
+      await expect(cardButton(page, "rule-card-versions", HANDOVER)).toBeDisabled();
+      await expect(tid(page, "rule-handover-wrap")).toHaveAttribute("title", HANDOVER_PENDING);
+      await expect(topbar(page)).toContainText("편집 중(나)");
+      await snap(page, "dme-ruleEdit-HND-01-pending");
       await openRule(other.page, id);
-      await expect(topbar(other.page)).toContainText("편집 중(나)");
+      await expect(topbar(other.page)).toContainText(`잠김 · ${STW} 편집 중`);
+      await expect(cardButton(other.page, "rule-card-versions", HANDOVER)).toBeDisabled();
       watcher.assertClean("ruleEdit");
       other.watcher.assertClean("ruleEdit(stw2)");
     } finally {
@@ -2020,7 +2024,7 @@ test.describe("D 화면 연결·넘기기·충돌·드래그·읽기 전용", ()
       await expect(topbar(page)).toContainText(`잠김 · ${STW} 편집 중`);
       await expect(tid(page, "rule-header-name")).toBeDisabled();
       await expect(cardButton(page, "rule-card-header", "헤더 저장")).toBeDisabled();
-      for (const b of ["새 버전", "삭제", "해제", "넘기기"]) await expect(cardButton(page, "rule-card-versions", b), `${b}(std)`).toBeDisabled();
+      for (const b of ["새 버전", "삭제", "해제", HANDOVER]) await expect(cardButton(page, "rule-card-versions", b), `${b}(std)`).toBeDisabled();
       await expect(cardButton(page, "rule-card-versions", "선점")).toHaveCount(0);
       await expect(tableButton(page, "행 추가")).toBeDisabled();
       await expect(tid(page, "col-readonly")).toBeVisible();

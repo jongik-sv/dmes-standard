@@ -3,11 +3,14 @@
  * 바꾸지 않는다.
  *
  * 호출: `POST /api/mdm/oasis/codeItemEdit/{action}` — search·view·compare(READ), validate·save·restore·execute(EDIT).
- * 버전은 문자열로 보낸다(JS number 는 2.000 의 소수 자릿수를 잃는다). validate·save 는 그리드 `rows` 를 빈 배열이라도
- * 늘 보낸다 — 빼면 서버 바인딩이 "No suitable method" 로 실패한다(F9, 서버 시험 O6).
+ * 버전은 문자열로 보낸다(JS number 는 2.000 의 소수 자릿수를 잃는다). validate·save 는 코드 행(`rows`)·카테고리
+ * (`categories`)·소속(`members`) 세 그리드를 빈 배열이라도 늘 보낸다 — 빼면 서버 바인딩이 "No suitable method" 로
+ * 실패한다(F9, 서버 시험 O6). 카테고리 편집을 이 화면에 합치며(D-101) 저장은 이 서비스 한 번이다. 카테고리 조회·REGEX
+ * 미리보기·되돌리기는 codeCateEdit 서비스 그대로다(cate/api.ts).
  */
 import { apiRequest } from "@dk-oasis/shared/http";
 
+import type { Issue as CateIssue } from "./cate/types";
 import type { Issue, PatchParams, PreviewResult, SearchResult, ViewResult } from "./types";
 
 const SERVICE = "codeItemEdit";
@@ -58,14 +61,28 @@ export function previewCategory(maruCodeId: string, ver: string, cateId: string)
   return callOasis<PreviewResult>("compare", { maruCodeId, ver, cateId });
 }
 
-export function validateRows(maruCodeId: string, ver: string, rows: Rows): Promise<{ issues?: Issue[] }> {
-  return callOasis<{ issues?: Issue[] }>("validate", { maruCodeId, ver }, { rows: { rows } });
+/** 합친 저장의 세 그리드 변경 — 코드 행(grid-state changesOf)·카테고리(categoryChangesOf)·소속(memberChangesOf). */
+export interface SaveChanges {
+  rows: Rows;
+  categories: Rows;
+  members: Rows;
 }
 
-export function saveRows(
-  maruCodeId: string, ver: string, rowVersion: number, rows: Rows,
+const gridsOf = (c: SaveChanges) => ({
+  rows: { rows: c.rows }, categories: { rows: c.categories }, members: { rows: c.members },
+});
+
+/** 코드 행 이슈(`issues`, itemKey = 코드)와 카테고리·소속 이슈(`cateIssues`, codeCateEdit validate 모양). */
+export function validateAll(
+  maruCodeId: string, ver: string, changes: SaveChanges,
+): Promise<{ issues?: Issue[]; cateIssues?: CateIssue[] }> {
+  return callOasis("validate", { maruCodeId, ver }, gridsOf(changes));
+}
+
+export function saveAll(
+  maruCodeId: string, ver: string, rowVersion: number, changes: SaveChanges,
 ): Promise<{ rowVersion?: number; closedCategories?: Record<string, string[]> }> {
-  return callOasis("save", { maruCodeId, ver, rowVersion }, { rows: { rows } });
+  return callOasis("save", { maruCodeId, ver, rowVersion }, gridsOf(changes));
 }
 
 export function revertRow(maruCodeId: string, ver: string, rowVersion: number, code: string): Promise<{ rowVersion?: number }> {

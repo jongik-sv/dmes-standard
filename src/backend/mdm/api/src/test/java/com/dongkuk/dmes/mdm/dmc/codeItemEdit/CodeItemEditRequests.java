@@ -86,6 +86,28 @@ final class CodeItemEditRequests {
         return m;
     }
 
+    /** categories 그리드 행(합친 저장, 2026-09-28) — 모양은 codeCateEdit 와 같다. */
+    static Map<String, Object> cateRow(String status, String cateId, String cateName, String defKind, String defExpr,
+                                       String defTarget) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("rowStatus", status);
+        m.put("cateId", cateId);
+        m.put("cateName", cateName);
+        m.put("defKind", defKind);
+        m.put("defExpr", defExpr);
+        m.put("defTarget", defTarget);
+        return m;
+    }
+
+    /** members 그리드 행(합친 저장). */
+    static Map<String, Object> memberRow(String status, String cateId, String code) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("rowStatus", status);
+        m.put("cateId", cateId);
+        m.put("code", code);
+        return m;
+    }
+
     static BusinessException assertMdm(MdmErrorCode code, Executable call) {
         BusinessException e = assertThrows(BusinessException.class, call);
         assertEquals(code.code(), e.getErrors().get(0).code(), e.getMessage());

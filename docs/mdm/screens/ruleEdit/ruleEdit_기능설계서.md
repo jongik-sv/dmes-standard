@@ -13,8 +13,12 @@ moduleGroup: dme
 > 줄인다. 근거는 원천 설계(`docs/mdm/design/basic/06-business-rule.md`)와 `docs/mdm/tasks/TSK-08-02/design.md` 다.
 >
 > **카드별 절** — 이 화면은 카드 슬롯(`pages/dme/ruleEdit/cards.ts`)으로 넓어진다. TSK-08-02 가 카드 ①②③⑧을 만들었고,
-> TSK-08-03(열 설정 표·입력 계약·피벗 — 표 카드 아래 섹션)과 TSK-08-04(값 테스트·테스트 결과·테스트 케이스 카드)는
+> TSK-08-03(열 설정 표·입력 계약 — 표 카드 아래 섹션)과 TSK-08-04(값 테스트·테스트 결과·테스트 케이스 카드)는
 > 이 문서에 **§5.x 카드 절을 더한다**. 기존 절은 고치지 않는다. 카드 ⑦ 배포 대상은 보류다(D11).
+>
+> **2026-09-28 — 피벗 보기 섹션과 조건 열 `axis` 제거.** 피벗은 결과 열 그룹(`res_grp`/`grp_cond`)이 조건식으로 표현하던
+> 것을 표로 한 번 더 펼쳐 놓은 것뿐이었고 엔진은 축을 읽지 않았다. 두 표현 중 그룹만 남긴다. 아래 절에서 이
+> 둘을 언급하지 않는다.
 >
 > **Frontend 개발 연계 값** — mesModule `m-mdm` / moduleGroup `dme` / pageName `ruleEdit` / pageId `ruleEdit` / 포털 pageId
 > `mdm:dme/ruleEdit` / tsup entry key `pages/dme/ruleEdit/page`
@@ -106,6 +110,10 @@ moduleGroup: dme
 | 선점 | `lock{maruRuleId, ver, rowVersion}` | 소유자 없는 DRAFT 에서만 보인다 | 공통 `DraftOwnershipService.acquire` |
 | 해제 | `unlock{…}` | DRAFT && 소유자 = 나 | `release` |
 | 넘기기 | `handover{…, newOwnerId}` | DRAFT && 소유자 = 나, 대상 ID 입력 | `handover`(대상 담당자 검사는 포트 — D5) |
+| **확정 취소** | `delete{maruRuleId, ver, rowVersion, target: CONFIRM}` | **서버 판정값 `versions[].cancelConfirmable` 만 따른다**(ADR-0002 D8, TSK-02-01 D4-1). `RELEASED && apply_from > now && owner==me && 미적용 1개`. 확인창에 **06 교차 효과**(이 룰을 멤버로 가진 룰 세트와 이 룰의 결과를 쓰는 다른 룰의 확정이 잠시 막히고, 재확정하면 풀림)를 알린다 | 공통 `VersionStateService.cancelConfirm` — `RELEASED` 아니면 MDM002, 이미 적용됐으면 MDM025, 직전 구간 복회 값이 어긋나면 MDM001 |
+
+> 확정 취소 버튼(action `delete`, `target: CONFIRM`)은 04 `codeEdit` 와 **같은 액션·같은 target 문자열**을 쓴다 — 액션
+> 어휘 16종이 늘지 않는다(D8-13). `target` 은 `VERSION`(DRAFT 삭제)·`RULE`(폐기)·`CONFIRM`(확정 취소) 3종이다.
 
 미적용 버전이 있으면 "미적용 버전 N 이 있어 새 버전을 만들 수 없습니다(한 번에 하나)" 를 보인다. 모든 쓰기 뒤에는 `view` 를 다시 불러
 row_version 을 서버 값으로 맞춘다. 거부가 MDM001 이면 "다른 창에서 바뀌었습니다. 다시 불러오세요" 와 [다시 불러오기] 를 준다.
@@ -215,7 +223,7 @@ ERROR 가 하나라도 있으면 저장이 롤백되고 행·적중 정책·row_
 | 룰 세트 순서(순서·순환 거부, 같은 결과 변수 중복 경고) | 거부/경고 | 거부/경고 | — |
 | MDM 참조(`MASTER`·`MASTER_AT` 대상·카테고리·attr 라벨) | 거부 | 거부 | — |
 | 코드 참조(값 없음 경고, `CODE_IN` 카테고리 없음 거부)·도메인 범위·필수 컬럼 IS NULL | 경고(카테고리 없음만 거부) | — | — |
-| 입력 계약 변경·축 조합 완전성·Expression 결과 타입(저장된 케이스로) | 경고 | 경고 | — |
+| 입력 계약 변경·Expression 결과 타입(저장된 케이스로) | 경고 | 경고 | — |
 | 요청 크기 상한(행 수·셀 길이·입력 JSON 길이·키 수·케이스 수) | 거부 | — | 거부 |
 
 EXTERNAL 룰은 저장 자체가 막히므로 검사를 돌리지 않는다. 상한 값은 `RuleLimits` 한 곳에 있다(design D6).

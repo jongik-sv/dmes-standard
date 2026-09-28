@@ -54,7 +54,7 @@ class DmcCodeBpmnActionTest {
         table.put("execute", new String[]{"deprecate", EDIT_DTO + "CodeDeprecateRequest"});
         table.put("reg", new String[]{"createVersion", EDIT_DTO + "CodeVersionCreateRequest"});
         table.put("restore", new String[]{"restoreVersion", EDIT_DTO + "CodeVersionRestoreRequest"});
-        table.put("delete", new String[]{"deleteDraft", EDIT_DTO + "CodeDraftRequest"});
+        table.put("delete", new String[]{"delete", EDIT_DTO + "CodeDraftRequest"}); // target 으로 DRAFT·마루 코드 삭제를 가른다
         table.put("lock", new String[]{"acquire", EDIT_DTO + "CodeDraftRequest"});
         table.put("unlock", new String[]{"release", EDIT_DTO + "CodeDraftRequest"});
         table.put("handover", new String[]{"handover", EDIT_DTO + "CodeDraftRequest"});

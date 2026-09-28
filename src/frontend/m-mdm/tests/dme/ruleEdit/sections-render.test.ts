@@ -15,7 +15,6 @@ import { columnDraftStorageKey, draftFromView, newColumn, type ColumnDraftRow } 
 import type { RuleEditCardProps } from "../../../pages/dme/ruleEdit/cards";
 import type { RuleEditView } from "../../../pages/dme/ruleEdit/types";
 import { findButton, flush, installDomStorage, jsonResponse, typeInto, visibleText } from "../helpers/render";
-import { PivotSection } from "../../../pages/dme/ruleEdit/sections/pivot/PivotSection";
 import { InputContractSection } from "../../../pages/dme/ruleEdit/sections/contract/InputContractSection";
 import { PROD_WGT_CALC, PROD_WGT_CALC_PV2 } from "../../fixtures/evalex-rules";
 import { ast } from "../../helpers/parse-expr";
@@ -244,7 +243,7 @@ describe("열 설정 섹션 렌더", () => {
   });
 
   it("열 머리 클릭이 정한 varId 의 줄은 하이라이트된다", async () => {
-    const shared = { colDirty: false, tableDirty: false, pivotDirty: false, setPivotDirty: () => {}, setColDirty: () => {}, highlightVarId: 3, setHighlightVarId: () => {} };
+    const shared = { colDirty: false, tableDirty: false, setColDirty: () => {}, highlightVarId: 3, setHighlightVarId: () => {} };
     await mount(createElement(ColumnDraftSharedContext.Provider, { value: shared }, createElement(ColumnSettingsSection, props(view()))));
     const row = (id: string) => q(`[data-testid='col-table'] .ag-center-cols-container .ag-row[row-id='${id}']`);
     expect(row("v3").classList.contains("ag-row-highlighted")).toBe(true);
@@ -253,7 +252,7 @@ describe("열 설정 섹션 렌더", () => {
 
   it("접으면 본문만 숨기고 초안 배지는 제목 줄에 남으며, 초안 dirty 알림도 풀리지 않는다(불변 13)", async () => {
     const setColDirty = vi.fn();
-    const shared = { colDirty: false, tableDirty: false, pivotDirty: false, setPivotDirty: () => {}, setColDirty, highlightVarId: null, setHighlightVarId: () => {} };
+    const shared = { colDirty: false, tableDirty: false, setColDirty, highlightVarId: null, setHighlightVarId: () => {} };
     seedDraft(view(), relabel);
     await mount(createElement(ColumnDraftSharedContext.Provider, { value: shared }, createElement(ColumnSettingsSection, props(view()))));
     expect(setColDirty).toHaveBeenLastCalledWith(true);
@@ -274,7 +273,7 @@ describe("열 설정 섹션 렌더", () => {
   });
 
   it("접힌 채로 열 머리를 누르면(highlightVarId) 섹션을 펼친다", async () => {
-    const base = { colDirty: false, tableDirty: false, pivotDirty: false, setPivotDirty: () => {}, setColDirty: () => {}, setHighlightVarId: () => {} };
+    const base = { colDirty: false, tableDirty: false, setColDirty: () => {}, setHighlightVarId: () => {} };
     const render = (highlightVarId: number | null) =>
       createElement(DmesUiProvider, null, createElement(ColumnDraftSharedContext.Provider, { value: { ...base, highlightVarId } }, createElement(ColumnSettingsSection, props(view()))));
     await mount(createElement(ColumnDraftSharedContext.Provider, { value: { ...base, highlightVarId: null } }, createElement(ColumnSettingsSection, props(view()))));
@@ -323,173 +322,6 @@ describe("표 카드 + 열 설정 섹션(불변 13)", () => {
     });
     expect(findButton(container, "표 저장").disabled).toBe(false);
     expect(container.querySelector("[data-testid='dt-col-block']")).toBeNull();
-  });
-});
-
-// ── 피벗 섹션(TSK-08-03 단계 5) ──
-
-function pvVar(over: Record<string, unknown>) {
-  return { exprVar: false, dateString: false, typeSource: "COLUMN", scale: null, ...over };
-}
-
-/** 행 축 COIL_THK(2 타입)·열 축 TOP_RESIN_CD(Equal)·결과 BASE_SPD(Value) — 편집 가능한 피벗 모양. */
-function pivotView(over: { dispOf?: Record<number, string>; axis?: Array<[number, string]>; me?: string; owner?: string } = {}): RuleEditView {
-  const disp = { 1: "2", 2: "Equal", 3: "Value", ...over.dispOf } as Record<number, string>;
-  const cell = (lo: string, hi: string, col: string, val: string) =>
-    JSON.stringify({ 1: { op: "<= 변수 <", left: lo, right: hi }, 2: { op: "EQ", left: col }, 3: { val } });
-  const base = draftView(over.owner ?? "e2e_mdm_steward", over.me ?? "e2e_mdm_steward");
-  return {
-    ...base,
-    rule: { ...base.rule, maruRuleId: "E2E_PVT_LKP", maruRuleName: "피벗 시험" },
-    vars: [
-      pvVar({ varId: 1, varKind: "COND", dispType: disp[1], seq: 1, varName: "COIL_THK", dataType: "NUMBER" }),
-      pvVar({ varId: 2, varKind: "COND", dispType: disp[2], seq: 2, varName: "TOP_RESIN_CD", dataType: "STRING" }),
-      pvVar({ varId: 3, varKind: "RESULT", dispType: disp[3], seq: 1, varName: "BASE_SPD", dataType: "NUMBER" }),
-    ] as RuleEditView["vars"],
-    varMeta: (over.axis ?? [[1, "ROW"], [2, "COL"]]).map(([varId, axis]) => ({ varId, axis })) as RuleEditView["varMeta"],
-    rows: [
-      { rowId: 1, seq: 1, rowKind: "NORMAL", cells: cell("0", "0.5", "2", "100"), note: null },
-      { rowId: 2, seq: 2, rowKind: "NORMAL", cells: cell("0", "0.5", "6", "90"), note: null },
-      { rowId: 3, seq: 3, rowKind: "NORMAL", cells: cell("0.5", "0.6", "2", "70"), note: null },
-    ],
-    baseRows: [],
-    varCandidates: [],
-  };
-}
-
-describe("피벗 섹션", () => {
-  beforeEach(() => {
-    installDomStorage();
-    bodies = [];
-    writes = 0;
-    globalThis.sessionStorage?.clear();
-    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      if (url.includes("/api/auth/me")) return jsonResponse({ user: { id: "tester" } });
-      bodies.push({ url, body: JSON.parse(String(init?.body ?? "{}")) });
-      if (url.includes("/oasis/ruleEdit/save")) return jsonResponse({ meta: { success: true }, data: { result: { part: "TABLE", rowVersion: 4, issues: [] } } });
-      return jsonResponse({}, 404);
-    }) as typeof fetch;
-  });
-  afterEach(() => {
-    act(() => root?.unmount());
-    root = null;
-    container?.remove();
-    globalThis.fetch = originalFetch;
-  });
-
-  it("축 열이 없는 룰(QLTY_GRD_JDG)은 피벗 섹션을 그리지 않는다", async () => {
-    await mount(createElement(PivotSection, props(view())));
-    expect(container.querySelector("[data-testid='pivot-section']")).toBeNull();
-  });
-
-  it("편집 가능 모양이면 편집 배지와 셀·구간 입력 칸을 그린다(열 축 값은 처음 나온 순서)", async () => {
-    await mount(createElement(PivotSection, props(pivotView())));
-    expect(q("[data-testid='pivot-badge']").textContent).toContain("편집");
-    expect(Array.from(container.querySelectorAll("th[data-testid^='pivot-col-']")).map((t) => t.textContent)).toEqual(["2", "6"]);
-    expect(container.querySelectorAll("input[data-pvc]")).toHaveLength(4); // 구간 2 × 열 2
-    expect(q<HTMLInputElement>("input[data-pvc='1'][data-col='2']").value).toBe("100");
-    expect(q<HTMLInputElement>("input[data-pvc='3'][data-col='6']").value).toBe("");
-    expect(q<HTMLButtonElement>("[data-testid='pivot-save']").disabled).toBe(true);
-  });
-
-  it("셀을 고치고 빈칸에 값을 넣어 저장하면 기존 TABLE 파트로 평탄화 행이 간다(피벗 전용 저장 없음)", async () => {
-    await mount(createElement(PivotSection, props(pivotView())));
-    await typeInto(q<HTMLInputElement>("input[data-pvc='1'][data-col='6']"), "95");
-    await act(async () => {
-      q<HTMLInputElement>("input[data-pvc='1'][data-col='6']").dispatchEvent(new Event("focusout", { bubbles: true }));
-    });
-    await typeInto(q<HTMLInputElement>("input[data-pvc='3'][data-col='6']"), "60");
-    await act(async () => {
-      q<HTMLInputElement>("input[data-pvc='3'][data-col='6']").dispatchEvent(new Event("focusout", { bubbles: true }));
-    });
-    expect(q<HTMLButtonElement>("[data-testid='pivot-save']").disabled).toBe(false);
-    await act(async () => {
-      q<HTMLButtonElement>("[data-testid='pivot-save']").click();
-    });
-    await flush();
-    const save = bodies.find((b) => b.url.includes("/oasis/ruleEdit/save"))!;
-    expect(save.body.params).toMatchObject({ part: "TABLE", maruRuleId: "E2E_PVT_LKP", ver: 2, rowVersion: 3, hitPolicy: "FIRST" });
-    const rows = (save.body.grids as { rows: { rows: Array<{ rowId: number; cells: string }> } }).rows.rows;
-    expect(rows.map((r) => r.rowId)).toEqual([1, 2, 3, -1]);
-    expect(JSON.parse(rows[1].cells)["3"]).toEqual({ val: "95" });
-    expect(JSON.parse(rows[3].cells)).toEqual({ 1: { op: "<= 변수 <", left: "0.5", right: "0.6" }, 2: { op: "EQ", left: "6" }, 3: { val: "60" } });
-    expect(writes).toBe(1);
-  });
-
-  it("편집 조건이 안 맞으면 화면 표현 배지와 안내만 있고 입력 칸이 없다", async () => {
-    await mount(createElement(PivotSection, props(pivotView({ dispOf: { 2: "1" } }))));
-    expect(q("[data-testid='pivot-badge']").textContent).toContain("화면 표현");
-    expect(container.querySelectorAll("input[data-pvc]")).toHaveLength(0);
-    expect(q("[data-testid='pivot-readonly-note']").textContent).toContain("이 표는 피벗에서 편집하지 않는다");
-    expect(container.querySelector("[data-testid='pivot-save']")).toBeNull();
-  });
-
-  it("소유자가 아니면(편집 불가) 피벗은 보이되 입력 칸이 없다", async () => {
-    await mount(createElement(PivotSection, props(pivotView({ owner: "someone_else" }))));
-    expect(q("[data-testid='pivot-badge']").textContent).toContain("화면 표현");
-    expect(container.querySelectorAll("input[data-pvc]")).toHaveLength(0);
-  });
-
-  it("열 설정 초안이 dirty 이면 피벗 저장이 꺼지고 안내가 나온다(불변 13)", async () => {
-    const shared = { colDirty: true, tableDirty: false, pivotDirty: false, setPivotDirty: () => {}, setColDirty: () => {}, highlightVarId: null, setHighlightVarId: () => {} };
-    await mount(createElement(ColumnDraftSharedContext.Provider, { value: shared }, createElement(PivotSection, props(pivotView()))));
-    await typeInto(q<HTMLInputElement>("input[data-pvc='1'][data-col='6']"), "95");
-    await act(async () => {
-      q<HTMLInputElement>("input[data-pvc='1'][data-col='6']").dispatchEvent(new Event("focusout", { bubbles: true }));
-    });
-    expect(q<HTMLButtonElement>("[data-testid='pivot-save']").disabled).toBe(true);
-    expect(visibleText(q("[data-testid='pivot-col-block']"))).toContain("열 설정 초안이 있어");
-  });
-
-  const commitPivotCell = async () => {
-    await typeInto(q<HTMLInputElement>("input[data-pvc='1'][data-col='6']"), "95");
-    await act(async () => {
-      q<HTMLInputElement>("input[data-pvc='1'][data-col='6']").dispatchEvent(new Event("focusout", { bubbles: true }));
-    });
-  };
-
-  it("표 카드에 저장 안 한 변경이 있으면 피벗 저장이 꺼지고 안내가 나오며, 되돌리면 다시 켜진다(같은 표 파트를 덮어쓰지 않게)", async () => {
-    await mount(createElement(DecisionTableCard, { ...props(pivotView()), extraSections: [{ id: "pivot", Component: PivotSection }] }));
-    await act(async () => {
-      findButton(container, "행 추가").click();
-    });
-    await commitPivotCell();
-    expect(q<HTMLButtonElement>("[data-testid='pivot-save']").disabled).toBe(true);
-    expect(visibleText(q("[data-testid='pivot-table-block']"))).toContain("표 카드에 저장 안 한 변경이 있어");
-    await act(async () => {
-      findButton(container, "되돌리기").click();
-    });
-    expect(container.querySelector("[data-testid='pivot-table-block']")).toBeNull();
-  });
-
-  it("피벗에 저장 안 한 편집이 있으면 표 저장이 꺼지고 안내가 나오며, 피벗을 버리면 다시 켜진다", async () => {
-    await mount(createElement(DecisionTableCard, { ...props(pivotView()), extraSections: [{ id: "pivot", Component: PivotSection }] }));
-    await act(async () => {
-      findButton(container, "행 추가").click();
-    });
-    expect(findButton(container, "표 저장").disabled).toBe(false);
-    expect(container.querySelector("[data-testid='dt-pivot-block']")).toBeNull();
-    await commitPivotCell();
-    expect(findButton(container, "표 저장").disabled).toBe(true);
-    expect(visibleText(q("[data-testid='dt-pivot-block']"))).toContain("피벗에 저장 안 한 변경이 있어");
-    await act(async () => {
-      q<HTMLButtonElement>("[data-testid='pivot-revert']").click();
-    });
-    expect(findButton(container, "표 저장").disabled).toBe(false);
-    expect(container.querySelector("[data-testid='dt-pivot-block']")).toBeNull();
-  });
-
-  it("구간 추가·삭제 버튼이 행 수를 바꾼다", async () => {
-    await mount(createElement(PivotSection, props(pivotView())));
-    await act(async () => {
-      q<HTMLButtonElement>("[data-pvadd='3']").click();
-    });
-    expect(container.querySelectorAll("tbody tr[data-testid^='pivot-band-']")).toHaveLength(3);
-    await act(async () => {
-      q<HTMLButtonElement>("[data-pvdel='1']").click();
-    });
-    expect(container.querySelectorAll("tbody tr[data-testid^='pivot-band-']")).toHaveLength(2);
   });
 });
 
@@ -613,7 +445,7 @@ describe("입력 계약 섹션", () => {
     expect(q("[data-testid='contract-pending']").textContent).toContain('TOP_RESIN_CD == "F"');
   });
 
-  it("섹션 목록 순서는 열 설정 → 피벗 → 입력 계약이다", () => {
-    expect(TABLE_SECTIONS.map((x) => x.id)).toEqual(["columns", "pivot", "contract"]);
+  it("섹션 목록 순서는 열 설정 → 입력 계약이다", () => {
+    expect(TABLE_SECTIONS.map((x) => x.id)).toEqual(["columns", "contract"]);
   });
 });

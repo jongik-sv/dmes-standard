@@ -29,8 +29,9 @@ class VersionContractTest {
     }
 
     @Test
-    void 전이_표는_원천_7종과_담당자_확정_1종이다() {
-        assertEquals(List.of("REQUEST", "REJECT", "APPROVE", "UNAPPROVE", "RELEASE", "CANCEL", "DELETE_DRAFT", "CONFIRM"),
+    void 전이_표는_원천_7종과_담당자_확정_1종과_확정_취소_1종이다() {
+        assertEquals(List.of("REQUEST", "REJECT", "APPROVE", "UNAPPROVE", "RELEASE", "CANCEL", "DELETE_DRAFT", "CONFIRM",
+                        "REVERT_CONFIRM"),
                 Arrays.stream(VersionTransition.values()).map(Enum::name).toList());
 
         assertTransition(VersionTransition.REQUEST, VersionStatus.DRAFT, VersionStatus.REQUESTED, false);
@@ -41,14 +42,23 @@ class VersionContractTest {
         assertTransition(VersionTransition.CANCEL, VersionStatus.RELEASED, VersionStatus.CANCELLED, false);
         assertTransition(VersionTransition.DELETE_DRAFT, VersionStatus.DRAFT, null, true);
         assertTransition(VersionTransition.CONFIRM, VersionStatus.DRAFT, VersionStatus.RELEASED, true);
+        assertTransition(VersionTransition.REVERT_CONFIRM, VersionStatus.RELEASED, VersionStatus.DRAFT, true);
     }
 
     @Test
-    void 이번_범위_전이는_담당자_확정과_DRAFT_삭제_2종뿐이다() {
+    void 이번_범위_전이는_담당자_확정과_DRAFT_삭제와_확정_취소_3종뿐이다() {
         Set<VersionTransition> inScope = Arrays.stream(VersionTransition.values())
                 .filter(VersionTransition::inScope)
                 .collect(Collectors.toCollection(() -> EnumSet.noneOf(VersionTransition.class)));
-        assertEquals(EnumSet.of(VersionTransition.DELETE_DRAFT, VersionTransition.CONFIRM), inScope);
+        assertEquals(EnumSet.of(VersionTransition.DELETE_DRAFT, VersionTransition.CONFIRM,
+                VersionTransition.REVERT_CONFIRM), inScope);
+    }
+
+    @Test
+    void 확정_취소는_철회가_아니라_DRAFT_로_돌아간다() {
+        // D8 — 되돌린 자리에 다시 확정할 수 있어야 하므로 CANCELLED 가 아니라 DRAFT 다(ADR-0002 D4-1, TSK-02-01 D4-1).
+        assertEquals(VersionStatus.DRAFT, VersionTransition.REVERT_CONFIRM.to());
+        assertEquals(false, VersionTransition.CANCEL.inScope());
     }
 
     @Test

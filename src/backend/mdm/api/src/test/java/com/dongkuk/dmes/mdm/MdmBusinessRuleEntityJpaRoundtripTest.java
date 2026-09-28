@@ -132,7 +132,6 @@ class MdmBusinessRuleEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
         saveRuleAndVersion("RT_VAR");
         MdmRuleVar var = new MdmRuleVar("RT_VAR", 1, 4, "RESULT", 1);
         var.setDispType("Value");
-        var.setAxis("COL");
         var.setVarName("QLTY_GRD");
         var.setVarAst("{\"type\":\"id\"}");
         var.setDataType("STRING");
@@ -150,7 +149,6 @@ class MdmBusinessRuleEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
         MdmRuleVar reloaded = varRepository.findById(new MdmRuleVarId("RT_VAR", 1, 4)).orElseThrow();
         assertEquals("RESULT", reloaded.getVarKind());
         assertEquals("Value", reloaded.getDispType());
-        assertEquals("COL", reloaded.getAxis());
         assertEquals("QLTY_GRD", reloaded.getVarName());
         assertEquals("{\"type\":\"id\"}", reloaded.getVarAst());
         assertEquals("STRING", reloaded.getDataType());

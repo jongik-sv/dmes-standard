@@ -20,7 +20,7 @@ import {
   SearchField,
 } from "@dk-oasis/shared/layout";
 import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
-import { ComboBox, Input } from "@dk-oasis/shared/form";
+import { Button, ComboBox, Input } from "@dk-oasis/shared/form";
 import { MdmPageLayout } from "@/shell";
 
 import { convertPreview, deleteUnit, saveUnit, searchUnits } from "./api";
@@ -331,9 +331,9 @@ export default function UnitMngPage() {
             </tbody>
           </table>
           <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-sm)", padding: "0 var(--spacing-md) var(--spacing-md)" }}>
-            <button type="button" onClick={() => void handlePreview()} disabled={isBusy}>
+            <Button size="sm" onClick={() => void handlePreview()} disabled={isBusy}>
               계산
-            </button>
+            </Button>
             {previewResult !== null && <span data-testid="convert-preview-result">{previewResult}</span>}
           </div>
         </ContentPanel>

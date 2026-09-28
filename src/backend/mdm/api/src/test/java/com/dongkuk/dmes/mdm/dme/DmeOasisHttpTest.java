@@ -214,7 +214,7 @@ class DmeOasisHttpTest {
         ObjectNode body = envelope("ruleEdit", json.createObjectNode().put("part", "COLUMNS").put("maruRuleId", "HTTP_JDG")
                 .put("ver", 1).put("rowVersion", 0));
         ArrayNode rows = body.putObject("grids").putObject("rows").putArray("rows");
-        rows.addObject().put("varId", 1).put("varKind", "COND").put("dispType", "2").put("varName", "COIL_THK").put("axis", "ROW");
+        rows.addObject().put("varId", 1).put("varKind", "COND").put("dispType", "2").put("varName", "COIL_THK");
         ObjectNode result = rows.addObject().put("varId", 2).put("varKind", "RESULT").put("dispType", "Value").put("varName", "GRD")
                 .put("dataType", "STRING");
         result.putArray("prioList");
@@ -226,7 +226,7 @@ class DmeOasisHttpTest {
         assertTrue(save.path("meta").path("success").asBoolean(false), save.toString());
         assertEquals(2, DmeTestSupport.count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'HTTP_JDG'"),
                 "deleted:true 줄은 반영되지 않는다");
-        assertEquals("ROW", jdbc.queryForObject("SELECT AXIS FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'HTTP_JDG' AND VAR_ID = 1", String.class));
+        assertEquals("COND", jdbc.queryForObject("SELECT VAR_KIND FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'HTTP_JDG' AND VAR_ID = 1", String.class));
     }
 
     /** TSK-08-03 — BPMN 이 parseExpr(validate action)·도메인 검색(search target=DOMAIN)을 실제 서비스 메서드로 잇는다. */

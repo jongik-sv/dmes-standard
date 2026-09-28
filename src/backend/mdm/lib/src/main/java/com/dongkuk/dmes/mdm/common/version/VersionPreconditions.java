@@ -57,6 +57,31 @@ final class VersionPreconditions {
         }
     }
 
+    /**
+     * 5'. 상태 RELEASED — 확정 취소 전용(ADR-0002 D8-1). {@link #requireDraft} 의 거울상이고 검사 위치도 같은 자리다.
+     *
+     * <p>{@code MDM002} 의 기본 문구("DRAFT 상태에서만 할 수 있습니다")는 확정 취소 요청에서 자기모순이므로 전용 문구를
+     * 넘긴다.
+     */
+    static void requireReleased(VersionRow row) {
+        if (!VersionStatus.RELEASED.name().equals(row.status())) {
+            throw MdmErrors.of(MdmErrorCode.NOT_DRAFT,
+                    "확정(RELEASED)된 미래 적용 버전만 확정 취소할 수 있습니다", List.of());
+        }
+    }
+
+    /**
+     * 5''. 아직 적용 시각이 오지 않은 RELEASED 인가(ADR-0002 D8-1).
+     *
+     * <p>경계는 {@code apply_from == now} 이면 이미 적용된 것으로 본다 — 적용 구간 {@code [apply_from, apply_to)} 와 맞춘다.
+     * 이미 적용된 버전을 되돌리면 MDM025 다.
+     */
+    static void requireFutureUnapplied(VersionRow row, LocalDateTime now) {
+        if (row.applyFrom() == null || !row.applyFrom().isAfter(now)) {
+            throw MdmErrors.of(MdmErrorCode.CONFIRM_CANCEL_NOT_ALLOWED);
+        }
+    }
+
     /** 6. 같은 객체의 <b>다른</b> 미적용 버전이 있으면 MDM007(확정·DRAFT 저장, 04:293-301). */
     void requireSingleUnapplied(VersionRef ref, LocalDateTime now) {
         List<VersionRow> rows = store.findAll(ref.target(), ref.objectId());

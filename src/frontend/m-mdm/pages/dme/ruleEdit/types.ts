@@ -70,6 +70,11 @@ export interface RuleVersionInfo {
   baseVer?: number | null;
   hitPolicy?: HitPolicyCode | null;
   rowVersion: number;
+  /**
+   * 확정 취소 가능 여부(ADR-0002 D8) — 서버 판정값. 아직 적용 시각이 오지 않은 확정 버전이고 소유자가 나이며
+   * 미적용 버전이 이 하나일 때만 true. 화면은 이 값만 보고 버튼을 켠다(재계산하지 않는다).
+   */
+  cancelConfirmable?: boolean;
 }
 
 export interface RuleSetUsage {
@@ -90,7 +95,6 @@ export interface VarCandidate {
 /** 열 설정 초안이 되돌려 보낼 저장 원값(서버 `varMeta`) — `ResolvedVar` 는 해석된 값이라 따로 싣는다. */
 export interface VarMeta {
   varId: number;
-  axis?: "NONE" | "ROW" | "COL" | null;
   resGrp?: string | null;
   grpCond?: string | null;
   collectAgg?: string | null;

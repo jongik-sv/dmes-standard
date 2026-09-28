@@ -610,6 +610,203 @@ public abstract class AbstractVersionStateScenarioTest {
                 "업무 버전 칼럼 VER 는 감사 카운터로 오르지 않는다");
     }
 
+    // ── R1~R8: 확정 취소(TSK-02-01 D4-1, ADR-0002 D8) ──────────────────────────────────────
+
+    @Test
+    void R1_미래_적용_확정을_되돌리면_DRAFT_가_되고_확정_칸과_row_version_은_남는다() {
+        at("2026-09-03 00:00:00");
+        seedObject(VersionTarget.MASTER_CODE, "PROC_CD", "INUSE");
+        VersionRef v1001 = code("PROC_CD", "1.001");
+        VersionRef v2000 = code("PROC_CD", "2.000");
+        seedVersion(code("PROC_CD", "1.000"), "RELEASED", KIM, "2024-01-01 00:00:00", "2026-07-01 00:00:00", 1);
+        seedVersion(v1001, "RELEASED", KIM, "2026-07-01 00:00:00", OPEN_END, 1);
+        seedVersion(v2000, "DRAFT", KIM, null, null, 0);
+        confirm(v2000, 0, "2026-10-01 00:00:00");
+
+        versionStateService.cancelConfirm(v2000, 1, KIM);
+
+        Map<String, Object> row = readVersion(v2000);
+        assertEquals("DRAFT", row.get("STATUS"), "작성 중으로 되돌린다");
+        assertNull(row.get("APPLY_FROM"), "적용 시각도 함께 걷는다");
+        assertNull(row.get("APPLY_TO"));
+        assertEquals(2L, number(row.get("ROW_VERSION")), "확정 때 +1, 취소 때 +1");
+        // D8-5 — 확정 칸은 남긴다: 확정자를 되찾는 수단이고 "확정 후 취소" 흔적이다.
+        assertEquals(KIM, row.get("REQUESTED_BY"), "확정자 기록이 남는다");
+        assertNotNull(row.get("REQUESTED_AT"));
+        assertNotNull(row.get("RELEASED_AT"), "확정 시각이 남는다");
+    }
+
+    @Test
+    void R2_되돌리면_직전_RELEASED_의_구간이_다시_열리고_더_앞선_버전은_그대로다() {
+        at("2026-09-03 00:00:00");
+        seedObject(VersionTarget.MASTER_CODE, "PROC_CD", "INUSE");
+        VersionRef v1000 = code("PROC_CD", "1.000");
+        VersionRef v1001 = code("PROC_CD", "1.001");
+        VersionRef v2000 = code("PROC_CD", "2.000");
+        seedVersion(v1000, "RELEASED", KIM, "2024-01-01 00:00:00", "2026-07-01 00:00:00", 1);
+        seedVersion(v1001, "RELEASED", KIM, "2026-07-01 00:00:00", OPEN_END, 1);
+        seedVersion(v2000, "DRAFT", KIM, null, null, 0);
+        confirm(v2000, 0, "2026-10-01 00:00:00");
+        assertEquals("2026-10-01 00:00:00", text(readVersion(v1001).get("APPLY_TO")), "확정이 닫았다");
+
+        versionStateService.cancelConfirm(v2000, 1, KIM);
+
+        assertEquals(OPEN_END, text(readVersion(v1001).get("APPLY_TO")), "다시 열린다 — 되돌린 뒤 빈 구간이 생기면 안 된다");
+        assertEquals("2026-07-01 00:00:00", text(readVersion(v1000).get("APPLY_TO")), "더 앞선 버전은 그대로");
+    }
+
+    @Test
+    void R3_최초_버전_되돌리기는_복구_대상이_없어_통과한다() {
+        at("2026-09-03 00:00:00");
+        seedObject(VersionTarget.MASTER_CODE, "NEW_CD", "CREATED");
+        VersionRef v1 = code("NEW_CD", "1.000");
+        seedVersion(v1, "DRAFT", KIM, null, null, 0);
+        confirm(v1, 0, "2026-10-01 00:00:00");
+
+        versionStateService.cancelConfirm(v1, 1, KIM);
+
+        assertEquals("DRAFT", readVersion(v1).get("STATUS"));
+        assertEquals("CREATED", parentStatus(VersionTarget.MASTER_CODE, "NEW_CD"), "D8-8 상위 상태는 되돌리지 않는다");
+    }
+
+    @Test
+    void R4_이미_적용된_버전은_MDM025_이고_적용_시각_경계에서는_막힌다() {
+        seedObject(VersionTarget.MASTER_CODE, "PROC_CD", "INUSE");
+        VersionRef v1 = code("PROC_CD", "1.000");
+        seedVersion(v1, "RELEASED", KIM, "2026-08-01 00:00:00", OPEN_END, 1);
+
+        // 이미 지난 적용 시각.
+        at("2026-09-03 00:00:00");
+        assertMdm("MDM025", () -> versionStateService.cancelConfirm(v1, 1, KIM), "이미 지난 적용 시각");
+        assertEquals("RELEASED", readVersion(v1).get("STATUS"));
+
+        // 경계(= now)는 적용된 것으로 본다 — 적용 구간 [apply_from, apply_to) 와 맞춘다.
+        at("2026-08-01 00:00:00");
+        assertMdm("MDM025", () -> versionStateService.cancelConfirm(v1, 1, KIM), "경계는 적용됨");
+        assertEquals("RELEASED", readVersion(v1).get("STATUS"));
+
+        // 아직 오지 않은 적용 시각일 때만 되돌릴 수 있다.
+        at("2026-07-31 23:59:59");
+        versionStateService.cancelConfirm(v1, 1, KIM);
+        assertEquals("DRAFT", readVersion(v1).get("STATUS"));
+    }
+
+    @Test
+    void R5_DRAFT_와_REQUESTED_는_MDM002_이고_문구도_확정_취소_에_맞춘다() {
+        seedObject(VersionTarget.MASTER_CODE, "PROC_CD", "INUSE");
+        VersionRef v1 = code("PROC_CD", "1.000");
+        seedVersion(v1, "DRAFT", KIM, null, null, 0);
+
+        BusinessException e = assertMdm("MDM002", () -> versionStateService.cancelConfirm(v1, 0, KIM));
+        assertTrue(e.getMessage().contains("확정 취소"), "MDM002 기본 문구는 자기모순이라 전용 문구를 넘긴다: " + e.getMessage());
+        assertDraftUntouched(v1, 0);
+    }
+
+    @Test
+    void R6_소유자가_아니면_MDM003_이고_소유자가_비었어도_막는다() {
+        seedObject(VersionTarget.MASTER_CODE, "PROC_CD", "INUSE");
+        VersionRef v1 = code("PROC_CD", "1.000");
+        seedVersion(v1, "RELEASED", LEE, "2026-10-01 00:00:00", OPEN_END, 1);
+        assertMdm("MDM003", () -> versionStateService.cancelConfirm(v1, 1, KIM));
+        assertEquals("RELEASED", readVersion(v1).get("STATUS"));
+
+        clearTables(jdbc);
+        seedVersion(v1, "RELEASED", null, "2026-10-01 00:00:00", OPEN_END, 1);
+        assertMdm("MDM003", () -> versionStateService.cancelConfirm(v1, 1, KIM), "해제된 소유자는 확정 취소를 못 한다");
+    }
+
+    @Test
+    void R7_행버전_이_다르면_MDM001_이고_아무것도_바뀌지_않는다() {
+        at("2026-09-03 00:00:00");
+        seedObject(VersionTarget.MASTER_CODE, "PROC_CD", "INUSE");
+        VersionRef v1 = code("PROC_CD", "1.000");
+        seedVersion(v1, "RELEASED", KIM, "2026-10-01 00:00:00", OPEN_END, 3);
+
+        assertMdm("MDM001", () -> versionStateService.cancelConfirm(v1, 2, KIM));
+        Map<String, Object> row = readVersion(v1);
+        assertEquals("RELEASED", row.get("STATUS"));
+        assertEquals(3L, number(row.get("ROW_VERSION")));
+        assertEquals("2026-10-01 00:00:00", text(row.get("APPLY_FROM")));
+    }
+
+    @Test
+    void R8_담당자_역할이_없으면_MDM013_이다() {
+        seedObject(VersionTarget.MASTER_CODE, "PROC_CD", "INUSE");
+        VersionRef v1 = code("PROC_CD", "1.000");
+        seedVersion(v1, "RELEASED", KIM, "2026-10-01 00:00:00", OPEN_END, 1);
+        currentUser.set(KIM, Set.of());
+
+        assertMdm("MDM013", () -> versionStateService.cancelConfirm(v1, 1, KIM));
+        assertEquals("RELEASED", readVersion(v1).get("STATUS"));
+    }
+
+    @Test
+    void R9_되돌린_뒤_다시_확정하면_직전_구간이_다시_닫힌다() {
+        at("2026-09-03 00:00:00");
+        seedObject(VersionTarget.MASTER_CODE, "PROC_CD", "INUSE");
+        VersionRef v1001 = code("PROC_CD", "1.001");
+        VersionRef v2000 = code("PROC_CD", "2.000");
+        seedVersion(code("PROC_CD", "1.000"), "RELEASED", KIM, "2024-01-01 00:00:00", "2026-07-01 00:00:00", 1);
+        seedVersion(v1001, "RELEASED", KIM, "2026-07-01 00:00:00", OPEN_END, 1);
+        seedVersion(v2000, "DRAFT", KIM, null, null, 0);
+        confirm(v2000, 0, "2026-10-01 00:00:00");
+        versionStateService.cancelConfirm(v2000, 1, KIM);
+
+        // 되돌린 자리는 DRAFT 이므로 다시 확정한 대상이 된다.
+        ConfirmResult again = confirm(v2000, 2, "2026-11-01 00:00:00");
+
+        assertEquals(v2000, again.confirmed());
+        assertEquals(v1001, again.closedPrevious(), "직전은 자기 자신이 아니다");
+        assertEquals("2026-11-01 00:00:00", text(readVersion(v1001).get("APPLY_TO")), "다시 닫힌다");
+        assertEquals("2026-11-01 00:00:00", text(readVersion(v2000).get("APPLY_FROM")));
+        assertEquals(3L, number(readVersion(v2000).get("ROW_VERSION")));
+    }
+
+    @Test
+    void R10_되돌린_버전은_여전히_미적용_1개여서_새_버전은_막고_폐기는_계속_열려_있다() {
+        at("2026-09-03 00:00:00");
+        seedObject(VersionTarget.MASTER_CODE, "PROC_CD", "INUSE");
+        VersionRef v1001 = code("PROC_CD", "1.001");
+        VersionRef v2000 = code("PROC_CD", "2.000");
+        seedVersion(code("PROC_CD", "1.000"), "RELEASED", KIM, "2024-01-01 00:00:00", "2026-07-01 00:00:00", 1);
+        seedVersion(v1001, "RELEASED", KIM, "2026-07-01 00:00:00", OPEN_END, 1);
+        seedVersion(v2000, "DRAFT", KIM, null, null, 0);
+        confirm(v2000, 0, "2026-10-01 00:00:00");
+        versionStateService.cancelConfirm(v2000, 1, KIM);
+
+        // D8-11 — 되돌린 버전도 미적용이므로 새 버전 생성은 계속 막힌다(편집만 열린다).
+        assertMdm("MDM006", () -> writeGuard.checkCanCreateVersion(VersionTarget.MASTER_CODE, "PROC_CD"));
+        // 삭제는 열린다 — 되돌린 자리는 DRAFT 이니.
+        versionStateService.deleteDraft(v2000, 2, KIM);
+        assertNull(readVersionOrNull(v2000));
+    }
+
+    @Test
+    void R11_직전_구간의_끝이_취소_대상_적용_시각과_다르면_MDM001_이고_아무것도_바뀌지_않는다() {
+        // D8-6 안전장치 — 확정이 닫은 값과 다르면 덮어쓰지 않는다(동시 편집으로 어긋난 경우).
+        at("2026-09-03 00:00:00");
+        seedObject(VersionTarget.MASTER_CODE, "PROC_CD", "INUSE");
+        VersionRef v1001 = code("PROC_CD", "1.001");
+        VersionRef v2000 = code("PROC_CD", "2.000");
+        // 직전 v1.001 의 끝을 확정 때의 값(2026-10-01)이 아닌 다른 값으로 어긋나게 심는다.
+        seedVersion(code("PROC_CD", "1.000"), "RELEASED", KIM, "2024-01-01 00:00:00", "2026-07-01 00:00:00", 1);
+        seedVersion(v1001, "RELEASED", KIM, "2026-07-01 00:00:00", "2026-12-31 23:59:59", 1);
+        seedVersion(v2000, "DRAFT", KIM, null, null, 0);
+        confirm(v2000, 0, "2026-10-01 00:00:00");
+        // 사람이 다른 세션에서 v1.001 의 구간을 건드린 상황을 만든다(표는 대상마다 다르다).
+        VersionTableSpec spec = spec(VersionTarget.MASTER_CODE);
+        jdbc.update("UPDATE " + spec.versionTable() + " SET APPLY_TO = ? WHERE " + spec.objectIdColumn() + " = ? AND "
+                        + spec.versionColumn() + " = ?",
+                "2026-12-31 23:59:59", "PROC_CD", v1001.ver().setScale(VersionTarget.MASTER_CODE.versionScale()));
+
+        assertMdm("MDM001", () -> versionStateService.cancelConfirm(v2000, 1, KIM));
+
+        assertEquals("RELEASED", readVersion(v2000).get("STATUS"), "되돌린 흔적도 없어야 한다");
+        assertEquals(1L, number(readVersion(v2000).get("ROW_VERSION")));
+        assertEquals("2026-10-01 00:00:00", text(readVersion(v2000).get("APPLY_FROM")));
+        assertEquals("2026-12-31 23:59:59", text(readVersion(v1001).get("APPLY_TO")), "덮어쓰지 않는다");
+    }
+
     // ── 도우미 ────────────────────────────────────────────────────────────────────────────
 
     protected VersionTableSpec spec(VersionTarget target) {

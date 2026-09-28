@@ -48,7 +48,14 @@ public enum MdmErrorCode {
     /** TSK-06-03 D5 — RELEASED 코드 행의 경미 수정 거부(EXTERNAL·RELEASED 아님·DRAFT 가 같은 키를 고침). */
     CODE_PATCH_REJECTED("MDM023", 409, ErrorCode.BUSINESS_ERROR, "경미 수정을 할 수 없습니다"),
     /** TSK-08-06 D8 — 룰 세트 저장·되살리기 검사(순서·순환·입력 출처·룰 존재)에 거부가 있다. 세부는 이슈 코드로 싣는다. */
-    RULE_SET_SAVE_REJECTED("MDM024", 400, ErrorCode.BUSINESS_ERROR, "룰 세트 저장 검사를 통과하지 못했습니다");
+    RULE_SET_SAVE_REJECTED("MDM024", 400, ErrorCode.BUSINESS_ERROR, "룰 세트 저장 검사를 통과하지 못했습니다"),
+    /**
+     * TSK-02-01 D4-1 / ADR-0002 D8-1·D8-11 — 확정 취소(미래 적용 RELEASED → DRAFT) 대상이 아니다.
+     *
+     * <p>적용 시각이 이미 지난 버전을 되돌리면 조회 해석이 과거로 되감기고, 배포·수신이 아직 보류 상태라 되돌림의 정합을
+     * 이룰 감시점이 없다.
+     */
+    CONFIRM_CANCEL_NOT_ALLOWED("MDM025", 409, ErrorCode.BUSINESS_ERROR, "이미 적용된 버전은 확정 취소할 수 없습니다");
 
     private final String code;
     private final int httpStatus;

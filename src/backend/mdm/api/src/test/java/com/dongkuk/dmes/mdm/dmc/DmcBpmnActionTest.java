@@ -97,9 +97,13 @@ class DmcBpmnActionTest {
                     .filter(m -> m.getName().equals(method)).toList();
             assertEquals(1, found.size(), method + " 는 public 메서드 하나");
             if (Set.of("validate", "save").contains(method)) {
-                assertEquals(2, found.get(0).getParameterCount(), method);
-                assertEquals("rows", found.get(0).getParameters()[1].getName(),
-                        "grids.rows 와 파라미터 이름이 같아야 한다(-parameters 컴파일)");
+                // 2026-09-28 화면 합치기 — 코드 행·카테고리·소속 세 그리드를 파라미터 이름으로 받는다
+                assertEquals(4, found.get(0).getParameterCount(), method);
+                List<String> grids = List.of("rows", "categories", "members");
+                for (int i = 0; i < grids.size(); i++) {
+                    assertEquals(grids.get(i), found.get(0).getParameters()[i + 1].getName(),
+                            "grids." + grids.get(i) + " 와 파라미터 이름이 같아야 한다(-parameters 컴파일)");
+                }
             } else {
                 assertEquals(1, found.get(0).getParameterCount(), method);
             }

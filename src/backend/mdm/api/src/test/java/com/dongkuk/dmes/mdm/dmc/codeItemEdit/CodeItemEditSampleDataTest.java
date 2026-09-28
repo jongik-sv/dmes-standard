@@ -67,7 +67,7 @@ class CodeItemEditSampleDataTest extends AbstractMdmSharedDbTest {
     void SD1_PROC_CD_의_DRAFT_v2_000_이_82_83_을_닫으면_원천_최종_상태가_된다() {
         fx.seedProcCdBeforeDraftEdits();
 
-        Map<String, Object> result = service.save(save("PROC_CD", "2.000", 0L), List.of(deleted("82"), deleted("83")));
+        Map<String, Object> result = service.save(save("PROC_CD", "2.000", 0L), List.of(deleted("82"), deleted("83")), List.of(), List.of());
 
         assertEquals(List.of(
                 "1P|1.000|9999|PLTCM|PLTCM|11",
@@ -91,7 +91,7 @@ class CodeItemEditSampleDataTest extends AbstractMdmSharedDbTest {
     @Test
     void SD2_버전별_모습() {
         fx.seedProcCdBeforeDraftEdits();
-        service.save(save("PROC_CD", "2.000", 0L), List.of(deleted("82"), deleted("83")));
+        service.save(save("PROC_CD", "2.000", 0L), List.of(deleted("82"), deleted("83")), List.of(), List.of());
 
         List<Map<String, Object>> v1001 = list(service.view(view("PROC_CD", "1.001")), "rows");
         List<Map<String, Object>> v2000 = list(service.view(view("PROC_CD", "2.000")), "rows");
@@ -106,7 +106,7 @@ class CodeItemEditSampleDataTest extends AbstractMdmSharedDbTest {
     @Test
     void SD3_카테고리_해석() {
         fx.seedProcCdBeforeDraftEdits();
-        service.save(save("PROC_CD", "2.000", 0L), List.of(deleted("82"), deleted("83")));
+        service.save(save("PROC_CD", "2.000", 0L), List.of(deleted("82"), deleted("83")), List.of(), List.of());
 
         assertEquals(Set.of("1P", "2P", "82", "83"), hits("1.001", "BASE"));
         assertEquals(Set.of("82", "83"), hits("1.001", "COATING"));
@@ -123,7 +123,7 @@ class CodeItemEditSampleDataTest extends AbstractMdmSharedDbTest {
     @Test
     void SD4_v2_000_의_diff_는_닫힌_행_셋이고_추가_수정은_없다() {
         fx.seedProcCdBeforeDraftEdits();
-        service.save(save("PROC_CD", "2.000", 0L), List.of(deleted("82"), deleted("83")));
+        service.save(save("PROC_CD", "2.000", 0L), List.of(deleted("82"), deleted("83")), List.of(), List.of());
 
         Map<String, Object> v = service.view(view("PROC_CD", "2.000"));
 
@@ -139,7 +139,7 @@ class CodeItemEditSampleDataTest extends AbstractMdmSharedDbTest {
     @Test
     void SD5_DRAFT_가_닫기만_한_키와_건드리지_않은_키는_경미_수정할_수_있다() {
         fx.seedProcCdBeforeDraftEdits();
-        service.save(save("PROC_CD", "2.000", 0L), List.of(deleted("82"), deleted("83")));
+        service.save(save("PROC_CD", "2.000", 0L), List.of(deleted("82"), deleted("83")), List.of(), List.of());
 
         service.patch(patch("PROC_CD", "82", "1.000", "2CGL-P", "CGL", 21, null));
         service.patch(patch("PROC_CD", "1P", "1.000", "PLTCM-P", "PLTCM", 11, "설명"));
@@ -165,11 +165,11 @@ class CodeItemEditSampleDataTest extends AbstractMdmSharedDbTest {
 
         for (Map<String, Object> bad : List.of(x1, x2, ks3)) {
             BusinessException e = assertMdm(MdmErrorCode.CODE_SAVE_REJECTED,
-                    () -> service.save(save("STEEL_STD", "1.001", 0L), List.of(bad)));
+                    () -> service.save(save("STEEL_STD", "1.001", 0L), List.of(bad), List.of(), List.of()));
             assertTrue(e.getMessage().startsWith(MdmErrorCode.CODE_SAVE_REJECTED.defaultMessage()), e.getMessage());
             assertEquals(0L, fx.rowVersion("STEEL_STD", "1.001"));
         }
-        Map<String, Object> ok = service.save(save("STEEL_STD", "1.001", 0L), List.of(z50));
+        Map<String, Object> ok = service.save(save("STEEL_STD", "1.001", 0L), List.of(z50), List.of(), List.of());
         assertEquals(1L, ((Number) ok.get("rowVersion")).longValue());
         assertEquals(1L, fx.rowVersion("STEEL_STD", "1.001"));
         assertTrue(fx.itemSegments("STEEL_STD").contains("KS-3-CGCH-Z50@1.001-9999"));
@@ -186,7 +186,7 @@ class CodeItemEditSampleDataTest extends AbstractMdmSharedDbTest {
         assertEquals(false, selected.get("patchable"));
 
         BusinessException save = assertMdm(MdmErrorCode.CODE_SAVE_REJECTED,
-                () -> service.save(save("EQP_CD", "2.000", 0L), List.of(row("ADDED", "E2", "x", 2))));
+                () -> service.save(save("EQP_CD", "2.000", 0L), List.of(row("ADDED", "E2", "x", 2)), List.of(), List.of()));
         assertTrue(save.getMessage().contains("SOURCE_EXTERNAL"), save.getMessage());
         BusinessException patch = assertMdm(MdmErrorCode.CODE_PATCH_REJECTED,
                 () -> service.patch(patch("EQP_CD", "E1", "1.000", "x", null, 1, null)));
@@ -201,7 +201,7 @@ class CodeItemEditSampleDataTest extends AbstractMdmSharedDbTest {
     }
 
     private List<String> validate(Map<String, Object> row) {
-        return codes2(list(service.validate(save("STEEL_STD", "1.001", null), List.of(row)), "issues"));
+        return codes2(list(service.validate(save("STEEL_STD", "1.001", null), List.of(row), List.of(), List.of()), "issues"));
     }
 
     private static List<String> codes2(List<Map<String, Object>> issues) {

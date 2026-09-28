@@ -148,6 +148,45 @@ class DmcOasisHttpTest {
         assertEquals("steward", jdbc.queryForObject("SELECT OWNER_ID FROM TB_MDM_CODE_VER", String.class));
     }
 
+    @Test
+    void H5_codeEdit_delete_는_target_없으면_DRAFT_삭제_CODE_면_마루_코드_삭제다() throws Exception {
+        // 2026-09-28 — 새 action 없이 delete 한 분기에서 params.target 으로 가른다(BPMN method=delete).
+        post("codeMng", "reg", STEWARD, envelope("codeMng", regParams("PROC_CD")));
+
+        JsonNode draft = post("codeEdit", "delete", STEWARD, envelope("codeEdit", draftParams(0)));
+        assertTrue(draft.path("meta").path("success").asBoolean(false), draft.toString());
+        assertEquals(0, draft.path("data").path("result").path("versions").size(), draft.toString());
+        assertTrue(draft.path("data").path("result").path("flags").path("canDeleteCode").asBoolean(false), draft.toString());
+        assertEquals(1, seeds.count("TB_MDM_CODE"));
+        assertEquals(0, seeds.count("TB_MDM_CODE_VER"));
+
+        long auditVer = jdbc.queryForObject("SELECT VER FROM TB_MDM_CODE WHERE MARU_CODE_ID = 'PROC_CD'", Long.class);
+        ObjectNode codeParams = json.createObjectNode().put("maruCodeId", "PROC_CD").put("auditVer", auditVer)
+                .put("target", "CODE");
+        JsonNode code = post("codeEdit", "delete", STEWARD, envelope("codeEdit", codeParams));
+        assertTrue(code.path("meta").path("success").asBoolean(false), code.toString());
+        assertEquals("CODE", code.path("data").path("result").path("deleted").asText(), code.toString());
+        assertEquals("PROC_CD", code.path("data").path("result").path("maruCodeId").asText(), code.toString());
+        assertEquals(0, seeds.count("TB_MDM_CODE"));
+    }
+
+    @Test
+    void H6_codeEdit_delete_CODE_거부는_MDM009_문구가_meta_message_로_오고_아무것도_지우지_않는다() throws Exception {
+        post("codeMng", "reg", STEWARD, envelope("codeMng", regParams("PROC_CD")));
+        seeds.released("PROC_CD", "2.000", MasterCodeSeeds.PAST, MasterCodeSeeds.OPEN_END);
+        long auditVer = jdbc.queryForObject("SELECT VER FROM TB_MDM_CODE WHERE MARU_CODE_ID = 'PROC_CD'", Long.class);
+        ObjectNode codeParams = json.createObjectNode().put("maruCodeId", "PROC_CD").put("auditVer", auditVer)
+                .put("target", "CODE");
+
+        JsonNode body = post("codeEdit", "delete", STEWARD, envelope("codeEdit", codeParams));
+
+        assertFalse(body.path("meta").path("success").asBoolean(true), body.toString());
+        assertTrue(body.path("meta").path("message").asText().startsWith(
+                MdmErrorCode.TRANSITION_NOT_ALLOWED.defaultMessage()), body.toString());
+        assertEquals(1, seeds.count("TB_MDM_CODE"));
+        assertEquals(2, seeds.count("TB_MDM_CODE_VER"));
+    }
+
     private ObjectNode draftParams(int rowVersion) {
         return json.createObjectNode().put("maruCodeId", "PROC_CD").put("ver", "1.000").put("rowVersion", rowVersion);
     }

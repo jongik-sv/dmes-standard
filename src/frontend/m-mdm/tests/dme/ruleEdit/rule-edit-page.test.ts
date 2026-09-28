@@ -6,7 +6,7 @@ import { createElement, act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
-import { takeMdmPageParams } from "@/shell";
+import { HANDOVER_AVAILABLE, HANDOVER_PENDING_TEXT, takeMdmPageParams } from "@/shell";
 
 import RuleEditPage from "../../../pages/dme/ruleEdit/page";
 import { RULE_EDIT_TARGET_EVENT, RULE_EDIT_TARGET_KEY } from "../../../src/dme/rule-handoff";
@@ -20,7 +20,9 @@ import {
   typeInto,
   visibleText,
 } from "../helpers/render";
-import { draftView, releasedView } from "./fixtures";
+import { cancelConfirmableView, draftView, releasedView } from "./fixtures";
+
+const HANDOVER_LABEL = "넘기기(준비 중)";
 
 let container: HTMLDivElement;
 let root: Root | null = null;
@@ -140,13 +142,13 @@ describe("RuleEditPage", () => {
     expect(window.sessionStorage.getItem(RULE_EDIT_TARGET_KEY)).toBeNull();
   });
 
-  it("소유자면 편집 중(나) 배지와 헤더 저장·삭제·해제·넘기기가 켜진다", async () => {
+  it("소유자면 편집 중(나) 배지와 헤더 저장·삭제·해제가 켜진다(넘기기는 준비 중이라 꺼져 있다, D2)", async () => {
     await openByHandoff();
     expect(visibleText(container)).toContain("편집 중(나)");
     expect(findButton(container, "헤더 저장").disabled).toBe(false);
     expect(findButton(container, "삭제").disabled).toBe(false);
     expect(findButton(container, "해제").disabled).toBe(false);
-    expect(findButton(container, "넘기기").disabled).toBe(false);
+    expect(findButton(container, HANDOVER_LABEL).disabled).toBe(true);
     expect(byTestId<HTMLInputElement>("rule-header-name")!.disabled).toBe(false);
   });
 
@@ -157,7 +159,7 @@ describe("RuleEditPage", () => {
     expect(findButton(container, "헤더 저장").disabled).toBe(true);
     expect(findButton(container, "삭제").disabled).toBe(true);
     expect(findButton(container, "해제").disabled).toBe(true);
-    expect(findButton(container, "넘기기").disabled).toBe(true);
+    expect(findButton(container, HANDOVER_LABEL).disabled).toBe(true);
     expect(byTestId<HTMLInputElement>("rule-header-name")!.disabled).toBe(true);
     expect(() => findButton(container, "선점")).toThrow();
   });
@@ -170,7 +172,7 @@ describe("RuleEditPage", () => {
     await openByHandoff();
     await flush();
     expect(visibleText(container)).toContain("편집 중(나)");
-    for (const label of ["헤더 저장", "삭제", "해제", "넘기기"]) {
+    for (const label of ["헤더 저장", "삭제", "해제", HANDOVER_LABEL]) {
       expect(findButton(container, label).disabled, label).toBe(true);
     }
   });
@@ -289,14 +291,19 @@ describe("RuleEditPage", () => {
     expect(params("view")).toEqual({ maruRuleId: "QLTY_GRD_JDG" });
   });
 
-  it("넘기기는 대상 사용자 ID 를 실어 보낸다", async () => {
+  // D2(2026-09-28): 넘겨받는 사람의 담당자 여부를 확인할 수단이 없어 서버가 늘 MDM005 로 거부한다. 켜 둔 버튼이 늘
+  // 실패하지 않도록 조회 수단이 생길 때까지 끈다(HANDOVER_AVAILABLE). 서버 넘기기 로직은 백엔드 테스트가 가짜 디렉터리로 본다.
+  it("넘기기는 준비 중이라 대상 칸·버튼이 꺼져 있고 이유를 알리며 handover 를 보내지 않는다(D2)", async () => {
     await openByHandoff();
-    await typeInto(byTestId<HTMLInputElement>("rule-handover-target")!, "e2e_mdm_steward2");
+    expect(HANDOVER_AVAILABLE).toBe(false);
+    expect(byTestId<HTMLInputElement>("rule-handover-target")!.disabled).toBe(true);
+    expect(findButton(container, HANDOVER_LABEL).disabled).toBe(true);
+    expect(byTestId<HTMLElement>("rule-handover-wrap")!.getAttribute("title")).toBe(HANDOVER_PENDING_TEXT);
     await act(async () => {
-      findButton(container, "넘기기").click();
+      findButton(container, HANDOVER_LABEL).click();
     });
     await flush();
-    expect(params("handover")).toEqual({ maruRuleId: "QLTY_GRD_JDG", ver: 2, rowVersion: 3, newOwnerId: "e2e_mdm_steward2" });
+    expect(params("handover")).toBeUndefined();
   });
 
   it("폐기는 두 번 눌러야 target RULE 을 보낸다", async () => {
@@ -311,6 +318,52 @@ describe("RuleEditPage", () => {
     });
     await flush();
     expect(params("delete")).toEqual({ maruRuleId: "QLTY_GRD_JDG", target: "RULE" });
+  });
+
+  // ── 확정 취소(ADR-0002 D8, TSK-02-01 D4-1) ──
+  it("확정 취소는 서버 판정값(cancelConfirmable)이 true 일 때만 켜진다", async () => {
+    view = cancelConfirmableView();
+    await openByHandoff();
+    expect(byTestId<HTMLButtonElement>("rule-cancel-confirm")!.disabled).toBe(false);
+  });
+
+  it("판정값이 없으면 확정 취소는 꺼진다 — 화면이 재계산하지 않는다", async () => {
+    // RELEASED 지만 cancelConfirmable 이 없다(적용 시각 경계·미적용 개수·소유자 판정을 화면에서 다시 하면 안 된다).
+    view = cancelConfirmableView("e2e_mdm_steward", {
+      versions: [
+        { ver: 2, status: "RELEASED", applyFrom: "2026-12-01 00:00:00", applyTo: "9999-12-31 00:00:00", ownerId: "e2e_mdm_steward", baseVer: 1, hitPolicy: "FIRST", rowVersion: 1 },
+        { ver: 1, status: "RELEASED", applyFrom: "2026-01-01 00:00:00", applyTo: "9999-12-31 00:00:00", ownerId: null, baseVer: null, hitPolicy: "FIRST", rowVersion: 0 },
+      ],
+    });
+    await openByHandoff();
+    expect(byTestId<HTMLButtonElement>("rule-cancel-confirm")!.disabled).toBe(true);
+  });
+
+  it("DRAFT 선택에서는 확정 취소가 꺼진다(DRAFT 전용 판정과 겹치지 않는다)", async () => {
+    view = draftView("e2e_mdm_steward");
+    await openByHandoff();
+    expect(byTestId<HTMLButtonElement>("rule-cancel-confirm")!.disabled).toBe(true);
+  });
+
+  it("확정 취소를 누르면 확인창에 06 교차 효과를 알리고 target CONFIRM 을 보낸다", async () => {
+    view = cancelConfirmableView();
+    await openByHandoff();
+    await act(async () => {
+      byTestId<HTMLButtonElement>("rule-cancel-confirm")!.click();
+    });
+    await flush();
+    const body = visibleText(document.body);
+    expect(body).toContain("확정 취소");
+    expect(body).toContain("룰 세트");
+    expect(body).toContain("다른 룰의 확정이 잠시 막힙니다");
+    expect(body).toContain("다시 확정하면 풀립니다");
+    // 확인창([확인])은 shared 의 메시지 모달이므로 body 기준으로 찾는다.
+    expect(params("delete"), "확인 전에는 보내지 않는다").toBeUndefined();
+    await act(async () => {
+      findButton(document.body, "확인").click();
+    });
+    await flush();
+    expect(params("delete")).toEqual({ maruRuleId: "QLTY_GRD_JDG", ver: 2, rowVersion: 1, target: "CONFIRM" });
   });
 
   it("서버가 거부하면 오류를 보이고, MDM001 이면 다시 불러오기 안내를 준다", async () => {

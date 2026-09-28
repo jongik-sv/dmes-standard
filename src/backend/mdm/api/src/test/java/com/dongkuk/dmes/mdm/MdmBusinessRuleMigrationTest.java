@@ -145,15 +145,14 @@ class MdmBusinessRuleMigrationTest {
                 rejected(c, "CK_TB_MDM_RULE_VER_EMERGENCY_YN", ver, r, 1, "DRAFT", null, null, null, "X");
                 exec(c, ver, r, 1, "DRAFT", null, null, null, "N");
 
-                String var = "INSERT INTO TB_MDM_RULE_VAR (MARU_RULE_ID, VER, VAR_ID, VAR_KIND, DISP_TYPE, AXIS, VAR_NAME, "
-                        + "DATA_TYPE, COLLECT_AGG, SEQ) VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?)";
-                rejected(c, "CK_TB_MDM_RULE_VAR_KIND", var, r, 1, "BAD", null, null, "X", null, null, 1);
-                rejected(c, "CK_TB_MDM_RULE_VAR_DISP", var, r, 1, "COND", "TWO", null, "X", null, null, 1);
-                rejected(c, "CK_TB_MDM_RULE_VAR_AXIS", var, r, 1, "COND", "2", "BAD", "X", null, null, 1);
-                rejected(c, "CK_TB_MDM_RULE_VAR_DTYPE", var, r, 1, "COND", "2", "ROW", "X", "BAD", null, 1);
-                rejected(c, "CK_TB_MDM_RULE_VAR_AGG", var, r, 1, "RESULT", "Value", null, "X", null, "AVG", 1);
-                rejected(c, "CK_TB_MDM_RULE_VAR_RESULT_NAME", var, r, 1, "RESULT", "Value", null, null, null, null, 1);
-                exec(c, var, r, 1, "COND", null, null, null, null, null, 1); // 조건 열은 VAR_NAME 이 NULL 이어도 된다(Expression)
+                String var = "INSERT INTO TB_MDM_RULE_VAR (MARU_RULE_ID, VER, VAR_ID, VAR_KIND, DISP_TYPE, VAR_NAME, "
+                        + "DATA_TYPE, COLLECT_AGG, SEQ) VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?)";
+                rejected(c, "CK_TB_MDM_RULE_VAR_KIND", var, r, 1, "BAD", null, "X", null, null, 1);
+                rejected(c, "CK_TB_MDM_RULE_VAR_DISP", var, r, 1, "COND", "TWO", "X", null, null, 1);
+                rejected(c, "CK_TB_MDM_RULE_VAR_DTYPE", var, r, 1, "COND", "2", "X", "BAD", null, 1);
+                rejected(c, "CK_TB_MDM_RULE_VAR_AGG", var, r, 1, "RESULT", "Value", null, null, "AVG", 1);
+                rejected(c, "CK_TB_MDM_RULE_VAR_RESULT_NAME", var, r, 1, "RESULT", "Value", null, null, null, 1);
+                exec(c, var, r, 1, "COND", null, null, null, null, 1); // 조건 열은 VAR_NAME 이 NULL 이어도 된다(Expression)
 
                 rejected(c, "CK_TB_MDM_RULE_ROW_KIND",
                         "INSERT INTO TB_MDM_RULE_ROW (MARU_RULE_ID, VER, ROW_ID, SEQ, ROW_KIND, CELLS) VALUES (?, 1, 1, 1, 'BAD', '{}')", r);

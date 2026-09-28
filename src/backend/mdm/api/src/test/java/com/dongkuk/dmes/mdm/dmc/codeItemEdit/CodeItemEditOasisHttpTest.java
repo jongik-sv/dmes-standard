@@ -19,6 +19,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Path;
+import java.util.List;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -174,6 +175,23 @@ class CodeItemEditOasisHttpTest {
     }
 
     @Test
+    void O8_새_코드와_새_TABLE_카테고리_소속을_한_요청으로_저장하면_rowVersion_은_1만_오른다() throws Exception {
+        ObjectNode cate = json.createObjectNode().put("rowStatus", "ADDED").put("cateId", "T1").put("cateName", "표1")
+                .put("defKind", "TABLE");
+        ObjectNode member = json.createObjectNode().put("rowStatus", "ADDED").put("cateId", "T1")
+                .put("code", "KS-3-CGCH-Z50");
+
+        JsonNode body = post("save", saveBody(0, List.of(row("ADDED", "KS-3-CGCH-Z50", "z50", "KS", "KS-3", "KS-3-CGCH")),
+                List.of(cate), List.of(member)));
+
+        assertTrue(body.path("meta").path("success").asBoolean(false), body.toString());
+        assertEquals(1, body.path("data").path("result").path("rowVersion").asLong(), body.toString());
+        assertEquals(1L, fx.rowVersion("STEEL_STD", "1.001"));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_CODE_CATE_ITEM WHERE MARU_CODE_ID = 'STEEL_STD'"
+                + " AND CATE_ID = 'T1' AND CODE = 'KS-3-CGCH-Z50'", Integer.class));
+    }
+
+    @Test
     void 조회_액션은_view_compare_validate_가_성공_응답이다() throws Exception {
         JsonNode view = post("view", envelope(json.createObjectNode().put("maruCodeId", "STEEL_STD")));
         JsonNode compare = post("compare", envelope(json.createObjectNode()
@@ -189,6 +207,7 @@ class CodeItemEditOasisHttpTest {
         assertEquals("STEEL_STD", search.path("data").path("result").path("codes").path(0).path("maruCodeId").asText());
         assertEquals("LVL_GAP", validate.path("data").path("result").path("issues").path(0).path("code").asText(),
                 validate.toString());
+        assertEquals(0, validate.path("data").path("result").path("cateIssues").size(), validate.toString());
     }
 
     // ── helpers ─────────────────────────────────────────────────────────
@@ -204,13 +223,22 @@ class CodeItemEditOasisHttpTest {
     }
 
     private ObjectNode saveBody(long rowVersion, ObjectNode... rows) {
+        return saveBody(rowVersion, List.of(rows), List.of(), List.of());
+    }
+
+    /** FE 처럼 세 그리드를 늘 보낸다(빈 배열 포함, 2026-09-28 화면 합치기). */
+    private ObjectNode saveBody(long rowVersion, List<ObjectNode> rows, List<ObjectNode> categories,
+                                List<ObjectNode> members) {
         ObjectNode params = json.createObjectNode()
                 .put("maruCodeId", "STEEL_STD").put("ver", "1.001").put("rowVersion", rowVersion);
         ObjectNode body = envelope(params);
-        ArrayNode array = body.putObject("grids").putObject("rows").putArray("rows");
-        for (ObjectNode r : rows) {
-            array.add(r);
-        }
+        ObjectNode grids = body.putObject("grids");
+        ArrayNode rowArray = grids.putObject("rows").putArray("rows");
+        rows.forEach(rowArray::add);
+        ArrayNode cateArray = grids.putObject("categories").putArray("rows");
+        categories.forEach(cateArray::add);
+        ArrayNode memberArray = grids.putObject("members").putArray("rows");
+        members.forEach(memberArray::add);
         return body;
     }
 

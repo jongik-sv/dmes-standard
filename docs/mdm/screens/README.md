@@ -39,10 +39,8 @@ wbs entry-point 에서 도출해 원천 화면 절과 대조했다. `독립` 은
 | dma | `termRegPop` | 용어 인라인 등록 | 팝업(columnMng 에서 호출) | TSK-04-04 | 02:521 |
 | dmb | `headerMng` | 전문 헤더 정의 | 독립 | TSK-05-02 | 01:184 |
 | dmb | `layoutMng` | 전문 레이아웃 | 독립 | TSK-05-02·05-03 | 03:104 |
-| dmc | `codeMng` | 마루 코드(조회·등록) | 독립 | TSK-06-02 | 04:812- |
-| dmc | `codeEdit` | 마루 코드 수정 | 독립 | TSK-06-02 | 04 |
-| dmc | `codeItemEdit` | 코드 편집 | 독립 | TSK-06-03 | 04 |
-| dmc | `codeCateEdit` | 카테고리 편집 | 독립 | TSK-06-04 | 04(결정 2026-09-22) |
+| dmc | `codeMng` | 마루 코드(조회·등록·수정, D-101 로 codeEdit 합침) | 독립 | TSK-06-02 | 04:812- |
+| dmc | `codeItemEdit` | 코드 편집(코드·트리·카테고리 탭, D-101 로 codeCateEdit 합침) | 독립 | TSK-06-03·06-04 | 04(결정 2026-09-22) |
 | dmc | `codeConfirm` | 버전 확정 | 독립 | TSK-06-05 | PRD 규칙 7(상신 화면 대체) |
 | dmd | `dataMng` | 마루 데이터(조회·등록) | 독립 | TSK-07-02 | 05:472- |
 | dmd | `dataEdit` | 마루 데이터 수정 | 독립 | TSK-07-02 | 05 |

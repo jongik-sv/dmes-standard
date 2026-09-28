@@ -27,9 +27,10 @@ export interface ConfirmModalProps {
   onSubmit: (warningsAcknowledged: boolean) => void;
 }
 
-/** ADR-0002 Consequences — 미래 apply_from 확정은 철회할 수 없고 그 시각까지 새 버전을 막는다. */
+/** ADR-0002 D8 — 미래 apply_from 확정은 그 시각까지 새 버전을 막지만, 확정 취소로 되돌릴 수 있다. */
 export const FUTURE_APPLY_WARNING =
-  "적용 시작 일시가 미래입니다. 그 시각이 올 때까지 이 룰의 새 버전을 만들 수 없습니다(철회 없음).";
+  "적용 시작 일시가 미래입니다. 그 시각이 올 때까지 이 룰의 새 버전을 만들 수 없습니다. "
+  + "적용 시각이 오기 전에는 확정 취소로 작성 중인 상태로 되돌릴 수 있습니다.";
 
 const hintStyle = { color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)" } as const;
 const warnStyle = { color: "var(--color-warning, #b45309)", padding: "var(--spacing-xs) 0" } as const;
@@ -102,7 +103,11 @@ export function ConfirmModal({
           </span>
         </div>
       )}
-      <p style={hintStyle}>확정한 버전은 철회할 수 없습니다. 서버가 확정 직전에 검사를 다시 합니다.</p>
+      {/* D8-10 — 되돌린 룰이 그 룰의 유일한 확정 버전이었다면 이 룰을 쓰는 룰 세트와 다른 룰의 확정이 막힌다(재확정하면 풀린다). */}
+      <p style={hintStyle}>
+        확정 취소를 하면 이 룰을 멤버로 가진 룰 세트와 이 룰의 결과를 쓰는 다른 룰의 확정이 잠시 막힙니다. 다시 확정하면 풀립니다.
+        적용 시각이 지난 뒤에는 확정 취소를 할 수 없고, 서버가 확정 직전에 검사를 다시 합니다.
+      </p>
     </Modal>
   );
 }

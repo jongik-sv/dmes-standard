@@ -2,10 +2,8 @@ package com.dongkuk.dmes.mdm.dmc.codeCateEdit.service;
 
 import static com.dongkuk.dmes.mdm.common.mastercode.MasterCodeSegments.same;
 
-import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeCateChecks;
-import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeCateIssueCode;
-import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeCateMemberProjection;
-import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeCateProjection;
+import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeCateSaves;
+import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeCateSaves.Plan;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeCategoryResolver;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeCategoryResolver.Resolution;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeCategoryResolver.ResolvedRow;
@@ -13,7 +11,6 @@ import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeRejections;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeRows;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
-import com.dongkuk.dmes.mdm.contract.category.CategoryConventions;
 import com.dongkuk.dmes.mdm.contract.category.CategoryDefTarget;
 import com.dongkuk.dmes.mdm.contract.category.CategoryDefinition;
 import com.dongkuk.dmes.mdm.contract.category.CategoryKind;
@@ -65,6 +62,10 @@ import org.springframework.stereotype.Service;
  * <p><b>{@code @Transactional} 을 붙이지 않는다.</b>(F9, {@code CodeItemEditService} 관례 그대로) 저장은 요청 두 그리드
  * (categories·members)를 메모리에서 V 모습에 먼저 적용해 검사하고, 통과했을 때만 {@code beginDraftWrite} → 선분 조작
  * 순으로 쓴다(거부된 저장은 ROW_VERSION 을 건드리지 않는다).
+ *
+ * <p>2026-09-28 화면 합치기로 카테고리 편집은 코드 편집 화면({@code codeItemEdit})에 들어가 프런트는 이 서비스의
+ * validate·save 를 더 부르지 않는다. 서비스·BPMN 은 동작 그대로 남기고, 두 그리드 판정·쓰기는
+ * {@link MasterCodeCateSaves} 로 뽑아 {@code CodeItemEditService} 와 함께 쓴다.
  */
 @Service("codeCateEditService")
 public class CodeCateEditService {
@@ -200,9 +201,9 @@ public class CodeCateEditService {
         MdmCode code = header(request.getMaruCodeId());
         BigDecimal v = parseVer(request.getVer());
         version(rows.versions(code.getMaruCodeId()), v);
-        Projected projected = project(code.getMaruCodeId(), v, categories == null ? List.of() : categories,
+        Plan plan = project(code.getMaruCodeId(), v, categories == null ? List.of() : categories,
                 members == null ? List.of() : members);
-        return Map.of("issues", projected.issues().stream().map(CodeCateEditService::issueMap).toList());
+        return Map.of("issues", plan.issues().stream().map(CodeCateEditService::issueMap).toList());
     }
 
     // ── action: save ──────────────────────────────────────────────────────
@@ -220,35 +221,18 @@ public class CodeCateEditService {
         if (request.getRowVersion() == null) {
             throw invalid("rowVersion 이 없습니다");
         }
-        Projected projected = project(code.getMaruCodeId(), v, noCategories ? List.of() : categories,
+        Plan plan = project(code.getMaruCodeId(), v, noCategories ? List.of() : categories,
                 noMembers ? List.of() : members);
-        if (!projected.issues().isEmpty()) {
-            throw MasterCodeRejections.saveRejected(projected.issues());
+        if (!plan.issues().isEmpty()) {
+            throw MasterCodeRejections.saveRejected(plan.issues());
         }
         // 여기까지 쓰기가 없다. BASE 는 그리드에 섞여 와도 여기서 미리 거른다(rowVersion 증가 전).
-        if (projected.categoryChanges().stream().anyMatch(c -> CategoryConventions.BASE_CATE_ID.equals(c.cateId()))
-                || projected.memberChanges().stream()
-                        .anyMatch(c -> CategoryConventions.BASE_CATE_ID.equals(c.cateId()))) {
+        if (plan.touchesBase()) {
             throw MdmErrors.of(MdmErrorCode.RESERVED_CATEGORY);
         }
         VersionRef ref = ref(code.getMaruCodeId(), v);
         long rowVersion = versionWriteGuard.beginDraftWrite(ref, request.getRowVersion(), currentUser.userId());
-        for (MasterCodeCateProjection.Change c : projected.categoryChanges()) {
-            switch (c.status()) {
-                case DELETED -> segments.closeCategory(ref, c.cateId());
-                case CHANGED -> segments.changeCategory(ref, c.definition());
-                case ADDED -> segments.addCategory(ref, c.definition());
-            }
-        }
-        Map<String, Set<String>> toRemove = new LinkedHashMap<>();
-        Map<String, Set<String>> toAdd = new LinkedHashMap<>();
-        for (MasterCodeCateMemberProjection.Change c : projected.memberChanges()) {
-            Map<String, Set<String>> bucket = c.status() == MasterCodeCateMemberProjection.RowStatus.DELETED
-                    ? toRemove : toAdd;
-            bucket.computeIfAbsent(c.cateId(), k -> new LinkedHashSet<>()).add(c.code());
-        }
-        toRemove.forEach((cateId, codes) -> segments.removeCategoryMembers(ref, cateId, codes));
-        toAdd.forEach((cateId, codes) -> segments.addCategoryMembers(ref, cateId, codes));
+        MasterCodeCateSaves.apply(segments, ref, plan);
         return Map.of("rowVersion", rowVersion);
     }
 
@@ -274,49 +258,17 @@ public class CodeCateEditService {
 
     // ── 공통 ────────────────────────────────────────────────────────────
 
-    private record Projected(List<MdmCheckIssue> issues, List<MasterCodeCateProjection.Change> categoryChanges,
-                             List<MasterCodeCateMemberProjection.Change> memberChanges) {
-    }
-
-    /** V 모습에 두 그리드를 메모리로 적용하고 touched 카테고리·소속 행을 검사한다 — validate·save 공용(design.md §1.4). */
-    private Projected project(String maruCodeId, BigDecimal v, List<Map<String, Object>> categoryRows,
-                              List<Map<String, Object>> memberRows) {
+    /**
+     * V 모습에 두 그리드를 메모리로 적용하고 touched 카테고리·소속 행을 검사한다 — validate·save 공용(design.md §1.4).
+     * 판정 본체는 {@link MasterCodeCateSaves#project} 이고 코드 편집 합친 저장도 같은 것을 쓴다.
+     */
+    private Plan project(String maruCodeId, BigDecimal v, List<Map<String, Object>> categoryRows,
+                         List<Map<String, Object>> memberRows) {
         MasterCodeVersionView viewAtV = segments.viewAt(ref(maruCodeId, v));
         List<CategoryDefinition> cateDefs = viewAtV.categories().stream().map(MasterCodeCateRow::definition).toList();
-        MasterCodeCateProjection.Result catResult = MasterCodeCateProjection.apply(cateDefs, categoryRows);
-        List<MdmCheckIssue> issues = new ArrayList<>(catResult.issues());
-        for (CategoryDefinition def : catResult.viewAfter()) {
-            if (catResult.touched().contains(def.cateId())) {
-                issues.addAll(MasterCodeCateChecks.checkDefinition(def));
-            }
-        }
-
-        Map<String, CategoryDefinition> catAfterById = new LinkedHashMap<>();
-        for (CategoryDefinition def : catResult.viewAfter()) {
-            catAfterById.put(def.cateId(), def);
-        }
         Set<String> validCodes = viewAtV.items().stream().map(MasterCodeItemRow::code)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-
-        List<MasterCodeCateMemberProjection.Change> memberChanges = MasterCodeCateMemberProjection.parse(memberRows);
-        for (MasterCodeCateMemberProjection.Change c : memberChanges) {
-            CategoryDefinition target = catAfterById.get(c.cateId());
-            if (target == null) {
-                issues.add(new MdmCheckIssue(MasterCodeCateIssueCode.CATE_NOT_FOUND.name(), "이 버전에 없는 카테고리다",
-                        "cateId", c.cateId()));
-                continue;
-            }
-            if (target.defKind() != CategoryKind.TABLE) {
-                issues.add(new MdmCheckIssue(MasterCodeCateIssueCode.DEF_KIND_IMMUTABLE.name(), "TABLE 카테고리가 아니다",
-                        "cateId", c.cateId()));
-                continue;
-            }
-            if (c.status() == MasterCodeCateMemberProjection.RowStatus.ADDED && !validCodes.contains(c.code())) {
-                issues.add(new MdmCheckIssue(MasterCodeCateIssueCode.MEMBER_CODE_NOT_FOUND.name(), "이 버전에 없는 코드다",
-                        "code", c.code()));
-            }
-        }
-        return new Projected(List.copyOf(issues), catResult.changes(), memberChanges);
+        return MasterCodeCateSaves.project(cateDefs, validCodes, categoryRows, memberRows);
     }
 
     private MdmCode header(String maruCodeId) {

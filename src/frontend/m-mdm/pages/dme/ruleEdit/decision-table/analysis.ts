@@ -75,7 +75,7 @@ function projection(i: RuleIssueView) {
 
 /**
  * 분석기(TSK-03-04 이식본·서버 `RuleAnalyzer`)가 내는 코드 — 7종 + TS 의 `DERIVE_ORDER`. 저장 응답에는 이 밖에 서버 저장 검사의 이슈
- * (TSK-08-04 `RuleSaveIssueCode`·`PIVOT_COVER_INCOMPLETE`)가 분석 이슈 뒤에 붙는다.
+ * (TSK-08-04 `RuleSaveIssueCode`)가 분석 이슈 뒤에 붙는다.
  */
 export const ANALYZER_CODES: ReadonlySet<string> = new Set([
   "ALL_NA_ROW",

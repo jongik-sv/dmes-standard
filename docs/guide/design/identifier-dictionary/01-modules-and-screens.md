@@ -130,7 +130,7 @@ A.1.1 모듈 외 기 구축·공유 모듈은 본 표로 분리 등재. 신규 �
 | `mcm` | `cmb` | **영역 코드** (`cm`+`b`) | 업무기준 관리(원장) — 업무기준(Rule) 구조·데이터 | 2026-06-04 | (masterRule* 5종 설계확정 등재) | `masterRuleListPop` / `masterRuleList` / `masterRuleFrame` / `masterRuleData` / `masterRuleFrameColListPopup` |
 | `mdm` | `dma` | **영역 코드** (`dm`+`a`) | 용어·도메인·컬럼·단위(02) — 표준 원장 사전(마루 MDM) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `unitMng` / `termMng` / `domainMng` / `columnMng` / `termRegPop` (+ TSK-01-01 샘플 `mdmSample` 은 옛 경로에 있으며 TSK-01-03 에서 옮긴다) |
 | `mdm` | `dmb` | **영역 코드** (`dm`+`b`) | 인터페이스 레이아웃(03) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `headerMng` / `layoutMng` |
-| `mdm` | `dmc` | **영역 코드** (`dm`+`c`) | 마스터코드(04) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `codeMng` / `codeEdit` / `codeItemEdit` / `codeCateEdit` / `codeConfirm` |
+| `mdm` | `dmc` | **영역 코드** (`dm`+`c`) | 마스터코드(04) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `codeMng` / `codeItemEdit` / `codeConfirm` (2026-09-28 D-101: `codeEdit`→`codeMng`, `codeCateEdit`→`codeItemEdit` 로 합침. 두 ID 는 서버 서비스·권한 OBJECT 로만 남음) |
 | `mdm` | `dmd` | **영역 코드** (`dm`+`d`) | 마스터데이터(05) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `dataMng` / `dataEdit` / `dataCateEdit` / `dataItemMng` / `dataHistory` / `dataCsvUploadPop` |
 | `mdm` | `dme` | **영역 코드** (`dm`+`e`) | 업무기준·룰 세트(06) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `ruleMng` / `ruleEdit` / `ruleConfirm` / `ruleSetMng` / `ruleSetEdit` |
 | `master` | `common` | legacy 의미명 | 공통 마스터 (코드·부서) | 기 구축 | — | (다수) |
@@ -234,10 +234,10 @@ A.1.1 모듈 외 기 구축·공유 모듈은 본 표로 분리 등재. 신규 �
 | `headerMng` | — (To-Be only) | `mdm` | `dmb` | `headerMng` | 2026-09-24 | 전문 헤더 정의 — As-Is 없음(신규). TSK-05-02. 기능설계서 1종(`docs/mdm/screens/headerMng/`) |
 | `layoutMng` | — (To-Be only) | `mdm` | `dmb` | `layoutMng` | 2026-09-24 | 전문 레이아웃 — As-Is 없음(신규). 헤더 적층·상수 재정의·본문 항목·오프셋 자동 계산(TSK-05-02). 기능설계서 1종(`docs/mdm/screens/layoutMng/`) |
 | `codeItemEdit` | — (To-Be only) | `mdm` | `dmc` | `codeItemEdit` | 2026-09-24 | 코드 편집 — As-Is 없음(신규). TSK-06-03. 기능설계서 1종(`docs/mdm/screens/codeItemEdit/`) |
-| `codeCateEdit` | — (To-Be only) | `mdm` | `dmc` | `codeCateEdit` | 2026-09-24 | 카테고리 편집(REGEX·TABLE) — As-Is 없음(신규). TSK-06-04. 기능설계서 1종(`docs/mdm/screens/codeCateEdit/`) |
+| `codeCateEdit` | — (To-Be only) | `mdm` | `dmc` | `codeCateEdit` | 2026-09-24 | 카테고리 편집(REGEX·TABLE) — As-Is 없음(신규). TSK-06-04. 2026-09-28 D-101 로 화면은 `codeItemEdit` 카테고리 탭에 합침(서버 서비스·권한 OBJECT 로만 남음). 기능설계서는 `docs/mdm/screens/codeItemEdit/` |
 | `codeConfirm` | — (To-Be only) | `mdm` | `dmc` | `codeConfirm` | 2026-09-26 | 마루 코드 버전 확정(검사 8항·적용시점·diff, DRAFT → RELEASED) — As-Is 없음(신규), 원천 04 「상신 시 검사」·「버전 상태와 적용시점」, 시안 탭7(상신·결재 영역 제외). TSK-06-05. 기능설계서 1종(`docs/mdm/screens/codeConfirm/`) |
 | `codeMng` | — (To-Be only) | `mdm` | `dmc` | `codeMng` | 2026-09-24 | 마루 코드 조회·등록 — As-Is 없음(신규), 원천 04 「화면」 탭1. TSK-06-02. 기능설계서 1종(`docs/mdm/screens/codeMng/`) |
-| `codeEdit` | — (To-Be only) | `mdm` | `dmc` | `codeEdit` | 2026-09-24 | 마루 코드 수정(헤더·라벨·폐기·버전 목록·새 버전·DRAFT 소유권) — As-Is 없음(신규), 원천 04 「화면」 탭2. TSK-06-02. 기능설계서 1종(`docs/mdm/screens/codeEdit/`) |
+| `codeEdit` | — (To-Be only) | `mdm` | `dmc` | `codeEdit` | 2026-09-24 | 마루 코드 수정(헤더·라벨·폐기·버전 목록·새 버전·DRAFT 소유권) — As-Is 없음(신규), 원천 04 「화면」 탭2. TSK-06-02. 2026-09-28 D-101 로 화면은 `codeMng` 에 합침(서버 서비스·권한 OBJECT 로만 남음). 기능설계서는 `docs/mdm/screens/codeMng/` |
 | `ruleMng` | — (To-Be only) | `mdm` | `dme` | `ruleMng` | 2026-09-24 | 룰 — As-Is 없음, 원천 06 룰 목록·등록. 서버 페이징 목록 + MDM 원천 등록(VER 1 DRAFT 자동 선점). TSK-08-02. 기능설계서 1종(`docs/mdm/screens/ruleMng/`) |
 | `ruleEdit` | — (To-Be only) | `mdm` | `dme` | `ruleEdit` | 2026-09-24 | 룰 화면 — As-Is 없음, 원천 06 룰 화면. 헤더·버전·의사결정표·활용처 카드(08-03·08-04 가 카드를 더한다). TSK-08-02. 기능설계서 1종(`docs/mdm/screens/ruleEdit/`) |
 | `ruleConfirm` | — (To-Be only) | `mdm` | `dme` | `ruleConfirm` | 2026-09-26 | 버전 확정(룰) — As-Is 없음, 원천 06 「상신 시 검사」·「버전 비교」. 확정 대기 DRAFT 목록 + 확정 검사 4항(저장 시 검사 전부·비어 있음·값 테스트·결과 변수 참조)과 적용 순서·입력 계약 변경·row_id diff 를 보고 DRAFT → RELEASED 확정(결재 없음, ADR-0002). TSK-08-05. 기능설계서 1종(`docs/mdm/screens/ruleConfirm/`) |

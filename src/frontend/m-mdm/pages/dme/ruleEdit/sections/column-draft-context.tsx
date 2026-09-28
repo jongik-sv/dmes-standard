@@ -8,11 +8,8 @@ import { createContext, useContext } from "react";
 
 export interface ColumnDraftShared {
   colDirty: boolean;
-  /** 표 카드 자체의 저장 안 한 편집 — 피벗 저장이 같은 TABLE 파트를 덮어쓰지 않게 막는 데 쓴다. */
+  /** 표 카드 자체의 저장 안 한 편집 — 열 설정 저장이 같은 파트를 덮어쓰지 않게 막는 데 쓴다. */
   tableDirty: boolean;
-  /** 피벗의 저장 안 한 편집 — 표 저장이 같은 TABLE 파트를 덮어쓰지 않게 막는 데 쓴다. */
-  pivotDirty: boolean;
-  setPivotDirty: (dirty: boolean) => void;
   setColDirty: (dirty: boolean) => void;
   highlightVarId: number | null;
   setHighlightVarId: (varId: number | null) => void;
@@ -21,8 +18,6 @@ export interface ColumnDraftShared {
 const NOOP: ColumnDraftShared = {
   colDirty: false,
   tableDirty: false,
-  pivotDirty: false,
-  setPivotDirty: () => {},
   setColDirty: () => {}, highlightVarId: null,
   setHighlightVarId: () => {},
 };

@@ -17,7 +17,11 @@ const SOURCE_TONE = { DICT: "success", PROG: "info", NONE: "warning" } as const;
 
 const TABLE_STYLE: CSSProperties = { width: "100%", borderCollapse: "collapse", marginBottom: "var(--spacing-sm)" };
 const HEAD_STYLE: CSSProperties = { textAlign: "left", color: "var(--color-text-secondary)", borderBottom: "1px solid var(--color-border-light)" };
+// 글자 링크도 컨트롤 높이 26px 를 지킨다(UI-Visual-Standard, 클릭 영역).
 const LINK_STYLE: CSSProperties = {
+  minHeight: "var(--form-height)",
+  display: "inline-flex",
+  alignItems: "center",
   border: "none",
   background: "none",
   padding: 0,

@@ -16,7 +16,7 @@ afterEach(() => {
   container?.remove();
   container = null;
   // 남은 넘김 값은 다음 테스트에 새지 않게 비운다
-  takeMdmPageParams("dmc/codeEdit");
+  takeMdmPageParams("dmc/codeMng");
 });
 
 describe("page-handoff", () => {
@@ -24,29 +24,29 @@ describe("page-handoff", () => {
     const seen: unknown[] = [];
     const listener = (e: Event) => seen.push((e as CustomEvent).detail);
     window.addEventListener("portal-open-tab", listener);
-    openMdmPage("dmc/codeEdit", { maruCodeId: "X" });
+    openMdmPage("dmc/codeMng", { maruCodeId: "X" });
     window.removeEventListener("portal-open-tab", listener);
-    expect(seen).toEqual([{ pageId: "mdm:dmc/codeEdit" }]);
+    expect(seen).toEqual([{ pageId: "mdm:dmc/codeMng" }]);
   });
 
   it("takeMdmPageParams 는 한 번만 돌려준다", () => {
-    openMdmPage("dmc/codeEdit", { maruCodeId: "X" });
-    expect(takeMdmPageParams("dmc/codeEdit")).toEqual({ maruCodeId: "X" });
-    expect(takeMdmPageParams("dmc/codeEdit")).toBeNull();
+    openMdmPage("dmc/codeMng", { maruCodeId: "X" });
+    expect(takeMdmPageParams("dmc/codeMng")).toEqual({ maruCodeId: "X" });
+    expect(takeMdmPageParams("dmc/codeMng")).toBeNull();
   });
 
   it("params 없이 열면 저장하지 않는다", () => {
-    openMdmPage("dmc/codeEdit");
-    expect(takeMdmPageParams("dmc/codeEdit")).toBeNull();
+    openMdmPage("dmc/codeMng");
+    expect(takeMdmPageParams("dmc/codeMng")).toBeNull();
   });
 
   it("useMdmPageParams 는 마운트 때와 자기 탭 활성화 때 소비한다", async () => {
     const received: MdmPageParams[] = [];
     function Probe() {
-      useMdmPageParams("dmc/codeEdit", "tab-1", (p) => received.push(p));
+      useMdmPageParams("dmc/codeMng", "tab-1", (p) => received.push(p));
       return null;
     }
-    openMdmPage("dmc/codeEdit", { maruCodeId: "A" });
+    openMdmPage("dmc/codeMng", { maruCodeId: "A" });
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -54,7 +54,7 @@ describe("page-handoff", () => {
     expect(received).toEqual([{ maruCodeId: "A" }]);
 
     // 다른 탭의 활성화는 소비하지 않는다
-    openMdmPage("dmc/codeEdit", { maruCodeId: "B" });
+    openMdmPage("dmc/codeMng", { maruCodeId: "B" });
     await act(async () => {
       window.dispatchEvent(new CustomEvent("portal-tab-activated", { detail: { tabId: "tab-9" } }));
     });
@@ -64,6 +64,6 @@ describe("page-handoff", () => {
       window.dispatchEvent(new CustomEvent("portal-tab-activated", { detail: { tabId: "tab-1" } }));
     });
     expect(received).toEqual([{ maruCodeId: "A" }, { maruCodeId: "B" }]);
-    expect(takeMdmPageParams("dmc/codeEdit")).toBeNull();
+    expect(takeMdmPageParams("dmc/codeMng")).toBeNull();
   });
 });
