@@ -154,8 +154,7 @@ class MasterDataLedgerJudgmentSqliteTest extends AbstractMdmSharedDbTest {
         CateSaveRequest member = new CateSaveRequest();
         member.setMaruDataId(PORT);
         member.setCateId("MAJOR");
-        member.setAddCodes(List.of("KRPUS", "CNSHA"));
-        cateService.save(member);
+        cateService.save(member, codeRows("KRPUS", "CNSHA"), null);
     }
 
     // ── ORG — 05:71-77 계층 5행(화면 경로) ──────────────────────────────────
@@ -385,5 +384,10 @@ class MasterDataLedgerJudgmentSqliteTest extends AbstractMdmSharedDbTest {
             sb.append("\r\n").append(line);
         }
         return sb.toString();
+    }
+
+    /** grids 행 모양(행마다 code) — dataCateEdit save 는 소속 목록을 grids 로 받는다. */
+    private static java.util.List<java.util.Map<String, Object>> codeRows(String... codes) {
+        return java.util.Arrays.stream(codes).map(c -> java.util.Map.<String, Object>of("code", c)).toList();
     }
 }
