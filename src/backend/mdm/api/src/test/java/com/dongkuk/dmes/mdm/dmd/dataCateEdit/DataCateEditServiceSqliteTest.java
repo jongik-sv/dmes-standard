@@ -144,7 +144,7 @@ class DataCateEditServiceSqliteTest extends AbstractMdmSharedDbTest {
         req.setDefExpr(".+");
         req.setDefTarget("KEY");
 
-        BusinessException ex = assertThrows(BusinessException.class, () -> service.save(req));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.save(req, null, null));
         assertTrue(ex.getMessage().contains("예약 카테고리"), ex.getMessage());
     }
 
@@ -245,9 +245,8 @@ class DataCateEditServiceSqliteTest extends AbstractMdmSharedDbTest {
         CateSaveRequest req = new CateSaveRequest();
         req.setMaruDataId("MD1");
         req.setCateId("GRP");
-        req.setAddCodes(List.of("A", "NOPE"));
 
-        assertThrows(BusinessException.class, () -> service.save(req));
+        assertThrows(BusinessException.class, () -> service.save(req, codeRows("A", "NOPE"), null));
 
         assertEquals(0, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM TB_MDM_DATA_CATE_ITEM WHERE MARU_DATA_ID='MD1' AND CATE_ID='GRP'", Integer.class));
@@ -268,10 +267,8 @@ class DataCateEditServiceSqliteTest extends AbstractMdmSharedDbTest {
         CateSaveRequest req = new CateSaveRequest();
         req.setMaruDataId("MD1");
         req.setCateId("GRP");
-        req.setAddCodes(List.of("B"));
-        req.setRemoveCodes(List.of("A"));
 
-        CateViewResult view = service.save(req);
+        CateViewResult view = service.save(req, codeRows("B"), codeRows("A"));
         assertEquals(List.of("B"), view.getMemberCodes());
     }
 
@@ -303,9 +300,8 @@ class DataCateEditServiceSqliteTest extends AbstractMdmSharedDbTest {
         CateSaveRequest req = new CateSaveRequest();
         req.setMaruDataId("MD1");
         req.setCateId("GRP");
-        req.setAddCodes(List.of("A", "B"));
 
-        spiedService.save(req);
+        spiedService.save(req, codeRows("A", "B"), null);
 
         verify(spyLock, times(2)).lock("MD1"); // addMember 두 번 — 각자 DataCategorySegmentCore 안에서 한 번씩만 잠근다
     }
@@ -370,5 +366,10 @@ class DataCateEditServiceSqliteTest extends AbstractMdmSharedDbTest {
         CateSearchRequest req = new CateSearchRequest();
         req.setMaruDataId(md);
         return req;
+    }
+
+    /** grids 행 모양(행마다 code) — dataCateEdit save 는 소속 목록을 grids 로 받는다. */
+    private static java.util.List<java.util.Map<String, Object>> codeRows(String... codes) {
+        return java.util.Arrays.stream(codes).map(c -> java.util.Map.<String, Object>of("code", c)).toList();
     }
 }

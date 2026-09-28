@@ -98,6 +98,7 @@ action(RBAC 키)은 MdmActions 16종 안에서만 고른다(D9). search·view·c
           <camunda:property name="method" value="save" />
           <camunda:property name="output" value="result" />
           <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dmd.dataCateEdit.dto.CateSaveRequest" />
+          <camunda:property name="opt" value="addCodes,removeCodes" />
         </camunda:properties>
       </bpmn:extensionElements>
       <bpmn:incoming>flow_save</bpmn:incoming>

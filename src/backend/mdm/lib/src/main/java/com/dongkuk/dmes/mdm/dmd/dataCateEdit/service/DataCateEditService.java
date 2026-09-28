@@ -26,6 +26,7 @@ import jakarta.persistence.EntityManager;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.hibernate.query.NativeQuery;
@@ -141,7 +142,14 @@ public class DataCateEditService {
 
     // ── action: save — REGEX 정의 수정 또는 TABLE 소속 일괄 적용(대상 카테고리의 실제 defKind 로 가른다) ──
 
-    public CateViewResult save(CateSaveRequest request) {
+    /**
+     * {@code addCodes}·{@code removeCodes} 는 params 가 아니라 grids 로 받는다(행마다 {@code code}). OASIS 요청 변환기는
+     * params 의 JSON 배열을 타입 힌트 없이 감싸 "Generic type. You must explicitly specify the type" 로 거부한다
+     * ({@code TermSaveRequest} 주석과 같은 제약) — grids 는 파라미터 이름으로 {@code List<Map>} 에 묶인다(codeCateEdit 선례).
+     * REGEX 저장은 grids 를 보내지 않으므로 BPMN saveTask 가 두 인자를 {@code opt}(선택 인자)로 둔다 — 빠지면 null 이다.
+     */
+    public CateViewResult save(CateSaveRequest request, List<Map<String, Object>> addCodes,
+                               List<Map<String, Object>> removeCodes) {
         if (request == null) {
             throw invalid("저장할 값이 없습니다");
         }
@@ -150,7 +158,7 @@ public class DataCateEditService {
         return tx.execute(status -> {
             CateSegmentRow current = latestCate(maruDataId, cateId);
             if (current != null && DataCateValue.TABLE.equals(current.value().defKind())) {
-                applyMembers(new MemberApplyRequest(maruDataId, cateId, request.getAddCodes(), request.getRemoveCodes()));
+                applyMembers(new MemberApplyRequest(maruDataId, cateId, codesOf(addCodes), codesOf(removeCodes)));
             } else {
                 DataCateValue value = new DataCateValue(trim(request.getCateName()),
                         current == null ? DataCateValue.REGEX : current.value().defKind(), trim(request.getDefExpr()),
@@ -160,6 +168,21 @@ public class DataCateEditService {
             log.info("[dataCateEdit] save — maruDataId={} cateId={}", maruDataId, cateId);
             return buildView(maruDataId, cateId);
         });
+    }
+
+    /** grids 행에서 {@code code} 만 모은다. 빈 값은 건너뛴다. */
+    private static List<String> codesOf(List<Map<String, Object>> rows) {
+        if (rows == null) {
+            return List.of();
+        }
+        List<String> codes = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            Object code = row == null ? null : row.get("code");
+            if (code != null && !code.toString().isBlank()) {
+                codes.add(code.toString().trim());
+            }
+        }
+        return codes;
     }
 
     /** R12 — 추가·해제 목록 중 하나라도 실패하면 전체 롤백. 개별 호출이 각자 잠그므로(R2′) 이 트랜잭션은 join 뿐이다. */

@@ -24,9 +24,13 @@ export function CategoryListPanel(props: CategoryListPanelProps) {
   const [newCateId, setNewCateId] = useState("");
   const [newCateName, setNewCateName] = useState("");
   const [newDefKind, setNewDefKind] = useState<"REGEX" | "TABLE">("TABLE");
+  // 빈 칸으로 [등록]을 누르면 칸 아래에 무엇이 빠졌는지 알린다(아무 반응이 없으면 버튼이 고장 난 것처럼 보인다).
+  const [missing, setMissing] = useState<{ id: boolean; name: boolean }>({ id: false, name: false });
 
   const submitAdd = () => {
-    if (!newCateId.trim() || !newCateName.trim()) return;
+    const next = { id: !newCateId.trim(), name: !newCateName.trim() };
+    setMissing(next);
+    if (next.id || next.name) return;
     onAdd(newCateId.trim(), newCateName.trim(), newDefKind);
     setNewCateId("");
     setNewCateName("");
@@ -79,8 +83,12 @@ export function CategoryListPanel(props: CategoryListPanelProps) {
           borderTop: "1px solid var(--color-border)",
         }}>
           <p style={{ fontWeight: 600, margin: 0 }}>카테고리 등록</p>
-          <Input data-testid="cate-add-id" value={newCateId} onChange={setNewCateId} placeholder="cate_id" />
-          <Input data-testid="cate-add-name" value={newCateName} onChange={setNewCateName} placeholder="카테고리 이름" />
+          <Input data-testid="cate-add-id" value={newCateId} placeholder="cate_id"
+            error={missing.id ? "카테고리 ID를 입력하세요" : undefined}
+            onChange={(v) => { setNewCateId(v); setMissing((m) => ({ ...m, id: false })); }} />
+          <Input data-testid="cate-add-name" value={newCateName} placeholder="카테고리 이름"
+            error={missing.name ? "카테고리 이름을 입력하세요" : undefined}
+            onChange={(v) => { setNewCateName(v); setMissing((m) => ({ ...m, name: false })); }} />
           <Select data-testid="cate-add-kind" value={newDefKind} onChange={(v) => setNewDefKind(v as "REGEX" | "TABLE")}
             options={[{ value: "TABLE", label: "TABLE" }, { value: "REGEX", label: "REGEX" }]} />
           <Button data-testid="cate-add-submit" size="sm" onClick={submitAdd}>등록</Button>

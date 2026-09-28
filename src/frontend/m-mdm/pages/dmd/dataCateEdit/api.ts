@@ -3,7 +3,7 @@
  *
  * 호출 패턴: `POST /api/mdm/oasis/dataCateEdit/{action}` — search·view·compare(READ), reg·save·delete·restore(EDIT).
  * `save` 는 서버가 대상 카테고리의 실제 defKind 로 REGEX 정의 수정과 TABLE 소속 일괄 적용을 스스로 가른다(design.md §2)
- * — 화면은 REGEX 필드(cateName·defExpr·defTarget·description)와 TABLE 필드(addCodes·removeCodes)를 각각의 헬퍼로 보낸다.
+ * — 화면은 REGEX 필드(cateName·defExpr·defTarget·description)는 params 로, TABLE 소속(addCodes·removeCodes)은 grids 로 보낸다.
  */
 import { apiRequest } from "@dk-oasis/shared/http";
 
@@ -30,11 +30,15 @@ export function unwrap<T = Record<string, unknown>>(res: unknown): T {
   return out as T;
 }
 
-async function callOasis<T>(action: string, params: Record<string, unknown>): Promise<T> {
+type Rows = Record<string, unknown>[];
+
+async function callOasis<T>(
+  action: string, params: Record<string, unknown>, grids?: Record<string, { rows: Rows }>,
+): Promise<T> {
   const cleaned = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== null && v !== undefined));
   const res = await apiRequest<unknown>(`/api/mdm/oasis/${SERVICE}/${action}`, {
     method: "POST",
-    body: JSON.stringify({ meta: { menuId: SERVICE }, params: cleaned }),
+    body: JSON.stringify({ meta: { menuId: SERVICE }, params: cleaned, ...(grids ? { grids } : {}) }),
   });
   return unwrap<T>(res);
 }
@@ -66,11 +70,17 @@ export function saveRegex(
   return callOasis<CateViewResult>("save", { maruDataId, cateId, cateName, defExpr, defTarget, description });
 }
 
-/** TABLE 소속 일괄 적용(R12, 전부-아니면-전무는 서버가 한 트랜잭션으로 한다). */
+/**
+ * TABLE 소속 일괄 적용(R12, 전부-아니면-전무는 서버가 한 트랜잭션으로 한다). 목록은 params 가 아니라 grids 로 보낸다
+ * — OASIS 는 params 의 배열을 받지 못한다("Generic type…"). 빈 목록은 grid 를 빼고 보낸다.
+ */
 export function saveMembers(
   maruDataId: string, cateId: string, addCodes: string[], removeCodes: string[],
 ): Promise<CateViewResult> {
-  return callOasis<CateViewResult>("save", { maruDataId, cateId, addCodes, removeCodes });
+  const grids: Record<string, { rows: Rows }> = {};
+  if (addCodes.length > 0) grids.addCodes = { rows: addCodes.map((code) => ({ code })) };
+  if (removeCodes.length > 0) grids.removeCodes = { rows: removeCodes.map((code) => ({ code })) };
+  return callOasis<CateViewResult>("save", { maruDataId, cateId }, grids);
 }
 
 export function closeCategory(maruDataId: string, cateId: string): Promise<CateViewResult> {
