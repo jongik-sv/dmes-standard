@@ -344,6 +344,51 @@
   background-color: transparent;
 }
 
+/* resizable ContentBody 안에 중첩된 ContentBody: 바깥 여백 중복 제거, row 부모에서도 높이를 채운다. */
+.page-layout .content-body.content-body--nested {
+  padding: 0;
+  height: auto;
+  align-self: stretch;
+}
+
+/* resizable ContentBody 패널 사이 드래그 막대. gap 안에 겹쳐 두어 패널 간격은 그대로 유지한다. */
+.content-split-bar {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+}
+.content-split-bar--row {
+  width: 10px;
+  margin: 0 -8px;
+  cursor: col-resize;
+}
+.content-split-bar--column {
+  height: 10px;
+  margin: -8px 0;
+  cursor: row-resize;
+}
+.content-split-bar__grip {
+  border-radius: 2px;
+  background: #cbd5e1;
+}
+.content-split-bar--row .content-split-bar__grip {
+  width: 3px;
+  height: 44px;
+}
+.content-split-bar--column .content-split-bar__grip {
+  width: 44px;
+  height: 3px;
+}
+.content-split-bar:hover .content-split-bar__grip,
+.content-split-bar:focus-visible .content-split-bar__grip {
+  background: var(--color-primary, #3b82f6);
+}
+
 .page-layout .content-panel {
   display: flex;
   flex-direction: column;
