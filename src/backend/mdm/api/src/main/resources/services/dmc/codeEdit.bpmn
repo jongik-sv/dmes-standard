@@ -12,6 +12,7 @@ action=reg      -&gt; regTask      (codeEditService.createVersion)  — 빈 새 
 action=restore  -&gt; restoreTask  (codeEditService.restoreVersion) — 복원 새 버전(I15)
 action=delete   -&gt; deleteTask   (codeEditService.delete)         — target 없음: DRAFT 삭제(선분 복구 I14, deleteDraft)
                                                                   target=CODE: RELEASED 된 적 없는 마루 코드 통째 삭제(2026-09-28)
+                                                                  target=CONFIRM: 확정 취소(ADR-0002 D8, 적용 시각 전 RELEASED 를 DRAFT 로 되돌림)
 action=lock     -&gt; lockTask     (codeEditService.acquire)        — DRAFT 선점
 action=unlock   -&gt; unlockTask   (codeEditService.release)        — DRAFT 해제
 action=handover -&gt; handoverTask (codeEditService.handover)       — DRAFT 넘기기
