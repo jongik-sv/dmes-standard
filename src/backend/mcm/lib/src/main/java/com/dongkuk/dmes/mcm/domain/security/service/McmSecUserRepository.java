@@ -188,6 +188,45 @@ public class McmSecUserRepository implements SecUserRepository {
         if (updated == 0) log.debug("[McmSecUserRepository] unlockUser — userId {} 미존재", userId);
     }
 
+    /**
+     * 비밀번호 변경 반영 — TB_MCM_SEC_USER_PWD 가 비밀번호 SoT 이므로 그 테이블을 갱신한다.
+     *
+     * <p>{@link #findById(String)} 가 USER_ENC_PWD 를 TB_MCM_SEC_USER_PWD 에서 읽는 것과
+     * 짝을 이룬다. TB_MCM_SEC_USER 쪽엔 PWD 컬럼이 없어(스키마에 PWD_FAIL_COUNT 만 존재)
+     * 잠금 횟수 초기화만 네이티브 UPDATE 로 함께 쓴다.
+     *
+     * <p>JpaRepository#save 를 쓸 수 없는 이유: 이 저장소는 세션 저장소가 아니라 네이티브 쿼리
+     * 위주 별도 구현이라 save 전부가 미구현 stub 이다(아래 unsupported()).
+     *
+     * @return 반영 행 수 — 0 이면 PWD 행이 없어 호출측이 INSERT 로 이어야 한다
+     */
+    @Transactional
+    public int updatePassword(String userId, String hashedPassword) {
+        if (userId == null || userId.isBlank() || hashedPassword == null) return 0;
+        int updated = secUserPwdRepository.updateEncPwd(userId, hashedPassword, LocalDateTime.now());
+        entityManager.createNativeQuery(
+                "UPDATE MCMAPUSER.TB_MCM_SEC_USER SET PWD_FAIL_COUNT = 0 WHERE USER_ID = :userId")
+                .setParameter("userId", userId)
+                .executeUpdate();
+        return updated;
+    }
+
+    /**
+     * PWD 행이 없는 계정에 비밀번호 행을 새로 만든다 (초기 비밀번호 부여 경로).
+     */
+    @Transactional
+    public void insertPassword(String userId, String hashedPassword) {
+        if (userId == null || userId.isBlank() || hashedPassword == null) return;
+        if (secUserPwdRepository.findById(userId).isPresent()) return;
+        entityManager.createNativeQuery(
+                "INSERT INTO MCMAPUSER.TB_MCM_SEC_USER_PWD (USER_ID, USER_ENC_PWD, LAST_PWD_CHNG_DATE) "
+                        + "VALUES (:userId, :pwd, :chgDate)")
+                .setParameter("userId", userId)
+                .setParameter("pwd", hashedPassword)
+                .setParameter("chgDate", java.sql.Date.valueOf(LocalDate.now()))
+                .executeUpdate();
+    }
+
     // ─────────────────────────────────────────────────────────────────────
     // JpaRepository 의 미사용 메서드 stub (cactus AuthService 가 호출 ✗ — 호출 시 UnsupportedOperationException)
     // ─────────────────────────────────────────────────────────────────────

@@ -30,6 +30,21 @@ async function proxyToBackend(req: NextRequest, path: string, method: string) {
     });
 
     const data = await res.json();
+    // BE ApiResponse 는 실패 사유를 최상위 message/errorCode 에 두지만 화면은 data.error.message 를
+    // 읽는다. 그대로 통과시키면 실제 사유가 사라지고 "비밀번호 변경에 실패했습니다" 만 찍힌다.
+    // BFF 응답 규약(be-proxy.ts)과 같은 error 중첩으로 변환한다.
+    if (data && typeof data === "object" && data.success === false) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: data.error?.code ?? data.errorCode ?? "SERVER_ERROR",
+            message: data.error?.message ?? data.message ?? "비밀번호 변경에 실패했습니다.",
+          },
+        },
+        { status: res.status },
+      );
+    }
     return NextResponse.json(data, { status: res.status });
   } catch {
     return NextResponse.json(

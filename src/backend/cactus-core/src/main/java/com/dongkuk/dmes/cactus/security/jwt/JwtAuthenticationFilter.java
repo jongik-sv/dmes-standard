@@ -52,10 +52,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     /** Bearer 토큰 접두사 */
     private static final String BEARER_PREFIX = "Bearer ";
 
-    /** 인증을 건너뛸 경로 접미사 목록 */
+    /**
+     * 인증을 건너뛸 경로 접미사 목록.
+     *
+     * <p>{@code /api/auth/logout} 은 토큰 없이도 호출될 수 있어야 정상 로그아웃이 되므로
+     * 원래 포함되어 있었으나, 접미사 판정(endsWith)이라 {@code logout} 이 여기 없으면
+     * 로그인 화면에서 부르는 {@code PATCH /api/auth/change-password} 도 같은 이유로
+     * 401(A001) 로 막혔다. 비밀번호 변경 화면은 로그인 폼 위에 떠 있어 JWT 를 갖고 있지 않다
+     * — 신원 확인은 컨트롤러가 "기존 비밀번호" 대조로 대신한다.
+     */
     private static final List<String> SKIP_SUFFIXES = Arrays.asList(
             "/api/auth/login",
-            "/api/auth/refresh"
+            "/api/auth/refresh",
+            "/api/auth/logout",
+            "/api/auth/change-password"
     );
 
     /** 인증을 건너뛸 고정 경로 목록 */

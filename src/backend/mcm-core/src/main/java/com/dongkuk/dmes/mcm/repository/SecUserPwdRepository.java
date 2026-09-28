@@ -9,6 +9,8 @@ import com.dongkuk.dmes.mcm.entity.SecUserPwd;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+
+import java.time.LocalDateTime;
 import org.springframework.data.repository.query.Param;
 
 /**
@@ -34,4 +36,18 @@ public interface SecUserPwdRepository extends JpaRepository<SecUserPwd, String> 
     @Query("UPDATE SecUserPwd p SET p.userSsoPwd = :userSsoPwd WHERE p.userId = :userId")
     int updateSsoPwd(@Param("userId") String userId,
                      @Param("userSsoPwd") String userSsoPwd);
+
+    /**
+     * 본인 로그인 비밀번호 변경 — USER_ENC_PWD + 마지막 변경일 갱신.
+     *
+     * <p>{@link #updateSsoPwd} 와 짝을 이룬다(SSO 쪽). 인증에 실제로 쓰이는 값은
+     * USER_ENC_PWD 이고 마지막 변경일이 만료 판정(PasswordPolicyEvaluator#isExpired)의 기준이다.
+     * 행이 없으면 0 이 돌아오므로 호출측이 신규 INSERT 로 이어야 한다.
+     */
+    @Modifying
+    @Query("UPDATE SecUserPwd p SET p.userEncPwd = :userEncPwd, p.lastPwdChngDate = :changedDate "
+            + "WHERE p.userId = :userId")
+    int updateEncPwd(@Param("userId") String userId,
+                     @Param("userEncPwd") String userEncPwd,
+                     @Param("changedDate") LocalDateTime changedDate);
 }
