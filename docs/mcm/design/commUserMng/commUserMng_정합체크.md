@@ -373,8 +373,9 @@ moduleGroup: csa
 <!-- 2026-06-04~05 Round 6~7 Phase 1~4 동기화 -->
 | **T-028 (신규 — Round 6 2026-06-04)** 계정생성 / 수정 / 계정삭제 3 버튼 → **"저장" 1 버튼 통합 (`saveCmUser` 단일 action)**. master row 의 `nativeeditor_status` 별 applyInsert / applyUpdate / applyDelete 분기. END_ACTIVE_DATE sentinel `9999-12-31` 감지 시 applyDelete + today 정정 (계정삭제 동작 fix). Detail D-019 / D-020 제거 (모달 DP-005/DP-006 만 보존). | B-001 / B-002 / B-004 / D-019 / D-020 / saveCmUser / regCmUser / deleteCmUser | §5.1 B-001/B-002/B-004/B-004' / §4.1 D-019/D-020 | §1.2 / §3.4 D-019/D-020 / §5.1 / §6 P-001 | §1.2 (saveCmUser 분기) / §2.1~§2.4 (통합) / §6.2 (To-Be 명명) | ✓ |
 | **T-029 (신규 — Round 7 2026-06-05)** AsIs `btn_close` (commonTop basic 4 의 마지막) → ToBe **완전 제거**. PageLayout buttons 배열 entry 삭제 + unused `handleClose` dead code 제거. 가이드 §6-E 4 버튼 표준 (조회/초기화/저장/닫기) → ToBe **3 버튼 표준 (조회/초기화/저장)**. 사유: portal 탭 close 는 host 가 처리. | B-005 / fn_close / handleClose | §5.1 B-005 | §1.2 / §5.1 B-005 / §5.1.1 | (해당 없음) | ✓ |
+| **T-030 (신규 — 2026-09-28 J-019)** AsIs `pwdtmp` 콜백의 하단 상태바 표기 ("임시비밀번호가 [...] 로 전송되었습니다", xfdl:806) → ToBe **`pwdinit` 응답에 평문 `INIT_PWD` + `INIT_PWD_USER_ID` 추가 → 초기 비밀번호 안내 모달(P-004) + 클립보드 복사**. 초기 비밀번호가 bcrypt 해시로만 남으면 관리자가 사용자에게 전달할 값을 알 수 없음. SSO 일괄 분기는 평문 반환 ✗ (대상 = 그리드 전 행). | pwdinit 응답 / pwdtmp 콜백 / B-013 | §5.1 B-013 / §6.5 V-402~V-404 / §9 P-004 / §10 M-030·M-032·M-035·M-036 | §3.8 / §6 P-004 / §7.1 | §7 (pwdinit 응답 스키마 — output=result Map 추가분) | ✓ |
 
-> **§F 결과**: **29 변환점** (T-028 / T-029 신규 추가 2026-06-04~05 Round 6~7) — 모두 cite + 영향 SQL/노드 1:1 매핑.
+> **§F 결과**: **30 변환점** (T-030 신규 추가 2026-09-28) — 모두 cite + 영향 SQL/노드 1:1 매핑.
 
 ---
 
@@ -585,6 +586,31 @@ J-014 / J-015 / J-016 모두 사용자 결정 즉시 본문 + 코드 + 정합체
 
 J-017 / J-018 모두 사용자 결정 즉시 본문 + 코드 + 정합체크 갱신으로 해소. 미해결 결정 사항 ✗ → 신규 Q-NNN 등재 ✗.
 
+### J.10 2026-09-28 — 비밀번호 초기화 후 초기 비밀번호 안내 (팝업 + 복사)
+
+> Round 6~7 이후 추가 요청. 본 절은 라운드 카탈로그가 아니라 **기능 증설분**이라 §J.9 뒤에 독립 절로 둔다.
+
+| # | 발견 영역 | 결함 | 사용자 지시 | 본문 반영 | 코드 반영 |
+|---|---|---|---|---|---|
+| J-019 | 기능 §6.5 / §9 / §10 (B-013 · M-030 · M-032) | `pwdinit` 이 `USER_ENC_PWD` 를 bcrypt 해시로만 덮어써서 **관리자가 사용자에게 전달할 초기 비밀번호 자체를 알 수 없다.** As-Is 는 `pwdtmp` 콜백이 하단 상태바에 평문을 한 줄 찍었지만(xfdl:806) 값이 곧 사라지고 복사도 불가. 실제로 "초기화는 되는데 로그인을 모른다" 는 상태가 된다. | "비밀번호 초기화하면 초기화 비밀번호를 알려줘" → 후속 "팝업에 같이 띄워주고 복사기능도 되게 해줘" | 기능 §1.2 (팝업 모달 1 → 2) / §5.1 B-013 / §6.5 **V-402~V-404 신설** / §9 **P-004 신설** / §10 M-030·M-032 개정 + **M-035·M-036 신설** / 디자인 §3.8 신설 · §6 P-004 신설 · §7.1 개정 | (1) BE [CommUserMngService.java](src/backend/mcm-core/src/main/java/com/dongkuk/dmes/mcm/csa/commUserMng/service/CommUserMngService.java) — `pwdinit` 이 단건 분기 성공 시 `INIT_PWD` + `INIT_PWD_USER_ID` 를 응답 Map 에 추가 (SSO 분기는 반환 ✗). (2) FE [api.ts](src/frontend/m-mcm/page-components/csa/commUserMng/api.ts) — `PwdInitPayload` 타입 신설 + `pwdinit` 반환 타입 변경. (3) FE [page.tsx](src/frontend/m-mcm/page-components/csa/commUserMng/page.tsx) — `initPwd` state + `copyToClipboard` (Clipboard API → `execCommand` 폴백) + `handleCopyInitPwd` / `handleCloseInitPwd` + shared `Modal` (P-004) 마운트. |
+
+#### J.10.1 `pwdinit` 응답 스키마 개정 (2026-09-28)
+
+| 항목 | 값 |
+|---|---|
+| action | `pwdinit` (BPMN `pwdinitTask`, `output=result` — **정의 변경 없음**) |
+| 기존 응답 | `{ cnt_save: number }` |
+| 추가 응답 | `INIT_PWD: String` (발급된 평문 초기 비밀번호) / `INIT_PWD_USER_ID: String` (발급 대상 사용자 ID) |
+| 존재 조건 | `SSO_RESET_FLAG ≠ "Y"` (단건) 이고 `USER_ID` 가 있을 때만 — SSO 일괄 분기 반환 ✗ |
+| 보안 | 응답으로만 전달, 로그 미기록. `DEFAULT_PASSWORD` 고정 상수 외부화(운영 전) 과제 유효 — 화면 노출 경로가 생겼으므로 우선순위 상승 |
+| FE 폴백 | `INIT_PWD` 없음(구버전 BE 등) → 기존 M-030 메시지 유지 |
+
+#### J.10.2 신규 Q-NNN 등재 ✗
+
+J-019 는 사용자 요청 그 자체로 결정 완료 → 본문 + 코드 + 정합체크 동시 갱신. 미해결 결정 ✗.
+
+> **후속 과제 (결정 필요)**: `DEFAULT_PASSWORD` 가 소스 고정 상수인 상태에서 평문이 화면에 표시된다. 운영 착수 전 (1) `mcm.password.initial` 로 외부화, (2) 최초 로그인 시 변경 강제(`PASS_INIT_YN`) 중 최소 1건은 선행해야 한다 — `CommUserMngService.DEFAULT_PASSWORD` 주석이 이미 명시한 과제이며, 본 변경으로 화면 노출 경로가 추가되었다.
+
 ---
 
 ## §K. Round 변경 확정 시각 cross-ref (라운드 단위)
@@ -604,6 +630,7 @@ J-017 / J-018 모두 사용자 결정 즉시 본문 + 코드 + 정합체크 갱�
 | **Round 5** | **2026-06-04** | **J-014 / J-015 / J-016** | **✓ §1.2 / §3.4 / §3.4.4 / §4.1 G-008 / §5.4 B-019 / §6 P-002** | **✓ page.tsx + DataInitializer.java + CommUserMngService.java + CommUserMngSearchDeptLovRequest.java + commUserMng.bpmn** | **✓ §J.8 + §F T-016** | **E 신설 — W5 reference 확정** |
 | **Round 6** | **2026-06-04** | **J-017** | **✓ 디자인설계서 §1.2 / §3.4 D-019/D-020 / §5.1 / §5.1.1 / §6 P-001 + §J (신설)** | **✓ FE PageLayout buttons + handleSave (nativeeditor_status 분기) + applyDelete END_ACTIVE_DATE sentinel + Detail D-019/D-020 jsx 제거 + BE saveCmUser 통합** | **✓ §A.2 (D-NNN/B-NNN 행) / §F T-028 (신규) / §I / §J.9 (신설) / §K** | **G 신설** |
 | **Round 7** | **2026-06-05** | **J-018** | **✓ 디자인설계서 §1.2 / §5.1 B-005 / §5.1.1 + §J (라운드 카탈로그 갱신)** | **✓ FE PageLayout buttons 배열 btn_close entry 삭제 + handleClose dead code 제거 + import cleanup** | **✓ §F T-029 (신규) / §I / §J.9 (J-018 추가) / §K** | **D 보존 (3 버튼에도 동일 적용)** |
+| (기능 증설) | **2026-09-28** | **J-019** | **✓ 기능설계서 §1.2 / §5.1 B-013 / §6.5 V-402~V-404 / §9 P-004 / §10 M-030·M-032·M-035·M-036 + 디자인설계서 §3.8 / §6 P-004 / §7.1** | **✓ BE `pwdinit` 응답 `INIT_PWD`·`INIT_PWD_USER_ID` 추가 + FE `PwdInitPayload` + 초기 비밀번호 모달(P-004) + 클립보드 복사** | **✓ §F T-030 (신규) / §J.10 (신설) / §K** | **D 보존 (비밀번호 초기화 버튼은 RBAC 그대로)** |
 
 ### §K.2 W5 패턴 A~G 회귀 가드
 

@@ -44,7 +44,7 @@ moduleGroup: csa
 | pageName | commUserMng | 01 A.4.2 (MES: = screenId) |
 | pageId | commUserMng | 01 A.4.3 (MES: = screenId) |
 | serviceId | commUserMng | 01 A.4.4 |
-| 페이지 유형 | **D 다중 그리드 + 상세 폼** (G + GR + GL 동시 존재 + 상세 D-NNN 20 + 팝업 모달 1) | 분석 §3 (G-017 + GR-002 + GL-002 + D-020 + DP-006) |
+| 페이지 유형 | **D 다중 그리드 + 상세 폼** (G + GR + GL 동시 존재 + 상세 D-NNN 20 + 팝업 모달 2) | 분석 §3 (G-017 + GR-002 + GL-002 + D-020 + DP-006) |
 | 주요 API path (UI→BFF) | `POST /api/mcm/oasis/commUserMng/{action}` | 04 §A.2-3 |
 | 주요 API path (BFF→BE) | `POST /oasis/commUserMng/{action}` | 04 §A.2-3 |
 | Frontend 파일명 | `commUserMng.tsx` | 03 컨벤션 (MES: `{screenId}.tsx`) |
@@ -207,7 +207,7 @@ moduleGroup: csa
 | B-010 | 역할저장 | div_roleGrpId commonRightButton (커스텀) | saveUserRoleGrp | `fn_rolSave` (xfdl:1303) → confirm → `fn_run("saveUserRoleGrp")` |
 | B-011 | 역할추가 | div_roleGrpIdList commonRightButton (커스텀) | - (클라이언트 전용) | `fn_rolAdd` (xfdl:1321) — V-601~604 multi-select 행 처리 |
 | B-012 | 역할조회 | div_roleGrpIdList commonRightButton (커스텀) | searchRoleGrp | `fn_rolSearch` (xfdl:1315) → `fn_run("searchRoleGrp")` |
-| B-013 | 비밀번호 초기화 | div_detail | pwdinit | `btn_PwdReset_onclick` (xfdl:1382) → V-501 rdo_PwdReset=Y 시 confirm → `fn_run("pwdinit")` → `fn_pwInit()` (WebBrowser RSA pwChg.html) |
+| B-013 | 비밀번호 초기화 | div_detail | pwdinit | `btn_PwdReset_onclick` (xfdl:1382) → V-501 rdo_PwdReset=Y 시 confirm → `fn_run("pwdinit")` → `fn_pwInit()` (WebBrowser RSA pwChg.html). **To-Be 추가: 응답 `INIT_PWD` 수신 → P-004 초기 비밀번호 팝업 표시 (V-402 / M-032 To-Be)** |
 | B-014 | 역할그룹등록 | div_detail | saveUserRoleGrpCopy | `btn_RoleCopy_onclick` (xfdl:1421) → V-503 confirm → `fn_run("saveUserRoleGrpCopy")` |
 | B-015 | SSO 초기화 | div_detail | pwdinit (SSO_RESET_FLAG="Y") | `btn_SSOPwdReset_onclick` (xfdl:1405) → V-502 rdo_SSOReset=Y 시 confirm → `ssoReset="Y" + fn_run("pwdinit")` |
 | B-016 | 계정 재생성 | div_detail (enable=false 기본) | reRegCmUser | `btn_reRegister_onclick` (xfdl:1433) → V-301~308 검증 후 `fn_run("reRegCmUser")` |
@@ -307,6 +307,9 @@ moduleGroup: csa
 | # | 룰 | 트리거 | 메시지 | 차단 동작 | 근거 |
 |---|---|---|---|---|---|
 | V-401 | div_detail.edt_email.value null 차단 | btn_PwdReset 클릭 후 confirm 확인 → fn_pwInit() | "사용자 이메일 저장 후 진행해주세요." (error) | return false | xfdl:655~659 |
+| V-402 | **To-Be 신설 (2026-09-28)** — `pwdinit` 응답의 `INIT_PWD` 가 있을 때 P-004 초기 비밀번호 팝업 표시. `INIT_PWD` 없으면 기존 M-030 메시지로 폴백 (BE 롤백 대비) | B-013 `fn_run("pwdinit")` 성공 콜백 | (팝업 표시 — 메시지 없음) | - | M-032 To-Be / `CommUserMngService.pwdinit` |
+| V-403 | **To-Be 신설 (2026-09-28)** — P-004 팝업 "비밀번호 복사" 클릭 → 클립보드 복사. 성공 시 버튼 라벨 "복사됨" + M-035 toast, 실패 시 M-036 error | P-004 footer Button | M-035 / M-036 | - | `copyToClipboard` (Clipboard API → `execCommand` 폴백) |
+| V-404 | **To-Be 신설 (2026-09-28)** — P-004 팝업 닫기(확인 / × / ESC) → `INIT_PWD` 상태 폐기. 닫은 뒤에는 초기 비밀번호를 재조회할 수 없음을 안내 | P-004 onClose | - | 상태 폐기 | 보안 (화면에 평문 잔존 방지) |
 
 ### 6.6 B-013 / B-014 / B-015 confirm 처리 (분석 §5.6 / xfdl:1382 / 1405 / 1421)
 
@@ -391,8 +394,11 @@ moduleGroup: csa
 | P-001 | modal (Form 내부 Div, visible toggle) | "계정삭제" 확인 모달 | B-002 (`fn_delete`) | xfdl:1159 (`div_deletePopup.set_visible(true)`) | 동적 입력: USER_ID 메시지 / cal_end_active_date=today / edt_infReqNo / edt_description 복사 | B-018 (`div_deletePopup_btn_save_onclick`) — ds_main rowposition deleteRow + setColumn → `fn_run("deleteCmUser")` + 팝업 닫기 |
 | P-002 | external popup (commonDynamic) | "부서 조회" | D-007 (div_dept_cd 컴포넌트) | xfdl:421~435 (`commonDynamic_onload` → service=commonUserDept) | dataset=ds_userDept, columns=DEPT_CD/DEPT_NM, cond=edt_DEPT_CD | `fn_callBack` (xfdl:824~826) — `ds_main.setColumn(rowposition, "DEPT_CD", strErrorMsg.DEPT_CD)`. **To-Be SelectModal/Autocomplete (T-016) + 출처 `MCMAPUSER.TB_MCM_DEPT_INFO` (정책 #2 / Q-002 해소)** |
 | P-003 | WebBrowser popup → **To-Be Next.js 별도 페이지 (정책 #3 (F) / Q-013 해소 / T-012)** | 비밀번호 변경 RSA | B-013 / B-015 → `fn_pwInit()` | xfdl:654~680 (`/_uiEXt_/rsa/pwChg.html`) | 공개키 (gv_publicKeyModulus / gv_publicKeyExponent) | `wb_pwdChg_init_onusernotify` (xfdl:697) — ds_pwdtmp 적재 + `/security/password/pwdtmp` transaction → fn_callBack("pwdtmp"). **To-Be: FE `m-mcm/app/password-change/page.tsx` (신규) + BE `POST /oasis/commUserMng/changePassword` (신규) + yml prefix `commUserMng.password.*` (CommUserMngPasswordProperties — 신규)** |
+| P-004 | **To-Be 신규 모달 (shared `Modal` size=sm) — 초기 비밀번호 안내 (2026-09-28 / V-402)** | B-013 `pwdinit` 성공 콜백 (응답 `INIT_PWD` 존재 시) | (클라이언트 전용 — As-Is 대응 없음) | 입력: `USER_ID` (BE `INIT_PWD_USER_ID` or 선택 row), `INIT_PWD` (BE 응답 평문) | footer: "비밀번호 복사" (V-403) / "확인" (V-404) — 닫기 시 상태 폐기 |
 
 > P-001 은 Form 내부 Div 모달 (별도 xfdl 파일 ✗). P-002 는 commonDynamic 표준 컴포넌트. P-003 은 WebBrowser 컨트롤 — To-Be Next.js 별도 페이지 신규 설계 (Q-013 / T-012).
+>
+> **P-004 (2026-09-28 신설)** — As-Is 는 초기 비밀번호를 하단 상태바에 한 줄 찍고 끝냈고(xfdl:806 `pwdtmp` 콜백, M-032), 값이 곧 사라지고 복사도 불가능해 관리자가 사용자에게 전달할 초기 비밀번호를 알 수 없었다. To-Be 는 BE 가 `INIT_PWD` 를 응답으로 주고 화면이 모달 + 클립보드 복사로 보여준다. **SSO 일괄 초기화(B-015)는 평문 비밀번호를 응답하지 않으므로 P-004 가 열리지 않는다** (대상이 그리드 전 행이라 N건을 화면에 펼쳐야 하고 값 규칙도 사용자마다 다르다).
 
 ---
 
@@ -429,9 +435,11 @@ moduleGroup: csa
 | M-027 | "저장 실패 하였습니다." | error | save/reg/delete/reReg / saveUserRoleGrp / saveUserRoleGrpCopy error 분기 / xfdl:777 / 795 / 820 | - |
 | M-028 | "역활 {N}건 저장 되었습니다." → **To-Be "역할 {N}건 저장 되었습니다." (정책 #3 (A) / Q-006 해소 / T-026)** | bottom status | saveUserRoleGrp 콜백 / xfdl:789 | F-002 |
 | M-029 | "역활그룹이 저장 되었습니다." → **To-Be "역할그룹이 저장 되었습니다." (정책 #3 (A) / Q-006 해소 / T-026)** | bottom status | saveUserRoleGrpCopy 콜백 / xfdl:813 | F-002 |
-| M-030 | "비밀번호가 초기화 되었습니다" | bottom status | pwdinit 콜백 / xfdl:800 | - |
+| M-030 | "비밀번호가 초기화 되었습니다" → **To-Be: SSO 초기화(B-015) 성공 메시지로 한정. 단건 초기화는 P-004 팝업으로 대체 (2026-09-28)** | bottom status | pwdinit 콜백 / xfdl:800 | - |
 | M-031 | "비밀번호 초기화에 실패 하였습니다." | error | pwdtmp 콜백 nErrorCode<0 / xfdl:804 | - |
-| M-032 | "비밀번호가 초기화 되었습니다. 임시비밀번호가 [{strErrorMsg}] 로 전송되었습니다." | bottom status | pwdtmp 콜백 / xfdl:806 | - |
+| M-032 | "비밀번호가 초기화 되었습니다. 임시비밀번호가 [{strErrorMsg}] 로 전송되었습니다." → **To-Be: P-004 초기 비밀번호 팝업으로 대체 (V-402). As-Is 상태바 표기는 평문이 즉시 사라지고 복사 불가라 폐기 (2026-09-28)** | bottom status → **To-Be 모달** | pwdtmp 콜백 / xfdl:806 | - |
+| M-035 | **To-Be 신설 (2026-09-28)** "초기 비밀번호가 클립보드에 복사되었습니다." | toast | P-004 "비밀번호 복사" 클릭 성공 (V-403) | - |
+| M-036 | **To-Be 신설 (2026-09-28)** "복사에 실패했습니다. 비밀번호를 직접 선택해 복사해주세요." | error | P-004 "비밀번호 복사" 클릭 실패 — Clipboard API 거부 + `execCommand` 폴백 실패 (V-403) | - |
 | M-033 | (Java 예외 메시지) "사용자 정보 업데이트에 실패했습니다." (UserException) | java exception | ReRegCommUserMng.java:61 | - |
 | M-034 | (Java 로그) "##########	{Save/Reg/Delete/Re Reg}CommUserMng 저장모드 = {status}" / "{count} 확인 ==> [...]" | log.debug / log.info | SaveCommUserMng / RegCommUserMng / DeleteCommUserMng / ReRegCommUserMng / PasswordInit / SaveRoleGroupHis / SaveRoleGroupCopyHis | - |
 

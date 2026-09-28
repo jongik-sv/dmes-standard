@@ -44,6 +44,23 @@ interface SaveCountPayload {
   cnt_save?: number;
 }
 
+/**
+ * action=pwdinit 응답.
+ *
+ * 2026-09-28 신설 — 단건 비밀번호 초기화(SSO_RESET_FLAG="N") 성공 시 발급된 평문 초기 비밀번호를
+ * BE 가 되돌려준다. 초기 비밀번호가 bcrypt 해시로만 남으면 관리자가 사용자에게 전달할 값을 알 수 없어
+ * "초기화는 되는데 로그인할 수 없다" 가 되므로, FE 팝업에서 그대로 보여주고 복사하게 한다.
+ * (기능설계서 M-032 — As-Is `pwdtmp` 콜백의 "임시비밀번호가 [...] 로 전송되었습니다" 대체.)
+ *
+ * SSO 일괄 초기화 분기는 평문 비밀번호를 반환하지 않는다(대상이 그리드 전 행이라 노출 범위가 커진다).
+ */
+export interface PwdInitPayload extends SaveCountPayload {
+  /** 발급된 초기 비밀번호 (평문). 단건 분기만 존재. */
+  INIT_PWD?: string;
+  /** 초기 비밀번호를 발급받은 사용자 ID. 단건 분기만 존재. */
+  INIT_PWD_USER_ID?: string;
+}
+
 interface SearchUserRoleGrpPayload {
   ds_userRolegrp?: CommUserMngRoleGrpRow[];
 }
@@ -183,8 +200,8 @@ export async function pwdinit(
   userEmpNo: string,
   ssoResetFlag: "Y" | "N",
   ssoMaster?: CommUserMngRow[],
-): Promise<SaveCountPayload> {
-  return callAction<SaveCountPayload>(
+): Promise<PwdInitPayload> {
+  return callAction<PwdInitPayload>(
     "pwdinit",
     {
       USER_ID: userId,
@@ -229,6 +246,7 @@ export async function searchDeptLov(keyword: string): Promise<SearchDeptLovPaylo
   return callAction<SearchDeptLovPayload>("searchDeptLov", { keyword });
 }
 
+// PwdInitPayload 는 위에서 `export interface` 로 직접 export 한다 (중복 export 금지).
 export type {
   SearchCmUserPayload,
   SaveCountPayload,

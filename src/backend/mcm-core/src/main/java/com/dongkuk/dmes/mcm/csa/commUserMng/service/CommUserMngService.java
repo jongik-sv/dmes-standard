@@ -109,6 +109,10 @@ public class CommUserMngService {
      * <p><b>실 프로젝트 착수 시 반드시 바꾼다.</b> 지금은 소스 상수라 값이 저장소에 노출되므로,
      * 운영 적용 전에 설정({@code mcm.password.initial}) 또는 시크릿 저장소로 외부화하고
      * 최초 로그인 시 변경 강제(비밀번호 만료 정책)와 함께 쓴다.
+     *
+     * <p>2026-09-28 — {@link #pwdinit} 가 이 값을 {@code INIT_PWD} 응답으로 되돌려 관리자 화면의
+     * "초기 비밀번호" 팝업에 표시한다(사용자 요청 / 기능설계서 M-032 — As-Is {@code pwdtmp} 콜백 대체).
+     * 값이 화면에 노출되는 경로가 생겼으므로 외부화 과제의 우선순위는 오히려 올라간다.
      */
     private static final String DEFAULT_PASSWORD = "dmesInit!1";
 
@@ -591,9 +595,23 @@ public class CommUserMngService {
      *   <li>SSO_RESET_FLAG="Y" → master(ds_main) for-loop, 각 row 별 USER_SSO_PWD=bcrypt(USER_ID+USER_EMP_NO) → updateCommonSSOPwdInit</li>
      *   <li>그 외 → 단건 USER_ID — USER_ENC_PWD=bcrypt(DEFAULT_PASSWORD) + USER_SSO_PWD=bcrypt(USER_ID+USER_EMP_NO) → mergeCommonPwdInit</li>
      * </ul>
+     *
+     * <p><b>응답 (2026-09-28 신설)</b> — 단건 비밀번호 초기화 성공 시 발급된 평문 초기 비밀번호를
+     * {@code INIT_PWD} 로 함께 돌려준다. As-Is {@code pwdtmp} 콜백이 하단 상태바에
+     * "임시비밀번호가 [{strErrorMsg}] 로 전송되었습니다" 를 보여주던 것을 (분석 §5.5 / 기능설계서 M-032)
+     * To-Be 화면 팝업 + 클립보드 복사로 대체하기 위한 것이다 — 초기 비밀번호가 bcrypt 해시로만 남으면
+     * 관리자가 사용자에게 전달할 값 자체를 알 수 없어 "초기화는 되는데 로그인할 수 없다" 가 된다.
+     *
+     * <p>보안 주의: {@code INIT_PWD} 는 **응답으로만** 나가고 로그에는 남기지 않는다. 값이 고정
+     * 상수인 점은 {@link #DEFAULT_PASSWORD} 주석의 외부화 선행 과제(운영 적용 전 반드시 처리) 그대로다.
+     *
+     * <p>SSO 일괄 분기는 초기 비밀번호를 반환하지 않는다. 대상이 그리드 전 행이라 평문 비밀번호를
+     * 응답에 싣는 순간 프런트가 N건의 비밀번호를 화면에 펼쳐야 하고, 값 규칙(USER_ID+USER_EMP_NO)도
+     * 사용자마다 달라 그대로 노출되면 DB 사본과 동등한 정보가 된다. 필요하면 별도 내려받기 화면을 연다.
      */
     public Map<String, Object> pwdinit(CommUserMngPwdInitRequest request, List<Map<String, Object>> master) {
         int cnt = 0;
+        String initPwdUserId = null;
         boolean ssoReset = request != null && "Y".equals(request.getSSO_RESET_FLAG());
         if (ssoReset) {
             // SSO 전체 — ds_main for-loop
@@ -621,10 +639,15 @@ public class CommUserMngService {
                         bcrypt.encode(DEFAULT_PASSWORD),
                         bcrypt.encode(userId + (userEmpNo == null ? "" : userEmpNo)));
                 cnt = 1;
+                initPwdUserId = userId;
             }
         }
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("cnt_save", cnt);
+        if (initPwdUserId != null) {
+            out.put("INIT_PWD", DEFAULT_PASSWORD);
+            out.put("INIT_PWD_USER_ID", initPwdUserId);
+        }
         return out;
     }
 

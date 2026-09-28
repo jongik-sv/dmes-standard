@@ -234,6 +234,8 @@ EndEvent_1
 | UserTask_pwdinit | userTask | #{basePackage}PasswordInit | bpmn:105~114 |
 
 > PasswordInit.java 내부: context.get("SSO_RESET_FLAG") == "Y" → ds_main for-loop → updateCommonSSOPwdInit (전 사용자 SSO) / 그 외 → 단건 mergeCommonPwdInit (USER_ENC_PWD=bcrypt(DEFAULT_PASSWORD) + USER_SSO_PWD=bcrypt(USER_ID+USER_EMP_NO)). **(정책 #3 (F) / Q-012 해소 / T-011)** ~~`CactusConstants.DEFAULT_PASSWORD`~~ → **`commUserMngPasswordProperties.getDefault()` (yml prefix `commUserMng.password.*`, FQN `mcm.csa.commUserMng.config.CommUserMngPasswordProperties`)**. 기존 `mcm-core/security/password/McmPasswordProperties` 보존.
+>
+> **응답 스키마 개정 (2026-09-28 / J-019 / T-030)** — To-Be `commUserMng.bpmn` 의 `pwdinitTask` 정의는 **변경 없음** (`output=result` Map). 단건 분기(`SSO_RESET_FLAG ≠ "Y"`) 성공 시 Map 에 `INIT_PWD`(발급된 평문 초기 비밀번호) / `INIT_PWD_USER_ID` 가 추가되고, FE 가 이 값으로 초기 비밀번호 안내 모달(P-004)을 띄운다. SSO 일괄 분기는 추가 없음. **평문은 응답으로만 전달하고 로그에는 남기지 않는다.** 상세 = [정합체크 §J.10.1](commUserMng_정합체크.md).
 
 ### 2.10 saveUserRoleGrpCopy 분기 (2 노드 chain)
 

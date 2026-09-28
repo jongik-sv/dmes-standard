@@ -497,6 +497,39 @@ border=2px solid #D6e2ea
 └────────────────────────────────────────────────────────────┘
 ```
 
+### 3.8 A-POPUP-PWD 내부 배치 (초기 비밀번호 안내 모달 — P-004 / 2026-09-28 신설)
+
+> shared `Modal` (size=sm) 인라인 모달. As-Is 좌표 없음 (`pwdtmp` 콜백이 하단 상태바 `div_bottom` 에
+> 텍스트를 찍는 것이 As-Is 표현 — xfdl:806). P-001 계정삭제 모달과 달리 **입력 불가 — 읽기 전용 표시 + 복사** 전용.
+
+```
+size=sm, centered, title="초기 비밀번호 안내"
+┌──────────────────────────────────────────────┐
+│ header: "초기 비밀번호 안내"            [×]    │
+│ ┌──────────────┬───────────────────────────┐ │
+│ │ 사용자 ID     │ {USER_ID}                │ │  ← DETAIL_LABEL_CELL / DETAIL_VALUE_CELL
+│ ├──────────────┼───────────────────────────┤ │
+│ │ 초기 비밀번호   │ ┌───────────────────────┐ │ │
+│ │              │ │ dmesInit!1  (monospace) │ │ │  ← <code> bg=--color-bg-light
+│ │              │ └───────────────────────┘ │ │     border=--color-border / radius=--radius-sm
+│ │              │  클릭 시 전체 선택 (수동 복사 대비) │ │
+│ └──────────────┴───────────────────────────┘ │
+│ (안내문 12px muted) "초기 비밀번호는 이 팝업을   │
+│   닫으면 다시 볼 수 없습니다…"                 │
+│ footer: [비밀번호 복사]  [확인 variant=primary]  │
+└──────────────────────────────────────────────┘
+```
+
+| 항목 | 값 | 근거 |
+|---|---|---|
+| 트리거 | B-013 `fn_run("pwdinit")` 성공 콜백 — 응답 `INIT_PWD` 존재 시에만 | 기능 §6.5 V-402 |
+| 라벨/값 셀 | `DETAIL_LABEL_CELL` / `DETAIL_VALUE_CELL` + `DETAIL_TABLE_STYLE` (Detail 폼과 동일 래퍼) | shared `layout` |
+| 비밀번호 표현 | `<code>` monospace 14px · 배경 `--color-bg-light` · 테두리 `--color-border` · radius `--radius-sm` | UI-Visual-Standard (화면 CSS 색상 직접 값 금지) |
+| 수동 복사 | 값 요소 클릭 → `getSelection().selectAllChildren()` + `user-select: all` | Clipboard API 거부 환경 대비 |
+| footer | `Button`(복사) + `Button variant=primary`(확인) — 복사 성공 시 라벨 "복사됨" + M-035 toast | 기능 §6.5 V-403 / §10 M-035 |
+| 닫기 | 확인 / × / ESC 모두 `initPwd` 를 null 로 (평문 화면 잔존 방지) | 기능 §6.5 V-404 |
+| e2e | shared `Modal` 은 미지정 prop 을 DOM 으로 흘려보내지 않음 → `data-testid` 는 안쪽 Button(`init-pwd-copy` · `init-pwd-close`)과 값 요소(`init-pwd-value`)에만 부여. 팝업 자체는 타이틀 "초기 비밀번호 안내" 로 locating | shared `modal.tsx` `ModalImpl` (rest 미전파) |
+
 ---
 
 ## 4. 그리드 (G-NNN / GR-NNN / GL-NNN — 기능설계서 §3.2 인용)
@@ -657,8 +690,9 @@ border=2px solid #D6e2ea
 | P-001 | inline modal (Form 내부 Div) | `div_deletePopup` (xfdl:280~302) | **Round 6 (2026-06-04) — `B-002 fn_delete` 폐기 → 통합 "저장" 버튼 (B-004') 의 applyDelete 분기에서 트리거. master row 의 `nativeeditor_status="deleted"` + END_ACTIVE_DATE sentinel `9999-12-31` 감지 시 today 로 정정** | 동적: USER_ID 메시지 / today / edt_infReqNo / edt_description 복사 (모달 DP-005/DP-006 보존 — Detail D-019/D-020 만 제거) | B-018 → **saveCmUser (applyDelete 분기)** — Round 6 통합 |
 | P-002 | external popup (commonDynamic.xfdl) → **To-Be shared `LookupModal` (Round 5 — 2026-06-04 사용자 결정 J-014 / T-016 갱신) + 출처 `MCMAPUSER.TB_MCM_DEPT_INFO` (정책 #2 / Q-002 해소)** | ~~`_com_div::commonDynamic.xfdl`~~ → **shared `@dk-oasis/shared/lookup` `LookupModal`** | D-007 셀 내 검색 Button (B-019) — Round 5 신설 | **BE action `searchDeptLov` 신규 (2026-06-04)** — POST `/oasis/commUserMng/searchDeptLov`, body `{keyword: string}`. 응답 = `{ result: [{DEPT_CD, DEPT_NM}, ...] }`. modal 타이틀 "부서 검색", placeholder "부서코드 또는 부서명 입력", 그리드 컬럼 DEPT_CD / DEPT_NM. | **`onPick(row)` → `handleCellChange(rowKey, "DEPT_CD", row.code)` + `handleCellChange(rowKey, "DEPT_NM", row.name)` 두 번 호출 — DEPT_CD + DEPT_NM 동시 set. AsIs `fn_callBack("commonUserDept")` 의 setColumn 등가 + 부서명 자동 연동 (AsIs 별도 단계 → ToBe 통합).** |
 | P-003 | WebBrowser external → **To-Be 신규 Next.js 페이지 `m-mcm/app/password-change/page.tsx` (정책 #3 (F) / Q-013 해소 / T-012)** | ~~`/_uiEXt_/rsa/pwChg.html`~~ | B-013 / B-015 → fn_pwInit() | publicKeyModulus / publicKeyExponent | wb_pwdChg_init_onusernotify → ds_pwdtmp 적재 → ~~`/security/password/pwdtmp`~~ → **To-Be BE `POST /oasis/commUserMng/changePassword` (신규)** transaction |
+| P-004 | **To-Be 신규 shared `Modal` (size=sm) — 초기 비밀번호 안내 (2026-09-28 신설 / 기능 §6.5 V-402~V-404 · §9 P-004 · §10 M-032/M-035/M-036)** | 인라인 모달 — As-Is 대응 없음 (`pwdtmp` 콜백이 하단 상태바에 한 줄 출력, xfdl:806) | B-013 "비밀번호 초기화" `fn_run("pwdinit")` 성공 콜백 — **응답에 `INIT_PWD` 가 있을 때만** (SSO 일괄 B-015 는 열리지 않음) | `USER_ID` = `INIT_PWD_USER_ID` (없으면 선택 row USER_ID) / `INIT_PWD` = BE 응답 평문 | "확인" / × / ESC → 상태 폐기(V-404). "비밀번호 복사" → 클립보드(V-403) |
 
-> P-001 본문 디자인은 본 §3.7 참조. P-002 는 commonDynamic 표준 컴포넌트 → **Round 5 (2026-06-04) 확정: shared `LookupModal` + DMES `TB_MCM_DEPT_INFO` 출처 (정책 #2) + BE 신규 action `searchDeptLov` (DTO `CommUserMngSearchDeptLovRequest` + Service `CommUserMngService.searchDeptLov` + Repository.findDeptLov + BPMN `searchDeptLovTask`). 본 화면 = W5 reference — 다른 csa 7 + cme 1 화면의 LoV 셀 패턴 정합 기준.** 본 패턴 상세 = §3.4.4. P-003 은 **별도 페이지 신규 설계 — `m-mcm/app/password-change/page.tsx` + BE `POST /oasis/commUserMng/changePassword` + yml prefix `commUserMng.password.*` (정책 #3 (F))**.
+> P-001 본문 디자인은 본 §3.7 참조. P-002 는 commonDynamic 표준 컴포넌트 → **Round 5 (2026-06-04) 확정: shared `LookupModal` + DMES `TB_MCM_DEPT_INFO` 출처 (정책 #2) + BE 신규 action `searchDeptLov` (DTO `CommUserMngSearchDeptLovRequest` + Service `CommUserMngService.searchDeptLov` + Repository.findDeptLov + BPMN `searchDeptLovTask`). 본 화면 = W5 reference — 다른 csa 7 + cme 1 화면의 LoV 셀 패턴 정합 기준.** 본 패턴 상세 = §3.4.4. P-003 은 **별도 페이지 신규 설계 — `m-mcm/app/password-change/page.tsx` + BE `POST /oasis/commUserMng/changePassword` + yml prefix `commUserMng.password.*` (정책 #3 (F))**. P-004 본문 디자인 = §3.8.
 
 ---
 
@@ -671,7 +705,9 @@ border=2px solid #D6e2ea
 | 모달 알림 (warning / error) | M-001 ~ M-022, M-031 (validation / 차단) | `gfn_message("", "", text, "warning/error", "", "")` (xfdl 표준 — To-Be `MessageModal` 등가) |
 | 모달 알림 (confirm) | M-004, M-006, M-007, M-016, M-017, M-019, M-020, M-021, M-023 | `gfn_message(..., "confirm", "확인", callback)` — To-Be `ConfirmModal` 등가 |
 | 모달 알림 (info) | M-026 (saveUserRoleGrp / saveUserRoleGrpCopy 성공) | `gfn_message(..., "info")` — To-Be `Toast` 또는 `MessageModal info` |
-| 하단 status bar | M-024 / M-025 / M-028 / M-029 / M-030 / M-032 | `gfn_commonBottomStatus_msg(text)` (div_bottom common — To-Be `StatusBar` 등가) |
+| 하단 status bar | M-024 / M-025 / M-028 / M-029 / M-030 (SSO 분기) | `gfn_commonBottomStatus_msg(text)` (div_bottom common — To-Be `StatusBar` 등가) |
+| 초기 비밀번호 팝업 (P-004) | M-032 To-Be (발급 비밀번호 표시) / M-035 (복사 성공 toast) | shared `Modal` 본문 + footer `Button` — §3.8 |
+| 복사 실패 모달 | M-036 | `gfn_message(..., "error")` (Clipboard API + `execCommand` 양쪽 실패) |
 | 팝업 내부 메시지 (DP-003) | M-009 / M-010 | `sts_message.set_value(text)` (xfdl:1155 동적 갱신) |
 | 서버 로그 (사용자 미표시) | M-034 (Java log.debug/log.info) | log (java) — To-Be 화면 미표시 |
 | 서버 예외 (사용자 표시) | M-033 (UserException) | `throw new UserException(text)` — To-Be 화면에 alert 표시 |

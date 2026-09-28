@@ -19,6 +19,9 @@
  *   - #3 (C) / Q-004 — TB_MCM_SEC_USER_HIS / ROLL_HIS JPA Entity 흡수
  *   - #3 (D) / Q-005 — D-013~015 GROUP_ID 콤보 UI 미반영
  *   - #3 (E) / Q-010 / Q-014 — Grid STATUS / nexacro roleSearch 자연 흡수
+ *   - M-032 (2026-09-28) — 비밀번호 초기화 후 발급된 초기 비밀번호를 팝업으로 표시 + 클립보드 복사.
+ *     As-Is `pwdtmp` 콜백의 하단 상태바 표기(xfdl:806)는 값이 곧바로 사라지고 복사도 되지 않아,
+ *     관리자가 사용자에게 전달할 초기 비밀번호를 알 수 없었다.
  *
  * 패턴: W3 (commRoleMng) / W4 (commRoleGrpMng) 의 다중 그리드 + Detail 확장.
  */
@@ -37,6 +40,7 @@ import {
 } from "@dk-oasis/shared/layout";
 import { GridPanel, AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { LookupModal, type LookupRow, type LookupFetchFn } from "@dk-oasis/shared/lookup";
+import { Modal } from "@dk-oasis/shared/modal";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import {
   Button,
@@ -114,6 +118,54 @@ const DEFAULT_FILTERS: CommUserMngFilters = {
   cbo_USE_TP: "Y", // S-002 default index=0 (xfdl:273)
   cbo_IN_OUT_EMP_TP: "", // S-003 default index=-1 (전체)
 };
+
+/**
+ * 초기 비밀번호 안내 팝업 (2026-09-28 신설 / 기능설계서 M-032 To-Be).
+ *
+ * As-Is 는 `pwdtmp` 콜백이 하단 상태바에 "임시비밀번호가 [{strErrorMsg}] 로 전송되었습니다" 를
+ * 찍었다(xfdl:806). 상태바는 곧 사라지고 복사도 되지 않아 관리자가 값을 다시 볼 수 없었다.
+ * To-Be 는 BE 가 돌려준 `INIT_PWD` 를 팝업으로 띄우고 클립보드 복사까지 제공한다.
+ *
+ * 닫을 때(확인/×/ESC/뒤깅 클릭)는 `null` 로 되돌려 비밀번호를 화면에서 지운다.
+ */
+interface InitPwdInfo {
+  /** 초기 비밀번호를 발급받은 사용자 ID (팝업 표시용). */
+  userId: string;
+  /** 발급된 평문 초기 비밀번호. */
+  password: string;
+}
+
+/**
+ * 클립보드 복사 — `navigator.clipboard` 우선, 없으면 `execCommand` 폴백.
+ *
+ * `navigator.clipboard` 는 보안 컨텍스트(https / localhost)에서만 제공되므로, 사내망에 http 로
+ * 띄운 개발·검증 환경에서는 undefined 다. 폴백 없으면 "복사 버튼이 아무 반응이 없다" 로 보인다.
+ */
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // 폴백 경로로 진행 (권한 거부 / 컨텍스트 제한)
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "0";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * 사용여부 / 내부외부 코드 ↔ 한글 표시 (xfdl ds_useTp / ds_inOutEmpTp 정적 매핑 보존).
@@ -267,6 +319,11 @@ export default function CommUserMngPage() {
   //   선택 시 DEPT_CD + DEPT_NM 자동 세트 (handleDeptLovPick).
   //   commRoleMng round-3 의 searchObjectLov + 모달 정합 패턴.
   const [isDeptLovOpen, setIsDeptLovOpen] = useState<boolean>(false);
+
+  // 2026-09-28 — 비밀번호 초기화 성공 후 발급된 초기 비밀번호 (팝업 표시 + 복사).
+  //   null 이면 팝업 닫힘. SSO 일괄 초기화는 BE 가 평문을 주지 않으므로 항상 null 로 둔다.
+  const [initPwd, setInitPwd] = useState<InitPwdInfo | null>(null);
+  const [isPwdCopied, setIsPwdCopied] = useState<boolean>(false);
 
   const selected = useMemo<(CommUserMngRow & GridRow) | null>(() => {
     if (!selectedKey) return null;
@@ -582,14 +639,26 @@ export default function CommUserMngPage() {
         // SSO 일괄 — 현재 메인 그리드 행 전체 master 전달
         const master = rows.map((r) => stripInternal(r) as CommUserMngRow);
         await apiPwdInit(selected?.USER_ID ?? "", selected?.USER_EMP_NO ?? "", "Y", master);
+        showMessage({ message: "SSO 비밀번호가 초기화 되었습니다" });
       } else {
-        await apiPwdInit(
+        // 2026-09-28 — 초기 비밀번호는 BE 가 bcrypt 해시로만 남기면 관리자가 전달할 값을 알 수 없다.
+        //   응답으로 받은 평문(INIT_PWD)을 팝업으로 띄우고 복사하게 한다 (기능설계서 M-032 To-Be).
+        const res = await apiPwdInit(
           String(selected!.USER_ID),
           String(selected!.USER_EMP_NO ?? ""),
           "N",
         );
+        if (res.INIT_PWD) {
+          setIsPwdCopied(false);
+          setInitPwd({
+            userId: String(res.INIT_PWD_USER_ID ?? selected!.USER_ID ?? ""),
+            password: res.INIT_PWD,
+          });
+        } else {
+          // 초기화는 됐지만 평문이 없으면(예: BE 롤백 후 구버전) 팝업을 띄울 값이 없다 — 기존 메시지로 폴백.
+          showMessage({ message: "비밀번호가 초기화 되었습니다" });
+        }
       }
-      showMessage({ message: "비밀번호가 초기화 되었습니다" });
     } catch (e) {
       setError(e instanceof Error ? e.message : "비밀번호 초기화 실패");
     } finally {
@@ -598,6 +667,27 @@ export default function CommUserMngPage() {
       if (sso) setSsoResetFlag("N"); else setPwdResetFlag("N");
     }
   }, [selected, rows, showMessage, pwdResetFlag, ssoResetFlag]);
+
+  // ── 초기 비밀번호 팝업 — 복사 (2026-09-28) ──
+  const handleCopyInitPwd = useCallback(async () => {
+    if (!initPwd) return;
+    const ok = await copyToClipboard(initPwd.password);
+    if (ok) {
+      // 버튼 라벨로 "복사됨" 을 알린다 — 모달 위에 confirm 모달을 또 띄우지 않기 위함.
+      setIsPwdCopied(true);
+      showMessage({ message: "초기 비밀번호가 클립보드에 복사되었습니다.", toast: true });
+    } else {
+      showMessage({
+        message: "복사에 실패했습니다. 비밀번호를 직접 선택해 복사해주세요.",
+        alertType: "error",
+      });
+    }
+  }, [initPwd, showMessage]);
+
+  const handleCloseInitPwd = useCallback(() => {
+    setInitPwd(null);
+    setIsPwdCopied(false);
+  }, []);
 
   // ── B-014 saveUserRoleGrpCopy (역할그룹 복사) ──
   const handleRoleCopy = useCallback(async () => {
@@ -1282,6 +1372,68 @@ export default function CommUserMngPage() {
         placeholder="부서코드 또는 부서명 입력"
         searchOnOpen
       />
+
+      {/* 2026-09-28 — 초기 비밀번호 안내 팝업 (기능설계서 M-032 To-Be / As-Is pwdtmp 콜백 대체).
+          BE 가 평문 INIT_PWD 를 응답으로 준 경우에만 열린다. 닫으면 값이 화면에서 사라진다.
+          shared `Modal` 은 미지정 prop 을 DOM 으로 흘려보내지 않으므로 data-testid 는
+          안쪽 Button / 값 요소에만 건다 (e2e 는 팝업 타이틀 "초기 비밀번호 안내" 로 locating). */}
+      <Modal
+        open={initPwd !== null}
+        title="초기 비밀번호 안내"
+        size="sm"
+        onClose={handleCloseInitPwd}
+        footer={
+          <>
+            <Button onClick={handleCopyInitPwd} data-testid="init-pwd-copy">
+              {isPwdCopied ? "복사됨" : "비밀번호 복사"}
+            </Button>
+            <Button variant="primary" onClick={handleCloseInitPwd} data-testid="init-pwd-close">
+              확인
+            </Button>
+          </>
+        }
+      >
+        <table style={DETAIL_TABLE_STYLE}>
+          <tbody>
+            <tr>
+              <th style={DETAIL_LABEL_CELL}>사용자 ID</th>
+              <td style={DETAIL_VALUE_CELL}>{initPwd?.userId}</td>
+            </tr>
+            <tr>
+              <th style={DETAIL_LABEL_CELL}>초기 비밀번호</th>
+              <td style={DETAIL_VALUE_CELL}>
+                <code
+                  data-testid="init-pwd-value"
+                  // 클릭하면 전체 선택 — 복사 버튼를 못 쓰는 환경(브라우저 권한 차단) 대비.
+                  onClick={(e) => window.getSelection()?.selectAllChildren(e.currentTarget)}
+                  style={{
+                    display: "block",
+                    padding: "6px 8px",
+                    background: "var(--color-bg-light)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: "var(--radius-sm)",
+                    fontFamily: "monospace",
+                    fontSize: 14,
+                    cursor: "pointer",
+                    userSelect: "all",
+                  }}
+                >
+                  {initPwd?.password}
+                </code>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p style={{
+          marginTop: "var(--spacing-sm)",
+          marginBottom: 0,
+          fontSize: 12,
+          color: "var(--color-text-muted)",
+        }}>
+          초기 비밀번호는 이 팝업을 닫으면 다시 볼 수 없습니다. 사용자 본인에게 전달하고 최초 로그인 시
+          변경하도록 안내해주세요.
+        </p>
+      </Modal>
     </PageLayout>
   );
 }
