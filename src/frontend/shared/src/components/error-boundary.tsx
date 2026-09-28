@@ -1,6 +1,7 @@
 "use client";
 
 import React, { type ErrorInfo, type ReactNode } from "react";
+import { CopyTextButton } from "./copy-text-button";
 
 export interface ErrorBoundaryProps {
   children: ReactNode;
@@ -29,6 +30,20 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     this.props.onError?.(error, errorInfo);
     console.error("[ErrorBoundary]", error, errorInfo);
   }
+
+  /** 문의·보고용 오류 내용 — 화면 주소·시각·메시지·컴포넌트 스택. */
+  errorReport = (): string => {
+    const { error, errorInfo } = this.state;
+    return [
+      `URL: ${typeof window !== "undefined" ? window.location.href : ""}`,
+      `시각: ${new Date().toLocaleString("ko-KR")}`,
+      `오류: ${error?.toString() ?? ""}`,
+      error?.stack ? `\n${error.stack}` : "",
+      errorInfo?.componentStack ? `\n컴포넌트 스택:${errorInfo.componentStack}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+  };
 
   handleReset = (): void => {
     this.setState({ hasError: false, error: null, errorInfo: null });
@@ -69,6 +84,13 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
           >
             다시 시도
           </button>
+          {this.state.error && (
+            <CopyTextButton
+              label="오류 내용 복사"
+              text={this.errorReport}
+              style={{ marginLeft: 8, verticalAlign: "top" }}
+            />
+          )}
           {isDev && this.state.error && (
             <details style={{ marginTop: "16px", textAlign: "left" }}>
               <summary style={{ cursor: "pointer", color: "#999" }}>에러 상세 (개발 모드)</summary>

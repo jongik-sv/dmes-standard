@@ -10,6 +10,7 @@ import {
   IconInfoCircle,
 } from "@tabler/icons-react";
 import clsx from "clsx";
+import { CopyTextButton } from "./copy-text-button";
 import "./modal.css";
 
 const SIZE = { sm: "sm", md: "md", lg: "lg", xl: "xl" } as const;
@@ -351,6 +352,7 @@ export function MessageModal({
   cancelText = "취소",
 }: MessageModalProps) {
   const isConfirm = alertType === "confirm";
+  const copyable = (alertType === "error" || alertType === "warning") && !!message;
   const Icon = useMemo(() => ICON_MAP[alertType] ?? ICON_MAP.info, [alertType]);
   const color = COLOR_MAP[alertType] ?? COLOR_MAP.info;
 
@@ -380,9 +382,13 @@ export function MessageModal({
             </Button>
           </>
         ) : (
-          <Button className="cm-btn cm-btn-primary" color={color} autoFocus onClick={onClose}>
-            {confirmText}
-          </Button>
+          <>
+            <Button className="cm-btn cm-btn-primary" color={color} autoFocus onClick={onClose}>
+              {confirmText}
+            </Button>
+            {/* 오류·경고는 문의·보고용으로 메시지를 복사할 수 있게 한다. DOM 은 [확인] 뒤라 첫 초점은 [확인] 그대로, 화면에서는 왼쪽 끝. */}
+            {copyable && <CopyTextButton text={() => `${title || "알림"}\n${message ?? ""}`} style={{ order: -1, marginRight: "auto" }} />}
+          </>
         )
       }
     >
