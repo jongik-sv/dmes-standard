@@ -16,7 +16,8 @@ import { DraftLockBadge, MdmPageLayout, VersionStatusBadge, badgeStyle } from "@
 import { RULE_EDIT_TARGET_EVENT, takeRuleEditTarget, type RuleEditTarget } from "@/dme/rule-handoff";
 
 import { searchRulePrefix } from "./api";
-import { RULE_EDIT_CARDS, type RuleEditCardProps } from "./cards";
+import { RULE_EDIT_CARDS, cardSegments, type RuleEditCardProps } from "./cards";
+import { CardGroup } from "./cards/CardGroup";
 import { useRuleEdit } from "./state/useRuleEdit";
 import { RuleWorkbenchProvider } from "./state/workbench-context";
 import type { RulePickRow } from "./types";
@@ -134,50 +135,68 @@ export default function RuleEditPage() {
         )}
       </div>
 
-      {picks && (
-        <div data-testid="rule-pick-list" style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-xs)", padding: "var(--spacing-xs) var(--spacing-md)" }}>
-          {picks.length === 0 ? (
-            <span style={{ color: "var(--color-text-muted)" }}>찾은 룰이 없습니다.</span>
-          ) : (
-            picks.map((p) => (
-              <Button
-                key={p.maruRuleId}
-                size="sm"
-                data-testid={`rule-pick-${p.maruRuleId}`}
-                onClick={() => {
-                  setPicks(null);
-                  void state.open(p.maruRuleId);
-                }}
-              >
-                {`${p.maruRuleId} · ${p.maruRuleName}`}
-              </Button>
-            ))
-          )}
-        </div>
-      )}
-
-      {!cardProps ? (
-        <p data-testid="rule-edit-empty" style={{ padding: "var(--spacing-lg) var(--spacing-md)", color: "var(--color-text-muted)" }}>
-          룰을 고르세요. 위 칸에 룰 ID·룰명 앞부분을 넣고 [찾기] 를 누르거나 룰 목록에서 룰 ID 를 누릅니다.
-        </p>
-      ) : (
-        <RuleWorkbenchProvider>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(16, minmax(0, 1fr))",
-              gap: "var(--spacing-sm)",
-              padding: "var(--spacing-sm) var(--spacing-md)",
-            }}
-          >
-            {RULE_EDIT_CARDS.map((slot) => (
-              <div key={slot.id} style={{ gridColumn: `span ${slot.span}`, minWidth: 0 }}>
-                <slot.Component {...cardProps} />
-              </div>
-            ))}
+      {/* 본문 영역: PageLayout 은 children 에 스크롤 컨테이너를 두지 않고 overflow:hidden 이라
+          카드 스택이 넘치면 잘려 스크롤할 수 없다(클래스 목록·인수표 등 하단이 도달 불가).
+          flex:1 + minHeight:0 로 남는 공간을 흡수해 푸터를 맨 아래에 밀고, 넘칠 때만 이 div 가 스크롤된다
+          (ContentBody 가 하는 역할의 로컬 버전). */}
+      <div style={{ flex: "1 1 0", minHeight: 0, overflowY: "auto" }}>
+        {picks && (
+          <div data-testid="rule-pick-list" style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-xs)", padding: "var(--spacing-xs) var(--spacing-md)" }}>
+            {picks.length === 0 ? (
+              <span style={{ color: "var(--color-text-muted)" }}>찾은 룰이 없습니다.</span>
+            ) : (
+              picks.map((p) => (
+                <Button
+                  key={p.maruRuleId}
+                  size="sm"
+                  data-testid={`rule-pick-${p.maruRuleId}`}
+                  onClick={() => {
+                    setPicks(null);
+                    void state.open(p.maruRuleId);
+                  }}
+                >
+                  {`${p.maruRuleId} · ${p.maruRuleName}`}
+                </Button>
+              ))
+            )}
           </div>
-        </RuleWorkbenchProvider>
-      )}
+        )}
+
+        {!cardProps ? (
+          <p data-testid="rule-edit-empty" style={{ padding: "var(--spacing-lg) var(--spacing-md)", color: "var(--color-text-muted)" }}>
+            룰을 고르세요. 위 칸에 룰 ID·룰명 앞부분을 넣고 [찾기] 를 누르거나 룰 목록에서 룰 ID 를 누릅니다.
+          </p>
+        ) : (
+          <RuleWorkbenchProvider>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(16, minmax(0, 1fr))",
+                gap: "var(--spacing-sm)",
+                padding: "var(--spacing-sm) var(--spacing-md)",
+              }}
+            >
+              {cardSegments(RULE_EDIT_CARDS).map((seg) =>
+                seg.kind === "card" ? (
+                  <div key={seg.slot.id} style={{ gridColumn: `span ${seg.slot.span}`, minWidth: 0 }}>
+                    <seg.slot.Component {...cardProps} />
+                  </div>
+                ) : (
+                  <div key={seg.id} style={{ gridColumn: "span 16", minWidth: 0 }}>
+                    <CardGroup id={seg.id} title={seg.title}>
+                      {seg.slots.map((slot) => (
+                        <div key={slot.id} style={{ gridColumn: `span ${slot.span}`, minWidth: 0 }}>
+                          <slot.Component {...cardProps} />
+                        </div>
+                      ))}
+                    </CardGroup>
+                  </div>
+                ),
+              )}
+            </div>
+          </RuleWorkbenchProvider>
+        )}
+      </div>
 
       {state.error && <ErrorModal message={state.error} onClose={state.clearError} />}
     </MdmPageLayout>

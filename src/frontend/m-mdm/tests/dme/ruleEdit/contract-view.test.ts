@@ -8,10 +8,12 @@ import {
   contractOfView,
   contractWarnings,
   diffContract,
+  exprSlotsOf,
   expressionTexts,
   groupContractRows,
+  type ContractSource,
 } from "../../../pages/dme/ruleEdit/sections/contract/contract-view";
-import type { RuleEditView } from "../../../pages/dme/ruleEdit/types";
+import type { ResolvedVar, RuleEditView } from "../../../pages/dme/ruleEdit/types";
 import { BASE_SPD_LKP, PROD_WGT_CALC, PROD_WGT_CALC_PV2, QLTY_GRD_JDG, resolveType } from "../../fixtures/evalex-rules";
 import { ast } from "../../helpers/parse-expr";
 import { draftView, sourceOf } from "./fixtures";
@@ -66,6 +68,70 @@ describe("computeContract — computeInputContract 래핑", () => {
     const { contract } = computeContract(src, asts);
     expect(contract.always.map((v) => v.name)).toEqual(["PROD_TYPE", "CALC_BASIS"]);
     expect(contract.rows[0].required.map((v) => v.name)).toContain("SPEC_GRAV");
+  });
+});
+
+describe("ast 가 없는 식 칸 — 표에서 편집하고 아직 저장하지 않은 칸(D7 번복, 2026-09-28)", () => {
+  /** 저장된 식 칸에서 서버 AST 를 뺀 사본(편집 직후 모양). */
+  const stripAst = (src: ContractSource, rowId: number, varId: number): ContractSource => ({
+    ...src,
+    rows: src.rows.map((r) => {
+      if (r.rowId !== rowId) return r;
+      const cells = JSON.parse(r.cells) as Record<string, { expr?: string }>;
+      cells[varId] = { expr: cells[varId].expr };
+      return { ...r, cells: JSON.stringify(cells) };
+    }),
+  });
+
+  it("결과 식 칸: 서버 AST 를 받기 전에는 pending 이고 그 칸이 읽는 변수가 빠지며, 받으면 저장된 셀과 같은 계약이다", () => {
+    const { src, asts } = sourceOf(PROD_WGT_CALC);
+    const edited = stripAst(src, 2, 2);
+    const text = (JSON.parse(edited.rows.find((r) => r.rowId === 2)!.cells) as Record<string, { expr: string }>)[2].expr;
+    expect(exprSlotsOf(src)).toEqual([]);
+    expect(exprSlotsOf(edited)).toEqual([{ text, slot: "RULE_RESULT_EXPR" }]);
+
+    const waiting = computeContract(edited, asts, resolveType);
+    expect(waiting.pending).toEqual([text]);
+    expect(waiting.contract.rows.find((r) => r.rowId === 2)!.required).toEqual([]);
+
+    const filled = computeContract(edited, { ...asts, [text]: ast(text) }, resolveType);
+    expect(filled.pending).toEqual([]);
+    expect(filled.contract).toEqual(computeContract(src, asts, resolveType).contract);
+    // 계산은 사본에 AST 를 채운다 — 편집 중인 표(원본)는 그대로다.
+    expect(edited.rows.find((r) => r.rowId === 2)!.cells).not.toContain('"ast"');
+  });
+
+  it("조건 식 칸: AST 를 받으면 그 식이 읽는 변수가 조건 변수(always)에 든다", () => {
+    const v = (over: Partial<ResolvedVar> & Pick<ResolvedVar, "varId" | "varKind" | "dispType">): ResolvedVar => ({
+      seq: over.varId,
+      varName: null,
+      exprVar: false,
+      dataType: "STRING",
+      dateString: false,
+      typeSource: "COLUMN",
+      ...over,
+    });
+    const src: ContractSource = {
+      ruleId: "R",
+      ruleKind: "DECISION",
+      hitPolicy: "FIRST",
+      vars: [
+        v({ varId: 1, varKind: "COND", dispType: "Expression", label: "두께 식", typeSource: "EXPRESSION_COLUMN" }),
+        v({ varId: 2, varKind: "RESULT", dispType: "Value", varName: "GRD" }),
+      ],
+      meta: [],
+      rows: [
+        { rowId: 1, seq: 1, rowKind: "NORMAL", cells: '{"1":{"expr":"COIL_THK > 1"},"2":{"val":"A"}}', note: null },
+        { rowId: 2, seq: 2, rowKind: "NORMAL", cells: '{"1":{"op":"NA"},"2":{"val":"B"}}', note: null },
+      ],
+    };
+    expect(exprSlotsOf(src)).toEqual([{ text: "COIL_THK > 1", slot: "RULE_COND_EXPR" }]);
+    const waiting = computeContract(src, {}, resolveType);
+    expect(waiting.pending).toEqual(["COIL_THK > 1"]);
+    expect(names(waiting.contract.always)).toEqual([]);
+    const filled = computeContract(src, { "COIL_THK > 1": ast("COIL_THK > 1") }, resolveType);
+    expect(filled.pending).toEqual([]);
+    expect(names(filled.contract.always)).toEqual(["COIL_THK"]);
   });
 });
 

@@ -312,6 +312,25 @@ class RuleEditViewTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void searchDomains_는_표준명_도메인명이_검색어와_같은_도메인을_맨_앞에_둔다() {
+        for (int i = 1; i <= 10; i++) {
+            long id = DmeTestSupport.domain(jdbc, "A_FLAG_" + i, "TEXT", "STRING", null);
+            jdbc.update("UPDATE TB_MDM_DOMAIN SET DOMAIN_NAME = ? WHERE DOMAIN_ID = ?", "사용 여부 " + i, id);
+        }
+        long yn = DmeTestSupport.domain(jdbc, "Z_YN", "TEXT", "STRING", null);
+        jdbc.update("UPDATE TB_MDM_DOMAIN SET DOMAIN_NAME = '여부' WHERE DOMAIN_ID = ?", yn);
+
+        RuleDomainSearchRequest q = new RuleDomainSearchRequest();
+        q.setKeyword("여부");
+        List<RuleDomainSearchResult.Row> rows = service.searchDomains(q).getRows();
+        assertEquals(8, rows.size(), "11건이 걸려도 8건");
+        assertEquals("Z_YN", rows.get(0).getStdName(), "도메인명이 같은 도메인은 잘리지 않고 맨 앞");
+
+        q.setKeyword("z_yn");
+        assertEquals("Z_YN", service.searchDomains(q).getRows().get(0).getStdName(), "표준명은 대소문자 없이 같으면 맨 앞");
+    }
+
+    @Test
     void view_는_변수_후보와_base_버전_변수를_싣는다() {
         DmeTestSupport.rule(jdbc, "PREV_JDG", "앞 룰", "DECISION", "INUSE");
         jdbc.update("UPDATE TB_MDM_RULE SET LAST_VAR_ID = 1 WHERE MARU_RULE_ID = 'PREV_JDG'");

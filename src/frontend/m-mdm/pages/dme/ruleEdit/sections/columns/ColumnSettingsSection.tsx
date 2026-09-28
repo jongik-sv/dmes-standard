@@ -4,47 +4,52 @@
  * 열 설정 섹션(TSK-08-03 design §2.1) — 의사결정표 아래에서 모든 열을 한 번에 고치는 **초안 → 전체 검사 → 원자 적용/초안 버리기** 흐름.
  * 초안은 `column-draft.ts`(순수 함수)가 검사·적용 계산을 하고, 이 컴포넌트는 그리기·서버 호출만 한다. 적용은 part COLUMNS 한 번의 요청이며
  * 거부가 하나라도 있으면 요청을 만들지 않는다(불변 2). 초안이 dirty 면 표 저장·열 머리 드래그를 막는다(불변 13, `DecisionTableCard`).
- * 초안은 sessionStorage 키 `mdm-ruleEdit-colDraft:{ruleId}:{ver}` 에 둔다(시안 ST.cd 관례). 식 칸(변수 식·열 조건·산출 결과 식)은 `ExprField`.
+ * 초안은 sessionStorage 키 `mdm-ruleEdit-colDraft:{ruleId}:{ver}` 에 둔다(시안 ST.cd 관례).
+ * 표는 의사결정표와 같은 shared `AgDataGrid`(`column-grid.tsx`)다. 식 칸(변수 식·열 조건·산출 결과 식)의 서버 파싱은 보이지 않는
+ * `ExprProbe` 가 맡고, 참조 변수·오류·미리보기는 "식 결과" 칸에 보인다.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { Button, Input, Select } from "@dk-oasis/shared/form";
+import { AgDataGrid } from "@dk-oasis/shared/grid";
+import { Button, Input } from "@dk-oasis/shared/form";
+import { Modal } from "@dk-oasis/shared/modal";
 import { badgeStyle } from "@/shell";
 
-import { saveColumnDraft } from "../../api";
+import { saveColumnDraft, searchDomains, type ExprSlot } from "../../api";
 import type { RuleEditCardProps } from "../../cards";
-import { ExprField } from "../../expr/ExprField";
-import { datalistOptions, type ParseOutcome } from "../../expr/parse-expr";
+import { describeParse, previewValue, type ParseOutcome } from "../../expr/parse-expr";
 import { parsePreviewInput } from "../../expr/preview-input";
-import type { DomainRow, ResolvedVar, VarCandidate } from "../../types";
+import { useParseExpr } from "../../expr/useParseExpr";
+import type { DomainRow, VarCandidate } from "../../types";
 import { useColumnDraftShared } from "../column-draft-context";
+import { SectionFrame } from "../SectionFrame";
 import {
   addColumn,
   applyColumnDraft,
   checkColumnDraft,
   columnDraftStorageKey,
   draftFromView,
+  exprsOf,
   isColumnDraftDirty,
   moveColumn,
   parsedKey,
+  patchColumn,
   type ColumnCheck,
   type ColumnDraftContext,
   type ColumnDraftRow,
   type ColumnNotice,
   type ParsedRef,
 } from "./column-draft";
-import { DomainSearchBox } from "./DomainSearchBox";
+import { buildColumnGridColumns, cellPatch, toGridRow, type ColumnGridHandlers, type ExprInfo } from "./column-grid";
+import { DomainSearchBox, matchDomain } from "./DomainSearchBox";
 
-const COND_DISPS = ["Equal", "1", "2", "Expression"];
-const RESULT_DISPS = ["Value", "Expression"];
-const DATA_TYPES = ["", "BOOLEAN", "NUMBER", "STRING", "DATE"];
-const AGGS = ["LIST", "SUM", "MIN", "MAX", "COUNT"];
-const AXES = ["NONE", "ROW", "COL"];
 const NO_CANDIDATES: VarCandidate[] = [];
-const LIST_ID = "rule-col-candidates";
 
-const th: CSSProperties = { textAlign: "left", padding: "2px 6px", whiteSpace: "nowrap", borderBottom: "1px solid var(--color-border-light)" };
-const td: CSSProperties = { padding: "2px 6px", verticalAlign: "top", borderBottom: "1px solid var(--color-border-light)" };
+/** 식 자리 → 칸 testid 접두어·"식 결과" 칸 라벨. */
+const SLOT_FIELD: Record<string, { prefix: string; label: string }> = {
+  RULE_GRP_COND: { prefix: "col-grpcond", label: "열 조건" },
+  RULE_RESULT_EXPR: { prefix: "col-expr", label: "결과 식" },
+};
 
 interface StoredDraft {
   rowVersion: number;
@@ -74,20 +79,22 @@ function writeStored(key: string, value: StoredDraft | null): void {
 function noticeText(n: ColumnNotice): string {
   switch (n.kind) {
     case "NEW_COL":
-      return `새 열 ${n.varName}: 적용하면 var_id 가 발급되고 표에 빈 칸이 생깁니다.`;
+      return n.naFill
+        ? `새 열 ${n.varName}: 적용하면 var_id 가 발급되고 표의 모든 행이 무관으로 채워집니다. 식을 적은 행만 조건이 걸립니다.`
+        : `새 열 ${n.varName}: 적용하면 var_id 가 발급되고 표에 빈 칸이 생깁니다.`;
     case "CELLS_CLEARED":
-      return `${n.varName}: 표시 타입·변수가 바뀌어 표의 ${n.count}개 행 셀을 비웁니다(자동 변환 없음).`;
+      return n.naFill
+        ? `${n.varName}: 표시 타입이 바뀌어 표의 ${n.count}개 행 셀을 무관으로 바꿉니다(자동 변환 없음).`
+        : `${n.varName}: 표시 타입·변수가 바뀌어 표의 ${n.count}개 행 셀을 비웁니다(자동 변환 없음).`;
     case "COL_DELETED":
       return `${n.varName}: 열을 지우면 표의 ${n.count}개 행 셀도 함께 지워집니다.`;
   }
 }
 
-function typeLabel(v: ResolvedVar | undefined): string {
-  if (!v) return "";
-  if (v.typeSource === "COLUMN") return `사전 ${v.dataType}`;
-  if (v.typeSource === "RULE_RESULT") return `앞 룰 결과 ${v.dataType}`;
-  if (v.typeSource === "EXPRESSION_COLUMN") return "자유식";
-  return v.typeSource === "UNRESOLVED" ? "타입 없음" : "";
+/** 식 칸 하나의 서버 파싱(500ms 디바운스). 그리지 않고 결과만 부모에 알린다. */
+function ExprProbe(p: { text: string; slot: ExprSlot; enabled: boolean; candidates: readonly VarCandidate[]; onParsed: (o: ParseOutcome) => void }) {
+  useParseExpr(p.text, p.slot, p.enabled, p.candidates, p.onParsed);
+  return null;
 }
 
 export function ColumnSettingsSection({ view, editable, runWrite, notify, setDirty, canDo, busy }: RuleEditCardProps) {
@@ -97,14 +104,21 @@ export function ColumnSettingsSection({ view, editable, runWrite, notify, setDir
   const canEdit = editable && !external && selected != null;
   const candidates = view.varCandidates ?? NO_CANDIDATES;
   const derive = view.rule.ruleKind === "DERIVE";
+  const hitPolicy = selected?.hitPolicy ?? null;
 
   const baseline = useMemo(() => draftFromView(view), [view]);
   const storageKey = selected ? columnDraftStorageKey(view.rule.maruRuleId, selected.ver) : "";
   const [rows, setRows] = useState<ColumnDraftRow[]>(baseline);
   const [parsed, setParsed] = useState<Record<string, ParsedRef>>({});
+  const [outcomes, setOutcomes] = useState<Record<string, ParseOutcome>>({});
   const [applyRejects, setApplyRejects] = useState<ColumnCheck[] | null>(null);
-  const [domainKey, setDomainKey] = useState<string | null>(null);
+  /** 도메인 찾기 팝업 — 줄 key 와 처음 검색어(칸에 직접 넣은 글자). */
+  const [domainPopup, setDomainPopup] = useState<{ key: string; keyword: string } | null>(null);
+  /** 도메인 칸 직접 입력 횟수 — 칸이 넣은 글자를 초안 값으로 되돌려 그리게 표시 행을 새로 만든다. */
+  const [domainEdits, setDomainEdits] = useState(0);
+  const domainSeq = useRef(0);
   const [previewText, setPreviewText] = useState("");
+  const [open, setOpen] = useState(true);
   const counter = useRef(0);
 
   // view 가 바뀌면(룰·버전 전환·적용 뒤 다시 불러오기) 초안을 다시 잡는다 — 같은 row_version 의 저장 초안이 있으면 되살린다.
@@ -112,7 +126,7 @@ export function ColumnSettingsSection({ view, editable, runWrite, notify, setDir
     const restored = storageKey && canEdit ? readStored(storageKey, selected?.rowVersion ?? -1) : null;
     setRows(restored ?? baseline);
     setApplyRejects(null);
-    setDomainKey(null);
+    setDomainPopup(null);
   }, [baseline, storageKey, canEdit, selected?.rowVersion]);
 
   const dirty = canEdit && isColumnDraftDirty(rows, baseline);
@@ -127,53 +141,145 @@ export function ColumnSettingsSection({ view, editable, runWrite, notify, setDir
   const ctx: ColumnDraftContext = useMemo(
     () => ({
       ruleKind: view.rule.ruleKind,
-      hitPolicy: selected?.hitPolicy ?? null,
+      hitPolicy,
       candidates,
       baseline,
       storedRows: view.rows,
       parsed,
     }),
-    [view.rule.ruleKind, selected?.hitPolicy, candidates, baseline, view.rows, parsed],
+    [view.rule.ruleKind, hitPolicy, candidates, baseline, view.rows, parsed],
   );
   const checked = useMemo(() => checkColumnDraft(rows, ctx), [rows, ctx]);
   const preview = useMemo(() => (dirty ? applyColumnDraft(rows, ctx) : null), [dirty, rows, ctx]);
   const previewRecord = useMemo(() => (previewText.trim() ? parsePreviewInput(previewText) : null), [previewText]);
   const parseEnabled = canEdit && canDo("validate");
   const varById = useMemo(() => new Map(view.vars.map((v) => [v.varId, v])), [view.vars]);
+  const baseByKey = useMemo(() => new Map(baseline.map((r) => [r.key, r])), [baseline]);
 
-  // 열 머리를 누르면 대응하는 줄로 스크롤한다(하이라이트는 줄 배경).
+  // 열 머리를 누르면 그 줄을 하이라이트·스크롤한다. 접혀 있으면 먼저 펼친다.
   const { highlightVarId } = shared;
   useEffect(() => {
-    if (highlightVarId == null) return;
-    const row = rows.find((r) => r.varId === highlightVarId);
-    if (row) document.querySelector(`[data-testid="col-row-${row.key}"]`)?.scrollIntoView?.({ block: "nearest" });
-  }, [highlightVarId, rows]);
+    if (highlightVarId != null) setOpen(true);
+  }, [highlightVarId]);
+  const highlightKey = highlightVarId == null ? null : (rows.find((r) => r.varId === highlightVarId)?.key ?? null);
+  // 그리드는 안에서만 스크롤하므로(scrollToRow) 페이지도 그 줄이 보이게 옮긴다. 펼친 뒤 행이 그려진 다음 프레임에 한다.
+  useEffect(() => {
+    if (highlightKey == null || !open) return;
+    const id = requestAnimationFrame(() => {
+      const el =
+        document.querySelector(`[data-testid="col-table"] .ag-center-cols-container .ag-row[row-id="${highlightKey}"]`) ??
+        document.querySelector('[data-testid="col-table"]');
+      el?.scrollIntoView?.({ block: "nearest" });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [highlightKey, open]);
 
   const onParsed = useCallback((o: ParseOutcome) => {
     if (!o.text) return;
-    setParsed((prev) => ({ ...prev, [parsedKey(o.slot, o.text)]: o.error != null ? { error: o.error } : { refVars: o.result?.refVars ?? [] } }));
+    const k = parsedKey(o.slot, o.text);
+    setParsed((prev) => ({ ...prev, [k]: o.error != null ? { error: o.error } : { refVars: o.result?.refVars ?? [] } }));
+    setOutcomes((prev) => ({ ...prev, [k]: o }));
   }, []);
 
   const patch = useCallback((key: string, change: Partial<ColumnDraftRow>) => {
     setApplyRejects(null);
-    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...change } : r)));
+    setRows((prev) => prev.map((r) => (r.key === key ? patchColumn(r, change) : r)));
   }, []);
   const add = (kind: "COND" | "RESULT") => {
     counter.current += 1;
     setRows((prev) => addColumn(prev, kind, `n${counter.current}`));
   };
-  const move = (key: string, dir: -1 | 1) => setRows((prev) => moveColumn(prev, key, dir).rows);
-  const remove = (row: ColumnDraftRow) =>
-    setRows((prev) => (row.varId == null ? prev.filter((r) => r.key !== row.key) : prev.map((r) => (r.key === row.key ? { ...r, deleted: !r.deleted } : r))));
   const pickDomain = (key: string, d: DomainRow) => {
-    patch(key, { domainId: d.domainId, domainType: d.dataType, dataType: null });
-    setDomainKey(null);
+    patch(key, { domainId: d.domainId, domainType: d.dataType, domainName: d.domainName || d.stdName, dataType: null });
+    setDomainPopup(null);
   };
+  // 도메인 칸 직접 입력 — 도메인명·표준명으로 서버를 찾아 하나로 정해지면 바로 적용하고, 아니면 그 글자로 찾기 팝업을 연다. 비우면 해제한다.
+  const typeDomain = async (key: string, text: string) => {
+    const t = text.trim();
+    const row = rows.find((r) => r.key === key);
+    if (!row) return;
+    if (t === "") {
+      if (row.domainId != null) patch(key, { domainId: null, domainType: null, domainName: null });
+      return;
+    }
+    if (row.domainId != null && t === (row.domainName ?? "").trim()) return;
+    const seq = ++domainSeq.current;
+    let found: DomainRow[] = [];
+    try {
+      found = await searchDomains(t);
+    } catch {
+      // 검색 오류는 팝업이 다시 검색하며 보인다.
+    }
+    if (seq !== domainSeq.current) return;
+    const hit = matchDomain(found, t);
+    if (hit) pickDomain(key, hit);
+    else setDomainPopup({ key, keyword: t });
+  };
+  const typeDomainRef = useRef(typeDomain);
+  typeDomainRef.current = typeDomain;
+
   const discard = () => {
     setRows(baseline);
     setApplyRejects(null);
-    setDomainKey(null);
+    setDomainPopup(null);
   };
+
+  // 그리드 열은 구조가 바뀔 때만 다시 만든다(편집 중 리셋 방지) — 동작은 ref 로 늘 최신을 부른다.
+  const handlers = useRef<ColumnGridHandlers>({ move: () => {}, remove: () => {}, openDomain: () => {}, clearDomain: () => {} });
+  handlers.current = {
+    move: (key, dir) => setRows((prev) => moveColumn(prev, key, dir).rows),
+    remove: (row) =>
+      setRows((prev) => (row.varId == null ? prev.filter((r) => r.key !== row.key) : prev.map((r) => (r.key === row.key ? { ...r, deleted: !r.deleted } : r)))),
+    openDomain: (key) => setDomainPopup({ key, keyword: "" }),
+    clearDomain: (key) => patch(key, { domainId: null, domainType: null, domainName: null }),
+  };
+  const columns = useMemo(() => buildColumnGridColumns({ derive, hitPolicy, handlers }), [derive, hitPolicy]);
+  const gridKey = `${view.rule.maruRuleId}:${selected?.ver ?? "-"}:${derive}:${hitPolicy ?? "-"}`;
+
+  const disabled = !canEdit || busy;
+  const data = useMemo(
+    () =>
+      rows.map((r) => {
+        const exprs: ExprInfo[] = exprsOf(r).map(([slot, text]) => {
+          const outcome = outcomes[parsedKey(slot, text)] ?? null;
+          const status = describeParse(outcome, candidates);
+          const f = SLOT_FIELD[slot];
+          const prev =
+            previewRecord && slot !== "RULE_GRP_COND" && outcome?.result && status.kind !== "error" ? previewValue(outcome.result, previewRecord) : null;
+          return { testId: `${f.prefix}-${r.key}`, label: f.label, status, preview: prev };
+        });
+        return toGridRow(r, {
+          editable: !disabled,
+          checks: checked.byKey[r.key] ?? [],
+          exprs,
+          resolved: r.varId != null ? varById.get(r.varId) : undefined,
+          base: baseByKey.get(r.key),
+        });
+      }),
+    // domainEdits: 도메인 칸에 넣은 글자가 칸에 남지 않게(적용 못 했으면 초안 값으로) 행을 새로 만든다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, outcomes, candidates, previewRecord, disabled, checked, varById, baseByKey, domainEdits],
+  );
+  // 도메인 번호도 싣는다 — 도메인 칸에 넣은 글자와 적용된 도메인 이름이 같으면 칸 값이 그대로라 ag-grid 가 칸을 다시 그리지 않는다.
+  const rowClassToken = useMemo(() => JSON.stringify(rows.map((r) => [r.key, r.deleted, r.domainId])), [rows]);
+  const probes = useMemo(() => {
+    const seen = new Map<string, { slot: ExprSlot; text: string }>();
+    for (const r of rows) for (const [slot, text] of exprsOf(r)) seen.set(parsedKey(slot, text), { slot, text });
+    return [...seen.entries()];
+  }, [rows]);
+
+  const handleCellChange = useCallback(
+    (p: { rowKey: string | number; field: string; newValue: unknown }) => {
+      if (p.field === "domain") {
+        setDomainEdits((n) => n + 1);
+        void typeDomainRef.current(String(p.rowKey), p.newValue == null ? "" : String(p.newValue));
+        return;
+      }
+      const change = cellPatch(p.field, p.newValue);
+      if (change) patch(String(p.rowKey), change);
+    },
+    [patch],
+  );
 
   const apply = async () => {
     if (!selected) return;
@@ -189,216 +295,66 @@ export function ColumnSettingsSection({ view, editable, runWrite, notify, setDir
     }
   };
 
-  const disabled = !canEdit || busy;
   const rejectCount = checked.rejects.length;
   const shownRejects = applyRejects ?? [];
-
-  const cell = (row: ColumnDraftRow) => {
-    const key = row.key;
-    const cond = row.varKind === "COND";
-    const rowChecks = checked.byKey[key] ?? [];
-    const v = row.varId != null ? varById.get(row.varId) : undefined;
-    const exprCond = cond && row.dispType === "Expression";
-    const grouped = !cond && row.resGrp.trim() !== "";
-    return (
-      <tr
-        key={key}
-        data-testid={`col-row-${key}`}
-        data-highlight={row.varId != null && shared.highlightVarId === row.varId ? "true" : undefined}
-        style={{
-          background: row.varId != null && shared.highlightVarId === row.varId ? "var(--color-bg-header)" : undefined,
-          opacity: row.deleted ? 0.5 : 1,
-          textDecoration: row.deleted ? "line-through" : undefined,
-        }}
-      >
-        <td style={td}>{row.varId ?? "신규"}</td>
-        <td style={td}>{cond ? "조건" : "결과"}</td>
-        <td style={td}>
-          <Button disabled={disabled} onClick={() => move(key, -1)} aria-label={`${row.varName || "새 열"} 위로`}>
-            ▲
-          </Button>
-          <Button disabled={disabled} onClick={() => move(key, 1)} aria-label={`${row.varName || "새 열"} 아래로`}>
-            ▼
-          </Button>
-        </td>
-        <td style={td}>
-          <Select
-            data-testid={`col-disp-${key}`}
-            value={row.dispType}
-            options={cond ? COND_DISPS : RESULT_DISPS}
-            disabled={disabled}
-            onChange={(val) => patch(key, { dispType: val as ColumnDraftRow["dispType"] })}
-          />
-        </td>
-        <td style={{ ...td, minWidth: 200 }}>
-          {exprCond ? (
-            <ExprField
-              testId={`col-name-${key}`}
-              value={row.varName}
-              slot="RULE_COND_EXPR"
-              candidates={candidates}
-              parseEnabled={parseEnabled}
-              disabled={disabled}
-              listId={LIST_ID}
-              onParsed={onParsed}
-              onChange={(val) => patch(key, { varName: val })}
-              previewRecord={previewRecord}
-              placeholder="조건 식"
-            />
-          ) : (
-            <Input data-testid={`col-name-${key}`} value={row.varName} disabled={disabled} list={cond ? LIST_ID : undefined} onChange={(val) => patch(key, { varName: val })} />
-          )}
-          {!cond && derive && (
-            <ExprField
-              testId={`col-expr-${key}`}
-              value={row.expr}
-              slot="RULE_RESULT_EXPR"
-              candidates={candidates}
-              parseEnabled={parseEnabled}
-              disabled={disabled}
-              listId={LIST_ID}
-              onParsed={onParsed}
-              onChange={(val) => patch(key, { expr: val })}
-              previewRecord={previewRecord}
-              placeholder="결과 식"
-            />
-          )}
-        </td>
-        <td style={td}>
-          <Input data-testid={`col-label-${key}`} value={row.label} disabled={disabled} onChange={(val) => patch(key, { label: val })} />
-        </td>
-        <td style={{ ...td, minWidth: 150 }}>
-          {exprCond ? (
-            <span style={{ color: "var(--color-text-muted)" }}>자유식</span>
-          ) : (
-            <>
-              <div style={{ display: "flex", gap: 4 }}>
-                <Select
-                  data-testid={`col-type-${key}`}
-                  value={row.dataType ?? ""}
-                  options={DATA_TYPES.map((t) => ({ value: t, label: t === "" ? (row.domainId != null ? `도메인 ${row.domainType ?? ""}` : "타입 없음") : t }))}
-                  disabled={disabled || row.domainId != null}
-                  onChange={(val) => patch(key, { dataType: (val || null) as ColumnDraftRow["dataType"], domainId: null, domainType: null })}
-                />
-                <Button disabled={disabled} data-testid={`col-domain-open-${key}`} onClick={() => setDomainKey(domainKey === key ? null : key)}>
-                  {row.domainId != null ? `도메인 #${row.domainId}` : "도메인"}
-                </Button>
-                {row.domainId != null && (
-                  <Button disabled={disabled} onClick={() => patch(key, { domainId: null, domainType: null })} aria-label="도메인 해제">
-                    ✕
-                  </Button>
-                )}
-              </div>
-              {row.domainId == null && row.dataType == null && typeLabel(v) && <span style={{ color: "var(--color-text-muted)" }}>{typeLabel(v)}</span>}
-              {domainKey === key && <DomainSearchBox testId={`col-domain-${key}`} onPick={(d) => pickDomain(key, d)} onClose={() => setDomainKey(null)} />}
-            </>
-          )}
-        </td>
-        <td style={td}>
-          {cond ? (
-            <Select data-testid={`col-axis-${key}`} value={row.axis ?? "NONE"} options={AXES} disabled={disabled} onChange={(val) => patch(key, { axis: val as ColumnDraftRow["axis"] })} />
-          ) : (
-            <span style={{ color: "var(--color-text-muted)" }}>-</span>
-          )}
-        </td>
-        <td style={td}>
-          {cond ? (
-            <span style={{ color: "var(--color-text-muted)" }}>-</span>
-          ) : (
-            <Input data-testid={`col-grp-${key}`} value={row.resGrp} placeholder="그룹 = 결과 변수" disabled={disabled} onChange={(val) => patch(key, { resGrp: val })} />
-          )}
-        </td>
-        <td style={{ ...td, minWidth: 180 }}>
-          {!cond && grouped ? (
-            <ExprField
-              testId={`col-grpcond-${key}`}
-              value={row.grpCond}
-              slot="RULE_GRP_COND"
-              candidates={candidates}
-              parseEnabled={parseEnabled}
-              disabled={disabled}
-              listId={LIST_ID}
-              onParsed={onParsed}
-              onChange={(val) => patch(key, { grpCond: val })}
-              previewRecord={null}
-              placeholder="비우면 기본 열"
-            />
-          ) : (
-            <span style={{ color: "var(--color-text-muted)" }}>-</span>
-          )}
-        </td>
-        <td style={td}>
-          {!cond && ctx.hitPolicy === "COLLECT" ? (
-            <Select data-testid={`col-agg-${key}`} value={row.collectAgg} placeholder="집계" options={AGGS} disabled={disabled} onChange={(val) => patch(key, { collectAgg: val })} />
-          ) : !cond && ctx.hitPolicy === "PRIORITY" ? (
-            <Input
-              data-testid={`col-prio-${key}`}
-              value={row.prioList.join(", ")}
-              placeholder="순위(쉼표)"
-              disabled={disabled}
-              onChange={(val) => patch(key, { prioList: val.split(",").map((s) => s.trim()).filter((s) => s !== "") })}
-            />
-          ) : (
-            <span style={{ color: "var(--color-text-muted)" }}>-</span>
-          )}
-        </td>
-        <td style={td}>
-          <Input data-testid={`col-desc-${key}`} value={row.description} disabled={disabled} onChange={(val) => patch(key, { description: val })} />
-        </td>
-        <td style={td} data-testid={`col-check-${key}`}>
-          {rowChecks.length === 0 ? (
-            <span style={badgeStyle("success")}>통과</span>
-          ) : (
-            rowChecks.map((c, i) => (
-              <div key={`${c.code}-${i}`} data-code={c.code} style={{ color: c.severity === "REJECT" ? "var(--color-danger)" : "var(--color-text-secondary)" }}>
-                {c.message}
-              </div>
-            ))
-          )}
-        </td>
-        <td style={td}>
-          <Button disabled={disabled} data-testid={`col-del-${key}`} onClick={() => remove(row)} aria-label={`${row.varName || "새 열"} ${row.deleted ? "삭제 취소" : "삭제"}`}>
-            {row.deleted ? "취소" : "✕"}
-          </Button>
-        </td>
-      </tr>
-    );
-  };
+  const gridHeight = Math.min(420, 28 + Math.max(rows.length, 2) * 26 + 18);
+  const domainRow = domainPopup ? rows.find((r) => r.key === domainPopup.key) : undefined;
 
   return (
-    <div data-testid="rule-section-columns" style={{ paddingTop: "var(--spacing-md)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-sm)", flexWrap: "wrap" }}>
-        <strong>열 설정</strong>
-        {dirty && (
-          <span data-testid="col-dirty" style={badgeStyle("warning")}>
-            열 설정 초안(저장 안 함)
-          </span>
-        )}
-        {!canEdit && (
-          <span data-testid="col-readonly" style={badgeStyle("muted")}>
-            읽기 전용
-          </span>
-        )}
+    <SectionFrame
+      testId="rule-section-columns"
+      title="열 설정"
+      open={open}
+      onOpenChange={setOpen}
+      headerExtra={
+        <>
+          {dirty && (
+            <span data-testid="col-dirty" style={badgeStyle("warning")}>
+              열 설정 초안(저장 안 함)
+            </span>
+          )}
+          {!canEdit && (
+            <span data-testid="col-readonly" style={badgeStyle("muted")}>
+              읽기 전용
+            </span>
+          )}
+        </>
+      }
+    >
+      {probes.map(([k, x]) => (
+        <ExprProbe key={k} text={x.text} slot={x.slot} enabled={parseEnabled} candidates={candidates} onParsed={onParsed} />
+      ))}
+      <div data-testid="col-table" style={{ height: gridHeight, paddingTop: "var(--spacing-xs)" }}>
+        <AgDataGrid
+          key={gridKey}
+          columns={columns}
+          data={data}
+          rowKey="rowKey"
+          height={gridHeight}
+          columnSizing="fixed"
+          sortable={false}
+          singleClickEdit
+          onCellValueChanged={handleCellChange}
+          highlightedRowKey={highlightKey}
+          scrollToRow={highlightKey}
+          getRowClassExtra={(row) => {
+            const r = row.__row as ColumnDraftRow;
+            return r.deleted ? "ag-row-deleted" : r.varId == null ? "ag-row-inserted" : undefined;
+          }}
+          rowClassRefreshToken={rowClassToken}
+          emptyMessage="열이 없습니다."
+          ariaLabel="열 설정"
+        />
       </div>
-      <datalist id={LIST_ID}>
-        {datalistOptions(candidates).map((o) => (
-          <option key={o.value} value={o.value} label={o.label} />
-        ))}
-      </datalist>
-      <div style={{ overflowX: "auto", paddingTop: "var(--spacing-xs)" }}>
-        <table data-testid="col-table" style={{ borderCollapse: "collapse", minWidth: "100%", fontSize: "var(--font-size-sm)" }}>
-          <thead>
-            <tr>
-              {["var_id", "구분", "순서", "표시 타입", "변수(식)", "표시명", "값 타입", "축", "그룹", "열 조건", "집계·순위", "설명", "검사", "삭제"].map((h) => (
-                <th key={h} style={th}>
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>{rows.map(cell)}</tbody>
-        </table>
-      </div>
+      <Modal open={!!domainRow} title={`값 타입 도메인 찾기 · ${domainRow?.varName || "새 열"}`} size="md" onClose={() => setDomainPopup(null)}>
+        {domainRow && (
+          <DomainSearchBox
+            key={`${domainRow.key}:${domainPopup?.keyword ?? ""}`}
+            testId={`col-domain-${domainRow.key}`}
+            initialKeyword={domainPopup?.keyword}
+            onPick={(d) => pickDomain(domainRow.key, d)} onClose={() => setDomainPopup(null)} />
+        )}
+      </Modal>
       {canEdit && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-xs)", paddingTop: "var(--spacing-sm)", alignItems: "center" }}>
           {!derive && (
@@ -445,6 +401,6 @@ export function ColumnSettingsSection({ view, editable, runWrite, notify, setDir
           </ul>
         </div>
       )}
-    </div>
+    </SectionFrame>
   );
 }

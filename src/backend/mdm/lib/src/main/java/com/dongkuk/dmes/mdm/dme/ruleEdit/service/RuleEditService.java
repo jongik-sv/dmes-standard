@@ -219,13 +219,19 @@ public class RuleEditService {
                 matched.add(n);
             }
         }
+        // 표준명·도메인명이 검색어와 같은 도메인을 맨 앞에 둔다 — 화면이 직접 입력한 이름을 8건 자르기 전에 찾게(열 설정 도메인 칸).
         matched.sort(Comparator
-                .<DomainNode>comparingInt(n -> n.stdName() != null && n.stdName().toUpperCase(Locale.ROOT).startsWith(needle) ? 0 : 1)
+                .<DomainNode>comparingInt(n -> equalsIgnoreCase(n.stdName(), needle) || equalsIgnoreCase(n.domainName(), needle) ? 0
+                        : n.stdName() != null && n.stdName().toUpperCase(Locale.ROOT).startsWith(needle) ? 1 : 2)
                 .thenComparing(n -> n.stdName() == null ? "" : n.stdName().toUpperCase(Locale.ROOT)));
         return new RuleDomainSearchResult(matched.stream().limit(DOMAIN_SEARCH_LIMIT)
                 .map(n -> new RuleDomainSearchResult.Row(n.domainId(), n.stdName(), n.domainName(), n.domainKind(),
                         n.dataType(), n.length(), n.scale(), n.stdRule()))
                 .toList());
+    }
+
+    private static boolean equalsIgnoreCase(String value, String needle) {
+        return value != null && !needle.isEmpty() && value.trim().toUpperCase(Locale.ROOT).equals(needle);
     }
 
     private static boolean contains(String value, String needle) {

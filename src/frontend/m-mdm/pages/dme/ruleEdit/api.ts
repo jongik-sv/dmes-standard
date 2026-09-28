@@ -15,6 +15,7 @@ import type {
   RuleTableSaveResult,
   RuleVersionResult,
   TestCaseSaveResult,
+  TestCaseView,
   ValueTestResult,
   ValueTestTarget,
 } from "./types";
@@ -91,6 +92,11 @@ export interface ValueTestRequest {
   inputJson: string;
   /** 이 룰의 테스트 케이스를 같은 정의로 모두 돌린다. */
   runCases?: boolean;
+  /**
+   * 이 케이스들만 돌린다 — 카드 ⑥ 의 "실행". runCases 와 함께 쓴다.
+   * 서버가 같은 RuleCaseJudge 로 판정하므로 결과 배지가 "모두 실행" 과 동일하다.
+   */
+  caseIds?: number[];
 }
 
 /** 값 테스트 — BPMN action=execute(EDIT). 원장에 쓰지 않는다(I19). 행은 `grids.rows.rows`. */
@@ -106,6 +112,8 @@ export function runValueTest(req: ValueTestRequest): Promise<ValueTestResult> {
       hitPolicy: body ? (req.hitPolicy ?? undefined) : undefined,
       inputJson: req.inputJson,
       runCases: req.runCases ? true : undefined,
+      // OASIS 최상위 dto property 로 List 를 둘 수 없어 콤마 문자열로 보낸다(서버 DTO 와 같은 사유).
+      caseIds: req.caseIds && req.caseIds.length > 0 ? req.caseIds.join(",") : undefined,
     },
     body ? { rows: { rows: tableGridRows(req.rows ?? []) } } : undefined,
   );
@@ -119,6 +127,30 @@ export interface TestCaseForm {
   inputJson: string;
   expectedJson?: string | null;
   description?: string | null;
+}
+
+/**
+ * 테스트 케이스 복사 — action=save part=CASE 에 caseId 를 빼고 새로 넣는다.
+ * 서버 `RuleTestCaseService.save` 는 caseId 가 null 이면 insert 분기로 새 케이스를 만들므로
+ * 별도 서버 동작이 필요 없다. 이름·설명·입력·기대를 원본에서 복제하고, 이름만
+ * 「원본 이름 (복사)」로 바꿔 바로 구분되게 한다. rowVersion 도 싣지 않는다(신규 행엔 무의미).
+ */
+export function copyTestCase(ruleId: string, src: TestCaseView): Promise<TestCaseSaveResult> {
+  return callOasis<TestCaseSaveResult>(SERVICE, "save", {
+    part: "CASE",
+    maruRuleId: ruleId,
+    caseName: copiedCaseName(src.caseName),
+    inputJson: src.inputJson,
+    expectedJson: src.expectedJson || undefined,
+    description: src.description || undefined,
+  });
+}
+
+/** 복사본 이름 — "기본" → "기본 (복사)". 서버 이름 길이 제한에 걸리지 않도록 잘라 담는다. */
+export function copiedCaseName(name: string, max = 100): string {
+  const suffix = " (복사)";
+  const base = name.length + suffix.length > max ? name.slice(0, max - suffix.length) : name;
+  return `${base}${suffix}`;
 }
 
 /** 테스트 케이스 저장 — action=save part=CASE(§6.6). 버전·DRAFT 소유와 무관하다(D8). */

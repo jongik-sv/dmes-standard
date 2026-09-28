@@ -91,7 +91,15 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
         return rows;
     }
 
+    /** 이 시험에서 Expression 으로 바꾼 결과 열 — 저장 요청의 값 칸을 식 칸으로 바꾼다(Expression 열의 칸은 식 하나다). */
+    private final java.util.Set<Integer> exprResults = new java.util.HashSet<>();
+
     private RuleEditSaveResult save(List<Map<String, Object>> rows) {
+        for (Map<String, Object> r : rows) {
+            for (int varId : exprResults) {
+                r.put("cells", DmeTestSupport.valAsExpr((String) r.get("cells"), varId));
+            }
+        }
         return tableService.save(table(DmeTestSupport.rowVersion(jdbc, "QLTY_GRD_JDG", 2), "FIRST", rows));
     }
 
@@ -139,6 +147,7 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
     }
 
     private void v2ResultAsExpression(int varId) {
+        exprResults.add(varId);
         jdbc.update("UPDATE TB_MDM_RULE_VAR SET DISP_TYPE = 'Expression' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 AND VAR_ID = ?", varId);
     }
 
@@ -372,11 +381,16 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
-    void 열_설정_적용도_식_변수의_MASTER_대상이_없으면_거부한다() {
+    void 열_설정_적용도_열_조건의_MASTER_대상이_없으면_거부한다() {
+        // 2026-09-28 — 변수 칸에 식(식 변수)을 받지 않으므로 열 설정에서 식을 적는 칸은 결과 그룹의 열 조건(grp_cond) 하나다.
         List<Map<String, Object>> cols = qCols();
-        Map<String, Object> exprVar = col(-1, "COND", "Expression", "MASTER(\"NO_SUCH\", \"BASE\", SURF_GRD)");
-        exprVar.put("label", "마스터 확인");
-        cols.add(3, exprVar);
+        Map<String, Object> first = col(-1, "RESULT", "Value", "GRD_HIGH");
+        first.putAll(Map.of("dataType", "STRING", "resGrp", "GRD_OUT", "label", "마스터 확인",
+                "grpCond", "MASTER(\"NO_SUCH\", \"BASE\", SURF_GRD) == \"Y\""));
+        Map<String, Object> dflt = col(-2, "RESULT", "Value", "GRD_BASE");
+        dflt.putAll(Map.of("dataType", "STRING", "resGrp", "GRD_OUT"));
+        cols.add(first);
+        cols.add(dflt);
 
         BusinessException e = rejected(() -> columnsService.save(columns(0, cols)));
 

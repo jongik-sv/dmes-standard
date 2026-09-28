@@ -10,6 +10,7 @@ import {
   resequence,
   ruleDefFromStored,
   storedRowsFromGrid,
+  writeCells,
   type CellObj,
 } from "../../../pages/dme/ruleEdit/decision-table/grid-model";
 import type { ResolvedVar, StoredRow } from "../../../pages/dme/ruleEdit/types";
@@ -104,13 +105,49 @@ describe("applyCellEdit — 셀 편집 규칙(§6.7.4, I19)", () => {
     expect(applyCellEdit(TWO, { op: "GE", left: "1" }, "right", "9")).toEqual({ op: "GE", left: "1" });
   });
 
-  it("Expression 셀(조건 식·결과 식)은 바꾸지 않는다(I20)", () => {
-    const expr = cv("Expression", "STRING");
+  it("조건 식 칸: 넣으면 {expr}(op·ast 없음, trim), 비우면 무관 {op:NA}, 무관은 켜기만 한다(D7 번복)", () => {
+    const expr = cv("Expression", "STRING", { varName: null });
     const cell: CellObj = { expr: "A > 1", ast: { type: "X" } };
-    expect(applyCellEdit(expr, cell, "expr", "B > 2")).toBe(cell);
-    expect(applyCellEdit(expr, cell, "na", true)).toBe(cell);
+    expect(applyCellEdit(expr, cell, "expr", "  B > 2 ")).toEqual({ expr: "B > 2" });
+    expect(applyCellEdit(expr, { op: "NA" }, "expr", "B > 2")).toEqual({ expr: "B > 2" });
+    expect(applyCellEdit(expr, undefined, "expr", "B > 2")).toEqual({ expr: "B > 2" });
+    expect(applyCellEdit(expr, cell, "expr", "")).toEqual({ op: "NA" });
+    expect(applyCellEdit(expr, cell, "expr", "   ")).toEqual({ op: "NA" });
+    expect(applyCellEdit(expr, cell, "na", true)).toEqual({ op: "NA" });
+    expect(applyCellEdit(expr, undefined, "na", true)).toEqual({ op: "NA" }); // 나중에 더한 열 — 셀이 없던 행
+    expect(applyCellEdit(expr, cell, "na", false)).toBe(cell);
+    const na: CellObj = { op: "NA" };
+    expect(applyCellEdit(expr, na, "na", false)).toBe(na);
+    expect(applyCellEdit(expr, na, "na", true)).toBe(na);
+  });
+
+  it("결과 식 칸: 넣으면 {expr}(ast 없음, trim), 비우면 칸을 없앤다", () => {
     const rExpr = cv("Expression", "NUMBER", { varKind: "RESULT" });
-    expect(applyCellEdit(rExpr, { expr: "1.05", ast: {} }, "expr", "2")).toEqual({ expr: "1.05", ast: {} });
+    expect(applyCellEdit(rExpr, { expr: "1.05", ast: {} }, "expr", " 2 ")).toEqual({ expr: "2" });
+    expect(applyCellEdit(rExpr, undefined, "expr", "A * 2")).toEqual({ expr: "A * 2" });
+    expect(applyCellEdit(rExpr, { expr: "1.05", ast: {} }, "expr", "")).toBeUndefined();
+    expect(applyCellEdit(rExpr, { expr: "1.05", ast: {} }, "val", "3")).toEqual({ expr: "1.05", ast: {} });
+    expect(applyCellEdit(rExpr, { expr: "1.05", ast: {} }, "na", true)).toEqual({ expr: "1.05", ast: {} });
+  });
+
+  it("식 칸이 바뀌지 않으면 받은 셀 객체(와 서버 ast)를 그대로 돌려준다", () => {
+    const expr = cv("Expression", "STRING", { varName: null });
+    const cell: CellObj = { expr: "A > 1", ast: { type: "X" } };
+    expect(applyCellEdit(expr, cell, "expr", " A > 1 ")).toBe(cell);
+    const na: CellObj = { op: "NA" };
+    expect(applyCellEdit(expr, na, "expr", "")).toBe(na);
+    const rExpr = cv("Expression", "NUMBER", { varKind: "RESULT" });
+    const rCell: CellObj = { expr: "1.05", ast: {} };
+    expect(applyCellEdit(rExpr, rCell, "expr", "1.05")).toBe(rCell);
+    expect(applyCellEdit(rExpr, undefined, "expr", "")).toBeUndefined();
+  });
+
+  it("편집한 식 칸의 저장 형태에는 ast 가 없다", () => {
+    const expr = cv("Expression", "STRING", { varId: 6, varName: null });
+    const next = applyCellEdit(expr, { expr: "A > 1", ast: { type: "X" } }, "expr", "B > 2")!;
+    const json = writeCells({ 1: { op: "GE", left: "1" }, 6: next });
+    expect(json).toBe('{"1":{"op":"GE","left":"1"},"6":{"expr":"B > 2"}}');
+    expect(json).not.toContain('"ast"');
   });
 
   it("결과 칸 키 순서는 06 순서(op,left,right,list,expr,ast,val)다", () => {

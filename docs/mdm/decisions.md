@@ -828,3 +828,41 @@
 - **Reversible**: yes(page.tsx + 메뉴 leaf 로 승격하고 screenId 에서 `Pop` 을 떼면 된다 — DB 영향은 OBJECT_ID·RBAC 행
   재시드뿐, DDL 없음)
 - **Source**: docs/mdm/tasks/TSK-07-04/design.md D2, docs/mdm/screens/README.md §4
+
+## D-098 (2026-09-28T07:20:00Z)
+- **Phase**: feat(ruleEdit 열 설정)
+- **Decision needed**: 열 설정에서 식을 적는 칸이 두 곳(조건 열 변수 칸의 "식 변수"·결과 그룹의 열 조건)이라 어느 칸에 식을
+  적어야 하는지 모호하다. 또 06 명세(식 변수 = Equal·1·2 열)와 열 저장 서비스·화면(식 변수 = Expression 조건 열)이 서로 달랐다
+- **Decision made**: 변수 칸에는 이름만 적는다(영문자로 시작하는 영문·숫자·`_`). 열 설정에서 식을 적는 칸은 열 조건 하나다.
+  Expression 조건 열은 "행 칸마다 식을 적는 열"이라 변수 칸을 비우고(VAR_NAME NULL, 06:1011) 표시명만 필수로 둔다.
+  식 변수(VAR_AST)는 새로 저장하지 않는다 — 계산한 값으로 행을 나누려면 룰 세트 앞 산출 룰이 그 값을 결과 변수로 내고, 판정 룰은
+  그 이름을 보통 조건 열처럼 쓴다(데모: 룰 세트 `PACK_TYPE_SET` = `UNIT_WID_WGT_CALC` → `PACK_TYPE_LKP`)
+- **Rationale**: 사용자 결정(2026-09-28, "식을 2군데 쓰는게 애매모호해서 수정하려는거야", "Expression은 각 row의 컬럼이
+  Expression인 것을 의미하는거야"). 산출 룰 + 룰 세트로 같은 계산을 표현할 수 있고, 계산 값에 이름이 붙어 다른 룰도 읽을 수 있다
+- **Reversible**: yes(RuleColumnsService 의 변수 칸 이름 검사와 VAR_AST 저장을 되돌리면 된다. DDL 변경 없음. 엔진의 식 변수
+  평가 `RuleEvaluator.expressionVariables` 는 이미 저장된 정의를 위해 그대로 둔다)
+- **Source**: RuleColumnsService, column-draft.ts, mdm-local-sample.sql 끝 블록. 06-business-rule.md 「식 변수」 절은 다른
+  저장소(/Users/jji/project/mdm)라 아직 고치지 않았다 — 반영 필요
+
+## D-099 (2026-09-28T07:40:00Z)
+- **Phase**: feat(ruleEdit 의사결정표)
+- **Decision needed**: D-098 로 Expression 조건 열이 "행 칸마다 식을 적는 열"로 정해졌는데, 의사결정표의 식 칸은 읽기 전용이라(TSK-08-02
+  D7·I20) 화면에서 이 열을 채울 방법이 없다
+- **Decision made**: TSK-08-02 D7 을 뒤집어 의사결정표의 식 칸(조건 식·결과 식)을 편집할 수 있게 한다. 화면은 `{expr}` 만 보내고(편집한
+  칸의 ast 는 지운다), 서버 표 저장이 식을 파싱해 서버 AST 로 ast 를 채운다. 파싱 오류·허용되지 않는 함수는 저장 시 검사가 행·열 위치와
+  함께 거부한다
+- **Rationale**: 사용자 지시(2026-09-28 "구현해"). D7 이 읽기 전용으로 둔 이유("TABLE 저장이 셀 식의 AST 를 만들지 않는다")는
+  TSK-08-04 저장 시 검사(`RuleSaveValidator` → `RuleExpressionChecks`, 서버 AST 로 덮어씀)로 이미 해소됐다
+- **Reversible**: yes(`cellEditable`·`applyCellEdit` 의 Expression 잠금을 되살리면 된다. 서버·DDL 변경 없음)
+- **Source**: decision-table/columns.ts, decision-table/grid-model.ts, RuleTableServiceTest
+
+## D-100 (2026-09-28T08:30:00Z)
+- **Phase**: feat(ruleEdit 의사결정표)
+- **Decision needed**: Expression 조건 열을 새로 더하면 기존 행에 칸이 없어 표 저장이 INCOMPLETE_COND 로 막힌다. 또 Expression 결과 열에
+  값 칸(`{"val":"1.00"}`)이 섞여도 저장되는데, 표는 그 열에 식 칸만 그려 보이지 않는 값이 된다
+- **Decision made**: (1) Expression 조건 열이 새로 생기거나 표시 타입 변경으로 셀을 비울 때 열 설정 적용이 NORMAL 행을 무관(`{"op":"NA"}`)으로
+  채운다. 식을 넣으면 무관이 꺼지고, 지우면 무관이 켜지며, 무관을 켜면 식이 지워진다. (2) Expression 결과 열의 값 칸은 저장 시 검사가
+  OP_NOT_ALLOWED 로 거부한다 — 상수도 식이다(`1.0`). Value 열의 식 칸 거부(기존)와 대칭이다
+- **Rationale**: 사용자 결정(2026-09-28 "기본 무관으로 하고 값을 넣으면 무관이 꺼지고 값을 지우면 무관이 켜지게", "1.0 도 expr 이잖아")
+- **Reversible**: yes(RuleColumnsService.updateCells 의 무관 채움, RuleCellRules.result 의 Expression 값 칸 거부를 지우면 된다. DDL 없음)
+- **Source**: RuleColumnsService, RuleCellRules, column-draft.ts(알림 naFill), RuleColumnsServiceTest·RuleTableServiceTest

@@ -97,6 +97,11 @@ public final class RuleCellRules {
             }
             return new Result(out, problems);
         }
+        if ("Expression".equals(var.dispType())) {
+            // 2026-09-28 — Expression 열의 칸은 식 하나다(상수도 식: 1.0). 값 칸이 섞이면 표에는 식 칸만 그려져 보이지 않는 값이 된다.
+            problems.add(new Problem(RuleSaveIssueCode.OP_NOT_ALLOWED, "Expression 열에는 값 대신 식을 적는다(상수도 식이다, 예: 1.0)"));
+            return new Result(out, problems);
+        }
         String normalized = literal(Kind.of(var), val, problems);
         if (normalized != null) {
             out.put("val", normalized);

@@ -148,3 +148,33 @@ export function inputFromCase(
   }
   return { values, keySent };
 }
+
+/**
+ * 케이스 입력 JSON 에 지금 계약의 없는 키를 null 로 채운다 — 룰 화면에 컬럼(변수)이 새로
+ * 들어오면 그 컬럼이 테스트 케이스 입력에도 null 로 보여야 하기 때문이다.
+ *
+ * <p>기존 키의 값과 키 순서는 그대로 둔다(JSON.parse 가 순서를 유지한다). 케이스가 만들어진
+ * 뒤 룰이 바뀌면 입력 JSON 에 없는 키가 생기고, 엔진은 그 키를 REQUIRED_NULL(또는
+ * MISSING_KEY) 로 처리한다 — 화면에서 그 사실을 미리 보이게 하는 것이 목적이고, 값 판정은
+ * 여전히 서버 몫이다(I21).
+ *
+ * <p>JSON 객체가 아니면 원본을 그대로 돌려준다(수정 팝업의 입력 검사가 따로 잡는다).
+ */
+export function mergeMissingInputKeys(inputJson: string, fields: readonly Pick<InputField, "name">[]): string {
+  let parsed: Record<string, unknown>;
+  try {
+    const v = JSON.parse(inputJson.trim()) as unknown;
+    if (v === null || typeof v !== "object" || Array.isArray(v)) return inputJson;
+    parsed = v as Record<string, unknown>;
+  } catch {
+    return inputJson;
+  }
+  let changed = false;
+  for (const f of fields) {
+    if (!(f.name in parsed)) {
+      parsed[f.name] = null;
+      changed = true;
+    }
+  }
+  return changed ? JSON.stringify(parsed) : inputJson;
+}

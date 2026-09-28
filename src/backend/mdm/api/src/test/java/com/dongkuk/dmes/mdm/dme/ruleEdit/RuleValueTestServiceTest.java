@@ -159,6 +159,26 @@ class RuleValueTestServiceTest extends AbstractMdmSharedDbTest {
         assertEquals(before, ledger(), "값 테스트는 원장에 한 줄도 쓰지 않는다(카운터·row_version 포함)");
     }
 
+    @Test
+    void 변수_칸이_빈_Expression_조건_열은_행_칸의_식으로_판정한다() {
+        // 2026-09-28 — Expression 조건 열은 VAR_NAME 이 NULL 이고 식은 행 칸마다 있다(06:1011). 1행만 식이 거짓이 되게 해 2행으로 넘긴다.
+        jdbc.update("INSERT INTO TB_MDM_RULE_VAR (MARU_RULE_ID, VER, VAR_ID, VAR_KIND, DISP_TYPE, VAR_NAME, SEQ, LABEL) "
+                + "VALUES ('QLTY_GRD_JDG', 2, 6, 'COND', 'Expression', NULL, 4, '두께 확인')");
+        List<Map<String, Object>> rows = sampleRows();
+        rows.set(0, row(1, "NORMAL", Q_ROW1.replace("}}", "},\"6\":{\"expr\":\"COIL_THK > 2\"}}")));
+        rows.set(1, row(2, "NORMAL", Q_ROW2.replace("}}", "},\"6\":{\"expr\":\"COIL_THK < 2\"}}")));
+        String b = "{\"COIL_THK\":\"1.8\",\"COIL_WID\":\"1200\",\"SURF_GRD\":\"B\"}";
+
+        RuleTestResult a = service.runTest(body("FIRST", A_INPUT, rows));
+        RuleTestResult r = service.runTest(body("FIRST", b, rows));
+
+        assertEquals("OK", a.getOutcome(), String.valueOf(a.getErrors()));
+        assertEquals("C", a.getResults().get("QLTY_GRD"), "1행 식이 거짓이라 기본 행");
+        assertEquals("OK", r.getOutcome(), String.valueOf(r.getErrors()));
+        assertEquals("B", r.getResults().get("QLTY_GRD"));
+        assertEquals(List.of(2), ids(r.getHits(), "rowId"));
+    }
+
     // ------------------------------------------------------------------ ③ 키 없음과 NULL
 
     /** 결과 PRC_FCT 를 식 열로 바꾸고 3행이 BASE_FCT 를 읽게 한다 — 3행만 BASE_FCT 필수(06:1324). */
@@ -167,6 +187,7 @@ class RuleValueTestServiceTest extends AbstractMdmSharedDbTest {
         List<Map<String, Object>> rows = sampleRows();
         rows.set(2, row(3, "NORMAL", "{\"1\":{\"op\":\"GE\",\"left\":\"2.5\"},\"2\":{\"op\":\"NA\"},\"3\":{\"op\":\"NOT_IN\",\"list\":[\"C\"]},"
                 + "\"4\":{\"val\":\"B\"},\"5\":{\"expr\":\"ROUND(BASE_FCT * 0.98, 2)\"}}"));
+        rows.forEach(r -> r.put("cells", DmeTestSupport.valAsExpr((String) r.get("cells"), 5))); // Expression 열의 칸은 식 하나다
         return rows;
     }
 

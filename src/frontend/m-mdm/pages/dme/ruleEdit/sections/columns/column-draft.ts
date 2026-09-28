@@ -19,7 +19,7 @@ export interface ColumnDraftRow {
   varId: number | null;
   varKind: "COND" | "RESULT";
   dispType: StoredDispType;
-  /** 조건 열은 변수 이름(Expression 이면 식 텍스트), 결과 열은 결과 변수명. */
+  /** 조건 열은 변수 이름, 결과 열은 결과 변수명 — 이름만 적는다(2026-09-28). Expression 조건 열은 식을 행 칸마다 적으므로 비운다. */
   varName: string;
   label: string;
   /** 도메인으로 선언한 값 타입(저장 원값). */
@@ -28,6 +28,8 @@ export interface ColumnDraftRow {
   dataType: DataTypeCode | null;
   /** 도메인이 정한 타입 — 그룹 안 타입 일치 검사용(화면 전용, 저장하지 않는다). */
   domainType: DataTypeCode | null;
+  /** 도메인 이름 — 도메인 칸 표시용(화면 전용, 저장하지 않는다). */
+  domainName: string | null;
   axis: "NONE" | "ROW" | "COL" | null;
   resGrp: string;
   grpCond: string;
@@ -80,7 +82,9 @@ export const COLUMN_RULES: readonly ColumnRule[] = [
   { code: "GRP_RESULT_ONLY", serverMessage: "그룹과 열 조건은 결과 열에만 둡니다" },
   { code: "EXPR_DERIVE_ONLY", serverMessage: "결과 식은 산출 룰의 결과 열에만 둡니다" },
   { code: "RESULT_TYPE_REQUIRED", serverMessage: "결과 열은 값 타입(도메인 또는 기본 타입)을 선언해야 합니다" },
-  { code: "EXPR_LABEL", serverMessage: "식 변수는 표시명이 필수입니다" },
+  { code: "EXPR_LABEL", serverMessage: "Expression 조건 열은 표시명이 필수입니다" },
+  { code: "EXPR_NAME_EMPTY", serverMessage: "Expression 조건 열은 변수 칸을 비웁니다" },
+  { code: "NAME_FORMAT", serverMessage: "변수 칸에는 이름만 적습니다" },
   { code: "AGG_COLLECT", serverMessage: "집계는 COLLECT 적중 정책의 결과 열에만 둡니다" },
   { code: "PRIO_PRIORITY", serverMessage: "순위는 PRIORITY 적중 정책의 결과 열에만 둡니다" },
   { code: "RESERVED_NAME", serverMessage: "쓸 수 없는 변수명입니다" },
@@ -104,6 +108,8 @@ const MESSAGE = Object.fromEntries(COLUMN_RULES.map((r) => [r.code, r.serverMess
 const COND_DISPS: readonly string[] = ["Equal", "1", "2", "Expression"];
 const RESULT_DISPS: readonly string[] = ["Value", "Expression"];
 const AXES: readonly string[] = ["ROW", "COL", "NONE"];
+/** 변수 칸에 쓸 수 있는 이름 — 서버 `RuleColumnsService.VAR_NAME` 과 같다. */
+const VAR_NAME = /^[A-Za-z][A-Za-z0-9_]*$/;
 const RESERVED_UPPER = new Set<string>(RESERVED_CONSTANTS);
 
 export function parsedKey(slot: ExprSlot, text: string): string {
@@ -150,6 +156,7 @@ export function draftFromView(view: RuleEditView): ColumnDraftRow[] {
       // varMeta 가 없는 응답(옛 서버)이면 선언 타입만 해석값에서 복원한다 — 사전·도메인 해석값은 되돌려 보내지 않는다.
       dataType: m ? (m.dataType ?? null) : v.typeSource === "DECLARED" ? v.dataType : null,
       domainType: domainId != null ? v.dataType : null,
+      domainName: domainId != null ? (v.domainName ?? null) : null,
       axis: v.varKind === "COND" ? (m?.axis ?? "NONE") : null,
       resGrp: m?.resGrp ?? "",
       grpCond: m?.grpCond ?? "",
@@ -173,6 +180,7 @@ export function newColumn(kind: "COND" | "RESULT", key: string): ColumnDraftRow 
     domainId: null,
     dataType: null,
     domainType: null,
+    domainName: null,
     axis: kind === "COND" ? "NONE" : null,
     resGrp: "",
     grpCond: "",
@@ -182,6 +190,12 @@ export function newColumn(kind: "COND" | "RESULT", key: string): ColumnDraftRow 
     expr: "",
     deleted: false,
   };
+}
+
+/** 칸 편집을 반영한 줄 — Expression 조건 열이 되면 변수 칸을 비운다(식은 행 칸마다 적는다, 2026-09-28). */
+export function patchColumn(row: ColumnDraftRow, change: Partial<ColumnDraftRow>): ColumnDraftRow {
+  const next = { ...row, ...change };
+  return isExprCondColumn(next) && next.varName !== "" ? { ...next, varName: "" } : next;
 }
 
 /** 새 열을 자기 묶음의 끝에 넣는다(조건 열은 마지막 조건 열 뒤, 결과 열은 맨 끝). */
@@ -240,6 +254,16 @@ function nonEmpty(v: string | null | undefined): string | null {
   return s === "" ? null : s;
 }
 
+/** 행 칸마다 식을 적는 조건 열 — 변수 칸이 비고 표시명으로 가리킨다(06:1011). */
+export function isExprCondColumn(row: Pick<ColumnDraftRow, "varKind" | "dispType">): boolean {
+  return row.varKind === "COND" && row.dispType === "Expression";
+}
+
+/** 검사 문구·알림에 쓰는 열 이름 — 서버 `nameOf` 와 같다(변수 칸 → 표시명 → "Expression 열"). */
+export function columnTitle(row: ColumnDraftRow): string {
+  return nonEmpty(row.varName) ?? nonEmpty(row.label) ?? "Expression 열";
+}
+
 export interface ColumnCheckResult {
   byKey: Record<string, ColumnCheck[]>;
   /** 화면 표시 순서대로 모은 거부. */
@@ -250,15 +274,17 @@ export interface ColumnCheckResult {
 function checkRow(row: ColumnDraftRow, ctx: ColumnDraftContext, out: (code: string, detail?: string) => void): void {
   const cond = row.varKind === "COND";
   const derive = ctx.ruleKind === "DERIVE";
-  const name = nonEmpty(row.varName);
+  const exprColumn = isExprCondColumn(row);
+  const varName = nonEmpty(row.varName);
   if (row.varKind !== "COND" && row.varKind !== "RESULT") {
     out("KIND", `: ${row.varKind}`);
     return;
   }
-  if (name == null) {
+  if (varName == null && !exprColumn) {
     out("NAME_REQUIRED", `${cond ? "조건 변수" : "결과 변수명"}은(는) 필수입니다.`);
     return;
   }
+  const name = columnTitle(row);
   const disps = cond ? COND_DISPS : RESULT_DISPS;
   if (!disps.includes(row.dispType)) out("DISP_TYPE", `표시 타입은 ${disps.join("·")} 중 하나여야 합니다: ${row.dispType}`);
   if (derive && cond) out("DERIVE_NO_COND", `산출 룰에는 조건 열을 둘 수 없습니다: ${name}`);
@@ -274,12 +300,16 @@ function checkRow(row: ColumnDraftRow, ctx: ColumnDraftContext, out: (code: stri
   if (!cond && row.domainId == null && row.dataType == null) {
     out("RESULT_TYPE_REQUIRED", `결과 열은 값 타입(도메인 또는 기본 타입)을 선언해야 합니다: ${name}`);
   }
-  if (cond && row.dispType === "Expression" && nonEmpty(row.label) == null) out("EXPR_LABEL", `식 변수는 표시명이 필수입니다: ${name}`);
+  if (exprColumn && nonEmpty(row.label) == null) out("EXPR_LABEL", `Expression 조건 열은 표시명이 필수입니다: ${name}`);
+  if (exprColumn && varName != null) out("EXPR_NAME_EMPTY", `Expression 조건 열은 변수 칸을 비웁니다(식은 행 칸마다 적습니다): ${name}`);
+  if (!exprColumn && varName != null && !VAR_NAME.test(varName)) {
+    out("NAME_FORMAT", `변수 칸에는 이름만 적습니다(영문자로 시작하는 영문·숫자·_): ${name}`);
+  }
   if (nonEmpty(row.collectAgg) != null && ctx.hitPolicy !== "COLLECT") {
     out("AGG_COLLECT", `집계는 COLLECT 적중 정책의 결과 열에만 둡니다: ${name}`);
   }
   if (row.prioList.length > 0 && ctx.hitPolicy !== "PRIORITY") out("PRIO_PRIORITY", `순위는 PRIORITY 적중 정책의 결과 열에만 둡니다: ${name}`);
-  if (cond && row.dispType !== "Expression" && isReservedName(name)) out("RESERVED_NAME", `쓸 수 없는 변수명입니다(EvalEx 상수·예약어): ${name}`);
+  if (cond && !exprColumn && varName != null && isReservedName(varName)) out("RESERVED_NAME", `쓸 수 없는 변수명입니다(EvalEx 상수·예약어): ${name}`);
 }
 
 /** 초안 전체 검사 — 줄별 검사 뒤 남은 열(삭제 제외)에 대한 타입·이름·그룹·산출 식 검사. */
@@ -325,10 +355,9 @@ export function checkColumnDraft(rows: ColumnDraftRow[], ctx: ColumnDraftContext
   return { byKey, rejects };
 }
 
-/** 행이 가진 식 칸(slot, 텍스트) — 서버 파싱 호출 대상. */
+/** 행이 가진 식 칸(slot, 텍스트) — 서버 파싱 호출 대상. 조건 열에는 식 칸이 없다(변수 칸은 이름만, 2026-09-28). */
 export function exprsOf(row: ColumnDraftRow): Array<[ExprSlot, string]> {
   const out: Array<[ExprSlot, string]> = [];
-  if (row.varKind === "COND" && row.dispType === "Expression" && nonEmpty(row.varName)) out.push(["RULE_COND_EXPR", row.varName.trim()]);
   if (row.varKind === "RESULT" && nonEmpty(row.grpCond)) out.push(["RULE_GRP_COND", row.grpCond.trim()]);
   if (row.varKind === "RESULT" && nonEmpty(row.expr)) out.push(["RULE_RESULT_EXPR", row.expr.trim()]);
   return out;
@@ -407,8 +436,9 @@ function checkDerive(kept: ColumnDraftRow[], ctx: ColumnDraftContext, push: Push
 // ── 적용 ──
 
 export type ColumnNotice =
-  | { kind: "NEW_COL"; varName: string; count: number }
-  | { kind: "CELLS_CLEARED"; varName: string; count: number }
+  // naFill — Expression 조건 열은 서버가 NORMAL 행을 무관({op:"NA"})으로 채운다(식을 적은 행만 조건이 걸린다, 2026-09-28).
+  | { kind: "NEW_COL"; varName: string; count: number; naFill?: true }
+  | { kind: "CELLS_CLEARED"; varName: string; count: number; naFill?: true }
   | { kind: "COL_DELETED"; varName: string; count: number };
 
 export type ApplyResult =
@@ -425,7 +455,7 @@ function lineOf(row: ColumnDraftRow, tempId: number): Record<string, unknown> {
     varId: row.varId ?? tempId,
     varKind: row.varKind,
     dispType: row.dispType,
-    varName: row.varName.trim(),
+    varName: isExprCondColumn(row) ? null : row.varName.trim(),
     label: nonEmpty(row.label),
     domainId: row.domainId,
     dataType: row.dataType,
@@ -457,16 +487,16 @@ export function applyColumnDraft(rows: ColumnDraftRow[], ctx: ColumnDraftContext
       if (row.deleted) continue; // 만들자마자 지운 열은 서버에 없다.
       temp--;
       request.push(lineOf(row, temp));
-      notices.push({ kind: "NEW_COL", varName: row.varName.trim(), count: 0 });
+      notices.push({ kind: "NEW_COL", varName: columnTitle(row), count: 0, ...(isExprCondColumn(row) ? { naFill: true as const } : {}) });
       continue;
     }
     request.push(lineOf(row, row.varId));
     const old = baseline.get(row.varId);
     if (row.deleted) {
-      notices.push({ kind: "COL_DELETED", varName: row.varName.trim(), count: cellCount(ctx.storedRows, row.varId) });
+      notices.push({ kind: "COL_DELETED", varName: columnTitle(row), count: cellCount(ctx.storedRows, row.varId) });
     } else if (old && (old.dispType !== row.dispType || (row.varKind === "COND" && old.varName !== row.varName))) {
       const count = cellCount(ctx.storedRows, row.varId);
-      if (count > 0) notices.push({ kind: "CELLS_CLEARED", varName: row.varName.trim(), count });
+      if (count > 0) notices.push({ kind: "CELLS_CLEARED", varName: columnTitle(row), count, ...(isExprCondColumn(row) ? { naFill: true as const } : {}) });
     }
   }
   return { ok: true, request, notices };

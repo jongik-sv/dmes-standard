@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ValueTestCaseResult, ValueTestResult } from "../../../pages/dme/ruleEdit/types";
-import { caseBadge, expectedFromResult, hitValue } from "../../../pages/dme/ruleEdit/value-test/case-model";
+import { caseBadge, caseEditError, expectedFromResult, hitValue } from "../../../pages/dme/ruleEdit/value-test/case-model";
 import { SAMPLE_VARS } from "./fixtures";
 
 function result(over: Partial<ValueTestResult> = {}): ValueTestResult {
@@ -81,3 +81,16 @@ describe("caseBadge", () => {
     expect(caseBadge({ ...base, outcome: "ERROR", pass: false, mismatches: [] })).toEqual({ text: "실패 · 판정 오류", tone: "danger" });
   });
 });
+
+describe("caseEditError", () => {
+  const ok = { caseName: "A", description: "", inputJson: '{"COIL_THK":"2.0"}', expectedJson: "" };
+  it("이름 필수, 입력은 JSON 객체, 기대는 비우거나 JSON 객체", () => {
+    expect(caseEditError(ok)).toBeNull();
+    expect(caseEditError({ ...ok, expectedJson: '{"hit":1}' })).toBeNull();
+    expect(caseEditError({ ...ok, caseName: " " })).toBe("이름을 넣으세요.");
+    expect(caseEditError({ ...ok, inputJson: "{" })).toContain("입력 JSON 을 읽지 못했습니다");
+    expect(caseEditError({ ...ok, inputJson: "[1]" })).toBe("입력은 JSON 객체({ … })여야 합니다.");
+    expect(caseEditError({ ...ok, expectedJson: "null" })).toBe("기대는 JSON 객체({ … })여야 합니다.");
+  });
+});
+

@@ -5,7 +5,7 @@
  * 돌린다. 판정은 서버만 한다(06:731) — 결과는 카드 공유 상태(`setTestRun`)에 올려 테스트 결과 카드(⑤)가 그리고 표 카드(③)가 칠한다.
  *
  * 입력 줄은 대상 정의의 입력 계약 이름이다(`inputFields`). 편집본은 표 카드가 올린 편집 중인 표, 다른 버전은 `viewRule` 로 받은 그 버전 정의로
- * 계산한다. 식 변수·열 조건의 AST 는 서버 `parseExpr` 로 받는다(못 받으면 그 식이 읽는 변수는 빠진다). 키 보냄을 끄면 레코드에서 키를 빼고,
+ * 계산한다. 식 변수·열 조건과 편집해 `ast` 가 없는 식 칸의 AST 는 서버 `parseExpr` 로 받는다(못 받으면 그 식이 읽는 변수는 빠진다). 키 보냄을 끄면 레코드에서 키를 빼고,
  * 빈 칸은 null 로 싣는다(I21). 값 테스트는 원장에 쓰지 않으므로 `runWrite`(쓰기 뒤 다시 불러오기)를 쓰지 않고, 서버 오류는 이 카드에 보인다.
  * "케이스로 저장" 은 방금 같은 대상·입력으로 돌린 결과가 있으면 그것을 기대값으로 싣는다.
  */
@@ -13,12 +13,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button, Checkbox, Input, Select } from "@dk-oasis/shared/form";
 import { badgeStyle } from "@/shell";
-import type { AstNode } from "@/contract/engine-contract.generated";
 
-import { runValueTest, saveTestCase, type ExprSlot } from "../api";
+import { runValueTest, saveTestCase } from "../api";
 import type { RuleEditCardProps } from "../cards";
-import { canParseOnServer, serverParse } from "../expr/parse-expr";
-import { contractSourceOfView, type AstByText, type ContractSource } from "../sections/contract/contract-view";
+import { canParseOnServer } from "../expr/parse-expr";
+import { useServerAsts } from "../expr/useServerAsts";
+import { contractSourceOfView, exprSlotsOf, type AstByText, type ContractSource } from "../sections/contract/contract-view";
 import { useRuleWorkbench } from "../state/workbench-context";
 import { expectedFromResult } from "../value-test/case-model";
 import { bodyTable, defaultRowIdOf, prepareRun, resolveTarget, targetKey, targetOptions, useTargetView } from "../value-test/run-request";
@@ -29,19 +29,6 @@ const MODE_DESC = {
   BODY: "편집 중인 행을 요청에 실어 보낸다(변수는 이 DRAFT 의 저장된 열). 서버는 저장 때와 같은 파싱·화이트리스트·생성기를 돌려 메모리에서만 판정하고 버린다. 저장하지 않아도, 저장 시 검사에 걸리는 표도 돌릴 수 있다.",
   VERSION: "저장된 버전을 서버가 원장에서 읽어 판정한다. 편집본과 결과를 견줄 때 쓴다.",
 } as const;
-
-/** 서버 파싱이 필요한 식과 자리(허용 함수 집합이 자리마다 다르다) — 식 변수와 열 조건. */
-function slotsOf(src: ContractSource | null): Array<{ text: string; slot: ExprSlot }> {
-  if (!src) return [];
-  const out: Array<{ text: string; slot: ExprSlot }> = [];
-  const push = (text: string | null | undefined, slot: ExprSlot) => {
-    const t = text?.trim();
-    if (t && !out.some((o) => o.text === t)) out.push({ text: t, slot });
-  };
-  for (const v of src.vars) if (v.varKind === "COND" && v.exprVar) push(v.varName, "RULE_COND_EXPR");
-  for (const m of src.meta) push(m.grpCond, "RULE_GRP_COND");
-  return out;
-}
 
 export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEditCardProps) {
   const workbench = useRuleWorkbench();
@@ -81,39 +68,21 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
   }, [choice, def, view, tableDraft]);
 
   // 식 AST 는 서버 파싱으로 받는다(InputContractSection 과 같은 조건 — 편집 가능하고 validate 권한이 있을 때만).
-  const [asts, setAsts] = useState<AstByText>({});
-  const attempted = useRef(new Set<string>());
   const parseEnabled = canParseOnServer({ editable, canValidate: canDo("validate") });
-  const wanted = useMemo(() => slotsOf(src), [src]);
-  useEffect(() => {
-    if (!parseEnabled) return;
-    const missing = wanted.filter((w) => !attempted.current.has(w.text));
-    if (missing.length === 0) return;
-    let cancelled = false;
-    for (const w of missing) attempted.current.add(w.text);
-    void (async () => {
-      for (const w of missing) {
-        try {
-          const r = await serverParse(w.text, w.slot);
-          if (!cancelled && r.ast) setAsts((prev) => ({ ...prev, [w.text]: r.ast as unknown as AstNode }));
-        } catch {
-          attempted.current.delete(w.text);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [wanted, parseEnabled]);
+  const wanted = useMemo(() => exprSlotsOf(src), [src]);
+  const asts: AstByText = useServerAsts(wanted, parseEnabled);
 
   const fieldsResult = useMemo(() => (src ? inputFields(src, asts, view.varCandidates ?? []) : null), [src, asts, view.varCandidates]);
   const fields = fieldsResult?.fields ?? [];
   const inputJson = useMemo(() => buildInputJson(fields, values, keySent), [fields, values, keySent]);
 
-  // 테스트 케이스 카드(⑥)의 "모두 돌리기" 가 같은 대상·입력을 쓴다.
+  // 테스트 케이스 카드(⑥)의 "모두 실행" 이 같은 대상·입력을 쓴다.
+  // fieldNames 도 같이 실어 ⑥ 가 저장된 케이스 입력에 없는 키를 null 로 채울 수 있게 한다
+  // (룰에 컬럼이 새로 들어온 경우).
+  const fieldNames = useMemo(() => fields.map((f) => f.name), [fields]);
   useEffect(() => {
-    publishValueTestInput(choice ? { ruleId, target: choice.target, ver: choice.ver, inputJson } : null);
-  }, [publishValueTestInput, ruleId, choice, inputJson]);
+    publishValueTestInput(choice ? { ruleId, target: choice.target, ver: choice.ver, inputJson, fieldNames } : null);
+  }, [publishValueTestInput, ruleId, choice, inputJson, fieldNames]);
 
   // 케이스 "불러오기" — 요청이 올 때마다 한 번 입력 칸을 채운다.
   const fieldsRef = useRef(fields);

@@ -24,12 +24,18 @@ export interface TableDraft {
   rev: number;
 }
 
-/** 값 테스트 카드(④)가 지금 고른 대상과 입력 레코드 — 테스트 케이스 카드(⑥)의 "모두 돌리기" 가 같은 대상·입력으로 돈다(B8). */
+/** 값 테스트 카드(④)가 지금 고른 대상과 입력 레코드 — 테스트 케이스 카드(⑥)의 "모두 실행" 이 같은 대상·입력으로 돈다(B8). */
 export interface ValueTestInput {
   ruleId: string;
   target: ValueTestTarget;
   ver: number;
   inputJson: string;
+  /**
+   * 지금 대상 정의의 입력 계약 이름(순서대로). 테스트 케이스 입력 JSON 에 없는 키를
+   * null 로 채울 때 쓴다 — 룰에 컬럼이 새로 들어오면 케이스에도 빈 칸으로 보여야 해서.
+   * 계약 계산이 실패해 입력 줄이 없으면 빈 배열이다.
+   */
+  fieldNames: string[];
 }
 
 /** 케이스 "불러오기" 요청 — seq 가 오를 때마다 값 테스트 카드가 입력 칸을 그 케이스로 채운다(B8). */

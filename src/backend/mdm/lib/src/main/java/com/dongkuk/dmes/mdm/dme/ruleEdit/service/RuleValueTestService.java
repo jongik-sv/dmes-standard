@@ -29,6 +29,7 @@ import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleTestRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleTestResult;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
+import com.dongkuk.dmes.mdm.entity.MdmRuleTestCase;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import java.time.Clock;
 import java.time.Instant;
@@ -156,7 +157,13 @@ public class RuleValueTestService {
         out.setSkippedRows(List.copyOf(skipped));
         out.setContract(contract(def));
         if (Boolean.TRUE.equals(request.getRunCases())) {
-            out.setCases(caseQueries.cases(id).stream().map(c -> runCase(engine, id, c, ts, defaultRowId)).toList());
+            // caseIds 가 있으면 그 케이스들만 — 카드 ⑥ "실행". 판정은 runCase 가
+            // 그대로 하므로 "모두 실행" 과 기대값 비교 기준이 같다(I24).
+            List<Integer> only = request.caseIdList();
+            List<MdmRuleTestCase> picked = only.isEmpty()
+                    ? caseQueries.cases(id)
+                    : caseQueries.cases(id).stream().filter(c -> only.contains(c.getCaseId())).toList();
+            out.setCases(picked.stream().map(c -> runCase(engine, id, c, ts, defaultRowId)).toList());
         }
         return out;
     }

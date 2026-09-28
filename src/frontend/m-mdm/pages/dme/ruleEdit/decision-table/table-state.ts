@@ -9,6 +9,7 @@ import type { HitPolicyCode, ResolvedVar, RuleEditView, StoredRow } from "../typ
 import { runAnalysis, type AnalysisResult } from "./analysis";
 import {
   applyCellEdit,
+  copyNormalRow,
   gridRowsFromStored,
   newDefaultRow,
   newNormalRow,
@@ -36,6 +37,7 @@ export type TableAction =
   | { type: "load"; view: RuleEditView }
   | { type: "addRow" }
   | { type: "addDefaultRow" }
+  | { type: "copyRow"; rowId: number }
   | { type: "editCell"; rowId: number; varId: number; key: CellKey; value: string | boolean }
   | { type: "editNote"; rowId: number; value: string }
   | { type: "deleteRow"; rowId: number }
@@ -102,6 +104,15 @@ export function tableReducer(state: TableState, action: TableAction): TableState
     }
     case "editNote":
       return { ...state, rows: state.rows.map((r) => (r.rowId === action.rowId ? { ...r, note: action.value } : r)) };
+    case "copyRow": {
+      // 원본 바로 아래에 넣고 새 행을 고른다. 기본 행은 하나뿐이라 복사하지 않는다(I21).
+      if (state.ruleKind !== "DECISION") return state;
+      const at = state.rows.findIndex((r) => r.rowId === action.rowId);
+      if (at < 0 || state.rows[at].rowKind !== "NORMAL") return state;
+      const id = nextTemp(state);
+      const rows = [...state.rows.slice(0, at + 1), copyNormalRow(state.rows[at], id), ...state.rows.slice(at + 1)];
+      return { ...state, rows: resequence(rows), lastTempId: id, selectedRowId: id };
+    }
     case "deleteRow":
       return {
         ...state,

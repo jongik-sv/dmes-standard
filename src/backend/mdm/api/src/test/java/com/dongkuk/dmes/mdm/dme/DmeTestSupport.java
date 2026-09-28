@@ -127,6 +127,22 @@ public final class DmeTestSupport {
                 id, ver, varId, kind, disp, name, seq, dataType);
     }
 
+    /**
+     * 결과 열을 Expression 으로 바꾼 픽스처용 — 그 열의 값 칸 {@code {"val":"X"}} 를 같은 값의 식 칸으로 바꾼다(2026-09-28: Expression 열의
+     * 칸은 식 하나다). 숫자는 그대로, 그 밖의 값은 문자열 리터럴 식({@code "X"})이 된다.
+     */
+    public static String valAsExpr(String cells, int varId) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\"" + varId + "\":\\{\"val\":\"([^\"]*)\"\\}").matcher(cells);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            String v = m.group(1);
+            String expr = v.matches("-?\\d+(\\.\\d+)?") ? v : "\\\"" + v + "\\\"";
+            m.appendReplacement(out, java.util.regex.Matcher.quoteReplacement("\"" + varId + "\":{\"expr\":\"" + expr + "\"}"));
+        }
+        m.appendTail(out);
+        return out.toString();
+    }
+
     public static void clearDictionary(JdbcTemplate jdbc) {
         jdbc.update("DELETE FROM TB_MDM_COLUMN_SYSTEM");
         jdbc.update("DELETE FROM TB_MDM_COLUMN");

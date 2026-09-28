@@ -16,7 +16,7 @@ export interface ResolvedVar {
   varKind: "COND" | "RESULT";
   dispType: StoredDispType | null;
   seq: number;
-  /** 이름 변수면 이름, 식 변수면 식 텍스트. */
+  /** 이름 변수면 이름, Expression 조건 열이면 null. 식 변수(2026-09-28 이전에 저장된 것만)면 식 텍스트. */
   varName: string | null;
   exprVar: boolean;
   label?: string | null;

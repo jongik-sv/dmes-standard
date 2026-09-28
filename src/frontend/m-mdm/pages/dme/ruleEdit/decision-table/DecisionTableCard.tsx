@@ -2,7 +2,7 @@
 
 /**
  * 카드 ③ 의사결정표(TSK-08-02 design §6.7.4). 적중 정책, 3줄 머리 그리드(shared `AgDataGrid` 열 그룹·행 드래그, D8),
- * 행 추가·기본 행 추가·표 저장·되돌리기, 검사 요약, 행 선택 강조.
+ * 행 추가·기본 행 추가·행 복사·표 저장·되돌리기, 검사 요약, 행 선택 강조.
  *
  * 편집은 서버 판정 `editable`(DECISION 만)일 때만 켠다(I7). 편집할 때마다 evalex `analyzeRule` 로 즉시 검사하고(I13),
  * 저장 응답의 서버 검사와 저장 전 화면 검사가 같은지(`sameIssues`) 알린다(수용 7, 06:731). 저장 안 한 변경이 없으면
@@ -223,6 +223,8 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
   const errors = shown.filter((i) => i.severity === "ERROR").length;
   const warnings = shown.length - errors;
   const hasDefault = state.rows.some((r) => r.rowKind === "DEFAULT");
+  // 행 복사 대상 = 고른 NORMAL 행(기본 행은 하나뿐이라 복사하지 않는다).
+  const canCopy = state.rows.some((r) => r.rowId === state.selectedRowId && r.rowKind === "NORMAL");
   const policy = HIT_POLICIES.find((p) => p.value === state.hitPolicy);
   const canSave = editable && dirty && canDo("save") && !busy && !saveBlocked;
   const gridHeight = Math.min(560, 3 * 28 + Math.max(state.rows.length, 3) * 26 + 24);
@@ -278,6 +280,14 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
         <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-xs)", paddingTop: "var(--spacing-sm)" }}>
           <Button disabled={!editable || busy} onClick={() => edit({ type: "addRow" })}>
             행 추가
+          </Button>
+          <Button
+            data-testid="dt-copy-row"
+            title="행 번호를 눌러 고른 행을 복사해 바로 아래에 넣습니다"
+            disabled={!editable || busy || !canCopy}
+            onClick={() => state.selectedRowId != null && edit({ type: "copyRow", rowId: state.selectedRowId })}
+          >
+            행 복사
           </Button>
           <Button disabled={!editable || busy || hasDefault} onClick={() => edit({ type: "addDefaultRow" })}>
             기본 행 추가

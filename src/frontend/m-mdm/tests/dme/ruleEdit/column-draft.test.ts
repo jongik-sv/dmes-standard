@@ -11,10 +11,12 @@ import {
   columnDragBlocked,
   columnDraftStorageKey,
   draftFromView,
+  exprsOf,
   isColumnDraftDirty,
   moveColumn,
   newColumn,
   parsedKey,
+  patchColumn,
   tableSaveBlocked,
   type ColumnDraftContext,
   type ColumnDraftRow,
@@ -71,6 +73,21 @@ describe("draftFromView", () => {
     });
     expect(draftFromView(v)[0].expr).toBe("A * 2");
   });
+
+  it("저장된 도메인이 있으면 해석값의 도메인 이름을 표시용으로 싣고, 없으면 null 이다", () => {
+    const base = view();
+    const v = {
+      ...base,
+      vars: base.vars.map((x) => (x.varId === 1 ? { ...x, domainId: 10, domainName: "코일 두께", typeSource: "COLUMN" as const } : x)),
+      varMeta: [
+        { varId: 1, domainId: 10, dataType: null },
+        { varId: 2, domainId: null, dataType: null },
+      ],
+    };
+    const rows = draftFromView(v);
+    expect(rows[0]).toMatchObject({ domainId: 10, domainName: "코일 두께" });
+    expect(rows[1].domainName).toBeNull();
+  });
 });
 
 describe("줄별 검사표 — 거부(서버와 같은 목록)", () => {
@@ -90,9 +107,40 @@ describe("줄별 검사표 — 거부(서버와 같은 목록)", () => {
     expect(codes(bad, ctxOf(view()))).toContain("RESULT_TYPE_REQUIRED");
   });
 
-  it("Expression 조건 열은 표시명이 필수다", () => {
-    const rows = edit(load(), keyOf(load(), "COIL_WID"), { dispType: "Expression", varName: "COIL_WID * 2", label: "" });
-    expect(codes(rows, ctxOf(view()))).toContain("EXPR_LABEL");
+  it("Expression 조건 열은 변수 칸을 비우고 표시명만 필수다", () => {
+    const rows = edit(load(), keyOf(load(), "COIL_WID"), { dispType: "Expression", varName: "", label: "" });
+    expect(codes(rows, ctxOf(view()))).toEqual(["EXPR_LABEL"]);
+    const labeled = edit(load(), keyOf(load(), "COIL_WID"), { dispType: "Expression", varName: "", label: "폭 확인" });
+    expect(codes(labeled, ctxOf(view()))).toEqual([]);
+    const named = edit(load(), keyOf(load(), "COIL_WID"), { dispType: "Expression", varName: "COIL_WID * 2", label: "폭 확인" });
+    expect(codes(named, ctxOf(view()))).toEqual(["EXPR_NAME_EMPTY"]);
+  });
+
+  it("변수 칸에는 이름만 받는다(식·숫자 시작·한글 거부)", () => {
+    const rows = load();
+    for (const bad of ["COIL_WGT * 1000 / COIL_WID", "1ST", "두께", "A-B"]) {
+      const r = edit(rows, keyOf(rows, "COIL_WID"), { varName: bad, dataType: "NUMBER" });
+      expect(codes(r, ctxOf(view())), bad).toContain("NAME_FORMAT");
+    }
+    expect(codes(edit(rows, keyOf(rows, "COIL_WID"), { varName: "UNIT_WID_WGT", dataType: "NUMBER" }), ctxOf(view()))).toEqual([]);
+  });
+
+  it("Expression 조건 열이 되면 변수 칸을 비우고, 요청에도 변수를 싣지 않으며, 조건 열에는 식 칸이 없다", () => {
+    const rows = load();
+    const key = keyOf(rows, "COIL_WID");
+    const changed = rows.map((r) => (r.key === key ? patchColumn(r, { dispType: "Expression", label: "폭 확인" }) : r));
+    const row = changed.find((r) => r.key === key)!;
+    expect(row.varName).toBe("");
+    expect(exprsOf(row)).toEqual([]);
+    expect(patchColumn(rows.find((r) => r.varName === "QLTY_GRD")!, { dispType: "Expression" }).varName).toBe("QLTY_GRD");
+
+    const res = applyColumnDraft(changed, ctxOf(view()));
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const line = res.request.find((l) => l.varId === row.varId)!;
+    expect(line).not.toHaveProperty("varName");
+    expect(line).toMatchObject({ dispType: "Expression", label: "폭 확인" });
+    expect(res.notices.find((x) => x.kind === "CELLS_CLEARED")).toMatchObject({ varName: "폭 확인", naFill: true });
   });
 
   it("결과 변수명은 버전 안에서 유일하다", () => {

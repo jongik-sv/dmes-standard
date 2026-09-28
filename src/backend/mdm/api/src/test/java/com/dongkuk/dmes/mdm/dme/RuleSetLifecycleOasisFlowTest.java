@@ -34,11 +34,11 @@ import org.springframework.test.context.DynamicPropertySource;
  * 여러 화면(ruleMng·ruleEdit·ruleConfirm·ruleSetMng·ruleSetEdit)에 걸치는 이음매라 개별 화면 패키지가 아니라 {@code dme} 최상위에 둔다).
  *
  * <p><b>설계 이탈</b>(build-log.md 「설계 이탈」 참조) — {@code SPD_EXC}는 엔진 fixture({@code SampleRules.spdExc()})에서
- * {@code exprCondVar}(변수명 없는 "Expression 조건 열", 행마다 독립된 불린 식 셀)로 정의돼 있지만, 실제 {@code RuleColumnsService}는
- * COND 열의 dispType이 {@code Expression}이면 그 {@code varName} 자체를 식으로 파싱해 저장한다(항상 {@code exprVar=true} —
- * {@code RuleVarTypeResolver.resolveOne}, "식 변수"({@code _V<id>}) 전용 경로). 즉 행마다 다른 불린 식을 갖는 조건 열은 화면
- * API로 만들 수 없다 — 이 시험은 같은 선택 결과를 내는 동치 조건(이름 있는 COND 열 COIL_WID·BASE_SPD, 행마다 다른 임계값 op 셀)으로
- * SPD_EXC를 다시 짠다. 세트 값 판정 자체(엔진 레벨 {@code evaluateSet})는 {@code SampleRuleSetValueTest}가 원래 fixture로 확정한다
+ * {@code exprCondVar}(변수명 없는 "Expression 조건 열", 행마다 독립된 불린 식 셀)로 정의돼 있지만, 이 시험을 쓸 때의
+ * {@code RuleColumnsService}는 COND 열의 dispType이 {@code Expression}이면 그 {@code varName} 자체를 식으로 파싱해 저장했다
+ * ("식 변수" 경로). 2026-09-28 결정으로 변수 칸에는 이름만 받고 Expression 조건 열은 변수 칸을 비워 저장하게 바뀌었지만, 이 시험은
+ * 생애주기만 보므로 같은 선택 결과를 내는 동치 조건(이름 있는 COND 열 COIL_WID·BASE_SPD, 행마다 다른 임계값 op 셀)으로 짠
+ * SPD_EXC를 그대로 둔다. 세트 값 판정 자체(엔진 레벨 {@code evaluateSet})는 {@code SampleRuleSetValueTest}가 원래 fixture로 확정한다
  * — 이 시험은 "편집→저장→확정→세트 등록"이라는 생애주기만 본다(design.md §3 B3-3).
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,

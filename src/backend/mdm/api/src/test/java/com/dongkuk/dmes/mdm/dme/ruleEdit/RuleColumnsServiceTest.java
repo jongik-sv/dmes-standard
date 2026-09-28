@@ -473,17 +473,59 @@ class RuleColumnsServiceTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
-    void 식_변수_조건_열의_VAR_AST_는_문자열_저장_형식이_바뀌지_않는다() {
-        // RR2(TSK-08-04 반려 재작업) — VAR_AST·GRP_COND_AST 는 결과 식 ast(RR1)와 달리 별도 문자열 컬럼이라 문자열 그대로다.
-        // parseOrReject 의 반환형을 Map 으로 바꾸며 컬럼 쪽(varAst)이 흔들리지 않는지 본다(지금 트리에서도 초록이며 변이 검증용).
+    void Expression_조건_열은_변수_칸을_비우고_표시명만_두며_다시_저장해도_셀이_남는다() {
+        // 2026-09-28 결정 — 변수 칸에는 이름만 적는다. Expression 조건 열은 행 칸마다 식을 적는 열이라 변수 칸이 NULL 이다(06:1011).
         List<Map<String, Object>> cols = qCols();
-        String expr = "COIL_THK * 2";
-        cols.add(with(col(-1, "COND", "Expression", expr), "label", "두께*2"));
+        cols.add(with(col(-1, "COND", "Expression", null), "label", "두께 확인"));
         RuleEditSaveResult r = service.save(columns(0, cols));
         int varId = r.getRowIdMap().get("-1");
-        String varAst = jdbc.queryForObject(
-                "SELECT VAR_AST FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 AND VAR_ID = " + varId, String.class);
-        assertEquals(astOf(expr), varAst, "VAR_AST 는 문자열 컬럼 그대로다");
+        Map<String, Object> stored = jdbc.queryForMap("SELECT VAR_NAME, VAR_AST, LABEL FROM TB_MDM_RULE_VAR "
+                + "WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 AND VAR_ID = " + varId);
+        assertNull(stored.get("VAR_NAME"));
+        assertNull(stored.get("VAR_AST"), "식 변수를 새로 저장하지 않는다");
+        assertEquals("두께 확인", stored.get("LABEL"));
+        for (Map<String, Object> row : storedCells()) {
+            assertTrue(row.get("CELLS").toString().contains("\"" + varId + "\":{\"op\":\"NA\"}"), "새 Expression 조건 열은 NORMAL 행을 무관으로 채운다: " + row);
+        }
+
+        jdbc.update("UPDATE TB_MDM_RULE_ROW SET CELLS = ? WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 AND ROW_ID = 1",
+                DmeTestSupport.Q_ROW1.replace("}}", "},\"" + varId + "\":{\"expr\":\"COIL_THK < 2\",\"ast\":" + astOf("COIL_THK < 2") + "}}"));
+        List<Map<String, Object>> again = qCols();
+        again.add(with(col(varId, "COND", "Expression", null), "label", "두께 확인(수정)"));
+        service.save(columns(r.getRowVersion(), again));
+        assertTrue(storedCells().get(0).get("CELLS").toString().contains("COIL_THK < 2"), "표시명만 바꾸면 셀을 비우지 않는다");
+    }
+
+    @Test
+    void 조건_열을_Expression_으로_바꾸면_그_열의_셀을_무관으로_바꾼다() {
+        List<Map<String, Object>> cols = qCols();
+        cols.set(1, with(col(2, "COND", "Expression", null), "label", "폭 확인"));
+        service.save(columns(0, cols));
+        for (Map<String, Object> row : storedCells()) {
+            String cells = row.get("CELLS").toString();
+            assertTrue(cells.contains("\"2\":{\"op\":\"NA\"}"), cells);
+            assertFalse(cells.contains("\"GT\""), "옛 COIL_WID 조건(GT 1000)은 비운다: " + cells);
+        }
+    }
+
+    @Test
+    void 변수_칸에는_이름만_받고_Expression_조건_열은_이름을_받지_않는다() {
+        List<Map<String, Object>> named = qCols();
+        named.add(with(col(-1, "COND", "Expression", "COIL_THK * 2"), "label", "두께*2"));
+        assertEquals("INVALID_VALUE", mdm(() -> service.save(columns(0, named))), "Expression 조건 열에 이름·식");
+
+        List<Map<String, Object>> noLabel = qCols();
+        noLabel.add(col(-1, "COND", "Expression", null));
+        assertEquals("INVALID_VALUE", mdm(() -> service.save(columns(0, noLabel))), "Expression 조건 열 표시명 없음");
+
+        List<Map<String, Object>> exprVar = qCols();
+        exprVar.add(with(col(-1, "COND", "2", "COIL_THK * 2"), "label", "두께*2", "dataType", "NUMBER"));
+        assertEquals("INVALID_VALUE", mdm(() -> service.save(columns(0, exprVar))), "구간 열 변수 칸에 식");
+
+        List<Map<String, Object>> result = qCols();
+        result.add(with(col(-1, "RESULT", "Value", "1ST_GRD"), "dataType", "STRING"));
+        assertEquals("INVALID_VALUE", mdm(() -> service.save(columns(0, result))), "숫자로 시작하는 결과 변수명");
+        assertEquals(5, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2"), "거부로 아무것도 반영되지 않는다");
     }
 
     // ── 피벗 축(화면 표현) 경고·권한 ──

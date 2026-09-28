@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 식 입력 칸(TSK-08-03 design §2.1) — 열 설정의 변수(식)·열 조건(grp_cond)·산출 결과 식과 그리드 Expression 셀이 함께 쓴다.
+ * 식 입력 칸(TSK-08-03 design §2.1) — 열 설정의 열 조건(grp_cond)·산출 결과 식과 그리드 Expression 셀이 함께 쓴다.
  * 자동완성(datalist, view `varCandidates`), 500ms 디바운스 서버 파싱(파싱 오류·참조 변수), 화이트리스트 밖 함수는
  * "서버 평가로 넘긴다" 표시, 미리보기 입력이 있으면 서버가 준 AST 를 화면 evalex 로 즉시 평가한다. 화면은 식을 파싱하지 않는다.
  */

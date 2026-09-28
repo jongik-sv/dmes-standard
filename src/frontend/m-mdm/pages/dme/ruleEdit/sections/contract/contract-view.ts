@@ -3,12 +3,14 @@
  * 변수·행·`varMeta` 로 evalex `computeInputContract` 를 돌려 그린다. 필수/선택은 AST NULL 가드 분석이 정하고 사전 `required` 는 쓰지 않는다.
  *
  * 식 변수·열 조건(grp_cond)의 AST 는 view 에 실려 오지 않으므로 서버 `parseExpr` 가 준 AST(텍스트 → AST)를 받아 쓴다(화면 JS 파서 금지, 불변 9).
+ * 식 칸(조건 식·결과 식)은 저장된 셀에 서버 AST 가 있지만, 표에서 편집하고 아직 저장하지 않은 칸은 `ast` 가 없어 같은 방법으로 채운다.
  * AST 가 아직 없는 식은 `pending` 으로 알리고 그 참조 변수는 계약에서 빠진다.
  */
 import type { AstNode, InputContract, VarType } from "@/contract/engine-contract.generated";
 import { computeInputContract, type RuleDef, type RuleVarDef } from "@/evalex";
 
-import { ruleDefFromStored } from "../../decision-table/grid-model";
+import type { ExprSlot } from "../../api";
+import { parseCells, ruleDefFromStored } from "../../decision-table/grid-model";
 import type { HitPolicyCode, ResolvedVar, RuleEditView, StoredRow, VarMeta } from "../../types";
 
 /** 계약을 계산할 한 버전의 저장 형태. */
@@ -39,6 +41,35 @@ export function expressionTexts(src: Pick<ContractSource, "vars" | "meta">): str
   };
   for (const v of src.vars) if (v.varKind === "COND" && v.exprVar) push(v.varName);
   for (const m of src.meta) push(m.grpCond);
+  return out;
+}
+
+/** `ast` 가 없는 식 칸 — 표에서 편집하고 아직 저장하지 않은 조건 식·결과 식(저장하면 서버가 AST 를 채운다). */
+function astlessExpr(cell: unknown): string | null {
+  const c = cell as { expr?: unknown; ast?: unknown } | undefined;
+  return c && typeof c.expr === "string" && c.ast === undefined ? c.expr.trim() : null;
+}
+
+/**
+ * 서버 파싱이 필요한 식과 그 식이 들어가는 자리(허용 함수 집합이 자리마다 다르다) — 식 변수, 열 조건, `ast` 가 없는 식 칸.
+ * 중복 없이 처음 나온 순서.
+ */
+export function exprSlotsOf(src: ContractSource | null): Array<{ text: string; slot: ExprSlot }> {
+  if (!src) return [];
+  const out: Array<{ text: string; slot: ExprSlot }> = [];
+  const push = (text: string | null | undefined, slot: ExprSlot) => {
+    const t = text?.trim();
+    if (t && !out.some((o) => o.text === t)) out.push({ text: t, slot });
+  };
+  for (const v of src.vars) if (v.varKind === "COND" && v.exprVar) push(v.varName, "RULE_COND_EXPR");
+  for (const m of src.meta) push(m.grpCond, "RULE_GRP_COND");
+  const exprCols = src.vars.filter((v) => v.dispType === "Expression");
+  if (exprCols.length > 0) {
+    for (const r of src.rows) {
+      const cells = parseCells(r.cells);
+      for (const v of exprCols) push(astlessExpr(cells[v.varId]), v.varKind === "COND" ? "RULE_COND_EXPR" : "RULE_RESULT_EXPR");
+    }
+  }
   return out;
 }
 
@@ -81,7 +112,20 @@ function toRuleDef(src: ContractSource, asts: AstByText, pending: string[]): Rul
     }
     return out;
   });
-  return { ...base, vars };
+  // `ast` 가 없는 식 칸은 서버 AST 로 채운 사본을 쓴다(없으면 pending — 그 칸이 읽는 변수는 계약에서 빠진다).
+  const exprIds = src.vars.filter((v) => v.dispType === "Expression").map((v) => v.varId);
+  const rows = base.rows.map((r) => {
+    let cells = r.cells;
+    for (const id of exprIds) {
+      const text = astlessExpr(cells[id]);
+      if (!text) continue;
+      const a = asts[text];
+      if (a) cells = { ...cells, [id]: { expr: text, ast: a } };
+      else if (!pending.includes(text)) pending.push(text);
+    }
+    return cells === r.cells ? r : { ...r, cells };
+  });
+  return { ...base, vars, rows };
 }
 
 /** 입력 계약 계산 — `typeOf` 를 안 주면 룰 열의 타입을 쓴다(없는 이름은 이름뿐). */

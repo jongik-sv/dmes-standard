@@ -45,3 +45,29 @@ export function caseBadge(c: Pick<ValueTestCaseResult, "outcome" | "pass" | "mis
   if (keys.length > 0) return { text: `실패 · ${keys.join(", ")}`, tone: "danger" };
   return { text: c.outcome === "ERROR" ? "실패 · 판정 오류" : "실패", tone: "danger" };
 }
+
+/** 케이스 수정 칸(팝업) — 입력·기대는 JSON 글자 그대로 저장한다(06 키 순서·숫자 표기를 화면이 바꾸지 않는다). */
+export interface CaseEditFields {
+  caseName: string;
+  description: string;
+  inputJson: string;
+  expectedJson: string;
+}
+
+function objectError(text: string, what: string, topic: string): string | null {
+  let v: unknown;
+  try {
+    v = JSON.parse(text);
+  } catch (e) {
+    return `${what} JSON 을 읽지 못했습니다: ${e instanceof Error ? e.message : String(e)}`;
+  }
+  return v !== null && typeof v === "object" && !Array.isArray(v) ? null : `${topic} JSON 객체({ … })여야 합니다.`;
+}
+
+/** 저장 전 화면 검사 — 이름 필수, 입력은 JSON 객체, 기대는 비우거나(기대값 없음) JSON 객체. 문제가 없으면 null. */
+export function caseEditError(f: CaseEditFields): string | null {
+  if (f.caseName.trim() === "") return "이름을 넣으세요.";
+  const input = objectError(f.inputJson.trim(), "입력", "입력은");
+  if (input) return input;
+  return f.expectedJson.trim() === "" ? null : objectError(f.expectedJson.trim(), "기대", "기대는");
+}

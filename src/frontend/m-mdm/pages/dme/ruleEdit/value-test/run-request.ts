@@ -2,7 +2,7 @@
  * 값 테스트 대상과 요청(TSK-08-04 design §6.5·§6.7 ④⑥). 대상은 편집본(BODY — 표 카드가 올린 편집 중인 표, 변수는 그 DRAFT 의 저장된 열, D4)
  * 또는 저장된 버전(VERSION)이다. 편집본은 `editable`(서버 판정)이고 선택 버전이 DRAFT 일 때만 고를 수 있다(I34).
  *
- * 값 테스트 카드(④)와 테스트 케이스 카드(⑥ "모두 돌리기")가 같은 요청 모양을 쓴다. 표에 칠할지 가리는 run 정보(rev·rowVersion)도 여기서 만든다
+ * 값 테스트 카드(④)와 테스트 케이스 카드(⑥ "모두 실행")가 같은 요청 모양을 쓴다. 표에 칠할지 가리는 run 정보(rev·rowVersion)도 여기서 만든다
  * (BODY 는 돌릴 때의 표 rev, VERSION 은 그 버전의 row_version — `runShownOnTable`).
  */
 import { useEffect, useState } from "react";
@@ -73,6 +73,7 @@ export function prepareRun(
   draft: TableDraft | null,
   inputJson: string,
   runCases = false,
+  caseIds?: number[],
 ): PreparedRun {
   const ruleId = view.rule.maruRuleId;
   const version = view.versions.find((v) => v.ver === choice.ver);
@@ -88,12 +89,13 @@ export function prepareRun(
         rows,
         inputJson,
         runCases,
+        caseIds,
       },
       run: { ruleId, target: "BODY", ver: choice.ver, rowVersion: version?.rowVersion ?? null, rev: table.rev },
     };
   }
   return {
-    request: { ruleId, target: "VERSION", ver: choice.ver, inputJson, runCases },
+    request: { ruleId, target: "VERSION", ver: choice.ver, inputJson, runCases, caseIds },
     run: { ruleId, target: "VERSION", ver: choice.ver, rowVersion: version?.rowVersion ?? null, rev: null },
   };
 }

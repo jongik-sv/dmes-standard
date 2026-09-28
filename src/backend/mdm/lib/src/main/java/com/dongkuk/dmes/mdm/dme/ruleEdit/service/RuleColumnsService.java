@@ -39,7 +39,9 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Pattern;
 import kr.dongkuk.maru.mdm.engine.expr.AstExporter;
 import kr.dongkuk.maru.mdm.engine.expr.ExpressionChecker;
 import kr.dongkuk.maru.mdm.engine.expr.ExpressionChecker.Problem;
@@ -56,14 +58,20 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p>검사 규칙은 시안 06 열 설정 표(colCheck)와 06 문서를 그대로 옮긴 것 — 화면(column-draft.ts)이 같은 목록을 이중으로 검사한다.
  * 변수 타입 판정은 {@link RuleVarTypeResolver} 를 그대로 부른다(화면·서버가 같은 판정, I16). 식 파싱은 서버 EvalEx 가 단일 진원(불변 9):
- * 그룹 열 조건(grp_cond)·조건 식 변수(var_ast)·산출 결과 식(expr) 전부 {@link ExpressionChecker} 로 검사하고 {@link AstExporter}
+ * 그룹 열 조건(grp_cond)·산출 결과 식(expr) 전부 {@link ExpressionChecker} 로 검사하고 {@link AstExporter}
  * 로 AST 를 만들어 텍스트와 같은 줄에 저장한다.
+ *
+ * <p>변수 칸에는 이름만 적는다(2026-09-28 결정 — 열 설정에서 식을 적는 칸은 열 조건 하나). 조건 열 변수 칸의 식(식 변수, 06 2026-09-22)은
+ * 새로 저장하지 않는다 — 계산한 값으로 행을 나누려면 룰 세트 앞 산출 룰의 결과 변수를 쓴다. Expression 조건 열은 행 칸마다 식을 적는 열이라
+ * 변수 칸을 비우고 표시명만 둔다(06:1011 "Expression 조건 열은 NULL"). 엔진의 식 변수 평가는 이미 저장된 정의를 위해 그대로 둔다.
  */
 @Service
 public class RuleColumnsService implements RuleEditSavePart {
 
     static final String PART = "COLUMNS";
     private static final Set<String> VAR_KINDS = Set.of("COND", "RESULT");
+    /** 변수 칸에 쓸 수 있는 이름 — 영문자로 시작하는 영문·숫자·_ (식은 받지 않는다). */
+    private static final Pattern VAR_NAME = Pattern.compile("[A-Za-z][A-Za-z0-9_]*");
     private static final Set<String> COND_DISPS = Set.of("Equal", "1", "2", "Expression");
     private static final Set<String> RESULT_DISPS = Set.of("Value", "Expression");
     private static final Set<String> AXES = Set.of("ROW", "COL", "NONE");
@@ -108,7 +116,6 @@ public class RuleColumnsService implements RuleEditSavePart {
     private static final class Line {
         final RuleColumnsSaveRequest req;
         final int tmpId;
-        String varAst;
         String grpCondAst;
         Map<String, Object> exprAst;
         ResolvedVar resolved;
@@ -157,6 +164,14 @@ public class RuleColumnsService implements RuleEditSavePart {
         return out;
     }
 
+    /** 거부 문구의 열 이름 — Expression 조건 열은 변수 칸이 비므로 표시명으로 가리킨다. */
+    private static String nameOf(RuleColumnsSaveRequest req) {
+        if (req.varName() != null) {
+            return req.varName();
+        }
+        return req.label() != null ? req.label() : "Expression 열";
+    }
+
     private String hitPolicy(boolean derive, String requested, String current) {
         if (derive && requested != null) {
             throw reject("산출 룰에는 적중 정책을 두지 않습니다: " + requested);
@@ -194,47 +209,55 @@ public class RuleColumnsService implements RuleEditSavePart {
                     throw reject("var_id 가 중복됩니다: " + req.varId());
                 }
             }
-            if (req.varName() == null) {
+            boolean exprColumn = cond && "Expression".equals(req.dispType());
+            if (req.varName() == null && !exprColumn) {
                 throw reject((cond ? "조건 변수" : "결과 변수명") + "은(는) 필수입니다.");
             }
+            String name = nameOf(req);
             Set<String> disps = cond ? COND_DISPS : RESULT_DISPS;
             if (req.dispType() == null || !disps.contains(req.dispType())) {
                 throw reject("표시 타입은 " + String.join("·", disps) + " 중 하나여야 합니다: " + req.dispType());
             }
             if (derive && cond) {
-                throw reject("산출 룰에는 조건 열을 둘 수 없습니다: " + req.varName());
+                throw reject("산출 룰에는 조건 열을 둘 수 없습니다: " + name);
             }
             if (derive && !"Expression".equals(req.dispType())) {
-                throw reject("산출 룰의 결과 열은 식(Expression)이어야 합니다: " + req.varName());
+                throw reject("산출 룰의 결과 열은 식(Expression)이어야 합니다: " + name);
             }
             if (req.axis() != null) {
                 if (!cond) {
-                    throw reject("축(axis)은 조건 열에만 둡니다: " + req.varName());
+                    throw reject("축(axis)은 조건 열에만 둡니다: " + name);
                 }
                 if (!AXES.contains(req.axis())) {
                     throw reject("축은 ROW·COL·NONE 중 하나여야 합니다: " + req.axis());
                 }
             }
             if (cond && (req.resGrp() != null || req.grpCond() != null)) {
-                throw reject("그룹과 열 조건은 결과 열에만 둡니다: " + req.varName());
+                throw reject("그룹과 열 조건은 결과 열에만 둡니다: " + name);
             }
             if (req.expr() != null && !derive) {
-                throw reject("결과 식은 산출 룰의 결과 열에만 둡니다: " + req.varName());
+                throw reject("결과 식은 산출 룰의 결과 열에만 둡니다: " + name);
             }
             if (!cond && req.domainId() == null && req.dataType() == null) {
-                throw reject("결과 열은 값 타입(도메인 또는 기본 타입)을 선언해야 합니다: " + req.varName());
+                throw reject("결과 열은 값 타입(도메인 또는 기본 타입)을 선언해야 합니다: " + name);
             }
-            if (cond && "Expression".equals(req.dispType()) && req.label() == null) {
-                throw reject("식 변수는 표시명이 필수입니다: " + req.varName());
+            if (exprColumn && req.label() == null) {
+                throw reject("Expression 조건 열은 표시명이 필수입니다: " + name);
+            }
+            if (exprColumn && req.varName() != null) {
+                throw reject("Expression 조건 열은 변수 칸을 비웁니다(식은 행 칸마다 적습니다): " + name);
+            }
+            if (!exprColumn && !VAR_NAME.matcher(req.varName()).matches()) {
+                throw reject("변수 칸에는 이름만 적습니다(영문자로 시작하는 영문·숫자·_): " + name);
             }
             if (req.collectAgg() != null && !"COLLECT".equals(hit)) {
-                throw reject("집계는 COLLECT 적중 정책의 결과 열에만 둡니다: " + req.varName());
+                throw reject("집계는 COLLECT 적중 정책의 결과 열에만 둡니다: " + name);
             }
             if (req.prioList() != null && !req.prioList().isEmpty() && !"PRIORITY".equals(hit)) {
-                throw reject("순위는 PRIORITY 적중 정책의 결과 열에만 둡니다: " + req.varName());
+                throw reject("순위는 PRIORITY 적중 정책의 결과 열에만 둡니다: " + name);
             }
-            if (cond && !"Expression".equals(req.dispType()) && !ExpressionChecker.checkVariableName(req.varName()).isEmpty()) {
-                throw reject("쓸 수 없는 변수명입니다(EvalEx 상수·예약어): " + req.varName());
+            if (cond && !exprColumn && !ExpressionChecker.checkVariableName(req.varName()).isEmpty()) {
+                throw reject("쓸 수 없는 변수명입니다(EvalEx 상수·예약어): " + name);
             }
         }
 
@@ -252,15 +275,11 @@ public class RuleColumnsService implements RuleEditSavePart {
         for (Line line : kept) {
             RuleColumnsSaveRequest req = line.req;
             boolean cond = "COND".equals(req.varKind());
-            if (cond && "Expression".equals(req.dispType())) {
-                line.varAst = DomainJson.write(parseOrReject(req.varName(), Slot.RULE_COND_EXPR, "조건 식"));
-            }
             MdmRuleVar v = new MdmRuleVar(id, ver, line.tmpId, req.varKind(), 0);
             v.setDispType(req.dispType());
             v.setVarName(req.varName());
             v.setDomainId(req.domainId());
             v.setDataType(req.dataType());
-            v.setVarAst(line.varAst);
             v.setLabel(req.label());
             tmp.add(v);
         }
@@ -463,7 +482,6 @@ public class RuleColumnsService implements RuleEditSavePart {
             v.setDispType(req.dispType());
             v.setAxis(cond ? (req.axis() == null ? "NONE" : req.axis()) : null);
             v.setVarName(req.varName());
-            v.setVarAst(cond && "Expression".equals(req.dispType()) ? line.varAst : null);
             v.setDomainId(req.domainId());
             v.setDataType(req.dataType());
             // JPA 가 DB 기본값을 덮으므로(불변 10) COLLECT 결과 열의 기본 집계를 여기서 정한다(06: collect_agg 는 COLLECT 결과열만, 기본 'LIST').
@@ -487,7 +505,10 @@ public class RuleColumnsService implements RuleEditSavePart {
         return rowIdMap;
     }
 
-    /** 표시 타입·조건 변수 변경 열의 셀 비움(불변 8)·삭제 열 제거·산출 식 셀 반영. */
+    /**
+     * 표시 타입·조건 변수 변경 열의 셀 비움(불변 8)·삭제 열 제거·산출 식 셀 반영. 새로 생기거나 셀을 비운 Expression 조건 열은 NORMAL 행을
+     * 무관({@code {"op":"NA"}})으로 채운다(2026-09-28) — 표 저장은 모든 조건 칸을 요구하므로, 식을 적은 행만 조건이 걸리게 한다.
+     */
     private void updateCells(String id, int ver, List<Line> lines, List<Line> kept, Map<Line, Integer> finalIds,
                              Map<Integer, MdmRuleVar> current, boolean derive) {
         Set<Integer> clear = new HashSet<>();
@@ -502,8 +523,15 @@ public class RuleColumnsService implements RuleEditSavePart {
             }
             MdmRuleVar old = current.get(req.varId());
             boolean cond = "COND".equals(req.varKind());
-            if (old != null && (!old.getDispType().equals(req.dispType()) || (cond && !old.getVarName().equals(req.varName())))) {
+            if (old != null && (!old.getDispType().equals(req.dispType()) || (cond && !Objects.equals(old.getVarName(), req.varName())))) {
                 clear.add(req.varId());
+            }
+        }
+        Set<Integer> naFill = new HashSet<>();
+        for (Line line : kept) {
+            RuleColumnsSaveRequest req = line.req;
+            if ("COND".equals(req.varKind()) && "Expression".equals(req.dispType()) && (req.isNew() || clear.contains(req.varId()))) {
+                naFill.add(finalIds.get(line));
             }
         }
         Map<Integer, Map<String, Object>> exprs = new LinkedHashMap<>();
@@ -514,7 +542,7 @@ public class RuleColumnsService implements RuleEditSavePart {
                 }
             }
         }
-        if (clear.isEmpty() && exprs.isEmpty()) {
+        if (clear.isEmpty() && exprs.isEmpty() && naFill.isEmpty()) {
             return;
         }
         List<MdmRuleRow> changed = new ArrayList<>();
@@ -526,6 +554,11 @@ public class RuleColumnsService implements RuleEditSavePart {
             boolean dirty = false;
             for (Integer varId : clear) {
                 if (cells.remove(varId) != null) {
+                    dirty = true;
+                }
+            }
+            for (Integer varId : naFill) {
+                if (cells.putIfAbsent(varId, new LinkedHashMap<>(Map.of("op", "NA"))) == null) {
                     dirty = true;
                 }
             }

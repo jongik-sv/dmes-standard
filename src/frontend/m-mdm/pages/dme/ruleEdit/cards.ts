@@ -37,9 +37,33 @@ export interface RuleEditCardProps {
 
 export interface RuleEditCardSlot {
   id: string;
-  /** 16칸 격자에서 차지하는 칸 수. */
+  /** 16칸 격자에서 차지하는 칸 수(묶음 안에서는 묶음 격자의 칸 수). */
   span: 6 | 8 | 10 | 16;
   Component: ComponentType<RuleEditCardProps>;
+  /** 이어진 카드를 한 덩어리로 접는 묶음 id(`RULE_EDIT_GROUPS`). 없으면 혼자 선다. */
+  group?: string;
+}
+
+/** 접을 수 있는 카드 묶음 — 제목 줄 하나로 묶음 안 카드를 함께 접는다. */
+export const RULE_EDIT_GROUPS: Record<string, { title: string }> = {
+  headerVersions: { title: "① 헤더 · ② 버전" },
+  valueTests: { title: "④ 값 테스트 · ⑤ 테스트 결과" },
+};
+
+export type RuleEditCardSegment =
+  | { kind: "card"; slot: RuleEditCardSlot }
+  | { kind: "group"; id: string; title: string; slots: RuleEditCardSlot[] };
+
+/** 카드 목록을 그릴 덩어리로 나눈다 — 같은 group 이 이어진 카드는 한 덩어리가 된다. */
+export function cardSegments(cards: RuleEditCardSlot[]): RuleEditCardSegment[] {
+  const out: RuleEditCardSegment[] = [];
+  for (const slot of cards) {
+    const last = out[out.length - 1];
+    if (slot.group && last?.kind === "group" && last.id === slot.group) last.slots.push(slot);
+    else if (slot.group) out.push({ kind: "group", id: slot.group, title: RULE_EDIT_GROUPS[slot.group]?.title ?? slot.group, slots: [slot] });
+    else out.push({ kind: "card", slot });
+  }
+  return out;
 }
 
 /** 표 카드 아래 섹션(08-03 확장 자리). */
@@ -57,11 +81,11 @@ function TableCardSlot(props: RuleEditCardProps) {
 }
 
 export const RULE_EDIT_CARDS: RuleEditCardSlot[] = [
-  { id: "header", span: 8, Component: RuleHeaderCard },
-  { id: "versions", span: 8, Component: RuleVersionCard },
+  { id: "header", span: 8, Component: RuleHeaderCard, group: "headerVersions" },
+  { id: "versions", span: 8, Component: RuleVersionCard, group: "headerVersions" },
   { id: "table", span: 16, Component: TableCardSlot },
-  { id: "valueTest", span: 8, Component: ValueTestCard },
-  { id: "testResult", span: 8, Component: TestResultCard },
+  { id: "valueTest", span: 8, Component: ValueTestCard, group: "valueTests" },
+  { id: "testResult", span: 8, Component: TestResultCard, group: "valueTests" },
   { id: "testCases", span: 16, Component: TestCaseCard },
   { id: "usage", span: 16, Component: RuleUsageCard },
 ];

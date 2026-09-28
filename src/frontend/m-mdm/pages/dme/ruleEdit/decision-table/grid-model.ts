@@ -121,11 +121,16 @@ function isExpressionCell(v: StoredVar): boolean {
 }
 
 /**
- * 셀 편집 규칙(§6.7.4 표, I19). 바꾸지 않는 편집(Expression 셀, 잠긴 칸)은 받은 셀을 그대로 돌려준다.
+ * 셀 편집 규칙(§6.7.4 표, I19). 바꾸지 않는 편집(잠긴 칸, 같은 값)은 받은 셀을 그대로 돌려준다.
  * @param value `na` 는 boolean, 나머지는 문자열
  */
 export function applyCellEdit(v: StoredVar, cell: CellObj | undefined, key: CellKey, value: string | boolean): CellObj | undefined {
-  if (isExpressionCell(v)) return cell; // I20 — 조건 식·결과 식은 읽기 전용
+  if (isExpressionCell(v)) {
+    if (key === "expr") return applyExprEdit(v, cell, typeof value === "string" ? value : "");
+    // 조건 식의 무관 켬 = 식을 버리고 `{op:"NA"}`. 끔은 채울 식이 없어 바꾸지 않는다(식을 적으면 풀린다).
+    if (key === "na" && v.varKind === "COND" && value === true) return cell?.op === "NA" ? cell : { op: "NA" };
+    return cell;
+  }
   const text = typeof value === "string" ? value : "";
 
   if (v.varKind === "RESULT") {
@@ -156,6 +161,20 @@ export function applyCellEdit(v: StoredVar, cell: CellObj | undefined, key: Cell
   return cell;
 }
 
+/**
+ * 식 칸 편집(D7 번복, 2026-09-28). 글자를 넣으면 `{expr}` 만 남긴다 — `ast` 는 표 저장 때 서버가 파싱해 채운다(화면 파서 없음, 불변 9).
+ * 비우면 조건 식은 무관 `{op:"NA"}`, 결과 식은 칸을 없앤다(`{expr:""}` 는 서버가 파싱하지 못한다). 같은 식이면 받은 셀(과 그 `ast`)을 그대로 둔다.
+ */
+function applyExprEdit(v: StoredVar, cell: CellObj | undefined, raw: string): CellObj | undefined {
+  const text = raw.trim();
+  if (text === "") {
+    if (v.varKind === "RESULT") return undefined;
+    return cell?.op === "NA" && cell.expr === undefined ? cell : { op: "NA" };
+  }
+  const same = cell?.expr === text && cell.op === undefined && cell.val === undefined;
+  return same ? cell : { expr: text };
+}
+
 /** op 바꾸기 — 값을 되도록 옮긴다(§6.7.4). */
 function changeOp(cell: CellObj | undefined, op: string): CellObj {
   const from = cell?.op;
@@ -180,6 +199,11 @@ export function newNormalRow(vars: readonly StoredVar[], tempId: number): GridRo
   const cells: Record<number, CellObj> = {};
   for (const v of [...vars].filter((x) => x.varKind === "COND").sort((a, b) => a.varId - b.varId)) cells[v.varId] = { op: "NA" };
   return { rowId: tempId, seq: 0, rowKind: "NORMAL", note: "", cells };
+}
+
+/** 행 복사 — 셀·행 설명을 그대로 옮긴 새 NORMAL 행(셀은 깊은 복사라 원본과 따로 편집된다). */
+export function copyNormalRow(src: GridRow, tempId: number): GridRow {
+  return { rowId: tempId, seq: 0, rowKind: "NORMAL", note: src.note, cells: JSON.parse(JSON.stringify(src.cells)) as Record<number, CellObj> };
 }
 
 /** 기본 행 — 조건 셀 없음, seq 0. */

@@ -96,6 +96,30 @@ async function selectOp(page: Page, rowId: number, field: string, op: string) {
   await expect(select).toHaveCount(0);
 }
 
+/** 열 설정 그리드 칸 — 행은 row-id(초안 키 `v{varId}`·새 열 `n{번호}`), 칸은 col-id(varName·grpCond 등). */
+function colCell(page: Page, key: string, field: string): Locator {
+  return page.getByTestId("col-table").locator(`.ag-row[row-id="${key}"] .ag-cell[col-id="${field}"]`);
+}
+
+async function colEdit(page: Page, key: string, field: string, value: string) {
+  const c = colCell(page, key, field);
+  await c.click();
+  const input = c.locator("input");
+  await expect(input).toBeVisible({ timeout: 10_000 });
+  await input.fill(value);
+  await input.press("Enter");
+  await expect(input).toHaveCount(0);
+}
+
+async function colSelect(page: Page, key: string, field: string, value: string) {
+  const c = colCell(page, key, field);
+  await c.click();
+  const select = c.locator("select");
+  await expect(select).toBeVisible({ timeout: 10_000 });
+  await select.selectOption(value);
+  await expect(select).toHaveCount(0);
+}
+
 function checkRows(page: Page): Locator {
   return page.getByTestId("dt-check-rows");
 }
@@ -356,13 +380,13 @@ test.describe("mdm dme/ruleEdit", () => {
   test("C1 열 설정: BASE_SPD_LKP v2 의 결과 열 그룹 8열과 열 조건이 보이고 FLUORO 열 조건을 고쳐 적용하면 다시 불러와도 같다", async ({ page }) => {
     await openRuleVer(page, "BASE_SPD_LKP", 2);
     for (const varId of [2, 3, 4, 5, 6, 7, 8, 9]) {
-      await expect(page.getByTestId(`col-grp-v${varId}`)).toHaveValue("BASE_SPD");
+      await expect(page.getByTestId(`col-grp-v${varId}`)).toHaveText("BASE_SPD");
     }
-    await expect(page.getByTestId("col-grpcond-v4")).toHaveValue('TOP_RESIN_CD == "F"');
-    await expect(page.getByTestId("col-grpcond-v9")).toHaveValue(""); // GENERAL — 기본 열(열 조건 없음, 그룹의 마지막)
+    await expect(page.getByTestId("col-grpcond-v4")).toHaveText('TOP_RESIN_CD == "F"');
+    await expect(page.getByTestId("col-grpcond-v9")).toHaveText("비우면 기본 열"); // GENERAL — 기본 열(열 조건 없음, 그룹의 마지막). 빈 칸은 안내 글자만 보인다
     await expect(page.getByTestId("col-dirty")).toHaveCount(0);
 
-    await page.getByTestId("col-grpcond-v4").fill('TOP_RESIN_CD == "FL"');
+    await colEdit(page, "v4", "grpCond", 'TOP_RESIN_CD == "FL"');
     await expect(page.getByTestId("col-dirty")).toBeVisible();
     await expect(page.getByTestId("col-grpcond-v4-status")).toContainText("TOP_RESIN_CD", { timeout: 20_000 }); // 서버 파싱 결과의 참조 변수
     await expect(page.getByTestId("col-reject-count")).toHaveText("거부 0건");
@@ -372,12 +396,12 @@ test.describe("mdm dme/ruleEdit", () => {
 
     await page.getByTestId("col-apply").click();
     await expect(page.getByTestId("col-dirty")).toHaveCount(0, { timeout: 30_000 });
-    await expect(page.getByTestId("col-grpcond-v4")).toHaveValue('TOP_RESIN_CD == "FL"');
+    await expect(page.getByTestId("col-grpcond-v4")).toHaveText('TOP_RESIN_CD == "FL"');
 
     await reopen(page, "BASE_SPD_LKP");
     await expect(page.getByTestId("rule-ver-select")).toHaveValue("2");
-    await expect(page.getByTestId("col-grpcond-v4")).toHaveValue('TOP_RESIN_CD == "FL"');
-    await expect(page.getByTestId("col-grp-v9")).toHaveValue("BASE_SPD");
+    await expect(page.getByTestId("col-grpcond-v4")).toHaveText('TOP_RESIN_CD == "FL"');
+    await expect(page.getByTestId("col-grp-v9")).toHaveText("BASE_SPD");
     await page.getByTestId("col-table").scrollIntoViewIfNeeded(); // 포털은 안쪽 영역이 스크롤되므로 이 섹션이 보이게 한 뒤 남긴다
     await page.screenshot({ path: screenshot03("dme-ruleEdit-cols-grp.png"), fullPage: true });
   });
@@ -466,7 +490,7 @@ test.describe("mdm dme/ruleEdit", () => {
     await expect(page.getByTestId("rule-ver-select")).toHaveValue("2", { timeout: 20_000 });
     await expect(page.getByTestId("rule-section-columns")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("dt-derive-notice")).toBeVisible();
-    await expect(page.getByTestId("col-expr-v1")).toHaveValue("ROUND(COIL_THK * COIL_WID * COIL_LEN * SPEC_GRAV / 1000, 1)");
+    await expect(page.getByTestId("col-expr-v1")).toHaveText("ROUND(COIL_THK * COIL_WID * COIL_LEN * SPEC_GRAV / 1000, 1)");
 
     // 식 미리보기 — 서버 AST 를 화면 evalex 로 평가한다(케이스 1.8 × 1200 × 1500, 비중 7.85).
     await page.getByTestId("col-preview-input").fill("COIL_THK=1.8, COIL_WID=1200, COIL_LEN=1500, SPEC_GRAV=7.85");
@@ -475,11 +499,11 @@ test.describe("mdm dme/ruleEdit", () => {
 
     // 결과 열 추가 — 앞 결과 COIL_WGT 를 읽는 식은 허용된다.
     await page.getByTestId("col-add-result").click();
-    await page.getByTestId("col-disp-n1").selectOption("Expression"); // 산출 룰의 결과 열은 식이다
-    await page.getByTestId("col-name-n1").fill("COIL_WGT_X2");
-    await page.getByTestId("col-label-n1").fill("2배 중량");
-    await page.getByTestId("col-type-n1").selectOption("NUMBER");
-    await page.getByTestId("col-expr-n1").fill("COIL_WGT * 2");
+    await colSelect(page, "n1", "dispType", "Expression"); // 산출 룰의 결과 열은 식이다
+    await colEdit(page, "n1", "varName", "COIL_WGT_X2");
+    await colEdit(page, "n1", "label", "2배 중량");
+    await colSelect(page, "n1", "dataType", "NUMBER");
+    await colEdit(page, "n1", "expr", "COIL_WGT * 2");
     await expect(page.getByTestId("col-expr-n1-status")).toContainText("COIL_WGT", { timeout: 20_000 });
     await expect(page.getByTestId("col-reject-count")).toHaveText("거부 0건");
 
@@ -490,24 +514,24 @@ test.describe("mdm dme/ruleEdit", () => {
     await expect(page.getByTestId("col-reject-count")).toHaveText("거부 0건");
 
     // 자기 참조 식은 거부되고 적용해도 아무 것도 반영하지 않는다(원자 적용).
-    await page.getByTestId("col-expr-n1").fill("COIL_WGT_X2 * 2");
+    await colEdit(page, "n1", "expr", "COIL_WGT_X2 * 2");
     await expect(page.getByTestId("col-reject-count")).toHaveText("거부 1건");
     await page.getByTestId("col-apply").click();
     await expect(page.getByTestId("col-apply-rejects")).toContainText("아무 것도 반영되지 않음");
-    await expect(page.getByTestId("col-row-v1")).toBeVisible();
+    await expect(colCell(page, "v1", "varId")).toBeVisible();
 
     // 고쳐서 적용한다.
-    await page.getByTestId("col-expr-n1").fill("COIL_WGT * 2");
+    await colEdit(page, "n1", "expr", "COIL_WGT * 2");
     await expect(page.getByTestId("col-reject-count")).toHaveText("거부 0건");
     await page.getByTestId("col-apply").click();
     await expect(page.getByTestId("col-dirty")).toHaveCount(0, { timeout: 30_000 });
 
     await reopen(page, "COIL_WGT_CALC");
     await expect(page.getByTestId("rule-ver-select")).toHaveValue("2");
-    await expect(page.getByTestId("col-expr-v1")).toHaveValue("ROUND(COIL_THK * COIL_WID * COIL_LEN * SPEC_GRAV / 1000, 1)");
+    await expect(page.getByTestId("col-expr-v1")).toHaveText("ROUND(COIL_THK * COIL_WID * COIL_LEN * SPEC_GRAV / 1000, 1)");
     // 새 열은 카운터에서 발급된 var_id(2)로 저장되고 식이 남는다.
-    await expect(page.getByTestId("col-expr-v2")).toHaveValue("COIL_WGT * 2");
-    await expect(page.getByTestId("col-name-v2")).toHaveValue("COIL_WGT_X2");
+    await expect(page.getByTestId("col-expr-v2")).toHaveText("COIL_WGT * 2");
+    await expect(page.getByTestId("col-name-v2")).toHaveText("COIL_WGT_X2");
     await page.getByTestId("col-preview-input").fill("COIL_THK=1.8, COIL_WID=1200, COIL_LEN=1500, SPEC_GRAV=7.85");
     await expect(page.getByTestId("col-expr-v1-preview")).toHaveText("= 25434.0", { timeout: 20_000 });
     await page.getByTestId("col-table").scrollIntoViewIfNeeded(); // 포털은 안쪽 영역이 스크롤되므로 이 섹션이 보이게 한 뒤 남긴다
@@ -520,9 +544,9 @@ test.describe("mdm dme/ruleEdit", () => {
     await expect(grid(page).locator('.ag-center-cols-container .ag-row[row-id="1"]')).toContainText("COALESCE(SPEC_GRAV, 7.85)");
     await expect(grid(page).locator('.ag-center-cols-container .ag-row[row-id="2"]')).toContainText("SHEET_CNT");
     await expect(grid(page).locator('.ag-center-cols-container .ag-row[row-id="3"]')).toContainText("COIL_OUT_DIA");
-    await expect(page.getByTestId("col-name-v1")).toHaveValue("PROD_TYPE");
-    await expect(page.getByTestId("col-name-v3")).toHaveValue("CALC_BASIS");
-    await expect(page.getByTestId("col-name-v2")).toHaveValue("PROD_WGT");
+    await expect(page.getByTestId("col-name-v1")).toHaveText("PROD_TYPE");
+    await expect(page.getByTestId("col-name-v3")).toHaveText("CALC_BASIS");
+    await expect(page.getByTestId("col-name-v2")).toHaveText("PROD_WGT");
     await page.getByTestId("col-table").scrollIntoViewIfNeeded(); // 포털은 안쪽 영역이 스크롤되므로 이 섹션이 보이게 한 뒤 남긴다
     await page.screenshot({ path: screenshot03("dme-ruleEdit-formula.png"), fullPage: true });
   });
@@ -554,8 +578,8 @@ test.describe("mdm dme/ruleEdit", () => {
 
     // 조건 열을 식(Expression)으로 바꿔 화이트리스트 밖 함수를 적는다.
     await page.getByTestId("col-add-cond").click();
-    await page.getByTestId("col-disp-n1").selectOption("Expression");
-    await page.getByTestId("col-name-n1").fill('MASTER("PORT", "ALL", SURF_GRD)');
+    await colSelect(page, "n1", "dispType", "Expression");
+    await colEdit(page, "n1", "varName", 'MASTER("PORT", "ALL", SURF_GRD)');
     await expect(page.getByTestId("col-name-n1-status")).toContainText("서버 평가로 넘긴다", { timeout: 20_000 });
     await page.getByTestId("col-discard").click();
     await expect(page.getByTestId("col-dirty")).toHaveCount(0);
@@ -682,7 +706,7 @@ test.describe("mdm dme/ruleEdit", () => {
     await expect(added).toContainText('"QLTY_GRD"');
     await expect(page.getByTestId("vt-case-name")).toHaveValue("");
 
-    await caseCard(page).getByRole("button", { name: "모두 돌리기", exact: true }).click();
+    await caseCard(page).getByRole("button", { name: "모두 실행", exact: true }).click();
     await expect(page.getByTestId("tc-badge-1")).toHaveText(/통과/, { timeout: 30_000 });
     await expect(page.getByTestId("tc-badge-2")).toHaveText(/실패/);
     await expect(page.getByTestId("tc-row-2")).toContainText("QLTY_GRD");

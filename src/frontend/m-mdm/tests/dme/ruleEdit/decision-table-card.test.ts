@@ -27,6 +27,7 @@ import {
   saveRowsOf,
   tableAnalysis,
   tableReducer,
+  tableStoredRows,
   type TableAction,
   type TableState,
 } from "../../../pages/dme/ruleEdit/decision-table/table-state";
@@ -126,22 +127,101 @@ describe("표 상태 — 편집과 즉시 검사(I13·I19~I21)", () => {
     expect(isDirty(back)).toBe(false);
   });
 
-  it("Expression 셀은 편집으로 바뀌지 않는다(I20)", () => {
-    const view = draftView("e2e_mdm_steward", "e2e_mdm_steward", {
-      vars: [...SAMPLE_VARS, { ...SAMPLE_VARS[0], varId: 6, dispType: "Expression", seq: 4, varName: "COIL_THK > 1", typeSource: "EXPRESSION_COLUMN", dataType: "STRING" }],
-    });
-    const s = initTableState(view);
-    const s2 = run(s, { type: "editCell", rowId: 1, varId: 6, key: "expr", value: "X > 1" }, { type: "editCell", rowId: 1, varId: 6, key: "na", value: true });
-    expect(s2.rows).toEqual(s.rows);
-    expect(cellEditable(view.vars[5], "expr", s.rows[0], true)).toBe(false);
-    expect(cellEditable(view.vars[5], "na", s.rows[0], true)).toBe(false);
-    const withExpr = { ...s.rows[0], cells: { ...s.rows[0].cells, 6: { expr: "COIL_THK > 1", ast: {} } } };
-    const withNa = { ...s.rows[0], cells: { ...s.rows[0].cells, 6: { op: "NA" } } };
-    for (const row of [withExpr, withNa]) {
-      for (const key of ["expr", "na", "op", "left"] as const) expect(cellEditable(view.vars[5], key, row, true), key).toBe(false);
-    }
+  describe("Expression 칸 편집(D7 번복, 2026-09-28)", () => {
+    // 조건 식 열(var 6, 이름 없음)과 결과 식 열(var 5). 저장된 식 칸에는 서버 AST 가 있다.
+    const condExpr = { ...SAMPLE_VARS[0], varId: 6, dispType: "Expression" as const, seq: 4, varName: null, label: "두께 식", typeSource: "EXPRESSION_COLUMN" as const, dataType: "STRING" as const };
     const resultExpr = { ...SAMPLE_VARS[4], dispType: "Expression" as const };
-    expect(cellEditable(resultExpr, "expr", { ...s.rows[0], cells: { 5: { expr: "1.05", ast: {} } } }, true)).toBe(false);
+    const exprView = () =>
+      draftView("e2e_mdm_steward", "e2e_mdm_steward", {
+        vars: [...SAMPLE_VARS.slice(0, 4), resultExpr, condExpr],
+        rows: [
+          { rowId: 1, seq: 1, rowKind: "NORMAL", cells: '{"1":{"op":"GE","left":"1.6"},"2":{"op":"NA"},"3":{"op":"NA"},"4":{"val":"A"},"5":{"expr":"1.05","ast":{"type":"X"}},"6":{"expr":"COIL_THK > 1","ast":{"type":"X"}}}', note: null },
+          { rowId: 2, seq: 2, rowKind: "NORMAL", cells: '{"1":{"op":"GE","left":"2.5"},"2":{"op":"NA"},"3":{"op":"NA"},"4":{"val":"B"},"6":{"op":"NA"}}', note: null },
+          // 조건 식 열을 나중에 더해 셀이 없는 행
+          { rowId: 3, seq: 3, rowKind: "NORMAL", cells: '{"1":{"op":"LT","left":"1.6"},"2":{"op":"NA"},"3":{"op":"NA"},"4":{"val":"C"}}', note: null },
+          { rowId: 4, seq: 0, rowKind: "DEFAULT", cells: '{"4":{"val":"C"},"5":{"expr":"0.90","ast":{"type":"X"}}}', note: null },
+        ],
+      });
+
+    it("칸 잠금: 조건 식은 NORMAL 행의 식 칸과 무관 켜기, 결과 식은 기본 행에서도 식 칸을 편집한다", () => {
+      const s = initTableState(exprView());
+      const [r1, r2, r3, def] = s.rows;
+      expect(cellEditable(condExpr, "expr", r1, true)).toBe(true);
+      expect(cellEditable(condExpr, "expr", r2, true)).toBe(true); // 무관 {op:NA} 칸 — 식을 적으면 풀린다
+      expect(cellEditable(condExpr, "expr", r3, true)).toBe(true); // 셀이 없는 칸 — 식을 넣으면 셀이 생긴다
+      expect(cellEditable(condExpr, "na", r1, true)).toBe(true); // 식 칸 → 무관으로
+      expect(cellEditable(condExpr, "na", r3, true)).toBe(true); // 셀 없음 → 무관으로
+      expect(cellEditable(condExpr, "na", r2, true)).toBe(false); // 이미 무관 — 끌 때 채울 식이 없다
+      for (const key of ["op", "left", "right", "val"] as const) expect(cellEditable(condExpr, key, r1, true), key).toBe(false);
+      expect(cellEditable(condExpr, "expr", def, true)).toBe(false); // 기본 행의 조건 칸은 잠근다
+      expect(cellEditable(condExpr, "na", def, true)).toBe(false);
+      expect(cellEditable(condExpr, "expr", r1, false)).toBe(false);
+      expect(cellEditable(resultExpr, "expr", r1, true)).toBe(true);
+      expect(cellEditable(resultExpr, "expr", r2, true)).toBe(true); // 결과 칸이 없는 행에도 식을 넣는다
+      expect(cellEditable(resultExpr, "expr", def, true)).toBe(true);
+      expect(cellEditable(resultExpr, "val", def, true)).toBe(false);
+      expect(cellEditable(resultExpr, "expr", r1, false)).toBe(false);
+    });
+
+    it("편집: 식을 넣으면 {expr}(trim), 조건 식을 비우면 무관, 결과 식을 비우면 칸이 없어지고 기본 행 조건은 바뀌지 않는다", () => {
+      const s = initTableState(exprView());
+      const s2 = run(
+        s,
+        { type: "editCell", rowId: 1, varId: 6, key: "expr", value: "  COIL_THK > 2 " },
+        { type: "editCell", rowId: 2, varId: 6, key: "expr", value: "COIL_WID > 1000" },
+        { type: "editCell", rowId: 1, varId: 5, key: "expr", value: "" },
+        { type: "editCell", rowId: 2, varId: 5, key: "expr", value: "PRC * 2" },
+        { type: "editCell", rowId: 4, varId: 5, key: "expr", value: "0.95" },
+        { type: "editCell", rowId: 4, varId: 6, key: "expr", value: "X > 1" },
+      );
+      expect(s2.rows[0].cells[6]).toEqual({ expr: "COIL_THK > 2" });
+      expect(s2.rows[0].cells[5]).toBeUndefined();
+      expect(s2.rows[1].cells[6]).toEqual({ expr: "COIL_WID > 1000" });
+      expect(s2.rows[1].cells[5]).toEqual({ expr: "PRC * 2" });
+      expect(s2.rows[3].cells).toEqual({ 4: { val: "C" }, 5: { expr: "0.95" } });
+      const s3 = run(s2, { type: "editCell", rowId: 2, varId: 6, key: "expr", value: " " }, { type: "editCell", rowId: 1, varId: 6, key: "na", value: true });
+      expect(s3.rows[1].cells[6]).toEqual({ op: "NA" });
+      expect(s3.rows[0].cells[6]).toEqual({ op: "NA" });
+      expect(isDirty(s2)).toBe(true);
+    });
+
+    it("나중에 더한 조건 식 열: 셀이 없는 행에 식을 넣거나 무관을 켜면 셀이 생긴다", () => {
+      const s = initTableState(exprView());
+      expect(s.rows[2].cells[6]).toBeUndefined();
+      const typed = run(s, { type: "editCell", rowId: 3, varId: 6, key: "expr", value: "COIL_WID > 900" });
+      expect(typed.rows[2].cells[6]).toEqual({ expr: "COIL_WID > 900" });
+      const na = run(s, { type: "editCell", rowId: 3, varId: 6, key: "na", value: true });
+      expect(na.rows[2].cells[6]).toEqual({ op: "NA" });
+      expect(saveRowsOf(na)[2].cells).toBe('{"1":{"op":"LT","left":"1.6"},"2":{"op":"NA"},"3":{"op":"NA"},"4":{"val":"C"},"6":{"op":"NA"}}');
+    });
+
+    it("같은 식을 다시 넣으면 상태가 그대로다(서버 AST 도 남는다)", () => {
+      const s = initTableState(exprView());
+      expect(run(s, { type: "editCell", rowId: 1, varId: 6, key: "expr", value: "COIL_THK > 1 " })).toBe(s);
+      expect(run(s, { type: "editCell", rowId: 2, varId: 6, key: "expr", value: "" })).toBe(s);
+      expect(run(s, { type: "editCell", rowId: 2, varId: 6, key: "na", value: true })).toBe(s);
+      expect(run(s, { type: "editCell", rowId: 1, varId: 6, key: "na", value: false })).toBe(s);
+      expect(isDirty(s)).toBe(false);
+    });
+
+    it("저장 본문: 편집한 식 칸에는 ast 가 없고 손대지 않은 칸은 서버 AST 를 그대로 싣는다", () => {
+      const s = initTableState(exprView());
+      const s2 = run(s, { type: "editCell", rowId: 1, varId: 6, key: "expr", value: "COIL_THK > 2" }, { type: "editCell", rowId: 4, varId: 5, key: "expr", value: "0.95" });
+      const body = saveRowsOf(s2);
+      expect(body[0].cells).toBe('{"1":{"op":"GE","left":"1.6"},"2":{"op":"NA"},"3":{"op":"NA"},"4":{"val":"A"},"5":{"expr":"1.05","ast":{"type":"X"}},"6":{"expr":"COIL_THK > 2"}}');
+      expect(body[3].cells).toBe('{"4":{"val":"C"},"5":{"expr":"0.95"}}');
+      expect(body[1].cells).toBe(exprView().rows[1].cells);
+    });
+
+    it("즉시 검사: ast 없는 조건 식 칸도 던지지 않고 서버 AST 가 있을 때와 같은 이슈(화면에서 못 푸는 칸)를 낸다", () => {
+      const s = run(initTableState(exprView()), { type: "editCell", rowId: 2, varId: 6, key: "expr", value: "COIL_WID > 1000" });
+      const a = tableAnalysis(s);
+      expect(a.failed).toBe(false);
+      expect(a.issues.some((i) => i.code === "UNRESOLVED_CELL" && i.varId === 6 && i.rowIds[0] === 2)).toBe(true);
+      const rows = tableStoredRows(s).map((r) => ({ ...r, cells: r.cells.replace('{"expr":"COIL_WID > 1000"}', '{"expr":"COIL_WID > 1000","ast":{"type":"X"}}') }));
+      expect(rows[1].cells).toContain('"ast"');
+      expect(runAnalysis(s.ruleId, "DECISION", "FIRST", s.vars, rows).issues).toEqual(a.issues);
+    });
   });
 
   it("칸 잠금: 기본 행의 조건 칸, 구간이 아닌 상한, 값 없는 op 의 값, 편집 불가 버전", () => {
@@ -156,9 +236,38 @@ describe("표 상태 — 편집과 즉시 검사(I13·I19~I21)", () => {
     expect(cellEditable(SAMPLE_VARS[3], "val", rows[3], true)).toBe(true);
   });
 
+  it("나중에 더한 Equal 조건 열은 셀이 없는 기존 행에서도 값을 넣을 수 있다", () => {
+    const coil = { ...SAMPLE_VARS[0], varId: 10, dispType: "Equal" as const, seq: 9, varName: "COIL", dataType: "STRING" as const };
+    const view = draftView("e2e_mdm_steward", "e2e_mdm_steward", { vars: [...SAMPLE_VARS, coil] });
+    const s = initTableState(view);
+    expect(s.rows[0].cells[10]).toBeUndefined();
+    expect(cellEditable(coil, "left", s.rows[0], true)).toBe(true);
+    expect(cellEditable(coil, "left", { ...s.rows[0], cells: { ...s.rows[0].cells, 10: { op: "NA" } } }, true)).toBe(false);
+    const s2 = run(s, { type: "editCell", rowId: 1, varId: 10, key: "left", value: " HR " });
+    expect(s2.rows[0].cells[10]).toEqual({ op: "EQ", left: "HR" });
+  });
+
   it("산출(DERIVE) 룰은 행 추가·기본 행 추가를 받지 않는다", () => {
     const s = initTableState(draftView("e2e_mdm_steward", "e2e_mdm_steward", { rule: { ...draftView(null).rule, ruleKind: "DERIVE" } }));
     expect(run(s, { type: "addRow" }, { type: "addDefaultRow" }).rows).toEqual(s.rows);
+  });
+
+  it("행 복사는 원본 바로 아래에 셀·설명을 깊은 복사한 새 행을 넣고 고르며, 기본 행은 복사하지 않는다", () => {
+    const s = run(s0, { type: "copyRow", rowId: 1 });
+    expect(s.rows.map((r) => [r.rowId, r.seq, r.rowKind])).toEqual([
+      [1, 1, "NORMAL"],
+      [-1, 2, "NORMAL"],
+      [2, 3, "NORMAL"],
+      [3, 4, "NORMAL"],
+      [4, 0, "DEFAULT"],
+    ]);
+    expect(s.rows[1].cells).toEqual(s0.rows[0].cells);
+    expect(s.rows[1].note).toBe(s0.rows[0].note);
+    expect(s.selectedRowId).toBe(-1);
+    const edited = run(s, { type: "editCell", rowId: -1, varId: 1, key: "left", value: "9" });
+    expect(edited.rows[0].cells).toEqual(s0.rows[0].cells);
+    expect(run(s0, { type: "copyRow", rowId: 4 }).rows).toEqual(s0.rows);
+    expect(run(s, { type: "copyRow", rowId: 1 }).rows[1].rowId).toBe(-2);
   });
 
   it("기본 행은 없을 때만 더한다", () => {
@@ -352,6 +461,24 @@ describe("DecisionTableCard 렌더", () => {
     expect(typeof body.grids.rows.rows[0].cells).toBe("string");
     // 저장 전 화면 검사(임시 ID → 발급 번호)와 서버 검사가 같다.
     expect(visibleText(container)).toContain("화면·서버 검사 일치");
+  });
+
+  it("행 복사는 행 번호로 고른 행을 바로 아래에 복사하고 저장 요청에 음수 임시 ID 로 싣는다(고르지 않았거나 기본 행이면 꺼짐)", async () => {
+    await renderCard(draftView("e2e_mdm_steward"));
+    const copy = () => container.querySelector("[data-testid='dt-copy-row']") as HTMLButtonElement;
+    expect(copy().disabled).toBe(true);
+    await act(async () => (container.querySelector("[data-testid='dt-row-4']") as HTMLButtonElement).click());
+    expect(copy().disabled).toBe(true);
+    await act(async () => (container.querySelector("[data-testid='dt-row-2']") as HTMLButtonElement).click());
+    expect(copy().disabled).toBe(false);
+    await act(async () => copy().click());
+    await act(async () => {
+      findButton(container, "표 저장").click();
+    });
+    await flush();
+    const body = saveBodies[0] as { grids: { rows: { rows: Array<Record<string, unknown>> } } };
+    expect(body.grids.rows.rows.map((r) => r.rowId)).toEqual([1, 2, -1, 3, 4]);
+    expect(body.grids.rows.rows[2].cells).toBe(body.grids.rows.rows[1].cells);
   });
 
   it("서버 검사가 화면과 다르면 서버 결과가 기준이라고 알린다", async () => {

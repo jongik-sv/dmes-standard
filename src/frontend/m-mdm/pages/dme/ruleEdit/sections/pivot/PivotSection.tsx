@@ -7,6 +7,8 @@
  */
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 
+import { IconMinus, IconPlus } from "@tabler/icons-react";
+
 import { Button, Input, Select } from "@dk-oasis/shared/form";
 import { badgeStyle } from "@/shell";
 
@@ -15,10 +17,24 @@ import type { RuleEditCardProps } from "../../cards";
 import { gridRowsFromStored, storedRowsFromGrid, type GridRow } from "../../decision-table/grid-model";
 import { useColumnDraftShared } from "../column-draft-context";
 import { tableSaveBlocked } from "../columns/column-draft";
+import { SectionFrame } from "../SectionFrame";
+import { dtTable, dtTd, dtTh, dtWrap, mutedText, zebra } from "../table-style";
 import { applyPivotEdit, buildPivot, pvSpec, type PivotBand, type PivotEdit, type PivotSpec } from "./pivot-model";
 
-const th: CSSProperties = { textAlign: "left", padding: "2px 6px", whiteSpace: "nowrap", borderBottom: "1px solid var(--color-border-light)" };
-const td: CSSProperties = { padding: "2px 6px", verticalAlign: "top", borderBottom: "1px solid var(--color-border-light)" };
+const ICON_BUTTON: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: 20,
+  height: 20,
+  padding: 0,
+  border: "none",
+  background: "none",
+  color: "var(--color-text-secondary)",
+  cursor: "pointer",
+};
+const th = dtTh;
+const td = dtTd;
 const LOWER_OPS = [
   { value: "<=", label: "이상" },
   { value: "<", label: "초과" },
@@ -65,6 +81,7 @@ export function PivotSection({ view, editable, runWrite, notify, setDirty, canDo
   const baseline = useMemo(() => gridRowsFromStored(view.vars, view.rows), [view.vars, view.rows]);
   const [state, setState] = useState<PivotState>({ rows: baseline, lastTempId: baseline.reduce((m, r) => Math.min(m, r.rowId), 0) });
   const [message, setMessage] = useState<string | null>(null);
+  const [open, setOpen] = useState(true);
 
   useEffect(() => {
     setState({ rows: baseline, lastTempId: baseline.reduce((m, r) => Math.min(m, r.rowId), 0) });
@@ -148,23 +165,29 @@ export function PivotSection({ view, editable, runWrite, notify, setDirty, canDo
   };
 
   return (
-    <div data-testid="pivot-section" style={{ paddingTop: "var(--spacing-md)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-sm)", flexWrap: "wrap" }}>
-        <strong>피벗 보기</strong>
-        <span data-testid="pivot-badge" style={badgeStyle(canEdit ? "success" : "muted")}>
-          {canEdit ? "편집" : "화면 표현"}
-        </span>
-        <span style={{ color: "var(--color-text-secondary)" }}>
-          행 축 {rv.map((v) => v.varName).join(", ")} · 열 축 {cv.map((v) => v.varName).join(", ")} · 셀 = {res.label || res.varName}
-        </span>
-        {dirty && (
-          <span data-testid="pivot-dirty" style={badgeStyle("warning")}>
-            피벗 편집(저장 안 함)
+    <SectionFrame
+      testId="pivot-section"
+      title="피벗 보기"
+      open={open}
+      onOpenChange={setOpen}
+      headerExtra={
+        <>
+          <span data-testid="pivot-badge" style={badgeStyle(canEdit ? "success" : "muted")}>
+            {canEdit ? "편집" : "화면 표현"}
           </span>
-        )}
-      </div>
-      <div style={{ overflowX: "auto", paddingTop: "var(--spacing-xs)" }}>
-        <table data-testid="pivot-table" style={{ borderCollapse: "collapse", minWidth: "100%", fontSize: "var(--font-size-sm)" }}>
+          <span style={{ color: "var(--color-text-secondary)" }}>
+            행 축 {rv.map((v) => v.varName).join(", ")} · 열 축 {cv.map((v) => v.varName).join(", ")} · 셀 = {res.label || res.varName}
+          </span>
+          {dirty && (
+            <span data-testid="pivot-dirty" style={badgeStyle("warning")}>
+              피벗 편집(저장 안 함)
+            </span>
+          )}
+        </>
+      }
+    >
+      <div style={dtWrap}>
+        <table data-testid="pivot-table" style={dtTable}>
           <thead>
             <tr>
               {spec.two ? (
@@ -186,8 +209,8 @@ export function PivotSection({ view, editable, runWrite, notify, setDirty, canDo
             </tr>
           </thead>
           <tbody>
-            {pv.bands.map((b) => (
-              <tr key={b.first.rowId} data-testid={`pivot-band-${b.first.rowId}`}>
+            {pv.bands.map((b, i) => (
+              <tr key={b.first.rowId} data-testid={`pivot-band-${b.first.rowId}`} style={{ background: zebra(i) }}>
                 {bandHead(b)}
                 {pv.cols.map((c) => {
                   const xs = b.cells[c] ?? [];
@@ -210,19 +233,35 @@ export function PivotSection({ view, editable, runWrite, notify, setDirty, canDo
                       ) : xs.length ? (
                         val
                       ) : (
-                        <span style={{ color: "var(--color-text-muted)" }}>빈칸</span>
+                        <span style={mutedText}>빈칸</span>
                       )}
                     </td>
                   );
                 })}
                 {canEdit && (
-                  <td style={td}>
-                    <Button data-pvadd={b.first.rowId} disabled={busy} title="아래에 구간 추가. 이 구간 값을 복사한다" onClick={() => edit({ type: "addBand", bandRowId: b.first.rowId })}>
-                      ＋
-                    </Button>
-                    <Button data-pvdel={b.first.rowId} disabled={busy} title={`이 구간의 행 ${pv.cols.length}개를 지운다`} onClick={() => edit({ type: "delBand", bandRowId: b.first.rowId })}>
-                      −
-                    </Button>
+                  <td style={{ ...td, whiteSpace: "nowrap" }}>
+                    <button
+                      type="button"
+                      data-pvadd={b.first.rowId}
+                      disabled={busy}
+                      title="아래에 구간 추가. 이 구간 값을 복사한다"
+                      aria-label="아래에 구간 추가"
+                      onClick={() => edit({ type: "addBand", bandRowId: b.first.rowId })}
+                      style={ICON_BUTTON}
+                    >
+                      <IconPlus size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      data-pvdel={b.first.rowId}
+                      disabled={busy}
+                      title={`이 구간의 행 ${pv.cols.length}개를 지운다`}
+                      aria-label="이 구간 지우기"
+                      onClick={() => edit({ type: "delBand", bandRowId: b.first.rowId })}
+                      style={ICON_BUTTON}
+                    >
+                      <IconMinus size={14} />
+                    </button>
                   </td>
                 )}
               </tr>
@@ -271,6 +310,6 @@ export function PivotSection({ view, editable, runWrite, notify, setDirty, canDo
             : "피벗은 화면 표현이다. 의사결정표 행이 그대로 저장되어 있다."}
         </p>
       )}
-    </div>
+    </SectionFrame>
   );
 }

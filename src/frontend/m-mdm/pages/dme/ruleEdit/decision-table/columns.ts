@@ -27,16 +27,24 @@ export function parseField(field: string): { varId: number; key: CellKey } | nul
   return m ? { varId: Number(m[1]), key: m[2] as CellKey } : null;
 }
 
-/** 칸 편집 가능 여부(§6.7.4 칸 잠금, I20). */
+/**
+ * 칸 편집 가능 여부(§6.7.4 칸 잠금). 조건 식·결과 식 칸도 편집한다(D7 번복, 2026-09-28) — 식은 저장 때 서버가 파싱해 `ast` 를 채운다.
+ */
 export function cellEditable(v: ResolvedVar, key: CellKey, row: GridRow, editable: boolean): boolean {
   if (!editable) return false;
-  if (v.dispType === "Expression") return false; // 조건 식·결과 식은 읽기 전용(D7)
-  if (v.varKind === "RESULT") return key === "val";
+  if (v.varKind === "RESULT") return key === (v.dispType === "Expression" ? "expr" : "val");
   if (row.rowKind === "DEFAULT") return false; // 기본 행의 조건 칸은 비운 채 잠근다
   const cell: CellObj | undefined = row.cells[v.varId];
+  if (v.dispType === "Expression") {
+    // 식 칸은 늘 — 무관이어도 식을 적으면 풀리고, 비우면 무관이 된다. 무관은 켜기만 한다(끌 때 채울 식이 없다).
+    // 나중에 더한 열은 기존 행에 셀이 없다 — 식을 넣거나 무관을 켜면 applyCellEdit 가 셀을 만든다(저장은 모든 조건 칸을 요구한다).
+    if (key === "na") return cell?.op !== "NA";
+    return key === "expr";
+  }
   if (v.dispType === "Equal") {
     if (key === "na") return true;
-    return key === "left" && !!cell && cell.op !== "NA";
+    // 나중에 더한 열은 기존 행에 셀이 없다 — 값을 넣으면 applyCellEdit 가 EQ 셀을 만든다.
+    return key === "left" && cell?.op !== "NA";
   }
   if (key === "op") return true;
   if (!cell || isNoValueOp(cell.op)) return false;
@@ -226,7 +234,7 @@ function naCheckbox(ctx: TableColumnContext, v: ResolvedVar) {
     const enabled = cellEditable(v, "na", src, ctx.editable);
     return createElement("input", {
       type: "checkbox",
-      "aria-label": `무관 ${v.varName ?? v.varId}`,
+      "aria-label": `무관 ${v.label || v.varName || v.varId}`,
       "data-testid": `dt-na-${src.rowId}-${v.varId}`,
       checked: value === true,
       disabled: !enabled,
@@ -256,7 +264,7 @@ function varGroup(ctx: TableColumnContext, v: ResolvedVar): GridColumn {
       const col: GridColumn = {
         key: fieldOf(v.varId, key),
         header,
-        width: key === "op" ? 110 : key === "na" ? 56 : key === "expr" ? 200 : 96,
+        width: key === "op" ? 110 : key === "na" ? 56 : key === "expr" ? 260 : 96,
         align: key === "na" ? "center" : "left",
         editable: key === "na" ? false : (row) => cellEditable(v, key, sourceRow(row), ctx.editable),
         cellClassRules: cellRules(v.varId),
@@ -281,21 +289,24 @@ export function buildTableColumns(ctx: TableColumnContext): GridColumn[] {
     {
       key: ROW_LABEL_FIELD,
       header: "행",
-      width: 96,
+      width: 56,
       pinned: "left",
       render: (value, row) => {
         const src = sourceRow(row);
+        // 라벨은 표시 순번(seq) 하나만. 이전에 붙던 "row N"(rowId) 은 같은 정보를
+        // 두 번 보여 주던 것이라 접었다 — 저장은 서버 row_id 를 따로 쓰고, 값을 맞춰야 할
+        // 땐 행 설명(note) 과 아래 diff 요약이 식별자로 준다. title 에 rowId 를 남겨
+        // 필요할 때는 마우스를 올려 확인할 수 있게 한다.
         return createElement(
           "button",
           {
             type: "button",
             "data-testid": `dt-row-${src.rowId}`,
-            title: src.note || undefined,
+            title: src.note ? `${src.note} (row ${src.rowId})` : `row ${src.rowId}`,
             onClick: () => ctx.onSelectRow(src.rowId),
             style: { border: "none", background: "none", padding: 0, cursor: "pointer", font: "inherit", color: "var(--color-primary)" },
           },
           `${String(value)}`,
-          createElement("span", { style: { color: "var(--color-text-muted)", marginLeft: 4, fontSize: "var(--font-size-xs)" } }, src.rowId > 0 ? `row ${src.rowId}` : "새 행"),
         );
       },
     },
