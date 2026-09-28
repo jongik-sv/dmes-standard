@@ -71,6 +71,8 @@ export interface LookupModalProps {
   initialKeyword?: string;
   /** 룩업 고유 조회조건. 지정 시 키워드 앞에 필터 컨트롤을 렌더하고 값을 fetchFn 에 전달. */
   filters?: LookupFilter[];
+  /** true 면 열리는 즉시 initialKeyword·필터 기본값으로 첫 페이지를 조회한다. 기본은 조회 버튼을 눌러야 조회. */
+  searchOnOpen?: boolean;
 }
 
 const COLUMNS: GridColumn[] = [
@@ -107,6 +109,7 @@ export function LookupModal({
   placeholder = "코드 또는 명 입력",
   initialKeyword = "",
   filters,
+  searchOnOpen = false,
 }: LookupModalProps) {
   const [keyword, setKeyword] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string>>(() =>
@@ -194,6 +197,14 @@ export function LookupModal({
     },
     [],
   );
+
+  // 열림 직후 자동 조회. 위 open effect 가 상태를 초기화한 뒤 같은 커밋에서 실행되며,
+  // 닫힘·재조회 시 generation/abort 가드가 늦게 도착한 응답을 버린다.
+  useEffect(() => {
+    if (!open || !searchOnOpen) return;
+    setPageSize(DEFAULT_PAGE_SIZE);
+    runQuery(initialKeyword, 0, DEFAULT_PAGE_SIZE, buildDefaultFilterValues(filtersRef.current));
+  }, [open, searchOnOpen, initialKeyword, runQuery]);
 
   const handleSearch = useCallback(() => {
     runQuery(keyword, 0, pageSize, filterValues);

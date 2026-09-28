@@ -1280,6 +1280,7 @@ export default function CommUserMngPage() {
         onSelect={handleDeptLovPick}
         onClose={() => setIsDeptLovOpen(false)}
         placeholder="부서코드 또는 부서명 입력"
+        searchOnOpen
       />
     </PageLayout>
   );
