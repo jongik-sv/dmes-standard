@@ -144,7 +144,7 @@ export default function CodeMngPage() {
         </SearchField>
       </SearchArea>
 
-      <ContentBody root>
+      <ContentBody root resizable storageKey="mdm.dmc.codeMng">
         <ContentPanel flex="1 1 0">
           <div data-testid="code-list" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
             <div style={{ flex: 1, minHeight: 0 }}>

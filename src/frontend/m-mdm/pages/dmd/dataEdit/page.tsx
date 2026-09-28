@@ -200,7 +200,7 @@ export default function DataEditPage({ tabId, snapshot, onSnapshotChange }: Data
           </ContentPanel>
         </ContentBody>
       ) : (
-        <ContentBody root direction="column">
+        <ContentBody root direction="column" resizable storageKey="mdm.dmd.dataEdit">
           <ContentBody>
             <ContentPanel flex="1 1 0">
               <p style={cardTitle}>① 헤더</p>
@@ -269,7 +269,7 @@ export default function DataEditPage({ tabId, snapshot, onSnapshotChange }: Data
             </ContentPanel>
           </ContentBody>
 
-          <ContentBody>
+          <ContentBody resizable storageKey="mdm.dmd.dataEdit.bottom">
             <ContentPanel flex="1 1 0">
               <p style={cardTitle}>② 추가 컬럼 라벨</p>
               <table style={DETAIL_TABLE_STYLE}>

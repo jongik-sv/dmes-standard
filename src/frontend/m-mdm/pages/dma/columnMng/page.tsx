@@ -527,7 +527,7 @@ export default function ColumnMngPage() {
         />
       </SearchArea>
 
-      <ContentBody root direction="column">
+      <ContentBody root direction="column" resizable storageKey="mdm.dma.columnMng">
         <ContentPanel height={230}>
           <div
             data-testid="column-list"
@@ -561,7 +561,7 @@ export default function ColumnMngPage() {
           </div>
         </ContentPanel>
 
-        <ContentBody>
+        <ContentBody resizable storageKey="mdm.dma.columnMng.bottom">
           <ContentPanel flex="1 1 0">
             <div style={panelScrollStyle}>
               <p style={panelTitleStyle}>컬럼명 자동 생성</p>

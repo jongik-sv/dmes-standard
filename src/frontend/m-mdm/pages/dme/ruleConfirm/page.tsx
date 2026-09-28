@@ -216,7 +216,7 @@ export default function RuleConfirmPage({ tabId, snapshot, onSnapshotChange }: R
 
   return (
     <MdmPageLayout group="dme" screenId={SCREEN_ID} title="버전 확정">
-      <ContentBody root>
+      <ContentBody root resizable storageKey="mdm.dme.ruleConfirm">
         <ContentPanel width="30%">
           <DraftList
             drafts={drafts} keyword={keyword} selected={target} onKeyword={setKeyword}

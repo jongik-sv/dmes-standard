@@ -194,7 +194,7 @@ export default function CodeConfirmPage({ tabId, snapshot, onSnapshotChange }: C
 
   return (
     <MdmPageLayout group="dmc" screenId={SCREEN_ID} title="버전 확정">
-      <ContentBody root>
+      <ContentBody root resizable storageKey="mdm.dmc.codeConfirm">
         <ContentPanel width="30%">
           <DraftList
             drafts={drafts} keyword={keyword} selected={target} onKeyword={setKeyword}

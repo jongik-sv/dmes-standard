@@ -183,7 +183,7 @@ export default function CodeCateEditPage() {
         </div>
       )}
 
-      <ContentBody root>
+      <ContentBody root resizable storageKey="mdm.dmc.codeCateEdit">
         <ContentPanel width="30%">
           {view && (
             <CategoryListPanel rows={categoryRows} selectedCateId={selectedCateId} onSelect={setSelectedCateId}
@@ -192,34 +192,36 @@ export default function CodeCateEditPage() {
           {!view && <p data-testid="cate-empty" style={{ ...hint, padding: "var(--spacing-sm)" }}>마루 코드를 고르세요</p>}
         </ContentPanel>
 
-        <ContentPanel>
-          <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-            {selectedRow && selectedRow.cateId !== BASE_CATE_ID && (
-              <div style={{ padding: "var(--spacing-sm)" }}>
-                {selectedRow.defKind === "REGEX" ? (
-                  <RegexEditPanel
-                    cateName={selectedRow.cateName ?? ""} defExpr={selectedRow.defExpr ?? ""}
-                    defTarget={selectedRow.defTarget ?? "CODE"} editable={editable}
-                    onChangeName={(v) => handleEdit(selectedRow.cateId, { cateName: v })}
-                    onChangeExpr={(v) => handleEdit(selectedRow.cateId, { defExpr: v })}
-                    onChangeTarget={(v) => handleEdit(selectedRow.cateId, { defTarget: v })}
-                  />
-                ) : (
-                  <TransferListPanel items={items} memberCodes={membersByCate.get(selectedRow.cateId) ?? new Set()}
-                    editable={editable} onChange={handleMembersChange} />
-                )}
-              </div>
-            )}
-            {selectedRow && selectedRow.cateId === BASE_CATE_ID && (
-              <p style={{ ...hint, padding: "var(--spacing-sm)" }} data-testid="cate-base-readonly">
-                BASE 는 예약 카테고리라 편집·닫기를 할 수 없습니다
-              </p>
-            )}
-            <div style={{ flex: 1, minHeight: 0, borderTop: "1px solid var(--color-border)" }}>
-              <PreviewPanel defKind={selectedRow?.defKind ?? null} result={preview} />
+        <ContentBody direction="column" resizable storageKey="mdm.dmc.codeCateEdit.right">
+          <ContentPanel height={200}>
+            <div style={{ overflowY: "auto", height: "100%" }}>
+              {selectedRow && selectedRow.cateId !== BASE_CATE_ID && (
+                <div style={{ padding: "var(--spacing-sm)" }}>
+                  {selectedRow.defKind === "REGEX" ? (
+                    <RegexEditPanel
+                      cateName={selectedRow.cateName ?? ""} defExpr={selectedRow.defExpr ?? ""}
+                      defTarget={selectedRow.defTarget ?? "CODE"} editable={editable}
+                      onChangeName={(v) => handleEdit(selectedRow.cateId, { cateName: v })}
+                      onChangeExpr={(v) => handleEdit(selectedRow.cateId, { defExpr: v })}
+                      onChangeTarget={(v) => handleEdit(selectedRow.cateId, { defTarget: v })}
+                    />
+                  ) : (
+                    <TransferListPanel items={items} memberCodes={membersByCate.get(selectedRow.cateId) ?? new Set()}
+                      editable={editable} onChange={handleMembersChange} />
+                  )}
+                </div>
+              )}
+              {selectedRow && selectedRow.cateId === BASE_CATE_ID && (
+                <p style={{ ...hint, padding: "var(--spacing-sm)" }} data-testid="cate-base-readonly">
+                  BASE 는 예약 카테고리라 편집·닫기를 할 수 없습니다
+                </p>
+              )}
             </div>
-          </div>
-        </ContentPanel>
+          </ContentPanel>
+          <ContentPanel>
+            <PreviewPanel defKind={selectedRow?.defKind ?? null} result={preview} />
+          </ContentPanel>
+        </ContentBody>
       </ContentBody>
 
       {errorMessage && <ErrorModal message={errorMessage} onClose={() => setErrorMessage(null)} />}

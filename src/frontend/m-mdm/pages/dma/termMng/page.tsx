@@ -254,7 +254,7 @@ export default function TermMngPage() {
         </div>
       )}
 
-      <ContentBody root>
+      <ContentBody root resizable storageKey="mdm.dma.termMng">
         <ContentPanel>
           <GridPanel title="용어 목록" count={rows.length}>
             <AgDataGrid

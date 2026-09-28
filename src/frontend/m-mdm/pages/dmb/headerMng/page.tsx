@@ -186,7 +186,7 @@ export default function HeaderMngPage() {
         </SearchField>
       </SearchArea>
 
-      <ContentBody root>
+      <ContentBody root resizable storageKey="mdm.dmb.headerMng">
         <ContentPanel width="36%">
           <HeaderList rows={rows} selectedId={selectedId} loading={loading} onSelect={(r) => void openHeader(r.LAYOUT_ID)} />
         </ContentPanel>

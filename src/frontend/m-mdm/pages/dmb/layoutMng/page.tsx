@@ -358,7 +358,7 @@ export default function LayoutMngPage() {
           onChange={(v) => setFilters((f) => ({ ...f, rcvSystem: v }))} />
       </SearchArea>
 
-      <ContentBody root>
+      <ContentBody root resizable storageKey="mdm.dmb.layoutMng">
         <ContentPanel width="40%">
           <LayoutList rows={rows} selectedId={selectedId} loading={loading} onSelect={(r) => void openLayout(r.LAYOUT_ID)} />
         </ContentPanel>

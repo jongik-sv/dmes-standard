@@ -274,7 +274,7 @@ export default function DomainMngPage() {
           onChange={(v) => setFilters((f) => ({ ...f, domainKind: v }))} />
       </SearchArea>
 
-      <ContentBody root>
+      <ContentBody root resizable storageKey="mdm.dma.domainMng">
         <ContentPanel width="46%">
           <DomainTreeGrid rows={rows} selectedId={selectedId} loading={loading} onSelect={(r) => void openDomain(r.DOMAIN_ID)} />
         </ContentPanel>

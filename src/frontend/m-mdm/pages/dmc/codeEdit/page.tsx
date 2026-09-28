@@ -267,8 +267,8 @@ export default function CodeEditPage({ tabId, snapshot, onSnapshotChange }: Code
           </ContentPanel>
         </ContentBody>
       ) : (
-        <ContentBody root direction="column">
-          <ContentBody>
+        <ContentBody root direction="column" resizable storageKey="mdm.dmc.codeEdit">
+          <ContentBody resizable storageKey="mdm.dmc.codeEdit.top">
             <ContentPanel flex="1 1 0">
               <p style={cardTitle}>① 헤더</p>
               <table style={DETAIL_TABLE_STYLE}>

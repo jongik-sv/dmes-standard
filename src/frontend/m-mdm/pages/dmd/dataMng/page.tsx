@@ -131,7 +131,7 @@ export default function DataMngPage() {
         </SearchField>
       </SearchArea>
 
-      <ContentBody root>
+      <ContentBody root resizable storageKey="mdm.dmd.dataMng">
         <ContentPanel flex="1 1 0">
           <div data-testid="data-mng-list" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
             <div style={{ flex: 1, minHeight: 0 }}>

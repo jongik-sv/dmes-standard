@@ -356,7 +356,7 @@ export default function CodeItemEditPage() {
         </div>
       )}
 
-      <ContentBody root>
+      <ContentBody root resizable storageKey="mdm.dmc.codeItemEdit">
         <ContentPanel>
           <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
             <Tabs activeKey={tab} onChange={(k) => setTab(k as Tab)} items={[
@@ -431,23 +431,21 @@ export default function CodeItemEditPage() {
           </div>
         </ContentPanel>
 
-        <ContentPanel width="34%">
-          <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-            <div style={{ flex: 1, minHeight: 0 }}>
-              {view && selected && (
-                <PreviewPanel maruCodeId={maruCodeId} lvlCnt={lvlCnt} categories={view.categories ?? []}
-                  cateId={cateId} onCateChange={setCateId} mode={previewMode} onModeChange={setPreviewMode}
-                  result={preview} />
-              )}
-            </div>
-            {patchable && (
-              <div style={{ flex: 1, minHeight: 0, borderTop: "1px solid var(--color-border)" }}>
-                <PatchPanel row={patchRowValue} lvlCnt={lvlCnt} attrLabels={attrLabels} canPatch={canExecute}
-                  busy={busy} onSave={(v) => void handlePatch(v)} />
-              </div>
+        <ContentBody direction="column" width="34%" resizable storageKey="mdm.dmc.codeItemEdit.right">
+          <ContentPanel>
+            {view && selected && (
+              <PreviewPanel maruCodeId={maruCodeId} lvlCnt={lvlCnt} categories={view.categories ?? []}
+                cateId={cateId} onCateChange={setCateId} mode={previewMode} onModeChange={setPreviewMode}
+                result={preview} />
             )}
-          </div>
-        </ContentPanel>
+          </ContentPanel>
+          {patchable && (
+            <ContentPanel>
+              <PatchPanel row={patchRowValue} lvlCnt={lvlCnt} attrLabels={attrLabels} canPatch={canExecute}
+                busy={busy} onSave={(v) => void handlePatch(v)} />
+            </ContentPanel>
+          )}
+        </ContentBody>
       </ContentBody>
 
       {errorMessage && <ErrorModal message={errorMessage} onClose={() => setErrorMessage(null)} />}

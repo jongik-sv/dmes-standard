@@ -221,7 +221,7 @@ export default function DataCateEditPage() {
         </SearchField>
       </SearchArea>
 
-      <ContentBody root>
+      <ContentBody root resizable storageKey="mdm.dmd.dataCateEdit">
         <ContentPanel width={360}>
           <CategoryListPanel
             rows={rows}

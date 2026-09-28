@@ -180,7 +180,7 @@ export default function RuleMngPage() {
         />
       </SearchArea>
 
-      <ContentBody root>
+      <ContentBody root resizable storageKey="mdm.dme.ruleMng">
         <ContentPanel>
           <GridPanel title="룰 목록" count={totalCount}>
             <AgDataGrid

@@ -500,8 +500,8 @@ export default function DataItemMngPage() {
         </SearchField>
       </SearchArea>
 
-      <ContentBody root direction="column">
-        <ContentBody>
+      <ContentBody root direction="column" resizable storageKey="mdm.dmd.dataItemMng">
+        <ContentBody resizable storageKey="mdm.dmd.dataItemMng.top">
           <ContentPanel flex={1}>
             <div data-testid="item-list" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
               <Tabs

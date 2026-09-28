@@ -227,7 +227,7 @@ export default function UnitMngPage() {
         />
       </SearchArea>
 
-      <ContentBody root>
+      <ContentBody root resizable storageKey="mdm.dma.unitMng">
         <ContentPanel>
           <GridPanel title="단위 목록" count={rows.length}>
             <AgDataGrid
