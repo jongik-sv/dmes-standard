@@ -32,7 +32,8 @@ function timeInput(label: string): HTMLInputElement {
 
 /**
  * `DateTimePicker` 트리거(testid 를 돌려주는 함수)에 `yyyy-MM-dd HH:mm:ss` 값을 넣는다.
- * 트리거는 Mantine 이 `<button role=combobox>` 로 그린다(datetime-local `input[type=...]` 이 아니다).
+ * 트리거는 진짜 `<input>` 이라 직접 치는 것도 되지만(시험 대상), 여기서는 달력 + 시·분·초 칸을 조작해
+ * 화면 사용자가 고르는 경로를 태운다.
  */
 export async function pickDateTime(trigger: () => HTMLElement, value: string): Promise<void> {
   const m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/.exec(value);
@@ -76,9 +77,9 @@ export async function pickDateTime(trigger: () => HTMLElement, value: string): P
     await settle();
   }
 
-  // 트리거를 다시 눌러 패널을 닫는다(다음 클릭이 패널 뒤에 가려지지 않게).
+  // Escape 로 패널을 닫는다(입력 칸에 되돌린 뒤 닫힌다).
   await act(async () => {
-    trigger().click();
+    trigger().dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
   });
   await settle();
 }

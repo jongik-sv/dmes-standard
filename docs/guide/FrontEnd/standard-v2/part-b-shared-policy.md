@@ -190,8 +190,13 @@ import "@dk-oasis/shared/form.css";
 - MUST: 모든 입력 컨트롤은 본 모듈에서 가져온다.
 - 날짜·시각은 `DatePicker`(날짜)·`DateTimePicker`(날짜 + 시각) 래퍼를 쓴다. 두 값 모두 문자열이다.
   `DateTimePicker` 는 `yyyy-MM-dd HH:mm:ss` 를 주고받으며 24시간제·초까지 입력한다(브라우저 기본
-  `datetime-local` 은 OS 지역 설정과 브라우저마다 달라 보이므로 쓰지 않는다). 날짜는 달력, 시각은
-  패널의 시·분·초 칸으로 고친다.
+  `datetime-local` 은 OS 지역 설정과 브라우저마다 달라 보이므로 쓰지 않는다).
+  - 입력 칸이 진짜 `<input>` 이다. `yyyy-MM-dd HH:mm:ss` 를 직접 치거나 붙여 넣으면 곧바로 값이 된다.
+    읽을 수 없는 글자(빈 값·`2026-13-01`·`25:00:00`·초 없는 값)는 값을 바꾸지 않고, 포커스를 벗어나면
+    원래 값으로 되돌린다(`DateInput` 의 `fixOnBlur` 와 같다). Enter 는 확정 + 닫기, Escape 는 되돌리고 닫기.
+  - 입력 칸을 누르면 달력 + 시·분·초 패널이 열린다. 날짜는 달력으로, 시각은 패널의 시·분·초 칸(24시간제)으로
+    고친다. 두 길은 모두 살아 있다.
+  - `parseDateTime`(`@dk-oasis/shared/form`) 으로 같은 규칙을 순수 판정할 수 있다.
 
 ---
 

@@ -447,20 +447,65 @@ describe("RuleConfirmPage", () => {
     expect(confirmButton().disabled).toBe(false);
   });
 
-  it("희망 적용 시작 일시는 24시간제·초까지 입력된다 — picker 값이 초를 보존해 검사·확정에 그대로 실린다", async () => {
+  it("희망 적용 시작 일시는 입력 칸에 직접 칠 수 있다 — 24시간제·초가 그대로 실린다", async () => {
     openMdmPage("dme/ruleConfirm", { maruRuleId: "QLTY_GRD_JDG", ver: "2" });
     await render();
-    // datetime-local 이 아니다 — 클릭해서 여는 picker 다.
-    const trigger = byTestId("rc-apply-from") as HTMLElement;
-    expect(trigger.tagName).toBe("BUTTON");
-    expect(trigger.textContent).toContain("YYYY-MM-DD HH:mm:ss");
+    const input = byTestId("rc-apply-from") as HTMLInputElement;
+    // datetime-local 이 아니라 직접 칠 수 있는 text 입력이다.
+    expect(input.tagName).toBe("INPUT");
+    expect(input.getAttribute("type")).toBeNull();
+    expect(input.placeholder).toBe("YYYY-MM-DD HH:mm:ss");
 
+    await typeTestId("rc-apply-from", "2026-10-01 21:45:37");
+    expect(input.value).toBe("2026-10-01 21:45:37");
+    await click(byTestId("rc-validate"));
+    // 초까지 서버로 간다(I38).
+    expect(actions("validate").map((c) => c.params)).toEqual([
+      { maruRuleId: "QLTY_GRD_JDG", ver: 2, applyFrom: "2026-10-01 21:45:37" },
+    ]);
+    expect(confirmButton().disabled).toBe(false);
+  });
+
+  it("입력 칸에 못 읽는 형식을 치면 값은 그대로이고, 포커스를 벗어나면 원래 값으로 되돌린다", async () => {
+    await openAndValidate();
+    const input = byTestId("rc-apply-from") as HTMLInputElement;
+    expect(input.value).toBe("2026-10-01 00:00:00");
+
+    await typeTestId("rc-apply-from", "2026-10-01 25:00:00");
+    // 값은 바뀌지 않았다(검사한 값과 같아 확정 버튼은 그대로 켜져 있다).
+    expect(actions("validate")).toHaveLength(1);
+    expect(confirmButton().disabled).toBe(false);
+    // 포커스를 벗어나면 원래 값으로 되돌린다.
+    await act(async () => {
+      input.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+    });
+    await flush();
+    expect(input.value).toBe("2026-10-01 00:00:00");
+
+    // 유효한 값을 직접 치면 '지금 입력값' 이 바뀐다 — 검사한 값과 달라져 확정 버튼은 꺼진다(I34).
+    await typeTestId("rc-apply-from", "2026-10-01 09:30:15");
+    expect(confirmButton().disabled).toBe(true);
+    await click(byTestId("rc-validate"));
+    expect(actions("validate").at(-1)?.params).toEqual({
+      maruRuleId: "QLTY_GRD_JDG", ver: 2, applyFrom: "2026-10-01 09:30:15",
+    });
+    expect(confirmButton().disabled).toBe(false);
+    await click(confirmButton());
+    await click(okButton());
+    expect(actions("confirm").map((c) => c.params.applyFrom)).toEqual(["2026-10-01 09:30:15"]);
+  });
+
+  it("달력·시분초 패널로 고른 값도 24시간제·초까지 입력 칸에 보인다", async () => {
+    openMdmPage("dme/ruleConfirm", { maruRuleId: "QLTY_GRD_JDG", ver: "2" });
+    await render();
+    const input = byTestId("rc-apply-from") as HTMLElement;
+    expect(input.textContent).toBe("");
     await pickApplyFrom("2026-10-01 21:45:37");
     // 트리거 표기가 24시간제(오후 표시 없음) + 초.
-    expect(trigger.textContent).toBe("2026-10-01 21:45:37");
+    expect((input as HTMLInputElement).value).toBe("2026-10-01 21:45:37");
     // 시·분·초 세 칸만 있고 오전/오후 select 는 없다.
     await act(async () => {
-      trigger.click();
+      input.click();
     });
     await flush();
     const panel = document.body.querySelector("[data-dates-dropdown]")!;
@@ -468,10 +513,6 @@ describe("RuleConfirmPage", () => {
     // select 은 달력의 연·월 2개뿐 — 오전/오후 select 는 없다(24시간제).
     expect(panel.querySelectorAll("select")).toHaveLength(2);
     expect(panel.textContent).not.toMatch(/AM|PM/);
-    await act(async () => {
-      trigger.click();
-    });
-    await flush();
 
     await click(byTestId("rc-validate"));
     // 초까지 서버로 간다(I38).
