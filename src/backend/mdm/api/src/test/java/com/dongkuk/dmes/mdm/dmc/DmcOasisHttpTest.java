@@ -130,10 +130,22 @@ class DmcOasisHttpTest {
         assertEquals("steward", lock.path("data").path("result").path("versions").path(0).path("ownerId").asText());
         assertEquals("steward", jdbc.queryForObject("SELECT OWNER_ID FROM TB_MDM_CODE_VER", String.class));
 
-        JsonNode byAdmin = post("codeEdit", "unlock", STD_ADMIN, envelope("codeEdit", draftParams(2)));
+        // 해제(unlock)는 ADR-0002 D3 예외 — 역할을 보지 않는다. 소유자(steward)가 담당자 역할 없이 풀 수 있다.
+        // 이 게이트가 있었을 때 OWNER_ID='admin' 인 PROC_CD DRAFT 를 admin(담당자 아님) 본인이 못 풀었다.
+        JsonNode ownerNoRole = post("codeEdit", "unlock", STD_ADMIN, "steward", envelope("codeEdit", draftParams(2)));
+        assertTrue(ownerNoRole.path("meta").path("success").asBoolean(false),
+                "소유자는 담당자 역할이 없어도 해제할 수 있다 — " + ownerNoRole);
+        JsonNode ownerRow = ownerNoRole.path("data").path("result").path("versions").path(0);
+        assertTrue(ownerRow.path("ownerId").isNull(), ownerNoRole.toString());
+        assertEquals(3, ownerRow.path("rowVersion").asInt(), ownerNoRole.toString());
+
+        // 반대로 남(담당자 아님)은 여전히 못 푼다 — 게이트가 역할이 아니라 소유자다.
+        post("codeEdit", "lock", STEWARD, envelope("codeEdit", draftParams(3)));
+        JsonNode byAdmin = post("codeEdit", "unlock", STD_ADMIN, envelope("codeEdit", draftParams(4)));
         assertFalse(byAdmin.path("meta").path("success").asBoolean(true), byAdmin.toString());
         assertTrue(byAdmin.path("meta").path("message").asText().startsWith(
-                MdmErrorCode.STEWARD_ROLE_REQUIRED.defaultMessage()), byAdmin.toString());
+                MdmErrorCode.NOT_DRAFT_OWNER.defaultMessage()), byAdmin.toString());
+        assertEquals("steward", jdbc.queryForObject("SELECT OWNER_ID FROM TB_MDM_CODE_VER", String.class));
     }
 
     private ObjectNode draftParams(int rowVersion) {

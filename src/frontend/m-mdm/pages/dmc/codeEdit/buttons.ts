@@ -40,9 +40,16 @@ export function versionButtons(view: CodeEditView | null, selectedVer: string | 
   const unapplied = flags?.unappliedCount ?? 0;
   const deprecated = view?.header.storedStatus === "DEPRECATED";
   const selected = view?.versions.find((v) => v.ver === selectedVer) ?? null;
+  // `draft`·`mine`·`free` 는 담당자(I12) 쓰기 — 저장·폐기·선점·넘기기·확정 이동·DRAFT 삭제의 기준.
   const draft = editable && selected?.status === "DRAFT";
   const mine = draft && !!view?.me && selected?.ownerId === view.me;
   const free = draft && !selected?.ownerId;
+  // 해제(unlock)만 예외다 — ADR-0002 D3: "해제·넘기기·저장·삭제·확정은 소유자만 한다. 관리자 강제 해제·넘기기는 없다.
+  // 소유권은 역할이 아니라 owner_id 로 판정하고, 역할은 '할 수 있는가' 만 판정한다." 역할을 잃은 소유자도 풀 수 있어야
+  // DRAFT 가 영구히 묶이지 않는다. 공통 소유권 서비스(DefaultDraftOwnershipService)·룰 영역 RuleVersionService.unlock 과 같다.
+  // 원천 MDM(I8)·소유자·미적용 1개(I6·D7) 조건은 그대로 둔다.
+  const releasable = view?.header.sourceKind === "MDM" && selected?.status === "DRAFT"
+    && !!view?.me && selected?.ownerId === view.me;
   const single = unapplied === 1;
 
   let newVersionHint: string | null = null;
@@ -57,7 +64,7 @@ export function versionButtons(view: CodeEditView | null, selectedVer: string | 
     newMinor: on(editable && !!flags?.canNewMinor, flags?.minorLimit ? MINOR_LIMIT_HINT : undefined),
     delete: on(mine),
     lock: on(free && single),
-    unlock: on(mine && single),
+    unlock: on(releasable && single),
     handover: on(mine && single),
     confirmMove: on(mine && single),
     itemEdit: on(mine && single),

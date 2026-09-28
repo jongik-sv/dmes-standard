@@ -17,12 +17,14 @@ function view(opts: {
   canNewMinor?: boolean;
   minorLimit?: boolean;
   editable?: boolean;
+  sourceKind?: string;
   storedStatus?: string;
   unappliedLabel?: string;
 } = {}): CodeEditView {
   return {
     header: {
-      maruCodeId: "PROC_CD", maruCodeName: "공정", description: null, lvlCnt: 0, sourceKind: "MDM", status: "INUSE",
+      maruCodeId: "PROC_CD", maruCodeName: "공정", description: null, lvlCnt: 0, sourceKind: opts.sourceKind ?? "MDM",
+      status: "INUSE",
       storedStatus: opts.storedStatus ?? "INUSE", auditVer: 0, currentVerLabel: "v1.000",
       unappliedLabel: opts.unappliedLabel ?? "없음",
     },
@@ -68,7 +70,11 @@ describe("versionButtons", () => {
     const deprecated = versionButtons(view({ storedStatus: "DEPRECATED", canNewMajor: false, canNewMinor: false }), "1.000");
     expect(deprecated.newMajor.enabled).toBe(false);
     expect(deprecated.deprecate.enabled).toBe(false);
-    const external = versionButtons(view({ editable: false, versions: [row("1.000", "DRAFT", "me")], unappliedCount: 1 }), "1.000");
+    // 편집 불가의 두 원인을 나눈다 — 원천 EXTERNAL(I8)과 담당자 아님(I12). 둘 다 쓰기를 잠그지만 해제만 예외다(ADR-0002 D3).
+    const external = versionButtons(
+      view({ editable: false, sourceKind: "EXTERNAL", versions: [row("1.000", "DRAFT", "me")], unappliedCount: 1 }),
+      "1.000",
+    );
     for (const k of [...VERSION_KEYS, "newMajor", "newMinor", "headerSave", "deprecate"] as const) {
       expect(external[k].enabled, k).toBe(false);
     }
@@ -119,6 +125,35 @@ describe("versionButtons", () => {
     }
     const free = versionButtons(view({ versions: [row("1.002", "DRAFT", null), row("1.001", "DRAFT", "me")], unappliedCount: 2 }), "1.002");
     expect(free.lock.enabled).toBe(false);
+  });
+
+  it("해제(unlock)만 담당자 게이트 밖이다 — 내가 소유한 DRAFT 면 flags.editable=false 여도 켜진다(ADR-0002 D3)", () => {
+    // 재현 조건: TB_MDM_CODE_VER.OWNER_ID='admin' 인 PROC_CD 2.000 DRAFT 를 소유자 본인(admin)이 열었는데
+    // 담당자(MDM_STEWARD) 역할이 없어 flags.editable=false → 편집자·선점·넘기기·확정 이동은 꺼지고,
+    // 해제까지 꺼져 DRAFT 가 영구히 묶였다. 해제만 소유자(owner_id) 판정으로 되돌린다.
+    const b = versionButtons(
+      view({ versions: [row("2.000", "DRAFT", "me")], unappliedCount: 1, editable: false, canNewMajor: false, canNewMinor: false }),
+      "2.000",
+    );
+    expect(b.unlock.enabled, "내 DRAFT 해제는 역할과 무관해야 한다").toBe(true);
+    // 나머지 쓰기 액션은 I12 담당자 게이트를 유지한다.
+    for (const k of ["delete", "lock", "handover", "confirmMove", "itemEdit", "cateEdit"] as const) expect(b[k].enabled, k).toBe(false);
+  });
+
+  it("해제도 원천이 EXTERNAL 이면 꺼진다(I8)", () => {
+    const b = versionButtons(
+      view({ versions: [row("2.000", "DRAFT", "me")], unappliedCount: 1, sourceKind: "EXTERNAL" }),
+      "2.000",
+    );
+    expect(b.unlock.enabled).toBe(false);
+  });
+
+  it("담당자가 아니어도 남의 DRAFT 의 해제는 꺼진다(해제는 소유자 전용, MDM003)", () => {
+    const b = versionButtons(
+      view({ versions: [row("2.000", "DRAFT", "other")], unappliedCount: 1, editable: false }),
+      "2.000",
+    );
+    expect(b.unlock.enabled).toBe(false);
   });
 
   it("RELEASED·CANCELLED 선택: 버전 버튼 비활성", () => {

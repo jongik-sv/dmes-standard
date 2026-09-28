@@ -274,13 +274,53 @@ class CodeEditVersionSqliteTest {
 
         currentUser.set("stw1", Set.of("MDM_STD_ADMIN"));
         assertCode(MdmErrorCode.STEWARD_ROLE_REQUIRED, () -> draft(service::acquire, "1.000", 0L, null));
-        assertCode(MdmErrorCode.STEWARD_ROLE_REQUIRED, () -> draft(service::release, "1.000", 0L, null));
         assertCode(MdmErrorCode.STEWARD_ROLE_REQUIRED, () -> draft(service::handover, "1.000", 0L, "stw2"));
         assertCode(MdmErrorCode.STEWARD_ROLE_REQUIRED, () -> draft(service::deleteDraft, "1.000", 0L, null));
         assertCode(MdmErrorCode.STEWARD_ROLE_REQUIRED, () -> create("MAJOR"));
         assertCode(MdmErrorCode.STEWARD_ROLE_REQUIRED, () -> tx.execute(s -> service.restoreVersion(restoreReq("MAJOR", "1.000"))));
         assertEquals("stw1", jdbc.queryForObject("SELECT OWNER_ID FROM TB_MDM_CODE_VER", String.class));
         assertEquals(1, seeds.count("TB_MDM_CODE_VER"));
+    }
+
+    /**
+     * V9c 해제(unlock)는 ADR-0002 D3 에 따라 <b>역할이 아니라 소유자로만</b> 판정한다 — "관리자 강제 해제는 없다".
+     * 역할을 잃은 소유자도 풀 수 있어야 DRAFT 가 영구히 묶이지 않는다. 마루 코드만 이 판정에서 빠졌고 그래서
+     * {@code OWNER_ID='admin'} 인 PROC_CD 2.000 DRAFT 를 소유자本人이 열어도 해제할 수 없었다.
+     * {@link com.dongkuk.dmes.mdm.common.version.DefaultDraftOwnershipService} 계약·룰 영역
+     * ({@code RuleVersionService.unlock})과 같은 판정이다.
+     */
+    @Test
+    void V9c_해제는_담당자_역할이_아니라_소유자로만_판정한다() {
+        registered(); // 1.000 DRAFT, OWNER_ID=stw1
+        currentUser.set("stw1", Set.of("MDM_STD_ADMIN")); // 표준관리자만 — 담당자 아님(I12 관점으로는 못 고치는 사람)
+        assertFalse(view().getFlags().isEditable(), "담당자가 아니면 flags.editable=false");
+        assertEquals("stw1", view().getMe());
+
+        // 본인이 소유한 DRAFT 면 역할을 요구하지 않는다(해제 성공).
+        CodeEditView unlocked = draft(service::release, "1.000", 0L, null);
+        CodeVersionRow row = unlocked.getVersions().stream().filter(v -> "1.000".equals(v.getVer())).findFirst().orElseThrow();
+        assertNull(row.getOwnerId());
+        assertEquals(1L, row.getRowVersion());
+        assertNull(jdbc.queryForObject("SELECT OWNER_ID FROM TB_MDM_CODE_VER", String.class));
+
+        // 다시 선점된 뒤 다른 사용자(담당자 아님)가 해제하면 MDM003 — 해제는 소유자 전용이다.
+        jdbc.update("UPDATE TB_MDM_CODE_VER SET OWNER_ID = 'stw1' WHERE VER = 1");
+        currentUser.set("stw2", Set.of("MDM_STD_ADMIN"));
+        assertCode(MdmErrorCode.NOT_DRAFT_OWNER, () -> draft(service::release, "1.000", 0L, null));
+        assertEquals("stw1", jdbc.queryForObject("SELECT OWNER_ID FROM TB_MDM_CODE_VER", String.class));
+    }
+
+    /** V9d 해제에도 미적용 2개 규칙(I6·D7)은 그대로다 — 역할만 뺀다. */
+    @Test
+    void V9d_해제도_미적용_2개면_MDM007_이다() {
+        seeds.seedCode(ID, "INUSE", "MDM");
+        seeds.released(ID, "1.000", PAST, OPEN_END);
+        seeds.draft(ID, "1.001", "stw1");
+        seeds.draft(ID, "1.002", "stw2");
+        as("stw1");
+        currentUser.set("stw1", Set.of("MDM_STD_ADMIN"));
+        assertCode(MdmErrorCode.MULTIPLE_UNAPPLIED_VERSIONS, () -> draft(service::release, "1.001", 0L, null));
+        assertEquals("stw1", jdbc.queryForObject("SELECT OWNER_ID FROM TB_MDM_CODE_VER WHERE VER = 1.001", String.class));
     }
 
     @Test

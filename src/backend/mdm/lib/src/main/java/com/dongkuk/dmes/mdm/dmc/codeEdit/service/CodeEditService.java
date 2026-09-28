@@ -58,8 +58,10 @@ import org.springframework.stereotype.Service;
  * {@code actionGateway} 분기와 1:1 이다(design §6.1 표).
  *
  * <p><b>{@code @Transactional} 을 붙이지 않는다(MUST)</b> — 트랜잭션은 OASIS 프로세스가 건다. 모든 쓰기 액션은 첫 줄에서
- * 담당자 가드를 부른다(I12). TB_MDM_CODE 쓰기는 {@link MdmCode} 엔티티 경로 하나로 한다(네이티브 UPDATE 와 섞으면 flush 때
- * 옛 감사 카운터로 덮어쓴다). 응답은 flush 뒤 네이티브 조회 모델로 만든다(I23).
+ * 담당자 가드를 부른다(I12) — 단 <b>해제({@link #release})만 예외다</b>: ADR-0002 D3 이 해제를 "소유자만 한다"(역할 미보)로
+ * 정했고 공통 {@code DefaultDraftOwnershipService}·룰 영역 {@code RuleVersionService.unlock} 과 같은 판정이다. TB_MDM_CODE
+ * 쓰기는 {@link MdmCode} 엔티티 경로 하나로 한다(네이티브 UPDATE 와 섞으면 flush 때 옛 감사 카운터로 덮어쓴다). 응답은 flush
+ * 뒤 네이티브 조회 모델로 만든다(I23).
  */
 @Service("codeEditService")
 public class CodeEditService {
@@ -258,9 +260,19 @@ public class CodeEditService {
         return buildView(ref.objectId());
     }
 
+    /**
+     * DRAFT 해제(unlock) — <b>역할을 보지 않는다</b>(ADR-0002 D3: "해제·넘기기·저장·삭제·확정은 소유자만 한다. 관리자 강제
+     * 해제·넘기기는 없다. 소유권은 역할이 아니라 {@code owner_id} 로 판정하고, 역할은 '할 수 있는가' 만 판정한다").
+     *
+     * <p>그래서 담당자 가드를 두지 않는다 — {@code DefaultDraftOwnershipService} 계약("해제는 역할을 요구하지 않는다 —
+     * 역할을 잃은 소유자도 풀 수 있어야 DRAFT 가 묶이지 않는다")과 룰 영역 {@code RuleVersionService.unlock} 이 같은 판정이다.
+     * 이 가드가 있었을 때 소유자 본인(예: {@code OWNER_ID='admin'} 인 PROC_CD 2.000 DRAFT)이 담당자 역할이 없어 자기
+     * 잠금을 영영 못 풀었다. 소유자·row_version·DRAFT 검사는 공통 서비스가 그대로 하고, 미적용 2개 규칙(I6·D7)만 유지한다.
+     */
     public CodeEditView release(CodeDraftRequest request) {
-        VersionRef ref = ownershipTarget(request);
+        VersionRef ref = releaseTarget(request);
         ownership.release(ref, rowVersion(request), currentUser.userId());
+        log.info("[codeEdit] unlock — {}", ref);
         return buildView(ref.objectId());
     }
 
@@ -273,6 +285,11 @@ public class CodeEditService {
     /** 소유권 연산 머리: 담당자 가드(I12) → 미적용 2개 이상이면 MDM007(D7 — 공통 서비스는 막지 않는다). */
     private VersionRef ownershipTarget(CodeDraftRequest request) {
         stewardGuard.requireSteward();
+        return releaseTarget(request);
+    }
+
+    /** 미적용 2개(I6·D7)만 보는 머리 — 해제(unlock)는 담당자 가드를 거치지 않는다(위 {@link #release} javadoc). */
+    private VersionRef releaseTarget(CodeDraftRequest request) {
         VersionRef ref = draftRef(request);
         LocalDateTime now = now();
         long unapplied = ledger.versions(ref.objectId()).stream()
