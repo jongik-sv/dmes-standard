@@ -80,7 +80,7 @@
 | `_shared/field-tips.ts` | FormGroup `tip` 사전(src/ 하위 FormGroup 은 tip 필수 — §4 census) |
 | `_shared/lookups/` | Item/Bom/Routing 등 공용 Lookup 모달 8종 |
 | `_shared/timeline-zoom.ts` | 간트·타임라인 줌 앵커/센터 스크롤(scheduling·planning 공유) |
-| `_shared/ResizableSplitV.tsx` | 상하 분할 리사이저 |
+| `_shared/ResizableSplitV.tsx` | 상하 분할 리사이저 (기존 화면 계속 사용) — 신규 분할 화면은 `ContentBody resizable` 을 쓴다(Frontend Part B §4-3) |
 | `_shared/useItemGroupCascade.ts` | 공장→자재그룹 캐스케이드 |
 | `_types/api.ts` | `ApiResponse<T>`/`PageResponse<T>` 정본 — **로컬 재정의 금지** |
 | `_types/useBackendTokenSync.ts` | BE 토큰 동기화 — 페이지 mount 시 호출 + `tokenReady` 게이트 후 초기 fetch (MUST) |

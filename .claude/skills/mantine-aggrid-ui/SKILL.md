@@ -53,7 +53,7 @@ python3 $D/aggrid_docs.py recommendations           # 공식 ag-dev 의 LLM 흔�
 
 | 필요 | 쓸 것 |
 |---|---|
-| 화면 골격·상단 버튼 바(조회·저장·초기화) | `layout`: `PageLayout` (`buttons`), `ContentBody`, `ContentPanel` |
+| 화면 골격·상단 버튼 바(조회·저장·초기화) | `layout`: `PageLayout` (`buttons`), `ContentBody`, `ContentPanel`. 좌우·상하 분할(`ContentPanel`/중첩 `ContentBody` 2개 이상)은 `resizable`+`storageKey` — Part B §4-3 |
 | 조회조건 | `layout`: `SearchArea`, `SearchField` (`label="~"` 은 앞 필드와 기간 쌍) |
 | 입력·선택·날짜·버튼 | `form`: `Button`, `Input`, `Select`, `ComboBox`, `DatePicker`, `Textarea`, `Checkbox`, `Radio` … |
 | 데이터 그리드 | `grid`: `AgDataGrid`(기본), `GridPanel`, `useGridDataManager` — 열은 `GridColumn`, ag-grid `ColDef` 아님 |

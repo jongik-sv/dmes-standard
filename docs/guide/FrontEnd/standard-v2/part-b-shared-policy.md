@@ -119,6 +119,7 @@ import "@dk-oasis/shared/layout.css";
 ```
 
 - MUST: 페이지 상단 타이틀·버튼바·검색 영역·본문은 위 구성으로만 작성한다.
+- MUST: 화면을 좌우 또는 상하로 분할하는 경우(§4-3)는 리사이즈 가능하게 만든다.
 
 ### 4-1. 공통 디자인 토큰 `/variables.css`
 
@@ -143,6 +144,25 @@ import { ColorSchemeScript, DmesUiProvider, dmesTheme } from "@dk-oasis/shared/u
 - MAY: `dmesTheme` 은 `DmesUiProvider` 가 이미 적용하므로 호스트가 직접 쓸 일은 없다. 테스트 하네스나 Storybook 처럼 Provider 를 직접 구성하는 경우에만 참조한다.
 - MUST: 테마 값(팔레트 `dmes`·`danger`·`loginBrand`, Pretendard, 반경 3px, 기본 크기 `xs`=26px)과 토스트 위치(우측 하단)는 [UI 시각 표준](../UI-Visual-Standard.md) §4·§8 이 정본이다.
 - MUST NOT: 화면 모듈에서 `@mantine/*` 를 직접 import 하지 않는다. 필요한 컴포넌트가 shared 에 없으면 shared 에 추가한다(§17 참조).
+
+### 4-3. 분할 영역 크기 조절 (`ContentBody resizable`)
+
+화면을 좌우 또는 상하로 분할하는 경우(`ContentBody` 안에 `ContentPanel` 이나 중첩 `ContentBody` 를 2개 이상 두는 경우)는 사용자가 크기를 조절할 수 있게 만든다.
+
+```tsx
+<ContentBody root resizable storageKey="mdm.dma.columnMng">
+  <ContentPanel minSize={200}>...</ContentPanel>
+  <ContentPanel minSize={200}>...</ContentPanel>
+</ContentBody>
+```
+
+- MUST: 직접 자식인 `ContentPanel`·`ContentBody` 사이에 드래그 막대가 들어가도록 분할 영역은 `ContentBody`/`ContentPanel` 를 직접 자식으로 둔다. Fragment 나 다른 컴포넌트로 감싸지 않는다. `div`·CSS grid 로 직접 분할하지 않는다.
+- MUST: `storageKey` 는 `<모듈>.<디렉터리>.<화면>` 형식을 쓴다(예: `mdm.dma.columnMng`). 중첩 분할은 `storageKey="<...>.<부위>"` 처럼 접미사를 붙이고(예: `mdm.dma.columnMng.bottom`), 중첩 `ContentBody` 에도 `resizable` 을 준다.
+- 동작: px 패널은 px 로, `%` 패널은 `%` 로, 둘 다 `flex` 면 비율로 조절된다. 크기는 localStorage 에 사용자·화면별로 저장된다. 더블클릭하면 기본 크기로 돌아가고, 방향키로 10px 씩 움직인다. 최대화 중에는 막대가 숨겨진다.
+- 최소 크기: `ContentPanel`·중첩 `ContentBody` 의 `minSize`(px) prop. 기본값은 row 200 / column 120.
+- 중첩 `ContentBody` 는 부모 안에서의 크기를 `width` / `height` / `flex` prop 으로 받는다(`ContentPanel` 과 같은 규칙).
+- MUST NOT: 우측 폼 폭만 조절하는 기존 `ResizableFormPanel` 을 신규 화면에 쓰지 않는다 — 위 방식(`ContentBody resizable`)을 쓴다.
+- 구현: `src/frontend/shared/src/layout/{ContentBody,ContentPanel,split-sizing}.{tsx,ts}`. 적용 예시: `src/frontend/m-mdm/pages/dma/columnMng/page.tsx`.
 
 ---
 

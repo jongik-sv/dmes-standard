@@ -255,7 +255,7 @@ PortalShell 은 활성 탭의 **하단 우측 모서리**에 `pageId` 를 작은
 
 - `PageLayout.buttons` : 페이지 최상단 버튼 바. **별도 A-TOOLBAR 영역을 신설하지 않는다** — 기본 CRUD·업무 특화 버튼 모두 `buttons` 배열로 전달. (MUST)
 - `SearchArea` : 조회조건 묶음. 업무가 복잡하면 `SearchField` 를 여러 행으로 자동 wrap.
-- `ContentBody` / `ContentPanel` : 그리드·폼·분할·다단 구성의 컨테이너. 2단/3단 그리드는 `ContentPanel` 을 세로로 나열하고 필요 시 리사이저 삽입.
+- `ContentBody` / `ContentPanel` : 그리드·폼·분할·다단 구성의 컨테이너. `ContentBody` 안에 `ContentPanel`·중첩 `ContentBody` 를 2개 이상 두면(2단/3단 그리드, 좌우·상하 분할) 리사이즈 가능하게 만든다(MUST). 구현 규칙(`resizable`/`storageKey`/`minSize`)은 [Frontend Part B](../../FrontEnd/standard-v2/part-b-shared-policy.md) §4-3 이 정본이다.
 - import: `import { PageLayout, SearchArea, SearchField, ContentBody, ContentPanel } from "@dk-oasis/shared/layout";` (Frontend §14-2, §4)
 
 #### A.3-2-3. 업무 특화 버튼이 다수인 화면 (A-TOOLBAR 의미)
@@ -292,7 +292,7 @@ PortalShell 은 활성 탭의 **하단 우측 모서리**에 `pageId` 를 작은
 
 - 각 그리드는 **업무 단계를 의미**한다 (예: 미진행 → 진행/완료).
 - 그리드 제목에 **단계명 + 건수** 표기: `"미진행 건 (N행 조회됨)"`. (MUST)
-- 그리드 간에 **드래그 리사이저** 제공하여 사용자가 비중 조절 가능. (MUST)
+- 그리드 간에 **드래그 리사이저** 제공하여 사용자가 비중 조절 가능. (MUST — 구현은 [Frontend Part B](../../FrontEnd/standard-v2/part-b-shared-policy.md) §4-3)
 - 통합 조회 API **1회 호출** 로 모든 그리드를 동시 갱신. (SHOULD, BPMN 설계와 연계)
 - 3단 이상은 업무 정당화 필수. 남용 금지. (MUST)
 
@@ -367,12 +367,12 @@ PortalShell 은 활성 탭의 **하단 우측 모서리**에 `pageId` 를 작은
 | `@dk-oasis/shared/dist/...` 직접 import | FE §5-2 금지 (빌드 의존) |
 | 상대경로 체인(`../../../`) 으로 shared 또는 타 도메인 import | FE §5-2 금지 |
 | **외부 아이콘 라이브러리 (lucide-react / @mui/icons-material / @ui5/icons 등) 도입** | m-mpn 실제 코드에 0건 — 인라인 SVG 패턴으로 통일 (§A.5-4) |
-| 설계서에 `FilterBar / DataGrid / SplitPanel / BottomBar / Toolbar / Pagination / Resizer / IconButton` 등 **shared에 없는 가상 이름** 기재 | shared 실제 이름은 `PageLayout / SearchArea / SearchField / ContentBody / ContentPanel / AgDataGrid / GridPanel / Modal / ComboBox / DatePicker / Button / Tree / Spinner` 등 — §A.10 참조 |
+| 설계서에 `FilterBar / DataGrid / SplitPanel / BottomBar / Toolbar / Pagination / Resizer / IconButton` 등 **shared에 없는 가상 이름** 기재 | shared 실제 이름은 `PageLayout / SearchArea / SearchField / ContentBody / ContentPanel / AgDataGrid / GridPanel / Modal / ComboBox / DatePicker / Button / Tree / Spinner` 등 — §A.10 참조. 분할선(Resizer)은 `ContentBody resizable` 이 자동 삽입하므로 별도 컴포넌트로 기재하지 않는다 |
 | 기능설계서 영역ID 임의 변경 | 교차 참조 깨짐 |
 | 그리드 컬럼 한글명만으로 정의 | DB 매핑 불가 |
 | **조회조건 20+ 필드를 1행에 밀집 배치** | 가독성·사용성 파괴 — **5~6행 그룹핑 필수** |
 | **A-TOOLBAR 아이콘 버튼에 툴팁 없이 사용** | 업무 특화 버튼은 아이콘만으로 의미 인지 불가 — hover 툴팁 한글 라벨 MUST |
-| **다단 그리드에서 그리드 간 분할선 고정** | 업무 비중이 다양 — 리사이저 MUST |
+| **다단 그리드에서 그리드 간 분할선 고정** | 업무 비중이 다양 — 리사이저 MUST(Frontend Part B §4-3) |
 | **다단 그리드에서 건수 표기 누락** | "미진행 건 (N행 조회됨)" 형태로 제목에 건수 표기 MUST |
 | **그리드 인라인 편집 허용 영역 불명확** | 상태별/역할별 편집 가능 셀을 §4 에 명시 MUST (시각적 구분도 필수) |
 | 모바일 레이아웃 상세 설계 | MES 모바일 미지원 |

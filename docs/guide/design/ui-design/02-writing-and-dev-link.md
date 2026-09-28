@@ -85,7 +85,7 @@ ASCII 박스 문자 세트 사용: `┌ ┐ └ ┘ ├ ┤ ┬ ┴ ┼ ─ │`
 | §A.2-1 FE 연계 값 (mesModule/moduleGroup/screenId(=pageId=serviceId)/페이지유형/Frontend 파일/tsup entry) | §2-2, §2-3 | 기능설계서와 동일 값 1:1. **MES**: `screenId = pageId = serviceId` 단일 토큰 `{화면명}`. **APS 예외**: kebab + `-page.tsx`. |
 | 페이지 유형 (A~E) | §3-1 유형 + §3-2 필수 파일 | 유형별 파일 세트 결정 |
 | §1 공통 레이아웃 | §14-2 `PageLayout` + SearchArea + ContentBody | 영역 구조 1:1 |
-| §2.2 메인 영역 구조도 | §14-2 `ContentBody > ContentPanel` | 구조도의 ContentPanel 수와 코드의 ContentPanel 수 일치 |
+| §2.2 메인 영역 구조도 | §14-2 `ContentBody > ContentPanel` | 구조도의 ContentPanel 수와 코드의 ContentPanel 수 일치. 2개 이상이면 리사이즈 가능해야 함 — [Frontend Part B](../../FrontEnd/standard-v2/part-b-shared-policy.md) §4-3 |
 | §3 영역별 배치 (A-FILTER) | §14-2 `SearchArea > SearchField` | 필드 수·ID·입력 방식 일치 |
 | §4 그리드 컬럼 | §6 `AgDataGrid` columns + `types.ts` Row | 컬럼 수·키·타입 일치. 저장형은 §9 `useGridDataManager` |
 | §5 컴포넌트 구조 | §14-2 ~ §14-4 필수 파일 + import 심볼 | 트리의 `← shared/...` 주석이 실제 import 문과 일치 |
