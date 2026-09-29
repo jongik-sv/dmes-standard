@@ -4,7 +4,7 @@
 - 상태: 초안(사용자 검토 대기)
 - 범위: MDM 룰 세트(`TB_MDM_RULE_SET`, `MdmRuleEngine.evaluateSet`, 화면 `dme/ruleSetEdit`)
 - 출발점: `docs/idea.md:39-42` "룰 세트 편집을 비주얼하게", 사용자 화이트보드(품질설계 흐름)
-- 시안: 클릭해 볼 수 있는 HTML 시안(아티팩트 링크는 대화에 첨부)
+- 시안: 클릭해 볼 수 있는 HTML 시안 `docs/mdm/design/basic/html/06-rule-set-flow.html` (외부 링크 폴더 — `docs/mdm/screens/README.md`)
 
 ## 1. 목적과 합의 사항
 
