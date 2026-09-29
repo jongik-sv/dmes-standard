@@ -52,7 +52,9 @@ tasks.register('onnxEmbeddingManualTest', Test) {
 // perf-audit P6 — 선언되지 않은 테스트 입력(루트 build.gradle 주석 참고).
 tasks.named('test') {
     // DmdScreenMessageParityTest — 화면 메시지 사본
-    inputs.files(rootProject.file('../../frontend/m-mdm/pages/dmd/dataItemMng/messages.ts'))
+    inputs.files(rootProject.file('../../frontend/m-mdm/pages/dmd/dataItemMng/messages.ts'),
+                rootProject.file('../../frontend/m-mdm/pages/dmd/dataItemMng/cate/messages.ts'),
+                rootProject.file('../../frontend/m-mdm/pages/dmd/dataMng/messages.ts'))
             .withPropertyName('mdmScreenMessages').withPathSensitivity(PathSensitivity.RELATIVE)
     // MdmOasisActionVocabularyTest — mcm 메뉴·버튼 시드
     inputs.files(rootProject.file('../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer.java'))

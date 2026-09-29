@@ -42,12 +42,9 @@ wbs entry-point 에서 도출해 원천 화면 절과 대조했다. `독립` 은
 | dmc | `codeMng` | 마루 코드(조회·등록·수정, D-101 로 codeEdit 합침) | 독립 | TSK-06-02 | 04:812- |
 | dmc | `codeItemEdit` | 코드 편집(코드·트리·카테고리 탭, D-101 로 codeCateEdit 합침) | 독립 | TSK-06-03·06-04 | 04(결정 2026-09-22) |
 | dmc | `codeConfirm` | 버전 확정 | 독립 | TSK-06-05 | PRD 규칙 7(상신 화면 대체) |
-| dmd | `dataMng` | 마루 데이터(조회·등록) | 독립 | TSK-07-02 | 05:472- |
-| dmd | `dataEdit` | 마루 데이터 수정 | 독립 | TSK-07-02 | 05 |
-| dmd | `dataCateEdit` | 카테고리 편집 | 독립 | TSK-07-02 | 05 |
-| dmd | `dataItemMng` | 항목 관리 | 독립 | TSK-07-03·07-04 | 05 |
-| dmd | `dataHistory` | 항목 이력 | 독립 | TSK-07-03 | 05 |
-| dmd | `dataCsvUploadPop` | CSV 업로드 | 팝업(`dataItemMng` 에서 호출) — TSK-07-04 가 확정(§4) | TSK-07-04 | 05 |
+| dmd | `dataMng` | 마루 데이터(조회·등록·수정, D-104 로 dataEdit 합침) | 독립 | TSK-07-02 | 05:472- |
+| dmd | `dataItemMng` | 항목 편집(항목·트리·카테고리 탭, D-104 로 dataCateEdit·dataHistory 합침) | 독립 | TSK-07-02·07-03·07-04 | 05 |
+| dmd | `dataCsvUploadPop` | CSV 업로드 | 팝업(`dataItemMng` 항목 탭의 [CSV 업로드]에서 호출) — TSK-07-04 가 확정(§4) | TSK-07-04 | 05 |
 | dme | `ruleMng` | 룰(조회·등록) | 독립 | TSK-08-02 | 06:741- |
 | dme | `ruleEdit` | 룰 화면 | 독립 | TSK-08-02~08-04 | 06 |
 | dme | `ruleConfirm` | 버전 확정 | 독립 | TSK-08-05 | PRD 규칙 7 |
@@ -66,6 +63,7 @@ wbs entry-point 에서 도출해 원천 화면 절과 대조했다. `독립` 은
 - **TSK-07-04 가 팝업으로 확정했다.** `dataItemMng` 안의 "CSV 업로드" 버튼으로 열고, page.tsx·메뉴 leaf 를 두지 않는다(`termRegPop` 과 같은 모양: `{screenId}.tsx` + `index.ts` 배럴). 근거: mcm `masterRuleDataUploadFilePopup`(`docs/mcm/design/masterRuleDataUploadFilePopup/`) 이 "modal popup — 단독 진입 불가, 부모의 자식" 선례이고, 이 저장소 안에는 같은 모양의 `termRegPop`(TSK-04-04)이 이미 있다.
 - e2e `mdm-dataCsvUploadPop.spec.ts` 는 파일명은 spec.md 그대로 두되, 시나리오는 "`dataItemMng` 화면의 CSV 업로드 버튼으로 팝업을 연다"로 바꾼다(TSK-07-04 design.md 「수용 기준 매핑」).
 - §3 의 `dataCsvUploadPop` 행을 "팝업(`dataItemMng` 에서 호출)"로 갱신했다.
+- 2026-09-29 D-104 로 `dataItemMng` 가 항목·트리·카테고리 탭 화면(메뉴 이름 "항목 편집")이 됐다. 팝업은 그대로이고 호출 위치는 항목 탭의 [CSV 업로드]다.
 
 ## 5. 경로 규약
 

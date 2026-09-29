@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * ItemTreePanel — 항목 관리 트리 보기(TSK-07-04 design.md §2, D1). 서버 `search(withTree=true)` 응답의 `tree`
+ * ItemTreePanel — 항목 편집 트리 보기(TSK-07-04 design.md §2, D1). 서버 `search(withTree=true)` 응답의 `tree`
  * (열린 행만, I6)를 `hier-tree.ts`(`buildCodeTree`·`toTreeItems`, TSK-06-03 이 확정한 정렬·표시 규칙, I8)로 그린다.
  *
  * codeItemEdit 트리 탭과 달리 이미 불러온 전체 행이 아니라 서버가 준 `tree` 배열을 그대로 쓴다 — 데이터 출처만 다르고

@@ -4,8 +4,8 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 /**
  * mdm dmd/dataCsvUploadPop(항목 CSV 업로드 팝업) smoke — TSK-07-04 design.md §3(e2e 스모크 넷).
  *
- * `dataCsvUploadPop` 은 독립 화면이 아니라 `dataItemMng` 화면이 여는 팝업이다(D2) — 이 스펙도 `dataItemMng` 화면으로
- * 이동해 "CSV 업로드" 버튼으로 연다. 파싱·검증은 서버에서만 한다(D3) — 화면은 `FileReader` 로 원문만 넘긴다.
+ * `dataCsvUploadPop` 은 독립 화면이 아니라 `dataItemMng`(항목 편집) 화면이 여는 팝업이다(D2) — 이 스펙도 그 화면으로
+ * 이동해 [항목] 탭 그리드 패널 머리의 "CSV 업로드" 버튼(testid `item-csv-upload`, D-104 로 상단 바에서 옮겨 옴)으로 연다. 파싱·검증은 서버에서만 한다(D3) — 화면은 `FileReader` 로 원문만 넘긴다.
  *
  * 스모크 넷:
  *   C1 메뉴 이동 — `dataItemMng` 화면으로 이동해 "CSV 업로드" 버튼으로 팝업을 연다.
@@ -29,8 +29,8 @@ const SAVE_CODE = `E2ECSV${SUFFIX}`;
 const VALIDATE_CODE = `E2ECSVV${SUFFIX}`;
 const BAD_CODE = "csvbadkey";
 
-const screenshot = (name: string) =>
-  path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-07-04/screens", name);
+// 스크린샷은 저장소 문서(docs)를 건드리지 않도록 git 제외 폴더(mdm-user/.out)에 남긴다.
+const screenshot = (name: string) => path.resolve(__dirname, "mdm-user/.out/screens", name);
 
 /** CSV 20 고정 열(물리명, 순서 고정, I7) — `pages/dmd/dataCsvUploadPop/api.ts` 의 `CSV_COLS` 와 같다. */
 const CSV_COLS = [
@@ -76,12 +76,12 @@ async function login(page: Page, user: string) {
 
 async function openScreen(page: Page) {
   const item = (text: RegExp) => page.locator(".tree-item .item-name").filter({ hasText: text }).first();
-  for (const name of [/^마루 MDM$/, /^마스터데이터$/, /^항목 관리$/]) {
+  for (const name of [/^마루 MDM$/, /^마스터데이터$/, /^항목 편집$/]) {
     const node = item(name);
     await expect(node).toBeVisible({ timeout: 20_000 });
     await node.click();
   }
-  await expect(page.getByRole("button", { name: "항목 추가" })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("item-add")).toBeVisible({ timeout: 60_000 });
 }
 
 async function selectMaru(page: Page, id: string) {
@@ -92,7 +92,9 @@ async function selectMaru(page: Page, id: string) {
       (r.request().postData() ?? "").includes(`"maruDataId":"${id}"`),
     { timeout: 30_000 },
   );
-  await page.getByTestId("item-search-maru").selectOption(id);
+  await page.getByTestId("item-pick-keyword").fill(id);
+  await page.getByTestId("item-pick-keyword").press("Enter");
+  await page.getByTestId(`item-pick-${id}`).click();
   await searched;
   await expect(page.locator(".grid-panel-count").first()).toBeVisible();
 }
@@ -113,7 +115,7 @@ async function openCsvPopup(page: Page, maruDataId: string) {
   await login(page, STEWARD);
   await openScreen(page);
   await selectMaru(page, maruDataId);
-  await page.getByRole("button", { name: "CSV 업로드" }).click();
+  await page.getByTestId("item-csv-upload").click();
   await expect(page.getByTestId("csv-pop")).toBeVisible();
 }
 
@@ -184,7 +186,7 @@ test.describe("mdm dmd/dataCsvUploadPop smoke", () => {
     await page.screenshot({ path: screenshot("dmd-dataCsvUploadPop-saved.png"), fullPage: true });
 
     // 같은 파일 재업로드 시 바뀐 행만 새 선분(I4) — 값이 같으면 NONE.
-    await page.getByRole("button", { name: "CSV 업로드" }).click();
+    await page.getByTestId("item-csv-upload").click();
     await expect(page.getByTestId("csv-pop")).toBeVisible();
     await uploadCsv(page, csv);
     await page.getByTestId("csv-pop-validate").click();

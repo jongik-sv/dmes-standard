@@ -1,5 +1,5 @@
 /**
- * dataCateEdit 화면이 meta.message 접두어·포함으로 판정하는 고정 문구(design.md §2 「수정 — 공유 파일」).
+ * dataItemMng [카테고리] 탭(옛 dataCateEdit 화면, D-104)이 meta.message 접두어·포함으로 판정하는 고정 문구(design.md §2 「수정 — 공유 파일」).
  * 서버 원문과 같은 글자여야 한다 — `MdmErrorCode.RESERVED_CATEGORY.defaultMessage()`·
  * `DataItemMessages.CLOSED_KEY_REOPEN`. 파리티 항목(DmdScreenMessageParityTest 루프)은 통합 단위(I)가 더한다.
  */

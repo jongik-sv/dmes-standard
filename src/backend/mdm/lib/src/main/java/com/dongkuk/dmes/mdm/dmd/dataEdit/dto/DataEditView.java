@@ -27,6 +27,8 @@ public class DataEditView {
     /** MDM 원천이고 INUSE 일 때만 true. */
     private boolean editable;
     private List<CategorySummaryRow> categories;
+    /** 지금 열려 있는 항목(키) 건수 — dataMng 상세 카드 제목에 보인다(D-104). 닫힌 키는 세지 않는다. */
+    private int itemCount;
 
     public String getMaruDataId() { return maruDataId; }
     public String getMaruDataName() { return maruDataName; }
@@ -48,6 +50,7 @@ public class DataEditView {
     public Long getAuditVer() { return auditVer; }
     public boolean isEditable() { return editable; }
     public List<CategorySummaryRow> getCategories() { return categories; }
+    public int getItemCount() { return itemCount; }
 
     public void setMaruDataId(String v) { this.maruDataId = v; }
     public void setMaruDataName(String v) { this.maruDataName = v; }
@@ -69,4 +72,5 @@ public class DataEditView {
     public void setAuditVer(Long v) { this.auditVer = v; }
     public void setEditable(boolean v) { this.editable = v; }
     public void setCategories(List<CategorySummaryRow> v) { this.categories = v; }
+    public void setItemCount(int v) { this.itemCount = v; }
 }

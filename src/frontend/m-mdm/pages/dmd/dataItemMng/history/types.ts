@@ -1,8 +1,8 @@
 /**
- * dataHistory(항목 이력) 화면 타입 — 서버 DTO camelCase 그대로(TSK-07-03 design.md §2). 사건·빈 구간·행 상태·마지막
+ * dataHistory(항목 이력) 서비스 타입 — 서버 DTO camelCase 그대로(TSK-07-03 design.md §2). 사건·빈 구간·행 상태·마지막
  * 상태는 서버가 계산한다(H2). 화면은 그대로 그린다.
  */
-import type { DataItemHeader, DataItemValues, MaruDataOption } from "../dataItemMng/types";
+import type { DataItemHeader, DataItemValues } from "../types";
 
 export type HistoryTarget = "ITEM" | "CATE" | "CATE_ITEM";
 export type HistoryEvent = "CREATED" | "CHANGED" | "REOPENED";
@@ -32,20 +32,11 @@ export interface DataHistoryResult {
   state?: HistoryState;
 }
 
-export interface DataHistoryViewResult {
-  maruDataOptions?: MaruDataOption[];
-  header?: DataItemHeader | null;
-}
-
 export interface DataHistoryFilters {
   maruDataId: string;
   target: HistoryTarget;
   cateId: string;
   key: string;
-}
-
-export function emptyHistoryFilters(): DataHistoryFilters {
-  return { maruDataId: "", target: "ITEM", cateId: "", key: "" };
 }
 
 export const TARGET_OPTIONS: { value: HistoryTarget; label: string }[] = [

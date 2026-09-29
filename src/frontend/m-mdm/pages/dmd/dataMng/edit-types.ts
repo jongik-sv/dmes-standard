@@ -1,5 +1,5 @@
 /**
- * dataEdit(마루 데이터 수정) 화면 타입 — 서버 DTO camelCase 그대로(TSK-07-02 design.md §2).
+ * dataMng 상세(옛 dataEdit, D-104) 타입 — 서버 DTO camelCase 그대로(TSK-07-02 design.md §2).
  * 저장은 헤더+키 패턴+라벨+lvl_cnt 를 한 액션(save)으로 묶는다(D3).
  */
 
@@ -32,6 +32,8 @@ export interface DataEditView {
   auditVer: number;
   editable: boolean;
   categories: CategorySummaryRow[];
+  /** 지금 열려 있는 항목 건수(닫힌 키 제외). */
+  itemCount: number;
 }
 
 export const ATTR_KEYS = [

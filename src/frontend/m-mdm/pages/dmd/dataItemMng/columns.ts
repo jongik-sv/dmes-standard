@@ -1,5 +1,5 @@
 /**
- * 항목 관리 그리드 열과 저장 파라미터 — 순수 함수(TSK-07-03 design.md §2, Q5·Q6·A4·S5·A2·F1).
+ * 항목 편집 그리드 열과 저장 파라미터 — 순수 함수(TSK-07-03 design.md §2, Q5·Q6·A4·S5·A2·F1).
  */
 import type { ReactNode } from "react";
 

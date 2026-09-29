@@ -1,5 +1,5 @@
 /**
- * dataCateEdit(카테고리 편집) 화면 타입 — 서버 DTO camelCase 그대로(TSK-07-02 design.md §2).
+ * dataCateEdit(카테고리 편집) 서비스 타입 — 서버 DTO camelCase 그대로(TSK-07-02 design.md §2, D-104 로 항목 편집 [카테고리] 탭).
  * Java boolean getter `isOpen()` 은 Jackson 이 `open` 필드로 직렬화한다.
  */
 

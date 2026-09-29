@@ -271,6 +271,39 @@ class DataEditServiceSqliteTest extends AbstractMdmSharedDbTest {
         assertEquals(1, category(view, "MAJOR").getMatchCount());
     }
 
+    // ── 항목 수 — 열린 항목만 센다(D-104) ────────────────────────────────────────
+
+    @Test
+    void 항목_수는_열린_항목만_센다() {
+        DmdSegmentTestSupport.insertMdm(jdbc, "PORT", 1, "국가");
+        DmdSegmentTestSupport.insertItemRow(jdbc, "PORT", "KRPUS", "부산", LocalDateTime.of(2026, 1, 1, 0, 0),
+                DmdSegmentTestSupport.OPEN, 0, List.of("KR"), List.of("한국"));
+        DmdSegmentTestSupport.insertItemRow(jdbc, "PORT", "CNSHA", "상하이", LocalDateTime.of(2026, 1, 1, 0, 0),
+                DmdSegmentTestSupport.OPEN, 0, List.of("CN"), List.of("중국"));
+        DmdSegmentTestSupport.insertItemRow(jdbc, "PORT", "KRINC", "인천", LocalDateTime.of(2026, 1, 1, 0, 0),
+                "2026-06-01 00:00:00", 0, List.of("KR"), List.of("한국"));
+
+        assertEquals(2, service.view(viewRequest("PORT")).getItemCount());
+    }
+
+    @Test
+    void 닫힌_뒤_다시_연_키는_항목_수에서_1건으로_센다() {
+        DmdSegmentTestSupport.insertMdm(jdbc, "PORT", 1, "국가");
+        DmdSegmentTestSupport.insertItemRow(jdbc, "PORT", "KRPUS", "부산", LocalDateTime.of(2026, 1, 1, 0, 0),
+                "2026-03-01 00:00:00", 0, List.of("KR"), List.of("한국"));
+        DmdSegmentTestSupport.insertItemRow(jdbc, "PORT", "KRPUS", "부산", LocalDateTime.of(2026, 6, 1, 0, 0),
+                DmdSegmentTestSupport.OPEN, 0, List.of("KR"), List.of("한국"));
+
+        assertEquals(1, service.view(viewRequest("PORT")).getItemCount());
+    }
+
+    @Test
+    void 항목이_없으면_항목_수는_0이다() {
+        DmdSegmentTestSupport.insertMdm(jdbc, "PORT", 0);
+
+        assertEquals(0, service.view(viewRequest("PORT")).getItemCount());
+    }
+
     // ── view — 조회는 잠금을 걸지 않는다 ─────────────────────────────────────────
 
     @Test

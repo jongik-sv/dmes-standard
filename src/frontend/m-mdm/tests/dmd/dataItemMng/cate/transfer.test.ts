@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import {
   availableOf, diffMembers, matchesQuery, memberOf, moveToMembers, removeFromMembers, type TransferItem,
-} from "../../../pages/dmd/dataCateEdit/transfer";
+} from "../../../../pages/dmd/dataItemMng/cate/transfer";
 
 const items: TransferItem[] = [
   { code: "A", name: "Alpha", lvl1: "KR" },

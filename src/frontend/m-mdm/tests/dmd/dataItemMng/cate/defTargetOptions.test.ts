@@ -1,6 +1,6 @@
 // TSK-07-02 design.md D5 — REGEX defTarget 드롭다운은 그 마루 데이터의 lvlCnt·라벨 있는 attr 로만 제한한다.
 import { describe, expect, it } from "vitest";
-import { buildDefTargetOptions } from "../../../pages/dmd/dataCateEdit/defTargetOptions";
+import { buildDefTargetOptions } from "../../../../pages/dmd/dataItemMng/cate/defTargetOptions";
 
 describe("buildDefTargetOptions", () => {
   it("KEY 는 항상 있고, lvlCnt 만큼 LVLn 이 붙는다", () => {

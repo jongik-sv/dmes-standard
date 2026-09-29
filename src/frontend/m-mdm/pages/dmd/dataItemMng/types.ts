@@ -1,7 +1,9 @@
 /**
- * dataItemMng(항목 관리) 화면 타입 — 서버 DTO camelCase 그대로(TSK-07-03 design.md §2).
+ * dataItemMng(항목 편집) 화면 타입 — 서버 DTO camelCase 그대로(TSK-07-03 design.md §2).
  * 일시는 서버가 `yyyy-MM-dd HH:mm:ss` 문자열로 준다(화면은 그대로 보인다).
  */
+
+import type { IdPickRow } from "@/shell";
 
 export interface MaruDataOption {
   maruDataId: string;
@@ -106,12 +108,15 @@ export function emptyFilters(): DataItemFilters {
   return { maruDataId: "", code: "", name: "", cateId: "", showClosed: false, nodeFilter: null };
 }
 
-/** 마루 데이터 옵션 → Select 옵션(dataItemMng·dataHistory 공용). */
-export function toMaruOptions(options: MaruDataOption[]): { value: string; label: string }[] {
-  return options.map((o) => ({ value: o.maruDataId, label: `${o.maruDataName} (${o.maruDataId})` }));
+/** 마루 데이터 옵션 → Select 옵션. */
+/** 마루 데이터 고르기(`IdPicker`) 후보 — view 가 준 선택 목록을 줄 모양으로 바꾼다. */
+export function toMaruPicks(options: MaruDataOption[]): IdPickRow[] {
+  return options.map((o) => ({
+    id: o.maruDataId, name: o.maruDataName, external: o.sourceKind !== "MDM", status: o.status,
+  }));
 }
 
-/** 잡힌 오류에서 보일 문구를 뽑는다(dataItemMng·dataHistory 공용). */
+/** 잡힌 오류에서 보일 문구를 뽑는다. */
 export function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }

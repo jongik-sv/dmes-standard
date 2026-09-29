@@ -131,7 +131,7 @@ A.1.1 모듈 외 기 구축·공유 모듈은 본 표로 분리 등재. 신규 �
 | `mdm` | `dma` | **영역 코드** (`dm`+`a`) | 용어·도메인·컬럼·단위(02) — 표준 원장 사전(마루 MDM) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `unitMng` / `termMng` / `domainMng` / `columnMng` / `termRegPop` (+ TSK-01-01 샘플 `mdmSample` 은 옛 경로에 있으며 TSK-01-03 에서 옮긴다) |
 | `mdm` | `dmb` | **영역 코드** (`dm`+`b`) | 인터페이스 레이아웃(03) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `headerMng` / `layoutMng` |
 | `mdm` | `dmc` | **영역 코드** (`dm`+`c`) | 마스터코드(04) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `codeMng` / `codeItemEdit` / `codeConfirm` (2026-09-28 D-101: `codeEdit`→`codeMng`, `codeCateEdit`→`codeItemEdit` 로 합침. 두 ID 는 서버 서비스·권한 OBJECT 로만 남음) |
-| `mdm` | `dmd` | **영역 코드** (`dm`+`d`) | 마스터데이터(05) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `dataMng` / `dataEdit` / `dataCateEdit` / `dataItemMng` / `dataHistory` / `dataCsvUploadPop` |
+| `mdm` | `dmd` | **영역 코드** (`dm`+`d`) | 마스터데이터(05) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `dataMng` / `dataItemMng` / `dataCsvUploadPop` (2026-09-29 D-104: `dataEdit`→`dataMng`, `dataCateEdit`·`dataHistory`→`dataItemMng` 로 합침. 세 ID 는 서버 서비스·권한 OBJECT 로만 남음) |
 | `mdm` | `dme` | **영역 코드** (`dm`+`e`) | 업무기준·룰 세트(06) | 2026-09-24 | (TSK-02-01 전사 아키텍처 설계) | `ruleMng` / `ruleEdit` / `ruleConfirm` / `ruleSetMng` / `ruleSetEdit` |
 | `master` | `common` | legacy 의미명 | 공통 마스터 (코드·부서) | 기 구축 | — | (다수) |
 | `master` | `item` | legacy 의미명 | 품목·재질 마스터 | 기 구축 | — | (다수) |

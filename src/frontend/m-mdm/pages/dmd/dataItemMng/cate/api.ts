@@ -1,5 +1,6 @@
 /**
- * dataCateEdit 화면의 OASIS BFF 호출 래퍼(TSK-07-02 design.md §2, dataMng/api.ts 선례).
+ * dataCateEdit 서비스의 OASIS BFF 호출 래퍼(TSK-07-02 design.md §2, dataMng/api.ts 선례). 화면은 D-104 로 항목 편집
+ * [카테고리] 탭에 합쳤고, 서비스 경로·액션은 그대로 부른다.
  *
  * 호출 패턴: `POST /api/mdm/oasis/dataCateEdit/{action}` — search·view·compare(READ), reg·save·delete·restore(EDIT).
  * `save` 는 서버가 대상 카테고리의 실제 defKind 로 REGEX 정의 수정과 TABLE 소속 일괄 적용을 스스로 가른다(design.md §2)

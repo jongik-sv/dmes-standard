@@ -1,4 +1,4 @@
-// TSK-07-03 design.md §3.4 — 항목 관리 순수 함수: 동적 열(Q5), 편집 가능(Q6), 저장 파라미터(A4·S5), 문구 판정(A2·F1).
+// TSK-07-03 design.md §3.4 — 항목 편집 순수 함수: 동적 열(Q5), 편집 가능(Q6), 저장 파라미터(A4·S5), 문구 판정(A2·F1).
 import { describe, expect, it } from "vitest";
 
 import {

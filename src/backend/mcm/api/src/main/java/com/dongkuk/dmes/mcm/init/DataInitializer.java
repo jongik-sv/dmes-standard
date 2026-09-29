@@ -963,6 +963,8 @@ public class DataInitializer implements ApplicationRunner {
      * TSK-07-02 — 마루 데이터 조회·등록(dataMng)·수정(dataEdit)·카테고리 편집(dataCateEdit), 폴더 dmd. F2 가 예약한
      * MENU_SEQ 001~003. action(search·reg·view·save·delete·restore·compare)은 모두 기존 권한 세트·allActions 안에
      * 있다(D9). FULL_SEQ 는 부팅 끝 recomputeMenuFullSeq() 가 다시 매긴다.
+     * D-104: dataEdit 는 dataMng 화면에 합쳐 메뉴 leaf 가 없다(dataCateEdit 는 dataItemMng 로 합침). 합친 화면이 두
+     * 서비스를 그대로 부르므로 OBJECT·권한은 남기고, 이미 있는 메뉴 행은 {@link #removeMergedMdmDataMenus()} 가 지운다.
      */
     private void seedMdmDataMngMenus() {
         final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
@@ -972,8 +974,7 @@ public class DataInitializer implements ApplicationRunner {
         insertMcmSecObjIfAbsent("dataEdit", "마루 데이터 수정", "mdm");
         insertMcmSecObjIfAbsent("dataCateEdit", "카테고리 편집", "mdm");
         insertMcmSecMenuIfAbsent("dataMng", "001", "5040100", "마루 데이터", "dmd", "dataMng");
-        insertMcmSecMenuIfAbsent("dataEdit", "002", "5040200", "마루 데이터 수정", "dmd", "dataEdit");
-        insertMcmSecMenuIfAbsent("dataCateEdit", "003", "5040300", "카테고리 편집", "dmd", "dataCateEdit");
+        removeMergedMdmDataMenus();
         for (String objectId : new String[]{"dataMng", "dataEdit", "dataCateEdit"}) {
             insertIfAbsentComposite(
                     "TB_MCM_SEC_ROLE_MAPPING",
@@ -983,15 +984,18 @@ public class DataInitializer implements ApplicationRunner {
                     "VALUES ('SYSADMIN', '" + objectId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
             seedMdmObjectRbac(objectId, "dmd");
         }
-        log.info("[DataInitializer] TSK-07-02 MDM 마루 데이터 조회·등록·수정·카테고리 편집 시드 — OBJECT 3 + 메뉴 leaf 3 "
+        log.info("[DataInitializer] TSK-07-02 MDM 마루 데이터 조회·등록·수정·카테고리 편집 시드 — OBJECT 3 + 메뉴 leaf 1 "
                 + "+ RBAC(SYSADMIN 3 + MDM 역할 6)");
     }
 
     /**
-     * TSK-07-03 — 항목 관리(dmd/dataItemMng)·항목 이력(dmd/dataHistory). 부모 폴더 mdm·dmd 는 seedMdmMenus() 가 이미 멱등
+     * TSK-07-03 — 항목 편집(dmd/dataItemMng)·항목 이력(dmd/dataHistory). 부모 폴더 mdm·dmd 는 seedMdmMenus() 가 이미 멱등
      * 시드한다. OBJECT_ID = screenId = BPMN process id. action(view·search·reg·save·delete·restore)은 모두 기존 권한 세트·
      * allActions 안에 있다(design.md D9). MENU_SEQ 001~003 은 TSK-07-02(dataMng·dataEdit·dataCateEdit) 몫으로 비워 둔다.
      * FULL_SEQ 는 부팅 끝 recomputeMenuFullSeq() 가 다시 매긴다.
+     * D-104: dataHistory 는 dataItemMng 화면에 합쳐 메뉴 leaf 가 없다. OBJECT·권한은 남기고 이미 있는 메뉴 행은
+     * {@link #removeMergedMdmDataMenus()} 가 지운다. 남는 메뉴 이름은 "항목 편집" 이며, 이미 시드된 DB 의
+     * 옛 이름 "항목 관리" 는 {@code MENU_NM} 이 그 값 그대로일 때만 바로잡는다(commMenuMng 에서 바꾼 이름은 건드리지 않는다).
      */
     private void seedMdmDataItemMenus() {
         final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
@@ -999,8 +1003,12 @@ public class DataInitializer implements ApplicationRunner {
                                 + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
         insertMcmSecObjIfAbsent("dataItemMng", "항목 관리", "mdm");
         insertMcmSecObjIfAbsent("dataHistory", "항목 이력", "mdm");
-        insertMcmSecMenuIfAbsent("dataItemMng", "004", "5040400", "항목 관리", "dmd", "dataItemMng");
-        insertMcmSecMenuIfAbsent("dataHistory", "005", "5040500", "항목 이력", "dmd", "dataHistory");
+        insertMcmSecMenuIfAbsent("dataItemMng", "004", "5040400", "항목 편집", "dmd", "dataItemMng");
+        int renamed = nq("UPDATE MCMAPUSER.TB_MCM_SEC_MENU SET MENU_NM = :nn WHERE MENU_ID = 'dataItemMng' AND MENU_NM = :on")
+                .setParameter("nn", "항목 편집").setParameter("on", "항목 관리").executeUpdate();
+        if (renamed > 0) {
+            log.info("[DataInitializer] D-104 — dataItemMng 메뉴 이름 보정 '항목 관리' → '항목 편집' rows={}", renamed);
+        }
         for (String objectId : new String[]{"dataItemMng", "dataHistory"}) {
             insertIfAbsentComposite(
                     "TB_MCM_SEC_ROLE_MAPPING",
@@ -1010,7 +1018,27 @@ public class DataInitializer implements ApplicationRunner {
                     "VALUES ('SYSADMIN', '" + objectId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
             seedMdmObjectRbac(objectId, "dmd");
         }
-        log.info("[DataInitializer] TSK-07-03 MDM 항목 관리·이력 시드 — OBJECT 2 + 메뉴 leaf 2 + RBAC(SYSADMIN 2 + MDM 역할 4)");
+        log.info("[DataInitializer] TSK-07-03 MDM 항목 편집·이력 시드 — OBJECT 2 + 메뉴 leaf 1 + RBAC(SYSADMIN 2 + MDM 역할 4)");
+    }
+
+    /**
+     * D-104 — 마루 데이터 화면 5개를 2개로 합치며 없앤 메뉴 leaf(dataEdit·dataCateEdit·dataHistory)를 잔존 DB 에서
+     * 지운다. 메뉴 행만 지운다. OBJECT·역할 매핑은 합친 화면이 세 서비스를 계속 부르므로 남긴다. 멱등(없으면 0행).
+     */
+    private void removeMergedMdmDataMenus() {
+        for (String menuId : new String[]{"dataEdit", "dataCateEdit", "dataHistory"}) {
+            // 즐겨찾기가 없앤 메뉴를 가리키면 목록에 이름 없는 행이 남으므로 메뉴보다 먼저 지운다.
+            int fav = nq("DELETE FROM MCMAPUSER.TB_MCM_SEC_USER_FAVORITE WHERE MENU_ID = :m")
+                    .setParameter("m", menuId).executeUpdate();
+            if (fav > 0) {
+                log.info("[DataInitializer] D-104 — 없앤 메뉴의 즐겨찾기 DELETE MENU_ID={} rows={}", menuId, fav);
+            }
+            int del = nq("DELETE FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :m")
+                    .setParameter("m", menuId).executeUpdate();
+            if (del > 0) {
+                log.info("[DataInitializer] D-104 — 합친 화면의 메뉴 leaf DELETE MENU_ID={} rows={}", menuId, del);
+            }
+        }
     }
 
     /**
@@ -1306,6 +1334,12 @@ public class DataInitializer implements ApplicationRunner {
      */
     private void removeMergedMdmCodeMenus() {
         for (String menuId : new String[]{"codeEdit", "codeCateEdit"}) {
+            // 즐겨찾기가 없앤 메뉴를 가리키면 목록에 이름 없는 행이 남으므로 메뉴보다 먼저 지운다.
+            int fav = nq("DELETE FROM MCMAPUSER.TB_MCM_SEC_USER_FAVORITE WHERE MENU_ID = :m")
+                    .setParameter("m", menuId).executeUpdate();
+            if (fav > 0) {
+                log.info("[DataInitializer] D-101 — 없앤 메뉴의 즐겨찾기 DELETE MENU_ID={} rows={}", menuId, fav);
+            }
             int del = nq("DELETE FROM MCMAPUSER.TB_MCM_SEC_MENU WHERE MENU_ID = :m")
                     .setParameter("m", menuId).executeUpdate();
             if (del > 0) {

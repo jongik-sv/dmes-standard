@@ -922,3 +922,30 @@
   스키마·컬럼표, `src/frontend/m-mdm/pages/dme/ruleEdit/sections/index.ts`·`column-draft.ts`·`column-grid.tsx`,
   `RuleColumnsService`·`MdmRuleVar`·`RuleEditViewResult`, Flyway `V13__drop_rule_var_axis.sql`.
   `docs/mdm/tasks/TSK-08-03/design.md` 와 `wbs.md` 는 그 Task 당시의 기록으로 **고치지 않았다**(역사 문서)
+
+## D-104 (2026-09-29T00:00:00Z)
+- **Phase**: refactor(dmd 마스터데이터 화면)
+- **Decision needed**: 마스터데이터 한 건을 다루는 데 화면이 6개(dataMng 조회·등록, dataEdit 수정, dataCateEdit 카테고리 편집,
+  dataItemMng 항목 관리, dataHistory 항목 이력, dataCsvUploadPop CSV 업로드 팝업)로 나뉘어 화면을 오가야 한다. D-101 이 마루 코드에
+  적용한 통합 기준을 마스터데이터에도 적용할지, 그 저장 방식(상단 [저장] 하나)까지 옮길지 정해야 한다
+- **Decision made**: 화면을 2개 + 팝업 1개로 줄인다. (1) dataMng(메뉴 이름 "마루 데이터") = 목록(왼쪽 약 42%) + 상세 + [신규] 등록
+  폼. dataEdit 를 흡수한다. 상세는 위쪽 ① 헤더 | ② 추가 컬럼 라벨, 아래쪽 ③ 카테고리 요약과 항목 수(마루 코드에서 버전 목록이 있던
+  자리)이다. 버튼은 [헤더 저장]·[폐기]·[항목 편집 →]이고, [항목 편집]은 `openMdmPage("dmd/dataItemMng", { maruDataId })` 로 연다.
+  (2) dataItemMng(메뉴 이름 "항목 편집") = [항목]·[트리]·[카테고리] 탭. dataCateEdit 를 카테고리 탭으로, dataHistory 를 오른쪽
+  열로 흡수한다. 오른쪽 열(약 34%)은 탭에 따라 바뀐다. 항목·트리 탭은 항목 추가 폼 + 선택 행 이력, 카테고리 탭은 미리보기 +
+  카테고리·소속 이력이다. handoff `{ maruDataId }` 수신을 새로 넣는다. (3) dataCsvUploadPop 은 팝업 그대로 두고 항목 탭의
+  [CSV 업로드]로 연다. (4) codeConfirm 에 대응하는 화면은 없다. 마스터데이터는 버전·승인이 없고 저장 즉시 반영이기 때문이다(FR-D,
+  원천 05 "버전이 없다. 승인이 없다"). (5) **저장 방식은 즉시 반영을 유지한다.** D-101 의 "상단 [저장] 하나가 모든 탭 변경을 한
+  트랜잭션으로" 는 옮기지 않는다. 그래서 상단 [저장] 은 없고 항목은 행마다, 카테고리는 카테고리마다 반영한다. (6) screenId 는
+  dataMng·dataItemMng 를 그대로 쓴다. (7) dataEdit·dataCateEdit·dataHistory 는 메뉴 leaf 만 없애고 서버 서비스·BPMN·OBJECT·역할
+  매핑은 남긴다(합친 화면이 옛 서비스를 계속 부르고 권한 키는 메뉴를 보지 않는다). 화면 폴더(page.tsx)는 없앤다
+- **Rationale**: 사용자 승인(2026-09-29, HTML 시안 확인). D-101 과 같은 기준으로 화면을 줄인다. dataHistory 를 합친 것은 D-101
+  범위를 넘는 추가 결정이다(사용자 선택 "항목 편집에 합치기"). 항목 이력은 이미 인라인 패널이 있었고, 카테고리·소속 이력은
+  카테고리 탭 오른쪽 아래로 옮긴다. 즉시 반영을 유지한 근거는 세 가지다. (a) DRAFT·버전이 없어 모아 둘 대상이 없다. (b) 항목은
+  서버 페이징 50건이고 조회하면 draft 를 비운다. (c) 잠금이 헤더 `auditVer`·항목 행 `rowVersion` CAS·카테고리 잠금 없음으로 서로
+  달라서, 한 번에 저장하려면 새 저장 단위와 통합 잠금이 필요하다. screenId 를 바꾸지 않은 것은 이름을 바꾸면 BPMN·OBJECT·RBAC·e2e
+  가 모두 바뀌기 때문이다
+- **Reversible**: yes(메뉴 leaf 를 다시 시드하고 화면 폴더를 되살리면 된다. DDL 없음)
+- **Source**: 시안 https://claude.ai/artifact/6dpdpynmCVtRTQPsbWSXir, DataInitializer(합친 화면 메뉴 leaf 제거), pages/dmd/dataMng·
+  dataItemMng, screens/README.md §3. 원천 05 문서(`docs/mdm/design/basic/05-*`)의 화면 구성 절은 외부 저장소 심볼릭 링크라 아직
+  고치지 않았다 — 반영 필요

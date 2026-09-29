@@ -221,6 +221,7 @@ public class DataEditService {
         view.setEditable(LockedMaruData.MDM.equals(entity.getSourceKind())
                 && LockedMaruData.INUSE.equals(entity.getStatus()));
         view.setCategories(categories);
+        view.setItemCount(rowStore.countOpenItems(entity.getMaruDataId()));
         return view;
     }
 

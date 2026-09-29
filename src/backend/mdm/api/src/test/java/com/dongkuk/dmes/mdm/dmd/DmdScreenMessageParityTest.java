@@ -38,9 +38,9 @@ class DmdScreenMessageParityTest {
         return Stream.of(
                 Arguments.of(new Case("dataItemMng", Path.of("../../../frontend/m-mdm/pages/dmd/dataItemMng/messages.ts"),
                         "ROW_VERSION_CONFLICT_PREFIX", MdmErrorCode.ROW_VERSION_CONFLICT.defaultMessage(), true)),
-                Arguments.of(new Case("dataEdit", Path.of("../../../frontend/m-mdm/pages/dmd/dataEdit/messages.ts"),
+                Arguments.of(new Case("dataMng", Path.of("../../../frontend/m-mdm/pages/dmd/dataMng/messages.ts"),
                         "ROW_VERSION_CONFLICT_PREFIX", MdmErrorCode.ROW_VERSION_CONFLICT.defaultMessage(), false)),
-                Arguments.of(new Case("dataCateEdit", Path.of("../../../frontend/m-mdm/pages/dmd/dataCateEdit/messages.ts"),
+                Arguments.of(new Case("dataItemMng/cate", Path.of("../../../frontend/m-mdm/pages/dmd/dataItemMng/cate/messages.ts"),
                         "RESERVED_CATEGORY_PREFIX", MdmErrorCode.RESERVED_CATEGORY.defaultMessage(), true)));
     }
 

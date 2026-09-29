@@ -69,6 +69,14 @@ public class DataSegmentRowStore {
         return itemList(q.getResultList());
     }
 
+    /** 마루 데이터 안 지금 열려 있는 항목(키) 건수 — 키당 열린 행은 하나뿐이라(S11) 열린 끝 행 수와 같다. */
+    public int countOpenItems(String maruDataId) {
+        NativeQuery<?> q = query("SELECT COUNT(*) FROM TB_MDM_DATA_ITEM WHERE MARU_DATA_ID = :md AND VALID_TO = :openEnd");
+        bindString(q, "md", maruDataId);
+        q.setParameter("openEnd", temporal.toDb(MdmTemporalSegmentRules.OPEN_END));
+        return ((Number) q.getSingleResult()).intValue();
+    }
+
     public void insertItem(ItemSegmentRow row, AuditStamp stamp) {
         String sql = "INSERT INTO TB_MDM_DATA_ITEM (" + ITEM_COLUMNS + ", " + NATIVE_COLUMN_LIST + ") VALUES ("
                 + ":md, :code, :vf, :vt, :name, :alterName, :seq, :description, :lvl1, :lvl2, :lvl3, :lvl4, :lvl5, "
