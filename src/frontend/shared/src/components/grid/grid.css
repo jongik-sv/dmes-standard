@@ -14,6 +14,17 @@
   contain: strict;
 }
 
+/* height="auto"(행 수만큼 늘어나는 작은 목록) — strict 의 크기 격리는 높이 auto 를 0 으로 만들므로 배치·그리기만 격리한다. */
+.cm-data-grid.cm-data-grid-auto-height {
+  contain: layout paint;
+}
+
+/* ag 는 autoHeight 본문에 min-height:150px 를 걸어 한 행짜리 표도 150px 이 된다. 행이 있으면 풀고, 빈 표는 "데이터가 없습니다" 자리로 남긴다. */
+.cm-data-grid.cm-data-grid-auto-height:not(.cm-data-grid-empty) .ag-center-cols-viewport,
+.cm-data-grid.cm-data-grid-auto-height:not(.cm-data-grid-empty) .ag-center-cols-container {
+  min-height: 0;
+}
+
 /*
  * 트랙패드 스크롤이 그리드 경계에서 페이지로 이어져 브라우저 뒤로가기/앞으로가기
  * 제스처가 되는 것을 막는다. 다만 중앙 열 viewport 는 가로 스크롤만 담당하므로
@@ -306,6 +317,11 @@
    오류 칸은 위 cell-light-pink 를 쓴다. 강조는 배경을 덮지 않고 안쪽 테두리로 겹쳐 보인다. */
 .cm-data-grid .ag-cell.cell-warning {
   background-color: var(--color-warning-soft) !important;
+}
+
+/* 값을 넣는 칸 — 입력 칸임을 배경으로 보인다(편집 가능한 행에만 건다). 경고·수정 표시가 있으면 그쪽이 이긴다. */
+.cm-data-grid .ag-cell.cell-input {
+  background-color: var(--color-input-cell);
 }
 
 .cm-data-grid .ag-cell.cell-edited {

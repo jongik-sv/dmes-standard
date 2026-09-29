@@ -1,5 +1,6 @@
 "use client";
 
+import "./grid.css";
 import React, { useState, useMemo, useRef, useEffect, useCallback, memo } from "react";
 import { AgGridReact } from "ag-grid-react";
 import { AllCommunityModule, ModuleRegistry } from "ag-grid-community";
@@ -217,6 +218,8 @@ export interface GridColumn {
   rowDrag?: boolean;
   /** 머리 툴팁 (ag-grid ColDef/ColGroupDef.headerTooltip 패스스루). */
   headerTooltip?: string;
+  /** 머리 칸 인라인 스타일 (ag-grid ColDef/ColGroupDef.headerStyle 패스스루). 색은 의미 토큰(var(--color-*))만 쓴다. */
+  headerStyle?: ColDef["headerStyle"];
   /**
    * 하위 열 — 있으면 이 항목은 열 그룹(ColGroupDef, groupId = key)이 되고 잎만 데이터 열이다. 여러 줄 머리를 만든다.
    * 그룹 항목의 `headerComponent`·`headerComponentParams` 는 그룹 머리 컴포넌트(headerGroupComponent)로 쓴다.
@@ -504,6 +507,7 @@ function leafColDef(col: GridColumn, opts: BuildColumnDefsOptions): ColDef {
     cellClassRules: cellClassRulesProp,
     headerClass: col.headerAlign ? `header-${col.headerAlign}` : "header-center",
     headerTooltip: col.headerTooltip,
+    headerStyle: col.headerStyle,
     rowDrag,
     ...(col.tooltip === false ? { tooltipValueGetter: () => "" } : {}),
     cellRenderer: col.render
@@ -543,6 +547,7 @@ export function buildColumnDefs(columns: GridColumn[], opts: BuildColumnDefsOpti
         headerGroupComponentParams: col.headerComponentParams,
         headerTooltip: col.headerTooltip,
         headerClass: col.headerAlign ? `header-${col.headerAlign}` : "header-center",
+        headerStyle: col.headerStyle as ColGroupDef["headerStyle"],
         children: buildColumnDefs(col.children, opts),
       };
       return group;
@@ -784,9 +789,15 @@ function AgDataGridComponent({
     }
   }, [selectedRows, selectable, rowKey, data]);
 
+  const columnSizingRef = useRef(resolvedColumnSizing);
+  columnSizingRef.current = resolvedColumnSizing;
+
   /** 현재 컬럼 폭을 min 으로 잠그고, 그리드가 더 넓을 때만 여백을 분배한다. */
   const fillRemainingColumnSpace = useCallback(() => {
     if (!gridRef.current?.api) return;
+    // fit 은 flex 가 이미 그리드 폭을 채운다. 컨테이너와 ag 루트의 1px 테두리 차이로 여기에 들어오면
+    // sizeColumnsToFit 이 flex 가중치(col.width 비율)를 버리고 모든 열을 같은 폭으로 만든다.
+    if (columnSizingRef.current === "fit") return;
     try {
       const api = gridRef.current.api;
       const cols = api.getColumns?.() ?? [];
@@ -1215,7 +1226,7 @@ function AgDataGridComponent({
   return (
     <div
       ref={containerRef}
-      className={`cm-data-grid ag-theme-alpine ${className}`.trim()}
+      className={`cm-data-grid ag-theme-alpine${isAutoHeight ? " cm-data-grid-auto-height" : ""}${isAutoHeight && sortedData.length === 0 ? " cm-data-grid-empty" : ""} ${className}`.trim()}
       style={{ height: isAutoHeight ? "auto" : height || "100%", width: "100%" }}
       aria-label={ariaLabel || "데이터 목록"}
       aria-busy={loading}

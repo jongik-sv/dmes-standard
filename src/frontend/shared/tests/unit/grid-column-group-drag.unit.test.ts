@@ -54,6 +54,17 @@ describe("buildColumnDefs 열 그룹", () => {
     expect(leaves.every((l) => !isGroup(l))).toBe(true);
   });
 
+  it("headerStyle 은 그룹·잎 머리에 그대로 넘긴다", () => {
+    const style = { background: "var(--color-success-soft)" };
+    const defs = buildColumnDefs(
+      [{ key: "g", header: "조건", headerStyle: style, children: [{ key: "a", header: "A", headerStyle: style }] }],
+      BASE,
+    );
+    const g = defs[0] as ColGroupDef;
+    expect(g.headerStyle).toEqual(style);
+    expect((g.children[0] as ColDef).headerStyle).toEqual(style);
+  });
+
   it("잎의 기존 속성(편집·편집기·폭·클래스 규칙)은 그룹 안에서도 그대로다", () => {
     const flat = buildColumnDefs(
       [
