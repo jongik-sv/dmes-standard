@@ -11,13 +11,15 @@
  * 진입 코드는 handoff(openMdmPage) > snapshot 순서로 정하고 받은 값은 snapshot 에 남긴다(§6.10, 옛 codeEdit 그대로).
  *
  * 선택과 응답의 정합(2026-09-28 검토 결함 1): 목록 강조(`selectedId`)와 상세(view·form·버전 선택)는 늘 같은 코드를
- * 가리켜야 한다. 그래서 선택을 바꾸는 길은 `select` 하나로 모으고, 바꿀 때 이전 코드의 상세를 바로 비운다(로딩 표시).
+ * 가리켜야 한다. 그래서 선택을 바꾸는 길은 `select` 하나로 모은다. 코드에서 코드로 옮길 때(목록 행·handoff)는 이전 상세를
+ * 비우지 않고 새 상세가 올 때까지 잠근 채(`stale` — 쓰기·입력·버전 선택 불가, 늦으면 흐리게) 두었다가 같은 DOM 위에 바꿔
+ * 그린다(2026-09-29, 행을 바꿀 때마다 상세 전체를 지웠다 다시 그려 깜빡이던 문제). [신규]·삭제·조회 실패는 전처럼 비운다.
  * 상세 조회·쓰기 응답은 요청 순번(`detailSeq`)이 지금 것과 다르면 버린다 — 늦게 온 A 응답이 B 화면을 덮지 않는다.
  * 조회가 실패하면 선택을 비운다. busy 는 진행 중인 요청 수(`pending`)로 센다. 쓰기(저장·폐기·새 버전·DRAFT 액션·
  * 코드 삭제·등록)가 진행 중이면 목록 행 클릭(↑/↓ 키 이동 포함)을 받지 않는다 — 사용자가 누른 쓰기의 결과(토스트,
  * 충돌 모달과 다시 불러오기)를 그 코드 위에서 보게 하려는 것이다. handoff 는 쓰기 중에도 받으므로 응답 가드는 그대로 둔다.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import {
   ContentBody,
@@ -64,6 +66,18 @@ export interface CodeMngPageProps {
 const COMPONENT_PATH = "dmc/codeMng";
 const mutedText = { color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)" } as const;
 
+// 이전 코드 상세를 잠근 채 두는 동안의 모습. 흐림은 늦게 걸어 짧은 조회(대부분)에서는 보이지 않게 한다.
+const VEIL_FRESH = { display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0, transition: "opacity 120ms ease" } as const;
+const VEIL_STALE = { ...VEIL_FRESH, opacity: 0.5, pointerEvents: "none", transitionDelay: "300ms" } as const;
+
+function DetailVeil({ stale, children }: { stale: boolean; children: ReactNode }) {
+  return (
+    <div data-testid={stale ? "detail-stale" : undefined} aria-busy={stale || undefined} style={stale ? VEIL_STALE : VEIL_FRESH}>
+      {children}
+    </div>
+  );
+}
+
 type Mode = "none" | "detail" | "new";
 
 interface Target {
@@ -107,7 +121,6 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
   const [form, setForm] = useState<HeaderForm | null>(null);
   const [selectedVer, setSelectedVer] = useState<string | null>(null);
   const [pending, setPending] = useState(0);
-  const busy = pending > 0;
   const [error, setError] = useState<{ message: string; reload: boolean } | null>(null);
   const [newVersionKind, setNewVersionKind] = useState<VerKind | null>(null);
   const [handoverOpen, setHandoverOpen] = useState(false);
@@ -161,17 +174,20 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
   );
 
   /**
-   * 선택을 바꾸는 유일한 길(목록 행·handoff·snapshot·[신규]·[취소]·삭제 성공·조회 실패). 이전 코드의 상세·버전 선택·
-   * 열린 모달을 바로 비우고 순번을 올려, 이전 코드로 가던 응답이 도착해도 버려지게 한다.
+   * 선택을 바꾸는 유일한 길(목록 행·handoff·snapshot·[신규]·[취소]·삭제 성공·조회 실패). 열린 모달을 닫고 순번을 올려,
+   * 이전 코드로 가던 응답이 도착해도 버려지게 한다. keepDetail 이면 이전 상세를 새 상세가 올 때까지 잠근 채 남기고
+   * (`stale`), 아니면 상세·버전 선택을 바로 비운다.
    */
-  const select = useCallback((id: string | null, nextMode: Mode) => {
+  const select = useCallback((id: string | null, nextMode: Mode, keepDetail = false) => {
     selectedIdRef.current = id;
     detailSeq.current += 1;
     setSelectedId(id);
     setMode(nextMode);
-    setView(null);
-    setForm(null);
-    setSelectedVer(null);
+    if (!keepDetail) {
+      setView(null);
+      setForm(null);
+      setSelectedVer(null);
+    }
     setNewVersionKind(null);
     setHandoverOpen(false);
   }, []);
@@ -211,7 +227,7 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
 
   const chooseDetail = useCallback(
     (id: string, ver: string | null) => {
-      select(id, "detail");
+      select(id, "detail", true);
       writeSnapshotTarget(id, ver);
       return loadDetail(id, ver);
     },
@@ -290,6 +306,9 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
     [apply, begin, end, fail, showMessage, reloadList],
   );
 
+  // 목록에서 다른 코드를 골랐고 그 상세가 아직 오지 않았다 — 보이는 상세는 이전 코드 것이라 아무 쓰기도 받지 않는다.
+  const stale = mode === "detail" && !!view && view.header.maruCodeId !== selectedId;
+  const busy = pending > 0 || stale;
   const header = view?.header;
   const selected = view?.versions.find((v) => v.ver === selectedVer) ?? null;
 
@@ -332,11 +351,12 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
 
   const handleSelectVer = useCallback(
     (ver: string) => {
+      if (stale) return;
       setSelectedVer(ver);
       // 버전 카드에서 고른 ver 도 snapshot 에 남겨 새로고침 뒤에도 그 버전을 고른 채 연다.
       if (selectedIdRef.current) writeSnapshotTarget(selectedIdRef.current, ver);
     },
-    [writeSnapshotTarget],
+    [stale, writeSnapshotTarget],
   );
 
   const runDraft = useCallback(
@@ -476,40 +496,46 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
           <ContentBody key="right" direction="column" resizable storageKey="mdm.dmc.codeMng.detail" flex="1 1 0">
             <ContentBody resizable storageKey="mdm.dmc.codeMng.detail.top">
               <ContentPanel flex="1 1 0">
-                <CodeHeaderCard
-                  header={view.header}
-                  form={form}
-                  flags={view.flags}
-                  buttons={buttons}
-                  allowed={allowed}
-                  editable={!!view.flags.editable}
-                  busy={busy}
-                  onFieldChange={setField}
-                  onSaveHeader={handleSaveHeader}
-                  onDeprecate={handleDeprecate}
-                  onDeleteCode={() => void handleDeleteCode()}
-                />
+                <DetailVeil stale={stale}>
+                  <CodeHeaderCard
+                    header={view.header}
+                    form={form}
+                    flags={view.flags}
+                    buttons={buttons}
+                    allowed={allowed}
+                    editable={!!view.flags.editable}
+                    busy={busy}
+                    onFieldChange={setField}
+                    onSaveHeader={handleSaveHeader}
+                    onDeprecate={handleDeprecate}
+                    onDeleteCode={() => void handleDeleteCode()}
+                  />
+                </DetailVeil>
               </ContentPanel>
               <ContentPanel width={360}>
-                <CodeLabelsCard form={form} editable={!!view.flags.editable} busy={busy} onFieldChange={setField} />
+                <DetailVeil stale={stale}>
+                  <CodeLabelsCard form={form} editable={!!view.flags.editable} busy={busy} onFieldChange={setField} />
+                </DetailVeil>
               </ContentPanel>
             </ContentBody>
             <ContentPanel>
-              <CodeVersionCard
-                view={view}
-                selectedVer={selectedVer}
-                buttons={buttons}
-                allowed={allowed}
-                onSelectVer={handleSelectVer}
-                onDeleteDraft={() => runDraft("delete", "삭제했습니다")}
-                onCancelConfirm={handleCancelConfirm}
-                onLock={() => runDraft("lock", "선점했습니다")}
-                onUnlock={() => runDraft("unlock", "해제했습니다")}
-                onOpenNewVersion={setNewVersionKind}
-                onOpenHandover={() => setHandoverOpen(true)}
-                onConfirmMove={() => moveTo("dmc/codeConfirm")}
-                onItemEdit={() => moveTo("dmc/codeItemEdit")}
-              />
+              <DetailVeil stale={stale}>
+                <CodeVersionCard
+                  view={view}
+                  selectedVer={selectedVer}
+                  buttons={buttons}
+                  allowed={allowed}
+                  onSelectVer={handleSelectVer}
+                  onDeleteDraft={() => runDraft("delete", "삭제했습니다")}
+                  onCancelConfirm={handleCancelConfirm}
+                  onLock={() => runDraft("lock", "선점했습니다")}
+                  onUnlock={() => runDraft("unlock", "해제했습니다")}
+                  onOpenNewVersion={setNewVersionKind}
+                  onOpenHandover={() => setHandoverOpen(true)}
+                  onConfirmMove={() => moveTo("dmc/codeConfirm")}
+                  onItemEdit={() => moveTo("dmc/codeItemEdit")}
+                />
+              </DetailVeil>
             </ContentPanel>
           </ContentBody>
         ) : mode === "new" ? (

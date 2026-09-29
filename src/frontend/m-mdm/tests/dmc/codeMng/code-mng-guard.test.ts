@@ -256,7 +256,7 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
     hold("view:PROC_B");
     await clickRow("PROC_A");
     await clickRow("PROC_B");
-    // 고르자마자 이전 상세를 비우고 로딩을 보인다.
+    // 처음 고른 코드는 비교할 이전 상세가 없어 로딩을 보인다.
     expect(byTestId("detail-loading")).toBeTruthy();
     expect(highlighted()).toEqual(["PROC_B"]);
 
@@ -273,6 +273,36 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
     await typeInto("header-name", "B 새 이름");
     await click(byTestId("header-save"));
     expect(actions("save").map((c) => c.params.maruCodeId)).toEqual(["PROC_B"]);
+  });
+
+  it("A 를 보다가 B 를 고르면 상세를 지웠다 다시 그리지 않고, B 가 올 때까지 A 를 잠근 채 둔다(깜빡임 방지)", async () => {
+    const snapshots: unknown[] = [];
+    await render({ onSnapshotChange: (s: unknown) => snapshots.push(s) });
+    await clickRow("PROC_A");
+    const headerCell = byTestId("header-code-id");
+    const versionList = byTestId("version-list");
+    expect(headerCell?.textContent).toBe("PROC_A");
+
+    hold("view:PROC_B");
+    await clickRow("PROC_B");
+    expect(highlighted()).toEqual(["PROC_B"]);
+    expect(byTestId("detail-loading")).toBeNull();
+    expect(byTestId("detail-stale")).toBeTruthy();
+    expect(headerId()).toBe("PROC_A");
+    // 이전 코드(A) 상세가 보이는 동안에는 어떤 쓰기도, 버전 선택도 A 로 가지 않는다.
+    expect(button("header-save").disabled).toBe(true);
+    expect((byTestId("header-name") as HTMLInputElement).disabled).toBe(true);
+    await click(byTestId("version-row-1.000"));
+    expect(byTestId("version-row-1.000")?.getAttribute("aria-selected")).toBe("false");
+    expect(snapshots.at(-1)).toEqual({ maruCodeId: "PROC_B" });
+
+    await release("view:PROC_B");
+    expect(byTestId("detail-stale")).toBeNull();
+    expect(headerId()).toBe("PROC_B");
+    // 같은 DOM 을 고쳐 쓴다 — 상세 트리를 버리고 새로 만들지 않는다.
+    expect(byTestId("header-code-id")).toBe(headerCell);
+    expect(byTestId("version-list")).toBe(versionList);
+    expect(button("header-save").disabled).toBe(false);
   });
 
   it("A 저장 중에 B 를 눌러도 선택을 바꾸지 않고, 저장 결과는 A 위에 보인다", async () => {

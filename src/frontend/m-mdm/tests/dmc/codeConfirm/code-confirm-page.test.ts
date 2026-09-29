@@ -145,6 +145,15 @@ async function pickApplyFrom(value: string) {
   await pickDateTime(() => byTestId("cf-apply-from") as HTMLElement, value);
 }
 
+/** 이미 열린 탭이 다른 코드·버전을 넘겨받는다(재활성화). */
+async function handOff(maruCodeId: string, ver: string) {
+  openMdmPage("dmc/codeConfirm", { maruCodeId, ver });
+  await act(async () => {
+    window.dispatchEvent(new CustomEvent("portal-tab-activated", { detail: { tabId: "t1" } }));
+  });
+  await flush();
+}
+
 /** 핸드오프로 PROC_CD 2.000 을 열고 apply_from 을 넣어 검사까지 한다. */
 async function openAndValidate(applyFrom = "2026-10-01 00:00:00") {
   openMdmPage("dmc/codeConfirm", { maruCodeId: "PROC_CD", ver: "2.000" });
@@ -171,8 +180,8 @@ describe("CodeConfirmPage", () => {
           return jsonResponse(ok({ rows: [{ maruCodeId: "PROC_CD", maruCodeName: "공정 코드", ver: "2.000",
             verLabel: "v2.000", verKind: "MAJOR", ownerId: "tester", codeStatus: "INUSE" }] }));
         }
-        if (m[1] === "view") return jsonResponse(ok(nextView()));
-        if (m[1] === "validate") return jsonResponse(ok(nextValidate()));
+        if (m[1] === "view") return jsonResponse(ok(await nextView()));
+        if (m[1] === "validate") return jsonResponse(ok(await nextValidate()));
         if (m[1] === "confirm") return jsonResponse(confirmResponse);
       }
       if (url.includes("/api/auth/me")) return jsonResponse({ user: { id: "tester" } });
@@ -202,6 +211,101 @@ describe("CodeConfirmPage", () => {
     expect(actions("view")).toHaveLength(0);
     await click(byTestId("cf-row-PROC_CD-2.000"));
     expect(actions("view").map((c) => c.params)).toEqual([{ maruCodeId: "PROC_CD", ver: "2.000" }]);
+  });
+
+  it("다른 코드를 고르면 상세를 지웠다 다시 그리지 않고, 새 view 가 올 때까지 이전 상세를 잠근 채 둔다(깜빡임 방지)", async () => {
+    openMdmPage("dmc/codeConfirm", { maruCodeId: "PROC_CD", ver: "2.000" });
+    await render();
+    const form = byTestId("cf-form");
+    expect(visibleText(form!)).toContain("PROC_CD");
+
+    let releaseLine!: () => void;
+    const lineView = viewResult({ header: { maruCodeId: "LINE_CD", maruCodeName: "라인 코드", status: "CREATED", sourceKind: "MDM" } },
+      { ver: "1.000", verLabel: "v1.000" });
+    const lateA = new Promise<void>((r) => (releaseLine = r));
+    nextView = () => lateA.then(() => lineView);
+    openMdmPage("dmc/codeConfirm", { maruCodeId: "LINE_CD", ver: "1.000" });
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent("portal-tab-activated", { detail: { tabId: "t1" } }));
+    });
+    await flush();
+
+    expect(visibleText(container)).not.toContain("확정할 DRAFT 를 고르세요");
+    expect(byTestId("cf-stale")).toBeTruthy();
+    expect(visibleText(byTestId("cf-form")!)).toContain("PROC_CD");
+    expect((byTestId("cf-validate") as HTMLButtonElement).disabled).toBe(true);
+
+    await act(async () => releaseLine());
+    await flush();
+    await flush();
+    expect(byTestId("cf-stale")).toBeNull();
+    expect(byTestId("cf-form")).toBe(form);
+    expect(visibleText(form!)).toContain("LINE_CD");
+    expect((byTestId("cf-validate") as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("검사한 뒤 다른 코드를 고르면 새 view 가 올 때까지 검사 표를 그대로 두고, 온 뒤에 비운다", async () => {
+    await openAndValidate();
+    expect(byTestId("cf-check-1")).toBeTruthy();
+
+    let releaseLine!: () => void;
+    const gate = new Promise<void>((r) => (releaseLine = r));
+    nextView = () => gate.then(() => viewResult({ header: { maruCodeId: "LINE_CD", maruCodeName: "라인 코드", status: "CREATED", sourceKind: "MDM" } },
+      { ver: "1.000", verLabel: "v1.000" }));
+    await handOff("LINE_CD", "1.000");
+    expect(byTestId("cf-stale")).toBeTruthy();
+    expect(byTestId("cf-check-1")).toBeTruthy();
+    expect(confirmButton().disabled).toBe(true);
+
+    await act(async () => releaseLine());
+    await flush();
+    await flush();
+    expect(byTestId("cf-check-1")).toBeNull();
+    expect(confirmButton().disabled).toBe(true);
+  });
+
+  it("A 검사가 끝나기 전에 B 로 옮기면 늦게 온 A 검사 결과를 B 에 붙이지 않는다", async () => {
+    openMdmPage("dmc/codeConfirm", { maruCodeId: "PROC_CD", ver: "2.000" });
+    await render();
+    await pickApplyFrom("2026-10-01 00:00:00");
+    let releaseCheck!: () => void;
+    const gate = new Promise<void>((r) => (releaseCheck = r));
+    nextValidate = () => gate.then(() => validateResult(checkRows()));
+    await click(byTestId("cf-validate"));
+
+    nextView = () => viewResult({ header: { maruCodeId: "LINE_CD", maruCodeName: "라인 코드", status: "CREATED", sourceKind: "MDM" } },
+      { ver: "1.000", verLabel: "v1.000" });
+    await handOff("LINE_CD", "1.000");
+    expect(visibleText(byTestId("cf-form")!)).toContain("LINE_CD");
+
+    await act(async () => releaseCheck());
+    await flush();
+    await flush();
+    expect(byTestId("cf-check-1")).toBeNull();
+    expect(confirmButton().disabled).toBe(true);
+  });
+
+  it("A 를 고른 뒤 B 를 고르고 A 응답이 늦게 오면 A 를 버린다", async () => {
+    let releaseA!: () => void;
+    const lateA = new Promise<void>((r) => (releaseA = r));
+    nextView = () => lateA.then(() => viewResult());
+    openMdmPage("dmc/codeConfirm", { maruCodeId: "PROC_CD", ver: "2.000" });
+    await render();
+
+    nextView = () => viewResult({ header: { maruCodeId: "LINE_CD", maruCodeName: "라인 코드", status: "CREATED", sourceKind: "MDM" } },
+      { ver: "1.000", verLabel: "v1.000" });
+    openMdmPage("dmc/codeConfirm", { maruCodeId: "LINE_CD", ver: "1.000" });
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent("portal-tab-activated", { detail: { tabId: "t1" } }));
+    });
+    await flush();
+    expect(visibleText(byTestId("cf-form")!)).toContain("LINE_CD");
+
+    await act(async () => releaseA());
+    await flush();
+    await flush();
+    expect(visibleText(byTestId("cf-form")!)).toContain("LINE_CD");
+    expect((byTestId("cf-validate") as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("목록이 비면 빈 상태 문구를 보인다", async () => {

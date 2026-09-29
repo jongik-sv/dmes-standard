@@ -9,6 +9,8 @@
  * 검사(`validate`)는 쓰기가 없고, 확정 버튼은 검사한 apply_from 이 지금 입력값과 같을 때만 켜진다(I30). 경고 확인과
  * 미래 적용 경고는 대화상자에서 한다(D6·D7). 서버 거부 message 는 오류 영역에 그대로 보인다(I35).
  * 시안 탭7 의 상신·긴급·사유·결재 영역은 만들지 않는다(spec 제약). OBJECT_ID = screenId = BPMN process id = 'codeConfirm'.
+ * 다른 DRAFT 를 고르면 이전 상세를 비우지 않고 새 view 가 올 때까지 잠근 채(`stale`) 두었다가 같은 DOM 위에 바꿔 그린다
+ * (2026-09-29, 고를 때마다 상세 전체를 지웠다 다시 그려 깜빡이던 문제). view 응답은 요청 순번이 지금 것과 다르면 버린다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -39,6 +41,10 @@ const rowFlex = { display: "flex", alignItems: "center", gap: "var(--spacing-sm)
 const cellStyle = { ...DETAIL_VALUE_CELL, padding: "4px 8px" } as const;
 const headStyle = { ...DETAIL_LABEL_CELL, padding: "4px 8px", textAlign: "left" as const };
 const strongWarn = { color: "var(--color-danger, #b91c1c)", fontWeight: 600 } as const;
+
+// 이전 DRAFT 상세를 잠근 채 두는 동안의 모습. 흐림은 늦게 걸어 짧은 조회(대부분)에서는 보이지 않게 한다.
+const VEIL_FRESH = { transition: "opacity 120ms ease" } as const;
+const VEIL_STALE = { ...VEIL_FRESH, opacity: 0.5, pointerEvents: "none", transitionDelay: "300ms" } as const;
 
 const DIFF_KIND_LABELS: Record<string, string> = { ADDED: "추가", REMOVED: "삭제", CHANGED: "수정" };
 
@@ -85,6 +91,13 @@ export default function CodeConfirmPage({ tabId, snapshot, onSnapshotChange }: C
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const handedOff = useRef(false);
+  // 고른 횟수(choice)와 지금 view 가 어느 선택의 것인지(viewChoice) — 다르면 이전 선택의 view 를 잠근 채 보이는 중이다.
+  // viewSeq 는 view 요청 순번 — 늦게 온 이전 요청의 응답을 버린다.
+  const choiceRef = useRef(0);
+  const [choice, setChoice] = useState(0);
+  const [viewChoice, setViewChoice] = useState(0);
+  const viewChoiceRef = useRef(0);
+  const viewSeq = useRef(0);
   const snapshotRef = useRef(snapshot);
   snapshotRef.current = snapshot;
 
@@ -100,23 +113,35 @@ export default function CodeConfirmPage({ tabId, snapshot, onSnapshotChange }: C
   }, [fail]);
 
   const load = useCallback(async (t: Target) => {
+    const seq = ++viewSeq.current;
+    const forChoice = choiceRef.current;
     setBusy(true);
     try {
       const out = await viewDraft(t.maruCodeId, t.ver);
+      if (seq !== viewSeq.current) return;
+      // 새로 고른 DRAFT 의 view 가 왔을 때 비로소 이전 선택의 입력·검사 결과를 비운다 — 고르자마자 비우면 잠근 채
+      // 보이는 이전 상세에서 검사 표만 먼저 사라져 화면이 들썩인다. 확정 뒤 같은 선택을 다시 부를 때는 두지 않는다.
+      if (forChoice !== viewChoiceRef.current) {
+        setApplyInput("");
+        setChecks(null);
+        setCheckedApplyFrom(null);
+      }
+      viewChoiceRef.current = forChoice;
       setView(out);
+      setViewChoice(forChoice);
     } catch (e) {
+      if (seq !== viewSeq.current) return;
+      setView(null);
       fail(e);
     } finally {
-      setBusy(false);
+      if (seq === viewSeq.current) setBusy(false);
     }
   }, [fail]);
 
   const choose = useCallback((t: Target) => {
+    choiceRef.current += 1;
+    setChoice(choiceRef.current);
     setTarget(t);
-    setView(null);
-    setApplyInput("");
-    setChecks(null);
-    setCheckedApplyFrom(null);
     setError(null);
     const base = (snapshotRef.current as Record<string, unknown> | null) ?? {};
     onSnapshotChange?.({ ...base, maruCodeId: t.maruCodeId, ...(t.ver ? { ver: t.ver } : {}) });
@@ -141,29 +166,34 @@ export default function CodeConfirmPage({ tabId, snapshot, onSnapshotChange }: C
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const stale = !!view && viewChoice !== choice;
+  const locked = busy || stale;
   const version = view?.version ?? null;
   const isDraft = version?.status === "DRAFT";
   const applyFrom = toServerDateTime(applyInput);
   const warnings = useMemo(() => warningLines(checks), [checks]);
-  const confirmEnabled = !busy && canConfirm({
+  const confirmEnabled = !locked && canConfirm({
     status: version?.status, ownerId: version?.ownerId, me: rbac.userId, permitted: confirmPermitted,
     checks, checkedApplyFrom, applyFrom,
   });
 
   const handleValidate = async () => {
-    if (!view || !version) return;
+    if (!view || !version || stale) return;
     if (!applyFrom) {
       setError("적용 시작 일시를 입력하세요");
       return;
     }
+    const forChoice = choiceRef.current;
     setBusy(true);
     setError(null);
     try {
       const out = await validateDraft(view.header.maruCodeId, version.ver, applyFrom);
+      if (forChoice !== choiceRef.current) return; // 그사이 다른 DRAFT 를 골랐다 — 그 화면에 붙이지 않는다
       setChecks(out.rows ?? []);
       setCheckedApplyFrom(applyFrom);
       setFutureApplyFrom(out.futureApplyFrom === true);
     } catch (e) {
+      if (forChoice !== choiceRef.current) return;
       setChecks(null);
       setCheckedApplyFrom(null);
       fail(e);
@@ -173,7 +203,7 @@ export default function CodeConfirmPage({ tabId, snapshot, onSnapshotChange }: C
   };
 
   const handleConfirm = async (warningsAcknowledged: boolean) => {
-    if (!view || !version || !checkedApplyFrom) return;
+    if (!view || !version || !checkedApplyFrom || stale) return;
     setBusy(true);
     setError(null);
     try {
@@ -211,7 +241,7 @@ export default function CodeConfirmPage({ tabId, snapshot, onSnapshotChange }: C
             )}
             {!view && <p style={{ ...mutedText, padding: "var(--spacing-md)" }}>확정할 DRAFT 를 고르세요</p>}
             {view && version && (
-              <>
+              <div data-testid={stale ? "cf-stale" : undefined} aria-busy={stale || undefined} style={stale ? VEIL_STALE : VEIL_FRESH}>
                 <div data-testid="cf-form">
                   <div style={cardTitle}>확정 폼</div>
                   <div style={{ ...section, ...rowFlex }}>
@@ -230,9 +260,9 @@ export default function CodeConfirmPage({ tabId, snapshot, onSnapshotChange }: C
                       <span>희망 적용 시작 일시</span>
                       <DateTimePicker
                         data-testid="cf-apply-from" value={applyInput}
-                        onChange={setApplyInput} disabled={busy}
+                        onChange={setApplyInput} disabled={locked}
                       />
-                      <Button data-testid="cf-validate" disabled={busy || !canValidate} onClick={() => void handleValidate()}>
+                      <Button data-testid="cf-validate" disabled={locked || !canValidate} onClick={() => void handleValidate()}>
                         검사
                       </Button>
                       <Button
@@ -256,7 +286,7 @@ export default function CodeConfirmPage({ tabId, snapshot, onSnapshotChange }: C
                 {checks && <CheckTable rows={checks} />}
                 <DiffTable entries={view.diff ?? []} />
                 <CategorySummary changes={view.categoryChanges ?? []} unchanged={view.unchangedCategories ?? []} />
-              </>
+              </div>
             )}
           </div>
         </ContentPanel>
