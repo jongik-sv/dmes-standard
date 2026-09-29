@@ -56,7 +56,7 @@ cd ..
 pnpm dev
 ```
 
-`shared` 또는 `m-mcm`의 `.env` 파일은 `.env.example`을 복사 후 환경에 맞게 수정한다. `m-mpn` 소스를 수정했다면 `cd src/frontend/m-mpn && pnpm build` 후 `pnpm dev`를 다시 실행한다. `shared` 소스를 수정했다면 `cd src/frontend/shared && pnpm build` 후 `pnpm dev`를 다시 실행한다.
+`shared` 또는 `m-mcm`의 `.env` 파일은 `.env.example`을 복사 후 환경에 맞게 수정한다. `pnpm dev`(또는 `./fe-run.sh`·`./local-run.sh`)가 떠 있는 동안에는 `shared`·`m-*` 라이브러리를 `tsup --watch` 가 저장 즉시 다시 빌드하고 포털(Next dev)이 받아 가므로 재실행할 필요가 없다(수 초, 필요하면 탭 새로고침). dev 를 띄우지 않은 상태에서 고쳤다면 해당 패키지를 `pnpm build` 한 뒤 띄운다. 포털은 shared `page-layout.css` 가 아니라 `m-mcm/app/page-layout.css` 사본을 쓰므로 shared CSS 를 고치면 사본도 같이 고친다.
 
 ## 4. UI 검증 원칙
 
@@ -124,3 +124,13 @@ LoV service가 아직 없을 때는 화면에서 임의 Phase 7 LoV 라우트를
 - `mpp`, `mqc`, `mls`, `mcm`처럼 SqlSession 미등록 모듈에서는 `apiLovMaster`, `apiLovQuery`, `apiLovService` 호출을 금지한다.
 - LoV가 업무상 필요하면 별도 OASIS BPMN service를 신설하고 `/api/{moduleId}/oasis/{lovServiceId}/{action}` 형태로 호출한다.
 - service 미구축 상태에서 화면 진행이 필요하면 정적 옵션, 비활성 상태, 빈 결과 stub 중 하나로 명시 처리하고, Decision Log나 설계서 이슈에 후속 작업을 남긴다.
+
+## 11. 목록·상세 선택 전환 — 깜빡임 금지 (2026-09-29)
+
+목록(그리드·트리)에서 다른 항목을 고를 때 상세 영역을 비웠다 다시 그리지 않는다. 상세 전체가 사라졌다 생기며 깜빡인다.
+
+- 새 상세가 올 때까지 이전 상세를 **잠근 채**(쓰기·입력·하위 선택 불가) 두고, 도착하면 같은 DOM 위에 바꿔 그린다. 흐림 표시는 300ms 쯤 늦게 걸어 짧은 조회에서는 보이지 않게 한다.
+- 조회·검사 응답은 요청 순번으로 확인해 늦게 온 이전 선택의 응답을 버린다.
+- 처음 고를 때(비교할 이전 상세 없음)·[신규]·삭제·조회 실패는 전처럼 비운다.
+- 분할 크기(`ContentBody resizable`)는 shared 가 첫 렌더부터 저장값으로 그린다 — 화면에서 따로 처리하지 않는다.
+- 예시: `m-mdm/pages/dmc/codeMng`·`codeConfirm` 과 그 테스트(`code-mng-guard`·`code-confirm-page`).
