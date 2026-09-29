@@ -42,7 +42,7 @@ has_scope_arg() {
 
   for arg in "$@"; do
     case "$arg" in
-      --all|--full|--mpn|--mpn-only) return 0 ;;
+      --all|--full|--mpn|--mpn-only|--mdm|--mdm-only) return 0 ;;
     esac
   done
   return 1
@@ -68,7 +68,7 @@ fi
 FE_ARGS=()
 for arg in "$@"; do
   case "$arg" in
-    --all|--full|--mpn|--mpn-only|--install|--build|--clean|--no-install|--no-build|-q) FE_ARGS+=("$arg") ;;
+    --all|--full|--mpn|--mpn-only|--mdm|--mdm-only|--install|--build|--clean|--no-install|--no-build|-q) FE_ARGS+=("$arg") ;;
     # BE 모듈 플래그는 be-run.sh 가 .run.env(BE_RUN_ARGS)에서 읽는다 — 여기서는 무시하고 통과시킨다.
     --mcm|--mls|--mqc|--mpp|--analog) ;;
     -h|--help) sed -n '2,20p' "$0"; exit 0 ;;

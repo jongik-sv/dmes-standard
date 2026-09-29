@@ -10,6 +10,10 @@
 # 무엇을 지우는가 (접두 `E2E` 가 붙은 이름·ID 인 것만):
 #   마루 코드  TB_MDM_CODE / _VER / _CATE / _ITEM / _CATE_ITEM / _RECV
 #   룰       TB_MDM_RULE 와 그 하위(VER·VAR·ROW·TEST_CASE·SYSTEM·RECV), E2E 만 참조하는 룰 세트
+#   마루 데이터 TB_MDM_DATA / _CATE / _ITEM / _CATE_ITEM / _SYSTEM / _RECV / _RECV_ITEM
+#     (dmd 스펙이 만든 E2E_USR_DM*_<시각>·E2EDM<접미> 등. 마루 데이터는 화면에서 지울 수 없어 실행마다 쌓인다)
+#     ※ 픽스처 마루 데이터(E2E_DM_·E2E_DC_·E2E_DI_ 의 고정 7개)는 남긴다 — 화면 스펙이 e2e/fixtures/*.sql 을 다시
+#       넣지 않고 그대로 쓰기 때문이다. 그것까지 지우려면 --include-fixtures (지운 뒤 픽스처 SQL 을 다시 적용해야 한다).
 #   용어·도메인·컬럼 사전 TB_MDM_TERM / TB_MDM_DOMAIN / TB_MDM_COLUMN ( dma 스펙이 만든 것 )
 #   ※ dma 는 시험 데이터를 만들되 정리를 하지 않아 여기까지 왔었다. 삭제는 자식 → 부모 순으로 한다.
 # 지우지 않는 것:
@@ -18,6 +22,7 @@
 # 사용:
 #   ./tools/e2e-clean-data.sh            # 확인만(기본). 지우려면 --apply
 #   ./tools/e2e-clean-data.sh --apply    # 실제로 지운다
+#   ./tools/e2e-clean-data.sh --apply --include-fixtures   # 픽스처 마루 데이터(E2E_DM_PORT 등)까지 지운다
 #
 # 되돌림: 지우기 직전에 mdm.db 를 <파일>.bak-e2eclean-<시각> 으로 복사한다.
 set -euo pipefail
@@ -25,7 +30,22 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DB="${E2E_CLEAN_DB:-$ROOT/src/backend/data/mdm.db}"
 APPLY=0
-[ "${1:-}" = "--apply" ] && APPLY=1
+INCLUDE_FIXTURES=0
+for arg in "$@"; do
+  case "$arg" in
+    --apply) APPLY=1 ;;
+    --include-fixtures) INCLUDE_FIXTURES=1 ;;
+    *) echo "[e2e-clean] 알 수 없는 인자: $arg" >&2; exit 1 ;;
+  esac
+done
+
+# 픽스처 마루 데이터(e2e/fixtures/mdm-dataMng.sql·mdm-dataItem.sql) — 기본은 남긴다.
+FIXTURE_DATA="'E2E_DM_PORT','E2E_DM_CUST','E2E_DC_PORT','E2E_DI_PORT','E2E_DI_CUST','E2E_DI_EMPTY','E2E_DI_CSV'"
+if [ "$INCLUDE_FIXTURES" -eq 1 ]; then
+  DATA_WHERE="MARU_DATA_ID LIKE 'E2E%'"
+else
+  DATA_WHERE="MARU_DATA_ID LIKE 'E2E%' AND MARU_DATA_ID NOT IN ($FIXTURE_DATA)"
+fi
 
 if [ ! -f "$DB" ]; then
   echo "[e2e-clean] DB 가 없다: $DB" >&2
@@ -34,6 +54,7 @@ fi
 
 count() { sqlite3 "$DB" "SELECT COUNT(*) FROM $1 WHERE $2 LIKE 'E2E%';"; }
 q() { sqlite3 "$DB" "$1"; }
+count_where() { sqlite3 "$DB" "SELECT COUNT(*) FROM $1 WHERE $2;"; }
 
 echo "[e2e-clean] 대상 DB: $DB"
 
@@ -43,12 +64,14 @@ T_CATE=$(count TB_MDM_CODE_CATE MARU_CODE_ID)
 T_ITEM=$(count TB_MDM_CODE_ITEM MARU_CODE_ID)
 T_CATEITEM=$(count TB_MDM_CODE_CATE_ITEM MARU_CODE_ID)
 T_RULE=$(count TB_MDM_RULE MARU_RULE_ID)
+T_DATA=$(count_where TB_MDM_DATA "$DATA_WHERE")
+T_DATAITEM=$(count_where TB_MDM_DATA_ITEM "$DATA_WHERE")
 T_TERM=$(q "SELECT COUNT(*) FROM TB_MDM_TERM WHERE TERM_NAME LIKE 'E2E%' OR ENG_ABBR LIKE 'E2E%' OR TERM_ID LIKE 'E2E%';")
 T_DOMAIN=$(q "SELECT COUNT(*) FROM TB_MDM_DOMAIN WHERE DOMAIN_NAME LIKE 'E2E%' OR DOMAIN_ID LIKE 'E2E%';")
 T_COLUMN=$(q "SELECT COUNT(*) FROM TB_MDM_COLUMN WHERE COLUMN_NAME LIKE 'E2E%' OR COLUMN_ID LIKE 'E2E%';")
-TOTAL=$((T_CODE + T_CATE + T_ITEM + T_CATEITEM + T_RULE + T_TERM + T_DOMAIN + T_COLUMN))
+TOTAL=$((T_CODE + T_CATE + T_ITEM + T_CATEITEM + T_RULE + T_DATA + T_DATAITEM + T_TERM + T_DOMAIN + T_COLUMN))
 
-echo "[e2e-clean] E2E 데이터: 코드 ${T_CODE} · 카테고리 ${T_CATE} · 항목 ${T_ITEM} · 카테고리항목 ${T_CATEITEM} · 룰 ${T_RULE} · 용어 ${T_TERM} · 도메인 ${T_DOMAIN} · 컬럼 ${T_COLUMN}  (합계 ${TOTAL})"
+echo "[e2e-clean] E2E 데이터: 코드 ${T_CODE} · 카테고리 ${T_CATE} · 항목 ${T_ITEM} · 카테고리항목 ${T_CATEITEM} · 룰 ${T_RULE} · 마루 데이터 ${T_DATA}(항목 ${T_DATAITEM}) · 용어 ${T_TERM} · 도메인 ${T_DOMAIN} · 컬럼 ${T_COLUMN}  (합계 ${TOTAL})"
 echo "[e2e-clean] 남길 샘플 코드: $(q "SELECT IFNULL(GROUP_CONCAT(MARU_CODE_ID, ' '), '(없음)') FROM TB_MDM_CODE WHERE MARU_CODE_ID NOT LIKE 'E2E%';")"
 echo "[e2e-clean] 남길 샘플 룰  : $(q "SELECT COUNT(*) FROM TB_MDM_RULE WHERE MARU_RULE_ID NOT LIKE 'E2E%';")건"
 
@@ -68,8 +91,16 @@ cp "$DB" "$BAK"
 echo "[e2e-clean] 백업: $BAK"
 
 # ── 삭제 (자식 → 부모 순. FK 는 껐다 켠다) ───────────────────
-sqlite3 "$DB" <<'SQL'
+sqlite3 "$DB" <<SQL
 PRAGMA foreign_keys=OFF;
+-- 마루 데이터(자식 → 부모). 수신 항목은 RECV_ID 로 매이므로 수신 헤더를 통해 지운다
+DELETE FROM TB_MDM_DATA_RECV_ITEM WHERE RECV_ID IN (SELECT RECV_ID FROM TB_MDM_DATA_RECV WHERE $DATA_WHERE);
+DELETE FROM TB_MDM_DATA_RECV      WHERE $DATA_WHERE;
+DELETE FROM TB_MDM_DATA_SYSTEM    WHERE $DATA_WHERE;
+DELETE FROM TB_MDM_DATA_CATE_ITEM WHERE $DATA_WHERE;
+DELETE FROM TB_MDM_DATA_ITEM      WHERE $DATA_WHERE;
+DELETE FROM TB_MDM_DATA_CATE      WHERE $DATA_WHERE;
+DELETE FROM TB_MDM_DATA           WHERE $DATA_WHERE;
 -- 룰과 그 하위
 DELETE FROM TB_MDM_RULE_TEST_CASE WHERE MARU_RULE_ID LIKE 'E2E%';
 DELETE FROM TB_MDM_RULE_ROW        WHERE MARU_RULE_ID LIKE 'E2E%';
