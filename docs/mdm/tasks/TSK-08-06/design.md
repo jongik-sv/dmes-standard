@@ -472,7 +472,7 @@ cyc 가 있으면 error "순환이 있다({cyc}). 룰 A의 조건이 B의 결과
 
 ### 6.9 ruleSetEdit 화면 (시안 H:309-336 대응)
 
-- `MdmPageLayout group="dme" screenId="ruleSetEdit" title="룰 세트 편집"`. 상단 바(`data-testid="set-edit-topbar"`): 세트 고르기 `Input`(`set-pick-keyword`) + "찾기" → 후보 버튼(`set-pick-{setId}`),
+- `MdmPageLayout group="dme" screenId="ruleSetEdit" title="룰 세트 편집"`. 상단 바(`data-testid="set-edit-topbar"`): 세트 고르기 `IdPicker`(`@/shell`, 룰 화면 룰 고르기와 같음 — `set-pick-keyword` + "찾기" → 드롭다운 `set-pick-list` 안 `set-pick-{setId}`),
   현재 세트 표시(`set-edit-current`). 세트를 고르기 전에는 빈 상태 문구 "세트를 골라 편집한다. 새 세트는 룰 세트 화면에서 등록한다".
 - 16칸 그리드: 룰 세트 카드(span 10), 세트 구성 지침 카드(span 6).
 - **룰 세트 카드**

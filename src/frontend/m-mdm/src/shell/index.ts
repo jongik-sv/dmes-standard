@@ -3,6 +3,7 @@ export { MDM_GROUPS, MDM_MENU_ROOT_NAME, type MdmGroupCode } from "./mdm-groups"
 export { MdmPageLayout, type MdmPageLayoutProps } from "./MdmPageLayout";
 export { badgeStyle, type MdmBadgeTone } from "./badge-style";
 export { VersionStatusBadge, type VersionStatusBadgeProps, type MdmVersionStatus } from "./VersionStatusBadge";
+export { IdPicker, filterIdPicks, type IdPickRow, type IdPickerProps } from "./IdPicker";
 export { DraftLockBadge, type DraftLockBadgeProps } from "./DraftLockBadge";
 export { openMdmPage, takeMdmPageParams, useMdmPageParams, type MdmPageParams } from "./page-handoff";
 export { HANDOVER_AVAILABLE, HANDOVER_PENDING_TEXT } from "./handover";
