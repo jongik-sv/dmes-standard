@@ -16,6 +16,10 @@ import type {
   RowDragEndEvent,
   RowClassParams,
   CellValueChangedEvent,
+  CellFocusedEvent,
+  CellKeyDownEvent,
+  CellEditingStoppedEvent,
+  IRowNode,
   EditableCallbackParams,
 } from "ag-grid-community";
 import { GRID_TEMP_ID_FIELD } from "./GridPanel";
@@ -254,6 +258,16 @@ export interface AgDataGridProps {
   ) => void;
   onRowClick?: (row: Record<string, unknown>, event: Event) => void;
   onRowDoubleClick?: (row: Record<string, unknown>, event: Event) => void;
+  /**
+   * 칸 포커스가 옮겨 간 행(편집 그리드에서 ↑/↓·Tab·클릭으로 포커스 칸이 바뀔 때). 편집 컬럼이 있으면 ag-grid 가 화살표를
+   * 먼저 처리해 컨테이너 ↑/↓(onRowClick) 가 돌지 않으므로, 커서 행을 따라가야 하는 화면이 이것으로 받는다. 같은 행이어도 부를 수 있다.
+   */
+  onFocusedRowChange?: (row: Record<string, unknown>) => void;
+  /**
+   * 글자 입력 칸을 편집하는 중 ↑/↓ 로 같은 열의 이전·다음 행으로 옮겨 편집을 이어 연다(엑셀식). 옮기기 전 칸은 편집을 마쳐 값을 반영한다.
+   * 선택 목록 편집기처럼 ↑/↓ 를 스스로 쓰는 편집기는 건드리지 않는다. 기본 false.
+   */
+  editArrowNavigation?: boolean;
   sortable?: boolean;
   emptyMessage?: string;
   /** 데이터 없음 안내 문구에 붙일 data-testid(화면·E2E 가 빈 상태를 확인할 때). */
@@ -607,6 +621,8 @@ function AgDataGridComponent({
   onRowSelect,
   onRowClick,
   onRowDoubleClick,
+  onFocusedRowChange,
+  editArrowNavigation = false,
   sortable = true,
   emptyMessage = "데이터가 없습니다.",
   emptyTestId,
@@ -723,6 +739,8 @@ function AgDataGridComponent({
 
   const highlightedRowKeyRef = useRef(highlightedRowKey);
   const prevHighlightedRowKeyRef = useRef<string | number | null>(null);
+  /** 강조가 바뀌었지만 편집 중이라 아직 다시 그리지 못한 행. */
+  const pendingHighlightRedrawRef = useRef<IRowNode[]>([]);
 
   const getRowClass = useCallback(
     (params: RowClassParams): string | string[] | undefined => {
@@ -985,12 +1003,7 @@ function AgDataGridComponent({
     highlightedRowKeyRef.current = highlightedRowKey;
     prevHighlightedRowKeyRef.current = highlightedRowKey;
 
-    // 편집 중인 셀이 있으면 redrawRows 가 cell editor 를 닫아 사용자가 다시 클릭해야 하는
-    // 깜빡임 현상이 발생. 편집 중에는 row class 업데이트(하이라이트) 를 스킵한다.
-    const editingCells = api.getEditingCells?.();
-    if (editingCells && editingCells.length > 0) return;
-
-    const nodesToRedraw = [];
+    const nodesToRedraw: IRowNode[] = [];
     if (prev !== null) {
       const prevNode = api.getRowNode(String(prev));
       if (prevNode) nodesToRedraw.push(prevNode);
@@ -999,17 +1012,45 @@ function AgDataGridComponent({
       const newNode = api.getRowNode(String(highlightedRowKey));
       if (newNode) nodesToRedraw.push(newNode);
     }
-    if (nodesToRedraw.length > 0) {
-      api.redrawRows({ rowNodes: nodesToRedraw });
+    // 편집 중인 행을 redrawRows 하면 cell editor 가 닫혀 사용자가 다시 클릭해야 한다. 그 행만 편집이 끝난 뒤(onCellEditingStopped)
+    // 다시 그리고, 나머지(보통 이전 강조 행)는 바로 다시 그린다 — 전에는 편집 중이면 통째로 건너뛰어 이전 행 강조가 남았다.
+    const editingRows = new Set((api.getEditingCells?.() ?? []).filter((c) => c.rowPinned == null).map((c) => c.rowIndex));
+    const now = nodesToRedraw.filter((n) => n.rowIndex == null || !editingRows.has(n.rowIndex));
+    pendingHighlightRedrawRef.current.push(...nodesToRedraw.filter((n) => !now.includes(n)));
+    if (now.length > 0) {
+      api.redrawRows({ rowNodes: now });
     }
   }, [highlightedRowKey, gridReady]);
+
+  const handleCellEditingStopped = useCallback((event: CellEditingStoppedEvent) => {
+    const pending = pendingHighlightRedrawRef.current;
+    if (pending.length === 0) return;
+    // 편집기를 닫은 직후 같은 틱에서 다른 칸 편집을 여는 경우(편집 중 ↑/↓)가 있어 한 틱 미룬다.
+    setTimeout(() => {
+      const editingRows = new Set((event.api.getEditingCells?.() ?? []).map((c) => c.rowIndex));
+      const ready = pending.filter((n) => n.rowIndex == null || !editingRows.has(n.rowIndex));
+      if (ready.length === 0) return;
+      pendingHighlightRedrawRef.current = pending.filter((n) => !ready.includes(n));
+      event.api.redrawRows({ rowNodes: ready });
+    }, 0);
+  }, []);
 
   useEffect(() => {
     if (rowClassRefreshToken === undefined || !gridReady || !gridRef.current?.api) return;
     const api = gridRef.current.api;
-    const editingCells = api.getEditingCells?.();
-    if (editingCells && editingCells.length > 0) return;
-    api.redrawRows();
+    const editingRows = new Set((api.getEditingCells?.() ?? []).filter((c) => c.rowPinned == null).map((c) => c.rowIndex));
+    if (editingRows.size === 0) {
+      api.redrawRows();
+      return;
+    }
+    // 편집 중이면 그 행만 편집이 끝난 뒤 다시 그린다(강조와 같은 방식) — 전에는 통째로 건너뛰어, 편집 중에 늦게 온 표시(비동기 검사 결과)가
+    // 다음 토큰이 바뀔 때까지 빠졌다.
+    const now: IRowNode[] = [];
+    api.forEachNode((n) => {
+      if (n.rowIndex == null || !editingRows.has(n.rowIndex)) now.push(n);
+      else if (!pendingHighlightRedrawRef.current.includes(n)) pendingHighlightRedrawRef.current.push(n);
+    });
+    if (now.length > 0) api.redrawRows({ rowNodes: now });
   }, [gridReady, rowClassRefreshToken]);
 
   // _rowState / nativeeditor_status 변경 감지 → 해당 행만 redrawRows (CSS 클래스 재적용)
@@ -1170,6 +1211,34 @@ function AgDataGridComponent({
     [onRowClick, rowKey, highlightedRowKey, onRowExpandCollapse]
   );
 
+  const handleCellFocused = useCallback(
+    (event: CellFocusedEvent) => {
+      if (!onFocusedRowChange || event.rowIndex == null || event.rowPinned) return;
+      const node = event.api.getDisplayedRowAtIndex(event.rowIndex);
+      if (node?.data) onFocusedRowChange(node.data as Record<string, unknown>);
+    },
+    [onFocusedRowChange]
+  );
+
+  // 편집 중 ↑/↓ — ag-grid 는 편집 중 화살표를 처리하지 않고 뒤이어 cellKeyDown 을 보낸다. 글자 입력 칸(INPUT)일 때만 옮긴다.
+  const handleCellKeyDown = useCallback((event: CellKeyDownEvent) => {
+    const ke = event.event as KeyboardEvent | null | undefined;
+    if (!ke || (ke.key !== "ArrowUp" && ke.key !== "ArrowDown")) return;
+    if (ke.altKey || ke.ctrlKey || ke.metaKey || ke.shiftKey || ke.isComposing) return;
+    const target = ke.target as HTMLElement | null;
+    if (target?.tagName !== "INPUT") return;
+    const { api, column, rowIndex } = event;
+    if (rowIndex == null || event.rowPinned || !(api.getEditingCells?.() ?? []).length) return;
+    const next = rowIndex + (ke.key === "ArrowDown" ? 1 : -1);
+    if (next < 0 || next >= api.getDisplayedRowCount()) return;
+    ke.preventDefault();
+    const colKey = column.getColId();
+    api.stopEditing();
+    api.ensureIndexVisible(next);
+    api.setFocusedCell(next, colKey);
+    api.startEditingCell({ rowIndex: next, colKey });
+  }, []);
+
   const handleRowDoubleClicked = useCallback(
     (event: RowDoubleClickedEvent) => {
       onRowDoubleClick?.(event.data, event.event!);
@@ -1260,6 +1329,9 @@ function AgDataGridComponent({
         onColumnResized={handleColumnResized}
         onRowClicked={handleRowClicked}
         onRowDoubleClicked={handleRowDoubleClicked}
+        onCellFocused={onFocusedRowChange ? handleCellFocused : undefined}
+        onCellKeyDown={editArrowNavigation ? handleCellKeyDown : undefined}
+        onCellEditingStopped={handleCellEditingStopped}
         onSelectionChanged={handleSelectionChanged}
         onCellValueChanged={handleCellValueChanged}
         singleClickEdit={singleClickEdit}
