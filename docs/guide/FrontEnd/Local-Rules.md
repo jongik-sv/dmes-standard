@@ -131,6 +131,16 @@ LoV service가 아직 없을 때는 화면에서 임의 Phase 7 LoV 라우트를
 
 - 새 상세가 올 때까지 이전 상세를 **잠근 채**(쓰기·입력·하위 선택 불가) 두고, 도착하면 같은 DOM 위에 바꿔 그린다. 흐림 표시는 300ms 쯤 늦게 걸어 짧은 조회에서는 보이지 않게 한다.
 - 조회·검사 응답은 요청 순번으로 확인해 늦게 온 이전 선택의 응답을 버린다.
+- 목록 그리드의 `loading` 은 목록 조회 전용 상태로 켠다. 화면 공용 `busy` 를 넘기면 행을 눌러 상세를 부를 때마다 목록에 로딩 오버레이가 떴다 사라진다(예: `m-mdm/pages/dma/columnMng` 의 `listLoading`, 테스트 `columnMng/list-loading`).
 - 처음 고를 때(비교할 이전 상세 없음)·[신규]·삭제·조회 실패는 전처럼 비운다.
 - 분할 크기(`ContentBody resizable`)는 shared 가 첫 렌더부터 저장값으로 그린다 — 화면에서 따로 처리하지 않는다.
 - 예시: `m-mdm/pages/dmc/codeMng`·`codeConfirm` 과 그 테스트(`code-mng-guard`·`code-confirm-page`).
+
+## 12. 그리드 안 입력 — 칸 렌더러에 입력 요소를 두지 않는다 (2026-09-29)
+
+`AgDataGrid` 의 `GridColumn.render` 안에 `Input` 같은 글자 입력 요소를 두지 않는다. 행을 누르면 그리드가 포커스를 그리드 틀로 가져가 글자가 들어가지 않고, 그리드는 값이 바뀐 칸만 다시 그리므로 다른 칸 값에 기대는 표시(비활성 등)가 갱신되지 않는다.
+
+- 값 입력은 `editable`(행별 함수 가능)·`singleClickEdit`·`onCellValueChanged` 로 한다. 표시는 `render` 로 꾸민다(빈 값 "NULL" 등).
+- 같은 행의 다른 칸 값에 따라 표시·편집 가능 여부가 바뀌면 `rowClassRefreshToken` 에 그 값을 실어 행을 다시 그린다.
+- 확인란·버튼은 `render` 에 두어도 된다(클릭만 받으므로 포커스를 뺏겨도 동작한다).
+- 예시: `m-mdm/pages/dme/ruleEdit/cards/ValueTestCard.tsx` 의 입력 표와 테스트(`value-test-cards`)의 `setVtValue`.
