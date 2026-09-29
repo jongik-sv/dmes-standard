@@ -57,7 +57,7 @@ const DateTimeCellEditor = function DateTimeCellEditor(
         height: "100%",
         border: "none",
         outline: "none",
-        padding: "0 6px",
+        padding: "0 8px",
         boxSizing: "border-box",
         font: "inherit",
       }}
@@ -115,7 +115,7 @@ const SelectCellEditor = function SelectCellEditor(props: {
         height: "100%",
         border: "none",
         outline: "none",
-        padding: "0 4px",
+        padding: "0 6px",
         boxSizing: "border-box",
         font: "inherit",
         background: "inherit",

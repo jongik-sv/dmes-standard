@@ -282,6 +282,21 @@
   background-color: color-mix(in srgb, var(--color-edited) 55%, var(--color-selection));
 }
 
+/* 인라인 편집 셀 — 파란 테두리는 셀(--ag-cell-editing-border) 하나만 그린다.
+   Quartz 기본값은 안쪽 입력칸에도 포커스 테두리·그림자를 따로 그려 파란 선이 두 겹으로 보였다(2026-09-29).
+   편집 중에는 셀 안쪽 여백을 없애 입력칸이 셀을 꽉 채운다(여백만큼 행 배경이 띠처럼 보이지 않게). 글자 들여쓰기는 입력칸이 맡는다. */
+.cm-data-grid .ag-cell.ag-cell-inline-editing {
+  padding: 0;
+}
+
+.cm-data-grid .ag-cell-inline-editing .ag-input-field-input,
+.cm-data-grid .ag-cell-inline-editing .ag-input-field-input:focus,
+.cm-data-grid .ag-cell-inline-editing .ag-picker-field-wrapper,
+.cm-data-grid .ag-cell-inline-editing .ag-picker-field-wrapper:focus-within {
+  border: none;
+  box-shadow: none;
+}
+
 /* 셀 단위 LightPink 마킹 (조건부 강조 — 비정상/주의 셀) */
 .cm-data-grid .ag-cell.cell-light-pink {
   background-color: var(--color-danger-soft) !important;
