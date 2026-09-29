@@ -32,7 +32,7 @@ import {
   type TableState,
 } from "../../../pages/dme/ruleEdit/decision-table/table-state";
 import { mapRowIds, runAnalysis, sameIssues, splitIssues } from "../../../pages/dme/ruleEdit/decision-table/analysis";
-import { cellEditable } from "../../../pages/dme/ruleEdit/decision-table/columns";
+import { buildTableColumns, cellEditable } from "../../../pages/dme/ruleEdit/decision-table/columns";
 import type { RuleEditCardProps } from "../../../pages/dme/ruleEdit/cards";
 import type { RuleEditView, RuleIssueView } from "../../../pages/dme/ruleEdit/types";
 import { RBAC_STORE_KEY, findButton, flush, installDomStorage, jsonResponse, visibleText } from "../helpers/render";
@@ -224,7 +224,58 @@ describe("표 상태 — 편집과 즉시 검사(I13·I19~I21)", () => {
     });
   });
 
-  it("칸 잠금: 기본 행의 조건 칸, 구간이 아닌 상한, 값 없는 op 의 값, 편집 불가 버전", () => {
+  it("조건·결과 묶음 머리는 IF/THEN 설명과 블록 색(조건 success, 결과 primary 토큰)을 단다(06 시안)", () => {
+  const noop = () => {};
+  const cols = buildTableColumns({ vars: SAMPLE_VARS, editable: true, onEdit: noop, onSelectRow: noop, onDeleteRow: noop });
+  const cond = cols.find((c) => c.key === "grp_cond")!;
+  const result = cols.find((c) => c.key === "grp_result")!;
+  expect(cond.header).toBe("조건");
+  expect(cond.headerComponentParams).toEqual({ title: "조건", hint: "IF · 모든 조건 셀이 참이면" });
+  expect(cond.headerStyle).toMatchObject({ background: "var(--color-success-soft)", color: "var(--color-success)" });
+  expect(result.header).toBe("결과");
+  expect(result.headerComponentParams).toEqual({ title: "결과", hint: "THEN · 결과 변수에 대입" });
+  expect(result.headerStyle).toMatchObject({ background: "var(--color-primary-soft-hover)", color: "var(--color-primary-active)" });
+  // 결과 변수의 변수·칸 머리는 옅은 파랑, 조건 변수 머리는 칠하지 않는다.
+  const resVar = result.children![0];
+  expect(resVar.headerStyle).toEqual({ background: "var(--color-primary-soft)" });
+  expect(resVar.children!.every((leaf) => leaf.headerStyle?.background === "var(--color-primary-soft)")).toBe(true);
+  expect(cond.children![0].headerStyle).toBeUndefined();
+});
+
+it("결과 열 그룹은 결과 → 그룹(사전 표시명·이름) → 변수 4줄 머리로 묶고, 열 조건은 변수 머리 툴팁에 붙인다", () => {
+  const noop = () => {};
+  const res = (varId: number, seq: number, varName: string) =>
+    ({ ...SAMPLE_VARS[3], varId, seq, varName, label: varName, description: null }) as (typeof SAMPLE_VARS)[number];
+  // seq 순: X(그룹 G) · Y(그룹 G, 기본 열) · Z(그룹 밖) · W(그룹 G — 떨어져 나와 따로 묶인다)
+  const vars = [SAMPLE_VARS[0], res(11, 1, "X"), res(12, 2, "Y"), res(13, 3, "Z"), res(14, 4, "W")];
+  const cols = buildTableColumns({
+    vars,
+    varMeta: [
+      { varId: 11, resGrp: "G", grpCond: 'TOP_RESIN_CD == "F"' },
+      { varId: 12, resGrp: "G", grpCond: null },
+      { varId: 14, resGrp: "G", grpCond: "A > 1" },
+    ],
+    candidates: [{ name: "G", label: "기준 속도", kind: "COLUMN" }],
+    editable: false,
+    onEdit: noop,
+    onSelectRow: noop,
+    onDeleteRow: noop,
+  });
+  const result = cols.find((c) => c.key === "grp_result")!;
+  expect(result.children!.map((c) => c.key)).toEqual(["res_grp_G_0", "v13", "res_grp_G_3"]);
+  const g = result.children![0];
+  expect(g.headerComponentParams).toEqual({ title: "기준 속도", name: "G", hint: "열 조건으로 한 열을 고른다" });
+  expect(g.headerStyle).toMatchObject({ background: "var(--c-blue-150)" });
+  expect(g.children!.map((c) => c.key)).toEqual(["v11", "v12"]);
+  expect(g.children![0].headerTooltip).toContain('열 조건 TOP_RESIN_CD == "F"');
+  expect(g.children![1].headerTooltip).toContain("기본 열(열 조건 없음)");
+  // 사전에 없는 그룹 이름은 이름만 보인다. 조건 쪽은 그대로 조건 → 변수.
+  const noLabel = buildTableColumns({ vars, varMeta: [{ varId: 11, resGrp: "G" }, { varId: 12, resGrp: "G" }], editable: false, onEdit: noop, onSelectRow: noop, onDeleteRow: noop });
+  expect(noLabel.find((c) => c.key === "grp_result")!.children![0].headerComponentParams).toMatchObject({ title: "G", name: undefined });
+  expect(cols.find((c) => c.key === "grp_cond")!.children!.map((c) => c.key)).toEqual(["v1"]);
+});
+
+it("칸 잠금: 기본 행의 조건 칸, 구간이 아닌 상한, 값 없는 op 의 값, 편집 불가 버전", () => {
     const [thk, wid] = SAMPLE_VARS;
     const rows = s0.rows;
     expect(cellEditable(thk, "op", rows[3], true)).toBe(false);

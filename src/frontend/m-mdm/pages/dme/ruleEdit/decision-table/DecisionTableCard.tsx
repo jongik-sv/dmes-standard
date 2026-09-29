@@ -167,11 +167,14 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
   ctxRef.current = { edit, vars: state.vars };
   // ag-grid 는 열 그룹 정의가 바뀌면 머리 그룹 컴포넌트를 다시 붙이다 죽는다(실측: getProvidedColumnGroup of null). 그래서 열은
   // 변수 구조가 같으면 다시 만들지 않고(저장 뒤 새로 불러와도 같은 정의), 구조·편집 여부·버전이 바뀌면 그리드를 새로 마운트한다(gridKey).
-  const varsSig = JSON.stringify(state.vars);
+  // 결과 열 그룹 머리는 varMeta(그룹·열 조건)로 만든다 — 그룹 구조가 바뀌어도 그리드를 새로 마운트한다.
+  const varsSig = JSON.stringify([state.vars, view.varMeta ?? []]);
   const columns = useMemo(
     () =>
       buildTableColumns({
         vars: ctxRef.current.vars,
+        varMeta: view.varMeta,
+        candidates: view.varCandidates,
         editable,
         onEdit: (rowId, varId, key, value) => ctxRef.current.edit({ type: "editCell", rowId, varId, key, value }),
         onSelectRow: (rowId) => dispatch({ type: "selectRow", rowId }),

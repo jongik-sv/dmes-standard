@@ -15,7 +15,7 @@ import { columnDraftStorageKey, draftFromView, newColumn, type ColumnDraftRow } 
 import type { RuleEditCardProps } from "../../../pages/dme/ruleEdit/cards";
 import type { RuleEditView } from "../../../pages/dme/ruleEdit/types";
 import { findButton, flush, installDomStorage, jsonResponse, typeInto, visibleText } from "../helpers/render";
-import { InputContractSection } from "../../../pages/dme/ruleEdit/sections/contract/InputContractSection";
+import { ContractChangeNotice } from "../../../pages/dme/ruleEdit/sections/contract/ContractChangeNotice";
 import { PROD_WGT_CALC, PROD_WGT_CALC_PV2 } from "../../fixtures/evalex-rules";
 import { ast } from "../../helpers/parse-expr";
 import { draftView, sourceOf } from "./fixtures";
@@ -325,7 +325,7 @@ describe("표 카드 + 열 설정 섹션(불변 13)", () => {
   });
 });
 
-// ── 입력 계약 섹션(TSK-08-03 단계 6) ──
+// ── 입력 계약 변경 알림(TSK-08-03 단계 6, 2026-09-29 표를 빼고 RELEASED 대비 변경만 남김) ──
 
 function contractView(cur = PROD_WGT_CALC, base = PROD_WGT_CALC_PV2): RuleEditView {
   const c = sourceOf(cur).src;
@@ -334,7 +334,7 @@ function contractView(cur = PROD_WGT_CALC, base = PROD_WGT_CALC_PV2): RuleEditVi
   return { ...v, rule: { ...v.rule, maruRuleId: "PROD_WGT_CALC" }, vars: c.vars, varMeta: c.meta, rows: c.rows, baseVars: b.vars, baseRows: b.rows };
 }
 
-describe("입력 계약 섹션", () => {
+describe("입력 계약 변경 알림", () => {
   beforeEach(() => {
     installDomStorage();
     bodies = [];
@@ -357,49 +357,41 @@ describe("입력 계약 섹션", () => {
     globalThis.fetch = originalFetch;
   });
 
-  it("조건 변수 한 줄과 행 묶음 표를 그린다(PROD_WGT_CALC 는 행마다 필수가 달라 3줄)", async () => {
-    await mount(createElement(InputContractSection, props(contractView())));
-    expect(q("[data-testid='contract-always']").textContent).toContain("PROD_TYPE");
-    expect(q("[data-testid='contract-always']").textContent).toContain("CALC_BASIS");
-    const groups = container.querySelectorAll("[data-testid='contract-groups'] .ag-center-cols-container .ag-row");
-    expect(groups).toHaveLength(3);
-    expect(groups[0].textContent).toContain("PROD_TYPE = COIL · CALC_BASIS = LEN");
-    expect(groups[0].textContent).toContain("COIL_LEN");
-    expect(groups[2].textContent).toContain("SHEET_LEN");
+  it("RELEASED 와 계약이 같으면 아무것도 그리지 않는다", async () => {
+    await mount(createElement(ContractChangeNotice, props(contractView(PROD_WGT_CALC, PROD_WGT_CALC))));
+    await flush();
+    expect(container.querySelector("[data-testid='contract-notice']")).toBeNull();
   });
 
-  it("같은 행이 묶이면 'N개 행이 같다' 로 보이고 title 에 행별 조건이 든다", async () => {
-    const same = { ...PROD_WGT_CALC, rows: PROD_WGT_CALC.rows.map((r) => ({ ...r, cells: { ...r.cells, 2: PROD_WGT_CALC.rows[0].cells[2] } })) };
-    await mount(createElement(InputContractSection, props(contractView(same as never, PROD_WGT_CALC))));
-    const groups = container.querySelectorAll("[data-testid='contract-groups'] .ag-center-cols-container .ag-row");
-    expect(groups).toHaveLength(1);
-    expect(groups[0].textContent).toContain("3개 행이 같다");
-    expect(groups[0].querySelector("[title]")?.getAttribute("title")).toContain("PROD_TYPE = SHEET");
+  it("RELEASED 가 없으면(최초 버전) 아무것도 그리지 않는다", async () => {
+    const v = contractView();
+    await mount(createElement(ContractChangeNotice, props({ ...v, baseVars: undefined, baseRows: undefined } as never)));
+    await flush();
+    expect(container.querySelector("[data-testid='contract-notice']")).toBeNull();
   });
 
-  it("DRAFT 는 RELEASED 대비 diff 를 보인다: 필수 → 선택은 알림, 선택 → 필수는 경고", async () => {
-    await mount(createElement(InputContractSection, props(contractView(PROD_WGT_CALC_PV2, PROD_WGT_CALC))));
-    expect(q("[data-testid='contract-diff-info']").textContent).toContain("SPEC_GRAV");
+  it("DRAFT 는 RELEASED 대비 변경을 한 줄씩 보인다: 필수 → 선택은 알림, 선택 → 필수는 경고", async () => {
+    await mount(createElement(ContractChangeNotice, props(contractView(PROD_WGT_CALC_PV2, PROD_WGT_CALC))));
+    expect(q("[data-testid='contract-diff-info']").textContent).toContain("필수 입력이 선택이 되었습니다: SPEC_GRAV");
     expect(container.querySelector("[data-testid='contract-diff-warning']")).toBeNull();
     act(() => root?.unmount());
     container.remove();
-    await mount(createElement(InputContractSection, props(contractView(PROD_WGT_CALC, PROD_WGT_CALC_PV2))));
-    expect(q("[data-testid='contract-diff-warning']").textContent).toContain("SPEC_GRAV");
-    expect(q("[data-testid='contract-warning-count']").textContent).toContain("1");
+    await mount(createElement(ContractChangeNotice, props(contractView(PROD_WGT_CALC, PROD_WGT_CALC_PV2))));
+    expect(q("[data-testid='contract-diff-warning']").textContent).toContain("선택 입력이 필수가 되었습니다: SPEC_GRAV");
   });
 
-  it("열 조건 식은 서버 parseExpr 로 AST 를 받아 조건 변수에 반영한다(화면 파서 없음)", async () => {
+  it("열 조건 식은 서버 parseExpr 로 AST 를 받아 계약에 반영한다(화면 파서 없음) — 새 열 조건 변수는 필수가 늘어난 경고다", async () => {
     const v = contractView();
     const withGrp: RuleEditView = {
       ...v,
       vars: [...v.vars, { varId: 9, varKind: "RESULT", dispType: "Value", seq: 2, varName: "EXTRA", exprVar: false, dataType: "NUMBER", dateString: false, typeSource: "DECLARED" }],
       varMeta: [...(v.varMeta ?? []), { varId: 9, resGrp: "PROD_WGT", grpCond: 'TOP_RESIN_CD == "F"' }],
     };
-    await mount(createElement(InputContractSection, props(withGrp)));
+    await mount(createElement(ContractChangeNotice, props(withGrp)));
     await flush();
     const called = bodies.filter((b) => b.url.includes("/oasis/ruleEdit/validate"));
     expect(called).toHaveLength(1);
-    expect(q("[data-testid='contract-always']").textContent).toContain("TOP_RESIN_CD");
+    expect(q("[data-testid='contract-notice']").textContent).toContain("필수 입력이 늘었습니다: TOP_RESIN_CD");
   });
 
   it("열 조건 식이 여럿이면 앞 응답이 화면을 다시 그려도 뒤 응답을 버리지 않는다", async () => {
@@ -421,15 +413,15 @@ describe("입력 계약 섹션", () => {
     globalThis.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
       String(input).includes("/oasis/ruleEdit/validate") ? new Promise<Response>((res) => gates.push(() => void answer(input, init).then(res))) : answer(input, init),
     ) as typeof fetch;
-    await mount(createElement(InputContractSection, props(withGrp)));
+    await mount(createElement(ContractChangeNotice, props(withGrp)));
     for (let i = 0; i < 2; i++) {
       await flush();
       await act(async () => gates.shift()?.());
       await flush();
     }
     expect(bodies.filter((b) => b.url.includes("/oasis/ruleEdit/validate"))).toHaveLength(2);
-    expect(q("[data-testid='contract-always']").textContent).toContain("TOP_RESIN_CD");
-    expect(q("[data-testid='contract-always']").textContent).toContain("COAT_SIDE");
+    expect(q("[data-testid='contract-notice']").textContent).toContain("필수 입력이 늘었습니다: TOP_RESIN_CD");
+    expect(q("[data-testid='contract-notice']").textContent).toContain("필수 입력이 늘었습니다: COAT_SIDE");
     expect(container.querySelector("[data-testid='contract-pending']")).toBeNull();
   });
 
@@ -439,13 +431,13 @@ describe("입력 계약 섹션", () => {
       ...v,
       varMeta: (v.varMeta ?? []).map((m) => (m.varId === 2 ? { ...m, resGrp: "PROD_WGT", grpCond: 'TOP_RESIN_CD == "F"' } : m)),
     };
-    await mount(createElement(InputContractSection, props(withGrp, (a) => a !== "validate")));
+    await mount(createElement(ContractChangeNotice, props(withGrp, (a) => a !== "validate")));
     await flush();
     expect(bodies.filter((b) => b.url.includes("/oasis/ruleEdit/validate"))).toHaveLength(0);
     expect(q("[data-testid='contract-pending']").textContent).toContain('TOP_RESIN_CD == "F"');
   });
 
-  it("섹션 목록 순서는 열 설정 → 입력 계약이다", () => {
+  it("섹션 목록 순서는 열 설정 → 입력 계약 변경 알림이다", () => {
     expect(TABLE_SECTIONS.map((x) => x.id)).toEqual(["columns", "contract"]);
   });
 });

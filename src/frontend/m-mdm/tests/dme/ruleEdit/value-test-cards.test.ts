@@ -128,6 +128,26 @@ async function click(scope: ParentNode, label: string) {
   await flush();
 }
 
+/** 값 테스트 입력 표의 값 칸 — 칸을 눌러 편집기를 열고 글자를 넣은 뒤 Enter 로 확정한다(singleClickEdit). */
+function vtValueCell(name: string): HTMLElement {
+  return byTestId("rule-card-value-test")!.querySelector(`.ag-row[row-id='${name}'] [col-id='value']`) as HTMLElement;
+}
+
+async function setVtValue(name: string, text: string) {
+  const cell = vtValueCell(name);
+  await act(async () => {
+    cell.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    cell.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+  await flush();
+  const input = cell.querySelector("input") as HTMLInputElement;
+  expect(input).not.toBeNull();
+  await typeInto(input, text);
+  await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+  await flush();
+  await flush();
+}
+
 async function setKeySent(name: string, on: boolean) {
   const box = byTestId(`vt-key-${name}`)!.querySelector("input") as HTMLInputElement;
   if (box.checked !== on) {
@@ -178,9 +198,11 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     expect(RULE_EDIT_CARDS.map((c) => c.id)).toEqual(["header", "versions", "table", "valueTest", "testResult", "testCases", "usage"]);
   });
 
-  it("① 헤더·② 버전, ④ 값 테스트·⑤ 테스트 결과는 각각 한 덩어리로 접힌다", () => {
+  it("① 헤더·② 버전, ④ 값 테스트·⑤ 테스트 결과·⑥ 테스트 케이스는 각각 한 덩어리로 접힌다", () => {
     const segs = cardSegments(RULE_EDIT_CARDS).map((s) => (s.kind === "group" ? `${s.id}[${s.slots.map((c) => c.id).join(",")}]` : s.slot.id));
-    expect(segs).toEqual(["headerVersions[header,versions]", "table", "valueTests[valueTest,testResult]", "testCases", "usage"]);
+    expect(segs).toEqual(["headerVersions[header,versions]", "table", "valueTests[valueTest,testResult,testCases]", "usage"]);
+    // ④·⑤·⑥ 은 위아래로 쌓는다(16칸씩).
+    expect(RULE_EDIT_CARDS.filter((c) => c.group === "valueTests").map((c) => c.span)).toEqual([16, 16, 16]);
   });
 
   it("편집본 대상은 editable 이고 DRAFT 일 때만 맨 앞 기본값이고, 아니면 버전만 고른다(I34)", async () => {
@@ -230,10 +252,12 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
   it("입력 줄은 입력 계약 이름이고, 돌리기는 편집본 행을 grids.rows 로 싣고 키 보냄 끔 = 키 없음, 빈 칸 = null 로 보낸다", async () => {
     responses.execute = ok(okResult());
     await render(draftView("e2e_mdm_steward"));
-    expect(byTestId("vt-field-COIL_THK")?.textContent).toContain("조건·키 필수");
-    expect(byTestId("vt-field-COIL_THK")?.textContent).toContain("두께");
-    await typeInto(byTestId<HTMLInputElement>("vt-input-COIL_THK")!, "2.0");
-    await typeInto(byTestId<HTMLInputElement>("vt-input-SURF_GRD")!, "A");
+    // 입력 줄은 표 한 행이다 — 계약 배지는 같은 행의 다른 칸에 있다.
+    const thkRow = byTestId("vt-field-COIL_THK")?.closest(".ag-row");
+    expect(thkRow?.textContent).toContain("조건·키 필수");
+    expect(thkRow?.textContent).toContain("두께");
+    await setVtValue("COIL_THK", "2.0");
+    await setVtValue("SURF_GRD", "A");
     await setKeySent("COIL_WID", false);
     await click(container, "행 추가");
     await click(byTestId("rule-card-value-test")!, "돌리기");
@@ -244,7 +268,7 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     expect(req.grids!.rows.rows.map((r) => r.rowId)).toEqual([1, 2, 3, -1, 4]);
 
     await setKeySent("COIL_WID", true);
-    await typeInto(byTestId<HTMLInputElement>("vt-input-SURF_GRD")!, "");
+    await setVtValue("SURF_GRD", "");
     await click(byTestId("rule-card-value-test")!, "돌리기");
     expect(JSON.parse(String(last("execute")!.params.inputJson))).toEqual({ COIL_THK: "2.0", COIL_WID: null, SURF_GRD: null });
   });
@@ -318,7 +342,7 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     responses.execute = ok(okResult());
     responses.save = ok({ part: "CASE", rowVersion: 0, caseId: 3 });
     await render(draftView("e2e_mdm_steward"));
-    await typeInto(byTestId<HTMLInputElement>("vt-input-COIL_THK")!, "2.0");
+    await setVtValue("COIL_THK", "2.0");
     const save = () => findButton(byTestId("rule-card-value-test")!, "케이스로 저장");
     expect(save().disabled).toBe(true);
     await typeInto(byTestId<HTMLInputElement>("vt-case-name")!, "새 케이스");
@@ -336,7 +360,7 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     expect(p.expectedJson).toBe('{"QLTY_GRD":"A","PRC_FCT":1.05,"hit":1}');
 
     // 돌린 뒤 입력을 바꾸면 그 결과는 이 입력의 결과가 아니다 — 기대값 없이 저장한다.
-    await typeInto(byTestId<HTMLInputElement>("vt-input-COIL_THK")!, "3.0");
+    await setVtValue("COIL_THK", "3.0");
     await typeInto(byTestId<HTMLInputElement>("vt-case-name")!, "입력 바꾼 케이스");
     await click(byTestId("rule-card-value-test")!, "케이스로 저장");
     expect(last("save")!.params.expectedJson).toBeUndefined();
@@ -355,7 +379,7 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     await render(draftView("e2e_mdm_steward", undefined, { testCases: CASES }));
     expect(caseRow(1)?.textContent).toContain("A급 광폭");
     expect(caseRow(2)?.textContent).toContain("(기대값 없음)");
-    await typeInto(byTestId<HTMLInputElement>("vt-input-COIL_THK")!, "3.0");
+    await setVtValue("COIL_THK", "3.0");
     await click(byTestId("rule-card-test-cases")!, "모두 실행");
     const req = last("execute")!;
     expect(req.params).toMatchObject({ target: "BODY", ver: 2, runCases: true });
@@ -382,8 +406,8 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     responses.execute = ok(okResult());
     await render(draftView("e2e_mdm_steward", undefined, { testCases: CASES }));
     await click(caseRow(2)!, "불러오기");
-    expect(byTestId<HTMLInputElement>("vt-input-COIL_THK")!.value).toBe("2.0");
-    expect(byTestId<HTMLInputElement>("vt-input-SURF_GRD")!.value).toBe("");
+    expect(vtValueCell("COIL_THK").textContent).toBe("2.0");
+    expect(vtValueCell("SURF_GRD").textContent).toBe("NULL");
     expect((byTestId("vt-key-COIL_WID")!.querySelector("input") as HTMLInputElement).checked).toBe(false);
     await click(byTestId("rule-card-value-test")!, "돌리기");
     expect(JSON.parse(String(last("execute")!.params.inputJson))).toEqual({ COIL_THK: "2.0", SURF_GRD: null });
@@ -414,12 +438,116 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     expect(last("save")!.params).toEqual({ part: "CASE", maruRuleId: "QLTY_GRD_JDG", caseId: 2, rowVersion: 3, caseDeleted: true });
   });
 
+  const inModal = <T extends Element>(id: string) => document.querySelector(`[data-testid="${id}"]`) as T;
+  const modalCheckbox = (name: string) =>
+    (document.querySelector(`[data-testid="tc-edit-modal"] input[aria-label="${name}"]`) ??
+      [...document.querySelectorAll('[data-testid="tc-edit-modal"] label')].find((l) => l.textContent === name)?.closest("div")?.parentElement?.querySelector("input")) as HTMLInputElement;
+  const clickIn = async (el: HTMLElement) => {
+    await act(async () => el.click());
+    await flush();
+  };
+  const openEdit = async (caseId: number) => {
+    await clickIn(byTestId<HTMLButtonElement>(`tc-edit-${caseId}`)!);
+  };
+
+  it("수정 팝업은 폼 탭으로 열고, 입력 값·키 보냄·기대 값·비교·적중 행을 폼으로 고쳐 JSON 으로 저장한다", async () => {
+    responses.save = ok({ part: "CASE", rowVersion: 4, caseId: 2 });
+    await render(draftView("e2e_mdm_steward", undefined, { testCases: CASES }));
+    await openEdit(2);
+    // 계약 줄 순서 — 저장된 케이스에 없던 COIL_WID 는 null 로 채워 빈 칸으로 보인다.
+    expect(inModal<HTMLInputElement>("tc-form-in-COIL_THK").value).toBe("2.0");
+    expect(inModal<HTMLInputElement>("tc-form-in-COIL_WID").value).toBe("");
+    await typeInto(inModal<HTMLInputElement>("tc-form-in-COIL_WID"), "1500");
+    await clickIn(modalCheckbox("SURF_GRD 키 보냄"));
+    expect(inModal<HTMLInputElement>("tc-form-in-SURF_GRD").disabled).toBe(true);
+
+    // 기대 JSON 이 없던 케이스 — "기대값 없이" 를 끄고 QLTY_GRD 와 hit 를 비교한다.
+    expect(modalCheckbox("기대값 없이 돌려 보기만").checked).toBe(true);
+    await clickIn(modalCheckbox("기대값 없이 돌려 보기만"));
+    await clickIn(modalCheckbox("QLTY_GRD 비교"));
+    await typeInto(inModal<HTMLInputElement>("tc-form-exp-QLTY_GRD"), "A");
+    await clickIn(modalCheckbox("hit 비교"));
+    expect(inModal("tc-edit-preview").textContent).toContain('기대 {"QLTY_GRD":"A","hit":null}');
+
+    await clickIn(inModal<HTMLButtonElement>("tc-edit-save"));
+    expect(last("save")!.params).toMatchObject({
+      caseId: 2,
+      rowVersion: 3,
+      inputJson: '{"COIL_THK":"2.0","COIL_WID":"1500"}',
+      expectedJson: '{"QLTY_GRD":"A","hit":null}',
+    });
+  });
+
+  it("값 테스트(④) 칸이 모두 비었으면 [값 테스트 입력으로 바꾸기] 를 꺼 케이스 입력을 NULL 로 덮지 않는다", async () => {
+    await render(draftView("e2e_mdm_steward", undefined, { testCases: CASES }));
+    await setVtValue("COIL_THK", "");
+    await setVtValue("COIL_WID", "");
+    await setVtValue("SURF_GRD", "");
+    await openEdit(1);
+    expect(inModal<HTMLButtonElement>("tc-edit-use-input").disabled).toBe(true);
+    await clickIn(inModal<HTMLButtonElement>("tc-edit-use-input"));
+    expect(inModal<HTMLInputElement>("tc-form-in-COIL_THK").value).not.toBe("");
+  });
+
+  it("결과 열 그룹은 그룹 이름 한 줄로 기대값을 비교하고, 저장될 JSON 은 폼 탭에 늘 보인다", async () => {
+    const base = draftView("e2e_mdm_steward", undefined, { testCases: CASES });
+    const prc = base.vars.find((v) => v.varName === "PRC_FCT")!;
+    const view = {
+      ...base,
+      vars: [...base.vars, { ...prc, varId: 99, seq: prc.seq + 1, varName: "PRC_ADJ", label: "보정계수" }],
+      varMeta: [
+        { varId: prc.varId, resGrp: "PRC_GRP", grpCond: "COIL_THK > 1" },
+        { varId: 99, resGrp: "PRC_GRP", grpCond: null },
+      ],
+    };
+    await render(view);
+    await openEdit(2);
+    expect(inModal("tc-form-exp-PRC_GRP")).not.toBeNull();
+    expect(inModal("tc-form-exp-PRC_FCT")).toBeNull();
+    expect(inModal("tc-form-exp-PRC_ADJ")).toBeNull();
+    await clickIn(modalCheckbox("기대값 없이 돌려 보기만"));
+    await clickIn(modalCheckbox("PRC_GRP 비교"));
+    await typeInto(inModal<HTMLInputElement>("tc-form-exp-PRC_GRP"), "1.10");
+    expect(document.querySelector('[data-testid="tc-edit-modal"] details')).toBeNull();
+    expect(inModal("tc-edit-preview").textContent).toContain('기대 {"PRC_GRP":1.10}');
+  });
+
+  it("폼을 건드리지 않고 저장하면 원래 JSON 글자(키 순서·숫자 표기)를 그대로 보낸다", async () => {
+    responses.save = ok({ part: "CASE", rowVersion: 1, caseId: 1 });
+    await render(draftView("e2e_mdm_steward", undefined, { testCases: CASES }));
+    await openEdit(1);
+    expect(inModal<HTMLInputElement>("tc-form-exp-PRC_FCT").value).toBe("1.05");
+    // 적중 행은 row_id 가 아니라 표의 행 이름으로 보인다.
+    expect(inModal("tc-form-hit").textContent).toContain("1행");
+    await typeInto(inModal<HTMLInputElement>("tc-edit-name"), "A급 광폭(이름만)");
+    await clickIn(inModal<HTMLButtonElement>("tc-edit-save"));
+    expect(last("save")!.params).toMatchObject({ caseName: "A급 광폭(이름만)", inputJson: CASES[0].inputJson, expectedJson: CASES[0].expectedJson });
+  });
+
+  it("JSON 탭에서 붙여 넣은 값은 폼 탭으로 돌아가면 폼 줄에 풀리고, 못 읽는 JSON 이면 탭을 바꾸지 않는다", async () => {
+    await render(draftView("e2e_mdm_steward", undefined, { testCases: CASES }));
+    await openEdit(1);
+    await clickIn(inModal<HTMLElement>("tc-edit-tab-json"));
+    await typeInto(inModal<HTMLTextAreaElement>("tc-edit-expected"), '{"PRC_FCT":0.98,"hit":3}');
+    await typeInto(inModal<HTMLTextAreaElement>("tc-edit-input"), "{");
+    await clickIn(inModal<HTMLElement>("tc-edit-tab-form"));
+    expect(inModal("tc-edit-error").textContent).toContain("입력 JSON 을 읽지 못했습니다");
+    expect(inModal("tc-edit-input")).not.toBeNull();
+
+    await typeInto(inModal<HTMLTextAreaElement>("tc-edit-input"), '{"COIL_THK":"3.0"}');
+    await clickIn(inModal<HTMLElement>("tc-edit-tab-form"));
+    expect(inModal<HTMLInputElement>("tc-form-in-COIL_THK").value).toBe("3.0");
+    expect(modalCheckbox("COIL_WID 키 보냄").checked).toBe(false);
+    expect(inModal<HTMLInputElement>("tc-form-exp-PRC_FCT").value).toBe("0.98");
+    expect(modalCheckbox("QLTY_GRD 비교").checked).toBe(false);
+    expect(inModal("tc-edit-preview").textContent).toContain('기대 {"PRC_FCT":0.98,"hit":3}');
+  });
+
   it("수정은 팝업에서 이름·설명·입력·기대 JSON 을 고쳐 rowVersion 조건으로 저장하고, JSON 이 틀리면 보내지 않는다", async () => {
     responses.save = ok({ part: "CASE", rowVersion: 4, caseId: 2 });
     await render(draftView("e2e_mdm_steward", undefined, { testCases: CASES }));
-    await act(async () => byTestId<HTMLButtonElement>("tc-edit-2")!.click());
-    await flush();
-    const inModal = <T extends Element>(id: string) => document.querySelector(`[data-testid="${id}"]`) as T;
+    await openEdit(2);
+    await clickIn(inModal<HTMLElement>("tc-edit-tab-json"));
     expect(inModal<HTMLInputElement>("tc-edit-name").value).toBe("폭 없음");
     // 저장된 케이스에는 없지만 지금 계약에 있는 키는 null 로 채워 보여준다 — 룰에 컬럼이
     // 새로 들어온 경우를 그대로 드러내는 것이 목적이다(기존 값·키 순서는 보존).

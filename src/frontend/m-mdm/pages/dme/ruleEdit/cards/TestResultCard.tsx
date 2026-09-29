@@ -138,8 +138,9 @@ function rowClassOf(row: Record<string, unknown>): string[] | undefined {
 function VersionTable({ def, result }: { def: RuleEditView; result: ValueTestResult }) {
   const vars = def.vars;
   const columns = useMemo(
-    () => buildTableColumns({ vars: [...vars], editable: false, onEdit: NOOP, onSelectRow: NOOP, onDeleteRow: NOOP }),
-    [vars],
+    () =>
+      buildTableColumns({ vars: [...vars], varMeta: def.varMeta, candidates: def.varCandidates, editable: false, onEdit: NOOP, onSelectRow: NOOP, onDeleteRow: NOOP }),
+    [vars, def.varMeta, def.varCandidates],
   );
   const data = useMemo(() => {
     const rows = gridRowsFromStored(vars, def.rows);

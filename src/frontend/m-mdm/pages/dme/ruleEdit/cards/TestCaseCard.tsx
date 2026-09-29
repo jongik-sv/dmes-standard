@@ -20,7 +20,7 @@ import { useRuleWorkbench } from "../state/workbench-context";
 import type { TestCaseView, ValueTestCaseResult, ValueTestResult } from "../types";
 import { caseBadge, expectedFromResult, type CaseBadge, type CaseEditFields } from "../value-test/case-model";
 import { mergeMissingInputKeys } from "../value-test/test-input";
-import { prepareRun, resolveTarget, targetLabel, targetOptions, useTargetView } from "../value-test/run-request";
+import { bodyTable, prepareRun, resolveTarget, targetLabel, targetOptions, useTargetView } from "../value-test/run-request";
 import { CardFrame, MutedText } from "./CardFrame";
 import { TestCaseEditModal } from "./TestCaseEditModal";
 
@@ -164,7 +164,8 @@ export function TestCaseCard({ view, editable, canDo, busy, runWrite }: RuleEdit
   const [runningCase, setRunningCase] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
-  const [editing, setEditing] = useState<TestCaseView | null>(null);
+  // 수정 팝업 대상과 열 때의 칸 — [수정]을 누른 순간 한 번 고정한다(열려 있는 동안 ④ 입력 줄이 늦게 바뀌어도 고치던 칸을 덮지 않게).
+  const [editing, setEditing] = useState<{ c: TestCaseView; initial: CaseEditFields } | null>(null);
 
   // 대상은 값 테스트 카드가 고른 것, 없으면(카드 ④ 없이) 같은 기본값.
   const fallback = resolveTarget(targetOptions(view, editable), null, view)?.choice ?? null;
@@ -174,6 +175,16 @@ export function TestCaseCard({ view, editable, canDo, busy, runWrite }: RuleEdit
   const run = testRun && testRun.ruleId === ruleId ? testRun : null;
   const byCase = new Map((run?.result.cases ?? []).map((c) => [c.caseId, c] as const));
   const { def } = useTargetView(view, run ? { target: run.target, ver: run.ver } : null);
+  // 수정 팝업의 기대 폼 — 결과 변수와 hit 로 고를 행은 값 테스트가 고른 대상 정의의 것(편집본이면 편집 중인 표)이다.
+  const { def: choiceDef } = useTargetView(view, choice);
+  const editVars = choiceDef?.vars ?? view.vars;
+  // 결과 열 그룹은 그룹 이름 한 줄로 비교한다(엔진 결과 이름) — 그룹은 varMeta, 그룹 표시명은 컬럼 사전 후보에서 읽는다.
+  const editMeta = choiceDef ? choiceDef.varMeta : view.varMeta;
+  const editCandidates = choiceDef ? choiceDef.varCandidates : view.varCandidates;
+  const editRows = useMemo(
+    () => (choice?.target === "BODY" ? bodyTable(view, choice.ver, tableDraft).rows : (choiceDef?.rows ?? view.rows)),
+    [choice?.target, choice?.ver, view, tableDraft, choiceDef],
+  );
 
   const handleRunAll = useCallback(async () => {
     if (!choice) return;
@@ -251,12 +262,10 @@ export function TestCaseCard({ view, editable, canDo, busy, runWrite }: RuleEdit
   const caseInput = useCallback(
     (c: TestCaseView): CaseEditFields => {
       const base = { caseName: c.caseName, description: c.description ?? "", inputJson: c.inputJson, expectedJson: c.expectedJson ?? "" };
-      const names = input?.fieldNames;
-      return names && names.length > 0
-        ? { ...base, inputJson: mergeMissingInputKeys(base.inputJson, names.map((n) => ({ name: n }))) }
-        : base;
+      const fields = input?.fields;
+      return fields && fields.length > 0 ? { ...base, inputJson: mergeMissingInputKeys(base.inputJson, fields) } : base;
     },
-    [input?.fieldNames],
+    [input?.fields],
   );
 
   const handleCopy = useCallback(
@@ -306,7 +315,10 @@ export function TestCaseCard({ view, editable, canDo, busy, runWrite }: RuleEdit
       const c = caseOf(id);
       if (c) void handleCopy(c);
     },
-    edit: (id) => setEditing(caseOf(id) ?? null),
+    edit: (id) => {
+      const c = caseOf(id);
+      setEditing(c ? { c, initial: caseInput(c) } : null);
+    },
     updateExpected: (id) => {
       const c = caseOf(id);
       const r = byCase.get(id);
@@ -378,9 +390,14 @@ export function TestCaseCard({ view, editable, canDo, busy, runWrite }: RuleEdit
         />
       )}
       <TestCaseEditModal
-        target={editing}
-        initial={editing ? caseInput(editing) : null}
+        target={editing?.c ?? null}
+        initial={editing?.initial ?? null}
         currentInput={input?.inputJson ?? null}
+        fields={input?.fields ?? []}
+        vars={editVars}
+        varMeta={editMeta}
+        candidates={editCandidates}
+        rows={editRows}
         busy={busy}
         onSave={handleEdit}
         onClose={() => setEditing(null)}

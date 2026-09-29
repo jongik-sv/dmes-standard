@@ -9,12 +9,13 @@ import { createElement, type CSSProperties, type ReactNode } from "react";
 import { IconTrash } from "@tabler/icons-react";
 import type { GridColumn } from "@dk-oasis/shared/grid";
 
-import type { ResolvedVar } from "../types";
+import type { ResolvedVar, VarCandidate, VarMeta } from "../types";
 import type { TableTestMarks } from "../value-test/test-marks";
 import type { SplitIssues } from "./analysis";
 import type { TableDiff } from "./diff";
 import type { CellKey, CellObj, GridRow } from "./grid-model";
 import { OP_LABELS, isListOp, isNoValueOp, isRangeOp, opsFor } from "./ops";
+import { BlockHeader } from "./BlockHeader";
 import { VarHeader } from "./VarHeader";
 
 export const ROW_LABEL_FIELD = "rowLabel";
@@ -160,6 +161,10 @@ export const TEST_HIT_ROW_CLASS = "ag-row-test-hit";
 
 export interface TableColumnContext {
   vars: ResolvedVar[];
+  /** 저장 원값(결과 열 그룹 `resGrp`·열 조건 `grpCond`). 없으면 결과 열을 그룹으로 묶지 않는다. */
+  varMeta?: readonly VarMeta[];
+  /** 그룹 표시명을 찾을 컬럼 사전(view `varCandidates` 의 COLUMN). */
+  candidates?: readonly VarCandidate[];
   editable: boolean;
   onEdit: (rowId: number, varId: number, key: CellKey, value: string | boolean) => void;
   onSelectRow: (rowId: number) => void;
@@ -261,8 +266,9 @@ function naCheckbox(ctx: TableColumnContext, v: ResolvedVar) {
   };
 }
 
-function varGroup(ctx: TableColumnContext, v: ResolvedVar): GridColumn {
-  const tooltip = [v.description, v.domainName].filter((s): s is string => !!s).join(" · ");
+function varGroup(ctx: TableColumnContext, v: ResolvedVar, meta?: VarMeta): GridColumn {
+  const grpNote = meta?.resGrp?.trim() ? (meta.grpCond?.trim() ? `열 조건 ${meta.grpCond.trim()}` : "기본 열(열 조건 없음)") : null;
+  const tooltip = [v.description, v.domainName, grpNote].filter((s): s is string => !!s).join(" · ");
   const ops = opsFor(v);
   const labels = Object.fromEntries(ops.map((o) => [o, OP_LABELS[o] ?? o]));
   return {
@@ -270,6 +276,7 @@ function varGroup(ctx: TableColumnContext, v: ResolvedVar): GridColumn {
     header: v.label || v.varName || `열 ${v.varId}`,
     headerTooltip: tooltip || undefined,
     headerComponent: VarHeader,
+    headerStyle: v.varKind === "RESULT" ? RESULT_VAR_HEAD : undefined,
     headerComponentParams: {
       label: v.label || v.varName || `열 ${v.varId}`,
       physName: v.exprVar || v.dispType === "Expression" ? "" : (v.varName ?? ""),
@@ -286,6 +293,7 @@ function varGroup(ctx: TableColumnContext, v: ResolvedVar): GridColumn {
         align: key === "na" ? "center" : "left",
         editable: key === "na" ? false : (row) => cellEditable(v, key, sourceRow(row), ctx.editable),
         cellClassRules: cellRules(v.varId),
+        headerStyle: v.varKind === "RESULT" ? RESULT_VAR_HEAD : undefined,
       };
       if (key === "op") {
         col.cellEditor = "select";
@@ -296,6 +304,62 @@ function varGroup(ctx: TableColumnContext, v: ResolvedVar): GridColumn {
       return col;
     }),
   };
+}
+
+/**
+ * 조건·결과 묶음 머리(06 시안 `tr.grp`) — IF/THEN 설명 글자와 블록 색. 조건은 초록(success), 결과는 파랑(primary) 톤이다.
+ * 시안의 남색(indigo)은 화면 표준(UI-Visual-Standard §2 단일 동작색)에 없어 파랑 토큰으로 바꿨다.
+ */
+const BLOCK_HEAD: Record<"cond" | "result", Pick<GridColumn, "headerComponent" | "headerComponentParams" | "headerStyle">> = {
+  cond: {
+    headerComponent: BlockHeader,
+    headerComponentParams: { title: "조건", hint: "IF · 모든 조건 셀이 참이면" },
+    headerStyle: { background: "var(--color-success-soft)", color: "var(--color-success)" },
+  },
+  result: {
+    headerComponent: BlockHeader,
+    headerComponentParams: { title: "결과", hint: "THEN · 결과 변수에 대입" },
+    headerStyle: { background: "var(--color-primary-soft-hover)", color: "var(--color-primary-active)" },
+  },
+};
+
+/** 결과 변수의 변수·칸 머리는 묶음보다 옅은 파랑으로 칠한다(06 시안 결과 열 머리). 조건 쪽은 기본 머리 색 그대로다. */
+const RESULT_VAR_HEAD: GridColumn["headerStyle"] = { background: "var(--color-primary-soft)" };
+
+/** 결과 열 그룹 머리 — 결과 묶음과 변수 머리 사이 톤. 맞는 의미 토큰이 없어 원시 팔레트를 쓴다(UI-Visual-Standard §3). */
+const RESULT_GROUP_HEAD: GridColumn["headerStyle"] = { background: "var(--c-blue-150)", color: "var(--color-primary-active)" };
+
+/**
+ * 결과 변수 → 결과 묶음 아래 열. 같은 결과 열 그룹(`resGrp`)이 seq 순으로 연달아 나오는 열을 그룹 머리 하나로 묶는다(열 순서는 바꾸지 않는다).
+ * 그룹 머리는 컬럼 사전 표시명과 그룹 이름을 보이고, 사전에 없으면 이름만 보인다.
+ */
+function resultColumns(ctx: TableColumnContext, result: readonly ResolvedVar[]): GridColumn[] {
+  const metaOf = new Map((ctx.varMeta ?? []).map((m) => [m.varId, m] as const));
+  const labelOf = new Map((ctx.candidates ?? []).filter((c) => c.kind === "COLUMN").map((c) => [c.name.toUpperCase(), c.label ?? null] as const));
+  const groupOf = (v: ResolvedVar) => metaOf.get(v.varId)?.resGrp?.trim() || null;
+  const out: GridColumn[] = [];
+  for (let i = 0; i < result.length; ) {
+    const v = result[i];
+    const grp = groupOf(v);
+    if (grp == null) {
+      out.push(varGroup(ctx, v, metaOf.get(v.varId)));
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j < result.length && groupOf(result[j]) === grp) j++;
+    const label = labelOf.get(grp.toUpperCase()) ?? null;
+    out.push({
+      key: `res_grp_${grp}_${i}`,
+      header: label ?? grp,
+      headerComponent: BlockHeader,
+      headerComponentParams: { title: label ?? grp, name: label ? grp : undefined, hint: "열 조건으로 한 열을 고른다" },
+      headerStyle: RESULT_GROUP_HEAD,
+      children: result.slice(i, j).map((x) => varGroup(ctx, x, metaOf.get(x.varId))),
+    });
+    i = j;
+  }
+  return out;
 }
 
 /** 열 트리 — 행 | 조건 묶음 | 결과 묶음 | 행 설명 | 검사 | 삭제. */
@@ -329,8 +393,8 @@ export function buildTableColumns(ctx: TableColumnContext): GridColumn[] {
       },
     },
   ];
-  if (cond.length > 0) cols.push({ key: "grp_cond", header: "조건", children: cond.map((v) => varGroup(ctx, v)) });
-  if (result.length > 0) cols.push({ key: "grp_result", header: "결과", children: result.map((v) => varGroup(ctx, v)) });
+  if (cond.length > 0) cols.push({ key: "grp_cond", header: "조건", ...BLOCK_HEAD.cond, children: cond.map((v) => varGroup(ctx, v)) });
+  if (result.length > 0) cols.push({ key: "grp_result", header: "결과", ...BLOCK_HEAD.result, children: resultColumns(ctx, result) });
   cols.push(
     {
       key: "note",

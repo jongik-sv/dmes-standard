@@ -363,10 +363,20 @@ const ioRow = (page: Page, kind: "inputs" | "results", name: string): Locator =>
 
 const resultValue = (page: Page, name: string) => tid(page, "vt-result-values").locator("tr", { hasText: name }).locator("td");
 
+/** 값 테스트 입력 표의 값 칸 — 행 키는 변수명이다. */
+const vtValueCell = (page: Page, name: string): Locator =>
+  vtCard(page).locator(`.ag-row[row-id="${name}"] .ag-cell[col-id="value"]`);
+
+/** 값 칸을 눌러 편집하고 Enter 로 확정한다(singleClickEdit). */
 async function vtInput(page: Page, name: string, value: string) {
-  const input = tid(page, `vt-input-${name}`);
-  await expect(input).toBeVisible({ timeout: 30_000 });
+  const c = vtValueCell(page, name);
+  await expect(c).toBeVisible({ timeout: 30_000 });
+  await c.click();
+  const input = c.locator("input");
+  await expect(input).toBeVisible({ timeout: 10_000 });
   await input.fill(value);
+  await input.press("Enter");
+  await expect(input).toHaveCount(0);
 }
 
 async function vtRun(page: Page) {
@@ -637,7 +647,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(dtGrid(page)).toContainText("행이 없습니다.");
     await expect(colTable(page)).toContainText("열이 없습니다.");
     await expect(tid(page, "pivot-section")).toHaveCount(0);
-    await expect(tid(page, "contract-section")).toBeVisible();
+    await expect(tid(page, "contract-notice")).toHaveCount(0); // 최초 버전이라 RELEASED 대비 변경 알림이 없다
     await expect(tid(page, "vt-result-empty")).toBeVisible();
     await expect(tid(page, "tc-empty")).toHaveText("테스트 케이스가 없습니다");
     await expect(tid(page, "rule-card-usage")).toContainText("이 룰을 담은 룰 세트가 없습니다.");
@@ -1002,14 +1012,10 @@ test.describe("A 룰 등록·편집·확정", () => {
     watcher.assertClean("ruleEdit");
   });
 
-  test("TC-DME-CTR-01 입력 계약 — 조건 변수는 늘 키가 있어야 하고, 행 묶음별 필수 변수가 보인다(최초 버전이라 RELEASED 비교 없음)", async () => {
-    const always = tid(page, "contract-always");
-    await expect(always).toContainText(THK, { timeout: 30_000 });
-    await expect(always).toContainText(SURF);
-    await expect(screen(page).locator('[data-testid^="contract-group-"]').first()).toBeVisible();
-    await expect(tid(page, "contract-warning-count")).toHaveCount(0);
-    await expect(tid(page, "contract-diff-none")).toHaveCount(0);
-    await tid(page, "contract-section").scrollIntoViewIfNeeded();
+  test("TC-DME-CTR-01 입력 계약 — 조건 변수는 ④ 값 테스트 입력 표에 보이고, 최초 버전이라 RELEASED 대비 변경 알림은 없다", async () => {
+    await expect(tid(page, `vt-field-${THK}`)).toBeVisible({ timeout: 30_000 });
+    await expect(tid(page, `vt-field-${SURF}`)).toBeVisible();
+    await expect(tid(page, "contract-notice")).toHaveCount(0);
     await layout.layout(page, "ruleEdit 입력 계약");
     await snap(page, "dme-ruleEdit-CTR-01-contract");
     watcher.assertClean("ruleEdit");
@@ -1042,7 +1048,7 @@ test.describe("A 룰 등록·편집·확정", () => {
 
     // 두께 키를 빼면 레코드에 키가 없어 판정 오류(MISSING_KEY).
     await tid(page, `vt-key-${THK}`).locator('input[type="checkbox"]').uncheck();
-    await expect(tid(page, `vt-input-${THK}`)).toBeDisabled();
+    await expect(vtValueCell(page, THK)).toHaveText("(키 없음)");
     await vtRun(page);
     await expect(tid(page, "vt-result-target")).toContainText("판정 오류");
     await expect(tid(page, "vt-result-errors")).toContainText("MISSING_KEY");
@@ -1099,22 +1105,23 @@ test.describe("A 룰 등록·편집·확정", () => {
     await vtInput(page, THK, "");
     await vtInput(page, SURF, "");
     await caseRow(page, CASE_C).getByRole("button", { name: "불러오기", exact: true }).click();
-    await expect(tid(page, `vt-input-${SURF}`)).toHaveValue("B");
-    await expect(tid(page, `vt-input-${THK}`)).toHaveValue(/^5(\.0)?$/);
+    await expect(vtValueCell(page, SURF)).toHaveText("B");
+    await expect(vtValueCell(page, THK)).toHaveText(/^5(\.0)?$/);
 
-    // 수정: 팝업에서 [값 테스트 입력 넣기] 후 [취소] 하면 아무것도 바뀌지 않는다.
+    // 수정: 팝업은 폼 탭으로 열린다. [값 테스트 입력으로 바꾸기] 후 [취소] 하면 아무것도 바뀌지 않는다.
     await caseRow(page, CASE_A).locator('[data-testid^="tc-edit-"]').click();
     await expect(tid(page, "tc-edit-modal")).toBeVisible();
     await expect(tid(page, "tc-edit-name")).toHaveValue(CASE_A);
     await tid(page, "tc-edit-use-input").click();
-    await expect(tid(page, "tc-edit-input")).toHaveValue(new RegExp(`"${SURF}"\\s*:\\s*"B"`));
+    await expect(tid(page, `tc-form-in-${SURF}`)).toHaveValue("B");
     await snapModal(page, "dme-ruleEdit-TC-01-edit-modal");
     await modal(page).getByRole("button", { name: "취소", exact: true }).click();
     await expect(tid(page, "tc-edit-modal")).toHaveCount(0);
     await expect(caseRow(page, CASE_A)).toContainText(`"${SURF}":"A"`);
 
-    // 수정: 입력 JSON 이 깨지면 팝업 안 오류로 막힌다.
+    // 수정: JSON 탭에서 입력 JSON 이 깨지면 팝업 안 오류로 막힌다.
     await caseRow(page, CASE_C).locator('[data-testid^="tc-edit-"]').click();
+    await tid(page, "tc-edit-tab-json").click();
     await tid(page, "tc-edit-input").fill("{");
     await tid(page, "tc-edit-save").click();
     await expect(tid(page, "tc-edit-error")).toBeVisible();
@@ -1170,7 +1177,7 @@ test.describe("A 룰 등록·편집·확정", () => {
       await tid(page, `rule-group-${g}-toggle`).click();
       await expect(tid(page, `rule-group-${g}-body`)).toBeVisible();
     }
-    for (const s of ["rule-section-columns", "pivot-section", "contract-section"]) {
+    for (const s of ["rule-section-columns", "pivot-section"]) {
       await tid(page, `${s}-toggle`).click();
       await expect(page.locator(`[data-testid="${s}-body"]`)).toBeHidden();
       await tid(page, `${s}-toggle`).click();
@@ -1390,8 +1397,7 @@ test.describe("B 새 버전·삭제·폐기", () => {
     // 행은 버전 1 을 그대로 복사한다(같은 row_id).
     expect(await dtRowIds(page)).toEqual(v1Rows);
     // RELEASED(base) 와 입력 계약이 같다.
-    await expect(tid(page, "contract-warning-count")).toHaveText("RELEASED 대비 경고 0건");
-    await expect(tid(page, "contract-diff-none")).toHaveText("RELEASED 버전과 계약이 같습니다.");
+    await expect(tid(page, "contract-notice")).toHaveCount(0);
     await layout.layout(page, "ruleEdit 새 버전");
     await snap(page, "dme-ruleEdit-VER-01-new-version");
     watcher.assertClean("ruleEdit");
@@ -1486,7 +1492,6 @@ test.describe("B 새 버전·삭제·폐기", () => {
       "rule-group-headerVersions-toggle": "카드 묶음 접기는 장 A TC-DME-EDT-05 에서 누른다",
       "rule-group-valueTests-toggle": "카드 묶음 접기는 장 A TC-DME-EDT-05 에서 누른다",
       "rule-section-columns-toggle": "섹션 접기는 장 A TC-DME-EDT-05 에서 누른다",
-      "contract-section-toggle": "섹션 접기는 장 A TC-DME-EDT-05 에서 누른다",
       "pivot-section-toggle": "섹션 접기는 장 A TC-DME-EDT-05 에서 누른다",
       "헤더 저장": "헤더 저장은 장 A TC-DME-EDT-02 에서 누른다",
     });

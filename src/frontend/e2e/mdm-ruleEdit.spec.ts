@@ -551,15 +551,11 @@ test.describe("mdm dme/ruleEdit", () => {
     await page.screenshot({ path: screenshot03("dme-ruleEdit-formula.png"), fullPage: true });
   });
 
-  test("C5 입력 계약: PROD_WGT_CALC v2 는 행별 필수 입력 묶음 3줄이고 SPEC_GRAV 가 필수에서 선택이 된 것을 RELEASED 대비 알림으로 보인다", async ({ page }) => {
+  test("C5 입력 계약 변경 알림: PROD_WGT_CALC v2 는 SPEC_GRAV 가 필수에서 선택이 된 것을 RELEASED 대비 알림 한 줄로 보이고 경고는 없다", async ({ page }) => {
     await openRuleVer(page, "PROD_WGT_CALC", 2);
-    await expect(page.getByTestId("contract-section")).toBeVisible();
-    await expect(page.getByTestId("contract-always")).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByTestId(/^contract-group-\d+$/)).toHaveCount(3);
-    await expect(page.getByTestId("contract-diff-info")).toContainText("필수 입력이 선택이 되었습니다: SPEC_GRAV");
+    await expect(page.getByTestId("contract-diff-info")).toContainText("필수 입력이 선택이 되었습니다: SPEC_GRAV", { timeout: 30_000 });
     await expect(page.getByTestId("contract-diff-warning")).toHaveCount(0);
-    await expect(page.getByTestId("contract-warning-count")).toHaveText("RELEASED 대비 경고 0건");
-    await page.getByTestId("contract-section").scrollIntoViewIfNeeded();
+    await page.getByTestId("contract-notice").scrollIntoViewIfNeeded();
     await page.screenshot({ path: screenshot03("dme-ruleEdit-contract.png"), fullPage: true });
   });
 
@@ -608,11 +604,21 @@ test.describe("mdm dme/ruleEdit", () => {
     return caseCard(page).locator(".ag-center-cols-container .ag-row", { hasText: text });
   }
 
-  /** ④ 입력 칸이 그려진 뒤(다른 버전 정의는 비동기로 받는다) 값을 넣는다. */
+  /** ④ 입력 표의 값 칸 — 행 키는 변수명이다. */
+  function vtValueCell(page: Page, name: string): Locator {
+    return valueTestCard(page).locator(`.ag-row[row-id="${name}"] .ag-cell[col-id="value"]`);
+  }
+
+  /** ④ 입력 표가 그려진 뒤(다른 버전 정의는 비동기로 받는다) 값 칸을 눌러 편집하고 Enter 로 확정한다. */
   async function fillInput(page: Page, name: string, value: string) {
-    const input = page.getByTestId(`vt-input-${name}`);
-    await expect(input).toBeVisible({ timeout: 30_000 });
+    const c = vtValueCell(page, name);
+    await expect(c).toBeVisible({ timeout: 30_000 });
+    await c.click();
+    const input = c.locator("input");
+    await expect(input).toBeVisible({ timeout: 10_000 });
     await input.fill(value);
+    await input.press("Enter");
+    await expect(input).toHaveCount(0);
   }
 
   async function runValueTest(page: Page) {
@@ -693,7 +699,7 @@ test.describe("mdm dme/ruleEdit", () => {
 
     // 두께의 키 보냄을 끄면 레코드에 키가 없어 판정 오류(MISSING_KEY)다(I21).
     await page.getByTestId("vt-key-COIL_THK").locator('input[type="checkbox"]').uncheck();
-    await expect(page.getByTestId("vt-input-COIL_THK")).toBeDisabled();
+    await expect(vtValueCell(page, "COIL_THK")).toHaveText("(키 없음)");
     await runValueTest(page);
     await expect(page.getByTestId("vt-result-target")).toContainText("판정 오류");
     await expect(page.getByTestId("vt-result-errors")).toContainText("MISSING_KEY");

@@ -47,7 +47,7 @@ export interface RuleEditCardSlot {
 /** 접을 수 있는 카드 묶음 — 제목 줄 하나로 묶음 안 카드를 함께 접는다. */
 export const RULE_EDIT_GROUPS: Record<string, { title: string }> = {
   headerVersions: { title: "① 헤더 · ② 버전" },
-  valueTests: { title: "④ 값 테스트 · ⑤ 테스트 결과" },
+  valueTests: { title: "④ 값 테스트 · ⑤ 테스트 결과 · ⑥ 테스트 케이스" },
 };
 
 export type RuleEditCardSegment =
@@ -84,8 +84,9 @@ export const RULE_EDIT_CARDS: RuleEditCardSlot[] = [
   { id: "header", span: 8, Component: RuleHeaderCard, group: "headerVersions" },
   { id: "versions", span: 8, Component: RuleVersionCard, group: "headerVersions" },
   { id: "table", span: 16, Component: TableCardSlot },
-  { id: "valueTest", span: 8, Component: ValueTestCard, group: "valueTests" },
-  { id: "testResult", span: 8, Component: TestResultCard, group: "valueTests" },
-  { id: "testCases", span: 16, Component: TestCaseCard },
+  // ④·⑤·⑥ 은 위아래로 쌓는다 — 입력 표·결과 표가 좌우 절반 폭에서는 좁다.
+  { id: "valueTest", span: 16, Component: ValueTestCard, group: "valueTests" },
+  { id: "testResult", span: 16, Component: TestResultCard, group: "valueTests" },
+  { id: "testCases", span: 16, Component: TestCaseCard, group: "valueTests" },
   { id: "usage", span: 16, Component: RuleUsageCard },
 ];

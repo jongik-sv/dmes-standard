@@ -26,6 +26,9 @@ export interface InputField {
   description: string | null;
 }
 
+/** 다른 카드(⑥ 케이스 수정 팝업)에 넘기는 입력 줄 요약. */
+export type InputFieldInfo = Pick<InputField, "name" | "label" | "typeBadge" | "contractBadge">;
+
 export interface InputFieldsResult {
   fields: InputField[];
   /** AST 를 못 받아 계약에서 빠진 식 — 그 참조 변수는 입력 줄에 없다. */

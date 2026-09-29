@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button, Checkbox, Input, Select } from "@dk-oasis/shared/form";
+import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { badgeStyle } from "@/shell";
 
 import { runValueTest, saveTestCase } from "../api";
@@ -24,6 +25,71 @@ import { expectedFromResult } from "../value-test/case-model";
 import { bodyTable, defaultRowIdOf, prepareRun, resolveTarget, targetKey, targetOptions, useTargetView } from "../value-test/run-request";
 import { buildInputJson, inputFields, inputFromCase } from "../value-test/test-input";
 import { CardFrame, MutedText } from "./CardFrame";
+
+interface FieldRow {
+  name: string;
+  label: string | null;
+  typeBadge: string;
+  contractBadge: string;
+  always: boolean;
+  note: string;
+  value: string;
+  sent: boolean;
+}
+
+interface FieldActions {
+  setSent: (name: string, on: boolean) => void;
+}
+
+// 입력 표 — 값 칸은 그리드 편집(누르면 편집, Enter·다른 곳 클릭으로 확정)이고, 확정한 값은 onCellValueChanged 로 받는다.
+// 칸 안에 입력 요소를 직접 두면 그리드가 행 클릭 때 포커스를 가져가 글자가 들어가지 않는다. 열은 한 번만 만들고
+// 키 보냄 손잡이는 ref 로 넘긴다(TestCaseCard 의 동작 열과 같은 방식).
+function fieldColumns(actions: { current: FieldActions | null }): GridColumn[] {
+  return [
+    {
+      key: "name", header: "변수", width: 200, minWidth: 140,
+      render: (_v, row) => {
+        const r = row as unknown as FieldRow;
+        return (
+          <span data-testid={`vt-field-${r.name}`}>
+            {r.label && <span style={{ fontWeight: 600 }}>{r.label} </span>}
+            <code>{r.name}</code>
+          </span>
+        );
+      },
+    },
+    { key: "typeBadge", header: "타입", width: 90, minWidth: 80, align: "center", render: (v) => <span style={badgeStyle("neutral")}>{String(v)}</span> },
+    {
+      key: "contractBadge", header: "계약", width: 110, minWidth: 100, align: "center",
+      render: (_v, row) => {
+        const r = row as unknown as FieldRow;
+        return r.contractBadge ? <span style={badgeStyle(r.always ? "info" : "muted")}>{r.contractBadge}</span> : null;
+      },
+    },
+    {
+      key: "sent", header: "키 보냄", width: 70, minWidth: 64, align: "center", tooltip: false,
+      render: (_v, row) => {
+        const r = row as unknown as FieldRow;
+        return (
+          <span data-testid={`vt-key-${r.name}`} style={{ display: "inline-flex" }}>
+            <Checkbox aria-label={`${r.name} 키 보냄`} checked={r.sent} onChange={(on) => actions.current?.setSent(r.name, on)} />
+          </span>
+        );
+      },
+    },
+    {
+      key: "value", header: "값", width: 220, minWidth: 140,
+      editable: (row) => (row as unknown as FieldRow).sent,
+      cellClassRules: { "cell-input": (row) => (row as unknown as FieldRow).sent },
+      render: (_v, row) => {
+        const r = row as unknown as FieldRow;
+        if (!r.sent) return <MutedText>(키 없음)</MutedText>;
+        return r.value === "" ? <MutedText>NULL</MutedText> : r.value;
+      },
+    },
+    { key: "note", header: "설명", width: 260, minWidth: 100, render: (v) => (v ? <MutedText>{String(v)}</MutedText> : null) },
+  ];
+}
 
 const MODE_DESC = {
   BODY: "편집 중인 행을 요청에 실어 보낸다(변수는 이 DRAFT 의 저장된 열). 서버는 저장 때와 같은 파싱·화이트리스트·생성기를 돌려 메모리에서만 판정하고 버린다. 저장하지 않아도, 저장 시 검사에 걸리는 표도 돌릴 수 있다.",
@@ -67,7 +133,7 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
     return { ...base, hitPolicy: table.hitPolicy, rows: table.rows };
   }, [choice, def, view, tableDraft]);
 
-  // 식 AST 는 서버 파싱으로 받는다(InputContractSection 과 같은 조건 — 편집 가능하고 validate 권한이 있을 때만).
+  // 식 AST 는 서버 파싱으로 받는다(ContractChangeNotice 와 같은 조건 — 편집 가능하고 validate 권한이 있을 때만).
   const parseEnabled = canParseOnServer({ editable, canValidate: canDo("validate") });
   const wanted = useMemo(() => exprSlotsOf(src), [src]);
   const asts: AstByText = useServerAsts(wanted, parseEnabled);
@@ -76,13 +142,40 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
   const fields = fieldsResult?.fields ?? [];
   const inputJson = useMemo(() => buildInputJson(fields, values, keySent), [fields, values, keySent]);
 
+  const actions = useRef<FieldActions | null>(null);
+  actions.current = { setSent: (name, on) => setKeySent((prev) => ({ ...prev, [name]: on })) };
+  const columns = useMemo(() => fieldColumns(actions), []);
+  const rows = useMemo<FieldRow[]>(
+    () =>
+      fields.map((f) => ({
+        name: f.name,
+        label: f.label,
+        typeBadge: f.typeBadge,
+        contractBadge: f.contractBadge,
+        always: f.always,
+        note: [f.description, f.domain ? `도메인 ${f.domain}` : null].filter(Boolean).join(" · "),
+        value: values[f.name] ?? "",
+        sent: keySent[f.name] !== false,
+      })),
+    [fields, values, keySent],
+  );
+  const handleValueChange = useCallback(({ rowKey, field, newValue }: { rowKey: string | number; field: string; newValue: unknown }) => {
+    if (field !== "value") return;
+    setValues((prev) => ({ ...prev, [String(rowKey)]: newValue == null ? "" : String(newValue) }));
+  }, []);
+  // 키 보냄을 바꾸면 같은 행의 값 칸(편집 가능·표시)도 다시 그려야 한다 — 그리드는 값이 바뀐 칸만 다시 그린다.
+  const sentToken = useMemo(() => rows.map((r) => (r.sent ? 1 : 0)).join(""), [rows]);
+
   // 테스트 케이스 카드(⑥)의 "모두 실행" 이 같은 대상·입력을 쓴다.
-  // fieldNames 도 같이 실어 ⑥ 가 저장된 케이스 입력에 없는 키를 null 로 채울 수 있게 한다
-  // (룰에 컬럼이 새로 들어온 경우).
-  const fieldNames = useMemo(() => fields.map((f) => f.name), [fields]);
+  // 입력 줄 요약도 같이 실어 ⑥ 가 저장된 케이스 입력에 없는 키를 null 로 채우고(룰에 컬럼이 새로 들어온 경우)
+  // 케이스 수정 팝업의 입력 폼 줄을 만들 수 있게 한다.
+  const fieldInfos = useMemo(
+    () => fields.map((f) => ({ name: f.name, label: f.label, typeBadge: f.typeBadge, contractBadge: f.contractBadge })),
+    [fields],
+  );
   useEffect(() => {
-    publishValueTestInput(choice ? { ruleId, target: choice.target, ver: choice.ver, inputJson, fieldNames } : null);
-  }, [publishValueTestInput, ruleId, choice, inputJson, fieldNames]);
+    publishValueTestInput(choice ? { ruleId, target: choice.target, ver: choice.ver, inputJson, fields: fieldInfos } : null);
+  }, [publishValueTestInput, ruleId, choice, inputJson, fieldInfos]);
 
   // 케이스 "불러오기" — 요청이 올 때마다 한 번 입력 칸을 채운다.
   const fieldsRef = useRef(fields);
@@ -183,34 +276,22 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
         </p>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-sm)", paddingTop: "var(--spacing-xs)" }}>
-        {fields.map((f) => {
-          const sent = keySent[f.name] !== false;
-          return (
-            <div key={f.name} data-testid={`vt-field-${f.name}`} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "var(--spacing-xs)" }}>
-                <span style={{ fontWeight: 600 }}>{f.label ?? f.name}</span>
-                <code>{f.name}</code>
-                <span style={badgeStyle("neutral")}>{f.typeBadge}</span>
-                {f.contractBadge && <span style={badgeStyle(f.always ? "info" : "muted")}>{f.contractBadge}</span>}
-                <span data-testid={`vt-key-${f.name}`} style={{ marginLeft: "auto" }}>
-                  <Checkbox label="키 보냄" checked={sent} onChange={(on) => setKeySent((prev) => ({ ...prev, [f.name]: on }))} />
-                </span>
-              </div>
-              <Input
-                data-testid={`vt-input-${f.name}`}
-                value={values[f.name] ?? ""}
-                placeholder="비우면 NULL"
-                disabled={!sent}
-                onChange={(v) => setValues((prev) => ({ ...prev, [f.name]: v }))}
-              />
-              {(f.description || f.domain) && (
-                <MutedText>{[f.description, f.domain ? `도메인 ${f.domain}` : null].filter(Boolean).join(" · ")}</MutedText>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      {fields.length > 0 && (
+        <div style={{ paddingTop: "var(--spacing-xs)" }}>
+          <AgDataGrid
+            columns={columns}
+            data={rows as unknown as Record<string, unknown>[]}
+            rowKey="name"
+            height="auto"
+            columnSizing="fit"
+            sortable={false}
+            singleClickEdit
+            onCellValueChanged={handleValueChange}
+            rowClassRefreshToken={sentToken}
+            ariaLabel="값 테스트 입력"
+          />
+        </div>
+      )}
 
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "var(--spacing-xs)", paddingTop: "var(--spacing-sm)" }}>
         <Button variant="primary" disabled={!canRun} onClick={() => void handleRun()}>

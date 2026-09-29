@@ -12,6 +12,7 @@
 import { createContext, useCallback, useContext, useMemo, useReducer, useState, type ReactNode } from "react";
 
 import type { HitPolicyCode, StoredRow, ValueTestTarget } from "../types";
+import type { InputFieldInfo } from "../value-test/test-input";
 import { testRunAfterTableChange, type TestRunView } from "../value-test/test-marks";
 
 /** 편집 중인 표 — rows 는 저장 형태(`tableStoredRows`, 새 행은 음수 임시 ID). */
@@ -31,11 +32,11 @@ export interface ValueTestInput {
   ver: number;
   inputJson: string;
   /**
-   * 지금 대상 정의의 입력 계약 이름(순서대로). 테스트 케이스 입력 JSON 에 없는 키를
-   * null 로 채울 때 쓴다 — 룰에 컬럼이 새로 들어오면 케이스에도 빈 칸으로 보여야 해서.
+   * 지금 대상 정의의 입력 줄(계약 이름 순서). 테스트 케이스 입력 JSON 에 없는 키를
+   * null 로 채우고(룰에 컬럼이 새로 들어오면 케이스에도 빈 칸으로 보여야 해서), 케이스 수정 팝업의 입력 폼 줄을 만든다.
    * 계약 계산이 실패해 입력 줄이 없으면 빈 배열이다.
    */
-  fieldNames: string[];
+  fields: InputFieldInfo[];
 }
 
 /** 케이스 "불러오기" 요청 — seq 가 오를 때마다 값 테스트 카드가 입력 칸을 그 케이스로 채운다(B8). */
