@@ -4,6 +4,7 @@
  * 카드 ⑧ 활용처(TSK-08-02 design §6.7.3). 활용처 메모, 이 룰을 담은 룰 세트와 세트 안의 의존 룰(이 룰이 읽는 이름을 만드는 룰)·
  * 역의존 룰(이 룰이 만드는 이름을 읽는 룰). 룰 ID 는 룰 화면 링크(`openRuleEdit`), 세트 편집 화면(08-06)이 없어 세트는 글자로만 둔다.
  */
+import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { openRuleEdit } from "@/dme/rule-handoff";
 
 import type { RuleEditCardProps } from "../cards";
@@ -28,6 +29,14 @@ function RuleLinks({ ids }: { ids: string[] }) {
   );
 }
 
+const usageColumns: GridColumn[] = [
+  { key: "setId", header: "룰 세트", width: 140 },
+  { key: "setName", header: "이름", width: 160 },
+  { key: "status", header: "상태", width: 100 },
+  { key: "dependsOn", header: "의존 룰", width: 200, tooltip: false, render: (_v, row) => <RuleLinks ids={(row.dependsOn as string[] | undefined) ?? []} /> },
+  { key: "dependedBy", header: "역의존 룰", width: 200, tooltip: false, render: (_v, row) => <RuleLinks ids={(row.dependedBy as string[] | undefined) ?? []} /> },
+];
+
 export function RuleUsageCard({ view }: RuleEditCardProps) {
   const usage = view.usage ?? { sets: [] };
   return (
@@ -38,32 +47,18 @@ export function RuleUsageCard({ view }: RuleEditCardProps) {
       {usage.sets.length === 0 ? (
         <MutedText>이 룰을 담은 룰 세트가 없습니다.</MutedText>
       ) : (
-        <table style={{ width: "100%", borderCollapse: "collapse" }} data-testid="rule-usage-sets">
-          <thead>
-            <tr style={{ textAlign: "left", color: "var(--color-text-secondary)" }}>
-              <th>룰 세트</th>
-              <th>이름</th>
-              <th>상태</th>
-              <th>의존 룰</th>
-              <th>역의존 룰</th>
-            </tr>
-          </thead>
-          <tbody>
-            {usage.sets.map((s) => (
-              <tr key={s.setId}>
-                <td>{s.setId}</td>
-                <td>{s.setName}</td>
-                <td>{s.status}</td>
-                <td>
-                  <RuleLinks ids={s.dependsOn ?? []} />
-                </td>
-                <td>
-                  <RuleLinks ids={s.dependedBy ?? []} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div data-testid="rule-usage-sets">
+          <AgDataGrid
+            columns={usageColumns}
+            data={usage.sets as unknown as Record<string, unknown>[]}
+            rowKey="setId"
+            height="auto"
+            columnSizing="fit"
+            sortable={false}
+            emptyMessage="이 룰을 담은 룰 세트가 없습니다."
+            ariaLabel="룰 세트 활용처"
+          />
+        </div>
       )}
     </CardFrame>
   );

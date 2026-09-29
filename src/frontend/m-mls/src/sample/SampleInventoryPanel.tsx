@@ -1,14 +1,14 @@
 "use client";
 
-import type { CSSProperties } from "react";
 import { ContentBody, ContentPanel, PageLayout } from "@dk-oasis/shared/layout";
+import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 
 export interface SampleInventoryPanelProps {
   /** 화면 제목. 호스트(m-mcm)가 메뉴 명칭을 내려주면 덮어쓴다. */
   title?: string;
 }
 
-interface SampleRow {
+interface SampleRow extends Record<string, unknown> {
   code: string;
   name: string;
   status: string;
@@ -20,17 +20,11 @@ const SAMPLE_ROWS: SampleRow[] = [
   { code: "SMP-L-003", name: "샘플 재고 항목 C", status: "출고" },
 ];
 
-const TABLE_STYLE: CSSProperties = {
-  width: "100%",
-  borderCollapse: "collapse",
-  fontSize: 13,
-};
-
-const CELL_STYLE: CSSProperties = {
-  border: "1px solid #d6dbe3",
-  padding: "6px 10px",
-  textAlign: "left",
-};
+const COLUMNS: GridColumn[] = [
+  { key: "code", header: "코드", width: 140, align: "left" },
+  { key: "name", header: "명칭", width: 260, align: "left" },
+  { key: "status", header: "상태", width: 120, align: "left" },
+];
 
 /**
  * 물류·재고 도메인의 자리표시자 패널.
@@ -41,24 +35,12 @@ export function SampleInventoryPanel({ title = "샘플 재고 화면" }: SampleI
     <PageLayout title={title} breadcrumb="샘플 > 재고">
       <ContentBody root>
         <ContentPanel>
-          <table style={TABLE_STYLE}>
-            <thead>
-              <tr>
-                <th style={{ ...CELL_STYLE, background: "#f2f4f7" }}>코드</th>
-                <th style={{ ...CELL_STYLE, background: "#f2f4f7" }}>명칭</th>
-                <th style={{ ...CELL_STYLE, background: "#f2f4f7" }}>상태</th>
-              </tr>
-            </thead>
-            <tbody>
-              {SAMPLE_ROWS.map((row) => (
-                <tr key={row.code}>
-                  <td style={CELL_STYLE}>{row.code}</td>
-                  <td style={CELL_STYLE}>{row.name}</td>
-                  <td style={CELL_STYLE}>{row.status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <AgDataGrid
+            columns={COLUMNS}
+            data={SAMPLE_ROWS}
+            rowKey="code"
+            height="auto"
+          />
         </ContentPanel>
       </ContentBody>
     </PageLayout>

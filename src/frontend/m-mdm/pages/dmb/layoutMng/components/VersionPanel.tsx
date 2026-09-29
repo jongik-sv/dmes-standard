@@ -6,7 +6,6 @@
  */
 import { Button } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
-import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { CHANGE_CLASS_TABLE, switchModeLabel } from "@/layout/change-class";
 import { snapshotJsonText } from "@/layout/snapshot-export";
 import { badge, empty, hint, row, sectionTitle } from "@/layout/styles";
@@ -26,6 +25,12 @@ const COLUMNS: GridColumn[] = [
   { key: "CHANGE_SUMMARY", header: "변경", width: 320 },
   { key: "TOTAL_LENGTH", header: "총 길이", width: 60, align: "right" },
   { key: "SWITCH_MODE", header: "전환 방식", width: 90, render: (v) => modeBadge(v) },
+];
+
+const CHANGE_CLASS_COLUMNS: GridColumn[] = [
+  { key: "change", header: "변경", width: 220 },
+  { key: "lengthOffset", header: "총 길이·기존 오프셋", width: 110 },
+  { key: "mode", header: "전환", width: 280, tooltip: false, render: (v, r) => <>{modeBadge(v)} {String(r.note ?? "")}</> },
 ];
 
 export interface VersionPanelProps {
@@ -59,24 +64,15 @@ export function VersionPanel({ versions, selectedVersion, onSelectVersion, snaps
         </div>
       )}
       <p style={{ ...sectionTitle, padding: "var(--spacing-xs) 0" }}>변경 분류</p>
-      <table data-testid="change-class-table" style={DETAIL_TABLE_STYLE}>
-        <thead>
-          <tr>
-            <th style={DETAIL_LABEL_CELL}>변경</th>
-            <th style={DETAIL_LABEL_CELL}>총 길이·기존 오프셋</th>
-            <th style={DETAIL_LABEL_CELL}>전환</th>
-          </tr>
-        </thead>
-        <tbody>
-          {CHANGE_CLASS_TABLE.map((c) => (
-            <tr key={c.change}>
-              <td style={DETAIL_VALUE_CELL}>{c.change}</td>
-              <td style={DETAIL_VALUE_CELL}>{c.lengthOffset}</td>
-              <td style={DETAIL_VALUE_CELL}>{modeBadge(c.mode)} {c.note}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div data-testid="change-class-table">
+        <AgDataGrid
+          columnSizing="fit"
+          columns={CHANGE_CLASS_COLUMNS}
+          data={CHANGE_CLASS_TABLE as unknown as Record<string, unknown>[]}
+          rowKey="change"
+          height="auto"
+        />
+      </div>
       <p style={{ ...sectionTitle, padding: "var(--spacing-xs) 0" }}>
         {`레이아웃 스냅샷${snapshot?.layoutVersion != null ? ` — 버전 ${snapshot.layoutVersion}` : ""}`}
       </p>

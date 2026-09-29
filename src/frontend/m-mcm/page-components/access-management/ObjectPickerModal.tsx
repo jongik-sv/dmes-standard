@@ -3,6 +3,7 @@
 import { memo, useEffect, useMemo, useState } from "react";
 import { Modal } from "@dk-oasis/shared/modal";
 import { Input } from "@dk-oasis/shared/form";
+import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { createJsonApiClient } from "@/lib/http/json-api-client";
 
 export interface PickedObject {
@@ -16,6 +17,12 @@ interface Props {
   onClose: () => void;
   onSelect: (obj: PickedObject) => void;
 }
+
+const COLUMNS: GridColumn[] = [
+  { key: "objId", header: "OBJECT ID", width: 200, align: "left" },
+  { key: "objNm", header: "객체명", width: 260, align: "left" },
+  { key: "sysCd", header: "모듈", width: 80, align: "left" },
+];
 
 /**
  * 오브젝트 선택 팝업 — 권한관리 / 메뉴관리 등에서 보안객체 ID 를 직접 타이핑하지 않고
@@ -74,78 +81,24 @@ const ObjectPickerModalImpl = ({ open, onClose, onSelect }: Props) => {
           onChange={setFilter}
           placeholder="OBJECT ID / 객체명 / 모듈 검색"
         />
-        <div
-          style={{
-            maxHeight: 420,
-            overflow: "auto",
-            border: "1px solid #e0e0e0",
-            borderRadius: 4,
+        <AgDataGrid
+          columns={COLUMNS}
+          data={filteredRows as unknown as Record<string, unknown>[]}
+          rowKey="objId"
+          height={420}
+          loading={loading}
+          emptyMessage="검색 결과가 없습니다."
+          onRowClick={(row) => {
+            onSelect(row as unknown as PickedObject);
+            onClose();
           }}
-        >
-          {loading ? (
-            <div style={{ padding: 24, textAlign: "center", color: "#999" }}>
-              로딩 중...
-            </div>
-          ) : (
-            <table
-              style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}
-            >
-              <thead>
-                <tr style={{ background: "#f5f5f5", position: "sticky", top: 0 }}>
-                  <th style={th}>OBJECT ID</th>
-                  <th style={th}>객체명</th>
-                  <th style={{ ...th, width: 80 }}>모듈</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRows.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={3}
-                      style={{ padding: 24, textAlign: "center", color: "#999" }}
-                    >
-                      검색 결과가 없습니다.
-                    </td>
-                  </tr>
-                )}
-                {filteredRows.map((r) => (
-                  <tr
-                    key={r.objId}
-                    style={{ cursor: "pointer" }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLElement).style.background =
-                        "var(--color-selection, #e3f2fd)";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLElement).style.background = "";
-                    }}
-                    onClick={() => {
-                      onSelect(r);
-                      onClose();
-                    }}
-                  >
-                    <td style={td}>{r.objId}</td>
-                    <td style={td}>{r.objNm}</td>
-                    <td style={td}>{r.sysCd}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-        <div style={{ fontSize: 11, color: "#999", textAlign: "right" }}>
+        />
+        <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-secondary)", textAlign: "right" }}>
           {filteredRows.length} / {rows.length} 건
         </div>
       </div>
     </Modal>
   );
 };
-
-const th: React.CSSProperties = {
-  padding: 6,
-  border: "1px solid #ddd",
-  textAlign: "left",
-};
-const td: React.CSSProperties = { padding: 4, border: "1px solid #eee" };
 
 export const ObjectPickerModal = memo(ObjectPickerModalImpl);

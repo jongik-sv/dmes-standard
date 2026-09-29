@@ -8,9 +8,10 @@
  * 채운다. "수정" 은 팝업에서 이름·설명·입력·기대 JSON 을 고친다. "기대값 갱신" 은 마지막 결과로 기대 JSON 을 다시 쓰고, "삭제" 는 한 번 더 눌러야 보낸다. 쓰기는 row_version 조건(MDM001)이고 뒤에
  * view 를 다시 불러온다.
  */
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { Button } from "@dk-oasis/shared/form";
+import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { badgeStyle } from "@/shell";
 
 import { copyTestCase, deleteTestCase, runValueTest, saveTestCase } from "../api";
@@ -23,10 +24,6 @@ import { prepareRun, resolveTarget, targetLabel, targetOptions, useTargetView } 
 import { CardFrame, MutedText } from "./CardFrame";
 import { TestCaseEditModal } from "./TestCaseEditModal";
 
-const th = { textAlign: "left", padding: "4px 6px", whiteSpace: "nowrap", borderBottom: "1px solid var(--color-border-light)" } as const;
-const td = { padding: "4px 6px", verticalAlign: "top", borderBottom: "1px solid var(--color-border-light)" } as const;
-const code = { whiteSpace: "pre-wrap", wordBreak: "break-all" } as const;
-
 function badgeCss(b: CaseBadge) {
   if (b.tone === "danger") return { ...badgeStyle("neutral"), color: "var(--color-danger)", background: "var(--color-danger-soft)" };
   return badgeStyle(b.tone === "success" ? "success" : "muted");
@@ -34,6 +31,115 @@ function badgeCss(b: CaseBadge) {
 
 function shown(v: unknown): string {
   return typeof v === "string" ? v : JSON.stringify(v ?? null);
+}
+
+/** 결과 칸 뒤에 붙는 불일치·오류 글자. */
+function mismatchText(r: ValueTestCaseResult): string {
+  return r.mismatches.map((m) => `${m.key} ${shown(m.expected)} ≠ ${shown(m.actual)}`).join(" · ");
+}
+
+function errorText(r: ValueTestCaseResult): string {
+  return (r.errors ?? []).map((e) => `${e.code} — ${e.message}`).join(" · ");
+}
+
+/** 셀 버튼이 부르는 동작 — 열 정의를 렌더마다 새로 만들지 않도록 ref 로 넘긴다. 케이스는 누른 순간의 최신 값으로 찾는다. */
+interface CaseActions {
+  load: (caseId: number) => void;
+  runOne: (caseId: number) => void;
+  copy: (caseId: number) => void;
+  edit: (caseId: number) => void;
+  updateExpected: (caseId: number) => void;
+  remove: (caseId: number) => void;
+}
+
+/** 케이스 표 한 행. ag-grid 는 칸 값이 바뀐 셀만 다시 그리므로, 버튼 상태·결과 표시는 글자 칸 값(`actions`·`result`)에 담는다. */
+interface CaseRow {
+  caseId: number;
+  name: string;
+  caseName: string;
+  description: string;
+  inputJson: string;
+  expectedJson: string;
+  result: string;
+  badge: CaseBadge | null;
+  mismatches: string;
+  errors: string;
+  actions: string;
+  runDisabled: boolean;
+  runLabel: string;
+  writeDisabled: boolean;
+  updateDisabled: boolean;
+  confirmingDelete: boolean;
+}
+
+// 열은 `columnSizing="fit"` + 작은 `minWidth` 로 카드 폭에 맞춰 줄인다(RuleListGrid 선례) — 열 합이 카드보다 넓으면 ag-grid 가
+// 가로로 보이지 않는 동작 열을 그리지 않는다. 동작 열 minWidth 는 버튼 여섯 개가 잘리지 않는 폭이다.
+function caseColumns(resultLabel: string, actions: { current: CaseActions | null }): GridColumn[] {
+  return [
+    { key: "caseId", header: "case_id", width: 70, minWidth: 60 },
+    {
+      key: "name", header: "이름", width: 160, minWidth: 100,
+      render: (_v, row) => {
+        const r = row as unknown as CaseRow;
+        return (
+          <>
+            {r.caseName}
+            {r.description && <MutedText> · {r.description}</MutedText>}
+          </>
+        );
+      },
+    },
+    { key: "inputJson", header: "입력", width: 200, minWidth: 120, render: (v) => <code>{String(v)}</code> },
+    {
+      key: "expectedJson", header: "기대", width: 160, minWidth: 100,
+      render: (v) => (v ? <code>{String(v)}</code> : <MutedText>(기대값 없음)</MutedText>),
+    },
+    {
+      key: "result", header: `결과(${resultLabel})`, width: 200, minWidth: 120,
+      render: (_v, row) => {
+        const r = row as unknown as CaseRow;
+        if (!r.badge) return <MutedText>-</MutedText>;
+        return (
+          <>
+            <span data-testid={`tc-badge-${r.caseId}`} style={badgeCss(r.badge)}>
+              {r.badge.text}
+            </span>
+            {r.mismatches && <MutedText> {r.mismatches}</MutedText>}
+            {r.errors && <span style={{ color: "var(--color-danger)" }}> {r.errors}</span>}
+          </>
+        );
+      },
+    },
+    {
+      key: "actions", header: "동작", width: 330, minWidth: 330, tooltip: false,
+      render: (_v, row) => {
+        const r = row as unknown as CaseRow;
+        const id = r.caseId;
+        return (
+          <span style={{ display: "inline-flex", gap: "var(--spacing-xs)" }}>
+            <Button size="mini" onClick={() => actions.current?.load(id)}>
+              불러오기
+            </Button>
+            <Button size="mini" disabled={r.runDisabled} data-testid={`tc-run-${id}`} onClick={() => actions.current?.runOne(id)}>
+              {r.runLabel}
+            </Button>
+            <Button size="mini" disabled={r.writeDisabled} data-testid={`tc-copy-${id}`} onClick={() => actions.current?.copy(id)}>
+              복사
+            </Button>
+            <Button size="mini" disabled={r.writeDisabled} data-testid={`tc-edit-${id}`} onClick={() => actions.current?.edit(id)}>
+              수정
+            </Button>
+            <Button size="mini" disabled={r.updateDisabled} onClick={() => actions.current?.updateExpected(id)}>
+              기대값 갱신
+            </Button>
+            <Button size="mini" variant={r.confirmingDelete ? "danger" : "default"} disabled={r.writeDisabled} onClick={() => actions.current?.remove(id)}>
+              {r.confirmingDelete ? "삭제 확인" : "삭제"}
+            </Button>
+          </span>
+        );
+      },
+    },
+  ];
 }
 
 /** 케이스 결과 → 기대값 계산용 결과(hit 은 서버가 §6.5 표현으로 준 값 — 한 행·기본 행이면 숫자, 여럿이면 배열). */
@@ -185,6 +291,63 @@ export function TestCaseCard({ view, editable, canDo, busy, runWrite }: RuleEdit
   const canWrite = canDo("save") && !busy && view.rule.sourceKind === "MDM";
   const resultLabel = run ? targetLabel(run) : choice ? targetLabel(choice) : "-";
 
+  const actions = useRef<CaseActions | null>(null);
+  const caseOf = (id: number) => cases.find((c) => c.caseId === id);
+  actions.current = {
+    load: (id) => {
+      const c = caseOf(id);
+      if (c) loadCase(ruleId, c.inputJson);
+    },
+    runOne: (id) => {
+      const c = caseOf(id);
+      if (c) void handleRunOne(c);
+    },
+    copy: (id) => {
+      const c = caseOf(id);
+      if (c) void handleCopy(c);
+    },
+    edit: (id) => setEditing(caseOf(id) ?? null),
+    updateExpected: (id) => {
+      const c = caseOf(id);
+      const r = byCase.get(id);
+      if (c && r) void handleUpdateExpected(c, r);
+    },
+    remove: (id) => {
+      const c = caseOf(id);
+      if (c) void handleDelete(c);
+    },
+  };
+  const columns = useMemo(() => caseColumns(resultLabel, actions), [resultLabel]);
+
+  const runBlocked = !canDo("execute") || busy || running || !choice || runningCase != null;
+  const rows: CaseRow[] = cases.map((c) => {
+    const r = byCase.get(c.caseId);
+    const badge = r ? caseBadge(r) : null;
+    const mismatches = r ? mismatchText(r) : "";
+    const errors = r ? errorText(r) : "";
+    const runLabel = runningCase === c.caseId ? "실행 중..." : "실행";
+    const updateDisabled = !canWrite || !r || r.outcome !== "OK";
+    const confirmingDelete = confirmDelete === c.caseId;
+    return {
+      caseId: c.caseId,
+      name: c.description ? `${c.caseName} · ${c.description}` : c.caseName,
+      caseName: c.caseName,
+      description: c.description ?? "",
+      inputJson: c.inputJson,
+      expectedJson: c.expectedJson ?? "",
+      result: badge ? [badge.text, mismatches, errors].filter(Boolean).join(" ") : "",
+      badge,
+      mismatches,
+      errors,
+      actions: [runBlocked, runLabel, canWrite, updateDisabled, confirmingDelete].join("|"),
+      runDisabled: runBlocked,
+      runLabel,
+      writeDisabled: !canWrite,
+      updateDisabled,
+      confirmingDelete,
+    };
+  });
+
   return (
     <CardFrame
       title="⑥ 테스트 케이스"
@@ -203,88 +366,16 @@ export function TestCaseCard({ view, editable, canDo, busy, runWrite }: RuleEdit
           테스트 케이스가 없습니다
         </p>
       ) : (
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ borderCollapse: "collapse", minWidth: "100%", fontSize: "var(--font-size-sm)" }}>
-            <thead>
-              <tr>
-                <th style={th}>case_id</th>
-                <th style={th}>이름</th>
-                <th style={th}>입력</th>
-                <th style={th}>기대</th>
-                <th style={th}>결과({resultLabel})</th>
-                <th style={th}>동작</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cases.map((c) => {
-                const r = byCase.get(c.caseId);
-                const badge = r ? caseBadge(r) : null;
-                return (
-                  <tr key={c.caseId} data-testid={`tc-row-${c.caseId}`}>
-                    <td style={td}>{c.caseId}</td>
-                    <td style={td}>
-                      {c.caseName}
-                      {c.description && (
-                        <>
-                          <br />
-                          <MutedText>{c.description}</MutedText>
-                        </>
-                      )}
-                    </td>
-                    <td style={td}>
-                      <code style={code}>{c.inputJson}</code>
-                    </td>
-                    <td style={td}>{c.expectedJson ? <code style={code}>{c.expectedJson}</code> : <MutedText>(기대값 없음)</MutedText>}</td>
-                    <td style={td}>
-                      {!badge ? (
-                        <MutedText>-</MutedText>
-                      ) : (
-                        <>
-                          <span data-testid={`tc-badge-${c.caseId}`} style={badgeCss(badge)}>
-                            {badge.text}
-                          </span>
-                          {r!.mismatches.length > 0 && (
-                            <MutedText> {r!.mismatches.map((m) => `${m.key} ${shown(m.expected)} ≠ ${shown(m.actual)}`).join(" · ")}</MutedText>
-                          )}
-                          {(r!.errors ?? []).length > 0 && (
-                            <span style={{ color: "var(--color-danger)" }}> {(r!.errors ?? []).map((e) => `${e.code} — ${e.message}`).join(" · ")}</span>
-                          )}
-                        </>
-                      )}
-                    </td>
-                    <td style={{ ...td, whiteSpace: "nowrap" }}>
-                      <span style={{ display: "inline-flex", gap: "var(--spacing-xs)" }}>
-                        <Button size="sm" onClick={() => loadCase(ruleId, c.inputJson)}>
-                          불러오기
-                        </Button>
-                        <Button
-                          size="sm"
-                          disabled={!canDo("execute") || busy || running || !choice || runningCase != null}
-                          data-testid={`tc-run-${c.caseId}`}
-                          onClick={() => void handleRunOne(c)}
-                        >
-                          {runningCase === c.caseId ? "실행 중..." : "실행"}
-                        </Button>
-                        <Button size="sm" disabled={!canWrite} data-testid={`tc-copy-${c.caseId}`} onClick={() => void handleCopy(c)}>
-                          복사
-                        </Button>
-                        <Button size="sm" disabled={!canWrite} data-testid={`tc-edit-${c.caseId}`} onClick={() => setEditing(c)}>
-                          수정
-                        </Button>
-                        <Button size="sm" disabled={!canWrite || !r || r.outcome !== "OK"} onClick={() => void handleUpdateExpected(c, r!)}>
-                          기대값 갱신
-                        </Button>
-                        <Button size="sm" variant={confirmDelete === c.caseId ? "danger" : "default"} disabled={!canWrite} onClick={() => void handleDelete(c)}>
-                          {confirmDelete === c.caseId ? "삭제 확인" : "삭제"}
-                        </Button>
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <AgDataGrid
+          columns={columns}
+          data={rows as unknown as Record<string, unknown>[]}
+          rowKey="caseId"
+          height="auto"
+          columnSizing="fit"
+          sortable={false}
+          getRowHeight={() => 28}
+          ariaLabel="테스트 케이스 목록"
+        />
       )}
       <TestCaseEditModal
         target={editing}

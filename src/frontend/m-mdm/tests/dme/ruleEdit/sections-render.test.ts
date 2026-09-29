@@ -361,7 +361,7 @@ describe("입력 계약 섹션", () => {
     await mount(createElement(InputContractSection, props(contractView())));
     expect(q("[data-testid='contract-always']").textContent).toContain("PROD_TYPE");
     expect(q("[data-testid='contract-always']").textContent).toContain("CALC_BASIS");
-    const groups = container.querySelectorAll("[data-testid^='contract-group-']");
+    const groups = container.querySelectorAll("[data-testid='contract-groups'] .ag-center-cols-container .ag-row");
     expect(groups).toHaveLength(3);
     expect(groups[0].textContent).toContain("PROD_TYPE = COIL · CALC_BASIS = LEN");
     expect(groups[0].textContent).toContain("COIL_LEN");
@@ -371,7 +371,7 @@ describe("입력 계약 섹션", () => {
   it("같은 행이 묶이면 'N개 행이 같다' 로 보이고 title 에 행별 조건이 든다", async () => {
     const same = { ...PROD_WGT_CALC, rows: PROD_WGT_CALC.rows.map((r) => ({ ...r, cells: { ...r.cells, 2: PROD_WGT_CALC.rows[0].cells[2] } })) };
     await mount(createElement(InputContractSection, props(contractView(same as never, PROD_WGT_CALC))));
-    const groups = container.querySelectorAll("[data-testid^='contract-group-']");
+    const groups = container.querySelectorAll("[data-testid='contract-groups'] .ag-center-cols-container .ag-row");
     expect(groups).toHaveLength(1);
     expect(groups[0].textContent).toContain("3개 행이 같다");
     expect(groups[0].querySelector("[title]")?.getAttribute("title")).toContain("PROD_TYPE = SHEET");

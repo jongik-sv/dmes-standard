@@ -5,6 +5,7 @@
  * 만든 한 줄을 구역 색으로 보인다. 공백은 가운뎃점, 마우스를 올리면 구역·이름·위치. 화면은 바이트를 세지 않는다(EUC-KR, 불변 I2).
  */
 import { Button, Input } from "@dk-oasis/shared/form";
+import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { ZONE_LEGEND, ruler, segmentTitle, visibleText, zoneColor, zoneKey } from "@/layout/sample-line";
 import { hint, row, sectionTitle } from "@/layout/styles";
@@ -12,6 +13,15 @@ import type { LayoutItemRow } from "@/layout/types";
 import type { SampleResult } from "../types";
 
 const mono = { fontFamily: "var(--font-family-mono, monospace)", whiteSpace: "pre" as const, overflowX: "auto" as const };
+
+// 구간 목록 — 구간 수는 헤더 항목 수만큼 늘어나므로 고정 높이로 둔다.
+const SEGMENT_COLUMNS: GridColumn[] = [
+  { key: "POSITION", header: "위치", width: 80 },
+  { key: "ZONE", header: "구역", width: 70, tooltip: false, render: (v, r) => (v === "BODY" ? "본문" : String(r.ZONE_LABEL ?? "")) },
+  { key: "NAME", header: "항목", width: 140 },
+  { key: "FILL_KIND", header: "fill_kind", width: 80 },
+  { key: "TEXT", header: "값", width: 200, render: (v) => visibleText(String(v ?? "")) },
+];
 
 export interface SampleMessagePanelProps {
   items: LayoutItemRow[];
@@ -81,28 +91,15 @@ export function SampleMessagePanel({ items, values, onChange, result, busy, canR
               {errors.map((e, k) => <li key={k}>{`${e.SEQ ?? ""} ${e.COLUMN_PHYS ?? ""} ${e.MESSAGE}`}</li>)}
             </ul>
           )}
-          <table data-testid="sample-segments" style={{ ...DETAIL_TABLE_STYLE, marginTop: "var(--spacing-sm)" }}>
-            <thead>
-              <tr>
-                <th style={DETAIL_LABEL_CELL}>위치</th>
-                <th style={DETAIL_LABEL_CELL}>구역</th>
-                <th style={DETAIL_LABEL_CELL}>항목</th>
-                <th style={DETAIL_LABEL_CELL}>fill_kind</th>
-                <th style={DETAIL_LABEL_CELL}>값</th>
-              </tr>
-            </thead>
-            <tbody>
-              {segments.map((s) => (
-                <tr key={s.INDEX}>
-                  <td style={DETAIL_VALUE_CELL}>{s.POSITION}</td>
-                  <td style={DETAIL_VALUE_CELL}>{s.ZONE === "BODY" ? "본문" : s.ZONE_LABEL}</td>
-                  <td style={DETAIL_VALUE_CELL}>{s.NAME}</td>
-                  <td style={DETAIL_VALUE_CELL}>{s.FILL_KIND}</td>
-                  <td style={{ ...DETAIL_VALUE_CELL, ...mono }}>{visibleText(s.TEXT)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div data-testid="sample-segments" style={{ marginTop: "var(--spacing-sm)" }}>
+            <AgDataGrid
+              columnSizing="fit"
+              columns={SEGMENT_COLUMNS}
+              data={segments as unknown as Record<string, unknown>[]}
+              rowKey="INDEX"
+              height={240}
+            />
+          </div>
           <p style={{ ...sectionTitle, padding: "var(--spacing-xs) 0" }}>같은 스냅샷으로 파싱한 결과</p>
           <table style={DETAIL_TABLE_STYLE}>
             <tbody>

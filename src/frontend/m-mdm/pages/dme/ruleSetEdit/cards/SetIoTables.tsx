@@ -4,8 +4,9 @@
  * 세트 입출력 표(TSK-08-06 design §6.2·§6.9) — 입력 변수 표와 결과 변수 표. 목록 순서에서 `setIo` 로 계산하고 저장하지 않는다(I10).
  * 결과 변수는 최종 먼저, 그다음 중간이다.
  */
-import type { CSSProperties, ReactNode } from "react";
+import { useMemo, type CSSProperties, type ReactNode } from "react";
 
+import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { badgeStyle } from "@/shell";
 
 import { NO_LINK_TITLE, condTarget, openVar, resultTarget, type VarTarget } from "../links";
@@ -15,8 +16,6 @@ import type { IoSource, SetIo } from "../types";
 const SOURCE_LABEL: Record<IoSource, string> = { DICT: "컬럼 사전", PROG: "프로그램 변수", NONE: "어디에도 없음" };
 const SOURCE_TONE = { DICT: "success", PROG: "info", NONE: "warning" } as const;
 
-const TABLE_STYLE: CSSProperties = { width: "100%", borderCollapse: "collapse", marginBottom: "var(--spacing-sm)" };
-const HEAD_STYLE: CSSProperties = { textAlign: "left", color: "var(--color-text-secondary)", borderBottom: "1px solid var(--color-border-light)" };
 // 글자 링크도 컨트롤 높이 26px 를 지킨다(UI-Visual-Standard, 클릭 영역).
 const LINK_STYLE: CSSProperties = {
   minHeight: "var(--form-height)",
@@ -58,77 +57,116 @@ function Caption({ children }: { children: ReactNode }) {
   return <p style={{ margin: "var(--spacing-xs) 0", fontWeight: 600 }}>{children}</p>;
 }
 
+const INPUT_COLUMNS: GridColumn[] = [
+  {
+    key: "name",
+    header: "변수",
+    width: 160,
+    tooltip: false,
+    render: (_v, row) => <VarName name={String(row.name)} target={row.target as VarTarget} />,
+  },
+  { key: "label", header: "표시명", width: 140 },
+  { key: "type", header: "타입", width: 110 },
+  {
+    key: "source",
+    header: "출처",
+    width: 130,
+    tooltip: false,
+    render: (_v, row) => <span style={badgeStyle(SOURCE_TONE[row.source as IoSource])}>{SOURCE_LABEL[row.source as IoSource]}</span>,
+  },
+  { key: "users", header: "읽는 룰", width: 200 },
+];
+
+const RESULT_COLUMNS: GridColumn[] = [
+  {
+    key: "name",
+    header: "변수",
+    width: 160,
+    tooltip: false,
+    render: (_v, row) => <VarName name={String(row.name)} target={row.target as VarTarget} />,
+  },
+  { key: "type", header: "타입", width: 110 },
+  {
+    key: "kind",
+    header: "구분",
+    width: 90,
+    tooltip: false,
+    render: (_v, row) => <span style={badgeStyle(row.final ? "success" : "neutral")}>{row.final ? "최종" : "중간"}</span>,
+  },
+  {
+    key: "by",
+    header: "만드는 룰",
+    width: 200,
+    tooltip: false,
+    render: (_v, row) => (
+      <>
+        {String(row.by)}
+        {row.overwritten === true && <span style={{ ...badgeStyle("warning"), marginLeft: 4 }}>덮어씀</span>}
+      </>
+    ),
+  },
+  { key: "readers", header: "읽는 룰", width: 200 },
+];
+
 export function SetIoTables({ io }: { io: SetIo }) {
   const finals = io.results.filter(isFinalResult);
   const middles = io.results.filter((r) => !isFinalResult(r));
+  const inputRows = useMemo(
+    () =>
+      io.inputs.map((r) => ({
+        name: r.name,
+        target: condTarget(r.source, null),
+        label: r.label ?? "-",
+        type: typeText(r),
+        source: r.source ?? "NONE",
+        users: r.users.join(", "),
+      })),
+    [io.inputs],
+  );
+  const resultRows = useMemo(
+    () =>
+      [...finals, ...middles].map((r) => ({
+        name: r.name,
+        target: resultTarget(r.by),
+        type: typeText(r),
+        kind: isFinalResult(r) ? "최종" : "중간",
+        final: isFinalResult(r),
+        by: r.by.join(", "),
+        overwritten: r.by.length > 1,
+        readers: r.readers.length ? r.readers.join(", ") : "-",
+      })),
+    [io.results],
+  );
   return (
     <div data-testid="set-io">
       <p style={{ margin: "var(--spacing-sm) 0 var(--spacing-xs)", fontWeight: 600 }}>세트 입출력 — 룰 순서에서 계산한다. 저장하지 않는다</p>
 
       <div data-testid="set-io-inputs">
         <Caption>{`입력 변수 ${io.inputs.length}개 · 세트를 부를 때 레코드에 넣어야 하는 값`}</Caption>
-        <table style={TABLE_STYLE}>
-          <thead>
-            <tr style={HEAD_STYLE}>
-              <th>변수</th>
-              <th>표시명</th>
-              <th>타입</th>
-              <th>출처</th>
-              <th>읽는 룰</th>
-            </tr>
-          </thead>
-          <tbody>
-            {io.inputs.map((r) => {
-              const source = r.source ?? "NONE";
-              return (
-                <tr key={r.name} data-testid={`set-io-input-${r.name}`}>
-                  <td>
-                    <VarName name={r.name} target={condTarget(r.source, null)} />
-                  </td>
-                  <td>{r.label ?? "-"}</td>
-                  <td>{typeText(r)}</td>
-                  <td>
-                    <span style={badgeStyle(SOURCE_TONE[source])}>{SOURCE_LABEL[source]}</span>
-                  </td>
-                  <td>{r.users.join(", ")}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <AgDataGrid
+          columns={INPUT_COLUMNS}
+          data={inputRows}
+          rowKey="name"
+          height="auto"
+          columnSizing="fit"
+          sortable={false}
+          emptyMessage="입력 변수가 없습니다."
+          ariaLabel="세트 입력 변수"
+        />
       </div>
 
       <div data-testid="set-io-results">
         <Caption>{`결과 변수 ${io.results.length}개 · 최종 ${finals.length}개, 중간 ${middles.length}개`}</Caption>
-        <table style={TABLE_STYLE}>
-          <thead>
-            <tr style={HEAD_STYLE}>
-              <th>변수</th>
-              <th>타입</th>
-              <th>구분</th>
-              <th>만드는 룰</th>
-              <th>읽는 룰</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[...finals, ...middles].map((r) => (
-              <tr key={r.name} data-testid={`set-io-result-${r.name}`}>
-                <td>
-                  <VarName name={r.name} target={resultTarget(r.by)} />
-                </td>
-                <td>{typeText(r)}</td>
-                <td>
-                  <span style={badgeStyle(isFinalResult(r) ? "success" : "neutral")}>{isFinalResult(r) ? "최종" : "중간"}</span>
-                </td>
-                <td>
-                  {r.by.join(", ")}
-                  {r.by.length > 1 && <span style={{ ...badgeStyle("warning"), marginLeft: 4 }}>덮어씀</span>}
-                </td>
-                <td>{r.readers.length ? r.readers.join(", ") : "-"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <AgDataGrid
+          columns={RESULT_COLUMNS}
+          data={resultRows}
+          rowKey="name"
+          height="auto"
+          columnSizing="fit"
+          sortable={false}
+          emptyMessage="결과 변수가 없습니다."
+          ariaLabel="세트 결과 변수"
+        />
       </div>
 
       <p style={{ margin: 0, color: "var(--color-text-muted)" }}>

@@ -124,6 +124,17 @@ function byTestId<T extends Element = HTMLElement>(id: string): T {
   return el;
 }
 
+/** 세트 입출력 그리드의 변수 한 행(AgDataGrid 행 id = 변수 이름). */
+function ioRowOrNull(kind: "inputs" | "results", name: string): HTMLElement | null {
+  return container.querySelector(`[data-testid="set-io-${kind}"] .ag-row[row-id="${name}"]`);
+}
+
+function ioRow(kind: "inputs" | "results", name: string): HTMLElement {
+  const el = ioRowOrNull(kind, name);
+  if (!el) throw new Error(`set-io-${kind} 행 ${name} 없음`);
+  return el;
+}
+
 async function click(id: string) {
   await act(async () => {
     byTestId<HTMLElement>(id).click();
@@ -217,12 +228,12 @@ describe("RuleSetEditPage", () => {
 
     const inputs = visibleText(byTestId("set-io-inputs"));
     expect(inputs).toContain("입력 변수 3개");
-    for (const n of ["SET_THK", "SET_SURF", "SET_WID"]) expect(visibleText(byTestId(`set-io-input-${n}`))).toContain("컬럼 사전");
+    for (const n of ["SET_THK", "SET_SURF", "SET_WID"]) expect(visibleText(ioRow("inputs", n))).toContain("컬럼 사전");
     const results = visibleText(byTestId("set-io-results"));
     expect(results).toContain("결과 변수 3개 · 최종 1개, 중간 2개");
-    expect(visibleText(byTestId("set-io-result-S_SPD"))).toContain("최종");
-    expect(visibleText(byTestId("set-io-result-S_GRD"))).toContain("중간");
-    expect(visibleText(byTestId("set-io-result-S_FCT"))).toContain("중간");
+    expect(visibleText(ioRow("results", "S_SPD"))).toContain("최종");
+    expect(visibleText(ioRow("results", "S_GRD"))).toContain("중간");
+    expect(visibleText(ioRow("results", "S_FCT"))).toContain("중간");
   });
 
   it("탭이 다시 활성화될 때 넘겨받은 세트로 바꾸고, 저장하지 않은 변경이 있으면 확인을 받는다", async () => {
@@ -258,21 +269,21 @@ describe("RuleSetEditPage", () => {
     await click("set-rule-down-E2S_GRD");
     await settle();
     expect(byTestId("set-dep-later-E2S_FCT-E2S_GRD").textContent).toContain("뒤에 있음");
-    expect(visibleText(byTestId("set-io-input-S_GRD"))).toContain("어디에도 없음");
+    expect(visibleText(ioRow("inputs", "S_GRD"))).toContain("어디에도 없음");
     expect(visibleText(byTestId("set-checks"))).toContain(ORDER_MSG);
     expect(visibleText(byTestId("set-checks"))).toContain("거부");
 
     await click("set-rule-up-E2S_GRD");
     await settle();
     expect(q("set-dep-later-E2S_FCT-E2S_GRD")).toBeNull();
-    expect(q("set-io-input-S_GRD")).toBeNull();
+    expect(ioRowOrNull("inputs", "S_GRD")).toBeNull();
     expect(visibleText(byTestId("set-checks"))).toContain("통과");
 
     await click("set-rule-remove-E2S_SPD");
     await settle();
     expect(q("set-rule-link-E2S_SPD")).toBeNull();
-    expect(q("set-io-result-S_SPD")).toBeNull();
-    expect(visibleText(byTestId("set-io-result-S_FCT"))).toContain("최종");
+    expect(ioRowOrNull("results", "S_SPD")).toBeNull();
+    expect(visibleText(ioRow("results", "S_FCT"))).toContain("최종");
     expect(setEditCalls()).toBe(before);
   });
 
@@ -314,7 +325,7 @@ describe("RuleSetEditPage", () => {
     expect(byTestId("set-rule-link-E2S_DUP")).toBeTruthy();
     expect(visibleText(byTestId("set-checks"))).toContain("E2S_GRD와 E2S_DUP가 같은 결과 변수 S_GRD에 대입한다");
     expect(visibleText(byTestId("set-checks"))).toContain("경고");
-    expect(visibleText(byTestId("set-io-result-S_GRD"))).toContain("덮어씀");
+    expect(visibleText(ioRow("results", "S_GRD"))).toContain("덮어씀");
 
     await click("set-rule-cand-E2S_GRD");
     expect(visibleText(container)).toContain("이미 담은 룰이다");
@@ -455,8 +466,8 @@ describe("RuleSetEditPage", () => {
     await settle();
     expect(byTestId("set-rule-link-E2S_DUP")).toBeTruthy();
     expect(q("set-rule-link-E2S_GRD")).toBeNull();
-    expect(visibleText(byTestId("set-io-input-SET_WID"))).toContain("컬럼 사전");
-    expect(q("set-io-input-SET_THK")).toBeNull();
+    expect(visibleText(ioRow("inputs", "SET_WID"))).toContain("컬럼 사전");
+    expect(ioRowOrNull("inputs", "SET_THK")).toBeNull();
     expect(byTestId<HTMLButtonElement>("set-save").disabled).toBe(false);
     expect(setEditCalls()).toBe(afterGuide);
   });

@@ -19,6 +19,7 @@
 import { useCallback } from "react";
 
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
+import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { Button, Input, Select, Textarea } from "@dk-oasis/shared/form";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { DraftLockBadge, HANDOVER_AVAILABLE, HANDOVER_PENDING_TEXT, VersionStatusBadge, type MdmVersionStatus } from "@/shell";
@@ -29,8 +30,51 @@ import { ATTR_KEYS, LVL_CNT_OPTIONS, type CodeEditFlags, type CodeEditView, type
 
 export const mutedText = { color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)" } as const;
 const cardTitle = { padding: "var(--spacing-sm) var(--spacing-md) 0", fontWeight: 600 } as const;
-const cellStyle = { ...DETAIL_VALUE_CELL, padding: "4px 8px" } as const;
-const headStyle = { ...DETAIL_LABEL_CELL, padding: "4px 8px", textAlign: "left" as const };
+
+const VERSION_GRID_HEIGHT = 240;
+
+// 버전 목록 열. 행 원본(VersionView)을 render 로 받아 배지·조합 문구를 그린다.
+function versionColumns(currentUserId: string | null): GridColumn[] {
+  return [
+    {
+      key: "verLabel", header: "버전", width: 110,
+      render: (_v, row) => {
+        const v = row as unknown as CodeEditView["versions"][number];
+        return (
+          <>
+            {v.verLabel}
+            {v.restoredLabel ? <span style={mutedText}> ({v.restoredLabel})</span> : null}
+          </>
+        );
+      },
+    },
+    { key: "verKind", header: "종류", width: 80 },
+    {
+      key: "status", header: "상태", width: 110,
+      render: (_v, row) => {
+        const v = row as unknown as CodeEditView["versions"][number];
+        return <VersionStatusBadge status={v.status as MdmVersionStatus} applyFrom={v.applyFrom} />;
+      },
+    },
+    {
+      key: "applyFrom", header: "적용 구간", width: 200,
+      render: (_v, row) => {
+        const v = row as unknown as CodeEditView["versions"][number];
+        return v.applyFrom ? `${v.applyFrom} - ${v.applyTo ?? ""}` : "—";
+      },
+    },
+    { key: "releasedAt", header: "확정 일시", width: 150, render: (v) => (v as string | null | undefined) ?? "—" },
+    {
+      key: "ownerId", header: "소유자", width: 120,
+      render: (_v, row) => {
+        const v = row as unknown as CodeEditView["versions"][number];
+        return <DraftLockBadge status={v.status as MdmVersionStatus} ownerId={v.ownerId} currentUserId={currentUserId} />;
+      },
+    },
+    { key: "description", header: "설명", width: 160, render: (v) => (v as string | null | undefined) ?? "" },
+  ];
+}
+
 
 /** busy·권한을 함께 보는 판정 — page.tsx 가 만들어 각 카드에 내려준다. */
 export type Allowed = (enabled: boolean, action: string) => boolean;
@@ -317,49 +361,15 @@ export function CodeVersionCard({
           버전이 없습니다
         </p>
       ) : (
-        <div style={{ padding: "0 var(--spacing-md)", overflow: "auto" }}>
-          <table data-testid="version-list" style={{ ...DETAIL_TABLE_STYLE, width: "100%" }}>
-            <thead>
-              <tr>
-                <th style={headStyle}>버전</th>
-                <th style={headStyle}>종류</th>
-                <th style={headStyle}>상태</th>
-                <th style={headStyle}>적용 구간</th>
-                <th style={headStyle}>확정 일시</th>
-                <th style={headStyle}>소유자</th>
-                <th style={headStyle}>설명</th>
-              </tr>
-            </thead>
-            <tbody>
-              {view.versions.map((v) => (
-                <tr
-                  key={v.ver}
-                  data-testid={`version-row-${v.ver}`}
-                  aria-selected={selectedVer === v.ver}
-                  onClick={() => onSelectVer(v.ver)}
-                  style={{
-                    cursor: "pointer",
-                    background: selectedVer === v.ver ? "var(--color-primary-soft)" : undefined,
-                  }}
-                >
-                  <td style={cellStyle}>
-                    {v.verLabel}
-                    {v.restoredLabel ? <span style={mutedText}> ({v.restoredLabel})</span> : null}
-                  </td>
-                  <td style={cellStyle}>{v.verKind}</td>
-                  <td style={cellStyle}>
-                    <VersionStatusBadge status={v.status as MdmVersionStatus} applyFrom={v.applyFrom} />
-                  </td>
-                  <td style={cellStyle}>{v.applyFrom ? `${v.applyFrom} - ${v.applyTo ?? ""}` : "—"}</td>
-                  <td style={cellStyle}>{v.releasedAt ?? "—"}</td>
-                  <td style={cellStyle}>
-                    <DraftLockBadge status={v.status as MdmVersionStatus} ownerId={v.ownerId} currentUserId={view.me} />
-                  </td>
-                  <td style={cellStyle}>{v.description ?? ""}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div data-testid="version-list" style={{ padding: "0 var(--spacing-md)", height: VERSION_GRID_HEIGHT }}>
+          <AgDataGrid
+            columnSizing="fit"
+            columns={versionColumns(view.me)}
+            data={view.versions as unknown as Record<string, unknown>[]}
+            rowKey="ver"
+            highlightedRowKey={selectedVer}
+            onRowClick={(r) => onSelectVer(String(r.ver))}
+          />
         </div>
       )}
     </>

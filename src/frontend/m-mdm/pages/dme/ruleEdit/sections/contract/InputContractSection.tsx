@@ -8,17 +8,14 @@
  */
 import { useMemo, useState } from "react";
 
+import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { badgeStyle } from "@/shell";
 
 import type { RuleEditCardProps } from "../../cards";
 import { canParseOnServer } from "../../expr/parse-expr";
 import { useServerAsts } from "../../expr/useServerAsts";
 import { SectionFrame } from "../SectionFrame";
-import { dtTable, dtTd, dtTh, dtWrap, zebra } from "../table-style";
-import { contractOfView, contractSourceOfView, exprSlotsOf, groupContractRows, type AstByText } from "./contract-view";
-
-const th = dtTh;
-const td = dtTd;
+import { contractOfView, contractSourceOfView, exprSlotsOf, groupContractRows, type AstByText, type ContractGroup } from "./contract-view";
 
 export function InputContractSection({ view, editable, canDo }: RuleEditCardProps) {
   const [open, setOpen] = useState(true);
@@ -41,6 +38,56 @@ export function InputContractSection({ view, editable, canDo }: RuleEditCardProp
       {name}
     </code>
   );
+  const alwaysColumns = useMemo<GridColumn[]>(
+    () => [
+      {
+        key: "always",
+        header: "조건 변수(늘 키가 있어야 함)",
+        tooltip: false,
+        render: (_v, row) => {
+          const names = row.names as string[];
+          return names.length === 0 ? "-" : names.map((n) => chip(n));
+        },
+      },
+    ],
+    [knownTypes],
+  );
+  // 칸 값은 이름 서명으로 싣는다 — ag-grid 는 값이 바뀐 칸만 다시 그리므로 render 가 읽는 내용이 값에 반영되어야 한다.
+  const alwaysRows = useMemo(
+    () => {
+      const names = current ? current.contract.always.map((v) => v.name) : [];
+      return [{ id: "always", always: names.join(","), names }];
+    },
+    [current],
+  );
+  const groupColumns = useMemo<GridColumn[]>(
+    () => [
+      {
+        key: "label",
+        header: "행",
+        width: 260,
+        tooltip: false,
+        render: (_v, row) => {
+          const g = row.group as ContractGroup;
+          return (
+            <span data-testid={`contract-group-${String(row.index)}`}>
+              {g.rowIds.length === 1 ? (
+                <span>
+                  행 {g.rowIds[0]} · {g.conds[0]}
+                </span>
+              ) : (
+                <span title={g.rowIds.map((id, k) => `행 ${id}: ${g.conds[k]}`).join("\n")}>{g.rowIds.length}개 행이 같다</span>
+              )}
+            </span>
+          );
+        },
+      },
+      { key: "required", header: "필수 변수", width: 220, tooltip: false, render: (_v, row) => (row.group as ContractGroup).required.length === 0 ? "-" : (row.group as ContractGroup).required.map((n) => chip(n, `r-${n}`)) },
+      { key: "optional", header: "선택 변수", width: 220, tooltip: false, render: (_v, row) => (row.group as ContractGroup).optional.length === 0 ? "-" : (row.group as ContractGroup).optional.map((n) => chip(n, `o-${n}`)) },
+    ],
+    [knownTypes],
+  );
+  const groupRows = useMemo(() => groups.map((g, i) => ({ id: `${g.key}#${i}`, index: i, label: `${g.rowIds.join(",")}|${g.conds.join("|")}`, required: g.required.join(","), optional: g.optional.join(","), group: g })), [groups]);
   const warnings = diffs.filter((d) => d.severity === "WARNING");
   const infos = diffs.filter((d) => d.severity === "INFO");
 
@@ -72,47 +119,27 @@ export function InputContractSection({ view, editable, canDo }: RuleEditCardProp
         </p>
       ) : (
         <>
-          <div style={dtWrap}>
-            <table data-testid="contract-always" style={{ ...dtTable, minWidth: undefined }}>
-              <thead>
-                <tr>
-                  <th style={th}>조건 변수(늘 키가 있어야 함)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td style={td}>{current.contract.always.length === 0 ? "-" : current.contract.always.map((v) => chip(v.name))}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div data-testid="contract-always">
+            <AgDataGrid
+              columns={alwaysColumns}
+              data={alwaysRows}
+              rowKey="id"
+              height="auto"
+              columnSizing="fit"
+              sortable={false}
+              ariaLabel="조건 변수 계약"
+            />
           </div>
-          <div style={{ overflowX: "auto", paddingTop: "var(--spacing-sm)" }}>
-            <table data-testid="contract-groups" style={dtTable}>
-              <thead>
-                <tr>
-                  <th style={th}>행</th>
-                  <th style={th}>필수 변수</th>
-                  <th style={th}>선택 변수</th>
-                </tr>
-              </thead>
-              <tbody>
-                {groups.map((g, i) => (
-                  <tr key={g.key + i} data-testid={`contract-group-${i}`} style={{ background: zebra(i) }}>
-                    <td style={td}>
-                      {g.rowIds.length === 1 ? (
-                        <span>
-                          행 {g.rowIds[0]} · {g.conds[0]}
-                        </span>
-                      ) : (
-                        <span title={g.rowIds.map((id, k) => `행 ${id}: ${g.conds[k]}`).join("\n")}>{g.rowIds.length}개 행이 같다</span>
-                      )}
-                    </td>
-                    <td style={td}>{g.required.length === 0 ? "-" : g.required.map((n) => chip(n, `r-${n}`))}</td>
-                    <td style={td}>{g.optional.length === 0 ? "-" : g.optional.map((n) => chip(n, `o-${n}`))}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div data-testid="contract-groups" style={{ paddingTop: "var(--spacing-sm)" }}>
+            <AgDataGrid
+              columns={groupColumns}
+              data={groupRows}
+              rowKey="id"
+              height="auto"
+              columnSizing="fit"
+              sortable={false}
+              ariaLabel="행 묶음별 필수·선택 변수"
+            />
           </div>
         </>
       )}

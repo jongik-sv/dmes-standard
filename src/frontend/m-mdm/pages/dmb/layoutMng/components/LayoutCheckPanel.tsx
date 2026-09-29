@@ -5,12 +5,28 @@
  * validate 가 현재 편집 상태로 한다(쓰지 않는다). 결과 배지: 통과·거부·경고(판정 불가는 저장을 막지 않는다, D6).
  */
 import { Button } from "@dk-oasis/shared/form";
-import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
+import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { badge, hint, row } from "@/layout/styles";
 import type { CheckResult } from "../types";
 
 const RESULT_LABEL: Record<string, string> = { PASS: "통과", FAIL: "거부", WARN: "경고" };
 const RESULT_COLOR: Record<string, string> = { PASS: "var(--color-success)", FAIL: "var(--color-danger)", WARN: "var(--color-warning)" };
+
+// 행·결과·메시지 testid 는 render 결과에 둔다(행 요소는 그리드가 그린다).
+const COLUMNS: GridColumn[] = [
+  { key: "NO", header: "#", width: 40, align: "right", render: (v) => <span data-testid={`layout-check-row-${v}`}>{String(v)}</span> },
+  { key: "CONDITION", header: "거부 조건", width: 260 },
+  { key: "CODE", header: "코드", width: 60 },
+  {
+    key: "RESULT", header: "결과", width: 70, tooltip: false,
+    render: (v, r) => (
+      <span data-testid={`layout-check-result-${r.NO}`} style={{ ...badge, color: RESULT_COLOR[String(v)] }}>
+        {RESULT_LABEL[String(v)] ?? String(v)}
+      </span>
+    ),
+  },
+  { key: "MESSAGE", header: "메시지", width: 320, render: (v, r) => <span data-testid={`layout-check-message-${r.NO}`}>{String(v ?? "")}</span> },
+];
 
 export interface LayoutCheckPanelProps {
   result: CheckResult | null;
@@ -33,32 +49,15 @@ export function LayoutCheckPanel({ result, busy, canRun, onRun }: LayoutCheckPan
         <span style={hint}>현재 편집 상태로 03 등록 거부 조건 7종을 검사합니다. 저장하지 않습니다.</span>
       </div>
       {checks.length > 0 && (
-        <table data-testid="layout-check-table" style={{ ...DETAIL_TABLE_STYLE, marginTop: "var(--spacing-sm)" }}>
-          <thead>
-            <tr>
-              <th style={DETAIL_LABEL_CELL}>#</th>
-              <th style={DETAIL_LABEL_CELL}>거부 조건</th>
-              <th style={DETAIL_LABEL_CELL}>코드</th>
-              <th style={DETAIL_LABEL_CELL}>결과</th>
-              <th style={DETAIL_LABEL_CELL}>메시지</th>
-            </tr>
-          </thead>
-          <tbody>
-            {checks.map((c) => (
-              <tr key={c.NO} data-testid={`layout-check-row-${c.NO}`}>
-                <td style={DETAIL_VALUE_CELL}>{c.NO}</td>
-                <td style={DETAIL_VALUE_CELL}>{c.CONDITION}</td>
-                <td style={DETAIL_VALUE_CELL}>{c.CODE}</td>
-                <td style={DETAIL_VALUE_CELL}>
-                  <span data-testid={`layout-check-result-${c.NO}`} style={{ ...badge, color: RESULT_COLOR[c.RESULT] }}>
-                    {RESULT_LABEL[c.RESULT] ?? c.RESULT}
-                  </span>
-                </td>
-                <td style={DETAIL_VALUE_CELL} data-testid={`layout-check-message-${c.NO}`}>{c.MESSAGES.join(" / ")}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div data-testid="layout-check-table" style={{ marginTop: "var(--spacing-sm)" }}>
+          <AgDataGrid
+            columnSizing="fit"
+            columns={COLUMNS}
+            data={checks.map((c) => ({ ...c, MESSAGE: c.MESSAGES.join(" / ") }))}
+            rowKey="NO"
+            height="auto"
+          />
+        </div>
       )}
       {others.length > 0 && (
         <ul data-testid="layout-check-other" style={{ margin: "var(--spacing-sm) 0 0", color: "var(--color-danger)" }}>

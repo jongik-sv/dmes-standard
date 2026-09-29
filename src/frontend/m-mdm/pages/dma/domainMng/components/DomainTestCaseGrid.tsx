@@ -1,13 +1,14 @@
 "use client";
 
 /**
- * A-TEST 테스트 케이스(L-001~L-005, B-006 케이스 추가, GB-001 삭제). 편집 행이 적어 shared form 컨트롤로 그린다.
+ * A-TEST 테스트 케이스(L-001~L-005, B-006 케이스 추가, GB-001 삭제). 입력·기대·변수·메모 칸은 누르면 편집한다(그리드 인라인 편집).
  * 결과(L-003)는 도메인검증 응답의 자기 케이스 결과다.
  */
-import { Button, Input, Select } from "@dk-oasis/shared/form";
+import { useMemo } from "react";
+import { Button } from "@dk-oasis/shared/form";
+import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { resultLabel } from "../change-view";
 import type { TestCaseRow, TestResultRow } from "../types";
-import { hint } from "./styles";
 
 export interface DomainTestCaseGridProps {
   cases: TestCaseRow[];
@@ -17,63 +18,52 @@ export interface DomainTestCaseGridProps {
   onChange: (cases: TestCaseRow[]) => void;
 }
 
-const EXPECT_OPTIONS = [{ value: "true", label: "true" }, { value: "false", label: "false" }];
-const cell = { padding: "2px var(--spacing-xs)", borderBottom: "1px solid var(--color-border)" } as const;
+// 행 키는 1부터 — 0 은 그리드 행 ID 로 쓰기 어렵다.
+const ROW_KEY = "ROW_KEY";
 
 export function DomainTestCaseGrid({ cases, results, readOnly, showVars, onChange }: DomainTestCaseGridProps) {
   const own = new Map(results.filter((r) => r.OWN).map((r) => [r.IDX, r]));
   const update = (i: number, patch: Partial<TestCaseRow>) =>
     onChange(cases.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
+  // 결과는 RESULT_TEXT 칸으로 둔다 — 행 키로 갱신하는 그리드는 값이 바뀐 칸만 다시 그리기 때문이다.
+  const rows = cases.map((c, i) => {
+    const r = own.get(i);
+    return { ROW_KEY: i + 1, VALUE: c.VALUE, EXPECT: String(c.EXPECT), VARS: c.VARS, MEMO: c.MEMO,
+      RESULT_TEXT: r ? resultLabel(r.RESULT) : "-", RESULT_MESSAGE: r?.MESSAGE ?? "" };
+  });
+  const columns = useMemo<GridColumn[]>(() => [
+    { key: "VALUE", header: "입력", width: 140, editable: !readOnly },
+    { key: "EXPECT", header: "기대", width: 70, editable: !readOnly, cellEditor: "select", cellEditorValues: ["true", "false"] },
+    { key: "VARS", header: "변수(JSON)", width: 140, editable: !readOnly, hide: !showVars },
+    { key: "MEMO", header: "메모", width: 140, editable: !readOnly },
+    {
+      key: "RESULT_TEXT", header: "결과", width: 70, tooltip: false,
+      render: (v, r) => <span title={String(r.RESULT_MESSAGE ?? "") || undefined}>{String(v ?? "")}</span>,
+    },
+    {
+      key: "DELETE", header: "", width: 60, tooltip: false, hide: readOnly,
+      render: (_v, r) => (
+        <Button size="mini" onClick={() => onChange(cases.filter((_, idx) => idx !== Number(r.ROW_KEY) - 1))}>삭제</Button>
+      ),
+    },
+  ], [readOnly, showVars, cases, onChange]);
   return (
     <div>
-      <table className="domain-mng__cases" style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          <tr>
-            <th style={cell}>입력</th>
-            <th style={cell}>기대</th>
-            {showVars && <th style={cell}>변수(JSON)</th>}
-            <th style={cell}>메모</th>
-            <th style={cell}>결과</th>
-            <th style={cell} />
-          </tr>
-        </thead>
-        <tbody>
-          {cases.map((c, i) => {
-            const r = own.get(i);
-            return (
-              <tr key={i}>
-                <td style={cell}>
-                  <Input aria-label={`케이스 입력 ${i + 1}`} value={c.VALUE} disabled={readOnly}
-                    onChange={(v) => update(i, { VALUE: v })} />
-                </td>
-                <td style={cell}>
-                  <Select aria-label={`케이스 기대 ${i + 1}`} value={String(c.EXPECT)} options={EXPECT_OPTIONS}
-                    disabled={readOnly} onChange={(v) => update(i, { EXPECT: v === "true" })} />
-                </td>
-                {showVars && (
-                  <td style={cell}>
-                    <Input aria-label={`케이스 변수 ${i + 1}`} value={c.VARS} disabled={readOnly} placeholder='{"COL": 1}'
-                      onChange={(v) => update(i, { VARS: v })} />
-                  </td>
-                )}
-                <td style={cell}>
-                  <Input aria-label={`케이스 메모 ${i + 1}`} value={c.MEMO} disabled={readOnly}
-                    onChange={(v) => update(i, { MEMO: v })} />
-                </td>
-                <td style={cell} className="domain-mng__case-result" title={r?.MESSAGE ?? undefined}>
-                  {r ? resultLabel(r.RESULT) : "-"}
-                </td>
-                <td style={cell}>
-                  {!readOnly && (
-                    <Button size="mini" onClick={() => onChange(cases.filter((_, idx) => idx !== i))}>삭제</Button>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      {cases.length === 0 && <p style={hint}>테스트 케이스가 없습니다</p>}
+      <AgDataGrid
+        columnSizing="fit"
+        columns={columns}
+        data={rows}
+        rowKey={ROW_KEY}
+        height="auto"
+        singleClickEdit
+        stopEditingWhenCellsLoseFocus
+        emptyMessage="테스트 케이스가 없습니다"
+        onCellValueChanged={({ row, field, newValue }) => {
+          const i = Number(row.ROW_KEY) - 1;
+          if (field === "EXPECT") update(i, { EXPECT: newValue === "true" });
+          else update(i, { [field]: String(newValue ?? "") } as Partial<TestCaseRow>);
+        }}
+      />
       {!readOnly && (
         <Button size="sm" onClick={() => onChange([...cases, { VALUE: "", EXPECT: true, VARS: "", MEMO: "" }])}>
           케이스 추가

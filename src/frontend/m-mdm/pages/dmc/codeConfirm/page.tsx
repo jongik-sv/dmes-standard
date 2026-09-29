@@ -15,8 +15,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  ContentBody, ContentPanel, DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL, canDoButton, useUserButtonRbac,
+  ContentBody, ContentPanel, canDoButton, useUserButtonRbac,
 } from "@dk-oasis/shared/layout";
+import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { Button, DateTimePicker, Input } from "@dk-oasis/shared/form";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { DraftLockBadge, MdmPageLayout, VersionStatusBadge, useMdmPageParams } from "@/shell";
@@ -38,8 +39,6 @@ const mutedText = { color: "var(--color-text-muted)", fontSize: "var(--font-size
 const cardTitle = { padding: "var(--spacing-sm) var(--spacing-md) 0", fontWeight: 600 } as const;
 const section = { padding: "0 var(--spacing-md) var(--spacing-sm)" } as const;
 const rowFlex = { display: "flex", alignItems: "center", gap: "var(--spacing-sm)", flexWrap: "wrap" as const };
-const cellStyle = { ...DETAIL_VALUE_CELL, padding: "4px 8px" } as const;
-const headStyle = { ...DETAIL_LABEL_CELL, padding: "4px 8px", textAlign: "left" as const };
 const strongWarn = { color: "var(--color-danger, #b91c1c)", fontWeight: 600 } as const;
 
 // 이전 DRAFT 상세를 잠근 채 두는 동안의 모습. 흐림은 늦게 걸어 짧은 조회(대부분)에서는 보이지 않게 한다.
@@ -47,6 +46,73 @@ const VEIL_FRESH = { transition: "opacity 120ms ease" } as const;
 const VEIL_STALE = { ...VEIL_FRESH, opacity: 0.5, pointerEvents: "none", transitionDelay: "300ms" } as const;
 
 const DIFF_KIND_LABELS: Record<string, string> = { ADDED: "추가", REMOVED: "삭제", CHANGED: "수정" };
+
+const DIFF_GRID_HEIGHT = 320;
+
+// 확정 대기 목록. 행 클릭은 PendingDraft 원본 행을 그대로 넘긴다.
+const DRAFT_COLUMNS: GridColumn[] = [
+  { key: "maruCodeId", header: "ID", width: 130 },
+  { key: "maruCodeName", header: "이름", width: 130 },
+  { key: "verLabel", header: "버전", width: 80 },
+  { key: "verKind", header: "종류", width: 80 },
+  { key: "ownerId", header: "소유자", width: 90, render: (v) => (v as string | null | undefined) ?? "—" },
+];
+
+const CHECK_COLUMNS: GridColumn[] = [
+  { key: "no", header: "번호", width: 60 },
+  {
+    key: "item", header: "검사", width: 240,
+    render: (_v, row) => {
+      const r = row as unknown as CheckRow;
+      return (
+        <>
+          {checkTitle(r.no, r.item)} <span style={mutedText}>{r.item}</span>
+        </>
+      );
+    },
+  },
+  {
+    key: "status", header: "결과", width: 80,
+    render: (_v, row) => {
+      const r = row as unknown as CheckRow;
+      const rejected = r.status === "REJECTED";
+      return (
+        <span data-testid={`cf-check-status-${r.no}`} data-rejected={rejected ? "true" : "false"} style={rejected ? strongWarn : undefined}>
+          {checkStatusLabel(r.status)}
+        </span>
+      );
+    },
+  },
+  {
+    // 한 줄 행 높이에 맞춰 상세 메시지를 이어 붙이고, 전체 문구는 마우스오버(title)로 본다.
+    key: "issues", header: "상세", width: 300,
+    render: (_v, row) => {
+      const text = ((row as unknown as CheckRow).issues ?? [])
+        .map((i) => (i.itemKey ? `${i.message} (${i.itemKey})` : i.message)).join(" / ");
+      return <span title={text}>{text}</span>;
+    },
+  },
+];
+
+const DIFF_COLUMNS: GridColumn[] = [
+  { key: "table", header: "테이블", width: 110 },
+  { key: "key", header: "키", width: 130 },
+  { key: "kind", header: "변경", width: 70, render: (v) => DIFF_KIND_LABELS[String(v)] ?? String(v) },
+  {
+    key: "oldValues", header: "이전", width: 200,
+    render: (_v, row) => {
+      const d = row as unknown as DiffEntry;
+      return valuesText(d.oldValues, d.kind === "CHANGED" ? d.newValues : null);
+    },
+  },
+  {
+    key: "newValues", header: "이후", width: 200,
+    render: (_v, row) => {
+      const d = row as unknown as DiffEntry;
+      return valuesText(d.newValues, d.kind === "CHANGED" ? d.oldValues : null);
+    },
+  },
+];
 
 interface Target {
   maruCodeId: string;
@@ -316,6 +382,10 @@ interface DraftListProps {
 }
 
 function DraftList({ drafts, keyword, selected, onKeyword, onSearch, onSelect }: DraftListProps) {
+  const draftRows = useMemo(
+    () => (drafts ?? []).map((d) => ({ ...d, rowId: `${d.maruCodeId}-${d.ver}` }) as unknown as Record<string, unknown>),
+    [drafts],
+  );
   return (
     <div data-testid="cf-list" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={cardTitle}>확정 대기 목록</div>
@@ -326,36 +396,15 @@ function DraftList({ drafts, keyword, selected, onKeyword, onSearch, onSelect }:
       {drafts && drafts.length === 0 ? (
         <p data-testid="cf-list-empty" style={{ ...mutedText, padding: "0 var(--spacing-md)" }}>확정할 DRAFT 가 없습니다</p>
       ) : (
-        <div style={{ ...section, overflow: "auto" }}>
-          <table style={{ ...DETAIL_TABLE_STYLE, width: "100%" }}>
-            <thead>
-              <tr>
-                <th style={headStyle}>ID</th>
-                <th style={headStyle}>이름</th>
-                <th style={headStyle}>버전</th>
-                <th style={headStyle}>종류</th>
-                <th style={headStyle}>소유자</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(drafts ?? []).map((d) => {
-                const on = selected?.maruCodeId === d.maruCodeId && selected?.ver === d.ver;
-                return (
-                  <tr
-                    key={`${d.maruCodeId}-${d.ver}`} data-testid={`cf-row-${d.maruCodeId}-${d.ver}`} aria-selected={on}
-                    onClick={() => onSelect(d)}
-                    style={{ cursor: "pointer", background: on ? "var(--color-primary-soft)" : undefined }}
-                  >
-                    <td style={cellStyle}>{d.maruCodeId}</td>
-                    <td style={cellStyle}>{d.maruCodeName}</td>
-                    <td style={cellStyle}>{d.verLabel}</td>
-                    <td style={cellStyle}>{d.verKind}</td>
-                    <td style={cellStyle}>{d.ownerId ?? "—"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div style={{ ...section, flex: 1, minHeight: 0 }}>
+          <AgDataGrid
+            columnSizing="fit"
+            columns={DRAFT_COLUMNS}
+            data={draftRows}
+            rowKey="rowId"
+            highlightedRowKey={selected ? `${selected.maruCodeId}-${selected.ver}` : null}
+            onRowClick={(r) => onSelect(r as unknown as PendingDraft)}
+          />
         </div>
       )}
     </div>
@@ -367,47 +416,24 @@ function CheckTable({ rows }: { rows: CheckRow[] }) {
     <div data-testid="cf-checks">
       <div style={cardTitle}>검사 결과</div>
       <div style={section}>
-        <table style={{ ...DETAIL_TABLE_STYLE, width: "100%" }}>
-          <thead>
-            <tr>
-              <th style={headStyle}>번호</th>
-              <th style={headStyle}>검사</th>
-              <th style={headStyle}>결과</th>
-              <th style={headStyle}>상세</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => {
-              const rejected = r.status === "REJECTED";
-              return (
-                <tr key={r.no} data-testid={`cf-check-${r.no}`} data-rejected={rejected ? "true" : "false"}
-                  style={rejected ? { background: "var(--color-danger-soft, #fee2e2)" } : undefined}>
-                  <td style={cellStyle}>{r.no}</td>
-                  <td style={cellStyle}>
-                    {checkTitle(r.no, r.item)}
-                    <div style={mutedText}>{r.item}</div>
-                  </td>
-                  <td style={cellStyle}>
-                    <span data-testid={`cf-check-status-${r.no}`} style={rejected ? strongWarn : undefined}>
-                      {checkStatusLabel(r.status)}
-                    </span>
-                  </td>
-                  <td style={cellStyle}>
-                    {(r.issues ?? []).map((i, idx) => (
-                      <div key={idx}>{i.itemKey ? `${i.message} (${i.itemKey})` : i.message}</div>
-                    ))}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <AgDataGrid
+          height="auto"
+          columnSizing="fit"
+          columns={CHECK_COLUMNS}
+          data={rows as unknown as Record<string, unknown>[]}
+          rowKey="no"
+          getRowClassExtra={(r) => (r.status === "REJECTED" ? "ag-row-error" : undefined)}
+        />
       </div>
     </div>
   );
 }
 
 function DiffTable({ entries }: { entries: DiffEntry[] }) {
+  const diffRows = useMemo(
+    () => entries.map((d) => ({ ...d, rowId: `${d.table}-${d.key}` }) as unknown as Record<string, unknown>),
+    [entries],
+  );
   return (
     <div data-testid="cf-diff">
       <div style={cardTitle}>직전 RELEASED 대비 변경</div>
@@ -415,28 +441,14 @@ function DiffTable({ entries }: { entries: DiffEntry[] }) {
         {entries.length === 0 ? (
           <p data-testid="cf-diff-empty" style={mutedText}>변경된 행이 없습니다</p>
         ) : (
-          <table style={{ ...DETAIL_TABLE_STYLE, width: "100%" }}>
-            <thead>
-              <tr>
-                <th style={headStyle}>테이블</th>
-                <th style={headStyle}>키</th>
-                <th style={headStyle}>변경</th>
-                <th style={headStyle}>이전</th>
-                <th style={headStyle}>이후</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map((d) => (
-                <tr key={`${d.table}-${d.key}`} data-testid={`cf-diff-${d.key}`}>
-                  <td style={cellStyle}>{d.table}</td>
-                  <td style={cellStyle}>{d.key}</td>
-                  <td style={cellStyle}>{DIFF_KIND_LABELS[d.kind] ?? d.kind}</td>
-                  <td style={cellStyle}>{valuesText(d.oldValues, d.kind === "CHANGED" ? d.newValues : null)}</td>
-                  <td style={cellStyle}>{valuesText(d.newValues, d.kind === "CHANGED" ? d.oldValues : null)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div style={{ height: DIFF_GRID_HEIGHT }}>
+            <AgDataGrid
+              columnSizing="fit"
+              columns={DIFF_COLUMNS}
+              data={diffRows}
+              rowKey="rowId"
+            />
+          </div>
         )}
       </div>
     </div>

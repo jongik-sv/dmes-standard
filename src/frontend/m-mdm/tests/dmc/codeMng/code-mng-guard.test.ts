@@ -105,6 +105,11 @@ async function render(props: Record<string, unknown> = {}) {
   await flush();
 }
 
+/** 버전 목록 그리드의 행(ag-row) 을 ver(rowKey) 로 찾는다. */
+function versionRow(ver: string): HTMLElement | null {
+  return document.body.querySelector(`[data-testid="version-list"] .ag-row[row-id="${ver}"]`);
+}
+
 function byTestId(id: string): HTMLElement | null {
   return document.body.querySelector(`[data-testid="${id}"]`);
 }
@@ -292,8 +297,8 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
     // 이전 코드(A) 상세가 보이는 동안에는 어떤 쓰기도, 버전 선택도 A 로 가지 않는다.
     expect(button("header-save").disabled).toBe(true);
     expect((byTestId("header-name") as HTMLInputElement).disabled).toBe(true);
-    await click(byTestId("version-row-1.000"));
-    expect(byTestId("version-row-1.000")?.getAttribute("aria-selected")).toBe("false");
+    await click(versionRow("1.000")?.querySelector(".ag-cell"));
+    expect(versionRow("1.000")?.classList.contains("ag-row-highlighted")).toBe(false);
     expect(snapshots.at(-1)).toEqual({ maruCodeId: "PROC_B" });
 
     await release("view:PROC_B");
@@ -442,7 +447,7 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
     await render({ onSnapshotChange: (s: unknown) => snapshots.push(s) });
     await clickRow("PROC_A");
     expect(snapshots.at(-1)).toEqual({ maruCodeId: "PROC_A" });
-    await click(byTestId("version-row-1.000"));
+    await click(versionRow("1.000")?.querySelector(".ag-cell"));
     expect(snapshots.at(-1)).toEqual({ maruCodeId: "PROC_A", ver: "1.000" });
   });
 
@@ -451,7 +456,7 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
   it("등록 폼 [취소] 는 [신규] 전 선택(버전 포함)으로 돌아간다", async () => {
     await render();
     await clickRow("PROC_A");
-    await click(byTestId("version-row-1.000"));
+    await click(versionRow("1.000")?.querySelector(".ag-cell"));
     await click(pageButton("신규"));
     expect(byTestId("code-reg-id")).toBeTruthy();
 
@@ -459,7 +464,7 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
     await flush();
     expect(byTestId("code-reg-id")).toBeNull();
     expect(headerId()).toBe("PROC_A");
-    expect(byTestId("version-row-1.000")?.getAttribute("aria-selected")).toBe("true");
+    expect(versionRow("1.000")?.classList.contains("ag-row-highlighted")).toBe(true);
   });
 
   it("고른 코드 없이 [신규] 를 열었으면 [취소] 는 안내로 돌아간다", async () => {
@@ -483,7 +488,7 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
     // RBAC 로딩 중에는 모든 버튼이 꺼지므로, [신규] 가 켜진 것(= 로딩 끝)을 먼저 확인한다.
     await vi.waitFor(() => expect(pageButton("신규")?.disabled).toBe(false));
     expect(headerId()).toBe("PROC_A");
-    await click(byTestId("version-row-1.000"));
+    await click(versionRow("1.000")?.querySelector(".ag-cell"));
     expect(button("header-save").disabled).toBe(true);
     expect(button("ver-unlock").disabled).toBe(true);
     expect(button("ver-delete").disabled).toBe(true);
@@ -500,7 +505,7 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
     ];
     await render({ snapshot: { maruCodeId: "PROC_A" } });
     await vi.waitFor(() => expect(button("header-save")?.disabled).toBe(false));
-    await click(byTestId("version-row-1.000"));
+    await click(versionRow("1.000")?.querySelector(".ag-cell"));
     expect(button("ver-unlock").disabled).toBe(false);
     expect(button("ver-delete").disabled).toBe(false);
     expect(pageButton("신규")).toBeUndefined();
@@ -511,7 +516,7 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
   it("넘기기는 매트릭스상 켜질 버전(내 DRAFT·미적용 1개)을 골라도 꺼진 채 준비 중 안내를 보인다", async () => {
     expect(HANDOVER_AVAILABLE).toBe(false);
     await render({ snapshot: { maruCodeId: "PROC_A" } });
-    await click(byTestId("version-row-1.000"));
+    await click(versionRow("1.000")?.querySelector(".ag-cell"));
     // 같은 조건의 [해제] 는 켜진다 — 넘기기가 꺼진 까닭이 매트릭스·권한이 아니라 HANDOVER_AVAILABLE 임을 보인다.
     expect(button("ver-unlock").disabled).toBe(false);
     const handover = button("ver-handover");

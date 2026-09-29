@@ -116,6 +116,11 @@ async function render(props: Record<string, unknown> = {}) {
   await flush();
 }
 
+/** AgDataGrid 행(ag-row) 을 row-id(rowKey 값)로 찾는다. */
+function gridRow(gridTestId: string, rowId: string): HTMLElement | null {
+  return document.body.querySelector(`[data-testid="${gridTestId}"] .ag-row[row-id="${rowId}"]`);
+}
+
 function byTestId(id: string): HTMLElement | null {
   return document.body.querySelector(`[data-testid="${id}"]`);
 }
@@ -209,7 +214,7 @@ describe("CodeConfirmPage", () => {
     await render();
     expect(actions("search")).toHaveLength(1);
     expect(actions("view")).toHaveLength(0);
-    await click(byTestId("cf-row-PROC_CD-2.000"));
+    await click(gridRow("cf-list", "PROC_CD-2.000")?.querySelector(".ag-cell"));
     expect(actions("view").map((c) => c.params)).toEqual([{ maruCodeId: "PROC_CD", ver: "2.000" }]);
   });
 
@@ -246,7 +251,7 @@ describe("CodeConfirmPage", () => {
 
   it("검사한 뒤 다른 코드를 고르면 새 view 가 올 때까지 검사 표를 그대로 두고, 온 뒤에 비운다", async () => {
     await openAndValidate();
-    expect(byTestId("cf-check-1")).toBeTruthy();
+    expect(gridRow("cf-checks", "1")).toBeTruthy();
 
     let releaseLine!: () => void;
     const gate = new Promise<void>((r) => (releaseLine = r));
@@ -254,13 +259,13 @@ describe("CodeConfirmPage", () => {
       { ver: "1.000", verLabel: "v1.000" }));
     await handOff("LINE_CD", "1.000");
     expect(byTestId("cf-stale")).toBeTruthy();
-    expect(byTestId("cf-check-1")).toBeTruthy();
+    expect(gridRow("cf-checks", "1")).toBeTruthy();
     expect(confirmButton().disabled).toBe(true);
 
     await act(async () => releaseLine());
     await flush();
     await flush();
-    expect(byTestId("cf-check-1")).toBeNull();
+    expect(gridRow("cf-checks", "1")).toBeNull();
     expect(confirmButton().disabled).toBe(true);
   });
 
@@ -281,7 +286,7 @@ describe("CodeConfirmPage", () => {
     await act(async () => releaseCheck());
     await flush();
     await flush();
-    expect(byTestId("cf-check-1")).toBeNull();
+    expect(gridRow("cf-checks", "1")).toBeNull();
     expect(confirmButton().disabled).toBe(true);
   });
 
@@ -384,7 +389,7 @@ describe("CodeConfirmPage", () => {
     expect(actions("validate").map((c) => c.params)).toEqual([
       { maruCodeId: "PROC_CD", ver: "2.000", applyFrom: "2026-10-01 00:00:00" },
     ]);
-    for (const no of CHECK_NOS) expect(byTestId(`cf-check-${no}`), no).toBeTruthy();
+    for (const no of CHECK_NOS) expect(gridRow("cf-checks", no), no).toBeTruthy();
     expect(byTestId("cf-check-status-1")?.textContent).toBe("통과");
     expect(byTestId("cf-check-status-5")?.textContent).toBe("보류");
     expect(confirmButton().disabled).toBe(false);
@@ -394,8 +399,10 @@ describe("CodeConfirmPage", () => {
     nextValidate = () => validateResult(checkRows({ "4": REJECTED_4 }));
     await openAndValidate();
     expect(byTestId("cf-check-status-4")?.textContent).toBe("거부");
-    expect(byTestId("cf-check-4")?.getAttribute("data-rejected")).toBe("true");
-    expect(visibleText(byTestId("cf-check-4")!)).toContain("직전 RELEASED 대비 바뀐 행이 없습니다");
+    expect(byTestId("cf-check-status-4")?.getAttribute("data-rejected")).toBe("true");
+    // 거부 행은 행 전체를 오류 배경(ag-row-error)으로 칠한다.
+    expect(gridRow("cf-checks", "4")?.classList.contains("ag-row-error")).toBe(true);
+    expect(visibleText(gridRow("cf-checks", "4")!)).toContain("직전 RELEASED 대비 바뀐 행이 없습니다");
     expect(confirmButton().disabled).toBe(true);
   });
 

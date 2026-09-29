@@ -12,10 +12,9 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import {
-  ContentBody, ContentPanel, DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL, canDoButton, useUserButtonRbac,
-} from "@dk-oasis/shared/layout";
+import { ContentBody, ContentPanel, canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
 import { Button, Checkbox, DateTimePicker, Input } from "@dk-oasis/shared/form";
+import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { DraftLockBadge, MdmPageLayout, VersionStatusBadge, useMdmPageParams } from "@/shell";
 
@@ -40,12 +39,84 @@ const mutedText = { color: "var(--color-text-muted)", fontSize: "var(--font-size
 const cardTitle = { padding: "var(--spacing-sm) var(--spacing-md) 0", fontWeight: 600 } as const;
 const section = { padding: "0 var(--spacing-md) var(--spacing-sm)" } as const;
 const rowFlex = { display: "flex", alignItems: "center", gap: "var(--spacing-sm)", flexWrap: "wrap" as const };
-const cellStyle = { ...DETAIL_VALUE_CELL, padding: "4px 8px" } as const;
-const codeCell = { ...cellStyle, fontFamily: "var(--font-mono, monospace)", fontSize: "var(--font-size-sm)", wordBreak: "break-all" as const };
-const headStyle = { ...DETAIL_LABEL_CELL, padding: "4px 8px", textAlign: "left" as const };
 const strongWarn = { color: "var(--color-danger, #b91c1c)", fontWeight: 600 } as const;
 
 const DIFF_KIND_LABELS: Record<string, string> = { ADDED: "추가", REMOVED: "삭제", CHANGED: "수정", SAME: "같음" };
+
+const DIFF_GRID_HEIGHT = 320;
+
+// 확정 대기 목록. 행 클릭은 PendingDraft 원본 행을 그대로 넘긴다. 룰 ID 칸의 rc-row-* 는 E2E 가 행을 찾아 누르는 표지다.
+// fit 모드의 width 는 비율 가중치다. 30% 패널(1280 폭에서 약 300px)에 들어오게 minWidth 를 따로 작게 준다 — 열 합이 패널보다
+// 넓으면 ag-grid 가 가로로 보이지 않는 오른쪽 열을 그리지 않는다(RuleListGrid 선례).
+const DRAFT_COLUMNS: GridColumn[] = [
+  {
+    key: "maruRuleId", header: "룰 ID", width: 130, minWidth: 80,
+    render: (v, row) => <span data-testid={`rc-row-${String(row.rowId)}`}>{String(v)}</span>,
+  },
+  { key: "maruRuleName", header: "이름", width: 130, minWidth: 60 },
+  { key: "ruleKind", header: "종류", width: 90, minWidth: 50 },
+  { key: "ver", header: "버전", width: 60, minWidth: 40 },
+  { key: "ownerId", header: "소유자", width: 90, minWidth: 50, render: (v) => (v as string | null | undefined) ?? "—" },
+];
+
+interface CheckRow {
+  item: string;
+  status: string;
+  details: string[];
+  detailText: string;
+}
+
+// 검사 결과 한 행의 높이: 검사명 + 항목 코드(2줄) 또는 상세 줄 수 중 큰 쪽에 맞춘다.
+const CHECK_LINE_HEIGHT = 20;
+function checkRowHeight(r: CheckRow): number {
+  return Math.max(2, r.details.length) * CHECK_LINE_HEIGHT + 8;
+}
+
+const CHECK_COLUMNS: GridColumn[] = [
+  {
+    key: "item", header: "검사", width: 200, tooltip: false,
+    render: (_v, row) => {
+      const r = row as unknown as CheckRow;
+      return (
+        <div style={{ lineHeight: `${CHECK_LINE_HEIGHT}px` }}>
+          <div>{checkTitle(r.item)}</div>
+          <div style={mutedText}>{r.item}</div>
+        </div>
+      );
+    },
+  },
+  {
+    key: "status", header: "결과", width: 80, tooltip: false,
+    render: (_v, row) => {
+      const r = row as unknown as CheckRow;
+      const rejected = r.status === "REJECTED";
+      return (
+        <span data-testid={`rc-check-status-${r.item}`} data-rejected={rejected ? "true" : "false"} style={rejected ? strongWarn : undefined}>
+          {checkStatusLabel(r.status)}
+        </span>
+      );
+    },
+  },
+  {
+    // 칸 값은 줄을 이은 글자(detailText)다 — 배열을 칸 값으로 두면 ag-grid 가 object 형 칸으로 보고 오류(#48)를 낸다.
+    key: "detailText", header: "상세", width: 320, tooltip: false,
+    render: (_v, row) => (
+      <div style={{ lineHeight: `${CHECK_LINE_HEIGHT}px` }}>
+        {(row as unknown as CheckRow).details.map((d, idx) => <div key={idx}>{d}</div>)}
+      </div>
+    ),
+  },
+];
+
+// 직전 RELEASED 대비 변경 행. 표시 칸은 행 데이터에 글자로 넣는다(셀 툴팁도 같은 글자를 보인다).
+const DIFF_COLUMNS: GridColumn[] = [
+  { key: "rowId", header: "행 번호", width: 70 },
+  { key: "kindLabel", header: "변경", width: 60 },
+  { key: "seqText", header: "순서", width: 70 },
+  { key: "changedText", header: "바뀐 칸", width: 140, minWidth: 80 },
+  { key: "oldCells", header: "이전 셀", width: 220, minWidth: 120 },
+  { key: "newCells", header: "이후 셀", width: 220, minWidth: 120 },
+];
 
 export const CONTRACT_BLOCKED_TEXT = "저장 시 검사 오류가 있어 계약 변경을 보지 못했습니다";
 const CONTRACT_NOTICE = "적용 시점부터 이 키를 보내지 않거나 NULL 을 보내는 호출은 판정 오류가 됩니다";
@@ -314,6 +385,10 @@ interface DraftListProps {
 }
 
 function DraftList({ drafts, keyword, selected, onKeyword, onSearch, onSelect }: DraftListProps) {
+  const draftRows = useMemo(
+    () => (drafts ?? []).map((d) => ({ ...d, rowId: `${d.maruRuleId}-${d.ver}` }) as unknown as Record<string, unknown>),
+    [drafts],
+  );
   return (
     <div data-testid="rc-list" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={cardTitle}>확정 대기 목록</div>
@@ -324,36 +399,16 @@ function DraftList({ drafts, keyword, selected, onKeyword, onSearch, onSelect }:
       {drafts && drafts.length === 0 ? (
         <p data-testid="rc-list-empty" style={{ ...mutedText, padding: "0 var(--spacing-md)" }}>확정할 DRAFT 가 없습니다</p>
       ) : (
-        <div style={{ ...section, overflow: "auto" }}>
-          <table style={{ ...DETAIL_TABLE_STYLE, width: "100%" }}>
-            <thead>
-              <tr>
-                <th style={headStyle}>룰 ID</th>
-                <th style={headStyle}>이름</th>
-                <th style={headStyle}>종류</th>
-                <th style={headStyle}>버전</th>
-                <th style={headStyle}>소유자</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(drafts ?? []).map((d) => {
-                const on = selected?.maruRuleId === d.maruRuleId && selected?.ver === d.ver;
-                return (
-                  <tr
-                    key={`${d.maruRuleId}-${d.ver}`} data-testid={`rc-row-${d.maruRuleId}-${d.ver}`} aria-selected={on}
-                    onClick={() => onSelect(d)}
-                    style={{ cursor: "pointer", background: on ? "var(--color-primary-soft)" : undefined }}
-                  >
-                    <td style={cellStyle}>{d.maruRuleId}</td>
-                    <td style={cellStyle}>{d.maruRuleName}</td>
-                    <td style={cellStyle}>{d.ruleKind}</td>
-                    <td style={cellStyle}>{d.ver}</td>
-                    <td style={cellStyle}>{d.ownerId ?? "—"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div style={{ ...section, flex: 1, minHeight: 0 }}>
+          <AgDataGrid
+            columnSizing="fit"
+            columns={DRAFT_COLUMNS}
+            data={draftRows}
+            rowKey="rowId"
+            highlightedRowKey={selected ? `${selected.maruRuleId}-${selected.ver}` : null}
+            onRowClick={(r) => onSelect(r as unknown as PendingDraft)}
+            ariaLabel="확정 대기 목록"
+          />
         </div>
       )}
     </div>
@@ -370,63 +425,46 @@ interface CheckTableProps {
   caseSummary: CaseSummary | null;
 }
 
-/** 항목 4행 + 적용 순서 1행(`rc-check-APPLY_FROM`). */
+/** 항목 4행 + 적용 순서 1행(행 키 `APPLY_FROM`). */
 function CheckTable({ items, applyFromCheck, caseSummary }: CheckTableProps) {
-  const rows: { item: string; status: string; details: string[] }[] = items.map((r) => ({
-    item: r.item,
-    status: r.status,
-    details: [
-      ...(r.item === "TEST_CASES" && caseSummary
-        ? [`전체 ${caseSummary.total} · 기대값 있음 ${caseSummary.withExpected} · 통과 ${caseSummary.passed} · 실패 ${caseSummary.failed}`]
-        : []),
-      ...(r.issues ?? []).map(issueText),
-    ],
-  }));
-  if (applyFromCheck) {
-    rows.push({
-      item: APPLY_FROM_ITEM,
-      status: applyFromCheck.status,
+  const rows = useMemo(() => {
+    const out: Omit<CheckRow, "detailText">[] = items.map((r) => ({
+      item: r.item,
+      status: r.status,
       details: [
-        ...(applyFromCheck.previousApplyFrom ? [`직전 RELEASED 적용 시작 ${applyFromCheck.previousApplyFrom}`] : []),
-        ...(applyFromCheck.message ? [applyFromCheck.message] : []),
+        ...(r.item === "TEST_CASES" && caseSummary
+          ? [`전체 ${caseSummary.total} · 기대값 있음 ${caseSummary.withExpected} · 통과 ${caseSummary.passed} · 실패 ${caseSummary.failed}`]
+          : []),
+        ...(r.issues ?? []).map(issueText),
       ],
-    });
-  }
+    }));
+    if (applyFromCheck) {
+      out.push({
+        item: APPLY_FROM_ITEM,
+        status: applyFromCheck.status,
+        details: [
+          ...(applyFromCheck.previousApplyFrom ? [`직전 RELEASED 적용 시작 ${applyFromCheck.previousApplyFrom}`] : []),
+          ...(applyFromCheck.message ? [applyFromCheck.message] : []),
+        ],
+      });
+    }
+    return out.map((r): CheckRow => ({ ...r, detailText: r.details.join("\n") }));
+  }, [items, applyFromCheck, caseSummary]);
   return (
     <div data-testid="rc-checks">
       <div style={cardTitle}>검사 결과</div>
       <div style={section}>
-        <table style={{ ...DETAIL_TABLE_STYLE, width: "100%" }}>
-          <thead>
-            <tr>
-              <th style={headStyle}>검사</th>
-              <th style={headStyle}>결과</th>
-              <th style={headStyle}>상세</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => {
-              const rejected = r.status === "REJECTED";
-              return (
-                <tr key={r.item} data-testid={`rc-check-${r.item}`} data-rejected={rejected ? "true" : "false"}
-                  style={rejected ? { background: "var(--color-danger-soft, #fee2e2)" } : undefined}>
-                  <td style={cellStyle}>
-                    {checkTitle(r.item)}
-                    <div style={mutedText}>{r.item}</div>
-                  </td>
-                  <td style={cellStyle}>
-                    <span data-testid={`rc-check-status-${r.item}`} style={rejected ? strongWarn : undefined}>
-                      {checkStatusLabel(r.status)}
-                    </span>
-                  </td>
-                  <td style={cellStyle}>
-                    {r.details.map((d, idx) => <div key={idx}>{d}</div>)}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <AgDataGrid
+          height="auto"
+          columnSizing="fit"
+          sortable={false}
+          columns={CHECK_COLUMNS}
+          data={rows as unknown as Record<string, unknown>[]}
+          rowKey="item"
+          getRowClassExtra={(r) => (r.status === "REJECTED" ? "ag-row-error" : undefined)}
+          getRowHeight={(r) => checkRowHeight(r as unknown as CheckRow)}
+          ariaLabel="검사 결과"
+        />
       </div>
     </div>
   );
@@ -469,7 +507,20 @@ function DiffTable({ entries, counts, vars }: { entries: DiffRow[]; counts?: Dif
   const [showSame, setShowSame] = useState(false);
   const count = (k: keyof DiffCounts) => counts?.[k] ?? entries.filter((e) => e.kind === k).length;
   const changed = entries.filter((e) => e.kind !== "SAME");
-  const shown = showSame ? entries : changed;
+  const diffRows = useMemo(
+    () =>
+      entries
+        .filter((d) => showSame || d.kind !== "SAME")
+        .map((d) => ({
+          rowId: d.rowId,
+          kindLabel: DIFF_KIND_LABELS[d.kind] ?? d.kind,
+          seqText: seqText(d),
+          changedText: (d.changedVarIds ?? []).map((id) => varLabel(vars, id)).join(", "),
+          oldCells: d.oldCells ?? "",
+          newCells: d.newCells ?? "",
+        })),
+    [entries, showSame, vars],
+  );
   return (
     <div data-testid="rc-diff">
       <div style={cardTitle}>직전 RELEASED 대비 변경(row_id)</div>
@@ -483,31 +534,16 @@ function DiffTable({ entries, counts, vars }: { entries: DiffRow[]; counts?: Dif
       </div>
       <div style={section}>
         {changed.length === 0 && <p data-testid="rc-diff-empty" style={mutedText}>바뀐 행이 없습니다</p>}
-        {shown.length > 0 && (
-          <table style={{ ...DETAIL_TABLE_STYLE, width: "100%" }}>
-            <thead>
-              <tr>
-                <th style={headStyle}>행 번호</th>
-                <th style={headStyle}>변경</th>
-                <th style={headStyle}>순서</th>
-                <th style={headStyle}>바뀐 칸</th>
-                <th style={headStyle}>이전 셀</th>
-                <th style={headStyle}>이후 셀</th>
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((d) => (
-                <tr key={d.rowId} data-testid={`rc-diff-${d.rowId}`} data-kind={d.kind}>
-                  <td style={cellStyle}>{d.rowId}</td>
-                  <td style={cellStyle}>{DIFF_KIND_LABELS[d.kind] ?? d.kind}</td>
-                  <td style={cellStyle}>{seqText(d)}</td>
-                  <td style={cellStyle}>{(d.changedVarIds ?? []).map((id) => varLabel(vars, id)).join(", ")}</td>
-                  <td style={codeCell}>{d.oldCells ?? ""}</td>
-                  <td style={codeCell}>{d.newCells ?? ""}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {diffRows.length > 0 && (
+          <div style={{ height: DIFF_GRID_HEIGHT }}>
+            <AgDataGrid
+              columnSizing="fit"
+              columns={DIFF_COLUMNS}
+              data={diffRows}
+              rowKey="rowId"
+              ariaLabel="직전 RELEASED 대비 변경"
+            />
+          </div>
         )}
       </div>
     </div>

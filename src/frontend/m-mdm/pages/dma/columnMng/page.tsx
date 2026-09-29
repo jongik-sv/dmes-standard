@@ -89,16 +89,6 @@ const panelTitleStyle = {
   fontWeight: 600,
   color: "var(--color-text-secondary)",
 } as const;
-const tokenCell = {
-  border: "1px solid var(--color-border-light)",
-  padding: "4px 6px",
-} as const;
-const tokenHead = {
-  ...tokenCell,
-  background: "var(--color-bg-header)",
-  color: "var(--color-text-secondary)",
-  fontWeight: 500,
-} as const;
 const rowStyle = {
   display: "flex",
   gap: "var(--spacing-xs)",
@@ -424,6 +414,72 @@ export default function ColumnMngPage() {
     systemRows,
   ]);
 
+  // ── 분해 토큰 그리드 ──────────────────────────────────────────────────
+  // 처리 칸은 ACTION 값으로 그린다 — 행 키로 갱신하는 그리드는 값이 바뀐 칸만 다시 그리므로, 보이는 내용(상태·용어·방향)이
+  // 바뀌면 값도 바뀌게 한다. 동음이의(AMBIGUOUS) 행은 칸을 눌러 후보를 고르며 값은 고른 termId 다.
+  const genDirection = gen?.direction;
+  const tokenRows = useMemo(
+    () =>
+      genTokens.map((t) => ({
+        seq: t.seq,
+        surface: t.surface,
+        status: t.status,
+        MATCH_TEXT: t.termName
+          ? `${t.termName}${t.senseNo && t.senseNo > 1 ? ` (${t.senseNo})` : ""}`
+          : "—",
+        ABBR_TEXT:
+          t.status === "UNKNOWN" || t.status === "NO_ABBR" ? PLACEHOLDER : t.abbr,
+        ACTION:
+          t.status === "AMBIGUOUS"
+            ? t.termId != null
+              ? String(t.termId)
+              : ""
+            : `${t.status}|${t.termId ?? ""}|${t.termName ?? ""}|${genDirection ?? ""}`,
+      })),
+    [genTokens, genDirection],
+  );
+  const tokenColumns = useMemo<GridColumn[]>(
+    () => [
+      {
+        key: "seq",
+        header: "순서",
+        width: 50,
+        align: "right",
+        render: (v) => <span data-testid={`token-row-${v}`}>{String(v)}</span>,
+      },
+      { key: "surface", header: "토큰", width: 120 },
+      { key: "MATCH_TEXT", header: "매칭", width: 140 },
+      { key: "ABBR_TEXT", header: "약어", width: 90 },
+      {
+        key: "ACTION",
+        header: "처리",
+        width: 240,
+        tooltip: false,
+        editable: (row) => row.status === "AMBIGUOUS",
+        cellEditor: "select",
+        cellEditorOptionsGetter: (row) =>
+          (genTokens.find((t) => t.seq === row.seq)?.candidates ?? []).map((c) => ({
+            value: String(c.termId),
+            label: `${c.termName} (${c.senseNo}) ${c.engAbbr ?? ""}`,
+          })),
+        render: (_v, row) => {
+          const t = genTokens.find((x) => x.seq === row.seq);
+          return t ? renderAction(t) : null;
+        },
+      },
+    ],
+    // renderAction 은 gen 방향·후보 선택 처리기를 읽는다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [genTokens, genDirection, handlePickCandidate],
+  );
+  const handleTokenCellChange = useCallback(
+    (p: { rowKey: string | number; newValue: unknown }) => {
+      const t = genTokens.find((x) => String(x.seq) === String(p.rowKey));
+      if (t && p.newValue != null && p.newValue !== "") handlePickCandidate(t, String(p.newValue));
+    },
+    [genTokens, handlePickCandidate],
+  );
+
   // ── 시스템별 실제 필드명 그리드 ────────────────────────────────────────
   const systemColumns = useMemo<GridColumn[]>(
     () => [
@@ -603,41 +659,18 @@ export default function ColumnMngPage() {
 
               {gen ? (
                 <>
-                  <table
-                    style={{
-                      ...DETAIL_TABLE_STYLE,
-                      marginTop: "var(--spacing-sm)",
-                    }}
-                  >
-                    <thead>
-                      <tr>
-                        <th style={tokenHead}>순서</th>
-                        <th style={tokenHead}>토큰</th>
-                        <th style={tokenHead}>매칭</th>
-                        <th style={tokenHead}>약어</th>
-                        <th style={tokenHead}>처리</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {genTokens.map((t) => (
-                        <tr key={t.seq} data-testid={`token-row-${t.seq}`}>
-                          <td style={tokenCell}>{t.seq}</td>
-                          <td style={tokenCell}>{t.surface}</td>
-                          <td style={tokenCell}>
-                            {t.termName
-                              ? `${t.termName}${t.senseNo && t.senseNo > 1 ? ` (${t.senseNo})` : ""}`
-                              : "—"}
-                          </td>
-                          <td style={tokenCell}>
-                            {t.status === "UNKNOWN" || t.status === "NO_ABBR"
-                              ? PLACEHOLDER
-                              : t.abbr}
-                          </td>
-                          <td style={tokenCell}>{renderAction(t)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <div style={{ marginTop: "var(--spacing-sm)" }}>
+                    <AgDataGrid
+                      columnSizing="fit"
+                      columns={tokenColumns}
+                      data={tokenRows}
+                      rowKey="seq"
+                      height="auto"
+                      singleClickEdit
+                      stopEditingWhenCellsLoseFocus
+                      onCellValueChanged={handleTokenCellChange}
+                    />
+                  </div>
 
                   <table
                     style={{
@@ -963,18 +996,19 @@ export default function ColumnMngPage() {
         return "등록됨";
       case "SYNONYM":
         return `동의어 → ${t.termName ?? ""}`;
-      case "AMBIGUOUS":
+      case "AMBIGUOUS": {
+        // 칸을 누르면 후보 편집기가 열린다(그리드 인라인 편집)
+        const picked = t.candidates.find((c) => c.termId === t.termId);
         return (
-          <Select
-            data-testid={`token-candidate-${t.seq}`}
-            value={t.termId != null ? String(t.termId) : ""}
-            options={t.candidates.map((c) => ({
-              value: String(c.termId),
-              label: `${c.termName} (${c.senseNo}) ${c.engAbbr ?? ""}`,
-            }))}
-            onChange={(v) => handlePickCandidate(t, v)}
-          />
+          <span data-testid={`token-candidate-${t.seq}`}>
+            {picked ? (
+              `${picked.termName} (${picked.senseNo}) ${picked.engAbbr ?? ""}`
+            ) : (
+              <span style={mutedText}>후보를 고르세요</span>
+            )}
+          </span>
         );
+      }
       case "NO_ABBR":
         return "약어 없음 — 용어 관리에서 약어 등록";
       case "UNKNOWN":

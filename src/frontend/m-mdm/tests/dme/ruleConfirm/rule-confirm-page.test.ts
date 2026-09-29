@@ -99,6 +99,11 @@ function byTestId(id: string): HTMLElement | null {
   return document.body.querySelector(`[data-testid="${id}"]`);
 }
 
+/** AgDataGrid 행(ag-row) 을 row-id(rowKey 값)로 찾는다. */
+function gridRow(gridTestId: string, rowId: string): HTMLElement | null {
+  return document.body.querySelector(`[data-testid="${gridTestId}"] .ag-center-cols-container .ag-row[row-id="${rowId}"]`);
+}
+
 async function click(el: Element | null | undefined) {
   expect(el).toBeTruthy();
   await act(async () => {
@@ -178,6 +183,7 @@ describe("RuleConfirmPage", () => {
     expect(actions("view")).toHaveLength(0);
     await click(byTestId("rc-row-QLTY_GRD_JDG-2"));
     expect(actions("view").map((c) => c.params)).toEqual([{ maruRuleId: "QLTY_GRD_JDG", ver: 2 }]);
+    expect(gridRow("rc-list", "QLTY_GRD_JDG-2")?.classList.contains("ag-row-highlighted")).toBe(true);
   });
 
   it("목록이 비면 빈 상태 문구를 보인다", async () => {
@@ -224,13 +230,13 @@ describe("RuleConfirmPage", () => {
     openMdmPage("dme/ruleConfirm", { maruRuleId: "QLTY_GRD_JDG", ver: "2" });
     await render();
     expect(byTestId("rc-diff-counts")?.textContent).toBe("추가 1 · 삭제 1 · 수정 1 · 같음 1");
-    expect(byTestId("rc-diff-1")).toBeNull();
-    expect(visibleText(byTestId("rc-diff-2")!)).toContain("수정");
-    expect(visibleText(byTestId("rc-diff-2")!)).toContain("두께");
-    expect(visibleText(byTestId("rc-diff-3")!)).toContain("삭제");
-    expect(visibleText(byTestId("rc-diff-5")!)).toContain("추가");
+    expect(visibleText(gridRow("rc-diff", "2")!)).toContain("수정");
+    expect(visibleText(gridRow("rc-diff", "2")!)).toContain("두께");
+    expect(visibleText(gridRow("rc-diff", "3")!)).toContain("삭제");
+    expect(visibleText(gridRow("rc-diff", "5")!)).toContain("추가");
+    expect(gridRow("rc-diff", "1")).toBeNull();
     await click(byTestId("rc-diff-show-same")?.querySelector("input"));
-    expect(visibleText(byTestId("rc-diff-1")!)).toContain("같음");
+    expect(visibleText(gridRow("rc-diff", "1")!)).toContain("같음");
   });
 
   it("모든 행이 같으면 바뀐 행이 없다는 문구를 보인다", async () => {
@@ -256,10 +262,10 @@ describe("RuleConfirmPage", () => {
     expect(actions("validate").map((c) => c.params)).toEqual([
       { maruRuleId: "QLTY_GRD_JDG", ver: 2, applyFrom: "2026-10-01 00:00:00" },
     ]);
-    for (const item of [...ITEMS, "APPLY_FROM"]) expect(byTestId(`rc-check-${item}`), item).toBeTruthy();
+    for (const item of [...ITEMS, "APPLY_FROM"]) expect(gridRow("rc-checks", item), item).toBeTruthy();
     expect(byTestId("rc-check-status-SAVE_CHECKS")?.textContent).toBe("통과");
     expect(byTestId("rc-check-status-APPLY_FROM")?.textContent).toBe("통과");
-    expect(visibleText(byTestId("rc-check-TEST_CASES")!)).toContain("전체 2 · 기대값 있음 1 · 통과 1 · 실패 0");
+    expect(visibleText(gridRow("rc-checks", "TEST_CASES")!)).toContain("전체 2 · 기대값 있음 1 · 통과 1 · 실패 0");
     expect(confirmButton().disabled).toBe(false);
   });
 
@@ -267,8 +273,10 @@ describe("RuleConfirmPage", () => {
     nextValidate = () => validateResult(items({ TEST_CASES: { status: "REJECTED", issues: [CASE_FAILED] } }));
     await openAndValidate();
     expect(byTestId("rc-check-status-TEST_CASES")?.textContent).toBe("거부");
-    expect(byTestId("rc-check-TEST_CASES")?.getAttribute("data-rejected")).toBe("true");
-    expect(visibleText(byTestId("rc-check-TEST_CASES")!)).toContain("케이스 3 광폭: QLTY_GRD A → B (CASE:3)");
+    expect(byTestId("rc-check-status-TEST_CASES")?.getAttribute("data-rejected")).toBe("true");
+    // 거부 행은 행 전체를 오류 배경(ag-row-error)으로 칠한다.
+    expect(gridRow("rc-checks", "TEST_CASES")?.classList.contains("ag-row-error")).toBe(true);
+    expect(visibleText(gridRow("rc-checks", "TEST_CASES")!)).toContain("케이스 3 광폭: QLTY_GRD A → B (CASE:3)");
     expect(confirmButton().disabled).toBe(true);
   });
 
@@ -278,7 +286,7 @@ describe("RuleConfirmPage", () => {
     });
     await openAndValidate();
     expect(byTestId("rc-check-status-APPLY_FROM")?.textContent).toBe("거부");
-    expect(visibleText(byTestId("rc-check-APPLY_FROM")!)).toContain("직전 RELEASED 보다 뒤여야 합니다");
+    expect(visibleText(gridRow("rc-checks", "APPLY_FROM")!)).toContain("직전 RELEASED 보다 뒤여야 합니다");
     expect(confirmButton().disabled).toBe(true);
   });
 

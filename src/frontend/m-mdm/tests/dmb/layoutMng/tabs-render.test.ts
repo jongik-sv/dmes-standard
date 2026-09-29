@@ -193,6 +193,11 @@ describe("layoutMng 탭", () => {
     expect(q("sample-length")?.textContent).toContain("187");
     expect(q("sample-ruler")?.textContent).toHaveLength(187);
     expect(q("sample-parsed-COIL_THK")?.textContent).toBe("3.5");
+    // 구간 목록 첫 행: 위치·구역·값(공백은 가운뎃점)
+    const firstSeg = q("sample-segments")?.querySelector(".ag-center-cols-container .ag-row[row-index='0']");
+    expect(firstSeg?.querySelector("[col-id=POSITION]")?.textContent).toBe("1-8");
+    expect(firstSeg?.querySelector("[col-id=ZONE]")?.textContent).toBe("L100");
+    expect(firstSeg?.querySelector("[col-id=TEXT]")?.textContent).toBe("·".repeat(8));
   });
 
   it("버전 탭은 이력이 없으면 빈 상태를, 있으면 전환 방식을 보인다", async () => {
@@ -201,6 +206,8 @@ describe("layoutMng 탭", () => {
     await click(q("layout-tab-version"));
     expect(q("version-list-empty")?.textContent).toBe("저장된 버전이 없습니다");
     expect(q("change-class-table")).not.toBeNull();
+    expect(q("change-class-table")?.querySelectorAll(".ag-center-cols-container .ag-row")).toHaveLength(5);
+    expect(q("change-class-table")?.textContent).toContain("여분을 쪼개 항목 추가");
     expect(actions).not.toContain("export");
     await openRow(1);
     await flush(300);

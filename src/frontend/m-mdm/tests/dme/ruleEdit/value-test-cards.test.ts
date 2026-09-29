@@ -110,6 +110,11 @@ function byTestId<T extends Element>(id: string): T | null {
   return container.querySelector(`[data-testid="${id}"]`) as T | null;
 }
 
+/** 테스트 케이스 표(AgDataGrid)의 행을 row-id(case_id)로 찾는다. */
+function caseRow(caseId: number): HTMLElement | null {
+  return container.querySelector(`[data-testid="rule-card-test-cases"] .ag-center-cols-container .ag-row[row-id="${caseId}"]`);
+}
+
 function last(action: string) {
   return requests.filter((r) => r.action === action).at(-1)?.body as
     | { params: Record<string, unknown>; grids?: { rows: { rows: Array<Record<string, unknown>> } } }
@@ -348,8 +353,8 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
       }),
     );
     await render(draftView("e2e_mdm_steward", undefined, { testCases: CASES }));
-    expect(byTestId("tc-row-1")?.textContent).toContain("A급 광폭");
-    expect(byTestId("tc-row-2")?.textContent).toContain("(기대값 없음)");
+    expect(caseRow(1)?.textContent).toContain("A급 광폭");
+    expect(caseRow(2)?.textContent).toContain("(기대값 없음)");
     await typeInto(byTestId<HTMLInputElement>("vt-input-COIL_THK")!, "3.0");
     await click(byTestId("rule-card-test-cases")!, "모두 실행");
     const req = last("execute")!;
@@ -369,14 +374,14 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     );
     await click(byTestId("rule-card-test-cases")!, "모두 실행");
     expect(byTestId("tc-badge-1")?.textContent).toBe("실패 · PRC_FCT");
-    expect(byTestId("tc-row-1")?.textContent).toContain("PRC_FCT 1.05 ≠ 1.00");
-    expect(byTestId("tc-row-2")?.textContent).toContain("MISSING_KEY");
+    expect(caseRow(1)?.textContent).toContain("PRC_FCT 1.05 ≠ 1.00");
+    expect(caseRow(2)?.textContent).toContain("MISSING_KEY");
   });
 
   it("불러오기는 케이스 입력을 값 테스트 칸에 채우고, 케이스에 없는 키는 키 보냄을 끈다", async () => {
     responses.execute = ok(okResult());
     await render(draftView("e2e_mdm_steward", undefined, { testCases: CASES }));
-    await click(byTestId("tc-row-2")!, "불러오기");
+    await click(caseRow(2)!, "불러오기");
     expect(byTestId<HTMLInputElement>("vt-input-COIL_THK")!.value).toBe("2.0");
     expect(byTestId<HTMLInputElement>("vt-input-SURF_GRD")!.value).toBe("");
     expect((byTestId("vt-key-COIL_WID")!.querySelector("input") as HTMLInputElement).checked).toBe(false);
@@ -390,7 +395,7 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     );
     responses.save = ok({ part: "CASE", rowVersion: 4, caseId: 2 });
     await render(draftView("e2e_mdm_steward", undefined, { testCases: CASES }));
-    const row2 = () => byTestId("tc-row-2")!;
+    const row2 = () => caseRow(2)!;
     expect(findButton(row2(), "기대값 갱신").disabled).toBe(true);
     await click(byTestId("rule-card-test-cases")!, "모두 실행");
     await click(row2(), "기대값 갱신");
@@ -452,9 +457,9 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     await render(draftView("e2e_mdm_steward", undefined, { testCases: CASES }), { canDo: () => false });
     expect(findButton(byTestId("rule-card-value-test")!, "돌리기").disabled).toBe(true);
     expect(findButton(byTestId("rule-card-test-cases")!, "모두 실행").disabled).toBe(true);
-    expect(findButton(byTestId("tc-row-1")!, "삭제").disabled).toBe(true);
-    expect(findButton(byTestId("tc-row-1")!, "수정").disabled).toBe(true);
-    expect(findButton(byTestId("tc-row-1")!, "불러오기").disabled).toBe(false);
+    expect(findButton(caseRow(1)!, "삭제").disabled).toBe(true);
+    expect(findButton(caseRow(1)!, "수정").disabled).toBe(true);
+    expect(findButton(caseRow(1)!, "불러오기").disabled).toBe(false);
   });
 
   it("열 설정 초안이 dirty 면 편집본 대상 옆에 반영하지 않는다고 알린다(D4)", async () => {

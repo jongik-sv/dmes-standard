@@ -81,6 +81,11 @@ async function render(props: Record<string, unknown> = {}) {
   await flush();
 }
 
+/** 버전 목록 그리드의 행(ag-row) 을 ver(rowKey) 로 찾는다. */
+function versionRow(ver: string): HTMLElement | null {
+  return document.body.querySelector(`[data-testid="version-list"] .ag-row[row-id="${ver}"]`);
+}
+
 function byTestId(id: string): HTMLElement | null {
   return document.body.querySelector(`[data-testid="${id}"]`);
 }
@@ -190,7 +195,7 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
   it("handoff 가 ver 를 주면 그 버전 행이 골라진 채로 보인다", async () => {
     openMdmPage("dmc/codeMng", { maruCodeId: "PROC_CD", ver: "1.000" });
     await render();
-    expect(byTestId("version-row-1.000")?.getAttribute("aria-selected")).toBe("true");
+    expect(versionRow("1.000")?.classList.contains("ag-row-highlighted")).toBe(true);
   });
 
   it("이미 열린 탭이 재활성화로 handoff 를 다시 받으면 목록도 다시 조회한다", async () => {
@@ -203,7 +208,7 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
     await flush();
     expect(actions("search").length).toBeGreaterThan(searchCountBefore);
     expect(actions("view").map((c) => c.params.maruCodeId)).toEqual(["PROC_CD"]);
-    expect(byTestId("version-row-1.000")?.getAttribute("aria-selected")).toBe("true");
+    expect(versionRow("1.000")?.classList.contains("ag-row-highlighted")).toBe(true);
   });
 
   it("handoff 가 없으면 snapshot 의 코드를 불러온다", async () => {
@@ -244,7 +249,7 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
     try {
       await render({ snapshot: { maruCodeId: "PROC_CD" } });
       expect((byTestId("ver-confirm-move") as HTMLButtonElement).disabled).toBe(true);
-      await click(byTestId("version-row-1.000"));
+      await click(versionRow("1.000")?.querySelector(".ag-cell"));
       expect((byTestId("ver-confirm-move") as HTMLButtonElement).disabled).toBe(false);
       await click(byTestId("ver-confirm-move"));
       expect(opened).toEqual([{ pageId: "mdm:dmc/codeConfirm" }]);
@@ -266,7 +271,7 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
     try {
       await render({ snapshot: { maruCodeId: "PROC_CD" } });
       expect((byTestId("ver-item-edit") as HTMLButtonElement).disabled).toBe(true);
-      await click(byTestId("version-row-1.000"));
+      await click(versionRow("1.000")?.querySelector(".ag-cell"));
       expect((byTestId("ver-item-edit") as HTMLButtonElement).disabled).toBe(false);
       await click(byTestId("ver-item-edit"));
       expect(opened).toEqual([{ pageId: "mdm:dmc/codeItemEdit" }]);
@@ -383,7 +388,7 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
     // 소유자가 나면 배지는 '편집 중(나)' — 남의 소유자가 아니라 잠김이 아니다.
     expect(visibleText(byTestId("version-list")!)).toContain("편집 중(나)");
 
-    await click(byTestId("version-row-2.000"));
+    await click(versionRow("2.000")?.querySelector(".ag-cell"));
     expect((byTestId("ver-unlock") as HTMLButtonElement).disabled, "역할이 없어도 소유자는 해제할 수 있어야 한다").toBe(false);
     // 담당자 전용 액션은 그대로 꺼져 있다.
     expect((byTestId("ver-delete") as HTMLButtonElement).disabled).toBe(true);

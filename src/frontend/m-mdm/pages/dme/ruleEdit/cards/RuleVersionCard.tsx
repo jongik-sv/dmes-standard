@@ -6,16 +6,17 @@
  * 소유·삭제 판정은 서버 공통 버전 서비스가 한다(I6) — 화면 비활성은 보조다. 확정 이동은 MDM 원천의 DRAFT 를 고르면 켜지고
  * 버전 확정 화면(dme/ruleConfirm, TSK-08-05 I40)을 그 룰·버전으로 연다. 소유자 판정은 확정 화면·서버가 한다.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Button, Input } from "@dk-oasis/shared/form";
+import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { DraftLockBadge, HANDOVER_AVAILABLE, HANDOVER_PENDING_TEXT, VersionStatusBadge, openMdmPage } from "@/shell";
 
 import { cancelConfirm, deleteDraft, handoverVersion, lockVersion, newVersion, unlockVersion } from "../api";
 import type { RuleEditCardProps } from "../cards";
 import type { RuleVersionInfo } from "../types";
-import { CardFrame, MutedText } from "./CardFrame";
+import { CardFrame } from "./CardFrame";
 
 /** D8-10 — 06 교차 효과. 되돌린 룰이 유일 확정 버전이었다면 룰 세트와 다른 룰의 확정이 막히고, 재확정하면 풀린다. */
 export const CANCEL_CONFIRM_EFFECT =
@@ -35,6 +36,34 @@ function applyRange(v: RuleVersionInfo): string {
   if (!v.applyFrom) return "";
   return `${v.applyFrom.slice(0, 10)} ~ ${v.applyTo ? v.applyTo.slice(0, 10) : ""}`;
 }
+
+const versionColumns: GridColumn[] = [
+  {
+    key: "ver",
+    header: "버전",
+    width: 80,
+    // 행 전체 클릭이 버전을 여는 동작이라 글자 링크는 모양만 맡는다(누르면 행 클릭으로 올라간다).
+    render: (value) => (
+      <button
+        type="button"
+        data-testid={`rule-ver-row-${String(value)}`}
+        style={{ border: "none", background: "none", padding: 0, cursor: "pointer", color: "var(--color-primary)", font: "inherit" }}
+      >
+        {String(value)}
+      </button>
+    ),
+  },
+  {
+    key: "status",
+    header: "상태",
+    width: 120,
+    tooltip: false,
+    render: (_value, row) => <VersionStatusBadge status={row.status as RuleVersionInfo["status"]} applyFrom={row.applyFrom as string | null} />,
+  },
+  { key: "range", header: "적용 구간", width: 200 },
+  { key: "ownerId", header: "소유자", width: 120 },
+  { key: "baseVer", header: "base", width: 80 },
+];
 
 export function RuleVersionCard({ view, me, selectVer, runWrite, canDo, busy, notify }: RuleEditCardProps) {
   const [handoverTo, setHandoverTo] = useState("");
@@ -58,53 +87,27 @@ export function RuleVersionCard({ view, me, selectVer, runWrite, canDo, busy, no
   const canMoveToConfirm = view.confirmScreenReady && mdm && draft && !busy;
 
   const id = rule.maruRuleId;
+  const versionRows = useMemo(
+    () => view.versions.map((v) => ({ ver: v.ver, status: v.status, applyFrom: v.applyFrom, range: applyRange(v), ownerId: v.ownerId ?? "", baseVer: v.baseVer ?? "" })),
+    [view.versions],
+  );
 
   return (
     <CardFrame title="② 버전" testId="rule-card-versions">
-      <table style={{ width: "100%", borderCollapse: "collapse" }} data-testid="rule-version-table">
-        <thead>
-          <tr style={{ textAlign: "left", color: "var(--color-text-secondary)" }}>
-            <th>버전</th>
-            <th>상태</th>
-            <th>적용 구간</th>
-            <th>소유자</th>
-            <th>base</th>
-          </tr>
-        </thead>
-        <tbody>
-          {view.versions.map((v) => (
-            <tr
-              key={v.ver}
-              style={{ background: v.ver === view.selectedVer ? "var(--color-selection)" : undefined }}
-              data-selected={v.ver === view.selectedVer ? "true" : "false"}
-            >
-              <td>
-                <button
-                  type="button"
-                  data-testid={`rule-ver-row-${v.ver}`}
-                  onClick={() => void selectVer(v.ver)}
-                  style={{ minHeight: "var(--form-height)", display: "inline-flex", alignItems: "center", border: "none", background: "none", padding: 0, cursor: "pointer", color: "var(--color-primary)", font: "inherit" }}
-                >
-                  {v.ver}
-                </button>
-              </td>
-              <td>
-                <VersionStatusBadge status={v.status} applyFrom={v.applyFrom} />
-              </td>
-              <td>{applyRange(v)}</td>
-              <td>{v.ownerId ?? ""}</td>
-              <td>{v.baseVer ?? ""}</td>
-            </tr>
-          ))}
-          {view.versions.length === 0 && (
-            <tr>
-              <td colSpan={5}>
-                <MutedText>버전이 없습니다.</MutedText>
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+      <div data-testid="rule-version-table">
+        <AgDataGrid
+          columns={versionColumns}
+          data={versionRows}
+          rowKey="ver"
+          height="auto"
+          columnSizing="fit"
+          sortable={false}
+          highlightedRowKey={view.selectedVer}
+          onRowClick={(row) => void selectVer(row.ver as number)}
+          emptyMessage="버전이 없습니다."
+          ariaLabel="룰 버전 목록"
+        />
+      </div>
 
       {view.unappliedVersionExists && (
         <p data-testid="rule-unapplied-notice" style={{ color: "var(--color-text-secondary)", margin: "var(--spacing-xs) 0" }}>

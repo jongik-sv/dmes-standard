@@ -317,6 +317,15 @@
   font-weight: 600;
 }
 
+/* 업무 오류 행(검사 거부·NG 등) — getRowClassExtra 로 "ag-row-error" 를 준다. 의미 토큰만 쓴다. */
+.cm-data-grid .ag-row-error {
+  background-color: var(--color-danger-soft);
+}
+
+.cm-data-grid .ag-row-error.ag-row-highlighted {
+  background-color: color-mix(in srgb, var(--color-danger-soft) 55%, var(--color-selection));
+}
+
 /* 값 테스트 표시(mdm TSK-08-04 룰 화면) — 서버 판정 결과로 적중 행(초록)·첫 거짓 칸(붉음)·결과 열 그룹에서 고른 열(강조)·
    같은 그룹 나머지 열(흐림)을 칠한다. 의미 토큰만 쓰고, 위 검사 표시보다 뒤에 두어 같은 칸이면 값 테스트 표시가 보인다. */
 .cm-data-grid .ag-row-test-hit {
