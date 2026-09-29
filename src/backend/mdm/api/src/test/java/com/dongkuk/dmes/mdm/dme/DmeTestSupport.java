@@ -204,6 +204,11 @@ public final class DmeTestSupport {
                 + "'fixture', '2026-01-01 00:00:00', 'fixture', 'fixture', 0)", id, name, ruleIdsJson, status, rowVersion);
     }
 
+    /** 이미 넣은 세트 행의 FLOW_JSON 을 바꾼다(흐름도 세트 픽스처, spec §3.3). RULE_IDS 는 호출자가 펼친 목록으로 맞춰 둔다. */
+    public static void ruleSetFlow(JdbcTemplate jdbc, String setId, String flowJson) {
+        jdbc.update("UPDATE TB_MDM_RULE_SET SET FLOW_JSON = ? WHERE MARU_RULE_SET_ID = ?", flowJson, setId);
+    }
+
     public static int count(JdbcTemplate jdbc, String sql, Object... args) {
         return jdbc.queryForObject(sql, Integer.class, args);
     }
