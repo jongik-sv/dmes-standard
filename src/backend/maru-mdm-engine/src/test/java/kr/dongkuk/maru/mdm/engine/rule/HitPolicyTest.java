@@ -25,6 +25,7 @@ import static kr.dongkuk.maru.mdm.engine.rule.fixture.RuleFixtures.withPrio;
 import static kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.DataType.NUMBER;
 import static kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.DataType.STRING;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -138,6 +139,11 @@ class HitPolicyTest {
         assertEquals(List.of("ROW_SELECT/UNIQUE_MULTIPLE_HITS/U/null/null"), violations(e));
         assertTrue(e.violations().get(0).message().contains("1") && e.violations().get(0).message().contains("3"),
                 e.violations().get(0).message());
+        // 오류여도 본 행 추적을 싣는다 — 룰 화면이 맞은 두 행과 떨어진 행의 첫 거짓 칸을 칠한다.
+        RuleEvaluationException withTrace = assertInstanceOf(RuleEvaluationException.class, e);
+        assertEquals(List.of("1:T/T/-", "2:T/F/1", "3:T/T/-"),
+                withTrace.trace().stream().map(t -> t.rowId() + ":" + (t.evaluated() ? "T" : "F") + "/" + (t.hit() ? "T" : "F")
+                        + "/" + (t.firstFalseVarId() == null ? "-" : t.firstFalseVarId())).toList());
     }
 
     @Test

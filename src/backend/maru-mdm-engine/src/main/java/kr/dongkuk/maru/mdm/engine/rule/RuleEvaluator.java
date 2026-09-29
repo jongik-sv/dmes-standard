@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -89,6 +90,8 @@ final class RuleEvaluator {
         /** EvalEx 값 맵 = ctx + EVAL_TS + _V<id> (+ DERIVE 결과). 영속 ctx 에는 EVAL_TS·_V 를 넣지 않는다. */
         Map<String, Object> values;
         Map<String, Integer> groupChoices = Map.of();
+        /** 조건 셀 식 텍스트 → 참·거짓. 레코드 한 건 판정 동안만 산다(값 맵이 레코드마다 다르다). */
+        final Map<String, Boolean> condResults = new HashMap<>();
 
         Run(RuleDefinition def, Map<String, Object> ctx, Instant evalTs) {
             this.def = def;
@@ -197,19 +200,19 @@ final class RuleEvaluator {
             if (!producing.isEmpty()) {
                 chooseGroups();
             }
-            throwIfViolated();
+            throwIfViolated(trace);
             if (producing.isEmpty()) {
                 return result(List.of(), false, nullResults(), trace);
             }
 
             resultCheck(producing);
-            throwIfViolated();
+            throwIfViolated(trace);
 
             List<Map<String, Object>> rowValues = new ArrayList<>();
             for (RuleRow row : producing) {
                 rowValues.add(evaluateRow(row, false));
             }
-            throwIfViolated();
+            throwIfViolated(trace);
 
             Map<String, Object> results;
             List<RuleRow> ordered = hits;
@@ -235,7 +238,7 @@ final class RuleEvaluator {
                 default:
                     results = rowValues.get(0);
             }
-            throwIfViolated();
+            throwIfViolated(trace);
             return result(toHits(ordered), defaultApplied, results, trace);
         }
 
@@ -246,7 +249,7 @@ final class RuleEvaluator {
                 if (cell == null || NA.equals(cell.op())) {
                     continue;
                 }
-                int t = test(cell.text(), row.rowId(), col.varId(), false);
+                int t = cachedTest(cell.text(), row.rowId(), col.varId());
                 if (t == ERROR) {
                     return null;
                 }
@@ -257,33 +260,56 @@ final class RuleEvaluator {
             return null;
         }
 
-        /** 조건 셀·열 조건 판정. NULL 은 거짓 + 경고, 불린이 아니면 평가 오류(E13). */
-        private int test(String text, Integer rowId, int varId, boolean groupCondition) {
+        /**
+         * 조건 셀 판정을 식 텍스트로 재사용한다. 행 고르기 동안 값 맵이 바뀌지 않으므로 같은 텍스트는 같은 답이다.
+         * NULL(경고)·평가 오류는 행마다 경고·위반을 남겨야 하므로 담지 않는다.
+         */
+        private int cachedTest(String text, int rowId, int varId) {
+            Boolean cached = condResults.get(text);
+            if (cached != null) {
+                return cached ? TRUE : FALSE;
+            }
+            int warningsBefore = warnings.size();
+            int t = test(text, rowId, varId, null);
+            if (t != ERROR && warnings.size() == warningsBefore) {
+                condResults.put(text, t == TRUE);
+            }
+            return t;
+        }
+
+        /**
+         * 조건 셀·열 조건 판정. NULL 은 거짓 + 경고, 불린이 아니면 평가 오류(E13).
+         *
+         * @param group 열 조건이면 결과 열 그룹 이름(res_grp), 조건 셀이면 null
+         */
+        private int test(String text, Integer rowId, int varId, String group) {
+            boolean groupCondition = group != null;
             EvaluationValue v;
             try {
                 v = runner.run(text, values, evalTs);
             } catch (ExpressionFailure f) {
                 violations.add(violation(Stage.ROW_SELECT, Code.EVALUATION_ERROR, groupCondition ? null : rowId, null,
-                        where(rowId, varId, groupCondition) + " 식 '" + text + "' 평가 오류: " + f.getMessage()));
+                        where(rowId, varId, group) + " 식 '" + text + "' 평가 오류: " + f.getMessage()));
                 return ERROR;
             }
             if (v.isNullValue()) {
                 warnings.add(new EngineWarning(
                         groupCondition ? EngineWarning.Code.GRP_COND_NULL : EngineWarning.Code.EXPR_CELL_NULL,
                         ruleId, groupCondition ? null : rowId, varId,
-                        where(rowId, varId, groupCondition) + " 식 '" + text + "' 결과가 NULL 이라 거짓으로 봤다"));
+                        where(rowId, varId, group) + " 식 '" + text + "' 결과가 NULL 이라 거짓으로 봤다"));
                 return FALSE;
             }
             if (!v.isBooleanValue()) {
                 violations.add(violation(Stage.ROW_SELECT, Code.EVALUATION_ERROR, groupCondition ? null : rowId, null,
-                        where(rowId, varId, groupCondition) + " 식 '" + text + "' 결과가 불린이 아니다: " + v.getDataType()));
+                        where(rowId, varId, group) + " 식 '" + text + "' 결과가 불린이 아니다: " + v.getDataType()));
                 return ERROR;
             }
             return v.getBooleanValue() ? TRUE : FALSE;
         }
 
-        private String where(Integer rowId, int varId, boolean groupCondition) {
-            return groupCondition ? "열 조건 var " + varId : "row " + rowId + " var " + varId;
+        /** 열 조건은 어느 결과 열 그룹의 것인지 함께 적는다 — 화면이 사용자 문장으로 옮길 때 var_id 만으로는 그룹을 찾지 못한다. */
+        private String where(Integer rowId, int varId, String group) {
+            return group != null ? "결과 열 그룹 " + group + " 열 조건 var " + varId : "row " + rowId + " var " + varId;
         }
 
         /** 결과 열 그룹마다 열 seq 순 첫 참 열. 빈 열 조건은 기본 열. 레코드마다 한 번(06:69·425). */
@@ -298,7 +324,7 @@ final class RuleEvaluator {
                         s.chosen = col;
                         break;
                     }
-                    int t = test(col.grpCond(), null, col.varId(), true);
+                    int t = test(col.grpCond(), null, col.varId(), s.name);
                     if (t == ERROR) {
                         break;
                     }
@@ -442,11 +468,11 @@ final class RuleEvaluator {
             RuleRow row = normal.get(0);
             List<RuleResult.RowTrace> trace = List.of(new RuleResult.RowTrace(row.rowId(), row.seq(), true, true, null));
             chooseGroups();
-            throwIfViolated();
+            throwIfViolated(trace);
             resultCheck(List.of(row));
-            throwIfViolated();
+            throwIfViolated(trace);
             Map<String, Object> results = evaluateRow(row, true);
-            throwIfViolated();
+            throwIfViolated(trace);
             return result(toHits(List.of(row)), false, results, trace);
         }
 
@@ -482,6 +508,18 @@ final class RuleEvaluator {
             if (!violations.isEmpty()) {
                 throw new EngineEvaluationException(violations);
             }
+        }
+
+        /**
+         * 행을 고른 뒤의 오류 — 본 행 추적을 실어 던진다(룰 화면이 오류여도 적중·첫 거짓 칸을 칠한다).
+         * 입력 검사 위반(키 없음·필수 NULL 등)이 섞여 있으면 입력이 틀린 판정이라 추적을 싣지 않는다.
+         */
+        private void throwIfViolated(List<RuleResult.RowTrace> trace) {
+            if (violations.isEmpty()) {
+                return;
+            }
+            boolean inputBroken = violations.stream().anyMatch(v -> v.stage() == Stage.SET_CHECK || v.stage() == Stage.INPUT_CHECK);
+            throw inputBroken ? new EngineEvaluationException(violations) : new RuleEvaluationException(violations, trace);
         }
     }
 
