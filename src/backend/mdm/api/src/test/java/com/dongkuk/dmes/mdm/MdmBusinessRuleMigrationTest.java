@@ -74,6 +74,15 @@ class MdmBusinessRuleMigrationTest {
     }
 
     @Test
+    void flyway_가_V14_를_success_로_적용했다() throws SQLException {
+        try (Connection c = dataSource.getConnection(); Statement s = c.createStatement();
+             ResultSet rs = s.executeQuery("SELECT success FROM flyway_schema_history WHERE version = '14'")) {
+            assertTrue(rs.next(), "flyway_schema_history 에 version=14 행이 없다");
+            assertTrue(rs.getBoolean(1), "V14 가 success 가 아니다");
+        }
+    }
+
+    @Test
     void _8테이블_전부_생성되고_칼럼_목록이_순서까지_기대값과_같다() throws SQLException {
         try (Connection c = dataSource.getConnection(); Statement s = c.createStatement()) {
             for (String table : TABLES) {
@@ -175,7 +184,7 @@ class MdmBusinessRuleMigrationTest {
     // ── §3.1-5: JSON CHECK ──
 
     @Test
-    void JSON_CHECK_는_7칼럼에서_부정형을_거부하고_NULL_허용_칼럼만_NULL_을_통과시킨다() throws SQLException {
+    void JSON_CHECK_는_8칼럼에서_부정형을_거부하고_NULL_허용_칼럼만_NULL_을_통과시킨다() throws SQLException {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try {
@@ -195,6 +204,8 @@ class MdmBusinessRuleMigrationTest {
                         + "VALUES (?, ?, '{}', ?)");
                 inserts.put("RULE_IDS", "INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS, DESCRIPTION) "
                         + "VALUES (?, ?, ?, ?)");
+                inserts.put("FLOW_JSON", "INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS, FLOW_JSON) "
+                        + "VALUES (?, ?, '[]', ?)");
 
                 int checked = 0;
                 for (Map.Entry<String, List<String>> e : JSON_COLUMNS.entrySet()) {
@@ -215,7 +226,7 @@ class MdmBusinessRuleMigrationTest {
                         checked++;
                     }
                 }
-                assertEquals(7, checked, "JSON 칼럼은 정확히 7개다(F5)");
+                assertEquals(8, checked, "JSON 칼럼은 정확히 8개다(F5 + FLOW_JSON)");
 
                 // 대조군: RULE_RECV.BODY 는 요청 원문이라 JSON CHECK 가 없다(파싱 실패 요청도 남긴다, 06:1104).
                 exec(c, "INSERT INTO TB_MDM_RULE_RECV (SOURCE_SYSTEM, REQ_KIND, RECEIVED_AT, BODY) "
@@ -234,6 +245,7 @@ class MdmBusinessRuleMigrationTest {
             case "INPUT_JSON" -> new Object[] {ruleId, n, json, "케이스"};
             case "EXPECTED_JSON" -> new Object[] {ruleId, n, json};
             case "RULE_IDS" -> new Object[] {"S" + n, "세트", json, "설명"};
+            case "FLOW_JSON" -> new Object[] {"F" + n, "흐름 세트", json};
             default -> throw new IllegalArgumentException(column);
         };
     }
