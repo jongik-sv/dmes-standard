@@ -228,6 +228,11 @@ export interface AgDataGridProps {
   columns?: GridColumn[];
   data?: Record<string, unknown>[];
   rowKey?: string;
+  /**
+   * 그리드 높이. 기본 "100%"(부모 높이를 채우고 행은 안에서 스크롤).
+   * `"auto"` 는 행 수만큼 높이가 늘어난다(ag domLayout="autoHeight") — 카드·패널 안의 몇 행짜리 작은 목록용.
+   * 행이 많아질 수 있는 목록에는 쓰지 않는다(가상 스크롤이 꺼져 모든 행을 그린다).
+   */
   height?: string | number;
   selectable?: boolean;
   multiSelect?: boolean;
@@ -1205,11 +1210,13 @@ function AgDataGridComponent({
     [loadingMessage]
   );
 
+  const isAutoHeight = height === "auto";
+
   return (
     <div
       ref={containerRef}
       className={`cm-data-grid ag-theme-alpine ${className}`.trim()}
-      style={{ height: height || "100%", width: "100%" }}
+      style={{ height: isAutoHeight ? "auto" : height || "100%", width: "100%" }}
       aria-label={ariaLabel || "데이터 목록"}
       aria-busy={loading}
       tabIndex={-1}
@@ -1272,7 +1279,7 @@ function AgDataGridComponent({
         suppressColumnVirtualisation={resolvedColumnSizing === "auto"}
         suppressHorizontalScroll={false}
         alwaysShowHorizontalScroll={alwaysShowHorizontalScroll}
-        domLayout="normal"
+        domLayout={isAutoHeight ? "autoHeight" : "normal"}
         {...rowDrag.gridProps}
       />
     </div>
