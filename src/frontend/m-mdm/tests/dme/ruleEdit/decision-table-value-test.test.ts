@@ -122,14 +122,14 @@ describe("DecisionTableCard × 카드 공유 상태", () => {
     expect(wb.tableDraft!.rows.map((r) => r.rowId)).toEqual([1, 2, 3, -1, 4]);
   });
 
-  it("BODY 결과(같은 rev)는 표에 칠하고, 표를 고치면 지우고 다시 돌리라고 안내한다", async () => {
+  it("BODY 결과(같은 rev)는 표에 칠하고, 표를 고치면 지우고 다시 실행하라고 안내한다", async () => {
     await render(draftView("e2e_mdm_steward"));
     await act(async () => wb.setTestRun(runOf()));
     expect(container.querySelector('[data-testid="dt-test-shown"]')).not.toBeNull();
     await click("행 추가");
     expect(wb.testRun).toBeNull();
     expect(container.querySelector('[data-testid="dt-test-shown"]')).toBeNull();
-    expect(visibleText(container)).toContain("표가 바뀌어 값 테스트 결과를 지웠습니다. 다시 돌리세요.");
+    expect(visibleText(container)).toContain("표가 바뀌어 값 테스트 결과를 지웠습니다. 다시 실행하세요.");
   });
 
   it("VERSION 결과는 같은 버전·row_version 이고 변경이 없을 때만 칠하고, 표를 고쳐도 결과는 남는다", async () => {

@@ -24,6 +24,11 @@ export interface TestRunView {
   rowVersion: number | null;
   rev: number | null;
   result: ValueTestResult;
+  /**
+   * ⑥ "모두 실행" 으로 케이스만 판정한 것 — 요청에 ④ 입력도 실리지만(서버가 요구) 그 결과는 케이스 결과가 아니므로
+   * ⑤ 에 보이지 않고 표에도 칠하지 않는다. 케이스별 결과는 ⑥ 표가 보인다.
+   */
+  casesOnly?: boolean;
 }
 
 /** 지금 표가 보이는 것. */
@@ -51,6 +56,8 @@ export function testMarksOf(
   if (hits.length === 0 && result.defaultApplied && defaultRowId != null) marks.hitRowIds.add(defaultRowId);
   for (const t of result.trace ?? []) {
     if (t.evaluated && !t.hit && t.firstFalseVarId != null) marks.firstFalse.set(t.rowId, t.firstFalseVarId);
+    // 판정 오류(UNIQUE 적중 둘 이상 등)면 hits 가 없다 — 서버가 싣는 행 추적의 맞은 행을 칠한다.
+    if (result.outcome !== "OK" && t.hit) marks.hitRowIds.add(t.rowId);
   }
   const resultIds = new Set(vars.filter((v) => v.varKind === "RESULT").map((v) => v.varId));
   const groupOf = new Map<string, number[]>();
@@ -75,7 +82,7 @@ export function testMarksOf(
 
 /** 이 결과를 지금 표에 칠하는가(I33). */
 export function runShownOnTable(run: TestRunView | null, table: TableShown): boolean {
-  if (!run || run.ruleId !== table.ruleId || run.ver !== table.ver) return false;
+  if (!run || run.casesOnly || run.ruleId !== table.ruleId || run.ver !== table.ver) return false;
   if (run.target === "BODY") return run.rev != null && run.rev === table.rev;
   return !table.dirty && run.rowVersion === table.rowVersion;
 }

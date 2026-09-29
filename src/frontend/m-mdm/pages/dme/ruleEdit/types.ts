@@ -214,7 +214,10 @@ export interface ValueTestError {
   code: string;
   rowId?: number | null;
   name?: string | null;
+  /** 현업이 읽는 문장(서버 `RuleErrorText` — 무엇이·왜·어떻게 고치나). */
   message: string;
+  /** 엔진 원문(개발자용). 화면은 접힌 상세·툴팁으로만 보인다. */
+  detail?: string | null;
 }
 
 /** 판정을 멈추지 않는 경고 — 엔진 경고와 `MISSING_CELL_AS_NA`(빠진 셀을 NA 로 본 칸). */
@@ -267,4 +270,9 @@ export interface ValueTestResult {
   skippedRows?: number[];
   contract?: { always: string[]; rows: Array<{ rowId: number; required: string[]; optional: string[] }> };
   cases?: ValueTestCaseResult[];
+  /** 요청 `judge` 일 때만 — 저장 전 케이스(수정 팝업) 판정. caseId·caseName 은 null. */
+  draftCase?: DraftCaseResult;
 }
+
+/** 저장 전 케이스 판정 결과 — 저장된 케이스 결과와 같은 비교(서버 `RuleCaseJudge.judged`). */
+export type DraftCaseResult = Omit<ValueTestCaseResult, "caseId" | "caseName">;

@@ -16,6 +16,7 @@ import java.util.regex.Pattern;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Violation;
 import kr.dongkuk.maru.mdm.engine.rule.MdmRuleEngine;
+import kr.dongkuk.maru.mdm.engine.rule.RuleEvaluationException;
 import kr.dongkuk.maru.mdm.engine.rule.RuleResult;
 
 /**
@@ -32,7 +33,12 @@ public final class RuleCaseJudge {
     private RuleCaseJudge() {
     }
 
-    public record Evaluated(RuleResult result, List<Map<String, Object>> errors) {
+    /** @param errorTrace 행을 고른 뒤 난 판정 오류면 그때까지 본 행 추적(룰 화면 표 칠하기), 아니면 빈 목록 */
+    public record Evaluated(RuleResult result, List<Map<String, Object>> errors, List<RuleResult.RowTrace> errorTrace) {
+        public Evaluated(RuleResult result, List<Map<String, Object>> errors) {
+            this(result, errors, List.of());
+        }
+
         public boolean ok() {
             return result != null;
         }
@@ -57,7 +63,8 @@ public final class RuleCaseJudge {
         try {
             return new Evaluated(engine.evaluate(ruleId, input, ts), null);
         } catch (EngineEvaluationException e) {
-            return new Evaluated(null, e.violations().stream().map(RuleCaseJudge::error).toList());
+            List<RuleResult.RowTrace> trace = e instanceof RuleEvaluationException r ? r.trace() : List.of();
+            return new Evaluated(null, e.violations().stream().map(RuleCaseJudge::error).toList(), trace);
         }
     }
 
@@ -66,13 +73,21 @@ public final class RuleCaseJudge {
         Evaluated e = input == null
                 ? new Evaluated(null, List.of(error("INPUT_CHECK", "INVALID_INPUT_JSON", null, null, "케이스 입력이 JSON 객체가 아니다")))
                 : evaluate(engine, ruleId, input, ts);
+        return judged(c.getCaseId(), c.getCaseName(), c.getExpectedJson(), e, defaultRowId);
+    }
+
+    /**
+     * 이미 판정한 결과({@code e})를 기대 JSON 과 견준 케이스 결과 한 건 — 저장된 케이스({@link #runCase})와 저장 전 케이스(수정 팝업의
+     * "테스트 실행")가 같은 비교를 쓴다(I24). 기대 JSON 이 비면 pass 는 null(실행만).
+     */
+    public static Map<String, Object> judged(Integer caseId, String caseName, String expectedJson, Evaluated e, Integer defaultRowId) {
         Object hitValue = e.ok() ? hitValue(e.result(), defaultRowId) : null;
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("caseId", c.getCaseId());
-        m.put("caseName", c.getCaseName());
+        m.put("caseId", caseId);
+        m.put("caseName", caseName);
         m.put("outcome", e.ok() ? "OK" : "ERROR");
         List<Map<String, Object>> mismatches = new ArrayList<>();
-        m.put("pass", compare(c.getExpectedJson(), e, hitValue, mismatches));
+        m.put("pass", compare(expectedJson, e, hitValue, mismatches));
         m.put("mismatches", mismatches);
         m.put("results", e.ok() ? results(e.result()) : null);
         m.put("hit", hitValue);
@@ -230,13 +245,15 @@ public final class RuleCaseJudge {
         return error(v.stage().name(), v.code().name(), v.rowId(), v.name(), v.message());
     }
 
+    /** {@code message} 는 현업이 읽는 문장({@link RuleErrorText}), {@code detail} 은 엔진 원문(화면 접힌 상세·툴팁). */
     private static Map<String, Object> error(String stage, String code, Integer rowId, String name, String message) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("stage", stage);
         m.put("code", code);
         m.put("rowId", rowId);
         m.put("name", name);
-        m.put("message", message);
+        m.put("message", RuleErrorText.describe(stage, code, rowId, name, message));
+        m.put("detail", message);
         return m;
     }
 }

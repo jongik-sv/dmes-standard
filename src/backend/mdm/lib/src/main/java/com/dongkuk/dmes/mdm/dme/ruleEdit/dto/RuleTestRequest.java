@@ -34,6 +34,13 @@ public class RuleTestRequest {
      * 기대값 비교는 걸러도 {@code RuleCaseJudge.runCase} 가 그대로 하므로 "모두 실행" 과 판정 기준이 같다.
      */
     private String caseIds;
+    /**
+     * 저장 전 케이스 판정 — 켜면 {@code inputJson} 을 판정한 결과를 {@code expectedJson} 과 견줘 {@code draftCase} 로 돌려준다(수정 팝업의
+     * "테스트 실행"). 기대값 비교는 저장된 케이스와 같은 {@code RuleCaseJudge.judged} 다(I24). 빈 {@code expectedJson} 은 "실행만"이므로
+     * 켬 여부를 따로 받는다.
+     */
+    private Boolean judgeInput;
+    private String expectedJson;
 
     public String getMaruRuleId() { return maruRuleId; }
     public String getTarget() { return target; }
@@ -43,6 +50,8 @@ public class RuleTestRequest {
     public String getInputJson() { return inputJson; }
     public Boolean getRunCases() { return runCases; }
     public String getCaseIds() { return caseIds; }
+    public Boolean getJudgeInput() { return judgeInput; }
+    public String getExpectedJson() { return expectedJson; }
 
     /**
      * {@code caseIds} 문자열을 목록으로 — 콤마로 나눠 빈 항목을 버린다. 파싱 불가 문자는
@@ -71,4 +80,6 @@ public class RuleTestRequest {
     public void setInputJson(String v) { this.inputJson = v; }
     public void setRunCases(Boolean v) { this.runCases = v; }
     public void setCaseIds(String v) { this.caseIds = v; }
+    public void setJudgeInput(Boolean v) { this.judgeInput = v; }
+    public void setExpectedJson(String v) { this.expectedJson = v; }
 }

@@ -1,8 +1,8 @@
 /** @vitest-environment happy-dom */
 
 // TSK-08-04 design §3.3·§6.7·I34 — 카드 ④ 값 테스트·⑤ 테스트 결과·⑥ 테스트 케이스 렌더. 카드 순서, 편집본 대상은 editable 일 때만,
-// "돌리기" 가 execute 요청 본문(target·grids.rows·inputJson)을 만들고, 결과 카드가 결과 변수·적중 행을 보이며, 다른 버전 결과는 그 버전의
-// 표를 따로 그린다. 케이스 빈 상태, "케이스로 저장"(part CASE), "모두 돌리기" 배지, "불러오기", 서버 오류 표시.
+// "실행" 가 execute 요청 본문(target·grids.rows·inputJson)을 만들고, 결과 카드가 결과 변수·적중 행을 보이며, 다른 버전 결과는 그 버전의
+// 표를 따로 그린다. 케이스 빈 상태, "케이스로 저장"(part CASE), "모두 실행" 배지, "불러오기", 서버 오류 표시.
 import { createElement, act, useEffect, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -249,7 +249,7 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     expect(byTestId("vt-pending")).toBeNull();
   });
 
-  it("입력 줄은 입력 계약 이름이고, 돌리기는 편집본 행을 grids.rows 로 싣고 키 보냄 끔 = 키 없음, 빈 칸 = null 로 보낸다", async () => {
+  it("입력 줄은 입력 계약 이름이고, 실행은 편집본 행을 grids.rows 로 싣고 키 보냄 끔 = 키 없음, 빈 칸 = null 로 보낸다", async () => {
     responses.execute = ok(okResult());
     await render(draftView("e2e_mdm_steward"));
     // 입력 줄은 표 한 행이다 — 계약 배지는 같은 행의 다른 칸에 있다.
@@ -260,7 +260,7 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     await setVtValue("SURF_GRD", "A");
     await setKeySent("COIL_WID", false);
     await click(container, "행 추가");
-    await click(byTestId("rule-card-value-test")!, "돌리기");
+    await click(byTestId("rule-card-value-test")!, "실행");
 
     const req = last("execute")!;
     expect(req.params).toMatchObject({ maruRuleId: "QLTY_GRD_JDG", target: "BODY", ver: 2, hitPolicy: "FIRST" });
@@ -269,7 +269,7 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
 
     await setKeySent("COIL_WID", true);
     await setVtValue("SURF_GRD", "");
-    await click(byTestId("rule-card-value-test")!, "돌리기");
+    await click(byTestId("rule-card-value-test")!, "실행");
     expect(JSON.parse(String(last("execute")!.params.inputJson))).toEqual({ COIL_THK: "2.0", COIL_WID: null, SURF_GRD: null });
   });
 
@@ -277,7 +277,7 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     responses.execute = ok(okResult({ warnings: [{ code: "MISSING_CELL_AS_NA", rowId: -1, varId: 1, message: "행 -1·두께: 셀이 없어 NA 로 보았다" }] }));
     await render(draftView("e2e_mdm_steward"));
     expect(byTestId("vt-result-empty")).not.toBeNull();
-    await click(byTestId("rule-card-value-test")!, "돌리기");
+    await click(byTestId("rule-card-value-test")!, "실행");
     const values = byTestId("vt-result-values")!.textContent!;
     expect(values).toContain("판정등급");
     expect(values).toContain("QLTY_GRD");
@@ -289,10 +289,10 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     expect(byTestId("dt-test-shown")).not.toBeNull();
   });
 
-  it("기본 행이 적용되면 적중 행에 기본 행을 적고, 판정 오류는 단계·코드·메시지로 보인다", async () => {
+  it("기본 행이 적용되면 적중 행에 기본 행을 적고, 판정 오류는 사용자 문장으로 보이고 단계·코드는 툴팁·원문은 접힌 상세에 둔다", async () => {
     responses.execute = ok(okResult({ hits: [], defaultApplied: true, results: { QLTY_GRD: "C", PRC_FCT: "0.90" } }));
     await render(draftView("e2e_mdm_steward"));
-    await click(byTestId("rule-card-value-test")!, "돌리기");
+    await click(byTestId("rule-card-value-test")!, "실행");
     expect(byTestId("vt-result-hits")?.textContent).toContain("어느 행도 참이 아니어서 기본 행 (row_id 4)");
 
     responses.execute = ok({
@@ -300,13 +300,34 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
       ver: 2,
       evalTs: "2026-09-26 10:00:00",
       outcome: "ERROR",
-      errors: [{ stage: "INPUT_CHECK", code: "MISSING_KEY", rowId: null, name: "COIL_WID", message: "키가 없다" }],
+      errors: [
+        {
+          stage: "ROW_SELECT",
+          code: "EVALUATION_ERROR",
+          rowId: 3,
+          name: null,
+          message: "row_id 3 행의 조건 칸 `STR_STARTS_WITH(TOP_RESIN_CD, \"2\")` 을 계산하지 못했습니다. 입력 TOP_RESIN_CD 가 비어 있습니다(NULL).",
+          detail: "rule R: row 3 var 1 식 'STR_STARTS_WITH(TOP_RESIN_CD, \"2\")' 평가 오류: NullPointerException: x",
+        },
+        { stage: "INPUT_CHECK", code: "MISSING_KEY", rowId: null, name: "COIL_WID", message: "입력에 COIL_WID 값이 없습니다." },
+      ],
     });
-    await click(byTestId("rule-card-value-test")!, "돌리기");
-    const errs = byTestId("vt-result-errors")!.textContent!;
-    expect(errs).toContain("INPUT_CHECK");
-    expect(errs).toContain("MISSING_KEY");
-    expect(errs).toContain("키가 없다");
+    await click(byTestId("rule-card-value-test")!, "실행");
+    const items = Array.from(byTestId("vt-result-errors")!.querySelectorAll("li"));
+    expect(items).toHaveLength(2);
+    // 본문(접힌 상세 밖)은 사용자 문장으로 시작하고 코드가 없다.
+    const visible = (li: Element) => Array.from(li.childNodes).filter((n) => n.nodeName !== "DETAILS").map((n) => n.textContent).join("");
+    expect(visible(items[0]).startsWith("row_id 3 행의 조건 칸")).toBe(true);
+    expect(visible(items[0])).not.toContain("EVALUATION_ERROR");
+    expect(visible(items[0])).not.toContain("ROW_SELECT");
+    expect(items[0].getAttribute("title")).toBe("ROW_SELECT · EVALUATION_ERROR · row_id 3");
+    const detail = items[0].querySelector("details")!;
+    expect(detail.hasAttribute("open")).toBe(false);
+    expect(detail.textContent).toContain("NullPointerException");
+    // 원문이 없으면 상세도 없다.
+    expect(visible(items[1])).toBe("입력에 COIL_WID 값이 없습니다.");
+    expect(items[1].querySelector("details")).toBeNull();
+    expect(items[1].getAttribute("title")).toBe("INPUT_CHECK · MISSING_KEY · COIL_WID");
   });
 
   it("다른 버전을 대상으로 돌리면 그 버전 정의를 받아 입력 줄을 만들고, 결과 카드에 그 버전 표를 따로 그린다", async () => {
@@ -315,7 +336,7 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     await selectValue(byTestId<HTMLSelectElement>("vt-target")!, "V:1");
     await flush();
     expect(last("view")?.params).toMatchObject({ maruRuleId: "QLTY_GRD_JDG", ver: 1 });
-    await click(byTestId("rule-card-value-test")!, "돌리기");
+    await click(byTestId("rule-card-value-test")!, "실행");
     expect(last("execute")!.params).toMatchObject({ target: "VERSION", ver: 1 });
     expect(last("execute")!.grids).toBeUndefined();
     expect(byTestId("vt-result-target")?.textContent).toContain("버전 1");
@@ -327,12 +348,12 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
   it("서버가 거부하면(상한 초과 등) 값 테스트 카드에 서버 메시지를 보인다", async () => {
     responses.execute = { meta: { success: false, code: "MDM021", message: "입력이 올바르지 않습니다: inputJson 길이 16385 > 16384" } };
     await render(draftView("e2e_mdm_steward"));
-    await click(byTestId("rule-card-value-test")!, "돌리기");
+    await click(byTestId("rule-card-value-test")!, "실행");
     expect(byTestId("vt-error")?.textContent).toContain("inputJson 길이 16385");
     expect(byTestId("vt-result-empty")).not.toBeNull();
   });
 
-  it("케이스가 없으면 빈 상태 문구를 보이고 모두 돌리기를 끈다", async () => {
+  it("케이스가 없으면 빈 상태 문구를 보이고 모두 실행을 끈다", async () => {
     await render(draftView("e2e_mdm_steward", undefined, { testCases: [] }));
     expect(byTestId("tc-empty")?.textContent).toBe("테스트 케이스가 없습니다");
     expect(findButton(byTestId("rule-card-test-cases")!, "모두 실행").disabled).toBe(true);
@@ -353,7 +374,7 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     expect(p.caseId).toBeUndefined();
     expect(JSON.parse(String(p.inputJson))).toEqual({ COIL_THK: "2.0", COIL_WID: null, SURF_GRD: null });
 
-    await click(byTestId("rule-card-value-test")!, "돌리기");
+    await click(byTestId("rule-card-value-test")!, "실행");
     await typeInto(byTestId<HTMLInputElement>("vt-case-name")!, "결과 있는 케이스");
     await click(byTestId("rule-card-value-test")!, "케이스로 저장");
     p = last("save")!.params;
@@ -367,7 +388,7 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     expect(writes).toBe(3);
   });
 
-  it("모두 돌리기는 값 테스트 카드의 대상·입력에 runCases 를 싣고, 케이스마다 결과 배지를 보인다", async () => {
+  it("모두 실행은 값 테스트 카드의 대상·입력에 runCases 를 싣고, 케이스마다 결과 배지를 보인다", async () => {
     responses.execute = ok(
       okResult({
         cases: [
@@ -385,21 +406,31 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     expect(req.params).toMatchObject({ target: "BODY", ver: 2, runCases: true });
     expect(JSON.parse(String(req.params.inputJson))).toMatchObject({ COIL_THK: "3.0" });
     expect(byTestId("tc-badge-1")?.textContent).toBe("통과");
-    expect(byTestId("tc-badge-2")?.textContent).toBe("돌려 보기만");
+    expect(byTestId("tc-badge-2")?.textContent).toBe("실행만");
     expect(byTestId("rule-card-test-cases")!.textContent).toContain("결과(편집본)");
+    // ⑤ 는 요청에 실린 ④ 입력의 판정이 아니라 케이스 실행 요약만 보이고, 표에 칠하지 않는다.
+    expect(byTestId("vt-result-cases")?.textContent).toContain("테스트 케이스 2건을 실행했습니다 — 통과 1 · 실패 0 · 실행만 1");
+    expect(byTestId("vt-result-errors")).toBeNull();
+    expect(byTestId("vt-result-hits")).toBeNull();
 
     responses.execute = ok(
       okResult({
         cases: [
           { caseId: 1, caseName: "A급 광폭", outcome: "OK", pass: false, mismatches: [{ key: "PRC_FCT", expected: 1.05, actual: "1.00" }], results: {}, hit: 2 },
-          { caseId: 2, caseName: "폭 없음", outcome: "ERROR", pass: null, mismatches: [], errors: [{ stage: "INPUT_CHECK", code: "MISSING_KEY", message: "키가 없다" }] },
+          {
+            caseId: 2, caseName: "폭 없음", outcome: "ERROR", pass: null, mismatches: [],
+            errors: [{ stage: "INPUT_CHECK", code: "MISSING_KEY", message: "입력에 COIL_WID 값이 없습니다.", detail: "rule R: 조건 변수 키가 레코드에 없다: COIL_WID" }],
+          },
         ],
       }),
     );
     await click(byTestId("rule-card-test-cases")!, "모두 실행");
     expect(byTestId("tc-badge-1")?.textContent).toBe("실패 · PRC_FCT");
     expect(caseRow(1)?.textContent).toContain("PRC_FCT 1.05 ≠ 1.00");
-    expect(caseRow(2)?.textContent).toContain("MISSING_KEY");
+    // 케이스 표도 사용자 문장만 — 코드·엔진 원문은 싣지 않는다.
+    expect(caseRow(2)?.textContent).toContain("입력에 COIL_WID 값이 없습니다.");
+    expect(caseRow(2)?.textContent).not.toContain("MISSING_KEY");
+    expect(caseRow(2)?.textContent).not.toContain("레코드에 없다");
   });
 
   it("불러오기는 케이스 입력을 값 테스트 칸에 채우고, 케이스에 없는 키는 키 보냄을 끈다", async () => {
@@ -409,7 +440,7 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     expect(vtValueCell("COIL_THK").textContent).toBe("2.0");
     expect(vtValueCell("SURF_GRD").textContent).toBe("NULL");
     expect((byTestId("vt-key-COIL_WID")!.querySelector("input") as HTMLInputElement).checked).toBe(false);
-    await click(byTestId("rule-card-value-test")!, "돌리기");
+    await click(byTestId("rule-card-value-test")!, "실행");
     expect(JSON.parse(String(last("execute")!.params.inputJson))).toEqual({ COIL_THK: "2.0", SURF_GRD: null });
   });
 
@@ -462,8 +493,8 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     expect(inModal<HTMLInputElement>("tc-form-in-SURF_GRD").disabled).toBe(true);
 
     // 기대 JSON 이 없던 케이스 — "기대값 없이" 를 끄고 QLTY_GRD 와 hit 를 비교한다.
-    expect(modalCheckbox("기대값 없이 돌려 보기만").checked).toBe(true);
-    await clickIn(modalCheckbox("기대값 없이 돌려 보기만"));
+    expect(modalCheckbox("기대값 없이 실행만").checked).toBe(true);
+    await clickIn(modalCheckbox("기대값 없이 실행만"));
     await clickIn(modalCheckbox("QLTY_GRD 비교"));
     await typeInto(inModal<HTMLInputElement>("tc-form-exp-QLTY_GRD"), "A");
     await clickIn(modalCheckbox("hit 비교"));
@@ -505,11 +536,36 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     expect(inModal("tc-form-exp-PRC_GRP")).not.toBeNull();
     expect(inModal("tc-form-exp-PRC_FCT")).toBeNull();
     expect(inModal("tc-form-exp-PRC_ADJ")).toBeNull();
-    await clickIn(modalCheckbox("기대값 없이 돌려 보기만"));
+    await clickIn(modalCheckbox("기대값 없이 실행만"));
     await clickIn(modalCheckbox("PRC_GRP 비교"));
     await typeInto(inModal<HTMLInputElement>("tc-form-exp-PRC_GRP"), "1.10");
     expect(document.querySelector('[data-testid="tc-edit-modal"] details')).toBeNull();
     expect(inModal("tc-edit-preview").textContent).toContain('기대 {"PRC_GRP":1.10}');
+  });
+
+  it("수정 팝업의 [테스트 실행]은 저장하지 않은 입력·기대로 판정을 요청해 결과를 팝업에만 보이고, 칸을 고치면 결과를 지운다", async () => {
+    responses.execute = ok(
+      okResult({ draftCase: { outcome: "OK", pass: false, mismatches: [{ key: "PRC_FCT", expected: 1.2, actual: "1.05" }], results: { QLTY_GRD: "A", PRC_FCT: "1.05" }, hit: 1 } }),
+    );
+    await render(draftView("e2e_mdm_steward", undefined, { testCases: CASES }));
+    await openEdit(1);
+    await typeInto(inModal<HTMLInputElement>("tc-form-exp-PRC_FCT"), "1.2");
+    await typeInto(inModal<HTMLInputElement>("tc-edit-name"), "");
+    await clickIn(inModal<HTMLButtonElement>("tc-edit-run"));
+
+    // 이름이 비어도 실행한다(저장만 이름을 요구한다). 저장은 하지 않는다.
+    const p = last("execute")!.params;
+    expect(p).toMatchObject({ judgeInput: true, expectedJson: '{"QLTY_GRD":"A","PRC_FCT":1.2,"hit":1}', inputJson: expect.stringContaining('"COIL_THK":"2.0"') });
+    expect(p.runCases).toBeUndefined();
+    expect(last("save")).toBeUndefined();
+    expect(inModal("tc-edit-run-badge").textContent).toBe("실패 · PRC_FCT");
+    expect(inModal("tc-edit-run-result").textContent).toContain("PRC_FCT 1.2 ≠ 1.05");
+    expect(inModal("tc-edit-run-result").textContent).toContain("적중 행 1행");
+    // ⑥ 표 배지는 이 한 건으로 바뀌지 않는다.
+    expect(byTestId("tc-badge-1")).toBeNull();
+
+    await typeInto(inModal<HTMLInputElement>("tc-form-exp-PRC_FCT"), "1.05");
+    expect(inModal("tc-edit-run-result")).toBeNull();
   });
 
   it("폼을 건드리지 않고 저장하면 원래 JSON 글자(키 순서·숫자 표기)를 그대로 보낸다", async () => {
@@ -583,7 +639,7 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
 
   it("권한이 없으면 버튼을 숨기지 않고 끈다(§6.7.0)", async () => {
     await render(draftView("e2e_mdm_steward", undefined, { testCases: CASES }), { canDo: () => false });
-    expect(findButton(byTestId("rule-card-value-test")!, "돌리기").disabled).toBe(true);
+    expect(findButton(byTestId("rule-card-value-test")!, "실행").disabled).toBe(true);
     expect(findButton(byTestId("rule-card-test-cases")!, "모두 실행").disabled).toBe(true);
     expect(findButton(caseRow(1)!, "삭제").disabled).toBe(true);
     expect(findButton(caseRow(1)!, "수정").disabled).toBe(true);

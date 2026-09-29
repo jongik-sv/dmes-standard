@@ -1,6 +1,7 @@
 package com.dongkuk.dmes.mdm.dme.ruleEdit.service;
 
 import static com.dongkuk.dmes.mdm.common.rule.RuleCaseJudge.evaluate;
+import static com.dongkuk.dmes.mdm.common.rule.RuleCaseJudge.judged;
 import static com.dongkuk.dmes.mdm.common.rule.RuleCaseJudge.object;
 import static com.dongkuk.dmes.mdm.common.rule.RuleCaseJudge.results;
 import static com.dongkuk.dmes.mdm.common.rule.RuleCaseJudge.runCase;
@@ -150,6 +151,11 @@ public class RuleValueTestService {
             r.warnings().forEach(w -> warnings.add(warning(w)));
         } else {
             out.setErrors(e.errors());
+            // 행을 고른 뒤의 오류(UNIQUE 적중 둘 이상 등)는 본 행 추적을 싣는다 — 화면이 맞은 행·첫 거짓 칸을 칠한다.
+            // 입력 검사 오류면 엔진이 추적을 주지 않으므로 trace 는 없다(G4).
+            if (!e.errorTrace().isEmpty()) {
+                out.setTrace(e.errorTrace().stream().map(RuleValueTestService::trace).toList());
+            }
         }
         warnings.addAll(missingCells(def, s.vars()));
         out.setWarnings(warnings);
@@ -164,6 +170,10 @@ public class RuleValueTestService {
                     ? caseQueries.cases(id)
                     : caseQueries.cases(id).stream().filter(c -> only.contains(c.getCaseId())).toList();
             out.setCases(picked.stream().map(c -> runCase(engine, id, c, ts, defaultRowId)).toList());
+        }
+        if (Boolean.TRUE.equals(request.getJudgeInput())) {
+            // 저장 전 케이스(수정 팝업 "테스트 실행") — 위에서 판정한 입력 결과를 요청의 기대 JSON 과 견준다.
+            out.setDraftCase(judged(null, null, request.getExpectedJson(), e, defaultRowId));
         }
         return out;
     }

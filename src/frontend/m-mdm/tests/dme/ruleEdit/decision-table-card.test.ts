@@ -480,6 +480,27 @@ describe("DecisionTableCard 렌더", () => {
     globalThis.fetch = originalFetch;
   });
 
+  it("[크게 보기]는 표 높이를 본문 스크롤 영역만큼 늘리고 [원래 크기]로 행 수에 맞게 되돌린다", async () => {
+    await renderCard(draftView("e2e_mdm_steward"));
+    // 카드가 든 본문 스크롤 영역 — happy-dom 은 크기를 재지 않으므로(0) 가장 작은 높이 320 으로 늘어난다.
+    container.style.overflowY = "auto";
+    const grid = () => container.querySelector<HTMLElement>('[data-testid="dt-grid"]')!;
+    const toggle = () => container.querySelector<HTMLButtonElement>('[data-testid="dt-expand"]')!;
+    const fit = grid().style.height;
+    expect(toggle().textContent).toBe("크게 보기");
+    await act(async () => {
+      toggle().click();
+    });
+    expect(toggle().textContent).toBe("원래 크기");
+    expect(toggle().getAttribute("aria-pressed")).toBe("true");
+    expect(grid().style.height).toBe("320px");
+    await act(async () => {
+      toggle().click();
+    });
+    expect(toggle().textContent).toBe("크게 보기");
+    expect(grid().style.height).toBe(fit);
+  });
+
   it("행 추가를 누르면 ALL_NA_ROW 오류와 저장 안 한 변경 배지가 보이고, 되돌리기로 사라진다", async () => {
     await renderCard(draftView("e2e_mdm_steward"));
     expect(visibleText(container)).not.toContain("저장 안 한 변경");
@@ -493,6 +514,25 @@ describe("DecisionTableCard 렌더", () => {
     });
     expect(visibleText(container)).not.toContain("ALL_NA_ROW");
     expect(visibleText(container)).not.toContain("저장 안 한 변경");
+  });
+
+  it("검사·표 단위 검사는 접을 수 있고, 접혀도 오류·경고 개수는 제목 줄에 보인다", async () => {
+    await renderCard(draftView("e2e_mdm_steward"));
+    await act(async () => {
+      findButton(container, "행 추가").click();
+    });
+    const q = (id: string) => container.querySelector<HTMLElement>(`[data-testid="${id}"]`)!;
+    expect(q("dt-check-body").hidden).toBe(false);
+    expect(q("dt-check-table-body").hidden).toBe(false);
+    await act(async () => q("dt-check-table-toggle").click());
+    expect(q("dt-check-table-body").hidden).toBe(true);
+    expect(q("dt-check-table-toggle").getAttribute("aria-expanded")).toBe("false");
+    await act(async () => q("dt-check-toggle").click());
+    expect(q("dt-check-body").hidden).toBe(true);
+    expect(q("dt-check-count").textContent).toMatch(/^오류 \d+ · 경고 \d+$/);
+    await act(async () => q("dt-check-toggle").click());
+    expect(q("dt-check-body").hidden).toBe(false);
+    expect(q("dt-check-table-body").hidden).toBe(true);
   });
 
   it("저장 요청은 part TABLE·row_version·적중 정책과 grids.rows.rows(순서·음수 임시 ID·cells 문자열)다", async () => {

@@ -210,7 +210,9 @@ class RuleValueTestServiceTest extends AbstractMdmSharedDbTest {
         assertEquals("ERROR", nulled.getOutcome());
         assertEquals("REQUIRED_NULL", codes(nulled.getErrors()), "키가 있고 값이 null 이면 REQUIRED_NULL");
         assertEquals("BASE_FCT", nulled.getErrors().get(0).get("name"));
-        assertNull(nulled.getTrace(), "판정 오류면 trace 가 없다(G4)");
+        assertNull(missing.getTrace(), "입력 검사 오류(MISSING_KEY)면 trace 가 없다(G4)");
+        // REQUIRED_NULL 은 결과 검사(RESULT_CHECK) — 행을 고른 뒤라 추적이 실린다(적중 행 3).
+        assertEquals(List.of(3), nulled.getTrace().stream().filter(t -> Boolean.TRUE.equals(t.get("hit"))).map(t -> t.get("rowId")).toList());
     }
 
     // ------------------------------------------------------------------ ④ 트레이스
@@ -270,6 +272,8 @@ class RuleValueTestServiceTest extends AbstractMdmSharedDbTest {
 
         assertEquals("ERROR", r.getOutcome());
         assertEquals("UNIQUE_MULTIPLE_HITS", codes(r.getErrors()));
+        // 오류여도 행 추적을 싣는다 — 룰 화면이 함께 맞은 행을 칠한다.
+        assertTrue(r.getTrace().stream().filter(t -> Boolean.TRUE.equals(t.get("hit"))).count() >= 2, String.valueOf(r.getTrace()));
     }
 
     // ------------------------------------------------------------------ ⑧ 케이스
@@ -310,6 +314,32 @@ class RuleValueTestServiceTest extends AbstractMdmSharedDbTest {
         assertEquals("ERROR", byId.get(6).get("outcome"));
         assertEquals(false, byId.get(7).get("pass"));
         assertEquals("hit", mismatchKeys(byId.get(7)));
+    }
+
+    @Test
+    void 저장_전_케이스는_입력_판정_결과를_요청의_기대_JSON_과_같은_기준으로_견준다() {
+        RuleTestRequest pass = version(1, A_INPUT);
+        pass.setJudgeInput(true);
+        pass.setExpectedJson("{\"QLTY_GRD\":\"A\",\"PRC_FCT\":1.050,\"hit\":1}");
+        Map<String, Object> ok = service.runTest(pass).getDraftCase();
+        assertEquals(true, ok.get("pass"), String.valueOf(ok));
+        assertNull(ok.get("caseId"));
+
+        RuleTestRequest fail = version(1, A_INPUT);
+        fail.setJudgeInput(true);
+        fail.setExpectedJson("{\"QLTY_GRD\":\"B\",\"hit\":2}");
+        Map<String, Object> bad = service.runTest(fail).getDraftCase();
+        assertEquals(false, bad.get("pass"));
+        assertEquals("QLTY_GRD,hit", mismatchKeys(bad));
+
+        RuleTestRequest runOnly = version(1, A_INPUT);
+        runOnly.setJudgeInput(true);
+        runOnly.setExpectedJson("");
+        Map<String, Object> only = service.runTest(runOnly).getDraftCase();
+        assertNull(only.get("pass"), "빈 기대 JSON 은 실행만");
+        assertEquals(1, only.get("hit"));
+
+        assertNull(service.runTest(version(1, A_INPUT)).getDraftCase(), "judgeInput 이 없으면 draftCase 도 없다");
     }
 
     @SuppressWarnings("unchecked")

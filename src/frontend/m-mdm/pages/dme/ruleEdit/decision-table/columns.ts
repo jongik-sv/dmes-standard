@@ -2,7 +2,7 @@
  * 의사결정표 열(TSK-08-02 design §6.7.4) — 3줄 머리(조건/결과 묶음 → 변수 → 칸) `GridColumn` 트리, 칸 편집 가능 여부, 그리드 표시 행.
  *
  * 행 데이터 필드는 `c{varId}_{k}`(k ∈ op,left,right,na,expr,val). 강조는 표시 행의 표시(`__mk`)를 `cellClassRules` 가 읽는다 —
- * 색은 shared 그리드 토큰 클래스(`cell-light-pink`·`cell-warning`·`cell-edited`·`cell-emphasis`, 행 `ag-row-inserted`)만 쓴다.
+ * 색은 shared 그리드 토큰 클래스(`cell-light-pink`·`cell-warning`·`cell-edited`, 행 `ag-row-inserted`)만 쓴다.
  * 값 테스트 표시(TSK-08-04)는 `cell-test-hit`·`cell-test-false`·`cell-test-chosen`·`cell-test-dim`, 적중 행 `ag-row-test-hit`.
  */
 import { createElement, type CSSProperties, type ReactNode } from "react";
@@ -152,7 +152,6 @@ interface CellMark {
   e?: boolean;
   w?: boolean;
   c?: boolean;
-  h?: boolean;
   t?: "hit" | "false" | "chosen" | "dim";
 }
 
@@ -176,7 +175,6 @@ export interface TableColumnContext {
 export interface TableMarks {
   diff: TableDiff;
   split: SplitIssues;
-  selectedRowId: number | null;
   /** 지금 보이는 검사가 서버 결과인가. */
   serverShown: boolean;
   /** 이 표가 보이는 정의의 값 테스트 결과(I33) — 없으면 칠하지 않는다. */
@@ -220,7 +218,6 @@ export function displayRows(rows: readonly GridRow[], vars: readonly ResolvedVar
         e: sev === "ERROR",
         w: sev === "WARNING",
         c: d?.status === "CHANGED" && d.changedVarIds.has(v.varId),
-        h: marks.selectedRowId === r.rowId && v.varKind === "COND" && !!cell && cell.op !== "NA" && cell.op !== undefined,
         t: testMark(marks.test, r.rowId, v.varId),
       };
     }
@@ -242,7 +239,6 @@ function cellRules(varId: number): GridColumn["cellClassRules"] {
     "cell-light-pink": (row) => !!markOf(row, varId).e,
     "cell-warning": (row) => !!markOf(row, varId).w && !markOf(row, varId).e,
     "cell-edited": (row) => !!markOf(row, varId).c && !markOf(row, varId).e && !markOf(row, varId).w,
-    "cell-emphasis": (row) => !!markOf(row, varId).h,
     "cell-test-hit": (row) => markOf(row, varId).t === "hit",
     "cell-test-false": (row) => markOf(row, varId).t === "false",
     "cell-test-chosen": (row) => markOf(row, varId).t === "chosen",
@@ -290,7 +286,8 @@ function varGroup(ctx: TableColumnContext, v: ResolvedVar, meta?: VarMeta): Grid
         key: fieldOf(v.varId, key),
         header,
         width: key === "op" ? 110 : key === "na" ? 56 : key === "expr" ? 260 : 96,
-        align: key === "na" ? "center" : "left",
+        // Number 변수의 값 칸(값·하한·상한·결과값)은 오른쪽 정렬 — OP·식 칸은 글이라 왼쪽.
+        align: key === "na" ? "center" : v.dataType === "NUMBER" && (key === "left" || key === "right" || key === "val") ? "right" : "left",
         editable: key === "na" ? false : (row) => cellEditable(v, key, sourceRow(row), ctx.editable),
         cellClassRules: cellRules(v.varId),
         headerStyle: v.varKind === "RESULT" ? RESULT_VAR_HEAD : undefined,
@@ -371,7 +368,8 @@ export function buildTableColumns(ctx: TableColumnContext): GridColumn[] {
     {
       key: ROW_LABEL_FIELD,
       header: "행",
-      width: 56,
+      // 편집 표는 드래그 손잡이까지 들어가므로 순번 세 자리(999)가 잘리지 않는 폭.
+      width: ctx.editable ? 84 : 64,
       pinned: "left",
       render: (value, row) => {
         const src = sourceRow(row);
@@ -386,7 +384,21 @@ export function buildTableColumns(ctx: TableColumnContext): GridColumn[] {
             "data-testid": `dt-row-${src.rowId}`,
             title: src.note ? `${src.note} (row ${src.rowId})` : `row ${src.rowId}`,
             onClick: () => ctx.onSelectRow(src.rowId),
-            style: { border: "none", background: "none", padding: 0, cursor: "pointer", font: "inherit", color: "var(--color-primary)" },
+            // 숫자만이 아니라 칸 전체(여백 8px 포함)를 눌러도 행을 고르게 버튼으로 칸을 덮는다. 편집 표는 왼쪽에
+            // 드래그 손잡이가 있어 오른쪽 여백만 덮는다(손잡이를 가리면 끌기가 안 된다).
+            style: {
+              display: "block",
+              width: ctx.editable ? "calc(100% + 8px)" : "calc(100% + 16px)",
+              height: "100%",
+              margin: ctx.editable ? "0 -8px 0 0" : "0 -8px",
+              padding: ctx.editable ? "0 8px 0 0" : "0 8px",
+              border: "none",
+              background: "none",
+              cursor: "pointer",
+              font: "inherit",
+              textAlign: "left",
+              color: "var(--color-primary)",
+            },
           },
           `${String(value)}`,
         );

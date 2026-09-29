@@ -4,7 +4,7 @@
  * 카드 ⑥ 테스트 케이스(TSK-08-04 design §6.6·§6.7, 시안 H7). `TB_MDM_RULE_TEST_CASE` 는 버전과 무관하다 — view 의 `testCases` 를 그린다.
  *
  * "모두 실행" 은 값 테스트 카드(④)가 고른 대상·입력(`valueTestInput`)에 `runCases` 를 실어 한 번 돌리고, 케이스마다 서버 비교 결과로
- * 배지("돌려 보기만"/"통과"/"실패 · 불일치 키")를 보인다(I24 — 비교는 서버가 결과 변수 타입으로 한다). "불러오기" 는 케이스 입력을 ④ 입력 칸에
+ * 배지("실행만"/"통과"/"실패 · 불일치 키")를 보인다(I24 — 비교는 서버가 결과 변수 타입으로 한다). "불러오기" 는 케이스 입력을 ④ 입력 칸에
  * 채운다. "수정" 은 팝업에서 이름·설명·입력·기대 JSON 을 고친다. "기대값 갱신" 은 마지막 결과로 기대 JSON 을 다시 쓰고, "삭제" 는 한 번 더 눌러야 보낸다. 쓰기는 row_version 조건(MDM001)이고 뒤에
  * view 를 다시 불러온다.
  */
@@ -12,34 +12,20 @@ import { useCallback, useMemo, useRef, useState } from "react";
 
 import { Button } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
-import { badgeStyle } from "@/shell";
 
 import { copyTestCase, deleteTestCase, runValueTest, saveTestCase } from "../api";
 import type { RuleEditCardProps } from "../cards";
 import { useRuleWorkbench } from "../state/workbench-context";
-import type { TestCaseView, ValueTestCaseResult, ValueTestResult } from "../types";
-import { caseBadge, expectedFromResult, type CaseBadge, type CaseEditFields } from "../value-test/case-model";
+import type { DraftCaseResult, TestCaseView, ValueTestCaseResult, ValueTestResult } from "../types";
+import { caseBadge, caseBadgeCss as badgeCss, expectedFromResult, mismatchText, type CaseBadge, type CaseEditFields } from "../value-test/case-model";
 import { mergeMissingInputKeys } from "../value-test/test-input";
 import { bodyTable, prepareRun, resolveTarget, targetLabel, targetOptions, useTargetView } from "../value-test/run-request";
 import { CardFrame, MutedText } from "./CardFrame";
 import { TestCaseEditModal } from "./TestCaseEditModal";
 
-function badgeCss(b: CaseBadge) {
-  if (b.tone === "danger") return { ...badgeStyle("neutral"), color: "var(--color-danger)", background: "var(--color-danger-soft)" };
-  return badgeStyle(b.tone === "success" ? "success" : "muted");
-}
-
-function shown(v: unknown): string {
-  return typeof v === "string" ? v : JSON.stringify(v ?? null);
-}
-
-/** 결과 칸 뒤에 붙는 불일치·오류 글자. */
-function mismatchText(r: ValueTestCaseResult): string {
-  return r.mismatches.map((m) => `${m.key} ${shown(m.expected)} ≠ ${shown(m.actual)}`).join(" · ");
-}
-
+/** 판정 오류는 서버가 옮긴 사용자 문장만 보인다 — 단계·코드·엔진 원문(`detail`)은 표 칸에 싣지 않는다. */
 function errorText(r: ValueTestCaseResult): string {
-  return (r.errors ?? []).map((e) => `${e.code} — ${e.message}`).join(" · ");
+  return (r.errors ?? []).map((e) => e.message || e.code).join(" · ");
 }
 
 /** 셀 버튼이 부르는 동작 — 열 정의를 렌더마다 새로 만들지 않도록 ref 로 넘긴다. 케이스는 누른 순간의 최신 값으로 찾는다. */
@@ -193,7 +179,8 @@ export function TestCaseCard({ view, editable, canDo, busy, runWrite }: RuleEdit
     setError(null);
     try {
       const result = await runValueTest(prepared.request);
-      setTestRun({ ...prepared.run, result });
+      // ④ 입력의 판정은 케이스 결과가 아니다 — ⑤ 는 케이스 요약만 보이고 표에 칠하지 않는다.
+      setTestRun({ ...prepared.run, result, casesOnly: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -234,6 +221,19 @@ export function TestCaseCard({ view, editable, canDo, busy, runWrite }: RuleEdit
       return saved !== undefined;
     },
     [runWrite, ruleId],
+  );
+
+  // 수정 팝업의 "테스트 실행" — 저장하지 않은 입력·기대로 값 테스트(④)가 고른 대상을 판정한다. 비교는 서버가 한다(I24).
+  // 결과는 팝업 안에만 보인다 — setTestRun 을 부르면 ⑥ 배지와 표 칠이 이 한 건으로 바뀐다.
+  const handleRunDraft = useCallback(
+    async (f: Pick<CaseEditFields, "inputJson" | "expectedJson">): Promise<DraftCaseResult> => {
+      if (!choice) throw new Error("값 테스트(④)에서 대상을 고르세요.");
+      const prepared = prepareRun(view, choice, tableDraft, f.inputJson.trim());
+      const result = await runValueTest({ ...prepared.request, judge: { expectedJson: f.expectedJson.trim() } });
+      if (!result.draftCase) throw new Error("서버가 판정 결과를 돌려주지 않았습니다. 백엔드를 다시 시작했는지 확인하세요.");
+      return result.draftCase;
+    },
+    [choice, view, tableDraft],
   );
 
   // "실행"(이 케이스만) — 케이스가 가진 입력 JSON 으로 그 케이스 하나만 판정한다.
@@ -399,16 +399,18 @@ export function TestCaseCard({ view, editable, canDo, busy, runWrite }: RuleEdit
         candidates={editCandidates}
         rows={editRows}
         busy={busy}
+        runTarget={choice ? targetLabel(choice) : null}
+        onRun={choice ? handleRunDraft : undefined}
         onSave={handleEdit}
         onClose={() => setEditing(null)}
       />
       {error && (
         <p data-testid="tc-error" role="alert" style={{ margin: "var(--spacing-sm) 0 0", color: "var(--color-danger)", whiteSpace: "pre-wrap" }}>
-          케이스를 돌리지 못했습니다. {error}
+          케이스를 실행하지 못했습니다. {error}
         </p>
       )}
       <p style={{ margin: "var(--spacing-sm) 0 0", color: "var(--color-text-secondary)", fontSize: "var(--font-size-sm)" }}>
-        케이스는 값 테스트에서 고른 대상(편집본이면 저장 전 정의)으로 모두 돌린다. 새 버전이 판정을 바꾸면 기대값도 같이 고친다.
+        케이스는 값 테스트에서 고른 대상(편집본이면 저장 전 정의)으로 실행한다. 새 버전이 판정을 바꾸면 기대값도 같이 고친다.
       </p>
     </CardFrame>
   );

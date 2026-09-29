@@ -9,7 +9,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  *       C4 조건별 수식 표시, C5 입력 계약 묶음·RELEASED diff, C6 도메인 검색·화이트리스트 밖 식(design.md §3.3).
  * 고유: S4 수용 5(새 버전·거부), S5 편집·드래그·저장·되돌리기·강조, S6 겹침 알림·서버 동치(수용 7), S7 적중 조건 강조,
  *       S8 수용 4(비소유자), S9 해제·선점, S11 DRAFT 삭제.
- * TSK-08-04 추가: V1 카드 ④⑤⑥·케이스 목록(빈 상태), V2 저장된 버전 값 테스트, V3 편집본 값 테스트·키 보냄 끔, V4 케이스 저장·모두 돌리기·삭제,
+ * TSK-08-04 추가: V1 카드 ④⑤⑥·케이스 목록(빈 상태), V2 저장된 버전 값 테스트, V3 편집본 값 테스트·키 보냄 끔, V4 케이스 저장·모두 실행·삭제,
  *       V5 요청 상한 서버 오류, V6 UNIQUE 겹침 저장 거부(design.md §3.4). S5·S6 은 저장 시 검사가 ERROR 를 거부하도록 바뀌어(08-02 D3 뒤집기,
  *       §3.5) 거부를 확인하는 흐름으로 고쳤다.
  *
@@ -622,7 +622,7 @@ test.describe("mdm dme/ruleEdit", () => {
   }
 
   async function runValueTest(page: Page) {
-    await valueTestCard(page).getByRole("button", { name: "돌리기", exact: true }).click();
+    await valueTestCard(page).getByRole("button", { name: "실행", exact: true }).click();
     await expect(page.getByTestId("vt-result-target")).toBeVisible({ timeout: 30_000 });
   }
 
@@ -693,7 +693,7 @@ test.describe("mdm dme/ruleEdit", () => {
 
     // 표를 다시 고치면 칠한 것을 지우고 다시 돌리라고 안내한다(I33).
     await editText(page, 3, "c3_val", "E");
-    await expect(page.getByTestId("dt-test-stale")).toContainText("다시 돌리세요");
+    await expect(page.getByTestId("dt-test-stale")).toContainText("다시 실행하세요");
     await expect(grid(page).locator(".ag-row-test-hit")).toHaveCount(0);
     await expect(grid(page).locator(".cell-test-false")).toHaveCount(0);
 
@@ -702,10 +702,12 @@ test.describe("mdm dme/ruleEdit", () => {
     await expect(vtValueCell(page, "COIL_THK")).toHaveText("(키 없음)");
     await runValueTest(page);
     await expect(page.getByTestId("vt-result-target")).toContainText("판정 오류");
-    await expect(page.getByTestId("vt-result-errors")).toContainText("MISSING_KEY");
+    // 본문은 사용자 문장, 코드는 툴팁(title) — Local-Rules §13.
+    await expect(page.getByTestId("vt-result-errors")).toContainText("COIL_THK 값이");
+    await expect(page.getByTestId("vt-result-errors").locator("li").first()).toHaveAttribute("title", /MISSING_KEY/);
   });
 
-  test("V4 케이스: 케이스로 저장하면 케이스 표에 새 줄이 생기고, 모두 돌리기로 통과·실패가 보이며, 삭제하면 사라진다", async ({ page }) => {
+  test("V4 케이스: 케이스로 저장하면 케이스 표에 새 줄이 생기고, 모두 실행으로 통과·실패가 보이며, 삭제하면 사라진다", async ({ page }) => {
     await openRule(page, STEWARD, VT_RULE);
     await page.getByTestId("vt-target").selectOption({ label: "버전 1 · RELEASED" });
     await fillInput(page, "COIL_THK", "1.8");
@@ -743,7 +745,7 @@ test.describe("mdm dme/ruleEdit", () => {
     await page.getByTestId("vt-target").selectOption({ label: "버전 1 · RELEASED" });
     await fillInput(page, "COIL_THK", "2.0");
     await fillInput(page, "SURF_GRD", "A".repeat(17_000));
-    await valueTestCard(page).getByRole("button", { name: "돌리기", exact: true }).click();
+    await valueTestCard(page).getByRole("button", { name: "실행", exact: true }).click();
     await expect(page.getByTestId("vt-error")).toContainText("값 테스트 요청 상한", { timeout: 30_000 });
     await expect(page.getByTestId("vt-result-target")).toHaveCount(0);
   });

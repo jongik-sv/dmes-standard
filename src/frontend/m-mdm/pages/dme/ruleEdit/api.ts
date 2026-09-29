@@ -97,6 +97,11 @@ export interface ValueTestRequest {
    * 서버가 같은 RuleCaseJudge 로 판정하므로 결과 배지가 "모두 실행" 과 동일하다.
    */
   caseIds?: number[];
+  /**
+   * 저장 전 케이스 판정 — 수정 팝업의 "테스트 실행". 켜면 inputJson 의 결과를 expectedJson 과 서버가 견줘 `draftCase` 로 돌려준다(I24).
+   * 빈 expectedJson 은 "실행만"(pass null)이다.
+   */
+  judge?: { expectedJson: string };
 }
 
 /** 값 테스트 — BPMN action=execute(EDIT). 원장에 쓰지 않는다(I19). 행은 `grids.rows.rows`. */
@@ -114,6 +119,9 @@ export function runValueTest(req: ValueTestRequest): Promise<ValueTestResult> {
       runCases: req.runCases ? true : undefined,
       // OASIS 최상위 dto property 로 List 를 둘 수 없어 콤마 문자열로 보낸다(서버 DTO 와 같은 사유).
       caseIds: req.caseIds && req.caseIds.length > 0 ? req.caseIds.join(",") : undefined,
+      // 빈 기대 JSON("실행만")도 그대로 보낸다 — 켬 여부는 judgeInput 이 가른다.
+      judgeInput: req.judge ? true : undefined,
+      expectedJson: req.judge ? req.judge.expectedJson : undefined,
     },
     body ? { rows: { rows: tableGridRows(req.rows ?? []) } } : undefined,
   );

@@ -4,15 +4,19 @@
  * 카드 ③ 의사결정표(TSK-08-02 design §6.7.4). 적중 정책, 3줄 머리 그리드(shared `AgDataGrid` 열 그룹·행 드래그, D8),
  * 행 추가·기본 행 추가·행 복사·표 저장·되돌리기, 검사 요약, 행 선택 강조.
  *
- * 편집은 서버 판정 `editable`(DECISION 만)일 때만 켠다(I7). 편집할 때마다 evalex `analyzeRule` 로 즉시 검사하고(I13),
+ * 편집은 서버 판정 `editable`(DECISION 만)일 때만 켠다(I7). 편집할 때마다 evalex `analyzeRule` 로 즉시 검사하고(I13 — Worker 에서
+ * 돌려 큰 표에서도 입력이 멈추지 않는다, use-rule-analysis),
  * 저장 응답의 서버 검사와 저장 전 화면 검사가 같은지(`sameIssues`) 알린다(수용 7, 06:731). 저장 안 한 변경이 없으면
  * view 가 실은 서버 검사를 보인다.
  *
  * TSK-08-04: 편집 중인 표를 카드 공유 상태(`RuleWorkbenchContext`)에 올려 값 테스트(편집본)가 쓰게 하고, 이 표가 보이는 정의의 값 테스트
  * 결과만 칠한다(I33). 저장 거부(서버 저장 시 검사 ERROR)면 메시지를 보이고 편집 상태를 그대로 둔다. 서버 저장 검사만 낸 이슈는 동치
  * 배지(분석기 코드만, I26)와 따로 "서버 저장 검사" 로 보인다. view 를 다시 불러와도 표 정의(버전·row_version·열·행)가 같으면 편집을 지우지 않는다.
+ *
+ * [크게 보기]: 표 높이를 본문 스크롤 영역에서 보이는 높이까지 늘리고(표 위 줄과 아래 버튼 줄은 함께 보이게) 카드를 맨 위로 굴린다.
+ * 높이만 바꾸므로 그리드를 다시 만들지 않아 편집 중인 셀·선택이 그대로 남는다. 창 크기가 바뀌면 다시 맞춘다.
  */
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type RefObject } from "react";
 
 import { AgDataGrid } from "@dk-oasis/shared/grid";
 import { Button, Select } from "@dk-oasis/shared/form";
@@ -21,11 +25,14 @@ import { isRowVersionConflict } from "@/dme/oasis-call";
 
 import { ColumnDraftSharedContext } from "../sections/column-draft-context";
 import { tableSaveBlocked } from "../sections/columns/column-draft";
+import { SectionFrame } from "../sections/SectionFrame";
 
 import { saveTable } from "../api";
 import type { RuleEditCardProps, RuleTableSection } from "../cards";
 import { CardFrame, MutedText } from "../cards/CardFrame";
 import { useRuleWorkbench } from "../state/workbench-context";
+import type { HitPolicy } from "@/evalex";
+
 import type { HitPolicyCode, RuleEditView, RuleIssueView } from "../types";
 import { runShownOnTable, testMarksOf } from "../value-test/test-marks";
 import { mapRowIds, sameIssues, serverOnlyIssues, splitIssues } from "./analysis";
@@ -35,12 +42,13 @@ import {
   initTableState,
   isDirty,
   isRowDraggable,
+  loadedRowsJson,
   saveRowsOf,
-  tableAnalysis,
   tableReducer,
   tableStoredRows,
   type TableAction,
 } from "./table-state";
+import { analyzeNow, useRuleAnalysis } from "./use-rule-analysis";
 
 const HIT_POLICIES: Array<{ value: HitPolicyCode; label: string; desc: string }> = [
   { value: "FIRST", label: "FIRST", desc: "위에서부터 처음 맞는 행 하나를 쓴다. 겹침은 경고, 가려진 행은 도달 불가로 알린다." },
@@ -93,6 +101,47 @@ export interface DecisionTableCardProps extends RuleEditCardProps {
   extraSections?: RuleTableSection[];
 }
 
+/** 표를 크게 볼 때 가장 작은 높이(px) — 본문이 아주 좁아도 이보다 줄이지 않는다. */
+const EXPANDED_MIN_HEIGHT = 320;
+const EXPANDED_GAP = 8;
+
+function scrollParentOf(el: HTMLElement): HTMLElement | null {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    const y = getComputedStyle(p).overflowY;
+    if (y === "auto" || y === "scroll") return p;
+  }
+  return null;
+}
+
+/**
+ * 크게 보기 높이 — `gridBox` 가 든 카드(section)의 머리부터 표 바로 아래 버튼 줄(`data-dt-actions`)까지가 본문 스크롤 영역에 꼭 들어가도록 표 높이를 구한다.
+ * 켜는 순간 카드를 스크롤 영역 맨 위로 굴린다. 꺼져 있거나 잴 수 없으면 null.
+ */
+function useExpandedHeight(gridBox: RefObject<HTMLDivElement | null>, expanded: boolean): number | null {
+  const [height, setHeight] = useState<number | null>(null);
+  useEffect(() => {
+    const box = gridBox.current;
+    const scroller = box && scrollParentOf(box);
+    const card = box?.closest("section");
+    if (!expanded || !box || !scroller || !card) {
+      setHeight(null);
+      return;
+    }
+    const measure = () => {
+      const above = box.getBoundingClientRect().top - card.getBoundingClientRect().top;
+      const actions = box.nextElementSibling as HTMLElement | null;
+      const below = actions?.dataset.dtActions != null ? actions.offsetHeight : 0;
+      setHeight(Math.max(EXPANDED_MIN_HEIGHT, Math.floor(scroller.clientHeight - above - below - EXPANDED_GAP * 3)));
+    };
+    measure();
+    scroller.scrollTop += card.getBoundingClientRect().top - scroller.getBoundingClientRect().top - EXPANDED_GAP;
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    ro?.observe(scroller);
+    return () => ro?.disconnect();
+  }, [expanded, gridBox]);
+  return height;
+}
+
 export function DecisionTableCard(props: DecisionTableCardProps) {
   const { view, runWrite, setDirty, canDo, busy, extraSections = [] } = props;
   const [state, dispatch] = useReducer(tableReducer, view, initTableState);
@@ -101,12 +150,18 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
   const [colDirty, setColDirty] = useState(false);
   const [highlightVarId, setHighlightVarId] = useState<number | null>(null);
   const [saveRejected, setSaveRejected] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  // 검사 영역과 그 안의 표 단위 검사는 접을 수 있다. 접혀도 제목 줄의 오류·경고 개수와 일치 배지는 보인다.
+  const [checkOpen, setCheckOpen] = useState(true);
+  const [tableCheckOpen, setTableCheckOpen] = useState(true);
+  const gridBoxRef = useRef<HTMLDivElement>(null);
+  const expandedHeight = useExpandedHeight(gridBoxRef, expanded);
   const workbench = useRuleWorkbench();
   const { publishTableDraft, setColDirty: publishColDirty } = workbench;
 
   const viewRef = useRef(view);
   viewRef.current = view;
-  const loadSig = tableLoadSig(view);
+  const loadSig = useMemo(() => tableLoadSig(view), [view]);
   useEffect(() => {
     dispatch({ type: "load", view: viewRef.current });
   }, [loadSig]);
@@ -117,7 +172,14 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
     dispatch(action);
   }, []);
 
-  const dirty = isDirty(state);
+  // 행 고르기(selectedRowId)는 표 내용이 아니다 — 아래 계산은 행·변수·적중 정책이 바뀔 때만 다시 한다(2,600행 표에서 고를 때마다 검사가 돌면 느리다).
+  const { ruleId, ruleKind, vars: tableVars, rows: tableRows, loadedRows, hitPolicy, loadedHit } = state;
+  const storedRows = useMemo(() => tableStoredRows({ vars: tableVars, rows: tableRows }), [tableVars, tableRows]);
+  const loadedJson = useMemo(() => loadedRowsJson({ vars: tableVars, loadedRows }), [tableVars, loadedRows]);
+  const dirty = useMemo(
+    () => isDirty({ vars: tableVars, rows: tableRows, loadedRows, hitPolicy, loadedHit }, { stored: storedRows, loadedJson }),
+    [tableVars, tableRows, loadedRows, hitPolicy, loadedHit, storedRows, loadedJson],
+  );
   const columnShared = useMemo(
     () => ({ colDirty, setColDirty, highlightVarId, setHighlightVarId, tableDirty: dirty }),
     [colDirty, highlightVarId, dirty],
@@ -129,7 +191,6 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
   }, [dirty, setDirty, view]);
 
   // 편집 중인 표를 값 테스트(편집본)에 올린다 — 내용이 같으면 reducer 가 상태를 그대로 둔다.
-  const storedRows = useMemo(() => tableStoredRows(state), [state]);
   useEffect(() => {
     publishTableDraft({ ruleId: state.ruleId, ver: view.selectedVer, hitPolicy: state.hitPolicy, rows: storedRows, dirty });
   }, [publishTableDraft, state.ruleId, view.selectedVer, state.hitPolicy, storedRows, dirty]);
@@ -141,9 +202,15 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
   const decision = view.rule.ruleKind === "DECISION";
   const editable = state.editable && decision;
 
-  // 즉시 검사(I13) — 편집 한 번(칸·행 추가·삭제·드래그·적중 정책)마다 상태가 바뀌어 다시 돈다.
-  const js = useMemo(() => tableAnalysis(state), [state]);
-  const shown = dirty ? js.issues : (view.issues ?? []);
+  // 즉시 검사(I13) — 편집 한 번(칸·행 추가·삭제·드래그·적중 정책)마다 상태가 바뀌어 다시 돈다(Worker, 편집이 멈추면).
+  // 변경이 없으면 서버 검사(view.issues)를 보이므로 화면 검사를 돌리지 않는다. 검사 중에는 앞 결과(처음이면 서버 검사)를 그대로 보인다.
+  const analysisInput = useMemo(
+    () => (dirty ? { ruleId, ruleKind, hitPolicy: hitPolicy as HitPolicy | null, vars: tableVars, rows: storedRows } : null),
+    [dirty, ruleId, ruleKind, hitPolicy, tableVars, storedRows],
+  );
+  const analysis = useRuleAnalysis(analysisInput);
+  const js = analysis.result;
+  const shown = dirty && js ? js.issues : (view.issues ?? []);
   const split = useMemo(() => splitIssues(shown), [shown]);
   const diff = useMemo(() => diffTable(selected?.baseVer != null ? view.baseRows : null, state.rows), [selected?.baseVer, view.baseRows, state.rows]);
 
@@ -185,10 +252,16 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
   );
   const gridKey = `${view.rule.maruRuleId}:${view.selectedVer ?? "-"}:${editable ? "edit" : "read"}:${varsSig}`;
   const data = useMemo(
-    () => displayRows(state.rows, state.vars, { diff, split, selectedRowId: state.selectedRowId, serverShown: !dirty, test: testMarks }),
-    [state.rows, state.vars, diff, split, state.selectedRowId, dirty, testMarks],
+    () => displayRows(state.rows, state.vars, { diff, split, serverShown: !dirty, test: testMarks }),
+    [state.rows, state.vars, diff, split, dirty, testMarks],
   );
+  // 행 고르기는 표시 행(data)에 싣지 않는다 — 고른 행은 highlightedRowKey 가 이전·새 행만 다시 그린다(고를 때마다 표 전체를 그리면 느리다).
   const markToken = useMemo(() => JSON.stringify(data.map((r) => [r.rowKey, r.__mk, r.__added, r.__hit])), [data]);
+  // 어느 칸을 눌러도, ↑/↓ 로 포커스 칸을 옮겨도 그 행을 고른다(읽기 전용 표는 그리드 컨테이너 ↑/↓ 가 onRowClick 을 부른다).
+  const handleRowClick = useCallback((row: Record<string, unknown>) => {
+    const rowId = Number(row.rowId);
+    if (Number.isFinite(rowId)) dispatch({ type: "selectRow", rowId });
+  }, []);
 
   const handleCellChange = useCallback(
     (p: { rowKey: string | number; field: string; newValue: unknown }) => {
@@ -205,7 +278,8 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
 
   const handleSave = useCallback(async () => {
     if (!selected) return;
-    const before = js;
+    // 저장 전 화면 검사 — 검사 중이면 지금 표로 바로 검사한다(서버 검사와 견줄 기준이라 옛 결과를 쓰면 안 된다).
+    const before = analysisInput && (analysis.pending || !js) ? analyzeNow(analysisInput) : (js ?? { issues: [], failed: false });
     setSaveRejected(null);
     const res = await runWrite(async () => {
       try {
@@ -220,7 +294,7 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
       const server = res.issues ?? [];
       setServerCheck({ same: !before.failed && sameIssues(mapRowIds(before.issues, res.rowIdMap), server), issues: server });
     }
-  }, [selected, js, runWrite, view.rule.maruRuleId, decision, state]);
+  }, [selected, js, analysis.pending, analysisInput, runWrite, view.rule.maruRuleId, decision, state]);
 
   const errors = shown.filter((i) => i.severity === "ERROR").length;
   const warnings = shown.length - errors;
@@ -229,13 +303,31 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
   const canCopy = state.rows.some((r) => r.rowId === state.selectedRowId && r.rowKind === "NORMAL");
   const policy = HIT_POLICIES.find((p) => p.value === state.hitPolicy);
   const canSave = editable && dirty && canDo("save") && !busy && !saveBlocked;
-  const gridHeight = Math.min(560, 3 * 28 + Math.max(state.rows.length, 3) * 26 + 24);
+  const fitHeight = Math.min(560, 3 * 28 + Math.max(state.rows.length, 3) * 26 + 24);
+  const gridHeight = expandedHeight == null ? fitHeight : Math.max(fitHeight, expandedHeight);
 
   return (
     <CardFrame
       title="③ 의사결정표"
       testId="rule-card-table"
-      right={dirty ? <span data-testid="dt-dirty" style={badgeStyle("warning")}>저장 안 한 변경</span> : null}
+      right={
+        <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--spacing-xs)", fontWeight: 400 }}>
+          {dirty && (
+            <span data-testid="dt-dirty" style={badgeStyle("warning")}>
+              저장 안 한 변경
+            </span>
+          )}
+          <Button
+            size="sm"
+            data-testid="dt-expand"
+            aria-pressed={expanded}
+            title={expanded ? "표 높이를 행 수에 맞게 되돌립니다" : "표를 본문 높이만큼 크게 봅니다"}
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {expanded ? "원래 크기" : "크게 보기"}
+          </Button>
+        </span>
+      }
     >
       {decision ? (
         <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-sm)", paddingBottom: "var(--spacing-xs)" }}>
@@ -256,7 +348,7 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
         </p>
       )}
 
-      <div data-testid="dt-grid" style={{ height: gridHeight }}>
+      <div ref={gridBoxRef} data-testid="dt-grid" style={{ height: gridHeight }}>
         <AgDataGrid
           key={gridKey}
           columns={columns}
@@ -271,6 +363,9 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
           onRowOrderChange={(keys) => edit({ type: "reorder", keys })}
           onCellValueChanged={handleCellChange}
           highlightedRowKey={state.selectedRowId == null ? null : String(state.selectedRowId)}
+          onRowClick={handleRowClick}
+          onFocusedRowChange={handleRowClick}
+          editArrowNavigation
           getRowClassExtra={rowClassOf}
           rowClassRefreshToken={markToken}
           emptyMessage="행이 없습니다."
@@ -279,7 +374,7 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
       </div>
 
       {decision && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-xs)", paddingTop: "var(--spacing-sm)" }}>
+        <div data-dt-actions="" style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-xs)", paddingTop: "var(--spacing-sm)" }}>
           <Button disabled={!editable || busy} onClick={() => edit({ type: "addRow" })}>
             행 추가
           </Button>
@@ -315,7 +410,7 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
       )}
       {workbench.testRunCleared && (
         <p data-testid="dt-test-stale" style={{ margin: "var(--spacing-sm) 0 0", color: "var(--color-text-secondary)" }}>
-          표가 바뀌어 값 테스트 결과를 지웠습니다. 다시 돌리세요.
+          표가 바뀌어 값 테스트 결과를 지웠습니다. 다시 실행하세요.
         </p>
       )}
       {shownRun && (
@@ -325,26 +420,37 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
         </p>
       )}
 
-      <div data-testid="dt-check" style={{ paddingTop: "var(--spacing-sm)" }}>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-sm)", alignItems: "center" }}>
-          <strong>검사({dirty ? "화면" : "서버"})</strong>
-          <span data-testid="dt-check-count">
-            오류 {errors} · 경고 {warnings}
-          </span>
-          {serverCheck &&
-            (serverCheck.same ? (
-              <span data-testid="dt-check-same" style={badgeStyle("success")}>
-                화면·서버 검사 일치
+      <SectionFrame
+        testId="dt-check"
+        title={`검사(${dirty ? "화면" : "서버"})`}
+        open={checkOpen}
+        onOpenChange={setCheckOpen}
+        headerExtra={
+          <>
+            <span data-testid="dt-check-count">
+              오류 {errors} · 경고 {warnings}
+            </span>
+            {dirty && analysis.pending && (
+              <span data-testid="dt-check-pending" style={{ color: "var(--color-text-secondary)" }}>
+                검사 중…
               </span>
-            ) : (
-              <span data-testid="dt-check-differ" style={badgeStyle("warning")}>
-                서버 결과가 기준(화면 검사와 다름)
-              </span>
-            ))}
-        </div>
-        {dirty && js.failed && (
+            )}
+            {serverCheck &&
+              (serverCheck.same ? (
+                <span data-testid="dt-check-same" style={badgeStyle("success")}>
+                  화면·서버 검사 일치
+                </span>
+              ) : (
+                <span data-testid="dt-check-differ" style={badgeStyle("warning")}>
+                  서버 결과가 기준(화면 검사와 다름)
+                </span>
+              ))}
+          </>
+        }
+      >
+        {dirty && js?.failed && (
           <p data-testid="dt-check-failed" style={{ margin: "var(--spacing-xs) 0", color: "var(--color-danger)" }}>
-            화면 검사를 할 수 없는 칸이 있습니다(저장하면 서버가 검사한다): {js.failure}
+            화면 검사를 할 수 없는 칸이 있습니다(저장하면 서버가 검사한다): {js?.failure}
           </p>
         )}
         <ul data-testid="dt-check-rows" style={{ margin: "var(--spacing-xs) 0", paddingLeft: "var(--spacing-lg)" }}>
@@ -369,8 +475,7 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
           </div>
         )}
         {split.table.length > 0 && (
-          <div data-testid="dt-check-table">
-            <span style={{ fontWeight: 600 }}>표 단위 검사</span>
+          <SectionFrame testId="dt-check-table" title={`표 단위 검사 (${split.table.length})`} open={tableCheckOpen} onOpenChange={setTableCheckOpen}>
             <ul style={{ margin: "var(--spacing-xs) 0", paddingLeft: "var(--spacing-lg)" }}>
               {split.table.map((i, idx) => (
                 <li key={`${i.code}-${idx}`} style={{ color: "var(--color-text-secondary)" }}>
@@ -378,14 +483,14 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
                 </li>
               ))}
             </ul>
-          </div>
+          </SectionFrame>
         )}
         {diff.deleted.length > 0 && (
           <p data-testid="dt-deleted-rows" style={{ margin: 0, color: "var(--color-text-secondary)" }}>
             base 대비 지운 행: {diff.deleted.map((r) => `row ${r.rowId}`).join(", ")}
           </p>
         )}
-      </div>
+      </SectionFrame>
 
       <ColumnDraftSharedContext.Provider value={columnShared}>
         {extraSections.map((s) => (

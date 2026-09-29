@@ -92,7 +92,7 @@ function fieldColumns(actions: { current: FieldActions | null }): GridColumn[] {
 }
 
 const MODE_DESC = {
-  BODY: "편집 중인 행을 요청에 실어 보낸다(변수는 이 DRAFT 의 저장된 열). 서버는 저장 때와 같은 파싱·화이트리스트·생성기를 돌려 메모리에서만 판정하고 버린다. 저장하지 않아도, 저장 시 검사에 걸리는 표도 돌릴 수 있다.",
+  BODY: "편집 중인 행을 요청에 실어 보낸다(변수는 이 DRAFT 의 저장된 열). 서버는 저장 때와 같은 파싱·화이트리스트·생성기를 돌려 메모리에서만 판정하고 버린다. 저장하지 않아도, 저장 시 검사에 걸리는 표도 실행할 수 있다.",
   VERSION: "저장된 버전을 서버가 원장에서 읽어 판정한다. 편집본과 결과를 견줄 때 쓴다.",
 } as const;
 
@@ -244,7 +244,7 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
         />
         {choice?.target === "BODY" && colDirty && (
           <span data-testid="vt-col-draft" style={{ color: "var(--color-warning)" }}>
-            열 설정 초안은 반영하지 않습니다(적용 뒤 다시 돌리세요).
+            열 설정 초안은 반영하지 않습니다(적용 뒤 다시 실행하세요).
           </span>
         )}
       </div>
@@ -294,8 +294,8 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
       )}
 
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "var(--spacing-xs)", paddingTop: "var(--spacing-sm)" }}>
-        <Button variant="primary" disabled={!canRun} onClick={() => void handleRun()}>
-          돌리기
+        <Button variant="primary" disabled={!canRun} data-testid="vt-run" onClick={() => void handleRun()}>
+          실행
         </Button>
         <Input data-testid="vt-case-name" value={caseName} placeholder="케이스 이름" onChange={setCaseName} style={{ width: 160 }} />
         <Button disabled={!canSaveCase} onClick={() => void handleSaveCase()}>
@@ -304,7 +304,7 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
       </div>
       {error && (
         <p data-testid="vt-error" role="alert" style={{ margin: "var(--spacing-sm) 0 0", color: "var(--color-danger)", whiteSpace: "pre-wrap" }}>
-          값 테스트를 돌리지 못했습니다. {error}
+          값 테스트를 실행하지 못했습니다. {error}
         </p>
       )}
       <p style={{ margin: "var(--spacing-sm) 0 0", color: "var(--color-text-secondary)", fontSize: "var(--font-size-sm)" }}>

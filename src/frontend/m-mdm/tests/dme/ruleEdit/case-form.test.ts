@@ -61,7 +61,7 @@ describe("기대 폼", () => {
     expect(f.hit).toEqual({ on: true, rowIds: [1, 3] });
   });
 
-  it("빈 기대 JSON 은 기대값 없이 돌려 보기만이다", () => {
+  it("빈 기대 JSON 은 기대값 없이 실행만이다", () => {
     const f = expectedFormOf(SLOTS, "  ");
     expect(f.none).toBe(true);
     expect(expectedJsonOf(SLOTS, f)).toBe("");

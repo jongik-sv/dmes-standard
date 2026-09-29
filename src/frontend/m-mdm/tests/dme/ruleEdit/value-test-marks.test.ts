@@ -107,6 +107,25 @@ describe("testMarksOf", () => {
     const m = testMarksOf(result({ outcome: "ERROR", hits: undefined, trace: undefined }), SAMPLE_VARS, [], 4);
     expect(m.hitRowIds.size + m.firstFalse.size + m.chosen.size + m.dimmed.size).toBe(0);
   });
+
+  it("판정 오류여도 서버가 행 추적을 실으면(UNIQUE 적중 둘 이상) 맞은 행과 첫 거짓 칸을 칠한다", () => {
+    const m = testMarksOf(
+      result({
+        outcome: "ERROR",
+        hits: undefined,
+        trace: [
+          { rowId: 1, seq: 1, evaluated: true, hit: true, firstFalseVarId: null },
+          { rowId: 2, seq: 2, evaluated: true, hit: false, firstFalseVarId: 3 },
+          { rowId: 3, seq: 3, evaluated: true, hit: true, firstFalseVarId: null },
+        ],
+      }),
+      SAMPLE_VARS,
+      [],
+      4,
+    );
+    expect([...m.hitRowIds]).toEqual([1, 3]);
+    expect([...m.firstFalse]).toEqual([[2, 3]]);
+  });
 });
 
 describe("runShownOnTable (I33)", () => {
@@ -187,7 +206,6 @@ describe("displayRows 의 값 테스트 표시", () => {
   const baseMarks: TableMarks = {
     diff: { rows: new Map(), deleted: [] },
     split: { byRow: new Map(), byCell: new Map(), table: [] },
-    selectedRowId: null,
     serverShown: true,
   };
   const grid = gridRowsFromStored(SAMPLE_VARS, SAMPLE_ROWS);

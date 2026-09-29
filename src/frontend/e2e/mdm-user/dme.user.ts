@@ -34,7 +34,7 @@ import {
  * 화면으로 새로 만든다(장 하나만 따로 돌려도 되게 — 로컬 SQLite 잠금 시간을 장 단위로 끊는다).
  *   A 룰 등록·조회 → 룰 화면(헤더 수정·찾기·해제/선점·두 사용자 잠금) → 열 설정(초안 거부·도메인 찾기·열 추가·순서·적용)
  *     → 의사결정표(적중 정책·ALL_NA_ROW 거부·행 추가/복사/기본 행·저장·겹침 거부·행 삭제) → 피벗 → 입력 계약
- *     → 값 테스트(편집본·저장된 버전·키 보냄 끔·기본 행) → 테스트 케이스(저장·모두 돌리기·불러오기·수정·기대값 갱신·삭제)
+ *     → 값 테스트(편집본·저장된 버전·키 보냄 끔·기본 행) → 테스트 케이스(저장·모두 실행·불러오기·수정·기대값 갱신·삭제)
  *     → 버전 확정(대기 목록·검사·취소·확정) → 확정 반영 조회
  *   B 확정된 룰의 새 버전(복사·표 수정·계약 비교) → 확정 검사 적용 순서 거부 → 새 버전 DRAFT 삭제 → 룰 폐기 → 폐기 반영 조회
  *   C 룰 세트 — 준비(서로 읽는 확정 룰 둘) → 등록·ID 규칙·중복 → 세트 편집(룰 추가·중복·순서 거부·▲▼·✕·지침·저장·검사)
@@ -380,7 +380,7 @@ async function vtInput(page: Page, name: string, value: string) {
 }
 
 async function vtRun(page: Page) {
-  await vtCard(page).getByRole("button", { name: "돌리기", exact: true }).click();
+  await vtCard(page).getByRole("button", { name: "실행", exact: true }).click();
   await expect(tid(page, "vt-result-target")).toBeVisible({ timeout: 30_000 });
   await waitIdle(page);
 }
@@ -1051,7 +1051,8 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(vtValueCell(page, THK)).toHaveText("(키 없음)");
     await vtRun(page);
     await expect(tid(page, "vt-result-target")).toContainText("판정 오류");
-    await expect(tid(page, "vt-result-errors")).toContainText("MISSING_KEY");
+    await expect(tid(page, "vt-result-errors")).toContainText(`${THK} 값이`);
+    await expect(tid(page, "vt-result-errors").locator("li").first()).toHaveAttribute("title", /MISSING_KEY/);
     await tid(page, `vt-key-${THK}`).locator('input[type="checkbox"]').check();
 
     // 두께 5.0 · 표면 B 는 어느 행도 맞지 않아 기본 행 C 다.
@@ -1065,7 +1066,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     watcher.assertClean("ruleEdit");
   });
 
-  test("TC-DME-TC-01 테스트 케이스 CRUD — 저장·모두 돌리기·불러오기·수정(취소·오류·기대값 틀림)·기대값 갱신·삭제", async () => {
+  test("TC-DME-TC-01 테스트 케이스 CRUD — 저장·모두 실행·불러오기·수정(취소·오류·기대값 틀림)·기대값 갱신·삭제", async () => {
     // 등록: 방금 돌린 결과(5.0·B → C)가 기대값으로 실린다.
     await expect(vtCard(page).getByRole("button", { name: "케이스로 저장", exact: true })).toBeDisabled();
     await tid(page, "vt-case-name").fill(CASE_C);
@@ -1084,7 +1085,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(caseRow(page, CASE_DEL)).toBeVisible({ timeout: 30_000 });
     await expect(tid(page, "tc-empty")).toHaveCount(0);
 
-    // 조회: 모두 돌리기 — 기대값이 맞아 통과.
+    // 조회: 모두 실행 — 기대값이 맞아 통과.
     await tcCard(page).getByRole("button", { name: "모두 실행", exact: true }).click();
     for (const n of [CASE_A, CASE_C, CASE_DEL]) {
       await expect(caseRow(page, n).locator('[data-testid^="tc-badge-"]'), n).toHaveText(/통과/, { timeout: 30_000 });
@@ -1093,7 +1094,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await tcCard(page).scrollIntoViewIfNeeded();
     await snap(page, "dme-ruleEdit-TC-01-cases");
 
-    // 한 케이스만 돌리기 — 그 케이스만 배지가 남는다.
+    // 한 케이스만 실행 — 그 케이스만 배지가 남는다.
     await caseRow(page, CASE_A).locator('[data-testid^="tc-run-"]').click();
     await expect(caseRow(page, CASE_A).locator('[data-testid^="tc-badge-"]')).toHaveText(/통과/, { timeout: 30_000 });
     await expect(caseRow(page, CASE_C).locator('[data-testid^="tc-badge-"]')).toHaveCount(0);
@@ -1126,7 +1127,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await tid(page, "tc-edit-save").click();
     await expect(tid(page, "tc-edit-error")).toBeVisible();
     await expect(tid(page, "tc-edit-modal")).toBeVisible();
-    // 수정(U): 이름·설명·틀린 기대값으로 저장하면 모두 돌리기에서 실패로 보인다.
+    // 수정(U): 이름·설명·틀린 기대값으로 저장하면 모두 실행에서 실패로 보인다.
     await tid(page, "tc-edit-input").fill(`{"${THK}": 5.0, "${SURF}": "B"}`);
     await tid(page, "tc-edit-name").fill(`${CASE_C}(수정)`);
     await tid(page, "tc-edit-desc").fill("기대값을 일부러 틀리게 둔다");
@@ -1716,7 +1717,7 @@ test.describe("C 룰 세트", () => {
   test("TC-DME-SED-04 조회(R) — 세트를 찾아 다시 열면 저장한 목록이 남고, 구성 지침은 결과 변수에서 순서를 제안한다", async () => {
     await tid(page, "set-pick-keyword").fill(`${SET}_NONE`);
     await tid(page, "set-edit-topbar").getByRole("button", { name: "찾기", exact: true }).click();
-    await expect(tid(page, "set-pick-list")).toHaveText("찾은 세트가 없다", { timeout: 20_000 });
+    await expect(tid(page, "set-pick-list")).toHaveText("찾은 세트가 없습니다.", { timeout: 20_000 });
     await tid(page, "set-pick-keyword").fill(SET);
     await tid(page, "set-pick-keyword").press("Enter");
     await tid(page, `set-pick-${SET}`).click();
@@ -2050,7 +2051,7 @@ test.describe("D 화면 연결·넘기기·충돌·드래그·읽기 전용", ()
       await expect(tid(page, "col-add-cond")).toHaveCount(0);
       // 대상 정의를 받은 뒤(열 없는 룰이라 "입력 변수가 없습니다" 가 보인 뒤)에 본다 — 받기 전에는 권한과 무관하게 꺼져 있다.
       await expect(tid(page, "vt-no-input")).toBeVisible({ timeout: 20_000 });
-      await expect(vtCard(page).getByRole("button", { name: "돌리기", exact: true })).toBeDisabled();
+      await expect(vtCard(page).getByRole("button", { name: "실행", exact: true })).toBeDisabled();
       await snap(page, "dme-ro-ruleEdit");
 
       // ruleConfirm — 남의 DRAFT 를 골라도 검사·확정이 꺼져 있다.

@@ -72,7 +72,7 @@ function nextTemp(state: TableState): number {
 
 export function tableReducer(state: TableState, action: TableAction): TableState {
   if (action.type === "load") return initTableState(action.view);
-  if (action.type === "selectRow") return { ...state, selectedRowId: action.rowId };
+  if (action.type === "selectRow") return state.selectedRowId === action.rowId ? state : { ...state, selectedRowId: action.rowId };
   if (!state.editable) return state;
   switch (action.type) {
     case "addRow": {
@@ -138,19 +138,28 @@ export function isRowDraggable(row: Pick<GridRow, "rowKind">): boolean {
   return row.rowKind === "NORMAL";
 }
 
-export function tableStoredRows(state: TableState): StoredRow[] {
+export function tableStoredRows(state: Pick<TableState, "vars" | "rows">): StoredRow[] {
   return storedRowsFromGrid(state.vars, state.rows);
 }
 
-export function isDirty(state: TableState): boolean {
-  return (
-    state.hitPolicy !== state.loadedHit ||
-    JSON.stringify(tableStoredRows(state)) !== JSON.stringify(storedRowsFromGrid(state.vars, state.loadedRows))
-  );
+/** 불러온 표의 직렬화 — 편집마다 다시 만들지 않게 카드가 불러올 때 한 번만 만들어 `isDirty` 에 넘긴다(2,600행 표). */
+export function loadedRowsJson(state: Pick<TableState, "vars" | "loadedRows">): string {
+  return JSON.stringify(storedRowsFromGrid(state.vars, state.loadedRows));
+}
+
+/** `pre` — 이미 만든 편집본 행·불러온 표 직렬화가 있으면 다시 만들지 않는다. */
+export function isDirty(
+  state: Pick<TableState, "vars" | "rows" | "loadedRows" | "hitPolicy" | "loadedHit">,
+  pre: { stored?: readonly StoredRow[]; loadedJson?: string } = {},
+): boolean {
+  if (state.hitPolicy !== state.loadedHit) return true;
+  // 불러온 뒤 편집이 없으면 같은 배열이다 — 직렬화 비교를 건너뛴다.
+  if (state.rows === state.loadedRows) return false;
+  return JSON.stringify(pre.stored ?? tableStoredRows(state)) !== (pre.loadedJson ?? loadedRowsJson(state));
 }
 
 /** 즉시 검사 — `ruleDefFromStored(storedRowsFromGrid(…))` → evalex `analyzeRule`(I13). */
-export function tableAnalysis(state: TableState): AnalysisResult {
+export function tableAnalysis(state: Pick<TableState, "ruleId" | "ruleKind" | "hitPolicy" | "vars" | "rows">): AnalysisResult {
   return runAnalysis(state.ruleId, state.ruleKind, state.hitPolicy as HitPolicy | null, state.vars, tableStoredRows(state));
 }
 

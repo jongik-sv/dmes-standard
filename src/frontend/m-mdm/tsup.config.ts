@@ -1,5 +1,7 @@
 import { defineConfig, type Options } from "tsup";
 
+import { inlineWorkerEsbuild } from "./scripts/inline-worker";
+
 const external = [
   "react",
   "react-dom",
@@ -26,6 +28,8 @@ const common: Options = {
   splitting: true,
   outDir: "dist",
   external,
+  // `inline-worker:` — Worker 소스를 문자열로 넣는다(의사결정표 즉시 검사).
+  esbuildPlugins: [inlineWorkerEsbuild()],
 };
 
 export default defineConfig([
@@ -45,10 +49,7 @@ export default defineConfig([
       "pages/dmc/codeMng/page": "pages/dmc/codeMng/page.tsx",
       "pages/dmc/codeConfirm/page": "pages/dmc/codeConfirm/page.tsx",
       "pages/dmd/dataMng/page": "pages/dmd/dataMng/page.tsx",
-      "pages/dmd/dataEdit/page": "pages/dmd/dataEdit/page.tsx",
-      "pages/dmd/dataCateEdit/page": "pages/dmd/dataCateEdit/page.tsx",
       "pages/dmd/dataItemMng/page": "pages/dmd/dataItemMng/page.tsx",
-      "pages/dmd/dataHistory/page": "pages/dmd/dataHistory/page.tsx",
       "pages/dme/ruleMng/page": "pages/dme/ruleMng/page.tsx",
       "pages/dme/ruleEdit/page": "pages/dme/ruleEdit/page.tsx",
       "pages/dme/ruleConfirm/page": "pages/dme/ruleConfirm/page.tsx",

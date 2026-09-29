@@ -3,24 +3,23 @@
 /**
  * ruleEdit — 룰 화면 골격(TSK-08-02). 정본: docs/mdm/screens/ruleEdit/ruleEdit_기능설계서.md.
  *
- * 상단 바(룰 고르기·버전 고르기·잠금 배지·알림)와 `cards.ts` 의 카드를 순서대로 그린다. 룰 조회 화면에서 넘어오면
+ * 상단 바(룰 고르기 `RulePicker`·버전 고르기·잠금 배지·알림)와 `cards.ts` 의 카드를 순서대로 그린다. 룰 조회 화면에서 넘어오면
  * handoff 대상(`@/dme/rule-handoff`)을 한 번 읽어 그 룰을 연다. 이미 열린 탭은 대상 이벤트를 듣고 바꾼다(D9·I28).
  * 편집 여부는 서버 판정(`editable`·`headerEditable`)만 따른다(I7). 카드 목록은 카드 사이 공유 상태(`RuleWorkbenchProvider` — 편집 중인 표·
  * 값 테스트 결과, TSK-08-04)로 감싼다.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 
 import { ErrorModal, canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
-import { Button, Input, Select } from "@dk-oasis/shared/form";
+import { Button, Select } from "@dk-oasis/shared/form";
 import { DraftLockBadge, MdmPageLayout, VersionStatusBadge, badgeStyle } from "@/shell";
 import { RULE_EDIT_TARGET_EVENT, takeRuleEditTarget, type RuleEditTarget } from "@/dme/rule-handoff";
 
-import { searchRulePrefix } from "./api";
 import { RULE_EDIT_CARDS, cardSegments, type RuleEditCardProps } from "./cards";
+import { RulePicker } from "./RulePicker";
 import { CardGroup } from "./cards/CardGroup";
 import { useRuleEdit } from "./state/useRuleEdit";
 import { RuleWorkbenchProvider } from "./state/workbench-context";
-import type { RulePickRow } from "./types";
 
 const SCREEN_ID = "ruleEdit";
 
@@ -28,8 +27,6 @@ export default function RuleEditPage() {
   const rbac = useUserButtonRbac();
   const state = useRuleEdit();
   const { open } = state;
-  const [keyword, setKeyword] = useState("");
-  const [picks, setPicks] = useState<RulePickRow[] | null>(null);
 
   // handoff — 마운트할 때 남은 대상을 읽고, 열린 뒤에는 이벤트로 받는다(읽은 대상은 지운다).
   useEffect(() => {
@@ -43,14 +40,6 @@ export default function RuleEditPage() {
     window.addEventListener(RULE_EDIT_TARGET_EVENT, onTarget);
     return () => window.removeEventListener(RULE_EDIT_TARGET_EVENT, onTarget);
   }, [open]);
-
-  const handleFind = useCallback(async () => {
-    try {
-      setPicks(await searchRulePrefix(keyword));
-    } catch (e) {
-      state.notify({ kind: "error", text: e instanceof Error ? e.message : String(e) });
-    }
-  }, [keyword, state]);
 
   const view = state.view;
   const selected = view?.versions.find((v) => v.ver === view.selectedVer) ?? null;
@@ -84,20 +73,13 @@ export default function RuleEditPage() {
           borderBottom: "1px solid var(--color-border-light)",
         }}
       >
-        <span style={{ fontWeight: 600 }}>룰</span>
-        <Input
-          data-testid="rule-pick-keyword"
-          value={keyword}
-          placeholder="룰 ID·룰명 앞부분"
-          onChange={setKeyword}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") void handleFind();
-          }}
-          style={{ width: 220 }}
+        <RulePicker
+          onPick={(ruleId) => void open(ruleId)}
+          onError={(text) => state.notify({ kind: "error", text })}
         />
-        <Button onClick={() => void handleFind()}>찾기</Button>
         {view && (
           <>
+            <span aria-hidden style={{ alignSelf: "stretch", width: 1, margin: "2px var(--spacing-xs)", background: "var(--color-border)" }} />
             <span data-testid="rule-edit-current" style={{ fontWeight: 600 }}>
               {view.rule.maruRuleId}
             </span>
@@ -140,28 +122,6 @@ export default function RuleEditPage() {
           flex:1 + minHeight:0 로 남는 공간을 흡수해 푸터를 맨 아래에 밀고, 넘칠 때만 이 div 가 스크롤된다
           (ContentBody 가 하는 역할의 로컬 버전). */}
       <div style={{ flex: "1 1 0", minHeight: 0, overflowY: "auto" }}>
-        {picks && (
-          <div data-testid="rule-pick-list" style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-xs)", padding: "var(--spacing-xs) var(--spacing-md)" }}>
-            {picks.length === 0 ? (
-              <span style={{ color: "var(--color-text-muted)" }}>찾은 룰이 없습니다.</span>
-            ) : (
-              picks.map((p) => (
-                <Button
-                  key={p.maruRuleId}
-                  size="sm"
-                  data-testid={`rule-pick-${p.maruRuleId}`}
-                  onClick={() => {
-                    setPicks(null);
-                    void state.open(p.maruRuleId);
-                  }}
-                >
-                  {`${p.maruRuleId} · ${p.maruRuleName}`}
-                </Button>
-              ))
-            )}
-          </div>
-        )}
-
         {!cardProps ? (
           <p data-testid="rule-edit-empty" style={{ padding: "var(--spacing-lg) var(--spacing-md)", color: "var(--color-text-muted)" }}>
             룰을 고르세요. 위 칸에 룰 ID·룰명 앞부분을 넣고 [찾기] 를 누르거나 룰 목록에서 룰 ID 를 누릅니다.

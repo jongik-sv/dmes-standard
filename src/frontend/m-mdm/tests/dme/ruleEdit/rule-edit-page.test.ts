@@ -122,6 +122,29 @@ describe("RuleEditPage", () => {
     expect(visibleText(container)).toContain("품질 등급 판정");
   });
 
+  it("룰 고르기 목록은 칸 아래 드롭다운으로 뜨고 Esc 로 닫으며, Enter 로 고른 줄을 연다", async () => {
+    view = releasedView();
+    await render();
+    const input = byTestId<HTMLInputElement>("rule-pick-keyword")!;
+    const key = async (k: string) => {
+      await act(async () => {
+        input.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true }));
+      });
+      await flush();
+    };
+    await typeInto(input, "QLTY");
+    await key("Enter");
+    expect(byTestId("rule-pick-list")?.getAttribute("role")).toBe("listbox");
+    expect(byTestId("rule-pick-QLTY_GRD_JDG")?.textContent).toContain("사용 중");
+    await key("Escape");
+    expect(byTestId("rule-pick-list")).toBeNull();
+    expect(requests.filter((r) => r.action === "view")).toHaveLength(0);
+    await key("Enter");
+    await key("Enter");
+    expect(params("view")).toEqual({ maruRuleId: "QLTY_GRD_JDG" });
+    expect(byTestId("rule-pick-list")).toBeNull();
+  });
+
   it("handoff 대상이 있으면 그 룰을 열고 대상을 지운다(I28)", async () => {
     window.sessionStorage.setItem(RULE_EDIT_TARGET_KEY, JSON.stringify({ ruleId: "QLTY_GRD_JDG", ver: 1, at: Date.now() }));
     await render();

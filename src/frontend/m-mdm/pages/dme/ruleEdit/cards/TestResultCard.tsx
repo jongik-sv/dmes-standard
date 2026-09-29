@@ -19,7 +19,7 @@ import { TEST_HIT_ROW_CLASS, buildTableColumns, displayRows } from "../decision-
 import { diffTable } from "../decision-table/diff";
 import { gridRowsFromStored } from "../decision-table/grid-model";
 import { useRuleWorkbench } from "../state/workbench-context";
-import type { ResolvedVar, RuleEditView, StoredRow, ValueTestResult, ValueTestValue, VarMeta } from "../types";
+import type { ResolvedVar, RuleEditView, StoredRow, ValueTestError, ValueTestResult, ValueTestValue, VarMeta } from "../types";
 import { bodyTable, defaultRowIdOf, targetLabel, useTargetView } from "../value-test/run-request";
 import { runShownOnTable, testMarksOf } from "../value-test/test-marks";
 import { CardFrame, MutedText } from "./CardFrame";
@@ -60,6 +60,11 @@ function resultSlots(vars: readonly ResolvedVar[], meta: readonly VarMeta[] | un
     }
   }
   return out;
+}
+
+/** 판정 오류 툴팁 — 본문은 사용자 문장이고, 단계·코드·이름·row_id 는 문의·추적용으로 여기에만 둔다. */
+function errorTip(e: ValueTestError): string {
+  return [e.stage, e.code, e.name, e.rowId != null ? `row_id ${e.rowId}` : null].filter(Boolean).join(" · ");
 }
 
 function rowLabel(rows: readonly StoredRow[], rowId: number, seq?: number): string {
@@ -145,7 +150,7 @@ function VersionTable({ def, result }: { def: RuleEditView; result: ValueTestRes
   const data = useMemo(() => {
     const rows = gridRowsFromStored(vars, def.rows);
     const test = testMarksOf(result, vars, def.varMeta, defaultRowIdOf(def.rows));
-    return displayRows(rows, vars, { diff: diffTable(null, rows), split: splitIssues([]), selectedRowId: null, serverShown: true, test });
+    return displayRows(rows, vars, { diff: diffTable(null, rows), split: splitIssues([]), serverShown: true, test });
   }, [vars, def.rows, def.varMeta, result]);
   const markToken = useMemo(() => JSON.stringify(data.map((r) => [r.rowKey, r.__mk, r.__hit])), [data]);
   const height = Math.min(420, 3 * 28 + Math.max(def.rows.length, 2) * 26 + 24);
@@ -181,13 +186,31 @@ export function TestResultCard({ view }: RuleEditCardProps) {
     return (
       <CardFrame title="⑤ 테스트 결과" testId="rule-card-test-result">
         <p data-testid="vt-result-empty" style={{ margin: 0, color: "var(--color-text-muted)" }}>
-          돌리기를 누르면 결과 변수 값과 적중 행을 보인다.
+          실행을 누르면 결과 변수 값과 적중 행을 보인다.
         </p>
       </CardFrame>
     );
   }
 
   const r = run.result;
+  if (run.casesOnly) {
+    // ⑥ "모두 실행" — 요청에 실린 ④ 입력의 판정은 케이스 결과가 아니므로 보이지 않는다. 케이스별 결과는 ⑥ 표에 있다.
+    const cases = r.cases ?? [];
+    const count = (p: boolean | null) => cases.filter((c) => c.pass === p).length;
+    return (
+      <CardFrame
+        title="⑤ 테스트 결과"
+        testId="rule-card-test-result"
+        right={<span data-testid="vt-result-target" style={badgeStyle("neutral")}>{targetLabel(run)} · 케이스 실행 · {r.evalTs}</span>}
+      >
+        <p data-testid="vt-result-cases" style={{ margin: 0 }}>
+          테스트 케이스 {cases.length}건을 실행했습니다 — 통과 {count(true)} · 실패 {count(false)} · 실행만 {count(null)}. 케이스별 결과는 ⑥ 표에서
+          봅니다.
+        </p>
+        <MutedText>값 테스트(④) 입력의 결과를 보려면 ④ 에서 [실행]을 누르세요.</MutedText>
+      </CardFrame>
+    );
+  }
   const selected = view.versions.find((v) => v.ver === view.selectedVer);
   const table = run.target === "BODY" && run.ver != null ? bodyTable(view, run.ver, tableDraft) : null;
   const rows = table ? table.rows : (def?.rows ?? []);
@@ -216,13 +239,27 @@ export function TestResultCard({ view }: RuleEditCardProps) {
       {(r.errors ?? []).length > 0 && (
         <ul data-testid="vt-result-errors" style={{ margin: "0 0 var(--spacing-xs)", paddingLeft: "var(--spacing-lg)", color: "var(--color-danger)" }}>
           {(r.errors ?? []).map((e, i) => (
-            <li key={`${e.code}-${i}`}>
-              판정 오류 · {e.stage} · {e.code}
-              {e.name ? ` · ${e.name}` : ""}
-              {e.rowId != null ? ` · row_id ${e.rowId}` : ""} — {e.message}
+            <li key={`${e.code}-${i}`} title={errorTip(e)}>
+              {e.message || e.code}
+              {e.detail && e.detail !== e.message && (
+                <details data-testid="vt-result-error-detail" style={{ color: "var(--color-text-secondary)" }}>
+                  <summary>자세히(개발자용)</summary>
+                  <code style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{e.detail}</code>
+                </details>
+              )}
             </li>
           ))}
         </ul>
+      )}
+
+      {r.outcome !== "OK" && (r.trace ?? []).some((t) => t.hit) && (
+        <p data-testid="vt-result-error-hits" style={{ margin: "var(--spacing-xs) 0 0" }}>
+          <strong>맞은 행</strong>{" "}
+          {(r.trace ?? [])
+            .filter((t) => t.hit)
+            .map((t) => rowLabel(rows, t.rowId, t.seq))
+            .join(", ")}
+        </p>
       )}
 
       {r.outcome === "OK" && (
@@ -269,7 +306,7 @@ export function TestResultCard({ view }: RuleEditCardProps) {
         </p>
       ) : run.target === "BODY" ? (
         <p data-testid="vt-result-stale" style={{ margin: "var(--spacing-sm) 0 0", color: "var(--color-text-secondary)" }}>
-          돌린 뒤 표가 바뀌어 위 의사결정표에 칠하지 않았다. 다시 돌리세요.
+          실행한 뒤 표가 바뀌어 위 의사결정표에 칠하지 않았다. 다시 실행하세요.
         </p>
       ) : def && r.outcome === "OK" ? (
         <VersionTable def={def} result={r} />

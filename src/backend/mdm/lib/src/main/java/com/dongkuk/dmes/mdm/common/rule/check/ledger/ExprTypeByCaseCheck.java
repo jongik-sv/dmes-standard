@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.common.rule.check.ledger;
 
+import com.dongkuk.dmes.mdm.common.rule.RuleErrorText;
 import com.dongkuk.dmes.mdm.common.rule.RuleTestCaseQueries;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckReport;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveCheck;
@@ -84,7 +85,8 @@ public class ExprTypeByCaseCheck implements RuleSaveCheck {
             } catch (EngineEvaluationException e) {
                 for (Violation v : e.violations()) {
                     if (EXPR_STAGES.contains(v.stage()) && EXPR_CODES.contains(v.code())) {
-                        out.add(warning(v.rowId() == null ? List.of() : List.of(v.rowId()), which + " 로 돌리니 " + v.code() + ": " + v.message()));
+                        out.add(warning(v.rowId() == null ? List.of() : List.of(v.rowId()), which + " 로 돌리니 "
+                                + RuleErrorText.describe(v.stage().name(), v.code().name(), v.rowId(), v.name(), v.message())));
                     }
                 }
             } catch (RuntimeException e) {

@@ -24,7 +24,7 @@ export interface HitForm {
 }
 
 export interface ExpectedForm {
-  /** 기대값 없이 돌려 보기만(기대 JSON 빈 값). */
+  /** 기대값 없이 실행만(기대 JSON 빈 값). */
   none: boolean;
   rows: CaseFormRow[];
   hit: HitForm;

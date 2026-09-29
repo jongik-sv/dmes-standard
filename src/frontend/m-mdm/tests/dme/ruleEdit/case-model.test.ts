@@ -62,8 +62,8 @@ describe("expectedFromResult", () => {
 describe("caseBadge", () => {
   const base: ValueTestCaseResult = { caseId: 1, caseName: "A급", outcome: "OK", pass: true, mismatches: [] };
 
-  it("기대값 없음 = 돌려 보기만, 통과, 실패는 불일치 키를 잇는다", () => {
-    expect(caseBadge({ ...base, pass: null })).toEqual({ text: "돌려 보기만", tone: "muted" });
+  it("기대값 없음 = 실행만, 통과, 실패는 불일치 키를 잇는다", () => {
+    expect(caseBadge({ ...base, pass: null })).toEqual({ text: "실행만", tone: "muted" });
     expect(caseBadge(base)).toEqual({ text: "통과", tone: "success" });
     expect(
       caseBadge({

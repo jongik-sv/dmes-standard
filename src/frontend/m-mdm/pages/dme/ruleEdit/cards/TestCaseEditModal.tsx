@@ -5,10 +5,11 @@
  * 입력·기대는 [폼 | JSON] 탭으로 고친다. 폼은 입력 계약 줄(값·키 보냄)과 결과 줄(기대 값·비교)·적중 행으로 JSON 을 몰라도 고치게 하고,
  * JSON 탭은 복사한 JSON 을 붙여 넣을 때 쓴다. 결과 열 그룹은 엔진 결과 이름대로 그룹 이름 한 줄이다. 폼 탭 아래에는 저장될 JSON 을 늘 보인다.
  * 탭을 바꿀 때와 저장할 때 `case-form` 으로 변환하되, 폼을 건드리지 않은 쪽은 원래 JSON 글자를
- * 그대로 둔다(06 키 순서·숫자 표기 보존). 기대를 비우면 "기대값 없음"(돌려 보기만) 케이스가 된다. "값 테스트 입력으로 바꾸기" 는 카드 ④ 의 지금
- * 입력으로 입력을 바꾼다(④ 칸이 모두 비었으면 꺼 둔다).
+ * 그대로 둔다(06 키 순서·숫자 표기 보존). 기대를 비우면 "기대값 없음"(실행만) 케이스가 된다. "값 테스트 입력으로 바꾸기" 는 카드 ④ 의 지금
+ * 입력으로 입력을 바꾼다(④ 칸이 모두 비었으면 꺼 둔다). [테스트 실행]은 저장하지 않은 지금 입력·기대로 ④ 가 고른 대상을 판정해 결과를 팝업
+ * 안에만 보인다(비교는 서버, I24). 칸을 고치면 결과를 지운다 — 지금 칸의 결과가 아니므로.
  */
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { Button, Checkbox, Input, MultiSelectComboBox, Textarea } from "@dk-oasis/shared/form";
 import { Modal } from "@dk-oasis/shared/modal";
@@ -16,8 +17,8 @@ import { Tabs } from "@dk-oasis/shared/tabs";
 import { badgeStyle } from "@/shell";
 
 import { typeBadge } from "../decision-table/columns";
-import type { ResolvedVar, StoredRow, TestCaseView, VarCandidate, VarMeta } from "../types";
-import { caseEditError, type CaseEditFields } from "../value-test/case-model";
+import type { DraftCaseResult, ResolvedVar, StoredRow, TestCaseView, VarCandidate, VarMeta } from "../types";
+import { caseBadge, caseBadgeCss, caseEditError, caseJsonError, mismatchText, type CaseEditFields } from "../value-test/case-model";
 import {
   expectedFormOf,
   expectedJsonOf,
@@ -52,6 +53,10 @@ export interface TestCaseEditModalProps {
   /** 그룹 이름의 컬럼 사전 표시명(COLUMN 후보). */
   candidates?: readonly VarCandidate[];
   rows?: readonly StoredRow[];
+  /** [테스트 실행] 대상 이름(④ 가 고른 것). */
+  runTarget?: string | null;
+  /** 저장하지 않은 입력·기대로 판정한다. 없으면(④ 대상 없음) [테스트 실행]을 끈다. */
+  onRun?: (f: Pick<CaseEditFields, "inputJson" | "expectedJson">) => Promise<DraftCaseResult>;
   onSave: (c: TestCaseView, f: CaseEditFields) => Promise<boolean>;
   onClose: () => void;
 }
@@ -85,7 +90,21 @@ function Badge({ text, tone = "neutral" }: { text?: string; tone?: "neutral" | "
   return text ? <span style={badgeStyle(tone)}>{text}</span> : <span style={muted}>-</span>;
 }
 
-export function TestCaseEditModal({ target, initial, currentInput, busy, fields = [], vars = [], varMeta, candidates, rows = [], onSave, onClose }: TestCaseEditModalProps) {
+export function TestCaseEditModal({
+  target,
+  initial,
+  currentInput,
+  busy,
+  fields = [],
+  vars = [],
+  varMeta,
+  candidates,
+  rows = [],
+  runTarget,
+  onRun,
+  onSave,
+  onClose,
+}: TestCaseEditModalProps) {
   const [f, setF] = useState<CaseEditFields | null>(null);
   const [mode, setMode] = useState<Mode>("form");
   const [inRows, setInRows] = useState<CaseFormRow[]>([]);
@@ -94,6 +113,10 @@ export function TestCaseEditModal({ target, initial, currentInput, busy, fields 
   const [inDirty, setInDirty] = useState(false);
   const [expDirty, setExpDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // [테스트 실행] 결과 — 칸을 고치면 지운다. 순번은 고친 뒤 늦게 온 응답을 버리려고 둔다.
+  const [run, setRun] = useState<{ result: DraftCaseResult } | { error: string } | null>(null);
+  const [running, setRunning] = useState(false);
+  const runSeq = useRef(0);
 
   const names = useMemo(() => fields.map((x) => x.name), [fields]);
   const info = useMemo(() => new Map(fields.map((x) => [x.name.toUpperCase(), x] as const)), [fields]);
@@ -129,6 +152,11 @@ export function TestCaseEditModal({ target, initial, currentInput, busy, fields 
     if (err) setError(`${err}\nJSON 탭에서 고치세요.`);
     // 팝업을 열 때(대상·초기값이 바뀔 때)만 채운다 — 폼 줄 계산에 쓰는 names·vars 가 바뀌어도 고치던 칸을 덮지 않는다.
   }, [target, initial]);
+
+  useEffect(() => {
+    runSeq.current += 1;
+    setRun(null);
+  }, [f, inRows, exp, mode]);
 
   /** 지금 칸들로 저장할 JSON — 폼 탭에서 고친 쪽만 폼으로 다시 만든다. */
   const currentFields = (): CaseEditFields | null => {
@@ -193,6 +221,26 @@ export function TestCaseEditModal({ target, initial, currentInput, busy, fields 
       setInDirty(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const runTest = async () => {
+    const final = currentFields();
+    if (!final || !onRun) return;
+    const err = caseJsonError(final);
+    if (err) {
+      setRun({ error: err });
+      return;
+    }
+    const seq = ++runSeq.current;
+    setRunning(true);
+    try {
+      const result = await onRun(final);
+      if (seq === runSeq.current) setRun({ result });
+    } catch (e) {
+      if (seq === runSeq.current) setRun({ error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setRunning(false);
     }
   };
 
@@ -302,6 +350,50 @@ export function TestCaseEditModal({ target, initial, currentInput, busy, fields 
 
   const preview = currentFields();
 
+  const hitText = (hit: DraftCaseResult["hit"]): string => {
+    if (hit === null || hit === undefined) return "없음";
+    const name = (id: number) => hitData.find((o) => o.value === String(id))?.label ?? `row ${id}`;
+    return Array.isArray(hit) ? hit.map(name).join(", ") : name(hit);
+  };
+
+  const runView = run && (
+    <div
+      data-testid="tc-edit-run-result"
+      style={{
+        marginTop: "var(--spacing-sm)",
+        padding: "var(--spacing-xs) var(--spacing-sm)",
+        border: "1px solid var(--color-border)",
+        borderRadius: "var(--radius-sm)",
+        fontSize: "var(--font-size-sm)",
+      }}
+    >
+      {"error" in run ? (
+        <span style={{ color: "var(--color-danger)", whiteSpace: "pre-wrap" }}>테스트를 실행하지 못했습니다. {run.error}</span>
+      ) : (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-sm)", flexWrap: "wrap" }}>
+            <strong>테스트 실행</strong>
+            <span data-testid="tc-edit-run-badge" style={caseBadgeCss(caseBadge(run.result))}>
+              {caseBadge(run.result).text}
+            </span>
+            {runTarget && <span style={muted}>대상 {runTarget} · 저장 전 값</span>}
+          </div>
+          {run.result.mismatches.length > 0 && <div style={{ marginTop: 2 }}>다른 값: {mismatchText(run.result)}</div>}
+          {run.result.outcome === "OK" && (
+            <div style={{ ...mono, marginTop: 2, wordBreak: "break-all" }}>
+              결과 {JSON.stringify(run.result.results ?? {})} · 적중 행 {hitText(run.result.hit)}
+            </div>
+          )}
+          {(run.result.errors ?? []).map((e, i) => (
+            <div key={`${e.code}-${i}`} style={{ marginTop: 2, color: "var(--color-danger)", whiteSpace: "pre-wrap" }}>
+              {e.message}
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+
   return (
     <Modal
       open={target != null}
@@ -310,6 +402,14 @@ export function TestCaseEditModal({ target, initial, currentInput, busy, fields 
       onClose={onClose}
       footer={
         <>
+          <Button
+            disabled={!f || !onRun || running}
+            title={onRun ? "저장하지 않은 지금 입력·기대로 값 테스트(④)가 고른 대상을 판정합니다." : "값 테스트(④)에서 대상을 고르세요."}
+            data-testid="tc-edit-run"
+            onClick={() => void runTest()}
+          >
+            {running ? "실행 중…" : "테스트 실행"}
+          </Button>
           <Button onClick={onClose}>취소</Button>
           <Button variant="primary" disabled={busy || !f} data-testid="tc-edit-save" onClick={() => void save()}>
             저장
@@ -354,7 +454,7 @@ export function TestCaseEditModal({ target, initial, currentInput, busy, fields 
               <span style={{ ...label, display: "flex", alignItems: "center", gap: "var(--spacing-md)", marginTop: "var(--spacing-md)" }}>
                 기대 값
                 <Checkbox
-                  label="기대값 없이 돌려 보기만"
+                  label="기대값 없이 실행만"
                   checked={exp.none}
                   onChange={(none) => setExpForm((p) => ({ ...p, none }))}
                 />
@@ -380,7 +480,7 @@ export function TestCaseEditModal({ target, initial, currentInput, busy, fields 
             </>
           ) : (
             <>
-              <label style={label}>기대 JSON (비우면 기대값 없이 돌려 보기만 한다)</label>
+              <label style={label}>기대 JSON (비우면 기대값 없이 실행만 한다)</label>
               <Textarea data-testid="tc-edit-expected" rows={3} style={mono} value={f.expectedJson} onChange={set("expectedJson")} />
             </>
           )}
@@ -389,6 +489,7 @@ export function TestCaseEditModal({ target, initial, currentInput, busy, fields 
               {error}
             </p>
           )}
+          {runView}
         </div>
       )}
     </Modal>

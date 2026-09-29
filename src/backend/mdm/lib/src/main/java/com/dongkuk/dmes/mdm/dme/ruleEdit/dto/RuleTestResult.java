@@ -12,6 +12,7 @@ import java.util.Map;
  * {@code errors[{stage, code, rowId, name, message}]}, {@code warnings[{code, rowId, varId, message}]},
  * {@code cellErrors[{rowId, varId, code, message}]}, {@code contract{always[name], rows[{rowId, required[name], optional[name]}]}},
  * {@code cases[{caseId, caseName, outcome, pass(true|false|null), mismatches[{key, expected, actual}], results, hit, errors}]}.
+ * {@code draftCase} 는 요청 {@code judgeInput} 일 때만 — {@code cases} 원소와 같은 모양(caseId·caseName 은 null).
  */
 public class RuleTestResult {
 
@@ -29,6 +30,7 @@ public class RuleTestResult {
     private List<Integer> skippedRows;
     private Map<String, Object> contract;
     private List<Map<String, Object>> cases;
+    private Map<String, Object> draftCase;
 
     public String getTarget() { return target; }
     public Integer getVer() { return ver; }
@@ -44,6 +46,7 @@ public class RuleTestResult {
     public List<Integer> getSkippedRows() { return skippedRows; }
     public Map<String, Object> getContract() { return contract; }
     public List<Map<String, Object>> getCases() { return cases; }
+    public Map<String, Object> getDraftCase() { return draftCase; }
 
     public void setTarget(String v) { this.target = v; }
     public void setVer(Integer v) { this.ver = v; }
@@ -59,4 +62,5 @@ public class RuleTestResult {
     public void setSkippedRows(List<Integer> v) { this.skippedRows = v; }
     public void setContract(Map<String, Object> v) { this.contract = v; }
     public void setCases(List<Map<String, Object>> v) { this.cases = v; }
+    public void setDraftCase(Map<String, Object> v) { this.draftCase = v; }
 }
