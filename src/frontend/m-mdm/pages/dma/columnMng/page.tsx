@@ -138,6 +138,8 @@ export default function ColumnMngPage() {
   >(null);
 
   const [busy, setBusy] = useState(false);
+  // 목록 그리드의 로딩 표시는 목록 조회만 켠다 — 상세·분해 호출까지 따라 켜면 행을 누를 때마다 목록이 깜빡인다.
+  const [listLoading, setListLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const fail = useCallback(
@@ -149,6 +151,7 @@ export default function ColumnMngPage() {
   const loadList = useCallback(
     async (kw: string, domainId: string) => {
       setBusy(true);
+      setListLoading(true);
       try {
         const result = await searchColumns(kw, domainId);
         setList(result.list ?? []);
@@ -158,6 +161,7 @@ export default function ColumnMngPage() {
         fail(e);
       } finally {
         setBusy(false);
+        setListLoading(false);
       }
     },
     [fail],
@@ -600,13 +604,13 @@ export default function ColumnMngPage() {
                   sortable
                   highlightedRowKey={selectedColumnId}
                   onRowClick={(row) => void openColumn(Number(row.columnId))}
-                  loading={busy}
+                  loading={listLoading}
                   loadingMessage="조회 중..."
                   emptyMessage="조회된 컬럼이 없습니다."
                 />
               </GridPanel>
             </div>
-            {list.length === 0 && !busy ? (
+            {list.length === 0 && !listLoading ? (
               <p
                 data-testid="column-list-empty"
                 style={{ ...mutedText, margin: "0 var(--spacing-sm)" }}
