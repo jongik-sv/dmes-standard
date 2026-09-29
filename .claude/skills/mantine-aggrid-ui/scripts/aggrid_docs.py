@@ -243,6 +243,12 @@ FIXED_RULES: list[tuple[str, str]] = [
     (r"rowSelection=\{?['\"](?:single|multiple)['\"]", "rowSelection 문자열은 v32.2 deprecated → { mode: 'singleRow'|'multiRow' }"),
 ]
 SCREEN_IMPORT = re.compile(r"from ['\"](?:ag-grid-react|ag-grid-community)['\"]")
+# 데이터 목록은 공용 AgDataGrid 하나로 그린다(Part B §6). 머리행(<thead>)이 있는 원시 표는 데이터 목록이다.
+# 라벨-값 폼 배치 표는 <thead> 가 없어 걸리지 않는다.
+SCREEN_TABLE_RULES: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"<thead\b"), "화면에서 원시 <table> 데이터 목록 금지 → AgDataGrid (작은 목록은 height=\"auto\", Part B §6)"),
+    (re.compile(r"\bCustomDataGrid\b"), "CustomDataGrid 신규 사용 금지 → AgDataGrid (Part B §6)"),
+]
 
 
 def cmd_audit(args: argparse.Namespace) -> None:
@@ -273,6 +279,10 @@ def cmd_audit(args: argparse.Namespace) -> None:
         if not in_shared:
             for m in SCREEN_IMPORT.finditer(text):
                 report(f, text, m.start(), "화면에서 ag-grid 직접 import 금지 → @dk-oasis/shared/grid (Part B §6)")
+            if f.suffix in (".tsx", ".jsx"):
+                for rx, msg in SCREEN_TABLE_RULES:
+                    for m in rx.finditer(text):
+                        report(f, text, m.start(), msg)
         if dep_rx and uses_grid:
             for m in dep_rx.finditer(text):
                 name, note = m[1], deprecated[m[1]]
