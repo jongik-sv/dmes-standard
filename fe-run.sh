@@ -134,7 +134,7 @@ has_scope_arg() {
 
   for arg in "$@"; do
     case "$arg" in
-      --all|--full|--mpn|--mpn-only) return 0 ;;
+      --all|--full|--mpn|--mpn-only|--mdm|--mdm-only) return 0 ;;
     esac
   done
   return 1
@@ -166,6 +166,7 @@ for arg in "$@"; do
   case "$arg" in
     --all|--full) DEV_SCOPE="all"; DO_BUILD=1; DO_INSTALL=1 ;;
     --mpn|--mpn-only) DEV_SCOPE="mpn" ;;
+    --mdm|--mdm-only) DEV_SCOPE="mdm" ;;
     --install) DO_INSTALL=1 ;;
     --build) DO_BUILD=1 ;;
     --clean) DO_CLEAN=1 ;;
@@ -176,7 +177,7 @@ for arg in "$@"; do
   esac
 done
 
-[ -n "$DEV_SCOPE" ] || { dev_log_error "FE 범위를 선택하세요: --mpn 또는 --all"; exit 2; }
+[ -n "$DEV_SCOPE" ] || { dev_log_error "FE 범위를 선택하세요: --mpn 또는 --mdm 또는 --all"; exit 2; }
 
 # ── 사전 점검 ────────────────────────────────────────────────
 if ! command -v pnpm >/dev/null 2>&1; then
@@ -375,6 +376,10 @@ if [ "$DO_BUILD" = "1" ]; then
     dev_log_print "fe" "MPN 범위 빌드 실행 (shared + m-mpn)"
     ( cd "$FRONTEND_DIR" && dev_log_run pnpm --filter @dk-oasis/shared build ) || { dev_log_error "shared build 실패"; exit 1; }
     ( cd "$FRONTEND_DIR" && dev_log_run pnpm --filter @dk-oasis/m-mpn build ) || { dev_log_error "m-mpn build 실패"; exit 1; }
+  elif [ "$DEV_SCOPE" = "mdm" ]; then
+    dev_log_print "fe" "MDM 범위 빌드 실행 (shared + m-mdm)"
+    ( cd "$FRONTEND_DIR" && dev_log_run pnpm --filter @dk-oasis/shared build ) || { dev_log_error "shared build 실패"; exit 1; }
+    ( cd "$FRONTEND_DIR" && dev_log_run pnpm --filter @dk-oasis/m-mdm build ) || { dev_log_error "m-mdm build 실패"; exit 1; }
   else
     # 화면 라이브러리(dist)만 빌드한다. m-mcm 은 next dev 가 직접 컴파일하므로
     # 여기서 next build 까지 돌릴 이유가 없다(느리고, 프로덕션 빌드는 별도 관심사다).
@@ -400,6 +405,19 @@ if [ "$DEV_SCOPE" = "mpn" ]; then
     dev
   )
   dev_log_print "fe" "MPN 범위 dev 실행 (shared + m-mpn watch + mcm portal)"
+elif [ "$DEV_SCOPE" = "mdm" ]; then
+  DEV_COMMAND=(
+    pnpm
+    --parallel
+    --filter
+    @dk-oasis/shared
+    --filter
+    @dk-oasis/m-mdm
+    --filter
+    @dk-oasis/mcm
+    dev
+  )
+  dev_log_print "fe" "MDM 범위 dev 실행 (shared + m-mdm watch + mcm portal)"
 else
   dev_log_print "fe" "전체 frontend dev 실행 (라이브러리 watch + mcm portal :$PORTAL_PORT)"
 fi
