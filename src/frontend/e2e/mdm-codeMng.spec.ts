@@ -95,7 +95,8 @@ async function confirmDialog(page: Page) {
 }
 
 async function selectVersion(page: Page, ver: string) {
-  await tid(page, `version-row-${ver}`).click();
+  // 버전 목록은 AgDataGrid — 행은 row-id(버전 값)로 찾고 첫 칸을 눌러 고른다.
+  await tid(page, "version-list").locator(`.ag-center-cols-container .ag-row[row-id="${ver}"] .ag-cell`).first().click();
 }
 
 async function api(page: Page, action: string, params: Record<string, unknown>, service = "codeEdit") {

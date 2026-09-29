@@ -446,7 +446,11 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await expect(cm).toBeVisible();
     await expect(cm.locator('[data-testid^="const-input-"]')).toHaveCount(1);
     await expect(cm.getByTestId("const-default-SND_FAC_TP")).toHaveText("E1");
-    await cm.getByTestId("const-input-SND_FAC_TP").fill("E9");
+    // 값 칸은 표시 span 이다 — 칸을 눌러 편집기를 열고 값을 넣어 Enter 로 확정한다.
+    await cm.locator(".ag-center-cols-container .ag-cell").filter({ has: cm.getByTestId("const-input-SND_FAC_TP") }).click();
+    const constEditor = cm.locator(".ag-cell-inline-editing input");
+    await constEditor.fill("E9");
+    await constEditor.press("Enter");
     await snapModal(page, "dmb-layoutMng-03-const");
     await tid(page, "const-edit-apply").click();
     await expect(cm).toBeHidden();

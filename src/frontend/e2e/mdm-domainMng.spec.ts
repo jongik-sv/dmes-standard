@@ -71,10 +71,27 @@ async function selectRow(layout: Locator, name: string) {
   await expect(layout.locator('input[aria-label="도메인명"]')).toHaveValue(name, { timeout: 30_000 });
 }
 
+/** 테스트 케이스 표(AgDataGrid)의 n 번째 케이스 행 — 행 키는 1부터이고, 결과 칸(RESULT_TEXT)이 있는 행만 이 표의 행이다. */
+const caseRow = (root: Locator, n: number): Locator =>
+  root
+    .locator(`.ag-center-cols-container .ag-row[row-id="${n}"]`)
+    .filter({ has: root.page().locator('.ag-cell[col-id="RESULT_TEXT"]') });
+/** 케이스 칸을 눌러 편집기를 열고 값을 넣어 확정한다. 기대 칸은 true/false 선택이다. */
+async function editCaseCell(root: Locator, n: number, col: "VALUE" | "EXPECT" | "MEMO", value: string) {
+  await caseRow(root, n).locator(`.ag-cell[col-id="${col}"]`).click();
+  if (col === "EXPECT") {
+    await root.locator(".ag-cell-inline-editing select").selectOption(value);
+    return;
+  }
+  const editor = root.locator(".ag-cell-inline-editing input");
+  await editor.fill(value);
+  await editor.press("Enter");
+}
+
 async function addCase(layout: Locator, n: number, value: string, expectValue: "true" | "false") {
   await layout.getByRole("button", { name: "케이스 추가" }).click();
-  await layout.locator(`input[aria-label="케이스 입력 ${n}"]`).fill(value);
-  await layout.locator(`select[aria-label="케이스 기대 ${n}"]`).selectOption(expectValue);
+  await editCaseCell(layout, n, "VALUE", value);
+  await editCaseCell(layout, n, "EXPECT", expectValue);
 }
 
 async function validateAndSave(layout: Locator) {
@@ -118,7 +135,7 @@ test.describe("mdm 도메인 관리", () => {
     await addCase(layout, 2, "abc", "false");
     await layout.getByRole("button", { name: "도메인검증" }).click();
     await expect(layout.locator(".domain-mng__check-summary")).toContainText("검사 통과", { timeout: 30_000 });
-    await expect(layout.locator(".domain-mng__case-result")).toHaveText(["일치", "일치"]);
+    await expect(layout.locator('.ag-center-cols-container .ag-cell[col-id="RESULT_TEXT"]')).toHaveText(["일치", "일치"]);
     await layout.locator(".domain-mng__checks").scrollIntoViewIfNeeded();
     await layout.getByRole("button", { name: "저장", exact: true }).click();
     await search(layout, STAMP);

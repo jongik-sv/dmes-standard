@@ -62,6 +62,21 @@ const MENU = {
 } as const;
 type ScreenId = keyof typeof MENU;
 
+/** 테스트 케이스 표(AgDataGrid)의 n 번째 케이스 칸을 눌러 값을 넣는다 — 행 키는 1부터, 결과 칸(RESULT_TEXT)이 있는 행이 이 표의 행이다. 기대 칸은 true/false 선택이다. */
+async function editCaseCell(root: Locator, n: number, col: "VALUE" | "EXPECT" | "MEMO", value: string) {
+  const row = root
+    .locator(`.ag-center-cols-container .ag-row[row-id="${n}"]`)
+    .filter({ has: root.page().locator('.ag-cell[col-id="RESULT_TEXT"]') });
+  await row.locator(`.ag-cell[col-id="${col}"]`).click();
+  if (col === "EXPECT") {
+    await root.locator(".ag-cell-inline-editing select").selectOption(value);
+    return;
+  }
+  const editor = root.locator(".ag-cell-inline-editing input");
+  await editor.fill(value);
+  await editor.press("Enter");
+}
+
 async function go(page: Page, id: ScreenId) {
   await openMenu(page, TRAIL(MENU[id]), id);
 }
@@ -669,9 +684,9 @@ test.describe("C 도메인 관리", () => {
 
     // 케이스 추가
     await screen(page).getByRole("button", { name: "케이스 추가" }).click();
-    await screen(page).getByLabel("케이스 입력 1", { exact: true }).fill("10");
-    await screen(page).getByLabel("케이스 기대 1", { exact: true }).selectOption("true");
-    await screen(page).getByLabel("케이스 메모 1", { exact: true }).fill("E2E 케이스");
+    await editCaseCell(screen(page), 1, "VALUE", "10");
+    await editCaseCell(screen(page), 1, "EXPECT", "true");
+    await editCaseCell(screen(page), 1, "MEMO", "E2E 케이스");
     await layoutC.layout(page, "domainMng QTY 등록 입력 중");
     await snap(page, "dma-domainMng-06-qty");
 

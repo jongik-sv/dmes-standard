@@ -90,6 +90,17 @@ function bodyRow(layout: Locator, text: string): Locator {
   return layout.getByTestId("layout-items").locator(".ag-center-cols-container .ag-row").filter({ hasText: text }).first();
 }
 
+/** 상수 편집 표(AgDataGrid)의 한 행 — 값 칸 span(const-input-PHYS)을 가진 행. */
+const constRow = (modal: Locator, phys: string) =>
+  modal.locator(".ag-center-cols-container .ag-row").filter({ has: modal.page().getByTestId(`const-input-${phys}`) });
+/** 값 칸을 한 번 눌러 편집기를 열고 값을 넣어 Enter 로 확정한다. */
+async function editConst(modal: Locator, phys: string, value: string) {
+  await constRow(modal, phys).locator('.ag-cell[col-id="VALUE"]').click();
+  const editor = modal.locator(".ag-cell-inline-editing input");
+  await editor.fill(value);
+  await editor.press("Enter");
+}
+
 async function openConst(page: Page, layout: Locator, seq: number): Promise<Locator> {
   await layout.getByTestId(`const-edit-open-${seq}`).click();
   const modal = page.getByTestId("const-edit-modal");
@@ -166,7 +177,7 @@ test.describe("mdm 전문 레이아웃", () => {
     await expect(modal.getByTestId("const-default-SND_FAC_TP")).toHaveText("B0");
     await expect(modal.getByTestId("const-default-SND_FAC_TP").locator("input")).toHaveCount(0);
     await expect(page.getByTestId("header-item-length")).toHaveCount(0);
-    await modal.getByTestId("const-input-SND_FAC_TP").fill("B1");
+    await editConst(modal, "SND_FAC_TP", "B1");
     await page.getByTestId("const-edit-apply").click();
     await expect(modal).toBeHidden();
     await expect(stack).toContainText("송신공장구분 B1");
@@ -179,13 +190,14 @@ test.describe("mdm 전문 레이아웃", () => {
     await expect(listRow(layout, NEW_LAYOUT).locator('.ag-cell[col-id="TOTAL_LENGTH"]')).toHaveText("187", { timeout: 30_000 });
     await selectLayout(layout, NEW_LAYOUT);
     modal = await openConst(page, layout, 1);
-    await expect(modal.getByTestId("const-input-SND_FAC_TP")).toHaveValue("B1");
+    await expect(modal.getByTestId("const-input-SND_FAC_TP")).toHaveText("B1");
     await closeDialog(page);
     await search(layout, "(E2E)");
     await selectLayout(layout, FIXTURE_LAYOUT);
     modal = await openConst(page, layout, 1);
-    await expect(modal.getByTestId("const-input-SND_FAC_TP")).toHaveValue("");
-    await expect(modal.getByTestId("const-input-SND_FAC_TP")).toHaveAttribute("placeholder", "B0");
+    // 재정의 값이 없으면 값 칸에 헤더 기본값이 흐린 글자로 보이고 재정의 배지가 붙지 않는다.
+    await expect(modal.getByTestId("const-input-SND_FAC_TP")).toHaveText("B0");
+    await expect(constRow(modal, "SND_FAC_TP")).not.toContainText("재정의");
     await closeDialog(page);
 
     // ── L7 서버 오류 표시 — 다른 사용자가 먼저 저장(동시 수정 MDM001) ──

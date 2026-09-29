@@ -181,9 +181,9 @@ test.describe("mdm dme/ruleEdit", () => {
     await openRule(page, STEWARD, "QLTY_GRD_JDG");
     await page.getByRole("button", { name: "새 버전", exact: true }).click();
     await expect(page.getByTestId("rule-ver-select")).toHaveValue("2", { timeout: 20_000 });
-    const verRow = page.getByTestId("rule-version-table").locator("tr", { has: page.getByTestId("rule-ver-row-2") });
+    const verRow = page.getByTestId("rule-version-table").locator('.ag-center-cols-container .ag-row[row-id="2"]');
     await expect(verRow.locator('[data-status="DRAFT"]')).toBeVisible();
-    await expect(verRow.locator("td").nth(4)).toHaveText("1");
+    await expect(verRow.locator('.ag-cell[col-id="baseVer"]')).toHaveText("1");
     await expect(page.getByTestId("rule-edit-topbar").getByText("편집 중(나)")).toBeVisible();
     for (const rowId of [1, 2, 3, 4]) await expect(page.getByTestId(`dt-row-${rowId}`)).toBeVisible();
     await expect(page.getByRole("button", { name: "새 버전", exact: true })).toBeDisabled();
@@ -599,6 +599,15 @@ test.describe("mdm dme/ruleEdit", () => {
     return page.getByTestId("rule-card-test-cases");
   }
 
+  /** 케이스 표(AgDataGrid)의 행 — id 를 주면 row-id(case_id)로, hasText 를 주면 그 글자가 든 행으로 좁힌다. */
+  function caseRow(page: Page, id: number): Locator {
+    return caseCard(page).locator(`.ag-center-cols-container .ag-row[row-id="${id}"]`);
+  }
+
+  function caseRowWith(page: Page, text: string): Locator {
+    return caseCard(page).locator(".ag-center-cols-container .ag-row", { hasText: text });
+  }
+
   /** ④ 입력 칸이 그려진 뒤(다른 버전 정의는 비동기로 받는다) 값을 넣는다. */
   async function fillInput(page: Page, name: string, value: string) {
     const input = page.getByTestId(`vt-input-${name}`);
@@ -621,8 +630,8 @@ test.describe("mdm dme/ruleEdit", () => {
     await expect(page.getByTestId("rule-card-test-result")).toBeVisible();
     await expect(page.getByTestId("vt-result-empty")).toBeVisible();
     await expect(caseCard(page)).toBeVisible();
-    await expect(page.getByTestId("tc-row-1")).toContainText("중간 두께 A");
-    await expect(page.getByTestId("tc-row-2")).toContainText("후물 C");
+    await expect(caseRow(page, 1)).toContainText("중간 두께 A");
+    await expect(caseRow(page, 2)).toContainText("후물 C");
     await expect(page.getByTestId("tc-empty")).toHaveCount(0);
     // 편집할 수 있는 DRAFT 가 고른 버전이면 대상 기본값은 편집본이다(I34).
     await expect(page.getByTestId("vt-target")).toHaveValue("BODY");
@@ -701,7 +710,7 @@ test.describe("mdm dme/ruleEdit", () => {
     // 방금 돌린 결과가 기대값으로 실린다(같은 대상·같은 입력).
     await page.getByTestId("vt-case-name").fill("E2E 중간 두께 B");
     await valueTestCard(page).getByRole("button", { name: "케이스로 저장", exact: true }).click();
-    const added = caseCard(page).locator("tr", { hasText: "E2E 중간 두께 B" });
+    const added = caseRowWith(page, "E2E 중간 두께 B");
     await expect(added).toBeVisible({ timeout: 30_000 });
     await expect(added).toContainText('"QLTY_GRD"');
     await expect(page.getByTestId("vt-case-name")).toHaveValue("");
@@ -709,7 +718,7 @@ test.describe("mdm dme/ruleEdit", () => {
     await caseCard(page).getByRole("button", { name: "모두 실행", exact: true }).click();
     await expect(page.getByTestId("tc-badge-1")).toHaveText(/통과/, { timeout: 30_000 });
     await expect(page.getByTestId("tc-badge-2")).toHaveText(/실패/);
-    await expect(page.getByTestId("tc-row-2")).toContainText("QLTY_GRD");
+    await expect(caseRow(page, 2)).toContainText("QLTY_GRD");
     await expect(added.locator('[data-testid^="tc-badge-"]')).toHaveText(/통과/);
     await expect(page.getByTestId("tc-error")).toHaveCount(0);
     await caseCard(page).scrollIntoViewIfNeeded();
@@ -718,9 +727,9 @@ test.describe("mdm dme/ruleEdit", () => {
     // 새 케이스를 지운다(한 번 더 눌러 확인).
     await added.getByRole("button", { name: "삭제", exact: true }).click();
     await added.getByRole("button", { name: "삭제 확인", exact: true }).click();
-    await expect(caseCard(page).locator("tr", { hasText: "E2E 중간 두께 B" })).toHaveCount(0, { timeout: 30_000 });
-    await expect(page.getByTestId("tc-row-1")).toBeVisible();
-    await expect(page.getByTestId("tc-row-2")).toBeVisible();
+    await expect(caseRowWith(page, "E2E 중간 두께 B")).toHaveCount(0, { timeout: 30_000 });
+    await expect(caseRow(page, 1)).toBeVisible();
+    await expect(caseRow(page, 2)).toBeVisible();
   });
 
   test("V5 서버 오류: 요청 상한을 넘는 긴 입력으로 돌리면 값 테스트 카드에 서버 오류가 보인다", async ({ page }) => {

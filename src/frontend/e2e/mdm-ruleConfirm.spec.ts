@@ -129,8 +129,9 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
     // T4: 값 테스트 거부 · 적용 순서 면제 · 확정 비활성
     await validate(page, "2026-10-01T00:00");
     await expect(tid(page, "rc-check-status-TEST_CASES")).toHaveText("거부");
-    await expect(tid(page, "rc-check-TEST_CASES")).toHaveAttribute("data-rejected", "true");
-    await expect(tid(page, "rc-check-TEST_CASES")).toContainText("CASE:1");
+    await expect(tid(page, "rc-check-status-TEST_CASES")).toHaveAttribute("data-rejected", "true");
+    // 검사 표는 AgDataGrid 다 — 행은 row-id(검사 항목)로 찾는다.
+    await expect(tid(page, "rc-checks").locator('.ag-center-cols-container .ag-row[row-id="TEST_CASES"]')).toContainText("CASE:1");
     await expect(tid(page, "rc-check-status-APPLY_FROM")).toHaveText("면제");
     await expect(tid(page, "rc-check-status-NOT_EMPTY")).toHaveText("통과");
     await expect(tid(page, "rc-validate")).toBeEnabled();

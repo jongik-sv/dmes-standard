@@ -1,5 +1,5 @@
 import path from "node:path";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 /**
  * mdm dme/ruleSetEdit(룰 세트 편집) — TSK-08-06 design.md §3.4.2.
@@ -45,6 +45,10 @@ async function openMenu(page: Page, leaf: RegExp) {
     await item.click();
   }
 }
+
+/** 세트 입출력 표(AgDataGrid)의 한 행 — 행 키는 변수명이다. kind: inputs(입력 변수) | results(결과 변수). */
+const ioRow = (page: Page, kind: "inputs" | "results", name: string): Locator =>
+  page.getByTestId(`set-io-${kind}`).locator(`.ag-center-cols-container .ag-row[row-id="${name}"]`);
 
 async function openRuleSetEdit(page: Page) {
   await openMenu(page, /^룰 세트 편집$/);
@@ -123,13 +127,13 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await expect(ruleRow(page, "E2S_SPD").locator('[col-id="deps"]')).toBeVisible();
 
     const inputs = page.getByTestId("set-io-inputs");
-    await expect(inputs.locator("tbody tr")).toHaveCount(3);
+    await expect(inputs.locator(".ag-center-cols-container .ag-row")).toHaveCount(3);
     for (const name of ["SET_THK", "SET_SURF", "SET_WID"]) {
-      await expect(page.getByTestId(`set-io-input-${name}`)).toContainText("컬럼 사전");
+      await expect(ioRow(page, "inputs", name)).toContainText("컬럼 사전");
     }
-    await expect(page.getByTestId("set-io-result-S_SPD")).toContainText("최종");
-    await expect(page.getByTestId("set-io-result-S_GRD")).toContainText("중간");
-    await expect(page.getByTestId("set-io-result-S_FCT")).toContainText("중간");
+    await expect(ioRow(page, "results", "S_SPD")).toContainText("최종");
+    await expect(ioRow(page, "results", "S_GRD")).toContainText("중간");
+    await expect(ioRow(page, "results", "S_FCT")).toContainText("중간");
     await expect(page.getByTestId("set-checks")).toContainText("통과");
     await expect(page.getByTestId("set-check-0")).toHaveCount(0);
     await page.screenshot({ path: screenshot("dme-ruleSetEdit-chain.png"), fullPage: true });
@@ -144,7 +148,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await page.getByTestId("set-rule-down-E2S_GRD").click();
     await expectOrder(page, ["E2S_FCT", "E2S_GRD", "E2S_SPD"]);
     await expect(page.getByTestId("set-dep-later-E2S_FCT-E2S_GRD")).toHaveText("뒤에 있음");
-    await expect(page.getByTestId("set-io-input-S_GRD")).toContainText("어디에도 없음");
+    await expect(ioRow(page, "inputs", "S_GRD")).toContainText("어디에도 없음");
     await expect(page.getByTestId("set-checks")).toContainText(
       "E2S_FCT가 뒤에 도는 E2S_GRD의 결과 변수 S_GRD를 읽는다. E2S_GRD를 E2S_FCT 앞으로 옮긴다",
     );
@@ -176,7 +180,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await page.mouse.up();
     await expectOrder(page, ["E2S_GRD", "E2S_FCT", "E2S_SPD"]);
     await expect(page.getByTestId("set-dep-later-E2S_FCT-E2S_GRD")).toHaveCount(0);
-    await expect(page.getByTestId("set-io-input-S_GRD")).toHaveCount(0);
+    await expect(ioRow(page, "inputs", "S_GRD")).toHaveCount(0);
     await expect(page.getByTestId("set-checks")).toContainText("통과");
   });
 
@@ -211,7 +215,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await expectOrder(page, ["E2S_GRD", "E2S_DUP"]);
     const warn = "E2S_GRD와 E2S_DUP가 같은 결과 변수 S_GRD에 대입한다";
     await expect(page.getByTestId("set-checks")).toContainText(warn);
-    await expect(page.getByTestId("set-io-result-S_GRD")).toContainText("덮어씀");
+    await expect(ioRow(page, "results", "S_GRD")).toContainText("덮어씀");
 
     await page.getByTestId("set-name").fill("E2E 순환 세트(수정)");
     await page.getByTestId("set-save").click();
@@ -243,8 +247,8 @@ test.describe("mdm dme/ruleSetEdit", () => {
 
     await page.getByTestId("set-guide-apply").click();
     await expectOrder(page, ["E2S_DUP", "E2S_FCT", "E2S_SPD"]);
-    await expect(page.getByTestId("set-io-result-S_SPD")).toContainText("최종");
-    await expect(page.getByTestId("set-io-result-S_GRD")).toContainText("중간");
+    await expect(ioRow(page, "results", "S_SPD")).toContainText("최종");
+    await expect(ioRow(page, "results", "S_GRD")).toContainText("중간");
     await expect(page.getByTestId("set-checks")).toContainText("통과");
     await page.getByTestId("set-save").click();
     await expect(page.getByTestId("set-message")).toContainText("저장 · row_version 1", { timeout: 20_000 });

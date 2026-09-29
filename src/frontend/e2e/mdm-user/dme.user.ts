@@ -352,11 +352,15 @@ async function dtEqual(page: Page, rowId: number, varId: number, value: string) 
 // 값 테스트·테스트 케이스
 const vtCard = (page: Page) => tid(page, "rule-card-value-test");
 const tcCard = (page: Page) => tid(page, "rule-card-test-cases");
-/** 케이스 줄 — 이름 칸이 name 으로 시작하고 복사본("(복사)")이 아닌 줄(설명은 이름 뒤에 붙는다). */
+/** 케이스 표(AgDataGrid)의 행들. */
+const caseRows = (page: Page) => tcCard(page).locator(".ag-center-cols-container .ag-row");
+/** 케이스 줄 — 이름 칸이 name 으로 시작하고 복사본("(복사)")이 아닌 줄(설명은 이름 뒤에 " · " 로 붙는다). */
 const caseRow = (page: Page, name: string) =>
-  tcCard(page)
-    .locator('tr[data-testid^="tc-row-"]')
-    .filter({ has: page.locator("td:nth-child(2)", { hasText: new RegExp(`^\\s*${escapeRe(name)}(?! \\(복사\\))`) }) });
+  caseRows(page).filter({ has: page.locator('.ag-cell[col-id="name"]', { hasText: new RegExp(`^\\s*${escapeRe(name)}(?! \\(복사\\))`) }) });
+/** 세트 입출력 표(AgDataGrid)의 한 행 — 행 키는 변수명이다. kind: inputs(입력 변수) | results(결과 변수). */
+const ioRow = (page: Page, kind: "inputs" | "results", name: string): Locator =>
+  page.getByTestId(`set-io-${kind}`).locator(`.ag-center-cols-container .ag-row[row-id="${name}"]`);
+
 const resultValue = (page: Page, name: string) => tid(page, "vt-result-values").locator("tr", { hasText: name }).locator("td");
 
 async function vtInput(page: Page, name: string, value: string) {
@@ -372,6 +376,11 @@ async function vtRun(page: Page) {
 }
 
 // ── ruleConfirm ──
+
+// 버전 확정 화면의 검사 결과·변경 표는 AgDataGrid 다 — 행은 row-id(검사 항목 / row_id)로 찾는다.
+const rcCheckRow = (page: Page, item: string) => tid(page, "rc-checks").locator(`.ag-center-cols-container .ag-row[row-id="${item}"]`);
+const rcDiffRow = (page: Page, rowId: number | string) => tid(page, "rc-diff").locator(`.ag-center-cols-container .ag-row[row-id="${rowId}"]`);
+const rcDiffKind = (page: Page, rowId: number | string) => rcDiffRow(page, rowId).locator('.ag-cell[col-id="kindLabel"]');
 
 async function rcValidate(page: Page, applyFrom: string) {
   await tid(page, "rc-apply-from").fill(applyFrom);
@@ -618,7 +627,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(tid(page, "rule-header-description")).toHaveValue("E2E 사용자 여정으로 만든 판정 룰");
     await expect(tid(page, "rule-header-usage")).toHaveValue("E2E 품질 판정 화면");
     // 버전 1 DRAFT 하나 — 미적용이 있어 새 버전이 막히고 안내가 보인다. 작성 중 룰은 폐기 버튼이 없다(INUSE 만).
-    await expect(tid(page, "rule-version-table").locator("tbody tr")).toHaveCount(1);
+    await expect(tid(page, "rule-version-table").locator(".ag-center-cols-container .ag-row")).toHaveCount(1);
     await expect(tid(page, "rule-version-table")).toContainText(STW);
     await expect(cardButton(page, "rule-card-versions", "새 버전")).toBeDisabled();
     await expect(tid(page, "rule-unapplied-notice")).toHaveText("미적용 버전 1 이 있어 새 버전을 만들 수 없습니다(한 번에 하나).");
@@ -663,7 +672,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await pickRule(page, RULE);
     await expect(tid(page, "rule-pick-list")).toHaveCount(0);
     await tid(page, "rule-ver-row-1").click();
-    await expect(tid(page, "rule-version-table").locator('tr[data-selected="true"]')).toContainText("1");
+    await expect(tid(page, "rule-version-table").locator(".ag-center-cols-container .ag-row-highlighted")).toContainText("1");
     await expect(tid(page, "rule-ver-select")).toHaveValue("1");
     watcher.assertClean("ruleEdit");
   });
@@ -1134,9 +1143,10 @@ test.describe("A 룰 등록·편집·확정", () => {
     for (const n of [CASE_A, `${CASE_C}(수정)`]) {
       await caseRow(page, n).locator('[data-testid^="tc-copy-"]').click();
       await expect(caseRow(page, `${n} (복사)`)).toBeVisible({ timeout: 20_000 });
-      await expect(caseRow(page, `${n} (복사)`).locator("td").nth(2)).toHaveText((await caseRow(page, n).locator("td").nth(2).textContent())!);
+      const input = (row: Locator) => row.locator('.ag-cell[col-id="inputJson"]');
+      await expect(input(caseRow(page, `${n} (복사)`))).toHaveText((await input(caseRow(page, n)).textContent())!);
     }
-    await expect(tcCard(page).locator('tr[data-testid^="tc-row-"]')).toHaveCount(5);
+    await expect(caseRows(page)).toHaveCount(5);
     for (const n of [`${CASE_A} (복사)`, `${CASE_C}(수정) (복사)`]) {
       await caseRow(page, n).getByRole("button", { name: "삭제", exact: true }).click();
       await caseRow(page, n).getByRole("button", { name: "삭제 확인", exact: true }).click();
@@ -1149,7 +1159,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(del.getByRole("button", { name: "삭제 확인", exact: true })).toBeVisible();
     await del.getByRole("button", { name: "삭제 확인", exact: true }).click();
     await expect(caseRow(page, CASE_DEL)).toHaveCount(0, { timeout: 20_000 });
-    await expect(tcCard(page).locator('tr[data-testid^="tc-row-"]')).toHaveCount(2);
+    await expect(caseRows(page)).toHaveCount(2);
     watcher.assertClean("ruleEdit");
   });
 
@@ -1202,12 +1212,13 @@ test.describe("A 룰 등록·편집·확정", () => {
   test("TC-DME-CNF-02 조회(R) — 확정 대기 목록을 검색어로 좁히고 풀어 본다", async () => {
     await tid(page, "rc-keyword").fill(RULE);
     await tid(page, "rc-search").click();
-    const row = tid(page, `rc-row-${RULE}-1`);
+    // 확정 대기 목록은 AgDataGrid 다 — rc-row-* 는 룰 ID 칸 표지이고, 행은 row-id(룰 ID-버전)로 찾는다.
+    const row = tid(page, "rc-list").locator(`.ag-center-cols-container .ag-row[row-id="${RULE}-1"]`);
     await expect(row).toBeVisible({ timeout: 20_000 });
     await expect(row).toContainText(NAME2);
     await expect(row).toContainText("DECISION");
     await expect(row).toContainText(STW);
-    await expect(tid(page, "rc-list").locator('tr[data-testid^="rc-row-"]')).toHaveCount(1);
+    await expect(tid(page, "rc-list").locator('[data-testid^="rc-row-"]')).toHaveCount(1);
     await tid(page, "rc-keyword").fill(`${RULE}_NONE`);
     await tid(page, "rc-search").click();
     await expect(tid(page, "rc-list-empty")).toHaveText("확정할 DRAFT 가 없습니다", { timeout: 20_000 });
@@ -1215,11 +1226,14 @@ test.describe("A 룰 등록·편집·확정", () => {
     await tid(page, "rc-keyword").fill(RULE);
     await tid(page, "rc-search").click();
     await tid(page, `rc-row-${RULE}-1`).click();
-    await expect(tid(page, `rc-row-${RULE}-1`)).toHaveAttribute("aria-selected", "true");
+    await expect(row).toHaveClass(/ag-row-highlighted/);
     await expect(tid(page, "rc-target")).toHaveText(`${RULE} 버전 1 · DECISION`, { timeout: 20_000 });
     // 같은 행 보기 — 최초 버전은 모두 추가라 같은 행이 없다.
     await tid(page, "rc-diff-show-same").getByText("같은 행 보기").click();
-    await expect(tid(page, "rc-diff").locator('tr[data-kind="ADDED"]')).toHaveCount(4);
+    await expect(
+      tid(page, "rc-diff").locator(".ag-center-cols-container .ag-row")
+        .filter({ has: page.locator('.ag-cell[col-id="kindLabel"]', { hasText: /^추가$/ }) }),
+    ).toHaveCount(4);
     await tid(page, "rc-diff-show-same").getByText("같은 행 보기").click();
     watcher.assertClean("ruleConfirm");
   });
@@ -1230,10 +1244,10 @@ test.describe("A 룰 등록·편집·확정", () => {
     await rcValidate(page, daysAgo(8).input);
     // 저장 시 검사 경고 — 키가 NULL 이면 맞는 행이 없다·축 조합 빈칸(경고라 확정은 된다).
     await expect(tid(page, "rc-check-status-SAVE_CHECKS")).toHaveText("경고");
-    await expect(tid(page, "rc-check-SAVE_CHECKS")).toContainText(`${THK} 이(가) NULL 이면 맞는 행이 없다`);
+    await expect(rcCheckRow(page, "SAVE_CHECKS")).toContainText(`${THK} 이(가) NULL 이면 맞는 행이 없다`);
     await expect(tid(page, "rc-check-status-NOT_EMPTY")).toHaveText("통과");
     await expect(tid(page, "rc-check-status-TEST_CASES")).toHaveText("통과");
-    await expect(tid(page, "rc-check-TEST_CASES")).toContainText("전체 2 · 기대값 있음 2 · 통과 2 · 실패 0");
+    await expect(rcCheckRow(page, "TEST_CASES")).toContainText("전체 2 · 기대값 있음 2 · 통과 2 · 실패 0");
     await expect(tid(page, "rc-check-status-RESULT_VAR_RELEASED")).toHaveText("통과");
     await expect(tid(page, "rc-check-status-APPLY_FROM")).toHaveText("면제");
     await expect(tid(page, "rc-confirm")).toBeEnabled();
@@ -1365,10 +1379,10 @@ test.describe("B 새 버전·삭제·폐기", () => {
 
     await cardButton(page, "rule-card-versions", "새 버전").click();
     await expect(tid(page, "rule-ver-select")).toHaveValue("2", { timeout: 20_000 });
-    const v2 = tid(page, "rule-version-table").locator("tr", { has: page.locator('[data-testid="rule-ver-row-2"]') });
+    const v2 = tid(page, "rule-version-table").locator('.ag-center-cols-container .ag-row[row-id="2"]');
     await expect(v2.locator('.mdm-status-badge[data-status="DRAFT"]')).toBeVisible();
-    await expect(v2.locator("td").nth(3)).toHaveText(STW);
-    await expect(v2.locator("td").nth(4)).toHaveText("1");
+    await expect(v2.locator('.ag-cell[col-id="ownerId"]')).toHaveText(STW);
+    await expect(v2.locator('.ag-cell[col-id="baseVer"]')).toHaveText("1");
     await expect(topbar(page)).toContainText("편집 중(나)");
     await expect(cardButton(page, "rule-card-versions", "새 버전")).toBeDisabled();
     await expect(tid(page, "rule-unapplied-notice")).toContainText("미적용 버전 2");
@@ -1416,17 +1430,17 @@ test.describe("B 새 버전·삭제·폐기", () => {
     await expect(tid(page, "rc-target")).toHaveText(`${RULE} 버전 2 · DECISION`, { timeout: 30_000 });
     await expect(tid(page, "rc-previous")).toHaveText(`직전 RELEASED 버전 1 · ${RELEASE1.date} 00:00:00`);
     await expect(tid(page, "rc-diff-counts")).toHaveText("추가 0 · 삭제 1 · 수정 1 · 같음 1");
-    await expect(tid(page, `rc-diff-${v1Rows[0]}`)).toHaveAttribute("data-kind", "REMOVED");
-    await expect(tid(page, `rc-diff-${v1Rows[1]}`)).toContainText("등급");
-    await expect(tid(page, `rc-diff-${v1Rows[2]}`)).toHaveCount(0);
+    await expect(rcDiffKind(page, v1Rows[0])).toHaveText("삭제");
+    await expect(rcDiffRow(page, v1Rows[1])).toContainText("등급");
+    await expect(rcDiffRow(page, v1Rows[2])).toHaveCount(0);
     await tid(page, "rc-diff-show-same").getByText("같은 행 보기").click();
-    await expect(tid(page, `rc-diff-${v1Rows[2]}`)).toHaveAttribute("data-kind", "SAME");
+    await expect(rcDiffKind(page, v1Rows[2])).toHaveText("같음");
     await expect(tid(page, "rc-contract")).toHaveAttribute("data-state", "NOT_CHECKED");
 
     await rcValidate(page, TOO_EARLY.input);
     await expect(tid(page, "rc-check-status-APPLY_FROM")).toHaveText("거부");
-    await expect(tid(page, "rc-check-APPLY_FROM")).toHaveAttribute("data-rejected", "true");
-    await expect(tid(page, "rc-check-APPLY_FROM")).toContainText(`직전 RELEASED 적용 시작 ${RELEASE1.date} 00:00:00`);
+    await expect(tid(page, "rc-check-status-APPLY_FROM")).toHaveAttribute("data-rejected", "true");
+    await expect(rcCheckRow(page, "APPLY_FROM")).toContainText(`직전 RELEASED 적용 시작 ${RELEASE1.date} 00:00:00`);
     await expect(tid(page, "rc-confirm")).toBeDisabled();
     await layout.layout(page, "ruleConfirm 적용 순서 거부");
     await snap(page, "dme-ruleConfirm-VER-03-rejected");
@@ -1678,10 +1692,10 @@ test.describe("C 룰 세트", () => {
 
     // 입출력 — 입력은 표면 하나, 결과는 계수(최종)·등급(중간).
     await expect(tid(page, "set-io-inputs")).toContainText("입력 변수 1개");
-    await expect(tid(page, `set-io-input-${SURF}`)).toBeVisible();
+    await expect(ioRow(page, "inputs", SURF)).toBeVisible();
     await expect(tid(page, "set-io-results")).toContainText("결과 변수 2개 · 최종 1개, 중간 1개");
-    await expect(tid(page, `set-io-result-${FCT}`)).toContainText("최종");
-    await expect(tid(page, `set-io-result-${GRD}`)).toContainText("중간");
+    await expect(ioRow(page, "results", FCT)).toContainText("최종");
+    await expect(ioRow(page, "results", GRD)).toContainText("중간");
 
     await tid(page, "set-name").fill(`${SET_NAME} 수정`);
     await tid(page, "set-desc").fill("E2E 표면 → 등급 → 계수");

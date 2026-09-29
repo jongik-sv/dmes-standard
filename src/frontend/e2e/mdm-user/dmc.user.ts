@@ -141,11 +141,18 @@ async function openCode(page: Page, id: string) {
   await expect(tid(page, "version-list")).toBeVisible({ timeout: 30_000 });
 }
 
-const versionRow = (page: Page, ver: string) => tid(page, `version-row-${ver}`);
+/** 확정 대기 목록·검사 결과 표는 AgDataGrid 다 — 행은 row-id(목록은 "ID-버전", 검사는 검사 번호)로 찾는다. */
+const gridRowById = (page: Page, gridTestId: string, rowId: string) =>
+  tid(page, gridTestId).locator(`.ag-center-cols-container .ag-row[row-id="${rowId}"]`);
+const cfRow = (page: Page, id: string, ver: string) => gridRowById(page, "cf-list", `${id}-${ver}`);
+const cfCheckRow = (page: Page, no: string) => gridRowById(page, "cf-checks", no);
+
+/** 버전 목록도 AgDataGrid 다 — 행 키(rowKey)는 버전 값이다. */
+const versionRow = (page: Page, ver: string) => gridRowById(page, "version-list", ver);
 
 async function selectVersion(page: Page, ver: string) {
   await versionRow(page, ver).click();
-  await expect(versionRow(page, ver)).toHaveAttribute("aria-selected", "true");
+  await expect(versionRow(page, ver)).toHaveClass(/ag-row-highlighted/);
 }
 
 /** codeMng [신규] 등록 폼으로 마루 코드를 등록한다. 등록 뒤 같은 화면 오른쪽에 뜨는 상세까지 기다린다. */
@@ -963,16 +970,16 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
   test("TC-DMC-CNF-02 조회(R) — 확정 대기 목록을 검색어로 좁히고 풀어 본다", async () => {
     await tid(page, "cf-keyword").fill(CODE);
     await tid(page, "cf-search").click();
-    await expect(tid(page, `cf-row-${CODE}-1.000`)).toBeVisible({ timeout: 20_000 });
-    await expect(tid(page, `cf-row-${CODE}-1.000`)).toContainText(NAME2);
-    await expect(tid(page, `cf-row-${CODE}-1.000`)).toContainText(STW);
+    await expect(cfRow(page, CODE, "1.000")).toBeVisible({ timeout: 20_000 });
+    await expect(cfRow(page, CODE, "1.000")).toContainText(NAME2);
+    await expect(cfRow(page, CODE, "1.000")).toContainText(STW);
     await tid(page, "cf-keyword").fill(`${CODE}_NONE`);
     await tid(page, "cf-search").click();
     await expect(tid(page, "cf-list-empty")).toHaveText("확정할 DRAFT 가 없습니다", { timeout: 20_000 });
     await tid(page, "cf-keyword").fill(CODE);
     await tid(page, "cf-search").click();
-    await tid(page, `cf-row-${CODE}-1.000`).click();
-    await expect(tid(page, `cf-row-${CODE}-1.000`)).toHaveAttribute("aria-selected", "true");
+    await cfRow(page, CODE, "1.000").click();
+    await expect(cfRow(page, CODE, "1.000")).toHaveClass(/ag-row-highlighted/);
     watcher.assertClean("codeConfirm");
   });
 
@@ -987,7 +994,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expect(tid(page, "cf-check-status-3")).toHaveText("면제");
     await expect(tid(page, "cf-check-status-4")).toHaveText("면제");
     await expect(tid(page, "cf-check-status-2-2")).toHaveText("경고");
-    await expect(tid(page, "cf-check-2-2")).toContainText("TMP_EMPTY");
+    await expect(cfCheckRow(page, "2-2")).toContainText("TMP_EMPTY");
     await expect(tid(page, "cf-check-status-1")).toHaveText("통과");
     await expect(tid(page, "cf-confirm")).toBeEnabled();
 
@@ -1023,7 +1030,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expect(tid(page, "cf-released")).toContainText(`확정자 ${STW}`);
     await expect(tid(page, "cf-validate")).toBeDisabled();
     await expect(tid(page, "cf-confirm")).toBeDisabled();
-    await expect(tid(page, `cf-row-${CODE}-1.000`)).toHaveCount(0);
+    await expect(cfRow(page, CODE, "1.000")).toHaveCount(0);
     await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 10_000 });
     await layout(page, "codeConfirm 확정 뒤");
     await snap(page, "dmc-codeConfirm-04-released");
@@ -1222,7 +1229,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     // 사용자가 목록에서 고른다(이미 열린 탭으로의 인계는 TC-DMC-LNK-03 에서 따로 본다).
     await tid(page, "cf-keyword").fill(CODE);
     await tid(page, "cf-search").click();
-    await tid(page, `cf-row-${CODE}-1.001`).click();
+    await cfRow(page, CODE, "1.001").click();
     await expect(tid(page, "cf-target")).toHaveText(`${CODE} v1.001 MINOR`, { timeout: 20_000 });
     await expect(tid(page, "cf-previous")).toHaveText(`직전 RELEASED v1.000 · ${CONFIRM1B.date} 00:00:00`);
     const diff = tid(page, "cf-diff");
@@ -1235,7 +1242,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await tid(page, "cf-apply-from").fill(TOO_EARLY.input);
     await tid(page, "cf-validate").click();
     await expect(tid(page, "cf-check-status-3")).toHaveText("거부", { timeout: 20_000 });
-    await expect(tid(page, "cf-check-3")).toHaveAttribute("data-rejected", "true");
+    await expect(tid(page, "cf-check-status-3")).toHaveAttribute("data-rejected", "true");
     await expect(tid(page, "cf-check-status-4")).toHaveText("통과");
     await expect(tid(page, "cf-confirm")).toBeDisabled();
     await layout(page, "codeConfirm 거부");
@@ -1551,7 +1558,7 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       await go(page, "codeConfirm");
       await tid(page, "cf-keyword").fill(id);
       await tid(page, "cf-search").click();
-      await tid(page, `cf-row-${id}-1.000`).click();
+      await cfRow(page, id, "1.000").click();
       await tid(page, "cf-apply-from").fill(daysAgo(3).input);
       await tid(page, "cf-validate").click();
       await expect(tid(page, "cf-confirm")).toBeEnabled({ timeout: 20_000 });
@@ -1664,7 +1671,7 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       await go(page, "codeConfirm");
       await tid(page, "cf-keyword").fill(id);
       await tid(page, "cf-search").click();
-      await tid(page, `cf-row-${id}-1.000`).click();
+      await cfRow(page, id, "1.000").click();
       await expect(tid(page, "cf-target")).toContainText(id, { timeout: 20_000 });
       await expect(tid(page, "cf-form")).toContainText(`잠김 · ${STW} 편집 중`);
       await expect(tid(page, "cf-validate")).toBeDisabled();

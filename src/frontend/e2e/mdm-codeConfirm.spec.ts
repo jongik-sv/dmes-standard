@@ -40,6 +40,13 @@ async function login(page: Page, user: string) {
   await expect(page).toHaveURL(/\/portal/, { timeout: 30_000 });
 }
 
+/** 확정 대기 목록·검사 결과 표는 AgDataGrid 다 — 행은 row-id(목록은 "ID-버전", 검사는 검사 번호)로 찾는다. */
+function gridRow(page: Page, gridTestId: string, rowId: string): Locator {
+  return tid(page, gridTestId).locator(`.ag-center-cols-container .ag-row[row-id="${rowId}"]`);
+}
+const listRow = (page: Page, id: string, ver: string) => gridRow(page, "cf-list", `${id}-${ver}`);
+const checkRow = (page: Page, no: string) => gridRow(page, "cf-checks", no);
+
 async function openCodeConfirm(page: Page) {
   const item = (text: RegExp) => page.locator(".tree-item .item-name").filter({ hasText: text }).first();
   await item(/^마루 MDM$/).click({ timeout: 20_000 });
@@ -49,7 +56,7 @@ async function openCodeConfirm(page: Page) {
 }
 
 async function choose(page: Page, id: string, ver: string) {
-  const row = tid(page, `cf-row-${id}-${ver}`);
+  const row = listRow(page, id, ver);
   await expect(row).toBeVisible({ timeout: 20_000 });
   await row.click();
   await expect(tid(page, "cf-target")).toContainText(id, { timeout: 20_000 });
@@ -80,11 +87,11 @@ test.describe("mdm codeConfirm — 마루 코드 버전 확정", () => {
     await login(page, STEWARD);
     await openCodeConfirm(page);
 
-    await expect(tid(page, "cf-row-E2E_CF_OK-1.000")).toBeVisible({ timeout: 20_000 });
-    await expect(tid(page, "cf-row-E2E_CF_NOCHG-1.001")).toBeVisible();
-    await expect(tid(page, "cf-row-E2E_CF_RACE-1.000")).toBeVisible();
+    await expect(listRow(page, "E2E_CF_OK", "1.000")).toBeVisible({ timeout: 20_000 });
+    await expect(listRow(page, "E2E_CF_NOCHG", "1.001")).toBeVisible();
+    await expect(listRow(page, "E2E_CF_RACE", "1.000")).toBeVisible();
     // RELEASED 1.000 은 확정 대기 목록에 없다
-    await expect(tid(page, "cf-row-E2E_CF_NOCHG-1.000")).toHaveCount(0);
+    await expect(listRow(page, "E2E_CF_NOCHG", "1.000")).toHaveCount(0);
     await page.screenshot({ path: screenshot("dmc-codeConfirm-list.png"), fullPage: true });
 
     await tid(page, "cf-keyword").fill("NO_SUCH");
@@ -102,7 +109,7 @@ test.describe("mdm codeConfirm — 마루 코드 버전 확정", () => {
 
     await validate(page, "2026-10-01T00:00");
     await expect(tid(page, "cf-check-status-4")).toHaveText("거부");
-    await expect(tid(page, "cf-check-4")).toHaveAttribute("data-rejected", "true");
+    await expect(tid(page, "cf-check-status-4")).toHaveAttribute("data-rejected", "true");
     await expect(tid(page, "cf-check-status-3")).toHaveText("통과");
     await expect(tid(page, "cf-validate")).toBeEnabled();
     await expect(tid(page, "cf-confirm")).toBeDisabled();
@@ -119,7 +126,7 @@ test.describe("mdm codeConfirm — 마루 코드 버전 확정", () => {
     await expect(tid(page, "cf-check-status-3")).toHaveText("면제");
     await expect(tid(page, "cf-check-status-4")).toHaveText("면제");
     await expect(tid(page, "cf-check-status-2-2")).toHaveText("경고");
-    await expect(tid(page, "cf-check-2-2")).toContainText("CATE:EMPTYC");
+    await expect(checkRow(page, "2-2")).toContainText("CATE:EMPTYC");
 
     await expect(tid(page, "cf-confirm")).toBeEnabled({ timeout: 20_000 });
     await tid(page, "cf-confirm").click();
@@ -135,8 +142,8 @@ test.describe("mdm codeConfirm — 마루 코드 버전 확정", () => {
     await expect(tid(page, "cf-form").locator('.mdm-status-badge[data-status="RELEASED"]')).toBeVisible({ timeout: 20_000 });
     await expect(tid(page, "cf-released")).toContainText("적용 구간 2026-01-01 00:00:00 ~ 9999-12-31 00:00:00");
     await expect(tid(page, "cf-released")).toContainText(`확정자 ${STEWARD}`);
-    await expect(tid(page, "cf-row-E2E_CF_OK-1.000")).toHaveCount(0);
-    await expect(tid(page, "cf-row-E2E_CF_RACE-1.000")).toBeVisible();
+    await expect(listRow(page, "E2E_CF_OK", "1.000")).toHaveCount(0);
+    await expect(listRow(page, "E2E_CF_RACE", "1.000")).toBeVisible();
     await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 10_000 }); // 닫히는 대화상자가 스크린샷을 가리지 않게
     await page.screenshot({ path: screenshot("dmc-codeConfirm-confirmed.png"), fullPage: true });
   });
