@@ -172,6 +172,29 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
     document.body.innerHTML = "";
   });
 
+  it("같은 코드를 다시 불러오는 사이 고친 헤더 폼은 늦게 온 view 응답이 덮지 않는다", async () => {
+    await render({ snapshot: { maruCodeId: "PROC_CD" } });
+    expect((byTestId("header-name") as HTMLInputElement).value).toBe("공정 코드");
+
+    let release: (v: unknown) => void = () => {};
+    const gate = new Promise((r) => { release = r; });
+    const baseFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes("/oasis/codeEdit/view")) await gate;
+      return baseFetch(input, init);
+    }) as typeof fetch;
+
+    const row = Array.from(document.body.querySelectorAll('[data-testid="code-list"] .ag-row')).find((r) => r.textContent?.includes("PROC_CD"));
+    await click(row!.querySelector(".ag-cell")); // 이미 고른 행을 다시 눌러 view 를 다시 부른다(응답은 붙잡아 둔다)
+    await typeInto("header-name", "고친 이름");
+    release(null);
+    await flush();
+    await flush();
+
+    expect((byTestId("header-name") as HTMLInputElement).value).toBe("고친 이름");
+    expect(actions("view")).toHaveLength(2);
+  });
+
   it("코드를 고르기 전에는 안내만 보인다", async () => {
     await render();
     expect(visibleText(container)).toContain("목록에서 마루 코드를 고르거나");

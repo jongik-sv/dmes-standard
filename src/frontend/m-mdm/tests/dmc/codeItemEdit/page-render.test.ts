@@ -126,11 +126,17 @@ async function render(element: ReturnType<typeof createElement>) {
   await settle();
 }
 
+/** 조회칸 고르기 — 칸에서 Enter 로 찾고 드롭다운의 그 코드를 누른다. */
 async function chooseCode(id: string) {
-  const sel = container.querySelector('[data-testid="code-maru-select"]') as HTMLSelectElement;
+  const input = container.querySelector('[data-testid="code-pick-keyword"]') as HTMLInputElement;
   await act(async () => {
-    sel.value = id;
-    sel.dispatchEvent(new Event("change", { bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+  });
+  await settle();
+  const option = container.querySelector(`[data-testid="code-pick-${id}"]`) as HTMLButtonElement;
+  expect(option, id).toBeTruthy();
+  await act(async () => {
+    option.click();
   });
   await settle();
 }

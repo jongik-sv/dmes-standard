@@ -110,6 +110,14 @@ async function choose(page: Page, testId: string, value: string) {
   await waitIdle(page);
 }
 
+/** 코드 편집 조회칸의 마루 코드 고르기 — 칸에 넣고 Enter 로 찾아 드롭다운의 그 코드를 누른다. */
+async function pickCode(page: Page, id: string) {
+  await tid(page, "code-pick-keyword").fill(id);
+  await tid(page, "code-pick-keyword").press("Enter");
+  await tid(page, `code-pick-${id}`).click({ timeout: 20_000 });
+  await waitIdle(page);
+}
+
 const codeListRow = (page: Page, id: string) => gridRow(tid(page, "code-list"), id, "maruCodeId");
 
 /**
@@ -612,7 +620,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await resetClicks(page);
     await expect(breadcrumb(page)).toContainText("마루 MDM > 마스터코드 > 코드 편집");
     // 사용자가 고른다(화면 인계는 TC-DMC-LNK-01 에서 따로 본다).
-    await choose(page, "code-maru-select", CODE);
+    await pickCode(page, CODE);
     await expect(tid(page, "code-ver-select")).toHaveValue("1.000", { timeout: 20_000 });
     await expect(tid(page, "code-ver-select").locator("option:checked")).toHaveText("v1.000 DRAFT");
     await expect(tid(page, "code-grid-empty")).toHaveText("보일 코드가 없습니다");
@@ -768,7 +776,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
   test("TC-DMC-CAT-01 [카테고리] 탭을 열면 위의 마루 코드·버전 그대로 BASE 만 있다", async () => {
     await openTab(page, "cate");
     // 카테고리 탭은 자체 마루 코드·버전 Select 없이 화면 위의 것을 쓴다.
-    await expect(tid(page, "code-maru-select")).toHaveValue(CODE);
+    await expect(tid(page, "code-current")).toContainText(CODE);
     await expect(tid(page, "code-ver-select")).toHaveValue("1.000");
     await expect(tid(page, "cate-tab")).toContainText("카테고리·소속 변경은 코드 변경과 함께 상단 [저장] 한 번으로 저장합니다");
     await expect(tid(page, "cate-row-BASE")).toBeVisible();
@@ -1353,7 +1361,7 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       await expect(footerScreenId(page)).toHaveText("codeItemEdit", { timeout: 60_000 });
       await waitIdle(page);
       await snap(page, "dmc-link-01-codeItemEdit");
-      await expect(tid(page, "code-maru-select"), "넘겨받은 마루 코드").toHaveValue(id, { timeout: 20_000 });
+      await expect(tid(page, "code-current"), "넘겨받은 마루 코드").toContainText(id, { timeout: 20_000 });
       await expect(tid(page, "code-ver-select"), "넘겨받은 버전").toHaveValue("1.000");
       watcher.assertClean("codeMng→codeItemEdit");
     } finally {
@@ -1372,7 +1380,7 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       await waitIdle(page);
       await openTab(page, "cate");
       await snap(page, "dmc-link-02-codeItemEdit-cate");
-      await expect(tid(page, "code-maru-select"), "넘겨받은 마루 코드").toHaveValue(id, { timeout: 20_000 });
+      await expect(tid(page, "code-current"), "넘겨받은 마루 코드").toContainText(id, { timeout: 20_000 });
       await expect(tid(page, "code-ver-select"), "넘겨받은 버전").toHaveValue("1.000");
       await expect(tid(page, "cate-row-BASE"), "넘겨받은 코드의 BASE").toBeVisible({ timeout: 20_000 });
       await expect(tid(page, "cate-row-version")).toHaveText(/^row_version = \d+$/);
@@ -1421,7 +1429,7 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       await expect(tid(other.page, "ver-item-edit")).toBeEnabled();
       await tid(other.page, "ver-item-edit").click();
       await expect(footerScreenId(other.page)).toHaveText("codeItemEdit", { timeout: 60_000 });
-      await expect(tid(other.page, "code-maru-select")).toHaveValue(id, { timeout: 20_000 });
+      await expect(tid(other.page, "code-current")).toContainText(id, { timeout: 20_000 });
       await expect(screen(other.page).getByText("읽기 전용 · diff 보기")).toBeVisible();
       await expect(button(other.page, "저장")).toHaveCount(0);
       watcher.assertClean("codeMng");
@@ -1499,7 +1507,7 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       const id = uid("SEQ");
       await registerCode(page, id, `E2E 순서 ${RUN}`);
       await go(page, "codeItemEdit");
-      await choose(page, "code-maru-select", id);
+      await pickCode(page, id);
       await expect(tid(page, "code-ver-select")).toHaveValue("1.000", { timeout: 20_000 });
       await tid(page, "code-add").click();
       const row = newRow(codeGrid(page));
@@ -1525,7 +1533,7 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       const id = uid("UND");
       await registerCode(page, id, `E2E 취소 ${RUN}`);
       await go(page, "codeItemEdit");
-      await choose(page, "code-maru-select", id);
+      await pickCode(page, id);
       await expect(tid(page, "code-ver-select")).toHaveValue("1.000", { timeout: 20_000 });
       await addCodeRow(page, { code: "U1", name: "원래 이름" });
       await button(page, "저장").click();
@@ -1550,7 +1558,7 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       await registerCode(page, id, `E2E 삭제표시 ${RUN}`);
       // v1.000 에 행 하나를 넣고 확정한다.
       await go(page, "codeItemEdit");
-      await choose(page, "code-maru-select", id);
+      await pickCode(page, id);
       await expect(tid(page, "code-ver-select")).toHaveValue("1.000", { timeout: 20_000 });
       await addCodeRow(page, { code: "D1", name: "지울 행" });
       await button(page, "저장").click();
@@ -1591,7 +1599,7 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       const id = uid("ISS");
       await registerCode(page, id, `E2E 탭이슈 ${RUN}`);
       await go(page, "codeItemEdit");
-      await choose(page, "code-maru-select", id);
+      await pickCode(page, id);
       await expect(tid(page, "code-ver-select")).toHaveValue("1.000", { timeout: 20_000 });
       await expect(tid(page, "code-tab-grid-issue")).toHaveCount(0);
       await expect(tid(page, "code-tab-cate-issue")).toHaveCount(0);
@@ -1654,7 +1662,7 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       // codeItemEdit — [코드 편집]으로 열면 읽기 전용, 저장·코드 추가가 없다.
       await tid(page, "ver-item-edit").click();
       await expect(footerScreenId(page)).toHaveText("codeItemEdit", { timeout: 60_000 });
-      await expect(tid(page, "code-maru-select")).toHaveValue(id, { timeout: 20_000 });
+      await expect(tid(page, "code-current")).toContainText(id, { timeout: 20_000 });
       await expect(tid(page, "code-ver-select")).toHaveValue("1.000");
       await expect(screen(page).getByText("읽기 전용 · diff 보기")).toBeVisible();
       await expect(button(page, "저장")).toHaveCount(0);

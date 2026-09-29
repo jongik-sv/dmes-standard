@@ -5,7 +5,7 @@
  * 탭 본문은 탭을 바꾸면 사라지므로 이 훅은 page 에서 부르고 CategoryTab 은 props 만 받는다 — 탭을 오가도 편집이
  * 남는다. 조회 실패는 던지지 않고 `loadError` 로 남긴다(카테고리 조회가 막혀도 코드 탭은 그대로 쓴다).
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { previewRegex, viewCategories } from "./api";
 import {
   addCategoryRow, categoryChangesOf, editCategoryRow, removeCategoryRow, toCategoryRows, undoCategoryLocal,
@@ -57,6 +57,8 @@ export function useCategoryEdit({ maruCodeId, ver, codeRows }: CategoryEditArgs)
   const [membersByCate, setMembersByCate] = useState<Map<string, Set<string>>>(new Map());
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [issues, setIssues] = useState<Issue[]>([]);
+  /** 요청 순번 — 다른 마루 코드·버전으로 옮긴 뒤 늦게 온 옛 카테고리 응답이 새 목록을 덮지 않게 한다(Local-Rules §11). */
+  const loadSeq = useRef(0);
 
   const reset = useCallback(() => {
     setView(null);
@@ -67,6 +69,7 @@ export function useCategoryEdit({ maruCodeId, ver, codeRows }: CategoryEditArgs)
   }, []);
 
   const load = useCallback(async (id: string, v: string | null) => {
+    const seq = ++loadSeq.current;
     setLoadError(null);
     if (!id || !v) {
       reset();
@@ -74,6 +77,7 @@ export function useCategoryEdit({ maruCodeId, ver, codeRows }: CategoryEditArgs)
     }
     try {
       const out = await viewCategories(id, v);
+      if (seq !== loadSeq.current) return;
       const catRows = toCategoryRows(out.categories ?? []);
       const orig = new Map<string, Set<string>>();
       for (const ci of out.cateItems ?? []) {
@@ -87,6 +91,7 @@ export function useCategoryEdit({ maruCodeId, ver, codeRows }: CategoryEditArgs)
       setIssues([]);
       setSelectedCateId((prev) => (catRows.some((r) => r.cateId === prev) ? prev : (catRows[0]?.cateId ?? null)));
     } catch (e) {
+      if (seq !== loadSeq.current) return;
       reset();
       setLoadError(e instanceof Error ? e.message : String(e));
     }

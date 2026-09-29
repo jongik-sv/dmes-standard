@@ -51,13 +51,14 @@ async function openCodeItemEdit(page: Page) {
   await item(/^마루 MDM$/).click({ timeout: 20_000 });
   await item(/^마스터코드$/).click({ timeout: 20_000 });
   await item(/^코드 편집$/).click({ timeout: 20_000 });
-  await expect(page.getByTestId("code-maru-select")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("code-pick-keyword")).toBeVisible({ timeout: 60_000 });
 }
 
 async function chooseCode(page: Page, id: string) {
-  await expect(page.getByTestId("code-maru-select").locator(`option[value="${id}"]`)).toHaveCount(1, { timeout: 20_000 });
-  await page.getByTestId("code-maru-select").selectOption(id);
-  await page.getByRole("button", { name: "조회", exact: true }).click();
+  await page.getByTestId("code-pick-keyword").fill(id);
+  await page.getByTestId("code-pick-keyword").press("Enter");
+  await page.getByTestId(`code-pick-${id}`).click({ timeout: 20_000 });
+  await expect(page.getByTestId("code-current")).toContainText(id, { timeout: 20_000 });
 }
 
 async function openCateTab(page: Page) {

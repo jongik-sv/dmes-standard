@@ -92,7 +92,7 @@ moduleGroup: dmc
 
 | 필드ID | DB 컬럼명 | 화면 표시명 | 입력 방식 | 필수 | 기본값 | 설명 | 근거 |
 |---|---|---|---|---|---|---|---|
-| S-001 | `MARU_CODE_ID` | 마루 코드 | Select(`code-maru-select`) | Y | (없음) | `search` 결과(ID 순). 고르면 곧바로 `view` | §6.6 search |
+| S-001 | `MARU_CODE_ID` | 마루 코드 | ID 고르기(`code-pick-keyword` + [찾기] → 드롭다운 `code-pick-{id}`, 룰 화면 룰 고르기와 같은 `IdPicker`), 현재 코드 `code-current`(`ID 이름`) | Y | (없음) | `search`(ID·코드명 부분 일치) 앞 20건. ↑↓·Enter·Esc. 고르면 곧바로 `view` | §6.6 search |
 | S-002 | `VER` | 버전 | Select(`code-ver-select`) | Y | DRAFT → 없으면 CANCELLED 아닌 최대 | 표시 `v1.008 상태`(소수 세 자리) | 04:275, §6.6 기본 버전 |
 | S-003 | — | 닫힌 코드 | Checkbox(`code-closed-toggle`) | N | 끔 | 켜면 V 에서 닫힌 행(`closed`)을 흐린 색으로 덧붙인다 | §6.8 |
 

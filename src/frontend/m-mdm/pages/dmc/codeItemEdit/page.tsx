@@ -22,7 +22,7 @@ import { useMessage } from "@dk-oasis/shared/message-provider";
 import { Tabs } from "@dk-oasis/shared/tabs";
 import { Tree } from "@dk-oasis/shared/tree";
 import "@dk-oasis/shared/tree.css";
-import { MdmPageLayout, VersionStatusBadge, useMdmPageParams } from "@/shell";
+import { IdPicker, MdmPageLayout, VersionStatusBadge, useMdmPageParams, type IdPickRow } from "@/shell";
 import {
   patchRow, previewCategory, revertRow, saveAll, searchCodes, validateAll, viewCode, type SaveChanges,
 } from "./api";
@@ -37,11 +37,21 @@ import { hint, issueText, struck, toolbar } from "./components/styles";
 import { CategoryTab } from "./cate/CategoryTab";
 import { PreviewPanel as CatePreviewPanel } from "./cate/components/PreviewPanel";
 import { useCategoryEdit } from "./cate/useCategoryEdit";
-import type { CodeSummary, Issue, PreviewResult, ViewResult } from "./types";
+import type { Issue, PreviewResult, ViewResult } from "./types";
 
 const SCREEN_ID = "codeItemEdit";
 const COMPONENT_PATH = "dmc/codeItemEdit";
 const EMPTY_TEXT = "보일 코드가 없습니다";
+/** 마루 코드 고르기 후보 건수 — 서버 search 는 한도 없이 주므로 화면에서 자른다(룰·세트 고르기와 같은 20건). */
+const CODE_PICK_LIMIT = 20;
+
+/** 마루 코드 고르기 — 서버 search(ID·이름 부분 일치)를 `IdPicker` 줄로 바꾼다. */
+async function searchCodePicks(keyword: string): Promise<IdPickRow[]> {
+  const out = await searchCodes(keyword);
+  return (out.codes ?? []).slice(0, CODE_PICK_LIMIT).map((c) => ({
+    id: c.maruCodeId, name: c.maruCodeName, external: c.sourceKind !== "MDM", status: c.status,
+  }));
+}
 
 type Tab = "grid" | "tree" | "cate";
 
@@ -85,7 +95,6 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
   const canExecute = canDoButton(rbac, SCREEN_ID, "execute");
   const { showMessage } = useMessage();
 
-  const [codes, setCodes] = useState<CodeSummary[]>([]);
   const [maruCodeId, setMaruCodeId] = useState("");
   const [view, setView] = useState<ViewResult | null>(null);
   const [rows, setRows] = useState<EditRow[]>([]);
@@ -124,15 +133,18 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
   cateChangesRef.current = cate.changes;
 
   // ── 조회 ──
-  useEffect(() => {
-    searchCodes().then((out) => setCodes(out.codes ?? [])).catch(fail);
-  }, []);
-
+  // 요청 순번(Local-Rules §11·§15). loadSeq — view, 다른 코드·버전으로 옮긴 뒤 늦게 온 옛 view 가 그리드·버전 Select 를
+  // 덮지 않게. selectSeq — 고른 마루 코드·버전이 바뀐 횟수, 쓰기·검사 응답을 기다리는 사이 바뀌었으면 옛 코드·버전으로
+  // 다시 부르거나 이슈를 붙이지 않는다. 마루 코드는 조회칸의 고르기(`IdPicker`)가 그때그때 서버에서 찾는다.
+  const loadSeq = useRef(0);
+  const selectSeq = useRef(0);
   const load = useCallback(async (id: string, ver?: string | null, keepKey?: string | null) => {
     if (!id) return;
+    const seq = ++loadSeq.current;
     setBusy(true);
     try {
       const out = await viewCode(id, ver);
+      if (seq !== loadSeq.current) return;
       const editRows = toEditRows(out.rows ?? []);
       setView(out);
       setRows(editRows);
@@ -147,9 +159,9 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
       // 카테고리는 코드 view 가 고른 버전으로 따로 읽는다 — 실패해도 코드 탭은 그대로 쓴다(카테고리 탭에 안내).
       await loadCategories(id, out.selected?.ver ?? null);
     } catch (e) {
-      fail(e);
+      if (seq === loadSeq.current) fail(e);
     } finally {
-      setBusy(false);
+      if (seq === loadSeq.current) setBusy(false);
     }
   }, [loadCategories]);
 
@@ -159,20 +171,27 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
       setPreview(null);
       return;
     }
-    previewCategory(maruCodeId, ver, cateId).then(setPreview).catch(() => setPreview(null));
+    let live = true;
+    previewCategory(maruCodeId, ver, cateId)
+      .then((out) => { if (live) setPreview(out); })
+      .catch(() => { if (live) setPreview(null); });
+    return () => { live = false; };
   }, [view, maruCodeId, cateId]);
 
   // 마루 코드 화면이 [코드 편집]으로 넘긴 마루 코드·버전(openMdmPage)을 받는다(§6.10). RELEASED 도 열린다(읽기 전용).
   useMdmPageParams(COMPONENT_PATH, tabId, (params) => {
     if (!params.maruCodeId) return;
+    selectSeq.current++;
     setMaruCodeId(params.maruCodeId);
     void load(params.maruCodeId, params.ver ?? null);
   });
 
   const chooseCode = (id: string) => {
+    selectSeq.current++;
     setMaruCodeId(id);
     if (id) void load(id);
     else {
+      loadSeq.current++;
       setView(null);
       resetCategories();
     }
@@ -183,8 +202,10 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
   const runValidate = useCallback(async (changes: SaveChanges) => {
     const ver = view?.selected?.ver;
     if (!ver || !canValidate) return;
+    const origin = selectSeq.current;
     try {
       const out = await validateAll(maruCodeId, ver, changes);
+      if (origin !== selectSeq.current) return; // 그사이 다른 코드를 골랐다 — 옛 코드의 이슈를 새 그리드에 붙이지 않는다
       const map: Record<string, Issue[]> = {};
       for (const i of out.issues ?? []) {
         const key = i.itemKey ?? "";
@@ -203,14 +224,16 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
       setErrorMessage("저장할 변경이 없습니다");
       return;
     }
+    const origin = selectSeq.current;
     setBusy(true);
     try {
       await saveAll(maruCodeId, selected.ver, selected.rowVersion, saveChanges);
       showMessage({ message: "저장했습니다", alertType: "info", toast: true });
-      await load(maruCodeId, selected.ver);
+      // 응답을 기다리는 사이 다른 코드를 골랐으면 옛 코드로 다시 부르지 않는다 — 새 코드의 view 를 덮는다.
+      if (origin === selectSeq.current) await load(maruCodeId, selected.ver);
     } catch (e) {
       fail(e);
-      await runValidate(saveChanges);
+      if (origin === selectSeq.current) await runValidate(saveChanges);
     } finally {
       setBusy(false);
     }
@@ -218,11 +241,12 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
 
   const revertNow = async (code: string) => {
     if (!selected) return;
+    const origin = selectSeq.current;
     setBusy(true);
     try {
       await revertRow(maruCodeId, selected.ver, selected.rowVersion, code);
       showMessage({ message: "되돌렸습니다", alertType: "info", toast: true });
-      await load(maruCodeId, selected.ver);
+      if (origin === selectSeq.current) await load(maruCodeId, selected.ver);
     } catch (e) {
       fail(e);
     } finally {
@@ -264,6 +288,7 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
   const handlePatch = async (values: PatchValues) => {
     const row = rows.find((r) => r.__key === selectedKey)?.__server;
     if (!row || !selected) return;
+    const origin = selectSeq.current;
     setBusy(true);
     try {
       await patchRow({
@@ -272,7 +297,7 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
         description: values.description || null,
       });
       showMessage({ message: "경미 수정했습니다", alertType: "info", toast: true });
-      await load(maruCodeId, selected.ver, row.code);
+      if (origin === selectSeq.current) await load(maruCodeId, selected.ver, row.code);
     } catch (e) {
       fail(e);
     } finally {
@@ -391,8 +416,8 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
       title="코드 편집"
       buttons={[
         {
-          id: "btn_view", label: "조회", type: "primary", action: "view",
-          onClick: () => (maruCodeId ? void load(maruCodeId, selected?.ver) : void searchCodes().then((o) => setCodes(o.codes ?? []))),
+          id: "btn_view", label: "조회", type: "primary", action: "view", disabled: busy || !maruCodeId,
+          onClick: () => void load(maruCodeId, selected?.ver),
         },
         ...(editable ? [{
           id: "btn_save", label: "저장", type: "save" as const, action: "save", disabled: busy || !dirty,
@@ -401,15 +426,19 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
       ]}
     >
       <SearchArea onSearch={() => void load(maruCodeId, selected?.ver)}>
-        <SearchField label="마루 코드">
-          <Select data-testid="code-maru-select" value={maruCodeId} placeholder="마루 코드를 고르세요"
-            options={codes.map((c) => ({ value: c.maruCodeId, label: `${c.maruCodeId} ${c.maruCodeName}` }))}
-            onChange={chooseCode} />
+        <SearchField label="마루 코드" className="span-2">
+          <IdPicker placeholder="코드 ID·코드명" noun="마루 코드" testId="code-pick" search={searchCodePicks}
+            limit={CODE_PICK_LIMIT} onPick={chooseCode} onError={(message) => setErrorMessage(message)} inputWidth={150} />
+          {header && (
+            <span data-testid="code-current" style={{ fontWeight: 600, whiteSpace: "nowrap" }}>
+              {`${header.maruCodeId} ${header.maruCodeName}`}
+            </span>
+          )}
         </SearchField>
         <SearchField label="버전">
           <Select data-testid="code-ver-select" value={selected?.ver ?? ""} disabled={versions.length === 0}
             options={versions.map((v) => ({ value: v.ver, label: `${v.display} ${v.status}` }))}
-            onChange={(v) => void load(maruCodeId, v)} />
+            onChange={(v) => { selectSeq.current++; void load(maruCodeId, v); }} />
         </SearchField>
         <SearchField label="닫힌 코드">
           <span data-testid="code-closed-toggle">
