@@ -2,7 +2,7 @@
 import { act, createElement as h } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../src/portal-shell/use-user-button-rbac", () => ({ useUserButtonRbac: () => ({ userId: "u1" }) }));
+vi.mock("../../src/portal-shell/use-user-button-rbac", () => ({ useUserButtonRbac: () => ({ userId: "u1" }), peekLastUserId: () => "" }));
 
 import { ContentBody } from "../../src/layout/ContentBody";
 import { ContentPanel } from "../../src/layout/ContentPanel";

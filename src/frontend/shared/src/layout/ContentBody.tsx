@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { useUserButtonRbac } from "../portal-shell/use-user-button-rbac";
+import { peekLastUserId, useUserButtonRbac } from "../portal-shell/use-user-button-rbac";
 import {
   computeResize,
   DEFAULT_MIN_COLUMN,
@@ -169,15 +169,26 @@ interface ResizableBodyProps {
 
 function ResizableBody({ className, style, direction, storageKey, maximized, children }: ResizableBodyProps) {
   const { userId } = useUserButtonRbac();
-  const [overrides, setOverrides] = useState<Record<string, SizeSpec>>({});
+  // 첫 렌더는 이 세션에서 이미 확인된 사용자의 저장값으로 그린다 — 다시 마운트될 때(상세 영역 교체·탭 복귀)
+  // 사용자 확인(비동기)을 기다리면 기본 크기로 그렸다가 저장 크기로 바뀌며 깜빡인다.
+  const loadedFor = useRef("");
+  const [overrides, setOverrides] = useState<Record<string, SizeSpec>>(() => {
+    const lastUserId = peekLastUserId();
+    if (!lastUserId || !storageKey) return {};
+    loadedFor.current = `${lastUserId}:${storageKey}`;
+    return loadSplit(lastUserId, storageKey);
+  });
   const overridesRef = useRef(overrides);
   overridesRef.current = overrides;
   const containerRef = useRef<HTMLDivElement>(null);
   const column = direction === "column";
 
-  // 사용자 ID 가 확인된 뒤에만 읽고 쓴다(빈 키에 저장된 값이 실사용자 값을 덮지 않게).
+  // 확인된 사용자 ID 로 다시 읽는다(첫 렌더에 읽은 것과 같으면 건너뛴다). 쓰기는 확인된 ID 로만 한다(persist).
   useEffect(() => {
     if (!userId || !storageKey) return;
+    const key = `${userId}:${storageKey}`;
+    if (loadedFor.current === key) return;
+    loadedFor.current = key;
     setOverrides(loadSplit(userId, storageKey));
   }, [userId, storageKey]);
 

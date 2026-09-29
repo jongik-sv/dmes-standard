@@ -115,6 +115,16 @@ async function fetchButtonRbac(): Promise<ButtonRbacState> {
   }
 }
 
+/**
+ * 이 세션에서 마지막으로 확인된 사용자 ID 를 동기로 돌려준다(없으면 "").
+ *
+ * <p>권한 판정에는 쓰지 않는다 — 재로그인 직후엔 이전 사용자일 수 있다. 분할 크기 복원처럼 틀려도 무해하고,
+ * `useUserButtonRbac` 의 비동기 확인을 기다리면 첫 렌더가 기본값으로 그려졌다 바뀌는(깜빡이는) 곳에만 쓴다.
+ */
+export function peekLastUserId(): string {
+  return getStore().cachedState?.userId ?? "";
+}
+
 function notify(state: ButtonRbacState) {
   const store = getStore();
   store.cachedState = state;
