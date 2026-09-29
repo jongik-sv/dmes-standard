@@ -66,6 +66,7 @@ docs/mdm/engine-contract/
 - `RuleDefinition` 은 배포 스냅샷 모양(헤더·변수·입력 계약·행)이다. 셀 `RuleCell` 은 셀 JSON 일곱 키(`op, left, right, list, expr, ast, val`)에 스냅샷의 생성 텍스트 `text` 를 더한 것이고, 모든 값은 문자열이다(06:1038). AST 는 `Map` 그대로 싣고 엔진은 읽지 않는다(06:471).
 - `CodeEffLookup` 이 빈 값을 돌려주면 "계산해 두지 않았다"는 뜻이고, 빈 집합이면 "소속 코드가 없다"는 뜻이다. 원장 서버는 `NONE` 을 쓰고, 그러면 `engine.code` 가 `CodeLookup` 행으로 해석한다.
 - `MASTER` 는 첫 인자 id 가 `CodeLookup.code(id)` 에 있으면 마루 코드 대상으로, 없으면 마루 데이터 대상(`MasterLookup`)으로 판정한다(05:363, 두 원장은 한 이름 공간 05:409).
+- **룰 세트 흐름(2026-09-30, 룰 세트 흐름도 1단계).** `RuleSetDefinition(setId, ruleIds, status, flow)` 의 `flow` 는 `FlowDefinition(version, nodes, edges)` 이고 null 이면 `ruleIds` 순서의 한 줄 흐름이다. 노드 `FlowNode(id, kind, ruleId, splitId, label)` 의 `kind` 는 `START`·`END`·`RULE`·`IF`·`PARALLEL`·`MERGE`, 선 `FlowEdge(id, from, to, order, cond, otherwise, label)` 의 `otherwise=true` 가 IF 의 "그 외" 선이다(JSON 키도 `otherwise`). 스키마 정의는 `RuleSetFlow`·`FlowNode`·`FlowEdge`·`FlowNodeKind` 다. 저장 형식(FLOW_JSON)은 여기에 화면 전용 `view` 를 더한 것이다(`docs/superpowers/specs/2026-09-29-rule-set-flow-design.md` §3.3).
 
 **시간·버전 타입**
 

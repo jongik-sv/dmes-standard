@@ -46,6 +46,8 @@ class ContractTypeShapeTest {
                     "spi.DefinitionLookup$RowKind", "spi.DefinitionLookup$RuleRow", "spi.DefinitionLookup$RuleCell",
                     "spi.DefinitionLookup$InputContract", "spi.DefinitionLookup$RowContract", "spi.DefinitionLookup$VarType",
                     "spi.DefinitionLookup$RuleSetDefinition", "spi.DefinitionLookup$SetStatus",
+                    "spi.DefinitionLookup$FlowDefinition", "spi.DefinitionLookup$FlowNode", "spi.DefinitionLookup$FlowEdge",
+                    "spi.DefinitionLookup$NodeKind",
                     "spi.CodeLookup", "spi.CodeLookup$CodeRows", "spi.CodeLookup$CodeHeader", "spi.CodeLookup$CodeVersionRow",
                     "spi.CodeLookup$CodeItemRow", "spi.CodeLookup$CodeCateRow", "spi.CodeLookup$CodeCateItemRow",
                     "spi.CodeEffLookup",

@@ -63,7 +63,7 @@ class EngineContractSchemaTest {
 
     // ------------------------------------------------------------------ 대응표(design §6.5)
 
-    /** E1-E8 — Java 상수 집합 ↔ 스키마 enum 집합. */
+    /** E1-E9 — Java 상수 집합 ↔ 스키마 enum 집합. */
     private static final Map<String, EnumPair> ENUMS = orderedMap(
             new EnumPair("E1", "AstNode", () -> enumNames(AstNode.Type.class), () -> astNodeTypeConsts()),
             new EnumPair("E2", "InfixOperator", () -> AstNode.INFIX_OPERATORS, () -> enumOf("InfixOperator")),
@@ -74,9 +74,11 @@ class EngineContractSchemaTest {
                     () -> enumOf("ViolationStage")),
             new EnumPair("E7", "EngineWarningCode", () -> enumNames(EngineWarning.Code.class),
                     () -> enumOf("EngineWarningCode")),
-            new EnumPair("E8", "ExprSlot", () -> enumNames(FunctionSets.Slot.class), () -> enumOf("ExprSlot")));
+            new EnumPair("E8", "ExprSlot", () -> enumNames(FunctionSets.Slot.class), () -> enumOf("ExprSlot")),
+            // 흐름 노드 종류(plan C1) — spi 타입이라 expr·rule 전수 검사 밖이지만 스키마 짝은 맞춘다.
+            new EnumPair("E9", "FlowNodeKind", () -> enumNames(DefinitionLookup.NodeKind.class), () -> enumOf("FlowNodeKind")));
 
-    /** R1-R11 — Java record ↔ 스키마 객체 정의(유니온이면 유니온 뷰). */
+    /** R1-R14 — Java record ↔ 스키마 객체 정의(유니온이면 유니온 뷰). */
     private static final Map<String, RecordPair> RECORDS = orderedMap(
             // params: Java 는 빈 목록(null 아님), JSON 은 자식이 없으면 키를 뺀다(AstExporter 규칙) — 표지 대조에서 뺀다.
             new RecordPair("R1", AstNode.class, "AstNode", Set.of(), Set.of("params")),
@@ -90,7 +92,11 @@ class EngineContractSchemaTest {
             new RecordPair("R8", RuleResult.class, "RuleResult", Set.of(), Set.of()),
             new RecordPair("R9", RuleResult.Hit.class, "RuleHit", Set.of(), Set.of()),
             new RecordPair("R10", RuleResult.RowTrace.class, "RowTrace", Set.of(), Set.of()),
-            new RecordPair("R11", RuleSetResult.class, "RuleSetResult", Set.of(), Set.of()));
+            new RecordPair("R11", RuleSetResult.class, "RuleSetResult", Set.of(), Set.of()),
+            // 흐름 정의(plan C1). FLOW_JSON 의 nodes·edges 모양이고 view 는 싣지 않는다.
+            new RecordPair("R12", DefinitionLookup.FlowDefinition.class, "RuleSetFlow", Set.of(), Set.of()),
+            new RecordPair("R13", DefinitionLookup.FlowNode.class, "FlowNode", Set.of(), Set.of()),
+            new RecordPair("R14", DefinitionLookup.FlowEdge.class, "FlowEdge", Set.of(), Set.of()));
 
     /** Java 대응이 없는 $defs 와 그 사유. */
     private static final Set<String> SCHEMA_ONLY = Set.of(

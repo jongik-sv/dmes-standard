@@ -201,6 +201,13 @@ export type Expect =
  */
 export type EngineWarningCode = "EXPR_CELL_NULL" | "GRP_COND_NULL";
 /**
+ * 흐름 노드 종류(Java DefinitionLookup.NodeKind).
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "FlowNodeKind".
+ */
+export type FlowNodeKind = "START" | "END" | "RULE" | "IF" | "PARALLEL" | "MERGE";
+/**
  * 판정 단계(Java EngineEvaluationException.Stage, 06:212-217 + 세트 사전 검사).
  *
  * This interface was referenced by `EngineContract`'s JSON-Schema
@@ -452,6 +459,45 @@ export interface RuleSetResult {
   finalValues: {
     [k: string]: TypedValue;
   };
+}
+/**
+ * 룰 세트 흐름 정의(Java DefinitionLookup.FlowDefinition, spec §3.3). TB_MDM_RULE_SET.FLOW_JSON 의 nodes·edges 이고 화면 전용 view 는 여기 없다.
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "RuleSetFlow".
+ */
+export interface RuleSetFlow {
+  version: number;
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+}
+/**
+ * 흐름 노드(Java DefinitionLookup.FlowNode). ruleId 는 RULE 만, splitId 는 MERGE 만 쓴다.
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "FlowNode".
+ */
+export interface FlowNode {
+  id: string;
+  kind: FlowNodeKind;
+  ruleId: string | null;
+  splitId: string | null;
+  label: string | null;
+}
+/**
+ * 흐름 선(Java DefinitionLookup.FlowEdge). order·cond·otherwise 는 IF·PARALLEL 에서 나가는 선만 쓴다. otherwise=true 는 IF 의 "그 외" 선.
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "FlowEdge".
+ */
+export interface FlowEdge {
+  id: string;
+  from: string;
+  to: string;
+  order: number | null;
+  cond: string | null;
+  otherwise: boolean;
+  label: string | null;
 }
 /**
  * 판정 오류 응답(Java EngineEvaluationException.violations 의 JSON 모양).

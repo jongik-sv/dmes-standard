@@ -29,9 +29,9 @@ import org.junit.jupiter.api.Test;
 class RuleSetEvaluationTest {
 
     private final InMemoryDefinitionLookup lookup = SampleRules.lookup()
-            .addSet(new RuleSetDefinition("NO_RULE", List.of("BASE_SPD_LKP", "NOPE"), SetStatus.INUSE),
-                    new RuleSetDefinition("CREATED_SET", List.of("SPD_JOIN"), SetStatus.CREATED),
-                    new RuleSetDefinition("EMPTY", List.of(), SetStatus.INUSE));
+            .addSet(new RuleSetDefinition("NO_RULE", List.of("BASE_SPD_LKP", "NOPE"), SetStatus.INUSE, null),
+                    new RuleSetDefinition("CREATED_SET", List.of("SPD_JOIN"), SetStatus.CREATED, null),
+                    new RuleSetDefinition("EMPTY", List.of(), SetStatus.INUSE, null));
     private final MdmRuleEngine engine = new MdmRuleEngine(MdmEvaluatorFixtures.of(TestExpressionConfig.create()), lookup);
 
     private static Map<String, Object> ls(String wid) {

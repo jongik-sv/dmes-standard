@@ -348,6 +348,46 @@
       "required": ["setId", "evalTs", "steps", "finalValues"],
       "additionalProperties": false
     },
+    "RuleSetFlow": {
+      "description": "룰 세트 흐름 정의(Java DefinitionLookup.FlowDefinition, spec §3.3). TB_MDM_RULE_SET.FLOW_JSON 의 nodes·edges 이고 화면 전용 view 는 여기 없다.",
+      "type": "object",
+      "properties": {
+        "version": { "type": "integer", "minimum": 1 },
+        "nodes": { "type": "array", "items": { "$ref": "#/$defs/FlowNode" } },
+        "edges": { "type": "array", "items": { "$ref": "#/$defs/FlowEdge" } }
+      },
+      "required": ["version", "nodes", "edges"],
+      "additionalProperties": false
+    },
+    "FlowNode": {
+      "description": "흐름 노드(Java DefinitionLookup.FlowNode). ruleId 는 RULE 만, splitId 는 MERGE 만 쓴다.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "$ref": "#/$defs/FlowNodeKind" },
+        "ruleId": { "type": ["string", "null"] },
+        "splitId": { "type": ["string", "null"] },
+        "label": { "type": ["string", "null"] }
+      },
+      "required": ["id", "kind", "ruleId", "splitId", "label"],
+      "additionalProperties": false
+    },
+    "FlowEdge": {
+      "description": "흐름 선(Java DefinitionLookup.FlowEdge). order·cond·otherwise 는 IF·PARALLEL 에서 나가는 선만 쓴다. otherwise=true 는 IF 의 \"그 외\" 선.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "order": { "type": ["integer", "null"] },
+        "cond": { "type": ["string", "null"] },
+        "otherwise": { "type": "boolean" },
+        "label": { "type": ["string", "null"] }
+      },
+      "required": ["id", "from", "to", "order", "cond", "otherwise", "label"],
+      "additionalProperties": false
+    },
+    "FlowNodeKind": { "description": "흐름 노드 종류(Java DefinitionLookup.NodeKind).", "enum": ["START", "END", "RULE", "IF", "PARALLEL", "MERGE"] },
     "EngineError": {
       "description": "판정 오류 응답(Java EngineEvaluationException.violations 의 JSON 모양).",
       "type": "object",
