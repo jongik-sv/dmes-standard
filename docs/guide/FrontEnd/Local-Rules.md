@@ -144,3 +144,45 @@ LoV service가 아직 없을 때는 화면에서 임의 Phase 7 LoV 라우트를
 - 같은 행의 다른 칸 값에 따라 표시·편집 가능 여부가 바뀌면 `rowClassRefreshToken` 에 그 값을 실어 행을 다시 그린다.
 - 확인란·버튼은 `render` 에 두어도 된다(클릭만 받으므로 포커스를 뺏겨도 동작한다).
 - 예시: `m-mdm/pages/dme/ruleEdit/cards/ValueTestCard.tsx` 의 입력 표와 테스트(`value-test-cards`)의 `setVtValue`.
+
+## 13. 오류 메시지 — 엔진·예외 원문을 본문에 싣지 않는다 (2026-09-29)
+
+판정·검증 오류를 보일 때 본문은 현업이 읽는 한국어 문장(무엇이 · 왜 · 어떻게 고치나)으로 쓴다. `ROW_SELECT · EVALUATION_ERROR`, `NullPointerException: ...` 같은 단계·코드·예외 원문은 본문에 싣지 않는다.
+
+- 문장은 백엔드가 만들어 `message` 로 주고, 원문은 `detail` 로 따로 준다. 화면이 원문을 파싱해 문장을 만들지 않는다(§9).
+- 단계·코드·이름은 `title` 툴팁, 원문(`detail`)은 접힌 `<details>` 에 둔다. 표 칸처럼 자리가 좁으면 문장만 싣는다.
+- 예시: `mdm` 의 `common/rule/RuleErrorText.java`(엔진 판정 오류 → 문장), `m-mdm/pages/dme/ruleEdit/cards/TestResultCard.tsx` 의 오류 목록과 테스트(`value-test-cards`).
+
+## 14. 검색해서 하나 고르기 — 결과를 버튼 줄로 늘어놓지 않는다 (2026-09-29)
+
+상단 바에서 검색어로 대상 하나를 고르는 칸(룰·코드 고르기 등)은 찾은 결과를 본문에 버튼으로 줄지어 그리지 않는다. 조작 버튼처럼 보이고, 결과가 많으면 여러 줄로 늘어 본문을 밀어내며, 닫을 방법이 없다.
+
+- 결과는 검색 칸 바로 아래 드롭다운(`position: absolute`, `zIndex: 1000`, `--shadow-dropdown`)으로 띄워 본문 위에 겹친다.
+- 한 줄에 하나씩 두고 ID 칸 폭을 고정해 줄을 맞춘다. 고를 때 필요한 속성(종류·상태 배지 등)을 함께 보인다.
+- ↑↓ 로 옮기고 Enter 로 고르며, Esc·바깥 누름·검색어 변경으로 닫는다. 서버가 건수를 자르면 꽉 찼을 때 좁혀 검색하라고 안내한다.
+- 검색 칸과 현재 대상 표시 사이에는 세로 구분선을 둔다.
+- 예시: `m-mdm/pages/dme/ruleEdit/RulePicker.tsx` 와 테스트(`rule-edit-page`).
+
+## 15. 화면 간 인계(handoff) 받는 쪽 — 고르기 칸 목록도 같이 새로 읽는다 (2026-09-29)
+
+`useMdmPageParams` 로 다른 화면에서 대상(마루 데이터 등)을 넘겨받는 화면은, 상단 고르기 칸(Select)의 목록을 마운트 때 한 번만 읽고 끝내지 않는다. 이미 열린 탭이 방금 등록된 대상을 넘겨받으면 목록에 그 값이 없어, NativeSelect 가 첫 항목 이름을 보이고 그리드는 새 대상을 그리는 어긋남이 생긴다. 이름을 바꾼 뒤에도 옛 라벨이 남는다.
+
+- 대상을 고를 때 부르는 조회 응답에 목록이 함께 오면 그 목록으로 고르기 칸을 갱신한다. 안 오면 넘겨받은 값이 목록에 없을 때 목록을 다시 조회한다.
+- 마운트 때의 목록 응답이 선택 응답보다 늦게 와서 새 목록을 옛 목록으로 덮지 않게 막는다(§11 요청 순번과 같은 뜻).
+- 쓰기 응답 뒤 재조회(이력·트리 등)는 시작할 때의 대상·선택 순번을 잡아 두고, 응답 때 대상이 바뀌었으면 건너뛴다.
+- 같은 대상을 다시 불러오는 사이 사용자가 폼을 고쳤으면, 늦게 온 조회 응답은 잠금 값(`auditVer` 등)·요약만 바꾸고 고친 폼은 덮지 않는다. 그리드 행 클릭은 잠금 렌더가 반영되기 전 몇 ms 사이에 입력이 들어갈 수 있어 잠금만으로는 막지 못한다. 다른 대상으로 옮길 때는 전처럼 폼을 새 값으로 바꾼다.
+- 예시: `m-mdm/pages/dmd/dataItemMng/page.tsx` 의 `selectMaruData`·`WriteOrigin` 과 테스트(`data-item-page`). 폼 보호는 `m-mdm/pages/dmd/dataMng/page.tsx` 의 `editSeq` 와 테스트(`data-mng-page`).
+
+## 16. 큰 편집 그리드 — 행 고르기가 무거운 계산·전체 다시 그리기를 부르지 않게 (2026-09-29)
+
+편집 상태 하나(reducer state)에 행 내용과 고른 행(`selectedRowId`)이 함께 있으면, `useMemo(..., [state])` 로 묶은 검사·직렬화·dirty 비교가 행 번호를 누를 때마다 다시 돈다. 417행 의사결정표에서 행 하나 고르는 데 1.3초가 걸렸고, 그중 검사(`analyzeRule`)가 0.4초였다.
+
+- 무거운 계산(검사·직렬화·dirty 비교)은 그 계산이 실제로 읽는 필드(행·변수·적중 정책 등)만 의존성으로 둔다. `state` 통째로 두지 않는다.
+- 결과를 보이지 않는 상태(예: 변경이 없어 서버 검사를 보일 때)에는 계산하지 않는다. 불러온 배열과 같으면(`rows === loadedRows`) 직렬화 비교를 건너뛴다.
+- 고른 행은 표시 행(data)·다시 그리기 토큰(`rowClassRefreshToken`)에 싣지 않는다. `highlightedRowKey` 가 이전 행과 새 행만 다시 그린다(편집 중인 행은 편집이 끝난 뒤). 이렇게 바꾼 뒤 417행 표에서 행 고르기가 1.3초에서 약 25ms 가 됐다.
+- 행 고르기는 행 번호만이 아니라 어느 칸을 눌러도, ↑/↓ 로 포커스를 옮겨도 되게 한다(`onRowClick` + `onFocusedRowChange`). 편집 표는 `editArrowNavigation` 으로 편집 중 ↑/↓ 가 같은 열 윗행·아랫행 편집으로 이어진다.
+- 편집마다 도는 무거운 검사는 Worker 로 보낸다. 편집이 멈추고 잠깐(300ms) 뒤에 보내고, Worker 가 일하는 동안 들어온 입력은 가장 최근 것 하나만 남긴다. 늦게 온 옛 결과는 버리고, 기다리는 동안 앞 결과와 "검사 중" 을 보인다. 417행 표에서 메인 스레드 멈춤이 225ms 에서 0 이 됐다.
+  - Worker 는 `inline-worker:./x.worker.ts` 로 가져와 Blob URL 로 띄운다(`m-mdm/scripts/inline-worker.ts`). dist 를 포털 번들러가 다시 묶는 구조라 `new Worker(new URL(…, import.meta.url))` 경로는 청크 위치에 따라 깨질 수 있다.
+  - 단위 테스트(vitest)는 소스가 빈 문자열이라 전처럼 렌더 중 동기 검사로 돈다. 저장 때 서버 검사와 견주는 기준은 검사 중이면 그 자리에서 동기로 다시 검사한다.
+  - 늦게 온 결과가 표시 토큰을 바꿔도 편집 중인 행은 편집이 끝난 뒤 다시 그린다(`AgDataGrid` `rowClassRefreshToken`). 통째로 건너뛰면 표시가 빠지고, 통째로 그리면 열린 편집기가 닫힌다.
+- 예시: `m-mdm/pages/dme/ruleEdit/decision-table/DecisionTableCard.tsx` 의 `dirty`·`analysisInput`·`markToken`, `use-rule-analysis.ts`.
