@@ -35,7 +35,7 @@ python3 $D/aggrid_docs.py audit <바꾼 파일·폴더>
 |---|---|
 | 화면(`m-*`)에서 `@mantine/*` 직접 import | [Part B §4-2·§17](standard-v2/part-b-shared-policy.md) |
 | 화면에서 `ag-grid-react`·`ag-grid-community` 직접 import | [Part B §6](standard-v2/part-b-shared-policy.md) |
-| 화면에서 원시 `<table>` 데이터 목록(`<thead>`)·`CustomDataGrid` 사용 → `AgDataGrid` | [Part B §6](standard-v2/part-b-shared-policy.md) |
+| 화면에서 원시 `<table>` 데이터 목록(`<thead>`) 사용 → `AgDataGrid` | [Part B §6](standard-v2/part-b-shared-policy.md) |
 | `ag-grid-enterprise` 사용 | [전 모듈 ADR-0001](../adr/0001-ui-library-mantine9-aggrid.md) D2 |
 | 화면 CSS 의 16진수·`rgb()` 색 | [UI-Visual-Standard §3](UI-Visual-Standard.md) |
 | Mantine 8 이하 API, ag-grid 설치본 기준 deprecated 옵션 | 라이브러리 설치 버전(`.d.ts`) |

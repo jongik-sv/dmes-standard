@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { PageLayout } from "@dk-oasis/shared/layout";
 import {
   AgDataGrid,
-  CustomDataGrid,
   DataGrid,
   GridBadge,
   GridBadgeCell,
@@ -16,7 +15,6 @@ import {
   type MatrixTableColumn,
   type MatrixTableRow,
 } from "@dk-oasis/shared/matrix-table";
-import { Tabs } from "@dk-oasis/shared/tabs";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 
 const GRID_ROWS: Record<string, unknown>[] = [
@@ -190,11 +188,9 @@ const MATRIX_ROWS: MatrixTableRow[] = [
   },
 ];
 
-type GridKind = "ag" | "custom";
 
 export function DataDisplayCatalogScreen() {
   const { showMessage } = useMessage();
-  const [gridKind, setGridKind] = useState<GridKind>("ag");
   const [selectedRows, setSelectedRows] = useState<(string | number)[]>([
     String(GRID_ROWS[0].id),
   ]);
@@ -214,7 +210,7 @@ export function DataDisplayCatalogScreen() {
     multiSelect: true,
     selectedRows,
     onRowSelect: (ids: (string | number)[]) => setSelectedRows(ids),
-    ariaLabel: `${gridKind} 데이터 그리드 샘플`,
+    ariaLabel: "데이터 그리드 샘플",
   };
 
   return (
@@ -239,29 +235,17 @@ export function DataDisplayCatalogScreen() {
         <section className="catalog-intro">
           <strong>shared 데이터 표시 전체 구성</strong>
           <span>
-            AG Grid, 경량 Custom Grid, 배지, 패널 도움말, 페이지네이션과
-            MatrixTable을 동일 데이터로 비교합니다.
+            공용 그리드(AgDataGrid), 배지, 패널 도움말, 페이지네이션과
+            MatrixTable을 동일 데이터로 보여 줍니다.
           </span>
         </section>
 
         <section className="catalog-panel data-grid-catalog">
           <header>
-            <strong>그리드 구현 비교</strong>
+            <strong>공용 그리드</strong>
           </header>
-          <Tabs
-            items={[
-              { key: "ag", label: "AgDataGrid / DataGrid" },
-              { key: "custom", label: "CustomDataGrid" },
-            ]}
-            activeKey={gridKind}
-            onChange={(key) => setGridKind(key as GridKind)}
-          />
           <GridPanel
-            title={
-              gridKind === "ag"
-                ? "작업지시 — AgDataGrid"
-                : "작업지시 — CustomDataGrid"
-            }
+            title="작업지시 — AgDataGrid"
             count={GRID_ROWS.length}
             titleExtra={
               <span className="catalog-grid-note">
@@ -298,11 +282,7 @@ export function DataDisplayCatalogScreen() {
               },
             ]}
           >
-            {gridKind === "ag" ? (
-              <DataGrid {...commonProps} columnSizing="fit" />
-            ) : (
-              <CustomDataGrid {...commonProps} />
-            )}
+            <DataGrid {...commonProps} columnSizing="fit" />
             <Pagination
               page={page}
               totalPages={4}

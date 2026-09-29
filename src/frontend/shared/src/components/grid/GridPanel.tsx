@@ -40,7 +40,7 @@ export interface GridPanelProps {
   fetchPermissions?: () => Promise<string[]>;
   /** 로딩 상태 */
   loading?: boolean;
-  /** 그리드 컴포넌트 (AgDataGrid, CustomDataGrid 등) */
+  /** 그리드 컴포넌트 (AgDataGrid) */
   children?: ReactNode;
   /** 스타일 */
   style?: CSSProperties;

@@ -247,7 +247,6 @@ SCREEN_IMPORT = re.compile(r"from ['\"](?:ag-grid-react|ag-grid-community)['\"]"
 # 라벨-값 폼 배치 표는 <thead> 가 없어 걸리지 않는다.
 SCREEN_TABLE_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"<thead\b"), "화면에서 원시 <table> 데이터 목록 금지 → AgDataGrid (작은 목록은 height=\"auto\", Part B §6)"),
-    (re.compile(r"\bCustomDataGrid\b"), "CustomDataGrid 신규 사용 금지 → AgDataGrid (Part B §6)"),
 ]
 
 

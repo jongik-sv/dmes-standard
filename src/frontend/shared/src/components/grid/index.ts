@@ -1,5 +1,4 @@
 export { AgDataGrid, DataGrid, type AgDataGridProps, type GridColumn } from "./AgDataGrid";
-export { CustomDataGrid, type CustomDataGridProps } from "./CustomDataGrid";
 export {
   GridBadge,
   GridBadgeCell,

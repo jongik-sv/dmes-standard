@@ -61,7 +61,7 @@ python3 $D/aggrid_docs.py recommendations           # 공식 ag-dev 의 LLM 흔�
 | 메시지·토스트 | `message-provider` (Part B §9, UI-Visual-Standard §8) |
 | 모달·트리·탭·룩업 | `modal`, `tree`, `tabs`, `lookup` |
 
-- **데이터테이블(머리행 + 데이터 행이 반복되는 목록)은 반드시 공용 `AgDataGrid` 로 그린다.** 크기·테두리·선택·편집 모양이 모든 화면에서 같아야 하기 때문이다. 원시 `<table>`, `CustomDataGrid`, 다른 그리드 라이브러리로 목록을 그리지 않는다. 카드·패널·모달 안의 몇 행짜리 작은 목록도 예외가 아니며, `height="auto"`(행 수만큼 높이가 늘어남)로 그린다. 행 선택은 `onRowClick`·`highlightedRowKey`, 셀 안 배지·버튼은 `GridColumn.render`, 셀 편집은 `editable`·`cellEditor` 로 한다. 예외는 라벨-값 짝으로 된 폼 배치 표(`<thead>` 없음)와 `matrix-table` 뿐이다. `A audit` 가 화면의 `<thead>`·`CustomDataGrid` 를 잡는다.
+- **데이터테이블(머리행 + 데이터 행이 반복되는 목록)은 반드시 공용 `AgDataGrid` 로 그린다.** 크기·테두리·선택·편집 모양이 모든 화면에서 같아야 하기 때문이다. 원시 `<table>` 이나 다른 그리드 라이브러리로 목록을 그리지 않는다(두 번째 그리드였던 `CustomDataGrid` 는 2026-09-29 삭제). 카드·패널·모달 안의 몇 행짜리 작은 목록도 예외가 아니며, `height="auto"`(행 수만큼 높이가 늘어남)로 그린다. 행 선택은 `onRowClick`·`highlightedRowKey`, 셀 안 배지·버튼은 `GridColumn.render`, 셀 편집은 `editable`·`cellEditor` 로 한다. 예외는 라벨-값 짝으로 된 폼 배치 표(`<thead>` 없음)와 `matrix-table` 뿐이다. `A audit` 가 화면의 `<thead>` 를 잡는다.
 - **래퍼가 요구를 못 채우면 화면에서 우회하지 않는다.** 화면 CSS 로 공통 모습을 덮지도 않는다. 사용자에게 알리고, 승인되면 shared 에 추가한 뒤 shared 를 build 한다(Part B §17).
 - 화면에서는 근거가 곧 **래퍼 소스**(`src/frontend/shared/src/**`)다. props·기본 크기는 래퍼가 정하므로 `size`·`radius` 를 지정하지 않는다.
 - 색은 의미 토큰(`var(--color-danger)`)이나 제공 CSS 클래스(`form-error-message` 등)만 쓴다. `red.7`·16진수·`rgb()` 는 쓰지 않는다.
@@ -84,7 +84,7 @@ python3 $D/aggrid_docs.py recommendations           # 공식 ag-dev 의 LLM 흔�
 |---|---|
 | 화면에서 `import { Button, Group } from "@mantine/core"` | `@dk-oasis/shared/form` · `layout` 래퍼 |
 | 화면에서 `AgGridReact` 와 `ColDef[]` 로 그리드 조립 | `AgDataGrid` + `GridColumn[]` |
-| 카드 안 작은 목록을 원시 `<table>`·`CustomDataGrid` 로 그림 | `AgDataGrid height="auto"` |
+| 카드 안 작은 목록을 원시 `<table>` 로 그림 | `AgDataGrid height="auto"` |
 | "SearchArea 가 레이아웃에 안 맞아서" 직접 조립 | 사용자에게 알리고, 필요하면 shared 를 확장 |
 | `<Collapse in>`, `<Grid gutter>`, `<Text color>`, `leftIcon` | [mantine-v9-changes.md](references/mantine-v9-changes.md) |
 | `rowSelection="multiple"`, `checkboxSelection`, `ag-grid.css` import | [aggrid.md](references/aggrid.md) §2 |

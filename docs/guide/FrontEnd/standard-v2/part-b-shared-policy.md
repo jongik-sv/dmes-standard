@@ -208,7 +208,6 @@ import "@dk-oasis/shared/form.css";
 import {
   AgDataGrid,
   DataGrid,
-  CustomDataGrid,
   GridPanel,
   useGridDataManager,
   useRowStateManager,
@@ -224,7 +223,7 @@ import "@dk-oasis/shared/grid.css";
 - MUST NOT: `ag-grid-react` 를 페이지에서 직접 import.
 - MUST NOT: `ag-grid-enterprise` 를 추가하거나 Enterprise 기능(행 그룹·집계·Excel Export 등)을 쓰지 않는다([전 모듈 ADR-0001](../../adr/0001-ui-library-mantine9-aggrid.md) D2). 필요하면 사용자에게 먼저 확인한다. Excel 다운로드는 `@dk-oasis/shared/utils` 의 `exportToExcel` 을 쓴다.
 - MUST: 데이터 목록(머리행 + 데이터 행 반복)은 화면 크기·카드·모달과 관계없이 `AgDataGrid` 로 그린다. 제목·건수·버튼 툴바가 필요하면 `GridPanel` 안에 넣는다. 카드·패널 안의 몇 행짜리 작은 목록은 `height="auto"`(행 수만큼 높이가 늘어나는 ag `domLayout="autoHeight"`)를 쓴다. 행이 많아질 수 있는 목록에는 쓰지 않는다.
-- MUST NOT: 화면에서 원시 `<table>`, `CustomDataGrid`, 다른 그리드 라이브러리로 데이터 목록을 그리지 않는다. 예외는 라벨-값 짝의 폼 배치 표(`<thead>` 없음)와 `matrix-table` 이다. `DataGrid` 는 `AgDataGrid` 의 별칭이다.
+- MUST NOT: 화면에서 원시 `<table>` 이나 다른 그리드 라이브러리로 데이터 목록을 그리지 않는다(`CustomDataGrid` 는 2026-09-29 삭제). 예외는 라벨-값 짝의 폼 배치 표(`<thead>` 없음)와 `matrix-table` 이다. `DataGrid` 는 `AgDataGrid` 의 별칭이다.
 - 열 그룹(여러 줄 머리): `GridColumn.children?: GridColumn[]` 이 있으면 그 항목은 열 그룹(ag-grid `ColGroupDef`, `groupId` = `key`)이 되고 잎만 데이터 열이다. 그룹 항목의 `headerComponent`·`headerComponentParams` 는 그룹 머리 컴포넌트로 쓴다. `GridColumn.headerTooltip?: string` 은 잎·그룹 머리 툴팁이다(mdm TSK-08-02 D8).
 - 행 드래그(managed): `AgDataGrid` 의 `rowDragField?: string`(그 열에 드래그 손잡이), `isRowDraggable?: (row) => boolean`, `onRowOrderChange?: (orderedKeys) => void`(놓은 뒤 화면 순서의 `rowKey` 목록). `rowDragField` 를 주면 정렬이 꺼진다(ag-grid managed drag 는 정렬 중 동작하지 않는다). 순서는 호출자가 `data` 를 다시 넘겨 확정한다(mdm TSK-08-02 D8).
 - 셀 상태 클래스(`@dk-oasis/shared/grid.css`): `cell-light-pink`(오류·비정상), `cell-warning`(경고), `cell-edited`(바뀐 칸), `cell-emphasis`(안쪽 테두리 강조). `GridColumn.cellClassRules` 로 준다. 화면 CSS 에 색 값을 두지 않는다(mdm TSK-08-02).

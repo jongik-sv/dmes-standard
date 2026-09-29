@@ -225,7 +225,7 @@ export { default } from "@dk-oasis/m-mpn/pages/planning/production-plan-page";
 |---|---|
 | `/layout` | `PageLayout`, `SearchArea`, `SearchField`, `ContentBody`, `ContentPanel`, `ErrorModal` |
 | `/form` | `Button`, `Input`, `Select`, `Checkbox`, `DatePicker`, `Radio`, `Textarea`, `FormGroup`, `ComboBox`, `Spinner` |
-| `/grid` | `AgDataGrid`, `DataGrid`, `CustomDataGrid`, `GridPanel`, `useGridDataManager`, `useRowStateManager`, `ROW_STATUS`, type `SavePayload`, type `GridColumn` |
+| `/grid` | `AgDataGrid`, `DataGrid`, `GridPanel`, `useGridDataManager`, `useRowStateManager`, `ROW_STATUS`, type `SavePayload`, type `GridColumn` |
 | `/modal` | `Modal`, `MessageModal` |
 | `/tree` | `Tree`, type `TreeProps`, type `TreeNode` |
 | `/message-provider` | `useGfnMessage`, `useMessage`, `MessageProvider` |
