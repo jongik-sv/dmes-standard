@@ -213,7 +213,7 @@ describe("RuleSetEditPage", () => {
     expect(byTestId<HTMLInputElement>("set-name").value).toBe("사슬");
     expect(visibleText(byTestId("set-checks"))).toContain("통과");
     expect(visibleText(byTestId("flow-tab-checks"))).toContain("검사 결과 0");
-    expect(q("flow-tab-sim")).not.toBeNull();
+    expect(q("flow-tab-sim")).toBeNull();
 
     const inputs = visibleText(byTestId("set-io-inputs"));
     expect(inputs).toContain("입력 변수 3개");
@@ -306,7 +306,7 @@ describe("RuleSetEditPage", () => {
     const kinds = flow.nodes.map((n) => n.kind);
     expect(kinds).toContain("IF");
     expect(kinds).toContain("MERGE");
-    expect(flow.view).toEqual({ positions: {}, notes: [], groups: [] });
+    expect(flow.view).toEqual({ positions: {}, notes: [], groups: [], routes: {} });
     expect(calls("view")).toHaveLength(2);
     const msg = visibleText(byTestId("set-message"));
     expect(msg).toContain("저장 · row_version 4");
@@ -552,6 +552,21 @@ describe("RuleSetEditPage", () => {
     expect(q("flow-prop-set")).not.toBeNull();
   });
 
+  it("Esc — 노드를 눌러 고른 뒤 Esc 면 캔버스 선택(data-selected)·속성 패널이 비고 [그룹] 이 그 노드를 넣지 않는다", async () => {
+    await openChain();
+    await click("flow-mode-edit");
+    await click("flow-node-r1");
+    expect(byTestId("flow-node-r1").getAttribute("data-selected")).toBe("true");
+    await act(async () => {
+      byTestId("flow-canvas").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    });
+    await flush();
+    expect(byTestId("flow-node-r1").getAttribute("data-selected")).toBe("false");
+    expect(q("flow-prop-set")).not.toBeNull();
+    await click("flow-add-group");
+    expect(q("flow-prop-group-member-r1")).toBeNull();
+  });
+
   it("그룹 — 캔버스에서 노드를 더 고른 뒤 그룹을 누르면 [선택 노드 더하기] 로 넣는다", async () => {
     srv.replies.save = ok({ setId: "E2S_CHAIN", rowVersion: 4, checks: [] });
     await openChain();
@@ -727,20 +742,18 @@ describe("RuleSetEditPage", () => {
     const styles = injected();
     expect(styles).toHaveLength(1);
     const css = styles[0].textContent ?? "";
-    for (const rule of [".rsf-canvas {", ".rsf-node {", ".rsf-bottom-body {", ".rsf-toolbar {", ".rsim {", ".rsim-stepper {"]) expect(css, rule).toContain(rule);
+    for (const rule of [".rsf-canvas {", ".rsf-node {", ".rsf-bottom-body {", ".rsf-toolbar {"]) expect(css, rule).toContain(rule);
   });
 
-  it("아래 패널은 접고 펼 수 있고, 시뮬레이션 탭 자리가 있다", async () => {
+  it("아래 패널은 접고 펼 수 있고, 보기·편집 모드에는 검사 결과 탭 하나뿐이다", async () => {
     await openChain();
     expect(q("set-checks")).not.toBeNull();
-    await click("flow-tab-sim");
+    expect(q("flow-tab-sim")).toBeNull();
+    await click("flow-bottom-toggle");
     expect(q("set-checks")).toBeNull();
-    expect(q("flow-sim-slot")).not.toBeNull();
+    expect(q("flow-tab-checks")).not.toBeNull();
     await click("flow-bottom-toggle");
-    expect(q("flow-sim-slot")).toBeNull();
-    expect(q("flow-tab-sim")).not.toBeNull();
-    await click("flow-bottom-toggle");
-    expect(q("flow-sim-slot")).not.toBeNull();
+    expect(q("set-checks")).not.toBeNull();
   });
 });
 

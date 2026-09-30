@@ -1791,17 +1791,108 @@ test.describe("C 룰 세트", () => {
     await expect(setMessage()).toContainText(/되살림 · row_version \d+/);
     await expect(tid(page, "set-name")).toBeEnabled();
 
-    // 남은 버튼을 한 번씩 누른다 — 보기/편집 전환, 아래 패널 접기·펼치기, 검사 결과/시뮬레이션 탭. 마지막은 보기 모드·검사 탭으로 돌려 둔다.
+    // 남은 버튼을 한 번씩 누른다 — 보기/편집/디버그 전환, 되돌리기·다시 하기, 아래 패널 접기·펼치기, 미니맵·도움말·왼쪽 룰 패널·찾기·화면 확대 단추,
+    // 디버그 모드의 실행 단추·케이스. 마지막은 보기 모드·검사 탭으로 돌려 둔다.
     await tid(page, "flow-mode-edit").click();
     await expect(tid(page, "flow-palette")).toBeVisible();
+    // 편집 모드 — 선의 [+] 로 IF 를 넣고 되돌리기 → 다시 하기 → 되돌리기(저장한 흐름으로 돌아온다).
+    const ifNodes = tid(page, "flow-canvas").locator('[data-kind="IF"]');
+    await page.locator('[data-testid^="flow-edge-add-"]').first().click();
+    await tid(page, "flow-menu-item-insert-if").click();
+    await expect(ifNodes).toHaveCount(1);
+    await tid(page, "flow-undo").click();
+    await expect(ifNodes).toHaveCount(0);
+    await tid(page, "flow-redo").click();
+    await expect(ifNodes).toHaveCount(1);
+    await tid(page, "flow-undo").click();
+    await expect(ifNodes).toHaveCount(0);
     await tid(page, "flow-mode-view").click();
     await expect(tid(page, "flow-palette")).toHaveCount(0);
     await tid(page, "flow-bottom-toggle").click();
     await expect(tid(page, "flow-bottom")).toHaveAttribute("data-collapsed", "true");
     await tid(page, "flow-bottom-toggle").click();
     await expect(tid(page, "flow-bottom")).toHaveAttribute("data-collapsed", "false");
-    await tid(page, "flow-tab-sim").click();
-    await expect(tid(page, "sim-run")).toBeVisible();
+    await tid(page, "flow-tab-checks").click();
+    await expect(setChecks()).toBeVisible();
+
+    // 미니맵·단축키 도움말·왼쪽 룰 패널(접기·찾기)·노드 찾기·React Flow 확대/축소/맞춤 단추.
+    await tid(page, "flow-minimap-toggle").click();
+    await expect(tid(page, "flow-minimap-toggle")).toHaveAttribute("aria-pressed", /true|false/);
+    await tid(page, "flow-minimap-toggle").click();
+    await tid(page, "flow-help").click();
+    await expect(tid(page, "flow-help-panel")).toBeVisible();
+    await tid(page, "flow-help").click();
+    await expect(tid(page, "flow-help-panel")).toHaveCount(0);
+    await tid(page, "flow-rule-panel-toggle").click();
+    await expect(tid(page, "flow-rule-panel-search")).toHaveCount(0);
+    await tid(page, "flow-rule-panel-toggle").click();
+    await tid(page, "flow-rule-panel-search").fill(SA);
+    await tid(page, "flow-rule-panel-find").click();
+    await expect(tid(page, `flow-rule-row-${SA}`)).toBeVisible({ timeout: 20_000 });
+    await tid(page, "flow-find").fill(SA);
+    await expect(tid(page, "flow-find-count")).toHaveText("1/1");
+    await tid(page, "flow-find-next").click();
+    await tid(page, "flow-find").fill("");
+    const controls = tid(page, "flow-canvas").locator(".react-flow__controls-button");
+    for (let i = 0, n = await controls.count(); i < n; i++) await controls.nth(i).click();
+
+    // 디버그 모드 — 입력을 넣고 한 단계 · 이전 · 계속 · 처음부터 · 여기까지 · 끝내기, 지금 입력을 케이스로 저장하고 모두 실행.
+    await tid(page, "flow-mode-debug").click();
+    await expect(tid(page, "dbg-toolbar")).toBeVisible();
+    await tid(page, `dbg-input-${SURF}`).fill("A");
+    const dbgStatus = tid(page, "dbg-status");
+    await tid(page, "dbg-step").click();
+    await expect(dbgStatus).toHaveText(/^1\/\d+ · start 실행 전$/, { timeout: 30_000 });
+    await tid(page, "dbg-step").click();
+    await tid(page, "dbg-step-back").click();
+    await tid(page, "dbg-continue").click();
+    await tid(page, "dbg-restart").click();
+    await expect(dbgStatus).toHaveText(/^1\/\d+ · start 실행 전$/);
+    // 중단점 점 — 켰다 끈다(상태는 data-on).
+    const bpSA = tid(page, `flow-bp-${await ruleNodeIdOf(page, SA)}`);
+    await bpSA.click();
+    await expect(bpSA).toHaveAttribute("data-on", "true");
+    await bpSA.click();
+    await expect(bpSA).toHaveAttribute("data-on", "false");
+    await ruleNodeOf(page, SA).click();
+    await tid(page, "dbg-run-to").click();
+    await tid(page, "dbg-finish").click();
+    await expect(dbgStatus).toHaveText(/^완료 · \d+단계 · 결과 변수 \d+개$/);
+    await tid(page, "flow-tab-values").click();
+    await expect(tid(page, "sim-values")).toBeVisible();
+    await tid(page, "flow-tab-compare").click();
+    await expect(tid(page, "run-compare")).toBeVisible();
+    await tid(page, "case-save-current").click();
+    await tid(page, "case-modal-name").fill(`E2E 케이스 ${RUN}`);
+    await tid(page, "case-modal-save").click();
+    await expect(tid(page, "case-modal")).toHaveCount(0, { timeout: 20_000 });
+    await expect(tid(page, "case-grid")).toContainText(`E2E 케이스 ${RUN}`, { timeout: 20_000 });
+    await tid(page, "case-run-all").click();
+    await expect(tid(page, "case-summary")).toHaveText("1/1 통과", { timeout: 30_000 });
+    // 디버그 모드에서도 보이는 활성 단추를 다시 확인한다. 케이스 고르기·불러오기·수정·삭제·디버그로 열기는 케이스 줄을 고르기 전에는 꺼져 있어 목록에서 빠진다.
+    const dynamicAllow = async (prefix: string, why: string) =>
+      Object.fromEntries(
+        (await page.locator(`[data-testid^="${prefix}"]:visible`).evaluateAll((els) => els.map((e) => e.getAttribute("data-testid") ?? "")))
+          .filter(Boolean)
+          .map((k) => [k, why]),
+      );
+    await assertAllButtonsPressed(page, "ruleSetEdit(디버그 모드)", {
+      ...(await dynamicAllow("var-watch-remove-", "조사식 빼기 — 조사식 목록 확인은 디버그 전용 단위 테스트가 맡는다")),
+      ...(await dynamicAllow("expr-recent-", "최근 식 채우기 — 식 평가는 이 시나리오에서 하지 않는다")),
+      ...(await dynamicAllow("flow-bp-", "노드마다 있는 중단점 점 — 하나(SA)는 위에서 켰다 껐다. 나머지는 같은 동작이다")),
+      ...(await dynamicAllow("flow-rule-open-", "룰 박스 링크 아이콘은 다음 TC-DME-SED-06 에서 누른다(누르면 룰 화면으로 옮겨 간다)")),
+      "sim-detail-open-rule": "노드 상세의 [룰 편집 열기] 는 누르면 룰 화면으로 옮겨 가 다음 TC-DME-SED-06 흐름이 깨진다",
+    });
+
+    // 만든 케이스를 지워 데이터를 남기지 않는다.
+    await tid(page, "case-grid").locator(".ag-center-cols-container .ag-row").first().click();
+    await tid(page, "case-delete").click();
+    await tid(page, "case-delete-confirm").click();
+    await expect(tid(page, "case-grid")).not.toContainText(`E2E 케이스 ${RUN}`, { timeout: 20_000 });
+
+    // 보기 모드로 돌려 놓는다 — 아래 패널은 검사 결과 탭으로 돌아온다.
+    await tid(page, "flow-mode-view").click();
+    await expect(tid(page, "dbg-toolbar")).toHaveCount(0);
     await tid(page, "flow-tab-checks").click();
     await expect(setChecks()).toBeVisible();
     // 룰 박스의 링크 아이콘(flow-rule-open-*)은 눌러 보면 룰 화면으로 옮겨 가므로 다음 TC-DME-SED-06 에서 누른다.

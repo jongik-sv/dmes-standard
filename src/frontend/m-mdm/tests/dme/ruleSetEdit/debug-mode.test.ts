@@ -106,11 +106,10 @@ async function key(el: Element, init: KeyboardEventInit): Promise<KeyboardEvent>
   return ev;
 }
 
-/** 편집 모드에서 노드를 골라 속성 패널을 연다 — 2단계 오른쪽 "실행 결과/속성" 탭이 남아 있으면(Task 12 가 지운다) 속성 탭으로 간다. */
+/** 편집 모드에서 노드를 골라 속성 패널을 연다. */
 async function editNode(id: string) {
   await click("flow-mode-edit");
   await click(`flow-node-${id}`);
-  if (q("flow-right-tab-props")) await click("flow-right-tab-props");
 }
 
 async function nodeMenu(id: string) {
@@ -585,5 +584,21 @@ describe("디버그 모드 — 변수·조사식·식 평가·입력", () => {
     for (const id of ["flow-tab-values", "flow-tab-compare", "flow-tab-checks"]) expect(q(id), id).not.toBeNull();
     expect(byTestId("flow-bottom-body").querySelector('[data-testid="sim-values"]')).not.toBeNull();
     expect(q("flow-tab-sim")).toBeNull();
+  });
+
+  it("실행 응답의 경고는 값 표 탭에 코드 배지와 문구로 보인다", async () => {
+    await openDebug();
+    srv.replies.execute = ok({ ...FIRST.response, warnings: [{ code: "TEST_WARN", ruleId: "GT_GRADE", message: "경고 문구" }] });
+    await typeInto(byTestId<HTMLInputElement>("dbg-input-GT_THK"), "12");
+    await run("dbg-step");
+    const w = visibleText(byTestId("flow-bottom-body").querySelector('[data-testid="sim-warnings"]') as HTMLElement);
+    expect(w).toContain("TEST_WARN");
+    expect(w).toContain("GT_GRADE");
+    expect(w).toContain("경고 문구");
+  });
+
+  it("경고가 없는 응답에는 sim-warnings 가 없다", async () => {
+    await firstStep();
+    expect(q("sim-warnings")).toBeNull();
   });
 });

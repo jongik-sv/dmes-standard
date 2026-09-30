@@ -26,7 +26,7 @@ import { useDragActions } from "../../../pages/dme/ruleSetEdit/state/useDragActi
 import { useRuleSetEdit } from "../../../pages/dme/ruleSetEdit/state/useRuleSetEdit";
 import type { RuleIo, RuleSetView } from "../../../pages/dme/ruleSetEdit/types";
 import { flush, installDomStorage, visibleText } from "../helpers/render";
-import { byTestId as pageById, click, installServer, ok, openSet, q as pageQ, settle, srv, uninstallServer } from "../helpers/rule-set-page";
+import { byTestId as pageById, calls, click, installServer, ok, openSet, q as pageQ, settle, srv, uninstallServer } from "../helpers/rule-set-page";
 
 // 캔버스 단독 테스트는 page 도우미의 화면 틀이 없으므로 문서 전체에서 찾는다(화면 테스트는 아래 pageById·pageQ).
 const docQ = (id: string) => document.querySelector(`[data-testid="${id}"]`) as HTMLElement | null;
@@ -351,6 +351,22 @@ describe("룰 목록 패널(Task 7)", () => {
     expect(pageQ("flow-rule-row-E2S_NEW")).toBeNull();
     await click("flow-rule-panel-toggle");
     expect(pageQ("flow-rule-row-E2S_NEW")).not.toBeNull();
+  });
+
+  it("3a. 검색 칸에서 한글 조합 중 Enter(isComposing)는 검색하지 않는다", async () => {
+    await openSet("E2S_CHAIN", view());
+    const input = pageById<HTMLInputElement>("flow-rule-panel-search");
+    const enter = (isComposing: boolean) =>
+      act(async () => {
+        input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", isComposing, bubbles: true, cancelable: true }));
+      });
+    const before = calls("search").length;
+    await enter(true);
+    await settle(20);
+    expect(calls("search").length).toBe(before);
+    await enter(false);
+    await settle(20);
+    expect(calls("search").length).toBe(before + 1);
   });
 
   it("3b. 늦게 온 앞 응답은 버린다", async () => {

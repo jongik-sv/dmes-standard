@@ -2,8 +2,7 @@
 
 /**
  * 디버그 입력 폼(3단계 계획 §4.1) — 판정 시각(`dbg-evalts`)과 세트 입력 변수 칸(`dbg-fields`, 줄마다 키 보냄 `dbg-send-{name}`·값 `dbg-input-{name}`).
- * 칸은 컬럼 사전·프로그램 변수 이름만(2단계 P-D8)이고 모양은 2단계 `SimulationPanel` 입력 부분과 같다. 상태는 page 의 `useSimulation` 에 있다.
- * 2단계 `SimulationPanel` 안의 같은 폼은 Task 12 가 그 파일과 함께 지운다(임시 중복, F13).
+ * 칸은 컬럼 사전·프로그램 변수 이름만(2단계 P-D8)이다. 상태는 page 의 `useSimulation` 에 있다.
  */
 import { Checkbox, Input } from "@dk-oasis/shared/form";
 import { badgeStyle } from "@/shell";

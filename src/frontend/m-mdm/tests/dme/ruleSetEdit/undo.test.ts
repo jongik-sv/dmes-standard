@@ -18,7 +18,7 @@ vi.mock("@/shell", async (importOriginal) => ({
   openMdmPage: (...args: unknown[]) => mocks.openMdmPage(...args),
 }));
 
-import { setPositions } from "../../../pages/dme/ruleSetEdit/flow-edit";
+import { setPositions, toEditFlow } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { useRuleSetEdit } from "../../../pages/dme/ruleSetEdit/state/useRuleSetEdit";
 import type { RuleIo, RuleSetView } from "../../../pages/dme/ruleSetEdit/types";
 import { flush, typeInto } from "../helpers/render";
@@ -223,5 +223,61 @@ describe("useRuleSetEdit 이력(3단계 Task 3)", () => {
     await act(async () => state!.undo());
     expect(state!.flowVersion).toBe(v0 + 2); // 위치만 되돌린 것
     expect(state!.canUndo).toBe(false);
+  });
+});
+
+describe("선 경로(Task 15, C14) — page 수준", () => {
+  beforeEach(() => {
+    installServer();
+    localStorage.clear();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    uninstallServer();
+  });
+
+  it("routes 가 없는 옛 저장본을 열어도 [세트 저장] 은 꺼져 있다(dirty 아님)", async () => {
+    const v = chainView();
+    v.set.flow = JSON.parse(JSON.stringify({ ...toEditFlow(null, ["E2S_GRD", "E2S_FCT"]), view: { positions: {}, notes: [], groups: [] } }));
+    await openSet("E2S_CHAIN", v);
+    expect(byTestId<HTMLButtonElement>("set-save").disabled).toBe(true);
+    await click("flow-mode-edit");
+    expect(byTestId<HTMLButtonElement>("set-save").disabled).toBe(true);
+  });
+
+  it("선을 두 번 눌러 더한 꺾는 점은 되돌리기로 사라지고 다시 하기로 돌아온다, 점이 생기면 dirty 다", async () => {
+    await openSet("E2S_CHAIN", chainView());
+    await click("flow-mode-edit");
+    await click("rf__edge-e2");
+    const dbl = async () => act(async () => {
+      byTestId("rf__edge-e2").querySelector("path")!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, cancelable: true, clientX: 10, clientY: 10 }));
+    });
+    await dbl();
+    await flush();
+    expect(document.querySelectorAll('[data-testid^="flow-route-handle-e2-"]').length).toBe(1);
+    expect(byTestId<HTMLButtonElement>("set-save").disabled).toBe(false);
+    await click("flow-undo");
+    expect(document.querySelectorAll('[data-testid^="flow-route-handle-e2-"]').length).toBe(0);
+    expect(byTestId<HTMLButtonElement>("set-save").disabled).toBe(true);
+    await click("flow-redo");
+    expect(document.querySelectorAll('[data-testid^="flow-route-handle-e2-"]').length).toBe(1);
+  });
+
+  it("손잡이를 고른 채 Delete 는 그 점만 빼고, 손잡이가 없으면 고른 선을 지운다", async () => {
+    await openSet("E2S_CHAIN", chainView());
+    await click("flow-mode-edit");
+    await click("rf__edge-e2");
+    await act(async () => {
+      byTestId("rf__edge-e2").querySelector("path")!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, cancelable: true, clientX: 10, clientY: 10 }));
+    });
+    await flush();
+    const h = byTestId("flow-route-handle-e2-0");
+    await act(async () => { h.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, cancelable: true, button: 0, clientX: 10, clientY: 10 })); });
+    await act(async () => { window.dispatchEvent(new MouseEvent("pointerup", { bubbles: true, clientX: 10, clientY: 10 })); });
+    await key(byTestId("flow-canvas"), { key: "Delete" });
+    expect(document.querySelectorAll('[data-testid^="flow-route-handle-e2-"]').length).toBe(0);
+    expect(document.querySelector('[data-testid="rf__edge-e2"]')).not.toBeNull(); // 선은 남는다
+    await key(byTestId("flow-canvas"), { key: "Delete" }); // 손잡이 없음 → 원래 선택 삭제
+    expect(document.querySelector('[data-testid="rf__edge-e2"]')).toBeNull();
   });
 });

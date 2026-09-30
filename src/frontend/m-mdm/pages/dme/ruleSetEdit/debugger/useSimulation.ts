@@ -2,7 +2,7 @@
 
 /**
  * 디버거 상태(2단계 계획 Task 11) — 입력 폼·JSON 붙여 넣기·판정 시각, 실행(`execute`), 받은 기록과 그때의 흐름 사본, 따라가는 단계.
- * 아래 패널의 시뮬레이션 탭은 접거나 탭을 바꾸면 언마운트되므로 이 상태는 page 에서 부른 이 훅에 둔다.
+ * 아래 패널 탭은 접거나 바꾸면 언마운트되므로 이 상태는 page 에서 부른 이 훅에 둔다.
  *
  * 3단계(계획 P9·P-D9·P-D13·P-D14): 서버 기록 실행 한 번의 기록(`last`) 위에서 커서를 옮긴다. 커서 k 는 "노드 k 실행 전"이고 기록이 없으면 -1 이다.
  * 흐름 구조(`flowVersion`)가 실행 때와 달라지면 기록을 지우지 않고 `stale`(지난 흐름 기준)로 두며, 기록이 없거나·낡았거나·지금 입력이 기록 입력과 다르면
@@ -11,7 +11,6 @@
  *
  * 한 처리 안에서 `loadInput` 뒤 곧바로 `restart` 를 부르는 경우(케이스 [디버그로 열기])에도 바뀐 입력을 보도록 입력·기록·커서는 ref 에 같이 적고
  * 동작은 ref 를 읽는다. 기록·커서는 한 상태로 묶어 한 번에 바꾼다(한 렌더에 섞인 값이 보이지 않게). 중단점·최근 입력은 `local-store` 로만 읽고 쓴다.
- * 옛 멤버(`result`·`run`·`step`·`setStep`·`clear`·`clearedByEdit`)는 2단계 시뮬레이션 탭 전용이고 Task 12 가 지운다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -29,7 +28,6 @@ import { loadInputs, loadStrings, pushRecent, saveInputs, saveStrings, storeKeys
 /** 판정 시각 형식 — 서버 `evalTs` 와 같은 `yyyy-MM-dd HH:mm:ss`. */
 export const EVAL_TS_PATTERN = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
 export const EVAL_TS_MESSAGE = "판정 시각은 yyyy-MM-dd HH:mm:ss 형식으로 쓴다";
-export const CLEARED_BY_EDIT_MESSAGE = "흐름이 바뀌어 실행 표시를 지웠다. 다시 실행한다";
 
 /** 디버그 실행 입력(3단계 P9) — 보낸 레코드 JSON 과 판정 시각(빈 글자 = 지금). */
 export interface DebugInput {
@@ -53,7 +51,7 @@ export interface SimField {
 }
 
 export interface Simulation {
-  // ── 입력 — 2단계 그대로 ──
+  // ── 입력 ──
   fields: SimField[];
   setInput(key: string, patch: { value?: string; on?: boolean }): void;
   json: string;
@@ -107,18 +105,6 @@ export interface Simulation {
   toggleBreakpoint(nodeId: string): void;
   /** 한 줄 알림(여기까지 실행 등). 다음 동작에서 지운다. */
   notice: string | null;
-  // ── 옛 멤버(2단계 시뮬레이션 탭 전용 — Task 12 가 지운다) ──
-  /** = stale ? null : last. */
-  result: SimResult | null;
-  /** 새 실행 뒤 옛 step = 마지막. */
-  run(): Promise<void>;
-  /** 옛 단계(실행된 마지막 노드). */
-  step: number;
-  setStep(step: number): void;
-  /** last·previous·옛 step 을 지운다. */
-  clear(): void;
-  /** = stale. */
-  clearedByEdit: boolean;
 }
 
 /** 빈 값 — 참조가 렌더마다 바뀌지 않게 모듈 상수로 둔다(Local-Rules §16). */
@@ -147,11 +133,10 @@ interface Rec {
   last: Stored | null;
   previous: Stored | null;
   cursor: number;
-  legacyStep: number;
   setId: string | null;
   flowVersion: number;
 }
-const emptyRec = (setId: string | null, flowVersion: number): Rec => ({ last: null, previous: null, cursor: -1, legacyStep: 0, setId, flowVersion });
+const emptyRec = (setId: string | null, flowVersion: number): Rec => ({ last: null, previous: null, cursor: -1, setId, flowVersion });
 
 /** 입력 칸 묶음 — 폼 줄·JSON 붙여 넣기·판정 시각. */
 interface Inputs {
@@ -288,7 +273,6 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
   const cur = rec.setId === setId ? rec : emptyRec(setId, flowVersion);
   const last = cur.last;
   const stale = !!last && last.flowVersion !== flowVersion;
-  const result = last && !stale && last.setId === setId ? last : null;
   const n = last?.trace.nodes.length ?? 0;
   const cursor = last ? cur.cursor : -1;
 
@@ -398,7 +382,6 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
           last: record,
           previous: r.last ?? r.previous,
           cursor: next.cursor,
-          legacyStep: Math.max(0, trace.nodes.length - 1),
         }));
         setNotice(next.notice);
         const list = pushRecent(recentRef.current, input, sameInput, RECENT_LIMIT);
@@ -491,26 +474,6 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
   const valueMap = useMemo(() => new Map(variables.map((v) => [v.name.toLowerCase(), v.value] as const)), [variables]);
   const valueAt = useCallback((name: string): TypedValue | null | undefined => valueMap.get(name.toLowerCase()), [valueMap]);
 
-  // ── 옛 멤버(2단계 시뮬레이션 탭 전용 — Task 12 가 지운다) ──
-  const clear = useCallback(() => {
-    seq.current += 1;
-    writeRec((r) => ({ ...r, last: null, previous: null, cursor: -1, legacyStep: 0 }));
-    setRunning(false);
-    setError(null);
-    setNotice(null);
-  }, [writeRec]);
-
-  const run = useCallback(() => {
-    setNotice(null);
-    return fresh((t) => at(t.nodes.length));
-  }, [fresh]);
-
-  const total = result?.trace.nodes.length ?? 0;
-  const setStep = useCallback(
-    (k: number) => writeRec((r) => ({ ...r, legacyStep: Math.max(0, Math.min(Math.max(0, total - 1), Math.trunc(k))) })),
-    [total, writeRec],
-  );
-
   return {
     fields,
     setInput,
@@ -543,11 +506,5 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
     breakpoints,
     toggleBreakpoint,
     notice,
-    result,
-    run,
-    step: Math.min(cur.legacyStep, Math.max(0, total - 1)),
-    setStep,
-    clear,
-    clearedByEdit: stale,
   };
 }

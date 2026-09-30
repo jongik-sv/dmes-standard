@@ -56,14 +56,16 @@ export function FlowToolbar(props: FlowToolbarProps) {
   const [confirmDeprecate, setConfirmDeprecate] = useState(false);
 
   useEffect(() => setConfirmDeprecate(false), [view]);
-  // 도움말은 Esc 로 닫는다.
+  // 도움말은 Esc 로 닫는다. 캡처 단계에서 받아 멈춘다 — 열린 것만 닫고 캔버스 선택은 그대로 둔다(메뉴와 같은 규칙).
   useEffect(() => {
     if (!helpOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setHelpOpen(false);
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      setHelpOpen(false);
     };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
   }, [helpOpen]);
 
   const hasReject = state.checks.some((c) => c.severity === "REJECT");
@@ -158,7 +160,7 @@ export function FlowToolbar(props: FlowToolbarProps) {
             value={find.query}
             onChange={find.setQuery}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
+              if (e.key === "Enter" && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 find.next();
               }
