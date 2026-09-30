@@ -24,10 +24,19 @@ export interface FlowNote {
   h: number;
   attach: string | null;
 }
+/** 그룹 틀에 더한 여백(흐름 좌표, G2) — 소속 노드 경계 + 기본 여백에 네 변마다 더한다. 0 이상 MAX_GROUP_PAD 이하 정수. */
+export interface GroupPad {
+  l: number;
+  t: number;
+  r: number;
+  b: number;
+}
 export interface FlowGroup {
   id: string;
   title: string;
   nodeIds: string[];
+  /** 더한 여백(G2). 없으면 기본 크기. 네 값이 모두 0 이면 두지 않는다(저장 글자·dirty 비교가 예전 그룹과 같다). */
+  pad?: GroupPad;
 }
 export interface FlowView {
   positions: Record<string, FlowPos>;
@@ -68,6 +77,8 @@ export const MAX_ROUTE_POINTS = 20;
 export const ROUTE_LIMIT_MESSAGE = `꺾는 점은 선 하나에 ${MAX_ROUTE_POINTS}개까지 둔다`;
 /** 이름표 오프셋 한계(흐름 좌표, ±, L1) — 넘으면 자른다. */
 export const MAX_LABEL_OFFSET = 600;
+/** 그룹 여백 한계(흐름 좌표, G2) — 넘으면 자른다. */
+export const MAX_GROUP_PAD = 2000;
 const LABEL_PARTS: readonly LabelPart[] = ["label", "chips"];
 
 /** 새 메모 크기(계약 밖 기본값). */
@@ -104,7 +115,19 @@ const copyEdge = (e: FlowEdge): FlowEdge =>
   edge(e.id, e.from, e.to, { order: int(e.order), cond: str(e.cond), otherwise: e.otherwise === true, label: str(e.label) });
 const copyPos = (p: FlowPos): FlowPos => ({ x: p.x, y: p.y });
 const copyNote = (n: FlowNote): FlowNote => ({ id: n.id, text: n.text, x: n.x, y: n.y, w: n.w, h: n.h, attach: n.attach ?? null });
-const copyGroup = (g: FlowGroup): FlowGroup => ({ id: g.id, title: g.title, nodeIds: [...g.nodeIds] });
+const clampPad = (n: number) => Math.max(0, Math.min(MAX_GROUP_PAD, Math.round(n)));
+/** 네 변 값을 0~2000 정수로 자른 여백. 객체가 아니면 null, 유한하지 않은 칸은 0, 모두 0 이면 null(= 기본 크기). */
+export function normalizePad(p: unknown): GroupPad | null {
+  if (!isObj(p)) return null;
+  const v = (x: unknown) => (finite(x) ? clampPad(x) : 0);
+  const pad = { l: v(p.l), t: v(p.t), r: v(p.r), b: v(p.b) };
+  return pad.l || pad.t || pad.r || pad.b ? pad : null;
+}
+/** 그룹 복사 — pad 는 있을 때만 마지막 키로 둔다. */
+const copyGroup = (g: FlowGroup): FlowGroup => {
+  const pad = normalizePad(g.pad);
+  return pad ? { id: g.id, title: g.title, nodeIds: [...g.nodeIds], pad } : { id: g.id, title: g.title, nodeIds: [...g.nodeIds] };
+};
 
 /** 흐름에 있는 선의 경로만, 선 배열 순서로 복사한다(빈 경로·없는 선은 버린다). */
 function routesFor(edges: readonly FlowEdge[], routes: Readonly<Record<string, readonly FlowPos[]>> | undefined): Record<string, FlowPos[]> {
@@ -175,7 +198,7 @@ function sanitizeView(raw: unknown): FlowView {
     for (const g of raw.groups) {
       if (!isObj(g) || typeof g.id !== "string" || typeof g.title !== "string") continue;
       if (!Array.isArray(g.nodeIds) || !g.nodeIds.every((x) => typeof x === "string")) continue;
-      view.groups.push({ id: g.id, title: g.title, nodeIds: [...(g.nodeIds as string[])] });
+      view.groups.push(copyGroup({ id: g.id, title: g.title, nodeIds: g.nodeIds as string[], pad: normalizePad(g.pad) ?? undefined }));
     }
   }
   if (isObj(raw.routes)) {
@@ -650,7 +673,7 @@ export function updateGroup(f: EditFlow, id: string, patch: { title?: string; no
   g.view.groups = g.view.groups.map((x) =>
     x.id !== id
       ? x
-      : { id: x.id, title: patch.title ?? x.title, nodeIds: patch.nodeIds !== undefined ? groupable(g, patch.nodeIds) : x.nodeIds },
+      : { ...x, title: patch.title ?? x.title, nodeIds: patch.nodeIds !== undefined ? groupable(g, patch.nodeIds) : x.nodeIds },
   );
   return g;
 }
@@ -659,6 +682,23 @@ export function removeGroup(f: EditFlow, id: string): EditFlow {
   const g = clone(f);
   g.view.groups = g.view.groups.filter((x) => x.id !== id);
   return g;
+}
+
+/**
+ * 그룹 틀 여백을 바꾼다(G2 — 크기 손잡이를 놓을 때 한 번). 0~2000 정수로 자르고, null 이나 모두 0 이면 pad 를 지운다(기본 크기).
+ * 크기를 바꿔도 소속은 바뀌지 않는다. 없는 그룹·유한하지 않은 값은 거부한다.
+ */
+export function setGroupPad(f: EditFlow, id: string, pad: GroupPad | null): EditResult {
+  if (!f.view.groups.some((x) => x.id === id)) return fail(`그룹 ${id}를 찾지 못했다`);
+  if (pad && ![pad.l, pad.t, pad.r, pad.b].every(finite)) return fail("그룹 크기가 올바르지 않다");
+  const g = clone(f);
+  const next = normalizePad(pad);
+  g.view.groups = g.view.groups.map((x) => {
+    if (x.id !== id) return x;
+    const base = { id: x.id, title: x.title, nodeIds: x.nodeIds };
+    return next ? { ...base, pad: next } : base;
+  });
+  return { ok: true, flow: g };
 }
 
 // ───────────────────────── 3단계 편집 연산(계획 P6) ─────────────────────────

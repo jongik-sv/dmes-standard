@@ -42,6 +42,10 @@
  * 같은 두 노드의 선이 이미 있는지는 `connect`·`reconnectEdge` 가 거부해 편집 실패 알림을 보인다. 선은 손잡이와 관계없이 늘 출발 노드 아래(`out`) → 도착 노드 위(`in`)로 그린다
  * (선 객체에만 주고 저장하지 않는다). 누르기 잇기(`connectOnClick`)는 끈다 — 손잡이를 잘못 누른 뒤 노드를 누르면 선이 생기는 것을 막는다.
  * 끄는 동안의 연결 상태는 React Flow 내부 저장소에만 있어 page 를 다시 그리지 않고 배치(dagre)도 다시 돌지 않는다. page 는 놓을 때 `onConnect` 를 한 번 받는다.
+ *
+ * 그룹 크기(4단계 G2): 그룹 틀 = 소속 노드 경계 + 여백 16 + `view.groups[].pad`. 편집 모드에서 고른 그룹에 네 모서리·네 변 손잡이(nodes.tsx)가 뜬다.
+ * 끄는 동안은 `GroupPadStore` 에만 두고(캔버스 안에서만 다시 그린다) 놓을 때 `onGroupPadChange` 를 한 번 부른다. 여백으로 저장하므로
+ * 소속 노드를 옮기면 틀이 따라가고 소속 노드보다 작게는 줄지 않는다. 크기를 바꿔도 소속은 바뀌지 않는다.
  */
 import {
   createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore,
@@ -52,7 +56,7 @@ import { IconPlus } from "@tabler/icons-react";
 
 import type { RuleSetFlow, TypedValue } from "@/contract/engine-contract.generated";
 
-import { MAX_LABEL_OFFSET, blockMembers, type FlowNote, type FlowPos, type EditFlow, type LabelOffset, type LabelPart } from "../flow-edit";
+import { MAX_LABEL_OFFSET, blockMembers, normalizePad, type GroupPad, type FlowNote, type FlowPos, type EditFlow, type LabelOffset, type LabelPart } from "../flow-edit";
 import { NODE_SIZE, beyondLine, drawnPositions, foldOffsetX, spaceMinDelta, type SpaceAxis, type SpaceBlocks } from "../flow-layout";
 import { typedText } from "../trace-view";
 import { blockDragPositions, dropTargetAt, edgeChips, edgeMarks, nodeMarks, resolveNodeDrop } from "../flow-vars";
@@ -62,6 +66,7 @@ import { collapseView } from "./collapse";
 import { boundsOf, snapHitIn, snapIndex, snapThreshold, type Box, type Guide, type SnapIndex } from "./snap";
 import { insertRoutePoint, routeMidpoint, routePath } from "./route-path";
 import type { MenuTarget } from "./context-menu";
+import { GroupSizeContext, ZERO_PAD, createGroupPadStore, dragGroupPad, samePad, type GroupSizeApi } from "./group-size";
 import { ANCHOR_IN, ANCHOR_OUT, GroupNodeData, NODE_TYPES, NoteNodeData, FlowNodeData, handlesOf, type CollapsedBlockInfo } from "./nodes";
 import type { EdgeState, Overlay } from "./overlay";
 import {
@@ -210,6 +215,8 @@ export interface FlowCanvasProps {
    * 임계값(화면 4px) 미만이거나 처음 오프셋 그대로면 부르지 않는다. 편집 모드에서만 부른다.
    */
   onLabelOffsetChange?: (edgeId: string, part: LabelPart, off: LabelOffset | null) => void;
+  /** 그룹 크기 손잡이를 놓음(G2) — 새 여백(흐름 좌표, 0~2000 정수). 끄는 동안은 부르지 않고 놓을 때 한 번, 바뀌었을 때만. 편집 모드에서만 부른다. */
+  onGroupPadChange?: (groupId: string, pad: GroupPad) => void;
   /** 캔버스가 "고른 꺾는 점 빼기 — 뺐으면 true" 를 채우는 ref(page 의 delete 단축키가 먼저 부른다, C14). */
   removeRoutePointRef?: MutableRefObject<(() => boolean) | null>;
   /** 캔버스가 "React Flow 선택 모두 비우기" 를 채우는 ref(page 의 Esc 가 부른다 — disableKeyboardA11y 로 내장 Esc 가 없다). */
@@ -842,8 +849,8 @@ function blockInfo(flow: EditFlow, block: { count: number; members: string[] }, 
   return { count: block.count, ran, error };
 }
 
-/** 그룹 틀 — 멤버 위치의 바깥 상자 + 여백. 멤버가 하나도 없으면 null. */
-function groupBox(nodeIds: readonly string[], pos: Record<string, FlowPos>, kinds: Map<string, keyof typeof NODE_SIZE>) {
+/** 그룹 틀 — 멤버 위치의 바깥 상자 + 여백 + 더한 여백(pad, G2). 멤버가 하나도 없으면 null. */
+function groupBox(nodeIds: readonly string[], pos: Record<string, FlowPos>, kinds: Map<string, keyof typeof NODE_SIZE>, pad: GroupPad | null | undefined) {
   let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
   for (const id of nodeIds) {
     const p = pos[id];
@@ -856,7 +863,13 @@ function groupBox(nodeIds: readonly string[], pos: Record<string, FlowPos>, kind
     y2 = Math.max(y2, p.y + s.h);
   }
   if (!Number.isFinite(x1)) return null;
-  return { x: x1 - GROUP_MARGIN, y: y1 - GROUP_MARGIN, w: x2 - x1 + GROUP_MARGIN * 2, h: y2 - y1 + GROUP_MARGIN * 2 };
+  const d = pad ?? ZERO_PAD;
+  return {
+    x: x1 - GROUP_MARGIN - d.l,
+    y: y1 - GROUP_MARGIN - d.t,
+    w: x2 - x1 + GROUP_MARGIN * 2 + d.l + d.r,
+    h: y2 - y1 + GROUP_MARGIN * 2 + d.t + d.b,
+  };
 }
 
 function Inner(props: FlowCanvasProps) {
@@ -953,13 +966,18 @@ function Inner(props: FlowCanvasProps) {
   const eMarks = useMemo(() => edgeMarks(checks), [checks]);
   const chips = useMemo(() => edgeChips(vflow as RuleSetFlow, rules), [vflow, rules]);
 
+  // 그룹 크기 끌기(G2) — 끄는 동안의 여백. 구독 값이 바뀌면 Inner 가 다시 그려 nodes memo 가 다시 돈다(공간 넓히기 미리보기와 같은 방식 — page·dagre 는 그대로다).
+  const groupStore = useMemo(createGroupPadStore, []);
+  const groupDrag = useSyncExternalStore(groupStore.subscribe, () => groupStore.drag, () => null);
+
   const nodes = useMemo(() => {
     const out: Node[] = [];
     const kinds = new Map(vflow.nodes.map((n) => [n.id, n.kind] as const));
     for (const g of flow.view.groups) {
-      const b = groupBox(g.nodeIds, pos, kinds);
+      const pad = groupDrag?.groupId === g.id ? groupDrag.pad : g.pad; // 끄는 중이면 그 값(G2)
+      const b = groupBox(g.nodeIds, pos, kinds, pad);
       if (!b) continue;
-      const data: GroupNodeData = { id: g.id, title: g.title, selected: selectedId === g.id };
+      const data: GroupNodeData = { id: g.id, title: g.title, selected: selectedId === g.id, resizable: editable && selectedId === g.id };
       out.push({
         id: g.id, type: "rsfGroup", position: { x: b.x, y: b.y }, width: b.w, height: b.h, measured: measured[g.id], data, selected: rfSel.has(g.id),
         draggable: false, connectable: false, zIndex: -1, style: { pointerEvents: "none" },
@@ -997,7 +1015,7 @@ function Inner(props: FlowCanvasProps) {
       });
     }
     return out;
-  }, [flow, vflow, view, pos, drag, space, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured, varDisplay]);
+  }, [flow, vflow, view, pos, drag, space, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured, varDisplay, groupDrag]);
   /** 지금 그린 노드 배열 — 끌기 시작 때 스냅 후보(보이는 흐름 노드·메모)를 여기서 모은다(G1). */
   const nodesRef = useRef(nodes);
   nodesRef.current = nodes;
@@ -1547,6 +1565,65 @@ function Inner(props: FlowCanvasProps) {
   }, [editable, labelStore]);
   useEffect(() => () => labelDragRef.current?.stop(), []);
 
+  // 그룹 크기(G2) — 끄는 동안은 groupStore 에만 두고 놓을 때 onGroupPadChange 를 한 번 부른다(page 는 끄는 동안 다시 그리지 않는다).
+  // 새 prop 은 구조 분해에 넣지 않고 props 로 읽는다(구조 분해 줄은 도구 모드 태스크가 고친다).
+  const groupPadChangeRef = useRef(props.onGroupPadChange);
+  groupPadChangeRef.current = props.onGroupPadChange;
+  const groupDragRef = useRef<{ stop: () => void } | null>(null);
+  const groupSizeApi = useMemo<GroupSizeApi>(() => ({
+    startDrag: (e, groupId, grip) => {
+      if (e.button !== 0 || !editableRef.current) return;
+      e.stopPropagation();
+      groupDragRef.current?.stop();
+      const base = normalizePad(fullRef.current.view.groups.find((g) => g.id === groupId)?.pad) ?? ZERO_PAD;
+      const sx = e.clientX;
+      const sy = e.clientY;
+      const onMoveEvt = (ev: MouseEvent) => {
+        // 단추가 모두 떨어진 채 움직이면 pointerup 을 잃은 것이다(창 밖에서 놓음) — 기록 없이 버린다(L1 과 같다).
+        if (ev.buttons === 0) {
+          finish(false);
+          return;
+        }
+        const k = rf.getZoom() || 1;
+        const pad = dragGroupPad(base, grip, (ev.clientX - sx) / k, (ev.clientY - sy) / k);
+        const cur = groupStore.drag;
+        if (cur && cur.groupId === groupId && samePad(cur.pad, pad)) return;
+        groupStore.drag = { groupId, pad };
+        groupStore.emit();
+      };
+      const finish = (commit: boolean) => {
+        stop();
+        const d = groupStore.drag;
+        if (!d) return;
+        groupStore.drag = null;
+        groupStore.emit();
+        if (commit && editableRef.current && !samePad(d.pad, base)) groupPadChangeRef.current?.(groupId, d.pad);
+      };
+      const onUpEvt = () => finish(true);
+      const onCancelEvt = () => finish(false);
+      const stop = () => {
+        groupDragRef.current = null;
+        window.removeEventListener("pointermove", onMoveEvt);
+        window.removeEventListener("pointerup", onUpEvt);
+        window.removeEventListener("pointercancel", onCancelEvt);
+      };
+      groupDragRef.current = { stop };
+      window.addEventListener("pointermove", onMoveEvt);
+      window.addEventListener("pointerup", onUpEvt);
+      window.addEventListener("pointercancel", onCancelEvt);
+    },
+  }), [groupStore, rf]);
+  // 편집 모드를 떠나거나 언마운트하면 끌던 크기를 버린다.
+  useEffect(() => {
+    if (editable) return;
+    groupDragRef.current?.stop();
+    if (groupStore.drag) {
+      groupStore.drag = null;
+      groupStore.emit();
+    }
+  }, [editable, groupStore]);
+  useEffect(() => () => groupDragRef.current?.stop(), []);
+
   useEffect(() => {
     if (!clearSelectionRef) return;
     clearSelectionRef.current = () => setRfSel((cur) => (cur.size === 0 ? cur : new Set()));
@@ -1772,6 +1849,7 @@ function Inner(props: FlowCanvasProps) {
     <SpaceContext.Provider value={spaceStore}>
     <HoverContext.Provider value={hoverStore}>
     <LabelContext.Provider value={labelApi}>
+    <GroupSizeContext.Provider value={groupSizeApi}>
     <div
       ref={wrapRef}
       className="rsf-canvas"
@@ -1853,6 +1931,7 @@ function Inner(props: FlowCanvasProps) {
         <SnapGuides store={snapStore} />
       </ReactFlow>
     </div>
+    </GroupSizeContext.Provider>
     </LabelContext.Provider>
     </HoverContext.Provider>
     </SpaceContext.Provider>

@@ -42,8 +42,8 @@ import { useTestCases } from "./debugger/useTestCases";
 import { ValuesTab } from "./debugger/ValuesTab";
 import { VariablePanel } from "./debugger/VariablePanel";
 import {
-  connect, flowJsonOf, reconnectEdge, setLabelOffset, setPositions, setRoute, updateEdge, updateNote,
-  type EditFlow, type EditResult, type FlowNote, type FlowPos, type LabelOffset, type LabelPart,
+  connect, flowJsonOf, reconnectEdge, setGroupPad, setLabelOffset, setPositions, setRoute, updateEdge, updateNote,
+  type EditFlow, type EditResult, type FlowNote, type FlowPos, type GroupPad, type LabelOffset, type LabelPart,
 } from "./flow-edit";
 import { autoArrange, shiftSpace, type SpaceAxis, type SpaceBlocks } from "./flow-layout";
 import { openRule } from "./links";
@@ -264,6 +264,11 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   // 조건 라벨·변수 칩 끌어 옮기기(L1) — 놓을 때 한 번 = 편집 한 번(되돌리기 한 칸).
   const onLabelOffsetChange = useCallback(
     (edgeId: string, part: LabelPart, off: LabelOffset | null) => editing && edit((f) => setLabelOffset(f, edgeId, part, off)),
+    [editing, edit],
+  );
+  // 그룹 크기(G2) — 손잡이를 놓을 때 한 번 = 편집 한 번(되돌리기 한 칸).
+  const onGroupPadChange = useCallback(
+    (id: string, pad: GroupPad) => editing && edit((f) => setGroupPad(f, id, pad)),
     [editing, edit],
   );
   const onMoveNode = useCallback(
@@ -629,6 +634,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         onMove={onMove}
                         onRouteChange={onRouteChange}
                         onLabelOffsetChange={onLabelOffsetChange}
+                        onGroupPadChange={onGroupPadChange}
                         removeRoutePointRef={removeRoutePointRef}
                         clearSelectionRef={clearCanvasSelectionRef}
                         alignSourceRef={alignSourceRef}
