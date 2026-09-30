@@ -51,7 +51,85 @@ export const LEGACY_SIM_CSS = `
 .rsim-error { margin: 0; overflow-wrap: anywhere; }
 `;
 
-/** 디버그 모드 규칙 — 디버그 툴바·입력 패널·변수 패널·테스트 케이스·실행 비교. */
-const DEBUG_MODE_CSS = ""; // SEAM(T10): 디버그 툴바·입력·변수 패널·케이스·실행 비교 스타일
+/**
+ * 디버그 모드 규칙(3단계 계획 Task 10) — 디버그 툴바·입력 패널·테스트 케이스·변수 패널·실행 비교·값 표 탭.
+ * 색은 의미 토큰만 쓴다. 한 변 색 바는 쓰지 않는다(Local-Rules §8) — 상태는 배경 톤·배지·글자 색으로 보인다.
+ * 표 줄 강조는 `AgDataGrid` `getRowClassExtra` 클래스(`rsf-var-new`·`rsf-var-changed`·`rsf-cmp-diff`)에 공용 행 상태(grid.css)와 같은 방식으로 배경을 준다.
+ */
+const DEBUG_MODE_CSS = `
+/* 디버그 툴바 — 흐름 툴바 아래 둘째 줄(P-D22) */
+.rsf-dbg-toolbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-xs) var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-md); border-bottom: 1px solid var(--color-border-light); background: var(--color-bg-light);
+}
+.rsf-dbg-buttons { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-xs); }
+.rsf-dbg-buttons button svg { margin-right: 2px; }
+.rsf-dbg-sep { align-self: stretch; width: 1px; margin: 2px 0; background: var(--color-border); }
+.rsf-dbg-status { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.rsf-dbg-status[data-end="error"] { color: var(--color-danger); }
+.rsf-dbg-status[data-end="done"] { color: var(--color-success); }
+.rsf-dbg-notice { font-size: var(--font-size-sm); color: var(--color-warning); overflow-wrap: anywhere; }
+.rsf-dbg-notice[data-kind="error"] { color: var(--color-danger); }
+
+/* 왼쪽 입력 패널 — 입력 · JSON · 최근 입력 · 테스트 케이스(위에서 아래로, 패널 안에서 스크롤) */
+.rsf-dbg-inputs {
+  height: 100%; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+.rsf-dbg-section { display: flex; flex-direction: column; gap: var(--spacing-xs); min-width: 0; }
+.rsf-dbg-title { margin: 0; font-weight: 600; }
+.rsf-dbg-label { font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+.rsf-dbg-evalts, .rsf-dbg-recent { display: flex; flex-direction: column; gap: 2px; }
+.rsf-dbg-fields { list-style: none; margin: 0; padding: 0; }
+.rsf-dbg-field {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--spacing-xs);
+  padding: 2px 0; border-bottom: 1px solid var(--color-border-light);
+}
+.rsf-dbg-field-name { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-xs); min-width: 0; }
+.rsf-dbg-field-sub { font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+.rsf-dbg-field-edit { display: inline-flex; align-items: center; gap: var(--spacing-xs); flex: 1 1 140px; min-width: 0; }
+.rsf-dbg-field-edit > :last-child { flex: 1 1 auto; min-width: 0; }
+.rsf-dbg-send { display: inline-flex; }
+.rsf-dbg-fold { border: 1px solid var(--color-border-light); border-radius: var(--radius-sm); padding: 2px var(--spacing-xs); }
+.rsf-dbg-fold > summary { cursor: pointer; font-size: var(--font-size-sm); color: var(--color-text-secondary); padding: 2px 0; }
+.rsf-dbg-fold[open] { display: flex; flex-direction: column; gap: var(--spacing-xs); padding-bottom: var(--spacing-xs); }
+.rsf-dbg-fold[open] > button { align-self: flex-start; }
+.rsf-dbg-error { margin: 0; color: var(--color-danger); overflow-wrap: anywhere; white-space: pre-wrap; }
+
+/* 테스트 케이스 */
+.rsf-case-panel { display: flex; flex-direction: column; gap: var(--spacing-xs); min-width: 0; border-top: 1px solid var(--color-border-light); padding-top: var(--spacing-sm); }
+.rsf-case-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--spacing-xs); }
+.rsf-case-summary { font-size: var(--font-size-sm); }
+.rsf-case-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-xs); }
+.rsf-case-confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-xs); font-size: var(--font-size-sm); color: var(--color-danger); }
+.rsf-case-grid, .rsf-case-diff { min-width: 0; }
+.rsf-case-diff .rsim-list { color: var(--color-danger); }
+
+/* 오른쪽 변수 패널 — 조사식 · 변수 표 · 노드 상세 · 식 평가 */
+.rsf-var-panel { display: flex; flex-direction: column; gap: var(--spacing-md); padding: var(--spacing-sm) var(--spacing-md); min-width: 0; }
+.rsf-var-section { display: flex; flex-direction: column; gap: var(--spacing-xs); min-width: 0; }
+.rsf-var-section > .rsf-panel { padding: 0; }
+.rsf-var-watches { list-style: none; margin: 0; padding: 0; }
+.rsf-var-watch {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-xs);
+  padding: 2px 0; border-bottom: 1px solid var(--color-border-light);
+}
+.rsf-var-watch[data-missing="true"] code { color: var(--color-text-muted); text-decoration: line-through; }
+.rsf-var-watch-value { flex: 1 1 auto; min-width: 0; text-align: right; overflow-wrap: anywhere; font-family: var(--font-family-mono); }
+.rsf-var-grid .ag-row.rsf-var-changed { background-color: var(--color-warning-soft); }
+.rsf-var-grid .ag-row.rsf-var-new { background-color: var(--color-primary-soft); }
+.rsf-var-grid [col-id="pin"] { cursor: pointer; }
+.rsf-expr-result { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.rsf-expr-result[data-kind="true"] { color: var(--color-success); }
+.rsf-expr-result[data-kind="error"], .rsf-expr-result[data-kind="fallback"] { color: var(--color-danger); }
+.rsf-expr-recent { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--spacing-xs); }
+.rsf-expr-recent button { font-family: var(--font-family-mono); max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+
+/* 아래 패널 — 값 표 · 실행 비교 */
+.rsf-values-tab, .rsf-run-compare { display: flex; flex-direction: column; gap: var(--spacing-xs); min-width: 0; }
+.rsf-run-compare .ag-row.rsf-cmp-diff { background-color: var(--color-warning-soft); }
+.rsf-cmp-path { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.rsf-cmp-path code { overflow-wrap: anywhere; }
+`;
 
 export const DEBUG_CSS = [LEGACY_SIM_CSS, DEBUG_MODE_CSS].join("\n");

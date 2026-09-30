@@ -2,7 +2,7 @@
  * 디버거 모델(3단계 계획 P9) — 서버 기록 실행(`execute`) 한 번의 기록 위에서 커서를 옮기는 순수 함수. React 의존이 없다.
  * 커서 k(0 ≤ k ≤ n, n = 기록 노드 수)는 "노드 k 실행 전"이다(P-D13). 기록이 없으면 커서는 -1 이다.
  *
- * Task 0 은 서명만 박는다. 본문은 Task 5(변수·멈춤·여기까지·실행 비교)와 Task 10(툴바 문구·기대값 JSON)이 채운다.
+ * 변수·멈춤·여기까지·실행 비교는 Task 5, 툴바 문구(`debugStatus`)·기대값 JSON(`expectedFromFinal`)은 Task 10 이 채웠다.
  */
 import type { RunTrace, RuleSetFlow, TypedValue } from "@/contract/engine-contract.generated";
 
@@ -96,12 +96,51 @@ export function compareRuns(before: RunTrace, after: RunTrace): RunDiff {
   return { values, onlyBefore: va.filter((id) => !inB.has(id)), onlyAfter: vb.filter((id) => !inA.has(id)) };
 }
 
-/** 디버그 툴바 상태 문구(예: "3/7 r2 실행 전"). 기록이 없으면 빈 글자. */
+/** 기록이 없을 때의 디버그 툴바 문구. */
+export const NO_RECORD_STATUS = "아직 실행하지 않았다. [한 단계]·[계속]으로 시작한다";
+/** 실행 권한(`execute`)이 없을 때 실행 단추·메뉴의 title. */
+export const RUN_DENIED_TITLE = "디버거는 편집 권한이 있어야 쓸 수 있다";
+
+/**
+ * 디버그 툴바 상태 문구(P-D13 — 커서 k 는 "노드 k 실행 전").
+ * 기록 없음 → 시작 안내, 기록 노드 0개 → `실행 전 오류 — {첫 위반}`, k < n → `{k+1}/{n} · {nodeId} 실행 전`,
+ * k = n 이고 마지막 노드가 ERROR → `오류로 멈춤 — {nodeId}: {첫 위반}`, 그 밖 k = n → `완료 · {n}단계 · 결과 변수 {m}개`.
+ * 첫 위반은 그 노드의 위반, 없으면 세트 전체 위반의 첫 문구다.
+ */
 export function debugStatus(trace: RunTrace | null, cursor: number): string {
-  return ""; // SEAM(T10): 툴바 문구(진행·끝·멈춤)
+  if (!trace) return NO_RECORD_STATUS;
+  const n = trace.nodes.length;
+  const firstOf = (own: readonly { message: string }[] | null | undefined) => own?.[0]?.message ?? trace.violations?.[0]?.message ?? "";
+  if (n === 0) return `실행 전 오류 — ${firstOf(null)}`;
+  const k = Math.max(0, Math.trunc(cursor));
+  if (k < n) return `${k + 1}/${n} · ${trace.nodes[k].nodeId} 실행 전`;
+  const lastNode = trace.nodes[n - 1];
+  if (lastNode.status === "ERROR") return `오류로 멈춤 — ${lastNode.nodeId}: ${firstOf(lastNode.violations)}`;
+  return `완료 · ${n}단계 · 결과 변수 ${Object.keys(trace.finalValues ?? {}).length}개`;
 }
 
-/** 케이스 기대값 JSON — 실행 결과의 최종 변수로 채운다(Review Focus 1). */
+/** TypedValue → 기대값 JSON 값. 서버 `RuleCaseJudge.sameValue` 가 받는 모양(NUMBER 는 십진 문자열 그대로, LIST 는 items 를 원소마다). */
+function expectedValue(v: TypedValue | null | undefined): unknown {
+  if (v == null) return null;
+  switch (v.type) {
+    case "NULL":
+      return null;
+    case "BOOLEAN":
+      return v.value === "true";
+    case "LIST":
+      return (v.items ?? []).map(expectedValue);
+    default:
+      return v.value;
+  }
+}
+
+/**
+ * 케이스 기대값 JSON — 실행 결과의 최종 변수로 채운다(Review Focus 1). 키 순서는 finalValues 그대로다.
+ * NUMBER 는 글자 그대로(`1.10` 을 `1.1` 로 바꾸지 않는다 — 서버가 BigDecimal 로 견준다), BOOLEAN 은 불린, NULL 은 null,
+ * LIST 는 기록의 `items` 를 같은 규칙으로 푼 배열이다(Task 4 ⚠️ — 기록의 LIST 에는 value 가 없다).
+ */
 export function expectedFromFinal(finalValues: Record<string, TypedValue>): string {
-  return "{}"; // SEAM(T10): 최종 변수 → 기대값 JSON(숫자 표기·BOOLEAN 왕복)
+  const out: Record<string, unknown> = {};
+  for (const [name, v] of Object.entries(finalValues ?? {})) out[name] = expectedValue(v);
+  return JSON.stringify(out, null, 2);
 }
