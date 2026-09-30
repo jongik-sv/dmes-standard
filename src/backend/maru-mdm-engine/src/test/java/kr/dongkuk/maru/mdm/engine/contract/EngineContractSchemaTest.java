@@ -40,6 +40,7 @@ import kr.dongkuk.maru.mdm.engine.rule.RuleIssueCode;
 import kr.dongkuk.maru.mdm.engine.rule.RuleResult;
 import kr.dongkuk.maru.mdm.engine.rule.RuleSetResult;
 import kr.dongkuk.maru.mdm.engine.rule.RuleView;
+import kr.dongkuk.maru.mdm.engine.rule.RunTrace;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup;
 import kr.dongkuk.maru.mdm.engine.spi.Nullable;
 import org.junit.jupiter.api.Test;
@@ -63,7 +64,7 @@ class EngineContractSchemaTest {
 
     // ------------------------------------------------------------------ 대응표(design §6.5)
 
-    /** E1-E9 — Java 상수 집합 ↔ 스키마 enum 집합. */
+    /** E1-E11 — Java 상수 집합 ↔ 스키마 enum 집합. */
     private static final Map<String, EnumPair> ENUMS = orderedMap(
             new EnumPair("E1", "AstNode", () -> enumNames(AstNode.Type.class), () -> astNodeTypeConsts()),
             new EnumPair("E2", "InfixOperator", () -> AstNode.INFIX_OPERATORS, () -> enumOf("InfixOperator")),
@@ -76,9 +77,12 @@ class EngineContractSchemaTest {
                     () -> enumOf("EngineWarningCode")),
             new EnumPair("E8", "ExprSlot", () -> enumNames(FunctionSets.Slot.class), () -> enumOf("ExprSlot")),
             // 흐름 노드 종류(plan C1) — spi 타입이라 expr·rule 전수 검사 밖이지만 스키마 짝은 맞춘다.
-            new EnumPair("E9", "FlowNodeKind", () -> enumNames(DefinitionLookup.NodeKind.class), () -> enumOf("FlowNodeKind")));
+            new EnumPair("E9", "FlowNodeKind", () -> enumNames(DefinitionLookup.NodeKind.class), () -> enumOf("FlowNodeKind")),
+            // 세트 실행 기록(plan C5).
+            new EnumPair("E10", "NodeStatus", () -> enumNames(RunTrace.NodeStatus.class), () -> enumOf("NodeStatus")),
+            new EnumPair("E11", "BranchOutcome", () -> enumNames(RunTrace.BranchOutcome.class), () -> enumOf("BranchOutcome")));
 
-    /** R1-R15 — Java record ↔ 스키마 객체 정의(유니온이면 유니온 뷰). */
+    /** R1-R18 — Java record ↔ 스키마 객체 정의(유니온이면 유니온 뷰). */
     private static final Map<String, RecordPair> RECORDS = orderedMap(
             // params: Java 는 빈 목록(null 아님), JSON 은 자식이 없으면 키를 뺀다(AstExporter 규칙) — 표지 대조에서 뺀다.
             new RecordPair("R1", AstNode.class, "AstNode", Set.of(), Set.of("params")),
@@ -97,7 +101,11 @@ class EngineContractSchemaTest {
             new RecordPair("R12", DefinitionLookup.FlowDefinition.class, "RuleSetFlow", Set.of(), Set.of()),
             new RecordPair("R13", DefinitionLookup.FlowNode.class, "FlowNode", Set.of(), Set.of()),
             new RecordPair("R14", DefinitionLookup.FlowEdge.class, "FlowEdge", Set.of(), Set.of()),
-            new RecordPair("R15", RuleSetResult.PathStep.class, "PathStep", Set.of(), Set.of()));
+            new RecordPair("R15", RuleSetResult.PathStep.class, "PathStep", Set.of(), Set.of()),
+            // 세트 실행 기록(plan C5). NodeTrace.result 는 $ref 라 required 에서만 뺀다(선택 = required 아님).
+            new RecordPair("R16", RunTrace.class, "RunTrace", Set.of(), Set.of()),
+            new RecordPair("R17", RunTrace.NodeTrace.class, "NodeTrace", Set.of(), Set.of()),
+            new RecordPair("R18", RunTrace.BranchTrace.class, "BranchTrace", Set.of(), Set.of()));
 
     /** Java 대응이 없는 $defs 와 그 사유. */
     private static final Set<String> SCHEMA_ONLY = Set.of(
@@ -225,11 +233,12 @@ class EngineContractSchemaTest {
 
     @Test
     void expr_rule_패키지의_record_enum_은_스키마_대응이_있거나_Java_전용_목록에_있다() {
-        // E1·E4-E8 의 Java enum 과 R1-R11 record 중 expr·rule 에 있는 것(spi 의 대응 타입은 검사 범위 밖이다).
+        // E1·E4-E8·E10-E11 의 Java enum 과 R1-R18 record 중 expr·rule 에 있는 것(spi 의 대응 타입은 검사 범위 밖이다).
         Set<String> mapped = Stream.concat(
                         RECORDS.values().stream().map(RecordPair::type),
                         Stream.of(AstNode.Type.class, DefinitionLookup.DataType.class, EngineEvaluationException.Code.class,
-                                EngineEvaluationException.Stage.class, EngineWarning.Code.class, FunctionSets.Slot.class))
+                                EngineEvaluationException.Stage.class, EngineWarning.Code.class, FunctionSets.Slot.class,
+                                RunTrace.NodeStatus.class, RunTrace.BranchOutcome.class))
                 .map(Class::getName)
                 .filter(EngineContractSchemaTest::inExprOrRule)
                 .collect(Collectors.toCollection(TreeSet::new));

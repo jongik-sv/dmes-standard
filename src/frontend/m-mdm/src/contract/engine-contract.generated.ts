@@ -210,6 +210,20 @@ export type EngineWarningCode = "EXPR_CELL_NULL" | "GRP_COND_NULL" | "BRANCH_CON
  */
 export type FlowNodeKind = "START" | "END" | "RULE" | "IF" | "PARALLEL" | "MERGE";
 /**
+ * 노드 실행 상태(Java RunTrace.NodeStatus).
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "NodeStatus".
+ */
+export type NodeStatus = "OK" | "ERROR";
+/**
+ * IF 갈래 평가 결과(Java RunTrace.BranchOutcome). NOT_EVALUATED = 앞 갈래가 참이라 평가하지 않음.
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "BranchOutcome".
+ */
+export type BranchOutcome = "TRUE" | "FALSE" | "NULL" | "ERROR" | "NOT_EVALUATED";
+/**
  * 판정 단계(Java EngineEvaluationException.Stage, 06:212-217 + 세트 사전 검사 + IF 갈래 고르기).
  *
  * This interface was referenced by `EngineContract`'s JSON-Schema
@@ -478,6 +492,73 @@ export interface PathStep {
   stepIndex: number | null;
 }
 /**
+ * 룰 세트 실행 기록(Java RunTrace, 룰 세트 흐름도 spec §4.2). 판정 오류는 던지지 않고 violations 에 담는다. 실행 전 오류면 nodes 가 비었다.
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "RunTrace".
+ */
+export interface RunTrace {
+  setId: string;
+  evalTs: LocalDateTime;
+  input: {
+    [k: string]: TypedValue;
+  };
+  nodes: NodeTrace[];
+  finalValues: {
+    [k: string]: TypedValue;
+  };
+  violations: Violation[] | null;
+}
+/**
+ * 노드 하나의 기록(Java RunTrace.NodeTrace). RULE: ruleId·ver·reads·result, IF: branches·chosenEdgeId, PARALLEL: order, MERGE: splitId·merged, ERROR: violations.
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "NodeTrace".
+ */
+export interface NodeTrace {
+  seq: number;
+  nodeId: string;
+  kind: FlowNodeKind;
+  status: NodeStatus;
+  ruleId: string | null;
+  ver: number | null;
+  reads: {
+    [k: string]: TypedValue;
+  } | null;
+  result?: RuleResult;
+  branches: BranchTrace[] | null;
+  chosenEdgeId: string | null;
+  order: string[] | null;
+  splitId: string | null;
+  merged: string[] | null;
+  violations: Violation[] | null;
+}
+/**
+ * IF 갈래 선 하나의 평가(Java RunTrace.BranchTrace). message 는 ERROR 원인.
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "BranchTrace".
+ */
+export interface BranchTrace {
+  edgeId: string;
+  outcome: BranchOutcome;
+  message: string | null;
+}
+/**
+ * 판정 오류 하나(Java EngineEvaluationException.Violation). name 은 변수 이름 또는 함수 이름.
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "Violation".
+ */
+export interface Violation {
+  stage: ViolationStage;
+  code: ErrorCode;
+  ruleId?: string | null;
+  rowId?: number | null;
+  name?: string | null;
+  message: string;
+}
+/**
  * 룰 세트 흐름 정의(Java DefinitionLookup.FlowDefinition, spec §3.3). TB_MDM_RULE_SET.FLOW_JSON 의 nodes·edges 이고 화면 전용 view 는 여기 없다.
  *
  * This interface was referenced by `EngineContract`'s JSON-Schema
@@ -527,18 +608,4 @@ export interface EngineError {
    * @minItems 1
    */
   violations: [Violation, ...Violation[]];
-}
-/**
- * 판정 오류 하나(Java EngineEvaluationException.Violation). name 은 변수 이름 또는 함수 이름.
- *
- * This interface was referenced by `EngineContract`'s JSON-Schema
- * via the `definition` "Violation".
- */
-export interface Violation {
-  stage: ViolationStage;
-  code: ErrorCode;
-  ruleId?: string | null;
-  rowId?: number | null;
-  name?: string | null;
-  message: string;
 }

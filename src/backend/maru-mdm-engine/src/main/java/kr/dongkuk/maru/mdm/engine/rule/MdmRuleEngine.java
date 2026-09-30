@@ -74,10 +74,33 @@ public final class MdmRuleEngine implements RuleEngine {
         Objects.requireNonNull(record, "record");
         Instant ts = truncate(evalTs);
         Prepared p = prepare(set(setId), record, ts);
-        FlowRun run = new FlowRun(evaluator, runner, p.tree, p.defs, p.keys, record, ts);
+        FlowRun run = new FlowRun(evaluator, runner, p.tree, p.defs, p.keys, record, ts, false);
         run.run();
         return new RuleSetResult(setId, ts, List.copyOf(run.steps), Collections.unmodifiableMap(run.finalValues),
                 List.copyOf(run.path), List.copyOf(run.warnings));
+    }
+
+    @Override
+    public RunTrace traceSet(RuleSetDefinition set, Map<String, Object> record, Instant evalTs) {
+        Objects.requireNonNull(set, "set");
+        Objects.requireNonNull(record, "record");
+        Instant ts = truncate(evalTs);
+        Map<String, Object> input = Collections.unmodifiableMap(new LinkedHashMap<>(record));
+        Prepared p;
+        try {
+            p = prepare(set, record, ts);
+        } catch (EngineEvaluationException e) {
+            return new RunTrace(set.setId(), ts, input, List.of(), Map.of(), e.violations());
+        }
+        FlowRun run = new FlowRun(evaluator, runner, p.tree, p.defs, p.keys, record, ts, true);
+        try {
+            run.run();
+            return new RunTrace(set.setId(), ts, input, List.copyOf(run.nodes), Collections.unmodifiableMap(run.finalValues), null);
+        } catch (EngineEvaluationException e) {
+            run.nodes.add(run.failed(e.violations()));
+            return new RunTrace(set.setId(), ts, input, List.copyOf(run.nodes), Collections.unmodifiableMap(run.finalValues),
+                    e.violations());
+        }
     }
 
     /** 판정 준비된 세트 — 트리·룰 정의(룰 ID → 정의)·입력 키 검사기. */

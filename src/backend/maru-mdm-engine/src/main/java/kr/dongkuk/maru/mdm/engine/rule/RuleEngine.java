@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleSetDefinition;
 
 /**
  * 룰 판정·정의 조회 입구(06-business-rule.md:394-430 엔진 골격, 06:473-498 정의 조회 입구).
@@ -25,6 +26,12 @@ public interface RuleEngine {
      * 폐기 세트는 판정 오류(06:419).
      */
     RuleSetResult evaluateSet(String setId, Map<String, Object> record, Instant evalTs);
+
+    /**
+     * 세트 실행 기록(룰 세트 흐름도 spec §4.2). 저장된 ID 가 아니라 정의를 받으므로 저장하지 않은 흐름도 실행한다.
+     * 판정 오류를 던지지 않고 기록에 담는다. 운영 경로({@link #evaluateSet})는 기록을 모으지 않는다.
+     */
+    RunTrace traceSet(RuleSetDefinition set, Map<String, Object> record, Instant evalTs);
 
     /** 정의 조회(06:480). 계산하지 않고 스냅샷의 것을 꺼낸다. */
     RuleView view(String ruleId, Instant evalTs, EnumSet<Part> parts);

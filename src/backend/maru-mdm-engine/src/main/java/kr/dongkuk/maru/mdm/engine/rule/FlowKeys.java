@@ -1,6 +1,7 @@
 package kr.dongkuk.maru.mdm.engine.rule;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -264,6 +265,17 @@ final class FlowKeys {
             }
         }
         return needed;
+    }
+
+    /** 이 룰이 읽는 입력 이름 가운데 지금 ctx 에 있는 것의 값(needed 순서, null 값 유지) — 기록 전용. */
+    static Map<String, Object> reads(RuleDefinition def, Map<String, Object> ctx) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (String name : needed(def)) {
+            if (ctx.containsKey(name) && !out.containsKey(name)) {
+                out.put(name, ctx.get(name));
+            }
+        }
+        return Collections.unmodifiableMap(out);
     }
 
     static Violation missing(String ruleId, String name) {

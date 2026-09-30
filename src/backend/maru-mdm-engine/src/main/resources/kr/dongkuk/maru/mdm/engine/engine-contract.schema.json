@@ -363,6 +363,55 @@
       "required": ["nodeId", "kind", "chosenEdgeId", "stepIndex"],
       "additionalProperties": false
     },
+    "RunTrace": {
+      "description": "룰 세트 실행 기록(Java RunTrace, 룰 세트 흐름도 spec §4.2). 판정 오류는 던지지 않고 violations 에 담는다. 실행 전 오류면 nodes 가 비었다.",
+      "type": "object",
+      "properties": {
+        "setId": { "type": "string" },
+        "evalTs": { "$ref": "#/$defs/LocalDateTime" },
+        "input": { "type": "object", "additionalProperties": { "$ref": "#/$defs/TypedValue" } },
+        "nodes": { "type": "array", "items": { "$ref": "#/$defs/NodeTrace" } },
+        "finalValues": { "type": "object", "additionalProperties": { "$ref": "#/$defs/TypedValue" } },
+        "violations": { "type": ["array", "null"], "items": { "$ref": "#/$defs/Violation" } }
+      },
+      "required": ["setId", "evalTs", "input", "nodes", "finalValues", "violations"],
+      "additionalProperties": false
+    },
+    "NodeTrace": {
+      "description": "노드 하나의 기록(Java RunTrace.NodeTrace). RULE: ruleId·ver·reads·result, IF: branches·chosenEdgeId, PARALLEL: order, MERGE: splitId·merged, ERROR: violations.",
+      "type": "object",
+      "properties": {
+        "seq": { "type": "integer" },
+        "nodeId": { "type": "string" },
+        "kind": { "$ref": "#/$defs/FlowNodeKind" },
+        "status": { "$ref": "#/$defs/NodeStatus" },
+        "ruleId": { "type": ["string", "null"] },
+        "ver": { "type": ["integer", "null"] },
+        "reads": { "type": ["object", "null"], "additionalProperties": { "$ref": "#/$defs/TypedValue" } },
+        "result": { "$ref": "#/$defs/RuleResult" },
+        "branches": { "type": ["array", "null"], "items": { "$ref": "#/$defs/BranchTrace" } },
+        "chosenEdgeId": { "type": ["string", "null"] },
+        "order": { "type": ["array", "null"], "items": { "type": "string" } },
+        "splitId": { "type": ["string", "null"] },
+        "merged": { "type": ["array", "null"], "items": { "type": "string" } },
+        "violations": { "type": ["array", "null"], "items": { "$ref": "#/$defs/Violation" } }
+      },
+      "required": ["seq", "nodeId", "kind", "status", "ruleId", "ver", "reads", "branches", "chosenEdgeId", "order", "splitId", "merged", "violations"],
+      "additionalProperties": false
+    },
+    "BranchTrace": {
+      "description": "IF 갈래 선 하나의 평가(Java RunTrace.BranchTrace). message 는 ERROR 원인.",
+      "type": "object",
+      "properties": {
+        "edgeId": { "type": "string" },
+        "outcome": { "$ref": "#/$defs/BranchOutcome" },
+        "message": { "type": ["string", "null"] }
+      },
+      "required": ["edgeId", "outcome", "message"],
+      "additionalProperties": false
+    },
+    "NodeStatus": { "description": "노드 실행 상태(Java RunTrace.NodeStatus).", "enum": ["OK", "ERROR"] },
+    "BranchOutcome": { "description": "IF 갈래 평가 결과(Java RunTrace.BranchOutcome). NOT_EVALUATED = 앞 갈래가 참이라 평가하지 않음.", "enum": ["TRUE", "FALSE", "NULL", "ERROR", "NOT_EVALUATED"] },
     "RuleSetFlow": {
       "description": "룰 세트 흐름 정의(Java DefinitionLookup.FlowDefinition, spec §3.3). TB_MDM_RULE_SET.FLOW_JSON 의 nodes·edges 이고 화면 전용 view 는 여기 없다.",
       "type": "object",
