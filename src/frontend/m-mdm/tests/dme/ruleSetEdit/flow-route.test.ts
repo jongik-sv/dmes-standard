@@ -243,7 +243,7 @@ const ioOf = (ruleId: string): RuleIo => ({
 const noop = () => {};
 function props(over: Partial<FlowCanvasProps> = {}): FlowCanvasProps {
   return {
-    flow: ifFlow(), rules: {}, checks: [], mode: "edit", showVars: false, selectedId: null, selectedEdgeId: null,
+    flow: ifFlow(), rules: {}, checks: [], mode: "edit", varDisplay: "off", selectedId: null, selectedEdgeId: null,
     overlay: null, focusId: null, focusSeq: 0, onSelect: noop, onSelectEdge: noop, onOpenRule: noop, onMove: noop, onConnect: noop,
     onDropPalette: noop, onNoteChange: noop,
     breakpoints: new Set(), collapsed: new Set(), showMiniMap: false, editingCondEdgeId: null, onMoveNode: noop, onDropRule: noop,
@@ -358,9 +358,9 @@ describe("FlowCanvas 선 경로", () => {
 
   it("경로가 있는 선의 변수 칩은 경로 가운데(라벨 아래)에 두고, 경로가 없는 선은 출발점 옆 그대로다", async () => {
     const transformOf = (edgeId: string) => (q(`flow-edge-chips-${edgeId}`)!.parentElement as HTMLElement).style.transform;
-    await draw(props({ flow: ifFlow(), showVars: true, rules: { R_A: ioOf("R_A") } }));
+    await draw(props({ flow: ifFlow(), varDisplay: "id", rules: { R_A: ioOf("R_A") } }));
     const plain = transformOf("e2");
-    await draw(props({ flow: ok(setRoute(ifFlow(), "e2", [P(300, 120), P(340, 500)])), showVars: true, rules: { R_A: ioOf("R_A") } }));
+    await draw(props({ flow: ok(setRoute(ifFlow(), "e2", [P(300, 120), P(340, 500)])), varDisplay: "id", rules: { R_A: ioOf("R_A") } }));
     const withRoute = transformOf("e2");
     expect(withRoute).not.toBe(plain);
   });

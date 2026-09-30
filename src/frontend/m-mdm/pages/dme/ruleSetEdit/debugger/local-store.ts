@@ -2,6 +2,8 @@
  * 룰 세트 화면 개인 편의 저장소(3단계 계획 P10) — 중단점·조사식·최근 입력·최근 식·미니맵. 모든 읽기·쓰기를 try/catch 로 감싸
  * 저장소가 없거나(사설 창·미리보기) 던져도 기본값으로 동작한다(스펙 §2). 서버에 저장하지 않는다.
  */
+import type { VarDisplay } from "../types";
+
 export interface StoredInput { recordJson: string; evalTs: string }
 
 export const storeKeys = {
@@ -10,6 +12,7 @@ export const storeKeys = {
   recentInputs: (setId: string) => `rsf:recent:${setId}`,
   recentExprs: (setId: string) => `rsf:expr:${setId}`,
   miniMap: "rsf:minimap",
+  varDisplay: "rsf:varDisplay",
 } as const;
 
 function read(key: string): unknown {
@@ -28,6 +31,13 @@ function write(key: string, value: unknown): void {
     // 저장소가 꽉 찼거나 막혀 있다 — 개인 편의라 버린다.
   }
 }
+
+/** [변수 흐름] 마지막 선택. 저장된 값이 세 값이 아니면 off. */
+export function loadVarDisplay(): VarDisplay {
+  const v = read(storeKeys.varDisplay);
+  return v === "id" || v === "name" ? v : "off";
+}
+export const saveVarDisplay = (value: VarDisplay) => write(storeKeys.varDisplay, value);
 
 export function loadStrings(key: string): string[] {
   const v = read(key);

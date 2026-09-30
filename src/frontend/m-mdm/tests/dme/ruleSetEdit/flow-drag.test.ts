@@ -135,7 +135,7 @@ describe("FlowCanvas 끌어 놓기·조건식 즉석 편집(Task 7)", () => {
     return f;
   }
   const props = (over: Partial<FlowCanvasProps> = {}): FlowCanvasProps => ({
-    flow: ifFlow(), rules: { R_A: ioOf("R_A") }, checks: [], mode: "edit", showVars: false, selectedId: null, selectedEdgeId: null,
+    flow: ifFlow(), rules: { R_A: ioOf("R_A") }, checks: [], mode: "edit", varDisplay: "off", selectedId: null, selectedEdgeId: null,
     overlay: null, focusId: null, focusSeq: 0, onSelect: noop, onSelectEdge: noop, onOpenRule: noop, onMove: noop, onConnect: noop,
     onDropPalette: noop, onNoteChange: noop, breakpoints: new Set(), collapsed: new Set(), showMiniMap: false, editingCondEdgeId: null,
     onMoveNode: noop, onDropRule: noop, onContextMenu: noop, onEditCond: noop, onEditCondClose: noop, onToggleBreakpoint: noop, ...over,

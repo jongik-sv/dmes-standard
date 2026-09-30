@@ -53,7 +53,7 @@ afterEach(() => {
 const noop = () => {};
 function props(over: Partial<FlowCanvasProps> = {}): FlowCanvasProps {
   return {
-    flow: ifFlow(), rules: { R_A: ioOf("R_A") }, checks: [], mode: "view", showVars: false, selectedId: null, selectedEdgeId: null,
+    flow: ifFlow(), rules: { R_A: ioOf("R_A") }, checks: [], mode: "view", varDisplay: "off", selectedId: null, selectedEdgeId: null,
     overlay: null, focusId: null, focusSeq: 0, onSelect: noop, onSelectEdge: noop, onOpenRule: noop, onMove: noop, onConnect: noop,
     onDropPalette: noop, onNoteChange: noop,
     breakpoints: new Set(), collapsed: new Set(), showMiniMap: false, editingCondEdgeId: null, onMoveNode: noop, onDropRule: noop,
@@ -104,9 +104,9 @@ describe("FlowCanvas", () => {
   });
 
   it("변수 흐름을 켜면 룰에서 나가는 선에 결과 이름 칩이 뜬다", async () => {
-    await draw(props({ showVars: true }));
+    await draw(props({ varDisplay: "id" }));
     expect(q("flow-edge-chips-e2")?.textContent).toContain("S_A");
-    await draw(props({ showVars: false }));
+    await draw(props({ varDisplay: "off" }));
     expect(q("flow-edge-chips-e2")).toBeNull();
   });
 

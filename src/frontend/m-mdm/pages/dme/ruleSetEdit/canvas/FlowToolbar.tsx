@@ -17,9 +17,12 @@ import { Button, Input } from "@dk-oasis/shared/form";
 import { badgeStyle } from "@/shell";
 
 import type { FindState } from "../state/useFind";
+import type { VarDisplay } from "../types";
 import type { FlowMode, RuleSetEditState, RuleSetMessage } from "../state/useRuleSetEdit";
 import { SHORTCUT_HELP, isMacPlatform } from "./shortcuts";
 
+/** [변수 흐름] 단추 글자 — 지금 상태를 보인다. */
+const VAR_DISPLAY_TEXT: Record<VarDisplay, string> = { off: "변수: 끔", id: "변수: ID", name: "변수: 이름" };
 const MAC_FN_NOTE = "F9·F10·F5 는 fn 과 함께 누른다";
 const DEPRECATE_WARNING = "폐기하면 이 세트를 부르는 호출은 판정 오류가 난다.";
 
@@ -31,7 +34,8 @@ export interface FlowToolbarProps {
   /** 지금 화면 모드(편집할 수 없으면 page 가 보기로 내려 넘긴다). */
   mode: FlowMode;
   onMode: (m: FlowMode) => void;
-  showVars: boolean;
+  varDisplay: VarDisplay;
+  /** 누를 때마다 off → id → name → off. */
   onToggleVars: () => void;
   onAutoLayout: () => void;
   onFit: () => void;
@@ -50,7 +54,7 @@ export interface FlowToolbarProps {
 }
 
 export function FlowToolbar(props: FlowToolbarProps) {
-  const { state, canDo, canEdit, mode, onMode, showVars, onToggleVars, onAutoLayout, onFit, showMiniMap, onToggleMiniMap } = props;
+  const { state, canDo, canEdit, mode, onMode, varDisplay, onToggleVars, onAutoLayout, onFit, showMiniMap, onToggleMiniMap } = props;
   const { find, findInputRef, onHelpEscape } = props;
   const [helpOpen, setHelpOpen] = useState(false);
   const view = state.view!;
@@ -216,9 +220,9 @@ export function FlowToolbar(props: FlowToolbarProps) {
             <IconArrowsMaximize size={14} aria-hidden="true" style={{ marginRight: "var(--spacing-xs)" }} />
             화면 맞춤
           </Button>
-          <Button data-testid="flow-var-toggle" aria-pressed={showVars} variant={showVars ? "primary" : "default"} onClick={onToggleVars}>
+          <Button data-testid="flow-var-toggle" data-mode={varDisplay} aria-pressed={varDisplay !== "off"} variant={varDisplay !== "off" ? "primary" : "default"} onClick={onToggleVars}>
             <IconVariable size={14} aria-hidden="true" style={{ marginRight: "var(--spacing-xs)" }} />
-            변수 흐름
+            {VAR_DISPLAY_TEXT[varDisplay]}
           </Button>
           <Button data-testid="flow-minimap-toggle" aria-pressed={showMiniMap} variant={showMiniMap ? "primary" : "default"} onClick={onToggleMiniMap}>
             <IconMap size={14} aria-hidden="true" style={{ marginRight: "var(--spacing-xs)" }} />

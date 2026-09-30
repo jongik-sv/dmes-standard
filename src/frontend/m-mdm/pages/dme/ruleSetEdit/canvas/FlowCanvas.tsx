@@ -32,7 +32,7 @@ import { NODE_SIZE, drawnPositions } from "../flow-layout";
 import { typedText } from "../trace-view";
 import { blockDragPositions, dropTargetAt, edgeChips, edgeMarks, nodeMarks, resolveNodeDrop } from "../flow-vars";
 import type { FlowMode } from "../state/useRuleSetEdit";
-import type { RuleIoMap, RuleSetCheck } from "../types";
+import type { RuleIoMap, RuleSetCheck, VarDisplay } from "../types";
 import { collapseView } from "./collapse";
 import { insertRoutePoint, routeMidpoint, routePath } from "./route-path";
 import type { MenuTarget } from "./context-menu";
@@ -89,6 +89,8 @@ const ROUTE_CHIP_GAP = 20;
  */
 const LABEL_SPREAD = 120;
 
+const NO_LABELS: Readonly<Record<string, string>> = {};
+
 type Measured = { width: number; height: number };
 
 export interface FlowCanvasProps {
@@ -96,7 +98,9 @@ export interface FlowCanvasProps {
   rules: RuleIoMap;
   checks: readonly RuleSetCheck[];
   mode: FlowMode;
-  showVars: boolean;
+  varDisplay: VarDisplay;
+  /** 변수 이름 → 표시명(page 가 한 번 만든다). [이름] 모드 칩·툴팁이 쓴다. 없으면 ID. */
+  varLabels?: Readonly<Record<string, string>>;
   selectedId: string | null; // 노드·메모·그룹 ID
   selectedEdgeId: string | null;
   /** 디버그 겹침(P9 debugOverlay). 낡은 기록이면 page 가 null 을 넘긴다(P-D9). */
@@ -171,7 +175,8 @@ type EdgeData = {
   chips: string[];
   state: EdgeState | undefined;
   mark: "REJECT" | "WARN" | undefined;
-  showVars: boolean;
+  varDisplay: VarDisplay;
+  varLabels: Readonly<Record<string, string>>;
   /** 끄는 동안 놓일 선(A1·A2 — Task 7 이 채운다). */
   dropTarget: boolean;
   /** 편집 모드 — 선 가운데 [+] 단추. */
@@ -248,11 +253,12 @@ function CondInput({ edgeId, initial }: { edgeId: string; initial: string }) {
   );
 }
 
-/** 변수 칩 툴팁(E3) — 값이 만들어졌으면 `이름 = 값`, 아직이면 `이름 · 아직 없음`. valueOf 가 없으면(디버그 모드가 아니거나 낡은 기록) 툴팁이 없다. */
-function chipTitle(name: string, valueOf: EdgeData["valueOf"]): string | undefined {
-  if (!valueOf) return undefined;
+/** 변수 칩 툴팁(E3) — 모드와 관계없이 `표시명 (ID)`(표시명이 없으면 `ID`) 뒤에 값이 만들어졌으면 ` = 값`, 아직이면 ` · 아직 없음`. valueOf 가 없으면(디버그 모드가 아니거나 낡은 기록) 값 부분이 없고, 덧붙일 것도 없으면(표시명 없음) 툴팁이 없다. */
+function chipTitle(name: string, label: string | undefined, valueOf: EdgeData["valueOf"]): string | undefined {
+  const who = label && label !== name ? `${label} (${name})` : name;
+  if (!valueOf) return who === name ? undefined : who;
   const v = valueOf(name);
-  return v === undefined ? `${name} · 아직 없음` : `${name} = ${typedText(v)}`;
+  return v === undefined ? `${who} · 아직 없음` : `${who} = ${typedText(v)}`;
 }
 
 /** 손잡이 끌기·고른 손잡이 저장소(C14). 선 하나만 구독해 끄는 동안 그 선만 다시 그린다(다른 선·page 는 그대로). */
@@ -324,7 +330,8 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
     style.stroke = "var(--color-success)";
     style.strokeWidth = 4;
   } else if (state === "dim") style.opacity = 0.22;
-  const chips = data?.showVars ? (data.chips ?? []) : [];
+  const chips = data && data.varDisplay !== "off" ? (data.chips ?? []) : [];
+  const labelOf = data?.varLabels;
   const at = (x: number, y: number) => ({ transform: `translate(-50%, -50%) translate(${x}px, ${y}px)` });
   const addX = data?.label ? lx + ADD_LABEL_GAP : lx;
   return (
@@ -372,8 +379,8 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
           <div className="rsf-elabel rsf-elabel-chips" style={route && route.length > 0 ? at(lx, ly + ROUTE_CHIP_GAP) : at(sourceX, sourceY + 20)}>
             <span className="rsf-vchips" data-testid={`flow-edge-chips-${id}`}>
               {chips.map((c) => (
-                <span key={c} className="rsf-vchip" title={chipTitle(c, data?.valueOf)}>
-                  {c}
+                <span key={c} className="rsf-vchip" title={chipTitle(c, labelOf?.[c], data?.valueOf)}>
+                  {data?.varDisplay === "name" ? (labelOf?.[c] ?? c) : c}
                 </span>
               ))}
             </span>
@@ -456,7 +463,7 @@ function groupBox(nodeIds: readonly string[], pos: Record<string, FlowPos>, kind
 
 function Inner(props: FlowCanvasProps) {
   const {
-    flow, rules, checks, mode, showVars, selectedId, selectedEdgeId, overlay, focusId, focusSeq, focusReveal, fitSignal, fitKey,
+    flow, rules, checks, mode, varDisplay, varLabels, selectedId, selectedEdgeId, overlay, focusId, focusSeq, focusReveal, fitSignal, fitKey,
     breakpoints, collapsed, valueAt, showMiniMap, editingCondEdgeId,
     onSelect, onSelectEdge, onOpenRule, onMove, onMoveNode, onConnect, onReconnect, onDropPalette, onDropRule, onNoteChange, onContextMenu, onToggleBreakpoint,
     onEditCond, onRouteChange, removeRoutePointRef, clearSelectionRef, onEditCondClose, onSelectionChange,
@@ -607,7 +614,7 @@ function Inner(props: FlowCanvasProps) {
       // 조건 갈래는 이름(label)이 없어도 두 번 누를 자리가 있어야 한다(F10) — 대체 라벨 `갈래 {order}`.
       const label = fromSplit ? (e.label ?? (e.otherwise ? "그 외" : condEditable ? `갈래 ${e.order ?? ""}`.trim() : null)) : null;
       const data: EdgeData = {
-        label, cond: e.cond, chips: chips[e.id] ?? [], state: overlay?.edges[e.id], mark: eMarks[e.id], showVars,
+        label, cond: e.cond, chips: chips[e.id] ?? [], state: overlay?.edges[e.id], mark: eMarks[e.id], varDisplay, varLabels: varLabels ?? NO_LABELS,
         dropTarget: dropEdge === e.id,
         insertable: editable,
         condEditable,
@@ -627,7 +634,7 @@ function Inner(props: FlowCanvasProps) {
         data,
       };
     });
-  }, [flow, vflow, view, chips, overlay, eMarks, showVars, selectedEdgeId, editable, debugging, valueAt, editingCondEdgeId, condEdge, dropEdge, onReconnect]);
+  }, [flow, vflow, view, chips, overlay, eMarks, varDisplay, varLabels, selectedEdgeId, editable, debugging, valueAt, editingCondEdgeId, condEdge, dropEdge, onReconnect]);
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     const dims = changes.filter((c): c is Extract<NodeChange, { type: "dimensions" }> => c.type === "dimensions" && !!c.dimensions);
