@@ -13,7 +13,8 @@ import { parseFlow, type Seq } from "./flow-model";
 
 export type { EdgeState, NodeOverlay, NodeState, Overlay } from "./canvas/overlay";
 
-export interface TraceFrame { index: number; node: NodeTrace; ctx: Record<string, TypedValue>; changed: string[]; }
+/** 단계 프레임 — `before` 는 노드를 실행하기 전 그 노드 범위의 ctx 사본(3단계 P9: MERGE 는 합치기 전, PARALLEL 은 갈래 범위를 만들기 전), `ctx` 는 실행 뒤. */
+export interface TraceFrame { index: number; node: NodeTrace; before: Record<string, TypedValue>; ctx: Record<string, TypedValue>; changed: string[]; }
 export interface ValueTable { vars: string[]; cols: { index: number; nodeId: string; label: string }[]; cells: (TypedValue | null)[][]; changed: boolean[][]; }
 
 type Ctx = Record<string, TypedValue>;
@@ -104,7 +105,7 @@ function scopePaths(flow: RuleSetFlow): { paths: Map<string, ScopePath>; branchE
   return { paths, branchEdges };
 }
 
-/** 단계(= trace.nodes 순번)마다 그 노드를 실행한 뒤 그 노드 범위의 ctx 사본과 바뀐 이름. */
+/** 단계(= trace.nodes 순번)마다 그 노드를 실행하기 전·뒤 그 노드 범위의 ctx 사본과 바뀐 이름. */
 export function frames(trace: RunTrace, flow: RuleSetFlow): TraceFrame[] {
   if (trace.nodes.length === 0) return [];
   const { paths, branchEdges } = scopePaths(flow);
@@ -129,9 +130,10 @@ export function frames(trace: RunTrace, flow: RuleSetFlow): TraceFrame[] {
   return trace.nodes.map((node, index) => {
     const path = paths.get(node.nodeId) ?? [];
     const scope = scopeOf(path);
+    const before = { ...scope.ctx };
     const changed: string[] = [];
-    const note = (name: string, before: TypedValue | undefined, after: TypedValue) => {
-      if (!sameTyped(before, after) && !changed.includes(name)) changed.push(name);
+    const note = (name: string, old: TypedValue | undefined, after: TypedValue) => {
+      if (!sameTyped(old, after) && !changed.includes(name)) changed.push(name);
     };
 
     if (node.status === "OK") {
@@ -148,7 +150,6 @@ export function frames(trace: RunTrace, flow: RuleSetFlow): TraceFrame[] {
         const splitId = node.splitId ?? flow.nodes.find((n) => n.id === node.nodeId)?.splitId ?? null;
         const branches = splitId == null ? undefined : branchScopes.get(splitId);
         if (splitId != null && branches) {
-          const before = { ...scope.ctx };
           const written: string[] = [];
           for (const edge of mergeOrder.get(splitId) ?? [...branches.keys()]) {
             for (const [name, value] of Object.entries(branches.get(edge)?.made ?? {})) {
@@ -161,7 +162,7 @@ export function frames(trace: RunTrace, flow: RuleSetFlow): TraceFrame[] {
         }
       }
     }
-    return { index, node, ctx: { ...scope.ctx }, changed };
+    return { index, node, before, ctx: { ...scope.ctx }, changed };
   });
 }
 
@@ -205,10 +206,36 @@ export function overlayAt(trace: RunTrace, flow: RuleSetFlow, step: number): Ove
 }
 
 /**
- * 디버그 커서 k 의 겹침(3단계 P9·P-D13) — 커서 k 는 "노드 k 실행 전"이다. nodes[0..k-1] 실행, nodes[k] 지금, nodes[k+1] 다음, k = n 이면 끝(최종 겹침).
+ * 디버그 커서 k 의 겹침(3단계 P9·P-D13) — 커서 k 는 "노드 k 실행 전"이다. nodes[0..k-1] 실행(ERROR 면 error)·순번·칩, nodes[k] 지금(순번·칩 없음),
+ * nodes[k+1] 다음, 나머지 흐름 노드 pending. 선은 실행된 IF 에서 나가면 chosen/dim, 양 끝이 실행됐으면 run, 실행된 노드에서 지금 노드로 들어오면 run, 나머지 idle.
+ * k ≥ n 이면 끝 — 2단계 최종 겹침(안 탄 갈래 dim). 기록이 비면 모두 pending.
  */
 export function debugOverlay(trace: RunTrace, flow: RuleSetFlow, cursor: number): Overlay {
-  return overlayAt(trace, flow, cursor); // SEAM(T5): P9 커서 의미(current·next·pending, k = n 이면 최종 겹침)로 바꾼다
+  const n = trace.nodes.length;
+  const k = Math.max(0, Math.trunc(cursor));
+  if (k >= n) return overlayAt(trace, flow, n > 0 ? n - 1 : 0);
+
+  const done = new Map<string, NodeTrace>();
+  for (let i = 0; i < k; i++) done.set(trace.nodes[i].nodeId, trace.nodes[i]);
+  const currentId = trace.nodes[k].nodeId;
+
+  const nodes: Record<string, NodeOverlay> = {};
+  for (const fn of flow.nodes) nodes[fn.id] = { state: "pending", seq: null, chip: null };
+  for (let i = 0; i < k; i++) {
+    const t = trace.nodes[i];
+    nodes[t.nodeId] = { state: t.status === "ERROR" ? "error" : "run", seq: t.seq, chip: chipOf(t) };
+  }
+  nodes[currentId] = { state: "current", seq: null, chip: null };
+  if (k + 1 < n) nodes[trace.nodes[k + 1].nodeId] = { state: "next", seq: null, chip: null };
+
+  const edges: Record<string, EdgeState> = {};
+  for (const e of flow.edges) {
+    const from = done.get(e.from);
+    if (from && from.kind === "IF") edges[e.id] = e.id === from.chosenEdgeId ? "chosen" : "dim";
+    else if (from && (done.has(e.to) || e.to === currentId)) edges[e.id] = "run";
+    else edges[e.id] = "idle";
+  }
+  return { nodes, edges };
 }
 
 // ── 값 표 ──────────────────────────────────────────────────────────────────────
