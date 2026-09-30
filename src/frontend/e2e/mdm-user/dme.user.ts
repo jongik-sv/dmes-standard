@@ -1848,6 +1848,12 @@ test.describe("C 룰 세트", () => {
     await tid(page, "dbg-continue").click();
     await tid(page, "dbg-restart").click();
     await expect(dbgStatus).toHaveText(/^1\/\d+ · start 실행 전$/);
+    // 중단점 점 — 켰다 끈다(상태는 data-on).
+    const bpSA = tid(page, `flow-bp-${await ruleNodeIdOf(page, SA)}`);
+    await bpSA.click();
+    await expect(bpSA).toHaveAttribute("data-on", "true");
+    await bpSA.click();
+    await expect(bpSA).toHaveAttribute("data-on", "false");
     await ruleNodeOf(page, SA).click();
     await tid(page, "dbg-run-to").click();
     await tid(page, "dbg-finish").click();
@@ -1873,8 +1879,16 @@ test.describe("C 룰 세트", () => {
     await assertAllButtonsPressed(page, "ruleSetEdit(디버그 모드)", {
       ...(await dynamicAllow("var-watch-remove-", "조사식 빼기 — 조사식 목록 확인은 디버그 전용 단위 테스트가 맡는다")),
       ...(await dynamicAllow("expr-recent-", "최근 식 채우기 — 식 평가는 이 시나리오에서 하지 않는다")),
+      ...(await dynamicAllow("flow-bp-", "노드마다 있는 중단점 점 — 하나(SA)는 위에서 켰다 껐다. 나머지는 같은 동작이다")),
+      ...(await dynamicAllow("flow-rule-open-", "룰 박스 링크 아이콘은 다음 TC-DME-SED-06 에서 누른다(누르면 룰 화면으로 옮겨 간다)")),
       "sim-detail-open-rule": "노드 상세의 [룰 편집 열기] 는 누르면 룰 화면으로 옮겨 가 다음 TC-DME-SED-06 흐름이 깨진다",
     });
+
+    // 만든 케이스를 지워 데이터를 남기지 않는다.
+    await tid(page, "case-grid").locator(".ag-center-cols-container .ag-row").first().click();
+    await tid(page, "case-delete").click();
+    await tid(page, "case-delete-confirm").click();
+    await expect(tid(page, "case-grid")).not.toContainText(`E2E 케이스 ${RUN}`, { timeout: 20_000 });
 
     // 보기 모드로 돌려 놓는다 — 아래 패널은 검사 결과 탭으로 돌아온다.
     await tid(page, "flow-mode-view").click();
