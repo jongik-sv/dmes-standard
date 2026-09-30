@@ -106,11 +106,10 @@ async function key(el: Element, init: KeyboardEventInit): Promise<KeyboardEvent>
   return ev;
 }
 
-/** 편집 모드에서 노드를 골라 속성 패널을 연다 — 2단계 오른쪽 "실행 결과/속성" 탭이 남아 있으면(Task 12 가 지운다) 속성 탭으로 간다. */
+/** 편집 모드에서 노드를 골라 속성 패널을 연다. */
 async function editNode(id: string) {
   await click("flow-mode-edit");
   await click(`flow-node-${id}`);
-  if (q("flow-right-tab-props")) await click("flow-right-tab-props");
 }
 
 async function nodeMenu(id: string) {

@@ -9,8 +9,8 @@
  *
  * 모드(3단계 P1) — 세트를 열면 보기 모드다. 편집 모드는 서버 판정(`editable`)·INUSE·RBAC(save)일 때만 켠다(P10). 디버그 모드는 누구나 들어간다.
  * - 왼쪽: 보기·편집 = 룰 패널(`RulePanel`, 편집 모드면 팔레트), 디버그 = 입력 패널(`DebugInputs`)
- * - 오른쪽: 보기·편집 = 실행 결과·속성·세트 패널, 디버그 = 변수 패널(`VariablePanel`)
- * - 아래 탭: 보기·편집 = 검사 결과·시뮬레이션(시뮬레이션은 Task 12 가 지운다), 디버그 = 값 표·실행 비교·검사 결과. 디버그로 들고 날 때 그 모드의 첫 탭으로 간다
+ * - 오른쪽: 보기·편집 = 속성·세트 패널(선택에 따라 하나), 디버그 = 변수 패널(`VariablePanel`)
+ * - 아래 탭: 보기·편집 = 검사 결과 하나, 디버그 = 값 표·실행 비교·검사 결과. 디버그로 들고 날 때 그 모드의 첫 탭으로 간다
  *   (보기↔편집은 탭이 같아 그대로 둔다). 디버그 모드에 들어가면 [변수 흐름]을 켜고 나오면 들어가기 전 값으로 돌린다(P-D16).
  * 단축키(P3)는 캔버스 감싸개(`rsf-canvas-host`)의 onKeyDown 에서만 디스패처로 받는다 — 손잡이 표는 모드별로 여기서 만든다.
  * 우클릭·[+] 메뉴(P4)는 제공자(`canvas/menus`)가 항목을 만들고 `ContextMenu` 가 그린다. 항목이 0개면 열지 않는다.
@@ -20,7 +20,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import { ContentBody, ContentPanel, ErrorModal, canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
-import { Tabs } from "@dk-oasis/shared/tabs";
 import { IdPicker, MdmPageLayout, useMdmPageParams, type IdPickRow } from "@/shell";
 
 import { searchSets } from "./api";
@@ -36,8 +35,6 @@ import { DebugInputs } from "./debugger/DebugInputs";
 import { DebugToolbar } from "./debugger/DebugToolbar";
 import { loadFlag, saveFlag, storeKeys } from "./debugger/local-store";
 import { RunCompare } from "./debugger/RunCompare";
-import { SimulationPanel } from "./debugger/SimulationPanel";
-import { TraceDetail } from "./debugger/TraceDetail";
 import { useSimulation } from "./debugger/useSimulation";
 import { useTestCases } from "./debugger/useTestCases";
 import { ValuesTab } from "./debugger/ValuesTab";
@@ -55,7 +52,7 @@ import { useDragActions } from "./state/useDragActions";
 import { useEditActions, type RuleModalPurpose } from "./state/useEditActions";
 import { useFind } from "./state/useFind";
 import { useRuleSetEdit, type FlowMode } from "./state/useRuleSetEdit";
-import { debugOverlay, overlayAt } from "./trace-view";
+import { debugOverlay } from "./trace-view";
 import type { RuleIo, RuleSetCaseView } from "./types";
 
 const SCREEN_ID = "ruleSetEdit";
@@ -112,8 +109,6 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   const [showMiniMap, setShowMiniMap] = useState(() => loadFlag(storeKeys.miniMap, true));
   const [bottomTab, setBottomTab] = useState<string>(FIRST_TAB.other);
   const [bottomCollapsed, setBottomCollapsed] = useState(false);
-  /** 오른쪽 패널 탭 — 실행 결과가 있고 흐름 노드를 골랐을 때 "실행 결과" / "속성". */
-  const [rightTab, setRightTab] = useState<"detail" | "props">("detail");
   /** 룰 찾기 팝업 — 선에 끼우기(insert) 또는 룰 바꾸기(replace, Task 8). */
   const [ruleModal, setRuleModal] = useState<RuleModalPurpose | null>(null);
   /** 우클릭·[+] 메뉴를 연 대상과 화면 좌표. */
@@ -339,33 +334,23 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   };
 
   // 캔버스 겹침 — 기록·흐름 사본·단계(커서)가 바뀔 때만 다시 만든다(Local-Rules §16).
-  // 디버그 모드는 새 기록일 때만 커서 겹침을 그리고 낡은 기록이면 그리지 않는다(P-D9). 보기·편집 모드의 옛 겹침은 시뮬레이션 탭 몫이라 Task 12 가 지운다.
-  const simResult = sim.result;
+  // 디버그 모드는 새 기록일 때만 커서 겹침을 그리고 낡은 기록이면 그리지 않는다(P-D9). 보기·편집 모드는 겹침이 없다.
   const last = sim.last;
   const fresh = !!last && !sim.stale;
-  const overlay = useMemo(() => {
-    if (debugging) return fresh && last ? debugOverlay(last.trace, last.flow, sim.cursor) : null;
-    return simResult ? overlayAt(simResult.trace, simResult.flow, sim.step) : null;
-  }, [debugging, fresh, last, sim.cursor, simResult, sim.step]);
+  const overlay = useMemo(() => (debugging && fresh && last ? debugOverlay(last.trace, last.flow, sim.cursor) : null), [debugging, fresh, last, sim.cursor]);
 
   // 단계·커서를 옮기거나 새 기록을 받으면 그 노드로 캔버스를 옮긴다. 기록이 사라지면 이동 표시를 끈다.
   // 디버그 모드는 커서 노드(k = n 이면 마지막 노드)로, 이미 화면 안이면 옮기지 않고 깜빡이기만 한다(focusReveal).
-  const focusRecord = debugging ? (fresh ? last : null) : simResult;
+  const focusRecord = debugging && fresh ? last : null;
   const focusNodeId = (() => {
     if (!focusRecord) return null;
     const nodes = focusRecord.trace.nodes;
-    if (!debugging) return nodes[sim.step]?.nodeId ?? null;
     if (sim.cursor < 0 || nodes.length === 0) return null;
     return nodes[Math.min(sim.cursor, nodes.length - 1)]?.nodeId ?? null;
   })();
   useEffect(() => {
     setFocus((f) => (focusNodeId ? { id: focusNodeId, seq: f.seq + 1 } : f.id === null ? f : { id: null, seq: f.seq }));
   }, [focusNodeId, focusRecord]);
-
-  // 노드를 새로 고르면 실행 결과 탭으로 돌아간다.
-  useEffect(() => {
-    setRightTab("detail");
-  }, [selectedId]);
 
   const usedRuleIds = useMemo(() => new Set((flow?.nodes ?? []).map((n) => n.ruleId).filter((x): x is string => !!x)), [flow]);
 
@@ -374,8 +359,6 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     !!selectedId &&
     (flow.nodes.some((n) => n.id === selectedId) || flow.view.notes.some((n) => n.id === selectedId) || flow.view.groups.some((g) => g.id === selectedId));
   const isBranched = !!flow && branched(flow);
-  /** 실행 결과가 있고 흐름 노드(메모·그룹 아님)를 골랐으면 오른쪽 패널에 "실행 결과 / 속성" 탭을 둔다. */
-  const showDetail = !!simResult && !!flow && !!selectedId && flow.nodes.some((n) => n.id === selectedId);
   const guideHint = !editing ? "편집 모드에서 적용한다" : isBranched ? "분기가 있는 흐름에는 적용하지 않는다" : undefined;
 
   const checksTab: BottomTab = {
@@ -393,18 +376,6 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
       ]
     : [
         checksTab,
-        // 2단계 시뮬레이션 탭 — 디버그 모드로 옮겼으므로 Task 12 가 지운다.
-        {
-          key: "sim",
-          label: "시뮬레이션",
-          testId: "flow-tab-sim",
-          content: (
-            <div data-testid="flow-sim-slot" className="rsf-sim-slot">
-              <SimulationPanel sim={sim} canRun={canRun} />
-            </div>
-          ),
-          scroll: false,
-        },
       ];
 
   const bottom = (
@@ -549,25 +520,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                       />
                     ) : (
                       <>
-                        {showDetail && (
-                          <Tabs
-                            items={[
-                              { key: "detail", label: <span data-testid="flow-right-tab-detail">실행 결과</span> },
-                              { key: "props", label: <span data-testid="flow-right-tab-props">속성</span> },
-                            ]}
-                            activeKey={rightTab}
-                            onChange={(k) => setRightTab(k as "detail" | "props")}
-                          />
-                        )}
-                        {showDetail && simResult && rightTab === "detail" ? (
-                          <TraceDetail
-                            nodeId={selectedId!}
-                            node={simResult.trace.nodes.find((n) => n.nodeId === selectedId) ?? null}
-                            flow={simResult.flow}
-                            traceViolations={simResult.trace.violations ?? []}
-                            onOpenRule={openRule}
-                          />
-                        ) : selectedExists && selectedId ? (
+                        {selectedExists && selectedId ? (
                           <PropertyPanel
                             flow={flow}
                             rules={state.rules}
