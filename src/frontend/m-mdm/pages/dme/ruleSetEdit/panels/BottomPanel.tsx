@@ -11,8 +11,6 @@ import { IconChevronDown, IconChevronUp } from "@tabler/icons-react";
 import { Button } from "@dk-oasis/shared/form";
 import { Tabs } from "@dk-oasis/shared/tabs";
 
-import "./panels.css";
-
 export type BottomTab = "checks" | "sim";
 
 export interface BottomPanelProps {

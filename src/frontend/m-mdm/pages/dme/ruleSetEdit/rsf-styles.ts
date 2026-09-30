@@ -1,3 +1,14 @@
+/**
+ * 룰 세트 편집 화면 스타일(캔버스·툴바·패널·디버거). page.tsx 가 React 19 `<style href precedence>` 로 문서에 한 번만 넣는다.
+ *
+ * 로컬 `.css` import 를 쓰지 않는 까닭(Ruling 14, Local-Rules §17): tsup 이 그것을 dist 의 `pages/dme/ruleSetEdit/page.css` 로
+ * 따로 뽑는데 포털 호스트(m-mcm)는 m-* 모듈 페이지의 CSS 를 불러오지 않아 캔버스 높이가 0 이 됐다.
+ * React Flow 기본 스타일(`@xyflow/react/dist/style.css`)은 외부 패키지라 호스트가 묶으므로 `canvas/react-flow.ts` 에 그대로 둔다.
+ * 색은 의미 토큰만 쓴다. 한 변 색 바는 쓰지 않는다(Local-Rules §8).
+ */
+export const RSF_STYLE_HREF = "rsf-flow-styles";
+
+export const RSF_CSS = `
 /* 룰 세트 흐름 캔버스 — 시안 06-rule-set-flow.html 의 노드 모양. 색은 한 곳(.rsf-canvas)에서 토큰으로 옮긴다. */
 .rsf-canvas {
   --rsf-canvas-bg: var(--color-bg-light);
@@ -145,3 +156,102 @@
 .rsf-cand:hover { background: var(--color-bg-hover); }
 .rsf-cand-id { flex: none; width: 140px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--font-size-sm); overflow: hidden; text-overflow: ellipsis; }
 .rsf-cand-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 룰 세트 편집 — 툴바·오른쪽 패널·아래 패널(2단계 계획 Task 10). 색은 의미 토큰만 쓴다. 한 변 색 바는 쓰지 않는다(Local-Rules §8). */
+
+/* 툴바 */
+.rsf-toolbar { padding: var(--spacing-xs) var(--spacing-md); border-bottom: 1px solid var(--color-border-light); }
+.rsf-toolbar-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-xs) var(--spacing-sm); }
+.rsf-toolbar-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-xs); }
+.rsf-toolbar-end { margin-left: auto; }
+.rsf-toolbar-sep { align-self: stretch; width: 1px; margin: 2px 0; background: var(--color-border); }
+.rsf-toolbar-message { padding-top: var(--spacing-xs); }
+
+/* 본문 — 캔버스 패널 안(팔레트 | 캔버스) */
+.rsf-body { display: flex; flex: 1 1 0; min-height: 0; min-width: 0; }
+.rsf-body .rsf-palette { flex: none; width: 128px; border-right: 1px solid var(--color-border-light); overflow-y: auto; }
+.rsf-canvas-host { flex: 1 1 0; min-width: 0; min-height: 0; position: relative; }
+
+/* 오른쪽 패널 */
+.rsf-props { flex: 1 1 0; min-height: 0; overflow-y: auto; }
+.rsf-panel { padding: var(--spacing-sm) var(--spacing-md); }
+.rsf-panel-head { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-sm); margin-bottom: var(--spacing-xs); }
+.rsf-panel-title { margin: 0 0 var(--spacing-xs); font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.rsf-panel-head .rsf-panel-title { margin: 0; }
+.rsf-panel-sub { margin: var(--spacing-sm) 0 var(--spacing-xs); font-weight: 600; }
+.rsf-panel-note { margin: var(--spacing-xs) 0; font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+.rsf-panel-block { padding-top: var(--spacing-sm); }
+.rsf-panel-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--spacing-xs); padding-top: var(--spacing-sm); }
+.rsf-muted { color: var(--color-text-muted); }
+.rsf-vars { list-style: none; margin: 0; padding: 0; }
+.rsf-vars > li { padding: 4px 0; border-bottom: 1px solid var(--color-border-light); }
+.rsf-var-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-xs); }
+.rsf-var-origin { font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+.rsf-prop-checks p { margin: 2px 0 0; font-size: var(--font-size-sm); }
+.rsf-branches { display: flex; flex-direction: column; gap: var(--spacing-xs); }
+.rsf-branch-box { display: flex; flex-direction: column; gap: 4px; padding: var(--spacing-xs); border: 1px solid var(--color-border-light); border-radius: var(--radius-sm); background: var(--color-bg-light); }
+.rsf-branch-head { display: flex; align-items: center; gap: 4px; }
+.rsf-branch-else { margin: 0; font-size: var(--font-size-sm); }
+
+/* 아래 패널 */
+.rsf-bottom { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; }
+.rsf-bottom[data-collapsed="true"] { flex: none; }
+.rsf-bottom-head { display: flex; align-items: center; gap: var(--spacing-sm); padding: 0 var(--spacing-sm); }
+.rsf-bottom-body { flex: 1 1 0; min-height: 0; overflow: auto; padding: var(--spacing-xs) var(--spacing-md); }
+.rsf-bottom-bar { flex: none; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-bg); }
+
+/* 검사 결과 */
+.rsf-checks-summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-sm); margin: 0 0 var(--spacing-xs); font-weight: 600; }
+.rsf-checks-hint { font-weight: 400; color: var(--color-text-secondary); }
+.rsf-checks-list { list-style: none; margin: 0; padding: 0; }
+.rsf-check {
+  display: flex; align-items: center; gap: var(--spacing-sm); width: 100%; min-height: var(--form-height); padding: 2px var(--spacing-xs);
+  text-align: left; border: 1px solid transparent; border-radius: var(--radius-sm); background: none; color: var(--color-text); font: inherit; cursor: pointer;
+}
+.rsf-check:hover:not(:disabled) { background: var(--color-bg-hover); border-color: var(--color-border-light); }
+.rsf-check:disabled { cursor: default; }
+.rsf-check-text { flex: 1; min-width: 0; }
+.rsf-check-node { flex: none; color: var(--color-text-muted); }
+.rsf-sim-slot { min-height: 40px; }
+
+/* 룰 세트 디버거(시뮬레이션 탭·노드 상세·값 표, 2단계 계획 Task 11). 색은 의미 토큰만 쓴다. 한 변 색 바는 쓰지 않는다(Local-Rules §8). */
+.rsim { display: flex; flex-wrap: wrap; gap: var(--spacing-md); align-items: flex-start; outline: none; min-width: 0; }
+.rsim-input { flex: 0 1 380px; min-width: 260px; display: flex; flex-direction: column; gap: var(--spacing-xs); }
+.rsim-main { flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: var(--spacing-xs); }
+.rsim-title { margin: 0; font-weight: 600; }
+.rsim-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--spacing-xs) var(--spacing-sm); }
+.rsim-fields { list-style: none; margin: 0; padding: 0; }
+.rsim-field { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--spacing-xs); padding: 2px 0; border-bottom: 1px solid var(--color-border-light); }
+.rsim-field-name { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-xs); min-width: 0; }
+.rsim-field-label, .rsim-field-type { font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+.rsim-field-edit { display: inline-flex; align-items: center; gap: var(--spacing-xs); }
+.rsim-send { display: inline-flex; }
+.rsim-evalts { display: inline-flex; flex-wrap: wrap; align-items: flex-start; gap: var(--spacing-xs); }
+.rsim-evalts-label { line-height: var(--form-height); font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+
+/* 따라가기 */
+.rsim-stepper { display: flex; flex-direction: column; gap: var(--spacing-xs); }
+.rsim-stepper-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-xs); }
+.rsim-progress { flex: 1 1 120px; min-width: 100px; }
+.rsim-status { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.rsim-status[data-end="stopped"], .rsim-status[data-end="before"], .rsim-error { color: var(--color-danger); }
+.rsim-error { margin: 0; overflow-wrap: anywhere; }
+
+/* 값 표 — 가로로 길면 표 안에서만 스크롤한다 */
+.rsim-values { min-width: 0; }
+.rsim-values-scroll { max-width: 100%; overflow-x: auto; }
+
+/* 목록·노드 상세 */
+.rsim-list { margin: 0; padding-left: var(--spacing-lg); }
+.rsim-list li { padding: 2px 0; overflow-wrap: anywhere; }
+.rsim-errors { color: var(--color-danger); }
+.rsim-errors details { color: var(--color-text-secondary); }
+.rsim-branch-head { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-xs); margin-right: var(--spacing-xs); }
+.rsim-cond { color: var(--color-text-secondary); margin-right: var(--spacing-xs); }
+.rsim-msg { color: var(--color-danger); }
+.rsim-badges { display: inline-flex; flex-wrap: wrap; gap: var(--spacing-xs); }
+.rsim-hits { margin: 0; overflow-wrap: anywhere; }
+.rsim-pairs { border-collapse: collapse; font-size: var(--font-size-sm); }
+.rsim-pairs th { text-align: left; padding: 2px var(--spacing-sm) 2px 0; font-weight: 600; vertical-align: top; }
+.rsim-pairs td { padding: 2px 0; overflow-wrap: anywhere; }
+`;

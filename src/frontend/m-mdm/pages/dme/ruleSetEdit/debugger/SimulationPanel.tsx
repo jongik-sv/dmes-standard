@@ -15,8 +15,6 @@ import { CLEARED_BY_EDIT_MESSAGE, type Simulation } from "./useSimulation";
 import { TraceStepper } from "./TraceStepper";
 import { ValueTable } from "./ValueTable";
 
-import "./debugger.css";
-
 export const RUN_DENIED_TITLE = "디버거는 편집 권한이 있어야 쓸 수 있다";
 const IDLE_MESSAGE = "아직 실행하지 않았다. 입력값을 넣고 [실행]을 누른다";
 const EDITABLE_TAGS = new Set(["INPUT", "TEXTAREA", "SELECT"]);

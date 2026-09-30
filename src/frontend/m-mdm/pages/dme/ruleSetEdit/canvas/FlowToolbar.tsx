@@ -15,8 +15,6 @@ import { badgeStyle } from "@/shell";
 
 import type { RuleSetEditState, RuleSetMessage } from "../state/useRuleSetEdit";
 
-import "../panels/panels.css";
-
 const DEPRECATE_WARNING = "폐기하면 이 세트를 부르는 호출은 판정 오류가 난다.";
 
 export interface FlowToolbarProps {

@@ -16,8 +16,6 @@ import type { RuleIo } from "../types";
 import type { NodeOverlay } from "./overlay";
 import { Handle, Position, type Node, type NodeProps, type NodeTypes } from "./react-flow";
 
-import "./canvas.css";
-
 /** 룰·IF·병렬·합류·시작/끝 노드가 함께 받는 데이터. */
 export type FlowNodeData = {
   node: FlowNode;

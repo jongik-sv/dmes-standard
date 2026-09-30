@@ -819,6 +819,19 @@ describe("RuleSetEditPage", () => {
     expect(mocks.openRuleEdit).toHaveBeenCalledWith("E2S_GRD");
   });
 
+  it("화면 스타일은 React <style precedence> 로 문서에 한 번만 넣는다 — 포털은 dist 의 page.css 를 불러오지 않는다", async () => {
+    const injected = () => Array.from(document.querySelectorAll('style[data-href="rsf-flow-styles"]'));
+    // React 는 언마운트해도 넣은 style 을 지우지 않고 문서별로 기억한다(손으로 지우면 다시 넣지 않는다). 앞 테스트가 넣었어도 하나여야 한다.
+    await openChain();
+    act(() => root!.unmount());
+    container.remove();
+    await openChain(); // 두 번째 렌더(새 루트)
+    const styles = injected();
+    expect(styles).toHaveLength(1);
+    const css = styles[0].textContent ?? "";
+    for (const rule of [".rsf-canvas {", ".rsf-node {", ".rsf-bottom-body {", ".rsf-toolbar {", ".rsim {", ".rsim-stepper {"]) expect(css, rule).toContain(rule);
+  });
+
   it("아래 패널은 접고 펼 수 있고, 시뮬레이션 탭 자리가 있다", async () => {
     await openChain();
     expect(q("set-checks")).not.toBeNull();

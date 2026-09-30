@@ -32,8 +32,6 @@ import {
   type NodeChange,
 } from "./react-flow";
 
-import "./canvas.css";
-
 export type PaletteItem = "rule" | "if" | "par" | "note" | "group";
 export const PALETTE_MIME = "application/x-rsf-palette";
 const PALETTE_ITEMS: readonly string[] = ["rule", "if", "par", "note", "group"];
