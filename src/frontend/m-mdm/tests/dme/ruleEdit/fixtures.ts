@@ -25,7 +25,6 @@ export function draftView(owner: string | null, me = "e2e_mdm_steward", override
   return {
     me,
     editable: mine,
-    headerEditable: mine,
     unappliedVersionExists: true,
     confirmScreenReady: false,
     rule: {
@@ -79,7 +78,6 @@ export function releasedView(me = "e2e_mdm_steward", overrides: Partial<RuleEdit
   return {
     ...base,
     editable: false,
-    headerEditable: true,
     unappliedVersionExists: false,
     versions: [base.versions[1]],
     selectedVer: 1,

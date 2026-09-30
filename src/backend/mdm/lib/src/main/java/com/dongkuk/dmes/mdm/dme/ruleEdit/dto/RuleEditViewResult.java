@@ -1,22 +1,25 @@
 package com.dongkuk.dmes.mdm.dme.ruleEdit.dto;
 
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
+import com.dongkuk.dmes.mdm.common.rule.RuleVersionRow;
 import java.util.List;
 import java.util.Map;
 
 /**
- * {@code ruleEdit} action={@code view} 응답(TSK-08-02 design §6.2). 화면은 {@code editable}(표 편집)·{@code headerEditable}(헤더
- * 편집)만으로 편집을 켠다 — 서버가 판정한다(I7·D6). 일시는 KST {@code "yyyy-MM-dd HH:mm:ss"}.
+ * {@code ruleEdit} action={@code view} 응답(TSK-08-02 design §6.2). 화면은 {@code editable}(표 편집)만으로 편집을 켠다 — 서버가
+ * 판정한다(I7). 일시는 KST {@code "yyyy-MM-dd HH:mm:ss"}.
+ *
+ * <p><b>D-105</b>: 버전 목록은 읽기 전용이다 — 공용 읽기 모델 {@link RuleVersionRow} 를 그대로 쓴다. 헤더 편집 가능 여부는
+ * 헤더·버전 화면({@code ruleMng})으로 갔고, 그 화면이 {@code ruleEdit} 의 이 응답을 읽지 않는다.
  */
 public class RuleEditViewResult {
 
     private String me;
     private boolean editable;
-    private boolean headerEditable;
     private boolean unappliedVersionExists;
     private boolean confirmScreenReady;
     private RuleInfo rule;
-    private List<VersionInfo> versions;
+    private List<RuleVersionRow> versions;
     private Integer selectedVer;
     private List<ResolvedVar> vars;
     private List<RowInfo> rows;
@@ -31,11 +34,10 @@ public class RuleEditViewResult {
 
     public String getMe() { return me; }
     public boolean isEditable() { return editable; }
-    public boolean isHeaderEditable() { return headerEditable; }
     public boolean isUnappliedVersionExists() { return unappliedVersionExists; }
     public boolean isConfirmScreenReady() { return confirmScreenReady; }
     public RuleInfo getRule() { return rule; }
-    public List<VersionInfo> getVersions() { return versions; }
+    public List<RuleVersionRow> getVersions() { return versions; }
     public Integer getSelectedVer() { return selectedVer; }
     public List<ResolvedVar> getVars() { return vars; }
     public List<RowInfo> getRows() { return rows; }
@@ -50,11 +52,10 @@ public class RuleEditViewResult {
 
     public void setMe(String v) { this.me = v; }
     public void setEditable(boolean v) { this.editable = v; }
-    public void setHeaderEditable(boolean v) { this.headerEditable = v; }
     public void setUnappliedVersionExists(boolean v) { this.unappliedVersionExists = v; }
     public void setConfirmScreenReady(boolean v) { this.confirmScreenReady = v; }
     public void setRule(RuleInfo v) { this.rule = v; }
-    public void setVersions(List<VersionInfo> v) { this.versions = v; }
+    public void setVersions(List<RuleVersionRow> v) { this.versions = v; }
     public void setSelectedVer(Integer v) { this.selectedVer = v; }
     public void setVars(List<ResolvedVar> v) { this.vars = v; }
     public void setRows(List<RowInfo> v) { this.rows = v; }
@@ -163,43 +164,6 @@ public class RuleEditViewResult {
         public void setSourceSystem(String v) { this.sourceSystem = v; }
         public void setDescription(String v) { this.description = v; }
         public void setUsageNote(String v) { this.usageNote = v; }
-    }
-
-    /** 버전 목록 한 행(카드 ②, ver 내림차순). */
-    public static class VersionInfo {
-        private Integer ver;
-        private String status;
-        private String applyFrom;
-        private String applyTo;
-        private String ownerId;
-        private Integer baseVer;
-        private String hitPolicy;
-        private long rowVersion;
-        /**
-         * 확정 취소 가능 여부(ADR-0002 D8) — 아직 적용 시각이 오지 않은 확정 버전이고 소유자가 요청 사용자이며
-         * 미적용 버전이 이 하나일 때만 true. 화면 버튼 판정용이고, 실제 거부는 서버가 다시 검사한다.
-         */
-        private boolean cancelConfirmable;
-
-        public Integer getVer() { return ver; }
-        public String getStatus() { return status; }
-        public String getApplyFrom() { return applyFrom; }
-        public String getApplyTo() { return applyTo; }
-        public String getOwnerId() { return ownerId; }
-        public Integer getBaseVer() { return baseVer; }
-        public String getHitPolicy() { return hitPolicy; }
-        public long getRowVersion() { return rowVersion; }
-        public boolean isCancelConfirmable() { return cancelConfirmable; }
-
-        public void setVer(Integer v) { this.ver = v; }
-        public void setStatus(String v) { this.status = v; }
-        public void setApplyFrom(String v) { this.applyFrom = v; }
-        public void setApplyTo(String v) { this.applyTo = v; }
-        public void setOwnerId(String v) { this.ownerId = v; }
-        public void setBaseVer(Integer v) { this.baseVer = v; }
-        public void setHitPolicy(String v) { this.hitPolicy = v; }
-        public void setRowVersion(long v) { this.rowVersion = v; }
-        public void setCancelConfirmable(boolean v) { this.cancelConfirmable = v; }
     }
 
     /** 행 하나(저장 형태 — {@code cells} 는 JSON 문자열). NORMAL 먼저 seq·row_id 순, 기본 행은 마지막. */

@@ -5,12 +5,14 @@ import static com.dongkuk.dmes.mdm.common.rule.RuleCaseJudge.judged;
 import static com.dongkuk.dmes.mdm.common.rule.RuleCaseJudge.object;
 import static com.dongkuk.dmes.mdm.common.rule.RuleCaseJudge.results;
 import static com.dongkuk.dmes.mdm.common.rule.RuleCaseJudge.runCase;
-import static com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditSupport.requireVer;
+import static com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport.requireVer;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
+import com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport;
 import com.dongkuk.dmes.mdm.common.rule.RuleCaseJudge.Evaluated;
+import com.dongkuk.dmes.mdm.common.rule.RuleHitPolicies;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleTestCaseQueries;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckInput;
@@ -76,7 +78,7 @@ public class RuleValueTestService {
 
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    private final RuleEditSupport support;
+    private final RuleScreenSupport support;
     private final RuleQueries queries;
     private final StoredRuleDefinitions stored;
     private final RuleSaveValidator validator;
@@ -84,7 +86,7 @@ public class RuleValueTestService {
     private final MdmEvaluator evaluator;
     private final Clock clock;
 
-    public RuleValueTestService(RuleEditSupport support, RuleQueries queries, StoredRuleDefinitions stored, RuleSaveValidator validator,
+    public RuleValueTestService(RuleScreenSupport support, RuleQueries queries, StoredRuleDefinitions stored, RuleSaveValidator validator,
                                 RuleTestCaseQueries caseQueries, MdmEvaluator evaluator, Clock clock) {
         this.support = support;
         this.queries = queries;
@@ -112,7 +114,7 @@ public class RuleValueTestService {
         String hit;
         List<DraftRow> rows;
         if (body) {
-            hit = RuleTableService.hitPolicy(rule.getRuleKind(), request.getHitPolicy());
+            hit = RuleHitPolicies.normalize(rule.getRuleKind(), request.getHitPolicy());
             Set<Integer> varIds = s.rawVars().stream().map(MdmRuleVar::getVarId).collect(Collectors.toSet());
             List<RuleTableService.RequestedRow> checked = RuleTableService.checkRows(rule, requested, varIds, new HashSet<>(queries.rowIds(id, ver)));
             RuleCheckReport report = validator.validate(new RuleCheckInput(id, ver, rule.getRuleKind(), hit, s.rawVars(), s.vars(),

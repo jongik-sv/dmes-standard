@@ -1,14 +1,15 @@
 package com.dongkuk.dmes.mdm.dme.ruleEdit.service;
 
-import static com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditSupport.ref;
-import static com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditSupport.requireMdm;
-import static com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditSupport.requireRowVersion;
-import static com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditSupport.requireVer;
+import static com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport.ref;
+import static com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport.requireMdm;
+import static com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport.requireRowVersion;
+import static com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport.requireVer;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
+import com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport;
 import com.dongkuk.dmes.mdm.common.rule.RuleCellsCodec;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
@@ -74,7 +75,7 @@ public class RuleColumnsService implements RuleEditSavePart {
     private static final Set<String> COND_DISPS = Set.of("Equal", "1", "2", "Expression");
     private static final Set<String> RESULT_DISPS = Set.of("Value", "Expression");
 
-    private final RuleEditSupport support;
+    private final RuleScreenSupport support;
     private final RuleQueries queries;
     private final VersionWriteGuard writeGuard;
     private final MdmRuleIdIssuer issuer;
@@ -87,7 +88,7 @@ public class RuleColumnsService implements RuleEditSavePart {
     private final RuleSaveValidator validator;
     private final TransactionTemplate tx;
 
-    public RuleColumnsService(RuleEditSupport support, RuleQueries queries, VersionWriteGuard writeGuard, MdmRuleIdIssuer issuer,
+    public RuleColumnsService(RuleScreenSupport support, RuleQueries queries, VersionWriteGuard writeGuard, MdmRuleIdIssuer issuer,
                               RuleVarTypeResolver resolver, ExpressionChecker checker, MdmEvaluator evaluator,
                               MdmRuleVarRepository varRepository, MdmRuleRowRepository rowRepository, EntityManager entityManager,
                               RuleSaveValidator validator, PlatformTransactionManager transactionManager) {
@@ -143,7 +144,7 @@ public class RuleColumnsService implements RuleEditSavePart {
             long rowVersion = writeGuard.beginDraftWrite(ref(id, ver), expected, me);
             List<MdmRuleVar> before = queries.vars(id, ver);
             List<Line> lines = parse(requested);
-            String hit = hitPolicy(derive, request.getHitPolicy(), currentHitPolicy(id, ver));
+            String hit = currentHitPolicy(id, ver);
             List<Map<String, Object>> issues = new ArrayList<>();
             check(id, ver, derive, hit, lines, before, issues);
             Map<String, Integer> rowIdMap = apply(id, ver, hit, lines, before, derive);
@@ -170,13 +171,10 @@ public class RuleColumnsService implements RuleEditSavePart {
         return req.label() != null ? req.label() : "Expression 열";
     }
 
-    private String hitPolicy(boolean derive, String requested, String current) {
-        if (derive && requested != null) {
-            throw reject("산출 룰에는 적중 정책을 두지 않습니다: " + requested);
-        }
-        return requested != null ? requested : current;
-    }
-
+    /**
+     * 저장된 적중 정책 — D-105 (4) 로 열 설정 저장은 더 이상 {@code hitPolicy} 를 받지 않는다. 정책은 헤더·버전 화면이 따로
+     * 저장하고, 여기는 그 값을 읽어 검사 입력으로만 쓴다.
+     */
     private String currentHitPolicy(String id, int ver) {
         List<String> hits = entityManager
                 .createQuery("SELECT v.hitPolicy FROM MdmRuleVer v WHERE v.maruRuleId = :id AND v.ver = :ver", String.class)

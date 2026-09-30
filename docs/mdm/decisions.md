@@ -949,3 +949,54 @@
 - **Source**: 시안 https://claude.ai/artifact/6dpdpynmCVtRTQPsbWSXir, DataInitializer(합친 화면 메뉴 leaf 제거), pages/dmd/dataMng·
   dataItemMng, screens/README.md §3. 원천 05 문서(`docs/mdm/design/basic/05-*`)의 화면 구성 절은 외부 저장소 심볼릭 링크라 아직
   고치지 않았다 — 반영 필요
+
+## D-105 (2026-09-30T00:00:00Z)
+- **Phase**: refactor(dme 룰 화면)
+- **Decision needed**: D-101·D-104 로 마루 코드·마스터데이터는 "헤더·버전은 별도 화면, 내용은 또 다른 화면" 으로 정리했다. 그러나
+  룰은 예외였다. `ruleEdit` 카드 ① 헤더·② 버전이 **내용 편집 화면 안**에 묶여 있었고(`cards.ts` 의
+  `RULE_EDIT_GROUPS.headerVersions = "① 헤더 · ② 버전"`), 그 화면이 FE 51파일·11액션·BE 8서비스로 모듈 최대가 되어 "무엇을 하는
+  화면"인지 읽히지 않았다. 마루 코드처럼 헤더·버전을 별도 화면으로 뺄지 정해야 한다
+- **Decision made**: 헤더·버전을 `ruleMng` 으로 옮겨 D-101 결과를 따른다. (1) `ruleMng` = 목록 + 상세(① 헤더·② 버전). 헤더
+  수정·폐기·새 버전·DRAFT 삭제·선점·해제·넘기기·확정 취소와 **HIT_POLICY 편집**을 전담한다. (2) `ruleEdit` = 내용 편집만
+  (③ 의사결정표·열 설정, ④⑤⑥ 값 테스트·결과·케이스, ⑧ 활용처). 액션이 11개에서 5개(`search`·`view`·`save`·`validate`·
+  `execute`)로 줄고 `save` 의 `part` 도 HEADER 가 빠진다. (3) **버전 선택(읽기 전용)은 남긴다** — 내용을 고르려면 어느
+  DRAFT 를 고르는지 알아야 하므로 `ruleEdit` 은 버전 목록을 읽기만 하고 관리 버튼은 없다. (4) **HIT_POLICY(TB_MDM_RULE_VER
+  속성)는 버전 쪽으로 옮긴다.** 지금은 575줄 `RuleColumnsService`(part=COLUMNS)가 네이티브 UPDATE 로 쓴다 — 버전마다
+  복제되는 속성인데 내용 화면에서만 고칠 수 있는 비대칭이 생기기 때문이다. `RuleColumnsService` 의 그 쓰기를 빼고 버전 저장으로
+  옮긴다. (5) **룰 헤더 동시성은 `auditVer` 낙관적 잠금으로 바꾼다.** `TB_MDM_RULE` 에 `ROW_VERSION` 이 없어 지금은
+  "마지막 저장이 이긴다"(06:913)다. `MdmRule` 이 `CactusAuditEntity` 를 상속하므로 감사 카운터 `VER` 가 이미 있고, D-104 가
+  dataMng 헤더에 적용한 바로 그 방식(`CodeEditService.requireAuditVer` I19)을 써서 **DDL 없이** MDM001 충돌 감지로 바꾼다.
+  (6) 화면 수는 5개 그대로다. `ruleConfirm`·`ruleSetMng`·`ruleSetEdit` 는 손대지 않는다(룰 세트는 별개 문제로 남긴다 —
+  사용자 선택). (7) **액션 이름은 늘리지 않는다.** 권한 어휘 16종(`MdmActions`) 밖의 이름은 RBAC 시드까지 바뀌므로, 헤더
+  저장과 HIT_POLICY 저장은 `ruleMng` 의 `save` 한 개가 `target`(HEADER·VERSION)으로 가른다 — dme 가 이미 `search`
+  (target=RULE·DOMAIN)·`delete`(target=VERSION·RULE·CONFIRM)로 쓰던 관용구다
+- **Rationale**: 사용자 판단(2026-09-30 "룰 화면에서 헤더, 버전은 마스터코드에서 처럼 '마루 코드' 화면에 있어야 맞은것 같아.
+  룰 화면은 지금 너무 복잡해서 헤더, 버전은 그쪽으로 빼는게 좋겠어"). 마루 코드가 이미 정한 분할을 룰에 적용하면 세 화면이 같은
+  모양이 된다 — 헤더·버전, 내용, 확정. 버전 상태 기계는 `common/version/DefaultVersionStateService` 로 이미 공유 중이라
+  백엔드 로직 재작업이 없다. 이 화면을 정리하지 않으면 모듈에서 가장 자주 쓰는 기능(의사결정표 편집)이 가장 복잡한 화면에
+  갇혀 있다. auditVer 를 택한 것은 D-104 가 같은 문제(dataMng 헤더)를 이미 그렇게 풀었고, 컬럼을 새로 넣을 이유가 없다는
+  것이다. **복잡도 감소가 부분적임은 미리 인정한다** — ①② 를 빼도 ③·④⑤⑥ 과 `RuleColumnsService`(575줄)·
+  `RuleValueTestService`(315줄)·`RuleEditViewResult`(324줄, 18필드)는 남으므로 `ruleEdit` 은 여전히 큰 화면이다. 얻는 것은
+  크기가 아니라 "무엇을 하는 화면"인지의 명확함이다
+- **구현 메모(2026-09-30)**:
+  - 백엔드 — `RuleHeaderService`·`RuleVersionService` 을 `dme.ruleMng.service` 로 옮기고 `RuleEditSupport` 은 공용
+    `common/rule/RuleScreenSupport` 로 올렸다(두 화면이 같이 쓴다). `ruleMng` 액션은 2개에서 9개
+    (search·reg·view·save·copy·delete·lock·unlock·handover), `ruleEdit` 는 11개에서 5개로 줄었다.
+    적중 정책 정규화는 `common/rule/RuleHitPolicies` 로 뽑아 셋(버전 저장·표 저장·값 테스트)이 한 곳을 본다.
+  - `TB_MDM_RULE_VER.HIT_POLICY` 는 저장 전에 저장된 정의를 새 정책으로 다시 검사한다(`RuleSaveTarget.STORED`) —
+    표 저장과 한 트랜잭션이던 것을 둘로 갈라면서 "정책은 바뀌었는데 내용이 안 맞는데 저장돼 버리는" 틈을 막는다.
+    확정 시점에도 같은 검사가 다시 돈다(`RuleConfirmChecks`).
+  - 헤더 낙관적 잠금에서 **카운터가 값이 바뀔 때만 오른다**(Hibernate dirty checking). 같으면 UPDATE 가 없다.
+    또 `TB_MDM_RULE.VER` 가 NULL 인 행은 첫 변경이 0 으로 머문다 — 그래서 `requireAuditVer` 는 null 을 0 으로 보고,
+    테스트 픽스처도 `register` 경로(→ `@PrePersist` = 0)와 같은 모양으로 넣는다.
+  - 프런트 — `ruleMng` = 목록 + 상세(`RuleDetailPanel`), `ruleEdit` = 내용 편집만. 버전 고르기는 `ruleEdit` 상단
+    Select 에 남긴다(내용을 고르려면 어느 DRAFT 인지 알아야 한다). `dt-hit-policy` 는 읽기 전용 표시가 됐다.
+  - 검증 — 백엔드 `:api:test` 1174건 전부 통과(이 작업 전 V13 마이그레이션 기인 실패 2건도 함께 고쳤다).
+    프런트 `m-mdm` 1206건 통과(일반+성능), `tsc --noEmit` 0, ag-grid/Mantine audit 98파일 0건.
+  - 남긴 것 — e2e 는 서버를 띄워야 돌 수 있어 이번엔 실행하지 않았다. `mdm-ruleMng.spec.ts` 에 옮긴 H1~H8 과
+    `mdm-ruleEdit.spec.ts` 를 손댔으니 **다음에 e2e 를 한 번 돌려 확인**하는 것이 남은 일이다.
+- **Reversible**: partially(헤더·버전 카드와 `ruleEdit` 액션 5개는 되살리면 된다. `TB_MDM_RULE` 헤더 잠금만 06:913 의
+  "마지막 저장 승" 으로 되돌리는 것은 별도 결정이 필요하고 DDL 은 없다)
+- **Source**: pages/dme/ruleEdit/cards.ts·RuleHeaderCard·RuleVersionCard, RuleHeaderService(38-40행), RuleVersionService,
+  RuleColumnsService(146행), dmc/codeEdit/service/CodeEditService(requireAuditVer 621행)·CodeHeaderSaveRequest,
+  dmd D-104 의 헤더 `auditVer`, screens/dme/ruleMng·ruleEdit 기능설계서, MdmActions(16종)

@@ -4,6 +4,7 @@ import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
+import com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport;
 import com.dongkuk.dmes.mdm.common.rule.RuleAnalysisInputMapper;
 import com.dongkuk.dmes.mdm.common.rule.RuleAnalysisInputMapper.StoredRow;
 import com.dongkuk.dmes.mdm.common.rule.RuleCellsCodec;
@@ -11,6 +12,7 @@ import com.dongkuk.dmes.mdm.common.rule.RuleIssueMaps;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleTestCaseQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
+import com.dongkuk.dmes.mdm.common.rule.RuleVersionRow;
 import com.dongkuk.dmes.mdm.common.rule.RuleVersions;
 import com.dongkuk.dmes.mdm.common.support.MdmTemporalBinder;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewRequest;
@@ -18,7 +20,6 @@ import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewResult.RowInfo;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewResult.RuleInfo;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewResult.VarCandidate;
-import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewResult.VersionInfo;
 import com.dongkuk.dmes.mdm.entity.MdmColumn;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.entity.MdmRuleRow;
@@ -38,29 +39,31 @@ import org.springframework.stereotype.Service;
 /**
  * view 조립(TSK-08-02 design §6.2·§6.3.1). 버전을 고르지 않으면 06 시안 {@code curVer} 순서로 고른다: 미적용(작성 중 DRAFT·결재 중·
  * 적용 시각이 아직 오지 않은 확정 RELEASED) → 현재 RELEASED({@code APPLY_FROM <= now < APPLY_TO}) → 가장 큰 ver. 읽기는 누구나 된다.
- * {@code editable} = 원천 MDM && 선택 버전 DRAFT && 소유자 = 나(I7), {@code headerEditable} 은 {@link RuleHeaderService} 규칙(D6).
+ * {@code editable} = 원천 MDM && 선택 버전 DRAFT && 소유자 = 나(I7).
+ *
+ * <p><b>D-105 (3)</b>: 버전 목록은 <b>읽기 전용</b>으로 남는다 — 내용을 고르려면 어느 DRAFT 를 고르는지 알아야 하기 때문이다.
+ * 그래서 목록은 공용 읽기 모델 {@link RuleVersionRow} 를 그대로 쓴다(확정 취소 가능 여부 같은 관리 플래그는 없다 — 버전 관리는
+ * 헤더·버전 화면). 헤더 편집 가능 여부({@code headerEditable})도 헤더·버전 화면으로 갔다 여���는 값이 없다.
  */
 @Service
 public class RuleViewService {
 
     private static final String TEXT_PATTERN = "yyyy-MM-dd HH:mm:ss";
 
-    private final RuleEditSupport support;
+    private final RuleScreenSupport support;
     private final RuleQueries queries;
     private final RuleVarTypeResolver resolver;
-    private final RuleHeaderService headerService;
     private final RuleUsageService usageService;
     private final MdmTemporalBinder temporal;
     private final MdmColumnRepository columnRepository;
     private final RuleTestCaseQueries testCaseQueries;
 
-    public RuleViewService(RuleEditSupport support, RuleQueries queries, RuleVarTypeResolver resolver, RuleHeaderService headerService,
+    public RuleViewService(RuleScreenSupport support, RuleQueries queries, RuleVarTypeResolver resolver,
                            RuleUsageService usageService, MdmTemporalBinder temporal, MdmColumnRepository columnRepository,
                            RuleTestCaseQueries testCaseQueries) {
         this.support = support;
         this.queries = queries;
         this.resolver = resolver;
-        this.headerService = headerService;
         this.usageService = usageService;
         this.temporal = temporal;
         this.columnRepository = columnRepository;
@@ -81,10 +84,8 @@ public class RuleViewService {
         RuleEditViewResult out = new RuleEditViewResult();
         out.setMe(me);
         out.setRule(ruleInfo(rule, versions, now));
-        long unappliedCount = versions.stream().filter(v -> RuleVersions.isUnapplied(v, now)).count();
-        out.setVersions(versions.stream().map(v -> versionInfo(v, now, me, unappliedCount)).toList());
+        out.setVersions(versions.stream().map(v -> versionInfo(v)).toList());
         out.setUnappliedVersionExists(versions.stream().anyMatch(v -> RuleVersions.isUnapplied(v, now)));
-        out.setHeaderEditable(headerService.headerEditable(rule, versions));
         out.setConfirmScreenReady(true);
         if (selected == null) {
             out.setVars(List.of());
@@ -115,7 +116,7 @@ public class RuleViewService {
             List<StoredRow> stored = rows.stream().map(r -> new StoredRow(r.getRowId(), r.getSeq(), r.getRowKind(), r.getCells())).toList();
             out.setIssues(RuleIssueMaps.of(RuleAnalyzer.analyze(
                     RuleAnalysisInputMapper.toAnalysisRule(id, rule.getRuleKind(), selected.getHitPolicy(), vars, stored))));
-            out.setEditable(RuleEditSupport.SOURCE_MDM.equals(rule.getSourceKind()) && "DRAFT".equals(selected.getStatus())
+            out.setEditable(RuleScreenSupport.SOURCE_MDM.equals(rule.getSourceKind()) && "DRAFT".equals(selected.getStatus())
                     && me != null && me.equals(selected.getOwnerId()));
         }
         out.setUsage(usageService.usage(id, out.getSelectedVer()));
@@ -183,31 +184,10 @@ public class RuleViewService {
         return info;
     }
 
-    private VersionInfo versionInfo(MdmRuleVer v) {
-        return versionInfo(v, null, null, 0);
-    }
-
-    /**
-     * D8-1 — 확정 취소 가능 여부(미래 적용 RELEASED + 소유자 + 미적용 1개). 화면 버튼 판정용이고 실제 거부는 서버가
-     * 다시 검사한다. {@code now} 이 null 이면 판정하지 않는다(06 외 호출 대비).
-     */
-    private VersionInfo versionInfo(MdmRuleVer v, LocalDateTime now, String me, long unappliedCount) {
-        VersionInfo info = new VersionInfo();
-        info.setVer(v.getVer());
-        info.setStatus(v.getStatus());
-        info.setApplyFrom(text(v.getApplyFrom()));
-        info.setApplyTo(text(v.getApplyTo()));
-        info.setOwnerId(v.getOwnerId());
-        info.setBaseVer(v.getBaseVer());
-        info.setHitPolicy(v.getHitPolicy());
-        info.setRowVersion(v.getRowVersion());
-        if (now != null) {
-            info.setCancelConfirmable("RELEASED".equals(v.getStatus())
-                    && v.getApplyFrom() != null && v.getApplyFrom().isAfter(now)
-                    && v.getOwnerId() != null && v.getOwnerId().equals(me)
-                    && unappliedCount == 1);
-        }
-        return info;
+    /** 버전 목록 한 행 — 공용 읽기 모델. 관리 플래그는 헤더·버전 화면 몫이라 여기 없다(D-105 (3)). */
+    private RuleVersionRow versionInfo(MdmRuleVer v) {
+        return new RuleVersionRow(v.getVer(), v.getStatus(), text(v.getApplyFrom()), text(v.getApplyTo()), v.getOwnerId(),
+                v.getBaseVer(), v.getHitPolicy(), v.getRowVersion());
     }
 
     private String text(LocalDateTime value) {

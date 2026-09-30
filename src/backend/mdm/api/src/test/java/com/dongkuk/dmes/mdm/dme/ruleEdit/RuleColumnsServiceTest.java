@@ -424,9 +424,6 @@ class RuleColumnsServiceTest extends AbstractMdmSharedDbTest {
         List<Map<String, Object>> grp = List.of(with(deriveCol(1, "COIL_WGT", "COIL_THK * 2"), "resGrp", "WGT"));
         assertEquals("INVALID_VALUE", mdm(() -> service.save(deriveColumns(0, grp))), "그룹");
 
-        RuleEditSaveRequest hit = deriveColumns(0, List.of(deriveCol(1, "COIL_WGT", "COIL_THK * 2")));
-        hit.setHitPolicy("FIRST");
-        assertEquals("INVALID_VALUE", mdm(() -> service.save(hit)), "적중 정책");
     }
 
     @Test

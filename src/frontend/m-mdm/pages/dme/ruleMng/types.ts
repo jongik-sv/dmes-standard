@@ -54,6 +54,92 @@ export interface RuleRegResult {
   rowVersion?: number;
 }
 
+// ────────────────────────────────────────────────────────────────────────
+// D-105 — 헤더·버전 상세(action=view) 타입
+// ────────────────────────────────────────────────────────────────────────
+
+/** 적중 정책 — `CK_TB_MDM_RULE_VER_HIT` 와 같은 값 집합. 산출 룰(DERIVE)에는 없다. */
+export type HitPolicyCode = "FIRST" | "UNIQUE" | "PRIORITY" | "COLLECT" | "ANY";
+
+export const HIT_POLICY_LABELS: Record<HitPolicyCode, string> = {
+  FIRST: "첫 행(FIRST)",
+  UNIQUE: "유일(UNIQUE)",
+  PRIORITY: "우선순위(PRIORITY)",
+  COLLECT: "모음(COLLECT)",
+  ANY: "전부(ANY)",
+};
+
+export const HIT_POLICY_OPTIONS = (Object.keys(HIT_POLICY_LABELS) as HitPolicyCode[]).map((value) => ({
+  value,
+  label: HIT_POLICY_LABELS[value],
+}));
+
+/** 버전 상태 — 서버 `VersionStatus`. REQUESTED·APPROVED·CANCELLED 는 상수로만 있어 실제로 나오지 않는다(PRD §2 규칙 7). */
+export type VersionStatus = "DRAFT" | "REQUESTED" | "APPROVED" | "RELEASED" | "CANCELLED";
+
+/** ② 버전 한 행. 서버 공용 읽기 모델 `RuleVersionRow` + 확정 취소 가능 여부. */
+export interface RuleVersionInfo {
+  ver: number;
+  status: VersionStatus;
+  /** 적용 구간 시작(KST). DRAFT 는 null. */
+  applyFrom: string | null;
+  applyTo: string | null;
+  ownerId: string | null;
+  /** 새 버전을 만들 때 복사한 원본 버전. */
+  baseVer: number | null;
+  hitPolicy: string | null;
+  rowVersion: number;
+  /** 확정 취소 가능(ADR-0002 D8) — 서버 판정값이다. 화면에서 다시 계산하지 않는다(서버와 어긋나면 안 되므로). */
+  cancelConfirmable?: boolean;
+}
+
+/** ① 헤더. `auditVer` 는 TB_MDM_RULE.VER 감사 카운터 — 헤더 저장의 낙관적 잠금 값(D-105 (5)). */
+export interface RuleHeader {
+  maruRuleId: string;
+  maruRuleName: string;
+  ruleKind: RuleKind;
+  status: RuleStatus;
+  sourceKind: string;
+  sourceSystem: string | null;
+  description: string | null;
+  usageNote: string | null;
+  auditVer: number | null;
+}
+
+/** 버튼 판정 — 서버가 계산한다(I7·D6). 화면은 이 값을 믿고 끄기만 하고 실제 거부는 저장 시점에 다시 검사한다. */
+export interface RuleMngFlags {
+  headerEditable: boolean;
+  canNewVersion: boolean;
+  canDeprecate: boolean;
+  unappliedCount: number;
+  currentVer: number | null;
+}
+
+export interface RuleMngView {
+  me?: string;
+  steward?: boolean;
+  header: RuleHeader;
+  /** ver 내림차순. */
+  versions: RuleVersionInfo[];
+  flags: RuleMngFlags;
+}
+
+/** action=save 응답 — 저장 뒤의 감사 카운터(HEADER) 또는 row_version(VERSION). */
+export interface RuleMngSaveResult {
+  maruRuleId?: string;
+  target?: "HEADER" | "VERSION";
+  auditVer?: number | null;
+  ver?: number | null;
+  rowVersion?: number | null;
+}
+
+/** 버전 조작 응답 — 새 버전 번호(copy)·새 row_version(lock·unlock·handover). 해당 없는 칸은 undefined. */
+export interface RuleVersionResult {
+  maruRuleId?: string;
+  ver?: number | null;
+  rowVersion?: number | null;
+}
+
 /** 목록 한 페이지 크기(서버 기본 20, 최대 100 — I29). */
 export const RULE_PAGE_SIZE = 20;
 

@@ -144,7 +144,8 @@ class SampleRuleLifecycleOasisFlowTest {
     private long saveQltyTable(int coilThkVarId, int coilWidVarId, int surfGrdVarId, int qltyGrdVarId, int prcFctVarId,
             long rowVersion) throws Exception {
         ObjectNode params = json.createObjectNode().put("part", "TABLE").put("maruRuleId", "QLTY_GRD_JDG").put("ver", 1)
-                .put("rowVersion", rowVersion).put("hitPolicy", "FIRST");
+                .put("rowVersion", rowVersion);
+        DmeTestSupport.setStoredHitPolicy(jdbc, "QLTY_GRD_JDG", 1, "FIRST");
         ObjectNode body = envelope("ruleEdit", params);
         ArrayNode rows = body.putObject("grids").putObject("rows").putArray("rows");
 
@@ -265,7 +266,8 @@ class SampleRuleLifecycleOasisFlowTest {
 
     private long saveProdTable(int prodTypeVarId, int calcBasisVarId, int prodWgtVarId, long rowVersion) throws Exception {
         ObjectNode params = json.createObjectNode().put("part", "TABLE").put("maruRuleId", "PROD_WGT_CALC").put("ver", 1)
-                .put("rowVersion", rowVersion).put("hitPolicy", "UNIQUE");
+                .put("rowVersion", rowVersion);
+        DmeTestSupport.setStoredHitPolicy(jdbc, "PROD_WGT_CALC", 1, "UNIQUE");
         ObjectNode body = envelope("ruleEdit", params);
         ArrayNode rows = body.putObject("grids").putObject("rows").putArray("rows");
 

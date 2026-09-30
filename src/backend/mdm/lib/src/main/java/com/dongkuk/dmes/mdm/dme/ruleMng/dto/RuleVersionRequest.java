@@ -1,7 +1,8 @@
-package com.dongkuk.dmes.mdm.dme.ruleEdit.dto;
+package com.dongkuk.dmes.mdm.dme.ruleMng.dto;
 
 /**
- * {@code ruleEdit} 버전 조작 요청 — delete(target VERSION = DRAFT 삭제, RULE = 폐기)·copy(새 버전)·lock·unlock·handover.
+ * {@code ruleMng} 버전 조작 요청 — copy(새 버전)·delete(target VERSION = DRAFT 삭제, RULE = 폐기, CONFIRM = 확정 취소)·
+ * lock·unlock·handover. D-105 로 헤더·버전 화면이 {@code ruleMng} 로 옮겨 오면서 {@code ruleEdit.dto} 에서 이 자리로 왔다.
  */
 public class RuleVersionRequest {
 

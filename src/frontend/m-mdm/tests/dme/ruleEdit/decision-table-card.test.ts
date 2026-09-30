@@ -36,7 +36,7 @@ import { buildTableColumns, cellEditable } from "../../../pages/dme/ruleEdit/dec
 import type { RuleEditCardProps } from "../../../pages/dme/ruleEdit/cards";
 import type { RuleEditView, RuleIssueView } from "../../../pages/dme/ruleEdit/types";
 import { RBAC_STORE_KEY, findButton, flush, installDomStorage, jsonResponse, visibleText } from "../helpers/render";
-import { SAMPLE_VARS, draftView } from "./fixtures";
+import { SAMPLE_ROWS, SAMPLE_VARS, draftView } from "./fixtures";
 
 function codes(state: TableState): string[] {
   return tableAnalysis(state).issues.map((i) => `${i.code}:${i.severity}:${i.rowIds.join("/")}`);
@@ -91,11 +91,16 @@ describe("표 상태 — 편집과 즉시 검사(I13·I19~I21)", () => {
     expect(c).toContain("UNREACHABLE:WARNING:2/1");
   });
 
-  it("적중 정책 UNIQUE 로 바꾸면 겹침이 오류로 바뀌고 도달 불가는 사라진다", () => {
-    const s = run(s0, { type: "editCell", rowId: 2, varId: 3, key: "left", value: "A" }, { type: "setHitPolicy", value: "UNIQUE" });
-    const c = codes(s);
-    expect(c).toContain("OVERLAP:ERROR:1/2");
-    expect(c.some((x) => x.startsWith("UNREACHABLE"))).toBe(false);
+  // D-105 (4) — 적중 정책(HIT_POLICY)은 버전 속성이므로 이 화면에서 고치지 않는다. 헤더·버전 화면이 저장하고
+  // 여기는 저장된 값을 읽어 검사만 돈다. 그래서 `setHitPolicy` 액션이 없다 — 남은 질문은 "저장된 정책이 검사 입력으로
+  // 쓰이는가" 뿐이다.
+  it("저장된 적중 정책이 검사 입력으로 쓰인다(D-105 — 이 화면에서 바꾸지 않는다)", () => {
+    expect(s0.hitPolicy).toBe("FIRST");
+    expect(s0.loadedHit).toBe("FIRST");
+    expect(isDirty(s0, { stored: SAMPLE_ROWS, loadedJson: JSON.stringify(SAMPLE_ROWS) })).toBe(false);
+    // 표를 고쳐도 적중 정책은 따라가지 않는다 — 별도 화면에서 고치는 값이라 여기서 만질 수 없다.
+    const edited = run(s0, { type: "editCell", rowId: 2, varId: 3, key: "left", value: "A" });
+    expect(edited.hitPolicy).toBe("FIRST");
   });
 
   it("드래그로 순서를 바꾸면 seq 가 다시 매겨지고 검사도 새 순서로 돈다", () => {
@@ -535,7 +540,8 @@ describe("DecisionTableCard 렌더", () => {
     expect(q("dt-check-table-body").hidden).toBe(true);
   });
 
-  it("저장 요청은 part TABLE·row_version·적중 정책과 grids.rows.rows(순서·음수 임시 ID·cells 문자열)다", async () => {
+  // D-105 (4) — 표 저장 요청에 hitPolicy 가 없다. 서버는 그 버전에 저장된 값을 읽어 검사 입력으로 쓴다.
+  it("저장 요청은 part TABLE·row_version 과 grids.rows.rows(순서·음수 임시 ID·cells 문자열)다 — 적중 정책은 싣지 않는다", async () => {
     await renderCard(draftView("e2e_mdm_steward"));
     await act(async () => {
       findButton(container, "행 추가").click();
@@ -546,7 +552,8 @@ describe("DecisionTableCard 렌더", () => {
     await flush();
     expect(saveBodies).toHaveLength(1);
     const body = saveBodies[0] as { params: Record<string, unknown>; grids: { rows: { rows: Array<Record<string, unknown>> } } };
-    expect(body.params).toEqual({ part: "TABLE", maruRuleId: "QLTY_GRD_JDG", ver: 2, rowVersion: 3, hitPolicy: "FIRST" });
+    expect(body.params).toEqual({ part: "TABLE", maruRuleId: "QLTY_GRD_JDG", ver: 2, rowVersion: 3 });
+    expect(body.params).not.toHaveProperty("hitPolicy");
     expect(body.grids.rows.rows.map((r) => r.rowId)).toEqual([1, 2, 3, -1, 4]);
     expect(body.grids.rows.rows[3]).toEqual({ rowId: -1, rowKind: "NORMAL", cells: '{"1":{"op":"NA"},"2":{"op":"NA"},"3":{"op":"NA"}}' });
     expect(typeof body.grids.rows.rows[0].cells).toBe("string");

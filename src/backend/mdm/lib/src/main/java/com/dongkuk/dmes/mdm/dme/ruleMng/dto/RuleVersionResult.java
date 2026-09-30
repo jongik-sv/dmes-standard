@@ -1,4 +1,4 @@
-package com.dongkuk.dmes.mdm.dme.ruleEdit.dto;
+package com.dongkuk.dmes.mdm.dme.ruleMng.dto;
 
 /** 버전 조작 응답 — 새 버전 번호(copy)·새 row_version(lock·unlock·handover). 해당 없는 칸은 null. */
 public class RuleVersionResult {

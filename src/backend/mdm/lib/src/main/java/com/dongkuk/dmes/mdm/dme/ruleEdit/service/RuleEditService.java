@@ -5,6 +5,7 @@ import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainNode;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainTreeReader;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
+import com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleDomainSearchRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleDomainSearchResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveRequest;
@@ -17,8 +18,6 @@ import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleExprParseRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleExprParseResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleTestRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleTestResult;
-import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleVersionRequest;
-import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleVersionResult;
 import com.ezylang.evalex.parser.ParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -35,11 +34,17 @@ import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
 import org.springframework.stereotype.Service;
 
 /**
- * 룰 화면({@code ruleEdit}) OASIS 진입 파사드 — TSK-08-02 design §6.1. BPMN {@code services/dme/ruleEdit.bpmn} 의 분기와 1:1:
- * search({@link #searchRules})·view·save·delete·copy({@link #newVersion})·lock·unlock·handover·parseExpr·searchDomains(TSK-08-03)·
- * execute({@link #runTest}, 값 테스트 — TSK-08-04 D3).
- * 업무 규칙은 두지 않고 카드별 서비스에 넘긴다. save 는 {@code part} 로 {@link RuleEditSavePart} 빈을, delete 는 {@code target}(VERSION·RULE)으로
- * 서비스를 고른다.
+ * 룰 내용 편집({@code ruleEdit}) OASIS 진입 파사드 — TSK-08-02 design §6.1. BPMN {@code services/dme/ruleEdit.bpmn} 의 분기와 1:1:
+ * search({@link #searchRules})·view·save·parseExpr·searchDomains(TSK-08-03)·execute({@link #runTest}, 값 테스트 — TSK-08-04 D3).
+ *
+ * <p><b>D-105 로 헤더·버전 관리({@code copy}·{@code delete}·{@code lock}·{@code unlock}·{@code handover}·{@code save}
+ * target HEADER, 그리고 {@code save} 의 part HEADER) 는 {@code ruleMng} 으로 옮겨 갔다.</b> 여기는 ③ 의사결정표·열 설정과
+ * ④⑤⑥ 값 테스트·테스트 케이스, ⑧ 활용처 — <b>내용 편집만</b> 한다. 액션이 11개에서 5개로 줄었다.
+ *
+ * <p>여전히 버전 목록은 읽는다 — 내용을 고르려면 어느 DRAFT 를 고르는지 알아야 하기 때문이다. 다만 읽기 전용이고 관리
+ * 버튼은 없다(버전 관리는 헤더·버전 화면).
+ *
+ * <p>업무 규칙은 두지 않고 카드별 서비스에 넘긴다. {@code save} 는 {@code part} 로 {@link RuleEditSavePart} 빈을 고른다.
  *
  * <p><b>{@code @Transactional} 을 붙이지 않는다(MUST)</b> — OASIS 파라미터 이름 바인딩이 깨진다(I25).
  */
@@ -51,22 +56,17 @@ public class RuleEditService {
 
     private final RuleQueries queries;
     private final RuleViewService viewService;
-    private final RuleVersionService versionService;
-    private final RuleHeaderService headerService;
     private final ExpressionChecker checker;
     private final MdmEvaluator evaluator;
     private final DomainTreeReader domainTreeReader;
     private final RuleValueTestService valueTestService;
     private final Map<String, RuleEditSavePart> parts = new HashMap<>();
 
-    public RuleEditService(RuleQueries queries, RuleViewService viewService, RuleVersionService versionService,
-                           RuleHeaderService headerService, ExpressionChecker checker, MdmEvaluator evaluator,
+    public RuleEditService(RuleQueries queries, RuleViewService viewService, ExpressionChecker checker, MdmEvaluator evaluator,
                            DomainTreeReader domainTreeReader, RuleValueTestService valueTestService,
                            List<RuleEditSavePart> saveParts) {
         this.queries = queries;
         this.viewService = viewService;
-        this.versionService = versionService;
-        this.headerService = headerService;
         this.checker = checker;
         this.evaluator = evaluator;
         this.domainTreeReader = domainTreeReader;
@@ -80,7 +80,7 @@ public class RuleEditService {
 
     // action: search — target RULE(기본, 상단 룰 고르기)·DOMAIN(도메인 검색 위젯). BPMN 은 이 메서드를 부른다.
     public Object search(RuleEditSearchRequest request) {
-        String target = request == null ? null : RuleEditSupport.blankToNull(request.getTarget());
+        String target = request == null ? null : RuleScreenSupport.blankToNull(request.getTarget());
         if (target == null || "RULE".equals(target)) {
             return searchRules(request);
         }
@@ -94,7 +94,7 @@ public class RuleEditService {
 
     // 룰 고르기(target=RULE)
     public RuleEditSearchResult searchRules(RuleEditSearchRequest request) {
-        String keyword = request == null ? null : RuleEditSupport.blankToNull(request.getKeyword());
+        String keyword = request == null ? null : RuleScreenSupport.blankToNull(request.getKeyword());
         return new RuleEditSearchResult(queries.searchPrefix(keyword, SEARCH_LIMIT).stream()
                 .map(r -> new RuleEditSearchResult.Row(r.getMaruRuleId(), r.getMaruRuleName(), r.getRuleKind(), r.getStatus(), r.getSourceKind()))
                 .toList());
@@ -105,49 +105,13 @@ public class RuleEditService {
         return viewService.view(request);
     }
 
-    // action: save — part 전략(확장 지점 §6.8)
+    // action: save — part 전략(확장 지점 §6.8). HEADER 는 D-105 로 ruleMng 으로 갔다 — 여기 남는 부분은 TABLE·COLUMNS·CASE 뿐이다.
     public RuleEditSaveResult save(RuleEditSaveRequest request) {
         RuleEditSavePart part = parts.get(request.getPart());
         if (part == null) {
             throw new BusinessException(ErrorCode.INVALID_VALUE, "모르는 저장 부분입니다: " + request.getPart());
         }
         return part.save(request);
-    }
-
-    // action: delete — VERSION(DRAFT 삭제)·RULE(폐기)·CONFIRM(확정 취소, ADR-0002 D8)
-    public RuleVersionResult delete(RuleVersionRequest request) {
-        if ("VERSION".equals(request.getTarget())) {
-            return versionService.deleteDraft(request);
-        }
-        if ("RULE".equals(request.getTarget())) {
-            return headerService.deprecate(request);
-        }
-        // D8-13 — 04 와 같은 target 문자열을 쓴다. 액션을 새로 만들지 않으므로 어휘 16종이 그대로다.
-        if (RuleVersionRequest.TARGET_CONFIRM.equals(request.getTarget())) {
-            return versionService.cancelConfirm(request);
-        }
-        throw new BusinessException(ErrorCode.INVALID_VALUE,
-                "삭제 대상은 VERSION·RULE·CONFIRM 중 하나여야 합니다: " + request.getTarget());
-    }
-
-    // action: copy
-    public RuleVersionResult newVersion(RuleVersionRequest request) {
-        return versionService.newVersion(request);
-    }
-
-    // action: lock
-    public RuleVersionResult lock(RuleVersionRequest request) {
-        return versionService.lock(request);
-    }
-
-    // action: unlock
-    public RuleVersionResult unlock(RuleVersionRequest request) {
-        return versionService.unlock(request);
-    }
-
-    // action: handover
-    public RuleVersionResult handover(RuleVersionRequest request) {
-        return versionService.handover(request);
     }
 
     // action: execute(BPMN) → runTest — 값 테스트(TSK-08-04 D3). 저장된 버전·편집 중인 본문을 판정하고 원장에 쓰지 않는다.
@@ -157,7 +121,7 @@ public class RuleEditService {
 
     // action: validate(BPMN) → parseExpr — 식 입력 칸의 디바운스 파싱(서버 EvalEx 단일 진원, 불변 9). 화면은 파싱 결과만 해석한다.
     public RuleExprParseResult parseExpr(RuleExprParseRequest request) {
-        String text = request == null ? null : RuleEditSupport.blankToNull(request.getText());
+        String text = request == null ? null : RuleScreenSupport.blankToNull(request.getText());
         if (text == null) {
             throw new BusinessException(ErrorCode.INVALID_VALUE, "식이 비었습니다.");
         }
@@ -216,7 +180,7 @@ public class RuleEditService {
 
     // action: search target=DOMAIN → searchDomains — 값 타입 도메인 검색 위젯(평면 8건). domainMng search 는 트리 응답이라 쓰지 않았다(design 이탈란).
     public RuleDomainSearchResult searchDomains(RuleDomainSearchRequest request) {
-        String kw = request == null ? null : RuleEditSupport.blankToNull(request.getKeyword());
+        String kw = request == null ? null : RuleScreenSupport.blankToNull(request.getKeyword());
         String needle = kw == null ? "" : kw.toUpperCase(Locale.ROOT);
         List<DomainNode> matched = new ArrayList<>();
         for (DomainNode n : domainTreeReader.load().nodes()) {

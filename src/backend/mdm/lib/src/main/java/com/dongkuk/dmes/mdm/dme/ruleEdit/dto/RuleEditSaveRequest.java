@@ -4,7 +4,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * {@code ruleEdit} action={@code save} 요청 — {@code part} 로 저장 부분을 고른다(HEADER·TABLE, 확장 지점 design §6.8).
+ * {@code ruleEdit} action={@code save} 요청 — {@code part} 로 저장 부분을 고른다(TABLE·COLUMNS·CASE).
+ *
+ * <p><b>D-105 로 HEADER 가 빠졌다</b> — 헤더 저장은 헤더·버전 화면({@code ruleMng} action save target HEADER)이 한다. 또
+ * {@code hitPolicy} 도 빠졌다 — 그것도 버전 속성이므로 같은 화면({@code ruleMng} action save target VERSION)이 저장한다.
+ * 내용 화면은 저장된 값을 읽어 검사 입력으로만 쓴다.
  *
  * <p>{@code rows} 는 {@code params} 가 아니라 {@code grids.rows.rows} 로 받는다 — OASIS 는 params 배열을 받지 않고(6-E-2), grids 는
  * 같은 이름의 DTO 속성에 채운다(Build 실측). 이 경로에서 JSON 숫자는 {@code Double} 로 오므로 서버가 정수로 바꾼다. 원소는
@@ -15,7 +19,7 @@ import java.util.Map;
  */
 public class RuleEditSaveRequest {
 
-    /** HEADER·TABLE·COLUMNS·CASE. */
+    /** TABLE·COLUMNS·CASE. */
     private String part;
     private String maruRuleId;
     private Integer ver;
@@ -23,7 +27,6 @@ public class RuleEditSaveRequest {
     private String maruRuleName;
     private String description;
     private String usageNote;
-    private String hitPolicy;
     private List<Map<String, Object>> rows;
     private Integer caseId;
     private String caseName;
@@ -38,7 +41,6 @@ public class RuleEditSaveRequest {
     public String getMaruRuleName() { return maruRuleName; }
     public String getDescription() { return description; }
     public String getUsageNote() { return usageNote; }
-    public String getHitPolicy() { return hitPolicy; }
     public List<Map<String, Object>> getRows() { return rows; }
     public Integer getCaseId() { return caseId; }
     public String getCaseName() { return caseName; }
@@ -53,7 +55,6 @@ public class RuleEditSaveRequest {
     public void setMaruRuleName(String v) { this.maruRuleName = v; }
     public void setDescription(String v) { this.description = v; }
     public void setUsageNote(String v) { this.usageNote = v; }
-    public void setHitPolicy(String v) { this.hitPolicy = v; }
     public void setRows(List<Map<String, Object>> v) { this.rows = v; }
     public void setCaseId(Integer v) { this.caseId = v; }
     public void setCaseName(String v) { this.caseName = v; }

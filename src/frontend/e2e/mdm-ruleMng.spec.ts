@@ -2,10 +2,13 @@ import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * mdm dme/ruleMng(룰 조회·등록) — TSK-08-02 design.md §3.4.1.
+ * mdm dme/ruleMng(룰 헤더·버전) — TSK-08-02 design.md §3.4.1, decisions.md D-105.
  *
- * 스모크 넷: T1 메뉴 이동, T2 목록(서버 데이터)·빈 상태, T3 등록 한 번(룰 화면 탭이 열리고 목록에 반영), T4 서버 오류.
+ * 스모크 넷: T1 메뉴 이동, T2 목록(서버 데이터)·빈 상태, T3 등록 한 번(상세에 새 룰이 뜨고 목록에 반영), T4 서버 오류.
  * 고유: T5 수용 1(ID 물리명 규칙 — 즉시 안내 + 서버 거부), T6 수용 2(원천 선택 칸 없음), T7 권한(READ 는 등록 비활성).
+ *
+ * D-105 — 이 화면이 ① 헤더·② 버전(목록 + 상세)까지 맡는다. H 계열은 옮겨 온 시험이다:
+ * 헤더 저장(낙관적 잠금 auditVer)·폐기·적중 정책·새 버전·DRAFT 삭제·선점·해제·넘기기·확정 취소·확정 이동.
  *
  * 전제(design.md 「E2E 서버 절차」): 새 mcm.db·mdm.db 로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고,
  * mcm 기동 뒤 e2e/fixtures/mdm-rbac-users.sql·mdm-ruleEdit-users.sql, mdm 기동 뒤 e2e/fixtures/mdm-ruleEdit-data.sql 을 넣는다.
@@ -15,6 +18,8 @@ import { expect, test, type Page } from "@playwright/test";
 const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
 const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
+/** 둘째 담당자 — 소유권 시험(선점·해제)에 쓴다. */
+const STEWARD2 = process.env.SMOKE_MDM_STEWARD2_USER ?? "e2e_mdm_steward2";
 const STDADMIN = process.env.SMOKE_MDM_STDADMIN_USER ?? "e2e_mdm_stdadmin";
 
 const screenshot = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-08-02/screens", name);
@@ -52,6 +57,17 @@ async function search(page: Page, keyword: string) {
   await page.getByRole("button", { name: "조회", exact: true }).click();
 }
 
+/** 목록에서 룰을 골라 ① 헤더·② 버전 상세를 연다(D-105). */
+async function openDetail(page: Page, ruleId: string) {
+  await page.getByTestId(`rule-link-${ruleId}`).click();
+  await expect(page.getByTestId("rule-header-id")).toHaveText(ruleId, { timeout: 30_000 });
+}
+
+/** 버전 표에서 한 줄을 고른다. */
+function versionRow(page: Page, ver: number) {
+  return page.getByTestId("rule-version-table").locator(`.ag-center-cols-container .ag-row[row-id="${ver}"]`);
+}
+
 test.describe.configure({ mode: "serial" });
 
 test.describe("mdm dme/ruleMng", () => {
@@ -78,7 +94,7 @@ test.describe("mdm dme/ruleMng", () => {
     await expect(page.locator(".grid-panel-count")).toHaveText("0건");
   });
 
-  test("T3 등록: 등록하면 룰 화면이 열려 버전 1 DRAFT·편집 중(나)이고 목록에 보인다", async ({ page }) => {
+  test("T3 등록: 등록하면 목록에 있고 고르면 상세가 버전 1 DRAFT·편집 중(나)으로 열린다", async ({ page }) => {
     await login(page, STEWARD);
     await openRuleMng(page);
     await page.getByTestId("rule-reg-id").fill("E2E_NEW_JDG");
@@ -87,16 +103,14 @@ test.describe("mdm dme/ruleMng", () => {
     await page.screenshot({ path: screenshot("dme-ruleMng-register.png"), fullPage: true });
     await page.getByRole("button", { name: "룰 등록" }).click();
 
-    // 룰 화면 탭 — handoff 대상(sessionStorage)을 읽어 새 룰을 연다(자동 선점).
-    await expect(page.getByTestId("rule-edit-current")).toHaveText("E2E_NEW_JDG", { timeout: 60_000 });
-    await expect(page.getByTestId("rule-card-versions").getByTestId("rule-ver-row-1")).toBeVisible();
-    await expect(page.getByTestId("rule-edit-topbar").locator(".mdm-status-badge")).toHaveAttribute("data-status", "DRAFT");
-    await expect(page.getByTestId("rule-edit-topbar").getByText("편집 중(나)")).toBeVisible();
-
-    // 룰 탭으로 돌아와 조회하면 목록에 있다.
-    await page.locator(".tab-item .tab-title", { hasText: /^룰$/ }).click();
     await search(page, "E2E_NEW");
     await expect(page.getByTestId("rule-link-E2E_NEW_JDG")).toBeVisible({ timeout: 20_000 });
+
+    // D-105 — 고르면 같은 화면의 상세(① 헤더·② 버전)가 열린다(자동 선점된 버전 1 DRAFT).
+    await openDetail(page, "E2E_NEW_JDG");
+    await expect(page.getByTestId("rule-header-name")).toHaveValue("E2E 신규 판정");
+    await expect(versionRow(page, 1).locator('[data-status="DRAFT"]')).toBeVisible();
+    await expect(page.getByTestId("rule-version-table").getByText("편집 중(나)")).toBeVisible();
   });
 
   test("T4 서버 오류: 같은 ID 로 등록하면 서버 중복 오류가 보인다", async ({ page }) => {
@@ -144,5 +158,116 @@ test.describe("mdm dme/ruleMng", () => {
     await page.getByTestId("rule-reg-id").fill("E2E_READ_JDG");
     await page.getByTestId("rule-reg-name").fill("권한 없음");
     await expect(page.getByRole("button", { name: "룰 등록" })).toBeDisabled();
+  });
+  // ── D-105 — ① 헤더·② 버전 상세 (옮겨 온 시험) ──
+
+  test("H1 헤더: 룰명을 바꿔 바로 저장하면 다시 불러와도 유지된다", async ({ page }) => {
+    await login(page, STEWARD);
+    await openRuleMng(page);
+    await openDetail(page, "QLTY_GRD_JDG");
+    await page.getByTestId("rule-header-name").fill("품질 등급 판정 E2E");
+    await page.getByRole("button", { name: "헤더 저장", exact: true }).click();
+    await expect(page.getByTestId("rule-header-name")).toHaveValue("품질 등급 판정 E2E", { timeout: 20_000 });
+    await page.reload();
+    await openRuleMng(page);
+    await openDetail(page, "QLTY_GRD_JDG");
+    await expect(page.getByTestId("rule-header-name")).toHaveValue("품질 등급 판정 E2E");
+  });
+
+  test("H2 수용 5: 새 버전은 버전 2 DRAFT(base 1, 편집 중(나))이고 그 뒤 새 버전은 막힌다", async ({ page }) => {
+    await login(page, STEWARD);
+    await openRuleMng(page);
+    await openDetail(page, "QLTY_GRD_JDG");
+    await page.getByRole("button", { name: "새 버전", exact: true }).click();
+    await expect(versionRow(page, 2).locator('[data-status="DRAFT"]')).toBeVisible({ timeout: 20_000 });
+    await expect(versionRow(page, 2).locator('.ag-cell[col-id="baseVer"]')).toHaveText("1");
+    await expect(page.getByTestId("rule-version-table").getByText("편집 중(나)")).toBeVisible();
+    await expect(page.getByRole("button", { name: "새 버전", exact: true })).toBeDisabled();
+    await expect(page.getByTestId("rule-unapplied-notice")).toContainText("미적용 버전");
+  });
+
+  test("H3 적중 정책(D-105 (4)): 버전 속성이므로 여기서 저장하고 저장된 값이 검사 입력이 된다", async ({ page }) => {
+    await login(page, STEWARD);
+    await openRuleMng(page);
+    await openDetail(page, "QLTY_GRD_JDG");
+    const policy = page.getByTestId("rule-hit-policy");
+    await expect(policy).toHaveValue("FIRST");
+    await policy.selectOption("UNIQUE");
+    await page.getByTestId("rule-hit-policy-save").click();
+    await expect(policy).toHaveValue("UNIQUE", { timeout: 20_000 });
+    await page.reload();
+    await openRuleMng(page);
+    await openDetail(page, "QLTY_GRD_JDG");
+    await expect(page.getByTestId("rule-hit-policy")).toHaveValue("UNIQUE");
+    // 되돌린다(다음 시험이 FIRST 를 가정한다).
+    await page.getByTestId("rule-hit-policy").selectOption("FIRST");
+    await page.getByTestId("rule-hit-policy-save").click();
+    await expect(page.getByTestId("rule-hit-policy")).toHaveValue("FIRST", { timeout: 20_000 });
+  });
+
+  test("H4 수용 4: 다른 담당자가 편집 중인 DRAFT 는 잠김이고 헤더·버전 조작이 모두 막힌다", async ({ page }) => {
+    await login(page, STEWARD);
+    await openRuleMng(page);
+    await openDetail(page, "E2E_LOCK_JDG");
+    await expect(page.getByTestId("rule-version-table").getByText(`잠김 · ${STEWARD2} 편집 중`)).toBeVisible();
+    for (const name of ["삭제", "해제", "넘기기(준비 중)"]) {
+      await expect(page.getByRole("button", { name, exact: true })).toBeDisabled();
+    }
+    await expect(page.getByRole("button", { name: "선점", exact: true })).toHaveCount(0);
+    await expect(page.getByTestId("rule-header-name")).toBeDisabled();
+  });
+
+  test("H5 해제·선점: 소유자가 해제하면 다른 담당자가 선점해 편집 중(나)이 된다", async ({ browser }) => {
+    const owner = await browser.newPage();
+    await login(owner, STEWARD2);
+    await openRuleMng(owner);
+    await openDetail(owner, "E2E_LOCK_JDG");
+    await expect(owner.getByTestId("rule-version-table").getByText("편집 중(나)")).toBeVisible();
+    await owner.getByRole("button", { name: "해제", exact: true }).click();
+    await expect(owner.getByTestId("rule-version-table").getByText("선점 가능")).toBeVisible({ timeout: 20_000 });
+    await owner.close();
+
+    const other = await browser.newPage();
+    await login(other, STEWARD);
+    await openRuleMng(other);
+    await openDetail(other, "E2E_LOCK_JDG");
+    await other.getByRole("button", { name: "선점", exact: true }).click();
+    await expect(other.getByTestId("rule-version-table").getByText("편집 중(나)")).toBeVisible({ timeout: 20_000 });
+    await other.close();
+  });
+
+  test("H6 서버 오류: 헤더 저장이 MDM001 로 거부되면 다시 불러오기가 보인다", async ({ page }) => {
+    await login(page, STEWARD);
+    await openRuleMng(page);
+    await openDetail(page, "QLTY_GRD_JDG");
+    await page.route("**/api/mdm/oasis/ruleMng/save", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ meta: { success: false, message: "다른 사용자가 수정했습니다. 다시 불러오세요 (MDM001)" }, data: {} }),
+      }),
+    );
+    await page.getByTestId("rule-header-name").fill("품질 등급 판정 E2E2");
+    await page.getByRole("button", { name: "헤더 저장", exact: true }).click();
+    await expect(page.getByRole("dialog").getByText("다른 창에서 바뀌었습니다. 다시 불러오세요")).toBeVisible({ timeout: 20_000 });
+    await page.unroute("**/api/mdm/oasis/ruleMng/save");
+  });
+
+  test("H7 DRAFT 삭제: 버전 2 를 지우면 사라지고 새 버전이 다시 켜진다", async ({ page }) => {
+    await login(page, STEWARD);
+    await openRuleMng(page);
+    await openDetail(page, "QLTY_GRD_JDG");
+    await page.getByRole("button", { name: "삭제", exact: true }).click();
+    await expect(versionRow(page, 2)).toHaveCount(0, { timeout: 20_000 });
+    await expect(page.getByRole("button", { name: "새 버전", exact: true })).toBeEnabled();
+  });
+
+  test("H8 내용 편집 이동: [내용 편집 →] 은 내용 화면을 그 룰·버전으로 연다(I28)", async ({ page }) => {
+    await login(page, STEWARD);
+    await openRuleMng(page);
+    await openDetail(page, "QLTY_GRD_JDG");
+    await page.getByRole("button", { name: "내용 편집 →" }).click();
+    await expect(page.getByTestId("rule-edit-current")).toHaveText("QLTY_GRD_JDG", { timeout: 60_000 });
+    await expect(page.getByTestId("rule-ver-select")).toHaveValue("1");
   });
 });

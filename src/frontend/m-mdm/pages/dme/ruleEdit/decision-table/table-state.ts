@@ -42,7 +42,6 @@ export type TableAction =
   | { type: "editNote"; rowId: number; value: string }
   | { type: "deleteRow"; rowId: number }
   | { type: "reorder"; keys: (string | number)[] }
-  | { type: "setHitPolicy"; value: HitPolicyCode }
   | { type: "revert" }
   | { type: "selectRow"; rowId: number | null };
 
@@ -125,10 +124,9 @@ export function tableReducer(state: TableState, action: TableAction): TableState
       const rest = state.rows.filter((r) => !action.keys.map(String).includes(String(r.rowId)));
       return { ...state, rows: resequence([...ordered, ...rest]) };
     }
-    case "setHitPolicy":
-      return state.ruleKind === "DECISION" ? { ...state, hitPolicy: action.value } : state;
     case "revert":
-      return { ...state, rows: state.loadedRows, hitPolicy: state.loadedHit, selectedRowId: null };
+      // 적중 정책은 revert 대상이 아니다(D-105 (4)) — 되돌리는 건 헤더·버전 화면 몫이라 여기는 건드리지 않는다.
+      return { ...state, rows: state.loadedRows, selectedRowId: null };
   }
   return state;
 }
@@ -152,7 +150,7 @@ export function isDirty(
   state: Pick<TableState, "vars" | "rows" | "loadedRows" | "hitPolicy" | "loadedHit">,
   pre: { stored?: readonly StoredRow[]; loadedJson?: string } = {},
 ): boolean {
-  if (state.hitPolicy !== state.loadedHit) return true;
+  // 적중 정책은 이 화면에서 안 변한다(D-105 (4)) — dirty 판정에서 제외한다.
   // 불러온 뒤 편집이 없으면 같은 배열이다 — 직렬화 비교를 건너뛴다.
   if (state.rows === state.loadedRows) return false;
   return JSON.stringify(pre.stored ?? tableStoredRows(state)) !== (pre.loadedJson ?? loadedRowsJson(state));

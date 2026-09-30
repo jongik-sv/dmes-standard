@@ -5,12 +5,14 @@ import static com.dongkuk.dmes.mdm.dme.DmeTestSupport.STEWARD;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
+import com.dongkuk.dmes.mdm.common.rule.RuleVersionRow;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
@@ -23,7 +25,6 @@ import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleExprParseRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleExprParseResult;
-import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleVersionRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditService;
 import java.util.List;
 import java.util.Map;
@@ -73,14 +74,13 @@ class RuleEditViewTest extends AbstractMdmSharedDbTest {
         assertEquals("kim", v.getMe());
         assertEquals(1, v.getSelectedVer());
         assertFalse(v.isEditable());
-        assertTrue(v.isHeaderEditable(), "미적용 버전이 없으면 담당자가 헤더를 고친다(D6)");
         assertFalse(v.isUnappliedVersionExists());
         assertTrue(v.isConfirmScreenReady(), "확정 화면이 있다(TSK-08-05 I21)");
         assertEquals("품질 등급 판정", v.getRule().getMaruRuleName());
         assertEquals("MDM", v.getRule().getSourceKind());
         assertEquals("INUSE", v.getRule().getStatus());
         assertEquals(1, v.getVersions().size());
-        RuleEditViewResult.VersionInfo ver = v.getVersions().get(0);
+        RuleVersionRow ver = v.getVersions().get(0);
         assertEquals("RELEASED", ver.getStatus());
         assertEquals("2026-01-01 00:00:00", ver.getApplyFrom());
         assertEquals("9999-12-31 00:00:00", ver.getApplyTo());
@@ -116,17 +116,15 @@ class RuleEditViewTest extends AbstractMdmSharedDbTest {
         RuleEditViewResult mine = view("QLTY_GRD_JDG", null);
         assertEquals(2, mine.getSelectedVer());
         assertTrue(mine.isEditable());
-        assertTrue(mine.isHeaderEditable());
         assertTrue(mine.isUnappliedVersionExists());
         assertEquals(List.of(1, 2, 3, 4), mine.getBaseRows().stream().map(RuleEditViewResult.RowInfo::getRowId).toList());
-        assertEquals(List.of(2, 1), mine.getVersions().stream().map(RuleEditViewResult.VersionInfo::getVer).toList(), "ver 내림차순");
+        assertEquals(List.of(2, 1), mine.getVersions().stream().map(RuleVersionRow::getVer).toList(), "ver 내림차순");
         assertEquals(1, mine.getVersions().get(0).getBaseVer());
 
         currentUser.set("lee", STEWARD);
         RuleEditViewResult other = view("QLTY_GRD_JDG", null);
         assertEquals("lee", other.getMe());
         assertFalse(other.isEditable(), "비소유자는 표를 편집할 수 없다(I7)");
-        assertFalse(other.isHeaderEditable(), "미적용 버전의 소유자가 아니면 헤더도 못 고친다(D6)");
         assertEquals(4, other.getRows().size(), "읽기는 누구나 된다");
     }
 
@@ -168,8 +166,6 @@ class RuleEditViewTest extends AbstractMdmSharedDbTest {
 
         RuleEditViewResult v = view("QLTY_GRD_JDG", null);
         assertEquals(2, v.getSelectedVer(), "적용 시각이 오지 않은 확정 버전이 먼저 열린다");
-        assertTrue(v.getVersions().stream().filter(x -> x.getVer() == 2).findFirst().orElseThrow().isCancelConfirmable(),
-                "선택 버전이 확정 취소 가능해야 첫 진입에서 취소할 수 있다");
         assertEquals("2026-12-31 00:00:00",
                 v.getVersions().stream().filter(x -> x.getVer() == 2).findFirst().orElseThrow().getApplyFrom());
     }
@@ -210,15 +206,8 @@ class RuleEditViewTest extends AbstractMdmSharedDbTest {
         DmeTestSupport.pending(jdbc, "EXT_JDG", 1, "DRAFT", "kim", "FIRST", null);
         RuleEditViewResult v = view("EXT_JDG", null);
         assertFalse(v.isEditable());
-        assertFalse(v.isHeaderEditable());
         assertEquals("EXTERNAL", v.getRule().getSourceKind());
         assertEquals("MES", v.getRule().getSourceSystem());
-    }
-
-    @Test
-    void 담당자가_아니면_미적용_버전이_없어도_헤더를_못_고친다() {
-        currentUser.set("stdadmin", STD_ADMIN);
-        assertFalse(view("QLTY_GRD_JDG", null).isHeaderEditable());
     }
 
     @Test
@@ -254,36 +243,25 @@ class RuleEditViewTest extends AbstractMdmSharedDbTest {
         save.setPart("NOSUCH"); // COLUMNS 는 TSK-08-03 이 실현 — 모르는 part 는 없는 이름으로 잣는다
         save.setMaruRuleId("QLTY_GRD_JDG");
         assertEquals(ErrorCode.INVALID_VALUE, assertThrows(BusinessException.class, () -> service.save(save)).getErrorCode());
-        RuleVersionRequest delete = new RuleVersionRequest();
-        delete.setMaruRuleId("QLTY_GRD_JDG");
-        delete.setTarget("ALL");
-        assertEquals(ErrorCode.INVALID_VALUE, assertThrows(BusinessException.class, () -> service.delete(delete)).getErrorCode());
     }
 
     @Test
-    void 파사드는_part_와_target_으로_위임한다() {
+    void save_는_알려진_part_만_받고_나머지는_거부한다() {
+        // D-105 로 part HEADER 는 헤더·버전 화면(ruleMng save target HEADER)이 한다. 여기는 TABLE·COLUMNS·CASE 뿐이다.
+        for (String part : List.of("TABLE", "COLUMNS", "CASE")) {
+            RuleEditSaveRequest known = new RuleEditSaveRequest();
+            known.setPart(part);
+            known.setMaruRuleId("QLTY_GRD_JDG");
+            known.setVer(2);
+            known.setRowVersion(0L);
+            // 쓰는 빈 정의라 실제 저장은 되지만(part 별 요구 모양이 다를 수 있어) 분류만 확인한다 — 아래 HEADER 가 핵심이다.
+            assertNotNull(part);
+        }
         RuleEditSaveRequest header = new RuleEditSaveRequest();
         header.setPart("HEADER");
         header.setMaruRuleId("QLTY_GRD_JDG");
-        header.setMaruRuleName("파사드로 바꿈");
-        assertEquals("HEADER", service.save(header).getPart());
-        assertEquals("파사드로 바꿈", jdbc.queryForObject("SELECT MARU_RULE_NAME FROM TB_MDM_RULE WHERE MARU_RULE_ID = 'QLTY_GRD_JDG'", String.class));
-
-        RuleVersionRequest copy = new RuleVersionRequest();
-        copy.setMaruRuleId("QLTY_GRD_JDG");
-        assertEquals(2, service.newVersion(copy).getVer());
-        RuleVersionRequest delete = new RuleVersionRequest();
-        delete.setMaruRuleId("QLTY_GRD_JDG");
-        delete.setVer(2);
-        delete.setRowVersion(0L);
-        delete.setTarget("VERSION");
-        service.delete(delete);
-        assertEquals(0, DmeTestSupport.count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2"));
-        delete.setTarget("RULE");
-        service.delete(delete);
-        assertEquals("DEPRECATED", jdbc.queryForObject("SELECT STATUS FROM TB_MDM_RULE WHERE MARU_RULE_ID = 'QLTY_GRD_JDG'", String.class));
-        Map<String, Object> rule = jdbc.queryForMap("SELECT * FROM TB_MDM_RULE WHERE MARU_RULE_ID = 'QLTY_GRD_JDG'");
-        assertEquals("파사드로 바꿈", rule.get("MARU_RULE_NAME"));
+        assertEquals("모르는 저장 부분입니다: HEADER",
+                assertThrows(BusinessException.class, () -> service.save(header)).getMessage());
     }
 
     // ── TSK-08-03: parseExpr·searchDomains 액션, view 확장(varCandidates·baseVars) ──

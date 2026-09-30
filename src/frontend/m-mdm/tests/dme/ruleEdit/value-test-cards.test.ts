@@ -8,7 +8,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 
-import { RULE_EDIT_CARDS, cardSegments, type RuleEditCardProps } from "../../../pages/dme/ruleEdit/cards";
+import { RULE_EDIT_CARDS, RULE_EDIT_GROUPS, cardSegments, type RuleEditCardProps } from "../../../pages/dme/ruleEdit/cards";
 import { TestCaseCard } from "../../../pages/dme/ruleEdit/cards/TestCaseCard";
 import { TestResultCard } from "../../../pages/dme/ruleEdit/cards/TestResultCard";
 import { ValueTestCard } from "../../../pages/dme/ruleEdit/cards/ValueTestCard";
@@ -194,15 +194,23 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     globalThis.fetch = originalFetch;
   });
 
-  it("카드 순서는 header·versions·table·valueTest·testResult·testCases·usage 다(I34, 06:749)", () => {
-    expect(RULE_EDIT_CARDS.map((c) => c.id)).toEqual(["header", "versions", "table", "valueTest", "testResult", "testCases", "usage"]);
+  // D-105 — ① 헤더·② 버전 카드는 ruleMng 화면으로 옮겨 갔다. 이 화면은 내용 편집만 한다.
+  it("카드 순서는 table·valueTest·testResult·testCases·usage 다(D-105 — 헤더·버전은 ruleMng)", () => {
+    expect(RULE_EDIT_CARDS.map((c) => c.id)).toEqual(["table", "valueTest", "testResult", "testCases", "usage"]);
   });
 
-  it("① 헤더·② 버전, ④ 값 테스트·⑤ 테스트 결과·⑥ 테스트 케이스는 각각 한 덩어리로 접힌다", () => {
+  it("④ 값 테스트·⑤ 테스트 결과·⑥ 테스트 케이스는 한 덩어리로 접힌다", () => {
     const segs = cardSegments(RULE_EDIT_CARDS).map((s) => (s.kind === "group" ? `${s.id}[${s.slots.map((c) => c.id).join(",")}]` : s.slot.id));
-    expect(segs).toEqual(["headerVersions[header,versions]", "table", "valueTests[valueTest,testResult,testCases]", "usage"]);
+    expect(segs).toEqual(["table", "valueTests[valueTest,testResult,testCases]", "usage"]);
     // ④·⑤·⑥ 은 위아래로 쌓는다(16칸씩).
     expect(RULE_EDIT_CARDS.filter((c) => c.group === "valueTests").map((c) => c.span)).toEqual([16, 16, 16]);
+  });
+
+  it("D-105 — 헤더·버전 카드와 그 묶음은 이 화면에 남지 않는다", () => {
+    const ids = RULE_EDIT_CARDS.map((c) => c.id);
+    expect(ids).not.toContain("header");
+    expect(ids).not.toContain("versions");
+    expect(RULE_EDIT_GROUPS.headerVersions).toBeUndefined();
   });
 
   it("편집본 대상은 editable 이고 DRAFT 일 때만 맨 앞 기본값이고, 아니면 버전만 고른다(I34)", async () => {

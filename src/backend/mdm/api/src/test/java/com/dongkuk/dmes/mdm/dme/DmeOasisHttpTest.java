@@ -84,8 +84,9 @@ class DmeOasisHttpTest {
     }
 
     private ObjectNode tableBody(long rowVersion) {
+        // 적중 정책은 헤더·버전 화면이 저장한다(D-105 (4)) — 표 저장 요청엔 더 싣지 않는다.
         ObjectNode params = json.createObjectNode().put("part", "TABLE").put("maruRuleId", "HTTP_JDG").put("ver", 1)
-                .put("rowVersion", rowVersion).put("hitPolicy", "UNIQUE");
+                .put("rowVersion", rowVersion);
         ObjectNode body = envelope("ruleEdit", params);
         ArrayNode rows = body.putObject("grids").putObject("rows").putArray("rows");
         rows.addObject().put("rowId", -1).put("rowKind", "NORMAL")
@@ -95,7 +96,7 @@ class DmeOasisHttpTest {
     }
 
     private ObjectNode versionBody(long rowVersion) {
-        return envelope("ruleEdit", json.createObjectNode().put("maruRuleId", "HTTP_JDG").put("ver", 1).put("rowVersion", rowVersion));
+        return envelope("ruleMng", json.createObjectNode().put("maruRuleId", "HTTP_JDG").put("ver", 1).put("rowVersion", rowVersion));
     }
 
     @Test
@@ -161,18 +162,19 @@ class DmeOasisHttpTest {
         JsonNode view = post("ruleEdit", "view", "lee", envelope("ruleEdit", json.createObjectNode().put("maruRuleId", "HTTP_JDG")));
         assertTrue(view.path("meta").path("success").asBoolean(false), view.toString());
         assertFalse(view.path("data").path("result").path("editable").asBoolean(true), view.toString());
-        assertFalse(view.path("data").path("result").path("headerEditable").asBoolean(true), view.toString());
 
-        ObjectNode header = envelope("ruleEdit", json.createObjectNode().put("part", "HEADER").put("maruRuleId", "HTTP_JDG")
+        ObjectNode header = envelope("ruleMng", json.createObjectNode().put("target", "HEADER").put("maruRuleId", "HTTP_JDG")
                 .put("maruRuleName", "이가 바꿈"));
         ObjectNode delete = versionBody(1);
         ((ObjectNode) delete.path("params")).put("target", "VERSION");
         ObjectNode handover = versionBody(1);
         ((ObjectNode) handover.path("params")).put("newOwnerId", "lee");
-        String[][] calls = {{"save", "TABLE"}, {"save", "HEADER"}, {"delete", ""}, {"unlock", ""}, {"handover", ""}};
+        // D-105 — HEADER 저장·버전 조작은 ruleMng 화면이 한다(ruleEdit 아님).
+        String[][] calls = {{"ruleEdit", "save"}, {"ruleMng", "save"}, {"ruleMng", "delete"},
+                {"ruleMng", "unlock"}, {"ruleMng", "handover"}};
         ObjectNode[] bodies = {tableBody(1), header, delete, versionBody(1), handover};
         for (int i = 0; i < calls.length; i++) {
-            JsonNode body = post("ruleEdit", calls[i][0], "lee", bodies[i]);
+            JsonNode body = post(calls[i][0], calls[i][1], "lee", bodies[i]);
             String label = calls[i][0] + " " + calls[i][1];
             assertFalse(body.path("meta").path("success").asBoolean(true), label + " " + body);
             assertTrue(body.path("meta").path("message").asText().startsWith(MdmErrorCode.NOT_DRAFT_OWNER.defaultMessage()),
@@ -186,15 +188,15 @@ class DmeOasisHttpTest {
     @Test
     void 헤더_저장은_grids_없이_되고_해제_선점은_새_row_version_을_돌려준다() throws Exception {
         registerByKim();
-        JsonNode header = post("ruleEdit", "save", "kim", envelope("ruleEdit", json.createObjectNode().put("part", "HEADER")
-                .put("maruRuleId", "HTTP_JDG").put("maruRuleName", "HTTP 판정 바꿈")));
+        JsonNode header = post("ruleMng", "save", "kim", envelope("ruleMng", json.createObjectNode().put("target", "HEADER")
+                .put("maruRuleId", "HTTP_JDG").put("maruRuleName", "HTTP 판정 바꿈").put("auditVer", 0L)));
         assertTrue(header.path("meta").path("success").asBoolean(false), header.toString());
         assertEquals("HTTP 판정 바꿈", jdbc.queryForObject("SELECT MARU_RULE_NAME FROM TB_MDM_RULE WHERE MARU_RULE_ID = 'HTTP_JDG'", String.class));
 
-        JsonNode unlock = post("ruleEdit", "unlock", "kim", versionBody(0));
+        JsonNode unlock = post("ruleMng", "unlock", "kim", versionBody(0));
         assertTrue(unlock.path("meta").path("success").asBoolean(false), unlock.toString());
         assertEquals(1, unlock.path("data").path("result").path("rowVersion").asInt(), unlock.toString());
-        JsonNode lock = post("ruleEdit", "lock", "lee", versionBody(1));
+        JsonNode lock = post("ruleMng", "lock", "lee", versionBody(1));
         assertTrue(lock.path("meta").path("success").asBoolean(false), lock.toString());
         assertEquals(2, lock.path("data").path("result").path("rowVersion").asInt(), lock.toString());
         assertEquals("lee", jdbc.queryForObject("SELECT OWNER_ID FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = 'HTTP_JDG'", String.class));
@@ -202,7 +204,7 @@ class DmeOasisHttpTest {
         JsonNode search = post("ruleEdit", "search", "lee", envelope("ruleEdit", json.createObjectNode().put("keyword", "HTTP")));
         assertTrue(search.path("meta").path("success").asBoolean(false), search.toString());
         assertEquals("HTTP_JDG", search.path("data").path("result").path("list").path(0).path("maruRuleId").asText(), search.toString());
-        JsonNode copy = post("ruleEdit", "copy", "lee", versionBody(2));
+        JsonNode copy = post("ruleMng", "copy", "lee", versionBody(2));
         assertFalse(copy.path("meta").path("success").asBoolean(true), "미적용 버전이 있어 새 버전은 거부(MDM006): " + copy);
         assertTrue(copy.path("meta").path("message").asText().startsWith(MdmErrorCode.UNAPPLIED_VERSION_EXISTS.defaultMessage()), copy.toString());
     }

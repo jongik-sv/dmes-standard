@@ -94,8 +94,20 @@ class MdmDomainCodeFkRebuildTest {
                     () -> insertDomain(c, "코드", "CODE_NOPE", "CODE", "CHAR", "NOPE", null, null),
                     "④ 없는 코드 ID 는 FK_TB_MDM_DOMAIN_CODE 가 거부해야 한다");
 
-            // ⑤ V8 TB_MDM_RULE_VAR 는 재생성 뒤에도 그대로이고, FK 가 새 TB_MDM_DOMAIN 을 실제로 가리킨다.
-            assertEquals(ruleVarSqlBefore, tableSql(c, "TB_MDM_RULE_VAR"), "⑤ RULE_VAR 정의가 바뀌었다");
+            // ⑤ V8 TB_MDM_RULE_VAR 는 V9 재생성 뒤에도 그대로이고, FK 가 새 TB_MDM_DOMAIN 을 실제로 가리킨다.
+            //
+            // 단, "그대로" 의 기준은 V9 까지다. D-103 의 V13 이 TB_MDM_RULE_VAR.AXIS 를 떼어 내고(피벗 표현 대체로
+            // res_grp·grp_cond 만 남김) 표를 다시 만든다. V9 가 V8 정의에 손대지 않았다는 사실은 ③ 칼럼 비교와
+            // FK 목록 비교가 계속 지킨다 — AXIS 한 칸이 빠진 것이 이 테스트의 관심사가 아니기 때문이다.
+            // V13 이 표를 다시 만들기 때문에 SQLite 스키마가 표 이름을 큰따옴표로 감싼 형태로 남는다
+            // (V8 이 만든 표는 `CREATE TABLE TB_MDM_RULE_VAR (`, V13 이 만든 표는 `CREATE TABLE "TB_MDM_RULE_VAR" (`).
+            // 그 차이는 V9 가 아니라 V13 때문에 생겼으므로 비교 전에 정규화한다. 남은 차이가 AXIS 한 칸과 그 CHECK 뿐이어야 한다.
+            String withoutAxis = ruleVarSqlBefore
+                    .replace("CREATE TABLE TB_MDM_RULE_VAR (", "CREATE TABLE \"TB_MDM_RULE_VAR\" (")
+                    .replace("    AXIS VARCHAR(20),\n", "")
+                    .replace("    CONSTRAINT CK_TB_MDM_RULE_VAR_AXIS CHECK (AXIS IS NULL OR AXIS IN ('ROW','COL','NONE')),\n", "");
+            assertEquals(withoutAxis, tableSql(c, "TB_MDM_RULE_VAR"),
+                    "⑤ RULE_VAR 는 V13 이 표 이름 인용·AXIS 한 칸·그 CHECK 만 달라야 한다");
             assertEquals(ruleVarFksBefore, ruleVarForeignKeys(c), "⑤ RULE_VAR FK 목록이 바뀌었다");
             seedRuleVer(c, "RULE_A");
             insertRuleVar(c, "RULE_A", 1, next);

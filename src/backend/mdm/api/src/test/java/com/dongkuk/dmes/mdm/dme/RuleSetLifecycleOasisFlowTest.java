@@ -216,7 +216,8 @@ class RuleSetLifecycleOasisFlowTest {
 
     private long saveBaseSpdTable(int thkVarId, int[] groupVarIds, long rowVersion) throws Exception {
         ObjectNode params = json.createObjectNode().put("part", "TABLE").put("maruRuleId", "BASE_SPD_LKP").put("ver", 1)
-                .put("rowVersion", rowVersion).put("hitPolicy", "UNIQUE");
+                .put("rowVersion", rowVersion);
+        DmeTestSupport.setStoredHitPolicy(jdbc, "BASE_SPD_LKP", 1, "UNIQUE");
         ObjectNode body = envelope("ruleEdit", params);
         ArrayNode rows = body.putObject("grids").putObject("rows").putArray("rows");
         for (int i = 0; i < THK_BANDS.length; i++) {
@@ -253,7 +254,8 @@ class RuleSetLifecycleOasisFlowTest {
 
     private long saveExcTable(int coilWidVarId, int baseSpdVarId, int excSpdVarId, long rowVersion) throws Exception {
         ObjectNode params = json.createObjectNode().put("part", "TABLE").put("maruRuleId", "SPD_EXC").put("ver", 1)
-                .put("rowVersion", rowVersion).put("hitPolicy", "COLLECT");
+                .put("rowVersion", rowVersion);
+        DmeTestSupport.setStoredHitPolicy(jdbc, "SPD_EXC", 1, "COLLECT");
         ObjectNode body = envelope("ruleEdit", params);
         ArrayNode rows = body.putObject("grids").putObject("rows").putArray("rows");
         // row1 — COIL_WID >= 1250(SampleRules.spdExc() row1). BASE_SPD 는 무관(NA).
