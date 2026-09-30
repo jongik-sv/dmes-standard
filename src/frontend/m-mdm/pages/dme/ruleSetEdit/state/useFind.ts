@@ -2,7 +2,7 @@
 
 /**
  * 노드 찾기(3단계 계획 B11) — 툴바 찾기 칸의 글자로 룰 ID·룰 이름·노드 라벨을 찾고 [다음] 으로 돌며 그 노드로 옮긴다(`onReveal`).
- * 글자를 바꾸면 순번만 0 으로 돌리고(옮기지 않는다), [다음]·Enter 에서만 옮긴다. 옮기는 것은 다음 결과로 돈다(끝에서 처음으로). 접힌 블록 안의 노드를 펴는 것은 `onReveal` 의 몫이다.
+ * 글자를 바꾸면 순번만 0 으로 돌리고(옮기지 않는다), 첫 [다음]·Enter 는 첫 결과로, 그다음부터 옮기는 것은 다음 결과로 돈다(끝에서 처음으로). 접힌 블록 안의 노드를 펴는 것은 `onReveal` 의 몫이다.
  */
 import { useCallback, useMemo, useRef, useState } from "react";
 
@@ -38,23 +38,27 @@ export function findNodes(flow: EditFlow | null, rules: RuleIoMap, query: string
 export function useFind(flow: EditFlow | null, rules: RuleIoMap, onReveal: (nodeId: string) => void): FindState {
   const [query, setQueryState] = useState("");
   const [cursor, setCursor] = useState(0);
+  /** 글자를 친 뒤 아직 한 번도 옮기지 않았는가 — 첫 [다음] 은 첫 결과로 간다. */
+  const [moved, setMoved] = useState(false);
   const hits = useMemo(() => findNodes(flow, rules, query), [flow, rules, query]);
   // 흐름이 바뀌어 결과가 줄었으면 순번을 끝으로 당긴다.
   const index = hits.length === 0 ? -1 : Math.min(cursor, hits.length - 1);
 
-  const ref = useRef({ flow, rules, onReveal, hits, index });
-  ref.current = { flow, rules, onReveal, hits, index };
+  const ref = useRef({ onReveal, hits, index, moved });
+  ref.current = { onReveal, hits, index, moved };
 
   const setQuery = useCallback((q: string) => {
     setQueryState(q);
     setCursor(0);
+    setMoved(false);
   }, []);
 
   const next = useCallback(() => {
-    const { hits: h, index: i, onReveal: reveal } = ref.current;
+    const { hits: h, index: i, moved: was, onReveal: reveal } = ref.current;
     if (h.length === 0) return;
-    const to = (i + 1) % h.length;
+    const to = was ? (i + 1) % h.length : i;
     setCursor(to);
+    setMoved(true);
     reveal(h[to]);
   }, []);
 

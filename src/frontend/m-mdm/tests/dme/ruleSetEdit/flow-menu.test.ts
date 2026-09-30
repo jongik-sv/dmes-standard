@@ -323,13 +323,21 @@ describe("흐름 우클릭 메뉴·편집(3단계 Task 8)", () => {
     await settle(50);
     expect(byTestId("flow-node-r1").className).not.toContain("rsf-flash");
     mocks.expandFor.mockClear();
+    // 첫 Enter 는 첫 결과로, 둘째는 둘째 결과로, 셋째는 다시 첫 결과로.
+    await key(find, { key: "Enter" });
+    await settle(50);
+    expect(byTestId("flow-find-count").textContent).toBe("1/2");
+    expect(mocks.expandFor).toHaveBeenCalledWith("r1");
+    expect(byTestId("flow-node-r1").getAttribute("data-selected")).toBe("true");
+    expect(byTestId("flow-node-r1").className).toContain("rsf-flash");
     await key(find, { key: "Enter" });
     await settle(50);
     expect(byTestId("flow-find-count").textContent).toBe("2/2");
-    expect(mocks.expandFor).toHaveBeenCalledWith("r2");
+    expect(mocks.expandFor).toHaveBeenLastCalledWith("r2");
     expect(byTestId("flow-node-r2").className).toContain("rsf-flash");
     await click("flow-find-next");
     expect(byTestId("flow-find-count").textContent).toBe("1/2");
+    expect(mocks.expandFor).toHaveBeenLastCalledWith("r1");
 
     const z = await key(find, { key: "z", ctrlKey: true });
     const del = await key(find, { key: "Delete" });

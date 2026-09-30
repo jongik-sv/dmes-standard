@@ -275,10 +275,11 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
         edit(() => fail(NO_CLIPBOARD));
         return;
       }
-      clipboard.ios.forEach(addRuleIo);
-      edit((f) => pasteFragment(f, edgeId, clipboard.frag));
+      const reason = edit((f) => pasteFragment(f, edgeId, clipboard.frag));
+      // 붙이기가 됐을 때만, 대상 세트에 없는 룰의 IO 만 들여온다(같은 룰 IO 를 복사 시점 값으로 덮지 않는다).
+      if (!reason) clipboard.ios.filter((io) => !state.rules[io.ruleId]).forEach(addRuleIo);
     },
-    [editing, clipboard, edit, addRuleIo],
+    [editing, clipboard, edit, addRuleIo, state.rules],
   );
 
   const actions = useMemo<EditActions["actions"]>(
