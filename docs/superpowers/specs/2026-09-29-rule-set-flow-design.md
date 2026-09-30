@@ -263,6 +263,18 @@ OASIS 에서 룰 세트를 부르려면 DB 에서 **판정 시점의 확정(RELE
 
 1단계만 끝나면 담당자 화면에는 큰 변화가 없다. 분기를 그리는 화면은 2단계에 나온다.
 
+### 9.1 2단계 착수 조건 (1단계 최종 리뷰, 2026-09-30)
+
+1. OASIS params 로 `RuleSetSaveRequest.flow`(Map) 가 실제로 바인딩되는지 HTTP 테스트로 확인한다. 1단계는 서비스 직접 호출만 검증했다.
+2. RunTrace 를 JSON 으로 내보낼 때 `NodeTrace.result` 가 없으면 키를 뺀다(null 금지). simulate 응답 DTO 에 직렬화 규칙을 두고, 직렬화 결과를 스키마로 검증한다.
+3. 저장 JSON 을 정규화한다. 서버 코덱은 느슨하게 읽는데(`"otherwise":"true"`·숫자 id 허용) 요청 맵을 그대로 저장하므로, 파싱한 정의에 view 만 붙여 저장한다. 화면 `parseFlow` 는 정규화된 서버 응답만 받는다.
+4. 코퍼스 미덮음 경로(흐름 안 CYCLE, DEPRECATED nodeId, 존재+구조 동시, IF 안 IF maybe, 여러 later·excl 문구, 구조 c·g3·g4·g5)를 채우고, 가능하면 FlowParser·RuleSetAnalyzer 와 flow-model·set-model 의 차분 퍼즈 검사를 둔다. 화면이 flowChecks 를 쓰기 전에 한다.
+5. IF 조건식 변수 가운데 세트 안 어느 룰도 타입을 선언하지 않은 이름은 원값 그대로 비교된다(문자열 숫자면 사전순 비교, 조용한 오판정 위험 — decisions 편차·Ruling). 저장 때 "선언 타입 없는 조건식 변수" 경고를 낸다(condIo 가 이미 컬럼 사전을 조회한다).
+6. 룰 확정 검사(`RuleSetOrderCheck`)의 `SET_IF_SIBLING`·`SET_PAR_SIBLING` 는 "그 노드 앞 경로에서 이미 정의된 이름"을 빼지 않아 세트 저장 검사보다 거칠다. 분석기의 경로 상태 계산을 재사용해 맞춘다.
+7. 목록 저장이 한 줄 흐름의 FLOW_JSON(view 포함)을 지운다. 캔버스가 생기면 옛 탭 저장이 배치·메모를 지우지 않도록 막는다.
+8. 흐름 크기·중첩 깊이 상한을 둔다(FlowParser 재귀 StackOverflow 방지).
+9. simulate 입력 검증: trace 의 record null, IAE·ISE 를 넓게 잡는 범위, MDM021 대신 저장값 손상 전용 오류 코드.
+
 ## 10. 변경 범위
 
 | 단계 | 영역 | 파일·대상 |

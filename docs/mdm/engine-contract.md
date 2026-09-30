@@ -2,7 +2,6 @@
 
 > 작성: 2026-09-24 (mdm/TSK-02-02 평가 엔진 설계 + 임베딩 방식 조사)
 > 정본: 엔진 모듈 스키마 `src/backend/maru-mdm-engine/src/main/resources/kr/dongkuk/maru/mdm/engine/engine-contract.schema.json` 과 엔진 Java 타입이고, 이 문서는 그 설명이다. 출처는 TSK-02-02 design §6([tasks/TSK-02-02/design.md](tasks/TSK-02-02/design.md))이다.
-> 정본 이전(TSK-03-01): JSON 모양의 정본은 src/backend/maru-mdm-engine/src/main/resources/kr/dongkuk/maru/mdm/engine/engine-contract.schema.json, Java 계약은 src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/** 로 옮겼다. TS 타입은 @dk-oasis/m-mdm 이 그 스키마에서 생성한다. 이 폴더(engine-contract/)는 TSK-02-02 초안 원본으로 남긴다.
 > 결정 근거: `docs/mdm/decisions.md` D-020~D-023.
 > 원천 설계(`/Users/jji/project/mdm/docs/design/basic/`)의 행 번호를 `02:175`·`05:363`·`06:461`·`EG:222` 처럼 인용한다. `02`·`04`·`05`·`06` 은 각각 `02-term-domain-column.md`·`04-master-code-deploy-full.md`·`05-master-data.md`·`06-business-rule.md` 이고, `EG` 는 `evalex-guide.md` 다.
 
