@@ -6,9 +6,23 @@ import type { FlowMode } from "../state/useRuleSetEdit";
 
 export type ShortcutId =
   | "undo" | "redo" | "delete" | "escape" | "copy" | "paste" | "duplicate" | "find"
-  | "continue" | "step" | "stepBack" | "breakpoint";
-export interface KeyLike { key: string; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; altKey: boolean; target: EventTarget | null }
-export type ShortcutHandlers = Partial<Record<ShortcutId, () => void>>;
+  | "continue" | "step" | "stepBack" | "breakpoint"
+  | "alignLeft" | "alignHCenter" | "alignRight" | "alignTop" | "alignVCenter" | "alignBottom" | "distributeH" | "distributeV"
+  | "nudgeLeft" | "nudgeRight" | "nudgeUp" | "nudgeDown" | "nudgeLeftBig" | "nudgeRightBig" | "nudgeUpBig" | "nudgeDownBig";
+/** `code` 는 물리 키(Mac Option+글자는 e.key 가 'å' 처럼 바뀌므로 Alt 조합은 code 로 판정한다). */
+export interface KeyLike { key: string; code?: string; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; altKey: boolean; target: EventTarget | null }
+/** 핸들러가 할 일이 없어 키를 쓰지 않았다는 표시 — 디스패처가 preventDefault·stopPropagation 을 하지 않고 브라우저 기본 동작에 맡긴다. */
+export const UNHANDLED = Symbol("shortcut-unhandled");
+export type ShortcutHandlers = Partial<Record<ShortcutId, () => unknown>>;
+
+/** Alt(⌥)+물리 키 → 정렬·간격 단축키(Figma 와 같다). */
+const ALT_CODES: Readonly<Record<string, ShortcutId>> = {
+  KeyA: "alignLeft", KeyD: "alignRight", KeyW: "alignTop", KeyS: "alignBottom", KeyH: "alignHCenter", KeyV: "alignVCenter",
+};
+const NUDGE_KEYS: Readonly<Record<string, readonly [ShortcutId, ShortcutId]>> = {
+  ArrowLeft: ["nudgeLeft", "nudgeLeftBig"], ArrowRight: ["nudgeRight", "nudgeRightBig"],
+  ArrowUp: ["nudgeUp", "nudgeUpBig"], ArrowDown: ["nudgeDown", "nudgeDownBig"],
+};
 
 export function isMacPlatform(nav: { platform?: string; userAgent?: string } | undefined = typeof navigator === "undefined" ? undefined : navigator): boolean {
   if (!nav) return false;
@@ -22,7 +36,13 @@ export function isTypingTarget(t: EventTarget | null): boolean {
 }
 
 export function shortcutOf(e: KeyLike, mac: boolean): ShortcutId | null {
-  if (e.altKey || isTypingTarget(e.target)) return null;
+  if (isTypingTarget(e.target)) return null;
+  if (e.altKey) {
+    if (e.ctrlKey || e.metaKey || !e.code) return null; // Alt 는 Ctrl·Meta 없이 정렬 글쇠에만 쓴다(Windows 의 AltGr 은 Ctrl+Alt)
+    if (e.code === "KeyH" && e.shiftKey) return "distributeH";
+    if (e.code === "KeyV" && e.shiftKey) return "distributeV";
+    return e.shiftKey ? null : (ALT_CODES[e.code] ?? null);
+  }
   const mod = mac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
   const anyMod = e.ctrlKey || e.metaKey;
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
@@ -37,6 +57,8 @@ export function shortcutOf(e: KeyLike, mac: boolean): ShortcutId | null {
     return null;
   }
   if (anyMod) return null;
+  const nudge = NUDGE_KEYS[key];
+  if (nudge) return e.shiftKey ? nudge[1] : nudge[0];
   if (key === "Delete" || key === "Backspace") return e.shiftKey ? null : "delete";
   if (key === "Escape") return "escape";
   if (key === "F5") return e.shiftKey ? null : "continue";
@@ -53,9 +75,10 @@ export function dispatchShortcut(
   const id = shortcutOf(e, mac);
   const run = id ? handlers[id] : undefined;
   if (!run) return false;
+  const result = run();
+  if (result === UNHANDLED) return false;
   e.preventDefault();
   e.stopPropagation();
-  run();
   return true;
 }
 
@@ -79,6 +102,11 @@ export const SHORTCUT_HELP: readonly { id: ShortcutId | GestureId; win: string; 
   { id: "step", win: "F10", mac: "fn+F10", label: "한 단계", modes: ["debug"] },
   { id: "stepBack", win: "Shift+F10", mac: "fn+⇧F10", label: "이전 단계", modes: ["debug"] },
   { id: "breakpoint", win: "F9", mac: "fn+F9", label: "고른 노드 중단점", modes: ["debug"] },
+  { id: "alignLeft", win: "Alt+A · Alt+D", mac: "⌥A · ⌥D", label: "왼쪽·오른쪽 맞춤(고른 것 2개 이상)", modes: ["edit"] },
+  { id: "alignTop", win: "Alt+W · Alt+S", mac: "⌥W · ⌥S", label: "위·아래 맞춤(고른 것 2개 이상)", modes: ["edit"] },
+  { id: "alignHCenter", win: "Alt+H · Alt+V", mac: "⌥H · ⌥V", label: "가로·세로 가운데 맞춤(고른 것 2개 이상)", modes: ["edit"] },
+  { id: "distributeH", win: "Alt+Shift+H · Alt+Shift+V", mac: "⌥⇧H · ⌥⇧V", label: "가로·세로 간격 고르게(고른 것 3개 이상)", modes: ["edit"] },
+  { id: "nudgeLeft", win: "←↑→↓ · Shift+←↑→↓", mac: "←↑→↓ · ⇧←↑→↓", label: "고른 것을 1px · 10px 옮기기", modes: ["edit"] },
   { id: "boxSelect", win: "끌기(빈 곳)", mac: "끌기(빈 곳)", label: "영역 선택(상자에 걸친 노드·메모)", modes: ["edit"] },
   { id: "spaceDrag", win: "Alt+끌기(빈 곳)", mac: "⌥+끌기(빈 곳)", label: "공간 넓히기·줄이기(툴바 [공간] 과 같다)", modes: ["edit"] },
   { id: "pan", win: "스페이스+끌기", mac: "스페이스+끌기", label: "화면 이동(가운데 버튼 끌기·두 손가락 스크롤도 된다)", modes: ["edit"] },

@@ -172,6 +172,11 @@ export interface FlowCanvasProps {
   removeRoutePointRef?: MutableRefObject<(() => boolean) | null>;
   /** 캔버스가 "React Flow 선택 모두 비우기" 를 채우는 ref(page 의 Esc 가 부른다 — disableKeyboardA11y 로 내장 Esc 가 없다). */
   clearSelectionRef?: MutableRefObject<(() => void) | null>;
+  /**
+   * 캔버스가 "지금 고른 흐름 노드·메모와 그린 위치" 를 얻는 함수를 채우는 ref(A1 — 정렬·간격·화살표 옮기기·정렬 메뉴가 부른다).
+   * clearSelectionRef 와 같은 방식이다. 고른 것은 React Flow 선택(그룹 틀 제외), 없으면 selectedId 하나.
+   */
+  alignSourceRef?: MutableRefObject<(() => AlignSource) | null>;
   /** 우클릭·[+] — 대상과 화면 좌표(B7·A3). */
   onContextMenu: (target: MenuTarget, at: { x: number; y: number }) => void;
   /** 즉석 조건식 Enter(B10 — Task 7). */
@@ -194,6 +199,13 @@ export interface FlowCanvasProps {
    * 숨은 멤버는 블록과 맞춘 전체 흐름 자리), blocks 는 접힌 블록이다. page 는 `shiftSpace` 로 편집 한 번을 만든다.
    */
   onShiftSpace?: (axis: SpaceAxis, at: number, delta: number, drawn: Record<string, FlowPos>, blocks: SpaceBlocks) => void;
+}
+
+/** 정렬·옮기기 입력(A1) — 고른 ID(흐름 노드·메모), 그린 위치 전체(공간 넓히기의 drawn 과 같다), 접힌 블록. */
+export interface AlignSource {
+  ids: string[];
+  drawn: Record<string, FlowPos>;
+  blocks: SpaceBlocks;
 }
 
 /** 편집 모드 다중 선택 키 — 누르기로 더하기. */
@@ -684,7 +696,7 @@ function Inner(props: FlowCanvasProps) {
     flow, rules, checks, mode, varDisplay, varLabels, selectedId, selectedEdgeId, overlay, focusId, focusSeq, focusReveal, fitSignal, fitKey,
     breakpoints, collapsed, valueAt, showMiniMap, editingCondEdgeId,
     onSelect, onSelectEdge, onOpenRule, onMove, onMoveNode, onConnect, onReconnect, onDropPalette, onDropRule, onNoteChange, onContextMenu, onToggleBreakpoint,
-    onEditCond, onRouteChange, onLabelOffsetChange, removeRoutePointRef, clearSelectionRef, onEditCondClose, onSelectionChange,
+    onEditCond, onRouteChange, onLabelOffsetChange, removeRoutePointRef, clearSelectionRef, alignSourceRef, onEditCondClose, onSelectionChange,
     spaceTool, onSpaceToolChange, onShiftSpace,
   } = props;
   const editable = mode === "edit";
@@ -1251,6 +1263,26 @@ function Inner(props: FlowCanvasProps) {
     };
   }, [clearSelectionRef]);
 
+  // 정렬·옮기기(A1) — 함수는 한 번 채우고, 읽는 값은 ref 로 늘 최신을 본다(page 가 키·메뉴에서 부를 때).
+  const rfSelRef = useRef(rfSel);
+  rfSelRef.current = rfSel;
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
+  const spaceDrawnRef = useRef<() => Record<string, FlowPos>>(() => ({}));
+  useEffect(() => {
+    if (!alignSourceRef) return;
+    alignSourceRef.current = () => {
+      const cur = fullRef.current;
+      const known = new Set([...cur.nodes.map((n) => n.id), ...cur.view.notes.map((n) => n.id)]);
+      let ids = [...rfSelRef.current].filter((id) => known.has(id));
+      if (ids.length === 0 && selectedIdRef.current && known.has(selectedIdRef.current)) ids = [selectedIdRef.current];
+      return { ids, drawn: spaceDrawnRef.current(), blocks: viewRef.current.blocks };
+    };
+    return () => {
+      alignSourceRef.current = null;
+    };
+  }, [alignSourceRef]);
+
   // 공간 넓히기(S1) — 누른 자리·방향·줄이기 한계는 끄는 동안만 ref 에 둔다. 미리보기는 spaceStore 로만 알린다.
   const spaceToolRef = useRef(!!spaceTool);
   spaceToolRef.current = !!spaceTool;
@@ -1276,6 +1308,7 @@ function Inner(props: FlowCanvasProps) {
     }
     return out;
   };
+  spaceDrawnRef.current = spaceDrawn;
   const startSpaceDrag = (clientX: number, clientY: number) => {
     spaceDragRef.current?.stop();
     const origin = rf.screenToFlowPosition({ x: clientX, y: clientY });
