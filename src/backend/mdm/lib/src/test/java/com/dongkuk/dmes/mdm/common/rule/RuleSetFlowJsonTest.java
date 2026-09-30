@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.FlowDefinition;
@@ -75,12 +74,6 @@ class RuleSetFlowJsonTest {
     }
 
     @Test
-    void 맵과_문자열이_같은_정의가_된다() {
-        Map<String, Object> m = RuleSetFlowJson.toMap(IF_FLOW);
-        assertEquals(RuleSetFlowJson.parse(IF_FLOW), RuleSetFlowJson.fromMap(m));
-    }
-
-    @Test
     void 형식이_틀리면_한국어_문구로_거부한다() {
         assertEquals("흐름은 JSON 객체여야 한다", assertThrows(IllegalArgumentException.class, () -> RuleSetFlowJson.parse("[]")).getMessage());
         assertEquals("흐름 형식 버전은 정수 1 이어야 한다",
@@ -110,7 +103,7 @@ class RuleSetFlowJsonTest {
                         () -> RuleSetFlowJson.parse("{\"version\":1,\"nodes\":[],\"edges\":{\"id\":\"e1\",\"from\":\"a\",\"to\":\"b\"}}")).getMessage());
         assertEquals("흐름의 edges 는 배열이어야 한다",
                 assertThrows(IllegalArgumentException.class,
-                        () -> RuleSetFlowJson.fromMap(Map.of("version", 1, "nodes", List.of(), "edges", "e1"))).getMessage());
+                        () -> RuleSetFlowJson.parse("{\"version\":1,\"nodes\":[],\"edges\":\"e1\"}")).getMessage());
     }
 
     private static final String VALID = """

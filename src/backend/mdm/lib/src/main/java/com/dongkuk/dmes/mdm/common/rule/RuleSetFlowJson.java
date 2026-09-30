@@ -99,11 +99,6 @@ public final class RuleSetFlowJson {
         }
     }
 
-    /** 1단계 {@code RuleSetRunner.trace} 가 아직 쓴다(Task 4 가 지운다). */
-    public static FlowDefinition fromMap(Map<String, Object> flow) {
-        return read(JSON.valueToTree(flow));
-    }
-
     /** 저장된 FLOW_JSON → 맵(조회 응답용, view 포함). */
     public static Map<String, Object> toMap(String json) {
         tree(json);

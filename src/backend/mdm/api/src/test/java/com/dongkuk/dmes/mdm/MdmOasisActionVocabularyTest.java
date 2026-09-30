@@ -70,12 +70,12 @@ class MdmOasisActionVocabularyTest {
         assertTrue(new java.util.HashSet<>(MdmPermissions.EDIT_ACTIONS).containsAll(actionsFromGateway(path)), actionsFromGateway(path).toString());
     }
 
-    /** TSK-08-06 I17. */
+    /** TSK-08-06 I17, 흐름도 2단계 P5(validate·execute). */
     @Test
     void dme_ruleSetEdit_bpmn_의_모든_액션이_어휘와_편집_권한_세트_안에_있다() throws Exception {
         Path path = bpmnPath("dme", "ruleSetEdit.bpmn");
         assertActionsWithinVocabulary(path);
-        assertEquals(Set.of("search", "view", "save", "delete", "restore"), actionsFromGateway(path));
+        assertEquals(Set.of("search", "view", "save", "delete", "restore", "validate", "execute"), actionsFromGateway(path));
         assertTrue(new java.util.HashSet<>(MdmPermissions.EDIT_ACTIONS).containsAll(actionsFromGateway(path)), actionsFromGateway(path).toString());
     }
 

@@ -9,6 +9,8 @@ action=view    -&gt; viewTask    (ruleSetEditService.view)    READ — 세트·�
 action=save    -&gt; saveTask    (ruleSetEditService.save)    EDIT — 서버 재계산 검사 통과 시 세트명·설명·룰 목록 저장(거부 MDM024)
 action=delete  -&gt; deleteTask  (ruleSetEditService.delete)  EDIT — 폐기(INUSE -&gt; DEPRECATED)
 action=restore -&gt; restoreTask (ruleSetEditService.restore) EDIT — 되살리기(검사 통과 시 DEPRECATED -&gt; INUSE)
+action=validate -&gt; validateTask (ruleSetEditService.condIo)   EDIT — 편집 중 흐름의 IF 갈래 조건식 입력(params.flowJson, 원장에 쓰지 않음)
+action=execute  -&gt; executeTask  (ruleSetEditService.simulate) EDIT — 저장 전 흐름 기록 실행 = 디버거(params.flowJson·recordJson·evalTs, 엔진 스키마 RunTrace)
 
 BPMN 의 action(RBAC 키)과 서비스의 method(자바 메서드명)는 별개다. search 의 갈래(target)는 Java 가 가른다(두 번째 게이트웨이 금지).
 세트에는 버전·DRAFT·선점이 없고 ROW_VERSION(MDM001)으로만 동시 편집을 막는다. 담당자 역할은 서버가 RuleStewardCheck 로 다시 본다(MDM013).</bpmn:documentation>
@@ -27,6 +29,8 @@ BPMN 의 action(RBAC 키)과 서비스의 method(자바 메서드명)는 별개�
       <bpmn:outgoing>flow_save</bpmn:outgoing>
       <bpmn:outgoing>flow_delete</bpmn:outgoing>
       <bpmn:outgoing>flow_restore</bpmn:outgoing>
+      <bpmn:outgoing>flow_validate</bpmn:outgoing>
+      <bpmn:outgoing>flow_execute</bpmn:outgoing>
     </bpmn:exclusiveGateway>
     <bpmn:serviceTask id="searchTask" name="세트·룰 찾기·구성 지침" camunda:class="ruleSetEditService">
       <bpmn:extensionElements>
@@ -109,6 +113,38 @@ BPMN 의 action(RBAC 키)과 서비스의 method(자바 메서드명)는 별개�
     <bpmn:sequenceFlow id="flow_save_end" sourceRef="saveTask" targetRef="endSave" />
     <bpmn:sequenceFlow id="flow_delete_end" sourceRef="deleteTask" targetRef="endDelete" />
     <bpmn:sequenceFlow id="flow_restore_end" sourceRef="restoreTask" targetRef="endRestore" />
+    <bpmn:serviceTask id="validateTask" name="조건식 IO" camunda:class="ruleSetEditService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="condIo" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetCondIoRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_validate</bpmn:incoming>
+      <bpmn:outgoing>flow_validate_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_validate" name="조건식 IO 완료">
+      <bpmn:incoming>flow_validate_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_validate" name="validate" sourceRef="actionGateway" targetRef="validateTask" />
+    <bpmn:sequenceFlow id="flow_validate_end" sourceRef="validateTask" targetRef="end_validate" />
+    <bpmn:serviceTask id="executeTask" name="기록 실행" camunda:class="ruleSetEditService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="simulate" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetSimulateRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_execute</bpmn:incoming>
+      <bpmn:outgoing>flow_execute_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_execute" name="기록 실행 완료">
+      <bpmn:incoming>flow_execute_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_execute" name="execute" sourceRef="actionGateway" targetRef="executeTask" />
+    <bpmn:sequenceFlow id="flow_execute_end" sourceRef="executeTask" targetRef="end_execute" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="ruleSetEdit">
@@ -211,6 +247,42 @@ BPMN 의 action(RBAC 키)과 서비스의 method(자바 메서드명)는 별개�
       <bpmndi:BPMNEdge id="flow_restore_end_di" bpmnElement="flow_restore_end">
         <di:waypoint x="500" y="740" />
         <di:waypoint x="600" y="740" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="validateTask_di" bpmnElement="validateTask">
+        <dc:Bounds x="400" y="850" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_validate_di" bpmnElement="end_validate">
+        <dc:Bounds x="600" y="872" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_validate_di" bpmnElement="flow_validate">
+        <di:waypoint x="275" y="443" />
+        <di:waypoint x="275" y="890" />
+        <di:waypoint x="400" y="890" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="317.5" y="873" width="64" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_validate_end_di" bpmnElement="flow_validate_end">
+        <di:waypoint x="500" y="890" />
+        <di:waypoint x="600" y="890" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="executeTask_di" bpmnElement="executeTask">
+        <dc:Bounds x="400" y="1000" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_execute_di" bpmnElement="end_execute">
+        <dc:Bounds x="600" y="1022" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_execute_di" bpmnElement="flow_execute">
+        <di:waypoint x="275" y="443" />
+        <di:waypoint x="275" y="1040" />
+        <di:waypoint x="400" y="1040" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="317.5" y="1023" width="56" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_execute_end_di" bpmnElement="flow_execute_end">
+        <di:waypoint x="500" y="1040" />
+        <di:waypoint x="600" y="1040" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

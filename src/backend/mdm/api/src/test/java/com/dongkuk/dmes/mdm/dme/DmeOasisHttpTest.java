@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
+import com.dongkuk.dmes.mdm.dme.ruleSetEdit.RuleSetSimulateTest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -360,6 +361,35 @@ class DmeOasisHttpTest {
         assertEquals(1, f.path("edges").path(2).path("order").asInt(), stored);
         assertTrue(f.path("edges").path(3).path("otherwise").isBoolean() && f.path("edges").path(3).path("otherwise").asBoolean(), stored);
         assertTrue(f.path("view").path("positions").path("r1").path("x").isNumber(), stored);
+    }
+
+    /**
+     * 흐름도 2단계 P5·§9.1-2 — 디버거 기록 실행(execute → simulate)·조건식 IO(validate → condIo)는 화면이 보낼 모양 그대로 params 에 문자열
+     * (flowJson·recordJson·evalTs)만 싣고 grids 는 두지 않는다. HTTP 로 받은 기록은 엔진 스키마 RunTrace 를 따르고 골든 사례와 JSON 이 같다 — 전송
+     * 직렬화가 null 칸을 버리거나 모양을 바꾸면 여기서 잡힌다. READ 역할의 거부는 BFF RBAC(403) 몫이라 여기 두지 않는다.
+     */
+    @Test
+    void 기록_실행과_조건식_IO_는_문자열_params_로_부르고_기록은_엔진_스키마와_골든_그대로_온다() throws Exception {
+        RuleSetSimulateTest.seedGolden(jdbc);
+        JsonNode golden = RuleSetSimulateTest.readGolden().get("IF_FIRST_TRUE");
+        ObjectNode params = json.createObjectNode().put("flowJson", golden.path("flowJson").asText())
+                .put("recordJson", golden.path("recordJson").asText()).put("evalTs", golden.path("evalTs").asText());
+
+        JsonNode exec = post("ruleSetEdit", "execute", "kim", envelope("ruleSetEdit", params));
+
+        assertTrue(exec.path("meta").path("success").asBoolean(false), exec.toString());
+        JsonNode trace = exec.path("data").path("result").path("trace");
+        List<String> nodeIds = new java.util.ArrayList<>();
+        trace.path("nodes").forEach(n -> nodeIds.add(n.path("nodeId").asText()));
+        assertEquals(List.of("start", "r1", "if1", "r2", "m1", "end"), nodeIds, trace.toString());
+        assertEquals(java.util.Set.of(), RuleSetSimulateTest.RUN_TRACE_SCHEMA.validate(trace), trace.toString());
+        assertEquals(golden.path("response").path("trace"), trace);
+        assertEquals(golden.path("response").path("warnings"), exec.path("data").path("result").path("warnings"));
+
+        JsonNode validate = post("ruleSetEdit", "validate", "kim", envelope("ruleSetEdit",
+                json.createObjectNode().put("flowJson", golden.path("flowJson").asText())));
+        assertTrue(validate.path("meta").path("success").asBoolean(false), validate.toString());
+        assertTrue(validate.path("data").path("result").path("condIo").path("e3").path("ok").asBoolean(false), validate.toString());
     }
 
     /** TSK-08-06 I19 — 담당자 역할이 없는 사용자의 세트 등록·저장은 서버가 MDM013 으로 막는다(BFF RBAC 403 은 e2e 가 본다). */
