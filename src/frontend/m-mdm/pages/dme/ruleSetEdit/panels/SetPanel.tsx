@@ -16,8 +16,6 @@ import type { EditFlow } from "../flow-edit";
 import { flowIo } from "../set-model";
 import type { RuleIo, RuleIoMap } from "../types";
 
-import "./panels.css";
-
 export interface SetPanelProps {
   flow: EditFlow;
   rules: RuleIoMap;

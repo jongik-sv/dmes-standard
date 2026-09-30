@@ -45,6 +45,7 @@ import { BottomPanel, type BottomTab } from "./panels/BottomPanel";
 import { ChecksPanel } from "./panels/ChecksPanel";
 import { PropertyPanel } from "./panels/PropertyPanel";
 import { SetPanel } from "./panels/SetPanel";
+import { RSF_CSS, RSF_STYLE_HREF } from "./rsf-styles";
 import { useRuleSetEdit } from "./state/useRuleSetEdit";
 import { overlayAt } from "./trace-view";
 import type { RuleIo } from "./types";
@@ -59,6 +60,11 @@ const NO_TARGET_EDGE = "끼울 선을 찾지 못했다. 캔버스에서 선을 �
 const GROUP_TITLE = "그룹";
 /** 새 메모를 선택 노드 오른쪽에 둘 때의 간격(px). */
 const NOTE_GAP = 24;
+/**
+ * 아래 패널 기본 높이(px, 사용자가 끌어 바꾼 값은 storageKey 로 남는다). 220 → 280: 탭 머리(약 36)와 고정 버튼 줄(따라가기 상태 포함 약 60)을 빼고도
+ * 입력 칸 4~5줄이 보이게. 1030px 높이 화면에서 캔버스 쪽은 minSize 200 보다 넉넉히 남는다.
+ */
+const BOTTOM_HEIGHT = 280;
 
 async function searchSetPicks(keyword: string): Promise<IdPickRow[]> {
   const res = await searchSets(keyword);
@@ -282,148 +288,155 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   );
 
   return (
-    <MdmPageLayout group="dme" screenId={SCREEN_ID} title="룰 세트 편집">
-      <div
-        data-testid="set-edit-topbar"
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          alignItems: "center",
-          gap: "var(--spacing-sm)",
-          padding: "var(--spacing-sm) var(--spacing-md)",
-          borderBottom: "1px solid var(--color-border-light)",
-        }}
-      >
-        <IdPicker
-          label="룰 세트"
-          placeholder="세트 ID·세트명"
-          noun="세트"
-          testId="set-pick"
-          search={searchSetPicks}
-          limit={SET_PICK_LIMIT}
-          onPick={(id) => void open(id)}
-          onError={state.reportError}
-        />
-        {view && (
+    <>
+      {/* 화면 스타일 — 포털이 dist 의 page.css 를 불러오지 않으므로 문서 head 에 한 번만 넣는다(React 19 precedence, href 로 중복 제거). */}
+      <style href={RSF_STYLE_HREF} precedence="default">
+        {RSF_CSS}
+      </style>
+      <MdmPageLayout group="dme" screenId={SCREEN_ID} title="룰 세트 편집">
+        <div
+          data-testid="set-edit-topbar"
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: "var(--spacing-sm)",
+            padding: "var(--spacing-sm) var(--spacing-md)",
+            borderBottom: "1px solid var(--color-border-light)",
+          }}
+        >
+          <IdPicker
+            label="룰 세트"
+            placeholder="세트 ID·세트명"
+            noun="세트"
+            testId="set-pick"
+            search={searchSetPicks}
+            limit={SET_PICK_LIMIT}
+            onPick={(id) => void open(id)}
+            onError={state.reportError}
+          />
+          {view && (
+            <>
+              <span aria-hidden style={{ alignSelf: "stretch", width: 1, margin: "2px var(--spacing-xs)", background: "var(--color-border)" }} />
+              <span data-testid="set-edit-current" style={{ fontWeight: 600 }}>
+                {`${view.set.setId} · ${view.set.setName}`}
+              </span>
+            </>
+          )}
+        </div>
+
+        {!view || !flow ? (
+          <p data-testid="set-edit-empty" style={{ padding: "var(--spacing-lg) var(--spacing-md)", color: "var(--color-text-muted)" }}>
+            세트를 골라 편집한다. 새 세트는 룰 세트 화면에서 등록한다
+          </p>
+        ) : (
           <>
-            <span aria-hidden style={{ alignSelf: "stretch", width: 1, margin: "2px var(--spacing-xs)", background: "var(--color-border)" }} />
-            <span data-testid="set-edit-current" style={{ fontWeight: 600 }}>
-              {`${view.set.setId} · ${view.set.setName}`}
-            </span>
+            <FlowToolbar
+              state={state}
+              canDo={canDo}
+              canEdit={canEdit}
+              showVars={showVars}
+              onToggleVars={() => setShowVars((v) => !v)}
+              onAutoLayout={onAutoLayout}
+              onFit={() => setFitSignal((s) => s + 1)}
+            />
+            <ContentBody root direction="column" resizable storageKey={STORAGE_KEY}>
+              <ContentBody key="main" resizable storageKey={`${STORAGE_KEY}.main`} flex="1 1 0" minSize={200}>
+                <ContentPanel key="canvas" flex="1 1 0" minSize={320}>
+                  <div className="rsf-body">
+                    {editing && <FlowPalette onPick={(item) => pick(item, selectedEdgeId)} disabled={state.loading} />}
+                    <div className="rsf-canvas-host">
+                      <FlowCanvas
+                        flow={flow}
+                        rules={state.rules}
+                        checks={state.checks}
+                        mode={editing ? "edit" : "view"}
+                        showVars={showVars}
+                        selectedId={selectedId}
+                        selectedEdgeId={selectedEdgeId}
+                        overlay={overlay}
+                        focusId={focus.id}
+                        focusSeq={focus.seq}
+                        fitSignal={fitSignal}
+                        fitKey={setId}
+                        onSelect={select}
+                        onSelectEdge={selectEdge}
+                        onOpenRule={openRule}
+                        onMove={onMove}
+                        onConnect={onConnect}
+                        onDeleteEdge={onDeleteEdge}
+                        onDropPalette={onDropPalette}
+                        onNoteChange={onNoteChange}
+                        onSelectionChange={setMultiSel}
+                      />
+                    </div>
+                  </div>
+                </ContentPanel>
+                <ContentPanel key="props" width={360} minSize={280}>
+                  <div className="rsf-props" data-testid="flow-props">
+                    {showDetail && (
+                      <Tabs
+                        items={[
+                          { key: "detail", label: <span data-testid="flow-right-tab-detail">실행 결과</span> },
+                          { key: "props", label: <span data-testid="flow-right-tab-props">속성</span> },
+                        ]}
+                        activeKey={rightTab}
+                        onChange={(k) => setRightTab(k as "detail" | "props")}
+                      />
+                    )}
+                    {showDetail && simResult && rightTab === "detail" ? (
+                      <TraceDetail
+                        nodeId={selectedId!}
+                        node={simResult.trace.nodes.find((n) => n.nodeId === selectedId) ?? null}
+                        flow={simResult.flow}
+                        traceViolations={simResult.trace.violations ?? []}
+                        onOpenRule={openRule}
+                      />
+                    ) : selectedExists && selectedId ? (
+                      <PropertyPanel
+                        flow={flow}
+                        rules={state.rules}
+                        checks={state.checks}
+                        selectedId={selectedId}
+                        selectedNodeIds={multiSel}
+                        editable={editing && !state.loading}
+                        onEdit={edit}
+                        onOpenRule={openRule}
+                      />
+                    ) : (
+                      <SetPanel
+                        flow={flow}
+                        rules={state.rules}
+                        setName={state.setName}
+                        description={state.description}
+                        editable={editing && !state.loading}
+                        onSetName={state.setSetName}
+                        onDescription={state.setDescription}
+                        canApplyGuide={editing && !isBranched && !state.loading}
+                        guideHint={guideHint}
+                        onApplyGuide={state.applyGuide}
+                        onError={state.reportError}
+                      />
+                    )}
+                  </div>
+                </ContentPanel>
+              </ContentBody>
+              {bottomCollapsed ? (
+                <div key="bottom-bar" className="rsf-bottom-bar">
+                  {bottom}
+                </div>
+              ) : (
+                <ContentPanel key="bottom" height={BOTTOM_HEIGHT} minSize={120}>
+                  {bottom}
+                </ContentPanel>
+              )}
+            </ContentBody>
+            <RuleSearchModal opened={ruleModal} usedRuleIds={usedRuleIds} onClose={() => setRuleModal(false)} onPick={onPickRule} />
           </>
         )}
-      </div>
 
-      {!view || !flow ? (
-        <p data-testid="set-edit-empty" style={{ padding: "var(--spacing-lg) var(--spacing-md)", color: "var(--color-text-muted)" }}>
-          세트를 골라 편집한다. 새 세트는 룰 세트 화면에서 등록한다
-        </p>
-      ) : (
-        <>
-          <FlowToolbar
-            state={state}
-            canDo={canDo}
-            canEdit={canEdit}
-            showVars={showVars}
-            onToggleVars={() => setShowVars((v) => !v)}
-            onAutoLayout={onAutoLayout}
-            onFit={() => setFitSignal((s) => s + 1)}
-          />
-          <ContentBody root direction="column" resizable storageKey={STORAGE_KEY}>
-            <ContentBody key="main" resizable storageKey={`${STORAGE_KEY}.main`} flex="1 1 0" minSize={200}>
-              <ContentPanel key="canvas" flex="1 1 0" minSize={320}>
-                <div className="rsf-body">
-                  {editing && <FlowPalette onPick={(item) => pick(item, selectedEdgeId)} disabled={state.loading} />}
-                  <div className="rsf-canvas-host">
-                    <FlowCanvas
-                      flow={flow}
-                      rules={state.rules}
-                      checks={state.checks}
-                      mode={editing ? "edit" : "view"}
-                      showVars={showVars}
-                      selectedId={selectedId}
-                      selectedEdgeId={selectedEdgeId}
-                      overlay={overlay}
-                      focusId={focus.id}
-                      focusSeq={focus.seq}
-                      fitSignal={fitSignal}
-                      onSelect={select}
-                      onSelectEdge={selectEdge}
-                      onOpenRule={openRule}
-                      onMove={onMove}
-                      onConnect={onConnect}
-                      onDeleteEdge={onDeleteEdge}
-                      onDropPalette={onDropPalette}
-                      onNoteChange={onNoteChange}
-                      onSelectionChange={setMultiSel}
-                    />
-                  </div>
-                </div>
-              </ContentPanel>
-              <ContentPanel key="props" width={360} minSize={280}>
-                <div className="rsf-props" data-testid="flow-props">
-                  {showDetail && (
-                    <Tabs
-                      items={[
-                        { key: "detail", label: <span data-testid="flow-right-tab-detail">실행 결과</span> },
-                        { key: "props", label: <span data-testid="flow-right-tab-props">속성</span> },
-                      ]}
-                      activeKey={rightTab}
-                      onChange={(k) => setRightTab(k as "detail" | "props")}
-                    />
-                  )}
-                  {showDetail && simResult && rightTab === "detail" ? (
-                    <TraceDetail
-                      nodeId={selectedId!}
-                      node={simResult.trace.nodes.find((n) => n.nodeId === selectedId) ?? null}
-                      flow={simResult.flow}
-                      traceViolations={simResult.trace.violations ?? []}
-                      onOpenRule={openRule}
-                    />
-                  ) : selectedExists && selectedId ? (
-                    <PropertyPanel
-                      flow={flow}
-                      rules={state.rules}
-                      checks={state.checks}
-                      selectedId={selectedId}
-                      selectedNodeIds={multiSel}
-                      editable={editing && !state.loading}
-                      onEdit={edit}
-                      onOpenRule={openRule}
-                    />
-                  ) : (
-                    <SetPanel
-                      flow={flow}
-                      rules={state.rules}
-                      setName={state.setName}
-                      description={state.description}
-                      editable={editing && !state.loading}
-                      onSetName={state.setSetName}
-                      onDescription={state.setDescription}
-                      canApplyGuide={editing && !isBranched && !state.loading}
-                      guideHint={guideHint}
-                      onApplyGuide={state.applyGuide}
-                      onError={state.reportError}
-                    />
-                  )}
-                </div>
-              </ContentPanel>
-            </ContentBody>
-            {bottomCollapsed ? (
-              <div key="bottom-bar" className="rsf-bottom-bar">
-                {bottom}
-              </div>
-            ) : (
-              <ContentPanel key="bottom" height={220} minSize={120}>
-                {bottom}
-              </ContentPanel>
-            )}
-          </ContentBody>
-          <RuleSearchModal opened={ruleModal} usedRuleIds={usedRuleIds} onClose={() => setRuleModal(false)} onPick={onPickRule} />
-        </>
-      )}
-
-      {state.error && <ErrorModal message={state.error} onClose={state.clearError} />}
-    </MdmPageLayout>
+        {state.error && <ErrorModal message={state.error} onClose={state.clearError} />}
+      </MdmPageLayout>
+    </>
   );
 }

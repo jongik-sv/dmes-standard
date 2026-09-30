@@ -36,8 +36,6 @@ import { parseFlow, type FlowTree } from "../flow-model";
 import type { IoName, RuleIo, RuleIoMap, RuleSetCheck } from "../types";
 import { CheckBadge } from "./ChecksPanel";
 
-import "./panels.css";
-
 export interface PropertyPanelProps {
   flow: EditFlow;
   rules: RuleIoMap;

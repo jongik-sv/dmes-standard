@@ -10,8 +10,6 @@ import { badgeStyle } from "@/shell";
 
 import type { RuleSetCheck } from "../types";
 
-import "./panels.css";
-
 /** 거부 배지 — shared 배지 톤에 위험 톤이 없어 같은 모양에 위험 토큰을 입힌다. */
 export const REJECT_BADGE: CSSProperties = { ...badgeStyle("neutral"), color: "var(--color-danger)", background: "var(--color-danger-soft)" };
 

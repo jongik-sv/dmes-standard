@@ -32,13 +32,17 @@ import {
   type NodeChange,
 } from "./react-flow";
 
-import "./canvas.css";
-
 export type PaletteItem = "rule" | "if" | "par" | "note" | "group";
 export const PALETTE_MIME = "application/x-rsf-palette";
 const PALETTE_ITEMS: readonly string[] = ["rule", "if", "par", "note", "group"];
 const GROUP_MARGIN = 16;
 const FLASH_MS = 1200;
+/** 화면 맞춤 여백·확대 한계. 최소 배율 0.1 — 노드 24~27개(높이 약 2050px) 흐름이 400px 대 캔버스에 들어가려면 약 0.17 이 필요하다. */
+const FIT_OPTIONS = { padding: 0.15 };
+const MIN_ZOOM = 0.1;
+const MAX_ZOOM = 2;
+
+type Measured = { width: number; height: number };
 
 export interface FlowCanvasProps {
   flow: EditFlow;
@@ -61,6 +65,11 @@ export interface FlowCanvasProps {
   onNoteChange: (id: string, patch: Partial<FlowNote>) => void;
   /** 값이 바뀔 때마다 화면 맞춤(선택 추가 — 툴바의 [화면 맞춤]). */
   fitSignal?: number;
+  /**
+   * 흐름의 주인(세트 ID). 바뀌면 새 흐름을 그린 뒤 곧바로(애니메이션 없이) 화면을 맞춘다 — 이전 세트의 확대·이동이 남지 않게.
+   * 같은 값으로 흐름만 바뀌면(편집·저장·같은 세트 다시 열기) 맞추지 않는다.
+   */
+  fitKey?: string | null;
   /**
    * React Flow 다중 선택이 바뀌면 고른 흐름 노드 ID(메모·그룹 제외)를 올린다. 선택이 모두 풀리면 빈 목록이다.
    * 메모·그룹만 고른 경우는 올리지 않는다 — 노드를 여러 개 고른 뒤 그룹 제목을 눌러 [선택 노드 더하기] 를 쓸 수 있게 한다.
@@ -146,7 +155,7 @@ function isTyping(t: EventTarget | null): boolean {
 
 function Inner(props: FlowCanvasProps) {
   const {
-    flow, rules, checks, mode, showVars, selectedId, selectedEdgeId, overlay, focusId, focusSeq, fitSignal,
+    flow, rules, checks, mode, showVars, selectedId, selectedEdgeId, overlay, focusId, focusSeq, fitSignal, fitKey,
     onSelect, onSelectEdge, onOpenRule, onMove, onConnect, onDeleteEdge, onDropPalette, onNoteChange, onSelectionChange,
   } = props;
   const editable = mode === "edit";
@@ -155,6 +164,13 @@ function Inner(props: FlowCanvasProps) {
   const [flashId, setFlashId] = useState<string | null>(null);
   /** React Flow 선택(노드·메모·그룹 ID). 노드 배열을 제어하므로 select 변경을 여기 적는다. */
   const [rfSel, setRfSel] = useState<ReadonlySet<string>>(() => new Set());
+  /**
+   * React Flow 가 잰 노드 크기(dimensions 변경). 노드 배열을 새로 만들 때 `measured` 로 되돌려 준다.
+   * 빠지면 React Flow 는 새 노드 객체를 "아직 안 잰 노드" 로 보는데, width/height 를 준 노드는 다시 재지 않으므로
+   * fitView 가 무기한 미뤄지거나(= [화면 맞춤] 무반응) 나중에 잰 노드만으로 맞춰 최대 배율에 걸린다(브라우저 확인 3번).
+   * 세트를 바꿔도 비우지 않는다 — start·r1·end 같은 ID 는 세트마다 겹치고, 그 노드는 다시 재지 않는다. 크기가 바뀌면 React Flow 가 다시 잰다.
+   */
+  const [measured, setMeasured] = useState<Readonly<Record<string, Measured>>>({});
 
   // 부모가 새 흐름을 내려주면 끌던 중 위치는 버린다(부모 값이 정본).
   useEffect(() => setDrag({}), [flow]);
@@ -172,7 +188,7 @@ function Inner(props: FlowCanvasProps) {
       if (!b) continue;
       const data: GroupNodeData = { id: g.id, title: g.title, selected: selectedId === g.id };
       out.push({
-        id: g.id, type: "rsfGroup", position: { x: b.x, y: b.y }, width: b.w, height: b.h, data, selected: rfSel.has(g.id),
+        id: g.id, type: "rsfGroup", position: { x: b.x, y: b.y }, width: b.w, height: b.h, measured: measured[g.id], data, selected: rfSel.has(g.id),
         draggable: false, connectable: false, zIndex: -1, style: { pointerEvents: "none" },
       });
     }
@@ -189,18 +205,19 @@ function Inner(props: FlowCanvasProps) {
         onOpenRule,
       };
       out.push({
-        id: n.id, type: "rsfFlow", position: p, width: s.w, height: s.h, data, handles: handlesOf(n.kind), draggable: editable, selected: rfSel.has(n.id),
+        id: n.id, type: "rsfFlow", position: p, width: s.w, height: s.h, measured: measured[n.id], data, handles: handlesOf(n.kind), draggable: editable,
+        selected: rfSel.has(n.id),
       });
     }
     for (const note of flow.view.notes) {
       const data: NoteNodeData = { note, selected: selectedId === note.id, editable, onChange: onNoteChange };
       out.push({
         id: note.id, type: "rsfNote", position: { x: drag[note.id]?.x ?? note.x, y: drag[note.id]?.y ?? note.y },
-        width: note.w, height: note.h, data, draggable: editable, connectable: false, selected: rfSel.has(note.id),
+        width: note.w, height: note.h, measured: measured[note.id], data, draggable: editable, connectable: false, selected: rfSel.has(note.id),
       });
     }
     return out;
-  }, [flow, pos, drag, rules, marks, overlay, selectedId, flashId, editable, onOpenRule, onNoteChange, rfSel]);
+  }, [flow, pos, drag, rules, marks, overlay, selectedId, flashId, editable, onOpenRule, onNoteChange, rfSel, measured]);
 
   const edges = useMemo(() => {
     const kindOf = new Map(flow.nodes.map((n) => [n.id, n.kind] as const));
@@ -216,6 +233,19 @@ function Inner(props: FlowCanvasProps) {
   }, [flow, chips, overlay, eMarks, showVars, selectedEdgeId]);
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
+    const dims = changes.filter((c): c is Extract<NodeChange, { type: "dimensions" }> => c.type === "dimensions" && !!c.dimensions);
+    if (dims.length > 0) {
+      setMeasured((cur) => {
+        let next: Record<string, Measured> | null = null;
+        for (const c of dims) {
+          const { width, height } = c.dimensions!;
+          if (cur[c.id]?.width === width && cur[c.id]?.height === height) continue;
+          next ??= { ...cur };
+          next[c.id] = { width, height };
+        }
+        return next ?? cur; // 같은 값이면 상태를 바꾸지 않는다(다시 그리기 반복 방지)
+      });
+    }
     const selects = changes.filter((c): c is Extract<NodeChange, { type: "select" }> => c.type === "select");
     if (selects.length > 0) {
       setRfSel((cur) => {
@@ -294,14 +324,15 @@ function Inner(props: FlowCanvasProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusSeq, focusId]);
 
-  const firstFit = useRef(true);
+  // 처음 그릴 때는 ReactFlow 의 fitView 가 맞춘다. 그 뒤 [화면 맞춤](fitSignal)·세트 바꿈(fitKey)마다 맞춘다.
+  // rf.fitView 는 노드를 다 잴 때까지 기다렸다 맞추므로 새 세트의 노드를 그리기 전에 불러도 된다.
+  const lastFit = useRef({ signal: fitSignal, key: fitKey });
   useEffect(() => {
-    if (firstFit.current) {
-      firstFit.current = false;
-      return;
-    }
-    void rf.fitView({ duration: 200, padding: 0.15 });
-  }, [fitSignal, rf]);
+    const last = lastFit.current;
+    if (last.signal === fitSignal && last.key === fitKey) return;
+    lastFit.current = { signal: fitSignal, key: fitKey };
+    void rf.fitView({ ...FIT_OPTIONS, duration: last.key === fitKey ? 200 : 0 });
+  }, [fitSignal, fitKey, rf]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (!editable || !selectedEdgeId || isTyping(e.target)) return;
@@ -347,9 +378,9 @@ function Inner(props: FlowCanvasProps) {
         selectionKeyCode={editable ? "Shift" : null}
         multiSelectionKeyCode={editable ? MULTI_KEYS : null}
         fitView
-        fitViewOptions={{ padding: 0.15 }}
-        minZoom={0.2}
-        maxZoom={2}
+        fitViewOptions={FIT_OPTIONS}
+        minZoom={MIN_ZOOM}
+        maxZoom={MAX_ZOOM}
         proOptions={{ hideAttribution: true }}
         onNodesChange={onNodesChange}
         onNodeDragStop={onNodeDragStop}

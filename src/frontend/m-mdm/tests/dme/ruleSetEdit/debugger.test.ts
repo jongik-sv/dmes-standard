@@ -260,6 +260,24 @@ describe("디버거(시뮬레이션 탭)", () => {
     expect(byTestId<HTMLButtonElement>("sim-next").disabled).toBe(true);
   });
 
+  it("[실행]·따라가기 버튼 줄은 스크롤 밖(탭 머리 쪽)에 고정되고, 입력 폼·값 표만 스크롤된다(브라우저 확인 4번)", async () => {
+    await openCase("PARALLEL_MERGE");
+    await runSim({ GT_THK: "12", GT_KIND: "x" });
+    const bar = byTestId("sim-bar");
+    const scroll = byTestId("sim-scroll");
+    for (const id of ["sim-run", "sim-clear", "sim-first", "sim-prev", "sim-next", "sim-last", "sim-status"]) {
+      expect(bar.contains(byTestId(id)), id).toBe(true);
+      expect(scroll.contains(byTestId(id)), id).toBe(false);
+    }
+    for (const id of ["sim-input-GT_THK", "sim-json", "sim-evalts", "sim-values"]) expect(scroll.contains(byTestId(id)), id).toBe(true);
+    expect(bar.compareDocumentPosition(scroll) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); // 버튼 줄이 위
+    expect(byTestId("sim-panel").contains(bar)).toBe(true); // ← → 키가 버튼 줄에 포커스가 있어도 된다
+    // 아래 패널 본문은 시뮬레이션 탭에서 스스로 스크롤하지 않는다(스크롤은 sim-scroll 몫). 검사 결과 탭은 본문이 스크롤한다.
+    expect(byTestId("flow-bottom-body").getAttribute("data-tab")).toBe("sim");
+    await click("flow-tab-checks");
+    expect(byTestId("flow-bottom-body").getAttribute("data-tab")).toBe("checks");
+  });
+
   it("← → 키로도 단계를 넘긴다", async () => {
     await openCase("PARALLEL_MERGE");
     await runSim({ GT_THK: "12", GT_KIND: "x" });
