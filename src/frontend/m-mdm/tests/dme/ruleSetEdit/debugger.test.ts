@@ -81,6 +81,8 @@ const originalFetch = globalThis.fetch;
 let requests: Array<{ action: string; body: Record<string, unknown> }> = [];
 let views: Record<string, RuleSetView> = {};
 let replies: Record<string, unknown> = {};
+/** 값이 있으면 execute 응답을 이 약속이 풀릴 때까지 붙잡아 둔다(늦은 응답 재현). */
+let executeGate: Promise<void> | null = null;
 let rbacRows: Array<Record<string, string>> = [];
 const ok = (result: unknown) => ({ meta: { success: true }, data: { result } });
 const calls = (action: string) => requests.filter((r) => r.action === action);
@@ -142,6 +144,7 @@ async function runSim(values: Record<string, string> = {}) {
 beforeEach(() => {
   installDomStorage();
   requests = [];
+  executeGate = null;
   views = {};
   replies = {};
   rbacRows = [{ objId: "*", action: "*", endpoint: "*", httpMethod: "*" }];
@@ -160,6 +163,7 @@ beforeEach(() => {
         const v = views[params.setId];
         return jsonResponse(v ? ok(v) : { meta: { success: false, message: `룰 세트를 찾을 수 없습니다: ${params.setId}` } });
       }
+      if (action === "execute" && executeGate) await executeGate;
       return jsonResponse(replies[action === "search" ? `search:${params.target ?? "SET"}` : action] ?? ok({}));
     }
     if (url.includes("/api/auth/me")) return jsonResponse({ user: { id: "tester" } });
@@ -376,6 +380,34 @@ describe("디버거(시뮬레이션 탭)", () => {
     expect(nodeState("end")).toBe("idle");
     expect(q("sim-values")).toBeNull();
     expect(status()).not.toContain("흐름이 바뀌어");
+  });
+
+  it("다시 실행하는 중에 구조를 바꾸면 [실행] 이 다시 켜지고 안내가 보이며, 늦은 응답은 무시된다", async () => {
+    await openCase("PARALLEL_MERGE");
+    await runSim({ GT_THK: "12", GT_KIND: "x" });
+    await click("flow-mode-edit");
+    let release!: () => void;
+    executeGate = new Promise<void>((r) => {
+      release = r;
+    });
+    await click("sim-run");
+    expect(status()).toContain("완료");
+    expect(byTestId<HTMLButtonElement>("sim-run").disabled).toBe(true);
+    await click("flow-node-r2");
+    await click("flow-right-tab-props");
+    await click("flow-prop-delete");
+    await settle(50);
+    expect(byTestId<HTMLButtonElement>("sim-run").disabled).toBe(false);
+    expect(status()).toBe("흐름이 바뀌어 실행 표시를 지웠다. 다시 실행한다");
+    await act(async () => {
+      release();
+    });
+    await settle(50);
+    expect(calls("execute")).toHaveLength(2);
+    expect(q("sim-values")).toBeNull();
+    expect(nodeState("end")).toBe("idle");
+    expect(byTestId<HTMLButtonElement>("sim-run").disabled).toBe(false);
+    expect(status()).toBe("흐름이 바뀌어 실행 표시를 지웠다. 다시 실행한다");
   });
 
   it("갈래 이름(label)만 고치면 실행 표시가 남는다", async () => {

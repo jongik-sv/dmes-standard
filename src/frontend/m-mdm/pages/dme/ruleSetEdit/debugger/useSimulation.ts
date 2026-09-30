@@ -110,6 +110,7 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
       setStored(null);
       setStepState(0);
       setClearedByEdit(true);
+      setRunning(false); // 다시 실행하는 중이었다면 늦게 올 응답은 순번이 안 맞아 버려지므로 여기서 실행 중 표시를 끈다.
     }
     // 응답을 기다리는 동안 구조가 바뀐 경우는 저장본이 없으므로 여기서 잡지 못한다 — run() 이 응답이 올 때 버린다.
   }, [setId, flowVersion, stored]);
