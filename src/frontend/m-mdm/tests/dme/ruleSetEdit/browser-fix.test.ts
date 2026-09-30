@@ -18,7 +18,7 @@ vi.mock("@/shell", async (importOriginal) => ({
 }));
 
 import {
-  copyFragment, duplicateNode, insertSplit, pasteFragment, setPositions, toEditFlow,
+  copyFragment, duplicateNode, insertRule, insertSplit, pasteFragment, setPositions, toEditFlow,
   type EditFlow, type EditResult, type Fragment,
 } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { NODE_SIZE, autoLayout, placeNewNodes, positionsOf } from "../../../pages/dme/ruleSetEdit/flow-layout";
@@ -152,6 +152,21 @@ describe("저장 위치가 있는 흐름에 새 노드 넣기(브라우저 확�
     // 분기와 합류의 상대 위치는 자동 배치 그대로
     expect(p.m2.x - p.if2.x).toBe(dag.m2.x - dag.if2.x);
     expect(p.m2.y - p.if2.y).toBe(dag.m2.y - dag.if2.y);
+  });
+
+  it("placeNewNodes — 보고 재현 모양: 옮겨 둔 IF 블록이 있는 흐름에서 다른 IF 의 '그 외' 선에 룰을 끼워도 겹치지 않는다", () => {
+    let g = ok(insertSplit(chain(), "e2", "IF")); // if1·m1
+    g = ok(insertSplit(g, g.edges.find((e) => e.to === "r3")!.id, "IF")); // if2·m2
+    const other = g.edges.find((e) => e.from === "if2" && e.otherwise)!.id;
+    const spot = autoLayout(ok(insertRule(g, other, "BF_A"))).r4;
+    const moved = positionsOf(g);
+    // if1 블록을 옮겨 두되 합류 m1 을 새 룰의 자동 배치 자리에 둔다(보고의 r3~m1).
+    const dx = spot.x - moved.m1.x;
+    const dy = spot.y - moved.m1.y;
+    const f = setPositions(g, Object.fromEntries(["if1", "r2", "m1"].map((id) => [id, { x: moved[id].x + dx, y: moved[id].y + dy }])));
+    const after = ok(insertRule(f, other, "BF_A"));
+    expect(clashes(boxesOf(after), ["r4"]).length).toBeGreaterThan(0); // 고치기 전 모양
+    expect(clashes(boxesOf(placeNewNodes(f, after)), ["r4"])).toEqual([]);
   });
 
   it("복제(Ctrl+D) — 새 노드가 다른 모든 노드와 겹치지 않고, 되돌리기 한 번에 원래 흐름으로 돌아간다", async () => {
