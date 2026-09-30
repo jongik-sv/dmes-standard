@@ -28,7 +28,8 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleDefinition;
  * 흐름 실행 한 번(룰 세트 흐름도 spec §4, plan C5). 블록 트리를 따라가며 ctx 에 룰 결과를 덮어쓴다. IF 는 처음 참인 갈래 하나,
  * 병렬은 분기 직전 ctx 사본에서 갈래를 order 순으로 하나씩 실행하고 끝나면 갈래 순서대로 합친다(같은 이름이면 뒤 갈래가 이긴다).
  * 실행 중 위반은 {@link EngineEvaluationException} 으로 던진다. {@code tracing} 이면 노드마다 {@link NodeTrace} 를 남기고,
- * 던지기 직전 처리 중이던 노드를 {@link #failed} 로 ERROR 기록할 수 있게 둔다. 이 패키지에는 record·enum 을 새로 두지 않는다.
+ * 던지기 직전 처리 중이던 노드를 {@link #failed} 로 ERROR 기록할 수 있게 둔다. FlowRun 은 새 타입을 두지 않는다
+ * (계약 타입은 {@link RunTrace} 와 그 스키마 짝).
  */
 final class FlowRun {
 
@@ -146,7 +147,8 @@ final class FlowRun {
         begin(s.nodeId(), NodeKind.IF);
         curBranches = new ArrayList<>();
         Branch chosen = null;
-        for (Branch br : s.branches()) {
+        for (int i = 0; i < s.branches().size(); i++) {
+            Branch br = s.branches().get(i);
             if (br.otherwise()) {
                 continue;
             }
@@ -166,6 +168,10 @@ final class FlowRun {
                         "IF " + s.nodeId() + " 갈래 " + br.edgeId() + " 조건식 결과가 NULL 이라 거짓으로 봤다"));
             } else {
                 curBranches.add(new BranchTrace(br.edgeId(), BranchOutcome.ERROR, c.message));
+                // 뒤 선(그 외 포함)은 평가하지 않았다 — branches 는 늘 나가는 선마다 하나씩, 실행 순서대로 둔다.
+                for (Branch rest : s.branches().subList(i + 1, s.branches().size())) {
+                    curBranches.add(new BranchTrace(rest.edgeId(), BranchOutcome.NOT_EVALUATED, null));
+                }
                 throw new EngineEvaluationException(List.of(new Violation(Stage.BRANCH_SELECT, Code.BRANCH_EVAL_ERROR, null, null,
                         br.edgeId(), "IF " + s.nodeId() + " 갈래 " + br.edgeId() + " 조건식을 평가하지 못했다: " + c.message)));
             }

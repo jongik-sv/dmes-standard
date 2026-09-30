@@ -21,7 +21,8 @@ public record RunTrace(String setId, Instant evalTs, Map<String, Object> input, 
 
     /**
      * 노드 하나의 기록. 종류마다 쓰는 칸만 채우고 나머지는 null 이다.
-     * RULE: ruleId·ver·reads(실행 직전 ctx 에서 이 룰이 읽은 값)·result. IF: branches·chosenEdgeId. PARALLEL: order.
+     * RULE: ruleId·ver·reads(실행 직전 ctx 에서 이 룰이 읽은 값)·result(OK 인 RULE 에만 있다. 없으면 JSON 에서 키를 뺀다).
+     * IF: branches·chosenEdgeId. PARALLEL: order.
      * MERGE: splitId·merged(병렬 합류에서 합친 결과 이름). ERROR 노드: violations.
      *
      * @param seq 1부터
@@ -37,6 +38,9 @@ public record RunTrace(String setId, Instant evalTs, Map<String, Object> input, 
 
     public enum NodeStatus { OK, ERROR }
 
-    /** NOT_EVALUATED = 앞 갈래가 참이라 평가하지 않았다(그 외 선은 안 골랐을 때). */
+    /**
+     * NOT_EVALUATED = 앞 갈래가 참이었거나 앞 갈래 평가가 오류로 멈춰 평가하지 않았다(그 외 선은 안 골랐을 때 포함).
+     * 그래서 IF 의 branches 는 늘 나가는 선마다 하나씩, 실행 순서대로 있다.
+     */
     public enum BranchOutcome { TRUE, FALSE, NULL, ERROR, NOT_EVALUATED }
 }

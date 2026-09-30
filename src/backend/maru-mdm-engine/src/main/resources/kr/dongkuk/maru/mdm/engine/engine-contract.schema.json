@@ -378,7 +378,7 @@
       "additionalProperties": false
     },
     "NodeTrace": {
-      "description": "노드 하나의 기록(Java RunTrace.NodeTrace). RULE: ruleId·ver·reads·result, IF: branches·chosenEdgeId, PARALLEL: order, MERGE: splitId·merged, ERROR: violations.",
+      "description": "노드 하나의 기록(Java RunTrace.NodeTrace). RULE: ruleId·ver·reads·result, IF: branches·chosenEdgeId, PARALLEL: order, MERGE: splitId·merged, ERROR: violations. result 는 OK 인 RULE 노드에만 있고, 값이 없으면 키를 뺀다(null 을 쓰지 않는다).",
       "type": "object",
       "properties": {
         "seq": { "type": "integer" },
@@ -411,7 +411,7 @@
       "additionalProperties": false
     },
     "NodeStatus": { "description": "노드 실행 상태(Java RunTrace.NodeStatus).", "enum": ["OK", "ERROR"] },
-    "BranchOutcome": { "description": "IF 갈래 평가 결과(Java RunTrace.BranchOutcome). NOT_EVALUATED = 앞 갈래가 참이라 평가하지 않음.", "enum": ["TRUE", "FALSE", "NULL", "ERROR", "NOT_EVALUATED"] },
+    "BranchOutcome": { "description": "IF 갈래 평가 결과(Java RunTrace.BranchOutcome). NOT_EVALUATED = 앞 갈래가 참이었거나 앞 갈래 평가가 오류로 멈춰 평가하지 않음. IF 의 branches 는 늘 나가는 선마다 하나씩, 실행 순서대로 있다.", "enum": ["TRUE", "FALSE", "NULL", "ERROR", "NOT_EVALUATED"] },
     "RuleSetFlow": {
       "description": "룰 세트 흐름 정의(Java DefinitionLookup.FlowDefinition, spec §3.3). TB_MDM_RULE_SET.FLOW_JSON 의 nodes·edges 이고 화면 전용 view 는 여기 없다.",
       "type": "object",

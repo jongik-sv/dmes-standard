@@ -217,7 +217,7 @@ export type FlowNodeKind = "START" | "END" | "RULE" | "IF" | "PARALLEL" | "MERGE
  */
 export type NodeStatus = "OK" | "ERROR";
 /**
- * IF 갈래 평가 결과(Java RunTrace.BranchOutcome). NOT_EVALUATED = 앞 갈래가 참이라 평가하지 않음.
+ * IF 갈래 평가 결과(Java RunTrace.BranchOutcome). NOT_EVALUATED = 앞 갈래가 참이었거나 앞 갈래 평가가 오류로 멈춰 평가하지 않음. IF 의 branches 는 늘 나가는 선마다 하나씩, 실행 순서대로 있다.
  *
  * This interface was referenced by `EngineContract`'s JSON-Schema
  * via the `definition` "BranchOutcome".
@@ -510,7 +510,7 @@ export interface RunTrace {
   violations: Violation[] | null;
 }
 /**
- * 노드 하나의 기록(Java RunTrace.NodeTrace). RULE: ruleId·ver·reads·result, IF: branches·chosenEdgeId, PARALLEL: order, MERGE: splitId·merged, ERROR: violations.
+ * 노드 하나의 기록(Java RunTrace.NodeTrace). RULE: ruleId·ver·reads·result, IF: branches·chosenEdgeId, PARALLEL: order, MERGE: splitId·merged, ERROR: violations. result 는 OK 인 RULE 노드에만 있고, 값이 없으면 키를 뺀다(null 을 쓰지 않는다).
  *
  * This interface was referenced by `EngineContract`'s JSON-Schema
  * via the `definition` "NodeTrace".

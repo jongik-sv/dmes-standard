@@ -106,6 +106,29 @@ class RuleSetTraceTest {
     }
 
     @Test
+    void 조건식_오류_뒤_선과_그_외_선은_NOT_EVALUATED() {
+        // IF 의 branches 는 늘 나가는 선마다 하나씩, 실행 순서대로 있다(오류로 멈춰도).
+        RunTrace t = trace(ifFlow("X + 1"), rec("X", new BigDecimal("5")));
+        NodeTrace ifNode = t.nodes().get(1);
+        assertEquals(NodeStatus.ERROR, ifNode.status());
+        assertEquals(List.of("b1:ERROR", "b2:NOT_EVALUATED", "bo:NOT_EVALUATED"),
+                ifNode.branches().stream().map(b -> b.edgeId() + ":" + b.outcome()).toList());
+        assertNull(ifNode.chosenEdgeId());
+    }
+
+    @Test
+    void 병렬_갈래_안_룰이_ERROR_면_PARALLEL_은_OK_이고_형제_결과는_finalValues_에_없다() {
+        // start → p1 [a(R_A)] [x(R_ERR)] → pm → end. 합치기 전에 멈추므로 먼저 끝난 a 의 A 는 최상위 결과가 아니다.
+        FlowDefinition f = flow(List.of(start(), par("p1"), rule("a", "R_A"), rule("x", "R_ERR"), merge("pm", "p1"), end()),
+                List.of(e("e0", "start", "p1"), pe("p1a", "p1", "a", 1), pe("p1x", "p1", "x", 2),
+                        e("ea", "a", "pm"), e("ex", "x", "pm"), e("ee", "pm", "end")));
+        RunTrace t = trace(f, rec("X", BigDecimal.ONE));
+        assertEquals(List.of("1:start:START:OK", "2:p1:PARALLEL:OK", "3:a:RULE:OK", "4:x:RULE:ERROR"), kinds(t));
+        assertEquals(Map.of(), t.finalValues());
+        assertEquals(t.nodes().get(3).violations(), t.violations());
+    }
+
+    @Test
     void 룰_오류는_그_룰_노드를_ERROR_로_남기고_앞_결과는_남는다() {
         FlowDefinition f = flow(List.of(start(), rule("a", "R_A"), rule("x", "R_ERR"), end()),
                 List.of(e("e1", "start", "a"), e("e2", "a", "x"), e("e3", "x", "end")));
