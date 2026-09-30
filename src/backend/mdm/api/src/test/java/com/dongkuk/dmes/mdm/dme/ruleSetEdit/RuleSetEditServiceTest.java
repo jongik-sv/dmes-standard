@@ -627,6 +627,20 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void 저장된_FLOW_JSON_을_코덱이_읽지_못하면_분기_문구로_거부하고_흐름을_지우지_않는다() {
+        // json_valid 는 통과하지만 코덱이 거부하는 값(version 2)을 직접 넣는다
+        String unreadable = "{\"version\":2,\"nodes\":[],\"edges\":[]}";
+        DmeTestSupport.ruleSetFlow(jdbc, "S_CHAIN", unreadable);
+
+        BusinessException e = refuse(() -> service.save(saveReq("S_CHAIN", "사슬 세트", null, 3L, "R_GRD", "R_FCT")));
+
+        assertEquals("MDM024", code(e));
+        assertEquals("FLOW_READONLY", e.getErrors().get(1).code());
+        assertTrue(e.getMessage().contains("분기가 있는 세트는 룰 목록으로 저장할 수 없다"), e.getMessage());
+        assertEquals(unreadable, flowJsonOf("S_CHAIN"));
+    }
+
+    @Test
     void 정규화하면_상한을_넘는_흐름은_MDM021_로_거부하고_쓰지_않는다() {
         String head = LINEAR_WITH_VIEW.substring(0, LINEAR_WITH_VIEW.indexOf("\"view\""));
         String vh = head + "\"view\":{\"pad\":\"";

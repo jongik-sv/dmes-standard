@@ -63,6 +63,10 @@ tasks.named('test') {
     // MdmOasisActionVocabularyTest — mcm 메뉴·버튼 시드
     inputs.files(rootProject.file('../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer.java'))
             .withPropertyName('mcmDataInitializer').withPathSensitivity(PathSensitivity.RELATIVE)
+    // RuleLedgerChecksTest — 룰 세트 코퍼스·퍼즈 사례(lib 테스트 리소스)를 파일 경로로 직접 읽는다
+    inputs.files(rootProject.file('lib/src/test/resources/com/dongkuk/dmes/mdm/common/rule/rule-set-corpus.json'),
+                rootProject.file('lib/src/test/resources/com/dongkuk/dmes/mdm/common/rule/rule-set-fuzz.json'))
+            .withPropertyName('ruleSetCorpusAndFuzz').withPathSensitivity(PathSensitivity.RELATIVE)
     // *OasisHttpTest·MdmSecurityChainTest 등 — 클라이언트 키, application.yml 의 JWT 비밀 기본값을 덮는 환경 변수
     inputs.property('env.BACKEND_CLIENT_KEY.sha256', rootProject.mdmEnvFingerprint.call('BACKEND_CLIENT_KEY'))
     inputs.property('env.CACTUS_JWT_SECRET.sha256', rootProject.mdmEnvFingerprint.call('CACTUS_JWT_SECRET'))
