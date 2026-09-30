@@ -1641,6 +1641,3693 @@
           }
         ]
       }
+    },
+    {
+      "name": "흐름 — IF 정상, 갈래마다 같은 결과 이름",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {
+            "id": "start",
+            "kind": "START"
+          },
+          {
+            "id": "if1",
+            "kind": "IF"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE",
+            "ruleId": "D1"
+          },
+          {
+            "id": "r2",
+            "kind": "RULE",
+            "ruleId": "D2"
+          },
+          {
+            "id": "r3",
+            "kind": "RULE",
+            "ruleId": "D3"
+          },
+          {
+            "id": "m1",
+            "kind": "MERGE",
+            "splitId": "if1"
+          },
+          {
+            "id": "r4",
+            "kind": "RULE",
+            "ruleId": "FIN"
+          },
+          {
+            "id": "end",
+            "kind": "END"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "start",
+            "to": "if1"
+          },
+          {
+            "id": "e2",
+            "from": "if1",
+            "to": "r1",
+            "order": 1,
+            "cond": "DESIGN_NEED == \"N\""
+          },
+          {
+            "id": "e3",
+            "from": "if1",
+            "to": "r2",
+            "order": 2,
+            "cond": "REPEAT_YN == \"Y\""
+          },
+          {
+            "id": "e4",
+            "from": "if1",
+            "to": "r3",
+            "otherwise": true
+          },
+          {
+            "id": "e5",
+            "from": "r1",
+            "to": "m1"
+          },
+          {
+            "id": "e6",
+            "from": "r2",
+            "to": "m1"
+          },
+          {
+            "id": "e7",
+            "from": "r3",
+            "to": "m1"
+          },
+          {
+            "id": "e8",
+            "from": "m1",
+            "to": "r4"
+          },
+          {
+            "id": "e9",
+            "from": "r4",
+            "to": "end"
+          }
+        ]
+      },
+      "condIo": {
+        "e2": {
+          "ok": true,
+          "message": null,
+          "vars": [
+            {
+              "name": "DESIGN_NEED",
+              "source": "DICT"
+            }
+          ]
+        },
+        "e3": {
+          "ok": true,
+          "message": null,
+          "vars": [
+            {
+              "name": "REPEAT_YN",
+              "source": "DICT"
+            }
+          ]
+        }
+      },
+      "ids": [
+        "D1",
+        "D2",
+        "D3",
+        "FIN"
+      ],
+      "rules": {
+        "D1": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "DESIGN_NEED",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "PLAN"
+            }
+          ]
+        },
+        "D2": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "REPEAT_YN",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "PLAN"
+            }
+          ]
+        },
+        "D3": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "ORDER_TYPE",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "PLAN"
+            }
+          ]
+        },
+        "FIN": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "PLAN",
+              "source": "NONE"
+            }
+          ],
+          "results": [
+            {
+              "name": "CONFIRMED"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "DESIGN_NEED",
+              "source": "DICT",
+              "users": [
+                "D1"
+              ]
+            },
+            {
+              "name": "REPEAT_YN",
+              "source": "DICT",
+              "users": [
+                "D2"
+              ]
+            },
+            {
+              "name": "ORDER_TYPE",
+              "source": "DICT",
+              "users": [
+                "D3"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "PLAN",
+              "by": [
+                "D1",
+                "D2",
+                "D3"
+              ],
+              "readers": [
+                "FIN"
+              ]
+            },
+            {
+              "name": "CONFIRMED",
+              "by": [
+                "FIN"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "D1": [],
+          "D2": [],
+          "D3": [],
+          "FIN": [
+            "D1",
+            "D2",
+            "D3"
+          ]
+        },
+        "checks": []
+      }
+    },
+    {
+      "name": "흐름 — IF 그 외 갈래 없음",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {
+            "id": "start",
+            "kind": "START"
+          },
+          {
+            "id": "if1",
+            "kind": "IF"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE",
+            "ruleId": "A"
+          },
+          {
+            "id": "r2",
+            "kind": "RULE",
+            "ruleId": "B"
+          },
+          {
+            "id": "m1",
+            "kind": "MERGE",
+            "splitId": "if1"
+          },
+          {
+            "id": "end",
+            "kind": "END"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "start",
+            "to": "if1"
+          },
+          {
+            "id": "e2",
+            "from": "if1",
+            "to": "r1",
+            "order": 1,
+            "cond": "X > 1"
+          },
+          {
+            "id": "e3",
+            "from": "if1",
+            "to": "r2",
+            "order": 2,
+            "cond": "X > 2"
+          },
+          {
+            "id": "e4",
+            "from": "r1",
+            "to": "m1"
+          },
+          {
+            "id": "e5",
+            "from": "r2",
+            "to": "m1"
+          },
+          {
+            "id": "e6",
+            "from": "m1",
+            "to": "end"
+          }
+        ]
+      },
+      "ids": [
+        "A",
+        "B"
+      ],
+      "rules": {
+        "A": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RA"
+            }
+          ]
+        },
+        "B": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "Y",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RA"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "X",
+              "source": "DICT",
+              "users": [
+                "A"
+              ]
+            },
+            {
+              "name": "Y",
+              "source": "DICT",
+              "users": [
+                "B"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "RA",
+              "by": [
+                "A",
+                "B"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "A": [],
+          "B": []
+        },
+        "checks": [
+          {
+            "code": "FLOW_IF_ELSE",
+            "severity": "REJECT",
+            "ruleId": null,
+            "otherRuleId": null,
+            "varName": null,
+            "message": "IF if1에 \"그 외\" 갈래가 0개다. 정확히 1개여야 한다",
+            "nodeId": "if1",
+            "edgeId": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "흐름 — IF 조건식 누락",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {
+            "id": "start",
+            "kind": "START"
+          },
+          {
+            "id": "if1",
+            "kind": "IF"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE",
+            "ruleId": "A"
+          },
+          {
+            "id": "r2",
+            "kind": "RULE",
+            "ruleId": "B"
+          },
+          {
+            "id": "m1",
+            "kind": "MERGE",
+            "splitId": "if1"
+          },
+          {
+            "id": "end",
+            "kind": "END"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "start",
+            "to": "if1"
+          },
+          {
+            "id": "e2",
+            "from": "if1",
+            "to": "r1",
+            "order": 1,
+            "cond": "  "
+          },
+          {
+            "id": "e3",
+            "from": "if1",
+            "to": "r2",
+            "otherwise": true
+          },
+          {
+            "id": "e4",
+            "from": "r1",
+            "to": "m1"
+          },
+          {
+            "id": "e5",
+            "from": "r2",
+            "to": "m1"
+          },
+          {
+            "id": "e6",
+            "from": "m1",
+            "to": "end"
+          }
+        ]
+      },
+      "ids": [
+        "A",
+        "B"
+      ],
+      "rules": {
+        "A": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RA"
+            }
+          ]
+        },
+        "B": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RB"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "X",
+              "source": "DICT",
+              "users": [
+                "A",
+                "B"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "RA",
+              "by": [
+                "A"
+              ],
+              "readers": []
+            },
+            {
+              "name": "RB",
+              "by": [
+                "B"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "A": [],
+          "B": []
+        },
+        "checks": [
+          {
+            "code": "FLOW_IF_ELSE",
+            "severity": "REJECT",
+            "ruleId": null,
+            "otherRuleId": null,
+            "varName": null,
+            "message": "IF if1의 갈래 e2에 조건식이 없다",
+            "nodeId": "if1",
+            "edgeId": "e2"
+          }
+        ]
+      }
+    },
+    {
+      "name": "흐름 — 합류 없는 병렬 분기",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {
+            "id": "start",
+            "kind": "START"
+          },
+          {
+            "id": "p1",
+            "kind": "PARALLEL"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE",
+            "ruleId": "A"
+          },
+          {
+            "id": "r2",
+            "kind": "RULE",
+            "ruleId": "B"
+          },
+          {
+            "id": "end",
+            "kind": "END"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "start",
+            "to": "p1"
+          },
+          {
+            "id": "e2",
+            "from": "p1",
+            "to": "r1",
+            "order": 1
+          },
+          {
+            "id": "e3",
+            "from": "p1",
+            "to": "r2",
+            "order": 2
+          },
+          {
+            "id": "e4",
+            "from": "r1",
+            "to": "end"
+          },
+          {
+            "id": "e5",
+            "from": "r2",
+            "to": "end"
+          }
+        ]
+      },
+      "ids": [
+        "A",
+        "B"
+      ],
+      "rules": {
+        "A": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RA"
+            }
+          ]
+        },
+        "B": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RB"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "X",
+              "source": "DICT",
+              "users": [
+                "A",
+                "B"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "RA",
+              "by": [
+                "A"
+              ],
+              "readers": []
+            },
+            {
+              "name": "RB",
+              "by": [
+                "B"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "A": [],
+          "B": []
+        },
+        "checks": [
+          {
+            "code": "FLOW_STRUCTURE",
+            "severity": "REJECT",
+            "ruleId": null,
+            "otherRuleId": null,
+            "varName": null,
+            "message": "end의 들어오는 선이 2개다. 1개여야 한다",
+            "nodeId": "end",
+            "edgeId": null
+          },
+          {
+            "code": "FLOW_STRUCTURE",
+            "severity": "REJECT",
+            "ruleId": null,
+            "otherRuleId": null,
+            "varName": null,
+            "message": "분기 p1를 닫는 합류가 0개다. 정확히 1개여야 한다",
+            "nodeId": "p1",
+            "edgeId": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "흐름 — 갈래가 짝 합류 밖으로 나간다",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {
+            "id": "start",
+            "kind": "START"
+          },
+          {
+            "id": "if1",
+            "kind": "IF"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE",
+            "ruleId": "A"
+          },
+          {
+            "id": "r2",
+            "kind": "RULE",
+            "ruleId": "B"
+          },
+          {
+            "id": "m1",
+            "kind": "MERGE",
+            "splitId": "if1"
+          },
+          {
+            "id": "if2",
+            "kind": "IF"
+          },
+          {
+            "id": "r3",
+            "kind": "RULE",
+            "ruleId": "C"
+          },
+          {
+            "id": "r4",
+            "kind": "RULE",
+            "ruleId": "D"
+          },
+          {
+            "id": "m2",
+            "kind": "MERGE",
+            "splitId": "if2"
+          },
+          {
+            "id": "end",
+            "kind": "END"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "start",
+            "to": "if1"
+          },
+          {
+            "id": "e2",
+            "from": "if1",
+            "to": "r1",
+            "order": 1,
+            "cond": "X > 1"
+          },
+          {
+            "id": "e3",
+            "from": "if1",
+            "to": "r2",
+            "otherwise": true
+          },
+          {
+            "id": "e4",
+            "from": "r1",
+            "to": "m1"
+          },
+          {
+            "id": "e5",
+            "from": "r2",
+            "to": "m2"
+          },
+          {
+            "id": "e6",
+            "from": "m1",
+            "to": "if2"
+          },
+          {
+            "id": "e7",
+            "from": "if2",
+            "to": "r3",
+            "order": 1,
+            "cond": "X > 2"
+          },
+          {
+            "id": "e8",
+            "from": "if2",
+            "to": "r4",
+            "otherwise": true
+          },
+          {
+            "id": "e9",
+            "from": "r3",
+            "to": "m2"
+          },
+          {
+            "id": "e10",
+            "from": "r4",
+            "to": "m1"
+          },
+          {
+            "id": "e11",
+            "from": "m2",
+            "to": "end"
+          }
+        ]
+      },
+      "ids": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ],
+      "rules": {
+        "A": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RA"
+            }
+          ]
+        },
+        "B": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RB"
+            }
+          ]
+        },
+        "C": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RC"
+            }
+          ]
+        },
+        "D": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RD"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "X",
+              "source": "DICT",
+              "users": [
+                "A",
+                "B",
+                "C",
+                "D"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "RA",
+              "by": [
+                "A"
+              ],
+              "readers": []
+            },
+            {
+              "name": "RB",
+              "by": [
+                "B"
+              ],
+              "readers": []
+            },
+            {
+              "name": "RC",
+              "by": [
+                "C"
+              ],
+              "readers": []
+            },
+            {
+              "name": "RD",
+              "by": [
+                "D"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "A": [],
+          "B": [],
+          "C": [],
+          "D": []
+        },
+        "checks": [
+          {
+            "code": "FLOW_STRUCTURE",
+            "severity": "REJECT",
+            "ruleId": null,
+            "otherRuleId": null,
+            "varName": null,
+            "message": "갈래가 m1에서 닫히지 않고 m2로 나간다",
+            "nodeId": "m2",
+            "edgeId": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "흐름 — 도달할 수 없는 노드",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {
+            "id": "start",
+            "kind": "START"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE",
+            "ruleId": "A"
+          },
+          {
+            "id": "end",
+            "kind": "END"
+          },
+          {
+            "id": "r8",
+            "kind": "RULE",
+            "ruleId": "E"
+          },
+          {
+            "id": "r9",
+            "kind": "RULE",
+            "ruleId": "F"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "start",
+            "to": "r1"
+          },
+          {
+            "id": "e2",
+            "from": "r1",
+            "to": "end"
+          },
+          {
+            "id": "e3",
+            "from": "r8",
+            "to": "r9"
+          },
+          {
+            "id": "e4",
+            "from": "r9",
+            "to": "r8"
+          }
+        ]
+      },
+      "ids": [
+        "A",
+        "E",
+        "F"
+      ],
+      "rules": {
+        "A": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RA"
+            }
+          ]
+        },
+        "E": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "RF",
+              "source": "NONE"
+            }
+          ],
+          "results": [
+            {
+              "name": "RE"
+            }
+          ]
+        },
+        "F": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "RE",
+              "source": "NONE"
+            }
+          ],
+          "results": [
+            {
+              "name": "RF"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "X",
+              "source": "DICT",
+              "users": [
+                "A"
+              ]
+            },
+            {
+              "name": "RF",
+              "source": "NONE",
+              "users": [
+                "E"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "RA",
+              "by": [
+                "A"
+              ],
+              "readers": []
+            },
+            {
+              "name": "RE",
+              "by": [
+                "E"
+              ],
+              "readers": [
+                "F"
+              ]
+            },
+            {
+              "name": "RF",
+              "by": [
+                "F"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "A": [],
+          "E": [
+            "F"
+          ],
+          "F": [
+            "E"
+          ]
+        },
+        "checks": [
+          {
+            "code": "FLOW_STRUCTURE",
+            "severity": "REJECT",
+            "ruleId": null,
+            "otherRuleId": null,
+            "varName": null,
+            "message": "r8에 도달할 수 없다",
+            "nodeId": "r8",
+            "edgeId": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "흐름 — 노드 ID 중복(첫 노드만 본다)",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {
+            "id": "start",
+            "kind": "START"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE",
+            "ruleId": "A"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE",
+            "ruleId": "B"
+          },
+          {
+            "id": "end",
+            "kind": "END"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "start",
+            "to": "r1"
+          },
+          {
+            "id": "e2",
+            "from": "r1",
+            "to": "end"
+          }
+        ]
+      },
+      "ids": [
+        "A"
+      ],
+      "rules": {
+        "A": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RA"
+            }
+          ]
+        },
+        "B": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RB"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "X",
+              "source": "DICT",
+              "users": [
+                "A"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "RA",
+              "by": [
+                "A"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "A": []
+        },
+        "checks": [
+          {
+            "code": "FLOW_STRUCTURE",
+            "severity": "REJECT",
+            "ruleId": null,
+            "otherRuleId": null,
+            "varName": null,
+            "message": "노드 ID r1가 겹친다",
+            "nodeId": "r1",
+            "edgeId": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "흐름 — 합류 뒤 룰이 일부 갈래 결과를 읽는다",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {
+            "id": "start",
+            "kind": "START"
+          },
+          {
+            "id": "if1",
+            "kind": "IF"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE",
+            "ruleId": "A"
+          },
+          {
+            "id": "r2",
+            "kind": "RULE",
+            "ruleId": "B"
+          },
+          {
+            "id": "m1",
+            "kind": "MERGE",
+            "splitId": "if1"
+          },
+          {
+            "id": "r3",
+            "kind": "RULE",
+            "ruleId": "C"
+          },
+          {
+            "id": "end",
+            "kind": "END"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "start",
+            "to": "if1"
+          },
+          {
+            "id": "e2",
+            "from": "if1",
+            "to": "r1",
+            "order": 1,
+            "cond": "X > 1"
+          },
+          {
+            "id": "e3",
+            "from": "if1",
+            "to": "r2",
+            "otherwise": true
+          },
+          {
+            "id": "e4",
+            "from": "r1",
+            "to": "m1"
+          },
+          {
+            "id": "e5",
+            "from": "r2",
+            "to": "m1"
+          },
+          {
+            "id": "e6",
+            "from": "m1",
+            "to": "r3"
+          },
+          {
+            "id": "e7",
+            "from": "r3",
+            "to": "end"
+          }
+        ]
+      },
+      "condIo": {
+        "e2": {
+          "ok": true,
+          "message": null,
+          "vars": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ]
+        }
+      },
+      "ids": [
+        "A",
+        "B",
+        "C"
+      ],
+      "rules": {
+        "A": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RA"
+            }
+          ]
+        },
+        "B": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RB"
+            }
+          ]
+        },
+        "C": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "RA",
+              "source": "NONE"
+            }
+          ],
+          "results": [
+            {
+              "name": "RC"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "X",
+              "source": "DICT",
+              "users": [
+                "A",
+                "B"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "RA",
+              "by": [
+                "A"
+              ],
+              "readers": [
+                "C"
+              ]
+            },
+            {
+              "name": "RB",
+              "by": [
+                "B"
+              ],
+              "readers": []
+            },
+            {
+              "name": "RC",
+              "by": [
+                "C"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "A": [],
+          "B": [],
+          "C": [
+            "A"
+          ]
+        },
+        "checks": [
+          {
+            "code": "FLOW_PARTIAL",
+            "severity": "WARN",
+            "ruleId": "C",
+            "otherRuleId": null,
+            "varName": "RA",
+            "message": "C가 읽는 RA는 IF 의 일부 갈래에서만 만들어진다. 다른 갈래를 타면 판정 오류다",
+            "nodeId": "r3",
+            "edgeId": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "흐름 — 조건식이 일부 갈래 결과를 읽고 그 외 갈래는 비어 있다",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {
+            "id": "start",
+            "kind": "START"
+          },
+          {
+            "id": "if1",
+            "kind": "IF"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE",
+            "ruleId": "A"
+          },
+          {
+            "id": "r2",
+            "kind": "RULE",
+            "ruleId": "B"
+          },
+          {
+            "id": "m1",
+            "kind": "MERGE",
+            "splitId": "if1"
+          },
+          {
+            "id": "if2",
+            "kind": "IF"
+          },
+          {
+            "id": "r3",
+            "kind": "RULE",
+            "ruleId": "C2"
+          },
+          {
+            "id": "m2",
+            "kind": "MERGE",
+            "splitId": "if2"
+          },
+          {
+            "id": "end",
+            "kind": "END"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "start",
+            "to": "if1"
+          },
+          {
+            "id": "e2",
+            "from": "if1",
+            "to": "r1",
+            "order": 1,
+            "cond": "X > 1"
+          },
+          {
+            "id": "e3",
+            "from": "if1",
+            "to": "r2",
+            "otherwise": true
+          },
+          {
+            "id": "e4",
+            "from": "r1",
+            "to": "m1"
+          },
+          {
+            "id": "e5",
+            "from": "r2",
+            "to": "m1"
+          },
+          {
+            "id": "e6",
+            "from": "m1",
+            "to": "if2"
+          },
+          {
+            "id": "e7",
+            "from": "if2",
+            "to": "r3",
+            "order": 1,
+            "cond": "RA == \"Y\""
+          },
+          {
+            "id": "e8",
+            "from": "if2",
+            "to": "m2",
+            "otherwise": true
+          },
+          {
+            "id": "e9",
+            "from": "r3",
+            "to": "m2"
+          },
+          {
+            "id": "e10",
+            "from": "m2",
+            "to": "end"
+          }
+        ]
+      },
+      "condIo": {
+        "e2": {
+          "ok": true,
+          "message": null,
+          "vars": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ]
+        },
+        "e7": {
+          "ok": true,
+          "message": null,
+          "vars": [
+            {
+              "name": "RA",
+              "source": "NONE"
+            }
+          ]
+        }
+      },
+      "ids": [
+        "A",
+        "B",
+        "C2"
+      ],
+      "rules": {
+        "A": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RA"
+            }
+          ]
+        },
+        "B": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RB"
+            }
+          ]
+        },
+        "C2": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RC"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "X",
+              "source": "DICT",
+              "users": [
+                "A",
+                "B",
+                "C2"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "RA",
+              "by": [
+                "A"
+              ],
+              "readers": []
+            },
+            {
+              "name": "RB",
+              "by": [
+                "B"
+              ],
+              "readers": []
+            },
+            {
+              "name": "RC",
+              "by": [
+                "C2"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "A": [],
+          "B": [],
+          "C2": []
+        },
+        "checks": [
+          {
+            "code": "FLOW_PARTIAL",
+            "severity": "WARN",
+            "ruleId": null,
+            "otherRuleId": null,
+            "varName": "RA",
+            "message": "e7 갈래 조건식이 읽는 RA는 IF 의 일부 갈래에서만 만들어진다. 다른 갈래를 타면 판정 오류다",
+            "nodeId": "if2",
+            "edgeId": "e7"
+          }
+        ]
+      }
+    },
+    {
+      "name": "흐름 — IF 형제 갈래 결과를 읽는다",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {
+            "id": "start",
+            "kind": "START"
+          },
+          {
+            "id": "if1",
+            "kind": "IF"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE",
+            "ruleId": "A"
+          },
+          {
+            "id": "r2",
+            "kind": "RULE",
+            "ruleId": "B"
+          },
+          {
+            "id": "m1",
+            "kind": "MERGE",
+            "splitId": "if1"
+          },
+          {
+            "id": "end",
+            "kind": "END"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "start",
+            "to": "if1"
+          },
+          {
+            "id": "e2",
+            "from": "if1",
+            "to": "r1",
+            "order": 1,
+            "cond": "X > 1"
+          },
+          {
+            "id": "e3",
+            "from": "if1",
+            "to": "r2",
+            "otherwise": true
+          },
+          {
+            "id": "e4",
+            "from": "r1",
+            "to": "m1"
+          },
+          {
+            "id": "e5",
+            "from": "r2",
+            "to": "m1"
+          },
+          {
+            "id": "e6",
+            "from": "m1",
+            "to": "end"
+          }
+        ]
+      },
+      "condIo": {
+        "e2": {
+          "ok": true,
+          "message": null,
+          "vars": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ]
+        }
+      },
+      "ids": [
+        "A",
+        "B"
+      ],
+      "rules": {
+        "A": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RA"
+            }
+          ]
+        },
+        "B": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "RA",
+              "source": "NONE"
+            }
+          ],
+          "results": [
+            {
+              "name": "RB"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "X",
+              "source": "DICT",
+              "users": [
+                "A"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "RA",
+              "by": [
+                "A"
+              ],
+              "readers": [
+                "B"
+              ]
+            },
+            {
+              "name": "RB",
+              "by": [
+                "B"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "A": [],
+          "B": [
+            "A"
+          ]
+        },
+        "checks": [
+          {
+            "code": "IF_SIBLING",
+            "severity": "REJECT",
+            "ruleId": "B",
+            "otherRuleId": "A",
+            "varName": "RA",
+            "message": "B가 읽는 RA는 같은 IF 의 다른 갈래(A)에서만 만들어진다. 이 갈래를 타면 값이 없다",
+            "nodeId": "r2",
+            "edgeId": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "흐름 — 병렬 형제 갈래 결과를 읽는다",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {
+            "id": "start",
+            "kind": "START"
+          },
+          {
+            "id": "p1",
+            "kind": "PARALLEL"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE",
+            "ruleId": "A"
+          },
+          {
+            "id": "r2",
+            "kind": "RULE",
+            "ruleId": "B"
+          },
+          {
+            "id": "m1",
+            "kind": "MERGE",
+            "splitId": "p1"
+          },
+          {
+            "id": "end",
+            "kind": "END"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "start",
+            "to": "p1"
+          },
+          {
+            "id": "e2",
+            "from": "p1",
+            "to": "r1",
+            "order": 1
+          },
+          {
+            "id": "e3",
+            "from": "p1",
+            "to": "r2",
+            "order": 2
+          },
+          {
+            "id": "e4",
+            "from": "r1",
+            "to": "m1"
+          },
+          {
+            "id": "e5",
+            "from": "r2",
+            "to": "m1"
+          },
+          {
+            "id": "e6",
+            "from": "m1",
+            "to": "end"
+          }
+        ]
+      },
+      "ids": [
+        "A",
+        "B"
+      ],
+      "rules": {
+        "A": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RA"
+            }
+          ]
+        },
+        "B": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "RA",
+              "source": "NONE"
+            }
+          ],
+          "results": [
+            {
+              "name": "RB"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "X",
+              "source": "DICT",
+              "users": [
+                "A"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "RA",
+              "by": [
+                "A"
+              ],
+              "readers": [
+                "B"
+              ]
+            },
+            {
+              "name": "RB",
+              "by": [
+                "B"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "A": [],
+          "B": [
+            "A"
+          ]
+        },
+        "checks": [
+          {
+            "code": "PAR_SIBLING",
+            "severity": "REJECT",
+            "ruleId": "B",
+            "otherRuleId": "A",
+            "varName": "RA",
+            "message": "B가 병렬 형제 갈래의 A가 만드는 RA를 읽는다. 병렬 갈래끼리는 결과를 읽을 수 없다",
+            "nodeId": "r2",
+            "edgeId": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "흐름 — 병렬 형제가 같은 결과 변수에 대입한다",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {
+            "id": "start",
+            "kind": "START"
+          },
+          {
+            "id": "p1",
+            "kind": "PARALLEL"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE",
+            "ruleId": "A"
+          },
+          {
+            "id": "r2",
+            "kind": "RULE",
+            "ruleId": "B"
+          },
+          {
+            "id": "m1",
+            "kind": "MERGE",
+            "splitId": "p1"
+          },
+          {
+            "id": "end",
+            "kind": "END"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "start",
+            "to": "p1"
+          },
+          {
+            "id": "e2",
+            "from": "p1",
+            "to": "r1",
+            "order": 1
+          },
+          {
+            "id": "e3",
+            "from": "p1",
+            "to": "r2",
+            "order": 2
+          },
+          {
+            "id": "e4",
+            "from": "r1",
+            "to": "m1"
+          },
+          {
+            "id": "e5",
+            "from": "r2",
+            "to": "m1"
+          },
+          {
+            "id": "e6",
+            "from": "m1",
+            "to": "end"
+          }
+        ]
+      },
+      "ids": [
+        "A",
+        "B"
+      ],
+      "rules": {
+        "A": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RA"
+            }
+          ]
+        },
+        "B": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "Y",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RA"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "X",
+              "source": "DICT",
+              "users": [
+                "A"
+              ]
+            },
+            {
+              "name": "Y",
+              "source": "DICT",
+              "users": [
+                "B"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "RA",
+              "by": [
+                "A",
+                "B"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "A": [],
+          "B": []
+        },
+        "checks": [
+          {
+            "code": "PAR_SIBLING",
+            "severity": "REJECT",
+            "ruleId": "B",
+            "otherRuleId": "A",
+            "varName": "RA",
+            "message": "병렬 갈래의 A와 B가 같은 결과 변수 RA에 대입한다",
+            "nodeId": "r2",
+            "edgeId": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "흐름 — 병렬 합류 뒤 두 갈래 결과를 읽는다",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {
+            "id": "start",
+            "kind": "START"
+          },
+          {
+            "id": "p1",
+            "kind": "PARALLEL"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE",
+            "ruleId": "A"
+          },
+          {
+            "id": "r2",
+            "kind": "RULE",
+            "ruleId": "B"
+          },
+          {
+            "id": "m1",
+            "kind": "MERGE",
+            "splitId": "p1"
+          },
+          {
+            "id": "r3",
+            "kind": "RULE",
+            "ruleId": "C"
+          },
+          {
+            "id": "end",
+            "kind": "END"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "start",
+            "to": "p1"
+          },
+          {
+            "id": "e2",
+            "from": "p1",
+            "to": "r1",
+            "order": 1
+          },
+          {
+            "id": "e3",
+            "from": "p1",
+            "to": "r2",
+            "order": 2
+          },
+          {
+            "id": "e4",
+            "from": "r1",
+            "to": "m1"
+          },
+          {
+            "id": "e5",
+            "from": "r2",
+            "to": "m1"
+          },
+          {
+            "id": "e6",
+            "from": "m1",
+            "to": "r3"
+          },
+          {
+            "id": "e7",
+            "from": "r3",
+            "to": "end"
+          }
+        ]
+      },
+      "ids": [
+        "A",
+        "B",
+        "C"
+      ],
+      "rules": {
+        "A": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RA"
+            }
+          ]
+        },
+        "B": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RB"
+            }
+          ]
+        },
+        "C": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "RA",
+              "source": "NONE"
+            },
+            {
+              "name": "RB",
+              "source": "NONE"
+            }
+          ],
+          "results": [
+            {
+              "name": "RC"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "X",
+              "source": "DICT",
+              "users": [
+                "A",
+                "B"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "RA",
+              "by": [
+                "A"
+              ],
+              "readers": [
+                "C"
+              ]
+            },
+            {
+              "name": "RB",
+              "by": [
+                "B"
+              ],
+              "readers": [
+                "C"
+              ]
+            },
+            {
+              "name": "RC",
+              "by": [
+                "C"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "A": [],
+          "B": [],
+          "C": [
+            "A",
+            "B"
+          ]
+        },
+        "checks": []
+      }
+    },
+    {
+      "name": "흐름 — IF 갈래 안의 병렬(중첩) 통과",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {
+            "id": "start",
+            "kind": "START"
+          },
+          {
+            "id": "if1",
+            "kind": "IF"
+          },
+          {
+            "id": "p1",
+            "kind": "PARALLEL"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE",
+            "ruleId": "A"
+          },
+          {
+            "id": "r2",
+            "kind": "RULE",
+            "ruleId": "B"
+          },
+          {
+            "id": "m2",
+            "kind": "MERGE",
+            "splitId": "p1"
+          },
+          {
+            "id": "r3",
+            "kind": "RULE",
+            "ruleId": "C"
+          },
+          {
+            "id": "r4",
+            "kind": "RULE",
+            "ruleId": "D"
+          },
+          {
+            "id": "m1",
+            "kind": "MERGE",
+            "splitId": "if1"
+          },
+          {
+            "id": "end",
+            "kind": "END"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "start",
+            "to": "if1"
+          },
+          {
+            "id": "e2",
+            "from": "if1",
+            "to": "p1",
+            "order": 1,
+            "cond": "X > 1"
+          },
+          {
+            "id": "e3",
+            "from": "p1",
+            "to": "r1",
+            "order": 1
+          },
+          {
+            "id": "e4",
+            "from": "p1",
+            "to": "r2",
+            "order": 2
+          },
+          {
+            "id": "e5",
+            "from": "r1",
+            "to": "m2"
+          },
+          {
+            "id": "e6",
+            "from": "r2",
+            "to": "m2"
+          },
+          {
+            "id": "e7",
+            "from": "m2",
+            "to": "r3"
+          },
+          {
+            "id": "e8",
+            "from": "r3",
+            "to": "m1"
+          },
+          {
+            "id": "e9",
+            "from": "if1",
+            "to": "r4",
+            "otherwise": true
+          },
+          {
+            "id": "e10",
+            "from": "r4",
+            "to": "m1"
+          },
+          {
+            "id": "e11",
+            "from": "m1",
+            "to": "end"
+          }
+        ]
+      },
+      "condIo": {
+        "e2": {
+          "ok": true,
+          "message": null,
+          "vars": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ]
+        }
+      },
+      "ids": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ],
+      "rules": {
+        "A": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RA"
+            }
+          ]
+        },
+        "B": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RB"
+            }
+          ]
+        },
+        "C": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "RA",
+              "source": "NONE"
+            },
+            {
+              "name": "RB",
+              "source": "NONE"
+            }
+          ],
+          "results": [
+            {
+              "name": "RC"
+            }
+          ]
+        },
+        "D": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RC"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "X",
+              "source": "DICT",
+              "users": [
+                "A",
+                "B",
+                "D"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "RA",
+              "by": [
+                "A"
+              ],
+              "readers": [
+                "C"
+              ]
+            },
+            {
+              "name": "RB",
+              "by": [
+                "B"
+              ],
+              "readers": [
+                "C"
+              ]
+            },
+            {
+              "name": "RC",
+              "by": [
+                "C",
+                "D"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "A": [],
+          "B": [],
+          "C": [
+            "A",
+            "B"
+          ],
+          "D": []
+        },
+        "checks": []
+      }
+    },
+    {
+      "name": "흐름 — 같은 룰이 두 IF 갈래에 있다",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {
+            "id": "start",
+            "kind": "START"
+          },
+          {
+            "id": "if1",
+            "kind": "IF"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE",
+            "ruleId": "A"
+          },
+          {
+            "id": "r2",
+            "kind": "RULE",
+            "ruleId": "B"
+          },
+          {
+            "id": "r3",
+            "kind": "RULE",
+            "ruleId": "A"
+          },
+          {
+            "id": "m1",
+            "kind": "MERGE",
+            "splitId": "if1"
+          },
+          {
+            "id": "end",
+            "kind": "END"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "start",
+            "to": "if1"
+          },
+          {
+            "id": "e2",
+            "from": "if1",
+            "to": "r1",
+            "order": 1,
+            "cond": "X > 1"
+          },
+          {
+            "id": "e3",
+            "from": "r1",
+            "to": "r2"
+          },
+          {
+            "id": "e4",
+            "from": "r2",
+            "to": "m1"
+          },
+          {
+            "id": "e5",
+            "from": "if1",
+            "to": "r3",
+            "otherwise": true
+          },
+          {
+            "id": "e6",
+            "from": "r3",
+            "to": "m1"
+          },
+          {
+            "id": "e7",
+            "from": "m1",
+            "to": "end"
+          }
+        ]
+      },
+      "condIo": {
+        "e2": {
+          "ok": true,
+          "message": null,
+          "vars": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ]
+        }
+      },
+      "ids": [
+        "A",
+        "B"
+      ],
+      "rules": {
+        "A": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RA"
+            }
+          ]
+        },
+        "B": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "RA",
+              "source": "NONE"
+            }
+          ],
+          "results": [
+            {
+              "name": "RB"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "X",
+              "source": "DICT",
+              "users": [
+                "A"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "RA",
+              "by": [
+                "A"
+              ],
+              "readers": [
+                "B"
+              ]
+            },
+            {
+              "name": "RB",
+              "by": [
+                "B"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "A": [],
+          "B": [
+            "A"
+          ]
+        },
+        "checks": []
+      }
+    },
+    {
+      "name": "흐름 — 없는 룰이 두 갈래에 있어도 한 번만 보고한다",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {
+            "id": "start",
+            "kind": "START"
+          },
+          {
+            "id": "if1",
+            "kind": "IF"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE",
+            "ruleId": "NO_SUCH"
+          },
+          {
+            "id": "r2",
+            "kind": "RULE",
+            "ruleId": "NO_SUCH"
+          },
+          {
+            "id": "m1",
+            "kind": "MERGE",
+            "splitId": "if1"
+          },
+          {
+            "id": "end",
+            "kind": "END"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "start",
+            "to": "if1"
+          },
+          {
+            "id": "e2",
+            "from": "if1",
+            "to": "r1",
+            "order": 1,
+            "cond": "X > 1"
+          },
+          {
+            "id": "e3",
+            "from": "if1",
+            "to": "r2",
+            "otherwise": true
+          },
+          {
+            "id": "e4",
+            "from": "r1",
+            "to": "m1"
+          },
+          {
+            "id": "e5",
+            "from": "r2",
+            "to": "m1"
+          },
+          {
+            "id": "e6",
+            "from": "m1",
+            "to": "end"
+          }
+        ]
+      },
+      "condIo": {
+        "e2": {
+          "ok": true,
+          "message": null,
+          "vars": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ]
+        }
+      },
+      "ids": [
+        "NO_SUCH"
+      ],
+      "rules": {},
+      "expect": {
+        "io": {
+          "inputs": [],
+          "results": []
+        },
+        "deps": {
+          "NO_SUCH": []
+        },
+        "checks": [
+          {
+            "code": "RULE_NOT_FOUND",
+            "severity": "REJECT",
+            "ruleId": "NO_SUCH",
+            "otherRuleId": null,
+            "varName": null,
+            "message": "NO_SUCH는 없는 룰이다",
+            "nodeId": "r1",
+            "edgeId": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "흐름 — 같은 경로 중복 대입은 경고다",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {
+            "id": "start",
+            "kind": "START"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE",
+            "ruleId": "A"
+          },
+          {
+            "id": "if1",
+            "kind": "IF"
+          },
+          {
+            "id": "r2",
+            "kind": "RULE",
+            "ruleId": "B"
+          },
+          {
+            "id": "r3",
+            "kind": "RULE",
+            "ruleId": "C"
+          },
+          {
+            "id": "m1",
+            "kind": "MERGE",
+            "splitId": "if1"
+          },
+          {
+            "id": "end",
+            "kind": "END"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "start",
+            "to": "r1"
+          },
+          {
+            "id": "e2",
+            "from": "r1",
+            "to": "if1"
+          },
+          {
+            "id": "e3",
+            "from": "if1",
+            "to": "r2",
+            "order": 1,
+            "cond": "X > 1"
+          },
+          {
+            "id": "e4",
+            "from": "if1",
+            "to": "r3",
+            "otherwise": true
+          },
+          {
+            "id": "e5",
+            "from": "r2",
+            "to": "m1"
+          },
+          {
+            "id": "e6",
+            "from": "r3",
+            "to": "m1"
+          },
+          {
+            "id": "e7",
+            "from": "m1",
+            "to": "end"
+          }
+        ]
+      },
+      "condIo": {
+        "e3": {
+          "ok": true,
+          "message": null,
+          "vars": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ]
+        }
+      },
+      "ids": [
+        "A",
+        "B",
+        "C"
+      ],
+      "rules": {
+        "A": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RA"
+            }
+          ]
+        },
+        "B": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RA"
+            }
+          ]
+        },
+        "C": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RC"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "X",
+              "source": "DICT",
+              "users": [
+                "A",
+                "B",
+                "C"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "RA",
+              "by": [
+                "A",
+                "B"
+              ],
+              "readers": []
+            },
+            {
+              "name": "RC",
+              "by": [
+                "C"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "A": [],
+          "B": [],
+          "C": []
+        },
+        "checks": [
+          {
+            "code": "DUP_RESULT",
+            "severity": "WARN",
+            "ruleId": "B",
+            "otherRuleId": "A",
+            "varName": "RA",
+            "message": "A와 B가 같은 결과 변수 RA에 대입한다",
+            "nodeId": "r2",
+            "edgeId": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "흐름 — 병렬 갈래 안의 뒤 룰 결과를 읽는다(빈 병렬 갈래 포함)",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {
+            "id": "start",
+            "kind": "START"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE",
+            "ruleId": "A"
+          },
+          {
+            "id": "p1",
+            "kind": "PARALLEL"
+          },
+          {
+            "id": "r2",
+            "kind": "RULE",
+            "ruleId": "B"
+          },
+          {
+            "id": "m1",
+            "kind": "MERGE",
+            "splitId": "p1"
+          },
+          {
+            "id": "end",
+            "kind": "END"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "start",
+            "to": "r1"
+          },
+          {
+            "id": "e2",
+            "from": "r1",
+            "to": "p1"
+          },
+          {
+            "id": "e3",
+            "from": "p1",
+            "to": "r2",
+            "order": 1
+          },
+          {
+            "id": "e4",
+            "from": "p1",
+            "to": "m1",
+            "order": 2
+          },
+          {
+            "id": "e5",
+            "from": "r2",
+            "to": "m1"
+          },
+          {
+            "id": "e6",
+            "from": "m1",
+            "to": "end"
+          }
+        ]
+      },
+      "ids": [
+        "A",
+        "B"
+      ],
+      "rules": {
+        "A": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "RB",
+              "source": "NONE"
+            }
+          ],
+          "results": [
+            {
+              "name": "RA"
+            }
+          ]
+        },
+        "B": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RB"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "RB",
+              "source": "NONE",
+              "users": [
+                "A"
+              ]
+            },
+            {
+              "name": "X",
+              "source": "DICT",
+              "users": [
+                "B"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "RA",
+              "by": [
+                "A"
+              ],
+              "readers": []
+            },
+            {
+              "name": "RB",
+              "by": [
+                "B"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "A": [
+            "B"
+          ],
+          "B": []
+        },
+        "checks": [
+          {
+            "code": "ORDER",
+            "severity": "REJECT",
+            "ruleId": "A",
+            "otherRuleId": "B",
+            "varName": "RB",
+            "message": "A가 뒤에 도는 B의 결과 변수 RB를 읽는다. B를 A 앞으로 옮긴다",
+            "nodeId": "r1",
+            "edgeId": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "흐름 — 조건식 파싱 실패와 정의 안 된 변수",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {
+            "id": "start",
+            "kind": "START"
+          },
+          {
+            "id": "if1",
+            "kind": "IF"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE",
+            "ruleId": "A"
+          },
+          {
+            "id": "r2",
+            "kind": "RULE",
+            "ruleId": "B"
+          },
+          {
+            "id": "r3",
+            "kind": "RULE",
+            "ruleId": "C"
+          },
+          {
+            "id": "m1",
+            "kind": "MERGE",
+            "splitId": "if1"
+          },
+          {
+            "id": "end",
+            "kind": "END"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "start",
+            "to": "if1"
+          },
+          {
+            "id": "e2",
+            "from": "if1",
+            "to": "r1",
+            "order": 1,
+            "cond": "X >"
+          },
+          {
+            "id": "e3",
+            "from": "if1",
+            "to": "r2",
+            "order": 2,
+            "cond": "Q_UNKNOWN == 1"
+          },
+          {
+            "id": "e4",
+            "from": "if1",
+            "to": "r3",
+            "otherwise": true
+          },
+          {
+            "id": "e5",
+            "from": "r1",
+            "to": "m1"
+          },
+          {
+            "id": "e6",
+            "from": "r2",
+            "to": "m1"
+          },
+          {
+            "id": "e7",
+            "from": "r3",
+            "to": "m1"
+          },
+          {
+            "id": "e8",
+            "from": "m1",
+            "to": "end"
+          }
+        ]
+      },
+      "condIo": {
+        "e2": {
+          "ok": false,
+          "message": "식 끝이 예상과 다르다",
+          "vars": []
+        },
+        "e3": {
+          "ok": true,
+          "message": null,
+          "vars": [
+            {
+              "name": "Q_UNKNOWN",
+              "source": "NONE"
+            }
+          ]
+        }
+      },
+      "ids": [
+        "A",
+        "B",
+        "C"
+      ],
+      "rules": {
+        "A": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RA"
+            }
+          ]
+        },
+        "B": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RB"
+            }
+          ]
+        },
+        "C": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RC"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "X",
+              "source": "DICT",
+              "users": [
+                "A",
+                "B",
+                "C"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "RA",
+              "by": [
+                "A"
+              ],
+              "readers": []
+            },
+            {
+              "name": "RB",
+              "by": [
+                "B"
+              ],
+              "readers": []
+            },
+            {
+              "name": "RC",
+              "by": [
+                "C"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "A": [],
+          "B": [],
+          "C": []
+        },
+        "checks": [
+          {
+            "code": "FLOW_COND",
+            "severity": "REJECT",
+            "ruleId": null,
+            "otherRuleId": null,
+            "varName": null,
+            "message": "e2 갈래 조건식을 읽을 수 없다: 식 끝이 예상과 다르다",
+            "nodeId": "if1",
+            "edgeId": "e2"
+          },
+          {
+            "code": "FLOW_COND",
+            "severity": "REJECT",
+            "ruleId": null,
+            "otherRuleId": null,
+            "varName": "Q_UNKNOWN",
+            "message": "e3 갈래 조건식이 읽는 Q_UNKNOWN는 이 지점에서 정의되지 않았다",
+            "nodeId": "if1",
+            "edgeId": "e3"
+          }
+        ]
+      }
+    },
+    {
+      "name": "흐름 — 조건식이 NBSP 뿐이면 공백이 아니다(조건식 오류로 본다)",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {
+            "id": "start",
+            "kind": "START"
+          },
+          {
+            "id": "if1",
+            "kind": "IF"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE",
+            "ruleId": "A"
+          },
+          {
+            "id": "r2",
+            "kind": "RULE",
+            "ruleId": "B"
+          },
+          {
+            "id": "m1",
+            "kind": "MERGE",
+            "splitId": "if1"
+          },
+          {
+            "id": "end",
+            "kind": "END"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "start",
+            "to": "if1"
+          },
+          {
+            "id": "e2",
+            "from": "if1",
+            "to": "r1",
+            "order": 1,
+            "cond": "\u00a0"
+          },
+          {
+            "id": "e3",
+            "from": "if1",
+            "to": "r2",
+            "otherwise": true
+          },
+          {
+            "id": "e4",
+            "from": "r1",
+            "to": "m1"
+          },
+          {
+            "id": "e5",
+            "from": "r2",
+            "to": "m1"
+          },
+          {
+            "id": "e6",
+            "from": "m1",
+            "to": "end"
+          }
+        ]
+      },
+      "condIo": {
+        "e2": {
+          "ok": false,
+          "message": "읽을 수 있는 식이 없다",
+          "vars": []
+        }
+      },
+      "ids": [
+        "A",
+        "B"
+      ],
+      "rules": {
+        "A": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RA"
+            }
+          ]
+        },
+        "B": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RB"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "X",
+              "source": "DICT",
+              "users": [
+                "A",
+                "B"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "RA",
+              "by": [
+                "A"
+              ],
+              "readers": []
+            },
+            {
+              "name": "RB",
+              "by": [
+                "B"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "A": [],
+          "B": []
+        },
+        "checks": [
+          {
+            "code": "FLOW_COND",
+            "severity": "REJECT",
+            "ruleId": null,
+            "otherRuleId": null,
+            "varName": null,
+            "message": "e2 갈래 조건식을 읽을 수 없다: 읽을 수 있는 식이 없다",
+            "nodeId": "if1",
+            "edgeId": "e2"
+          }
+        ]
+      }
+    },
+    {
+      "name": "흐름 — 룰 ID 가 빈 룰 노드만 있으면 EMPTY 가 아니라 구조 오류다",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {
+            "id": "start",
+            "kind": "START"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE"
+          },
+          {
+            "id": "end",
+            "kind": "END"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "start",
+            "to": "r1"
+          },
+          {
+            "id": "e2",
+            "from": "r1",
+            "to": "end"
+          }
+        ]
+      },
+      "ids": [],
+      "rules": {},
+      "expect": {
+        "io": {
+          "inputs": [],
+          "results": []
+        },
+        "deps": {},
+        "checks": [
+          {
+            "code": "FLOW_STRUCTURE",
+            "severity": "REJECT",
+            "ruleId": null,
+            "otherRuleId": null,
+            "varName": null,
+            "message": "룰 노드 r1에 룰 ID가 없다",
+            "nodeId": "r1",
+            "edgeId": null
+          }
+        ]
+      }
     }
   ]
 }

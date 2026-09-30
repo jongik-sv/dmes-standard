@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
+import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.FlowDefinition;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -29,11 +30,14 @@ import org.junit.jupiter.params.provider.MethodSource;
  *
  * <p>읽기 규칙(두 러너 공통): {@code rules} 원소의 빠진 칸은 null·false·빈 목록으로 채운다({@code exists} 를 빠뜨리면 없는 룰이다). {@code rules} 에 키가 없는
  * ID 는 없는 룰이다. {@code checks} 의 빠진 칸과 {@code null} 은 같다.
+ *
+ * <p>{@code flow} 가 있으면 {@code ids} 는 {@code RuleSetFlowJson.ruleIds(flow)} 기대값이고, io·deps 는 흐름 오버로드, checks 는
+ * {@code checks(flow, rules, condIo)} 로 계산한다. checks 의 빠진 {@code nodeId}·{@code edgeId} 는 null 이다.
  */
 class RuleSetCorpusTest {
 
-    /** 사례 수 하한 — TS 러너와 같은 값(design §3.3). */
-    static final int MIN_CASES = 14;
+    /** 사례 수 하한 — TS 러너와 같은 값(design §3.3). TS 러너({@code rule-set-corpus.test.ts}, 흐름도 Task 8)도 39 로 맞춘다. */
+    static final int MIN_CASES = 39;
 
     /** 클래스패스 위치 = {@code src/test/resources/com/dongkuk/dmes/mdm/common/rule/rule-set-corpus.json}. 없으면 실패한다(건너뛰지 않는다). */
     static final String CORPUS = "/com/dongkuk/dmes/mdm/common/rule/rule-set-corpus.json";
@@ -70,8 +74,12 @@ class RuleSetCorpusTest {
         Map<String, RuleIo> rules = new LinkedHashMap<>();
         c.path("rules").properties().forEach(e -> rules.put(e.getKey(), rule(e.getKey(), e.getValue())));
         JsonNode expect = c.path("expect");
+        FlowDefinition flow = c.has("flow") ? RuleSetFlowJson.parse(c.get("flow").toString()) : null;
+        if (flow != null) {
+            assertEquals(ids, RuleSetFlowJson.ruleIds(flow), name + " ids(펼친 목록)");
+        }
 
-        SetIo io = RuleSetAnalyzer.io(ids, rules);
+        SetIo io = flow == null ? RuleSetAnalyzer.io(ids, rules) : RuleSetAnalyzer.io(flow, rules);
         List<Map<String, Object>> inputs = new ArrayList<>();
         expect.path("io").path("inputs").forEach(i -> inputs.add(map("name", text(i, "name"), "source", text(i, "source"), "users", strings(i.path("users")))));
         assertEquals(inputs, io.inputs().stream().map(i -> map("name", i.name(), "source", i.source(), "users", i.users())).toList(), name + " io.inputs");
@@ -81,13 +89,24 @@ class RuleSetCorpusTest {
 
         Map<String, List<String>> deps = new LinkedHashMap<>();
         expect.path("deps").properties().forEach(e -> deps.put(e.getKey(), strings(e.getValue())));
-        Map<String, List<String>> actualDeps = RuleSetAnalyzer.deps(ids, rules);
+        Map<String, List<String>> actualDeps = flow == null ? RuleSetAnalyzer.deps(ids, rules) : RuleSetAnalyzer.deps(flow, rules);
         assertEquals(List.copyOf(deps.entrySet()), List.copyOf(actualDeps.entrySet()), name + " deps");
 
         List<RuleSetCheck> checks = new ArrayList<>();
         expect.path("checks").forEach(k -> checks.add(new RuleSetCheck(text(k, "code"), text(k, "severity"), text(k, "ruleId"),
-                text(k, "otherRuleId"), text(k, "varName"), text(k, "message"))));
-        assertEquals(checks, RuleSetAnalyzer.checks(ids, rules), name + " checks");
+                text(k, "otherRuleId"), text(k, "varName"), text(k, "message"), text(k, "nodeId"), text(k, "edgeId"))));
+        List<RuleSetCheck> actual = flow == null ? RuleSetAnalyzer.checks(ids, rules) : RuleSetAnalyzer.checks(flow, rules, condIo(c.path("condIo")));
+        assertEquals(checks, actual, name + " checks");
+    }
+
+    private static Map<String, CondIo> condIo(JsonNode node) {
+        Map<String, CondIo> out = new LinkedHashMap<>();
+        node.properties().forEach(e -> {
+            List<IoName> vars = new ArrayList<>();
+            e.getValue().path("vars").forEach(v -> vars.add(new IoName(text(v, "name"), text(v, "source"), null, null, null, false, null)));
+            out.put(e.getKey(), new CondIo(e.getValue().path("ok").asBoolean(false), text(e.getValue(), "message"), vars));
+        });
+        return out;
     }
 
     private static RuleIo rule(String id, JsonNode r) {
