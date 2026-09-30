@@ -362,6 +362,38 @@ describe("흐름 우클릭 메뉴·편집(3단계 Task 8)", () => {
     expect(canvasNodeIds()).not.toContain("if1");
   });
 
+  it("10b. 찾기 칸 — 한글 조합 중 Enter(isComposing)는 다음 결과로 넘기지 않는다", async () => {
+    const rules = [rule("E2S_GRD", "SET_THK", "S_GRD"), rule("E2S_GRD_B", "S_GRD", "S_B")];
+    await openSet("E2S_FIND", viewOf("E2S_FIND", null, ["E2S_GRD", "E2S_GRD_B"], rules));
+    await click("flow-mode-edit");
+    const find = byTestId<HTMLInputElement>("flow-find");
+    await typeInto(find, "GRD");
+    mocks.expandFor.mockClear();
+    const composing = await key(find, { key: "Enter", isComposing: true });
+    await settle(50);
+    expect(composing.defaultPrevented).toBe(false);
+    expect(mocks.expandFor).not.toHaveBeenCalled();
+    await key(find, { key: "Enter" });
+    await settle(50);
+    expect(mocks.expandFor).toHaveBeenCalledWith("r1");
+  });
+
+  it("11a. 도움말이 열려 있을 때 Esc 는 도움말만 닫고 선택은 그대로 둔다. 닫힌 뒤 Esc 는 선택을 푼다", async () => {
+    await openSet("E2S_CHAIN", chainView());
+    await click("flow-mode-edit");
+    await clickEdge("e2");
+    await click("flow-help");
+    expect(q("flow-help-panel")).not.toBeNull();
+    await act(async () => {
+      canvas().focus();
+    });
+    await key(canvas(), { key: "Escape" });
+    expect(q("flow-help-panel")).toBeNull();
+    expect(edgeEl("e2").classList.contains("selected")).toBe(true);
+    await key(canvas(), { key: "Escape" });
+    expect(edgeEl("e2").classList.contains("selected")).toBe(false);
+  });
+
   it("11. [?] — 모드별 단축키 목록. Mac 이면 ⌘ 표기와 fn 문구", async () => {
     await openSet("E2S_CHAIN", chainView());
     await click("flow-help");

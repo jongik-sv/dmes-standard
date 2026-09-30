@@ -78,7 +78,7 @@ export function RulePanel(props: RulePanelProps) {
                 placeholder="룰 ID·룰명"
                 onChange={setKeyword}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") void find();
+                  if (e.key === "Enter" && !e.nativeEvent.isComposing) void find();
                 }}
                 style={{ flex: 1, minWidth: 0 }}
               />

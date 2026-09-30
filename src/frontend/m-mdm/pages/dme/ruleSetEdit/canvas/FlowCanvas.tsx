@@ -120,8 +120,8 @@ export interface FlowCanvasProps {
   onSelect: (id: string | null) => void;
   onSelectEdge: (edgeId: string | null) => void;
   onOpenRule: (ruleId: string) => void; // 링크 아이콘만
-  /** 선 밖에 놓은 끌기 끝(편집 모드만). 메모는 onNoteChange 로 올린다. */
-  onMove: (pos: Record<string, FlowPos>) => void;
+  /** 선 밖에 놓은 끌기 끝(편집 모드만). 끈 메모 위치도 함께 올려 이력이 한 칸으로 남는다(B5). */
+  onMove: (pos: Record<string, FlowPos>, notes?: Record<string, FlowPos>) => void;
   /** 놓인 노드·블록을 선 위에 놓음(A2 — Task 7). */
   onMoveNode: (nodeId: string, edgeId: string, pos: Record<string, FlowPos>) => void;
   onConnect: (from: string, to: string) => void;
@@ -134,6 +134,8 @@ export interface FlowCanvasProps {
   onRouteChange?: (edgeId: string, points: FlowPos[]) => void;
   /** 캔버스가 "고른 꺾는 점 빼기 — 뺐으면 true" 를 채우는 ref(page 의 delete 단축키가 먼저 부른다, C14). */
   removeRoutePointRef?: MutableRefObject<(() => boolean) | null>;
+  /** 캔버스가 "React Flow 선택 모두 비우기" 를 채우는 ref(page 의 Esc 가 부른다 — disableKeyboardA11y 로 내장 Esc 가 없다). */
+  clearSelectionRef?: MutableRefObject<(() => void) | null>;
   /** 우클릭·[+] — 대상과 화면 좌표(B7·A3). */
   onContextMenu: (target: MenuTarget, at: { x: number; y: number }) => void;
   /** 즉석 조건식 Enter(B10 — Task 7). */
@@ -444,7 +446,7 @@ function Inner(props: FlowCanvasProps) {
     flow, rules, checks, mode, showVars, selectedId, selectedEdgeId, overlay, focusId, focusSeq, focusReveal, fitSignal, fitKey,
     breakpoints, collapsed, valueAt, showMiniMap, editingCondEdgeId,
     onSelect, onSelectEdge, onOpenRule, onMove, onMoveNode, onConnect, onDropPalette, onDropRule, onNoteChange, onContextMenu, onToggleBreakpoint,
-    onEditCond, onRouteChange, removeRoutePointRef, onEditCondClose, onSelectionChange,
+    onEditCond, onRouteChange, removeRoutePointRef, clearSelectionRef, onEditCondClose, onSelectionChange,
   } = props;
   const editable = mode === "edit";
   const debugging = mode === "debug";
@@ -478,14 +480,27 @@ function Inner(props: FlowCanvasProps) {
   /** 접힌 분기를 반영한 표시 흐름(D16). 저장 흐름(`flow`)은 그대로다. */
   const view = useMemo(() => collapseView(flow, collapsed), [flow, collapsed]);
   const vflow = view.flow;
-  const pos = useMemo(() => ({ ...positionsOf(vflow), ...drag }), [vflow, drag]);
+  /** 자동 배치(dagre)는 표시 흐름과 저장 위치에만 묶어 따로 memo 한다 — 끌기 오프셋(drag)이 바뀌어도 다시 돌지 않는다(§16). */
+  const basePos = useMemo(() => positionsOf(vflow), [vflow]);
+  const pos = useMemo(() => ({ ...basePos, ...drag }), [basePos, drag]);
   const posRef = useRef(pos);
   posRef.current = pos;
+  const basePosRef = useRef(basePos);
+  basePosRef.current = basePos;
   /** 끌기 대상 선 계산은 표시 흐름의 선만 본다. 블록을 통째로 옮기는 위치 계산은 원래 흐름(감춘 멤버 포함)으로 한다. */
   const flowRef = useRef(vflow);
   flowRef.current = vflow;
   const fullRef = useRef(flow);
   fullRef.current = flow;
+  /** 원래 흐름(감춘 멤버 포함)의 배치 — 흐름이 바뀔 때만 한 번 계산하고 블록 끌기가 읽는다(펼쳐져 있으면 표시 배치를 그대로 쓴다). */
+  const fullPosCache = useRef<{ flow: unknown; pos: Record<string, FlowPos> } | null>(null);
+  const fullPosOf = () => {
+    const cur = fullRef.current;
+    if (fullPosCache.current?.flow !== cur) {
+      fullPosCache.current = { flow: cur, pos: cur === flowRef.current ? basePosRef.current : positionsOf(cur) };
+    }
+    return fullPosCache.current.pos;
+  };
   const viewRef = useRef(view);
   viewRef.current = view;
 
@@ -623,7 +638,7 @@ function Inner(props: FlowCanvasProps) {
   /** 분기를 끄는 동안 블록 멤버가 같은 만큼 움직인 위치. 분기가 아니면 빈 맵. */
   const blockPositionsOf = (n: Node): Record<string, FlowPos> => {
     if (!isSplit(n.id)) return {};
-    const base = positionsOf(fullRef.current);
+    const base = fullPosOf();
     const from = base[n.id];
     if (!from) return {};
     return blockDragPositions(fullRef.current, n.id, { x: n.position.x - from.x, y: n.position.y - from.y }, base);
@@ -652,21 +667,26 @@ function Inner(props: FlowCanvasProps) {
     if (!editable) return;
     const noteIds = new Set(flow.view.notes.map((n) => n.id));
     const moved: Record<string, FlowPos> = {};
+    const movedNotes: Record<string, FlowPos> = {};
     for (const n of dragged) {
       const p = { x: Math.round(n.position.x), y: Math.round(n.position.y) };
-      if (noteIds.has(n.id)) onNoteChange(n.id, p);
+      if (noteIds.has(n.id)) movedNotes[n.id] = p;
       else if (n.type === "rsfFlow") {
         moved[n.id] = p;
         for (const [id, bp] of Object.entries(blockPositionsOf(n))) moved[id] = { x: Math.round(bp.x), y: Math.round(bp.y) };
       }
     }
-    if (Object.keys(moved).length === 0) return;
+    if (Object.keys(moved).length === 0) {
+      if (Object.keys(movedNotes).length > 0) onMove({}, movedNotes); // 메모만 끌었어도 놓을 때 한 번(B5)
+      return;
+    }
     if (target && dragged.length === 1 && isMovable(node)) {
       onMoveNode(node.id, target, moved);
       setDrag({}); // 옮기기가 거부돼 흐름이 그대로면 끌던 위치를 되돌린다(성공하면 새 흐름 위치가 정본)
-    } else onMove(moved);
+    } else if (Object.keys(movedNotes).length > 0) onMove(moved, movedNotes);
+    else onMove(moved);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editable, flow, onMove, onMoveNode, onNoteChange, setDropEdge]);
+  }, [editable, flow, onMove, onMoveNode, setDropEdge]);
 
   // 흐름이 바뀌면 없어진 요소를 선택에서 뺀다.
   useEffect(() => {
@@ -840,6 +860,14 @@ function Inner(props: FlowCanvasProps) {
     };
   }, [removeRoutePointRef, editable, routeApi, routeStore]);
 
+  useEffect(() => {
+    if (!clearSelectionRef) return;
+    clearSelectionRef.current = () => setRfSel((cur) => (cur.size === 0 ? cur : new Set()));
+    return () => {
+      clearSelectionRef.current = null;
+    };
+  }, [clearSelectionRef]);
+
   const carries = (e: DragEvent<HTMLDivElement>) => {
     const types = Array.from(e.dataTransfer?.types ?? []);
     return types.includes(PALETTE_MIME) || types.includes(RULE_MIME);
@@ -918,6 +946,7 @@ function Inner(props: FlowCanvasProps) {
         edgeTypes={EDGE_TYPES}
         nodesDraggable={editable}
         nodesConnectable={editable}
+        disableKeyboardA11y
         elementsSelectable
         deleteKeyCode={null}
         selectionKeyCode={editable ? "Shift" : null}
