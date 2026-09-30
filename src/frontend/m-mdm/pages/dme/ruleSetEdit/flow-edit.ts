@@ -418,9 +418,11 @@ export function addNote(f: EditFlow, at: FlowPos, attach: string | null): { flow
   return { flow: g, id };
 }
 
+/** 메모의 주어진 칸만 바꾼다(undefined 칸은 건드리지 않는다 — updateEdge 와 같다). */
 export function updateNote(f: EditFlow, id: string, patch: Partial<Omit<FlowNote, "id">>): EditFlow {
   const g = clone(f);
-  g.view.notes = g.view.notes.map((n) => (n.id === id ? copyNote({ ...n, ...patch, id }) : n));
+  const given = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) as Partial<Omit<FlowNote, "id">>;
+  g.view.notes = g.view.notes.map((n) => (n.id === id ? copyNote({ ...n, ...given, id }) : n));
   return g;
 }
 

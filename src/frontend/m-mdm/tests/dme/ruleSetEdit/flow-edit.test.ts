@@ -236,6 +236,7 @@ describe("flow-edit 보강", () => {
     expect(flow.view.notes[0]).toMatchObject({ id, text: "", x: 5, y: 6, attach: "r1" });
     const n = updateNote(flow, id, { text: "메모" });
     expect(n.view.notes[0].text).toBe("메모");
+    expect(updateNote(n, id, { text: undefined, attach: undefined }).view.notes[0]).toMatchObject({ text: "메모", attach: "r1" });
     expect(removeNote(n, id).view.notes).toEqual([]);
     const r = addGroup(n, ["r1"], "G");
     if (!r.ok) throw new Error(r.reason);
