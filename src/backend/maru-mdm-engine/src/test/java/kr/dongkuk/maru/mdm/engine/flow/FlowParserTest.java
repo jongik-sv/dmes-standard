@@ -66,7 +66,9 @@ class FlowParserTest {
         FlowDefinition f = flow(List.of(start(), ifNode("if1"), rule("a", "R_A"), rule("b", "R_B"), merge("m1", "if1"), end()),
                 List.of(e("e0", "start", "if1"), other("bo", "if1", "m1"), br("b2", "if1", "b", 2, "X > 0"),
                         br("b1", "if1", "a", 1, "X > 10"), e("ea", "a", "m1"), e("eb", "b", "m1"), e("ee", "m1", "end")));
-        Split s = (Split) FlowParser.parse(f).tree().root().items().get(0);
+        FlowParse p = FlowParser.parse(f);
+        assertEquals(List.of(), p.issues());
+        Split s = (Split) p.tree().root().items().get(0);
         assertEquals(List.of("b1", "b2", "bo"), s.branches().stream().map(Branch::edgeId).toList());
     }
 
