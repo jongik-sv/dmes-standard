@@ -13,6 +13,8 @@ export interface CategoryDef {
   defExpr: string | null;
   defTarget: string | null;
   description: string | null;
+  /** 서버가 계산해 준 매칭 건수(REGEX 정규식 매칭 수 · TABLE 저장된 소속 수 · 닫힌 건 0). 목록 한 번에 온다. */
+  matchCount?: number;
 }
 
 export type CategoryLocalState = "none" | "edited" | "deleted" | "new";

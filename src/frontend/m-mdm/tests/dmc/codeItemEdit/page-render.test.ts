@@ -149,9 +149,25 @@ async function click(el: Element | null) {
   await settle();
 }
 
+/**
+ * ↑/↓ — **격자 칸에** 키를 쏜다(진짜 입력 경로). 컨테이너에 직접 쏘면 ag-grid 의 `onCellKeyDown` 을 건너뛰기
+ * 때문에 편집 가능한 그리드에서 실제로 커서가 움직이는지 검증되지 않는다(이 그리드는 `suppressCellFocus={false}`).
+ */
+async function arrow(key: "ArrowUp" | "ArrowDown") {
+  // 키는 커서 행의 칸에 보낸다 — 실제 브라우저에서 클릭한 행의 칸이 포커스를 갖고 키를 받는 것과 같다.
+  // shared AgDataGrid 는 키를 받은 칸의 행을 기준으로 커서를 옮긴다(`handleCellKeyDown` 의 `event.rowIndex`).
+  const cell = (document.querySelector('[data-testid="code-grid"] .ag-row-highlighted .ag-cell')
+    ?? document.querySelector('[data-testid="code-grid"] .ag-cell')) as HTMLElement;
+  expect(cell).not.toBeNull();
+  await act(async () => {
+    cell.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+  });
+  await settle();
+}
+
 /** 네이티브 value setter 로 값을 넣고 React 가 듣는 input 이벤트를 쏜다(code-mng-page.test.ts 관례). */
 async function typeInto(testIdValue: string, value: string) {
-  const el = container.querySelector(`[data-testid="${testIdValue}"]`) as HTMLInputElement;
+  const el = document.querySelector(`[data-testid="${testIdValue}"]`) as HTMLInputElement;
   expect(el, testIdValue).toBeTruthy();
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(el, value);
@@ -162,11 +178,30 @@ async function typeInto(testIdValue: string, value: string) {
 
 const bodyButtons = () => Array.from(document.body.querySelectorAll("button"));
 
-const testId = (id: string) => container.querySelector(`[data-testid="${id}"]`);
+/** 코드 그리드의 행 커서(`.ag-row-highlighted`)가 지금 어느 행에 있는지 — 이 클래스가 커서다(shared grid.css). */
+function cursorRow(): string | undefined {
+  const el = document.querySelector('[data-testid="code-grid"] .ag-row-highlighted');
+  return el?.getAttribute("row-id") ?? undefined;
+}
+
+/**
+ * 카테고리 그리드의 `cateId` 행 · `colKey` 칸이 그리는 글자.
+ * 행은 `row-id` 로 찾는다 — ID 칸(testid `cate-row-{id}`)은 클릭하면 편집기가 대신 그리므로 편집 상태에 따라
+ * 사라진다. `row-id` 는 ag-grid 가 붙이는 행 키라 그릴 때마다 같다.
+ */
+function gridCell(cateId: string, colKey: string): string | undefined {
+  const rowEl = testId("cate-list")?.querySelector(`.ag-row[row-id="${cateId}"]`);
+  return rowEl?.querySelector(`[col-id="${colKey}"]`)?.textContent?.trim();
+}
+
+// Modal·TransferList 은 document.body 포털에 그려지므로 container 가 아니라 document 로 찾는다
+// (data-item-page.test.ts 와 같은 규약).
+const testId = (id: string) => document.querySelector(`[data-testid="${id}"]`);
 const buttonTexts = () => Array.from(container.querySelectorAll("button")).map((b) => b.textContent?.trim());
 const saveButton = () => Array.from(container.querySelectorAll("button"))
   .find((b) => b.textContent?.trim() === "저장") as HTMLButtonElement | undefined;
-const openCateTab = () => click(testId("code-tab-cate"));
+// 카테고리 편집은 왼쪽 탭이 아니라 오른쪽 탭[카테고리 편집]에 있다(2026-09-30 레이아웃 변경).
+const openCateTab = () => click(testId("code-right-tab-cate"));
 
 describe("codeItemEdit page", () => {
   beforeEach(() => {
@@ -251,17 +286,45 @@ describe("codeItemEdit page", () => {
     expect(testId("code-add")).toBeNull();
     expect(buttonTexts()).not.toContain("저장");
   });
-  it("⑦ 탭은 코드·트리·카테고리 셋이다", async () => {
+  it("⑦ 왼쪽 탭은 코드·트리, 오른쪽 탭은 카테고리 편집·코드 테스트다", async () => {
     stubFetch(viewOf("DRAFT", { editable: true, patchable: false }, [row("KS-9")]));
     await render(createElement(CodeItemEditPage));
     await chooseCode("STEEL");
     expect(testId("code-tab-grid")?.textContent).toBe("코드");
     expect(testId("code-tab-tree")?.textContent).toBe("트리");
-    expect(testId("code-tab-cate")?.textContent).toBe("카테고리");
+    expect(testId("code-right-tab-cate")?.textContent).toBe("카테고리 편집");
+    expect(testId("code-right-tab-test")?.textContent).toBe("코드 테스트");
+    expect(testId("code-grid")).not.toBeNull();
+    // 카테고리 편집이 처음 선택된 탭이다 — 코드 그리드는 코드 테스트 탭으로 물러난다.
+    await click(testId("code-right-tab-test"));
     expect(testId("code-grid")).not.toBeNull();
     await openCateTab();
-    expect(testId("code-grid")).toBeNull();
     expect(testId("cate-tab")).not.toBeNull();
+    // 카테고리 편집은 오른쪽 탭이라 왼쪽 코드 그리드는 그대로 남는다(옛 좌측 탭과 다르다).
+    expect(testId("code-grid")).not.toBeNull();
+  });
+
+  it("⑧ 클릭하면 행 커서가 나오고 ↑/↓ 로 다음·이전 행으로 옮겨 간다", async () => {
+    // DRAFT(편집 가능)에서도 커서가 움직여야 한다 — 옛엔 경미 수정 가능 버전에만 붙어 있었다.
+    stubFetch(viewOf("DRAFT", { editable: true, patchable: false }, [row("KS-9"), row("KS-10"), row("KS-11")]));
+    await render(createElement(CodeItemEditPage));
+    await chooseCode("STEEL");
+    expect(cursorRow()).toBeUndefined();
+
+    // 클릭 → 커서가 그 행에 붙는다.
+    await click(document.querySelector('[data-testid="code-grid"] [row-id="KS-10"]')!);
+    expect(cursorRow()).toBe("KS-10");
+
+    // ↓ → 다음 행, ↑ → 이전 행. shared AgDataGrid 가 highlightedRowKey 기준으로 옮기고 onRowClick 을 부른다.
+    await arrow("ArrowDown");
+    expect(cursorRow()).toBe("KS-11");
+    await arrow("ArrowUp");
+    expect(cursorRow()).toBe("KS-10");
+    await arrow("ArrowUp");
+    expect(cursorRow()).toBe("KS-9");
+    // 첫 행에서 더 위로는 가지 않는다.
+    await arrow("ArrowUp");
+    expect(cursorRow()).toBe("KS-9");
   });
 
   it("⑧ 마루 코드를 고르기 전 카테고리 탭은 빈 상태 문구", async () => {
@@ -279,7 +342,11 @@ describe("codeItemEdit page", () => {
     await openCateTab();
     expect(callsTo("/oasis/codeCateEdit/view")[0]?.body.params).toEqual({ maruCodeId: "STEEL", ver: "1.000" });
     expect(testId("cate-list")?.querySelectorAll('[data-testid^="cate-row-"]')).toHaveLength(2);
+    // 추가 폼은 [카테고리 추가] 를 눌러야 팝업으로 열린다(목록에 인라인 폼이 없다).
+    expect(testId("cate-add-submit")).toBeNull();
+    await click(testId("cate-add"));
     expect(testId("cate-add-submit")).not.toBeNull();
+    await click(testId("cate-add-cancel"));
     expect(testId("cate-close-BASE")).toBeNull();
     expect(testId("cate-close-T1")).not.toBeNull();
     expect(testId("cate-row-version")?.textContent).toBe("row_version = 4");
@@ -296,7 +363,7 @@ describe("codeItemEdit page", () => {
     expect(testId("cate-close-T1")).toBeNull();
   });
 
-  it("⑪ BASE 는 안내만, TABLE 은 transfer-list, REGEX 는 편집 영역과 오른쪽 미리보기(compare 결과)", async () => {
+  it("⑪ BASE 는 안내만, TABLE 은 transfer-list, REGEX 는 그리드에서 정규식을 직접 고친다", async () => {
     stubFetch(viewOf("DRAFT", { editable: true, patchable: false }, [row("KS-9")]), {
       cateView: cateViewOf("DRAFT", true, [BASE, TABLE1, REGEX1],
         [{ code: "KS-9", name: "규격 외 KS", seq: 1, lvls: ["KS", null, null, null, null] }]),
@@ -306,25 +373,32 @@ describe("codeItemEdit page", () => {
     await openCateTab();
     await click(testId("cate-row-BASE"));
     expect(testId("cate-base-readonly")).not.toBeNull();
-    expect(testId("cate-regex-edit")).toBeNull();
+    // BASE 는 동작 칸이 비어 있다(닫기·편집 대상이 아니다).
+    expect(testId("cate-close-BASE")).toBeNull();
+    expect(testId("cate-edit-BASE")).toBeNull();
 
+    // TABLE — [편집] 이 transfer-list 팝업을 연다.
     await click(testId("cate-row-T1"));
+    expect(testId("cate-transfer")).toBeNull();
+    await click(testId("cate-edit-T1"));
     expect(testId("cate-transfer-item-available-KS-9")).not.toBeNull();
-    expect(testId("cate-preview")?.textContent).toContain("TABLE 카테고리는 소속 목록이 곧 결과입니다");
-    expect(testId("code-preview")).toBeNull();
+    await click(testId("cate-transfer-search"));
 
+    // REGEX — 정규식·대상 칸을 목록 칸에서 직접 고친다(별도 편집 폼이 없다).
     await click(testId("cate-row-R1"));
-    expect((testId("cate-regex-expr") as HTMLInputElement).value).toBe("8[0-9]");
-    await settle();
-    expect(testId("cate-preview-summary")?.textContent).toBe("1 / 2건 해당");
-    expect(callsTo("/oasis/codeCateEdit/compare").at(-1)?.body.params).toMatchObject({ cateId: "R1", defExpr: "8[0-9]" });
+    expect(testId("cate-regex-edit")).toBeNull();
+    expect(gridCell("R1", "defExpr")).toBe("8[0-9]");
+    // 미리보기(compare) 는 [코드 테스트] 탭이 맡는다.
+    expect(testId("code-preview")).toBeNull();
   });
 
   it("⑫ 코드·트리 탭의 오른쪽은 코드 편집 미리보기다", async () => {
     stubFetch(viewOf("DRAFT", { editable: true, patchable: false }, [row("KS-9")]));
     await render(createElement(CodeItemEditPage));
     await chooseCode("STEEL");
+    await click(testId("code-right-tab-test"));
     expect(testId("code-preview")).not.toBeNull();
+    await openCateTab();
     expect(testId("cate-preview")).toBeNull();
   });
 
@@ -362,7 +436,13 @@ describe("codeItemEdit page", () => {
     await chooseCode("STEEL");
     await openCateTab();
     await click(testId("cate-close-T1"));
+    // 카테고리 편집은 오른쪽 탭이라 왼쪽 코드/트리 탭과 독립이다 — 어느 쪽을 골라도 편집은 남는다.
     await click(testId("code-tab-grid"));
+    expect(testId("cate-tab")).not.toBeNull();
+    await click(testId("code-tab-tree"));
+    expect(testId("cate-tab")).not.toBeNull();
+    // 오른쪽 탭을 바꿔도 상태는 page 의 useCategoryEdit 에 있다.
+    await click(testId("code-right-tab-test"));
     expect(testId("cate-tab")).toBeNull();
     await openCateTab();
     expect(testId("cate-undo-T1")).not.toBeNull();
@@ -393,7 +473,8 @@ describe("codeItemEdit page", () => {
     expect(document.body.textContent).toContain("코드 저장 검사를 통과하지 못했습니다");
     expect(testId("cate-row-issue-T1")?.textContent).toBe("이 버전에 없는 카테고리다");
     expect(testId("cate-issues")?.textContent).toContain("ZZ MEMBER_CODE_NOT_FOUND");
-    expect(testId("code-tab-cate-issue")).not.toBeNull();
+    // 카테고리 이슈 배지는 오른쪽 [카테고리 편집] 탭에 붙는다(2026-09-30 레이아웃 변경).
+    expect(testId("code-right-tab-cate-issue")).not.toBeNull();
     expect(testId("code-tab-grid-issue")).toBeNull();
     // 거부된 변경은 화면에 그대로 남는다.
     expect(testId("cate-undo-T1")).not.toBeNull();
@@ -423,12 +504,15 @@ describe("codeItemEdit page", () => {
     // 저장 버튼을 켜 둘 다른 변경(T1 닫기) 하나를 같이 낸다.
     await click(testId("cate-close-T1"));
 
+    // [카테고리 추가] 를 눌러 팝업에서 ID·이름을 넣는다(목록에 인라인 폼이 없다).
+    await click(testId("cate-add"));
     await typeInto("cate-add-id", "T2");
     await typeInto("cate-add-name", "표2");
     await click(testId("cate-add-submit"));
     expect(testId("cate-row-T2")).not.toBeNull();
 
-    // 새 카테고리 T2(선택된 상태)의 소속으로 KS-9 를 옮긴다.
+    // 새 카테고리 T2(선택된 상태)의 소속으로 KS-9 를 옮긴다 — 첫 저장 전에 넣을 수 있어야 한다.
+    await click(testId("cate-edit-T2"));
     await click(testId("cate-transfer-move-right-all"));
     expect(testId("cate-transfer-item-member-KS-9")).not.toBeNull();
 
@@ -485,16 +569,22 @@ describe("codeItemEdit page", () => {
     await chooseCode("STEEL");
     await openCateTab();
 
+    // 추가 폼은 [카테고리 추가] 버튼이 아예 없다(팝업도 못 연다).
+    expect(testId("cate-add")).toBeNull();
     expect(testId("cate-add-submit")).toBeNull();
+    // 닫기·편집(소속 이동) 둘 다 없다 — 동작 칸이 통째로 잠긴다.
     expect(testId("cate-close-T1")).toBeNull();
+    expect(testId("cate-edit-T1")).toBeNull();
 
+    // REGEX 는 그리드 칸에서 직접 고치는데, 권한이 없으면 칸이 편집기가 되지 않는다(따로 편집 폼이 없다).
     await click(testId("cate-row-R1"));
-    expect((testId("cate-regex-name") as HTMLInputElement).disabled).toBe(true);
-    expect((testId("cate-regex-expr") as HTMLInputElement).disabled).toBe(true);
+    expect(testId("cate-list")?.querySelector(".ag-cell-inline-editing")).toBeNull();
+    expect(testId("cate-list")?.querySelector(".ag-cell input")).toBeNull();
+    expect(gridCell("R1", "defExpr")).toBe("8[0-9]");
 
+    // TABLE 은 [편집] 으로 transfer-list 를 열는데, 버튼이 없으니 팝업조차 열리지 않는다.
     await click(testId("cate-row-T1"));
-    // available 목록에 KS-9 가 있어 length===0 이 아니다 — disabled 는 오직 editable(=editable && canEdit) 로만 갈린다.
-    expect(testId("cate-transfer-item-available-KS-9")).not.toBeNull();
-    expect((testId("cate-transfer-move-right-all") as HTMLButtonElement).disabled).toBe(true);
+    expect(testId("cate-transfer")).toBeNull();
+    expect(testId("cate-transfer-item-available-KS-9")).toBeNull();
   });
 });

@@ -12,7 +12,7 @@ import {
   lvl1Options, moveAllVisible, moveSelected, rangeSelect, removeAllVisible, removeSelected,
   selectAllVisible, toggleSelect, visibleList, type TransferItem, type TransferMark, type TransferSide,
 } from "../transfer";
-import { hint, transferButtons, transferColumn, transferGrid, transferList, transferRow } from "./styles";
+import { hint, transferButtons, transferCode, transferColumn, transferGrid, transferList, transferName, transferRow } from "./styles";
 
 export interface TransferListPanelProps {
   items: TransferItem[];
@@ -73,8 +73,8 @@ export function TransferListPanel(props: TransferListPanelProps) {
           <div key={it.code} data-testid={`cate-transfer-item-${side}-${it.code}`} style={transferRow}
             onClick={(e: MouseEvent) => editable && clickItem(side, it.code, e.shiftKey)}>
             <Checkbox checked={selected.has(it.code)} disabled={!editable} onChange={() => editable && clickItem(side, it.code, false)} />
-            <span>{it.code}</span>
-            <span style={hint}>{it.name ?? ""}</span>
+            <span style={transferCode}>{it.code}</span>
+            <span style={{ ...hint, ...transferName }}>{it.name ?? ""}</span>
             {it.mark && (
               <span data-testid={`cate-transfer-mark-${it.code}`}>
                 <GridBadge label={MARK[it.mark].label} bg={MARK[it.mark].bg} color={MARK[it.mark].color} />

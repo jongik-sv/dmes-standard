@@ -39,6 +39,8 @@ export interface CategoryDef {
   defExpr: string | null;
   defTarget: string | null;
   description: string | null;
+  /** 서버 `categoryMap` 이 계산한 매칭 건수 — REGEX 는 정규식 매칭 수, TABLE 은 저장된 소속 수, 닫힌 건 0. */
+  matchCount?: number;
 }
 
 export interface CodeItemInfo {

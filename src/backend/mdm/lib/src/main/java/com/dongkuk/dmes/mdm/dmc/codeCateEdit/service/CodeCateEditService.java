@@ -147,7 +147,8 @@ public class CodeCateEditService {
         result.put("selected", sel);
 
         MasterCodeVersionView view = segments.viewAt(ref(code.getMaruCodeId(), v));
-        result.put("categories", view.categories().stream().map(CodeCateEditService::categoryMap).toList());
+        result.put("categories", view.categories().stream()
+                .map(c -> categoryMap(c, view.items(), view.cateItems())).toList());
         result.put("items", view.items().stream().map(CodeCateEditService::itemMap).toList());
         result.put("cateItems", view.cateItems().stream()
                 .sorted(Comparator.comparing(MasterCodeCateItemRow::cateId).thenComparing(MasterCodeCateItemRow::code))
@@ -329,7 +330,8 @@ public class CodeCateEditService {
         return m;
     }
 
-    private static Map<String, Object> categoryMap(MasterCodeCateRow r) {
+    private static Map<String, Object> categoryMap(MasterCodeCateRow r, List<MasterCodeItemRow> itemsAtV,
+                                                   List<MasterCodeCateItemRow> cateItemsAtV) {
         CategoryDefinition d = r.definition();
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("cateId", d.cateId());
@@ -338,7 +340,19 @@ public class CodeCateEditService {
         m.put("defExpr", d.defExpr());
         m.put("defTarget", d.defTarget() == null ? null : d.defTarget().name());
         m.put("description", d.description());
+        m.put("matchCount", matchCount(r, itemsAtV, cateItemsAtV));
         return m;
+    }
+
+    /**
+     * 카테고리 매칭 건수 — dmd {@code DataCateEditService.toCateRow} 와 같은 규칙으로 맞춘다: REGEX 는 정규식에 걸린
+     * 코드 수, TABLE 은 저장된 소속 수. 정규식은 서버 {@code Pattern} 으로만 해석한다(원천 04:183 — 화면이 돌리지 않는다).
+     * 닫힌 카테고리는 {@code viewAt} 이 아예 목록에서 빼므로 여기서는 따로 0 처리하지 않는다(dmd 는 닫은 것도 목록에 주므로
+     * 거기는 따로 0 을 넣는다).
+     */
+    private static int matchCount(MasterCodeCateRow cate, List<MasterCodeItemRow> itemsAtV,
+                                  List<MasterCodeCateItemRow> cateItemsAtV) {
+        return MasterCodeCategoryResolver.resolve(itemsAtV, cate, cateItemsAtV).hitCount();
     }
 
     private static Map<String, Object> itemMap(MasterCodeItemRow r) {

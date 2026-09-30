@@ -28,7 +28,7 @@ import {
 } from "./api";
 import { allNodeValues, buildCodeTree, LVL_KEYS, toTreeItems, type HierRow } from "@/hier-tree";
 import {
-  addRow, changesOf, editCell, filterByNode, isCellEditable, pathOf, removeRow, toEditRows, undoLocal,
+  addRow, changesOf, editCell, filterByNode, isCellEditable, pathOf, removeRow, reorderRows, toEditRows, undoLocal,
   type EditRow, type ServerRow,
 } from "./grid-state";
 import { PatchPanel, type PatchValues } from "./components/PatchPanel";
@@ -53,7 +53,8 @@ async function searchCodePicks(keyword: string): Promise<IdPickRow[]> {
   }));
 }
 
-type Tab = "grid" | "tree" | "cate";
+type Tab = "grid" | "tree";
+type RightTab = "cateEdit" | "codeTest";
 
 /** 탭 이름 — 저장 검사 이슈가 있으면 옆에 경고 아이콘. */
 function tabLabel(testId: string, text: string, hasIssue = false): ReactNode {
@@ -101,6 +102,7 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
   const [issues, setIssues] = useState<Record<string, Issue[]>>({});
   const [showClosed, setShowClosed] = useState(false);
   const [tab, setTab] = useState<Tab>("grid");
+  const [rightTab, setRightTab] = useState<RightTab>("cateEdit");
   const [expanded, setExpanded] = useState<string[]>([]);
   const [treeSel, setTreeSel] = useState<string | null>(null);
   const [filter, setFilter] = useState<string | null>(null);
@@ -340,6 +342,9 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
       ...extra,
     });
     const cols: GridColumn[] = [
+      {
+        key: "__drag", header: "", width: 40, tooltip: false,
+      },
       cell("code", "코드", 150),
       cell("name", "이름", 160),
       cell("alterName", "약칭", 110),
@@ -468,7 +473,6 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
             <Tabs activeKey={tab} onChange={(k) => setTab(k as Tab)} items={[
               { key: "grid", label: tabLabel("code-tab-grid", "코드", codeHasIssue) },
               { key: "tree", label: tabLabel("code-tab-tree", "트리") },
-              { key: "cate", label: tabLabel("code-tab-cate", "카테고리", cateHasIssue) },
             ]} />
             {tab === "grid" && (
               <div data-testid="code-grid" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
@@ -495,10 +499,16 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
                       singleClickEdit
                       stopEditingWhenCellsLoseFocus
                       highlightedRowKey={selectedKey}
+                      rowDragField="__drag"
+                      isRowDraggable={(row) => !row.__closed}
+                      onRowOrderChange={(orderedKeys) => setRows(reorderRows(rows, orderedKeys.map(String)))}
                       onRowClick={(row) => {
-                        // 행 선택은 경미 수정 패널만 쓴다. DRAFT 편집 중에 선택을 바꾸면 그리드가 다시 그려져
-                        // 한 번 클릭 편집 시작과 겹친다(E2E T4 실측) — RELEASED(경미 수정 가능)에서만 고른다.
-                        if (patchable) setSelectedKey(String(row.__key));
+                        // 행 커서 — 클릭이랑 ↑/↓ 가 이걸 바꾼다(shared AgDataGrid 가 키를 가로챈다).
+                        // 옛엔 DRAFT 에서 안 움직였다: 선택이 바뀌면 그리드가 다시 그려져 한 번 클릭 편집 시작과
+                        // 겹친다고(E2E T4). shared 래퍼가 그 재그리기를 편집 종료로 미루도록 고쳐서(E2E T4 이후)
+                        // 더 이상 겹치지 않는다 — 이제 언제든 커서를 옮긴다.
+                        // 경미 수정 패널은 `patchable` 로 따로 가린다(여기서 옮겨도 패널은 안 열린다).
+                        setSelectedKey(String(row.__key));
                       }}
                       onCellValueChanged={({ rowKey, field, newValue }) => {
                         const next = editCell(rows, String(rowKey), field, newValue);
@@ -533,27 +543,25 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
                 </div>
               </div>
             )}
-            {tab === "cate" && (
-              // 카테고리 추가·닫기·REGEX 편집·소속 이동은 codeItemEdit save 로 함께 저장되므로 그 save 권한(canSave)
-              // 하나로 판정한다(codeCateEdit OBJECT 의 save 권한을 따로 보지 않는다, § 결함 3). codeCateEdit 의
-              // restore 권한은 서버 restore 를 직접 부르는 카테고리 되돌리기(서버 행)를 위한 것이라 이 판정과
-              // 분리해 둔다 — 이 화면에는 그 되돌리기 버튼이 아직 없다.
-              <CategoryTab cate={cate} loaded={!!view && !!selected} editable={editable} canEdit={canSave}
-                rowVersion={selected?.rowVersion ?? null} />
-            )}
+
           </div>
         </ContentPanel>
 
         <ContentBody direction="column" width="34%" resizable storageKey="mdm.dmc.codeItemEdit.right">
           <ContentPanel>
-            {/* 미리보기 자리는 하나다 — 코드·트리 탭은 저장된 정의 기준, 카테고리 탭은 고른 카테고리의 후보 정의 기준. */}
-            {view && selected && tab !== "cate" && (
+            <Tabs activeKey={rightTab} onChange={(k) => setRightTab(k as RightTab)} items={[
+              { key: "cateEdit", label: tabLabel("code-right-tab-cate", "카테고리 편집", cateHasIssue) },
+              { key: "codeTest", label: tabLabel("code-right-tab-test", "코드 테스트") },
+            ]} />
+            {rightTab === "cateEdit" && (
+              <CategoryTab cate={cate} loaded={!!view && !!selected} editable={editable} canEdit={canSave}
+                lvlCnt={lvlCnt} attrLabels={attrLabels}
+                rowVersion={selected?.rowVersion ?? null} />
+            )}
+            {rightTab === "codeTest" && view && selected && (
               <PreviewPanel maruCodeId={maruCodeId} lvlCnt={lvlCnt} categories={view.categories ?? []}
                 cateId={cateId} onCateChange={setCateId} mode={previewMode} onModeChange={setPreviewMode}
                 result={preview} />
-            )}
-            {view && selected && tab === "cate" && cate.view && (
-              <CatePreviewPanel defKind={cate.selectedRow?.defKind ?? null} result={cate.preview} />
             )}
           </ContentPanel>
           {patchable && (

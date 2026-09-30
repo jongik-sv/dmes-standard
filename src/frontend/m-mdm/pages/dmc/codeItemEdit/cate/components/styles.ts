@@ -73,3 +73,22 @@ export const transferRow: CSSProperties = {
   padding: "2px var(--spacing-xs)",
   fontSize: "var(--font-size-sm)",
 };
+
+/**
+ * transfer-list 한 행의 코드·이름 두 칸. 코드 폭을 고정해야 이름이 줄마다 같은 자리에서 시작한다 —
+ * 고정 폭이 없으면 `51` 뒤의 여백이 `A2` 뒤보다 커서 줄마다 이름이 어긋난다.
+ */
+export const transferCode: CSSProperties = {
+  flex: "0 0 88px",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
+export const transferName: CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};

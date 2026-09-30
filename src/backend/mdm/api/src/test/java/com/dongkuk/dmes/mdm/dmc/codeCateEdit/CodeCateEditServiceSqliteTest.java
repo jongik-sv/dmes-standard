@@ -218,6 +218,32 @@ class CodeCateEditServiceSqliteTest extends AbstractMdmSharedDbTest {
         assertEquals("TABLE", byCateId(categories, "T1").get("defKind"));
         assertEquals(3, list(v, "items").size());
         assertEquals(List.of(Map.of("cateId", "T1", "code", "A")), list(v, "cateItems"));
+        // dmd DataCateEditService 와 같은 규칙 — REGEX 는 매칭 수, TABLE 은 소속 수.
+        assertEquals(3, byCateId(categories, "BASE").get("matchCount"));  // .* on CODE → 코드 3건
+        assertEquals(1, byCateId(categories, "T1").get("matchCount"));   // 소속 1건
+    }
+
+    /**
+     * `view` 가 카테고리마다 매칭 건수를 준다 — 화면이 정규식을 돌리지 않고도 '해당' 을 채운다(원천 04:183).
+     * 닫힌 카테고리는 viewAt 이 목록에서 빼므로 여기에는 뜨지 않는다.
+     */
+    @Test
+    void view_의_matchCount_는_REGEX_매칭수_TABLE_소속수다() {
+        seedM();
+        fx.seedCate("M", "R1", "1.000", OPEN, "에이로 시작", "REGEX", "A.*", "CODE");
+        fx.seedCate("M", "T2", "1.000", OPEN, "표2", "TABLE", null, null);
+        fx.seedCateItem("M", "T2", "A", "1.000", OPEN);
+        fx.seedCateItem("M", "T2", "B", "1.000", OPEN);
+        // 1.001 에 닫힌 카테고리 — 이 버전 목록에는 없다.
+        fx.seedCate("M", "X9", "1.000", "1.001", "닫은 표", "TABLE", null, null);
+        fx.seedCateItem("M", "X9", "A", "1.000", OPEN);
+
+        List<Map<String, Object>> categories = list(service.view(view("M", "1.001")), "categories");
+
+        assertEquals(1, byCateId(categories, "R1").get("matchCount"));  // A 로 시작하는 코드 1건
+        assertEquals(2, byCateId(categories, "T2").get("matchCount"));  // 소속 2건
+        assertEquals(Set.of("BASE", "R1", "T2"),
+                categories.stream().map(c -> c.get("cateId")).collect(java.util.stream.Collectors.toSet()));
     }
 
     @Test
