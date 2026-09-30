@@ -1127,3 +1127,11 @@
 - **Rationale**: 저장값 손상만 좁혀 잡아야 엔진 버그를 입력 오류(MDM021)로 가리지 않는다. 디버거 경고 순서는 D-110 이 정한 운영 응답과 맞춰 같은 신호를 같은 순서로 보인다
 - **Reversible**: yes
 - **Source**: D-110, 스펙 §9.1-9, 계획 P5
+
+## D-117 (2026-09-30T00:00:00Z)
+- **Phase**: build(룰 세트 흐름도 2단계, Task 12 — D-115·D-116 정정)
+- **Decision needed**: 2단계 Task 0 리뷰가 남긴 D-115·D-116 표현 정정과, 구현 중 진행 장부 Ruling 으로 계획과 다르게 정한 세 가지의 결정 기록.
+- **Decision made**: (1) D-115 의 "앞 경로에서 이미 정의된 이름을 뺀다"는 반드시 정의됨(defined)만이 아니라 일부 갈래에서만 정의됨(maybe)까지 포함한다. 룰 확정 검사가 형제 판정에서 defined ∪ maybe 를 빼는 이유는 세트 저장 검사(`RuleSetAnalyzer`)와 같은 판정을 내기 위해서다(maybe 는 세트 저장 검사가 `FLOW_PARTIAL` 경고로 다룬다). (2) D-116 의 `execute` 는 `RuleSetRunner.execute`(OASIS 입구)를 가리키며, 화면 action `execute`(서비스 메서드 `simulate`)와 다르다. (3) Ruling 5: `view`·`restore` 가 저장된 흐름(FLOW_JSON)을 읽지 못하면 MDM026(`STORED_DEFINITION_CORRUPT`)으로 바꿔 화면이 문장으로 보게 한다. 계획 P1 의 "읽지 못하면 condIo 빈 맵"은 문구 오류다(조회는 condIo 를 만들기 전 저장 흐름 parse 에서 이미 실패한다). MDM026 문구에는 룰 ID 를 붙이지 않고 원인 그대로 둔다(Ruling 9). (4) Ruling 10: 디버거 값 표의 병렬 합류는 엔진 `FlowRun` 과 같이 각 갈래가 실제로 쓴 이름만 갈래 실행 순서대로 덮어쓴다(계획 P9 의 "merged 이름마다 갈래 범위에서 가져옴"을 정정). (5) Ruling 12: 디버거 표시는 실행에 영향을 주는 칸(노드 id·kind·ruleId·splitId, 선 id·from·to·order·cond·otherwise)이 바뀔 때만 지우고 `label` 만 바뀌면 유지한다. 세트가 바뀌면 지운다
+- **Rationale**: (1)은 D-115 를 그대로 읽으면 maybe 가 빠진다고 오해해 확정 검사와 세트 저장 검사가 어긋나 보이기 때문이다. (2)는 `execute` 가 엔진 실행 입구와 화면 action 두 곳에 쓰여 혼동되기 때문이다. (3)은 손상된 저장 흐름의 조회가 `S999` 로 남으면 담당자가 원인을 문장으로 알 수 없기 때문이며, MDM026 을 만드는 태스크가 한 곳에서 처리한다. (4)는 문자 그대로 읽으면 분기 전 값을 되돌리는 오표시가 나기 때문이다. (5)는 label 은 화면 표시용(스펙 §3.3)이라 이름만 고쳐도 실행 결과가 지워지면 불편하기 때문이다
+- **Reversible**: yes(정정·문구 결정이며 (5)는 `structKey` 한 줄, (4)는 값 표 합류 칸 한 규칙)
+- **Source**: 2단계 Task 0 리뷰 deferred minor, 진행 장부 Ruling 5·9·10·12, D-115·D-116, 기능설계서 N-16·N-17
