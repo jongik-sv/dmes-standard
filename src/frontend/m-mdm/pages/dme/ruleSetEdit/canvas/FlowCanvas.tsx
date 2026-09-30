@@ -564,11 +564,18 @@ function Inner(props: FlowCanvasProps) {
   // 흐름이 바뀌면 없어진 요소를 선택에서 뺀다.
   useEffect(() => {
     setRfSel((cur) => {
-      const alive = new Set<string>([...flow.nodes.map((n) => n.id), ...flow.view.notes.map((n) => n.id), ...flow.view.groups.map((g) => g.id)]);
+      const alive = new Set<string>([...vflow.nodes.map((n) => n.id), ...flow.view.notes.map((n) => n.id), ...flow.view.groups.map((g) => g.id)]);
       const next = new Set([...cur].filter((id) => alive.has(id)));
       return next.size === cur.size ? cur : next;
     });
-  }, [flow]);
+  }, [flow, vflow]);
+
+  // 접어서 숨긴 노드·선을 가리키던 선택은 푼다 — 보이지 않는 대상에 Delete·복사·속성 편집이 적용되지 않게(D16).
+  useEffect(() => {
+    if (selectedId && view.hidden.has(selectedId)) onSelect(null);
+    if (selectedEdgeId && !vflow.edges.some((e) => e.id === selectedEdgeId) && flow.edges.some((e) => e.id === selectedEdgeId)) onSelectEdge(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, selectedId, selectedEdgeId]);
 
   const lastSent = useRef("[]");
   useEffect(() => {

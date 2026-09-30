@@ -169,6 +169,24 @@ describe("블록 접기(D16)", () => {
   });
 });
 
+describe("접기와 선택", () => {
+  it("먼저 고른 안쪽 노드를 두고 분기를 접으면 선택이 풀려 Delete 가 숨은 노드를 지우지 않는다", async () => {
+    await openView();
+    await click("flow-mode-edit");
+    await click("flow-node-r2");
+    expect(byTestId("flow-node-r2").getAttribute("data-selected")).toBe("true");
+    await toggleCollapse("if1");
+    const ev = new KeyboardEvent("keydown", { key: "Delete", bubbles: true, cancelable: true });
+    await act(async () => {
+      byTestId("flow-canvas").dispatchEvent(ev);
+    });
+    await flush();
+    await toggleCollapse("if1"); // 펼친다
+    expect(has("r2")).toBe(true);
+    expect(byTestId("flow-node-r2").getAttribute("data-selected")).toBe("false");
+  });
+});
+
 describe("중단점 점·디버그 겹침 모양(E2·E1)", () => {
   it("5. 디버그 모드 RULE·IF·MERGE 에 점이 있고 누르면 켜지되 선택은 그대로다. 시작·끝에는 없다", async () => {
     await openView();

@@ -4,7 +4,7 @@
  * 블록 접기 상태(3단계 계획 D16) — 접힌 분기 ID 집합. 화면 상태이고 서버에 저장하지 않는다.
  * - 세트가 바뀌면 비운다.
  * - 흐름에서 분기가 사라지거나 블록이 닫히지 않게 되면 집합에서 뺀다(다시 생겨도 접히지 않는다).
- * - 접힌 블록의 멤버 구성이 바뀌면(접힌 채 갈래를 더하는 등 안쪽 편집) 그 분기를 편다 — 편집 결과를 눈으로 확인하게(스펙 D16 "먼저 펼친다").
+ * - 접힌 블록의 멤버 구성이 바뀌면(접힌 채 갈래를 더하는 등 안쪽 편집 — 노드 ID 와 블록 안 선을 비교한다) 그 분기를 편다 — 편집 결과를 눈으로 확인하게(스펙 D16 "먼저 펼친다").
  * - 위치만 바뀌는 흐름 변경에는 집합 참조를 그대로 둔다(캔버스가 노드를 다시 만들지 않게, Local-Rules §16).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -28,7 +28,11 @@ const EMPTY: Folded = new Map();
 
 const signatureOf = (flow: EditFlow | null, splitId: string): string | null => {
   const members = flow ? blockMembers(flow, splitId) : null;
-  return members ? members.join("|") : null;
+  if (!flow || !members) return null;
+  // 노드뿐 아니라 블록 안 선(ID·양 끝)도 본다 — 갈래 더하기는 선만 늘린다.
+  const inside = new Set(members);
+  const edges = flow.edges.filter((e) => inside.has(e.from) && inside.has(e.to)).map((e) => `${e.id}:${e.from}>${e.to}`);
+  return `${members.join("|")}#${edges.join("|")}`;
 };
 
 export function useCollapse(flow: EditFlow | null, setId: string | null): CollapseState {

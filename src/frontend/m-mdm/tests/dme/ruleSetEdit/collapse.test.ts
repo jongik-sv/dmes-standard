@@ -6,7 +6,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { collapseView } from "../../../pages/dme/ruleSetEdit/canvas/collapse";
-import { blockMembers, flowJsonOf, insertRule, insertSplit, toEditFlow, type EditFlow } from "../../../pages/dme/ruleSetEdit/flow-edit";
+import { addBranch, blockMembers, flowJsonOf, insertRule, insertSplit, toEditFlow, type EditFlow } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { useCollapse, type CollapseState } from "../../../pages/dme/ruleSetEdit/state/useCollapse";
 
 function must(r: { ok: boolean; flow?: EditFlow; reason?: string }): EditFlow {
@@ -155,6 +155,14 @@ describe("useCollapse", () => {
     await act(async () => h.current.toggle("if1"));
     const branch = flow.edges.find((e) => e.from === "if1")!;
     await rerender(must(insertRule(flow, branch.id, "E")), "S1");
+    expect(h.current.collapsed.size).toBe(0);
+  });
+
+  it("접힌 분기에 갈래를 더하면(노드는 그대로, 선만 늘어도) 펴진다", async () => {
+    const flow = ifFlow();
+    await mount(flow, "S1");
+    await act(async () => h.current.toggle("if1"));
+    await rerender(must(addBranch(flow, "if1")), "S1");
     expect(h.current.collapsed.size).toBe(0);
   });
 
