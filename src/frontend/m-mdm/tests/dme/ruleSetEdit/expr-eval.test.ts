@@ -42,6 +42,9 @@ describe("evalExpr", () => {
     expect(evalExpr(parse(v("GT_L"), ["GT_L"]), { GT_L: list }, {})).toEqual({ kind: "fallback" });
     expect(evalExpr(GT, { GT_THK: N("12"), GT_L: list }, types)).toEqual({ kind: "true" });
   });
+  it("식이 쓰지 않는 변수는 변환하지 않는다", () => {
+    expect(evalExpr(GT, { GT_THK: N("12"), GT_OTHER: S("abc") }, { ...types, GT_OTHER: "NUMBER" })).toEqual({ kind: "true" });
+  });
   it("problems 는 detail 을 ' / ' 로 잇는다", () => {
     const r = evalExpr({ ...GT, problems: [{ kind: "A", detail: "가" }, { kind: "B", detail: "나" }] }, {}, {});
     expect(r).toEqual({ kind: "error", text: "가 / 나" });
@@ -63,6 +66,18 @@ describe("declaredTypes", () => {
     const t2 = declaredTypes(flow, { R_A: io("R_A", "gt_n", null, "s_a"), R_B: io("R_B", "x", "DATE", "s_b") });
     expect("GT_N" in t2).toBe(false);
     expect(t2.X).toBe("DATE");
+  });
+});
+
+describe("declaredTypes 순서", () => {
+  const mk = (ruleId: string, name: string, dt: string | null): RuleIo => ({
+    ruleId, ruleName: ruleId, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST",
+    conds: [{ name, source: null, label: null, dataType: dt, scale: null, dateString: false, maruCodeId: null }], results: [],
+  }) as RuleIo;
+  const flow = toEditFlow(null, ["R_A", "R_B"]);
+  it("첫 non-null 타입이 이긴다", () => {
+    expect(declaredTypes(flow, { R_A: mk("R_A", "x", null), R_B: mk("R_B", "x", "NUMBER") }).X).toBe("NUMBER");
+    expect(declaredTypes(flow, { R_A: mk("R_A", "x", "STRING"), R_B: mk("R_B", "x", "NUMBER") }).X).toBe("STRING");
   });
 });
 

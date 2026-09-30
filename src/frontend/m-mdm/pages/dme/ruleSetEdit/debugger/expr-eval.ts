@@ -5,7 +5,7 @@
 import type { AstNode, DataType, RuleSetFlow, TypedValue } from "@/contract/engine-contract.generated";
 import { NUMBER_TEXT, convertForType, evaluate, fromTypedValue, type EvalValue } from "@/evalex";
 
-import { flowIo } from "../set-model";
+import { flowRuleIds } from "../flow-model";
 import type { ExprParse, RuleIoMap } from "../types";
 
 export type ExprResult =
@@ -21,10 +21,17 @@ function isDataType(v: string | null): v is DataType {
   return v === "STRING" || v === "NUMBER" || v === "BOOLEAN" || v === "DATE";
 }
 
+/** 서버 `FlowKeys.declare` 와 같다 — 룰을 흐름 순서로 훑어(룰 안은 입력·결과) 이름마다 처음 나온 non-null 타입을 쓴다. */
 export function declaredTypes(flow: RuleSetFlow, rules: RuleIoMap): Record<string, DataType> {
-  const io = flowIo(flow, rules);
   const out: Record<string, DataType> = {};
-  for (const r of [...io.inputs, ...io.results]) if (isDataType(r.dataType)) out[r.name.toUpperCase()] = r.dataType;
+  for (const ruleId of flowRuleIds(flow)) {
+    const io = rules[ruleId];
+    if (!io) continue;
+    for (const r of [...(io.conds ?? []), ...(io.results ?? [])]) {
+      const key = r.name.toUpperCase();
+      if (isDataType(r.dataType) && !(key in out)) out[key] = r.dataType;
+    }
+  }
   return out;
 }
 
@@ -41,7 +48,8 @@ export function evalExpr(parsed: ExprParse, ctx: Readonly<Record<string, TypedVa
     }
     let v = fromTypedValue(tv);
     const t = types[upper];
-    if (t && v !== null) {
+    // 서버 BranchCondition 처럼 식이 쓰는 변수만 선언 타입으로 바꾼다.
+    if (t && v !== null && refs.has(upper)) {
       try {
         v = convertForType(v, t);
       } catch {
