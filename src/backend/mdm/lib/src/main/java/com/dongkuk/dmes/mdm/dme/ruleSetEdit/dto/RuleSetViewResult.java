@@ -19,12 +19,20 @@ public class RuleSetViewResult {
     private boolean restorable;
     /** 저장된 흐름의 IF "그 외" 가 아닌 선마다 조건식 입출력(선 ID 키). 흐름이 없으면 빈 맵. */
     private Map<String, CondIo> condIo;
+    /** 저장된 테스트 케이스(case_id 순). 세트 상태와 무관하게 싣는다(폐기 세트도, P-D8). */
+    private List<Case> cases;
 
     public RuleSetViewResult() {
     }
 
     public RuleSetViewResult(Header set, List<RuleIo> rules, List<RuleSetCheck> checks, boolean editable, boolean restorable,
                              Map<String, CondIo> condIo) {
+        this(set, rules, checks, editable, restorable, condIo, List.of());
+    }
+
+    public RuleSetViewResult(Header set, List<RuleIo> rules, List<RuleSetCheck> checks, boolean editable, boolean restorable,
+                             Map<String, CondIo> condIo, List<Case> cases) {
+        this.cases = cases;
         this.set = set;
         this.rules = rules;
         this.checks = checks;
@@ -39,6 +47,7 @@ public class RuleSetViewResult {
     public boolean isEditable() { return editable; }
     public boolean isRestorable() { return restorable; }
     public Map<String, CondIo> getCondIo() { return condIo; }
+    public List<Case> getCases() { return cases; }
 
     public void setSet(Header v) { this.set = v; }
     public void setRules(List<RuleIo> v) { this.rules = v; }
@@ -46,6 +55,49 @@ public class RuleSetViewResult {
     public void setEditable(boolean v) { this.editable = v; }
     public void setRestorable(boolean v) { this.restorable = v; }
     public void setCondIo(Map<String, CondIo> v) { this.condIo = v; }
+    public void setCases(List<Case> v) { this.cases = v; }
+
+    /** {@code TB_MDM_RULE_SET_TEST_CASE} 한 행. */
+    public static class Case {
+
+        private Integer caseId;
+        private String caseName;
+        private String inputJson;
+        private String evalTs;
+        private String expectedJson;
+        private String description;
+        private long rowVersion;
+
+        public Case() {
+        }
+
+        public Case(Integer caseId, String caseName, String inputJson, String evalTs, String expectedJson, String description,
+                    long rowVersion) {
+            this.caseId = caseId;
+            this.caseName = caseName;
+            this.inputJson = inputJson;
+            this.evalTs = evalTs;
+            this.expectedJson = expectedJson;
+            this.description = description;
+            this.rowVersion = rowVersion;
+        }
+
+        public Integer getCaseId() { return caseId; }
+        public String getCaseName() { return caseName; }
+        public String getInputJson() { return inputJson; }
+        public String getEvalTs() { return evalTs; }
+        public String getExpectedJson() { return expectedJson; }
+        public String getDescription() { return description; }
+        public long getRowVersion() { return rowVersion; }
+
+        public void setCaseId(Integer v) { this.caseId = v; }
+        public void setCaseName(String v) { this.caseName = v; }
+        public void setInputJson(String v) { this.inputJson = v; }
+        public void setEvalTs(String v) { this.evalTs = v; }
+        public void setExpectedJson(String v) { this.expectedJson = v; }
+        public void setDescription(String v) { this.description = v; }
+        public void setRowVersion(long v) { this.rowVersion = v; }
+    }
 
     /** {@code TB_MDM_RULE_SET} 한 행. {@code ruleIds} 는 저장된 JSON 배열 그대로의 순서다. */
     public static class Header {

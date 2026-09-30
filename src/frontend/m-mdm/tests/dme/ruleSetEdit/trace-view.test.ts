@@ -1,31 +1,12 @@
 // 2단계 계획 P9 — 기록 해석(trace-view.ts). Task 4 골든(mdm/api test resources)을 사본 없이 경로로 읽는다.
 // 골든의 trace 는 서버 execute 응답 그대로(엔진 RunTrace 스키마)이고, flowJson 은 P2 정규 JSON 문자열이다.
-import fs from "node:fs";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import type { FlowNodeKind, NodeTrace, RuleSetFlow, RunTrace, TypedValue } from "../../../src/contract/engine-contract.generated";
 import { frames, overlayAt, typedText, valueTable } from "../../../pages/dme/ruleSetEdit/trace-view";
-import { PACKAGE_ROOT } from "../../helpers/engine-paths";
+import { golden, goldenCases } from "../helpers/rule-set-golden";
 
-const GOLDEN_PATH = path.resolve(
-  PACKAGE_ROOT,
-  "../../backend/mdm/api/src/test/resources/com/dongkuk/dmes/mdm/dme/ruleSetEdit/rule-set-trace-golden.json",
-);
 const CASE_NAMES = ["IF_FIRST_TRUE", "IF_NULL_ELSE", "IF_ERROR_STOPS", "PARALLEL_MERGE", "IF_IN_PARALLEL", "STRUCTURE_ERROR", "MISSING_INPUT"];
-
-interface GoldenCase {
-  name: string;
-  flowJson: string;
-  response: { trace: RunTrace; warnings: unknown[] };
-}
-const goldenCases: GoldenCase[] = (JSON.parse(fs.readFileSync(GOLDEN_PATH, "utf8")) as { cases: GoldenCase[] }).cases;
-
-function golden(name: string): { flow: RuleSetFlow; trace: RunTrace; warnings: unknown[] } {
-  const c = goldenCases.find((x) => x.name === name);
-  if (!c) throw new Error(`골든 사례가 없다: ${name}`);
-  return { flow: JSON.parse(c.flowJson) as RuleSetFlow, trace: c.response.trace, warnings: c.response.warnings };
-}
 
 const S = (value: string): TypedValue => ({ type: "STRING", value });
 const N = (value: string): TypedValue => ({ type: "NUMBER", value });
@@ -126,6 +107,21 @@ describe("trace-view(골든)", () => {
     expect(at("m1").changed).toEqual(["GT_F", "GT_V", "GT_S"]);
     expect(at("start").changed).toEqual([]);
     expect(at("par1").changed).toEqual([]);
+  });
+
+  it("PARALLEL_MERGE — before 는 노드 실행 전 그 노드 범위의 ctx(갈래 범위·합치기 전, 3단계 P9)", () => {
+    const { flow, trace } = golden("PARALLEL_MERGE");
+    const fr = frames(trace, flow);
+    const at = (id: string) => fr.find((x) => x.node.nodeId === id)!;
+    expect(at("start").before).toEqual({ GT_THK: S("12"), GT_KIND: S("x") });
+    expect(at("r1").before).toEqual(at("start").ctx);
+    expect(at("par1").before).toEqual(at("r1").ctx); // 갈래 범위를 만들기 전
+    expect(at("rs1").before).toEqual(at("r2").ctx); // 첫 갈래 안
+    expect(at("r3").before).toEqual({ GT_THK: S("12"), GT_KIND: S("x"), GT_G: S("A") }); // 둘째 갈래 — 첫 갈래 결과 없음
+    expect(at("m1").before).toEqual({ GT_THK: S("12"), GT_KIND: S("x"), GT_G: S("A") }); // 합치기 전 바깥 범위
+    expect(at("end").before).toEqual(at("m1").ctx);
+    at("r3").before.GT_X = S("mutated");
+    expect(at("r3").ctx.GT_X).toBeUndefined(); // 사본이다
   });
 
   it("PARALLEL_MERGE — 값 표 칸과 바뀜 표시", () => {

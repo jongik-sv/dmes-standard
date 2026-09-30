@@ -1,13 +1,17 @@
 /**
  * ruleSetEdit 화면의 OASIS 호출(TSK-08-06 design §6.6·§6.12, 2단계 P6) — `search`(target SET·RULE·GUIDE)·`view`·`save`·`delete`(폐기)·
  * `restore`(되살리기)·`validate`(조건식 IO)·`execute`(기록 실행).
+ * 3단계(P8): 테스트 케이스 저장·삭제는 `save` 의 `part=CASE`, 일괄 실행은 `execute` 의 `runCases`, 식 파싱은 `validate` 의 `exprText` 로 한다(새 action 동사 없음).
  * 흐름은 params 의 Map 을 OASIS 가 받지 못하므로(P-D1) 정규 JSON 문자열 `flowJson` 으로 보낸다. grids 는 보내지 않는다.
  */
 import { callOasis } from "@/dme/oasis-call";
 
 import type {
+  CaseDraft,
   GuideResult,
+  RuleSetCaseRunResult,
   RuleSetCondIoResult,
+  RuleSetExprParseResult,
   RuleSetPickResult,
   RuleSetRuleSearchResult,
   RuleSetSaveResult,
@@ -72,4 +76,34 @@ export function deprecateSet(setId: string, rowVersion: number): Promise<RuleSet
 /** 되살리기(DEPRECATED → INUSE, 저장된 목록의 검사를 통과할 때만). */
 export function restoreSet(setId: string, rowVersion: number): Promise<RuleSetStatusResult> {
   return callOasis<RuleSetStatusResult>(SERVICE, "restore", { setId, rowVersion });
+}
+
+/** 테스트 케이스 저장(3단계 P8) — `save` 의 `part=CASE`. caseId 가 없으면 새 케이스(서버가 번호를 준다). */
+export function saveCase(setId: string, d: CaseDraft): Promise<RuleSetSaveResult> {
+  return callOasis<RuleSetSaveResult>(SERVICE, "save", {
+    part: "CASE",
+    setId,
+    caseId: d.caseId ?? undefined,
+    rowVersion: d.rowVersion ?? undefined,
+    caseName: d.caseName.trim(),
+    inputJson: d.inputJson,
+    evalTs: blankToUndefined(d.evalTs),
+    expectedJson: blankToUndefined(d.expectedJson),
+    description: blankToUndefined(d.description),
+  });
+}
+
+/** 테스트 케이스 삭제(3단계 P8) — `save` 의 `part=CASE` + `caseDeleted=true`. */
+export function deleteCase(setId: string, caseId: number, rowVersion: number): Promise<RuleSetSaveResult> {
+  return callOasis<RuleSetSaveResult>(SERVICE, "save", { part: "CASE", setId, caseId, rowVersion, caseDeleted: true });
+}
+
+/** 저장된 케이스 일괄 실행(3단계 P8) — 저장하지 않은 흐름으로 돌린다. caseIds 가 비면 전체. */
+export function runCases(setId: string, flowJson: string, caseIds: readonly number[]): Promise<RuleSetCaseRunResult> {
+  return callOasis<RuleSetCaseRunResult>(SERVICE, "execute", { setId, flowJson, runCases: true, caseIds: caseIds.join(",") });
+}
+
+/** 식 파싱(3단계 P-D1) — `validate` 의 `exprText`. 평가는 화면(`evalex`)이 한다. */
+export function parseExprText(exprText: string): Promise<RuleSetExprParseResult> {
+  return callOasis<RuleSetExprParseResult>(SERVICE, "validate", { exprText });
 }

@@ -14,10 +14,10 @@ import java.util.Set;
  */
 final class MdmBusinessRuleExpectations {
 
-    /** V8 이 만드는 8테이블 — 파일 순서(§6.0 「파일 순서」, FK 참조 순서)와 같다. */
+    /** V8 이 만드는 8테이블(+ V15 세트 테스트 케이스) — 파일 순서(§6.0 「파일 순서」, FK 참조 순서)와 같다. */
     static final List<String> TABLES = List.of(
             "TB_MDM_RULE", "TB_MDM_RULE_SYSTEM", "TB_MDM_RULE_VER", "TB_MDM_RULE_VAR",
-            "TB_MDM_RULE_ROW", "TB_MDM_RULE_TEST_CASE", "TB_MDM_RULE_SET", "TB_MDM_RULE_RECV");
+            "TB_MDM_RULE_ROW", "TB_MDM_RULE_TEST_CASE", "TB_MDM_RULE_SET", "TB_MDM_RULE_SET_TEST_CASE", "TB_MDM_RULE_RECV");
 
     /** 보류 테이블(DDL 만, 엔티티 없음 — D1, D-019). */
     static final Set<String> DEFERRED_TABLES = Set.of("TB_MDM_RULE_SYSTEM", "TB_MDM_RULE_RECV");
@@ -66,6 +66,8 @@ final class MdmBusinessRuleExpectations {
                 "MARU_RULE_ID", "CASE_ID", "CASE_NAME", "INPUT_JSON", "EXPECTED_JSON", "DESCRIPTION", "ROW_VERSION"));
         BUSINESS_COLUMNS.put("TB_MDM_RULE_SET", List.of(
                 "MARU_RULE_SET_ID", "MARU_RULE_SET_NAME", "RULE_IDS", "FLOW_JSON", "DESCRIPTION", "STATUS", "ROW_VERSION"));
+        BUSINESS_COLUMNS.put("TB_MDM_RULE_SET_TEST_CASE", List.of(
+                "MARU_RULE_SET_ID", "CASE_ID", "CASE_NAME", "INPUT_JSON", "EVAL_TS", "EXPECTED_JSON", "DESCRIPTION", "ROW_VERSION"));
         BUSINESS_COLUMNS.put("TB_MDM_RULE_RECV", List.of(
                 "RECV_ID", "MARU_RULE_ID", "SOURCE_SYSTEM", "SOURCE_REF", "REQ_KIND", "RECEIVED_AT", "BODY", "RESULT",
                 "RESULT_DETAIL", "VER", "PROCESSED_AT"));
@@ -74,6 +76,7 @@ final class MdmBusinessRuleExpectations {
         JSON_COLUMNS.put("TB_MDM_RULE_ROW", List.of("CELLS"));
         JSON_COLUMNS.put("TB_MDM_RULE_TEST_CASE", List.of("INPUT_JSON", "EXPECTED_JSON"));
         JSON_COLUMNS.put("TB_MDM_RULE_SET", List.of("RULE_IDS", "FLOW_JSON"));
+        JSON_COLUMNS.put("TB_MDM_RULE_SET_TEST_CASE", List.of("INPUT_JSON", "EXPECTED_JSON"));
 
         UNIQUE_INDEXES.put("UX_TB_MDM_RULE_VAR_SEQ", false);
         UNIQUE_INDEXES.put("UX_TB_MDM_RULE_VAR_NAME", true);
@@ -100,6 +103,9 @@ final class MdmBusinessRuleExpectations {
                 "CK_TB_MDM_RULE_TEST_CASE_EXPECTED_JSON"));
         CONSTRAINTS.put("TB_MDM_RULE_SET", List.of(
                 "PK_TB_MDM_RULE_SET", "CK_TB_MDM_RULE_SET_STATUS", "CK_TB_MDM_RULE_SET_RULE_IDS_JSON", "CK_TB_MDM_RULE_SET_FLOW_JSON"));
+        CONSTRAINTS.put("TB_MDM_RULE_SET_TEST_CASE", List.of(
+                "PK_TB_MDM_RULE_SET_TEST_CASE", "FK_TB_MDM_RULE_SET_TEST_CASE_SET", "CK_TB_MDM_RULE_SET_TEST_CASE_INPUT_JSON",
+                "CK_TB_MDM_RULE_SET_TEST_CASE_EXPECTED_JSON"));
         CONSTRAINTS.put("TB_MDM_RULE_RECV", List.of(
                 "PK_TB_MDM_RULE_RECV", "FK_TB_MDM_RULE_RECV_RULE", "FK_TB_MDM_RULE_RECV_SYSTEM",
                 "CK_TB_MDM_RULE_RECV_REQ", "CK_TB_MDM_RULE_RECV_RESULT"));

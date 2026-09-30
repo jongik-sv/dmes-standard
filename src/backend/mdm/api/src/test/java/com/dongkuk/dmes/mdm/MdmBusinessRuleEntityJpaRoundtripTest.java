@@ -12,6 +12,8 @@ import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.entity.MdmRuleRow;
 import com.dongkuk.dmes.mdm.entity.MdmRuleRowId;
 import com.dongkuk.dmes.mdm.entity.MdmRuleSet;
+import com.dongkuk.dmes.mdm.entity.MdmRuleSetTestCase;
+import com.dongkuk.dmes.mdm.entity.MdmRuleSetTestCaseId;
 import com.dongkuk.dmes.mdm.entity.MdmRuleTestCase;
 import com.dongkuk.dmes.mdm.entity.MdmRuleTestCaseId;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
@@ -213,6 +215,26 @@ class MdmBusinessRuleEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
         assertEquals("{\"COIL_THK\":1.8}", reloaded.getInputJson());
         assertEquals("{\"QLTY_GRD\":\"A\"}", reloaded.getExpectedJson());
         assertEquals("설명", reloaded.getDescription());
+        assertEquals(0L, reloaded.getRowVersion());
+    }
+
+    @Test
+    void MdmRuleSetTestCase_는_IdClass_복합_PK_와_EVAL_TS_를_저장_조회_왕복한다() {
+        setRepository.save(new MdmRuleSet("RT_SET_CASE", "세트", "[]"));
+        MdmRuleSetTestCase c = new MdmRuleSetTestCase("RT_SET_CASE", 1, "{\"GT_THK\":\"12\"}");
+        c.setCaseName("기본");
+        c.setEvalTs("2026-06-01 09:00:00");
+        c.setExpectedJson("{\"GT_G\":\"A\"}");
+        c.setDescription("설명");
+        entityManager.persist(c);
+        entityManager.flush();
+        entityManager.clear();
+
+        MdmRuleSetTestCase reloaded = entityManager.find(MdmRuleSetTestCase.class, new MdmRuleSetTestCaseId("RT_SET_CASE", 1));
+        assertEquals("기본", reloaded.getCaseName());
+        assertEquals("2026-06-01 09:00:00", reloaded.getEvalTs());
+        assertEquals("{\"GT_THK\":\"12\"}", reloaded.getInputJson());
+        assertEquals("{\"GT_G\":\"A\"}", reloaded.getExpectedJson());
         assertEquals(0L, reloaded.getRowVersion());
     }
 

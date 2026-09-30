@@ -38,13 +38,30 @@ vi.mock("@dk-oasis/shared/grid", async (importOriginal) => {
   };
 });
 
-import RuleSetEditPage from "../../../pages/dme/ruleSetEdit/page";
 import { useRuleSetEdit } from "../../../pages/dme/ruleSetEdit/state/useRuleSetEdit";
 import { setPositions, insertSplit } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import type { CondIo, RuleIo, RuleSetView } from "../../../pages/dme/ruleSetEdit/types";
 import type { RuleSetFlow } from "../../../src/contract/engine-contract.generated";
 
-import { RBAC_STORE_KEY, findButton, flush, installDomStorage, jsonResponse, typeInto, visibleText } from "../helpers/render";
+import { findButton, flush, typeInto, visibleText } from "../helpers/render";
+import {
+  byTestId,
+  calls,
+  canvasNodeIds,
+  click,
+  clickFake,
+  handoff,
+  inDoc,
+  installServer,
+  ok,
+  pageContainer,
+  q,
+  renderPage,
+  settle,
+  srv,
+  uninstallServer,
+  unmountPage,
+} from "../helpers/rule-set-page";
 
 type Src = "DICT" | "PROG" | "NONE";
 
@@ -113,20 +130,6 @@ function branchedView(over: Partial<RuleSetView> = {}): RuleSetView {
 
 const PARTIAL_MSG = "E2S_SPD가 읽는 S_FCT는 IF 의 일부 갈래에서만 만들어진다. 다른 갈래를 타면 판정 오류다";
 
-let container: HTMLDivElement;
-let root: Root | null = null;
-const originalFetch = globalThis.fetch;
-const originalConfirm = window.confirm;
-let requests: Array<{ action: string; body: Record<string, unknown> }> = [];
-let views: Record<string, RuleSetView> = {};
-let replies: Record<string, unknown> = {};
-let rbacRows: Array<Record<string, string>> = [];
-/** validate 응답을 손으로 풀 때 — 비어 있으면 replies.validate(없으면 빈 결과)를 곧바로 돌려준다. */
-let validateQueue: Array<Promise<unknown>> = [];
-
-const ok = (result: unknown) => ({ meta: { success: true }, data: { result } });
-const calls = (action: string) => requests.filter((r) => r.action === action);
-
 function deferred() {
   let resolve!: (v: unknown) => void;
   const promise = new Promise<unknown>((r) => {
@@ -135,77 +138,14 @@ function deferred() {
   return { promise, resolve };
 }
 
-function handoff(setId: string) {
-  const g = globalThis as Record<string, unknown>;
-  const store = (g.__mdmPageHandoff__ ??= {}) as Record<string, Record<string, string>>;
-  store["mdm:dme/ruleSetEdit"] = { setId };
-}
-
-async function settle(ms = 300) {
-  await act(async () => {
-    await new Promise((r) => setTimeout(r, ms));
-  });
-}
-
-async function render(props: { tabId?: string } = {}) {
-  container = document.createElement("div");
-  document.body.appendChild(container);
-  root = createRoot(container);
-  await act(async () => {
-    root!.render(createElement(DmesUiProvider, null, createElement(RuleSetEditPage, props)));
-  });
-  await flush();
-  await settle();
-}
-
-function q<T extends Element = HTMLElement>(id: string): T | null {
-  return container.querySelector(`[data-testid="${id}"]`) as T | null;
-}
-
-function byTestId<T extends Element = HTMLElement>(id: string): T {
-  const el = q<T>(id);
-  if (!el) throw new Error(`data-testid ${id} 없음`);
-  return el;
-}
-
-/** 팝업(Modal)은 body 로 포털되므로 문서 전체에서 찾는다. */
-function inDoc<T extends Element = HTMLElement>(id: string): T {
-  const el = document.querySelector(`[data-testid="${id}"]`) as T | null;
-  if (!el) throw new Error(`문서에 data-testid ${id} 없음`);
-  return el;
-}
-
 function ioRowOrNull(kind: "inputs" | "results", name: string): HTMLElement | null {
-  return container.querySelector(`[data-testid="set-io-${kind}"] .ag-row[row-id="${name}"]`);
+  return pageContainer().querySelector(`[data-testid="set-io-${kind}"] .ag-row[row-id="${name}"]`);
 }
 
 function ioRow(kind: "inputs" | "results", name: string): HTMLElement {
   const el = ioRowOrNull(kind, name);
   if (!el) throw new Error(`set-io-${kind} 행 ${name} 없음`);
   return el;
-}
-
-/** 캔버스에 그려진 흐름 노드 ID(메모·그룹 제외). */
-function canvasNodeIds(): string[] {
-  return Array.from(container.querySelectorAll('[data-testid^="flow-node-"]'))
-    .map((e) => e.getAttribute("data-testid")!)
-    .filter((t) => !/^flow-node-(mark|seq|chip)-/.test(t))
-    .map((t) => t.slice("flow-node-".length));
-}
-
-async function click(id: string) {
-  await act(async () => {
-    byTestId<HTMLElement>(id).dispatchEvent(new MouseEvent("click", { bubbles: true }));
-  });
-  await flush();
-}
-
-/** 가짜 타이머에서 누르기 — flush(진짜 setTimeout)를 쓰지 않는다. */
-async function clickFake(id: string) {
-  await act(async () => {
-    byTestId<HTMLElement>(id).dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await vi.advanceTimersByTimeAsync(0);
-  });
 }
 
 async function advance(ms: number) {
@@ -217,9 +157,9 @@ async function advance(ms: number) {
 const saveButton = () => byTestId<HTMLButtonElement>("set-save");
 
 async function openChain(view = chainView()) {
-  views.E2S_CHAIN = view;
+  srv.views.E2S_CHAIN = view;
   handoff("E2S_CHAIN");
-  await render();
+  await renderPage();
 }
 
 /** 편집 모드로 바꾸고 팔레트 [IF] 로 END 앞 선에 IF 를 끼운 뒤, IF 를 골라 첫 갈래 조건식에 글을 넣는다. */
@@ -232,65 +172,26 @@ async function insertIfAndType(cond: string, opts: { editing?: boolean } = {}) {
 
 describe("RuleSetEditPage", () => {
   beforeEach(() => {
-    installDomStorage();
-    requests = [];
-    views = {};
-    replies = {};
-    validateQueue = [];
-    rbacRows = [{ objId: "*", action: "*", endpoint: "*", httpMethod: "*" }];
+    installServer();
     mocks.openRuleEdit.mockReset();
     mocks.openMdmPage.mockReset();
     mocks.grid.current = null;
-    window.confirm = vi.fn(() => true);
-    delete (globalThis as Record<string, unknown>).__mdmPageHandoff__;
-    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      const body = init?.body ? JSON.parse(String(init.body)) : {};
-      const m = url.match(/\/oasis\/ruleSetEdit\/(\w+)/);
-      if (m) {
-        const action = m[1];
-        requests.push({ action, body });
-        const params = (body.params ?? {}) as Record<string, string>;
-        if (action === "view") {
-          const v = views[params.setId];
-          return jsonResponse(v ? ok(v) : { meta: { success: false, message: `룰 세트를 찾을 수 없습니다: ${params.setId}` } });
-        }
-        if (action === "validate" && validateQueue.length > 0) {
-          const next = validateQueue.shift()!;
-          return jsonResponse(await next);
-        }
-        const key = action === "search" ? `search:${params.target ?? "SET"}` : action;
-        return jsonResponse(replies[key] ?? ok({}));
-      }
-      if (url.includes("/api/auth/me")) return jsonResponse({ user: { id: "tester" } });
-      if (url.includes("/api/mcm/oasis/secUser/myButtonEndpoints")) return jsonResponse({ grids: { buttons: { rows: rbacRows } } });
-      return jsonResponse({}, 404);
-    }) as typeof fetch;
-    delete (globalThis as Record<string, unknown>)[RBAC_STORE_KEY];
   });
 
   afterEach(() => {
     vi.useRealTimers();
-    act(() => {
-      root?.unmount();
-    });
-    root = null;
-    container?.remove();
-    globalThis.fetch = originalFetch;
-    window.confirm = originalConfirm;
-    delete (globalThis as Record<string, unknown>)[RBAC_STORE_KEY];
-    delete (globalThis as Record<string, unknown>).__mdmPageHandoff__;
+    uninstallServer();
   });
 
   it("세트를 고르기 전에는 빈 상태이고, 찾기 → 후보를 누르면 그 세트를 view 로 연다", async () => {
-    views.E2S_CHAIN = chainView();
-    replies["search:SET"] = ok({ sets: [{ setId: "E2S_CHAIN", setName: "사슬", status: "INUSE" }] });
-    await render();
-    expect(visibleText(container)).toContain("세트를 골라 편집한다. 새 세트는 룰 세트 화면에서 등록한다");
+    srv.views.E2S_CHAIN = chainView();
+    srv.replies["search:SET"] = ok({ sets: [{ setId: "E2S_CHAIN", setName: "사슬", status: "INUSE" }] });
+    await renderPage();
+    expect(visibleText(pageContainer())).toContain("세트를 골라 편집한다. 새 세트는 룰 세트 화면에서 등록한다");
     expect(calls("view")).toHaveLength(0);
     await typeInto(byTestId<HTMLInputElement>("set-pick-keyword"), "E2S_");
     await act(async () => {
-      findButton(container, "찾기").click();
+      findButton(pageContainer(), "찾기").click();
     });
     await flush();
     expect(calls("search").at(-1)!.body.params).toEqual({ target: "SET", keyword: "E2S_" });
@@ -308,7 +209,7 @@ describe("RuleSetEditPage", () => {
     expect(byTestId("set-card-id").textContent).toBe("E2S_CHAIN");
     expect(byTestId("set-status").textContent).toContain("INUSE");
     expect(visibleText(byTestId("flow-toolbar"))).toContain("row_version 3");
-    expect(visibleText(container)).toContain("버전·승인 없음");
+    expect(visibleText(pageContainer())).toContain("버전·승인 없음");
     expect(byTestId<HTMLInputElement>("set-name").value).toBe("사슬");
     expect(visibleText(byTestId("set-checks"))).toContain("통과");
     expect(visibleText(byTestId("flow-tab-checks"))).toContain("검사 결과 0");
@@ -354,7 +255,7 @@ describe("RuleSetEditPage", () => {
     await click("flow-mode-edit");
     vi.useFakeTimers();
     const reply = deferred();
-    validateQueue.push(reply.promise);
+    srv.validateQueue.push(reply.promise);
     await clickFake("flow-add-if");
     await clickFake("flow-node-if1");
     expect(q("flow-prop-if")).not.toBeNull();
@@ -380,9 +281,9 @@ describe("RuleSetEditPage", () => {
   });
 
   // 4
-  it("[세트 저장] 은 params 에 flowJson 문자열을 싣고 grids 는 보내지 않는다 — 흐름에 IF·MERGE 가 있다", async () => {
-    replies.validate = ok({ condIo: { e5: S_GRD_OK } });
-    replies.save = ok({ setId: "E2S_CHAIN", rowVersion: 4, checks: [{ code: "DUP_RESULT", severity: "WARN", ruleId: "E2S_SPD", otherRuleId: "E2S_GRD", varName: "S_GRD", message: "경고 문장" }] });
+  it("[세트 저장] 은 params 에 flowJson 문자열을 싣고 grids 는 보내지 않는다 — 흐름에 IF·MERGE 가 있다. 저장 뒤에도 편집 모드가 유지된다(P1)", async () => {
+    srv.replies.validate = ok({ condIo: { e5: S_GRD_OK } });
+    srv.replies.save = ok({ setId: "E2S_CHAIN", rowVersion: 4, checks: [{ code: "DUP_RESULT", severity: "WARN", ruleId: "E2S_SPD", otherRuleId: "E2S_GRD", varName: "S_GRD", message: "경고 문장" }] });
     await openChain();
     await click("flow-mode-edit");
     await typeInto(byTestId<HTMLInputElement>("set-name"), "사슬(수정)");
@@ -391,7 +292,7 @@ describe("RuleSetEditPage", () => {
     expect(calls("validate")).toHaveLength(1);
     expect(saveButton().disabled).toBe(false);
 
-    views.E2S_CHAIN = chainView({ set: { ...chainView().set, setName: "사슬(수정)", rowVersion: 4 } });
+    srv.views.E2S_CHAIN = chainView({ set: { ...chainView().set, setName: "사슬(수정)", rowVersion: 4 } });
     await click("set-save");
     await settle();
     expect(calls("save")).toHaveLength(1);
@@ -411,16 +312,16 @@ describe("RuleSetEditPage", () => {
     expect(msg).toContain("저장 · row_version 4");
     expect(msg).toContain("경고 문장");
     expect(visibleText(byTestId("flow-toolbar"))).toContain("row_version 4");
-    // 저장 뒤 다시 불러오면 보기 모드다(세트를 열거나 다시 불러오면 보기 모드).
-    expect(byTestId("flow-canvas").getAttribute("data-mode")).toBe("view");
-    expect(saveButton().disabled).toBe(true);
+    // 자기 쓰기(저장) 뒤 다시 불러오기는 모드를 그대로 둔다(3단계 P1 — 세트를 열거나 [다시 불러오기] 할 때만 보기 모드).
+    expect(byTestId("flow-canvas").getAttribute("data-mode")).toBe("edit");
+    expect(saveButton().disabled).toBe(true); // 서버 값과 같아져 dirty 가 풀렸다
   });
 
   // 5
   it("조건식을 빠르게 두 번 바꿔 첫 validate 응답이 두 번째보다 늦게 오면 첫 응답은 버린다(Review Focus 5)", async () => {
     const first = deferred();
     const second = deferred();
-    validateQueue.push(first.promise, second.promise);
+    srv.validateQueue.push(first.promise, second.promise);
     await openChain();
     await insertIfAndType("S_GRD = 1");
     await settle(450);
@@ -485,8 +386,8 @@ describe("RuleSetEditPage", () => {
 
   // 8
   it("편집 모드에서 룰을 지우면 앞뒤 선이 이어지고 dirty 가 되어, 다른 세트를 열려 하면 확인을 받는다", async () => {
-    views.E2S_OTHER = chainView({ set: { ...chainView().set, setId: "E2S_OTHER", setName: "다른 세트" } });
-    replies["search:SET"] = ok({ sets: [{ setId: "E2S_OTHER", setName: "다른 세트", status: "INUSE" }] });
+    srv.views.E2S_OTHER = chainView({ set: { ...chainView().set, setId: "E2S_OTHER", setName: "다른 세트" } });
+    srv.replies["search:SET"] = ok({ sets: [{ setId: "E2S_OTHER", setName: "다른 세트", status: "INUSE" }] });
     await openChain();
     await click("flow-mode-edit");
     await click("flow-node-r3");
@@ -498,7 +399,7 @@ describe("RuleSetEditPage", () => {
     window.confirm = vi.fn(() => false);
     await typeInto(byTestId<HTMLInputElement>("set-pick-keyword"), "E2S_O");
     await act(async () => {
-      findButton(container, "찾기").click();
+      findButton(pageContainer(), "찾기").click();
     });
     await flush();
     await click("set-pick-E2S_OTHER");
@@ -507,7 +408,7 @@ describe("RuleSetEditPage", () => {
     expect(calls("view")).toHaveLength(1);
     expect(byTestId("set-edit-current").textContent).toContain("E2S_CHAIN");
 
-    replies.save = ok({ setId: "E2S_CHAIN", rowVersion: 4, checks: [] });
+    srv.replies.save = ok({ setId: "E2S_CHAIN", rowVersion: 4, checks: [] });
     await click("set-save");
     await settle();
     const flow = JSON.parse((calls("save")[0].body.params as Record<string, string>).flowJson) as RuleSetFlow;
@@ -547,7 +448,7 @@ describe("RuleSetEditPage", () => {
 
   // 11
   it("구성 지침 — 한 줄 세트에서 적용하면 노드 순서가 제안 순서로 바뀌고, 분기 세트에서는 적용 버튼이 꺼진다", async () => {
-    replies["search:GUIDE"] = ok({
+    srv.replies["search:GUIDE"] = ok({
       target: "S_SPD",
       order: ["E2S_DUP", "E2S_FCT", "E2S_SPD"],
       ambiguous: [{ varName: "S_GRD", ruleIds: ["E2S_DUP", "E2S_GRD"] }],
@@ -562,7 +463,7 @@ describe("RuleSetEditPage", () => {
     const order = visibleText(byTestId("set-guide-order"));
     expect(order).toContain("1. E2S_DUP → 2. E2S_FCT → 3. E2S_SPD");
     expect(order).toContain("S_GRD: E2S_DUP, E2S_GRD");
-    const before = requests.length;
+    const before = srv.requests.length;
     expect(saveButton().disabled).toBe(true);
 
     await click("set-guide-apply");
@@ -573,12 +474,10 @@ describe("RuleSetEditPage", () => {
     expect(visibleText(ioRow("inputs", "SET_WID"))).toContain("컬럼 사전");
     expect(ioRowOrNull("inputs", "SET_THK")).toBeNull();
     expect(saveButton().disabled).toBe(false);
-    expect(requests.length).toBe(before);
+    expect(srv.requests.length).toBe(before);
 
-    act(() => root?.unmount());
-    root = null;
-    container.remove();
-    replies["search:GUIDE"] = ok({ target: "S_SPD", order: ["E2S_GRD"], ambiguous: [], error: null, rules: [GRD] });
+    unmountPage();
+    srv.replies["search:GUIDE"] = ok({ target: "S_SPD", order: ["E2S_GRD"], ambiguous: [], error: null, rules: [GRD] });
     await openChain(branchedView());
     await click("flow-mode-edit");
     await typeInto(byTestId<HTMLInputElement>("set-guide-var"), "S_SPD");
@@ -588,7 +487,7 @@ describe("RuleSetEditPage", () => {
 
   // 12
   it("save 권한이 없으면(READ·폐기만 허용) 담당자여도 [편집] 이 꺼지고, 허용된 폐기는 켜진다", async () => {
-    rbacRows = ["search", "view", "delete"].map((action) => ({ objId: "ruleSetEdit", action, endpoint: "*", httpMethod: "*" }));
+    srv.rbacRows = ["search", "view", "delete"].map((action) => ({ objId: "ruleSetEdit", action, endpoint: "*", httpMethod: "*" }));
     await openChain();
     await settle();
     expect(byTestId<HTMLButtonElement>("flow-mode-edit").disabled).toBe(true);
@@ -598,7 +497,7 @@ describe("RuleSetEditPage", () => {
   });
 
   it("RBAC 가 없으면 담당자여도 [편집]·폐기가 꺼져 있다", async () => {
-    rbacRows = [];
+    srv.rbacRows = [];
     await openChain();
     await settle();
     expect(byTestId<HTMLButtonElement>("flow-mode-edit").disabled).toBe(true);
@@ -607,7 +506,7 @@ describe("RuleSetEditPage", () => {
   });
 
   it("팔레트 [룰] → 룰 찾기에서 고르면 END 앞 선에 끼운다", async () => {
-    replies["search:RULE"] = ok({ rules: [DUP] });
+    srv.replies["search:RULE"] = ok({ rules: [DUP] });
     await openChain();
     await click("flow-mode-edit");
     await click("flow-add-rule");
@@ -654,7 +553,7 @@ describe("RuleSetEditPage", () => {
   });
 
   it("그룹 — 캔버스에서 노드를 더 고른 뒤 그룹을 누르면 [선택 노드 더하기] 로 넣는다", async () => {
-    replies.save = ok({ setId: "E2S_CHAIN", rowVersion: 4, checks: [] });
+    srv.replies.save = ok({ setId: "E2S_CHAIN", rowVersion: 4, checks: [] });
     await openChain();
     await click("flow-mode-edit");
     await click("flow-node-r1");
@@ -696,10 +595,10 @@ describe("RuleSetEditPage", () => {
   });
 
   it("탭이 다시 활성화될 때 넘겨받은 세트로 바꾸고, 저장하지 않은 변경이 있으면 확인을 받는다", async () => {
-    views.E2S_CHAIN = chainView();
-    views.E2S_OTHER = chainView({ set: { ...chainView().set, setId: "E2S_OTHER", setName: "다른 세트" } });
+    srv.views.E2S_CHAIN = chainView();
+    srv.views.E2S_OTHER = chainView({ set: { ...chainView().set, setId: "E2S_OTHER", setName: "다른 세트" } });
     handoff("E2S_CHAIN");
-    await render({ tabId: "tab-9" });
+    await renderPage({ tabId: "tab-9" });
     await click("flow-mode-edit");
     await typeInto(byTestId<HTMLInputElement>("set-name"), "사슬(고침)");
 
@@ -724,7 +623,7 @@ describe("RuleSetEditPage", () => {
   });
 
   it("서버가 저장을 거부하면 meta.message 를 보이고 편집 중 흐름을 그대로 둔다", async () => {
-    replies.save = { meta: { success: false, code: "MDM024", message: "룰 세트 저장 검사를 통과하지 못했습니다: E2S_GRD[S_GRD] CYCLE 순환" } };
+    srv.replies.save = { meta: { success: false, code: "MDM024", message: "룰 세트 저장 검사를 통과하지 못했습니다: E2S_GRD[S_GRD] CYCLE 순환" } };
     await openChain();
     await click("flow-mode-edit");
     await click("flow-node-r3");
@@ -738,12 +637,12 @@ describe("RuleSetEditPage", () => {
   });
 
   it("row_version 충돌(MDM001)이면 안내와 다시 불러오기를 보이고 누르면 view 를 다시 요청한다", async () => {
-    replies.save = { meta: { success: false, code: "MDM001", message: "다른 사용자가 수정했습니다. 다시 불러오세요" } };
+    srv.replies.save = { meta: { success: false, code: "MDM001", message: "다른 사용자가 수정했습니다. 다시 불러오세요" } };
     await openChain();
     await click("flow-mode-edit");
     await typeInto(byTestId<HTMLInputElement>("set-name"), "사슬2");
     await click("set-save");
-    expect(visibleText(container)).toContain("다른 창에서 바뀌었습니다. 다시 불러오세요");
+    expect(visibleText(pageContainer())).toContain("다른 창에서 바뀌었습니다. 다시 불러오세요");
     await click("set-reload");
     await settle();
     expect(calls("view")).toHaveLength(2);
@@ -752,19 +651,19 @@ describe("RuleSetEditPage", () => {
   });
 
   it("폐기는 두 단계다 — 폐기는 확인 문구만 보이고, 폐기 확인에서만 delete 를 보낸다(I14 화면 쪽)", async () => {
-    replies.delete = ok({ setId: "E2S_CHAIN", status: "DEPRECATED", rowVersion: 4, checks: [] });
+    srv.replies.delete = ok({ setId: "E2S_CHAIN", status: "DEPRECATED", rowVersion: 4, checks: [] });
     await openChain();
     await click("set-deprecate");
     expect(calls("delete")).toHaveLength(0);
     expect(visibleText(byTestId("set-message"))).toContain("폐기하면 이 세트를 부르는 호출은 판정 오류가 난다.");
     await act(async () => {
-      findButton(container, "취소").click();
+      findButton(pageContainer(), "취소").click();
     });
     expect(q("set-deprecate-confirm")).toBeNull();
     expect(calls("delete")).toHaveLength(0);
 
     await click("set-deprecate");
-    views.E2S_CHAIN = chainView({ set: { ...chainView().set, status: "DEPRECATED", rowVersion: 4 }, editable: false, restorable: true });
+    srv.views.E2S_CHAIN = chainView({ set: { ...chainView().set, status: "DEPRECATED", rowVersion: 4 }, editable: false, restorable: true });
     await click("set-deprecate-confirm");
     await settle();
     expect(calls("delete")).toHaveLength(1);
@@ -774,7 +673,7 @@ describe("RuleSetEditPage", () => {
   });
 
   it("DEPRECATED 세트는 [편집]·입력·저장이 비활성이고 되살리기만 된다", async () => {
-    replies.restore = ok({ setId: "E2S_CHAIN", status: "INUSE", rowVersion: 5, checks: [] });
+    srv.replies.restore = ok({ setId: "E2S_CHAIN", status: "INUSE", rowVersion: 5, checks: [] });
     await openChain(chainView({ set: { ...chainView().set, status: "DEPRECATED" }, editable: false, restorable: true }));
     expect(byTestId<HTMLInputElement>("set-name").disabled).toBe(true);
     expect(byTestId<HTMLTextAreaElement>("set-desc").disabled).toBe(true);
@@ -783,7 +682,7 @@ describe("RuleSetEditPage", () => {
     expect(q("flow-palette")).toBeNull();
     expect(q("set-deprecate")).toBeNull();
 
-    views.E2S_CHAIN = chainView({}, 5);
+    srv.views.E2S_CHAIN = chainView({}, 5);
     await click("set-restore");
     await settle();
     expect(calls("restore")[0].body.params).toEqual({ setId: "E2S_CHAIN", rowVersion: 3 });
@@ -792,7 +691,7 @@ describe("RuleSetEditPage", () => {
   });
 
   it("비담당자(editable=false)면 [편집]·쓰기 버튼·지침 적용이 비활성이다", async () => {
-    replies["search:GUIDE"] = ok({ target: "S_SPD", order: ["E2S_GRD"], ambiguous: [], error: null, rules: [GRD] });
+    srv.replies["search:GUIDE"] = ok({ target: "S_SPD", order: ["E2S_GRD"], ambiguous: [], error: null, rules: [GRD] });
     await openChain(chainView({ editable: false }));
     expect(byTestId<HTMLButtonElement>("flow-mode-edit").disabled).toBe(true);
     expect(byTestId<HTMLButtonElement>("set-deprecate").disabled).toBe(true);
@@ -803,7 +702,7 @@ describe("RuleSetEditPage", () => {
   });
 
   it("구성 지침 오류는 문구로 보인다", async () => {
-    replies["search:GUIDE"] = ok({ target: "S_CYA", order: [], ambiguous: [], error: "순환이 있다(E2S_CYA). 룰 A의 조건이 B의 결과이고 B의 조건이 A의 결과인 경우다", rules: [] });
+    srv.replies["search:GUIDE"] = ok({ target: "S_CYA", order: [], ambiguous: [], error: "순환이 있다(E2S_CYA). 룰 A의 조건이 B의 결과이고 B의 조건이 A의 결과인 경우다", rules: [] });
     await openChain();
     await typeInto(byTestId<HTMLInputElement>("set-guide-var"), "S_CYA");
     await click("set-guide-run");
@@ -823,8 +722,7 @@ describe("RuleSetEditPage", () => {
     const injected = () => Array.from(document.querySelectorAll('style[data-href="rsf-flow-styles"]'));
     // React 는 언마운트해도 넣은 style 을 지우지 않고 문서별로 기억한다(손으로 지우면 다시 넣지 않는다). 앞 테스트가 넣었어도 하나여야 한다.
     await openChain();
-    act(() => root!.unmount());
-    container.remove();
+    unmountPage();
     await openChain(); // 두 번째 렌더(새 루트)
     const styles = injected();
     expect(styles).toHaveLength(1);
@@ -853,40 +751,28 @@ describe("useRuleSetEdit", () => {
     return null;
   };
 
+  let probeContainer: HTMLDivElement | null = null;
+  let probeRoot: Root | null = null;
+
   beforeEach(() => {
-    installDomStorage();
-    views = {};
-    requests = [];
-    replies = {};
-    validateQueue = [];
-    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      const body = init?.body ? JSON.parse(String(init.body)) : {};
-      const m = url.match(/\/oasis\/ruleSetEdit\/(\w+)/);
-      if (m) {
-        requests.push({ action: m[1], body });
-        if (m[1] === "view") return jsonResponse(ok(views[(body.params as Record<string, string>).setId]));
-        return jsonResponse(replies[m[1]] ?? ok({}));
-      }
-      return jsonResponse({}, 404);
-    }) as typeof fetch;
+    installServer();
   });
 
   afterEach(() => {
     act(() => {
-      root?.unmount();
+      probeRoot?.unmount();
     });
-    root = null;
-    container?.remove();
-    globalThis.fetch = originalFetch;
+    probeRoot = null;
+    probeContainer?.remove();
+    uninstallServer();
   });
 
   async function mountProbe(setId: string) {
-    container = document.createElement("div");
-    document.body.appendChild(container);
-    root = createRoot(container);
+    probeContainer = document.createElement("div");
+    document.body.appendChild(probeContainer);
+    probeRoot = createRoot(probeContainer);
     await act(async () => {
-      root!.render(createElement(DmesUiProvider, null, createElement(Probe)));
+      probeRoot!.render(createElement(DmesUiProvider, null, createElement(Probe)));
     });
     await act(async () => {
       await state!.open(setId);
@@ -895,7 +781,7 @@ describe("useRuleSetEdit", () => {
   }
 
   it("열면 흐름·condIo·보기 모드를 두고, 분기 세트에서는 applyGuide 가 흐름을 바꾸지 않는다", async () => {
-    views.E2S_CHAIN = branchedView();
+    srv.views.E2S_CHAIN = branchedView();
     await mountProbe("E2S_CHAIN");
     expect(state!.mode).toBe("view");
     expect(state!.flow!.nodes.map((n) => n.id)).toEqual(BRANCHED_FLOW.nodes.map((n) => n.id));
@@ -910,7 +796,7 @@ describe("useRuleSetEdit", () => {
   });
 
   it("flowVersion 은 nodes·edges 가 바뀔 때만 오르고, 위치만 바꾸면 그대로다(dirty 는 된다)", async () => {
-    views.E2S_CHAIN = chainView();
+    srv.views.E2S_CHAIN = chainView();
     await mountProbe("E2S_CHAIN");
     const v0 = state!.flowVersion;
     let reason: string | null = "x";

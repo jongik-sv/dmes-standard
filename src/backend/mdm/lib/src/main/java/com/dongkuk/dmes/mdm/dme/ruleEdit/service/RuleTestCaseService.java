@@ -6,6 +6,7 @@ import static com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport.requireRowVersi
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
+import com.dongkuk.dmes.mdm.common.rule.RuleCaseInputs;
 import com.dongkuk.dmes.mdm.common.rule.RuleStewardCheck;
 import com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport;
 import com.dongkuk.dmes.mdm.common.rule.RuleTestCaseQueries;
@@ -19,10 +20,6 @@ import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveResult;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.entity.MdmRuleTestCase;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
@@ -39,9 +36,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class RuleTestCaseService implements RuleEditSavePart {
 
     static final String PART = "CASE";
-
-    /** 뒤에 붙은 글자가 있으면 거부한다 — 기본 설정은 첫 값만 읽고 나머지를 버려 DB CHECK 에서야 걸린다. */
-    private static final ObjectMapper JSON = new ObjectMapper().enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
 
     private final RuleScreenSupport support;
     private final RuleStewardCheck stewardCheck;
@@ -88,10 +82,10 @@ public class RuleTestCaseService implements RuleEditSavePart {
         if (input == null || input.isBlank()) {
             throw new BusinessException(ErrorCode.REQUIRED_VALUE, "입력 JSON(inputJson)은 필수입니다.");
         }
-        requireObject("입력", input);
+        RuleCaseInputs.requireObject("입력", input);
         String expected = request.getExpectedJson() == null || request.getExpectedJson().isBlank() ? null : request.getExpectedJson();
         if (expected != null) {
-            requireObject("기대", expected);
+            RuleCaseInputs.requireObject("기대", expected);
         }
         String description = blankToNull(request.getDescription());
         if (request.getCaseId() == null) {
@@ -140,27 +134,11 @@ public class RuleTestCaseService implements RuleEditSavePart {
         return out;
     }
 
-    /** 길이 상한(MDM021)을 먼저 보고, JSON 객체가 아니면 INVALID_VALUE(DB CHECK 전에). */
-    private static void requireObject(String what, String json) {
-        if (json.length() > RuleLimits.MAX_CASE_JSON_CHARS) {
-            throw limit(what + " JSON 이 " + json.length() + "자다. " + RuleLimits.MAX_CASE_JSON_CHARS + "자까지 받는다");
-        }
-        JsonNode node;
-        try {
-            node = JSON.readTree(json);
-        } catch (JsonProcessingException e) {
-            node = null;
-        }
-        if (node == null || !node.isObject()) {
-            throw new BusinessException(ErrorCode.INVALID_VALUE, what + " JSON 은 JSON 객체({…})여야 합니다.");
-        }
-    }
-
     private static RuleEditSaveResult result(Long rowVersion) {
         return new RuleEditSaveResult(PART, rowVersion, Map.of(), List.of(), List.of());
     }
 
     private static BusinessException limit(String detail) {
-        return MdmErrors.of(MdmErrorCode.INVALID_INPUT, "테스트 케이스 상한 — " + detail, List.of());
+        return RuleCaseInputs.limit(detail);
     }
 }

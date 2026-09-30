@@ -7,14 +7,19 @@
  * 흐름 편집은 서버를 부르지 않고 검사는 화면이 `flowChecks` 로 다시 한다(I21). 예외는 IF 조건식 — 조건식이 읽는 이름은 서버가 풀어야 하므로
  * "그 외" 가 아닌 IF 갈래의 (선 ID, 조건식) 목록이 바뀌면 400ms 뒤 `validate` 를 부르고, 요청 순번으로 늦게 온 응답을 버린다(Review Focus 5,
  * Local-Rules §11). 기다리는 동안 `condIoPending` 이 켜져 저장을 막는다(P10).
- * 쓰기가 성공하면 view 를 다시 불러 row_version·흐름을 서버 값(정규 흐름)으로 맞추고 결과 문구를 남긴다. 다시 불러오면 보기 모드다. 거부는 편집 중 흐름을 그대로 두고 서버 문구를 보이며,
+ * 쓰기가 성공하면 view 를 다시 불러 row_version·흐름을 서버 값(정규 흐름)으로 맞추고 결과 문구를 남긴다. 거부는 편집 중 흐름을 그대로 두고 서버 문구를 보이며,
  * MDM001 이면 충돌 안내와 다시 불러오기를 준다.
+ *
+ * 모드(3단계 P1): 보기·편집·디버그. 세트를 열거나(`open`) [다시 불러오기](`reload`)하면 보기 모드이고 편집 이력을 비운다. 자기 쓰기(저장·폐기·되살리기) 뒤
+ * 다시 불러오기는 모드와 이력을 그대로 두되, 편집 모드인데 새 view 로 편집할 수 없게 되면(`editable && INUSE` 거짓) 보기로 내린다.
+ * 되돌리기·다시 하기(P5)는 Task 3 이 `state/edit-history.ts` 로 채운다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { isRowVersionConflict } from "@/dme/oasis-call";
 
 import { deprecateSet, restoreSet, saveSet, validateFlow, viewSet } from "../api";
+import { EditHistory } from "./edit-history";
 import { flowJsonOf, toEditFlow, type EditFlow, type EditResult } from "../flow-edit";
 import { linearFlow } from "../flow-model";
 import { flowChecks } from "../set-model";
@@ -25,6 +30,14 @@ const DIRTY_CONFIRM = "저장하지 않은 변경이 있습니다. 버리고 이
 const NO_FLOW = "세트를 먼저 연다";
 /** 조건식을 고친 뒤 validate 를 부르기까지 기다리는 시간(ms). */
 export const COND_IO_DEBOUNCE_MS = 400;
+
+/** 화면 모드(3단계 P1). 디버그 모드는 누구나 들어간다. 편집 모드는 담당자·INUSE·저장 권한일 때만(page 가 가린다). */
+export type FlowMode = "view" | "edit" | "debug";
+
+/** 편집 한 번의 선택 사항(3단계 P5) — mergeKey 가 직전 기록과 같고 1초 안이면 되돌리기 기록을 합친다. */
+export interface EditOptions {
+  mergeKey?: string;
+}
 
 /** 툴바 메시지 줄(`set-message`) — 결과 문구와 그에 딸린 경고 문장. */
 export interface RuleSetMessage {
@@ -41,7 +54,7 @@ export interface RuleSetEditState {
   condIoPending: boolean;
   /** flowChecks(flow, rules, condIo) — flow·rules·condIo 가 바뀔 때만 다시 계산한다. */
   checks: RuleSetCheck[];
-  mode: "view" | "edit";
+  mode: FlowMode;
   setName: string;
   description: string;
   dirty: boolean;
@@ -51,15 +64,28 @@ export interface RuleSetEditState {
   error: string | null;
   /** 실행에 영향을 주는 칸(structKey)이 바뀔 때만 1 증가(디버거가 실행 표시를 지우는 신호). 위치·메모·그룹·라벨만 바뀌면 그대로다. */
   flowVersion: number;
+  /**
+   * 세트를 열거나 [다시 불러오기]로 view 를 새로 받을 때만 1 증가(3단계 F25). 자기 쓰기(저장·폐기·되살리기) 뒤 다시 불러오기는 올리지 않는다.
+   * 테스트 케이스 훅이 케이스 목록을 서버 값으로 다시 받는 신호다(케이스 쓰기 뒤 목록은 훅이 따로 받는다, P-D11).
+   */
+  viewEpoch: number;
   /** 세트를 연다. 저장 안 한 변경이 있으면 확인을 받는다. */
   open(setId: string): Promise<void>;
   /** 지금 세트를 서버 값으로 다시 불러온다(편집 버림). */
   reload(): Promise<void>;
-  setMode(m: "view" | "edit"): void;
+  setMode(m: FlowMode): void;
   setSetName(v: string): void;
   setDescription(v: string): void;
-  /** 편집 연산을 적용한다. 실패 사유(메시지 줄에도 보인다) 또는 null. */
-  edit(fn: (f: EditFlow) => EditResult | EditFlow): string | null;
+  /** 편집 연산을 적용한다. 실패 사유(메시지 줄에도 보인다) 또는 null. opts.mergeKey 로 입력 기록을 합친다(P5). */
+  edit(fn: (f: EditFlow) => EditResult | EditFlow, opts?: EditOptions): string | null;
+  /** 되돌릴 기록이 있는가(P5). */
+  canUndo: boolean;
+  /** 다시 할 기록이 있는가(P5). */
+  canRedo: boolean;
+  /** 편집 모드에서 한 번 되돌린다(P5). */
+  undo(): void;
+  /** 편집 모드에서 한 번 다시 한다(P5). */
+  redo(): void;
   addRuleIo(io: RuleIo): void;
   /** 구성 지침의 제안 순서로 한 줄 흐름을 만든다(분기가 있으면 아무것도 하지 않는다, P-D5). */
   applyGuide(order: readonly string[], ios: readonly RuleIo[]): void;
@@ -108,7 +134,7 @@ export function useRuleSetEdit(): RuleSetEditState {
   const [rules, setRules] = useState<Record<string, RuleIo>>({});
   const [condIo, setCondIo] = useState<Record<string, CondIo>>({});
   const [condIoPending, setCondIoPending] = useState(false);
-  const [mode, setModeState] = useState<"view" | "edit">("view");
+  const [mode, setModeState] = useState<FlowMode>("view");
   const [setName, setSetName] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
@@ -116,6 +142,7 @@ export function useRuleSetEdit(): RuleSetEditState {
   const [message, setMessage] = useState<RuleSetMessage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [flowVersion, setFlowVersion] = useState(0);
+  const [viewEpoch, setViewEpoch] = useState(0);
 
   const flowRef = useRef<EditFlow | null>(null);
   const setIdRef = useRef<string | null>(null);
@@ -125,6 +152,11 @@ export function useRuleSetEdit(): RuleSetEditState {
   const editFailShown = useRef(false);
   const condTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const condSeq = useRef(0);
+  const history = useRef(new EditHistory());
+  /** 이력 상태(canUndo·canRedo)를 다시 그리게 하는 틱. */
+  const [, setHistTick] = useState(0);
+  const bumpHist = useCallback(() => setHistTick((t) => t + 1), []);
+  const modeRef = useRef<FlowMode>("view");
 
   /** 진행 중인 조건식 IO 요청·대기를 모두 버린다. */
   const cancelCondIo = useCallback(() => {
@@ -187,8 +219,12 @@ export function useRuleSetEdit(): RuleSetEditState {
     [scheduleCondIo],
   );
 
+  /**
+   * 세트를 서버 값으로 불러온다. keepHistory 가 거짓(열기·다시 불러오기)이면 보기 모드로 두고 편집 이력을 비운다.
+   * 참(자기 쓰기 뒤)이면 모드를 두되, 편집 모드인데 새 view 로 편집할 수 없으면 보기로 내린다(P1).
+   */
   const load = useCallback(
-    async (setId: string): Promise<boolean> => {
+    async (setId: string, opts: { keepHistory: boolean }): Promise<boolean> => {
       setLoading(true);
       try {
         const next = await viewSet(setId);
@@ -200,7 +236,15 @@ export function useRuleSetEdit(): RuleSetEditState {
         setCondIo(next.condIo ?? {});
         setSetName(next.set.setName ?? "");
         setDescription(next.set.description ?? "");
-        setModeState("view");
+        if (opts.keepHistory) {
+          const canEdit = next.editable && next.set.status === "INUSE";
+          setModeState((m) => (m === "edit" && !canEdit ? "view" : m));
+        } else {
+          setModeState("view");
+          setViewEpoch((e) => e + 1);
+          history.current.clear();
+          bumpHist();
+        }
         setConflict(false);
         editFailShown.current = false;
         return true;
@@ -211,7 +255,7 @@ export function useRuleSetEdit(): RuleSetEditState {
         setLoading(false);
       }
     },
-    [cancelCondIo, replaceFlow],
+    [cancelCondIo, replaceFlow, bumpHist],
   );
 
   const confirmLeave = useCallback(() => {
@@ -223,7 +267,7 @@ export function useRuleSetEdit(): RuleSetEditState {
     async (setId: string) => {
       if (!confirmLeave()) return;
       setMessage(null);
-      await load(setId);
+      await load(setId, { keepHistory: false });
     },
     [confirmLeave, load],
   );
@@ -232,7 +276,7 @@ export function useRuleSetEdit(): RuleSetEditState {
     const id = setIdRef.current;
     if (!id) return;
     setMessage(null);
-    await load(id);
+    await load(id, { keepHistory: false });
   }, [load]);
 
   const fail = useCallback((e: unknown) => {
@@ -259,7 +303,7 @@ export function useRuleSetEdit(): RuleSetEditState {
         return;
       }
       setLoading(false);
-      await load(id);
+      await load(id, { keepHistory: true });
       editFailShown.current = false;
       setMessage(done(result));
     },
@@ -267,7 +311,7 @@ export function useRuleSetEdit(): RuleSetEditState {
   );
 
   const edit = useCallback(
-    (fn: (f: EditFlow) => EditResult | EditFlow): string | null => {
+    (fn: (f: EditFlow) => EditResult | EditFlow, opts?: EditOptions): string | null => {
       const cur = flowRef.current;
       if (!cur) return NO_FLOW;
       const r = fn(cur);
@@ -276,14 +320,19 @@ export function useRuleSetEdit(): RuleSetEditState {
         setMessage({ kind: "error", text: r.reason });
         return r.reason;
       }
-      replaceFlow(isEditResult(r) ? (r as { ok: true; flow: EditFlow }).flow : r, { refetchCond: true });
+      const next = isEditResult(r) ? (r as { ok: true; flow: EditFlow }).flow : r;
+      if (flowJsonOf(next) !== flowJsonOf(cur)) {
+        history.current.record(cur, opts?.mergeKey);
+        bumpHist();
+      }
+      replaceFlow(next, { refetchCond: true });
       if (editFailShown.current) {
         editFailShown.current = false;
         setMessage(null);
       }
       return null;
     },
-    [replaceFlow],
+    [replaceFlow, bumpHist],
   );
 
   const addRuleIo = useCallback((io: RuleIo) => setRules((prev) => ({ ...prev, [io.ruleId]: io })), []);
@@ -298,7 +347,38 @@ export function useRuleSetEdit(): RuleSetEditState {
     [edit],
   );
 
-  const setMode = useCallback((m: "view" | "edit") => setModeState(m), []);
+  const setMode = useCallback((m: FlowMode) => setModeState(m), []);
+
+  modeRef.current = mode;
+  const canUndo = history.current.canUndo;
+  const canRedo = history.current.canRedo;
+  const undo = useCallback(() => {
+    const cur = flowRef.current;
+    if (!cur || modeRef.current !== "edit") return;
+    const prev = history.current.undo(cur);
+    if (!prev) return;
+    bumpHist();
+    replaceFlow(prev, { refetchCond: true });
+  }, [replaceFlow, bumpHist]);
+  const redo = useCallback(() => {
+    const cur = flowRef.current;
+    if (!cur || modeRef.current !== "edit") return;
+    const next = history.current.redo(cur);
+    if (!next) return;
+    bumpHist();
+    replaceFlow(next, { refetchCond: true });
+  }, [replaceFlow, bumpHist]);
+
+  // 저장하지 않은 변경이 있으면 창을 닫거나 새로 고칠 때 브라우저 확인을 띄운다.
+  useEffect(() => {
+    if (!dirty) return;
+    const h = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", h);
+    return () => window.removeEventListener("beforeunload", h);
+  }, [dirty]);
 
   const save = useCallback(async () => {
     const v = viewRef.current;
@@ -347,12 +427,17 @@ export function useRuleSetEdit(): RuleSetEditState {
     message,
     error,
     flowVersion,
+    viewEpoch,
     open,
     reload,
     setMode,
     setSetName,
     setDescription,
     edit,
+    canUndo,
+    canRedo,
+    undo,
+    redo,
     addRuleIo,
     applyGuide,
     save,
