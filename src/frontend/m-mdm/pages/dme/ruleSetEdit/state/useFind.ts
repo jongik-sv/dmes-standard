@@ -2,7 +2,7 @@
 
 /**
  * 노드 찾기(3단계 계획 B11) — 툴바 찾기 칸의 글자로 룰 ID·룰 이름·노드 라벨을 찾고 [다음] 으로 돌며 그 노드로 옮긴다(`onReveal`).
- * 글자를 바꾸면 첫 결과로 옮기고(순번 0), [다음]·Enter 는 다음 결과로 돈다(끝에서 처음으로). 접힌 블록 안의 노드를 펴는 것은 `onReveal` 의 몫이다.
+ * 글자를 바꾸면 순번만 0 으로 돌리고(옮기지 않는다), [다음]·Enter 에서만 옮긴다. 옮기는 것은 다음 결과로 돈다(끝에서 처음으로). 접힌 블록 안의 노드를 펴는 것은 `onReveal` 의 몫이다.
  */
 import { useCallback, useMemo, useRef, useState } from "react";
 
@@ -46,11 +46,8 @@ export function useFind(flow: EditFlow | null, rules: RuleIoMap, onReveal: (node
   ref.current = { flow, rules, onReveal, hits, index };
 
   const setQuery = useCallback((q: string) => {
-    const r = ref.current;
     setQueryState(q);
     setCursor(0);
-    const first = findNodes(r.flow, r.rules, q)[0];
-    if (first) r.onReveal(first);
   }, []);
 
   const next = useCallback(() => {

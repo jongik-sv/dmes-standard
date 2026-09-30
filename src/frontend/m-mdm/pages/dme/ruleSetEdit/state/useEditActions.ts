@@ -114,7 +114,7 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
   const { state, flow, editing, selectedId, selectedEdgeId, multiSel, select, openRuleModal, fit, setEditingCond, closeMenu, clearSelection } = deps;
   const { edit, addRuleIo } = state;
   /** 복사한 조각(B9) — 화면이 살아 있는 동안 남고 세트를 바꿔도 유지한다. */
-  const [clipboard, setClipboard] = useState<Fragment | null>(null);
+  const [clipboard, setClipboard] = useState<{ frag: Fragment; ios: RuleIo[] } | null>(null);
 
   /** 노드 add 개를 끼우는 연산 — 상한을 먼저 보고, 끼울 선을 고른 뒤, 새 노드(선 e 의 새 도착 노드)를 고른다. */
   const insertAt = useCallback(
@@ -258,9 +258,14 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
       if (!editing || !flow) return;
       const r = copyFragment(flow, nodeId);
       if (typeof r === "string") edit(() => fail(r));
-      else setClipboard(r);
+      else {
+        // 다른 세트에 붙여 넣어도 룰 정보가 있도록 조각의 룰 IO 를 함께 담는다.
+        const ids = new Set(r.nodes.map((n) => n.ruleId).filter((x): x is string => !!x));
+        const ios = [...ids].map((id) => state.rules[id]).filter((x): x is RuleIo => !!x);
+        setClipboard({ frag: r, ios });
+      }
     },
-    [editing, flow, edit],
+    [editing, flow, edit, state.rules],
   );
 
   const paste = useCallback(
@@ -270,9 +275,10 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
         edit(() => fail(NO_CLIPBOARD));
         return;
       }
-      edit((f) => pasteFragment(f, edgeId, clipboard));
+      clipboard.ios.forEach(addRuleIo);
+      edit((f) => pasteFragment(f, edgeId, clipboard.frag));
     },
-    [editing, clipboard, edit],
+    [editing, clipboard, edit, addRuleIo],
   );
 
   const actions = useMemo<EditActions["actions"]>(

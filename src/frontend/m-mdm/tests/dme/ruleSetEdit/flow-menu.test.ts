@@ -179,7 +179,7 @@ describe("흐름 우클릭 메뉴·편집(3단계 Task 8)", () => {
   });
 
   it("5. 룰 복사 뒤 선 우클릭에 붙여넣기가 생기고 누르면 새 룰 노드가 들어간다. 다른 세트를 열어도 클립보드가 남는다", async () => {
-    srv.views.E2S_OTHER = chainView("E2S_OTHER");
+    srv.views.E2S_OTHER = viewOf("E2S_OTHER", null, ["E2S_FCT"], [RULES[1]]); // 복사한 E2S_GRD 는 이 세트의 룰 정보에 없다
     await openSet("E2S_CHAIN", chainView(), { tabId: "tab-1" });
     await click("flow-mode-edit");
     await ctxMenu("flow-node-r1");
@@ -201,6 +201,11 @@ describe("흐름 우클릭 메뉴·편집(3단계 Task 8)", () => {
     await click("flow-mode-edit");
     await ctxEdge("e2");
     expect(menuIds()).toContain("paste");
+    await click("flow-menu-item-paste");
+    // 조각이 룰 정보(IO)를 함께 들고 와서 대상 세트에 없던 룰도 이름으로 보인다.
+    expect(canvasNodeIds()).toContain("r2");
+    expect(visibleText(byTestId("flow-node-r2"))).toContain("E2S_GRD");
+    expect(visibleText(byTestId("flow-node-r2"))).not.toContain("없는 룰");
   });
 
   it("6. 캔버스 Ctrl+C·Ctrl+V·Ctrl+D — 붙여넣기·복제, 선택 없이 Ctrl+V 는 안내, 노드가 가득 차면 상한 문구", async () => {
@@ -312,6 +317,11 @@ describe("흐름 우클릭 메뉴·편집(3단계 Task 8)", () => {
 
     await typeInto(find, "GRD");
     expect(byTestId("flow-find-count").textContent).toBe("1/2");
+    // 글자만 쳐서는 고르지도 옮기지도 않는다.
+    expect(mocks.expandFor).not.toHaveBeenCalled();
+    expect(byTestId("flow-node-r1").getAttribute("data-selected")).toBe("false");
+    await settle(50);
+    expect(byTestId("flow-node-r1").className).not.toContain("rsf-flash");
     mocks.expandFor.mockClear();
     await key(find, { key: "Enter" });
     await settle(50);
