@@ -34,6 +34,8 @@ export interface TestCasePanelProps {
 
 const EDIT_DENIED_TITLE = "케이스는 담당자가 사용 중인 세트에서 저장할 수 있다";
 const NEEDS_CASE = "케이스를 먼저 고른다";
+/** 차이 표 실제 칸 — 결과에 그 키가 없다(값 null 과 다르다). */
+export const MISSING_TEXT = "결과에 없음";
 
 type Mark = { text: string; style: () => CSSProperties };
 const MARKS: Record<"pass" | "fail" | "only" | "none", Mark> = {
@@ -50,7 +52,7 @@ function markOf(r: CaseRunResult | undefined): keyof typeof MARKS {
   return "only";
 }
 
-/** 차이 표 칸 글자 — 글자는 그대로, 없음(결과에 없음)은 따로, 그 밖은 JSON. */
+/** 차이 표 칸 글자 — 글자는 그대로, null 은 NULL, 그 밖은 JSON. */
 function valueText(v: unknown): string {
   if (v === null || v === undefined) return "NULL";
   return typeof v === "string" ? v : JSON.stringify(v);
@@ -108,15 +110,17 @@ export function TestCasePanel({ sim, tests, canEditCases, canRun }: TestCasePane
     return { pass: judged.filter((r) => r.pass === true).length, total: judged.length, only: ran.length - judged.length };
   }, [cases, results]);
 
-  const diffRows = useMemo(
-    () =>
-      (selectedResult?.pass === false && selectedResult.outcome === "OK" ? selectedResult.mismatches : []).map((m) => ({
-        key: m.key,
-        expected: valueText(m.expected),
-        actual: m.actual === null || m.actual === undefined ? "결과에 없음" : valueText(m.actual),
-      })),
-    [selectedResult],
-  );
+  // 실제 값 null 은 둘로 가른다 — 결과에 그 키가 있고 값이 null(룰이 한 줄도 맞지 않아 엔진이 null 로 둔 결과, 가장 흔한 실패)이면 "NULL",
+  // 결과에 키가 아예 없으면 "결과에 없음". 키는 서버 판정처럼 대소문자 무시로 찾는다(P-D4).
+  const diffRows = useMemo(() => {
+    if (selectedResult?.pass !== false || selectedResult.outcome !== "OK") return [];
+    const keys = new Set(Object.keys(selectedResult.finalValues ?? {}).map((k) => k.toLowerCase()));
+    return selectedResult.mismatches.map((m) => ({
+      key: m.key,
+      expected: valueText(m.expected),
+      actual: (m.actual === null || m.actual === undefined) && !keys.has(m.key.toLowerCase()) ? MISSING_TEXT : valueText(m.actual),
+    }));
+  }, [selectedResult]);
 
   const current = sim.currentInput();
   const pick = (row: Record<string, unknown>) => {

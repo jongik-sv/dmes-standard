@@ -32,7 +32,13 @@ export function loadExactInput(sim: Simulation, input: DebugInput): void {
   if (!formSafe(input.recordJson)) sim.setJson(input.recordJson);
 }
 
+/** JSON 칸에 글이 있을 때 폼 위 안내 — 보내는 것은 JSON 칸이다. */
+export const JSON_ACTIVE_NOTE = "JSON 입력을 보낸다. 폼을 쓰려면 JSON 칸을 비운다";
+
 export function InputForm({ sim }: { sim: Simulation }) {
+  // JSON 칸에 글이 있으면 폼 대신 그것을 보낸다(2단계 규칙) — 고쳐도 보내지 않는 폼 칸은 꺼 두고 이유를 보인다.
+  // JSON 칸 글이 기록 입력과 다르면(비우거나 바꾸면) 다음 [한 단계]·[계속] 이 바뀐 입력으로 새로 실행한다(P-D9 — 훅이 판정한다).
+  const jsonActive = sim.json.trim() !== "";
   return (
     <>
       <label className="rsf-dbg-evalts">
@@ -46,6 +52,11 @@ export function InputForm({ sim }: { sim: Simulation }) {
           onChange={sim.setEvalTs}
         />
       </label>
+      {jsonActive && sim.fields.length > 0 && (
+        <p className="rsf-panel-note" data-testid="dbg-json-active" role="status">
+          {JSON_ACTIVE_NOTE}
+        </p>
+      )}
       {sim.fields.length === 0 ? (
         <p className="rsf-panel-note">흐름이 읽는 컬럼 사전·프로그램 변수가 없다. 아래 JSON 으로 넣을 수도 있다</p>
       ) : (
@@ -61,13 +72,19 @@ export function InputForm({ sim }: { sim: Simulation }) {
               </span>
               <span className="rsf-dbg-field-edit">
                 <span data-testid={`dbg-send-${row.key}`} className="rsf-dbg-send">
-                  <Checkbox aria-label={`${row.key} 키 보냄`} checked={row.on} onChange={(on) => sim.setInput(row.key, { on })} />
+                  <Checkbox
+                    aria-label={`${row.key} 키 보냄`}
+                    checked={row.on}
+                    disabled={jsonActive}
+                    onChange={(on) => sim.setInput(row.key, { on })}
+                  />
                 </span>
                 <Input
                   data-testid={`dbg-input-${row.key}`}
                   aria-label={`${row.key} 값`}
                   value={row.value}
-                  disabled={!row.on}
+                  disabled={!row.on || jsonActive}
+                  title={jsonActive ? JSON_ACTIVE_NOTE : undefined}
                   placeholder={row.on ? "비우면 null" : "키를 보내지 않음"}
                   onChange={(value) => sim.setInput(row.key, { value })}
                 />

@@ -372,6 +372,54 @@ describe("디버그 모드 — 테스트 케이스(E6)", () => {
     expect(err.getAttribute("title")).toContain("INVALID_INPUT_JSON");
   });
 
+  it("고침 1 — 차이 표는 결과 키가 있고 값이 null 이면 NULL, 키가 없으면 '결과에 없음'", async () => {
+    await firstStep([CASE_A]);
+    srv.replies.execute = ok({
+      cases: [
+        caseResult(1, {
+          pass: false,
+          finalValues: { GT_G: "A", gt_f: null },
+          mismatches: [
+            { key: "GT_F", expected: "1", actual: null },
+            { key: "GT_X", expected: "1", actual: null },
+          ],
+        }),
+      ],
+    });
+    await run("case-run-all");
+    await clickCell("case-grid", 1, "caseName");
+    await settle(50);
+    expect(gridRowIds("case-diff")).toEqual(["GT_F", "GT_X"]);
+    expect(visibleText(gridRow("case-diff", "GT_F")!.querySelector('[col-id="actual"]')!).trim()).toBe("NULL");
+    expect(visibleText(gridRow("case-diff", "GT_X")!.querySelector('[col-id="actual"]')!).trim()).toBe("결과에 없음");
+  });
+
+  it("고침 1 — 숫자 값 케이스를 불러오면 JSON 칸이 이기므로 폼을 끄고 안내한다. JSON 칸을 비우면 폼을 다시 쓰고 바꾼 값으로 새로 실행한다", async () => {
+    await firstStep([CASE_B]);
+    await clickCell("case-grid", 2, "caseName");
+    await click("case-load");
+    expect(byTestId<HTMLTextAreaElement>("dbg-json").value).toBe('{"GT_THK":12}');
+    expect(byTestId<HTMLInputElement>("dbg-input-GT_THK").disabled).toBe(true);
+    expect(byTestId("dbg-send-GT_THK").querySelector("input")!.disabled).toBe(true);
+    expect(visibleText(byTestId("dbg-json-active"))).toContain("JSON 입력을 보낸다. 폼을 쓰려면 JSON 칸을 비운다");
+
+    // JSON 칸 입력이 기록 입력과 다르다 → 다음 [한 단계] 가 JSON 원문으로 새로 실행한다.
+    const before = calls("execute").length;
+    await run("dbg-step");
+    expect(calls("execute")).toHaveLength(before + 1);
+    expect(lastExecute().recordJson).toBe('{"GT_THK":12}');
+
+    await typeInto(byTestId<HTMLTextAreaElement>("dbg-json"), "");
+    expect(q("dbg-json-active")).toBeNull();
+    const field = byTestId<HTMLInputElement>("dbg-input-GT_THK");
+    expect(field.disabled).toBe(false);
+    await typeInto(field, "7");
+    await run("dbg-step");
+    expect(calls("execute")).toHaveLength(before + 2);
+    expect(lastExecute().recordJson).toBe('{"GT_THK":"7"}');
+    expect(status()).toBe("1/6 · start 실행 전");
+  });
+
   it("7. [삭제] 는 한 번 더 확인한 뒤 caseDeleted 로 보낸다", async () => {
     await firstStep([CASE_A]);
     await clickCell("case-grid", 1, "caseName");
