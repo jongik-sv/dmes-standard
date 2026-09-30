@@ -37,6 +37,12 @@ export const PALETTE_MIME = "application/x-rsf-palette";
 const PALETTE_ITEMS: readonly string[] = ["rule", "if", "par", "note", "group"];
 const GROUP_MARGIN = 16;
 const FLASH_MS = 1200;
+/** 화면 맞춤 여백·확대 한계. 최소 배율 0.1 — 노드 24~27개(높이 약 2050px) 흐름이 400px 대 캔버스에 들어가려면 약 0.17 이 필요하다. */
+const FIT_OPTIONS = { padding: 0.15 };
+const MIN_ZOOM = 0.1;
+const MAX_ZOOM = 2;
+
+type Measured = { width: number; height: number };
 
 export interface FlowCanvasProps {
   flow: EditFlow;
@@ -153,6 +159,13 @@ function Inner(props: FlowCanvasProps) {
   const [flashId, setFlashId] = useState<string | null>(null);
   /** React Flow 선택(노드·메모·그룹 ID). 노드 배열을 제어하므로 select 변경을 여기 적는다. */
   const [rfSel, setRfSel] = useState<ReadonlySet<string>>(() => new Set());
+  /**
+   * React Flow 가 잰 노드 크기(dimensions 변경). 노드 배열을 새로 만들 때 `measured` 로 되돌려 준다.
+   * 빠지면 React Flow 는 새 노드 객체를 "아직 안 잰 노드" 로 보는데, width/height 를 준 노드는 다시 재지 않으므로
+   * fitView 가 무기한 미뤄지거나(= [화면 맞춤] 무반응) 나중에 잰 노드만으로 맞춰 최대 배율에 걸린다(브라우저 확인 3번).
+   * 세트를 바꿔도 비우지 않는다 — start·r1·end 같은 ID 는 세트마다 겹치고, 그 노드는 다시 재지 않는다. 크기가 바뀌면 React Flow 가 다시 잰다.
+   */
+  const [measured, setMeasured] = useState<Readonly<Record<string, Measured>>>({});
 
   // 부모가 새 흐름을 내려주면 끌던 중 위치는 버린다(부모 값이 정본).
   useEffect(() => setDrag({}), [flow]);
@@ -170,7 +183,7 @@ function Inner(props: FlowCanvasProps) {
       if (!b) continue;
       const data: GroupNodeData = { id: g.id, title: g.title, selected: selectedId === g.id };
       out.push({
-        id: g.id, type: "rsfGroup", position: { x: b.x, y: b.y }, width: b.w, height: b.h, data, selected: rfSel.has(g.id),
+        id: g.id, type: "rsfGroup", position: { x: b.x, y: b.y }, width: b.w, height: b.h, measured: measured[g.id], data, selected: rfSel.has(g.id),
         draggable: false, connectable: false, zIndex: -1, style: { pointerEvents: "none" },
       });
     }
@@ -187,18 +200,19 @@ function Inner(props: FlowCanvasProps) {
         onOpenRule,
       };
       out.push({
-        id: n.id, type: "rsfFlow", position: p, width: s.w, height: s.h, data, handles: handlesOf(n.kind), draggable: editable, selected: rfSel.has(n.id),
+        id: n.id, type: "rsfFlow", position: p, width: s.w, height: s.h, measured: measured[n.id], data, handles: handlesOf(n.kind), draggable: editable,
+        selected: rfSel.has(n.id),
       });
     }
     for (const note of flow.view.notes) {
       const data: NoteNodeData = { note, selected: selectedId === note.id, editable, onChange: onNoteChange };
       out.push({
         id: note.id, type: "rsfNote", position: { x: drag[note.id]?.x ?? note.x, y: drag[note.id]?.y ?? note.y },
-        width: note.w, height: note.h, data, draggable: editable, connectable: false, selected: rfSel.has(note.id),
+        width: note.w, height: note.h, measured: measured[note.id], data, draggable: editable, connectable: false, selected: rfSel.has(note.id),
       });
     }
     return out;
-  }, [flow, pos, drag, rules, marks, overlay, selectedId, flashId, editable, onOpenRule, onNoteChange, rfSel]);
+  }, [flow, pos, drag, rules, marks, overlay, selectedId, flashId, editable, onOpenRule, onNoteChange, rfSel, measured]);
 
   const edges = useMemo(() => {
     const kindOf = new Map(flow.nodes.map((n) => [n.id, n.kind] as const));
@@ -214,6 +228,19 @@ function Inner(props: FlowCanvasProps) {
   }, [flow, chips, overlay, eMarks, showVars, selectedEdgeId]);
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
+    const dims = changes.filter((c): c is Extract<NodeChange, { type: "dimensions" }> => c.type === "dimensions" && !!c.dimensions);
+    if (dims.length > 0) {
+      setMeasured((cur) => {
+        let next: Record<string, Measured> | null = null;
+        for (const c of dims) {
+          const { width, height } = c.dimensions!;
+          if (cur[c.id]?.width === width && cur[c.id]?.height === height) continue;
+          next ??= { ...cur };
+          next[c.id] = { width, height };
+        }
+        return next ?? cur; // 같은 값이면 상태를 바꾸지 않는다(다시 그리기 반복 방지)
+      });
+    }
     const selects = changes.filter((c): c is Extract<NodeChange, { type: "select" }> => c.type === "select");
     if (selects.length > 0) {
       setRfSel((cur) => {
@@ -298,7 +325,7 @@ function Inner(props: FlowCanvasProps) {
       firstFit.current = false;
       return;
     }
-    void rf.fitView({ duration: 200, padding: 0.15 });
+    void rf.fitView({ ...FIT_OPTIONS, duration: 200 });
   }, [fitSignal, rf]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -345,9 +372,9 @@ function Inner(props: FlowCanvasProps) {
         selectionKeyCode={editable ? "Shift" : null}
         multiSelectionKeyCode={editable ? MULTI_KEYS : null}
         fitView
-        fitViewOptions={{ padding: 0.15 }}
-        minZoom={0.2}
-        maxZoom={2}
+        fitViewOptions={FIT_OPTIONS}
+        minZoom={MIN_ZOOM}
+        maxZoom={MAX_ZOOM}
         proOptions={{ hideAttribution: true }}
         onNodesChange={onNodesChange}
         onNodeDragStop={onNodeDragStop}
