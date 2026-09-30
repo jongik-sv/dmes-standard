@@ -22,8 +22,8 @@ public class EngineEvaluationException extends RuntimeException {
         return violations;
     }
 
-    /** 06:212-217 의 네 단계 + 세트 사전 검사. */
-    public enum Stage { SET_CHECK, INPUT_CHECK, ROW_SELECT, RESULT_CHECK, RESULT_EVAL }
+    /** 06:212-217 의 네 단계 + 세트 사전 검사 + IF 갈래 고르기(룰 세트 흐름도). */
+    public enum Stage { SET_CHECK, INPUT_CHECK, ROW_SELECT, RESULT_CHECK, RESULT_EVAL, BRANCH_SELECT }
 
     public enum Code {
         RULE_NOT_FOUND,
@@ -37,7 +37,11 @@ public class EngineEvaluationException extends RuntimeException {
         EVAL_TS_KEY,
         UNIQUE_MULTIPLE_HITS,
         ANY_CONFLICT,
-        EVALUATION_ERROR
+        EVALUATION_ERROR,
+        /** IF 갈래 조건식이 불린이 아니거나 평가에 실패했다. */
+        BRANCH_EVAL_ERROR,
+        /** 세트 흐름이 구조 검사를 통과하지 못했다(plan D5). */
+        FLOW_INVALID
     }
 
     /**

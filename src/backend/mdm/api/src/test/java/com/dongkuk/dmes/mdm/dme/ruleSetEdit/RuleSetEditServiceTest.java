@@ -10,8 +10,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.audit.CactusAudit;
 import com.dongkuk.dmes.cactus.common.BusinessException;
+import com.dongkuk.dmes.mdm.common.rule.CondIo;
 import com.dongkuk.dmes.mdm.common.rule.RuleIo;
+import com.dongkuk.dmes.mdm.common.rule.RuleIoReader;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetCheck;
+import com.dongkuk.dmes.mdm.common.rule.RuleSetFlowJson;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetGuide;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
@@ -61,6 +64,8 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
     MutableCurrentUser currentUser;
     @Autowired
     JdbcTemplate jdbc;
+    @Autowired
+    RuleIoReader ioReader;
 
     @BeforeEach
     void seed() {
@@ -446,5 +451,169 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
         assertEquals("X_UNKNOWN를 만드는 룰이 없다", ((RuleSetGuideResult) search("GUIDE", null, "S_UNK")).getError());
         assertTrue(((RuleSetGuideResult) search("GUIDE", null, "S_CYA")).getError().startsWith("순환이 있다("));
         assertEquals("REQUIRED_VALUE", code(assertThrows(BusinessException.class, () -> search("GUIDE", "S_SPD", " "))));
+    }
+
+    // ── 흐름 기준 저장·조회·되살리기(흐름도 Task 10) ──
+
+    /** IF 갈래 두 개(R_GRD / 그 외 R_DUP)가 같은 S_GRD 를 만들고, 합류 뒤 R_FCT 가 읽는다. */
+    static final String IF_FLOW = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"},{\"id\":\"if1\",\"kind\":\"IF\"},"
+            + "{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"R_GRD\"},{\"id\":\"r2\",\"kind\":\"RULE\",\"ruleId\":\"R_DUP\"},"
+            + "{\"id\":\"m1\",\"kind\":\"MERGE\",\"splitId\":\"if1\"},{\"id\":\"r3\",\"kind\":\"RULE\",\"ruleId\":\"R_FCT\"},{\"id\":\"end\",\"kind\":\"END\"}],"
+            + "\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"if1\"},"
+            + "{\"id\":\"e2\",\"from\":\"if1\",\"to\":\"r1\",\"order\":1,\"cond\":\"SET_THK > 1\"},"
+            + "{\"id\":\"e3\",\"from\":\"if1\",\"to\":\"r2\",\"otherwise\":true},"
+            + "{\"id\":\"e4\",\"from\":\"r1\",\"to\":\"m1\"},{\"id\":\"e5\",\"from\":\"r2\",\"to\":\"m1\"},"
+            + "{\"id\":\"e6\",\"from\":\"m1\",\"to\":\"r3\"},{\"id\":\"e7\",\"from\":\"r3\",\"to\":\"end\"}],"
+            + "\"view\":{\"positions\":{\"r1\":{\"x\":10,\"y\":20}}}}";
+
+    /** 같은 룰(R_GRD)을 두 IF 갈래에 둔 흐름 — RULE_IDS 는 중복 없이 한 번(Review Focus 3). */
+    static final String SAME_RULE_FLOW = IF_FLOW.replace("\"ruleId\":\"R_DUP\"", "\"ruleId\":\"R_GRD\"");
+
+    /** R_FCT(S_GRD 를 읽음)가 그 외 갈래에 있고 S_GRD 는 첫 갈래의 R_GRD 만 만든다 — IF_SIBLING. */
+    static final String SIBLING_FLOW = IF_FLOW.replace("\"ruleId\":\"R_DUP\"", "\"ruleId\":\"R_FCT\"")
+            .replace("{\"id\":\"r3\",\"kind\":\"RULE\",\"ruleId\":\"R_FCT\"}", "{\"id\":\"r3\",\"kind\":\"RULE\",\"ruleId\":\"R_SPD\"}");
+
+    private static RuleSetSaveRequest flowReq(String setId, long rv, String flowJson) {
+        RuleSetSaveRequest r = saveReq(setId, "흐름 세트", null, rv);
+        r.setFlow(RuleSetFlowJson.toMap(flowJson));
+        return r;
+    }
+
+    @Test
+    void 흐름을_저장하면_FLOW_JSON_은_받은_그대로_RULE_IDS_는_서버가_펼친_목록이다() {
+        RuleSetSaveResult r = writeOnly("S_CHAIN", () -> service.save(flowReq("S_CHAIN", 3L, IF_FLOW)));
+
+        assertEquals(4L, r.getRowVersion());
+        Map<String, Object> row = setRow("S_CHAIN");
+        assertEquals("[\"R_GRD\",\"R_DUP\",\"R_FCT\"]", row.get("RULE_IDS"));
+        assertEquals(RuleSetFlowJson.toMap(IF_FLOW), RuleSetFlowJson.toMap((String) row.get("FLOW_JSON")));
+        assertTrue(codes(r.getChecks()).isEmpty(), r.getChecks().toString());
+    }
+
+    @Test
+    void 같은_룰이_두_갈래에_있으면_RULE_IDS_에_한_번만_쓰고_검사도_한_번이다() {
+        service.save(flowReq("S_CHAIN", 3L, SAME_RULE_FLOW));
+
+        assertEquals("[\"R_GRD\",\"R_FCT\"]", setRow("S_CHAIN").get("RULE_IDS"));
+        RuleSetViewResult v = view("S_CHAIN");
+        assertEquals(List.of("R_GRD", "R_FCT"), v.getSet().getRuleIds());
+        assertTrue(v.getSet().isBranched());
+        assertTrue(codes(v.getChecks()).isEmpty(), v.getChecks().toString());
+    }
+
+    @Test
+    void 흐름_검사가_거부하면_MDM024_이고_행은_그대로다() {
+        BusinessException e = refuse(() -> service.save(flowReq("S_CHAIN", 3L, SIBLING_FLOW)));
+
+        assertEquals("MDM024", code(e));
+        assertTrue(e.getMessage().contains("IF_SIBLING"), e.getMessage());
+        Map<String, Object> row = setRow("S_CHAIN");
+        assertNull(row.get("FLOW_JSON"));
+        assertEquals("[\"R_GRD\",\"R_FCT\",\"R_SPD\"]", row.get("RULE_IDS"));
+        assertEquals(3L, ((Number) row.get("ROW_VERSION")).longValue());
+    }
+
+    private static List<String> issueCodes(BusinessException e) {
+        return e.getErrors().stream().map(i -> i.code()).toList();
+    }
+
+    @Test
+    void IF_선_조건식_문법이_틀리면_FLOW_COND_로_거부한다() {
+        BusinessException e = refuse(() -> service.save(flowReq("S_CHAIN", 3L, IF_FLOW.replace("SET_THK > 1", "SET_THK >"))));
+
+        assertEquals("MDM024", code(e));
+        assertTrue(issueCodes(e).contains("FLOW_COND"), e.getMessage());
+    }
+
+    @Test
+    void 사전에_없는_변수는_NONE_이라_정의되지_않았다며_거부한다() {
+        BusinessException e = refuse(() -> service.save(flowReq("S_CHAIN", 3L, IF_FLOW.replace("SET_THK > 1", "NOPE_VAR > 1"))));
+
+        assertTrue(issueCodes(e).contains("FLOW_COND"), e.getMessage());
+        assertTrue(e.getMessage().contains("e2 갈래 조건식이 읽는 NOPE_VAR는 이 지점에서 정의되지 않았다"), e.getMessage());
+    }
+
+    @Test
+    void condIo_는_EVAL_TS_와_밑줄_접두어_이름을_vars_에서_뺀다() {
+        var flow = RuleSetFlowJson.parse(IF_FLOW.replace("SET_THK > 1", "SET_THK > 1 && EVAL_TS > 0 && _RSV > 0 && NOPE_VAR > 0"));
+
+        CondIo io = ioReader.condIo(flow).get("e2");
+
+        assertTrue(io.ok(), String.valueOf(io.message()));
+        Map<String, String> sources = new java.util.TreeMap<>();
+        io.vars().forEach(v -> sources.put(v.name(), v.source()));
+        assertEquals(Map.of("SET_THK", RuleIo.DICT, "NOPE_VAR", RuleIo.NONE), sources);
+        assertNull(ioReader.condIo(flow).get("e3"), "otherwise 선은 넣지 않는다");
+    }
+
+    @Test
+    void condIo_문법_오류는_ok_false_이고_vars_는_빈_목록이다() {
+        CondIo io = ioReader.condIo(RuleSetFlowJson.parse(IF_FLOW.replace("SET_THK > 1", "SET_THK >"))).get("e2");
+
+        assertFalse(io.ok());
+        assertTrue(io.vars() != null && io.vars().isEmpty());
+    }
+
+    @Test
+    void flow_와_다른_rules_를_함께_보내면_RULE_IDS_는_흐름에서_펼친_값이다() {
+        RuleSetSaveRequest r = flowReq("S_CHAIN", 3L, IF_FLOW);
+        r.setRules(saveReq("S_CHAIN", "x", null, 3L, "R_SPD", "R_CYA").getRules());
+
+        service.save(r);
+
+        assertEquals("[\"R_GRD\",\"R_DUP\",\"R_FCT\"]", setRow("S_CHAIN").get("RULE_IDS"));
+    }
+
+    @Test
+    void 흐름_형식이_틀리면_MDM021_이다() {
+        RuleSetSaveRequest r = saveReq("S_CHAIN", "흐름 세트", null, 3L);
+        r.setFlow(Map.of("version", 2, "nodes", List.of(), "edges", List.of()));
+
+        assertEquals("MDM021", refuseCode(() -> service.save(r)));
+    }
+
+    @Test
+    void 분기_세트를_목록으로_저장하면_FLOW_READONLY_로_거부한다() {
+        DmeTestSupport.ruleSetFlow(jdbc, "S_CHAIN", IF_FLOW);
+
+        BusinessException e = refuse(() -> service.save(saveReq("S_CHAIN", "사슬 세트", null, 3L, "R_GRD", "R_FCT", "R_SPD")));
+
+        assertEquals("MDM024", code(e));
+        assertEquals("FLOW_READONLY", e.getErrors().get(1).code());
+        assertEquals("룰 세트 저장 검사를 통과하지 못했습니다: -[-] FLOW_READONLY 분기가 있는 세트는 룰 목록으로 저장할 수 없다. 흐름도 편집기에서 저장한다",
+                e.getMessage());
+    }
+
+    @Test
+    void 한_줄_흐름_세트는_목록으로_저장하면_FLOW_JSON_을_지운다() {
+        DmeTestSupport.ruleSetFlow(jdbc, "S_CHAIN",
+                "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"},{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"R_GRD\"},"
+                + "{\"id\":\"end\",\"kind\":\"END\"}],\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"r1\"},{\"id\":\"e2\",\"from\":\"r1\",\"to\":\"end\"}]}");
+
+        service.save(saveReq("S_CHAIN", "사슬 세트", null, 3L, "R_GRD", "R_FCT"));
+
+        assertNull(setRow("S_CHAIN").get("FLOW_JSON"));
+    }
+
+    @Test
+    void 조회는_흐름과_분기_여부와_흐름_기준_검사를_싣는다() {
+        DmeTestSupport.ruleSetFlow(jdbc, "S_CHAIN", IF_FLOW);
+        jdbc.update("UPDATE TB_MDM_RULE_SET SET RULE_IDS = '[\"R_GRD\",\"R_DUP\",\"R_FCT\"]' WHERE MARU_RULE_SET_ID = 'S_CHAIN'");
+
+        RuleSetViewResult v = view("S_CHAIN");
+
+        assertTrue(v.getSet().isBranched());
+        assertEquals(RuleSetFlowJson.toMap(IF_FLOW), v.getSet().getFlow());
+        assertTrue(codes(v.getChecks()).isEmpty(), v.getChecks().toString());
+        assertFalse(view("S_OTHER").getSet().isBranched());
+        assertNull(view("S_OTHER").getSet().getFlow());
+    }
+
+    @Test
+    void 되살리기도_흐름_기준으로_검사한다() {
+        DmeTestSupport.ruleSetFlow(jdbc, "S_OLD", SIBLING_FLOW);
+        jdbc.update("UPDATE TB_MDM_RULE_SET SET RULE_IDS = '[\"R_GRD\",\"R_FCT\",\"R_SPD\"]' WHERE MARU_RULE_SET_ID = 'S_OLD'");
+
+        assertEquals("MDM024", refuseCode(() -> service.restore(statusReq("S_OLD", 2L))));
     }
 }

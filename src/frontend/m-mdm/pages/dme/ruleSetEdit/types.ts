@@ -3,6 +3,8 @@
  * 칸 이름이다(JSON 필드 이름 = 레코드 컴포넌트 이름). 서버가 비운 칸은 null 로 온다.
  */
 
+import type { RuleSetFlow } from "@/contract/engine-contract.generated";
+
 /** 조건 이름의 출처 — 컬럼 사전(DICT) > 룰이 도메인·데이터 타입을 선언한 프로그램 변수(PROG) > 어디에도 없음(NONE). 결과 이름은 null. */
 export type IoSource = "DICT" | "PROG" | "NONE";
 
@@ -39,6 +41,19 @@ export type RuleIoMap = Readonly<Record<string, RuleIo | undefined>>;
 
 export type RuleSetSeverity = "REJECT" | "WARN";
 
+/**
+ * IF 갈래 조건식 하나를 서버가 미리 푼 결과(계획 C4). ok=false 면 message 는 파싱 오류 문구이고 vars 는 비어 있다.
+ * vars 의 source 는 DICT(컬럼 사전에 있음) 또는 NONE 이다.
+ */
+export interface CondIo {
+  ok: boolean;
+  message: string | null;
+  vars: IoName[];
+}
+
+/** 선 ID → 조건식 IO. IF 의 "그 외" 가 아닌 선만 키가 있다. */
+export type CondIoMap = Readonly<Record<string, CondIo | undefined>>;
+
 export type RuleSetCheckCode =
   | "EMPTY"
   | "RULE_NOT_FOUND"
@@ -47,9 +62,19 @@ export type RuleSetCheckCode =
   | "ORDER"
   | "CYCLE"
   | "UNKNOWN_INPUT"
-  | "DUP_RESULT";
+  | "DUP_RESULT"
+  | "FLOW_STRUCTURE"
+  | "FLOW_IF_ELSE"
+  | "FLOW_COND"
+  | "IF_SIBLING"
+  | "PAR_SIBLING"
+  | "FLOW_PARTIAL"
+  | "FLOW_READONLY";
 
-/** 저장 시 검사 한 건(§6.3). 없는 칸은 null — EMPTY 는 ruleId 도 null, 1단계는 otherRuleId·varName 이 null. */
+/**
+ * 저장 시 검사 한 건(§6.3, 계획 C4). 없는 칸은 null — EMPTY 는 ruleId 도 null, 1단계는 otherRuleId·varName 이 null.
+ * nodeId·edgeId 는 흐름 위치(D8)이고 목록 세트 검사(`setChecks`)는 둘 다 null 이다.
+ */
 export interface RuleSetCheck {
   code: RuleSetCheckCode;
   severity: RuleSetSeverity;
@@ -57,6 +82,8 @@ export interface RuleSetCheck {
   otherRuleId: string | null;
   varName: string | null;
   message: string;
+  nodeId: string | null;
+  edgeId: string | null;
 }
 
 /** 입력 변수 — 앞 룰이 만들지 않은 이름. 타입·출처는 처음 읽은 룰의 것, `users` 는 읽는 룰(목록 순). */
@@ -124,10 +151,15 @@ export interface RuleSetHeader {
   description: string | null;
   status: RuleSetStatus;
   rowVersion: number;
+  /** 흐름을 펼친 룰 목록(RULE_IDS, 중복 없음). */
   ruleIds: string[];
+  /** 저장된 흐름(FLOW_JSON, view 포함). 목록으로만 저장된 세트면 null. */
+  flow: RuleSetFlow | null;
+  /** 분기(IF·병렬)가 있는 흐름이면 true — 목록 편집·저장을 막는다(서버는 FLOW_READONLY 로 거부). */
+  branched: boolean;
 }
 
-/** view 응답(§6.5). `rules` 는 ruleIds 순·중복 없음, `checks` 는 저장된 목록 기준. */
+/** view 응답(§6.5). `rules` 는 ruleIds 순·중복 없음, `checks` 는 저장된 목록 또는 흐름 기준. */
 export interface RuleSetView {
   set: RuleSetHeader;
   rules: RuleIo[];

@@ -297,6 +297,66 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
         assertTrue(issues(r, "SET_ORDER").isEmpty(), "DEPRECATED 세트는 보지 않는다");
     }
 
+    /** 흐름 세트 — IF(또는 PARALLEL) 하나에 두 갈래. first 는 첫 갈래, second 는 둘째 갈래(IF 면 그 외)의 룰. */
+    private void branchSet(String setId, String kind, String first, String second) {
+        String secondEdge = "IF".equals(kind)
+                ? "{\"id\":\"e3\",\"from\":\"s1\",\"to\":\"r2\",\"otherwise\":true}"
+                : "{\"id\":\"e3\",\"from\":\"s1\",\"to\":\"r2\",\"order\":2}";
+        String firstEdge = "IF".equals(kind)
+                ? "{\"id\":\"e2\",\"from\":\"s1\",\"to\":\"r1\",\"order\":1,\"cond\":\"COIL_THK > 1\"}"
+                : "{\"id\":\"e2\",\"from\":\"s1\",\"to\":\"r1\",\"order\":1}";
+        String flow = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"},{\"id\":\"s1\",\"kind\":\"" + kind + "\"},"
+                + "{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"" + first + "\"},{\"id\":\"r2\",\"kind\":\"RULE\",\"ruleId\":\"" + second + "\"},"
+                + "{\"id\":\"m1\",\"kind\":\"MERGE\",\"splitId\":\"s1\"},{\"id\":\"end\",\"kind\":\"END\"}],"
+                + "\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"s1\"}," + firstEdge + "," + secondEdge + ","
+                + "{\"id\":\"e4\",\"from\":\"r1\",\"to\":\"m1\"},{\"id\":\"e5\",\"from\":\"r2\",\"to\":\"m1\"},{\"id\":\"e6\",\"from\":\"m1\",\"to\":\"end\"}]}";
+        ruleSet(setId, "INUSE", first, second);
+        DmeTestSupport.ruleSetFlow(jdbc, setId, flow);
+    }
+
+    @Test
+    void IF_형제_갈래의_결과를_읽으면_SET_IF_SIBLING_으로_거부한다() {
+        otherRule("R_WID", "X_IN", "COIL_WID");
+        branchSet("S_IF", "IF", "QLTY_GRD_JDG", "R_WID");
+
+        BusinessException e = rejected(() -> save(sample()));
+
+        assertEquals(List.of("SET_IF_SIBLING"), codes(e));
+        assertTrue(e.getMessage().contains("S_IF") && e.getMessage().contains("COIL_WID"), e.getMessage());
+    }
+
+    @Test
+    void 병렬_형제_갈래의_결과를_읽으면_SET_PAR_SIBLING_으로_거부한다() {
+        otherRule("R_WID", "X_IN", "COIL_WID");
+        branchSet("S_PAR", "PARALLEL", "QLTY_GRD_JDG", "R_WID");
+
+        BusinessException e = rejected(() -> save(sample()));
+
+        assertEquals(List.of("SET_PAR_SIBLING"), codes(e));
+    }
+
+    @Test
+    void 병렬_형제가_같은_결과를_대입하면_SET_PAR_SIBLING_이다() {
+        otherRule("R_DUP", "X_IN", "PRC_FCT");
+        branchSet("S_PDUP", "PARALLEL", "QLTY_GRD_JDG", "R_DUP");
+
+        BusinessException e = rejected(() -> save(sample()));
+
+        assertEquals(List.of("SET_PAR_SIBLING"), codes(e));
+        assertTrue(e.getMessage().contains("PRC_FCT"), e.getMessage());
+    }
+
+    @Test
+    void 서로_다른_IF_갈래가_같은_결과를_대입하는_것은_정상이다() {
+        otherRule("R_DUP", "X_IN", "PRC_FCT");
+        branchSet("S_IFDUP", "IF", "QLTY_GRD_JDG", "R_DUP");
+
+        RuleEditSaveResult r = save(sample());
+
+        assertTrue(issues(r, "SET_DUP_RESULT").isEmpty(), r.getIssues().toString());
+        assertTrue(issues(r, "SET_IF_SIBLING").isEmpty(), r.getIssues().toString());
+    }
+
     // ── 입력 계약 변경(I15) ──
 
     /** 조건 열은 늘 계약(always)에 들므로 계약이 바뀌는 자리는 식이다 — 사전에 COIL_LEN 을 두고 v2 의 PRC_FCT 를 식 열로 바꾼다. */

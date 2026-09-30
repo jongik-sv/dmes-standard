@@ -189,12 +189,12 @@ public final class SampleRules {
 
     /** LS_A3 = BASE_SPD_LKP → SPD_EXC → SPD_JOIN, INUSE(06:1087·1324). */
     public static RuleSetDefinition lsA3() {
-        return new RuleSetDefinition("LS_A3", List.of("BASE_SPD_LKP", "SPD_EXC", "SPD_JOIN"), SetStatus.INUSE);
+        return new RuleSetDefinition("LS_A3", List.of("BASE_SPD_LKP", "SPD_EXC", "SPD_JOIN"), SetStatus.INUSE, null);
     }
 
     /** WID_OLD — 폐기 세트(H:540). WID_CHK 정의는 두지 않는다(룰을 조회하지 않아야 한다). */
     public static RuleSetDefinition widOld() {
-        return new RuleSetDefinition("WID_OLD", List.of("WID_CHK"), SetStatus.DEPRECATED);
+        return new RuleSetDefinition("WID_OLD", List.of("WID_CHK"), SetStatus.DEPRECATED, null);
     }
 
     public static List<RuleDefinition> all() {

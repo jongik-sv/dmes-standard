@@ -142,8 +142,28 @@ public interface DefinitionLookup {
 
     record VarType(String name, DataType dataType, @Nullable Integer scale, @Nullable String domainId) {}
 
-    /** 세트 스냅샷은 셋뿐이다(06:1165). */
-    record RuleSetDefinition(String setId, List<String> ruleIds, SetStatus status) {}
+    /**
+     * 세트 스냅샷(06:1165) + 흐름(spec §3.3). {@code flow} 가 null 이면 {@code ruleIds} 순서의 한 줄 흐름이다.
+     * {@code ruleIds} 는 흐름을 펼친 룰 목록(깊이 우선, 중복 없음)이고 조회·목록 화면이 쓴다.
+     */
+    record RuleSetDefinition(String setId, List<String> ruleIds, SetStatus status, @Nullable FlowDefinition flow) {}
 
     enum SetStatus { CREATED, INUSE, DEPRECATED }
+
+    // ------------------------------------------------------------------ 흐름(룰 세트 흐름도, spec §3)
+
+    /** 흐름 정의 — FLOW_JSON 의 nodes·edges. 화면 전용 view 는 싣지 않는다. {@code version} 은 형식 버전(지금 1). */
+    record FlowDefinition(int version, List<FlowNode> nodes, List<FlowEdge> edges) {}
+
+    /** {@code ruleId} 는 RULE 만, {@code splitId}(짝 분기 노드 ID)는 MERGE 만 쓴다. {@code label} 은 화면 표시용. */
+    record FlowNode(String id, NodeKind kind, @Nullable String ruleId, @Nullable String splitId, @Nullable String label) {}
+
+    /**
+     * {@code order}·{@code cond}·{@code otherwise} 는 IF·PARALLEL 에서 나가는 선만 쓴다. {@code otherwise=true} 는 IF 의
+     * "그 외" 선이다(JSON 키도 otherwise — {@code else} 는 Java 예약어다, plan D2).
+     */
+    record FlowEdge(String id, String from, String to, @Nullable Integer order, @Nullable String cond, boolean otherwise,
+            @Nullable String label) {}
+
+    enum NodeKind { START, END, RULE, IF, PARALLEL, MERGE }
 }

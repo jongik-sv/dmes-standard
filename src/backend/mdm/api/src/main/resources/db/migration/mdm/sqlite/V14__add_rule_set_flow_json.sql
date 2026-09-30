@@ -1,0 +1,44 @@
+-- 2026-09-30 — 룰 세트 흐름도(분기형 룰 세트) 저장 칼럼 FLOW_JSON 을 더한다.
+--
+-- 왜: 룰 세트를 IF·병렬 분기가 있는 흐름도로 저장한다(spec docs/superpowers/specs/2026-09-29-rule-set-flow-design.md §3.3,
+-- ADR docs/mdm/adr/0005). RULE_IDS 는 없애지 않고 흐름을 깊이 우선으로 펼친 중복 없는 룰 목록으로 계속 채운다. FLOW_JSON 이
+-- NULL 인 세트는 RULE_IDS 순서의 한 줄 흐름이다 — 기존 행의 데이터 이관은 없다.
+--
+-- ADD COLUMN 대신 테이블을 다시 만든다: 칼럼 순서 불변식(업무 칼럼 + 감사 9칼럼, MdmBusinessRuleMigrationTest)을 지키려면
+-- FLOW_JSON 이 RULE_IDS 바로 뒤에 있어야 한다. TB_MDM_RULE_SET 을 참조하는 FK 는 없다.
+-- V13 과 같은 규칙을 따른다: INSERT ... SELECT * 를 쓰지 않고 칼럼명을 모두 적는다. PRAGMA 를 쓰지 않는다(Flyway SQLite 파서가
+-- transactional·non-transactional 문 혼합을 거부한다).
+-- 되돌리려면: 새 마이그레이션에서 FLOW_JSON 을 뺀 V8 정의로 같은 방식의 재생성을 한다. 분기 흐름은 RULE_IDS 에 펼친 목록만 남는다.
+
+CREATE TABLE TB_MDM_RULE_SET_NEW (
+    MARU_RULE_SET_ID VARCHAR(50) NOT NULL,
+    MARU_RULE_SET_NAME TEXT NOT NULL,
+    RULE_IDS TEXT NOT NULL CONSTRAINT CK_TB_MDM_RULE_SET_RULE_IDS_JSON CHECK (json_valid(RULE_IDS)),
+    FLOW_JSON TEXT CONSTRAINT CK_TB_MDM_RULE_SET_FLOW_JSON CHECK (FLOW_JSON IS NULL OR json_valid(FLOW_JSON)),
+    DESCRIPTION TEXT,
+    STATUS VARCHAR(20) NOT NULL DEFAULT 'INUSE',
+    ROW_VERSION BIGINT NOT NULL DEFAULT 0,
+    C_USR_ID VARCHAR(100),
+    C_AT TIMESTAMP,
+    C_SVC_ID VARCHAR(100),
+    C_PGM_ID VARCHAR(100),
+    U_USR_ID VARCHAR(100),
+    U_AT TIMESTAMP,
+    U_SVC_ID VARCHAR(100),
+    U_PGM_ID VARCHAR(100),
+    VER BIGINT,
+    CONSTRAINT PK_TB_MDM_RULE_SET PRIMARY KEY (MARU_RULE_SET_ID),
+    CONSTRAINT CK_TB_MDM_RULE_SET_STATUS CHECK (STATUS IN ('INUSE','DEPRECATED'))
+);
+
+INSERT INTO TB_MDM_RULE_SET_NEW (
+    MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS, FLOW_JSON, DESCRIPTION, STATUS, ROW_VERSION,
+    C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER
+)
+SELECT
+    MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS, NULL, DESCRIPTION, STATUS, ROW_VERSION,
+    C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER
+FROM TB_MDM_RULE_SET;
+
+DROP TABLE TB_MDM_RULE_SET;
+ALTER TABLE TB_MDM_RULE_SET_NEW RENAME TO TB_MDM_RULE_SET;

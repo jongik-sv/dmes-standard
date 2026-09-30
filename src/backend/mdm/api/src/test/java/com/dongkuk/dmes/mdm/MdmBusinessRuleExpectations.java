@@ -29,11 +29,11 @@ final class MdmBusinessRuleExpectations {
     /** 감사 카운터 칼럼 이름. */
     static final String AUD_VER = "AUD_VER";
 
-    /** JSON CHECK 가 걸린 7칼럼(F5) — 테이블 → 칼럼. RULE_RECV.BODY 는 JSON CHECK 가 없다. */
+    /** JSON CHECK 가 걸린 8칼럼(F5 + 흐름도 FLOW_JSON) — 테이블 → 칼럼. RULE_RECV.BODY 는 JSON CHECK 가 없다. */
     static final Map<String, List<String>> JSON_COLUMNS = new LinkedHashMap<>();
 
-    /** JSON 칼럼 가운데 NULL 을 허용하는 4칼럼. */
-    static final Set<String> NULLABLE_JSON_COLUMNS = Set.of("VAR_AST", "PRIO_LIST", "GRP_COND_AST", "EXPECTED_JSON");
+    /** JSON 칼럼 가운데 NULL 을 허용하는 5칼럼. */
+    static final Set<String> NULLABLE_JSON_COLUMNS = Set.of("VAR_AST", "PRIO_LIST", "GRP_COND_AST", "EXPECTED_JSON", "FLOW_JSON");
 
     /** ON DELETE CASCADE 를 가진 FK 는 이 둘뿐이다(불변 규칙 5). */
     static final Set<String> CASCADE_FKS = Set.of("FK_TB_MDM_RULE_VAR_VER", "FK_TB_MDM_RULE_ROW_VER");
@@ -65,7 +65,7 @@ final class MdmBusinessRuleExpectations {
         BUSINESS_COLUMNS.put("TB_MDM_RULE_TEST_CASE", List.of(
                 "MARU_RULE_ID", "CASE_ID", "CASE_NAME", "INPUT_JSON", "EXPECTED_JSON", "DESCRIPTION", "ROW_VERSION"));
         BUSINESS_COLUMNS.put("TB_MDM_RULE_SET", List.of(
-                "MARU_RULE_SET_ID", "MARU_RULE_SET_NAME", "RULE_IDS", "DESCRIPTION", "STATUS", "ROW_VERSION"));
+                "MARU_RULE_SET_ID", "MARU_RULE_SET_NAME", "RULE_IDS", "FLOW_JSON", "DESCRIPTION", "STATUS", "ROW_VERSION"));
         BUSINESS_COLUMNS.put("TB_MDM_RULE_RECV", List.of(
                 "RECV_ID", "MARU_RULE_ID", "SOURCE_SYSTEM", "SOURCE_REF", "REQ_KIND", "RECEIVED_AT", "BODY", "RESULT",
                 "RESULT_DETAIL", "VER", "PROCESSED_AT"));
@@ -73,7 +73,7 @@ final class MdmBusinessRuleExpectations {
         JSON_COLUMNS.put("TB_MDM_RULE_VAR", List.of("VAR_AST", "PRIO_LIST", "GRP_COND_AST"));
         JSON_COLUMNS.put("TB_MDM_RULE_ROW", List.of("CELLS"));
         JSON_COLUMNS.put("TB_MDM_RULE_TEST_CASE", List.of("INPUT_JSON", "EXPECTED_JSON"));
-        JSON_COLUMNS.put("TB_MDM_RULE_SET", List.of("RULE_IDS"));
+        JSON_COLUMNS.put("TB_MDM_RULE_SET", List.of("RULE_IDS", "FLOW_JSON"));
 
         UNIQUE_INDEXES.put("UX_TB_MDM_RULE_VAR_SEQ", false);
         UNIQUE_INDEXES.put("UX_TB_MDM_RULE_VAR_NAME", true);
@@ -99,7 +99,7 @@ final class MdmBusinessRuleExpectations {
                 "PK_TB_MDM_RULE_TEST_CASE", "FK_TB_MDM_RULE_TEST_CASE_RULE", "CK_TB_MDM_RULE_TEST_CASE_INPUT_JSON",
                 "CK_TB_MDM_RULE_TEST_CASE_EXPECTED_JSON"));
         CONSTRAINTS.put("TB_MDM_RULE_SET", List.of(
-                "PK_TB_MDM_RULE_SET", "CK_TB_MDM_RULE_SET_STATUS", "CK_TB_MDM_RULE_SET_RULE_IDS_JSON"));
+                "PK_TB_MDM_RULE_SET", "CK_TB_MDM_RULE_SET_STATUS", "CK_TB_MDM_RULE_SET_RULE_IDS_JSON", "CK_TB_MDM_RULE_SET_FLOW_JSON"));
         CONSTRAINTS.put("TB_MDM_RULE_RECV", List.of(
                 "PK_TB_MDM_RULE_RECV", "FK_TB_MDM_RULE_RECV_RULE", "FK_TB_MDM_RULE_RECV_SYSTEM",
                 "CK_TB_MDM_RULE_RECV_REQ", "CK_TB_MDM_RULE_RECV_RESULT"));

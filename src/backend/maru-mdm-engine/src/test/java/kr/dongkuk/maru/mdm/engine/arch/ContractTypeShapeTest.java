@@ -46,6 +46,8 @@ class ContractTypeShapeTest {
                     "spi.DefinitionLookup$RowKind", "spi.DefinitionLookup$RuleRow", "spi.DefinitionLookup$RuleCell",
                     "spi.DefinitionLookup$InputContract", "spi.DefinitionLookup$RowContract", "spi.DefinitionLookup$VarType",
                     "spi.DefinitionLookup$RuleSetDefinition", "spi.DefinitionLookup$SetStatus",
+                    "spi.DefinitionLookup$FlowDefinition", "spi.DefinitionLookup$FlowNode", "spi.DefinitionLookup$FlowEdge",
+                    "spi.DefinitionLookup$NodeKind",
                     "spi.CodeLookup", "spi.CodeLookup$CodeRows", "spi.CodeLookup$CodeHeader", "spi.CodeLookup$CodeVersionRow",
                     "spi.CodeLookup$CodeItemRow", "spi.CodeLookup$CodeCateRow", "spi.CodeLookup$CodeCateItemRow",
                     "spi.CodeEffLookup",
@@ -68,7 +70,9 @@ class ContractTypeShapeTest {
                     // rule
                     "rule.RuleEngine", "rule.RuleEngine$Part",
                     "rule.RuleResult", "rule.RuleResult$Hit", "rule.RuleResult$RowTrace",
-                    "rule.RuleSetResult",
+                    "rule.RuleSetResult", "rule.RuleSetResult$PathStep",
+                    "rule.RunTrace", "rule.RunTrace$NodeTrace", "rule.RunTrace$BranchTrace", "rule.RunTrace$NodeStatus",
+                    "rule.RunTrace$BranchOutcome",
                     "rule.RuleView", "rule.RuleView$ColumnView", "rule.RuleView$RowView", "rule.RuleView$CellView",
                     // domain
                     "domain.DomainValidator", "domain.DomainValidator$ValidationResult", "domain.DomainValidator$Failure",

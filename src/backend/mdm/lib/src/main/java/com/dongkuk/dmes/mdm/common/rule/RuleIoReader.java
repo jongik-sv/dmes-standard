@@ -18,7 +18,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import kr.dongkuk.maru.mdm.engine.expr.ExpressionFailure;
+import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
 import kr.dongkuk.maru.mdm.engine.expr.ReservedNames;
+import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.FlowDefinition;
+import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.FlowEdge;
+import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.FlowNode;
+import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.NodeKind;
 import org.springframework.stereotype.Component;
 
 /**
@@ -45,9 +51,11 @@ public class RuleIoReader {
     private final MdmColumnRepository columnRepository;
     private final RuleQueries queries;
     private final RuleVarTypeResolver resolver;
+    private final MdmEvaluator evaluator;
 
     public RuleIoReader(MdmRuleRepository ruleRepository, MdmColumnRepository columnRepository, RuleQueries queries,
-                        RuleVarTypeResolver resolver) {
+                        RuleVarTypeResolver resolver, MdmEvaluator evaluator) {
+        this.evaluator = evaluator;
         this.ruleRepository = ruleRepository;
         this.columnRepository = columnRepository;
         this.queries = queries;
@@ -83,6 +91,43 @@ public class RuleIoReader {
             } else {
                 out.put(id, compute(rule, ver, hitPolicies.get(id), dictionary));
             }
+        }
+        return out;
+    }
+
+    /**
+     * IF 갈래 조건식 입력(계획 C4) — otherwise 가 아닌 선만, 조건식이 비어 있으면 뺀다(구조 검사가 FLOW_IF_ELSE 로 잡는다). 파싱 실패는
+     * {@code ok=false} 와 오류 문구. 변수는 {@code EVAL_TS}·예약 접두어({@code _}) 이름을 빼고, 컬럼 사전에 있으면 DICT, 없으면 NONE.
+     * {@code vars} 는 null 이 아니라 빈 목록을 보장한다(분석기가 null 을 받지 못한다).
+     */
+    public Map<String, CondIo> condIo(FlowDefinition flow) {
+        Set<String> ifs = new HashSet<>();
+        for (FlowNode n : flow.nodes()) {
+            if (n.kind() == NodeKind.IF) {
+                ifs.add(n.id());
+            }
+        }
+        Map<String, Boolean> dictionary = new HashMap<>();
+        Map<String, CondIo> out = new LinkedHashMap<>();
+        for (FlowEdge e : flow.edges()) {
+            if (!ifs.contains(e.from()) || e.otherwise() || e.cond() == null || e.cond().isBlank()) {
+                continue;
+            }
+            List<IoName> vars = new ArrayList<>();
+            try {
+                evaluator.compile(e.cond());
+                for (String name : evaluator.usedVariables(e.cond())) {
+                    if (ReservedNames.EVAL_TS.equalsIgnoreCase(name) || name.startsWith(ReservedNames.RESERVED_PREFIX)) {
+                        continue;
+                    }
+                    boolean dict = dictionary.computeIfAbsent(name, n -> columnRepository.findByPhysName(n).isPresent());
+                    vars.add(new IoName(name, dict ? RuleIo.DICT : RuleIo.NONE, null, null, null, false, null));
+                }
+            } catch (ExpressionFailure f) {
+                out.put(e.id(), new CondIo(false, f.getMessage(), List.of()));
+                continue;
+            }
+            out.put(e.id(), new CondIo(true, null, vars));
         }
         return out;
     }

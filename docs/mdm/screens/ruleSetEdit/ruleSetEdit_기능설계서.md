@@ -122,7 +122,7 @@ moduleGroup: dme
 | 버튼ID | 트리거 | 선행 조건 | 동작(단계별) | 호출 액션 |
 |---|---|---|---|---|
 | (세트 열기) | 후보 클릭·넘겨받은 setId | dirty 면 확인 "저장하지 않은 변경이 있습니다. 버리고 이동할까요?" | `view{setId}` → 세트·멤버 룰 입출력·검사·`editable`·`restorable` | `view` |
-| B-002 | 클릭 | dirty, 권한 | 1) `save{setId, setName, description?, rowVersion}` + `grids.rules.rows=[{ruleId}…]` 2) 성공 "저장 · row_version N" + 경고 줄 3) 거부는 서버 `meta.message`(`set-message`), 편집 중 목록은 둔다 4) MDM001 은 "다른 창에서 바뀌었습니다. 다시 불러오세요" + 다시 불러오기 | `save` |
+| B-002 | 클릭 | dirty, 권한 | 1) `save{setId, setName, description?, rowVersion}` + `grids.rules.rows=[{ruleId}…]` 2) 성공 "저장 · row_version N" + 경고 줄 3) 거부는 서버 `meta.message`(`set-message`), 편집 중 목록은 둔다 4) MDM001 은 "다른 창에서 바뀌었습니다. 다시 불러오세요" + 다시 불러오기 5) 분기 세트(`set.branched`)는 버튼이 꺼진다. 서버는 `flow` 없는 save 가 분기 세트에 오면 MDM024 + `FLOW_READONLY` 로 거부한다(흐름을 한 줄로 덮어쓰지 않는다). 요청에 `flow` 가 있으면 서버가 흐름으로 검사하고 FLOW_JSON 과 펼친 RULE_IDS 를 함께 저장한다 | `save` |
 | B-003 | 폐기 → 폐기 확인 | INUSE | 1) 폐기를 누르면 경고 "폐기하면 이 세트를 부르는 호출은 판정 오류가 난다."와 폐기 확인/취소 2) 폐기 확인 → `delete{setId, rowVersion}` 3) "폐기 · row_version N. 행은 남기고 되살릴 수 있다" | `delete` |
 | B-004 | 클릭 | DEPRECATED | `restore{setId, rowVersion}` → 저장된 목록으로 검사를 다시 돌려 거부가 없을 때만 INUSE. "되살림 · row_version N" + 경고 | `restore` |
 | B-007 | 클릭·Enter | 결과 변수 입력 | `search{target:"GUIDE", resultVar}` → 오류(`set-guide-error`) 또는 "제안 순서 · 1. A → 2. B …" + "고르기" 배지(한 결과 변수를 만드는 룰이 둘 이상) | `search` |
@@ -159,12 +159,19 @@ moduleGroup: dme
 | XV-006 | `CYCLE` | 거부 | 뒤 룰이 의존 그래프를 따라 이 룰에 닿거나 이 룰 결과를 읽는다(이행적, D6) | {id}와 {cyc}가 서로의 결과 변수를 읽는다(순환). 순서를 바꿔서는 풀리지 않는다 |
 | XV-007 | `UNKNOWN_INPUT` | 거부 | 컬럼 사전에도 없고 프로그램 변수도 아니며 세트 안 어느 룰도 만들지 않는 조건 변수 | {id}의 조건 변수 {var}는 컬럼 사전에 없고 세트 안의 어느 룰도 만들지 않는다 |
 | XV-008 | `DUP_RESULT` | 경고 | 같은 결과 변수에 두 룰 이상이 대입 | {prev}와 {id}가 같은 결과 변수 {var}에 대입한다 |
+| XV-013 | `FLOW_STRUCTURE` | 거부 | 흐름 구조 오류(시작·끝 개수, 없는 노드, 선 개수, 룰 ID 없음, 짝 합류, 병렬 갈래 조건·순서, 갈래가 짝 합류 밖으로 나감, 도달 불가). 1단계 검사는 모든 오류를 모아 보고하고 2단계 검사는 첫 오류에서 멈춘다. 순서·문구의 정본은 엔진 `kr.dongkuk.maru.mdm.engine.flow.FlowParser`, 화면 `pages/dme/ruleSetEdit/flow-model.ts`, 코퍼스 `src/backend/mdm/lib/src/test/resources/com/dongkuk/dmes/mdm/common/rule/rule-set-corpus.json` 이다 | 예: 분기 {id}를 닫는 합류가 {n}개다. 정확히 1개여야 한다 / 갈래가 {stop}에서 닫히지 않고 {cur}로 나간다 / {id}에 도달할 수 없다 |
+| XV-014 | `FLOW_IF_ELSE` | 거부 | IF 의 "그 외" 갈래가 1개가 아니거나 "그 외" 가 아닌 갈래에 조건식이 없다 | IF {id}에 "그 외" 갈래가 {n}개다. 정확히 1개여야 한다 / IF {id}의 갈래 {edgeId}에 조건식이 없다 |
+| XV-015 | `FLOW_COND` | 거부 | 갈래 조건식을 파싱할 수 없거나 그 지점에서 정의되지 않은 변수를 읽는다(불린이 아닌 결과는 실행 때 `BRANCH_EVAL_ERROR`) | {edgeId} 갈래 조건식을 읽을 수 없다: {오류} / {edgeId} 갈래 조건식이 읽는 {var}는 이 지점에서 정의되지 않았다 |
+| XV-016 | `IF_SIBLING` | 거부 | IF 갈래 안의 룰이 같은 IF 의 다른 갈래에서만 만들어지는 결과를 읽는다 | {id}가 읽는 {var}는 같은 IF 의 다른 갈래({others})에서만 만들어진다. 이 갈래를 타면 값이 없다 |
+| XV-017 | `PAR_SIBLING` | 거부 | 병렬 갈래가 형제 갈래의 결과를 읽거나 형제 갈래들이 같은 결과 변수를 쓴다 | {id}가 병렬 형제 갈래의 {other}가 만드는 {var}를 읽는다. 병렬 갈래끼리는 결과를 읽을 수 없다 / 병렬 갈래의 {other}와 {id}가 같은 결과 변수 {var}에 대입한다 |
+| XV-018 | `FLOW_PARTIAL` | 경고 | IF 합류 뒤의 룰·조건식이 일부 갈래에서만 만들어지는 변수를 읽는다(실행 때 그 룰 직전에 키를 확인) | {id}가 읽는 {var}는 IF 의 일부 갈래에서만 만들어진다. 다른 갈래를 타면 판정 오류다 |
+| XV-019 | `FLOW_READONLY` | 거부 | 분기 세트에 `flow` 없는 목록 저장이 왔다 | 분기가 있는 세트는 룰 목록으로 저장할 수 없다. 흐름도 편집기에서 저장한다 |
 | XV-009 | (MDM024) | — | 거부가 하나라도 있으면 저장·되살리기 거부 | 룰 세트 저장 검사를 통과하지 못했습니다: {ruleId}[{var}] {code} {문구}; … |
 | XV-010 | (MDM001) | — | `ROW_VERSION` 불일치 | 다른 창에서 바뀌었습니다(화면 안내) |
 | XV-011 | (MDM009) | — | DEPRECATED 세트 저장·이미 DEPRECATED 폐기·INUSE 되살리기 | MDM009 허용되지 않는 상태 전이입니다 |
 | XV-012 | (MDM013) | — | 쓰기(save·delete·restore) 요청자가 담당자가 아니다 | MDM013 담당자 역할이 있어야 할 수 있습니다 |
 
-서버는 화면 검사 결과를 받지 않고 요청 목록으로 다시 계산한다(I12).
+서버는 화면 검사 결과를 받지 않고 요청 목록으로 다시 계산한다(I12). 흐름 세트는 같은 검사를 흐름 경로 기준으로 한다: `ORDER`·`CYCLE`·`DUP_RESULT` 는 같은 경로 위의 룰끼리만 보고, IF 의 서로 다른 갈래가 같은 결과를 쓰는 것은 정상이다. 검사 항목에는 흐름 위치 `nodeId`·`edgeId` 가 붙는다(목록 세트는 null). 1단계 화면은 분기 세트의 검사를 다시 계산하지 않고 서버 `view.checks` 를 그대로 보인다.
 
 ## 7. 상태 정의 및 상태별 제어
 
@@ -172,6 +179,7 @@ moduleGroup: dme
 |---|---|---|---|---|
 | `INUSE` | 편집 가능(editable·`save` 권한일 때) | dirty 일 때 | O | — |
 | `DEPRECATED` | 비활성(그리드 동작 칸·드래그 없음) | 비활성 | — | O |
+| `INUSE` + 분기 세트(`set.branched`) | 비활성 — 안내 "분기가 있는 세트는 흐름도 편집기(준비 중)에서 편집한다"(`set-branched-notice`), 룰 링크는 동작 | 비활성(서버도 `FLOW_READONLY` 로 거부) | O | — |
 
 세트에는 버전·DRAFT·선점이 없다. 저장은 `ROW_VERSION` 조건부 UPDATE 한 번이고, 동시 편집은 MDM001 로만 막는다(I3·D16).
 
@@ -203,7 +211,7 @@ moduleGroup: dme
 
 | ID | 항목 | 근거 |
 |---|---|---|
-| N-1 | **세트 값 테스트 카드 — 이번 범위에서 제외.** 06:756 은 카드를 두라고 했지만 시안에 없고, 운영 DB 를 읽는 엔진 정의 조회(`DefinitionLookup`) 구현이 리포에 없다(`MdmEngineConfig` 의 `EMPTY_DEFINITIONS`). 룰 값 테스트(TSK-08-04)가 같은 조회기를 만들 자리라 여기서 먼저 만들면 겹친다. 수용 기준에 값 테스트가 없다. **후속 조건**: 08-04 의 조회기가 머지되면 이 화면에 카드 하나(`view` 옆 `execute` action)로 더한다 | design D2, spec 제약 "화면 설계 산출물에서 포함 여부 확정" |
+| N-1 | **세트 값 테스트 카드 — 이번 범위에서 제외.** 06:756 은 카드를 두라고 했지만 시안에 없고, 운영 DB 를 읽는 엔진 정의 조회(`DefinitionLookup`) 구현이 리포에 없다(`MdmEngineConfig` 의 `EMPTY_DEFINITIONS`). 룰 값 테스트(TSK-08-04)가 같은 조회기를 만들 자리라 여기서 먼저 만들면 겹친다. 수용 기준에 값 테스트가 없다. **후속 조건**: 08-04 의 조회기가 머지되면 이 화면에 카드 하나(`view` 옆 `execute` action)로 더한다 **2026-09-30 갱신**: 룰 세트 흐름도 1단계에서 운영 정의 조회기(`StoredDefinitionLookup`)와 실행기(`RuleSetRunner`)가 생겼다. 카드는 목록 화면에 먼저 만들지 않고 2단계 디버거(시뮬레이션 탭)와 `simulate` action 으로 넣는다(D-108, mdm ADR-0005 D4) | design D2, spec 제약 "화면 설계 산출물에서 포함 여부 확정", D-108 |
 | N-2 | 화면 그룹 `dme`(spec 의 `mdr` 아님) | design D1 |
 | N-3 | "지금 RELEASED" = RELEASED 가운데 VER 최대 | design D3·I7 |
 | N-4 | 룰 하나의 입출력은 엔진이 세트 실행 전에 요구하는 키와 같게 새로 정의(`RuleIoReader`). 룰 화면 활용처 카드(`RuleUsageFinder`)는 고치지 않아 드문 룰에서 의존 룰이 다르게 보일 수 있다 | design D4 |
@@ -216,3 +224,5 @@ moduleGroup: dme
 | N-11 | 같은 룰을 두 번 담지 않는다 | design D15 |
 | N-12 | 룰 목록 그리드는 `columnSizing="fit"` + 열마다 `minWidth` 로 카드 폭에 맞춰 줄인다(TSK-08-02 ruleMng N-4 선례). 고정 폭(열 합 약 1,160px)일 때는 기본 폭 1280 에서 ag-grid 가 의존 룰·동작(▲▼✕) 열을 그리지 않았다. **해결됨(fit + minWidth)** — 동작 열 minWidth 120 은 세 버튼이 잘리지 않는 폭이고, 좁은 폭에서는 룰명·종류·정책·결과 변수 칸이 말줄임으로 줄어든다. e2e E2 가 기본 폭에서 동작·의존 룰 열을 단언한다 | TSK-08-06 build-log B8 「설계 이탈」 |
 | N-13 | e2e `src/frontend/e2e/mdm-ruleSetEdit.spec.ts`(E1~E10, 스모크 넷 = E1·E2·E5·E8), 픽스처 `e2e/fixtures/mdm-ruleSet-data.sql` | design §3.4.2 |
+| N-14 | **흐름 저장(1단계)** — `TB_MDM_RULE_SET.FLOW_JSON`(흐름 정의 + 화면 전용 view)을 저장하고 `RULE_IDS` 는 서버가 흐름을 깊이 우선으로 펼친 중복 없는 룰 목록으로 채운다(요청의 룰 목록을 믿지 않는다). `FLOW_JSON` 이 NULL 이면 `RULE_IDS` 순서의 한 줄 흐름이다. 분기 세트는 목록 편집으로 저장할 수 없다(`FLOW_READONLY`) | 스펙 `docs/superpowers/specs/2026-09-29-rule-set-flow-design.md` §3.3, D-107 |
+| N-15 | 흐름 세트의 입출력 표·의존 룰은 흐름을 펼친 룰 목록으로 계산한다(1단계). 흐름 기준 입출력은 2단계 캔버스에서 필요해지면 다시 정한다 | D-107(편차 D10) |

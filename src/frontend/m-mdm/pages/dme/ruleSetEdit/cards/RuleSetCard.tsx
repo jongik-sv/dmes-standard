@@ -5,6 +5,7 @@
  *
  * 검사 목록·입출력 표·의존 룰은 편집 중 목록에서 `set-model.ts` 로 즉시 계산하고 서버를 부르지 않는다(I21). 화면 검사 결과는 저장 버튼을
  * 막지 않는다 — 판정은 서버가 한다(D9). 폐기는 두 단계(폐기 → 폐기 확인/취소)로만 한다(I14·D14).
+ * 분기 세트는 목록 편집·저장을 막고 서버 검사(`view.checks`)를 보인다.
  */
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
@@ -22,6 +23,7 @@ import { SetIoTables } from "./SetIoTables";
 
 const DEPRECATE_WARNING = "폐기하면 이 세트를 부르는 호출은 판정 오류가 난다.";
 const DUPLICATE_NOTICE = "이미 담은 룰이다";
+const BRANCHED_NOTICE = "분기가 있는 세트는 흐름도 편집기(준비 중)에서 편집한다";
 
 /** 거부 배지 — shared 배지 톤에 위험 톤이 없어 같은 모양에 위험 토큰을 입힌다. */
 const REJECT_BADGE: CSSProperties = { ...badgeStyle("neutral"), color: "var(--color-danger)", background: "var(--color-danger-soft)" };
@@ -52,10 +54,15 @@ export function RuleSetCard({ state, canDo, canEditList }: RuleSetCardProps) {
     setAddNotice(null);
   }, [view]);
 
+  const branched = !!set.branched;
   const io = useMemo(() => setIo(state.ids, state.rules), [state.ids, state.rules]);
-  const checks = useMemo(() => setChecks(state.ids, state.rules), [state.ids, state.rules]);
+  // 분기 세트는 한 줄로 다시 계산하면 틀린 결과가 나오므로 서버가 흐름 기준으로 낸 검사를 그대로 보인다.
+  const checks = useMemo(
+    () => (branched ? (view.checks ?? []) : setChecks(state.ids, state.rules)),
+    [branched, view.checks, state.ids, state.rules],
+  );
 
-  const canSave = state.dirty && view.editable && inUse && canDo("save") && !busy;
+  const canSave = !branched && state.dirty && view.editable && inUse && canDo("save") && !busy;
   const canDeprecate = view.editable && inUse && canDo("delete") && !busy;
   const canRestore = view.restorable && !inUse && canDo("restore") && !busy;
 
@@ -109,6 +116,11 @@ export function RuleSetCard({ state, canDo, canEditList }: RuleSetCardProps) {
           </tr>
         </tbody>
       </table>
+      {branched && (
+        <p data-testid="set-branched-notice" role="note" style={{ margin: "var(--spacing-xs) 0 0" }}>
+          <span style={badgeStyle("warning")}>분기 세트</span> <MutedText>{BRANCHED_NOTICE}</MutedText>
+        </p>
+      )}
 
       <div style={{ paddingTop: "var(--spacing-sm)" }}>
         {state.ids.length === 0 ? (

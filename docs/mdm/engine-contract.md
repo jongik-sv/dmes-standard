@@ -1,8 +1,7 @@
 # 마루 MDM 평가 엔진 공유 계약
 
 > 작성: 2026-09-24 (mdm/TSK-02-02 평가 엔진 설계 + 임베딩 방식 조사)
-> 정본: 정본은 [`engine-contract/schema/engine-contract.schema.json`](engine-contract/schema/engine-contract.schema.json) 과 [`engine-contract/java/**`](engine-contract/java/) 이고, 이 문서는 그 설명이다. 출처는 TSK-02-02 design §6([tasks/TSK-02-02/design.md](tasks/TSK-02-02/design.md))이다.
-> 정본 이전(TSK-03-01): JSON 모양의 정본은 src/backend/maru-mdm-engine/src/main/resources/kr/dongkuk/maru/mdm/engine/engine-contract.schema.json, Java 계약은 src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/** 로 옮겼다. TS 타입은 @dk-oasis/m-mdm 이 그 스키마에서 생성한다. 이 폴더(engine-contract/)는 TSK-02-02 초안 원본으로 남긴다.
+> 정본: 엔진 모듈 스키마 `src/backend/maru-mdm-engine/src/main/resources/kr/dongkuk/maru/mdm/engine/engine-contract.schema.json` 과 엔진 Java 타입이고, 이 문서는 그 설명이다. 출처는 TSK-02-02 design §6([tasks/TSK-02-02/design.md](tasks/TSK-02-02/design.md))이다.
 > 결정 근거: `docs/mdm/decisions.md` D-020~D-023.
 > 원천 설계(`/Users/jji/project/mdm/docs/design/basic/`)의 행 번호를 `02:175`·`05:363`·`06:461`·`EG:222` 처럼 인용한다. `02`·`04`·`05`·`06` 은 각각 `02-term-domain-column.md`·`04-master-code-deploy-full.md`·`05-master-data.md`·`06-business-rule.md` 이고, `EG` 는 `evalex-guide.md` 다.
 
@@ -10,31 +9,22 @@
 
 이 계약은 엔진 jar(`maru-mdm-engine`)와 그것을 부르는 서버(mdm), 화면 JS 평가기(`@dk-oasis/m-mdm`), 정합성 코퍼스가 함께 지켜야 하는 인터페이스·설정·JSON 모양을 정한다. 실행 로직은 이 계약에 없다. 식 평가 코어는 TSK-03-02, 룰 판정은 TSK-03-03, 화면 평가기와 코퍼스는 TSK-03-04 가 구현한다. 계약 초안의 구현 자리(`MdmExpressionConfig.create` 등)는 `UnsupportedOperationException` 을 던지는 계약 전용 본문이다.
 
-계약 파일은 다음과 같다.
+계약 파일의 정본 위치는 다음과 같다. `docs/mdm/engine-contract/` 폴더는 TSK-02-02 초안 원본이라 정본이 아니다([README](engine-contract/README.md) 의 "정본 아님" 설명).
 
 ```
-docs/mdm/engine-contract/
-  schema/engine-contract.schema.json          JSON Schema 2020-12 — JSON 모양의 정본
-  java/kr/dongkuk/maru/mdm/engine/
-    spi/{DefinitionLookup,CodeLookup,CodeEffLookup,MasterLookup,FunctionProvider,EngineLookups}.java
-    expr/{MdmExpressionConfig,FunctionSets,ReservedNames,AstNode,EngineWarning,EngineEvaluationException}.java
-    code/CodeResolver.java
-    rule/{RuleEngine,RuleResult,RuleSetResult,RuleView}.java
-    domain/DomainValidator.java
-  ts/engine-contract.ts                       스키마에서 생성될 TS 타입이 가져야 할 모양
-  samples/
-    AstSampleExport.java                      초안 설정으로 원천 예시 식을 파싱해 AST 를 내보내는 검증 도구
-    EvalExNullProbe.java, evalex-null-probe.txt   EvalEx 3.7.0 의 NULL 인자 동작 실측
-    sample-corpus.json                        정합성 코퍼스 표본 15건
-    validate.py, tscheck.sh                   스키마·TS 타입 검증 도구
+src/backend/maru-mdm-engine/
+  src/main/resources/kr/dongkuk/maru/mdm/engine/engine-contract.schema.json   JSON Schema 2020-12 — JSON 모양의 정본
+  src/main/java/kr/dongkuk/maru/mdm/engine/                                   Java 계약 타입(spi·expr·code·rule·domain)
+src/frontend/m-mdm/src/contract/engine-contract.generated.ts                  스키마에서 생성한 TS 타입(pnpm --filter @dk-oasis/m-mdm gen:contract)
+docs/mdm/engine-contract.md                                                   이 문서(설명)
 ```
 
 정본 관계는 다음과 같다.
 
 | 대상 | 정본 | 거울 | 일치 확인 |
 |---|---|---|---|
-| Java 인터페이스·record·enum(spi·입구·결과·설정) | `engine-contract/java/**` | 이 문서 §2~§8 | EvalEx 3.7.0 jar 와 `javac -Xlint:all -Werror` 컴파일 |
-| JSON 모양(AST·셀·코퍼스·판정 결과·오류) | `engine-contract.schema.json` | Java record, `ts/engine-contract.ts` | 실제 EvalEx 가 낸 AST 29건과 코퍼스 15건이 스키마를 통과하고, 틀린 모양 7건을 스키마가 거부한다(`validate.py`). TS 타입은 같은 표본을 `tsc --strict` 로 받아들이고 틀린 모양 3건을 거부한다(`tscheck.sh`) |
+| Java 인터페이스·record·enum(spi·입구·결과·설정) | 엔진 모듈 Java(`maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/**`) | 이 문서 §2~§8 | 엔진 모듈 컴파일과 `ContractTypeShapeTest`·`EngineContractSchemaTest` |
+| JSON 모양(AST·셀·코퍼스·판정 결과·오류) | 엔진 모듈 `engine-contract.schema.json` | Java record, `engine-contract.generated.ts` | `EngineContractSchemaTest`(record·enum 과 `$defs` 짝, 적합 검사)와 `gen:contract` 재생성 시 변경 없음 |
 
 ## 2. 패키지와 의존 방향
 
@@ -45,10 +35,11 @@ docs/mdm/engine-contract/
 | `engine.spi` | `DefinitionLookup`, `CodeLookup`, `CodeEffLookup`, `MasterLookup`, `FunctionProvider`, `EngineLookups` | 호출자가 구현하는 조회 | 없음. EvalEx 타입도 쓰지 않는다. `java.lang`·`java.util`·`java.math`·`java.time` 만 쓴다 |
 | `engine.code` | `CodeResolver` | 기준일 버전 선택·버전 소급·카테고리 소급·REGEX/TABLE 해석·CODE_LIST | `spi`. EvalEx 를 쓰지 않는다 |
 | `engine.expr` | `MdmExpressionConfig`, `FunctionSets`, `ReservedNames`, `AstNode`, `EngineWarning`, `EngineEvaluationException` | 설정 팩토리·허용 함수·예약 이름·AST 타입·공통 경고와 오류 | `spi`, `code` |
-| `engine.rule` | `RuleEngine`, `RuleResult`, `RuleSetResult`, `RuleView` | 룰 판정·세트 판정·정의 조회 입구 | `expr`, `spi` |
+| `engine.flow` | `FlowParser`, `FlowTree`, `FlowParse`, `FlowIssue`, `Seq`·`RuleStep`·`Split`·`Branch` | 룰 세트 흐름 구조 검사·블록 트리·노드 관계(룰 세트 흐름도 plan C2·C3) | `spi`. EvalEx 를 쓰지 않는다 |
+| `engine.rule` | `RuleEngine`, `RuleResult`, `RuleSetResult`, `RuleView` | 룰 판정·세트 판정·정의 조회 입구 | `expr`, `spi`, `flow` |
 | `engine.domain` | `DomainValidator` | 도메인 검증기 | `expr`, `spi` |
 
-- 의존 방향은 원천 06:463 을 따른다. `spi` 는 다른 패키지에 의존하지 않고, `code` 는 `spi` 만, `expr` 는 `spi`·`code` 를 보고, `rule`·`domain` 은 `expr`·`spi` 를 본다. `rule` 과 `domain` 은 서로 보지 않는다.
+- 의존 방향은 원천 06:463 을 따른다. `spi` 는 다른 패키지에 의존하지 않고, `code` 는 `spi` 만, `expr` 는 `spi`·`code` 를 보고, `rule`·`domain` 은 `expr`·`spi` 를 본다. `rule` 과 `domain` 은 서로 보지 않는다. `flow` 는 `spi` 만 보고, `flow` 를 보는 것은 `rule` 뿐이다(`EnginePackageDependencyTest`).
 - 엔진 main 의존은 `api 'com.ezylang:EvalEx:3.7.0'` 하나다(`maru-mdm-engine/build.gradle:28-31`). ArchUnit 규칙(`MaruMdmEngineArchitectureTest.java:28-46`)이 main 클래스의 의존을 `engine..`·`com.ezylang.evalex..`·`java.lang/util/math/time/text..` 로 제한하고 `java.sql`·`javax.sql`·`java.net`·`java.nio.channels` 를 금지한다. 계약 초안의 import 는 이 허용 목록 안에 있다.
 - 엔진 인스턴스는 `EngineLookups`(spi 다섯을 묶은 record) 하나로 만든다. 구현체 선택(원장·사본·저장된 버전·요청 본문)은 호출자 몫이다(06:541). 공장 클래스의 이름과 생성 방식은 TSK-03-02·03 이 정한다. 이 계약은 입구 인터페이스까지만 정한다.
 
@@ -66,6 +57,7 @@ docs/mdm/engine-contract/
 - `RuleDefinition` 은 배포 스냅샷 모양(헤더·변수·입력 계약·행)이다. 셀 `RuleCell` 은 셀 JSON 일곱 키(`op, left, right, list, expr, ast, val`)에 스냅샷의 생성 텍스트 `text` 를 더한 것이고, 모든 값은 문자열이다(06:1038). AST 는 `Map` 그대로 싣고 엔진은 읽지 않는다(06:471).
 - `CodeEffLookup` 이 빈 값을 돌려주면 "계산해 두지 않았다"는 뜻이고, 빈 집합이면 "소속 코드가 없다"는 뜻이다. 원장 서버는 `NONE` 을 쓰고, 그러면 `engine.code` 가 `CodeLookup` 행으로 해석한다.
 - `MASTER` 는 첫 인자 id 가 `CodeLookup.code(id)` 에 있으면 마루 코드 대상으로, 없으면 마루 데이터 대상(`MasterLookup`)으로 판정한다(05:363, 두 원장은 한 이름 공간 05:409).
+- **룰 세트 흐름(2026-09-30, 룰 세트 흐름도 1단계).** `RuleSetDefinition(setId, ruleIds, status, flow)` 의 `flow` 는 `FlowDefinition(version, nodes, edges)` 이고 null 이면 `ruleIds` 순서의 한 줄 흐름이다. 노드 `FlowNode(id, kind, ruleId, splitId, label)` 의 `kind` 는 `START`·`END`·`RULE`·`IF`·`PARALLEL`·`MERGE`, 선 `FlowEdge(id, from, to, order, cond, otherwise, label)` 의 `otherwise=true` 가 IF 의 "그 외" 선이다(JSON 키도 `otherwise`). 스키마 정의는 `RuleSetFlow`·`FlowNode`·`FlowEdge`·`FlowNodeKind` 다. 저장 형식(FLOW_JSON)은 여기에 화면 전용 `view` 를 더한 것이다(`docs/superpowers/specs/2026-09-29-rule-set-flow-design.md` §3.3).
 
 **시간·버전 타입**
 
@@ -220,15 +212,17 @@ CODE_LIST(id, cate, baseDt)               → List<CodeListEntry(code,name,alter
 | `defaultApplied` | 적중이 없어 기본 행을 썼는가. 기본 행이 없으면 false 이고 결과 변수는 NULL 이다 | 06:31 |
 | `results` | 결과 변수 → 값(`BigDecimal`·`String`·`Boolean`·null). 키는 늘 있고 값은 null 일 수 있다. COLLECT LIST 는 `List` 다 | 06:31 |
 | `trace` | 평가한 행마다 `RowTrace(rowId, seq, evaluated, hit, firstFalseVarId)`. `firstFalseVarId` 는 조건 열 `seq` 순으로 처음 거짓이 된 셀의 var_id 이고, 적중·미평가 행은 null 이다. FIRST 는 적중 뒤 행을 평가하지 않는다(`evaluated=false`) | 06:319 |
-| `warnings` | `EngineWarning(code, ruleId, rowId, varId, message)`. code 는 `EXPR_CELL_NULL`(Expression 조건 셀 결과가 NULL 이라 그 셀만 거짓으로 봄), `GRP_COND_NULL`(열 조건 결과가 NULL 이라 그 열만 거짓으로 봄) | 06:200·425·427 |
+| `warnings` | `EngineWarning(code, ruleId, rowId, varId, message)`. code 는 `EXPR_CELL_NULL`(Expression 조건 셀 결과가 NULL 이라 그 셀만 거짓으로 봄), `GRP_COND_NULL`(열 조건 결과가 NULL 이라 그 열만 거짓으로 봄), 세트 경고 `BRANCH_COND_NULL`(IF 갈래 조건식 결과가 NULL 이라 그 갈래를 거짓으로 봄) | 06:200·425·427 |
 
-**룰 세트 결과 `RuleSetResult(setId, evalTs, steps, finalValues)`**: `steps` 는 실행 순서대로 룰마다의 `RuleResult` 이고, `finalValues` 는 마지막 룰 뒤 결과 변수 전체다(입력 레코드 키는 뺀다).
+**룰 세트 결과 `RuleSetResult(setId, evalTs, steps, finalValues, path, warnings)`**: `steps` 는 실제로 실행한 룰마다의 `RuleResult`(실행 순서), `finalValues` 는 마지막 룰 뒤 결과 변수 전체다(입력 레코드 키는 뺀다). `path` 는 방문한 노드 `PathStep(nodeId, kind, chosenEdgeId, stepIndex)` 목록이다. START·RULE·IF·PARALLEL·MERGE·END 를 모두 담고, `chosenEdgeId` 는 IF 에서 고른 선, `stepIndex` 는 RULE 결과가 `steps` 의 몇 번째인지다. 한 줄 흐름(`flow` 가 null)의 노드 ID 는 `start`, `r1`…`rN`, `end` 다. `warnings` 는 세트 경고로 지금은 `BRANCH_COND_NULL` 하나다. 흐름 실행 의미(IF 는 처음 참인 갈래 하나, 병렬은 분기 직전 값의 사본에서 order 순으로 하나씩 실행하고 합류 때 갈래 순서대로 합침, 같은 이름은 뒤 갈래가 이김)는 `docs/superpowers/specs/2026-09-29-rule-set-flow-design.md` §4 와 구현 계획 C5 를 따른다. IF 조건식 변수는 세트 안 룰이 선언한 타입(계약 always·DERIVE 행 required·optional·결과 변수, 이름마다 처음 선언한 타입. 선언 타입 조회와 바꿀 값 찾기는 대소문자를 가리지 않는다. 단 조건식 변수의 입력 키 사전 검사는 레코드 키가 조건식 표기와 같아야 한다)으로 바꾼 사본 값으로 평가하고(룰 조건 열과 같은 변환, ctx 는 바꾸지 않음), 선언이 없는 변수는 레코드 값 그대로 쓴다. 변환에 실패하면 `BRANCH_EVAL_ERROR` 다.
+
+**실행 기록 `RuleEngine.traceSet(set, record, evalTs) → RunTrace(setId, evalTs, input, nodes, finalValues, violations)`**: 저장된 세트 ID 가 아니라 정의(`RuleSetDefinition`)를 받으므로 저장하지 않은 흐름도 실행한다. 저장 전 흐름을 실행할 때 `setId` 는 호출자가 정한 표시 이름이다(예: `(저장 전)`). 판정 오류를 던지지 않는다. 구조·존재·입력 키 오류면 `nodes` 가 비고 `violations` 에 위반이 있다. 실행 중 오류면 처리 중이던 노드를 `status=ERROR` 로 남기고 멈춘다. 분기 노드는 갈래 몸체를 실행하기 전에 기록한다(IF 는 갈래를 고르고 진입 키 검사를 지난 뒤이고, 진입 키 검사가 실패하면 그 IF 가 ERROR 다). 끝까지 가면 `violations` 는 null 이다. 노드 기록 `NodeTrace(seq, nodeId, kind, status, ruleId, ver, reads, result, branches, chosenEdgeId, order, splitId, merged, violations)` 는 종류마다 쓰는 칸만 채운다(RULE: `ruleId`·`ver`·`reads`·`result`, IF: `branches`·`chosenEdgeId`, PARALLEL: `order`, MERGE: `splitId`·`merged`). `result` 는 OK 인 RULE 노드에만 있고, 값이 없으면 JSON 에서 키를 뺀다(null 을 쓰지 않는다). 노드 상태 `status` 는 `NodeStatus`(`OK`·`ERROR`)다. IF 갈래 평가 `BranchTrace(edgeId, outcome, message)` 의 `outcome`(`BranchOutcome`)은 `TRUE`·`FALSE`·`NULL`·`ERROR`·`NOT_EVALUATED` 다. `NOT_EVALUATED` 는 앞 갈래가 참이었거나 앞 갈래 평가가 오류로 멈춰 평가하지 않은 선이다(안 고른 그 외 선 포함). 그래서 IF 의 `branches` 는 늘 나가는 선마다 하나씩, 실행 순서대로 있다. 운영 경로 `evaluateSet` 은 기록을 모으지 않는다. 운영 기록 저장은 이 JSON 을 그대로 쓰면 된다(spec §4.2, A8 로 미룸).
 
 **판정 오류 `EngineEvaluationException(violations)`**
 
-- `Violation(stage, code, ruleId, rowId, name, message)`. `name` 은 변수 이름(키 없음·NULL·타입 변환) 또는 함수 이름(평가 오류)이다.
-- 단계(`Stage`): `SET_CHECK`(세트 사전 검사) → `INPUT_CHECK`(조건 검사) → `ROW_SELECT`(행 고르기) → `RESULT_CHECK`(결과 검사) → `RESULT_EVAL`(결과 평가). 어긋난 것을 단계마다 모아 한 번에 던진다(06:210-217).
-- 코드(`Code`) 12종: `RULE_NOT_FOUND`, `SET_NOT_FOUND`, `SET_DEPRECATED`, `MISSING_KEY`, `REQUIRED_NULL`, `TYPE_CONVERSION`, `CONSTANT_KEY`, `RESERVED_KEY`, `EVAL_TS_KEY`, `UNIQUE_MULTIPLE_HITS`, `ANY_CONFLICT`, `EVALUATION_ERROR`. UNIQUE 에서 둘 이상 적중하면 `UNIQUE_MULTIPLE_HITS`, ANY 에서 결과가 어긋나면 `ANY_CONFLICT` 다. 폐기 세트는 `SET_DEPRECATED` 이고, 세트는 첫 룰 전에 입력 키를 한꺼번에 확인한다(06:419-420).
+- `Violation(stage, code, ruleId, rowId, name, message)`. `name` 은 변수 이름(키 없음·NULL·타입 변환) 또는 함수 이름(평가 오류)이다. `BRANCH_EVAL_ERROR` 는 IF 갈래 선 ID(edgeId), `FLOW_INVALID` 는 구조 오류가 난 노드 ID(nodeId, 없으면 null)다.
+- 단계(`Stage`): 룰 하나는 `SET_CHECK`(세트 사전 검사) → `INPUT_CHECK`(조건 검사) → `ROW_SELECT`(행 고르기) → `RESULT_CHECK`(결과 검사) → `RESULT_EVAL`(결과 평가) 순이다. 어긋난 것을 단계마다 모아 한 번에 던진다(06:210-217). `BRANCH_SELECT`(IF 갈래 고르기)는 이 순서 밖의 세트 단계로, 흐름이 IF 에 닿을 때마다 룰 사이에서 일어난다.
+- 코드(`Code`) 14종: `RULE_NOT_FOUND`, `SET_NOT_FOUND`, `SET_DEPRECATED`, `MISSING_KEY`, `REQUIRED_NULL`, `TYPE_CONVERSION`, `CONSTANT_KEY`, `RESERVED_KEY`, `EVAL_TS_KEY`, `UNIQUE_MULTIPLE_HITS`, `ANY_CONFLICT`, `EVALUATION_ERROR`, `BRANCH_EVAL_ERROR`(IF 조건식이 불린이 아니거나 평가 실패), `FLOW_INVALID`(세트 흐름 구조 오류). UNIQUE 에서 둘 이상 적중하면 `UNIQUE_MULTIPLE_HITS`, ANY 에서 결과가 어긋나면 `ANY_CONFLICT` 다. 폐기 세트는 `SET_DEPRECATED` 다(06:419). 세트 입력 키(06:420)는 세 번에 나눠 본다. 첫 룰 전에는 반드시 실행되는 부분(IF 조건식 변수 포함, IF 갈래 안은 제외)을 한꺼번에 보고, IF 갈래에 들어갈 때 그 갈래의 반드시 실행되는 부분을 본다. IF 일부 갈래에서만 만들어지는 이름은 그 이름을 읽는 룰 실행 직전에 본다. 모두 `SET_CHECK/MISSING_KEY` 다. 예외로 IF 조건식이 일부 갈래에서만 만든 이름을 읽으면 사전 검사를 지나고, 실제로 없으면 평가 때 `BRANCH_SELECT/BRANCH_EVAL_ERROR` 다.
 
 **도메인 검증 `DomainValidator.validate(table, column, record, evalTs)`**
 
@@ -240,7 +234,7 @@ CODE_LIST(id, cate, baseDt)               → List<CodeListEntry(code,name,alter
 
 ## 9. AST JSON 스키마
 
-- 정본은 [`engine-contract/schema/engine-contract.schema.json`](engine-contract/schema/engine-contract.schema.json)(JSON Schema 2020-12)이다. `$defs` 는 `AstNode`(노드 6종 oneOf), `TypedValue`, `CellJson`(셀 모양 oneOf), `ErrorCode`, `CorpusFile`·`CorpusCase`·`ExprCase`·`CellCase`·`CodeSets`·`Expect`, `LocalDateTime`, `VarType`, `InputContract`, `RuleResult`, `EngineError` 등이다.
+- 정본은 엔진 모듈의 `src/backend/maru-mdm-engine/src/main/resources/kr/dongkuk/maru/mdm/engine/engine-contract.schema.json`(JSON Schema 2020-12)이다. `$defs` 는 `AstNode`(노드 6종 oneOf), `TypedValue`, `CellJson`(셀 모양 oneOf), `ErrorCode`, `CorpusFile`·`CorpusCase`·`ExprCase`·`CellCase`·`CodeSets`·`Expect`, `LocalDateTime`, `VarType`, `InputContract`, `RuleResult`, `EngineError` 등이다.
 - AST 노드는 `{type, value, params?}` 이다. 설정이 허용하는 6종만 나온다(design D1 문법 축소의 결과). `ARRAY_INDEX`·`STRUCTURE_SEPARATOR`·`POSTFIX_OPERATOR` 는 나오지 않는다.
 
 | `type` | `value` | `params` |

@@ -1000,3 +1000,82 @@
 - **Source**: pages/dme/ruleEdit/cards.ts·RuleHeaderCard·RuleVersionCard, RuleHeaderService(38-40행), RuleVersionService,
   RuleColumnsService(146행), dmc/codeEdit/service/CodeEditService(requireAuditVer 621행)·CodeHeaderSaveRequest,
   dmd D-104 의 헤더 `auditVer`, screens/dme/ruleMng·ruleEdit 기능설계서, MdmActions(16종)
+
+## D-106 (2026-09-30T00:00:00Z)
+- **Phase**: design(룰 세트 흐름도 1단계)
+- **Decision needed**: 분기형 룰 세트 흐름을 OASIS BPMN 으로 실행할지, 룰 엔진이 실행하고 OASIS 는 엔진을 부를지(스펙 A7)
+- **Decision made**: 룰 엔진(`maru-mdm-engine`)이 흐름을 실행하고, OASIS 업무 서비스는 `mdm/lib` 의 `RuleSetRunner`
+  (`@Service("ruleSetRunner")`, BPMN 용 `execute(RuleSetRunRequest)`)를 serviceTask 하나로 부른다. 운영 정의 조회기
+  `StoredDefinitionLookup` 은 스프링 빈이 아니고 `RuleSetRunner` 가 호출마다 만든다. 1단계는 테스트 자원 BPMN 으로
+  OASIS 경로만 검증하고 운영 action(`simulate`)은 2단계에 더한다. 상세는 mdm ADR-0005
+- **Rationale**: 룰 세트는 저장 즉시 반영되는 데이터이고, IF 조건은 룰 식과 같은 EvalEx 문법·NULL 규칙이어야 하며,
+  노드 단위 결과 보기·디버깅은 OASIS 에 없다(사용자 확인). 엔진은 EvalEx 만 의존하는 독립 jar 로 남는다(TRD:134).
+  정의 조회 빈 0개 가드(`MdmBusinessRuleMigrationTest`)는 배포 보류 장치라 유지한다
+- **Reversible**: no(엔진 계약·흐름 저장 형식·실행기 입구가 이 결정 위에 선다. 바꾸려면 새 ADR)
+- **Source**: `docs/mdm/adr/0005-rule-set-runs-in-engine.md`, `docs/superpowers/specs/2026-09-29-rule-set-flow-design.md` §2·§6
+
+## D-107 (2026-09-30T00:00:00Z)
+- **Phase**: plan(룰 세트 흐름도 1단계 구현 계획)
+- **Decision needed**: 승인된 스펙과 저장소의 기존 규칙(계약 형태 테스트·스키마 대조·기존 검사 명명·정의 조회 빈 가드)이
+  어긋나는 12곳을 어떻게 맞출지
+- **Decision made**: 아래처럼 계획에서 스펙과 다르게 정한다(계획 `docs/superpowers/plans/2026-09-30-rule-set-flow-phase1.md`
+  「편차 기록」이 정본)
+
+  | # | 스펙 | 구현 |
+  |---|---|---|
+  | D1 | `RuleSetDefinition` 기존 3인자 생성자를 한 줄 흐름으로 위임 | 4인자 생성자 하나, 호출처를 모두 `flow=null` 로 고침(`ContractTypeShapeTest` 가 위임 생성자 금지) |
+  | D2 | 선 필드 `"else": true`, 노드 필드 `"type"` | 선 `"otherwise": true`, 노드 `"kind"`(Java 예약어·record 컴포넌트·스키마 속성 이름 대조. 저장된 흐름이 없어 이관 없음) |
+  | D3 | `SET_DUP_RESULT` 오류 | 같은 경로 중복 대입은 기존대로 경고, 병렬 형제가 같은 이름을 쓰면 오류(`PAR_SIBLING`) |
+  | D4 | 코드 이름 `SET_*` 하나 | 세트 저장 검사는 접두어 없는 이름(`ORDER`·`IF_SIBLING`…), 룰 확정 검사는 `SET_` 접두어. `CYCLE` 유지 |
+  | D5 | 오류 코드 목록 | `FLOW_INVALID`(단계 `SET_CHECK`) 추가 — 저장된 흐름·저장 전 흐름의 구조 오류 |
+  | D6 | `RuleSetResult` 에 `path` 만 | `path` 와 `warnings` — `BRANCH_COND_NULL` 을 실을 자리 |
+  | D7 | `RunTrace.error: EngineError` | `RunTrace.violations: Violation[] \| null`(스키마 전용 래퍼라 Java 타입 없음) |
+  | D8 | 검사 결과에 위치 없음 | `RuleSetCheck` 에 `nodeId`·`edgeId`(같은 룰이 여러 갈래에 있을 수 있음) |
+  | D9 | `FLOW_COND` 가 불린 아닌 식도 잡음 | 정적 검사는 파싱 실패·정의 안 된 변수만. 불린 아님은 실행 때 `BRANCH_EVAL_ERROR`(정적 타입 추론 없음) |
+  | D10 | 입출력 표·의존 룰을 흐름 기준으로 | 흐름을 펼친 룰 목록으로 계산(1단계 화면은 분기 세트를 읽기 전용으로만 보임) |
+  | D11 | OASIS serviceTask 로 부름 | `RuleSetRunner.execute(DTO)` 추가, 1단계는 테스트 자원 BPMN 으로 검증, 운영 BPMN 추가 없음 |
+  | D12 | (기존 동작) 목록에 같은 룰 ID 가 두 번 있으면 존재 검사를 나올 때마다 보고 | 존재·상태 검사는 룰 ID 마다 한 번만 보고(같은 룰을 여러 IF 갈래에 둘 수 있어 중복 보고가 소음. 기존 코퍼스 18건에 중복 ID 사례 없음) |
+- **Rationale**: 스펙 의도(흐름 실행·검사·기록)는 그대로 두고, 이미 영구 테스트로 굳은 저장소 규칙을 깨지 않는 쪽을
+  골랐다. D3 은 오류로 올리면 지금 저장된 한 줄 세트가 다음 저장에서 거부되기 때문이다. D8 은 2단계 캔버스에서 검사
+  항목을 누르면 노드로 이동해야 하는데, 2단계에서 더하면 코퍼스를 다시 열어야 해서 지금 넣었다
+- **Reversible**: partial(D2·D8 은 저장 형식·코퍼스에 들어가므로 바꾸려면 이관이 필요하다. 나머지는 코드 변경으로 되돌릴 수 있다)
+- **Source**: 계획 「편차 기록」, `ContractTypeShapeTest`, `EngineContractSchemaTest`, `RuleSetAnalyzer`, `RuleSetOrderCheck`,
+  `MdmBusinessRuleMigrationTest.계약_전용_06_확정_검사와_정의_조회_빈이_없다`
+
+## D-108 (2026-09-30T00:00:00Z)
+- **Phase**: plan(룰 세트 흐름도 1단계)
+- **Decision needed**: ruleSetEdit 기능설계서 N-1(설계 D2)이 남긴 후속 조건 "조회기가 생기면 `view` 옆 `execute`
+  action 으로 세트 값 테스트 카드를 더한다"를 1단계에서 채울지
+- **Decision made**: 1단계에서는 채우지 않는다. 1단계는 조회기(`StoredDefinitionLookup`)와 `RuleSetRunner` 까지만
+  만들고, 화면 카드는 2단계의 디버거(시뮬레이션 탭)와 `ruleSetEdit.bpmn` 의 `simulate` action 으로 넣는다.
+  action 이름은 `execute` 가 아니라 `simulate` 다(스펙 §6.2, 저장 전 흐름도 실행하는 기록 실행이라 뜻이 다르다)
+- **Rationale**: 1단계 화면은 기존 목록 편집을 유지하고 분기 세트만 읽기 전용으로 보인다(스펙 §9). 값 테스트 카드를
+  목록 화면에 먼저 만들면 2단계 디버거와 같은 기능이 두 벌이 된다
+- **Reversible**: yes(2단계 착수 때 다시 정한다)
+- **Source**: `docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md` §11 N-1, 스펙 §6.2·§9, mdm ADR-0005 D4
+
+## D-109 (2026-09-30T00:00:00Z)
+- **Phase**: plan(룰 세트 흐름도 1단계)
+- **Decision needed**: 목록·한 줄 입력도 흐름 파서를 거치게 하면서(D-107 D12) 생기는 행동 변화를 어떻게 다룰지
+- **Decision made**: 아래 세 가지 변화를 받아들이고 기록한다.
+  1. 목록·한 줄 입력에 null·공백 룰 ID 가 있으면 예전 `RULE_NOT_FOUND` 대신 `FLOW_STRUCTURE`(분석기)·`FLOW_INVALID`(엔진)가 된다.
+  2. `ORDER` 문구의 later 목록에서 중복을 뺀다.
+  3. 목록 화면의 `FLOW_STRUCTURE` 문구에 합성 노드 ID(`r1`…)가 남는다.
+  운영 저장 경로는 `RuleIdRules` 가 null·공백·중복을 먼저 막으므로 위 1~3 에 실제로 닿기 어렵다
+- **Rationale**: 목록 세트를 한 줄 흐름으로 바꿔 한 경로로 검사·실행하면 코드가 한 벌이다. 바뀌는 곳은 저장 경로가 이미 막는 입력뿐이라 운영 영향이 없다
+- **Reversible**: yes(코드 변경만으로 되돌릴 수 있다)
+- **Source**: D-107 D12, `RuleSetAnalyzer`, `RuleIdRules`, 엔진 `FlowParser`
+
+## D-110 (2026-09-30T00:00:00Z)
+- **Phase**: build(룰 세트 흐름도 1단계, 추가 Task 14)
+- **Decision needed**: 폐기(DEPRECATED)된 룰이 든 INUSE 세트를 운영에서 판정할 때 막을지, 경고만 남길지.
+  룰 폐기(`RuleHeaderService.deprecate`)는 `TB_MDM_RULE.STATUS` 만 바꾸고 참조 세트를 검사하지 않으며 RELEASED 버전의
+  `APPLY_TO` 도 그대로 두므로, 운영 조회기(`StoredDefinitionLookup`)는 폐기 룰을 그대로 판정에 쓴다
+- **Decision made**: 막지 않고 경고를 남긴다(사용자 결정). `RuleSetRunner.execute`(OASIS 입구)의 응답 `RuleSetRunResult.warnings`
+  에 폐기 룰마다 `RULE_DEPRECATED` 한 건(흐름에서 처음 나온 순서, 탄 갈래 여부와 무관)을 싣고, 이어서 엔진 경고
+  (`BRANCH_COND_NULL` 등 세트 경고, 그다음 `EXPR_CELL_NULL`·`GRP_COND_NULL` 룰 경고)를 싣는다. 서버 로그에 WARN 한 줄을 남긴다.
+  Java API `run` 반환형과 엔진 계약(`RuleSetResult`·`RunTrace`·스키마·생성 TS)은 바꾸지 않는다. `trace`(디버거)의 경고는 2단계에서 다룬다
+- **Rationale**: 폐기에는 효력 시각이 없어, 판정을 막으면 과거 시각으로 다시 판정하는 경우까지 깨지고 룰을 폐기하는 즉시
+  그 룰을 쓰는 운영 세트가 멈춘다. 경고로 드러내면 판정은 이어지고 담당자가 세트를 고칠 신호를 받는다
+- **Reversible**: yes(경고를 판정 오류로 바꾸는 것은 코드 변경만으로 된다)
+- **Source**: 2026-09-30 사용자 답변("1. b"), `RuleSetRunner`, `RuleSetRunResult`, `RuleHeaderService.deprecate`, `StoredDefinitionLookup`

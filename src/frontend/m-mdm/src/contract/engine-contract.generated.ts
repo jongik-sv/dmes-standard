@@ -157,7 +157,9 @@ export type ErrorCode =
   | "EVAL_TS_KEY"
   | "UNIQUE_MULTIPLE_HITS"
   | "ANY_CONFLICT"
-  | "EVALUATION_ERROR";
+  | "EVALUATION_ERROR"
+  | "BRANCH_EVAL_ERROR"
+  | "FLOW_INVALID";
 /**
  * This interface was referenced by `EngineContract`'s JSON-Schema
  * via the `definition` "CorpusCase".
@@ -199,14 +201,36 @@ export type Expect =
  * This interface was referenced by `EngineContract`'s JSON-Schema
  * via the `definition` "EngineWarningCode".
  */
-export type EngineWarningCode = "EXPR_CELL_NULL" | "GRP_COND_NULL";
+export type EngineWarningCode = "EXPR_CELL_NULL" | "GRP_COND_NULL" | "BRANCH_COND_NULL";
 /**
- * 판정 단계(Java EngineEvaluationException.Stage, 06:212-217 + 세트 사전 검사).
+ * 흐름 노드 종류(Java DefinitionLookup.NodeKind).
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "FlowNodeKind".
+ */
+export type FlowNodeKind = "START" | "END" | "RULE" | "IF" | "PARALLEL" | "MERGE";
+/**
+ * 노드 실행 상태(Java RunTrace.NodeStatus).
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "NodeStatus".
+ */
+export type NodeStatus = "OK" | "ERROR";
+/**
+ * IF 갈래 평가 결과(Java RunTrace.BranchOutcome). NOT_EVALUATED = 앞 갈래가 참이었거나 앞 갈래 평가가 오류로 멈춰 평가하지 않음. IF 의 branches 는 늘 나가는 선마다 하나씩, 실행 순서대로 있다.
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "BranchOutcome".
+ */
+export type BranchOutcome = "TRUE" | "FALSE" | "NULL" | "ERROR" | "NOT_EVALUATED";
+/**
+ * 판정 단계(Java EngineEvaluationException.Stage, 06:212-217 + 세트 사전 검사 + IF 갈래 고르기).
  *
  * This interface was referenced by `EngineContract`'s JSON-Schema
  * via the `definition` "ViolationStage".
  */
-export type ViolationStage = "SET_CHECK" | "INPUT_CHECK" | "ROW_SELECT" | "RESULT_CHECK" | "RESULT_EVAL";
+export type ViolationStage =
+  "SET_CHECK" | "INPUT_CHECK" | "ROW_SELECT" | "RESULT_CHECK" | "RESULT_EVAL" | "BRANCH_SELECT";
 
 /**
  * 정본 위치 = 이 파일(TSK-03-01). 원본 초안은 docs/mdm/engine-contract/schema/. 서버 엔진(Java)과 화면 JS 평가기(TS)가 주고받는 JSON 모양의 정본. Java record·TS 타입은 이 스키마에서 나온다(엔진 EngineContractSchemaTest 가 Java 를, m-mdm 생성 스크립트가 TS 를 맞춘다). 숫자는 전부 문자열이다(06:1038).
@@ -440,7 +464,7 @@ export interface EngineWarning {
   message: string;
 }
 /**
- * 룰 세트 판정 결과(Java RuleSetResult, 06:429). steps 는 실행 순서대로 룰마다 결과, finalValues 는 마지막 룰 뒤 결과 변수 전체.
+ * 룰 세트 판정 결과(Java RuleSetResult, 06:429 + 룰 세트 흐름도 spec §4.1). steps 는 실행한 룰마다 결과, finalValues 는 마지막 룰 뒤 결과 변수 전체, path 는 방문한 노드, warnings 는 세트 경고(BRANCH_COND_NULL).
  *
  * This interface was referenced by `EngineContract`'s JSON-Schema
  * via the `definition` "RuleSetResult".
@@ -452,18 +476,73 @@ export interface RuleSetResult {
   finalValues: {
     [k: string]: TypedValue;
   };
+  path: PathStep[];
+  warnings: EngineWarning[];
 }
 /**
- * 판정 오류 응답(Java EngineEvaluationException.violations 의 JSON 모양).
+ * 세트에서 방문한 노드 하나(Java RuleSetResult.PathStep). chosenEdgeId 는 IF 에서 고른 선, stepIndex 는 RULE 결과의 steps 자리.
  *
  * This interface was referenced by `EngineContract`'s JSON-Schema
- * via the `definition` "EngineError".
+ * via the `definition` "PathStep".
  */
-export interface EngineError {
-  /**
-   * @minItems 1
-   */
-  violations: [Violation, ...Violation[]];
+export interface PathStep {
+  nodeId: string;
+  kind: FlowNodeKind;
+  chosenEdgeId: string | null;
+  stepIndex: number | null;
+}
+/**
+ * 룰 세트 실행 기록(Java RunTrace, 룰 세트 흐름도 spec §4.2). 판정 오류는 던지지 않고 violations 에 담는다. 실행 전 오류면 nodes 가 비었다.
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "RunTrace".
+ */
+export interface RunTrace {
+  setId: string;
+  evalTs: LocalDateTime;
+  input: {
+    [k: string]: TypedValue;
+  };
+  nodes: NodeTrace[];
+  finalValues: {
+    [k: string]: TypedValue;
+  };
+  violations: Violation[] | null;
+}
+/**
+ * 노드 하나의 기록(Java RunTrace.NodeTrace). RULE: ruleId·ver·reads·result, IF: branches·chosenEdgeId, PARALLEL: order, MERGE: splitId·merged, ERROR: violations. result 는 OK 인 RULE 노드에만 있고, 값이 없으면 키를 뺀다(null 을 쓰지 않는다).
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "NodeTrace".
+ */
+export interface NodeTrace {
+  seq: number;
+  nodeId: string;
+  kind: FlowNodeKind;
+  status: NodeStatus;
+  ruleId: string | null;
+  ver: number | null;
+  reads: {
+    [k: string]: TypedValue;
+  } | null;
+  result?: RuleResult;
+  branches: BranchTrace[] | null;
+  chosenEdgeId: string | null;
+  order: string[] | null;
+  splitId: string | null;
+  merged: string[] | null;
+  violations: Violation[] | null;
+}
+/**
+ * IF 갈래 선 하나의 평가(Java RunTrace.BranchTrace). message 는 ERROR 원인.
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "BranchTrace".
+ */
+export interface BranchTrace {
+  edgeId: string;
+  outcome: BranchOutcome;
+  message: string | null;
 }
 /**
  * 판정 오류 하나(Java EngineEvaluationException.Violation). name 은 변수 이름 또는 함수 이름.
@@ -478,4 +557,55 @@ export interface Violation {
   rowId?: number | null;
   name?: string | null;
   message: string;
+}
+/**
+ * 룰 세트 흐름 정의(Java DefinitionLookup.FlowDefinition, spec §3.3). TB_MDM_RULE_SET.FLOW_JSON 의 nodes·edges 이고 화면 전용 view 는 여기 없다.
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "RuleSetFlow".
+ */
+export interface RuleSetFlow {
+  version: number;
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+}
+/**
+ * 흐름 노드(Java DefinitionLookup.FlowNode). ruleId 는 RULE 만, splitId 는 MERGE 만 쓴다.
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "FlowNode".
+ */
+export interface FlowNode {
+  id: string;
+  kind: FlowNodeKind;
+  ruleId: string | null;
+  splitId: string | null;
+  label: string | null;
+}
+/**
+ * 흐름 선(Java DefinitionLookup.FlowEdge). order·cond·otherwise 는 IF·PARALLEL 에서 나가는 선만 쓴다. otherwise=true 는 IF 의 "그 외" 선.
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "FlowEdge".
+ */
+export interface FlowEdge {
+  id: string;
+  from: string;
+  to: string;
+  order: number | null;
+  cond: string | null;
+  otherwise: boolean;
+  label: string | null;
+}
+/**
+ * 판정 오류 응답(Java EngineEvaluationException.violations 의 JSON 모양).
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "EngineError".
+ */
+export interface EngineError {
+  /**
+   * @minItems 1
+   */
+  violations: [Violation, ...Violation[]];
 }

@@ -6,6 +6,7 @@ import com.dongkuk.dmes.mdm.common.testdb.SharedContextResettable;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.FakeStewardDirectory;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.MutableClock;
 import com.dongkuk.dmes.mdm.contract.security.MdmRoles;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Set;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -21,6 +22,9 @@ public final class DmeTestSupport {
 
     /** 서비스 테스트의 현재 시각(KST). */
     public static final LocalDateTime NOW = LocalDateTime.of(2026, 6, 15, 9, 0, 0);
+
+    /** {@link #NOW} 을 KST 로 읽은 시각(MutableClock 초기 instant). */
+    public static final Instant NOW_INSTANT = NOW.atZone(MdmClockConfig.KST).toInstant();
 
     public static final Set<String> STEWARD = Set.of(MdmRoles.STEWARD);
     public static final Set<String> STD_ADMIN = Set.of(MdmRoles.STD_ADMIN);
@@ -212,6 +216,11 @@ public final class DmeTestSupport {
                 + "C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) "
                 + "VALUES (?, ?, ?, ?, ?, 'fixture', '2026-01-01 00:00:00', 'fixture', 'fixture', "
                 + "'fixture', '2026-01-01 00:00:00', 'fixture', 'fixture', 0)", id, name, ruleIdsJson, status, rowVersion);
+    }
+
+    /** 이미 넣은 세트 행의 FLOW_JSON 을 바꾼다(흐름도 세트 픽스처, spec §3.3). RULE_IDS 는 호출자가 펼친 목록으로 맞춰 둔다. */
+    public static void ruleSetFlow(JdbcTemplate jdbc, String setId, String flowJson) {
+        jdbc.update("UPDATE TB_MDM_RULE_SET SET FLOW_JSON = ? WHERE MARU_RULE_SET_ID = ?", flowJson, setId);
     }
 
     public static int count(JdbcTemplate jdbc, String sql, Object... args) {

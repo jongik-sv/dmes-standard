@@ -159,7 +159,8 @@
     "ErrorCode": {
       "description": "판정 오류 코드(Java EngineEvaluationException.Code 와 같은 이름).",
       "enum": ["RULE_NOT_FOUND", "SET_NOT_FOUND", "SET_DEPRECATED", "MISSING_KEY", "REQUIRED_NULL", "TYPE_CONVERSION",
-               "CONSTANT_KEY", "RESERVED_KEY", "EVAL_TS_KEY", "UNIQUE_MULTIPLE_HITS", "ANY_CONFLICT", "EVALUATION_ERROR"]
+               "CONSTANT_KEY", "RESERVED_KEY", "EVAL_TS_KEY", "UNIQUE_MULTIPLE_HITS", "ANY_CONFLICT", "EVALUATION_ERROR",
+               "BRANCH_EVAL_ERROR", "FLOW_INVALID"]
     },
 
     "CorpusFile": {
@@ -335,19 +336,122 @@
       "required": ["code", "message"],
       "additionalProperties": false
     },
-    "EngineWarningCode": { "description": "경고 코드(Java EngineWarning.Code).", "enum": ["EXPR_CELL_NULL", "GRP_COND_NULL"] },
+    "EngineWarningCode": { "description": "경고 코드(Java EngineWarning.Code).", "enum": ["EXPR_CELL_NULL", "GRP_COND_NULL", "BRANCH_COND_NULL"] },
     "RuleSetResult": {
-      "description": "룰 세트 판정 결과(Java RuleSetResult, 06:429). steps 는 실행 순서대로 룰마다 결과, finalValues 는 마지막 룰 뒤 결과 변수 전체.",
+      "description": "룰 세트 판정 결과(Java RuleSetResult, 06:429 + 룰 세트 흐름도 spec §4.1). steps 는 실행한 룰마다 결과, finalValues 는 마지막 룰 뒤 결과 변수 전체, path 는 방문한 노드, warnings 는 세트 경고(BRANCH_COND_NULL).",
       "type": "object",
       "properties": {
         "setId": { "type": "string" },
         "evalTs": { "$ref": "#/$defs/LocalDateTime" },
         "steps": { "type": "array", "items": { "$ref": "#/$defs/RuleResult" } },
-        "finalValues": { "type": "object", "additionalProperties": { "$ref": "#/$defs/TypedValue" } }
+        "finalValues": { "type": "object", "additionalProperties": { "$ref": "#/$defs/TypedValue" } },
+        "path": { "type": "array", "items": { "$ref": "#/$defs/PathStep" } },
+        "warnings": { "type": "array", "items": { "$ref": "#/$defs/EngineWarning" } }
       },
-      "required": ["setId", "evalTs", "steps", "finalValues"],
+      "required": ["setId", "evalTs", "steps", "finalValues", "path", "warnings"],
       "additionalProperties": false
     },
+    "PathStep": {
+      "description": "세트에서 방문한 노드 하나(Java RuleSetResult.PathStep). chosenEdgeId 는 IF 에서 고른 선, stepIndex 는 RULE 결과의 steps 자리.",
+      "type": "object",
+      "properties": {
+        "nodeId": { "type": "string" },
+        "kind": { "$ref": "#/$defs/FlowNodeKind" },
+        "chosenEdgeId": { "type": ["string", "null"] },
+        "stepIndex": { "type": ["integer", "null"] }
+      },
+      "required": ["nodeId", "kind", "chosenEdgeId", "stepIndex"],
+      "additionalProperties": false
+    },
+    "RunTrace": {
+      "description": "룰 세트 실행 기록(Java RunTrace, 룰 세트 흐름도 spec §4.2). 판정 오류는 던지지 않고 violations 에 담는다. 실행 전 오류면 nodes 가 비었다.",
+      "type": "object",
+      "properties": {
+        "setId": { "type": "string" },
+        "evalTs": { "$ref": "#/$defs/LocalDateTime" },
+        "input": { "type": "object", "additionalProperties": { "$ref": "#/$defs/TypedValue" } },
+        "nodes": { "type": "array", "items": { "$ref": "#/$defs/NodeTrace" } },
+        "finalValues": { "type": "object", "additionalProperties": { "$ref": "#/$defs/TypedValue" } },
+        "violations": { "type": ["array", "null"], "items": { "$ref": "#/$defs/Violation" } }
+      },
+      "required": ["setId", "evalTs", "input", "nodes", "finalValues", "violations"],
+      "additionalProperties": false
+    },
+    "NodeTrace": {
+      "description": "노드 하나의 기록(Java RunTrace.NodeTrace). RULE: ruleId·ver·reads·result, IF: branches·chosenEdgeId, PARALLEL: order, MERGE: splitId·merged, ERROR: violations. result 는 OK 인 RULE 노드에만 있고, 값이 없으면 키를 뺀다(null 을 쓰지 않는다).",
+      "type": "object",
+      "properties": {
+        "seq": { "type": "integer" },
+        "nodeId": { "type": "string" },
+        "kind": { "$ref": "#/$defs/FlowNodeKind" },
+        "status": { "$ref": "#/$defs/NodeStatus" },
+        "ruleId": { "type": ["string", "null"] },
+        "ver": { "type": ["integer", "null"] },
+        "reads": { "type": ["object", "null"], "additionalProperties": { "$ref": "#/$defs/TypedValue" } },
+        "result": { "$ref": "#/$defs/RuleResult" },
+        "branches": { "type": ["array", "null"], "items": { "$ref": "#/$defs/BranchTrace" } },
+        "chosenEdgeId": { "type": ["string", "null"] },
+        "order": { "type": ["array", "null"], "items": { "type": "string" } },
+        "splitId": { "type": ["string", "null"] },
+        "merged": { "type": ["array", "null"], "items": { "type": "string" } },
+        "violations": { "type": ["array", "null"], "items": { "$ref": "#/$defs/Violation" } }
+      },
+      "required": ["seq", "nodeId", "kind", "status", "ruleId", "ver", "reads", "branches", "chosenEdgeId", "order", "splitId", "merged", "violations"],
+      "additionalProperties": false
+    },
+    "BranchTrace": {
+      "description": "IF 갈래 선 하나의 평가(Java RunTrace.BranchTrace). message 는 ERROR 원인.",
+      "type": "object",
+      "properties": {
+        "edgeId": { "type": "string" },
+        "outcome": { "$ref": "#/$defs/BranchOutcome" },
+        "message": { "type": ["string", "null"] }
+      },
+      "required": ["edgeId", "outcome", "message"],
+      "additionalProperties": false
+    },
+    "NodeStatus": { "description": "노드 실행 상태(Java RunTrace.NodeStatus).", "enum": ["OK", "ERROR"] },
+    "BranchOutcome": { "description": "IF 갈래 평가 결과(Java RunTrace.BranchOutcome). NOT_EVALUATED = 앞 갈래가 참이었거나 앞 갈래 평가가 오류로 멈춰 평가하지 않음. IF 의 branches 는 늘 나가는 선마다 하나씩, 실행 순서대로 있다.", "enum": ["TRUE", "FALSE", "NULL", "ERROR", "NOT_EVALUATED"] },
+    "RuleSetFlow": {
+      "description": "룰 세트 흐름 정의(Java DefinitionLookup.FlowDefinition, spec §3.3). TB_MDM_RULE_SET.FLOW_JSON 의 nodes·edges 이고 화면 전용 view 는 여기 없다.",
+      "type": "object",
+      "properties": {
+        "version": { "type": "integer", "minimum": 1 },
+        "nodes": { "type": "array", "items": { "$ref": "#/$defs/FlowNode" } },
+        "edges": { "type": "array", "items": { "$ref": "#/$defs/FlowEdge" } }
+      },
+      "required": ["version", "nodes", "edges"],
+      "additionalProperties": false
+    },
+    "FlowNode": {
+      "description": "흐름 노드(Java DefinitionLookup.FlowNode). ruleId 는 RULE 만, splitId 는 MERGE 만 쓴다.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "$ref": "#/$defs/FlowNodeKind" },
+        "ruleId": { "type": ["string", "null"] },
+        "splitId": { "type": ["string", "null"] },
+        "label": { "type": ["string", "null"] }
+      },
+      "required": ["id", "kind", "ruleId", "splitId", "label"],
+      "additionalProperties": false
+    },
+    "FlowEdge": {
+      "description": "흐름 선(Java DefinitionLookup.FlowEdge). order·cond·otherwise 는 IF·PARALLEL 에서 나가는 선만 쓴다. otherwise=true 는 IF 의 \"그 외\" 선.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "order": { "type": ["integer", "null"] },
+        "cond": { "type": ["string", "null"] },
+        "otherwise": { "type": "boolean" },
+        "label": { "type": ["string", "null"] }
+      },
+      "required": ["id", "from", "to", "order", "cond", "otherwise", "label"],
+      "additionalProperties": false
+    },
+    "FlowNodeKind": { "description": "흐름 노드 종류(Java DefinitionLookup.NodeKind).", "enum": ["START", "END", "RULE", "IF", "PARALLEL", "MERGE"] },
     "EngineError": {
       "description": "판정 오류 응답(Java EngineEvaluationException.violations 의 JSON 모양).",
       "type": "object",
@@ -372,8 +476,8 @@
       "additionalProperties": false
     },
     "ViolationStage": {
-      "description": "판정 단계(Java EngineEvaluationException.Stage, 06:212-217 + 세트 사전 검사).",
-      "enum": ["SET_CHECK", "INPUT_CHECK", "ROW_SELECT", "RESULT_CHECK", "RESULT_EVAL"]
+      "description": "판정 단계(Java EngineEvaluationException.Stage, 06:212-217 + 세트 사전 검사 + IF 갈래 고르기).",
+      "enum": ["SET_CHECK", "INPUT_CHECK", "ROW_SELECT", "RESULT_CHECK", "RESULT_EVAL", "BRANCH_SELECT"]
     }
   }
 }

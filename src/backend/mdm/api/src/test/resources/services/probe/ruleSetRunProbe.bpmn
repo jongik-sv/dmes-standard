@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 테스트 전용 — OASIS serviceTask 가 ruleSetRunner 를 부르는 경로 검증(계획 Task 11, ADR 0005). 운영 BPMN 이 아니다. -->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_ruleSetRunProbe" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-tool" exporterVersion="1.3.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="ruleSetRunProbe" name="룰 세트 실행 탐침(테스트 전용)" isExecutable="true">
+    <bpmn:documentation>ruleSetRunProbe — 테스트 전용 탐침. src/test/resources 에만 있고 운영 BPMN 이 아니다(계획 Task 11, ADR 0005, 편차 D11).
+
+action=run -&gt; runTask (ruleSetRunner.execute) — 저장된 룰 세트를 판정 시각(KST)에 적용되는 RELEASED 룰로 판정한다.
+운영 action(simulate 등)은 2단계 범위다.</bpmn:documentation>
+    <bpmn:startEvent id="start" name="시작">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="actionGateway" name="action 분기">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_run</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="runTask" name="룰 세트 실행(테스트 탐침)" camunda:class="ruleSetRunner">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="execute" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.common.rule.dto.RuleSetRunRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_run</bpmn:incoming>
+      <bpmn:outgoing>flow_run_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endRun" name="실행 완료">
+      <bpmn:incoming>flow_run_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+    <bpmn:sequenceFlow id="flow_run" name="run" sourceRef="actionGateway" targetRef="runTask" />
+    <bpmn:sequenceFlow id="flow_run_end" sourceRef="runTask" targetRef="endRun" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="ruleSetRunProbe">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="150" y="122" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="250" y="115" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="runTask_di" bpmnElement="runTask">
+        <dc:Bounds x="400" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endRun_di" bpmnElement="endRun">
+        <dc:Bounds x="600" y="122" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="186" y="140" />
+        <di:waypoint x="250" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_run_di" bpmnElement="flow_run">
+        <di:waypoint x="300" y="140" />
+        <di:waypoint x="400" y="140" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="338" y="123" width="24" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_run_end_di" bpmnElement="flow_run_end">
+        <di:waypoint x="500" y="140" />
+        <di:waypoint x="600" y="140" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
