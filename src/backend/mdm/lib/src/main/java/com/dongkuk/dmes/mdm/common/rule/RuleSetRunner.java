@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mdm.common.rule;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
+import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionLookup;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredRuleDefinitions;
 import com.dongkuk.dmes.mdm.common.rule.dto.RuleSetRunRequest;
@@ -9,8 +10,8 @@ import com.dongkuk.dmes.mdm.common.rule.dto.RuleSetRunResult;
 import com.dongkuk.dmes.mdm.common.support.MdmClockConfig;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
-import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
+import com.dongkuk.dmes.mdm.entity.MdmRuleSet;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleSetRepository;
 import java.time.Clock;
@@ -19,17 +20,17 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
-import java.util.Collections;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException;
-import kr.dongkuk.maru.mdm.engine.expr.EngineWarning;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Code;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Stage;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Violation;
+import kr.dongkuk.maru.mdm.engine.expr.EngineWarning;
 import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
 import kr.dongkuk.maru.mdm.engine.rule.MdmRuleEngine;
 import kr.dongkuk.maru.mdm.engine.rule.RuleSetResult;
@@ -176,11 +177,11 @@ public class RuleSetRunner {
         return m;
     }
 
-    private static List<String> ruleIdsOf(com.dongkuk.dmes.mdm.entity.MdmRuleSet s) {
+    private static List<String> ruleIdsOf(MdmRuleSet s) {
         if (s.getFlowJson() != null) {
             return RuleSetFlowJson.ruleIds(RuleSetFlowJson.parse(s.getFlowJson()));
         }
-        return DomainJson.readList(s.getRuleIds()).stream().map(String::valueOf).toList();
+        return DomainJson.readList(s.getRuleIds()).stream().map(String::valueOf).distinct().toList();
     }
 
     private MdmRuleEngine engine() {

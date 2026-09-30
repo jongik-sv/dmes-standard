@@ -14,7 +14,9 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import kr.dongkuk.maru.mdm.engine.expr.AstExporter;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException;
+import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
 import kr.dongkuk.maru.mdm.engine.rule.RuleSetResult;
 import kr.dongkuk.maru.mdm.engine.rule.RunTrace;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.NodeKind;
@@ -46,6 +48,8 @@ class RuleSetRunnerTest extends AbstractMdmSharedDbTest {
     RuleSetRunner runner;
     @Autowired
     JdbcTemplate jdbc;
+    @Autowired
+    MdmEvaluator evaluator;
 
     @BeforeEach
     void seed() {
@@ -215,5 +219,61 @@ class RuleSetRunnerTest extends AbstractMdmSharedDbTest {
 
         assertEquals(List.of("RULE_DEPRECATED", "BRANCH_COND_NULL"), r.getWarnings().stream().map(w -> w.get("code")).toList(),
                 r.getWarnings().toString());
+    }
+
+    @Test
+    void 폐기_룰이_둘_이상이면_흐름에서_처음_나온_순서로_경고한다() {
+        DmeTestSupport.rule(jdbc, "R_TWO", "둘째 룰", "DECISION", "DEPRECATED");
+        jdbc.update("UPDATE TB_MDM_RULE SET LAST_VAR_ID = 5, LAST_ROW_ID = 4 WHERE MARU_RULE_ID = 'R_TWO'");
+        DmeTestSupport.released(jdbc, "R_TWO", 1, "FIRST", "2026-01-01 00:00:00", null);
+        DmeTestSupport.sampleDefinition(jdbc, "R_TWO", 1);
+        jdbc.update("UPDATE TB_MDM_RULE SET STATUS = 'DEPRECATED' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG'");
+        // 첫 갈래(e2)의 R_TWO 가 그 외 갈래(e3)의 QLTY_GRD_JDG 보다 먼저 나온다. 입력은 e3 를 타므로 실행 순서와 다르다.
+        String flow = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"},{\"id\":\"if1\",\"kind\":\"IF\"},"
+                + "{\"id\":\"r2\",\"kind\":\"RULE\",\"ruleId\":\"R_TWO\"},{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"QLTY_GRD_JDG\"},"
+                + "{\"id\":\"m1\",\"kind\":\"MERGE\",\"splitId\":\"if1\"},{\"id\":\"end\",\"kind\":\"END\"}],"
+                + "\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"if1\"},"
+                + "{\"id\":\"e2\",\"from\":\"if1\",\"to\":\"r2\",\"order\":1,\"cond\":\"COIL_THK >= 3\"},"
+                + "{\"id\":\"e3\",\"from\":\"if1\",\"to\":\"r1\",\"otherwise\":true},"
+                + "{\"id\":\"e4\",\"from\":\"r2\",\"to\":\"m1\"},{\"id\":\"e5\",\"from\":\"r1\",\"to\":\"m1\"},"
+                + "{\"id\":\"e6\",\"from\":\"m1\",\"to\":\"end\"}]}";
+        DmeTestSupport.ruleSet(jdbc, "RS_TWO", "두 룰", "[\"QLTY_GRD_JDG\",\"R_TWO\"]", "INUSE", 0);
+        DmeTestSupport.ruleSetFlow(jdbc, "RS_TWO", flow);
+
+        RuleSetRunResult r = runner.execute(req("RS_TWO", REC_JSON));
+
+        assertEquals("A", r.getFinalValues().get("QLTY_GRD"));
+        assertEquals(List.of("R_TWO", "QLTY_GRD_JDG"), r.getWarnings().stream().map(w -> w.get("ruleId")).toList(), r.getWarnings().toString());
+    }
+
+    @Test
+    void 흐름이_없는_세트의_RULE_IDS_에_같은_룰이_두_번_있어도_경고는_한_건이다() {
+        jdbc.update("UPDATE TB_MDM_RULE SET STATUS = 'DEPRECATED' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG'");
+        DmeTestSupport.ruleSet(jdbc, "RS_DUP", "중복", "[\"QLTY_GRD_JDG\",\"QLTY_GRD_JDG\"]", "INUSE", 0);
+
+        RuleSetRunResult r = runner.execute(req("RS_DUP", REC_JSON));
+
+        assertEquals(1, r.getWarnings().stream().filter(w -> "RULE_DEPRECATED".equals(w.get("code"))).count(), r.getWarnings().toString());
+    }
+
+    @Test
+    void 룰_단위_엔진_경고도_warnings_에_실린다() throws Exception {
+        DmeTestSupport.column(jdbc, "COIL_X", DmeTestSupport.domain(jdbc, "COIL_X_D", "TEXT", "BOOLEAN", null));
+        DmeTestSupport.rule(jdbc, "R_EXPR", "식 조건", "DECISION", "INUSE");
+        jdbc.update("UPDATE TB_MDM_RULE SET LAST_VAR_ID = 2, LAST_ROW_ID = 2 WHERE MARU_RULE_ID = 'R_EXPR'");
+        DmeTestSupport.released(jdbc, "R_EXPR", 1, "FIRST", "2026-01-01 00:00:00", null);
+        DmeTestSupport.var(jdbc, "R_EXPR", 1, 1, "COND", "Expression", "식", 1, null);
+        DmeTestSupport.var(jdbc, "R_EXPR", 1, 2, "RESULT", "Value", "R_OUT", 1, "STRING");
+        String ast = new com.fasterxml.jackson.databind.ObjectMapper()
+                .writeValueAsString(AstExporter.export("COIL_X", evaluator.configuration()));
+        DmeTestSupport.row(jdbc, "R_EXPR", 1, 1, 1, "NORMAL", "{\"1\":{\"expr\":\"COIL_X\",\"ast\":" + ast + "},\"2\":{\"val\":\"first\"}}");
+        DmeTestSupport.row(jdbc, "R_EXPR", 1, 2, 0, "DEFAULT", "{\"2\":{\"val\":\"second\"}}");
+        DmeTestSupport.ruleSet(jdbc, "RS_EXPR", "식", "[\"R_EXPR\"]", "INUSE", 0);
+
+        RuleSetRunResult r = runner.execute(req("RS_EXPR", "{\"COIL_X\":null}"));
+
+        assertEquals("second", r.getFinalValues().get("R_OUT"));
+        assertEquals(List.of("EXPR_CELL_NULL"), r.getWarnings().stream().map(w -> w.get("code")).toList(), r.getWarnings().toString());
+        assertEquals("R_EXPR", r.getWarnings().get(0).get("ruleId"));
     }
 }
