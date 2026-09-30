@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState, type ChangeEvent, type CSSProperties, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useState, type ChangeEvent, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
 import { Input, Popover } from "@mantine/core";
 import { InlineDateTimePicker } from "@mantine/dates";
 import clsx from "clsx";
@@ -150,6 +150,24 @@ export function DateTimePicker({
     }
   }, [commit, opened]);
 
+  /**
+   * 이미 포커스가 있는 시간 칸을 다시 눌러도 값 전체가 선택되게 한다.
+   *
+   * Mantine `SpinInput` 은 `onFocus`·`onClick` 에서 `select()` 를 부른다(설치본 SpinInput.mjs). 포커스가
+   * 없던 칸을 처음 누르면 `onFocus` 쪽이 먹혀 통째로 선택된다(selection 0..2). 그런데 이미 포커스가 있는
+   * 칸을 다시 누르면 focus 이벤트가 없어 그쪽을 건너뛰고, 브라우저는 mousedown 에서 캐럿을 누른 자리에
+   * 놓는다(selection 1..1) — 그 다음 click 의 `select()` 가 실제 Chromium 에서는 남지 않아 첫 숫자가
+   * 기존 두 자리 사이에 끼어든다.
+   *
+   * `hoursInputProps`·`minutesInputProps`·`secondsInputProps` 는 `SpinInput` 의 `...others` 로 **마지막에**
+   * 펴지므로 `onClick` 을 덮어쓸 수 있다. 캐럿이 확정되는 `mouseup` 시점에도 다시 선택해 마지막 말을
+   * 하게 한다. `stopPropagation` 은 Mantine 이 원래 하던 그대로(popover 밖 클릭으로 닫히는 것 방지)다.
+   */
+  const selectAllTimeField = useCallback((event: MouseEvent<HTMLInputElement>) => {
+    event.stopPropagation();
+    event.currentTarget.select();
+  }, []);
+
   return (
     <Input.Wrapper id={inputId} size="sm" error={errorNode}>
       <Popover
@@ -222,6 +240,10 @@ export function DateTimePicker({
               hoursInputLabel: "시",
               minutesInputLabel: "분",
               secondsInputLabel: "초",
+              // 이미 포커스가 있는 칸을 다시 눌러도 통째로 선택된다(위 주석).
+              hoursInputProps: { onMouseUp: selectAllTimeField, onClick: selectAllTimeField },
+              minutesInputProps: { onMouseUp: selectAllTimeField, onClick: selectAllTimeField },
+              secondsInputProps: { onMouseUp: selectAllTimeField, onClick: selectAllTimeField },
             }}
             // 적용 시작 일시는 보통 미래라서 달력을 몇 달씩 넘겨 봐야 한다. 연·월 네이티브 select 로 한 번에 옮긴다.
             withNativeLevelSelect

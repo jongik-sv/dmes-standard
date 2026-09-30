@@ -510,10 +510,56 @@ describe("DateTimePicker 계약 (직접 입력 · 24시간제 · 초)", () => {
     r.unmount();
   });
 
+  /**
+   * 브라우저 클릭 흐름을 흉내낸다 — mousedown 에 캐럿이 눌린 자리에 놓이고, mouseup·click 이 뒤따른다.
+   * `untilClick` 을 false 로 하면 mouseup 까지만 보낸다(= 브라우저가 mouseup 기본 동작에서 캐럿을
+   * 다시 확정해 handler 의 select 를 덮어쓰는 경우를 나타낸다).
+   */
+  const clickTimeField = async (field: HTMLInputElement, caretAt = 1, untilClick = true) => {
+    await act(async () => {
+      field.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      // 브라우저는 mousedown 의 기본 동작으로 캐럿을 누른 자리에 놓는다.
+      field.setSelectionRange?.(caretAt, caretAt);
+      field.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+      if (untilClick) field.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flush();
+  };
+
+  it("이미 포커스가 있는 시간 칸을 다시 눌러도 값 전체가 선택된다", async () => {
+    // 회귀 근거(실제 Chromium 실측): 포커스가 없던 칸을 처음 누르면 `onFocus` 의 select 가 먹혀 0..2 로
+    // 선택된다. 이미 포커스가 있는 칸을 다시 누르면 focus 이벤트가 없어 그쪽을 건너뛰고, 브라우저가
+    // 캐럿을 누른 자리(1..1)에 둔다 — 그 다음의 select 가 실제로 남지 않아 첫 숫자가 끼어든다.
+    //
+    // happy-dom 은 Mantine `SpinInput` 의 onClick select 를 그대로 지킬 뿐이라 이 브라우저 동작을
+    // 재현하지 못한다(그대로 두면 이 시험이 통과해 버린다). 그래서 mouseup 까지만 보내 "브라우저가
+    // 캐럿을 재확정해 handler 의 select 를 덮어쓴" 상황을 만들고, 래퍼가 붙인 mouseup hook 이 실제로
+    // 달려 있는지·select 를 하는지 확인한다.
+    const r = renderWithMantine(createElement(Controlled));
+    const text = () => r.host.querySelector("#dt1") as HTMLInputElement;
+    await pick(text, "2026-10-01 19:04:15");
+    const hours = panel().querySelector('input[aria-label="시"]') as HTMLInputElement;
+    const minutes = panel().querySelector('input[aria-label="분"]') as HTMLInputElement;
+    const seconds = panel().querySelector('input[aria-label="초"]') as HTMLInputElement;
+    expect(hours.value).toBe("19");
+
+    // 이미 포커스가 있는 칸을 가운데를 눌러도(click 없이) 통째로 선택되어야 한다.
+    for (const field of [hours, minutes, seconds]) {
+      await clickTimeField(field, 1, false);
+      expect(field.selectionStart).toBe(0);
+      expect(field.selectionEnd).toBe(field.value.length);
+    }
+    // 클릭 전체를 흘려도 마찬가지다.
+    await clickTimeField(hours, 1, true);
+    expect(hours.selectionStart).toBe(0);
+    expect(hours.selectionEnd).toBe(hours.value.length);
+    expect(text().value).toBe("2026-10-01 19:04:15");
+    r.unmount();
+  });
+
   it("시간 칸에 한 글자씩 치면 칸에 들어갈 때 선택된 기존 값을 덮어쓴다(14 30 15 → 14:30:15)", async () => {
-    // 칸을 누르면 Mantine 이 그 칸의 값을 전체 선택한다(`SpinInput` 의 onFocus/onClick). 그래서 시 칸에
-    // `1` 을 치면 10 이 아니라 1 이 되고, `4` 를 이어 치면 14 가 되어 분 칸으로 넘어간다. 분 칸도 다시
-    // 선택된 상태라 `3` 이 04 뒤에 붙지 않고 03 이 된다. (캐럿을 만지면 실제 사람이 못 치게 된다.)
+    // 칸을 누르면 그 칸의 값이 통째로 선택되므로 시 칸에 `1` 을 치면 19 가 아니라 1 이 되고, `4` 를 이어
+    // 치면 14 가 되어 분 칸으로 넘어간다. 분 칸도 선택된 상태라 `3` 이 04 뒤에 붙지 않고 03 이 된다.
     const r = renderWithMantine(createElement(Controlled));
     const text = () => r.host.querySelector("#dt1") as HTMLInputElement;
     await pick(text, "2026-10-01 10:04:15");
@@ -523,12 +569,8 @@ describe("DateTimePicker 계약 (직접 입력 · 24시간제 · 초)", () => {
     const minutes = panel().querySelector('input[aria-label="분"]') as HTMLInputElement;
     const seconds = panel().querySelector('input[aria-label="초"]') as HTMLInputElement;
 
-    // 칸에 들어갈 때의 전체 선택을 흉내낸다(브라우저의 select() 와 같다).
     const typeField = async (field: HTMLInputElement, digits: string) => {
-      await act(async () => {
-        field.click();
-        field.setSelectionRange?.(0, field.value.length);
-      });
+      await clickTimeField(field, 1);
       for (const ch of digits) {
         await act(async () => {
           typeChar(field, ch);
