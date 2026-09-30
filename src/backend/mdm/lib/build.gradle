@@ -13,6 +13,10 @@ tasks.named('test') {
     useJUnitPlatform()
     // SQLite 는 DB 파일 단위 락이라 병렬 fork 시 테스트가 서로 막힌다(mqc/lib/build.gradle 과 동일 이유).
     maxParallelForks = 1
+    // RuleSetFlowFuzz — -Dfuzz.write=true 면 퍼즈 파일(rule-set-fuzz.json)을 다시 쓴다
+    if (System.getProperty('fuzz.write') != null) {
+        systemProperty 'fuzz.write', System.getProperty('fuzz.write')
+    }
 }
 
 dependencies {

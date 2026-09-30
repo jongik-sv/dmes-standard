@@ -33,38 +33,52 @@ import org.junit.jupiter.params.provider.MethodSource;
  *
  * <p>{@code flow} 가 있으면 {@code ids} 는 {@code RuleSetFlowJson.ruleIds(flow)} 기대값이고, io·deps 는 흐름 오버로드, checks 는
  * {@code checks(flow, rules, condIo)} 로 계산한다. checks 의 빠진 {@code nodeId}·{@code edgeId} 는 null 이다.
+ *
+ * <p>같은 형식의 퍼즈 파일 {@code rule-set-fuzz.json}({@link RuleSetFlowFuzz} 가 시드로 만들고 expect 는 Java 결과)도 함께 돌린다. Java 쪽에서는
+ * 자기 결과와 같은지(생성 뒤 분석기가 바뀌지 않았는지), TS 쪽에서는 두 언어 차분이다.
  */
 class RuleSetCorpusTest {
 
-    /** 사례 수 하한 — TS 러너와 같은 값(design §3.3). TS 러너({@code rule-set-corpus.test.ts}, 흐름도 Task 8)도 40 으로 맞춘다. */
-    static final int MIN_CASES = 43;
+    /** 사례 수 하한 — TS 러너와 같은 값(design §3.3). TS 러너({@code rule-set-corpus.test.ts})도 같은 값으로 맞춘다. */
+    static final int MIN_CASES = 52;
+
+    /** 퍼즈 파일 사례 수 하한 — TS 러너와 같은 값({@link RuleSetFlowFuzz#COUNT}). */
+    static final int MIN_FUZZ_CASES = 200;
 
     /** 클래스패스 위치 = {@code src/test/resources/com/dongkuk/dmes/mdm/common/rule/rule-set-corpus.json}. 없으면 실패한다(건너뛰지 않는다). */
     static final String CORPUS = "/com/dongkuk/dmes/mdm/common/rule/rule-set-corpus.json";
 
+    /** 퍼즈 파일({@link RuleSetFlowFuzz#RESOURCE}). 없으면 실패한다. */
+    static final String FUZZ = RuleSetFlowFuzz.RESOURCE;
+
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    static JsonNode cases() throws IOException {
-        try (InputStream in = RuleSetCorpusTest.class.getResourceAsStream(CORPUS)) {
-            assertNotNull(in, "세트 계산 코퍼스가 없다: " + CORPUS);
+    static JsonNode cases(String resource) throws IOException {
+        try (InputStream in = RuleSetCorpusTest.class.getResourceAsStream(resource)) {
+            assertNotNull(in, "세트 계산 코퍼스가 없다: " + resource);
             JsonNode root = JSON.readTree(in);
-            assertEquals(1, root.path("version").asInt(), "코퍼스 version");
+            assertEquals(1, root.path("version").asInt(), "코퍼스 version: " + resource);
             return root.path("cases");
         }
     }
 
     static Stream<Arguments> corpus() throws IOException {
         List<Arguments> out = new ArrayList<>();
-        cases().forEach(c -> out.add(Arguments.of(c.path("name").asText(), c)));
+        for (String resource : List.of(CORPUS, FUZZ)) {
+            cases(resource).forEach(c -> out.add(Arguments.of(c.path("name").asText(), c)));
+        }
         return out.stream();
     }
 
     @Test
     void 사례_수가_하한_이상이고_이름이_겹치지_않는다() throws IOException {
-        JsonNode cases = cases();
+        JsonNode cases = cases(CORPUS);
         assertTrue(cases.size() >= MIN_CASES, "사례 " + cases.size() + " < 하한 " + MIN_CASES);
+        JsonNode fuzz = cases(FUZZ);
+        assertTrue(fuzz.size() >= MIN_FUZZ_CASES, "퍼즈 사례 " + fuzz.size() + " < 하한 " + MIN_FUZZ_CASES);
         Set<String> names = new HashSet<>();
         cases.forEach(c -> assertTrue(names.add(c.path("name").asText()), "name 중복: " + c.path("name").asText()));
+        fuzz.forEach(c -> assertTrue(names.add(c.path("name").asText()), "name 중복: " + c.path("name").asText()));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -99,7 +113,7 @@ class RuleSetCorpusTest {
         assertEquals(checks, actual, name + " checks");
     }
 
-    private static Map<String, CondIo> condIo(JsonNode node) {
+    static Map<String, CondIo> condIo(JsonNode node) {
         Map<String, CondIo> out = new LinkedHashMap<>();
         node.properties().forEach(e -> {
             List<IoName> vars = new ArrayList<>();
@@ -109,7 +123,7 @@ class RuleSetCorpusTest {
         return out;
     }
 
-    private static RuleIo rule(String id, JsonNode r) {
+    static RuleIo rule(String id, JsonNode r) {
         List<IoName> conds = new ArrayList<>();
         r.path("conds").forEach(n -> conds.add(new IoName(text(n, "name"), text(n, "source"), null, null, null, false, null)));
         List<IoName> results = new ArrayList<>();
