@@ -213,7 +213,7 @@ describe("RuleSetEditPage", () => {
     expect(byTestId<HTMLInputElement>("set-name").value).toBe("사슬");
     expect(visibleText(byTestId("set-checks"))).toContain("통과");
     expect(visibleText(byTestId("flow-tab-checks"))).toContain("검사 결과 0");
-    expect(q("flow-tab-sim")).not.toBeNull();
+    expect(q("flow-tab-sim")).toBeNull();
 
     const inputs = visibleText(byTestId("set-io-inputs"));
     expect(inputs).toContain("입력 변수 3개");
@@ -727,20 +727,18 @@ describe("RuleSetEditPage", () => {
     const styles = injected();
     expect(styles).toHaveLength(1);
     const css = styles[0].textContent ?? "";
-    for (const rule of [".rsf-canvas {", ".rsf-node {", ".rsf-bottom-body {", ".rsf-toolbar {", ".rsim {", ".rsim-stepper {"]) expect(css, rule).toContain(rule);
+    for (const rule of [".rsf-canvas {", ".rsf-node {", ".rsf-bottom-body {", ".rsf-toolbar {"]) expect(css, rule).toContain(rule);
   });
 
-  it("아래 패널은 접고 펼 수 있고, 시뮬레이션 탭 자리가 있다", async () => {
+  it("아래 패널은 접고 펼 수 있고, 보기·편집 모드에는 검사 결과 탭 하나뿐이다", async () => {
     await openChain();
     expect(q("set-checks")).not.toBeNull();
-    await click("flow-tab-sim");
+    expect(q("flow-tab-sim")).toBeNull();
+    await click("flow-bottom-toggle");
     expect(q("set-checks")).toBeNull();
-    expect(q("flow-sim-slot")).not.toBeNull();
+    expect(q("flow-tab-checks")).not.toBeNull();
     await click("flow-bottom-toggle");
-    expect(q("flow-sim-slot")).toBeNull();
-    expect(q("flow-tab-sim")).not.toBeNull();
-    await click("flow-bottom-toggle");
-    expect(q("flow-sim-slot")).not.toBeNull();
+    expect(q("set-checks")).not.toBeNull();
   });
 });
 

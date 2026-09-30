@@ -124,7 +124,7 @@ describe("룰 세트 편집 이음새(3단계 Task 0)", () => {
     await click("flow-mode-view");
     expect(pressed("flow-var-toggle")).toBe("false");
     expect(q("dbg-toolbar")).toBeNull();
-    expect(q("flow-tab-sim")).not.toBeNull();
+    expect(q("flow-tab-sim")).toBeNull();
     expect(byTestId("flow-bottom-body").getAttribute("data-tab")).toBe("checks");
 
     // 켜 둔 채 들어갔다 나오면 켜진 채로 돌아온다.

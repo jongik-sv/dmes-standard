@@ -119,7 +119,6 @@ describe("블록 접기(D16)", () => {
     await click("flow-mode-edit");
     await toggleCollapse("if1");
     await click("flow-node-if1");
-    if (q("flow-right-tab-props")) await click("flow-right-tab-props");
     await typeInto(byTestId<HTMLInputElement>("flow-prop-label"), "등급 분기");
     srv.replies.save = ok({ setId: "GT_SET", rowVersion: 2, checks: [] });
     await click("set-save");
@@ -242,7 +241,6 @@ describe("변수 칩 값 툴팁(E3)", () => {
     // 구조를 고쳐 기록이 낡으면 툴팁 값이 없다.
     await click("flow-mode-edit");
     await click("flow-node-if1");
-    if (q("flow-right-tab-props")) await click("flow-right-tab-props");
     await typeInto(byTestId<HTMLTextAreaElement>("flow-prop-branch-e3-cond"), 'GT_G = "Z"');
     await settle(50);
     await click("flow-mode-debug");
