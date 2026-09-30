@@ -28,6 +28,7 @@ import { Dashboard } from "./dashboard/Dashboard";
 import { FavoriteFolderPickerModal, type FavoriteFolderChoice } from "./FavoriteFolderPickerModal";
 import type { FavoriteFolderNode } from "./sidebar/FavoritesTree";
 import { TabPageContext } from "./tab-page-context";
+import { ErrorBoundary } from "../components/error-boundary";
 import { useTabHistory } from "./use-tab-history";
 import "./portal-shell.css";
 
@@ -346,7 +347,15 @@ export function PortalShell({
   // Tab operations
   const loadTabPage = useCallback(
     async (tabId: string, pageId: string) => {
-      const component = await resolvePage(pageId);
+      let component: PortalShellPageComponent | null = null;
+      let loadError: string | null = null;
+      try {
+        component = await resolvePage(pageId);
+      } catch (err) {
+        // 화면 chunk 로드 실패 시 탭이 로딩 상태로 멈추지 않도록 오류로 표시한다.
+        console.error("[PortalShell] page load failed", pageId, err);
+        loadError = `화면을 불러오지 못했습니다: ${pageId}`;
+      }
       setTabs((prev) =>
         prev.map((tab) => {
           if (tab.id !== tabId) return tab;
@@ -355,7 +364,7 @@ export function PortalShell({
               ...tab,
               component: null,
               isLoading: false,
-              errorMessage: `등록된 페이지를 찾을 수 없습니다: ${pageId}`,
+              errorMessage: loadError ?? `등록된 페이지를 찾을 수 없습니다: ${pageId}`,
             };
           }
           return { ...tab, component, isLoading: false, errorMessage: null };
@@ -736,14 +745,17 @@ export function PortalShell({
         return <div className="portal-shell__error">화면을 로드할 수 없습니다.</div>;
       }
 
+      // 탭마다 경계를 둔다. 한 화면의 렌더 오류가 포털 전체(다른 탭·사이드바)를 내리지 않게 한다.
       return (
-        <TabComponent
-          tabId={tab.id}
-          snapshot={tab.snapshot}
-          onSnapshotChange={(nextSnapshot) => {
-            onTabSnapshotChange(tab.id, nextSnapshot);
-          }}
-        />
+        <ErrorBoundary>
+          <TabComponent
+            tabId={tab.id}
+            snapshot={tab.snapshot}
+            onSnapshotChange={(nextSnapshot) => {
+              onTabSnapshotChange(tab.id, nextSnapshot);
+            }}
+          />
+        </ErrorBoundary>
       );
     },
     [onTabSnapshotChange]
