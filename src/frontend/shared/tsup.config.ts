@@ -43,7 +43,8 @@ export default defineConfig((options) => ({
   // TSUP_DTS=0 으로 끈다(next dev·vitest 는 .d.ts 를 쓰지 않는다. perf-audit (B) 표).
   dts: process.env.TSUP_DTS !== "0",
   sourcemap: true,
-  clean: !options.watch,
+  // scripts/lib-dev.mjs 가 dev 중에 tsup 을 한 번씩 돌릴 때는 TSUP_NO_CLEAN=1 — 포털(next dev)이 dist 를 보고 있어 비우면 안 된다.
+  clean: !options.watch && process.env.TSUP_NO_CLEAN !== "1",
   splitting: false,
   external: [
     "react",

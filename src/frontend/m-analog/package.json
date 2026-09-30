@@ -21,7 +21,7 @@
   ],
   "scripts": {
     "build": "tsup",
-    "dev": "tsup --watch",
+    "dev": "node ../scripts/lib-dev.mjs watch",
     "format": "prettier --write .",
     "lint": "tsc --noEmit"
   },

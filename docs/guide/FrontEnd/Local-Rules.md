@@ -56,7 +56,7 @@ cd ..
 pnpm dev
 ```
 
-`shared` 또는 `m-mcm`의 `.env` 파일은 `.env.example`을 복사 후 환경에 맞게 수정한다. `pnpm dev`(또는 `./fe-run.sh`·`./local-run.sh`)가 떠 있는 동안에는 `shared`·`m-*` 라이브러리를 `tsup --watch` 가 저장 즉시 다시 빌드하고 포털(Next dev)이 받아 가므로 재실행할 필요가 없다(수 초, 필요하면 탭 새로고침). dev 를 띄우지 않은 상태에서 고쳤다면 해당 패키지를 `pnpm build` 한 뒤 띄운다. 포털은 shared `page-layout.css` 가 아니라 `m-mcm/app/page-layout.css` 사본을 쓰므로 shared CSS 를 고치면 사본도 같이 고친다.
+`shared` 또는 `m-mcm`의 `.env` 파일은 `.env.example`을 복사 후 환경에 맞게 수정한다. `pnpm dev`(또는 `./fe-run.sh`·`./local-run.sh`)가 떠 있는 동안에는 `shared`·`m-*` 라이브러리를 `scripts/lib-dev.mjs` 감시가 저장한 패키지만 다시 빌드하고 포털(Next dev)이 받아 가므로 재실행할 필요가 없다(수 초, 필요하면 탭 새로고침). 뜰 때도 지난 빌드 이후 소스가 바뀐 패키지만 빌드하므로(지문: `<pkg>/node_modules/.cache/lib-dev-stamp.json`), dev 를 띄우지 않은 상태에서 고쳤어도 따로 `pnpm build` 할 필요가 없다. 빌드 결과가 의심스러우면 그 지문 파일을 지우고 다시 띄운다. 포털은 shared `page-layout.css` 가 아니라 `m-mcm/app/page-layout.css` 사본을 쓰므로 shared CSS 를 고치면 사본도 같이 고친다.
 
 ## 4. UI 검증 원칙
 

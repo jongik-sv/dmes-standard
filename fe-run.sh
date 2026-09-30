@@ -4,7 +4,7 @@
 # 사용법:
 #   ./fe-run.sh              # .run.env 의 FE_RUN_ARGS 사용 (기본 --all)
 #   ./fe-run.sh --all        # pnpm install → 화면 라이브러리 전체 build → 전체 dev
-#   ./fe-run.sh --all -q     # 설치/빌드 건너뛰고 전체 dev 만 (dist 가 이미 있을 때)
+#   ./fe-run.sh --all -q     # 설치 건너뛰고 소스가 바뀐 라이브러리만 build → 전체 dev
 #   ./fe-run.sh --mpn -q     # MPN 만 (shared + m-mpn watch + mcm portal)
 #   ./fe-run.sh --mpn --build # shared/m-mpn build → shared/m-mpn/mcm dev
 #   ./fe-run.sh --install    # pnpm install 먼저 실행
@@ -12,6 +12,9 @@
 #   ./fe-run.sh --no-install # pnpm install 건너뜀
 #   ./fe-run.sh --no-build   # pnpm install + build 모두 건너뛰고 바로 dev
 #   ./fe-run.sh -q           # quick dev (--no-build 와 동일)
+#
+# 라이브러리 build·watch 는 src/frontend/scripts/lib-dev.mjs 가 맡는다 — 소스가 그대로인 패키지는
+# 뜰 때 빌드하지 않고, watch 도 저장해서 바뀐 패키지만 다시 빌드한다.
 #
 # 종료: Ctrl+C 로 자식 프로세스(pnpm/node) 일괄 정리.
 
@@ -371,21 +374,21 @@ if [ "$DO_CLEAN" = "1" ]; then
   fi
 fi
 
+# 화면 라이브러리(dist)만 빌드한다. m-mcm 은 next dev 가 직접 컴파일하므로
+# 여기서 next build 까지 돌릴 이유가 없다(느리고, 프로덕션 빌드는 별도 관심사다).
+# scripts/lib-dev.mjs 가 빌드 지문을 남겨 두므로, 뒤이어 뜨는 watch 는 첫 빌드를 건너뛴다.
+# -q 면 소스가 바뀐 패키지만 빌드한다(shared 먼저 — 소비 패키지 .d.ts 가 최신 shared 타입을 보도록).
+case "$DEV_SCOPE" in
+  mpn) LIB_PKGS=(shared m-mpn) ;;
+  mdm) LIB_PKGS=(shared m-mdm) ;;
+  *)   LIB_PKGS=(shared m-mpn m-mpp m-mqc m-mls m-mdm m-analog) ;;
+esac
 if [ "$DO_BUILD" = "1" ]; then
-  if [ "$DEV_SCOPE" = "mpn" ]; then
-    dev_log_print "fe" "MPN 범위 빌드 실행 (shared + m-mpn)"
-    ( cd "$FRONTEND_DIR" && dev_log_run pnpm --filter @dk-oasis/shared build ) || { dev_log_error "shared build 실패"; exit 1; }
-    ( cd "$FRONTEND_DIR" && dev_log_run pnpm --filter @dk-oasis/m-mpn build ) || { dev_log_error "m-mpn build 실패"; exit 1; }
-  elif [ "$DEV_SCOPE" = "mdm" ]; then
-    dev_log_print "fe" "MDM 범위 빌드 실행 (shared + m-mdm)"
-    ( cd "$FRONTEND_DIR" && dev_log_run pnpm --filter @dk-oasis/shared build ) || { dev_log_error "shared build 실패"; exit 1; }
-    ( cd "$FRONTEND_DIR" && dev_log_run pnpm --filter @dk-oasis/m-mdm build ) || { dev_log_error "m-mdm build 실패"; exit 1; }
-  else
-    # 화면 라이브러리(dist)만 빌드한다. m-mcm 은 next dev 가 직접 컴파일하므로
-    # 여기서 next build 까지 돌릴 이유가 없다(느리고, 프로덕션 빌드는 별도 관심사다).
-    dev_log_print "fe" "화면 라이브러리 전체 build 실행 (shared + m-mpn/m-mpp/m-mqc/m-mls/m-analog)"
-    ( cd "$FRONTEND_DIR" && dev_log_run pnpm build:libs ) || { dev_log_error "라이브러리 build 실패"; exit 1; }
-  fi
+  dev_log_print "fe" "화면 라이브러리 build 실행 (${LIB_PKGS[*]})"
+  ( cd "$FRONTEND_DIR" && dev_log_run node scripts/lib-dev.mjs build --force "${LIB_PKGS[@]}" ) || { dev_log_error "라이브러리 build 실패"; exit 1; }
+elif [ "$DEV_SCOPE" = "mpn" ] || [ "$DEV_SCOPE" = "mdm" ]; then
+  # 전체 범위는 루트 `pnpm dev` 가 같은 검사를 한다.
+  ( cd "$FRONTEND_DIR" && dev_log_run node scripts/lib-dev.mjs build "${LIB_PKGS[@]}" ) || { dev_log_error "라이브러리 build 실패"; exit 1; }
 fi
 
 # ── dev 서버 실행 ────────────────────────────────────────────
