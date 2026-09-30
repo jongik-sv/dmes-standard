@@ -145,12 +145,12 @@ public class RuleSetEditService {
         MdmRuleSet set = setRepository.findById(setId).orElseThrow(() -> notFound(setId));
         List<String> ruleIds = ruleIdsOf(set.getRuleIds());
         Map<String, RuleIo> io = ioReader.read(ruleIds);
-        FlowDefinition flow = set.getFlowJson() == null ? null : RuleSetFlowJson.parse(set.getFlowJson());
+        FlowDefinition flow = storedFlow(setId, set.getFlowJson());
         List<RuleSetCheck> checks = flowChecks(ruleIds, io, flow);
         boolean steward = stewardCheck.isSteward();
         RuleSetViewResult.Header header = new RuleSetViewResult.Header(set.getMaruRuleSetId(), set.getMaruRuleSetName(),
                 set.getDescription(), set.getStatus(), set.getRowVersion(), ruleIds,
-                set.getFlowJson() == null ? null : RuleSetFlowJson.toMap(set.getFlowJson()), flow != null && RuleSetFlowJson.branched(flow));
+                flow == null ? null : RuleSetFlowJson.toMap(set.getFlowJson()), flow != null && RuleSetFlowJson.branched(flow));
         return new RuleSetViewResult(header, List.copyOf(io.values()), checks,
                 steward && INUSE.equals(set.getStatus()), steward && DEPRECATED.equals(set.getStatus()),
                 flow == null ? Map.of() : ioReader.condIo(flow));
@@ -227,7 +227,7 @@ public class RuleSetEditService {
                 throw MdmErrors.of(MdmErrorCode.ROW_VERSION_CONFLICT);
             }
             List<String> ids = ruleIdsOf(state.ruleIds());
-            FlowDefinition flow = state.flowJson() == null ? null : RuleSetFlowJson.parse(state.flowJson());
+            FlowDefinition flow = storedFlow(setId, state.flowJson());
             List<RuleSetCheck> checks = flowChecks(ids, ioReader.read(ids), flow);
             rejectIfAny(checks);
             if (writes.restore(setId, rv) == 0) {
@@ -298,6 +298,22 @@ public class RuleSetEditService {
     /** 흐름이 있으면 흐름 기준, 없으면 목록 기준 검사. */
     private List<RuleSetCheck> flowChecks(List<String> ids, Map<String, RuleIo> io, FlowDefinition flow) {
         return flow == null ? RuleSetAnalyzer.checks(ids, io) : RuleSetAnalyzer.checks(flow, io, ioReader.condIo(flow));
+    }
+
+    /**
+     * 저장된 FLOW_JSON → 엔진 정의(없으면 null). 읽지 못하면 입력 오류가 아니라 저장값 손상이다 — MDM026, 문구에 세트 ID(Ruling 5, P-D9).
+     * 저장값은 코덱이 정규화해 쓴 것이라 parse 가 통과하면 toMap 도 통과한다.
+     */
+    private static FlowDefinition storedFlow(String setId, String flowJson) {
+        if (flowJson == null) {
+            return null;
+        }
+        try {
+            return RuleSetFlowJson.parse(flowJson);
+        } catch (IllegalArgumentException e) {
+            throw MdmErrors.of(MdmErrorCode.STORED_DEFINITION_CORRUPT, "룰 세트 " + setId + " 의 저장된 흐름을 읽을 수 없습니다 — " + e.getMessage(),
+                    List.of());
+        }
     }
 
     /** 요청 흐름 → 엔진 정의. 형식 오류는 MDM021(I13). */

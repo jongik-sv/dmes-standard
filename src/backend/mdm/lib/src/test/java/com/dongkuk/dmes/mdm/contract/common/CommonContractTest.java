@@ -43,9 +43,9 @@ class CommonContractTest {
             assertTrue(codes.add(code.code()), code + " 코드 중복: " + code.code());
             assertNotNull(code.transport(), code + " 운반용 cactus ErrorCode");
             assertTrue(code.defaultMessage() != null && !code.defaultMessage().isBlank(), code + " 기본 메시지");
-            assertTrue(Set.of(400, 403, 409).contains(code.httpStatus()), code + " 의미 HTTP 상태");
+            assertTrue(Set.of(400, 403, 409, 500).contains(code.httpStatus()), code + " 의미 HTTP 상태");
         }
-        assertEquals(25, MdmErrorCode.values().length);
+        assertEquals(26, MdmErrorCode.values().length);
     }
 
     @Test
@@ -105,6 +105,13 @@ class CommonContractTest {
         // TSK-08-06 design.md D8 — 룰 세트 저장·되살리기 검사 거부(MDM024). 세부는 이슈 코드로 싣는다.
         assertCode(MdmErrorCode.RULE_SET_SAVE_REJECTED, "MDM024", 400,
                 com.dongkuk.dmes.cactus.common.ErrorCode.BUSINESS_ERROR, "룰 세트 저장 검사를 통과하지 못했습니다");
+    }
+
+    @Test
+    void 룰_세트_흐름도_2단계가_더한_저장값_손상_코드() {
+        // P-D9(spec §9.1-9) — 저장된 룰 정의(셀·AST·FLOW_JSON)를 읽지 못함. 입력 오류(MDM021)가 아니라 데이터 손상이라 의미 상태 500.
+        assertCode(MdmErrorCode.STORED_DEFINITION_CORRUPT, "MDM026", 500,
+                com.dongkuk.dmes.cactus.common.ErrorCode.BUSINESS_ERROR, "저장된 룰 정의를 읽을 수 없습니다");
     }
 
     private static void assertCode(MdmErrorCode code, String id, int status,

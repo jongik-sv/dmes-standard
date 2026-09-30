@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.common.rule.definition;
 
+import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetFlowJson;
@@ -18,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup;
 
@@ -28,9 +30,9 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup;
  * <p><b>스프링 빈이 아니다</b> — {@code MdmBusinessRuleMigrationTest} 가 {@code DefinitionLookup} 빈 0개를 요구한다. {@code RuleSetRunner} 가 호출마다
  * 만든다. 한 인스턴스 안에서 (룰, 판정 시각) 결과를 캐시한다. 컬럼 검증 정의는 이 조회기의 몫이 아니라 빈 값이다.
  *
- * <p>저장 데이터가 깨졌으면 판정하지 않고 던진다: 행 조립 실패는 {@code BusinessException}(MDM021), 저장된 AST 를 읽지 못하면
- * {@code IllegalStateException}(조립기), FLOW_JSON 을 읽지 못하면 {@code IllegalArgumentException}(코덱). OASIS 입구
- * {@code RuleSetRunner#execute} 가 뒤의 둘을 업무 예외로 감싼다.
+ * <p>저장 데이터가 깨졌으면 판정하지 않고 {@link StoredDefinitionException} 을 던진다(P-D9, spec §9.1-9). 원인은 행 셀 읽기·행 조립 실패
+ * {@code BusinessException}(MDM021), 저장된 AST 읽기 실패 {@code IllegalStateException}(조립기), FLOW_JSON·RULE_IDS 읽기 실패
+ * {@code IllegalArgumentException}(코덱)이다. 감싸는 범위는 저장값 읽기뿐이다 — 엔진 호출은 감싸지 않는다. OASIS 입구가 이 예외만 MDM026 으로 바꾼다.
  */
 public final class StoredDefinitionLookup implements DefinitionLookup {
 
@@ -62,6 +64,15 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
         return sets.findById(setId).map(StoredDefinitionLookup::toDefinition);
     }
 
+    /** 저장값 읽기 — 저장된 값이 깨져 난 예외를 {@link StoredDefinitionException} 으로 감싼다(메시지는 원인 그대로). */
+    private static <T> T readStored(Supplier<T> read) {
+        try {
+            return read.get();
+        } catch (IllegalArgumentException | IllegalStateException | BusinessException e) {
+            throw new StoredDefinitionException(e.getMessage(), e);
+        }
+    }
+
     private Optional<RuleDefinition> load(String ruleId, Instant evalTs) {
         MdmRule rule = rules.findById(ruleId).orElse(null);
         if (rule == null) {
@@ -69,7 +80,7 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
         }
         LocalDateTime now = LocalDateTime.ofInstant(evalTs, MdmClockConfig.KST);
         Optional<MdmRuleVer> ver = RuleVersions.currentReleased(queries.versions(ruleId), now);
-        return ver.flatMap(v -> stored.read(ruleId, v.getVer())).map(s -> definition(ruleId, rule.getRuleKind(), s));
+        return ver.flatMap(v -> readStored(() -> stored.read(ruleId, v.getVer()).map(s -> definition(ruleId, rule.getRuleKind(), s))));
     }
 
     /**
@@ -88,8 +99,8 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
     }
 
     private static RuleSetDefinition toDefinition(MdmRuleSet s) {
-        List<String> ids = DomainJson.readList(s.getRuleIds()).stream().map(String::valueOf).toList();
+        List<String> ids = readStored(() -> DomainJson.readList(s.getRuleIds()).stream().map(String::valueOf).toList());
         return new RuleSetDefinition(s.getMaruRuleSetId(), ids, SetStatus.valueOf(s.getStatus()),
-                s.getFlowJson() == null ? null : RuleSetFlowJson.parse(s.getFlowJson()));
+                s.getFlowJson() == null ? null : readStored(() -> RuleSetFlowJson.parse(s.getFlowJson())));
     }
 }

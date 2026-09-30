@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mdm.common.rule;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
+import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionException;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionLookup;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredRuleDefinitions;
 import com.dongkuk.dmes.mdm.common.rule.dto.RuleSetRunRequest;
@@ -49,7 +50,7 @@ import org.springframework.stereotype.Service;
  *
  * <p>OASIS BPMN 은 {@code camunda:class="ruleSetRunner"} + {@code method=execute} serviceTask 하나로 부른다. 판정 오류는 {@link #run} 에서
  * {@link EngineEvaluationException} 으로 올라가고, {@link #execute} 는 {@link RuleErrorText} 문구(룰이 있으면 앞에 {@code [ruleId] })로 바꾼
- * 업무 예외를 던진다. 저장 데이터 손상(행 조립 실패·FLOW_JSON·AST 읽기 실패)도 {@link #execute} 에서는 업무 예외다.
+ * 업무 예외를 던진다. 저장 데이터 손상(행 조립 실패·FLOW_JSON·AST 읽기 실패, {@link StoredDefinitionException})은 {@link #execute} 에서 MDM026 이다.
  * {@code @Transactional} 을 붙이지 않는다 — OASIS 파라미터 이름 바인딩이 깨진다(읽기만 한다).
  */
 @Service("ruleSetRunner")
@@ -88,15 +89,19 @@ public class RuleSetRunner {
     }
 
     /**
-     * 화면이 보낸 흐름(저장 전 포함)을 기록 실행한다. 흐름·판정 오류로는 던지지 않는다 — 오류는 기록에 담긴다. 흐름 맵이 null 이거나 모양이 깨져
-     * 읽지 못하면 노드 없는 기록({@code nodes=[]}, {@code finalValues={}})에 {@code SET_CHECK/FLOW_INVALID} 위반 한 건을 담는다. 저장된 룰 정의 자체가
-     * 깨진 경우(행 조립 실패 {@code BusinessException}, AST 읽기 실패 {@code IllegalStateException})는 기록 대상이 아니라 그대로 올라간다.
+     * 화면이 보낸 흐름 JSON(저장 전 포함)을 기록 실행한다. 흐름·판정 오류로는 던지지 않는다 — 오류는 기록에 담긴다. 흐름 JSON 이 null 이거나 코덱이
+     * 읽지 못하면({@link RuleSetFlowJson#parse}) 노드 없는 기록({@code nodes=[]}, {@code finalValues={}})에 {@code SET_CHECK/FLOW_INVALID} 위반 한 건을
+     * 담는다. 레코드가 null 이면 {@code REQUIRED_VALUE}. 저장된 룰 정의 자체가 깨진 경우는 기록 대상이 아니라 {@link StoredDefinitionException} 으로
+     * 올라간다(P-D9). 판정 시각이 null 이면 서비스 시계.
      */
-    public RunTrace trace(Map<String, Object> flow, Map<String, Object> record, Instant evalTs) {
+    public RunTrace trace(String flowJson, Map<String, Object> record, Instant evalTs) {
+        if (record == null) {
+            throw new BusinessException(ErrorCode.REQUIRED_VALUE, "레코드는 필수입니다.");
+        }
         Instant ts = ts(evalTs);
         FlowDefinition def;
         try {
-            def = RuleSetFlowJson.fromMap(flow);
+            def = RuleSetFlowJson.parse(flowJson);
         } catch (IllegalArgumentException e) {
             return new RunTrace(UNSAVED, ts, Collections.unmodifiableMap(new LinkedHashMap<>(record)), List.of(), Map.of(),
                     List.of(new Violation(Stage.SET_CHECK, Code.FLOW_INVALID, null, null, null, "흐름을 읽을 수 없다: " + e.getMessage())));
@@ -124,9 +129,9 @@ public class RuleSetRunner {
                     .map(v -> (v.ruleId() == null ? "" : "[" + v.ruleId() + "] ")
                             + RuleErrorText.describe(v.stage().name(), v.code().name(), v.rowId(), v.name(), v.message()))
                     .collect(Collectors.joining("; ")));
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            // 저장된 FLOW_JSON(코덱)·AST(조립기)를 읽지 못함 — 데이터 손상. 날것으로 내보내지 않고 업무 예외로 감싼다.
-            throw MdmErrors.of(MdmErrorCode.INVALID_INPUT, "룰 세트 " + request.getSetId() + " 의 저장된 정의를 읽을 수 없어 판정하지 않습니다 — "
+        } catch (StoredDefinitionException e) {
+            // 저장된 행·FLOW_JSON(코덱)·AST(조립기)를 읽지 못함 — 데이터 손상(P-D9). 엔진 안의 IAE·ISE 는 여기서 잡지 않는다.
+            throw MdmErrors.of(MdmErrorCode.STORED_DEFINITION_CORRUPT, "룰 세트 " + request.getSetId() + " 의 저장된 정의를 읽을 수 없어 판정하지 않습니다 — "
                     + e.getMessage(), List.of());
         }
         RuleSetRunResult out = new RuleSetRunResult();
