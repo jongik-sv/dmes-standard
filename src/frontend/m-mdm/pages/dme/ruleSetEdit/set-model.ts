@@ -318,6 +318,7 @@ function pathChecks(tree: FlowTree, rules: RuleIoMap, condIo: CondIoMap, out: Ru
     for (const b of seq.items) {
       if (b.type === "RULE") rule(b, s);
       else if (b.type === "SEQ") walk(b, s);
+      else if (b.type === "TASK") continue; // 빈 단계 — 읽거나 만드는 이름이 없다(4단계 spec §1.1)
       else {
         if (b.kind === "IF") for (const br of b.branches) if (!br.otherwise) cond(b.nodeId, br.edgeId, s);
         const ends = b.branches.map((br) => {

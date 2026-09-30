@@ -91,7 +91,7 @@ function scopePaths(flow: RuleSetFlow): { paths: Map<string, ScopePath>; branchE
   if (!tree) return { paths, branchEdges };
   const walk = (s: Seq, path: ScopePath) => {
     for (const b of s.items) {
-      if (b.type === "RULE") paths.set(b.nodeId, path);
+      if (b.type === "RULE" || b.type === "TASK") paths.set(b.nodeId, path);
       else if (b.type === "SEQ") walk(b, path);
       else {
         paths.set(b.nodeId, path);

@@ -41,7 +41,12 @@ public class EngineEvaluationException extends RuntimeException {
         /** IF 갈래 조건식이 불린이 아니거나 평가에 실패했다. */
         BRANCH_EVAL_ERROR,
         /** 세트 흐름이 구조 검사를 통과하지 못했다(plan D5). */
-        FLOW_INVALID
+        FLOW_INVALID,
+        /**
+         * 디버거에서 고친 값(4단계 spec §2.2)의 자리가 실행 순서와 어긋났거나(그 순번 노드 ID 가 다르다), 실행이 오류 없이 끝났는데 쓰이지 않은
+         * 고친 값이 남았다. 단계는 늘 {@link Stage#INPUT_CHECK} 이다.
+         */
+        EDIT_POINT_MISMATCH
     }
 
     /**

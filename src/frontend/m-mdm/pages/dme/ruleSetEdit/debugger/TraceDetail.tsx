@@ -23,6 +23,7 @@ const KIND_TEXT: Record<NodeTrace["kind"], string> = {
   START: "시작",
   END: "끝",
   RULE: "룰",
+  TASK: "빈 단계",
   IF: "IF 분기",
   PARALLEL: "병렬 분기",
   MERGE: "합류",

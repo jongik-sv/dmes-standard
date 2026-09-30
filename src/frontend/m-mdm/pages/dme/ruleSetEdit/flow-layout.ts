@@ -12,6 +12,7 @@ export const NODE_SIZE: Readonly<Record<FlowNodeKind, { w: number; h: number }>>
   START: { w: 120, h: 36 },
   END: { w: 120, h: 36 },
   RULE: { w: 232, h: 68 },
+  TASK: { w: 200, h: 44 }, // SEAM(T9): 빈 단계 노드 크기·모양은 Task 9 가 정한다(점선 테두리·제목만, 4단계 spec §1.2)
   IF: { w: 176, h: 44 },
   PARALLEL: { w: 200, h: 14 },
   MERGE: { w: 28, h: 28 },

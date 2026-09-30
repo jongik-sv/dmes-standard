@@ -159,7 +159,8 @@ export type ErrorCode =
   | "ANY_CONFLICT"
   | "EVALUATION_ERROR"
   | "BRANCH_EVAL_ERROR"
-  | "FLOW_INVALID";
+  | "FLOW_INVALID"
+  | "EDIT_POINT_MISMATCH";
 /**
  * This interface was referenced by `EngineContract`'s JSON-Schema
  * via the `definition` "CorpusCase".
@@ -203,12 +204,12 @@ export type Expect =
  */
 export type EngineWarningCode = "EXPR_CELL_NULL" | "GRP_COND_NULL" | "BRANCH_COND_NULL";
 /**
- * 흐름 노드 종류(Java DefinitionLookup.NodeKind).
+ * 흐름 노드 종류(Java DefinitionLookup.NodeKind). TASK = 빈 단계(4단계 spec §1.1).
  *
  * This interface was referenced by `EngineContract`'s JSON-Schema
  * via the `definition` "FlowNodeKind".
  */
-export type FlowNodeKind = "START" | "END" | "RULE" | "IF" | "PARALLEL" | "MERGE";
+export type FlowNodeKind = "START" | "END" | "RULE" | "TASK" | "IF" | "PARALLEL" | "MERGE";
 /**
  * 노드 실행 상태(Java RunTrace.NodeStatus).
  *
@@ -492,7 +493,7 @@ export interface PathStep {
   stepIndex: number | null;
 }
 /**
- * 룰 세트 실행 기록(Java RunTrace, 룰 세트 흐름도 spec §4.2). 판정 오류는 던지지 않고 violations 에 담는다. 실행 전 오류면 nodes 가 비었다.
+ * 룰 세트 실행 기록(Java RunTrace, 룰 세트 흐름도 spec §4.2). 판정 오류는 던지지 않고 violations 에 담는다. 실행 전 오류면 nodes 가 비었다. edits 는 디버거에서 고친 값을 끼워 다시 실행했을 때만 있고(4단계 spec §2.3), 없으면 키를 뺀다.
  *
  * This interface was referenced by `EngineContract`'s JSON-Schema
  * via the `definition` "RunTrace".
@@ -508,9 +509,10 @@ export interface RunTrace {
     [k: string]: TypedValue;
   };
   violations: Violation[] | null;
+  edits?: TraceEdit[];
 }
 /**
- * 노드 하나의 기록(Java RunTrace.NodeTrace). RULE: ruleId·ver·reads·result, IF: branches·chosenEdgeId, PARALLEL: order, MERGE: splitId·merged, ERROR: violations. result 는 OK 인 RULE 노드에만 있고, 값이 없으면 키를 뺀다(null 을 쓰지 않는다).
+ * 노드 하나의 기록(Java RunTrace.NodeTrace). RULE: ruleId·ver·reads·result, IF: branches·chosenEdgeId, PARALLEL: order, MERGE: splitId·merged, TASK: 칸 없이 status 만, ERROR: violations. result 는 OK 인 RULE 노드에만 있고, 값이 없으면 키를 뺀다(null 을 쓰지 않는다).
  *
  * This interface was referenced by `EngineContract`'s JSON-Schema
  * via the `definition` "NodeTrace".
@@ -559,6 +561,19 @@ export interface Violation {
   message: string;
 }
 /**
+ * 디버거에서 고친 값 하나(Java RunTrace.TraceEdit, 4단계 spec §2.2). beforeSeq 번째 노드(1부터, NodeTrace.seq 와 같은 수)를 시작하기 직전에 그 노드 범위의 ctx 에 values 를 넣는다. NULL 은 비우기, ctx 에 없던 이름은 추가다.
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "TraceEdit".
+ */
+export interface TraceEdit {
+  beforeSeq: number;
+  nodeId: string;
+  values: {
+    [k: string]: TypedValue;
+  };
+}
+/**
  * 룰 세트 흐름 정의(Java DefinitionLookup.FlowDefinition, spec §3.3). TB_MDM_RULE_SET.FLOW_JSON 의 nodes·edges 이고 화면 전용 view 는 여기 없다.
  *
  * This interface was referenced by `EngineContract`'s JSON-Schema
@@ -570,7 +585,7 @@ export interface RuleSetFlow {
   edges: FlowEdge[];
 }
 /**
- * 흐름 노드(Java DefinitionLookup.FlowNode). ruleId 는 RULE 만, splitId 는 MERGE 만 쓴다.
+ * 흐름 노드(Java DefinitionLookup.FlowNode). ruleId 는 RULE 만, splitId 는 MERGE 만 쓴다. TASK(빈 단계)는 label 만 쓰고 실행 때 그냥 지나간다.
  *
  * This interface was referenced by `EngineContract`'s JSON-Schema
  * via the `definition` "FlowNode".

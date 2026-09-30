@@ -224,4 +224,13 @@ class RuleSetTraceTest {
         RunTrace t = trace(ifFlow("X > 10"), rec("X", new BigDecimal("20")));
         assertEquals(List.of(), t.nodes().stream().filter(n -> n.status() != NodeStatus.OK).toList());
     }
+
+    @Test
+    void 고친_값이_없는_4인자_기록은_3인자와_같고_edits_는_null() {
+        RuleSetDefinition set = new RuleSetDefinition("DRAFT", List.of(), SetStatus.INUSE, ifFlow("X > 10"));
+        RunTrace three = engine.traceSet(set, rec("X", new BigDecimal("20")), SampleRules.EVAL_TS);
+        RunTrace four = engine.traceSet(set, rec("X", new BigDecimal("20")), SampleRules.EVAL_TS, List.of());
+        assertEquals(three, four);
+        assertNull(four.edits());
+    }
 }

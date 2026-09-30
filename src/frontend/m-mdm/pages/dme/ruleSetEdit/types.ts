@@ -73,7 +73,9 @@ export type RuleSetCheckCode =
   | "PAR_SIBLING"
   | "FLOW_PARTIAL"
   | "FLOW_READONLY"
-  | "COND_UNTYPED";
+  | "COND_UNTYPED"
+  /** 흐름에 빈 단계(TASK)가 있다(WARN, 4단계 spec §1.1). 서버 `RuleSetAnalyzer`·화면 `set-model.ts` 가 내는 것은 Task 3. */
+  | "EMPTY_TASK";
 
 /**
  * 저장 시 검사 한 건(§6.3, 계획 C4). 없는 칸은 null — EMPTY 는 ruleId 도 null, 1단계는 otherRuleId·varName 이 null.

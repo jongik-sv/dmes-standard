@@ -33,6 +33,13 @@ public interface RuleEngine {
      */
     RunTrace traceSet(RuleSetDefinition set, Map<String, Object> record, Instant evalTs);
 
+    /**
+     * 고친 값을 끼워 처음부터 다시 실행한 기록(4단계 spec §2.2, E4). {@code edits} 가 비면 3인자와 같다. 받은 고친 값은 {@link RunTrace#edits}
+     * 로 되돌려 준다(비었으면 null). 고친 값 자리가 어긋나거나, 실행이 오류 없이 끝났는데 쓰이지 않은 고친 값이 남으면 {@code EDIT_POINT_MISMATCH}
+     * 위반을 기록에 담는다. 운영 경로({@link #evaluateSet})는 고친 값을 받지 않는다.
+     */
+    RunTrace traceSet(RuleSetDefinition set, Map<String, Object> record, Instant evalTs, List<RunTrace.TraceEdit> edits);
+
     /** 정의 조회(06:480). 계산하지 않고 스냅샷의 것을 꺼낸다. */
     RuleView view(String ruleId, Instant evalTs, EnumSet<Part> parts);
 

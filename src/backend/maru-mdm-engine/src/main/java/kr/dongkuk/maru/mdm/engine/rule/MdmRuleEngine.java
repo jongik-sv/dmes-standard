@@ -82,24 +82,34 @@ public final class MdmRuleEngine implements RuleEngine {
 
     @Override
     public RunTrace traceSet(RuleSetDefinition set, Map<String, Object> record, Instant evalTs) {
+        return traceSet(set, record, evalTs, List.of());
+    }
+
+    @Override
+    public RunTrace traceSet(RuleSetDefinition set, Map<String, Object> record, Instant evalTs, List<RunTrace.TraceEdit> edits) {
         Objects.requireNonNull(set, "set");
         Objects.requireNonNull(record, "record");
+        Objects.requireNonNull(edits, "edits");
+        if (!edits.isEmpty()) {
+            // SEAM(T2): Task 2 가 FlowRun 에 고친 값을 넘기고 이 거부를 지운다.
+            throw new UnsupportedOperationException("고친 값으로 다시 실행하기는 아직 없다");
+        }
         Instant ts = truncate(evalTs);
         Map<String, Object> input = Collections.unmodifiableMap(new LinkedHashMap<>(record));
         Prepared p;
         try {
             p = prepare(set, record, ts);
         } catch (EngineEvaluationException e) {
-            return new RunTrace(set.setId(), ts, input, List.of(), Map.of(), e.violations());
+            return new RunTrace(set.setId(), ts, input, List.of(), Map.of(), e.violations(), null);
         }
         FlowRun run = new FlowRun(evaluator, runner, p.tree, p.defs, p.keys, record, ts, true);
         try {
             run.run();
-            return new RunTrace(set.setId(), ts, input, List.copyOf(run.nodes), Collections.unmodifiableMap(run.finalValues), null);
+            return new RunTrace(set.setId(), ts, input, List.copyOf(run.nodes), Collections.unmodifiableMap(run.finalValues), null, null);
         } catch (EngineEvaluationException e) {
             run.nodes.add(run.failed(e.violations()));
             return new RunTrace(set.setId(), ts, input, List.copyOf(run.nodes), Collections.unmodifiableMap(run.finalValues),
-                    e.violations());
+                    e.violations(), null);
         }
     }
 

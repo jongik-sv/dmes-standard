@@ -104,7 +104,7 @@ public class RuleSetRunner {
             def = RuleSetFlowJson.parse(flowJson);
         } catch (IllegalArgumentException e) {
             return new RunTrace(UNSAVED, ts, Collections.unmodifiableMap(new LinkedHashMap<>(record)), List.of(), Map.of(),
-                    List.of(new Violation(Stage.SET_CHECK, Code.FLOW_INVALID, null, null, null, "흐름을 읽을 수 없다: " + e.getMessage())));
+                    List.of(new Violation(Stage.SET_CHECK, Code.FLOW_INVALID, null, null, null, "흐름을 읽을 수 없다: " + e.getMessage())), null);
         }
         RuleSetDefinition set = new RuleSetDefinition(UNSAVED, RuleSetFlowJson.ruleIds(def), SetStatus.INUSE, def);
         return engine().traceSet(set, record, ts);
