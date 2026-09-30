@@ -160,34 +160,48 @@ function mergeOf(f: EditFlow, splitId: string): FlowNode | null {
   return ms.length === 1 ? ms[0] : null;
 }
 
-/** from 들에서 나가는 선을 따라 stop 직전까지 닿는 노드 ID. START·END 에 닿으면 블록이 닫히지 않은 것이라 null. */
-function reach(f: EditFlow, from: readonly string[], stop: string): Set<string> | null {
+/**
+ * from 들에서 나가는 선을 따라 stop(짝 합류) 직전까지 닿는 노드 ID. 모은 집합이 닫힌 블록이 아니면 null.
+ * - 나가는 쪽: START·END·없는 노드·분기 자신에 닿으면 null(뒤 선으로 앞쪽이나 분기로 돌아가는 순환 포함).
+ * - 들어오는 쪽: 모은 노드마다 들어오는 선이 입구 선(entry)이거나 모은 집합 안에서 와야 한다. 블록 밖에서 들어오는 선이
+ *   있으면 null — 그 노드를 지우면 블록 밖 흐름까지 끊기기 때문이다.
+ */
+function reach(f: EditFlow, from: readonly string[], stop: string, splitId: string, entry: (e: FlowEdge) => boolean): Set<string> | null {
   const seen = new Set<string>();
   const queue = [...from];
   while (queue.length > 0) {
     const id = queue.shift()!;
     if (id === stop || seen.has(id)) continue;
+    if (id === splitId) return null;
     const n = findNode(f, id);
     if (!n || n.kind === "START" || n.kind === "END") return null;
     seen.add(id);
     for (const e of outOf(f, id)) queue.push(e.to);
   }
+  for (const id of seen) {
+    if (!inOf(f, id).every((e) => entry(e) || seen.has(e.from))) return null;
+  }
   return seen;
 }
 
-/** 분기 안(합류 제외) 노드 집합 — 분기의 나가는 선들에서 합류 직전까지. */
+/** 분기 안(합류 제외) 노드 집합 — 분기의 나가는 선들에서 합류 직전까지. 합류로 들어오는 선도 분기·안쪽에서만 와야 한다. */
 function blockNodes(f: EditFlow, splitId: string, mergeId: string): Set<string> | null {
-  return reach(
+  const fromSplit = (e: FlowEdge) => e.from === splitId;
+  const inner = reach(
     f,
     outOf(f, splitId).map((e) => e.to),
     mergeId,
+    splitId,
+    fromSplit,
   );
+  if (!inner) return null;
+  return inOf(f, mergeId).every((e) => fromSplit(e) || inner.has(e.from)) ? inner : null;
 }
 
-/** 갈래 선 하나의 안쪽 노드 집합(e.to 에서 합류 전까지). */
-function branchNodes(f: EditFlow, edgeId: string, mergeId: string): Set<string> | null {
+/** 갈래 선 하나의 안쪽 노드 집합(e.to 에서 합류 전까지). 안쪽 노드로는 그 갈래 선과 안쪽 선만 들어와야 한다. */
+function branchNodes(f: EditFlow, splitId: string, edgeId: string, mergeId: string): Set<string> | null {
   const e = findEdge(f, edgeId);
-  return e ? reach(f, [e.to], mergeId) : null;
+  return e ? reach(f, [e.to], mergeId, splitId, (x) => x.id === edgeId) : null;
 }
 
 /** 노드들을 지우고, 닿는 선을 모두 지우고, view 흔적(배치·그룹·메모 붙임)을 치운다. f 는 복사본이다. */
@@ -345,7 +359,7 @@ export function removeBranch(f: EditFlow, splitId: string, edgeId: string): Edit
   if (typeof e === "string") return fail(e);
   if (e.otherwise) return fail('"그 외" 갈래는 지울 수 없다');
   if (outOf(g, splitId).length - 1 < 2) return fail("분기에는 갈래가 2개 이상 있어야 한다");
-  const inner = branchNodes(g, edgeId, sm.merge.id);
+  const inner = branchNodes(g, splitId, edgeId, sm.merge.id);
   if (!inner) return fail(`분기 ${splitId}의 짝 합류를 찾지 못해 지울 수 없다`);
   g.edges = g.edges.filter((x) => x !== e);
   return done(dropNodes(g, inner));

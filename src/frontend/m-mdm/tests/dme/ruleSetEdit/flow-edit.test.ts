@@ -246,4 +246,31 @@ describe("flow-edit 보강", () => {
     expect(removeGroup(u, "g1").view.groups).toEqual([]);
     expect(addGroup(base, ["start", "end"], "빈")).toEqual({ ok: false, reason: "그룹에 넣을 노드를 고른다" });
   });
+  it("뒤 선으로 앞쪽 노드에 닿는 분기는 지우지 않는다(리뷰 Important 1 사례 A)", () => {
+    let f = ok(insertSplit(base, "e2", "IF"));
+    f = ok(insertRule(f, "e3", "R_B"));
+    f = ok(connect(f, "r2", "r1"));
+    const before = flowJsonOf(f);
+    expect(removeNode(f, "if1")).toEqual({ ok: false, reason: "분기 if1의 짝 합류를 찾지 못해 지울 수 없다" });
+    expect(flowJsonOf(f)).toBe(before);
+  });
+
+  it("뒤 선으로 분기 자신에 닿는 갈래는 지우지 않는다(리뷰 Important 1 사례 B)", () => {
+    let f = ok(insertSplit(base, "e2", "PARALLEL"));
+    f = ok(insertRule(f, "e3", "R_B"));
+    f = ok(addBranch(f, "par1"));
+    f = ok(connect(f, "r2", "par1"));
+    expect(removeBranch(f, "par1", "e3")).toEqual({ ok: false, reason: "분기 par1의 짝 합류를 찾지 못해 지울 수 없다" });
+  });
+
+  it("블록 밖에서 안쪽 노드나 합류로 들어오는 선이 있으면 분기를 지우지 않는다", () => {
+    let f = ok(insertSplit(base, "e2", "IF"));
+    f = ok(insertRule(f, "e3", "R_B"));
+    expect(removeNode(ok(connect(f, "start", "r2")), "if1")).toEqual({ ok: false, reason: "분기 if1의 짝 합류를 찾지 못해 지울 수 없다" });
+    expect(removeNode(ok(connect(f, "r1", "m1")), "if1")).toEqual({ ok: false, reason: "분기 if1의 짝 합류를 찾지 못해 지울 수 없다" });
+    const p = ok(addBranch(ok(insertRule(ok(insertSplit(base, "e2", "PARALLEL")), "e3", "R_B")), "par1"));
+    const other = p.edges.find((e) => e.from === "par1" && e.order === 2)!;
+    const crossed = { ...p, edges: p.edges.map((e) => (e.id === other.id ? { ...e, to: "r2" } : e)) };
+    expect(removeBranch(crossed, "par1", "e3")).toEqual({ ok: false, reason: "분기 par1의 짝 합류를 찾지 못해 지울 수 없다" });
+  });
 });
