@@ -20,11 +20,13 @@ import type { RuleSetFlow, TypedValue } from "@/contract/engine-contract.generat
 
 import type { FlowNote, FlowPos, EditFlow } from "../flow-edit";
 import { NODE_SIZE, positionsOf } from "../flow-layout";
+import { typedText } from "../trace-view";
 import { blockDragPositions, dropTargetAt, edgeChips, edgeMarks, nodeMarks, resolveNodeDrop } from "../flow-vars";
 import type { FlowMode } from "../state/useRuleSetEdit";
 import type { RuleIoMap, RuleSetCheck } from "../types";
+import { collapseView } from "./collapse";
 import type { MenuTarget } from "./context-menu";
-import { GroupNodeData, NODE_TYPES, NoteNodeData, FlowNodeData, handlesOf } from "./nodes";
+import { GroupNodeData, NODE_TYPES, NoteNodeData, FlowNodeData, handlesOf, type CollapsedBlockInfo } from "./nodes";
 import type { EdgeState, Overlay } from "./overlay";
 import {
   BaseEdge,
@@ -208,6 +210,13 @@ function CondInput({ edgeId, initial }: { edgeId: string; initial: string }) {
   );
 }
 
+/** 변수 칩 툴팁(E3) — 값이 만들어졌으면 `이름 = 값`, 아직이면 `이름 · 아직 없음`. valueOf 가 없으면(디버그 모드가 아니거나 낡은 기록) 툴팁이 없다. */
+function chipTitle(name: string, valueOf: EdgeData["valueOf"]): string | undefined {
+  if (!valueOf) return undefined;
+  const v = valueOf(name);
+  return v === undefined ? `${name} · 아직 없음` : `${name} = ${typedText(v)}`;
+}
+
 function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
   const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, selected } = props;
   const [path, lx, ly] = getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 8 });
@@ -266,7 +275,7 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
           <div className="rsf-elabel" style={at(sourceX, sourceY + 20)}>
             <span className="rsf-vchips" data-testid={`flow-edge-chips-${id}`}>
               {chips.map((c) => (
-                <span key={c} className="rsf-vchip">
+                <span key={c} className="rsf-vchip" title={chipTitle(c, data?.valueOf)}>
                   {c}
                 </span>
               ))}
@@ -293,6 +302,23 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
 
 const EDGE_TYPES: EdgeTypes = { rsfFlow: FlowEdgeView };
 
+/**
+ * 접힌 분기 블록 요약(D16). `count` 는 분기·짝 합류를 뺀 안쪽 노드 수, `ran` 은 그 가운데 디버그/실행 기록에서 실행된 수(run·error),
+ * `error` 는 안쪽 또는 합류가 오류로 끝났는가. 겹침이 없으면 0·false.
+ */
+function blockInfo(flow: EditFlow, block: { count: number; members: string[] }, splitId: string, overlay: Overlay | null): CollapsedBlockInfo {
+  const mergeId = flow.nodes.find((n) => n.kind === "MERGE" && n.splitId === splitId)?.id;
+  let ran = 0;
+  let error = false;
+  for (const id of block.members) {
+    if (id === splitId) continue;
+    const st = overlay?.nodes[id]?.state;
+    if (st === "error") error = true;
+    if (id !== mergeId && (st === "run" || st === "error")) ran++;
+  }
+  return { count: block.count, ran, error };
+}
+
 /** 그룹 틀 — 멤버 위치의 바깥 상자 + 여백. 멤버가 하나도 없으면 null. */
 function groupBox(nodeIds: readonly string[], pos: Record<string, FlowPos>, kinds: Map<string, keyof typeof NODE_SIZE>) {
   let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
@@ -313,7 +339,7 @@ function groupBox(nodeIds: readonly string[], pos: Record<string, FlowPos>, kind
 function Inner(props: FlowCanvasProps) {
   const {
     flow, rules, checks, mode, showVars, selectedId, selectedEdgeId, overlay, focusId, focusSeq, focusReveal, fitSignal, fitKey,
-    breakpoints, showMiniMap, editingCondEdgeId,
+    breakpoints, collapsed, valueAt, showMiniMap, editingCondEdgeId,
     onSelect, onSelectEdge, onOpenRule, onMove, onMoveNode, onConnect, onDropPalette, onDropRule, onNoteChange, onContextMenu, onToggleBreakpoint,
     onEditCond, onEditCondClose, onSelectionChange,
   } = props;
@@ -346,11 +372,19 @@ function Inner(props: FlowCanvasProps) {
   // 부모가 새 흐름을 내려주면 끌던 중 위치는 버린다(부모 값이 정본).
   useEffect(() => setDrag({}), [flow]);
 
-  const pos = useMemo(() => ({ ...positionsOf(flow), ...drag }), [flow, drag]);
+  /** 접힌 분기를 반영한 표시 흐름(D16). 저장 흐름(`flow`)은 그대로다. */
+  const view = useMemo(() => collapseView(flow, collapsed), [flow, collapsed]);
+  const vflow = view.flow;
+  const pos = useMemo(() => ({ ...positionsOf(vflow), ...drag }), [vflow, drag]);
   const posRef = useRef(pos);
   posRef.current = pos;
-  const flowRef = useRef(flow);
-  flowRef.current = flow;
+  /** 끌기 대상 선 계산은 표시 흐름의 선만 본다. 블록을 통째로 옮기는 위치 계산은 원래 흐름(감춘 멤버 포함)으로 한다. */
+  const flowRef = useRef(vflow);
+  flowRef.current = vflow;
+  const fullRef = useRef(flow);
+  fullRef.current = flow;
+  const viewRef = useRef(view);
+  viewRef.current = view;
 
   const condActions = useMemo<CondEditActions>(() => {
     const close = () => {
@@ -370,11 +404,11 @@ function Inner(props: FlowCanvasProps) {
   }, [editable]);
   const marks = useMemo(() => nodeMarks(checks), [checks]);
   const eMarks = useMemo(() => edgeMarks(checks), [checks]);
-  const chips = useMemo(() => edgeChips(flow as RuleSetFlow, rules), [flow, rules]);
+  const chips = useMemo(() => edgeChips(vflow as RuleSetFlow, rules), [vflow, rules]);
 
   const nodes = useMemo(() => {
     const out: Node[] = [];
-    const kinds = new Map(flow.nodes.map((n) => [n.id, n.kind] as const));
+    const kinds = new Map(vflow.nodes.map((n) => [n.id, n.kind] as const));
     for (const g of flow.view.groups) {
       const b = groupBox(g.nodeIds, pos, kinds);
       if (!b) continue;
@@ -384,9 +418,10 @@ function Inner(props: FlowCanvasProps) {
         draggable: false, connectable: false, zIndex: -1, style: { pointerEvents: "none" },
       });
     }
-    for (const n of flow.nodes) {
+    for (const n of vflow.nodes) {
       const p = pos[n.id] ?? { x: 0, y: 0 };
-      const s = NODE_SIZE[n.kind];
+      const block = view.blocks[n.id];
+      const s = NODE_SIZE[block ? "RULE" : n.kind];
       const data: FlowNodeData = {
         node: n,
         io: n.ruleId ? rules[n.ruleId] : undefined,
@@ -397,11 +432,11 @@ function Inner(props: FlowCanvasProps) {
         onOpenRule,
         breakpoint: breakpoints.has(n.id),
         canBreak: debugging && BREAKABLE.has(n.kind),
-        collapsed: null, // SEAM(T11): 접힌 분기면 collapseView 의 블록 요약(count·ran·error)
+        collapsed: block ? blockInfo(flow, block, n.id, overlay) : null,
         onToggleBreakpoint,
       };
       out.push({
-        id: n.id, type: "rsfFlow", position: p, width: s.w, height: s.h, measured: measured[n.id], data, handles: handlesOf(n.kind), draggable: editable,
+        id: n.id, type: "rsfFlow", position: p, width: s.w, height: s.h, measured: measured[n.id], data, handles: handlesOf(block ? "RULE" : n.kind), draggable: editable,
         selected: rfSel.has(n.id),
       });
     }
@@ -413,13 +448,15 @@ function Inner(props: FlowCanvasProps) {
       });
     }
     return out;
-  }, [flow, pos, drag, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured]);
+  }, [flow, vflow, view, pos, drag, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured]);
 
   const edges = useMemo(() => {
-    const kindOf = new Map(flow.nodes.map((n) => [n.id, n.kind] as const));
-    return flow.edges.map<FlowRfEdge>((e) => {
-      const fromSplit = kindOf.get(e.from) === "IF" || kindOf.get(e.from) === "PARALLEL";
-      const condEditable = editable && kindOf.get(e.from) === "IF" && !e.otherwise;
+    const kindOf = new Map(vflow.nodes.map((n) => [n.id, n.kind] as const));
+    return vflow.edges.map<FlowRfEdge>((e) => {
+      // 접힌 분기에서 나가는 선은 합류에서 나가던 선이다 — 갈래 이름·조건식이 없다.
+      const folded = !!view.blocks[e.from];
+      const fromSplit = !folded && (kindOf.get(e.from) === "IF" || kindOf.get(e.from) === "PARALLEL");
+      const condEditable = editable && !folded && kindOf.get(e.from) === "IF" && !e.otherwise;
       // 조건 갈래는 이름(label)이 없어도 두 번 누를 자리가 있어야 한다(F10) — 대체 라벨 `갈래 {order}`.
       const label = fromSplit ? (e.label ?? (e.otherwise ? "그 외" : condEditable ? `갈래 ${e.order ?? ""}`.trim() : null)) : null;
       const data: EdgeData = {
@@ -428,7 +465,7 @@ function Inner(props: FlowCanvasProps) {
         insertable: editable,
         condEditable,
         editingCond: (editingCondEdgeId ?? condEdge) === e.id,
-        valueOf: undefined, // SEAM(T11): 디버그 모드 칩 툴팁(valueAt)
+        valueOf: debugging ? valueAt : undefined,
       };
       return {
         id: e.id, source: e.from, target: e.to, type: "rsfFlow", selected: selectedEdgeId === e.id,
@@ -436,7 +473,7 @@ function Inner(props: FlowCanvasProps) {
         data,
       };
     });
-  }, [flow, chips, overlay, eMarks, showVars, selectedEdgeId, editable, editingCondEdgeId, condEdge, dropEdge]);
+  }, [vflow, view, chips, overlay, eMarks, showVars, selectedEdgeId, editable, debugging, valueAt, editingCondEdgeId, condEdge, dropEdge]);
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     const dims = changes.filter((c): c is Extract<NodeChange, { type: "dimensions" }> => c.type === "dimensions" && !!c.dimensions);
@@ -473,15 +510,16 @@ function Inner(props: FlowCanvasProps) {
   }, []);
 
   /** 흐름 노드(룰·IF·병렬)만 선 위에 놓아 옮길 수 있다. */
-  const isMovable = (n: Node) => n.type === "rsfFlow" && ["RULE", "IF", "PARALLEL"].includes(flowRef.current.nodes.find((x) => x.id === n.id)?.kind ?? "");
+  const isMovable = (n: Node) =>
+    n.type === "rsfFlow" && !viewRef.current.blocks[n.id] && ["RULE", "IF", "PARALLEL"].includes(flowRef.current.nodes.find((x) => x.id === n.id)?.kind ?? "");
   const isSplit = (id: string) => ["IF", "PARALLEL"].includes(flowRef.current.nodes.find((x) => x.id === id)?.kind ?? "");
   /** 분기를 끄는 동안 블록 멤버가 같은 만큼 움직인 위치. 분기가 아니면 빈 맵. */
   const blockPositionsOf = (n: Node): Record<string, FlowPos> => {
     if (!isSplit(n.id)) return {};
-    const base = positionsOf(flowRef.current);
+    const base = positionsOf(fullRef.current);
     const from = base[n.id];
     if (!from) return {};
-    return blockDragPositions(flowRef.current, n.id, { x: n.position.x - from.x, y: n.position.y - from.y }, base);
+    return blockDragPositions(fullRef.current, n.id, { x: n.position.x - from.x, y: n.position.y - from.y }, base);
   };
 
   const onNodeDrag = useCallback((e: MouseEvent | TouchEvent, node: Node, dragged: Node[]) => {
@@ -564,17 +602,19 @@ function Inner(props: FlowCanvasProps) {
       setFlashId(null);
       return;
     }
-    const n = flow.nodes.find((x) => x.id === focusId);
-    const p = pos[focusId];
+    // 접힌 블록 안 노드면 펼치지 않고 그 노드를 품은 접힌 블록으로 옮긴다(D16).
+    const target = view.hidden.has(focusId) ? (Object.keys(view.blocks).find((id) => view.blocks[id].members.includes(focusId)) ?? focusId) : focusId;
+    const n = vflow.nodes.find((x) => x.id === target);
+    const p = pos[target];
     if (n && p) {
-      const s = NODE_SIZE[n.kind];
+      const s = NODE_SIZE[view.blocks[target] ? "RULE" : n.kind];
       if (!(focusReveal && inView(p.x, p.y, s.w, s.h))) {
         void rf.setCenter(p.x + s.w / 2, p.y + s.h / 2, { zoom: rf.getZoom(), duration: 300 });
       }
     }
     setFlashId(null);
-    const start = setTimeout(() => setFlashId(focusId), 0);
-    const end = setTimeout(() => setFlashId((cur) => (cur === focusId ? null : cur)), FLASH_MS);
+    const start = setTimeout(() => setFlashId(target), 0);
+    const end = setTimeout(() => setFlashId((cur) => (cur === target ? null : cur)), FLASH_MS);
     return () => {
       clearTimeout(start);
       clearTimeout(end);
@@ -606,7 +646,7 @@ function Inner(props: FlowCanvasProps) {
     if (!editable || !carries(e)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
-    setDropEdge(dropTargetAt(flow, pos, flowAt(e.clientX, e.clientY), rf.getZoom()));
+    setDropEdge(dropTargetAt(vflow, pos, flowAt(e.clientX, e.clientY), rf.getZoom()));
   };
   const onDragLeave = (e: DragEvent<HTMLDivElement>) => {
     // 캔버스 안의 자식 사이를 오가는 것은 떠남이 아니다.
@@ -621,7 +661,7 @@ function Inner(props: FlowCanvasProps) {
     if (!isPalette && !ruleId) return;
     e.preventDefault();
     const at = flowAt(e.clientX, e.clientY);
-    const edgeId = dropTargetAt(flow, pos, at, rf.getZoom());
+    const edgeId = dropTargetAt(vflow, pos, at, rf.getZoom());
     if (isPalette) onDropPalette(item as PaletteItem, at, edgeId);
     else onDropRule(ruleId, edgeId);
   };
