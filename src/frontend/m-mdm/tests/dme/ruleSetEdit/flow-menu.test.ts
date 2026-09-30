@@ -136,7 +136,7 @@ describe("흐름 우클릭 메뉴·편집(3단계 Task 8)", () => {
     expect(kindOf("if1")).toBe("IF");
     await ctxMenu("flow-node-if1");
     const ids = menuIds();
-    expect(ids.filter((i) => !i.startsWith("dissolve-"))).toEqual(["split-kind", "dissolve", "add-branch", "copy", "delete"]);
+    expect(ids.filter((i) => !i.startsWith("dissolve-"))).toEqual(["split-kind", "dissolve", "add-branch", "copy", "delete", "collapse"]);
     expect(ids.filter((i) => i.startsWith("dissolve-"))).toHaveLength(2);
     expect(visibleText(byTestId("flow-menu-item-split-kind"))).toBe("병렬로 바꾸기");
     const labels = Array.from(document.querySelectorAll('[data-testid^="flow-menu-item-dissolve-"]')).map((e) => visibleText(e));
