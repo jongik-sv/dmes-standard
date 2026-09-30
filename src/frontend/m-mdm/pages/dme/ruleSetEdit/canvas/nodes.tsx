@@ -12,7 +12,7 @@
  * - 몸통 받기 `body`(편집 모드만, START 제외): 노드 전체를 덮는 투명 target. 평소에는 누름을 받지 않고(노드 끌기·누르기·우클릭이 그대로) 연결을 끄는 동안에만
  *   받는다(React Flow 가 붙이는 `connectionindicator` 클래스) — 몸통 어디에 놓아도 이어진다.
  */
-import type { MouseEvent } from "react";
+import { useContext, type MouseEvent } from "react";
 
 import { IconExternalLink } from "@tabler/icons-react";
 
@@ -21,6 +21,7 @@ import type { FlowNode } from "@/contract/engine-contract.generated";
 import type { FlowNote } from "../flow-edit";
 import { NODE_SIZE } from "../flow-layout";
 import type { RuleIo, VarDisplay } from "../types";
+import { GROUP_GRIPS, GroupSizeContext, type GroupGrip } from "./group-size";
 import type { NodeOverlay } from "./overlay";
 import { Handle, Position, type Node, type NodeProps, type NodeTypes } from "./react-flow";
 
@@ -53,7 +54,7 @@ export type FlowNodeData = {
   linkable: boolean;
 };
 export type NoteNodeData = { note: FlowNote; selected: boolean; editable: boolean; onChange: (id: string, patch: Partial<FlowNote>) => void };
-export type GroupNodeData = { id: string; title: string; selected: boolean };
+export type GroupNodeData = { id: string; title: string; selected: boolean; /** 편집 모드이고 고른 그룹 — 네 모서리·네 변 크기 손잡이(G2). */ resizable: boolean };
 
 type FlowRfNode = Node<FlowNodeData, "rsfFlow">;
 type NoteRfNode = Node<NoteNodeData, "rsfNote">;
@@ -259,10 +260,30 @@ export function NoteNodeView({ data }: NodeProps<NoteRfNode>) {
   );
 }
 
+/** 크기 손잡이 이름(aria-label). */
+const GRIP_LABEL: Record<GroupGrip, string> = {
+  nw: "왼쪽 위 모서리", n: "위 변", ne: "오른쪽 위 모서리", e: "오른쪽 변", se: "오른쪽 아래 모서리", s: "아래 변", sw: "왼쪽 아래 모서리", w: "왼쪽 변",
+};
+
 export function GroupNodeView({ data }: NodeProps<GroupRfNode>) {
+  const size = useContext(GroupSizeContext);
   return (
     <div className="rsf-group" data-testid={`flow-group-${data.id}`} data-selected={data.selected ? "true" : "false"}>
       <span className="rsf-group-title">{data.title}</span>
+      {data.resizable &&
+        size &&
+        GROUP_GRIPS.map((g) => (
+          <span
+            key={g}
+            className="rsf-group-grip nodrag nopan"
+            role="button"
+            data-grip={g}
+            data-testid={`flow-group-grip-${data.id}-${g}`}
+            aria-label={`그룹 크기 — ${GRIP_LABEL[g]}`}
+            title="끌어 그룹 크기를 바꾼다"
+            onPointerDown={(e) => size.startDrag(e, data.id, g)}
+          />
+        ))}
     </div>
   );
 }

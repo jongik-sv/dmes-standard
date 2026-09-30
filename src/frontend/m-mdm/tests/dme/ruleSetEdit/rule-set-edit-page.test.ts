@@ -595,6 +595,34 @@ describe("RuleSetEditPage", () => {
     expect(saved.view.groups).toEqual([{ id: "g1", title: "그룹", nodeIds: ["r1", "r3"] }]);
   });
 
+  it("그룹 크기(G2) — 고른 그룹의 오른쪽 아래 손잡이를 끌어 놓으면 틀이 커지고, 되돌리기 한 번에 돌아오며, 저장 본문에 pad 가 실린다", async () => {
+    srv.replies.save = ok({ setId: "E2S_CHAIN", rowVersion: 4, checks: [] });
+    await openChain();
+    await click("flow-mode-edit");
+    await click("flow-node-r1");
+    await click("flow-add-group");
+    const frame = () => document.querySelector('.react-flow__node[data-id="g1"]') as HTMLElement;
+    const size = () => ({ w: parseFloat(frame().style.width), h: parseFloat(frame().style.height) });
+    const k = Number(/scale\(\s*([\d.]+)\s*\)/.exec((document.querySelector(".react-flow__viewport") as HTMLElement).style.transform)?.[1] ?? 1);
+    const before = size();
+    const grip = byTestId("flow-group-grip-g1-se");
+    await act(async () => { grip.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, cancelable: true, button: 0, clientX: 0, clientY: 0 })); });
+    await act(async () => { window.dispatchEvent(new MouseEvent("pointermove", { bubbles: true, clientX: 40, clientY: 30, buttons: 1 })); });
+    await act(async () => { window.dispatchEvent(new MouseEvent("pointerup", { bubbles: true, clientX: 40, clientY: 30 })); });
+    await flush();
+    const grown = { w: before.w + Math.round(40 / k), h: before.h + Math.round(30 / k) };
+    expect(size()).toEqual(grown);
+    expect(saveButton().disabled).toBe(false);
+    await click("flow-undo");
+    expect(size()).toEqual(before);
+    await click("flow-redo");
+    expect(size()).toEqual(grown);
+    await click("set-save");
+    await settle();
+    const saved = JSON.parse((calls("save")[0].body.params as Record<string, string>).flowJson) as { view: { groups: Array<{ pad?: unknown }> } };
+    expect(saved.view.groups[0].pad).toEqual({ l: 0, t: 0, r: Math.round(40 / k), b: Math.round(30 / k) });
+  });
+
   it("노드 상한 — 200개면 [룰]·[IF] 를 끼우지 않고 메시지 줄에 문구를 보인다", async () => {
     const ids = Array.from({ length: 198 }, (_, i) => `E2S_R${i + 1}`);
     await openChain(chainView({ set: { ...chainView().set, ruleIds: ids }, rules: [] }));

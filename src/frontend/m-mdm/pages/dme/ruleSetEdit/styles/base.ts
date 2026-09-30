@@ -119,6 +119,20 @@ export const BASE_CSS = `
   font-size: var(--font-size-xs); font-weight: 700; color: var(--color-text-secondary); white-space: nowrap;
 }
 .rsf-group-title:hover { background: var(--color-bg-hover); }
+/* 그룹 크기 손잡이(G2, 4단계) — 편집 모드에서 고른 그룹의 네 모서리·네 변. 틀은 누름을 받지 않으므로 손잡이만 다시 켠다. */
+.rsf-group-grip {
+  position: absolute; box-sizing: border-box; width: 10px; height: 10px; pointer-events: auto; touch-action: none;
+  background: var(--color-bg); border: 1.5px solid var(--color-primary); border-radius: 2px;
+}
+.rsf-group-grip:hover { background: var(--color-primary-soft); }
+.rsf-group-grip[data-grip="nw"] { left: -5px; top: -5px; cursor: nwse-resize; }
+.rsf-group-grip[data-grip="n"] { left: calc(50% - 5px); top: -5px; cursor: ns-resize; }
+.rsf-group-grip[data-grip="ne"] { right: -5px; top: -5px; cursor: nesw-resize; }
+.rsf-group-grip[data-grip="e"] { right: -5px; top: calc(50% - 5px); cursor: ew-resize; }
+.rsf-group-grip[data-grip="se"] { right: -5px; bottom: -5px; cursor: nwse-resize; }
+.rsf-group-grip[data-grip="s"] { left: calc(50% - 5px); bottom: -5px; cursor: ns-resize; }
+.rsf-group-grip[data-grip="sw"] { left: -5px; bottom: -5px; cursor: nesw-resize; }
+.rsf-group-grip[data-grip="w"] { left: -5px; top: calc(50% - 5px); cursor: ew-resize; }
 
 /* 연결점 — 그리기 연결점·네 변 잇기 손잡이·몸통 받기는 styles/connect.ts(추가 Task C1) */
 
