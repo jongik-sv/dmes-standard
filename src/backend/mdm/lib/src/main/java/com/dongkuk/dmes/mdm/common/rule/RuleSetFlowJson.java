@@ -75,11 +75,17 @@ public final class RuleSetFlowJson {
         } else {
             out.set("view", view);
         }
+        String result;
         try {
-            return JSON.writeValueAsString(out);
+            result = JSON.writeValueAsString(out);
         } catch (JsonProcessingException e) {
             throw new IllegalArgumentException("흐름을 JSON 으로 쓸 수 없다: " + e.getOriginalMessage(), e);
         }
+        // 빠진 선택 칸을 null 로 채워 길이가 늘 수 있다 — 저장값이 읽기 상한을 넘으면 뒤에서 읽지 못하므로 여기서 거부한다.
+        if (result.length() > MAX_JSON_CHARS) {
+            throw new IllegalArgumentException("정규화한 흐름 JSON 이 " + result.length() + "자다. " + MAX_JSON_CHARS + "자까지 받는다");
+        }
+        return result;
     }
 
     private static JsonNode tree(String json) {

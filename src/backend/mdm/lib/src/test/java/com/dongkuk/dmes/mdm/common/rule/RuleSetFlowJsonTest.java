@@ -161,4 +161,16 @@ class RuleSetFlowJsonTest {
                 + "\"view\":{\"positions\":{\"start\":{\"x\":1,\"y\":2}},\"notes\":[],\"groups\":[]}}", RuleSetFlowJson.canonical(in));
         assertTrue(RuleSetFlowJson.canonical(VALID).endsWith("\"view\":{\"positions\":{},\"notes\":[],\"groups\":[]}}"));
     }
+
+    @Test
+    void 입력은_상한_안인데_정규화하면_상한을_넘는_흐름은_거부한다() {
+        String head = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"},{\"id\":\"end\",\"kind\":\"END\"}],"
+                + "\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"end\"}],\"view\":{\"pad\":\"";
+        String tail = "\"}}";
+        String json = head + "x".repeat(RuleSetFlowJson.MAX_JSON_CHARS - head.length() - tail.length() - 10) + tail;
+        assertTrue(json.length() <= RuleSetFlowJson.MAX_JSON_CHARS);
+        RuleSetFlowJson.parse(json);
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> RuleSetFlowJson.canonical(json));
+        assertTrue(e.getMessage().startsWith("정규화한 흐름 JSON 이 ") && e.getMessage().endsWith("자다. 262144자까지 받는다"), e.getMessage());
+    }
 }

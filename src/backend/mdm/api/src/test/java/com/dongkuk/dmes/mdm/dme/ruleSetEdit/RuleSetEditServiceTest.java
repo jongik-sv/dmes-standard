@@ -627,6 +627,20 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void 정규화하면_상한을_넘는_흐름은_MDM021_로_거부하고_쓰지_않는다() {
+        String head = LINEAR_WITH_VIEW.substring(0, LINEAR_WITH_VIEW.indexOf("\"view\""));
+        String vh = head + "\"view\":{\"pad\":\"";
+        String json = vh + "x".repeat(RuleSetFlowJson.MAX_JSON_CHARS - vh.length() - 3 - 10) + "\"}}";
+        assertTrue(json.length() <= RuleSetFlowJson.MAX_JSON_CHARS);
+
+        BusinessException e = refuse(() -> service.save(flowReq("S_CHAIN", 3L, json)));
+
+        assertEquals("MDM021", code(e));
+        assertTrue(e.getMessage().contains("정규화한 흐름 JSON 이"), e.getMessage());
+        assertNull(flowJsonOf("S_CHAIN"));
+    }
+
+    @Test
     void 조회_응답은_저장된_흐름의_IF_갈래_조건식_IO_를_싣는다() {
         DmeTestSupport.ruleSetFlow(jdbc, "S_CHAIN", IF_FLOW);
 
