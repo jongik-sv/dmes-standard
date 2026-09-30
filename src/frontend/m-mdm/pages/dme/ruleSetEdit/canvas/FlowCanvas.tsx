@@ -28,7 +28,7 @@ import { IconPlus } from "@tabler/icons-react";
 import type { RuleSetFlow, TypedValue } from "@/contract/engine-contract.generated";
 
 import type { FlowNote, FlowPos, EditFlow } from "../flow-edit";
-import { NODE_SIZE, positionsOf } from "../flow-layout";
+import { NODE_SIZE, drawnPositions } from "../flow-layout";
 import { typedText } from "../trace-view";
 import { blockDragPositions, dropTargetAt, edgeChips, edgeMarks, nodeMarks, resolveNodeDrop } from "../flow-vars";
 import type { FlowMode } from "../state/useRuleSetEdit";
@@ -83,6 +83,11 @@ const MAX_ZOOM = 2;
 const ROUTE_RADIUS = 8;
 /** 경로가 있는 선의 변수 칩을 가운데 라벨 아래로 띄우는 거리(px). */
 const ROUTE_CHIP_GAP = 20;
+/**
+ * 같은 두 노드를 잇는 경로 없는 선들(빈 갈래 둘인 분기 등)은 그림이 같아 라벨·[+] 가 한 자리에 겹친다 — 이름표 묶음을 가로로 이만큼씩 벌린다(px).
+ * 라벨(약 50px)과 오른쪽 [+](ADD_LABEL_GAP)가 이웃 묶음과 닿지 않는 폭이다.
+ */
+const LABEL_SPREAD = 120;
 
 type Measured = { width: number; height: number };
 
@@ -178,6 +183,8 @@ type EdgeData = {
   routeEditable: boolean;
   /** 고른 선 — 점마다 손잡이. */
   routeHandles: boolean;
+  /** 이름표 묶음(라벨·[+]·여기에 넣기)의 가로 비킴(px) — 같은 두 노드를 잇는 경로 없는 선끼리 겹치지 않게. 없으면 0. */
+  spread: number;
 };
 type FlowRfEdge = Edge<EdgeData, "rsfFlow">;
 
@@ -293,6 +300,7 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
     path = routePath(pts, ROUTE_RADIUS);
     ({ x: lx, y: ly } = routeMidpoint(pts));
   }
+  lx += data?.spread ?? 0; // 같은 두 노드를 잇는 선끼리 이름표를 벌린다(경로가 있는 선은 0)
   const state = data?.state;
   const style: React.CSSProperties = { stroke: "var(--rsf-edge)", strokeWidth: 1.5 };
   if (data?.mark) style.stroke = data.mark === "REJECT" ? "var(--color-danger)" : "var(--color-warning)";
@@ -356,7 +364,7 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
           </div>
         )}
         {chips.length > 0 && (
-          <div className="rsf-elabel" style={route && route.length > 0 ? at(lx, ly + ROUTE_CHIP_GAP) : at(sourceX, sourceY + 20)}>
+          <div className="rsf-elabel rsf-elabel-chips" style={route && route.length > 0 ? at(lx, ly + ROUTE_CHIP_GAP) : at(sourceX, sourceY + 20)}>
             <span className="rsf-vchips" data-testid={`flow-edge-chips-${id}`}>
               {chips.map((c) => (
                 <span key={c} className="rsf-vchip" title={chipTitle(c, data?.valueOf)}>
@@ -480,8 +488,11 @@ function Inner(props: FlowCanvasProps) {
   /** 접힌 분기를 반영한 표시 흐름(D16). 저장 흐름(`flow`)은 그대로다. */
   const view = useMemo(() => collapseView(flow, collapsed), [flow, collapsed]);
   const vflow = view.flow;
-  /** 자동 배치(dagre)는 표시 흐름과 저장 위치에만 묶어 따로 memo 한다 — 끌기 오프셋(drag)이 바뀌어도 다시 돌지 않는다(§16). */
-  const basePos = useMemo(() => positionsOf(vflow), [vflow]);
+  /**
+   * 자동 배치(dagre)는 표시 흐름과 저장 위치에만 묶어 따로 memo 한다 — 끌기 오프셋(drag)이 바뀌어도 다시 돌지 않는다(§16).
+   * 같은 memo 안에서 겹침을 푼다(Ruling 19) — 저장 위치가 없는 노드가 저장 위치 노드와 겹치면 그리는(접힌) 흐름에서 가로로 비킨다. 좌표는 저장하지 않는다.
+   */
+  const basePos = useMemo(() => drawnPositions(vflow, view.blocks), [vflow, view.blocks]);
   const pos = useMemo(() => ({ ...basePos, ...drag }), [basePos, drag]);
   const posRef = useRef(pos);
   posRef.current = pos;
@@ -497,7 +508,7 @@ function Inner(props: FlowCanvasProps) {
   const fullPosOf = () => {
     const cur = fullRef.current;
     if (fullPosCache.current?.flow !== cur) {
-      fullPosCache.current = { flow: cur, pos: cur === flowRef.current ? basePosRef.current : positionsOf(cur) };
+      fullPosCache.current = { flow: cur, pos: cur === flowRef.current ? basePosRef.current : drawnPositions(cur) };
     }
     return fullPosCache.current.pos;
   };
@@ -570,6 +581,19 @@ function Inner(props: FlowCanvasProps) {
 
   const edges = useMemo(() => {
     const kindOf = new Map(vflow.nodes.map((n) => [n.id, n.kind] as const));
+    // 같은 두 노드를 잇는 경로 없는 선 묶음 — 묶음 안 순서대로 이름표를 가로로 벌린다(가운데 기준).
+    const routeOf = (id: string, folded: boolean) => (folded ? null : (flow.view.routes?.[id] ?? null));
+    const twins = new Map<string, string[]>();
+    for (const e of vflow.edges) {
+      if (routeOf(e.id, !!view.blocks[e.from])?.length) continue;
+      const k = JSON.stringify([e.from, e.to]);
+      twins.set(k, [...(twins.get(k) ?? []), e.id]);
+    }
+    const spreadOf = (e: { id: string; from: string; to: string }) => {
+      const list = twins.get(JSON.stringify([e.from, e.to]));
+      if (!list || list.length < 2) return 0;
+      return (list.indexOf(e.id) - (list.length - 1) / 2) * LABEL_SPREAD;
+    };
     return vflow.edges.map<FlowRfEdge>((e) => {
       // 접힌 분기에서 나가는 선은 합류에서 나가던 선이다 — 갈래 이름·조건식이 없다.
       const folded = !!view.blocks[e.from];
@@ -585,9 +609,10 @@ function Inner(props: FlowCanvasProps) {
         editingCond: (editingCondEdgeId ?? condEdge) === e.id,
         valueOf: debugging ? valueAt : undefined,
         // 접힌 분기가 이어 받은 선(같은 ID 라도 양 끝이 다르다)에는 원래 경로를 그리지 않는다.
-        route: folded ? null : (flow.view.routes?.[e.id] ?? null),
+        route: routeOf(e.id, folded),
         routeEditable: editable && !folded,
         routeHandles: editable && !folded && selectedEdgeId === e.id,
+        spread: spreadOf(e),
       };
       return {
         id: e.id, source: e.from, target: e.to, type: "rsfFlow", selected: selectedEdgeId === e.id,

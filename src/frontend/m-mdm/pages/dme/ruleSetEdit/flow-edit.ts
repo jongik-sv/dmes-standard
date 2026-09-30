@@ -476,10 +476,14 @@ export function clearRoutes(f: EditFlow): EditFlow {
   return g;
 }
 
-/** 배치를 덮어쓴다(병합). */
+/** 배치를 덮어쓴다(병합). 흐름에 있는 노드 ID 만 남긴다 — 없는 ID(낡은 캔버스 끌기 등)의 위치 키는 적지 않고, 이미 있던 것도 치운다. */
 export function setPositions(f: EditFlow, pos: Readonly<Record<string, FlowPos>>): EditFlow {
   const g = clone(f);
-  for (const [k, p] of Object.entries(pos)) g.view.positions[k] = copyPos(p);
+  const ids = new Set(g.nodes.map((n) => n.id));
+  const positions: Record<string, FlowPos> = {};
+  for (const [k, p] of Object.entries(g.view.positions)) if (ids.has(k)) positions[k] = p;
+  for (const [k, p] of Object.entries(pos)) if (ids.has(k)) positions[k] = copyPos(p);
+  g.view.positions = positions;
   return g;
 }
 
