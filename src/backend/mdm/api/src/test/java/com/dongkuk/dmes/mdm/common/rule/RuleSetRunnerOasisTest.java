@@ -81,6 +81,23 @@ class RuleSetRunnerOasisTest {
         assertEquals("2026-03-01 09:00:00", result.path("evalTs").asText(), r.toString());
         assertEquals("A", result.path("finalValues").path("QLTY_GRD").asText(), r.toString());
         assertEquals("r1", result.path("path").path(1).path("nodeId").asText(), r.toString());
+        assertTrue(result.path("warnings").isArray() && result.path("warnings").isEmpty(), r.toString());
+    }
+
+    @Test
+    void 폐기_룰이_든_세트는_판정하고_응답에_경고를_싣는다() throws Exception {
+        jdbc.update("UPDATE TB_MDM_RULE SET STATUS = 'DEPRECATED' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG'");
+        JsonNode r = post("ruleSetRunProbe", "run", "kim", envelope("ruleSetRunProbe", json.createObjectNode()
+                .put("setId", "RS_LINE")
+                .put("recordJson", "{\"COIL_THK\":2.0,\"COIL_WID\":1200,\"SURF_GRD\":\"A\"}")
+                .put("evalTs", "2026-03-01 09:00:00")));
+
+        assertTrue(r.path("meta").path("success").asBoolean(false), r.toString());
+        JsonNode result = r.path("data").path("result");
+        assertEquals("A", result.path("finalValues").path("QLTY_GRD").asText(), r.toString());
+        assertEquals(1, result.path("warnings").size(), r.toString());
+        assertEquals("RULE_DEPRECATED", result.path("warnings").path(0).path("code").asText(), r.toString());
+        assertEquals("QLTY_GRD_JDG", result.path("warnings").path(0).path("ruleId").asText(), r.toString());
     }
 
     @Test

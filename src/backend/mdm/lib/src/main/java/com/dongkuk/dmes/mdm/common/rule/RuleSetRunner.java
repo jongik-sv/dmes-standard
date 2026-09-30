@@ -9,6 +9,8 @@ import com.dongkuk.dmes.mdm.common.rule.dto.RuleSetRunResult;
 import com.dongkuk.dmes.mdm.common.support.MdmClockConfig;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
+import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
+import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleSetRepository;
 import java.time.Clock;
@@ -18,11 +20,13 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException;
+import kr.dongkuk.maru.mdm.engine.expr.EngineWarning;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Code;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Stage;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Violation;
@@ -33,6 +37,8 @@ import kr.dongkuk.maru.mdm.engine.rule.RunTrace;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.FlowDefinition;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleSetDefinition;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.SetStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
@@ -47,6 +53,11 @@ import org.springframework.stereotype.Service;
  */
 @Service("ruleSetRunner")
 public class RuleSetRunner {
+
+    private static final Logger log = LoggerFactory.getLogger(RuleSetRunner.class);
+
+    /** 폐기(DEPRECATED) 룰이 든 세트를 판정할 때 경고 코드. */
+    public static final String RULE_DEPRECATED = "RULE_DEPRECATED";
 
     static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -129,7 +140,47 @@ public class RuleSetRunner {
             m.put("stepIndex", p.stepIndex());
             return m;
         }).toList());
+        out.setWarnings(warnings(request.getSetId(), r));
         return out;
+    }
+
+    /**
+     * 응답 경고 — 폐기 룰 경고(세트 흐름에서 룰 ID 가 처음 나온 순서) 다음에 엔진 경고(세트 경고, 이어서 실행한 룰의 경고를 실행 순서로).
+     * 폐기 룰이라도 판정은 막지 않는다(효력 시각이 없어 과거 시각 재판정까지 깨지므로). 룰 헤더는 한 번에 읽는다.
+     */
+    private List<Map<String, Object>> warnings(String setId, RuleSetResult r) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        List<String> ids = sets.findById(setId).map(RuleSetRunner::ruleIdsOf).orElse(List.of());
+        Map<String, MdmRule> byId = new LinkedHashMap<>();
+        rules.findAllById(ids).forEach(x -> byId.put(x.getMaruRuleId(), x));
+        List<String> deprecated = ids.stream().filter(id -> byId.get(id) != null && "DEPRECATED".equals(byId.get(id).getStatus())).toList();
+        for (String id : deprecated) {
+            out.add(warning(RULE_DEPRECATED, id, id + "는 폐기된 룰이지만 판정 시각에 유효한 RELEASED 버전으로 판정했다"));
+        }
+        if (!deprecated.isEmpty()) {
+            log.warn("폐기된 룰이 든 세트를 판정했다 setId={} ruleIds={}", setId, deprecated);
+        }
+        List<EngineWarning> engine = new ArrayList<>(r.warnings());
+        r.steps().forEach(s -> engine.addAll(s.warnings()));
+        for (EngineWarning w : engine) {
+            out.add(warning(w.code().name(), w.ruleId(), w.message()));
+        }
+        return out;
+    }
+
+    private static Map<String, Object> warning(String code, String ruleId, String message) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("code", code);
+        m.put("ruleId", ruleId);
+        m.put("message", message);
+        return m;
+    }
+
+    private static List<String> ruleIdsOf(com.dongkuk.dmes.mdm.entity.MdmRuleSet s) {
+        if (s.getFlowJson() != null) {
+            return RuleSetFlowJson.ruleIds(RuleSetFlowJson.parse(s.getFlowJson()));
+        }
+        return DomainJson.readList(s.getRuleIds()).stream().map(String::valueOf).toList();
     }
 
     private MdmRuleEngine engine() {
