@@ -173,6 +173,42 @@ describe("화면 — 여럿 고른 뒤 Delete(M2)", () => {
     expect(undoDisabled()).toBe(true);
   });
 
+  it("노드를 고른 뒤 Shift+선을 누르고 Delete — 노드와 선을 편집 한 번에 함께 지우고 되돌리기 한 칸에 둘 다 돌아온다(N1)", async () => {
+    await openSet("FF_N1", viewOf("FF_N1", scattered()));
+    await click("flow-mode-edit");
+    await click("flow-node-r1");
+    await shift("keydown");
+    await act(async () => {
+      pageContainer().querySelector('[data-testid="rf__edge-e3"]')!.dispatchEvent(new MouseEvent("click", { bubbles: true, shiftKey: true }));
+    });
+    await flush();
+    await shift("keyup");
+    await act(async () => canvas().focus());
+    const edge = (id: string) => pageContainer().querySelector(`[data-testid="rf__edge-${id}"]`);
+    expect(nodeEl("r1")!.classList.contains("selected")).toBe(true);
+    expect(edge("e3")!.classList.contains("selected")).toBe(true);
+    const ev = await key(canvas(), { key: "Delete" });
+    expect(ev.defaultPrevented).toBe(true);
+    expect(nodeEl("r1")).toBeNull();
+    expect(edge("e3")).toBeNull();
+    await click("flow-undo");
+    expect(nodeEl("r1")).not.toBeNull();
+    expect(edge("e3")).not.toBeNull();
+    expect(undoDisabled()).toBe(true); // 한 칸
+  });
+
+  it("removeMany — 고른 선도 함께 지우되, 지운 노드에 붙어 있던 선은 다시 지우지 않는다(N1)", () => {
+    const f = scattered(); // e1 start→r1, e2 r1→r2, e3 r2→r3, e4 r3→end
+    const out = removeMany(f, ["r1"], ["e1", "e2", "e3"]);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    // r1 을 지우면 e1 이 start→r2 로 이어 붙고 e2 는 사라진다 — e1(r1 에 붙어 있던 선)은 다시 지우지 않고, e3 만 더 지운다.
+    expect(out.flow.edges.map((e) => `${e.id}:${e.from}>${e.to}`)).toEqual(["e1:start>r2", "e4:r3>end"]);
+    // 선만 넘겨도 지운다.
+    const only = removeMany(f, [], ["e3"]);
+    expect(only.ok && only.flow.edges.map((e) => e.id)).toEqual(["e1", "e2", "e4"]);
+  });
+
   it("removeMany — 분기와 그 안 노드를 함께 골라도 블록째 한 번 지우고, 없는 ID·합류는 건너뛴다", async () => {
     const { insertRule, insertSplit } = await import("../../../pages/dme/ruleSetEdit/flow-edit");
     const s = insertSplit(toEditFlow(null, ["FF_A"]), "e2", "IF");

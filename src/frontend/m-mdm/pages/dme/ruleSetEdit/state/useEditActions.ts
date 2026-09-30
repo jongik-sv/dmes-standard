@@ -83,7 +83,7 @@ export interface EditActions {
   dropPalette(item: PaletteItem, at: FlowPos, edgeId: string | null): void;
   dropRule(ruleId: string, edgeId: string | null): void;
   /**
-   * 선택 지우기. picked 는 캔버스 선택(React Flow — 흐름 노드·메모·그룹). 둘 이상이거나 단일 선택과 다르면 그것 전부를 편집 한 번에 지우고(M2),
+   * 선택 지우기. picked 는 캔버스 선택(React Flow — 흐름 노드·메모·그룹). 둘 이상이거나 단일 선택과 다르면 그것 전부(Shift 로 함께 고른 선도, N1)를 편집 한 번에 지우고(M2),
    * 아니면 단일 선택(노드·메모·그룹, 없으면 고른 선)을 지운다. 할 일이 없으면(고른 것 없음·편집 모드 아님) false.
    */
   deleteSelection(picked?: readonly string[]): boolean;
@@ -96,10 +96,11 @@ const fail = (reason: string): EditResult => ({ ok: false, reason });
 const NO_COLLAPSED: ReadonlySet<string> = new Set();
 
 /**
- * 고른 것 여럿을 편집 한 번에 지운다(M2) — 흐름 노드(분기는 블록째)·메모·그룹. 시작·끝·합류와 앞에서 지운 블록 안이라 이미 없는 것은 건너뛴다.
- * 하나도 못 지우면 처음 실패 사유(단일 삭제와 같은 문구)로 실패한다.
+ * 고른 것 여럿을 편집 한 번에 지운다(M2·N1) — 흐름 노드(분기는 블록째)·메모·그룹, 그다음 고른 선(edgeIds). 시작·끝·합류와 앞에서 지운 블록 안이라
+ * 이미 없는 것은 건너뛴다. 선은 노드를 지운 뒤에 지우며, 원래 흐름에서 지운 노드에 붙어 있던 선은 건너뛴다 — 노드와 함께 사라졌거나
+ * 룰 노드 지우기가 앞뒤를 잇는 데 그 선 ID 를 이어 썼기 때문이다(다시 지우면 이은 선이 끊긴다). 하나도 못 지우면 처음 실패 사유(단일 삭제와 같은 문구)로 실패한다.
  */
-export function removeMany(f: EditFlow, ids: readonly string[]): EditResult {
+export function removeMany(f: EditFlow, ids: readonly string[], edgeIds: readonly string[] = []): EditResult {
   let g = f;
   let reason: string | null = null;
   for (const id of ids) {
@@ -109,6 +110,14 @@ export function removeMany(f: EditFlow, ids: readonly string[]): EditResult {
       else reason ??= r.reason;
     } else if (g.view.notes.some((n) => n.id === id)) g = removeNote(g, id);
     else if (g.view.groups.some((x) => x.id === id)) g = removeGroup(g, id);
+  }
+  const gone = new Set(f.nodes.filter((n) => !g.nodes.some((m) => m.id === n.id)).map((n) => n.id));
+  for (const id of edgeIds) {
+    const orig = f.edges.find((e) => e.id === id);
+    if (!orig || gone.has(orig.from) || gone.has(orig.to) || !g.edges.some((e) => e.id === id)) continue;
+    const r = removeEdge(g, id);
+    if (r.ok) g = r.flow;
+    else reason ??= r.reason;
   }
   if (g !== f) return { ok: true, flow: g };
   return fail(reason ?? "지울 것이 없다");
@@ -263,7 +272,8 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
     // 캔버스로 여럿 골랐거나(영역 선택·Shift+누르기) 캔버스 선택이 단일 선택과 다르면 캔버스 선택 전부 — 편집 한 번(되돌리기 한 칸).
     if (picked.length > 1 || (picked.length === 1 && picked[0] !== selectedId)) {
       const ids = [...picked];
-      edit((f) => removeMany(f, ids));
+      const edges = selectedEdgeId ? [selectedEdgeId] : [];
+      edit((f) => removeMany(f, ids, edges));
       return true;
     }
     if (selectedId) {
