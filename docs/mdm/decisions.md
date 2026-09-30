@@ -1002,3 +1002,15 @@
   목록 화면에 먼저 만들면 2단계 디버거와 같은 기능이 두 벌이 된다
 - **Reversible**: yes(2단계 착수 때 다시 정한다)
 - **Source**: `docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md` §11 N-1, 스펙 §6.2·§9, mdm ADR-0005 D4
+
+## D-108 (2026-09-30T00:00:00Z)
+- **Phase**: plan(룰 세트 흐름도 1단계)
+- **Decision needed**: 목록·한 줄 입력도 흐름 파서를 거치게 하면서(D-106 D12) 생기는 행동 변화를 어떻게 다룰지
+- **Decision made**: 아래 세 가지 변화를 받아들이고 기록한다.
+  1. 목록·한 줄 입력에 null·공백 룰 ID 가 있으면 예전 `RULE_NOT_FOUND` 대신 `FLOW_STRUCTURE`(분석기)·`FLOW_INVALID`(엔진)가 된다.
+  2. `ORDER` 문구의 later 목록에서 중복을 뺀다.
+  3. 목록 화면의 `FLOW_STRUCTURE` 문구에 합성 노드 ID(`r1`…)가 남는다.
+  운영 저장 경로는 `RuleIdRules` 가 null·공백·중복을 먼저 막으므로 위 1~3 에 실제로 닿기 어렵다
+- **Rationale**: 목록 세트를 한 줄 흐름으로 바꿔 한 경로로 검사·실행하면 코드가 한 벌이다. 바뀌는 곳은 저장 경로가 이미 막는 입력뿐이라 운영 영향이 없다
+- **Reversible**: yes(코드 변경만으로 되돌릴 수 있다)
+- **Source**: D-106 D12, `RuleSetAnalyzer`, `RuleIdRules`, 엔진 `FlowParser`
