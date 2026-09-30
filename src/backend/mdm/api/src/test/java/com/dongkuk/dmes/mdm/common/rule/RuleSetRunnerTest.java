@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mdm.common.rule;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.common.rule.dto.RuleSetRunRequest;
@@ -98,6 +99,52 @@ class RuleSetRunnerTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void 조립에_실패한_행이_있는_룰은_기본_행으로_넘어가지_않고_던진다() {
+        StoredDefinitionLookupTest.badRule(jdbc);
+        DmeTestSupport.ruleSet(jdbc, "RS_BAD", "깨진 룰", "[\"R_BAD\"]", "INUSE", 0);
+
+        BusinessException e = assertThrows(BusinessException.class, () -> runner.run("RS_BAD", Map.of(), TS));
+        assertTrue(e.getMessage().contains("R_BAD") && e.getMessage().contains("var_id 9"), e.getMessage());
+
+        RuleSetRunRequest req = new RuleSetRunRequest();
+        req.setSetId("RS_BAD");
+        req.setRecordJson("{}");
+        BusinessException viaOasis = assertThrows(BusinessException.class, () -> runner.execute(req));
+        assertTrue(viaOasis.getMessage().contains("var_id 9"), viaOasis.getMessage());
+    }
+
+    @Test
+    void 흐름을_읽을_수_없으면_기록_실행은_던지지_않고_FLOW_INVALID_를_담는다() {
+        for (Map<String, Object> bad : java.util.Arrays.asList(null, Map.<String, Object>of("version", 1))) {
+            RunTrace t = runner.trace(bad, RECORD, TS);
+
+            assertEquals(List.of(), t.nodes());
+            assertEquals(Map.of(), t.finalValues());
+            assertEquals(RECORD, t.input());
+            assertEquals(1, t.violations().size(), t.violations().toString());
+            EngineEvaluationException.Violation v = t.violations().get(0);
+            assertEquals(EngineEvaluationException.Stage.SET_CHECK, v.stage());
+            assertEquals(EngineEvaluationException.Code.FLOW_INVALID, v.code());
+            assertNull(v.ruleId());
+            assertNull(v.rowId());
+            assertNull(v.name());
+            assertTrue(v.message().startsWith("흐름을 읽을 수 없다: "), v.message());
+        }
+    }
+
+    @Test
+    void 저장된_흐름이_깨졌으면_OASIS_입구는_업무_예외를_던진다() {
+        DmeTestSupport.ruleSet(jdbc, "RS_BROKEN", "깨진 흐름", "[\"QLTY_GRD_JDG\"]", "INUSE", 0);
+        DmeTestSupport.ruleSetFlow(jdbc, "RS_BROKEN", "{\"version\":1}");
+        RuleSetRunRequest req = new RuleSetRunRequest();
+        req.setSetId("RS_BROKEN");
+        req.setRecordJson("{\"COIL_THK\":2.0,\"COIL_WID\":1200,\"SURF_GRD\":\"A\"}");
+
+        BusinessException e = assertThrows(BusinessException.class, () -> runner.execute(req));
+        assertTrue(e.getMessage().contains("RS_BROKEN") && e.getMessage().contains("nodes"), e.getMessage());
+    }
+
+    @Test
     void OASIS_입구는_JSON_레코드와_KST_시각을_받고_오류를_업무_예외로_바꾼다() {
         RuleSetRunRequest req = new RuleSetRunRequest();
         req.setSetId("RS_LINE");
@@ -113,5 +160,6 @@ class RuleSetRunnerTest extends AbstractMdmSharedDbTest {
         req.setRecordJson("{\"COIL_THK\":2.0}");
         BusinessException e = assertThrows(BusinessException.class, () -> runner.execute(req));
         assertEquals(true, e.getMessage().contains("COIL_WID"), e.getMessage());
+        assertTrue(e.getMessage().startsWith("[QLTY_GRD_JDG] "), e.getMessage());
     }
 }

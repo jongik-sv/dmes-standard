@@ -7,6 +7,8 @@ import com.dongkuk.dmes.mdm.common.rule.definition.StoredRuleDefinitions;
 import com.dongkuk.dmes.mdm.common.rule.dto.RuleSetRunRequest;
 import com.dongkuk.dmes.mdm.common.rule.dto.RuleSetRunResult;
 import com.dongkuk.dmes.mdm.common.support.MdmClockConfig;
+import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleSetRepository;
 import java.time.Clock;
@@ -15,10 +17,15 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException;
+import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Code;
+import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Stage;
+import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Violation;
 import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
 import kr.dongkuk.maru.mdm.engine.rule.MdmRuleEngine;
 import kr.dongkuk.maru.mdm.engine.rule.RuleSetResult;
@@ -34,13 +41,17 @@ import org.springframework.stereotype.Service;
  * (엔진은 시계를 읽지 않는다, decisions.md:161).
  *
  * <p>OASIS BPMN 은 {@code camunda:class="ruleSetRunner"} + {@code method=execute} serviceTask 하나로 부른다. 판정 오류는 {@link #run} 에서
- * {@link EngineEvaluationException} 으로 올라가고, {@link #execute} 는 {@link RuleErrorText} 문구로 바꾼 업무 예외를 던진다.
+ * {@link EngineEvaluationException} 으로 올라가고, {@link #execute} 는 {@link RuleErrorText} 문구(룰이 있으면 앞에 {@code [ruleId] })로 바꾼
+ * 업무 예외를 던진다. 저장 데이터 손상(행 조립 실패·FLOW_JSON·AST 읽기 실패)도 {@link #execute} 에서는 업무 예외다.
  * {@code @Transactional} 을 붙이지 않는다 — OASIS 파라미터 이름 바인딩이 깨진다(읽기만 한다).
  */
 @Service("ruleSetRunner")
 public class RuleSetRunner {
 
     static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+    /** 저장 전 흐름 기록의 세트 표시 이름(Ruling 10: 호출자가 정한다). */
+    static final String UNSAVED = "(저장 전)";
 
     private final RuleQueries queries;
     private final StoredRuleDefinitions stored;
@@ -64,11 +75,22 @@ public class RuleSetRunner {
         return engine().evaluateSet(setId, record, ts(evalTs));
     }
 
-    /** 화면이 보낸 흐름(저장 전 포함)을 기록 실행한다. 던지지 않는다 — 오류는 기록에 담긴다. */
+    /**
+     * 화면이 보낸 흐름(저장 전 포함)을 기록 실행한다. 흐름·판정 오류로는 던지지 않는다 — 오류는 기록에 담긴다. 흐름 맵이 null 이거나 모양이 깨져
+     * 읽지 못하면 노드 없는 기록({@code nodes=[]}, {@code finalValues={}})에 {@code SET_CHECK/FLOW_INVALID} 위반 한 건을 담는다. 저장된 룰 정의 자체가
+     * 깨진 경우(행 조립 실패 {@code BusinessException}, AST 읽기 실패 {@code IllegalStateException})는 기록 대상이 아니라 그대로 올라간다.
+     */
     public RunTrace trace(Map<String, Object> flow, Map<String, Object> record, Instant evalTs) {
-        FlowDefinition def = RuleSetFlowJson.fromMap(flow);
-        RuleSetDefinition set = new RuleSetDefinition("(저장 전)", RuleSetFlowJson.ruleIds(def), SetStatus.INUSE, def);
-        return engine().traceSet(set, record, ts(evalTs));
+        Instant ts = ts(evalTs);
+        FlowDefinition def;
+        try {
+            def = RuleSetFlowJson.fromMap(flow);
+        } catch (IllegalArgumentException e) {
+            return new RunTrace(UNSAVED, ts, Collections.unmodifiableMap(new LinkedHashMap<>(record)), List.of(), Map.of(),
+                    List.of(new Violation(Stage.SET_CHECK, Code.FLOW_INVALID, null, null, null, "흐름을 읽을 수 없다: " + e.getMessage())));
+        }
+        RuleSetDefinition set = new RuleSetDefinition(UNSAVED, RuleSetFlowJson.ruleIds(def), SetStatus.INUSE, def);
+        return engine().traceSet(set, record, ts);
     }
 
     /** OASIS serviceTask 입구 — 레코드 JSON·KST 시각 문자열을 받고, 판정 오류를 업무 예외로 바꾼다. */
@@ -87,8 +109,13 @@ public class RuleSetRunner {
             r = run(request.getSetId(), record, ts);
         } catch (EngineEvaluationException e) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, e.violations().stream()
-                    .map(v -> RuleErrorText.describe(v.stage().name(), v.code().name(), v.rowId(), v.name(), v.message()))
+                    .map(v -> (v.ruleId() == null ? "" : "[" + v.ruleId() + "] ")
+                            + RuleErrorText.describe(v.stage().name(), v.code().name(), v.rowId(), v.name(), v.message()))
                     .collect(Collectors.joining("; ")));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            // 저장된 FLOW_JSON(코덱)·AST(조립기)를 읽지 못함 — 데이터 손상. 날것으로 내보내지 않고 업무 예외로 감싼다.
+            throw MdmErrors.of(MdmErrorCode.INVALID_INPUT, "룰 세트 " + request.getSetId() + " 의 저장된 정의를 읽을 수 없어 판정하지 않습니다 — "
+                    + e.getMessage(), List.of());
         }
         RuleSetRunResult out = new RuleSetRunResult();
         out.setSetId(r.setId());
