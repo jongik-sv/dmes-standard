@@ -134,6 +134,9 @@ async function closeErrorModal(page: Page) {
 
 test.describe.configure({ mode: "serial" });
 
+// D-105 — ① 헤더·② 버전은 ruleMng 화면으로 옮겨 갔다(dmc D-101·dmd D-104 와 같은 분할). 이 스펙은 **내용 편집만**
+// 본다: 의사결정표·열 설정·값 테스트·테스트 케이스·활용처, 그리고 상단 버전 고르기.
+// 헤더 저장·폐기·새 버전·DRAFT 삭제·선점·해제·넘기기·확정 취소·적중 정책 저장은 mdm-ruleMng.spec.ts 가 본다.
 test.describe("mdm dme/ruleEdit", () => {
   test.setTimeout(240_000);
 
@@ -143,11 +146,13 @@ test.describe("mdm dme/ruleEdit", () => {
     await expect(page.getByTestId("rule-edit-empty")).toBeVisible();
   });
 
-  test("S2 서버 데이터: 헤더·버전·3줄 머리 의사결정표·활용처가 보이고 RELEASED 는 읽기 전용이다", async ({ page }) => {
+  test("S2 서버 데이터: 상단 버전 고르기·3줄 머리 의사결정표·활용처가 보이고 RELEASED 는 읽기 전용이다", async ({ page }) => {
     await openRule(page, STEWARD, "QLTY_GRD_JDG");
     await expect(page.getByTestId("rule-edit-current-name")).toHaveText("품질 등급 판정");
-    await expect(page.getByTestId("rule-card-versions").getByTestId("rule-ver-row-1")).toBeVisible();
-    await expect(page.getByTestId("rule-version-table").locator('[data-status="RELEASED"]')).toHaveCount(1);
+    // D-105 — 버전 목록(②)은 헤더·버전 화면이다. 여기는 상단 Select 로 버전을 고른다.
+    const verSelect = page.getByTestId("rule-ver-select");
+    await expect(verSelect).toHaveValue("1");
+    await expect(verSelect.locator("option")).toHaveCount(2);
 
     const header = grid(page).locator(".ag-header");
     await expect(header.getByText("조건", { exact: true })).toBeVisible();
@@ -166,29 +171,7 @@ test.describe("mdm dme/ruleEdit", () => {
     await page.screenshot({ path: screenshot("dme-ruleEdit-released.png"), fullPage: true });
   });
 
-  test("S3 헤더: 룰명을 바꿔 바로 저장하면 다시 불러와도 유지된다", async ({ page }) => {
-    await openRule(page, STEWARD, "QLTY_GRD_JDG");
-    await page.getByTestId("rule-header-name").fill("품질 등급 판정 E2E");
-    await page.getByRole("button", { name: "헤더 저장", exact: true }).click();
-    await expect(page.getByTestId("rule-edit-current-name")).toHaveText("품질 등급 판정 E2E", { timeout: 20_000 });
-    await page.reload();
-    await openRuleEdit(page);
-    await pickRule(page, "QLTY_GRD_JDG");
-    await expect(page.getByTestId("rule-header-name")).toHaveValue("품질 등급 판정 E2E");
-  });
 
-  test("S4 수용 5: 새 버전은 버전 2 DRAFT(base 1, 편집 중(나), 행 복사)이고 그 뒤 새 버전은 막힌다", async ({ page }) => {
-    await openRule(page, STEWARD, "QLTY_GRD_JDG");
-    await page.getByRole("button", { name: "새 버전", exact: true }).click();
-    await expect(page.getByTestId("rule-ver-select")).toHaveValue("2", { timeout: 20_000 });
-    const verRow = page.getByTestId("rule-version-table").locator('.ag-center-cols-container .ag-row[row-id="2"]');
-    await expect(verRow.locator('[data-status="DRAFT"]')).toBeVisible();
-    await expect(verRow.locator('.ag-cell[col-id="baseVer"]')).toHaveText("1");
-    await expect(page.getByTestId("rule-edit-topbar").getByText("편집 중(나)")).toBeVisible();
-    for (const rowId of [1, 2, 3, 4]) await expect(page.getByTestId(`dt-row-${rowId}`)).toBeVisible();
-    await expect(page.getByRole("button", { name: "새 버전", exact: true })).toBeDisabled();
-    await expect(page.getByTestId("rule-unapplied-notice")).toContainText("미적용 버전 2");
-  });
 
   test("S5 편집: 행 추가·칸 편집 강조·드래그·되돌리기, 조건이 전부 - 인 행은 저장이 거부되고 조건을 채우면 저장되어 새 행 번호가 남는다", async ({ page }) => {
     await openRule(page, STEWARD, "QLTY_GRD_JDG");
@@ -275,24 +258,15 @@ test.describe("mdm dme/ruleEdit", () => {
     await expect(checkRows(page)).toContainText("경고 [OVERLAP] 행 1, 2");
     await expect(page.getByTestId("dt-dirty")).toHaveCount(0);
 
-    // UNIQUE 로 바꾸면 겹침이 오류가 되고(수용 2), 저장은 거부되며 편집은 남는다.
-    await page.getByTestId("dt-hit-policy").selectOption("UNIQUE");
-    await expect(checkRows(page)).toContainText("오류 [OVERLAP] 행 1, 2");
-    await expect(checkRows(page)).not.toContainText("[UNREACHABLE]");
-    await expect(page.getByTestId("dt-check")).toContainText("검사(화면)");
-    await page.getByRole("button", { name: "표 저장", exact: true }).click();
-    await expect(page.getByTestId("dt-save-rejected")).toContainText("룰 저장 거부", { timeout: 30_000 });
-    await expect(page.getByTestId("dt-save-rejected")).toContainText("OVERLAP");
-    await closeErrorModal(page);
-    await expect(page.getByTestId("dt-hit-policy")).toHaveValue("UNIQUE");
-    await expect(page.getByTestId("dt-dirty")).toBeVisible();
-    await page.screenshot({ path: screenshot("dme-ruleEdit-overlap.png"), fullPage: true });
+    // D-105 (4) — 적중 정책은 버전 속성이므로 여기서 고치지 않는다. 저장된 값(FIRST)이 검사 입력으로 쓰인다.
+    await expect(page.getByTestId("dt-hit-policy")).toHaveText("첫 행(FIRST)");
+    await expect(page.getByTestId("dt-hit-policy")).toHaveAttribute("data-testid", "dt-hit-policy");
 
-    // 다시 불러오면 적중 정책은 서버에 FIRST 로 남아 있고, 첫 저장의 칸 값은 남는다.
+    // 다시 불러와도 저장된 FIRST 이 그대로고, 첫 저장의 칸 값은 남는다.
     await page.reload();
     await openRuleEdit(page);
     await pickRule(page, "QLTY_GRD_JDG");
-    await expect(page.getByTestId("dt-hit-policy")).toHaveValue("FIRST");
+    await expect(page.getByTestId("dt-hit-policy")).toHaveText("첫 행(FIRST)");
     await expect(cell(page, 2, "c3_left")).toHaveText("A");
   });
 
@@ -305,59 +279,9 @@ test.describe("mdm dme/ruleEdit", () => {
     await expect(cell(page, 1, "c1_op")).not.toHaveClass(/cell-emphasis/);
   });
 
-  test("S8 수용 4: 다른 담당자가 편집 중인 DRAFT 는 잠김이고 편집·저장·삭제·해제·넘기기가 막힌다", async ({ page }) => {
-    await openRule(page, STEWARD, "E2E_LOCK_JDG");
-    await expect(page.getByTestId("rule-edit-topbar").getByText(`잠김 · ${STEWARD2} 편집 중`)).toBeVisible();
-    for (const name of ["행 추가", "표 저장", "삭제", "해제", "넘기기", "헤더 저장"]) {
-      await expect(page.getByRole("button", { name, exact: true })).toBeDisabled();
-    }
-    await expect(page.getByRole("button", { name: "선점", exact: true })).toHaveCount(0);
-    await cell(page, 1, "c1_left").click();
-    await expect(cell(page, 1, "c1_left").locator("input")).toHaveCount(0);
-    await page.screenshot({ path: screenshot("dme-ruleEdit-locked.png"), fullPage: true });
-  });
 
-  test("S9 해제·선점: 소유자가 해제하면 다른 담당자가 선점해 편집 중(나)이 된다", async ({ browser }) => {
-    const owner = await browser.newPage();
-    await openRule(owner, STEWARD2, "E2E_LOCK_JDG");
-    await expect(owner.getByTestId("rule-edit-topbar").getByText("편집 중(나)")).toBeVisible();
-    await owner.getByRole("button", { name: "해제", exact: true }).click();
-    await expect(owner.getByTestId("rule-edit-topbar").getByText("선점 가능")).toBeVisible({ timeout: 20_000 });
-    await owner.close();
 
-    const other = await browser.newPage();
-    await openRule(other, STEWARD, "E2E_LOCK_JDG");
-    await other.getByRole("button", { name: "선점", exact: true }).click();
-    await expect(other.getByTestId("rule-edit-topbar").getByText("편집 중(나)")).toBeVisible({ timeout: 20_000 });
-    await expect(other.getByRole("button", { name: "행 추가", exact: true })).toBeEnabled();
-    await other.close();
-  });
 
-  test("S10 서버 오류: 저장이 MDM001 로 거부되면 오류와 다시 불러오기가 보인다", async ({ page }) => {
-    await openRule(page, STEWARD, "QLTY_GRD_JDG");
-    await page.route("**/api/mdm/oasis/ruleEdit/save", (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ meta: { success: false, message: "다른 사용자가 수정했습니다. 다시 불러오세요 (MDM001)" }, data: {} }),
-      }),
-    );
-    await page.getByTestId("rule-header-name").fill("품질 등급 판정 E2E2");
-    await page.getByRole("button", { name: "헤더 저장", exact: true }).click();
-    await expect(page.getByRole("dialog").getByText("다른 창에서 바뀌었습니다. 다시 불러오세요")).toBeVisible({ timeout: 20_000 });
-    await page.unroute("**/api/mdm/oasis/ruleEdit/save");
-    await page.getByRole("dialog").getByRole("button").first().click();
-    await expect(page.getByRole("button", { name: "다시 불러오기", exact: true })).toBeVisible();
-  });
-
-  test("S11 DRAFT 삭제: 버전 2 를 지우면 목록에서 사라지고 새 버전이 다시 켜진다", async ({ page }) => {
-    await openRule(page, STEWARD, "QLTY_GRD_JDG");
-    await expect(page.getByTestId("rule-ver-select")).toHaveValue("2");
-    await page.getByRole("button", { name: "삭제", exact: true }).click();
-    await expect(page.getByTestId("rule-ver-row-2")).toHaveCount(0, { timeout: 20_000 });
-    await expect(page.getByTestId("rule-ver-select")).toHaveValue("1");
-    await expect(page.getByRole("button", { name: "새 버전", exact: true })).toBeEnabled();
-  });
 
   // ── TSK-08-03: 열 설정·피벗·산출 룰·입력 계약 ──
 
@@ -752,7 +676,8 @@ test.describe("mdm dme/ruleEdit", () => {
 
   test("V6 저장 거부: UNIQUE 표에서 두 행을 겹치게 고쳐 저장하면 거부되고 편집은 남으며 다시 불러오면 바뀌지 않았다", async ({ page }) => {
     await openRule(page, STEWARD, VT_RULE);
-    await expect(page.getByTestId("dt-hit-policy")).toHaveValue("UNIQUE");
+    // D-105 (4) — 이 룰은 서버에 UNIQUE 로 저장돼 있고, 표는 그 저장된 값을 읽어 검사한다.
+    await expect(page.getByTestId("dt-hit-policy")).toHaveText("유일(UNIQUE)");
     // 2행 표면등급 B → A: 1행과 겹친다.
     await editText(page, 2, "c2_left", "A");
     await expect(checkRows(page)).toContainText("오류 [OVERLAP] 행 1, 2");

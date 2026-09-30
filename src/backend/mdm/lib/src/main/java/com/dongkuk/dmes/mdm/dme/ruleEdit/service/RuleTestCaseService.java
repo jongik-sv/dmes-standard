@@ -1,12 +1,13 @@
 package com.dongkuk.dmes.mdm.dme.ruleEdit.service;
 
-import static com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditSupport.blankToNull;
-import static com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditSupport.requireMdm;
-import static com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditSupport.requireRowVersion;
+import static com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport.blankToNull;
+import static com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport.requireMdm;
+import static com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport.requireRowVersion;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.rule.RuleStewardCheck;
+import com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport;
 import com.dongkuk.dmes.mdm.common.rule.RuleTestCaseQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleTestCaseWrites;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleLimits;
@@ -42,14 +43,14 @@ public class RuleTestCaseService implements RuleEditSavePart {
     /** 뒤에 붙은 글자가 있으면 거부한다 — 기본 설정은 첫 값만 읽고 나머지를 버려 DB CHECK 에서야 걸린다. */
     private static final ObjectMapper JSON = new ObjectMapper().enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
 
-    private final RuleEditSupport support;
+    private final RuleScreenSupport support;
     private final RuleStewardCheck stewardCheck;
     private final RuleTestCaseQueries queries;
     private final RuleTestCaseWrites writes;
     private final MdmRuleIdIssuer issuer;
     private final TransactionTemplate tx;
 
-    public RuleTestCaseService(RuleEditSupport support, RuleStewardCheck stewardCheck, RuleTestCaseQueries queries, RuleTestCaseWrites writes,
+    public RuleTestCaseService(RuleScreenSupport support, RuleStewardCheck stewardCheck, RuleTestCaseQueries queries, RuleTestCaseWrites writes,
                                MdmRuleIdIssuer issuer, PlatformTransactionManager transactionManager) {
         this.support = support;
         this.stewardCheck = stewardCheck;

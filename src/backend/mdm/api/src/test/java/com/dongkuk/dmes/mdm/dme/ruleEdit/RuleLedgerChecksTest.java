@@ -100,7 +100,7 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
                 r.put("cells", DmeTestSupport.valAsExpr((String) r.get("cells"), varId));
             }
         }
-        return tableService.save(table(DmeTestSupport.rowVersion(jdbc, "QLTY_GRD_JDG", 2), "FIRST", rows));
+        return tableService.save(table(DmeTestSupport.rowVersion(jdbc, "QLTY_GRD_JDG", 2), rows));
     }
 
     /** 거부(MDM021)이고 VER 2 의 행·row_version 이 그대로인지 본다. */

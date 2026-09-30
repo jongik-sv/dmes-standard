@@ -211,7 +211,7 @@ moduleGroup: dme
 
 | ID | 항목 | 근거 |
 |---|---|---|
-| N-1 | **세트 값 테스트 카드 — 이번 범위에서 제외.** 06:756 은 카드를 두라고 했지만 시안에 없고, 운영 DB 를 읽는 엔진 정의 조회(`DefinitionLookup`) 구현이 리포에 없다(`MdmEngineConfig` 의 `EMPTY_DEFINITIONS`). 룰 값 테스트(TSK-08-04)가 같은 조회기를 만들 자리라 여기서 먼저 만들면 겹친다. 수용 기준에 값 테스트가 없다. **후속 조건**: 08-04 의 조회기가 머지되면 이 화면에 카드 하나(`view` 옆 `execute` action)로 더한다 **2026-09-30 갱신**: 룰 세트 흐름도 1단계에서 운영 정의 조회기(`StoredDefinitionLookup`)와 실행기(`RuleSetRunner`)가 생겼다. 카드는 목록 화면에 먼저 만들지 않고 2단계 디버거(시뮬레이션 탭)와 `simulate` action 으로 넣는다(D-107, mdm ADR-0005 D4) | design D2, spec 제약 "화면 설계 산출물에서 포함 여부 확정", D-107 |
+| N-1 | **세트 값 테스트 카드 — 이번 범위에서 제외.** 06:756 은 카드를 두라고 했지만 시안에 없고, 운영 DB 를 읽는 엔진 정의 조회(`DefinitionLookup`) 구현이 리포에 없다(`MdmEngineConfig` 의 `EMPTY_DEFINITIONS`). 룰 값 테스트(TSK-08-04)가 같은 조회기를 만들 자리라 여기서 먼저 만들면 겹친다. 수용 기준에 값 테스트가 없다. **후속 조건**: 08-04 의 조회기가 머지되면 이 화면에 카드 하나(`view` 옆 `execute` action)로 더한다 **2026-09-30 갱신**: 룰 세트 흐름도 1단계에서 운영 정의 조회기(`StoredDefinitionLookup`)와 실행기(`RuleSetRunner`)가 생겼다. 카드는 목록 화면에 먼저 만들지 않고 2단계 디버거(시뮬레이션 탭)와 `simulate` action 으로 넣는다(D-108, mdm ADR-0005 D4) | design D2, spec 제약 "화면 설계 산출물에서 포함 여부 확정", D-108 |
 | N-2 | 화면 그룹 `dme`(spec 의 `mdr` 아님) | design D1 |
 | N-3 | "지금 RELEASED" = RELEASED 가운데 VER 최대 | design D3·I7 |
 | N-4 | 룰 하나의 입출력은 엔진이 세트 실행 전에 요구하는 키와 같게 새로 정의(`RuleIoReader`). 룰 화면 활용처 카드(`RuleUsageFinder`)는 고치지 않아 드문 룰에서 의존 룰이 다르게 보일 수 있다 | design D4 |
@@ -224,5 +224,5 @@ moduleGroup: dme
 | N-11 | 같은 룰을 두 번 담지 않는다 | design D15 |
 | N-12 | 룰 목록 그리드는 `columnSizing="fit"` + 열마다 `minWidth` 로 카드 폭에 맞춰 줄인다(TSK-08-02 ruleMng N-4 선례). 고정 폭(열 합 약 1,160px)일 때는 기본 폭 1280 에서 ag-grid 가 의존 룰·동작(▲▼✕) 열을 그리지 않았다. **해결됨(fit + minWidth)** — 동작 열 minWidth 120 은 세 버튼이 잘리지 않는 폭이고, 좁은 폭에서는 룰명·종류·정책·결과 변수 칸이 말줄임으로 줄어든다. e2e E2 가 기본 폭에서 동작·의존 룰 열을 단언한다 | TSK-08-06 build-log B8 「설계 이탈」 |
 | N-13 | e2e `src/frontend/e2e/mdm-ruleSetEdit.spec.ts`(E1~E10, 스모크 넷 = E1·E2·E5·E8), 픽스처 `e2e/fixtures/mdm-ruleSet-data.sql` | design §3.4.2 |
-| N-14 | **흐름 저장(1단계)** — `TB_MDM_RULE_SET.FLOW_JSON`(흐름 정의 + 화면 전용 view)을 저장하고 `RULE_IDS` 는 서버가 흐름을 깊이 우선으로 펼친 중복 없는 룰 목록으로 채운다(요청의 룰 목록을 믿지 않는다). `FLOW_JSON` 이 NULL 이면 `RULE_IDS` 순서의 한 줄 흐름이다. 분기 세트는 목록 편집으로 저장할 수 없다(`FLOW_READONLY`) | 스펙 `docs/superpowers/specs/2026-09-29-rule-set-flow-design.md` §3.3, D-106 |
-| N-15 | 흐름 세트의 입출력 표·의존 룰은 흐름을 펼친 룰 목록으로 계산한다(1단계). 흐름 기준 입출력은 2단계 캔버스에서 필요해지면 다시 정한다 | D-106(편차 D10) |
+| N-14 | **흐름 저장(1단계)** — `TB_MDM_RULE_SET.FLOW_JSON`(흐름 정의 + 화면 전용 view)을 저장하고 `RULE_IDS` 는 서버가 흐름을 깊이 우선으로 펼친 중복 없는 룰 목록으로 채운다(요청의 룰 목록을 믿지 않는다). `FLOW_JSON` 이 NULL 이면 `RULE_IDS` 순서의 한 줄 흐름이다. 분기 세트는 목록 편집으로 저장할 수 없다(`FLOW_READONLY`) | 스펙 `docs/superpowers/specs/2026-09-29-rule-set-flow-design.md` §3.3, D-107 |
+| N-15 | 흐름 세트의 입출력 표·의존 룰은 흐름을 펼친 룰 목록으로 계산한다(1단계). 흐름 기준 입출력은 2단계 캔버스에서 필요해지면 다시 정한다 | D-107(편차 D10) |

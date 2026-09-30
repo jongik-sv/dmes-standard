@@ -94,4 +94,4 @@
 - 구현 계획: [`docs/superpowers/plans/2026-09-30-rule-set-flow-phase1.md`](../../superpowers/plans/2026-09-30-rule-set-flow-phase1.md)(편차 D1~D12)
 - [TRD](../TRD.md) 13·134행, [PRD](../PRD.md) AC-4, [엔진 계약](../engine-contract.md)
 - [ruleSetEdit 기능설계서](../screens/ruleSetEdit/ruleSetEdit_기능설계서.md) §11 N-1
-- [`docs/mdm/decisions.md`](../decisions.md) D-105·D-106·D-107
+- [`docs/mdm/decisions.md`](../decisions.md) D-106·D-107·D-108

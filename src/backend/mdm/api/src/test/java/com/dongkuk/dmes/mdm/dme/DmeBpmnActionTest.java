@@ -25,24 +25,38 @@ class DmeBpmnActionTest {
     private static final String BPMN = "http://www.omg.org/spec/BPMN/20100524/MODEL";
     private static final String CAMUNDA = "http://camunda.org/schema/1.0/bpmn";
 
+    /**
+     * D-105 — 헤더·버전 관리가 이 화면으로 왔다. {@code save} 는 target HEADER(룰명 등)와 target VERSION(적중 정책)을 가른다.
+     * {@code delete} 는 target VERSION(DRAFT 삭제)·RULE(폐기)·CONFIRM(확정 취소, ADR-0002 D8)를 가른다.
+     */
     @Test
-    void ruleMng_는_search_reg() throws Exception {
-        assertActions("services/dme/ruleMng.bpmn", "ruleMng", "ruleMngService",
-                Map.of("search", "search", "reg", "register"), Map.of("search", true, "reg", false));
+    void ruleMng_는_search_reg_view_save_copy_delete_lock_unlock_handover() throws Exception {
+        Map<String, String> methods = new HashMap<>();
+        methods.put("search", "search");
+        methods.put("reg", "register");
+        methods.put("view", "view");
+        methods.put("save", "save");
+        methods.put("copy", "copy");
+        methods.put("delete", "delete");
+        methods.put("lock", "lock");
+        methods.put("unlock", "unlock");
+        methods.put("handover", "handover");
+        Map<String, Boolean> readOnly = Map.of("search", true, "reg", false, "view", true, "save", false, "copy", false,
+                "delete", false, "lock", false, "unlock", false, "handover", false);
+        assertActions("services/dme/ruleMng.bpmn", "ruleMng", "ruleMngService", methods, readOnly);
     }
 
+    /**
+     * D-105 — 헤더·버전 관리(copy·delete·lock·unlock·handover)와 save 의 part HEADER 가 ruleMng 으로 갔다. 여기 남는 것은
+     * 내용 편집뿐이라 5개다. 버전 목록은 읽기만 하므로 view 는 그대로 있고 관리 버튼은 없다.
+     */
     @Test
-    void ruleEdit_는_search_view_save_delete_copy_lock_unlock_handover_validate_execute() throws Exception {
+    void ruleEdit_는_search_view_save_validate_execute() throws Exception {
         Map<String, String> methods = new HashMap<>();
         methods.put("search", "search"); // target=RULE|DOMAIN 을 Java 가 가른다(TSK-08-03 — 새 action 은 mcm 시드 어휘 16종 밖이라 못 만든다)
         methods.put("validate", "parseExpr");
         methods.put("view", "view");
         methods.put("save", "save");
-        methods.put("delete", "delete");
-        methods.put("copy", "newVersion");
-        methods.put("lock", "lock");
-        methods.put("unlock", "unlock");
-        methods.put("handover", "handover");
         methods.put("execute", "runTest"); // 값 테스트(TSK-08-04 D3) — 원장에 쓰지 않지만 EDIT 권한 액션이라 readOnly 가 아니다
         Map<String, Boolean> readOnly = new HashMap<>();
         methods.keySet().forEach(a -> readOnly.put(a, a.equals("search") || a.equals("view")));

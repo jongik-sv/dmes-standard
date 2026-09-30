@@ -1,7 +1,13 @@
 /**
- * ruleEdit 화면의 OASIS 호출(TSK-08-02 design §6.1) — search·view·save(HEADER|TABLE|COLUMNS|CASE)·delete(VERSION|RULE)·copy·lock·unlock·handover,
- * 값 테스트 execute(TSK-08-04 §6.5).
- * 표 저장의 행은 params 가 아니라 `grids.rows.rows` 로 보낸다(Build 이탈 B4). 쓰기 뒤에는 화면이 view 를 다시 불러 row_version 을 맞춘다.
+ * ruleEdit 화면의 OASIS 호출(TSK-08-02 design §6.1, decisions.md D-105) — search·view·save(TABLE|COLUMNS|CASE),
+ * 식 파싱 validate, 값 테스트 execute(TSK-08-04 §6.5). **내용 편집만** 한다.
+ *
+ * <p>D-105 로 헤더·버전 관리(_HEADER_ 저장·폐기·새 버전·DRAFT 삭제·선점·해제·넘기기·확정 취소)는 `ruleMng` 화면으로
+ * 옮겨 갔다 — 서버 서비스도 `ruleMng` 의 `view`·`save`·`copy`·`delete`·`lock`·`unlock`·`handover` 로 옮겨 갔다.
+ * 적중 정책(HIT_POLICY)도 버전 속성이므로 그쪽에서 저장한다(D-105 (4)) — 여기는 <b>저장된 값을 읽어</b> 표 저장을 한다.
+ *
+ * <p>표 저장의 행은 params 가 아니라 `grids.rows.rows` 로 보낸다(Build 이탈 B4). 쓰기 뒤에는 화면이 view 를 다시 불러
+ * row_version 을 맞춘다.
  */
 import { callOasis } from "@/dme/oasis-call";
 
@@ -13,7 +19,6 @@ import type {
   RuleEditView,
   RulePickRow,
   RuleTableSaveResult,
-  RuleVersionResult,
   TestCaseSaveResult,
   TestCaseView,
   ValueTestResult,
@@ -31,22 +36,6 @@ export function viewRule(ruleId: string, ver?: number | null): Promise<RuleEditV
   return callOasis<RuleEditView>(SERVICE, "view", { maruRuleId: ruleId, ver: ver ?? undefined });
 }
 
-export interface HeaderForm {
-  maruRuleName: string;
-  description: string;
-  usageNote: string;
-}
-
-export function saveHeader(ruleId: string, form: HeaderForm): Promise<unknown> {
-  return callOasis(SERVICE, "save", {
-    part: "HEADER",
-    maruRuleId: ruleId,
-    maruRuleName: form.maruRuleName,
-    description: form.description,
-    usageNote: form.usageNote,
-  });
-}
-
 /** 표 저장 한 행 — rowId 는 새 행이면 음수 임시 ID, 순서가 곧 표시 순서다(seq 는 서버가 정한다, I10). */
 export interface TableSaveRow {
   rowId: number;
@@ -55,19 +44,12 @@ export interface TableSaveRow {
   note?: string | null;
 }
 
-export function saveTable(
-  ruleId: string,
-  ver: number,
-  rowVersion: number,
-  hitPolicy: HitPolicyCode | null,
-  rows: TableSaveRow[],
-): Promise<RuleTableSaveResult> {
-  return callOasis<RuleTableSaveResult>(
-    SERVICE,
-    "save",
-    { part: "TABLE", maruRuleId: ruleId, ver, rowVersion, hitPolicy: hitPolicy ?? undefined },
-    { rows: { rows: tableGridRows(rows) } },
-  );
+/**
+ * 표 저장 — 적중 정책은 보내지 않는다(D-105 (4)). 서버는 그 버전에 <b>저장된</b> 값을 읽어 검사 입력으로 쓴다.
+ * 정책은 헤더·버전 화면(`ruleMng save target VERSION`)이 따로 저장한다.
+ */
+export function saveTable(ruleId: string, ver: number, rowVersion: number, rows: TableSaveRow[]): Promise<RuleTableSaveResult> {
+  return callOasis<RuleTableSaveResult>(SERVICE, "save", { part: "TABLE", maruRuleId: ruleId, ver, rowVersion }, { rows: { rows: tableGridRows(rows) } });
 }
 
 /** 표 행 → `grids.rows.rows` 한 줄(빈 행 설명은 뺀다). 표 저장과 값 테스트 BODY 가 같은 모양을 쓴다. */
@@ -178,38 +160,6 @@ export function saveTestCase(ruleId: string, form: TestCaseForm): Promise<TestCa
 /** 테스트 케이스 삭제 — action=save part=CASE caseDeleted=true, rowVersion 조건(MDM001). */
 export function deleteTestCase(ruleId: string, caseId: number, rowVersion: number): Promise<TestCaseSaveResult> {
   return callOasis<TestCaseSaveResult>(SERVICE, "save", { part: "CASE", maruRuleId: ruleId, caseId, rowVersion, caseDeleted: true });
-}
-
-export function deleteDraft(ruleId: string, ver: number, rowVersion: number): Promise<RuleVersionResult> {
-  return callOasis<RuleVersionResult>(SERVICE, "delete", { maruRuleId: ruleId, ver, rowVersion, target: "VERSION" });
-}
-
-export function deprecateRule(ruleId: string): Promise<RuleVersionResult> {
-  return callOasis<RuleVersionResult>(SERVICE, "delete", { maruRuleId: ruleId, target: "RULE" });
-}
-
-/**
- * 확정 취소 — 아직 적용 시각이 오지 않은 확정 버전을 작성 중으로 되돌린다(ADR-0002 D8, TSK-02-01 D4-1).
- * `deleteDraft` 와 같은 액션(`delete`)이지만 `target:"CONFIRM"` 으로 서버가 구분한다. 04 `codeEdit` 도 같은 값을 쓴다.
- */
-export function cancelConfirm(ruleId: string, ver: number, rowVersion: number): Promise<RuleVersionResult> {
-  return callOasis<RuleVersionResult>(SERVICE, "delete", { maruRuleId: ruleId, ver, rowVersion, target: "CONFIRM" });
-}
-
-export function newVersion(ruleId: string): Promise<RuleVersionResult> {
-  return callOasis<RuleVersionResult>(SERVICE, "copy", { maruRuleId: ruleId });
-}
-
-export function lockVersion(ruleId: string, ver: number, rowVersion: number): Promise<RuleVersionResult> {
-  return callOasis<RuleVersionResult>(SERVICE, "lock", { maruRuleId: ruleId, ver, rowVersion });
-}
-
-export function unlockVersion(ruleId: string, ver: number, rowVersion: number): Promise<RuleVersionResult> {
-  return callOasis<RuleVersionResult>(SERVICE, "unlock", { maruRuleId: ruleId, ver, rowVersion });
-}
-
-export function handoverVersion(ruleId: string, ver: number, rowVersion: number, newOwnerId: string): Promise<RuleVersionResult> {
-  return callOasis<RuleVersionResult>(SERVICE, "handover", { maruRuleId: ruleId, ver, rowVersion, newOwnerId });
 }
 
 /**

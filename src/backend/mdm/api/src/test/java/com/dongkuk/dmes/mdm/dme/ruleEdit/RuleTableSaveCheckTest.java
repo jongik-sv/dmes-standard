@@ -119,9 +119,10 @@ class RuleTableSaveCheckTest {
     }
 
     /** 거부(MDM021, "룰 저장 거부:")이고 원장이 그대로인지 보고 details 의 이슈 코드를 돌려준다. */
-    private List<String> rejected(long rowVersion, String hit, List<Map<String, Object>> rows) {
+    /** 적중 정책은 요청으로 받지 않는다(D-105 (4)) — 저장된 값을 검사 입력으로 쓴다. */
+    private List<String> rejected(long rowVersion, List<Map<String, Object>> rows) {
         Map<String, Object> before = state();
-        BusinessException e = assertThrows(BusinessException.class, () -> service.save(table(rowVersion, hit, rows)));
+        BusinessException e = assertThrows(BusinessException.class, () -> service.save(table(rowVersion, rows)));
         assertEquals("MDM021", e.getErrors().get(0).code(), e.getMessage());
         assertTrue(e.getMessage().startsWith(RuleSaveRejections.PREFIX), e.getMessage());
         assertEquals(before, state(), "거부된 저장은 행·적중 정책·row_version·LAST_ROW_ID 를 바꾸지 않는다(I1)");
@@ -138,39 +139,48 @@ class RuleTableSaveCheckTest {
         rows.remove(1);
         rows.add(2, row(-1, "NORMAL", "{\"1\":{\"op\":\"NA\"},\"2\":{\"op\":\"NA\"},\"3\":{\"op\":\"NA\"},\"4\":{\"val\":\"D\"},\"5\":{\"val\":\"1\"}}", null));
 
-        List<String> codes = rejected(0, "UNIQUE", rows);
+        List<String> codes = rejected(0, rows);
 
         assertTrue(codes.contains("ALL_NA_ROW"), codes.toString());
     }
 
     @Test
     void UNIQUE_겹침은_거부하고_같은_표를_FIRST_로는_저장하고_OVERLAP_경고를_싣는다() {
+        // 적중 정책은 이제 헤더·버전 화면이 저장하고 표 저장은 저장된 값을 읽는다(D-105 (4)).
+        // 그래서 "UNIQUE 로 검사"를 하려면 저장된 버전을 먼저 UNIQUE 로 만들어 둔다.
+        setStoredHitPolicy("UNIQUE");
         List<Map<String, Object>> rows = sample();
         rows.set(1, row(2, "NORMAL", Q_ROW2.replace("[\"B\"]", "[\"A\",\"B\"]"), null));
 
-        assertEquals(List.of("OVERLAP"), rejected(0, "UNIQUE", rows));
+        assertEquals(List.of("OVERLAP"), rejected(0, rows));
 
-        RuleEditSaveResult r = service.save(table(0, "FIRST", rows));
+        setStoredHitPolicy("FIRST"); // FIRST 로 바꾸면 겹침이 경고로 내려간다
+        RuleEditSaveResult r = service.save(table(0, rows));
         assertEquals(1L, r.getRowVersion());
         assertTrue(r.getIssues().stream().anyMatch(i -> "OVERLAP".equals(i.get("code")) && "WARNING".equals(i.get("severity"))), r.getIssues().toString());
+    }
+
+    /** 헤더·버전 화면({@code ruleMng save target VERSION})이 저장하는 값을 테스트에서 그대로 흉내 낸다. */
+    private void setStoredHitPolicy(String hit) {
+        jdbc.update("UPDATE TB_MDM_RULE_VER SET HIT_POLICY = ? WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2", hit);
     }
 
     @Test
     void 미완성_행은_거부한다() {
         List<Map<String, Object>> missingCond = sample();
         missingCond.add(3, row(-1, "NORMAL", "{\"1\":{\"op\":\"GE\",\"left\":\"3\"},\"2\":{\"op\":\"NA\"},\"4\":{\"val\":\"D\"},\"5\":{\"val\":\"1\"}}", null));
-        assertEquals(List.of("INCOMPLETE_COND"), rejected(0, "FIRST", missingCond));
+        assertEquals(List.of("INCOMPLETE_COND"), rejected(0, missingCond));
 
         List<Map<String, Object>> missingResult = sample();
         missingResult.set(3, row(4, "DEFAULT", "{\"4\":{\"val\":\"C\"}}", null));
-        assertEquals(List.of("INCOMPLETE_RESULT"), rejected(0, "FIRST", missingResult));
+        assertEquals(List.of("INCOMPLETE_RESULT"), rejected(0, missingResult));
     }
 
     @Test
     void 셀_규칙_ERROR_는_거부한다() {
         List<Map<String, Object>> rows = sample();
         rows.set(0, row(1, "NORMAL", Q_ROW1.replace("\"left\":\"1.6\"", "\"left\":\" 1.60\""), null));
-        assertEquals(List.of("TYPE_LITERAL"), rejected(0, "FIRST", rows));
+        assertEquals(List.of("TYPE_LITERAL"), rejected(0, rows));
     }
 
     @Test
@@ -180,7 +190,7 @@ class RuleTableSaveCheckTest {
         rows.add(3, row(-1, "NORMAL", "{\"1\":{\"op\":\"GE\",\"left\":\"2.5\"},\"2\":{\"op\":\"NA\"},\"3\":{\"op\":\"NA\"},\"4\":{\"val\":\"D\"},\"5\":{\"val\":\"1\"}}",
                 null));
 
-        RuleEditSaveResult r = service.save(table(0, "FIRST", rows));
+        RuleEditSaveResult r = service.save(table(0, rows));
 
         assertEquals(Map.of("-1", 5), r.getRowIdMap());
         assertEquals(5, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2"));
@@ -199,7 +209,7 @@ class RuleTableSaveCheckTest {
         List<Map<String, Object>> rows = sample();
         rows.add(3, row(-1, "NORMAL", "{\"1\":{\"op\":\"LT\",\"left\":\"1\"},\"2\":{\"op\":\"NA\"},\"3\":{\"op\":\"NA\"},\"4\":{\"val\":\"D\"},"
                 + "\"5\":{\"val\":\"1\"}}", null));
-        assertEquals(List.of("PROBE"), rejected(0, "UNIQUE", rows), "분석 ERROR 가 없는 UNIQUE 표(새 행은 두께 1 미만)");
+        assertEquals(List.of("PROBE"), rejected(0, rows), "분석 ERROR 가 없는 UNIQUE 표(새 행은 두께 1 미만)");
     }
 
     @Test
@@ -207,7 +217,7 @@ class RuleTableSaveCheckTest {
         List<Map<String, Object>> rows = sample();
         rows.set(0, row(1, "NORMAL", Q_ROW1.replace("\"right\":\"2.5\"", "\"right\":\"\"").replace("[\"A\"]", "[\"C\",\"A\",\"C\"]"), null));
 
-        RuleEditSaveResult r = service.save(table(0, "FIRST", rows));
+        RuleEditSaveResult r = service.save(table(0, rows));
 
         Map<Integer, Map<String, Object>> first = RuleCellsCodec.parse((String) storedRows().get(0).get("CELLS"));
         assertEquals(Map.of("op", "GE", "left", "1.6"), first.get(1));
@@ -220,7 +230,7 @@ class RuleTableSaveCheckTest {
         currentUser.set("lee", STEWARD);
         List<Map<String, Object>> rows = sample();
         rows.add(0, row(-1, "NORMAL", "{\"1\":{\"op\":\"NA\"}}", null));
-        BusinessException e = assertThrows(BusinessException.class, () -> service.save(table(0, "UNIQUE", rows)));
+        BusinessException e = assertThrows(BusinessException.class, () -> service.save(table(0, rows)));
         assertEquals("MDM003", e.getErrors().get(0).code(), e.getMessage());
     }
 
@@ -231,10 +241,10 @@ class RuleTableSaveCheckTest {
             over.add(row(-i, "NORMAL", complete(i), null));
         }
         over.add(row(4, "DEFAULT", Q_DEFAULT, null));
-        assertEquals(List.of("LIMIT_EXCEEDED"), rejected(0, "FIRST", over));
+        assertEquals(List.of("LIMIT_EXCEEDED"), rejected(0, over));
 
         List<Map<String, Object>> exact = new ArrayList<>(over.subList(1, over.size()));
-        service.save(table(0, "FIRST", exact));
+        service.save(table(0, exact));
         assertEquals(RuleLimits.MAX_ROWS, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2"));
     }
 
@@ -242,11 +252,11 @@ class RuleTableSaveCheckTest {
     void 행_셀_길이_상한과_같으면_저장하고_넘으면_거부한다() {
         List<Map<String, Object>> over = sample();
         over.set(2, row(3, "NORMAL", pad(Q_ROW3, RuleLimits.MAX_ROW_CELLS_CHARS + 1), null));
-        assertEquals(List.of("LIMIT_EXCEEDED"), rejected(0, "FIRST", over));
+        assertEquals(List.of("LIMIT_EXCEEDED"), rejected(0, over));
 
         List<Map<String, Object>> exact = sample();
         exact.set(2, row(3, "NORMAL", pad(Q_ROW3, RuleLimits.MAX_ROW_CELLS_CHARS), null));
-        service.save(table(0, "FIRST", exact));
+        service.save(table(0, exact));
         assertEquals(Q_ROW3, storedRows().get(2).get("CELLS"), "저장은 공백 없는 JSON 이다");
     }
 
@@ -264,7 +274,7 @@ class RuleTableSaveCheckTest {
         over.add(row(-n, "NORMAL", "{}", null));
         over.add(row(4, "DEFAULT", pad(Q_DEFAULT, per), null));
         assertEquals(RuleLimits.MAX_TOTAL_CELLS_CHARS + 1, over.stream().mapToInt(m -> ((String) m.get("cells")).length()).sum());
-        assertEquals(List.of("LIMIT_EXCEEDED"), rejected(0, "FIRST", over));
+        assertEquals(List.of("LIMIT_EXCEEDED"), rejected(0, over));
 
         List<Map<String, Object>> exact = new ArrayList<>();
         for (int i = 1; i < n; i++) {
@@ -272,7 +282,7 @@ class RuleTableSaveCheckTest {
         }
         exact.add(row(4, "DEFAULT", pad(Q_DEFAULT, per), null));
         assertEquals(RuleLimits.MAX_TOTAL_CELLS_CHARS, exact.stream().mapToInt(m -> ((String) m.get("cells")).length()).sum());
-        service.save(table(0, "FIRST", exact));
+        service.save(table(0, exact));
         assertEquals(n, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2"));
     }
 }

@@ -1,18 +1,19 @@
 package com.dongkuk.dmes.mdm.dme.ruleEdit.service;
 
-import static com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditSupport.ref;
-import static com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditSupport.requireMdm;
-import static com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditSupport.requireRowVersion;
-import static com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditSupport.requireVer;
+import static com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport.ref;
+import static com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport.requireMdm;
+import static com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport.requireRowVersion;
+import static com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport.requireVer;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
+import com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport;
 import com.dongkuk.dmes.mdm.common.rule.RuleAnalysisInputMapper;
 import com.dongkuk.dmes.mdm.common.rule.RuleAnalysisInputMapper.StoredRow;
 import com.dongkuk.dmes.mdm.common.rule.RuleCellsCodec;
 import com.dongkuk.dmes.mdm.common.rule.RuleIssueMaps;
-import com.dongkuk.dmes.mdm.common.rule.RuleNativeWrites;
+import com.dongkuk.dmes.mdm.common.rule.RuleHitPolicies;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckInput;
@@ -31,6 +32,7 @@ import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveResult;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.entity.MdmRuleRow;
+import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRowRepository;
 import java.util.ArrayList;
@@ -39,6 +41,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import kr.dongkuk.maru.mdm.engine.rule.RuleAnalyzer;
 import kr.dongkuk.maru.mdm.engine.rule.RuleIssue;
@@ -62,11 +65,9 @@ public class RuleTableService implements RuleEditSavePart {
 
     static final String PART = "TABLE";
     private static final Set<String> ROW_KINDS = Set.of("NORMAL", "DEFAULT");
-    private static final Set<String> HIT_POLICIES = Set.of("FIRST", "UNIQUE", "PRIORITY", "COLLECT", "ANY");
 
-    private final RuleEditSupport support;
+    private final RuleScreenSupport support;
     private final RuleQueries queries;
-    private final RuleNativeWrites writes;
     private final VersionWriteGuard writeGuard;
     private final MdmRuleIdIssuer issuer;
     private final RuleVarTypeResolver resolver;
@@ -74,12 +75,11 @@ public class RuleTableService implements RuleEditSavePart {
     private final RuleSaveValidator validator;
     private final TransactionTemplate tx;
 
-    public RuleTableService(RuleEditSupport support, RuleQueries queries, RuleNativeWrites writes, VersionWriteGuard writeGuard,
+    public RuleTableService(RuleScreenSupport support, RuleQueries queries, VersionWriteGuard writeGuard,
                             MdmRuleIdIssuer issuer, RuleVarTypeResolver resolver, MdmRuleRowRepository rowRepository,
                             RuleSaveValidator validator, PlatformTransactionManager transactionManager) {
         this.support = support;
         this.queries = queries;
-        this.writes = writes;
         this.writeGuard = writeGuard;
         this.issuer = issuer;
         this.resolver = resolver;
@@ -112,7 +112,7 @@ public class RuleTableService implements RuleEditSavePart {
 
         Saved saved = tx.execute(status -> {
             long rowVersion = writeGuard.beginDraftWrite(ref(id, ver), expected, me);
-            String hit = hitPolicy(rule.getRuleKind(), request.getHitPolicy());
+            String hit = storedHitPolicy(id, ver);
             List<MdmRuleVar> rawVars = queries.vars(id, ver);
             Set<Integer> varIds = rawVars.stream().map(MdmRuleVar::getVarId).collect(Collectors.toSet());
             List<RequestedRow> rows = checkRows(rule, requested, varIds, new HashSet<>(queries.rowIds(id, ver)));
@@ -158,13 +158,12 @@ public class RuleTableService implements RuleEditSavePart {
             }
             rowRepository.saveAll(entities);
             rowRepository.flush();
-            writes.updateHitPolicy(id, ver, hit);
             Map<String, Integer> rowIdMap = new LinkedHashMap<>();
             issued.forEach((tmp, real) -> rowIdMap.put(String.valueOf(tmp), real));
             return new Saved(rowVersion, rowIdMap, out, stored, withIssuedRowIds(report.nonAnalysisIssues(), issued));
         });
 
-        String hit = request.getHitPolicy() == null || request.getHitPolicy().isBlank() ? null : request.getHitPolicy().trim();
+        String hit = storedHitPolicy(id, ver);
         List<ResolvedVar> vars = resolver.resolve(id, ver, queries.vars(id, ver));
         List<RuleIssue> analysis = RuleAnalyzer.analyze(
                 RuleAnalysisInputMapper.toAnalysisRule(id, rule.getRuleKind(), hit, vars, saved.stored()));
@@ -225,20 +224,21 @@ public class RuleTableService implements RuleEditSavePart {
 
     /** DECISION 은 다섯 정책 중 하나(필수), DERIVE 는 비어 있어야 한다. 값 테스트 BODY 도 쓴다. */
     static String hitPolicy(String ruleKind, String raw) {
-        String hit = raw == null || raw.isBlank() ? null : raw.trim();
-        if ("DERIVE".equals(ruleKind)) {
-            if (hit != null) {
-                throw new BusinessException(ErrorCode.INVALID_VALUE, "산출 룰에는 적중 정책을 두지 않습니다: " + hit);
-            }
-            return null;
-        }
-        if (hit == null) {
-            throw new BusinessException(ErrorCode.REQUIRED_VALUE, "적중 정책은 필수입니다.");
-        }
-        if (!HIT_POLICIES.contains(hit)) {
-            throw new BusinessException(ErrorCode.INVALID_VALUE, "적중 정책은 FIRST·UNIQUE·PRIORITY·COLLECT·ANY 중 하나여야 합니다: " + hit);
-        }
-        return hit;
+        return RuleHitPolicies.normalize(ruleKind, raw);
+    }
+
+    /**
+     * 저장된 적중 정책 — D-105 (4) 로 표 저장은 더 이상 {@code hitPolicy} 를 쓰지 않는다. 정책은 헤더·버전 화면
+     * ({@code ruleMng save target VERSION})이 따로 저장하고, 여기는 그 값을 읽어 검사 입력으로만 쓴다.
+     */
+    private String storedHitPolicy(String id, int ver) {
+        // DERIVE 는 저장된 정책이 null 이다 — Optional.of(null) 로 터지지 않게 조건을 건너뛴다.
+        return queries.versions(id).stream()
+                .filter(v -> v.getVer() == ver)
+                .map(MdmRuleVer::getHitPolicy)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
     }
 
     static List<RequestedRow> checkRows(MdmRule rule, List<Map<String, Object>> requested, Set<Integer> varIds, Set<Integer> existing) {

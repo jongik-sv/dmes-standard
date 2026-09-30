@@ -27,7 +27,7 @@
 - 판정 시각 → 룰 버전: `LocalDateTime.ofInstant(evalTs, MdmClockConfig.KST)` 로 바꾼 뒤 `RuleVersions.currentReleased(versions, now)` 를 쓴다. `RuleQueries.latestReleasedVers` 는 적용 기간을 보지 않으므로 판정용으로 쓰지 않는다.
 - mdm Flyway 는 SQLite 한 방언이고 `flyway-migration-add` 스킬 스크립트가 mdm 을 지원하지 않는다. 번호는 손으로 `V14` 를 쓰고 스킬 문서의 작성 규칙(재생성 시 `SELECT *` 금지 등)만 따른다.
 - mdm ADR 은 `docs/mdm/adr/` 에 둔다(번호 손 채번, 다음 0005). 검사: `python3 .claude/skills/adr-write/scripts/adr_tool.py lint docs/mdm/adr/0005-*.md`. README 표를 손으로 갱신한다.
-- `docs/mdm/decisions.md` 는 append-only 이고 다음 번호는 D-105 다. 서식: `## D-NNN (ISO8601Z)` + `Phase / Decision needed / Decision made / Rationale / Reversible / Source` 불릿.
+- `docs/mdm/decisions.md` 는 append-only 이고 다음 번호는 D-106 다. 서식: `## D-NNN (ISO8601Z)` + `Phase / Decision needed / Decision made / Rationale / Reversible / Source` 불릿.
 - OASIS BPMN 을 바꾸거나 더한 뒤에는 `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` 가 ERROR 0 이어야 한다. 단 이 검사기는 MES 모듈(`MES_MODULES`)만 보고 mdm 은 보지 않는다. mdm BPMN 은 `DmeBpmnActionTest`·`MdmOasisActionVocabularyTest`·`DmeOasisHttpTest` 로 검증한다.
 - DB 검증은 SQLite 만 쓴다. 도커를 쓰지 않는다.
 - 커밋은 이 작업이 만든 파일만 경로를 지정해 커밋한다(`git commit -- <path>...` 또는 `git add <path>` 후 커밋). 커밋 메시지·문서는 기존 한국어 관례(`type(scope): 한국어 요약`)를 따르고 끝에 `Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>` 를 붙인다.
@@ -579,18 +579,18 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task 2: mdm ADR-0005 발행과 결정 기록(D-105~D-107)
+### Task 2: mdm ADR-0005 발행과 결정 기록(D-106~D-108)
 
 **모델:** sonnet
 
 **Files:**
 - Create: `docs/mdm/adr/0005-rule-set-runs-in-engine.md`
 - Modify: `docs/mdm/adr/README.md`(인덱스 표 끝에 한 줄)
-- Modify: `docs/mdm/decisions.md`(파일 끝에 D-105·D-106·D-107 추가, 앞 항목은 고치지 않는다)
+- Modify: `docs/mdm/decisions.md`(파일 끝에 D-106·D-107·D-108 추가, 앞 항목은 고치지 않는다)
 
 **Interfaces:**
 - Consumes: 스펙 §2(실행 위치 결정과 근거), 머리말의 편차 표 D1~D12, 공유 계약 C6 의 이름(`RuleSetRunner`, `StoredDefinitionLookup`)
-- Produces: `ADR-0005`(mdm) — Task 11 의 클래스 주석과 Task 13 의 기능설계서가 이 번호와 `D-105`~`D-107` 을 인용한다
+- Produces: `ADR-0005`(mdm) — Task 11 의 클래스 주석과 Task 13 의 기능설계서가 이 번호와 `D-106`~`D-108` 을 인용한다
 
 - [ ] **Step 1: 채번 확인**
 
@@ -696,7 +696,7 @@ Expected: ADR 파일은 `0001`~`0004` 와 `README.md` 뿐이고, 마지막 결�
 - 구현 계획: [`docs/superpowers/plans/2026-09-30-rule-set-flow-phase1.md`](../../superpowers/plans/2026-09-30-rule-set-flow-phase1.md)(편차 D1~D12)
 - [TRD](../TRD.md) 13·134행, [PRD](../PRD.md) AC-4, [엔진 계약](../engine-contract.md)
 - [ruleSetEdit 기능설계서](../screens/ruleSetEdit/ruleSetEdit_기능설계서.md) §11 N-1
-- [`docs/mdm/decisions.md`](../decisions.md) D-105·D-106·D-107
+- [`docs/mdm/decisions.md`](../decisions.md) D-106·D-107·D-108
 ```
 
 
@@ -719,7 +719,7 @@ Expected: ERROR 0. WARN 이 나오면 문구를 확인해 규약(쉬운 설명�
 
 ```markdown
 
-## D-105 (2026-09-30T00:00:00Z)
+## D-106 (2026-09-30T00:00:00Z)
 - **Phase**: design(룰 세트 흐름도 1단계)
 - **Decision needed**: 분기형 룰 세트 흐름을 OASIS BPMN 으로 실행할지, 룰 엔진이 실행하고 OASIS 는 엔진을 부를지(스펙 A7)
 - **Decision made**: 룰 엔진(`maru-mdm-engine`)이 흐름을 실행하고, OASIS 업무 서비스는 `mdm/lib` 의 `RuleSetRunner`
@@ -732,7 +732,7 @@ Expected: ERROR 0. WARN 이 나오면 문구를 확인해 규약(쉬운 설명�
 - **Reversible**: no(엔진 계약·흐름 저장 형식·실행기 입구가 이 결정 위에 선다. 바꾸려면 새 ADR)
 - **Source**: `docs/mdm/adr/0005-rule-set-runs-in-engine.md`, `docs/superpowers/specs/2026-09-29-rule-set-flow-design.md` §2·§6
 
-## D-106 (2026-09-30T00:00:00Z)
+## D-107 (2026-09-30T00:00:00Z)
 - **Phase**: plan(룰 세트 흐름도 1단계 구현 계획)
 - **Decision needed**: 승인된 스펙과 저장소의 기존 규칙(계약 형태 테스트·스키마 대조·기존 검사 명명·정의 조회 빈 가드)이
   어긋나는 11곳을 어떻게 맞출지
@@ -759,7 +759,7 @@ Expected: ERROR 0. WARN 이 나오면 문구를 확인해 규약(쉬운 설명�
 - **Source**: 계획 「편차 기록」, `ContractTypeShapeTest`, `EngineContractSchemaTest`, `RuleSetAnalyzer`, `RuleSetOrderCheck`,
   `MdmBusinessRuleMigrationTest.계약_전용_06_확정_검사와_정의_조회_빈이_없다`
 
-## D-107 (2026-09-30T00:00:00Z)
+## D-108 (2026-09-30T00:00:00Z)
 - **Phase**: plan(룰 세트 흐름도 1단계)
 - **Decision needed**: ruleSetEdit 기능설계서 N-1(설계 D2)이 남긴 후속 조건 "조회기가 생기면 `view` 옆 `execute`
   action 으로 세트 값 테스트 카드를 더한다"를 1단계에서 채울지
@@ -775,13 +775,13 @@ Expected: ERROR 0. WARN 이 나오면 문구를 확인해 규약(쉬운 설명�
 - [ ] **Step 6: 결과 확인**
 
 Run: `grep -n '^## D-10[5-7]' docs/mdm/decisions.md && grep -c '0005-rule-set-runs-in-engine' docs/mdm/adr/README.md`
-Expected: D-105·D-106·D-107 세 줄, README 개수 1.
+Expected: D-106·D-107·D-108 세 줄, README 개수 1.
 
 - [ ] **Step 7: 커밋**
 
 ```bash
 git add docs/mdm/adr/0005-rule-set-runs-in-engine.md
-git commit -m "docs(mdm): ADR-0005 룰 세트 실행 위치 발행, 결정 D-105~D-107 기록
+git commit -m "docs(mdm): ADR-0005 룰 세트 실행 위치 발행, 결정 D-106~D-108 기록
 
 룰 세트 흐름은 maru-mdm-engine 이 실행하고 OASIS 는 RuleSetRunner 를 부른다.
 스펙 편차 D1~D12 과 ruleSetEdit N-1 후속 이관을 결정 로그에 남긴다.
@@ -7714,7 +7714,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- \
 - 검증만: 엔진·mdm lib/api·m-mdm 전체 테스트, lint, UI audit, `oasis-contract-check`, 계약 문서 대조
 
 **Interfaces:**
-- Consumes: Task 1~12 의 결과 전부. C3·C4 문구, `FLOW_READONLY` 문구(C4.2), D-107
+- Consumes: Task 1~12 의 결과 전부. C3·C4 문구, `FLOW_READONLY` 문구(C4.2), D-108
 - Produces: 1단계 완료 판정(모든 명령의 결과를 보고에 붙인다)
 
 - [ ] **Step 1: §5.2 B-002 동작 상세에 분기 세트 규칙 추가**
@@ -7758,14 +7758,14 @@ XV-008 행 바로 아래(XV-009 앞)에 넣고 뒤 번호는 그대로 둔다(�
 N-1 행의 항목 칸 끝(`… 카드 하나(\`view\` 옆 \`execute\` action)로 더한다`) 뒤에 이어 쓴다.
 
 ```text
- **2026-09-30 갱신**: 룰 세트 흐름도 1단계에서 운영 정의 조회기(`StoredDefinitionLookup`)와 실행기(`RuleSetRunner`)가 생겼다. 카드는 목록 화면에 먼저 만들지 않고 2단계 디버거(시뮬레이션 탭)와 `simulate` action 으로 넣는다(D-107, mdm ADR-0005 D4)
+ **2026-09-30 갱신**: 룰 세트 흐름도 1단계에서 운영 정의 조회기(`StoredDefinitionLookup`)와 실행기(`RuleSetRunner`)가 생겼다. 카드는 목록 화면에 먼저 만들지 않고 2단계 디버거(시뮬레이션 탭)와 `simulate` action 으로 넣는다(D-108, mdm ADR-0005 D4)
 ```
 
-같은 행의 근거 칸 끝에 `, D-107` 을 더한다. 표 끝(N-13 아래)에 두 행을 더한다.
+같은 행의 근거 칸 끝에 `, D-108` 을 더한다. 표 끝(N-13 아래)에 두 행을 더한다.
 
 ```markdown
-| N-14 | **흐름 저장(1단계)** — `TB_MDM_RULE_SET.FLOW_JSON`(흐름 정의 + 화면 전용 view)을 저장하고 `RULE_IDS` 는 서버가 흐름을 깊이 우선으로 펼친 중복 없는 룰 목록으로 채운다(요청의 룰 목록을 믿지 않는다). `FLOW_JSON` 이 NULL 이면 `RULE_IDS` 순서의 한 줄 흐름이다. 분기 세트는 목록 편집으로 저장할 수 없다(`FLOW_READONLY`) | 스펙 `docs/superpowers/specs/2026-09-29-rule-set-flow-design.md` §3.3, D-106 |
-| N-15 | 흐름 세트의 입출력 표·의존 룰은 흐름을 펼친 룰 목록으로 계산한다(1단계). 흐름 기준 입출력은 2단계 캔버스에서 필요해지면 다시 정한다 | D-106(편차 D10) |
+| N-14 | **흐름 저장(1단계)** — `TB_MDM_RULE_SET.FLOW_JSON`(흐름 정의 + 화면 전용 view)을 저장하고 `RULE_IDS` 는 서버가 흐름을 깊이 우선으로 펼친 중복 없는 룰 목록으로 채운다(요청의 룰 목록을 믿지 않는다). `FLOW_JSON` 이 NULL 이면 `RULE_IDS` 순서의 한 줄 흐름이다. 분기 세트는 목록 편집으로 저장할 수 없다(`FLOW_READONLY`) | 스펙 `docs/superpowers/specs/2026-09-29-rule-set-flow-design.md` §3.3, D-107 |
+| N-15 | 흐름 세트의 입출력 표·의존 룰은 흐름을 펼친 룰 목록으로 계산한다(1단계). 흐름 기준 입출력은 2단계 캔버스에서 필요해지면 다시 정한다 | D-107(편차 D10) |
 ```
 
 - [ ] **Step 5: 문서 커밋**
@@ -7878,4 +7878,4 @@ Expected: 이 계획의 태스크 커밋만 있고, 커밋되지 않은 이 작�
 
 - [ ] **Step 14: 결과 보고**
 
-보고에 아래를 적는다: 각 명령의 exit 코드와 테스트 합계(엔진·mdm·m-mdm), oasis-contract-check 의 ERROR·WARN 수, 계약 대조 결과, 실행하지 않은 검증(브라우저 e2e `src/frontend/e2e/mdm-ruleSetEdit.spec.ts` 는 로컬 서버가 필요해 이 계획에서 돌리지 않았다는 사실), 그리고 편차 D1~D12 이 decisions.md D-106 에 있다는 확인.
+보고에 아래를 적는다: 각 명령의 exit 코드와 테스트 합계(엔진·mdm·m-mdm), oasis-contract-check 의 ERROR·WARN 수, 계약 대조 결과, 실행하지 않은 검증(브라우저 e2e `src/frontend/e2e/mdm-ruleSetEdit.spec.ts` 는 로컬 서버가 필요해 이 계획에서 돌리지 않았다는 사실), 그리고 편차 D1~D12 이 decisions.md D-107 에 있다는 확인.

@@ -93,13 +93,23 @@ public final class DmeTestSupport {
     }
 
     public static void rule(JdbcTemplate jdbc, String id, String name, String kind, String status) {
-        jdbc.update("INSERT INTO TB_MDM_RULE (MARU_RULE_ID, MARU_RULE_NAME, RULE_KIND, STATUS, SOURCE_KIND) VALUES (?, ?, ?, ?, 'MDM')",
-                id, name, kind, status);
+        // VER(감사 카운터)를 0 으로 넣는다 — 등록 경로(RuleMngService.register → @PrePersist)가 만드는 모양과 같게.
+        // 빠뜨리면 카운터가 NULL 로 남아 D-105 의 헤더 낙관적 잠금이 첫 변경을 못 잡는다(값이 바뀌어도 0 으로 머문다).
+        jdbc.update("INSERT INTO TB_MDM_RULE (MARU_RULE_ID, MARU_RULE_NAME, RULE_KIND, STATUS, SOURCE_KIND, VER) "
+                + "VALUES (?, ?, ?, ?, 'MDM', 0)", id, name, kind, status);
     }
 
     public static void externalRule(JdbcTemplate jdbc, String id, String name) {
-        jdbc.update("INSERT INTO TB_MDM_RULE (MARU_RULE_ID, MARU_RULE_NAME, RULE_KIND, STATUS, SOURCE_KIND, SOURCE_SYSTEM) "
-                + "VALUES (?, ?, 'DECISION', 'INUSE', 'EXTERNAL', 'MES')", id, name);
+        jdbc.update("INSERT INTO TB_MDM_RULE (MARU_RULE_ID, MARU_RULE_NAME, RULE_KIND, STATUS, SOURCE_KIND, SOURCE_SYSTEM, VER) "
+                + "VALUES (?, ?, 'DECISION', 'INUSE', 'EXTERNAL', 'MES', 0)", id, name);
+    }
+
+    /**
+     * 저장된 버전의 적중 정책을 바꾼다 — 헤더·버전 화면({@code ruleMng save target VERSION})이 하는 일의 시험용 흉내다.
+     * D-105 (4) 로 표 저장 요청엔 {@code hitPolicy} 가 없고 서버는 <b>저장된 값</b>을 읽어 검사 입력으로 쓴다.
+     */
+    public static void setStoredHitPolicy(JdbcTemplate jdbc, String id, int ver, String hit) {
+        jdbc.update("UPDATE TB_MDM_RULE_VER SET HIT_POLICY = ? WHERE MARU_RULE_ID = ? AND VER = ?", hit, id, ver);
     }
 
     /** RELEASED 버전. {@code to} 가 null 이면 열린 끝. */

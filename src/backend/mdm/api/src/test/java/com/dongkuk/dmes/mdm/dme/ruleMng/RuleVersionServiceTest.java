@@ -1,4 +1,4 @@
-package com.dongkuk.dmes.mdm.dme.ruleEdit;
+package com.dongkuk.dmes.mdm.dme.ruleMng;
 
 import static com.dongkuk.dmes.mdm.dme.DmeTestSupport.STD_ADMIN;
 import static com.dongkuk.dmes.mdm.dme.DmeTestSupport.STEWARD;
@@ -14,9 +14,9 @@ import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.FakeStewardDirectory;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
-import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleVersionRequest;
-import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleVersionResult;
-import com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleVersionService;
+import com.dongkuk.dmes.mdm.dme.ruleMng.dto.RuleVersionRequest;
+import com.dongkuk.dmes.mdm.dme.ruleMng.dto.RuleVersionResult;
+import com.dongkuk.dmes.mdm.dme.ruleMng.service.RuleVersionService;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;

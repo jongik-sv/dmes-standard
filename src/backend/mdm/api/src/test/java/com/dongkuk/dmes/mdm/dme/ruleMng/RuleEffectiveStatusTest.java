@@ -1,4 +1,4 @@
-package com.dongkuk.dmes.mdm.dme.ruleEdit;
+package com.dongkuk.dmes.mdm.dme.ruleMng;
 
 import static com.dongkuk.dmes.mdm.dme.DmeTestSupport.STEWARD;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -12,13 +12,13 @@ import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.MutableClock;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
-import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveRequest;
+import com.dongkuk.dmes.mdm.dme.ruleMng.dto.RuleMngSaveRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewResult;
-import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleVersionRequest;
+import com.dongkuk.dmes.mdm.dme.ruleMng.dto.RuleVersionRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditService;
-import com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleHeaderService;
-import com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleVersionService;
+import com.dongkuk.dmes.mdm.dme.ruleMng.service.RuleHeaderService;
+import com.dongkuk.dmes.mdm.dme.ruleMng.service.RuleVersionService;
 import com.dongkuk.dmes.mdm.dme.ruleMng.dto.RuleListRow;
 import com.dongkuk.dmes.mdm.dme.ruleMng.dto.RuleSearchRequest;
 import com.dongkuk.dmes.mdm.dme.ruleMng.dto.RuleSearchResult;
@@ -111,11 +111,15 @@ class RuleEffectiveStatusTest extends AbstractMdmSharedDbTest {
         return ruleEditService.view(r);
     }
 
-    private static RuleEditSaveRequest header(String name) {
-        RuleEditSaveRequest r = new RuleEditSaveRequest();
-        r.setPart("HEADER");
+    /** 헤더 저장 — D-105 로 {@code ruleMng save target HEADER}. 감사 카운터(D-105 (5))를 지금 값으로 채운다. */
+    private RuleMngSaveRequest header(String name) {
+        RuleMngSaveRequest r = new RuleMngSaveRequest();
+        r.setTarget(RuleMngSaveRequest.TARGET_HEADER);
         r.setMaruRuleId(ID);
         r.setMaruRuleName(name);
+        // 서버와 같이 null 카운터를 0 으로 본다(requireAuditVer 규칙).
+        List<Long> found = jdbc.queryForList("SELECT VER FROM TB_MDM_RULE WHERE MARU_RULE_ID = ?", Long.class, ID);
+        r.setAuditVer(found.isEmpty() || found.get(0) == null ? 0L : found.get(0));
         return r;
     }
 
@@ -198,7 +202,7 @@ class RuleEffectiveStatusTest extends AbstractMdmSharedDbTest {
     @Test
     void EF4_헤더_저장은_계산_INUSE_인_룰의_저장값을_INUSE_로_올린다() {
         clock.setLocal(APPLY_FROM.plusDays(1));
-        headerService.save(header("미래 판정 바꿈"));
+        headerService.saveHeader(header("미래 판정 바꿈"));
         assertEquals("INUSE", stored());
         assertEquals("미래 판정 바꿈", jdbc.queryForObject("SELECT MARU_RULE_NAME FROM TB_MDM_RULE WHERE MARU_RULE_ID = ?", String.class, ID));
     }
@@ -214,7 +218,7 @@ class RuleEffectiveStatusTest extends AbstractMdmSharedDbTest {
 
     @Test
     void EF4_계산_상태가_CREATED_면_헤더_저장_뒤에도_CREATED_다() {
-        headerService.save(header("적용 전 바꿈"));
+        headerService.saveHeader(header("적용 전 바꿈"));
         assertEquals("CREATED", stored());
         assertEquals("CREATED", view().getRule().getStatus());
     }

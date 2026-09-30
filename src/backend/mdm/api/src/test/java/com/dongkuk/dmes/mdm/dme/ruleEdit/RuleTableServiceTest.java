@@ -95,13 +95,13 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
         return m;
     }
 
-    static RuleEditSaveRequest table(long rowVersion, String hit, List<Map<String, Object>> rows) {
+    /** 적중 정책은 요청으로 받지 않는다(D-105 (4)) — 저장된 값을 읽어 검사 입력으로 쓴다. */
+    static RuleEditSaveRequest table(long rowVersion, List<Map<String, Object>> rows) {
         RuleEditSaveRequest r = new RuleEditSaveRequest();
         r.setPart("TABLE");
         r.setMaruRuleId("QLTY_GRD_JDG");
         r.setVer(2);
         r.setRowVersion(rowVersion);
-        r.setHitPolicy(hit);
         r.setRows(rows);
         return r;
     }
@@ -156,7 +156,7 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
     void 순서를_바꿔_저장하면_seq_가_보낸_순서대로_1부터_매겨지고_row_id_는_그대로다() {
         List<Map<String, Object>> rows = List.of(row(3, "NORMAL", Q_ROW3, null), row(1, "NORMAL", Q_ROW1, null), row(2, "NORMAL", Q_ROW2, null),
                 row(4, "DEFAULT", Q_DEFAULT, null));
-        RuleEditSaveResult r = service.save(table(0, "FIRST", rows));
+        RuleEditSaveResult r = service.save(table(0, rows));
 
         List<Map<String, Object>> s = stored();
         assertEquals(List.of(3, 1, 2, 4), ints(s, "ROW_ID"));
@@ -176,7 +176,7 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
         rows.add(0, row(-2.0, "NORMAL", "{\"1\":{\"op\":\"LT\",\"left\":\"1.6\"},\"2\":{\"op\":\"NA\"},\"3\":{\"op\":\"NA\"},\"4\":{\"val\":\"D\"},"
                 + "\"5\":{\"val\":\"0.5\"}}", null));
 
-        RuleEditSaveResult r = service.save(table(0, "FIRST", rows));
+        RuleEditSaveResult r = service.save(table(0, rows));
 
         assertEquals(Map.of("-1", 6, "-2", 5), r.getRowIdMap(), "새 행은 요청 순서대로 한 번에 발급한다");
         assertEquals(6, jdbc.queryForObject("SELECT LAST_ROW_ID FROM TB_MDM_RULE WHERE MARU_RULE_ID = 'QLTY_GRD_JDG'", Integer.class));
@@ -190,10 +190,10 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
     void 지운_번호는_다시_쓰지_않는다() {
         List<Map<String, Object>> rows = sample();
         rows.remove(1);
-        service.save(table(0, "FIRST", rows));
+        service.save(table(0, rows));
         List<Map<String, Object>> again = new ArrayList<>(rows);
         again.add(2, row(-1, "NORMAL", Q_ROW2, null));
-        RuleEditSaveResult r = service.save(table(1, "FIRST", again));
+        RuleEditSaveResult r = service.save(table(1, again));
         assertEquals(Map.of("-1", 5), r.getRowIdMap());
         assertEquals(List.of(1, 3, 5, 4), ints(stored(), "ROW_ID"));
     }
@@ -204,7 +204,7 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
         String edited = "{\"1\":{\"op\":\"<= 변수 <\",\"left\":\"1.60\",\"right\":\"2.5\"},\"2\":{\"op\":\"GT\",\"left\":\"1000\"},"
                 + "\"3\":{\"op\":\"IN\",\"list\":[\"C\",\"A\"]},\"4\":{\"val\":\"A\"},\"5\":{\"val\":\"1.05\"}}";
         rows.set(0, row(1, "NORMAL", edited, "메모"));
-        service.save(table(0, "FIRST", rows));
+        service.save(table(0, rows));
         Map<String, Object> first = stored().get(0);
         assertEquals(edited.replace("[\"C\",\"A\"]", "[\"A\",\"C\"]"), first.get("CELLS"), "목록만 정렬하고 1.60 은 다시 쓰지 않는다(08-04 I6·I9)");
         assertEquals("메모", first.get("NOTE"));
@@ -214,7 +214,7 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
     void 기본_행은_하나까지만_받는다() {
         List<Map<String, Object>> rows = sample();
         rows.add(row(-1, "DEFAULT", Q_DEFAULT, null));
-        assertEquals("INVALID_VALUE", mdm(() -> service.save(table(0, "FIRST", rows))));
+        assertEquals("INVALID_VALUE", mdm(() -> service.save(table(0, rows))));
         assertEquals(0L, rowVersion(jdbc, "QLTY_GRD_JDG", 2), "저장 실패는 row_version 을 올리지 않는다(롤백)");
     }
 
@@ -224,15 +224,14 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
         DmeTestSupport.pending(jdbc, "CALC", 1, "DRAFT", "kim", null, null);
         DmeTestSupport.var(jdbc, "CALC", 1, 1, "COND", "1", "COIL_THK", 1, null);
         DmeTestSupport.var(jdbc, "CALC", 1, 2, "RESULT", "Value", "OUT", 1, "NUMBER");
-        RuleEditSaveRequest r = table(0, null, List.of(row(-1, "NORMAL", "{\"1\":{\"op\":\"GE\",\"left\":\"1\"},\"2\":{\"val\":\"2\"}}", null),
+        RuleEditSaveRequest r = table(0, List.of(row(-1, "NORMAL", "{\"1\":{\"op\":\"GE\",\"left\":\"1\"},\"2\":{\"val\":\"2\"}}", null),
                 row(-2, "DEFAULT", "{\"2\":{\"val\":\"0\"}}", null)));
         r.setMaruRuleId("CALC");
         r.setVer(1);
         assertEquals("INVALID_VALUE", mdm(() -> service.save(r)));
         r.setRows(List.of(row(-1, "NORMAL", "{\"1\":{\"op\":\"GE\",\"left\":\"1\"},\"2\":{\"val\":\"2\"}}", null)));
-        r.setHitPolicy("FIRST");
-        assertEquals("INVALID_VALUE", mdm(() -> service.save(r)));
-        r.setHitPolicy(null);
+        // 적중 정책 거부는 더 이상 표 저장이 하지 않는다(D-105 (4)) — 헤더·버전 화면 save target VERSION 이 한다.
+        // 여기서는 저장된 값이 검사 입력으로 쓰이는지만 본다.
         service.save(r);
         assertEquals(1, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'CALC'"));
     }
@@ -242,11 +241,11 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
         for (Object bad : List.of(9, 0, 1.5)) {
             List<Map<String, Object>> rows = sample();
             rows.add(row(bad, "NORMAL", Q_ROW1, null));
-            assertEquals("INVALID_VALUE", mdm(() -> service.save(table(0, "FIRST", rows))), String.valueOf(bad));
+            assertEquals("INVALID_VALUE", mdm(() -> service.save(table(0, rows))), String.valueOf(bad));
         }
         List<Map<String, Object>> dup = sample();
         dup.add(row(1, "NORMAL", Q_ROW2, null));
-        assertEquals("INVALID_VALUE", mdm(() -> service.save(table(0, "FIRST", dup))));
+        assertEquals("INVALID_VALUE", mdm(() -> service.save(table(0, dup))));
         assertEquals(0L, rowVersion(jdbc, "QLTY_GRD_JDG", 2));
     }
 
@@ -254,24 +253,15 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
     void 행_종류와_셀_모양을_검사한다() {
         List<Map<String, Object>> kind = sample();
         kind.set(0, row(1, "OTHER", Q_ROW1, null));
-        assertEquals("INVALID_VALUE", mdm(() -> service.save(table(0, "FIRST", kind))));
+        assertEquals("INVALID_VALUE", mdm(() -> service.save(table(0, kind))));
         List<Map<String, Object>> cells = sample();
         cells.set(0, row(1, "NORMAL", "{\"9\":{\"op\":\"NA\"}}", null));
-        assertEquals("INVALID_VALUE", mdm(() -> service.save(table(0, "FIRST", cells))));
+        assertEquals("INVALID_VALUE", mdm(() -> service.save(table(0, cells))));
         List<Map<String, Object>> number = sample();
         number.set(0, row(1, "NORMAL", "{\"2\":{\"op\":\"GT\",\"left\":1000}}", null));
-        assertEquals("INVALID_VALUE", mdm(() -> service.save(table(0, "FIRST", number))));
+        assertEquals("INVALID_VALUE", mdm(() -> service.save(table(0, number))));
         assertEquals(List.of(1, 2, 3, 4), ints(stored(), "ROW_ID"));
         assertEquals(0L, rowVersion(jdbc, "QLTY_GRD_JDG", 2));
-    }
-
-    @Test
-    void 적중_정책을_저장하고_판정_룰은_다섯_중_하나여야_한다() {
-        service.save(table(0, "UNIQUE", sample()));
-        assertEquals("UNIQUE", jdbc.queryForObject("SELECT HIT_POLICY FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2", String.class));
-        assertEquals("INVALID_VALUE", mdm(() -> service.save(table(1, "RANDOM", sample()))));
-        assertEquals("REQUIRED_VALUE", mdm(() -> service.save(table(1, null, sample()))));
-        assertEquals("UNIQUE", jdbc.queryForObject("SELECT HIT_POLICY FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2", String.class));
     }
 
     @Test
@@ -280,7 +270,7 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
         List<Map<String, Object>> rows = sample();
         rows.add(3, row(-1, "NORMAL", "{\"1\":{\"op\":\"LT\",\"left\":\"1\"},\"2\":{\"op\":\"NA\"},\"3\":{\"op\":\"NA\"},\"4\":{\"val\":\"D\"},"
                 + "\"5\":{\"val\":\"0.5\"}}", null));
-        service.save(table(0, "UNIQUE", rows));
+        service.save(table(0, rows));
         assertEquals(before, jdbc.queryForList("SELECT * FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 ORDER BY VAR_ID"));
     }
 
@@ -289,7 +279,7 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
         currentUser.set("lee", STEWARD);
         List<Map<String, Object>> rows = sample();
         rows.remove(0);
-        assertEquals("MDM003", mdm(() -> service.save(table(0, "UNIQUE", rows))));
+        assertEquals("MDM003", mdm(() -> service.save(table(0, rows))));
         assertEquals(List.of(1, 2, 3, 4), ints(stored(), "ROW_ID"));
         assertEquals(0L, rowVersion(jdbc, "QLTY_GRD_JDG", 2));
         assertEquals("FIRST", jdbc.queryForObject("SELECT HIT_POLICY FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2", String.class));
@@ -297,13 +287,13 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
 
     @Test
     void row_version_이_다르면_MDM001_이다() {
-        assertEquals("MDM001", mdm(() -> service.save(table(7, "FIRST", sample()))));
+        assertEquals("MDM001", mdm(() -> service.save(table(7, sample()))));
         assertEquals(0L, rowVersion(jdbc, "QLTY_GRD_JDG", 2));
     }
 
     @Test
     void RELEASED_버전은_저장하지_않는다() {
-        RuleEditSaveRequest r = table(0, "FIRST", sample());
+        RuleEditSaveRequest r = table(0, sample());
         r.setVer(1);
         assertTrue(List.of("MDM002", "MDM003").contains(mdm(() -> service.save(r))));
     }
@@ -312,7 +302,7 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
     void 외부_원천_룰은_거부한다() {
         DmeTestSupport.externalRule(jdbc, "EXT_JDG", "외부");
         DmeTestSupport.pending(jdbc, "EXT_JDG", 1, "DRAFT", "kim", "FIRST", null);
-        RuleEditSaveRequest r = table(0, "FIRST", List.of());
+        RuleEditSaveRequest r = table(0, List.of());
         r.setMaruRuleId("EXT_JDG");
         r.setVer(1);
         assertEquals("BUSINESS_ERROR", mdm(() -> service.save(r)));
@@ -324,7 +314,7 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
         List<Map<String, Object>> rows = sample();
         rows.set(1, row(2, "NORMAL", Q_ROW2.replace("[\"B\"]", "[\"A\",\"B\"]"), null));
 
-        RuleEditSaveResult r = service.save(table(0, "FIRST", rows));
+        RuleEditSaveResult r = service.save(table(0, rows));
 
         assertEquals(4, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2"));
         List<MdmRuleVar> vars = varRepository.findAll().stream()
@@ -375,7 +365,7 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
     void Expression_조건_열_식_칸을_저장하면_서버가_파싱해_AST_를_채운다() throws Exception {
         addExprCondVar();
 
-        service.save(table(0, "FIRST", exprCondTable(ROW1_WITH_EXPR)));
+        service.save(table(0, exprCondTable(ROW1_WITH_EXPR)));
 
         ObjectMapper plain = new ObjectMapper();
         String cells = cellsOf(1);
@@ -389,7 +379,7 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
         addExprCondVar();
         String row1 = Q_ROW1.replace("}}", "},\"6\":{\"expr\":\"COIL_THK < 2\",\"ast\":{\"type\":\"NUMBER_LITERAL\",\"value\":\"1\"}}}");
 
-        service.save(table(0, "FIRST", exprCondTable(row1)));
+        service.save(table(0, exprCondTable(row1)));
 
         ObjectMapper plain = new ObjectMapper();
         String cells = cellsOf(1);
@@ -414,7 +404,7 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
     @Test
     void 값_테스트에서_식이_참이면_1행이_적중하고_거짓이면_기본_행으로_넘어간다() {
         addExprCondVar();
-        service.save(table(0, "FIRST", exprCondTable(ROW1_WITH_EXPR)));
+        service.save(table(0, exprCondTable(ROW1_WITH_EXPR)));
 
         RuleTestResult hit = editService.runTest(versionTest(2, "{\"COIL_THK\":\"1.8\",\"COIL_WID\":\"1200\",\"SURF_GRD\":\"A\"}"));
         assertEquals("OK", hit.getOutcome(), String.valueOf(hit.getErrors()));
@@ -438,7 +428,7 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
         addExprCondVar();
 
         String parseErrRow1 = Q_ROW1.replace("}}", "},\"6\":{\"expr\":\"COIL_THK <\"}}");
-        BusinessException e1 = assertThrows(BusinessException.class, () -> service.save(table(0, "FIRST", exprCondTable(parseErrRow1))));
+        BusinessException e1 = assertThrows(BusinessException.class, () -> service.save(table(0, exprCondTable(parseErrRow1))));
         assertEquals("MDM021", e1.getErrors().get(0).code(), e1.getMessage());
         List<String> codes1 = e1.getErrors().stream().skip(1).map(ErrorDetail::code).toList();
         assertEquals(List.of("EXPR_PARSE"), codes1, "파싱 불가 식: " + e1.getMessage());
@@ -446,7 +436,7 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
         // DT_NOW·RANDOM 은 EvalEx 표준 사전에 있지만 MdmExpressionConfig 가 일부러 함수 사전에서 뺐다(06:442 — 결정성 때문에
         // DT_NOW·RANDOM 을 막는다). 즉 "허용되지 않는 함수"의 실제 예다.
         String badFnRow1 = Q_ROW1.replace("}}", "},\"6\":{\"expr\":\"COIL_THK < DT_NOW()\"}}");
-        BusinessException e2 = assertThrows(BusinessException.class, () -> service.save(table(0, "FIRST", exprCondTable(badFnRow1))));
+        BusinessException e2 = assertThrows(BusinessException.class, () -> service.save(table(0, exprCondTable(badFnRow1))));
         assertEquals("MDM021", e2.getErrors().get(0).code(), e2.getMessage());
         List<String> codes2 = e2.getErrors().stream().skip(1).map(ErrorDetail::code).toList();
         // 이 환경은 함수 사전 자체가 허용 함수 집합과 같다(FunctionDictionaries.engine — BASE+INSTR+MASTER+MASTER_AT, 비즈니스
@@ -466,7 +456,7 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
         rows.set(3, row(4, "DEFAULT", Q_DEFAULT.replace("\"5\":{\"val\":\"0.90\"}", "\"5\":{\"expr\":\"0.9\"}"), null));
         rows.forEach(r -> r.put("cells", DmeTestSupport.valAsExpr((String) r.get("cells"), 5))); // Expression 열의 칸은 식 하나다
 
-        service.save(table(0, "FIRST", rows));
+        service.save(table(0, rows));
 
         ObjectMapper plain = new ObjectMapper();
         JsonNode row1Ast = plain.readTree(cellsOf(1)).get("5").get("ast");
@@ -486,13 +476,13 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
         mixed.forEach(r -> r.put("cells", DmeTestSupport.valAsExpr((String) r.get("cells"), 5)));
         mixed.set(1, row(2, "NORMAL", Q_ROW2, null)); // 2행만 값 칸 {"val":"1.00"}
 
-        BusinessException e = assertThrows(BusinessException.class, () -> service.save(table(0, "FIRST", mixed)));
+        BusinessException e = assertThrows(BusinessException.class, () -> service.save(table(0, mixed)));
         assertTrue(e.getMessage().contains("Expression 열에는 값 대신 식을 적는다"), e.getMessage());
         assertEquals(0L, rowVersion(jdbc, "QLTY_GRD_JDG", 2), "거부된 저장은 아무것도 반영하지 않는다");
 
         List<Map<String, Object>> exprOnly = sample();
         exprOnly.forEach(r -> r.put("cells", DmeTestSupport.valAsExpr((String) r.get("cells"), 5)));
-        service.save(table(0, "FIRST", exprOnly));
+        service.save(table(0, exprOnly));
         assertTrue(cellsOf(2).contains("\"5\":{\"expr\":\"1.00\",\"ast\":{"), cellsOf(2));
     }
 

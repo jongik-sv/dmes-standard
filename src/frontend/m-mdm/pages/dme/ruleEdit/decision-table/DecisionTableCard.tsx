@@ -283,7 +283,7 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
     setSaveRejected(null);
     const res = await runWrite(async () => {
       try {
-        return await saveTable(view.rule.maruRuleId, selected.ver, selected.rowVersion, decision ? state.hitPolicy : null, saveRowsOf(state));
+        return await saveTable(view.rule.maruRuleId, selected.ver, selected.rowVersion, saveRowsOf(state));
       } catch (e) {
         // 저장 시 검사 거부(MDM021 "룰 저장 거부: …")는 표 아래에도 남긴다 — 편집 상태는 그대로다(runWrite 는 실패 때 다시 불러오지 않는다).
         if (!isRowVersionConflict(e)) setSaveRejected(e instanceof Error ? e.message : String(e));
@@ -330,17 +330,17 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
       }
     >
       {decision ? (
+        // 적중 정책은 여기서 **읽기 전용으로** 보여준다(D-105 (4)). `TB_MDM_RULE_VER.HIT_POLICY` 는 버전마다 복제되는
+        // 버전 속성이므로 헤더·버전 화면(`ruleMng`)의 ② 버전 카드가 [적중 정책 저장] 으로 바꾼다. 여기서 고치면
+        // 표 저장이 저장된 값과 어긋나 "저장했는데 정책이 안 바뀌는" 상태가 된다.
         <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-sm)", paddingBottom: "var(--spacing-xs)" }}>
           <span>적중 정책</span>
-          <Select
-            data-testid="dt-hit-policy"
-            value={state.hitPolicy ?? ""}
-            options={HIT_POLICIES.map((p) => ({ value: p.value, label: p.label }))}
-            disabled={!editable || busy}
-            onChange={(v) => edit({ type: "setHitPolicy", value: v as HitPolicyCode })}
-            style={{ width: 130 }}
-          />
-          <MutedText>{policy?.desc ?? ""}</MutedText>
+          <span data-testid="dt-hit-policy" style={{ fontWeight: 600 }}>
+            {HIT_POLICIES.find((p) => p.value === state.hitPolicy)?.label ?? "미지정"}
+          </span>
+          <MutedText>
+            {policy?.desc ?? ""} {state.hitPolicy !== state.loadedHit ? "바꾸려면 룰(헤더·버전) 화면에서 고르세요." : ""}
+          </MutedText>
         </div>
       ) : (
         <p data-testid="dt-derive-notice" style={{ margin: "0 0 var(--spacing-xs)", color: "var(--color-text-secondary)" }}>

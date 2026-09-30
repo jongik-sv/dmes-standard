@@ -45,8 +45,8 @@ wbs entry-point 에서 도출해 원천 화면 절과 대조했다. `독립` 은
 | dmd | `dataMng` | 마루 데이터(조회·등록·수정, D-104 로 dataEdit 합침) | 독립 | TSK-07-02 | 05:472- |
 | dmd | `dataItemMng` | 항목 편집(항목·트리·카테고리 탭, D-104 로 dataCateEdit·dataHistory 합침) | 독립 | TSK-07-02·07-03·07-04 | 05 |
 | dmd | `dataCsvUploadPop` | CSV 업로드 | 팝업(`dataItemMng` 항목 탭의 [CSV 업로드]에서 호출) — TSK-07-04 가 확정(§4) | TSK-07-04 | 05 |
-| dme | `ruleMng` | 룰(조회·등록) | 독립 | TSK-08-02 | 06:741- |
-| dme | `ruleEdit` | 룰 화면 | 독립 | TSK-08-02~08-04 | 06 |
+| dme | `ruleMng` | 룰 헤더·버전(조회·등록·헤더 수정·적중 정책·버전 관리, D-105 로 헤더·버전 카드 흡수) | 독립 | TSK-08-02 | 06:741- |
+| dme | `ruleEdit` | 룰 내용 편집(의사결정표·열 설정·값 테스트·테스트 케이스·활용처, D-105 로 헤더·버전 카드 제거) | 독립 | TSK-08-02~08-04 | 06 |
 | dme | `ruleConfirm` | 버전 확정 | 독립 | TSK-08-05 | PRD 규칙 7 |
 | dme | `ruleSetMng` | 룰 세트(조회·등록) | 독립 | TSK-08-06 | 06 |
 | dme | `ruleSetEdit` | 룰 세트 편집 | 독립 | TSK-08-06 | 06 |

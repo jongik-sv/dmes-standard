@@ -1,10 +1,17 @@
 "use client";
 
 /**
- * ruleMng — 룰 조회·등록(TSK-08-02). 정본: docs/mdm/screens/ruleMng/ruleMng_기능설계서.md.
+ * ruleMng — 룰 헤더·버전(TSK-08-02, decisions.md D-105). 정본: docs/mdm/screens/ruleMng/ruleMng_기능설계서.md.
  *
- * 목록은 서버 페이징(page 0 부터·size 20, I29)이고 룰 ID 를 누르면 룰 화면으로 간다(`@/dme/rule-handoff`, I28).
+ * D-101(dmc)·D-104(dmd)처럼 **목록 + 상세**로 나눈다. 상세는 ① 헤더·② 버전이며(D-105), 내용 편집(③ 의사결정표·열 설정,
+ * ④⑤⑥ 값 테스트·케이스, ⑧ 활용처)은 `ruleEdit` 화면이 맡는다. 룰 ID 를 누르면 그 룰의 상세가 열린다.
+ *
+ * 목록은 서버 페이징(page 0 부터·size 20, I29). [내용 편집 →] 으로 `ruleEdit` 로 간다(I28).
  * 배포 대상 칸·조건은 두지 않는다(D11).
+ *
+ * Part B §4-3 MUST: 분할 골격(`ContentBody`/`ContentPanel`)은 `page.tsx` 의 **직접 자식**이어야 drag bar 가 붙는다
+ * (shared `ContentBody.tsx` 의 `isLayoutItem` 은 `React.Children` 로 받은 직접 자식의 type 만 본다). 그래서 상세는
+ * `RuleDetailPanel` 이 내용만 돌려주고 골격은 여기서 그린다(dmc `codeMng` 선례).
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -22,14 +29,16 @@ import { Input } from "@dk-oasis/shared/form";
 import { MdmPageLayout, badgeStyle } from "@/shell";
 import { openRuleEdit } from "@/dme/rule-handoff";
 
-import { searchRules } from "./api";
+import { searchRules, viewRule } from "./api";
 import { RuleRegisterForm } from "./components/RuleRegisterForm";
+import { RuleDetailPanel } from "./RuleDetailPanel";
 import {
   RULE_KIND_LABELS,
   RULE_PAGE_SIZE,
   RULE_STATUS_LABELS,
   emptyFilters,
   type RuleListRow,
+  type RuleMngView,
   type RuleSearchFilters,
 } from "./types";
 
@@ -63,6 +72,26 @@ export default function RuleMngPage() {
   const [page, setPage] = useState(0);
   const [isBusy, setIsBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // 선택된 룰의 상세(D-105) — 목록에서 고른 룰 하나만 불러온다.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<RuleMngView | null>(null);
+  const [isDetailBusy, setIsDetailBusy] = useState(false);
+
+  const loadDetail = useCallback(async (ruleId: string | null) => {
+    if (!ruleId) {
+      setDetail(null);
+      return;
+    }
+    setIsDetailBusy(true);
+    try {
+      setDetail(await viewRule(ruleId));
+    } catch (e) {
+      setErrorMessage(e instanceof Error ? e.message : String(e));
+      setDetail(null);
+    } finally {
+      setIsDetailBusy(false);
+    }
+  }, []);
 
   const load = useCallback(async (f: RuleSearchFilters, pageNo: number) => {
     setIsBusy(true);
@@ -82,6 +111,16 @@ export default function RuleMngPage() {
   useEffect(() => {
     void load(emptyFilters(), 0);
   }, [load]);
+
+  // 첫 목록이 오면 그 첫 줄을 연다 — 상세가 빈 화면으로 남지 않게(dmc codeMng 과 같은 접합).
+  useEffect(() => {
+    if (selectedId || rows.length === 0) return;
+    setSelectedId(rows[0].maruRuleId);
+  }, [rows, selectedId]);
+
+  useEffect(() => {
+    void loadDetail(selectedId);
+  }, [selectedId, loadDetail]);
 
   const handleSearch = useCallback(() => void load(filters, 0), [filters, load]);
 
@@ -106,7 +145,7 @@ export default function RuleMngPage() {
               textDecoration: "underline",
               font: "inherit",
             }}
-            onClick={() => openRuleEdit(String(value))}
+            onClick={() => setSelectedId(String(value))}
           >
             {String(value)}
           </button>
@@ -193,6 +232,8 @@ export default function RuleMngPage() {
               loadingMessage="조회 중..."
               emptyMessage="조회된 룰이 없습니다."
               emptyTestId="rule-list-empty"
+              highlightedRowKey={selectedId ?? undefined}
+              onRowClick={(row) => setSelectedId(row.maruRuleId as string)}
             />
           </GridPanel>
           <Pagination
@@ -204,13 +245,35 @@ export default function RuleMngPage() {
           />
         </ContentPanel>
 
-        <ContentPanel width={380}>
-          <RuleRegisterForm
-            canRegister={canDoButton(rbac, SCREEN_ID, "reg")}
-            onRegistered={() => void load(applied, 0)}
-            onError={setErrorMessage}
-          />
-        </ContentPanel>
+        {/*
+          오른쪽 = ① 헤더·② 버전(D-105) + 신규 등록 폼. 내용 편집은 여기 없다 — `ruleEdit` 화면이 맡는다.
+          `ContentBody`(오른쪽 열) 안의 `ContentPanel` 들이 drag bar 대상이므로 골격을 직접 그린다.
+        */}
+        <ContentBody key="right" direction="column" resizable storageKey="mdm.dme.ruleMng.detail" flex="1 1 0">
+          <ContentPanel flex="1 1 0">
+            {detail ? (
+              <RuleDetailPanel
+                view={detail}
+                reload={() => loadDetail(selectedId)}
+                canDo={(action) => canDoButton(rbac, SCREEN_ID, action)}
+                busy={isBusy || isDetailBusy}
+                onError={setErrorMessage}
+                onContentEdit={(ruleId, ver) => openRuleEdit(ruleId, ver)}
+              />
+            ) : (
+              <p data-testid="rule-detail-empty" style={{ color: "var(--color-text-secondary)" }}>
+                {isDetailBusy ? "불러오는 중..." : "룰을 고르세요."}
+              </p>
+            )}
+          </ContentPanel>
+          <ContentPanel width={380}>
+            <RuleRegisterForm
+              canRegister={canDoButton(rbac, SCREEN_ID, "reg")}
+              onRegistered={() => void load(applied, 0)}
+              onError={setErrorMessage}
+            />
+          </ContentPanel>
+        </ContentBody>
       </ContentBody>
 
       {errorMessage && <ErrorModal message={errorMessage} onClose={() => setErrorMessage(null)} />}

@@ -1,17 +1,18 @@
 /**
- * 룰 화면 카드 슬롯(TSK-08-02 design §6.8 확장 지점).
+ * 룰 내용 편집 화면 카드 슬롯(TSK-08-02 design §6.8 확장 지점, decisions.md D-105).
  *
  * 형제 Task 는 기존 줄을 고치지 않고 카드 파일을 만들어 `RULE_EDIT_CARDS` 에 항목을 더한다(08-04 값 테스트·테스트 결과·테스트
  * 케이스 카드). 08-03 은 표 카드 아래 섹션(열 설정·입력 계약·피벗)을 `RULE_TABLE_SECTIONS` 에 더한다.
  * 카드 ⑦ 배포 대상은 그리지 않는다(D11).
+ *
+ * <p>D-105 — 카드 ① 헤더·② 버전이 `ruleMng` 화면으로 옮겨 갔다. 이 화면은 ③ 의사결정표·열 설정과 ④⑤⑥ 값 테스트·케이스,
+ * ⑧ 활용처 — <b>내용 편집만</b> 한다.
  */
 import { createElement, type ComponentType } from "react";
 
 import type { NextVer } from "./state/useRuleEdit";
 import type { RuleEditNotice, RuleEditView } from "./types";
-import { RuleHeaderCard } from "./cards/RuleHeaderCard";
 import { RuleUsageCard } from "./cards/RuleUsageCard";
-import { RuleVersionCard } from "./cards/RuleVersionCard";
 import { TestCaseCard } from "./cards/TestCaseCard";
 import { TestResultCard } from "./cards/TestResultCard";
 import { ValueTestCard } from "./cards/ValueTestCard";
@@ -44,9 +45,13 @@ export interface RuleEditCardSlot {
   group?: string;
 }
 
-/** 접을 수 있는 카드 묶음 — 제목 줄 하나로 묶음 안 카드를 함께 접는다. */
+/**
+ * 접을 수 있는 카드 묶음 — 제목 줄 하나로 묶음 안 카드를 함께 접는다.
+ *
+ * <p>D-105 — `headerVersions`(① 헤더 · ② 버전) 묶음이 사라졌다. 헤더·버전 관리는 `ruleMng` 화면으로 옮겨 갔다
+ * (마루 코드 D-101·마스터데이터 D-104 와 같은 분할). 여기 남는 것은 내용 편집뿐이다.
+ */
 export const RULE_EDIT_GROUPS: Record<string, { title: string }> = {
-  headerVersions: { title: "① 헤더 · ② 버전" },
   valueTests: { title: "④ 값 테스트 · ⑤ 테스트 결과 · ⑥ 테스트 케이스" },
 };
 
@@ -81,8 +86,6 @@ function TableCardSlot(props: RuleEditCardProps) {
 }
 
 export const RULE_EDIT_CARDS: RuleEditCardSlot[] = [
-  { id: "header", span: 8, Component: RuleHeaderCard, group: "headerVersions" },
-  { id: "versions", span: 8, Component: RuleVersionCard, group: "headerVersions" },
   { id: "table", span: 16, Component: TableCardSlot },
   // ④·⑤·⑥ 은 위아래로 쌓는다 — 입력 표·결과 표가 좌우 절반 폭에서는 좁다.
   { id: "valueTest", span: 16, Component: ValueTestCard, group: "valueTests" },

@@ -1,4 +1,4 @@
-package com.dongkuk.dmes.mdm.dme.ruleEdit.service;
+package com.dongkuk.dmes.mdm.common.rule;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
@@ -18,24 +18,30 @@ import java.util.Collection;
 import java.util.Set;
 import org.springframework.stereotype.Component;
 
-/** 룰 화면 서비스 공용 — 룰 읽기·원천 검사·버전 키·현재 시각·요청 사용자(TSK-08-02 design §6.3). 업무 규칙은 두지 않는다. */
+/**
+ * 룰 영역 화면 서비스 공용 — 룰 읽기·원천 검사·버전 키·현재 시각·요청 사용자(TSK-08-02 design §6.3). 업무 규칙은 두지 않는다.
+ *
+ * <p>D-105 로 헤더·버전 화면({@code ruleMng})과 내용 화면({@code ruleEdit})이 같이 쓰게 됐다. {@code dme.ruleEdit.service} 에
+ * 두면 한쪽이 다른 화면의 패키지를 의존하므로 여기(룰 공용 영역)로 옮겼다. D-105 이전에는 패키지-private 였지만 두 화면이
+ * 함께 쓰므로 public 으로 넓혔다.
+ */
 @Component
-public class RuleEditSupport {
+public class RuleScreenSupport {
 
-    static final String SOURCE_MDM = "MDM";
+    public static final String SOURCE_MDM = "MDM";
     private static final Set<String> IN_APPROVAL = Set.of("REQUESTED", "APPROVED");
 
     private final MdmRuleRepository ruleRepository;
     private final MdmCurrentUser currentUser;
     private final Clock clock;
 
-    public RuleEditSupport(MdmRuleRepository ruleRepository, MdmCurrentUser currentUser, Clock clock) {
+    public RuleScreenSupport(MdmRuleRepository ruleRepository, MdmCurrentUser currentUser, Clock clock) {
         this.ruleRepository = ruleRepository;
         this.currentUser = currentUser;
         this.clock = clock;
     }
 
-    MdmRule loadRule(String ruleId) {
+    public MdmRule loadRule(String ruleId) {
         if (ruleId == null || ruleId.isBlank()) {
             throw new BusinessException(ErrorCode.REQUIRED_VALUE, "룰 ID 는 필수입니다.");
         }
@@ -44,7 +50,7 @@ public class RuleEditSupport {
     }
 
     /** 외부 원천(EXTERNAL) 룰은 조회만 한다(수용 기준 2, D11). */
-    static void requireMdm(MdmRule rule) {
+    public static void requireMdm(MdmRule rule) {
         if (!SOURCE_MDM.equals(rule.getSourceKind())) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "외부 원천(EXTERNAL) 룰은 조회만 할 수 있습니다: " + rule.getMaruRuleId());
         }
@@ -54,39 +60,39 @@ public class RuleEditSupport {
      * 결재 중(REQUESTED·APPROVED) 버전이 있으면 MDM006(D14). 공통 {@code VersionWriteGuard.checkCanCreateVersion} 은 DRAFT·적용 전
      * RELEASED 만 보므로 룰은 결재 중 두 상태를 여기서 더 본다. 공통 가드와 겹치지 않게 이 두 상태만 본다.
      */
-    static void requireNoVersionInApproval(Collection<MdmRuleVer> versions) {
+    public static void requireNoVersionInApproval(Collection<MdmRuleVer> versions) {
         if (versions.stream().anyMatch(v -> IN_APPROVAL.contains(v.getStatus()))) {
             throw MdmErrors.of(MdmErrorCode.UNAPPLIED_VERSION_EXISTS);
         }
     }
 
-    static VersionRef ref(String ruleId, int ver) {
+    public static VersionRef ref(String ruleId, int ver) {
         return new VersionRef(VersionTarget.BUSINESS_RULE, ruleId, BigDecimal.valueOf(ver));
     }
 
-    static int requireVer(Integer ver) {
+    public static int requireVer(Integer ver) {
         if (ver == null) {
             throw new BusinessException(ErrorCode.REQUIRED_VALUE, "버전은 필수입니다.");
         }
         return ver;
     }
 
-    static long requireRowVersion(Long rowVersion) {
+    public static long requireRowVersion(Long rowVersion) {
         if (rowVersion == null) {
             throw new BusinessException(ErrorCode.REQUIRED_VALUE, "row_version 은 필수입니다.");
         }
         return rowVersion;
     }
 
-    static String blankToNull(String s) {
+    public static String blankToNull(String s) {
         return s == null || s.isBlank() ? null : s.trim();
     }
 
-    String me() {
+    public String me() {
         return currentUser.userId();
     }
 
-    LocalDateTime now() {
+    public LocalDateTime now() {
         return LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS);
     }
 }

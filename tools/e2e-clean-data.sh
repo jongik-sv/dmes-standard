@@ -23,6 +23,8 @@
 #   ./tools/e2e-clean-data.sh            # 확인만(기본). 지우려면 --apply
 #   ./tools/e2e-clean-data.sh --apply    # 실제로 지운다
 #   ./tools/e2e-clean-data.sh --apply --include-fixtures   # 픽스처 마루 데이터(E2E_DM_PORT 등)까지 지운다
+#   ./tools/e2e-clean-data.sh --apply --data-only          # 마루 데이터(TB_MDM_DATA*)만 지운다 — 코드·룰·사전은 남긴다
+#     (마루 데이터 목록만 정리하고 싶을 때. 다른 마루 데이터 쪽 잔여분은 그대로 둔다)
 #
 # 되돌림: 지우기 직전에 mdm.db 를 <파일>.bak-e2eclean-<시각> 으로 복사한다.
 set -euo pipefail
@@ -31,10 +33,12 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DB="${E2E_CLEAN_DB:-$ROOT/src/backend/data/mdm.db}"
 APPLY=0
 INCLUDE_FIXTURES=0
+DATA_ONLY=0
 for arg in "$@"; do
   case "$arg" in
     --apply) APPLY=1 ;;
     --include-fixtures) INCLUDE_FIXTURES=1 ;;
+    --data-only) DATA_ONLY=1 ;;
     *) echo "[e2e-clean] 알 수 없는 인자: $arg" >&2; exit 1 ;;
   esac
 done
@@ -59,21 +63,33 @@ count_where() { sqlite3 "$DB" "SELECT COUNT(*) FROM $1 WHERE $2;"; }
 echo "[e2e-clean] 대상 DB: $DB"
 
 # ── 대상 집계 ────────────────────────────────────────────────
-T_CODE=$(count TB_MDM_CODE MARU_CODE_ID)
-T_CATE=$(count TB_MDM_CODE_CATE MARU_CODE_ID)
-T_ITEM=$(count TB_MDM_CODE_ITEM MARU_CODE_ID)
-T_CATEITEM=$(count TB_MDM_CODE_CATE_ITEM MARU_CODE_ID)
-T_RULE=$(count TB_MDM_RULE MARU_RULE_ID)
 T_DATA=$(count_where TB_MDM_DATA "$DATA_WHERE")
 T_DATAITEM=$(count_where TB_MDM_DATA_ITEM "$DATA_WHERE")
-T_TERM=$(q "SELECT COUNT(*) FROM TB_MDM_TERM WHERE TERM_NAME LIKE 'E2E%' OR ENG_ABBR LIKE 'E2E%' OR TERM_ID LIKE 'E2E%';")
-T_DOMAIN=$(q "SELECT COUNT(*) FROM TB_MDM_DOMAIN WHERE DOMAIN_NAME LIKE 'E2E%' OR DOMAIN_ID LIKE 'E2E%';")
-T_COLUMN=$(q "SELECT COUNT(*) FROM TB_MDM_COLUMN WHERE COLUMN_NAME LIKE 'E2E%' OR COLUMN_ID LIKE 'E2E%';")
-TOTAL=$((T_CODE + T_CATE + T_ITEM + T_CATEITEM + T_RULE + T_DATA + T_DATAITEM + T_TERM + T_DOMAIN + T_COLUMN))
 
-echo "[e2e-clean] E2E 데이터: 코드 ${T_CODE} · 카테고리 ${T_CATE} · 항목 ${T_ITEM} · 카테고리항목 ${T_CATEITEM} · 룰 ${T_RULE} · 마루 데이터 ${T_DATA}(항목 ${T_DATAITEM}) · 용어 ${T_TERM} · 도메인 ${T_DOMAIN} · 컬럼 ${T_COLUMN}  (합계 ${TOTAL})"
-echo "[e2e-clean] 남길 샘플 코드: $(q "SELECT IFNULL(GROUP_CONCAT(MARU_CODE_ID, ' '), '(없음)') FROM TB_MDM_CODE WHERE MARU_CODE_ID NOT LIKE 'E2E%';")"
-echo "[e2e-clean] 남길 샘플 룰  : $(q "SELECT COUNT(*) FROM TB_MDM_RULE WHERE MARU_RULE_ID NOT LIKE 'E2E%';")건"
+if [ "$DATA_ONLY" -eq 1 ]; then
+  # --data-only — 마루 데이터 계열만 본다. 코드·룰·사전 집계는 아래 else 로 빠진다.
+  TOTAL=$((T_DATA + T_DATAITEM))
+  echo "[e2e-clean] 범위: 마루 데이터만 (--data-only) — 마루 코드·룰·사전은 건드리지 않는다"
+  echo "[e2e-clean] E2E 데이터: 마루 데이터 ${T_DATA}(항목 ${T_DATAITEM})  (합계 ${TOTAL})"
+  if [ "$INCLUDE_FIXTURES" -eq 0 ]; then
+    echo "[e2e-clean] 남길 픽스처 마루 데이터: $(q "SELECT IFNULL(GROUP_CONCAT(MARU_DATA_ID, ' '), '(없음)') FROM TB_MDM_DATA WHERE MARU_DATA_ID IN ($FIXTURE_DATA);")"
+  fi
+  echo "[e2e-clean] 남길 비-E2E 마루 데이터: $(q "SELECT IFNULL(GROUP_CONCAT(MARU_DATA_ID, ' '), '(없음)') FROM TB_MDM_DATA WHERE MARU_DATA_ID NOT LIKE 'E2E%';")"
+else
+  T_CODE=$(count TB_MDM_CODE MARU_CODE_ID)
+  T_CATE=$(count TB_MDM_CODE_CATE MARU_CODE_ID)
+  T_ITEM=$(count TB_MDM_CODE_ITEM MARU_CODE_ID)
+  T_CATEITEM=$(count TB_MDM_CODE_CATE_ITEM MARU_CODE_ID)
+  T_RULE=$(count TB_MDM_RULE MARU_RULE_ID)
+  T_TERM=$(q "SELECT COUNT(*) FROM TB_MDM_TERM WHERE TERM_NAME LIKE 'E2E%' OR ENG_ABBR LIKE 'E2E%' OR TERM_ID LIKE 'E2E%';")
+  T_DOMAIN=$(q "SELECT COUNT(*) FROM TB_MDM_DOMAIN WHERE DOMAIN_NAME LIKE 'E2E%' OR DOMAIN_ID LIKE 'E2E%';")
+  T_COLUMN=$(q "SELECT COUNT(*) FROM TB_MDM_COLUMN WHERE COLUMN_NAME LIKE 'E2E%' OR COLUMN_ID LIKE 'E2E%';")
+  TOTAL=$((T_CODE + T_CATE + T_ITEM + T_CATEITEM + T_RULE + T_DATA + T_DATAITEM + T_TERM + T_DOMAIN + T_COLUMN))
+
+  echo "[e2e-clean] E2E 데이터: 코드 ${T_CODE} · 카테고리 ${T_CATE} · 항목 ${T_ITEM} · 카테고리항목 ${T_CATEITEM} · 룰 ${T_RULE} · 마루 데이터 ${T_DATA}(항목 ${T_DATAITEM}) · 용어 ${T_TERM} · 도메인 ${T_DOMAIN} · 컬럼 ${T_COLUMN}  (합계 ${TOTAL})"
+  echo "[e2e-clean] 남길 샘플 코드: $(q "SELECT IFNULL(GROUP_CONCAT(MARU_CODE_ID, ' '), '(없음)') FROM TB_MDM_CODE WHERE MARU_CODE_ID NOT LIKE 'E2E%';")"
+  echo "[e2e-clean] 남길 샘플 룰  : $(q "SELECT COUNT(*) FROM TB_MDM_RULE WHERE MARU_RULE_ID NOT LIKE 'E2E%';")건"
+fi
 
 if [ "$TOTAL" -eq 0 ]; then
   echo "[e2e-clean] 지울 것이 없다. 종료."
@@ -81,7 +97,10 @@ if [ "$TOTAL" -eq 0 ]; then
 fi
 
 if [ "$APPLY" -ne 1 ]; then
-  echo "[e2e-clean] 확인 모드 — 지우려면: $0 --apply"
+  EXTRA=""
+  [ "$INCLUDE_FIXTURES" -eq 1 ] && EXTRA="$EXTRA --include-fixtures"
+  [ "$DATA_ONLY" -eq 1 ] && EXTRA="$EXTRA --data-only"
+  echo "[e2e-clean] 확인 모드 — 지우려면: $0 --apply$EXTRA"
   exit 0
 fi
 
@@ -91,16 +110,19 @@ cp "$DB" "$BAK"
 echo "[e2e-clean] 백업: $BAK"
 
 # ── 삭제 (자식 → 부모 순. FK 는 껐다 켠다) ───────────────────
-sqlite3 "$DB" <<SQL
-PRAGMA foreign_keys=OFF;
--- 마루 데이터(자식 → 부모). 수신 항목은 RECV_ID 로 매이므로 수신 헤더를 통해 지운다
-DELETE FROM TB_MDM_DATA_RECV_ITEM WHERE RECV_ID IN (SELECT RECV_ID FROM TB_MDM_DATA_RECV WHERE $DATA_WHERE);
+# 마루 데이터 블록은 항상 도는다. --data-only 면 나머지 블록(룰·코드·사전)은 빼고 이 블록만 실행한다.
+SQL_DATA="DELETE FROM TB_MDM_DATA_RECV_ITEM WHERE RECV_ID IN (SELECT RECV_ID FROM TB_MDM_DATA_RECV WHERE $DATA_WHERE);
 DELETE FROM TB_MDM_DATA_RECV      WHERE $DATA_WHERE;
 DELETE FROM TB_MDM_DATA_SYSTEM    WHERE $DATA_WHERE;
 DELETE FROM TB_MDM_DATA_CATE_ITEM WHERE $DATA_WHERE;
 DELETE FROM TB_MDM_DATA_ITEM      WHERE $DATA_WHERE;
 DELETE FROM TB_MDM_DATA_CATE      WHERE $DATA_WHERE;
-DELETE FROM TB_MDM_DATA           WHERE $DATA_WHERE;
+DELETE FROM TB_MDM_DATA           WHERE $DATA_WHERE;"
+
+if [ "$DATA_ONLY" -eq 1 ]; then
+  SQL_DELETE="$SQL_DATA"
+else
+  SQL_DELETE="$SQL_DATA
 -- 룰과 그 하위
 DELETE FROM TB_MDM_RULE_TEST_CASE WHERE MARU_RULE_ID LIKE 'E2E%';
 DELETE FROM TB_MDM_RULE_ROW        WHERE MARU_RULE_ID LIKE 'E2E%';
@@ -121,7 +143,12 @@ DELETE FROM TB_MDM_CODE_RECV      WHERE MARU_CODE_ID LIKE 'E2E%';
 -- dma 스펙이 만든 용어·도메인·컬럼 사전(자식 → 부모)
 DELETE FROM TB_MDM_COLUMN  WHERE COLUMN_NAME LIKE 'E2E%' OR COLUMN_ID LIKE 'E2E%';
 DELETE FROM TB_MDM_DOMAIN  WHERE DOMAIN_NAME LIKE 'E2E%' OR DOMAIN_ID LIKE 'E2E%';
-DELETE FROM TB_MDM_TERM    WHERE TERM_NAME LIKE 'E2E%' OR ENG_ABBR LIKE 'E2E%' OR TERM_ID LIKE 'E2E%';
+DELETE FROM TB_MDM_TERM    WHERE TERM_NAME LIKE 'E2E%' OR ENG_ABBR LIKE 'E2E%' OR TERM_ID LIKE 'E2E%';"
+fi
+
+sqlite3 "$DB" <<SQL
+PRAGMA foreign_keys=OFF;
+$SQL_DELETE
 PRAGMA foreign_keys=ON;
 SQL
 
@@ -131,4 +158,8 @@ FK=$(sqlite3 "$DB" "PRAGMA foreign_key_check;")
 [ "$INTEG" = "ok" ] || { echo "[e2e-clean] 무결성 실패: $INTEG" >&2; exit 1; }
 [ -z "$FK" ] || { echo "[e2e-clean] FK 위반: $FK" >&2; exit 1; }
 echo "[e2e-clean] integrity=ok · FK 이상 없음"
-echo "[e2e-clean] 남은 코드: $(sqlite3 "$DB" "SELECT COUNT(*) FROM TB_MDM_CODE;")건 · 남은 룰: $(sqlite3 "$DB" "SELECT COUNT(*) FROM TB_MDM_RULE;")건"
+if [ "$DATA_ONLY" -eq 1 ]; then
+  echo "[e2e-clean] 남은 마루 데이터: $(sqlite3 "$DB" "SELECT COUNT(*) FROM TB_MDM_DATA;")건 (E2E $(sqlite3 "$DB" "SELECT COUNT(*) FROM TB_MDM_DATA WHERE MARU_DATA_ID LIKE 'E2E%';")건 = 픽스처만)"
+else
+  echo "[e2e-clean] 남은 코드: $(sqlite3 "$DB" "SELECT COUNT(*) FROM TB_MDM_CODE;")건 · 남은 룰: $(sqlite3 "$DB" "SELECT COUNT(*) FROM TB_MDM_RULE;")건"
+fi

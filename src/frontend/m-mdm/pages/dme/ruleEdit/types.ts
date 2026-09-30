@@ -127,8 +127,6 @@ export interface RuleEditView {
   me: string;
   /** 표 편집 = 원천 MDM && 선택 버전 DRAFT && 소유자 == 나(서버 판정, I7). */
   editable: boolean;
-  /** 헤더 편집(D6, 서버 판정). */
-  headerEditable: boolean;
   unappliedVersionExists: boolean;
   confirmScreenReady: boolean;
   rule: RuleInfo;
