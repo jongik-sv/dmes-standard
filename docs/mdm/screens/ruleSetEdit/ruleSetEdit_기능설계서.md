@@ -50,7 +50,7 @@ moduleGroup: dme
 | 페이지 유형 | `B`(상단 고르기 + 툴바 + 왼쪽 패널·캔버스·오른쪽 패널·아래 패널 분할) | 08-02 `ruleEdit` 골격(그 기능설계서에는 유형 칸이 없어 조회+상세 계열 `B` 로 둔다) |
 | 주요 API path (UI→BFF) | `POST /api/mdm/oasis/ruleSetEdit/{action}` | design §6.12 |
 | 주요 API path (BFF→BE) | `POST /oasis/ruleSetEdit/{action}` | 상동 |
-| Frontend 파일 | `m-mdm/pages/dme/ruleSetEdit/` 아래 — `page.tsx`, `api.ts`, `types.ts`, `links.ts`, 순수 모듈 `set-model.ts`(목록 함수는 코퍼스 동치 테스트용, `flowIo`·`flowChecks`)·`flow-model.ts`(파싱·구조 검사)·`flow-edit.ts`(편집 연산 — 3단계에 `moveNode`·`replaceRule`·`copyFragment`·`pasteFragment`·`duplicateNode`·`changeSplitKind`·`dissolveSplit`·`reorderBranches` 추가)·`flow-layout.ts`(dagre 배치)·`flow-vars.ts`(변수 칩·검사 표시·가장 가까운 선·끌기 대상 선)·`trace-view.ts`(기록 해석·`debugOverlay`), 상태 `state/{useRuleSetEdit,edit-history,useEditActions,useDragActions,useFind,useCollapse}.ts`, 캔버스 `canvas/{FlowCanvas,FlowToolbar,FlowPalette,RulePanel,RuleSearchModal,ContextMenu,context-menu,shortcuts,collapse,nodes,overlay,react-flow}` 와 우클릭 메뉴 제공자 `canvas/menus/{index,edit-menu,collapse-menu,debug-menu,view-menu}`, 패널 `panels/{SetPanel,PropertyPanel,ChecksPanel,BottomPanel}`, 카드 `cards/{SetIoTables,GuideCard}`, 디버거 `debugger/{DebugToolbar,DebugInputs,InputForm,VariablePanel,TestCasePanel,CaseEditModal,ValuesTab,ValueTable,RunCompare,SimWarnings,TraceDetail,useSimulation,useTestCases,useExprEval,debug-model,expr-eval,local-store}`, 스타일 `rsf-styles.ts`·`styles/{base,collapse,debug,drag,menu,props}.ts`(TS 문자열 + `<style href precedence>`, 로컬 `.css` import 없음 — Local-Rules §17). 선 경로 편집(C14)의 파일은 Task 15 가 더한다 | 2단계 계획 Task 5~11, 3단계 계획 Task 0~12·15. 1단계 목록 카드(`RuleSetCard`·`RuleListGrid`)는 삭제(D-113), 2단계 `SimulationPanel`·`TraceStepper`·시뮬레이션 탭은 삭제(D-118) |
+| Frontend 파일 | `m-mdm/pages/dme/ruleSetEdit/` 아래 — `page.tsx`, `api.ts`, `types.ts`, `links.ts`, 순수 모듈 `set-model.ts`(목록 함수는 코퍼스 동치 테스트용, `flowIo`·`flowChecks`)·`flow-model.ts`(파싱·구조 검사)·`flow-edit.ts`(편집 연산 — 3단계에 `moveNode`·`replaceRule`·`copyFragment`·`pasteFragment`·`duplicateNode`·`changeSplitKind`·`dissolveSplit`·`reorderBranches` 추가)·`flow-layout.ts`(dagre 배치)·`flow-vars.ts`(변수 칩·검사 표시·가장 가까운 선·끌기 대상 선)·`trace-view.ts`(기록 해석·`debugOverlay`), 상태 `state/{useRuleSetEdit,edit-history,useEditActions,useDragActions,useFind,useCollapse}.ts`, 캔버스 `canvas/{FlowCanvas,FlowToolbar,FlowPalette,RulePanel,RuleSearchModal,ContextMenu,context-menu,shortcuts,collapse,route-path,nodes,overlay,react-flow}` 와 우클릭 메뉴 제공자 `canvas/menus/{index,edit-menu,collapse-menu,debug-menu,view-menu}`, 패널 `panels/{SetPanel,PropertyPanel,ChecksPanel,BottomPanel}`, 카드 `cards/{SetIoTables,GuideCard}`, 디버거 `debugger/{DebugToolbar,DebugInputs,InputForm,VariablePanel,TestCasePanel,CaseEditModal,ValuesTab,ValueTable,RunCompare,SimWarnings,TraceDetail,useSimulation,useTestCases,useExprEval,debug-model,expr-eval,local-store}`, 스타일 `rsf-styles.ts`·`styles/{base,collapse,debug,drag,menu,props,route}.ts`(TS 문자열 + `<style href precedence>`, 로컬 `.css` import 없음 — Local-Rules §17). 선 경로 편집(C14)의 순수 계산(둥근 꺾은선 경로·가운데 점·점 더하기)은 `canvas/route-path.ts`, 손잡이 스타일은 `styles/route.ts` 에 있다 | 2단계 계획 Task 5~11, 3단계 계획 Task 0~12·15. 1단계 목록 카드(`RuleSetCard`·`RuleListGrid`)는 삭제(D-113), 2단계 `SimulationPanel`·`TraceStepper`·시뮬레이션 탭은 삭제(D-118) |
 | tsup entry key | `pages/dme/ruleSetEdit/page` | `m-mdm/tsup.config.ts` |
 | action 어휘 | `search`·`view`(READ), `save`·`delete`(폐기)·`restore`(되살리기)·`validate`(조건식 IO)·`execute`(기록 실행 = 디버거)(EDIT). 서비스 메서드는 `validate`→`condIo`, `execute`→`simulate`. **3단계는 새 action 동사를 만들지 않고 칸만 더한다**(ADR-0003 D5 16단어): `save` 의 `part=CASE`(테스트 케이스 저장, 삭제는 `caseDeleted=true`), `view` 응답의 `cases`(케이스 목록), `validate` 의 `exprText`(식 파싱만 — 응답 `expr`), `execute` 의 `runCases`·`caseIds`·`setId`(저장된 케이스 일괄 실행 — 응답 `cases`, `trace` 는 null) | design §6.12·I17, 2단계 P5·P-D2, D-112, 3단계 P-D1·P-D12, D-120·D-122 |
 | 메뉴 계층 | 마루 MDM(`mdm`) > 업무기준(`dme`) > 룰 세트 편집(`ruleSetEdit`, seq 005, fullSeq 5050500) | `DataInitializer.seedMdmRuleSetMenus()`, design D12 |
@@ -146,7 +146,7 @@ moduleGroup: dme
 | 중단점 점 | `flow-bp-{nodeId}` (`data-on` = true·false) | 룰·IF·병렬·합류 노드의 왼쪽 가장자리. 디버그 모드에서는 눌러 켜고 끄는 단추이고(노드 선택은 바뀌지 않는다), 그 밖 모드에서는 켜진 것만 작은 점으로 보이며 누를 수 없다 |
 | 접힌 블록 | `flow-collapsed-{splitId}` (`data-error`), `flow-collapsed-ran-{splitId}` | 접힌 분기를 룰 박스 크기의 노드 하나로 그린다 — 문구 「IF 조건 · 노드 6개」/「병렬 · 노드 6개」(분기·짝 합류를 뺀 안쪽 노드 수). 디버거 기록이 있으면 형제 요소 「안쪽 실행 k개」, 안쪽 또는 합류가 오류로 끝났으면 빨간 테두리. 접힌 분기에서 나가는 선은 합류 뒤로 이어지고 갈래 이름·조건 편집이 없다. 접힘은 화면 상태이고 저장하지 않는다 |
 | 디버그 상태 모양 | 노드 `data-state` | `current` 굵은 강조 테두리, `next` 점선, `pending` 회색(끝에 닿으면 2단계 최종 겹침과 같이 `run`·`error`·`dim`). 변수 칩(`flow-edge-chips-{edgeId}`)에 마우스를 올리면 `title` 로 커서 자리 값(`이름 = 값`, 아직이면 `이름 · 아직 없음`)을 보인다 |
-| 선 경로 손잡이(C14, Task 15 구현) | (Task 15 가 정한다) | 편집 모드에서 선을 고르면 꺾는 점마다 손잡이가 보인다. 동작은 §5.3 |
+| 선 경로 손잡이(C14, Task 15 구현) | `flow-route-handle-{edgeId}-{i}` (`data-selected="true"` = 고른 손잡이, `data-dragging="true"` = 끌리는 손잡이) | 편집 모드에서 선을 고르면 꺾는 점마다 손잡이가 보인다. 동작은 §5.3 |
 
 `FLOW_JSON.view` — 화면 전용 저장 칸. 판정에는 쓰지 않는다.
 
@@ -208,7 +208,7 @@ moduleGroup: dme
 | B-004 | 되살리기(`set-restore`) | A-TOOL | `restore` | DEPRECATED·restorable·`restore` 권한 |
 | B-005 | 다시 불러오기(`set-reload`) | A-TOOL | `view` | MDM001 충돌 뒤에만 보인다 |
 | B-006 | 보기(`flow-mode-view`)/편집(`flow-mode-edit`)/디버그(`flow-mode-debug`) | A-TOOL | (없음) | 세트를 열면 보기 모드다. [편집]은 `view.editable`·INUSE·`save` 권한일 때만 켜진다. [디버그]는 누구나 들어간다(실행 단추는 `execute` 권한이 따로 켠다). 편집 → 보기/디버그는 편집 내용을 버리지 않는다. 디버그 모드 입력값·중단점·조사식·기록은 모드를 오가도 유지한다 |
-| B-007 | 자동 정렬(`flow-auto-layout`) | A-TOOL | (없음) | dagre 위→아래 배치로 모든 노드 위치를 다시 잡는다(편집 모드만 켜진다). 선 경로 편집(C14, Task 15)이 들어가면 모든 선의 경로(`view.routes`)도 함께 지우며 되돌리기로 살린다 |
+| B-007 | 자동 정렬(`flow-auto-layout`) | A-TOOL | (없음) | dagre 위→아래 배치로 모든 노드 위치를 다시 잡는다(편집 모드만 켜진다). 모든 선의 경로(`view.routes`)도 함께 지운다(C14). 위치와 경로 지우기는 이력 한 칸이라 되돌리기 한 번으로 함께 살아난다 |
 | B-008 | 화면 맞춤(`flow-fit`)·변수 흐름(`flow-var-toggle`)·미니맵(`flow-minimap-toggle`) | A-TOOL | (없음) | 보기 조절. 서버를 부르지 않는다. 미니맵은 켜고 끔을 브라우저 저장소(`rsf:minimap`)에 기억한다 |
 | B-009 | 룰(`flow-add-rule`)·IF(`flow-add-if`)·병렬(`flow-add-par`)·메모(`flow-add-note`)·그룹(`flow-add-group`) | A-LEFT(팔레트) | `search`(RULE, 룰 팝업) | 편집 모드만. 동작은 §5.3 |
 | B-010 | 찾기(지침, `set-guide-run`) | A-PROPS(세트 패널) | `search`(GUIDE) | |
@@ -275,8 +275,8 @@ moduleGroup: dme
 | 놓인 노드·블록 옮기기(A2) | 룰 노드나 분기(IF·병렬)를 끌어 다른 선 가까이 가면 같은 강조를 띄운다. 놓으면 흐름에서 떼어 그 선에 끼우고(`moveNode`) 떠난 자리는 앞뒤를 다시 잇는다. 자기 자신에 붙은 선·자기 블록 안쪽 선은 대상에서 뺀다. 선에서 먼 곳에 놓으면 위치만 바뀐다. 거부되면(룰 노드의 선이 하나씩이 아님·자기 자리·블록이 닫히지 않음) 알림을 띄우고 끌던 위치를 되돌린다. 위치 적기와 옮기기는 되돌리기 **한 번**이다. **접힌 분기는 선 위로 옮길 수 없다**(위치 이동만) |
 | 선 위 [+]·복사 붙여넣기(A3·B9) | [+] 메뉴(§5.5)에서 룰·IF·병렬·붙여넣기. 복사 단위는 룰 노드 하나 또는 분기 블록 하나(안쪽 전체)이며 여러 노드 선택 복사는 없다. 클립보드는 화면 메모리라 세트를 바꿔도 남고 새로 고침하면 사라진다(시스템 클립보드는 쓰지 않는다). 붙여넣기는 고른 선(또는 [+]·선 우클릭의 선)에 끼우고 노드·선 ID 를 새로 발급하며 조건식·갈래 이름·분기 이름은 복사한다. 붙여 넣은 노드는 저장된 위치가 없어 자동 배치 좌표로 그려지므로 겹칠 수 있다([자동 정렬]로 푼다, 3단계 P-D18). 다른 세트에 붙일 때 룰 정보가 없으면 복사한 조각의 룰 입출력을 함께 들여온다. 복제(Ctrl+D)는 복사한 뒤 원본 바로 뒤 선에 붙인다. 결과가 노드 200개를 넘으면 거부 |
 | 분기 편집(C11~C13) | **IF↔병렬 바꾸기** — IF→병렬은 갈래 조건식·「그 외」 표시를 지우고 순서를 1..n 으로 다시 매긴다, 병렬→IF 는 마지막 갈래를 「그 외」로 두고 나머지 조건식을 비운다(빈 조건식은 검사 오류로 드러나 사용자가 채운다). 노드 ID 는 유지하고 기본 라벨(「조건」·「병렬」)이면 새 기본 라벨로 바꾼다. **분기 풀기** — 고른 갈래의 안쪽 노드만 남겨 분기 앞 선과 합류 뒤 선 사이에 잇고 분기·합류·다른 갈래는 지운다(빈 갈래를 고르면 앞뒤를 바로 잇는다). **갈래 순서 끌기** — 속성 패널 갈래의 손잡이(`flow-prop-branch-{edgeId}-handle`)를 끌어 놓은 자리에 맞게 순서를 바꾼다(`reorderBranches`, IF 의 「그 외」는 손잡이가 없고 늘 마지막). ▲▼ 단추도 그대로 있다 |
-| 블록 접기(D16) | 우클릭 「접기/펼치기」(§5.5). 접힌 블록은 분기 앞 선과 합류 뒤 선을 이어 받는 노드 하나로 그린다. 접힘은 화면 상태라 저장하지 않고 세트를 바꾸면 비운다. 분기가 사라지거나 블록이 닫히지 않게 되면 접힘은 풀린다. 찾기·검사 항목 이동이 접힌 블록 안 노드를 가리키면 그 블록을 펼친다. **접힌 블록의 구성이 편집으로 바뀌면(접힌 채 갈래 더하기 등) 편집 직후에 그 분기를 펼친다** — 스펙의 「편집 전에 먼저 펼친다」와 다르다(N-25). 위치만 바뀌는 흐름 변경은 접힘을 건드리지 않는다. 디버거 겹침은 접힌 블록에 「안쪽 실행 k개」 배지를 달고 안쪽 오류가 있으면 빨간 테두리를 그린다. 커서가 접힌 블록 안 노드에 있으면 접힌 블록으로 옮기고 깜빡인다(펼치지 않는다) |
-| 선 경로 편집(C14, Task 15 구현) | 편집 모드에서 선을 고르면 꺾는 점마다 손잡이가 보인다. 손잡이를 끌어 옮기고, 선을 두 번 누르면 누른 자리(가장 가까운 구간)에 꺾는 점을 더한다. 손잡이를 두 번 누르거나 손잡이를 고른 채 Delete 를 누르면 그 점을 뺀다. 꺾는 점이 있는 선은 시작 손잡이 → 꺾는 점들 → 끝 손잡이를 모서리를 둥글게 한 직선으로 그리고, 없으면 지금처럼 자동 경로로 그린다. 조건 라벨·[+]·변수 칩은 경로 길이의 가운데에 둔다. 선 우클릭 메뉴 [경로 초기화]는 그 선의 꺾는 점을 모두 지우고 [자동 정렬]은 모든 선의 경로를 함께 지운다(되돌리기로 살린다). 편집 연산이 선을 없애면(노드 삭제·옮기기·분기 풀기 등) 그 선의 경로도 버린다. 노드를 옮겨도 꺾는 점은 흐름 좌표에 그대로 있고 양 끝만 노드를 따라간다. 꺾는 점은 선 하나에 20개까지. 보기·디버그 모드에서는 저장된 경로로 그리기만 한다. 저장은 `view.routes`(§3.2) |
+| 블록 접기(D16) | 우클릭 「접기/펼치기」(§5.5). 접힌 블록은 분기 앞 선과 합류 뒤 선을 이어 받는 노드 하나로 그린다. 접힘은 화면 상태라 저장하지 않고 세트를 바꾸면 비운다. 분기가 사라지거나 블록이 닫히지 않게 되면 접힘은 풀린다. 찾기·검사 항목 이동이 접힌 블록 안 노드를 가리키면 그 블록을 펼친다. **접힌 블록의 구성이 편집으로 바뀌면(접힌 채 갈래 더하기 등) 편집 직후에 그 분기를 펼친다** — 스펙의 「편집 전에 먼저 펼친다」와 다르다(N-25). 위치만 바뀌는 흐름 변경은 접힘을 건드리지 않는다. 디버거 겹침은 접힌 블록에 「안쪽 실행 k개」 배지를 달고 안쪽 오류가 있으면 빨간 테두리를 그린다. 커서가 접힌 블록 안 노드에 있으면 접힌 블록으로 옮기고 깜빡인다(펼치지 않는다). **분기를 접으면 숨는 노드와 선을 가리키던 선택은 푼다**(Task 11 고침) — 보이지 않는 대상에 속성 패널·Delete·복사가 적용되지 않게 한다 |
+| 선 경로 편집(C14, Task 15 구현) | 편집 모드에서 선을 고르면 꺾는 점마다 손잡이가 보인다. 손잡이를 끌어 옮기고, 선을 두 번 누르면 누른 자리(가장 가까운 구간)에 꺾는 점을 더한다. 손잡이를 두 번 누르거나 손잡이를 고른 채 Delete 를 누르면 그 점을 뺀다. 꺾는 점이 있는 선은 시작 손잡이 → 꺾는 점들 → 끝 손잡이를 모서리를 둥글게 한 직선으로 그리고, 없으면 지금처럼 자동 경로로 그린다. 조건 라벨과 [+] 는 경로 길이의 가운데에 두고(라벨이 있으면 [+] 는 그 옆), 변수 칩은 경로가 있는 선이면 그 가운데에서 20px 아래에, 경로가 없는 선이면 2단계처럼 출발점 아래 20px 에 둔다. 선 우클릭 메뉴 [경로 초기화](`route-reset`)는 그 선의 꺾는 점을 모두 지우고 [자동 정렬]은 모든 선의 경로를 함께 지운다(되돌리기로 살린다). 편집 연산이 선을 없애면(노드 삭제·옮기기·분기 풀기 등) 그 선의 경로도 버린다. 노드를 옮겨도 꺾는 점은 흐름 좌표에 그대로 있고 양 끝만 노드를 따라간다. 꺾는 점은 선 하나에 20개까지. 보기·디버그 모드에서는 저장된 경로로 그리기만 한다. 저장은 `view.routes`(§3.2) |
 | 조건식 즉석 편집(B10) | IF 의 「그 외」가 아닌 갈래 선의 라벨을 두 번 누르거나 우클릭 「조건 편집」을 고르면 그 자리에 조건식 입력 칸이 열린다. Enter 확정, Esc·칸 밖 누르기·초점 잃음은 취소. 병렬 갈래·「그 외」·접힌 분기에서 나가는 선은 열리지 않는다 |
 | 검사 이동 | 검사 항목 `set-check-{i}` 를 누르면 그 노드를 고르고 화면을 그 노드로 옮긴다(접힌 블록 안이면 펼친다). 같은 항목을 다시 눌러도 다시 옮기고 깜빡인다 |
 | 즉시 재계산 | 흐름이 바뀔 때마다 `set-model.ts` 의 `flowIo`·`flowChecks`(서버 `RuleSetAnalyzer` 와 코퍼스로 동치)로 입출력 표·검사·경고 점을 다시 그린다. 조건식 IO 는 `validate` 응답으로 갱신한다 |
@@ -291,10 +291,10 @@ moduleGroup: dme
 |---|---|---|---|---|
 | 되돌리기 | Ctrl+Z | Cmd+Z | 편집 | 흐름 사본 이력 100개까지. 저장해도 비우지 않는다 |
 | 다시 하기 | Ctrl+Shift+Z · Ctrl+Y | Cmd+Shift+Z · Cmd+Y | 편집 | |
-| 선택 삭제 | Delete · Backspace | ⌫ · Delete | 편집 | 고른 노드·메모·그룹·선. 시작·끝·합류는 지울 수 없다 |
+| 선택 삭제 | Delete · Backspace | ⌫ · Delete | 편집 | 고른 꺾는 점(C14)이 있으면 그 점만 먼저 빼고 이웃 점을 고른 채로 둔다(연속 Delete 가 선 전체 삭제로 새지 않는다. 점이 더 없으면 선택 없음). 고른 점이 없으면 고른 노드·메모·그룹·선을 지운다. 시작·끝·합류는 지울 수 없다. Shift+Delete·Shift+Backspace 는 무시한다 |
 | 복사 / 붙여넣기 / 복제 | Ctrl+C / Ctrl+V / Ctrl+D | Cmd+C / Cmd+V / Cmd+D | 편집 | 복사·복제는 흐름 노드를 골라야 하고, 붙여넣기는 선을 골라야 한다(없으면 알림) |
 | 노드 찾기 | Ctrl+F | Cmd+F | 모든 모드 | 툴바 찾기 칸으로 초점을 옮긴다 |
-| 선택 해제·메뉴 닫기 | Esc | Esc | 모든 모드 | 메뉴가 열려 있으면 메뉴만 닫는다. 아니면 즉석 조건식 편집을 취소하고 선택을 푼다 |
+| 선택 해제·메뉴 닫기 | Esc | Esc | 모든 모드 | 메뉴나 단축키 도움말이 열려 있으면 그것만 닫는다. 아니면 즉석 조건식 편집을 취소하고 선택을 푼다 |
 | 계속 | F5 | fn+F5 | 디버그 | `execute` 권한이 있을 때만 |
 | 한 단계 / 이전 | F10 / Shift+F10 | fn+F10 / fn+Shift+F10 | 디버그 | 한 단계는 `execute` 권한이 있을 때만, 이전은 권한과 무관 |
 | 중단점 켜고 끄기 | F9 | fn+F9 | 디버그 | 흐름 노드를 골랐을 때만 |
@@ -321,7 +321,7 @@ moduleGroup: dme
 | 분기(IF·병렬) | 접기/펼치기(`collapse`, 블록이 닫힌 분기만) | 모든 모드 |
 | 분기·합류 | 중단점 켜기/끄기(`bp-toggle`) · 여기까지 실행(`run-to`) | 디버그 |
 | 선 | 룰 넣기(`insert-rule`) · IF 넣기(`insert-if`) · 병렬 넣기(`insert-par`) · 붙여넣기(`paste`, 클립보드가 있을 때만 항목이 생긴다) · 조건 편집(`edit-cond`, IF 의 「그 외」가 아닌 갈래만) · 선 삭제(`edge-delete`). [+] 로 열면 앞 넷만 | 편집 |
-| 선 (Task 15) | 경로 초기화 | 편집 |
+| 선 | 경로 초기화(`route-reset`, `flow-menu-item-route-reset`) — 그 선에 꺾는 점이 있을 때만 항목이 생긴다. [+] 로 열면 나오지 않는다 | 편집 |
 | 빈 곳 | 메모 더하기(`note-add`) · 붙여넣기(`paste` — 클립보드가 있고 **고른 선이 있을 때**, 대상은 고른 선) · 자동 정렬(`auto-layout`) | 편집 |
 | 빈 곳 | 화면 맞춤(`fit`) | 모든 모드 |
 

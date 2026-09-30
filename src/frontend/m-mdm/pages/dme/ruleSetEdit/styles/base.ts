@@ -164,7 +164,6 @@ export const BASE_CSS = `
 
 /* 본문 — 캔버스 패널 안(팔레트 | 캔버스) */
 .rsf-body { display: flex; flex: 1 1 0; min-height: 0; min-width: 0; }
-.rsf-body .rsf-palette { flex: none; width: 128px; border-right: 1px solid var(--color-border-light); overflow-y: auto; }
 .rsf-canvas-host { flex: 1 1 0; min-width: 0; min-height: 0; position: relative; }
 
 /* 오른쪽 패널 */
