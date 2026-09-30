@@ -475,18 +475,18 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
 
     private static RuleSetSaveRequest flowReq(String setId, long rv, String flowJson) {
         RuleSetSaveRequest r = saveReq(setId, "흐름 세트", null, rv);
-        r.setFlow(RuleSetFlowJson.toMap(flowJson));
+        r.setFlowJson(flowJson);
         return r;
     }
 
     @Test
-    void 흐름을_저장하면_FLOW_JSON_은_받은_그대로_RULE_IDS_는_서버가_펼친_목록이다() {
+    void 흐름을_저장하면_FLOW_JSON_은_정규_JSON_이고_RULE_IDS_는_서버가_펼친_목록이다() {
         RuleSetSaveResult r = writeOnly("S_CHAIN", () -> service.save(flowReq("S_CHAIN", 3L, IF_FLOW)));
 
         assertEquals(4L, r.getRowVersion());
         Map<String, Object> row = setRow("S_CHAIN");
         assertEquals("[\"R_GRD\",\"R_DUP\",\"R_FCT\"]", row.get("RULE_IDS"));
-        assertEquals(RuleSetFlowJson.toMap(IF_FLOW), RuleSetFlowJson.toMap((String) row.get("FLOW_JSON")));
+        assertEquals(RuleSetFlowJson.canonical(IF_FLOW), row.get("FLOW_JSON"));
         assertTrue(codes(r.getChecks()).isEmpty(), r.getChecks().toString());
     }
 
@@ -567,7 +567,7 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
     @Test
     void 흐름_형식이_틀리면_MDM021_이다() {
         RuleSetSaveRequest r = saveReq("S_CHAIN", "흐름 세트", null, 3L);
-        r.setFlow(Map.of("version", 2, "nodes", List.of(), "edges", List.of()));
+        r.setFlowJson("{\"version\":2,\"nodes\":[],\"edges\":[]}");
 
         assertEquals("MDM021", refuseCode(() -> service.save(r)));
     }
@@ -584,15 +584,71 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
                 e.getMessage());
     }
 
+    static final String LINEAR_WITH_VIEW = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"},{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"R_GRD\"},"
+            + "{\"id\":\"end\",\"kind\":\"END\"}],\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"r1\"},{\"id\":\"e2\",\"from\":\"r1\",\"to\":\"end\"}],"
+            + "\"view\":{\"positions\":{\"r1\":{\"x\":5,\"y\":6}},\"notes\":[{\"id\":\"n1\",\"text\":\"메모\",\"x\":0,\"y\":0,\"w\":200,\"h\":80,\"attach\":\"r1\"}],\"groups\":[]}}";
+
+    private String flowJsonOf(String setId) {
+        return (String) setRow(setId).get("FLOW_JSON");
+    }
+
     @Test
-    void 한_줄_흐름_세트는_목록으로_저장하면_FLOW_JSON_을_지운다() {
-        DmeTestSupport.ruleSetFlow(jdbc, "S_CHAIN",
-                "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"},{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"R_GRD\"},"
-                + "{\"id\":\"end\",\"kind\":\"END\"}],\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"r1\"},{\"id\":\"e2\",\"from\":\"r1\",\"to\":\"end\"}]}");
+    void 저장은_요청_JSON_이_아니라_정규_JSON_을_쓴다() {
+        // 키 순서를 뒤섞고 알 수 없는 칸 "extra" 를 넣어 보낸다
+        service.save(flowReq("S_CHAIN", 3L, "{\"extra\":1,\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"},"
+                + "{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"R_GRD\"},{\"id\":\"end\",\"kind\":\"END\"}],"
+                + "\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"r1\"},{\"id\":\"e2\",\"from\":\"r1\",\"to\":\"end\"}]}"));
 
-        service.save(saveReq("S_CHAIN", "사슬 세트", null, 3L, "R_GRD", "R_FCT"));
+        String stored = flowJsonOf("S_CHAIN");
+        assertFalse(stored.contains("extra"), stored);
+        assertTrue(stored.startsWith("{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\",\"ruleId\":null"), stored);
+    }
 
-        assertNull(setRow("S_CHAIN").get("FLOW_JSON"));
+    @Test
+    void 문자열_order_는_MDM021_로_거부하고_쓰지_않는다() {
+        BusinessException e = refuse(() -> service.save(flowReq("S_CHAIN", 3L, IF_FLOW.replace("\"order\":1", "\"order\":\"1\""))));
+
+        assertEquals("MDM021", code(e));
+        assertTrue(e.getMessage().contains("edges[1].order 는 정수여야 한다"), e.getMessage());
+        assertNull(flowJsonOf("S_CHAIN"));
+    }
+
+    @Test
+    void FLOW_JSON_이_있는_한_줄_세트에_목록_저장이_오면_거부하고_흐름을_지우지_않는다() {
+        service.save(flowReq("S_CHAIN", 3L, LINEAR_WITH_VIEW));
+        String before = flowJsonOf("S_CHAIN");
+        assertTrue(before.contains("\"메모\""), before);
+
+        BusinessException e = refuse(() -> service.save(saveReq("S_CHAIN", "사슬 세트", null, 4L, "R_GRD", "R_FCT")));
+
+        assertEquals("MDM024", code(e));
+        assertTrue(e.getMessage().contains("FLOW_READONLY") && e.getMessage().contains("흐름도로 저장한 세트는 룰 목록으로 저장할 수 없다"), e.getMessage());
+        assertEquals(before, flowJsonOf("S_CHAIN"));
+    }
+
+    @Test
+    void 정규화하면_상한을_넘는_흐름은_MDM021_로_거부하고_쓰지_않는다() {
+        String head = LINEAR_WITH_VIEW.substring(0, LINEAR_WITH_VIEW.indexOf("\"view\""));
+        String vh = head + "\"view\":{\"pad\":\"";
+        String json = vh + "x".repeat(RuleSetFlowJson.MAX_JSON_CHARS - vh.length() - 3 - 10) + "\"}}";
+        assertTrue(json.length() <= RuleSetFlowJson.MAX_JSON_CHARS);
+
+        BusinessException e = refuse(() -> service.save(flowReq("S_CHAIN", 3L, json)));
+
+        assertEquals("MDM021", code(e));
+        assertTrue(e.getMessage().contains("정규화한 흐름 JSON 이"), e.getMessage());
+        assertNull(flowJsonOf("S_CHAIN"));
+    }
+
+    @Test
+    void 조회_응답은_저장된_흐름의_IF_갈래_조건식_IO_를_싣는다() {
+        DmeTestSupport.ruleSetFlow(jdbc, "S_CHAIN", IF_FLOW);
+
+        RuleSetViewResult v = view("S_CHAIN");
+
+        assertEquals(java.util.Set.of("e2"), v.getCondIo().keySet());
+        assertTrue(v.getCondIo().get("e2").ok());
+        assertEquals(Map.of(), view("S_OTHER").getCondIo());
     }
 
     @Test

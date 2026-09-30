@@ -50,7 +50,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * {@link RuleIoReader} → {@link RuleSetAnalyzer#checks} 로 다시 계산한다(I12·I15).
  *
  * <p><b>{@code @Transactional} 을 붙이지 않는다(MUST)</b> — OASIS 파라미터 이름 바인딩이 깨진다. 쓰기는 {@link TransactionTemplate}.
- * 흐름 세트(FLOW_JSON)는 흐름 기준으로 검사하고 RULE_IDS 는 서버가 흐름에서 펼친다(흐름도 계획 Task 10). 분기 세트를 목록으로 저장하면
+ * 흐름 세트(FLOW_JSON)는 흐름 기준으로 검사하고 RULE_IDS 는 서버가 흐름에서 펼친다(흐름도 계획 Task 10). 흐름이 저장된 세트를 목록으로 저장하면
  * FLOW_READONLY 로 거부한다. 담당자 역할 판단은 {@link RuleStewardCheck} 한 곳으로만 한다(I19).
  */
 @Service("ruleSetEditService")
@@ -61,6 +61,7 @@ public class RuleSetEditService {
     static final String INUSE = "INUSE";
     static final String DEPRECATED = "DEPRECATED";
     static final String FLOW_READONLY_MESSAGE = "분기가 있는 세트는 룰 목록으로 저장할 수 없다. 흐름도 편집기에서 저장한다";
+    static final String FLOW_LIST_SAVE_MESSAGE = "흐름도로 저장한 세트는 룰 목록으로 저장할 수 없다. 흐름도 편집기에서 저장한다";
 
     private final MdmRuleSetRepository setRepository;
     private final RuleQueries queries;
@@ -151,7 +152,8 @@ public class RuleSetEditService {
                 set.getDescription(), set.getStatus(), set.getRowVersion(), ruleIds,
                 set.getFlowJson() == null ? null : RuleSetFlowJson.toMap(set.getFlowJson()), flow != null && RuleSetFlowJson.branched(flow));
         return new RuleSetViewResult(header, List.copyOf(io.values()), checks,
-                steward && INUSE.equals(set.getStatus()), steward && DEPRECATED.equals(set.getStatus()));
+                steward && INUSE.equals(set.getStatus()), steward && DEPRECATED.equals(set.getStatus()),
+                flow == null ? Map.of() : ioReader.condIo(flow));
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -168,17 +170,17 @@ public class RuleSetEditService {
         List<String> ids;
         List<RuleSetCheck> checks;
         String flowJson;
-        if (request.getFlow() != null) {
-            FlowDefinition flow = requestFlow(request.getFlow());
+        if (request.getFlowJson() != null && !request.getFlowJson().isBlank()) {
+            FlowDefinition flow = requestFlow(request.getFlowJson());
             ids = RuleSetFlowJson.ruleIds(flow);
             ids.forEach(RuleIdRules::validateRuleId);
             stewardCheck.requireSteward();
             checks = RuleSetAnalyzer.checks(flow, ioReader.read(ids), ioReader.condIo(flow));
-            flowJson = requestFlowJson(request.getFlow());
+            flowJson = requestFlowJson(request.getFlowJson());
         } else {
             ids = requestRuleIds(request.getRules());
             stewardCheck.requireSteward();
-            rejectBranchedListSave(setId);
+            rejectListSaveOverFlow(setId);
             checks = RuleSetAnalyzer.checks(ids, ioReader.read(ids));
             flowJson = null;
         }
@@ -299,17 +301,18 @@ public class RuleSetEditService {
     }
 
     /** 요청 흐름 → 엔진 정의. 형식 오류는 MDM021(I13). */
-    private static FlowDefinition requestFlow(Map<String, Object> flow) {
+    private static FlowDefinition requestFlow(String flowJson) {
         try {
-            return RuleSetFlowJson.fromMap(flow);
+            return RuleSetFlowJson.parse(flowJson);
         } catch (IllegalArgumentException e) {
             throw invalidFlow(e);
         }
     }
 
-    private static String requestFlowJson(Map<String, Object> flow) {
+    /** 저장할 문자열 — 요청 JSON 이 아니라 파싱한 정의로 다시 만든 정규 JSON(P2). */
+    private static String requestFlowJson(String flowJson) {
         try {
-            return RuleSetFlowJson.write(flow);
+            return RuleSetFlowJson.canonical(flowJson);
         } catch (IllegalArgumentException e) {
             throw invalidFlow(e);
         }
@@ -319,13 +322,21 @@ public class RuleSetEditService {
         return MdmErrors.of(MdmErrorCode.INVALID_INPUT, "흐름 형식이 올바르지 않습니다: " + e.getMessage(), List.of());
     }
 
-    /** 분기 흐름이 저장된 세트를 목록으로 덮어쓰지 못하게 한다(Review Focus 1). 없는 세트는 여기서 보지 않는다(쓰기 0행이 가른다). */
-    private void rejectBranchedListSave(String setId) {
-        writes.state(setId).map(SetState::flowJson).filter(json -> json != null && RuleSetFlowJson.branched(RuleSetFlowJson.parse(json)))
-                .ifPresent(json -> {
-                    throw RuleSetRejections.saveRejected(List.of(new RuleSetCheck(RuleSetCheck.FLOW_READONLY, RuleSetCheck.REJECT, null, null,
-                            null, FLOW_READONLY_MESSAGE)));
-                });
+    /**
+     * 흐름(FLOW_JSON)이 저장된 세트를 목록으로 덮어쓰지 못하게 한다(Review Focus 1) — 한 줄이라도 배치·메모가 사라진다. 분기면 기존 문구, 한 줄이면
+     * 새 문구. 저장된 흐름을 읽지 못하면 덮어쓰지 않는 쪽(분기 문구)으로 거부한다. 없는 세트는 여기서 보지 않는다(쓰기 0행이 가른다).
+     */
+    private void rejectListSaveOverFlow(String setId) {
+        writes.state(setId).map(SetState::flowJson).filter(json -> json != null).ifPresent(json -> {
+            boolean branched;
+            try {
+                branched = RuleSetFlowJson.branched(RuleSetFlowJson.parse(json));
+            } catch (IllegalArgumentException e) {
+                branched = true;
+            }
+            throw RuleSetRejections.saveRejected(List.of(new RuleSetCheck(RuleSetCheck.FLOW_READONLY, RuleSetCheck.REJECT, null, null,
+                    null, branched ? FLOW_READONLY_MESSAGE : FLOW_LIST_SAVE_MESSAGE)));
+        });
     }
 
     private static void rejectIfAny(List<RuleSetCheck> checks) {

@@ -333,6 +333,35 @@ class DmeOasisHttpTest {
         assertEquals("HTTP_GRD", view.path("data").path("result").path("rules").path(0).path("ruleId").asText(), view.toString());
     }
 
+    /** 흐름도 2단계 Task 1 — 화면 모양 그대로 params.flowJson 문자열만 싣는다(Map 은 OASIS 가 S999 로 거부한다, D-111). */
+    @Test
+    void 흐름은_flowJson_문자열_하나로_저장되고_정규_JSON_이_남는다() throws Exception {
+        releasedRule("HTTP_GRD", "COIL_THK", "HTTP_G");
+        releasedRule("HTTP_FCT", "HTTP_G", "HTTP_F");
+        assertTrue(post("ruleSetMng", "reg", "kim", envelope("ruleSetMng",
+                json.createObjectNode().put("setId", "HTTP_SET").put("setName", "HTTP 세트"))).path("meta").path("success").asBoolean(false));
+        String flow = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"},{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"HTTP_GRD\"},"
+                + "{\"id\":\"if1\",\"kind\":\"IF\"},{\"id\":\"r2\",\"kind\":\"RULE\",\"ruleId\":\"HTTP_FCT\"},"
+                + "{\"id\":\"m1\",\"kind\":\"MERGE\",\"splitId\":\"if1\"},{\"id\":\"end\",\"kind\":\"END\"}],"
+                + "\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"r1\"},{\"id\":\"e2\",\"from\":\"r1\",\"to\":\"if1\"},"
+                + "{\"id\":\"e3\",\"from\":\"if1\",\"to\":\"r2\",\"order\":1,\"cond\":\"COIL_THK > 1\"},"
+                + "{\"id\":\"e4\",\"from\":\"if1\",\"to\":\"m1\",\"otherwise\":true},"
+                + "{\"id\":\"e5\",\"from\":\"r2\",\"to\":\"m1\"},{\"id\":\"e6\",\"from\":\"m1\",\"to\":\"end\"}],"
+                + "\"view\":{\"positions\":{\"r1\":{\"x\":10,\"y\":20}},\"notes\":[],\"groups\":[]}}";
+        ObjectNode params = json.createObjectNode().put("setId", "HTTP_SET").put("setName", "HTTP 세트").put("rowVersion", 0)
+                .put("flowJson", flow);
+
+        JsonNode save = post("ruleSetEdit", "save", "kim", envelope("ruleSetEdit", params));
+
+        assertTrue(save.path("meta").path("success").asBoolean(false), save.toString());
+        String stored = jdbc.queryForObject("SELECT FLOW_JSON FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = 'HTTP_SET'", String.class);
+        JsonNode f = json.readTree(stored);
+        assertTrue(f.path("edges").path(2).path("order").isInt(), stored);
+        assertEquals(1, f.path("edges").path(2).path("order").asInt(), stored);
+        assertTrue(f.path("edges").path(3).path("otherwise").isBoolean() && f.path("edges").path(3).path("otherwise").asBoolean(), stored);
+        assertTrue(f.path("view").path("positions").path("r1").path("x").isNumber(), stored);
+    }
+
     /** TSK-08-06 I19 — 담당자 역할이 없는 사용자의 세트 등록·저장은 서버가 MDM013 으로 막는다(BFF RBAC 403 은 e2e 가 본다). */
     @Test
     void 담당자_역할이_없으면_룰_세트_등록과_저장이_MDM013_이다() throws Exception {

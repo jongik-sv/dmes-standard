@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
 import java.util.List;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.FlowDefinition;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.FlowEdge;
@@ -275,5 +276,29 @@ class FlowParserTest {
         FlowDefinition f = line(List.of(start(), rule("a", "R_A"), rule("x", "R_X"), rule("y", "R_Y"), end()),
                 List.of(e("e1", "start", "a"), e("e2", "a", "end"), e("e3", "x", "y"), e("e4", "y", "x")));
         assertEquals(List.of("FLOW_STRUCTURE|x|null|x에 도달할 수 없다"), issues(f));
+    }
+
+    @Test
+    void 노드_200개로_만들_수_있는_가장_깊은_중첩_IF_도_스택_넘침_없이_파싱한다() {
+        int depth = 99;
+        List<FlowNode> nodes = new ArrayList<>();
+        List<FlowEdge> edges = new ArrayList<>();
+        nodes.add(new FlowNode("start", NodeKind.START, null, null, null));
+        for (int i = 1; i <= depth; i++) {
+            nodes.add(new FlowNode("if" + i, NodeKind.IF, null, null, null));
+            nodes.add(new FlowNode("m" + i, NodeKind.MERGE, null, "if" + i, null));
+        }
+        nodes.add(new FlowNode("end", NodeKind.END, null, null, null));
+        edges.add(new FlowEdge("e0", "start", "if1", null, null, false, null));
+        for (int i = 1; i <= depth; i++) {
+            String inner = i < depth ? "if" + (i + 1) : "m" + i;
+            edges.add(new FlowEdge("a" + i, "if" + i, inner, 1, "X = " + i, false, null));
+            edges.add(new FlowEdge("b" + i, "if" + i, "m" + i, null, null, true, null));
+            edges.add(new FlowEdge("c" + i, "m" + i, i > 1 ? "m" + (i - 1) : "end", null, null, false, null));
+        }
+        assertEquals(200, nodes.size());
+        FlowParse p = FlowParser.parse(new FlowDefinition(1, nodes, edges));
+        assertEquals(List.of(), p.issues());
+        assertNotNull(p.tree());
     }
 }
