@@ -4,7 +4,7 @@ asIsId: 해당 없음 (As-Is 레거시 없음 — 04 설계 문서 기반 신규
 moduleId: mdm
 moduleGroup: dmc
 작성일: 2026-09-24
-수정일: 2026-09-28 (codeMng+codeEdit 통합 — D-101·D-102. 검토 반영: 등록 [취소]·선택과 상세 정합·적용된 조회 조건)
+수정일: 2026-09-30 (신규 등록을 목록 헤더 [코드 등록] + 팝업으로 변경. 2026-09-28: codeMng+codeEdit 통합 — D-101·D-102. 검토 반영: 등록 [취소]·선택과 상세 정합·적용된 조회 조건)
 작성자: Agent
 ---
 
@@ -66,13 +66,13 @@ moduleGroup: dmc
 |---|---|---|
 | `A-FILTER` | 조회조건 | 마루 코드(ID·이름)·상태 |
 | `A-GRID` | 목록 그리드(`code-list`) | 조회 결과. 행을 클릭하면 오른쪽 `A-DETAIL` 이 그 코드로 바뀐다(같은 탭, ComboBox 없음) |
-| `A-REG` | 등록 폼 | 상단 [신규] 를 누르면 목록 선택이 풀리고 오른쪽이 등록 폼(ID·이름·설명·계층 칸 수·원천 MDM 읽기 전용)으로 바뀐다. 폼 아래 [취소]·[저장](승인 시안) |
-| `A-DETAIL` | 상세(카드 ①~③, `CodeDetail.tsx`) | 목록에서 고른 코드의 헤더·추가 컬럼 라벨·버전 목록. 아무것도 안 고르고 [신규] 도 안 눌렀으면 안내만 보인다. 코드를 고르면 이전 코드의 상세를 바로 비우고 불러오는 동안 `detail-loading` 을 보인다 |
-| `A-BTN` | 상단 버튼 | `PageLayout.buttons` — [조회]·[신규](`canDoButton(rbac,"codeMng","reg")` 있을 때만) |
+| `A-REG` | 등록 팝업(`CodeRegisterForm.tsx`) | 목록 헤더의 [코드 등록]을 누르면 팝업("마루 코드 등록", `code-register-form`)이 열린다. 본문은 ID·이름·설명·계층 칸 수·원천(MDM 읽기 전용)이고 틀 안에 [취소]·[등록]이 있다. 열 때마다 새로 마운트되어 빈 칸으로 시작하며, 여닫아도 목록 선택·오른쪽 상세는 그대로다(2026-09-30) |
+| `A-DETAIL` | 상세(카드 ①~③, `CodeDetail.tsx`) | 목록에서 고른 코드의 헤더·추가 컬럼 라벨·버전 목록. 아무것도 안 골랐으면 안내만 보인다. 코드를 고르면 이전 코드의 상세를 바로 비우고 불러오는 동안 `detail-loading` 을 보인다 |
+| `A-BTN` | 버튼 | 상단 `PageLayout.buttons` — [조회]. 목록 `GridPanel` 헤더 — [코드 등록](`btn_code_reg`, 권한이 없으면 숨기지 않고 비활성) |
 | `A-MODAL` | 새 버전·넘기기 모달 | `NewVersionModal`·`HandoverModal`(상세 안에서 연다) |
 
-레이아웃: `ContentBody root resizable storageKey="mdm.dmc.codeMng"` 로 목록(왼쪽)과 오른쪽(등록 폼 / 상세 / 안내, 모드에
-따라 바뀐다)을 나눈다. 상세는 `ContentBody direction="column" resizable storageKey="mdm.dmc.codeMng.detail"` 로
+레이아웃: `ContentBody root resizable storageKey="mdm.dmc.codeMng"` 로 목록(왼쪽)과 오른쪽(상세 / 안내, 모드에
+따라 바뀐다)을 나눈다. 등록은 오른쪽이 아니라 팝업(`Modal`, size md)에서 한다. 상세는 `ContentBody direction="column" resizable storageKey="mdm.dmc.codeMng.detail"` 로
 위(헤더|라벨, `storageKey="mdm.dmc.codeMng.detail.top"`)·아래(버전 목록)를 나눈다.
 
 ## 3. 조회조건 정의 (영역: A-FILTER)
@@ -98,7 +98,7 @@ moduleGroup: dmc
 칸이 바뀌는 액션 뒤에는 목록도 다시 조회한다. 이때 조건은 마지막으로 [조회]에 쓴 조건(적용된 조건)이다 — 입력만 하고
 [조회] 하지 않은 값은 쓰지 않는다.
 
-## 4. 등록 폼 필드 정의 (영역: A-REG)
+## 4. 등록 팝업 필드 정의 (영역: A-REG)
 
 | 필드ID | DB 컬럼명 | 화면 표시명 | 입력 방식 | 필수 | 기본값 | 설명 |
 |---|---|---|---|---|---|---|
@@ -108,10 +108,10 @@ moduleGroup: dmc
 | D-004 | `LVL_CNT` | 계층 칸 수 | Select 0~5(`code-reg-lvl`) | N | 0 | 04 「계층과 다목적 분류」(04:97) |
 | D-005 | `SOURCE_KIND` | 원천 | 읽기 전용 "MDM"(`code-reg-source`) | — | MDM | 서버로 보내지 않는다. 배포 대상 시스템·원천 선택·EXTERNAL 등록 없음(보류) |
 
-등록 저장이 끝나면: 토스트 "등록했습니다" → 폼 초기화 → 목록 재조회 → **같은 화면 오른쪽에** 그 코드를 고른 상태로
-상세를 보인다(옛 codeEdit 탭을 새로 여는 방식이 아니다). 새 코드의 상세가 올 때까지 버튼은 잠긴 채다.
-[취소](`code-reg-cancel`)는 입력을 버리고 폼을 닫는다 — [신규] 를 누르기 전에 고른 코드가 있으면 그 코드(고른 버전 포함)를
-다시 불러오고, 없었으면 안내로 돌아간다.
+[등록](`code-reg-save`)에 성공하면: 팝업을 닫고 토스트 "등록했습니다" → 목록 재조회 → **같은 화면 오른쪽에** 그 코드를
+고른 상태로 상세를 보인다(옛 codeEdit 탭을 새로 여는 방식이 아니다). 새 코드의 상세가 올 때까지 버튼은 잠긴 채다.
+필수값 누락이나 서버 거부로 실패하면 팝업은 입력값을 유지한 채 열려 있고 `ErrorModal` 이 그 위에 뜬다(오류창이 떠 있는 동안
+팝업의 Escape 닫기는 무시한다). [취소](`code-reg-cancel`)는 입력을 버리고 **팝업만** 닫는다 — 고른 코드·버전·오른쪽 상세는 건드리지 않는다.
 
 ## 5. 상세 카드 ①·② 필드 (영역: A-DETAIL, 옛 codeEdit §3)
 
@@ -157,9 +157,9 @@ moduleGroup: dmc
 | 버튼 | action | 권한 | 동작 |
 |---|---|---|---|
 | 조회(`btn_search`) | `search` | READ | §3 조건으로 목록 재조회 |
-| 신규(`btn_new`) | `reg` | `canDoButton(rbac,"codeMng","reg")` | 목록 선택을 풀고 오른쪽을 등록 폼으로 바꾼다. 이 버튼 자체는 권한이 없으면 안 보인다 |
-| 등록 저장(`code-reg-save`) | `reg` | 위와 같음 | §4. 성공: 토스트 → 폼 초기화 → 목록 재조회 → 그 코드를 고른 채 상세를 보인다. 실패: `ErrorModal`(서버 `meta.message`) |
-| 등록 취소(`code-reg-cancel`) | — | 없음(서버 호출 없음) | §4. 폼을 닫고 [신규] 전 선택(있으면)이나 안내로 돌아간다. 요청 진행 중에는 비활성 |
+| 코드 등록(`btn_code_reg`, 목록 헤더) | `reg` | `canDoButton(rbac,"codeMng","reg")` | 등록 팝업을 연다. 선택·상세는 그대로. 권한이 없거나 요청 진행·목록 조회 중이면 숨기지 않고 비활성 |
+| 등록(`code-reg-save`, 팝업) | `reg` | 위와 같음 | §4. 성공: 팝업 닫힘 → 토스트 → 목록 재조회 → 그 코드를 고른 채 상세를 보인다. 실패: 팝업은 입력값을 유지하고 그 위에 `ErrorModal`(서버 `meta.message`) |
+| 등록 취소(`code-reg-cancel`) | — | 없음(서버 호출 없음) | §4. 팝업만 닫는다(선택·상세 그대로). 요청 진행 중에는 비활성 |
 
 상세(`A-DETAIL`) 버튼은 모두 `flags.editable`(원천 MDM && 담당자)이 거짓이면 비활성이고, 권한은
 `canDoButton(rbac,"codeEdit",action)` 으로 더 판정한다(§1.2 — 서버 OBJECT `codeEdit` 를 그대로 쓴다). 판정 순수 함수는
@@ -236,9 +236,11 @@ RELEASED 버전마다 "v1.001 내용으로 채우기(복원)"), 안내 "가장 �
 
 ## 11. 결정 이력
 
+- **2026-09-30**: 신규 등록을 목록 헤더 [코드 등록] 버튼 + 팝업(`CodeRegisterForm`)으로 바꿨다. 상단 [신규]와 오른쪽 등록 폼 모드를 없애고, 권한이 없으면 버튼을 숨기지 않고 비활성으로 둔다. 팝업을 여닫아도 선택·상세는 그대로다.
+
 - **2026-09-28 D-101**(`docs/mdm/decisions.md`): 마루 코드 한 건을 다루던 화면 4개(codeMng·codeEdit·codeItemEdit·
   codeCateEdit)를 2개로 줄인다. 이 화면은 그중 codeMng+codeEdit 절반이다 — 목록+상세(헤더·추가 컬럼 라벨·버전 목록)+
-  [신규] 등록 폼을 화면 하나로 합치고, 버전 버튼의 [코드 편집]·[카테고리 편집]을 [코드 편집] 하나로 줄여 버전을 고르면
+  [신규] 등록 폼(2026-09-30 부터 목록 헤더 [코드 등록] 팝업)을 화면 하나로 합치고, 버전 버튼의 [코드 편집]·[카테고리 편집]을 [코드 편집] 하나로 줄여 버전을 고르면
   늘 켠다(편집 가능 여부는 codeItemEdit 이 판단). codeItemEdit+codeCateEdit 절반은 이 작업 밖이다. 서버 서비스·BPMN
   4개는 그대로 두고 codeEdit 는 메뉴 leaf 만 없앤다(OBJECT·역할 매핑은 유지 — 이 화면이 그 서비스를 계속 부른다).
 - **2026-09-28 D-102**(`docs/mdm/decisions.md`): 원천 04 「코드 삭제와 마루 코드 폐기」는 물리 삭제 규정이 없어 폐기만

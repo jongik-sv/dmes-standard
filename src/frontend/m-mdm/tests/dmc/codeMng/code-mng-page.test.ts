@@ -72,7 +72,7 @@ async function render(props: Record<string, unknown> = {}) {
 }
 
 async function typeInto(testId: string, value: string) {
-  const el = container.querySelector(`[data-testid="${testId}"]`) as HTMLInputElement | HTMLSelectElement;
+  const el = document.querySelector(`[data-testid="${testId}"]`) as HTMLInputElement | HTMLSelectElement;
   expect(el, testId).toBeTruthy();
   const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
   await act(async () => {
@@ -82,7 +82,7 @@ async function typeInto(testId: string, value: string) {
 }
 
 async function click(testId: string) {
-  const el = container.querySelector(`[data-testid="${testId}"]`) as HTMLButtonElement;
+  const el = document.querySelector(`[data-testid="${testId}"]`) as HTMLButtonElement;
   expect(el, testId).toBeTruthy();
   await act(async () => {
     el.click();
@@ -107,6 +107,18 @@ async function clickPageButton(label: string) {
 }
 
 /** code-list 안에서 텍스트를 담은 ag-grid 행을 찾아 첫 셀을 클릭한다(HeaderList 선례). */
+/** 목록 헤더(container 안)의 [코드 등록] 버튼을 눌러 등록 팝업을 연다. */
+async function openRegPopup() {
+  const btn = Array.from(container.querySelectorAll("button")).find((b) => b.textContent === "코드 등록") as HTMLButtonElement | undefined;
+  expect(btn, "코드 등록").toBeTruthy();
+  await act(async () => {
+    btn!.click();
+  });
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 0));
+  });
+}
+
 async function clickListRow(matchText: string) {
   const rows = Array.from(container.querySelectorAll('[data-testid="code-list"] .ag-row'));
   const row = rows.find((r) => r.textContent?.includes(matchText));
@@ -199,7 +211,15 @@ describe("CodeMngPage", () => {
     }
   });
 
-  it("[신규] 를 누르면 선택이 풀리고 등록 폼이 보인다", async () => {
+  it("팝업을 열기 전에는 등록 폼이 DOM 에 없다", async () => {
+    await render();
+    expect(document.querySelector('[data-testid="code-register-form"]')).toBeNull();
+    expect(document.querySelector('[data-testid="code-reg-id"]')).toBeNull();
+    await openRegPopup();
+    expect(document.querySelector('[data-testid="code-register-form"]')).toBeTruthy();
+  });
+
+  it("[코드 등록] 을 눌러도 고른 코드와 상세는 그대로이고 팝업이 뜬다", async () => {
     searchRows = [
       { maruCodeId: "PROC_CD", maruCodeName: "공정 코드", sourceKind: "MDM", status: "CREATED", storedStatus: "CREATED",
         currentVer: null, currentVerLabel: "미확정", pending: true, unappliedLabel: "v1.000 DRAFT", unappliedCount: 1 },
@@ -208,9 +228,9 @@ describe("CodeMngPage", () => {
     await clickListRow("PROC_CD");
     expect(container.querySelector('[data-testid="header-name"]')).toBeTruthy();
 
-    await clickPageButton("신규");
-    expect(container.querySelector('[data-testid="header-name"]')).toBeNull();
-    expect(container.querySelector('[data-testid="code-reg-id"]')).toBeTruthy();
+    await openRegPopup();
+    expect(container.querySelector('[data-testid="header-name"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="code-reg-id"]')).toBeTruthy();
   });
 
   it("등록하면 같은 화면에서 새 코드를 고른 상태로 상세를 보인다(탭을 새로 열지 않는다)", async () => {
@@ -219,7 +239,7 @@ describe("CodeMngPage", () => {
     window.addEventListener("portal-open-tab", listener);
     try {
       await render();
-      await clickPageButton("신규");
+      await openRegPopup();
       await typeInto("code-reg-id", "PROC_CD");
       await typeInto("code-reg-name", "공정 코드");
       await typeInto("code-reg-lvl", "2");
@@ -241,7 +261,7 @@ describe("CodeMngPage", () => {
   it("서버가 거부하면 오류 모달에 문구를 보인다", async () => {
     regResponse = { meta: { success: false, message: "마루 코드·마루 데이터에 같은 ID 가 있습니다" } };
     await render();
-    await clickPageButton("신규");
+    await openRegPopup();
     await typeInto("code-reg-id", "PROC_CD");
     await typeInto("code-reg-name", "공정 코드");
     await click("code-reg-save");
@@ -250,9 +270,9 @@ describe("CodeMngPage", () => {
 
   it("원천은 MDM 읽기 전용으로만 보인다(선택 없음)", async () => {
     await render();
-    await clickPageButton("신규");
-    expect(container.querySelector('[data-testid="code-reg-source"]')?.textContent).toBe("MDM");
-    expect(container.querySelector('[data-testid="code-reg-source"] select, [data-testid="code-reg-source"] input')).toBeNull();
+    await openRegPopup();
+    expect(document.querySelector('[data-testid="code-reg-source"]')?.textContent).toBe("MDM");
+    expect(document.querySelector('[data-testid="code-reg-source"] select, [data-testid="code-reg-source"] input')).toBeNull();
   });
 
   it("handoff 로 받은 코드를 목록 조회와 함께 골라 둔다", async () => {

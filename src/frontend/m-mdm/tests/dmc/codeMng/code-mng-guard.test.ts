@@ -159,6 +159,11 @@ function pageButton(label: string) {
   ) as HTMLButtonElement | undefined;
 }
 
+/** 목록 헤더의 [코드 등록] 버튼. */
+function regButton() {
+  return Array.from(container.querySelectorAll("button")).find((b) => b.textContent === "코드 등록") as HTMLButtonElement | undefined;
+}
+
 async function confirmDialog() {
   await click(Array.from(document.body.querySelectorAll("button")).find((b) => b.textContent === "확인"));
 }
@@ -400,7 +405,7 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
 
   it("등록 뒤 새 코드의 상세가 올 때까지 안내 문구 대신 로딩을 보이고 버튼을 잠근다", async () => {
     await render();
-    await click(pageButton("신규"));
+    await click(regButton());
     await typeInto("code-reg-id", "NEW_CD");
     await typeInto("code-reg-name", "새 코드");
     hold("view:NEW_CD");
@@ -409,11 +414,11 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
     expect(actions("reg")).toHaveLength(1);
     expect(visibleText(container)).not.toContain(GUIDE);
     expect(byTestId("detail-loading")).toBeTruthy();
-    expect(pageButton("신규")!.disabled).toBe(true);
+    expect(regButton()!.disabled).toBe(true);
 
     await release("view:NEW_CD");
     expect(headerId()).toBe("NEW_CD");
-    expect(pageButton("신규")!.disabled).toBe(false);
+    expect(regButton()!.disabled).toBe(false);
   });
 
   // ── 결함 4 ──
@@ -453,51 +458,54 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
 
   // ── 결함 6 ──
 
-  it("등록 폼 [취소] 는 [신규] 전 선택(버전 포함)으로 돌아간다", async () => {
+  it("등록 팝업 [취소] 는 팝업만 닫고 고른 코드·버전·상세는 그대로 둔다", async () => {
     await render();
     await clickRow("PROC_A");
     await click(versionRow("1.000")?.querySelector(".ag-cell"));
-    await click(pageButton("신규"));
+    const viewsBefore = actions("view").length;
+    await click(regButton());
     expect(byTestId("code-reg-id")).toBeTruthy();
+    expect(headerId()).toBe("PROC_A");
 
     await click(byTestId("code-reg-cancel"));
     await flush();
     expect(byTestId("code-reg-id")).toBeNull();
     expect(headerId()).toBe("PROC_A");
+    expect(actions("view")).toHaveLength(viewsBefore);
     expect(versionRow("1.000")?.classList.contains("ag-row-highlighted")).toBe(true);
   });
 
-  it("고른 코드 없이 [신규] 를 열었으면 [취소] 는 안내로 돌아간다", async () => {
+  it("고른 코드 없이 팝업을 열었다 [취소] 해도 안내가 그대로 남고, 다시 열면 칸이 비어 있다", async () => {
     await render();
-    await click(pageButton("신규"));
+    await click(regButton());
     await typeInto("code-reg-id", "DRAFT_ONLY");
     await click(byTestId("code-reg-cancel"));
     expect(byTestId("code-reg-id")).toBeNull();
     expect(visibleText(container)).toContain(GUIDE);
     expect(actions("reg")).toHaveLength(0);
 
-    await click(pageButton("신규"));
+    await click(regButton());
     expect((byTestId("code-reg-id") as HTMLInputElement).value).toBe("");
   });
 
   // ── 8(a) 권한은 OBJECT 이름으로 판정한다 ──
 
-  it("codeMng reg 권한만 있으면 [신규]·등록은 되고 상세 쓰기 버튼은 꺼진다", async () => {
+  it("codeMng reg 권한만 있으면 [코드 등록]·등록은 되고 상세 쓰기 버튼은 꺼진다", async () => {
     rbacRows = [{ objId: "codeMng", action: "search" }, { objId: "codeMng", action: "reg" }];
     await render({ snapshot: { maruCodeId: "PROC_A" } });
-    // RBAC 로딩 중에는 모든 버튼이 꺼지므로, [신규] 가 켜진 것(= 로딩 끝)을 먼저 확인한다.
-    await vi.waitFor(() => expect(pageButton("신규")?.disabled).toBe(false));
+    // RBAC 로딩 중에는 모든 버튼이 꺼지므로, [코드 등록] 이 켜진 것(= 로딩 끝)을 먼저 확인한다.
+    await vi.waitFor(() => expect(regButton()?.disabled).toBe(false));
     expect(headerId()).toBe("PROC_A");
     await click(versionRow("1.000")?.querySelector(".ag-cell"));
     expect(button("header-save").disabled).toBe(true);
     expect(button("ver-unlock").disabled).toBe(true);
     expect(button("ver-delete").disabled).toBe(true);
 
-    await click(pageButton("신규"));
+    await click(regButton());
     expect(button("code-reg-save").disabled).toBe(false);
   });
 
-  it("codeEdit 권한만 있으면 상세 쓰기 버튼은 켜지고 [신규] 는 보이지 않는다", async () => {
+  it("codeEdit 권한만 있으면 상세 쓰기 버튼은 켜지고 [코드 등록] 은 보이지만 꺼져 있다", async () => {
     rbacRows = [
       { objId: "codeEdit", action: "save" },
       { objId: "codeEdit", action: "unlock" },
@@ -508,7 +516,8 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
     await click(versionRow("1.000")?.querySelector(".ag-cell"));
     expect(button("ver-unlock").disabled).toBe(false);
     expect(button("ver-delete").disabled).toBe(false);
-    expect(pageButton("신규")).toBeUndefined();
+    expect(regButton()).toBeTruthy();
+    expect(regButton()!.disabled).toBe(true);
   });
 
   // ── 8(b) 넘기기 끄기 표시 ──

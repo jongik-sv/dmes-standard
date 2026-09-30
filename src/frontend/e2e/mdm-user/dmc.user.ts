@@ -28,7 +28,7 @@ import {
  * 마루 MDM > 마스터코드(dmc) 사용자 여정 E2E.
  *
  * 담당자(stw)가 화면만으로 마루 코드 하나의 일생을 끝까지 다룬다. 2026-09-28 D-101 로 화면은 셋이다.
- *   마루 코드(codeMng) — 왼쪽 목록, 오른쪽 [신규] 등록 폼 또는 고른 코드의 상세(헤더·라벨·버전 카드, 옛 codeEdit).
+ *   마루 코드(codeMng) — 왼쪽 목록, 오른쪽 고른 코드의 상세(등록은 목록 헤더 [코드 등록] 팝업)(헤더·라벨·버전 카드, 옛 codeEdit).
  *     등록 → 조회 → 목록 행으로 상세 열기 → 헤더·라벨 수정, 해제·선점, 두 사용자 잠금·충돌
  *   → 코드 편집(codeItemEdit) [코드]·[트리] 탭 — 코드 행 입력·수정·되돌리기
  *   → 같은 화면 [카테고리] 탭 — 카테고리 추가·소속·정규식(저장은 머리 [저장] 하나, 옛 codeCateEdit)
@@ -55,7 +55,7 @@ const STW2 = USERS.stw2.id;
 /** D2 보류: [넘기기]는 담당자 조회 수단이 생길 때까지 꺼져 있고 이 문구로 이유를 알린다(m-mdm src/shell/handover.ts). */
 const HANDOVER_PENDING = "넘기기는 준비 중입니다. 넘겨받는 사람의 담당자 여부를 확인할 수단이 아직 없습니다.";
 /** codeMng 오른쪽에 아무것도 고르지 않았을 때의 안내. */
-const DETAIL_GUIDE = "목록에서 마루 코드를 고르거나 [신규] 를 누르세요";
+const DETAIL_GUIDE = "목록에서 마루 코드를 고르거나 [코드 등록] 을 누르세요";
 
 /** 오늘에서 days 만큼 뺀 날의 0시 — datetime-local 입력값(yyyy-MM-ddTHH:mm)과 서버 표기(yyyy-MM-dd). */
 function daysAgo(days: number): { input: string; date: string } {
@@ -95,11 +95,27 @@ async function snapModal(page: Page, name: string) {
   await snap(page, name);
 }
 
-/** 오류 모달 문구를 보고 [확인]으로 닫는다. */
+/**
+ * 오류 모달 문구를 보고 [확인]으로 닫는다. 등록 팝업 위에 뜬 오류창도 다루므로, 닫힌 뒤 "마지막 보이는 모달"을 다시 찾지 않고
+ * 오류창 본문이 사라졌는지로 본다(다시 찾으면 아래의 등록 팝업을 가리켜 answerConfirm 의 toBeHidden 이 실패한다).
+ */
 async function expectErrorModal(page: Page, text: string | RegExp, shot?: string) {
   await expect(errorBody(page)).toContainText(text, { timeout: 20_000 });
   if (shot) await snapModal(page, shot);
-  await answerConfirm(page, "확인");
+  await modal(page).getByRole("button", { name: "확인", exact: true }).click();
+  await expect(errorBody(page)).toHaveCount(0);
+}
+
+/** codeMng 목록 헤더 [코드 등록] 으로 등록 팝업을 연다(열 때마다 새로 마운트되어 칸이 빈 채로 시작한다). */
+async function openCodeRegister(page: Page) {
+  await page.locator("#btn_code_reg").click();
+  await expect(tid(page, "code-register-form")).toBeVisible({ timeout: 20_000 });
+}
+
+/** 등록 팝업을 [취소]로 닫는다. 고른 코드·상세는 그대로다. */
+async function cancelCodeRegister(page: Page) {
+  await tid(page, "code-reg-cancel").click();
+  await expect(tid(page, "code-register-form")).toHaveCount(0, { timeout: 20_000 });
 }
 
 /** 네이티브 Select 에서 값을 고른다(옵션이 채워질 때까지 기다린다). */
@@ -163,16 +179,17 @@ async function selectVersion(page: Page, ver: string) {
   await expect(versionRow(page, ver)).toHaveClass(/ag-row-highlighted/);
 }
 
-/** codeMng [신규] 등록 폼으로 마루 코드를 등록한다. 등록 뒤 같은 화면 오른쪽에 뜨는 상세까지 기다린다. */
+/** codeMng [코드 등록] 팝업으로 마루 코드를 등록한다. 등록 뒤 같은 화면 오른쪽에 뜨는 상세까지 기다린다. */
 async function registerCode(page: Page, id: string, name: string, lvl = "0", desc = "") {
   await go(page, "codeMng");
-  await button(page, "신규").click();
+  await openCodeRegister(page);
   await tid(page, "code-reg-id").fill(id);
   await tid(page, "code-reg-name").fill(name);
   if (desc) await tid(page, "code-reg-desc").fill(desc);
   await tid(page, "code-reg-lvl").selectOption(lvl);
   await tid(page, "code-reg-save").click();
   await expectToast(page, "등록했습니다");
+  await expect(tid(page, "code-register-form")).toHaveCount(0);
   await expect(tid(page, "header-name")).toHaveValue(name, { timeout: 30_000 });
   await expect(tid(page, "version-list")).toContainText("v1.000", { timeout: 30_000 });
   await expect(footerScreenId(page)).toHaveText("codeMng");
@@ -291,16 +308,17 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
 
   // ─────────── codeMng — 마루 코드(목록·등록) ───────────
 
-  test("TC-DMC-MNG-01 마루 코드 화면 배치 — 메뉴로 열면 검색영역·목록·[신규]가 보이고 오른쪽은 안내만 있다", async () => {
+  test("TC-DMC-MNG-01 마루 코드 화면 배치 — 메뉴로 열면 검색영역·목록·[코드 등록]이 보이고 오른쪽은 안내만 있다", async () => {
     await go(page, "codeMng");
     await resetClicks(page); // 이 화면 버튼 커버리지를 여기서부터 센다
     await expect(breadcrumb(page)).toContainText("마루 MDM > 마스터코드 > 마루 코드");
     await expect(tid(page, "code-search-keyword")).toBeVisible();
     await expect(tid(page, "code-search-status")).toHaveValue("");
     await expect(tid(page, "code-list")).toBeVisible();
-    await expect(button(page, "신규")).toBeEnabled();
-    // 아무것도 고르지 않았으면 오른쪽은 안내뿐이다 — 등록 폼·상세·삭제·폐기 버튼이 없다.
+    await expect(page.locator("#btn_code_reg")).toBeEnabled();
+    // 아무것도 고르지 않았으면 오른쪽은 안내뿐이다 — 등록 팝업·상세·삭제·폐기 버튼이 없다.
     await expect(screen(page).getByText(DETAIL_GUIDE)).toBeVisible();
+    await expect(tid(page, "code-register-form")).toHaveCount(0);
     await expect(tid(page, "code-reg-id")).toHaveCount(0);
     await expect(tid(page, "header-name")).toHaveCount(0);
     await expect(button(page, /^(삭제|폐기)$/)).toHaveCount(0);
@@ -309,13 +327,14 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     watcher.assertClean("codeMng");
   });
 
-  test("TC-DMC-MNG-02 [신규]로 등록 폼을 열고, 필수값·ID 형식 오류는 알아듣기 쉬운 문구로 막힌다", async () => {
-    await button(page, "신규").click();
-    await expect(screen(page).getByText(DETAIL_GUIDE)).toHaveCount(0);
+  test("TC-DMC-MNG-02 [코드 등록]으로 등록 팝업을 열고, 필수값·ID 형식 오류는 알아듣기 쉬운 문구로 막힌다", async () => {
+    await openCodeRegister(page);
+    // 팝업을 열어도 오른쪽 안내는 그대로다(선택·상세를 건드리지 않는다).
+    await expect(screen(page).getByText(DETAIL_GUIDE)).toBeVisible();
     await expect(tid(page, "code-reg-source")).toHaveText("MDM");
     await expect(tid(page, "code-reg-lvl")).toHaveValue("0");
     await expect(tid(page, "code-reg-save")).toBeEnabled();
-    await layout(page, "codeMng 등록 폼");
+    await layout(page, "codeMng 등록 팝업");
 
     await tid(page, "code-reg-save").click();
     await expectErrorModal(page, "마루 코드 ID 와 이름을 입력하세요.", "dmc-codeMng-02-required");
@@ -324,12 +343,15 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await tid(page, "code-reg-name").fill(NAME);
     await tid(page, "code-reg-save").click();
     await expectErrorModal(page, /점·콤마·공백|영문 대문자/, "dmc-codeMng-02-bad-id");
-    // 실패하면 입력값을 그대로 둔다 — 사용자가 고쳐서 다시 저장한다.
+    // 실패하면 팝업은 열린 채 입력값을 그대로 둔다 — 사용자가 고쳐서 다시 등록한다. 팝업은 MNG-03 으로 열린 채 이어진다.
+    await expect(tid(page, "code-register-form")).toBeVisible();
     await expect(tid(page, "code-reg-id")).toHaveValue("e2e usr.bad");
     watcher.assertClean("codeMng");
   });
 
-  test("TC-DMC-MNG-03 등록(C) — ID·이름·설명·계층 칸 수를 넣고 저장하면 같은 화면 오른쪽에 그 코드의 상세가 뜬다", async () => {
+  test("TC-DMC-MNG-03 등록(C) — ID·이름·설명·계층 칸 수를 넣고 등록하면 팝업이 닫히고 같은 화면 오른쪽에 그 코드의 상세가 뜬다", async () => {
+    // MNG-02 에서 열린 팝업을 이어 쓴다(입력값은 아래에서 다시 채운다).
+    await expect(tid(page, "code-register-form")).toBeVisible();
     await tid(page, "code-reg-id").fill(CODE);
     await tid(page, "code-reg-name").fill(NAME);
     await tid(page, "code-reg-desc").fill("E2E 사용자 여정으로 만든 코드");
@@ -337,7 +359,8 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await tid(page, "code-reg-save").click();
     await expectToast(page, "등록했습니다");
 
-    // 새 탭을 열지 않는다 — 같은 화면에서 등록 폼 자리에 상세가 뜬다.
+    // 새 탭을 열지 않는다 — 팝업이 닫히고 같은 화면 오른쪽에 상세가 뜬다.
+    await expect(tid(page, "code-register-form")).toHaveCount(0);
     await expect(tid(page, "header-name")).toHaveValue(NAME, { timeout: 30_000 });
     await expect(footerScreenId(page)).toHaveText("codeMng");
     await expect(tid(page, "code-reg-id")).toHaveCount(0);
@@ -399,9 +422,9 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     watcher.assertClean("codeMng");
   });
 
-  test("TC-DMC-MNG-05 같은 ID 로 다시 등록하면 중복 문구가 보이고, [취소]는 등록 폼을 닫는다", async () => {
-    // [신규]를 누르면 등록 폼이 빈 칸으로 다시 열린다.
-    await button(page, "신규").click();
+  test("TC-DMC-MNG-05 같은 ID 로 다시 등록하면 중복 문구가 보이고, [취소]는 등록 팝업만 닫는다", async () => {
+    // [코드 등록]을 누르면 등록 팝업이 빈 칸으로 다시 열린다. 상세는 아직 고르지 않았다.
+    await openCodeRegister(page);
     await expect(tid(page, "code-reg-id")).toHaveValue("");
     await expect(tid(page, "code-reg-name")).toHaveValue("");
     await expect(tid(page, "code-reg-lvl")).toHaveValue("0");
@@ -413,17 +436,20 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expectErrorModal(page, "마루 코드·마루 데이터에 같은 ID 가 있습니다", "dmc-codeMng-05-dup");
     await tid(page, "code-reg-id").fill("");
     await tid(page, "code-reg-name").fill("");
-    // [취소]는 등록 폼을 닫고 [신규] 전 상태(고른 코드의 상세 또는 안내)로 돌아간다. 다음 TC 를 위해 폼을 다시 연다.
-    await tid(page, "code-reg-cancel").click();
-    await expect(tid(page, "code-reg-id")).toHaveCount(0);
-    await button(page, "신규").click();
+    // [취소]는 팝업만 닫는다(고른 코드의 상세 또는 안내는 그대로). 다시 열면 칸이 비어 있다.
+    await cancelCodeRegister(page);
+    await expect(screen(page).getByText(DETAIL_GUIDE)).toBeVisible();
+    await openCodeRegister(page);
     await expect(tid(page, "code-reg-id")).toHaveValue("");
+    await expect(tid(page, "code-reg-name")).toHaveValue("");
+    // 뒤 테스트가 목록을 누를 수 있도록 팝업을 닫아 두고, 버튼 커버리지는 팝업이 닫힌 상태에서 본다.
+    await cancelCodeRegister(page);
     await assertAllButtonsPressed(page, "codeMng");
     watcher.assertClean("codeMng");
   });
 
   test("TC-DMC-MNG-06 목록 행을 누르면 오른쪽 상세가 그 코드로 바뀐다(새 탭을 열지 않는다)", async () => {
-    await expect(tid(page, "code-reg-id")).toBeVisible();
+    await expect(tid(page, "code-register-form")).toHaveCount(0);
     await openCode(page, CODE);
     await expect(tid(page, "header-name")).toHaveValue(NAME, { timeout: 30_000 });
     await expect(tid(page, "code-reg-id")).toHaveCount(0);
@@ -1320,7 +1346,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await layout(page, "codeMng 상세 폐기 뒤");
     await snap(page, "dmc-codeMng-detail-12-deprecated");
     await assertAllButtonsPressed(page, "codeMng 상세", {
-      신규: "등록 폼 전환 — TC-DMC-MNG-02·05 에서 눌렀다",
+      "코드 등록": "등록 팝업 열기 — TC-DMC-MNG-02·05 에서 눌렀다",
     });
     watcher.assertClean("codeMng");
   });
@@ -1640,10 +1666,10 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
 
     const { page, watcher } = await openAs(browser, "std", testInfo);
     try {
-      // codeMng — 조회는 되고(권한 조회가 끝났다는 뜻) [신규]가 없다.
+      // codeMng — 조회는 되고(권한 조회가 끝났다는 뜻) [코드 등록]은 보이지만 꺼져 있다.
       await go(page, "codeMng");
       await expect(button(page, "조회")).toBeEnabled({ timeout: 30_000 });
-      await expect(button(page, "신규")).toHaveCount(0);
+      await expect(page.locator("#btn_code_reg")).toBeDisabled();
       await snap(page, "dmc-ro-codeMng");
 
       // codeMng 오른쪽 상세 — 헤더 입력과 쓰기 버튼이 꺼져 있고 [코드 편집](조회)만 켜진다.

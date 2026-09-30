@@ -7,7 +7,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  *
  *   M1 메뉴 이동: 마루 MDM > 마스터코드 > 마루 코드, breadcrumb·목록·오른쪽 안내(스모크 1).
  *   M2 목록·빈 상태: SUFFIX 로 좁혀 0건 → "조회된 마루 코드가 없습니다"(스모크 2).
- *   M3 등록: [신규] → 화면 조작만으로 등록 → 토스트 → 같은 화면 오른쪽에 v1.000 DRAFT "편집 중(나)"(탭을 새로 열지
+ *   M3 등록: [코드 등록] 팝업 → 화면 조작만으로 등록 → 토스트 → 같은 화면 오른쪽에 v1.000 DRAFT "편집 중(나)"(탭을 새로 열지
  *      않는다) → 목록도 같은 조건으로 다시 조회돼 1건(상태 CREATED·현재 버전 "미확정"·미적용 "v1.000 DRAFT")(스모크 3).
  *   M4 서버 오류: 같은 ID 로 다시 등록 → MDM011 오류 모달 → 닫는다(스모크 4).
  *   M5 목록 선택·수정: 행을 클릭하면 오른쪽 상세가 그 코드로 바뀐다. 이름·라벨 저장 → 다시 조회해도 유지.
@@ -73,7 +73,8 @@ function listRow(page: Page, id: string): Locator {
 }
 
 async function register(page: Page, id: string, name: string, lvl: string) {
-  await page.locator(".portal-shell__tab-page:visible").getByRole("button", { name: "신규", exact: true }).click();
+  await page.locator("#btn_code_reg").click();
+  await expect(tid(page, "code-register-form")).toBeVisible({ timeout: 20_000 });
   await tid(page, "code-reg-id").fill(id);
   await tid(page, "code-reg-name").fill(name);
   await tid(page, "code-reg-lvl").selectOption(lvl);
@@ -160,6 +161,10 @@ test.describe("mdm codeMng — 마루 코드(조회·등록·수정 통합)", ()
     await page.screenshot({ path: screenshot("dmc-codeMng-dup-error.png"), fullPage: true });
     await confirmDialog(page);
     await expect(modal).toBeHidden({ timeout: 20_000 });
+    // 등록 팝업은 오류 뒤에도 입력값을 든 채 열려 있다 — 다음 테스트가 목록을 누를 수 있도록 [취소]로 닫는다.
+    await expect(tid(page, "code-register-form")).toBeVisible();
+    await tid(page, "code-reg-cancel").click();
+    await expect(tid(page, "code-register-form")).toHaveCount(0, { timeout: 20_000 });
   });
 
   test("M5 목록에서 고르면 상세가 바뀌고, 헤더·라벨 저장과 새 버전이 반영된다", async () => {
