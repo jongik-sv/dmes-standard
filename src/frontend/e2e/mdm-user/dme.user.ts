@@ -1544,16 +1544,9 @@ test.describe("C 룰 세트", () => {
 
   const setMessage = () => tid(page, "set-message");
   const setChecks = () => tid(page, "set-checks");
-  const setOrder = () =>
-    tid(page, "set-rules-grid")
-      .locator('.ag-center-cols-container [data-testid^="set-rule-link-"]')
-      .allTextContents();
-
-  async function addToSet(id: string) {
-    await tid(page, "set-rule-add-keyword").fill(id);
-    await tid(page, "set-rule-add-find").click();
-    await tid(page, `set-rule-cand-${id}`).click();
-  }
+  // 세트의 룰 순서 — 캔버스의 룰 박스(data-kind="RULE")에 적힌 룰 ID(.rsf-id)를 노드 배열(=흐름) 순서로 읽는다.
+  const setOrder = () => flowRuleOrder(page);
+  const addToSet = (id: string) => addRuleToFlow(page, id);
 
   test("TC-DME-SET-00 준비 — 표면→등급 룰(SA)과 등급→계수 룰(SB)을 화면으로 만들어 차례로 확정한다", async () => {
     await buildEqualRule(page, {
@@ -1621,7 +1614,10 @@ test.describe("C 룰 세트", () => {
     await expect(footerScreenId(page)).toHaveText("ruleSetEdit", { timeout: 60_000 });
     await expect(tid(page, "set-edit-current")).toHaveText(`${SET} · ${SET_NAME}`, { timeout: 30_000 });
     await expect(tid(page, "set-status")).toHaveText("INUSE");
-    await expect(tid(page, "set-rules-empty")).toBeVisible();
+    // 빈 세트는 시작 → 끝만 그려진다.
+    await expect(tid(page, "flow-node-start")).toBeVisible();
+    await expect(tid(page, "flow-node-end")).toBeVisible();
+    await expect(tid(page, "flow-canvas").locator('[data-kind="RULE"]')).toHaveCount(0);
     await expect(setChecks()).toContainText("룰이 하나도 없다");
     await expect(tid(page, "set-desc")).toHaveValue("E2E 표면으로 계수를 낸다");
     watcher.assertClean("ruleSetMng→ruleSetEdit");
@@ -1642,61 +1638,80 @@ test.describe("C 룰 세트", () => {
 
   // ─────────── ruleSetEdit — 룰 세트 편집 ───────────
 
-  test("TC-DME-SED-01 세트 편집 화면 배치 — 세트 카드·구성 지침 카드가 보이고 빈 세트는 거부 검사가 보인다", async () => {
+  test("TC-DME-SED-01 세트 편집 화면 배치 — 도구줄·캔버스·세트 패널·구성 지침이 보이고 빈 세트는 시작·끝만 그려지며 거부 검사가 보인다", async () => {
     await go(page, "ruleSetEdit");
     await resetClicks(page);
     await expect(breadcrumb(page)).toContainText("마루 MDM > 업무기준 > 룰 세트 편집");
-    await expect(tid(page, "set-card")).toBeVisible();
-    await expect(tid(page, "set-guide-card")).toBeVisible();
+    for (const t of ["flow-toolbar", "flow-canvas", "flow-props", "flow-prop-set", "flow-bottom", "set-guide-card"]) {
+      await expect(tid(page, t), t).toBeVisible();
+    }
     await expect(tid(page, "set-card-id")).toHaveText(SET);
     await expect(tid(page, "set-row-version")).toHaveText(/^row_version \d+$/);
+    // 세트를 열면 보기 모드다 — 팔레트가 없고 저장·지침 실행이 꺼져 있다.
+    await expect(tid(page, "flow-mode-view")).toHaveAttribute("aria-pressed", "true");
+    await expect(tid(page, "flow-palette")).toHaveCount(0);
+    await expect(tid(page, "flow-node-start")).toBeVisible();
+    await expect(tid(page, "flow-node-end")).toBeVisible();
+    await expect(tid(page, "flow-canvas").locator('[data-kind="RULE"]')).toHaveCount(0);
+    await expect(setChecks()).toContainText("룰이 하나도 없다");
     await expect(tid(page, "set-save")).toBeDisabled();
     await expect(tid(page, "set-guide-run")).toBeDisabled();
+    // 화면 맞춤·변수 흐름 켜기/끄기는 흐름을 바꾸지 않는다.
+    await tid(page, "flow-fit").click();
+    await tid(page, "flow-var-toggle").click();
+    await expect(tid(page, "flow-var-toggle")).toHaveAttribute("aria-pressed", "true");
+    await tid(page, "flow-var-toggle").click();
+    await expect(tid(page, "flow-var-toggle")).toHaveAttribute("aria-pressed", "false");
     await layout.layout(page, "ruleSetEdit 빈 세트");
     await snap(page, "dme-ruleSetEdit-01-initial");
     watcher.assertClean("ruleSetEdit");
   });
 
-  test("TC-DME-SED-02 룰 추가 — 순서가 거꾸로면 거부 검사·뒤에 있음·앞에 없음이 보이고 저장이 거부되며, 이미 담은 룰은 다시 담지 않는다", async () => {
+  test("TC-DME-SED-02 룰 추가 — 편집 모드에서 순서가 거꾸로 담기면 룰 박스에 거부 표시·검사 항목이 보이고 저장이 꺼지며, 이미 담은 룰은 사용 중으로 표시된다", async () => {
+    await enterFlowEdit(page);
     await addToSet(SB);
     await addToSet(SA);
     await expect.poll(setOrder).toEqual([SB, SA]);
-    await expect(tid(page, "set-rules-empty")).toHaveCount(0);
+    await expect(ruleNodeOf(page, SB)).toContainText("DECISION · FIRST");
+    const nodeSB = await ruleNodeIdOf(page, SB);
+    await expect(tid(page, `flow-node-mark-${nodeSB}`)).toHaveAttribute("data-severity", "REJECT");
     await expect(setChecks()).toContainText(`${SB}가 뒤에 도는 ${SA}의 결과 변수 ${GRD}를 읽는다. ${SA}를 ${SB} 앞으로 옮긴다`);
-    await expect(tid(page, `set-dep-later-${SB}-${SA}`)).toHaveText("뒤에 있음");
-    await expect(tid(page, "set-rules-grid")).toContainText("앞에 없음");
-    await expect(tid(page, "set-rules-grid")).toContainText("DECISION · FIRST");
-    // 같은 룰을 다시 담으면 안내만 하고 목록은 그대로다.
-    await tid(page, `set-rule-cand-${SA}`).click();
-    await expect(tid(page, "set-rule-add-notice")).toHaveText("이미 담은 룰이다");
+    // 검사 항목을 누르면 그 룰 박스로 이동해 선택하고 오른쪽이 그 룰의 속성 패널이 된다.
+    await tid(page, "set-check-0").click();
+    await expect(tid(page, `flow-node-${nodeSB}`)).toHaveAttribute("data-selected", "true");
+    await expect(tid(page, "flow-prop-rule")).toContainText(SB);
+
+    // 같은 룰을 다시 찾으면 후보에 "사용 중" 이 붙는다(다른 갈래에 두려고 다시 담을 수는 있어 막지는 않는다). 닫으면 그대로다.
+    await tid(page, "flow-add-rule").click();
+    await tid(page, "flow-rule-search-keyword").fill(SA);
+    await tid(page, "flow-rule-search-find").click();
+    await expect(tid(page, `flow-rule-cand-${SA}`)).toContainText("사용 중");
+    await modal(page).locator("button", { hasText: /^닫기$/ }).click();
     await expect.poll(setOrder).toEqual([SB, SA]);
     await layout.layout(page, "ruleSetEdit 순서 거부");
     await snap(page, "dme-ruleSetEdit-02-order-rejected");
 
-    // 화면 검사의 거부는 저장 버튼을 막지 않는다 — 서버가 거부한다.
-    await expect(tid(page, "set-save")).toBeEnabled();
-    await tid(page, "set-save").click();
-    await expect(setMessage()).toContainText("룰 세트 저장 검사를 통과하지 못했습니다", { timeout: 20_000 });
-    expectOnly4xx(watcher, "ruleSetEdit 순서 거부 저장");
-    await expect.poll(setOrder).toEqual([SB, SA]);
+    // 거부(REJECT) 검사가 있으면 저장 버튼이 꺼진다 — 서버의 저장 거부(MDM024)는 서버 테스트가 맡는다.
+    await expect(tid(page, "set-save")).toBeDisabled();
     watcher.assertClean("ruleSetEdit");
   });
 
-  test("TC-DME-SED-03 수정(U) — ▲▼로 순서를 고치고 ✕로 뺐다 다시 담아 세트명·설명과 함께 저장하면 검사 통과·입출력 표가 맞다", async () => {
-    await tid(page, `set-rule-up-${SA}`).click();
+  test("TC-DME-SED-03 수정(U) — 룰 박스를 지웠다 다른 자리에 다시 끼워 순서를 고치고 세트명·설명과 함께 저장하면 검사 통과·입출력 표가 맞다", async () => {
+    // 목록의 ▲▼ 는 캔버스에 없다 — 순서는 "룰 지우기(앞뒤 선은 이어진다) → 팔레트로 다시 끼우기" 로 고친다.
+    await removeRuleFromFlow(page, SB);
+    await expect.poll(setOrder).toEqual([SA]);
+    await addToSet(SB);
     await expect.poll(setOrder).toEqual([SA, SB]);
     await expect(setChecks()).toContainText("통과");
-    await expect(tid(page, `set-dep-later-${SB}-${SA}`)).toHaveCount(0);
-    await tid(page, `set-rule-down-${SA}`).click();
-    await expect.poll(setOrder).toEqual([SB, SA]);
-    await tid(page, `set-rule-up-${SA}`).click();
-    await expect.poll(setOrder).toEqual([SA, SB]);
-    await tid(page, `set-rule-remove-${SB}`).click();
+    await expect(tid(page, `flow-node-mark-${await ruleNodeIdOf(page, SB)}`)).toHaveCount(0);
+    // 뺐다 다시 담기(✕ 뒤 재삽입)도 같은 결과다.
+    await removeRuleFromFlow(page, SB);
     await expect.poll(setOrder).toEqual([SA]);
     await addToSet(SB);
     await expect.poll(setOrder).toEqual([SA, SB]);
 
-    // 입출력 — 입력은 표면 하나, 결과는 계수(최종)·등급(중간).
+    // 입출력·세트명·설명은 세트 패널(선택 없음)에 있다 — 입력은 표면 하나, 결과는 계수(최종)·등급(중간).
+    await clearFlowSelection(page);
     await expect(tid(page, "set-io-inputs")).toContainText("입력 변수 1개");
     await expect(ioRow(page, "inputs", SURF)).toBeVisible();
     await expect(tid(page, "set-io-results")).toContainText("결과 변수 2개 · 최종 1개, 중간 1개");
@@ -1705,16 +1720,20 @@ test.describe("C 룰 세트", () => {
 
     await tid(page, "set-name").fill(`${SET_NAME} 수정`);
     await tid(page, "set-desc").fill("E2E 표면 → 등급 → 계수");
+    await expect(tid(page, "set-save")).toBeEnabled({ timeout: 20_000 });
     await tid(page, "set-save").click();
     await expect(setMessage()).toContainText(/저장 · row_version \d+/, { timeout: 20_000 });
     await expect(tid(page, "set-save")).toBeDisabled();
+    // 저장하면 서버가 돌려준 흐름으로 다시 불러오고 보기 모드로 돌아온다.
+    await expect(tid(page, "flow-mode-view")).toHaveAttribute("aria-pressed", "true");
     await expect(tid(page, "set-edit-current")).toHaveText(`${SET} · ${SET_NAME} 수정`);
+    await expect.poll(setOrder).toEqual([SA, SB]);
     await layout.layout(page, "ruleSetEdit 저장 뒤");
     await snap(page, "dme-ruleSetEdit-03-saved");
     watcher.assertClean("ruleSetEdit");
   });
 
-  test("TC-DME-SED-04 조회(R) — 세트를 찾아 다시 열면 저장한 목록이 남고, 구성 지침은 결과 변수에서 순서를 제안한다", async () => {
+  test("TC-DME-SED-04 조회(R) — 세트를 찾아 다시 열면 저장한 흐름이 남고, 구성 지침은 결과 변수에서 순서를 제안하며 적용하면 캔버스가 그 순서가 된다", async () => {
     await tid(page, "set-pick-keyword").fill(`${SET}_NONE`);
     await tid(page, "set-edit-topbar").getByRole("button", { name: "찾기", exact: true }).click();
     await expect(tid(page, "set-pick-list")).toHaveText("찾은 세트가 없습니다.", { timeout: 20_000 });
@@ -1725,9 +1744,12 @@ test.describe("C 룰 세트", () => {
     await expect.poll(setOrder).toEqual([SA, SB]);
     await expect(tid(page, "set-desc")).toHaveValue("E2E 표면 → 등급 → 계수");
 
-    // 지침: 목록을 거꾸로 돌려 놓고 계수에서 거슬러 찾은 순서를 적용하면 SA → SB 가 된다.
-    await tid(page, `set-rule-down-${SA}`).click();
+    // 지침: 흐름을 거꾸로 돌려 놓고(SA 를 지워 END 앞에 다시 끼움) 계수에서 거슬러 찾은 순서를 적용하면 SA → SB 가 된다.
+    await enterFlowEdit(page);
+    await removeRuleFromFlow(page, SA);
+    await addToSet(SA);
     await expect.poll(setOrder).toEqual([SB, SA]);
+    await clearFlowSelection(page);
     await tid(page, "set-guide-var").fill(FCT);
     await tid(page, "set-guide-run").click();
     await expect(tid(page, "set-guide-order")).toContainText(`제안 순서 · 1. ${SA} → 2. ${SB}`, { timeout: 20_000 });
@@ -1735,13 +1757,26 @@ test.describe("C 룰 세트", () => {
     await expect.poll(setOrder).toEqual([SA, SB]);
     await expect(setChecks()).toContainText("통과");
     await snap(page, "dme-ruleSetEdit-04-guide");
+
+    // 적용한 흐름은 저장하지 않은 편집이다 — 같은 세트를 다시 열면 dirty 확인을 받아들이고 저장된 흐름으로 돌아온다.
+    const acceptDirty = (d: import("@playwright/test").Dialog) => void d.accept();
+    page.on("dialog", acceptDirty);
+    try {
+      await tid(page, "set-pick-keyword").fill(SET);
+      await tid(page, "set-pick-keyword").press("Enter");
+      await tid(page, `set-pick-${SET}`).click();
+      await expect(tid(page, "flow-mode-view")).toHaveAttribute("aria-pressed", "true", { timeout: 20_000 });
+      await expect.poll(setOrder).toEqual([SA, SB]);
+    } finally {
+      page.off("dialog", acceptDirty);
+    }
     watcher.assertClean("ruleSetEdit");
   });
 
   test("TC-DME-SED-05 폐기·되살리기 — [폐기]는 경고와 확인을 한 번 더 묻고, 폐기하면 편집이 막히며 되살리면 사용 중으로 돌아온다", async () => {
     await tid(page, "set-deprecate").click();
     await expect(setMessage()).toContainText("폐기하면 이 세트를 부르는 호출은 판정 오류가 난다.");
-    await tid(page, "set-card").getByRole("button", { name: "취소", exact: true }).click();
+    await tid(page, "set-deprecate-cancel").click();
     await expect(tid(page, "set-deprecate-confirm")).toHaveCount(0);
     await expect(tid(page, "set-status")).toHaveText("INUSE");
 
@@ -1750,8 +1785,8 @@ test.describe("C 룰 세트", () => {
     await expect(tid(page, "set-status")).toHaveText("DEPRECATED", { timeout: 20_000 });
     await expect(setMessage()).toContainText(/폐기 · row_version \d+\. 행은 남기고 되살릴 수 있다/);
     await expect(tid(page, "set-name")).toBeDisabled();
-    await expect(tid(page, "set-rule-add-find")).toBeDisabled();
-    await expect(tid(page, `set-rule-up-${SB}`)).toHaveCount(0);
+    await expect(tid(page, "flow-mode-edit")).toBeDisabled();
+    await expect(tid(page, "flow-palette")).toHaveCount(0);
     await expect(tid(page, "set-guide-apply")).toBeDisabled();
     await layout.layout(page, "ruleSetEdit 폐기 뒤");
     await snap(page, "dme-ruleSetEdit-05-deprecated");
@@ -1760,15 +1795,37 @@ test.describe("C 룰 세트", () => {
     await expect(tid(page, "set-status")).toHaveText("INUSE", { timeout: 20_000 });
     await expect(setMessage()).toContainText(/되살림 · row_version \d+/);
     await expect(tid(page, "set-name")).toBeEnabled();
+
+    // 남은 버튼을 한 번씩 누른다 — 보기/편집 전환, 아래 패널 접기·펼치기, 검사 결과/시뮬레이션 탭. 마지막은 보기 모드·검사 탭으로 돌려 둔다.
+    await tid(page, "flow-mode-edit").click();
+    await expect(tid(page, "flow-palette")).toBeVisible();
+    await tid(page, "flow-mode-view").click();
+    await expect(tid(page, "flow-palette")).toHaveCount(0);
+    await tid(page, "flow-bottom-toggle").click();
+    await expect(tid(page, "flow-bottom")).toHaveAttribute("data-collapsed", "true");
+    await tid(page, "flow-bottom-toggle").click();
+    await expect(tid(page, "flow-bottom")).toHaveAttribute("data-collapsed", "false");
+    await tid(page, "flow-tab-sim").click();
+    await expect(tid(page, "sim-run")).toBeVisible();
+    await tid(page, "flow-tab-checks").click();
+    await expect(setChecks()).toBeVisible();
+    // 룰 박스의 링크 아이콘(flow-rule-open-*)은 눌러 보면 룰 화면으로 옮겨 가므로 다음 TC-DME-SED-06 에서 누른다.
+    const ruleOpenAllow = Object.fromEntries(
+      (await page.locator('[data-testid^="flow-rule-open-"]:visible').evaluateAll((els) => els.map((e) => e.getAttribute("data-testid") ?? "")))
+        .filter(Boolean)
+        .map((k) => [k, "룰 박스 링크 아이콘은 다음 TC-DME-SED-06 에서 누른다(누르면 룰 화면으로 옮겨 간다)"]),
+    );
     await assertAllButtonsPressed(page, "ruleSetEdit", {
+      ...ruleOpenAllow,
       [`set-var-link-${GRD}`]: "결과 변수 링크는 다음 TC-DME-SED-06 에서 누른다(누르면 룰 화면으로 옮겨 간다)",
       [`set-var-link-${FCT}`]: "결과 변수 링크는 다음 TC-DME-SED-06 에서 누른다(누르면 룰 화면으로 옮겨 간다)",
     });
     watcher.assertClean("ruleSetEdit");
   });
 
-  test("TC-DME-SED-06 화면 연결 — 세트의 룰 링크·결과 변수 링크로 룰 화면이 열리고, 활용처 카드에 세트와 의존 룰이 보인다", async () => {
-    await tid(page, `set-rule-link-${SA}`).click();
+  test("TC-DME-SED-06 화면 연결 — 캔버스 룰 박스의 링크 아이콘·결과 변수 링크로 룰 화면이 열리고, 활용처 카드에 세트와 의존 룰이 보인다", async () => {
+    // 룰 박스의 링크 아이콘만 룰 화면을 연다(박스 누르기는 속성 패널만 연다).
+    await tid(page, `flow-rule-open-${await ruleNodeIdOf(page, SA)}`).click();
     await expect(footerScreenId(page)).toHaveText("ruleEdit", { timeout: 60_000 });
     await expect(tid(page, "rule-edit-current")).toHaveText(SA, { timeout: 30_000 });
     const usage = tid(page, "rule-usage-sets");
@@ -1784,8 +1841,9 @@ test.describe("C 룰 세트", () => {
     await tid(page, `rule-usage-link-${SA}`).click();
     await expect(tid(page, "rule-edit-current")).toHaveText(SA, { timeout: 30_000 });
 
-    // 세트 편집의 결과 변수 링크 → 그 변수를 만드는 룰.
+    // 세트 편집의 결과 변수 링크(세트 패널) → 그 변수를 만드는 룰.
     await go(page, "ruleSetEdit");
+    await clearFlowSelection(page);
     await tid(page, `set-var-link-${FCT}`).click();
     await expect(footerScreenId(page)).toHaveText("ruleEdit", { timeout: 60_000 });
     await expect(tid(page, "rule-edit-current")).toHaveText(SB, { timeout: 30_000 });
@@ -2071,18 +2129,18 @@ test.describe("D 화면 연결·넘기기·충돌·드래그·읽기 전용", ()
       await tid(page, "set-reg-name").fill("권한 없음");
       await expect(tid(page, "set-reg-save")).toBeDisabled();
 
-      // ruleSetEdit — 보기는 되고 세트명·룰 추가·폐기·저장·지침 적용이 막힌다.
+      // ruleSetEdit — 보기는 되고 세트명·편집 모드(룰 추가)·폐기·저장·지침 적용이 막힌다.
       await go(page, "ruleSetEdit");
       await tid(page, "set-pick-keyword").fill(set);
       await tid(page, "set-pick-keyword").press("Enter");
       await tid(page, `set-pick-${set}`).click();
       await expect(tid(page, "set-card-id")).toHaveText(set, { timeout: 20_000 });
-      await expect(tid(page, `set-rule-link-${rule}`)).toBeVisible();
+      await expect(ruleNodeOf(page, rule)).toBeVisible();
       await expect(tid(page, "set-name")).toBeDisabled();
-      await expect(tid(page, "set-rule-add-find")).toBeDisabled();
+      await expect(tid(page, "flow-mode-edit")).toBeDisabled();
       await expect(tid(page, "set-deprecate")).toBeDisabled();
       await expect(tid(page, "set-save")).toBeDisabled();
-      await expect(tid(page, `set-rule-up-${rule}`)).toHaveCount(0);
+      await expect(tid(page, "flow-palette")).toHaveCount(0);
       await snap(page, "dme-ro-ruleSetEdit");
       watcher.assertClean("dme(std)");
     } finally {
@@ -2091,11 +2149,52 @@ test.describe("D 화면 연결·넘기기·충돌·드래그·읽기 전용", ()
   });
 });
 
+// ─────────── 룰 세트 편집(캔버스) 도우미 — 흐름도 2단계 ───────────
+
+/** 캔버스의 룰 박스 하나(노드 안에 룰 ID 가 보인다). */
+const ruleNodeOf = (page: Page, ruleId: string): Locator =>
+  tid(page, "flow-canvas").locator('[data-kind="RULE"]').filter({ hasText: ruleId });
+
+/** 캔버스의 룰 ID 를 흐름 순서로 — 룰 박스의 .rsf-id 칸(testid 가 없어 클래스로 읽는다). */
+const flowRuleOrder = (page: Page) => tid(page, "flow-canvas").locator('[data-kind="RULE"] .rsf-id').allTextContents();
+
+/** 룰 박스의 노드 ID(r1 …). 삭제·재삽입으로 번호가 바뀌므로 룰 ID 로 찾아 읽는다. */
+async function ruleNodeIdOf(page: Page, ruleId: string): Promise<string> {
+  const t = await ruleNodeOf(page, ruleId).first().getAttribute("data-testid");
+  return (t ?? "").replace(/^flow-node-/, "");
+}
+
+/** 보기 모드 → 편집 모드. 팔레트가 나타난다. */
+async function enterFlowEdit(page: Page) {
+  await tid(page, "flow-mode-edit").click();
+  await expect(tid(page, "flow-palette")).toBeVisible();
+}
+
+/** 캔버스 빈 곳을 눌러 선택을 푼다 — 오른쪽 패널이 세트 패널(세트명·설명·입출력 표·구성 지침)로 돌아온다. */
+async function clearFlowSelection(page: Page) {
+  await tid(page, "flow-canvas").locator(".react-flow__pane").click({ position: { x: 6, y: 6 } });
+  await expect(tid(page, "flow-prop-set")).toBeVisible();
+}
+
+/** 팔레트 [룰] → 룰 찾기 팝업 → 후보를 눌러 끼운다. 고른 선이 없으면 END 로 들어가는 선에 끼워지고 새 룰 박스가 선택된다. */
+async function addRuleToFlow(page: Page, id: string) {
+  await tid(page, "flow-add-rule").click();
+  await tid(page, "flow-rule-search-keyword").fill(id);
+  await tid(page, "flow-rule-search-find").click();
+  await tid(page, `flow-rule-cand-${id}`).click();
+}
+
+/** 룰 박스를 골라 속성 패널의 [지우기] 로 뺀다(앞뒤 선은 이어진다). */
+async function removeRuleFromFlow(page: Page, id: string) {
+  await ruleNodeOf(page, id).click();
+  await tid(page, "flow-prop-delete").click();
+  await expect(ruleNodeOf(page, id)).toHaveCount(0);
+}
+
 /** 세트 편집 화면에서 룰 하나를 담아 저장한다(장 D 준비). */
 async function addToSetOn(page: Page, id: string) {
-  await tid(page, "set-rule-add-keyword").fill(id);
-  await tid(page, "set-rule-add-find").click();
-  await tid(page, `set-rule-cand-${id}`).click();
+  await enterFlowEdit(page);
+  await addRuleToFlow(page, id);
   await tid(page, "set-save").click();
   await expect(tid(page, "set-message")).toContainText(/저장 · row_version \d+/, { timeout: 20_000 });
 }
