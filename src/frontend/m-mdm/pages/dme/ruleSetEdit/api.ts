@@ -1,14 +1,17 @@
 /**
- * ruleSetEdit 화면의 OASIS 호출(TSK-08-06 design §6.6·§6.12) — `search`(target SET·RULE·GUIDE)·`view`·`save`·`delete`(폐기)·`restore`(되살리기).
- * 룰 목록은 params 배열을 받지 못하므로 `grids.rules.rows` 로 보낸다(F14).
+ * ruleSetEdit 화면의 OASIS 호출(TSK-08-06 design §6.6·§6.12, 2단계 P6) — `search`(target SET·RULE·GUIDE)·`view`·`save`·`delete`(폐기)·
+ * `restore`(되살리기)·`validate`(조건식 IO)·`execute`(기록 실행).
+ * 흐름은 params 의 Map 을 OASIS 가 받지 못하므로(P-D1) 정규 JSON 문자열 `flowJson` 으로 보낸다. grids 는 보내지 않는다.
  */
 import { callOasis } from "@/dme/oasis-call";
 
 import type {
   GuideResult,
+  RuleSetCondIoResult,
   RuleSetPickResult,
   RuleSetRuleSearchResult,
   RuleSetSaveResult,
+  RuleSetSimulateResult,
   RuleSetStatusResult,
   RuleSetView,
 } from "./types";
@@ -40,20 +43,25 @@ export function viewSet(setId: string): Promise<RuleSetView> {
   return callOasis<RuleSetView>(SERVICE, "view", { setId });
 }
 
-/** 세트명·설명·룰 목록 저장. 검사는 서버가 요청 목록으로 다시 계산한다(I12). */
-export function saveSet(
-  setId: string,
-  setName: string,
-  description: string,
-  rowVersion: number,
-  ruleIds: readonly string[],
-): Promise<RuleSetSaveResult> {
-  return callOasis<RuleSetSaveResult>(
-    SERVICE,
-    "save",
-    { setId, setName: setName.trim(), description: blankToUndefined(description), rowVersion },
-    { rules: { rows: ruleIds.map((ruleId) => ({ ruleId })) } },
-  );
+/** 세트명·설명·흐름 저장. 흐름은 `flowJsonOf` 정규 JSON 문자열이다. 검사는 서버가 요청 흐름으로 다시 계산한다(I12). */
+export function saveSet(setId: string, setName: string, description: string, rowVersion: number, flowJson: string): Promise<RuleSetSaveResult> {
+  return callOasis<RuleSetSaveResult>(SERVICE, "save", {
+    setId,
+    setName: setName.trim(),
+    description: blankToUndefined(description),
+    rowVersion,
+    flowJson,
+  });
+}
+
+/** 조건식 IO — 저장하지 않은 흐름의 IF 갈래 조건식이 읽는 이름과 출처(서버가 푼다). */
+export function validateFlow(flowJson: string): Promise<RuleSetCondIoResult> {
+  return callOasis<RuleSetCondIoResult>(SERVICE, "validate", { flowJson });
+}
+
+/** 기록 실행(디버거) — 저장하지 않은 흐름을 레코드로 돌려 노드별 기록을 받는다. evalTs 가 없으면 서버 현재 시각. */
+export function simulate(flowJson: string, recordJson: string, evalTs: string | undefined): Promise<RuleSetSimulateResult> {
+  return callOasis<RuleSetSimulateResult>(SERVICE, "execute", { flowJson, recordJson, evalTs: blankToUndefined(evalTs) });
 }
 
 /** 폐기(INUSE → DEPRECATED). */

@@ -4,6 +4,7 @@
  * 룰 세트 흐름 캔버스(2단계 계획 Task 9) — React Flow 로 흐름을 그리는 표현 컴포넌트.
  * 상태를 갖지 않는다(선택·확대는 React Flow 내부, 끌던 중 위치만 잠깐 들고 있다). 편집은 모두 콜백으로 올린다.
  * 부모가 편집 모드일 때만 `mode="edit"` 로 부른다. 보기 모드는 끌기·연결이 꺼지고 선택만 된다.
+ * 편집 모드에서는 여러 노드를 고를 수 있다 — Shift(또는 Cmd·Ctrl)+누르기, Shift+끌기 상자. 고른 흐름 노드 ID 목록은 `onSelectionChange` 로 올린다(Ruling 11).
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 
@@ -60,7 +61,15 @@ export interface FlowCanvasProps {
   onNoteChange: (id: string, patch: Partial<FlowNote>) => void;
   /** 값이 바뀔 때마다 화면 맞춤(선택 추가 — 툴바의 [화면 맞춤]). */
   fitSignal?: number;
+  /**
+   * React Flow 다중 선택이 바뀌면 고른 흐름 노드 ID(메모·그룹 제외)를 올린다. 선택이 모두 풀리면 빈 목록이다.
+   * 메모·그룹만 고른 경우는 올리지 않는다 — 노드를 여러 개 고른 뒤 그룹 제목을 눌러 [선택 노드 더하기] 를 쓸 수 있게 한다.
+   */
+  onSelectionChange?: (nodeIds: string[]) => void;
 }
+
+/** 편집 모드 다중 선택 키 — 누르기로 더하기. */
+const MULTI_KEYS = ["Shift", "Meta", "Control"];
 
 type EdgeData = { label: string | null; chips: string[]; state: EdgeState | undefined; mark: "REJECT" | "WARN" | undefined; showVars: boolean };
 type FlowRfEdge = Edge<EdgeData, "rsfFlow">;
@@ -138,12 +147,14 @@ function isTyping(t: EventTarget | null): boolean {
 function Inner(props: FlowCanvasProps) {
   const {
     flow, rules, checks, mode, showVars, selectedId, selectedEdgeId, overlay, focusId, focusSeq, fitSignal,
-    onSelect, onSelectEdge, onOpenRule, onMove, onConnect, onDeleteEdge, onDropPalette, onNoteChange,
+    onSelect, onSelectEdge, onOpenRule, onMove, onConnect, onDeleteEdge, onDropPalette, onNoteChange, onSelectionChange,
   } = props;
   const editable = mode === "edit";
   const rf = useReactFlow();
   const [drag, setDrag] = useState<Record<string, FlowPos>>({});
   const [flashId, setFlashId] = useState<string | null>(null);
+  /** React Flow 선택(노드·메모·그룹 ID). 노드 배열을 제어하므로 select 변경을 여기 적는다. */
+  const [rfSel, setRfSel] = useState<ReadonlySet<string>>(() => new Set());
 
   // 부모가 새 흐름을 내려주면 끌던 중 위치는 버린다(부모 값이 정본).
   useEffect(() => setDrag({}), [flow]);
@@ -161,7 +172,7 @@ function Inner(props: FlowCanvasProps) {
       if (!b) continue;
       const data: GroupNodeData = { id: g.id, title: g.title, selected: selectedId === g.id };
       out.push({
-        id: g.id, type: "rsfGroup", position: { x: b.x, y: b.y }, width: b.w, height: b.h, data,
+        id: g.id, type: "rsfGroup", position: { x: b.x, y: b.y }, width: b.w, height: b.h, data, selected: rfSel.has(g.id),
         draggable: false, connectable: false, zIndex: -1, style: { pointerEvents: "none" },
       });
     }
@@ -173,21 +184,23 @@ function Inner(props: FlowCanvasProps) {
         io: n.ruleId ? rules[n.ruleId] : undefined,
         mark: marks[n.id],
         overlay: overlay?.nodes[n.id],
-        selected: selectedId === n.id,
+        selected: selectedId === n.id || rfSel.has(n.id),
         flash: flashId === n.id,
         onOpenRule,
       };
-      out.push({ id: n.id, type: "rsfFlow", position: p, width: s.w, height: s.h, data, handles: handlesOf(n.kind), draggable: editable });
+      out.push({
+        id: n.id, type: "rsfFlow", position: p, width: s.w, height: s.h, data, handles: handlesOf(n.kind), draggable: editable, selected: rfSel.has(n.id),
+      });
     }
     for (const note of flow.view.notes) {
       const data: NoteNodeData = { note, selected: selectedId === note.id, editable, onChange: onNoteChange };
       out.push({
         id: note.id, type: "rsfNote", position: { x: drag[note.id]?.x ?? note.x, y: drag[note.id]?.y ?? note.y },
-        width: note.w, height: note.h, data, draggable: editable, connectable: false,
+        width: note.w, height: note.h, data, draggable: editable, connectable: false, selected: rfSel.has(note.id),
       });
     }
     return out;
-  }, [flow, pos, drag, rules, marks, overlay, selectedId, flashId, editable, onOpenRule, onNoteChange]);
+  }, [flow, pos, drag, rules, marks, overlay, selectedId, flashId, editable, onOpenRule, onNoteChange, rfSel]);
 
   const edges = useMemo(() => {
     const kindOf = new Map(flow.nodes.map((n) => [n.id, n.kind] as const));
@@ -203,6 +216,17 @@ function Inner(props: FlowCanvasProps) {
   }, [flow, chips, overlay, eMarks, showVars, selectedEdgeId]);
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
+    const selects = changes.filter((c): c is Extract<NodeChange, { type: "select" }> => c.type === "select");
+    if (selects.length > 0) {
+      setRfSel((cur) => {
+        const next = new Set(cur);
+        for (const c of selects) {
+          if (c.selected) next.add(c.id);
+          else next.delete(c.id);
+        }
+        return next;
+      });
+    }
     const moved = changes.filter((c): c is Extract<NodeChange, { type: "position" }> => c.type === "position" && !!c.position);
     if (moved.length === 0) return;
     setDrag((d) => {
@@ -223,6 +247,26 @@ function Inner(props: FlowCanvasProps) {
     }
     if (Object.keys(moved).length > 0) onMove(moved);
   }, [editable, flow, onMove, onNoteChange]);
+
+  // 흐름이 바뀌면 없어진 요소를 선택에서 뺀다.
+  useEffect(() => {
+    setRfSel((cur) => {
+      const alive = new Set<string>([...flow.nodes.map((n) => n.id), ...flow.view.notes.map((n) => n.id), ...flow.view.groups.map((g) => g.id)]);
+      const next = new Set([...cur].filter((id) => alive.has(id)));
+      return next.size === cur.size ? cur : next;
+    });
+  }, [flow]);
+
+  const lastSent = useRef("[]");
+  useEffect(() => {
+    if (!onSelectionChange) return;
+    const ids = flow.nodes.filter((n) => rfSel.has(n.id)).map((n) => n.id); // 흐름 노드 순서
+    if (ids.length === 0 && rfSel.size > 0) return; // 메모·그룹만 고름 — 올리지 않는다.
+    const key = JSON.stringify(ids);
+    if (key === lastSent.current) return;
+    lastSent.current = key;
+    onSelectionChange(ids);
+  }, [rfSel, flow, onSelectionChange]);
 
   const onConnectCb = useCallback((c: Connection) => {
     if (editable && c.source && c.target) onConnect(c.source, c.target);
@@ -300,7 +344,8 @@ function Inner(props: FlowCanvasProps) {
         nodesConnectable={editable}
         elementsSelectable
         deleteKeyCode={null}
-        selectionKeyCode={null}
+        selectionKeyCode={editable ? "Shift" : null}
+        multiSelectionKeyCode={editable ? MULTI_KEYS : null}
         fitView
         fitViewOptions={{ padding: 0.15 }}
         minZoom={0.2}

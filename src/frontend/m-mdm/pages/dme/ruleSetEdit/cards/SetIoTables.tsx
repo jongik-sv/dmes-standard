@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * 세트 입출력 표(TSK-08-06 design §6.2·§6.9) — 입력 변수 표와 결과 변수 표. 목록 순서에서 `setIo` 로 계산하고 저장하지 않는다(I10).
- * 결과 변수는 최종 먼저, 그다음 중간이다.
+ * 세트 입출력 표(TSK-08-06 design §6.2·§6.9) — 입력 변수 표와 결과 변수 표. 흐름을 펼친 룰 순서에서 `flowIo` 로 계산하고 저장하지 않는다(I10).
+ * 결과 변수는 최종 먼저, 그다음 중간이다. 2단계부터 캔버스 오른쪽 패널(기본 폭 360)에 놓이므로 열 폭을 좁게 잡는다.
  */
 import { useMemo, type CSSProperties, type ReactNode } from "react";
 
@@ -13,8 +13,8 @@ import { NO_LINK_TITLE, condTarget, openVar, resultTarget, type VarTarget } from
 import { isFinalResult } from "../set-model";
 import type { IoSource, SetIo } from "../types";
 
-const SOURCE_LABEL: Record<IoSource, string> = { DICT: "컬럼 사전", PROG: "프로그램 변수", NONE: "어디에도 없음" };
-const SOURCE_TONE = { DICT: "success", PROG: "info", NONE: "warning" } as const;
+export const SOURCE_LABEL: Record<IoSource, string> = { DICT: "컬럼 사전", PROG: "프로그램 변수", NONE: "어디에도 없음" };
+export const SOURCE_TONE = { DICT: "success", PROG: "info", NONE: "warning" } as const;
 
 // 글자 링크도 컨트롤 높이 26px 를 지킨다(UI-Visual-Standard, 클릭 영역).
 const LINK_STYLE: CSSProperties = {
@@ -61,42 +61,42 @@ const INPUT_COLUMNS: GridColumn[] = [
   {
     key: "name",
     header: "변수",
-    width: 160,
+    width: 120,
     tooltip: false,
     render: (_v, row) => <VarName name={String(row.name)} target={row.target as VarTarget} />,
   },
-  { key: "label", header: "표시명", width: 140 },
-  { key: "type", header: "타입", width: 110 },
+  { key: "label", header: "표시명", width: 100 },
+  { key: "type", header: "타입", width: 90 },
   {
     key: "source",
     header: "출처",
-    width: 130,
+    width: 100,
     tooltip: false,
     render: (_v, row) => <span style={badgeStyle(SOURCE_TONE[row.source as IoSource])}>{SOURCE_LABEL[row.source as IoSource]}</span>,
   },
-  { key: "users", header: "읽는 룰", width: 200 },
+  { key: "users", header: "읽는 룰", width: 140 },
 ];
 
 const RESULT_COLUMNS: GridColumn[] = [
   {
     key: "name",
     header: "변수",
-    width: 160,
+    width: 120,
     tooltip: false,
     render: (_v, row) => <VarName name={String(row.name)} target={row.target as VarTarget} />,
   },
-  { key: "type", header: "타입", width: 110 },
+  { key: "type", header: "타입", width: 90 },
   {
     key: "kind",
     header: "구분",
-    width: 90,
+    width: 70,
     tooltip: false,
     render: (_v, row) => <span style={badgeStyle(row.final ? "success" : "neutral")}>{row.final ? "최종" : "중간"}</span>,
   },
   {
     key: "by",
     header: "만드는 룰",
-    width: 200,
+    width: 140,
     tooltip: false,
     render: (_v, row) => (
       <>
@@ -105,7 +105,7 @@ const RESULT_COLUMNS: GridColumn[] = [
       </>
     ),
   },
-  { key: "readers", header: "읽는 룰", width: 200 },
+  { key: "readers", header: "읽는 룰", width: 140 },
 ];
 
 export function SetIoTables({ io }: { io: SetIo }) {
@@ -139,7 +139,7 @@ export function SetIoTables({ io }: { io: SetIo }) {
   );
   return (
     <div data-testid="set-io">
-      <p style={{ margin: "var(--spacing-sm) 0 var(--spacing-xs)", fontWeight: 600 }}>세트 입출력 — 룰 순서에서 계산한다. 저장하지 않는다</p>
+      <p style={{ margin: "var(--spacing-sm) 0 var(--spacing-xs)", fontWeight: 600 }}>세트 입출력 — 흐름에서 계산한다. 저장하지 않는다</p>
 
       <div data-testid="set-io-inputs">
         <Caption>{`입력 변수 ${io.inputs.length}개 · 세트를 부를 때 레코드에 넣어야 하는 값`}</Caption>
