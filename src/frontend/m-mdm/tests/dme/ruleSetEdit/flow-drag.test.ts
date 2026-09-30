@@ -154,8 +154,10 @@ describe("FlowCanvas 끌어 놓기·조건식 즉석 편집(Task 7)", () => {
     expect(docQ("flow-edge-drop-e2")).not.toBeNull();
     expect(docQ("flow-edge-drop-e2")!.textContent).toBe("여기에 넣기");
     expect(document.querySelectorAll(".rsf-edge-drop").length).toBe(1);
+    expect(docQ("flow-edge-add-e2")).not.toBeNull(); // 끌어 끼우기 대상이면 올리거나 고르지 않아도 [+] 가 보인다(L1)
     await dnd("dragover", canvas(), { [PALETTE_MIME]: "if" }, { x: 5000, y: 5000 });
     expect(docQ("flow-edge-drop-e2")).toBeNull();
+    expect(docQ("flow-edge-add-e2")).toBeNull();
     expect(document.querySelectorAll(".rsf-edge-drop").length).toBe(0);
     await dnd("dragover", canvas(), { [RULE_MIME]: "R_B" }, m);
     expect(docQ("flow-edge-drop-e2")).not.toBeNull();

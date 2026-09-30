@@ -301,6 +301,28 @@ describe("FlowCanvas 선 [+] 표시 조건", () => {
   });
 });
 
+describe("L1 고침 1회차", () => {
+  it("값 툴팁이 있는 변수 칩은 모든 모드에서 마우스를 받는다 — 이름표 층의 pointer-events: none 을 칩에서 다시 켠다(T11 E3)", () => {
+    expect(RSF_CSS.replace(/\s+/g, " ")).toContain(".rsf-vchip[title] { cursor: help; pointer-events: auto; }");
+  });
+
+  it("올려 둔 선이 흐름에서 사라지면 hover 를 비운다 — 되살아난 선에 [+] 가 붙어 남지 않는다", async () => {
+    const p = props();
+    await draw(p);
+    await hoverIn(edgePath("e1"));
+    expect(q("flow-edge-add-e1")).not.toBeNull();
+    await draw({ ...p, flow: ok(removeEdge(p.flow, "e1")) }); // 포인터를 둔 채 선을 지움 — React 는 leave 를 보내지 않는다
+    await draw(p); // 되돌리기
+    expect(q("flow-edge-add-e1")).toBeNull();
+  });
+
+  it("onLabelOffsetChange 를 넘기지 않으면 라벨·칩을 끌 수 없다(끌다가 제자리로 튀지 않게)", async () => {
+    await draw(props({ onLabelOffsetChange: undefined }));
+    expect(q("flow-edge-label-e4")!.classList.contains("rsf-elabel-drag")).toBe(false);
+    expect(q("flow-edge-chips-e2")!.classList.contains("rsf-elabel-drag")).toBe(false);
+  });
+});
+
 describe("FlowCanvas 칩·조건 라벨 끌어 옮기기", () => {
   it("저장된 오프셋만큼 기본 자리에서 비켜 그린다(보기 모드도). memo — 같은 props 에서 flow 의 labels 만 바꿔도 다시 그린다", async () => {
     const p = props({ mode: "view" });

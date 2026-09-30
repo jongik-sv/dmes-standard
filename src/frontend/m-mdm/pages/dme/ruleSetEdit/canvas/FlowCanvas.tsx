@@ -847,7 +847,7 @@ function Inner(props: FlowCanvasProps) {
         // 이름표 오프셋(L1) — 접힌 분기가 이어 받은 선은 원래 선의 자리라 쓰지 않는다(경로와 같다).
         labelOff: folded ? null : (flow.view.labels?.[e.id]?.label ?? null),
         chipsOff: folded ? null : (flow.view.labels?.[e.id]?.chips ?? null),
-        labelsMovable: editable && !folded,
+        labelsMovable: editable && !folded && !!onLabelOffsetChange,
       };
       return {
         id: e.id, source: e.from, target: e.to, type: "rsfFlow", selected: selectedEdgeId === e.id,
@@ -857,7 +857,7 @@ function Inner(props: FlowCanvasProps) {
         data,
       };
     });
-  }, [flow, vflow, view, chips, overlay, eMarks, showVars, selectedEdgeId, editable, debugging, valueAt, editingCondEdgeId, condEdge, dropEdge, onReconnect]);
+  }, [flow, vflow, view, chips, overlay, eMarks, showVars, selectedEdgeId, editable, debugging, valueAt, editingCondEdgeId, condEdge, dropEdge, onReconnect, onLabelOffsetChange]);
 
   /** 영역 선택(상자 끌기) 중인가 — onSelectionStart~onSelectionEnd. pointercancel·빈 곳 새 누르기·편집 모드 떠나기에서도 푼다. */
   const boxingRef = useRef(false);
@@ -1162,6 +1162,11 @@ function Inner(props: FlowCanvasProps) {
     if (!editable) hoverStore.reset();
   }, [editable, hoverStore]);
   useEffect(() => () => hoverStore.reset(), [hoverStore]);
+  // 올려 둔 선이 그려지는 흐름에서 사라지면 비운다 — 선이 언마운트될 때 React 는 leave 를 보내지 않는다(되살아난 선·같은 ID 새 선에 [+] 가 남지 않게).
+  useEffect(() => {
+    const id = hoverStore.edgeId;
+    if (id !== null && !vflow.edges.some((e) => e.id === id)) hoverStore.reset();
+  }, [vflow, hoverStore]);
 
   // 라벨·칩 끌기(L1) — 끄는 동안은 labelStore 에만 두고 놓을 때 onLabelOffsetChange 를 한 번 부른다.
   const labelStore = useMemo(createLabelStore, []);
