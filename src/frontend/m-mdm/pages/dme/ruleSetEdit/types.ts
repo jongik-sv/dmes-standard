@@ -39,6 +39,19 @@ export type RuleIoMap = Readonly<Record<string, RuleIo | undefined>>;
 
 export type RuleSetSeverity = "REJECT" | "WARN";
 
+/**
+ * IF 갈래 조건식 하나를 서버가 미리 푼 결과(계획 C4). ok=false 면 message 는 파싱 오류 문구이고 vars 는 비어 있다.
+ * vars 의 source 는 DICT(컬럼 사전에 있음) 또는 NONE 이다.
+ */
+export interface CondIo {
+  ok: boolean;
+  message: string | null;
+  vars: IoName[];
+}
+
+/** 선 ID → 조건식 IO. IF 의 "그 외" 가 아닌 선만 키가 있다. */
+export type CondIoMap = Readonly<Record<string, CondIo | undefined>>;
+
 export type RuleSetCheckCode =
   | "EMPTY"
   | "RULE_NOT_FOUND"
@@ -47,9 +60,19 @@ export type RuleSetCheckCode =
   | "ORDER"
   | "CYCLE"
   | "UNKNOWN_INPUT"
-  | "DUP_RESULT";
+  | "DUP_RESULT"
+  | "FLOW_STRUCTURE"
+  | "FLOW_IF_ELSE"
+  | "FLOW_COND"
+  | "IF_SIBLING"
+  | "PAR_SIBLING"
+  | "FLOW_PARTIAL"
+  | "FLOW_READONLY";
 
-/** 저장 시 검사 한 건(§6.3). 없는 칸은 null — EMPTY 는 ruleId 도 null, 1단계는 otherRuleId·varName 이 null. */
+/**
+ * 저장 시 검사 한 건(§6.3, 계획 C4). 없는 칸은 null — EMPTY 는 ruleId 도 null, 1단계는 otherRuleId·varName 이 null.
+ * nodeId·edgeId 는 흐름 위치(D8)이고 목록 세트 검사(`setChecks`)는 둘 다 null 이다.
+ */
 export interface RuleSetCheck {
   code: RuleSetCheckCode;
   severity: RuleSetSeverity;
@@ -57,6 +80,8 @@ export interface RuleSetCheck {
   otherRuleId: string | null;
   varName: string | null;
   message: string;
+  nodeId: string | null;
+  edgeId: string | null;
 }
 
 /** 입력 변수 — 앞 룰이 만들지 않은 이름. 타입·출처는 처음 읽은 룰의 것, `users` 는 읽는 룰(목록 순). */
