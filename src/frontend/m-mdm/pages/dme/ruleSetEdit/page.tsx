@@ -33,7 +33,8 @@ import { RuleSearchModal } from "./canvas/RuleSearchModal";
 import { dispatchShortcut, isMacPlatform, type ShortcutHandlers } from "./canvas/shortcuts";
 import { DebugInputs } from "./debugger/DebugInputs";
 import { DebugToolbar } from "./debugger/DebugToolbar";
-import { loadFlag, saveFlag, storeKeys } from "./debugger/local-store";
+import { varLabelsOf } from "./set-model";
+import { loadFlag, loadVarDisplay, saveFlag, saveVarDisplay, storeKeys } from "./debugger/local-store";
 import { RunCompare } from "./debugger/RunCompare";
 import { useSimulation } from "./debugger/useSimulation";
 import { useTestCases } from "./debugger/useTestCases";
@@ -53,7 +54,7 @@ import { useEditActions, type RuleModalPurpose } from "./state/useEditActions";
 import { useFind } from "./state/useFind";
 import { useRuleSetEdit, type FlowMode } from "./state/useRuleSetEdit";
 import { debugOverlay } from "./trace-view";
-import type { RuleIo, RuleSetCaseView } from "./types";
+import type { RuleIo, RuleSetCaseView, VarDisplay } from "./types";
 
 const SCREEN_ID = "ruleSetEdit";
 const COMPONENT_PATH = "dme/ruleSetEdit";
@@ -105,7 +106,9 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   const [multiSel, setMultiSel] = useState<string[]>([]);
   const [focus, setFocus] = useState<{ id: string | null; seq: number }>({ id: null, seq: 0 });
   const [fitSignal, setFitSignal] = useState(0);
-  const [showVars, setShowVars] = useState(false);
+  const [varDisplay, setVarDisplay] = useState<VarDisplay>(loadVarDisplay);
+  /** 마지막으로 쓴 켜진 표시 — 디버그에 들어갈 때 꺼져 있으면 이걸로 켠다(처음이면 ID). */
+  const lastVarOn = useRef<Exclude<VarDisplay, "off">>(varDisplay === "name" ? "name" : "id");
   const [showMiniMap, setShowMiniMap] = useState(() => loadFlag(storeKeys.miniMap, true));
   const [bottomTab, setBottomTab] = useState<string>(FIRST_TAB.other);
   const [bottomCollapsed, setBottomCollapsed] = useState(false);
@@ -152,20 +155,20 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   }, [flow, selectedId, selectedEdgeId]);
 
   // 모드가 바뀌면 — 디버그로 들고 날 때 [변수 흐름]을 켜고 되돌리며(P-D16), 아래 패널은 그 모드의 첫 탭으로 간다. 메뉴·즉석 편집은 닫는다.
-  const showVarsRef = useRef(showVars);
-  showVarsRef.current = showVars;
-  const varsBeforeDebug = useRef(false);
+  const varDisplayRef = useRef(varDisplay);
+  varDisplayRef.current = varDisplay;
+  const varsBeforeDebug = useRef<VarDisplay>("off");
   const prevMode = useRef<FlowMode>(mode);
   useEffect(() => {
     const prev = prevMode.current;
     if (prev === mode) return;
     prevMode.current = mode;
     if (mode === "debug") {
-      varsBeforeDebug.current = showVarsRef.current;
-      setShowVars(true);
+      varsBeforeDebug.current = varDisplayRef.current;
+      setVarDisplay(varDisplayRef.current === "off" ? lastVarOn.current : varDisplayRef.current);
       setBottomTab(FIRST_TAB.debug);
     } else if (prev === "debug") {
-      setShowVars(varsBeforeDebug.current);
+      setVarDisplay(varsBeforeDebug.current);
       setBottomTab(FIRST_TAB.other);
     }
     setMenu(null);
@@ -277,6 +280,13 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   const onEditCondClose = useCallback(() => setEditingCond(null), []);
   const onAutoLayout = useCallback(() => editing && edit((f) => autoArrange(f)), [editing, edit]);
   const onContextMenu = useCallback((target: MenuTarget, at: { x: number; y: number }) => setMenu({ target, at }), []);
+  const varLabels = useMemo(() => varLabelsOf(state.rules), [state.rules]);
+  const onToggleVars = useCallback(() => {
+    const next: VarDisplay = varDisplayRef.current === "off" ? "id" : varDisplayRef.current === "id" ? "name" : "off";
+    if (next !== "off") lastVarOn.current = next;
+    setVarDisplay(next);
+    saveVarDisplay(next);
+  }, []);
   const onToggleMiniMap = useCallback(() => {
     const next = !showMiniMap;
     setShowMiniMap(next);
@@ -463,8 +473,8 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
               canEdit={canEdit}
               mode={mode}
               onMode={state.setMode}
-              showVars={showVars}
-              onToggleVars={() => setShowVars((v) => !v)}
+              varDisplay={varDisplay}
+              onToggleVars={onToggleVars}
               onAutoLayout={onAutoLayout}
               onFit={fit}
               showMiniMap={showMiniMap}
@@ -499,7 +509,8 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         rules={state.rules}
                         checks={state.checks}
                         mode={mode}
-                        showVars={showVars}
+                        varDisplay={varDisplay}
+                        varLabels={varLabels}
                         selectedId={selectedId}
                         selectedEdgeId={selectedEdgeId}
                         overlay={overlay}
