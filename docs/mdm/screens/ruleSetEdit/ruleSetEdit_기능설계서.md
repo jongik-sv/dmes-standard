@@ -99,7 +99,7 @@ moduleGroup: dme
 | 영역ID | 영역명 | 설명 |
 |---|---|---|
 | `A-TOP` | 세트 고르기 바(`set-edit-topbar`) | 세트 ID·세트명 검색(`set-pick-keyword`) + 찾기 → 칸 아래 드롭다운 후보(`set-pick-list` 안 `set-pick-{setId}`, 룰 화면 룰 고르기와 같은 `IdPicker` — ↑↓·Enter·Esc, 20건이면 좁혀 검색 안내), 현재 세트(`set-edit-current`, `ID · 세트명`). 고르기 전에는 "세트를 골라 편집한다. 새 세트는 룰 세트 화면에서 등록한다"(`set-edit-empty`) |
-| `A-TOOL` | 흐름 툴바(`flow-toolbar`) | 세트 ID(`set-card-id`)·상태 배지(`set-status`)·`row_version N`(`set-row-version`)·"버전·승인 없음" · [보기](`flow-mode-view`)/[편집](`flow-mode-edit`)/[디버그](`flow-mode-debug`) · [되돌리기](`flow-undo`)·[다시 하기](`flow-redo`) · 찾기 칸(`flow-find`)·[다음](`flow-find-next`)·`flow-find-count`("2/5", 없으면 "0/0")·[?] 단축키 도움말(`flow-help`→`flow-help-panel`) · [자동 정렬](`flow-auto-layout`, 편집 모드만 켜진다)·[화면 맞춤](`flow-fit`)·[변수 흐름](`flow-var-toggle`, `aria-pressed`)·[미니맵](`flow-minimap-toggle`, `aria-pressed`) · [세트 저장](`set-save`)·[폐기](`set-deprecate`)→[폐기 확인](`set-deprecate-confirm`)/[취소](`set-deprecate-cancel`)·[되살리기](`set-restore`)·[다시 불러오기](`set-reload`, MDM001 뒤에만) · 메시지 줄(`set-message`) |
+| `A-TOOL` | 흐름 툴바(`flow-toolbar`) | 세트 ID(`set-card-id`)·상태 배지(`set-status`)·`row_version N`(`set-row-version`)·"버전·승인 없음" · [보기](`flow-mode-view`)/[편집](`flow-mode-edit`)/[디버그](`flow-mode-debug`) · [되돌리기](`flow-undo`)·[다시 하기](`flow-redo`) · 찾기 칸(`flow-find`)·[다음](`flow-find-next`)·`flow-find-count`("2/5", 없으면 "0/0")·[?] 단축키 도움말(`flow-help`→`flow-help-panel`) · [자동 정렬](`flow-auto-layout`, 편집 모드만 켜진다)·[공간](`flow-space-tool`, `aria-pressed`, 편집 모드만 켜진다 — §5.3 공간 넓히기)·[화면 맞춤](`flow-fit`)·[변수 흐름](`flow-var-toggle`, `aria-pressed`)·[미니맵](`flow-minimap-toggle`, `aria-pressed`) · [세트 저장](`set-save`)·[폐기](`set-deprecate`)→[폐기 확인](`set-deprecate-confirm`)/[취소](`set-deprecate-cancel`)·[되살리기](`set-restore`)·[다시 불러오기](`set-reload`, MDM001 뒤에만) · 메시지 줄(`set-message`) |
 | `A-DBG` | 디버그 툴바(`dbg-toolbar`, 디버그 모드만) | [계속](`dbg-continue`)·[한 단계](`dbg-step`)·[이전](`dbg-step-back`)·[여기까지](`dbg-run-to`)·[처음부터](`dbg-restart`)·[끝내기](`dbg-finish`) · 상태 문구(`dbg-status`, `data-end` = idle·running·done·error) · 낡은 기록 배지(`dbg-stale`) · 알림(`dbg-notice`, `data-kind` = notice·error) |
 | `A-LEFT` | 왼쪽 패널 | 보기·편집 = **룰 패널**(`flow-rule-panel`): 편집 모드면 위에 팔레트(`flow-palette` — [룰](`flow-add-rule`)·[IF](`flow-add-if`)·[병렬](`flow-add-par`)·[메모](`flow-add-note`)·[그룹](`flow-add-group`)), 아래에 룰 목록(접기 `flow-rule-panel-toggle`, 검색 `flow-rule-panel-search`·`flow-rule-panel-find`, 목록 `flow-rule-rows`, 줄 `flow-rule-row-{ruleId}`). 보기 모드는 목록만이고 줄을 끌 수 없다. 디버그 = **입력 패널**(`dbg-inputs`, 3단계 P-D10 — 룰 목록을 두지 않는다) |
 | `A-CANVAS` | 흐름도 캔버스(`flow-canvas`) | React Flow. 노드·선·메모·그룹 틀. 표시 내용은 §3.2. 오른쪽 아래에 확대 막대(`Controls` — 확대·축소·화면 맞춤, 잠금 단추 없음)와 미니맵. 캔버스 감싸개(`rsf-canvas-host`)가 단축키(§5.4)를 받고 우클릭·[+] 메뉴(`flow-menu`, §5.5)를 안에 띄운다 |
@@ -152,7 +152,7 @@ moduleGroup: dme
 
 | 키 | 내용 |
 |---|---|
-| `positions` | 노드 ID → `{x, y}` (흐름 좌표) |
+| `positions` | 노드 ID → `{x, y}` (흐름 좌표, 제 크기 상자의 좌상단). 끈 노드·[자동 정렬]·**공간 넓히기를 쓰면 모든 노드 위치가 저장된다**(그린 위치 그대로 전부 고정 — §5.3) |
 | `notes` | 메모 목록(글·위치·붙은 노드) |
 | `groups` | 그룹 틀(제목·구성 노드) |
 | `routes` (C14, Task 15 구현) | 선 ID → 꺾는 점 목록 `{x, y}[]` (흐름 좌표). 선 하나에 20개까지. 키 순서는 선 순서이고 없는 선의 경로는 버린다. 꺾는 점이 없는 선은 자동 경로로 그린다 |
@@ -208,7 +208,7 @@ moduleGroup: dme
 | B-004 | 되살리기(`set-restore`) | A-TOOL | `restore` | DEPRECATED·restorable·`restore` 권한 |
 | B-005 | 다시 불러오기(`set-reload`) | A-TOOL | `view` | MDM001 충돌 뒤에만 보인다 |
 | B-006 | 보기(`flow-mode-view`)/편집(`flow-mode-edit`)/디버그(`flow-mode-debug`) | A-TOOL | (없음) | 세트를 열면 보기 모드다. [편집]은 `view.editable`·INUSE·`save` 권한일 때만 켜진다. [디버그]는 누구나 들어간다(실행 단추는 `execute` 권한이 따로 켠다). 편집 → 보기/디버그는 편집 내용을 버리지 않는다. 디버그 모드 입력값·중단점·조사식·기록은 모드를 오가도 유지한다 |
-| B-007 | 자동 정렬(`flow-auto-layout`) | A-TOOL | (없음) | dagre 위→아래 배치로 모든 노드 위치를 다시 잡는다(편집 모드만 켜진다). 모든 선의 경로(`view.routes`)도 함께 지운다(C14). 위치와 경로 지우기는 이력 한 칸이라 되돌리기 한 번으로 함께 살아난다 |
+| B-007 | 자동 정렬(`flow-auto-layout`) | A-TOOL | (없음) | dagre 위→아래 배치로 모든 노드 위치를 다시 잡는다(편집 모드만 켜진다). 모든 선의 경로(`view.routes`)도 함께 지운다(C14). 위치와 경로 지우기는 이력 한 칸이라 되돌리기 한 번으로 함께 살아난다. 공간 넓히기로 적힌 위치·옮긴 꺾는 점도 이것으로 초기화된다 |
 | B-008 | 화면 맞춤(`flow-fit`)·변수 흐름(`flow-var-toggle`)·미니맵(`flow-minimap-toggle`) | A-TOOL | (없음) | 보기 조절. 서버를 부르지 않는다. 미니맵은 켜고 끔을 브라우저 저장소(`rsf:minimap`)에 기억한다 |
 | B-009 | 룰(`flow-add-rule`)·IF(`flow-add-if`)·병렬(`flow-add-par`)·메모(`flow-add-note`)·그룹(`flow-add-group`) | A-LEFT(팔레트) | `search`(RULE, 룰 팝업) | 편집 모드만. 동작은 §5.3 |
 | B-010 | 찾기(지침, `set-guide-run`) | A-PROPS(세트 패널) | `search`(GUIDE) | |
@@ -229,6 +229,7 @@ moduleGroup: dme
 | B-025 | 케이스: 지금 입력 저장(`case-save-current`)·모두 실행(`case-run-all`)·불러오기(`case-load`)·디버그로 열기(`case-debug`)·고치기(`case-edit`)·삭제(`case-delete` → `case-delete-confirm`/`case-delete-cancel`) | A-LEFT(디버그) | `save`(part=CASE)·`execute`(runCases) | [지금 입력 저장]·[고치기]·[삭제]는 편집할 수 있는 세트(담당자·INUSE·`save` 권한)일 때만, [모두 실행]·[디버그로 열기]는 `execute` 권한이 있을 때만 켜진다. 팝업(`case-modal` — 저장 `case-modal-save`·취소 `case-modal-cancel`). 동작은 §5.2 |
 | B-026 | 변수 표 핀 칸·조사식 ✕(`var-watch-remove-{name}`)·식 평가(`expr-input` Enter)·최근 식(`expr-recent-{i}`) | A-PROPS(디버그) | `validate`(식 파싱) | 식 평가는 `validate` 권한(EDIT)이 없거나 실행 기록이 없으면 칸이 꺼지고 title 로 이유를 보인다. 동작은 §5.2 |
 | B-027 | 아래 탭 값 표(`flow-tab-values`)·실행 비교(`flow-tab-compare`) | A-BOTTOM(디버그) | (없음) | 서버를 부르지 않는다 |
+| B-028 | 공간(`flow-space-tool`, `aria-pressed`) | A-TOOL | (없음) | S1(사용자 승인 추가). 편집 모드에서만 켜진다(보기·디버그 모드는 꺼짐). 켜면 캔버스 빈 곳 끌기가 공간 넓히기다(§5.3, 영역 선택보다 이긴다). 한 번 쓰면(놓으면) 저절로 꺼지고, Esc(켜져 있으면 끄기만 하고 선택은 그대로)·편집 모드를 떠나기·다른 세트 열기로도 꺼진다. Alt(⌥)+끌기는 단추 없이 같은 동작이다 |
 
 ### 5.1-1 캔버스·표 안의 인라인 동작 (GB-NNN)
 
@@ -267,7 +268,9 @@ moduleGroup: dme
 | 동작 | 설명 |
 |---|---|
 | 노드 누르기 | 선택하고 오른쪽 패널을 그 노드의 속성으로 바꾼다. 빈 곳을 누르면 선택이 풀린다. 보기 모드에서도 선택·속성 보기는 된다(읽기 전용) |
-| 다중 선택 | 편집 모드에서 Shift(또는 Ctrl·Meta)+누르기로 노드를 더하고 Shift+끌기 상자로 고른다. 메모·그룹은 다중 선택 목록에 넣지 않는다. [그룹]은 이 목록(없으면 고른 노드 하나)으로 그룹을 만든다 |
+| 다중 선택·영역 선택 | 편집 모드에서 Shift(또는 Ctrl·Meta)+누르기로 노드를 더한다. **빈 곳을 그냥 끌면 영역 선택**이다(Figma 방식, S1 — React Flow `selectionOnDrag`, `selectionMode` 는 **부분 포함**(`partial`): 상자에 조금이라도 걸린 노드·메모가 골라진다). Shift+끌기도 영역 선택이다. 고른 결과는 다중 선택 목록으로 올라가고([그룹]·복사 등이 그대로 쓴다) 여러 노드·메모를 고른 채 끌면 함께 움직이며 되돌리기 한 칸이다. Esc 는 선택을 비운다. 메모·그룹은 다중 선택 목록에 넣지 않는다. [그룹]은 이 목록(없으면 고른 노드 하나)으로 그룹을 만든다 |
+| 화면 이동·확대(S1) | **편집 모드**: 스페이스+끌기·가운데 버튼 끌기·트랙패드 두 손가락 스크롤(휠)로 화면을 옮기고, 핀치·Ctrl(Mac ⌘)+휠로 확대한다(React Flow `panActivationKeyCode="Space"`·`panOnDrag=[1]`·`panOnScroll`·`zoomOnPinch`, `zoomActivationKeyCode` 는 설치본 기본값 — Mac Meta, 그 밖 Control). 스페이스는 입력 칸에 초점이 있으면 가로채지 않는다(React Flow 내장 판정). 우클릭은 그대로 메뉴다. **보기·디버그 모드**: 지금처럼 빈 곳 끌기 = 화면 이동, 휠 = 확대 |
+| 공간 넓히기(S1, 사용자 승인 추가) | 편집 모드에서 [공간](B-028)을 켜거나 Alt(⌥)를 누른 채 **빈 곳**을 끈다(노드·선·손잡이 위에서 시작하면 해당 없음). 누른 자리가 기준이고, 처음 화면 6px 을 넘는 순간 주축으로 방향이 정해진다 — 가로로 더 끌었으면 가로(기준선은 세로선 x = 누른 x), 아니면 세로(기준선은 가로선 y = 누른 y). 정한 뒤 방향은 바뀌지 않는다. 끄는 동안 기준선을 점선으로 그리고 **기준선 너머**를 끈 거리만큼 화면에서만 옮긴다. 너머 판정은 **상자 좌상단**이다 — 가로면 노드·메모 상자 왼쪽 x ≥ 기준선, 세로면 상자 위 y ≥ 기준선(기준선에 걸친 상자도 너머), 꺾는 점은 점마다 같은 규칙. 음수(줄이기)도 되며, 밀리는 것 가운데 기준선에 가장 가까운 것이 기준선을 넘지 않는 데서 멈춘다(겹침이 아니라 순서 유지가 기준). 놓으면 편집 한 번(되돌리기 한 칸, `shiftSpace`): `view.positions` 를 **모든 노드의 그린 위치**(너머는 끈 거리를 더함)로 채우고(전부 고정), 메모·꺾는 점도 같은 규칙으로 옮긴다. 그룹 틀은 멤버에서 계산하므로 따로 적지 않는다. 접힌 블록은 접힌 상자로 판정하고 숨은 멤버·숨은 선의 꺾는 점은 블록과 같은 만큼 옮긴다(숨은 멤버 위치는 블록 끌기와 같은 기준 — 전체 흐름의 그린 자리를 블록에 맞춘 값). 방향이 정해지기 전에 놓았거나 옮긴 거리가 0 이면 기록이 없다. 끄는 동안 page 를 다시 그리지 않고 배치(dagre)도 다시 돌지 않는다(캔버스 안 저장소, Local-Rules §16). [자동 정렬]은 이 결과도 초기화한다 |
 | 노드 끌기 | 편집 모드에서 위치를 바꾼다(`view.positions` 저장). 선 위에 놓았으면 「놓인 노드 옮기기」(아래), 아니면 위치만 바뀌므로 구조가 아니라 디버거 표시는 유지된다. 분기를 끌면 짝 합류와 안쪽 노드까지 블록 전체가 같은 만큼 움직인다 |
 | 선 잇기·지우기 | 편집 모드에서 노드 아래 점에서 다른 노드로 끌어 잇는다(`connect`). 선을 고른 뒤 Delete·Backspace 로 지운다(`removeEdge` — 키는 단축키 디스패처가 받는다, §5.4). 같은 두 노드를 잇는 선이 이미 있으면 거부한다 |
 | 팔레트로 끼우기 | 팔레트 **누르기**의 끼울 선은 **고른 선**이다. 고른 선이 없으면 END 로 들어가는 선이다(2단계 P-D10). [룰]은 룰 찾기 팝업에서 고른 룰을, [IF]·[병렬]은 분기+짝 합류(갈래 2개)를 그 선에 끼우고 새 노드를 고른다. 노드가 200개를 넘게 하는 끼우기는 막는다(문구 "노드는 흐름 하나에 200개까지 둔다") |
@@ -296,7 +299,11 @@ moduleGroup: dme
 | 선택 삭제 | Delete · Backspace | ⌫ · Delete | 편집 | 고른 꺾는 점(C14)이 있으면 그 점만 먼저 빼고 이웃 점을 고른 채로 둔다(점이 남아 있는 동안 연속 Delete 는 이웃 점을 뺀다. 마지막 점을 뺀 뒤의 Delete 는 선을 지운다). 고른 점이 없으면 고른 노드·메모·그룹·선을 지운다. 시작·끝·합류는 지울 수 없다. Shift+Delete·Shift+Backspace 는 무시한다 |
 | 복사 / 붙여넣기 / 복제 | Ctrl+C / Ctrl+V / Ctrl+D | Cmd+C / Cmd+V / Cmd+D | 편집 | 복사·복제는 흐름 노드를 골라야 하고, 붙여넣기는 선을 골라야 한다(없으면 알림) |
 | 노드 찾기 | Ctrl+F | Cmd+F | 모든 모드 | 툴바 찾기 칸으로 초점을 옮긴다 |
-| 선택 해제·메뉴 닫기 | Esc | Esc | 모든 모드 | 메뉴나 단축키 도움말이 열려 있으면 그것만 닫는다. 아니면 즉석 조건식 편집을 취소하고 선택을 푼다 |
+| 선택 해제·메뉴 닫기 | Esc | Esc | 모든 모드 | 메뉴나 단축키 도움말이 열려 있으면 그것만 닫는다. 그다음 [공간] 토글이 켜져 있으면 그것만 끈다(선택은 그대로). 아니면 즉석 조건식 편집을 취소하고 선택을 푼다 |
+| 영역 선택 | 끌기(빈 곳) | 끌기(빈 곳) | 편집 | 포인터 조작 — 디스패처가 아니라 React Flow 가 받는다(§5.3). 도움말에도 보인다 |
+| 공간 넓히기 | Alt+끌기(빈 곳) | ⌥+끌기(빈 곳) | 편집 | 포인터 이벤트의 `altKey` 로 본다(새 키 처리 없음). [공간] 단추와 같다 |
+| 화면 이동 | 스페이스+끌기 · 가운데 버튼 · 두 손가락 스크롤 | 같음 | 편집 | React Flow 내장 `panActivationKeyCode`(디스패처 밖). 보기·디버그 모드는 끌기 = 이동 |
+| 확대·축소 | Ctrl+휠 · 핀치 | ⌘+휠 · 핀치 | 편집 | 보기·디버그 모드는 휠 = 확대 |
 | 계속 | F5 | fn+F5 | 디버그 | `execute` 권한이 있을 때만 |
 | 한 단계 / 이전 | F10 / Shift+F10 | fn+F10 / fn+Shift+F10 | 디버그 | 한 단계는 `execute` 권한이 있을 때만, 이전은 권한과 무관 |
 | 중단점 켜고 끄기 | F9 | fn+F9 | 디버그 | 흐름 노드를 골랐을 때만 |

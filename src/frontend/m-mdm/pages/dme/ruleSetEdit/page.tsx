@@ -40,7 +40,7 @@ import { useTestCases } from "./debugger/useTestCases";
 import { ValuesTab } from "./debugger/ValuesTab";
 import { VariablePanel } from "./debugger/VariablePanel";
 import { connect, flowJsonOf, reconnectEdge, setPositions, setRoute, updateEdge, updateNote, type EditFlow, type EditResult, type FlowNote, type FlowPos } from "./flow-edit";
-import { autoArrange } from "./flow-layout";
+import { autoArrange, shiftSpace, type SpaceAxis, type SpaceBlocks } from "./flow-layout";
 import { openRule } from "./links";
 import { BottomPanel, type BottomTab } from "./panels/BottomPanel";
 import { ChecksPanel } from "./panels/ChecksPanel";
@@ -103,6 +103,9 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   /** 캔버스 다중 선택(흐름 노드 ID, 흐름 순서) — [그룹]·[선택 노드 더하기] 가 쓴다. */
   const [multiSel, setMultiSel] = useState<string[]>([]);
+  /** [공간] 토글(S1) — 편집 모드에서만 켜진다. 한 번 쓰면(캔버스가 끈다)·Esc·편집 모드를 떠나면·다른 세트를 열면 꺼진다. */
+  const [spaceTool, setSpaceTool] = useState(false);
+  const spaceOn = editing && spaceTool;
   const [focus, setFocus] = useState<{ id: string | null; seq: number }>({ id: null, seq: 0 });
   const [fitSignal, setFitSignal] = useState(0);
   const [showVars, setShowVars] = useState(false);
@@ -140,7 +143,12 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     setFocus((f) => ({ id: null, seq: f.seq }));
     setMenu(null);
     setEditingCond(null);
+    setSpaceTool(false);
   }, [setId]);
+  // 편집 모드를 떠나면 [공간] 토글을 끈다(돌아와도 꺼진 채).
+  useEffect(() => {
+    if (!editing) setSpaceTool(false);
+  }, [editing]);
 
   // 편집으로 없어진 노드·메모·그룹·선의 선택은 푼다(속성 패널이 없는 노드를 읽지 않게).
   useEffect(() => {
@@ -239,6 +247,13 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
       editing && edit((f) => Object.entries(notes).reduce((g, [id, p]) => updateNote(g, id, p), setPositions(f, pos))),
     [editing, edit],
   );
+  // 공간 넓히기(S1) — 놓을 때 한 번 = 편집 한 번(되돌리기 한 칸). 모든 노드 위치를 그린 위치로 적는다(shiftSpace).
+  const onShiftSpace = useCallback(
+    (axis: SpaceAxis, at: number, delta: number, drawn: Record<string, FlowPos>, blocks: SpaceBlocks) =>
+      editing && edit((f) => shiftSpace(f, axis, at, delta, drawn, blocks)),
+    [editing, edit],
+  );
+  const onToggleSpaceTool = useCallback(() => setSpaceTool((on) => !on), []);
   const onRouteChange = useCallback((edgeId: string, points: FlowPos[]) => editing && edit((f) => setRoute(f, edgeId, points)), [editing, edit]);
   const onMoveNode = useCallback(
     (nodeId: string, edgeId: string, pos: Record<string, FlowPos>) => {
@@ -325,6 +340,11 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   const clearCanvasSelectionRef = useRef<(() => void) | null>(null);
   const onEscape = () => {
     const menuWasOpen = menuOpenRef.current; // 메뉴가 열려 있었으면 메뉴만 닫는다
+    // [공간] 토글이 켜져 있으면 끄기만 한다(선택은 그대로 — 메뉴 규칙과 같다). 메뉴가 열려 있으면 메뉴가 먼저다.
+    if (!menuWasOpen && spaceOn) {
+      setSpaceTool(false);
+      return;
+    }
     editActions.escape();
     if (!menuWasOpen) clearCanvasSelectionRef.current?.();
   };
@@ -472,6 +492,8 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
               find={find}
               findInputRef={findInputRef}
               onHelpEscape={focusCanvas}
+              spaceTool={spaceOn}
+              onToggleSpaceTool={onToggleSpaceTool}
             />
             {debugging && <DebugToolbar sim={sim} canRun={canRun} selectedId={isFlowNode ? selectedId : null} />}
             <ContentBody root direction="column" resizable storageKey={STORAGE_KEY}>
@@ -531,6 +553,9 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         onEditCondClose={onEditCondClose}
                         onToggleBreakpoint={sim.toggleBreakpoint}
                         onSelectionChange={setMultiSel}
+                        spaceTool={spaceOn}
+                        onSpaceToolChange={setSpaceTool}
+                        onShiftSpace={onShiftSpace}
                       />
                       <ContextMenu items={menuItems} at={menu?.at ?? null} onClose={onCloseMenu} />
                     </div>

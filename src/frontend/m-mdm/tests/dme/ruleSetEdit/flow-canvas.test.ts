@@ -177,7 +177,13 @@ describe("FlowCanvas 다중 선택", () => {
     }
     expect(onSelectionChange).toHaveBeenLastCalledWith(["r1", "m1"]);
     await key("keyup");
-    await click(document.querySelector(".react-flow__pane")!);
+    // 편집 모드는 빈 곳 끌기가 영역 선택이라(S1) React Flow 가 빈 곳 누르기를 pointerdown→pointerup 으로 받는다(click 이벤트가 아니라).
+    const pane = document.querySelector(".react-flow__pane")!;
+    for (const type of ["pointerdown", "pointerup"]) {
+      await act(async () => {
+        pane.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, button: 0, isPrimary: true, pointerId: 1, clientX: 5, clientY: 5 }));
+      });
+    }
     expect(onSelectionChange).toHaveBeenLastCalledWith([]);
   });
 

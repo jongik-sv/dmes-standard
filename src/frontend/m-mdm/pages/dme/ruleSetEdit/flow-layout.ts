@@ -135,3 +135,93 @@ export function drawnPositions(f: EditFlow, blocks: Readonly<Record<string, unkn
 export function autoArrange(f: EditFlow): EditFlow {
   return clearRoutes(setPositions(f, autoLayout(f)));
 }
+
+// ───────────────────────── 공간 넓히기(S1) ─────────────────────────
+
+/** 공간 넓히기 방향 — 가로(x, 기준선은 세로선 x = at) 또는 세로(y, 기준선은 가로선 y = at). */
+export type SpaceAxis = "x" | "y";
+/** 접힌 블록(분기 ID → 분기 자신을 포함한 멤버). `collapseView(...).blocks` 를 그대로 넘긴다. */
+export type SpaceBlocks = Readonly<Record<string, { members: readonly string[] }>>;
+
+/** 기준선 너머인가 — 상자 좌상단 기준(가로: x ≥ at, 세로: y ≥ at). 메모·꺾는 점도 같은 규칙이다(꺾는 점은 점 자체). */
+export const beyondLine = (axis: SpaceAxis, at: number, p: FlowPos): boolean => (axis === "x" ? p.x : p.y) >= at;
+const along = (axis: SpaceAxis, p: FlowPos) => (axis === "x" ? p.x : p.y);
+
+/** 숨은 멤버(분기 자신 제외) → 그 블록의 분기 ID. */
+function hiddenOwners(blocks: SpaceBlocks): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const [split, b] of Object.entries(blocks)) for (const m of b.members) if (m !== split) out.set(m, split);
+  return out;
+}
+
+/**
+ * 기준선 너머에서 그려진 것들(보이는 노드·메모·그려진 선의 꺾는 점)의 좌표 목록 — 줄이기 한계와 미리보기가 쓴다.
+ * 숨은 멤버와 숨은(접힌) 선의 꺾는 점은 블록을 따르므로 빼고 본다.
+ */
+function beyondCoords(f: EditFlow, axis: SpaceAxis, at: number, drawn: Readonly<Record<string, FlowPos>>, blocks: SpaceBlocks): number[] {
+  const hidden = hiddenOwners(blocks);
+  const out: number[] = [];
+  const see = (p: FlowPos) => {
+    if (beyondLine(axis, at, p)) out.push(along(axis, p));
+  };
+  for (const n of f.nodes ?? []) if (!hidden.has(n.id) && drawn[n.id]) see(drawn[n.id]);
+  for (const note of f.view?.notes ?? []) see(note);
+  for (const e of f.edges ?? []) {
+    if (hidden.has(e.from) || hidden.has(e.to)) continue;
+    for (const p of f.view?.routes?.[e.id] ?? []) see(p);
+  }
+  return out;
+}
+
+/**
+ * 줄이기(음수 delta) 한계 — 밀리는 것들 중 기준선에 가장 가까운 것이 기준선을 넘어가지 않는 가장 작은 delta(0 이하).
+ * 겹침이 아니라 순서 유지가 기준이다. 밀리는 것이 없으면 null(넓혀도 줄여도 바뀌는 것이 없다).
+ */
+export function spaceMinDelta(
+  f: EditFlow, axis: SpaceAxis, at: number, drawn: Readonly<Record<string, FlowPos>>, blocks: SpaceBlocks = {},
+): number | null {
+  const coords = beyondCoords(f, axis, at, drawn, blocks);
+  return coords.length === 0 ? null : at - Math.min(...coords);
+}
+
+/**
+ * 공간 넓히기(S1, draw.io 「공간 삽입」) — 기준선 너머의 노드·메모·꺾는 점을 delta 만큼 옮긴 흐름. 한 번의 편집(이력 한 칸)이다.
+ * - drawn: 지금 그린(겹침을 푼) 위치 — 보이는 노드는 캔버스가 그린 상자 좌상단(접힌 분기는 접힌 상자), 숨은 멤버는 블록과 맞춘 전체 흐름 자리.
+ * - 결과 `view.positions` 는 **모든 노드의 위치**다(그린 위치, 너머는 delta 더함 — 전부 고정). 접힌 분기는 제 크기 기준 좌표로 적는다(foldOffsetX).
+ * - 숨은 멤버·숨은 선의 꺾는 점은 자기 블록(접힌 분기)이 너머일 때 같은 delta 로 간다. 그룹 틀은 멤버에서 계산하므로 따로 적지 않는다.
+ * - 음수(줄이기)는 spaceMinDelta 로 제한한다. delta 가 0(반올림 뒤)이거나 너머에 아무것도 없으면 입력을 그대로 돌려준다(기록 없음).
+ * 입력은 바꾸지 않는다.
+ */
+export function shiftSpace(
+  f: EditFlow, axis: SpaceAxis, at: number, delta: number, drawn: Readonly<Record<string, FlowPos>>, blocks: SpaceBlocks = {},
+): EditFlow {
+  const min = spaceMinDelta(f, axis, at, drawn, blocks);
+  const d = min === null ? 0 : Math.round(Math.max(delta, min));
+  if (d === 0) return f;
+  const hidden = hiddenOwners(blocks);
+  const move = (p: FlowPos, yes: boolean): FlowPos => (!yes ? { x: p.x, y: p.y } : axis === "x" ? { x: p.x + d, y: p.y } : { x: p.x, y: p.y + d });
+  /** 노드(숨은 멤버면 그 블록 분기)가 너머인가. */
+  const nodeBeyond = (id: string) => {
+    const p = drawn[hidden.get(id) ?? id];
+    return !!p && beyondLine(axis, at, p);
+  };
+  const pos: Record<string, FlowPos> = {};
+  for (const n of f.nodes ?? []) {
+    const p = drawn[n.id];
+    if (!p) continue;
+    const q = move(p, nodeBeyond(n.id));
+    pos[n.id] = blocks[n.id] ? { x: q.x + foldOffsetX(n.kind), y: q.y } : q;
+  }
+  const g = setPositions(f, pos); // 깊은 복사본 — 아래에서 메모·경로를 고친다
+  g.view.notes = g.view.notes.map((n) => (beyondLine(axis, at, n) ? { ...n, ...move(n, true) } : n));
+  const routes: Record<string, FlowPos[]> = {};
+  for (const e of g.edges) {
+    const r = g.view.routes[e.id];
+    if (!r) continue;
+    // 숨은(접힌) 선은 블록을 따른다 — 합류에서 나가던 선·안쪽 선은 from 이, 분기에서 나가는 갈래는 to 가 숨은 멤버다.
+    const owner = hidden.get(e.from) ?? hidden.get(e.to);
+    routes[e.id] = owner ? r.map((p) => move(p, nodeBeyond(owner))) : r.map((p) => move(p, beyondLine(axis, at, p)));
+  }
+  g.view.routes = routes;
+  return g;
+}

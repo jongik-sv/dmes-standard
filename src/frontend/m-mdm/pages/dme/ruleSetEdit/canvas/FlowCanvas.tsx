@@ -4,7 +4,12 @@
  * 룰 세트 흐름 캔버스(2단계 계획 Task 9) — React Flow 로 흐름을 그리는 표현 컴포넌트.
  * 상태를 갖지 않는다(선택·확대는 React Flow 내부, 끌던 중 위치만 잠깐 들고 있다). 편집은 모두 콜백으로 올린다.
  * 부모가 편집 모드일 때만 `mode="edit"` 로 부른다. 보기 모드는 끌기·연결이 꺼지고 선택만 된다.
- * 편집 모드에서는 여러 노드를 고를 수 있다 — Shift(또는 Cmd·Ctrl)+누르기, Shift+끌기 상자. 고른 흐름 노드 ID 목록은 `onSelectionChange` 로 올린다(Ruling 11).
+ * 편집 모드에서는 여러 노드를 고를 수 있다 — Shift(또는 Cmd·Ctrl)+누르기로 더하기, 빈 곳 끌기 상자(부분 포함). 고른 흐름 노드 ID 목록은 `onSelectionChange` 로 올린다(Ruling 11).
+ * 편집 모드 화면 이동은 Figma 방식이다(S1, Ruling 21) — 스페이스+끌기·가운데 버튼 끌기·두 손가락 스크롤, 확대는 핀치·Ctrl/Cmd+휠. 보기·디버그 모드는 끌기 = 화면 이동 그대로다.
+ *
+ * 공간 넓히기(S1): 편집 모드에서 [공간] 토글(`spaceTool`)이 켜졌거나 Alt 를 누른 채 빈 곳(pane)을 끌면, 누른 자리를 기준으로 처음 6px 을 넘는 순간
+ * 주축으로 방향을 정하고 기준선 너머(상자 좌상단 기준)의 노드·메모·꺾는 점을 화면에서만 옮긴다. 미리보기는 캔버스 안 저장소(`SpaceStore`)에만 두고
+ * 놓을 때 `onShiftSpace` 를 한 번 부른다(page 는 끌기 중 다시 그리지 않는다). 누르기는 캡처 단계에서 끊어 React Flow 의 화면 이동·영역 선택이 시작되지 않는다.
  *
  * 3단계(계획 P2): 모드는 보기·편집·디버그 셋이고 끌기·연결은 편집 모드에서만 된다. 키 입력은 받지 않는다 — Delete 등 단축키는 page 가
  * 캔버스 감싸개(`rsf-canvas-host`)의 `onKeyDown` 에서 단축키 디스패처(`shortcuts.ts`)로 받는다(`tabIndex=0` 은 초점을 받으려고 남긴다).
@@ -28,7 +33,7 @@ import { IconPlus } from "@tabler/icons-react";
 import type { RuleSetFlow, TypedValue } from "@/contract/engine-contract.generated";
 
 import type { FlowNote, FlowPos, EditFlow } from "../flow-edit";
-import { NODE_SIZE, drawnPositions, foldOffsetX } from "../flow-layout";
+import { NODE_SIZE, beyondLine, drawnPositions, foldOffsetX, spaceMinDelta, type SpaceAxis, type SpaceBlocks } from "../flow-layout";
 import { typedText } from "../trace-view";
 import { blockDragPositions, dropTargetAt, edgeChips, edgeMarks, nodeMarks, resolveNodeDrop } from "../flow-vars";
 import type { FlowMode } from "../state/useRuleSetEdit";
@@ -46,8 +51,11 @@ import {
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
+  SelectionMode,
+  ViewportPortal,
   getSmoothStepPath,
   useReactFlow,
+  useStore,
   type Connection,
   type Edge,
   type EdgeProps,
@@ -159,10 +167,23 @@ export interface FlowCanvasProps {
    * 메모·그룹만 고른 경우는 올리지 않는다 — 노드를 여러 개 고른 뒤 그룹 제목을 눌러 [선택 노드 더하기] 를 쓸 수 있게 한다.
    */
   onSelectionChange?: (nodeIds: string[]) => void;
+  /** [공간] 토글(S1) — 켜져 있으면 편집 모드의 빈 곳 끌기가 공간 넓히기다(영역 선택보다 이긴다). */
+  spaceTool?: boolean;
+  /** 공간 넓히기 끌기를 놓으면(방향 미확정·0 이어도) 토글이 켜져 있었을 때 false 로 부른다 — 한 번 쓰면 꺼진다. */
+  onSpaceToolChange?: (on: boolean) => void;
+  /**
+   * 공간 넓히기를 놓음(S1) — 방향이 정해지고 delta 가 0 이 아닐 때만 한 번. drawn 은 지금 그린 위치 전체(보이는 노드는 그린 상자 좌상단,
+   * 숨은 멤버는 블록과 맞춘 전체 흐름 자리), blocks 는 접힌 블록이다. page 는 `shiftSpace` 로 편집 한 번을 만든다.
+   */
+  onShiftSpace?: (axis: SpaceAxis, at: number, delta: number, drawn: Record<string, FlowPos>, blocks: SpaceBlocks) => void;
 }
 
 /** 편집 모드 다중 선택 키 — 누르기로 더하기. */
 const MULTI_KEYS = ["Shift", "Meta", "Control"];
+/** 편집 모드 화면 이동 마우스 단추 — 가운데(1)만. 왼쪽 끌기는 영역 선택, 오른쪽은 메뉴(S1). */
+const EDIT_PAN_BUTTONS = [1];
+/** 공간 넓히기 방향을 정하는 화면 거리(px). */
+export const SPACE_THRESHOLD_PX = 6;
 
 type EdgeData = {
   label: string | null;
@@ -282,9 +303,62 @@ interface RouteApi {
 }
 const RouteContext = createContext<RouteApi | null>(null);
 
+/** 공간 넓히기 미리보기(S1) — 방향이 정해진 뒤의 기준선·이동량. 끄는 동안 캔버스·선·기준선만 구독해 다시 그린다(page 는 그대로). */
+interface SpaceShift {
+  axis: SpaceAxis;
+  at: number;
+  delta: number;
+}
+interface SpaceStore {
+  shift: SpaceShift | null;
+  subscribe(cb: () => void): () => void;
+  emit(): void;
+}
+function createSpaceStore(): SpaceStore {
+  const listeners = new Set<() => void>();
+  return {
+    shift: null,
+    subscribe: (cb) => {
+      listeners.add(cb);
+      return () => listeners.delete(cb);
+    },
+    emit: () => listeners.forEach((cb) => cb()),
+  };
+}
+const SpaceContext = createContext<SpaceStore | null>(null);
+/** 기준선 너머면 delta 만큼 옮긴 점(아니면 그대로). */
+function shifted(s: SpaceShift | null, p: FlowPos): FlowPos {
+  if (!s || s.delta === 0 || !beyondLine(s.axis, s.at, p)) return p;
+  return s.axis === "x" ? { x: p.x + s.delta, y: p.y } : { x: p.x, y: p.y + s.delta };
+}
+
+/** 끄는 동안의 기준선(점선) — 흐름 좌표 층에 그리고, 굵기는 배율로 나눠 화면에서 1.5px 로 보이게 한다. */
+function SpaceGuide({ store }: { store: SpaceStore }) {
+  const s = useSyncExternalStore(store.subscribe, () => store.shift, () => null);
+  const zoom = useStore((st) => st.transform[2]);
+  if (!s) return null;
+  const w = 1.5 / (zoom > 0 ? zoom : 1);
+  const style: React.CSSProperties = s.axis === "x" ? { left: s.at, borderLeftWidth: w } : { top: s.at, borderTopWidth: w };
+  return (
+    <ViewportPortal>
+      <div className="rsf-space-guide" data-testid="flow-space-guide" data-axis={s.axis} style={style} />
+    </ViewportPortal>
+  );
+}
+
 function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
   const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, selected } = props;
   const routeApi = useContext(RouteContext);
+  const spaceStore = useContext(SpaceContext);
+  // 공간 넓히기 미리보기 — 이 선의 꺾는 점 가운데 기준선 너머가 있을 때만 구독 값이 바뀐다(다른 선은 다시 그리지 않는다).
+  const spaceShift = useSyncExternalStore(
+    spaceStore ? spaceStore.subscribe : NO_SUBSCRIBE,
+    () => {
+      const sh = spaceStore?.shift ?? null;
+      return sh && sh.delta !== 0 && data?.route?.some((p) => beyondLine(sh.axis, sh.at, p)) ? sh : null;
+    },
+    () => null,
+  );
   const dragged = useSyncExternalStore(
     routeApi ? routeApi.store.subscribe : NO_SUBSCRIBE,
     () => (routeApi?.store.drag?.edgeId === id ? routeApi.store.drag.points : null),
@@ -295,7 +369,8 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
     () => (routeApi?.store.sel?.edgeId === id ? routeApi.store.sel.index : -1),
     () => -1,
   );
-  const route = dragged ?? data?.route ?? null;
+  const baseRoute = dragged ?? data?.route ?? null;
+  const route = spaceShift && baseRoute ? baseRoute.map((p) => shifted(spaceShift, p)) : baseRoute;
   const [smoothPath, slx, sly] = getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 8 });
   let path = smoothPath;
   let lx = slx;
@@ -460,6 +535,7 @@ function Inner(props: FlowCanvasProps) {
     breakpoints, collapsed, valueAt, showMiniMap, editingCondEdgeId,
     onSelect, onSelectEdge, onOpenRule, onMove, onMoveNode, onConnect, onReconnect, onDropPalette, onDropRule, onNoteChange, onContextMenu, onToggleBreakpoint,
     onEditCond, onRouteChange, removeRoutePointRef, clearSelectionRef, onEditCondClose, onSelectionChange,
+    spaceTool, onSpaceToolChange, onShiftSpace,
   } = props;
   const editable = mode === "edit";
   const debugging = mode === "debug";
@@ -498,7 +574,14 @@ function Inner(props: FlowCanvasProps) {
    * 같은 memo 안에서 겹침을 푼다(Ruling 19) — 저장 위치가 없는 노드가 저장 위치 노드와 겹치면 그리는(접힌) 흐름에서 가로로 비킨다. 좌표는 저장하지 않는다.
    */
   const basePos = useMemo(() => drawnPositions(vflow, view.blocks), [vflow, view.blocks]);
-  const pos = useMemo(() => ({ ...basePos, ...drag }), [basePos, drag]);
+  // 공간 넓히기 미리보기(S1) — 캔버스 안 저장소를 구독한다. 배치(dagre)는 다시 돌지 않고 너머 좌표만 옮긴다.
+  const spaceStore = useMemo(createSpaceStore, []);
+  const space = useSyncExternalStore(spaceStore.subscribe, () => spaceStore.shift, () => null);
+  const pos = useMemo(() => {
+    const p: Record<string, FlowPos> = { ...basePos, ...drag };
+    if (space && space.delta !== 0) for (const id of Object.keys(p)) p[id] = shifted(space, p[id]);
+    return p;
+  }, [basePos, drag, space]);
   const posRef = useRef(pos);
   posRef.current = pos;
   const basePosRef = useRef(basePos);
@@ -577,12 +660,12 @@ function Inner(props: FlowCanvasProps) {
     for (const note of flow.view.notes) {
       const data: NoteNodeData = { note, selected: selectedId === note.id, editable, onChange: onNoteChange };
       out.push({
-        id: note.id, type: "rsfNote", position: { x: drag[note.id]?.x ?? note.x, y: drag[note.id]?.y ?? note.y },
+        id: note.id, type: "rsfNote", position: shifted(space, { x: drag[note.id]?.x ?? note.x, y: drag[note.id]?.y ?? note.y }),
         width: note.w, height: note.h, measured: measured[note.id], data, draggable: editable, connectable: false, selected: rfSel.has(note.id),
       });
     }
     return out;
-  }, [flow, vflow, view, pos, drag, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured]);
+  }, [flow, vflow, view, pos, drag, space, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured]);
 
   const edges = useMemo(() => {
     const kindOf = new Map(vflow.nodes.map((n) => [n.id, n.kind] as const));
@@ -917,6 +1000,108 @@ function Inner(props: FlowCanvasProps) {
     };
   }, [clearSelectionRef]);
 
+  // 공간 넓히기(S1) — 누른 자리·방향·줄이기 한계는 끄는 동안만 ref 에 둔다. 미리보기는 spaceStore 로만 알린다.
+  const spaceToolRef = useRef(!!spaceTool);
+  spaceToolRef.current = !!spaceTool;
+  const spaceCbRef = useRef({ onShiftSpace, onSpaceToolChange });
+  spaceCbRef.current = { onShiftSpace, onSpaceToolChange };
+  const spaceDragRef = useRef<{ stop: () => void } | null>(null);
+  /**
+   * 놓을 때 넘길 그린 위치 전체 — 보이는 노드는 그린 상자 좌상단(basePos), 숨은 멤버는 전체 흐름 자리를 블록(접힌 분기)의
+   * 저장 기준 자리에 맞춘 값(블록 끌기 blockPositionsOf 와 같은 기준). 접힌 블록이 없으면 전체 배치를 다시 계산하지 않는다.
+   */
+  const spaceDrawn = (): Record<string, FlowPos> => {
+    const base = basePosRef.current;
+    const out: Record<string, FlowPos> = { ...base };
+    const blocks = viewRef.current.blocks;
+    if (Object.keys(blocks).length === 0) return out;
+    const full = fullPosOf();
+    for (const [sid, b] of Object.entries(blocks)) {
+      const kind = fullRef.current.nodes.find((n) => n.id === sid)?.kind;
+      const sp = base[sid];
+      const fp = full[sid];
+      if (!sp || !fp || !kind) continue;
+      const d = { x: sp.x + foldOffsetX(kind) - fp.x, y: sp.y - fp.y };
+      for (const m of b.members) if (m !== sid && full[m]) out[m] = { x: full[m].x + d.x, y: full[m].y + d.y };
+    }
+    return out;
+  };
+  const startSpaceDrag = (clientX: number, clientY: number) => {
+    spaceDragRef.current?.stop();
+    const origin = rf.screenToFlowPosition({ x: clientX, y: clientY });
+    const toolWasOn = spaceToolRef.current;
+    let axis: SpaceAxis | null = null;
+    let at = 0;
+    let min: number | null = null;
+    const onMoveEvt = (ev: MouseEvent) => {
+      const dx = ev.clientX - clientX;
+      const dy = ev.clientY - clientY;
+      if (!axis) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) < SPACE_THRESHOLD_PX) return;
+        axis = Math.abs(dx) >= Math.abs(dy) ? "x" : "y";
+        at = Math.round(axis === "x" ? origin.x : origin.y);
+        min = spaceMinDelta(fullRef.current, axis, at, basePosRef.current, viewRef.current.blocks);
+      }
+      const zoom = rf.getZoom() || 1;
+      const raw = Math.round((axis === "x" ? dx : dy) / zoom);
+      const delta = min === null ? 0 : Math.max(raw, min);
+      const cur = spaceStore.shift;
+      if (cur && cur.axis === axis && cur.at === at && cur.delta === delta) return;
+      spaceStore.shift = { axis, at, delta };
+      spaceStore.emit();
+    };
+    const finish = (commit: boolean) => {
+      stop();
+      const s = spaceStore.shift;
+      spaceStore.shift = null;
+      spaceStore.emit();
+      const { onShiftSpace: shift, onSpaceToolChange: toolChange } = spaceCbRef.current;
+      if (toolWasOn) toolChange?.(false);
+      if (commit && s && s.delta !== 0) shift?.(s.axis, s.at, s.delta, spaceDrawn(), viewRef.current.blocks);
+    };
+    const onUpEvt = () => finish(true);
+    const onCancelEvt = () => finish(false);
+    const stop = () => {
+      spaceDragRef.current = null;
+      window.removeEventListener("pointermove", onMoveEvt);
+      window.removeEventListener("pointerup", onUpEvt);
+      window.removeEventListener("pointercancel", onCancelEvt);
+    };
+    spaceDragRef.current = { stop };
+    window.addEventListener("pointermove", onMoveEvt);
+    window.addEventListener("pointerup", onUpEvt);
+    window.addEventListener("pointercancel", onCancelEvt);
+  };
+  // 언마운트·모드가 편집이 아니게 되면 끌던 공간 넓히기를 버린다.
+  useEffect(() => {
+    if (editable) return;
+    spaceDragRef.current?.stop();
+    if (spaceStore.shift) {
+      spaceStore.shift = null;
+      spaceStore.emit();
+    }
+  }, [editable, spaceStore]);
+  useEffect(() => () => spaceDragRef.current?.stop(), []);
+  /**
+   * 빈 곳(pane) 누르기 — 편집 모드에서 [공간] 토글이 켜졌거나 Alt 가 눌렸으면 공간 넓히기를 시작하고, 캡처 단계에서 끊어
+   * React Flow 의 영역 선택(pane 캡처 리스너)·화면 이동(d3-zoom mousedown)에 닿지 않게 한다. 노드·선·손잡이 위 누르기는 해당하지 않는다.
+   * 영역 선택이 켜진 편집 모드의 빈 곳 누르기(선택 풀기)는 pane 이 pointerup 에서 판정하는데 누르기를 끊었으므로 놓을 때 선택이 풀리지 않는다.
+   */
+  const onPointerDownCapture = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!editable || e.button !== 0 || !(spaceToolRef.current || e.altKey)) return;
+    if (!(e.target as Element | null)?.classList?.contains("react-flow__pane")) return;
+    e.stopPropagation();
+    e.preventDefault(); // 호환 마우스 이벤트(mousedown)도 막힌다
+    wrapRef.current?.focus({ preventScroll: true });
+    startSpaceDrag(e.clientX, e.clientY);
+  };
+  /** 공간 넓히기 중의 mousedown(브라우저가 호환 이벤트를 보낼 때) — d3-zoom 화면 이동으로 가지 않게 끊는다. */
+  const onMouseDownCapture = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (!spaceDragRef.current) return;
+    e.stopPropagation();
+    e.preventDefault();
+  };
+
   const carries = (e: DragEvent<HTMLDivElement>) => {
     const types = Array.from(e.dataTransfer?.types ?? []);
     return types.includes(PALETTE_MIME) || types.includes(RULE_MIME);
@@ -976,12 +1161,16 @@ function Inner(props: FlowCanvasProps) {
   return (
     <CondEditContext.Provider value={condActions}>
     <RouteContext.Provider value={routeApi}>
+    <SpaceContext.Provider value={spaceStore}>
     <div
       ref={wrapRef}
       className="rsf-canvas"
       data-testid="flow-canvas"
       data-mode={mode}
+      data-space-tool={editable && spaceTool ? "true" : undefined}
       tabIndex={0}
+      onPointerDownCapture={onPointerDownCapture}
+      onMouseDownCapture={onMouseDownCapture}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
@@ -1000,6 +1189,14 @@ function Inner(props: FlowCanvasProps) {
         deleteKeyCode={null}
         selectionKeyCode={editable ? "Shift" : null}
         multiSelectionKeyCode={editable ? MULTI_KEYS : null}
+        // 편집 모드는 Figma 방식(S1, Ruling 21): 빈 곳 끌기 = 영역 선택(상자에 조금이라도 걸린 노드), 이동 = 스페이스+끌기·가운데 버튼·두 손가락 스크롤,
+        // 확대 = 핀치·Ctrl/Cmd+휠(zoomActivationKeyCode 설치본 기본값 — Mac Meta, 그 밖 Control). 보기·디버그 모드는 끌기 = 이동, 휠 = 확대 그대로다.
+        selectionOnDrag={editable}
+        selectionMode={SelectionMode.Partial}
+        panOnDrag={editable ? EDIT_PAN_BUTTONS : true}
+        panOnScroll={editable}
+        panActivationKeyCode="Space"
+        zoomOnPinch
         fitView
         fitViewOptions={FIT_OPTIONS}
         minZoom={MIN_ZOOM}
@@ -1024,8 +1221,10 @@ function Inner(props: FlowCanvasProps) {
         {/* 오른쪽 아래 — 확대·축소 단추 줄 위에 미니맵(D14) */}
         <Controls position="bottom-right" orientation="horizontal" showInteractive={false} />
         {showMiniMap && <MiniMap position="bottom-right" style={MINIMAP_STYLE} pannable zoomable />}
+        <SpaceGuide store={spaceStore} />
       </ReactFlow>
     </div>
+    </SpaceContext.Provider>
     </RouteContext.Provider>
     </CondEditContext.Provider>
   );

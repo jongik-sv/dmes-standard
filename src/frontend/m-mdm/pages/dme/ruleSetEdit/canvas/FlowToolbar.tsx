@@ -8,10 +8,11 @@
  *
  * 3단계(계획 P1·P12): 모드 단추 셋(보기·편집·디버그 — 디버그는 누구나), 되돌리기·다시 하기(편집 모드이고 기록이 있을 때), 미니맵 켜고 끄기.
  * 찾기 칸(Enter·[다음] 으로 돈다)과 단축키 도움말 [?] 를 둔다(Task 8). 도움말은 지금 모드의 단축키만 짧은 정의 목록으로 보인다.
+ * S1: [공간] 토글(`flow-space-tool`, `aria-pressed`, 편집 모드만) — 켜면 빈 곳 끌기가 공간 넓히기다.
  */
 import { useEffect, useRef, useState, type RefObject } from "react";
 
-import { IconArrowBackUp, IconArrowForwardUp, IconArrowsMaximize, IconHelp, IconLayoutDistributeHorizontal, IconMap, IconSearch, IconVariable } from "@tabler/icons-react";
+import { IconArrowAutofitWidth, IconArrowBackUp, IconArrowForwardUp, IconArrowsMaximize, IconHelp, IconLayoutDistributeHorizontal, IconMap, IconSearch, IconVariable } from "@tabler/icons-react";
 
 import { Button, Input } from "@dk-oasis/shared/form";
 import { badgeStyle } from "@/shell";
@@ -47,11 +48,14 @@ export interface FlowToolbarProps {
    * [?] 를 다시 눌러 닫을 때는 부르지 않는다(마우스로 닫으면 초점을 억지로 옮기지 않는다).
    */
   onHelpEscape?: () => void;
+  /** [공간] 토글(S1) — 켜면 편집 모드의 빈 곳 끌기가 공간 넓히기다. 한 번 쓰면·Esc·편집 모드를 떠나면 page 가 끈다. */
+  spaceTool?: boolean;
+  onToggleSpaceTool?: () => void;
 }
 
 export function FlowToolbar(props: FlowToolbarProps) {
   const { state, canDo, canEdit, mode, onMode, showVars, onToggleVars, onAutoLayout, onFit, showMiniMap, onToggleMiniMap } = props;
-  const { find, findInputRef, onHelpEscape } = props;
+  const { find, findInputRef, onHelpEscape, spaceTool = false, onToggleSpaceTool } = props;
   const [helpOpen, setHelpOpen] = useState(false);
   const view = state.view!;
   const set = view.set;
@@ -211,6 +215,17 @@ export function FlowToolbar(props: FlowToolbarProps) {
           <Button data-testid="flow-auto-layout" disabled={!editing || busy} onClick={onAutoLayout}>
             <IconLayoutDistributeHorizontal size={14} aria-hidden="true" style={{ marginRight: "var(--spacing-xs)" }} />
             자동 정렬
+          </Button>
+          <Button
+            data-testid="flow-space-tool"
+            aria-pressed={editing && spaceTool}
+            variant={editing && spaceTool ? "primary" : "default"}
+            disabled={!editing || busy || !onToggleSpaceTool}
+            title={`빈 곳을 끌어 그 오른쪽(가로)·아래쪽(세로)을 밀어 공간을 넓히거나 줄인다. 한 번 쓰면 꺼진다 (${mac ? "⌥" : "Alt"}+끌기와 같다)`}
+            onClick={onToggleSpaceTool}
+          >
+            <IconArrowAutofitWidth size={14} aria-hidden="true" style={{ marginRight: "var(--spacing-xs)" }} />
+            공간
           </Button>
           <Button data-testid="flow-fit" onClick={onFit}>
             <IconArrowsMaximize size={14} aria-hidden="true" style={{ marginRight: "var(--spacing-xs)" }} />
