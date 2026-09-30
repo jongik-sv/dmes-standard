@@ -11,6 +11,8 @@ public class RuleSetSimulateResult {
 
     private Map<String, Object> trace;
     private List<Map<String, Object>> warnings;
+    /** 케이스 일괄 실행({@code runCases})의 케이스별 결과. 단건 실행이면 null. */
+    private List<Map<String, Object>> cases;
 
     public RuleSetSimulateResult() {
     }
@@ -19,6 +21,16 @@ public class RuleSetSimulateResult {
         this.trace = trace;
         this.warnings = warnings;
     }
+
+    public RuleSetSimulateResult(Map<String, Object> trace, List<Map<String, Object>> warnings, List<Map<String, Object>> cases) {
+        this.trace = trace;
+        this.warnings = warnings;
+        this.cases = cases;
+    }
+
+    public List<Map<String, Object>> getCases() { return cases; }
+
+    public void setCases(List<Map<String, Object>> v) { this.cases = v; }
 
     public Map<String, Object> getTrace() { return trace; }
     public List<Map<String, Object>> getWarnings() { return warnings; }

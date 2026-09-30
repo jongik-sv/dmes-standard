@@ -5,12 +5,12 @@
 정본: docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md, TSK-08-06 design.md §6.6·§6.12.
 
 action=search  -&gt; searchTask  (ruleSetEditService.search)  READ — target SET(세트 고르기)·RULE(룰 추가 후보 + 입출력)·GUIDE(구성 지침)
-action=view    -&gt; viewTask    (ruleSetEditService.view)    READ — 세트·멤버 입출력·검사·editable·restorable
-action=save    -&gt; saveTask    (ruleSetEditService.save)    EDIT — 서버 재계산 검사 통과 시 세트명·설명·룰 목록 저장(거부 MDM024)
+action=view    -&gt; viewTask    (ruleSetEditService.view)    READ — 세트·멤버 입출력·검사·editable·restorable (cases 포함)
+action=save    -&gt; saveTask    (ruleSetEditService.save)    EDIT — 서버 재계산 검사 통과 시 세트명·설명·룰 목록 저장(거부 MDM024) (part=CASE 케이스 저장·caseDeleted 삭제)
 action=delete  -&gt; deleteTask  (ruleSetEditService.delete)  EDIT — 폐기(INUSE -&gt; DEPRECATED)
 action=restore -&gt; restoreTask (ruleSetEditService.restore) EDIT — 되살리기(검사 통과 시 DEPRECATED -&gt; INUSE)
-action=validate -&gt; validateTask (ruleSetEditService.condIo)   EDIT — 편집 중 흐름의 IF 갈래 조건식 입력(params.flowJson, 원장에 쓰지 않음)
-action=execute  -&gt; executeTask  (ruleSetEditService.simulate) EDIT — 저장 전 흐름 기록 실행 = 디버거(params.flowJson·recordJson·evalTs, 엔진 스키마 RunTrace)
+action=validate -&gt; validateTask (ruleSetEditService.condIo)   EDIT — 편집 중 흐름의 IF 갈래 조건식 입력(params.flowJson, 원장에 쓰지 않음) (exprText 면 식 파싱)
+action=execute  -&gt; executeTask  (ruleSetEditService.simulate) EDIT — 저장 전 흐름 기록 실행 = 디버거(params.flowJson·recordJson·evalTs, 엔진 스키마 RunTrace) (runCases 면 케이스 일괄 실행)
 
 BPMN 의 action(RBAC 키)과 서비스의 method(자바 메서드명)는 별개다. search 의 갈래(target)는 Java 가 가른다(두 번째 게이트웨이 금지).
 세트에는 버전·DRAFT·선점이 없고 ROW_VERSION(MDM001)으로만 동시 편집을 막는다. 담당자 역할은 서버가 RuleStewardCheck 로 다시 본다(MDM013).</bpmn:documentation>
