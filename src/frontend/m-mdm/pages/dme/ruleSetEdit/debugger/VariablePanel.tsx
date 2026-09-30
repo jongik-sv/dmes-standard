@@ -157,26 +157,23 @@ export function VariablePanel({ sim, setId, flow, rules, selectedId, canParse, o
     <div className="rsf-var-panel" data-testid="var-panel">
       <section className="rsf-var-section" aria-label="조사식">
         <p className="rsf-dbg-title">조사식</p>
-        {watches.length === 0 ? (
-          <p className="rsf-panel-note">변수 표의 핀을 누르면 여기에 고정된다</p>
-        ) : (
-          <ul className="rsf-var-watches" data-testid="var-watches">
-            {watches.map((name) => {
-              const missing = !known.has(name.toLowerCase());
-              const v = last ? sim.valueAt(name) : undefined;
-              return (
-                <li key={name} className="rsf-var-watch" data-testid={`var-watch-${name}`} data-missing={missing ? "true" : "false"}>
-                  <code>{name}</code>
-                  {missing && <span style={badgeStyle("warning")}>없는 변수</span>}
-                  <span className="rsf-var-watch-value">{v === undefined ? "아직 없음" : typedText(v)}</span>
-                  <Button size="mini" data-testid={`var-watch-remove-${name}`} ariaLabel={`${name} 조사식 빼기`} title="조사식에서 뺀다" onClick={() => writeWatches(watches.filter((w) => w !== name))}>
-                    <IconX size={12} aria-hidden="true" />
-                  </Button>
-                </li>
-              );
+        <ul className="rsf-var-watches" data-testid="var-watches">
+          {watches.length === 0 && <li className="rsf-panel-note">변수 표의 핀을 누르면 여기에 고정된다</li>}
+          {watches.map((name) => {
+            const missing = !known.has(name.toLowerCase());
+            const v = last ? sim.valueAt(name) : undefined;
+            return (
+              <li key={name} className="rsf-var-watch" data-testid={`var-watch-${name}`} data-missing={missing ? "true" : "false"}>
+                <code>{name}</code>
+                {missing && <span style={badgeStyle("warning")}>없는 변수</span>}
+                <span className="rsf-var-watch-value">{v === undefined ? "아직 없음" : typedText(v)}</span>
+                <Button size="mini" data-testid={`var-watch-remove-${name}`} ariaLabel={`${name} 조사식 빼기`} title="조사식에서 뺀다" onClick={() => writeWatches(watches.filter((w) => w !== name))}>
+                  <IconX size={12} aria-hidden="true" />
+                </Button>
+              </li>
+            );
             })}
-          </ul>
-        )}
+        </ul>
       </section>
 
       <section className="rsf-var-section" aria-label="변수">
