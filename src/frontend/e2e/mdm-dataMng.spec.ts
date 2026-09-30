@@ -9,7 +9,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  *   M1 메뉴 이동 — 담당자(e2e_mdm_steward)로 로그인해 사이드바에서 화면을 연다(dmd 쓰기는 EDIT 세트라 담당자만, F2).
  *      고르기 전에는 오른쪽에 안내만 보인다.
  *   M2 목록 — 결과 그리드에 픽스처 행이 보인다. 행을 누르면 오른쪽 상세가 채워진다(옛 dataEdit 2번: 헤더·상태·카테고리 요약).
- *   M3 등록 — [신규] → 등록 폼(원천 UI 없음 R10) → 저장하면 같은 화면 오른쪽에 방금 만든 ID 의 상세가 뜬다(탭을 새로
+ *   M3 등록 — 목록 헤더 [데이터 등록] → 팝업 등록 폼(원천 UI 없음 R10) → [등록]하면 같은 화면 오른쪽에 방금 만든 ID 의 상세가 뜬다(탭을 새로
  *      열지 않는다, 옛 D7 인계 제거).
  *   M4 서버 오류 노출 — 중복 ID 재등록(MDM011 모달, F15 문구).
  *   M5 헤더 저장 1건 → 다시 불러온 값에 반영(옛 dataEdit 3번). M6 잘못된 키 패턴 정규식은 저장을 거부(옛 dataEdit 4번).
@@ -56,7 +56,7 @@ function waitAction(page: Page, action: string, service = "dataMng") {
   );
 }
 
-/** 화면 머리 버튼([조회]·[신규])은 testid 가 없어 머리 버튼 영역 안 라벨로 찾는다. */
+/** 화면 머리 버튼([조회])은 testid 가 없어 머리 버튼 영역 안 라벨로 찾는다. */
 const headerButton = (page: Page, name: string) =>
   page.locator(".page-layout__header-buttons:visible").getByRole("button", { name, exact: true });
 
@@ -79,8 +79,14 @@ async function selectRow(page: Page, id: string) {
   await expect(page.getByTestId("data-edit-id")).toHaveText(id, { timeout: 20_000 });
 }
 
+/** 목록 헤더 [데이터 등록] 으로 등록 팝업을 연다(열 때마다 새로 마운트되어 칸이 빈다). */
+async function openRegister(page: Page) {
+  await page.locator("#btn_data_reg").click();
+  await expect(page.getByTestId("data-mng-register-form")).toBeVisible({ timeout: 20_000 });
+}
+
 async function register(page: Page, id: string, name: string) {
-  await headerButton(page, "신규").click();
+  await openRegister(page);
   await page.getByTestId("data-mng-reg-id").fill(id);
   await page.getByTestId("data-mng-reg-name").fill(name);
   await page.getByTestId("data-mng-reg-pattern").fill("^[0-9A-Z]{1,20}$");
@@ -122,8 +128,8 @@ test.describe("mdm dmd/dataMng — 마루 데이터(조회·등록·수정 통�
     await page.screenshot({ path: screenshot("dmd-dataMng-detail.png") });
   });
 
-  test("M3 등록: [신규] → 등록하면 같은 화면 오른쪽에 방금 만든 ID 의 상세가 뜬다(탭을 새로 열지 않는다)", async ({ page }) => {
-    await headerButton(page, "신규").click();
+  test("M3 등록: [데이터 등록] 팝업에서 등록하면 같은 화면 오른쪽에 방금 만든 ID 의 상세가 뜬다(탭을 새로 열지 않는다)", async ({ page }) => {
+    await openRegister(page);
     // R10 — 등록 폼에 원천 선택 UI 자체가 없다(MDM 원천만 받는다, D1). 값은 고정 텍스트일 뿐 select·input·
     // combobox 같은 조작 가능한 컨트롤이 없어야 한다 — 나중에 누가 원천 선택 드롭다운을 더하면 이 단정이 걸린다.
     const sourceCell = page.getByTestId("data-mng-reg-source");
@@ -140,7 +146,7 @@ test.describe("mdm dmd/dataMng — 마루 데이터(조회·등록·수정 통�
     // 같은 탭 오른쪽에 그 ID 의 상세(BASE 카테고리 1행)가 뜨고 등록 폼은 닫힌다.
     await expect(page.getByTestId("data-edit-id")).toHaveText(NEW_ID, { timeout: 20_000 });
     await expect(page.getByTestId("data-edit-name")).toHaveValue("E2E 등록 테스트");
-    await expect(page.getByTestId("data-mng-reg-id")).toHaveCount(0);
+    await expect(page.getByTestId("data-mng-register-form")).toHaveCount(0);
     await expect(
       page.getByTestId("data-edit-categories").locator('.ag-center-cols-container .ag-row[row-id="BASE"]'),
     ).toBeVisible({ timeout: 20_000 });

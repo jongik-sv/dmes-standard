@@ -4,8 +4,8 @@
  * dataMng — 마루 데이터 조회·등록·수정 화면(2026-09-29 사용자 결정: dataMng+dataEdit 통합, D-104, codeMng 선례 D-101).
  *
  * 정본: 05 「화면」 마루 데이터 조회·등록, TSK-07-02 design.md §1·§2. 왼쪽은 목록(조회·행 클릭으로 선택), 오른쪽은
- * 선택한 데이터의 상세(헤더·라벨·카테고리 요약, 옛 dataEdit 본문 — `DataDetail.tsx`)이거나 [신규] 를 눌렀을 때의 등록
- * 폼이다. 새 탭을 열지 않는다 — 등록 뒤에도 같은 화면에서 방금 만든 데이터를 고른 채 보인다. 항목 편집은 [항목 편집 →]
+ * 선택한 데이터의 상세(헤더·라벨·카테고리 요약, 옛 dataEdit 본문 — `DataDetail.tsx`)다. 등록은 목록 헤더의
+ * [데이터 등록]이 여는 팝업(`components/DataRegisterForm.tsx`)에서 하며 팝업을 여닫아도 선택·상세는 그대로다. 새 탭을 열지 않는다 — 등록 뒤에도 같은 화면에서 방금 만든 데이터를 고른 채 보인다. 항목 편집은 [항목 편집 →]
  * 으로 dataItemMng 탭을 열어 `{ maruDataId }` 를 넘긴다.
  * 상세의 쓰기(저장·폐기)는 옛 dataEdit 그대로 `dataEdit` 서비스를 부르고 권한도 `canDoButton(rbac,"dataEdit",action)`
  * 으로 본다. 등록만 `canDoButton(rbac,"dataMng","reg")`. 진입 데이터는 handoff(openMdmPage) > snapshot 순서로 정한다.
@@ -21,9 +21,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import {
   ContentBody,
   ContentPanel,
-  DETAIL_LABEL_CELL,
-  DETAIL_TABLE_STYLE,
-  DETAIL_VALUE_CELL,
   ErrorModal,
   SearchArea,
   SearchField,
@@ -31,17 +28,19 @@ import {
   useUserButtonRbac,
 } from "@dk-oasis/shared/layout";
 import { AgDataGrid, GridPanel } from "@dk-oasis/shared/grid";
-import { Button, Input, Select } from "@dk-oasis/shared/form";
+import { Input, Select } from "@dk-oasis/shared/form";
+import { Modal } from "@dk-oasis/shared/modal";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { MdmPageLayout, openMdmPage, useMdmPageParams } from "@/shell";
 
 import { registerDataMng, searchDataMng } from "./api";
 import { buildDataMngColumns } from "./columns";
+import { DataRegisterForm } from "./components/DataRegisterForm";
 import { DataCategoryCard, DataHeaderCard, DataLabelsCard, mutedText, type Allowed } from "./DataDetail";
 import { deprecateData, saveHeader, viewDataEdit } from "./edit-api";
 import { headerFormOf, type DataEditView, type HeaderForm } from "./edit-types";
 import { ROW_VERSION_CONFLICT_PREFIX } from "./messages";
-import { LVL_CNT_OPTIONS, STATUS_OPTIONS, emptyRegForm, errorMessage, type DataMngRegForm, type DataMngRow } from "./types";
+import { STATUS_OPTIONS, errorMessage, type DataMngRegForm, type DataMngRow } from "./types";
 
 export interface DataMngPageProps {
   tabId?: string;
@@ -63,7 +62,7 @@ function DetailVeil({ stale, children }: { stale: boolean; children: ReactNode }
   );
 }
 
-type Mode = "none" | "detail" | "new";
+type Mode = "none" | "detail";
 
 function snapshotId(snapshot: unknown): string | null {
   if (snapshot && typeof snapshot === "object" && "maruDataId" in snapshot) {
@@ -89,14 +88,12 @@ export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataM
   // ── 화면 모드·선택 ──
   const [mode, setMode] = useState<Mode>("none");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [regForm, setRegForm] = useState<DataMngRegForm>(emptyRegForm);
+  const [isRegOpen, setIsRegOpen] = useState(false);
   // 응답 가드용 — 지금 고른 데이터와 상세 요청 순번. 선택을 바꾸거나 새 상세 요청을 낼 때마다 순번을 올린다.
   const selectedIdRef = useRef<string | null>(null);
   const detailSeq = useRef(0);
   // 진행 중인 쓰기 수 — 0 이 아니면 목록 행 클릭을 받지 않는다.
   const writing = useRef(0);
-  // [신규] 를 누르기 전 선택 — [취소] 로 돌아간다.
-  const beforeNew = useRef<string | null>(null);
 
   // ── 오른쪽 상세(옛 dataEdit) ──
   const [view, setView] = useState<DataEditView | null>(null);
@@ -154,7 +151,7 @@ export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataM
   );
 
   /**
-   * 선택을 바꾸는 유일한 길(목록 행·handoff·snapshot·[신규]·[취소]·조회 실패). 순번을 올려 이전 데이터로 가던 응답이
+   * 선택을 바꾸는 유일한 길(목록 행·handoff·snapshot·조회 실패). 순번을 올려 이전 데이터로 가던 응답이
    * 도착해도 버려지게 한다. keepDetail 이면 이전 상세를 새 상세가 올 때까지 잠근 채 남기고(`stale`), 아니면 바로 비운다.
    */
   const select = useCallback((next: string | null, nextMode: Mode, keepDetail = false) => {
@@ -217,28 +214,11 @@ export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataM
     [chooseDetail],
   );
 
-  const startNew = useCallback(() => {
-    // 이미 등록 폼이면 처음 [신규] 전의 선택을 그대로 둔다.
-    if (mode !== "new") beforeNew.current = selectedIdRef.current;
-    select(null, "new");
-    setRegForm(emptyRegForm());
-    clearSnapshotId();
-  }, [mode, select, clearSnapshotId]);
-
-  const cancelNew = useCallback(() => {
-    const prev = beforeNew.current;
-    beforeNew.current = null;
-    setRegForm(emptyRegForm());
-    if (prev) void chooseDetail(prev);
-    else select(null, "none");
-  }, [chooseDetail, select]);
-
   // 진입 값: handoff(마운트 때·자기 탭 재활성화 때마다) > snapshot. handoff 는 목록도 함께 조회한다 — 이미 열린 탭이
   // 다시 handoff 를 받을 때 방금 등록된 데이터가 목록에 보이도록.
   useMdmPageParams(COMPONENT_PATH, tabId, (params) => {
     if (params.maruDataId) {
       handedOff.current = true;
-      beforeNew.current = null;
       setId("");
       setName("");
       setStatus("");
@@ -310,34 +290,33 @@ export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataM
     openMdmPage("dmd/dataItemMng", { maruDataId: view.maruDataId });
   }, [view]);
 
-  // ── 등록(옛 dataMng 등록 카드) ──
-  const setRegField = useCallback((key: keyof DataMngRegForm, value: string) => {
-    setRegForm((prev) => ({ ...prev, [key]: value }));
-  }, []);
-
-  const handleRegister = useCallback(async () => {
-    if (!regForm.maruDataId.trim() || !regForm.maruDataName.trim() || !regForm.codePattern.trim()) {
-      setError({ message: "마루 데이터 ID·이름·키 패턴을 입력하세요.", reload: false });
-      return;
-    }
-    writing.current += 1;
-    begin();
-    try {
-      const result = await registerDataMng(regForm);
-      showMessage({ message: "등록했습니다", toast: true });
-      const registeredId = result.maruDataId ?? regForm.maruDataId.trim();
-      setRegForm(emptyRegForm());
-      beforeNew.current = null;
-      await reloadList();
-      // 새 데이터의 상세가 올 때까지 busy 를 쥐고 있는다 — 그 전에 풀리면 안내 문구가 잠깐 보인다.
-      await chooseDetail(registeredId);
-    } catch (e) {
-      fail(e);
-    } finally {
-      writing.current -= 1;
-      end();
-    }
-  }, [regForm, begin, end, reloadList, chooseDetail, showMessage, fail]);
+  // ── 등록(팝업) ──
+  // 성공하면 팝업을 닫고 새 데이터를 고른다. 실패하면 팝업을 입력값과 함께 열어 둔 채 오류창을 위에 띄운다.
+  const handleRegister = useCallback(
+    async (regForm: DataMngRegForm) => {
+      if (!regForm.maruDataId.trim() || !regForm.maruDataName.trim() || !regForm.codePattern.trim()) {
+        setError({ message: "마루 데이터 ID·이름·키 패턴을 입력하세요.", reload: false });
+        return;
+      }
+      writing.current += 1;
+      begin();
+      try {
+        const result = await registerDataMng(regForm);
+        showMessage({ message: "등록했습니다", toast: true });
+        const registeredId = result.maruDataId ?? regForm.maruDataId.trim();
+        setIsRegOpen(false);
+        await reloadList();
+        // 새 데이터의 상세가 올 때까지 busy 를 쥐고 있는다 — 그 전에 풀리면 안내 문구가 잠깐 보인다.
+        await chooseDetail(registeredId);
+      } catch (e) {
+        fail(e);
+      } finally {
+        writing.current -= 1;
+        end();
+      }
+    },
+    [begin, end, reloadList, chooseDetail, showMessage, fail],
+  );
 
   const columns = useMemo(() => buildDataMngColumns(), []);
 
@@ -356,7 +335,6 @@ export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataM
       title="마루 데이터"
       buttons={[
         { id: "btn_search", label: "조회", onClick: handleSearch, type: "primary" as const, disabled: listLoading, action: "search" },
-        ...(canReg ? [{ id: "btn_new", label: "신규", onClick: startNew, disabled: busy || listLoading, action: "reg" }] : []),
       ]}
     >
       <SearchArea onSearch={handleSearch}>
@@ -389,7 +367,19 @@ export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataM
         <ContentPanel key="list" width="42%">
           <div data-testid="data-mng-list" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
             <div style={{ flex: 1, minHeight: 0 }}>
-              <GridPanel title="마루 데이터 목록" count={rows.length}>
+              <GridPanel
+                title="마루 데이터 목록"
+                count={rows.length}
+                buttons={[
+                  {
+                    id: "btn_data_reg",
+                    label: "데이터 등록",
+                    onClick: () => setIsRegOpen(true),
+                    // 권한이 없으면 숨기지 않고 비활성으로 둔다.
+                    disabled: !canReg || busy || listLoading,
+                  },
+                ]}
+              >
                 <AgDataGrid
                   columnSizing="fit"
                   columns={columns}
@@ -438,89 +428,6 @@ export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataM
               </DetailVeil>
             </ContentPanel>
           </ContentBody>
-        ) : mode === "new" ? (
-          <ContentPanel key="right" flex="1 1 0">
-            <p style={{ padding: "var(--spacing-sm) var(--spacing-md) 0", fontWeight: 600 }}>마루 데이터 등록</p>
-            <table style={DETAIL_TABLE_STYLE}>
-              <tbody>
-                <tr>
-                  <th style={DETAIL_LABEL_CELL}>마루 데이터 ID *</th>
-                  <td style={DETAIL_VALUE_CELL}>
-                    <Input
-                      data-testid="data-mng-reg-id"
-                      value={regForm.maruDataId}
-                      maxLength={50}
-                      disabled={busy}
-                      onChange={(v) => setRegField("maruDataId", v)}
-                    />
-                    <span style={mutedText}>영문 대문자·숫자·_ 만. 점·공백·콤마 불가. 마루 코드 ID 와 한 이름 공간</span>
-                  </td>
-                </tr>
-                <tr>
-                  <th style={DETAIL_LABEL_CELL}>이름 *</th>
-                  <td style={DETAIL_VALUE_CELL}>
-                    <Input
-                      data-testid="data-mng-reg-name"
-                      value={regForm.maruDataName}
-                      maxLength={100}
-                      disabled={busy}
-                      onChange={(v) => setRegField("maruDataName", v)}
-                    />
-                  </td>
-                </tr>
-                <tr>
-                  <th style={DETAIL_LABEL_CELL}>키 패턴 *</th>
-                  <td style={DETAIL_VALUE_CELL}>
-                    <Input
-                      data-testid="data-mng-reg-pattern"
-                      value={regForm.codePattern}
-                      disabled={busy}
-                      onChange={(v) => setRegField("codePattern", v)}
-                    />
-                    <span style={mutedText}>항목 키 형식 정규식</span>
-                  </td>
-                </tr>
-                <tr>
-                  <th style={DETAIL_LABEL_CELL}>설명</th>
-                  <td style={DETAIL_VALUE_CELL}>
-                    <Input
-                      data-testid="data-mng-reg-desc"
-                      value={regForm.description}
-                      disabled={busy}
-                      onChange={(v) => setRegField("description", v)}
-                    />
-                  </td>
-                </tr>
-                <tr>
-                  <th style={DETAIL_LABEL_CELL}>계층 칸 수</th>
-                  <td style={DETAIL_VALUE_CELL}>
-                    <Select
-                      data-testid="data-mng-reg-lvl"
-                      value={regForm.lvlCnt}
-                      options={LVL_CNT_OPTIONS}
-                      disabled={busy}
-                      onChange={(v) => setRegField("lvlCnt", v)}
-                    />
-                  </td>
-                </tr>
-                <tr>
-                  <th style={DETAIL_LABEL_CELL}>원천</th>
-                  <td style={DETAIL_VALUE_CELL}>
-                    <span data-testid="data-mng-reg-source">MDM</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <div style={{ display: "flex", gap: "var(--spacing-sm)", justifyContent: "flex-end", padding: "var(--spacing-sm) var(--spacing-md)" }}>
-              {/* [취소] 는 폼을 닫고 [신규] 전의 선택(있으면)이나 안내로 돌아간다. */}
-              <Button data-testid="data-mng-reg-cancel" disabled={busy} onClick={cancelNew}>
-                취소
-              </Button>
-              <Button data-testid="data-mng-reg-save" variant="primary" disabled={busy || !canReg} onClick={() => void handleRegister()}>
-                저장
-              </Button>
-            </div>
-          </ContentPanel>
         ) : mode === "detail" ? (
           <ContentPanel key="right" flex="1 1 0">
             <p data-testid="detail-loading" style={{ padding: "var(--spacing-md)", ...mutedText }}>상세를 불러오는 중입니다</p>
@@ -528,11 +435,31 @@ export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataM
         ) : (
           <ContentPanel key="right" flex="1 1 0">
             <p data-testid="data-mng-empty" style={{ padding: "var(--spacing-md)", ...mutedText }}>
-              목록에서 마루 데이터를 고르거나 [신규] 를 누르세요
+              목록에서 마루 데이터를 고르거나 [데이터 등록] 을 누르세요
             </p>
           </ContentPanel>
         )}
       </ContentBody>
+
+      {/* 열 때만 마운트한다 — 열 때마다 칸이 비고, ErrorModal 보다 먼저 그려 오류창이 위에 뜬다.
+          오류창이 떠 있는 동안에는 Escape 한 번에 두 창이 함께 닫히지 않도록 팝업의 닫기를 무시한다(Local-Rules §18). */}
+      {isRegOpen && (
+        <Modal
+          open
+          title="마루 데이터 등록"
+          size="md"
+          onClose={() => {
+            if (!error) setIsRegOpen(false);
+          }}
+        >
+          <DataRegisterForm
+            busy={busy}
+            canRegister={canReg}
+            onSubmit={(f) => void handleRegister(f)}
+            onCancel={() => setIsRegOpen(false)}
+          />
+        </Modal>
+      )}
 
       {error && (
         <ErrorModal

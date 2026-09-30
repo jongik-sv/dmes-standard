@@ -1,7 +1,7 @@
 /** @vitest-environment happy-dom */
 
 // TSK-07-02 design.md §3.2·§4 — dataMng 통합 화면(D-104, dataMng+dataEdit) 렌더 스모크: 목록 행 클릭으로 상세 교체,
-// [신규] 등록 폼 전환·등록 뒤 상세 선택, handoff·snapshot 진입, 헤더 저장, MDM001 오류 모달, 항목 편집 이동 파라미터.
+// [데이터 등록] 팝업·등록 뒤 상세 선택, handoff·snapshot 진입, 헤더 저장, MDM001 오류 모달, 항목 편집 이동 파라미터.
 // codeMng/code-mng-page.test.ts 선례.
 import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -47,6 +47,8 @@ function viewResult(overrides: Record<string, unknown> = {}) {
 let nextView: (id: string) => unknown = (id) => viewResult({ maruDataId: id });
 let searchList: unknown[] = [];
 let regResponse: unknown = null;
+let rbacRows: Array<Record<string, string>> = [{ objId: "*", action: "*", endpoint: "*", httpMethod: "*" }];
+const ALL_RBAC = rbacRows;
 const LIST = [
   { maruDataId: "PORT", maruDataName: "항구", sourceKind: "MDM", status: "INUSE" },
   { maruDataId: "SHIP", maruDataName: "선박", sourceKind: "MDM", status: "INUSE" },
@@ -107,12 +109,14 @@ async function typeInto(testId: string, value: string) {
 }
 
 
-/** 상단 버튼은 testid 가 없다(btn.id 는 DOM 에 안 나간다) — 라벨로 찾는다. */
-async function clickPageButton(label: string) {
-  const btn = Array.from(document.body.querySelectorAll(".page-layout__header-buttons button")).find(
-    (b) => b.textContent === label,
-  ) as HTMLButtonElement | undefined;
-  expect(btn, label).toBeTruthy();
+/** 목록 헤더 [데이터 등록] 버튼 — GridPanel 머리 안(container)에서 라벨로 찾는다. */
+function regButton(): HTMLButtonElement | undefined {
+  return Array.from(container.querySelectorAll("button")).find((b) => b.textContent === "데이터 등록") as HTMLButtonElement | undefined;
+}
+
+async function openRegister() {
+  const btn = regButton();
+  expect(btn, "데이터 등록").toBeTruthy();
   await act(async () => {
     btn!.click();
   });
@@ -139,6 +143,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
     calls.length = 0;
     viewName = "항구";
     searchList = LIST;
+    rbacRows = ALL_RBAC;
     nextView = (id) => viewResult({ maruDataId: id, maruDataName: id === "PORT" ? viewName : "선박" });
     saveResponse = { meta: { success: true }, data: { result: viewResult() } };
     regResponse = { meta: { success: true }, data: { result: { maruDataId: "NEWID" } } };
@@ -147,7 +152,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
       const body = init?.body ? JSON.parse(String(init.body)) : {};
       if (url.includes("/api/auth/me")) return jsonResponse({ user: { id: "tester" } });
       if (url.includes("/api/mcm/oasis/secUser/myButtonEndpoints")) {
-        return jsonResponse({ grids: { buttons: { rows: [{ objId: "*", action: "*", endpoint: "*", httpMethod: "*" }] } } });
+        return jsonResponse({ grids: { buttons: { rows: rbacRows } } });
       }
       const m = url.match(/\/oasis\/(\w+)\/(\w+)/);
       if (m) {
@@ -221,19 +226,43 @@ describe("DataMngPage(dataEdit 통합)", () => {
     expect(nameValue()).toBe("선박");
   });
 
-  it("[신규] 를 누르면 선택이 풀리고 등록 폼이 보이며, [취소] 는 이전 선택의 상세로 돌아간다", async () => {
+  it("팝업을 열기 전에는 등록 폼이 DOM 에 없다", async () => {
+    await render();
+    expect(byTestId("data-mng-register-form")).toBeNull();
+    expect(byTestId("data-mng-reg-id")).toBeNull();
+  });
+
+  it("[데이터 등록] 을 누르면 팝업에 등록 폼이 뜨고, [취소] 는 팝업만 닫으며 선택·상세는 그대로다", async () => {
     await render();
     await clickListRow("PORT");
-    expect(byTestId("data-edit-name")).toBeTruthy();
+    expect(nameValue()).toBe("항구");
 
-    await clickPageButton("신규");
-    expect(byTestId("data-edit-name")).toBeNull();
+    await openRegister();
+    expect(byTestId("data-mng-register-form")).toBeTruthy();
     expect(byTestId("data-mng-reg-id")).toBeTruthy();
     expect(byTestId("data-mng-reg-source")?.textContent).toBe("MDM");
+    expect(byTestId("data-edit-name") ? nameValue() : null).toBe("항구");
 
     await click(byTestId("data-mng-reg-cancel"));
-    expect(byTestId("data-mng-reg-id")).toBeNull();
+    expect(byTestId("data-mng-register-form")).toBeNull();
     expect(nameValue()).toBe("항구");
+    expect(actions("dataEdit", "view").map((c) => c.params.maruDataId)).toEqual(["PORT"]);
+  });
+
+  it("팝업은 열 때마다 빈 칸으로 시작한다", async () => {
+    await render();
+    await openRegister();
+    await typeInto("data-mng-reg-id", "KEEP");
+    await click(byTestId("data-mng-reg-cancel"));
+    await openRegister();
+    expect((byTestId("data-mng-reg-id") as HTMLInputElement).value).toBe("");
+  });
+
+  it("권한이 없으면 [데이터 등록] 은 보이되 비활성이다", async () => {
+    rbacRows = ["search", "view"].map((action) => ({ objId: "dataMng", action, endpoint: "*", httpMethod: "*" }));
+    await render();
+    expect(regButton()).toBeTruthy();
+    expect(regButton()!.disabled).toBe(true);
   });
 
   it("등록하면 같은 화면에서 새 데이터를 고른 채 상세를 보인다(dataEdit 탭을 열지 않는다)", async () => {
@@ -243,7 +272,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
     try {
       nextView = (id) => viewResult({ maruDataId: id, maruDataName: "새 이름" });
       await render();
-      await clickPageButton("신규");
+      await openRegister();
       await typeInto("data-mng-reg-id", "NEWID");
       await typeInto("data-mng-reg-name", "새 이름");
       await typeInto("data-mng-reg-pattern", "^[A-Z]+$");
@@ -254,7 +283,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
       });
       expect(actions("dataEdit", "view").map((c) => c.params.maruDataId)).toEqual(["NEWID"]);
       expect(nameValue()).toBe("새 이름");
-      expect(byTestId("data-mng-reg-id")).toBeNull();
+      expect(byTestId("data-mng-register-form")).toBeNull();
       expect(actions("dataMng", "search")).toHaveLength(2);
       expect(opened).toHaveLength(0);
     } finally {
@@ -264,10 +293,24 @@ describe("DataMngPage(dataEdit 통합)", () => {
 
   it("등록 필수값이 비면 서버를 부르지 않고 오류 모달을 보인다", async () => {
     await render();
-    await clickPageButton("신규");
+    await openRegister();
     await click(byTestId("data-mng-reg-save"));
     expect(actions("dataMng", "reg")).toHaveLength(0);
     expect(visibleText(document.body)).toContain("마루 데이터 ID·이름·키 패턴을 입력하세요.");
+    expect(byTestId("data-mng-register-form")).toBeTruthy(); // 팝업은 열린 채 오류창이 위에 뜬다
+  });
+
+  it("등록이 실패하면 팝업이 입력값을 유지한 채 열려 있다", async () => {
+    regResponse = { meta: { success: false, message: "같은 ID 가 이미 있습니다" } };
+    await render();
+    await openRegister();
+    await typeInto("data-mng-reg-id", "PORT");
+    await typeInto("data-mng-reg-name", "중복");
+    await typeInto("data-mng-reg-pattern", "^[A-Z]+$");
+    await click(byTestId("data-mng-reg-save"));
+    expect(visibleText(document.body)).toContain("같은 ID 가 이미 있습니다");
+    expect((byTestId("data-mng-reg-id") as HTMLInputElement).value).toBe("PORT");
+    expect(actions("dataEdit", "view")).toHaveLength(0);
   });
 
   it("handoff 로 받은 ID 의 상세를 목록 조회와 함께 골라 둔다", async () => {

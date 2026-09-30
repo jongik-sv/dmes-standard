@@ -50,7 +50,7 @@ TSK-07-01(엔티티·저장 계약)과 TSK-07-03(선분 저장 코어 `DataItemS
 잠금 뒤 재조회 값으로만 판정)을 그대로 따른다.
 
 세 화면의 책임 경계:
-- **dataMng**(조회+등록): `TB_MDM_DATA` 조회, MDM 원천 등록(TB_MDM_DATA INUSE + CATE BASE 한 트랜잭션, F6·F7·F8). 등록 뒤
+- **dataMng**(조회+등록; 2026-09-30 팝업 전환 — 등록은 오른쪽 인라인 폼·[신규]가 아니라 목록 헤더 [데이터 등록]이 여는 팝업에서 하고, 팝업을 여닫아도 선택·상세는 그대로): `TB_MDM_DATA` 조회, MDM 원천 등록(TB_MDM_DATA INUSE + CATE BASE 한 트랜잭션, F6·F7·F8). 등록 뒤
   프런트가 dataEdit 로 이동한다(라우팅, 서버 책임 아님).
 - **dataEdit**(수정): 헤더(이름·설명·키 패턴)·계층 칸 수·추가 컬럼 라벨을 한 저장 액션으로 묶어 저장(04 `saveHeader` 선례,
   F9). 카테고리 목록은 **읽기 전용 카드**로만 보여준다(매칭 건수 포함) — 카테고리 자체의 등록·정의 수정·닫기·다시열기·소속
@@ -182,7 +182,7 @@ OBJECT 마다 동일하게 시드되므로 권한 문제가 없다, F3). `dataEd
 | R7 | DEPRECATED 인 마루 데이터는 dataEdit 의 헤더·라벨·lvl_cnt·폐기(재시도)를 전부 거부한다(검사1, `DataItemChecks.requireActive` 재사용). dataCateEdit 의 등록/수정/닫기/다시열기/소속 편집도 결국 거부된다 — 단 이 Task 가 직접 그 검사를 호출하는 게 아니라 `DataCategorySegmentCore` 내부의 `requireActive` 가 이미 그렇게 한다(R2′와 같은 이유로 이 Task 는 재검사를 추가하지 않는다) | `DataEditServiceSqliteTest`(직접 호출), `DataCateEditServiceSqliteTest`(DEPRECATED 마루 데이터에 카테고리 등록 시도 → 거부되는 것을 서비스 경유로 확인 — 검사 로직 자체는 재테스트하지 않는다, 이미 TSK-07-03 소유) |
 | R8 | `DataItemChecks.cateDefIssues` 등 TSK-07-03 소유 공용 코어 파일은 시그니처·검사 내용을 바꾸지 않는다(F11) — LVLn/ATTRn 라벨 정합은 FE 제한으로만 막는다(D5) | 없음(정적 — 코드 리뷰로만. TSK-07-03 의 `DataItemChecksTest` 가 그대로 통과하면 이 규칙이 지켜진 것이다) |
 | R9 | 배포 순번(`chg_seq`/`last_chg_seq`)을 발급하지 않는다(F14, TSK-07-04 몫) — 등록 직후 `TB_MDM_DATA.last_chg_seq`·`chg_seq`·`TB_MDM_DATA_CATE.chg_seq` 는 여전히 0 이다 | `DataMngServiceSqliteTest`(등록 뒤 두 칸 모두 0 인지 직접 SELECT 로 확인) |
-| R10 | 등록은 MDM 원천만 받는다(spec 문언) — `SOURCE_KIND='MDM'` 고정, `SOURCE_SYSTEM` 은 항상 NULL, EXTERNAL 마루 데이터 생성 UI 를 만들지 않는다 | `DataMngServiceSqliteTest`(등록 뒤 두 칼럼 값 확인), `mdm-dataMng.spec.ts`(등록 폼에 원천 선택 UI 자체가 없음) |
+| R10 | 등록은 MDM 원천만 받는다(spec 문언) — `SOURCE_KIND='MDM'` 고정, `SOURCE_SYSTEM` 은 항상 NULL, EXTERNAL 마루 데이터 생성 UI 를 만들지 않는다 | `DataMngServiceSqliteTest`(등록 뒤 두 칼럼 값 확인), `mdm-dataMng.spec.ts`(등록 팝업 폼에 원천 선택 UI 자체가 없음) |
 | R11 | `lvl_cnt` 축소는 **`latestItemRows(maruDataId)`(키별 마지막 행, 닫힌 키 포함)** 를 스캔해 줄일 칸(`newLvlCnt+1..5`) 가운데 값이 있는 행이 하나도 없을 때만 허용한다. 늘리기는 항상 허용(F11 각주 대상 아님, 05 문서 원문) | `DataEditServiceSqliteTest`(열린 행에 값 있음 → 거부, 닫힌 행에만 값 있음 → 거부(닫힌 행도 스캔 대상), 아무 행에도 값 없음 → 허용, 늘리기는 항상 허용) — 스캔 범위는 D6 참고 |
 | R12 | TABLE 소속 일괄 적용은 전부-아니면-전무다(추가·해제 목록 중 하나라도 실패하면 전체 롤백) | `DataCateEditServiceSqliteTest`(정상 코드와 존재하지 않는 코드를 섞어 보내 전체가 롤백됨을 확인 — 성공한 것처럼 보이는 부분 반영이 없어야 한다) |
 

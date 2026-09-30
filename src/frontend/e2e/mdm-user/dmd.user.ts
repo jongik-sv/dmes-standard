@@ -28,7 +28,7 @@ import {
  * 마루 MDM 사용자 여정 E2E — dmd(마스터데이터) 그룹.
  *
  * 화면(2026-09-29 통합 D-104): 마루 데이터(dataMng — 옛 마루 데이터 수정 dataEdit 를 흡수: 목록 행 클릭 → 오른쪽 상세,
- * [신규] → 오른쪽 등록 폼) · 항목 편집(dataItemMng — 옛 카테고리 편집 dataCateEdit·항목 이력 dataHistory 를 흡수: 탭
+ * 목록 헤더 [데이터 등록] → 등록 팝업) · 항목 편집(dataItemMng — 옛 카테고리 편집 dataCateEdit·항목 이력 dataHistory 를 흡수: 탭
  * [항목]·[트리]·[카테고리], 오른쪽 열에 항목 이력·카테고리 이력) · CSV 업로드 팝업(dataCsvUploadPop — 항목 편집의
  * [항목] 탭 "CSV 업로드" 버튼으로 연다). dataEdit·dataCateEdit·dataHistory 는 메뉴·화면이 없다.
  *
@@ -123,9 +123,21 @@ async function expectErrorModal(page: Page, text: string | RegExp, shot?: string
   await expect(m.locator(".error-modal__body")).toHaveCount(0);
 }
 
-/** 화면 머리 버튼([조회]·[신규])만 — 화면 본문 안 같은 이름 버튼(카테고리 이력의 [조회])과 섞이지 않게 한다. */
+/** 화면 머리 버튼([조회])만 — 화면 본문 안 같은 이름 버튼(카테고리 이력의 [조회])과 섞이지 않게 한다. */
 const headerBtn = (page: Page, name: string) =>
   page.locator(".page-layout__header-buttons:visible").getByRole("button", { name, exact: true });
+
+/** 마루 데이터 목록 헤더 [데이터 등록] 으로 등록 팝업을 연다(열 때마다 새로 마운트되어 칸이 빈다). */
+async function openRegPopup(page: Page) {
+  await page.locator("#btn_data_reg").click();
+  await expect(tid(page, "data-mng-register-form")).toBeVisible({ timeout: 20_000 });
+}
+
+/** 등록 팝업을 [취소]로 닫는다 — 팝업이 떠 있는 동안에는 뒤 화면이 눌리지 않는다. */
+async function cancelRegPopup(page: Page) {
+  await tid(page, "data-mng-reg-cancel").click();
+  await expect(tid(page, "data-mng-register-form")).toHaveCount(0, { timeout: 20_000 });
+}
 
 /**
  * 행을 누르고 상세 조회(dataEdit/view) 응답이 올 때까지 기다린다. 이미 고른 행을 다시 누르면 상세가 그대로 떠 있어
@@ -150,12 +162,10 @@ async function selectMng(page: Page, id: string) {
 }
 
 /**
- * 상세를 서버에서 다시 불러온다 — [신규] 로 선택을 비운 뒤 같은 행을 다시 누른다(옛 화면의 [조회] 재조회와 같은 확인).
+ * 상세를 서버에서 다시 불러온다 — 이미 고른 행을 다시 누르면 상세를 다시 부른다(옛 화면의 [조회] 재조회와 같은 확인).
  * 목록 조건은 그대로라 그 행이 보이는 상태여야 한다.
  */
 async function reselectMng(page: Page, id: string) {
-  await headerBtn(page, "신규").click();
-  await expect(tid(page, "data-mng-reg-id")).toBeVisible();
   const row = gridRow(tid(page, "data-mng-list"), id, "maruDataId");
   await expect(row).toBeVisible({ timeout: 20_000 });
   await clickRowAndAwaitView(page, row);
@@ -170,10 +180,10 @@ interface MaruDataInput {
   desc?: string;
 }
 
-/** 마루 데이터 화면에서 [신규] 로 등록한다 — 성공하면 같은 화면 오른쪽에 그 ID 의 상세가 뜬다(탭을 새로 열지 않는다). */
+/** 마루 데이터 화면에서 [데이터 등록] 팝업으로 등록한다 — 성공하면 팝업이 닫히고 같은 화면 오른쪽에 그 ID 의 상세가 뜬다(탭을 새로 열지 않는다). */
 async function registerMaruData(page: Page, d: MaruDataInput) {
   await openDmd(page, "마루 데이터", "dataMng");
-  await headerBtn(page, "신규").click();
+  await openRegPopup(page);
   await tid(page, "data-mng-reg-id").fill(d.id);
   await tid(page, "data-mng-reg-name").fill(d.name);
   await tid(page, "data-mng-reg-pattern").fill(KEY_PATTERN);
@@ -181,6 +191,7 @@ async function registerMaruData(page: Page, d: MaruDataInput) {
   await tid(page, "data-mng-reg-lvl").selectOption(d.lvl);
   await tid(page, "data-mng-reg-save").click();
   await expectToast(page, "등록했습니다");
+  await expect(tid(page, "data-mng-register-form")).toHaveCount(0, { timeout: 20_000 });
   await expect(footerScreenId(page)).toHaveText("dataMng");
   await expect(tid(page, "data-edit-id")).toHaveText(d.id, { timeout: 20_000 });
   await expect(tid(page, "data-edit-name")).toHaveValue(d.name);
@@ -329,11 +340,11 @@ test.describe("A 마루 데이터 등록·조회·수정", () => {
     await openDmd(page, "마루 데이터", "dataMng");
     await expect(breadcrumb(page)).toContainText("마루 MDM > 마스터데이터 > 마루 데이터");
     await expect(tid(page, "data-mng-list").locator(".grid-panel-title")).toContainText("마루 데이터 목록");
-    // 고르기 전에는 오른쪽에 안내만 있다 — 상세도 등록 폼도 없다.
-    await expect(tid(page, "data-mng-empty")).toHaveText("목록에서 마루 데이터를 고르거나 [신규] 를 누르세요");
+    // 고르기 전에는 오른쪽에 안내만 있다 — 상세도 없고 등록 팝업도 닫혀 있다.
+    await expect(tid(page, "data-mng-empty")).toHaveText("목록에서 마루 데이터를 고르거나 [데이터 등록] 을 누르세요");
     await expect(tid(page, "data-edit-id")).toHaveCount(0);
-    await expect(tid(page, "data-mng-reg-id")).toHaveCount(0);
-    await expect(headerBtn(page, "신규")).toBeEnabled();
+    await expect(tid(page, "data-mng-register-form")).toHaveCount(0);
+    await expect(page.locator("#btn_data_reg")).toBeEnabled();
     // 삭제 수단은 없다 — 폐기는 상세에서 한다(고른 뒤에만 보인다).
     await expect(screen(page).getByRole("button", { name: /삭제|폐기/ })).toHaveCount(0);
     await layout.layout(page, "dataMng 초기");
@@ -341,16 +352,16 @@ test.describe("A 마루 데이터 등록·조회·수정", () => {
     watcher.assertClean("dataMng");
   });
 
-  test("TC-DMD-MNG-02 [신규] 등록 폼 배치, 필수값 누락·잘못된 ID 형식은 알아듣기 쉬운 문구로 막힌다", async () => {
-    await headerBtn(page, "신규").click();
-    await expect(tid(page, "data-mng-empty")).toHaveCount(0);
+  test("TC-DMD-MNG-02 [데이터 등록] 팝업 배치, 필수값 누락·잘못된 ID 형식은 알아듣기 쉬운 문구로 막힌다", async () => {
+    await openRegPopup(page);
+    // 팝업은 뒤 화면(안내)을 바꾸지 않는다.
+    await expect(tid(page, "data-mng-empty")).toBeVisible();
     // 원천은 MDM 고정 글자일 뿐 고를 수 있는 컨트롤이 없다(R10).
     await expect(tid(page, "data-mng-reg-source")).toHaveText("MDM");
     await expect(tid(page, "data-mng-reg-source").locator("select, input, [role='combobox']")).toHaveCount(0);
     // 계층 칸 수 기본값 0, 선택지 0~5.
     await expect(tid(page, "data-mng-reg-lvl")).toHaveValue("0");
     await expect(tid(page, "data-mng-reg-lvl").locator("option")).toHaveText(["0", "1", "2", "3", "4", "5"]);
-    await layout.layout(page, "dataMng 등록 폼");
     await snap(page, "dmd-dataMng-02-form");
 
     await tid(page, "data-mng-reg-save").click();
@@ -366,7 +377,8 @@ test.describe("A 마루 데이터 등록·조회·수정", () => {
     await tid(page, "data-mng-reg-save").click();
     await expectErrorModal(page, "점·콤마·공백을 쓸 수 없습니다");
     expectOnly4xx(watcher, "dataMng 검증");
-    // 실패한 등록은 목록에 남지 않는다.
+    // 팝업이 떠 있으면 뒤 화면이 눌리지 않으므로 [취소]로 닫고 조회한다. 실패한 등록은 목록에 남지 않는다.
+    await cancelRegPopup(page);
     await tid(page, "data-mng-search-id").fill("E2E.USR");
     await headerBtn(page, "조회").click();
     await expect(tid(page, "data-mng-list-empty")).toHaveText("조회된 마루 데이터가 없습니다");
@@ -374,8 +386,10 @@ test.describe("A 마루 데이터 등록·조회·수정", () => {
     watcher.assertClean("dataMng");
   });
 
-  test("TC-DMD-MNG-03 등록(C) — 입력 후 저장하면 토스트가 뜨고 같은 화면 오른쪽에 그 ID 의 상세가 뜬다", async () => {
-    // 앞 단계에서 등록 폼이 열려 있다 — 값을 덮어 쓴다.
+  test("TC-DMD-MNG-03 등록(C) — 팝업에서 입력 후 등록하면 토스트가 뜨고 같은 화면 오른쪽에 그 ID 의 상세가 뜬다", async () => {
+    await openRegPopup(page);
+    // 팝업은 열 때마다 새로 마운트되어 앞 단계의 입력이 남아 있지 않다.
+    await expect(tid(page, "data-mng-reg-id")).toHaveValue("");
     await tid(page, "data-mng-reg-id").fill(MD);
     await tid(page, "data-mng-reg-name").fill(NAME);
     await tid(page, "data-mng-reg-pattern").fill(KEY_PATTERN);
@@ -385,9 +399,9 @@ test.describe("A 마루 데이터 등록·조회·수정", () => {
     await tid(page, "data-mng-reg-save").click();
     await expectToast(page, "등록했습니다");
 
-    // 탭을 새로 열지 않는다 — 같은 dataMng 화면에서 등록 폼이 닫히고 방금 만든 데이터의 상세가 보인다.
+    // 탭을 새로 열지 않는다 — 같은 dataMng 화면에서 등록 팝업이 닫히고 방금 만든 데이터의 상세가 보인다.
     await expect(footerScreenId(page)).toHaveText("dataMng");
-    await expect(tid(page, "data-mng-reg-id")).toHaveCount(0);
+    await expect(tid(page, "data-mng-register-form")).toHaveCount(0);
     await expect(tid(page, "data-edit-id")).toHaveText(MD, { timeout: 20_000 });
     await expect(tid(page, "data-edit-name")).toHaveValue(NAME);
     await expect(tid(page, "data-edit-status")).toHaveText("INUSE");
@@ -402,8 +416,8 @@ test.describe("A 마루 데이터 등록·조회·수정", () => {
   test("TC-DMD-MNG-04 조회(R) — ID·이름·상태 조건을 바꿔 가며 조회한다", async () => {
     await openDmd(page, "마루 데이터", "dataMng");
     const list = tid(page, "data-mng-list");
-    // 등록 폼은 닫혀 있다.
-    await expect(tid(page, "data-mng-reg-id")).toHaveCount(0);
+    // 등록 팝업은 닫혀 있다.
+    await expect(tid(page, "data-mng-register-form")).toHaveCount(0);
 
     await tid(page, "data-mng-search-id").fill(MD);
     await headerBtn(page, "조회").click();
@@ -446,33 +460,35 @@ test.describe("A 마루 데이터 등록·조회·수정", () => {
     watcher.assertClean("dataMng 조회");
   });
 
-  test("TC-DMD-MNG-05 같은 ID 로 다시 등록하면 중복 문구로 거부되고, [취소] 하면 보던 상세로 돌아간다", async () => {
+  test("TC-DMD-MNG-05 같은 ID 로 다시 등록하면 중복 문구로 거부되고, [취소] 해도 보던 상세는 그대로다", async () => {
     // 앞 단계에서 이 데이터의 상세를 보고 있었다.
     await expect(tid(page, "data-edit-id")).toHaveText(MD);
-    await headerBtn(page, "신규").click();
+    await openRegPopup(page);
     await tid(page, "data-mng-reg-id").fill(MD);
     await tid(page, "data-mng-reg-name").fill("중복 시도");
     await tid(page, "data-mng-reg-pattern").fill(KEY_PATTERN);
     await tid(page, "data-mng-reg-save").click();
     await expectErrorModal(page, "마루 코드·마루 데이터에 같은 ID 가 있습니다", "dmd-dataMng-05-duplicate");
     expectOnly4xx(watcher, "dataMng 중복");
-    // 거부된 등록은 등록 폼에 머문다.
+    // 거부된 등록은 팝업이 입력값을 유지한 채 열려 있다. (오류창이 팝업 위에 떴다 닫히므로, 오류창 본문이
+    // 사라졌는지는 `expectErrorModal` 이 오류창 본문 기준으로 이미 확인했다.)
+    await expect(tid(page, "data-mng-register-form")).toBeVisible();
     await expect(footerScreenId(page)).toHaveText("dataMng");
     await expect(tid(page, "data-mng-reg-id")).toHaveValue(MD);
-    // [취소] 는 폼을 닫고 [신규] 전에 보던 상세로 돌아간다.
-    await tid(page, "data-mng-reg-cancel").click();
-    await expect(tid(page, "data-mng-reg-id")).toHaveCount(0);
+    // [취소] 는 팝업만 닫는다 — 보던 상세는 그대로다.
+    await cancelRegPopup(page);
     await expect(tid(page, "data-edit-id")).toHaveText(MD, { timeout: 20_000 });
     watcher.assertClean("dataMng");
   });
 
   test("TC-DMD-MNG-06 목록의 행을 누르면 오른쪽 상세가 그 ID 로 바뀐다", async () => {
-    // [신규] 로 선택을 비웠다가 행을 눌러 고른다.
-    await headerBtn(page, "신규").click();
-    await expect(tid(page, "data-edit-id")).toHaveCount(0);
+    // 등록 팝업을 열었다 닫아도 선택은 그대로이고, 행을 누르면 그 행의 상세가 다시 뜬다.
+    await openRegPopup(page);
+    await cancelRegPopup(page);
+    await expect(tid(page, "data-edit-id")).toHaveText(MD);
     await gridRow(tid(page, "data-mng-list"), MD, "maruDataId").click();
     await expect(tid(page, "data-edit-id")).toHaveText(MD, { timeout: 20_000 });
-    await expect(tid(page, "data-mng-reg-id")).toHaveCount(0);
+    await expect(tid(page, "data-mng-register-form")).toHaveCount(0);
     watcher.assertClean("dataMng 행 선택");
   });
 
@@ -561,6 +577,7 @@ test.describe("A 마루 데이터 등록·조회·수정", () => {
     await assertAllButtonsPressed(page, "dataMng", {
       "data-edit-deprecate": "폐기 — TC-DMD-DEL 에서 누른다",
       "data-edit-item-edit": "[항목 편집 →] — TC-DMD-MNG-07 에서 누른다(누르면 다른 탭으로 옮겨 간다)",
+      "데이터 등록": "[데이터 등록] — TC-DMD-MNG-02·03·05 에서 눌렀다(팝업이 닫힌 상태에서 이 검사를 한다)",
     });
     watcher.assertClean("dataMng");
   });
@@ -1457,6 +1474,7 @@ test.describe("D 계층 축소 거부·폐기", () => {
     await snap(page, "dmd-dataMng-deprecated");
     await assertAllButtonsPressed(page, "dataMng 폐기", {
       "data-edit-item-edit": "[항목 편집 →] — TC-DMD-MNG-07 에서 눌렀다(이 화면은 장 D 에서 새로 열었다)",
+      "데이터 등록": "[데이터 등록] — registerMaruData 가 눌렀다(팝업은 닫힌 상태다)",
     });
     watcher.assertClean("폐기");
   });
@@ -1529,11 +1547,12 @@ test.describe("E 표준관리자(std) 읽기 전용", () => {
     const { page, watcher } = await openAs(browser, "std", testInfo);
     try {
       await openDmd(page, "마루 데이터", "dataMng");
-      // 목록은 보이지만 [신규] 는 없고(등록 권한 없음), 행을 누르면 상세는 보이되 저장·폐기가 막힌다.
+      // 목록은 보이지만 [데이터 등록] 은 숨기지 않고 비활성이며(등록 권한 없음), 행을 누르면 상세는 보이되 저장·폐기가 막힌다.
       await tid(page, "data-mng-search-id").fill(MD);
       await headerBtn(page, "조회").click();
       await expect(gridRow(tid(page, "data-mng-list"), MD, "maruDataId")).toBeVisible({ timeout: 20_000 });
-      await expect(headerBtn(page, "신규")).toHaveCount(0);
+      await expect(page.locator("#btn_data_reg")).toBeVisible();
+      await expect(page.locator("#btn_data_reg")).toBeDisabled();
       await snap(page, "dmd-std-dataMng");
 
       await gridRow(tid(page, "data-mng-list"), MD, "maruDataId").click();
