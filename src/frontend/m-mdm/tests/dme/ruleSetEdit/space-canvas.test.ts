@@ -367,6 +367,26 @@ describe("FlowCanvas — 끌어서 영역 선택(Figma 방식 이동 조작)", (
     expect(nodeEl(gid).classList.contains("selected")).toBe(true);
   });
 
+  it("선 hover([+] 표시)·라벨 끌기(L1)는 끄는 동안·놓은 뒤 모두 dagre 호출을 늘리지 않는다", async () => {
+    const f = ok(insertSplit(chain(), "e2", "IF"));
+    const cond = f.edges.find((e) => e.from === "if1" && !e.otherwise)!.id;
+    const onLabelOffsetChange = vi.fn();
+    await draw(props({ flow: f, onLabelOffsetChange }));
+    const layoutStart = mocks.layoutCalls;
+    const path = document.querySelector(`[data-testid="rf__edge-${cond}"] path`)!;
+    await fire(path, "mouseover", { relatedTarget: null });
+    expect(document.querySelector(`[data-testid="flow-edge-add-${cond}"]`)).not.toBeNull();
+    const label = document.querySelector(`[data-testid="flow-edge-label-${cond}"]`)!;
+    await fire(label, "pointerdown", { clientX: 100, clientY: 100 });
+    await fire(window, "pointermove", { clientX: 130, clientY: 100, buttons: 1 });
+    await fire(window, "pointermove", { clientX: 160, clientY: 120, buttons: 1 });
+    await fire(window, "pointerup", { clientX: 160, clientY: 120 });
+    await fire(path, "mouseout", { relatedTarget: document.body });
+    await flush();
+    expect(onLabelOffsetChange).toHaveBeenCalledTimes(1);
+    expect(mocks.layoutCalls).toBe(layoutStart);
+  });
+
   it("영역 선택이 pointercancel·빈 곳 새 누르기·편집 모드 떠나기로 끊겨도 그룹 제목 누르기 선택이 다시 된다(S1 재리뷰 Minor 1)", async () => {
     const g = addGroup(chain(), ["r1", "r2"], "묶음");
     if (!g.ok) throw new Error(g.reason);
