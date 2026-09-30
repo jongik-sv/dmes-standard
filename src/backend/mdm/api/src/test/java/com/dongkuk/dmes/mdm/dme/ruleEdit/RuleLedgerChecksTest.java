@@ -19,7 +19,18 @@ import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.web.response.ErrorDetail;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeFixtures;
+import com.dongkuk.dmes.mdm.common.rule.CondIo;
 import com.dongkuk.dmes.mdm.common.rule.RuleCellsCodec;
+import com.dongkuk.dmes.mdm.common.rule.RuleIo;
+import com.dongkuk.dmes.mdm.common.rule.RuleIo.IoName;
+import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
+import com.dongkuk.dmes.mdm.common.rule.RuleSetAnalyzer;
+import com.dongkuk.dmes.mdm.common.rule.RuleSetCheck;
+import com.dongkuk.dmes.mdm.common.rule.RuleSetFlowJson;
+import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveContext;
+import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveTarget;
+import com.dongkuk.dmes.mdm.common.rule.check.ledger.RuleSetOrderCheck;
+import com.dongkuk.dmes.mdm.common.rule.check.ledger.RuleSetOrderCheck.SiblingRead;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
@@ -27,13 +38,25 @@ import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleColumnsService;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleTableService;
+import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import com.ezylang.evalex.parser.ParseException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import kr.dongkuk.maru.mdm.engine.expr.AstExporter;
 import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
+import kr.dongkuk.maru.mdm.engine.flow.FlowParse;
+import kr.dongkuk.maru.mdm.engine.flow.FlowParser;
+import kr.dongkuk.maru.mdm.engine.flow.FlowTree;
+import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.FlowDefinition;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -62,6 +85,10 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
     MdmEvaluator evaluator;
     @Autowired
     JdbcTemplate jdbc;
+    @Autowired
+    RuleSetOrderCheck orderCheck;
+    @Autowired
+    RuleQueries queries;
 
     @BeforeEach
     void seed() {
@@ -92,7 +119,7 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
     }
 
     /** 이 시험에서 Expression 으로 바꾼 결과 열 — 저장 요청의 값 칸을 식 칸으로 바꾼다(Expression 열의 칸은 식 하나다). */
-    private final java.util.Set<Integer> exprResults = new java.util.HashSet<>();
+    private final Set<Integer> exprResults = new HashSet<>();
 
     private RuleEditSaveResult save(List<Map<String, Object>> rows) {
         for (Map<String, Object> r : rows) {
@@ -355,6 +382,310 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
 
         assertTrue(issues(r, "SET_DUP_RESULT").isEmpty(), r.getIssues().toString());
         assertTrue(issues(r, "SET_IF_SIBLING").isEmpty(), r.getIssues().toString());
+    }
+
+    // ── 세트 형제 판정의 경로 상태(§9.1-6, P4) ──
+
+    /**
+     * 앞 경로에서 이미 정의된 이름을 읽는 형제 갈래 — {@code start → r0(R_P: S_X 생산) → s1 { e2: rA(R_A: S_X 생산) ; e3: rB(R_B: S_X 읽기) } → m1 → end}.
+     * IF 면 e3 은 그 외 갈래다.
+     */
+    private void definedBeforeSiblingSet(String setId, String kind) {
+        otherRule("R_P", "X_IN", "S_X");
+        otherRule("R_A", "X_IN", "S_X");
+        otherRule("R_B", "S_X", "S_B_OUT");
+        String firstEdge = "IF".equals(kind)
+                ? "{\"id\":\"e2\",\"from\":\"s1\",\"to\":\"rA\",\"order\":1,\"cond\":\"X_IN > 1\"}"
+                : "{\"id\":\"e2\",\"from\":\"s1\",\"to\":\"rA\",\"order\":1}";
+        String secondEdge = "IF".equals(kind)
+                ? "{\"id\":\"e3\",\"from\":\"s1\",\"to\":\"rB\",\"otherwise\":true}"
+                : "{\"id\":\"e3\",\"from\":\"s1\",\"to\":\"rB\",\"order\":2}";
+        String flow = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"},{\"id\":\"r0\",\"kind\":\"RULE\",\"ruleId\":\"R_P\"},"
+                + "{\"id\":\"s1\",\"kind\":\"" + kind + "\"},{\"id\":\"rA\",\"kind\":\"RULE\",\"ruleId\":\"R_A\"},{\"id\":\"rB\",\"kind\":\"RULE\",\"ruleId\":\"R_B\"},"
+                + "{\"id\":\"m1\",\"kind\":\"MERGE\",\"splitId\":\"s1\"},{\"id\":\"end\",\"kind\":\"END\"}],"
+                + "\"edges\":[{\"id\":\"e0\",\"from\":\"start\",\"to\":\"r0\"},{\"id\":\"e1\",\"from\":\"r0\",\"to\":\"s1\"}," + firstEdge + "," + secondEdge + ","
+                + "{\"id\":\"e4\",\"from\":\"rA\",\"to\":\"m1\"},{\"id\":\"e5\",\"from\":\"rB\",\"to\":\"m1\"},{\"id\":\"e6\",\"from\":\"m1\",\"to\":\"end\"}]}";
+        ruleSet(setId, "INUSE", "R_P", "R_A", "R_B");
+        DmeTestSupport.ruleSetFlow(jdbc, setId, flow);
+    }
+
+    /** 세트 저장 검사(분석기) — 시드한 세 룰의 입출력(X_IN·S_X 는 사전에 없다)과 저장된 흐름. */
+    private List<RuleSetCheck> analyzerChecks(String setId) {
+        IoName xIn = new IoName("X_IN", RuleIo.NONE, null, null, null, false, null);
+        Map<String, RuleIo> rules = new LinkedHashMap<>();
+        rules.put("R_P", new RuleIo("R_P", "R_P", "DECISION", "INUSE", true, 1, "FIRST", List.of(xIn), List.of(ioName("S_X"))));
+        rules.put("R_A", new RuleIo("R_A", "R_A", "DECISION", "INUSE", true, 1, "FIRST", List.of(xIn), List.of(ioName("S_X"))));
+        rules.put("R_B", new RuleIo("R_B", "R_B", "DECISION", "INUSE", true, 1, "FIRST", List.of(ioName("S_X")), List.of(ioName("S_B_OUT"))));
+        String flow = jdbc.queryForObject("SELECT FLOW_JSON FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = ?", String.class, setId);
+        return RuleSetAnalyzer.checks(RuleSetFlowJson.parse(flow), rules, Map.of("e2", new CondIo(true, null, List.of(xIn))));
+    }
+
+    private static IoName ioName(String name) {
+        return new IoName(name, RuleIo.NONE, null, null, null, false, null);
+    }
+
+    /** 확정 검사 빈을 me 의 VER 1 정의(저장하려는 정의 자리)로 직접 부른다. */
+    private List<Map<String, Object>> orderCheck(String me) {
+        return orderCheck.check(new RuleSaveContext(me, 1, "DECISION", "FIRST", queries.vars(me, 1), List.of(), List.of(), List.of(), RuleSaveTarget.TABLE));
+    }
+
+    private static List<Object> checkCodes(List<Map<String, Object>> issues) {
+        return issues.stream().map(i -> i.get("code")).toList();
+    }
+
+    @Test
+    void 앞_경로에서_이미_정의된_이름을_읽으면_IF_형제_갈래가_만들어도_SET_IF_SIBLING_이_아니다() {
+        definedBeforeSiblingSet("S_IFDEF", "IF");
+        List<RuleSetCheck> set = analyzerChecks("S_IFDEF");
+        assertTrue(set.stream().noneMatch(c -> RuleSetCheck.IF_SIBLING.equals(c.code()) || RuleSetCheck.PAR_SIBLING.equals(c.code())), set.toString());
+
+        List<Map<String, Object>> r = orderCheck("R_B");
+
+        assertFalse(checkCodes(r).contains("SET_IF_SIBLING"), r.toString());
+    }
+
+    @Test
+    void 앞_경로에서_이미_정의된_이름을_읽으면_병렬_형제_갈래가_만들어도_SET_PAR_SIBLING_이_아니다() {
+        definedBeforeSiblingSet("S_PARDEF", "PARALLEL");
+        List<RuleSetCheck> set = analyzerChecks("S_PARDEF");
+        assertTrue(set.stream().noneMatch(c -> RuleSetCheck.IF_SIBLING.equals(c.code()) || RuleSetCheck.PAR_SIBLING.equals(c.code())), set.toString());
+
+        List<Map<String, Object>> r = orderCheck("R_B");
+
+        assertFalse(checkCodes(r).contains("SET_PAR_SIBLING"), r.toString());
+    }
+
+    // ── P4 합격 기준 — 코퍼스·퍼즈 사례로 세트 저장 검사(분석기)와 확정 검사 대조 ──
+
+    /** lib 테스트 자원(api 테스트 작업 디렉터리 = api 모듈 루트). api 테스트 클래스패스에는 lib 테스트 자원이 없어 파일로 읽는다. */
+    private static final Path RULE_RES = Path.of("../lib/src/test/resources/com/dongkuk/dmes/mdm/common/rule");
+
+    /** 퍼즈 사례 가운데 대조에 쓰는 앞쪽 개수(시간이 길면 줄인다 — 브리프 Step 6). */
+    private static final int FUZZ_LIMIT = 200;
+
+    private static final ObjectMapper JSON = new ObjectMapper();
+
+    /** 대조 한 사례 — 분석기 결과(한 번)와, 흐름의 룰마다 me 로 둔 확정 검사 결과. */
+    private record Compared(String name, Map<String, RuleIo> rules, List<RuleSetCheck> set, Map<String, List<SiblingRead>> pairs,
+                            Map<String, List<Map<String, Object>>> issues) {
+    }
+
+    /** 사례 수와 뺀 사례 수 — 키는 파일(corpus·fuzz). */
+    private record Tally(Map<String, Integer> total, Map<String, Integer> structure, Map<String, Integer> dictOverlap, List<Compared> cases) {
+
+        String summary() {
+            return "사례 " + total + " · 뺀 사례: 구조 오류 " + structure + ", DICT·결과 이름 겹침 " + dictOverlap + " · 대조 " + cases.size();
+        }
+    }
+
+    private static JsonNode cases(String file) throws IOException {
+        JsonNode root = JSON.readTree(RULE_RES.resolve(file).toFile());
+        assertEquals(1, root.path("version").asInt(), file);
+        return root.path("cases");
+    }
+
+    /** 코퍼스 전부와 퍼즈 앞 {@link #FUZZ_LIMIT}개를 읽어, 뺄 사례를 세고 나머지를 SQLite 에 시드해 두 검사를 돌린다. */
+    private Tally compareCases() throws IOException {
+        List<Map.Entry<JsonNode, String>> all = new ArrayList<>();
+        cases("rule-set-corpus.json").forEach(c -> all.add(Map.entry(c, "corpus")));
+        JsonNode fuzz = cases("rule-set-fuzz.json");
+        for (int i = 0; i < Math.min(FUZZ_LIMIT, fuzz.size()); i++) {
+            all.add(Map.entry(fuzz.get(i), "fuzz"));
+        }
+        Map<String, Integer> total = new LinkedHashMap<>();
+        Map<String, Integer> structure = new LinkedHashMap<>();
+        Map<String, Integer> dictOverlap = new LinkedHashMap<>();
+        List<Compared> out = new ArrayList<>();
+        for (Map.Entry<JsonNode, String> entry : all) {
+            JsonNode c = entry.getKey();
+            String source = entry.getValue();
+            total.merge(source, 1, Integer::sum);
+            String name = c.path("name").asText();
+            List<String> ids = new ArrayList<>();
+            c.path("ids").forEach(n -> ids.add(n.asText()));
+            Map<String, RuleIo> rules = new LinkedHashMap<>();
+            c.path("rules").properties().forEach(e -> rules.put(e.getKey(), corpusRule(e.getKey(), e.getValue())));
+            Map<String, CondIo> condIo = corpusCondIo(c.path("condIo"));
+            FlowDefinition flow = c.has("flow") ? RuleSetFlowJson.parse(c.get("flow").toString()) : FlowParser.linear(ids);
+            FlowParse parse = FlowParser.parse(flow);
+            if (!parse.issues().isEmpty() || parse.tree() == null) {
+                structure.merge(source, 1, Integer::sum);
+                continue;
+            }
+            if (dictNamesOverlapResults(rules, condIo)) {
+                dictOverlap.merge(source, 1, Integer::sum);
+                continue;
+            }
+            rules.forEach((id, r) -> assertTrue(r.conds().stream().noneMatch(x -> r.results().stream().anyMatch(y -> y.name().equals(x.name()))),
+                    name + " " + id + " — 자기 결과를 읽는 룰이 있으면 PAR_SIBLING 읽기·대입 문구 구분이 흐려진다"));
+            List<RuleSetCheck> set = RuleSetAnalyzer.checks(flow, rules, condIo);
+            seedCase(ids, rules, condIo, c.has("flow") ? c.get("flow").toString() : null);
+            Map<String, List<SiblingRead>> pairs = new LinkedHashMap<>();
+            Map<String, List<Map<String, Object>>> issues = new LinkedHashMap<>();
+            for (String me : parse.tree().ruleIds()) {
+                RuleSaveContext ctx = new RuleSaveContext(me, 1, "DECISION", "FIRST", rawVars(me, rules.get(me)), List.of(), List.of(), List.of(),
+                        RuleSaveTarget.TABLE);
+                pairs.put(me, orderCheck.siblingReads(ctx));
+                issues.put(me, orderCheck.check(ctx));
+            }
+            out.add(new Compared(name, rules, set, pairs, issues));
+        }
+        return new Tally(total, structure, dictOverlap, out);
+    }
+
+    /** DICT 출처 이름(룰 조건·조건식 변수)과 어떤 룰의 결과 이름이 겹치는가 — 분석기는 DICT 를 건너뛰고 확정 검사는 이름만 본다(P4 제외 사례). */
+    private static boolean dictNamesOverlapResults(Map<String, RuleIo> rules, Map<String, CondIo> condIo) {
+        Set<String> dict = new HashSet<>();
+        rules.values().forEach(r -> r.conds().stream().filter(x -> RuleIo.DICT.equals(x.source())).forEach(x -> dict.add(x.name())));
+        condIo.values().forEach(io -> io.vars().stream().filter(x -> RuleIo.DICT.equals(x.source())).forEach(x -> dict.add(x.name())));
+        return rules.values().stream().flatMap(r -> r.results().stream()).anyMatch(x -> dict.contains(x.name()));
+    }
+
+    /** 사례 하나를 원장에 시드 — 있는 룰(없는 룰은 넣지 않는다)과 RELEASED 버전의 조건·결과 변수, DICT 이름은 컬럼 사전, INUSE 세트 S_CMP. */
+    private void seedCase(List<String> ids, Map<String, RuleIo> rules, Map<String, CondIo> condIo, String flowJson) {
+        DmeTestSupport.clear(jdbc);
+        DmeTestSupport.clearDictionary(jdbc);
+        Set<String> dict = new LinkedHashSet<>();
+        rules.forEach((id, r) -> {
+            if (!r.exists()) {
+                return;
+            }
+            DmeTestSupport.rule(jdbc, id, id, "DECISION", r.status() == null ? "INUSE" : r.status());
+            if (r.releasedVer() == null) {
+                return;
+            }
+            DmeTestSupport.released(jdbc, id, r.releasedVer(), "FIRST", "2026-01-01 00:00:00", null);
+            int varId = 0;
+            for (IoName x : r.conds()) {
+                varId++;
+                DmeTestSupport.var(jdbc, id, r.releasedVer(), varId, "COND", "1", x.name(), varId, null);
+                if (RuleIo.DICT.equals(x.source())) {
+                    dict.add(x.name());
+                }
+            }
+            for (IoName x : r.results()) {
+                varId++;
+                DmeTestSupport.var(jdbc, id, r.releasedVer(), varId, "RESULT", "Value", x.name(), varId, "STRING");
+            }
+        });
+        condIo.values().forEach(io -> io.vars().stream().filter(x -> RuleIo.DICT.equals(x.source())).forEach(x -> dict.add(x.name())));
+        for (String n : dict) {
+            DmeTestSupport.column(jdbc, n, DmeTestSupport.domain(jdbc, n + "_D", "TEXT", "STRING", null));
+        }
+        ruleSet("S_CMP", "INUSE", ids.toArray(String[]::new));
+        if (flowJson != null) {
+            DmeTestSupport.ruleSetFlow(jdbc, "S_CMP", flowJson);
+        }
+    }
+
+    /** me 의 저장하려는 정의 자리 — 사례의 조건·결과 이름으로 만든 변수(분석기가 보는 me 의 입출력과 같다). 없는 룰은 빈 정의. */
+    private static List<MdmRuleVar> rawVars(String me, RuleIo r) {
+        List<MdmRuleVar> out = new ArrayList<>();
+        if (r == null || !r.exists()) {
+            return out;
+        }
+        int varId = 0;
+        for (IoName x : r.conds()) {
+            MdmRuleVar v = new MdmRuleVar(me, 1, ++varId, "COND", varId);
+            v.setVarName(x.name());
+            out.add(v);
+        }
+        for (IoName x : r.results()) {
+            MdmRuleVar v = new MdmRuleVar(me, 1, ++varId, "RESULT", varId);
+            v.setVarName(x.name());
+            out.add(v);
+        }
+        return out;
+    }
+
+    /** 분석기 PAR_SIBLING 가운데 읽기 판정(varName 이 그 룰의 조건) — 대입 판정(결과 이름)과 가른다. */
+    private static boolean readSibling(RuleSetCheck k, Map<String, RuleIo> rules) {
+        if (RuleSetCheck.IF_SIBLING.equals(k.code())) {
+            return true;
+        }
+        RuleIo r = rules.get(k.ruleId());
+        return RuleSetCheck.PAR_SIBLING.equals(k.code()) && r != null && r.conds().stream().anyMatch(x -> x.name().equals(k.varName()));
+    }
+
+    @Test
+    void P4_가_확정_검사가_형제_읽기로_내는_변수는_세트_저장_검사도_같은_노드에서_거부한다() throws IOException {
+        Tally t = compareCases();
+        Set<String> rejectCodes = Set.of(RuleSetCheck.IF_SIBLING, RuleSetCheck.PAR_SIBLING, RuleSetCheck.ORDER, RuleSetCheck.CYCLE);
+        int checked = 0;
+        for (Compared c : t.cases()) {
+            for (Map.Entry<String, List<SiblingRead>> e : c.pairs().entrySet()) {
+                String me = e.getKey();
+                for (SiblingRead p : e.getValue()) {
+                    for (String x : p.meReads()) {
+                        checked++;
+                        boolean matched = c.set().stream().anyMatch(k -> me.equals(k.ruleId()) && p.meNode().equals(k.nodeId()) && x.equals(k.varName())
+                                && rejectCodes.contains(k.code()) && (!RuleSetCheck.PAR_SIBLING.equals(k.code()) || readSibling(k, c.rules())));
+                        assertTrue(matched, c.name() + " me=" + me + " " + p + " 변수 " + x + " — 세트 저장 검사: " + c.set());
+                    }
+                }
+                List<Object> codes = checkCodes(c.issues().get(me));
+                if (e.getValue().stream().anyMatch(p -> p.relation() == FlowTree.Relation.EXCLUSIVE)) {
+                    assertTrue(codes.contains("SET_IF_SIBLING"), c.name() + " me=" + me + " " + c.issues().get(me));
+                } else {
+                    assertFalse(codes.contains("SET_IF_SIBLING"), c.name() + " me=" + me + " 쌍 없이 SET_IF_SIBLING: " + c.issues().get(me));
+                }
+                if (e.getValue().stream().anyMatch(p -> p.relation() == FlowTree.Relation.PARALLEL)) {
+                    assertTrue(codes.contains("SET_PAR_SIBLING"), c.name() + " me=" + me + " " + c.issues().get(me));
+                }
+            }
+        }
+        System.out.println("[P4 가] " + t.summary() + " · 확정 검사 형제 읽기 변수 " + checked + "건 대조");
+        assertTrue(checked > 0, "대조한 형제 읽기가 없다 — 사례가 판정을 건드리지 않는다: " + t.summary());
+    }
+
+    @Test
+    void P4_나_세트_저장_검사가_형제_읽기로_거부하면_확정_검사도_그_룰에_낸다() throws IOException {
+        Tally t = compareCases();
+        int checked = 0;
+        for (Compared c : t.cases()) {
+            for (RuleSetCheck k : c.set()) {
+                if (!readSibling(k, c.rules()) || !c.pairs().containsKey(k.ruleId())) {
+                    continue;
+                }
+                checked++;
+                boolean ifs = RuleSetCheck.IF_SIBLING.equals(k.code());
+                FlowTree.Relation rel = ifs ? FlowTree.Relation.EXCLUSIVE : FlowTree.Relation.PARALLEL;
+                boolean paired = c.pairs().get(k.ruleId()).stream().anyMatch(p -> p.relation() == rel && p.meNode().equals(k.nodeId())
+                        && p.otherRuleId().equals(k.otherRuleId()) && p.meReads().contains(k.varName()));
+                assertTrue(paired, c.name() + " " + k + " — 확정 검사 쌍: " + c.pairs().get(k.ruleId()));
+                assertTrue(checkCodes(c.issues().get(k.ruleId())).contains(ifs ? "SET_IF_SIBLING" : "SET_PAR_SIBLING"),
+                        c.name() + " " + k + " — 확정 검사: " + c.issues().get(k.ruleId()));
+            }
+        }
+        System.out.println("[P4 나] " + t.summary() + " · 세트 저장 검사 형제 읽기 " + checked + "건 대조");
+        assertTrue(checked > 0, "대조한 세트 저장 검사 형제 읽기가 없다: " + t.summary());
+    }
+
+    /** RuleSetCorpusTest 의 빈 칸 채움 규칙 그대로 — 빠진 칸은 null·false·빈 목록. */
+    private static RuleIo corpusRule(String id, JsonNode r) {
+        List<IoName> conds = new ArrayList<>();
+        r.path("conds").forEach(n -> conds.add(new IoName(text(n, "name"), text(n, "source"), null, null, null, false, null)));
+        List<IoName> results = new ArrayList<>();
+        r.path("results").forEach(n -> results.add(new IoName(text(n, "name"), null, null, null, null, false, null)));
+        JsonNode ver = r.path("releasedVer");
+        return new RuleIo(id, null, null, text(r, "status"), r.path("exists").asBoolean(false),
+                ver.isNull() || ver.isMissingNode() ? null : ver.asInt(), null, conds, results);
+    }
+
+    /** RuleSetCorpusTest 의 condIo 읽기 그대로. */
+    private static Map<String, CondIo> corpusCondIo(JsonNode node) {
+        Map<String, CondIo> out = new LinkedHashMap<>();
+        node.properties().forEach(e -> {
+            List<IoName> vars = new ArrayList<>();
+            e.getValue().path("vars").forEach(v -> vars.add(new IoName(text(v, "name"), text(v, "source"), null, null, null, false, null)));
+            out.put(e.getKey(), new CondIo(e.getValue().path("ok").asBoolean(false), text(e.getValue(), "message"), vars));
+        });
+        return out;
+    }
+
+    private static String text(JsonNode node, String field) {
+        JsonNode v = node.path(field);
+        return v.isNull() || v.isMissingNode() ? null : v.asText();
     }
 
     // ── 입력 계약 변경(I15) ──

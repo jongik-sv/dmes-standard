@@ -158,7 +158,10 @@ public final class RuleSetAnalyzer {
         return out;
     }
 
-    /** 경로 상태(계획 C4 4번) — 반드시 정의된 이름, 일부 갈래에서만 정의된 이름, 이름 → 그 경로에서 마지막으로 만든 룰 노드. */
+    /**
+     * 경로 상태(계획 C4 4번) — 반드시 정의된 이름, 일부 갈래에서만 정의된 이름, 이름 → 그 경로에서 마지막으로 만든 룰 노드. defined·maybe 의 분기 합치기는
+     * {@link RuleSetPathState} 가 정한다(확정 검사와 한 벌).
+     */
     private record State(Set<String> defined, Set<String> maybe, Map<String, RuleStep> prodBy) {
 
         State() {
@@ -167,6 +170,11 @@ public final class RuleSetAnalyzer {
 
         State copy() {
             return new State(new HashSet<>(defined), new HashSet<>(maybe), new LinkedHashMap<>(prodBy));
+        }
+
+        /** defined·maybe 를 경로 상태로 본다(같은 집합, 사본 아님). */
+        RuleSetPathState.At at() {
+            return new RuleSetPathState.At(defined, maybe);
         }
     }
 
@@ -222,26 +230,8 @@ public final class RuleSetAnalyzer {
                 seq(br.body(), b);
                 outs.add(b);
             }
-            Set<String> defined = new HashSet<>(st.defined());
-            Set<String> maybe = new HashSet<>(st.maybe());
-            if (sp.kind() == NodeKind.IF) {
-                Set<String> inter = null;
-                Set<String> union = new HashSet<>();
-                for (State b : outs) {
-                    inter = inter == null ? new HashSet<>(b.defined()) : inter;
-                    inter.retainAll(b.defined());
-                    union.addAll(b.defined());
-                    maybe.addAll(b.maybe());
-                }
-                defined.addAll(inter == null ? Set.of() : inter);
-                union.removeAll(defined);
-                maybe.addAll(union);
-            } else {
-                for (State b : outs) {
-                    defined.addAll(b.defined());
-                    maybe.addAll(b.maybe());
-                }
-            }
+            // defined·maybe 합치기는 확정 검사와 한 벌(P4 RuleSetPathState), prodBy 합치기는 이 검사 전용.
+            RuleSetPathState.At merged = RuleSetPathState.merge(sp.kind(), st.at(), outs.stream().map(State::at).toList());
             Map<String, RuleStep> over = new LinkedHashMap<>();
             for (State b : outs) {
                 b.prodBy().forEach((k, v) -> {
@@ -251,9 +241,9 @@ public final class RuleSetAnalyzer {
                 });
             }
             st.defined().clear();
-            st.defined().addAll(defined);
+            st.defined().addAll(merged.defined());
             st.maybe().clear();
-            st.maybe().addAll(maybe);
+            st.maybe().addAll(merged.maybe());
             st.prodBy().putAll(over);
         }
 
