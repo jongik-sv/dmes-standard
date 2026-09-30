@@ -70,10 +70,14 @@ class DmeBpmnActionTest {
                 Map.of("search", "search", "reg", "register"), Map.of("search", true, "reg", false));
     }
 
-    /** TSK-08-06 I17 — 룰 세트 편집. search 의 갈래(target SET·RULE·GUIDE)는 Java 가 가른다. delete 는 폐기, restore 는 되살리기다. */
+    /**
+     * TSK-08-06 I17 — 룰 세트 편집. search 의 갈래(target SET·RULE·GUIDE)는 Java 가 가른다. delete 는 폐기, restore 는 되살리기다.
+     * 흐름도 2단계 P5 — validate 는 조건식 IO(condIo), execute 는 기록 실행(simulate). 원장에 쓰지 않지만 EDIT 권한 액션이라 readOnly 가 아니다.
+     */
     @Test
-    void ruleSetEdit_는_search_view_save_delete_restore() throws Exception {
-        Map<String, String> methods = Map.of("search", "search", "view", "view", "save", "save", "delete", "delete", "restore", "restore");
+    void ruleSetEdit_는_search_view_save_delete_restore_validate_execute() throws Exception {
+        Map<String, String> methods = Map.of("search", "search", "view", "view", "save", "save", "delete", "delete", "restore", "restore",
+                "validate", "condIo", "execute", "simulate");
         Map<String, Boolean> readOnly = new HashMap<>();
         methods.keySet().forEach(a -> readOnly.put(a, a.equals("search") || a.equals("view")));
         assertActions("services/dme/ruleSetEdit.bpmn", "ruleSetEdit", "ruleSetEditService", methods, readOnly);

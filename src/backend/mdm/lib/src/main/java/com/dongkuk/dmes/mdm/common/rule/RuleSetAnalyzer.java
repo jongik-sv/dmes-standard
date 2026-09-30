@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import kr.dongkuk.maru.mdm.engine.flow.Block;
@@ -157,7 +158,10 @@ public final class RuleSetAnalyzer {
         return out;
     }
 
-    /** 경로 상태(계획 C4 4번) — 반드시 정의된 이름, 일부 갈래에서만 정의된 이름, 이름 → 그 경로에서 마지막으로 만든 룰 노드. */
+    /**
+     * 경로 상태(계획 C4 4번) — 반드시 정의된 이름, 일부 갈래에서만 정의된 이름, 이름 → 그 경로에서 마지막으로 만든 룰 노드. defined·maybe 의 분기 합치기는
+     * {@link RuleSetPathState} 가 정한다(확정 검사와 한 벌).
+     */
     private record State(Set<String> defined, Set<String> maybe, Map<String, RuleStep> prodBy) {
 
         State() {
@@ -166,6 +170,11 @@ public final class RuleSetAnalyzer {
 
         State copy() {
             return new State(new HashSet<>(defined), new HashSet<>(maybe), new LinkedHashMap<>(prodBy));
+        }
+
+        /** defined·maybe 를 경로 상태로 본다(같은 집합, 사본 아님). */
+        RuleSetPathState.At at() {
+            return new RuleSetPathState.At(defined, maybe);
         }
     }
 
@@ -177,6 +186,8 @@ public final class RuleSetAnalyzer {
         private final Map<String, CondIo> condIo;
         private final Map<String, List<String>> d;
         private final List<RuleSetCheck> out;
+        /** P3 — 세트 안 룰(입출력을 아는 룰)이 선언한 이름(대문자). 경로와 무관하게 세트 전체로 센다. */
+        private final Set<String> declared = new HashSet<>();
 
         PathWalk(FlowTree tree, Map<String, RuleIo> rules, Map<String, CondIo> condIo, Map<String, List<String>> d, List<RuleSetCheck> out) {
             this.tree = tree;
@@ -184,6 +195,13 @@ public final class RuleSetAnalyzer {
             this.condIo = condIo;
             this.d = d;
             this.out = out;
+            for (String id : tree.ruleIds()) {
+                RuleIo r = rules.get(id);
+                if (r != null && r.exists() && r.releasedVer() != null) {
+                    conds(rules, id).forEach(c -> declared.add(c.name().toUpperCase(Locale.ROOT)));
+                    results(rules, id).forEach(x -> declared.add(x.name().toUpperCase(Locale.ROOT)));
+                }
+            }
         }
 
         void seq(Seq s, State st) {
@@ -212,26 +230,8 @@ public final class RuleSetAnalyzer {
                 seq(br.body(), b);
                 outs.add(b);
             }
-            Set<String> defined = new HashSet<>(st.defined());
-            Set<String> maybe = new HashSet<>(st.maybe());
-            if (sp.kind() == NodeKind.IF) {
-                Set<String> inter = null;
-                Set<String> union = new HashSet<>();
-                for (State b : outs) {
-                    inter = inter == null ? new HashSet<>(b.defined()) : inter;
-                    inter.retainAll(b.defined());
-                    union.addAll(b.defined());
-                    maybe.addAll(b.maybe());
-                }
-                defined.addAll(inter == null ? Set.of() : inter);
-                union.removeAll(defined);
-                maybe.addAll(union);
-            } else {
-                for (State b : outs) {
-                    defined.addAll(b.defined());
-                    maybe.addAll(b.maybe());
-                }
-            }
+            // defined·maybe 합치기는 확정 검사와 한 벌(P4 RuleSetPathState), prodBy 합치기는 이 검사 전용.
+            RuleSetPathState.At merged = RuleSetPathState.merge(sp.kind(), st.at(), outs.stream().map(State::at).toList());
             Map<String, RuleStep> over = new LinkedHashMap<>();
             for (State b : outs) {
                 b.prodBy().forEach((k, v) -> {
@@ -241,9 +241,9 @@ public final class RuleSetAnalyzer {
                 });
             }
             st.defined().clear();
-            st.defined().addAll(defined);
+            st.defined().addAll(merged.defined());
             st.maybe().clear();
-            st.maybe().addAll(maybe);
+            st.maybe().addAll(merged.maybe());
             st.prodBy().putAll(over);
         }
 
@@ -257,15 +257,21 @@ public final class RuleSetAnalyzer {
                 return;
             }
             for (IoName v : io.vars()) {
-                if (RuleIo.DICT.equals(v.source()) || st.defined().contains(v.name())) {
-                    continue;
+                boolean dict = RuleIo.DICT.equals(v.source());
+                if (!dict && !st.defined().contains(v.name())) {
+                    if (st.maybe().contains(v.name())) {
+                        out.add(new RuleSetCheck(RuleSetCheck.FLOW_PARTIAL, RuleSetCheck.WARN, null, null, v.name(), br.edgeId() + " 갈래 조건식이 읽는 "
+                                + v.name() + "는 IF 의 일부 갈래에서만 만들어진다. 다른 갈래를 타면 판정 오류다", sp.nodeId(), br.edgeId()));
+                    } else {
+                        out.add(new RuleSetCheck(RuleSetCheck.FLOW_COND, RuleSetCheck.REJECT, null, null, v.name(),
+                                br.edgeId() + " 갈래 조건식이 읽는 " + v.name() + "는 이 지점에서 정의되지 않았다", sp.nodeId(), br.edgeId()));
+                    }
                 }
-                if (st.maybe().contains(v.name())) {
-                    out.add(new RuleSetCheck(RuleSetCheck.FLOW_PARTIAL, RuleSetCheck.WARN, null, null, v.name(), br.edgeId() + " 갈래 조건식이 읽는 "
-                            + v.name() + "는 IF 의 일부 갈래에서만 만들어진다. 다른 갈래를 타면 판정 오류다", sp.nodeId(), br.edgeId()));
-                } else {
-                    out.add(new RuleSetCheck(RuleSetCheck.FLOW_COND, RuleSetCheck.REJECT, null, null, v.name(),
-                            br.edgeId() + " 갈래 조건식이 읽는 " + v.name() + "는 이 지점에서 정의되지 않았다", sp.nodeId(), br.edgeId()));
+                // P3 — DICT 변수는 판정을 통과해도 선언 검사로 이어진다(엔진은 선언이 없으면 레코드 값 그대로 비교한다).
+                if (dict && !declared.contains(v.name().toUpperCase(Locale.ROOT))) {
+                    out.add(new RuleSetCheck(RuleSetCheck.COND_UNTYPED, RuleSetCheck.WARN, null, null, v.name(), br.edgeId() + " 갈래 조건식이 읽는 "
+                            + v.name() + "는 세트 안 어느 룰도 타입을 선언하지 않아 레코드 값 그대로 비교한다. 숫자를 문자열로 넘기면 사전순으로 비교된다",
+                            sp.nodeId(), br.edgeId()));
                 }
             }
         }

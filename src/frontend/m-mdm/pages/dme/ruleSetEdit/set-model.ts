@@ -205,6 +205,15 @@ function pathChecks(tree: FlowTree, rules: RuleIoMap, condIo: CondIoMap, out: Ru
   const index = new Map(steps.map((s, i) => [s.nodeId, i] as const));
   const d = setDeps(tree.ruleIds(), rules);
   const makers = (name: string) => steps.filter((m) => produces(rules, m.ruleId, name));
+  // P3 — 세트 안 룰(입출력을 아는 룰)이 선언한 이름(대문자). 경로와 무관하게 세트 전체로 센다.
+  const declared = new Set<string>();
+  for (const id of tree.ruleIds()) {
+    const r = ruleOf(rules, id);
+    if (r && r.exists && r.releasedVer != null) {
+      for (const c of conds(rules, id)) declared.add(c.name.toUpperCase());
+      for (const x of results(rules, id)) declared.add(x.name.toUpperCase());
+    }
+  }
 
   const cond = (ifId: string, edgeId: string, s: PathState) => {
     const io = Object.prototype.hasOwnProperty.call(condIo, edgeId) ? condIo[edgeId] : undefined;
@@ -213,13 +222,30 @@ function pathChecks(tree: FlowTree, rules: RuleIoMap, condIo: CondIoMap, out: Ru
       return;
     }
     for (const v of io.vars) {
-      if (v.source === DICT || s.defined.has(v.name)) continue;
-      if (s.maybe.has(v.name)) {
+      const dict = v.source === DICT;
+      if (!dict && !s.defined.has(v.name)) {
+        if (s.maybe.has(v.name)) {
+          out.push(
+            check("FLOW_PARTIAL", "WARN", null, null, v.name, `${edgeId} 갈래 조건식이 읽는 ${v.name}는 IF 의 일부 갈래에서만 만들어진다. 다른 갈래를 타면 판정 오류다`, ifId, edgeId),
+          );
+        } else {
+          out.push(check("FLOW_COND", "REJECT", null, null, v.name, `${edgeId} 갈래 조건식이 읽는 ${v.name}는 이 지점에서 정의되지 않았다`, ifId, edgeId));
+        }
+      }
+      // P3 — DICT 변수는 판정을 통과해도 선언 검사로 이어진다(엔진은 선언이 없으면 레코드 값 그대로 비교한다).
+      if (dict && !declared.has(v.name.toUpperCase())) {
         out.push(
-          check("FLOW_PARTIAL", "WARN", null, null, v.name, `${edgeId} 갈래 조건식이 읽는 ${v.name}는 IF 의 일부 갈래에서만 만들어진다. 다른 갈래를 타면 판정 오류다`, ifId, edgeId),
+          check(
+            "COND_UNTYPED",
+            "WARN",
+            null,
+            null,
+            v.name,
+            `${edgeId} 갈래 조건식이 읽는 ${v.name}는 세트 안 어느 룰도 타입을 선언하지 않아 레코드 값 그대로 비교한다. 숫자를 문자열로 넘기면 사전순으로 비교된다`,
+            ifId,
+            edgeId,
+          ),
         );
-      } else {
-        out.push(check("FLOW_COND", "REJECT", null, null, v.name, `${edgeId} 갈래 조건식이 읽는 ${v.name}는 이 지점에서 정의되지 않았다`, ifId, edgeId));
       }
     }
   };

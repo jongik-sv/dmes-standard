@@ -4,6 +4,8 @@
 // 읽기 규칙(두 러너 공통): `rules` 원소의 빠진 칸은 null·false·빈 목록(`exists` 를 빠뜨리면 없는 룰), `rules` 에 키가 없는 ID 는 없는 룰,
 // `checks` 의 빠진 칸과 null 은 같다. 실제 값은 투영하지 않고 그대로 비교한다(구현이 undefined 를 내면 드러난다).
 // 흐름 사례(`flow`)는 노드·선의 빠진 칸을 null(`otherwise` 는 false)로 채우고, `ids` 가 흐름을 펼친 룰 목록과 같은지 먼저 본다. `checks` 의 `nodeId`·`edgeId` 도 비교한다.
+// 같은 형식의 퍼즈 파일 `rule-set-fuzz.json`(코퍼스 옆, Java `RuleSetFlowFuzz` 가 시드로 만들고 expect 는 Java 분석기 결과)도 돌린다 — 두 언어 차분.
+// 퍼즈 사례가 어긋나면 작은 흐름으로 줄여 코퍼스 사례로 옮기고 원인을 고친다.
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -15,7 +17,11 @@ import type { CondIo, IoName, IoSource, RuleIo } from "../../../pages/dme/ruleSe
 import { PACKAGE_ROOT, RULE_SET_CORPUS_PATH } from "../../helpers/engine-paths";
 
 /** Java `RuleSetCorpusTest.MIN_CASES` 와 같아야 한다(I9). 사례를 더하면 두 러너를 함께 올린다. */
-const MIN_CASES = 41;
+const MIN_CASES = 52;
+/** Java `RuleSetCorpusTest.MIN_FUZZ_CASES` 와 같아야 한다. */
+const MIN_FUZZ_CASES = 200;
+/** 퍼즈 파일 — 코퍼스와 같은 폴더(mdm/lib test resources). */
+const RULE_SET_FUZZ_PATH = path.join(path.dirname(RULE_SET_CORPUS_PATH), "rule-set-fuzz.json");
 
 type Nullable<T> = { [K in keyof T]?: T[K] | null };
 
@@ -117,16 +123,19 @@ function rule(id: string, r: CorpusRule): RuleIo {
 }
 
 const corpus = JSON.parse(fs.readFileSync(RULE_SET_CORPUS_PATH, "utf8")) as { version: number; cases: CorpusCase[] };
+const fuzz = JSON.parse(fs.readFileSync(RULE_SET_FUZZ_PATH, "utf8")) as { version: number; cases: CorpusCase[] };
 
 describe("세트 계산 코퍼스 동치(TS)", () => {
-  it("코퍼스는 version 1 이고 사례 수가 하한 이상이며 이름이 겹치지 않는다", () => {
+  it("코퍼스·퍼즈는 version 1 이고 사례 수가 하한 이상이며 이름이 겹치지 않는다", () => {
     expect(corpus.version).toBe(1);
+    expect(fuzz.version).toBe(1);
     expect(corpus.cases.length).toBeGreaterThanOrEqual(MIN_CASES);
-    const names = corpus.cases.map((c) => c.name);
+    expect(fuzz.cases.length).toBeGreaterThanOrEqual(MIN_FUZZ_CASES);
+    const names = [...corpus.cases, ...fuzz.cases].map((c) => c.name);
     expect(new Set(names).size).toBe(names.length);
   });
 
-  it.each(corpus.cases.map((c) => [c.name, c] as const))("%s", (name, c) => {
+  it.each([...corpus.cases, ...fuzz.cases].map((c) => [c.name, c] as const))("%s", (name, c) => {
     const rules: Record<string, RuleIo> = {};
     for (const [id, r] of Object.entries(c.rules ?? {})) rules[id] = rule(id, r);
     const flow = c.flow ? flowOf(c.flow) : null;

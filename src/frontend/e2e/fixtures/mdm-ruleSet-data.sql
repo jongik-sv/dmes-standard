@@ -6,7 +6,8 @@
 --   룰 7 — 모두 VER 1 RELEASED(FIRST), 조건 열 DISP '1'(이름 변수) · 결과 열 DISP 'Value', NORMAL 행 1 + DEFAULT 행 1
 --     E2S_GRD(SET_THK, SET_SURF → S_GRD) · E2S_FCT(S_GRD, SET_WID → S_FCT) · E2S_SPD(S_FCT → S_SPD) · E2S_DUP(SET_WID → S_GRD)
 --     E2S_CYA(S_CYB → S_CYA) · E2S_CYB(S_CYA → S_CYB) 순환 짝 · E2S_OLD(SET_THK → S_OLD, 룰 STATUS DEPRECATED)
---   세트 6 — E2S_CHAIN · E2S_BADORD · E2S_HASOLD · E2S_OLDSET(DEPRECATED) · E2S_CYCSET · E2S_GUIDESET(빈 목록)
+--   세트 7 — E2S_CHAIN · E2S_BADORD · E2S_HASOLD · E2S_OLDSET(DEPRECATED) · E2S_CYCSET · E2S_GUIDESET(빈 목록) · E2S_FLOW(분기 흐름, FLOW_JSON)
+--     FLOW_JSON 은 NULL(한 줄 흐름 = RULE_IDS 순서)이 기본이고 E2S_FLOW 만 P2 정규 JSON 을 갖는다(캔버스·디버거 e2e E11).
 
 INSERT INTO TB_MDM_DOMAIN (DOMAIN_NAME, STD_NAME, DOMAIN_KIND, DATA_TYPE, LENGTH, SCALE, DESCRIPTION, C_USR_ID, C_PGM_ID, VER) VALUES
     ('E2S 세트 두께', 'SET_THK', 'QTY', 'NUMBER', 5, 2, '세트 스펙용 두께(mm)', 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
@@ -78,10 +79,15 @@ INSERT INTO TB_MDM_RULE_ROW (MARU_RULE_ID, VER, ROW_ID, SEQ, ROW_KIND, CELLS, NO
     ('E2S_OLD', 1, 1, 1, 'NORMAL', '{"1":{"op":"NA"},"2":{"val":"1"}}', NULL, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
     ('E2S_OLD', 1, 2, 0, 'DEFAULT', '{"2":{"val":"0"}}', NULL, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0);
 
-INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS, DESCRIPTION, STATUS, ROW_VERSION, C_USR_ID, C_PGM_ID, VER) VALUES
-    ('E2S_CHAIN', 'E2E 사슬 세트', '["E2S_GRD","E2S_FCT","E2S_SPD"]', '등급 → 계수 → 속도', 'INUSE', 0, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
-    ('E2S_BADORD', 'E2E 순서 뒤집힘 세트', '["E2S_FCT","E2S_GRD"]', NULL, 'INUSE', 0, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
-    ('E2S_HASOLD', 'E2E 폐기 룰 세트', '["E2S_OLD"]', NULL, 'INUSE', 0, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
-    ('E2S_OLDSET', 'E2E 폐기 세트', '["E2S_GRD"]', NULL, 'DEPRECATED', 0, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
-    ('E2S_CYCSET', 'E2E 순환 세트', '["E2S_GRD"]', NULL, 'INUSE', 0, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
-    ('E2S_GUIDESET', 'E2E 지침 세트', '[]', NULL, 'INUSE', 0, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0);
+INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS, FLOW_JSON, DESCRIPTION, STATUS, ROW_VERSION, C_USR_ID, C_PGM_ID, VER) VALUES
+    ('E2S_CHAIN', 'E2E 사슬 세트', '["E2S_GRD","E2S_FCT","E2S_SPD"]', NULL, '등급 → 계수 → 속도', 'INUSE', 0, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
+    ('E2S_BADORD', 'E2E 순서 뒤집힘 세트', '["E2S_FCT","E2S_GRD"]', NULL, NULL, 'INUSE', 0, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
+    ('E2S_HASOLD', 'E2E 폐기 룰 세트', '["E2S_OLD"]', NULL, NULL, 'INUSE', 0, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
+    ('E2S_OLDSET', 'E2E 폐기 세트', '["E2S_GRD"]', NULL, NULL, 'DEPRECATED', 0, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
+    ('E2S_CYCSET', 'E2E 순환 세트', '["E2S_GRD"]', NULL, NULL, 'INUSE', 0, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
+    ('E2S_GUIDESET', 'E2E 지침 세트', '[]', NULL, NULL, 'INUSE', 0, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
+    -- 분기 세트: start → r1(E2S_GRD) → if1 { e3 order1 cond 'S_GRD = "A"' → r2(E2S_FCT) ; e4 그 외 → m1 } → m1 → r3(E2S_SPD) → end.
+    -- FLOW_JSON 은 서버 정규 JSON(RuleSetFlowJson.canonical, P2)과 글자가 같다(키 순서·null 쓰기·view 기본값). RULE_IDS 는 깊이 우선으로 펼친 중복 없는 룰 목록.
+    ('E2S_FLOW', 'E2E 분기 흐름 세트', '["E2S_GRD","E2S_FCT","E2S_SPD"]',
+     '{"version":1,"nodes":[{"id":"start","kind":"START","ruleId":null,"splitId":null,"label":null},{"id":"r1","kind":"RULE","ruleId":"E2S_GRD","splitId":null,"label":null},{"id":"if1","kind":"IF","ruleId":null,"splitId":null,"label":null},{"id":"r2","kind":"RULE","ruleId":"E2S_FCT","splitId":null,"label":null},{"id":"m1","kind":"MERGE","ruleId":null,"splitId":"if1","label":null},{"id":"r3","kind":"RULE","ruleId":"E2S_SPD","splitId":null,"label":null},{"id":"end","kind":"END","ruleId":null,"splitId":null,"label":null}],"edges":[{"id":"e1","from":"start","to":"r1","order":null,"cond":null,"otherwise":false,"label":null},{"id":"e2","from":"r1","to":"if1","order":null,"cond":null,"otherwise":false,"label":null},{"id":"e3","from":"if1","to":"r2","order":1,"cond":"S_GRD = \"A\"","otherwise":false,"label":"등급 A"},{"id":"e4","from":"if1","to":"m1","order":null,"cond":null,"otherwise":true,"label":"그 외"},{"id":"e5","from":"r2","to":"m1","order":null,"cond":null,"otherwise":false,"label":null},{"id":"e6","from":"m1","to":"r3","order":null,"cond":null,"otherwise":false,"label":null},{"id":"e7","from":"r3","to":"end","order":null,"cond":null,"otherwise":false,"label":null}],"view":{"positions":{},"notes":[],"groups":[]}}',
+     '등급이 A 면 계수를 구하고 아니면 건너뛴 뒤 속도를 정한다', 'INUSE', 0, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0);

@@ -55,7 +55,12 @@ public enum MdmErrorCode {
      * <p>적용 시각이 이미 지난 버전을 되돌리면 조회 해석이 과거로 되감기고, 배포·수신이 아직 보류 상태라 되돌림의 정합을
      * 이룰 감시점이 없다.
      */
-    CONFIRM_CANCEL_NOT_ALLOWED("MDM025", 409, ErrorCode.BUSINESS_ERROR, "이미 적용된 버전은 확정 취소할 수 없습니다");
+    CONFIRM_CANCEL_NOT_ALLOWED("MDM025", 409, ErrorCode.BUSINESS_ERROR, "이미 적용된 버전은 확정 취소할 수 없습니다"),
+    /**
+     * 룰 세트 흐름도 2단계 P-D9(spec §9.1-9) — 원장에 저장된 룰 정의(행 셀·AST·FLOW_JSON)를 읽을 수 없다. 입력 오류(MDM021)가 아니라 저장 데이터
+     * 손상이라 의미 상태는 500 이다. {@code StoredDefinitionException} 만 이 코드로 바꾼다.
+     */
+    STORED_DEFINITION_CORRUPT("MDM026", 500, ErrorCode.BUSINESS_ERROR, "저장된 룰 정의를 읽을 수 없습니다");
 
     private final String code;
     private final int httpStatus;

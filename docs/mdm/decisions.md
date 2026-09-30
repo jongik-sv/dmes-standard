@@ -1079,3 +1079,59 @@
   그 룰을 쓰는 운영 세트가 멈춘다. 경고로 드러내면 판정은 이어지고 담당자가 세트를 고칠 신호를 받는다
 - **Reversible**: yes(경고를 판정 오류로 바꾸는 것은 코드 변경만으로 된다)
 - **Source**: 2026-09-30 사용자 답변("1. b"), `RuleSetRunner`, `RuleSetRunResult`, `RuleHeaderService.deprecate`, `StoredDefinitionLookup`
+
+## D-111 (2026-09-30T00:00:00Z)
+- **Phase**: plan(룰 세트 흐름도 2단계)
+- **Decision needed**: 흐름 저장 요청을 OASIS params 로 어떻게 받을지(스펙 §9.1-1).
+- **Decision made**: `flowJson` 문자열로 받는다(P-D1). `RuleSetSaveRequest.flow`(Map) 칸은 없앤다. 저장 JSON 은 서버가 파싱한 정의로 다시 쓴다(P2 정규 JSON, §9.1-3). 코덱은 문자열 order·불린 아닌 otherwise·숫자 id 를 형식 오류로 거부한다
+- **Rationale**: 2026-09-30 실측에서 OASIS 가 params 의 Map 을 `S999 Generic type` 으로 거부했다. 문자열로 받으면 HTTP 바인딩 문제가 없고, 서버가 정규 JSON 으로 다시 쓰므로 클라이언트 표기 차이가 저장값에 남지 않는다
+- **Reversible**: yes
+- **Source**: 2026-09-30 실측 `S999 Generic type`, 계획 P1·P2
+
+## D-112 (2026-09-30T00:00:00Z)
+- **Phase**: plan(룰 세트 흐름도 2단계)
+- **Decision needed**: 디버거·조건식 IO action 이름(D-108 의 `simulate` 조항).
+- **Decision made**: 화면 action 은 `execute`, 서비스 메서드 이름은 `simulate`. 조건식 IO 는 `validate`→`condIo`. D-108 의 이름 조항을 대체한다. 결과로 `execute` 는 EDIT 권한이라 DME 에서 READ 인 표준 관리자(`MDM_STD_ADMIN`)는 디버거를 쓰지 못한다(P-D2·P-D3). 사용자 확인 사항으로 최종 보고에 올린다
+- **Rationale**: 16개 어휘(ADR-0003 D5)와 mcm 시드 `allActions` 를 바꾸지 않는다. 룰 편집 값 테스트(`ruleEdit` 의 `execute`→`runTest`)가 같은 선례다
+- **Reversible**: yes
+- **Source**: ADR-0003 D5 16개 어휘, `ruleEdit.bpmn` `execute`→`runTest` 선례
+
+## D-113 (2026-09-30T00:00:00Z)
+- **Phase**: plan(룰 세트 흐름도 2단계)
+- **Decision needed**: 캔버스 도입 뒤 목록 편집을 둘지, 저장 버튼 규칙(기능설계서 N-8)을 어떻게 할지.
+- **Decision made**: 목록 편집(그리드·▲▼✕·드래그)을 없애고 캔버스 하나로 편집한다. 거부(REJECT) 검사가 있으면 저장 버튼을 끄고 서버도 같은 검사로 거부한다(스펙 §7, P-D4). 구성 지침의 "이 순서를 목록에 적용"은 한 줄 흐름이면 `linearFlow(순서)` 로 흐름을 바꾸고(배치 초기화), 분기 흐름이면 끈다(P-D5). 옛 목록 저장이 FLOW_JSON 이 있는 세트에 오면 거부한다(§9.1-7). 삭제 대상은 계획의 「삭제 대상」 표를 따른다
+- **Rationale**: 스펙 §7 이 목록 그리드 자리를 캔버스로 바꾸고 오류가 있으면 저장을 막도록 정했으므로 1단계 N-8 의 "즉시 검사는 저장 버튼을 막지 않는다"와 다르게 정한다. 지침 버튼 처리는 1단계 Ruling 13 과 일관된다
+- **Reversible**: partial(삭제한 화면 코드는 git 으로만 되살린다)
+- **Source**: 스펙 §7, 2026-09-30 사용자 답변 "기존 화면 안"
+
+## D-114 (2026-09-30T00:00:00Z)
+- **Phase**: plan(룰 세트 흐름도 2단계)
+- **Decision needed**: 흐름 크기·중첩 깊이 상한(§9.1-8).
+- **Decision made**: 코덱 입구에서 노드 200·선 400·JSON 262,144자 상한만 둔다. 깊이 상한은 따로 두지 않는다(P-D6)
+- **Rationale**: 중첩 한 단계마다 노드 2개(분기·합류)가 들므로 노드 200 이면 깊이가 99 를 넘지 못한다. 99단 중첩 IF 를 Java `FlowParser`·TS `parseFlow` 가 모두 통과함을 Task 1 테스트로 보인다
+- **Reversible**: yes
+- **Source**: 계획 P2, Task 1 깊은 중첩 테스트
+
+## D-115 (2026-09-30T00:00:00Z)
+- **Phase**: plan(룰 세트 흐름도 2단계)
+- **Decision needed**: 선언 타입 없는 조건식 변수(§9.1-5)와 룰 확정 검사의 거친 형제 판정(§9.1-6).
+- **Decision made**: 세트 저장 검사에 `COND_UNTYPED`(WARN)를 더한다. 대상은 DICT 출처 조건식 변수 가운데 세트 안 어느 룰의 입출력(`RuleIo.conds ∪ results`)에도 없는 이름(대소문자 무시)이며, RELEASED 가 없는 룰은 입출력을 모르므로 선언에 치지 않는다(P3·P-D7). 확정 검사의 SIBLING 판정은 분석기 경로 상태(`RuleSetPathState`)로 앞 경로에서 이미 정의된 이름을 뺀다(P4)
+- **Rationale**: 엔진 `FlowKeys.condTypes` 가 보는 선언(계약 always·DERIVE 행 required·optional·RESULT 열)과 `RuleIoReader` 의 conds·results 가 같은 집합이다(N-4). Task 2 가 대조 테스트로 고정한다
+- **Reversible**: yes
+- **Source**: 1단계 최종 리뷰 Important 2건, 계획 P3·P4
+
+## D-116 (2026-09-30T00:00:00Z)
+- **Phase**: plan(룰 세트 흐름도 2단계)
+- **Decision needed**: 저장값 손상 오류 코드, simulate 입력 검증(§9.1-9), 디버거 경고(D-110 이 2단계로 넘김).
+- **Decision made**: `MDM026 STORED_DEFINITION_CORRUPT` 를 더한다. `StoredDefinitionLookup` 이 저장값을 읽다 난 `IllegalArgumentException`·`IllegalStateException` 을 `StoredDefinitionException` 으로 감싸고, `execute`·`simulate` 는 이 예외만 MDM026 으로 바꾼다. 그 밖의 IAE·ISE 는 감싸지 않는다. record 없음은 REQUIRED_VALUE 로 답한다. simulate 응답 warnings 는 RULE_DEPRECATED → BRANCH_COND_NULL → 룰 경고 순이다(P-D9, P5)
+- **Rationale**: 저장값 손상만 좁혀 잡아야 엔진 버그를 입력 오류(MDM021)로 가리지 않는다. 디버거 경고 순서는 D-110 이 정한 운영 응답과 맞춰 같은 신호를 같은 순서로 보인다
+- **Reversible**: yes
+- **Source**: D-110, 스펙 §9.1-9, 계획 P5
+
+## D-117 (2026-09-30T00:00:00Z)
+- **Phase**: build(룰 세트 흐름도 2단계, Task 12 — D-115·D-116 정정)
+- **Decision needed**: 2단계 Task 0 리뷰가 남긴 D-115·D-116 표현 정정과, 구현 중 진행 장부 Ruling 으로 계획과 다르게 정한 세 가지의 결정 기록.
+- **Decision made**: (1) D-115 의 "앞 경로에서 이미 정의된 이름을 뺀다"는 반드시 정의됨(defined)만이 아니라 일부 갈래에서만 정의됨(maybe)까지 포함한다. 룰 확정 검사가 형제 판정에서 defined ∪ maybe 를 빼는 이유는 세트 저장 검사(`RuleSetAnalyzer`)와 같은 판정을 내기 위해서다(maybe 는 세트 저장 검사가 `FLOW_PARTIAL` 경고로 다룬다). (2) D-116 의 `execute` 는 `RuleSetRunner.execute`(OASIS 입구)를 가리키며, 화면 action `execute`(서비스 메서드 `simulate`)와 다르다. (3) Ruling 5: `view`·`restore` 가 저장된 흐름(FLOW_JSON)을 읽지 못하면 MDM026(`STORED_DEFINITION_CORRUPT`)으로 바꿔 화면이 문장으로 보게 한다. 계획 P1 의 "읽지 못하면 condIo 빈 맵"은 문구 오류다(조회는 condIo 를 만들기 전 저장 흐름 parse 에서 이미 실패한다). MDM026 문구에는 룰 ID 를 붙이지 않고 원인 그대로 둔다(Ruling 9). (4) Ruling 10: 디버거 값 표의 병렬 합류는 엔진 `FlowRun` 과 같이 각 갈래가 실제로 쓴 이름만 갈래 실행 순서대로 덮어쓴다(계획 P9 의 "merged 이름마다 갈래 범위에서 가져옴"을 정정). (5) Ruling 12: 디버거 표시는 실행에 영향을 주는 칸(노드 id·kind·ruleId·splitId, 선 id·from·to·order·cond·otherwise)이 바뀔 때만 지우고 `label` 만 바뀌면 유지한다. 세트가 바뀌면 지운다
+- **Rationale**: (1)은 D-115 를 그대로 읽으면 maybe 가 빠진다고 오해해 확정 검사와 세트 저장 검사가 어긋나 보이기 때문이다. (2)는 `execute` 가 엔진 실행 입구와 화면 action 두 곳에 쓰여 혼동되기 때문이다. (3)은 손상된 저장 흐름의 조회가 `S999` 로 남으면 담당자가 원인을 문장으로 알 수 없기 때문이며, MDM026 을 만드는 태스크가 한 곳에서 처리한다. (4)는 문자 그대로 읽으면 분기 전 값을 되돌리는 오표시가 나기 때문이다. (5)는 label 은 화면 표시용(스펙 §3.3)이라 이름만 고쳐도 실행 결과가 지워지면 불편하기 때문이다
+- **Reversible**: yes(정정·문구 결정이며 (5)는 `structKey` 한 줄, (4)는 값 표 합류 칸 한 규칙)
+- **Source**: 2단계 Task 0 리뷰 deferred minor, 진행 장부 Ruling 5·9·10·12, D-115·D-116, 기능설계서 N-16·N-17

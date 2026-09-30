@@ -6,6 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
+import com.dongkuk.dmes.cactus.common.ErrorCode;
+import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionException;
+import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.common.rule.dto.RuleSetRunRequest;
 import com.dongkuk.dmes.mdm.common.rule.dto.RuleSetRunResult;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
@@ -95,7 +98,7 @@ class RuleSetRunnerTest extends AbstractMdmSharedDbTest {
 
     @Test
     void 저장하지_않은_흐름도_기록_실행한다() {
-        RunTrace t = runner.trace(RuleSetFlowJson.toMap(IF_FLOW), RECORD, TS);
+        RunTrace t = runner.trace(IF_FLOW, RECORD, TS);
 
         assertNull(t.violations());
         assertEquals(List.of("start", "if1", "r1", "m1", "end"), t.nodes().stream().map(RunTrace.NodeTrace::nodeId).toList());
@@ -107,19 +110,21 @@ class RuleSetRunnerTest extends AbstractMdmSharedDbTest {
         StoredDefinitionLookupTest.badRule(jdbc);
         DmeTestSupport.ruleSet(jdbc, "RS_BAD", "깨진 룰", "[\"R_BAD\"]", "INUSE", 0);
 
-        BusinessException e = assertThrows(BusinessException.class, () -> runner.run("RS_BAD", Map.of(), TS));
+        StoredDefinitionException e = assertThrows(StoredDefinitionException.class, () -> runner.run("RS_BAD", Map.of(), TS));
         assertTrue(e.getMessage().contains("R_BAD") && e.getMessage().contains("var_id 9"), e.getMessage());
 
         RuleSetRunRequest req = new RuleSetRunRequest();
         req.setSetId("RS_BAD");
         req.setRecordJson("{}");
         BusinessException viaOasis = assertThrows(BusinessException.class, () -> runner.execute(req));
+        assertEquals("MDM026", viaOasis.getErrors().get(0).code());
+        assertTrue(viaOasis.getMessage().startsWith(MdmErrorCode.STORED_DEFINITION_CORRUPT.defaultMessage()), viaOasis.getMessage());
         assertTrue(viaOasis.getMessage().contains("var_id 9"), viaOasis.getMessage());
     }
 
     @Test
     void 흐름을_읽을_수_없으면_기록_실행은_던지지_않고_FLOW_INVALID_를_담는다() {
-        for (Map<String, Object> bad : java.util.Arrays.asList(null, Map.<String, Object>of("version", 1))) {
+        for (String bad : java.util.Arrays.asList(null, "{\"version\":1}", "{not json")) {
             RunTrace t = runner.trace(bad, RECORD, TS);
 
             assertEquals(List.of(), t.nodes());
@@ -145,7 +150,16 @@ class RuleSetRunnerTest extends AbstractMdmSharedDbTest {
         req.setRecordJson("{\"COIL_THK\":2.0,\"COIL_WID\":1200,\"SURF_GRD\":\"A\"}");
 
         BusinessException e = assertThrows(BusinessException.class, () -> runner.execute(req));
+        assertEquals("MDM026", e.getErrors().get(0).code());
         assertTrue(e.getMessage().contains("RS_BROKEN") && e.getMessage().contains("nodes"), e.getMessage());
+    }
+
+    @Test
+    void 기록_실행은_레코드가_없으면_REQUIRED_VALUE_다() {
+        // P5 — 레코드가 null 이면 엔진 requireNonNull 의 NPE 로 새지 않고 REQUIRED_VALUE 로 답한다.
+        BusinessException e = assertThrows(BusinessException.class, () -> runner.trace(IF_FLOW, null, TS));
+        assertEquals(ErrorCode.REQUIRED_VALUE, e.getErrorCode());
+        assertEquals("레코드는 필수입니다.", e.getMessage());
     }
 
     @Test

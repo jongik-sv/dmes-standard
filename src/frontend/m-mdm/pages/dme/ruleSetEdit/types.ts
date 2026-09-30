@@ -3,7 +3,7 @@
  * 칸 이름이다(JSON 필드 이름 = 레코드 컴포넌트 이름). 서버가 비운 칸은 null 로 온다.
  */
 
-import type { RuleSetFlow } from "@/contract/engine-contract.generated";
+import type { RuleSetFlow, RunTrace } from "@/contract/engine-contract.generated";
 
 /** 조건 이름의 출처 — 컬럼 사전(DICT) > 룰이 도메인·데이터 타입을 선언한 프로그램 변수(PROG) > 어디에도 없음(NONE). 결과 이름은 null. */
 export type IoSource = "DICT" | "PROG" | "NONE";
@@ -69,7 +69,8 @@ export type RuleSetCheckCode =
   | "IF_SIBLING"
   | "PAR_SIBLING"
   | "FLOW_PARTIAL"
-  | "FLOW_READONLY";
+  | "FLOW_READONLY"
+  | "COND_UNTYPED";
 
 /**
  * 저장 시 검사 한 건(§6.3, 계획 C4). 없는 칸은 null — EMPTY 는 ruleId 도 null, 1단계는 otherRuleId·varName 이 null.
@@ -155,7 +156,7 @@ export interface RuleSetHeader {
   ruleIds: string[];
   /** 저장된 흐름(FLOW_JSON, view 포함). 목록으로만 저장된 세트면 null. */
   flow: RuleSetFlow | null;
-  /** 분기(IF·병렬)가 있는 흐름이면 true — 목록 편집·저장을 막는다(서버는 FLOW_READONLY 로 거부). */
+  /** 분기(IF·병렬)가 있는 흐름이면 true. 화면은 한 줄·분기 세트 모두 캔버스로 편집한다(P-D5). */
   branched: boolean;
 }
 
@@ -164,6 +165,8 @@ export interface RuleSetView {
   set: RuleSetHeader;
   rules: RuleIo[];
   checks: RuleSetCheck[];
+  /** 저장된 흐름의 IF "그 외" 가 아닌 선마다 조건식 IO(P1). 흐름이 없으면 빈 맵. */
+  condIo: Record<string, CondIo>;
   /** 담당자이고 INUSE. */
   editable: boolean;
   /** 담당자이고 DEPRECATED. */
@@ -183,4 +186,22 @@ export interface RuleSetStatusResult {
   status: RuleSetStatus;
   rowVersion: number;
   checks: RuleSetCheck[];
+}
+
+/** validate(조건식 IO) 응답(P6) — 요청 흐름의 IF "그 외" 가 아닌 선마다. */
+export interface RuleSetCondIoResult {
+  condIo: Record<string, CondIo>;
+}
+
+/** execute(기록 실행) 경고 한 건(P5 warnings). */
+export interface SimWarning {
+  code: string;
+  ruleId: string | null;
+  message: string;
+}
+
+/** execute(기록 실행) 응답(P6). */
+export interface RuleSetSimulateResult {
+  trace: RunTrace;
+  warnings: SimWarning[];
 }

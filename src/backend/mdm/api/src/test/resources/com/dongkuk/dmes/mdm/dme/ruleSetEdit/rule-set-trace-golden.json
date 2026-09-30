@@ -1,0 +1,1100 @@
+{
+  "cases" : [ {
+    "name" : "IF_FIRST_TRUE",
+    "rules" : "RuleSetSimulateTest.seedGolden",
+    "flowJson" : "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\",\"ruleId\":null,\"splitId\":null,\"label\":null},{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"GT_GRADE\",\"splitId\":null,\"label\":null},{\"id\":\"if1\",\"kind\":\"IF\",\"ruleId\":null,\"splitId\":null,\"label\":null},{\"id\":\"r2\",\"kind\":\"RULE\",\"ruleId\":\"GT_FAST\",\"splitId\":null,\"label\":null},{\"id\":\"r3\",\"kind\":\"RULE\",\"ruleId\":\"GT_SLOW\",\"splitId\":null,\"label\":null},{\"id\":\"m1\",\"kind\":\"MERGE\",\"ruleId\":null,\"splitId\":\"if1\",\"label\":null},{\"id\":\"end\",\"kind\":\"END\",\"ruleId\":null,\"splitId\":null,\"label\":null}],\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"r1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e2\",\"from\":\"r1\",\"to\":\"if1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e3\",\"from\":\"if1\",\"to\":\"r2\",\"order\":1,\"cond\":\"GT_G = \\\"A\\\"\",\"otherwise\":false,\"label\":null},{\"id\":\"e4\",\"from\":\"if1\",\"to\":\"r3\",\"order\":null,\"cond\":null,\"otherwise\":true,\"label\":null},{\"id\":\"e5\",\"from\":\"r2\",\"to\":\"m1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e6\",\"from\":\"r3\",\"to\":\"m1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e7\",\"from\":\"m1\",\"to\":\"end\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null}],\"view\":{\"positions\":{},\"notes\":[],\"groups\":[]}}",
+    "recordJson" : "{\"GT_THK\":\"12\"}",
+    "evalTs" : "2026-06-01 09:00:00",
+    "response" : {
+      "trace" : {
+        "setId" : "(저장 전)",
+        "evalTs" : "2026-06-01T09:00:00",
+        "input" : {
+          "GT_THK" : {
+            "type" : "STRING",
+            "value" : "12"
+          }
+        },
+        "nodes" : [ {
+          "seq" : 1,
+          "nodeId" : "start",
+          "kind" : "START",
+          "status" : "OK",
+          "ruleId" : null,
+          "ver" : null,
+          "reads" : null,
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 2,
+          "nodeId" : "r1",
+          "kind" : "RULE",
+          "status" : "OK",
+          "ruleId" : "GT_GRADE",
+          "ver" : 1,
+          "reads" : {
+            "GT_THK" : {
+              "type" : "STRING",
+              "value" : "12"
+            }
+          },
+          "result" : {
+            "ruleId" : "GT_GRADE",
+            "ver" : 1,
+            "evalTs" : "2026-06-01T09:00:00",
+            "hits" : [ {
+              "rowId" : 1,
+              "seq" : 1,
+              "groupChoices" : { }
+            } ],
+            "defaultApplied" : false,
+            "results" : {
+              "GT_G" : {
+                "type" : "STRING",
+                "value" : "A"
+              }
+            },
+            "trace" : [ {
+              "rowId" : 1,
+              "seq" : 1,
+              "evaluated" : true,
+              "hit" : true,
+              "firstFalseVarId" : null
+            } ],
+            "warnings" : [ ]
+          },
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 3,
+          "nodeId" : "if1",
+          "kind" : "IF",
+          "status" : "OK",
+          "ruleId" : null,
+          "ver" : null,
+          "reads" : null,
+          "branches" : [ {
+            "edgeId" : "e3",
+            "outcome" : "TRUE",
+            "message" : null
+          }, {
+            "edgeId" : "e4",
+            "outcome" : "NOT_EVALUATED",
+            "message" : null
+          } ],
+          "chosenEdgeId" : "e3",
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 4,
+          "nodeId" : "r2",
+          "kind" : "RULE",
+          "status" : "OK",
+          "ruleId" : "GT_FAST",
+          "ver" : 1,
+          "reads" : {
+            "GT_G" : {
+              "type" : "STRING",
+              "value" : "A"
+            }
+          },
+          "result" : {
+            "ruleId" : "GT_FAST",
+            "ver" : 1,
+            "evalTs" : "2026-06-01T09:00:00",
+            "hits" : [ {
+              "rowId" : 1,
+              "seq" : 1,
+              "groupChoices" : { }
+            } ],
+            "defaultApplied" : false,
+            "results" : {
+              "GT_F" : {
+                "type" : "NUMBER",
+                "value" : "1"
+              }
+            },
+            "trace" : [ {
+              "rowId" : 1,
+              "seq" : 1,
+              "evaluated" : true,
+              "hit" : true,
+              "firstFalseVarId" : null
+            } ],
+            "warnings" : [ ]
+          },
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 5,
+          "nodeId" : "m1",
+          "kind" : "MERGE",
+          "status" : "OK",
+          "ruleId" : null,
+          "ver" : null,
+          "reads" : null,
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : "if1",
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 6,
+          "nodeId" : "end",
+          "kind" : "END",
+          "status" : "OK",
+          "ruleId" : null,
+          "ver" : null,
+          "reads" : null,
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        } ],
+        "finalValues" : {
+          "GT_G" : {
+            "type" : "STRING",
+            "value" : "A"
+          },
+          "GT_F" : {
+            "type" : "NUMBER",
+            "value" : "1"
+          }
+        },
+        "violations" : null
+      },
+      "warnings" : [ ]
+    }
+  }, {
+    "name" : "IF_NULL_ELSE",
+    "rules" : "RuleSetSimulateTest.seedGolden",
+    "flowJson" : "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\",\"ruleId\":null,\"splitId\":null,\"label\":null},{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"GT_GRADE\",\"splitId\":null,\"label\":null},{\"id\":\"if1\",\"kind\":\"IF\",\"ruleId\":null,\"splitId\":null,\"label\":null},{\"id\":\"r2\",\"kind\":\"RULE\",\"ruleId\":\"GT_FAST\",\"splitId\":null,\"label\":null},{\"id\":\"r3\",\"kind\":\"RULE\",\"ruleId\":\"GT_SLOW\",\"splitId\":null,\"label\":null},{\"id\":\"m1\",\"kind\":\"MERGE\",\"ruleId\":null,\"splitId\":\"if1\",\"label\":null},{\"id\":\"end\",\"kind\":\"END\",\"ruleId\":null,\"splitId\":null,\"label\":null}],\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"r1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e2\",\"from\":\"r1\",\"to\":\"if1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e3\",\"from\":\"if1\",\"to\":\"r2\",\"order\":1,\"cond\":\"GT_FLAG\",\"otherwise\":false,\"label\":null},{\"id\":\"e4\",\"from\":\"if1\",\"to\":\"r3\",\"order\":null,\"cond\":null,\"otherwise\":true,\"label\":null},{\"id\":\"e5\",\"from\":\"r2\",\"to\":\"m1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e6\",\"from\":\"r3\",\"to\":\"m1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e7\",\"from\":\"m1\",\"to\":\"end\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null}],\"view\":{\"positions\":{},\"notes\":[],\"groups\":[]}}",
+    "recordJson" : "{\"GT_THK\":\"12\",\"GT_FLAG\":null}",
+    "evalTs" : "2026-06-01 09:00:00",
+    "response" : {
+      "trace" : {
+        "setId" : "(저장 전)",
+        "evalTs" : "2026-06-01T09:00:00",
+        "input" : {
+          "GT_THK" : {
+            "type" : "STRING",
+            "value" : "12"
+          },
+          "GT_FLAG" : {
+            "type" : "NULL"
+          }
+        },
+        "nodes" : [ {
+          "seq" : 1,
+          "nodeId" : "start",
+          "kind" : "START",
+          "status" : "OK",
+          "ruleId" : null,
+          "ver" : null,
+          "reads" : null,
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 2,
+          "nodeId" : "r1",
+          "kind" : "RULE",
+          "status" : "OK",
+          "ruleId" : "GT_GRADE",
+          "ver" : 1,
+          "reads" : {
+            "GT_THK" : {
+              "type" : "STRING",
+              "value" : "12"
+            }
+          },
+          "result" : {
+            "ruleId" : "GT_GRADE",
+            "ver" : 1,
+            "evalTs" : "2026-06-01T09:00:00",
+            "hits" : [ {
+              "rowId" : 1,
+              "seq" : 1,
+              "groupChoices" : { }
+            } ],
+            "defaultApplied" : false,
+            "results" : {
+              "GT_G" : {
+                "type" : "STRING",
+                "value" : "A"
+              }
+            },
+            "trace" : [ {
+              "rowId" : 1,
+              "seq" : 1,
+              "evaluated" : true,
+              "hit" : true,
+              "firstFalseVarId" : null
+            } ],
+            "warnings" : [ ]
+          },
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 3,
+          "nodeId" : "if1",
+          "kind" : "IF",
+          "status" : "OK",
+          "ruleId" : null,
+          "ver" : null,
+          "reads" : null,
+          "branches" : [ {
+            "edgeId" : "e3",
+            "outcome" : "NULL",
+            "message" : null
+          }, {
+            "edgeId" : "e4",
+            "outcome" : "TRUE",
+            "message" : null
+          } ],
+          "chosenEdgeId" : "e4",
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 4,
+          "nodeId" : "r3",
+          "kind" : "RULE",
+          "status" : "OK",
+          "ruleId" : "GT_SLOW",
+          "ver" : 1,
+          "reads" : {
+            "GT_G" : {
+              "type" : "STRING",
+              "value" : "A"
+            }
+          },
+          "result" : {
+            "ruleId" : "GT_SLOW",
+            "ver" : 1,
+            "evalTs" : "2026-06-01T09:00:00",
+            "hits" : [ ],
+            "defaultApplied" : true,
+            "results" : {
+              "GT_S" : {
+                "type" : "NUMBER",
+                "value" : "5"
+              }
+            },
+            "trace" : [ ],
+            "warnings" : [ ]
+          },
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 5,
+          "nodeId" : "m1",
+          "kind" : "MERGE",
+          "status" : "OK",
+          "ruleId" : null,
+          "ver" : null,
+          "reads" : null,
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : "if1",
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 6,
+          "nodeId" : "end",
+          "kind" : "END",
+          "status" : "OK",
+          "ruleId" : null,
+          "ver" : null,
+          "reads" : null,
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        } ],
+        "finalValues" : {
+          "GT_G" : {
+            "type" : "STRING",
+            "value" : "A"
+          },
+          "GT_S" : {
+            "type" : "NUMBER",
+            "value" : "5"
+          }
+        },
+        "violations" : null
+      },
+      "warnings" : [ {
+        "code" : "BRANCH_COND_NULL",
+        "ruleId" : null,
+        "message" : "IF if1 갈래 e3 조건식 결과가 NULL 이라 거짓으로 봤다"
+      } ]
+    }
+  }, {
+    "name" : "IF_ERROR_STOPS",
+    "rules" : "RuleSetSimulateTest.seedGolden",
+    "flowJson" : "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\",\"ruleId\":null,\"splitId\":null,\"label\":null},{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"GT_GRADE\",\"splitId\":null,\"label\":null},{\"id\":\"if1\",\"kind\":\"IF\",\"ruleId\":null,\"splitId\":null,\"label\":null},{\"id\":\"r2\",\"kind\":\"RULE\",\"ruleId\":\"GT_FAST\",\"splitId\":null,\"label\":null},{\"id\":\"r3\",\"kind\":\"RULE\",\"ruleId\":\"GT_SLOW\",\"splitId\":null,\"label\":null},{\"id\":\"m1\",\"kind\":\"MERGE\",\"ruleId\":null,\"splitId\":\"if1\",\"label\":null},{\"id\":\"end\",\"kind\":\"END\",\"ruleId\":null,\"splitId\":null,\"label\":null}],\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"r1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e2\",\"from\":\"r1\",\"to\":\"if1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e3\",\"from\":\"if1\",\"to\":\"r2\",\"order\":1,\"cond\":\"GT_THK + 1\",\"otherwise\":false,\"label\":null},{\"id\":\"e5\",\"from\":\"if1\",\"to\":\"m1\",\"order\":2,\"cond\":\"true\",\"otherwise\":false,\"label\":null},{\"id\":\"e4\",\"from\":\"if1\",\"to\":\"r3\",\"order\":null,\"cond\":null,\"otherwise\":true,\"label\":null},{\"id\":\"e6\",\"from\":\"r2\",\"to\":\"m1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e7\",\"from\":\"r3\",\"to\":\"m1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e8\",\"from\":\"m1\",\"to\":\"end\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null}],\"view\":{\"positions\":{},\"notes\":[],\"groups\":[]}}",
+    "recordJson" : "{\"GT_THK\":\"12\"}",
+    "evalTs" : "2026-06-01 09:00:00",
+    "response" : {
+      "trace" : {
+        "setId" : "(저장 전)",
+        "evalTs" : "2026-06-01T09:00:00",
+        "input" : {
+          "GT_THK" : {
+            "type" : "STRING",
+            "value" : "12"
+          }
+        },
+        "nodes" : [ {
+          "seq" : 1,
+          "nodeId" : "start",
+          "kind" : "START",
+          "status" : "OK",
+          "ruleId" : null,
+          "ver" : null,
+          "reads" : null,
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 2,
+          "nodeId" : "r1",
+          "kind" : "RULE",
+          "status" : "OK",
+          "ruleId" : "GT_GRADE",
+          "ver" : 1,
+          "reads" : {
+            "GT_THK" : {
+              "type" : "STRING",
+              "value" : "12"
+            }
+          },
+          "result" : {
+            "ruleId" : "GT_GRADE",
+            "ver" : 1,
+            "evalTs" : "2026-06-01T09:00:00",
+            "hits" : [ {
+              "rowId" : 1,
+              "seq" : 1,
+              "groupChoices" : { }
+            } ],
+            "defaultApplied" : false,
+            "results" : {
+              "GT_G" : {
+                "type" : "STRING",
+                "value" : "A"
+              }
+            },
+            "trace" : [ {
+              "rowId" : 1,
+              "seq" : 1,
+              "evaluated" : true,
+              "hit" : true,
+              "firstFalseVarId" : null
+            } ],
+            "warnings" : [ ]
+          },
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 3,
+          "nodeId" : "if1",
+          "kind" : "IF",
+          "status" : "ERROR",
+          "ruleId" : null,
+          "ver" : null,
+          "reads" : null,
+          "branches" : [ {
+            "edgeId" : "e3",
+            "outcome" : "ERROR",
+            "message" : "식 'GT_THK + 1' 결과가 불린이 아니다: NUMBER"
+          }, {
+            "edgeId" : "e5",
+            "outcome" : "NOT_EVALUATED",
+            "message" : null
+          }, {
+            "edgeId" : "e4",
+            "outcome" : "NOT_EVALUATED",
+            "message" : null
+          } ],
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : [ {
+            "stage" : "BRANCH_SELECT",
+            "code" : "BRANCH_EVAL_ERROR",
+            "ruleId" : null,
+            "rowId" : null,
+            "name" : "e3",
+            "message" : "IF if1 갈래 e3 조건식을 평가하지 못했다: 식 'GT_THK + 1' 결과가 불린이 아니다: NUMBER"
+          } ]
+        } ],
+        "finalValues" : {
+          "GT_G" : {
+            "type" : "STRING",
+            "value" : "A"
+          }
+        },
+        "violations" : [ {
+          "stage" : "BRANCH_SELECT",
+          "code" : "BRANCH_EVAL_ERROR",
+          "ruleId" : null,
+          "rowId" : null,
+          "name" : "e3",
+          "message" : "IF if1 갈래 e3 조건식을 평가하지 못했다: 식 'GT_THK + 1' 결과가 불린이 아니다: NUMBER"
+        } ]
+      },
+      "warnings" : [ ]
+    }
+  }, {
+    "name" : "PARALLEL_MERGE",
+    "rules" : "RuleSetSimulateTest.seedGolden",
+    "flowJson" : "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\",\"ruleId\":null,\"splitId\":null,\"label\":null},{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"GT_GRADE\",\"splitId\":null,\"label\":null},{\"id\":\"par1\",\"kind\":\"PARALLEL\",\"ruleId\":null,\"splitId\":null,\"label\":null},{\"id\":\"r2\",\"kind\":\"RULE\",\"ruleId\":\"GT_FAST\",\"splitId\":null,\"label\":null},{\"id\":\"rs1\",\"kind\":\"RULE\",\"ruleId\":\"GT_SAME1\",\"splitId\":null,\"label\":null},{\"id\":\"r3\",\"kind\":\"RULE\",\"ruleId\":\"GT_SLOW\",\"splitId\":null,\"label\":null},{\"id\":\"rs2\",\"kind\":\"RULE\",\"ruleId\":\"GT_SAME2\",\"splitId\":null,\"label\":null},{\"id\":\"m1\",\"kind\":\"MERGE\",\"ruleId\":null,\"splitId\":\"par1\",\"label\":null},{\"id\":\"end\",\"kind\":\"END\",\"ruleId\":null,\"splitId\":null,\"label\":null}],\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"r1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e2\",\"from\":\"r1\",\"to\":\"par1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"p1\",\"from\":\"par1\",\"to\":\"r2\",\"order\":1,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e3\",\"from\":\"r2\",\"to\":\"rs1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e4\",\"from\":\"rs1\",\"to\":\"m1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"p2\",\"from\":\"par1\",\"to\":\"r3\",\"order\":2,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e5\",\"from\":\"r3\",\"to\":\"rs2\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e6\",\"from\":\"rs2\",\"to\":\"m1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e7\",\"from\":\"m1\",\"to\":\"end\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null}],\"view\":{\"positions\":{},\"notes\":[],\"groups\":[]}}",
+    "recordJson" : "{\"GT_THK\":\"12\",\"GT_KIND\":\"x\"}",
+    "evalTs" : "2026-06-01 09:00:00",
+    "response" : {
+      "trace" : {
+        "setId" : "(저장 전)",
+        "evalTs" : "2026-06-01T09:00:00",
+        "input" : {
+          "GT_THK" : {
+            "type" : "STRING",
+            "value" : "12"
+          },
+          "GT_KIND" : {
+            "type" : "STRING",
+            "value" : "x"
+          }
+        },
+        "nodes" : [ {
+          "seq" : 1,
+          "nodeId" : "start",
+          "kind" : "START",
+          "status" : "OK",
+          "ruleId" : null,
+          "ver" : null,
+          "reads" : null,
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 2,
+          "nodeId" : "r1",
+          "kind" : "RULE",
+          "status" : "OK",
+          "ruleId" : "GT_GRADE",
+          "ver" : 1,
+          "reads" : {
+            "GT_THK" : {
+              "type" : "STRING",
+              "value" : "12"
+            }
+          },
+          "result" : {
+            "ruleId" : "GT_GRADE",
+            "ver" : 1,
+            "evalTs" : "2026-06-01T09:00:00",
+            "hits" : [ {
+              "rowId" : 1,
+              "seq" : 1,
+              "groupChoices" : { }
+            } ],
+            "defaultApplied" : false,
+            "results" : {
+              "GT_G" : {
+                "type" : "STRING",
+                "value" : "A"
+              }
+            },
+            "trace" : [ {
+              "rowId" : 1,
+              "seq" : 1,
+              "evaluated" : true,
+              "hit" : true,
+              "firstFalseVarId" : null
+            } ],
+            "warnings" : [ ]
+          },
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 3,
+          "nodeId" : "par1",
+          "kind" : "PARALLEL",
+          "status" : "OK",
+          "ruleId" : null,
+          "ver" : null,
+          "reads" : null,
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : [ "p1", "p2" ],
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 4,
+          "nodeId" : "r2",
+          "kind" : "RULE",
+          "status" : "OK",
+          "ruleId" : "GT_FAST",
+          "ver" : 1,
+          "reads" : {
+            "GT_G" : {
+              "type" : "STRING",
+              "value" : "A"
+            }
+          },
+          "result" : {
+            "ruleId" : "GT_FAST",
+            "ver" : 1,
+            "evalTs" : "2026-06-01T09:00:00",
+            "hits" : [ {
+              "rowId" : 1,
+              "seq" : 1,
+              "groupChoices" : { }
+            } ],
+            "defaultApplied" : false,
+            "results" : {
+              "GT_F" : {
+                "type" : "NUMBER",
+                "value" : "1"
+              }
+            },
+            "trace" : [ {
+              "rowId" : 1,
+              "seq" : 1,
+              "evaluated" : true,
+              "hit" : true,
+              "firstFalseVarId" : null
+            } ],
+            "warnings" : [ ]
+          },
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 5,
+          "nodeId" : "rs1",
+          "kind" : "RULE",
+          "status" : "OK",
+          "ruleId" : "GT_SAME1",
+          "ver" : 1,
+          "reads" : {
+            "GT_KIND" : {
+              "type" : "STRING",
+              "value" : "x"
+            }
+          },
+          "result" : {
+            "ruleId" : "GT_SAME1",
+            "ver" : 1,
+            "evalTs" : "2026-06-01T09:00:00",
+            "hits" : [ ],
+            "defaultApplied" : true,
+            "results" : {
+              "GT_V" : {
+                "type" : "STRING",
+                "value" : "one"
+              }
+            },
+            "trace" : [ ],
+            "warnings" : [ ]
+          },
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 6,
+          "nodeId" : "r3",
+          "kind" : "RULE",
+          "status" : "OK",
+          "ruleId" : "GT_SLOW",
+          "ver" : 1,
+          "reads" : {
+            "GT_G" : {
+              "type" : "STRING",
+              "value" : "A"
+            }
+          },
+          "result" : {
+            "ruleId" : "GT_SLOW",
+            "ver" : 1,
+            "evalTs" : "2026-06-01T09:00:00",
+            "hits" : [ ],
+            "defaultApplied" : true,
+            "results" : {
+              "GT_S" : {
+                "type" : "NUMBER",
+                "value" : "5"
+              }
+            },
+            "trace" : [ ],
+            "warnings" : [ ]
+          },
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 7,
+          "nodeId" : "rs2",
+          "kind" : "RULE",
+          "status" : "OK",
+          "ruleId" : "GT_SAME2",
+          "ver" : 1,
+          "reads" : {
+            "GT_KIND" : {
+              "type" : "STRING",
+              "value" : "x"
+            }
+          },
+          "result" : {
+            "ruleId" : "GT_SAME2",
+            "ver" : 1,
+            "evalTs" : "2026-06-01T09:00:00",
+            "hits" : [ ],
+            "defaultApplied" : true,
+            "results" : {
+              "GT_V" : {
+                "type" : "STRING",
+                "value" : "two"
+              }
+            },
+            "trace" : [ ],
+            "warnings" : [ ]
+          },
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 8,
+          "nodeId" : "m1",
+          "kind" : "MERGE",
+          "status" : "OK",
+          "ruleId" : null,
+          "ver" : null,
+          "reads" : null,
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : "par1",
+          "merged" : [ "GT_F", "GT_V", "GT_S" ],
+          "violations" : null
+        }, {
+          "seq" : 9,
+          "nodeId" : "end",
+          "kind" : "END",
+          "status" : "OK",
+          "ruleId" : null,
+          "ver" : null,
+          "reads" : null,
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        } ],
+        "finalValues" : {
+          "GT_G" : {
+            "type" : "STRING",
+            "value" : "A"
+          },
+          "GT_F" : {
+            "type" : "NUMBER",
+            "value" : "1"
+          },
+          "GT_V" : {
+            "type" : "STRING",
+            "value" : "two"
+          },
+          "GT_S" : {
+            "type" : "NUMBER",
+            "value" : "5"
+          }
+        },
+        "violations" : null
+      },
+      "warnings" : [ ]
+    }
+  }, {
+    "name" : "IF_IN_PARALLEL",
+    "rules" : "RuleSetSimulateTest.seedGolden",
+    "flowJson" : "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\",\"ruleId\":null,\"splitId\":null,\"label\":null},{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"GT_GRADE\",\"splitId\":null,\"label\":null},{\"id\":\"par1\",\"kind\":\"PARALLEL\",\"ruleId\":null,\"splitId\":null,\"label\":null},{\"id\":\"if1\",\"kind\":\"IF\",\"ruleId\":null,\"splitId\":null,\"label\":null},{\"id\":\"r2\",\"kind\":\"RULE\",\"ruleId\":\"GT_FAST\",\"splitId\":null,\"label\":null},{\"id\":\"r3\",\"kind\":\"RULE\",\"ruleId\":\"GT_SLOW\",\"splitId\":null,\"label\":null},{\"id\":\"m2\",\"kind\":\"MERGE\",\"ruleId\":null,\"splitId\":\"if1\",\"label\":null},{\"id\":\"rs1\",\"kind\":\"RULE\",\"ruleId\":\"GT_SAME1\",\"splitId\":null,\"label\":null},{\"id\":\"m1\",\"kind\":\"MERGE\",\"ruleId\":null,\"splitId\":\"par1\",\"label\":null},{\"id\":\"end\",\"kind\":\"END\",\"ruleId\":null,\"splitId\":null,\"label\":null}],\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"r1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e2\",\"from\":\"r1\",\"to\":\"par1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"p1\",\"from\":\"par1\",\"to\":\"if1\",\"order\":1,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e3\",\"from\":\"if1\",\"to\":\"r2\",\"order\":1,\"cond\":\"GT_G = \\\"A\\\"\",\"otherwise\":false,\"label\":null},{\"id\":\"e4\",\"from\":\"if1\",\"to\":\"r3\",\"order\":null,\"cond\":null,\"otherwise\":true,\"label\":null},{\"id\":\"e5\",\"from\":\"r2\",\"to\":\"m2\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e6\",\"from\":\"r3\",\"to\":\"m2\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e7\",\"from\":\"m2\",\"to\":\"m1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"p2\",\"from\":\"par1\",\"to\":\"rs1\",\"order\":2,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e8\",\"from\":\"rs1\",\"to\":\"m1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e9\",\"from\":\"m1\",\"to\":\"end\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null}],\"view\":{\"positions\":{},\"notes\":[],\"groups\":[]}}",
+    "recordJson" : "{\"GT_THK\":\"12\",\"GT_KIND\":\"x\"}",
+    "evalTs" : "2026-06-01 09:00:00",
+    "response" : {
+      "trace" : {
+        "setId" : "(저장 전)",
+        "evalTs" : "2026-06-01T09:00:00",
+        "input" : {
+          "GT_THK" : {
+            "type" : "STRING",
+            "value" : "12"
+          },
+          "GT_KIND" : {
+            "type" : "STRING",
+            "value" : "x"
+          }
+        },
+        "nodes" : [ {
+          "seq" : 1,
+          "nodeId" : "start",
+          "kind" : "START",
+          "status" : "OK",
+          "ruleId" : null,
+          "ver" : null,
+          "reads" : null,
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 2,
+          "nodeId" : "r1",
+          "kind" : "RULE",
+          "status" : "OK",
+          "ruleId" : "GT_GRADE",
+          "ver" : 1,
+          "reads" : {
+            "GT_THK" : {
+              "type" : "STRING",
+              "value" : "12"
+            }
+          },
+          "result" : {
+            "ruleId" : "GT_GRADE",
+            "ver" : 1,
+            "evalTs" : "2026-06-01T09:00:00",
+            "hits" : [ {
+              "rowId" : 1,
+              "seq" : 1,
+              "groupChoices" : { }
+            } ],
+            "defaultApplied" : false,
+            "results" : {
+              "GT_G" : {
+                "type" : "STRING",
+                "value" : "A"
+              }
+            },
+            "trace" : [ {
+              "rowId" : 1,
+              "seq" : 1,
+              "evaluated" : true,
+              "hit" : true,
+              "firstFalseVarId" : null
+            } ],
+            "warnings" : [ ]
+          },
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 3,
+          "nodeId" : "par1",
+          "kind" : "PARALLEL",
+          "status" : "OK",
+          "ruleId" : null,
+          "ver" : null,
+          "reads" : null,
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : [ "p1", "p2" ],
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 4,
+          "nodeId" : "if1",
+          "kind" : "IF",
+          "status" : "OK",
+          "ruleId" : null,
+          "ver" : null,
+          "reads" : null,
+          "branches" : [ {
+            "edgeId" : "e3",
+            "outcome" : "TRUE",
+            "message" : null
+          }, {
+            "edgeId" : "e4",
+            "outcome" : "NOT_EVALUATED",
+            "message" : null
+          } ],
+          "chosenEdgeId" : "e3",
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 5,
+          "nodeId" : "r2",
+          "kind" : "RULE",
+          "status" : "OK",
+          "ruleId" : "GT_FAST",
+          "ver" : 1,
+          "reads" : {
+            "GT_G" : {
+              "type" : "STRING",
+              "value" : "A"
+            }
+          },
+          "result" : {
+            "ruleId" : "GT_FAST",
+            "ver" : 1,
+            "evalTs" : "2026-06-01T09:00:00",
+            "hits" : [ {
+              "rowId" : 1,
+              "seq" : 1,
+              "groupChoices" : { }
+            } ],
+            "defaultApplied" : false,
+            "results" : {
+              "GT_F" : {
+                "type" : "NUMBER",
+                "value" : "1"
+              }
+            },
+            "trace" : [ {
+              "rowId" : 1,
+              "seq" : 1,
+              "evaluated" : true,
+              "hit" : true,
+              "firstFalseVarId" : null
+            } ],
+            "warnings" : [ ]
+          },
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 6,
+          "nodeId" : "m2",
+          "kind" : "MERGE",
+          "status" : "OK",
+          "ruleId" : null,
+          "ver" : null,
+          "reads" : null,
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : "if1",
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 7,
+          "nodeId" : "rs1",
+          "kind" : "RULE",
+          "status" : "OK",
+          "ruleId" : "GT_SAME1",
+          "ver" : 1,
+          "reads" : {
+            "GT_KIND" : {
+              "type" : "STRING",
+              "value" : "x"
+            }
+          },
+          "result" : {
+            "ruleId" : "GT_SAME1",
+            "ver" : 1,
+            "evalTs" : "2026-06-01T09:00:00",
+            "hits" : [ ],
+            "defaultApplied" : true,
+            "results" : {
+              "GT_V" : {
+                "type" : "STRING",
+                "value" : "one"
+              }
+            },
+            "trace" : [ ],
+            "warnings" : [ ]
+          },
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        }, {
+          "seq" : 8,
+          "nodeId" : "m1",
+          "kind" : "MERGE",
+          "status" : "OK",
+          "ruleId" : null,
+          "ver" : null,
+          "reads" : null,
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : "par1",
+          "merged" : [ "GT_F", "GT_V" ],
+          "violations" : null
+        }, {
+          "seq" : 9,
+          "nodeId" : "end",
+          "kind" : "END",
+          "status" : "OK",
+          "ruleId" : null,
+          "ver" : null,
+          "reads" : null,
+          "branches" : null,
+          "chosenEdgeId" : null,
+          "order" : null,
+          "splitId" : null,
+          "merged" : null,
+          "violations" : null
+        } ],
+        "finalValues" : {
+          "GT_G" : {
+            "type" : "STRING",
+            "value" : "A"
+          },
+          "GT_F" : {
+            "type" : "NUMBER",
+            "value" : "1"
+          },
+          "GT_V" : {
+            "type" : "STRING",
+            "value" : "one"
+          }
+        },
+        "violations" : null
+      },
+      "warnings" : [ ]
+    }
+  }, {
+    "name" : "STRUCTURE_ERROR",
+    "rules" : "RuleSetSimulateTest.seedGolden",
+    "flowJson" : "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\",\"ruleId\":null,\"splitId\":null,\"label\":null},{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"GT_GRADE\",\"splitId\":null,\"label\":null},{\"id\":\"if1\",\"kind\":\"IF\",\"ruleId\":null,\"splitId\":null,\"label\":null},{\"id\":\"r2\",\"kind\":\"RULE\",\"ruleId\":\"GT_FAST\",\"splitId\":null,\"label\":null},{\"id\":\"m1\",\"kind\":\"MERGE\",\"ruleId\":null,\"splitId\":\"if1\",\"label\":null},{\"id\":\"end\",\"kind\":\"END\",\"ruleId\":null,\"splitId\":null,\"label\":null}],\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"r1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e2\",\"from\":\"r1\",\"to\":\"if1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e3\",\"from\":\"if1\",\"to\":\"r2\",\"order\":1,\"cond\":\"GT_G = \\\"A\\\"\",\"otherwise\":false,\"label\":null},{\"id\":\"e5\",\"from\":\"r2\",\"to\":\"m1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e7\",\"from\":\"m1\",\"to\":\"end\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null}],\"view\":{\"positions\":{},\"notes\":[],\"groups\":[]}}",
+    "recordJson" : "{\"GT_THK\":\"12\"}",
+    "evalTs" : "2026-06-01 09:00:00",
+    "response" : {
+      "trace" : {
+        "setId" : "(저장 전)",
+        "evalTs" : "2026-06-01T09:00:00",
+        "input" : {
+          "GT_THK" : {
+            "type" : "STRING",
+            "value" : "12"
+          }
+        },
+        "nodes" : [ ],
+        "finalValues" : { },
+        "violations" : [ {
+          "stage" : "SET_CHECK",
+          "code" : "FLOW_INVALID",
+          "ruleId" : null,
+          "rowId" : null,
+          "name" : "if1",
+          "message" : "세트 (저장 전) 의 흐름이 올바르지 않다: if1의 나가는 선이 1개다. 2개 이상이어야 한다"
+        }, {
+          "stage" : "SET_CHECK",
+          "code" : "FLOW_INVALID",
+          "ruleId" : null,
+          "rowId" : null,
+          "name" : "m1",
+          "message" : "세트 (저장 전) 의 흐름이 올바르지 않다: m1의 들어오는 선이 1개다. 2개 이상이어야 한다"
+        }, {
+          "stage" : "SET_CHECK",
+          "code" : "FLOW_INVALID",
+          "ruleId" : null,
+          "rowId" : null,
+          "name" : "if1",
+          "message" : "세트 (저장 전) 의 흐름이 올바르지 않다: IF if1에 \"그 외\" 갈래가 0개다. 정확히 1개여야 한다"
+        } ]
+      },
+      "warnings" : [ ]
+    }
+  }, {
+    "name" : "MISSING_INPUT",
+    "rules" : "RuleSetSimulateTest.seedGolden",
+    "flowJson" : "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\",\"ruleId\":null,\"splitId\":null,\"label\":null},{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"GT_GRADE\",\"splitId\":null,\"label\":null},{\"id\":\"if1\",\"kind\":\"IF\",\"ruleId\":null,\"splitId\":null,\"label\":null},{\"id\":\"r2\",\"kind\":\"RULE\",\"ruleId\":\"GT_FAST\",\"splitId\":null,\"label\":null},{\"id\":\"r3\",\"kind\":\"RULE\",\"ruleId\":\"GT_SLOW\",\"splitId\":null,\"label\":null},{\"id\":\"m1\",\"kind\":\"MERGE\",\"ruleId\":null,\"splitId\":\"if1\",\"label\":null},{\"id\":\"end\",\"kind\":\"END\",\"ruleId\":null,\"splitId\":null,\"label\":null}],\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"r1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e2\",\"from\":\"r1\",\"to\":\"if1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e3\",\"from\":\"if1\",\"to\":\"r2\",\"order\":1,\"cond\":\"GT_G = \\\"A\\\"\",\"otherwise\":false,\"label\":null},{\"id\":\"e4\",\"from\":\"if1\",\"to\":\"r3\",\"order\":null,\"cond\":null,\"otherwise\":true,\"label\":null},{\"id\":\"e5\",\"from\":\"r2\",\"to\":\"m1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e6\",\"from\":\"r3\",\"to\":\"m1\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null},{\"id\":\"e7\",\"from\":\"m1\",\"to\":\"end\",\"order\":null,\"cond\":null,\"otherwise\":false,\"label\":null}],\"view\":{\"positions\":{},\"notes\":[],\"groups\":[]}}",
+    "recordJson" : "{}",
+    "evalTs" : "2026-06-01 09:00:00",
+    "response" : {
+      "trace" : {
+        "setId" : "(저장 전)",
+        "evalTs" : "2026-06-01T09:00:00",
+        "input" : { },
+        "nodes" : [ ],
+        "finalValues" : { },
+        "violations" : [ {
+          "stage" : "SET_CHECK",
+          "code" : "MISSING_KEY",
+          "ruleId" : "GT_GRADE",
+          "rowId" : null,
+          "name" : "GT_THK",
+          "message" : "세트 입력 키가 레코드에 없다: GT_THK (룰 GT_GRADE)"
+        } ]
+      },
+      "warnings" : [ ]
+    }
+  } ]
+}

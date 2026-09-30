@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
+import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionException;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionLookup;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredRuleDefinitions;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
@@ -81,12 +82,26 @@ class StoredDefinitionLookupTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
-    void 조립에_실패한_행이_있으면_빼고_판정하지_않고_업무_예외를_던진다() {
+    void 조립에_실패한_행이_있으면_빼고_판정하지_않고_저장값_손상_예외를_던진다() {
         badRule(jdbc);
 
-        BusinessException e = assertThrows(BusinessException.class, () -> lookup.rule("R_BAD", Instant.parse("2026-03-01T00:00:00Z")));
+        // P-D9 — 행 조립 실패(BusinessException MDM021)를 원인으로 감싼 StoredDefinitionException. 메시지는 원인 그대로다.
+        StoredDefinitionException e = assertThrows(StoredDefinitionException.class,
+                () -> lookup.rule("R_BAD", Instant.parse("2026-03-01T00:00:00Z")));
+        assertTrue(e.getCause() instanceof BusinessException, String.valueOf(e.getCause()));
+        assertEquals(e.getCause().getMessage(), e.getMessage());
         assertTrue(e.getMessage().contains("R_BAD") && e.getMessage().contains("버전 1") && e.getMessage().contains("row 1")
                 && e.getMessage().contains("var_id 9"), e.getMessage());
+    }
+
+    @Test
+    void 저장된_FLOW_JSON_을_읽지_못하면_저장값_손상_예외다() {
+        DmeTestSupport.ruleSet(jdbc, "S_BROKEN", "깨진 흐름", "[\"R_TS\"]", "INUSE", 0);
+        DmeTestSupport.ruleSetFlow(jdbc, "S_BROKEN", "{\"version\":1}");
+
+        StoredDefinitionException e = assertThrows(StoredDefinitionException.class, () -> lookup.ruleSet("S_BROKEN"));
+        assertTrue(e.getCause() instanceof IllegalArgumentException, String.valueOf(e.getCause()));
+        assertEquals("흐름의 nodes 는 배열이어야 한다", e.getMessage());
     }
 
     @Test

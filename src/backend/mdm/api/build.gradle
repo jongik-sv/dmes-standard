@@ -20,6 +20,8 @@ dependencies {
     // TSK-07-01 design.md F17 — MdmTemporalSegmentStoreNoImplementationTest(§3.5)가 lib+api 양쪽
     // main 클래스를 함께 스캔해야 해서 api/src/test 에 둔다. lib/build.gradle 은 이미 선언돼 있다.
     testImplementation 'com.tngtech.archunit:archunit-junit5:1.3.0'
+    // 룰 세트 흐름도 2단계 Task 4 — 기록 실행 응답(RunTrace)을 엔진 계약 스키마로 검증한다(엔진 테스트와 같은 버전).
+    testImplementation 'com.networknt:json-schema-validator:1.5.9'
 }
 
 bootWar {
@@ -51,6 +53,8 @@ tasks.register('onnxEmbeddingManualTest', Test) {
 
 // perf-audit P6 — 선언되지 않은 테스트 입력(루트 build.gradle 주석 참고).
 tasks.named('test') {
+    // RuleSetSimulateTest — -Dgolden.update=true 면 골든 파일(rule-set-trace-golden.json)을 다시 쓴다. 값이 없으면 비교만 한다.
+    systemProperty 'golden.update', System.getProperty('golden.update', 'false')
     // DmdScreenMessageParityTest — 화면 메시지 사본
     inputs.files(rootProject.file('../../frontend/m-mdm/pages/dmd/dataItemMng/messages.ts'),
                 rootProject.file('../../frontend/m-mdm/pages/dmd/dataItemMng/cate/messages.ts'),
@@ -59,6 +63,10 @@ tasks.named('test') {
     // MdmOasisActionVocabularyTest — mcm 메뉴·버튼 시드
     inputs.files(rootProject.file('../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer.java'))
             .withPropertyName('mcmDataInitializer').withPathSensitivity(PathSensitivity.RELATIVE)
+    // RuleLedgerChecksTest — 룰 세트 코퍼스·퍼즈 사례(lib 테스트 리소스)를 파일 경로로 직접 읽는다
+    inputs.files(rootProject.file('lib/src/test/resources/com/dongkuk/dmes/mdm/common/rule/rule-set-corpus.json'),
+                rootProject.file('lib/src/test/resources/com/dongkuk/dmes/mdm/common/rule/rule-set-fuzz.json'))
+            .withPropertyName('ruleSetCorpusAndFuzz').withPathSensitivity(PathSensitivity.RELATIVE)
     // *OasisHttpTest·MdmSecurityChainTest 등 — 클라이언트 키, application.yml 의 JWT 비밀 기본값을 덮는 환경 변수
     inputs.property('env.BACKEND_CLIENT_KEY.sha256', rootProject.mdmEnvFingerprint.call('BACKEND_CLIENT_KEY'))
     inputs.property('env.CACTUS_JWT_SECRET.sha256', rootProject.mdmEnvFingerprint.call('CACTUS_JWT_SECRET'))

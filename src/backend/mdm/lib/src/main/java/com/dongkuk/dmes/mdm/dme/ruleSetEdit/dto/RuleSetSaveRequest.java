@@ -17,10 +17,10 @@ public class RuleSetSaveRequest {
     private Long rowVersion;
     private List<Map<String, Object>> rules;
     /**
-     * 흐름도(spec §3.3, FLOW_JSON 모양). 있으면 {@code rules} 를 무시하고 서버가 흐름에서 룰 목록을 펼친다. 없으면 {@code rules} 목록 저장이다(분기 세트는
-     * FLOW_READONLY 로 거부). 1단계 화면은 보내지 않는다 — 2단계 캔버스가 쓴다.
+     * 흐름도 JSON 문자열(spec §3.3). 있으면 {@code rules} 를 무시하고 서버가 흐름에서 룰 목록을 펼친다. 없으면 {@code rules} 목록 저장이다(흐름이
+     * 저장된 세트는 FLOW_READONLY 로 거부). 화면은 흐름 JSON 문자열로 보낸다(OASIS params 는 Map 을 받지 못한다, D-111).
      */
-    private Map<String, Object> flow;
+    private String flowJson;
 
     public String getSetId() { return setId; }
     public String getSetName() { return setName; }
@@ -28,8 +28,8 @@ public class RuleSetSaveRequest {
     public Long getRowVersion() { return rowVersion; }
     public List<Map<String, Object>> getRules() { return rules; }
 
-    public Map<String, Object> getFlow() { return flow; }
-    public void setFlow(Map<String, Object> v) { this.flow = v; }
+    public String getFlowJson() { return flowJson; }
+    public void setFlowJson(String v) { this.flowJson = v; }
 
     public void setSetId(String v) { this.setId = v; }
     public void setSetName(String v) { this.setName = v; }

@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mdm.common.rule;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
+import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionException;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionLookup;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredRuleDefinitions;
 import com.dongkuk.dmes.mdm.common.rule.dto.RuleSetRunRequest;
@@ -49,7 +50,7 @@ import org.springframework.stereotype.Service;
  *
  * <p>OASIS BPMN 은 {@code camunda:class="ruleSetRunner"} + {@code method=execute} serviceTask 하나로 부른다. 판정 오류는 {@link #run} 에서
  * {@link EngineEvaluationException} 으로 올라가고, {@link #execute} 는 {@link RuleErrorText} 문구(룰이 있으면 앞에 {@code [ruleId] })로 바꾼
- * 업무 예외를 던진다. 저장 데이터 손상(행 조립 실패·FLOW_JSON·AST 읽기 실패)도 {@link #execute} 에서는 업무 예외다.
+ * 업무 예외를 던진다. 저장 데이터 손상(행 조립 실패·FLOW_JSON·AST 읽기 실패, {@link StoredDefinitionException})은 {@link #execute} 에서 MDM026 이다.
  * {@code @Transactional} 을 붙이지 않는다 — OASIS 파라미터 이름 바인딩이 깨진다(읽기만 한다).
  */
 @Service("ruleSetRunner")
@@ -88,15 +89,19 @@ public class RuleSetRunner {
     }
 
     /**
-     * 화면이 보낸 흐름(저장 전 포함)을 기록 실행한다. 흐름·판정 오류로는 던지지 않는다 — 오류는 기록에 담긴다. 흐름 맵이 null 이거나 모양이 깨져
-     * 읽지 못하면 노드 없는 기록({@code nodes=[]}, {@code finalValues={}})에 {@code SET_CHECK/FLOW_INVALID} 위반 한 건을 담는다. 저장된 룰 정의 자체가
-     * 깨진 경우(행 조립 실패 {@code BusinessException}, AST 읽기 실패 {@code IllegalStateException})는 기록 대상이 아니라 그대로 올라간다.
+     * 화면이 보낸 흐름 JSON(저장 전 포함)을 기록 실행한다. 흐름·판정 오류로는 던지지 않는다 — 오류는 기록에 담긴다. 흐름 JSON 이 null 이거나 코덱이
+     * 읽지 못하면({@link RuleSetFlowJson#parse}) 노드 없는 기록({@code nodes=[]}, {@code finalValues={}})에 {@code SET_CHECK/FLOW_INVALID} 위반 한 건을
+     * 담는다. 레코드가 null 이면 {@code REQUIRED_VALUE}. 저장된 룰 정의 자체가 깨진 경우는 기록 대상이 아니라 {@link StoredDefinitionException} 으로
+     * 올라간다(P-D9). 판정 시각이 null 이면 서비스 시계.
      */
-    public RunTrace trace(Map<String, Object> flow, Map<String, Object> record, Instant evalTs) {
+    public RunTrace trace(String flowJson, Map<String, Object> record, Instant evalTs) {
+        if (record == null) {
+            throw new BusinessException(ErrorCode.REQUIRED_VALUE, "레코드는 필수입니다.");
+        }
         Instant ts = ts(evalTs);
         FlowDefinition def;
         try {
-            def = RuleSetFlowJson.fromMap(flow);
+            def = RuleSetFlowJson.parse(flowJson);
         } catch (IllegalArgumentException e) {
             return new RunTrace(UNSAVED, ts, Collections.unmodifiableMap(new LinkedHashMap<>(record)), List.of(), Map.of(),
                     List.of(new Violation(Stage.SET_CHECK, Code.FLOW_INVALID, null, null, null, "흐름을 읽을 수 없다: " + e.getMessage())));
@@ -124,9 +129,9 @@ public class RuleSetRunner {
                     .map(v -> (v.ruleId() == null ? "" : "[" + v.ruleId() + "] ")
                             + RuleErrorText.describe(v.stage().name(), v.code().name(), v.rowId(), v.name(), v.message()))
                     .collect(Collectors.joining("; ")));
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            // 저장된 FLOW_JSON(코덱)·AST(조립기)를 읽지 못함 — 데이터 손상. 날것으로 내보내지 않고 업무 예외로 감싼다.
-            throw MdmErrors.of(MdmErrorCode.INVALID_INPUT, "룰 세트 " + request.getSetId() + " 의 저장된 정의를 읽을 수 없어 판정하지 않습니다 — "
+        } catch (StoredDefinitionException e) {
+            // 저장된 행·FLOW_JSON(코덱)·AST(조립기)를 읽지 못함 — 데이터 손상(P-D9). 엔진 안의 IAE·ISE 는 여기서 잡지 않는다.
+            throw MdmErrors.of(MdmErrorCode.STORED_DEFINITION_CORRUPT, "룰 세트 " + request.getSetId() + " 의 저장된 정의를 읽을 수 없어 판정하지 않습니다 — "
                     + e.getMessage(), List.of());
         }
         RuleSetRunResult out = new RuleSetRunResult();
@@ -150,16 +155,10 @@ public class RuleSetRunner {
      * 폐기 룰이라도 판정은 막지 않는다(효력 시각이 없어 과거 시각 재판정까지 깨지므로). 룰 헤더는 한 번에 읽는다.
      */
     private List<Map<String, Object>> warnings(String setId, RuleSetResult r) {
-        List<Map<String, Object>> out = new ArrayList<>();
         List<String> ids = sets.findById(setId).map(RuleSetRunner::ruleIdsOf).orElse(List.of());
-        Map<String, MdmRule> byId = new LinkedHashMap<>();
-        rules.findAllById(ids).forEach(x -> byId.put(x.getMaruRuleId(), x));
-        List<String> deprecated = ids.stream().filter(id -> byId.get(id) != null && "DEPRECATED".equals(byId.get(id).getStatus())).toList();
-        for (String id : deprecated) {
-            out.add(warning(RULE_DEPRECATED, id, id + "는 폐기된 룰이지만 판정 시각에 유효한 RELEASED 버전으로 판정했다"));
-        }
-        if (!deprecated.isEmpty()) {
-            log.warn("폐기된 룰이 든 세트를 판정했다 setId={} ruleIds={}", setId, deprecated);
+        List<Map<String, Object>> out = new ArrayList<>(deprecatedWarnings(ids));
+        if (!out.isEmpty()) {
+            log.warn("폐기된 룰이 든 세트를 판정했다 setId={} ruleIds={}", setId, out.stream().map(w -> w.get("ruleId")).toList());
         }
         List<EngineWarning> engine = new ArrayList<>(r.warnings());
         r.steps().forEach(s -> engine.addAll(s.warnings()));
@@ -169,7 +168,30 @@ public class RuleSetRunner {
         return out;
     }
 
-    private static Map<String, Object> warning(String code, String ruleId, String message) {
+    /** 룰 헤더를 한 번에 읽어 {@link #deprecatedWarnings(List, Map)} 를 만든다(저장 세트 {@link #execute}·저장 전 흐름 기록 실행이 같이 쓴다). */
+    public List<Map<String, Object>> deprecatedWarnings(List<String> ruleIds) {
+        Map<String, MdmRule> byId = new LinkedHashMap<>();
+        rules.findAllById(ruleIds).forEach(x -> byId.put(x.getMaruRuleId(), x));
+        return deprecatedWarnings(ruleIds, byId);
+    }
+
+    /**
+     * 폐기 룰 경고(D-110, P5) — 룰 ID 가 흐름에서 처음 나온 순서대로, 상태가 DEPRECATED 인 룰마다 {@code RULE_DEPRECATED} 한 건. 같은 ID 가 두 번
+     * 있어도 한 건이다. 탄 갈래와 무관하다.
+     */
+    public static List<Map<String, Object>> deprecatedWarnings(List<String> ruleIds, Map<String, MdmRule> byId) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (String id : ruleIds.stream().distinct().toList()) {
+            MdmRule rule = byId.get(id);
+            if (rule != null && "DEPRECATED".equals(rule.getStatus())) {
+                out.add(warning(RULE_DEPRECATED, id, id + "는 폐기된 룰이지만 판정 시각에 유효한 RELEASED 버전으로 판정했다"));
+            }
+        }
+        return out;
+    }
+
+    /** 응답 경고 한 건 {@code {code, ruleId, message}}(D-110 모양). */
+    public static Map<String, Object> warning(String code, String ruleId, String message) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("code", code);
         m.put("ruleId", ruleId);
@@ -192,7 +214,8 @@ public class RuleSetRunner {
         return (evalTs == null ? clock.instant() : evalTs).truncatedTo(ChronoUnit.SECONDS);
     }
 
-    private static Instant parseKst(String text) {
+    /** KST {@code yyyy-MM-dd HH:mm:ss} → 시각. 형식 오류는 INVALID_VALUE. */
+    public static Instant parseKst(String text) {
         try {
             return LocalDateTime.parse(text, TS).atZone(MdmClockConfig.KST).toInstant();
         } catch (DateTimeParseException e) {

@@ -323,4 +323,25 @@ describe("linearFlow·flowRuleIds", () => {
     const nodes = [...withNode(ifNodes(), "r2", { ruleId: "R1" }), node("rx", "RULE", { ruleId: "RX" })];
     expect(flowRuleIds(flow(nodes, ifEdges()))).toEqual(["R1", "RX"]);
   });
+
+  it("노드 200개로 만들 수 있는 가장 깊은 중첩 IF(99단)도 오류 없이 트리를 만든다", () => {
+    const depth = 99;
+    const nodes: FlowNode[] = [node("start", "START")];
+    const edges: FlowEdge[] = [edge("e0", "start", "if1")];
+    for (let i = 1; i <= depth; i++) {
+      nodes.push(node(`if${i}`, "IF"), node(`m${i}`, "MERGE", { splitId: `if${i}` }));
+    }
+    nodes.push(node("end", "END"));
+    for (let i = 1; i <= depth; i++) {
+      edges.push(
+        edge(`a${i}`, `if${i}`, i < depth ? `if${i + 1}` : `m${i}`, { order: 1, cond: `X = ${i}` }),
+        edge(`b${i}`, `if${i}`, `m${i}`, { otherwise: true }),
+        edge(`c${i}`, `m${i}`, i > 1 ? `m${i - 1}` : "end"),
+      );
+    }
+    expect(nodes).toHaveLength(200);
+    const parsed = parseFlow(flow(nodes, edges));
+    expect(parsed.issues).toEqual([]);
+    expect(parsed.tree).not.toBeNull();
+  });
 });
