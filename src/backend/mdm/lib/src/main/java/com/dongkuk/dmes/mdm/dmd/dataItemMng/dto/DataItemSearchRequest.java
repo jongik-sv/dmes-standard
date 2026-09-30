@@ -15,7 +15,10 @@ public class DataItemSearchRequest {
     private Boolean showClosed;
     /** 0부터. 기본 0. */
     private Integer page;
-    /** 기본 50, 상한 200. */
+    /**
+     * 기본 50, 상한 20000(2026-09-30 — 구 200 에서 올림, design.md Q3 갱신). 상한에 걸리면 응답 {@code truncated} 가
+     * true 이다. 항목 편집 화면은 페이징 대신 이 상한을 그대로 요청해 조건에 맞는 항목을 한 번에 받는다.
+     */
     private Integer size;
     /** "이 노드로 보기" — 코드 자신 또는 lvl1~5 어딘가의 값이 이 값과 같은 행만(열림·닫힘 무관, I5). */
     private String nodeFilter;

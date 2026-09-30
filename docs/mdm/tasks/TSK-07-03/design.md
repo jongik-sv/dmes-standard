@@ -401,7 +401,7 @@ Build·Verify 의 변이 검증이 이 목록을 순회한다. "잡는 테스트
 |---|---|---|---|
 | Q1 | 목록 행은 키별 마지막 행(valid_from 최대)이다. `showClosed` 가 아니면 열린 키만 | 모든 행 표시 / 첫 행 | T-Q |
 | Q2 | 정렬은 seq(NULL 뒤) → code | NULL 앞 | T-Q |
-| Q3 | 서버 페이징: `page` 는 0부터, `size` 기본 50·상한 200, `totalCount` 는 모든 필터 뒤 수. 키는 대소문자 무시 부분 일치, 이름은 부분 일치, `%`·`_`·`\` 는 이스케이프 | 상한 제거 / total 을 필터 전 수로 | T-Q |
+| Q3 | ~~서버 페이징: `page` 는 0부터, `size` 기본 50·상한 200~~ → **2026-09-30 개정**: `size` 상한 200 → 20000(`ITEMS_MAX`), 응답에 `truncated` 추가(상한에 걸리면 true). 항목 편집 화면은 페이징·`Pagination` 을 없애고 `size=20000` 을 한 번에 요청해 조건에 맞는 항목을 전부 그리드에 얹는다(실측 `CUS_CD` 고객사코드 = 10,704행). `page`·`size` 파라미터와 `totalCount`(모든 필터 뒤 수)는 그대로 — 키는 대소문자 무시 부분 일치, 이름은 부분 일치, `%`·`_`·`\` 는 이스케이프 | 상한 제거 / total 을 필터 전 수로 — **상한은 남기고 `truncated` 로 알리는 것으로 회피**(`DataItemMngService.ITEMS_MAX`, `DataItemSearchResult.truncated`) | T-Q, `DataItemMngServiceSqliteTest.Q3_size_는_기본_50_상한_ITEMS_MAX()`, `…_상한에_걸리면_truncated_가_true_다()` |
 | Q4 | 카테고리 필터: BASE 는 전체, REGEX 는 서버 Java `Pattern.matches`(대상 칸 NULL 이면 불일치), TABLE 은 열린 소속 행. 닫힌 키는 카테고리 필터를 거치지 않는다(시안 `renderItems` 그대로) | SQL LIKE 로 대체 / NULL 일치 | T-Q, e2e 스모크 2 |
 | Q5 | 동적 열: 계층 열은 1차~`lvl_cnt`차, 추가 컬럼 열은 라벨이 있는 번호만이고 열 머리는 라벨 원문 | 전 칸 표시 / 머리를 번호로 | T-Q, `data-item-columns.test.ts`, e2e 스모크 2 |
 | Q6 | 편집 가능 = `source_kind = MDM` 이고 `INUSE` 이며 그 행이 열림. 그 밖은 조회 전용 | EXTERNAL 편집 허용 | T-Q, `data-item-columns.test.ts`, e2e 스모크 2 |

@@ -43,7 +43,15 @@ public class DataItemMngService {
     private static final Logger log = LoggerFactory.getLogger(DataItemMngService.class);
 
     static final int DEFAULT_SIZE = 50;
-    static final int MAX_SIZE = 200;
+    /**
+     * 목록 조회 상한. 트리({@link #TREE_MAX})와 같은 규칙이다 — 여기까지 왔으면 잘렸다는 뜻이고, 그 사실을
+     * 응답의 {@code truncated} 로 그대로 말한다(조용히 자르지 않는다).
+     *
+     * <p>2026-09-30 — 구 {@code MAX_SIZE = 200} 에서 올렸다. 항목 편집 화면이 페이징을 없애고 조건에 맞는 항목을
+     * 한 번에 전부 그리드에 얹기로 해서다(실측: {@code CUS_CD} 고객사코드 = 10,704행). design.md Q3 이 미리 적은
+     * 함정 "상한 제거" 는 피하려고 <b>상한은 남겼다</b> — 대신 잘렸을 때 {@code truncated} 로 알린다.
+     */
+    static final int ITEMS_MAX = 20000;
     /** 트리 조회 상한(비페이징, design.md §2). 이만큼 왔으면 잘렸다는 뜻(treeTruncated). */
     static final int TREE_MAX = 2000;
 
@@ -74,7 +82,7 @@ public class DataItemMngService {
             throw MdmErrors.of(MdmErrorCode.INVALID_INPUT, "마루 데이터를 고르세요", List.of());
         }
         int page = Math.max(0, request.getPage() == null ? 0 : request.getPage());
-        int size = request.getSize() == null ? DEFAULT_SIZE : Math.max(1, Math.min(MAX_SIZE, request.getSize()));
+        int size = request.getSize() == null ? DEFAULT_SIZE : Math.max(1, Math.min(ITEMS_MAX, request.getSize()));
         String cateId = blankToNull(request.getCateId());
         String nodeFilter = blankToNull(request.getNodeFilter());
         boolean showClosed = Boolean.TRUE.equals(request.getShowClosed());
@@ -88,6 +96,13 @@ public class DataItemMngService {
         });
         log.info("[dataItemMng] search — md={} cate={} node={} page={} size={} total={}", md, cateId, nodeFilter, page,
                 size, result.total());
+        List<DataItemRow> rows = result.rows().stream().map(DataItemRows::toRow).toList();
+        // 목록이 상한에 걸려 잘렸는가 — totalCount(필터 뒤 전체 수)보다 received 가 적으면 잘린 것이다.
+        boolean truncated = result.total() > rows.size();
+        if (truncated) {
+            log.warn("[dataItemMng] search — 목록이 상한에 걸려 잘렸다: md={} 받은={} 전체={} 상한={}", md, rows.size(),
+                    result.total(), ITEMS_MAX);
+        }
         List<DataItemRow> tree = null;
         boolean treeTruncated = false;
         if (Boolean.TRUE.equals(request.getWithTree())) {
@@ -95,8 +110,7 @@ public class DataItemMngService {
             tree = treeRows.stream().map(DataItemRows::toRow).toList();
             treeTruncated = treeRows.size() == TREE_MAX;
         }
-        return new DataItemSearchResult(result.rows().stream().map(DataItemRows::toRow).toList(), result.total(), page,
-                size, tree, treeTruncated);
+        return new DataItemSearchResult(rows, result.total(), page, size, truncated, tree, treeTruncated);
     }
 
     // ── action: reg / save / delete / restore ──────────────────────────────

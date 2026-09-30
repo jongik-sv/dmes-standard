@@ -105,19 +105,37 @@ class DataItemMngServiceSqliteTest extends AbstractMdmSharedDbTest {
         assertEquals("K120", p2.getList().get(19).getCode());
     }
 
+    /**
+     * Q3(2026-09-30 개정) — size 상한은 20000(ITEMS_MAX)이다. 항목 편집 화면이 페이징 없이 전부를 한 번에 받기
+     * 때문이다. 기본값(50)과 0부터 시작하는 page 는 그대로.
+     */
     @Test
-    void Q3_size_는_기본_50_상한_200() {
+    void Q3_size_는_기본_50_상한_ITEMS_MAX() {
         seed120();
         DataItemSearchRequest big = search(0, null);
-        big.setSize(1000);
+        big.setSize(1_000_000);
         DataItemSearchRequest none = search(0, null);
         none.setSize(null);
         none.setPage(null);
 
-        assertEquals(200, service.search(big).getSize());
+        assertEquals(20_000, service.search(big).getSize());
         assertEquals(120, service.search(big).getList().size());
         assertEquals(50, service.search(none).getSize());
         assertEquals(0, service.search(none).getPage());
+    }
+
+    /** 상한에 걸리면 잘렸다고 말한다 — 조용히 자르지 않는다(design.md Q3 함정 "상한 제거" 의 회피책). */
+    @Test
+    void 목록이_상한에_걸리면_truncated_가_true_다() {
+        seed120();
+        DataItemSearchRequest fits = search(0, null);
+        fits.setSize(500);
+        DataItemSearchRequest short1 = search(0, null);
+        short1.setSize(10);
+
+        assertFalse(service.search(fits).isTruncated(), "120건은 상한 안 — 잘리지 않았다");
+        assertTrue(service.search(short1).isTruncated(), "10건만 받은 것은 잘렸다");
+        assertEquals(120, service.search(short1).getTotalCount(), "잘려도 totalCount 는 필터 뒤 전체 수다");
     }
 
     @Test
