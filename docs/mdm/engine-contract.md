@@ -45,10 +45,11 @@ docs/mdm/engine-contract/
 | `engine.spi` | `DefinitionLookup`, `CodeLookup`, `CodeEffLookup`, `MasterLookup`, `FunctionProvider`, `EngineLookups` | 호출자가 구현하는 조회 | 없음. EvalEx 타입도 쓰지 않는다. `java.lang`·`java.util`·`java.math`·`java.time` 만 쓴다 |
 | `engine.code` | `CodeResolver` | 기준일 버전 선택·버전 소급·카테고리 소급·REGEX/TABLE 해석·CODE_LIST | `spi`. EvalEx 를 쓰지 않는다 |
 | `engine.expr` | `MdmExpressionConfig`, `FunctionSets`, `ReservedNames`, `AstNode`, `EngineWarning`, `EngineEvaluationException` | 설정 팩토리·허용 함수·예약 이름·AST 타입·공통 경고와 오류 | `spi`, `code` |
-| `engine.rule` | `RuleEngine`, `RuleResult`, `RuleSetResult`, `RuleView` | 룰 판정·세트 판정·정의 조회 입구 | `expr`, `spi` |
+| `engine.flow` | `FlowParser`, `FlowTree`, `FlowParse`, `FlowIssue`, `Seq`·`RuleStep`·`Split`·`Branch` | 룰 세트 흐름 구조 검사·블록 트리·노드 관계(룰 세트 흐름도 plan C2·C3) | `spi`. EvalEx 를 쓰지 않는다 |
+| `engine.rule` | `RuleEngine`, `RuleResult`, `RuleSetResult`, `RuleView` | 룰 판정·세트 판정·정의 조회 입구 | `expr`, `spi`, `flow` |
 | `engine.domain` | `DomainValidator` | 도메인 검증기 | `expr`, `spi` |
 
-- 의존 방향은 원천 06:463 을 따른다. `spi` 는 다른 패키지에 의존하지 않고, `code` 는 `spi` 만, `expr` 는 `spi`·`code` 를 보고, `rule`·`domain` 은 `expr`·`spi` 를 본다. `rule` 과 `domain` 은 서로 보지 않는다.
+- 의존 방향은 원천 06:463 을 따른다. `spi` 는 다른 패키지에 의존하지 않고, `code` 는 `spi` 만, `expr` 는 `spi`·`code` 를 보고, `rule`·`domain` 은 `expr`·`spi` 를 본다. `rule` 과 `domain` 은 서로 보지 않는다. `flow` 는 `spi` 만 보고, `flow` 를 보는 것은 `rule` 뿐이다(`EnginePackageDependencyTest`).
 - 엔진 main 의존은 `api 'com.ezylang:EvalEx:3.7.0'` 하나다(`maru-mdm-engine/build.gradle:28-31`). ArchUnit 규칙(`MaruMdmEngineArchitectureTest.java:28-46`)이 main 클래스의 의존을 `engine..`·`com.ezylang.evalex..`·`java.lang/util/math/time/text..` 로 제한하고 `java.sql`·`javax.sql`·`java.net`·`java.nio.channels` 를 금지한다. 계약 초안의 import 는 이 허용 목록 안에 있다.
 - 엔진 인스턴스는 `EngineLookups`(spi 다섯을 묶은 record) 하나로 만든다. 구현체 선택(원장·사본·저장된 버전·요청 본문)은 호출자 몫이다(06:541). 공장 클래스의 이름과 생성 방식은 TSK-03-02·03 이 정한다. 이 계약은 입구 인터페이스까지만 정한다.
 

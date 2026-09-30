@@ -15,7 +15,7 @@
 | 호스트 앱 | `src/frontend/m-mcm/` | m-mdm 화면을 포털 탭으로 적재(`page-registry` 코드젠) | `m-mcm/README.md` |
 
 - 패키지: `com.dongkuk.dmes.mdm.{group}.{screenId}.{dto,service}`, 공용 `entity/`, `repository/` (Workspace-Structure §2~§5).
-- 엔진 패키지: `kr.dongkuk.maru.mdm.engine.{expr,rule,domain,code,spi}` (06 「엔진 모듈」, 스캐폴드 실물 — TSK-01-01 D7). 계약: [engine-contract.md](engine-contract.md)
+- 엔진 패키지: `kr.dongkuk.maru.mdm.engine.{expr,rule,domain,code,spi,flow}` (06 「엔진 모듈」, 스캐폴드 실물 — TSK-01-01 D7). 계약: [engine-contract.md](engine-contract.md)
 - `src/backend/settings.gradle` 에 `includeBuild('mdm')`, `includeBuild('maru-mdm-engine')` 를 추가하고, 루트 `build.gradle` 의 `includedProjectNames` 에 넣어 `testAll` 대상이 되게 한다.
 - 로컬 포트: 8096 (기존 8092~8095·8100 과 겹치지 않는 값. `be-run.sh` 에 `--mdm` 추가). 확정은 스캐폴드 Task.
 

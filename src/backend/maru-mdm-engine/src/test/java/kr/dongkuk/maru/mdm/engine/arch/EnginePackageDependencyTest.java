@@ -8,10 +8,11 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import org.junit.jupiter.api.Test;
 
 /**
- * TSK-03-01 design.md §3.1·§5 I1·I2 — 엔진 다섯 패키지의 의존 방향(06-business-rule.md:461·463). 영구 규칙.
+ * TSK-03-01 design.md §3.1·§5 I1·I2 — 엔진 여섯 패키지의 의존 방향(06-business-rule.md:461·463). 영구 규칙.
  *
  * <p>spi 는 아무 engine 패키지도·EvalEx 도 보지 않는다. code 는 spi 만, expr 는 spi·code, rule·domain 은 expr·spi 를 본다.
- * rule 과 domain 은 서로 보지 않고, domain 은 code 를 직접 보지 않는다.
+ * rule 과 domain 은 서로 보지 않고, domain 은 code 를 직접 보지 않는다. flow 는 spi 만 보고, rule 이 flow 를 본다
+ * (룰 세트 흐름도 plan C2).
  */
 class EnginePackageDependencyTest {
 
@@ -23,8 +24,26 @@ class EnginePackageDependencyTest {
     void spi_는_EvalEx_와_다른_engine_패키지를_보지_않는다() {
         noClasses().that().resideInAPackage("..engine.spi..")
                 .should().dependOnClassesThat().resideInAnyPackage(
-                        "com.ezylang..", "..engine.code..", "..engine.expr..", "..engine.rule..", "..engine.domain..")
+                        "com.ezylang..", "..engine.code..", "..engine.expr..", "..engine.rule..", "..engine.domain..",
+                        "..engine.flow..")
                 .as("spi 는 EvalEx 타입과 다른 engine 패키지를 쓰지 않는다 (06:461·463)")
+                .check(ENGINE);
+    }
+
+    @Test
+    void flow_는_spi_만_본다() {
+        noClasses().that().resideInAPackage("..engine.flow..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "com.ezylang..", "..engine.code..", "..engine.expr..", "..engine.rule..", "..engine.domain..")
+                .as("flow 는 spi 만 본다 — 흐름 구조 해석은 식을 평가하지 않는다 (룰 세트 흐름도 plan C2)")
+                .check(ENGINE);
+    }
+
+    @Test
+    void code_expr_domain_은_flow_를_보지_않는다() {
+        noClasses().that().resideInAnyPackage("..engine.code..", "..engine.expr..", "..engine.domain..")
+                .should().dependOnClassesThat().resideInAPackage("..engine.flow..")
+                .as("flow 를 쓰는 것은 rule 뿐이다 (룰 세트 흐름도 plan C2)")
                 .check(ENGINE);
     }
 
