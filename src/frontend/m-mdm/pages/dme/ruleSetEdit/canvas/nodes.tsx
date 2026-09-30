@@ -3,6 +3,14 @@
 /**
  * 캔버스 노드 7종(2단계 계획 Task 9) — 시작·끝(TerminalNode)·룰·IF·병렬·합류·메모·그룹. 표시만 하고 상태를 갖지 않는다.
  * testid·data-state 는 노드 루트 요소에 둔다. 한 변 색 바는 쓰지 않는다(Local-Rules §8) — 선택·실행·오류는 전체 테두리·배경·배지로 보인다.
+ *
+ * 연결점(추가 Task C1, Ruling 28) — 세 가지를 둔다. 모두 `handlesOf` 에도 같은 id·종류·자리로 적는다(React Flow 는 노드 객체가 바뀔 때마다
+ * `node.handles` 로 연결점 목록을 다시 만들고, 끌기를 시작한 손잡이를 id 로 찾으므로 목록에 없으면 연결이 시작되지 않는다).
+ * - 그리기 연결점 `in`(위 가운데)·`out`(아래 가운데): 선은 늘 출발 노드 `out` → 도착 노드 `in` 으로 그린다(캔버스가 선 객체에 이 id 를 준다 — 저장하지 않는다).
+ *   보이지 않고 누름을 받지 않는다(연결 시작 불가).
+ * - 잇기 손잡이 `top`·`right`·`bottom`·`left`(편집 모드만, END 제외): 네 변 가운데. 노드에 마우스를 올리면 보이고 어느 것을 끌어도 그 노드에서 나가는 선이다.
+ * - 몸통 받기 `body`(편집 모드만, START 제외): 노드 전체를 덮는 투명 target. 평소에는 누름을 받지 않고(노드 끌기·누르기·우클릭이 그대로) 연결을 끄는 동안에만
+ *   받는다(React Flow 가 붙이는 `connectionindicator` 클래스) — 몸통 어디에 놓아도 이어진다.
  */
 import type { MouseEvent } from "react";
 
@@ -41,6 +49,8 @@ export type FlowNodeData = {
   onToggleBreakpoint: (nodeId: string) => void;
   /** 표시 토글(끔·ID·이름) — 룰 노드 제목이 따른다(추가 Task V2). */
   varDisplay: VarDisplay;
+  /** 편집 모드 — 네 변 잇기 손잡이와 몸통 받기를 그린다(추가 Task C1). */
+  linkable: boolean;
 };
 export type NoteNodeData = { note: FlowNote; selected: boolean; editable: boolean; onChange: (id: string, patch: Partial<FlowNote>) => void };
 export type GroupNodeData = { id: string; title: string; selected: boolean };
@@ -148,15 +158,62 @@ function CollapsedBody({ data, info }: { data: FlowNodeData; info: CollapsedBloc
   );
 }
 
+/** 그리기 연결점 id — 선은 출발 노드 `out` → 도착 노드 `in` 으로 그린다(C1). */
+export const ANCHOR_IN = "in";
+export const ANCHOR_OUT = "out";
+/** 몸통 받기 연결점 id(C1). */
+export const BODY_HANDLE = "body";
+/** 네 변 잇기 손잡이 — id = 변 이름. testid `flow-handle-{nodeId}-{변}`. */
+export const LINK_SIDES = ["top", "right", "bottom", "left"] as const;
+const SIDE_POSITION: Record<(typeof LINK_SIDES)[number], Position> = {
+  top: Position.Top, right: Position.Right, bottom: Position.Bottom, left: Position.Left,
+};
+/** 그리기 연결점 한 변(px) — 선 끝은 이 점의 바깥 가장자리다(2단계와 같은 값). */
+const ANCHOR_PX = 8;
+/** 잇기 손잡이 지름(px) — `styles/connect.ts` 와 같은 값. */
+export const LINK_HANDLE_PX = 10;
+
+/** 편집 모드 잇기 손잡이·몸통 받기(C1). START 는 들어오는 선이 없어 몸통 받기가 없고, END 는 나가는 선이 없어 잇기 손잡이가 없다. */
+function LinkHandles({ node, isConnectable }: { node: FlowNode; isConnectable: boolean }) {
+  return (
+    <>
+      {node.kind !== "START" && (
+        <Handle
+          id={BODY_HANDLE}
+          type="target"
+          position={Position.Top}
+          className="rsf-drop"
+          isConnectable={isConnectable}
+          isConnectableStart={false}
+          data-testid={`flow-drop-${node.id}`}
+        />
+      )}
+      {node.kind !== "END" &&
+        LINK_SIDES.map((side) => (
+          <Handle
+            key={side}
+            id={side}
+            type="source"
+            position={SIDE_POSITION[side]}
+            className="rsf-link"
+            isConnectable={isConnectable}
+            data-testid={`flow-handle-${node.id}-${side}`}
+            title="끌어서 다른 노드에 놓으면 선을 잇는다"
+          />
+        ))}
+    </>
+  );
+}
+
 /** 시작·끝·룰·IF·병렬·합류 — 모양은 kind 로 갈린다. */
-export function FlowNodeView({ data }: NodeProps<FlowRfNode>) {
+export function FlowNodeView({ data, isConnectable }: NodeProps<FlowRfNode>) {
   const { node, overlay, selected, flash, mark, collapsed } = data;
   const kind = node.kind;
   const stateCls = overlay ? STATE_CLASS[overlay.state] : undefined;
   const cls = `rsf-node ${collapsed ? "rsf-block" : KIND_CLASS[kind]}${stateCls ? ` ${stateCls}` : ""}${flash ? " rsf-flash" : ""}`;
   return (
     <div className={cls} data-testid={`flow-node-${node.id}`} data-state={overlay?.state ?? "idle"} data-selected={selected ? "true" : "false"} data-kind={kind}>
-      {kind !== "START" && <Handle type="target" position={Position.Top} className="rsf-handle" />}
+      {kind !== "START" && <Handle id={ANCHOR_IN} type="target" position={Position.Top} className="rsf-anchor" isConnectableStart={false} />}
       <BreakpointDot data={data} />
       {collapsed && <CollapsedBody data={data} info={collapsed} />}
       {collapsed && mark && <span className="rsf-mark" data-severity={mark} data-testid={`flow-node-mark-${node.id}`} />}
@@ -178,7 +235,8 @@ export function FlowNodeView({ data }: NodeProps<FlowRfNode>) {
       )}
       {!collapsed && kind === "MERGE" && mark && <span className="rsf-mark" data-severity={mark} data-testid={`flow-node-mark-${node.id}`} />}
       <Badges id={node.id} overlay={overlay} />
-      {kind !== "END" && <Handle type="source" position={Position.Bottom} className="rsf-handle" />}
+      {kind !== "END" && <Handle id={ANCHOR_OUT} type="source" position={Position.Bottom} className="rsf-anchor" isConnectableStart={false} />}
+      {data.linkable && <LinkHandles node={node} isConnectable={isConnectable} />}
     </div>
   );
 }
@@ -211,13 +269,22 @@ export function GroupNodeView({ data }: NodeProps<GroupRfNode>) {
 
 export const NODE_TYPES: NodeTypes = { rsfFlow: FlowNodeView, rsfNote: NoteNodeView, rsfGroup: GroupNodeView };
 
-/** React Flow 가 측정 없이 연결점 위치를 알도록 노드에 넘기는 핸들 정의(테스트 환경에서도 선이 그려진다). */
+/**
+ * 노드에 넘기는 연결점 목록 — React Flow 가 측정 없이 연결점 위치를 알고(테스트 환경에서도 선이 그려진다), 끌기를 시작한 손잡이를 id 로 찾는다.
+ * 그리는 연결점(`FlowNodeView`)과 id·종류·자리가 같아야 한다(C1). 잇기 손잡이·몸통 받기는 편집 모드에서만 그리지만 목록에는 늘 둔다
+ * (없는 요소는 누를 수 없으니 해가 없고, 모드가 바뀔 때 목록을 다시 맞추지 않아도 된다).
+ */
 export function handlesOf(kind: FlowNode["kind"]): NonNullable<Node["handles"]> {
   const { w, h } = NODE_SIZE[kind];
-  const s = 8;
-  const target = { type: "target" as const, position: Position.Top, x: w / 2 - s / 2, y: -s / 2, width: s, height: s };
-  const source = { type: "source" as const, position: Position.Bottom, x: w / 2 - s / 2, y: h - s / 2, width: s, height: s };
-  if (kind === "START") return [source];
-  if (kind === "END") return [target];
-  return [target, source];
+  const s = ANCHOR_PX;
+  const g = LINK_HANDLE_PX;
+  const into = { id: ANCHOR_IN, type: "target" as const, position: Position.Top, x: w / 2 - s / 2, y: -s / 2, width: s, height: s };
+  const out = { id: ANCHOR_OUT, type: "source" as const, position: Position.Bottom, x: w / 2 - s / 2, y: h - s / 2, width: s, height: s };
+  const body = { id: BODY_HANDLE, type: "target" as const, position: Position.Top, x: 0, y: 0, width: w, height: h };
+  const side = (id: (typeof LINK_SIDES)[number], x: number, y: number) =>
+    ({ id, type: "source" as const, position: SIDE_POSITION[id], x: x - g / 2, y: y - g / 2, width: g, height: g });
+  const sides = [side("top", w / 2, 0), side("right", w, h / 2), side("bottom", w / 2, h), side("left", 0, h / 2)];
+  if (kind === "START") return [out, ...sides];
+  if (kind === "END") return [into, body];
+  return [into, body, out, ...sides];
 }
