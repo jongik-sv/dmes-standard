@@ -10,7 +10,7 @@
  */
 import { useMemo, type ReactNode } from "react";
 
-import { IconArrowDown, IconArrowUp, IconExternalLink, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
+import { IconArrowDown, IconArrowUp, IconExternalLink, IconGripVertical, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 
 import type { FlowEdge, FlowNode } from "@/contract/engine-contract.generated";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
@@ -25,6 +25,7 @@ import {
   removeGroup,
   removeNode,
   removeNote,
+  reorderBranches,
   updateEdge,
   updateGroup,
   updateNodeLabel,
@@ -59,6 +60,16 @@ const KIND_TEXT: Record<FlowNode["kind"], string> = {
 };
 
 const blankToNull = (v: string) => (v === "" ? null : v);
+
+/** ids 에서 from 을 빼 to 자리(to 의 원래 위치)에 넣는다. from·to 가 같거나 없으면 그대로. */
+export function movedOrder(ids: readonly string[], from: string, to: string): string[] {
+  const i = ids.indexOf(from);
+  const j = ids.indexOf(to);
+  if (i < 0 || j < 0 || i === j) return [...ids];
+  const out = ids.filter((x) => x !== from);
+  out.splice(j, 0, from);
+  return out;
+}
 
 function Title({ children, right }: { children: ReactNode; right?: ReactNode }) {
   return (
@@ -203,6 +214,17 @@ function SplitProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
   const branches = branchesOf(flow, node.id);
   const ordered = branches.filter((e) => !e.otherwise);
   const nodeChecks = checks.filter((c) => c.nodeId === node.id && !c.edgeId);
+
+  const handleDrop = (toEdgeId: string) => (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const fromEdgeId = e.dataTransfer.getData("application/x-rsf-branch");
+    if (fromEdgeId && fromEdgeId !== toEdgeId) {
+      const orderIds = ordered.map((x) => x.id);
+      onEdit((f) => reorderBranches(f, node.id, movedOrder(orderIds, fromEdgeId, toEdgeId)));
+    }
+  };
+
   return (
     <div className="rsf-panel" data-testid={isIf ? "flow-prop-if" : "flow-prop-par"}>
       <Title>{`${KIND_TEXT[node.kind]} ${node.id}`}</Title>
@@ -235,8 +257,25 @@ function SplitProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
           const edgeChecks = checks.filter((c) => c.edgeId === e.id);
           const other = isIf && e.otherwise;
           return (
-            <div key={e.id} className="rsf-branch-box" data-testid={`flow-prop-branch-${e.id}`}>
+            <div
+              key={e.id}
+              className="rsf-branch-box"
+              data-testid={`flow-prop-branch-${e.id}`}
+              onDragOver={(ev) => ev.preventDefault()}
+              onDrop={handleDrop(e.id)}
+            >
               <div className="rsf-branch-head">
+                {editable && !other && (
+                  <div
+                    draggable
+                    data-testid={`flow-prop-branch-${e.id}-handle`}
+                    aria-label="갈래 순서 끌기"
+                    onDragStart={(ev) => ev.dataTransfer.setData("application/x-rsf-branch", e.id)}
+                    style={{ cursor: "grab", display: "flex", alignItems: "center", marginRight: "var(--spacing-xs)" }}
+                  >
+                    <IconGripVertical size={14} aria-hidden="true" />
+                  </div>
+                )}
                 <Input
                   data-testid={`flow-prop-branch-${e.id}-label`}
                   value={e.label ?? (other ? "그 외" : "")}
