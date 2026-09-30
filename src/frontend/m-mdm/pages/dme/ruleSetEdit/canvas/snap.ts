@@ -5,8 +5,9 @@
  * 축마다 거리가 임계값(화면 6px = 흐름 `6/zoom`) 안인 것 가운데 **가장 가까운 하나**에만 붙는다(거리가 같으면 왼·가운데·오른쪽, 위·가운데·아래 순서로 앞의 것).
  * 안내선은 붙은 축마다 하나이고, 맞은 상자와 (붙은 뒤의) 끄는 상자 둘을 잇는 길이다. 같은 기준값인 상자가 여럿이면 끄는 상자와 가장 가까운 상자를 잇는다.
  *
- * 캔버스는 끌기를 시작할 때 `snapIndex` 로 후보 기준값을 한 번 모아 정렬해 두고, 프레임마다 `snapMoveIn` 으로 이분 탐색한다.
- * `snapMove` 는 같은 계산을 한 번에 하는 입구다(단위 테스트·한 번 쓰는 곳).
+ * 캔버스는 끌기를 시작할 때 `snapIndex` 로 후보 기준값을 한 번 모아 정렬해 두고, 프레임마다 `snapHitIn` 으로 이분 탐색한다.
+ * `snapHitIn` 은 안내선이 이은 상자(축마다 하나)의 `id` 도 돌려준다 — 캔버스가 놓을 때 고정 안 된 대상을 그린 위치로 함께 적는다(I2).
+ * `snapMoveIn`·`snapMove` 는 같은 계산에서 이동량·안내선만 돌려주는 입구다(단위 테스트·한 번 쓰는 곳).
  */
 
 export interface Box {
@@ -14,6 +15,8 @@ export interface Box {
   y: number;
   w: number;
   h: number;
+  /** 상자 주인(노드·메모 ID) — 있으면 맞은 대상으로 돌려준다(`snapHitIn`). */
+  id?: string;
 }
 /** `x` = x 가 맞음(세로 안내선, x = at 에서 y 가 from..to), `y` = y 가 맞음(가로 안내선, y = at 에서 x 가 from..to). */
 export type GuideAxis = "x" | "y";
@@ -111,23 +114,40 @@ function closestAt(lines: readonly SnapLine[], v: number, m: Box, axis: GuideAxi
   return best!;
 }
 
-/** 미리 모은 색인으로 붙일 이동량과 안내선을 구한다(프레임마다). */
-export function snapMoveIn(moving: Box, index: SnapIndex, threshold: number): SnapResult {
-  if (!finiteBox(moving) || !(threshold >= 0)) return { dx: 0, dy: 0, guides: [] };
+/** 붙인 결과 + 안내선이 이은(맞은) 상자의 ID — 축마다 하나, 같은 상자면 한 번. ID 가 없는 상자는 빠진다. */
+export interface SnapHit extends SnapResult {
+  targets: string[];
+}
+
+/** 미리 모은 색인으로 붙일 이동량과 안내선, 맞은 상자 ID 를 구한다(프레임마다). */
+export function snapHitIn(moving: Box, index: SnapIndex, threshold: number): SnapHit {
+  if (!finiteBox(moving) || !(threshold >= 0)) return { dx: 0, dy: 0, guides: [], targets: [] };
   const nx = nearest(index.x, xRefs(moving), threshold);
   const ny = nearest(index.y, yRefs(moving), threshold);
   const dx = nx ? nx.d : 0;
   const dy = ny ? ny.d : 0;
   const m: Box = { x: moving.x + dx, y: moving.y + dy, w: moving.w, h: moving.h };
   const guides: Guide[] = [];
+  const targets: string[] = [];
+  const hit = (o: Box) => {
+    if (o.id !== undefined && !targets.includes(o.id)) targets.push(o.id);
+  };
   if (nx) {
     const o = closestAt(index.x, nx.v, m, "x");
     guides.push({ axis: "x", at: nx.v, from: Math.min(o.y, m.y), to: Math.max(o.y + o.h, m.y + m.h) });
+    hit(o);
   }
   if (ny) {
     const o = closestAt(index.y, ny.v, m, "y");
     guides.push({ axis: "y", at: ny.v, from: Math.min(o.x, m.x), to: Math.max(o.x + o.w, m.x + m.w) });
+    hit(o);
   }
+  return { dx, dy, guides, targets };
+}
+
+/** 미리 모은 색인으로 붙일 이동량과 안내선을 구한다. */
+export function snapMoveIn(moving: Box, index: SnapIndex, threshold: number): SnapResult {
+  const { dx, dy, guides } = snapHitIn(moving, index, threshold);
   return { dx, dy, guides };
 }
 

@@ -33,6 +33,8 @@
  * 프레임마다 이분 탐색한다. React Flow 는 매 프레임 포인터 − 누른 거리로 위치를 새로 재므로(XYDrag) 붙인 이동량은 끌기 위치(`drag`)에만 더하고,
  * 놓을 때 같은 이동량을 더한 자리를 기존 `onMove` 로 한 번 올린다. Alt 를 누른 채 끌거나 끼우기 대상 선이 강조된 동안은 붙이지 않고 안내선도 없다.
  * 안내선은 캔버스 안 저장소(`SnapStore`)만 구독해 그리므로 page 는 다시 그리지 않고 배치(dagre)도 다시 돌지 않는다.
+ * 놓을 때 마지막 프레임에 맞은 대상(축마다 안내선이 이은 흐름 노드) 가운데 저장 위치가 없는(고정 안 된) 것은 그린 위치(접힌 분기는 제 크기 기준, 분기면 블록 멤버도)를
+ * 같은 `onMove` 에 함께 적어 고정한다 — 겹침 풀기(Ruling 19)가 맞춘 대상을 밀어 정렬이 깨지지 않게(I2, 정렬 A1 의 "고른 것 전부 고정"과 같은 방식).
  *
  * 네 변 어디서나 잇기(C1, Ruling 28): 편집 모드에서 노드에 마우스를 올리면 네 변 가운데 잇기 손잡이가 보이고, 어느 것을 끌어도 그 노드에서 나가는 선이다.
  * 대상 노드 몸통 어디에 놓아도 이어진다(몸통을 덮는 투명 target `body` — 연결을 끄는 동안에만 누름을 받는다, `nodes.tsx`). 연결 모드는 느슨하게(`ConnectionMode.Loose`)
@@ -50,14 +52,14 @@ import { IconPlus } from "@tabler/icons-react";
 
 import type { RuleSetFlow, TypedValue } from "@/contract/engine-contract.generated";
 
-import { MAX_LABEL_OFFSET, type FlowNote, type FlowPos, type EditFlow, type LabelOffset, type LabelPart } from "../flow-edit";
+import { MAX_LABEL_OFFSET, blockMembers, type FlowNote, type FlowPos, type EditFlow, type LabelOffset, type LabelPart } from "../flow-edit";
 import { NODE_SIZE, beyondLine, drawnPositions, foldOffsetX, spaceMinDelta, type SpaceAxis, type SpaceBlocks } from "../flow-layout";
 import { typedText } from "../trace-view";
 import { blockDragPositions, dropTargetAt, edgeChips, edgeMarks, nodeMarks, resolveNodeDrop } from "../flow-vars";
 import type { FlowMode } from "../state/useRuleSetEdit";
 import type { RuleIoMap, RuleSetCheck, VarDisplay } from "../types";
 import { collapseView } from "./collapse";
-import { boundsOf, snapIndex, snapMoveIn, snapThreshold, type Box, type Guide, type SnapIndex } from "./snap";
+import { boundsOf, snapHitIn, snapIndex, snapThreshold, type Box, type Guide, type SnapIndex } from "./snap";
 import { insertRoutePoint, routeMidpoint, routePath } from "./route-path";
 import type { MenuTarget } from "./context-menu";
 import { ANCHOR_IN, ANCHOR_OUT, GroupNodeData, NODE_TYPES, NoteNodeData, FlowNodeData, handlesOf, type CollapsedBlockInfo } from "./nodes";
@@ -548,15 +550,17 @@ function SnapGuides({ store }: { store: SnapStore }) {
   );
 }
 
-/** 끄는 동안의 스냅 상태(G1) — 끄는 대상 ID, 끌기 시작 때 모은 후보 색인, 지난 프레임에 붙인 이동량. */
+/** 끄는 동안의 스냅 상태(G1) — 끄는 대상 ID, 끌기 시작 때 모은 후보 색인, 지난 프레임에 붙인 이동량과 맞은 상자 ID(I2). */
 interface SnapDrag {
   ids: ReadonlySet<string>;
   index: SnapIndex;
   dx: number;
   dy: number;
+  targets: readonly string[];
 }
-/** 노드 상자(흐름 좌표). 크기가 없으면 NaN 이라 스냅 후보·대상에서 빠진다. */
-const boxOf = (n: Node): Box => ({ x: n.position.x, y: n.position.y, w: n.width ?? Number.NaN, h: n.height ?? Number.NaN });
+const NO_TARGETS: readonly string[] = Object.freeze([]);
+/** 노드 상자(흐름 좌표, 주인 ID 포함). 크기가 없으면 NaN 이라 스냅 후보·대상에서 빠진다. */
+const boxOf = (n: Node): Box => ({ x: n.position.x, y: n.position.y, w: n.width ?? Number.NaN, h: n.height ?? Number.NaN, id: n.id });
 
 function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
   const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, selected } = props;
@@ -1080,7 +1084,7 @@ function Inner(props: FlowCanvasProps) {
     for (const n of nodesRef.current) {
       if ((n.type === "rsfFlow" || n.type === "rsfNote") && !skip.has(n.id)) others.push(boxOf(n));
     }
-    snapRef.current = { ids, index: snapIndex(others), dx: 0, dy: 0 };
+    snapRef.current = { ids, index: snapIndex(others), dx: 0, dy: 0, targets: NO_TARGETS };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editable, snapStore]);
 
@@ -1093,18 +1097,21 @@ function Inner(props: FlowCanvasProps) {
     let dx = 0;
     let dy = 0;
     let guides: readonly Guide[] = NO_GUIDES;
+    let targets: readonly string[] = NO_TARGETS;
     if (s && !target && !e.altKey) {
       const boxes = dragged.map(boxOf);
       const box = boxes.every((b) => Number.isFinite(b.w) && Number.isFinite(b.h)) ? boundsOf(boxes) : null;
       if (box) {
-        const r = snapMoveIn(box, s.index, snapThreshold(rf.getZoom()));
+        const r = snapHitIn(box, s.index, snapThreshold(rf.getZoom()));
         ({ dx, dy } = r);
         guides = r.guides;
+        targets = r.targets;
       }
     }
     if (s) {
       s.dx = dx;
       s.dy = dy;
+      s.targets = targets;
     }
     snapStore.set(guides);
     return { dx, dy };
@@ -1130,6 +1137,32 @@ function Inner(props: FlowCanvasProps) {
     setDrag((d) => ({ ...d, ...next }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editable, rf, setDropEdge, snapStore]);
+
+  /**
+   * 놓을 때 스냅으로 맞은 대상 가운데 저장 위치가 없는(고정 안 된) 흐름 노드를 지금 그린 위치로 `moved` 에 더한다(I2).
+   * 접힌 분기는 제 크기 기준(+foldOffsetX), 분기면 블록 멤버도 그린 위치로 적는다(정렬 A1 `apply` 와 같다). 메모는 이미 제 위치를 저장하므로 뺀다.
+   * 그린 위치 전체(`spaceDrawn`)는 고정할 대상이 있을 때만 읽는다(접힌 블록이 있으면 흐름당 한 번 배치 — 캐시).
+   */
+  const pinSnapTargets = (moved: Record<string, FlowPos>, targets: readonly string[]) => {
+    const full = fullRef.current;
+    const saved = full.view.positions ?? {};
+    const free = (id: string) => !(id in moved) && !saved[id];
+    const hits = targets.filter((id) => free(id) && full.nodes.some((n) => n.id === id));
+    if (hits.length === 0) return;
+    const drawnAll = spaceDrawnRef.current();
+    const blocks = viewRef.current.blocks;
+    for (const id of hits) {
+      const n = full.nodes.find((x) => x.id === id)!;
+      const p = drawnAll[id];
+      if (!p) continue;
+      const block = blocks[id];
+      moved[id] = { x: Math.round(p.x + (block ? foldOffsetX(n.kind) : 0)), y: Math.round(p.y) };
+      const members = block ? block.members : isSplit(id) ? (blockMembers(full, id) ?? []) : [];
+      for (const m of members) {
+        if (m !== id && free(m) && drawnAll[m]) moved[m] = { x: Math.round(drawnAll[m].x), y: Math.round(drawnAll[m].y) };
+      }
+    }
+  };
 
   const onNodeDragStop = useCallback((_e: unknown, node: Node, dragged: Node[]) => {
     const target = dropEdgeRef.current;
@@ -1157,6 +1190,7 @@ function Inner(props: FlowCanvasProps) {
       if (Object.keys(movedNotes).length > 0) onMove({}, movedNotes); // 메모만 끌었어도 놓을 때 한 번(B5)
       return;
     }
+    pinSnapTargets(moved, snap?.targets ?? NO_TARGETS);
     if (target && dragged.length === 1 && isMovable(node)) {
       onMoveNode(node.id, target, moved);
       setDrag({}); // 옮기기가 거부돼 흐름이 그대로면 끌던 위치를 되돌린다(성공하면 새 흐름 위치가 정본)
