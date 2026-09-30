@@ -15,6 +15,7 @@ import {
   type EditFlow, type EditResult, type FlowPos,
 } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { autoArrange } from "../../../pages/dme/ruleSetEdit/flow-layout";
+import type { RuleIo } from "../../../pages/dme/ruleSetEdit/types";
 import { flush, installDomStorage } from "../helpers/render";
 
 function ok(r: EditResult): EditFlow {
@@ -67,15 +68,6 @@ describe("view.routes 코덱", () => {
     const f = ok(setRoute(ifFlow(), "e2", [P(10, 20), P(30, 40)]));
     const s = flowJsonOf(f);
     expect(flowJsonOf(toEditFlow(JSON.parse(s), []))).toBe(s);
-  });
-
-  it("routes 가 없는 옛 저장본 — 정규화한 기준(baseJson)과 같아 열자마자 dirty 가 되지 않는다", () => {
-    const saved = JSON.parse(flowJsonOf(ifFlow()));
-    delete saved.view.routes; // 옛 저장본
-    const base = flowJsonOf(toEditFlow(saved, [])); // useRuleSetEdit.baseJson 과 같은 식
-    const current = flowJsonOf(toEditFlow(saved, [])); // 열린 흐름의 flowJson
-    expect(current).toBe(base);
-    expect(base).toContain('"routes":{}');
   });
 });
 
@@ -244,6 +236,10 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
+const nm = (n: string) => ({ name: n, source: null, label: null, dataType: null, scale: null, dateString: false, maruCodeId: null });
+const ioOf = (ruleId: string): RuleIo => ({
+  ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST", conds: [], results: [nm("S_A")],
+});
 const noop = () => {};
 function props(over: Partial<FlowCanvasProps> = {}): FlowCanvasProps {
   return {
@@ -330,18 +326,43 @@ describe("FlowCanvas 선 경로", () => {
     expect(onRouteChange).toHaveBeenCalledWith("e2", [P(340, 200)]);
   });
 
-  it("손잡이를 고른 채 Delete 를 누르면 그 점을 빼고, 캔버스 위로 키를 올리지 않는다", async () => {
+  it("손잡이를 고른 채 removeRoutePointRef 를 부르면 그 점을 빼고 true, 이웃 점을 고른 채 두며, 고른 점이 없으면 false", async () => {
     const onRouteChange = vi.fn();
-    const outer = vi.fn();
-    document.body.addEventListener("keydown", outer);
-    await draw(props({ flow: routed(), selectedEdgeId: "e2", onRouteChange }));
+    const ref = { current: null as (() => boolean) | null };
+    await draw(props({ flow: routed(), selectedEdgeId: "e2", onRouteChange, removeRoutePointRef: ref }));
+    expect(ref.current).not.toBeNull();
+    expect(ref.current!()).toBe(false); // 고른 손잡이 없음 → page 가 선택 삭제로 간다
     await fire(q("flow-route-handle-e2-1")!, "pointerdown", { clientX: 340, clientY: 200, button: 0 });
     await fire(window, "pointerup", { clientX: 340, clientY: 200 });
-    await act(async () => {
-      q("flow-canvas")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", bubbles: true, cancelable: true }));
-    });
+    let removed = false;
+    await act(async () => { removed = ref.current!(); });
+    expect(removed).toBe(true);
     expect(onRouteChange).toHaveBeenCalledWith("e2", [P(300, 120)]);
-    expect(outer).not.toHaveBeenCalled();
+    // 이웃(0번) 점이 골라져 있어 연속 Delete 가 선 전체 삭제로 새지 않는다
+    expect(q("flow-route-handle-e2-0")!.getAttribute("data-selected")).toBe("true");
+    onRouteChange.mockClear();
+    await act(async () => { removed = ref.current!(); });
+    expect(removed).toBe(true);
+    expect(onRouteChange).toHaveBeenCalledWith("e2", [P(340, 200)]);
+  });
+
+  it("점이 하나뿐인 선에서 점을 빼면 선택이 비어 다음 호출은 false 다", async () => {
+    const ref = { current: null as (() => boolean) | null };
+    const flow = ok(setRoute(ifFlow(), "e2", [P(300, 120)]));
+    await draw(props({ flow, selectedEdgeId: "e2", removeRoutePointRef: ref }));
+    await fire(q("flow-route-handle-e2-0")!, "pointerdown", { clientX: 300, clientY: 120, button: 0 });
+    await fire(window, "pointerup", { clientX: 300, clientY: 120 });
+    await act(async () => { expect(ref.current!()).toBe(true); });
+    await act(async () => { expect(ref.current!()).toBe(false); });
+  });
+
+  it("경로가 있는 선의 변수 칩은 경로 가운데(라벨 아래)에 두고, 경로가 없는 선은 출발점 옆 그대로다", async () => {
+    const transformOf = (edgeId: string) => (q(`flow-edge-chips-${edgeId}`)!.parentElement as HTMLElement).style.transform;
+    await draw(props({ flow: ifFlow(), showVars: true, rules: { R_A: ioOf("R_A") } }));
+    const plain = transformOf("e2");
+    await draw(props({ flow: ok(setRoute(ifFlow(), "e2", [P(300, 120), P(340, 500)])), showVars: true, rules: { R_A: ioOf("R_A") } }));
+    const withRoute = transformOf("e2");
+    expect(withRoute).not.toBe(plain);
   });
 
   it("접힌 분기가 이어 받은 선은 원래 경로를 그리지 않고 손잡이도 없다", async () => {

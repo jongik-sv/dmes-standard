@@ -14,11 +14,13 @@
  *
  * 선 경로 편집(Task 15, C14): `view.routes[선 ID]` 가 있으면 꺾는 점을 지나는 둥근 꺾은선으로 그린다(모든 모드). 편집 모드에서 고른 선에는 점마다 손잡이가 뜬다.
  * 손잡이 끌기·고른 손잡이는 캔버스 안 저장소(`RouteStore`)에만 두고 놓을 때 `onRouteChange` 를 한 번 부른다(page 는 끌기 중 다시 그리지 않는다).
- * 손잡이를 고른 채 Delete·Backspace 는 캔버스 감싸개가 받아 그 점을 빼고 위(page 단축키)로 올리지 않는다.
+ * 손잡이를 고른 채 Delete·Backspace 는 page 의 단축키 디스패처가 받는다 — page 가 내려준 `removeRoutePointRef` 에 캔버스가
+ * "고른 꺾는 점 빼기(뺐으면 true)" 를 채우고, page 의 delete 핸들러가 그것을 먼저 부른 뒤 false 면 원래 선택 삭제로 간다.
+ * 뺀 뒤에는 이웃 점을 고른 채로 둬 연속 Delete 가 선 전체 삭제로 새지 않는다(점이 없으면 선택 없음).
  */
 import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore,
-  type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent,
+  type DragEvent, type MutableRefObject, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent,
 } from "react";
 
 import { IconPlus } from "@tabler/icons-react";
@@ -33,7 +35,6 @@ import type { FlowMode } from "../state/useRuleSetEdit";
 import type { RuleIoMap, RuleSetCheck } from "../types";
 import { collapseView } from "./collapse";
 import { insertRoutePoint, routeMidpoint, routePath } from "./route-path";
-import { isTypingTarget } from "./shortcuts";
 import type { MenuTarget } from "./context-menu";
 import { GroupNodeData, NODE_TYPES, NoteNodeData, FlowNodeData, handlesOf, type CollapsedBlockInfo } from "./nodes";
 import type { EdgeState, Overlay } from "./overlay";
@@ -80,6 +81,8 @@ const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 2;
 /** 선 경로 모서리 반경(C14). */
 const ROUTE_RADIUS = 8;
+/** 경로가 있는 선의 변수 칩을 가운데 라벨 아래로 띄우는 거리(px). */
+const ROUTE_CHIP_GAP = 20;
 
 type Measured = { width: number; height: number };
 
@@ -129,6 +132,8 @@ export interface FlowCanvasProps {
   onNoteChange: (id: string, patch: Partial<FlowNote>) => void;
   /** 선 경로(꺾는 점 목록, 흐름 좌표)를 통째로 바꿈(C14) — 손잡이를 놓을 때·점을 더하거나 뺄 때 한 번. 빈 목록이면 경로를 지운다. */
   onRouteChange?: (edgeId: string, points: FlowPos[]) => void;
+  /** 캔버스가 "고른 꺾는 점 빼기 — 뺐으면 true" 를 채우는 ref(page 의 delete 단축키가 먼저 부른다, C14). */
+  removeRoutePointRef?: MutableRefObject<(() => boolean) | null>;
   /** 우클릭·[+] — 대상과 화면 좌표(B7·A3). */
   onContextMenu: (target: MenuTarget, at: { x: number; y: number }) => void;
   /** 즉석 조건식 Enter(B10 — Task 7). */
@@ -349,7 +354,7 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
           </div>
         )}
         {chips.length > 0 && (
-          <div className="rsf-elabel" style={at(sourceX, sourceY + 20)}>
+          <div className="rsf-elabel" style={route && route.length > 0 ? at(lx, ly + ROUTE_CHIP_GAP) : at(sourceX, sourceY + 20)}>
             <span className="rsf-vchips" data-testid={`flow-edge-chips-${id}`}>
               {chips.map((c) => (
                 <span key={c} className="rsf-vchip" title={chipTitle(c, data?.valueOf)}>
@@ -439,7 +444,7 @@ function Inner(props: FlowCanvasProps) {
     flow, rules, checks, mode, showVars, selectedId, selectedEdgeId, overlay, focusId, focusSeq, focusReveal, fitSignal, fitKey,
     breakpoints, collapsed, valueAt, showMiniMap, editingCondEdgeId,
     onSelect, onSelectEdge, onOpenRule, onMove, onMoveNode, onConnect, onDropPalette, onDropRule, onNoteChange, onContextMenu, onToggleBreakpoint,
-    onEditCond, onRouteChange, onEditCondClose, onSelectionChange,
+    onEditCond, onRouteChange, removeRoutePointRef, onEditCondClose, onSelectionChange,
   } = props;
   const editable = mode === "edit";
   const debugging = mode === "debug";
@@ -818,16 +823,22 @@ function Inner(props: FlowCanvasProps) {
     }
   }, [flow, editable, selectedEdgeId, routeStore]);
 
-  // 손잡이를 고른 채 Delete·Backspace — 그 점을 빼고 위(page 단축키)로 올리지 않는다.
-  const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (!editable || (e.key !== "Delete" && e.key !== "Backspace") || isTypingTarget(e.target)) return;
-    const sel = routeStore.sel;
-    const points = sel ? flow.view.routes?.[sel.edgeId] : undefined;
-    if (!sel || !points || sel.index >= points.length) return;
-    e.preventDefault();
-    e.stopPropagation();
-    routeApi.removePoint(sel.edgeId, points, sel.index);
-  };
+  // 손잡이를 고른 채 Delete·Backspace — page 의 delete 핸들러가 먼저 부른다. 점을 뺐으면 true, 이웃 점(없으면 선택 없음)을 고른 채로 둔다.
+  useEffect(() => {
+    if (!removeRoutePointRef) return;
+    removeRoutePointRef.current = () => {
+      const sel = routeStore.sel;
+      const points = sel ? fullRef.current.view.routes?.[sel.edgeId] : undefined;
+      if (!editable || !sel || !points || sel.index >= points.length) return false;
+      routeApi.removePoint(sel.edgeId, points, sel.index);
+      if (points.length > 1) routeStore.sel = { edgeId: sel.edgeId, index: Math.min(sel.index, points.length - 2) };
+      routeStore.emit();
+      return true;
+    };
+    return () => {
+      removeRoutePointRef.current = null;
+    };
+  }, [removeRoutePointRef, editable, routeApi, routeStore]);
 
   const carries = (e: DragEvent<HTMLDivElement>) => {
     const types = Array.from(e.dataTransfer?.types ?? []);
@@ -899,7 +910,6 @@ function Inner(props: FlowCanvasProps) {
       onDrop={onDrop}
       onClickCapture={onClickCapture}
       onDoubleClick={onDoubleClick}
-      onKeyDown={onKeyDown}
     >
       <ReactFlow
         nodes={nodes}

@@ -312,6 +312,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   const mac = useMemo(() => isMacPlatform(), []);
   /** 고른 것이 흐름 노드인가(메모·그룹 아님) — 복사·중단점 단축키와 디버그 툴바 [여기까지] 가 쓴다. */
   const isFlowNode = !!flow && !!selectedId && flow.nodes.some((n) => n.id === selectedId);
+  const removeRoutePointRef = useRef<(() => boolean) | null>(null);
   const onCanvasKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const focusFind = findInputRef.current ? () => findInputRef.current?.focus() : undefined;
     const common: ShortcutHandlers = { escape: editActions.escape, find: focusFind };
@@ -321,7 +322,10 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
         ...common,
         undo: state.undo,
         redo: state.redo,
-        delete: editActions.deleteSelection,
+        // 고른 꺾는 점이 있으면 그것만 빼고, 없으면 원래 선택 삭제(C14).
+        delete: () => {
+          if (!removeRoutePointRef.current?.()) editActions.deleteSelection();
+        },
         copy: () => (isFlowNode ? canvasActions.copy(selectedId!) : edit(() => fail(COPY_NEEDS_NODE))),
         paste: () => (selectedEdgeId ? canvasActions.paste(selectedEdgeId) : edit(() => fail(PASTE_NEEDS_EDGE))),
         duplicate: () => (isFlowNode ? canvasActions.duplicate(selectedId!) : edit(() => fail(COPY_NEEDS_NODE))),
@@ -522,6 +526,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         onOpenRule={openRule}
                         onMove={onMove}
                         onRouteChange={onRouteChange}
+                        removeRoutePointRef={removeRoutePointRef}
                         onMoveNode={onMoveNode}
                         onConnect={onConnect}
                         onDropPalette={editActions.dropPalette}

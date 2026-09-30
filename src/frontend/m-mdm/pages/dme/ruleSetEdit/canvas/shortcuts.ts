@@ -63,7 +63,7 @@ export function dispatchShortcut(
 export const SHORTCUT_HELP: readonly { id: ShortcutId; win: string; mac: string; label: string; modes: readonly FlowMode[] }[] = [
   { id: "undo", win: "Ctrl+Z", mac: "⌘Z", label: "되돌리기", modes: ["edit"] },
   { id: "redo", win: "Ctrl+Shift+Z · Ctrl+Y", mac: "⌘⇧Z · ⌘Y", label: "다시 하기", modes: ["edit"] },
-  { id: "delete", win: "Delete · Backspace", mac: "⌫ · Delete", label: "선택 삭제", modes: ["edit"] },
+  { id: "delete", win: "Delete · Backspace", mac: "⌫ · Delete", label: "선택 삭제(고른 꺾는 점이 있으면 그 점)", modes: ["edit"] },
   { id: "copy", win: "Ctrl+C", mac: "⌘C", label: "복사", modes: ["edit"] },
   { id: "paste", win: "Ctrl+V", mac: "⌘V", label: "고른 선에 붙여넣기", modes: ["edit"] },
   { id: "duplicate", win: "Ctrl+D", mac: "⌘D", label: "복제", modes: ["edit"] },
