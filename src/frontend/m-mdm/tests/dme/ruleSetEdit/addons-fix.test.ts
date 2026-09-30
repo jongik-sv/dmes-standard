@@ -17,13 +17,14 @@ vi.mock("@/shell", async (importOriginal) => ({
   openMdmPage: (...args: unknown[]) => mocks.openMdmPage(...args),
 }));
 
-import { FlowCanvas, type FlowCanvasProps } from "../../../pages/dme/ruleSetEdit/canvas/FlowCanvas";
+import { FlowCanvas, addSpot, type FlowCanvasProps } from "../../../pages/dme/ruleSetEdit/canvas/FlowCanvas";
+import { RSF_CSS } from "../../../pages/dme/ruleSetEdit/rsf-styles";
 import { addNote, setPositions, toEditFlow, type EditFlow, type FlowPos } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { removeMany } from "../../../pages/dme/ruleSetEdit/state/useEditActions";
 import { visibleText } from "../helpers/render";
 import type { RuleIo, RuleSetView } from "../../../pages/dme/ruleSetEdit/types";
 import { flush, installDomStorage } from "../helpers/render";
-import { byTestId, click, installServer, openSet, pageContainer, q, uninstallServer } from "../helpers/rule-set-page";
+import { byTestId, click, hoverEdge, installServer, openSet, pageContainer, q, settle, uninstallServer } from "../helpers/rule-set-page";
 
 const ioName = (n: string) => ({ name: n, source: "DICT" as const, label: null, dataType: null, scale: null, dateString: false, maruCodeId: null });
 const rule = (ruleId: string, cond: string, result: string): RuleIo => ({
@@ -189,6 +190,58 @@ describe("화면 — 여럿 고른 뒤 Delete(M2)", () => {
   });
 });
 
+const edgeEl = (id: string) => pageContainer().querySelector(`[data-testid="rf__edge-${id}"]`) as SVGGElement | null;
+
+describe("화면 — 편집 뒤 초점·선 우클릭 경로 초기화(U3·L6)", () => {
+  beforeEach(() => {
+    installDomStorage();
+    installServer();
+    localStorage.clear();
+  });
+  afterEach(() => uninstallServer());
+
+  it("선을 골라 Delete — 초점을 가진 선이 사라져도 초점이 캔버스로 돌아와 Ctrl+Z 로 선이 돌아온다(U3)", async () => {
+    await openSet("FF_U3", viewOf("FF_U3", scattered()));
+    await click("flow-mode-edit");
+    await act(async () => {
+      edgeEl("e2")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flush();
+    await act(async () => edgeEl("e2")!.focus()); // 브라우저는 누른 선에 초점을 준다(happy-dom 누르기는 초점을 옮기지 않는다)
+    expect(document.activeElement).toBe(edgeEl("e2"));
+    const del = await key(edgeEl("e2")!, { key: "Delete" });
+    expect(del.defaultPrevented).toBe(true);
+    await settle(20);
+    expect(edgeEl("e2")).toBeNull();
+    const a = document.activeElement as HTMLElement | null;
+    expect(a && a !== document.body && a.isConnected).toBe(true);
+    expect(a).toBe(canvas());
+    await key(a!, { key: "z", ctrlKey: true }); // 초점이 가 있는 곳에서 누른다
+    expect(edgeEl("e2")).not.toBeNull();
+  });
+
+  it("선 우클릭 → [경로 초기화] 가 꺾는 점·이름표 오프셋을 지우고 되돌리기 한 칸에 돌아온다(L6)", async () => {
+    const base = scattered();
+    const flow: EditFlow = { ...base, view: { ...base.view, routes: { e2: [{ x: 400, y: 60 }] }, labels: {} } };
+    await openSet("FF_L6", viewOf("FF_L6", flow));
+    await click("flow-mode-edit");
+    await act(async () => {
+      edgeEl("e2")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flush();
+    expect(q("flow-route-handle-e2-0")).not.toBeNull();
+    await act(async () => {
+      edgeEl("e2")!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 200, clientY: 100 }));
+    });
+    await flush();
+    await click("flow-menu-item-route-reset");
+    expect(q("flow-route-handle-e2-0")).toBeNull();
+    await click("flow-undo");
+    expect(q("flow-route-handle-e2-0")).not.toBeNull();
+    expect(undoDisabled()).toBe(true);
+  });
+});
+
 // ───────────────────────── 캔버스 ─────────────────────────
 
 let host: HTMLDivElement;
@@ -242,5 +295,89 @@ describe("캔버스 — 단일 선택을 캔버스 선택으로 맞춤(M1)", () 
     expect(selectionRef.current!()).toEqual(["r3"]);
     await draw({ ...p, selectedId: null }); // 해제는 캔버스 선택을 건드리지 않는다
     expect(nodeEl("r3")!.classList.contains("selected")).toBe(true);
+  });
+});
+
+describe("캔버스 — 선 [+] 자리(U1)·선 끝 손잡이 두 번 누르기(U2)", () => {
+  const sizes: Record<string, [number, number]> = { "rsf-vchips": [60, 18], "rsf-edge-add": [18, 18], "rsf-branch": [50, 18] };
+  const sizeOf = (el: HTMLElement, i: 0 | 1) => {
+    for (const [cls, wh] of Object.entries(sizes)) if (el.classList?.contains(cls)) return wh[i];
+    return 0;
+  };
+  beforeEach(() => {
+    installDomStorage();
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement) {
+      return sizeOf(this, 0);
+    });
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (this: HTMLElement) {
+      return sizeOf(this, 1);
+    });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    act(() => root.unmount());
+    host.remove();
+    document.body.innerHTML = "";
+  });
+
+  const IO = { FF_A: RULES[0], FF_B: RULES[1], FF_C: RULES[2] };
+  /** r1(0,0) 바로 아래 r2(0,110) — 짧은 선 e2 의 가운데(116,89)가 r1 결과 칩(116,88) 과 겹친다. */
+  const short = () => setPositions(toEditFlow(null, ["FF_A", "FF_B", "FF_C"]), { r1: { x: 0, y: 0 }, r2: { x: 0, y: 110 }, r3: { x: 600, y: 400 } });
+  const xy = (el: Element) => {
+    const m = /translate\(\s*(-?[\d.]+)px,\s*(-?[\d.]+)px\)\s*$/.exec((el as HTMLElement).style.transform)!;
+    return { x: Number(m[1]), y: Number(m[2]) };
+  };
+  const hover = async (id: string) => {
+    const path = host.querySelector(`[data-testid="rf__edge-${id}"] path`)!;
+    await act(async () => {
+      path.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, relatedTarget: null }));
+    });
+    await flush();
+  };
+
+  it("[+] 는 칩·라벨보다 위(z-index)다", () => {
+    const z = (sel: string) => Number(new RegExp(`\\${sel} \\{[^}]*z-index: (\\d+)`).exec(RSF_CSS)?.[1] ?? "NaN");
+    expect(z(".rsf-edge-add")).toBeGreaterThan(z(".rsf-elabel-chips"));
+  });
+
+  it("addSpot — 겹치지 않으면 그대로, 겹치면 겹친 상자 오른쪽 끝 + 간격으로 비키고, 비킨 자리에서 또 겹치면 되풀이한다", () => {
+    const size = { w: 18, h: 18 };
+    expect(addSpot({ x: 0, y: 0 }, size, [{ x: 100, y: 0, w: 60, h: 18 }], 4)).toEqual({ x: 0, y: 0 });
+    expect(addSpot({ x: 0, y: 0 }, size, [{ x: 0, y: 1, w: 60, h: 18 }], 4)).toEqual({ x: 30 + 4 + 9, y: 0 });
+    // 첫 상자 옆자리가 둘째 상자와 겹치면 둘째 상자 오른쪽으로.
+    expect(addSpot({ x: 0, y: 0 }, size, [{ x: 0, y: 0, w: 60, h: 18 }, { x: 50, y: 0, w: 20, h: 18 }], 4)).toEqual({ x: 60 + 4 + 9, y: 0 });
+    // 맞닿기만 하면 겹침이 아니다.
+    expect(addSpot({ x: 0, y: 0 }, size, [{ x: 39, y: 0, w: 60, h: 18 }], 4)).toEqual({ x: 0, y: 0 });
+  });
+
+  it("짧은 선에 올려 [+] 가 칩과 겹치면 칩 오른쪽으로 비킨다 — 안 겹치는 선은 가운데 그대로", async () => {
+    await draw(cprops({ flow: short(), rules: IO, varDisplay: "id" }));
+    expect(host.querySelector('[data-testid="flow-edge-chips-e2"]')).not.toBeNull();
+    await hover("e2");
+    const add = host.querySelector('[data-testid="flow-edge-add-e2"]')!;
+    expect(add).not.toBeNull();
+    expect(xy(add)).toEqual({ x: 116 + 30 + 4 + 9, y: 89 });
+    // 칩을 끄면 겹칠 것이 없어 가운데로 돌아온다.
+    await draw(cprops({ flow: short(), rules: IO, varDisplay: "off" }));
+    await hover("e2");
+    expect(xy(host.querySelector('[data-testid="flow-edge-add-e2"]')!)).toEqual({ x: 116, y: 89 });
+  });
+
+  it("고른 선의 끝 손잡이를 두 번 누르면 그 자리에 꺾는 점을 더한다 — 선 위 두 번 누르기와 같다(U2)", async () => {
+    const onRouteChange = vi.fn();
+    await draw(cprops({ flow: short(), selectedEdgeId: "e3", onRouteChange }));
+    const anchor = host.querySelector('[data-testid="rf__edge-e3"] .react-flow__edgeupdater-target')!;
+    expect(anchor).not.toBeNull();
+    await fire(anchor, "dblclick", { clientX: 300, clientY: 300 });
+    expect(onRouteChange).toHaveBeenCalledTimes(1);
+    expect(onRouteChange.mock.calls[0][0]).toBe("e3");
+    expect(onRouteChange.mock.calls[0][1]).toHaveLength(1);
+    // 보기 모드에는 끝 손잡이가 없고 두 번 누르기도 없다.
+    onRouteChange.mockClear();
+    await draw(cprops({ flow: short(), selectedEdgeId: "e3", onRouteChange, mode: "view" }));
+    expect(host.querySelector(".react-flow__edgeupdater")).toBeNull();
   });
 });

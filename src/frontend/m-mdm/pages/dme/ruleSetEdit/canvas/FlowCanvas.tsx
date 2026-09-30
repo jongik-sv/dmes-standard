@@ -44,7 +44,7 @@
  * 끄는 동안의 연결 상태는 React Flow 내부 저장소에만 있어 page 를 다시 그리지 않고 배치(dagre)도 다시 돌지 않는다. page 는 놓을 때 `onConnect` 를 한 번 받는다.
  */
 import {
-  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore,
+  createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore,
   type DragEvent, type MutableRefObject, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent,
 } from "react";
 
@@ -101,6 +101,31 @@ const PALETTE_ITEMS: readonly string[] = ["rule", "if", "par", "note", "group"];
 const BREAKABLE = new Set(["RULE", "IF", "PARALLEL", "MERGE"]);
 /** [+] 단추를 선 이름표 오른쪽에 둘 때의 거리(px). */
 const ADD_LABEL_GAP = 44;
+/** [+] 가 칩·라벨과 겹쳐 옆으로 비킬 때 상자와의 간격(px, U1). 좁게 둬 칩 → [+] 로 옮겨 가는 사이 hover 유예(150ms)가 끊기지 않는다. */
+export const ADD_CLEAR_GAP = 4;
+
+/** 가운데 기준 상자(흐름 좌표) — [+] 자리 계산용. */
+export interface CenterBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+const overlapsC = (a: CenterBox, b: CenterBox) => Math.abs(a.x - b.x) * 2 < a.w + b.w && Math.abs(a.y - b.y) * 2 < a.h + b.h;
+/**
+ * 선 [+] 자리(U1) — 가운데 at·크기 size 인 [+] 가 boxes(칩·라벨 상자, 가운데 기준)와 겹치면 겹친 상자 오른쪽 끝 + gap 으로 오른쪽으로 비킨다.
+ * 비킨 자리에서 또 겹치면 되풀이한다(상자 수만큼). 맞닿기만 한 것은 겹침이 아니다. y 는 그대로다.
+ */
+export function addSpot(at: FlowPos, size: { w: number; h: number }, boxes: readonly CenterBox[], gap = ADD_CLEAR_GAP): FlowPos {
+  let x = at.x;
+  for (let i = 0; i <= boxes.length; i++) {
+    const me = { x, y: at.y, w: size.w, h: size.h };
+    const hit = boxes.filter((b) => b.w > 0 && b.h > 0 && overlapsC(me, b));
+    if (hit.length === 0) break;
+    x = Math.max(...hit.map((b) => b.x + b.w / 2)) + gap + size.w / 2;
+  }
+  return { x, y: at.y };
+}
 /** 미니맵을 확대·축소 단추 줄(가로) 위에 둔다. */
 const MINIMAP_STYLE = { marginBottom: 48 } as const;
 const GROUP_MARGIN = 16;
@@ -366,8 +391,16 @@ function createRouteStore(): RouteStore {
     emit: () => listeners.forEach((cb) => cb()),
   };
 }
+/** 선 하나의 지금 모양 — 꺾는 점(없으면 빈 목록)과 양 끝(흐름 좌표). */
+interface EdgeGeo {
+  route: readonly FlowPos[];
+  source: FlowPos;
+  target: FlowPos;
+}
 interface RouteApi {
   store: RouteStore;
+  /** 그린 선마다 지금 모양을 읽는 함수(편집 가능한 선만) — 선 끝 손잡이 두 번 누르기가 쓴다(U2). */
+  geo: Map<string, () => EdgeGeo>;
   startDrag(e: ReactPointerEvent, edgeId: string, index: number, points: readonly FlowPos[]): void;
   addPoint(edgeId: string, points: readonly FlowPos[], source: FlowPos, target: FlowPos, clientX: number, clientY: number): void;
   removePoint(edgeId: string, points: readonly FlowPos[], index: number): void;
@@ -649,6 +682,39 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
     ? { onMouseEnter: () => hoverStore.enter(id), onMouseLeave: () => hoverStore.leave(id) }
     : {};
   const showAdd = !!data?.insertable && (hovered || !!selected || !!data.dropTarget);
+  // [+] 가 칩·라벨과 겹치면 옆으로 비킨다(U1) — 보일 때만 크기를 잰다(레이아웃 px = 흐름 좌표, 확대와 무관). 늘 기본 자리에서 계산하고 바뀔 때만 상태를 바꾼다.
+  const labelRef = useRef<HTMLSpanElement>(null);
+  const chipsRef = useRef<HTMLSpanElement>(null);
+  const addRef = useRef<HTMLButtonElement>(null);
+  const [addShift, setAddShift] = useState(0);
+  const labelAt = { x: lx + labelOff.dx, y: ly + labelOff.dy };
+  const chipsAt = { x: chipBase.x + chipsOff.dx, y: chipBase.y + chipsOff.dy };
+  useLayoutEffect(() => {
+    let next = 0;
+    const btn = addRef.current;
+    if (showAdd && btn) {
+      const boxes: CenterBox[] = [];
+      const box = (el: HTMLElement | null, c: FlowPos) => {
+        if (el) boxes.push({ x: c.x, y: c.y, w: el.offsetWidth, h: el.offsetHeight });
+      };
+      box(labelRef.current, labelAt);
+      box(chipsRef.current, chipsAt);
+      next = addSpot({ x: addX, y: ly }, { w: btn.offsetWidth, h: btn.offsetHeight }, boxes).x - addX;
+    }
+    if (next !== addShift) setAddShift(next);
+  });
+  // 선 끝 손잡이 두 번 누르기(U2) — 캔버스가 그 선의 지금 경로·양 끝을 읽어 꺾는 점을 더한다. 끝 손잡이를 끄는 동안 선이 잠깐 빠졌다 돌아와도 커밋 때 다시 건다.
+  const geoRef = useRef<EdgeGeo>({ route: [], source: { x: sourceX, y: sourceY }, target: { x: targetX, y: targetY } });
+  geoRef.current = { route: route ?? [], source: { x: sourceX, y: sourceY }, target: { x: targetX, y: targetY } };
+  const routeEditable = !!data?.routeEditable;
+  useLayoutEffect(() => {
+    if (!routeApi || !routeEditable) return;
+    const get = () => geoRef.current;
+    routeApi.geo.set(id, get);
+    return () => {
+      if (routeApi.geo.get(id) === get) routeApi.geo.delete(id);
+    };
+  }, [routeApi, id, routeEditable]);
   return (
     <>
       <g
@@ -678,6 +744,7 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
                 }
                 data-testid={`flow-edge-label-${id}`}
                 data-state={state ?? "idle"}
+                ref={labelRef}
                 data-cond-edge={data.condEditable ? id : undefined}
                 data-dragging={labelDrag?.part === "label" ? "true" : undefined}
                 title={data.condEditable ? (movable ? "끌어 옮기고, 두 번 눌러 조건식을 고친다" : "두 번 눌러 조건식을 고친다") : movable ? "끌어 옮긴다" : undefined}
@@ -699,6 +766,7 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
         {chips.length > 0 && (
           <div className="rsf-elabel rsf-elabel-chips" style={at(chipBase.x + chipsOff.dx, chipBase.y + chipsOff.dy)}>
             <span
+              ref={chipsRef}
               className={movable ? "rsf-vchips rsf-elabel-drag nodrag nopan nokey" : "rsf-vchips"}
               data-testid={`flow-edge-chips-${id}`}
               data-dragging={labelDrag?.part === "chips" ? "true" : undefined}
@@ -736,9 +804,10 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
           ))}
         {showAdd && (
           <button
+            ref={addRef}
             type="button"
             className="rsf-edge-add nodrag nopan"
-            style={at(addX, ly)}
+            style={at(addX + addShift, ly)}
             data-testid={`flow-edge-add-${id}`}
             data-edge-id={id}
             aria-label="선에 넣기"
@@ -1324,6 +1393,7 @@ function Inner(props: FlowCanvasProps) {
     };
     return {
       store: routeStore,
+      geo: new Map(),
       removePoint,
       addPoint: (edgeId, points, source, target, clientX, clientY) => {
         routeChangeRef.current?.(edgeId, insertRoutePoint(points, source, target, flowAtRef.current(clientX, clientY)));
@@ -1679,6 +1749,16 @@ function Inner(props: FlowCanvasProps) {
     onContextMenu({ kind: "edge", edgeId, via: "plus" }, { x: r.left, y: r.bottom });
   };
 
+  // 고른 선의 끝 손잡이(R1)를 두 번 누르면 그 자리에 꺾는 점을 더한다(U2) — 짧은 선은 첫 누르기로 선이 골라지며 뜬 끝 손잡이가 선을 덮어
+  // 두 번째 누르기를 받는다. 선 위 두 번 누르기와 같은 결과(가장 가까운 구간에 점). 끝 손잡이는 React Flow 가 그리므로 선 틀의 두 번 누르기로 받는다.
+  const onEdgeDoubleClick = useCallback((e: ReactMouseEvent, ed: Edge) => {
+    if (!editable || !(e.target as Element | null)?.closest?.(".react-flow__edgeupdater")) return;
+    const g = routeApi.geo.get(ed.id)?.();
+    if (!g) return;
+    e.stopPropagation();
+    routeApi.addPoint(ed.id, g.route, g.source, g.target, e.clientX, e.clientY);
+  }, [editable, routeApi]);
+
   // 조건 갈래 이름표를 두 번 누르면 조건식 입력 칸(B10, P-D17). 이름표는 선 데이터에 콜백이 없어 틀에서 위임으로 받는다.
   const onDoubleClick = (e: ReactMouseEvent<HTMLDivElement>) => {
     if (!editable) return;
@@ -1748,6 +1828,7 @@ function Inner(props: FlowCanvasProps) {
           onSelect(n.id);
         }}
         onEdgeClick={(_e, ed) => onSelectEdge(ed.id)}
+        onEdgeDoubleClick={editable ? onEdgeDoubleClick : undefined}
         onPaneClick={() => {
           onSelect(null);
           onSelectEdge(null);

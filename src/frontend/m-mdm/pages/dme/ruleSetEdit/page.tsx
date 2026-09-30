@@ -391,6 +391,16 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
    * [공간] 토글 — 켜고 끌 때 모두 초점을 캔버스로 옮긴다. 단추에 초점이 남으면 Esc 가 캔버스 디스패처에 닿지 않고(브라우저 확인 8번과 같은 까닭),
    * 스페이스+끌기(화면 이동)의 스페이스가 단추를 다시 누른다(S1 리뷰 Important 2).
    */
+  /**
+   * 단축키로 편집한 뒤 — 초점을 가진 요소(누른 선·노드)가 지워지면 초점이 문서(body)로 빠져 다음 단축키(Ctrl+Z 등)가 캔버스에 닿지 않는다.
+   * 다시 그린 뒤 초점이 body·없음·떨어져 나간 요소면 캔버스로 돌린다(U3, 도움말 Esc·메뉴 닫힘과 같은 규칙). 초점이 다른 곳(입력 칸 등)에 있으면 두지 않는다.
+   */
+  const keepCanvasFocus = useCallback(() => {
+    setTimeout(() => {
+      const a = document.activeElement;
+      if (!a || a === document.body || !a.isConnected) focusCanvas();
+    }, 0);
+  }, [focusCanvas]);
   const onToggleSpaceTool = useCallback(() => {
     setSpaceTool((on) => !on);
     focusCanvas();
@@ -452,7 +462,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
         breakpoint: isFlowNode ? () => sim.toggleBreakpoint(selectedId!) : undefined,
       };
     }
-    dispatchShortcut(e, handlers, mac);
+    if (dispatchShortcut(e, handlers, mac)) keepCanvasFocus();
   };
 
   // 캔버스 겹침 — 기록·흐름 사본·단계(커서)가 바뀔 때만 다시 만든다(Local-Rules §16).
