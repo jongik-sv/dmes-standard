@@ -13,6 +13,7 @@ import com.dongkuk.dmes.mdm.common.rule.RuleSetCheck;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetFlowJson;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetGuide;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetRunner;
+import com.dongkuk.dmes.mdm.common.rule.RuleSetTestCaseQueries;
 import com.dongkuk.dmes.mdm.common.rule.RunTraceJson;
 import com.dongkuk.dmes.mdm.common.rule.RuleStewardCheck;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionException;
@@ -80,11 +81,16 @@ public class RuleSetEditService {
     private final RuleStewardCheck stewardCheck;
     private final RuleSetWrites writes;
     private final RuleSetRunner runner;
+    private final RuleSetTestCaseService caseService;
+    private final RuleSetTestCaseQueries caseQueries;
     private final TransactionTemplate tx;
 
     public RuleSetEditService(MdmRuleSetRepository setRepository, RuleQueries queries, RuleIoReader ioReader,
                               RuleStewardCheck stewardCheck, RuleSetWrites writes, RuleSetRunner runner,
+                              RuleSetTestCaseService caseService, RuleSetTestCaseQueries caseQueries,
                               PlatformTransactionManager transactionManager) {
+        this.caseService = caseService;
+        this.caseQueries = caseQueries;
         this.setRepository = setRepository;
         this.queries = queries;
         this.ioReader = ioReader;
@@ -167,7 +173,15 @@ public class RuleSetEditService {
                 flow == null ? null : RuleSetFlowJson.toMap(set.getFlowJson()), flow != null && RuleSetFlowJson.branched(flow));
         return new RuleSetViewResult(header, List.copyOf(io.values()), checks,
                 steward && INUSE.equals(set.getStatus()), steward && DEPRECATED.equals(set.getStatus()),
-                flow == null ? Map.of() : ioReader.condIo(flow));
+                flow == null ? Map.of() : ioReader.condIo(flow), cases(setId));
+    }
+
+    /** 저장된 테스트 케이스 — 세트 상태와 무관하게 싣는다(폐기 세트도, P-D8). */
+    private List<RuleSetViewResult.Case> cases(String setId) {
+        return caseQueries.cases(setId).stream()
+                .map(c -> new RuleSetViewResult.Case(c.getCaseId(), c.getCaseName(), c.getInputJson(), c.getEvalTs(), c.getExpectedJson(),
+                        c.getDescription(), c.getRowVersion()))
+                .toList();
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -177,6 +191,13 @@ public class RuleSetEditService {
     public RuleSetSaveResult save(RuleSetSaveRequest request) {
         if (request == null) {
             throw new BusinessException(ErrorCode.REQUIRED_VALUE, "저장할 값이 없습니다.");
+        }
+        String part = blankToNull(request.getPart());
+        if ("CASE".equals(part)) {
+            return caseService.save(request);
+        }
+        if (part != null && !"SET".equals(part)) {
+            throw new BusinessException(ErrorCode.INVALID_VALUE, "save part 는 SET·CASE 중 하나여야 합니다: " + part);
         }
         String setId = requireSetId(request.getSetId());
         long rv = requireRowVersion(request.getRowVersion());

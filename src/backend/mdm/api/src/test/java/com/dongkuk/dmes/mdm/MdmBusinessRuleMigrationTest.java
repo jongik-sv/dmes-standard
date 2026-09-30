@@ -83,7 +83,16 @@ class MdmBusinessRuleMigrationTest {
     }
 
     @Test
-    void _8테이블_전부_생성되고_칼럼_목록이_순서까지_기대값과_같다() throws SQLException {
+    void flyway_가_V15_를_success_로_적용했다() throws SQLException {
+        try (Connection c = dataSource.getConnection(); Statement s = c.createStatement();
+             ResultSet rs = s.executeQuery("SELECT success FROM flyway_schema_history WHERE version = '15'")) {
+            assertTrue(rs.next(), "flyway_schema_history 에 version=15 행이 없다");
+            assertTrue(rs.getBoolean(1), "V15 가 success 가 아니다");
+        }
+    }
+
+    @Test
+    void 모든_업무규칙_테이블이_생성되고_칼럼_목록이_순서까지_기대값과_같다() throws SQLException {
         try (Connection c = dataSource.getConnection(); Statement s = c.createStatement()) {
             for (String table : TABLES) {
                 List<String> columns = new ArrayList<>();
@@ -184,11 +193,13 @@ class MdmBusinessRuleMigrationTest {
     // ── §3.1-5: JSON CHECK ──
 
     @Test
-    void JSON_CHECK_는_8칼럼에서_부정형을_거부하고_NULL_허용_칼럼만_NULL_을_통과시킨다() throws SQLException {
+    void JSON_CHECK_는_10칼럼에서_부정형을_거부하고_NULL_허용_칼럼만_NULL_을_통과시킨다() throws SQLException {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try {
                 String r = seedRuleAndVersion(c);
+                String setId = "SJ" + SEQ.incrementAndGet();
+                exec(c, "INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS) VALUES (?, '세트', '[]')", setId);
                 Map<String, String> inserts = new LinkedHashMap<>();
                 inserts.put("VAR_AST", "INSERT INTO TB_MDM_RULE_VAR (MARU_RULE_ID, VER, VAR_ID, VAR_KIND, VAR_NAME, VAR_AST, SEQ) "
                         + "VALUES (?, 1, ?, 'COND', 'X', ?, ?)");
@@ -198,9 +209,13 @@ class MdmBusinessRuleMigrationTest {
                         + "VALUES (?, 1, ?, 'COND', 'X', ?, ?)");
                 inserts.put("CELLS", "INSERT INTO TB_MDM_RULE_ROW (MARU_RULE_ID, VER, ROW_ID, CELLS, SEQ, ROW_KIND) "
                         + "VALUES (?, 1, ?, ?, ?, 'NORMAL')");
-                inserts.put("INPUT_JSON", "INSERT INTO TB_MDM_RULE_TEST_CASE (MARU_RULE_ID, CASE_ID, INPUT_JSON, CASE_NAME) "
+                inserts.put("TB_MDM_RULE_TEST_CASE.INPUT_JSON", "INSERT INTO TB_MDM_RULE_TEST_CASE (MARU_RULE_ID, CASE_ID, INPUT_JSON, CASE_NAME) "
                         + "VALUES (?, ?, ?, ?)");
-                inserts.put("EXPECTED_JSON", "INSERT INTO TB_MDM_RULE_TEST_CASE (MARU_RULE_ID, CASE_ID, INPUT_JSON, EXPECTED_JSON) "
+                inserts.put("TB_MDM_RULE_TEST_CASE.EXPECTED_JSON", "INSERT INTO TB_MDM_RULE_TEST_CASE (MARU_RULE_ID, CASE_ID, INPUT_JSON, EXPECTED_JSON) "
+                        + "VALUES (?, ?, '{}', ?)");
+                inserts.put("TB_MDM_RULE_SET_TEST_CASE.INPUT_JSON", "INSERT INTO TB_MDM_RULE_SET_TEST_CASE (MARU_RULE_SET_ID, CASE_ID, INPUT_JSON, CASE_NAME) "
+                        + "VALUES (?, ?, ?, ?)");
+                inserts.put("TB_MDM_RULE_SET_TEST_CASE.EXPECTED_JSON", "INSERT INTO TB_MDM_RULE_SET_TEST_CASE (MARU_RULE_SET_ID, CASE_ID, INPUT_JSON, EXPECTED_JSON) "
                         + "VALUES (?, ?, '{}', ?)");
                 inserts.put("RULE_IDS", "INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS, DESCRIPTION) "
                         + "VALUES (?, ?, ?, ?)");
@@ -210,14 +225,15 @@ class MdmBusinessRuleMigrationTest {
                 int checked = 0;
                 for (Map.Entry<String, List<String>> e : JSON_COLUMNS.entrySet()) {
                     for (String column : e.getValue()) {
-                        String sql = inserts.get(column);
+                        String sql = inserts.getOrDefault(e.getKey() + "." + column, inserts.get(column));
                         String ck = jsonCheckName(e.getKey(), column);
                         int n = SEQ.incrementAndGet();
-                        Object[] bad = jsonParams(column, r, n, "{bad");
+                        String owner = "TB_MDM_RULE_SET_TEST_CASE".equals(e.getKey()) ? setId : r;
+                        Object[] bad = jsonParams(e.getKey(), column, owner, n, "{bad");
                         rejected(c, ck, sql, bad);
-                        Object[] good = jsonParams(column, r, n, "{\"a\":\"1\"}");
+                        Object[] good = jsonParams(e.getKey(), column, owner, n, "{\"a\":\"1\"}");
                         exec(c, sql, good);
-                        Object[] nullValue = jsonParams(column, r, SEQ.incrementAndGet(), null);
+                        Object[] nullValue = jsonParams(e.getKey(), column, owner, SEQ.incrementAndGet(), null);
                         if (NULLABLE_JSON_COLUMNS.contains(column)) {
                             exec(c, sql, nullValue);
                         } else {
@@ -226,7 +242,7 @@ class MdmBusinessRuleMigrationTest {
                         checked++;
                     }
                 }
-                assertEquals(8, checked, "JSON 칼럼은 정확히 8개다(F5 + FLOW_JSON)");
+                assertEquals(10, checked, "JSON 칼럼은 정확히 10개다(F5 + FLOW_JSON + 세트 케이스 2개)");
 
                 // 대조군: RULE_RECV.BODY 는 요청 원문이라 JSON CHECK 가 없다(파싱 실패 요청도 남긴다, 06:1104).
                 exec(c, "INSERT INTO TB_MDM_RULE_RECV (SOURCE_SYSTEM, REQ_KIND, RECEIVED_AT, BODY) "
@@ -239,7 +255,7 @@ class MdmBusinessRuleMigrationTest {
     }
 
     /** JSON 칼럼별 INSERT 파라미터 — 첫째는 룰(또는 세트) ID, 그다음 고유 번호, JSON 값, 필요하면 보조 값. */
-    private static Object[] jsonParams(String column, String ruleId, int n, String json) {
+    private static Object[] jsonParams(String table, String column, String ruleId, int n, String json) {
         return switch (column) {
             case "VAR_AST", "PRIO_LIST", "GRP_COND_AST", "CELLS" -> new Object[] {ruleId, n, json, n};
             case "INPUT_JSON" -> new Object[] {ruleId, n, json, "케이스"};
@@ -287,6 +303,28 @@ class MdmBusinessRuleMigrationTest {
                 }
             }
             assertEquals(UNIQUE_INDEXES, partial);
+        }
+    }
+
+    // ── V15: 세트 테스트 케이스 FK (P-D7 — 세트를 가리키는 첫 FK, CASCADE 없음) ──
+
+    @Test
+    void 세트_테스트_케이스는_없는_세트를_거부하고_자식이_있는_세트의_삭제를_거부한다() throws SQLException {
+        try (Connection c = dataSource.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                String ins = "INSERT INTO TB_MDM_RULE_SET_TEST_CASE (MARU_RULE_SET_ID, CASE_ID, INPUT_JSON) VALUES (?, 1, '{}')";
+                String set = "SF" + SEQ.incrementAndGet();
+                rejected(c, "FOREIGN KEY", ins, set);
+                exec(c, "INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS) VALUES (?, '세트', '[]')", set);
+                exec(c, ins, set);
+                rejected(c, "FOREIGN KEY", "DELETE FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = ?", set);
+                exec(c, "DELETE FROM TB_MDM_RULE_SET_TEST_CASE WHERE MARU_RULE_SET_ID = ?", set);
+                exec(c, "DELETE FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = ?", set);
+            } finally {
+                c.rollback();
+                c.setAutoCommit(true);
+            }
         }
     }
 

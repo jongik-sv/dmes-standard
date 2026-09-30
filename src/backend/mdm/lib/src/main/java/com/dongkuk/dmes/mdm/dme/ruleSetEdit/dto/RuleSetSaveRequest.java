@@ -22,6 +22,30 @@ public class RuleSetSaveRequest {
      */
     private String flowJson;
 
+    private String part;
+    private Integer caseId;
+    private String caseName;
+    private String inputJson;
+    private String evalTs;
+    private String expectedJson;
+    private Boolean caseDeleted;
+
+    public String getPart() { return part; }
+    public Integer getCaseId() { return caseId; }
+    public String getCaseName() { return caseName; }
+    public String getInputJson() { return inputJson; }
+    public String getEvalTs() { return evalTs; }
+    public String getExpectedJson() { return expectedJson; }
+    public Boolean getCaseDeleted() { return caseDeleted; }
+
+    public void setPart(String v) { this.part = v; }
+    public void setCaseId(Integer v) { this.caseId = v; }
+    public void setCaseName(String v) { this.caseName = v; }
+    public void setInputJson(String v) { this.inputJson = v; }
+    public void setEvalTs(String v) { this.evalTs = v; }
+    public void setExpectedJson(String v) { this.expectedJson = v; }
+    public void setCaseDeleted(Boolean v) { this.caseDeleted = v; }
+
     public String getSetId() { return setId; }
     public String getSetName() { return setName; }
     public String getDescription() { return description; }

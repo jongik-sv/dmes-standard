@@ -82,6 +82,7 @@ public final class DmeTestSupport {
     }
 
     public static void clear(JdbcTemplate jdbc) {
+        jdbc.update("DELETE FROM TB_MDM_RULE_SET_TEST_CASE");
         jdbc.update("DELETE FROM TB_MDM_RULE_TEST_CASE");
         jdbc.update("DELETE FROM TB_MDM_RULE_ROW");
         jdbc.update("DELETE FROM TB_MDM_RULE_VAR");
