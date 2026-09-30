@@ -6,6 +6,7 @@
  * 부모가 편집 모드일 때만 `mode="edit"` 로 부른다. 보기 모드는 끌기·연결이 꺼지고 선택만 된다.
  * 편집 모드에서는 여러 노드를 고를 수 있다 — Shift(또는 Cmd·Ctrl)+누르기로 더하기, 빈 곳 끌기 상자(부분 포함). 고른 흐름 노드 ID 목록은 `onSelectionChange` 로 올린다(Ruling 11).
  * 편집 모드 화면 이동은 Figma 방식이다(S1, Ruling 21) — 스페이스+끌기·가운데 버튼 끌기·두 손가락 스크롤, 확대는 핀치·Ctrl/Cmd+휠. 보기·디버그 모드는 끌기 = 화면 이동 그대로다.
+ * 4단계 P1: 빈 곳 끌기는 `dragTool`([손]·[영역 선택])을 따르고 없으면 모드 기본이다.
  *
  * 공간 넓히기(S1): 편집 모드에서 [공간] 토글(`spaceTool`)이 켜졌거나 Alt 를 누른 채 빈 곳(pane)을 끌면, 누른 자리를 기준으로 처음 6px 을 넘는 순간
  * 주축으로 방향을 정하고 기준선 너머(상자 좌상단 기준)의 노드·메모·꺾는 점을 화면에서만 옮긴다. 미리보기는 캔버스 안 저장소(`SpaceStore`)에만 두고
@@ -131,8 +132,6 @@ export function addSpot(at: FlowPos, size: { w: number; h: number }, boxes: read
   }
   return { x, y: at.y };
 }
-/** 미니맵을 확대·축소 단추 줄(가로) 위에 둔다. */
-const MINIMAP_STYLE = { marginBottom: 48 } as const;
 const GROUP_MARGIN = 16;
 const FLASH_MS = 1200;
 /** 화면 맞춤 여백·확대 한계. 최소 배율 0.1 — 노드 24~27개(높이 약 2050px) 흐름이 400px 대 캔버스에 들어가려면 약 0.17 이 필요하다. */
@@ -184,7 +183,7 @@ export interface FlowCanvasProps {
   breakpoints: ReadonlySet<string>;
   /** 접힌 분기 ID(D16 — 그리기는 Task 11). */
   collapsed: ReadonlySet<string>;
-  /** 오른쪽 아래 미니맵(D14). */
+  /** 오른쪽 위 미니맵(D14, 4단계 P1). */
   showMiniMap: boolean;
   /** 변수 칩 툴팁 값(E3, undefined = 아직 없음 — Task 11). */
   valueAt?: (name: string) => TypedValue | null | undefined;
@@ -243,6 +242,12 @@ export interface FlowCanvasProps {
    * 메모·그룹만 고른 경우는 올리지 않는다 — 노드를 여러 개 고른 뒤 그룹 제목을 눌러 [선택 노드 더하기] 를 쓸 수 있게 한다.
    */
   onSelectionChange?: (nodeIds: string[]) => void;
+  /**
+   * 빈 곳 끌기 도구(4단계 P1) — "hand" 면 끌기 = 화면 이동, "select" 면 끌기 = 영역 선택(이동은 가운데 버튼·스페이스+끌기).
+   * 없으면 모드 기본(편집 = select, 보기·디버그 = hand — 3단계 동작 그대로). 휠·Shift 영역 선택·다중 선택 키는 도구와 관계없이 모드를 따른다.
+   * [공간] 은 따로 `spaceTool` 이다(빈 곳 누르기를 캡처 단계에서 가로채 영역 선택·화면 이동보다 이긴다).
+   */
+  dragTool?: "hand" | "select";
   /** [공간] 토글(S1) — 켜져 있으면 편집 모드의 빈 곳 끌기가 공간 넓히기다(영역 선택보다 이긴다). */
   spaceTool?: boolean;
   /** 공간 넓히기 끌기를 놓으면(방향 미확정·0 이어도) 토글이 켜져 있었을 때 false 로 부른다 — 한 번 쓰면 꺼진다. */
@@ -275,7 +280,7 @@ export function linkAllowed(flow: Pick<EditFlow, "nodes">, from: string | null |
 
 /** 편집 모드 다중 선택 키 — 누르기로 더하기. */
 const MULTI_KEYS = ["Shift", "Meta", "Control"];
-/** 편집 모드 화면 이동 마우스 단추 — 가운데(1)만. 왼쪽 끌기는 영역 선택, 오른쪽은 메뉴(S1). */
+/** 영역 선택 도구일 때 화면 이동 마우스 단추 — 가운데(1)만. 왼쪽 끌기는 영역 선택, 오른쪽은 메뉴(S1). */
 const EDIT_PAN_BUTTONS = [1];
 /** 공간 넓히기 방향을 정하는 화면 거리(px). */
 export const SPACE_THRESHOLD_PX = 6;
@@ -878,10 +883,12 @@ function Inner(props: FlowCanvasProps) {
     breakpoints, collapsed, valueAt, showMiniMap, editingCondEdgeId,
     onSelect, onSelectEdge, onOpenRule, onMove, onMoveNode, onConnect, onReconnect, onDropPalette, onDropRule, onNoteChange, onContextMenu, onToggleBreakpoint,
     onEditCond, onRouteChange, onLabelOffsetChange, removeRoutePointRef, clearSelectionRef, alignSourceRef, selectionRef, onEditCondClose, onSelectionChange,
-    spaceTool, onSpaceToolChange, onShiftSpace,
+    spaceTool, onSpaceToolChange, onShiftSpace, dragTool,
   } = props;
   const editable = mode === "edit";
   const debugging = mode === "debug";
+  /** [손] 도구 — 빈 곳 끌기가 화면 이동이다(4단계 P1). */
+  const hand = (dragTool ?? (editable ? "select" : "hand")) === "hand";
   const rf = useReactFlow();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<Record<string, FlowPos>>({});
@@ -1856,6 +1863,7 @@ function Inner(props: FlowCanvasProps) {
       data-testid="flow-canvas"
       data-mode={mode}
       data-space-tool={editable && spaceTool ? "true" : undefined}
+      data-drag-tool={hand ? "hand" : "select"}
       tabIndex={0}
       onPointerDownCapture={onPointerDownCapture}
       onPointerCancelCapture={onPointerCancelCapture}
@@ -1881,11 +1889,11 @@ function Inner(props: FlowCanvasProps) {
         deleteKeyCode={null}
         selectionKeyCode={editable ? "Shift" : null}
         multiSelectionKeyCode={editable ? MULTI_KEYS : null}
-        // 편집 모드는 Figma 방식(S1, Ruling 21): 빈 곳 끌기 = 영역 선택(상자에 조금이라도 걸린 노드), 이동 = 스페이스+끌기·가운데 버튼·두 손가락 스크롤,
-        // 확대 = 핀치·Ctrl/Cmd+휠(zoomActivationKeyCode 설치본 기본값 — Mac Meta, 그 밖 Control). 보기·디버그 모드는 끌기 = 이동, 휠 = 확대 그대로다.
-        selectionOnDrag={editable}
+        // 빈 곳 끌기는 도구(4단계 P1)를 따른다 — [영역 선택] = 영역 선택(상자에 조금이라도 걸린 노드), 이동은 스페이스+끌기·가운데 버튼,
+        // [손] = 화면 이동. 휠·Shift·다중 선택 키는 모드를 따른다(편집 = 두 손가락 스크롤 이동·핀치/Ctrl+휠 확대, 보기·디버그 = 휠 확대).
+        selectionOnDrag={!hand}
         selectionMode={SelectionMode.Partial}
-        panOnDrag={editable ? EDIT_PAN_BUTTONS : true}
+        panOnDrag={hand ? true : EDIT_PAN_BUTTONS}
         panOnScroll={editable}
         panActivationKeyCode="Space"
         zoomOnPinch
@@ -1924,9 +1932,9 @@ function Inner(props: FlowCanvasProps) {
         onEdgeContextMenu={onEdgeContextMenu}
         onPaneContextMenu={onPaneContextMenu}
       >
-        {/* 오른쪽 아래 — 확대·축소 단추 줄 위에 미니맵(D14) */}
+        {/* 오른쪽 아래 확대·축소 단추 줄, 오른쪽 위 미니맵(4단계 P1 — 왼쪽 위는 page 가 그리는 도구 상자 자리) */}
         <Controls position="bottom-right" orientation="horizontal" showInteractive={false} />
-        {showMiniMap && <MiniMap position="bottom-right" style={MINIMAP_STYLE} pannable zoomable />}
+        {showMiniMap && <MiniMap position="top-right" pannable zoomable />}
         <SpaceGuide store={spaceStore} />
         <SnapGuides store={snapStore} />
       </ReactFlow>

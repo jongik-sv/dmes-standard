@@ -94,7 +94,7 @@ describe("룰 세트 편집 이음새(3단계 Task 0)", () => {
     uninstallServer();
   });
 
-  it("1. 세트를 열면 모드 단추 셋이 있고 보기 모드이며, 왼쪽 룰 패널에 팔레트가 없다", async () => {
+  it("1. 세트를 열면 모드 단추 셋이 있고 보기 모드이며, 팔레트가 없다. 편집 모드면 도구 상자에 팔레트가 있다", async () => {
     await openSet("E2S_CHAIN", chainView());
     for (const id of ["flow-mode-view", "flow-mode-edit", "flow-mode-debug"]) expect(q(id), id).not.toBeNull();
     expect(pressed("flow-mode-view")).toBe("true");
@@ -103,7 +103,7 @@ describe("룰 세트 편집 이음새(3단계 Task 0)", () => {
     expect(q("flow-rule-panel")).not.toBeNull();
     expect(q("flow-palette")).toBeNull();
     await click("flow-mode-edit");
-    expect(byTestId("flow-rule-panel").querySelector('[data-testid="flow-palette"]')).not.toBeNull();
+    expect(byTestId("flow-toolbox").querySelector('[data-testid="flow-palette"]')).not.toBeNull();
   });
 
   it("2. [디버그] — 왼쪽 입력·오른쪽 변수·툴바 아래 디버그 줄·아래 탭 셋, [변수 흐름] 켜짐. [보기] 로 오면 들어가기 전 값", async () => {

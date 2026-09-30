@@ -86,7 +86,7 @@ export function dispatchShortcut(
  * 도움말 표에만 있는 포인터 조작(S1) — 키 디스패처가 받지 않는다. 영역 선택·화면 이동·확대는 React Flow 내장 처리(props)이고,
  * Alt+끌기 공간 넓히기와 노드 Alt+끌기 스냅 끄기(G1)는 캔버스가 포인터 이벤트의 altKey 로 본다(새 keydown 처리 없음).
  */
-export type GestureId = "boxSelect" | "spaceDrag" | "snapOff" | "pan" | "zoom";
+export type GestureId = "boxSelect" | "spaceDrag" | "snapOff" | "pan" | "zoom" | "handDrag";
 
 /** 도움말 표(툴바 [?], Task 8 이 그린다). */
 export const SHORTCUT_HELP: readonly { id: ShortcutId | GestureId; win: string; mac: string; label: string; modes: readonly FlowMode[] }[] = [
@@ -97,7 +97,7 @@ export const SHORTCUT_HELP: readonly { id: ShortcutId | GestureId; win: string; 
   { id: "paste", win: "Ctrl+V", mac: "⌘V", label: "고른 선에 붙여넣기", modes: ["edit"] },
   { id: "duplicate", win: "Ctrl+D", mac: "⌘D", label: "복제", modes: ["edit"] },
   { id: "find", win: "Ctrl+F", mac: "⌘F", label: "노드 찾기", modes: ["view", "edit", "debug"] },
-  { id: "escape", win: "Esc", mac: "Esc", label: "선택 해제·메뉴 닫기", modes: ["view", "edit", "debug"] },
+  { id: "escape", win: "Esc", mac: "Esc", label: "선택 해제·메뉴 닫기(다른 도구를 골랐으면 먼저 기본 도구로 돌아간다)", modes: ["view", "edit", "debug"] },
   { id: "continue", win: "F5", mac: "fn+F5", label: "계속(다음 중단점까지)", modes: ["debug"] },
   { id: "step", win: "F10", mac: "fn+F10", label: "한 단계", modes: ["debug"] },
   { id: "stepBack", win: "Shift+F10", mac: "fn+⇧F10", label: "이전 단계", modes: ["debug"] },
@@ -107,8 +107,9 @@ export const SHORTCUT_HELP: readonly { id: ShortcutId | GestureId; win: string; 
   { id: "alignHCenter", win: "Alt+H · Alt+V", mac: "⌥H · ⌥V", label: "가로·세로 가운데 맞춤(고른 것 2개 이상)", modes: ["edit"] },
   { id: "distributeH", win: "Alt+Shift+H · Alt+Shift+V", mac: "⌥⇧H · ⌥⇧V", label: "가로·세로 간격 고르게(고른 것 3개 이상)", modes: ["edit"] },
   { id: "nudgeLeft", win: "←↑→↓ · Shift+←↑→↓", mac: "←↑→↓ · ⇧←↑→↓", label: "고른 것을 1px · 10px 옮기기", modes: ["edit"] },
-  { id: "boxSelect", win: "끌기(빈 곳)", mac: "끌기(빈 곳)", label: "영역 선택(상자에 걸친 노드·메모)", modes: ["edit"] },
-  { id: "spaceDrag", win: "Alt+끌기(빈 곳)", mac: "⌥+끌기(빈 곳)", label: "공간 넓히기·줄이기(툴바 [공간] 과 같다)", modes: ["edit"] },
+  { id: "boxSelect", win: "끌기(빈 곳)", mac: "끌기(빈 곳)", label: "영역 선택(상자에 걸친 노드·메모) — 도구 상자 [영역 선택] 일 때", modes: ["edit"] },
+  { id: "spaceDrag", win: "Alt+끌기(빈 곳)", mac: "⌥+끌기(빈 곳)", label: "공간 넓히기·줄이기(도구 상자 [공간] 과 같다)", modes: ["edit"] },
+  { id: "handDrag", win: "끌기(빈 곳, [손])", mac: "끌기(빈 곳, [손])", label: "화면 이동 — 도구 상자 [손] 일 때(보기·디버그 기본)", modes: ["view", "edit", "debug"] },
   { id: "snapOff", win: "Alt+끌기(노드·메모)", mac: "⌥+끌기(노드·메모)", label: "끌 때 맞춤 안내선·스냅 끄기", modes: ["edit"] },
   { id: "pan", win: "스페이스+끌기", mac: "스페이스+끌기", label: "화면 이동(가운데 버튼 끌기·두 손가락 스크롤도 된다)", modes: ["edit"] },
   { id: "zoom", win: "Ctrl+휠 · 핀치", mac: "⌘+휠 · 핀치", label: "확대·축소", modes: ["edit"] },

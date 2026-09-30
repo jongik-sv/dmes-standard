@@ -152,10 +152,6 @@ export const BASE_CSS = `
   background: var(--color-bg-light); border: 1px solid var(--color-border); color: var(--color-text-secondary);
 }
 
-/* 팔레트 */
-.rsf-palette { display: flex; flex-direction: column; gap: var(--spacing-xs); padding: var(--spacing-sm); }
-.rsf-palette button[draggable="true"] { cursor: grab; }
-
 /* 룰 찾기 */
 .rsf-cands { list-style: none; margin: var(--spacing-sm) 0 0; padding: 0; }
 .rsf-cand {
@@ -242,6 +238,5 @@ export const BASE_CSS = `
 
 /* 3단계 본문 틀(계획 Task 0) — 왼쪽 패널(룰 패널·디버그 입력)과 스크롤하지 않는 아래 탭 */
 .rsf-rule-panel { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; overflow-y: auto; }
-.rsf-rule-panel > .rsf-palette { flex: none; border-bottom: 1px solid var(--color-border-light); }
 .rsf-bottom-body[data-scroll="false"] { overflow: hidden; display: flex; flex-direction: column; }
 `;
