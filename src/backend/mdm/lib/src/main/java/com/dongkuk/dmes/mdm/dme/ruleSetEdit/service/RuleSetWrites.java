@@ -19,7 +19,7 @@ import org.springframework.stereotype.Repository;
 public class RuleSetWrites {
 
     /** 0행 분류와 되살리기 검사에 쓰는 세트 한 행의 현재 값(네이티브 UPDATE 는 영속성 컨텍스트를 갱신하지 않으므로 DB 에서 읽는다). */
-    public record SetState(String status, long rowVersion, String ruleIds) {
+    public record SetState(String status, long rowVersion, String ruleIds, String flowJson) {
     }
 
     private final EntityManager entityManager;
@@ -32,11 +32,12 @@ public class RuleSetWrites {
         this.temporal = temporal;
     }
 
-    /** 저장 — INUSE 이고 row_version 이 같을 때만 세트명·룰 목록(JSON)·설명을 바꾸고 row_version 을 올린다. */
-    public int update(String setId, String name, String ruleIdsJson, String description, long rowVersion) {
-        NativeQuery<?> q = audited("UPDATE TB_MDM_RULE_SET SET MARU_RULE_SET_NAME = :name, RULE_IDS = :ids, DESCRIPTION = :desc, "
+    /** 저장 — INUSE 이고 row_version 이 같을 때만 세트명·룰 목록(JSON)·흐름(JSON, NULL 허용)·설명을 바꾸고 row_version 을 올린다. */
+    public int update(String setId, String name, String ruleIdsJson, String flowJson, String description, long rowVersion) {
+        NativeQuery<?> q = audited("UPDATE TB_MDM_RULE_SET SET MARU_RULE_SET_NAME = :name, RULE_IDS = :ids, FLOW_JSON = :flow, DESCRIPTION = :desc, "
                 + "ROW_VERSION = ROW_VERSION + 1, " + AUDIT_SET + " WHERE MARU_RULE_SET_ID = :id AND ROW_VERSION = :rv AND STATUS = 'INUSE'")
                 .setParameter("id", setId).setParameter("rv", rowVersion).setParameter("name", name).setParameter("ids", ruleIdsJson);
+        q.setParameter("flow", flowJson, String.class);
         q.setParameter("desc", description, String.class);
         return q.executeUpdate();
     }
@@ -61,13 +62,13 @@ public class RuleSetWrites {
      */
     public Optional<SetState> state(String setId) {
         List<Object[]> rows = entityManager.createQuery(
-                        "SELECT s.status, s.rowVersion, s.ruleIds FROM MdmRuleSet s WHERE s.maruRuleSetId = :id", Object[].class)
+                        "SELECT s.status, s.rowVersion, s.ruleIds, s.flowJson FROM MdmRuleSet s WHERE s.maruRuleSetId = :id", Object[].class)
                 .setParameter("id", setId).getResultList();
         if (rows.isEmpty()) {
             return Optional.empty();
         }
         Object[] r = rows.get(0);
-        return Optional.of(new SetState((String) r[0], ((Number) r[1]).longValue(), (String) r[2]));
+        return Optional.of(new SetState((String) r[0], ((Number) r[1]).longValue(), (String) r[2], (String) r[3]));
     }
 
     private static final String AUDIT_SET = "U_USR_ID = :uUsrId, U_AT = :uAt, U_SVC_ID = :uSvcId, U_PGM_ID = :uPgmId, VER = COALESCE(VER, 0) + 1";
