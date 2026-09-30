@@ -1689,12 +1689,15 @@ test.describe("C 룰 세트", () => {
     await expect(setChecks()).toContainText("룰이 하나도 없다");
     await expect(tid(page, "set-save")).toBeDisabled();
     await expect(tid(page, "set-guide-run")).toBeDisabled();
-    // 화면 맞춤·변수 흐름 켜기/끄기는 흐름을 바꾸지 않는다.
+    // 화면 맞춤·[표시] 바꾸기는 흐름을 바꾸지 않는다. [표시]는 끔 → ID → 이름 → 끔 으로 돈다 — 끔으로 돌려 두어 뒤 테스트 화면(칩 없음)이 그대로다.
     await tid(page, "flow-fit").click();
-    await tid(page, "flow-var-toggle").click();
-    await expect(tid(page, "flow-var-toggle")).toHaveAttribute("aria-pressed", "true");
-    await tid(page, "flow-var-toggle").click();
-    await expect(tid(page, "flow-var-toggle")).toHaveAttribute("aria-pressed", "false");
+    const varToggle = tid(page, "flow-var-toggle");
+    await expect(varToggle).toHaveAttribute("data-mode", "off");
+    for (const [mode, pressed] of [["id", "true"], ["name", "true"], ["off", "false"]] as const) {
+      await varToggle.click();
+      await expect(varToggle).toHaveAttribute("data-mode", mode);
+      await expect(varToggle).toHaveAttribute("aria-pressed", pressed);
+    }
     await layout.layout(page, "ruleSetEdit 빈 세트");
     await snap(page, "dme-ruleSetEdit-01-initial");
     watcher.assertClean("ruleSetEdit");

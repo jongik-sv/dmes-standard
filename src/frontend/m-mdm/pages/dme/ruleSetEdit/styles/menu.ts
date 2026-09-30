@@ -20,9 +20,9 @@ export const MENU_CSS = `
 .rsf-menu-group { display: flex; flex-direction: column; }
 .rsf-menu-group-title { padding: 4px var(--spacing-md); font-size: var(--font-size-sm); color: var(--color-text-secondary); }
 
-/* 선 [+] 단추 — 선 이름표 층(pointer-events: none) 위에서 누를 수 있게 한다 */
+/* 선 [+] 단추 — 선 이름표 층(pointer-events: none) 위에서 누를 수 있게 한다. 보일 때 늘 변수 칩(z-index 1)·라벨보다 위다(U1). */
 .rsf-edge-add {
-  position: absolute; pointer-events: all; display: inline-flex; align-items: center; justify-content: center;
+  position: absolute; z-index: 2; pointer-events: all; display: inline-flex; align-items: center; justify-content: center;
   width: 18px; height: 18px; padding: 0; border-radius: 50%; cursor: pointer;
   background: var(--color-bg); border: 1px solid var(--color-border-strong); color: var(--color-text-secondary);
 }

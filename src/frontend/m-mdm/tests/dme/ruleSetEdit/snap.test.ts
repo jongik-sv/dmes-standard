@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 
 import { SHORTCUT_HELP } from "../../../pages/dme/ruleSetEdit/canvas/shortcuts";
-import { SNAP_THRESHOLD_PX, boundsOf, snapIndex, snapMove, snapMoveIn, snapThreshold, type Box } from "../../../pages/dme/ruleSetEdit/canvas/snap";
+import { SNAP_THRESHOLD_PX, boundsOf, snapHitIn, snapIndex, snapMove, snapMoveIn, snapThreshold, type Box } from "../../../pages/dme/ruleSetEdit/canvas/snap";
 
 /** 기준 상자 A — x 기준 0·50·100, y 기준 0·20·40. */
 const A: Box = { x: 0, y: 0, w: 100, h: 40 };
@@ -116,6 +116,26 @@ describe("snapMove — 임계값·최근접·후보", () => {
       expect(Math.abs(r.dx)).toBeCloseTo(Math.abs(best([m.x, m.x + m.w / 2, m.x + m.w], xs)), 9);
       expect(Math.abs(r.dy)).toBeCloseTo(Math.abs(best([m.y, m.y + m.h / 2, m.y + m.h], ys)), 9);
     }
+  });
+});
+
+describe("snapHitIn — 맞은 상자 ID(I2)", () => {
+  it("축마다 안내선이 이은 상자 ID 를 돌려준다 — 같은 상자면 한 번, ID 없는 상자는 빠진다", () => {
+    const a: Box = { ...A, id: "a" };
+    const b: Box = { x: 500, y: 300, w: 60, h: 20, id: "b" };
+    const both = snapHitIn({ x: 2, y: 301, w: 30, h: 30 }, snapIndex([a, b]), 6); // x → a 왼쪽 0, y → b 위 300
+    expect(both.targets).toEqual(["a", "b"]);
+    expect(snapHitIn({ x: 102, y: 1, w: 30, h: 30 }, snapIndex([a, b]), 6).targets).toEqual(["a"]); // 두 축 모두 a
+    expect(snapHitIn({ x: 102, y: 1, w: 30, h: 30 }, snapIndex([A]), 6).targets).toEqual([]);
+    expect(snapHitIn({ x: 900, y: 900, w: 30, h: 30 }, snapIndex([a]), 6).targets).toEqual([]);
+  });
+
+  it("이동량·안내선은 snapMoveIn 과 같다", () => {
+    const idx = snapIndex([{ ...A, id: "a" }]);
+    const m: Box = { x: 3, y: 200, w: 60, h: 20 };
+    const { targets, ...rest } = snapHitIn(m, idx, 6);
+    expect(targets).toEqual(["a"]);
+    expect(rest).toEqual(snapMoveIn(m, idx, 6));
   });
 });
 

@@ -33,6 +33,8 @@
  * 프레임마다 이분 탐색한다. React Flow 는 매 프레임 포인터 − 누른 거리로 위치를 새로 재므로(XYDrag) 붙인 이동량은 끌기 위치(`drag`)에만 더하고,
  * 놓을 때 같은 이동량을 더한 자리를 기존 `onMove` 로 한 번 올린다. Alt 를 누른 채 끌거나 끼우기 대상 선이 강조된 동안은 붙이지 않고 안내선도 없다.
  * 안내선은 캔버스 안 저장소(`SnapStore`)만 구독해 그리므로 page 는 다시 그리지 않고 배치(dagre)도 다시 돌지 않는다.
+ * 놓을 때 마지막 프레임에 맞은 대상(축마다 안내선이 이은 흐름 노드) 가운데 저장 위치가 없는(고정 안 된) 것은 그린 위치(접힌 분기는 제 크기 기준, 분기면 블록 멤버도)를
+ * 같은 `onMove` 에 함께 적어 고정한다 — 겹침 풀기(Ruling 19)가 맞춘 대상을 밀어 정렬이 깨지지 않게(I2, 정렬 A1 의 "고른 것 전부 고정"과 같은 방식).
  *
  * 네 변 어디서나 잇기(C1, Ruling 28): 편집 모드에서 노드에 마우스를 올리면 네 변 가운데 잇기 손잡이가 보이고, 어느 것을 끌어도 그 노드에서 나가는 선이다.
  * 대상 노드 몸통 어디에 놓아도 이어진다(몸통을 덮는 투명 target `body` — 연결을 끄는 동안에만 누름을 받는다, `nodes.tsx`). 연결 모드는 느슨하게(`ConnectionMode.Loose`)
@@ -42,7 +44,7 @@
  * 끄는 동안의 연결 상태는 React Flow 내부 저장소에만 있어 page 를 다시 그리지 않고 배치(dagre)도 다시 돌지 않는다. page 는 놓을 때 `onConnect` 를 한 번 받는다.
  */
 import {
-  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore,
+  createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore,
   type DragEvent, type MutableRefObject, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent,
 } from "react";
 
@@ -50,14 +52,14 @@ import { IconPlus } from "@tabler/icons-react";
 
 import type { RuleSetFlow, TypedValue } from "@/contract/engine-contract.generated";
 
-import { MAX_LABEL_OFFSET, type FlowNote, type FlowPos, type EditFlow, type LabelOffset, type LabelPart } from "../flow-edit";
+import { MAX_LABEL_OFFSET, blockMembers, type FlowNote, type FlowPos, type EditFlow, type LabelOffset, type LabelPart } from "../flow-edit";
 import { NODE_SIZE, beyondLine, drawnPositions, foldOffsetX, spaceMinDelta, type SpaceAxis, type SpaceBlocks } from "../flow-layout";
 import { typedText } from "../trace-view";
 import { blockDragPositions, dropTargetAt, edgeChips, edgeMarks, nodeMarks, resolveNodeDrop } from "../flow-vars";
 import type { FlowMode } from "../state/useRuleSetEdit";
 import type { RuleIoMap, RuleSetCheck, VarDisplay } from "../types";
 import { collapseView } from "./collapse";
-import { boundsOf, snapIndex, snapMoveIn, snapThreshold, type Box, type Guide, type SnapIndex } from "./snap";
+import { boundsOf, snapHitIn, snapIndex, snapThreshold, type Box, type Guide, type SnapIndex } from "./snap";
 import { insertRoutePoint, routeMidpoint, routePath } from "./route-path";
 import type { MenuTarget } from "./context-menu";
 import { ANCHOR_IN, ANCHOR_OUT, GroupNodeData, NODE_TYPES, NoteNodeData, FlowNodeData, handlesOf, type CollapsedBlockInfo } from "./nodes";
@@ -99,6 +101,31 @@ const PALETTE_ITEMS: readonly string[] = ["rule", "if", "par", "note", "group"];
 const BREAKABLE = new Set(["RULE", "IF", "PARALLEL", "MERGE"]);
 /** [+] 단추를 선 이름표 오른쪽에 둘 때의 거리(px). */
 const ADD_LABEL_GAP = 44;
+/** [+] 가 칩·라벨과 겹쳐 옆으로 비킬 때 상자와의 간격(px, U1). 좁게 둬 칩 → [+] 로 옮겨 가는 사이 hover 유예(150ms)가 끊기지 않는다. */
+export const ADD_CLEAR_GAP = 4;
+
+/** 가운데 기준 상자(흐름 좌표) — [+] 자리 계산용. */
+export interface CenterBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+const overlapsC = (a: CenterBox, b: CenterBox) => Math.abs(a.x - b.x) * 2 < a.w + b.w && Math.abs(a.y - b.y) * 2 < a.h + b.h;
+/**
+ * 선 [+] 자리(U1) — 가운데 at·크기 size 인 [+] 가 boxes(칩·라벨 상자, 가운데 기준)와 겹치면 겹친 상자 오른쪽 끝 + gap 으로 오른쪽으로 비킨다.
+ * 비킨 자리에서 또 겹치면 되풀이한다(상자 수만큼). 맞닿기만 한 것은 겹침이 아니다. y 는 그대로다.
+ */
+export function addSpot(at: FlowPos, size: { w: number; h: number }, boxes: readonly CenterBox[], gap = ADD_CLEAR_GAP): FlowPos {
+  let x = at.x;
+  for (let i = 0; i <= boxes.length; i++) {
+    const me = { x, y: at.y, w: size.w, h: size.h };
+    const hit = boxes.filter((b) => b.w > 0 && b.h > 0 && overlapsC(me, b));
+    if (hit.length === 0) break;
+    x = Math.max(...hit.map((b) => b.x + b.w / 2)) + gap + size.w / 2;
+  }
+  return { x, y: at.y };
+}
 /** 미니맵을 확대·축소 단추 줄(가로) 위에 둔다. */
 const MINIMAP_STYLE = { marginBottom: 48 } as const;
 const GROUP_MARGIN = 16;
@@ -192,6 +219,10 @@ export interface FlowCanvasProps {
    * clearSelectionRef 와 같은 방식이다. 고른 것은 React Flow 선택(그룹 틀 제외), 없으면 selectedId 하나.
    */
   alignSourceRef?: MutableRefObject<(() => AlignSource) | null>;
+  /**
+   * 캔버스가 "지금 React Flow 로 고른 것(흐름 노드·메모·그룹, 흐름에 있는 것만, 단일 선택으로 채우지 않음)" 을 얻는 함수를 채우는 ref(M2 — Delete 가 여럿 지우기에 쓴다).
+   */
+  selectionRef?: MutableRefObject<(() => string[]) | null>;
   /** 우클릭·[+] — 대상과 화면 좌표(B7·A3). */
   onContextMenu: (target: MenuTarget, at: { x: number; y: number }) => void;
   /** 즉석 조건식 Enter(B10 — Task 7). */
@@ -360,8 +391,16 @@ function createRouteStore(): RouteStore {
     emit: () => listeners.forEach((cb) => cb()),
   };
 }
+/** 선 하나의 지금 모양 — 꺾는 점(없으면 빈 목록)과 양 끝(흐름 좌표). */
+interface EdgeGeo {
+  route: readonly FlowPos[];
+  source: FlowPos;
+  target: FlowPos;
+}
 interface RouteApi {
   store: RouteStore;
+  /** 그린 선마다 지금 모양을 읽는 함수(편집 가능한 선만) — 선 끝 손잡이 두 번 누르기가 쓴다(U2). */
+  geo: Map<string, () => EdgeGeo>;
   startDrag(e: ReactPointerEvent, edgeId: string, index: number, points: readonly FlowPos[]): void;
   addPoint(edgeId: string, points: readonly FlowPos[], source: FlowPos, target: FlowPos, clientX: number, clientY: number): void;
   removePoint(edgeId: string, points: readonly FlowPos[], index: number): void;
@@ -548,15 +587,17 @@ function SnapGuides({ store }: { store: SnapStore }) {
   );
 }
 
-/** 끄는 동안의 스냅 상태(G1) — 끄는 대상 ID, 끌기 시작 때 모은 후보 색인, 지난 프레임에 붙인 이동량. */
+/** 끄는 동안의 스냅 상태(G1) — 끄는 대상 ID, 끌기 시작 때 모은 후보 색인, 지난 프레임에 붙인 이동량과 맞은 상자 ID(I2). */
 interface SnapDrag {
   ids: ReadonlySet<string>;
   index: SnapIndex;
   dx: number;
   dy: number;
+  targets: readonly string[];
 }
-/** 노드 상자(흐름 좌표). 크기가 없으면 NaN 이라 스냅 후보·대상에서 빠진다. */
-const boxOf = (n: Node): Box => ({ x: n.position.x, y: n.position.y, w: n.width ?? Number.NaN, h: n.height ?? Number.NaN });
+const NO_TARGETS: readonly string[] = Object.freeze([]);
+/** 노드 상자(흐름 좌표, 주인 ID 포함). 크기가 없으면 NaN 이라 스냅 후보·대상에서 빠진다. */
+const boxOf = (n: Node): Box => ({ x: n.position.x, y: n.position.y, w: n.width ?? Number.NaN, h: n.height ?? Number.NaN, id: n.id });
 
 function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
   const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, selected } = props;
@@ -641,6 +682,39 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
     ? { onMouseEnter: () => hoverStore.enter(id), onMouseLeave: () => hoverStore.leave(id) }
     : {};
   const showAdd = !!data?.insertable && (hovered || !!selected || !!data.dropTarget);
+  // [+] 가 칩·라벨과 겹치면 옆으로 비킨다(U1) — 보일 때만 크기를 잰다(레이아웃 px = 흐름 좌표, 확대와 무관). 늘 기본 자리에서 계산하고 바뀔 때만 상태를 바꾼다.
+  const labelRef = useRef<HTMLSpanElement>(null);
+  const chipsRef = useRef<HTMLSpanElement>(null);
+  const addRef = useRef<HTMLButtonElement>(null);
+  const [addShift, setAddShift] = useState(0);
+  const labelAt = { x: lx + labelOff.dx, y: ly + labelOff.dy };
+  const chipsAt = { x: chipBase.x + chipsOff.dx, y: chipBase.y + chipsOff.dy };
+  useLayoutEffect(() => {
+    let next = 0;
+    const btn = addRef.current;
+    if (showAdd && btn) {
+      const boxes: CenterBox[] = [];
+      const box = (el: HTMLElement | null, c: FlowPos) => {
+        if (el) boxes.push({ x: c.x, y: c.y, w: el.offsetWidth, h: el.offsetHeight });
+      };
+      box(labelRef.current, labelAt);
+      box(chipsRef.current, chipsAt);
+      next = addSpot({ x: addX, y: ly }, { w: btn.offsetWidth, h: btn.offsetHeight }, boxes).x - addX;
+    }
+    if (next !== addShift) setAddShift(next);
+  });
+  // 선 끝 손잡이 두 번 누르기(U2) — 캔버스가 그 선의 지금 경로·양 끝을 읽어 꺾는 점을 더한다. 끝 손잡이를 끄는 동안 선이 잠깐 빠졌다 돌아와도 커밋 때 다시 건다.
+  const geoRef = useRef<EdgeGeo>({ route: [], source: { x: sourceX, y: sourceY }, target: { x: targetX, y: targetY } });
+  geoRef.current = { route: route ?? [], source: { x: sourceX, y: sourceY }, target: { x: targetX, y: targetY } };
+  const routeEditable = !!data?.routeEditable;
+  useLayoutEffect(() => {
+    if (!routeApi || !routeEditable) return;
+    const get = () => geoRef.current;
+    routeApi.geo.set(id, get);
+    return () => {
+      if (routeApi.geo.get(id) === get) routeApi.geo.delete(id);
+    };
+  }, [routeApi, id, routeEditable]);
   return (
     <>
       <g
@@ -670,6 +744,7 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
                 }
                 data-testid={`flow-edge-label-${id}`}
                 data-state={state ?? "idle"}
+                ref={labelRef}
                 data-cond-edge={data.condEditable ? id : undefined}
                 data-dragging={labelDrag?.part === "label" ? "true" : undefined}
                 title={data.condEditable ? (movable ? "끌어 옮기고, 두 번 눌러 조건식을 고친다" : "두 번 눌러 조건식을 고친다") : movable ? "끌어 옮긴다" : undefined}
@@ -691,6 +766,7 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
         {chips.length > 0 && (
           <div className="rsf-elabel rsf-elabel-chips" style={at(chipBase.x + chipsOff.dx, chipBase.y + chipsOff.dy)}>
             <span
+              ref={chipsRef}
               className={movable ? "rsf-vchips rsf-elabel-drag nodrag nopan nokey" : "rsf-vchips"}
               data-testid={`flow-edge-chips-${id}`}
               data-dragging={labelDrag?.part === "chips" ? "true" : undefined}
@@ -728,9 +804,10 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
           ))}
         {showAdd && (
           <button
+            ref={addRef}
             type="button"
             className="rsf-edge-add nodrag nopan"
-            style={at(addX, ly)}
+            style={at(addX + addShift, ly)}
             data-testid={`flow-edge-add-${id}`}
             data-edge-id={id}
             aria-label="선에 넣기"
@@ -787,7 +864,7 @@ function Inner(props: FlowCanvasProps) {
     flow, rules, checks, mode, varDisplay, varLabels, selectedId, selectedEdgeId, overlay, focusId, focusSeq, focusReveal, fitSignal, fitKey,
     breakpoints, collapsed, valueAt, showMiniMap, editingCondEdgeId,
     onSelect, onSelectEdge, onOpenRule, onMove, onMoveNode, onConnect, onReconnect, onDropPalette, onDropRule, onNoteChange, onContextMenu, onToggleBreakpoint,
-    onEditCond, onRouteChange, onLabelOffsetChange, removeRoutePointRef, clearSelectionRef, alignSourceRef, onEditCondClose, onSelectionChange,
+    onEditCond, onRouteChange, onLabelOffsetChange, removeRoutePointRef, clearSelectionRef, alignSourceRef, selectionRef, onEditCondClose, onSelectionChange,
     spaceTool, onSpaceToolChange, onShiftSpace,
   } = props;
   const editable = mode === "edit";
@@ -1080,7 +1157,7 @@ function Inner(props: FlowCanvasProps) {
     for (const n of nodesRef.current) {
       if ((n.type === "rsfFlow" || n.type === "rsfNote") && !skip.has(n.id)) others.push(boxOf(n));
     }
-    snapRef.current = { ids, index: snapIndex(others), dx: 0, dy: 0 };
+    snapRef.current = { ids, index: snapIndex(others), dx: 0, dy: 0, targets: NO_TARGETS };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editable, snapStore]);
 
@@ -1093,18 +1170,21 @@ function Inner(props: FlowCanvasProps) {
     let dx = 0;
     let dy = 0;
     let guides: readonly Guide[] = NO_GUIDES;
+    let targets: readonly string[] = NO_TARGETS;
     if (s && !target && !e.altKey) {
       const boxes = dragged.map(boxOf);
       const box = boxes.every((b) => Number.isFinite(b.w) && Number.isFinite(b.h)) ? boundsOf(boxes) : null;
       if (box) {
-        const r = snapMoveIn(box, s.index, snapThreshold(rf.getZoom()));
+        const r = snapHitIn(box, s.index, snapThreshold(rf.getZoom()));
         ({ dx, dy } = r);
         guides = r.guides;
+        targets = r.targets;
       }
     }
     if (s) {
       s.dx = dx;
       s.dy = dy;
+      s.targets = targets;
     }
     snapStore.set(guides);
     return { dx, dy };
@@ -1130,6 +1210,32 @@ function Inner(props: FlowCanvasProps) {
     setDrag((d) => ({ ...d, ...next }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editable, rf, setDropEdge, snapStore]);
+
+  /**
+   * 놓을 때 스냅으로 맞은 대상 가운데 저장 위치가 없는(고정 안 된) 흐름 노드를 지금 그린 위치로 `moved` 에 더한다(I2).
+   * 접힌 분기는 제 크기 기준(+foldOffsetX), 분기면 블록 멤버도 그린 위치로 적는다(정렬 A1 `apply` 와 같다). 메모는 이미 제 위치를 저장하므로 뺀다.
+   * 그린 위치 전체(`spaceDrawn`)는 고정할 대상이 있을 때만 읽는다(접힌 블록이 있으면 흐름당 한 번 배치 — 캐시).
+   */
+  const pinSnapTargets = (moved: Record<string, FlowPos>, targets: readonly string[]) => {
+    const full = fullRef.current;
+    const saved = full.view.positions ?? {};
+    const free = (id: string) => !(id in moved) && !saved[id];
+    const hits = targets.filter((id) => free(id) && full.nodes.some((n) => n.id === id));
+    if (hits.length === 0) return;
+    const drawnAll = spaceDrawnRef.current();
+    const blocks = viewRef.current.blocks;
+    for (const id of hits) {
+      const n = full.nodes.find((x) => x.id === id)!;
+      const p = drawnAll[id];
+      if (!p) continue;
+      const block = blocks[id];
+      moved[id] = { x: Math.round(p.x + (block ? foldOffsetX(n.kind) : 0)), y: Math.round(p.y) };
+      const members = block ? block.members : isSplit(id) ? (blockMembers(full, id) ?? []) : [];
+      for (const m of members) {
+        if (m !== id && free(m) && drawnAll[m]) moved[m] = { x: Math.round(drawnAll[m].x), y: Math.round(drawnAll[m].y) };
+      }
+    }
+  };
 
   const onNodeDragStop = useCallback((_e: unknown, node: Node, dragged: Node[]) => {
     const target = dropEdgeRef.current;
@@ -1157,6 +1263,7 @@ function Inner(props: FlowCanvasProps) {
       if (Object.keys(movedNotes).length > 0) onMove({}, movedNotes); // 메모만 끌었어도 놓을 때 한 번(B5)
       return;
     }
+    pinSnapTargets(moved, snap?.targets ?? NO_TARGETS);
     if (target && dragged.length === 1 && isMovable(node)) {
       onMoveNode(node.id, target, moved);
       setDrag({}); // 옮기기가 거부돼 흐름이 그대로면 끌던 위치를 되돌린다(성공하면 새 흐름 위치가 정본)
@@ -1173,6 +1280,17 @@ function Inner(props: FlowCanvasProps) {
       return next.size === cur.size ? cur : next;
     });
   }, [flow, vflow]);
+
+  // page 가 캔버스 밖에서 단일 선택을 바꾸면(메뉴로 만든 메모·찾기·검사 항목·끼운 새 노드 등) React Flow 선택을 그 하나로 맞춘다(M1) —
+  // 화살표·정렬(캔버스 선택)과 Delete·속성 패널(단일 선택)이 같은 대상을 가리키게. 노드 누르기에서 온 선택은 React Flow 가 이미 넣고 뺐으므로
+  // 건드리지 않는다(Shift+누르기로 빼기·더하기 그대로). 선택 해제(null)도 그대로다(영역 선택 시작이 단일 선택을 풀고 캔버스 선택을 채운다).
+  const canvasPickRef = useRef<string | null>(null);
+  useEffect(() => {
+    const fromCanvas = canvasPickRef.current === selectedId;
+    canvasPickRef.current = null;
+    if (fromCanvas || !selectedId || viewRef.current.hidden.has(selectedId)) return;
+    setRfSel((cur) => (cur.size === 1 && cur.has(selectedId) ? cur : new Set([selectedId])));
+  }, [selectedId]);
 
   // 접어서 숨긴 노드·선을 가리키던 선택은 푼다 — 보이지 않는 대상에 Delete·복사·속성 편집이 적용되지 않게(D16).
   useEffect(() => {
@@ -1275,6 +1393,7 @@ function Inner(props: FlowCanvasProps) {
     };
     return {
       store: routeStore,
+      geo: new Map(),
       removePoint,
       addPoint: (edgeId, points, source, target, clientX, clientY) => {
         routeChangeRef.current?.(edgeId, insertRoutePoint(points, source, target, flowAtRef.current(clientX, clientY)));
@@ -1455,6 +1574,17 @@ function Inner(props: FlowCanvasProps) {
       alignSourceRef.current = null;
     };
   }, [alignSourceRef]);
+  useEffect(() => {
+    if (!selectionRef) return;
+    selectionRef.current = () => {
+      const cur = fullRef.current;
+      const known = new Set([...cur.nodes.map((n) => n.id), ...cur.view.notes.map((n) => n.id), ...cur.view.groups.map((g) => g.id)]);
+      return [...rfSelRef.current].filter((id) => known.has(id));
+    };
+    return () => {
+      selectionRef.current = null;
+    };
+  }, [selectionRef]);
 
   // 공간 넓히기(S1) — 누른 자리·방향·줄이기 한계는 끄는 동안만 ref 에 둔다. 미리보기는 spaceStore 로만 알린다.
   const spaceToolRef = useRef(!!spaceTool);
@@ -1619,6 +1749,16 @@ function Inner(props: FlowCanvasProps) {
     onContextMenu({ kind: "edge", edgeId, via: "plus" }, { x: r.left, y: r.bottom });
   };
 
+  // 고른 선의 끝 손잡이(R1)를 두 번 누르면 그 자리에 꺾는 점을 더한다(U2) — 짧은 선은 첫 누르기로 선이 골라지며 뜬 끝 손잡이가 선을 덮어
+  // 두 번째 누르기를 받는다. 선 위 두 번 누르기와 같은 결과(가장 가까운 구간에 점). 끝 손잡이는 React Flow 가 그리므로 선 틀의 두 번 누르기로 받는다.
+  const onEdgeDoubleClick = useCallback((e: ReactMouseEvent, ed: Edge) => {
+    if (!editable || !(e.target as Element | null)?.closest?.(".react-flow__edgeupdater")) return;
+    const g = routeApi.geo.get(ed.id)?.();
+    if (!g) return;
+    e.stopPropagation();
+    routeApi.addPoint(ed.id, g.route, g.source, g.target, e.clientX, e.clientY);
+  }, [editable, routeApi]);
+
   // 조건 갈래 이름표를 두 번 누르면 조건식 입력 칸(B10, P-D17). 이름표는 선 데이터에 콜백이 없어 틀에서 위임으로 받는다.
   const onDoubleClick = (e: ReactMouseEvent<HTMLDivElement>) => {
     if (!editable) return;
@@ -1683,8 +1823,12 @@ function Inner(props: FlowCanvasProps) {
         onConnect={onConnectCb}
         onReconnect={editable && onReconnect ? onReconnectCb : undefined}
         edgesReconnectable={false}
-        onNodeClick={(_e, n) => onSelect(n.id)}
+        onNodeClick={(_e, n) => {
+          canvasPickRef.current = n.id;
+          onSelect(n.id);
+        }}
         onEdgeClick={(_e, ed) => onSelectEdge(ed.id)}
+        onEdgeDoubleClick={editable ? onEdgeDoubleClick : undefined}
         onPaneClick={() => {
           onSelect(null);
           onSelectEdge(null);

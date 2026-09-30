@@ -18,7 +18,7 @@ vi.mock("@dagrejs/dagre", async (importOriginal) => {
 
 import { FlowCanvas, type FlowCanvasProps } from "../../../pages/dme/ruleSetEdit/canvas/FlowCanvas";
 import { addNote, insertSplit, setPositions, toEditFlow, type EditFlow, type FlowPos } from "../../../pages/dme/ruleSetEdit/flow-edit";
-import { NODE_SIZE } from "../../../pages/dme/ruleSetEdit/flow-layout";
+import { NODE_SIZE, drawnPositions, foldOffsetX } from "../../../pages/dme/ruleSetEdit/flow-layout";
 import { RSF_CSS } from "../../../pages/dme/ruleSetEdit/rsf-styles";
 import { flush, installDomStorage } from "../helpers/render";
 
@@ -272,6 +272,65 @@ describe("끌 때 맞춤 안내선·스냅(G1)", () => {
     // r3(600,300) → (900, 322): 새 r2 의 위 320 과 2 차이.
     await dragNode("r3", center("r3", "RULE"), 300, 22);
     expect(onMove.mock.calls[0][0]).toEqual({ r3: { x: 900, y: 320 } });
+  });
+
+  it("저장 위치가 없는(고정 안 된) 노드에 맞닿게 붙여 놓으면 맞은 대상도 그린 위치로 함께 적어 고정한다 — 겹침 풀기가 대상을 밀지 않는다(I2)", async () => {
+    const flow = toEditFlow(null, ["SC_A", "SC_B", "SC_C"]); // 저장 위치 없음 = 모두 자동 배치
+    const drawn = drawnPositions(flow);
+    const p2 = drawn.r2;
+    const onMove = vi.fn();
+    const onMoveNode = vi.fn();
+    await draw(props({ flow, onMove, onMoveNode }));
+    const start = layout.calls;
+    expect(at("r2")).toEqual(p2);
+    // r3 를 r2 오른쪽에 맞닿게(왼쪽 = r2 오른쪽 +3, 위 = r2 위 +2) — 왼쪽 → r2 오른쪽, 위 → r2 위에 붙는다.
+    const p3 = at("r3");
+    await dragNode("r3", center("r3", "RULE"), p2.x + NODE_SIZE.RULE.w + 3 - p3.x, p2.y + 2 - p3.y, {}, false);
+    expect(at("r3")).toEqual({ x: p2.x + NODE_SIZE.RULE.w, y: p2.y });
+    await fire(window, "mouseup", { clientX: 0, clientY: 0 });
+    expect(layout.calls).toBe(start); // 끌기·놓기(대상 고정 포함)는 배치를 다시 돌리지 않는다
+    expect(onMoveNode).not.toHaveBeenCalled(); // 끼우기 강조가 없었다(강조 중이면 스냅이 꺼진다)
+    expect(onMove).toHaveBeenCalledTimes(1);
+    const moved = onMove.mock.calls[0][0] as Record<string, FlowPos>;
+    expect(moved.r3).toEqual({ x: p2.x + NODE_SIZE.RULE.w, y: p2.y });
+    expect(moved.r2).toEqual(p2); // 맞은 대상 — 그린 위치 그대로 고정
+    expect(Object.keys(moved).sort()).toEqual(["r2", "r3"]); // 맞지 않은 노드는 적지 않는다
+    // 놓은 뒤 그린 위치(겹침 풀기 뒤)에서도 기준선이 맞다.
+    const after = setPositions(flow, moved);
+    const d = drawnPositions(after);
+    expect(d.r2).toEqual(p2);
+    expect(d.r3).toEqual({ x: d.r2.x + NODE_SIZE.RULE.w, y: d.r2.y });
+    await draw(props({ flow: after, onMove, onMoveNode }));
+    expect(at("r2")).toEqual(p2);
+    expect(at("r3")).toEqual({ x: p2.x + NODE_SIZE.RULE.w, y: p2.y });
+  });
+
+  it("맞은 대상이 고정 안 된 접힌 분기면 제 크기 기준(+foldOffsetX)으로 적고 숨은 블록 멤버도 함께 고정한다(I2)", async () => {
+    const r = insertSplit(toEditFlow(null, ["R_A"]), "e2", "IF");
+    if (!r.ok) throw new Error(r.reason);
+    const flow = r.flow; // 저장 위치 없음
+    const ifId = flow.nodes.find((n) => n.kind === "IF")!.id;
+    const mId = flow.nodes.find((n) => n.kind === "MERGE")!.id;
+    const collapsed = new Set([ifId]);
+    const onMove = vi.fn();
+    await draw(props({ flow, onMove, collapsed }));
+    const box = at(ifId); // 접힌 상자 좌상단
+    const pe = at("end");
+    await dragNode("end", center("end", "END"), box.x + NODE_SIZE.RULE.w + 2 - pe.x, box.y + 1 - pe.y);
+    const moved = onMove.mock.calls[0][0] as Record<string, FlowPos>;
+    expect(moved.end).toEqual({ x: box.x + NODE_SIZE.RULE.w, y: box.y });
+    expect(moved[ifId]).toEqual({ x: box.x + foldOffsetX("IF"), y: box.y });
+    expect(moved[mId]).toBeDefined(); // 숨은 합류도 블록과 맞춘 자리로 고정
+    await draw(props({ flow: setPositions(flow, moved), onMove, collapsed }));
+    expect(at(ifId)).toEqual(box);
+    expect(at("end")).toEqual({ x: box.x + NODE_SIZE.RULE.w, y: box.y });
+  });
+
+  it("이미 저장 위치가 있는 대상은 다시 적지 않는다 — 끈 노드만 올린다", async () => {
+    const onMove = vi.fn();
+    await draw(props({ onMove }));
+    await dragNode("r3", center("r3", "RULE"), 300, 3);
+    expect(onMove.mock.calls[0][0]).toEqual({ r3: { x: 900, y: 300 } });
   });
 
   it("보기 모드는 끌리지 않아 안내선도 없다", async () => {
