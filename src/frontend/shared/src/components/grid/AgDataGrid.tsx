@@ -26,6 +26,9 @@ import type {
 import { GRID_TEMP_ID_FIELD } from "./GridPanel";
 import { GRID_SIZE_CHANGE_SETTLE_MS, resolveGridSizeChangeAction } from "./grid-size-change";
 
+/** `rowNumber` 로 넣는 행번호 열의 colId — 테스트·화면이 이 칸을 집을 때 쓴다. */
+export const ROW_NUMBER_COL_ID = "__rowNo";
+
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 /**
@@ -274,6 +277,13 @@ export interface AgDataGridProps {
   /** 데이터 없음 안내 문구에 붙일 data-testid(화면·E2E 가 빈 상태를 확인할 때). */
   emptyTestId?: string;
   className?: string;
+  /**
+   * 맨 앞에 행번호(No) 열을 둔다 — 목록에서 "이게 몇 번째 행인지" 를 바로 읽게 한다(ERP 목록 표준).
+   *
+   * <p>`true` 면 머리는 "No", 폭 56px. `{ header, width }` 로 바꿀 수 있다. 정렬하면 값이 다시 매겨진다
+   * (저장 값이 아니라 ag-grid 의 표시 순서다).
+   */
+  rowNumber?: boolean | { header?: string; width?: number };
   /**
    * ★행 커서(`.ag-row-highlighted`) 위치 — **값을 넘기면 controlled**, 안 넘기면 그리드가 자체 관리한다.
    *
@@ -657,6 +667,7 @@ function AgDataGridComponent({
   emptyMessage = "데이터가 없습니다.",
   emptyTestId,
   className = "",
+  rowNumber = false,
   // 기본값을 `null` 이 아니라 `undefined` 로 둔다 — "화면이 넘기지 않았다"와 "화면이 커서를 지냈다"를 구분해야
   // 커서를 자체 관리하는 기본 동작과 controlled 계약을 동시에 살릴 수 있다.
   highlightedRowKey,
@@ -711,18 +722,40 @@ function AgDataGridComponent({
     () => (hasRowDraggable ? (row: Record<string, unknown>) => isRowDraggableRef.current?.(row) ?? true : undefined),
     [hasRowDraggable]
   );
-  const columnDefs = useMemo<(ColDef | ColGroupDef)[]>(
-    () =>
-      buildColumnDefs(columns, {
-        sortable: effectiveSortable,
-        columnSizing: resolvedColumnSizing,
-        shouldAutoSizeColumns,
-        rowDragField,
-        isRowDraggable: stableIsRowDraggable,
-      }),
+  const columnDefs = useMemo<(ColDef | ColGroupDef)[]>(() => {
+    const defs = buildColumnDefs(columns, {
+      sortable: effectiveSortable,
+      columnSizing: resolvedColumnSizing,
+      shouldAutoSizeColumns,
+      rowDragField,
+      isRowDraggable: stableIsRowDraggable,
+    });
     // 체크박스는 rowSelection 설정에서 자동 관리 (수동 컬럼 불필요)
-    [columns, effectiveSortable, shouldAutoSizeColumns, resolvedColumnSizing, rowDragField, stableIsRowDraggable]
-  );
+    if (!rowNumber) return defs;
+    const noOpt = typeof rowNumber === "object" ? rowNumber : {};
+    // 정렬·필터 뒤의 표시 순서를 1부터 매긴다.
+    // 주의: ag-grid 33 community 에는 `rowNumber` ColDef 속성도 `RowNumberColumn` 컴포넌트도 없다
+    // (설치본 colDef.d.ts 에 `rowNumber` 없음 — `A types rowNumber` 로 확인). `valueGetter` 가 받는
+    // `params.node.rowIndex`(설치본 colDef.d.ts:852, rowNode.d.ts:69) 로 직접 만든다.
+    // 이 번호는 표시 순서이지 저장 값이 아니다 — 정렬하면 다시 매겨진다.
+    const noCol: ColDef = {
+      colId: ROW_NUMBER_COL_ID,
+      headerName: noOpt.header ?? "No",
+      width: noOpt.width ?? 56,
+      minWidth: 40,
+      maxWidth: 120,
+      pinned: "left",
+      sortable: false,
+      resizable: false,
+      suppressMovable: true,
+      cellStyle: { textAlign: "center" },
+      headerClass: "header-center",
+      valueGetter: (params: { node: { rowIndex: number | null } | null }) =>
+        (params.node?.rowIndex ?? -1) + 1,
+      tooltipValueGetter: () => "",
+    };
+    return [noCol, ...defs];
+  }, [columns, effectiveSortable, shouldAutoSizeColumns, resolvedColumnSizing, rowDragField, stableIsRowDraggable, rowNumber]);
 
   // 셀 텍스트가 컬럼 폭 초과로 잘려서 ... 으로 표시될 때 마우스오버 시 전체 값을 tooltip 으로 표시.
   // tooltipValueGetter 는 ag-grid 의 browser-native title 속성 사용 (별도 라이브러리 불필요).
