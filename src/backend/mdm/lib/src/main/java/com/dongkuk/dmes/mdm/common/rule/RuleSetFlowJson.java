@@ -99,7 +99,7 @@ public final class RuleSetFlowJson {
             throw new IllegalArgumentException("흐름 형식 버전 " + version + " 는 읽지 못한다(1 만 받는다)");
         }
         List<FlowNode> nodes = new ArrayList<>();
-        JsonNode ns = root.path("nodes");
+        JsonNode ns = array(root, "nodes");
         for (int i = 0; i < ns.size(); i++) {
             JsonNode n = ns.get(i);
             String id = required(n, "id", "nodes[" + i + "]");
@@ -113,7 +113,7 @@ public final class RuleSetFlowJson {
             nodes.add(new FlowNode(id, k, text(n, "ruleId"), text(n, "splitId"), text(n, "label")));
         }
         List<FlowEdge> edges = new ArrayList<>();
-        JsonNode es = root.path("edges");
+        JsonNode es = array(root, "edges");
         for (int i = 0; i < es.size(); i++) {
             JsonNode e = es.get(i);
             String where = "edges[" + i + "]";
@@ -122,6 +122,15 @@ public final class RuleSetFlowJson {
                     order.isNumber() ? order.asInt() : null, text(e, "cond"), e.path("otherwise").asBoolean(false), text(e, "label")));
         }
         return new FlowDefinition(version, List.copyOf(nodes), List.copyOf(edges));
+    }
+
+    /** nodes·edges 는 반드시 배열이다. 빠지거나 다른 모양이면 형식 오류(NPE 대신). */
+    private static JsonNode array(JsonNode root, String field) {
+        JsonNode v = root.get(field);
+        if (v == null || !v.isArray()) {
+            throw new IllegalArgumentException("흐름의 " + field + " 는 배열이어야 한다");
+        }
+        return v;
     }
 
     private static String required(JsonNode node, String field, String where) {

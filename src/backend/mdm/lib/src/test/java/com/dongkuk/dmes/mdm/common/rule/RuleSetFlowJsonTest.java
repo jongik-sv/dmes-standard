@@ -92,4 +92,21 @@ class RuleSetFlowJsonTest {
                 assertThrows(IllegalArgumentException.class,
                         () -> RuleSetFlowJson.parse("{\"version\":1,\"nodes\":[],\"edges\":[{\"id\":\"e1\",\"from\":\"a\"}]}")).getMessage());
     }
+
+    @Test
+    void nodes_edges_가_배열이_아니거나_빠지면_형식_오류다() {
+        assertEquals("흐름의 nodes 는 배열이어야 한다",
+                assertThrows(IllegalArgumentException.class, () -> RuleSetFlowJson.parse("{\"version\":1,\"edges\":[]}")).getMessage());
+        assertEquals("흐름의 nodes 는 배열이어야 한다",
+                assertThrows(IllegalArgumentException.class,
+                        () -> RuleSetFlowJson.parse("{\"version\":1,\"nodes\":{\"id\":\"start\",\"kind\":\"START\"},\"edges\":[]}")).getMessage());
+        assertEquals("흐름의 edges 는 배열이어야 한다",
+                assertThrows(IllegalArgumentException.class, () -> RuleSetFlowJson.parse("{\"version\":1,\"nodes\":[]}")).getMessage());
+        assertEquals("흐름의 edges 는 배열이어야 한다",
+                assertThrows(IllegalArgumentException.class,
+                        () -> RuleSetFlowJson.parse("{\"version\":1,\"nodes\":[],\"edges\":{\"id\":\"e1\",\"from\":\"a\",\"to\":\"b\"}}")).getMessage());
+        assertEquals("흐름의 edges 는 배열이어야 한다",
+                assertThrows(IllegalArgumentException.class,
+                        () -> RuleSetFlowJson.fromMap(Map.of("version", 1, "nodes", List.of(), "edges", "e1"))).getMessage());
+    }
 }

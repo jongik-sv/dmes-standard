@@ -5328,6 +5328,220 @@
           }
         ]
       }
+    },
+    {
+      "name": "흐름 — 조건식 정보가 없거나 문구가 null 이면 대체 문구를 쓴다(갈래 실행 순서)",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {
+            "id": "start",
+            "kind": "START"
+          },
+          {
+            "id": "if1",
+            "kind": "IF"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE",
+            "ruleId": "A"
+          },
+          {
+            "id": "r2",
+            "kind": "RULE",
+            "ruleId": "B"
+          },
+          {
+            "id": "r3",
+            "kind": "RULE",
+            "ruleId": "C"
+          },
+          {
+            "id": "m1",
+            "kind": "MERGE",
+            "splitId": "if1"
+          },
+          {
+            "id": "end",
+            "kind": "END"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "start",
+            "to": "if1"
+          },
+          {
+            "id": "e2",
+            "from": "if1",
+            "to": "r1",
+            "order": 2,
+            "cond": "X > 2"
+          },
+          {
+            "id": "e3",
+            "from": "if1",
+            "to": "r2",
+            "order": 1,
+            "cond": "X > 1"
+          },
+          {
+            "id": "e4",
+            "from": "if1",
+            "to": "r3",
+            "otherwise": true
+          },
+          {
+            "id": "e5",
+            "from": "r1",
+            "to": "m1"
+          },
+          {
+            "id": "e6",
+            "from": "r2",
+            "to": "m1"
+          },
+          {
+            "id": "e7",
+            "from": "r3",
+            "to": "m1"
+          },
+          {
+            "id": "e8",
+            "from": "m1",
+            "to": "end"
+          }
+        ]
+      },
+      "condIo": {
+        "e3": {
+          "ok": false,
+          "message": null,
+          "vars": []
+        }
+      },
+      "ids": [
+        "B",
+        "A",
+        "C"
+      ],
+      "rules": {
+        "A": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RA"
+            }
+          ]
+        },
+        "B": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RB"
+            }
+          ]
+        },
+        "C": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RC"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "X",
+              "source": "DICT",
+              "users": [
+                "B",
+                "A",
+                "C"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "RB",
+              "by": [
+                "B"
+              ],
+              "readers": []
+            },
+            {
+              "name": "RA",
+              "by": [
+                "A"
+              ],
+              "readers": []
+            },
+            {
+              "name": "RC",
+              "by": [
+                "C"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "B": [],
+          "A": [],
+          "C": []
+        },
+        "checks": [
+          {
+            "code": "FLOW_COND",
+            "severity": "REJECT",
+            "ruleId": null,
+            "otherRuleId": null,
+            "varName": null,
+            "message": "e3 갈래 조건식을 읽을 수 없다: 조건식 정보 없음",
+            "nodeId": "if1",
+            "edgeId": "e3"
+          },
+          {
+            "code": "FLOW_COND",
+            "severity": "REJECT",
+            "ruleId": null,
+            "otherRuleId": null,
+            "varName": null,
+            "message": "e2 갈래 조건식을 읽을 수 없다: 조건식 정보 없음",
+            "nodeId": "if1",
+            "edgeId": "e2"
+          }
+        ]
+      }
     }
   ]
 }
