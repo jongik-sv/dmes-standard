@@ -1014,3 +1014,17 @@
 - **Rationale**: 목록 세트를 한 줄 흐름으로 바꿔 한 경로로 검사·실행하면 코드가 한 벌이다. 바뀌는 곳은 저장 경로가 이미 막는 입력뿐이라 운영 영향이 없다
 - **Reversible**: yes(코드 변경만으로 되돌릴 수 있다)
 - **Source**: D-106 D12, `RuleSetAnalyzer`, `RuleIdRules`, 엔진 `FlowParser`
+
+## D-109 (2026-09-30T00:00:00Z)
+- **Phase**: build(룰 세트 흐름도 1단계, 추가 Task 14)
+- **Decision needed**: 폐기(DEPRECATED)된 룰이 든 INUSE 세트를 운영에서 판정할 때 막을지, 경고만 남길지.
+  룰 폐기(`RuleHeaderService.deprecate`)는 `TB_MDM_RULE.STATUS` 만 바꾸고 참조 세트를 검사하지 않으며 RELEASED 버전의
+  `APPLY_TO` 도 그대로 두므로, 운영 조회기(`StoredDefinitionLookup`)는 폐기 룰을 그대로 판정에 쓴다
+- **Decision made**: 막지 않고 경고를 남긴다(사용자 결정). `RuleSetRunner.execute`(OASIS 입구)의 응답 `RuleSetRunResult.warnings`
+  에 폐기 룰마다 `RULE_DEPRECATED` 한 건(흐름에서 처음 나온 순서, 탄 갈래 여부와 무관)을 싣고, 이어서 엔진 경고
+  (`BRANCH_COND_NULL` 등 세트 경고, 그다음 `EXPR_CELL_NULL`·`GRP_COND_NULL` 룰 경고)를 싣는다. 서버 로그에 WARN 한 줄을 남긴다.
+  Java API `run` 반환형과 엔진 계약(`RuleSetResult`·`RunTrace`·스키마·생성 TS)은 바꾸지 않는다. `trace`(디버거)의 경고는 2단계에서 다룬다
+- **Rationale**: 폐기에는 효력 시각이 없어, 판정을 막으면 과거 시각으로 다시 판정하는 경우까지 깨지고 룰을 폐기하는 즉시
+  그 룰을 쓰는 운영 세트가 멈춘다. 경고로 드러내면 판정은 이어지고 담당자가 세트를 고칠 신호를 받는다
+- **Reversible**: yes(경고를 판정 오류로 바꾸는 것은 코드 변경만으로 된다)
+- **Source**: 2026-09-30 사용자 답변("1. b"), `RuleSetRunner`, `RuleSetRunResult`, `RuleHeaderService.deprecate`, `StoredDefinitionLookup`
