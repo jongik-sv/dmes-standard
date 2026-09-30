@@ -39,6 +39,7 @@ vi.mock("@dk-oasis/shared/grid", async (importOriginal) => {
 
 import RuleSetEditPage from "../../../pages/dme/ruleSetEdit/page";
 import type { RuleIo, RuleSetView } from "../../../pages/dme/ruleSetEdit/types";
+import type { RuleSetFlow } from "../../../src/contract/engine-contract.generated";
 
 import { RBAC_STORE_KEY, findButton, flush, installDomStorage, jsonResponse, typeInto, visibleText } from "../helpers/render";
 
@@ -67,7 +68,7 @@ const DUP = io("E2S_DUP", [["SET_WID", "DICT"]], ["S_GRD"]);
 
 function chainView(over: Partial<RuleSetView> = {}, rowVersion = 3): RuleSetView {
   return {
-    set: { setId: "E2S_CHAIN", setName: "사슬", description: null, status: "INUSE", rowVersion, ruleIds: ["E2S_GRD", "E2S_FCT", "E2S_SPD"] },
+    set: { setId: "E2S_CHAIN", setName: "사슬", description: null, status: "INUSE", rowVersion, ruleIds: ["E2S_GRD", "E2S_FCT", "E2S_SPD"], flow: null, branched: false },
     rules: [GRD, FCT, SPD],
     checks: [],
     editable: true,
@@ -77,6 +78,31 @@ function chainView(over: Partial<RuleSetView> = {}, rowVersion = 3): RuleSetView
 }
 
 const ORDER_MSG = "E2S_FCT가 뒤에 도는 E2S_GRD의 결과 변수 S_GRD를 읽는다. E2S_GRD를 E2S_FCT 앞으로 옮긴다";
+
+/** GRD → IF { S_GRD = "A": FCT ; 그 외: (빈 갈래) } → SPD — 분기가 있는 세트. */
+const BRANCHED_FLOW: RuleSetFlow = {
+  version: 1,
+  nodes: [
+    { id: "start", kind: "START", ruleId: null, splitId: null, label: null },
+    { id: "r1", kind: "RULE", ruleId: "E2S_GRD", splitId: null, label: null },
+    { id: "if1", kind: "IF", ruleId: null, splitId: null, label: "등급" },
+    { id: "r2", kind: "RULE", ruleId: "E2S_FCT", splitId: null, label: null },
+    { id: "m1", kind: "MERGE", ruleId: null, splitId: "if1", label: null },
+    { id: "r3", kind: "RULE", ruleId: "E2S_SPD", splitId: null, label: null },
+    { id: "end", kind: "END", ruleId: null, splitId: null, label: null },
+  ],
+  edges: [
+    { id: "e1", from: "start", to: "r1", order: null, cond: null, otherwise: false, label: null },
+    { id: "e2", from: "r1", to: "if1", order: null, cond: null, otherwise: false, label: null },
+    { id: "e3", from: "if1", to: "r2", order: 1, cond: 'S_GRD = "A"', otherwise: false, label: "A 등급" },
+    { id: "e4", from: "if1", to: "m1", order: null, cond: null, otherwise: true, label: "그 외" },
+    { id: "e5", from: "r2", to: "m1", order: null, cond: null, otherwise: false, label: null },
+    { id: "e6", from: "m1", to: "r3", order: null, cond: null, otherwise: false, label: null },
+    { id: "e7", from: "r3", to: "end", order: null, cond: null, otherwise: false, label: null },
+  ],
+};
+
+const PARTIAL_MSG = "E2S_SPD가 읽는 S_FCT는 IF 의 일부 갈래에서만 만들어진다. 다른 갈래를 타면 판정 오류다";
 
 let container: HTMLDivElement;
 let root: Root | null = null;
@@ -490,5 +516,49 @@ describe("RuleSetEditPage", () => {
     mocks.openRuleEdit.mockReset();
     await click("set-var-link-S_GRD");
     expect(mocks.openRuleEdit).toHaveBeenCalledWith("E2S_GRD");
+  });
+
+  it("분기가 있는 세트는 목록 편집·저장·지침 적용을 막고 안내와 서버 검사를 보인다(FLOW_READONLY 화면 쪽)", async () => {
+    const partial = {
+      code: "FLOW_PARTIAL" as const,
+      severity: "WARN" as const,
+      ruleId: "E2S_SPD",
+      otherRuleId: null,
+      varName: "S_FCT",
+      message: PARTIAL_MSG,
+      nodeId: "r3",
+      edgeId: null,
+    };
+    replies["search:GUIDE"] = ok({ target: "S_SPD", order: ["E2S_GRD"], ambiguous: [], error: null, rules: [GRD] });
+    await openChain(chainView({ set: { ...chainView().set, flow: BRANCHED_FLOW, branched: true }, checks: [partial] }));
+
+    expect(byTestId("set-branched-notice").textContent).toContain("분기가 있는 세트는 흐름도 편집기(준비 중)에서 편집한다");
+    expect(byTestId<HTMLInputElement>("set-name").disabled).toBe(true);
+    expect(byTestId<HTMLTextAreaElement>("set-desc").disabled).toBe(true);
+    expect(byTestId<HTMLButtonElement>("set-rule-add-find").disabled).toBe(true);
+    expect(q("set-rule-down-E2S_GRD")).toBeNull();
+    expect(q("set-rule-remove-E2S_GRD")).toBeNull();
+    expect(mocks.grid.current?.onRowOrderChange).toBeUndefined();
+    expect(byTestId<HTMLButtonElement>("set-save").disabled).toBe(true);
+
+    // 화면 즉시 계산(한 줄)이면 "통과"지만 분기 세트는 서버 흐름 검사를 그대로 보인다.
+    const checks = visibleText(byTestId("set-checks"));
+    expect(checks).toContain(PARTIAL_MSG);
+    expect(checks).toContain("경고");
+    expect(checks).not.toContain("통과");
+
+    expect(byTestId<HTMLButtonElement>("set-deprecate").disabled).toBe(false);
+    await typeInto(byTestId<HTMLInputElement>("set-guide-var"), "S_SPD");
+    await click("set-guide-run");
+    expect(byTestId<HTMLButtonElement>("set-guide-apply").disabled).toBe(true);
+
+    await click("set-rule-link-E2S_FCT");
+    expect(mocks.openRuleEdit).toHaveBeenCalledWith("E2S_FCT");
+    expect(calls("save")).toHaveLength(0);
+  });
+
+  it("분기가 없는 세트에는 분기 안내가 없다", async () => {
+    await openChain();
+    expect(q("set-branched-notice")).toBeNull();
   });
 });

@@ -3,6 +3,8 @@
  * 칸 이름이다(JSON 필드 이름 = 레코드 컴포넌트 이름). 서버가 비운 칸은 null 로 온다.
  */
 
+import type { RuleSetFlow } from "@/contract/engine-contract.generated";
+
 /** 조건 이름의 출처 — 컬럼 사전(DICT) > 룰이 도메인·데이터 타입을 선언한 프로그램 변수(PROG) > 어디에도 없음(NONE). 결과 이름은 null. */
 export type IoSource = "DICT" | "PROG" | "NONE";
 
@@ -149,7 +151,12 @@ export interface RuleSetHeader {
   description: string | null;
   status: RuleSetStatus;
   rowVersion: number;
+  /** 흐름을 펼친 룰 목록(RULE_IDS, 중복 없음). */
   ruleIds: string[];
+  /** 저장된 흐름(FLOW_JSON, view 포함). 목록으로만 저장된 세트면 null. */
+  flow: RuleSetFlow | null;
+  /** 분기(IF·병렬)가 있는 흐름이면 true — 목록 편집·저장을 막는다(서버는 FLOW_READONLY 로 거부). */
+  branched: boolean;
 }
 
 /** view 응답(§6.5). `rules` 는 ruleIds 순·중복 없음, `checks` 는 저장된 목록 기준. */

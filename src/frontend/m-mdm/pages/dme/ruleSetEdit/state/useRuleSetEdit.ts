@@ -183,7 +183,7 @@ export function useRuleSetEdit(): RuleSetEditState {
   }, []);
 
   const save = useCallback(async () => {
-    if (!view) return;
+    if (!view || view.set.branched) return;
     await runWrite(
       () => saveSet(view.set.setId, setName, description, view.set.rowVersion, ids),
       (r) => ({ kind: "info", text: `저장 · row_version ${r.rowVersion}`, lines: warnLines(r.checks) }),
