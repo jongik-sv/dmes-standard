@@ -104,7 +104,7 @@ Task 12 는 Task 10 뒤라면 언제든 돌 수 있고 다른 태스크는 Task 
 | 1 | Task 1 결정 기록 (**haiku** · 표 내용이 계획에 다 있다) · Task 2 편집 연산 7종 (**opus** · 블록 구조 불변식·거부 규칙 판단) · Task 3 편집 이력·되돌리기 (**sonnet** · API 가 정해진 다파일 연결) · Task 4 서버 케이스·식 파싱 (**sonnet** · 코드 대부분이 계획에 있고 서버 다파일 통합) · Task 5 디버거 모델·커서 (**opus** · 커서 의미·병렬 범위·낡은 기록 상태 모델) · Task 6 식 즉석 평가 모듈 (**sonnet** · 평가기 연결 판단이 조금 있다) | 0 |
 | 2 | Task 7 끌어 놓기·옮기기·룰 목록·조건식 즉석 편집 (**sonnet** · FlowCanvas 큰 변경) · Task 8 메뉴·단축키·복사·찾기·도움말 (**sonnet** · 툴바·메뉴 다파일) · Task 9 갈래 순서 끌기 (**haiku** · PropertyPanel 한 곳, 코드가 계획에 있다) · Task 10 디버그 모드 화면 (**opus** · 입력·변수·케이스·비교 다파일 통합과 상태 경계) | 7: 2 / 8: 2 / 9: 2 / 10: 4·5·6 (물결 1 전부가 끝난 뒤 시작) |
 | 3 | Task 11 블록 접기·중단점 점·디버그 겹침·칩 툴팁 (**sonnet** · FlowCanvas 큰 변경) · Task 12 시뮬레이션 탭 삭제 (**haiku** · 기계적 삭제, **사용자 승인 필요(삭제)**) | 11: 7·10 / 12: 10 + 사용자 승인 |
-| 4 | Task 13 기능설계서 개정 (**sonnet** · 설계서 여러 절 판단) · Task 14 e2e 갱신 (**sonnet** · 시나리오 판단, 실행 금지·`--list`) | 13: 0~11 / 14: 0~11 |
+| 4 | Task 13 기능설계서 개정 (**sonnet** · 설계서 여러 절 판단, C14 포함) · Task 14 e2e 갱신 (**sonnet** · 시나리오 판단, 실행 금지·`--list`) · Task 15 선 경로 편집 (**sonnet** · 선 그리기·코덱 다파일, 사용자 추가 요청 C14) | 13: 0~11 / 14: 0~11 / 15: 0~11 |
 | 끝 | 최종 전체 리뷰 (**opus**) → dev 병합(사용자 지시 뒤) → 수동 브라우저 확인 | 전부(12 포함) |
 
 FlowCanvas 를 크게 고치는 태스크(Task 7·Task 11)는 서로 다른 물결에 둔다. Task 0 이 FlowCanvas 의 새 props·메뉴·Controls/MiniMap·[+] 단추·단축키 제거·드롭 시점 선 계산까지 해 두어 Task 8·10 은 FlowCanvas 를 고치지 않는다.
@@ -1778,6 +1778,29 @@ export function movedOrder(ids: readonly string[], from: string, to: string): st
 
 ---
 
+### Task 15: 선 경로 편집 (C14 — 2026-09-30 사용자 추가 요청)
+
+**모델:** sonnet — FlowCanvas 선 그리기·손잡이 끌기와 view 코덱을 함께 고치는 다파일 통합.
+
+**선행:** Task 0~11 병합 뒤(물결 4). FlowCanvas 를 크게 고친 Task 7·11 과 물결이 다르다. 같은 물결의 Task 13·14 는 FlowCanvas 를 고치지 않는다.
+
+**Files:**
+- Modify: `src/frontend/m-mdm/pages/dme/ruleSetEdit/flow-edit.ts` — `FlowView.routes: Record<string, FlowPos[]>`, `EMPTY_VIEW.routes`, `copyView`·`sanitizeView`(유한 x·y 점만, 선 하나 20개까지 자르기)·`clone`(흐름에 없는 선 ID 의 경로를 버린다)·`flowJsonOf`(view 키 순서 positions·notes·groups·routes, routes 키는 선 배열 순서). 새 연산 `setRoute(f, edgeId, points: FlowPos[]): EditResult`(없는 선 거부, 21개 이상 거부 `꺾는 점은 선 하나에 20개까지 둔다`, 빈 배열이면 키 삭제), `clearRoutes(f): EditFlow`.
+- Modify: `flow-layout.ts` 또는 [자동 정렬] 호출 자리 — 자동 정렬은 위치와 함께 `clearRoutes` 를 적용해 한 번의 이력으로 기록한다.
+- Modify: `canvas/FlowCanvas.tsx` 의 선 그리기(`FlowEdgeView`) — `routes[edge.id]` 가 있으면 source → 점들 → target 을 모서리 반경 8 의 둥근 꺾은선 path 로 그리고(순수 함수 `routePath(points, radius)` 를 `canvas/route-path.ts` 에 두고 단위 테스트), 라벨·[+]·변수 칩 위치는 경로 길이의 가운데(`routeMidpoint`). 편집 모드에서 고른 선에 점마다 손잡이(`data-testid="flow-route-handle-{edgeId}-{i}"`)를 그리고 포인터 끌기로 옮긴다(놓을 때 `setRoute` 한 번 → 이력 한 칸). 선 두 번 누르기 → 가장 가까운 구간에 점 삽입(`insertRoutePoint(points, source, target, at)` 순수 함수). 손잡이 두 번 누르기 또는 손잡이를 고른 채 Delete(단축키 디스패처에 항목 추가) → 점 삭제. 보기·디버그 모드는 그리기만, 손잡이 없음. 끌기 중에는 캔버스 내부 상태로만 그리고 page 를 다시 그리지 않는다(Local-Rules §16).
+- Modify: 선 우클릭 메뉴 제공자(Task 8 파일) — `경로 초기화`(`data-testid="flow-menu-item-route-reset"`, 경로가 있을 때만 보임) → `setRoute(f, id, [])`.
+- Modify: `styles/` 에 `route.ts` 새 영역 파일(손잡이 모양). 로컬 `.css` 금지.
+- Test: `src/frontend/m-mdm/tests/dme/ruleSetEdit/flow-route.test.ts`(새 파일).
+
+- [ ] **Step 1: 코덱·연산 테스트(RED)** — `sanitizeView` 가 routes 를 읽고 잘못된 점·21번째 이후를 버림, `flowJsonOf` 왕복(routes 없는 옛 JSON 은 `routes: {}` 로 정규화되지만 저장본과의 dirty 비교가 깨지지 않게 `toEditFlow` 직후 `flowJsonOf` 를 기준으로 삼는지 기존 dirty 기준을 확인하고 보고서에 적는다), `removeNode`·`moveNode`·`dissolveSplit` 뒤 사라진 선의 경로가 없어짐, `setRoute` 거부 두 가지, `clearRoutes`, 입력 불변.
+- [ ] **Step 2: 구현(GREEN)**.
+- [ ] **Step 3: `routePath`·`routeMidpoint`·`insertRoutePoint` 단위 테스트** — 점 0개(직선), 1개, 꺾임 반경이 구간 길이의 절반보다 크면 줄임, 가장 가까운 구간 고르기.
+- [ ] **Step 4: 캔버스 테스트** — 편집 모드에서 선 고르면 손잡이 n 개, 보기 모드 0 개, 손잡이 끌어 놓기 → `onEdit` 한 번(이력 한 칸), 선 우클릭 `flow-menu-item-route-reset` 이 경로 있을 때만.
+- [ ] **Step 5: 게이트** — m-mdm vitest·lint, mantine-aggrid-ui audit 0, `grep -rn "\.css\"" pages/dme/ruleSetEdit` 0.
+- [ ] **Step 6: 커밋** — `feat(m-mdm): 룰 세트 흐름 선에 꺾는 점을 두어 경로를 고칠 수 있게 한다`.
+
+---
+
 ## 최종 전체 리뷰 (opus)
 
 - 대상: `dev..feat/rule-set-flow-phase3` 전체(Task 12 병합 뒤).
@@ -1790,6 +1813,7 @@ export function movedOrder(ids: readonly string[], from: string, to: string): st
 
 - [ ] 포털 5100 → 마루 MDM > 업무기준 > 룰 세트 편집, 분기 세트를 연다. 콘솔 오류 0.
 - [ ] 편집기: 룰 목록에서 끌어 선 위 강조 → 놓기, 빈 곳에 놓기 알림, 룰 노드·IF 블록 끌어 옮기기(블록 전체가 움직임), 선 [+] 메뉴, 우클릭 메뉴(노드·분기·선·빈 곳), 복사·붙여넣기·복제, IF↔병렬, 분기 풀기, 갈래 순서 끌기, 조건식 즉석 편집, 되돌리기·다시 하기(버튼·Ctrl/Cmd+Z), 찾기(Ctrl/Cmd+F), 접기·펼치기, 미니맵 토글, 단축키 도움말. 조건식 칸 안 Cmd+Z 가 글자 되돌리기인지.
+- [ ] 선 경로 편집(C14): 선 고르기 → 손잡이 끌기, 두 번 눌러 점 더하기·빼기, [경로 초기화], [자동 정렬]이 경로를 지우고 되돌리기로 살아나는지, 저장 뒤 다시 열어 경로 유지.
 - [ ] 디버그 모드: 입력 → 한 단계(F10)·이전·계속(F5)·여기까지·처음부터·끝내기, 중단점 점·F9, 변수 패널 바뀐 값·새 배지, 조사식 핀, 칩 툴팁, 식 평가(참·값·폴백 문구), 편집으로 흐름을 고친 뒤 "지난 흐름 기준" 과 다시 실행, 실행 비교 탭.
 - [ ] 테스트 케이스: 현재 입력을 케이스로 저장(기대 자동 채움) → 모두 실행 "n/n 통과" → 흐름을 고쳐 실패 → 차이 표 → 디버그로 열기 → 케이스 삭제. dirty 인 채 케이스 저장 뒤 편집이 남는지.
 - [ ] 표준 관리자로 다시: 디버그 모드 진입만 되고 실행·케이스·식 평가가 꺼짐.
