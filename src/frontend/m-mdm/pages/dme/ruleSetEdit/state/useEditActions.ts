@@ -14,6 +14,7 @@ import type { CanvasActions } from "../canvas/context-menu";
 import type { PaletteItem } from "../canvas/FlowCanvas";
 import {
   MAX_NODES,
+  NODE_LIMIT_MESSAGE,
   addBranch,
   addGroup,
   addNote,
@@ -33,7 +34,6 @@ import { openRule } from "../links";
 import type { RuleIo } from "../types";
 import type { RuleSetEditState } from "./useRuleSetEdit";
 
-export const NODE_LIMIT_MESSAGE = `노드는 흐름 하나에 ${MAX_NODES}개까지 둔다`;
 export const NO_TARGET_EDGE = "끼울 선을 찾지 못했다. 캔버스에서 선을 먼저 고른다";
 /** 팔레트 룰·IF·병렬·룰 줄을 선 밖에 놓았을 때(A1). */
 export const DROP_ON_EDGE = "선 위에 놓아야 한다";
