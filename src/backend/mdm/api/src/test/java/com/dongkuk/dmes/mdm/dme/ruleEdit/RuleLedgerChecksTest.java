@@ -486,6 +486,37 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
         assertTrue(String.valueOf(r.get(0).get("message")).contains("R_O ← [S_Y]"), r.toString());
     }
 
+    /**
+     * 판정이 통과 → 거부로 바뀌는 대칭 모양(보고서 표 #3c) — {@code start → s1 IF { e2: rO(R_O: S_Y 생산) ; e3(그 외): rM1(R_M: S_Y 읽기) } → m1 → rM2(R_M) → end}.
+     * 옛 판정은 R_M·R_O 관계가 {EXCLUSIVE, AFTER} 이고 R_O 가 R_M 결과를 읽지 않아 아무것도 내지 않았다(SET_ORDER 는 BEFORE 필요, IF 형제 판정은 모두
+     * EXCLUSIVE 일 때만). rM1 직전 경로에는 S_Y 가 없으므로 세트 저장 검사는 rM1 에서 IF_SIBLING 으로 거부하고, 확정 검사도 SET_IF_SIBLING 을 낸다.
+     */
+    @Test
+    void 이_룰이_형제_갈래에서_다른_룰의_결과를_읽으면_합류_뒤에_이_룰이_또_있어도_SET_IF_SIBLING_이다() {
+        otherRule("R_O", "X_IN", "S_Y");
+        otherRule("R_M", "S_Y", "S_M_OUT");
+        String flow = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"},{\"id\":\"s1\",\"kind\":\"IF\"},"
+                + "{\"id\":\"rO\",\"kind\":\"RULE\",\"ruleId\":\"R_O\"},{\"id\":\"rM1\",\"kind\":\"RULE\",\"ruleId\":\"R_M\"},"
+                + "{\"id\":\"m1\",\"kind\":\"MERGE\",\"splitId\":\"s1\"},{\"id\":\"rM2\",\"kind\":\"RULE\",\"ruleId\":\"R_M\"},{\"id\":\"end\",\"kind\":\"END\"}],"
+                + "\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"s1\"},{\"id\":\"e2\",\"from\":\"s1\",\"to\":\"rO\",\"order\":1,\"cond\":\"X_IN > 1\"},"
+                + "{\"id\":\"e3\",\"from\":\"s1\",\"to\":\"rM1\",\"otherwise\":true},{\"id\":\"e4\",\"from\":\"rO\",\"to\":\"m1\"},"
+                + "{\"id\":\"e5\",\"from\":\"rM1\",\"to\":\"m1\"},{\"id\":\"e6\",\"from\":\"m1\",\"to\":\"rM2\"},{\"id\":\"e7\",\"from\":\"rM2\",\"to\":\"end\"}]}";
+        ruleSet("S_IFREAD2", "INUSE", "R_O", "R_M");
+        DmeTestSupport.ruleSetFlow(jdbc, "S_IFREAD2", flow);
+        IoName xIn = new IoName("X_IN", RuleIo.NONE, null, null, null, false, null);
+        Map<String, RuleIo> rules = new LinkedHashMap<>();
+        rules.put("R_O", new RuleIo("R_O", "R_O", "DECISION", "INUSE", true, 1, "FIRST", List.of(xIn), List.of(ioName("S_Y"))));
+        rules.put("R_M", new RuleIo("R_M", "R_M", "DECISION", "INUSE", true, 1, "FIRST", List.of(ioName("S_Y")), List.of(ioName("S_M_OUT"))));
+        List<RuleSetCheck> set = RuleSetAnalyzer.checks(RuleSetFlowJson.parse(flow), rules, Map.of("e2", new CondIo(true, null, List.of(xIn))));
+        assertTrue(set.stream().anyMatch(c -> RuleSetCheck.IF_SIBLING.equals(c.code()) && "R_M".equals(c.ruleId()) && "rM1".equals(c.nodeId())
+                && "S_Y".equals(c.varName()) && "R_O".equals(c.otherRuleId())), set.toString());
+
+        List<Map<String, Object>> r = orderCheck("R_M");
+
+        assertEquals(List.of("SET_IF_SIBLING"), checkCodes(r), r.toString());
+        assertTrue(String.valueOf(r.get(0).get("message")).contains("R_M ← [S_Y]"), r.toString());
+    }
+
     // ── P4 합격 기준 — 코퍼스·퍼즈 사례로 세트 저장 검사(분석기)와 확정 검사 대조 ──
 
     /** lib 테스트 자원(api 테스트 작업 디렉터리 = api 모듈 루트). api 테스트 클래스패스에는 lib 테스트 자원이 없어 파일로 읽는다. */
