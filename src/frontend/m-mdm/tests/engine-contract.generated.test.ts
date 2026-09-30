@@ -10,7 +10,7 @@ import { generateEngineContract, OUTPUT_PATH, SCHEMA_PATH } from "../scripts/gen
  */
 const PACKAGE_ROOT = path.resolve(__dirname, "..");
 
-/** design §6.4 「생성 TS export 목록」(43개). 스키마 $defs 이름 + 루트 EngineContract. */
+/** design §6.4 「생성 TS export 목록」(44개). 스키마 $defs 이름 + 루트 EngineContract. */
 const EXPECTED_EXPORTS = [
   "EngineContract",
   "AstNode",
@@ -55,6 +55,7 @@ const EXPECTED_EXPORTS = [
   "FlowNode",
   "FlowEdge",
   "FlowNodeKind",
+  "PathStep",
 ];
 
 /** node_modules·dist 를 뺀 m-mdm 트리에서 *.schema.json 을 찾는다. */

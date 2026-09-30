@@ -6,31 +6,30 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.TreeMap;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Code;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Stage;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Violation;
 import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
+import kr.dongkuk.maru.mdm.engine.flow.FlowParse;
+import kr.dongkuk.maru.mdm.engine.flow.FlowParser;
+import kr.dongkuk.maru.mdm.engine.flow.FlowTree;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup;
-import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RowContract;
+import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.FlowDefinition;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RowKind;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleCell;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleDefinition;
-import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleKind;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleRow;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleSetDefinition;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleVar;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.SetStatus;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.VarKind;
-import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.VarType;
 
 /**
  * 룰 판정 엔진(06-business-rule.md:394-430 엔진 골격, 06:473-498 정의 조회, TSK-03-03 design §6.1·§6.13·§6.14).
@@ -43,11 +42,15 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.VarType;
 public final class MdmRuleEngine implements RuleEngine {
 
     private final DefinitionLookup definitions;
+    private final MdmEvaluator expressions;
+    private final ExpressionRunner runner;
     private final RuleEvaluator evaluator;
 
     public MdmRuleEngine(MdmEvaluator evaluator, DefinitionLookup definitions) {
         this.definitions = Objects.requireNonNull(definitions, "definitions");
-        this.evaluator = new RuleEvaluator(new ExpressionRunner(Objects.requireNonNull(evaluator, "evaluator")));
+        this.expressions = Objects.requireNonNull(evaluator, "evaluator");
+        this.runner = new ExpressionRunner(this.expressions);
+        this.evaluator = new RuleEvaluator(runner);
     }
 
     @Override
@@ -70,74 +73,61 @@ public final class MdmRuleEngine implements RuleEngine {
         Objects.requireNonNull(setId, "setId");
         Objects.requireNonNull(record, "record");
         Instant ts = truncate(evalTs);
-        RuleSetDefinition set = set(setId);
-        if (set.status() == SetStatus.DEPRECATED) {
-            throw new EngineEvaluationException(List.of(new Violation(Stage.SET_CHECK, Code.SET_DEPRECATED, null, null,
-                    null, "폐기된 세트는 판정하지 않는다: " + setId)));
-        }
+        Prepared p = prepare(set(setId), record, ts);
+        FlowRun run = new FlowRun(evaluator, runner, p.tree, p.defs, p.keys, record, ts);
+        run.run();
+        return new RuleSetResult(setId, ts, List.copyOf(run.steps), Collections.unmodifiableMap(run.finalValues),
+                List.copyOf(run.path), List.copyOf(run.warnings));
+    }
 
-        List<Violation> violations = new ArrayList<>(RecordKeys.check(record.keySet(), Stage.SET_CHECK, null));
-        List<RuleDefinition> defs = new ArrayList<>();
-        for (String ruleId : set.ruleIds()) {
-            Optional<RuleDefinition> def = definitions.rule(ruleId, ts);
-            if (def.isEmpty()) {
-                violations.add(new Violation(Stage.SET_CHECK, Code.RULE_NOT_FOUND, ruleId, null, null,
-                        "세트 " + setId + " 의 룰이 없다: " + ruleId + " @ " + ts));
-            }
-            defs.add(def.orElse(null));
-        }
-        violations.addAll(missingInputKeys(defs, record));
-        if (!violations.isEmpty()) {
-            throw new EngineEvaluationException(violations);
-        }
+    /** 판정 준비된 세트 — 트리·룰 정의(룰 ID → 정의)·입력 키 검사기. */
+    private static final class Prepared {
+        final FlowTree tree;
+        final Map<String, RuleDefinition> defs;
+        final FlowKeys keys;
 
-        Map<String, Object> ctx = new LinkedHashMap<>(record);
-        Map<String, Object> finalValues = new LinkedHashMap<>();
-        List<RuleResult> steps = new ArrayList<>();
-        for (RuleDefinition def : defs) {
-            RuleResult r = evaluator.evaluate(def, ctx, ts);
-            for (Map.Entry<String, Object> e : r.results().entrySet()) {
-                RecordKeys.putReplacing(ctx, e.getKey(), e.getValue());
-                finalValues.put(e.getKey(), e.getValue());
-            }
-            steps.add(r);
+        Prepared(FlowTree tree, Map<String, RuleDefinition> defs, FlowKeys keys) {
+            this.tree = tree;
+            this.defs = defs;
+            this.keys = keys;
         }
-        return new RuleSetResult(setId, ts, List.copyOf(steps), Collections.unmodifiableMap(finalValues));
     }
 
     /**
-     * 세트 입력 키 일괄 확인(06:420, design §6.13 4). 룰 순서대로 (조건 변수 ∪ DERIVE 행 변수) − 앞 룰 결과 이름 가운데
-     * 레코드에 정확한 키가 없는 것. 조회에 실패한 룰(null)은 건너뛴다.
+     * 상태 → 흐름 구조 → 레코드 키·룰 조회·입력 키 사전 검사(plan C5, design §6.13). 구조 오류는 FLOW_INVALID 로 바로 던지고,
+     * 나머지는 모아 한 번에 던진다. 폐기 세트는 룰을 조회하지 않는다.
      */
-    private static List<Violation> missingInputKeys(List<RuleDefinition> defs, Map<String, Object> record) {
-        List<Violation> out = new ArrayList<>();
-        Set<String> produced = new HashSet<>();
-        Set<String> reported = new HashSet<>();
-        for (RuleDefinition def : defs) {
-            if (def == null) {
-                continue;
-            }
-            List<String> needed = new ArrayList<>();
-            if (def.contract() != null) {
-                for (VarType t : nonNull(def.contract().always())) {
-                    needed.add(t.name());
-                }
-                if (def.ruleKind() == RuleKind.DERIVE) {
-                    for (RowContract rc : nonNull(def.contract().rows())) {
-                        nonNull(rc.required()).forEach(t -> needed.add(t.name()));
-                        nonNull(rc.optional()).forEach(t -> needed.add(t.name()));
-                    }
-                }
-            }
-            for (String name : needed) {
-                if (!produced.contains(name) && !record.containsKey(name) && reported.add(name)) {
-                    out.add(new Violation(Stage.SET_CHECK, Code.MISSING_KEY, def.ruleId(), null, name,
-                            "세트 입력 키가 레코드에 없다: " + name + " (룰 " + def.ruleId() + ")"));
-                }
-            }
-            produced.addAll(RuleEvaluator.resultNames(def));
+    private Prepared prepare(RuleSetDefinition set, Map<String, Object> record, Instant ts) {
+        if (set.status() == SetStatus.DEPRECATED) {
+            throw new EngineEvaluationException(List.of(new Violation(Stage.SET_CHECK, Code.SET_DEPRECATED, null, null,
+                    null, "폐기된 세트는 판정하지 않는다: " + set.setId())));
         }
-        return out;
+        FlowDefinition flow = set.flow() == null ? FlowParser.linear(set.ruleIds()) : set.flow();
+        FlowParse parsed = FlowParser.parse(flow);
+        if (parsed.tree() == null) {
+            throw new EngineEvaluationException(parsed.issues().stream()
+                    .map(i -> new Violation(Stage.SET_CHECK, Code.FLOW_INVALID, null, null, i.nodeId(),
+                            "세트 " + set.setId() + " 의 흐름이 올바르지 않다: " + i.message()))
+                    .toList());
+        }
+        FlowTree tree = parsed.tree();
+        List<Violation> violations = new ArrayList<>(RecordKeys.check(record.keySet(), Stage.SET_CHECK, null));
+        Map<String, RuleDefinition> defs = new LinkedHashMap<>();
+        for (String ruleId : tree.ruleIds()) {
+            Optional<RuleDefinition> def = definitions.rule(ruleId, ts);
+            if (def.isEmpty()) {
+                violations.add(new Violation(Stage.SET_CHECK, Code.RULE_NOT_FOUND, ruleId, null, null,
+                        "세트 " + set.setId() + " 의 룰이 없다: " + ruleId + " @ " + ts));
+            } else {
+                defs.put(ruleId, def.get());
+            }
+        }
+        FlowKeys keys = new FlowKeys(defs, expressions);
+        violations.addAll(keys.check(tree.root(), record.keySet()));
+        if (!violations.isEmpty()) {
+            throw new EngineEvaluationException(violations);
+        }
+        return new Prepared(tree, defs, keys);
     }
 
     @Override

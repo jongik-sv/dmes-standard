@@ -159,7 +159,8 @@
     "ErrorCode": {
       "description": "판정 오류 코드(Java EngineEvaluationException.Code 와 같은 이름).",
       "enum": ["RULE_NOT_FOUND", "SET_NOT_FOUND", "SET_DEPRECATED", "MISSING_KEY", "REQUIRED_NULL", "TYPE_CONVERSION",
-               "CONSTANT_KEY", "RESERVED_KEY", "EVAL_TS_KEY", "UNIQUE_MULTIPLE_HITS", "ANY_CONFLICT", "EVALUATION_ERROR"]
+               "CONSTANT_KEY", "RESERVED_KEY", "EVAL_TS_KEY", "UNIQUE_MULTIPLE_HITS", "ANY_CONFLICT", "EVALUATION_ERROR",
+               "BRANCH_EVAL_ERROR", "FLOW_INVALID"]
     },
 
     "CorpusFile": {
@@ -335,17 +336,31 @@
       "required": ["code", "message"],
       "additionalProperties": false
     },
-    "EngineWarningCode": { "description": "경고 코드(Java EngineWarning.Code).", "enum": ["EXPR_CELL_NULL", "GRP_COND_NULL"] },
+    "EngineWarningCode": { "description": "경고 코드(Java EngineWarning.Code).", "enum": ["EXPR_CELL_NULL", "GRP_COND_NULL", "BRANCH_COND_NULL"] },
     "RuleSetResult": {
-      "description": "룰 세트 판정 결과(Java RuleSetResult, 06:429). steps 는 실행 순서대로 룰마다 결과, finalValues 는 마지막 룰 뒤 결과 변수 전체.",
+      "description": "룰 세트 판정 결과(Java RuleSetResult, 06:429 + 룰 세트 흐름도 spec §4.1). steps 는 실행한 룰마다 결과, finalValues 는 마지막 룰 뒤 결과 변수 전체, path 는 방문한 노드, warnings 는 세트 경고(BRANCH_COND_NULL).",
       "type": "object",
       "properties": {
         "setId": { "type": "string" },
         "evalTs": { "$ref": "#/$defs/LocalDateTime" },
         "steps": { "type": "array", "items": { "$ref": "#/$defs/RuleResult" } },
-        "finalValues": { "type": "object", "additionalProperties": { "$ref": "#/$defs/TypedValue" } }
+        "finalValues": { "type": "object", "additionalProperties": { "$ref": "#/$defs/TypedValue" } },
+        "path": { "type": "array", "items": { "$ref": "#/$defs/PathStep" } },
+        "warnings": { "type": "array", "items": { "$ref": "#/$defs/EngineWarning" } }
       },
-      "required": ["setId", "evalTs", "steps", "finalValues"],
+      "required": ["setId", "evalTs", "steps", "finalValues", "path", "warnings"],
+      "additionalProperties": false
+    },
+    "PathStep": {
+      "description": "세트에서 방문한 노드 하나(Java RuleSetResult.PathStep). chosenEdgeId 는 IF 에서 고른 선, stepIndex 는 RULE 결과의 steps 자리.",
+      "type": "object",
+      "properties": {
+        "nodeId": { "type": "string" },
+        "kind": { "$ref": "#/$defs/FlowNodeKind" },
+        "chosenEdgeId": { "type": ["string", "null"] },
+        "stepIndex": { "type": ["integer", "null"] }
+      },
+      "required": ["nodeId", "kind", "chosenEdgeId", "stepIndex"],
       "additionalProperties": false
     },
     "RuleSetFlow": {
@@ -412,8 +427,8 @@
       "additionalProperties": false
     },
     "ViolationStage": {
-      "description": "판정 단계(Java EngineEvaluationException.Stage, 06:212-217 + 세트 사전 검사).",
-      "enum": ["SET_CHECK", "INPUT_CHECK", "ROW_SELECT", "RESULT_CHECK", "RESULT_EVAL"]
+      "description": "판정 단계(Java EngineEvaluationException.Stage, 06:212-217 + 세트 사전 검사 + IF 갈래 고르기).",
+      "enum": ["SET_CHECK", "INPUT_CHECK", "ROW_SELECT", "RESULT_CHECK", "RESULT_EVAL", "BRANCH_SELECT"]
     }
   }
 }

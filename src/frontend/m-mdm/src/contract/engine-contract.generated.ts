@@ -157,7 +157,9 @@ export type ErrorCode =
   | "EVAL_TS_KEY"
   | "UNIQUE_MULTIPLE_HITS"
   | "ANY_CONFLICT"
-  | "EVALUATION_ERROR";
+  | "EVALUATION_ERROR"
+  | "BRANCH_EVAL_ERROR"
+  | "FLOW_INVALID";
 /**
  * This interface was referenced by `EngineContract`'s JSON-Schema
  * via the `definition` "CorpusCase".
@@ -199,7 +201,7 @@ export type Expect =
  * This interface was referenced by `EngineContract`'s JSON-Schema
  * via the `definition` "EngineWarningCode".
  */
-export type EngineWarningCode = "EXPR_CELL_NULL" | "GRP_COND_NULL";
+export type EngineWarningCode = "EXPR_CELL_NULL" | "GRP_COND_NULL" | "BRANCH_COND_NULL";
 /**
  * 흐름 노드 종류(Java DefinitionLookup.NodeKind).
  *
@@ -208,12 +210,13 @@ export type EngineWarningCode = "EXPR_CELL_NULL" | "GRP_COND_NULL";
  */
 export type FlowNodeKind = "START" | "END" | "RULE" | "IF" | "PARALLEL" | "MERGE";
 /**
- * 판정 단계(Java EngineEvaluationException.Stage, 06:212-217 + 세트 사전 검사).
+ * 판정 단계(Java EngineEvaluationException.Stage, 06:212-217 + 세트 사전 검사 + IF 갈래 고르기).
  *
  * This interface was referenced by `EngineContract`'s JSON-Schema
  * via the `definition` "ViolationStage".
  */
-export type ViolationStage = "SET_CHECK" | "INPUT_CHECK" | "ROW_SELECT" | "RESULT_CHECK" | "RESULT_EVAL";
+export type ViolationStage =
+  "SET_CHECK" | "INPUT_CHECK" | "ROW_SELECT" | "RESULT_CHECK" | "RESULT_EVAL" | "BRANCH_SELECT";
 
 /**
  * 정본 위치 = 이 파일(TSK-03-01). 원본 초안은 docs/mdm/engine-contract/schema/. 서버 엔진(Java)과 화면 JS 평가기(TS)가 주고받는 JSON 모양의 정본. Java record·TS 타입은 이 스키마에서 나온다(엔진 EngineContractSchemaTest 가 Java 를, m-mdm 생성 스크립트가 TS 를 맞춘다). 숫자는 전부 문자열이다(06:1038).
@@ -447,7 +450,7 @@ export interface EngineWarning {
   message: string;
 }
 /**
- * 룰 세트 판정 결과(Java RuleSetResult, 06:429). steps 는 실행 순서대로 룰마다 결과, finalValues 는 마지막 룰 뒤 결과 변수 전체.
+ * 룰 세트 판정 결과(Java RuleSetResult, 06:429 + 룰 세트 흐름도 spec §4.1). steps 는 실행한 룰마다 결과, finalValues 는 마지막 룰 뒤 결과 변수 전체, path 는 방문한 노드, warnings 는 세트 경고(BRANCH_COND_NULL).
  *
  * This interface was referenced by `EngineContract`'s JSON-Schema
  * via the `definition` "RuleSetResult".
@@ -459,6 +462,20 @@ export interface RuleSetResult {
   finalValues: {
     [k: string]: TypedValue;
   };
+  path: PathStep[];
+  warnings: EngineWarning[];
+}
+/**
+ * 세트에서 방문한 노드 하나(Java RuleSetResult.PathStep). chosenEdgeId 는 IF 에서 고른 선, stepIndex 는 RULE 결과의 steps 자리.
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "PathStep".
+ */
+export interface PathStep {
+  nodeId: string;
+  kind: FlowNodeKind;
+  chosenEdgeId: string | null;
+  stepIndex: number | null;
 }
 /**
  * 룰 세트 흐름 정의(Java DefinitionLookup.FlowDefinition, spec §3.3). TB_MDM_RULE_SET.FLOW_JSON 의 nodes·edges 이고 화면 전용 view 는 여기 없다.

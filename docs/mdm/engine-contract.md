@@ -222,15 +222,15 @@ CODE_LIST(id, cate, baseDt)               → List<CodeListEntry(code,name,alter
 | `defaultApplied` | 적중이 없어 기본 행을 썼는가. 기본 행이 없으면 false 이고 결과 변수는 NULL 이다 | 06:31 |
 | `results` | 결과 변수 → 값(`BigDecimal`·`String`·`Boolean`·null). 키는 늘 있고 값은 null 일 수 있다. COLLECT LIST 는 `List` 다 | 06:31 |
 | `trace` | 평가한 행마다 `RowTrace(rowId, seq, evaluated, hit, firstFalseVarId)`. `firstFalseVarId` 는 조건 열 `seq` 순으로 처음 거짓이 된 셀의 var_id 이고, 적중·미평가 행은 null 이다. FIRST 는 적중 뒤 행을 평가하지 않는다(`evaluated=false`) | 06:319 |
-| `warnings` | `EngineWarning(code, ruleId, rowId, varId, message)`. code 는 `EXPR_CELL_NULL`(Expression 조건 셀 결과가 NULL 이라 그 셀만 거짓으로 봄), `GRP_COND_NULL`(열 조건 결과가 NULL 이라 그 열만 거짓으로 봄) | 06:200·425·427 |
+| `warnings` | `EngineWarning(code, ruleId, rowId, varId, message)`. code 는 `EXPR_CELL_NULL`(Expression 조건 셀 결과가 NULL 이라 그 셀만 거짓으로 봄), `GRP_COND_NULL`(열 조건 결과가 NULL 이라 그 열만 거짓으로 봄), 세트 경고 `BRANCH_COND_NULL`(IF 갈래 조건식 결과가 NULL 이라 그 갈래를 거짓으로 봄) | 06:200·425·427 |
 
-**룰 세트 결과 `RuleSetResult(setId, evalTs, steps, finalValues)`**: `steps` 는 실행 순서대로 룰마다의 `RuleResult` 이고, `finalValues` 는 마지막 룰 뒤 결과 변수 전체다(입력 레코드 키는 뺀다).
+**룰 세트 결과 `RuleSetResult(setId, evalTs, steps, finalValues, path, warnings)`**: `steps` 는 실제로 실행한 룰마다의 `RuleResult`(실행 순서), `finalValues` 는 마지막 룰 뒤 결과 변수 전체다(입력 레코드 키는 뺀다). `path` 는 방문한 노드 `PathStep(nodeId, kind, chosenEdgeId, stepIndex)` 목록이다. START·RULE·IF·PARALLEL·MERGE·END 를 모두 담고, `chosenEdgeId` 는 IF 에서 고른 선, `stepIndex` 는 RULE 결과가 `steps` 의 몇 번째인지다. 한 줄 흐름(`flow` 가 null)의 노드 ID 는 `start`, `r1`…`rN`, `end` 다. `warnings` 는 세트 경고로 지금은 `BRANCH_COND_NULL` 하나다. 흐름 실행 의미(IF 는 처음 참인 갈래 하나, 병렬은 분기 직전 값의 사본에서 order 순으로 하나씩 실행하고 합류 때 갈래 순서대로 합침, 같은 이름은 뒤 갈래가 이김)는 `docs/superpowers/specs/2026-09-29-rule-set-flow-design.md` §4 와 구현 계획 C5 를 따른다.
 
 **판정 오류 `EngineEvaluationException(violations)`**
 
 - `Violation(stage, code, ruleId, rowId, name, message)`. `name` 은 변수 이름(키 없음·NULL·타입 변환) 또는 함수 이름(평가 오류)이다.
-- 단계(`Stage`): `SET_CHECK`(세트 사전 검사) → `INPUT_CHECK`(조건 검사) → `ROW_SELECT`(행 고르기) → `RESULT_CHECK`(결과 검사) → `RESULT_EVAL`(결과 평가). 어긋난 것을 단계마다 모아 한 번에 던진다(06:210-217).
-- 코드(`Code`) 12종: `RULE_NOT_FOUND`, `SET_NOT_FOUND`, `SET_DEPRECATED`, `MISSING_KEY`, `REQUIRED_NULL`, `TYPE_CONVERSION`, `CONSTANT_KEY`, `RESERVED_KEY`, `EVAL_TS_KEY`, `UNIQUE_MULTIPLE_HITS`, `ANY_CONFLICT`, `EVALUATION_ERROR`. UNIQUE 에서 둘 이상 적중하면 `UNIQUE_MULTIPLE_HITS`, ANY 에서 결과가 어긋나면 `ANY_CONFLICT` 다. 폐기 세트는 `SET_DEPRECATED` 이고, 세트는 첫 룰 전에 입력 키를 한꺼번에 확인한다(06:419-420).
+- 단계(`Stage`): `SET_CHECK`(세트 사전 검사) → `INPUT_CHECK`(조건 검사) → `ROW_SELECT`(행 고르기) → `RESULT_CHECK`(결과 검사) → `RESULT_EVAL`(결과 평가) → `BRANCH_SELECT`(IF 갈래 고르기). 어긋난 것을 단계마다 모아 한 번에 던진다(06:210-217).
+- 코드(`Code`) 14종: `RULE_NOT_FOUND`, `SET_NOT_FOUND`, `SET_DEPRECATED`, `MISSING_KEY`, `REQUIRED_NULL`, `TYPE_CONVERSION`, `CONSTANT_KEY`, `RESERVED_KEY`, `EVAL_TS_KEY`, `UNIQUE_MULTIPLE_HITS`, `ANY_CONFLICT`, `EVALUATION_ERROR`, `BRANCH_EVAL_ERROR`(IF 조건식이 불린이 아니거나 평가 실패), `FLOW_INVALID`(세트 흐름 구조 오류). UNIQUE 에서 둘 이상 적중하면 `UNIQUE_MULTIPLE_HITS`, ANY 에서 결과가 어긋나면 `ANY_CONFLICT` 다. 폐기 세트는 `SET_DEPRECATED` 이고, 세트는 첫 룰 전에 입력 키를 한꺼번에 확인한다(06:419-420).
 
 **도메인 검증 `DomainValidator.validate(table, column, record, evalTs)`**
 

@@ -16,6 +16,8 @@ public record EngineWarning(
         /** Expression 조건 셀 결과가 NULL — 그 셀만 거짓으로 봤다. */
         EXPR_CELL_NULL,
         /** 결과 열 그룹 열 조건 결과가 NULL — 그 열만 거짓으로 봤다. */
-        GRP_COND_NULL
+        GRP_COND_NULL,
+        /** IF 갈래 조건식 결과가 NULL — 그 갈래를 거짓으로 봤다(룰 세트 흐름도). */
+        BRANCH_COND_NULL
     }
 }
