@@ -1759,17 +1759,12 @@ test.describe("C 룰 세트", () => {
     await snap(page, "dme-ruleSetEdit-04-guide");
 
     // 적용한 흐름은 저장하지 않은 편집이다 — 같은 세트를 다시 열면 dirty 확인을 받아들이고 저장된 흐름으로 돌아온다.
-    const acceptDirty = (d: import("@playwright/test").Dialog) => void d.accept();
-    page.on("dialog", acceptDirty);
-    try {
-      await tid(page, "set-pick-keyword").fill(SET);
-      await tid(page, "set-pick-keyword").press("Enter");
-      await tid(page, `set-pick-${SET}`).click();
-      await expect(tid(page, "flow-mode-view")).toHaveAttribute("aria-pressed", "true", { timeout: 20_000 });
-      await expect.poll(setOrder).toEqual([SA, SB]);
-    } finally {
-      page.off("dialog", acceptDirty);
-    }
+    // Watcher 가 대화상자를 자동으로 수락한다(문구는 watcher.dialogs 에 남는다).
+    await tid(page, "set-pick-keyword").fill(SET);
+    await tid(page, "set-pick-keyword").press("Enter");
+    await tid(page, `set-pick-${SET}`).click();
+    await expect(tid(page, "flow-mode-view")).toHaveAttribute("aria-pressed", "true", { timeout: 20_000 });
+    await expect.poll(setOrder).toEqual([SA, SB]);
     watcher.assertClean("ruleSetEdit");
   });
 
