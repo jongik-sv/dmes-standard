@@ -6,9 +6,9 @@
  *
  * 끌어 놓기(A1)는 캔버스가 놓은 자리의 선(없으면 null)을 계산해 넘긴다 — 룰·IF·병렬은 선 위에 놓아야 한다(2단계의 "선택된 선에 넣기"는 없앴다).
  * 팔레트 누르기는 2단계 그대로 고른 선(없으면 END 로 들어가는 첫 선, P-D10)에 끼운다.
- * 복사·붙여넣기·복제·룰 바꾸기·분기 바꾸기·풀기는 Task 8 이 채운다.
+ * 복사한 조각(클립보드)은 이 훅이 들고 있어 세트를 바꿔도 남는다(B9). 복사·붙여넣기·복제·룰 바꾸기·분기 바꾸기·풀기는 각각 `state.edit` 한 번(이력 한 번)이다.
  */
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import type { CanvasActions } from "../canvas/context-menu";
 import type { PaletteItem } from "../canvas/FlowCanvas";
@@ -18,15 +18,22 @@ import {
   addBranch,
   addGroup,
   addNote,
+  changeSplitKind,
+  copyFragment,
+  dissolveSplit,
+  duplicateNode,
   insertRule,
   insertSplit,
+  pasteFragment,
   removeEdge,
   removeGroup,
   removeNode,
   removeNote,
+  replaceRule,
   setPositions,
   type EditFlow,
   type EditResult,
+  type Fragment,
   type FlowPos,
 } from "../flow-edit";
 import { NODE_SIZE, autoLayout, positionsOf } from "../flow-layout";
@@ -37,7 +44,7 @@ import type { RuleSetEditState } from "./useRuleSetEdit";
 export const NO_TARGET_EDGE = "끼울 선을 찾지 못했다. 캔버스에서 선을 먼저 고른다";
 /** 팔레트 룰·IF·병렬·룰 줄을 선 밖에 놓았을 때(A1). */
 export const DROP_ON_EDGE = "선 위에 놓아야 한다";
-const NOT_CONNECTED = "이 기능은 아직 연결되지 않았다";
+const NO_CLIPBOARD = "붙여 넣을 조각이 없다. 노드를 먼저 복사한다";
 const GROUP_TITLE = "그룹";
 /** 새 메모를 선택 노드 오른쪽에 둘 때의 간격(px). */
 const NOTE_GAP = 24;
@@ -106,6 +113,8 @@ function centerOf(f: EditFlow): FlowPos {
 export function useEditActions(deps: EditActionsDeps): EditActions {
   const { state, flow, editing, selectedId, selectedEdgeId, multiSel, select, openRuleModal, fit, setEditingCond, closeMenu, clearSelection } = deps;
   const { edit, addRuleIo } = state;
+  /** 복사한 조각(B9) — 화면이 살아 있는 동안 남고 세트를 바꿔도 유지한다. */
+  const [clipboard, setClipboard] = useState<{ frag: Fragment; ios: RuleIo[] } | null>(null);
 
   /** 노드 add 개를 끼우는 연산 — 상한을 먼저 보고, 끼울 선을 고른 뒤, 새 노드(선 e 의 새 도착 노드)를 고른다. */
   const insertAt = useCallback(
@@ -235,13 +244,42 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
     clearSelection();
   }, [closeMenu, setEditingCond, clearSelection]);
 
-  const notConnected = useCallback(() => {
-    edit(() => fail(NOT_CONNECTED));
-  }, [edit]);
-
   const applyReplace = useCallback(
-    (_nodeId: string, _io: RuleIo) => notConnected(), // SEAM(T8): addRuleIo 뒤 replaceRule(f, nodeId, io.ruleId)
-    [notConnected],
+    (nodeId: string, io: RuleIo) => {
+      if (!editing) return;
+      addRuleIo(io);
+      edit((f) => replaceRule(f, nodeId, io.ruleId));
+    },
+    [editing, addRuleIo, edit],
+  );
+
+  const copy = useCallback(
+    (nodeId: string) => {
+      if (!editing || !flow) return;
+      const r = copyFragment(flow, nodeId);
+      if (typeof r === "string") edit(() => fail(r));
+      else {
+        // 다른 세트에 붙여 넣어도 룰 정보가 있도록 조각의 룰 IO 를 함께 담는다.
+        const ids = new Set(r.nodes.map((n) => n.ruleId).filter((x): x is string => !!x));
+        const ios = [...ids].map((id) => state.rules[id]).filter((x): x is RuleIo => !!x);
+        setClipboard({ frag: r, ios });
+      }
+    },
+    [editing, flow, edit, state.rules],
+  );
+
+  const paste = useCallback(
+    (edgeId: string) => {
+      if (!editing) return;
+      if (!clipboard) {
+        edit(() => fail(NO_CLIPBOARD));
+        return;
+      }
+      const reason = edit((f) => pasteFragment(f, edgeId, clipboard.frag));
+      // 붙이기가 됐을 때만, 대상 세트에 없는 룰의 IO 만 들여온다(같은 룰 IO 를 복사 시점 값으로 덮지 않는다).
+      if (!reason) clipboard.ios.filter((io) => !state.rules[io.ruleId]).forEach(addRuleIo);
+    },
+    [editing, clipboard, edit, addRuleIo, state.rules],
   );
 
   const actions = useMemo<EditActions["actions"]>(
@@ -272,14 +310,22 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
       editCond: (edgeId: string) => {
         if (editing) setEditingCond(edgeId);
       },
-      copy: () => notConnected(), // SEAM(T8): copyFragment → 화면 클립보드
-      paste: () => notConnected(), // SEAM(T8): pasteFragment(선)
-      duplicate: () => notConnected(), // SEAM(T8): duplicateNode
-      replaceRule: () => notConnected(), // SEAM(T8): openRuleModal({ purpose: "replace", nodeId })
-      changeSplitKind: () => notConnected(), // SEAM(T8): changeSplitKind
-      dissolveSplit: () => notConnected(), // SEAM(T8): dissolveSplit
+      copy,
+      paste,
+      duplicate: (nodeId: string) => {
+        if (editing) edit((f) => duplicateNode(f, nodeId));
+      },
+      replaceRule: (nodeId: string) => {
+        if (editing) openRuleModal({ purpose: "replace", nodeId });
+      },
+      changeSplitKind: (splitId: string, kind: "IF" | "PARALLEL") => {
+        if (editing) edit((f) => changeSplitKind(f, splitId, kind));
+      },
+      dissolveSplit: (splitId: string, keepEdgeId: string) => {
+        if (editing) edit((f) => dissolveSplit(f, splitId, keepEdgeId));
+      },
     }),
-    [editing, edit, fit, placeNote, askRule, insertAt, setEditingCond, notConnected],
+    [editing, edit, fit, placeNote, askRule, insertAt, setEditingCond, copy, paste, openRuleModal],
   );
 
   return {
@@ -290,7 +336,7 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
     dropRule,
     deleteSelection,
     escape,
-    hasClipboard: false, // SEAM(T8): 화면 클립보드에 조각이 있는가
+    hasClipboard: clipboard !== null,
     applyReplace,
   };
 }

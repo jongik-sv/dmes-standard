@@ -134,14 +134,17 @@ describe("룰 세트 편집 이음새(3단계 Task 0)", () => {
     expect(pressed("flow-var-toggle")).toBe("true");
   });
 
-  it("3. 편집 모드에서만 선에 [+] 가 있고, 편집 메뉴가 비어 있어 [+] 로는 메뉴가 열리지 않는다. 빈 곳 우클릭은 [화면 맞춤] 메뉴", async () => {
+  it("3. 편집 모드에서만 선에 [+] 가 있고, [+] 는 끼우기 메뉴를 연다(편집 메뉴, Task 8). 빈 곳 우클릭은 [화면 맞춤] 을 포함한 메뉴", async () => {
     await openSet("E2S_CHAIN", chainView());
     expect(q("flow-edge-add-e2")).toBeNull();
     await click("flow-mode-edit");
     expect(q("flow-edge-add-e2")).not.toBeNull();
     expect(byTestId("flow-edge-add-e2").getAttribute("aria-label")).toBe("선에 넣기");
     await click("flow-edge-add-e2");
-    expect(q("flow-menu")).toBeNull(); // SEAM(T8) 전 — 항목 0개면 열지 않는다
+    expect(q("flow-menu")).not.toBeNull();
+    expect(byTestId("flow-menu-item-insert-rule")).not.toBeNull();
+    await click("flow-menu-item-insert-rule");
+    expect(q("flow-menu")).toBeNull();
 
     const pane = byTestId("flow-canvas").querySelector(".react-flow__pane")!;
     await act(async () => {

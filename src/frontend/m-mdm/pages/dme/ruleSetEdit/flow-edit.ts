@@ -506,6 +506,8 @@ const MOVE_FIXED: Partial<Record<FlowNodeKind, string>> = {
   END: "끝 노드는 옮길 수 없다",
   MERGE: "합류 노드는 분기를 옮겨서 옮긴다",
 };
+/** 룰 노드를 옮길 수 없을 때(선이 하나씩이 아님) — 지우기 문구와 따로 둔다. */
+const RULE_EDGES_NOT_ONE_MOVE = "룰 노드의 선이 하나씩이 아니라 옮길 수 없다. 선을 먼저 정리한다";
 const MOVE_INTO_SELF = "자기 자리나 자기 블록 안으로는 옮길 수 없다";
 const NO_COPY = "시작·끝·합류는 복사하지 않는다. 분기를 복사하면 합류가 함께 복사된다";
 const BAD_FRAGMENT = "붙여 넣을 조각이 올바르지 않다";
@@ -564,7 +566,7 @@ export function moveNode(f: EditFlow, nodeId: string, edgeId: string): EditResul
   if (n.kind === "RULE") {
     const ins = inOf(g, nodeId);
     const outs = outOf(g, nodeId);
-    if (ins.length !== 1 || outs.length !== 1) return fail(RULE_EDGES_NOT_ONE);
+    if (ins.length !== 1 || outs.length !== 1) return fail(RULE_EDGES_NOT_ONE_MOVE);
     ins[0].to = outs[0].to;
     exitId = nodeId;
     out = outs[0];

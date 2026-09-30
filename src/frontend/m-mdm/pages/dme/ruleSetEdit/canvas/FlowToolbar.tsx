@@ -7,19 +7,20 @@
  * 폐기는 두 단계(폐기 → 폐기 확인/취소)로만 한다(I14·D14). 저장 버튼은 편집 모드·dirty·거부 검사 없음·조건식 IO 기다리지 않음일 때만 켜진다(P-D4·P10).
  *
  * 3단계(계획 P1·P12): 모드 단추 셋(보기·편집·디버그 — 디버그는 누구나), 되돌리기·다시 하기(편집 모드이고 기록이 있을 때), 미니맵 켜고 끄기.
- * 찾기 칸·단축키 도움말은 Task 8 이 그린다(`find`·`findInputRef` 는 그때 쓴다).
+ * 찾기 칸(Enter·[다음] 으로 돈다)과 단축키 도움말 [?] 를 둔다(Task 8). 도움말은 지금 모드의 단축키만 짧은 정의 목록으로 보인다.
  */
 import { useEffect, useState, type RefObject } from "react";
 
-import { IconArrowBackUp, IconArrowForwardUp, IconArrowsMaximize, IconLayoutDistributeHorizontal, IconMap, IconVariable } from "@tabler/icons-react";
+import { IconArrowBackUp, IconArrowForwardUp, IconArrowsMaximize, IconHelp, IconLayoutDistributeHorizontal, IconMap, IconSearch, IconVariable } from "@tabler/icons-react";
 
-import { Button } from "@dk-oasis/shared/form";
+import { Button, Input } from "@dk-oasis/shared/form";
 import { badgeStyle } from "@/shell";
 
 import type { FindState } from "../state/useFind";
 import type { FlowMode, RuleSetEditState, RuleSetMessage } from "../state/useRuleSetEdit";
-import { isMacPlatform } from "./shortcuts";
+import { SHORTCUT_HELP, isMacPlatform } from "./shortcuts";
 
+const MAC_FN_NOTE = "F9·F10·F5 는 fn 과 함께 누른다";
 const DEPRECATE_WARNING = "폐기하면 이 세트를 부르는 호출은 판정 오류가 난다.";
 
 export interface FlowToolbarProps {
@@ -44,7 +45,8 @@ export interface FlowToolbarProps {
 
 export function FlowToolbar(props: FlowToolbarProps) {
   const { state, canDo, canEdit, mode, onMode, showVars, onToggleVars, onAutoLayout, onFit, showMiniMap, onToggleMiniMap } = props;
-  // SEAM(T8): 찾기 칸(flow-find·flow-find-next·flow-find-count — props.find, props.findInputRef)·단축키 도움말(flow-help·flow-help-panel)
+  const { find, findInputRef } = props;
+  const [helpOpen, setHelpOpen] = useState(false);
   const view = state.view!;
   const set = view.set;
   const inUse = set.status === "INUSE";
@@ -54,6 +56,15 @@ export function FlowToolbar(props: FlowToolbarProps) {
   const [confirmDeprecate, setConfirmDeprecate] = useState(false);
 
   useEffect(() => setConfirmDeprecate(false), [view]);
+  // 도움말은 Esc 로 닫는다.
+  useEffect(() => {
+    if (!helpOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setHelpOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [helpOpen]);
 
   const hasReject = state.checks.some((c) => c.severity === "REJECT");
   const canSave = editing && canEdit && state.dirty && !hasReject && !state.condIoPending && !busy;
@@ -133,6 +144,51 @@ export function FlowToolbar(props: FlowToolbarProps) {
           >
             <IconArrowForwardUp size={14} aria-hidden="true" />
           </Button>
+        </span>
+
+        <span className="rsf-toolbar-sep" aria-hidden />
+        <span className="rsf-toolbar-group" role="search" aria-label="노드 찾기">
+          <IconSearch size={14} aria-hidden="true" />
+          <Input
+            data-testid="flow-find"
+            {...({ ref: findInputRef } as object)}
+            className="rsf-find-input"
+            placeholder="룰 ID·이름·라벨 찾기"
+            aria-label="노드 찾기"
+            value={find.query}
+            onChange={find.setQuery}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                find.next();
+              }
+            }}
+          />
+          <Button data-testid="flow-find-next" ariaLabel="다음 결과" title="다음 결과 (Enter)" disabled={find.hits.length === 0} onClick={find.next}>
+            다음
+          </Button>
+          <span data-testid="flow-find-count" className="rsf-find-count" aria-live="polite">
+            {find.hits.length === 0 ? "0/0" : `${find.index + 1}/${find.hits.length}`}
+          </span>
+        </span>
+
+        <span className="rsf-toolbar-group rsf-help-anchor">
+          <Button data-testid="flow-help" ariaLabel="단축키 도움말" title="단축키 도움말" aria-expanded={helpOpen} onClick={() => setHelpOpen((o) => !o)}>
+            <IconHelp size={14} aria-hidden="true" />
+          </Button>
+          {helpOpen && (
+            <div data-testid="flow-help-panel" className="rsf-help-panel" role="dialog" aria-label="단축키">
+              <dl className="rsf-help-list">
+                {SHORTCUT_HELP.filter((h) => h.modes.includes(mode)).map((h) => (
+                  <div key={h.id} className="rsf-help-row">
+                    <dt>{mac ? h.mac : h.win}</dt>
+                    <dd>{h.label}</dd>
+                  </div>
+                ))}
+              </dl>
+              {mac && <p className="rsf-help-note">{MAC_FN_NOTE}</p>}
+            </div>
+          )}
         </span>
 
         <span className="rsf-toolbar-sep" aria-hidden />

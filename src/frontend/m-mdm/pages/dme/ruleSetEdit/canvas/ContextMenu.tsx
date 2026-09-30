@@ -77,6 +77,21 @@ export function ContextMenu({ items, at, onClose }: ContextMenuProps) {
     setPos({ x, y });
   }, [open, at]);
 
+  // 열리면 첫 항목에 초점을 준다 — 키보드만으로도 쓸 수 있게(활성 항목이 없으면 메뉴 틀에).
+  useEffect(() => {
+    if (!open) return;
+    const el = ref.current;
+    if (!el) return;
+    const prev = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const first = el.querySelector<HTMLButtonElement>("button:not(:disabled)");
+    (first ?? el).focus();
+    // 닫힐 때 초점이 메뉴 안이거나 아무 데도 없으면 열기 전 자리(캔버스)로 돌려 단축키가 이어서 먹게 한다.
+    return () => {
+      const cur = document.activeElement;
+      if (prev?.isConnected && (!cur || cur === document.body || el.contains(cur))) prev.focus();
+    };
+  }, [open, at]);
+
   // Esc·바깥 누르기·스크롤로 닫는다.
   useEffect(() => {
     if (!open) return;
@@ -111,6 +126,7 @@ export function ContextMenu({ items, at, onClose }: ContextMenuProps) {
       className="rsf-menu"
       data-testid="flow-menu"
       role="menu"
+      tabIndex={-1}
       style={{ left: p.x, top: p.y }}
       onContextMenu={(e) => e.preventDefault()}
       onKeyDown={(e) => {

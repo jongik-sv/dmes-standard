@@ -58,9 +58,9 @@ describe("flow-edit 3단계", () => {
     expect(moveNode(base, "r9", "e1")).toEqual({ ok: false, reason: "노드 r9를 찾지 못했다" });
   });
 
-  it("moveNode — 선이 하나씩이 아닌 룰은 지우기와 같은 문구로 거부한다", () => {
+  it("moveNode — 선이 하나씩이 아닌 룰은 옮기기 문구로 거부한다", () => {
     const f = { ...base, edges: [...base.edges, { id: "e9", from: "r1", to: "r3", order: null, cond: null, otherwise: false, label: null }] };
-    expect(moveNode(f, "r1", "e4")).toEqual({ ok: false, reason: "룰 노드의 선이 하나씩이 아니라 지울 수 없다. 선을 먼저 정리한다" });
+    expect(moveNode(f, "r1", "e4")).toEqual({ ok: false, reason: "룰 노드의 선이 하나씩이 아니라 옮길 수 없다. 선을 먼저 정리한다" });
   });
 
   it("moveNode — 분기 블록 전체를 옮기고 자기 블록 안 선은 거부한다", () => {

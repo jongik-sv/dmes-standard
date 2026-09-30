@@ -27,4 +27,18 @@ export const MENU_CSS = `
   background: var(--color-bg); border: 1px solid var(--color-border-strong); color: var(--color-text-secondary);
 }
 .rsf-edge-add:hover { border-color: var(--color-primary); color: var(--color-primary); }
+
+/* 툴바 찾기 칸·단축키 도움말 */
+.rsf-find-input { width: 180px; }
+.rsf-find-count { min-width: 36px; text-align: center; font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+.rsf-help-anchor { position: relative; }
+.rsf-help-panel {
+  position: absolute; top: 100%; right: 0; z-index: 300; margin-top: var(--spacing-xs); min-width: 300px; padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); box-shadow: var(--shadow-dropdown);
+}
+.rsf-help-list { margin: 0; }
+.rsf-help-row { display: flex; gap: var(--spacing-md); padding: 2px 0; }
+.rsf-help-row dt { flex: 0 0 150px; margin: 0; font-weight: 600; white-space: nowrap; }
+.rsf-help-row dd { margin: 0; color: var(--color-text-secondary); }
+.rsf-help-note { margin: var(--spacing-xs) 0 0; font-size: var(--font-size-sm); color: var(--color-text-muted); }
 `;
