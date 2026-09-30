@@ -98,10 +98,11 @@ function targetEdge(f: EditFlow, preferred: string | null): string | null {
   return f.edges.find((e) => e.to === end?.id)?.id ?? null;
 }
 
-/** 흐름 전체 배치(그리는 위치)의 가운데(메모를 둘 기본 자리). */
-function centerOf(f: EditFlow): FlowPos {
-  const pos = drawnPositions(f);
-  const kinds = new Map(f.nodes.map((n) => [n.id, n.kind] as const));
+/** 캔버스가 그린 노드 전체 상자(접힌 흐름·겹침 풀기 반영, 접힌 분기는 룰 크기)의 가운데 — 메모를 둘 기본 자리(Minor D). */
+function centerOf(f: EditFlow, collapsed: ReadonlySet<string>): FlowPos {
+  const v = collapseView(f, collapsed);
+  const pos = drawnPositions(v.flow, v.blocks);
+  const kinds = new Map(v.flow.nodes.map((n) => [n.id, v.blocks[n.id] ? "RULE" : n.kind] as const));
   let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
   for (const [id, p] of Object.entries(pos)) {
     const k = kinds.get(id);
@@ -164,7 +165,7 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
       }
       let id: string | null = null;
       const reason = edit((f) => {
-        const r = addNote(f, place ?? centerOf(f), selNode?.id ?? null);
+        const r = addNote(f, place ?? centerOf(f, collapsed), selNode?.id ?? null);
         id = r.id;
         return r.flow;
       });

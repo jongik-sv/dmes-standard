@@ -28,7 +28,7 @@ import { IconPlus } from "@tabler/icons-react";
 import type { RuleSetFlow, TypedValue } from "@/contract/engine-contract.generated";
 
 import type { FlowNote, FlowPos, EditFlow } from "../flow-edit";
-import { NODE_SIZE, drawnPositions } from "../flow-layout";
+import { NODE_SIZE, drawnPositions, foldOffsetX } from "../flow-layout";
 import { typedText } from "../trace-view";
 import { blockDragPositions, dropTargetAt, edgeChips, edgeMarks, nodeMarks, resolveNodeDrop } from "../flow-vars";
 import type { FlowMode } from "../state/useRuleSetEdit";
@@ -667,18 +667,26 @@ function Inner(props: FlowCanvasProps) {
   const isMovable = (n: Node) =>
     n.type === "rsfFlow" && !viewRef.current.blocks[n.id] && ["RULE", "IF", "PARALLEL"].includes(flowRef.current.nodes.find((x) => x.id === n.id)?.kind ?? "");
   const isSplit = (id: string) => ["IF", "PARALLEL"].includes(flowRef.current.nodes.find((x) => x.id === id)?.kind ?? "");
-  /** 분기를 끄는 동안 블록 멤버가 같은 만큼 움직인 위치. 분기가 아니면 빈 맵. */
+  /**
+   * 분기를 끄는 동안 블록 멤버가 같은 만큼 움직인 위치. 분기가 아니면 빈 맵.
+   * 접힌 분기는 접힌 상자(룰 크기) 좌상단을 끌므로 전체 흐름 좌상단을 같은 기준(가운데 맞춤, foldOffsetX)으로 바꿔 이동량을 잰다 —
+   * 그래야 펼쳤을 때 끈 만큼 가고, 분기 자신은 제 크기 기준 좌표로 적힌다(Minor C).
+   */
   const blockPositionsOf = (n: Node): Record<string, FlowPos> => {
     if (!isSplit(n.id)) return {};
     const base = fullPosOf();
     const from = base[n.id];
     if (!from) return {};
-    return blockDragPositions(fullRef.current, n.id, { x: n.position.x - from.x, y: n.position.y - from.y }, base);
+    const kind = flowRef.current.nodes.find((x) => x.id === n.id)?.kind;
+    const fold = viewRef.current.blocks[n.id] && kind ? foldOffsetX(kind) : 0;
+    return blockDragPositions(fullRef.current, n.id, { x: n.position.x - (from.x - fold), y: n.position.y - from.y }, base);
   };
 
   const onNodeDrag = useCallback((e: MouseEvent | TouchEvent, node: Node, dragged: Node[]) => {
     if (!editable) return;
+    // 분기 자신은 React Flow 가 준 위치(그린 상자 좌상단) 그대로 둔다 — 블록 위치의 분기 값은 저장 기준(접힌 분기면 foldOffsetX 만큼 다르다).
     const block = blockPositionsOf(node);
+    delete block[node.id];
     if (Object.keys(block).length > 0) {
       setDrag((d) => ({ ...d, ...block }));
     }
