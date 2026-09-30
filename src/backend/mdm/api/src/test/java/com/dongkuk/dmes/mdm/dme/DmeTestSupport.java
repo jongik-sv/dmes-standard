@@ -6,6 +6,7 @@ import com.dongkuk.dmes.mdm.common.testdb.SharedContextResettable;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.FakeStewardDirectory;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.MutableClock;
 import com.dongkuk.dmes.mdm.contract.security.MdmRoles;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Set;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -21,6 +22,9 @@ public final class DmeTestSupport {
 
     /** 서비스 테스트의 현재 시각(KST). */
     public static final LocalDateTime NOW = LocalDateTime.of(2026, 6, 15, 9, 0, 0);
+
+    /** {@link #NOW} 을 KST 로 읽은 시각(MutableClock 초기 instant). */
+    public static final Instant NOW_INSTANT = NOW.atZone(MdmClockConfig.KST).toInstant();
 
     public static final Set<String> STEWARD = Set.of(MdmRoles.STEWARD);
     public static final Set<String> STD_ADMIN = Set.of(MdmRoles.STD_ADMIN);
