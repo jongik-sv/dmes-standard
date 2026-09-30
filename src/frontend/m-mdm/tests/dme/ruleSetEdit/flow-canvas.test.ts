@@ -54,7 +54,7 @@ const noop = () => {};
 function props(over: Partial<FlowCanvasProps> = {}): FlowCanvasProps {
   return {
     flow: ifFlow(), rules: { R_A: ioOf("R_A") }, checks: [], mode: "view", showVars: false, selectedId: null, selectedEdgeId: null,
-    overlay: null, focusId: null, onSelect: noop, onSelectEdge: noop, onOpenRule: noop, onMove: noop, onConnect: noop,
+    overlay: null, focusId: null, focusSeq: 0, onSelect: noop, onSelectEdge: noop, onOpenRule: noop, onMove: noop, onConnect: noop,
     onDeleteEdge: noop, onDropPalette: noop, onNoteChange: noop, ...over,
   };
 }
@@ -136,6 +136,22 @@ describe("FlowCanvas", () => {
     expect(q("flow-group-g1")?.textContent).toBe("묶음");
     await draw(props({ flow, mode: "edit" }));
     expect(q("flow-note-text-n1")).not.toBeNull();
+  });
+
+  it("같은 focusId 로 focusSeq 만 올리면 다시 깜빡이고, focusId 가 null 이면 사라진다", async () => {
+    const flashed = () => q("flow-node-r1")!.className.includes("rsf-flash");
+    await draw(props({ focusId: "r1", focusSeq: 1 }));
+    await flush();
+    expect(flashed()).toBe(true);
+    await draw(props({ focusId: null, focusSeq: 1 }));
+    await flush();
+    expect(flashed()).toBe(false);
+    await draw(props({ focusId: "r1", focusSeq: 2 }));
+    await flush();
+    expect(flashed()).toBe(true);
+    await draw(props({ focusId: "r1", focusSeq: 3 }));
+    await flush();
+    expect(flashed()).toBe(true);
   });
 });
 

@@ -49,6 +49,7 @@ export interface FlowCanvasProps {
   selectedEdgeId: string | null;
   overlay: Overlay | null; // 디버거 겹침(Task 11)
   focusId: string | null; // 검사 항목을 누르면 이 노드로 이동·깜빡임
+  focusSeq: number; // 이동을 요청할 때마다 부모가 1씩 올린다(같은 노드로 다시 이동·깜빡임)
   onSelect: (id: string | null) => void;
   onSelectEdge: (edgeId: string | null) => void;
   onOpenRule: (ruleId: string) => void; // 링크 아이콘만
@@ -136,7 +137,7 @@ function isTyping(t: EventTarget | null): boolean {
 
 function Inner(props: FlowCanvasProps) {
   const {
-    flow, rules, checks, mode, showVars, selectedId, selectedEdgeId, overlay, focusId, fitSignal,
+    flow, rules, checks, mode, showVars, selectedId, selectedEdgeId, overlay, focusId, focusSeq, fitSignal,
     onSelect, onSelectEdge, onOpenRule, onMove, onConnect, onDeleteEdge, onDropPalette, onNoteChange,
   } = props;
   const editable = mode === "edit";
@@ -227,25 +228,27 @@ function Inner(props: FlowCanvasProps) {
     if (editable && c.source && c.target) onConnect(c.source, c.target);
   }, [editable, onConnect]);
 
-  // 검사 항목을 누르면 그 노드로 옮기고 1.2초 깜빡인다.
-  const lastFocus = useRef<string | null>(null);
+  // 이동 요청(focusSeq)이 올 때마다 focusId 노드로 옮기고 1.2초 깜빡인다. focusId 가 null 이면 깜빡임을 지운다.
   useEffect(() => {
-    if (!focusId || focusId === lastFocus.current) {
-      lastFocus.current = focusId;
+    if (!focusId) {
+      setFlashId(null);
       return;
     }
-    lastFocus.current = focusId;
     const n = flow.nodes.find((x) => x.id === focusId);
     const p = pos[focusId];
     if (n && p) {
       const s = NODE_SIZE[n.kind];
       void rf.setCenter(p.x + s.w / 2, p.y + s.h / 2, { zoom: rf.getZoom(), duration: 300 });
     }
-    setFlashId(focusId);
-    const t = setTimeout(() => setFlashId((cur) => (cur === focusId ? null : cur)), FLASH_MS);
-    return () => clearTimeout(t);
+    setFlashId(null);
+    const start = setTimeout(() => setFlashId(focusId), 0);
+    const end = setTimeout(() => setFlashId((cur) => (cur === focusId ? null : cur)), FLASH_MS);
+    return () => {
+      clearTimeout(start);
+      clearTimeout(end);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusId]);
+  }, [focusSeq, focusId]);
 
   const firstFit = useRef(true);
   useEffect(() => {
