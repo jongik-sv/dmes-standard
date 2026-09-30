@@ -10,7 +10,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.audit.CactusAudit;
 import com.dongkuk.dmes.cactus.common.BusinessException;
+import com.dongkuk.dmes.mdm.common.rule.CondIo;
 import com.dongkuk.dmes.mdm.common.rule.RuleIo;
+import com.dongkuk.dmes.mdm.common.rule.RuleIoReader;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetCheck;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetFlowJson;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetGuide;
@@ -62,6 +64,8 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
     MutableCurrentUser currentUser;
     @Autowired
     JdbcTemplate jdbc;
+    @Autowired
+    RuleIoReader ioReader;
 
     @BeforeEach
     void seed() {
@@ -503,7 +507,61 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
 
         assertEquals("MDM024", code(e));
         assertTrue(e.getMessage().contains("IF_SIBLING"), e.getMessage());
-        assertNull(setRow("S_CHAIN").get("FLOW_JSON"));
+        Map<String, Object> row = setRow("S_CHAIN");
+        assertNull(row.get("FLOW_JSON"));
+        assertEquals("[\"R_GRD\",\"R_FCT\",\"R_SPD\"]", row.get("RULE_IDS"));
+        assertEquals(3L, ((Number) row.get("ROW_VERSION")).longValue());
+    }
+
+    private static List<String> issueCodes(BusinessException e) {
+        return e.getErrors().stream().map(i -> i.code()).toList();
+    }
+
+    @Test
+    void IF_선_조건식_문법이_틀리면_FLOW_COND_로_거부한다() {
+        BusinessException e = refuse(() -> service.save(flowReq("S_CHAIN", 3L, IF_FLOW.replace("SET_THK > 1", "SET_THK >"))));
+
+        assertEquals("MDM024", code(e));
+        assertTrue(issueCodes(e).contains("FLOW_COND"), e.getMessage());
+    }
+
+    @Test
+    void 사전에_없는_변수는_NONE_이라_정의되지_않았다며_거부한다() {
+        BusinessException e = refuse(() -> service.save(flowReq("S_CHAIN", 3L, IF_FLOW.replace("SET_THK > 1", "NOPE_VAR > 1"))));
+
+        assertTrue(issueCodes(e).contains("FLOW_COND"), e.getMessage());
+        assertTrue(e.getMessage().contains("e2 갈래 조건식이 읽는 NOPE_VAR는 이 지점에서 정의되지 않았다"), e.getMessage());
+    }
+
+    @Test
+    void condIo_는_EVAL_TS_와_밑줄_접두어_이름을_vars_에서_뺀다() {
+        var flow = RuleSetFlowJson.parse(IF_FLOW.replace("SET_THK > 1", "SET_THK > 1 && EVAL_TS > 0 && _RSV > 0 && NOPE_VAR > 0"));
+
+        CondIo io = ioReader.condIo(flow).get("e2");
+
+        assertTrue(io.ok(), String.valueOf(io.message()));
+        Map<String, String> sources = new java.util.TreeMap<>();
+        io.vars().forEach(v -> sources.put(v.name(), v.source()));
+        assertEquals(Map.of("SET_THK", RuleIo.DICT, "NOPE_VAR", RuleIo.NONE), sources);
+        assertNull(ioReader.condIo(flow).get("e3"), "otherwise 선은 넣지 않는다");
+    }
+
+    @Test
+    void condIo_문법_오류는_ok_false_이고_vars_는_빈_목록이다() {
+        CondIo io = ioReader.condIo(RuleSetFlowJson.parse(IF_FLOW.replace("SET_THK > 1", "SET_THK >"))).get("e2");
+
+        assertFalse(io.ok());
+        assertTrue(io.vars() != null && io.vars().isEmpty());
+    }
+
+    @Test
+    void flow_와_다른_rules_를_함께_보내면_RULE_IDS_는_흐름에서_펼친_값이다() {
+        RuleSetSaveRequest r = flowReq("S_CHAIN", 3L, IF_FLOW);
+        r.setRules(saveReq("S_CHAIN", "x", null, 3L, "R_SPD", "R_CYA").getRules());
+
+        service.save(r);
+
+        assertEquals("[\"R_GRD\",\"R_DUP\",\"R_FCT\"]", setRow("S_CHAIN").get("RULE_IDS"));
     }
 
     @Test
