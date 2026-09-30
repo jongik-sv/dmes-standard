@@ -45,7 +45,7 @@ export interface PropertyPanelProps {
   selectedNodeIds?: readonly string[];
   /** 편집 모드 — 입력·▲▼✕·지우기를 켠다. */
   editable: boolean;
-  onEdit: (fn: (f: EditFlow) => EditResult | EditFlow) => string | null;
+  onEdit: (fn: (f: EditFlow) => EditResult | EditFlow, opts?: { mergeKey?: string }) => string | null;
   onOpenRule: (ruleId: string) => void;
 }
 
@@ -215,7 +215,7 @@ function SplitProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
                 data-testid="flow-prop-label"
                 value={node.label ?? ""}
                 readOnly={!editable}
-                onChange={(v) => onEdit((f) => updateNodeLabel(f, node.id, blankToNull(v)))}
+                onChange={(v) => onEdit((f) => updateNodeLabel(f, node.id, blankToNull(v)), { mergeKey: `nlabel:${node.id}` })}
               />
             </td>
           </tr>
@@ -243,7 +243,7 @@ function SplitProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
                   readOnly={!editable}
                   aria-label="갈래 이름"
                   style={{ flex: 1, minWidth: 0 }}
-                  onChange={(v) => onEdit((f) => updateEdge(f, e.id, { label: blankToNull(v) }))}
+                  onChange={(v) => onEdit((f) => updateEdge(f, e.id, { label: blankToNull(v) }), { mergeKey: `elabel:${e.id}` })}
                 />
                 {editable && !other && (
                   <>
@@ -287,7 +287,7 @@ function SplitProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
                     readOnly={!editable}
                     placeholder='조건식 예: S_GRD = "A"'
                     aria-label="조건식"
-                    onChange={(v) => onEdit((f) => updateEdge(f, e.id, { cond: v }))}
+                    onChange={(v) => onEdit((f) => updateEdge(f, e.id, { cond: v }), { mergeKey: `cond:${e.id}` })}
                   />
                 ))}
               <CheckLines checks={edgeChecks} />
@@ -341,7 +341,7 @@ export function PropertyPanel(props: PropertyPanelProps) {
           rows={5}
           readOnly={!editable}
           aria-label="메모 글"
-          onChange={(v) => onEdit((f) => updateNote(f, note.id, { text: v }))}
+          onChange={(v) => onEdit((f) => updateNote(f, note.id, { text: v }), { mergeKey: `note:${note.id}` })}
         />
         {note.attach && <p className="rsf-panel-note rsf-muted">{`노드 ${note.attach} 옆에 붙였다`}</p>}
         {editable && (
@@ -380,7 +380,7 @@ export function PropertyPanel(props: PropertyPanelProps) {
                   data-testid="flow-prop-group-title"
                   value={group.title}
                   readOnly={!editable}
-                  onChange={(v) => onEdit((f) => updateGroup(f, group.id, { title: v }))}
+                  onChange={(v) => onEdit((f) => updateGroup(f, group.id, { title: v }), { mergeKey: `group:${group.id}` })}
                 />
               </td>
             </tr>
