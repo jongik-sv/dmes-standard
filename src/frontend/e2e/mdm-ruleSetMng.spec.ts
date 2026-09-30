@@ -115,7 +115,9 @@ test.describe("mdm dme/ruleSetMng", () => {
     // 룰 세트 편집 탭 — handoff 대상(setId)을 받아 새 세트를 연다.
     await expect(page.getByTestId("set-edit-current")).toContainText("E2S_NEW_SET", { timeout: 60_000 });
     await expect(page.getByTestId("set-status")).toHaveText("INUSE");
-    await expect(page.getByTestId("set-rules-empty")).toBeVisible();
+    // 빈 세트는 캔버스에 시작 → 끝만 그려진다(룰 노드 없음).
+    await expect(page.getByTestId("flow-node-start")).toBeVisible();
+    await expect(page.getByTestId("flow-canvas").locator('[data-kind="RULE"]')).toHaveCount(0);
     await expect(page.getByTestId("set-checks")).toContainText("룰이 하나도 없다");
 
     // 룰 세트 탭으로 돌아와 조회하면 목록에 있다.

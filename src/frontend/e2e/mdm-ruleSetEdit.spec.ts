@@ -403,7 +403,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
 
     // 표시 지우기는 겹침을 없앤다.
     await page.getByTestId("sim-clear").click();
-    await expect(page.getByTestId("flow-node-r1")).not.toHaveAttribute("data-state", "current");
+    await expect(page.getByTestId("flow-node-r1")).toHaveAttribute("data-state", "idle");
     await expect(page.getByTestId("flow-edge-label-e3")).toHaveAttribute("data-state", "idle");
   });
 
