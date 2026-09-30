@@ -7,6 +7,11 @@
 //
 //   node scripts/lib-dev.mjs build [--force] <pkgDir...>   # frontend 루트에서. 적힌 순서대로(shared 먼저)
 //   node ../scripts/lib-dev.mjs watch                      # 패키지 폴더에서(package.json "dev")
+//   node ../scripts/lib-dev.mjs pkg-build [tsup 인자…]      # 패키지 폴더에서(package.json "build")
+//
+// pkg-build: 그 패키지를 dev watch 가 감시 중이면 tsup 을 따로 돌리지 않고 watch 에 "지금 .d.ts 까지" 를 청해
+// 결과를 기다린다(2026-09-30: 에이전트가 dev 중에 pnpm build 를 돌려 tsup 둘이 같은 dist 에 쓰고, shared 는 clean 으로
+// dist 를 비워 떠 있는 포털을 흔들었다). watch 가 없으면(다른 워크트리·CI·배포) 예전과 똑같이 tsup 을 돌린다.
 //
 // watch 는 저장하면 JS 만 바로 빌드하고(TSUP_DTS=0, 약 1초), .d.ts 는 저장이 LIB_DEV_DTS_DELAY_MS(기본 20초)
 // 동안 멈춘 뒤 한 번만 만든다(`tsup --dts-only`). .d.ts 생성은 tsc 급 작업이라(shared 25초) 저장마다 돌리면
@@ -16,7 +21,7 @@
 //
 // 지문은 <pkg>/node_modules/.cache/lib-dev-stamp.json 에 둔다(배포 대상 dist 에 섞지 않는다).
 // 한 번씩 도는 tsup 이 dist 를 비우지 않도록 TSUP_NO_CLEAN=1 을 넘긴다(shared 의 clean 설정 참고).
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -62,21 +67,32 @@ function fingerprint(pkgDir) {
   return hash.digest("hex");
 }
 
-const stampPath = (pkgDir) => path.join(pkgDir, "node_modules", ".cache", "lib-dev-stamp.json");
+const cacheDir = (pkgDir) => path.join(pkgDir, "node_modules", ".cache");
+const stampPath = (pkgDir) => path.join(cacheDir(pkgDir), "lib-dev-stamp.json");
+/** watch 가 떠 있는 동안 두는 잠금 — { pid }. pkg-build 가 이것으로 watch 를 찾는다. */
+const lockPath = (pkgDir) => path.join(cacheDir(pkgDir), "lib-dev-watch.json");
+/** watch 의 마지막 .d.ts 빌드 출력. pkg-build 가 실패를 보여 줄 때 쓴다. */
+const dtsLogPath = (pkgDir) => path.join(cacheDir(pkgDir), "lib-dev-dts.log");
 
-/** { fingerprint, dts } — dts 는 그 지문의 소스로 .d.ts 까지 만들었는지. */
+/** { fingerprint, dts, dtsFailed } — dts 는 그 지문의 소스로 .d.ts 까지 만들었는지, dtsFailed 는 .d.ts 가 실패했는지. */
 function readStamp(pkgDir) {
   try {
     const stamp = JSON.parse(fs.readFileSync(stampPath(pkgDir), "utf8"));
-    return { fingerprint: stamp.fingerprint ?? null, dts: stamp.dts === true };
+    return { fingerprint: stamp.fingerprint ?? null, dts: stamp.dts === true, dtsFailed: stamp.dtsFailed === true };
   } catch {
-    return { fingerprint: null, dts: false };
+    return { fingerprint: null, dts: false, dtsFailed: false };
   }
 }
 
-function writeStamp(pkgDir, fp, dts) {
-  fs.mkdirSync(path.dirname(stampPath(pkgDir)), { recursive: true });
-  fs.writeFileSync(stampPath(pkgDir), JSON.stringify({ fingerprint: fp, dts, builtAt: new Date().toISOString() }));
+function writeJsonAtomic(file, value) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(value));
+  fs.renameSync(tmp, file);
+}
+
+function writeStamp(pkgDir, fp, dts, dtsFailed = false) {
+  writeJsonAtomic(stampPath(pkgDir), { fingerprint: fp, dts, dtsFailed, builtAt: new Date().toISOString() });
 }
 
 const dtsWanted = () => process.env.TSUP_DTS !== "0";
@@ -111,13 +127,28 @@ function runTsup(pkgDir, mode = "all") {
     const env = { ...process.env, TSUP_NO_CLEAN: "1" };
     if (mode === "js") env.TSUP_DTS = "0";
     const [cmd, cmdArgs] = process.platform === "win32" ? [bin, args] : ["nice", ["-n", "10", bin, ...args]];
-    child = spawn(cmd, cmdArgs, { cwd: pkgDir, stdio: "inherit", env, shell: process.platform === "win32" });
+    // .d.ts 출력은 로그 파일에도 남긴다 — watch 에 빌드를 맡긴 pkg-build 가 실패 내용을 보여 준다.
+    const tee = mode === "dts";
+    child = spawn(cmd, cmdArgs, {
+      cwd: pkgDir,
+      stdio: tee ? ["ignore", "pipe", "pipe"] : "inherit",
+      env,
+      shell: process.platform === "win32",
+    });
+    if (tee) {
+      fs.mkdirSync(cacheDir(pkgDir), { recursive: true });
+      const out = fs.createWriteStream(dtsLogPath(pkgDir));
+      child.stdout.on("data", (d) => (process.stdout.write(d), out.write(d)));
+      child.stderr.on("data", (d) => (process.stderr.write(d), out.write(d)));
+      child.on("close", () => out.end());
+    }
     child.on("exit", (code, signal) => {
       child = null;
-      if (code === 0) {
-        // .d.ts 만 만든 경우는 JS 가 같은 소스로 빌드돼 있을 때만 "둘 다 최신" 으로 남긴다.
-        if (mode !== "dts") writeStamp(pkgDir, fp, mode === "all" && dtsWanted());
-        else if (readStamp(pkgDir).fingerprint === fp) writeStamp(pkgDir, fp, true);
+      if (mode !== "dts") {
+        if (code === 0) writeStamp(pkgDir, fp, mode === "all" && dtsWanted());
+      } else if (!signal && readStamp(pkgDir).fingerprint === fp) {
+        // .d.ts 만 만든 경우는 JS 가 같은 소스로 빌드돼 있을 때만 결과를 남긴다.
+        writeStamp(pkgDir, fp, code === 0, code !== 0);
       }
       resolve(signal ? "killed" : (code ?? 1));
     });
@@ -149,12 +180,14 @@ function watchCmd() {
   let runningDts = false;
   let changeTimer = null;
   let dtsTimer = null;
+  // pkg-build 가 SIGUSR2 로 "지금 .d.ts 까지" 를 청하면 켠다. 조용해지기를 기다리지 않고 바로 만든다.
+  let dtsNow = false;
 
   const seconds = (started) => ((Date.now() - started) / 1000).toFixed(1);
 
   const scheduleDts = () => {
     clearTimeout(dtsTimer);
-    if (dtsWanted()) dtsTimer = setTimeout(buildDts, dtsDelay);
+    if (dtsWanted()) dtsTimer = setTimeout(buildDts, dtsNow ? 0 : dtsDelay);
   };
 
   const buildJs = async () => {
@@ -181,6 +214,7 @@ function watchCmd() {
     const code = await runTsup(pkgDir, "dts");
     runningDts = false;
     building = false;
+    if (code !== "killed") dtsNow = false;
     if (code === "killed") log(pkgDir, ".d.ts 빌드 중단 — 파일이 바뀌어 다시 예약");
     else log(pkgDir, code === 0 ? `.d.ts 완료 (${seconds(started)}s)` : `.d.ts 실패 (exit ${code}) — 타입 오류를 확인하세요`);
     if (pendingJs) buildJs();
@@ -195,6 +229,24 @@ function watchCmd() {
     if (runningDts) killChild();
     clearTimeout(changeTimer);
     changeTimer = setTimeout(buildJs, 200);
+  });
+
+  process.on("SIGUSR2", () => {
+    dtsNow = true;
+    if (building) return; // 도는 JS 빌드 뒤에 바로 .d.ts 가 붙고, 도는 .d.ts 는 그대로 둔다.
+    const now = staleness(pkgDir);
+    if (now === "full") buildJs();
+    else if (now === "dts") {
+      clearTimeout(dtsTimer);
+      buildDts();
+    }
+  });
+
+  writeJsonAtomic(lockPath(pkgDir), { pid: process.pid, startedAt: new Date().toISOString() });
+  process.on("exit", () => {
+    try {
+      if (JSON.parse(fs.readFileSync(lockPath(pkgDir), "utf8")).pid === process.pid) fs.unlinkSync(lockPath(pkgDir));
+    } catch {}
   });
 
   const state = staleness(pkgDir);
@@ -219,10 +271,80 @@ function watchCmd() {
   }, 2000).unref();
 }
 
+/** 잠금의 pid 가 살아 있고 그 프로세스가 정말 lib-dev watch 인지(pid 재사용 대비). */
+function liveWatchPid(pkgDir) {
+  try {
+    const { pid } = JSON.parse(fs.readFileSync(lockPath(pkgDir), "utf8"));
+    process.kill(pid, 0);
+    const command = execFileSync("ps", ["-o", "command=", "-p", String(pid)], { encoding: "utf8" });
+    return command.includes("lib-dev.mjs") && command.includes("watch") ? pid : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 패키지 "build" 스크립트. dev watch 가 이 패키지를 감시 중이면 tsup 을 따로 돌리지 않고 watch 에 맡긴다 —
+ * 같은 dist 에 두 tsup 이 동시에 쓰고, shared 는 clean 으로 dist 를 비워 떠 있는 포털(next dev)을 깨뜨린다.
+ * watch 에 SIGUSR2 로 "지금 .d.ts 까지" 를 청하고, 지문이 지금 소스와 맞는 결과가 나오면 그 성패로 끝낸다.
+ * 그 밖의 경우(watch 없음·인자 있음·CI·Windows·LIB_DEV_FORCE_BUILD=1·시간 초과)는 예전과 똑같이 tsup 을 돌린다.
+ */
+async function pkgBuildCmd(args) {
+  const pkgDir = process.cwd();
+  const plainTsup = () => {
+    const bin = path.join(pkgDir, "node_modules", ".bin", process.platform === "win32" ? "tsup.cmd" : "tsup");
+    const p = spawn(bin, args, { cwd: pkgDir, stdio: "inherit", shell: process.platform === "win32" });
+    p.on("exit", (code, signal) => process.exit(signal ? 1 : (code ?? 1)));
+  };
+  if (args.length > 0 || process.env.CI || process.platform === "win32" || process.env.LIB_DEV_FORCE_BUILD === "1") {
+    return plainTsup();
+  }
+  const pid = liveWatchPid(pkgDir);
+  if (!pid) return plainTsup();
+
+  const wantDts = dtsWanted();
+  const timeoutMs = Number(process.env.LIB_DEV_WAIT_MS ?? 600000);
+  log(pkgDir, `dev watch(pid ${pid})가 감시 중 — tsup 을 따로 돌리지 않고 watch 결과를 기다린다 (직접 빌드: LIB_DEV_FORCE_BUILD=1)`);
+  const started = Date.now();
+  let signaledFp = null;
+  for (;;) {
+    const fp = fingerprint(pkgDir);
+    const stamp = readStamp(pkgDir);
+    if (stamp.fingerprint === fp && fs.existsSync(path.join(pkgDir, "dist"))) {
+      if (stamp.dts || !wantDts) {
+        console.log(`ESM ⚡️ Build success — dev watch 결과(${wantDts ? "JS + .d.ts" : "JS"}, ${((Date.now() - started) / 1000).toFixed(1)}s)`);
+        process.exit(0);
+      }
+      if (stamp.dtsFailed) {
+        try {
+          process.stdout.write(fs.readFileSync(dtsLogPath(pkgDir), "utf8"));
+        } catch {}
+        log(pkgDir, "watch 의 .d.ts 빌드가 실패했다(위 출력)");
+        process.exit(1);
+      }
+    }
+    if (wantDts && signaledFp !== fp) {
+      try {
+        process.kill(pid, "SIGUSR2");
+      } catch {
+        log(pkgDir, "watch 가 사라졌다 — 직접 빌드한다");
+        return plainTsup();
+      }
+      signaledFp = fp;
+    }
+    if (Date.now() - started > timeoutMs) {
+      log(pkgDir, `watch 결과를 ${timeoutMs / 1000}초 안에 받지 못했다 — 직접 빌드한다`);
+      return plainTsup();
+    }
+    await new Promise((r) => setTimeout(r, 300));
+  }
+}
+
 const [cmd, ...rest] = process.argv.slice(2);
 if (cmd === "build") await buildCmd(rest);
 else if (cmd === "watch") watchCmd();
+else if (cmd === "pkg-build") await pkgBuildCmd(rest);
 else {
-  console.error("사용법: lib-dev.mjs build [--force] <pkgDir...> | watch");
+  console.error("사용법: lib-dev.mjs build [--force] <pkgDir...> | watch | pkg-build [tsup 인자…]");
   process.exit(2);
 }

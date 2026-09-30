@@ -36,7 +36,8 @@
 ### 2-2. dev 가 켜진 작업 트리에서는 라이브러리를 따로 빌드하지 않는다 (2026-09-30)
 
 - `pnpm dev` 가 돌고 있는 작업 트리에서는 watch(`scripts/lib-dev.mjs`)가 저장 즉시 그 패키지의 JS 를 다시 빌드한다. `.d.ts` 는 저장이 20초 멈춘 뒤 한 번 만든다(`LIB_DEV_DTS_DELAY_MS`).
-- 같은 패키지를 `pnpm build`·`pnpm --filter … build` 로 또 빌드하지 않는다. 두 tsup 이 같은 dist 에 동시에 쓰고 CPU 를 두 배로 쓴다(2026-09-30 실측: watch 289% + 수동 build 107%, 부하 평균 24).
+- 같은 패키지를 `pnpm build`·`pnpm --filter … build` 로 또 빌드하지 않는다. 두 tsup 이 같은 dist 에 동시에 쓰고 CPU 를 두 배로 쓴다(2026-09-30 실측: watch 289% + 수동 build 107%, 부하 평균 24). shared 는 build 가 dist 를 비워(clean) 떠 있는 포털까지 흔든다.
+  - 라이브러리의 `build` 스크립트(`lib-dev.mjs pkg-build`)가 이를 막는다: watch 가 감시 중인 패키지면 tsup 을 돌리지 않고 watch 에 `.d.ts` 까지 바로 만들게 한 뒤 그 결과(성공·타입 오류)로 끝난다. 게이트 명령은 그대로 두면 된다. 꼭 직접 빌드해야 하면 `LIB_DEV_FORCE_BUILD=1`.
   - watch 가 도는지 확인: `for p in $(pgrep -f "lib-dev.mjs watch"); do lsof -a -d cwd -p $p -Fn | grep '^n'; done` — 감시 중인 패키지 폴더가 나온다.
   - 반영 확인: `<패키지>/node_modules/.cache/lib-dev-stamp.json` 의 `builtAt`, `dts`(true 면 `.d.ts` 까지 최신). 다른 패키지의 타입을 읽는 lint 는 `dts: true` 가 된 뒤 돌린다.
 - 테스트·빌드 프로세스를 끝낼 때 `pkill -f vitest` 처럼 이름으로 모두 죽이지 않는다. 같은 PC 의 다른 세션 테스트까지 죽는다. 자기가 띄운 PID 만 끝낸다.
