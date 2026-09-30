@@ -140,7 +140,7 @@ export function flowDeps(flow: RuleSetFlow, rules: RuleIoMap): Record<string, st
 export function flowChecks(flow: RuleSetFlow, rules: RuleIoMap, condIo: CondIoMap): RuleSetCheck[] {
   const out: RuleSetCheck[] = [];
   const parsed = parseFlow(flow);
-  // 컨트롤러 수정(Task 6 대조): 겹친 노드 ID 는 첫 노드만 보고(C3), 공백 판정은 Java isBlank 의미(flow-model.ts 의 blank 를 `isBlankJava` 로 export 해 쓴다).
+  // 겹친 노드 ID 는 첫 노드만 보고(C3), 공백 판정은 Java isBlank 의미(flow-model.ts 의 blank 를 `isBlankJava` 로 export 해 쓴다).
   const firstNode = new Map<string, string>();
   const seenNodeIds = new Set<string>();
   for (const n of flow.nodes ?? []) {

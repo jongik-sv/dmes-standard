@@ -5542,6 +5542,287 @@
           }
         ]
       }
+    },
+    {
+      "name": "흐름 — 이미 닫힌 합류를 다시 만나면 방문 검사가 종류 검사보다 먼저 걸린다",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {
+            "id": "start",
+            "kind": "START"
+          },
+          {
+            "id": "if1",
+            "kind": "IF"
+          },
+          {
+            "id": "p1",
+            "kind": "PARALLEL"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE",
+            "ruleId": "A"
+          },
+          {
+            "id": "r2",
+            "kind": "RULE",
+            "ruleId": "B"
+          },
+          {
+            "id": "r4",
+            "kind": "RULE",
+            "ruleId": "D"
+          },
+          {
+            "id": "r5",
+            "kind": "RULE",
+            "ruleId": "E"
+          },
+          {
+            "id": "m1",
+            "kind": "MERGE",
+            "splitId": "p1"
+          },
+          {
+            "id": "m0",
+            "kind": "MERGE",
+            "splitId": "if1"
+          },
+          {
+            "id": "end",
+            "kind": "END"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "start",
+            "to": "if1"
+          },
+          {
+            "id": "e2",
+            "from": "if1",
+            "to": "p1",
+            "order": 1,
+            "cond": "A = 1"
+          },
+          {
+            "id": "e3",
+            "from": "if1",
+            "to": "r5",
+            "order": 2,
+            "cond": "A = 2"
+          },
+          {
+            "id": "e4",
+            "from": "if1",
+            "to": "r4",
+            "otherwise": true
+          },
+          {
+            "id": "e5",
+            "from": "p1",
+            "to": "r1",
+            "order": 1
+          },
+          {
+            "id": "e6",
+            "from": "p1",
+            "to": "r2",
+            "order": 2
+          },
+          {
+            "id": "e7",
+            "from": "r1",
+            "to": "m1"
+          },
+          {
+            "id": "e8",
+            "from": "r2",
+            "to": "m1"
+          },
+          {
+            "id": "e9",
+            "from": "r4",
+            "to": "m1"
+          },
+          {
+            "id": "e10",
+            "from": "m1",
+            "to": "m0"
+          },
+          {
+            "id": "e11",
+            "from": "r5",
+            "to": "m0"
+          },
+          {
+            "id": "e12",
+            "from": "m0",
+            "to": "end"
+          }
+        ]
+      },
+      "condIo": {
+        "e2": {
+          "ok": true,
+          "message": null,
+          "vars": [
+            {
+              "name": "A",
+              "source": "DICT"
+            }
+          ]
+        },
+        "e3": {
+          "ok": true,
+          "message": null,
+          "vars": [
+            {
+              "name": "A",
+              "source": "DICT"
+            }
+          ]
+        }
+      },
+      "ids": [
+        "A",
+        "B",
+        "D",
+        "E"
+      ],
+      "rules": {
+        "A": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RA"
+            }
+          ]
+        },
+        "B": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RB"
+            }
+          ]
+        },
+        "D": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RD"
+            }
+          ]
+        },
+        "E": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "X",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "RE"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "X",
+              "source": "DICT",
+              "users": [
+                "A",
+                "B",
+                "D",
+                "E"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "RA",
+              "by": [
+                "A"
+              ],
+              "readers": []
+            },
+            {
+              "name": "RB",
+              "by": [
+                "B"
+              ],
+              "readers": []
+            },
+            {
+              "name": "RD",
+              "by": [
+                "D"
+              ],
+              "readers": []
+            },
+            {
+              "name": "RE",
+              "by": [
+                "E"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "A": [],
+          "B": [],
+          "D": [],
+          "E": []
+        },
+        "checks": [
+          {
+            "code": "FLOW_STRUCTURE",
+            "severity": "REJECT",
+            "ruleId": null,
+            "otherRuleId": null,
+            "varName": null,
+            "message": "m1를 두 번 지난다. 순환이 있거나 갈래가 짝 합류 밖에서 만난다",
+            "nodeId": "m1",
+            "edgeId": null
+          }
+        ]
+      }
     }
   ]
 }

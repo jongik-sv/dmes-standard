@@ -38,6 +38,7 @@ vi.mock("@dk-oasis/shared/grid", async (importOriginal) => {
 });
 
 import RuleSetEditPage from "../../../pages/dme/ruleSetEdit/page";
+import { useRuleSetEdit } from "../../../pages/dme/ruleSetEdit/state/useRuleSetEdit";
 import type { RuleIo, RuleSetView } from "../../../pages/dme/ruleSetEdit/types";
 import type { RuleSetFlow } from "../../../src/contract/engine-contract.generated";
 
@@ -555,6 +556,31 @@ describe("RuleSetEditPage", () => {
     await click("set-rule-link-E2S_FCT");
     expect(mocks.openRuleEdit).toHaveBeenCalledWith("E2S_FCT");
     expect(calls("save")).toHaveLength(0);
+  });
+
+  it("분기 세트에서는 상태 훅의 applyGuide 도 목록을 바꾸지 않는다(save 와 같은 가드)", async () => {
+    let state: ReturnType<typeof useRuleSetEdit> | null = null;
+    const Probe = () => {
+      state = useRuleSetEdit();
+      return null;
+    };
+    views.E2S_CHAIN = chainView({ set: { ...chainView().set, flow: BRANCHED_FLOW, branched: true } });
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => {
+      root!.render(createElement(DmesUiProvider, null, createElement(Probe)));
+    });
+    await act(async () => {
+      await state!.open("E2S_CHAIN");
+    });
+    await settle();
+    const before = [...state!.ids];
+    expect(before).toEqual(["E2S_GRD", "E2S_FCT", "E2S_SPD"]);
+    await act(async () => {
+      state!.applyGuide(["E2S_GRD"], [GRD]);
+    });
+    expect(state!.ids).toEqual(before);
   });
 
   it("분기가 없는 세트에는 분기 안내가 없다", async () => {

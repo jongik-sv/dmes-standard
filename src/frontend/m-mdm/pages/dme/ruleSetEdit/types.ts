@@ -159,7 +159,7 @@ export interface RuleSetHeader {
   branched: boolean;
 }
 
-/** view 응답(§6.5). `rules` 는 ruleIds 순·중복 없음, `checks` 는 저장된 목록 기준. */
+/** view 응답(§6.5). `rules` 는 ruleIds 순·중복 없음, `checks` 는 저장된 목록 또는 흐름 기준. */
 export interface RuleSetView {
   set: RuleSetHeader;
   rules: RuleIo[];

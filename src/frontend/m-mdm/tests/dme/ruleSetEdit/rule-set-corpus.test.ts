@@ -15,7 +15,7 @@ import type { CondIo, IoName, IoSource, RuleIo } from "../../../pages/dme/ruleSe
 import { PACKAGE_ROOT, RULE_SET_CORPUS_PATH } from "../../helpers/engine-paths";
 
 /** Java `RuleSetCorpusTest.MIN_CASES` 와 같아야 한다(I9). 사례를 더하면 두 러너를 함께 올린다. */
-const MIN_CASES = 40;
+const MIN_CASES = 41;
 
 type Nullable<T> = { [K in keyof T]?: T[K] | null };
 
