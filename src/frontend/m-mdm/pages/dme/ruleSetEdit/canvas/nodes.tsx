@@ -16,6 +16,13 @@ import type { RuleIo } from "../types";
 import type { NodeOverlay } from "./overlay";
 import { Handle, Position, type Node, type NodeProps, type NodeTypes } from "./react-flow";
 
+/** 접힌 블록 요약(3단계 계획 P2·D16) — 안쪽 노드 수·실행된 수·오류 여부. 그리기는 Task 11. */
+export interface CollapsedBlockInfo {
+  count: number;
+  ran: number;
+  error: boolean;
+}
+
 /** 룰·IF·병렬·합류·시작/끝 노드가 함께 받는 데이터. */
 export type FlowNodeData = {
   node: FlowNode;
@@ -25,6 +32,13 @@ export type FlowNodeData = {
   selected: boolean;
   flash: boolean;
   onOpenRule: (ruleId: string) => void;
+  /** 중단점이 걸렸는가(3단계 E2, 그리기는 Task 11). */
+  breakpoint: boolean;
+  /** 중단점을 걸 수 있는가 — RULE·IF·PARALLEL·MERGE 이고 디버그 모드. */
+  canBreak: boolean;
+  /** 접힌 분기면 블록 요약, 아니면 null(3단계 D16, 그리기는 Task 11). */
+  collapsed: CollapsedBlockInfo | null;
+  onToggleBreakpoint: (nodeId: string) => void;
 };
 export type NoteNodeData = { note: FlowNote; selected: boolean; editable: boolean; onChange: (id: string, patch: Partial<FlowNote>) => void };
 export type GroupNodeData = { id: string; title: string; selected: boolean };

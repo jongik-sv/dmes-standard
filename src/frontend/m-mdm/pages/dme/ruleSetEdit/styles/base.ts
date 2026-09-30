@@ -207,4 +207,28 @@ export const BASE_CSS = `
 .rsf-check:disabled { cursor: default; }
 .rsf-check-text { flex: 1; min-width: 0; }
 .rsf-check-node { flex: none; color: var(--color-text-muted); }
+
+/* 룰 세트 디버거 노드 상세·값 표(2단계 계획 Task 11 — TraceDetail·ValueTable). 시뮬레이션 탭을 지워도 남는다. */
+/* 값 표 — 가로로 길면 표 안에서만 스크롤한다 */
+.rsim-values { min-width: 0; }
+.rsim-values-scroll { max-width: 100%; overflow-x: auto; }
+
+/* 목록·노드 상세 */
+.rsim-list { margin: 0; padding-left: var(--spacing-lg); }
+.rsim-list li { padding: 2px 0; overflow-wrap: anywhere; }
+.rsim-errors { color: var(--color-danger); }
+.rsim-errors details { color: var(--color-text-secondary); }
+.rsim-branch-head { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-xs); margin-right: var(--spacing-xs); }
+.rsim-cond { color: var(--color-text-secondary); margin-right: var(--spacing-xs); }
+.rsim-msg { color: var(--color-danger); }
+.rsim-badges { display: inline-flex; flex-wrap: wrap; gap: var(--spacing-xs); }
+.rsim-hits { margin: 0; overflow-wrap: anywhere; }
+.rsim-pairs { border-collapse: collapse; font-size: var(--font-size-sm); }
+.rsim-pairs th { text-align: left; padding: 2px var(--spacing-sm) 2px 0; font-weight: 600; vertical-align: top; }
+.rsim-pairs td { padding: 2px 0; overflow-wrap: anywhere; }
+
+/* 3단계 본문 틀(계획 Task 0) — 왼쪽 패널(룰 패널·디버그 입력)과 스크롤하지 않는 아래 탭 */
+.rsf-rule-panel { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; overflow-y: auto; }
+.rsf-rule-panel > .rsf-palette { flex: none; border-bottom: 1px solid var(--color-border-light); }
+.rsf-bottom-body[data-scroll="false"] { overflow: hidden; display: flex; flex-direction: column; }
 `;

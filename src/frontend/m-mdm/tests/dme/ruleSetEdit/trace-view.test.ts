@@ -1,31 +1,12 @@
 // 2단계 계획 P9 — 기록 해석(trace-view.ts). Task 4 골든(mdm/api test resources)을 사본 없이 경로로 읽는다.
 // 골든의 trace 는 서버 execute 응답 그대로(엔진 RunTrace 스키마)이고, flowJson 은 P2 정규 JSON 문자열이다.
-import fs from "node:fs";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import type { FlowNodeKind, NodeTrace, RuleSetFlow, RunTrace, TypedValue } from "../../../src/contract/engine-contract.generated";
 import { frames, overlayAt, typedText, valueTable } from "../../../pages/dme/ruleSetEdit/trace-view";
-import { PACKAGE_ROOT } from "../../helpers/engine-paths";
+import { golden, goldenCases } from "../helpers/rule-set-golden";
 
-const GOLDEN_PATH = path.resolve(
-  PACKAGE_ROOT,
-  "../../backend/mdm/api/src/test/resources/com/dongkuk/dmes/mdm/dme/ruleSetEdit/rule-set-trace-golden.json",
-);
 const CASE_NAMES = ["IF_FIRST_TRUE", "IF_NULL_ELSE", "IF_ERROR_STOPS", "PARALLEL_MERGE", "IF_IN_PARALLEL", "STRUCTURE_ERROR", "MISSING_INPUT"];
-
-interface GoldenCase {
-  name: string;
-  flowJson: string;
-  response: { trace: RunTrace; warnings: unknown[] };
-}
-const goldenCases: GoldenCase[] = (JSON.parse(fs.readFileSync(GOLDEN_PATH, "utf8")) as { cases: GoldenCase[] }).cases;
-
-function golden(name: string): { flow: RuleSetFlow; trace: RunTrace; warnings: unknown[] } {
-  const c = goldenCases.find((x) => x.name === name);
-  if (!c) throw new Error(`골든 사례가 없다: ${name}`);
-  return { flow: JSON.parse(c.flowJson) as RuleSetFlow, trace: c.response.trace, warnings: c.response.warnings };
-}
 
 const S = (value: string): TypedValue => ({ type: "STRING", value });
 const N = (value: string): TypedValue => ({ type: "NUMBER", value });

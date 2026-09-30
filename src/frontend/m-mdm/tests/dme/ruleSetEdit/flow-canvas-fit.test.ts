@@ -76,7 +76,9 @@ function props(over: Partial<FlowCanvasProps> = {}): FlowCanvasProps {
   return {
     flow: ifFlow(), rules: {}, checks: [], mode: "view", showVars: false, selectedId: null, selectedEdgeId: null, overlay: null,
     focusId: null, focusSeq: 0, onSelect: noop, onSelectEdge: noop, onOpenRule: noop, onMove: noop, onConnect: noop,
-    onDeleteEdge: noop, onDropPalette: noop, onNoteChange: noop, ...over,
+    onDropPalette: noop, onNoteChange: noop,
+    breakpoints: new Set(), collapsed: new Set(), showMiniMap: false, editingCondEdgeId: null, onMoveNode: noop, onDropRule: noop,
+    onContextMenu: noop, onEditCond: noop, onEditCondClose: noop, onToggleBreakpoint: noop, ...over,
   };
 }
 const draw = (p: FlowCanvasProps) => act(async () => { root.render(createElement(DmesUiProvider, null, createElement(FlowCanvas, p))); });

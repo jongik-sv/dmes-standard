@@ -40,8 +40,8 @@ function sameNumber(a: string, b: string): boolean {
   return a === b || (a.trim() !== "" && b.trim() !== "" && Number(a) === Number(b));
 }
 
-/** TypedValue 비교 — type 이 같고 NUMBER 는 값 비교(1.10 == 1.1), LIST 는 원소별. 없음(null·undefined)은 없음과만 같다. */
-function sameTyped(a: TypedValue | null | undefined, b: TypedValue | null | undefined): boolean {
+/** TypedValue 비교 — type 이 같고 NUMBER 는 값 비교(1.10 == 1.1), LIST 는 원소별. 없음(null·undefined)은 없음과만 같다. 디버거 모델(3단계 P9)도 쓴다. */
+export function sameTyped(a: TypedValue | null | undefined, b: TypedValue | null | undefined): boolean {
   if (a == null || b == null) return a == null && b == null;
   if (a.type !== b.type) return false;
   switch (a.type) {
@@ -202,6 +202,13 @@ export function overlayAt(trace: RunTrace, flow: RuleSetFlow, step: number): Ove
     else edges[e.id] = last ? "dim" : "idle";
   }
   return { nodes, edges };
+}
+
+/**
+ * 디버그 커서 k 의 겹침(3단계 P9·P-D13) — 커서 k 는 "노드 k 실행 전"이다. nodes[0..k-1] 실행, nodes[k] 지금, nodes[k+1] 다음, k = n 이면 끝(최종 겹침).
+ */
+export function debugOverlay(trace: RunTrace, flow: RuleSetFlow, cursor: number): Overlay {
+  return overlayAt(trace, flow, cursor); // SEAM(T5): P9 커서 의미(current·next·pending, k = n 이면 최종 겹침)로 바꾼다
 }
 
 // ── 값 표 ──────────────────────────────────────────────────────────────────────

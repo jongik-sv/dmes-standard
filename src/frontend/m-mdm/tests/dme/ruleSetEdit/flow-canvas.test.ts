@@ -55,7 +55,9 @@ function props(over: Partial<FlowCanvasProps> = {}): FlowCanvasProps {
   return {
     flow: ifFlow(), rules: { R_A: ioOf("R_A") }, checks: [], mode: "view", showVars: false, selectedId: null, selectedEdgeId: null,
     overlay: null, focusId: null, focusSeq: 0, onSelect: noop, onSelectEdge: noop, onOpenRule: noop, onMove: noop, onConnect: noop,
-    onDeleteEdge: noop, onDropPalette: noop, onNoteChange: noop, ...over,
+    onDropPalette: noop, onNoteChange: noop,
+    breakpoints: new Set(), collapsed: new Set(), showMiniMap: false, editingCondEdgeId: null, onMoveNode: noop, onDropRule: noop,
+    onContextMenu: noop, onEditCond: noop, onEditCondClose: noop, onToggleBreakpoint: noop, ...over,
   };
 }
 async function draw(p: FlowCanvasProps) {
@@ -117,15 +119,13 @@ describe("FlowCanvas", () => {
     expect(q("flow-node-if1")!.getAttribute("data-state")).toBe("idle");
   });
 
-  it("편집 모드에서 선택한 선을 Delete 로 지운다, 보기 모드는 지우지 않는다", async () => {
-    const onDeleteEdge = vi.fn();
-    await draw(props({ mode: "edit", selectedEdgeId: "e2", onDeleteEdge }));
-    await act(async () => { q("flow-canvas")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", bubbles: true })); });
-    expect(onDeleteEdge).toHaveBeenCalledWith("e2");
-    onDeleteEdge.mockClear();
-    await draw(props({ mode: "view", selectedEdgeId: "e2", onDeleteEdge }));
-    await act(async () => { q("flow-canvas")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", bubbles: true })); });
-    expect(onDeleteEdge).not.toHaveBeenCalled();
+  it("캔버스는 Delete 를 스스로 처리하지 않는다 — 단축키는 page 가 캔버스 감싸개에서 디스패처로 받는다(3단계 P3)", async () => {
+    const onSelectEdge = vi.fn();
+    await draw(props({ mode: "edit", selectedEdgeId: "e2", onSelectEdge }));
+    const ev = new KeyboardEvent("keydown", { key: "Delete", bubbles: true, cancelable: true });
+    await act(async () => { q("flow-canvas")!.dispatchEvent(ev); });
+    expect(ev.defaultPrevented).toBe(false);
+    expect(q("flow-canvas")!.getAttribute("tabindex")).toBe("0"); // 초점은 계속 받는다
   });
 
   it("메모는 편집 모드에서만 글을 고친다", async () => {

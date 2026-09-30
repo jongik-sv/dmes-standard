@@ -171,12 +171,88 @@ export interface RuleSetView {
   editable: boolean;
   /** 담당자이고 DEPRECATED. */
   restorable: boolean;
+  /**
+   * 세트의 테스트 케이스(3단계 P8, CASE_ID 오름차순·최대 50). 상태와 무관하게 싣는다(P-D8).
+   * 서버(Task 4)가 붙기 전 응답에는 칸이 없을 수 있으니 쓰는 곳은 `view.cases ?? []` 로 읽는다.
+   */
+  cases: RuleSetCaseView[];
 }
 
-/** save 응답 — 새 rowVersion 과 WARN 검사. */
+/** 룰 세트 테스트 케이스 한 건(3단계 P8, `TB_MDM_RULE_SET_TEST_CASE`). evalTs 는 KST `yyyy-MM-dd HH:mm:ss` 문자열(P-D6). */
+export interface RuleSetCaseView {
+  caseId: number;
+  caseName: string | null;
+  inputJson: string;
+  evalTs: string | null;
+  expectedJson: string | null;
+  description: string | null;
+  rowVersion: number;
+}
+
+/** 케이스 저장 입력(3단계 P8) — caseId·rowVersion 이 null 이면 새 케이스. 빈 글자 칸은 보내지 않는다. */
+export interface CaseDraft {
+  caseId: number | null;
+  rowVersion: number | null;
+  caseName: string;
+  inputJson: string;
+  evalTs: string;
+  expectedJson: string;
+  description: string;
+}
+
+/** 케이스 실행 오류 한 건 — 서버 `RuleCaseJudge.error(Violation)` 모양. */
+export interface CaseRunError {
+  stage: string;
+  code: string;
+  rowId: number | null;
+  name: string | null;
+  message: string;
+  detail: string | null;
+}
+
+/** 기대값과 결과가 다른 칸 하나. actual 이 null 이면 결과에 없다. */
+export interface CaseMismatch {
+  key: string;
+  expected: unknown;
+  actual: unknown;
+}
+
+/** 케이스 하나의 실행 판정(3단계 P7 `RuleSetCaseJudge.judge`). pass=null 은 기대값 없이 실행만 한 것(P-D4). */
+export interface CaseRunResult {
+  caseId: number;
+  caseName: string | null;
+  outcome: "OK" | "ERROR";
+  pass: boolean | null;
+  mismatches: CaseMismatch[];
+  finalValues: Record<string, unknown>;
+  errors: CaseRunError[];
+}
+
+/** execute(runCases) 응답 — 케이스별 판정. */
+export interface RuleSetCaseRunResult {
+  cases: CaseRunResult[];
+}
+
+/** 식 파싱 결과(3단계 P-D1) — 서버 `RuleExprParseResult`. supported=false 면 화면에서 평가하지 않는다. */
+export interface ExprParse {
+  ast: unknown;
+  refVars: string[];
+  supported: boolean;
+  problems: { kind: string; detail: string }[];
+}
+
+/** validate(exprText) 응답. */
+export interface RuleSetExprParseResult {
+  expr: ExprParse;
+}
+
+/**
+ * save 응답 — 새 rowVersion 과 WARN 검사. 케이스 쓰기(`part=CASE`, 3단계 P8)면 rowVersion 은 케이스의 것(삭제면 null)이고 caseId 가 온다.
+ */
 export interface RuleSetSaveResult {
   setId: string;
-  rowVersion: number;
+  rowVersion: number | null;
+  caseId?: number | null;
   checks: RuleSetCheck[];
 }
 

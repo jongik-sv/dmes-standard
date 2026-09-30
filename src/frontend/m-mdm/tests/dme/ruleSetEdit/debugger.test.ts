@@ -3,12 +3,8 @@
 // 룰 세트 디버거(시뮬레이션 탭) 렌더 테스트 — 2단계 계획 Task 11. Task 4 골든(mdm/api test resources)을 사본 없이 경로로 읽어
 // execute 응답으로 돌려준다. 입력 폼 → 실행 params → 따라가기(상태 문구·캔버스 겹침) → 값 표(병렬 합류) → 오류 노드 상세 →
 // 편집 뒤 표시 지우기(구조만, 라벨·위치는 그대로) → 실행 권한 없음.
-import fs from "node:fs";
-import path from "node:path";
-import { createElement, act } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 
 const mocks = vi.hoisted(() => ({ openRuleEdit: vi.fn(), openMdmPage: vi.fn() }));
 
@@ -22,29 +18,12 @@ vi.mock("@/shell", async (importOriginal) => ({
   openMdmPage: (...args: unknown[]) => mocks.openMdmPage(...args),
 }));
 
-import RuleSetEditPage from "../../../pages/dme/ruleSetEdit/page";
 import type { RuleIo, RuleSetView } from "../../../pages/dme/ruleSetEdit/types";
-import type { RuleSetFlow, RunTrace } from "../../../src/contract/engine-contract.generated";
-import { PACKAGE_ROOT } from "../../helpers/engine-paths";
+import type { RuleSetFlow } from "../../../src/contract/engine-contract.generated";
 
-import { RBAC_STORE_KEY, findButton, flush, installDomStorage, jsonResponse, typeInto, visibleText } from "../helpers/render";
-
-const GOLDEN_PATH = path.resolve(
-  PACKAGE_ROOT,
-  "../../backend/mdm/api/src/test/resources/com/dongkuk/dmes/mdm/dme/ruleSetEdit/rule-set-trace-golden.json",
-);
-interface GoldenCase {
-  name: string;
-  flowJson: string;
-  recordJson: string;
-  response: { trace: RunTrace; warnings: Array<{ code: string; ruleId: string | null; message: string }> };
-}
-const goldenCases = (JSON.parse(fs.readFileSync(GOLDEN_PATH, "utf8")) as { cases: GoldenCase[] }).cases;
-const golden = (name: string): GoldenCase => {
-  const c = goldenCases.find((x) => x.name === name);
-  if (!c) throw new Error(`골든 사례가 없다: ${name}`);
-  return c;
-};
+import { findButton, flush, typeInto, visibleText } from "../helpers/render";
+import { golden, type GoldenCase } from "../helpers/rule-set-golden";
+import { byTestId, calls, click, installServer, ok, openSet, pageContainer, q, settle, srv, uninstallServer } from "../helpers/rule-set-page";
 
 type Src = "DICT" | "PROG" | "NONE";
 const ioName = (n: string, source: Src | null) => ({ name: n, source, label: null, dataType: null, scale: null, dateString: false, maruCodeId: null });
@@ -75,37 +54,6 @@ function viewOf(c: GoldenCase): RuleSetView {
   };
 }
 
-let container: HTMLDivElement;
-let root: Root | null = null;
-const originalFetch = globalThis.fetch;
-let requests: Array<{ action: string; body: Record<string, unknown> }> = [];
-let views: Record<string, RuleSetView> = {};
-let replies: Record<string, unknown> = {};
-/** 값이 있으면 execute 응답을 이 약속이 풀릴 때까지 붙잡아 둔다(늦은 응답 재현). */
-let executeGate: Promise<void> | null = null;
-let rbacRows: Array<Record<string, string>> = [];
-const ok = (result: unknown) => ({ meta: { success: true }, data: { result } });
-const calls = (action: string) => requests.filter((r) => r.action === action);
-
-async function settle(ms = 300) {
-  await act(async () => {
-    await new Promise((r) => setTimeout(r, ms));
-  });
-}
-function q<T extends Element = HTMLElement>(id: string): T | null {
-  return container.querySelector(`[data-testid="${id}"]`) as T | null;
-}
-function byTestId<T extends Element = HTMLElement>(id: string): T {
-  const el = q<T>(id);
-  if (!el) throw new Error(`data-testid ${id} 없음`);
-  return el;
-}
-async function click(id: string) {
-  await act(async () => {
-    byTestId(id).dispatchEvent(new MouseEvent("click", { bubbles: true }));
-  });
-  await flush();
-}
 /** 키 보냄 체크박스 — testid 는 감싼 span 에 있다. */
 async function clickSend(name: string) {
   await act(async () => {
@@ -120,17 +68,8 @@ const tabSelected = (id: string) => byTestId(id).closest("[role=tab]")?.getAttri
 
 async function openCase(name: string, opts: { simTab?: boolean } = {}) {
   const c = golden(name);
-  views.GT_SET = viewOf(c);
-  replies.execute = ok(c.response);
-  (globalThis as Record<string, unknown>).__mdmPageHandoff__ = { "mdm:dme/ruleSetEdit": { setId: "GT_SET" } };
-  container = document.createElement("div");
-  document.body.appendChild(container);
-  root = createRoot(container);
-  await act(async () => {
-    root!.render(createElement(DmesUiProvider, null, createElement(RuleSetEditPage, {})));
-  });
-  await flush();
-  await settle();
+  srv.replies.execute = ok(c.response);
+  await openSet("GT_SET", viewOf(c));
   if (opts.simTab !== false) await click("flow-tab-sim");
   return c;
 }
@@ -142,46 +81,13 @@ async function runSim(values: Record<string, string> = {}) {
 }
 
 beforeEach(() => {
-  installDomStorage();
-  requests = [];
-  executeGate = null;
-  views = {};
-  replies = {};
-  rbacRows = [{ objId: "*", action: "*", endpoint: "*", httpMethod: "*" }];
+  installServer();
   mocks.openRuleEdit.mockReset();
   mocks.openMdmPage.mockReset();
-  delete (globalThis as Record<string, unknown>).__mdmPageHandoff__;
-  globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input);
-    const body = init?.body ? JSON.parse(String(init.body)) : {};
-    const m = url.match(/\/oasis\/ruleSetEdit\/(\w+)/);
-    if (m) {
-      const action = m[1];
-      requests.push({ action, body });
-      const params = (body.params ?? {}) as Record<string, string>;
-      if (action === "view") {
-        const v = views[params.setId];
-        return jsonResponse(v ? ok(v) : { meta: { success: false, message: `룰 세트를 찾을 수 없습니다: ${params.setId}` } });
-      }
-      if (action === "execute" && executeGate) await executeGate;
-      return jsonResponse(replies[action === "search" ? `search:${params.target ?? "SET"}` : action] ?? ok({}));
-    }
-    if (url.includes("/api/auth/me")) return jsonResponse({ user: { id: "tester" } });
-    if (url.includes("/api/mcm/oasis/secUser/myButtonEndpoints")) return jsonResponse({ grids: { buttons: { rows: rbacRows } } });
-    return jsonResponse({}, 404);
-  }) as typeof fetch;
-  delete (globalThis as Record<string, unknown>)[RBAC_STORE_KEY];
 });
 
 afterEach(() => {
-  act(() => {
-    root?.unmount();
-  });
-  root = null;
-  container?.remove();
-  globalThis.fetch = originalFetch;
-  delete (globalThis as Record<string, unknown>)[RBAC_STORE_KEY];
-  delete (globalThis as Record<string, unknown>).__mdmPageHandoff__;
+  uninstallServer();
 });
 
 describe("디버거(시뮬레이션 탭)", () => {
@@ -189,7 +95,7 @@ describe("디버거(시뮬레이션 탭)", () => {
   it("입력 칸이 GT_THK·GT_KIND 두 개이고, 값을 넣고 [실행] 하면 execute 에 flowJson·recordJson 을 보낸다", async () => {
     const c = await openCase("PARALLEL_MERGE");
     expect(tabSelected("flow-tab-sim")).toBe("true");
-    const inputs = Array.from(container.querySelectorAll('[data-testid^="sim-input-"]')).map((e) => e.getAttribute("data-testid"));
+    const inputs = Array.from(pageContainer().querySelectorAll('[data-testid^="sim-input-"]')).map((e) => e.getAttribute("data-testid"));
     expect(inputs).toEqual(["sim-input-GT_THK", "sim-input-GT_KIND"]);
     expect(visibleText(byTestId("flow-sim-slot"))).toContain("컬럼 사전");
     await runSim({ GT_THK: "12", GT_KIND: "x" });
@@ -405,7 +311,7 @@ describe("디버거(시뮬레이션 탭)", () => {
     await runSim({ GT_THK: "12", GT_KIND: "x" });
     await click("flow-mode-edit");
     let release!: () => void;
-    executeGate = new Promise<void>((r) => {
+    srv.executeGate = new Promise<void>((r) => {
       release = r;
     });
     await click("sim-run");
@@ -446,11 +352,11 @@ describe("디버거(시뮬레이션 탭)", () => {
     await runSim({ GT_THK: "12", GT_KIND: "x" });
     const other = viewOf(golden("IF_ERROR_STOPS"));
     other.set.setId = "GT_OTHER";
-    views.GT_OTHER = other;
-    replies["search:SET"] = ok({ sets: [{ setId: "GT_OTHER", setName: "다른", status: "INUSE" }] });
+    srv.views.GT_OTHER = other;
+    srv.replies["search:SET"] = ok({ sets: [{ setId: "GT_OTHER", setName: "다른", status: "INUSE" }] });
     await typeInto(byTestId<HTMLInputElement>("set-pick-keyword"), "GT_");
     await act(async () => {
-      findButton(container, "찾기").click();
+      findButton(pageContainer(), "찾기").click();
     });
     await flush();
     await click("set-pick-GT_OTHER");
@@ -464,7 +370,7 @@ describe("디버거(시뮬레이션 탭)", () => {
 
   // 6
   it("execute 권한이 없으면 [실행] 이 꺼져 있고 이유를 title 로 알린다", async () => {
-    rbacRows = [
+    srv.rbacRows = [
       { objId: "ruleSetEdit", action: "search", endpoint: "*", httpMethod: "*" },
       { objId: "ruleSetEdit", action: "save", endpoint: "*", httpMethod: "*" },
     ];
