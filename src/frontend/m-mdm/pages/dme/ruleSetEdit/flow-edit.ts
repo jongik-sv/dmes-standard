@@ -1,0 +1,484 @@
+/**
+ * 룰 세트 흐름 편집 연산(2단계 계획 P7) — 캔버스가 부르는 순수 함수. React 의존이 없다.
+ *
+ * 모든 연산은 입력을 바꾸지 않는다. 먼저 노드·선·view 를 칸을 채운 새 객체로 복사한 뒤 복사본만 고친다.
+ * 돌려주는 노드는 `{id, kind, ruleId, splitId, label}`, 선은 `{id, from, to, order, cond, otherwise, label}` 칸을
+ * 모두 가진다(없는 값은 null, otherwise 는 boolean). 1단계 `parseFlow` 는 입력을 정규화하지 않으므로 이 모양이 곧 계약이다.
+ * `flowJsonOf` 는 서버 `RuleSetFlowJson.canonical`(P2)과 같은 키 순서로 써서 dirty 비교가 문자열 비교로 맞게 한다.
+ */
+import type { FlowEdge, FlowNode, FlowNodeKind, RuleSetFlow } from "@/contract/engine-contract.generated";
+
+import { linearFlow } from "./flow-model";
+
+export interface FlowPos {
+  x: number;
+  y: number;
+}
+export interface FlowNote {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  attach: string | null;
+}
+export interface FlowGroup {
+  id: string;
+  title: string;
+  nodeIds: string[];
+}
+export interface FlowView {
+  positions: Record<string, FlowPos>;
+  notes: FlowNote[];
+  groups: FlowGroup[];
+}
+export interface EditFlow extends RuleSetFlow {
+  view: FlowView;
+}
+export type EditResult = { ok: true; flow: EditFlow } | { ok: false; reason: string };
+
+/** 흐름 하나의 노드 상한 — 서버 `RuleSetFlowJson.MAX_NODES` 와 같은 값(P2). */
+export const MAX_NODES = 200;
+
+export const EMPTY_VIEW: FlowView = Object.freeze({
+  positions: Object.freeze({}) as Record<string, FlowPos>,
+  notes: Object.freeze([]) as unknown as FlowNote[],
+  groups: Object.freeze([]) as unknown as FlowGroup[],
+});
+
+/** 새 메모 크기(계약 밖 기본값). */
+const NOTE_W = 160;
+const NOTE_H = 80;
+
+const IF_BRANCH_LABEL = (order: number) => `갈래 ${order}`;
+const OTHERWISE_LABEL = "그 외";
+const SPLIT_LABEL: Record<"IF" | "PARALLEL", string> = { IF: "조건", PARALLEL: "병렬" };
+const SPLIT_PREFIX: Record<"IF" | "PARALLEL", string> = { IF: "if", PARALLEL: "par" };
+
+// ───────────────────────── 모양 도우미 ─────────────────────────
+
+const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
+const int = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+const isSplitKind = (k: FlowNodeKind): k is "IF" | "PARALLEL" => k === "IF" || k === "PARALLEL";
+
+/** 모든 칸을 채운 노드. */
+function node(id: string, kind: FlowNodeKind, ruleId: string | null = null, splitId: string | null = null, label: string | null = null): FlowNode {
+  return { id, kind, ruleId, splitId, label };
+}
+
+/** 모든 칸을 채운 선. */
+function edge(id: string, from: string, to: string, extra: Partial<Pick<FlowEdge, "order" | "cond" | "otherwise" | "label">> = {}): FlowEdge {
+  return { id, from, to, order: extra.order ?? null, cond: extra.cond ?? null, otherwise: extra.otherwise === true, label: extra.label ?? null };
+}
+
+const copyNode = (n: FlowNode): FlowNode => node(n.id, n.kind, str(n.ruleId), str(n.splitId), str(n.label));
+const copyEdge = (e: FlowEdge): FlowEdge =>
+  edge(e.id, e.from, e.to, { order: int(e.order), cond: str(e.cond), otherwise: e.otherwise === true, label: str(e.label) });
+const copyPos = (p: FlowPos): FlowPos => ({ x: p.x, y: p.y });
+const copyNote = (n: FlowNote): FlowNote => ({ id: n.id, text: n.text, x: n.x, y: n.y, w: n.w, h: n.h, attach: n.attach ?? null });
+const copyGroup = (g: FlowGroup): FlowGroup => ({ id: g.id, title: g.title, nodeIds: [...g.nodeIds] });
+
+function copyView(v: FlowView | undefined): FlowView {
+  const positions: Record<string, FlowPos> = {};
+  for (const [k, p] of Object.entries(v?.positions ?? {})) positions[k] = copyPos(p);
+  return { positions, notes: (v?.notes ?? []).map(copyNote), groups: (v?.groups ?? []).map(copyGroup) };
+}
+
+/** 고쳐도 되는 깊은 복사본(칸을 모두 채운다). */
+function clone(f: EditFlow): EditFlow {
+  return { version: 1, nodes: (f.nodes ?? []).map(copyNode), edges: (f.edges ?? []).map(copyEdge), view: copyView(f.view) };
+}
+
+/** 모양이 맞는 view 항목만 남긴다(P7 toEditFlow). */
+function sanitizeView(raw: unknown): FlowView {
+  const view: FlowView = { positions: {}, notes: [], groups: [] };
+  if (!isObj(raw)) return view;
+  if (isObj(raw.positions)) {
+    for (const [k, p] of Object.entries(raw.positions)) {
+      if (isObj(p) && finite(p.x) && finite(p.y)) view.positions[k] = { x: p.x, y: p.y };
+    }
+  }
+  if (Array.isArray(raw.notes)) {
+    for (const n of raw.notes) {
+      if (!isObj(n) || typeof n.id !== "string" || typeof n.text !== "string") continue;
+      if (!finite(n.x) || !finite(n.y) || !finite(n.w) || !finite(n.h)) continue;
+      if (n.attach != null && typeof n.attach !== "string") continue;
+      view.notes.push({ id: n.id, text: n.text, x: n.x, y: n.y, w: n.w, h: n.h, attach: (n.attach as string | null | undefined) ?? null });
+    }
+  }
+  if (Array.isArray(raw.groups)) {
+    for (const g of raw.groups) {
+      if (!isObj(g) || typeof g.id !== "string" || typeof g.title !== "string") continue;
+      if (!Array.isArray(g.nodeIds) || !g.nodeIds.every((x) => typeof x === "string")) continue;
+      view.groups.push({ id: g.id, title: g.title, nodeIds: [...(g.nodeIds as string[])] });
+    }
+  }
+  return view;
+}
+
+// ───────────────────────── ID ─────────────────────────
+
+function takenIds(f: EditFlow): Set<string> {
+  const s = new Set<string>();
+  for (const n of f.nodes ?? []) s.add(n.id);
+  for (const e of f.edges ?? []) s.add(e.id);
+  for (const n of f.view?.notes ?? []) s.add(n.id);
+  for (const g of f.view?.groups ?? []) s.add(g.id);
+  return s;
+}
+
+function fresh(taken: Set<string>, prefix: string): string {
+  for (let i = 1; ; i++) {
+    const id = `${prefix}${i}`;
+    if (!taken.has(id)) {
+      taken.add(id);
+      return id;
+    }
+  }
+}
+
+/** `p1`, `p2`, … 가운데 노드·선·메모·그룹 ID 어디에도 없는 가장 작은 것. */
+export function nextId(f: EditFlow, prefix: string): string {
+  return fresh(takenIds(f), prefix);
+}
+
+// ───────────────────────── 구조 도우미 ─────────────────────────
+
+const fail = (reason: string): EditResult => ({ ok: false, reason });
+const done = (flow: EditFlow): EditResult => ({ ok: true, flow });
+const findNode = (f: EditFlow, id: string) => f.nodes.find((n) => n.id === id);
+const findEdge = (f: EditFlow, id: string) => f.edges.find((e) => e.id === id);
+const outOf = (f: EditFlow, id: string) => f.edges.filter((e) => e.from === id);
+const inOf = (f: EditFlow, id: string) => f.edges.filter((e) => e.to === id);
+
+/** 짝 합류 — splitId 가 같은 MERGE 가 정확히 하나일 때만. */
+function mergeOf(f: EditFlow, splitId: string): FlowNode | null {
+  const ms = f.nodes.filter((n) => n.kind === "MERGE" && n.splitId === splitId);
+  return ms.length === 1 ? ms[0] : null;
+}
+
+/**
+ * from 들에서 나가는 선을 따라 stop(짝 합류) 직전까지 닿는 노드 ID. 모은 집합이 닫힌 블록이 아니면 null.
+ * - 나가는 쪽: START·END·없는 노드·분기 자신에 닿으면 null(뒤 선으로 앞쪽이나 분기로 돌아가는 순환 포함).
+ * - 들어오는 쪽: 모은 노드마다 들어오는 선이 입구 선(entry)이거나 모은 집합 안에서 와야 한다. 블록 밖에서 들어오는 선이
+ *   있으면 null — 그 노드를 지우면 블록 밖 흐름까지 끊기기 때문이다.
+ */
+function reach(f: EditFlow, from: readonly string[], stop: string, splitId: string, entry: (e: FlowEdge) => boolean): Set<string> | null {
+  const seen = new Set<string>();
+  const queue = [...from];
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    if (id === stop || seen.has(id)) continue;
+    if (id === splitId) return null;
+    const n = findNode(f, id);
+    if (!n || n.kind === "START" || n.kind === "END") return null;
+    seen.add(id);
+    for (const e of outOf(f, id)) queue.push(e.to);
+  }
+  for (const id of seen) {
+    if (!inOf(f, id).every((e) => entry(e) || seen.has(e.from))) return null;
+  }
+  return seen;
+}
+
+/** 분기 안(합류 제외) 노드 집합 — 분기의 나가는 선들에서 합류 직전까지. 합류로 들어오는 선도 분기·안쪽에서만 와야 한다. */
+function blockNodes(f: EditFlow, splitId: string, mergeId: string): Set<string> | null {
+  const fromSplit = (e: FlowEdge) => e.from === splitId;
+  const inner = reach(
+    f,
+    outOf(f, splitId).map((e) => e.to),
+    mergeId,
+    splitId,
+    fromSplit,
+  );
+  if (!inner) return null;
+  return inOf(f, mergeId).every((e) => fromSplit(e) || inner.has(e.from)) ? inner : null;
+}
+
+/** 갈래 선 하나의 안쪽 노드 집합(e.to 에서 합류 전까지). 안쪽 노드로는 그 갈래 선과 안쪽 선만 들어와야 한다. */
+function branchNodes(f: EditFlow, splitId: string, edgeId: string, mergeId: string): Set<string> | null {
+  const e = findEdge(f, edgeId);
+  return e ? reach(f, [e.to], mergeId, splitId, (x) => x.id === edgeId) : null;
+}
+
+/** 노드들을 지우고, 닿는 선을 모두 지우고, view 흔적(배치·그룹·메모 붙임)을 치운다. f 는 복사본이다. */
+function dropNodes(f: EditFlow, ids: ReadonlySet<string>): EditFlow {
+  const nodes = f.nodes.filter((n) => !ids.has(n.id));
+  const edges = f.edges.filter((e) => !ids.has(e.from) && !ids.has(e.to));
+  const positions: Record<string, FlowPos> = {};
+  for (const [k, p] of Object.entries(f.view.positions)) if (!ids.has(k)) positions[k] = p;
+  const groups = f.view.groups
+    .map((g) => ({ ...g, nodeIds: g.nodeIds.filter((x) => !ids.has(x)) }))
+    .filter((g) => g.nodeIds.length > 0);
+  const notes = f.view.notes.map((n) => (n.attach != null && ids.has(n.attach) ? { ...n, attach: null } : n));
+  return { version: f.version, nodes, edges, view: { positions, notes, groups } };
+}
+
+function insertAfter<T>(list: T[], index: number, ...items: T[]): void {
+  list.splice(index < 0 ? list.length : index + 1, 0, ...items);
+}
+
+// ───────────────────────── 공개 연산 ─────────────────────────
+
+/** null 이면 `linearFlow(ruleIds)` + 빈 view. raw 가 있으면 칸을 채워 복사하고 모양이 맞는 view 항목만 남긴다. */
+export function toEditFlow(raw: (RuleSetFlow & { view?: unknown }) | null, ruleIds: readonly string[]): EditFlow {
+  const src = raw ?? linearFlow(ruleIds);
+  return {
+    version: 1,
+    nodes: (Array.isArray(src.nodes) ? src.nodes : []).map(copyNode),
+    edges: (Array.isArray(src.edges) ? src.edges : []).map(copyEdge),
+    view: raw ? sanitizeView(raw.view) : { positions: {}, notes: [], groups: [] },
+  };
+}
+
+/** P2 정규 JSON 과 같은 키 순서의 문자열. view 항목도 고정 키 순서로 쓴다. */
+export function flowJsonOf(f: EditFlow): string {
+  const c = clone(f);
+  return JSON.stringify({ version: 1, nodes: c.nodes, edges: c.edges, view: c.view });
+}
+
+/** 선 e(A→B) 위에 룰을 끼운다. e.to = 새 룰, 새 선 {룰→B} 는 e 바로 뒤. 새 노드는 A 뒤(A 가 없으면 끝). */
+export function insertRule(f: EditFlow, edgeId: string, ruleId: string): EditResult {
+  const g = clone(f);
+  const ei = g.edges.findIndex((e) => e.id === edgeId);
+  if (ei < 0) return fail(`선 ${edgeId}를 찾지 못했다`);
+  const e = g.edges[ei];
+  const taken = takenIds(g);
+  const r = node(fresh(taken, "r"), "RULE", ruleId);
+  const out = edge(fresh(taken, "e"), r.id, e.to);
+  insertAfter(
+    g.nodes,
+    g.nodes.findIndex((n) => n.id === e.from),
+    r,
+  );
+  e.to = r.id;
+  insertAfter(g.edges, ei, out);
+  return done(g);
+}
+
+/** 선 e(A→B) 위에 분기 s·짝 합류 m 을 끼운다. 갈래 두 개와 합류 출구 {m→B} 를 만든다. */
+export function insertSplit(f: EditFlow, edgeId: string, kind: "IF" | "PARALLEL"): EditResult {
+  const g = clone(f);
+  const ei = g.edges.findIndex((e) => e.id === edgeId);
+  if (ei < 0) return fail(`선 ${edgeId}를 찾지 못했다`);
+  const e = g.edges[ei];
+  const taken = takenIds(g);
+  const s = node(fresh(taken, SPLIT_PREFIX[kind]), kind, null, null, SPLIT_LABEL[kind]);
+  const m = node(fresh(taken, "m"), "MERGE", null, s.id);
+  const branches =
+    kind === "IF"
+      ? [
+          edge(fresh(taken, "e"), s.id, m.id, { order: 1, label: IF_BRANCH_LABEL(1) }),
+          edge(fresh(taken, "e"), s.id, m.id, { otherwise: true, label: OTHERWISE_LABEL }),
+        ]
+      : [
+          edge(fresh(taken, "e"), s.id, m.id, { order: 1, label: IF_BRANCH_LABEL(1) }),
+          edge(fresh(taken, "e"), s.id, m.id, { order: 2, label: IF_BRANCH_LABEL(2) }),
+        ];
+  const exit = edge(fresh(taken, "e"), m.id, e.to);
+  insertAfter(
+    g.nodes,
+    g.nodes.findIndex((n) => n.id === e.from),
+    s,
+    m,
+  );
+  e.to = s.id;
+  insertAfter(g.edges, ei, ...branches, exit);
+  return done(g);
+}
+
+/** 노드를 지운다. RULE 은 앞뒤 선을 잇고, 분기는 짝 합류까지 안쪽을 통째로 지운다. */
+export function removeNode(f: EditFlow, nodeId: string): EditResult {
+  const g = clone(f);
+  const n = findNode(g, nodeId);
+  if (!n) return fail(`노드 ${nodeId}를 찾지 못했다`);
+  if (n.kind === "START") return fail("시작 노드는 지울 수 없다");
+  if (n.kind === "END") return fail("끝 노드는 지울 수 없다");
+  if (n.kind === "MERGE") return fail("합류 노드는 분기를 지워서 없앤다");
+  const ins = inOf(g, nodeId);
+  if (n.kind === "RULE") {
+    const outs = outOf(g, nodeId);
+    if (ins.length !== 1 || outs.length !== 1) return fail("룰 노드의 선이 하나씩이 아니라 지울 수 없다. 선을 먼저 정리한다");
+    ins[0].to = outs[0].to;
+    g.edges = g.edges.filter((e) => e !== outs[0]);
+    return done(dropNodes(g, new Set([nodeId])));
+  }
+  const cannot = `분기 ${nodeId}의 짝 합류를 찾지 못해 지울 수 없다`;
+  const m = mergeOf(g, nodeId);
+  if (!m) return fail(cannot);
+  const exits = outOf(g, m.id);
+  if (ins.length !== 1 || exits.length !== 1) return fail(cannot);
+  const inner = blockNodes(g, nodeId, m.id);
+  if (!inner) return fail(cannot);
+  ins[0].to = exits[0].to;
+  return done(dropNodes(g, new Set([nodeId, ...inner, m.id])));
+}
+
+/** 분기 s 와 그 갈래 선 e 를 확인한다. */
+function splitAndMerge(g: EditFlow, splitId: string): { split: FlowNode; merge: FlowNode } | string {
+  const split = findNode(g, splitId);
+  if (!split || !isSplitKind(split.kind)) return `노드 ${splitId}는 분기가 아니다`;
+  const merge = mergeOf(g, splitId);
+  if (!merge) return `분기 ${splitId}의 짝 합류를 찾지 못했다`;
+  return { split, merge };
+}
+
+function branchEdge(g: EditFlow, splitId: string, edgeId: string): FlowEdge | string {
+  const e = findEdge(g, edgeId);
+  if (!e) return `선 ${edgeId}를 찾지 못했다`;
+  if (e.from !== splitId) return `선 ${edgeId}는 분기 ${splitId}의 갈래가 아니다`;
+  return e;
+}
+
+const maxOrder = (branches: readonly FlowEdge[]) =>
+  branches.filter((e) => !e.otherwise && e.order != null).reduce((m, e) => Math.max(m, e.order as number), 0);
+
+/** 빈 갈래를 더한다. IF 는 "그 외" 앞, PARALLEL 은 끝 갈래 뒤. order = 최대 order + 1. */
+export function addBranch(f: EditFlow, splitId: string): EditResult {
+  const g = clone(f);
+  const sm = splitAndMerge(g, splitId);
+  if (typeof sm === "string") return fail(sm);
+  const outs = outOf(g, splitId);
+  const order = maxOrder(outs) + 1;
+  const b = edge(fresh(takenIds(g), "e"), splitId, sm.merge.id, { order, label: IF_BRANCH_LABEL(order) });
+  const other = sm.split.kind === "IF" ? outs.find((e) => e.otherwise) : undefined;
+  if (other) g.edges.splice(g.edges.indexOf(other), 0, b);
+  else insertAfter(g.edges, outs.length > 0 ? g.edges.indexOf(outs[outs.length - 1]) : -1, b);
+  return done(g);
+}
+
+/** 갈래 선 e 와 그 안 노드·선을 지운다. "그 외" 는 지우지 않고, 갈래는 2개 이상 남긴다. */
+export function removeBranch(f: EditFlow, splitId: string, edgeId: string): EditResult {
+  const g = clone(f);
+  const sm = splitAndMerge(g, splitId);
+  if (typeof sm === "string") return fail(sm);
+  const e = branchEdge(g, splitId, edgeId);
+  if (typeof e === "string") return fail(e);
+  if (e.otherwise) return fail('"그 외" 갈래는 지울 수 없다');
+  if (outOf(g, splitId).length - 1 < 2) return fail("분기에는 갈래가 2개 이상 있어야 한다");
+  const inner = branchNodes(g, splitId, edgeId, sm.merge.id);
+  if (!inner) return fail(`분기 ${splitId}의 짝 합류를 찾지 못해 지울 수 없다`);
+  g.edges = g.edges.filter((x) => x !== e);
+  return done(dropNodes(g, inner));
+}
+
+/** "그 외" 가 아닌 갈래를 order 로 줄 세워 이웃과 order 값을 바꾼다. */
+export function moveBranch(f: EditFlow, splitId: string, edgeId: string, dir: -1 | 1): EditResult {
+  const g = clone(f);
+  const sm = splitAndMerge(g, splitId);
+  if (typeof sm === "string") return fail(sm);
+  const e = branchEdge(g, splitId, edgeId);
+  if (typeof e === "string") return fail(e);
+  const sorted = outOf(g, splitId)
+    .filter((x) => !x.otherwise)
+    .sort((a, b) => (a.order ?? Number.POSITIVE_INFINITY) - (b.order ?? Number.POSITIVE_INFINITY));
+  const i = sorted.indexOf(e);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= sorted.length) return fail("더 옮길 수 없다");
+  const other = sorted[j];
+  [e.order, other.order] = [other.order, e.order];
+  return done(g);
+}
+
+/** 선의 조건식·이름 가운데 주어진 칸만 바꾼다(공백 판정은 파서 몫). */
+export function updateEdge(f: EditFlow, edgeId: string, patch: { cond?: string | null; label?: string | null }): EditResult {
+  const g = clone(f);
+  const e = findEdge(g, edgeId);
+  if (!e) return fail(`선 ${edgeId}를 찾지 못했다`);
+  if (patch.cond !== undefined) e.cond = patch.cond;
+  if (patch.label !== undefined) e.label = patch.label;
+  return done(g);
+}
+
+export function updateNodeLabel(f: EditFlow, nodeId: string, label: string | null): EditResult {
+  const g = clone(f);
+  const n = findNode(g, nodeId);
+  if (!n) return fail(`노드 ${nodeId}를 찾지 못했다`);
+  n.label = label;
+  return done(g);
+}
+
+/** 새 선 {from→to} 을 끝에 더한다. 같은 from·to 선이 있으면 거부한다. */
+export function connect(f: EditFlow, from: string, to: string): EditResult {
+  const g = clone(f);
+  if (g.edges.some((e) => e.from === from && e.to === to)) return fail("이미 이어진 선이다");
+  if (!findNode(g, from)) return fail(`노드 ${from}를 찾지 못했다`);
+  if (!findNode(g, to)) return fail(`노드 ${to}를 찾지 못했다`);
+  g.edges.push(edge(fresh(takenIds(g), "e"), from, to));
+  return done(g);
+}
+
+export function removeEdge(f: EditFlow, edgeId: string): EditResult {
+  const g = clone(f);
+  if (!findEdge(g, edgeId)) return fail(`선 ${edgeId}를 찾지 못했다`);
+  g.edges = g.edges.filter((e) => e.id !== edgeId);
+  return done(g);
+}
+
+/** 배치를 덮어쓴다(병합). */
+export function setPositions(f: EditFlow, pos: Readonly<Record<string, FlowPos>>): EditFlow {
+  const g = clone(f);
+  for (const [k, p] of Object.entries(pos)) g.view.positions[k] = copyPos(p);
+  return g;
+}
+
+export function addNote(f: EditFlow, at: FlowPos, attach: string | null): { flow: EditFlow; id: string } {
+  const g = clone(f);
+  const id = fresh(takenIds(g), "n");
+  g.view.notes.push({ id, text: "", x: at.x, y: at.y, w: NOTE_W, h: NOTE_H, attach });
+  return { flow: g, id };
+}
+
+/** 메모의 주어진 칸만 바꾼다(undefined 칸은 건드리지 않는다 — updateEdge 와 같다). */
+export function updateNote(f: EditFlow, id: string, patch: Partial<Omit<FlowNote, "id">>): EditFlow {
+  const g = clone(f);
+  const given = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) as Partial<Omit<FlowNote, "id">>;
+  g.view.notes = g.view.notes.map((n) => (n.id === id ? copyNote({ ...n, ...given, id }) : n));
+  return g;
+}
+
+export function removeNote(f: EditFlow, id: string): EditFlow {
+  const g = clone(f);
+  g.view.notes = g.view.notes.filter((n) => n.id !== id);
+  return g;
+}
+
+/** 그룹에 넣을 수 있는 노드만 — 있는 노드, START·END 제외, 중복 제거. */
+function groupable(g: EditFlow, ids: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const id of ids) {
+    const n = findNode(g, id);
+    if (!n || n.kind === "START" || n.kind === "END" || out.includes(id)) continue;
+    out.push(id);
+  }
+  return out;
+}
+
+export function addGroup(f: EditFlow, nodeIds: readonly string[], title: string): EditResult & { id?: string } {
+  const g = clone(f);
+  const ids = groupable(g, nodeIds);
+  if (ids.length < 1) return fail("그룹에 넣을 노드를 고른다");
+  const id = fresh(takenIds(g), "g");
+  g.view.groups.push({ id, title, nodeIds: ids });
+  return { ok: true, flow: g, id };
+}
+
+/** 그룹 제목·노드를 바꾼다. 노드는 addGroup 과 같이 거른다(비어도 그룹은 남긴다 — 지우기는 removeGroup). */
+export function updateGroup(f: EditFlow, id: string, patch: { title?: string; nodeIds?: string[] }): EditFlow {
+  const g = clone(f);
+  g.view.groups = g.view.groups.map((x) =>
+    x.id !== id
+      ? x
+      : { id: x.id, title: patch.title ?? x.title, nodeIds: patch.nodeIds !== undefined ? groupable(g, patch.nodeIds) : x.nodeIds },
+  );
+  return g;
+}
+
+export function removeGroup(f: EditFlow, id: string): EditFlow {
+  const g = clone(f);
+  g.view.groups = g.view.groups.filter((x) => x.id !== id);
+  return g;
+}
