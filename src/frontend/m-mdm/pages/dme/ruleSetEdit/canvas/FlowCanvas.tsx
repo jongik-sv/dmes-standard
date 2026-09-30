@@ -130,6 +130,11 @@ export interface FlowCanvasProps {
   /** 놓인 노드·블록을 선 위에 놓음(A2 — Task 7). */
   onMoveNode: (nodeId: string, edgeId: string, pos: Record<string, FlowPos>) => void;
   onConnect: (from: string, to: string) => void;
+  /**
+   * 고른 선의 한쪽 끝을 다른 노드 손잡이에 놓음(R1 — 선 끝 옮기기). 바뀐 끝만 담는다(`from` = 출발 쪽, `to` = 도착 쪽).
+   * 편집 모드에서 선을 골랐을 때만 끝 손잡이가 뜨고, 안 넘기면(또는 보기·디버그 모드면) 끝 손잡이가 없다. 끌기 중에는 부르지 않고 놓을 때 한 번 부른다.
+   */
+  onReconnect?: (edgeId: string, end: { from?: string; to?: string }) => void;
   /** 팔레트 항목을 놓음(A1) — 놓은 자리에서 가장 가까운 선(없으면 null)을 함께 올린다. */
   onDropPalette: (item: PaletteItem, at: FlowPos, edgeId: string | null) => void;
   /** 룰 목록 줄을 놓음(A4). */
@@ -453,7 +458,7 @@ function Inner(props: FlowCanvasProps) {
   const {
     flow, rules, checks, mode, showVars, selectedId, selectedEdgeId, overlay, focusId, focusSeq, focusReveal, fitSignal, fitKey,
     breakpoints, collapsed, valueAt, showMiniMap, editingCondEdgeId,
-    onSelect, onSelectEdge, onOpenRule, onMove, onMoveNode, onConnect, onDropPalette, onDropRule, onNoteChange, onContextMenu, onToggleBreakpoint,
+    onSelect, onSelectEdge, onOpenRule, onMove, onMoveNode, onConnect, onReconnect, onDropPalette, onDropRule, onNoteChange, onContextMenu, onToggleBreakpoint,
     onEditCond, onRouteChange, removeRoutePointRef, clearSelectionRef, onEditCondClose, onSelectionChange,
   } = props;
   const editable = mode === "edit";
@@ -616,11 +621,13 @@ function Inner(props: FlowCanvasProps) {
       };
       return {
         id: e.id, source: e.from, target: e.to, type: "rsfFlow", selected: selectedEdgeId === e.id,
+        // 끝 손잡이(R1)는 편집 모드에서 고른 선에만 — 접힌 분기가 이어 받은 선은 원래 끝이 아니라 옮길 수 없다. 나머지 선은 끝 손잡이를 그리지 않는다.
+        reconnectable: !!onReconnect && editable && !folded && selectedEdgeId === e.id,
         markerEnd: { type: MarkerType.ArrowClosed },
         data,
       };
     });
-  }, [flow, vflow, view, chips, overlay, eMarks, showVars, selectedEdgeId, editable, debugging, valueAt, editingCondEdgeId, condEdge, dropEdge]);
+  }, [flow, vflow, view, chips, overlay, eMarks, showVars, selectedEdgeId, editable, debugging, valueAt, editingCondEdgeId, condEdge, dropEdge, onReconnect]);
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     const dims = changes.filter((c): c is Extract<NodeChange, { type: "dimensions" }> => c.type === "dimensions" && !!c.dimensions);
@@ -743,6 +750,15 @@ function Inner(props: FlowCanvasProps) {
   const onConnectCb = useCallback((c: Connection) => {
     if (editable && c.source && c.target) onConnect(c.source, c.target);
   }, [editable, onConnect]);
+
+  // 선 끝 옮기기(R1) — 놓을 때 한 번. RF 는 끝이 제자리여도 부르므로 바뀐 끝이 있을 때만 올린다.
+  const onReconnectCb = useCallback((old: Edge, c: Connection) => {
+    if (!editable || !onReconnect || !c.source || !c.target) return;
+    const end: { from?: string; to?: string } = {};
+    if (c.source !== old.source) end.from = c.source;
+    if (c.target !== old.target) end.to = c.target;
+    if (end.from !== undefined || end.to !== undefined) onReconnect(old.id, end);
+  }, [editable, onReconnect]);
 
   /** 흐름 좌표 상자가 지금 캔버스 화면 안에 모두 들어 있는가(E1 — focusReveal). */
   const inView = (x: number, y: number, w: number, h: number) => {
@@ -985,6 +1001,8 @@ function Inner(props: FlowCanvasProps) {
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
         onConnect={onConnectCb}
+        onReconnect={editable && onReconnect ? onReconnectCb : undefined}
+        edgesReconnectable={false}
         onNodeClick={(_e, n) => onSelect(n.id)}
         onEdgeClick={(_e, ed) => onSelectEdge(ed.id)}
         onPaneClick={() => {

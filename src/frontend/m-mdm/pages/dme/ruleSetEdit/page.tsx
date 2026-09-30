@@ -39,7 +39,7 @@ import { useSimulation } from "./debugger/useSimulation";
 import { useTestCases } from "./debugger/useTestCases";
 import { ValuesTab } from "./debugger/ValuesTab";
 import { VariablePanel } from "./debugger/VariablePanel";
-import { connect, flowJsonOf, setPositions, setRoute, updateEdge, updateNote, type EditFlow, type EditResult, type FlowNote, type FlowPos } from "./flow-edit";
+import { connect, flowJsonOf, reconnectEdge, setPositions, setRoute, updateEdge, updateNote, type EditFlow, type EditResult, type FlowNote, type FlowPos } from "./flow-edit";
 import { autoArrange } from "./flow-layout";
 import { openRule } from "./links";
 import { BottomPanel, type BottomTab } from "./panels/BottomPanel";
@@ -246,6 +246,11 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     [editing, drag],
   );
   const onConnect = useCallback((from: string, to: string) => editing && edit((f) => connect(f, from, to)), [editing, edit]);
+  // 선 끝 옮기기(R1) — 한 번이 되돌리기 한 칸. 거부(같은 선이 이미 있음·자기 잇기)는 edit 가 실패 알림으로 알리고 흐름은 그대로다.
+  const onReconnect = useCallback(
+    (edgeId: string, end: { from?: string; to?: string }) => editing && edit((f) => reconnectEdge(f, edgeId, end)),
+    [editing, edit],
+  );
   // 메모 글 입력은 되돌리기 기록을 합친다(P5 note:{id}). 위치 끌기는 놓을 때 한 번이라 합치지 않는다.
   const onNoteChange = useCallback(
     (id: string, patch: Partial<FlowNote>) =>
@@ -516,6 +521,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         clearSelectionRef={clearCanvasSelectionRef}
                         onMoveNode={onMoveNode}
                         onConnect={onConnect}
+                        onReconnect={onReconnect}
                         onDropPalette={editActions.dropPalette}
                         onDropRule={editActions.dropRule}
                         onNoteChange={onNoteChange}
