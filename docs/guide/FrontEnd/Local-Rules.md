@@ -210,3 +210,14 @@ shared `Modal`(Mantine)은 열린 창마다 window 의 Escape 를 받는다. 등
 
 - 오류가 나도 입력을 고쳐 다시 보내야 하는 팝업은, 오류창이 떠 있는 동안 자기 `onClose` 를 무시한다: `onClose={() => { if (!errorMessage) setOpen(false); }}`.
 - 예시: `m-mdm/pages/dme/ruleMng/page.tsx` 의 룰 등록 팝업.
+
+## 19. React Flow 캔버스 — 누름·초점·memo 함정 (2026-10-01)
+
+룰 세트 흐름 캔버스(`m-mdm/pages/dme/ruleSetEdit/canvas/`)에서 실측한 함정이다.
+
+- **memo 의존성 누락은 새 객체 prop 테스트가 가린다.** 테스트가 다시 그릴 때마다 `rules`·`checks: []`·`new Set()` 을 새로 만들면 memo 가 늘 다시 돌아 빠진 의존성이 드러나지 않는다(룰 노드 제목이 토글을 안 따르던 결함). 바꾸려는 prop 하나만 바꾸고 나머지는 같은 참조로 둔 테스트를 하나 둔다.
+- **`EdgeLabelRenderer` 층은 `pointer-events: none` 이다.** 안에 둔 칩·라벨은 이를 물려받아 hover 를 못 받으므로 `title` 툴팁이 뜨지 않는다. 누름·hover 가 필요한 요소만 `pointer-events: auto` 로 다시 켠다.
+- **영역 선택 뒤 선택 상자(`.react-flow__nodesselection-rect`)가 상자 안 누름·우클릭을 가로챈다.** 고른 노드 우클릭 메뉴·손잡이·링크가 막힌다. 상자에 `pointer-events: none` 을 준다(여러 개 끌기는 고른 노드를 끌어서 된다).
+- **툴바 단추가 초점을 쥐고 있으면 스페이스+끌기(화면 이동) 때 그 단추가 다시 눌린다.** 캔버스 툴바 단추는 mousedown 기본 동작(초점 이동)을 막는다(키보드 Tab·Enter 는 그대로).
+- **초점을 가진 요소를 지우면 초점이 body 로 빠져 캔버스 단축키가 끊긴다**(선 Delete 뒤 Ctrl+Z 무반응). 단축키 디스패처가 처리한 뒤 `document.activeElement` 가 body 면 캔버스 host 로 돌린다.
+- 예시: `canvas/FlowCanvas.tsx`, `canvas/FlowToolbar.tsx`, `styles/collapse.ts`(칩)·`styles/space.ts`(선택 상자), `page.tsx` 의 `onCanvasKeyDown`.
