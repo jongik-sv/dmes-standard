@@ -69,7 +69,8 @@ export type RuleSetCheckCode =
   | "IF_SIBLING"
   | "PAR_SIBLING"
   | "FLOW_PARTIAL"
-  | "FLOW_READONLY";
+  | "FLOW_READONLY"
+  | "COND_UNTYPED";
 
 /**
  * 저장 시 검사 한 건(§6.3, 계획 C4). 없는 칸은 null — EMPTY 는 ruleId 도 null, 1단계는 otherRuleId·varName 이 null.
