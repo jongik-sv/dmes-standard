@@ -434,12 +434,13 @@ describe("FlowCanvas — 끌어서 영역 선택(Figma 방식 이동 조작)", (
     expect(onSelectionChange).toHaveBeenLastCalledWith(["r1", "r2"]); // 흐름 순서, 메모 제외
     expect(nodeEl("r1").classList.contains("selected")).toBe(true);
     expect(nodeEl(noteId).classList.contains("selected")).toBe(true);
-    // 여러 개 끌기(이미 있는 동작 — 회귀): React Flow 는 고른 노드를 함께 끈다.
+    // 여러 개 끌기(이미 있는 동작 — 회귀): React Flow 는 고른 노드를 함께 끈다. Alt 로 스냅을 끈다 — 스냅이 고정 안 된 이웃(start)에 맞으면
+    // 그 대상도 함께 고정해 올리므로(I2) 이 테스트는 끈 것만 본다.
     const s = screenOf(at("r1"));
     await fire(nodeEl("r1"), "mousedown", s);
-    await fire(window, "mousemove", { clientX: s.clientX + 30, clientY: s.clientY + 40 });
-    await fire(window, "mousemove", { clientX: s.clientX + 50, clientY: s.clientY + 60 });
-    await fire(window, "mouseup", { clientX: s.clientX + 50, clientY: s.clientY + 60 });
+    await fire(window, "mousemove", { clientX: s.clientX + 30, clientY: s.clientY + 40, altKey: true });
+    await fire(window, "mousemove", { clientX: s.clientX + 50, clientY: s.clientY + 60, altKey: true });
+    await fire(window, "mouseup", { clientX: s.clientX + 50, clientY: s.clientY + 60, altKey: true });
     expect(onMove).toHaveBeenCalledTimes(1);
     const [pos, notes] = onMove.mock.calls[0];
     expect(Object.keys(pos).sort()).toEqual(["r1", "r2"]);
@@ -573,14 +574,18 @@ describe("화면 — [공간] 토글·Alt+끌기", () => {
     expect(document.activeElement).not.toBe(note);
   });
 
-  it("영역 선택 뒤 Delete 는 전에 누른 노드를 지우지 않는다(리뷰 Minor 1)", async () => {
+  it("영역 선택 뒤 Delete 는 전에 누른 노드를 지우지 않고 영역으로 고른 것을 지운다(리뷰 Minor 1·M2)", async () => {
     await openSet("SC_D", viewOf("SC_D", chain()));
     await click("flow-mode-edit");
     await click("flow-node-r1");
     expect(q("flow-prop-rule")).not.toBeNull();
     await act(async () => {
+      // React Flow 영역 선택은 앞 선택(r1)을 풀고 상자에 걸린 것을 고른다.
       (lastRf().onSelectionStart as (e: unknown) => void)({});
-      (lastRf().onNodesChange as (c: unknown[]) => void)(["r2", "r3"].map((id) => ({ type: "select", id, selected: true })));
+      (lastRf().onNodesChange as (c: unknown[]) => void)([
+        { type: "select", id: "r1", selected: false },
+        ...["r2", "r3"].map((id) => ({ type: "select", id, selected: true })),
+      ]);
     });
     await flush();
     expect(q("flow-prop-rule")).toBeNull();
@@ -590,6 +595,8 @@ describe("화면 — [공간] 토글·Alt+끌기", () => {
     });
     await key(canvas, { key: "Delete" });
     expect(document.querySelector('.react-flow__node[data-id="r1"]')).not.toBeNull();
+    expect(document.querySelector('.react-flow__node[data-id="r2"]')).toBeNull();
+    expect(document.querySelector('.react-flow__node[data-id="r3"]')).toBeNull();
   });
 
   it("Alt+끌기는 토글 없이 된다(되돌리기 한 칸)", async () => {
