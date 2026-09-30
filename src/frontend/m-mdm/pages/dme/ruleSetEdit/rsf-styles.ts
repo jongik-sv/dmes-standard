@@ -198,6 +198,8 @@ export const RSF_CSS = `
 .rsf-bottom[data-collapsed="true"] { flex: none; }
 .rsf-bottom-head { display: flex; align-items: center; gap: var(--spacing-sm); padding: 0 var(--spacing-sm); }
 .rsf-bottom-body { flex: 1 1 0; min-height: 0; overflow: auto; padding: var(--spacing-xs) var(--spacing-md); }
+/* 시뮬레이션 탭 — 본문은 스크롤하지 않고 SimulationPanel 이 버튼 줄 고정 + 아래 영역 스크롤로 나눈다 */
+.rsf-bottom-body[data-tab="sim"] { overflow: hidden; display: flex; flex-direction: column; padding-top: 0; padding-bottom: 0; }
 .rsf-bottom-bar { flex: none; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-bg); }
 
 /* 검사 결과 */
@@ -213,9 +215,25 @@ export const RSF_CSS = `
 .rsf-check-text { flex: 1; min-width: 0; }
 .rsf-check-node { flex: none; color: var(--color-text-muted); }
 .rsf-sim-slot { min-height: 40px; }
+.rsf-bottom-body[data-tab="sim"] > .rsf-sim-slot { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
 
 /* 룰 세트 디버거(시뮬레이션 탭·노드 상세·값 표, 2단계 계획 Task 11). 색은 의미 토큰만 쓴다. 한 변 색 바는 쓰지 않는다(Local-Rules §8). */
-.rsim { display: flex; flex-wrap: wrap; gap: var(--spacing-md); align-items: flex-start; outline: none; min-width: 0; }
+.rsim { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; min-width: 0; outline: none; }
+/* 고정 버튼 줄 — [실행]·[표시 지우기] | 따라가기(처음·이전·다음·끝·진행 막대·상태 문구) */
+.rsim-bar {
+  flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-xs) var(--spacing-sm);
+  padding: var(--spacing-xs) 0; border-bottom: 1px solid var(--color-border-light);
+}
+.rsim-bar-run { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-xs); }
+.rsim-bar-sep { align-self: stretch; width: 1px; margin: 2px 0; background: var(--color-border); }
+.rsim-bar .rsim-stepper { flex: 1 1 420px; min-width: 0; flex-direction: row; flex-wrap: wrap; align-items: center; gap: var(--spacing-xs) var(--spacing-sm); }
+.rsim-bar .rsim-stepper-row { flex: 1 1 320px; min-width: 0; }
+.rsim-bar .rsim-status { flex: 1 1 200px; min-width: 0; }
+/* 스크롤 영역 — 입력 폼 | 실행 결과(오류·값 표·경고) */
+.rsim-scroll {
+  flex: 1 1 0; min-height: 0; overflow: auto; display: flex; flex-wrap: wrap; gap: var(--spacing-md); align-items: flex-start;
+  padding: var(--spacing-xs) 0;
+}
 .rsim-input { flex: 0 1 380px; min-width: 260px; display: flex; flex-direction: column; gap: var(--spacing-xs); }
 .rsim-main { flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: var(--spacing-xs); }
 .rsim-title { margin: 0; font-weight: 600; }

@@ -2,6 +2,7 @@
 
 /**
  * 아래 패널(2단계 계획 Task 10, P10) — 탭 "검사 결과 {n}" · "시뮬레이션" 과 접기. 시뮬레이션 탭 내용은 `simulation` 슬롯으로 받는다(Task 11 이 채운다).
+ * 검사 결과 탭은 본문이 스크롤하고, 시뮬레이션 탭은 본문이 스크롤하지 않는다 — 버튼 줄을 고정하고 입력·값 표만 SimulationPanel 이 스크롤한다.
  * 바깥 틀(펼침 = 분할 패널, 접힘 = 머리 줄만)은 page.tsx 가 고른다 — 분할 골격은 page 의 직접 자식이어야 하기 때문이다(Part B §4-3).
  */
 import type { ReactNode } from "react";
@@ -52,7 +53,7 @@ export function BottomPanel({ tab, onTab, collapsed, onToggle, checkCount, check
         </Button>
       </div>
       {!collapsed && (
-        <div className="rsf-bottom-body">
+        <div className="rsf-bottom-body" data-testid="flow-bottom-body" data-tab={tab}>
           {tab === "checks" ? (
             checks
           ) : (

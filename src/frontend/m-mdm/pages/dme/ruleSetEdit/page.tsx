@@ -60,6 +60,11 @@ const NO_TARGET_EDGE = "끼울 선을 찾지 못했다. 캔버스에서 선을 �
 const GROUP_TITLE = "그룹";
 /** 새 메모를 선택 노드 오른쪽에 둘 때의 간격(px). */
 const NOTE_GAP = 24;
+/**
+ * 아래 패널 기본 높이(px, 사용자가 끌어 바꾼 값은 storageKey 로 남는다). 220 → 280: 탭 머리(약 36)와 고정 버튼 줄(따라가기 상태 포함 약 60)을 빼고도
+ * 입력 칸 4~5줄이 보이게. 1030px 높이 화면에서 캔버스 쪽은 minSize 200 보다 넉넉히 남는다.
+ */
+const BOTTOM_HEIGHT = 280;
 
 async function searchSetPicks(keyword: string): Promise<IdPickRow[]> {
   const res = await searchSets(keyword);
@@ -421,7 +426,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                   {bottom}
                 </div>
               ) : (
-                <ContentPanel key="bottom" height={220} minSize={120}>
+                <ContentPanel key="bottom" height={BOTTOM_HEIGHT} minSize={120}>
                   {bottom}
                 </ContentPanel>
               )}
