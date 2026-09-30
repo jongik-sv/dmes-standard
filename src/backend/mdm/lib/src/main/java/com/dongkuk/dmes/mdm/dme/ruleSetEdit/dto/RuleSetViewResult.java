@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto;
 
+import com.dongkuk.dmes.mdm.common.rule.CondIo;
 import com.dongkuk.dmes.mdm.common.rule.RuleIo;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetCheck;
 import java.util.List;
@@ -16,16 +17,20 @@ public class RuleSetViewResult {
     private List<RuleSetCheck> checks;
     private boolean editable;
     private boolean restorable;
+    /** 저장된 흐름의 IF "그 외" 가 아닌 선마다 조건식 입출력(선 ID 키). 흐름이 없으면 빈 맵. */
+    private Map<String, CondIo> condIo;
 
     public RuleSetViewResult() {
     }
 
-    public RuleSetViewResult(Header set, List<RuleIo> rules, List<RuleSetCheck> checks, boolean editable, boolean restorable) {
+    public RuleSetViewResult(Header set, List<RuleIo> rules, List<RuleSetCheck> checks, boolean editable, boolean restorable,
+                             Map<String, CondIo> condIo) {
         this.set = set;
         this.rules = rules;
         this.checks = checks;
         this.editable = editable;
         this.restorable = restorable;
+        this.condIo = condIo;
     }
 
     public Header getSet() { return set; }
@@ -33,12 +38,14 @@ public class RuleSetViewResult {
     public List<RuleSetCheck> getChecks() { return checks; }
     public boolean isEditable() { return editable; }
     public boolean isRestorable() { return restorable; }
+    public Map<String, CondIo> getCondIo() { return condIo; }
 
     public void setSet(Header v) { this.set = v; }
     public void setRules(List<RuleIo> v) { this.rules = v; }
     public void setChecks(List<RuleSetCheck> v) { this.checks = v; }
     public void setEditable(boolean v) { this.editable = v; }
     public void setRestorable(boolean v) { this.restorable = v; }
+    public void setCondIo(Map<String, CondIo> v) { this.condIo = v; }
 
     /** {@code TB_MDM_RULE_SET} 한 행. {@code ruleIds} 는 저장된 JSON 배열 그대로의 순서다. */
     public static class Header {
