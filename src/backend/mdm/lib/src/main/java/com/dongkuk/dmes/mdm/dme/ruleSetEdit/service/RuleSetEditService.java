@@ -9,11 +9,13 @@ import com.dongkuk.dmes.mdm.common.rule.RuleIo;
 import com.dongkuk.dmes.mdm.common.rule.RuleIoReader;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetAnalyzer;
+import com.dongkuk.dmes.mdm.common.rule.RuleSetCaseJudge;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetCheck;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetFlowJson;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetGuide;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetRunner;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetTestCaseQueries;
+import com.dongkuk.dmes.mdm.common.rule.RuleCaseInputs;
 import com.dongkuk.dmes.mdm.common.rule.RunTraceJson;
 import com.dongkuk.dmes.mdm.common.rule.RuleStewardCheck;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionException;
@@ -36,10 +38,12 @@ import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetViewResult;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.service.RuleSetWrites.SetState;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.entity.MdmRuleSet;
+import com.dongkuk.dmes.mdm.entity.MdmRuleSetTestCase;
 import com.dongkuk.dmes.mdm.repository.MdmRuleSetRepository;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -292,6 +296,9 @@ public class RuleSetEditService {
      */
     public RuleSetSimulateResult simulate(RuleSetSimulateRequest request) {
         String flowJson = requireFlowJson(request == null ? null : request.getFlowJson());
+        if (Boolean.TRUE.equals(request.getRunCases())) {
+            return runCases(flowJson, request);
+        }
         String recordJson = request.getRecordJson();
         Map<String, Object> record = recordJson == null || recordJson.isBlank() ? Map.of() : RuleCaseJudge.object(recordJson);
         if (record == null) {
@@ -306,6 +313,58 @@ public class RuleSetEditService {
                     List.of());
         }
         return new RuleSetSimulateResult(RunTraceJson.toMap(trace), simulateWarnings(flowJson, trace));
+    }
+
+    /**
+     * 저장된 케이스를 화면이 보낸 흐름으로 돌린다(P7, P-D12). 거른 케이스가 상한을 넘으면 아무것도 돌리지 않고 MDM021 로 거부한다.
+     * 입력이 JSON 객체가 아니면(저장 뒤 손상) 그 케이스만 INVALID_INPUT_JSON 오류로 답한다.
+     */
+    private RuleSetSimulateResult runCases(String flowJson, RuleSetSimulateRequest request) {
+        String setId = requireSetId(request.getSetId());
+        List<Integer> wanted = request.caseIdList();
+        List<MdmRuleSetTestCase> picked = caseQueries.cases(setId).stream()
+                .filter(c -> wanted.isEmpty() || wanted.contains(c.getCaseId()))
+                .toList();
+        if (picked.size() > RuleSetTestCaseService.MAX_CASES_PER_SET) {
+            throw RuleCaseInputs.limit("한 번에 " + picked.size() + "건을 돌리려 한다. " + RuleSetTestCaseService.MAX_CASES_PER_SET + "건까지 돌린다");
+        }
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (MdmRuleSetTestCase c : picked) {
+            Map<String, Object> record = RuleCaseJudge.object(c.getInputJson());
+            if (record == null) {
+                out.add(invalidInputCase(c));
+                continue;
+            }
+            Instant ts = c.getEvalTs() == null ? null : RuleSetRunner.parseKst(c.getEvalTs());
+            RunTrace trace;
+            try {
+                trace = runner.trace(flowJson, record, ts);
+            } catch (StoredDefinitionException e) {
+                throw MdmErrors.of(MdmErrorCode.STORED_DEFINITION_CORRUPT,
+                        "룰 세트 흐름의 저장된 룰 정의를 읽을 수 없어 실행하지 않습니다 — " + e.getMessage(), List.of());
+            }
+            out.add(RuleSetCaseJudge.judge(c.getCaseId(), c.getCaseName(), c.getExpectedJson(), trace));
+        }
+        return new RuleSetSimulateResult(null, List.of(), out);
+    }
+
+    private static Map<String, Object> invalidInputCase(MdmRuleSetTestCase c) {
+        Map<String, Object> error = new LinkedHashMap<>();
+        error.put("stage", "INPUT_CHECK");
+        error.put("code", "INVALID_INPUT_JSON");
+        error.put("rowId", null);
+        error.put("name", null);
+        error.put("message", "케이스 입력이 JSON 객체가 아니다");
+        error.put("detail", "케이스 입력이 JSON 객체가 아니다");
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("caseId", c.getCaseId());
+        m.put("caseName", c.getCaseName());
+        m.put("outcome", "ERROR");
+        m.put("pass", false);
+        m.put("mismatches", List.of());
+        m.put("finalValues", Map.of());
+        m.put("errors", List.of(error));
+        return m;
     }
 
     private List<Map<String, Object>> simulateWarnings(String flowJson, RunTrace trace) {

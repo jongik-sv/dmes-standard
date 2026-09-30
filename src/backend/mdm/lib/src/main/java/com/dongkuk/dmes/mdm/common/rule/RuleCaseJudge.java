@@ -146,7 +146,7 @@ public final class RuleCaseJudge {
         return mismatches.isEmpty();
     }
 
-    private static String resultKey(Map<String, Object> results, String key) {
+    public static String resultKey(Map<String, Object> results, String key) {
         if (results.containsKey(key)) {
             return key;
         }
@@ -211,7 +211,7 @@ public final class RuleCaseJudge {
         return null;
     }
 
-    private static Map<String, Object> mismatch(String key, Object expected, Object actual) {
+    public static Map<String, Object> mismatch(String key, Object expected, Object actual) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("key", key);
         m.put("expected", expected);
@@ -241,7 +241,7 @@ public final class RuleCaseJudge {
         return v.toString();
     }
 
-    private static Map<String, Object> error(Violation v) {
+    public static Map<String, Object> error(Violation v) {
         return error(v.stage().name(), v.code().name(), v.rowId(), v.name(), v.message());
     }
 
