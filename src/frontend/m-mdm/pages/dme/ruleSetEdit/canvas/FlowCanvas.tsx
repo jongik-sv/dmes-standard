@@ -194,6 +194,10 @@ export interface FlowCanvasProps {
    * clearSelectionRef 와 같은 방식이다. 고른 것은 React Flow 선택(그룹 틀 제외), 없으면 selectedId 하나.
    */
   alignSourceRef?: MutableRefObject<(() => AlignSource) | null>;
+  /**
+   * 캔버스가 "지금 React Flow 로 고른 것(흐름 노드·메모·그룹, 흐름에 있는 것만, 단일 선택으로 채우지 않음)" 을 얻는 함수를 채우는 ref(M2 — Delete 가 여럿 지우기에 쓴다).
+   */
+  selectionRef?: MutableRefObject<(() => string[]) | null>;
   /** 우클릭·[+] — 대상과 화면 좌표(B7·A3). */
   onContextMenu: (target: MenuTarget, at: { x: number; y: number }) => void;
   /** 즉석 조건식 Enter(B10 — Task 7). */
@@ -791,7 +795,7 @@ function Inner(props: FlowCanvasProps) {
     flow, rules, checks, mode, varDisplay, varLabels, selectedId, selectedEdgeId, overlay, focusId, focusSeq, focusReveal, fitSignal, fitKey,
     breakpoints, collapsed, valueAt, showMiniMap, editingCondEdgeId,
     onSelect, onSelectEdge, onOpenRule, onMove, onMoveNode, onConnect, onReconnect, onDropPalette, onDropRule, onNoteChange, onContextMenu, onToggleBreakpoint,
-    onEditCond, onRouteChange, onLabelOffsetChange, removeRoutePointRef, clearSelectionRef, alignSourceRef, onEditCondClose, onSelectionChange,
+    onEditCond, onRouteChange, onLabelOffsetChange, removeRoutePointRef, clearSelectionRef, alignSourceRef, selectionRef, onEditCondClose, onSelectionChange,
     spaceTool, onSpaceToolChange, onShiftSpace,
   } = props;
   const editable = mode === "edit";
@@ -1208,6 +1212,17 @@ function Inner(props: FlowCanvasProps) {
     });
   }, [flow, vflow]);
 
+  // page 가 캔버스 밖에서 단일 선택을 바꾸면(메뉴로 만든 메모·찾기·검사 항목·끼운 새 노드 등) React Flow 선택을 그 하나로 맞춘다(M1) —
+  // 화살표·정렬(캔버스 선택)과 Delete·속성 패널(단일 선택)이 같은 대상을 가리키게. 노드 누르기에서 온 선택은 React Flow 가 이미 넣고 뺐으므로
+  // 건드리지 않는다(Shift+누르기로 빼기·더하기 그대로). 선택 해제(null)도 그대로다(영역 선택 시작이 단일 선택을 풀고 캔버스 선택을 채운다).
+  const canvasPickRef = useRef<string | null>(null);
+  useEffect(() => {
+    const fromCanvas = canvasPickRef.current === selectedId;
+    canvasPickRef.current = null;
+    if (fromCanvas || !selectedId || viewRef.current.hidden.has(selectedId)) return;
+    setRfSel((cur) => (cur.size === 1 && cur.has(selectedId) ? cur : new Set([selectedId])));
+  }, [selectedId]);
+
   // 접어서 숨긴 노드·선을 가리키던 선택은 푼다 — 보이지 않는 대상에 Delete·복사·속성 편집이 적용되지 않게(D16).
   useEffect(() => {
     if (selectedId && view.hidden.has(selectedId)) onSelect(null);
@@ -1489,6 +1504,17 @@ function Inner(props: FlowCanvasProps) {
       alignSourceRef.current = null;
     };
   }, [alignSourceRef]);
+  useEffect(() => {
+    if (!selectionRef) return;
+    selectionRef.current = () => {
+      const cur = fullRef.current;
+      const known = new Set([...cur.nodes.map((n) => n.id), ...cur.view.notes.map((n) => n.id), ...cur.view.groups.map((g) => g.id)]);
+      return [...rfSelRef.current].filter((id) => known.has(id));
+    };
+    return () => {
+      selectionRef.current = null;
+    };
+  }, [selectionRef]);
 
   // 공간 넓히기(S1) — 누른 자리·방향·줄이기 한계는 끄는 동안만 ref 에 둔다. 미리보기는 spaceStore 로만 알린다.
   const spaceToolRef = useRef(!!spaceTool);
@@ -1717,7 +1743,10 @@ function Inner(props: FlowCanvasProps) {
         onConnect={onConnectCb}
         onReconnect={editable && onReconnect ? onReconnectCb : undefined}
         edgesReconnectable={false}
-        onNodeClick={(_e, n) => onSelect(n.id)}
+        onNodeClick={(_e, n) => {
+          canvasPickRef.current = n.id;
+          onSelect(n.id);
+        }}
         onEdgeClick={(_e, ed) => onSelectEdge(ed.id)}
         onPaneClick={() => {
           onSelect(null);

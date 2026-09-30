@@ -304,6 +304,8 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   const onAutoLayout = useCallback(() => editing && edit((f) => autoArrange(f)), [editing, edit]);
   // 정렬·옮기기(A1) — 캔버스가 채우는 "고른 것과 그린 위치" 함수. 메뉴는 열 때 고른 ID 를 적어 둔다(정렬 메뉴 조건).
   const alignSourceRef = useRef<(() => AlignSource) | null>(null);
+  /** 캔버스가 채우는 "React Flow 로 고른 것(흐름 노드·메모·그룹)" — Delete 가 여럿 지우기에 쓴다(M2). */
+  const canvasSelectionRef = useRef<(() => string[]) | null>(null);
   const onContextMenu = useCallback(
     (target: MenuTarget, at: { x: number; y: number }) => setMenu({ target, at, selection: alignSourceRef.current?.().ids ?? [] }),
     [],
@@ -414,9 +416,10 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
         ...common,
         undo: state.undo,
         redo: state.redo,
-        // 고른 꺾는 점이 있으면 그것만 빼고, 없으면 원래 선택 삭제(C14).
+        // 고른 꺾는 점이 있으면 그것만 빼고(C14), 없으면 캔버스로 여럿 고른 것 전부(M2) 또는 단일 선택을 지운다. 지울 것이 없으면 키를 쓰지 않는다.
         delete: () => {
-          if (!removeRoutePointRef.current?.()) editActions.deleteSelection();
+          if (removeRoutePointRef.current?.()) return undefined;
+          return editActions.deleteSelection(canvasSelectionRef.current?.() ?? []) ? undefined : UNHANDLED;
         },
         copy: () => (isFlowNode ? canvasActions.copy(selectedId!) : edit(() => fail(COPY_NEEDS_NODE))),
         paste: () => (selectedEdgeId ? canvasActions.paste(selectedEdgeId) : edit(() => fail(PASTE_NEEDS_EDGE))),
@@ -619,6 +622,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         removeRoutePointRef={removeRoutePointRef}
                         clearSelectionRef={clearCanvasSelectionRef}
                         alignSourceRef={alignSourceRef}
+                        selectionRef={canvasSelectionRef}
                         onMoveNode={onMoveNode}
                         onConnect={onConnect}
                         onReconnect={onReconnect}

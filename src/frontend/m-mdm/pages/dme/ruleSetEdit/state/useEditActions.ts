@@ -82,7 +82,11 @@ export interface EditActions {
   insertPickedRule(edgeId: string | null, io: RuleIo): void;
   dropPalette(item: PaletteItem, at: FlowPos, edgeId: string | null): void;
   dropRule(ruleId: string, edgeId: string | null): void;
-  deleteSelection(): void;
+  /**
+   * 선택 지우기. picked 는 캔버스 선택(React Flow — 흐름 노드·메모·그룹). 둘 이상이거나 단일 선택과 다르면 그것 전부를 편집 한 번에 지우고(M2),
+   * 아니면 단일 선택(노드·메모·그룹, 없으면 고른 선)을 지운다. 할 일이 없으면(고른 것 없음·편집 모드 아님) false.
+   */
+  deleteSelection(picked?: readonly string[]): boolean;
   escape(): void;
   hasClipboard: boolean;
   applyReplace(nodeId: string, io: RuleIo): void;
@@ -90,6 +94,25 @@ export interface EditActions {
 
 const fail = (reason: string): EditResult => ({ ok: false, reason });
 const NO_COLLAPSED: ReadonlySet<string> = new Set();
+
+/**
+ * 고른 것 여럿을 편집 한 번에 지운다(M2) — 흐름 노드(분기는 블록째)·메모·그룹. 시작·끝·합류와 앞에서 지운 블록 안이라 이미 없는 것은 건너뛴다.
+ * 하나도 못 지우면 처음 실패 사유(단일 삭제와 같은 문구)로 실패한다.
+ */
+export function removeMany(f: EditFlow, ids: readonly string[]): EditResult {
+  let g = f;
+  let reason: string | null = null;
+  for (const id of ids) {
+    if (g.nodes.some((n) => n.id === id)) {
+      const r = removeNode(g, id);
+      if (r.ok) g = r.flow;
+      else reason ??= r.reason;
+    } else if (g.view.notes.some((n) => n.id === id)) g = removeNote(g, id);
+    else if (g.view.groups.some((x) => x.id === id)) g = removeGroup(g, id);
+  }
+  if (g !== f) return { ok: true, flow: g };
+  return fail(reason ?? "지울 것이 없다");
+}
 
 /** 끼울 선 — 고른 선이 흐름에 있으면 그 선, 없으면 END 로 들어가는 첫 선(P-D10). */
 function targetEdge(f: EditFlow, preferred: string | null): string | null {
@@ -235,15 +258,26 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
     [editing, addRuleIo, insertAt],
   );
 
-  const deleteSelection = useCallback(() => {
-    if (!flow || !editing) return;
+  const deleteSelection = useCallback((picked: readonly string[] = []): boolean => {
+    if (!flow || !editing) return false;
+    // 캔버스로 여럿 골랐거나(영역 선택·Shift+누르기) 캔버스 선택이 단일 선택과 다르면 캔버스 선택 전부 — 편집 한 번(되돌리기 한 칸).
+    if (picked.length > 1 || (picked.length === 1 && picked[0] !== selectedId)) {
+      const ids = [...picked];
+      edit((f) => removeMany(f, ids));
+      return true;
+    }
     if (selectedId) {
       if (flow.nodes.some((n) => n.id === selectedId)) edit((f) => removeNode(f, selectedId));
       else if (flow.view.notes.some((n) => n.id === selectedId)) edit((f) => removeNote(f, selectedId));
       else if (flow.view.groups.some((g) => g.id === selectedId)) edit((f) => removeGroup(f, selectedId));
-      return;
+      else return false;
+      return true;
     }
-    if (selectedEdgeId) edit((f) => removeEdge(f, selectedEdgeId));
+    if (selectedEdgeId) {
+      edit((f) => removeEdge(f, selectedEdgeId));
+      return true;
+    }
+    return false;
   }, [flow, editing, selectedId, selectedEdgeId, edit]);
 
   const escape = useCallback(() => {
