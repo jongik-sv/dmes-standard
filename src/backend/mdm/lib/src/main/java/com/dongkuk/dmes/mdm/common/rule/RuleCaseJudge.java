@@ -133,17 +133,24 @@ public final class RuleCaseJudge {
                 }
                 continue;
             }
-            String key = resultKey(results, x.getKey());
-            if (key == null) {
-                mismatches.add(mismatch(x.getKey(), x.getValue(), null));
-                continue;
-            }
-            Object actual = results.get(key);
-            if (!sameValue(x.getValue(), actual)) {
-                mismatches.add(mismatch(x.getKey(), x.getValue(), value(actual)));
-            }
+            compareKey(x.getKey(), x.getValue(), results, mismatches);
         }
         return mismatches.isEmpty();
+    }
+
+    /**
+     * 기대 키 하나를 결과 맵과 견준다 — 키는 대소문자 무시로 찾고, 없거나 값이 다르면 mismatch 를 더한다. 룰 케이스와 세트 케이스가 같이 쓴다.
+     */
+    public static void compareKey(String key, Object expected, Map<String, Object> results, List<Map<String, Object>> mismatches) {
+        String found = resultKey(results, key);
+        if (found == null) {
+            mismatches.add(mismatch(key, expected, null));
+            return;
+        }
+        Object actual = results.get(found);
+        if (!sameValue(expected, actual)) {
+            mismatches.add(mismatch(key, expected, value(actual)));
+        }
     }
 
     public static String resultKey(Map<String, Object> results, String key) {

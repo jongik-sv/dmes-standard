@@ -8,6 +8,10 @@ import java.util.Map;
  *
  * <p>{@code rules} 는 {@code params} 가 아니라 {@code grids.rules.rows} 로 받는다 — OASIS 는 params 배열을 받지 않고 grids 는 같은 이름의
  * DTO 속성에 채운다(F14). 원소는 {@code {ruleId}} 이고 순서가 곧 세트의 실행 순서다. 검사는 서버가 이 목록으로 다시 계산한다(I12).
+ *
+ * <p>{@code part=CASE} 는 테스트 케이스 저장(삭제는 {@code caseDeleted=true})이다 — 이때 {@code rowVersion}·{@code description} 은
+ * <b>세트가 아니라 케이스의</b> 것이다. {@code inputJson}·{@code expectedJson} 은 JSON 문자열, {@code evalTs} 는 KST
+ * {@code yyyy-MM-dd HH:mm:ss}(흐름도 3단계 P7). {@code part} 가 null·{@code SET} 이면 세트 저장이다.
  */
 public class RuleSetSaveRequest {
 

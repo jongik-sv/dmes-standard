@@ -66,15 +66,7 @@ public final class RuleSetCaseJudge {
             return false;
         }
         for (Map.Entry<String, Object> x : expected.entrySet()) {
-            String key = RuleCaseJudge.resultKey(finalValues, x.getKey());
-            if (key == null) {
-                mismatches.add(RuleCaseJudge.mismatch(x.getKey(), x.getValue(), null));
-                continue;
-            }
-            Object actual = finalValues.get(key);
-            if (!RuleCaseJudge.sameValue(x.getValue(), actual)) {
-                mismatches.add(RuleCaseJudge.mismatch(x.getKey(), x.getValue(), RuleCaseJudge.value(actual)));
-            }
+            RuleCaseJudge.compareKey(x.getKey(), x.getValue(), finalValues, mismatches);
         }
         return mismatches.isEmpty();
     }
