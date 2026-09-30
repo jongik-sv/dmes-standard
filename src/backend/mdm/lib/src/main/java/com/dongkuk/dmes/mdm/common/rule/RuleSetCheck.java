@@ -32,6 +32,8 @@ public record RuleSetCheck(String code, String severity, String ruleId, String o
     public static final String PAR_SIBLING = "PAR_SIBLING";
     public static final String FLOW_PARTIAL = "FLOW_PARTIAL";
     public static final String FLOW_READONLY = "FLOW_READONLY";
+    /** IF 조건식의 DICT 변수를 세트 안 어느 룰도 선언하지 않았다(WARN, 흐름도 2단계 P3). */
+    public static final String COND_UNTYPED = "COND_UNTYPED";
 
     /** 노드 위치 없는 검사(목록 입력·세트 단위 거부). */
     public RuleSetCheck(String code, String severity, String ruleId, String otherRuleId, String varName, String message) {

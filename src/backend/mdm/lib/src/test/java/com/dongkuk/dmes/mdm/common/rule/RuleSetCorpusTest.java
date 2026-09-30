@@ -37,7 +37,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 class RuleSetCorpusTest {
 
     /** 사례 수 하한 — TS 러너와 같은 값(design §3.3). TS 러너({@code rule-set-corpus.test.ts}, 흐름도 Task 8)도 40 으로 맞춘다. */
-    static final int MIN_CASES = 41;
+    static final int MIN_CASES = 43;
 
     /** 클래스패스 위치 = {@code src/test/resources/com/dongkuk/dmes/mdm/common/rule/rule-set-corpus.json}. 없으면 실패한다(건너뛰지 않는다). */
     static final String CORPUS = "/com/dongkuk/dmes/mdm/common/rule/rule-set-corpus.json";

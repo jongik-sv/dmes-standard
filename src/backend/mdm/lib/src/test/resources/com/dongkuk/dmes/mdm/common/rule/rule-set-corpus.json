@@ -4530,6 +4530,16 @@
             "message": "NO_SUCH는 없는 룰이다",
             "nodeId": "r1",
             "edgeId": null
+          },
+          {
+            "code": "COND_UNTYPED",
+            "severity": "WARN",
+            "ruleId": null,
+            "otherRuleId": null,
+            "varName": "X",
+            "message": "e2 갈래 조건식이 읽는 X는 세트 안 어느 룰도 타입을 선언하지 않아 레코드 값 그대로 비교한다. 숫자를 문자열로 넘기면 사전순으로 비교된다",
+            "nodeId": "if1",
+            "edgeId": "e2"
           }
         ]
       }
@@ -5822,6 +5832,255 @@
             "edgeId": null
           }
         ]
+      }
+    },
+    {
+      "name": "flow_cond_untyped_dict_var",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {
+            "id": "start",
+            "kind": "START"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE",
+            "ruleId": "R_A"
+          },
+          {
+            "id": "if1",
+            "kind": "IF"
+          },
+          {
+            "id": "m1",
+            "kind": "MERGE",
+            "splitId": "if1"
+          },
+          {
+            "id": "end",
+            "kind": "END"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "start",
+            "to": "r1"
+          },
+          {
+            "id": "e2",
+            "from": "r1",
+            "to": "if1"
+          },
+          {
+            "id": "e3",
+            "from": "if1",
+            "to": "m1",
+            "order": 1,
+            "cond": "SET_WID > 10"
+          },
+          {
+            "id": "e4",
+            "from": "if1",
+            "to": "m1",
+            "otherwise": true
+          },
+          {
+            "id": "e5",
+            "from": "m1",
+            "to": "end"
+          }
+        ]
+      },
+      "condIo": {
+        "e3": {
+          "ok": true,
+          "message": null,
+          "vars": [
+            {
+              "name": "SET_WID",
+              "source": "DICT"
+            }
+          ]
+        }
+      },
+      "ids": [
+        "R_A"
+      ],
+      "rules": {
+        "R_A": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "SET_THK",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_A"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "SET_THK",
+              "source": "DICT",
+              "users": [
+                "R_A"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "S_A",
+              "by": [
+                "R_A"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "R_A": []
+        },
+        "checks": [
+          {
+            "code": "COND_UNTYPED",
+            "severity": "WARN",
+            "ruleId": null,
+            "otherRuleId": null,
+            "varName": "SET_WID",
+            "message": "e3 갈래 조건식이 읽는 SET_WID는 세트 안 어느 룰도 타입을 선언하지 않아 레코드 값 그대로 비교한다. 숫자를 문자열로 넘기면 사전순으로 비교된다",
+            "nodeId": "if1",
+            "edgeId": "e3"
+          }
+        ]
+      }
+    },
+    {
+      "name": "flow_cond_declared_case_insensitive",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {
+            "id": "start",
+            "kind": "START"
+          },
+          {
+            "id": "r1",
+            "kind": "RULE",
+            "ruleId": "R_A"
+          },
+          {
+            "id": "if1",
+            "kind": "IF"
+          },
+          {
+            "id": "m1",
+            "kind": "MERGE",
+            "splitId": "if1"
+          },
+          {
+            "id": "end",
+            "kind": "END"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "start",
+            "to": "r1"
+          },
+          {
+            "id": "e2",
+            "from": "r1",
+            "to": "if1"
+          },
+          {
+            "id": "e3",
+            "from": "if1",
+            "to": "m1",
+            "order": 1,
+            "cond": "set_thk > 10"
+          },
+          {
+            "id": "e4",
+            "from": "if1",
+            "to": "m1",
+            "otherwise": true
+          },
+          {
+            "id": "e5",
+            "from": "m1",
+            "to": "end"
+          }
+        ]
+      },
+      "condIo": {
+        "e3": {
+          "ok": true,
+          "message": null,
+          "vars": [
+            {
+              "name": "set_thk",
+              "source": "DICT"
+            }
+          ]
+        }
+      },
+      "ids": [
+        "R_A"
+      ],
+      "rules": {
+        "R_A": {
+          "exists": true,
+          "status": "INUSE",
+          "releasedVer": 1,
+          "conds": [
+            {
+              "name": "SET_THK",
+              "source": "DICT"
+            }
+          ],
+          "results": [
+            {
+              "name": "S_A"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            {
+              "name": "SET_THK",
+              "source": "DICT",
+              "users": [
+                "R_A"
+              ]
+            }
+          ],
+          "results": [
+            {
+              "name": "S_A",
+              "by": [
+                "R_A"
+              ],
+              "readers": []
+            }
+          ]
+        },
+        "deps": {
+          "R_A": []
+        },
+        "checks": []
       }
     }
   ]

@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import kr.dongkuk.maru.mdm.engine.flow.Block;
@@ -177,6 +178,8 @@ public final class RuleSetAnalyzer {
         private final Map<String, CondIo> condIo;
         private final Map<String, List<String>> d;
         private final List<RuleSetCheck> out;
+        /** P3 — 세트 안 룰(입출력을 아는 룰)이 선언한 이름(대문자). 경로와 무관하게 세트 전체로 센다. */
+        private final Set<String> declared = new HashSet<>();
 
         PathWalk(FlowTree tree, Map<String, RuleIo> rules, Map<String, CondIo> condIo, Map<String, List<String>> d, List<RuleSetCheck> out) {
             this.tree = tree;
@@ -184,6 +187,13 @@ public final class RuleSetAnalyzer {
             this.condIo = condIo;
             this.d = d;
             this.out = out;
+            for (String id : tree.ruleIds()) {
+                RuleIo r = rules.get(id);
+                if (r != null && r.exists() && r.releasedVer() != null) {
+                    conds(rules, id).forEach(c -> declared.add(c.name().toUpperCase(Locale.ROOT)));
+                    results(rules, id).forEach(x -> declared.add(x.name().toUpperCase(Locale.ROOT)));
+                }
+            }
         }
 
         void seq(Seq s, State st) {
@@ -257,15 +267,21 @@ public final class RuleSetAnalyzer {
                 return;
             }
             for (IoName v : io.vars()) {
-                if (RuleIo.DICT.equals(v.source()) || st.defined().contains(v.name())) {
-                    continue;
+                boolean dict = RuleIo.DICT.equals(v.source());
+                if (!dict && !st.defined().contains(v.name())) {
+                    if (st.maybe().contains(v.name())) {
+                        out.add(new RuleSetCheck(RuleSetCheck.FLOW_PARTIAL, RuleSetCheck.WARN, null, null, v.name(), br.edgeId() + " 갈래 조건식이 읽는 "
+                                + v.name() + "는 IF 의 일부 갈래에서만 만들어진다. 다른 갈래를 타면 판정 오류다", sp.nodeId(), br.edgeId()));
+                    } else {
+                        out.add(new RuleSetCheck(RuleSetCheck.FLOW_COND, RuleSetCheck.REJECT, null, null, v.name(),
+                                br.edgeId() + " 갈래 조건식이 읽는 " + v.name() + "는 이 지점에서 정의되지 않았다", sp.nodeId(), br.edgeId()));
+                    }
                 }
-                if (st.maybe().contains(v.name())) {
-                    out.add(new RuleSetCheck(RuleSetCheck.FLOW_PARTIAL, RuleSetCheck.WARN, null, null, v.name(), br.edgeId() + " 갈래 조건식이 읽는 "
-                            + v.name() + "는 IF 의 일부 갈래에서만 만들어진다. 다른 갈래를 타면 판정 오류다", sp.nodeId(), br.edgeId()));
-                } else {
-                    out.add(new RuleSetCheck(RuleSetCheck.FLOW_COND, RuleSetCheck.REJECT, null, null, v.name(),
-                            br.edgeId() + " 갈래 조건식이 읽는 " + v.name() + "는 이 지점에서 정의되지 않았다", sp.nodeId(), br.edgeId()));
+                // P3 — DICT 변수는 판정을 통과해도 선언 검사로 이어진다(엔진은 선언이 없으면 레코드 값 그대로 비교한다).
+                if (dict && !declared.contains(v.name().toUpperCase(Locale.ROOT))) {
+                    out.add(new RuleSetCheck(RuleSetCheck.COND_UNTYPED, RuleSetCheck.WARN, null, null, v.name(), br.edgeId() + " 갈래 조건식이 읽는 "
+                            + v.name() + "는 세트 안 어느 룰도 타입을 선언하지 않아 레코드 값 그대로 비교한다. 숫자를 문자열로 넘기면 사전순으로 비교된다",
+                            sp.nodeId(), br.edgeId()));
                 }
             }
         }
