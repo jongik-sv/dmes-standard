@@ -255,6 +255,19 @@ describe("저장 위치가 있는 흐름에 새 노드 넣기(브라우저 확�
     expect(renderedBoxes()).toEqual(before);
   });
 
+  it("고침 2회차 Minor B — 블록을 접은 채 고른 노드 옆 메모는 그린(접힌) 노드 오른쪽에 붙는다", async () => {
+    await openSet("BF_NOTE", viewOf("BF_NOTE", ok(insertSplit(chain(), "e2", "IF"))));
+    await click("flow-mode-edit");
+    await ctxMenu("flow-node-if1");
+    await click("flow-menu-item-collapse");
+    const r2 = renderedBoxes().find((b) => b.id === "r2")!;
+    await click("flow-node-r2");
+    await click("flow-add-note");
+    const note = document.querySelector<HTMLElement>(".react-flow__node-rsfNote")!;
+    const m = /translate\(\s*(-?[\d.]+)px,\s*(-?[\d.]+)px\)/.exec(note.style.transform)!;
+    expect({ x: Number(m[1]), y: Number(m[2]) }).toEqual({ x: r2.x2 + 24, y: r2.y1 });
+  });
+
   it("[+] → IF 넣기 — 새 분기·합류가 다른 노드와 겹치지 않는다", async () => {
     const f = trap((g) => ok(insertSplit(g, "e3", "IF")), "if1", "r1");
     await openSet("BF_IF", viewOf("BF_IF", f));
@@ -314,6 +327,32 @@ describe("비켜 그린 노드를 끌면 그린 자리에서 시작한다(Ruling
     const g = ok(insertSplit(chain(), "e3", "IF")); // r2 → if1 → m1 → r3
     return setPositions(g, { r1: positionsOf(g).if1 });
   }
+
+  /** 그린 흐름 노드 상자(래퍼 transform + width/height). */
+  const boxes = (): Box[] =>
+    Array.from(host.querySelectorAll<HTMLElement>(".react-flow__node-rsfFlow")).map((el) => {
+      const m = /translate\(\s*(-?[\d.]+)px,\s*(-?[\d.]+)px\)/.exec(el.style.transform)!;
+      const x = Number(m[1]);
+      const y = Number(m[2]);
+      return { id: el.getAttribute("data-id")!, x1: x, y1: y, x2: x + parseFloat(el.style.width), y2: y + parseFloat(el.style.height) };
+    });
+  /** start→r1→[par1 빈 갈래 둘]→m1→r2→r3→end. */
+  const parFlow = () => ok(insertSplit(chain(), "e2", "PARALLEL"));
+
+  it("고침 2회차 N1 — 병렬을 접고 start 하나를 저장해도 아래 노드가 옆으로 뛰지 않고 그린 상자가 겹치지 않는다", async () => {
+    const collapsed = new Set(["par1"]);
+    await draw(props(parFlow(), { collapsed }));
+    const free = at("r2");
+    const pinned = setPositions(parFlow(), { start: positionsOf(parFlow()).start });
+    await draw(props(pinned, { collapsed }));
+    expect(allClashes(boxes())).toEqual([]);
+    expect(at("r2").x).toBe(free.x); // 저장 위치가 없을 때와 같은 x
+  });
+
+  it("고침 2회차 N1 — 저장 위치가 없는 흐름에서도 접힌 분기(룰 크기)가 아래 노드와 겹치지 않는다", async () => {
+    await draw(props(parFlow(), { collapsed: new Set(["par1"]) }));
+    expect(allClashes(boxes())).toEqual([]);
+  });
 
   it("룰 노드 — onMove 가 받는 위치는 비켜 그린 자리다", async () => {
     const f = trap((g) => g, "r2", "r1"); // r1 을 r2 자동 배치 자리에 저장 → r2 가 비킨다

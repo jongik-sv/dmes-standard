@@ -36,6 +36,7 @@ import {
   type Fragment,
   type FlowPos,
 } from "../flow-edit";
+import { collapseView } from "../canvas/collapse";
 import { NODE_SIZE, autoArrange, drawnPositions } from "../flow-layout";
 import { openRule } from "../links";
 import type { RuleIo } from "../types";
@@ -61,6 +62,8 @@ export interface EditActionsDeps {
   selectedEdgeId: string | null;
   /** 캔버스 다중 선택(흐름 노드 ID) — 팔레트 [그룹] 이 쓴다. */
   multiSel: readonly string[];
+  /** 접힌 분기(D16) — 선택 노드 옆 메모 자리를 그린(접힌) 위치로 잡는다(고침 2회차 Minor B). */
+  collapsed?: ReadonlySet<string>;
   select(id: string | null): void;
   selectEdge(id: string | null): void;
   openRuleModal(purpose: RuleModalPurpose): void;
@@ -86,6 +89,7 @@ export interface EditActions {
 }
 
 const fail = (reason: string): EditResult => ({ ok: false, reason });
+const NO_COLLAPSED: ReadonlySet<string> = new Set();
 
 /** 끼울 선 — 고른 선이 흐름에 있으면 그 선, 없으면 END 로 들어가는 첫 선(P-D10). */
 function targetEdge(f: EditFlow, preferred: string | null): string | null {
@@ -112,6 +116,7 @@ function centerOf(f: EditFlow): FlowPos {
 
 export function useEditActions(deps: EditActionsDeps): EditActions {
   const { state, flow, editing, selectedId, selectedEdgeId, multiSel, select, openRuleModal, fit, setEditingCond, closeMenu, clearSelection } = deps;
+  const collapsed = deps.collapsed ?? NO_COLLAPSED;
   const { edit, addRuleIo } = state;
   /** 복사한 조각(B9) — 화면이 살아 있는 동안 남고 세트를 바꿔도 유지한다. */
   const [clipboard, setClipboard] = useState<{ frag: Fragment; ios: RuleIo[] } | null>(null);
@@ -152,8 +157,10 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
       const selNode = selectedId ? flow.nodes.find((n) => n.id === selectedId) : undefined;
       let place = at;
       if (!place && selNode) {
-        const p = drawnPositions(flow)[selNode.id]; // 비켜 그린 노드면 그린 자리 옆
-        if (p) place = { x: p.x + NODE_SIZE[selNode.kind].w + NOTE_GAP, y: p.y };
+        // 캔버스가 그린 자리(접힌 흐름·겹침 풀기 반영) 옆 — 접힌 분기는 룰 크기로 그린다.
+        const v = collapseView(flow, collapsed);
+        const p = drawnPositions(v.flow, v.blocks)[selNode.id];
+        if (p) place = { x: p.x + NODE_SIZE[v.blocks[selNode.id] ? "RULE" : selNode.kind].w + NOTE_GAP, y: p.y };
       }
       let id: string | null = null;
       const reason = edit((f) => {
@@ -163,7 +170,7 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
       });
       if (!reason && id) select(id);
     },
-    [flow, selectedId, edit, select],
+    [flow, selectedId, collapsed, edit, select],
   );
 
   /** 그룹 — 캔버스 다중 선택(없으면 단일 선택 노드)으로 만든다. */

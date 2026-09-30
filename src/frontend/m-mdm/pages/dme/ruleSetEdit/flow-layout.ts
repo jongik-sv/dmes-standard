@@ -17,12 +17,17 @@ export const NODE_SIZE: Readonly<Record<FlowNodeKind, { w: number; h: number }>>
   MERGE: { w: 28, h: 28 },
 };
 
-export function autoLayout(f: RuleSetFlow): Record<string, FlowPos> {
+/**
+ * dagre 자동 배치. blocks 에 든 분기(접힌 블록, D16)는 룰 크기 상자로 그리므로 룰 크기로 배치한다 — 제 크기(병렬 200×14 등)로 배치하면
+ * 접힌 상자가 아래 노드와 겹치고, 겹침 풀기가 그 노드를 옆으로 민다(고침 2회차 N1).
+ */
+export function autoLayout(f: RuleSetFlow, blocks: Readonly<Record<string, unknown>> = {}): Record<string, FlowPos> {
+  const sizeOf = (n: { id: string; kind: FlowNodeKind }) => NODE_SIZE[blocks[n.id] ? "RULE" : n.kind];
   const g = new dagre.graphlib.Graph();
   g.setGraph({ rankdir: "TB", nodesep: 40, ranksep: 46 });
   g.setDefaultEdgeLabel(() => ({}));
   for (const n of f.nodes ?? []) {
-    const s = NODE_SIZE[n.kind];
+    const s = sizeOf(n);
     g.setNode(n.id, { width: s.w, height: s.h });
   }
   for (const e of f.edges ?? []) g.setEdge(e.from, e.to);
@@ -30,14 +35,15 @@ export function autoLayout(f: RuleSetFlow): Record<string, FlowPos> {
   const out: Record<string, FlowPos> = {};
   for (const n of f.nodes ?? []) {
     const p = g.node(n.id);
-    const s = NODE_SIZE[n.kind];
+    const s = sizeOf(n);
     out[n.id] = { x: Math.round(p.x - s.w / 2), y: Math.round(p.y - s.h / 2) };
   }
   return out;
 }
 
-export function positionsOf(f: EditFlow): Record<string, FlowPos> {
-  return { ...autoLayout(f), ...(f.view?.positions ?? {}) };
+/** 자동 배치 + 저장 위치. blocks 는 접힌 블록(룰 크기로 배치, autoLayout 참고). */
+export function positionsOf(f: EditFlow, blocks: Readonly<Record<string, unknown>> = {}): Record<string, FlowPos> {
+  return { ...autoLayout(f, blocks), ...(f.view?.positions ?? {}) };
 }
 
 /** 겹침 풀기 여백(흐름 좌표) — 맞닿는 것도 겹침으로 본다. dagre 간격(nodesep 40·ranksep 46)보다 작아 자동 배치끼리는 걸리지 않는다. */
@@ -104,7 +110,7 @@ export function drawnPositions(f: EditFlow, blocks: Readonly<Record<string, unkn
   const saved = f.view?.positions ?? {};
   const pinned = new Set((f.nodes ?? []).filter((n) => saved[n.id]).map((n) => n.id));
   const boxes = (f.nodes ?? []).map((n) => ({ id: n.id, ...NODE_SIZE[blocks[n.id] ? "RULE" : n.kind] }));
-  return resolveOverlaps(boxes, positionsOf(f), pinned);
+  return resolveOverlaps(boxes, positionsOf(f, blocks), pinned);
 }
 
 /** [자동 정렬] — 모든 노드 위치를 자동 배치로 덮고 선 경로(C14)를 함께 지운다. 한 번의 편집(이력 한 칸)이다. */

@@ -213,6 +213,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     selectedId,
     selectedEdgeId,
     multiSel,
+    collapsed: collapse.collapsed,
     select,
     selectEdge,
     openRuleModal: setRuleModal,
