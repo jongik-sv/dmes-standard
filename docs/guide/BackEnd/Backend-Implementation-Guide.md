@@ -362,3 +362,12 @@ void invR02_allocatedExceedsOnHandRejected() {
   - `*MigrationTest` 처럼 테스트 DB 자체(새 파일, 마이그레이션 적용 과정)를 검증하는 테스트
   - 고유 속성(`@TestPropertySource`, `@SpringBootTest(properties = …)`, 추가 `registry.add`)이나 그 클래스만의 `@Import` 설정을 쓰는 테스트. 상속해도 틀리지는 않지만 공유 이득이 없다.
   - 클래스마다 클라이언트 키가 다른 RANDOM_PORT 테스트(`*OasisHttpTest` 등)
+
+#### 10.1.2 PC 전역 테스트 슬롯 (2026-09-30)
+
+- 백엔드 모듈 15개의 Test 태스크는 시작할 때 PC 전역 슬롯을 하나 잡는다(`src/backend/gradle/test-slot.gradle`). 같은 PC 에서 동시에 도는 테스트 JVM 은 워크트리·세션·heavy.sh 여부와 상관없이 기본 2개까지다. 나머지는 줄을 서며, 누가 슬롯을 쥐고 있는지 `[test-slot]` 로그로 보여 준다.
+  - 이유: 여러 세션이 Gradle 테스트를 동시에 돌려, 성능 코어 4개인 개발 PC 의 부하 평균이 16~24 까지 올랐다. heavy.sh 는 스스로 감싼 명령만 줄 세운다.
+  - 테스트 하나를 빠르게 하지는 않는다. 동시에 도는 수만 묶으므로 줄을 선 게이트는 그만큼 늦게 시작한다.
+- 환경 변수: `DMES_TEST_SLOTS`(슬롯 수, 기본 2, `0` 이면 끈다) · `DMES_TEST_SLOT_WAIT_MS`(기본 30분, 넘으면 경고하고 슬롯 없이 돈다). `CI` 가 있으면 끈다.
+- 슬롯은 `~/.gradle/dmes-test-slots/slot-<i>` 디렉터리다. 루트 테스트 묶음이 끝나면(실패해도) 풀리고, 소유 데몬이 죽었으면 다음 테스트가 회수한다. 손으로 지울 일은 없다.
+- 새 백엔드 모듈(includeBuild)을 추가하면 루트 build.gradle 끝에 `apply from: file('../gradle/test-slot.gradle')` 를 넣는다.

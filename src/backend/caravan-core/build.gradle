@@ -145,3 +145,6 @@ allprojects {
         jvmArgs '-XX:TieredStopAtLevel=1', '-XX:ReservedCodeCacheSize=240m'
     }
 }
+
+// PC 전역 테스트 슬롯 — 같은 PC 에서 동시에 도는 Test 태스크를 DMES_TEST_SLOTS(기본 2)개로 묶는다(../gradle/test-slot.gradle).
+apply from: file('../gradle/test-slot.gradle')
