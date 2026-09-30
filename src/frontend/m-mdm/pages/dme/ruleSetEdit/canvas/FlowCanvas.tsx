@@ -590,7 +590,7 @@ function Inner(props: FlowCanvasProps) {
       });
     }
     return out;
-  }, [flow, vflow, view, pos, drag, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured]);
+  }, [flow, vflow, view, pos, drag, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured, varDisplay]);
 
   const edges = useMemo(() => {
     const kindOf = new Map(vflow.nodes.map((n) => [n.id, n.kind] as const));

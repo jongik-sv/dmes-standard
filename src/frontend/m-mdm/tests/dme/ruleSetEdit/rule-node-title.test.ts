@@ -58,6 +58,16 @@ describe("룰 노드 제목 — 표시 토글", () => {
     expect(rows()).toEqual([["R_B", "R_B"]]);
   });
 
+  it("같은 흐름·룰에서 토글만 바꿔도 제목이 바로 바뀐다", async () => {
+    // 토글 값 말고는 모든 prop 을 같은 참조로 둔다 — 노드 memo 가 varDisplay 에 묶였는지를 본다.
+    const rules = { R_A: ruleIo("R_A", "가 룰") };
+    const same = { flow: toEditFlow(null, ["R_A"]), checks: [], breakpoints: new Set<string>(), collapsed: new Set<string>() };
+    await draw({ ...same, varDisplay: "name" }, rules);
+    expect(rows()).toEqual([["가 룰", "R_A"]]);
+    await draw({ ...same, varDisplay: "id" }, rules);
+    expect(rows()).toEqual([["R_A", "가 룰"]]);
+  });
+
   it("없는 룰은 모드와 관계없이 그대로", async () => {
     await draw({ varDisplay: "id" }, { R_C: ruleIo("R_C", null, false) });
     expect(rows()).toEqual([["(없는 룰)", "R_C"]]);
