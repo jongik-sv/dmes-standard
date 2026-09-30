@@ -120,9 +120,7 @@ export const BASE_CSS = `
 }
 .rsf-group-title:hover { background: var(--color-bg-hover); }
 
-/* 연결점 — 편집 모드에서만 보인다 */
-.rsf-handle { width: 8px !important; height: 8px !important; background: var(--color-primary) !important; border: 1px solid var(--rsf-node-bg) !important; opacity: 0; }
-.rsf-canvas[data-mode="edit"] .rsf-handle { opacity: 1; }
+/* 연결점 — 그리기 연결점·네 변 잇기 손잡이·몸통 받기는 styles/connect.ts(추가 Task C1) */
 
 /* 선 이름표 · 변수 칩 */
 .rsf-elabel { position: absolute; pointer-events: none; white-space: nowrap; }

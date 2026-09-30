@@ -33,6 +33,13 @@
  * 프레임마다 이분 탐색한다. React Flow 는 매 프레임 포인터 − 누른 거리로 위치를 새로 재므로(XYDrag) 붙인 이동량은 끌기 위치(`drag`)에만 더하고,
  * 놓을 때 같은 이동량을 더한 자리를 기존 `onMove` 로 한 번 올린다. Alt 를 누른 채 끌거나 끼우기 대상 선이 강조된 동안은 붙이지 않고 안내선도 없다.
  * 안내선은 캔버스 안 저장소(`SnapStore`)만 구독해 그리므로 page 는 다시 그리지 않고 배치(dagre)도 다시 돌지 않는다.
+ *
+ * 네 변 어디서나 잇기(C1, Ruling 28): 편집 모드에서 노드에 마우스를 올리면 네 변 가운데 잇기 손잡이가 보이고, 어느 것을 끌어도 그 노드에서 나가는 선이다.
+ * 대상 노드 몸통 어디에 놓아도 이어진다(몸통을 덮는 투명 target `body` — 연결을 끄는 동안에만 누름을 받는다, `nodes.tsx`). 연결 모드는 느슨하게(`ConnectionMode.Loose`)
+ * 둬 선 끝 옮기기(R1)의 출발 쪽 끝도 몸통에 놓을 수 있게 하고, 규칙은 `linkAllowed`(자기 잇기·START 로 들어가기·END 에서 나가기 거부)가 `isValidConnection` 으로 지킨다.
+ * 같은 두 노드의 선이 이미 있는지는 `connect`·`reconnectEdge` 가 거부해 편집 실패 알림을 보인다. 선은 손잡이와 관계없이 늘 출발 노드 아래(`out`) → 도착 노드 위(`in`)로 그린다
+ * (선 객체에만 주고 저장하지 않는다). 누르기 잇기(`connectOnClick`)는 끈다 — 손잡이를 잘못 누른 뒤 노드를 누르면 선이 생기는 것을 막는다.
+ * 끄는 동안의 연결 상태는 React Flow 내부 저장소에만 있어 page 를 다시 그리지 않고 배치(dagre)도 다시 돌지 않는다. page 는 놓을 때 `onConnect` 를 한 번 받는다.
  */
 import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore,
@@ -53,10 +60,11 @@ import { collapseView } from "./collapse";
 import { boundsOf, snapIndex, snapMoveIn, snapThreshold, type Box, type Guide, type SnapIndex } from "./snap";
 import { insertRoutePoint, routeMidpoint, routePath } from "./route-path";
 import type { MenuTarget } from "./context-menu";
-import { GroupNodeData, NODE_TYPES, NoteNodeData, FlowNodeData, handlesOf, type CollapsedBlockInfo } from "./nodes";
+import { ANCHOR_IN, ANCHOR_OUT, GroupNodeData, NODE_TYPES, NoteNodeData, FlowNodeData, handlesOf, type CollapsedBlockInfo } from "./nodes";
 import type { EdgeState, Overlay } from "./overlay";
 import {
   BaseEdge,
+  ConnectionMode,
   Controls,
   EdgeLabelRenderer,
   MarkerType,
@@ -213,6 +221,18 @@ export interface AlignSource {
   ids: string[];
   drawn: Record<string, FlowPos>;
   blocks: SpaceBlocks;
+}
+
+/**
+ * 선을 이을 수 있는가(C1) — 표시 흐름(`flow`)의 노드끼리, 자기 자신이 아니고, 도착이 START 가 아니고, 출발이 END 가 아니다.
+ * React Flow `isValidConnection`(새 선·선 끝 옮기기 모두)과 `onConnect` 가 함께 쓴다. 같은 선 중복은 편집 연산이 거부한다(알림을 보이려고).
+ */
+export function linkAllowed(flow: Pick<EditFlow, "nodes">, from: string | null | undefined, to: string | null | undefined): boolean {
+  if (!from || !to || from === to) return false;
+  const kindOf = (id: string) => flow.nodes.find((n) => n.id === id)?.kind;
+  const a = kindOf(from);
+  const b = kindOf(to);
+  return !!a && !!b && a !== "END" && b !== "START";
 }
 
 /** 편집 모드 다중 선택 키 — 누르기로 더하기. */
@@ -885,6 +905,7 @@ function Inner(props: FlowCanvasProps) {
         collapsed: block ? blockInfo(flow, block, n.id, overlay) : null,
         onToggleBreakpoint,
         varDisplay,
+        linkable: editable,
       };
       out.push({
         id: n.id, type: "rsfFlow", position: p, width: s.w, height: s.h, measured: measured[n.id], data, handles: handlesOf(block ? "RULE" : n.kind), draggable: editable,
@@ -944,7 +965,8 @@ function Inner(props: FlowCanvasProps) {
         labelsMovable: editable && !folded && !!onLabelOffsetChange,
       };
       return {
-        id: e.id, source: e.from, target: e.to, type: "rsfFlow", selected: selectedEdgeId === e.id,
+        // 선은 손잡이와 관계없이 출발 노드 아래 → 도착 노드 위(C1). 연결점 id 는 그리기에만 쓰고 저장하지 않는다.
+        id: e.id, source: e.from, target: e.to, sourceHandle: ANCHOR_OUT, targetHandle: ANCHOR_IN, type: "rsfFlow", selected: selectedEdgeId === e.id,
         // 끝 손잡이(R1)는 편집 모드에서 고른 선에만 — 접힌 분기가 이어 받은 선은 원래 끝이 아니라 옮길 수 없다. 나머지 선은 끝 손잡이를 그리지 않는다.
         reconnectable: !!onReconnect && editable && !folded && selectedEdgeId === e.id,
         markerEnd: { type: MarkerType.ArrowClosed },
@@ -1170,9 +1192,12 @@ function Inner(props: FlowCanvasProps) {
     onSelectionChange(ids);
   }, [rfSel, flow, onSelectionChange]);
 
+  // 네 변 잇기(C1) — 어느 손잡이에서 시작했든 방향은 끈 노드(source) → 놓은 노드(target). 끄는 동안은 부르지 않고 놓을 때 한 번.
   const onConnectCb = useCallback((c: Connection) => {
-    if (editable && c.source && c.target) onConnect(c.source, c.target);
+    if (editable && linkAllowed(flowRef.current, c.source, c.target)) onConnect(c.source, c.target);
   }, [editable, onConnect]);
+  /** 끄는 동안 놓을 자리가 맞는지(C1) — 새 선·선 끝 옮기기 모두. 흐름은 ref 로 읽어 참조가 바뀌지 않는다. */
+  const isValidLink = useCallback((c: Connection | Edge) => linkAllowed(flowRef.current, c.source, c.target), []);
 
   // 선 끝 옮기기(R1) — 놓을 때 한 번. RF 는 끝이 제자리여도 부르므로 바뀐 끝이 있을 때만 올린다.
   const onReconnectCb = useCallback((old: Edge, c: Connection) => {
@@ -1630,6 +1655,9 @@ function Inner(props: FlowCanvasProps) {
         edgeTypes={EDGE_TYPES}
         nodesDraggable={editable}
         nodesConnectable={editable}
+        connectionMode={ConnectionMode.Loose}
+        isValidConnection={isValidLink}
+        connectOnClick={false}
         disableKeyboardA11y
         elementsSelectable
         deleteKeyCode={null}
