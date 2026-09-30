@@ -93,13 +93,13 @@ moduleGroup: dme
 
 - 디버그 모드에서는 캔버스를 고칠 수 없다(끌기·연결·[+]·삭제·붙여넣기·편집 메뉴 항목 없음). 흐름을 고치려면 편집 모드로 돌아간다. 입력값·중단점·조사식·기록은 모드를 오가도 유지한다(훅이 page 에 있다).
 - 디버그 모드에서는 속성 패널 자리에 변수 패널이 오므로 노드를 눌러도 속성이 아니라 노드 상세가 보인다. 속성을 보려면 보기·편집 모드로 간다.
-- 디버그 모드에 들어가면 [변수 흐름]을 켜고 나오면 들어가기 전 값으로 돌린다(3단계 P-D16). 아래 패널은 모드를 바꿀 때 그 모드의 첫 탭(디버그 = 값 표, 그 밖 = 검사 결과)으로 간다.
+- 디버그 모드에 들어가면 [변수 흐름]이 꺼져 있을 때 마지막으로 쓴 켜진 표시(ID·이름, 처음이면 ID)로 켜고, 나오면 들어가기 전 값으로 돌린다(3단계 P-D16, V1). 이 자동 전환은 브라우저 저장소에 쓰지 않는다. 아래 패널은 모드를 바꿀 때 그 모드의 첫 탭(디버그 = 값 표, 그 밖 = 검사 결과)으로 간다.
 - 디버그 툴바는 세트 툴바 아래 둘째 줄이다(3단계 P-D22 — 한 줄에 단추가 넘친다). 스펙 §4.1 그림은 한 줄로 그렸다.
 
 | 영역ID | 영역명 | 설명 |
 |---|---|---|
 | `A-TOP` | 세트 고르기 바(`set-edit-topbar`) | 세트 ID·세트명 검색(`set-pick-keyword`) + 찾기 → 칸 아래 드롭다운 후보(`set-pick-list` 안 `set-pick-{setId}`, 룰 화면 룰 고르기와 같은 `IdPicker` — ↑↓·Enter·Esc, 20건이면 좁혀 검색 안내), 현재 세트(`set-edit-current`, `ID · 세트명`). 고르기 전에는 "세트를 골라 편집한다. 새 세트는 룰 세트 화면에서 등록한다"(`set-edit-empty`) |
-| `A-TOOL` | 흐름 툴바(`flow-toolbar`) | 세트 ID(`set-card-id`)·상태 배지(`set-status`)·`row_version N`(`set-row-version`)·"버전·승인 없음" · [보기](`flow-mode-view`)/[편집](`flow-mode-edit`)/[디버그](`flow-mode-debug`) · [되돌리기](`flow-undo`)·[다시 하기](`flow-redo`) · 찾기 칸(`flow-find`)·[다음](`flow-find-next`)·`flow-find-count`("2/5", 없으면 "0/0")·[?] 단축키 도움말(`flow-help`→`flow-help-panel`) · [자동 정렬](`flow-auto-layout`, 편집 모드만 켜진다)·[화면 맞춤](`flow-fit`)·[변수 흐름](`flow-var-toggle`, `aria-pressed`)·[미니맵](`flow-minimap-toggle`, `aria-pressed`) · [세트 저장](`set-save`)·[폐기](`set-deprecate`)→[폐기 확인](`set-deprecate-confirm`)/[취소](`set-deprecate-cancel`)·[되살리기](`set-restore`)·[다시 불러오기](`set-reload`, MDM001 뒤에만) · 메시지 줄(`set-message`) |
+| `A-TOOL` | 흐름 툴바(`flow-toolbar`) | 세트 ID(`set-card-id`)·상태 배지(`set-status`)·`row_version N`(`set-row-version`)·"버전·승인 없음" · [보기](`flow-mode-view`)/[편집](`flow-mode-edit`)/[디버그](`flow-mode-debug`) · [되돌리기](`flow-undo`)·[다시 하기](`flow-redo`) · 찾기 칸(`flow-find`)·[다음](`flow-find-next`)·`flow-find-count`("2/5", 없으면 "0/0")·[?] 단축키 도움말(`flow-help`→`flow-help-panel`) · [자동 정렬](`flow-auto-layout`, 편집 모드만 켜진다)·[화면 맞춤](`flow-fit`)·[변수 흐름](`flow-var-toggle`, 끔·ID·이름 세 상태 — `data-mode`, 끔이 아니면 `aria-pressed`)·[미니맵](`flow-minimap-toggle`, `aria-pressed`) · [세트 저장](`set-save`)·[폐기](`set-deprecate`)→[폐기 확인](`set-deprecate-confirm`)/[취소](`set-deprecate-cancel`)·[되살리기](`set-restore`)·[다시 불러오기](`set-reload`, MDM001 뒤에만) · 메시지 줄(`set-message`) |
 | `A-DBG` | 디버그 툴바(`dbg-toolbar`, 디버그 모드만) | [계속](`dbg-continue`)·[한 단계](`dbg-step`)·[이전](`dbg-step-back`)·[여기까지](`dbg-run-to`)·[처음부터](`dbg-restart`)·[끝내기](`dbg-finish`) · 상태 문구(`dbg-status`, `data-end` = idle·running·done·error) · 낡은 기록 배지(`dbg-stale`) · 알림(`dbg-notice`, `data-kind` = notice·error) |
 | `A-LEFT` | 왼쪽 패널 | 보기·편집 = **룰 패널**(`flow-rule-panel`): 편집 모드면 위에 팔레트(`flow-palette` — [룰](`flow-add-rule`)·[IF](`flow-add-if`)·[병렬](`flow-add-par`)·[메모](`flow-add-note`)·[그룹](`flow-add-group`)), 아래에 룰 목록(접기 `flow-rule-panel-toggle`, 검색 `flow-rule-panel-search`·`flow-rule-panel-find`, 목록 `flow-rule-rows`, 줄 `flow-rule-row-{ruleId}`). 보기 모드는 목록만이고 줄을 끌 수 없다. 디버그 = **입력 패널**(`dbg-inputs`, 3단계 P-D10 — 룰 목록을 두지 않는다) |
 | `A-CANVAS` | 흐름도 캔버스(`flow-canvas`) | React Flow. 노드·선·메모·그룹 틀. 표시 내용은 §3.2. 오른쪽 아래에 확대 막대(`Controls` — 확대·축소·화면 맞춤, 잠금 단추 없음)와 미니맵. 캔버스 감싸개(`rsf-canvas-host`)가 단축키(§5.4)를 받고 우클릭·[+] 메뉴(`flow-menu`, §5.5)를 안에 띄운다 |
@@ -131,7 +131,7 @@ moduleGroup: dme
 | 요소 | testid | 설명 |
 |---|---|---|
 | 선 이름 | `flow-edge-label-{edgeId}` | 선의 `label`. `data-state` = 디버거 선 상태(`run`·`chosen`·`dim`·`idle`). 같은 두 노드를 잇는 경로 없는 선이 여럿이면(빈 갈래 둘인 분기 등) 선 그림이 같으므로 이름·[+]·「여기에 넣기」 묶음을 선 순서대로 가로 120px 씩 벌려 겹치지 않게 한다 |
-| 변수 칩 | `flow-edge-chips-{edgeId}` | [변수 흐름]을 켜면 룰 노드에서 나가는 선에 그 룰의 결과 변수 이름이 붙는다(`edgeChips`). 칩은 아래 노드에 가리지 않게 노드 위에 그린다(고른 노드는 칩 위) |
+| 변수 칩 | `flow-edge-chips-{edgeId}` | [변수 흐름]이 ID 이면 룰 노드에서 나가는 선에 그 룰의 결과 변수 ID 가, 이름이면 변수 표시명(서버가 주는 `IoName.label`; 없으면 ID)이 붙는다(`edgeChips`). 칩 툴팁은 모드와 관계없이 `표시명 (ID)`(표시명 없으면 없음)이다. 칩은 아래 노드에 가리지 않게 노드 위에 그린다(고른 노드는 칩 위) |
 | 메모 | `flow-note-{id}` (글 `flow-note-text-{id}`) | 화면 전용 글상자. 노드에 붙일 수 있다(`attach`) |
 | 그룹 틀 | `flow-group-{id}` | 구성 노드를 감싸는 바깥 상자(제목). 화면 전용 |
 | 디버거 겹침 | 순번 `flow-node-seq-{nodeId}`, 칩 `flow-node-chip-{nodeId}` | 실행된 노드의 순번(지금 노드는 순번·칩 없음), 룰 결과 첫 항목(`이름=값`) 또는 오류 코드. 디버그 모드에서는 `data-state` 값에 `current`·`next`·`pending` 이 더 있다(아래 표) |
@@ -145,7 +145,7 @@ moduleGroup: dme
 | 즉석 조건식 입력 칸 | `flow-edge-cond-input-{edgeId}` | IF 의 「그 외」가 아닌 갈래의 선 라벨을 두 번 누르면 라벨 자리에 열린다(§5.3). 선 라벨 요소에 `data-cond-edge` |
 | 중단점 점 | `flow-bp-{nodeId}` (`data-on` = true·false) | 룰·IF·병렬·합류 노드의 왼쪽 가장자리. 디버그 모드에서는 눌러 켜고 끄는 단추이고(노드 선택은 바뀌지 않는다), 그 밖 모드에서는 켜진 것만 작은 점으로 보이며 누를 수 없다 |
 | 접힌 블록 | `flow-collapsed-{splitId}` (`data-error`), `flow-collapsed-ran-{splitId}` | 접힌 분기를 룰 박스 크기의 노드 하나로 그린다 — 문구 「IF 조건 · 노드 6개」/「병렬 · 노드 6개」(분기·짝 합류를 뺀 안쪽 노드 수). 디버거 기록이 있으면 형제 요소 「안쪽 실행 k개」, 안쪽 또는 합류가 오류로 끝났으면 빨간 테두리. 접힌 분기에서 나가는 선은 합류 뒤로 이어지고 갈래 이름·조건 편집이 없다. 접힘은 화면 상태이고 저장하지 않는다 |
-| 디버그 상태 모양 | 노드 `data-state` | `current` 굵은 강조 테두리, `next` 점선, `pending` 회색(끝에 닿으면 2단계 최종 겹침과 같이 `run`·`error`·`dim`). 변수 칩(`flow-edge-chips-{edgeId}`)에 마우스를 올리면 `title` 로 커서 자리 값(`이름 = 값`, 아직이면 `이름 · 아직 없음`)을 보인다 |
+| 디버그 상태 모양 | 노드 `data-state` | `current` 굵은 강조 테두리, `next` 점선, `pending` 회색(끝에 닿으면 2단계 최종 겹침과 같이 `run`·`error`·`dim`). 변수 칩(`flow-edge-chips-{edgeId}`)에 마우스를 올리면 `title` 로 커서 자리 값(`표시명 (ID) = 값`, 표시명이 없으면 `ID = 값`, 아직이면 `… · 아직 없음`)을 보인다 |
 | 선 경로 손잡이(C14, Task 15 구현) | `flow-route-handle-{edgeId}-{i}` (`data-selected="true"` = 고른 손잡이, `data-dragging="true"` = 끌리는 손잡이) | 편집 모드에서 선을 고르면 꺾는 점마다 손잡이가 보인다. 동작은 §5.3 |
 
 `FLOW_JSON.view` — 화면 전용 저장 칸. 판정에는 쓰지 않는다.
@@ -209,7 +209,7 @@ moduleGroup: dme
 | B-005 | 다시 불러오기(`set-reload`) | A-TOOL | `view` | MDM001 충돌 뒤에만 보인다 |
 | B-006 | 보기(`flow-mode-view`)/편집(`flow-mode-edit`)/디버그(`flow-mode-debug`) | A-TOOL | (없음) | 세트를 열면 보기 모드다. [편집]은 `view.editable`·INUSE·`save` 권한일 때만 켜진다. [디버그]는 누구나 들어간다(실행 단추는 `execute` 권한이 따로 켠다). 편집 → 보기/디버그는 편집 내용을 버리지 않는다. 디버그 모드 입력값·중단점·조사식·기록은 모드를 오가도 유지한다 |
 | B-007 | 자동 정렬(`flow-auto-layout`) | A-TOOL | (없음) | dagre 위→아래 배치로 모든 노드 위치를 다시 잡는다(편집 모드만 켜진다). 모든 선의 경로(`view.routes`)도 함께 지운다(C14). 위치와 경로 지우기는 이력 한 칸이라 되돌리기 한 번으로 함께 살아난다 |
-| B-008 | 화면 맞춤(`flow-fit`)·변수 흐름(`flow-var-toggle`)·미니맵(`flow-minimap-toggle`) | A-TOOL | (없음) | 보기 조절. 서버를 부르지 않는다. 미니맵은 켜고 끔을 브라우저 저장소(`rsf:minimap`)에 기억한다 |
+| B-008 | 화면 맞춤(`flow-fit`)·변수 흐름(`flow-var-toggle`)·미니맵(`flow-minimap-toggle`) | A-TOOL | (없음) | 보기 조절. 서버를 부르지 않는다. [변수 흐름]은 누를 때마다 끔 → ID → 이름 → 끔으로 돌고 단추에 지금 상태("변수: 끔/ID/이름")를 보이며 마지막 선택을 브라우저 저장소(`rsf:varDisplay`, 이상한 값이면 끔)에 기억한다. 미니맵은 켜고 끔을 브라우저 저장소(`rsf:minimap`)에 기억한다 |
 | B-009 | 룰(`flow-add-rule`)·IF(`flow-add-if`)·병렬(`flow-add-par`)·메모(`flow-add-note`)·그룹(`flow-add-group`) | A-LEFT(팔레트) | `search`(RULE, 룰 팝업) | 편집 모드만. 동작은 §5.3 |
 | B-010 | 찾기(지침, `set-guide-run`) | A-PROPS(세트 패널) | `search`(GUIDE) | |
 | B-011 | 이 순서로 한 줄 흐름 만들기(`set-guide-apply`) | A-PROPS(세트 패널) | (없음) | 한 줄 흐름이면 제안 순서로 `linearFlow(순서)` 를 만들고(배치 초기화) 응답 `rules` 의 입출력을 더한다(dirty). 편집 모드·`save` 권한일 때만 켜진다. **분기가 있는 흐름이면 꺼진다**(P-D5, 1단계 Ruling 13) |
@@ -340,6 +340,7 @@ moduleGroup: dme
 | `rsf:recent:<setId>` | 최근 입력 10개(레코드 JSON + 판정 시각) |
 | `rsf:expr:<setId>` | 최근 식 5개 |
 | `rsf:minimap` | 미니맵 표시 여부 |
+| `rsf:varDisplay` | [변수 흐름] 마지막 선택(`off`·`id`·`name`) |
 
 
 ## 6. 입력값 검증 규칙

@@ -312,7 +312,7 @@ describe("FlowCanvas [+] 단추(3단계 Task 0)", () => {
     const onContextMenu = vi.fn();
     const onSelectEdge = vi.fn();
     const props: FlowCanvasProps = {
-      flow: toEditFlow(null, ["R_A"]), rules: {}, checks: [], mode: "edit", showVars: false, selectedId: null, selectedEdgeId: null,
+      flow: toEditFlow(null, ["R_A"]), rules: {}, checks: [], mode: "edit", varDisplay: "off", selectedId: null, selectedEdgeId: null,
       overlay: null, focusId: null, focusSeq: 0, breakpoints: new Set(), collapsed: new Set(), showMiniMap: false, editingCondEdgeId: null,
       onSelect: noop, onSelectEdge, onOpenRule: noop, onMove: noop, onMoveNode: noop, onConnect: noop, onDropPalette: noop, onDropRule: noop,
       onNoteChange: noop, onContextMenu, onEditCond: noop, onEditCondClose: noop, onToggleBreakpoint: noop,

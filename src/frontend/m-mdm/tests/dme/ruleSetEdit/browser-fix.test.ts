@@ -294,7 +294,7 @@ describe("비켜 그린 노드를 끌면 그린 자리에서 시작한다(Ruling
     host.remove();
   });
   const props = (flow: EditFlow, over: Partial<FlowCanvasProps> = {}): FlowCanvasProps => ({
-    flow, rules: {}, checks: [], mode: "edit", showVars: false, selectedId: null, selectedEdgeId: null,
+    flow, rules: {}, checks: [], mode: "edit", varDisplay: "off", selectedId: null, selectedEdgeId: null,
     overlay: null, focusId: null, focusSeq: 0, onSelect: noop, onSelectEdge: noop, onOpenRule: noop, onMove: noop, onConnect: noop,
     onDropPalette: noop, onNoteChange: noop, breakpoints: new Set(), collapsed: new Set(), showMiniMap: false, editingCondEdgeId: null,
     onMoveNode: noop, onDropRule: noop, onContextMenu: noop, onEditCond: noop, onEditCondClose: noop, onToggleBreakpoint: noop,

@@ -10,6 +10,9 @@ export type IoSource = "DICT" | "PROG" | "NONE";
 
 export type RuleSetStatus = "INUSE" | "DEPRECATED";
 
+/** 선의 변수 칩 표시 — 끔 · 변수 ID · 변수 표시명(없으면 ID). 툴바 [변수 흐름] 이 off → id → name → off 로 돈다. */
+export type VarDisplay = "off" | "id" | "name";
+
 /** 읽거나 만드는 이름 하나와 그 타입·표시명. NONE 이면 타입·표시명은 null 이다. */
 export interface IoName {
   name: string;

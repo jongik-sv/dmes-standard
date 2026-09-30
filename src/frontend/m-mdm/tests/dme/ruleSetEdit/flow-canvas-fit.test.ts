@@ -74,7 +74,7 @@ function spread(f: EditFlow): EditFlow {
 }
 function props(over: Partial<FlowCanvasProps> = {}): FlowCanvasProps {
   return {
-    flow: ifFlow(), rules: {}, checks: [], mode: "view", showVars: false, selectedId: null, selectedEdgeId: null, overlay: null,
+    flow: ifFlow(), rules: {}, checks: [], mode: "view", varDisplay: "off", selectedId: null, selectedEdgeId: null, overlay: null,
     focusId: null, focusSeq: 0, onSelect: noop, onSelectEdge: noop, onOpenRule: noop, onMove: noop, onConnect: noop,
     onDropPalette: noop, onNoteChange: noop,
     breakpoints: new Set(), collapsed: new Set(), showMiniMap: false, editingCondEdgeId: null, onMoveNode: noop, onDropRule: noop,

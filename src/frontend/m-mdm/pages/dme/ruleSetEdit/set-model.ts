@@ -70,6 +70,18 @@ export function setIo(ids: readonly string[], rules: RuleIoMap): SetIo {
   return { inputs: [...ins.values()], results: [...res.values()] };
 }
 
+/** 변수 이름 → 표시명 표(선의 변수 칩 [이름] 모드). 룰 입출력의 conds·results 에서 처음 나온 비어 있지 않은 표시명을 쓴다. 표시명이 없는 이름은 표에 없다. */
+export function varLabelsOf(rules: RuleIoMap): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const r of Object.values(rules)) {
+    if (!r || !r.exists) continue;
+    for (const x of [...(r.conds ?? []), ...(r.results ?? [])]) {
+      if (x.label && x.label.trim() && !(x.name in out)) out[x.name] = x.label;
+    }
+  }
+  return out;
+}
+
 /** 최종 결과 = 세트 안에서 아무도 뒤에서 읽지 않는다. 그 밖은 중간 결과. */
 export const isFinalResult = (row: Pick<ResultRow, "readers">) => row.readers.length === 0;
 
