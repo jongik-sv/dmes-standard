@@ -10,7 +10,7 @@
  * 찾기 칸(Enter·[다음] 으로 돈다)과 단축키 도움말 [?] 를 둔다(Task 8). 도움말은 지금 모드의 단축키만 짧은 정의 목록으로 보인다.
  * S1: [공간] 토글(`flow-space-tool`, `aria-pressed`, 편집 모드만) — 켜면 빈 곳 끌기가 공간 넓히기다.
  */
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type RefObject } from "react";
 
 import { IconArrowAutofitWidth, IconArrowBackUp, IconArrowForwardUp, IconArrowsMaximize, IconHelp, IconLayoutDistributeHorizontal, IconMap, IconSearch, IconVariable } from "@tabler/icons-react";
 
@@ -51,6 +51,11 @@ export interface FlowToolbarProps {
   /** [공간] 토글(S1) — 켜면 편집 모드의 빈 곳 끌기가 공간 넓히기다. 한 번 쓰면·Esc·편집 모드를 떠나면 page 가 끈다. */
   spaceTool?: boolean;
   onToggleSpaceTool?: () => void;
+}
+
+/** 단추 위 mousedown 의 기본 동작(초점 옮기기)을 막는다. 누르기(click)는 그대로 온다. */
+export function keepFocusOffButtons(e: MouseEvent<HTMLElement>): void {
+  if ((e.target as Element | null)?.closest?.("button")) e.preventDefault();
 }
 
 export function FlowToolbar(props: FlowToolbarProps) {
@@ -100,7 +105,9 @@ export function FlowToolbar(props: FlowToolbarProps) {
   const message: RuleSetMessage | null = confirmDeprecate ? { kind: "error", text: DEPRECATE_WARNING } : state.message;
 
   return (
-    <div data-testid="flow-toolbar" className="rsf-toolbar">
+    // 단추는 마우스로 눌러도 초점을 가져가지 않는다(Figma 툴바 방식, S1 리뷰 Important 2) — 초점이 단추에 남으면 스페이스+끌기(화면 이동)의
+    // 스페이스가 그 단추를 다시 누른다. 키보드 Tab·Enter·Space 는 그대로이고, 찾기 칸 같은 입력칸은 해당 없다.
+    <div data-testid="flow-toolbar" className="rsf-toolbar" onMouseDown={keepFocusOffButtons}>
       <div className="rsf-toolbar-row">
         <span className="rsf-toolbar-group">
           <span data-testid="set-card-id" style={{ fontWeight: 600 }}>

@@ -335,12 +335,14 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   /** 캔버스 감싸개 — 도움말을 Esc 로 닫으면 그 안의 캔버스(`flow-canvas`, tabIndex 0)로 초점을 돌린다(브라우저 확인 8번 단서). */
   const canvasHostRef = useRef<HTMLDivElement>(null);
   const focusCanvas = useCallback(() => canvasHostRef.current?.querySelector<HTMLElement>(".rsf-canvas")?.focus({ preventScroll: true }), []);
-  /** [공간] 토글 — 켤 때 초점을 캔버스로 옮긴다. 단추에 초점이 남으면 Esc 가 캔버스 디스패처에 닿지 않는다(브라우저 확인 8번과 같은 까닭). */
+  /**
+   * [공간] 토글 — 켜고 끌 때 모두 초점을 캔버스로 옮긴다. 단추에 초점이 남으면 Esc 가 캔버스 디스패처에 닿지 않고(브라우저 확인 8번과 같은 까닭),
+   * 스페이스+끌기(화면 이동)의 스페이스가 단추를 다시 누른다(S1 리뷰 Important 2).
+   */
   const onToggleSpaceTool = useCallback(() => {
-    const next = !spaceTool;
-    setSpaceTool(next);
-    if (next) focusCanvas();
-  }, [spaceTool, focusCanvas]);
+    setSpaceTool((on) => !on);
+    focusCanvas();
+  }, [focusCanvas]);
   /** 캔버스가 "React Flow 선택(노드·선·메모·그룹 selected) 비우기" 를 채우는 ref — Esc 가 부른다(내장 키 처리를 껐으므로). */
   const clearCanvasSelectionRef = useRef<(() => void) | null>(null);
   const onEscape = () => {

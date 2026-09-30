@@ -712,6 +712,8 @@ function Inner(props: FlowCanvasProps) {
     });
   }, [flow, vflow, view, chips, overlay, eMarks, showVars, selectedEdgeId, editable, debugging, valueAt, editingCondEdgeId, condEdge, dropEdge, onReconnect]);
 
+  /** 영역 선택(상자 끌기) 중인가 — onSelectionStart~onSelectionEnd. */
+  const boxingRef = useRef(false);
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     const dims = changes.filter((c): c is Extract<NodeChange, { type: "dimensions" }> => c.type === "dimensions" && !!c.dimensions);
     if (dims.length > 0) {
@@ -726,7 +728,11 @@ function Inner(props: FlowCanvasProps) {
         return next ?? cur; // 같은 값이면 상태를 바꾸지 않는다(다시 그리기 반복 방지)
       });
     }
-    const selects = changes.filter((c): c is Extract<NodeChange, { type: "select" }> => c.type === "select");
+    // 영역 선택 중에는 그룹 틀을 고르지 않는다(부분 포함 상자가 그룹 틀까지 걸어 선택 상자가 커지지 않게). 그룹 제목 누르기 선택은 그대로다.
+    const groupIds = boxingRef.current ? new Set(fullRef.current.view.groups.map((g) => g.id)) : null;
+    const selects = changes.filter(
+      (c): c is Extract<NodeChange, { type: "select" }> => c.type === "select" && !(groupIds?.has(c.id) && c.selected),
+    );
     if (selects.length > 0) {
       setRfSel((cur) => {
         const next = new Set(cur);
@@ -746,6 +752,16 @@ function Inner(props: FlowCanvasProps) {
     });
   }, []);
 
+  /**
+   * 접힌 분기를 그린 자리(splitAt, 접힌 상자 좌상단이면 folded)에 맞추려면 전체 흐름 자리에 더할 이동량 — 블록 끌기(blockPositionsOf)와
+   * 공간 넓히기(spaceDrawn)가 같은 기준을 쓴다(Minor C: 접힌 상자는 제 상자와 가운데·위를 맞춘다).
+   */
+  const blockDelta = (splitId: string, splitAt: FlowPos, fullAt: FlowPos, folded: boolean): FlowPos => {
+    const kind = fullRef.current.nodes.find((x) => x.id === splitId)?.kind;
+    const fold = folded && kind ? foldOffsetX(kind) : 0;
+    return { x: splitAt.x + fold - fullAt.x, y: splitAt.y - fullAt.y };
+  };
+
   /** 흐름 노드(룰·IF·병렬)만 선 위에 놓아 옮길 수 있다. */
   const isMovable = (n: Node) =>
     n.type === "rsfFlow" && !viewRef.current.blocks[n.id] && ["RULE", "IF", "PARALLEL"].includes(flowRef.current.nodes.find((x) => x.id === n.id)?.kind ?? "");
@@ -760,9 +776,7 @@ function Inner(props: FlowCanvasProps) {
     const base = fullPosOf();
     const from = base[n.id];
     if (!from) return {};
-    const kind = flowRef.current.nodes.find((x) => x.id === n.id)?.kind;
-    const fold = viewRef.current.blocks[n.id] && kind ? foldOffsetX(kind) : 0;
-    return blockDragPositions(fullRef.current, n.id, { x: n.position.x - (from.x - fold), y: n.position.y - from.y }, base);
+    return blockDragPositions(fullRef.current, n.id, blockDelta(n.id, n.position, from, !!viewRef.current.blocks[n.id]), base);
   };
 
   const onNodeDrag = useCallback((e: MouseEvent | TouchEvent, node: Node, dragged: Node[]) => {
@@ -1017,11 +1031,10 @@ function Inner(props: FlowCanvasProps) {
     if (Object.keys(blocks).length === 0) return out;
     const full = fullPosOf();
     for (const [sid, b] of Object.entries(blocks)) {
-      const kind = fullRef.current.nodes.find((n) => n.id === sid)?.kind;
       const sp = base[sid];
       const fp = full[sid];
-      if (!sp || !fp || !kind) continue;
-      const d = { x: sp.x + foldOffsetX(kind) - fp.x, y: sp.y - fp.y };
+      if (!sp || !fp) continue;
+      const d = blockDelta(sid, sp, fp, true);
       for (const m of b.members) if (m !== sid && full[m]) out[m] = { x: full[m].x + d.x, y: full[m].y + d.y };
     }
     return out;
@@ -1034,6 +1047,11 @@ function Inner(props: FlowCanvasProps) {
     let at = 0;
     let min: number | null = null;
     const onMoveEvt = (ev: MouseEvent) => {
+      // 단추가 모두 떨어진 채 움직이면 pointerup 을 잃은 것이다(창 밖에서 놓음) — 기록 없이 버린다(리뷰 Minor 2).
+      if (ev.buttons === 0) {
+        finish(false);
+        return;
+      }
       const dx = ev.clientX - clientX;
       const dy = ev.clientY - clientY;
       if (!axis) {
@@ -1213,6 +1231,15 @@ function Inner(props: FlowCanvasProps) {
         onPaneClick={() => {
           onSelect(null);
           onSelectEdge(null);
+        }}
+        // 영역 선택을 시작하면 단일 선택(속성 패널·Delete·복사 대상)을 푼다 — 상자 선택이 옛 노드를 가리킨 채 남지 않게(리뷰 Minor 1).
+        onSelectionStart={() => {
+          boxingRef.current = true;
+          onSelect(null);
+          onSelectEdge(null);
+        }}
+        onSelectionEnd={() => {
+          boxingRef.current = false;
         }}
         onNodeContextMenu={onNodeContextMenu}
         onEdgeContextMenu={onEdgeContextMenu}

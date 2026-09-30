@@ -33,7 +33,7 @@ vi.mock("../../../pages/dme/ruleSetEdit/canvas/react-flow", async (importOrigina
   return { ...real, ReactFlow: Spy };
 });
 
-import { addNote, insertSplit, setRoute, toEditFlow, type EditFlow, type EditResult, type FlowPos } from "../../../pages/dme/ruleSetEdit/flow-edit";
+import { addGroup, addNote, insertSplit, setRoute, toEditFlow, type EditFlow, type EditResult, type FlowPos } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { drawnPositions, foldOffsetX, shiftSpace } from "../../../pages/dme/ruleSetEdit/flow-layout";
 import { FlowCanvas, type FlowCanvasProps } from "../../../pages/dme/ruleSetEdit/canvas/FlowCanvas";
 import type { RuleIo, RuleSetView } from "../../../pages/dme/ruleSetEdit/types";
@@ -78,8 +78,8 @@ async function spaceDrag(from: FlowPos, dx: number, dy: number, mods: MouseEvent
   const s = screenOf(from);
   await fire(pane(), "pointerdown", { ...s, ...mods });
   await fire(pane(), "mousedown", { ...s, ...mods });
-  await fire(window, "pointermove", { clientX: s.clientX + Math.sign(dx) * 2, clientY: s.clientY + Math.sign(dy) * 2 });
-  await fire(window, "pointermove", { clientX: s.clientX + dx, clientY: s.clientY + dy });
+  await fire(window, "pointermove", { clientX: s.clientX + Math.sign(dx) * 2, clientY: s.clientY + Math.sign(dy) * 2, buttons: 1 });
+  await fire(window, "pointermove", { clientX: s.clientX + dx, clientY: s.clientY + dy, buttons: 1 });
   if (release) {
     await fire(window, "pointerup", { clientX: s.clientX + dx, clientY: s.clientY + dy });
     await fire(window, "mouseup", { clientX: s.clientX + dx, clientY: s.clientY + dy });
@@ -216,7 +216,7 @@ describe("FlowCanvas — 공간 넓히기", () => {
     // Alt 로 노드 위에서 시작
     const s = screenOf(r1);
     await fire(nodeEl("r1"), "pointerdown", { ...s, altKey: true });
-    await fire(window, "pointermove", { clientX: s.clientX + 3, clientY: s.clientY + 90 });
+    await fire(window, "pointermove", { clientX: s.clientX + 3, clientY: s.clientY + 90, buttons: 1 });
     expect(guide()).toBeNull();
     await fire(window, "pointerup", { clientX: s.clientX + 3, clientY: s.clientY + 90 });
     // 보기 모드 — 토글이 켜져 들어와도, Alt 로도 안 된다
@@ -244,6 +244,22 @@ describe("FlowCanvas — 공간 넓히기", () => {
     expect(after.if1).toEqual({ x: full.if1.x, y: full.if1.y + delta });
     expect(after.m1).toEqual({ x: full.m1.x, y: full.m1.y + delta });
     expect(after.r1).toEqual(full.r1);
+  });
+
+  it("단추를 뗀 채 움직이면(창 밖에서 놓아 pointerup 을 잃음) 끌기를 버리고 아무것도 올리지 않는다(리뷰 Minor 2)", async () => {
+    const onShiftSpace = vi.fn();
+    const onSpaceToolChange = vi.fn();
+    await draw(props({ spaceTool: true, onShiftSpace, onSpaceToolChange }));
+    const r2 = at("r2");
+    await spaceDrag({ x: r2.x + 10, y: r2.y - 10 }, 2, 60, {}, false);
+    expect(guide()).not.toBeNull();
+    const s = screenOf({ x: r2.x + 10, y: r2.y - 10 });
+    await fire(window, "pointermove", { clientX: s.clientX, clientY: s.clientY + 90, buttons: 0 });
+    expect(guide()).toBeNull();
+    expect(at("r2")).toEqual(r2);
+    await fire(window, "pointerup", { clientX: s.clientX, clientY: s.clientY + 90 });
+    expect(onShiftSpace).not.toHaveBeenCalled();
+    expect(onSpaceToolChange).toHaveBeenCalledWith(false);
   });
 
   it("방향이 정해지기 전(임계값 안)에 놓으면 아무것도 올리지 않는다. 토글은 끈다", async () => {
@@ -307,6 +323,48 @@ describe("FlowCanvas — 끌어서 영역 선택(Figma 방식 이동 조작)", (
       await draw(props({ mode }));
       expect(lastRf(), mode).toMatchObject({ selectionOnDrag: false, panOnDrag: true, panOnScroll: false, selectionKeyCode: null, multiSelectionKeyCode: null });
     }
+  });
+
+  it("선택 상자(nodesselection-rect)는 누름을 받지 않는다 — 우클릭·누르기·손잡이가 아래 노드로 간다(리뷰 Important 1)", async () => {
+    const { RSF_CSS } = await import("../../../pages/dme/ruleSetEdit/rsf-styles");
+    expect(RSF_CSS.replace(/\s+/g, " ")).toContain(".rsf-canvas .react-flow__nodesselection-rect { pointer-events: none; }");
+  });
+
+  it("영역 선택을 시작하면 단일 선택(노드·선)을 푼다(리뷰 Minor 1)", async () => {
+    const onSelect = vi.fn();
+    const onSelectEdge = vi.fn();
+    await draw(props({ onSelect, onSelectEdge, selectedId: "r1", selectedEdgeId: "e2" }));
+    const start = lastRf().onSelectionStart as ((e: unknown) => void) | undefined;
+    expect(start).toBeTypeOf("function");
+    await act(async () => {
+      start!({});
+    });
+    expect(onSelect).toHaveBeenCalledWith(null);
+    expect(onSelectEdge).toHaveBeenCalledWith(null);
+  });
+
+  it("영역 선택 중에는 그룹 틀을 고르지 않는다(상자·목록이 그룹 틀로 커지지 않게)", async () => {
+    const g = addGroup(chain(), ["r1", "r2"], "묶음");
+    if (!g.ok) throw new Error(g.reason);
+    await draw(props({ flow: g.flow }));
+    const gid = g.id!;
+    const rfp = () => lastRf();
+    await act(async () => {
+      (rfp().onSelectionStart as (e: unknown) => void)({});
+      (rfp().onNodesChange as (c: unknown[]) => void)(["r1", gid].map((id) => ({ type: "select", id, selected: true })));
+    });
+    await flush();
+    expect(nodeEl("r1").classList.contains("selected")).toBe(true);
+    expect(nodeEl(gid).classList.contains("selected")).toBe(false);
+    await act(async () => {
+      (rfp().onSelectionEnd as (e: unknown) => void)({});
+    });
+    // 상자 선택이 끝난 뒤의 누르기(그룹 제목)는 예전처럼 고를 수 있다.
+    await act(async () => {
+      (rfp().onNodesChange as (c: unknown[]) => void)([{ type: "select", id: gid, selected: true }]);
+    });
+    await flush();
+    expect(nodeEl(gid).classList.contains("selected")).toBe(true);
   });
 
   it("영역 선택 결과(React Flow 선택 변경)는 onSelectionChange 로 흐름 노드 ID 가 올라가고, 고른 노드·메모를 끌면 onMove 한 번이다", async () => {
@@ -426,6 +484,59 @@ describe("화면 — [공간] 토글·Alt+끌기", () => {
     expect(pressed()).toBe("true");
     await key(document.activeElement ?? btn, { key: "Escape" });
     expect(pressed()).toBe("false");
+  });
+
+  it("[공간] 을 마우스로 끌 때도 초점이 캔버스로 간다(단추에 남으면 스페이스가 단추를 다시 누른다 — 리뷰 Important 2)", async () => {
+    await openSet("SC_O", viewOf("SC_O", chain()));
+    await click("flow-mode-edit");
+    await click("flow-space-tool");
+    const btn = byTestId("flow-space-tool");
+    await act(async () => {
+      btn.focus();
+      btn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+    await flush();
+    expect(pressed()).toBe("false");
+    expect(document.activeElement).toBe(byTestId("flow-canvas"));
+  });
+
+  it("툴바·팔레트 단추는 마우스로 눌러도 초점을 가져가지 않는다(mousedown 기본 동작 막음). 찾기 칸은 그대로", async () => {
+    await openSet("SC_M", viewOf("SC_M", chain()));
+    await click("flow-mode-edit");
+    const down = (id: string) => {
+      const ev = new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 });
+      byTestId(id).dispatchEvent(ev);
+      return ev.defaultPrevented;
+    };
+    for (const id of ["flow-undo", "flow-space-tool", "flow-auto-layout", "flow-fit", "flow-help", "flow-mode-view"]) expect(down(id), id).toBe(true);
+    expect(down("flow-find")).toBe(false);
+    // 팔레트는 HTML5 끌기(draggable)를 살리려고 mousedown 을 막지 않고, 마우스로 누른 뒤 초점을 놓는다.
+    const note = byTestId("flow-add-note");
+    await act(async () => {
+      note.focus();
+      note.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, detail: 1 }));
+    });
+    await flush();
+    expect(document.activeElement).not.toBe(note);
+  });
+
+  it("영역 선택 뒤 Delete 는 전에 누른 노드를 지우지 않는다(리뷰 Minor 1)", async () => {
+    await openSet("SC_D", viewOf("SC_D", chain()));
+    await click("flow-mode-edit");
+    await click("flow-node-r1");
+    expect(q("flow-prop-rule")).not.toBeNull();
+    await act(async () => {
+      (lastRf().onSelectionStart as (e: unknown) => void)({});
+      (lastRf().onNodesChange as (c: unknown[]) => void)(["r2", "r3"].map((id) => ({ type: "select", id, selected: true })));
+    });
+    await flush();
+    expect(q("flow-prop-rule")).toBeNull();
+    const canvas = byTestId("flow-canvas");
+    await act(async () => {
+      canvas.focus();
+    });
+    await key(canvas, { key: "Delete" });
+    expect(document.querySelector('.react-flow__node[data-id="r1"]')).not.toBeNull();
   });
 
   it("Alt+끌기는 토글 없이 된다(되돌리기 한 칸)", async () => {
