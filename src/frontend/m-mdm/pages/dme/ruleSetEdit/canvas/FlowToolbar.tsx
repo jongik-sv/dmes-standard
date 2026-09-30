@@ -22,7 +22,7 @@ import type { FlowMode, RuleSetEditState, RuleSetMessage } from "../state/useRul
 import { SHORTCUT_HELP, isMacPlatform } from "./shortcuts";
 
 /** [변수 흐름] 단추 글자 — 지금 상태를 보인다. */
-const VAR_DISPLAY_TEXT: Record<VarDisplay, string> = { off: "변수: 끔", id: "변수: ID", name: "변수: 이름" };
+const VAR_DISPLAY_TEXT: Record<VarDisplay, string> = { off: "표시: 끔", id: "표시: ID", name: "표시: 이름" };
 const MAC_FN_NOTE = "F9·F10·F5 는 fn 과 함께 누른다";
 const DEPRECATE_WARNING = "폐기하면 이 세트를 부르는 호출은 판정 오류가 난다.";
 
@@ -220,7 +220,7 @@ export function FlowToolbar(props: FlowToolbarProps) {
             <IconArrowsMaximize size={14} aria-hidden="true" style={{ marginRight: "var(--spacing-xs)" }} />
             화면 맞춤
           </Button>
-          <Button data-testid="flow-var-toggle" data-mode={varDisplay} aria-pressed={varDisplay !== "off"} variant={varDisplay !== "off" ? "primary" : "default"} onClick={onToggleVars}>
+          <Button data-testid="flow-var-toggle" title="선 변수 칩과 룰 노드 제목을 ID·이름으로 바꾼다. 끄면 변수 칩을 숨긴다" data-mode={varDisplay} aria-pressed={varDisplay !== "off"} variant={varDisplay !== "off" ? "primary" : "default"} onClick={onToggleVars}>
             <IconVariable size={14} aria-hidden="true" style={{ marginRight: "var(--spacing-xs)" }} />
             {VAR_DISPLAY_TEXT[varDisplay]}
           </Button>

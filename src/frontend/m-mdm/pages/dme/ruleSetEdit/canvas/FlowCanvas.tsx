@@ -575,6 +575,7 @@ function Inner(props: FlowCanvasProps) {
         canBreak: debugging && BREAKABLE.has(n.kind),
         collapsed: block ? blockInfo(flow, block, n.id, overlay) : null,
         onToggleBreakpoint,
+        varDisplay,
       };
       out.push({
         id: n.id, type: "rsfFlow", position: p, width: s.w, height: s.h, measured: measured[n.id], data, handles: handlesOf(block ? "RULE" : n.kind), draggable: editable,

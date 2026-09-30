@@ -126,18 +126,20 @@ describe("[변수 흐름] 단추 — 세 상태", () => {
 
   it("누를 때마다 off → id → name → off, 글자·aria-pressed·data-mode·저장소가 따라간다", async () => {
     await openSet("V1S", chainView());
-    expect([mode(), attr("flow-var-toggle", "aria-pressed"), text()]).toEqual(["off", "false", "변수: 끔"]);
+    expect([mode(), attr("flow-var-toggle", "aria-pressed"), text()]).toEqual(["off", "false", "표시: 끔"]);
+    expect(attr("flow-var-toggle", "title")).toBe("선 변수 칩과 룰 노드 제목을 ID·이름으로 바꾼다. 끄면 변수 칩을 숨긴다");
     await click("flow-var-toggle");
-    expect([mode(), attr("flow-var-toggle", "aria-pressed"), text()]).toEqual(["id", "true", "변수: ID"]);
+    expect([mode(), attr("flow-var-toggle", "aria-pressed"), text()]).toEqual(["id", "true", "표시: ID"]);
     expect(chipTexts()).toContain("S_GRD");
     expect(stored()).toBe('"id"');
     await click("flow-var-toggle");
-    expect([mode(), attr("flow-var-toggle", "aria-pressed"), text()]).toEqual(["name", "true", "변수: 이름"]);
+    expect([mode(), attr("flow-var-toggle", "aria-pressed"), text()]).toEqual(["name", "true", "표시: 이름"]);
     expect(chipTexts()).toContain("등급");
     expect(chipTexts()).toContain("S_NOLABEL");
     expect(stored()).toBe('"name"');
     await click("flow-var-toggle");
-    expect([mode(), attr("flow-var-toggle", "aria-pressed"), text()]).toEqual(["off", "false", "변수: 끔"]);
+    expect([mode(), attr("flow-var-toggle", "aria-pressed"), text()]).toEqual(["off", "false", "표시: 끔"]);
+    expect(attr("flow-var-toggle", "title")).toBe("선 변수 칩과 룰 노드 제목을 ID·이름으로 바꾼다. 끄면 변수 칩을 숨긴다");
     expect(q("flow-edge-chips-e2")).toBeNull();
     expect(stored()).toBe('"off"');
   });
