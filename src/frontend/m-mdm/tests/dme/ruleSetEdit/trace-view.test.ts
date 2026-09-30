@@ -109,6 +109,21 @@ describe("trace-view(골든)", () => {
     expect(at("par1").changed).toEqual([]);
   });
 
+  it("PARALLEL_MERGE — before 는 노드 실행 전 그 노드 범위의 ctx(갈래 범위·합치기 전, 3단계 P9)", () => {
+    const { flow, trace } = golden("PARALLEL_MERGE");
+    const fr = frames(trace, flow);
+    const at = (id: string) => fr.find((x) => x.node.nodeId === id)!;
+    expect(at("start").before).toEqual({ GT_THK: S("12"), GT_KIND: S("x") });
+    expect(at("r1").before).toEqual(at("start").ctx);
+    expect(at("par1").before).toEqual(at("r1").ctx); // 갈래 범위를 만들기 전
+    expect(at("rs1").before).toEqual(at("r2").ctx); // 첫 갈래 안
+    expect(at("r3").before).toEqual({ GT_THK: S("12"), GT_KIND: S("x"), GT_G: S("A") }); // 둘째 갈래 — 첫 갈래 결과 없음
+    expect(at("m1").before).toEqual({ GT_THK: S("12"), GT_KIND: S("x"), GT_G: S("A") }); // 합치기 전 바깥 범위
+    expect(at("end").before).toEqual(at("m1").ctx);
+    at("r3").before.GT_X = S("mutated");
+    expect(at("r3").ctx.GT_X).toBeUndefined(); // 사본이다
+  });
+
   it("PARALLEL_MERGE — 값 표 칸과 바뀜 표시", () => {
     const { flow, trace } = golden("PARALLEL_MERGE");
     const t = valueTable(trace, flow);
