@@ -39,8 +39,8 @@ import { useSimulation } from "./debugger/useSimulation";
 import { useTestCases } from "./debugger/useTestCases";
 import { ValuesTab } from "./debugger/ValuesTab";
 import { VariablePanel } from "./debugger/VariablePanel";
-import { connect, flowJsonOf, setPositions, updateEdge, updateNote, type EditFlow, type EditResult, type FlowNote, type FlowPos } from "./flow-edit";
-import { autoLayout } from "./flow-layout";
+import { connect, flowJsonOf, setPositions, setRoute, updateEdge, updateNote, type EditFlow, type EditResult, type FlowNote, type FlowPos } from "./flow-edit";
+import { autoArrange } from "./flow-layout";
 import { openRule } from "./links";
 import { BottomPanel, type BottomTab } from "./panels/BottomPanel";
 import { ChecksPanel } from "./panels/ChecksPanel";
@@ -234,6 +234,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   );
 
   const onMove = useCallback((pos: Record<string, FlowPos>) => editing && edit((f) => setPositions(f, pos)), [editing, edit]);
+  const onRouteChange = useCallback((edgeId: string, points: FlowPos[]) => editing && edit((f) => setRoute(f, edgeId, points)), [editing, edit]);
   const onMoveNode = useCallback(
     (nodeId: string, edgeId: string, pos: Record<string, FlowPos>) => {
       if (editing) drag.moveNodeTo(nodeId, edgeId, pos);
@@ -264,7 +265,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     [editing, edit],
   );
   const onEditCondClose = useCallback(() => setEditingCond(null), []);
-  const onAutoLayout = useCallback(() => edit((f) => setPositions(f, autoLayout(f))), [edit]);
+  const onAutoLayout = useCallback(() => edit((f) => autoArrange(f)), [edit]);
   const onContextMenu = useCallback((target: MenuTarget, at: { x: number; y: number }) => setMenu({ target, at }), []);
   const onToggleMiniMap = useCallback(() => {
     const next = !showMiniMap;
@@ -306,6 +307,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   const mac = useMemo(() => isMacPlatform(), []);
   /** 고른 것이 흐름 노드인가(메모·그룹 아님) — 복사·중단점 단축키와 디버그 툴바 [여기까지] 가 쓴다. */
   const isFlowNode = !!flow && !!selectedId && flow.nodes.some((n) => n.id === selectedId);
+  const removeRoutePointRef = useRef<(() => boolean) | null>(null);
   const onCanvasKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const focusFind = findInputRef.current ? () => findInputRef.current?.focus() : undefined;
     const common: ShortcutHandlers = { escape: editActions.escape, find: focusFind };
@@ -315,7 +317,10 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
         ...common,
         undo: state.undo,
         redo: state.redo,
-        delete: editActions.deleteSelection,
+        // 고른 꺾는 점이 있으면 그것만 빼고, 없으면 원래 선택 삭제(C14).
+        delete: () => {
+          if (!removeRoutePointRef.current?.()) editActions.deleteSelection();
+        },
         copy: () => (isFlowNode ? canvasActions.copy(selectedId!) : edit(() => fail(COPY_NEEDS_NODE))),
         paste: () => (selectedEdgeId ? canvasActions.paste(selectedEdgeId) : edit(() => fail(PASTE_NEEDS_EDGE))),
         duplicate: () => (isFlowNode ? canvasActions.duplicate(selectedId!) : edit(() => fail(COPY_NEEDS_NODE))),
@@ -491,6 +496,8 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         onSelectEdge={selectEdge}
                         onOpenRule={openRule}
                         onMove={onMove}
+                        onRouteChange={onRouteChange}
+                        removeRoutePointRef={removeRoutePointRef}
                         onMoveNode={onMoveNode}
                         onConnect={onConnect}
                         onDropPalette={editActions.dropPalette}

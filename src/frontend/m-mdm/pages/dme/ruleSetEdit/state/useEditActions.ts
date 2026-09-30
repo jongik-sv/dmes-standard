@@ -30,13 +30,13 @@ import {
   removeNode,
   removeNote,
   replaceRule,
-  setPositions,
+  setRoute,
   type EditFlow,
   type EditResult,
   type Fragment,
   type FlowPos,
 } from "../flow-edit";
-import { NODE_SIZE, autoLayout, positionsOf } from "../flow-layout";
+import { NODE_SIZE, autoArrange, positionsOf } from "../flow-layout";
 import { openRule } from "../links";
 import type { RuleIo } from "../types";
 import type { RuleSetEditState } from "./useRuleSetEdit";
@@ -287,7 +287,7 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
       openRule,
       fit,
       autoLayout: () => {
-        if (editing) edit((f) => setPositions(f, autoLayout(f)));
+        if (editing) edit((f) => autoArrange(f));
       },
       addNote: (at: FlowPos) => {
         if (editing) placeNote(at);
@@ -300,6 +300,9 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
       },
       removeNode: (nodeId: string) => {
         if (editing) edit((f) => removeNode(f, nodeId));
+      },
+      resetRoute: (edgeId: string) => {
+        if (editing) edit((f) => setRoute(f, edgeId, []));
       },
       removeEdge: (edgeId: string) => {
         if (editing) edit((f) => removeEdge(f, edgeId));

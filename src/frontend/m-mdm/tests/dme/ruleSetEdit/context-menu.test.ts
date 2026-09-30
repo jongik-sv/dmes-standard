@@ -15,7 +15,7 @@ import type { FlowMode } from "../../../pages/dme/ruleSetEdit/state/useRuleSetEd
 function actions(): CanvasActions {
   return {
     openRule: vi.fn(), fit: vi.fn(), autoLayout: vi.fn(), addNote: vi.fn(), pickRuleFor: vi.fn(), insertSplitAt: vi.fn(),
-    removeNode: vi.fn(), removeEdge: vi.fn(), addBranch: vi.fn(), editCond: vi.fn(), copy: vi.fn(), paste: vi.fn(),
+    removeNode: vi.fn(), removeEdge: vi.fn(), resetRoute: vi.fn(), addBranch: vi.fn(), editCond: vi.fn(), copy: vi.fn(), paste: vi.fn(),
     duplicate: vi.fn(), replaceRule: vi.fn(), changeSplitKind: vi.fn(), dissolveSplit: vi.fn(), toggleCollapse: vi.fn(),
     toggleBreakpoint: vi.fn(), runTo: vi.fn(),
   };

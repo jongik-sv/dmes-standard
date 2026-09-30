@@ -97,7 +97,7 @@ describe("flow-edit", () => {
         '{"id":"r1","kind":"RULE","ruleId":"R_A","splitId":null,"label":null},{"id":"end","kind":"END","ruleId":null,"splitId":null,"label":null}],' +
         '"edges":[{"id":"e1","from":"start","to":"r1","order":null,"cond":null,"otherwise":false,"label":null},' +
         '{"id":"e2","from":"r1","to":"end","order":null,"cond":null,"otherwise":false,"label":null}],' +
-        '"view":{"positions":{},"notes":[],"groups":[]}}',
+        '"view":{"positions":{},"notes":[],"groups":[],"routes":{}}}',
     );
   });
 
@@ -110,7 +110,7 @@ describe("flow-edit", () => {
 
   it("toEditFlow 는 모양이 틀린 view 항목을 버린다", () => {
     const f = toEditFlow({ ...base, view: { positions: { r1: { x: "a", y: 1 }, end: { x: 3, y: 4 } }, notes: [{ id: 1 }], groups: "x" } } as never, []);
-    expect(f.view).toEqual({ positions: { end: { x: 3, y: 4 } }, notes: [], groups: [] });
+    expect(f.view).toEqual({ positions: { end: { x: 3, y: 4 } }, notes: [], groups: [], routes: {} });
   });
 });
 
@@ -147,7 +147,7 @@ describe("flow-edit 보강", () => {
       [],
     );
     expect(flowJsonOf(f)).toContain(
-      '"view":{"positions":{"r1":{"x":1,"y":2}},"notes":[{"id":"n1","text":"t","x":0,"y":0,"w":1,"h":2,"attach":null}],"groups":[{"id":"g1","title":"G","nodeIds":["r1"]}]}',
+      '"view":{"positions":{"r1":{"x":1,"y":2}},"notes":[{"id":"n1","text":"t","x":0,"y":0,"w":1,"h":2,"attach":null}],"groups":[{"id":"g1","title":"G","nodeIds":["r1"]}],"routes":{}}',
     );
   });
 

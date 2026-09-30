@@ -33,6 +33,8 @@ export interface FlowView {
   positions: Record<string, FlowPos>;
   notes: FlowNote[];
   groups: FlowGroup[];
+  /** 선 ID → 꺾는 점 목록(흐름 좌표, C14). 점이 없는 선은 키가 없다. */
+  routes: Record<string, FlowPos[]>;
 }
 export interface EditFlow extends RuleSetFlow {
   view: FlowView;
@@ -48,7 +50,11 @@ export const EMPTY_VIEW: FlowView = Object.freeze({
   positions: Object.freeze({}) as Record<string, FlowPos>,
   notes: Object.freeze([]) as unknown as FlowNote[],
   groups: Object.freeze([]) as unknown as FlowGroup[],
+  routes: Object.freeze({}) as Record<string, FlowPos[]>,
 });
+/** 꺾는 점은 선 하나에 20개까지(C14). */
+export const MAX_ROUTE_POINTS = 20;
+export const ROUTE_LIMIT_MESSAGE = `꺾는 점은 선 하나에 ${MAX_ROUTE_POINTS}개까지 둔다`;
 
 /** 새 메모 크기(계약 밖 기본값). */
 const NOTE_W = 160;
@@ -86,20 +92,32 @@ const copyPos = (p: FlowPos): FlowPos => ({ x: p.x, y: p.y });
 const copyNote = (n: FlowNote): FlowNote => ({ id: n.id, text: n.text, x: n.x, y: n.y, w: n.w, h: n.h, attach: n.attach ?? null });
 const copyGroup = (g: FlowGroup): FlowGroup => ({ id: g.id, title: g.title, nodeIds: [...g.nodeIds] });
 
-function copyView(v: FlowView | undefined): FlowView {
-  const positions: Record<string, FlowPos> = {};
-  for (const [k, p] of Object.entries(v?.positions ?? {})) positions[k] = copyPos(p);
-  return { positions, notes: (v?.notes ?? []).map(copyNote), groups: (v?.groups ?? []).map(copyGroup) };
+/** 흐름에 있는 선의 경로만, 선 배열 순서로 복사한다(빈 경로·없는 선은 버린다). */
+function routesFor(edges: readonly FlowEdge[], routes: Readonly<Record<string, readonly FlowPos[]>> | undefined): Record<string, FlowPos[]> {
+  const out: Record<string, FlowPos[]> = {};
+  if (!routes) return out;
+  for (const e of edges) {
+    const r = routes[e.id];
+    if (Array.isArray(r) && r.length > 0) out[e.id] = r.map(copyPos);
+  }
+  return out;
 }
 
-/** 고쳐도 되는 깊은 복사본(칸을 모두 채운다). */
+function copyView(v: FlowView | undefined, edges: readonly FlowEdge[]): FlowView {
+  const positions: Record<string, FlowPos> = {};
+  for (const [k, p] of Object.entries(v?.positions ?? {})) positions[k] = copyPos(p);
+  return { positions, notes: (v?.notes ?? []).map(copyNote), groups: (v?.groups ?? []).map(copyGroup), routes: routesFor(edges, v?.routes) };
+}
+
+/** 고쳐도 되는 깊은 복사본(칸을 모두 채운다). 흐름에 없는 선의 경로는 버린다. */
 function clone(f: EditFlow): EditFlow {
-  return { version: 1, nodes: (f.nodes ?? []).map(copyNode), edges: (f.edges ?? []).map(copyEdge), view: copyView(f.view) };
+  const edges = (f.edges ?? []).map(copyEdge);
+  return { version: 1, nodes: (f.nodes ?? []).map(copyNode), edges, view: copyView(f.view, edges) };
 }
 
 /** 모양이 맞는 view 항목만 남긴다(P7 toEditFlow). */
 function sanitizeView(raw: unknown): FlowView {
-  const view: FlowView = { positions: {}, notes: [], groups: [] };
+  const view: FlowView = { positions: {}, notes: [], groups: [], routes: {} };
   if (!isObj(raw)) return view;
   if (isObj(raw.positions)) {
     for (const [k, p] of Object.entries(raw.positions)) {
@@ -119,6 +137,14 @@ function sanitizeView(raw: unknown): FlowView {
       if (!isObj(g) || typeof g.id !== "string" || typeof g.title !== "string") continue;
       if (!Array.isArray(g.nodeIds) || !g.nodeIds.every((x) => typeof x === "string")) continue;
       view.groups.push({ id: g.id, title: g.title, nodeIds: [...(g.nodeIds as string[])] });
+    }
+  }
+  if (isObj(raw.routes)) {
+    for (const [k, list] of Object.entries(raw.routes)) {
+      if (!Array.isArray(list)) continue;
+      const pts: FlowPos[] = [];
+      for (const p of list) if (isObj(p) && finite(p.x) && finite(p.y)) pts.push({ x: p.x, y: p.y });
+      if (pts.length > 0) view.routes[k] = pts.slice(0, MAX_ROUTE_POINTS);
     }
   }
   return view;
@@ -153,7 +179,11 @@ export function nextId(f: EditFlow, prefix: string): string {
 // ───────────────────────── 구조 도우미 ─────────────────────────
 
 const fail = (reason: string): EditResult => ({ ok: false, reason });
-const done = (flow: EditFlow): EditResult => ({ ok: true, flow });
+/** 결과를 돌려주기 전에 사라진 선의 경로를 버린다(연산이 선을 지우거나 바꿨을 수 있다). */
+const done = (flow: EditFlow): EditResult => {
+  const routes = routesFor(flow.edges, flow.view?.routes);
+  return { ok: true, flow: flow.view ? { ...flow, view: { ...flow.view, routes } } : flow };
+};
 const findNode = (f: EditFlow, id: string) => f.nodes.find((n) => n.id === id);
 const findEdge = (f: EditFlow, id: string) => f.edges.find((e) => e.id === id);
 const outOf = (f: EditFlow, id: string) => f.edges.filter((e) => e.from === id);
@@ -219,7 +249,7 @@ function dropNodes(f: EditFlow, ids: ReadonlySet<string>): EditFlow {
     .map((g) => ({ ...g, nodeIds: g.nodeIds.filter((x) => !ids.has(x)) }))
     .filter((g) => g.nodeIds.length > 0);
   const notes = f.view.notes.map((n) => (n.attach != null && ids.has(n.attach) ? { ...n, attach: null } : n));
-  return { version: f.version, nodes, edges, view: { positions, notes, groups } };
+  return { version: f.version, nodes, edges, view: { positions, notes, groups, routes: f.view.routes } };
 }
 
 function insertAfter<T>(list: T[], index: number, ...items: T[]): void {
@@ -231,18 +261,21 @@ function insertAfter<T>(list: T[], index: number, ...items: T[]): void {
 /** null 이면 `linearFlow(ruleIds)` + 빈 view. raw 가 있으면 칸을 채워 복사하고 모양이 맞는 view 항목만 남긴다. */
 export function toEditFlow(raw: (RuleSetFlow & { view?: unknown }) | null, ruleIds: readonly string[]): EditFlow {
   const src = raw ?? linearFlow(ruleIds);
+  const edges = (Array.isArray(src.edges) ? src.edges : []).map(copyEdge);
+  const view = raw ? sanitizeView(raw.view) : { positions: {}, notes: [], groups: [], routes: {} };
   return {
     version: 1,
     nodes: (Array.isArray(src.nodes) ? src.nodes : []).map(copyNode),
-    edges: (Array.isArray(src.edges) ? src.edges : []).map(copyEdge),
-    view: raw ? sanitizeView(raw.view) : { positions: {}, notes: [], groups: [] },
+    edges,
+    view: { ...view, routes: routesFor(edges, view.routes) },
   };
 }
 
 /** P2 정규 JSON 과 같은 키 순서의 문자열. view 항목도 고정 키 순서로 쓴다. */
 export function flowJsonOf(f: EditFlow): string {
   const c = clone(f);
-  return JSON.stringify({ version: 1, nodes: c.nodes, edges: c.edges, view: c.view });
+  const v = c.view;
+  return JSON.stringify({ version: 1, nodes: c.nodes, edges: c.edges, view: { positions: v.positions, notes: v.notes, groups: v.groups, routes: v.routes } });
 }
 
 /** 선 e(A→B) 위에 룰을 끼운다. e.to = 새 룰, 새 선 {룰→B} 는 e 바로 뒤. 새 노드는 A 뒤(A 가 없으면 끝). */
@@ -421,6 +454,26 @@ export function removeEdge(f: EditFlow, edgeId: string): EditResult {
   if (!findEdge(g, edgeId)) return fail(`선 ${edgeId}를 찾지 못했다`);
   g.edges = g.edges.filter((e) => e.id !== edgeId);
   return done(g);
+}
+
+/** 선 하나의 꺾는 점을 통째로 바꾼다(끌기 끝·점 더하기·빼기). 빈 배열이면 그 선의 경로를 지운다. */
+export function setRoute(f: EditFlow, edgeId: string, points: readonly FlowPos[]): EditResult {
+  if (!f.edges.some((e) => e.id === edgeId)) return fail(`선 ${edgeId}를 찾지 못했다`);
+  if (points.length > MAX_ROUTE_POINTS) return fail(ROUTE_LIMIT_MESSAGE);
+  if (!points.every((p) => finite(p.x) && finite(p.y))) return fail("꺾는 점의 좌표가 올바르지 않다");
+  const g = clone(f);
+  const routes = { ...g.view.routes };
+  if (points.length === 0) delete routes[edgeId];
+  else routes[edgeId] = points.map(copyPos);
+  g.view.routes = routes;
+  return done(g);
+}
+
+/** 모든 선의 경로를 지운다(자동 정렬). */
+export function clearRoutes(f: EditFlow): EditFlow {
+  const g = clone(f);
+  g.view.routes = {};
+  return g;
 }
 
 /** 배치를 덮어쓴다(병합). */
