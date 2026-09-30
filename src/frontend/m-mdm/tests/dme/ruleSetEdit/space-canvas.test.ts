@@ -367,6 +367,39 @@ describe("FlowCanvas — 끌어서 영역 선택(Figma 방식 이동 조작)", (
     expect(nodeEl(gid).classList.contains("selected")).toBe(true);
   });
 
+  it("영역 선택이 pointercancel·빈 곳 새 누르기·편집 모드 떠나기로 끊겨도 그룹 제목 누르기 선택이 다시 된다(S1 재리뷰 Minor 1)", async () => {
+    const g = addGroup(chain(), ["r1", "r2"], "묶음");
+    if (!g.ok) throw new Error(g.reason);
+    const gid = g.id!;
+    const selectGroup = async (on: boolean) => {
+      await act(async () => {
+        (lastRf().onNodesChange as (c: unknown[]) => void)([{ type: "select", id: gid, selected: on }]);
+      });
+      await flush();
+    };
+    const startBox = () => act(async () => { (lastRf().onSelectionStart as (e: unknown) => void)({}); });
+    await draw(props({ flow: g.flow }));
+    // pointercancel — xyflow 는 onSelectionEnd 를 부르지 않는다
+    await startBox();
+    await fire(document.querySelector('[data-testid="flow-canvas"]')!, "pointercancel");
+    await selectGroup(true);
+    expect(nodeEl(gid).classList.contains("selected")).toBe(true);
+    await selectGroup(false);
+    // 빈 곳을 새로 누르면 앞 상자는 끝난 것이다
+    await startBox();
+    await fire(pane(), "pointerdown", { clientX: 5, clientY: 5 });
+    await fire(window, "pointerup", { clientX: 5, clientY: 5 });
+    await selectGroup(true);
+    expect(nodeEl(gid).classList.contains("selected")).toBe(true);
+    await selectGroup(false);
+    // 편집 모드를 떠났다 돌아와도
+    await startBox();
+    await draw(props({ flow: g.flow, mode: "view" }));
+    await draw(props({ flow: g.flow }));
+    await selectGroup(true);
+    expect(nodeEl(gid).classList.contains("selected")).toBe(true);
+  });
+
   it("영역 선택 결과(React Flow 선택 변경)는 onSelectionChange 로 흐름 노드 ID 가 올라가고, 고른 노드·메모를 끌면 onMove 한 번이다", async () => {
     const f = addNote(chain(), { x: 600, y: 10 }, null).flow;
     const noteId = f.view.notes[0].id;

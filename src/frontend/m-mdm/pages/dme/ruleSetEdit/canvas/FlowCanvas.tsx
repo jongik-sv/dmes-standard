@@ -859,8 +859,11 @@ function Inner(props: FlowCanvasProps) {
     });
   }, [flow, vflow, view, chips, overlay, eMarks, showVars, selectedEdgeId, editable, debugging, valueAt, editingCondEdgeId, condEdge, dropEdge, onReconnect]);
 
-  /** 영역 선택(상자 끌기) 중인가 — onSelectionStart~onSelectionEnd. */
+  /** 영역 선택(상자 끌기) 중인가 — onSelectionStart~onSelectionEnd. pointercancel·빈 곳 새 누르기·편집 모드 떠나기에서도 푼다. */
   const boxingRef = useRef(false);
+  useEffect(() => {
+    if (!editable) boxingRef.current = false;
+  }, [editable]);
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     const dims = changes.filter((c): c is Extract<NodeChange, { type: "dimensions" }> => c.type === "dimensions" && !!c.dimensions);
     if (dims.length > 0) {
@@ -1327,12 +1330,19 @@ function Inner(props: FlowCanvasProps) {
    * 영역 선택이 켜진 편집 모드의 빈 곳 누르기(선택 풀기)는 pane 이 pointerup 에서 판정하는데 누르기를 끊었으므로 놓을 때 선택이 풀리지 않는다.
    */
   const onPointerDownCapture = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const onPane = !!(e.target as Element | null)?.classList?.contains("react-flow__pane");
+    // 빈 곳을 새로 누르면 앞 영역 선택은 끝난 것이다 — pointercancel 로 끊겨 onSelectionEnd 가 오지 않았어도 풀어 둔다(S1 재리뷰 Minor 1).
+    if (onPane) boxingRef.current = false;
     if (!editable || e.button !== 0 || !(spaceToolRef.current || e.altKey)) return;
-    if (!(e.target as Element | null)?.classList?.contains("react-flow__pane")) return;
+    if (!onPane) return;
     e.stopPropagation();
     e.preventDefault(); // 호환 마우스 이벤트(mousedown)도 막힌다
     wrapRef.current?.focus({ preventScroll: true });
     startSpaceDrag(e.clientX, e.clientY);
+  };
+  /** 누르기가 취소되면(터치 취소 등) 영역 선택도 끝난 것으로 본다 — xyflow 는 pointercancel 에 onSelectionEnd 를 부르지 않는다(S1 재리뷰 Minor 1). */
+  const onPointerCancelCapture = () => {
+    boxingRef.current = false;
   };
   /** 공간 넓히기 중의 mousedown(브라우저가 호환 이벤트를 보낼 때) — d3-zoom 화면 이동으로 가지 않게 끊는다. */
   const onMouseDownCapture = (e: ReactMouseEvent<HTMLDivElement>) => {
@@ -1411,6 +1421,7 @@ function Inner(props: FlowCanvasProps) {
       data-space-tool={editable && spaceTool ? "true" : undefined}
       tabIndex={0}
       onPointerDownCapture={onPointerDownCapture}
+      onPointerCancelCapture={onPointerCancelCapture}
       onMouseDownCapture={onMouseDownCapture}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
