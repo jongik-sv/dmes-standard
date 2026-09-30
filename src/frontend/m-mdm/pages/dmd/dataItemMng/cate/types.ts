@@ -40,6 +40,11 @@ export interface ComparePreview {
   invalid?: boolean;
   codes?: string[];
   count?: number;
+  /**
+   * 매칭된 항목의 코드·이름. `dataCateEdit.view` 의 `items` 는 TABLE 카테고리에서만 오므로, REGEX 소속 목록의 이름은
+   * 여기서 온다(`codes` 만으로는 이름을 되찾을 자리가 없다).
+   */
+  items?: { code: string; name: string | null }[];
 }
 
 /** 예약 카테고리 ID — 편집·닫기 대상이 아니다(R6, 서버 CategoryConventions.BASE_CATE_ID 와 짝). */

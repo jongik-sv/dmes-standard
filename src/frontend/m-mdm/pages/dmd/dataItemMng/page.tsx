@@ -35,7 +35,7 @@ import {
   canDoButton,
   useUserButtonRbac,
 } from "@dk-oasis/shared/layout";
-import { AgDataGrid, GridBadge, GridPanel, Pagination } from "@dk-oasis/shared/grid";
+import { AgDataGrid, GridBadge, GridPanel } from "@dk-oasis/shared/grid";
 import { Button, Input, Select } from "@dk-oasis/shared/form";
 import { Tabs } from "@dk-oasis/shared/tabs";
 import { useMessage } from "@dk-oasis/shared/message-provider";
@@ -43,9 +43,7 @@ import { IdPicker, MdmPageLayout, filterIdPicks, useMdmPageParams } from "@/shel
 
 import { DataCsvUploadPopModal, OBJ_ID as CSV_UPLOAD_OBJ_ID } from "../dataCsvUploadPop";
 import { CategoryTab } from "./cate/CategoryTab";
-import { PreviewPanel as CatePreviewPanel } from "./cate/components/PreviewPanel";
 import { useDataCategories } from "./cate/useDataCategories";
-import { CategoryHistoryPanel } from "./history/CategoryHistoryPanel";
 import { DataHistoryTimeline } from "./history/DataHistoryTimeline";
 import { searchDataHistory } from "./history/api";
 import type { DataHistoryResult } from "./history/types";
@@ -60,8 +58,8 @@ import {
 } from "./api";
 import { buildItemColumns, isRowEditable, isRowVersionConflict, toSaveParams } from "./columns";
 import {
+  ALL_ITEMS_SIZE,
   LVL_FIELDS,
-  PAGE_SIZE,
   emptyFilters,
   emptyItemForm,
   errorMessage,
@@ -87,7 +85,8 @@ interface WriteOrigin {
   md: string;
   seq: number;
 }
-export type ItemTab = "grid" | "tree" | "cate";
+export type ItemTab = "grid" | "tree";
+type RightTab = "cateEdit" | "codeTest";
 
 const panelTitle = { fontWeight: 600, color: "var(--color-text-secondary)" } as const;
 const hint = { color: "var(--color-text-muted)", margin: 0 } as const;
@@ -113,7 +112,8 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
   const [header, setHeader] = useState<DataItemHeader | null>(null);
   const [rows, setRows] = useState<DataItemRow[]>([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(0);
+  /** 서버 상한(ITEMS_MAX)에 걸려 목록이 일부만 왔다 — 조용히 자르지 않고 여기서 말한다. */
+  const [truncated, setTruncated] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [form, setForm] = useState<DataItemForm | null>(null);
   const [history, setHistory] = useState<DataHistoryResult | null>(null);
@@ -123,13 +123,14 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
   const [error, setError] = useState<string | null>(null);
 
   const [tab, setTab] = useState<ItemTab>("grid");
+  const [rightTab, setRightTab] = useState<RightTab>("cateEdit");
   const [tree, setTree] = useState<DataItemRow[]>([]);
   const [treeTruncated, setTreeTruncated] = useState(false);
   const [treeLoading, setTreeLoading] = useState(false);
   const [csvOpen, setCsvOpen] = useState(false);
 
-  /** 마지막으로 조회한 조건·쪽 — 쪽 이동과 재조회(F1)가 쓴다. */
-  const applied = useRef<{ filters: DataItemFilters; page: number }>({ filters: emptyFilters(), page: 0 });
+  /** 마지막으로 조회한 조건 — 재조회(F1)와 트리 조회가 쓴다. */
+  const applied = useRef<{ filters: DataItemFilters }>({ filters: emptyFilters() });
   /** 요청 순번 — 늦게 도착한 옛 응답(예: 첫 로드의 자동 선택 조회)이 새 결과를 덮지 않게 한다. */
   const searchSeq = useRef(0);
   const selectSeq = useRef(0);
@@ -161,24 +162,28 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
 
   const cate = useDataCategories({
     maruDataId: filters.maruDataId,
-    active: tab === "cate",
+    active: rightTab === "cateEdit",
     onError: setError,
     onChanged: () => void refreshHeader(),
   });
   const { invalidate: invalidateCategories, reload: reloadCategories } = cate;
 
-  const runSearch = useCallback(async (f: DataItemFilters, p: number) => {
+  /**
+   * 목록 조회는 페이징 없이 한 번에 전부 받는다(2026-09-30) — `size` 를 서버 상한(`ALL_ITEMS_SIZE`) 그대로 보낸다.
+   * 서버가 상한에 걸리면 `truncated` 로 알려 주고 그때 안내를 띄운다(조용히 자르지 않는다).
+   */
+  const runSearch = useCallback(async (f: DataItemFilters) => {
     if (!f.maruDataId) return;
     const seq = ++searchSeq.current;
     setListLoading(true);
     try {
-      const res = await searchDataItems(f, p, PAGE_SIZE);
+      const res = await searchDataItems(f, 0, ALL_ITEMS_SIZE);
       if (seq !== searchSeq.current) return;
       setRows(res.list ?? []);
       setTotal(res.totalCount ?? 0);
-      setPage(res.page ?? p);
+      setTruncated(res.truncated === true);
       setDrafts({});
-      applied.current = { filters: f, page: res.page ?? p };
+      applied.current = { filters: f };
     } catch (e) {
       if (seq === searchSeq.current) setError(errorMessage(e));
     } finally {
@@ -186,10 +191,7 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
     }
   }, []);
 
-  const reload = useCallback(
-    () => runSearch(applied.current.filters, applied.current.page),
-    [runSearch],
-  );
+  const reload = useCallback(() => runSearch(applied.current.filters), [runSearch]);
 
   /**
    * 트리는 그리드 페이징과 별개 조회다(design.md §2) — `list`/`totalCount` 는 무시하고 `tree`/`treeTruncated` 만 쓴다.
@@ -228,7 +230,7 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
       const next = { ...filters, nodeFilter: value };
       setFilters(next);
       setTab("grid");
-      void runSearch(next, 0);
+      void runSearch(next);
     },
     [filters, runSearch],
   );
@@ -236,7 +238,7 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
   const clearNodeFilter = useCallback(() => {
     const next = { ...filters, nodeFilter: null };
     setFilters(next);
-    void runSearch(next, 0);
+    void runSearch(next);
   }, [filters, runSearch]);
 
   const loadHistory = useCallback(async (maruDataId: string, code: string) => {
@@ -289,7 +291,7 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
       const seq = ++selectSeq.current;
       const next = { ...emptyFilters(), maruDataId };
       setFilters(next);
-      applied.current = { filters: next, page: 0 };
+      applied.current = { filters: next };
       setForm(null);
       historySeq.current++;
       setHistory(null);
@@ -320,7 +322,7 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
         return;
       }
       if (tabRef.current === "tree") void loadTree(maruDataId);
-      await runSearch(next, 0);
+      await runSearch(next);
     },
     [loadTree, onSnapshotChange, runSearch],
   );
@@ -531,13 +533,12 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
     [header],
   );
 
-  const totalPages = Math.ceil(total / PAGE_SIZE);
   const working = busy || listLoading;
 
   const handleSearch = () => {
-    void runSearch(filters, 0);
+    void runSearch(filters);
     if (tab === "tree") void loadTree(filters.maruDataId);
-    if (tab === "cate") void reloadCategories();
+    if (rightTab === "cateEdit") void reloadCategories();
   };
 
   return (
@@ -545,6 +546,9 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
       group="dmd"
       screenId={SCREEN_ID}
       title="항목 편집"
+      /* 조회조건 5칸(마루 데이터·키·이름·카테고리·닫힌 항목)을 첫 줄에 붙인다 — shared page-layout.css 의
+         `.page-layout.data-item-mng` 가 입력 폭과 칸 폭만 좁힌다(라벨 정렬·간격 표준은 그대로). */
+      className="data-item-mng"
       buttons={[
         {
           id: "btn_search",
@@ -569,7 +573,12 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
             inputWidth={150}
           />
           {header && (
-            <span data-testid="item-current" style={{ fontWeight: 600, whiteSpace: "nowrap" }}>
+            // 칸 폭이 좁아졌으므로 데이터명이 길어도 옆 칸(키)을 침범하지 않게 자르고, 전체는 title 로 남긴다.
+            <span
+              data-testid="item-current"
+              title={`${header.maruDataId} ${header.maruDataName}`}
+              style={{ fontWeight: 600, whiteSpace: "nowrap", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}
+            >
               {`${header.maruDataId} ${header.maruDataName}`}
             </span>
           )}
@@ -624,7 +633,6 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
               items={[
                 { key: "grid", label: <span data-testid="item-tab-grid">항목</span> },
                 { key: "tree", label: <span data-testid="item-tab-tree">트리</span> },
-                { key: "cate", label: <span data-testid="item-tab-cate">카테고리</span> },
               ]}
             />
             {tab === "grid" && (
@@ -670,6 +678,12 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
                         조회 전용입니다(원천 {header.sourceSystem ?? header.sourceKind}, 상태 {header.status}).
                       </p>
                     )}
+                    {/* 상한에 걸려 일부만 온 경우 — 몇 건 중 몇 건인지를 그대로 말한다(조용히 자르지 않는다). */}
+                    {truncated && (
+                      <p data-testid="item-truncated" style={{ color: "var(--color-text-muted)", margin: 0 }}>
+                        {`조건에 맞는 항목이 ${total.toLocaleString()}건이어서 ${rows.length.toLocaleString()}건만 표시합니다. 조회조건으로 좁히세요.`}
+                      </p>
+                    )}
                     <div style={{ flex: 1, minHeight: 0 }}>
                       <AgDataGrid
                         columns={columns}
@@ -678,6 +692,10 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
                         sortable={false}
                         columnSizing="fit"
                         singleClickEdit
+                        /* 행 커서(클릭·↑/↓)는 shared AgDataGrid 기본 기능이다 — 여기선 안 붙여도 된다.
+                           드래그 재배열은 넣지 않는다(2026-09-30) — 항목 목록에 고유한 순서가 없고, 재배열해도 `seq` 를
+                           다시 매기지도 서버에 보내지도 않아 조회하면 원래 정렬로 되돌아간다. 대신 맨 앞에 No 를 둔다. */
+                        rowNumber
                         onCellValueChanged={handleCellChange}
                         loading={listLoading}
                         loadingMessage="조회 중..."
@@ -686,16 +704,6 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
                     </div>
                   </div>
                 </GridPanel>
-                {/* 쪽 이동은 그리드 패널 밖에 둔다. 안에 두면 높이 100% 그리드가 이전/다음 버튼을 덮는다. */}
-                <div style={{ flexShrink: 0 }}>
-                  <Pagination
-                    page={page}
-                    totalPages={totalPages}
-                    totalElements={total}
-                    onPageChange={(p) => void runSearch(applied.current.filters, p)}
-                    disabled={working}
-                  />
-                </div>
               </>
             )}
             {tab === "tree" && (
@@ -703,88 +711,91 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
                 <ItemTreePanel rows={tree} truncated={treeTruncated} loading={treeLoading} onViewNode={viewNode} />
               </div>
             )}
-            {tab === "cate" && (
-              // 카테고리 쓰기는 합치기 전 카테고리 편집 화면 OBJECT(dataCateEdit)의 save 권한으로 판정한다(D-104).
-              <CategoryTab cate={cate} loaded={!!header} editable={editable} canSave={canCateSave} />
-            )}
+
           </div>
         </ContentPanel>
 
-        {/* 오른쪽 열 — 탭마다 내용이 바뀐다. 조건부 패널에는 key 를 주어 분할 저장값이 다른 패널로 옮겨 가지 않게 한다. */}
+        {/* 오른쪽 열 — 탭 형식으로 카테고리 편집과 코드 테스트를 함께 볼 수 있다. */}
         <ContentBody direction="column" width="34%" resizable storageKey="mdm.dmd.dataItemMng.right">
-          {tab !== "cate" && form && (
-            <ContentPanel key="form">
-              <div data-testid="item-form" style={{ height: "100%", overflowY: "auto" }}>
-                <p style={{ ...panelTitle, padding: "0 var(--spacing-md)" }}>항목 추가</p>
-                <table style={DETAIL_TABLE_STYLE}>
-                  <tbody>
-                    {formFields.map((f) => (
-                      <tr key={f.key}>
-                        <th style={DETAIL_LABEL_CELL}>{f.label}</th>
-                        <td style={DETAIL_VALUE_CELL}>
-                          <Input
-                            data-testid={`item-form-${f.key}`}
-                            value={form[f.key]}
-                            disabled={busy}
-                            onChange={(v) => setForm((prev) => (prev ? { ...prev, [f.key]: v } : prev))}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div style={{ display: "flex", gap: "var(--spacing-sm)", padding: "var(--spacing-sm) var(--spacing-md)" }}>
-                  <Button
-                    variant="primary"
-                    data-testid="item-form-submit"
-                    disabled={busy || !canReg}
-                    onClick={() => void handleRegister()}
-                  >
-                    등록
-                  </Button>
-                  <Button data-testid="item-form-cancel" onClick={() => setForm(null)}>
-                    취소
-                  </Button>
-                </div>
+          <ContentPanel>
+            <Tabs activeKey={rightTab} onChange={(k) => setRightTab(k as RightTab)} items={[
+              { key: "cateEdit", label: <span data-testid="item-right-tab-cate">카테고리 편집</span> },
+              { key: "codeTest", label: <span data-testid="item-right-tab-test">코드 테스트</span> },
+            ]} />
+            {rightTab === "cateEdit" && (
+              /* 카테고리 이력은 CategoryTab 안에서 카테고리 그리드 바로 밑에 그린다(2026-09-30) —
+                 탭 전체가 카테고리/이력/소속 세 칸의 세로 분할이 되고, 이력을 고른 카테고리에 따라간다. */
+              <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+                <CategoryTab
+                  cate={cate}
+                  loaded={!!header}
+                  editable={editable}
+                  canSave={canCateSave}
+                  onError={setError}
+                />
               </div>
-            </ContentPanel>
-          )}
-          {tab !== "cate" && (
-            <ContentPanel key="itemHistory">
-              <div data-testid="item-history" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={panelTitle}>{history ? `이력 — ${history.key}` : "이력"}</span>
-                  {history && (
-                    <Button size="mini" data-testid="item-history-close" onClick={() => setHistory(null)}>
-                      이력 닫기
-                    </Button>
-                  )}
-                </div>
-                {history ? (
-                  <div style={{ flex: 1, minHeight: 0 }}>
-                    <DataHistoryTimeline result={history} />
-                  </div>
-                ) : (
-                  <p data-testid="item-history-empty" style={hint}>행의 [이력] 을 누르면 여기에 보입니다</p>
+            )}
+            {rightTab === "codeTest" && (
+              <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+                {form && (
+                  <ContentPanel key="form">
+                    <div data-testid="item-form" style={{ height: "100%", overflowY: "auto" }}>
+                      <p style={{ ...panelTitle, padding: "0 var(--spacing-md)" }}>항목 추가</p>
+                      <table style={DETAIL_TABLE_STYLE}>
+                        <tbody>
+                          {formFields.map((f) => (
+                            <tr key={f.key}>
+                              <th style={DETAIL_LABEL_CELL}>{f.label}</th>
+                              <td style={DETAIL_VALUE_CELL}>
+                                <Input
+                                  data-testid={`item-form-${f.key}`}
+                                  value={form[f.key]}
+                                  disabled={busy}
+                                  onChange={(v) => setForm((prev) => (prev ? { ...prev, [f.key]: v } : prev))}
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <div style={{ display: "flex", gap: "var(--spacing-sm)", padding: "var(--spacing-sm) var(--spacing-md)" }}>
+                        <Button
+                          variant="primary"
+                          data-testid="item-form-submit"
+                          disabled={busy || !canReg}
+                          onClick={() => void handleRegister()}
+                        >
+                          등록
+                        </Button>
+                        <Button data-testid="item-form-cancel" onClick={() => setForm(null)}>
+                          취소
+                        </Button>
+                      </div>
+                    </div>
+                  </ContentPanel>
                 )}
+                <ContentPanel key="itemHistory">
+                  <div data-testid="item-history" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={panelTitle}>{history ? `이력 — ${history.key}` : "이력"}</span>
+                      {history && (
+                        <Button size="mini" data-testid="item-history-close" onClick={() => setHistory(null)}>
+                          이력 닫기
+                        </Button>
+                      )}
+                    </div>
+                    {history ? (
+                      <div style={{ flex: 1, minHeight: 0 }}>
+                        <DataHistoryTimeline result={history} />
+                      </div>
+                    ) : (
+                      <p data-testid="item-history-empty" style={hint}>행의 [이력] 을 누르면 여기에 보입니다</p>
+                    )}
+                  </div>
+                </ContentPanel>
               </div>
-            </ContentPanel>
-          )}
-          {tab === "cate" && (
-            <ContentPanel key="catePreview">
-              <CatePreviewPanel defKind={cate.selectedRow?.defKind ?? null} preview={cate.preview} />
-            </ContentPanel>
-          )}
-          {tab === "cate" && (
-            <ContentPanel key="cateHistory">
-              <CategoryHistoryPanel
-                maruDataId={filters.maruDataId}
-                cateId={cate.selectedCateId}
-                refreshToken={cate.writeCount}
-                onError={setError}
-              />
-            </ContentPanel>
-          )}
+            )}
+          </ContentPanel>
         </ContentBody>
       </ContentBody>
 

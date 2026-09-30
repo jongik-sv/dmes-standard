@@ -18,12 +18,26 @@ import org.springframework.stereotype.Component;
 public class DataCategoryResolver {
 
     /** {@code invalid} 는 {@code defExpr} 문법 오류(compare 액션이 타이핑 중인 정규식을 실시간으로 보낸다, 04 선례).
-     * 문법 오류일 때 {@code codes} 는 빈 목록이다. */
-    public record Preview(boolean invalid, List<String> codes) {
+     * 문법 오류일 때 {@code matches} 는 빈 목록이다. */
+    public record Preview(boolean invalid, List<Match> matches) {
+
+        public List<String> codes() {
+            return matches.stream().map(Match::code).toList();
+        }
 
         public int count() {
-            return codes.size();
+            return matches.size();
         }
+    }
+
+    /**
+     * 매칭된 항목 한 줄 — 코드와 이름.
+     *
+     * <p>이름을 함께 주는 이유: {@code dataCateEdit.view} 의 {@code items} 는 TABLE 카테고리에서만 채운다(R5 분기라
+     * REGEX 는 비어 있다). 그래서 REGEX 미리보기의 결과로는 코드가 떠도 이름을 되찾을 자리가 화면에 없었고, 소속 목록의
+     * 이름 칸이 비어 있었다. 정규식을 돌린 자리에 이름이 이미 있으므로 여기서 함께 준다.
+     */
+    public record Match(String code, String name) {
     }
 
     private final DataSegmentRowStore rows;
@@ -40,13 +54,13 @@ public class DataCategoryResolver {
         } catch (PatternSyntaxException e) {
             return new Preview(true, List.of());
         }
-        List<String> codes = new ArrayList<>();
+        List<Match> matched = new ArrayList<>();
         for (ItemSegmentRow row : rows.latestItemRows(maruDataId)) {
             if (row.isOpen() && matches(pattern, targetValue(row, defTarget))) {
-                codes.add(row.key().code());
+                matched.add(new Match(row.key().code(), row.value().name()));
             }
         }
-        return new Preview(false, codes);
+        return new Preview(false, matched);
     }
 
     public static boolean matches(Pattern pattern, String value) {

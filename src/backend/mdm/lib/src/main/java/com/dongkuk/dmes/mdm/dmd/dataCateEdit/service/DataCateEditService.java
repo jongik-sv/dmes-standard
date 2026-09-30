@@ -119,6 +119,9 @@ public class DataCateEditService {
             result.setInvalid(preview.invalid());
             result.setCodes(preview.codes());
             result.setCount(preview.count());
+            result.setItems(preview.matches().stream()
+                    .map(m -> new CateCompareResult.Item(m.code(), m.name()))
+                    .toList());
             return result;
         });
     }

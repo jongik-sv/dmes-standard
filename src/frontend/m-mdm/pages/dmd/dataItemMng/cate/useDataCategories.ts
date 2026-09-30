@@ -34,6 +34,8 @@ export interface DataCategoriesArgs {
 }
 
 export interface DataCategoriesState {
+  /** 지금 읽고 있는 마루 데이터 — 카테고리 이력 조회에 쓴다. */
+  maruDataId: string;
   rows: CateRow[];
   lvlCnt: number;
   /** attr01~10 라벨, 번호 순서(라벨 없는 번호는 null) — REGEX 대상 후보의 ATTRnn 번호가 이 위치다. */
@@ -239,7 +241,7 @@ export function useDataCategories({ maruDataId, active, onError, onChanged }: Da
   const selectedRow = useMemo(() => rows.find((r) => r.cateId === selectedCateId) ?? null, [rows, selectedCateId]);
 
   return {
-    rows, lvlCnt, attrLabels, selectedCateId, selectedRow, detail, memberCodes, preview, busy, writeCount,
+    maruDataId, rows, lvlCnt, attrLabels, selectedCateId, selectedRow, detail, memberCodes, preview, busy, writeCount,
     reload, invalidate, select, add, close, reopen, saveRegex: saveRegexDef, previewCandidate,
     setMemberCodes, applyMembers,
   };

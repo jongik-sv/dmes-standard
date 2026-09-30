@@ -1,6 +1,9 @@
 package com.dongkuk.dmes.mdm.dmd.dataCateEdit;
 
+import static com.dongkuk.dmes.mdm.common.segment.DmdSegmentTestSupport.OPEN;
+import static com.dongkuk.dmes.mdm.common.segment.DmdSegmentTestSupport.T0;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.spy;
@@ -21,6 +24,7 @@ import com.dongkuk.dmes.mdm.common.segment.DmdSegmentTestSupport;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.MutableClock;
 import com.dongkuk.dmes.mdm.dmd.dataCateEdit.dto.CateCompareRequest;
+import com.dongkuk.dmes.mdm.dmd.dataCateEdit.dto.CateCompareResult;
 import com.dongkuk.dmes.mdm.dmd.dataCateEdit.dto.CateRegRequest;
 import com.dongkuk.dmes.mdm.dmd.dataCateEdit.dto.CateSaveRequest;
 import com.dongkuk.dmes.mdm.dmd.dataCateEdit.dto.CateSearchRequest;
@@ -332,6 +336,31 @@ class DataCateEditServiceSqliteTest extends AbstractMdmSharedDbTest {
         req.setDefTarget("KEY");
 
         assertTrue(service.compare(req).isInvalid());
+    }
+
+    /**
+     * compare 응답은 매칭된 항목의 코드·이름을 함께 준다(2026-09-30) — 화면의 REGEX 소속 목록이 이름 칸을 그린다.
+     * `dataCateEdit.view` 의 `items` 는 TABLE 카테고리에서만 채워지므로, REGEX 는 여길 통해서만 이름을 얻는다.
+     */
+    @Test
+    void compare_는_매칭된_항목의_코드와_이름을_준다() {
+        DmdSegmentTestSupport.insertMdm(jdbc, "MD1", 0);
+        DmdSegmentTestSupport.insertItemRow(jdbc, "MD1", "KRPUS", "부산", T0.minusDays(5), OPEN, 0,
+                List.of("KR"), List.of());
+        DmdSegmentTestSupport.insertItemRow(jdbc, "MD1", "CNSHA", "상하이", T0.minusDays(5), OPEN, 0,
+                List.of("CN"), List.of());
+
+        CateCompareRequest req = new CateCompareRequest();
+        req.setMaruDataId("MD1");
+        req.setDefExpr("^KR$");
+        req.setDefTarget("LVL1");
+
+        CateCompareResult out = service.compare(req);
+
+        assertFalse(out.isInvalid());
+        assertEquals(List.of("KRPUS"), out.getCodes());
+        assertEquals(1, out.getCount());
+        assertEquals(List.of(new CateCompareResult.Item("KRPUS", "부산")), out.getItems());
     }
 
     // ── helpers ─────────────────────────────────────────────────────────────

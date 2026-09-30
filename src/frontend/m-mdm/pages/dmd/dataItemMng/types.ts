@@ -82,6 +82,8 @@ export interface DataItemSearchResult {
   totalCount?: number;
   page?: number;
   size?: number;
+  /** 목록이 상한(ITEMS_MAX)에 걸려 일부만 왔다 — totalCount(필터 뒤 전체 수)가 list 보다 크다. */
+  truncated?: boolean;
   /** withTree 요청일 때만 온다(TSK-07-04 design.md §2) — 열린 행만(I6). */
   tree?: DataItemRow[];
   /** 트리가 상한(TREE_MAX)에 걸려 일부만 왔다. */
@@ -135,5 +137,9 @@ export function emptyItemForm(): DataItemForm {
   return form as DataItemForm;
 }
 
-/** 한 페이지 크기 — 서버 기본값과 같다(상한 200). */
-export const PAGE_SIZE = 50;
+/**
+ * ★목록은 페이징 없이 전부 받는다(2026-09-30) — 서버 `DataItemMngService.ITEMS_MAX` 와 같은 값이다.
+ * 구 `PAGE_SIZE = 50`(서버 상한 200) 은 화면 쪽 이동이 사라져 더는 쓰지 않는다. 값이 어긋나면 서버가 조용히 잘라
+ * 응답 `truncated` 가 true 가 되고, 화면이 "일부만 표시 중" 안내를 낸다.
+ */
+export const ALL_ITEMS_SIZE = 20000;

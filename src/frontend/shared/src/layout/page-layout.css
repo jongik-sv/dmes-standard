@@ -40,6 +40,24 @@ button {
   --search-select-min-width: 80px;
 }
 
+/* ★조회조건 붙이기 (2026-09-30, dmd/dataItemMng "항목 편집").
+   마루 데이터 룩업(입력+[찾기]+현재 데이터명)이 넓은 칸을 먹고, 키·이름·카테고리·닫힌 항목이 그 뒤를 따라가다
+   6번째 칸(닫힌 항목)이 다음 줄로 내려갔다 — 칸 사이에 큰 빈틈이 보이면서 2줄로 접힌 형태.
+   배치 표준(조회영역은 grid 열 정렬·`column-gap` 고정·여러 줄 접힘 허용)은 그대로 두고, 이 화면에서만
+   입력 폭과 칸 폭을 좁혀 5개 조건이 첫 줄에 붙게 한다. 라벨 `min-width: 76px` 정렬은 건드리지 않는다. */
+.page-layout.data-item-mng {
+  --search-input-width: 100px;
+  --search-select-min-width: 90px;
+  --search-col-min: 190px;
+  --search-col-max: 260px;
+}
+
+/* 마루 데이터 룩업만 기본 폭(150px)을 지킨다 — `데이터 ID·데이터명` 자리표시자가 100px 에서는 잘린다.
+   이 필드가 넓은 만큼 `span-2`(2칸)를 그대로 쓴다. */
+.page-layout.data-item-mng .search-field .cm-lookup-text-field {
+  width: 150px;
+}
+
 /* ========================================
    페이지 헤더 (32px)
    ======================================== */

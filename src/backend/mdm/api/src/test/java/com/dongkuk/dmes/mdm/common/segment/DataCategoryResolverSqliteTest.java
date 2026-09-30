@@ -64,6 +64,20 @@ class DataCategoryResolverSqliteTest extends AbstractMdmSharedDbTest {
         assertEquals(1, preview.count());
     }
 
+    /**
+     * 매칭 결과에 이름이 함께 간다(2026-09-30) — 화면의 REGEX 소속 목록이 이름 칸을 그린다.
+     * {@code dataCateEdit.view} 의 {@code items} 는 TABLE 에서만 채워져서 REGEX 는 이름을 여길서만 얻을 수 있다.
+     */
+    @Test
+    @Transactional
+    void REGEX_매칭_결과는_이름을_함께_준다() {
+        DataCategoryResolver.Preview preview = resolver.preview(MD, "^KR$", "LVL1");
+
+        assertEquals(List.of(new DataCategoryResolver.Match("KRPUS", "부산")), preview.matches());
+        // codes() 는 matches 에서 뽑는다 — 건수만 세는 기존 호출자(dataCateEdit·dataEdit)는 그대로 둔다.
+        assertEquals(preview.matches().stream().map(DataCategoryResolver.Match::code).toList(), preview.codes());
+    }
+
     @Test
     void 문법_오류는_던지지_않고_invalid_true_로_응답한다() {
         DataCategoryResolver.Preview preview = resolver.preview(MD, "[", "LVL1");

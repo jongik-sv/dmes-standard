@@ -68,7 +68,9 @@ async function render(props?: Parameters<typeof DataItemMngPage>[0]) {
   await flush();
 }
 
-const testId = (id: string) => container.querySelector(`[data-testid="${id}"]`);
+// Modal·TransferList 은 document.body 포털에 그려지므로 container 가 아니라 document 로 찾는다
+// (m-mdm 다른 페이지 테스트와 같은 규약).
+const testId = (id: string) => document.querySelector(`[data-testid="${id}"]`);
 
 async function click(el: Element | null) {
   expect(el).not.toBeNull();
@@ -106,6 +108,8 @@ const cateList = [
   { cateId: "BASE", cateName: "전체", defKind: "REGEX", defExpr: "^.*$", defTarget: "KEY", description: null, open: true, matchCount: 1 },
   { cateId: "KR", cateName: "국내", defKind: "TABLE", defExpr: null, defTarget: null, description: null, open: true, matchCount: 1 },
   { cateId: "CN", cateName: "중국", defKind: "TABLE", defExpr: null, defTarget: null, description: null, open: true, matchCount: 0 },
+  // BASE 말고 편집 가능한 REGEX — 정규식 문법 오류 경로를 시험한다(BASE 는 예약이라 [편집] 이 없다).
+  { cateId: "R1", cateName: "숫자 시작", defKind: "REGEX", defExpr: "^[0-9]", defTarget: "KEY", description: null, open: true, matchCount: 0 },
 ];
 /** true 면 view 가 주는 선택 목록에 방금 등록된 마루 데이터 NEW 가 들어 있다(서버는 view 마다 목록을 새로 준다). */
 let withNewOption = false;
@@ -122,6 +126,8 @@ function maruOptions() {
 
 /** 설정하면 이 카테고리의 dataCateEdit/view 응답을 이 약속이 풀릴 때까지 붙잡는다. */
 let holdCateView: { cateId: string; until: Promise<void> } | null = null;
+/** true 면 compare 가 정규식 문법 오류(invalid)를 돌려준다 — 미완성 괄호 같은 경우. */
+let holdCompareInvalid = false;
 
 async function flush() {
   for (let i = 0; i < 5; i++) {
@@ -129,6 +135,17 @@ async function flush() {
       await new Promise((r) => setTimeout(r, 0));
     });
   }
+}
+
+/** shared `Input` 래퍼는 React controlled 이므로 네이티브 setter 로 값을 심고 input 이벤트를 흘려야 한다. */
+async function type(el: Element | null, value: string) {
+  expect(el).not.toBeNull();
+  const input = el as HTMLInputElement;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await flush();
 }
 
 function button(text: string): HTMLButtonElement | undefined {
@@ -143,6 +160,7 @@ describe("DataItemMngPage", () => {
     otherCalls = [];
     holdPortSearch = null;
     holdCateView = null;
+    holdCompareInvalid = false;
     withNewOption = false;
     holdClose = null;
     takeMdmPageParams("dmd/dataItemMng");
@@ -192,7 +210,11 @@ describe("DataItemMngPage", () => {
           const cate = cateList.find((c) => c.cateId === params.cateId);
           return ok({ cate, items: [{ code: "KRPUS", name: "부산", lvl1: "KR" }], memberCodes: ["KRPUS"] });
         }
-        if (other[2] === "compare") return ok({ invalid: false, codes: ["KRPUS"], count: 1 });
+        if (other[2] === "compare") {
+          return ok(holdCompareInvalid
+            ? { invalid: true, codes: [], count: 0 }
+            : { invalid: false, codes: ["KRPUS"], count: 1 });
+        }
         return ok({});
       }
       if (url.includes("/api/auth/me")) return jsonResponse({ user: { id: "tester" } });
@@ -227,6 +249,21 @@ describe("DataItemMngPage", () => {
     expect(headers).toContain("1차");
     expect(headers).not.toContain("attr01");
     expect(button("항목 추가")?.disabled).toBe(false);
+  });
+
+  it("행 번호(No) 가 키 앞에 붙고 1부터 매겨진다 — 드래그 재배열은 없다", async () => {
+    await render();
+    const headers = Array.from(container.querySelectorAll(".ag-header-cell"))
+      .map((h) => h.querySelector(".ag-header-cell-text")?.textContent);
+    // 맨 앞 열이 No 다 — 드래그 핸들이 아니다(재배열해도 저장되지 않는다).
+    expect(headers[0]).toBe("No");
+    expect(headers.indexOf("No")).toBeLessThan(headers.indexOf("키"));
+    // 표시 순서대로 1부터 매겨진다(저장 값이 아니라 화면 순서다).
+    const nums = Array.from(container.querySelectorAll('.ag-row [col-id="__rowNo"]')).map((c) => c.textContent?.trim());
+    expect(nums).toEqual(["1"]);
+    // 드래그 핸들은 없다.
+    expect(container.querySelector(".ag-row-drag-handle")).toBeNull();
+    expect(container.querySelector(".ag-row-drag")).toBeNull();
   });
 
   it("EXTERNAL 마루 데이터는 「항목 추가」가 비활성이고 행에 닫기가 없다(Q6)", async () => {
@@ -310,13 +347,20 @@ describe("DataItemMngPage", () => {
 
   // ── D-104: 탭별 오른쪽 열 ──
 
-  it("항목 탭은 오른쪽에 항목 이력, 카테고리 탭은 미리보기·카테고리 이력을 보이고 카테고리는 탭에 들어갈 때 읽는다", async () => {
+  it("오른쪽은 [카테고리 편집][코드 테스트] 탭이고, 각각 미리보기·카테고리 이력과 항목 이력을 본다", async () => {
     await render();
-    expect(otherCalls).toEqual([]);
+    // 카테고리 편집이 처음 선택된 탭이다 — 화면이 열리자마자 그 탭의 카테고리를 읽는다.
+    expect(testId("item-right-tab-cate")).not.toBeNull();
+    expect(testId("item-right-tab-test")).not.toBeNull();
+    expect(testId("cate-tab")).not.toBeNull();
+    expect(testId("item-history")).toBeNull();
+    expect(otherCalls.filter((c) => c.path === "dataCateEdit/search").map((c) => c.params.maruDataId)).toEqual(["PORT"]);
+
+    // 코드 테스트 탭 — 항목 이력 자리.
+    await click(testId("item-right-tab-test"));
     expect(testId("item-history")).not.toBeNull();
     expect(testId("item-history-empty")).not.toBeNull();
-    expect(testId("cate-preview")).toBeNull();
-    expect(testId("cate-history")).toBeNull();
+    expect(testId("cate-tab")).toBeNull();
 
     await click(testId("item-history-KRPUS"));
     expect(otherCalls.at(-1)).toEqual({
@@ -324,12 +368,17 @@ describe("DataItemMngPage", () => {
     });
     expect(testId("item-history")?.textContent).toContain("이력 — KRPUS");
 
-    await click(testId("item-tab-cate"));
-    expect(otherCalls.filter((c) => c.path === "dataCateEdit/search").map((c) => c.params.maruDataId)).toEqual(["PORT"]);
+    // 카테고리 편집 탭으로 돌아오면, 같은 마루 데이터면 카테고리를 다시 읽지 않는다.
+    await click(testId("item-right-tab-cate"));
     expect(testId("item-history")).toBeNull();
-    expect(testId("cate-tab")).not.toBeNull();
-    expect(testId("cate-preview")?.textContent).toContain("카테고리를 고르면");
-    expect(testId("cate-history-empty")).not.toBeNull();
+    // 이력 칸은 카테고리를 고르지 않았어도 그려진다 — 카테고리 섹션의 세로 스택이 유지돼야 아래 소속이 밀리지 않는다.
+    expect(testId("cate-history")).not.toBeNull();
+    expect(testId("cate-history-empty")?.textContent).toBe("카테고리를 고르면 이력이 보입니다");
+    // 조회 컨트롤(대상 Select·항목 키·[조회])은 없다 — 고른 카테고리 그것이 곧 조회 조건이다.
+    expect(testId("cate-history-target")).toBeNull();
+    expect(testId("cate-history-key")).toBeNull();
+    expect(testId("cate-history-search")).toBeNull();
+    expect(otherCalls.filter((c) => c.path === "dataCateEdit/search")).toHaveLength(1);
 
     // 카테고리를 고르면 상세를 읽고, 대상 「카테고리」 이력을 그 ID 로 바로 부른다.
     await click(testId("cate-row-KR"));
@@ -337,20 +386,32 @@ describe("DataItemMngPage", () => {
     expect(otherCalls.filter((c) => c.path === "dataHistory/search").at(-1)?.params).toEqual({
       maruDataId: "PORT", target: "CATE", key: "KR",
     });
-    expect(testId("cate-preview")?.textContent).toContain("TABLE 카테고리는");
+    expect(testId("cate-history")?.textContent).toContain("카테고리 이력 — KR");
+    // 별도 미리보기 패널이 없다 — 정규식 매칭 결과가 곧 소속 목록이다.
+    expect(testId("cate-preview")).toBeNull();
+    // TABLE 편집은 동작 칸의 [편집] 이 transfer-list 팝업을 연다(목록은 읽기 전용 — 쓰기가 서버로 바로 간다).
+    expect(testId("transfer-list-panel")).toBeNull();
+    await click(testId("cate-edit-KR"));
     expect(testId("transfer-list-panel")).not.toBeNull();
-
-    // 항목 탭으로 돌아오면 항목 이력 자리로 바뀌고, 같은 마루 데이터면 카테고리를 다시 읽지 않는다.
-    await click(testId("item-tab-grid"));
-    expect(testId("item-history")).not.toBeNull();
-    expect(testId("cate-history")).toBeNull();
-    await click(testId("item-tab-cate"));
-    expect(otherCalls.filter((c) => c.path === "dataCateEdit/search")).toHaveLength(1);
   });
 
-  it("카테고리 탭에서 마루 데이터를 바꾸면 탭은 그대로 두고 카테고리를 그 데이터로 다시 읽는다", async () => {
+  it("REGEX 는 소속 목록이 곧 매칭 결과고, 정규식이 틀리면 비는 이유를 함께 보인다", async () => {
     await render();
-    await click(testId("item-tab-cate"));
+    // R1 은 편집 가능한 REGEX(`^[0-9]`, 대상 KEY) — 문법이 맞으면 오류 문구가 없다.
+    await click(testId("cate-row-R1"));
+    expect(testId("cate-regex-invalid")).toBeNull();
+    expect(document.body.textContent).not.toContain("정규식 문법이 올바르지 않습니다");
+
+    // compare 가 invalid 를 주면 — 목록이 비는 것과, 비는 이유를 함께 보여 준다.
+    holdCompareInvalid = true;
+    await click(testId("cate-edit-R1"));
+    await type(testId("regex-expr"), "(");
+    expect(otherCalls.some((c) => c.path === "dataCateEdit/compare")).toBe(true);
+    expect(testId("cate-regex-invalid")?.textContent).toBe("정규식 문법이 올바르지 않습니다");
+  });
+
+  it("카테고리 편집 탭에서 마루 데이터를 바꾸면 탭은 그대로 두고 카테고리를 그 데이터로 다시 읽는다", async () => {
+    await render();
     await chooseMaru("CUST");
     expect(testId("cate-tab")).not.toBeNull();
     expect(otherCalls.filter((c) => c.path === "dataCateEdit/search").map((c) => c.params.maruDataId)).toEqual([
@@ -361,11 +422,18 @@ describe("DataItemMngPage", () => {
 
   // ── D-104: 카테고리 탭 편집 가능 여부 ──
 
-  it("편집 가능한 마루 데이터는 카테고리 등록 폼과 닫기 버튼을 보인다(BASE 는 닫기 없음)", async () => {
+  it("편집 가능한 마루 데이터는 카테고리 추가 팝업과 닫기 버튼을 보인다(BASE 는 닫기 없음)", async () => {
     await render();
-    await click(testId("item-tab-cate"));
     expect(testId("cate-readonly")).toBeNull();
+    expect(testId("cate-add")).not.toBeNull();
+    // 추가 폼은 버튼을 눌러 팝업으로 연다(목록에 인라인 폼을 두지 않는다).
+    expect(testId("cate-add-id")).toBeNull();
+    await click(testId("cate-add"));
     expect(testId("cate-add-id")).not.toBeNull();
+    expect(testId("cate-add-name")).not.toBeNull();
+    await click(testId("cate-add-cancel"));
+    expect(testId("cate-add-id")).toBeNull();
+
     expect(testId("cate-close-KR")).not.toBeNull();
     expect(testId("cate-close-BASE")).toBeNull();
 
@@ -373,21 +441,33 @@ describe("DataItemMngPage", () => {
     expect(otherCalls.some((c) => c.path === "dataCateEdit/delete" && c.params.cateId === "KR")).toBe(true);
   });
 
+  it("추가 팝업에서 ID 와 이름을 넣고 [추가] 하면 그 값으로 등록한다", async () => {
+    await render();
+    await click(testId("cate-add"));
+    // 빈 칸이면 무엇이 비었는지 알리고 등록하지 않는다.
+    await click(testId("cate-add-submit"));
+    expect(otherCalls.some((c) => c.path === "dataCateEdit/reg")).toBe(false);
+
+    await type(testId("cate-add-id"), "NEW_CATE");
+    await type(testId("cate-add-name"), "신규 카테고리");
+    await click(testId("cate-add-submit"));
+    expect(otherCalls.some((c) => c.path === "dataCateEdit/reg" && c.params.cateId === "NEW_CATE")).toBe(true);
+  });
+
   it("조회 전용(EXTERNAL) 마루 데이터는 카테고리 탭도 편집을 막는다", async () => {
     await render();
     await chooseMaru("CUST");
-    await click(testId("item-tab-cate"));
     expect(testId("cate-readonly")).not.toBeNull();
-    expect(testId("cate-add-id")).toBeNull();
+    expect(testId("cate-add")).toBeNull();
     expect(testId("cate-close-KR")).toBeNull();
     await click(testId("cate-row-KR"));
-    expect((testId("transfer-apply") as HTMLButtonElement).disabled).toBe(true);
+    expect(testId("cate-edit-KR")).toBeNull();
   });
 
   it("다른 TABLE 카테고리를 고르면 새 상세가 올 때까지 이전 소속 목록을 잠근다", async () => {
     await render();
-    await click(testId("item-tab-cate"));
     await click(testId("cate-row-KR"));
+    await click(testId("cate-edit-KR"));
     expect((testId("transfer-apply") as HTMLButtonElement).disabled).toBe(false);
 
     let release!: () => void;
@@ -422,6 +502,8 @@ describe("DataItemMngPage", () => {
 
   it("행 쓰기 응답을 기다리는 사이 마루 데이터가 바뀌면 이전 데이터의 이력·트리를 다시 부르지 않는다", async () => {
     await render();
+    // 항목 이력은 오른쪽 [코드 테스트] 탭에 있다.
+    await click(testId("item-right-tab-test"));
     await click(testId("item-history-KRPUS"));
     expect(testId("item-history")?.textContent).toContain("이력 — KRPUS");
 
@@ -450,6 +532,7 @@ describe("DataItemMngPage", () => {
 
   it("행 쓰기가 끝났을 때 마루 데이터가 그대로면 트리 탭의 트리와 열린 이력을 다시 부른다", async () => {
     await render();
+    await click(testId("item-right-tab-test"));
     await click(testId("item-history-KRPUS"));
     let release!: () => void;
     holdClose = new Promise<void>((resolve) => (release = resolve));
