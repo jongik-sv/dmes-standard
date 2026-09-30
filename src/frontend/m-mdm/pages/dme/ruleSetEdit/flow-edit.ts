@@ -449,6 +449,30 @@ export function connect(f: EditFlow, from: string, to: string): EditResult {
   return done(g);
 }
 
+/**
+ * 선 하나의 한쪽(또는 양쪽) 끝을 다른 노드로 옮겨 붙인다(다시 잇기, R1). 선 ID·조건식·이름·순서·"그 외" 표시는 그대로이고
+ * 그 선의 꺾는 점은 버린다(양 끝이 바뀌면 옛 경로가 맞지 않는다). 자기 자신으로 잇기·없는 노드·다른 선과 같은 from→to·바뀌는 끝이 없음은 거부한다.
+ * 구조가 틀어지는 경우(합류 건너뛰기 등)는 막지 않고 구조 검사가 표시한다.
+ */
+export function reconnectEdge(f: EditFlow, edgeId: string, end: { from?: string; to?: string }): EditResult {
+  const g = clone(f);
+  const e = findEdge(g, edgeId);
+  if (!e) return fail(`선 ${edgeId}를 찾지 못했다`);
+  const from = end.from ?? e.from;
+  const to = end.to ?? e.to;
+  if (from === e.from && to === e.to) return fail("옮길 끝이 없다");
+  if (!findNode(g, from)) return fail(`노드 ${from}를 찾지 못했다`);
+  if (!findNode(g, to)) return fail(`노드 ${to}를 찾지 못했다`);
+  if (from === to) return fail("노드를 자기 자신에게 이을 수 없다");
+  if (g.edges.some((x) => x.id !== edgeId && x.from === from && x.to === to)) return fail("이미 이어진 선이다");
+  e.from = from;
+  e.to = to;
+  const routes = { ...g.view.routes };
+  delete routes[edgeId];
+  g.view.routes = routes;
+  return done(g);
+}
+
 export function removeEdge(f: EditFlow, edgeId: string): EditResult {
   const g = clone(f);
   if (!findEdge(g, edgeId)) return fail(`선 ${edgeId}를 찾지 못했다`);
@@ -476,10 +500,14 @@ export function clearRoutes(f: EditFlow): EditFlow {
   return g;
 }
 
-/** 배치를 덮어쓴다(병합). */
+/** 배치를 덮어쓴다(병합). 흐름에 있는 노드 ID 만 남긴다 — 없는 ID(낡은 캔버스 끌기 등)의 위치 키는 적지 않고, 이미 있던 것도 치운다. */
 export function setPositions(f: EditFlow, pos: Readonly<Record<string, FlowPos>>): EditFlow {
   const g = clone(f);
-  for (const [k, p] of Object.entries(pos)) g.view.positions[k] = copyPos(p);
+  const ids = new Set(g.nodes.map((n) => n.id));
+  const positions: Record<string, FlowPos> = {};
+  for (const [k, p] of Object.entries(g.view.positions)) if (ids.has(k)) positions[k] = p;
+  for (const [k, p] of Object.entries(pos)) if (ids.has(k)) positions[k] = copyPos(p);
+  g.view.positions = positions;
   return g;
 }
 

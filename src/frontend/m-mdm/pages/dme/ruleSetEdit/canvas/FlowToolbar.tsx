@@ -9,7 +9,7 @@
  * 3단계(계획 P1·P12): 모드 단추 셋(보기·편집·디버그 — 디버그는 누구나), 되돌리기·다시 하기(편집 모드이고 기록이 있을 때), 미니맵 켜고 끄기.
  * 찾기 칸(Enter·[다음] 으로 돈다)과 단축키 도움말 [?] 를 둔다(Task 8). 도움말은 지금 모드의 단축키만 짧은 정의 목록으로 보인다.
  */
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 
 import { IconArrowBackUp, IconArrowForwardUp, IconArrowsMaximize, IconHelp, IconLayoutDistributeHorizontal, IconMap, IconSearch, IconVariable } from "@tabler/icons-react";
 
@@ -41,11 +41,17 @@ export interface FlowToolbarProps {
   find: FindState;
   /** 찾기 칸 — 단축키 Ctrl/Cmd+F 가 여기로 초점을 옮긴다(Task 8 이 칸에 단다). */
   findInputRef: RefObject<HTMLInputElement | null>;
+  /**
+   * 도움말을 Esc 로 닫은 뒤, 초점이 [?] 단추·도움말 안·body 에 있을 때만 부른다 — page 가 캔버스로 초점을 돌려 다음 Esc·단축키가
+   * 캔버스 디스패처에 닿게 한다(브라우저 확인 8번 단서).
+   * [?] 를 다시 눌러 닫을 때는 부르지 않는다(마우스로 닫으면 초점을 억지로 옮기지 않는다).
+   */
+  onHelpEscape?: () => void;
 }
 
 export function FlowToolbar(props: FlowToolbarProps) {
   const { state, canDo, canEdit, mode, onMode, showVars, onToggleVars, onAutoLayout, onFit, showMiniMap, onToggleMiniMap } = props;
-  const { find, findInputRef } = props;
+  const { find, findInputRef, onHelpEscape } = props;
   const [helpOpen, setHelpOpen] = useState(false);
   const view = state.view!;
   const set = view.set;
@@ -57,12 +63,19 @@ export function FlowToolbar(props: FlowToolbarProps) {
 
   useEffect(() => setConfirmDeprecate(false), [view]);
   // 도움말은 Esc 로 닫는다. 캡처 단계에서 받아 멈춘다 — 열린 것만 닫고 캔버스 선택은 그대로 둔다(메뉴와 같은 규칙).
+  // 닫은 뒤 초점이 [?] 단추·도움말 안·body 에 있을 때만 캔버스로 돌린다([?] 에 남으면 다음 Esc 가 캔버스 디스패처에 닿지 않는다).
+  // 찾기 칸·속성 입력칸 같은 다른 초점은 그대로 둔다.
+  const helpAnchorRef = useRef<HTMLSpanElement>(null);
+  const helpEscRef = useRef(onHelpEscape);
+  helpEscRef.current = onHelpEscape;
   useEffect(() => {
     if (!helpOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       e.stopPropagation();
       setHelpOpen(false);
+      const a = document.activeElement;
+      if (!a || a === document.body || helpAnchorRef.current?.contains(a)) helpEscRef.current?.();
     };
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
@@ -174,7 +187,7 @@ export function FlowToolbar(props: FlowToolbarProps) {
           </span>
         </span>
 
-        <span className="rsf-toolbar-group rsf-help-anchor">
+        <span ref={helpAnchorRef} className="rsf-toolbar-group rsf-help-anchor">
           <Button data-testid="flow-help" ariaLabel="단축키 도움말" title="단축키 도움말" aria-expanded={helpOpen} onClick={() => setHelpOpen((o) => !o)}>
             <IconHelp size={14} aria-hidden="true" />
           </Button>

@@ -126,6 +126,8 @@ export const BASE_CSS = `
 
 /* 선 이름표 · 변수 칩 */
 .rsf-elabel { position: absolute; pointer-events: none; white-space: nowrap; }
+/* 변수 칩은 아래 노드(z-index 0)에 가리지 않게 노드 위에 둔다. 고른 노드(React Flow 가 1000 으로 올림)는 칩 위다. */
+.rsf-elabel-chips { z-index: 1; }
 .rsf-branch {
   font-size: var(--font-size-xs); font-weight: 600; line-height: 18px; padding: 0 7px; border-radius: 9px;
   background: var(--color-bg); border: 1px solid var(--rsf-border); color: var(--color-text-secondary);
