@@ -75,7 +75,7 @@ export interface EditActionsDeps {
 }
 
 export interface EditActions {
-  actions: Omit<CanvasActions, "toggleCollapse" | "toggleBreakpoint" | "runTo">;
+  actions: Omit<CanvasActions, "toggleCollapse" | "toggleBreakpoint" | "runTo" | "align" | "distribute">;
   /** 팔레트 항목 누르기 — 고른 선(없으면 END 앞 선)에. */
   pickPalette(item: PaletteItem): void;
   /** 룰 찾기 팝업에서 고른 룰을 끼운다(목적 insert). edgeId 가 null 이면 END 앞 선. */

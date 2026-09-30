@@ -4,6 +4,7 @@
  * React 의존이 없다.
  */
 import type { FlowPos, EditFlow } from "../flow-edit";
+import type { AlignKind, DistributeAxis } from "./align";
 import type { FlowMode } from "../state/useRuleSetEdit";
 import type { RuleIoMap } from "../types";
 
@@ -53,6 +54,10 @@ export interface CanvasActions {
   toggleCollapse(splitId: string): void;
   toggleBreakpoint(nodeId: string): void;
   runTo(nodeId: string): void;
+  /** 고른 노드·메모를 경계 상자에 맞춘다(A1). */
+  align(kind: AlignKind): void;
+  /** 고른 노드·메모의 간격을 고르게 한다(A1, 3개 이상). */
+  distribute(axis: DistributeAxis): void;
 }
 
 export interface MenuContext {
@@ -66,6 +71,8 @@ export interface MenuContext {
   breakpoints: ReadonlySet<string>;
   /** canDo("execute"). */
   canRun: boolean;
+  /** 메뉴를 열 때 캔버스에서 읽은 고른 흐름 노드·메모 ID(A1 정렬 메뉴). 없으면 정렬 항목이 없다. */
+  selection?: readonly string[];
   act: CanvasActions;
 }
 

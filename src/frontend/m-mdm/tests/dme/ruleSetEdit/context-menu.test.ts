@@ -17,7 +17,7 @@ function actions(): CanvasActions {
     openRule: vi.fn(), fit: vi.fn(), autoLayout: vi.fn(), addNote: vi.fn(), pickRuleFor: vi.fn(), insertSplitAt: vi.fn(),
     removeNode: vi.fn(), removeEdge: vi.fn(), resetRoute: vi.fn(), addBranch: vi.fn(), editCond: vi.fn(), copy: vi.fn(), paste: vi.fn(),
     duplicate: vi.fn(), replaceRule: vi.fn(), changeSplitKind: vi.fn(), dissolveSplit: vi.fn(), toggleCollapse: vi.fn(),
-    toggleBreakpoint: vi.fn(), runTo: vi.fn(),
+    toggleBreakpoint: vi.fn(), runTo: vi.fn(), align: vi.fn(), distribute: vi.fn(),
   };
 }
 
@@ -74,9 +74,9 @@ describe("viewMenu", () => {
 });
 
 describe("MENU_PROVIDERS", () => {
-  it("편집·접기·디버그·보기 넷이고 보기 메뉴가 끝이다", () => {
-    expect(MENU_PROVIDERS).toHaveLength(4);
-    expect(MENU_PROVIDERS[3]).toBe(viewMenu);
+  it("편집·정렬·접기·디버그·보기 다섯이고 보기 메뉴가 끝이다", () => {
+    expect(MENU_PROVIDERS).toHaveLength(5);
+    expect(MENU_PROVIDERS[4]).toBe(viewMenu);
     // 빈 곳 메뉴 — 지금은 보기 메뉴의 fit 만 나온다(편집·접기·디버그 제공자는 뒤 태스크가 채운다).
     expect(buildMenu(MENU_PROVIDERS, { kind: "pane", at: { x: 0, y: 0 } }, ctx("view")).map((i) => i.id)).toContain("fit");
   });
