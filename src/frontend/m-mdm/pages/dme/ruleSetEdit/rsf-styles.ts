@@ -7,12 +7,13 @@
  * 색은 의미 토큰만 쓴다. 한 변 색 바는 쓰지 않는다(Local-Rules §8).
  *
  * 3단계(계획 Task 0 Step 12)부터 본문은 `styles/` 의 영역별 상수로 나눴다 — 각 태스크는 자기 영역 파일만 고친다
- * (base 기본 · drag 끌기 · menu 메뉴·찾기 · props 속성 패널 · debug 디버그 모드 · collapse 접기·중단점 · route 선 경로 손잡이 · space 공간 넓히기). 이 파일은 순서대로 잇기만 한다.
+ * (base 기본 · drag 끌기 · menu 메뉴·찾기 · props 속성 패널 · debug 디버그 모드 · collapse 접기·중단점 · route 선 경로 손잡이 · space 공간 넓히기 · label 선 이름표 옮기기). 이 파일은 순서대로 잇기만 한다.
  */
 import { BASE_CSS } from "./styles/base";
 import { COLLAPSE_CSS } from "./styles/collapse";
 import { DEBUG_CSS } from "./styles/debug";
 import { DRAG_CSS } from "./styles/drag";
+import { LABEL_CSS } from "./styles/label";
 import { MENU_CSS } from "./styles/menu";
 import { PROPS_CSS } from "./styles/props";
 import { ROUTE_CSS } from "./styles/route";
@@ -20,4 +21,4 @@ import { SPACE_CSS } from "./styles/space";
 
 export const RSF_STYLE_HREF = "rsf-flow-styles";
 
-export const RSF_CSS = [BASE_CSS, DRAG_CSS, MENU_CSS, PROPS_CSS, DEBUG_CSS, COLLAPSE_CSS, ROUTE_CSS, SPACE_CSS].join("\n");
+export const RSF_CSS = [BASE_CSS, DRAG_CSS, MENU_CSS, PROPS_CSS, DEBUG_CSS, COLLAPSE_CSS, ROUTE_CSS, SPACE_CSS, LABEL_CSS].join("\n");

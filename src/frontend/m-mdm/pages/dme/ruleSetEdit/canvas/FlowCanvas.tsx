@@ -22,6 +22,11 @@
  * 손잡이를 고른 채 Delete·Backspace 는 page 의 단축키 디스패처가 받는다 — page 가 내려준 `removeRoutePointRef` 에 캔버스가
  * "고른 꺾는 점 빼기(뺐으면 true)" 를 채우고, page 의 delete 핸들러가 그것을 먼저 부른 뒤 false 면 원래 선택 삭제로 간다.
  * 뺀 뒤에는 이웃 점을 고른 채로 둬 연속 Delete 가 선 전체 삭제로 새지 않는다(점이 없으면 선택 없음).
+ *
+ * 선 [+]·이름표 옮기기(L1): 편집 모드의 [+] 는 그 선에 마우스가 올라가 있거나(선·라벨·칩·[+] 위, 떠난 뒤 150ms 유예) 그 선을 골랐을 때,
+ * 또는 끌어 끼우기 대상일 때만 그린다. hover 는 캔버스 안 저장소(`HoverStore`)에 두고 선마다 "내가 올려진 선인가" 만 구독한다(page 는 그대로).
+ * 편집 모드에서 조건 라벨·변수 칩 묶음을 화면 4px 넘게 끌면 옮긴다 — 끄는 동안은 캔버스 안 저장소(`LabelStore`)에만 두고 놓을 때
+ * `onLabelOffsetChange` 를 한 번 부른다. 오프셋(`view.labels`)은 기본 자리에서의 흐름 좌표 거리라 선 끝이 움직여도 따라간다(보기·디버그 모드도 그대로 그린다).
  */
 import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore,
@@ -32,7 +37,7 @@ import { IconPlus } from "@tabler/icons-react";
 
 import type { RuleSetFlow, TypedValue } from "@/contract/engine-contract.generated";
 
-import type { FlowNote, FlowPos, EditFlow } from "../flow-edit";
+import { MAX_LABEL_OFFSET, type FlowNote, type FlowPos, type EditFlow, type LabelOffset, type LabelPart } from "../flow-edit";
 import { NODE_SIZE, beyondLine, drawnPositions, foldOffsetX, spaceMinDelta, type SpaceAxis, type SpaceBlocks } from "../flow-layout";
 import { typedText } from "../trace-view";
 import { blockDragPositions, dropTargetAt, edgeChips, edgeMarks, nodeMarks, resolveNodeDrop } from "../flow-vars";
@@ -87,6 +92,10 @@ const FLASH_MS = 1200;
 const FIT_OPTIONS = { padding: 0.15 };
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 2;
+/** 선에서 [+] 로 옮겨 가는 사이 [+] 를 남겨 두는 시간(ms, L1). */
+export const ADD_HOVER_GRACE_MS = 150;
+/** 이 화면 거리(px) 미만으로 움직이고 놓으면 라벨·칩 끌기가 아니다(두 번 누르기·툴팁 그대로, L1). */
+export const LABEL_DRAG_THRESHOLD_PX = 4;
 /** 선 경로 모서리 반경(C14). */
 const ROUTE_RADIUS = 8;
 /** 경로가 있는 선의 변수 칩을 가운데 라벨 아래로 띄우는 거리(px). */
@@ -150,6 +159,11 @@ export interface FlowCanvasProps {
   onNoteChange: (id: string, patch: Partial<FlowNote>) => void;
   /** 선 경로(꺾는 점 목록, 흐름 좌표)를 통째로 바꿈(C14) — 손잡이를 놓을 때·점을 더하거나 뺄 때 한 번. 빈 목록이면 경로를 지운다. */
   onRouteChange?: (edgeId: string, points: FlowPos[]) => void;
+  /**
+   * 조건 라벨·변수 칩 묶음을 끌어 놓음(L1) — 기본 자리에서의 새 오프셋(흐름 좌표, ±600 으로 자른 정수). 끄는 동안은 부르지 않고 놓을 때 한 번,
+   * 임계값(화면 4px) 미만이거나 처음 오프셋 그대로면 부르지 않는다. 편집 모드에서만 부른다.
+   */
+  onLabelOffsetChange?: (edgeId: string, part: LabelPart, off: LabelOffset | null) => void;
   /** 캔버스가 "고른 꺾는 점 빼기 — 뺐으면 true" 를 채우는 ref(page 의 delete 단축키가 먼저 부른다, C14). */
   removeRoutePointRef?: MutableRefObject<(() => boolean) | null>;
   /** 캔버스가 "React Flow 선택 모두 비우기" 를 채우는 ref(page 의 Esc 가 부른다 — disableKeyboardA11y 로 내장 Esc 가 없다). */
@@ -195,7 +209,7 @@ type EdgeData = {
   showVars: boolean;
   /** 끄는 동안 놓일 선(A1·A2 — Task 7 이 채운다). */
   dropTarget: boolean;
-  /** 편집 모드 — 선 가운데 [+] 단추. */
+  /** 편집 모드 — 선 가운데 [+] 단추(그 선에 올리거나 고르거나 끼우기 대상일 때만 그린다, L1). */
   insertable: boolean;
   /** 편집 모드이고 IF 의 "그 외" 가 아닌 갈래 — 조건식 즉석 편집 가능(B10). */
   condEditable: boolean;
@@ -211,6 +225,12 @@ type EdgeData = {
   routeHandles: boolean;
   /** 이름표 묶음(라벨·[+]·여기에 넣기)의 가로 비킴(px) — 같은 두 노드를 잇는 경로 없는 선끼리 겹치지 않게. 없으면 0. */
   spread: number;
+  /** 저장된 조건 라벨 오프셋(L1, 흐름 좌표). 접힌 분기가 이어 받은 선·옮기지 않은 선은 null. */
+  labelOff: LabelOffset | null;
+  /** 저장된 변수 칩 묶음 오프셋(L1). */
+  chipsOff: LabelOffset | null;
+  /** 편집 모드이고 접힌 분기가 이어 받은 선이 아님 — 라벨·칩을 끌어 옮길 수 있다(L1). */
+  labelsMovable: boolean;
 };
 type FlowRfEdge = Edge<EdgeData, "rsfFlow">;
 
@@ -303,6 +323,89 @@ interface RouteApi {
 }
 const RouteContext = createContext<RouteApi | null>(null);
 
+/**
+ * 선 hover 저장소(L1) — 편집 모드 [+] 표시용. 선마다 "내가 올려진 선인가" 만 구독하므로 바뀐 선만 다시 그린다(다른 선·page 는 그대로).
+ * 떠날 때는 ADD_HOVER_GRACE_MS 뒤에 비운다 — 그 사이 같은 선의 라벨·칩·[+] 에 들어오면 취소된다(선 g 와 이름표 층은 다른 DOM 이다).
+ */
+interface HoverStore {
+  edgeId: string | null;
+  enter(edgeId: string): void;
+  leave(edgeId: string): void;
+  /** 유예 타이머를 끄고 비운다(편집 모드를 떠날 때·언마운트). */
+  reset(): void;
+  subscribe(cb: () => void): () => void;
+}
+function createHoverStore(): HoverStore {
+  const listeners = new Set<() => void>();
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const stopTimer = () => {
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+  };
+  const store: HoverStore = {
+    edgeId: null,
+    enter: (edgeId) => {
+      stopTimer();
+      if (store.edgeId === edgeId) return;
+      store.edgeId = edgeId;
+      listeners.forEach((cb) => cb());
+    },
+    leave: (edgeId) => {
+      if (store.edgeId !== edgeId) return;
+      stopTimer();
+      timer = setTimeout(() => {
+        timer = null;
+        if (store.edgeId !== edgeId) return;
+        store.edgeId = null;
+        listeners.forEach((cb) => cb());
+      }, ADD_HOVER_GRACE_MS);
+    },
+    reset: () => {
+      stopTimer();
+      if (store.edgeId === null) return;
+      store.edgeId = null;
+      listeners.forEach((cb) => cb());
+    },
+    subscribe: (cb) => {
+      listeners.add(cb);
+      return () => listeners.delete(cb);
+    },
+  };
+  return store;
+}
+const HoverContext = createContext<HoverStore | null>(null);
+
+/** 라벨·칩 끌기 저장소(L1) — 끄는 동안의 오프셋. 선 하나만 구독해 그 선만 다시 그린다(page 는 그대로). */
+interface LabelDrag {
+  edgeId: string;
+  part: LabelPart;
+  off: LabelOffset;
+}
+interface LabelStore {
+  drag: LabelDrag | null;
+  subscribe(cb: () => void): () => void;
+  emit(): void;
+}
+function createLabelStore(): LabelStore {
+  const listeners = new Set<() => void>();
+  return {
+    drag: null,
+    subscribe: (cb) => {
+      listeners.add(cb);
+      return () => listeners.delete(cb);
+    },
+    emit: () => listeners.forEach((cb) => cb()),
+  };
+}
+interface LabelApi {
+  store: LabelStore;
+  /** 라벨·칩 누르기 — 임계값을 넘으면 끌기, 놓을 때 한 번 올린다. base 는 지금 저장된 오프셋. */
+  startDrag(e: ReactPointerEvent, edgeId: string, part: LabelPart, base: LabelOffset): void;
+}
+const LabelContext = createContext<LabelApi | null>(null);
+const ZERO_OFFSET: LabelOffset = Object.freeze({ dx: 0, dy: 0 });
+const clampLabelOffset = (n: number) => Math.max(-MAX_LABEL_OFFSET, Math.min(MAX_LABEL_OFFSET, Math.round(n)));
+
 /** 공간 넓히기 미리보기(S1) — 방향이 정해진 뒤의 기준선·이동량. 끄는 동안 캔버스·선·기준선만 구독해 다시 그린다(page 는 그대로). */
 interface SpaceShift {
   axis: SpaceAxis;
@@ -350,6 +453,20 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
   const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, selected } = props;
   const routeApi = useContext(RouteContext);
   const spaceStore = useContext(SpaceContext);
+  const hoverStore = useContext(HoverContext);
+  const labelApi = useContext(LabelContext);
+  // [+] 표시(L1) — 이 선이 올려진 선인지만 구독한다.
+  const hovered = useSyncExternalStore(
+    hoverStore ? hoverStore.subscribe : NO_SUBSCRIBE,
+    () => hoverStore?.edgeId === id,
+    () => false,
+  );
+  // 끄는 중인 이름표(L1) — 이 선의 끌기만 구독한다.
+  const labelDrag = useSyncExternalStore(
+    labelApi ? labelApi.store.subscribe : NO_SUBSCRIBE,
+    () => (labelApi?.store.drag?.edgeId === id ? labelApi.store.drag : null),
+    () => null,
+  );
   // 공간 넓히기 미리보기 — 이 선의 꺾는 점 가운데 기준선 너머가 있을 때만 구독 값이 바뀐다(다른 선은 다시 그리지 않는다).
   const spaceShift = useSyncExternalStore(
     spaceStore ? spaceStore.subscribe : NO_SUBSCRIBE,
@@ -402,9 +519,22 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
   const chips = data?.showVars ? (data.chips ?? []) : [];
   const at = (x: number, y: number) => ({ transform: `translate(-50%, -50%) translate(${x}px, ${y}px)` });
   const addX = data?.label ? lx + ADD_LABEL_GAP : lx;
+  // 이름표 오프셋(L1) — 끄는 중이면 그 값, 아니면 저장된 값. 기본 자리에 더한다.
+  const labelOff = (labelDrag?.part === "label" ? labelDrag.off : data?.labelOff) ?? ZERO_OFFSET;
+  const chipsOff = (labelDrag?.part === "chips" ? labelDrag.off : data?.chipsOff) ?? ZERO_OFFSET;
+  const chipBase = route && route.length > 0 ? { x: lx, y: ly + ROUTE_CHIP_GAP } : { x: sourceX, y: sourceY + 20 };
+  const movable = !!data?.labelsMovable && !!labelApi;
+  const dragProps = (part: LabelPart, base: LabelOffset | null) =>
+    movable ? { onPointerDown: (e: ReactPointerEvent) => labelApi!.startDrag(e, id, part, base ?? ZERO_OFFSET) } : {};
+  // 선·라벨·칩·[+] 에 마우스를 올리면 이 선이 올려진 선이다(L1). 편집 모드에서만 단다.
+  const hoverProps = data?.insertable && hoverStore
+    ? { onMouseEnter: () => hoverStore.enter(id), onMouseLeave: () => hoverStore.leave(id) }
+    : {};
+  const showAdd = !!data?.insertable && (hovered || !!selected || !!data.dropTarget);
   return (
     <>
       <g
+        {...hoverProps}
         onDoubleClick={
           data?.routeEditable && routeApi
             ? (e) => {
@@ -423,13 +553,18 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
           </div>
         ) : (
           data?.label && (
-            <div className="rsf-elabel" style={at(lx, ly)}>
+            <div className="rsf-elabel" style={at(lx + labelOff.dx, ly + labelOff.dy)}>
               <span
-                className={data.condEditable ? "rsf-branch rsf-cond-label nopan" : "rsf-branch"}
+                className={
+                  "rsf-branch" + (data.condEditable ? " rsf-cond-label nopan" : "") + (movable ? " rsf-elabel-drag nodrag nopan nokey" : "")
+                }
                 data-testid={`flow-edge-label-${id}`}
                 data-state={state ?? "idle"}
                 data-cond-edge={data.condEditable ? id : undefined}
-                title={data.condEditable ? "두 번 눌러 조건식을 고친다" : undefined}
+                data-dragging={labelDrag?.part === "label" ? "true" : undefined}
+                title={data.condEditable ? (movable ? "끌어 옮기고, 두 번 눌러 조건식을 고친다" : "두 번 눌러 조건식을 고친다") : movable ? "끌어 옮긴다" : undefined}
+                {...hoverProps}
+                {...dragProps("label", data.labelOff)}
               >
                 {data.label}
               </span>
@@ -444,8 +579,15 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
           </div>
         )}
         {chips.length > 0 && (
-          <div className="rsf-elabel rsf-elabel-chips" style={route && route.length > 0 ? at(lx, ly + ROUTE_CHIP_GAP) : at(sourceX, sourceY + 20)}>
-            <span className="rsf-vchips" data-testid={`flow-edge-chips-${id}`}>
+          <div className="rsf-elabel rsf-elabel-chips" style={at(chipBase.x + chipsOff.dx, chipBase.y + chipsOff.dy)}>
+            <span
+              className={movable ? "rsf-vchips rsf-elabel-drag nodrag nopan nokey" : "rsf-vchips"}
+              data-testid={`flow-edge-chips-${id}`}
+              data-dragging={labelDrag?.part === "chips" ? "true" : undefined}
+              title={movable ? "끌어 옮긴다" : undefined}
+              {...hoverProps}
+              {...dragProps("chips", data?.chipsOff ?? null)}
+            >
               {chips.map((c) => (
                 <span key={c} className="rsf-vchip" title={chipTitle(c, data?.valueOf)}>
                   {c}
@@ -474,7 +616,7 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
               />
             </div>
           ))}
-        {data?.insertable && (
+        {showAdd && (
           <button
             type="button"
             className="rsf-edge-add nodrag nopan"
@@ -483,6 +625,7 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
             data-edge-id={id}
             aria-label="선에 넣기"
             title="선에 넣기"
+            {...hoverProps}
           >
             <IconPlus size={12} aria-hidden="true" />
           </button>
@@ -534,7 +677,7 @@ function Inner(props: FlowCanvasProps) {
     flow, rules, checks, mode, showVars, selectedId, selectedEdgeId, overlay, focusId, focusSeq, focusReveal, fitSignal, fitKey,
     breakpoints, collapsed, valueAt, showMiniMap, editingCondEdgeId,
     onSelect, onSelectEdge, onOpenRule, onMove, onMoveNode, onConnect, onReconnect, onDropPalette, onDropRule, onNoteChange, onContextMenu, onToggleBreakpoint,
-    onEditCond, onRouteChange, removeRoutePointRef, clearSelectionRef, onEditCondClose, onSelectionChange,
+    onEditCond, onRouteChange, onLabelOffsetChange, removeRoutePointRef, clearSelectionRef, onEditCondClose, onSelectionChange,
     spaceTool, onSpaceToolChange, onShiftSpace,
   } = props;
   const editable = mode === "edit";
@@ -701,6 +844,10 @@ function Inner(props: FlowCanvasProps) {
         routeEditable: editable && !folded,
         routeHandles: editable && !folded && selectedEdgeId === e.id,
         spread: spreadOf(e),
+        // 이름표 오프셋(L1) — 접힌 분기가 이어 받은 선은 원래 선의 자리라 쓰지 않는다(경로와 같다).
+        labelOff: folded ? null : (flow.view.labels?.[e.id]?.label ?? null),
+        chipsOff: folded ? null : (flow.view.labels?.[e.id]?.chips ?? null),
+        labelsMovable: editable && !folded,
       };
       return {
         id: e.id, source: e.from, target: e.to, type: "rsfFlow", selected: selectedEdgeId === e.id,
@@ -1006,6 +1153,80 @@ function Inner(props: FlowCanvasProps) {
     };
   }, [removeRoutePointRef, editable, routeApi, routeStore]);
 
+  // 선 hover(L1) — [+] 표시용. 편집 모드를 떠나거나 언마운트하면 비운다(유예 타이머 포함).
+  const hoverStore = useMemo(createHoverStore, []);
+  useEffect(() => {
+    if (!editable) hoverStore.reset();
+  }, [editable, hoverStore]);
+  useEffect(() => () => hoverStore.reset(), [hoverStore]);
+
+  // 라벨·칩 끌기(L1) — 끄는 동안은 labelStore 에만 두고 놓을 때 onLabelOffsetChange 를 한 번 부른다.
+  const labelStore = useMemo(createLabelStore, []);
+  const labelChangeRef = useRef(onLabelOffsetChange);
+  labelChangeRef.current = onLabelOffsetChange;
+  const editableRef = useRef(editable);
+  editableRef.current = editable;
+  const labelDragRef = useRef<{ stop: () => void } | null>(null);
+  const labelApi = useMemo<LabelApi>(() => ({
+    store: labelStore,
+    startDrag: (e, edgeId, part, base) => {
+      if (e.button !== 0 || !editableRef.current) return;
+      labelDragRef.current?.stop();
+      const sx = e.clientX;
+      const sy = e.clientY;
+      let dragging = false;
+      const onMoveEvt = (ev: MouseEvent) => {
+        // 단추가 모두 떨어진 채 움직이면 pointerup 을 잃은 것이다(창 밖에서 놓음) — 기록 없이 버린다.
+        if (ev.buttons === 0) {
+          finish(false);
+          return;
+        }
+        const dx = ev.clientX - sx;
+        const dy = ev.clientY - sy;
+        if (!dragging) {
+          if (Math.hypot(dx, dy) < LABEL_DRAG_THRESHOLD_PX) return;
+          dragging = true;
+        }
+        const k = rf.getZoom() || 1;
+        const off = { dx: clampLabelOffset(base.dx + dx / k), dy: clampLabelOffset(base.dy + dy / k) };
+        const cur = labelStore.drag;
+        if (cur && cur.off.dx === off.dx && cur.off.dy === off.dy) return;
+        labelStore.drag = { edgeId, part, off };
+        labelStore.emit();
+      };
+      const finish = (commit: boolean) => {
+        stop();
+        const d = labelStore.drag;
+        if (!d) return;
+        labelStore.drag = null;
+        labelStore.emit();
+        if (commit && editableRef.current && (d.off.dx !== base.dx || d.off.dy !== base.dy)) labelChangeRef.current?.(edgeId, part, d.off);
+      };
+      const onUpEvt = () => finish(true);
+      const onCancelEvt = () => finish(false);
+      const stop = () => {
+        labelDragRef.current = null;
+        window.removeEventListener("pointermove", onMoveEvt);
+        window.removeEventListener("pointerup", onUpEvt);
+        window.removeEventListener("pointercancel", onCancelEvt);
+      };
+      labelDragRef.current = { stop };
+      window.addEventListener("pointermove", onMoveEvt);
+      window.addEventListener("pointerup", onUpEvt);
+      window.addEventListener("pointercancel", onCancelEvt);
+    },
+  }), [labelStore, rf]);
+  // 편집 모드를 떠나거나 언마운트하면 끌던 이름표를 버린다.
+  useEffect(() => {
+    if (editable) return;
+    labelDragRef.current?.stop();
+    if (labelStore.drag) {
+      labelStore.drag = null;
+      labelStore.emit();
+    }
+  }, [editable, labelStore]);
+  useEffect(() => () => labelDragRef.current?.stop(), []);
+
   useEffect(() => {
     if (!clearSelectionRef) return;
     clearSelectionRef.current = () => setRfSel((cur) => (cur.size === 0 ? cur : new Set()));
@@ -1180,6 +1401,8 @@ function Inner(props: FlowCanvasProps) {
     <CondEditContext.Provider value={condActions}>
     <RouteContext.Provider value={routeApi}>
     <SpaceContext.Provider value={spaceStore}>
+    <HoverContext.Provider value={hoverStore}>
+    <LabelContext.Provider value={labelApi}>
     <div
       ref={wrapRef}
       className="rsf-canvas"
@@ -1251,6 +1474,8 @@ function Inner(props: FlowCanvasProps) {
         <SpaceGuide store={spaceStore} />
       </ReactFlow>
     </div>
+    </LabelContext.Provider>
+    </HoverContext.Provider>
     </SpaceContext.Provider>
     </RouteContext.Provider>
     </CondEditContext.Provider>

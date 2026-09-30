@@ -153,6 +153,19 @@ export async function click(id: string): Promise<void> {
   await flush();
 }
 
+/**
+ * 선에 마우스를 올린다(L1 — 편집 모드의 선 [+] 는 올리거나 고른 선에만 보인다). React 의 onMouseEnter 흉내는
+ * relatedTarget 이 없는 mouseover 를 "창 밖에서 들어옴" 으로 받는다.
+ */
+export async function hoverEdge(edgeId: string): Promise<void> {
+  const path = pageContainer().querySelector(`[data-testid="rf__edge-${edgeId}"] path`);
+  if (!path) throw new Error(`선 ${edgeId} 없음`);
+  await act(async () => {
+    path.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, relatedTarget: null }));
+  });
+  await flush();
+}
+
 /** 가짜 타이머에서 누르기 — flush(진짜 setTimeout)를 쓰지 않는다. */
 export async function clickFake(id: string): Promise<void> {
   await act(async () => {

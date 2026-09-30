@@ -33,7 +33,7 @@ import { useRuleSetEdit, type RuleSetEditState } from "../../../pages/dme/ruleSe
 import { addNote, toEditFlow } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import type { RuleIo, RuleSetView } from "../../../pages/dme/ruleSetEdit/types";
 import { flush, typeInto, visibleText } from "../helpers/render";
-import { byTestId, calls, canvasNodeIds, click, handoff, installServer, ok, openSet, q, settle, srv, uninstallServer } from "../helpers/rule-set-page";
+import { byTestId, calls, canvasNodeIds, click, handoff, hoverEdge, installServer, ok, openSet, q, settle, srv, uninstallServer } from "../helpers/rule-set-page";
 
 type Src = "DICT" | "PROG" | "NONE";
 const ioName = (n: string, source: Src | null) => ({ name: n, source, label: null, dataType: null, scale: null, dateString: false, maruCodeId: null });
@@ -134,10 +134,12 @@ describe("룰 세트 편집 이음새(3단계 Task 0)", () => {
     expect(pressed("flow-var-toggle")).toBe("true");
   });
 
-  it("3. 편집 모드에서만 선에 [+] 가 있고, [+] 는 끼우기 메뉴를 연다(편집 메뉴, Task 8). 빈 곳 우클릭은 [화면 맞춤] 을 포함한 메뉴", async () => {
+  it("3. 편집 모드에서만 선에 [+] 가 있고(올린 선, L1), [+] 는 끼우기 메뉴를 연다(편집 메뉴, Task 8). 빈 곳 우클릭은 [화면 맞춤] 을 포함한 메뉴", async () => {
     await openSet("E2S_CHAIN", chainView());
+    await hoverEdge("e2");
     expect(q("flow-edge-add-e2")).toBeNull();
     await click("flow-mode-edit");
+    await hoverEdge("e2");
     expect(q("flow-edge-add-e2")).not.toBeNull();
     expect(byTestId("flow-edge-add-e2").getAttribute("aria-label")).toBe("선에 넣기");
     await click("flow-edge-add-e2");
@@ -312,7 +314,8 @@ describe("FlowCanvas [+] 단추(3단계 Task 0)", () => {
     const onContextMenu = vi.fn();
     const onSelectEdge = vi.fn();
     const props: FlowCanvasProps = {
-      flow: toEditFlow(null, ["R_A"]), rules: {}, checks: [], mode: "edit", showVars: false, selectedId: null, selectedEdgeId: null,
+      // 고른 선이라 [+] 가 보인다(L1). 누르기가 선 선택으로 번지지 않는지는 onSelectEdge 로 본다.
+      flow: toEditFlow(null, ["R_A"]), rules: {}, checks: [], mode: "edit", showVars: false, selectedId: null, selectedEdgeId: "e2",
       overlay: null, focusId: null, focusSeq: 0, breakpoints: new Set(), collapsed: new Set(), showMiniMap: false, editingCondEdgeId: null,
       onSelect: noop, onSelectEdge, onOpenRule: noop, onMove: noop, onMoveNode: noop, onConnect: noop, onDropPalette: noop, onDropRule: noop,
       onNoteChange: noop, onContextMenu, onEditCond: noop, onEditCondClose: noop, onToggleBreakpoint: noop,

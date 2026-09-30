@@ -39,7 +39,10 @@ import { useSimulation } from "./debugger/useSimulation";
 import { useTestCases } from "./debugger/useTestCases";
 import { ValuesTab } from "./debugger/ValuesTab";
 import { VariablePanel } from "./debugger/VariablePanel";
-import { connect, flowJsonOf, reconnectEdge, setPositions, setRoute, updateEdge, updateNote, type EditFlow, type EditResult, type FlowNote, type FlowPos } from "./flow-edit";
+import {
+  connect, flowJsonOf, reconnectEdge, setLabelOffset, setPositions, setRoute, updateEdge, updateNote,
+  type EditFlow, type EditResult, type FlowNote, type FlowPos, type LabelOffset, type LabelPart,
+} from "./flow-edit";
 import { autoArrange, shiftSpace, type SpaceAxis, type SpaceBlocks } from "./flow-layout";
 import { openRule } from "./links";
 import { BottomPanel, type BottomTab } from "./panels/BottomPanel";
@@ -254,6 +257,11 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     [editing, edit],
   );
   const onRouteChange = useCallback((edgeId: string, points: FlowPos[]) => editing && edit((f) => setRoute(f, edgeId, points)), [editing, edit]);
+  // 조건 라벨·변수 칩 끌어 옮기기(L1) — 놓을 때 한 번 = 편집 한 번(되돌리기 한 칸).
+  const onLabelOffsetChange = useCallback(
+    (edgeId: string, part: LabelPart, off: LabelOffset | null) => editing && edit((f) => setLabelOffset(f, edgeId, part, off)),
+    [editing, edit],
+  );
   const onMoveNode = useCallback(
     (nodeId: string, edgeId: string, pos: Record<string, FlowPos>) => {
       if (editing) drag.moveNodeTo(nodeId, edgeId, pos);
@@ -547,6 +555,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         onOpenRule={openRule}
                         onMove={onMove}
                         onRouteChange={onRouteChange}
+                        onLabelOffsetChange={onLabelOffsetChange}
                         removeRoutePointRef={removeRoutePointRef}
                         clearSelectionRef={clearCanvasSelectionRef}
                         onMoveNode={onMoveNode}

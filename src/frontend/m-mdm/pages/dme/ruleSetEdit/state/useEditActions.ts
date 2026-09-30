@@ -19,6 +19,7 @@ import {
   addGroup,
   addNote,
   changeSplitKind,
+  clearEdgeLayout,
   copyFragment,
   dissolveSplit,
   duplicateNode,
@@ -30,7 +31,6 @@ import {
   removeNode,
   removeNote,
   replaceRule,
-  setRoute,
   type EditFlow,
   type EditResult,
   type Fragment,
@@ -310,7 +310,7 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
         if (editing) edit((f) => removeNode(f, nodeId));
       },
       resetRoute: (edgeId: string) => {
-        if (editing) edit((f) => setRoute(f, edgeId, []));
+        if (editing) edit((f) => clearEdgeLayout(f, edgeId)); // 경로와 이름표 오프셋(L1)을 함께 비운다
       },
       removeEdge: (edgeId: string) => {
         if (editing) edit((f) => removeEdge(f, edgeId));

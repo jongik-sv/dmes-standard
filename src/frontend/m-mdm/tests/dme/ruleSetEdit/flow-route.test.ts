@@ -54,12 +54,12 @@ describe("view.routes 코덱", () => {
     expect(f.view.routes.zz).toBeUndefined(); // 흐름에 없는 선
   });
 
-  it("flowJsonOf — view 키 순서는 positions·notes·groups·routes 이고 routes 키는 선 배열 순서다", () => {
+  it("flowJsonOf — view 키 순서는 positions·notes·groups·routes(·labels, L1) 이고 routes 키는 선 배열 순서다", () => {
     let f = ifFlow();
     f = ok(setRoute(f, "e3", [P(9, 9)]));
     f = ok(setRoute(f, "e1", [P(1, 1), P(2, 2)]));
     const json = JSON.parse(flowJsonOf(f));
-    expect(Object.keys(json.view)).toEqual(["positions", "notes", "groups", "routes"]);
+    expect(Object.keys(json.view)).toEqual(["positions", "notes", "groups", "routes", "labels"]);
     expect(Object.keys(json.view.routes)).toEqual(["e1", "e3"]); // 선 배열: e1 … e3(끝)
     expect(flowJsonOf(f)).toContain('"routes":{"e1":[{"x":1,"y":1},{"x":2,"y":2}],"e3":[{"x":9,"y":9}]}');
   });
