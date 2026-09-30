@@ -159,7 +159,10 @@ public final class RuleSetPathState {
 
 - `RuleSetAnalyzer` 는 이 클래스의 합치기 규칙을 쓰도록 바꾸되 코퍼스 결과는 바이트 단위로 같다.
 - `RuleSetOrderCheck` 의 `SET_IF_SIBLING`·`SET_PAR_SIBLING`(읽기)는 노드 쌍 단위로 판정한다: me 노드 a·other 노드 b 가 EXCLUSIVE(또는 PARALLEL) 일 때, a 가 읽는 이름 가운데 b 가 만들고 `before(a).defined ∪ before(a).maybe` 에 없는 것이 있으면 낸다(반대 방향 b 가 읽고 a 가 만드는 경우도 같은 규칙, `before(b)` 기준). 문구는 지금 것을 그대로 쓰되 `readsOther`·`readByOther` 자리에 걸러진 이름 집합을 싣는다. `SET_ORDER`·`SET_CYCLE`·`SET_DUP_RESULT`·병렬 같은 이름 대입(`dup`) 판정은 바꾸지 않는다.
-- 합격 기준: 흐름 코퍼스 사례(19번 이후)와 Task 2 의 퍼즈 흐름마다, 각 룰을 me 로 두고 확정 검사를 돌렸을 때 "me 에 대한 `SET_IF_SIBLING`·`SET_PAR_SIBLING`(읽기) 이 있다" ⇔ "세트 저장 검사에 `IF_SIBLING`·`PAR_SIBLING`(읽기 문구) 항목이 있고 그 항목의 `ruleId` 가 me 이거나, 그 항목이 가리키는 상대 룰 목록에 me 가 있다".
+- 합격 기준(두 방향으로 나눈다 — 분석기는 SIBLING 판정 전에 DICT 건너뛰기·`maybe`→FLOW_PARTIAL·같은 경로 뒤 생산자→ORDER/CYCLE 로 먼저 빠지므로 완전한 ⇔ 는 성립하지 않는다):
+  - (가) **거친 판정 제거(핵심)**: 확정 검사가 me 를 읽는 쪽으로 변수 x 에 `SET_IF_SIBLING`·`SET_PAR_SIBLING`(읽기)을 내면, 세트 저장 검사도 me 의 같은 노드·같은 변수 x 에 거부 항목(`IF_SIBLING`·`PAR_SIBLING`·`ORDER`·`CYCLE` 중 하나)을 낸다.
+  - (나) **놓침 없음**: 세트 저장 검사가 `ruleId = me` 인 `IF_SIBLING`·`PAR_SIBLING`(읽기 문구) 항목을 내면, 확정 검사도 me 에 `SET_IF_SIBLING`·`SET_PAR_SIBLING` 을 낸다.
+  - 대조에서 빼는 사례: 구조 오류가 있는 흐름, DICT 조건 이름과 어떤 룰의 결과 이름이 겹치는 흐름(분석기는 DICT 를 건너뛰고 확정 검사는 이름만 본다). 뺀 사례 수를 보고서에 적는다.
 
 ### P5. 서버 기록 실행·조건식 IO (Task 4)
 
@@ -173,6 +176,8 @@ BPMN `services/dme/ruleSetEdit.bpmn` action 을 7개로 늘린다.
 | `execute` | `ruleSetEditService.simulate` | false | EDIT |
 
 (readOnly 는 `ruleEdit` 의 `validate`·`execute` 와 같이 false — `DmeBpmnActionTest` 주석 "EDIT 권한 액션이라 readOnly 가 아니다")
+
+권한 경로(2026-09-30 확인): MDM 권한은 역할 × 메뉴(OBJECT_ID)에 권한 세트를 매핑한다(mcm `DataInitializer` `TB_MCM_SEC_ROLE_MAPPING`, 매트릭스 `dme: MDM_STD_ADMIN→PERM_MDM_READ, MDM_STEWARD→PERM_MDM_CONFIRM`). `PERM_MDM_EDIT`·`PERM_MDM_CONFIRM` 의 `PERMISSION_ACTION` 에 `validate`·`execute` 가 이미 있으므로 메뉴·권한 시드는 바꾸지 않는다. 담당자는 두 action 이 허용되고 표준 관리자는 BFF RBAC 가 403 으로 막는다.
 
 DTO(`com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto`):
 
@@ -642,7 +647,7 @@ export function typedText(v: TypedValue | null | undefined): string;
 
 `IF_FLOW` 는 `start → r1(R_A) → if1 { e3: order 1, cond "COIL_THK > 1" → r2(R_B) ; e4: otherwise → m1 } → m1 → end` 흐름 문자열, `LINEAR_WITH_VIEW` 는 `start → r1(R_A) → end` 에 `"view":{"positions":{"r1":{"x":5,"y":6}},"notes":[{"id":"n1","text":"메모","x":0,"y":0,"w":200,"h":80,"attach":"r1"}],"groups":[]}` 를 붙인 문자열이다. `flowJsonOf(setId)` 는 `SELECT FLOW_JSON FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = ?`.
 
-- [ ] **Step 8: HTTP 실패 테스트** — `DmeOasisHttpTest` 에 params `flowJson`(문자열)로 IF 흐름을 저장하고 저장된 FLOW_JSON 의 `edges[2].order` 가 정수 1, `edges[3].otherwise` 가 불린 true, `view.positions.r1.x` 가 숫자임을 단언하는 테스트를 더한다(2026-09-30 실측 PROBE 와 같은 흐름 — `HTTP_GRD`·`HTTP_FCT`, cond `COIL_THK > 1`, 응답 `meta.success` true).
+- [ ] **Step 8: HTTP 실패 테스트** — `DmeOasisHttpTest` 에 params `flowJson`(문자열)만 싣고 `grids` 없이(화면이 보낼 모양) IF 흐름을 저장하고 저장된 FLOW_JSON 의 `edges[2].order` 가 정수 1, `edges[3].otherwise` 가 불린 true, `view.positions.r1.x` 가 숫자임을 단언하는 테스트를 더한다(2026-09-30 실측 PROBE 와 같은 흐름 — `HTTP_GRD`·`HTTP_FCT`, cond `COIL_THK > 1`, 응답 `meta.success` true).
 
 - [ ] **Step 9: 실패 확인** — `(cd src/backend/mdm && ../gradlew :api:test --tests '*RuleSetEditServiceTest' --tests '*DmeOasisHttpTest' --console=plain)` → 새 테스트 FAIL.
 
@@ -760,7 +765,7 @@ export function typedText(v: TypedValue | null | undefined): string;
 
 - [ ] **Step 5: `RuleSetOrderCheck` 수정** — P4 규칙대로 SIBLING(읽기) 판정만 노드 쌍 단위로 바꾼다. `before` 는 세트마다 한 번 계산한다: produces 함수는 me 면 `self.produces()`, 다른 룰이면 최신 RELEASED 의 `o.produces()`(RELEASED 없는 룰은 빈 집합). 걸러진 이름 집합이 비면 내지 않는다. 문구의 `readsOther`·`readByOther` 자리는 걸러진 집합이다.
 
-- [ ] **Step 6: 대조 테스트(합격 기준)** — `RuleLedgerChecksTest` 에 코퍼스·퍼즈 흐름 사례를 읽어(구조 오류 없는 사례만), 사례의 룰마다 me 로 두고 P4 합격 기준을 단언하는 테스트를 더한다. 룰 정의는 사례의 `rules`(conds·results 이름)로 SQLite 에 시드한다(DICT 조건은 컬럼 사전에도 시드). 사례 수가 많아 느리면 퍼즈 사례는 앞 50개만 쓴다(수를 보고서에 적는다).
+- [ ] **Step 6: 대조 테스트(합격 기준)** — `RuleLedgerChecksTest` 에 코퍼스·퍼즈 흐름 사례를 읽어(P4 의 제외 사례를 뺀다), 사례의 룰마다 me 로 두고 P4 합격 기준 (가)·(나)를 따로 단언하는 테스트 두 개를 더한다. 확정 검사 결과의 변수는 문구가 아니라 판정 때 쓴 걸러진 이름 집합으로 대조한다(대조용으로 `RuleSetOrderCheck` 에 패키지 공개 메서드를 두어도 된다). 룰 정의는 사례의 `rules`(conds·results 이름)로 SQLite 에 시드한다(DICT 조건은 컬럼 사전에도 시드). 사례 수가 많아 느리면 퍼즈 사례는 앞 50개만 쓴다(수를 보고서에 적는다).
 
 - [ ] **Step 7: 통과 확인** — `(cd src/backend/mdm && ../gradlew :lib:test :api:test --console=plain -q)` → 기준선과 같음(기존 1 실패만). 판정이 **바뀐** 기존 테스트가 있으면 사례와 이유를 보고서에 표로 남긴다(Task 12 가 기능설계서에 옮긴다).
 
@@ -825,7 +830,7 @@ export function typedText(v: TypedValue | null | undefined): string;
 
 - [ ] **Step 4: 골든 파일 만들기** — `(cd src/backend/mdm && ../gradlew :api:test --tests '*RuleSetSimulateTest' -Dgolden.update=true --console=plain)` 로 파일을 쓴 뒤, **사람이 읽고** 사례마다 Step 1 의 기대 요지(선택 갈래·outcome·merged·finalValues·violations 코드·경고 순서)가 맞는지 확인한다. 틀리면 구현을 고친다(파일을 손으로 고치지 않는다).
 
-- [ ] **Step 5: action 테스트 갱신** — `DmeBpmnActionTest.ruleSetEdit_…` 를 7개 action 으로 바꾸고 이름을 `ruleSetEdit_는_search_view_save_delete_restore_validate_execute` 로 바꾼다(`validate`→`condIo`, `execute`→`simulate`, readOnly 는 search·view 만 true). `MdmOasisActionVocabularyTest` 의 ruleSetEdit 기대 집합에 `validate`·`execute` 를 더한다. `DmeOasisHttpTest` 에 steward 가 params `flowJson`·`recordJson` 으로 `execute`(사례 1)를 부르면 `meta.success` 가 true 이고 `data.result.trace.nodes` 가 6건(start·r1·if1·r2·m1·end)이며, `validate` 가 `data.result.condIo.e3.ok` true 를 돌려줌을 단언한다. READ 권한의 `execute`·`validate` 거부는 BFF RBAC(403)가 맡으므로 백엔드 테스트에 두지 않는다(`simulate`·`condIo` 는 읽기만 해 `requireSteward` 를 부르지 않는다 — 룰 값 테스트 `runTest` 와 같다).
+- [ ] **Step 5: action 테스트 갱신** — `DmeBpmnActionTest.ruleSetEdit_…` 를 7개 action 으로 바꾸고 이름을 `ruleSetEdit_는_search_view_save_delete_restore_validate_execute` 로 바꾼다(`validate`→`condIo`, `execute`→`simulate`, readOnly 는 search·view 만 true). `MdmOasisActionVocabularyTest` 의 ruleSetEdit 기대 집합에 `validate`·`execute` 를 더한다. `DmeOasisHttpTest` 에 steward 가 params `flowJson`·`recordJson` 으로 `execute`(사례 1)를 부르면 `meta.success` 가 true 이고 `data.result.trace.nodes` 가 6건(start·r1·if1·r2·m1·end)이며, `validate` 가 `data.result.condIo.e3.ok` true 를 돌려줌을 단언한다. 요청 본문은 화면이 보낼 모양 그대로 params 에 `flowJson`·`recordJson` 만 싣고 `grids` 는 두지 않는다. HTTP 응답의 `data.result.trace` 를 엔진 스키마 `$defs/RunTrace` 로 검증하고, 같은 사례의 골든 `response.trace` 와 JSON 이 같은지도 비교한다(전송 직렬화가 null 칸을 버리거나 모양을 바꾸면 여기서 잡힌다 — §9.1-2). READ 권한의 `execute`·`validate` 거부는 BFF RBAC(403)가 맡으므로 백엔드 테스트에 두지 않는다(`simulate`·`condIo` 는 읽기만 해 `requireSteward` 를 부르지 않는다 — 룰 값 테스트 `runTest` 와 같다).
 
 - [ ] **Step 6: 통과 확인** — `(cd src/backend/mdm && ../gradlew :lib:test :api:test --console=plain -q)` → 기준선과 같음. `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` → ERROR 0.
 
@@ -889,7 +894,7 @@ describe("React Flow 스모크", () => {
 - [ ] **Step 6: 빌드·호스트 CSS 확인(§ 검토 9)** — m-mdm 은 tsup dist 로 호스트(m-mcm Next)에 들어간다(`m-mcm/lib/generated/page-registry.ts` 의 `import("@dk-oasis/m-mdm/pages/dme/ruleSetEdit/page")`). 스타일시트 경로가 호스트에서 풀리는지 실제로 확인한다.
   1. 임시로 `pages/dme/ruleSetEdit/page.tsx` 맨 위에 `import "./canvas/react-flow";` 한 줄을 넣는다(Task 9 가 실제 import 로 바꾼다 — 이 줄은 커밋하지 않는다).
   2. `pnpm --dir src/frontend --filter "@dk-oasis/m-mdm^..." build && pnpm --dir src/frontend --filter @dk-oasis/m-mdm build` → 성공. `grep -l "@xyflow/react/dist/style.css\|react-flow__" src/frontend/m-mdm/dist/pages/dme/ruleSetEdit/*` 로 CSS 가 external import 로 남았는지(또는 추출됐는지) 확인한다.
-  3. `pnpm --dir src/frontend --filter @dk-oasis/m-mcm build` → 성공하고, `.next` 산출 CSS 에 `.react-flow` 선택자가 들어 있는지 `grep -rl "\.react-flow" src/frontend/m-mcm/.next/static/css` 로 확인한다.
+  3. `pnpm --dir src/frontend --filter "@dk-oasis/m-mcm^..." build && pnpm --dir src/frontend --filter @dk-oasis/m-mcm build` → 성공하고(호스트가 의존하는 m-analog·mls·mpn·mpp·mqc 등 dist 가 먼저 있어야 한다 — 1단계 브라우저 확인 때 같은 조치가 필요했다), `.next` 산출 CSS 에 `.react-flow` 선택자가 들어 있는지 `grep -rl "\.react-flow" src/frontend/m-mcm/.next/static/css` 로 확인한다.
   4. 3 이 실패하면(호스트가 m-mdm 의 의존성 CSS 를 풀지 못함) m-analog 선례(`m-analog/tsup.config.ts` 의 `noExternal = [/^react18-json-view\/src\/style\.css$/]` → `dist/pages/…/*.css` 추출, 호스트 `m-mcm/app/portal/module-config.ts` 에서 그 CSS 를 함께 import)로 바꾼다. m-mdm 페이지는 `PAGE_REGISTRY` 코드 생성으로 들어오므로, 그 경우 호스트 쪽 수정 위치(코드 생성 스크립트 `scripts/generate-page-registry.mjs` 또는 m-mdm 전용 CSS import)를 보고서에 적고 멈춰 NEEDS_CONTEXT 로 보고한다.
   5. 임시 import 줄을 되돌린다.
 
@@ -1312,13 +1317,13 @@ export interface RuleSetEditState {
   conflict: boolean;
   message: RuleSetMessage | null;
   error: string | null;
-  flowVersion: number;                    // flow 가 바뀔 때마다 1 증가(디버거가 표시를 지우는 신호)
+  flowVersion: number;                    // nodes·edges 가 바뀔 때만 1 증가(디버거가 표시를 지우는 신호). view(위치·메모·그룹)만 바뀌면 올리지 않는다
   open(setId: string): Promise<void>;
   reload(): Promise<void>;
   setMode(m: "view" | "edit"): void;
   setSetName(v: string): void;
   setDescription(v: string): void;
-  edit(fn: (f: EditFlow) => EditResult | EditFlow): string | null;   // 실패 사유 또는 null. 성공하면 flow 교체·flowVersion+1·조건식이 바뀌었으면 condIo 재요청
+  edit(fn: (f: EditFlow) => EditResult | EditFlow): string | null;   // 실패 사유 또는 null. 성공하면 flow 교체, nodes·edges 가 바뀌었으면 flowVersion+1, 조건식이 바뀌었으면 condIo 재요청
   addRuleIo(io: RuleIo): void;
   applyGuide(order: readonly string[], ios: readonly RuleIo[]): void; // 한 줄 흐름만(P-D5)
   save(): Promise<void>;
@@ -1344,6 +1349,7 @@ export interface RuleSetEditState {
   - 합류·시작·끝: 종류 설명만. 메모: 글(`flow-prop-note-text`). 그룹: 제목(`flow-prop-group-title`)·[지우기].
   - 보기 모드에서는 모든 입력이 읽기 전용이고 ▲▼✕·지우기·더하기가 없다.
 - 팔레트 동작(P-D10): 룰 → `RuleSearchModal` → 고르면 `addRuleIo(io)` 뒤 `edit(f => insertRule(f, 대상 선, io.ruleId))`. 대상 선 = 고른 선, 없으면 END 로 들어가는 첫 선. IF·병렬 → `insertSplit`. 메모 → 선택 노드 옆(없으면 캔버스 가운데)에 `addNote`. 그룹 → 선택 노드(React Flow 다중 선택 포함)로 `addGroup(…, "그룹")`. 연산 실패 사유는 `set-message` 에 오류로 보인다.
+- 노드 상한: 룰·IF·병렬 끼우기 전에 `flow.nodes.length + 추가될 노드 수 > 200`(`MAX_NODES` 와 같은 값, `flow-edit.ts` 에 `export const MAX_NODES = 200`) 이면 끼우지 않고 `set-message` 에 `노드는 흐름 하나에 200개까지 둔다` 를 오류로 보인다.
 - 끌어 놓기: `onDropPalette(item, at)` → `nearestEdge(flow, positionsOf(flow), at)` 가 있으면 그 선에, 없으면 위 기본 선에 같은 동작.
 - 끌기 끝(`onMove`) → `setPositions`. [자동 정렬] → `setPositions(flow, autoLayout(flow))`(모든 노드 위치를 덮어쓴다, dirty). [화면 맞춤] → React Flow `fitView`.
 - 검사 패널: `ChecksPanel` 은 요약 줄(거부 n · 경고 m, 없으면 "통과")과 항목(`set-check-{i}`: 심각도 배지·문구·노드 ID)을 보인다. 누르면 `focusId`·선택을 그 노드로(nodeId 가 없으면 아무 일 없음).
@@ -1394,7 +1400,7 @@ export interface RuleSetEditState {
 - [실행](`sim-run`): `canDoButton("execute")` 일 때만 켜진다(P-D3 — 꺼져 있으면 title `디버거는 편집 권한이 있어야 쓸 수 있다`). `simulate(flowJsonOf(flow), recordJson, evalTs)` — 저장하지 않은 흐름을 보낸다. 받은 기록과 **그때의 흐름 사본**을 결과에 둔다. 단계는 마지막으로 둔다.
 - 따라가기(`TraceStepper`): [처음] [이전] [다음] [끝] + 진행 막대(`@dk-oasis/shared/form` 의 `ProgressBar`, `sim-progress`, 값 = (step+1)/총수) + 상태 문구(`sim-status`): 끝까지 갔으면 `완료 · {n}단계 · 결과 변수 {m}개`, 멈췄으면 `오류로 멈춤 — {nodeId}: {첫 위반 문구}`, 기록이 비었으면 `실행 전 오류 — {첫 위반 문구}`, 따라가는 중이면 `{step+1}/{n} · {nodeId}`. 키보드 ←→ 로도 넘긴다(시뮬레이션 탭에 포커스가 있을 때).
 - 겹침: `page.tsx` 가 `overlayAt(result.trace, result.flow, step)` 을 캔버스 `overlay` 로 넘긴다(`useMemo`). 지금 단계 노드로 캔버스를 옮긴다(`focusId`).
-- 흐름이 바뀌면(`flowVersion` 이 실행 때 값과 다르면) 결과를 지우고 `sim-status` 에 `흐름이 바뀌어 실행 표시를 지웠다. 다시 실행한다` 를 보인다(Review Focus 3). [표시 지우기](`sim-clear`)도 같은 지우기를 한다(문구 없음).
+- 흐름 구조가 바뀌면(`flowVersion` 이 실행 때 값과 다르면 — 노드를 끌어 옮기거나 메모만 고친 것은 해당하지 않는다) 결과를 지우고 `sim-status` 에 `흐름이 바뀌어 실행 표시를 지웠다. 다시 실행한다` 를 보인다(Review Focus 3). [표시 지우기](`sim-clear`)도 같은 지우기를 한다(문구 없음).
 - 노드 상세(`TraceDetail`, `sim-detail`): 실행 결과가 있고 노드를 누르면 오른쪽 패널에 속성 패널 대신 보인다(탭 "실행 결과" / "속성" 으로 전환).
   - 룰: 읽은 입력값 표(`reads`), 맞은 행(`hits` rowId·seq)과 기본 행 사용, 결과값 표(`result.results`), 행마다 평가·적중·처음 거짓 열(`result.trace`), 경고, [룰 편집 열기].
   - IF: 갈래마다 선 이름·조건식(흐름 사본에서)·결과 배지(참 / 거짓 / NULL / 오류 / 평가 안 함) 와 오류 문구.
@@ -1408,7 +1414,7 @@ export interface RuleSetEditState {
   2. 응답 뒤 `sim-status` 가 `완료 · 9단계 · 결과 변수 {m}개`(PARALLEL_MERGE 노드 9개: start·r1·par1·r2·rs1·r3·rs2·m1·end — 병렬 갈래 순서는 골든을 따른다, m 은 골든 finalValues 의 결과 변수 수), [처음] → `1/9 · start`, [다음] → `2/9 · r1`, 캔버스 `flow-node-r1` 이 `data-state="current"`.
   3. `sim-values` 에 열 `합류 m1` 이 있고 `GT_V` 행 마지막 칸이 `two`.
   4. `IF_ERROR_STOPS` 응답이면 `sim-status` 가 `오류로 멈춤 — if1: …` 이고 `flow-node-if1` 이 `data-state="error"`, if1 을 누르면 `sim-detail` 에 갈래 결과 "오류"·"평가 안 함" 배지.
-  5. 실행 뒤 편집 모드에서 룰 하나를 지우면 겹침이 사라지고 `sim-status` 에 `흐름이 바뀌어 실행 표시를 지웠다. 다시 실행한다`.
+  5. 실행 뒤 편집 모드에서 노드 위치만 옮기면(`onMove`) 겹침이 남고, 룰 하나를 지우면 겹침이 사라지고 `sim-status` 에 `흐름이 바뀌어 실행 표시를 지웠다. 다시 실행한다`.
   6. `canDoButton("execute")` 가 false 면 `sim-run` 이 꺼져 있다.
 
 - [ ] **Step 2: 실패 확인** — `pnpm --dir src/frontend --filter @dk-oasis/m-mdm test tests/dme/ruleSetEdit/debugger.test.ts` → FAIL.
