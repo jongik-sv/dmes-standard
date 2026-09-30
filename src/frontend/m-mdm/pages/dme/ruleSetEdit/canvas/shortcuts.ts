@@ -61,9 +61,9 @@ export function dispatchShortcut(
 
 /**
  * 도움말 표에만 있는 포인터 조작(S1) — 키 디스패처가 받지 않는다. 영역 선택·화면 이동·확대는 React Flow 내장 처리(props)이고,
- * Alt+끌기 공간 넓히기는 캔버스가 포인터 이벤트의 altKey 로 본다(새 keydown 처리 없음).
+ * Alt+끌기 공간 넓히기와 노드 Alt+끌기 스냅 끄기(G1)는 캔버스가 포인터 이벤트의 altKey 로 본다(새 keydown 처리 없음).
  */
-export type GestureId = "boxSelect" | "spaceDrag" | "pan" | "zoom";
+export type GestureId = "boxSelect" | "spaceDrag" | "snapOff" | "pan" | "zoom";
 
 /** 도움말 표(툴바 [?], Task 8 이 그린다). */
 export const SHORTCUT_HELP: readonly { id: ShortcutId | GestureId; win: string; mac: string; label: string; modes: readonly FlowMode[] }[] = [
@@ -81,6 +81,7 @@ export const SHORTCUT_HELP: readonly { id: ShortcutId | GestureId; win: string; 
   { id: "breakpoint", win: "F9", mac: "fn+F9", label: "고른 노드 중단점", modes: ["debug"] },
   { id: "boxSelect", win: "끌기(빈 곳)", mac: "끌기(빈 곳)", label: "영역 선택(상자에 걸친 노드·메모)", modes: ["edit"] },
   { id: "spaceDrag", win: "Alt+끌기(빈 곳)", mac: "⌥+끌기(빈 곳)", label: "공간 넓히기·줄이기(툴바 [공간] 과 같다)", modes: ["edit"] },
+  { id: "snapOff", win: "Alt+끌기(노드·메모)", mac: "⌥+끌기(노드·메모)", label: "끌 때 맞춤 안내선·스냅 끄기", modes: ["edit"] },
   { id: "pan", win: "스페이스+끌기", mac: "스페이스+끌기", label: "화면 이동(가운데 버튼 끌기·두 손가락 스크롤도 된다)", modes: ["edit"] },
   { id: "zoom", win: "Ctrl+휠 · 핀치", mac: "⌘+휠 · 핀치", label: "확대·축소", modes: ["edit"] },
 ];
