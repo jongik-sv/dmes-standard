@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isRowVersionConflict } from "@/dme/oasis-call";
 
 import { deprecateSet, restoreSet, saveSet, validateFlow, viewSet } from "../api";
+import { EditHistory } from "./edit-history";
 import { flowJsonOf, toEditFlow, type EditFlow, type EditResult } from "../flow-edit";
 import { linearFlow } from "../flow-model";
 import { flowChecks } from "../set-model";
@@ -151,6 +152,11 @@ export function useRuleSetEdit(): RuleSetEditState {
   const editFailShown = useRef(false);
   const condTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const condSeq = useRef(0);
+  const history = useRef(new EditHistory());
+  /** 이력 상태(canUndo·canRedo)를 다시 그리게 하는 틱. */
+  const [, setHistTick] = useState(0);
+  const bumpHist = useCallback(() => setHistTick((t) => t + 1), []);
+  const modeRef = useRef<FlowMode>("view");
 
   /** 진행 중인 조건식 IO 요청·대기를 모두 버린다. */
   const cancelCondIo = useCallback(() => {
@@ -236,7 +242,8 @@ export function useRuleSetEdit(): RuleSetEditState {
         } else {
           setModeState("view");
           setViewEpoch((e) => e + 1);
-          // SEAM(T3): keepHistory 가 거짓이면 편집 이력을 비운다
+          history.current.clear();
+          bumpHist();
         }
         setConflict(false);
         editFailShown.current = false;
@@ -248,7 +255,7 @@ export function useRuleSetEdit(): RuleSetEditState {
         setLoading(false);
       }
     },
-    [cancelCondIo, replaceFlow],
+    [cancelCondIo, replaceFlow, bumpHist],
   );
 
   const confirmLeave = useCallback(() => {
@@ -313,15 +320,19 @@ export function useRuleSetEdit(): RuleSetEditState {
         setMessage({ kind: "error", text: r.reason });
         return r.reason;
       }
-      void opts; // SEAM(T3): opts.mergeKey 로 record — flowJsonOf(next) !== flowJsonOf(cur) 인 성공 편집만 EditHistory.record(cur, opts?.mergeKey)
-      replaceFlow(isEditResult(r) ? (r as { ok: true; flow: EditFlow }).flow : r, { refetchCond: true });
+      const next = isEditResult(r) ? (r as { ok: true; flow: EditFlow }).flow : r;
+      if (flowJsonOf(next) !== flowJsonOf(cur)) {
+        history.current.record(cur, opts?.mergeKey);
+        bumpHist();
+      }
+      replaceFlow(next, { refetchCond: true });
       if (editFailShown.current) {
         editFailShown.current = false;
         setMessage(null);
       }
       return null;
     },
-    [replaceFlow],
+    [replaceFlow, bumpHist],
   );
 
   const addRuleIo = useCallback((io: RuleIo) => setRules((prev) => ({ ...prev, [io.ruleId]: io })), []);
@@ -338,10 +349,36 @@ export function useRuleSetEdit(): RuleSetEditState {
 
   const setMode = useCallback((m: FlowMode) => setModeState(m), []);
 
-  const canUndo = false; // SEAM(T3): EditHistory.canUndo
-  const canRedo = false; // SEAM(T3): EditHistory.canRedo
-  const undo = useCallback(() => {}, []); // SEAM(T3): EditHistory 연결(편집 모드에서만, replaceFlow refetchCond)
-  const redo = useCallback(() => {}, []); // SEAM(T3): EditHistory 연결(편집 모드에서만, replaceFlow refetchCond)
+  modeRef.current = mode;
+  const canUndo = history.current.canUndo;
+  const canRedo = history.current.canRedo;
+  const undo = useCallback(() => {
+    const cur = flowRef.current;
+    if (!cur || modeRef.current !== "edit") return;
+    const prev = history.current.undo(cur);
+    if (!prev) return;
+    bumpHist();
+    replaceFlow(prev, { refetchCond: true });
+  }, [replaceFlow, bumpHist]);
+  const redo = useCallback(() => {
+    const cur = flowRef.current;
+    if (!cur || modeRef.current !== "edit") return;
+    const next = history.current.redo(cur);
+    if (!next) return;
+    bumpHist();
+    replaceFlow(next, { refetchCond: true });
+  }, [replaceFlow, bumpHist]);
+
+  // 저장하지 않은 변경이 있으면 창을 닫거나 새로 고칠 때 브라우저 확인을 띄운다.
+  useEffect(() => {
+    if (!dirty) return;
+    const h = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", h);
+    return () => window.removeEventListener("beforeunload", h);
+  }, [dirty]);
 
   const save = useCallback(async () => {
     const v = viewRef.current;
