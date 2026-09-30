@@ -22,7 +22,7 @@ export interface BottomPanelProps {
   onToggle: () => void;
   checkCount: number;
   checks: ReactNode;
-  /** 시뮬레이션 탭 내용(Task 11). 없으면 자리 안내만 보인다. */
+  /** 시뮬레이션 탭 내용(page 가 SimulationPanel 을 넘긴다). 없으면 안내만 보인다. */
   simulation?: ReactNode;
 }
 
@@ -59,7 +59,7 @@ export function BottomPanel({ tab, onTab, collapsed, onToggle, checkCount, check
             checks
           ) : (
             <div data-testid="flow-sim-slot" className="rsf-sim-slot">
-              {simulation ?? <p className="rsf-panel-note">저장하지 않은 흐름을 레코드 하나로 돌려 노드마다 따라가 본다. 준비 중이다</p>}
+              {simulation ?? <p className="rsf-panel-note">저장하지 않은 흐름을 레코드 하나로 돌려 노드마다 따라가 본다.</p>}
             </div>
           )}
         </div>

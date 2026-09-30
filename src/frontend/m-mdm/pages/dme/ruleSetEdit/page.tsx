@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ContentBody, ContentPanel, ErrorModal, canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
+import { Tabs } from "@dk-oasis/shared/tabs";
 import { IdPicker, MdmPageLayout, useMdmPageParams, type IdPickRow } from "@/shell";
 
 import { searchSets } from "./api";
@@ -34,6 +35,9 @@ import {
   type FlowNote,
   type FlowPos,
 } from "./flow-edit";
+import { SimulationPanel } from "./debugger/SimulationPanel";
+import { TraceDetail } from "./debugger/TraceDetail";
+import { useSimulation } from "./debugger/useSimulation";
 import { NODE_SIZE, autoLayout, positionsOf } from "./flow-layout";
 import { nearestEdge } from "./flow-vars";
 import { openRule } from "./links";
@@ -42,6 +46,7 @@ import { ChecksPanel } from "./panels/ChecksPanel";
 import { PropertyPanel } from "./panels/PropertyPanel";
 import { SetPanel } from "./panels/SetPanel";
 import { useRuleSetEdit } from "./state/useRuleSetEdit";
+import { overlayAt } from "./trace-view";
 import type { RuleIo } from "./types";
 
 const SCREEN_ID = "ruleSetEdit";
@@ -108,12 +113,16 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   const [showVars, setShowVars] = useState(false);
   const [bottomTab, setBottomTab] = useState<BottomTab>("checks");
   const [bottomCollapsed, setBottomCollapsed] = useState(false);
+  /** 오른쪽 패널 탭 — 실행 결과가 있고 흐름 노드를 골랐을 때 "실행 결과" / "속성". */
+  const [rightTab, setRightTab] = useState<"detail" | "props">("detail");
   const [ruleModal, setRuleModal] = useState(false);
   /** 룰 찾기 팝업을 연 때의 끼울 선(고른 선·끌어 놓은 자리). */
   const ruleTarget = useRef<string | null>(null);
 
   // 다른 세트를 열면 선택·이동 요청을 비운다.
   const setId = view?.set.setId ?? null;
+  // 디버거 상태는 시뮬레이션 탭이 언마운트돼도 남도록 여기서 부른다. 다른 세트를 열거나 흐름 구조가 바뀌면 훅이 실행 표시를 지운다.
+  const sim = useSimulation(flow, state.rules, state.flowVersion, setId);
   useEffect(() => {
     setSelectedId(null);
     setSelectedEdgeId(null);
@@ -234,6 +243,21 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     [select],
   );
 
+  // 디버거 겹침 — 기록·흐름 사본·단계가 바뀔 때만 다시 만든다(Local-Rules §16).
+  const simResult = sim.result;
+  const overlay = useMemo(() => (simResult ? overlayAt(simResult.trace, simResult.flow, sim.step) : null), [simResult, sim.step]);
+
+  // 단계를 옮기거나 새 기록을 받으면 지금 단계 노드로 캔버스를 옮긴다. 기록이 사라지면 이동 표시를 끈다.
+  const currentNodeId = simResult ? (simResult.trace.nodes[sim.step]?.nodeId ?? null) : null;
+  useEffect(() => {
+    setFocus((f) => (currentNodeId ? { id: currentNodeId, seq: f.seq + 1 } : f.id === null ? f : { id: null, seq: f.seq }));
+  }, [currentNodeId, simResult]);
+
+  // 노드를 새로 고르면 실행 결과 탭으로 돌아간다.
+  useEffect(() => {
+    setRightTab("detail");
+  }, [selectedId]);
+
   const usedRuleIds = useMemo(() => new Set((flow?.nodes ?? []).map((n) => n.ruleId).filter((x): x is string => !!x)), [flow]);
 
   const selectedExists =
@@ -241,6 +265,8 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     !!selectedId &&
     (flow.nodes.some((n) => n.id === selectedId) || flow.view.notes.some((n) => n.id === selectedId) || flow.view.groups.some((g) => g.id === selectedId));
   const isBranched = !!flow && branched(flow);
+  /** 실행 결과가 있고 흐름 노드(메모·그룹 아님)를 골랐으면 오른쪽 패널에 "실행 결과 / 속성" 탭을 둔다. */
+  const showDetail = !!simResult && !!flow && !!selectedId && flow.nodes.some((n) => n.id === selectedId);
   const guideHint = !editing ? "편집 모드에서 적용한다" : isBranched ? "분기가 있는 흐름에는 적용하지 않는다" : undefined;
 
   const bottom = (
@@ -251,6 +277,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
       onToggle={() => setBottomCollapsed((c) => !c)}
       checkCount={state.checks.length}
       checks={<ChecksPanel checks={state.checks} onFocus={onFocusCheck} />}
+      simulation={<SimulationPanel sim={sim} canRun={canDo("execute")} />}
     />
   );
 
@@ -316,7 +343,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                       showVars={showVars}
                       selectedId={selectedId}
                       selectedEdgeId={selectedEdgeId}
-                      overlay={null}
+                      overlay={overlay}
                       focusId={focus.id}
                       focusSeq={focus.seq}
                       fitSignal={fitSignal}
@@ -335,7 +362,25 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
               </ContentPanel>
               <ContentPanel key="props" width={360} minSize={280}>
                 <div className="rsf-props" data-testid="flow-props">
-                  {selectedExists && selectedId ? (
+                  {showDetail && (
+                    <Tabs
+                      items={[
+                        { key: "detail", label: <span data-testid="flow-right-tab-detail">실행 결과</span> },
+                        { key: "props", label: <span data-testid="flow-right-tab-props">속성</span> },
+                      ]}
+                      activeKey={rightTab}
+                      onChange={(k) => setRightTab(k as "detail" | "props")}
+                    />
+                  )}
+                  {showDetail && simResult && rightTab === "detail" ? (
+                    <TraceDetail
+                      nodeId={selectedId!}
+                      node={simResult.trace.nodes.find((n) => n.nodeId === selectedId) ?? null}
+                      flow={simResult.flow}
+                      traceViolations={simResult.trace.violations ?? []}
+                      onOpenRule={openRule}
+                    />
+                  ) : selectedExists && selectedId ? (
                     <PropertyPanel
                       flow={flow}
                       rules={state.rules}

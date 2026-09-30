@@ -49,7 +49,7 @@ export interface RuleSetEditState {
   conflict: boolean;
   message: RuleSetMessage | null;
   error: string | null;
-  /** nodes·edges 가 바뀔 때만 1 증가(디버거가 실행 표시를 지우는 신호). 위치·메모·그룹만 바뀌면 그대로다. */
+  /** 실행에 영향을 주는 칸(structKey)이 바뀔 때만 1 증가(디버거가 실행 표시를 지우는 신호). 위치·메모·그룹·라벨만 바뀌면 그대로다. */
   flowVersion: number;
   /** 세트를 연다. 저장 안 한 변경이 있으면 확인을 받는다. */
   open(setId: string): Promise<void>;
@@ -80,8 +80,17 @@ function toMap(ios: readonly RuleIo[] | null | undefined, base: Record<string, R
   return out;
 }
 
-/** nodes·edges 만의 비교 키 — flowVersion 판정. */
-const structKey = (f: EditFlow | null) => (f ? JSON.stringify([f.nodes, f.edges]) : "");
+/**
+ * 실행에 영향을 주는 칸만의 비교 키 — flowVersion 판정(Ruling 12). 노드 id·kind·ruleId·splitId, 선 id·from·to·order·cond·otherwise.
+ * 라벨·위치·메모·그룹은 실행 결과를 바꾸지 않으므로 넣지 않는다(디버거 표시가 이름 고치기로 지워지지 않게).
+ */
+const structKey = (f: EditFlow | null) =>
+  f
+    ? JSON.stringify([
+        f.nodes.map((n) => [n.id, n.kind, n.ruleId, n.splitId]),
+        f.edges.map((e) => [e.id, e.from, e.to, e.order, e.cond, e.otherwise]),
+      ])
+    : "";
 
 /** IF 의 "그 외" 가 아닌 선들의 (선 ID, 조건식) 목록 — 바뀌면 조건식 IO 를 다시 받는다. */
 function condKey(f: EditFlow | null): string {
