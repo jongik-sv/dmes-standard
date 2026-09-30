@@ -121,12 +121,22 @@ async function fillDebugInputs(page: Page) {
 }
 
 /**
+ * 선에 마우스를 올린 것으로 알린다 — 편집 모드의 선 [+] 는 올리거나 고른 선에만 보인다(L1). SVG 선의 상자 가운데는 선 밖일 수 있어
+ * 실제 포인터를 옮기지 않고 선의 누름 영역(path)에 mouseover 를 보낸다(React 는 relatedTarget 없는 mouseover 를 들어옴으로 받는다).
+ */
+async function revealEdgeAdd(page: Page, edgeId: string) {
+  await page.locator(`[data-testid="rf__edge-${edgeId}"] .react-flow__edge-interaction`).dispatchEvent("mouseover");
+  await expect(page.getByTestId(`flow-edge-add-${edgeId}`)).toBeVisible();
+}
+
+/**
  * 룰 목록의 줄을 캔버스의 선 [+] 자리로 끌어 놓는다. Playwright 의 dragTo 는 HTML5 드래그(dataTransfer)를 흉내내지 못할 수 있어
  * 같은 DataTransfer 로 줄의 dragstart 와 캔버스의 dragover·drop 이벤트를 직접 보낸다. 놓는 자리는 그 선의 [+] 단추 가운데(선 중점)다.
  */
 async function dragRuleToEdge(page: Page, ruleId: string, edgeId: string) {
   const row = page.getByTestId(`flow-rule-row-${ruleId}`);
   await expect(row).toBeVisible({ timeout: 20_000 });
+  await revealEdgeAdd(page, edgeId);
   const box = await page.getByTestId(`flow-edge-add-${edgeId}`).boundingBox();
   if (!box) throw new Error(`선 ${edgeId} 의 [+] 단추가 안 보인다`);
   const at = { clientX: box.x + box.width / 2, clientY: box.y + box.height / 2 };
@@ -482,6 +492,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await expect(flowNodes(page)).toHaveCount(6);
 
     // 선의 [+] → 메뉴 [IF 넣기] → IF 와 합류가 생긴다.
+    await revealEdgeAdd(page, "e1");
     await page.getByTestId("flow-edge-add-e1").click();
     await page.getByTestId("flow-menu-item-insert-if").click();
     await expect(page.getByTestId("flow-canvas").locator('[data-kind="IF"]')).toHaveCount(1);

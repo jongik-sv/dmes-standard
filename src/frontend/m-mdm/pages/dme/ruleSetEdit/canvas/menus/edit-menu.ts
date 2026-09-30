@@ -68,7 +68,8 @@ export const editMenu: MenuProvider = (t, ctx) => {
     if (t.via === "plus") return items;
     const from = flow.nodes.find((n) => n.id === e.from);
     if (from?.kind === "IF" && !e.otherwise) items.push({ id: "edit-cond", label: "조건 편집", run: () => act.editCond(id) });
-    if ((flow.view?.routes?.[id]?.length ?? 0) > 0) items.push({ id: "route-reset", label: "경로 초기화", run: () => act.resetRoute(id) });
+    // 경로(C14)나 옮긴 이름표(L1)가 있을 때 — 둘을 함께 비운다.
+    if ((flow.view?.routes?.[id]?.length ?? 0) > 0 || flow.view?.labels?.[id]) items.push({ id: "route-reset", label: "경로 초기화", run: () => act.resetRoute(id) });
     items.push({ id: "edge-delete", label: "선 삭제", danger: true, run: () => act.removeEdge(id) });
     return items;
   }
