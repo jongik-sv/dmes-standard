@@ -30,6 +30,10 @@ export const COLLAPSE_CSS = `
 .rsf-node.rsf-node-next { border-style: dashed; border-color: var(--color-primary); border-width: 1.5px; }
 .rsf-node.rsf-node-pending { border-color: var(--rsf-border); background: var(--color-bg-light); color: var(--color-text-muted); opacity: 0.6; }
 
-/* 변수 칩 — 값 툴팁이 있는 칩은 물음표 커서 없이 살짝 밑줄로 알린다 */
-.rsf-vchip[title] { cursor: help; }
+/*
+ * 변수 칩 — 값 툴팁이 있는 칩은 도움말 커서로 알린다. 이름표 층(.react-flow__edgelabel-renderer·.rsf-elabel)이 pointer-events: none 이라
+ * 칩이 그것을 물려받아 hover 를 못 받으면 title 툴팁이 뜨지 않는다 — 툴팁이 있는 칩만 다시 켠다(모든 모드, L1 고침 1회차).
+ * 칩에 nopan 이 없으므로 보기·디버그 모드에서 칩 위를 끌어도 화면 이동은 그대로다. 누르면 선 선택으로 번진다(선 누르기와 같다).
+ */
+.rsf-vchip[title] { cursor: help; pointer-events: auto; }
 `;

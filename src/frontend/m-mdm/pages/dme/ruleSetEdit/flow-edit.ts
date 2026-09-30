@@ -35,7 +35,17 @@ export interface FlowView {
   groups: FlowGroup[];
   /** 선 ID → 꺾는 점 목록(흐름 좌표, C14). 점이 없는 선은 키가 없다. */
   routes: Record<string, FlowPos[]>;
+  /** 선 ID → 조건 라벨·변수 칩 묶음의 기본 자리에서의 오프셋(흐름 좌표, L1). 옮기지 않은 선은 키가 없다. */
+  labels: Record<string, EdgeLabelOffsets>;
 }
+/** 선 이름표 오프셋(흐름 좌표, 정수). 기본 자리(선 끝·경로에서 계산한 자리)에 더한다 — 선 끝이 움직여도 기본 자리를 따라간다. */
+export interface LabelOffset {
+  dx: number;
+  dy: number;
+}
+/** 옮길 수 있는 이름표 — 조건 라벨·변수 칩 묶음. */
+export type LabelPart = "label" | "chips";
+export type EdgeLabelOffsets = Partial<Record<LabelPart, LabelOffset>>;
 export interface EditFlow extends RuleSetFlow {
   view: FlowView;
 }
@@ -51,10 +61,14 @@ export const EMPTY_VIEW: FlowView = Object.freeze({
   notes: Object.freeze([]) as unknown as FlowNote[],
   groups: Object.freeze([]) as unknown as FlowGroup[],
   routes: Object.freeze({}) as Record<string, FlowPos[]>,
+  labels: Object.freeze({}) as Record<string, EdgeLabelOffsets>,
 });
 /** 꺾는 점은 선 하나에 20개까지(C14). */
 export const MAX_ROUTE_POINTS = 20;
 export const ROUTE_LIMIT_MESSAGE = `꺾는 점은 선 하나에 ${MAX_ROUTE_POINTS}개까지 둔다`;
+/** 이름표 오프셋 한계(흐름 좌표, ±, L1) — 넘으면 자른다. */
+export const MAX_LABEL_OFFSET = 600;
+const LABEL_PARTS: readonly LabelPart[] = ["label", "chips"];
 
 /** 새 메모 크기(계약 밖 기본값). */
 const NOTE_W = 160;
@@ -103,13 +117,38 @@ function routesFor(edges: readonly FlowEdge[], routes: Readonly<Record<string, r
   return out;
 }
 
+const clampOffset = (n: number) => Math.max(-MAX_LABEL_OFFSET, Math.min(MAX_LABEL_OFFSET, Math.round(n)));
+
+/** 흐름에 있는 선의 이름표 오프셋만, 선 배열 순서·label→chips 순서로 복사한다(빈 항목·없는 선은 버린다). */
+function labelsFor(
+  edges: readonly FlowEdge[],
+  labels: Readonly<Record<string, Readonly<EdgeLabelOffsets>>> | undefined,
+): Record<string, EdgeLabelOffsets> {
+  const out: Record<string, EdgeLabelOffsets> = {};
+  if (!labels) return out;
+  for (const e of edges) {
+    const l = labels[e.id];
+    if (!l) continue;
+    const c: EdgeLabelOffsets = {};
+    for (const part of LABEL_PARTS) {
+      const o = l[part];
+      if (o) c[part] = { dx: o.dx, dy: o.dy };
+    }
+    if (c.label || c.chips) out[e.id] = c;
+  }
+  return out;
+}
+
 function copyView(v: FlowView | undefined, edges: readonly FlowEdge[]): FlowView {
   const positions: Record<string, FlowPos> = {};
   for (const [k, p] of Object.entries(v?.positions ?? {})) positions[k] = copyPos(p);
-  return { positions, notes: (v?.notes ?? []).map(copyNote), groups: (v?.groups ?? []).map(copyGroup), routes: routesFor(edges, v?.routes) };
+  return {
+    positions, notes: (v?.notes ?? []).map(copyNote), groups: (v?.groups ?? []).map(copyGroup), routes: routesFor(edges, v?.routes),
+    labels: labelsFor(edges, v?.labels),
+  };
 }
 
-/** 고쳐도 되는 깊은 복사본(칸을 모두 채운다). 흐름에 없는 선의 경로는 버린다. */
+/** 고쳐도 되는 깊은 복사본(칸을 모두 채운다). 흐름에 없는 선의 경로·이름표 오프셋은 버린다. */
 function clone(f: EditFlow): EditFlow {
   const edges = (f.edges ?? []).map(copyEdge);
   return { version: 1, nodes: (f.nodes ?? []).map(copyNode), edges, view: copyView(f.view, edges) };
@@ -117,7 +156,7 @@ function clone(f: EditFlow): EditFlow {
 
 /** 모양이 맞는 view 항목만 남긴다(P7 toEditFlow). */
 function sanitizeView(raw: unknown): FlowView {
-  const view: FlowView = { positions: {}, notes: [], groups: [], routes: {} };
+  const view: FlowView = { positions: {}, notes: [], groups: [], routes: {}, labels: {} };
   if (!isObj(raw)) return view;
   if (isObj(raw.positions)) {
     for (const [k, p] of Object.entries(raw.positions)) {
@@ -145,6 +184,17 @@ function sanitizeView(raw: unknown): FlowView {
       const pts: FlowPos[] = [];
       for (const p of list) if (isObj(p) && finite(p.x) && finite(p.y)) pts.push({ x: p.x, y: p.y });
       if (pts.length > 0) view.routes[k] = pts.slice(0, MAX_ROUTE_POINTS);
+    }
+  }
+  if (isObj(raw.labels)) {
+    for (const [k, l] of Object.entries(raw.labels)) {
+      if (!isObj(l)) continue;
+      const c: EdgeLabelOffsets = {};
+      for (const part of LABEL_PARTS) {
+        const o = l[part];
+        if (isObj(o) && finite(o.dx) && finite(o.dy)) c[part] = { dx: clampOffset(o.dx), dy: clampOffset(o.dy) };
+      }
+      if (c.label || c.chips) view.labels[k] = c;
     }
   }
   return view;
@@ -179,10 +229,11 @@ export function nextId(f: EditFlow, prefix: string): string {
 // ───────────────────────── 구조 도우미 ─────────────────────────
 
 const fail = (reason: string): EditResult => ({ ok: false, reason });
-/** 결과를 돌려주기 전에 사라진 선의 경로를 버린다(연산이 선을 지우거나 바꿨을 수 있다). */
+/** 결과를 돌려주기 전에 사라진 선의 경로·이름표 오프셋을 버린다(연산이 선을 지우거나 바꿨을 수 있다). */
 const done = (flow: EditFlow): EditResult => {
   const routes = routesFor(flow.edges, flow.view?.routes);
-  return { ok: true, flow: flow.view ? { ...flow, view: { ...flow.view, routes } } : flow };
+  const labels = labelsFor(flow.edges, flow.view?.labels);
+  return { ok: true, flow: flow.view ? { ...flow, view: { ...flow.view, routes, labels } } : flow };
 };
 const findNode = (f: EditFlow, id: string) => f.nodes.find((n) => n.id === id);
 const findEdge = (f: EditFlow, id: string) => f.edges.find((e) => e.id === id);
@@ -249,7 +300,7 @@ function dropNodes(f: EditFlow, ids: ReadonlySet<string>): EditFlow {
     .map((g) => ({ ...g, nodeIds: g.nodeIds.filter((x) => !ids.has(x)) }))
     .filter((g) => g.nodeIds.length > 0);
   const notes = f.view.notes.map((n) => (n.attach != null && ids.has(n.attach) ? { ...n, attach: null } : n));
-  return { version: f.version, nodes, edges, view: { positions, notes, groups, routes: f.view.routes } };
+  return { version: f.version, nodes, edges, view: { positions, notes, groups, routes: f.view.routes, labels: f.view.labels } };
 }
 
 function insertAfter<T>(list: T[], index: number, ...items: T[]): void {
@@ -262,12 +313,12 @@ function insertAfter<T>(list: T[], index: number, ...items: T[]): void {
 export function toEditFlow(raw: (RuleSetFlow & { view?: unknown }) | null, ruleIds: readonly string[]): EditFlow {
   const src = raw ?? linearFlow(ruleIds);
   const edges = (Array.isArray(src.edges) ? src.edges : []).map(copyEdge);
-  const view = raw ? sanitizeView(raw.view) : { positions: {}, notes: [], groups: [], routes: {} };
+  const view = raw ? sanitizeView(raw.view) : { positions: {}, notes: [], groups: [], routes: {}, labels: {} };
   return {
     version: 1,
     nodes: (Array.isArray(src.nodes) ? src.nodes : []).map(copyNode),
     edges,
-    view: { ...view, routes: routesFor(edges, view.routes) },
+    view: { ...view, routes: routesFor(edges, view.routes), labels: labelsFor(edges, view.labels) },
   };
 }
 
@@ -275,7 +326,9 @@ export function toEditFlow(raw: (RuleSetFlow & { view?: unknown }) | null, ruleI
 export function flowJsonOf(f: EditFlow): string {
   const c = clone(f);
   const v = c.view;
-  return JSON.stringify({ version: 1, nodes: c.nodes, edges: c.edges, view: { positions: v.positions, notes: v.notes, groups: v.groups, routes: v.routes } });
+  return JSON.stringify({
+    version: 1, nodes: c.nodes, edges: c.edges, view: { positions: v.positions, notes: v.notes, groups: v.groups, routes: v.routes, labels: v.labels },
+  });
 }
 
 /** 선 e(A→B) 위에 룰을 끼운다. e.to = 새 룰, 새 선 {룰→B} 는 e 바로 뒤. 새 노드는 A 뒤(A 가 없으면 끝). */
@@ -451,7 +504,7 @@ export function connect(f: EditFlow, from: string, to: string): EditResult {
 
 /**
  * 선 하나의 한쪽(또는 양쪽) 끝을 다른 노드로 옮겨 붙인다(다시 잇기, R1). 선 ID·조건식·이름·순서·"그 외" 표시는 그대로이고
- * 그 선의 꺾는 점은 버린다(양 끝이 바뀌면 옛 경로가 맞지 않는다). 자기 자신으로 잇기·없는 노드·다른 선과 같은 from→to·바뀌는 끝이 없음은 거부한다.
+ * 그 선의 꺾는 점은 버린다(양 끝이 바뀌면 옛 경로가 맞지 않는다). 이름표 오프셋(L1)은 기본 자리 기준이라 남긴다. 자기 자신으로 잇기·없는 노드·다른 선과 같은 from→to·바뀌는 끝이 없음은 거부한다.
  * 구조가 틀어지는 경우(합류 건너뛰기 등)는 막지 않고 구조 검사가 표시한다.
  */
 export function reconnectEdge(f: EditFlow, edgeId: string, end: { from?: string; to?: string }): EditResult {
@@ -498,6 +551,45 @@ export function clearRoutes(f: EditFlow): EditFlow {
   const g = clone(f);
   g.view.routes = {};
   return g;
+}
+
+/** 모든 선의 이름표 오프셋을 지운다(자동 정렬, L1). */
+export function clearLabels(f: EditFlow): EditFlow {
+  const g = clone(f);
+  g.view.labels = {};
+  return g;
+}
+
+/**
+ * 선 하나의 조건 라벨 또는 변수 칩 묶음 오프셋을 둔다(끌어 놓을 때 한 번, L1). 값은 정수로 반올림하고 ±600 으로 자른다.
+ * null 이나 {0,0} 이면 그 부분을 지우고(기본 자리), 두 부분이 모두 없으면 선 키를 지운다. 없는 선·유한하지 않은 값은 거부한다.
+ */
+export function setLabelOffset(f: EditFlow, edgeId: string, part: LabelPart, off: LabelOffset | null): EditResult {
+  if (!f.edges.some((e) => e.id === edgeId)) return fail(`선 ${edgeId}를 찾지 못했다`);
+  if (off && !(finite(off.dx) && finite(off.dy))) return fail("이름표 위치가 올바르지 않다");
+  const g = clone(f);
+  const labels = { ...g.view.labels };
+  const cur: EdgeLabelOffsets = { ...labels[edgeId] };
+  const next = off ? { dx: clampOffset(off.dx), dy: clampOffset(off.dy) } : null;
+  if (next && (next.dx !== 0 || next.dy !== 0)) cur[part] = next;
+  else delete cur[part];
+  if (cur.label || cur.chips) labels[edgeId] = cur;
+  else delete labels[edgeId];
+  g.view.labels = labels;
+  return done(g);
+}
+
+/** 선 하나의 경로와 이름표 오프셋을 함께 지운다(선 우클릭 [경로 초기화], L1). */
+export function clearEdgeLayout(f: EditFlow, edgeId: string): EditResult {
+  if (!f.edges.some((e) => e.id === edgeId)) return fail(`선 ${edgeId}를 찾지 못했다`);
+  const g = clone(f);
+  const routes = { ...g.view.routes };
+  const labels = { ...g.view.labels };
+  delete routes[edgeId];
+  delete labels[edgeId];
+  g.view.routes = routes;
+  g.view.labels = labels;
+  return done(g);
 }
 
 /** 배치를 덮어쓴다(병합). 흐름에 있는 노드 ID 만 남긴다 — 없는 ID(낡은 캔버스 끌기 등)의 위치 키는 적지 않고, 이미 있던 것도 치운다. */

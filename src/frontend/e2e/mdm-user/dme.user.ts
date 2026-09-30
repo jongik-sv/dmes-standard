@@ -1830,6 +1830,8 @@ test.describe("C 룰 세트", () => {
     await expect(tid(page, "flow-palette")).toBeVisible();
     // 편집 모드 — 선의 [+] 로 IF 를 넣고 되돌리기 → 다시 하기 → 되돌리기(저장한 흐름으로 돌아온다).
     const ifNodes = tid(page, "flow-canvas").locator('[data-kind="IF"]');
+    // 선 [+] 는 올리거나 고른 선에만 보인다(L1) — 첫 선의 누름 영역에 mouseover 를 보낸 뒤 누른다.
+    await tid(page, "flow-canvas").locator(".react-flow__edge .react-flow__edge-interaction").first().dispatchEvent("mouseover");
     await page.locator('[data-testid^="flow-edge-add-"]').first().click();
     await tid(page, "flow-menu-item-insert-if").click();
     await expect(ifNodes).toHaveCount(1);

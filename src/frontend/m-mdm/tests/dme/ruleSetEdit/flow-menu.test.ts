@@ -25,7 +25,7 @@ vi.mock("../../../pages/dme/ruleSetEdit/state/useCollapse", () => {
 import { NODE_LIMIT_MESSAGE, insertRule, insertSplit, toEditFlow, type EditFlow } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import type { RuleIo, RuleSetView } from "../../../pages/dme/ruleSetEdit/types";
 import { flush, typeInto, visibleText } from "../helpers/render";
-import { byTestId, canvasNodeIds, click, handoff, inDoc, installServer, ok, openSet, q, settle, srv, uninstallServer } from "../helpers/rule-set-page";
+import { byTestId, canvasNodeIds, click, handoff, hoverEdge, inDoc, installServer, ok, openSet, q, settle, srv, uninstallServer } from "../helpers/rule-set-page";
 
 const ioName = (n: string) => ({ name: n, source: "DICT" as const, label: null, dataType: null, scale: null, dateString: false, maruCodeId: null });
 const rule = (ruleId: string, cond: string, result: string, name = `${ruleId} 이름`): RuleIo => ({
@@ -174,6 +174,7 @@ describe("흐름 우클릭 메뉴·편집(3단계 Task 8)", () => {
     expect(menuIds()).toEqual(["insert-rule", "insert-if", "insert-par", "edge-delete"]);
     await key(byTestId("flow-menu"), { key: "Escape" });
 
+    await hoverEdge(cond.id);
     await click(`flow-edge-add-${cond.id}`);
     expect(menuIds()).toEqual(["insert-rule", "insert-if", "insert-par"]);
   });

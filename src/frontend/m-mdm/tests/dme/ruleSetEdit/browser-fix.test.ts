@@ -29,7 +29,7 @@ import { RSF_CSS } from "../../../pages/dme/ruleSetEdit/rsf-styles";
 import type { RuleIo, RuleSetView } from "../../../pages/dme/ruleSetEdit/types";
 import type { FlowNodeKind } from "@/contract/engine-contract.generated";
 import { flush, installDomStorage } from "../helpers/render";
-import { byTestId, calls, canvasNodeIds, click, installServer, openSet, q, uninstallServer } from "../helpers/rule-set-page";
+import { byTestId, calls, canvasNodeIds, click, hoverEdge, installServer, openSet, q, uninstallServer } from "../helpers/rule-set-page";
 
 const ioName = (n: string) => ({ name: n, source: "DICT" as const, label: null, dataType: null, scale: null, dateString: false, maruCodeId: null });
 const rule = (ruleId: string, cond: string, result: string): RuleIo => ({
@@ -272,6 +272,7 @@ describe("저장 위치가 있는 흐름에 새 노드 넣기(브라우저 확�
     const f = trap((g) => ok(insertSplit(g, "e3", "IF")), "if1", "r1");
     await openSet("BF_IF", viewOf("BF_IF", f));
     await click("flow-mode-edit");
+    await hoverEdge("e3");
     await click("flow-edge-add-e3");
     await click("flow-menu-item-insert-if");
     expect(canvasNodeIds()).toEqual(expect.arrayContaining(["if1", "m1"]));
@@ -473,6 +474,9 @@ describe("선 라벨·변수 칩(그 밖의 관찰)", () => {
     const labelA = transformOf(byTestId(`flow-edge-label-${a}`).parentElement!);
     const labelB = transformOf(byTestId(`flow-edge-label-${b}`).parentElement!);
     expect(labelA).not.toBe(labelB);
+    // [+] 는 올리거나 고른 선에만 보인다(L1) — 하나는 고르고 하나는 올려 둘을 함께 본다.
+    await click(`rf__edge-${a}`);
+    await hoverEdge(b);
     expect(transformOf(byTestId(`flow-edge-add-${a}`))).not.toBe(transformOf(byTestId(`flow-edge-add-${b}`)));
   });
 
