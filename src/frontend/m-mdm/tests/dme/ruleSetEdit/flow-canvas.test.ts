@@ -155,6 +155,40 @@ describe("FlowCanvas", () => {
   });
 });
 
+describe("FlowCanvas 다중 선택", () => {
+  const flowWithView = () => ({
+    ...ifFlow(),
+    view: { positions: {}, notes: [{ id: "n1", text: "메모", x: 400, y: 10, w: 120, h: 60, attach: null }], groups: [{ id: "g1", title: "묶음", nodeIds: ["r1"] }] },
+  });
+  const key = (type: "keydown" | "keyup") => act(async () => { document.dispatchEvent(new KeyboardEvent(type, { key: "Shift", bubbles: true })); });
+
+  it("편집 모드에서 Shift+누르기로 여럿 고르면 흐름 노드 ID 만 올리고, 메모·그룹은 빼며, 빈 곳을 누르면 빈 목록", async () => {
+    const onSelectionChange = vi.fn();
+    await draw(props({ flow: flowWithView(), mode: "edit", onSelectionChange }));
+    await click(q("flow-node-r1")!);
+    expect(onSelectionChange).toHaveBeenLastCalledWith(["r1"]);
+    await key("keydown");
+    await click(q("flow-node-m1")!);
+    expect(onSelectionChange).toHaveBeenLastCalledWith(["r1", "m1"]);
+    await click(q("flow-note-n1")!);
+    for (const call of onSelectionChange.mock.calls) {
+      expect(call[0]).not.toContain("n1");
+      expect(call[0]).not.toContain("g1");
+    }
+    expect(onSelectionChange).toHaveBeenLastCalledWith(["r1", "m1"]);
+    await key("keyup");
+    await click(document.querySelector(".react-flow__pane")!);
+    expect(onSelectionChange).toHaveBeenLastCalledWith([]);
+  });
+
+  it("메모·그룹만 고르면 올리지 않는다(앞 노드 선택을 지키게)", async () => {
+    const onSelectionChange = vi.fn();
+    await draw(props({ flow: flowWithView(), mode: "edit", onSelectionChange }));
+    await click(q("flow-note-n1")!);
+    expect(onSelectionChange).not.toHaveBeenCalled();
+  });
+});
+
 describe("FlowPalette", () => {
   it("버튼 5개, disabled 면 모두 꺼진다", async () => {
     const onPick = vi.fn();

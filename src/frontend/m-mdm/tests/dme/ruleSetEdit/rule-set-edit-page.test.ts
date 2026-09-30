@@ -625,6 +625,62 @@ describe("RuleSetEditPage", () => {
     expect(visibleText(byTestId("set-checks"))).toContain("E2S_GRD와 E2S_DUP가 같은 결과 변수 S_GRD에 대입한다");
   });
 
+  it("그룹 — Shift 로 여럿 고른 뒤 [그룹] 이면 두 노드를 담고, [빼기] 로 하나씩 빼며 마지막을 빼면 그룹이 없어진다(Ruling 11)", async () => {
+    const shift = (type: "keydown" | "keyup") =>
+      act(async () => {
+        document.dispatchEvent(new KeyboardEvent(type, { key: "Shift", bubbles: true }));
+      });
+    await openChain();
+    await click("flow-mode-edit");
+    await click("flow-node-r1");
+    await shift("keydown");
+    await click("flow-node-r2");
+    await shift("keyup");
+    await click("flow-add-group");
+    expect(q("flow-group-g1")).not.toBeNull();
+    expect(q("flow-prop-group")).not.toBeNull();
+    expect(q("flow-prop-group-member-r1")).not.toBeNull();
+    expect(q("flow-prop-group-member-r2")).not.toBeNull();
+    expect(saveButton().disabled).toBe(false);
+
+    await click("flow-prop-group-remove-r1");
+    expect(q("flow-prop-group-member-r1")).toBeNull();
+    expect(q("flow-prop-group-member-r2")).not.toBeNull();
+
+    await click("flow-prop-group-remove-r2");
+    expect(q("flow-group-g1")).toBeNull();
+    expect(q("flow-prop-group")).toBeNull();
+    expect(q("flow-prop-set")).not.toBeNull();
+  });
+
+  it("그룹 — 캔버스에서 노드를 더 고른 뒤 그룹을 누르면 [선택 노드 더하기] 로 넣는다", async () => {
+    replies.save = ok({ setId: "E2S_CHAIN", rowVersion: 4, checks: [] });
+    await openChain();
+    await click("flow-mode-edit");
+    await click("flow-node-r1");
+    await click("flow-add-group");
+    expect(q("flow-prop-group-member-r1")).not.toBeNull();
+    expect(q("flow-prop-group-add")).toBeNull();
+
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Shift", bubbles: true }));
+    });
+    await click("flow-node-r3");
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent("keyup", { key: "Shift", bubbles: true }));
+    });
+    await click("flow-group-g1");
+    expect(q("flow-prop-group")).not.toBeNull();
+    await click("flow-prop-group-add");
+    expect(q("flow-prop-group-member-r3")).not.toBeNull();
+    expect(q("flow-prop-group-add")).toBeNull();
+
+    await click("set-save");
+    await settle();
+    const saved = JSON.parse((calls("save")[0].body.params as Record<string, string>).flowJson) as { view: { groups: unknown[] } };
+    expect(saved.view.groups).toEqual([{ id: "g1", title: "그룹", nodeIds: ["r1", "r3"] }]);
+  });
+
   it("노드 상한 — 200개면 [룰]·[IF] 를 끼우지 않고 메시지 줄에 문구를 보인다", async () => {
     const ids = Array.from({ length: 198 }, (_, i) => `E2S_R${i + 1}`);
     await openChain(chainView({ set: { ...chainView().set, ruleIds: ids }, rules: [] }));

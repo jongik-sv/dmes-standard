@@ -43,6 +43,8 @@ export interface PropertyPanelProps {
   rules: RuleIoMap;
   checks: readonly RuleSetCheck[];
   selectedId: string;
+  /** 캔버스 다중 선택(흐름 노드 ID) — 그룹 [선택 노드 더하기] 가 쓴다. */
+  selectedNodeIds?: readonly string[];
   /** 편집 모드 — 입력·▲▼✕·지우기를 켠다. */
   editable: boolean;
   onEdit: (fn: (f: EditFlow) => EditResult | EditFlow) => string | null;
@@ -320,7 +322,7 @@ function PlainNodeProps({ node }: { node: FlowNode }) {
 }
 
 export function PropertyPanel(props: PropertyPanelProps) {
-  const { flow, rules, selectedId, editable, onEdit } = props;
+  const { flow, rules, selectedId, selectedNodeIds = [], editable, onEdit } = props;
   const tree = useMemo(() => parseFlow(flow).tree, [flow]);
 
   const node = flow.nodes.find((n) => n.id === selectedId);
@@ -355,6 +357,19 @@ export function PropertyPanel(props: PropertyPanelProps) {
 
   const group = flow.view.groups.find((g) => g.id === selectedId);
   if (group) {
+    const kinds = new Map(flow.nodes.map((n) => [n.id, n.kind] as const));
+    // 더할 수 있는 선택 노드 — 흐름에 있고 시작·끝이 아니며 아직 그룹에 없는 것.
+    const addable = selectedNodeIds.filter((id) => {
+      const k = kinds.get(id);
+      return !!k && k !== "START" && k !== "END" && !group.nodeIds.includes(id);
+    });
+    // updateGroup 은 빈 그룹을 남기므로 마지막 노드를 빼면 그룹을 지운다.
+    const without = (id: string) => (f: EditFlow) => {
+      const g = f.view.groups.find((x) => x.id === group.id);
+      if (!g) return f;
+      const rest = g.nodeIds.filter((x) => x !== id);
+      return rest.length === 0 ? removeGroup(f, group.id) : updateGroup(f, group.id, { nodeIds: rest });
+    };
     return (
       <div className="rsf-panel" data-testid="flow-prop-group">
         <Title>{`그룹 ${group.id}`}</Title>
@@ -371,15 +386,49 @@ export function PropertyPanel(props: PropertyPanelProps) {
                 />
               </td>
             </tr>
-            <tr>
-              <th style={DETAIL_LABEL_CELL}>노드</th>
-              <td style={DETAIL_VALUE_CELL}>{group.nodeIds.join(", ")}</td>
-            </tr>
           </tbody>
         </table>
-        <p className="rsf-panel-note rsf-muted">그룹은 보기용 묶음이다. 실행 순서에 영향을 주지 않는다</p>
+        <p className="rsf-panel-sub">{`구성 노드 ${group.nodeIds.length}개`}</p>
+        <ul className="rsf-vars">
+          {group.nodeIds.map((id) => {
+            const n = flow.nodes.find((x) => x.id === id);
+            return (
+              <li key={id} data-testid={`flow-prop-group-member-${id}`}>
+                <div className="rsf-var-row">
+                  <code>{id}</code>
+                  <span className="rsf-muted">{n ? (n.ruleId ?? n.label ?? n.kind) : "-"}</span>
+                  {editable && (
+                    <Button
+                      size="mini"
+                      data-testid={`flow-prop-group-remove-${id}`}
+                      ariaLabel={`${id} 를 그룹에서 빼기`}
+                      style={{ marginLeft: "auto" }}
+                      onClick={() => onEdit(without(id))}
+                    >
+                      빼기
+                    </Button>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+        <p className="rsf-panel-note rsf-muted">
+          그룹은 보기용 묶음이다. 실행 순서에 영향을 주지 않는다.
+          {editable && " 캔버스에서 Shift+누르기·Shift+끌기로 노드를 여럿 고른 뒤 [선택 노드 더하기] 로 넣는다"}
+        </p>
         {editable && (
           <div className="rsf-panel-actions">
+            {addable.length > 0 && (
+              <Button
+                data-testid="flow-prop-group-add"
+                size="sm"
+                onClick={() => onEdit((f) => updateGroup(f, group.id, { nodeIds: [...group.nodeIds, ...addable] }))}
+              >
+                <IconPlus size={14} aria-hidden="true" style={{ marginRight: "var(--spacing-xs)" }} />
+                {`선택 노드 더하기 (${addable.length})`}
+              </Button>
+            )}
             <DeleteButton onClick={() => onEdit((f) => removeGroup(f, group.id))} />
           </div>
         )}

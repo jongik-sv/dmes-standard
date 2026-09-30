@@ -101,6 +101,8 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  /** 캔버스 다중 선택(흐름 노드 ID, 흐름 순서) — [그룹]·[선택 노드 더하기] 가 쓴다. */
+  const [multiSel, setMultiSel] = useState<string[]>([]);
   const [focus, setFocus] = useState<{ id: string | null; seq: number }>({ id: null, seq: 0 });
   const [fitSignal, setFitSignal] = useState(0);
   const [showVars, setShowVars] = useState(false);
@@ -115,6 +117,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   useEffect(() => {
     setSelectedId(null);
     setSelectedEdgeId(null);
+    setMultiSel([]);
     setFocus((f) => ({ id: null, seq: f.seq }));
   }, [setId]);
 
@@ -185,15 +188,17 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
         if (!reason && id) select(id);
         return;
       }
+      // 그룹: 캔버스 다중 선택(없으면 단일 선택 노드)으로 만든다.
+      const members = multiSel.length > 0 ? multiSel : selNode ? [selNode.id] : [];
       let gid: string | undefined;
       const reason = edit((f) => {
-        const r = addGroup(f, selNode ? [selNode.id] : [], GROUP_TITLE);
+        const r = addGroup(f, members, GROUP_TITLE);
         gid = r.id;
         return r;
       });
       if (!reason && gid) select(gid);
     },
-    [flow, selectedId, edit, insertAt, select],
+    [flow, selectedId, multiSel, edit, insertAt, select],
   );
 
   const onPickRule = useCallback(
@@ -323,6 +328,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                       onDeleteEdge={onDeleteEdge}
                       onDropPalette={onDropPalette}
                       onNoteChange={onNoteChange}
+                      onSelectionChange={setMultiSel}
                     />
                   </div>
                 </div>
@@ -335,6 +341,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                       rules={state.rules}
                       checks={state.checks}
                       selectedId={selectedId}
+                      selectedNodeIds={multiSel}
                       editable={editing && !state.loading}
                       onEdit={edit}
                       onOpenRule={openRule}
