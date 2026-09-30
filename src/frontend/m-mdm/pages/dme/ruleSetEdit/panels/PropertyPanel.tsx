@@ -218,10 +218,13 @@ function SplitProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
   const handleDrop = (toEdgeId: string) => (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
+    if (!editable) return;
     const fromEdgeId = e.dataTransfer.getData("application/x-rsf-branch");
-    if (fromEdgeId && fromEdgeId !== toEdgeId) {
+    // "그 외" 줄에 놓으면 마지막 조건 갈래 자리로 본다
+    const toId = branches.find((x) => x.id === toEdgeId)?.otherwise ? ordered[ordered.length - 1]?.id : toEdgeId;
+    if (fromEdgeId && toId && fromEdgeId !== toId) {
       const orderIds = ordered.map((x) => x.id);
-      onEdit((f) => reorderBranches(f, node.id, movedOrder(orderIds, fromEdgeId, toEdgeId)));
+      onEdit((f) => reorderBranches(f, node.id, movedOrder(orderIds, fromEdgeId, toId)));
     }
   };
 
@@ -261,17 +264,17 @@ function SplitProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
               key={e.id}
               className="rsf-branch-box"
               data-testid={`flow-prop-branch-${e.id}`}
-              onDragOver={(ev) => ev.preventDefault()}
-              onDrop={handleDrop(e.id)}
+              onDragOver={editable ? (ev) => ev.preventDefault() : undefined}
+              onDrop={editable ? handleDrop(e.id) : undefined}
             >
               <div className="rsf-branch-head">
                 {editable && !other && (
                   <div
                     draggable
+                    className="rsf-branch-grip"
                     data-testid={`flow-prop-branch-${e.id}-handle`}
                     aria-label="갈래 순서 끌기"
                     onDragStart={(ev) => ev.dataTransfer.setData("application/x-rsf-branch", e.id)}
-                    style={{ cursor: "grab", display: "flex", alignItems: "center", marginRight: "var(--spacing-xs)" }}
                   >
                     <IconGripVertical size={14} aria-hidden="true" />
                   </div>
