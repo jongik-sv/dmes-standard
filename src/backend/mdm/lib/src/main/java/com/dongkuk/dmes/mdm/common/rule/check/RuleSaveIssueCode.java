@@ -43,6 +43,8 @@ public enum RuleSaveIssueCode {
     SET_ORDER,
     SET_CYCLE,
     SET_DUP_RESULT,
+    SET_IF_SIBLING,
+    SET_PAR_SIBLING,
     CONTRACT_CHANGED,
     EXPR_TYPE_BY_CASE
 }
