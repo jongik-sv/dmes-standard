@@ -58,7 +58,7 @@ moduleGroup: dme
 
 ## 2. 화면 영역 정의
 
-화면은 위에서 아래로 상단 바 → 흐름 툴바(디버그 모드면 그 아래 디버그 툴바 한 줄이 더 붙는다) → (왼쪽 패널 | 캔버스 | 오른쪽 패널) → 아래 패널이다. 분할선은 끌어 크기를 바꾼다(`ContentBody resizable`, 저장 키 `mdm.dme.ruleSetEdit`·`.main`). 세 패널(왼쪽 280·오른쪽 360 기본)은 모드와 무관하게 늘 두고 **내용만 바꾼다** — 모드를 바꿔도 사용자가 끈 너비가 남는다. 아래 패널 기본 높이는 280 이다.
+화면은 위에서 아래로 상단 바 → 흐름 툴바(디버그 모드면 그 아래 디버그 툴바 한 줄이 더 붙는다) → (왼쪽 패널 | 캔버스 | 오른쪽 패널) → 아래 패널이다. 분할선은 끌어 크기를 바꾼다(`ContentBody resizable`, 저장 키 `mdm.dme.ruleSetEdit`·`.main`). 오른쪽 패널(360)은 늘 두고, 왼쪽 패널(280)은 디버그 모드에서만 둔다(너비는 key 로 기억한다 — 디버그로 돌아오면 사용자가 끈 너비 그대로다). 아래 패널 기본 높이는 280 이다.
 오른쪽 패널은 계획의 `ResizableFormPanel` 대신 `ContentBody resizable` + `ContentPanel width=360` 이다(FrontEnd Part B §4-3 이 신규 화면의 `ResizableFormPanel` 사용을 금지한다).
 
 모드는 툴바의 [보기][편집][디버그] 셋이다. 세트를 열면 보기 모드다. 배치는 모드마다 다르다.
@@ -67,14 +67,15 @@ moduleGroup: dme
 [보기]
 ┌ 상단 바: 세트 고르기 · 현재 세트 ────────────────────────────────────────────────┐
 ├ 흐름 툴바: 세트 · [보기][편집][디버그] · 되돌리기 · 찾기 · [?] · 정렬·맞춤·변수·미니맵 · 폐기·저장 ┤
-├ 왼쪽: 룰 목록 ──┬ 가운데: 캔버스 ───────────────┬ 오른쪽: 세트 패널 / 속성 ────┤
-│ (찾기·목록만.   │ 노드·선·메모·그룹, 접힌 블록,   │ 선택 없음 = 세트 패널         │
-│  끌기 없음)     │ 확대 막대·미니맵                │ 선택 있음 = 속성(읽기 전용)   │
-├────────────────┴────────────────────────────────┴──────────────────────────────┤
+├ 가운데: 캔버스 ──────────────────────────────────────────┬ 오른쪽: 세트 패널 / 속성 ────┤
+│ 왼쪽 위 도구 상자([손][영역 선택]), 노드·선·메모·그룹,      │ 선택 없음 = 세트 패널         │
+│ 접힌 블록, 오른쪽 위 미니맵·오른쪽 아래 확대 막대          │ 선택 있음 = 속성(읽기 전용)   │
+│                                                            │ 아래: 룰 목록(찾기·목록)      │
+├────────────────────────────────────────────────────────────┴──────────────────────────────┤
 │ 아래 패널: [검사 결과 n]                                                           │
 └────────────────────────────────────────────────────────────────────────────────┘
 
-[편집]  왼쪽 위에 팔레트(룰·IF·병렬·메모·그룹)가 더해지고 목록 줄은 캔버스 선 위로 끌 수 있다. 오른쪽 속성은 고칠 수 있다. 캔버스는 끌기·[+]·우클릭 편집이 켜진다.
+[편집]  도구 상자에 [공간]·구분선·요소 다섯(룰·IF·병렬·메모·그룹)이 더해지고 목록 줄은 캔버스 선 위로 끌 수 있다. 오른쪽 속성은 고칠 수 있다. 캔버스는 끌기·[+]·우클릭 편집이 켜진다.
 
 [디버그]
 ┌ 흐름 툴바 ─────────────────────────────────────────────────────────────────────┐
@@ -99,11 +100,12 @@ moduleGroup: dme
 | 영역ID | 영역명 | 설명 |
 |---|---|---|
 | `A-TOP` | 세트 고르기 바(`set-edit-topbar`) | 세트 ID·세트명 검색(`set-pick-keyword`) + 찾기 → 칸 아래 드롭다운 후보(`set-pick-list` 안 `set-pick-{setId}`, 룰 화면 룰 고르기와 같은 `IdPicker` — ↑↓·Enter·Esc, 20건이면 좁혀 검색 안내), 현재 세트(`set-edit-current`, `ID · 세트명`). 고르기 전에는 "세트를 골라 편집한다. 새 세트는 룰 세트 화면에서 등록한다"(`set-edit-empty`) |
-| `A-TOOL` | 흐름 툴바(`flow-toolbar`) | 세트 ID(`set-card-id`)·상태 배지(`set-status`)·`row_version N`(`set-row-version`)·"버전·승인 없음" · [보기](`flow-mode-view`)/[편집](`flow-mode-edit`)/[디버그](`flow-mode-debug`) · [되돌리기](`flow-undo`)·[다시 하기](`flow-redo`) · 찾기 칸(`flow-find`)·[다음](`flow-find-next`)·`flow-find-count`("2/5", 없으면 "0/0")·[?] 단축키 도움말(`flow-help`→`flow-help-panel`) · [자동 정렬](`flow-auto-layout`, 편집 모드만 켜진다)·[공간](`flow-space-tool`, `aria-pressed`, 편집 모드만 켜진다 — §5.3 공간 넓히기)·[화면 맞춤](`flow-fit`)·[표시](`flow-var-toggle`, 끔·ID·이름 세 상태 — `data-mode`, 끔이 아니면 `aria-pressed`)·[미니맵](`flow-minimap-toggle`, `aria-pressed`) · [세트 저장](`set-save`)·[폐기](`set-deprecate`)→[폐기 확인](`set-deprecate-confirm`)/[취소](`set-deprecate-cancel`)·[되살리기](`set-restore`)·[다시 불러오기](`set-reload`, MDM001 뒤에만) · 메시지 줄(`set-message`) |
+| `A-TOOL` | 흐름 툴바(`flow-toolbar`) | 세트 ID(`set-card-id`)·상태 배지(`set-status`)·`row_version N`(`set-row-version`)·"버전·승인 없음" · [보기](`flow-mode-view`)/[편집](`flow-mode-edit`)/[디버그](`flow-mode-debug`) · [되돌리기](`flow-undo`)·[다시 하기](`flow-redo`) · 찾기 칸(`flow-find`)·[다음](`flow-find-next`)·`flow-find-count`("2/5", 없으면 "0/0")·[?] 단축키 도움말(`flow-help`→`flow-help-panel`) · [자동 정렬](`flow-auto-layout`, 편집 모드만 켜진다)·[화면 맞춤](`flow-fit`)·[표시](`flow-var-toggle`, 끔·ID·이름 세 상태 — `data-mode`, 끔이 아니면 `aria-pressed`)·[미니맵](`flow-minimap-toggle`, `aria-pressed`) · [세트 저장](`set-save`)·[폐기](`set-deprecate`)→[폐기 확인](`set-deprecate-confirm`)/[취소](`set-deprecate-cancel`)·[되살리기](`set-restore`)·[다시 불러오기](`set-reload`, MDM001 뒤에만) · 메시지 줄(`set-message`) |
 | `A-DBG` | 디버그 툴바(`dbg-toolbar`, 디버그 모드만) | [계속](`dbg-continue`)·[한 단계](`dbg-step`)·[이전](`dbg-step-back`)·[여기까지](`dbg-run-to`)·[처음부터](`dbg-restart`)·[끝내기](`dbg-finish`) · 상태 문구(`dbg-status`, `data-end` = idle·running·done·error) · 낡은 기록 배지(`dbg-stale`) · 알림(`dbg-notice`, `data-kind` = notice·error) |
-| `A-LEFT` | 왼쪽 패널 | 보기·편집 = **룰 패널**(`flow-rule-panel`): 편집 모드면 위에 팔레트(`flow-palette` — [룰](`flow-add-rule`)·[IF](`flow-add-if`)·[병렬](`flow-add-par`)·[메모](`flow-add-note`)·[그룹](`flow-add-group`)), 아래에 룰 목록(접기 `flow-rule-panel-toggle`, 검색 `flow-rule-panel-search`·`flow-rule-panel-find`, 목록 `flow-rule-rows`, 줄 `flow-rule-row-{ruleId}`). 보기 모드는 목록만이고 줄을 끌 수 없다. 디버그 = **입력 패널**(`dbg-inputs`, 3단계 P-D10 — 룰 목록을 두지 않는다) |
-| `A-CANVAS` | 흐름도 캔버스(`flow-canvas`) | React Flow. 노드·선·메모·그룹 틀. 표시 내용은 §3.2. 오른쪽 아래에 확대 막대(`Controls` — 확대·축소·화면 맞춤, 잠금 단추 없음)와 미니맵. 캔버스 감싸개(`rsf-canvas-host`)가 단축키(§5.4)를 받고 우클릭·[+] 메뉴(`flow-menu`, §5.5)를 안에 띄운다 |
-| `A-PROPS` | 오른쪽 패널(`flow-props`) | 보기·편집 = 선택이 없으면 **세트 패널**(`flow-prop-set` — 세트명 `set-name`·설명 `set-desc`·세트 입출력 표 `set-io-*`·구성 지침 `set-guide-*`), 룰 노드면 `flow-prop-rule`, IF 면 `flow-prop-if`, 병렬이면 `flow-prop-par`, 시작·끝·합류면 `flow-prop-node`, 메모면 `flow-prop-note`, 그룹이면 `flow-prop-group`. 세트 패널로 돌아가려면 캔버스 빈 곳을 누른다. 디버그 = **변수 패널**(`var-panel`) — 조사식(`var-watches`)·변수 표(`var-grid`)·노드 상세(`sim-detail`)·식 평가(`expr-input`) |
+| `A-LEFT` | 왼쪽 패널 | 디버그 모드만 = **입력 패널**(`dbg-inputs`, 3단계 P-D10). 보기·편집 모드는 왼쪽 칸이 없다(4단계 P1) |
+| `A-TOOLBOX` | 도구 상자(`flow-toolbox`) | 캔버스 안 왼쪽 위(12px) 세로 막대. 도구 [손](`flow-tool-hand`)·[영역 선택](`flow-tool-select`)·[공간](`flow-space-tool`, 편집만) — 한 번에 하나, `aria-pressed`. 구분선 아래 요소(`flow-palette` — `flow-add-*`, 편집만). 아이콘만, 이름은 오른쪽 툴팁·`aria-label`. 기본 도구 = 편집 [영역 선택]·보기·디버그 [손], Esc·모드 바꾸기·다른 세트 열기로 기본 도구로 돌아간다. 저장하지 않는다 |
+| `A-CANVAS` | 흐름도 캔버스(`flow-canvas`) | React Flow. 노드·선·메모·그룹 틀. 표시 내용은 §3.2. 오른쪽 아래 확대 막대(`Controls` — 확대·축소·화면 맞춤, 잠금 단추 없음), 오른쪽 위 미니맵. 캔버스 감싸개(`rsf-canvas-host`)가 단축키(§5.4)를 받고 우클릭·[+] 메뉴(`flow-menu`, §5.5)를 안에 띄운다 |
+| `A-PROPS` | 오른쪽 패널(`flow-props`) | 보기·편집 = 선택이 없으면 **세트 패널**(`flow-prop-set` — 세트명 `set-name`·설명 `set-desc`·세트 입출력 표 `set-io-*`·구성 지침 `set-guide-*`), 룰 노드면 `flow-prop-rule`, IF 면 `flow-prop-if`, 병렬이면 `flow-prop-par`, 시작·끝·합류면 `flow-prop-node`, 메모면 `flow-prop-note`, 그룹이면 `flow-prop-group`. 세트 패널로 돌아가려면 캔버스 빈 곳을 누른다. 디버그 = **변수 패널**(`var-panel`) — 조사식(`var-watches`)·변수 표(`var-grid`)·노드 상세(`sim-detail`)·식 평가(`expr-input`) 보기·편집 모드는 속성·세트 패널 아래 룰 목록(`flow-rule-panel` — 접기 `flow-rule-panel-toggle`, 검색 `flow-rule-panel-search`·`flow-rule-panel-find`, 목록 `flow-rule-rows`, 줄 `flow-rule-row-{ruleId}`; 4단계 Task 8 이 섹션으로 바꾼다) |
 | `A-BOTTOM` | 아래 패널(`flow-bottom`) | 접기 `flow-bottom-toggle`(`aria-expanded`). 보기·편집 = 탭 하나 「검사 결과 n」(`flow-tab-checks`, 검사 목록 `set-checks`·항목 `set-check-{i}`). 디버그 = 「값 표」(`flow-tab-values`, 안에 `sim-values`·`sim-warnings`)·「실행 비교」(`flow-tab-compare`, 안에 `run-compare`)·「검사 결과 n」. 탭 testid 는 탭 버튼 안쪽 `span` 에 붙어 있다(`aria-selected` 는 부모 버튼 `role="tab"` 에 있다) |
 
 
@@ -214,7 +216,7 @@ moduleGroup: dme
 | B-006 | 보기(`flow-mode-view`)/편집(`flow-mode-edit`)/디버그(`flow-mode-debug`) | A-TOOL | (없음) | 세트를 열면 보기 모드다. [편집]은 `view.editable`·INUSE·`save` 권한일 때만 켜진다. [디버그]는 누구나 들어간다(실행 단추는 `execute` 권한이 따로 켠다). 편집 → 보기/디버그는 편집 내용을 버리지 않는다. 디버그 모드 입력값·중단점·조사식·기록은 모드를 오가도 유지한다 |
 | B-007 | 자동 정렬(`flow-auto-layout`) | A-TOOL | (없음) | dagre 위→아래 배치로 모든 노드 위치를 다시 잡는다(편집 모드만 켜진다). 모든 선의 경로(`view.routes`)와 옮긴 조건 라벨·변수 칩 자리(`view.labels`, L1)도 함께 지운다(C14). 위치와 경로·이름표 지우기는 이력 한 칸이라 되돌리기 한 번으로 함께 살아난다. 공간 넓히기로 적힌 위치·옮긴 꺾는 점도 이것으로 초기화된다 |
 | B-008 | 화면 맞춤(`flow-fit`)·표시(`flow-var-toggle`)·미니맵(`flow-minimap-toggle`) | A-TOOL | (없음) | 보기 조절. 서버를 부르지 않는다. [표시](`flow-var-toggle`)는 선 변수 칩과 룰 노드 제목에 함께 적용되고, 누를 때마다 끔 → ID → 이름 → 끔으로 돌며 단추에 지금 상태("표시: 끔/ID/이름")를 보이고(툴팁: 선 변수 칩과 룰 노드 제목을 ID·이름으로 바꾼다. 끄면 변수 칩을 숨긴다) 마지막 선택을 브라우저 저장소(`rsf:varDisplay`, 이상한 값이면 끔)에 기억한다. 미니맵은 켜고 끔을 브라우저 저장소(`rsf:minimap`)에 기억한다 |
-| B-009 | 룰(`flow-add-rule`)·IF(`flow-add-if`)·병렬(`flow-add-par`)·메모(`flow-add-note`)·그룹(`flow-add-group`) | A-LEFT(팔레트) | `search`(RULE, 룰 팝업) | 편집 모드만. 동작은 §5.3 |
+| B-009 | 룰(`flow-add-rule`)·IF(`flow-add-if`)·병렬(`flow-add-par`)·메모(`flow-add-note`)·그룹(`flow-add-group`) | A-TOOLBOX(요소) | `search`(RULE, 룰 팝업) | 편집 모드만. 동작은 §5.3 |
 | B-010 | 찾기(지침, `set-guide-run`) | A-PROPS(세트 패널) | `search`(GUIDE) | |
 | B-011 | 이 순서로 한 줄 흐름 만들기(`set-guide-apply`) | A-PROPS(세트 패널) | (없음) | 한 줄 흐름이면 제안 순서로 `linearFlow(순서)` 를 만들고(배치 초기화) 응답 `rules` 의 입출력을 더한다(dirty). 편집 모드·`save` 권한일 때만 켜진다. **분기가 있는 흐름이면 꺼진다**(P-D5, 1단계 Ruling 13) |
 | B-012 | 지우기(`flow-prop-delete`) | A-PROPS | (없음) | 룰·분기·메모·그룹 지우기. 룰은 앞뒤 선을 이어 붙이고 분기는 짝 합류까지 블록째 지운다. 시작·끝·합류는 지울 수 없다 |
@@ -233,7 +235,8 @@ moduleGroup: dme
 | B-025 | 케이스: 지금 입력 저장(`case-save-current`)·모두 실행(`case-run-all`)·불러오기(`case-load`)·디버그로 열기(`case-debug`)·고치기(`case-edit`)·삭제(`case-delete` → `case-delete-confirm`/`case-delete-cancel`) | A-LEFT(디버그) | `save`(part=CASE)·`execute`(runCases) | [지금 입력 저장]·[고치기]·[삭제]는 편집할 수 있는 세트(담당자·INUSE·`save` 권한)일 때만, [모두 실행]·[디버그로 열기]는 `execute` 권한이 있을 때만 켜진다. 팝업(`case-modal` — 저장 `case-modal-save`·취소 `case-modal-cancel`). 동작은 §5.2 |
 | B-026 | 변수 표 핀 칸·조사식 ✕(`var-watch-remove-{name}`)·식 평가(`expr-input` Enter)·최근 식(`expr-recent-{i}`) | A-PROPS(디버그) | `validate`(식 파싱) | 식 평가는 `validate` 권한(EDIT)이 없거나 실행 기록이 없으면 칸이 꺼지고 title 로 이유를 보인다. 동작은 §5.2 |
 | B-027 | 아래 탭 값 표(`flow-tab-values`)·실행 비교(`flow-tab-compare`) | A-BOTTOM(디버그) | (없음) | 서버를 부르지 않는다 |
-| B-028 | 공간(`flow-space-tool`, `aria-pressed`) | A-TOOL | (없음) | S1(사용자 승인 추가). 편집 모드에서만 켜진다(보기·디버그 모드는 꺼짐). 켜고 끌 때 모두 초점을 캔버스로 옮긴다(단추에 초점이 남으면 Esc 가 캔버스 단축키에 닿지 않고, 스페이스+끌기의 스페이스가 단추를 다시 누른다). 흐름 툴바 단추는 모두 마우스로 눌러도 초점을 가져가지 않고(mousedown 기본 동작을 막는다 — 키보드 Tab·Enter 는 그대로), 팔레트 단추는 HTML5 끌기를 살리려고 누르거나 끌어 놓은 뒤 초점을 놓는다. 켜면 캔버스 빈 곳 끌기가 공간 넓히기다(§5.3, 영역 선택보다 이긴다). 한 번 쓰면(놓으면) 저절로 꺼지고, Esc(켜져 있으면 끄기만 하고 선택은 그대로)·편집 모드를 떠나기·다른 세트 열기로도 꺼진다. Alt(⌥)+끌기는 단추 없이 같은 동작이다 |
+| B-028 | 공간(`flow-space-tool`, `aria-pressed`) | A-TOOLBOX | (없음) | 도구 상자의 도구 하나(4단계 P1 — 툴바에서 옮김). 다시 누르면 [영역 선택] 으로 돌아간다. S1(사용자 승인 추가). 편집 모드에서만 켜진다(보기·디버그 모드는 단추가 없다). 켜고 끌 때 모두 초점을 캔버스로 옮긴다(단추에 초점이 남으면 Esc 가 캔버스 단축키에 닿지 않고, 스페이스+끌기의 스페이스가 단추를 다시 누른다). 흐름 툴바 단추는 모두 마우스로 눌러도 초점을 가져가지 않고(mousedown 기본 동작을 막는다 — 키보드 Tab·Enter 는 그대로), 팔레트 단추는 HTML5 끌기를 살리려고 누르거나 끌어 놓은 뒤 초점을 놓는다. 켜면 캔버스 빈 곳 끌기가 공간 넓히기다(§5.3, 영역 선택보다 이긴다). 한 번 쓰면(놓으면) 저절로 꺼지고, Esc(켜져 있으면 끄기만 하고 선택은 그대로)·편집 모드를 떠나기·다른 세트 열기로도 꺼진다. Alt(⌥)+끌기는 단추 없이 같은 동작이다 |
+| B-029 | [손](`flow-tool-hand`)·[영역 선택](`flow-tool-select`) | A-TOOLBOX | (없음) | 빈 곳 끌기를 화면 이동/영역 선택으로 바꾼다. 휠·Shift+끌기 영역 선택·다중 선택 키는 모드를 따른다. 누르면 초점을 캔버스로 옮긴다 |
 
 ### 5.1-1 캔버스·표 안의 인라인 동작 (GB-NNN)
 

@@ -8,14 +8,14 @@
  * 한 줄 세트와 분기 세트 모두 캔버스로 편집하고 흐름(`flowJson`)으로 저장한다(P-D5).
  *
  * 모드(3단계 P1) — 세트를 열면 보기 모드다. 편집 모드는 서버 판정(`editable`)·INUSE·RBAC(save)일 때만 켠다(P10). 디버그 모드는 누구나 들어간다.
- * - 왼쪽: 보기·편집 = 룰 패널(`RulePanel`, 편집 모드면 팔레트), 디버그 = 입력 패널(`DebugInputs`)
+ * - 왼쪽: 디버그 모드만 입력 패널(`DebugInputs`). 보기·편집 모드는 왼쪽 칸이 없고 캔버스 안 왼쪽 위에 도구 상자(`FlowToolbox`)가 뜬다(4단계 P1)
  * - 오른쪽: 보기·편집 = 속성·세트 패널(선택에 따라 하나), 디버그 = 변수 패널(`VariablePanel`)
  * - 아래 탭: 보기·편집 = 검사 결과 하나, 디버그 = 값 표·실행 비교·검사 결과. 디버그로 들고 날 때 그 모드의 첫 탭으로 간다
  *   (보기↔편집은 탭이 같아 그대로 둔다). 디버그 모드에 들어가면 [변수 흐름]을 켜고 나오면 들어가기 전 값으로 돌린다(P-D16).
  * 단축키(P3)는 캔버스 감싸개(`rsf-canvas-host`)의 onKeyDown 에서만 디스패처로 받는다 — 손잡이 표는 모드별로 여기서 만든다.
  * 우클릭·[+] 메뉴(P4)는 제공자(`canvas/menus`)가 항목을 만들고 `ContextMenu` 가 그린다. 항목이 0개면 열지 않는다.
  * 분할 골격(`ContentBody`/`ContentPanel`)은 이 파일의 직접 자식으로 둔다(Part B §4-3 — 드래그 막대가 직접 자식에만 붙는다).
- * 세 패널은 모드와 무관하게 늘 두고 내용만 바꾼다(모드를 바꿔도 사용자가 끈 너비가 남게).
+ * 디버그 모드 밖에서는 왼쪽 칸을 그리지 않는다 — 너비는 shared 가 key(`left`)로 기억하므로 디버그로 돌아오면 사용자가 끈 너비 그대로다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
@@ -28,6 +28,7 @@ import { alignNodes, distributeNodes, nudgeNodes, type AlignKind, type Distribut
 import { buildMenu, type CanvasActions, type MenuItem, type MenuTarget } from "./canvas/context-menu";
 import { FlowCanvas, type AlignSource } from "./canvas/FlowCanvas";
 import { FlowToolbar } from "./canvas/FlowToolbar";
+import { FlowToolbox, defaultTool, type CanvasTool } from "./canvas/FlowToolbox";
 import { MENU_PROVIDERS } from "./canvas/menus";
 import { RulePanel } from "./canvas/RulePanel";
 import { RuleSearchModal } from "./canvas/RuleSearchModal";
@@ -108,9 +109,14 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   /** 캔버스 다중 선택(흐름 노드 ID, 흐름 순서) — [그룹]·[선택 노드 더하기] 가 쓴다. */
   const [multiSel, setMultiSel] = useState<string[]>([]);
-  /** [공간] 토글(S1) — 편집 모드에서만 켜진다. 한 번 쓰면(캔버스가 끈다)·Esc·편집 모드를 떠나면·다른 세트를 열면 꺼진다. */
-  const [spaceTool, setSpaceTool] = useState(false);
-  const spaceOn = editing && spaceTool;
+  /**
+   * 캔버스 도구(4단계 P1) — [손]·[영역 선택]·[공간]. 저장하지 않는다. 모드를 바꾸거나 다른 세트를 열면 그 모드의 기본 도구(`defaultTool`)로 돌아가고,
+   * [공간] 은 한 번 쓰면(캔버스가 `onSpaceToolChange(false)` 로 알린다) 영역 선택으로 돌아간다. [공간] 은 편집 모드에서만 뜻이 있다.
+   */
+  const [tool, setTool] = useState<CanvasTool>(() => defaultTool(mode));
+  const spaceOn = editing && tool === "space";
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
   const [focus, setFocus] = useState<{ id: string | null; seq: number }>({ id: null, seq: 0 });
   const [fitSignal, setFitSignal] = useState(0);
   const [varDisplay, setVarDisplay] = useState<VarDisplay>(loadVarDisplay);
@@ -150,12 +156,8 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     setFocus((f) => ({ id: null, seq: f.seq }));
     setMenu(null);
     setEditingCond(null);
-    setSpaceTool(false);
+    setTool(defaultTool(modeRef.current));
   }, [setId]);
-  // 편집 모드를 떠나면 [공간] 토글을 끈다(돌아와도 꺼진 채).
-  useEffect(() => {
-    if (!editing) setSpaceTool(false);
-  }, [editing]);
 
   // 편집으로 없어진 노드·메모·그룹·선의 선택은 푼다(속성 패널이 없는 노드를 읽지 않게).
   useEffect(() => {
@@ -183,6 +185,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
       setVarDisplay(varsBeforeDebug.current);
       setBottomTab(FIRST_TAB.other);
     }
+    setTool(defaultTool(mode)); // 도구는 모드마다 기본으로(4단계 P1)
     setMenu(null);
     setEditingCond(null);
   }, [mode]);
@@ -388,10 +391,6 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   const canvasHostRef = useRef<HTMLDivElement>(null);
   const focusCanvas = useCallback(() => canvasHostRef.current?.querySelector<HTMLElement>(".rsf-canvas")?.focus({ preventScroll: true }), []);
   /**
-   * [공간] 토글 — 켜고 끌 때 모두 초점을 캔버스로 옮긴다. 단추에 초점이 남으면 Esc 가 캔버스 디스패처에 닿지 않고(브라우저 확인 8번과 같은 까닭),
-   * 스페이스+끌기(화면 이동)의 스페이스가 단추를 다시 누른다(S1 리뷰 Important 2).
-   */
-  /**
    * 단축키로 편집한 뒤 — 초점을 가진 요소(누른 선·노드)가 지워지면 초점이 문서(body)로 빠져 다음 단축키(Ctrl+Z 등)가 캔버스에 닿지 않는다.
    * 다시 그린 뒤 초점이 body·없음·떨어져 나간 요소면 캔버스로 돌린다(U3, 도움말 Esc·메뉴 닫힘과 같은 규칙). 초점이 다른 곳(입력 칸 등)에 있으면 두지 않는다.
    */
@@ -401,17 +400,29 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
       if (!a || a === document.body || !a.isConnected) focusCanvas();
     }, 0);
   }, [focusCanvas]);
-  const onToggleSpaceTool = useCallback(() => {
-    setSpaceTool((on) => !on);
-    focusCanvas();
-  }, [focusCanvas]);
+  /**
+   * 도구 고르기(4단계 P1) — [공간] 을 다시 누르면 영역 선택으로 돌아간다. 고른 뒤 초점을 캔버스로 옮긴다
+   * (단추에 초점이 남으면 Esc 가 캔버스 디스패처에 닿지 않고 스페이스+끌기의 스페이스가 단추를 다시 누른다 — S1 리뷰 Important 2).
+   */
+  const onTool = useCallback(
+    (t: CanvasTool) => {
+      setTool((cur) => (t === "space" && cur === "space" ? "select" : t));
+      focusCanvas();
+    },
+    [focusCanvas],
+  );
+  /** 캔버스가 공간 넓히기를 한 번 끝내면 false 로 부른다 — 영역 선택으로 돌아간다. */
+  const onSpaceToolChange = useCallback((on: boolean) => {
+    if (!on) setTool("select");
+  }, []);
   /** 캔버스가 "React Flow 선택(노드·선·메모·그룹 selected) 비우기" 를 채우는 ref — Esc 가 부른다(내장 키 처리를 껐으므로). */
   const clearCanvasSelectionRef = useRef<(() => void) | null>(null);
   const onEscape = () => {
     const menuWasOpen = menuOpenRef.current; // 메뉴가 열려 있었으면 메뉴만 닫는다
-    // [공간] 토글이 켜져 있으면 끄기만 한다(선택은 그대로 — 메뉴 규칙과 같다). 메뉴가 열려 있으면 메뉴가 먼저다.
-    if (!menuWasOpen && spaceOn) {
-      setSpaceTool(false);
+    // 기본 도구가 아니면(편집 [손]·[공간], 보기·디버그 [영역 선택]) 기본 도구로만 돌린다(선택은 그대로 — 메뉴 규칙과 같다). 메뉴가 열려 있으면 메뉴가 먼저다.
+    const home = defaultTool(mode);
+    if (!menuWasOpen && tool !== home) {
+      setTool(home);
       return;
     }
     editActions.escape();
@@ -579,27 +590,15 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
               find={find}
               findInputRef={findInputRef}
               onHelpEscape={focusCanvas}
-              spaceTool={spaceOn}
-              onToggleSpaceTool={onToggleSpaceTool}
             />
             {debugging && <DebugToolbar sim={sim} canRun={canRun} selectedId={isFlowNode ? selectedId : null} />}
             <ContentBody root direction="column" resizable storageKey={STORAGE_KEY}>
               <ContentBody key="main" resizable storageKey={`${STORAGE_KEY}.main`} flex="1 1 0" minSize={200}>
-                <ContentPanel key="left" width={280} minSize={200}>
-                  {debugging ? (
+                {debugging && (
+                  <ContentPanel key="left" width={280} minSize={200}>
                     <DebugInputs sim={sim} tests={tests} setId={setId} canEditCases={canEdit} canRun={canRun} onError={state.reportError} />
-                  ) : (
-                    <RulePanel
-                      mode={mode}
-                      loading={state.loading}
-                      selectedEdgeId={selectedEdgeId}
-                      onPick={editActions.pickPalette}
-                      onRules={onRules}
-                      onInsertRule={onInsertRule}
-                      onError={state.reportError}
-                    />
-                  )}
-                </ContentPanel>
+                  </ContentPanel>
+                )}
                 <ContentPanel key="canvas" flex="1 1 0" minSize={320}>
                   <div className="rsf-body">
                     <div ref={canvasHostRef} className="rsf-canvas-host" onKeyDown={onCanvasKeyDown}>
@@ -644,10 +643,12 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         onEditCondClose={onEditCondClose}
                         onToggleBreakpoint={sim.toggleBreakpoint}
                         onSelectionChange={setMultiSel}
+                        dragTool={tool === "hand" ? "hand" : "select"}
                         spaceTool={spaceOn}
-                        onSpaceToolChange={setSpaceTool}
+                        onSpaceToolChange={onSpaceToolChange}
                         onShiftSpace={onShiftSpace}
                       />
+                      <FlowToolbox mode={mode} tool={tool} onTool={onTool} onPick={editActions.pickPalette} disabled={state.loading} />
                       <ContextMenu items={menuItems} at={menu?.at ?? null} onClose={onCloseMenu} />
                     </div>
                   </div>
@@ -692,6 +693,14 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                             onError={state.reportError}
                           />
                         )}
+                        {/* 룰 목록 — 임시 자리(4단계 Task 7). Task 8 이 오른쪽 섹션 패널의 「룰 목록」/「룰 지정」 섹션으로 바꾼다. */}
+                        <RulePanel
+                          mode={mode}
+                          selectedEdgeId={selectedEdgeId}
+                          onRules={onRules}
+                          onInsertRule={onInsertRule}
+                          onError={state.reportError}
+                        />
                       </>
                     )}
                   </div>

@@ -32,4 +32,5 @@ export const DRAG_CSS = `
 .rsf-rule-row-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--font-size-sm); overflow: hidden; text-overflow: ellipsis; }
 .rsf-rule-row-name { grid-column: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-size-sm); color: var(--color-text-muted); }
 .rsf-rule-row-kind { grid-row: 1; grid-column: 2; font-size: var(--font-size-sm); color: var(--color-text-muted); }
+.rsf-props > .rsf-rule-panel { border-top: 1px solid var(--color-border-light); }
 `;

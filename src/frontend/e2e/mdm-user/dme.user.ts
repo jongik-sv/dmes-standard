@@ -1831,6 +1831,11 @@ test.describe("C 룰 세트", () => {
     // 디버그 모드의 실행 단추·케이스. 마지막은 보기 모드·검사 탭으로 돌려 둔다.
     await tid(page, "flow-mode-edit").click();
     await expect(tid(page, "flow-palette")).toBeVisible();
+    // 도구 상자 [공간] 켜기·끄기(끄면 기본 도구 [영역 선택] 으로 돌아온다).
+    await tid(page, "flow-space-tool").click();
+    await expect(tid(page, "flow-space-tool")).toHaveAttribute("aria-pressed", "true");
+    await tid(page, "flow-space-tool").click();
+    await expect(tid(page, "flow-tool-select")).toHaveAttribute("aria-pressed", "true");
     // 편집 모드 — 선의 [+] 로 IF 를 넣고 되돌리기 → 다시 하기 → 되돌리기(저장한 흐름으로 돌아온다).
     const ifNodes = tid(page, "flow-canvas").locator('[data-kind="IF"]');
     // 선 [+] 는 올리거나 고른 선에만 보인다(L1) — 첫 선의 누름 영역에 mouseover 를 보낸 뒤 누른다.
@@ -1861,6 +1866,11 @@ test.describe("C 룰 세트", () => {
     await expect(tid(page, "flow-help-panel")).toBeVisible();
     await tid(page, "flow-help").click();
     await expect(tid(page, "flow-help-panel")).toHaveCount(0);
+    // 도구 상자 도구 — 보기 모드 기본은 [손]이므로 [영역 선택] 을 눌렀다가 [손] 으로 돌려 놓는다.
+    await tid(page, "flow-tool-select").click();
+    await expect(tid(page, "flow-tool-select")).toHaveAttribute("aria-pressed", "true");
+    await tid(page, "flow-tool-hand").click();
+    await expect(tid(page, "flow-tool-hand")).toHaveAttribute("aria-pressed", "true");
     await tid(page, "flow-rule-panel-toggle").click();
     await expect(tid(page, "flow-rule-panel-search")).toHaveCount(0);
     await tid(page, "flow-rule-panel-toggle").click();
