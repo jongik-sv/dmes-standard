@@ -173,6 +173,8 @@ public final class FlowTree {
 - 노드 ID 가 겹치면 b1·b2 개수 세기, c 의 노드 찾기, d~g 노드 순회, 존재 검사 목록은 모두 **그 ID 의 첫 노드만** 본다.
 - g5 의 대상은 g4 와 같다: IF 는 otherwise 가 아닌 선, PARALLEL 은 모든 선. order 가 null 인 선은 g5 에서 뺀다.
 - 흐름 스키마의 모든 속성은 `required` 이고 null 허용 칸은 `type: [..., "null"]` 이다(생성 TS 는 `ruleId: string | null` 모양). 코퍼스·저장 JSON 에서 빠진 선택 칸은 읽을 때 null(otherwise 는 false)로 채운다(C1 의 필수 칸 규칙 참고).
+- 공백 판정(e·g2·g3): Java `String.isBlank()` 의미다. 즉 모든 문자가 `Character.isWhitespace` 인 문자열(빈 문자열 포함)이다. TS 는 `trim()` 을 쓰지 않고 이 의미를 재현한다: `[\t\n\u000B\f\r\u001C-\u001F]` 이거나, `\p{Zs}|\p{Zl}|\p{Zp}` 이면서 `\u00A0`·`\u2007`·`\u202F` 가 아닌 문자만 공백이다. 코퍼스에 NBSP(`\u00A0`) 조건식 사례를 하나 둔다(Java·TS 모두 '공백 아님').
+- c 에서 걸린 선은 d 의 개수 계산뿐 아니라 g1~g5 의 대상에서도 뺀다.
 - 노드 순회 한 번에 a→(d1, d2, e, f1, f2, g1..g5)를 노드 단위로 섞지 않는다. 순서는 **a 전체 → b1 → b2 → c 전체 → 노드별 [d1, d2, e, f1] 전체 → 분기 노드별 [f2, g1, g2.., g3.., g4.., g5..] 전체**다. c 에서 걸린 선은 d 의 개수 계산에서 뺀다.
 
 **2단계 — 트리 만들기. 첫 오류에서 멈춘다(모두 FLOW_STRUCTURE).**
@@ -5435,7 +5437,9 @@ const IN_DEGREE: Record<FlowNodeKind, Degree> = { START: NONE, END: ONE, RULE: O
 const OUT_DEGREE: Record<FlowNodeKind, Degree> = { START: ONE, END: NONE, RULE: ONE, IF: MANY, PARALLEL: MANY, MERGE: ONE };
 
 const degreeText = (d: Degree) => (d.max === 0 ? "없어야 한다" : d.max === 1 ? "1개여야 한다" : "2개 이상이어야 한다");
-const blank = (s: string | null | undefined) => s == null || s.trim() === "";
+/** Java `String.isBlank()` 과 같은 판정(C3 공백 규칙). `trim()` 은 NBSP·BOM 을 공백으로 봐 Java 와 갈라진다. */
+const JAVA_WS = /^(?:[\t\n\u000B\f\r\u001C-\u001F]|(?![\u00A0\u2007\u202F])[\p{Zs}\p{Zl}\p{Zp}])*$/u;
+const blank = (s: string | null | undefined) => s == null || JAVA_WS.test(s);
 const orNull = <T>(v: T | null | undefined): T | null => (v === undefined ? null : v);
 const isSplit = (k: FlowNodeKind) => k === "IF" || k === "PARALLEL";
 const issue = (code: FlowIssueCode, nodeId: string | null, edgeId: string | null, message: string): FlowIssue => ({ code, nodeId, edgeId, message });
