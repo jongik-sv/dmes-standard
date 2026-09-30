@@ -7,8 +7,14 @@ package com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto;
 public class RuleSetCondIoRequest {
 
     private String flowJson;
+    /** 식 텍스트 — 있으면 흐름 IO 대신 식을 파싱한다(흐름도 3단계 P-D1, slot {@code RULE_COND_EXPR}). */
+    private String exprText;
 
     public String getFlowJson() { return flowJson; }
+
+    public String getExprText() { return exprText; }
+
+    public void setExprText(String v) { this.exprText = v; }
 
     public void setFlowJson(String v) { this.flowJson = v; }
 }

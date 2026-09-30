@@ -19,6 +19,8 @@ import com.dongkuk.dmes.mdm.common.rule.RuleSetGuide;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
+import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetCondIoRequest;
+import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetCondIoResult;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetEditSearchRequest;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetGuideResult;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetPickResult;
@@ -544,6 +546,27 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
         io.vars().forEach(v -> sources.put(v.name(), v.source()));
         assertEquals(Map.of("SET_THK", RuleIo.DICT, "NOPE_VAR", RuleIo.NONE), sources);
         assertNull(ioReader.condIo(flow).get("e3"), "otherwise 선은 넣지 않는다");
+    }
+
+    @Test
+    void condIo_는_exprText_면_식을_파싱하고_flowJson_만이면_expr_은_null() {
+        RuleSetCondIoRequest req = new RuleSetCondIoRequest();
+        req.setExprText("GT_THK > 10");
+        RuleSetCondIoResult r = service.condIo(req);
+        assertTrue(r.getExpr().isSupported());
+        assertEquals(List.of("GT_THK"), r.getExpr().getRefVars());
+        assertTrue(r.getCondIo().isEmpty());
+
+        RuleSetCondIoRequest bad = new RuleSetCondIoRequest();
+        bad.setExprText("GT_THK >");
+        BusinessException e = assertThrows(BusinessException.class, () -> service.condIo(bad));
+        assertTrue(e.getMessage().startsWith("식을 파싱할 수 없습니다"), e.getMessage());
+
+        RuleSetCondIoRequest flowOnly = new RuleSetCondIoRequest();
+        flowOnly.setFlowJson(IF_FLOW);
+        RuleSetCondIoResult flow = service.condIo(flowOnly);
+        assertNull(flow.getExpr());
+        assertTrue(flow.getCondIo().containsKey("e2"));
     }
 
     @Test

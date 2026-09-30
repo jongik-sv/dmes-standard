@@ -83,6 +83,18 @@ class DmeBpmnActionTest {
         assertActions("services/dme/ruleSetEdit.bpmn", "ruleSetEdit", "ruleSetEditService", methods, readOnly);
     }
 
+    /**
+     * 흐름도 3단계 P-D2 — 케이스 저장(save)·일괄 실행(execute)·식 파싱(validate)은 새 action 이 아니라 기존 동사다. 셋 다 EDIT 권한이고 READ 에는
+     * 없다(표준 관리자 같은 READ 역할의 403 은 BFF RBAC — e2e E9 가 본다).
+     */
+    @Test
+    void ruleSetEdit_의_save_execute_validate_는_EDIT_권한이고_READ_에_없다() {
+        for (String action : new String[] {"save", "execute", "validate"}) {
+            assertTrue(MdmPermissions.EDIT_ACTIONS.contains(action), action + " 은 EDIT 세트에 있어야 한다");
+            assertFalse(MdmPermissions.READ_ACTIONS.contains(action), action + " 은 READ 세트에 없어야 한다");
+        }
+    }
+
     private void assertActions(String path, String processId, String bean, Map<String, String> methodByAction, Map<String, Boolean> readOnly)
             throws Exception {
         Document doc = parse(path);

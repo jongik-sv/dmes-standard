@@ -21,6 +21,9 @@ import com.dongkuk.dmes.mdm.common.rule.RuleStewardCheck;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionException;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
+import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleExprParseRequest;
+import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleExprParseResult;
+import com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditService;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetCondIoRequest;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetCondIoResult;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetEditSearchRequest;
@@ -87,14 +90,16 @@ public class RuleSetEditService {
     private final RuleSetRunner runner;
     private final RuleSetTestCaseService caseService;
     private final RuleSetTestCaseQueries caseQueries;
+    private final RuleEditService ruleEditService;
     private final TransactionTemplate tx;
 
     public RuleSetEditService(MdmRuleSetRepository setRepository, RuleQueries queries, RuleIoReader ioReader,
                               RuleStewardCheck stewardCheck, RuleSetWrites writes, RuleSetRunner runner,
-                              RuleSetTestCaseService caseService, RuleSetTestCaseQueries caseQueries,
+                              RuleSetTestCaseService caseService, RuleSetTestCaseQueries caseQueries, RuleEditService ruleEditService,
                               PlatformTransactionManager transactionManager) {
         this.caseService = caseService;
         this.caseQueries = caseQueries;
+        this.ruleEditService = ruleEditService;
         this.setRepository = setRepository;
         this.queries = queries;
         this.ioReader = ioReader;
@@ -282,6 +287,15 @@ public class RuleSetEditService {
     // ────────────────────────────────────────────────────────────────
 
     public RuleSetCondIoResult condIo(RuleSetCondIoRequest request) {
+        String exprText = request == null ? null : blankToNull(request.getExprText());
+        if (exprText != null) {
+            // 식 텍스트 파싱(P-D1) — 룰 편집 화면의 parseExpr 와 같은 코드. 파싱 오류는 그 서비스의 INVALID_VALUE 그대로.
+            RuleExprParseRequest parse = new RuleExprParseRequest();
+            parse.setText(exprText);
+            parse.setSlot("RULE_COND_EXPR");
+            RuleExprParseResult parsed = ruleEditService.parseExpr(parse);
+            return new RuleSetCondIoResult(Map.of(), parsed);
+        }
         FlowDefinition flow = requestFlow(requireFlowJson(request == null ? null : request.getFlowJson()));
         return new RuleSetCondIoResult(ioReader.condIo(flow));
     }

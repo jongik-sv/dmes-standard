@@ -392,6 +392,63 @@ class DmeOasisHttpTest {
         assertTrue(validate.path("data").path("result").path("condIo").path("e3").path("ok").asBoolean(false), validate.toString());
     }
 
+    /**
+     * 흐름도 3단계 P7 — 케이스 저장(save part=CASE)·조회(view cases)·일괄 실행(execute runCases)·식 파싱(validate exprText)도 화면이 보낼 모양
+     * 그대로 params 에 문자열·스칼라만 싣는다(caseIds 는 콤마 문자열, inputJson·expectedJson 은 JSON 문자열, grids 없음).
+     */
+    @Test
+    void 케이스는_save_part_CASE_로_저장하고_view_에_실리며_execute_runCases_로_돈다() throws Exception {
+        RuleSetSimulateTest.seedGolden(jdbc);
+        JsonNode golden = RuleSetSimulateTest.readGolden().get("IF_FIRST_TRUE");
+        assertTrue(post("ruleSetMng", "reg", "kim", envelope("ruleSetMng",
+                json.createObjectNode().put("setId", "HTTP_CASE").put("setName", "케이스 세트"))).path("meta").path("success").asBoolean(false));
+
+        JsonNode save = post("ruleSetEdit", "save", "kim", envelope("ruleSetEdit", json.createObjectNode().put("part", "CASE")
+                .put("setId", "HTTP_CASE").put("caseName", "기본").put("inputJson", "{\"GT_THK\":\"12\"}")
+                .put("evalTs", "2026-06-01 09:00:00").put("expectedJson", "{\"GT_G\":\"A\",\"GT_F\":\"1\"}")));
+        assertTrue(save.path("meta").path("success").asBoolean(false), save.toString());
+        assertEquals(1, save.path("data").path("result").path("caseId").asInt(), save.toString());
+        assertEquals(0, save.path("data").path("result").path("rowVersion").asInt(), save.toString());
+
+        JsonNode view = post("ruleSetEdit", "view", "kim", envelope("ruleSetEdit", json.createObjectNode().put("setId", "HTTP_CASE")));
+        assertEquals("기본", view.path("data").path("result").path("cases").path(0).path("caseName").asText(), view.toString());
+
+        JsonNode exec = post("ruleSetEdit", "execute", "kim", envelope("ruleSetEdit", json.createObjectNode()
+                .put("setId", "HTTP_CASE").put("flowJson", golden.path("flowJson").asText()).put("runCases", true).put("caseIds", "1")));
+        assertTrue(exec.path("meta").path("success").asBoolean(false), exec.toString());
+        JsonNode result = exec.path("data").path("result");
+        assertTrue(result.path("cases").path(0).path("pass").asBoolean(false), exec.toString());
+        assertTrue(result.path("trace").isNull() || result.path("trace").isMissingNode(), exec.toString());
+
+        JsonNode validate = post("ruleSetEdit", "validate", "kim", envelope("ruleSetEdit",
+                json.createObjectNode().put("exprText", "GT_THK > 10")));
+        assertTrue(validate.path("meta").path("success").asBoolean(false), validate.toString());
+        assertTrue(validate.path("data").path("result").path("expr").path("supported").asBoolean(false), validate.toString());
+    }
+
+    /**
+     * P-D2 — 표준 관리자(MDM_STD_ADMIN)의 케이스 저장·삭제는 MDM013 이고 행이 그대로다. READ 역할의 execute·validate·save 403 은 BFF RBAC
+     * 몫이라 여기서 만들 수 없다 — e2e E9 가 본다(권한 세트 계약은 DmeBpmnActionTest).
+     */
+    @Test
+    void 표준_관리자는_케이스를_저장_삭제하지_못한다_MDM013() throws Exception {
+        DmeTestSupport.ruleSet(jdbc, "HTTP_CASE", "케이스 세트", "[]", "INUSE", 0);
+        jdbc.update("INSERT INTO TB_MDM_RULE_SET_TEST_CASE (MARU_RULE_SET_ID, CASE_ID, CASE_NAME, INPUT_JSON) VALUES ('HTTP_CASE', 1, '있던 것', '{}')");
+        String count = "SELECT COUNT(*) FROM TB_MDM_RULE_SET_TEST_CASE";
+
+        JsonNode add = post("ruleSetEdit", "save", "park", STD_ADMIN, envelope("ruleSetEdit", json.createObjectNode().put("part", "CASE")
+                .put("setId", "HTTP_CASE").put("caseName", "새것").put("inputJson", "{}")));
+        assertFalse(add.path("meta").path("success").asBoolean(true), add.toString());
+        assertTrue(add.path("meta").path("message").asText().startsWith(MdmErrorCode.STEWARD_ROLE_REQUIRED.defaultMessage()), add.toString());
+        assertEquals(1, DmeTestSupport.count(jdbc, count));
+
+        JsonNode del = post("ruleSetEdit", "save", "park", STD_ADMIN, envelope("ruleSetEdit", json.createObjectNode().put("part", "CASE")
+                .put("setId", "HTTP_CASE").put("caseId", 1).put("rowVersion", 0).put("caseDeleted", true)));
+        assertFalse(del.path("meta").path("success").asBoolean(true), del.toString());
+        assertTrue(del.path("meta").path("message").asText().startsWith(MdmErrorCode.STEWARD_ROLE_REQUIRED.defaultMessage()), del.toString());
+        assertEquals(1, DmeTestSupport.count(jdbc, count));
+    }
+
     /** TSK-08-06 I19 — 담당자 역할이 없는 사용자의 세트 등록·저장은 서버가 MDM013 으로 막는다(BFF RBAC 403 은 e2e 가 본다). */
     @Test
     void 담당자_역할이_없으면_룰_세트_등록과_저장이_MDM013_이다() throws Exception {
