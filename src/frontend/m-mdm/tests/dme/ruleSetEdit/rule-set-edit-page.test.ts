@@ -552,6 +552,21 @@ describe("RuleSetEditPage", () => {
     expect(q("flow-prop-set")).not.toBeNull();
   });
 
+  it("Esc — 노드를 눌러 고른 뒤 Esc 면 캔버스 선택(data-selected)·속성 패널이 비고 [그룹] 이 그 노드를 넣지 않는다", async () => {
+    await openChain();
+    await click("flow-mode-edit");
+    await click("flow-node-r1");
+    expect(byTestId("flow-node-r1").getAttribute("data-selected")).toBe("true");
+    await act(async () => {
+      byTestId("flow-canvas").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    });
+    await flush();
+    expect(byTestId("flow-node-r1").getAttribute("data-selected")).toBe("false");
+    expect(q("flow-prop-set")).not.toBeNull();
+    await click("flow-add-group");
+    expect(q("flow-prop-group-member-r1")).toBeNull();
+  });
+
   it("그룹 — 캔버스에서 노드를 더 고른 뒤 그룹을 누르면 [선택 노드 더하기] 로 넣는다", async () => {
     srv.replies.save = ok({ setId: "E2S_CHAIN", rowVersion: 4, checks: [] });
     await openChain();

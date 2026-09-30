@@ -134,6 +134,8 @@ export interface FlowCanvasProps {
   onRouteChange?: (edgeId: string, points: FlowPos[]) => void;
   /** 캔버스가 "고른 꺾는 점 빼기 — 뺐으면 true" 를 채우는 ref(page 의 delete 단축키가 먼저 부른다, C14). */
   removeRoutePointRef?: MutableRefObject<(() => boolean) | null>;
+  /** 캔버스가 "React Flow 선택 모두 비우기" 를 채우는 ref(page 의 Esc 가 부른다 — disableKeyboardA11y 로 내장 Esc 가 없다). */
+  clearSelectionRef?: MutableRefObject<(() => void) | null>;
   /** 우클릭·[+] — 대상과 화면 좌표(B7·A3). */
   onContextMenu: (target: MenuTarget, at: { x: number; y: number }) => void;
   /** 즉석 조건식 Enter(B10 — Task 7). */
@@ -444,7 +446,7 @@ function Inner(props: FlowCanvasProps) {
     flow, rules, checks, mode, showVars, selectedId, selectedEdgeId, overlay, focusId, focusSeq, focusReveal, fitSignal, fitKey,
     breakpoints, collapsed, valueAt, showMiniMap, editingCondEdgeId,
     onSelect, onSelectEdge, onOpenRule, onMove, onMoveNode, onConnect, onDropPalette, onDropRule, onNoteChange, onContextMenu, onToggleBreakpoint,
-    onEditCond, onRouteChange, removeRoutePointRef, onEditCondClose, onSelectionChange,
+    onEditCond, onRouteChange, removeRoutePointRef, clearSelectionRef, onEditCondClose, onSelectionChange,
   } = props;
   const editable = mode === "edit";
   const debugging = mode === "debug";
@@ -857,6 +859,14 @@ function Inner(props: FlowCanvasProps) {
       removeRoutePointRef.current = null;
     };
   }, [removeRoutePointRef, editable, routeApi, routeStore]);
+
+  useEffect(() => {
+    if (!clearSelectionRef) return;
+    clearSelectionRef.current = () => setRfSel((cur) => (cur.size === 0 ? cur : new Set()));
+    return () => {
+      clearSelectionRef.current = null;
+    };
+  }, [clearSelectionRef]);
 
   const carries = (e: DragEvent<HTMLDivElement>) => {
     const types = Array.from(e.dataTransfer?.types ?? []);

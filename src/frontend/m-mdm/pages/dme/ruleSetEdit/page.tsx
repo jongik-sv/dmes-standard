@@ -312,9 +312,16 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   /** 고른 것이 흐름 노드인가(메모·그룹 아님) — 복사·중단점 단축키와 디버그 툴바 [여기까지] 가 쓴다. */
   const isFlowNode = !!flow && !!selectedId && flow.nodes.some((n) => n.id === selectedId);
   const removeRoutePointRef = useRef<(() => boolean) | null>(null);
+  /** 캔버스가 "React Flow 선택(노드·선·메모·그룹 selected) 비우기" 를 채우는 ref — Esc 가 부른다(내장 키 처리를 껐으므로). */
+  const clearCanvasSelectionRef = useRef<(() => void) | null>(null);
+  const onEscape = () => {
+    const menuWasOpen = menuOpenRef.current; // 메뉴가 열려 있었으면 메뉴만 닫는다
+    editActions.escape();
+    if (!menuWasOpen) clearCanvasSelectionRef.current?.();
+  };
   const onCanvasKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const focusFind = findInputRef.current ? () => findInputRef.current?.focus() : undefined;
-    const common: ShortcutHandlers = { escape: editActions.escape, find: focusFind };
+    const common: ShortcutHandlers = { escape: onEscape, find: focusFind };
     let handlers: ShortcutHandlers = common;
     if (editing) {
       handlers = {
@@ -502,6 +509,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         onMove={onMove}
                         onRouteChange={onRouteChange}
                         removeRoutePointRef={removeRoutePointRef}
+                        clearSelectionRef={clearCanvasSelectionRef}
                         onMoveNode={onMoveNode}
                         onConnect={onConnect}
                         onDropPalette={editActions.dropPalette}
