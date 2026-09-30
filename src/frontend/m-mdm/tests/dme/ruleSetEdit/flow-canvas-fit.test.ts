@@ -109,4 +109,27 @@ describe("FlowCanvas 화면 맞춤", () => {
     expect(fitted).not.toBe(before);
     expect(fitted).toBe(await freshFit(props({ flow: moved, selectedId: "r1" })));
   });
+
+  it("fitKey(세트 ID)가 바뀌면 새 흐름을 그린 뒤 화면을 맞춘다 — 이전 세트의 확대·이동이 남지 않는다", async () => {
+    const a = ifFlow();
+    const b = spread(toEditFlow(null, ["R_A", "R_B", "R_C", "R_D"])); // start·r1·end 는 A 와 ID 가 겹친다
+    await draw(props({ flow: a, fitKey: "SET_A" }));
+    await settle();
+    const before = viewport();
+    await draw(props({ flow: b, fitKey: "SET_B" }));
+    await settle();
+    const after = viewport();
+    expect(after).not.toBe(before);
+    expect(after).toBe(await freshFit(props({ flow: b, fitKey: "SET_B" })));
+  });
+
+  it("같은 fitKey 로 흐름만 바뀌면(편집·저장) 화면을 다시 맞추지 않는다", async () => {
+    const a = ifFlow();
+    await draw(props({ flow: a, fitKey: "SET_A" }));
+    await settle();
+    const before = viewport();
+    await draw(props({ flow: spread(a), fitKey: "SET_A" }));
+    await settle();
+    expect(viewport()).toBe(before);
+  });
 });

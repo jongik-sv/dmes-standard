@@ -353,6 +353,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         focusId={focus.id}
                         focusSeq={focus.seq}
                         fitSignal={fitSignal}
+                        fitKey={setId}
                         onSelect={select}
                         onSelectEdge={selectEdge}
                         onOpenRule={openRule}

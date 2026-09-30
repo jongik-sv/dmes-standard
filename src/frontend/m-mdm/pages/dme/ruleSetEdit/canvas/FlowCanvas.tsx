@@ -66,6 +66,11 @@ export interface FlowCanvasProps {
   /** 값이 바뀔 때마다 화면 맞춤(선택 추가 — 툴바의 [화면 맞춤]). */
   fitSignal?: number;
   /**
+   * 흐름의 주인(세트 ID). 바뀌면 새 흐름을 그린 뒤 곧바로(애니메이션 없이) 화면을 맞춘다 — 이전 세트의 확대·이동이 남지 않게.
+   * 같은 값으로 흐름만 바뀌면(편집·저장·같은 세트 다시 열기) 맞추지 않는다.
+   */
+  fitKey?: string | null;
+  /**
    * React Flow 다중 선택이 바뀌면 고른 흐름 노드 ID(메모·그룹 제외)를 올린다. 선택이 모두 풀리면 빈 목록이다.
    * 메모·그룹만 고른 경우는 올리지 않는다 — 노드를 여러 개 고른 뒤 그룹 제목을 눌러 [선택 노드 더하기] 를 쓸 수 있게 한다.
    */
@@ -150,7 +155,7 @@ function isTyping(t: EventTarget | null): boolean {
 
 function Inner(props: FlowCanvasProps) {
   const {
-    flow, rules, checks, mode, showVars, selectedId, selectedEdgeId, overlay, focusId, focusSeq, fitSignal,
+    flow, rules, checks, mode, showVars, selectedId, selectedEdgeId, overlay, focusId, focusSeq, fitSignal, fitKey,
     onSelect, onSelectEdge, onOpenRule, onMove, onConnect, onDeleteEdge, onDropPalette, onNoteChange, onSelectionChange,
   } = props;
   const editable = mode === "edit";
@@ -319,14 +324,15 @@ function Inner(props: FlowCanvasProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusSeq, focusId]);
 
-  const firstFit = useRef(true);
+  // 처음 그릴 때는 ReactFlow 의 fitView 가 맞춘다. 그 뒤 [화면 맞춤](fitSignal)·세트 바꿈(fitKey)마다 맞춘다.
+  // rf.fitView 는 노드를 다 잴 때까지 기다렸다 맞추므로 새 세트의 노드를 그리기 전에 불러도 된다.
+  const lastFit = useRef({ signal: fitSignal, key: fitKey });
   useEffect(() => {
-    if (firstFit.current) {
-      firstFit.current = false;
-      return;
-    }
-    void rf.fitView({ ...FIT_OPTIONS, duration: 200 });
-  }, [fitSignal, rf]);
+    const last = lastFit.current;
+    if (last.signal === fitSignal && last.key === fitKey) return;
+    lastFit.current = { signal: fitSignal, key: fitKey };
+    void rf.fitView({ ...FIT_OPTIONS, duration: last.key === fitKey ? 200 : 0 });
+  }, [fitSignal, fitKey, rf]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (!editable || !selectedEdgeId || isTyping(e.target)) return;
