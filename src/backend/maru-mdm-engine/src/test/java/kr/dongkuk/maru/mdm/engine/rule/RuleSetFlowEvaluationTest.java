@@ -41,7 +41,8 @@ class RuleSetFlowEvaluationTest {
     private final InMemoryDefinitionLookup lookup = FlowRules.lookup(
             calc("R_A", "A", "X + 1", "X"), calc("R_B", "B", "X + 2", "X"), calc("R_C", "C", "X + 3", "X"),
             calc("R_A10", "A", "X + 10", "X"), calc("R_SUM", "S", "A + B", "A", "B"), calc("R_BA", "B", "A + 1", "A"),
-            calc("R_Y", "YY", "Y + 1", "Y"), calc("R_D", "D", "A + 1", "A"), calc("R_ERR", "E", "X / 0", "X"), calc("R_X0", "Z0", "X * 0", "X"));
+            calc("R_Y", "YY", "Y + 1", "Y"), calc("R_D", "D", "A + 1", "A"), calc("R_ERR", "E", "X / 0", "X"), calc("R_X0", "Z0", "X * 0", "X"),
+            calc("R_K", "K", "1"));
     private final MdmRuleEngine engine = new MdmRuleEngine(MdmEvaluatorFixtures.of(TestExpressionConfig.create()), lookup);
 
     private RuleSetResult run(FlowDefinition f, Map<String, Object> record) {
@@ -168,6 +169,18 @@ class RuleSetFlowEvaluationTest {
         RuleSetResult r2 = run(afterRule, rec("X", "9"));
         assertEquals("bo", r1.path().stream().filter(p -> p.kind() == NodeKind.IF).findFirst().orElseThrow().chosenEdgeId());
         assertEquals("bo", r2.path().stream().filter(p -> p.kind() == NodeKind.IF).findFirst().orElseThrow().chosenEdgeId());
+    }
+
+    @Test
+    void 조건식_변수와_선언의_대소문자가_달라도_선언_타입으로_바꾼다() {
+        // EvalEx 변수 조회는 대소문자를 가리지 않는다. 선언은 X(R_A, NUMBER), 조건식·레코드는 x.
+        // 바꾸지 않으면 "9" > 10 이 문자열 비교로 참이 되어 b1(R_A, X 필요)로 들어가 MISSING_KEY X 로 멈춘다.
+        FlowDefinition f = flow(List.of(start(), ifNode("if1"), rule("a", "R_A"), rule("k", "R_K"), merge("m1", "if1"), end()),
+                List.of(e("e0", "start", "if1"), br("b1", "if1", "a", 1, "x > 10"), other("bo", "if1", "k"),
+                        e("ea", "a", "m1"), e("ek", "k", "m1"), e("ee", "m1", "end")));
+        RuleSetResult r = run(f, rec("x", "9"));
+        assertEquals("bo", r.path().get(1).chosenEdgeId());
+        assertEquals(List.of("R_K"), r.steps().stream().map(RuleResult::ruleId).toList());
     }
 
     @Test

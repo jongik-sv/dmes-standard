@@ -8,6 +8,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Code;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Stage;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Violation;
@@ -39,8 +40,11 @@ final class FlowKeys {
     private final Map<String, RuleDefinition> defs;
     private final MdmEvaluator expressions;
     private final Map<String, List<String>> deferred = new HashMap<>();
-    /** 세트 안 룰이 선언한 변수 타입 — 이름마다 처음 선언한 타입(룰은 defs 순서, 룰 안은 always·행 required·optional·결과). */
-    private final Map<String, DataType> declared = new HashMap<>();
+    /**
+     * 세트 안 룰이 선언한 변수 타입 — 이름마다 처음 선언한 타입(룰은 defs 순서, 룰 안은 always·행 required·optional·결과).
+     * 이름은 대소문자를 가리지 않는다(EvalEx 변수 조회와 같다).
+     */
+    private final Map<String, DataType> declared = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
 
     FlowKeys(Map<String, RuleDefinition> defs, MdmEvaluator expressions) {
         this.defs = defs;
@@ -51,7 +55,8 @@ final class FlowKeys {
     }
 
     /**
-     * IF 조건식이 쓰는 변수 가운데 세트 안 룰이 타입을 선언한 것(식에 나온 순서). 조건식은 이 타입으로 바꾼 값으로 평가한다
+     * IF 조건식이 쓰는 변수 가운데 세트 안 룰이 타입을 선언한 것(이름 대소문자 무시 알파벳 순 — {@code MdmEvaluator.usedVariables}
+     * 순서, 키는 조건식에 쓴 표기). 선언과는 대소문자를 가리지 않고 맞춘다. 조건식은 이 타입으로 바꾼 값으로 평가한다
      * (의사결정표 열 조건과 같은 규칙, spec §4). 선언이 없는 변수는 레코드 값 그대로다.
      */
     Map<String, DataType> condTypes(String cond) {

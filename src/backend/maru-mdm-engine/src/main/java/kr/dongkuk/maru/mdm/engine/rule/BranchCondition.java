@@ -32,17 +32,18 @@ final class BranchCondition {
     }
 
     /**
-     * @param types 조건식 변수의 선언 타입({@link FlowKeys#condTypes}). 없는 변수는 ctx 값 그대로
+     * @param types 조건식 변수의 선언 타입({@link FlowKeys#condTypes}). ctx 키와는 대소문자를 가리지 않고 맞춘다. 없는 변수는 ctx 값 그대로
      */
     static BranchCondition test(ExpressionRunner runner, String text, Map<String, Object> ctx, Map<String, DataType> types,
             Instant evalTs) {
         Map<String, Object> values = new LinkedHashMap<>(ctx);
         for (Map.Entry<String, DataType> t : types.entrySet()) {
-            if (!values.containsKey(t.getKey())) {
+            String key = keyIgnoringCase(values, t.getKey());
+            if (key == null) {
                 continue;
             }
             try {
-                values.put(t.getKey(), ValueConverter.toDeclared(values.get(t.getKey()), t.getValue()));
+                values.put(key, ValueConverter.toDeclared(values.get(key), t.getValue()));
             } catch (IllegalArgumentException e) {
                 return new BranchCondition(ERROR, "식 '" + text + "' 변수 " + t.getKey() + " 타입 변환 오류: " + e.getMessage());
             }
@@ -61,5 +62,21 @@ final class BranchCondition {
             return new BranchCondition(ERROR, "식 '" + text + "' 결과가 불린이 아니다: " + v.getDataType());
         }
         return new BranchCondition(v.getBooleanValue() ? TRUE : FALSE, null);
+    }
+
+    /**
+     * 값 맵에서 대소문자를 무시하고 같은 이름의 키(EvalEx 변수 조회와 같은 규칙). 바꾼 값은 이 키 자리에 다시 넣어 대소문자만 다른
+     * 키가 둘 생기지 않게 한다 — ctx 에는 대소문자만 다른 키가 둘 이상 없다({@link RecordKeys}).
+     */
+    private static String keyIgnoringCase(Map<String, Object> values, String name) {
+        if (values.containsKey(name)) {
+            return name;
+        }
+        for (String k : values.keySet()) {
+            if (k.equalsIgnoreCase(name)) {
+                return k;
+            }
+        }
+        return null;
     }
 }
