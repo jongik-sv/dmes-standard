@@ -44,16 +44,22 @@ export function variablesAt(trace: RunTrace, flow: RuleSetFlow, cursor: number):
   const fr = n > 0 ? frames(trace, flow) : [];
   const ctx = n === 0 ? trace.input : k < n ? fr[k].before : fr[n - 1].ctx;
   // created·changed 는 바로 앞 노드가 바꾼 이름 가운데 — 그 노드 실행 전 ctx 에 없었으면 created, 있었으면 changed.
+  // 앞 노드가 다른 병렬 갈래에 있으면(둘째 갈래 첫 노드·합류 전) 그 노드가 바꾼 값은 지금 범위에 없으므로, 지금 값이 앞 노드 실행 뒤 값과 같을 때만 표시한다.
   const prevFrame = n === 0 || k === 0 ? null : fr[Math.min(k, n) - 1];
-  const touched = new Map<string, boolean>();
+  const touched = new Map<string, { existed: boolean; after: TypedValue | undefined }>();
   if (prevFrame) {
     const had = new Set(Object.keys(prevFrame.before).map((x) => x.toLowerCase()));
-    for (const name of prevFrame.changed) touched.set(name.toLowerCase(), had.has(name.toLowerCase()));
+    const afterOf = (name: string) => Object.entries(prevFrame.ctx).find(([key]) => key.toLowerCase() === name)?.[1];
+    for (const name of prevFrame.changed) {
+      const lower = name.toLowerCase();
+      touched.set(lower, { existed: had.has(lower), after: afterOf(lower) });
+    }
   }
   return Object.entries(ctx)
     .map(([name, value]) => {
-      const existed = touched.get(name.toLowerCase());
-      return { name, value, created: existed === false, changed: existed === true };
+      const t = touched.get(name.toLowerCase());
+      const mine = !!t && sameTyped(t.after, value);
+      return { name, value, created: mine && !t.existed, changed: mine && t.existed };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 }

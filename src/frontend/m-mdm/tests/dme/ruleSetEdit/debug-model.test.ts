@@ -84,6 +84,24 @@ describe("variablesAt — 병렬 갈래 범위를 지킨다(2단계 Review Focus
     expect(vars.find((v) => v.name === "GT_THK")).toMatchObject({ created: false, changed: false });
   });
 
+  it("앞 노드가 다른 병렬 갈래에 있으면 그 노드가 바꾼 이름을 지금 범위에 표시하지 않는다", () => {
+    const { flow, trace: base } = golden("PARALLEL_MERGE");
+    const trace = structuredClone(base);
+    const rs1 = trace.nodes.find((n) => n.nodeId === "rs1")!;
+    rs1.result!.results = { GT_G: { type: "STRING", value: "B" } }; // 첫 갈래 끝 노드가 분기 전 이름을 덮는다
+    const k = trace.nodes.findIndex((n) => n.nodeId === "r3"); // 둘째 갈래 첫 노드(바로 앞 = rs1)
+    expect(variablesAt(trace, flow, k).find((v) => v.name === "GT_G")).toEqual({
+      name: "GT_G", value: { type: "STRING", value: "A" }, created: false, changed: false,
+    });
+    // 같은 갈래 안이면 changed — 첫 갈래 r2 가 GT_G 를 덮고 커서가 rs1(r2 바로 뒤, 같은 갈래)
+    const same = structuredClone(base);
+    same.nodes.find((n) => n.nodeId === "r2")!.result!.results = { GT_G: { type: "STRING", value: "B" } };
+    const atRs1 = same.nodes.findIndex((n) => n.nodeId === "rs1");
+    expect(variablesAt(same, flow, atRs1).find((v) => v.name === "GT_G")).toEqual({
+      name: "GT_G", value: { type: "STRING", value: "B" }, created: false, changed: true,
+    });
+  });
+
   it("k = n 이면 마지막 노드 뒤 ctx, 기록이 비면 입력", () => {
     const { flow, trace } = golden("IF_FIRST_TRUE");
     const atEnd = variablesAt(trace, flow, trace.nodes.length);

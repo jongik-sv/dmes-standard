@@ -204,8 +204,8 @@ describe("useSimulation — 낡은 기록·이전 실행(P-D9)", () => {
     const old = h.current.last;
     await rerender({ flowVersion: 2 });
     expect(h.current.stale).toBe(true);
-    expect(h.current.result).toBeNull();
-    expect(h.current.clearedByEdit).toBe(true);
+    expect(h.current.result).toBeNull(); // 옛 멤버 — Task 12
+    expect(h.current.clearedByEdit).toBe(true); // 옛 멤버 — Task 12
     expect(h.current.last).toBe(old);
     expect(h.current.cursor).toBe(1);
     expect(h.current.variables.length).toBeGreaterThan(0); // 낡아도 옛 기록 기준
@@ -217,8 +217,8 @@ describe("useSimulation — 낡은 기록·이전 실행(P-D9)", () => {
     expect(h.current.last?.trace).toBe(B.trace);
     expect(h.current.last?.flowVersion).toBe(2);
     expect(h.current.stale).toBe(false);
-    expect(h.current.clearedByEdit).toBe(false);
-    expect(h.current.result).toBe(h.current.last);
+    expect(h.current.clearedByEdit).toBe(false); // 옛 멤버 — Task 12
+    expect(h.current.result).toBe(h.current.last); // 옛 멤버 — Task 12
   });
 
   it("5-1. 낡은 기록에서 [처음부터]·[끝내기]·[계속]·[여기까지] 도 새로 실행한다", async () => {
@@ -435,7 +435,10 @@ describe("useSimulation — 입력(P-D9)", () => {
     });
     expect(h.current.cursor).toBe(2);
   });
+});
 
+// 옛 멤버(2단계 시뮬레이션 탭 전용) — Task 12 가 옛 멤버를 지울 때 이 describe 를 통째로 지운다.
+describe("useSimulation — 옛 멤버(Task 12 가 지운다)", () => {
   it("옛 멤버 run() — 새 실행 뒤 커서는 끝, 옛 step 은 마지막 노드. clear() 는 기록을 지운다", async () => {
     await mount();
     await run((s) => s.run());
