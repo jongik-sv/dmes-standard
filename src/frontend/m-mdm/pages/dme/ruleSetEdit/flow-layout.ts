@@ -6,7 +6,7 @@ import dagre from "@dagrejs/dagre";
 
 import type { FlowNodeKind, RuleSetFlow } from "@/contract/engine-contract.generated";
 
-import type { EditFlow, FlowPos } from "./flow-edit";
+import { clearRoutes, setPositions, type EditFlow, type FlowPos } from "./flow-edit";
 
 export const NODE_SIZE: Readonly<Record<FlowNodeKind, { w: number; h: number }>> = {
   START: { w: 120, h: 36 },
@@ -38,4 +38,9 @@ export function autoLayout(f: RuleSetFlow): Record<string, FlowPos> {
 
 export function positionsOf(f: EditFlow): Record<string, FlowPos> {
   return { ...autoLayout(f), ...(f.view?.positions ?? {}) };
+}
+
+/** [자동 정렬] — 모든 노드 위치를 자동 배치로 덮고 선 경로(C14)를 함께 지운다. 한 번의 편집(이력 한 칸)이다. */
+export function autoArrange(f: EditFlow): EditFlow {
+  return clearRoutes(setPositions(f, autoLayout(f)));
 }

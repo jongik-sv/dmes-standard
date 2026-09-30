@@ -42,8 +42,8 @@ import { useSimulation } from "./debugger/useSimulation";
 import { useTestCases } from "./debugger/useTestCases";
 import { ValuesTab } from "./debugger/ValuesTab";
 import { VariablePanel } from "./debugger/VariablePanel";
-import { connect, flowJsonOf, setPositions, updateEdge, updateNote, type EditFlow, type EditResult, type FlowNote, type FlowPos } from "./flow-edit";
-import { autoLayout } from "./flow-layout";
+import { connect, flowJsonOf, setPositions, setRoute, updateEdge, updateNote, type EditFlow, type EditResult, type FlowNote, type FlowPos } from "./flow-edit";
+import { autoArrange } from "./flow-layout";
 import { openRule } from "./links";
 import { BottomPanel, type BottomTab } from "./panels/BottomPanel";
 import { ChecksPanel } from "./panels/ChecksPanel";
@@ -239,6 +239,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   );
 
   const onMove = useCallback((pos: Record<string, FlowPos>) => editing && edit((f) => setPositions(f, pos)), [editing, edit]);
+  const onRouteChange = useCallback((edgeId: string, points: FlowPos[]) => editing && edit((f) => setRoute(f, edgeId, points)), [editing, edit]);
   const onMoveNode = useCallback(
     (nodeId: string, edgeId: string, pos: Record<string, FlowPos>) => {
       if (editing) drag.moveNodeTo(nodeId, edgeId, pos);
@@ -269,7 +270,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     [editing, edit],
   );
   const onEditCondClose = useCallback(() => setEditingCond(null), []);
-  const onAutoLayout = useCallback(() => edit((f) => setPositions(f, autoLayout(f))), [edit]);
+  const onAutoLayout = useCallback(() => edit((f) => autoArrange(f)), [edit]);
   const onContextMenu = useCallback((target: MenuTarget, at: { x: number; y: number }) => setMenu({ target, at }), []);
   const onToggleMiniMap = useCallback(() => {
     const next = !showMiniMap;
@@ -520,6 +521,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         onSelectEdge={selectEdge}
                         onOpenRule={openRule}
                         onMove={onMove}
+                        onRouteChange={onRouteChange}
                         onMoveNode={onMoveNode}
                         onConnect={onConnect}
                         onDropPalette={editActions.dropPalette}

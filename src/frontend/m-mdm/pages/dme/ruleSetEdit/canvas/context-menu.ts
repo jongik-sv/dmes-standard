@@ -38,6 +38,8 @@ export interface CanvasActions {
   insertSplitAt(edgeId: string, kind: "IF" | "PARALLEL"): void;
   removeNode(nodeId: string): void;
   removeEdge(edgeId: string): void;
+  /** 선 경로(꺾는 점) 초기화(C14). */
+  resetRoute(edgeId: string): void;
   addBranch(splitId: string): void;
   /** 즉석 조건식 칸 열기. */
   editCond(edgeId: string): void;

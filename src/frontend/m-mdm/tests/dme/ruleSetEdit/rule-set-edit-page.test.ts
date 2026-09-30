@@ -306,7 +306,7 @@ describe("RuleSetEditPage", () => {
     const kinds = flow.nodes.map((n) => n.kind);
     expect(kinds).toContain("IF");
     expect(kinds).toContain("MERGE");
-    expect(flow.view).toEqual({ positions: {}, notes: [], groups: [] });
+    expect(flow.view).toEqual({ positions: {}, notes: [], groups: [], routes: {} });
     expect(calls("view")).toHaveLength(2);
     const msg = visibleText(byTestId("set-message"));
     expect(msg).toContain("저장 · row_version 4");

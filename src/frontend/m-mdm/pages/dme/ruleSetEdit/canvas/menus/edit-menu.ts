@@ -68,6 +68,7 @@ export const editMenu: MenuProvider = (t, ctx) => {
     if (t.via === "plus") return items;
     const from = flow.nodes.find((n) => n.id === e.from);
     if (from?.kind === "IF" && !e.otherwise) items.push({ id: "edit-cond", label: "조건 편집", run: () => act.editCond(id) });
+    if ((flow.view?.routes?.[id]?.length ?? 0) > 0) items.push({ id: "route-reset", label: "경로 초기화", run: () => act.resetRoute(id) });
     items.push({ id: "edge-delete", label: "선 삭제", danger: true, run: () => act.removeEdge(id) });
     return items;
   }
