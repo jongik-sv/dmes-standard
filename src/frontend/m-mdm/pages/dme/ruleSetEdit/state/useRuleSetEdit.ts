@@ -7,7 +7,7 @@
  * 흐름 편집은 서버를 부르지 않고 검사는 화면이 `flowChecks` 로 다시 한다(I21). 예외는 IF 조건식 — 조건식이 읽는 이름은 서버가 풀어야 하므로
  * "그 외" 가 아닌 IF 갈래의 (선 ID, 조건식) 목록이 바뀌면 400ms 뒤 `validate` 를 부르고, 요청 순번으로 늦게 온 응답을 버린다(Review Focus 5,
  * Local-Rules §11). 기다리는 동안 `condIoPending` 이 켜져 저장을 막는다(P10).
- * 쓰기가 성공하면 view 를 다시 불러 row_version·흐름을 서버 값으로 맞추고 결과 문구를 남긴다. 거부는 편집 중 흐름을 그대로 두고 서버 문구를 보이며,
+ * 쓰기가 성공하면 view 를 다시 불러 row_version·흐름을 서버 값(정규 흐름)으로 맞추고 결과 문구를 남긴다. 다시 불러오면 보기 모드다. 거부는 편집 중 흐름을 그대로 두고 서버 문구를 보이며,
  * MDM001 이면 충돌 안내와 다시 불러오기를 준다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -179,7 +179,7 @@ export function useRuleSetEdit(): RuleSetEditState {
   );
 
   const load = useCallback(
-    async (setId: string, keepMode: boolean): Promise<boolean> => {
+    async (setId: string): Promise<boolean> => {
       setLoading(true);
       try {
         const next = await viewSet(setId);
@@ -191,7 +191,7 @@ export function useRuleSetEdit(): RuleSetEditState {
         setCondIo(next.condIo ?? {});
         setSetName(next.set.setName ?? "");
         setDescription(next.set.description ?? "");
-        setModeState((m) => (keepMode && next.editable ? m : "view"));
+        setModeState("view");
         setConflict(false);
         editFailShown.current = false;
         return true;
@@ -214,7 +214,7 @@ export function useRuleSetEdit(): RuleSetEditState {
     async (setId: string) => {
       if (!confirmLeave()) return;
       setMessage(null);
-      await load(setId, false);
+      await load(setId);
     },
     [confirmLeave, load],
   );
@@ -223,7 +223,7 @@ export function useRuleSetEdit(): RuleSetEditState {
     const id = setIdRef.current;
     if (!id) return;
     setMessage(null);
-    await load(id, false);
+    await load(id);
   }, [load]);
 
   const fail = useCallback((e: unknown) => {
@@ -250,7 +250,7 @@ export function useRuleSetEdit(): RuleSetEditState {
         return;
       }
       setLoading(false);
-      await load(id, true);
+      await load(id);
       editFailShown.current = false;
       setMessage(done(result));
     },

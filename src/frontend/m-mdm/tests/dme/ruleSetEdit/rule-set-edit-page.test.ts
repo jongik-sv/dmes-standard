@@ -411,6 +411,9 @@ describe("RuleSetEditPage", () => {
     expect(msg).toContain("저장 · row_version 4");
     expect(msg).toContain("경고 문장");
     expect(visibleText(byTestId("flow-toolbar"))).toContain("row_version 4");
+    // 저장 뒤 다시 불러오면 보기 모드다(세트를 열거나 다시 불러오면 보기 모드).
+    expect(byTestId("flow-canvas").getAttribute("data-mode")).toBe("view");
+    expect(saveButton().disabled).toBe(true);
   });
 
   // 5
@@ -584,6 +587,16 @@ describe("RuleSetEditPage", () => {
   });
 
   // 12
+  it("save 권한이 없으면(READ·폐기만 허용) 담당자여도 [편집] 이 꺼지고, 허용된 폐기는 켜진다", async () => {
+    rbacRows = ["search", "view", "delete"].map((action) => ({ objId: "ruleSetEdit", action, endpoint: "*", httpMethod: "*" }));
+    await openChain();
+    await settle();
+    expect(byTestId<HTMLButtonElement>("flow-mode-edit").disabled).toBe(true);
+    expect(byTestId<HTMLButtonElement>("set-deprecate").disabled).toBe(false);
+    expect(saveButton().disabled).toBe(true);
+    expect(byTestId<HTMLInputElement>("set-name").disabled).toBe(true);
+  });
+
   it("RBAC 가 없으면 담당자여도 [편집]·폐기가 꺼져 있다", async () => {
     rbacRows = [];
     await openChain();
@@ -591,7 +604,6 @@ describe("RuleSetEditPage", () => {
     expect(byTestId<HTMLButtonElement>("flow-mode-edit").disabled).toBe(true);
     expect(byTestId<HTMLButtonElement>("set-deprecate").disabled).toBe(true);
     expect(saveButton().disabled).toBe(true);
-    expect(byTestId<HTMLInputElement>("set-name").disabled).toBe(true);
   });
 
   it("팔레트 [룰] → 룰 찾기에서 고르면 END 앞 선에 끼운다", async () => {
