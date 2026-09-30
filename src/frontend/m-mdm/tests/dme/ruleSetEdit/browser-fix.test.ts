@@ -2,7 +2,9 @@
 
 // 3단계 브라우저 확인 결함 고침 — 저장 위치가 있는 흐름에 새 노드를 넣으면 겹치지 않는다(5번), 도움말 Esc 뒤 초점(8번 단서),
 // 빈 갈래 둘인 IF 의 라벨 겹침·변수 칩 쌓임 순서(그 밖의 관찰).
-import { act } from "react";
+import { createElement, act } from "react";
+import { createRoot } from "react-dom/client";
+import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ openRuleEdit: vi.fn(), openMdmPage: vi.fn() }));
@@ -18,15 +20,16 @@ vi.mock("@/shell", async (importOriginal) => ({
 }));
 
 import {
-  copyFragment, duplicateNode, insertRule, insertSplit, pasteFragment, setPositions, toEditFlow,
+  copyFragment, duplicateNode, insertSplit, pasteFragment, setPositions, toEditFlow,
   type EditFlow, type EditResult, type Fragment,
 } from "../../../pages/dme/ruleSetEdit/flow-edit";
-import { NODE_SIZE, autoLayout, placeNewNodes, positionsOf } from "../../../pages/dme/ruleSetEdit/flow-layout";
+import { NODE_SIZE, autoLayout, drawnPositions, positionsOf, resolveOverlaps } from "../../../pages/dme/ruleSetEdit/flow-layout";
+import { FlowCanvas, type FlowCanvasProps } from "../../../pages/dme/ruleSetEdit/canvas/FlowCanvas";
 import { RSF_CSS } from "../../../pages/dme/ruleSetEdit/rsf-styles";
 import type { RuleIo, RuleSetView } from "../../../pages/dme/ruleSetEdit/types";
 import type { FlowNodeKind } from "@/contract/engine-contract.generated";
-import { flush } from "../helpers/render";
-import { byTestId, canvasNodeIds, click, installServer, openSet, q, uninstallServer } from "../helpers/rule-set-page";
+import { flush, installDomStorage } from "../helpers/render";
+import { byTestId, calls, canvasNodeIds, click, installServer, openSet, q, uninstallServer } from "../helpers/rule-set-page";
 
 const ioName = (n: string) => ({ name: n, source: "DICT" as const, label: null, dataType: null, scale: null, dateString: false, maruCodeId: null });
 const rule = (ruleId: string, cond: string, result: string): RuleIo => ({
@@ -86,7 +89,10 @@ function renderedBoxes(): Box[] {
     const kind = byTestId(`flow-node-${id}`).getAttribute("data-kind") as FlowNodeKind;
     const x = Number(m[1]);
     const y = Number(m[2]);
-    return { id, x1: x, y1: y, x2: x + NODE_SIZE[kind].w, y2: y + NODE_SIZE[kind].h };
+    // 접힌 분기는 룰 크기로 그린다 — React Flow 래퍼에 준 width/height 를 먼저 본다.
+    const w = parseFloat(el.style.width) || NODE_SIZE[kind].w;
+    const h = parseFloat(el.style.height) || NODE_SIZE[kind].h;
+    return { id, x1: x, y1: y, x2: x + w, y2: y + h };
   });
 }
 
@@ -112,7 +118,28 @@ async function clickEdge(id: string) {
 }
 const transformOf = (el: Element) => (el as HTMLElement).style.transform;
 
-describe("저장 위치가 있는 흐름에 새 노드 넣기(브라우저 확인 5번)", () => {
+/** 그려진 상자 전부에서 서로 겹치는 쌍(비어야 한다). */
+function allClashes(boxes: Box[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) if (hit(boxes[i], boxes[j])) out.push(`${boxes[i].id}~${boxes[j].id}`);
+  return out;
+}
+async function ctxMenu(id: string) {
+  await act(async () => {
+    byTestId(id).dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 120, clientY: 80 }));
+  });
+  await flush();
+}
+/** 저장 요청의 view.positions 키(정렬). */
+function savedPositionKeys(): string[] {
+  const params = calls("save").at(-1)!.body.params as Record<string, unknown>;
+  const flow = JSON.parse(String(params.flowJson)) as EditFlow;
+  return Object.keys(flow.view.positions).sort();
+}
+/** start 만 자동 배치 자리에 저장해 둔 흐름(「저장 위치가 있는 흐름」 — 리뷰 Important 1·2 의 시작 모양). */
+const pinStart = (f: EditFlow) => setPositions(f, { start: positionsOf(f).start });
+
+describe("저장 위치가 있는 흐름에 새 노드 넣기(브라우저 확인 5번, 고침 1회차 Ruling 19)", () => {
   beforeEach(() => {
     installServer();
     localStorage.clear();
@@ -122,54 +149,95 @@ describe("저장 위치가 있는 흐름에 새 노드 넣기(브라우저 확�
     uninstallServer();
   });
 
-  it("덫 확인 — 고치기 전 연산 결과(위치 없음)는 새 노드가 저장 위치 노드와 겹친다", () => {
+  it("덫 확인 — 연산 결과(위치 없음)의 자동 배치는 새 노드가 저장 위치 노드와 겹친다", () => {
     const f = trap((g) => ok(duplicateNode(g, "r1")), "r4", "r3");
     expect(clashes(boxesOf(ok(duplicateNode(f, "r1"))), ["r4"])).toEqual(["r4~r3"]);
   });
 
-  it("placeNewNodes — 저장 위치가 없으면 결과를 그대로 돌려주고(자동 배치가 푼다), 있으면 새 노드 위치만 적는다", () => {
-    const plain = chain();
-    const after = ok(duplicateNode(plain, "r1"));
-    expect(placeNewNodes(plain, after)).toBe(after);
-
-    const f = trap((g) => ok(duplicateNode(g, "r1")), "r4", "r3");
-    const placed = placeNewNodes(f, ok(duplicateNode(f, "r1")));
-    expect(Object.keys(placed.view.positions).sort()).toEqual(["r3", "r4"]);
-    expect(clashes(boxesOf(placed), ["r4"])).toEqual([]);
+  it("resolveOverlaps — 고정 노드가 없으면 같은 객체, 있으면 고정 노드는 그대로 두고 겹친 노드만 가로로 민다", () => {
+    const boxes = [
+      { id: "a", w: 100, h: 40 },
+      { id: "b", w: 100, h: 40 },
+      { id: "c", w: 100, h: 40 },
+    ];
+    const pos = { a: { x: 0, y: 0 }, b: { x: 10, y: 10 }, c: { x: 0, y: 200 } };
+    expect(resolveOverlaps(boxes, pos, new Set())).toBe(pos);
+    const out = resolveOverlaps(boxes, pos, new Set(["a"]));
+    expect(out.a).toEqual({ x: 0, y: 0 }); // 고정은 움직이지 않는다
+    expect(out.b.y).toBe(10); // 세로는 그대로, 가로로만
+    expect(out.b.x).not.toBe(10);
+    expect(out.c).toEqual({ x: 0, y: 200 }); // 겹치지 않은 노드는 그대로
+    expect(pos.b).toEqual({ x: 10, y: 10 }); // 입력은 바꾸지 않는다
   });
 
-  it("placeNewNodes — 분기 블록 붙여넣기는 조각 모양(분기·안쪽·합류)을 지키며 통째로 비켜 놓는다", () => {
-    const withIf = ok(insertSplit(chain(), "e3", "IF"));
-    const frag = copyFragment(withIf, "if1") as Fragment;
-    const op = (g: EditFlow) => ok(pasteFragment(g, "e1", frag));
-    const spot = autoLayout(op(withIf)).if2;
-    const f = setPositions(withIf, { r3: spot });
-    const after = op(f);
-    const placed = placeNewNodes(f, after);
-    expect(clashes(boxesOf(placed), ["if2", "m2"])).toEqual([]);
-    const dag = autoLayout(after);
-    const p = placed.view.positions;
-    // 분기와 합류의 상대 위치는 자동 배치 그대로
-    expect(p.m2.x - p.if2.x).toBe(dag.m2.x - dag.if2.x);
-    expect(p.m2.y - p.if2.y).toBe(dag.m2.y - dag.if2.y);
+  it("resolveOverlaps — 상한 안에 빈자리가 없으면 그 자리에 둔다", () => {
+    const wall = Array.from({ length: 101 }, (_, i) => ({ id: `w${i}`, w: 24, h: 40 }));
+    const boxes = [...wall, { id: "x", w: 24, h: 40 }];
+    const pos: Record<string, { x: number; y: number }> = { x: { x: 0, y: 0 } };
+    wall.forEach((w, i) => (pos[w.id] = { x: (i - 50) * 24, y: 0 }));
+    const out = resolveOverlaps(boxes, pos, new Set(wall.map((w) => w.id)));
+    expect(out.x).toEqual({ x: 0, y: 0 });
   });
 
-  it("placeNewNodes — 보고 재현 모양: 옮겨 둔 IF 블록이 있는 흐름에서 다른 IF 의 '그 외' 선에 룰을 끼워도 겹치지 않는다", () => {
+  it("항목 5 — 옮겨 둔 IF 블록의 합류 자리에 올 룰을 다른 IF 의 '그 외' 선에 붙여도 그려진 상자가 서로 겹치지 않는다(좌표를 저장하지 않는 것은 복제 케이스가 저장 요청으로 본다)", async () => {
     let g = ok(insertSplit(chain(), "e2", "IF")); // if1·m1
     g = ok(insertSplit(g, g.edges.find((e) => e.to === "r3")!.id, "IF")); // if2·m2
     const other = g.edges.find((e) => e.from === "if2" && e.otherwise)!.id;
-    const spot = autoLayout(ok(insertRule(g, other, "BF_A"))).r4;
+    const spot = autoLayout(ok(pasteFragment(g, other, copyFragment(g, "r1") as Fragment))).r4;
     const moved = positionsOf(g);
-    // if1 블록을 옮겨 두되 합류 m1 을 새 룰의 자동 배치 자리에 둔다(보고의 r3~m1).
     const dx = spot.x - moved.m1.x;
     const dy = spot.y - moved.m1.y;
     const f = setPositions(g, Object.fromEntries(["if1", "r2", "m1"].map((id) => [id, { x: moved[id].x + dx, y: moved[id].y + dy }])));
-    const after = ok(insertRule(f, other, "BF_A"));
-    expect(clashes(boxesOf(after), ["r4"]).length).toBeGreaterThan(0); // 고치기 전 모양
-    expect(clashes(boxesOf(placeNewNodes(f, after)), ["r4"])).toEqual([]);
+    await openSet("BF_ITEM5", viewOf("BF_ITEM5", f));
+    await click("flow-mode-edit");
+    await click("flow-node-r1");
+    await focusCanvas();
+    await key(canvas(), { key: "c", ctrlKey: true });
+    await clickEdge(other);
+    await key(canvas(), { key: "v", ctrlKey: true });
+    expect(canvasNodeIds()).toContain("r4");
+    expect(allClashes(renderedBoxes())).toEqual([]);
   });
 
-  it("복제(Ctrl+D) — 새 노드가 다른 모든 노드와 겹치지 않고, 되돌리기 한 번에 원래 흐름으로 돌아간다", async () => {
+  it("리뷰 시나리오 1 — start 만 저장된 흐름에서 r2→r3 에 넣은 뒤 r1 을 지우거나 그 위쪽에 또 넣어도 겹치지 않는다", async () => {
+    await openSet("BF_S1", viewOf("BF_S1", pinStart(chain())));
+    await click("flow-mode-edit");
+    await click("flow-node-r2");
+    await focusCanvas();
+    await key(canvas(), { key: "d", ctrlKey: true }); // r4 가 r2→r3 선에
+    expect(canvasNodeIds()).toContain("r4");
+    expect(allClashes(renderedBoxes())).toEqual([]);
+
+    // 위쪽(start→r1 선)에 또 넣기
+    await click("flow-node-r1");
+    await key(canvas(), { key: "c", ctrlKey: true });
+    await clickEdge("e1");
+    await key(canvas(), { key: "v", ctrlKey: true });
+    expect(canvasNodeIds()).toContain("r5");
+    expect(allClashes(renderedBoxes())).toEqual([]);
+
+    // 위쪽 노드 지우기
+    await click("flow-node-r1");
+    await key(canvas(), { key: "Delete" });
+    expect(canvasNodeIds()).not.toContain("r1");
+    expect(allClashes(renderedBoxes())).toEqual([]);
+  });
+
+  it("리뷰 시나리오 2 — 블록을 접은 채 그 아래에 넣어도 접힌 표시에서 겹치지 않는다", async () => {
+    const f = pinStart(ok(insertSplit(chain(), "e2", "IF"))); // start→r1→[if1 빈 갈래 둘]→m1→r2→r3→end
+    await openSet("BF_S2", viewOf("BF_S2", f));
+    await click("flow-mode-edit");
+    await ctxMenu("flow-node-if1");
+    await click("flow-menu-item-collapse");
+    expect(canvasNodeIds()).not.toContain("m1"); // 접혔다
+    await click("flow-node-r2");
+    await focusCanvas();
+    await key(canvas(), { key: "d", ctrlKey: true }); // r4 가 r2→r3 선에
+    expect(canvasNodeIds()).toContain("r4");
+    expect(allClashes(renderedBoxes())).toEqual([]);
+  });
+
+  it("복제(Ctrl+D) — 되돌리기 한 번에 원래 흐름·그려진 상자로 돌아가고, 저장 위치는 원래 것뿐이다", async () => {
     const f = trap((g) => ok(duplicateNode(g, "r1")), "r4", "r3");
     await openSet("BF_DUP", viewOf("BF_DUP", f));
     await click("flow-mode-edit");
@@ -178,7 +246,9 @@ describe("저장 위치가 있는 흐름에 새 노드 넣기(브라우저 확�
     await focusCanvas();
     await key(canvas(), { key: "d", ctrlKey: true });
     expect(canvasNodeIds()).toContain("r4");
-    expect(clashes(renderedBoxes(), ["r4"])).toEqual([]);
+    expect(allClashes(renderedBoxes())).toEqual([]);
+    await click("set-save");
+    expect(savedPositionKeys()).toEqual(["r3"]);
 
     await key(canvas(), { key: "z", ctrlKey: true });
     expect(canvasNodeIds()).not.toContain("r4");
@@ -192,20 +262,103 @@ describe("저장 위치가 있는 흐름에 새 노드 넣기(브라우저 확�
     await click("flow-edge-add-e3");
     await click("flow-menu-item-insert-if");
     expect(canvasNodeIds()).toEqual(expect.arrayContaining(["if1", "m1"]));
-    expect(clashes(renderedBoxes(), ["if1", "m1"])).toEqual([]);
+    expect(allClashes(renderedBoxes())).toEqual([]);
+  });
+});
+
+describe("비켜 그린 노드를 끌면 그린 자리에서 시작한다(Ruling 19 — 4)", () => {
+  const noop = () => {};
+  let host: HTMLDivElement;
+  let root: ReturnType<typeof createRoot>;
+  beforeEach(() => {
+    installDomStorage();
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+  });
+  afterEach(() => {
+    act(() => root.unmount());
+    host.remove();
+  });
+  const props = (flow: EditFlow, over: Partial<FlowCanvasProps> = {}): FlowCanvasProps => ({
+    flow, rules: {}, checks: [], mode: "edit", showVars: false, selectedId: null, selectedEdgeId: null,
+    overlay: null, focusId: null, focusSeq: 0, onSelect: noop, onSelectEdge: noop, onOpenRule: noop, onMove: noop, onConnect: noop,
+    onDropPalette: noop, onNoteChange: noop, breakpoints: new Set(), collapsed: new Set(), showMiniMap: false, editingCondEdgeId: null,
+    onMoveNode: noop, onDropRule: noop, onContextMenu: noop, onEditCond: noop, onEditCondClose: noop, onToggleBreakpoint: noop,
+    onRouteChange: noop, ...over,
+  });
+  const draw = async (p: FlowCanvasProps) => {
+    await act(async () => {
+      root.render(createElement(DmesUiProvider, null, createElement("div", { style: { width: 800, height: 600 } }, createElement(FlowCanvas, p))));
+    });
+    await flush();
+  };
+  const nodeEl = (id: string) => host.querySelector(`.react-flow__node[data-id="${id}"]`) as HTMLElement;
+  const fire = (el: Element | Window, ev: Event) => act(async () => { el.dispatchEvent(ev); });
+  const mouse = (type: string, x: number, y: number) => new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, view: window });
+  const at = (id: string) => {
+    const m = /translate\(\s*(-?[\d.]+)px,\s*(-?[\d.]+)px\)/.exec(nodeEl(id).style.transform)!;
+    return { x: Math.round(Number(m[1])), y: Math.round(Number(m[2])) };
+  };
+  /** 끌어 놓는다. 놓기 직전 그려진 자리(시작 자리 + 끈 만큼)를 돌려준다. */
+  async function drag(id: string) {
+    await fire(nodeEl(id), mouse("mousedown", 100, 100));
+    await fire(window, mouse("mousemove", 130, 140));
+    await fire(window, mouse("mousemove", 150, 160));
+    const shown = at(id);
+    await fire(window, mouse("mouseup", 150, 160));
+    return shown;
+  }
+  /** IF 블록(if1·m1)이 자동 배치 자리에서, 저장 위치 노드 r1 이 그 자리를 덮어 블록이 비켜 그려지는 흐름. */
+  function pushedIf(): EditFlow {
+    const g = ok(insertSplit(chain(), "e3", "IF")); // r2 → if1 → m1 → r3
+    return setPositions(g, { r1: positionsOf(g).if1 });
+  }
+
+  it("룰 노드 — onMove 가 받는 위치는 비켜 그린 자리다", async () => {
+    const f = trap((g) => g, "r2", "r1"); // r1 을 r2 자동 배치 자리에 저장 → r2 가 비킨다
+    const drawn = drawnPositions(f);
+    expect(drawn.r2).not.toEqual(positionsOf(f).r2);
+    const onMove = vi.fn();
+    await draw(props(f, { onMove, onMoveNode: (_n, _e, pos) => onMove(pos) }));
+    expect(at("r2")).toEqual(drawn.r2); // 비킨 자리에 그린다
+    const shown = await drag("r2");
+    expect(onMove).toHaveBeenCalledTimes(1);
+    expect(onMove.mock.calls[0][0].r2).toEqual(shown);
   });
 
-  it("붙여넣기 — 복사한 룰을 선에 붙이면 새 노드가 다른 노드와 겹치지 않는다", async () => {
-    const f = trap((g) => ok(pasteFragment(g, "e4", copyFragment(g, "r1") as Fragment)), "r4", "r2");
-    await openSet("BF_PASTE", viewOf("BF_PASTE", f));
-    await click("flow-mode-edit");
-    await click("flow-node-r1");
-    await focusCanvas();
-    await key(canvas(), { key: "c", ctrlKey: true });
-    await clickEdge("e4");
-    await key(canvas(), { key: "v", ctrlKey: true });
-    expect(canvasNodeIds()).toContain("r4");
-    expect(clashes(renderedBoxes(), ["r4"])).toEqual([]);
+  it("분기 블록 — 블록 멤버 위치도 비켜 그린 자리 기준이다(blockPositionsOf), 접힌 채도 같다", async () => {
+    const f = pushedIf();
+    const drawn = drawnPositions(f);
+    expect(drawn.if1).not.toEqual(positionsOf(f).if1);
+    const onMove = vi.fn();
+    await draw(props(f, { onMove, onMoveNode: (_n, _e, pos) => onMove(pos) }));
+    expect(at("if1")).toEqual(drawn.if1);
+    await drag("if1");
+    const moved = onMove.mock.calls[0][0] as Record<string, { x: number; y: number }>;
+    // 멤버는 그린 자리에서 분기와 같은 만큼 움직인다.
+    expect(moved.m1.x - drawn.m1.x).toBe(moved.if1.x - drawn.if1.x);
+    expect(moved.m1.y - drawn.m1.y).toBe(moved.if1.y - drawn.if1.y);
+
+    // 접힌 채 — 숨은 멤버(m1)는 전체 흐름의 그린 자리에서 분기와 같은 만큼 움직인다. m1 만 비키는 흐름으로 본다.
+    const g = ok(insertSplit(chain(), "e3", "IF"));
+    const f2 = setPositions(g, { r1: positionsOf(g).m1 });
+    const full = drawnPositions(f2);
+    expect(full.m1.x - full.if1.x).not.toBe(positionsOf(f2).m1.x - positionsOf(f2).if1.x); // m1 만 비켰다
+    onMove.mockClear();
+    await draw(props(f2, { onMove, onMoveNode: (_n, _e, pos) => onMove(pos), collapsed: new Set(["if1"]) }));
+    await drag("if1");
+    const moved2 = onMove.mock.calls[0][0] as Record<string, { x: number; y: number }>;
+    expect(moved2.m1.x - moved2.if1.x).toBe(full.m1.x - full.if1.x);
+    expect(moved2.m1.y - moved2.if1.y).toBe(full.m1.y - full.if1.y);
+  });
+});
+
+describe("setPositions — 흐름에 있는 노드 ID 만 남긴다(리뷰 Minor 2)", () => {
+  it("없는 ID 는 버리고, 이미 있던 없는 ID 키도 치운다", () => {
+    const f = { ...chain(), view: { ...chain().view, positions: { ghost: { x: 1, y: 1 } } } };
+    const g = setPositions(f, { r1: { x: 5, y: 6 }, zz: { x: 7, y: 8 } });
+    expect(g.view.positions).toEqual({ r1: { x: 5, y: 6 } });
   });
 });
 
@@ -234,6 +387,18 @@ describe("도움말 Esc 뒤 초점(브라우저 확인 8번 단서)", () => {
     expect(q("rf__edge-e2")!.classList.contains("selected")).toBe(true); // 첫 Esc 는 도움말만 닫는다
     await key(document.activeElement!, { key: "Escape" });
     expect(q("rf__edge-e2")!.classList.contains("selected")).toBe(false);
+  });
+
+  it("도움말을 연 채 찾기 칸에 초점을 두고 Esc — 도움말만 닫고 초점은 찾기 칸에 남는다(리뷰 Minor 1)", async () => {
+    await openSet("BF_HELP3", viewOf("BF_HELP3", chain()));
+    await click("flow-help");
+    const find = byTestId<HTMLInputElement>("flow-find");
+    await act(async () => {
+      find.focus();
+    });
+    await key(find, { key: "Escape" });
+    expect(q("flow-help-panel")).toBeNull();
+    expect(document.activeElement).toBe(find);
   });
 
   it("[?] 를 다시 눌러(마우스) 닫으면 초점을 옮기지 않는다", async () => {

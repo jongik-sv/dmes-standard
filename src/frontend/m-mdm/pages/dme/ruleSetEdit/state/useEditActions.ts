@@ -7,7 +7,6 @@
  * 끌어 놓기(A1)는 캔버스가 놓은 자리의 선(없으면 null)을 계산해 넘긴다 — 룰·IF·병렬은 선 위에 놓아야 한다(2단계의 "선택된 선에 넣기"는 없앴다).
  * 팔레트 누르기는 2단계 그대로 고른 선(없으면 END 로 들어가는 첫 선, P-D10)에 끼운다.
  * 복사한 조각(클립보드)은 이 훅이 들고 있어 세트를 바꿔도 남는다(B9). 복사·붙여넣기·복제·룰 바꾸기·분기 바꾸기·풀기는 각각 `state.edit` 한 번(이력 한 번)이다.
- * 노드를 만드는 편집(끼우기·붙여넣기·복제)은 저장 위치가 있는 흐름이면 새 노드를 겹치지 않는 자리에 둔다(`placeNewNodes`, 같은 edit 안).
  */
 import { useCallback, useMemo, useState } from "react";
 
@@ -37,7 +36,7 @@ import {
   type Fragment,
   type FlowPos,
 } from "../flow-edit";
-import { NODE_SIZE, autoArrange, placeNewNodes, positionsOf } from "../flow-layout";
+import { NODE_SIZE, autoArrange, drawnPositions } from "../flow-layout";
 import { openRule } from "../links";
 import type { RuleIo } from "../types";
 import type { RuleSetEditState } from "./useRuleSetEdit";
@@ -88,12 +87,6 @@ export interface EditActions {
 
 const fail = (reason: string): EditResult => ({ ok: false, reason });
 
-/**
- * 노드를 만드는 편집 결과에 새 노드 자리를 적는다(브라우저 확인 5번) — 저장 위치가 있는 흐름이면 새 노드가 겹치지 않는 자리를
- * `view.positions` 에 적고, 없으면 그대로(자동 배치). 같은 edit 안에서 부르므로 되돌리기는 한 칸이다.
- */
-const placed = (f: EditFlow, r: EditResult): EditResult => (r.ok ? { ok: true, flow: placeNewNodes(f, r.flow) } : r);
-
 /** 끼울 선 — 고른 선이 흐름에 있으면 그 선, 없으면 END 로 들어가는 첫 선(P-D10). */
 function targetEdge(f: EditFlow, preferred: string | null): string | null {
   if (preferred && f.edges.some((e) => e.id === preferred)) return preferred;
@@ -101,9 +94,9 @@ function targetEdge(f: EditFlow, preferred: string | null): string | null {
   return f.edges.find((e) => e.to === end?.id)?.id ?? null;
 }
 
-/** 흐름 전체 배치의 가운데(메모를 둘 기본 자리). */
+/** 흐름 전체 배치(그리는 위치)의 가운데(메모를 둘 기본 자리). */
 function centerOf(f: EditFlow): FlowPos {
-  const pos = positionsOf(f);
+  const pos = drawnPositions(f);
   const kinds = new Map(f.nodes.map((n) => [n.id, n.kind] as const));
   let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
   for (const [id, p] of Object.entries(pos)) {
@@ -131,7 +124,7 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
         if (f.nodes.length + add > MAX_NODES) return fail(NODE_LIMIT_MESSAGE);
         const edgeId = targetEdge(f, preferred);
         if (!edgeId) return fail(NO_TARGET_EDGE);
-        const r = placed(f, op(f, edgeId));
+        const r = op(f, edgeId);
         if (r.ok) created = r.flow.edges.find((e) => e.id === edgeId)?.to ?? null;
         return r;
       });
@@ -159,7 +152,7 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
       const selNode = selectedId ? flow.nodes.find((n) => n.id === selectedId) : undefined;
       let place = at;
       if (!place && selNode) {
-        const p = positionsOf(flow)[selNode.id];
+        const p = drawnPositions(flow)[selNode.id]; // 비켜 그린 노드면 그린 자리 옆
         if (p) place = { x: p.x + NODE_SIZE[selNode.kind].w + NOTE_GAP, y: p.y };
       }
       let id: string | null = null;
@@ -282,7 +275,7 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
         edit(() => fail(NO_CLIPBOARD));
         return;
       }
-      const reason = edit((f) => placed(f, pasteFragment(f, edgeId, clipboard.frag)));
+      const reason = edit((f) => pasteFragment(f, edgeId, clipboard.frag));
       // 붙이기가 됐을 때만, 대상 세트에 없는 룰의 IO 만 들여온다(같은 룰 IO 를 복사 시점 값으로 덮지 않는다).
       if (!reason) clipboard.ios.filter((io) => !state.rules[io.ruleId]).forEach(addRuleIo);
     },
@@ -323,7 +316,7 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
       copy,
       paste,
       duplicate: (nodeId: string) => {
-        if (editing) edit((f) => placed(f, duplicateNode(f, nodeId)));
+        if (editing) edit((f) => duplicateNode(f, nodeId));
       },
       replaceRule: (nodeId: string) => {
         if (editing) openRuleModal({ purpose: "replace", nodeId });

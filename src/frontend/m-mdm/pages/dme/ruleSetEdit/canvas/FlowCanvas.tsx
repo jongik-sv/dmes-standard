@@ -28,7 +28,7 @@ import { IconPlus } from "@tabler/icons-react";
 import type { RuleSetFlow, TypedValue } from "@/contract/engine-contract.generated";
 
 import type { FlowNote, FlowPos, EditFlow } from "../flow-edit";
-import { NODE_SIZE, positionsOf } from "../flow-layout";
+import { NODE_SIZE, drawnPositions } from "../flow-layout";
 import { typedText } from "../trace-view";
 import { blockDragPositions, dropTargetAt, edgeChips, edgeMarks, nodeMarks, resolveNodeDrop } from "../flow-vars";
 import type { FlowMode } from "../state/useRuleSetEdit";
@@ -488,8 +488,11 @@ function Inner(props: FlowCanvasProps) {
   /** 접힌 분기를 반영한 표시 흐름(D16). 저장 흐름(`flow`)은 그대로다. */
   const view = useMemo(() => collapseView(flow, collapsed), [flow, collapsed]);
   const vflow = view.flow;
-  /** 자동 배치(dagre)는 표시 흐름과 저장 위치에만 묶어 따로 memo 한다 — 끌기 오프셋(drag)이 바뀌어도 다시 돌지 않는다(§16). */
-  const basePos = useMemo(() => positionsOf(vflow), [vflow]);
+  /**
+   * 자동 배치(dagre)는 표시 흐름과 저장 위치에만 묶어 따로 memo 한다 — 끌기 오프셋(drag)이 바뀌어도 다시 돌지 않는다(§16).
+   * 같은 memo 안에서 겹침을 푼다(Ruling 19) — 저장 위치가 없는 노드가 저장 위치 노드와 겹치면 그리는(접힌) 흐름에서 가로로 비킨다. 좌표는 저장하지 않는다.
+   */
+  const basePos = useMemo(() => drawnPositions(vflow, view.blocks), [vflow, view.blocks]);
   const pos = useMemo(() => ({ ...basePos, ...drag }), [basePos, drag]);
   const posRef = useRef(pos);
   posRef.current = pos;
@@ -505,7 +508,7 @@ function Inner(props: FlowCanvasProps) {
   const fullPosOf = () => {
     const cur = fullRef.current;
     if (fullPosCache.current?.flow !== cur) {
-      fullPosCache.current = { flow: cur, pos: cur === flowRef.current ? basePosRef.current : positionsOf(cur) };
+      fullPosCache.current = { flow: cur, pos: cur === flowRef.current ? basePosRef.current : drawnPositions(cur) };
     }
     return fullPosCache.current.pos;
   };
