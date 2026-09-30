@@ -27,6 +27,12 @@
  * 또는 끌어 끼우기 대상일 때만 그린다. hover 는 캔버스 안 저장소(`HoverStore`)에 두고 선마다 "내가 올려진 선인가" 만 구독한다(page 는 그대로).
  * 편집 모드에서 조건 라벨·변수 칩 묶음을 화면 4px 넘게 끌면 옮긴다 — 끄는 동안은 캔버스 안 저장소(`LabelStore`)에만 두고 놓을 때
  * `onLabelOffsetChange` 를 한 번 부른다. 오프셋(`view.labels`)은 기본 자리에서의 흐름 좌표 거리라 선 끝이 움직여도 따라간다(보기·디버그 모드도 그대로 그린다).
+ *
+ * 맞춤 안내선·스냅(G1, Ruling 26): 편집 모드에서 노드·메모(여러 개면 묶음 경계 상자)를 끌면 끌지 않는 보이는 흐름 노드·메모(접힌 블록은 접힌 상자)의
+ * 왼·가운데·오른쪽 x, 위·가운데·아래 y 에 화면 6px 안이면 붙이고 안내선을 그린다(`snap.ts`). 후보는 끌기 시작(`onNodeDragStart`)에 한 번 모아 정렬하고
+ * 프레임마다 이분 탐색한다. React Flow 는 매 프레임 포인터 − 누른 거리로 위치를 새로 재므로(XYDrag) 붙인 이동량은 끌기 위치(`drag`)에만 더하고,
+ * 놓을 때 같은 이동량을 더한 자리를 기존 `onMove` 로 한 번 올린다. Alt 를 누른 채 끌거나 끼우기 대상 선이 강조된 동안은 붙이지 않고 안내선도 없다.
+ * 안내선은 캔버스 안 저장소(`SnapStore`)만 구독해 그리므로 page 는 다시 그리지 않고 배치(dagre)도 다시 돌지 않는다.
  */
 import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore,
@@ -44,6 +50,7 @@ import { blockDragPositions, dropTargetAt, edgeChips, edgeMarks, nodeMarks, reso
 import type { FlowMode } from "../state/useRuleSetEdit";
 import type { RuleIoMap, RuleSetCheck, VarDisplay } from "../types";
 import { collapseView } from "./collapse";
+import { boundsOf, snapIndex, snapMoveIn, snapThreshold, type Box, type Guide, type SnapIndex } from "./snap";
 import { insertRoutePoint, routeMidpoint, routePath } from "./route-path";
 import type { MenuTarget } from "./context-menu";
 import { GroupNodeData, NODE_TYPES, NoteNodeData, FlowNodeData, handlesOf, type CollapsedBlockInfo } from "./nodes";
@@ -467,6 +474,70 @@ function SpaceGuide({ store }: { store: SpaceStore }) {
   );
 }
 
+/** 맞춤 안내선 저장소(G1) — 끄는 동안의 안내선. 안내선 층만 구독해 다시 그린다(page·노드·선은 그대로). */
+interface SnapStore {
+  guides: readonly Guide[];
+  /** 안내선을 바꾼다 — 값이 같으면 알리지 않는다. */
+  set(guides: readonly Guide[]): void;
+  subscribe(cb: () => void): () => void;
+}
+const NO_GUIDES: readonly Guide[] = Object.freeze([]);
+const sameGuides = (a: readonly Guide[], b: readonly Guide[]) =>
+  a.length === b.length && a.every((g, i) => g.axis === b[i].axis && g.at === b[i].at && g.from === b[i].from && g.to === b[i].to);
+function createSnapStore(): SnapStore {
+  const listeners = new Set<() => void>();
+  const store: SnapStore = {
+    guides: NO_GUIDES,
+    set: (guides) => {
+      const next = guides.length === 0 ? NO_GUIDES : guides;
+      if (sameGuides(store.guides, next)) return;
+      store.guides = next;
+      listeners.forEach((cb) => cb());
+    },
+    subscribe: (cb) => {
+      listeners.add(cb);
+      return () => listeners.delete(cb);
+    },
+  };
+  return store;
+}
+
+/** 끄는 동안의 맞춤 안내선 — 흐름 좌표 층에 그리고, 굵기는 배율로 나눠 화면에서 1px 로 보이게 한다. 길이는 맞은 상자와 끄는 상자를 잇는 만큼이다. */
+function SnapGuides({ store }: { store: SnapStore }) {
+  const guides = useSyncExternalStore(store.subscribe, () => store.guides, () => NO_GUIDES);
+  const zoom = useStore((st) => st.transform[2]);
+  if (guides.length === 0) return null;
+  const w = 1 / (zoom > 0 ? zoom : 1);
+  return (
+    <ViewportPortal>
+      {guides.map((g) => (
+        <div
+          key={g.axis}
+          className="rsf-snap-guide"
+          data-testid="flow-snap-guide"
+          data-axis={g.axis}
+          data-at={g.at}
+          style={
+            g.axis === "x"
+              ? { left: g.at - w / 2, top: g.from, height: g.to - g.from, borderLeftWidth: w }
+              : { top: g.at - w / 2, left: g.from, width: g.to - g.from, borderTopWidth: w }
+          }
+        />
+      ))}
+    </ViewportPortal>
+  );
+}
+
+/** 끄는 동안의 스냅 상태(G1) — 끄는 대상 ID, 끌기 시작 때 모은 후보 색인, 지난 프레임에 붙인 이동량. */
+interface SnapDrag {
+  ids: ReadonlySet<string>;
+  index: SnapIndex;
+  dx: number;
+  dy: number;
+}
+/** 노드 상자(흐름 좌표). 크기가 없으면 NaN 이라 스냅 후보·대상에서 빠진다. */
+const boxOf = (n: Node): Box => ({ x: n.position.x, y: n.position.y, w: n.width ?? Number.NaN, h: n.height ?? Number.NaN });
+
 function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
   const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, selected } = props;
   const routeApi = useContext(RouteContext);
@@ -829,6 +900,9 @@ function Inner(props: FlowCanvasProps) {
     }
     return out;
   }, [flow, vflow, view, pos, drag, space, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured, varDisplay]);
+  /** 지금 그린 노드 배열 — 끌기 시작 때 스냅 후보(보이는 흐름 노드·메모)를 여기서 모은다(G1). */
+  const nodesRef = useRef(nodes);
+  nodesRef.current = nodes;
 
   const edges = useMemo(() => {
     const kindOf = new Map(vflow.nodes.map((n) => [n.id, n.kind] as const));
@@ -884,6 +958,15 @@ function Inner(props: FlowCanvasProps) {
   useEffect(() => {
     if (!editable) boxingRef.current = false;
   }, [editable]);
+  // 맞춤 안내선·스냅(G1) — 끄는 동안만 ref·저장소에 둔다.
+  const snapStore = useMemo(createSnapStore, []);
+  const snapRef = useRef<SnapDrag | null>(null);
+  useEffect(() => {
+    if (editable) return;
+    snapRef.current = null;
+    snapStore.set(NO_GUIDES);
+  }, [editable, snapStore]);
+  useEffect(() => () => snapStore.set(NO_GUIDES), [snapStore]);
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     const dims = changes.filter((c): c is Extract<NodeChange, { type: "dimensions" }> => c.type === "dimensions" && !!c.dimensions);
     if (dims.length > 0) {
@@ -915,12 +998,22 @@ function Inner(props: FlowCanvasProps) {
     }
     const moved = changes.filter((c): c is Extract<NodeChange, { type: "position" }> => c.type === "position" && !!c.position);
     if (moved.length === 0) return;
+    // React Flow 가 주는 끌기 위치는 붙이기 전 값이다 — 지난 프레임에 붙인 이동량을 끄는 대상에 더한다(G1). 놓을 때(dragging=false)의 마지막 변경도
+    // 붙인 자리로 적어 한 프레임도 붙기 전 자리로 튀지 않는다. 이번 프레임의 이동량은 이어서 오는 onNodeDrag 가 다시 재서 덮어쓴다.
+    const snap = snapRef.current;
+    const sdx = snap?.dx ?? 0;
+    const sdy = snap?.dy ?? 0;
     setDrag((d) => {
       const next = { ...d };
-      for (const c of moved) next[c.id] = { x: c.position!.x, y: c.position!.y };
+      for (const c of moved) {
+        const on = !!snap?.ids.has(c.id);
+        next[c.id] = { x: c.position!.x + (on ? sdx : 0), y: c.position!.y + (on ? sdy : 0) };
+      }
       return next;
     });
-  }, []);
+    // 끌기가 끝나면(놓음·멀티터치 등으로 끊김 — 끊기면 onNodeDragStop 이 오지 않는다) 안내선을 지운다.
+    if (moved.some((c) => c.dragging === false)) snapStore.set(NO_GUIDES);
+  }, [snapStore]);
 
   /**
    * 접힌 분기를 그린 자리(splitAt, 접힌 상자 좌상단이면 folded)에 맞추려면 전체 흐름 자리에 더할 이동량 — 블록 끌기(blockPositionsOf)와
@@ -949,33 +1042,88 @@ function Inner(props: FlowCanvasProps) {
     return blockDragPositions(fullRef.current, n.id, blockDelta(n.id, n.position, from, !!viewRef.current.blocks[n.id]), base);
   };
 
+  /** 이동량만큼 옮긴 노드(React Flow 가 준 붙이기 전 위치에 스냅 이동량을 더한다). */
+  const nudged = (n: Node, dx: number, dy: number): Node =>
+    dx === 0 && dy === 0 ? n : { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } };
+
+  /** 끌기 시작(G1) — 끌지 않는 보이는 흐름 노드·메모(접힌 블록은 접힌 상자)의 기준값을 한 번 모아 정렬해 둔다. 함께 움직이는 블록 멤버·그룹 틀은 뺀다. */
+  const onNodeDragStart = useCallback((_e: MouseEvent | TouchEvent, _node: Node, dragged: Node[]) => {
+    snapStore.set(NO_GUIDES);
+    snapRef.current = null;
+    if (!editable) return;
+    const ids = new Set(dragged.map((n) => n.id));
+    const skip = new Set(ids);
+    for (const n of dragged) for (const id of Object.keys(blockPositionsOf(n))) skip.add(id);
+    const others: Box[] = [];
+    for (const n of nodesRef.current) {
+      if ((n.type === "rsfFlow" || n.type === "rsfNote") && !skip.has(n.id)) others.push(boxOf(n));
+    }
+    snapRef.current = { ids, index: snapIndex(others), dx: 0, dy: 0 };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editable, snapStore]);
+
+  /**
+   * 이번 프레임의 스냅 이동량(G1) — 끄는 대상(여러 개면 묶음 경계 상자)을 후보 기준선에 붙인다. Alt(포인터 이벤트의 altKey)를 누른 채 끌거나
+   * 끼우기 대상 선이 강조된 동안은 붙이지 않고 안내선도 지운다(놓으면 끼우기가 이긴다). 크기를 모르는 노드가 끼어 있으면 붙이지 않는다.
+   */
+  const snapStep = (e: MouseEvent | TouchEvent, dragged: Node[], target: string | null): { dx: number; dy: number } => {
+    const s = snapRef.current;
+    let dx = 0;
+    let dy = 0;
+    let guides: readonly Guide[] = NO_GUIDES;
+    if (s && !target && !e.altKey) {
+      const boxes = dragged.map(boxOf);
+      const box = boxes.every((b) => Number.isFinite(b.w) && Number.isFinite(b.h)) ? boundsOf(boxes) : null;
+      if (box) {
+        const r = snapMoveIn(box, s.index, snapThreshold(rf.getZoom()));
+        ({ dx, dy } = r);
+        guides = r.guides;
+      }
+    }
+    if (s) {
+      s.dx = dx;
+      s.dy = dy;
+    }
+    snapStore.set(guides);
+    return { dx, dy };
+  };
+
   const onNodeDrag = useCallback((e: MouseEvent | TouchEvent, node: Node, dragged: Node[]) => {
     if (!editable) return;
-    // 분기 자신은 React Flow 가 준 위치(그린 상자 좌상단) 그대로 둔다 — 블록 위치의 분기 값은 저장 기준(접힌 분기면 foldOffsetX 만큼 다르다).
-    const block = blockPositionsOf(node);
-    delete block[node.id];
-    if (Object.keys(block).length > 0) {
-      setDrag((d) => ({ ...d, ...block }));
+    // 끼우기 대상 선(A2) — 노드 하나를 끌고 선 위로 옮길 수 있는 노드일 때만. 스냅보다 먼저 정한다(강조 중에는 붙이지 않는다).
+    let target: string | null = null;
+    if (dragged.length === 1 && isMovable(node)) {
+      const point = "touches" in e ? (e.touches[0] ?? e.changedTouches[0]) : e; // 손가락 끌기도 받는다
+      if (point) {
+        const p = rf.screenToFlowPosition({ x: point.clientX, y: point.clientY });
+        target = resolveNodeDrop(flowRef.current, posRef.current, node.id, { x: Math.round(p.x), y: Math.round(p.y) }, rf.getZoom());
+      } else target = dropEdgeRef.current;
     }
-    if (dragged.length > 1 || !isMovable(node)) {
-      setDropEdge(null);
-      return;
-    }
-    const point = "touches" in e ? (e.touches[0] ?? e.changedTouches[0]) : e; // 손가락 끌기도 받는다
-    if (!point) return;
-    const p = rf.screenToFlowPosition({ x: point.clientX, y: point.clientY });
-    setDropEdge(resolveNodeDrop(flowRef.current, posRef.current, node.id, { x: Math.round(p.x), y: Math.round(p.y) }, rf.getZoom()));
+    setDropEdge(target);
+    const { dx, dy } = snapStep(e, dragged, target);
+    // 분기 자신은 React Flow 가 준 위치(그린 상자 좌상단)에 스냅 이동량만 더해 둔다 — 블록 위치의 분기 값은 저장 기준(접힌 분기면 foldOffsetX 만큼 다르다).
+    const next = blockPositionsOf(nudged(node, dx, dy));
+    delete next[node.id];
+    for (const n of dragged) next[n.id] = { x: n.position.x + dx, y: n.position.y + dy };
+    setDrag((d) => ({ ...d, ...next }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editable, rf, setDropEdge]);
+  }, [editable, rf, setDropEdge, snapStore]);
 
   const onNodeDragStop = useCallback((_e: unknown, node: Node, dragged: Node[]) => {
     const target = dropEdgeRef.current;
     setDropEdge(null);
+    // 마지막 프레임에 붙인 이동량 — 놓은 자리에 더해 올린다(G1). 안내선은 놓으면 사라진다.
+    const snap = snapRef.current;
+    snapRef.current = null;
+    snapStore.set(NO_GUIDES);
     if (!editable) return;
+    const dx = snap?.dx ?? 0;
+    const dy = snap?.dy ?? 0;
     const noteIds = new Set(flow.view.notes.map((n) => n.id));
     const moved: Record<string, FlowPos> = {};
     const movedNotes: Record<string, FlowPos> = {};
-    for (const n of dragged) {
+    for (const raw of dragged) {
+      const n = nudged(raw, dx, dy);
       const p = { x: Math.round(n.position.x), y: Math.round(n.position.y) };
       if (noteIds.has(n.id)) movedNotes[n.id] = p;
       else if (n.type === "rsfFlow") {
@@ -993,7 +1141,7 @@ function Inner(props: FlowCanvasProps) {
     } else if (Object.keys(movedNotes).length > 0) onMove(moved, movedNotes);
     else onMove(moved);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editable, flow, onMove, onMoveNode, setDropEdge]);
+  }, [editable, flow, onMove, onMoveNode, setDropEdge, snapStore]);
 
   // 흐름이 바뀌면 없어진 요소를 선택에서 뺀다.
   useEffect(() => {
@@ -1501,6 +1649,7 @@ function Inner(props: FlowCanvasProps) {
         maxZoom={MAX_ZOOM}
         proOptions={{ hideAttribution: true }}
         onNodesChange={onNodesChange}
+        onNodeDragStart={onNodeDragStart}
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
         onConnect={onConnectCb}
@@ -1529,6 +1678,7 @@ function Inner(props: FlowCanvasProps) {
         <Controls position="bottom-right" orientation="horizontal" showInteractive={false} />
         {showMiniMap && <MiniMap position="bottom-right" style={MINIMAP_STYLE} pannable zoomable />}
         <SpaceGuide store={spaceStore} />
+        <SnapGuides store={snapStore} />
       </ReactFlow>
     </div>
     </LabelContext.Provider>
