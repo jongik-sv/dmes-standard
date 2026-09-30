@@ -19,12 +19,21 @@ vi.mock("@/shell", async (importOriginal) => ({
   openMdmPage: (...args: unknown[]) => mocks.openMdmPage(...args),
 }));
 
+// 디버그 툴바는 Task 10 이 채우는 슬롯이다 — 받은 selectedId 를 보이게 바꿔 끼운다(고침 1회차 사례).
+vi.mock("../../../pages/dme/ruleSetEdit/debugger/DebugToolbar", async () => {
+  const react = await import("react");
+  return {
+    DebugToolbar: (p: { selectedId: string | null; canRun: boolean }) =>
+      react.createElement("div", { "data-testid": "dbg-toolbar", "data-selected": p.selectedId ?? "", "data-can-run": String(p.canRun) }),
+  };
+});
+
 import { FlowCanvas, PALETTE_MIME, type FlowCanvasProps } from "../../../pages/dme/ruleSetEdit/canvas/FlowCanvas";
 import { useRuleSetEdit, type RuleSetEditState } from "../../../pages/dme/ruleSetEdit/state/useRuleSetEdit";
-import { toEditFlow } from "../../../pages/dme/ruleSetEdit/flow-edit";
+import { addNote, toEditFlow } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import type { RuleIo, RuleSetView } from "../../../pages/dme/ruleSetEdit/types";
 import { flush, typeInto, visibleText } from "../helpers/render";
-import { byTestId, canvasNodeIds, click, handoff, installServer, ok, openSet, q, settle, srv, uninstallServer } from "../helpers/rule-set-page";
+import { byTestId, calls, canvasNodeIds, click, handoff, installServer, ok, openSet, q, settle, srv, uninstallServer } from "../helpers/rule-set-page";
 
 type Src = "DICT" | "PROG" | "NONE";
 const ioName = (n: string, source: Src | null) => ({ name: n, source, label: null, dataType: null, scale: null, dateString: false, maruCodeId: null });
@@ -219,6 +228,41 @@ describe("룰 세트 편집 이음새(3단계 Task 0)", () => {
     await key(item, { key: "Escape" });
     expect(q("flow-menu")).toBeNull();
     expect(edgeEl("e2")!.classList.contains("selected")).toBe(true); // 선택은 그대로
+  });
+
+  it("고침 1 — 실행 권한이 없으면 디버그 모드 캔버스 F10·F5 가 execute 를 부르지 않고 막지도 않는다", async () => {
+    srv.rbacRows = ["search", "view", "save", "delete", "restore", "validate"].map((action) => ({ objId: "ruleSetEdit", action, endpoint: "*", httpMethod: "*" }));
+    await openSet("E2S_CHAIN", chainView());
+    await click("flow-mode-debug");
+    expect(byTestId("dbg-toolbar").getAttribute("data-can-run")).toBe("false");
+    const f10 = await key(byTestId("flow-canvas"), { key: "F10" });
+    const f5 = await key(byTestId("flow-canvas"), { key: "F5" });
+    await settle(50);
+    expect(f10.defaultPrevented).toBe(false);
+    expect(f5.defaultPrevented).toBe(false);
+    expect(calls("execute")).toHaveLength(0);
+  });
+
+  it("고침 1 — 실행 권한이 있으면 디버그 모드 캔버스 F10 이 실행한다", async () => {
+    await openSet("E2S_CHAIN", chainView());
+    await click("flow-mode-debug");
+    const f10 = await key(byTestId("flow-canvas"), { key: "F10" });
+    await settle(50);
+    expect(f10.defaultPrevented).toBe(true);
+    expect(calls("execute")).toHaveLength(1);
+  });
+
+  it("고침 2 — 디버그 툴바는 흐름 노드를 골랐을 때만 selectedId 를 받는다(메모·그룹은 null)", async () => {
+    const base = toEditFlow(null, ["E2S_GRD", "E2S_FCT", "E2S_SPD"]);
+    const withNote = addNote(base, { x: 600, y: 20 }, null).flow;
+    const noteId = withNote.view.notes[0].id;
+    const v = chainView();
+    await openSet("E2S_CHAIN", { ...v, set: { ...v.set, flow: withNote } });
+    await click("flow-mode-debug");
+    await click(`flow-note-${noteId}`);
+    expect(byTestId("dbg-toolbar").getAttribute("data-selected")).toBe("");
+    await click("flow-node-r1");
+    expect(byTestId("dbg-toolbar").getAttribute("data-selected")).toBe("r1");
   });
 
   it("7. [미니맵] 을 끄면 미니맵이 사라지고 localStorage 에 false 가 남는다", async () => {

@@ -309,8 +309,9 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
 
   // 단축키(P3) — 캔버스에 초점이 있을 때만. 손잡이 표는 모드별이다(손잡이가 없는 키는 브라우저·포털 동작 그대로).
   const mac = useMemo(() => isMacPlatform(), []);
+  /** 고른 것이 흐름 노드인가(메모·그룹 아님) — 복사·중단점 단축키와 디버그 툴바 [여기까지] 가 쓴다. */
+  const isFlowNode = !!flow && !!selectedId && flow.nodes.some((n) => n.id === selectedId);
   const onCanvasKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    const isFlowNode = !!flow && !!selectedId && flow.nodes.some((n) => n.id === selectedId);
     const focusFind = findInputRef.current ? () => findInputRef.current?.focus() : undefined;
     const common: ShortcutHandlers = { escape: editActions.escape, find: focusFind };
     let handlers: ShortcutHandlers = common;
@@ -327,8 +328,9 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     } else if (debugging) {
       handlers = {
         ...common,
-        continue: () => void sim.resume(),
-        step: () => void sim.next(),
+        // 실행을 부르는 단축키(계속·한 단계)는 실행 권한이 있을 때만 — 없으면 손잡이가 없어 F5·F10 은 브라우저 동작 그대로다.
+        continue: canRun ? () => void sim.resume() : undefined,
+        step: canRun ? () => void sim.next() : undefined,
         stepBack: sim.prev,
         breakpoint: isFlowNode ? () => sim.toggleBreakpoint(selectedId!) : undefined,
       };
@@ -474,7 +476,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
               find={find}
               findInputRef={findInputRef}
             />
-            {debugging && <DebugToolbar sim={sim} canRun={canRun} selectedId={selectedId} />}
+            {debugging && <DebugToolbar sim={sim} canRun={canRun} selectedId={isFlowNode ? selectedId : null} />}
             <ContentBody root direction="column" resizable storageKey={STORAGE_KEY}>
               <ContentBody key="main" resizable storageKey={`${STORAGE_KEY}.main`} flex="1 1 0" minSize={200}>
                 <ContentPanel key="left" width={280} minSize={200}>
