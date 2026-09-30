@@ -455,6 +455,37 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
         assertFalse(checkCodes(r).contains("SET_PAR_SIBLING"), r.toString());
     }
 
+    /**
+     * 판정이 통과 → 거부로 바뀌는 모양(P4 노드 쌍) — {@code start → s1 IF { e2: rM(R_M: S_Y 생산) ; e3(그 외): rO1(R_O: S_Y 읽기) } → m1 → rO2(R_O) → end}.
+     * 옛 판정은 R_M·R_O 관계가 {EXCLUSIVE, BEFORE} 라 IF 형제 판정을 건너뛰고(모두 EXCLUSIVE 일 때만), R_O 가 R_M 뒤에서 읽는 것은 순서상 맞아 아무것도
+     * 내지 않았다. 세트 저장 검사는 rO1 에서 IF_SIBLING 으로 거부하므로 확정 검사도 SET_IF_SIBLING 을 낸다.
+     */
+    @Test
+    void 다른_룰이_형제_갈래에서_이_룰의_결과를_읽으면_합류_뒤에_같은_룰이_또_있어도_SET_IF_SIBLING_이다() {
+        otherRule("R_M", "X_IN", "S_Y");
+        otherRule("R_O", "S_Y", "S_O_OUT");
+        String flow = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"},{\"id\":\"s1\",\"kind\":\"IF\"},"
+                + "{\"id\":\"rM\",\"kind\":\"RULE\",\"ruleId\":\"R_M\"},{\"id\":\"rO1\",\"kind\":\"RULE\",\"ruleId\":\"R_O\"},"
+                + "{\"id\":\"m1\",\"kind\":\"MERGE\",\"splitId\":\"s1\"},{\"id\":\"rO2\",\"kind\":\"RULE\",\"ruleId\":\"R_O\"},{\"id\":\"end\",\"kind\":\"END\"}],"
+                + "\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"s1\"},{\"id\":\"e2\",\"from\":\"s1\",\"to\":\"rM\",\"order\":1,\"cond\":\"X_IN > 1\"},"
+                + "{\"id\":\"e3\",\"from\":\"s1\",\"to\":\"rO1\",\"otherwise\":true},{\"id\":\"e4\",\"from\":\"rM\",\"to\":\"m1\"},"
+                + "{\"id\":\"e5\",\"from\":\"rO1\",\"to\":\"m1\"},{\"id\":\"e6\",\"from\":\"m1\",\"to\":\"rO2\"},{\"id\":\"e7\",\"from\":\"rO2\",\"to\":\"end\"}]}";
+        ruleSet("S_IFREAD", "INUSE", "R_M", "R_O");
+        DmeTestSupport.ruleSetFlow(jdbc, "S_IFREAD", flow);
+        IoName xIn = new IoName("X_IN", RuleIo.NONE, null, null, null, false, null);
+        Map<String, RuleIo> rules = new LinkedHashMap<>();
+        rules.put("R_M", new RuleIo("R_M", "R_M", "DECISION", "INUSE", true, 1, "FIRST", List.of(xIn), List.of(ioName("S_Y"))));
+        rules.put("R_O", new RuleIo("R_O", "R_O", "DECISION", "INUSE", true, 1, "FIRST", List.of(ioName("S_Y")), List.of(ioName("S_O_OUT"))));
+        List<RuleSetCheck> set = RuleSetAnalyzer.checks(RuleSetFlowJson.parse(flow), rules, Map.of("e2", new CondIo(true, null, List.of(xIn))));
+        assertTrue(set.stream().anyMatch(c -> RuleSetCheck.IF_SIBLING.equals(c.code()) && "R_O".equals(c.ruleId()) && "rO1".equals(c.nodeId())
+                && "S_Y".equals(c.varName()) && "R_M".equals(c.otherRuleId())), set.toString());
+
+        List<Map<String, Object>> r = orderCheck("R_M");
+
+        assertEquals(List.of("SET_IF_SIBLING"), checkCodes(r), r.toString());
+        assertTrue(String.valueOf(r.get(0).get("message")).contains("R_O ← [S_Y]"), r.toString());
+    }
+
     // ── P4 합격 기준 — 코퍼스·퍼즈 사례로 세트 저장 검사(분석기)와 확정 검사 대조 ──
 
     /** lib 테스트 자원(api 테스트 작업 디렉터리 = api 모듈 루트). api 테스트 클래스패스에는 lib 테스트 자원이 없어 파일로 읽는다. */
@@ -612,6 +643,7 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
         Tally t = compareCases();
         Set<String> rejectCodes = Set.of(RuleSetCheck.IF_SIBLING, RuleSetCheck.PAR_SIBLING, RuleSetCheck.ORDER, RuleSetCheck.CYCLE);
         int checked = 0;
+        int checkedOther = 0;
         for (Compared c : t.cases()) {
             for (Map.Entry<String, List<SiblingRead>> e : c.pairs().entrySet()) {
                 String me = e.getKey();
@@ -621,6 +653,14 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
                         boolean matched = c.set().stream().anyMatch(k -> me.equals(k.ruleId()) && p.meNode().equals(k.nodeId()) && x.equals(k.varName())
                                 && rejectCodes.contains(k.code()) && (!RuleSetCheck.PAR_SIBLING.equals(k.code()) || readSibling(k, c.rules())));
                         assertTrue(matched, c.name() + " me=" + me + " " + p + " 변수 " + x + " — 세트 저장 검사: " + c.set());
+                    }
+                    // 반대 방향 — other 노드가 읽는 me 의 결과도 세트 저장 검사가 other 의 그 노드·그 변수에서 거부한다.
+                    for (String y : p.otherReads()) {
+                        checkedOther++;
+                        boolean matched = c.set().stream().anyMatch(k -> p.otherRuleId().equals(k.ruleId()) && p.otherNode().equals(k.nodeId())
+                                && y.equals(k.varName()) && rejectCodes.contains(k.code())
+                                && (!RuleSetCheck.PAR_SIBLING.equals(k.code()) || readSibling(k, c.rules())));
+                        assertTrue(matched, c.name() + " me=" + me + " " + p + " other 가 읽는 " + y + " — 세트 저장 검사: " + c.set());
                     }
                 }
                 List<Object> codes = checkCodes(c.issues().get(me));
@@ -634,8 +674,8 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
                 }
             }
         }
-        System.out.println("[P4 가] " + t.summary() + " · 확정 검사 형제 읽기 변수 " + checked + "건 대조");
-        assertTrue(checked > 0, "대조한 형제 읽기가 없다 — 사례가 판정을 건드리지 않는다: " + t.summary());
+        System.out.println("[P4 가] " + t.summary() + " · 확정 검사 형제 읽기 변수 me 쪽 " + checked + "건 · other 쪽 " + checkedOther + "건 대조");
+        assertTrue(checked > 0 && checkedOther > 0, "대조한 형제 읽기가 없다 — 사례가 판정을 건드리지 않는다: " + t.summary());
     }
 
     @Test
