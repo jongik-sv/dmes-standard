@@ -12,7 +12,7 @@ import type { FlowNode } from "@/contract/engine-contract.generated";
 
 import type { FlowNote } from "../flow-edit";
 import { NODE_SIZE } from "../flow-layout";
-import type { RuleIo } from "../types";
+import type { RuleIo, VarDisplay } from "../types";
 import type { NodeOverlay } from "./overlay";
 import { Handle, Position, type Node, type NodeProps, type NodeTypes } from "./react-flow";
 
@@ -39,6 +39,8 @@ export type FlowNodeData = {
   /** 접힌 분기면 블록 요약, 아니면 null(3단계 D16, 그리기는 Task 11). */
   collapsed: CollapsedBlockInfo | null;
   onToggleBreakpoint: (nodeId: string) => void;
+  /** 표시 토글(끔·ID·이름) — 룰 노드 제목이 따른다(추가 Task V2). */
+  varDisplay: VarDisplay;
 };
 export type NoteNodeData = { note: FlowNote; selected: boolean; editable: boolean; onChange: (id: string, patch: Partial<FlowNote>) => void };
 export type GroupNodeData = { id: string; title: string; selected: boolean };
@@ -68,18 +70,22 @@ function Badges({ id, overlay }: { id: string; overlay: NodeOverlay | undefined 
 }
 
 function RuleBody({ data }: { data: FlowNodeData }) {
-  const { node, io, mark, onOpenRule } = data;
+  const { node, io, mark, onOpenRule, varDisplay } = data;
   const ruleId = node.ruleId ?? "";
   const missing = !io || !io.exists;
   const open = (e: MouseEvent) => {
     e.stopPropagation();
     onOpenRule(ruleId);
   };
+  // ID 모드: 제목=룰 ID, 작은 줄=룰명(없으면 생략). 그 밖·없는 룰은 제목=룰명(없으면 ID), 작은 줄=ID.
+  const idMode = !missing && varDisplay === "id";
+  const title = missing ? "(없는 룰)" : idMode ? ruleId : (io.ruleName ?? ruleId);
+  const small = idMode ? (io.ruleName ?? "") : ruleId;
   return (
     <>
-      <div className="rsf-title">{missing ? "(없는 룰)" : (io.ruleName ?? ruleId)}</div>
+      <div className="rsf-title">{title}</div>
       <div className="rsf-sub">{missing ? "룰 정보를 찾지 못했다" : [io.ruleKind, io.hitPolicy].filter(Boolean).join(" · ")}</div>
-      <div className="rsf-id">{ruleId}</div>
+      {small !== "" && <div className="rsf-id">{small}</div>}
       <button
         type="button"
         className="rsf-open nodrag"

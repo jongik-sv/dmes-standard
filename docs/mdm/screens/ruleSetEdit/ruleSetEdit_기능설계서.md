@@ -144,6 +144,7 @@ moduleGroup: dme
 | 끌기 대상 선 강조 | `flow-edge-drop-{edgeId}` | 팔레트 항목·룰 목록 줄·놓인 노드/블록을 끄는 동안 커서에서 화면 80px 안(`80/zoom` 흐름 좌표) 가장 가까운 선을 굵은 파란 선으로 그리고 가운데에 「여기에 넣기」 표지를 띄운다 |
 | 즉석 조건식 입력 칸 | `flow-edge-cond-input-{edgeId}` | IF 의 「그 외」가 아닌 갈래의 선 라벨을 두 번 누르면 라벨 자리에 열린다(§5.3). 선 라벨 요소에 `data-cond-edge` |
 | 중단점 점 | `flow-bp-{nodeId}` (`data-on` = true·false) | 룰·IF·병렬·합류 노드의 왼쪽 가장자리. 디버그 모드에서는 눌러 켜고 끄는 단추이고(노드 선택은 바뀌지 않는다), 그 밖 모드에서는 켜진 것만 작은 점으로 보이며 누를 수 없다 |
+| 룰 노드 제목 | `rsf-title`·`rsf-id` | 룰 노드(232×68)의 제목·작은 줄이 [표시]를 따른다. ID 이면 제목=룰 ID·작은 줄=룰명(룰명이 없으면 작은 줄 생략), 이름·끔이면 제목=룰명(없으면 ID)·작은 줄=ID. 없는 룰 「(없는 룰)」·접힌 분기·IF·병렬·메모는 바뀌지 않는다. 긴 ID 는 말줄임 |
 | 접힌 블록 | `flow-collapsed-{splitId}` (`data-error`), `flow-collapsed-ran-{splitId}` | 접힌 분기를 룰 박스 크기의 노드 하나로 그린다 — 문구 「IF 조건 · 노드 6개」/「병렬 · 노드 6개」(분기·짝 합류를 뺀 안쪽 노드 수). 디버거 기록이 있으면 형제 요소 「안쪽 실행 k개」, 안쪽 또는 합류가 오류로 끝났으면 빨간 테두리. 접힌 분기에서 나가는 선은 합류 뒤로 이어지고 갈래 이름·조건 편집이 없다. 접힘은 화면 상태이고 저장하지 않는다 |
 | 디버그 상태 모양 | 노드 `data-state` | `current` 굵은 강조 테두리, `next` 점선, `pending` 회색(끝에 닿으면 2단계 최종 겹침과 같이 `run`·`error`·`dim`). 변수 칩(`flow-edge-chips-{edgeId}`)에 마우스를 올리면 `title` 로 커서 자리 값(`표시명 (ID) = 값`, 표시명이 없으면 `ID = 값`, 아직이면 `… · 아직 없음`)을 보인다 |
 | 선 경로 손잡이(C14, Task 15 구현) | `flow-route-handle-{edgeId}-{i}` (`data-selected="true"` = 고른 손잡이, `data-dragging="true"` = 끌리는 손잡이) | 편집 모드에서 선을 고르면 꺾는 점마다 손잡이가 보인다. 동작은 §5.3 |
@@ -209,7 +210,7 @@ moduleGroup: dme
 | B-005 | 다시 불러오기(`set-reload`) | A-TOOL | `view` | MDM001 충돌 뒤에만 보인다 |
 | B-006 | 보기(`flow-mode-view`)/편집(`flow-mode-edit`)/디버그(`flow-mode-debug`) | A-TOOL | (없음) | 세트를 열면 보기 모드다. [편집]은 `view.editable`·INUSE·`save` 권한일 때만 켜진다. [디버그]는 누구나 들어간다(실행 단추는 `execute` 권한이 따로 켠다). 편집 → 보기/디버그는 편집 내용을 버리지 않는다. 디버그 모드 입력값·중단점·조사식·기록은 모드를 오가도 유지한다 |
 | B-007 | 자동 정렬(`flow-auto-layout`) | A-TOOL | (없음) | dagre 위→아래 배치로 모든 노드 위치를 다시 잡는다(편집 모드만 켜진다). 모든 선의 경로(`view.routes`)도 함께 지운다(C14). 위치와 경로 지우기는 이력 한 칸이라 되돌리기 한 번으로 함께 살아난다 |
-| B-008 | 화면 맞춤(`flow-fit`)·변수 흐름(`flow-var-toggle`)·미니맵(`flow-minimap-toggle`) | A-TOOL | (없음) | 보기 조절. 서버를 부르지 않는다. [변수 흐름]은 누를 때마다 끔 → ID → 이름 → 끔으로 돌고 단추에 지금 상태("변수: 끔/ID/이름")를 보이며 마지막 선택을 브라우저 저장소(`rsf:varDisplay`, 이상한 값이면 끔)에 기억한다. 미니맵은 켜고 끔을 브라우저 저장소(`rsf:minimap`)에 기억한다 |
+| B-008 | 화면 맞춤(`flow-fit`)·표시(`flow-var-toggle`)·미니맵(`flow-minimap-toggle`) | A-TOOL | (없음) | 보기 조절. 서버를 부르지 않는다. [표시](`flow-var-toggle`)는 선 변수 칩과 룰 노드 제목에 함께 적용되고, 누를 때마다 끔 → ID → 이름 → 끔으로 돌며 단추에 지금 상태("표시: 끔/ID/이름")를 보이고(툴팁: 선 변수 칩과 룰 노드 제목을 ID·이름으로 바꾼다. 끄면 변수 칩을 숨긴다) 마지막 선택을 브라우저 저장소(`rsf:varDisplay`, 이상한 값이면 끔)에 기억한다. 미니맵은 켜고 끔을 브라우저 저장소(`rsf:minimap`)에 기억한다 |
 | B-009 | 룰(`flow-add-rule`)·IF(`flow-add-if`)·병렬(`flow-add-par`)·메모(`flow-add-note`)·그룹(`flow-add-group`) | A-LEFT(팔레트) | `search`(RULE, 룰 팝업) | 편집 모드만. 동작은 §5.3 |
 | B-010 | 찾기(지침, `set-guide-run`) | A-PROPS(세트 패널) | `search`(GUIDE) | |
 | B-011 | 이 순서로 한 줄 흐름 만들기(`set-guide-apply`) | A-PROPS(세트 패널) | (없음) | 한 줄 흐름이면 제안 순서로 `linearFlow(순서)` 를 만들고(배치 초기화) 응답 `rules` 의 입출력을 더한다(dirty). 편집 모드·`save` 권한일 때만 켜진다. **분기가 있는 흐름이면 꺼진다**(P-D5, 1단계 Ruling 13) |

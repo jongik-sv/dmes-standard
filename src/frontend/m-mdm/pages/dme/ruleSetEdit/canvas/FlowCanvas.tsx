@@ -575,6 +575,7 @@ function Inner(props: FlowCanvasProps) {
         canBreak: debugging && BREAKABLE.has(n.kind),
         collapsed: block ? blockInfo(flow, block, n.id, overlay) : null,
         onToggleBreakpoint,
+        varDisplay,
       };
       out.push({
         id: n.id, type: "rsfFlow", position: p, width: s.w, height: s.h, measured: measured[n.id], data, handles: handlesOf(block ? "RULE" : n.kind), draggable: editable,
@@ -589,7 +590,7 @@ function Inner(props: FlowCanvasProps) {
       });
     }
     return out;
-  }, [flow, vflow, view, pos, drag, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured]);
+  }, [flow, vflow, view, pos, drag, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured, varDisplay]);
 
   const edges = useMemo(() => {
     const kindOf = new Map(vflow.nodes.map((n) => [n.id, n.kind] as const));
