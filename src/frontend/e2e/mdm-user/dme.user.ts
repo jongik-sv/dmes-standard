@@ -173,6 +173,18 @@ const ruleList = (page: Page) => screen(page).locator(".grid-panel").first();
 const ruleRow = (page: Page, id: string) => gridRow(ruleList(page), id, "maruRuleId");
 const ruleCell = (page: Page, id: string, col: string) => ruleRow(page, id).locator(`.ag-cell[col-id="${col}"]`);
 
+/** 목록 헤더 [룰 등록] 으로 등록 팝업을 연다(열 때만 마운트, 칸은 빈 채로 시작). */
+async function openRuleRegister(page: Page) {
+  await page.locator("#btn_rule_reg").click();
+  await expect(tid(page, "rule-register-form")).toBeVisible({ timeout: 20_000 });
+}
+
+/** 등록 팝업을 [취소]로 닫는다. */
+async function cancelRuleRegister(page: Page) {
+  await tid(page, "rule-reg-cancel").click();
+  await expect(tid(page, "rule-register-form")).toHaveCount(0, { timeout: 20_000 });
+}
+
 async function searchRule(page: Page, keyword: string, opts: { kind?: string; status?: string } = {}) {
   await tid(page, "rule-search-keyword").fill(keyword);
   await searchSelect(page, "종류").selectOption(opts.kind ?? "");
@@ -417,10 +429,11 @@ interface EqualRule {
  */
 async function buildEqualRule(page: Page, r: EqualRule) {
   await go(page, "ruleMng");
+  await openRuleRegister(page);
   await tid(page, "rule-reg-id").fill(r.id);
   await tid(page, "rule-reg-name").fill(r.name);
   await tid(page, "rule-reg-kind").selectOption("DECISION");
-  await tid(page, "rule-register-form").getByRole("button", { name: "룰 등록", exact: true }).click();
+  await tid(page, "rule-reg-submit").click();
   await expect(footerScreenId(page)).toHaveText("ruleEdit", { timeout: 60_000 });
   await expect(tid(page, "rule-edit-current")).toHaveText(r.id, { timeout: 30_000 });
   await expect(topbar(page)).toContainText("편집 중(나)");
@@ -502,7 +515,7 @@ test.describe("A 룰 등록·편집·확정", () => {
 
   // ─────────── ruleMng — 룰 ───────────
 
-  test("TC-DME-MNG-01 룰 화면 배치 — 메뉴로 열면 조회영역·목록·등록 폼이 보인다", async () => {
+  test("TC-DME-MNG-01 룰 화면 배치 — 메뉴로 열면 조회영역·목록·[룰 등록] 버튼이 보이고 버튼으로 등록 팝업이 열린다", async () => {
     await go(page, "ruleMng");
     await resetClicks(page);
     await expect(breadcrumb(page)).toContainText("마루 MDM > 업무기준 > 룰");
@@ -510,17 +523,22 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(searchSelect(page, "종류")).toHaveValue("");
     await expect(searchSelect(page, "상태")).toHaveValue("");
     await expect(ruleList(page).locator(".ag-root-wrapper")).toBeVisible();
-    await expect(tid(page, "rule-register-form")).toBeVisible();
-    await expect(tid(page, "rule-reg-kind")).toHaveValue("DECISION");
-    await expect(tid(page, "rule-reg-source")).toHaveText("MDM (등록은 MDM 원천만 받는다)");
-    await expect(tid(page, "rule-register-form").getByRole("button", { name: "룰 등록", exact: true })).toBeDisabled();
+    await expect(page.locator("#btn_rule_reg")).toBeVisible();
+    await expect(tid(page, "rule-register-form")).toHaveCount(0);
+    // 화면 배치·스냅샷은 팝업이 닫힌 화면에서 본다. 팝업은 확인 뒤 [취소]로 닫아 MNG-02 가 열어서 시작한다.
     await layout.layout(page, "ruleMng");
     await snap(page, "dme-ruleMng-01-initial");
+    await openRuleRegister(page);
+    await expect(tid(page, "rule-reg-kind")).toHaveValue("DECISION");
+    await expect(tid(page, "rule-reg-source")).toHaveText("MDM (등록은 MDM 원천만 받는다)");
+    await expect(tid(page, "rule-reg-submit")).toBeDisabled();
+    await cancelRuleRegister(page);
     watcher.assertClean("ruleMng");
   });
 
-  test("TC-DME-MNG-02 ID 규칙·룰명 길이 위반은 바로 안내되고 [룰 등록]이 꺼진다", async () => {
-    const reg = tid(page, "rule-register-form").getByRole("button", { name: "룰 등록", exact: true });
+  test("TC-DME-MNG-02 ID 규칙·룰명 길이 위반은 바로 안내되고 [등록]이 꺼진다", async () => {
+    const reg = tid(page, "rule-reg-submit");
+    await openRuleRegister(page);
     await tid(page, "rule-reg-id").fill("e2e bad-id");
     await tid(page, "rule-reg-name").fill(NAME);
     await expect(tid(page, "rule-register-form")).toContainText("룰 ID 는 컬럼 물리명 규칙");
@@ -535,17 +553,20 @@ test.describe("A 룰 등록·편집·확정", () => {
     // 룰명을 비우면 필수라 꺼진다.
     await tid(page, "rule-reg-name").fill("");
     await expect(reg).toBeDisabled();
+    // 팝업은 MNG-03 으로 열린 채 이어진다(입력값도 그대로 — MNG-03 이 다시 채운다).
     watcher.assertClean("ruleMng");
   });
 
   test("TC-DME-MNG-03 등록(C) — ID·룰명·종류·설명·활용처 메모를 넣고 등록하면 룰 화면이 버전 1 DRAFT 로 열린다", async () => {
+    // MNG-02 에서 열린 팝업을 이어 쓴다.
+    await expect(tid(page, "rule-register-form")).toBeVisible();
     await tid(page, "rule-reg-id").fill(RULE);
     await tid(page, "rule-reg-name").fill(NAME);
     await tid(page, "rule-reg-kind").selectOption("DERIVE");
     await tid(page, "rule-reg-kind").selectOption("DECISION");
     await tid(page, "rule-reg-description").fill("E2E 사용자 여정으로 만든 판정 룰");
     await tid(page, "rule-reg-usage").fill("E2E 품질 판정 화면");
-    await tid(page, "rule-register-form").getByRole("button", { name: "룰 등록", exact: true }).click();
+    await tid(page, "rule-reg-submit").click();
 
     await expect(footerScreenId(page)).toHaveText("ruleEdit", { timeout: 60_000 });
     await expect(tid(page, "rule-edit-current")).toHaveText(RULE, { timeout: 30_000 });
@@ -558,10 +579,13 @@ test.describe("A 룰 등록·편집·확정", () => {
 
   test("TC-DME-MNG-04 조회(R) — 키워드·종류·상태 조건을 바꿔 가며 방금 만든 룰을 찾는다", async () => {
     await go(page, "ruleMng");
-    // 등록이 끝나면 등록 폼은 비워진다.
+    // 등록이 끝나면 팝업은 닫히고, 다시 열면 칸이 비어 있다.
+    await expect(tid(page, "rule-register-form")).toHaveCount(0);
+    await openRuleRegister(page);
     await expect(tid(page, "rule-reg-id")).toHaveValue("");
     await expect(tid(page, "rule-reg-name")).toHaveValue("");
     await expect(tid(page, "rule-reg-kind")).toHaveValue("DECISION");
+    await cancelRuleRegister(page);
 
     await searchRule(page, RULE);
     await expect(ruleRow(page, RULE)).toHaveCount(1, { timeout: 20_000 });
@@ -600,15 +624,24 @@ test.describe("A 룰 등록·편집·확정", () => {
   });
 
   test("TC-DME-MNG-05 같은 ID 로 다시 등록하면 중복 문구가 보인다", async () => {
+    await openRuleRegister(page);
     await tid(page, "rule-reg-id").fill(RULE);
     await tid(page, "rule-reg-name").fill("중복 등록");
-    await tid(page, "rule-register-form").getByRole("button", { name: "룰 등록", exact: true }).click();
-    await expectErrorModal(page, "같은 룰 ID 가 이미 있습니다", "dme-ruleMng-05-dup");
+    await tid(page, "rule-reg-submit").click();
+    // 오류창이 등록 팝업 위에 뜬다. `expectErrorModal`(answerConfirm)은 닫은 뒤 "마지막 보이는 모달"을 다시 찾아
+    // 등록 팝업을 가리키게 되므로, 오류창 자체가 사라지는 것으로 본다.
+    await expect(errorBody(page)).toContainText("같은 룰 ID 가 이미 있습니다", { timeout: 20_000 });
+    await snapModal(page, "dme-ruleMng-05-dup");
+    await modal(page).getByRole("button", { name: "확인", exact: true }).click();
+    await expect(errorBody(page)).toHaveCount(0);
+    await expect(tid(page, "rule-register-form")).toBeVisible();
     expectOnly4xx(watcher, "ruleMng 중복 등록");
     // 거부되면 입력값을 그대로 둔다.
     await expect(tid(page, "rule-reg-id")).toHaveValue(RULE);
     await tid(page, "rule-reg-id").fill("");
     await tid(page, "rule-reg-name").fill("");
+    // 뒤 테스트가 깨끗한 화면에서 시작하도록 팝업을 닫는다.
+    await cancelRuleRegister(page);
     await assertAllButtonsPressed(page, "ruleMng");
     watcher.assertClean("ruleMng");
   });
@@ -2051,9 +2084,10 @@ test.describe("D 화면 연결·넘기기·충돌·드래그·읽기 전용", ()
       const second = uid("DMEL2");
       for (const id of [first, second]) {
         await go(page, "ruleMng");
+        await openRuleRegister(page);
         await tid(page, "rule-reg-id").fill(id);
         await tid(page, "rule-reg-name").fill(`E2E 연결 ${RUN}`);
-        await tid(page, "rule-register-form").getByRole("button", { name: "룰 등록", exact: true }).click();
+        await tid(page, "rule-reg-submit").click();
         await expect(footerScreenId(page)).toHaveText("ruleEdit", { timeout: 60_000 });
         await expect(tid(page, "rule-edit-current"), "넘겨받은 룰").toHaveText(id, { timeout: 30_000 });
       }
@@ -2071,9 +2105,10 @@ test.describe("D 화면 연결·넘기기·충돌·드래그·읽기 전용", ()
     try {
       const id = uid("DMEH");
       await go(page, "ruleMng");
+      await openRuleRegister(page);
       await tid(page, "rule-reg-id").fill(id);
       await tid(page, "rule-reg-name").fill(`E2E 넘기기 ${RUN}`);
-      await tid(page, "rule-register-form").getByRole("button", { name: "룰 등록", exact: true }).click();
+      await tid(page, "rule-reg-submit").click();
       await expect(tid(page, "rule-edit-current")).toHaveText(id, { timeout: 60_000 });
       // 넘겨받는 사람의 담당자 여부를 확인할 수단이 없어(서버가 늘 MDM005) 받는 사람 칸과 버튼을 꺼 두었다.
       await expect(tid(page, "rule-handover-target")).toBeDisabled();
@@ -2156,9 +2191,10 @@ test.describe("D 화면 연결·넘기기·충돌·드래그·읽기 전용", ()
     const owner = await openAs(browser, "stw", testInfo);
     try {
       await go(owner.page, "ruleMng");
+      await openRuleRegister(owner.page);
       await tid(owner.page, "rule-reg-id").fill(rule);
       await tid(owner.page, "rule-reg-name").fill(`E2E 읽기전용 ${RUN}`);
-      await tid(owner.page, "rule-register-form").getByRole("button", { name: "룰 등록", exact: true }).click();
+      await tid(owner.page, "rule-reg-submit").click();
       await expect(tid(owner.page, "rule-edit-current")).toHaveText(rule, { timeout: 60_000 });
       await go(owner.page, "ruleSetMng");
       await tid(owner.page, "set-reg-id").fill(set);
@@ -2178,9 +2214,7 @@ test.describe("D 화면 연결·넘기기·충돌·드래그·읽기 전용", ()
       await expect(button(page, "조회")).toBeEnabled({ timeout: 30_000 });
       await searchRule(page, rule);
       await expect(ruleRow(page, rule)).toHaveCount(1, { timeout: 20_000 });
-      await tid(page, "rule-reg-id").fill(`${rule}_X`);
-      await tid(page, "rule-reg-name").fill("권한 없음");
-      await expect(tid(page, "rule-register-form").getByRole("button", { name: "룰 등록", exact: true })).toBeDisabled();
+      await expect(page.locator("#btn_rule_reg")).toBeDisabled();
       await snap(page, "dme-ro-ruleMng");
 
       // ruleEdit — 헤더·버전·표·열 설정·값 테스트가 모두 막힌다.

@@ -4,8 +4,8 @@ import { expect, test, type Page } from "@playwright/test";
 /**
  * mdm dme/ruleMng(룰 헤더·버전) — TSK-08-02 design.md §3.4.1, decisions.md D-105.
  *
- * 스모크 넷: T1 메뉴 이동, T2 목록(서버 데이터)·빈 상태, T3 등록 한 번(상세에 새 룰이 뜨고 목록에 반영), T4 서버 오류.
- * 고유: T5 수용 1(ID 물리명 규칙 — 즉시 안내 + 서버 거부), T6 수용 2(원천 선택 칸 없음), T7 권한(READ 는 등록 비활성).
+ * 스모크 넷: T1 메뉴 이동, T2 목록(서버 데이터)·빈 상태, T3 등록 한 번(팝업에서 등록하면 상세에 새 룰이 뜨고 목록에 반영), T4 서버 오류.
+ * 고유: T5 수용 1(ID 물리명 규칙 — 즉시 안내 + 서버 거부), T6 수용 2(원천 선택 칸 없음), T7 권한(READ 는 [룰 등록] 버튼이 비활성).
  *
  * D-105 — 이 화면이 ① 헤더·② 버전(목록 + 상세)까지 맡는다. H 계열은 옮겨 온 시험이다:
  * 헤더 저장(낙관적 잠금 auditVer)·폐기·적중 정책·새 버전·DRAFT 삭제·선점·해제·넘기기·확정 취소·확정 이동.
@@ -49,7 +49,13 @@ async function openMenu(page: Page, leaf: RegExp) {
 
 async function openRuleMng(page: Page) {
   await openMenu(page, /^룰$/);
-  await expect(page.getByTestId("rule-register-form")).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator("#btn_rule_reg")).toBeVisible({ timeout: 60_000 });
+}
+
+/** 목록 헤더 [룰 등록] 으로 등록 팝업을 연다. 팝업은 열 때만 마운트되고 칸은 빈 채로 시작한다. */
+async function openRuleRegister(page: Page) {
+  await page.locator("#btn_rule_reg").click();
+  await expect(page.getByTestId("rule-register-form")).toBeVisible({ timeout: 20_000 });
 }
 
 async function search(page: Page, keyword: string) {
@@ -97,11 +103,13 @@ test.describe("mdm dme/ruleMng", () => {
   test("T3 등록: 등록하면 목록에 있고 고르면 상세가 버전 1 DRAFT·편집 중(나)으로 열린다", async ({ page }) => {
     await login(page, STEWARD);
     await openRuleMng(page);
+    await openRuleRegister(page);
     await page.getByTestId("rule-reg-id").fill("E2E_NEW_JDG");
     await page.getByTestId("rule-reg-name").fill("E2E 신규 판정");
     await page.getByTestId("rule-reg-kind").selectOption("DECISION");
     await page.screenshot({ path: screenshot("dme-ruleMng-register.png"), fullPage: true });
-    await page.getByRole("button", { name: "룰 등록" }).click();
+    await page.getByTestId("rule-reg-submit").click();
+    await expect(page.getByTestId("rule-register-form")).toHaveCount(0, { timeout: 20_000 });
 
     await search(page, "E2E_NEW");
     await expect(page.getByTestId("rule-link-E2E_NEW_JDG")).toBeVisible({ timeout: 20_000 });
@@ -116,19 +124,21 @@ test.describe("mdm dme/ruleMng", () => {
   test("T4 서버 오류: 같은 ID 로 등록하면 서버 중복 오류가 보인다", async ({ page }) => {
     await login(page, STEWARD);
     await openRuleMng(page);
+    await openRuleRegister(page);
     await page.getByTestId("rule-reg-id").fill("QLTY_GRD_JDG");
     await page.getByTestId("rule-reg-name").fill("중복 등록");
-    await page.getByRole("button", { name: "룰 등록" }).click();
-    await expect(page.getByRole("dialog").getByText(/같은 룰 ID 가 이미 있습니다/)).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("rule-reg-submit").click();
+    await expect(page.getByRole("dialog").filter({ hasText: /같은 룰 ID 가 이미 있습니다/ }).first()).toBeVisible({ timeout: 20_000 });
   });
 
   test("T5 수용 1: 물리명 규칙 위반은 즉시 안내하고 막으며, 가로채 보내도 서버가 거부한다", async ({ page }) => {
     await login(page, STEWARD);
     await openRuleMng(page);
+    await openRuleRegister(page);
     await page.getByTestId("rule-reg-id").fill("qlty-bad");
     await page.getByTestId("rule-reg-name").fill("규칙 위반");
     await expect(page.getByText(/컬럼 물리명 규칙/).first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "룰 등록" })).toBeDisabled();
+    await expect(page.getByTestId("rule-reg-submit")).toBeDisabled();
 
     // 화면 검사를 지나도록 올바른 ID 를 넣고, 요청 본문을 규칙 위반 ID 로 바꿔 보낸다 → 서버가 판정한다(I1).
     await page.getByTestId("rule-reg-id").fill("E2E_ROUTE_JDG");
@@ -137,14 +147,16 @@ test.describe("mdm dme/ruleMng", () => {
       body.params.maruRuleId = "qlty-bad";
       await route.continue({ postData: JSON.stringify(body) });
     });
-    await page.getByRole("button", { name: "룰 등록" }).click();
-    await expect(page.getByRole("dialog").getByText(/컬럼 물리명 규칙/)).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("rule-reg-submit").click();
+    // 서버 오류 ErrorModal — 등록 팝업(rule-register-form 을 품은 dialog)이 아닌 dialog 로 좁힌다.
+    await expect(page.getByRole("dialog").filter({ hasNot: page.getByTestId("rule-register-form") }).getByText(/컬럼 물리명 규칙/)).toBeVisible({ timeout: 20_000 });
     await page.unroute("**/api/mdm/oasis/ruleMng/reg");
   });
 
   test("T6 수용 2: 등록 폼에 원천 선택 칸이 없고 MDM 고정이다", async ({ page }) => {
     await login(page, STEWARD);
     await openRuleMng(page);
+    await openRuleRegister(page);
     const form = page.getByTestId("rule-register-form");
     await expect(form.getByTestId("rule-reg-source")).toHaveText(/MDM/);
     await expect(form.locator("select")).toHaveCount(1); // 종류만 고른다
@@ -155,9 +167,7 @@ test.describe("mdm dme/ruleMng", () => {
     await login(page, STDADMIN);
     await openRuleMng(page);
     await expect(page.getByTestId("rule-link-QLTY_GRD_JDG")).toBeVisible({ timeout: 30_000 });
-    await page.getByTestId("rule-reg-id").fill("E2E_READ_JDG");
-    await page.getByTestId("rule-reg-name").fill("권한 없음");
-    await expect(page.getByRole("button", { name: "룰 등록" })).toBeDisabled();
+    await expect(page.locator("#btn_rule_reg")).toBeDisabled();
   });
   // ── D-105 — ① 헤더·② 버전 상세 (옮겨 온 시험) ──
 

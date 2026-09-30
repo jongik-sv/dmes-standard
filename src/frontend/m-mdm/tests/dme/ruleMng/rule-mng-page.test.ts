@@ -381,4 +381,37 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
     await render();
     expect(byTestId<HTMLSelectElement>("rule-hit-policy")?.disabled).toBe(true);
   });
+
+  // ── 룰 등록 팝업 — 목록 헤더 [룰 등록] 이 연다 ──
+
+  it("등록 폼은 닫혀 있다가 목록 헤더 [룰 등록] 을 누르면 팝업으로 열린다", async () => {
+    await render();
+    expect(document.querySelector('[data-testid="rule-register-form"]')).toBeNull();
+    await act(async () => findButton(container, "룰 등록").click());
+    await flush();
+    const form = document.querySelector('[data-testid="rule-register-form"]');
+    expect(form?.closest('[role="dialog"]')).not.toBeNull();
+    expect((document.querySelector('[data-testid="rule-reg-kind"]') as HTMLSelectElement).value).toBe("DECISION");
+  });
+
+  it("팝업에서 등록하면 reg 를 보내고 팝업을 닫은 뒤 목록을 다시 부른다", async () => {
+    await render();
+    await act(async () => findButton(container, "룰 등록").click());
+    await flush();
+    await typeInto(document.querySelector('[data-testid="rule-reg-id"]') as HTMLInputElement, "NEW_RULE_JDG");
+    await typeInto(document.querySelector('[data-testid="rule-reg-name"]') as HTMLInputElement, "새 판정");
+    const searches = requests.filter((r) => r.action === "search").length;
+    actionResponses.reg = { meta: { success: true }, data: { result: { maruRuleId: "NEW_RULE_JDG", ver: 1 } } };
+    await act(async () => (document.querySelector('[data-testid="rule-reg-submit"]') as HTMLButtonElement).click());
+    await flush();
+    expect(params("reg")).toMatchObject({ maruRuleId: "NEW_RULE_JDG", maruRuleName: "새 판정", ruleKind: "DECISION" });
+    expect(document.querySelector('[data-testid="rule-register-form"]')).toBeNull();
+    expect(requests.filter((r) => r.action === "search").length).toBe(searches + 1);
+  });
+
+  it("등록 권한(reg)이 없으면 [룰 등록] 은 보이지만 꺼져 있다", async () => {
+    rbacRows = ["search", "view"].map((action) => ({ objId: "ruleMng", action, endpoint: "*", httpMethod: "*" }));
+    await render();
+    expect(findButton(container, "룰 등록").disabled).toBe(true);
+  });
 });

@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * 룰 등록 폼(TSK-08-02 design §2.1-FM). 원천은 MDM 고정이라 고르는 칸이 없다(수용 2, D11).
+ * 룰 등록 팝업 본문(TSK-08-02 design §2.1-FM). 목록 헤더의 [룰 등록]이 여는 팝업 안에 들어간다 — 팝업을 열 때마다
+ * 새로 마운트되어 칸이 빈 채로 시작한다. 원천은 MDM 고정이라 고르는 칸이 없다(수용 2, D11).
  * 룰 ID 는 컬럼 물리명 규칙을 즉시 안내하고 어기면 저장을 막는다(수용 1 — 서버가 다시 판정한다).
  * 저장에 성공하면 룰 화면 탭을 열어 버전 1 DRAFT(자동 선점)를 보인다.
  */
@@ -18,12 +19,13 @@ export interface RuleRegisterFormProps {
   /** 등록(action reg) 권한. 없으면 버튼을 숨기지 않고 비활성으로 둔다(§6.7.0). */
   canRegister: boolean;
   onRegistered: (ruleId: string) => void;
+  onCancel: () => void;
   onError: (message: string) => void;
 }
 
 const KIND_OPTIONS = (Object.keys(RULE_KIND_LABELS) as RuleKind[]).map((k) => ({ value: k, label: RULE_KIND_LABELS[k] }));
 
-export function RuleRegisterForm({ canRegister, onRegistered, onError }: RuleRegisterFormProps) {
+export function RuleRegisterForm({ canRegister, onRegistered, onCancel, onError }: RuleRegisterFormProps) {
   const [form, setForm] = useState<RuleRegForm>(emptyRegForm);
   const [busy, setBusy] = useState(false);
 
@@ -39,7 +41,6 @@ export function RuleRegisterForm({ canRegister, onRegistered, onError }: RuleReg
     try {
       const result = await registerRule(form);
       const ruleId = result.maruRuleId ?? form.maruRuleId.trim();
-      setForm(emptyRegForm());
       onRegistered(ruleId);
       openRuleEdit(ruleId, result.ver ?? 1);
     } catch (e) {
@@ -51,7 +52,6 @@ export function RuleRegisterForm({ canRegister, onRegistered, onError }: RuleReg
 
   return (
     <div data-testid="rule-register-form">
-      <p style={{ padding: "var(--spacing-sm) var(--spacing-md)", fontWeight: 600 }}>룰 등록</p>
       <table style={DETAIL_TABLE_STYLE}>
         <tbody>
           <tr>
@@ -123,9 +123,20 @@ export function RuleRegisterForm({ canRegister, onRegistered, onError }: RuleReg
           </tr>
         </tbody>
       </table>
-      <div style={{ display: "flex", justifyContent: "flex-end", padding: "var(--spacing-sm) var(--spacing-md)" }}>
-        <Button variant="primary" disabled={!ready || busy || !canRegister} onClick={() => void handleRegister()}>
-          룰 등록
+      {/* 버튼을 팝업 footer 가 아닌 이 틀 안에 둔다 — e2e 가 `rule-register-form` 안에서 [등록]을 찾는다. */}
+      <div
+        style={{ display: "flex", justifyContent: "flex-end", gap: "var(--spacing-xs)", padding: "var(--spacing-sm) var(--spacing-md)" }}
+      >
+        <Button data-testid="rule-reg-cancel" disabled={busy} onClick={onCancel}>
+          취소
+        </Button>
+        <Button
+          data-testid="rule-reg-submit"
+          variant="primary"
+          disabled={!ready || busy || !canRegister}
+          onClick={() => void handleRegister()}
+        >
+          등록
         </Button>
       </div>
     </div>

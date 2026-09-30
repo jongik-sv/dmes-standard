@@ -7,6 +7,7 @@
  * ④⑤⑥ 값 테스트·케이스, ⑧ 활용처)은 `ruleEdit` 화면이 맡는다. 룰 ID 를 누르면 그 룰의 상세가 열린다.
  *
  * 목록은 서버 페이징(page 0 부터·size 20, I29). [내용 편집 →] 으로 `ruleEdit` 로 간다(I28).
+ * 룰 등록은 목록 헤더의 [룰 등록]이 여는 팝업에서 한다 — 상세 옆에 등록 폼을 늘 펴 두지 않는다.
  * 배포 대상 칸·조건은 두지 않는다(D11).
  *
  * Part B §4-3 MUST: 분할 골격(`ContentBody`/`ContentPanel`)은 `page.tsx` 의 **직접 자식**이어야 drag bar 가 붙는다
@@ -26,6 +27,7 @@ import {
 } from "@dk-oasis/shared/layout";
 import { AgDataGrid, GridPanel, Pagination, type GridColumn } from "@dk-oasis/shared/grid";
 import { Input } from "@dk-oasis/shared/form";
+import { Modal } from "@dk-oasis/shared/modal";
 import { MdmPageLayout, badgeStyle } from "@/shell";
 import { openRuleEdit } from "@/dme/rule-handoff";
 
@@ -76,6 +78,7 @@ export default function RuleMngPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<RuleMngView | null>(null);
   const [isDetailBusy, setIsDetailBusy] = useState(false);
+  const [isRegOpen, setIsRegOpen] = useState(false);
 
   const loadDetail = useCallback(async (ruleId: string | null) => {
     if (!ruleId) {
@@ -145,7 +148,7 @@ export default function RuleMngPage() {
               textDecoration: "underline",
               font: "inherit",
             }}
-            onClick={() => setSelectedId(String(value))}
+            onClick={() => openRuleEdit(String(value))}
           >
             {String(value)}
           </button>
@@ -221,7 +224,19 @@ export default function RuleMngPage() {
 
       <ContentBody root resizable storageKey="mdm.dme.ruleMng">
         <ContentPanel>
-          <GridPanel title="룰 목록" count={totalCount}>
+          <GridPanel
+            title="룰 목록"
+            count={totalCount}
+            buttons={[
+              {
+                id: "btn_rule_reg",
+                label: "룰 등록",
+                onClick: () => setIsRegOpen(true),
+                // 권한이 없으면 숨기지 않고 비활성으로 둔다(§6.7.0).
+                disabled: !canDoButton(rbac, SCREEN_ID, "reg"),
+              },
+            ]}
+          >
             <AgDataGrid
               columnSizing="fit"
               columns={columns}
@@ -245,36 +260,52 @@ export default function RuleMngPage() {
           />
         </ContentPanel>
 
-        {/*
-          오른쪽 = ① 헤더·② 버전(D-105) + 신규 등록 폼. 내용 편집은 여기 없다 — `ruleEdit` 화면이 맡는다.
-          `ContentBody`(오른쪽 열) 안의 `ContentPanel` 들이 drag bar 대상이므로 골격을 직접 그린다.
-        */}
-        <ContentBody key="right" direction="column" resizable storageKey="mdm.dme.ruleMng.detail" flex="1 1 0">
-          <ContentPanel flex="1 1 0">
-            {detail ? (
-              <RuleDetailPanel
-                view={detail}
-                reload={() => loadDetail(selectedId)}
-                canDo={(action) => canDoButton(rbac, SCREEN_ID, action)}
-                busy={isBusy || isDetailBusy}
-                onError={setErrorMessage}
-                onContentEdit={(ruleId, ver) => openRuleEdit(ruleId, ver)}
-              />
-            ) : (
-              <p data-testid="rule-detail-empty" style={{ color: "var(--color-text-secondary)" }}>
-                {isDetailBusy ? "불러오는 중..." : "룰을 고르세요."}
-              </p>
-            )}
-          </ContentPanel>
-          <ContentPanel width={380}>
-            <RuleRegisterForm
-              canRegister={canDoButton(rbac, SCREEN_ID, "reg")}
-              onRegistered={() => void load(applied, 0)}
+        {/* 오른쪽 = ① 헤더·② 버전(D-105). 내용 편집은 여기 없다 — `ruleEdit` 화면이 맡는다. */}
+        <ContentPanel flex="1 1 0">
+          {detail ? (
+            <RuleDetailPanel
+              view={detail}
+              reload={() => loadDetail(selectedId)}
+              canDo={(action) => canDoButton(rbac, SCREEN_ID, action)}
+              busy={isBusy || isDetailBusy}
               onError={setErrorMessage}
+              onContentEdit={(ruleId, ver) => openRuleEdit(ruleId, ver)}
             />
-          </ContentPanel>
-        </ContentBody>
+          ) : (
+            <p data-testid="rule-detail-empty" style={{ color: "var(--color-text-secondary)" }}>
+              {isDetailBusy ? "불러오는 중..." : "룰을 고르세요."}
+            </p>
+          )}
+        </ContentPanel>
       </ContentBody>
+
+      {/*
+        열 때만 마운트한다 — 열 때마다 칸이 비고, 닫힌 채 폼 칸이 DOM 에 남지 않는다. 등록 오류는 팝업을 닫지 않고
+        그 위에 ErrorModal 로 띄워 입력값을 고쳐 다시 보낼 수 있게 한다(그래서 ErrorModal 보다 먼저 그린다).
+        shared `Modal` 은 열린 창마다 window Escape 를 받아 Escape 한 번에 두 창이 함께 닫힌다(실측) — 오류창이
+        떠 있는 동안에는 이 팝업의 닫기를 무시한다.
+      */}
+      {isRegOpen && (
+        <Modal
+          open
+          title="룰 등록"
+          size="md"
+          onClose={() => {
+            if (!errorMessage) setIsRegOpen(false);
+          }}
+        >
+          <RuleRegisterForm
+            canRegister={canDoButton(rbac, SCREEN_ID, "reg")}
+            onRegistered={(ruleId) => {
+              setIsRegOpen(false);
+              setSelectedId(ruleId);
+              void load(applied, 0);
+            }}
+            onCancel={() => setIsRegOpen(false)}
+            onError={setErrorMessage}
+          />
+        </Modal>
+      )}
 
       {errorMessage && <ErrorModal message={errorMessage} onClose={() => setErrorMessage(null)} />}
     </MdmPageLayout>

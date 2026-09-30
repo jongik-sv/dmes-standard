@@ -38,7 +38,7 @@ moduleGroup: dme
 | moduleId / moduleGroup | `mdm` / `dme` | `docs/mdm/screens/README.md:23,53`, TSK-08-02 design §0(D1 — spec 의 `mdr` 는 낡은 값) |
 | mesModule | `m-mdm` | 01 A.4.5 |
 | 화면식별자 (screenId) = pageName = serviceId = OBJECT_ID | `ruleMng` | design I23 |
-| 페이지 유형 | `B`(조회 + 등록 폼) | |
+| 페이지 유형 | `B`(조회 + 등록 팝업) | 등록 폼은 목록 헤더 [룰 등록]이 여는 팝업이다(2026-09-30) |
 | 주요 API path (UI→BFF) | `POST /api/mdm/oasis/ruleMng/{action}` | design §6.1 |
 | 주요 API path (BFF→BE) | `POST /oasis/ruleMng/{action}` | 상동 |
 | Frontend 파일 | `m-mdm/pages/dme/ruleMng/page.tsx`(+ `api.ts`·`types.ts`·`components/RuleRegisterForm.tsx`) | design §2.1-FM |
@@ -53,7 +53,7 @@ moduleGroup: dme
 | `A-FILTER` | 조회조건 | 룰 ID·명 키워드, 종류, 상태 |
 | `A-GRID` | 룰 목록 | 서버 페이징(한 페이지 20건). 룰 ID 를 누르면 룰 화면으로 간다 |
 | `A-PAGE` | 페이지 이동 | shared `Pagination`(이전·다음, 총 건수) |
-| `A-REG` | 등록 폼 | MDM 원천 룰 등록 |
+| `A-REG` | 등록 팝업 | MDM 원천 룰 등록. A-GRID 헤더의 [룰 등록]이 열고, 열 때마다 빈 칸으로 시작한다 |
 | `A-BTN` | 버튼 | `MdmPageLayout.buttons`(조회) |
 
 ## 3. 조회조건 정의 (영역: A-FILTER)
@@ -97,7 +97,9 @@ moduleGroup: dme
 | 버튼ID | 버튼명 | 위치 | To-Be action | 설명 |
 |---|---|---|---|---|
 | B-001 | 조회 | toolbar | `search` | A-FILTER 조건으로 0 페이지부터 조회 |
-| B-002 | 룰 등록 | A-REG | `reg` | 등록 후 목록을 다시 조회하고 룰 화면 탭을 연다 |
+| B-002 | 룰 등록 | A-GRID 헤더 | `reg` | A-REG 팝업을 연다. 권한이 없으면 숨기지 않고 비활성 |
+| B-003 | 등록 | A-REG 팝업 | `reg` | 등록 후 팝업을 닫고 목록을 다시 조회하며, 새 룰을 상세로 고르고 룰 화면 탭을 연다. 실패하면 팝업을 연 채 오류를 띄운다 |
+| B-004 | 취소 | A-REG 팝업 | — | 저장하지 않고 팝업을 닫는다 |
 | B-003 | 이전·다음 | A-PAGE | `search` | 마지막으로 조회한 조건으로 해당 페이지 |
 
 ### 5.1-1 그리드셀 인라인 버튼 (GB-NNN)
@@ -174,4 +176,4 @@ moduleGroup: dme
 | N-1 | 화면 그룹 `dme`(spec 의 `mdr` 아님) | design D1 |
 | N-2 | 배포 대상 칸·조건·EXTERNAL 등록 변형은 두지 않는다 | design D11, spec "⑦배포 대상은 보류" |
 | N-3 | 빈 상태 문구를 그리드 오버레이가 아니라 목록 아래 글자로 보인다 | shared `AgDataGrid` 는 조회가 끝나 `loading` 이 풀릴 때 `hideOverlay()` 로 빈 행 오버레이까지 지운다(e2e 실측) |
-| N-4 | 목록 칸은 `columnSizing="fit"` + `minWidth` 로 줄어들게 한다 | 등록 폼과 나란히 두면 1280 폭에서 칸이 가상화되어 적중 정책 칸이 그려지지 않았다(e2e 실측) |
+| N-4 | 목록 칸은 `columnSizing="fit"` + `minWidth` 로 줄어들게 한다 | 등록 폼과 나란히 두면 1280 폭에서 칸이 가상화되어 적중 정책 칸이 그려지지 않았다(e2e 실측). 등록 폼을 팝업으로 옮긴 뒤에도 상세와 나란히 서므로 유지한다 |

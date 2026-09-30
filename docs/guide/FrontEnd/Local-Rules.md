@@ -195,3 +195,10 @@ LoV service가 아직 없을 때는 화면에서 임의 Phase 7 LoV 라우트를
   - 단위 테스트(vitest)는 소스가 빈 문자열이라 전처럼 렌더 중 동기 검사로 돈다. 저장 때 서버 검사와 견주는 기준은 검사 중이면 그 자리에서 동기로 다시 검사한다.
   - 늦게 온 결과가 표시 토큰을 바꿔도 편집 중인 행은 편집이 끝난 뒤 다시 그린다(`AgDataGrid` `rowClassRefreshToken`). 통째로 건너뛰면 표시가 빠지고, 통째로 그리면 열린 편집기가 닫힌다.
 - 예시: `m-mdm/pages/dme/ruleEdit/decision-table/DecisionTableCard.tsx` 의 `dirty`·`analysisInput`·`markToken`, `use-rule-analysis.ts`.
+
+## 18. 팝업 위에 뜬 오류창 — Escape 한 번에 아래 팝업까지 닫힌다 (2026-09-30)
+
+shared `Modal`(Mantine)은 열린 창마다 window 의 Escape 를 받는다. 등록 팝업 위에 `ErrorModal` 이 떠 있을 때 Escape 를 한 번 누르면 두 창이 함께 닫혀 사용자가 입력한 값이 사라진다(ruleMng 룰 등록 팝업 실측).
+
+- 오류가 나도 입력을 고쳐 다시 보내야 하는 팝업은, 오류창이 떠 있는 동안 자기 `onClose` 를 무시한다: `onClose={() => { if (!errorMessage) setOpen(false); }}`.
+- 예시: `m-mdm/pages/dme/ruleMng/page.tsx` 의 룰 등록 팝업.
