@@ -20,7 +20,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "node ../scripts/lib-dev.mjs pkg-build",
     "dev": "node ../scripts/lib-dev.mjs watch",
     "dev:next": "next dev --port 5006",
     "format": "prettier --write .",

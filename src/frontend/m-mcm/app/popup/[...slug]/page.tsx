@@ -11,6 +11,7 @@ import "@dk-oasis/shared/portal-shell.css";
 import "@dk-oasis/shared/grid.css";
 import "@dk-oasis/shared/form.css";
 import "@dk-oasis/shared/modal.css";
+import { ErrorBoundary } from "@dk-oasis/shared/error-boundary";
 import { loadConfiguredModulePage } from "../../portal/module-config";
 
 type PageComponent = (props: {
@@ -74,11 +75,13 @@ function PopupBody({ slug }: { slug: string[] }) {
 
   return (
     <div style={{ height: "100dvh", display: "flex", flexDirection: "column" }}>
-      <PageComponent
-        tabId="popup"
-        snapshot={{}}
-        onSnapshotChange={handleSnapshotChange}
-      />
+      <ErrorBoundary>
+        <PageComponent
+          tabId="popup"
+          snapshot={{}}
+          onSnapshotChange={handleSnapshotChange}
+        />
+      </ErrorBoundary>
     </div>
   );
 }

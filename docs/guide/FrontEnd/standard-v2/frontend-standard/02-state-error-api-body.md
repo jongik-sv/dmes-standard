@@ -106,7 +106,9 @@ function unwrapPayload<T>(res: unknown): T {
 - 행추가 직후 React re-render 로 cellEditor input 의 focus 가 잠시 이동되어도 편집 유지가 필요한 화면 (예: mcm cma 의 Master Code 관리) 은 **`false` 명시**
 
 **7-B-3.** 행 선택 + 강조 + 행삭제 활성화 매커니즘:
-- GridPanel `selectedRowKey` prop + AgDataGrid `highlightedRowKey` + `onRowClick` 3 prop 모두 세팅 필수
+- **행 커서와 ↑/↓ 이동은 AgDataGrid 기본 기능이다(2026-09-30).** prop 없이도 클릭한 행에 커서(`.ag-row-highlighted`)가 붙고 ↑/↓ 로 이전·다음 행으로 옮겨 간다(편집 가능한 그리드는 편집 중이 아닐 때). 커서 표시만 필요하면 아무것도 넘기지 않는다.
+- `highlightedRowKey` 를 넘기면 화면이 커서를 소유한다(controlled). `null`·`undefined` 로 바꾸면 커서가 지워진다. `onRowClick` 은 클릭과 ↑/↓ 이동 모두에서 불린다.
+- 고른 행을 화면 상태로 써야 하면(상세 조회·행삭제 등) GridPanel `selectedRowKey` prop + AgDataGrid `highlightedRowKey` + `onRowClick` 3 prop 모두 세팅 필수
 - `selectedRowKey` 가 null 이면 GridPanel 의 내장 행삭제 / 행복사 버튼 disabled
 - AgDataGrid 의 `rowKey` 값 = `selectedRowKey` 값과 정확히 일치해야 강조 동작. 합성 ID 필요 시 행 객체에 `__rowId` 같은 별도 키 부여 + `rowKey="__rowId"` 패턴 권장
 

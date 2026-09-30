@@ -1,0 +1,138 @@
+// PC 전역 Gradle 테스트 슬롯 — 같은 PC 에서 동시에 도는 Test 태스크(테스트 JVM) 수를 DMES_TEST_SLOTS(기본 2)개로 묶는다.
+//
+// 2026-09-30: 여러 세션(Claude·opencode)이 워크트리마다 Gradle 테스트를 동시에 돌려, 성능 코어 4개인 개발 PC(MacBook Air)의
+// 부하 평균이 16~24 까지 올랐다. heavy.sh 슬롯은 스스로 감싼 명령에만 걸려 규칙을 모르는 세션은 막지 못한다. 그래서 Test 태스크가
+// 시작할 때 이 PC 전역 슬롯을 하나 잡고, 루트 테스트 묶음이 끝나면(실패해도) 푼다. heavy.sh 안에서 돌아도 잡는다 — 순서가 늘
+// heavy 슬롯 → 테스트 슬롯이라 서로 기다리며 멈추지 않고, 그래야 PC 전체 상한이 정확히 2개가 된다.
+//
+// - 슬롯은 ~/.gradle/dmes-test-slots/slot-<i> 디렉터리다(mkdir 은 원자적이다). 안의 owner 파일에 pid·JVM 시작 시각·태스크를 적는다.
+//   pid 가 없거나 시작 시각이 다르면(Mac 은 pid 를 재사용한다) 죽은 소유자로 보고 회수한다. owner 파일이 없는 슬롯은 30초 뒤 회수한다.
+// - 풀기: 루트 테스트 묶음 종료(afterSuite) · 태스크 doLast · 빌드 종료(BuildService.close — 취소돼도 불린다) 중 먼저 오는 것.
+// - 대기가 DMES_TEST_SLOT_WAIT_MS(기본 30분)를 넘으면 경고하고 슬롯 없이 돈다. 멈춘 데몬 하나가 PC 의 모든 테스트를 막지 않게 한다.
+// - 끄기: DMES_TEST_SLOTS=0, 또는 CI 환경 변수가 있을 때.
+//
+// 모듈 루트 build.gradle 에서 한 번 적용한다: apply from: file('../gradle/test-slot.gradle')
+
+import java.time.Instant
+import org.gradle.api.logging.Logger
+import org.gradle.api.services.BuildService
+import org.gradle.api.services.BuildServiceParameters
+
+// 멤버에 private 을 두지 않는다 — Gradle 이 서비스를 하위 클래스($Inject_)로 감싸 클로저에서 private 에 닿지 못한다.
+abstract class DmesTestSlotService implements BuildService<BuildServiceParameters.None>, AutoCloseable {
+    static final long NO_OWNER_GRACE_MS = 30_000L
+    final Map<String, File> held = [:]
+    final File base = new File(System.getProperty('user.home'), '.gradle/dmes-test-slots')
+
+    static String selfStart() {
+        return ProcessHandle.current().info().startInstant().map { it.toString() }.orElse('')
+    }
+
+    static Map<String, String> readOwner(File slot) {
+        File f = new File(slot, 'owner')
+        if (!f.isFile()) return null
+        Properties p = new Properties()
+        try {
+            f.withInputStream { p.load(it) }
+        } catch (IOException ignored) {
+            return null
+        }
+        return p as Map<String, String>
+    }
+
+    static boolean isStale(File slot) {
+        Map<String, String> owner = readOwner(slot)
+        if (owner == null) return System.currentTimeMillis() - slot.lastModified() > NO_OWNER_GRACE_MS
+        long pid
+        try {
+            pid = Long.parseLong(owner.pid ?: '-1')
+        } catch (NumberFormatException ignored) {
+            return true
+        }
+        java.util.Optional<ProcessHandle> ph = ProcessHandle.of(pid)
+        if (!ph.isPresent() || !ph.get().isAlive()) return true
+        String start = ph.get().info().startInstant().map { it.toString() }.orElse('')
+        return start != (owner.start ?: '')
+    }
+
+    boolean tryTake(String key, int slots) {
+        base.mkdirs()
+        for (int i = 0; i < slots; i++) {
+            File slot = new File(base, "slot-${i}")
+            if (!slot.mkdir()) {
+                if (isStale(slot)) {
+                    slot.deleteDir()
+                    if (!slot.mkdir()) continue
+                } else {
+                    continue
+                }
+            }
+            Properties p = new Properties()
+            p.pid = String.valueOf(ProcessHandle.current().pid())
+            p.start = selfStart()
+            p.task = key
+            p.since = Instant.now().toString()
+            new File(slot, 'owner').withOutputStream { p.store(it, null) }
+            synchronized (held) { held[key] = slot }
+            return true
+        }
+        return false
+    }
+
+    String holders(int slots) {
+        (0..<slots).collect { i ->
+            Map<String, String> o = readOwner(new File(base, "slot-${i}"))
+            o == null ? "slot-${i}: (빈 슬롯 또는 기록 중)" : "slot-${i}: ${o.task} (pid ${o.pid}, ${o.since} 부터)"
+        }.join('\n  ')
+    }
+
+    /** 슬롯을 잡으면 true, 대기 시간을 넘겨 슬롯 없이 진행하면 false. */
+    boolean acquire(String key, int slots, long waitMs, Logger logger) {
+        long started = System.currentTimeMillis()
+        boolean announced = false
+        while (!tryTake(key, slots)) {
+            if (!announced) {
+                logger.lifecycle("[test-slot] PC 전체 동시 테스트 ${slots}개가 모두 차서 기다린다 — ${key}\n  ${holders(slots)}")
+                announced = true
+            }
+            if (System.currentTimeMillis() - started > waitMs) {
+                logger.warn("[test-slot] ${waitMs / 1000}초를 기다려도 슬롯이 나지 않아 슬롯 없이 돈다 — ${key}\n  ${holders(slots)}")
+                return false
+            }
+            Thread.sleep(2000)
+        }
+        if (announced) logger.lifecycle("[test-slot] 슬롯을 잡았다(${(System.currentTimeMillis() - started) / 1000}초 대기) — ${key}")
+        return true
+    }
+
+    void release(String key) {
+        File slot
+        synchronized (held) { slot = held.remove(key) }
+        if (slot == null) return
+        Map<String, String> owner = readOwner(slot)
+        // 이미 회수돼 남이 잡은 슬롯이면 지우지 않는다.
+        if (owner != null && owner.pid == String.valueOf(ProcessHandle.current().pid()) && owner.task == key) slot.deleteDir()
+    }
+
+    @Override
+    void close() {
+        List<String> keys
+        synchronized (held) { keys = new ArrayList<>(held.keySet()) }
+        keys.each { release(it) }
+    }
+}
+
+int dmesTestSlots = (System.getenv('DMES_TEST_SLOTS') ?: '2') as int
+long dmesTestSlotWaitMs = (System.getenv('DMES_TEST_SLOT_WAIT_MS') ?: '1800000') as long
+if (dmesTestSlots > 0 && !System.getenv('CI')) {
+    def slotService = gradle.sharedServices.registerIfAbsent("dmesTestSlot-${rootProject.name}", DmesTestSlotService) {}
+    allprojects {
+        tasks.withType(Test).configureEach { Test t ->
+            usesService(slotService)
+            String key = "${t.path} @ ${t.project.projectDir}"
+            t.doFirst { slotService.get().acquire(key, dmesTestSlots, dmesTestSlotWaitMs, t.logger) }
+            t.afterSuite { desc, result -> if (desc.parent == null) slotService.get().release(key) }
+            t.doLast { slotService.get().release(key) }
+        }
+    }
+}

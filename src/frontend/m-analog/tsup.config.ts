@@ -27,7 +27,8 @@ export default defineConfig([
     },
     format: ["esm"],
     target: "es2022",
-    dts: true,
+    // TSUP_DTS=0 이면 .d.ts 를 만들지 않는다(scripts/lib-dev.mjs watch 의 JS 전용 빌드).
+    dts: process.env.TSUP_DTS !== "0",
     sourcemap: true,
     clean: false,
     splitting: false,
@@ -40,7 +41,8 @@ export default defineConfig([
     },
     format: ["esm"],
     target: "es2022",
-    dts: true,
+    // TSUP_DTS=0 이면 .d.ts 를 만들지 않는다(scripts/lib-dev.mjs watch 의 JS 전용 빌드).
+    dts: process.env.TSUP_DTS !== "0",
     sourcemap: true,
     clean: false,
     splitting: false,

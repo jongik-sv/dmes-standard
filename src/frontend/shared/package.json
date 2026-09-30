@@ -151,7 +151,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "node ../scripts/lib-dev.mjs pkg-build",
     "dev": "cross-env NODE_OPTIONS=--max-old-space-size=4096 node ../scripts/lib-dev.mjs watch",
     "test:unit": "vitest run tests/unit",
     "test:unit:watch": "vitest tests/unit",

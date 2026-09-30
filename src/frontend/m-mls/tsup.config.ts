@@ -15,7 +15,8 @@ const common: Options = {
   format: ["esm"],
   target: "es2022",
   charset: "utf8",
-  dts: true,
+  // TSUP_DTS=0 이면 .d.ts 를 만들지 않는다(scripts/lib-dev.mjs watch 의 JS 전용 빌드).
+  dts: process.env.TSUP_DTS !== "0",
   sourcemap: true,
   // clean: false 유지 — 호스트(m-mcm) dev 서버가 dist/ 를 watch 하므로
   // 빌드 시작 순간 dist 가 비면 번들러 캐시가 깨진다.
