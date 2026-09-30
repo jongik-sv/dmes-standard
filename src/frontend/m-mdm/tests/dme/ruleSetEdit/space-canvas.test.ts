@@ -414,6 +414,20 @@ describe("화면 — [공간] 토글·Alt+끌기", () => {
     expect(edgeEl("e2").classList.contains("selected")).toBe(false);
   });
 
+  it("[공간] 을 마우스로 켜면 초점이 캔버스로 가서 곧바로 Esc 가 토글을 끈다(단추에 초점이 남지 않는다)", async () => {
+    await openSet("SC_F", viewOf("SC_F", chain()));
+    await click("flow-mode-edit");
+    const btn = byTestId("flow-space-tool");
+    await act(async () => {
+      btn.focus(); // 브라우저는 누른 단추에 초점을 준다
+      btn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+    await flush();
+    expect(pressed()).toBe("true");
+    await key(document.activeElement ?? btn, { key: "Escape" });
+    expect(pressed()).toBe("false");
+  });
+
   it("Alt+끌기는 토글 없이 된다(되돌리기 한 칸)", async () => {
     await openSet("SC_A", viewOf("SC_A", chain()));
     await click("flow-mode-edit");
