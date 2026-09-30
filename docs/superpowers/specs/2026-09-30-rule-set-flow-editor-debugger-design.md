@@ -25,13 +25,14 @@
 - 화면은 `mantine-aggrid-ui` 스킬과 `docs/guide/FrontEnd/Local-Rules.md` 를 따른다. 표 모양은 AG Grid 를 쓴다.
 - 새 CSS 는 2단계 방식(`rsf-styles.ts` TS 문자열, React 19 `<style href precedence>`)으로 넣는다. 로컬 `.css` import 를 쓰지 않는다(Local-Rules §17).
 - 브라우저 저장소(localStorage)는 개인 편의(중단점·조사식·최근 입력·패널 크기)에만 쓴다. 읽기·쓰기는 try/catch 로 감싸고 없어도 화면이 동작해야 한다.
-- 단축키는 캔버스 영역에 초점이 있을 때만 받는다. 입력 칸(input·textarea·contenteditable)에 초점이 있으면 무시한다. 포털 전역 단축키와 겹치지 않게 한다.
+- 단축키는 캔버스 영역에 초점이 있을 때만 받고 그때만 `preventDefault` 한다. 입력 칸(input·textarea·contenteditable)에 초점이 있으면 무시한다. 포털 전역 단축키와 겹치지 않게 한다.
+- 단축키는 보조 수단이다. 모든 동작은 툴바·메뉴 버튼으로 할 수 있어야 한다. F5(새로 고침)·Cmd+F(브라우저 찾기)·Cmd+D(북마크)는 캔버스 초점 밖에서는 브라우저 동작이 그대로 일어나고, Mac 에서 F9·F10 은 fn 을 함께 눌러야 한다. 저장하지 않은 편집이 있으면 `beforeunload` 로 떠나기 전에 확인한다.
 
 ## 3. 편집기
 
 ### 3.1 끌어 놓기 (A)
 
-- **A1 넣을 선 강조**: 팔레트·룰 목록 항목을 끄는 동안 커서에서 가장 가까운 선(화면 좌표 80px 안, 2단계 `nearestEdge`)을 굵은 파란 선으로 강조하고 선 가운데에 "여기에 넣기" 표지를 띄운다. 선 위에 놓으면 그 선에 끼운다. 빈 곳에 놓으면 넣지 않고 "선 위에 놓아야 한다" 알림을 띄운다. 2단계의 "가까운 선이 없으면 선택된 선에 넣기"는 없앤다(보이지 않는 동작이라 혼란을 준다).
+- **A1 넣을 선 강조**: 팔레트·룰 목록 항목을 끄는 동안 커서에서 가장 가까운 선(화면 기준 80px 안. 2단계 `nearestEdge` 의 `max` 는 흐름 좌표이므로 `80 / zoom` 으로 넘긴다)을 굵은 파란 선으로 강조하고 선 가운데에 "여기에 넣기" 표지를 띄운다. 선 위에 놓으면 그 선에 끼운다. 빈 곳에 놓으면 넣지 않고 "선 위에 놓아야 한다" 알림을 띄운다. 2단계의 "가까운 선이 없으면 선택된 선에 넣기"는 없앤다(보이지 않는 동작이라 혼란을 준다).
 - **A2 놓인 노드 옮기기**
   - 룰 노드나 분기(IF·병렬)를 끌어 다른 선 가까이 가면 A1 과 같이 강조한다. 놓으면 흐름에서 떼어 그 선에 끼운다. 떠난 자리는 앞뒤를 다시 잇는다(`removeNode` 와 같은 규칙).
   - 분기를 끌면 짝 합류와 안쪽 노드까지 블록 전체가 옮겨진다. 화면 위치도 블록 전체가 같은 만큼 움직인다.
@@ -67,7 +68,7 @@
 
 ### 3.3 분기 편집 (C)
 
-- **C11 IF↔병렬 바꾸기**: 새 연산 `changeSplitKind(f, splitId, kind)`.
+- **C11 IF↔병렬 바꾸기**: 새 연산 `changeSplitKind(f, splitId, kind)`. 근거: 엔진 `FlowParser` 는 IF 에 "그 외" 갈래가 정확히 1개, 나머지 갈래에 조건식을 요구하고, 병렬 갈래에는 조건·그 외를 금지한다.
   - IF→병렬: 갈래 조건식·"그 외" 표시를 지우고, 갈래 순서를 1..n 으로 다시 매긴다(그 외 갈래는 마지막).
   - 병렬→IF: 마지막 갈래를 "그 외"로 두고, 나머지 갈래 조건식은 비워 둔다. 빈 조건식은 검사 오류로 드러나므로 사용자가 채운다.
   - 노드 ID 는 유지한다. 라벨이 기본 라벨("조건"·"병렬")이면 새 기본 라벨로 바꾼다.
@@ -145,8 +146,9 @@
 - **목적**: 흐름을 고칠 때마다 저장해 둔 입력들로 결과가 그대로인지 한 번에 확인한다.
 - **DB**: Flyway `V15__create_mdm_rule_set_test_case.sql`, 테이블 `TB_MDM_RULE_SET_TEST_CASE`. 룰 테스트 케이스(`TB_MDM_RULE_TEST_CASE`, V8)와 같은 모양으로 만든다.
   - `MARU_RULE_SET_ID`(FK → `TB_MDM_RULE_SET`) + `CASE_ID` 복합 PK, `CASE_NAME`, `INPUT_JSON`(NOT NULL, json_valid), `EVAL_TS`(없으면 실행 시각), `EXPECTED_JSON`(json_valid), `DESCRIPTION`, `ROW_VERSION`, 감사 칼럼(V8 과 같은 순서).
-  - `CASE_ID` 발급은 룰 테스트 케이스의 발급 방식(`MdmRuleIdIssuer`)을 따른다.
-- **서버**: `ruleSetEdit` 서비스에 케이스 저장(save part 분기 또는 action 추가, 기존 bpmn 모양을 따른다), 케이스 조회(세트 조회 결과에 포함), 일괄 실행을 더한다.
+  - `CASE_ID` 발급: 룰은 `TB_MDM_RULE.LAST_CASE_ID` 카운터(`MdmRuleIdIssuer`, `MdmRuleIdKind.CASE`)를 쓰지만 세트 테이블에는 카운터가 없다. 세트 케이스는 같은 세트 안 최대 번호 + 1 로 발급하고, PK 충돌이면 동시 저장 충돌 문구로 거부한다(세트 테이블 칼럼 추가는 칼럼 순서 불변식 때문에 피한다).
+- **서버**: `ruleSetEdit` 서비스에 케이스 저장·삭제, 케이스 조회, 일괄 실행을 더한다. 새 action 동사를 만들지 않는다(ADR-0003 D5 16단어·권한 표). 룰 편집 화면과 같이 저장·삭제는 `save` 의 part 분기(`part=CASE`, 삭제는 `caseDeleted`), 조회는 `view` 결과에 케이스 목록을 넣고, 일괄 실행은 `execute` 에 `runCases`·`caseIds` 칸을 더한다.
+  - OASIS 파라미터는 Map·List DTO 칸을 묶지 못한다(2단계 실측 `S999 Generic type`). 케이스 ID 목록은 룰 편집 `RuleTestRequest.caseIds` 와 같이 콤마로 이은 문자열, 입력·기대값은 JSON 문자열(`inputJson`·`expectedJson`)로 받는다.
   - 일괄 실행은 화면이 보낸 현재 흐름(저장 전 흐름 포함, `flowJson` 문자열)과 케이스 ID 목록을 받아 케이스마다 `runner.trace` 를 돌리고 케이스별 통과/실패·실제 결과·차이를 돌려준다. 케이스 수 상한 50.
   - 판정: `EXPECTED_JSON` 에 적힌 키만 `RunTrace.finalValues` 와 비교한다(적지 않은 키는 보지 않는다). 값 비교는 TypedValue 계약 문자열 비교. 룰용 `RuleCaseJudge` 를 넓히거나 같은 규칙의 세트용 판정기를 둔다. 실행이 오류로 끝나면 실패이고 오류 코드를 보인다.
   - 권한: 저장은 세트 저장과 같은 EDIT, 실행은 `execute` 와 같은 EDIT.
