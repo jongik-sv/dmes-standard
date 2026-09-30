@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
+import com.dongkuk.dmes.cactus.common.ErrorCode;
+import com.dongkuk.dmes.mdm.common.rule.CondIo;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetFlowJson;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetRunner;
 import com.dongkuk.dmes.mdm.common.rule.dto.RuleSetRunRequest;
@@ -13,14 +15,33 @@ import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
+import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetCondIoRequest;
+import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetCondIoResult;
+import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetSimulateRequest;
+import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetSimulateResult;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetStatusRequest;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetViewRequest;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.service.RuleSetEditService;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.networknt.schema.JsonSchema;
+import com.networknt.schema.JsonSchemaFactory;
+import com.networknt.schema.SpecVersion;
+import com.networknt.schema.ValidationMessage;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,6 +68,31 @@ public class RuleSetSimulateTest extends AbstractMdmSharedDbTest {
     public static final String EVAL_TS = "2026-06-01 09:00:00";
 
     private static final ObjectMapper JSON = new ObjectMapper();
+
+    /** 골든 파일 — api 프로젝트 디렉터리(Gradle 테스트 작업 디렉터리) 기준 원본 경로를 읽고 쓴다(Task 8 이 같은 경로를 읽는다). */
+    public static final Path GOLDEN = Path.of("src/test/resources/com/dongkuk/dmes/mdm/dme/ruleSetEdit/rule-set-trace-golden.json");
+
+    /** 엔진 계약 스키마의 {@code $defs/RunTrace}(엔진 jar 자원, AstExporterTest 와 같은 로딩). */
+    public static final JsonSchema RUN_TRACE_SCHEMA = runTraceSchema();
+
+    private static JsonSchema runTraceSchema() {
+        try (InputStream in = RuleSetSimulateTest.class.getResourceAsStream("/kr/dongkuk/maru/mdm/engine/engine-contract.schema.json")) {
+            ObjectNode root = (ObjectNode) JSON.readTree(in);
+            root.put("$ref", "#/$defs/RunTrace");
+            return JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012).getSchema(root);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /** 골든 파일의 사례 이름 → 사례 노드. */
+    public static Map<String, JsonNode> readGolden() throws IOException {
+        Map<String, JsonNode> out = new LinkedHashMap<>();
+        for (JsonNode c : JSON.readTree(Files.readString(GOLDEN, StandardCharsets.UTF_8)).path("cases")) {
+            out.put(c.path("name").asText(), c);
+        }
+        return out;
+    }
 
     @Autowired
     RuleSetEditService service;
@@ -215,6 +261,132 @@ public class RuleSetSimulateTest extends AbstractMdmSharedDbTest {
     }
 
     // ────────────────────────────────────────────────────────────────
+    // 기록 실행·골든(P5)
+    // ────────────────────────────────────────────────────────────────
+
+    private RuleSetSimulateResult simulate(GoldenCase c) {
+        return service.simulate(request(c.flowJson(), c.recordJson(), EVAL_TS));
+    }
+
+    private static RuleSetSimulateRequest request(String flowJson, String recordJson, String evalTs) {
+        RuleSetSimulateRequest req = new RuleSetSimulateRequest();
+        req.setFlowJson(flowJson);
+        req.setRecordJson(recordJson);
+        req.setEvalTs(evalTs);
+        return req;
+    }
+
+    /** 응답 {@code {trace, warnings}} 를 JSON 트리로. */
+    private static JsonNode response(RuleSetSimulateResult r) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("trace", r.getTrace());
+        m.put("warnings", r.getWarnings());
+        return JSON.valueToTree(m);
+    }
+
+    @Test
+    void 골든_기록과_같다() throws IOException {
+        ArrayNode out = JSON.createArrayNode();
+        for (GoldenCase c : cases()) {
+            ObjectNode o = out.addObject();
+            o.put("name", c.name());
+            o.put("rules", SEED);
+            o.put("flowJson", c.flowJson());
+            o.put("recordJson", c.recordJson());
+            o.put("evalTs", EVAL_TS);
+            o.set("response", response(simulate(c)));
+        }
+        if (Boolean.parseBoolean(System.getProperty("golden.update"))) {
+            ObjectNode root = JSON.createObjectNode();
+            root.set("cases", out);
+            Files.createDirectories(GOLDEN.getParent());
+            Files.writeString(GOLDEN, JSON.copy().enable(SerializationFeature.INDENT_OUTPUT).writeValueAsString(root) + "\n",
+                    StandardCharsets.UTF_8);
+            return;
+        }
+        Map<String, JsonNode> golden = readGolden();
+        assertEquals(cases().stream().map(GoldenCase::name).toList(), List.copyOf(golden.keySet()), "사례 이름·순서(P5)");
+        for (JsonNode actual : out) {
+            JsonNode expected = golden.get(actual.path("name").asText());
+            assertEquals(expected, actual, actual.path("name").asText());
+        }
+    }
+
+    @Test
+    void 기록은_엔진_스키마_RunTrace_를_따른다() {
+        for (GoldenCase c : cases()) {
+            JsonNode trace = response(simulate(c)).path("trace");
+            Set<ValidationMessage> errors = RUN_TRACE_SCHEMA.validate(trace);
+            assertTrue(errors.isEmpty(), c.name() + " " + errors);
+            for (JsonNode n : trace.path("nodes")) {
+                assertTrue(!n.has("result") || !n.get("result").isNull(), c.name() + " result 는 null 로 싣지 않는다: " + n);
+            }
+        }
+        // 음성 대조 — 검증기가 빈 통과가 아님을 보인다: 필수 칸(ruleId)을 뺀 노드는 거부된다.
+        ObjectNode broken = (ObjectNode) response(simulate(golden("IF_FIRST_TRUE"))).path("trace").deepCopy();
+        ((ObjectNode) broken.path("nodes").get(0)).remove("ruleId");
+        assertTrue(!RUN_TRACE_SCHEMA.validate(broken).isEmpty(), "ruleId 가 빠진 노드를 통과시켰다");
+    }
+
+    @Test
+    void 입력_검증() {
+        String flow = golden("IF_FIRST_TRUE").flowJson();
+        for (String none : java.util.Arrays.asList(null, " ")) {
+            BusinessException e = assertThrows(BusinessException.class, () -> service.simulate(request(none, "{}", null)));
+            assertEquals(ErrorCode.REQUIRED_VALUE, e.getErrorCode());
+            assertEquals("흐름은 필수입니다.", e.getMessage());
+        }
+        BusinessException record = assertThrows(BusinessException.class, () -> service.simulate(request(flow, "[1]", null)));
+        assertEquals(ErrorCode.INVALID_VALUE, record.getErrorCode());
+        assertEquals("레코드 JSON 은 객체여야 합니다: [1]", record.getMessage());
+        BusinessException ts = assertThrows(BusinessException.class, () -> service.simulate(request(flow, "{}", "2026/06/01")));
+        assertEquals(ErrorCode.INVALID_VALUE, ts.getErrorCode());
+        assertEquals("판정 시각은 yyyy-MM-dd HH:mm:ss 여야 합니다: 2026/06/01", ts.getMessage());
+        BusinessException nullRecord = assertThrows(BusinessException.class, () -> runner.trace(flow, null, null));
+        assertEquals(ErrorCode.REQUIRED_VALUE, nullRecord.getErrorCode());
+        assertEquals("레코드는 필수입니다.", nullRecord.getMessage());
+
+        // 레코드가 없거나 공백이면 {} — 입력 키 검사가 기록에 담는다(던지지 않는다).
+        RuleSetSimulateResult blank = service.simulate(request(flow, " ", EVAL_TS));
+        assertEquals("MISSING_KEY", ((Map<?, ?>) ((List<?>) blank.getTrace().get("violations")).get(0)).get("code"));
+    }
+
+    @Test
+    void 폐기_룰_경고가_앞에_온다() {
+        jdbc.update("UPDATE TB_MDM_RULE SET STATUS = 'DEPRECATED' WHERE MARU_RULE_ID = 'GT_SLOW'");
+
+        // 사례 1 은 e3 를 타서 r3(GT_SLOW) 를 실행하지 않지만 흐름에 있으므로 경고한다.
+        List<Map<String, Object>> w = simulate(golden("IF_FIRST_TRUE")).getWarnings();
+        assertEquals(Map.of("code", "RULE_DEPRECATED", "ruleId", "GT_SLOW",
+                "message", "GT_SLOW는 폐기된 룰이지만 판정 시각에 유효한 RELEASED 버전으로 판정했다"), w.get(0), w.toString());
+
+        // 갈래 NULL 경고보다 앞이다(P5 경고 순서).
+        List<Map<String, Object>> both = simulate(golden("IF_NULL_ELSE")).getWarnings();
+        assertEquals(List.of("RULE_DEPRECATED", "BRANCH_COND_NULL"), both.stream().map(x -> x.get("code")).toList(), both.toString());
+    }
+
+    @Test
+    void condIo() {
+        RuleSetCondIoRequest req = new RuleSetCondIoRequest();
+        req.setFlowJson(golden("IF_FIRST_TRUE").flowJson());
+
+        RuleSetCondIoResult r = service.condIo(req);
+
+        assertEquals(List.of("e3"), List.copyOf(r.getCondIo().keySet()));
+        CondIo io = r.getCondIo().get("e3");
+        assertTrue(io.ok(), io.toString());
+        assertEquals(List.of("GT_G NONE"), io.vars().stream().map(v -> v.name() + " " + v.source()).toList());
+
+        RuleSetCondIoRequest none = new RuleSetCondIoRequest();
+        BusinessException e = assertThrows(BusinessException.class, () -> service.condIo(none));
+        assertEquals(ErrorCode.REQUIRED_VALUE, e.getErrorCode());
+        assertEquals("흐름은 필수입니다.", e.getMessage());
+        none.setFlowJson("{\"version\":2}");
+        BusinessException bad = assertThrows(BusinessException.class, () -> service.condIo(none));
+        assertEquals("MDM021", code(bad), bad.getMessage());
+    }
+
+    // ────────────────────────────────────────────────────────────────
     // 저장값 손상(P-D9, Ruling 5)
     // ────────────────────────────────────────────────────────────────
 
@@ -239,6 +411,12 @@ public class RuleSetSimulateTest extends AbstractMdmSharedDbTest {
     void 저장값_손상은_MDM026() {
         storedSet("GT_SET", "INUSE", golden("IF_FIRST_TRUE").flowJson());
         breakFastCells();
+
+        BusinessException sim = assertThrows(BusinessException.class, () -> simulate(golden("IF_FIRST_TRUE")));
+        assertEquals("MDM026", code(sim), sim.getMessage());
+        assertTrue(sim.getMessage().startsWith(MdmErrorCode.STORED_DEFINITION_CORRUPT.defaultMessage()
+                + ": 룰 세트 흐름의 저장된 룰 정의를 읽을 수 없어 실행하지 않습니다 — "), sim.getMessage());
+        assertTrue(sim.getMessage().contains("셀 키는 var_id 정수여야 합니다"), sim.getMessage());
 
         RuleSetRunRequest req = new RuleSetRunRequest();
         req.setSetId("GT_SET");

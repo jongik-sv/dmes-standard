@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -107,6 +108,20 @@ class RuleSetRunnerOasisTest {
 
         assertFalse(r.path("meta").path("success").asBoolean(true), r.toString());
         assertTrue(r.path("meta").path("message").asText().contains("COIL_WID"), r.toString());
+    }
+
+    /** P-D9 — 저장된 정의가 깨졌으면 OASIS 실패 응답의 문구가 MDM026 기본 문구로 시작한다(입력 오류 MDM021 이 아니다). */
+    @Test
+    void 저장값_손상은_MDM026_문구로_실패한다() throws Exception {
+        DmeTestSupport.ruleSet(jdbc, "RS_BROKEN", "깨진 흐름", "[\"QLTY_GRD_JDG\"]", "INUSE", 0);
+        DmeTestSupport.ruleSetFlow(jdbc, "RS_BROKEN", "{\"version\":1}");
+        JsonNode r = post("ruleSetRunProbe", "run", "kim", envelope("ruleSetRunProbe", json.createObjectNode()
+                .put("setId", "RS_BROKEN").put("recordJson", "{\"COIL_THK\":2.0,\"COIL_WID\":1200,\"SURF_GRD\":\"A\"}")));
+
+        assertFalse(r.path("meta").path("success").asBoolean(true), r.toString());
+        String message = r.path("meta").path("message").asText();
+        assertTrue(message.startsWith(MdmErrorCode.STORED_DEFINITION_CORRUPT.defaultMessage()), message);
+        assertTrue(message.contains("RS_BROKEN"), message);
     }
 
     private ObjectNode envelope(String menuId, ObjectNode params) {

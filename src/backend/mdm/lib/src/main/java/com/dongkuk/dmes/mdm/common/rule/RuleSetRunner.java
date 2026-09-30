@@ -155,16 +155,10 @@ public class RuleSetRunner {
      * 폐기 룰이라도 판정은 막지 않는다(효력 시각이 없어 과거 시각 재판정까지 깨지므로). 룰 헤더는 한 번에 읽는다.
      */
     private List<Map<String, Object>> warnings(String setId, RuleSetResult r) {
-        List<Map<String, Object>> out = new ArrayList<>();
         List<String> ids = sets.findById(setId).map(RuleSetRunner::ruleIdsOf).orElse(List.of());
-        Map<String, MdmRule> byId = new LinkedHashMap<>();
-        rules.findAllById(ids).forEach(x -> byId.put(x.getMaruRuleId(), x));
-        List<String> deprecated = ids.stream().filter(id -> byId.get(id) != null && "DEPRECATED".equals(byId.get(id).getStatus())).toList();
-        for (String id : deprecated) {
-            out.add(warning(RULE_DEPRECATED, id, id + "는 폐기된 룰이지만 판정 시각에 유효한 RELEASED 버전으로 판정했다"));
-        }
-        if (!deprecated.isEmpty()) {
-            log.warn("폐기된 룰이 든 세트를 판정했다 setId={} ruleIds={}", setId, deprecated);
+        List<Map<String, Object>> out = new ArrayList<>(deprecatedWarnings(ids));
+        if (!out.isEmpty()) {
+            log.warn("폐기된 룰이 든 세트를 판정했다 setId={} ruleIds={}", setId, out.stream().map(w -> w.get("ruleId")).toList());
         }
         List<EngineWarning> engine = new ArrayList<>(r.warnings());
         r.steps().forEach(s -> engine.addAll(s.warnings()));
@@ -174,7 +168,30 @@ public class RuleSetRunner {
         return out;
     }
 
-    private static Map<String, Object> warning(String code, String ruleId, String message) {
+    /** 룰 헤더를 한 번에 읽어 {@link #deprecatedWarnings(List, Map)} 를 만든다(저장 세트 {@link #execute}·저장 전 흐름 기록 실행이 같이 쓴다). */
+    public List<Map<String, Object>> deprecatedWarnings(List<String> ruleIds) {
+        Map<String, MdmRule> byId = new LinkedHashMap<>();
+        rules.findAllById(ruleIds).forEach(x -> byId.put(x.getMaruRuleId(), x));
+        return deprecatedWarnings(ruleIds, byId);
+    }
+
+    /**
+     * 폐기 룰 경고(D-110, P5) — 룰 ID 가 흐름에서 처음 나온 순서대로, 상태가 DEPRECATED 인 룰마다 {@code RULE_DEPRECATED} 한 건. 같은 ID 가 두 번
+     * 있어도 한 건이다. 탄 갈래와 무관하다.
+     */
+    public static List<Map<String, Object>> deprecatedWarnings(List<String> ruleIds, Map<String, MdmRule> byId) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (String id : ruleIds.stream().distinct().toList()) {
+            MdmRule rule = byId.get(id);
+            if (rule != null && "DEPRECATED".equals(rule.getStatus())) {
+                out.add(warning(RULE_DEPRECATED, id, id + "는 폐기된 룰이지만 판정 시각에 유효한 RELEASED 버전으로 판정했다"));
+            }
+        }
+        return out;
+    }
+
+    /** 응답 경고 한 건 {@code {code, ruleId, message}}(D-110 모양). */
+    public static Map<String, Object> warning(String code, String ruleId, String message) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("code", code);
         m.put("ruleId", ruleId);
@@ -197,7 +214,8 @@ public class RuleSetRunner {
         return (evalTs == null ? clock.instant() : evalTs).truncatedTo(ChronoUnit.SECONDS);
     }
 
-    private static Instant parseKst(String text) {
+    /** KST {@code yyyy-MM-dd HH:mm:ss} → 시각. 형식 오류는 INVALID_VALUE. */
+    public static Instant parseKst(String text) {
         try {
             return LocalDateTime.parse(text, TS).atZone(MdmClockConfig.KST).toInstant();
         } catch (DateTimeParseException e) {
