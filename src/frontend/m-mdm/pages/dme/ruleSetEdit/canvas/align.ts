@@ -5,11 +5,12 @@
  * - drawn: 지금 그린 위치(겹침을 푼 것) — 보이는 노드는 그린 상자 좌상단(접힌 분기는 접힌 상자), 숨은 멤버는 블록과 맞춘 전체 흐름 자리.
  *   캔버스가 `alignSourceRef` 로 올린다(공간 넓히기의 `spaceDrawn` 과 같다). 메모는 drawn 이 아니라 `view.notes` 의 자기 위치를 쓴다.
  * - 상자 크기: 흐름 노드는 종류별 `NODE_SIZE`(접힌 분기는 룰 크기), 메모는 자기 w×h. 그룹 틀은 멤버에서 계산하므로 다루지 않는다.
- * - 움직인 노드 위치는 `view.positions` 에, 메모는 `view.notes` 에 적는다. 접힌 분기는 제 크기 기준 좌표(+foldOffsetX)로 적고,
- *   안쪽 멤버는 같은 만큼 함께 간다(끌기·공간 넓히기와 같다). 선의 꺾는 점은 옮기지 않는다.
+ * - 노드 위치는 `view.positions` 에, 메모는 `view.notes` 에 적는다. 하나라도 움직이면 고른 노드 전부를 그린 위치로 적어 고정한다.
+ *   접힌 분기는 제 크기 기준 좌표(+foldOffsetX)로 적는다. 분기(접힘·펼침 모두)가 움직이면 블록 멤버·합류가 같은 만큼 함께 간다(끌기와 같다).
+ *   맞춤 기준 상자는 고른 노드 상자 그대로다(블록 경계로 넓히지 않는다). 선의 꺾는 점은 옮기지 않는다.
  */
 import { NODE_SIZE, foldOffsetX, type SpaceBlocks } from "../flow-layout";
-import { setPositions, type EditFlow, type FlowPos } from "../flow-edit";
+import { blockMembers, setPositions, type EditFlow, type FlowPos } from "../flow-edit";
 
 export type AlignKind = "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom";
 export type DistributeAxis = "x" | "y";
@@ -43,14 +44,17 @@ function itemsOf(f: EditFlow, ids: readonly string[], drawn: Readonly<Record<str
       const size = NODE_SIZE[block ? "RULE" : n.kind];
       out.push({
         id, x: p.x, y: p.y, w: size.w, h: size.h, fold: block ? foldOffsetX(n.kind) : 0,
-        members: block ? block.members.filter((m) => m !== id) : [], note: false,
+        members: (block ? [...block.members] : (["IF", "PARALLEL"].includes(n.kind) ? (blockMembers(f, id) ?? []) : [])).filter((m) => m !== id),
+        note: false,
       });
       continue;
     }
     const note = f.view?.notes?.find((x) => x.id === id);
     if (note) out.push({ id, x: note.x, y: note.y, w: note.w, h: note.h, fold: 0, members: [], note: true });
   }
-  return out;
+  // 다른 고른 분기의 블록 멤버는 그 분기가 함께 옮기므로 따로 세지 않는다(이중 이동 방지).
+  const owned = new Set(out.flatMap((it) => it.members));
+  return out.filter((it) => !owned.has(it.id));
 }
 
 /** 항목별 이동량을 흐름에 적는다. 모두 0 이면 입력 그대로. */
@@ -62,10 +66,11 @@ function apply(f: EditFlow, items: readonly Item[], moves: ReadonlyMap<string, F
   if (moving.length === 0) return f;
   const pos: Record<string, FlowPos> = {};
   const noteAt = new Map<string, FlowPos>();
-  for (const it of moving) {
-    const d = moves.get(it.id)!;
+  // 하나라도 움직이면 고른 것 전부(안 움직인 기준 노드 포함)를 그린 위치로 적어 고정한다 — 겹침 해소가 기준 노드를 밀어 맞춤이 깨지지 않게.
+  for (const it of items) {
+    const d = moves.get(it.id) ?? { x: 0, y: 0 };
     if (it.note) {
-      noteAt.set(it.id, { x: it.x + d.x, y: it.y + d.y });
+      if (d.x !== 0 || d.y !== 0) noteAt.set(it.id, { x: it.x + d.x, y: it.y + d.y });
       continue;
     }
     pos[it.id] = { x: it.x + d.x + it.fold, y: it.y + d.y };

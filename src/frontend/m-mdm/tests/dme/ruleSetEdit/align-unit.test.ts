@@ -15,8 +15,8 @@ function ok<T extends { ok: boolean }>(r: T): Extract<T, { ok: true }> {
 }
 /** start → r1 → if1 { 빈 갈래 둘 } → m1 → end. 크기: r1 232×68, if1 176×44, m1 28×28. */
 const ifFlow = (): EditFlow => ok(insertSplit(toEditFlow(null, ["R_A"]), "e2", "IF")).flow;
-const DRAWN: Record<string, FlowPos> = { r1: { x: 0, y: 0 }, if1: { x: 300, y: 100 }, m1: { x: 700, y: 50 } };
-const IDS = ["r1", "if1", "m1"];
+const DRAWN: Record<string, FlowPos> = { r1: { x: 0, y: 0 }, if1: { x: 300, y: 140 }, end: { x: 700, y: 40 } };
+const IDS = ["r1", "if1", "end"]; // 크기 232×68, 176×44, 120×36 (합류 m1 은 if1 블록 멤버라 세지 않는다)
 /** if1 의 갈래 선에 룰 하나를 끼운다. */
 const withInnerRule = () => {
   const f = ifFlow();
@@ -25,19 +25,19 @@ const withInnerRule = () => {
 
 describe("alignNodes — 경계 상자 기준(크기가 다른 상자)", () => {
   const cases: [AlignKind, Record<string, FlowPos>][] = [
-    ["left", { if1: { x: 0, y: 100 }, m1: { x: 0, y: 50 } }],
-    ["right", { r1: { x: 496, y: 0 }, if1: { x: 552, y: 100 } }],
-    ["hcenter", { r1: { x: 248, y: 0 }, if1: { x: 276, y: 100 }, m1: { x: 350, y: 50 } }],
-    ["top", { if1: { x: 300, y: 0 }, m1: { x: 700, y: 0 } }],
-    ["bottom", { r1: { x: 0, y: 76 }, m1: { x: 700, y: 116 } }],
-    ["vcenter", { r1: { x: 0, y: 38 }, if1: { x: 300, y: 50 }, m1: { x: 700, y: 58 } }],
+    ["left", { if1: { x: 0, y: 140 }, end: { x: 0, y: 40 } }],
+    ["right", { r1: { x: 588, y: 0 }, if1: { x: 644, y: 140 } }],
+    ["hcenter", { r1: { x: 294, y: 0 }, if1: { x: 322, y: 140 }, end: { x: 350, y: 40 } }],
+    ["top", { if1: { x: 300, y: 0 }, end: { x: 700, y: 0 } }],
+    ["bottom", { r1: { x: 0, y: 116 }, end: { x: 700, y: 148 } }],
+    ["vcenter", { r1: { x: 0, y: 58 }, if1: { x: 300, y: 70 }, end: { x: 700, y: 74 } }],
   ];
   for (const [kind, moved] of cases) {
-    it(`${kind} — 움직일 노드만 위치를 적는다`, () => {
+    it(`${kind} — 움직인 것은 새 위치, 안 움직인 고른 것은 그린 위치로 고정`, () => {
       const f = ifFlow();
       const g = alignNodes(f, IDS, kind, DRAWN);
       for (const [id, p] of Object.entries(moved)) expect(g.view.positions[id], `${kind} ${id}`).toEqual(p);
-      for (const id of IDS.filter((i) => !(i in moved))) expect(g.view.positions[id]).toBeUndefined();
+      for (const id of IDS.filter((i) => !(i in moved))) expect(g.view.positions[id], `${kind} ${id} 고정`).toEqual(DRAWN[id]); // 안 움직인 기준도 그린 위치로 고정
     });
   }
 
@@ -60,7 +60,7 @@ describe("alignNodes — 경계 상자 기준(크기가 다른 상자)", () => {
     const n = addNote(ifFlow(), { x: 900, y: 300 }, null);
     const g = alignNodes(n.flow, ["r1", n.id], "left", DRAWN);
     expect(g.view.notes.find((x) => x.id === n.id)).toMatchObject({ x: 0, y: 300 });
-    expect(g.view.positions.r1).toBeUndefined();
+    expect(g.view.positions.r1).toEqual(DRAWN.r1);
     const b = alignNodes(n.flow, ["r1", n.id], "bottom", DRAWN); // 메모 높이 80 — 아래는 300+80
     expect(b.view.positions.r1).toEqual({ x: 0, y: 312 });
   });
@@ -76,22 +76,53 @@ describe("alignNodes — 경계 상자 기준(크기가 다른 상자)", () => {
   });
 });
 
+describe("펼친 분기는 블록째 옮긴다(끌기와 같다)", () => {
+  const inner = () => {
+    const f = withInnerRule();
+    return { f, id: f.nodes.find((n) => n.ruleId === "R_B")!.id };
+  };
+  const drawn = (id: string): Record<string, FlowPos> => ({ r1: { x: 0, y: 0 }, if1: { x: 300, y: 100 }, [id]: { x: 320, y: 200 }, m1: { x: 310, y: 300 } });
+  it("펼친 IF 를 화살표로 옮기면 안쪽·합류가 같이 간다(접힘 없음)", () => {
+    const { f, id } = inner();
+    const g = nudgeNodes(f, ["if1"], 5, 0, drawn(id));
+    expect(g.view.positions.if1).toEqual({ x: 305, y: 100 });
+    expect(g.view.positions[id]).toEqual({ x: 325, y: 200 });
+    expect(g.view.positions.m1).toEqual({ x: 315, y: 300 });
+    expect(g.view.positions.r1).toBeUndefined(); // 고르지 않은 것은 건드리지 않는다
+  });
+  it("정렬도 분기 노드 상자 기준으로 맞추고 블록을 같이 옮긴다. 경계 상자는 블록으로 넓히지 않는다", () => {
+    const { f, id } = inner();
+    const g = alignNodes(f, ["r1", "if1"], "left", drawn(id));
+    expect(g.view.positions.if1).toEqual({ x: 0, y: 100 });
+    expect(g.view.positions[id]).toEqual({ x: 20, y: 200 });
+    expect(g.view.positions.m1).toEqual({ x: 10, y: 300 });
+    expect(g.view.positions.r1).toEqual({ x: 0, y: 0 });
+  });
+  it("블록 멤버가 선택에 같이 들어 있어도 이중 이동하지 않는다", () => {
+    const { f, id } = inner();
+    const g = nudgeNodes(f, ["if1", id, "m1"], 5, 0, drawn(id));
+    expect(g.view.positions.if1).toEqual({ x: 305, y: 100 });
+    expect(g.view.positions[id]).toEqual({ x: 325, y: 200 });
+    expect(g.view.positions.m1).toEqual({ x: 315, y: 300 });
+  });
+});
+
 describe("distributeNodes — 양 끝 고정, 사이 간격 같게", () => {
   it("가로 — 크기가 달라도 빈 간격이 같다", () => {
     const g = distributeNodes(ifFlow(), IDS, "x", DRAWN);
-    expect(g.view.positions.if1).toEqual({ x: 378, y: 100 }); // (728 - 436) / 2 = 146
-    expect(g.view.positions.r1).toBeUndefined();
-    expect(g.view.positions.m1).toBeUndefined();
+    expect(g.view.positions.if1).toEqual({ x: 378, y: 140 }); // (820 - 528) / 2 = 146
+    expect(g.view.positions.r1).toEqual(DRAWN.r1); // 양 끝은 그린 위치로 고정
+    expect(g.view.positions.end).toEqual(DRAWN.end);
   });
   it("세로 — 위쪽 순서로 정렬해 가운데 것을 옮긴다", () => {
     const g = distributeNodes(ifFlow(), IDS, "y", DRAWN);
-    expect(g.view.positions.m1).toEqual({ x: 700, y: 70 }); // (144 - 140) / 2 = 2
+    expect(g.view.positions.end).toEqual({ x: 700, y: 86 }); // (184 - 148) / 2 = 18 → 68 + 18
   });
   it("3개 미만·이미 고른 간격이면 같은 객체(기록 없음). 입력 불변", () => {
     const f = ifFlow();
     const snap = JSON.stringify(f);
     expect(distributeNodes(f, ["r1", "if1"], "x", DRAWN)).toBe(f);
-    expect(distributeNodes(f, IDS, "x", { r1: { x: 0, y: 0 }, if1: { x: 378, y: 100 }, m1: { x: 700, y: 50 } })).toBe(f);
+    expect(distributeNodes(f, IDS, "x", { r1: { x: 0, y: 0 }, if1: { x: 378, y: 140 }, end: { x: 700, y: 40 } })).toBe(f);
     distributeNodes(f, IDS, "y", DRAWN);
     expect(JSON.stringify(f)).toBe(snap);
   });

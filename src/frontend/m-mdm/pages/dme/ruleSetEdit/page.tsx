@@ -308,28 +308,28 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     (target: MenuTarget, at: { x: number; y: number }) => setMenu({ target, at, selection: alignSourceRef.current?.().ids ?? [] }),
     [],
   );
-  const onAlign = useCallback(
-    (kind: AlignKind) => {
+  // 할 일이 없으면(고른 것 모자람·이미 맞음) UNHANDLED — 키를 쓰지 않아 브라우저 단축키(Alt+D 등)를 막지 않는다.
+  const runEdit = useCallback(
+    (make: (f: EditFlow, src: AlignSource) => EditFlow, mergeKey?: (src: AlignSource) => string) => {
       const src = alignSourceRef.current?.();
-      if (editing && src) edit((f) => alignNodes(f, src.ids, kind, src.drawn, src.blocks));
+      if (!editing || !src || !flow || make(flow, src) === flow) return UNHANDLED;
+      edit((f) => make(f, src), mergeKey ? { mergeKey: mergeKey(src) } : undefined);
+      return undefined;
     },
-    [editing, edit],
+    [editing, edit, flow],
+  );
+  const onAlign = useCallback(
+    (kind: AlignKind) => runEdit((f, s) => alignNodes(f, s.ids, kind, s.drawn, s.blocks)),
+    [runEdit],
   );
   const onDistribute = useCallback(
-    (axis: DistributeAxis) => {
-      const src = alignSourceRef.current?.();
-      if (editing && src) edit((f) => distributeNodes(f, src.ids, axis, src.drawn, src.blocks));
-    },
-    [editing, edit],
+    (axis: DistributeAxis) => runEdit((f, s) => distributeNodes(f, s.ids, axis, s.drawn, s.blocks)),
+    [runEdit],
   );
-  /** 화살표 옮기기 — 고른 것이 없으면 UNHANDLED(키를 쓰지 않는다). 연속 입력은 같은 대상이면 1초 안에 한 칸으로 합친다. */
+  /** 화살표 옮기기 — 연속 입력은 같은 대상이면 1초 안에 한 칸으로 합친다. */
   const onNudge = useCallback(
-    (dx: number, dy: number) => {
-      const src = alignSourceRef.current?.();
-      if (!editing || !src || src.ids.length === 0) return UNHANDLED;
-      edit((f) => nudgeNodes(f, src.ids, dx, dy, src.drawn, src.blocks), { mergeKey: `nudge:${src.ids.join(",")}` });
-    },
-    [editing, edit],
+    (dx: number, dy: number) => runEdit((f, s) => nudgeNodes(f, s.ids, dx, dy, s.drawn, s.blocks), (s) => `nudge:${s.ids.join(",")}`),
+    [runEdit],
   );
   const varLabels = useMemo(() => varLabelsOf(state.rules), [state.rules]);
   const onToggleVars = useCallback(() => {

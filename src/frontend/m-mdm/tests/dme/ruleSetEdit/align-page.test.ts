@@ -106,9 +106,78 @@ describe("화면 — 정렬·간격·화살표 옮기기(A1)", () => {
     await click("flow-mode-edit");
     await click("flow-node-r2");
     await act(async () => canvas().focus());
-    await key(canvas(), { key: "å", code: "KeyA", altKey: true });
+    const ev = await key(canvas(), { key: "å", code: "KeyA", altKey: true });
     expect(at("r2")).toEqual({ x: 300, y: 200 });
     expect(undoDisabled()).toBe(true);
+    expect(ev.defaultPrevented).toBe(false); // 키를 쓰지 않아 브라우저 단축키(Alt+D 등)를 막지 않는다
+  });
+
+  it("고른 것이 2개뿐이면 간격 키도, 아무것도 안 골랐으면 정렬 키도 preventDefault 하지 않는다. 이미 맞아 있어도 마찬가지", async () => {
+    await openSet("AL_3B", viewOf("AL_3B", scattered()));
+    await click("flow-mode-edit");
+    await act(async () => canvas().focus());
+    expect((await key(canvas(), { key: "∂", code: "KeyD", altKey: true })).defaultPrevented).toBe(false); // 선택 없음
+    // 테스트 도구는 keyup 을 보내지 않으므로 직접 보낸다(React Flow 가 눌린 키를 기억한다).
+    await act(async () => document.dispatchEvent(new KeyboardEvent("keyup", { key: "∂", code: "KeyD", altKey: true, bubbles: true })));
+    await pick("r1", "r2");
+    expect((await key(canvas(), { key: "˙", code: "KeyH", altKey: true, shiftKey: true })).defaultPrevented).toBe(false); // 간격은 3개 이상
+    await act(async () => document.dispatchEvent(new KeyboardEvent("keyup", { key: "˙", code: "KeyH", altKey: true, shiftKey: true, bubbles: true })));
+    expect((await key(canvas(), { key: "å", code: "KeyA", altKey: true })).defaultPrevented).toBe(true);
+    expect((await key(canvas(), { key: "å", code: "KeyA", altKey: true })).defaultPrevented).toBe(false); // 이미 맞음
+    expect(undoDisabled()).toBe(false);
+  });
+
+  // 16개 핸들러를 하나씩 — 방향·크기·축 오타를 잡는다. r1(0,0) r2(300,200) r3(120,500), 크기 232×68.
+  const all3 = { r1: { x: 0, y: 0 }, r2: { x: 300, y: 200 }, r3: { x: 120, y: 500 } };
+  const aligned: [string, string, boolean, Record<string, FlowPos>][] = [
+    ["alignLeft", "KeyA", false, { r1: { x: 0, y: 0 }, r2: { x: 0, y: 200 }, r3: { x: 0, y: 500 } }],
+    ["alignRight", "KeyD", false, { r1: { x: 300, y: 0 }, r2: { x: 300, y: 200 }, r3: { x: 300, y: 500 } }],
+    ["alignTop", "KeyW", false, { r1: { x: 0, y: 0 }, r2: { x: 300, y: 0 }, r3: { x: 120, y: 0 } }],
+    ["alignBottom", "KeyS", false, { r1: { x: 0, y: 500 }, r2: { x: 300, y: 500 }, r3: { x: 120, y: 500 } }],
+    ["alignHCenter", "KeyH", false, { r1: { x: 150, y: 0 }, r2: { x: 150, y: 200 }, r3: { x: 150, y: 500 } }],
+    ["alignVCenter", "KeyV", false, { r1: { x: 0, y: 250 }, r2: { x: 300, y: 250 }, r3: { x: 120, y: 250 } }],
+    ["distributeH", "KeyH", true, { r1: { x: 0, y: 0 }, r2: { x: 300, y: 200 }, r3: { x: 150, y: 500 } }],
+    ["distributeV", "KeyV", true, { r1: { x: 0, y: 0 }, r2: { x: 300, y: 250 }, r3: { x: 120, y: 500 } }],
+  ];
+  it.each(aligned)("%s (%s, shift=%s)", async (_id, code, shiftKey, expected) => {
+    await openSet(`AL_T_${_id}`, viewOf(`AL_T_${_id}`, scattered()));
+    await click("flow-mode-edit");
+    await pick("r1", "r2", "r3");
+    expect((await key(canvas(), { key: "†", code, altKey: true, shiftKey })).defaultPrevented).toBe(true);
+    for (const [id, p] of Object.entries(expected)) expect(at(id), `${_id} ${id}`).toEqual(p);
+    await click("flow-undo");
+    for (const [id, p] of Object.entries(all3)) expect(at(id), `undo ${id}`).toEqual(p);
+    expect(undoDisabled()).toBe(true);
+  });
+
+  const nudges: [string, KeyboardEventInit, FlowPos][] = [
+    ["nudgeLeft", { key: "ArrowLeft" }, { x: 299, y: 200 }],
+    ["nudgeRight", { key: "ArrowRight" }, { x: 301, y: 200 }],
+    ["nudgeUp", { key: "ArrowUp" }, { x: 300, y: 199 }],
+    ["nudgeDown", { key: "ArrowDown" }, { x: 300, y: 201 }],
+    ["nudgeLeftBig", { key: "ArrowLeft", shiftKey: true }, { x: 290, y: 200 }],
+    ["nudgeRightBig", { key: "ArrowRight", shiftKey: true }, { x: 310, y: 200 }],
+    ["nudgeUpBig", { key: "ArrowUp", shiftKey: true }, { x: 300, y: 190 }],
+    ["nudgeDownBig", { key: "ArrowDown", shiftKey: true }, { x: 300, y: 210 }],
+  ];
+  it.each(nudges)("%s", async (id, init, expected) => {
+    await openSet(`AL_N_${id}`, viewOf(`AL_N_${id}`, scattered()));
+    await click("flow-mode-edit");
+    await click("flow-node-r2");
+    await act(async () => canvas().focus());
+    await key(canvas(), init);
+    expect(at("r2")).toEqual(expected);
+  });
+
+  it("자동 배치 세로 사슬(저장 위치 없음)에서 Alt+W — 고른 모두의 y 가 같고 기준 노드가 겹침 해소로 밀리지 않는다", async () => {
+    await openSet("AL_CHAIN", viewOf("AL_CHAIN", toEditFlow(null, ["AL_A", "AL_B", "AL_C"])));
+    await click("flow-mode-edit");
+    await pick("r1", "r2", "r3");
+    const x1 = at("r1").x;
+    await key(canvas(), { key: "∑", code: "KeyW", altKey: true });
+    const ys = ["r1", "r2", "r3"].map((id) => at(id).y);
+    expect(new Set(ys).size).toBe(1);
+    expect(at("r1").x).toBe(x1);
   });
 
   it("화살표 1px·Shift+화살표 10px. 연속 입력은 한 칸으로 합쳐 되돌리기 한 번에 돌아간다", async () => {
