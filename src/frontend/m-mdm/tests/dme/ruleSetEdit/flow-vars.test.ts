@@ -25,4 +25,11 @@ describe("flow-vars", () => {
     expect(nearestEdge(f, pos, { x: 60, y: 200 })).toBe("e2");
     expect(nearestEdge(f, pos, { x: 900, y: 200 })).toBeNull();
   });
+  it("exclude 로 가장 가까운 선을 빼면 다음으로 가까운 선이 나온다", () => {
+    const pos = { start: { x: 0, y: 0 }, r1: { x: 0, y: 100 }, r2: { x: 0, y: 300 }, end: { x: 0, y: 500 } };
+    const at = { x: 100, y: 155 }; // e2 중점 (116,234) 이 가장 가깝고 e1 중점 (88,68) 이 다음이다
+    expect(nearestEdge(f, pos, at, 100)).toBe("e2");
+    expect(nearestEdge(f, pos, at, 100, new Set(["e2"]))).toBe("e1");
+    expect(nearestEdge(f, pos, at, 100, new Set(["e1", "e2", "e3"]))).toBeNull();
+  });
 });

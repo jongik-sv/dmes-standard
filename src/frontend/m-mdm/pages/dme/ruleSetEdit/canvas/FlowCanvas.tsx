@@ -12,7 +12,7 @@
  * 우클릭은 모든 모드에서 `onContextMenu` 로 올리고(항목은 메뉴 제공자가 모드로 거른다), 편집 모드면 선 가운데에 [+] 단추를 둔다.
  * [+] 는 선 데이터에 콜백을 넣지 않고 캔버스 틀의 click 위임으로 부른다(선 데이터 참조가 바뀌면 선을 모두 다시 그린다, Local-Rules §16).
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent as ReactMouseEvent } from "react";
 
 import { IconPlus } from "@tabler/icons-react";
 
@@ -20,7 +20,7 @@ import type { RuleSetFlow, TypedValue } from "@/contract/engine-contract.generat
 
 import type { FlowNote, FlowPos, EditFlow } from "../flow-edit";
 import { NODE_SIZE, positionsOf } from "../flow-layout";
-import { edgeChips, edgeMarks, nearestEdge, nodeMarks } from "../flow-vars";
+import { blockDragPositions, dropTargetAt, edgeChips, edgeMarks, nodeMarks, resolveNodeDrop } from "../flow-vars";
 import type { FlowMode } from "../state/useRuleSetEdit";
 import type { RuleIoMap, RuleSetCheck } from "../types";
 import type { MenuTarget } from "./context-menu";
@@ -134,6 +134,8 @@ const MULTI_KEYS = ["Shift", "Meta", "Control"];
 
 type EdgeData = {
   label: string | null;
+  /** 지금 조건식(B10 입력 칸의 처음 값). */
+  cond: string | null;
   chips: string[];
   state: EdgeState | undefined;
   mark: "REJECT" | "WARN" | undefined;
@@ -151,6 +153,61 @@ type EdgeData = {
 };
 type FlowRfEdge = Edge<EdgeData, "rsfFlow">;
 
+/** 조건식 즉석 편집 칸의 확정·취소 — 선 데이터에 콜백을 넣지 않으려고 문맥으로 준다(Local-Rules §16). */
+interface CondEditActions {
+  commit(edgeId: string, cond: string): void;
+  cancel(): void;
+}
+const CondEditContext = createContext<CondEditActions | null>(null);
+
+/** 선 라벨 자리의 조건식 입력 칸(B10) — Enter 확정, Esc·칸 밖 누르기 취소. 키 입력은 캔버스 단축키로 번지지 않게 막는다. */
+function CondInput({ edgeId, initial }: { edgeId: string; initial: string }) {
+  const actions = useContext(CondEditContext);
+  const ref = useRef<HTMLInputElement>(null);
+  const done = useRef(false);
+  const finish = (commit: boolean) => {
+    if (done.current) return;
+    done.current = true;
+    if (commit) actions?.commit(edgeId, ref.current?.value ?? "");
+    else actions?.cancel();
+  };
+  useEffect(() => {
+    ref.current?.focus();
+    ref.current?.select();
+    const outside = (e: Event) => {
+      if (!ref.current?.contains(e.target as globalThis.Node)) finish(false);
+    };
+    document.addEventListener("mousedown", outside, true);
+    document.addEventListener("pointerdown", outside, true);
+    return () => {
+      document.removeEventListener("mousedown", outside, true);
+      document.removeEventListener("pointerdown", outside, true);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <input
+      ref={ref}
+      type="text"
+      className="rsf-cond-input nodrag nopan nowheel"
+      data-testid={`flow-edge-cond-input-${edgeId}`}
+      defaultValue={initial}
+      aria-label="조건식"
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") {
+          e.preventDefault();
+          finish(true);
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          finish(false);
+        }
+      }}
+      onBlur={() => finish(false)}
+    />
+  );
+}
+
 function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
   const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, selected } = props;
   const [path, lx, ly] = getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 8 });
@@ -160,6 +217,10 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
   if (selected) {
     style.stroke = "var(--color-primary)";
     style.strokeWidth = 2.5;
+  }
+  if (data?.dropTarget) {
+    style.stroke = "var(--color-primary)";
+    style.strokeWidth = 4;
   }
   if (state === "run") {
     style.stroke = "var(--color-success)";
@@ -173,12 +234,31 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
   const addX = data?.label ? lx + ADD_LABEL_GAP : lx;
   return (
     <>
-      <BaseEdge id={id} path={path} style={style} markerEnd={props.markerEnd} interactionWidth={20} />
+      <BaseEdge id={id} path={path} style={style} markerEnd={props.markerEnd} interactionWidth={20} className={data?.dropTarget ? "rsf-edge-drop" : undefined} />
       <EdgeLabelRenderer>
-        {data?.label && (
+        {data?.editingCond && data.condEditable ? (
           <div className="rsf-elabel" style={at(lx, ly)}>
-            <span className="rsf-branch" data-testid={`flow-edge-label-${id}`} data-state={state ?? "idle"}>
-              {data.label}
+            <CondInput edgeId={id} initial={data.cond ?? ""} />
+          </div>
+        ) : (
+          data?.label && (
+            <div className="rsf-elabel" style={at(lx, ly)}>
+              <span
+                className={data.condEditable ? "rsf-branch rsf-cond-label nopan" : "rsf-branch"}
+                data-testid={`flow-edge-label-${id}`}
+                data-state={state ?? "idle"}
+                data-cond-edge={data.condEditable ? id : undefined}
+                title={data.condEditable ? "두 번 눌러 조건식을 고친다" : undefined}
+              >
+                {data.label}
+              </span>
+            </div>
+          )
+        )}
+        {data?.dropTarget && (
+          <div className="rsf-elabel" style={at(lx, ly - 22)}>
+            <span className="rsf-drop-mark" data-testid={`flow-edge-drop-${id}`}>
+              여기에 넣기
             </span>
           </div>
         )}
@@ -234,8 +314,8 @@ function Inner(props: FlowCanvasProps) {
   const {
     flow, rules, checks, mode, showVars, selectedId, selectedEdgeId, overlay, focusId, focusSeq, focusReveal, fitSignal, fitKey,
     breakpoints, showMiniMap, editingCondEdgeId,
-    onSelect, onSelectEdge, onOpenRule, onMove, onConnect, onDropPalette, onDropRule, onNoteChange, onContextMenu, onToggleBreakpoint,
-    onSelectionChange,
+    onSelect, onSelectEdge, onOpenRule, onMove, onMoveNode, onConnect, onDropPalette, onDropRule, onNoteChange, onContextMenu, onToggleBreakpoint,
+    onEditCond, onEditCondClose, onSelectionChange,
   } = props;
   const editable = mode === "edit";
   const debugging = mode === "debug";
@@ -243,6 +323,16 @@ function Inner(props: FlowCanvasProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<Record<string, FlowPos>>({});
   const [flashId, setFlashId] = useState<string | null>(null);
+  /** 끄는 동안 놓일 선(A1·A2, P-D20) — 캔버스 안 상태. 부모는 놓은 순간의 선 ID 만 받는다. */
+  const [dropEdge, setDropEdgeState] = useState<string | null>(null);
+  const dropEdgeRef = useRef<string | null>(null);
+  const setDropEdge = useCallback((id: string | null) => {
+    if (dropEdgeRef.current === id) return; // 같은 값이면 상태를 바꾸지 않는다(다시 그리기 반복 방지)
+    dropEdgeRef.current = id;
+    setDropEdgeState(id);
+  }, []);
+  /** 조건식 즉석 편집 중인 선(B10) — 메뉴가 연 `editingCondEdgeId` 와 같은 칸을 쓴다. */
+  const [condEdge, setCondEdge] = useState<string | null>(null);
   /** React Flow 선택(노드·메모·그룹 ID). 노드 배열을 제어하므로 select 변경을 여기 적는다. */
   const [rfSel, setRfSel] = useState<ReadonlySet<string>>(() => new Set());
   /**
@@ -257,6 +347,27 @@ function Inner(props: FlowCanvasProps) {
   useEffect(() => setDrag({}), [flow]);
 
   const pos = useMemo(() => ({ ...positionsOf(flow), ...drag }), [flow, drag]);
+  const posRef = useRef(pos);
+  posRef.current = pos;
+  const flowRef = useRef(flow);
+  flowRef.current = flow;
+
+  const condActions = useMemo<CondEditActions>(() => {
+    const close = () => {
+      setCondEdge(null);
+      onEditCondClose();
+    };
+    return {
+      commit: (edgeId, cond) => {
+        onEditCond(edgeId, cond);
+        close();
+      },
+      cancel: close,
+    };
+  }, [onEditCond, onEditCondClose]);
+  useEffect(() => {
+    if (!editable) setCondEdge(null);
+  }, [editable]);
   const marks = useMemo(() => nodeMarks(checks), [checks]);
   const eMarks = useMemo(() => edgeMarks(checks), [checks]);
   const chips = useMemo(() => edgeChips(flow as RuleSetFlow, rules), [flow, rules]);
@@ -308,13 +419,15 @@ function Inner(props: FlowCanvasProps) {
     const kindOf = new Map(flow.nodes.map((n) => [n.id, n.kind] as const));
     return flow.edges.map<FlowRfEdge>((e) => {
       const fromSplit = kindOf.get(e.from) === "IF" || kindOf.get(e.from) === "PARALLEL";
-      const label = fromSplit ? (e.label ?? (e.otherwise ? "그 외" : null)) : null;
+      const condEditable = editable && kindOf.get(e.from) === "IF" && !e.otherwise;
+      // 조건 갈래는 이름(label)이 없어도 두 번 누를 자리가 있어야 한다(F10) — 대체 라벨 `갈래 {order}`.
+      const label = fromSplit ? (e.label ?? (e.otherwise ? "그 외" : condEditable ? `갈래 ${e.order ?? ""}`.trim() : null)) : null;
       const data: EdgeData = {
-        label, chips: chips[e.id] ?? [], state: overlay?.edges[e.id], mark: eMarks[e.id], showVars,
-        dropTarget: false, // SEAM(T7): 끄는 동안 놓일 선(dropEdge 내부 상태)
+        label, cond: e.cond, chips: chips[e.id] ?? [], state: overlay?.edges[e.id], mark: eMarks[e.id], showVars,
+        dropTarget: dropEdge === e.id,
         insertable: editable,
-        condEditable: editable && kindOf.get(e.from) === "IF" && !e.otherwise,
-        editingCond: editingCondEdgeId === e.id,
+        condEditable,
+        editingCond: (editingCondEdgeId ?? condEdge) === e.id,
         valueOf: undefined, // SEAM(T11): 디버그 모드 칩 툴팁(valueAt)
       };
       return {
@@ -323,7 +436,7 @@ function Inner(props: FlowCanvasProps) {
         data,
       };
     });
-  }, [flow, chips, overlay, eMarks, showVars, selectedEdgeId, editable, editingCondEdgeId]);
+  }, [flow, chips, overlay, eMarks, showVars, selectedEdgeId, editable, editingCondEdgeId, condEdge, dropEdge]);
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     const dims = changes.filter((c): c is Extract<NodeChange, { type: "dimensions" }> => c.type === "dimensions" && !!c.dimensions);
@@ -359,17 +472,56 @@ function Inner(props: FlowCanvasProps) {
     });
   }, []);
 
-  const onNodeDragStop = useCallback((_e: unknown, _n: Node, dragged: Node[]) => {
+  /** 흐름 노드(룰·IF·병렬)만 선 위에 놓아 옮길 수 있다. */
+  const isMovable = (n: Node) => n.type === "rsfFlow" && ["RULE", "IF", "PARALLEL"].includes(flowRef.current.nodes.find((x) => x.id === n.id)?.kind ?? "");
+  const isSplit = (id: string) => ["IF", "PARALLEL"].includes(flowRef.current.nodes.find((x) => x.id === id)?.kind ?? "");
+  /** 분기를 끄는 동안 블록 멤버가 같은 만큼 움직인 위치. 분기가 아니면 빈 맵. */
+  const blockPositionsOf = (n: Node): Record<string, FlowPos> => {
+    if (!isSplit(n.id)) return {};
+    const base = positionsOf(flowRef.current);
+    const from = base[n.id];
+    if (!from) return {};
+    return blockDragPositions(flowRef.current, n.id, { x: n.position.x - from.x, y: n.position.y - from.y }, base);
+  };
+
+  const onNodeDrag = useCallback((e: MouseEvent | TouchEvent, node: Node, dragged: Node[]) => {
+    if (!editable) return;
+    const block = blockPositionsOf(node);
+    if (Object.keys(block).length > 0) {
+      setDrag((d) => ({ ...d, ...block }));
+    }
+    if (dragged.length > 1 || !isMovable(node)) {
+      setDropEdge(null);
+      return;
+    }
+    const point = "touches" in e ? (e.touches[0] ?? e.changedTouches[0]) : e; // 손가락 끌기도 받는다
+    if (!point) return;
+    const p = rf.screenToFlowPosition({ x: point.clientX, y: point.clientY });
+    setDropEdge(resolveNodeDrop(flowRef.current, posRef.current, node.id, { x: Math.round(p.x), y: Math.round(p.y) }, rf.getZoom()));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editable, rf, setDropEdge]);
+
+  const onNodeDragStop = useCallback((_e: unknown, node: Node, dragged: Node[]) => {
+    const target = dropEdgeRef.current;
+    setDropEdge(null);
     if (!editable) return;
     const noteIds = new Set(flow.view.notes.map((n) => n.id));
     const moved: Record<string, FlowPos> = {};
     for (const n of dragged) {
       const p = { x: Math.round(n.position.x), y: Math.round(n.position.y) };
       if (noteIds.has(n.id)) onNoteChange(n.id, p);
-      else if (n.type === "rsfFlow") moved[n.id] = p;
+      else if (n.type === "rsfFlow") {
+        moved[n.id] = p;
+        for (const [id, bp] of Object.entries(blockPositionsOf(n))) moved[id] = { x: Math.round(bp.x), y: Math.round(bp.y) };
+      }
     }
-    if (Object.keys(moved).length > 0) onMove(moved);
-  }, [editable, flow, onMove, onNoteChange]);
+    if (Object.keys(moved).length === 0) return;
+    if (target && dragged.length === 1 && isMovable(node)) {
+      onMoveNode(node.id, target, moved);
+      setDrag({}); // 옮기기가 거부돼 흐름이 그대로면 끌던 위치를 되돌린다(성공하면 새 흐름 위치가 정본)
+    } else onMove(moved);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editable, flow, onMove, onMoveNode, onNoteChange, setDropEdge]);
 
   // 흐름이 바뀌면 없어진 요소를 선택에서 뺀다.
   useEffect(() => {
@@ -454,16 +606,22 @@ function Inner(props: FlowCanvasProps) {
     if (!editable || !carries(e)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
+    setDropEdge(dropTargetAt(flow, pos, flowAt(e.clientX, e.clientY), rf.getZoom()));
+  };
+  const onDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    // 캔버스 안의 자식 사이를 오가는 것은 떠남이 아니다.
+    if (!e.currentTarget.contains(e.relatedTarget as globalThis.Node | null)) setDropEdge(null);
   };
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
     if (!editable || !e.dataTransfer) return;
     const item = e.dataTransfer.getData(PALETTE_MIME);
     const ruleId = e.dataTransfer.getData(RULE_MIME);
     const isPalette = PALETTE_ITEMS.includes(item);
+    setDropEdge(null);
     if (!isPalette && !ruleId) return;
     e.preventDefault();
     const at = flowAt(e.clientX, e.clientY);
-    const edgeId = nearestEdge(flow, pos, at, dropRadius(rf.getZoom()));
+    const edgeId = dropTargetAt(flow, pos, at, rf.getZoom());
     if (isPalette) onDropPalette(item as PaletteItem, at, edgeId);
     else onDropRule(ruleId, edgeId);
   };
@@ -489,7 +647,15 @@ function Inner(props: FlowCanvasProps) {
     onContextMenu({ kind: "edge", edgeId, via: "plus" }, { x: r.left, y: r.bottom });
   };
 
+  // 조건 갈래 이름표를 두 번 누르면 조건식 입력 칸(B10, P-D17). 이름표는 선 데이터에 콜백이 없어 틀에서 위임으로 받는다.
+  const onDoubleClick = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (!editable) return;
+    const id = (e.target as Element | null)?.closest?.("[data-cond-edge]")?.getAttribute("data-cond-edge");
+    if (id) setCondEdge(id);
+  };
+
   return (
+    <CondEditContext.Provider value={condActions}>
     <div
       ref={wrapRef}
       className="rsf-canvas"
@@ -497,8 +663,10 @@ function Inner(props: FlowCanvasProps) {
       data-mode={mode}
       tabIndex={0}
       onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
       onDrop={onDrop}
       onClickCapture={onClickCapture}
+      onDoubleClick={onDoubleClick}
     >
       <ReactFlow
         nodes={nodes}
@@ -517,6 +685,7 @@ function Inner(props: FlowCanvasProps) {
         maxZoom={MAX_ZOOM}
         proOptions={{ hideAttribution: true }}
         onNodesChange={onNodesChange}
+        onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
         onConnect={onConnectCb}
         onNodeClick={(_e, n) => onSelect(n.id)}
@@ -534,6 +703,7 @@ function Inner(props: FlowCanvasProps) {
         {showMiniMap && <MiniMap position="bottom-right" style={MINIMAP_STYLE} pannable zoomable />}
       </ReactFlow>
     </div>
+    </CondEditContext.Provider>
   );
 }
 
