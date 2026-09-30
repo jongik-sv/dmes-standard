@@ -233,7 +233,11 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     [ruleModal, editActions],
   );
 
-  const onMove = useCallback((pos: Record<string, FlowPos>) => editing && edit((f) => setPositions(f, pos)), [editing, edit]);
+  const onMove = useCallback(
+    (pos: Record<string, FlowPos>, notes: Record<string, FlowPos> = {}) =>
+      editing && edit((f) => Object.entries(notes).reduce((g, [id, p]) => updateNote(g, id, p), setPositions(f, pos))),
+    [editing, edit],
+  );
   const onRouteChange = useCallback((edgeId: string, points: FlowPos[]) => editing && edit((f) => setRoute(f, edgeId, points)), [editing, edit]);
   const onMoveNode = useCallback(
     (nodeId: string, edgeId: string, pos: Record<string, FlowPos>) => {
@@ -265,7 +269,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     [editing, edit],
   );
   const onEditCondClose = useCallback(() => setEditingCond(null), []);
-  const onAutoLayout = useCallback(() => edit((f) => autoArrange(f)), [edit]);
+  const onAutoLayout = useCallback(() => editing && edit((f) => autoArrange(f)), [editing, edit]);
   const onContextMenu = useCallback((target: MenuTarget, at: { x: number; y: number }) => setMenu({ target, at }), []);
   const onToggleMiniMap = useCallback(() => {
     const next = !showMiniMap;
