@@ -312,6 +312,9 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   /** 고른 것이 흐름 노드인가(메모·그룹 아님) — 복사·중단점 단축키와 디버그 툴바 [여기까지] 가 쓴다. */
   const isFlowNode = !!flow && !!selectedId && flow.nodes.some((n) => n.id === selectedId);
   const removeRoutePointRef = useRef<(() => boolean) | null>(null);
+  /** 캔버스 감싸개 — 도움말을 Esc 로 닫으면 그 안의 캔버스(`flow-canvas`, tabIndex 0)로 초점을 돌린다(브라우저 확인 8번 단서). */
+  const canvasHostRef = useRef<HTMLDivElement>(null);
+  const focusCanvas = useCallback(() => canvasHostRef.current?.querySelector<HTMLElement>(".rsf-canvas")?.focus({ preventScroll: true }), []);
   /** 캔버스가 "React Flow 선택(노드·선·메모·그룹 selected) 비우기" 를 채우는 ref — Esc 가 부른다(내장 키 처리를 껐으므로). */
   const clearCanvasSelectionRef = useRef<(() => void) | null>(null);
   const onEscape = () => {
@@ -462,6 +465,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
               onToggleMiniMap={onToggleMiniMap}
               find={find}
               findInputRef={findInputRef}
+              onHelpEscape={focusCanvas}
             />
             {debugging && <DebugToolbar sim={sim} canRun={canRun} selectedId={isFlowNode ? selectedId : null} />}
             <ContentBody root direction="column" resizable storageKey={STORAGE_KEY}>
@@ -483,7 +487,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                 </ContentPanel>
                 <ContentPanel key="canvas" flex="1 1 0" minSize={320}>
                   <div className="rsf-body">
-                    <div className="rsf-canvas-host" onKeyDown={onCanvasKeyDown}>
+                    <div ref={canvasHostRef} className="rsf-canvas-host" onKeyDown={onCanvasKeyDown}>
                       <FlowCanvas
                         flow={flow}
                         rules={state.rules}
