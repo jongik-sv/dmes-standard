@@ -96,7 +96,7 @@ final class FlowRun {
             if (br.otherwise() || chosen != null) {
                 continue;
             }
-            BranchCondition c = BranchCondition.test(runner, br.cond(), ctx, ts);
+            BranchCondition c = BranchCondition.test(runner, br.cond(), ctx, keys.condTypes(br.cond()), ts);
             if (c.outcome == BranchCondition.TRUE) {
                 chosen = br;
             } else if (c.outcome == BranchCondition.NULL) {

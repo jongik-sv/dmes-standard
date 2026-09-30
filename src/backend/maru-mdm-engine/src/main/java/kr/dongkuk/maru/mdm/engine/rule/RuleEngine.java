@@ -19,7 +19,11 @@ public interface RuleEngine {
     /** 룰 하나 판정. 판정 오류는 {@code EngineEvaluationException}. */
     RuleResult evaluate(String ruleId, Map<String, Object> record, Instant evalTs);
 
-    /** 룰 세트 순차 판정. 첫 룰 전에 세트 입력 키를 한꺼번에 본다(06:420). 폐기 세트는 판정 오류(06:419). */
+    /**
+     * 룰 세트 판정 — 세트 흐름(IF·병렬, flow 가 null 이면 ruleIds 한 줄)대로 실행한다. 세트 입력 키(06:420)는 첫 룰 전에 반드시
+     * 실행되는 부분을 한꺼번에, IF 갈래에 들어갈 때 그 갈래를, IF 일부 갈래에서만 만든 이름은 읽는 룰 실행 직전에 본다.
+     * 폐기 세트는 판정 오류(06:419).
+     */
     RuleSetResult evaluateSet(String setId, Map<String, Object> record, Instant evalTs);
 
     /** 정의 조회(06:480). 계산하지 않고 스냅샷의 것을 꺼낸다. */

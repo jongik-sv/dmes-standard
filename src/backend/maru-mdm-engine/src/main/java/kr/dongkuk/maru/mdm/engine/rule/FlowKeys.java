@@ -3,6 +3,7 @@ package kr.dongkuk.maru.mdm.engine.rule;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -17,26 +18,75 @@ import kr.dongkuk.maru.mdm.engine.flow.Branch;
 import kr.dongkuk.maru.mdm.engine.flow.RuleStep;
 import kr.dongkuk.maru.mdm.engine.flow.Seq;
 import kr.dongkuk.maru.mdm.engine.flow.Split;
+import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.DataType;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.NodeKind;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RowContract;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleDefinition;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleKind;
+import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleVar;
+import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.VarKind;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.VarType;
 
 /**
  * 흐름 입력 키 검사(spec §4 "입력 키 사전 검사", plan C5). {@link #check} 는 seq 의 반드시 실행되는 부분만 본다 — IF 갈래 안은
  * 그 갈래에 들어갈 때 다시 부르고, IF 일부 갈래에서만 만들어지는 이름은 그 룰의 지연 목록({@link #deferred})에 넣어 실행 직전에 본다.
  * 병렬 갈래는 분기 직전 값만 보므로 형제 결과를 입력으로 치지 않는다.
+ *
+ * <p>IF 조건식 변수의 선언 타입({@link #condTypes})도 여기서 정한다 — 세트 안 룰의 계약·결과 변수 선언에서 이름마다 처음 나온 타입.
  */
 final class FlowKeys {
 
     private final Map<String, RuleDefinition> defs;
     private final MdmEvaluator expressions;
     private final Map<String, List<String>> deferred = new HashMap<>();
+    /** 세트 안 룰이 선언한 변수 타입 — 이름마다 처음 선언한 타입(룰은 defs 순서, 룰 안은 always·행 required·optional·결과). */
+    private final Map<String, DataType> declared = new HashMap<>();
 
     FlowKeys(Map<String, RuleDefinition> defs, MdmEvaluator expressions) {
         this.defs = defs;
         this.expressions = expressions;
+        for (RuleDefinition def : defs.values()) {
+            declare(def);
+        }
+    }
+
+    /**
+     * IF 조건식이 쓰는 변수 가운데 세트 안 룰이 타입을 선언한 것(식에 나온 순서). 조건식은 이 타입으로 바꾼 값으로 평가한다
+     * (의사결정표 열 조건과 같은 규칙, spec §4). 선언이 없는 변수는 레코드 값 그대로다.
+     */
+    Map<String, DataType> condTypes(String cond) {
+        Map<String, DataType> out = new LinkedHashMap<>();
+        for (String name : condVars(cond)) {
+            DataType t = declared.get(name);
+            if (t != null) {
+                out.put(name, t);
+            }
+        }
+        return out;
+    }
+
+    private void declare(RuleDefinition def) {
+        if (def.contract() != null) {
+            nonNull(def.contract().always()).forEach(this::declare);
+            if (def.ruleKind() == RuleKind.DERIVE) {
+                for (RowContract rc : nonNull(def.contract().rows())) {
+                    nonNull(rc.required()).forEach(this::declare);
+                    nonNull(rc.optional()).forEach(this::declare);
+                }
+            }
+        }
+        for (RuleVar v : RuleEvaluator.columns(def.vars(), VarKind.RESULT)) {
+            String name = v.resGrp() != null && !v.resGrp().isEmpty() ? v.resGrp() : v.varName();
+            if (name != null && v.dataType() != null) {
+                declared.putIfAbsent(name, v.dataType());
+            }
+        }
+    }
+
+    private void declare(VarType t) {
+        if (t.name() != null && t.dataType() != null) {
+            declared.putIfAbsent(t.name(), t.dataType());
+        }
     }
 
     /** 이 RULE 노드를 실행하기 직전에 ctx 에 있어야 하는 이름. */
@@ -188,7 +238,8 @@ final class FlowKeys {
             Set<String> vars = new LinkedHashSet<>(expressions.usedVariables(cond));
             vars.removeIf(v -> v.equalsIgnoreCase(ReservedNames.EVAL_TS) || v.startsWith(ReservedNames.RESERVED_PREFIX));
             return vars;
-        } catch (RuntimeException e) {
+        } catch (kr.dongkuk.maru.mdm.engine.expr.ExpressionFailure | IllegalStateException e) {
+            // 파싱 실패(ExpressionFailure PARSE) 또는 사용 변수 추출 실패(IllegalStateException) — 이 패키지의 같은 이름 타입과 구분해 정규 이름으로 적는다.
             return Set.of();
         }
     }
