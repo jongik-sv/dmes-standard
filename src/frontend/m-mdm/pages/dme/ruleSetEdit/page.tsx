@@ -24,13 +24,14 @@ import { IdPicker, MdmPageLayout, useMdmPageParams, type IdPickRow } from "@/she
 
 import { searchSets } from "./api";
 import { ContextMenu } from "./canvas/ContextMenu";
+import { alignNodes, distributeNodes, nudgeNodes, type AlignKind, type DistributeAxis } from "./canvas/align";
 import { buildMenu, type CanvasActions, type MenuItem, type MenuTarget } from "./canvas/context-menu";
-import { FlowCanvas } from "./canvas/FlowCanvas";
+import { FlowCanvas, type AlignSource } from "./canvas/FlowCanvas";
 import { FlowToolbar } from "./canvas/FlowToolbar";
 import { MENU_PROVIDERS } from "./canvas/menus";
 import { RulePanel } from "./canvas/RulePanel";
 import { RuleSearchModal } from "./canvas/RuleSearchModal";
-import { dispatchShortcut, isMacPlatform, type ShortcutHandlers } from "./canvas/shortcuts";
+import { UNHANDLED, dispatchShortcut, isMacPlatform, type ShortcutHandlers } from "./canvas/shortcuts";
 import { DebugInputs } from "./debugger/DebugInputs";
 import { DebugToolbar } from "./debugger/DebugToolbar";
 import { varLabelsOf } from "./set-model";
@@ -121,7 +122,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   /** 룰 찾기 팝업 — 선에 끼우기(insert) 또는 룰 바꾸기(replace, Task 8). */
   const [ruleModal, setRuleModal] = useState<RuleModalPurpose | null>(null);
   /** 우클릭·[+] 메뉴를 연 대상과 화면 좌표. */
-  const [menu, setMenu] = useState<{ target: MenuTarget; at: { x: number; y: number } } | null>(null);
+  const [menu, setMenu] = useState<{ target: MenuTarget; at: { x: number; y: number }; selection: string[] } | null>(null);
   /** 즉석 조건식 편집 중인 선(B10, Task 7 이 입력 칸을 그린다). */
   const [editingCond, setEditingCond] = useState<string | null>(null);
   /** 툴바 찾기 칸(Task 8 이 단다) — Ctrl/Cmd+F 가 초점을 옮긴다. */
@@ -301,7 +302,35 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   );
   const onEditCondClose = useCallback(() => setEditingCond(null), []);
   const onAutoLayout = useCallback(() => editing && edit((f) => autoArrange(f)), [editing, edit]);
-  const onContextMenu = useCallback((target: MenuTarget, at: { x: number; y: number }) => setMenu({ target, at }), []);
+  // 정렬·옮기기(A1) — 캔버스가 채우는 "고른 것과 그린 위치" 함수. 메뉴는 열 때 고른 ID 를 적어 둔다(정렬 메뉴 조건).
+  const alignSourceRef = useRef<(() => AlignSource) | null>(null);
+  const onContextMenu = useCallback(
+    (target: MenuTarget, at: { x: number; y: number }) => setMenu({ target, at, selection: alignSourceRef.current?.().ids ?? [] }),
+    [],
+  );
+  const onAlign = useCallback(
+    (kind: AlignKind) => {
+      const src = alignSourceRef.current?.();
+      if (editing && src) edit((f) => alignNodes(f, src.ids, kind, src.drawn, src.blocks));
+    },
+    [editing, edit],
+  );
+  const onDistribute = useCallback(
+    (axis: DistributeAxis) => {
+      const src = alignSourceRef.current?.();
+      if (editing && src) edit((f) => distributeNodes(f, src.ids, axis, src.drawn, src.blocks));
+    },
+    [editing, edit],
+  );
+  /** 화살표 옮기기 — 고른 것이 없으면 UNHANDLED(키를 쓰지 않는다). 연속 입력은 같은 대상이면 1초 안에 한 칸으로 합친다. */
+  const onNudge = useCallback(
+    (dx: number, dy: number) => {
+      const src = alignSourceRef.current?.();
+      if (!editing || !src || src.ids.length === 0) return UNHANDLED;
+      edit((f) => nudgeNodes(f, src.ids, dx, dy, src.drawn, src.blocks), { mergeKey: `nudge:${src.ids.join(",")}` });
+    },
+    [editing, edit],
+  );
   const varLabels = useMemo(() => varLabelsOf(state.rules), [state.rules]);
   const onToggleVars = useCallback(() => {
     const next: VarDisplay = varDisplayRef.current === "off" ? "id" : varDisplayRef.current === "id" ? "name" : "off";
@@ -323,8 +352,10 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
       toggleCollapse: collapse.toggle,
       toggleBreakpoint: sim.toggleBreakpoint,
       runTo: (id: string) => void runTo(id),
+      align: onAlign,
+      distribute: onDistribute,
     }),
-    [editActions.actions, collapse.toggle, sim.toggleBreakpoint, runTo],
+    [editActions.actions, collapse.toggle, sim.toggleBreakpoint, runTo, onAlign, onDistribute],
   );
   const menuItems = useMemo(
     () =>
@@ -338,6 +369,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
             collapsed: collapse.collapsed,
             breakpoints: sim.breakpoints,
             canRun,
+            selection: menu.selection,
             act: canvasActions,
           })
         : NO_ITEMS,
@@ -389,6 +421,23 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
         copy: () => (isFlowNode ? canvasActions.copy(selectedId!) : edit(() => fail(COPY_NEEDS_NODE))),
         paste: () => (selectedEdgeId ? canvasActions.paste(selectedEdgeId) : edit(() => fail(PASTE_NEEDS_EDGE))),
         duplicate: () => (isFlowNode ? canvasActions.duplicate(selectedId!) : edit(() => fail(COPY_NEEDS_NODE))),
+        // 정렬·간격·화살표 옮기기(A1) — 고른 것이 모자라면 조용히 아무 일 없다(ID 는 캔버스에서 읽는다).
+        alignLeft: () => onAlign("left"),
+        alignHCenter: () => onAlign("hcenter"),
+        alignRight: () => onAlign("right"),
+        alignTop: () => onAlign("top"),
+        alignVCenter: () => onAlign("vcenter"),
+        alignBottom: () => onAlign("bottom"),
+        distributeH: () => onDistribute("x"),
+        distributeV: () => onDistribute("y"),
+        nudgeLeft: () => onNudge(-1, 0),
+        nudgeRight: () => onNudge(1, 0),
+        nudgeUp: () => onNudge(0, -1),
+        nudgeDown: () => onNudge(0, 1),
+        nudgeLeftBig: () => onNudge(-10, 0),
+        nudgeRightBig: () => onNudge(10, 0),
+        nudgeUpBig: () => onNudge(0, -10),
+        nudgeDownBig: () => onNudge(0, 10),
       };
     } else if (debugging) {
       handlers = {
@@ -569,6 +618,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         onLabelOffsetChange={onLabelOffsetChange}
                         removeRoutePointRef={removeRoutePointRef}
                         clearSelectionRef={clearCanvasSelectionRef}
+                        alignSourceRef={alignSourceRef}
                         onMoveNode={onMoveNode}
                         onConnect={onConnect}
                         onReconnect={onReconnect}
