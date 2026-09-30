@@ -2,11 +2,17 @@
 // 화면 라이브러리(shared, m-*) dev 빌드 도우미.
 //
 // `tsup --watch` 는 뜰 때마다 소스가 그대로여도 전체 빌드(.d.ts 포함)를 한 번 한다.
-// 이 스크립트는 입력 파일 지문(경로·크기·수정 시각 + TSUP_DTS)을 지난 빌드 때 남긴 값과 비교해
+// 이 스크립트는 입력 파일 지문(경로·크기·수정 시각)을 지난 빌드 때 남긴 값과 비교해
 // 바뀐 패키지만 빌드하고, watch 도 처음 빌드 없이 파일이 바뀔 때만 `tsup` 을 돌린다.
 //
 //   node scripts/lib-dev.mjs build [--force] <pkgDir...>   # frontend 루트에서. 적힌 순서대로(shared 먼저)
 //   node ../scripts/lib-dev.mjs watch                      # 패키지 폴더에서(package.json "dev")
+//
+// watch 는 저장하면 JS 만 바로 빌드하고(TSUP_DTS=0, 약 1초), .d.ts 는 저장이 LIB_DEV_DTS_DELAY_MS(기본 20초)
+// 동안 멈춘 뒤 한 번만 만든다(`tsup --dts-only`). .d.ts 생성은 tsc 급 작업이라(shared 25초) 저장마다 돌리면
+// 여러 세션이 함께 쓰는 PC 의 CPU 를 다 잡아먹는다. next dev 는 .d.ts 를 쓰지 않고, 편집기의 패키지 간 타입과
+// 선언 안 된 식별자 검사만 .d.ts 쪽에 기대므로 조금 늦게 따라와도 된다. watch 에 TSUP_DTS=0 을 주면 .d.ts 를 아예 만들지 않는다.
+// tsup 은 nice 로 낮은 우선순위로 돌린다(화면·다른 세션 작업을 먼저 돌게 한다).
 //
 // 지문은 <pkg>/node_modules/.cache/lib-dev-stamp.json 에 둔다(배포 대상 dist 에 섞지 않는다).
 // 한 번씩 도는 tsup 이 dist 를 비우지 않도록 TSUP_NO_CLEAN=1 을 넘긴다(shared 의 clean 설정 참고).
@@ -49,7 +55,6 @@ function listInputs(pkgDir, rel = "") {
 
 function fingerprint(pkgDir) {
   const hash = createHash("sha1");
-  hash.update(`TSUP_DTS=${process.env.TSUP_DTS ?? ""}\n`);
   for (const relPath of listInputs(pkgDir).sort()) {
     const st = fs.statSync(path.join(pkgDir, relPath));
     hash.update(`${relPath}\t${st.size}\t${st.mtimeMs}\n`);
@@ -59,42 +64,62 @@ function fingerprint(pkgDir) {
 
 const stampPath = (pkgDir) => path.join(pkgDir, "node_modules", ".cache", "lib-dev-stamp.json");
 
+/** { fingerprint, dts } — dts 는 그 지문의 소스로 .d.ts 까지 만들었는지. */
 function readStamp(pkgDir) {
   try {
-    return JSON.parse(fs.readFileSync(stampPath(pkgDir), "utf8")).fingerprint;
+    const stamp = JSON.parse(fs.readFileSync(stampPath(pkgDir), "utf8"));
+    return { fingerprint: stamp.fingerprint ?? null, dts: stamp.dts === true };
   } catch {
-    return null;
+    return { fingerprint: null, dts: false };
   }
 }
 
-function writeStamp(pkgDir, fp) {
+function writeStamp(pkgDir, fp, dts) {
   fs.mkdirSync(path.dirname(stampPath(pkgDir)), { recursive: true });
-  fs.writeFileSync(stampPath(pkgDir), JSON.stringify({ fingerprint: fp, builtAt: new Date().toISOString() }));
+  fs.writeFileSync(stampPath(pkgDir), JSON.stringify({ fingerprint: fp, dts, builtAt: new Date().toISOString() }));
 }
 
-function isFresh(pkgDir) {
+const dtsWanted = () => process.env.TSUP_DTS !== "0";
+
+/** "fresh" — 할 일 없음 · "dts" — JS 는 최신이고 .d.ts 만 필요 · "full" — 다시 빌드. */
+function staleness(pkgDir) {
   const dist = path.join(pkgDir, "dist");
-  if (!fs.existsSync(dist) || fs.readdirSync(dist).length === 0) return false;
-  return readStamp(pkgDir) === fingerprint(pkgDir);
+  if (!fs.existsSync(dist) || fs.readdirSync(dist).length === 0) return "full";
+  const stamp = readStamp(pkgDir);
+  if (stamp.fingerprint !== fingerprint(pkgDir)) return "full";
+  return stamp.dts || !dtsWanted() ? "fresh" : "dts";
 }
 
 let child = null;
 
-function runTsup(pkgDir) {
+/** 도는 tsup 을 끝낸다. Windows 는 shell 을 거쳐 뜨므로 셸만 죽으면 tsup 이 남는다 — 트리째 끝낸다. */
+function killChild() {
+  if (!child) return;
+  if (process.platform === "win32") spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+  else child.kill("SIGTERM");
+}
+
+/**
+ * mode: "all" — 설정대로(TSUP_DTS 를 따른다) · "js" — .d.ts 없이 · "dts" — .d.ts 만(`--dts-only`).
+ * 끝나면 지문을 남긴다. 지문은 빌드 도중 바뀐 파일을 놓치지 않도록 시작 전에 뜬다.
+ */
+function runTsup(pkgDir, mode = "all") {
   return new Promise((resolve) => {
-    // 빌드 도중 바뀐 파일을 놓치지 않도록 지문은 빌드 시작 전에 뜬다.
     const fp = fingerprint(pkgDir);
     const bin = path.join(pkgDir, "node_modules", ".bin", process.platform === "win32" ? "tsup.cmd" : "tsup");
-    child = spawn(bin, [], {
-      cwd: pkgDir,
-      stdio: "inherit",
-      env: { ...process.env, TSUP_NO_CLEAN: "1" },
-      shell: process.platform === "win32",
-    });
-    child.on("exit", (code) => {
+    const args = mode === "dts" ? ["--dts-only"] : [];
+    const env = { ...process.env, TSUP_NO_CLEAN: "1" };
+    if (mode === "js") env.TSUP_DTS = "0";
+    const [cmd, cmdArgs] = process.platform === "win32" ? [bin, args] : ["nice", ["-n", "10", bin, ...args]];
+    child = spawn(cmd, cmdArgs, { cwd: pkgDir, stdio: "inherit", env, shell: process.platform === "win32" });
+    child.on("exit", (code, signal) => {
       child = null;
-      if (code === 0) writeStamp(pkgDir, fp);
-      resolve(code ?? 1);
+      if (code === 0) {
+        // .d.ts 만 만든 경우는 JS 가 같은 소스로 빌드돼 있을 때만 "둘 다 최신" 으로 남긴다.
+        if (mode !== "dts") writeStamp(pkgDir, fp, mode === "all" && dtsWanted());
+        else if (readStamp(pkgDir).fingerprint === fp) writeStamp(pkgDir, fp, true);
+      }
+      resolve(signal ? "killed" : (code ?? 1));
     });
   });
 }
@@ -105,53 +130,85 @@ async function buildCmd(args) {
   const force = args.includes("--force");
   for (const name of args.filter((a) => a !== "--force")) {
     const pkgDir = path.resolve(name);
-    if (!force && isFresh(pkgDir)) {
+    const state = force ? "full" : staleness(pkgDir);
+    if (state === "fresh") {
       log(pkgDir, "변경 없음 — 빌드 건너뜀");
       continue;
     }
-    log(pkgDir, "빌드");
-    const code = await runTsup(pkgDir);
-    if (code !== 0) process.exit(code);
+    log(pkgDir, state === "dts" ? ".d.ts 만 빌드" : "빌드");
+    const code = await runTsup(pkgDir, state === "dts" ? "dts" : "all");
+    if (code !== 0) process.exit(typeof code === "number" ? code : 1);
   }
 }
 
 function watchCmd() {
   const pkgDir = process.cwd();
+  const dtsDelay = Number(process.env.LIB_DEV_DTS_DELAY_MS ?? 20000);
   let building = false;
-  let pending = false;
-  let timer = null;
+  let pendingJs = false;
+  let runningDts = false;
+  let changeTimer = null;
+  let dtsTimer = null;
 
-  const build = async () => {
+  const seconds = (started) => ((Date.now() - started) / 1000).toFixed(1);
+
+  const scheduleDts = () => {
+    clearTimeout(dtsTimer);
+    if (dtsWanted()) dtsTimer = setTimeout(buildDts, dtsDelay);
+  };
+
+  const buildJs = async () => {
     if (building) {
-      pending = true;
+      pendingJs = true;
       return;
     }
     building = true;
     do {
-      pending = false;
+      pendingJs = false;
       const started = Date.now();
-      const code = await runTsup(pkgDir);
-      log(pkgDir, code === 0 ? `다시 빌드 완료 (${((Date.now() - started) / 1000).toFixed(1)}s)` : `빌드 실패 (exit ${code}) — 다음 저장 때 다시 빌드`);
-    } while (pending);
+      const code = await runTsup(pkgDir, "js");
+      log(pkgDir, code === 0 ? `다시 빌드 완료 (${seconds(started)}s, .d.ts 는 저장이 멈추면)` : `빌드 실패 (exit ${code}) — 다음 저장 때 다시 빌드`);
+    } while (pendingJs);
     building = false;
+    scheduleDts();
   };
+
+  async function buildDts() {
+    if (building) return; // 진행 중인 JS 빌드가 끝나면 다시 예약한다.
+    building = true;
+    runningDts = true;
+    const started = Date.now();
+    const code = await runTsup(pkgDir, "dts");
+    runningDts = false;
+    building = false;
+    if (code === "killed") log(pkgDir, ".d.ts 빌드 중단 — 파일이 바뀌어 다시 예약");
+    else log(pkgDir, code === 0 ? `.d.ts 완료 (${seconds(started)}s)` : `.d.ts 실패 (exit ${code}) — 타입 오류를 확인하세요`);
+    if (pendingJs) buildJs();
+  }
 
   // 감시를 먼저 걸어 두어야 첫 빌드 도중 저장한 변경도 놓치지 않는다.
   fs.watch(pkgDir, { recursive: true }, (_event, filename) => {
     // filename 이 없으면 무엇이 바뀌었는지 모르므로 다시 빌드한다.
     if (filename && isIgnored(filename.toString())) return;
-    clearTimeout(timer);
-    timer = setTimeout(build, 200);
+    clearTimeout(dtsTimer);
+    // 낡은 소스로 도는 .d.ts 빌드는 끊는다. JS 빌드가 끝나면 다시 예약된다.
+    if (runningDts) killChild();
+    clearTimeout(changeTimer);
+    changeTimer = setTimeout(buildJs, 200);
   });
 
-  if (isFresh(pkgDir)) log(pkgDir, "변경 없음 — 첫 빌드 건너뛰고 감시 시작");
-  else {
+  const state = staleness(pkgDir);
+  if (state === "fresh") log(pkgDir, "변경 없음 — 첫 빌드 건너뛰고 감시 시작");
+  else if (state === "dts") {
+    log(pkgDir, "JS 는 최신 — .d.ts 만 예약하고 감시 시작");
+    scheduleDts();
+  } else {
     log(pkgDir, "소스가 바뀌어 첫 빌드 후 감시");
-    build();
+    buildJs();
   }
 
   const stop = () => {
-    if (child) child.kill("SIGTERM");
+    killChild();
     process.exit(0);
   };
   for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) process.on(sig, stop);
