@@ -21,6 +21,7 @@ import type {
   CellEditingStoppedEvent,
   IRowNode,
   EditableCallbackParams,
+  GridApi,
 } from "ag-grid-community";
 import { GRID_TEMP_ID_FIELD } from "./GridPanel";
 import { GRID_SIZE_CHANGE_SETTLE_MS, resolveGridSizeChangeAction } from "./grid-size-change";
@@ -273,6 +274,15 @@ export interface AgDataGridProps {
   /** 데이터 없음 안내 문구에 붙일 data-testid(화면·E2E 가 빈 상태를 확인할 때). */
   emptyTestId?: string;
   className?: string;
+  /**
+   * ★행 커서(`.ag-row-highlighted`) 위치 — **값을 넘기면 controlled**, 안 넘기면 그리드가 자체 관리한다.
+   *
+   * - controlled: 화면이 커서를 소유한다. `null` 로 주면 커서를 지운다(옛 계약 그대로).
+   * - 자체 관리(기본값): 클릭한 행에 커서가 붙고 ↑/↓ 로 이전·다음 행으로 옮겨 간다(2026-09-30 기본 기능).
+   *   목록이 있으면 어느 화면이든 "지금 어느 행이지" 가 보인다 — 화면마다 `onRowClick` + `highlightedRowKey` 를
+   *   붙여야 했던 반복을 없앤다.
+   * - 값을 넘기다가 `undefined` 로 바꾸면(`selectedId ?? undefined` 처럼) 커서를 지우고 자체 관리로 돌아간다.
+   */
   highlightedRowKey?: string | number | null;
   scrollToRow?: string | number | null;
   loading?: boolean;
@@ -593,6 +603,26 @@ export function displayedRowKeys(
   return keys;
 }
 
+/**
+ * ↑/↓ 로 옮겨 갈 행 번호(표시 순서). 옮길 곳이 없으면 null.
+ * 기준 행이 없으면(-1) 방향과 무관하게 첫 행으로 간다. 맨 위·맨 아래에서는 멈춘다.
+ */
+export function nextCursorIndex(currentIndex: number, totalRows: number, key: "ArrowUp" | "ArrowDown"): number | null {
+  if (totalRows <= 0) return null;
+  if (currentIndex < 0 || currentIndex >= totalRows) return 0;
+  const target = key === "ArrowDown" ? currentIndex + 1 : currentIndex - 1;
+  return target < 0 || target >= totalRows ? null : target;
+}
+
+/**
+ * 이 행이 커서 행인가. 키를 문자열로 맞춰 비교한다 — 행 데이터의 키는 숫자일 수 있고,
+ * 그리드가 자체 관리하는 커서 키와 ag-grid 행 ID 는 문자열이다.
+ */
+export function isCursorRow(rowId: unknown, cursorKey: string | number | null | undefined): boolean {
+  if (cursorKey == null || cursorKey === "" || rowId == null) return false;
+  return String(rowId) === String(cursorKey);
+}
+
 export function selectEditedRow(
   checkRowOnEdit: boolean,
   selectable: boolean,
@@ -627,7 +657,9 @@ function AgDataGridComponent({
   emptyMessage = "데이터가 없습니다.",
   emptyTestId,
   className = "",
-  highlightedRowKey = null,
+  // 기본값을 `null` 이 아니라 `undefined` 로 둔다 — "화면이 넘기지 않았다"와 "화면이 커서를 지냈다"를 구분해야
+  // 커서를 자체 관리하는 기본 동작과 controlled 계약을 동시에 살릴 수 있다.
+  highlightedRowKey,
   scrollToRow = null,
   loading = false,
   loadingMessage = "조회 중...",
@@ -737,7 +769,17 @@ function AgDataGridComponent({
     [rowKey]
   );
 
-  const highlightedRowKeyRef = useRef(highlightedRowKey);
+  // ★행 커서 — 화면이 `highlightedRowKey` 를 넘기면 그 값이 곧 커서(controlled), 안 넘기면 아래가 소유한다.
+  const [ownCursorKey, setOwnCursorKey] = useState<string | null>(null);
+  const cursorControlled = highlightedRowKey !== undefined;
+  const cursorKey: string | number | null = cursorControlled ? highlightedRowKey ?? null : ownCursorKey;
+  // 화면 값을 자체 커서에도 따라 적어 둔다. `selectedId ?? undefined` 처럼 값을 넘기다가 undefined 로 바꾸는 화면은
+  // 선택을 지운 뜻인데, 이걸 안 하면 자체 관리로 넘어가며 예전에 클릭한 행의 커서가 되살아난다.
+  useEffect(() => {
+    setOwnCursorKey(highlightedRowKey == null ? null : String(highlightedRowKey));
+  }, [highlightedRowKey]);
+
+  const highlightedRowKeyRef = useRef(cursorKey);
   const prevHighlightedRowKeyRef = useRef<string | number | null>(null);
   /** 강조가 바뀌었지만 편집 중이라 아직 다시 그리지 못한 행. */
   const pendingHighlightRedrawRef = useRef<IRowNode[]>([]);
@@ -759,7 +801,7 @@ function AgDataGridComponent({
       if (row._rowState === "modified") {
         classes.push("ag-row-modified");
       }
-      if (highlightedRowKeyRef.current !== null && rowId === highlightedRowKeyRef.current) {
+      if (isCursorRow(rowId, highlightedRowKeyRef.current)) {
         classes.push("ag-row-highlighted");
       }
       // 외부 row 분류 (예: 1년+미사용 JIG)
@@ -1000,16 +1042,16 @@ function AgDataGridComponent({
     if (!gridReady || !gridRef.current?.api) return;
     const api = gridRef.current.api;
     const prev = prevHighlightedRowKeyRef.current;
-    highlightedRowKeyRef.current = highlightedRowKey;
-    prevHighlightedRowKeyRef.current = highlightedRowKey;
+    highlightedRowKeyRef.current = cursorKey;
+    prevHighlightedRowKeyRef.current = cursorKey;
 
     const nodesToRedraw: IRowNode[] = [];
     if (prev !== null) {
       const prevNode = api.getRowNode(String(prev));
       if (prevNode) nodesToRedraw.push(prevNode);
     }
-    if (highlightedRowKey !== null && highlightedRowKey !== prev) {
-      const newNode = api.getRowNode(String(highlightedRowKey));
+    if (cursorKey !== null && cursorKey !== prev) {
+      const newNode = api.getRowNode(String(cursorKey));
       if (newNode) nodesToRedraw.push(newNode);
     }
     // 편집 중인 행을 redrawRows 하면 cell editor 가 닫혀 사용자가 다시 클릭해야 한다. 그 행만 편집이 끝난 뒤(onCellEditingStopped)
@@ -1020,7 +1062,7 @@ function AgDataGridComponent({
     if (now.length > 0) {
       api.redrawRows({ rowNodes: now });
     }
-  }, [highlightedRowKey, gridReady]);
+  }, [cursorKey, gridReady]);
 
   const handleCellEditingStopped = useCallback((event: CellEditingStoppedEvent) => {
     const pending = pendingHighlightRedrawRef.current;
@@ -1091,6 +1133,43 @@ function AgDataGridComponent({
   const selectExcludeColumnsRef = useRef(selectExcludeColumns);
   selectExcludeColumnsRef.current = selectExcludeColumns;
 
+  /**
+   * ★행 커서를 ↑/↓ 로 한 칸 옮긴다. 옮겼으면 true.
+   *
+   * <p>`fromIndex` 가 기준 행이다. 없으면 지금 커서(controlled 면 화면 값, 아니면 자체 관리 값) 행이고, 커서가 없으면 첫 행으로 간다.
+   * 화면이 `onRowClick` 을 줬으면 그쪽에도 같은 행을 넘겨 준다 — 화면 상태와 커서가 어긋나지 않게.
+   */
+  const moveRowCursor = useCallback(
+    (api: GridApi, key: "ArrowUp" | "ArrowDown", event: Event, fromIndex?: number): boolean => {
+      let currentIndex = fromIndex ?? -1;
+      if (fromIndex == null && cursorKey != null && cursorKey !== "") {
+        const currentNode = api.getRowNode(String(cursorKey));
+        if (currentNode && typeof currentNode.rowIndex === "number") {
+          currentIndex = currentNode.rowIndex;
+        }
+      }
+
+      const targetIndex = nextCursorIndex(currentIndex, api.getDisplayedRowCount(), key);
+      if (targetIndex == null || targetIndex === currentIndex) return false;
+
+      const targetNode = api.getDisplayedRowAtIndex(targetIndex);
+      if (!targetNode?.data) return false;
+      api.ensureNodeVisible(targetNode);
+
+      const rowData = targetNode.data as Record<string, unknown>;
+      const tempId = rowData[GRID_TEMP_ID_FIELD];
+      const rowId = typeof tempId === "string" && tempId ? tempId : String(rowData[rowKey] ?? "");
+      if (!cursorControlled && rowId) setOwnCursorKey(rowId);
+      if (typeof tempId === "string" && tempId) {
+        onRowClick?.({ ...rowData, [rowKey]: tempId }, event);
+      } else {
+        onRowClick?.(rowData, event);
+      }
+      return true;
+    },
+    [cursorKey, cursorControlled, onRowClick, rowKey]
+  );
+
   const handleRowClicked = useCallback(
     (event: RowClickedEvent) => {
       // 행 클릭 시 컨테이너로 focus 이동 → 이후 ArrowUp/Down 키보드 네비게이션이 동작.
@@ -1127,13 +1206,16 @@ function AgDataGridComponent({
 
       const rowData = event.data;
       const tempId = rowData[GRID_TEMP_ID_FIELD];
+      const rowId = typeof tempId === "string" && tempId ? tempId : String(rowData[rowKey] ?? "");
+      // 자체 관리 모드면 클릭이 커서를 옮긴다 — 화면이 `highlightedRowKey` 를 넘기면 그쪽이 소유라 건드리지 않는다.
+      if (!cursorControlled && rowId) setOwnCursorKey(rowId);
       if (typeof tempId === "string" && tempId) {
         onRowClick?.({ ...rowData, [rowKey]: tempId }, event.event!);
       } else {
         onRowClick?.(rowData, event.event!);
       }
     },
-    [onRowClick, rowKey, enableRowClickSelect, rowClickCheck, selectable]
+    [onRowClick, rowKey, enableRowClickSelect, rowClickCheck, selectable, cursorControlled]
   );
 
   // 화살표 키 처리:
@@ -1163,52 +1245,19 @@ function AgDataGridComponent({
 
       // ←/→ : 현재 포커스(highlight) 행을 접힘/펼침. 행 이동은 없음 (단순 expand/collapse).
       if (isHorizontal) {
-        if (highlightedRowKey == null || highlightedRowKey === "") return;
+        if (cursorKey == null || cursorKey === "") return;
         e.preventDefault();
-        onRowExpandCollapse!(highlightedRowKey, e.key === "ArrowRight");
+        onRowExpandCollapse!(cursorKey, e.key === "ArrowRight");
         return;
       }
 
       e.preventDefault();
 
-      if (!onRowClick) return;
-
-      const totalRows = api.getDisplayedRowCount();
-      if (totalRows === 0) return;
-
-      let currentIndex = -1;
-      if (highlightedRowKey != null && highlightedRowKey !== "") {
-        const currentNode = api.getRowNode(String(highlightedRowKey));
-        if (currentNode && typeof currentNode.rowIndex === "number") {
-          currentIndex = currentNode.rowIndex;
-        }
-      }
-
-      let targetIndex: number;
-      if (currentIndex === -1) {
-        targetIndex = 0;
-      } else if (e.key === "ArrowDown") {
-        targetIndex = Math.min(currentIndex + 1, totalRows - 1);
-      } else {
-        targetIndex = Math.max(currentIndex - 1, 0);
-      }
-
-      if (targetIndex === currentIndex) return;
-
-      const targetNode = api.getDisplayedRowAtIndex(targetIndex);
-      if (!targetNode?.data) return;
-
-      api.ensureNodeVisible(targetNode);
-
-      const rowData = targetNode.data as Record<string, unknown>;
-      const tempId = rowData[GRID_TEMP_ID_FIELD];
-      if (typeof tempId === "string" && tempId) {
-        onRowClick({ ...rowData, [rowKey]: tempId }, e.nativeEvent);
-      } else {
-        onRowClick(rowData, e.nativeEvent);
-      }
+      // 자체 관리 모드에서는 커서만 옮기면 되므로 `onRowClick` 이 없어도 된다(목록이 있으면 기본으로 동작).
+      if (!onRowClick && cursorControlled) return;
+      moveRowCursor(api, e.key as "ArrowUp" | "ArrowDown", e.nativeEvent);
     },
-    [onRowClick, rowKey, highlightedRowKey, onRowExpandCollapse]
+    [onRowClick, cursorControlled, cursorKey, onRowExpandCollapse, moveRowCursor]
   );
 
   const handleCellFocused = useCallback(
@@ -1220,24 +1269,45 @@ function AgDataGridComponent({
     [onFocusedRowChange]
   );
 
-  // 편집 중 ↑/↓ — ag-grid 는 편집 중 화살표를 처리하지 않고 뒤이어 cellKeyDown 을 보낸다. 글자 입력 칸(INPUT)일 때만 옮긴다.
+  /**
+   * 칸 포커스가 있는 그리드(편집 가능한 열이 있는 그리드)의 ↑/↓.
+   *
+   * <p>이 그리드는 `suppressCellFocus={false}` 라 칸이 키를 받는다. ag-grid 가 먼저 포커스 칸을 위·아래로 옮기고
+   * `preventDefault` 한 뒤, 이 콜백을 **비동기로** 부른다(33.3.2 dist: `processCellKeyboardEvent` → `cellKeyDown`,
+   * 그리드 옵션 콜백은 async 리스너). 그래서 컨테이너 keydown 은 `defaultPrevented` 를 보고 물러나고, 커서는 여기서
+   * 키를 누른 칸의 행(`event.rowIndex`) 기준으로 옮긴다 — 포커스 칸과 커서 행이 같은 행에 선다.
+   *
+   * <ol>
+   *   <li>편집 중이고 `editArrowNavigation` 이면 **편집을** 같은 열의 이전·다음 행으로 옮긴다(엑셀식).</li>
+   *   <li>그 밖에 편집 중이면 아무것도 하지 않는다. 선택 목록·숫자·날짜시간 편집기는 ↑/↓ 를 값 바꾸기에 쓴다.</li>
+   *   <li>편집 중이 아니면 행 커서를 옮긴다.</li>
+   * </ol>
+   */
   const handleCellKeyDown = useCallback((event: CellKeyDownEvent) => {
     const ke = event.event as KeyboardEvent | null | undefined;
     if (!ke || (ke.key !== "ArrowUp" && ke.key !== "ArrowDown")) return;
     if (ke.altKey || ke.ctrlKey || ke.metaKey || ke.shiftKey || ke.isComposing) return;
-    const target = ke.target as HTMLElement | null;
-    if (target?.tagName !== "INPUT") return;
     const { api, column, rowIndex } = event;
-    if (rowIndex == null || event.rowPinned || !(api.getEditingCells?.() ?? []).length) return;
-    const next = rowIndex + (ke.key === "ArrowDown" ? 1 : -1);
-    if (next < 0 || next >= api.getDisplayedRowCount()) return;
-    ke.preventDefault();
-    const colKey = column.getColId();
-    api.stopEditing();
-    api.ensureIndexVisible(next);
-    api.setFocusedCell(next, colKey);
-    api.startEditingCell({ rowIndex: next, colKey });
-  }, []);
+    if (rowIndex == null || event.rowPinned) return;
+    const editing = (api.getEditingCells?.() ?? []).length > 0;
+
+    if (editing) {
+      if (!editArrowNavigation) return;
+      if ((ke.target as HTMLElement | null)?.tagName !== "INPUT") return;
+      const next = rowIndex + (ke.key === "ArrowDown" ? 1 : -1);
+      if (next < 0 || next >= api.getDisplayedRowCount()) return;
+      ke.preventDefault();
+      const colKey = column.getColId();
+      api.stopEditing();
+      api.ensureIndexVisible(next);
+      api.setFocusedCell(next, colKey);
+      api.startEditingCell({ rowIndex: next, colKey });
+      return;
+    }
+
+    if (cursorControlled && !onRowClick) return;
+    moveRowCursor(api, ke.key, ke, rowIndex);
+  }, [editArrowNavigation, cursorControlled, onRowClick, moveRowCursor]);
 
   const handleRowDoubleClicked = useCallback(
     (event: RowDoubleClickedEvent) => {
@@ -1330,7 +1400,7 @@ function AgDataGridComponent({
         onRowClicked={handleRowClicked}
         onRowDoubleClicked={handleRowDoubleClicked}
         onCellFocused={onFocusedRowChange ? handleCellFocused : undefined}
-        onCellKeyDown={editArrowNavigation ? handleCellKeyDown : undefined}
+        onCellKeyDown={handleCellKeyDown}
         onCellEditingStopped={handleCellEditingStopped}
         onSelectionChanged={handleSelectionChanged}
         onCellValueChanged={handleCellValueChanged}
