@@ -25,8 +25,10 @@ const IGNORE_DIRS = new Set([
   ".turbo",
   ".cache",
 ]);
-// tsup.config.bundled_*.mjs — tsup 이 빌드마다 설정을 묶어 잠깐 만들었다 지우는 파일. 빼지 않으면 빌드가 빌드를 부른다.
-const IGNORE_FILE = /(^\.DS_Store$|\.swp$|\.swx$|~$|^README\.md$|\.(test|spec)\.[cm]?[jt]sx?$|^vitest\..*config\.[cm]?[jt]s$|\.bundled_[^.]*\.[cm]?js$)/;
+// 빌드가 스스로 쓰는 파일은 빼야 한다. 안 그러면 빌드가 빌드를 부른다.
+//   tsup.config.bundled_*.mjs — tsup 이 빌드마다 설정을 묶어 잠깐 만들었다 지우는 파일
+//   .tsbuildinfo              — .d.ts 생성(tsc incremental)이 빌드마다 다시 쓰는 파일
+const IGNORE_FILE = /(^\.DS_Store$|\.swp$|\.swx$|~$|^README\.md$|\.(test|spec)\.[cm]?[jt]sx?$|^vitest\..*config\.[cm]?[jt]s$|\.bundled_[^.]*\.[cm]?js$|\.tsbuildinfo$)/;
 
 function isIgnored(relPath) {
   const parts = relPath.split(path.sep);
