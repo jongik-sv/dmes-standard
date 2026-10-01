@@ -17,7 +17,7 @@ import kr.dongkuk.maru.mdm.engine.spi.Nullable;
  * @param path        방문한 노드(START·RULE·CATCH·IF·PARALLEL·MERGE·END) 순서
  * @param warnings    세트 경고 — IF 조건식 NULL({@code BRANCH_COND_NULL}). 룰 경고는 steps 의 RuleResult 에 있다
  * @param caught      받는 노드가 받아 처리 갈래로 넘긴 exception, 실행 순서. 없으면 빈 목록
- * @param endedBy     처리 갈래가 END 에 닿아 끝났으면 그 CATCH 노드 ID, 아니면 null(X-D10)
+ * @param endedBy     처리 갈래 안에서 END 에 닿아 끝났으면(처리 갈래 안 IF 의 끝내는 갈래 포함) 가장 안쪽 처리 갈래의 받는 노드 ID, 아니면 null(끝내는 IF 갈래로 끝난 실행 포함, D-136)
  */
 public record RuleSetResult(String setId, Instant evalTs, List<RuleResult> steps, Map<String, Object> finalValues,
         List<PathStep> path, List<EngineWarning> warnings, List<CaughtException> caught, @Nullable String endedBy) {
