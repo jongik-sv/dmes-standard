@@ -17,6 +17,7 @@ import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
 import kr.dongkuk.maru.mdm.engine.expr.ReservedNames;
 import kr.dongkuk.maru.mdm.engine.flow.Block;
 import kr.dongkuk.maru.mdm.engine.flow.Branch;
+import kr.dongkuk.maru.mdm.engine.flow.CatchKind;
 import kr.dongkuk.maru.mdm.engine.flow.Guarded;
 import kr.dongkuk.maru.mdm.engine.flow.RuleStep;
 import kr.dongkuk.maru.mdm.engine.flow.Seq;
@@ -37,6 +38,10 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.VarType;
  * 병렬 갈래는 분기 직전 값만 보므로 형제 결과를 입력으로 치지 않는다.
  *
  * <p>IF 조건식 변수의 선언 타입({@link #condTypes})도 여기서 정한다 — 세트 안 룰의 계약·결과 변수 선언에서 이름마다 처음 나온 타입.
+ *
+ * <p>받는 룰(받는 노드 spec §4): 룰 자신의 입력은 보통 룰처럼 보되 INPUT_ERROR 를 받는 룰이면 없는 이름을 사전 검사에서 빼고 지연 목록에
+ * 넣는다(실행 직전 검사). 정상 갈래·처리 갈래는 IF 갈래처럼 들어갈 때 본다. 뒤로는 (룰 결과 ∪ 정상 갈래) ∩ 돌아오는 처리 갈래가 반드시 있고,
+ * 끝내는 처리 갈래는 세지 않는다.
  */
 final class FlowKeys {
 
@@ -111,33 +116,7 @@ final class FlowKeys {
     private void walk(Seq seq, Set<String> available, Set<String> sure, Set<String> maybe, Set<String> reported, List<Violation> out) {
         for (Block b : seq.items()) {
             switch (b) {
-                case RuleStep r -> {
-                    RuleDefinition def = defs.get(r.ruleId());
-                    if (def == null) {
-                        continue;
-                    }
-                    List<String> later = new ArrayList<>();
-                    for (String name : needed(def)) {
-                        if (available.contains(name) || sure.contains(name)) {
-                            continue;
-                        }
-                        if (maybe.contains(name)) {
-                            if (!later.contains(name)) {
-                                later.add(name);
-                            }
-                            continue;
-                        }
-                        if (reported.add(name)) {
-                            out.add(missing(def.ruleId(), name));
-                        }
-                    }
-                    if (!later.isEmpty()) {
-                        deferred.put(r.nodeId(), List.copyOf(later));
-                    }
-                    List<String> results = RuleEvaluator.resultNames(def);
-                    sure.addAll(results);
-                    maybe.removeAll(results);
-                }
+                case RuleStep r -> ruleKeys(r, false, available, sure, maybe, reported, out);
                 case TaskStep t -> {
                     // 빈 단계 — 읽는 이름도 만드는 이름도 없다(4단계 spec §1.1).
                 }
@@ -186,9 +165,84 @@ final class FlowKeys {
                     maybe.addAll(any);
                 }
                 case Seq inner -> walk(inner, available, sure, maybe, reported, out);
-                case Guarded g -> throw new UnsupportedOperationException("받는 룰 실행은 Task 3 이 한다"); // SEAM(T3)
+                case Guarded g -> {
+                    Set<String> sureBefore = new HashSet<>(sure);
+                    Set<String> maybeBefore = new HashSet<>(maybe);
+                    ruleKeys(g.rule(), g.handlerFor(CatchKind.INPUT_ERROR) != null, available, sure, maybe, reported, out);
+                    // ruleKeys 가 룰 결과를 sure 에 넣었다 — 받는 룰은 갈래 합류 규칙으로 다시 정한다.
+                    sure.clear();
+                    sure.addAll(sureBefore);
+                    maybe.clear();
+                    maybe.addAll(maybeBefore);
+                    Set<String> inter = guardSure(g);
+                    Set<String> any = guardAll(g);
+                    sure.addAll(inter);
+                    maybe.removeAll(inter);
+                    any.removeAll(sure);
+                    maybe.addAll(any);
+                }
             }
         }
+    }
+
+    /** 룰 하나의 입력 키 — late 면 없는 이름을 보고하지 않고 지연 목록에 넣는다(INPUT_ERROR 를 받는 룰, X-D9). 결과는 sure 에 넣는다. */
+    private void ruleKeys(RuleStep r, boolean late, Set<String> available, Set<String> sure, Set<String> maybe, Set<String> reported,
+            List<Violation> out) {
+        RuleDefinition def = defs.get(r.ruleId());
+        if (def == null) {
+            return;
+        }
+        List<String> later = new ArrayList<>();
+        for (String name : needed(def)) {
+            if (available.contains(name) || sure.contains(name)) {
+                continue;
+            }
+            if (maybe.contains(name) || late) {
+                if (!later.contains(name)) {
+                    later.add(name);
+                }
+                continue;
+            }
+            if (reported.add(name)) {
+                out.add(missing(def.ruleId(), name));
+            }
+        }
+        if (!later.isEmpty()) {
+            deferred.put(r.nodeId(), List.copyOf(later));
+        }
+        List<String> results = RuleEvaluator.resultNames(def);
+        sure.addAll(results);
+        maybe.removeAll(results);
+    }
+
+    /** 룰 결과 이름(정의가 없으면 빈 집합). */
+    private Set<String> produced(RuleStep r) {
+        RuleDefinition def = defs.get(r.ruleId());
+        return def == null ? new HashSet<>() : new HashSet<>(RuleEvaluator.resultNames(def));
+    }
+
+    /** 받는 룰 뒤에 반드시 있는 이름 — (룰 결과 ∪ 정상 갈래) ∩ 돌아오는 처리 갈래(끝내는 갈래는 세지 않는다). */
+    private Set<String> guardSure(Guarded g) {
+        Set<String> inter = produced(g.rule());
+        inter.addAll(sureProduced(g.normal()));
+        for (Guarded.Handler h : g.handlers()) {
+            if (!h.ends()) {
+                inter.retainAll(sureProduced(h.body()));
+            }
+        }
+        return inter;
+    }
+
+    /** 받는 룰 뒤에 있을 수 있는 이름 — 룰 결과·정상 갈래·돌아오는 처리 갈래가 만들 수 있는 모든 이름. */
+    private Set<String> guardAll(Guarded g) {
+        Set<String> any = produced(g.rule());
+        any.addAll(allProduced(g.normal()));
+        for (Guarded.Handler h : g.handlers()) {
+            if (!h.ends()) {
+                any.addAll(allProduced(h.body()));
+            }
+        }
+        return any;
     }
 
     /** seq 를 끝까지 타면 반드시 만들어지는 결과 이름(IF 는 갈래 교집합, 병렬은 합집합). */
@@ -221,7 +275,7 @@ final class FlowKeys {
                 }
                 case Split s -> s.branches().forEach(br -> out.addAll(sureProduced(br.body())));
                 case Seq inner -> out.addAll(sureProduced(inner));
-                case Guarded g -> throw new UnsupportedOperationException("받는 룰 실행은 Task 3 이 한다"); // SEAM(T3)
+                case Guarded g -> out.addAll(guardSure(g));
             }
         }
         return out;
@@ -243,7 +297,7 @@ final class FlowKeys {
                 }
                 case Split s -> s.branches().forEach(br -> out.addAll(allProduced(br.body())));
                 case Seq inner -> out.addAll(allProduced(inner));
-                case Guarded g -> throw new UnsupportedOperationException("받는 룰 실행은 Task 3 이 한다"); // SEAM(T3)
+                case Guarded g -> out.addAll(guardAll(g));
             }
         }
         return out;
