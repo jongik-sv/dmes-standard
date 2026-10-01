@@ -75,7 +75,7 @@ import { IconPlus } from "@tabler/icons-react";
 import type { RuleSetFlow, TypedValue } from "@/contract/engine-contract.generated";
 
 import { MAX_LABEL_OFFSET, blockMembers, normalizePad, type GroupPad, type FlowNote, type FlowPos, type EditFlow, type LabelOffset, type LabelPart } from "../flow-edit";
-import { beyondLine, catchSlots, catchSpot, drawnPositions, foldOffsetX, nodeSizeOf, spaceMinDelta, type SpaceAxis, type SpaceBlocks } from "../flow-layout";
+import { beyondLine, catchSlots, catchSpot, drawnPositions, endingRoutes, foldOffsetX, nodeSizeOf, spaceMinDelta, type SpaceAxis, type SpaceBlocks } from "../flow-layout";
 import { CATCHABLE } from "../flow-model";
 import { STYLED_KINDS, type NodeSize } from "../node-style";
 import { typedText } from "../trace-view";
@@ -1166,6 +1166,8 @@ function Inner(props: FlowCanvasProps) {
    * 같은 memo 안에서 겹침을 푼다(Ruling 19) — 저장 위치가 없는 노드가 저장 위치 노드와 겹치면 그리는(접힌) 흐름에서 가로로 비킨다. 좌표는 저장하지 않는다.
    */
   const basePos = useMemo(() => drawnPositions(vflow, view.blocks), [vflow, view.blocks]);
+  /** 끝내는 처리 갈래가 END 로 들어가는 선의 자동 경로(다른 노드 상자를 비켜 간다) — 저장 경로가 없을 때만 쓴다. 끌기·공간 넓히기 미리보기는 저장 경로처럼 따른다. */
+  const catchRoutes = useMemo(() => endingRoutes(vflow, basePos, view.blocks), [vflow, basePos, view.blocks]);
   // 공간 넓히기 미리보기(S1) — 캔버스 안 저장소를 구독한다. 배치(dagre)는 다시 돌지 않고 너머 좌표만 옮긴다.
   const spaceStore = useMemo(createSpaceStore, []);
   const space = useSyncExternalStore(spaceStore.subscribe, () => spaceStore.shift, () => null);
@@ -1313,7 +1315,7 @@ function Inner(props: FlowCanvasProps) {
   const rawEdges = useMemo(() => {
     const kindOf = new Map(vflow.nodes.map((n) => [n.id, n.kind] as const));
     // 같은 두 노드를 잇는 경로 없는 선 묶음 — 묶음 안 순서대로 이름표를 가로로 벌린다(가운데 기준).
-    const routeOf = (id: string, folded: boolean) => (folded ? null : (flow.view.routes?.[id] ?? null));
+    const routeOf = (id: string, folded: boolean) => (folded ? null : (flow.view.routes?.[id] ?? catchRoutes[id] ?? null));
     const twins = new Map<string, string[]>();
     for (const e of vflow.edges) {
       if (routeOf(e.id, !!view.blocks[e.from])?.length) continue;
@@ -1364,7 +1366,7 @@ function Inner(props: FlowCanvasProps) {
         data,
       };
     });
-  }, [flow, vflow, view, chips, overlay, eMarks, varDisplay, varLabels, selectedEdgeId, editable, debugging, valueAt, editingCondEdgeId, condEdge, editingLabelEdgeId, labelEdge, dropEdge, onReconnect, onLabelOffsetChange]);
+  }, [flow, vflow, view, catchRoutes, chips, overlay, eMarks, varDisplay, varLabels, selectedEdgeId, editable, debugging, valueAt, editingCondEdgeId, condEdge, editingLabelEdgeId, labelEdge, dropEdge, onReconnect, onLabelOffsetChange]);
   /** 선도 같은 방식 — 선택·조건식 편집·놓일 선 강조가 바뀌어도 바뀐 선만 다시 그린다. */
   const edges = useStableById(rawEdges);
 

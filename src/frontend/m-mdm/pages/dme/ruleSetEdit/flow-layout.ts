@@ -131,23 +131,40 @@ function layoutKey(f: RuleSetFlow, size: ReadonlyMap<string, NodeSize>): string 
   ]);
 }
 
+/** 룰 → 처리 갈래 몸 첫 노드 가상 선의 무게 — 끝내는 처리 갈래 몸이 END 쪽으로 늘어지지 않고 룰 바로 아래 층에 붙게 한다. */
+const CATCH_HEAD_WEIGHT = 2;
+
 function runLayout(f: RuleSetFlow, nodes: NonNullable<RuleSetFlow["nodes"]>, size: ReadonlyMap<string, NodeSize>): Record<string, FlowPos> {
   const g = new dagre.graphlib.Graph();
   g.setGraph({ rankdir: "TB", nodesep: NODESEP, ranksep: 46 });
   g.setDefaultEdgeLabel(() => ({}));
+  // 붙은 받는 노드는 dagre 에 넣지 않는다 — 자리는 placeCatches 가 룰 테두리로 다시 정한다. 넣으면 룰과 처리 갈래 사이에 받는 노드 층이 하나 비어
+  // 생긴다(browser-check 추가 1 (a)). 대신 처리 갈래 몸이 있으면 룰 → 몸 첫 노드 가상 선을 넣어 몸이 룰 바로 아래 층에 오게 한다(스펙 §8).
+  // 빈 처리 갈래(받는 노드 → 끝·돌아오는 합류)는 가상 선을 넣지 않는다 — 룰 → 끝 긴 선이 층마다 자리를 차지해 정상 갈래를 옆으로 민다.
+  const slots = catchSlots(f);
+  const kindOf = new Map(nodes.map((n) => [n.id, n.kind] as const));
   for (const n of nodes) {
+    if (slots.has(n.id)) continue;
     const s = size.get(n.id)!;
     g.setNode(n.id, { width: s.w, height: s.h });
   }
-  for (const e of f.edges ?? []) g.setEdge(e.from, e.to);
-  // 받는 노드는 선이 아니라 attachTo 로 붙는다 — 룰에서 나가는 가상 선으로 넣어 처리 갈래가 룰 아래 층에 오게 한다(스펙 §8).
-  for (const [id, s] of catchSlots(f)) g.setEdge(s.attachTo, id);
+  for (const e of f.edges ?? []) {
+    const s = slots.get(e.from);
+    if (!s) {
+      if (!slots.has(e.to)) g.setEdge(e.from, e.to);
+      continue;
+    }
+    const to = nodes.find((n) => n.id === e.to);
+    const empty = !to || to.kind === "END" || (to.kind === "MERGE" && to.splitId === s.attachTo);
+    if (!empty && to.id !== s.attachTo && !slots.has(to.id) && kindOf.has(to.id)) g.setEdge(s.attachTo, to.id, { weight: CATCH_HEAD_WEIGHT });
+  }
   dagre.layout(g);
   const cx = new Map<string, number>();
-  for (const n of nodes) cx.set(n.id, g.node(n.id).x);
+  for (const n of nodes) if (!slots.has(n.id)) cx.set(n.id, g.node(n.id).x);
   orderBranches(f, g, cx, (id) => size.get(id)!);
   const out: Record<string, FlowPos> = {};
   for (const n of nodes) {
+    if (slots.has(n.id)) continue; // 받는 노드 자리는 autoLayout 이 placeCatches 로 채운다
     const p = g.node(n.id);
     const s = size.get(n.id)!;
     out[n.id] = { x: Math.round(cx.get(n.id)! - s.w / 2), y: Math.round(p.y - s.h / 2) };
@@ -329,6 +346,101 @@ function firstNode(seq: Seq): string | null {
   if (b.type === "SEQ") return firstNode(b);
   if (b.type === "GUARDED") return b.rule.nodeId;
   return b.nodeId;
+}
+
+/** 몸의 맨 바깥 순차 마지막 출구(룰·빈 단계는 자기, 분기·돌아오는 합류가 있는 받는 룰은 그 합류, 합류 없는 받는 룰은 룰). 빈 몸이면 null. */
+function lastExit(seq: Seq): string | null {
+  for (let i = seq.items.length - 1; i >= 0; i--) {
+    const b = seq.items[i];
+    if (b.type === "SEQ") {
+      const x = lastExit(b);
+      if (x) return x;
+      continue;
+    }
+    if (b.type === "SPLIT") return b.mergeId;
+    if (b.type === "GUARDED") return b.mergeId ?? b.rule.nodeId;
+    return b.nodeId;
+  }
+  return null;
+}
+
+/** 선 양 끝 연결점의 반 크기 — 캔버스 연결점(nodes.tsx `ANCHOR_PX` 8)의 절반. 선은 나가는 연결점 아래 끝에서 나와 들어오는 연결점 위 끝으로 간다. */
+const ANCHOR_HALF = 4;
+/** 경로가 연결점에서 곧게 나오고 들어가는 길이(route-path `AUTO_ROUTE_OFFSET` 과 같다). */
+const ROUTE_STUB = 20;
+/** 비켜 가는 세로 줄과 그 왼쪽 노드 사이 간격. */
+const LANE_GAP = NODESEP / 2;
+
+/**
+ * 끝내는 처리 갈래가 END 로 들어가는 선(빈 갈래면 받는 노드의 선)의 자동 꺾는 점(browser-check 추가 1 (b)). 저장하지 않고 캔버스가 저장 경로가 없을 때 그린다.
+ * 기본 꺾은선(아래로 반 → 가로 → END 위)이 다른 노드 상자를 지날 때만 만든다 — 출발 연결점에서 STUB 만큼 내려와 세로 범위가 겹치는 모든 노드(받는 노드 제외)의
+ * 오른쪽 끝 + LANE_GAP 까지 가로로 간 뒤 END 위 STUB 높이까지 내려가 END 가운데로 들어간다. 오른쪽에 걸리는 노드가 없으면 출발점에서 바로 내려간다.
+ * pos 는 그린 위치(drawnPositions), blocks 는 접힌 블록. 흐름을 해석하지 못하면 빈 결과다.
+ */
+export function endingRoutes(
+  f: RuleSetFlow & StyledFlow, pos: Readonly<Record<string, FlowPos>>, blocks: Readonly<Record<string, unknown>> = {},
+): Record<string, FlowPos[]> {
+  const out: Record<string, FlowPos[]> = {};
+  if (!(f.nodes ?? []).some((n) => n.kind === "CATCH")) return out;
+  const tree = parseFlow(layoutCopy(f)).tree;
+  if (!tree) return out;
+  const byId = new Map((f.nodes ?? []).map((n) => [n.id, n] as const));
+  const tails: string[] = [];
+  const walk = (seq: Seq) => {
+    for (const b of seq.items) {
+      if (b.type === "SEQ") walk(b);
+      else if (b.type === "SPLIT") for (const br of b.branches) walk(br.body);
+      else if (b.type === "GUARDED") {
+        walk(b.normal);
+        for (const h of b.handlers) {
+          walk(h.body);
+          if (h.ends) tails.push(lastExit(h.body) ?? h.catchNodeId);
+        }
+      }
+    }
+  };
+  walk(tree.root);
+  const boxes = (f.nodes ?? [])
+    .filter((n) => n.kind !== "CATCH" && pos[n.id])
+    .map((n) => {
+      const s = nodeSizeOf(f, n, blocks);
+      return { id: n.id, x1: pos[n.id].x, y1: pos[n.id].y, x2: pos[n.id].x + s.w, y2: pos[n.id].y + s.h };
+    });
+  for (const tail of tails) {
+    const e = (f.edges ?? []).find((x) => x.from === tail && byId.get(x.to)?.kind === "END");
+    const sp = e && pos[e.from];
+    const tp = e && pos[e.to];
+    if (!e || !sp || !tp) continue;
+    const ss = nodeSizeOf(f, byId.get(e.from)!, blocks);
+    const ts = nodeSizeOf(f, byId.get(e.to)!, blocks);
+    const sx = sp.x + ss.w / 2;
+    const sy = sp.y + ss.h + ANCHOR_HALF;
+    const tx = tp.x + ts.w / 2;
+    const ty = tp.y - ANCHOR_HALF;
+    const top = sy + ROUTE_STUB;
+    const bottom = ty - ROUTE_STUB;
+    if (bottom <= top) continue;
+    const others = boxes.filter((b) => b.id !== e.from && b.id !== e.to);
+    const mid = (top + bottom) / 2;
+    const plain: FlowPos[] = [{ x: sx, y: sy }, { x: sx, y: mid }, { x: tx, y: mid }, { x: tx, y: ty }];
+    if (!others.some((b) => crossesBox(plain, b))) continue;
+    const lane = Math.max(sx, ...others.filter((b) => b.y1 < bottom && top < b.y2).map((b) => b.x2 + LANE_GAP));
+    const pts = lane > sx ? [{ x: sx, y: top }, { x: lane, y: top }, { x: lane, y: bottom }] : [{ x: sx, y: bottom }];
+    out[e.id] = [...pts, { x: tx, y: bottom }].map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) }));
+  }
+  return out;
+}
+
+/** 가로·세로 선분으로 된 꺾은선이 상자 안을 지나는가(테두리에 닿기만 하는 것은 아니다). */
+function crossesBox(pts: readonly FlowPos[], b: Box): boolean {
+  for (let i = 1; i < pts.length; i++) {
+    const [a, c] = [pts[i - 1], pts[i]];
+    const [lx, hx, ly, hy] = [Math.min(a.x, c.x), Math.max(a.x, c.x), Math.min(a.y, c.y), Math.max(a.y, c.y)];
+    const xIn = lx === hx ? b.x1 < lx && lx < b.x2 : lx < b.x2 && b.x1 < hx;
+    const yIn = ly === hy ? b.y1 < ly && ly < b.y2 : ly < b.y2 && b.y1 < hy;
+    if (xIn && yIn) return true;
+  }
+  return false;
 }
 
 /** 배치용 IF 조건식 자리표시 — 갈래 구조만 얻으려 넣고 저장 흐름·검사에는 쓰지 않는다. */

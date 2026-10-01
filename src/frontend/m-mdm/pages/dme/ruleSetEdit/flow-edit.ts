@@ -669,8 +669,13 @@ export function updateNodeLabel(f: EditFlow, nodeId: string, label: string | nul
   return done(g);
 }
 
-/** 새 선 {from→to} 을 끝에 더한다. 같은 from·to 선, 받는 노드로 들어가는 선, 이미 나가는 선이 있는 받는 노드에서 나가는 선은 거부한다. */
+/**
+ * 새 선 {from→to} 을 끝에 더한다. 같은 from·to 선, 받는 노드로 들어가는 선, 이미 나가는 선이 있는 받는 노드에서 나가는 선은 거부한다.
+ * 처리 갈래(받는 노드·맨 바깥 순차 노드)에서 그 룰의 정상 다음 노드로 이으면 돌아오는 합류로 잇는다(돌아오기, returnRuleFor).
+ */
 export function connect(f: EditFlow, from: string, to: string): EditResult {
+  const back = returnRuleFor(f, from, to, null);
+  if (back) return connectReturn(f, from, back);
   const g = clone(f);
   if (g.edges.some((e) => e.from === from && e.to === to)) return fail("이미 이어진 선이다");
   const source = findNode(g, from);
@@ -687,20 +692,22 @@ export function connect(f: EditFlow, from: string, to: string): EditResult {
  * 선 하나의 한쪽(또는 양쪽) 끝을 다른 노드로 옮겨 붙인다(다시 잇기, R1). 선 ID·조건식·이름·순서·"그 외" 표시는 그대로이고
  * 그 선의 꺾는 점은 버린다(양 끝이 바뀌면 옛 경로가 맞지 않는다). 이름표 오프셋(L1)은 기본 자리 기준이라 남긴다. 자기 자신으로 잇기·없는 노드·다른 선과 같은 from→to·바뀌는 끝이 없음은 거부한다.
  * 구조가 틀어지는 경우(합류 건너뛰기 등)는 막지 않고 구조 검사가 표시한다. 받는 노드로 들어가게 옮기기와, 이미 다른 나가는 선이 있는
- * 받는 노드에서 나가게 옮기기는 거부한다(처리 갈래 첫 선의 도착 끝 옮기기는 된다).
+ * 받는 노드에서 나가게 옮기기는 거부한다(처리 갈래 첫 선의 도착 끝 옮기기는 된다). 처리 갈래에서 그 룰의 정상 다음 노드로 옮기면 돌아오는 합류로 간다(connect 와 같다).
  */
 export function reconnectEdge(f: EditFlow, edgeId: string, end: { from?: string; to?: string }): EditResult {
   const g = clone(f);
   const e = findEdge(g, edgeId);
   if (!e) return fail(`선 ${edgeId}를 찾지 못했다`);
   const from = end.from ?? e.from;
-  const to = end.to ?? e.to;
+  let to = end.to ?? e.to;
   if (from === e.from && to === e.to) return fail("옮길 끝이 없다");
   if (!findNode(g, from)) return fail(`노드 ${from}를 찾지 못했다`);
   if (!findNode(g, to)) return fail(`노드 ${to}를 찾지 못했다`);
   if (from === to) return fail("노드를 자기 자신에게 이을 수 없다");
   if (findNode(g, to)!.kind === "CATCH") return fail(CATCH_NO_IN);
   if (from !== e.from && findNode(g, from)!.kind === "CATCH" && g.edges.some((x) => x.id !== edgeId && x.from === from)) return fail(CATCH_ONE_OUT);
+  const back = returnRuleFor(g, from, to, edgeId);
+  if (back) to = ensureReturnMerge(g, back, takenIds(g)).id;
   if (g.edges.some((x) => x.id !== edgeId && x.from === from && x.to === to)) return fail("이미 이어진 선이다");
   e.from = from;
   e.to = to;
@@ -1280,6 +1287,7 @@ export const CATCH_TAKEN = (kind: CatchKind, owner: string) => `예외 종류 ${
 /**
  * 룰 노드에 받는 노드를 붙인다(연결점 끌기·우클릭 「예외 받기 추가」, Ruling R14). to 는 처리 갈래 첫 노드(null 이면 END).
  * 받는 종류는 그 룰에서 아직 아무도 받지 않는 첫 종류, label 은 null. 노드는 그 룰의 마지막 받는 노드(없으면 룰) 바로 뒤, 선은 끝에 넣는다.
+ * to 가 그 룰의 정상 다음 노드(끝 제외)면 돌아오는 합류로 잇는다(돌아오기 — connect 와 같다).
  */
 export function addCatch(f: EditFlow, ruleNodeId: string, to: string | null): EditResult & { id?: string } {
   const g = clone(f);
@@ -1297,13 +1305,15 @@ export function addCatch(f: EditFlow, ruleNodeId: string, to: string | null): Ed
   if (t.kind === "START" || t.kind === "CATCH" || t.id === ruleNodeId) return fail(CATCH_BAD_TARGET);
   const usedIds = takenIds(g);
   const c: FlowNode = { ...node(fresh(usedIds, CATCH_PREFIX), "CATCH"), attachTo: ruleNodeId, catches: [kind] };
+  const back = to != null && t.kind !== "END" ? returnTargetOf(g, ruleNodeId) : null;
+  const target = back && typeof back !== "string" && back.next === t.id ? ensureReturnMerge(g, ruleNodeId, usedIds).id : t.id;
   const anchor = siblings.length > 0 ? siblings[siblings.length - 1].id : ruleNodeId;
   insertAfter(
     g.nodes,
     g.nodes.findIndex((n) => n.id === anchor),
     c,
   );
-  g.edges.push(edge(fresh(usedIds, "e"), c.id, t.id));
+  g.edges.push(edge(fresh(usedIds, "e"), c.id, target));
   const res = done(g);
   return res.ok ? { ...res, id: c.id } : res;
 }
@@ -1323,5 +1333,118 @@ export function setCatchKinds(f: EditFlow, catchId: string, kinds: readonly Catc
     }
   }
   c.catches = [...sorted];
+  return done(g);
+}
+
+// ───────────────────────── 돌아오기(받는 노드 spec §8 「돌아오기」) ─────────────────────────
+
+export const RETURN_ALREADY = "이미 흐름으로 돌아오는 처리 갈래다";
+export const RETURN_OPEN = "처리 갈래가 끝 노드까지 이어지지 않아 돌아오게 할 수 없다";
+export const RETURN_NO_EXIT = "룰의 나가는 선이 하나가 아니라 돌아올 자리를 정할 수 없다";
+
+/**
+ * 받는 노드 c 에서 처리 갈래의 맨 바깥 순차를 따라간다. IF·병렬은 짝 합류로, 돌아오는 합류가 있는 룰은 그 합류로 건너뛴다(안쪽 갈래는 보지 않는다).
+ * members = 받는 노드·맨 바깥 순차의 노드(분기 자신은 빼고 건너뛴 합류는 넣는다). tail = END 나 그 룰의 돌아오는 합류로 들어가는 선(ends 는 END 쪽).
+ * 나가는 선이 하나가 아니거나 시작·받는 노드·자기 룰·다른 합류·이미 지난 노드에 닿으면 tail 은 null 이다(열린 처리 갈래).
+ */
+function handlerTrail(g: EditFlow, c: FlowNode): { members: Set<string>; tail: FlowEdge | null; ends: boolean } {
+  const rule = c.attachTo;
+  const members = new Set([c.id]);
+  const open = { members, tail: null, ends: false };
+  let cur = c;
+  for (;;) {
+    const exit = isSplitKind(cur.kind) || isStep(cur.kind) ? mergeOf(g, cur.id) : null;
+    if (isSplitKind(cur.kind) && !exit) return open;
+    if (exit) members.add(exit.id);
+    const outs = outOf(g, exit ? exit.id : cur.id);
+    if (outs.length !== 1) return open;
+    const t = findNode(g, outs[0].to);
+    if (!t) return open;
+    if (t.kind === "END") return { members, tail: outs[0], ends: true };
+    if (t.kind === "MERGE" && t.splitId === rule) return { members, tail: outs[0], ends: false };
+    if (t.kind === "START" || t.kind === "CATCH" || t.kind === "MERGE" || t.id === rule || members.has(t.id)) return open;
+    if (!isSplitKind(t.kind)) members.add(t.id);
+    cur = t;
+  }
+}
+
+/** 룰의 돌아올 자리 — 돌아오는 합류(있으면)와 정상 다음 노드(합류 출구 도착, 없으면 룰의 나가는 선 도착). 정할 수 없으면 사유. */
+function returnTargetOf(g: EditFlow, ruleNodeId: string): { merge: FlowNode | null; next: string } | string {
+  const m = mergeOf(g, ruleNodeId);
+  if (!m && g.nodes.some((n) => n.kind === "MERGE" && n.splitId === ruleNodeId)) return RETURN_NO_EXIT; // 돌아오는 합류가 둘 이상
+  const outs = outOf(g, m ? m.id : ruleNodeId);
+  return outs.length === 1 ? { merge: m, next: outs[0].to } : RETURN_NO_EXIT;
+}
+
+/**
+ * from→to 잇기(또는 skipEdge 다시 잇기)를 돌아오는 합류로 보낼 룰. from 이 받을 수 있는 룰 R 의 받는 노드이거나 그 처리 갈래 맨 바깥 순차 노드이고,
+ * to 가 R 의 정상 다음 노드일 때만이다. 정상 다음 노드가 끝이면 끝내는 처리 갈래로 보고 보내지 않는다. 다시 잇는 선이 R 의 나가는 선·합류 출구면 보내지 않는다.
+ */
+function returnRuleFor(g: EditFlow, from: string, to: string, skipEdge: string | null): string | null {
+  const target = findNode(g, to);
+  if (!target || target.kind === "END" || target.kind === "CATCH") return null;
+  for (const c of g.nodes) {
+    if (c.kind !== "CATCH" || c.attachTo == null || !CATCHABLE.has(findNode(g, c.attachTo)?.kind ?? "START")) continue;
+    if (!handlerTrail(g, c).members.has(from)) continue;
+    const rule = c.attachTo;
+    const back = returnTargetOf(g, rule);
+    if (typeof back === "string" || back.next !== to) return null;
+    const exit = outOf(g, back.merge ? back.merge.id : rule)[0];
+    return exit.id === skipEdge ? null : rule;
+  }
+  return null;
+}
+
+/**
+ * 룰의 돌아오는 합류 — 없으면 만든다. 룰의 나가는 선(ID 그대로, 꺾는 점은 버린다)을 합류로 돌리고 합류 출구 {합류 → 정상 다음 노드} 를 그 바로 뒤에 넣는다.
+ * 합류 노드는 정상 다음 노드 바로 앞에 둔다. returnTargetOf 가 통과한 룰에만 부른다. g 는 복사본이다.
+ */
+function ensureReturnMerge(g: EditFlow, ruleNodeId: string, taken: Set<string>): FlowNode {
+  const have = mergeOf(g, ruleNodeId);
+  if (have) return have;
+  const out = outOf(g, ruleNodeId)[0];
+  const m = node(fresh(taken, "m"), "MERGE", null, ruleNodeId);
+  const xi = g.nodes.findIndex((n) => n.id === out.to);
+  g.nodes.splice(xi < 0 ? g.nodes.length : xi, 0, m);
+  insertAfter(g.edges, g.edges.indexOf(out), edge(fresh(taken, "e"), m.id, out.to));
+  out.to = m.id;
+  const routes = { ...g.view.routes };
+  delete routes[out.id];
+  g.view.routes = routes;
+  return m;
+}
+
+/** connect 의 돌아오기 — 받는 노드 나가는 선 하나·같은 선 검사는 합류 기준으로 한다. */
+function connectReturn(f: EditFlow, from: string, rule: string): EditResult {
+  const g = clone(f);
+  if (findNode(g, from)!.kind === "CATCH" && g.edges.some((e) => e.from === from)) return fail(CATCH_ONE_OUT);
+  const taken = takenIds(g);
+  const m = ensureReturnMerge(g, rule, taken);
+  if (g.edges.some((e) => e.from === from && e.to === m.id)) return fail("이미 이어진 선이다");
+  g.edges.push(edge(fresh(taken, "e"), from, m.id));
+  return done(g);
+}
+
+/**
+ * 받는 노드 우클릭 「흐름으로 돌아오기」 — 끝내는 처리 갈래의 끝 선(맨 바깥 순차에서 END 로 들어가는 선, 빈 갈래면 받는 노드의 선)을 룰의 돌아오는
+ * 합류로 옮긴다. 합류가 없으면 만든다(ensureReturnMerge). 정상 다음 노드가 끝이어도 된다(끝내기와 달리 endedBy 가 남지 않는다).
+ * 이미 돌아오는 갈래·열린 갈래·나가는 선이 하나가 아닌 룰은 거부한다. 메뉴는 이 연산이 될 때만 항목을 보인다.
+ */
+export function returnCatch(f: EditFlow, catchId: string): EditResult {
+  const g = clone(f);
+  const c = findNode(g, catchId);
+  if (!c || c.kind !== "CATCH") return fail(`받는 노드 ${catchId}를 찾지 못했다`);
+  const rule = c.attachTo == null ? undefined : findNode(g, c.attachTo);
+  if (!rule || !CATCHABLE.has(rule.kind)) return fail(CATCH_ONLY_RULE);
+  const trail = handlerTrail(g, c);
+  if (!trail.tail) return fail(RETURN_OPEN);
+  if (!trail.ends) return fail(RETURN_ALREADY);
+  const back = returnTargetOf(g, rule.id);
+  if (typeof back === "string") return fail(back);
+  const m = ensureReturnMerge(g, rule.id, takenIds(g));
+  trail.tail.to = m.id;
+  const routes = { ...g.view.routes };
+  delete routes[trail.tail.id];
+  g.view.routes = routes;
   return done(g);
 }

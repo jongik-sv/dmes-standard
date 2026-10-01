@@ -306,7 +306,8 @@ describe("받는 노드 편집 연산(받는 노드 spec §8)", () => {
   it("처리 갈래 첫 선의 도착 끝은 옮길 수 있고, 받는 노드로 옮기거나 선이 있는 받는 노드에서 나가게 옮기는 것은 막는다", () => {
     // start → r1 → r2 → end(e1 e2 e3), c1 → end(e4), c2 → end(e5)
     const f = ok(addCatch(ok(addCatch(toEditFlow(null, ["R_A", "R_B"]), "r1", null)), "r1", null));
-    expect(ok(reconnectEdge(f, "e4", { to: "r2" })).edges.find((e) => e.id === "e4")).toMatchObject({ from: "c1", to: "r2" });
+    // 룰의 정상 다음 노드(r2)로 옮기면 돌아오는 합류를 만들어 그 합류로 간다(돌아오기, catch-return.test).
+    expect(ok(reconnectEdge(f, "e4", { to: "r2" })).edges.find((e) => e.id === "e4")).toMatchObject({ from: "c1", to: "m1" });
     expect(reason(reconnectEdge(f, "e4", { to: "c2" }))).toBe(CATCH_NO_IN);
     expect(reason(reconnectEdge(f, "e2", { from: "c2" }))).toBe(CATCH_ONE_OUT);
   });

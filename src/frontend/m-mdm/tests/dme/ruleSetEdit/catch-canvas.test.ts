@@ -10,6 +10,7 @@ import { CATCH_KIND_LABEL } from "../../../pages/dme/ruleSetEdit/catch-text";
 import { editMenu } from "../../../pages/dme/ruleSetEdit/canvas/menus/edit-menu";
 import type { CanvasActions, MenuContext } from "../../../pages/dme/ruleSetEdit/canvas/context-menu";
 import { addCatch, toEditFlow, type EditFlow } from "../../../pages/dme/ruleSetEdit/flow-edit";
+import { drawnPositions, endingRoutes } from "../../../pages/dme/ruleSetEdit/flow-layout";
 import { guideBlockReason } from "../../../pages/dme/ruleSetEdit/state/useRuleSetEdit";
 import { installDomStorage } from "../helpers/render";
 
@@ -78,7 +79,8 @@ describe("받는 노드 캔버스 규칙(받는 노드 spec §8)", () => {
     const ruleItems = editMenu({ kind: "node", nodeId: "r1" }, ctx("edit"));
     ruleItems.find((i) => i.id === "catch-add")!.run!();
     expect(calls).toEqual(["addCatch:r1"]);
-    expect(editMenu({ kind: "node", nodeId: "c1" }, ctx("edit")).map((i) => i.id)).toEqual(["delete"]);
+    // 끝내는 처리 갈래(c1 → end)라 「흐름으로 돌아오기」 가 「삭제」 앞에 있다(돌아오기, catch-return.test).
+    expect(editMenu({ kind: "node", nodeId: "c1" }, ctx("edit")).map((i) => i.id)).toEqual(["catch-return", "delete"]);
     expect(editMenu({ kind: "node", nodeId: "r1" }, ctx("view"))).toEqual([]);
   });
 
@@ -100,6 +102,17 @@ describe("받는 노드 캔버스 그리기", () => {
     const edge = document.querySelector('.react-flow__edge[data-id="e3"]')!;
     const path = edge.querySelector("path.react-flow__edge-path") as SVGPathElement;
     expect(path.style.strokeDasharray).toBe("6 4");
+  });
+
+  it("끝내는 처리 갈래가 END 로 들어가는 선은 저장 경로가 없어도 다른 노드를 비켜 가는 자동 경로로 그린다", async () => {
+    // start → r1 → r2 → r3 → end, c1(r1) → end — 빈 끝내는 갈래의 곧은 선이 r2·r3 위를 지난다(browser-check 추가 1 (b)).
+    const f0 = addCatch(toEditFlow(null, ["R_A", "R_B", "R_C"]), "r1", null);
+    if (!f0.ok) throw new Error(f0.reason);
+    const route = endingRoutes(f0.flow, drawnPositions(f0.flow)).e5;
+    expect(route?.length).toBeGreaterThan(0);
+    await draw(props({ mode: "view", flow: f0.flow }));
+    const d = document.querySelector('.react-flow__edge[data-id="e5"] path.react-flow__edge-path')!.getAttribute("d")!;
+    for (const p of route) expect(d).toContain(`Q ${p.x} ${p.y}`); // 꺾는 점마다 둥근 모서리(routePath)
   });
 
   it("예외 연결점은 편집 모드의 룰 노드에만 그린다", async () => {

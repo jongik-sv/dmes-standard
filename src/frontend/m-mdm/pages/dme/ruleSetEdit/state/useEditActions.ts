@@ -34,6 +34,7 @@ import {
   removeGroup,
   removeNode,
   removeNote,
+  returnCatch,
   type EditFlow,
   type EditResult,
   type Fragment,
@@ -388,6 +389,9 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
       },
       addCatch: (ruleNodeId: string) => {
         if (editing) edit((f) => addCatch(f, ruleNodeId, null));
+      },
+      returnCatch: (catchId: string) => {
+        if (editing) edit((f) => returnCatch(f, catchId));
       },
       openRuleAssign: (nodeId: string) => {
         if (editing) openRuleAssign(nodeId);
