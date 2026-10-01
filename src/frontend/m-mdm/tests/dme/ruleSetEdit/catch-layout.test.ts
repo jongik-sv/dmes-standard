@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { FlowEdge, FlowNode, FlowNodeKind, RuleSetFlow } from "../../../src/contract/engine-contract.generated";
 import { toEditFlow } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { NODE_SIZE, autoLayout, catchSlots, catchSpot, clearLayoutCache, drawnPositions } from "../../../pages/dme/ruleSetEdit/flow-layout";
+import { parseFlow } from "../../../pages/dme/ruleSetEdit/flow-model";
 
 const nd = (id: string, kind: FlowNodeKind, over: Partial<FlowNode> = {}): FlowNode => ({ id, kind, ruleId: null, splitId: null, label: null, ...over });
 const ed = (id: string, from: string, to: string, over: Partial<FlowEdge> = {}): FlowEdge => ({ id, from, to, order: null, cond: null, otherwise: false, label: null, ...over });
@@ -99,5 +100,73 @@ describe("받는 노드 배치(받는 노드 spec §8, Ruling R15)", () => {
       start: { x: 192, y: 0 }, r1: { x: 136, y: 82 }, if1: { x: 164, y: 196 }, a1: { x: 0, y: 286 },
       a2: { x: 272, y: 400 }, a3: { x: 0, y: 400 }, m1: { x: 238, y: 514 }, end: { x: 192, y: 588 },
     });
+  });
+});
+
+/** 겹친 노드 쌍(받는 노드 제외 — 룰 테두리에 걸치는 것이 정상이다). 맞닿는 것은 겹침으로 보지 않는다. */
+function overlapsOf(f: RuleSetFlow, pos: Record<string, { x: number; y: number }>): string[] {
+  const ns = (f.nodes ?? []).filter((n) => n.kind !== "CATCH");
+  const out: string[] = [];
+  for (let i = 0; i < ns.length; i++) {
+    for (let j = i + 1; j < ns.length; j++) {
+      const [a, b] = [ns[i], ns[j]];
+      const [sa, sb, A, B] = [NODE_SIZE[a.kind], NODE_SIZE[b.kind], pos[a.id], pos[b.id]];
+      if (A.x < B.x + sb.w && B.x < A.x + sa.w && A.y < B.y + sb.h && B.y < A.y + sa.h) out.push(`${a.id}-${b.id}`);
+    }
+  }
+  return out;
+}
+const rule = (id: string) => nd(id, "RULE", { ruleId: id.toUpperCase() });
+const catchOn = (id: string, attachTo: string, kind = "NO_RESULT") => nd(id, "CATCH", { attachTo, catches: [kind] });
+
+describe("중첩된 받는 룰의 처리 갈래는 이웃 갈래와 겹치지 않는다(고침 1회차 — 안쪽부터 폭을 정한다)", () => {
+  it("IF 갈래 안의 받는 룰 — 처리 갈래가 형제 갈래(그 외)와 겹치지 않는다", () => {
+    const f: RuleSetFlow = {
+      version: 1,
+      nodes: [nd("start", "START"), rule("r0"), nd("if1", "IF"), rule("r1"), catchOn("c1", "r1"), rule("h1"), rule("n1"),
+        nd("mr", "MERGE", { splitId: "r1" }), rule("a2"), rule("a3"), rule("a4"), nd("m1", "MERGE", { splitId: "if1" }), nd("end", "END")],
+      edges: [ed("e1", "start", "r0"), ed("e2", "r0", "if1"), ed("e3", "if1", "r1", { order: 1, cond: "x > 1" }), ed("e4", "if1", "a2", { otherwise: true }),
+        ed("e5", "r1", "n1"), ed("e6", "n1", "mr"), ed("e7", "c1", "h1"), ed("e8", "h1", "mr"), ed("e9", "mr", "m1"),
+        ed("e10", "a2", "a3"), ed("e11", "a3", "a4"), ed("e12", "a4", "m1"), ed("e13", "m1", "end")],
+    };
+    expect(parseFlow(f).tree).toBeTruthy();
+    const pos = autoLayout(f);
+    expect(overlapsOf(f, pos)).toEqual([]);
+    expect(pos.h1.x).toBeGreaterThanOrEqual(pos.n1.x + NODE_SIZE.RULE.w); // 처리 갈래는 여전히 정상 갈래 오른쪽
+    expect(pos.a3.x).toBeGreaterThanOrEqual(pos.h1.x + NODE_SIZE.RULE.w); // 그 외 갈래는 받는 룰 블록 전체의 오른쪽
+  });
+
+  it("받는 룰의 정상 갈래 안에 또 받는 룰 — 안쪽 처리 갈래가 바깥 처리 갈래와 겹치지 않는다", () => {
+    const f: RuleSetFlow = {
+      version: 1,
+      nodes: [nd("start", "START"), rule("r1"), catchOn("c1", "r1"), rule("h1"), rule("h1b"), rule("h1c"),
+        rule("r2"), catchOn("c2", "r2"), rule("h2"), rule("h2b"), rule("n2"), nd("m2", "MERGE", { splitId: "r2" }),
+        nd("m1", "MERGE", { splitId: "r1" }), nd("end", "END")],
+      edges: [ed("e1", "start", "r1"), ed("e2", "r1", "r2"), ed("e3", "r2", "n2"), ed("e4", "n2", "m2"), ed("e5", "c2", "h2"), ed("e6", "h2", "h2b"),
+        ed("e7", "h2b", "m2"), ed("e8", "m2", "m1"), ed("e9", "c1", "h1"), ed("e10", "h1", "h1b"), ed("e11", "h1b", "h1c"), ed("e12", "h1c", "m1"),
+        ed("e13", "m1", "end")],
+    };
+    expect(parseFlow(f).tree).toBeTruthy();
+    const pos = autoLayout(f);
+    expect(overlapsOf(f, pos)).toEqual([]);
+    expect(pos.h2.x).toBeGreaterThanOrEqual(pos.n2.x + NODE_SIZE.RULE.w);
+    expect(pos.h1.x).toBeGreaterThanOrEqual(pos.h2.x + NODE_SIZE.RULE.w); // 바깥 처리 갈래는 안쪽 블록 전체의 오른쪽
+  });
+
+  it("처리 갈래 몸 안의 받는 룰 — 안쪽 처리 갈래가 다음 처리 갈래와 겹치지 않는다", () => {
+    const f: RuleSetFlow = {
+      version: 1,
+      nodes: [nd("start", "START"), rule("r1"), rule("n1"), catchOn("c1", "r1"), rule("h1"), catchOn("c2", "h1"), rule("g1"), rule("g1b"),
+        rule("hn"), nd("mh", "MERGE", { splitId: "h1" }), catchOn("c3", "r1", "EVAL_ERROR"), rule("h3"), rule("h3b"), rule("h3c"),
+        nd("m1", "MERGE", { splitId: "r1" }), nd("end", "END")],
+      edges: [ed("e1", "start", "r1"), ed("e2", "r1", "n1"), ed("e3", "n1", "m1"), ed("e4", "c1", "h1"), ed("e5", "h1", "hn"), ed("e6", "hn", "mh"),
+        ed("e7", "c2", "g1"), ed("e8", "g1", "g1b"), ed("e9", "g1b", "mh"), ed("e10", "mh", "m1"), ed("e11", "c3", "h3"), ed("e12", "h3", "h3b"),
+        ed("e13", "h3b", "h3c"), ed("e14", "h3c", "m1"), ed("e15", "m1", "end")],
+    };
+    expect(parseFlow(f).tree).toBeTruthy();
+    const pos = autoLayout(f);
+    expect(overlapsOf(f, pos)).toEqual([]);
+    expect(pos.g1.x).toBeGreaterThanOrEqual(pos.hn.x + NODE_SIZE.RULE.w);
+    expect(pos.h3.x).toBeGreaterThanOrEqual(pos.g1.x + NODE_SIZE.RULE.w); // 다음 처리 갈래는 앞 처리 갈래 블록 전체의 오른쪽
   });
 });
