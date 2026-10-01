@@ -6,13 +6,15 @@
  * [여기까지]는 고른 흐름 노드 기준이다(page 가 흐름 노드일 때만 selectedId 를 넘긴다). 상태 문구는 `debugStatus`(커서 k = "노드 k 실행 전", P-D13).
  * 4단계 E4: 고침 대기가 있으면 [계속]·[한 단계]·[여기까지]·[끝내기]가 고친 값으로 처음부터 다시 실행한다(훅이 판정한다). 상태 문구 끝에 고친 값·고침 대기 수.
  * 낡은 기록(흐름 구조가 실행 뒤 바뀜)이면 "지난 흐름 기준" 배지를 보이고, 다음 동작이 새로 실행한다(P-D9 — 훅이 판정한다).
+ * 받는 노드(spec §9): 끝냄이면 상태 문구가 "예외로 끝남", 받은 예외가 있으면 [받은 예외 N건] 이 목록을 연다(기록의 CATCH 노드에서 만든다 — 편차 F9).
  */
-import { IconArrowBackUp, IconArrowForwardUp, IconPlayerPlay, IconPlayerStop, IconPlayerTrackNext, IconRotate } from "@tabler/icons-react";
-import type { ReactNode } from "react";
+import { IconArrowBackUp, IconArrowForwardUp, IconBolt, IconPlayerPlay, IconPlayerStop, IconPlayerTrackNext, IconRotate } from "@tabler/icons-react";
+import { useState, type ReactNode } from "react";
 
 import { Button } from "@dk-oasis/shared/form";
 import { badgeStyle } from "@/shell";
 
+import { CATCH_KIND_LABEL, catchTitle } from "../catch-text";
 import { RUN_DENIED_TITLE, debugStatus } from "./debug-model";
 import type { Simulation } from "./useSimulation";
 
@@ -33,7 +35,9 @@ export function DebugToolbar({ sim, canRun, selectedId }: DebugToolbarProps) {
   const runTitle = (tip: string) => (canRun ? tip : RUN_DENIED_TITLE);
   const n = sim.last?.trace.nodes.length ?? 0;
   const pendingCount = Object.keys(sim.pendingEdit?.values ?? {}).length;
-  const status = debugStatus(sim.last?.trace ?? null, sim.cursor, pendingCount);
+  const status = debugStatus(sim.last?.trace ?? null, sim.cursor, pendingCount, sim.last?.flow);
+  const caught = (sim.last?.trace.nodes ?? []).filter((x) => x.kind === "CATCH" && x.status === "OK");
+  const [caughtOpen, setCaughtOpen] = useState(false);
   const redo = pendingCount > 0 ? PENDING_RUN_PREFIX : "";
   const hasEdits = pendingCount > 0 || sim.appliedEdits.length > 0;
   const alert = sim.notice ?? sim.error;
@@ -67,6 +71,27 @@ export function DebugToolbar({ sim, canRun, selectedId }: DebugToolbarProps) {
       <span className="rsf-dbg-status" data-testid="dbg-status" data-end={end} role="status">
         {busy ? `${status} · 실행 중` : status}
       </span>
+      {caught.length > 0 && (
+        <span className="rsf-dbg-caught">
+          <Button size="sm" data-testid="dbg-caught-toggle" ariaLabel="받은 예외 목록" aria-expanded={caughtOpen} onClick={() => setCaughtOpen((v) => !v)}>
+            <IconBolt size={14} aria-hidden="true" />
+            {`받은 예외 ${caught.length}건`}
+          </Button>
+          {caughtOpen && (
+            <ul className="rsf-dbg-caught-list" data-testid="dbg-caught-list">
+              {caught.map((c) => {
+                const fnode = sim.last?.flow.nodes.find((x) => x.id === c.nodeId);
+                const title = fnode ? catchTitle(fnode) || c.nodeId : c.nodeId;
+                return (
+                  <li key={`${c.seq}`} data-testid={`dbg-caught-${c.nodeId}`} title={c.message ?? ""}>
+                    {`${c.ruleId ?? "-"} → ${title} · ${c.catchKind ? CATCH_KIND_LABEL[c.catchKind] : "-"} · ${c.code ?? ""}`}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </span>
+      )}
       {sim.stale && (
         <span data-testid="dbg-stale" style={badgeStyle("warning")} title="흐름 구조가 이 실행 뒤 바뀌었다. 다음 동작에서 새로 실행한다">
           지난 흐름 기준

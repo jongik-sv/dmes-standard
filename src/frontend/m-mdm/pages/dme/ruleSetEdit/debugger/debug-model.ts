@@ -8,6 +8,8 @@
 import type { DataType, RunTrace, RuleSetFlow, TraceEdit, TypedValue } from "@/contract/engine-contract.generated";
 import { EVAL_TS, RESERVED_CONSTANTS, RESERVED_PREFIX } from "@/evalex/contract-constants";
 
+import { catchTitle } from "../catch-text";
+import { CATCH_NAMES } from "../flow-model";
 import { frames, sameTyped, validEdits } from "../trace-view";
 
 /** 변수 패널 한 줄 — 커서 자리에서 본 값. created·changed 는 바로 앞 노드가 만들었거나 바꿨는가.
@@ -122,16 +124,17 @@ export const RUN_DENIED_TITLE = "디버거는 편집 권한이 있어야 쓸 수
 /**
  * 디버그 툴바 상태 문구(P-D13 — 커서 k 는 "노드 k 실행 전").
  * 기록 없음 → 시작 안내, 기록 노드 0개 → `실행 전 오류 — {첫 위반}`, k < n → `{k+1}/{n} · {nodeId} 실행 전`,
- * k = n 이고 마지막 노드가 ERROR → `오류로 멈춤 — {nodeId}: {첫 위반}`, 그 밖 k = n → `완료 · {n}단계 · 결과 변수 {m}개`.
- * 첫 위반은 그 노드의 위반, 없으면 세트 전체 위반의 첫 문구다.
+ * k = n 이고 마지막 노드가 ERROR → `오류로 멈춤 — {nodeId}: {첫 위반}`, k = n 이고 `endedBy` 가 있으면(처리 갈래가 끝냄, 받는 노드 spec §9)
+ * `예외로 끝남: {받는 노드 제목} · {n}단계 · 결과 변수 {m}개`(제목은 실행 흐름 `flow` 의 label, 없으면 받는 종류 이름, 노드를 못 찾으면 ID),
+ * 그 밖 k = n → `완료 · {n}단계 · 결과 변수 {m}개`. 첫 위반은 그 노드의 위반, 없으면 세트 전체 위반의 첫 문구다.
  */
-export function debugStatus(trace: RunTrace | null, cursor: number, pending = 0): string {
+export function debugStatus(trace: RunTrace | null, cursor: number, pending = 0, flow?: RuleSetFlow): string {
   if (!trace) return NO_RECORD_STATUS;
   const edited = editCount(validEdits(trace));
-  return `${baseStatus(trace, cursor)}${edited > 0 ? ` · 고친 값 ${edited}건` : ""}${pending > 0 ? ` · 고침 대기 ${pending}건` : ""}`;
+  return `${baseStatus(trace, cursor, flow)}${edited > 0 ? ` · 고친 값 ${edited}건` : ""}${pending > 0 ? ` · 고침 대기 ${pending}건` : ""}`;
 }
 
-function baseStatus(trace: RunTrace, cursor: number): string {
+function baseStatus(trace: RunTrace, cursor: number, flow?: RuleSetFlow): string {
   const n = trace.nodes.length;
   const firstOf = (own: readonly { message: string }[] | null | undefined) => own?.[0]?.message ?? trace.violations?.[0]?.message ?? "";
   if (n === 0) return `실행 전 오류 — ${firstOf(null)}`;
@@ -139,7 +142,12 @@ function baseStatus(trace: RunTrace, cursor: number): string {
   if (k < n) return `${k + 1}/${n} · ${trace.nodes[k].nodeId} 실행 전`;
   const lastNode = trace.nodes[n - 1];
   if (lastNode.status === "ERROR") return `오류로 멈춤 — ${lastNode.nodeId}: ${firstOf(lastNode.violations)}`;
-  return `완료 · ${n}단계 · 결과 변수 ${Object.keys(trace.finalValues ?? {}).length}개`;
+  const tail = `${n}단계 · 결과 변수 ${Object.keys(trace.finalValues ?? {}).length}개`;
+  if (trace.endedBy) {
+    const c = flow?.nodes.find((x) => x.id === trace.endedBy);
+    return `예외로 끝남: ${c ? catchTitle(c) || c.id : trace.endedBy} · ${tail}`;
+  }
+  return `완료 · ${tail}`;
 }
 
 /** TypedValue → 기대값 JSON 값. 서버 `RuleCaseJudge.sameValue` 가 받는 모양(NUMBER 는 십진 문자열 그대로, LIST 는 items 를 원소마다). */
@@ -227,6 +235,14 @@ export function editKindOf(value: TypedValue, declared: DataType | undefined): E
 export function reservedKeyText(name: string): string | null {
   const u = name.toUpperCase();
   return (RESERVED_CONSTANTS as readonly string[]).includes(u) || u === EVAL_TS || name.startsWith(RESERVED_PREFIX) ? `예약된 레코드 키: ${name}` : null;
+}
+
+/**
+ * 받는 노드가 넣는 이름(CATCH_*, 대소문자 무시)이면 거절 문구(컨트롤러 Ruling 3). 엔진은 받는 룰 직전 CATCH_* 를 적어 두고 돌아오는 합류에서
+ * 그 값으로 되돌리므로(이름 그대로 지운다) 고친 CATCH_* 는 합류에서 조용히 사라지거나, 대소문자가 다르면 합류 뒤까지 남는다 — 그래서 고치지 않는다.
+ */
+export function catchEditText(name: string): string | null {
+  return CATCH_NAMES.includes(name.toUpperCase()) ? `받는 노드가 넣는 값이라 고치지 않는다: ${name}` : null;
 }
 
 /** 줄의 편집 타입 — 비워 NULL 이 된 줄은 비우기 전 값의 타입을 따른다(LIST 였던 줄은 선언 타입 규칙). */

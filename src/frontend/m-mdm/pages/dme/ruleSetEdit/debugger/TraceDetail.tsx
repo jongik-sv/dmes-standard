@@ -6,16 +6,20 @@
  *  - IF: 갈래마다 선 이름·조건식(실행 때의 흐름 사본에서)·결과 배지(참 / 거짓 / NULL / 오류 / 평가 안 함)와 오류 문구.
  *  - 병렬: 실행 순서(`order` 의 선 이름). 합류: 합친 변수(`merged`).
  *  - 오류 노드: 위반마다 한국어 문장. 단계·코드·이름은 `title`, 원문은 접힌 `<details>` 에 둔다(Local-Rules §13, TestResultCard 와 같은 방식).
+ *  - 받는 노드(spec §9): CATCH 노드는 종류·코드·메시지와 처리 갈래가 읽는 CATCH_* 값(`sim-detail-catch`). 받은 룰(CAUGHT)은 "받음" 배지와 받은 위반,
+ *    위반이 비면(결과 없음) `NO_RESULT_MESSAGE` 한 줄. 룰 블록을 그대로 타므로 [룰 편집 열기]·읽은 입력값이 보이고 결과 표는 없다.
  */
 import { useMemo, type ReactNode } from "react";
 
 import { IconExternalLink } from "@tabler/icons-react";
 
-import type { BranchOutcome, NodeTrace, RuleSetFlow, TypedValue, Violation } from "@/contract/engine-contract.generated";
+import type { BranchOutcome, CatchKind, NodeTrace, RuleSetFlow, TypedValue, Violation } from "@/contract/engine-contract.generated";
 import { Button } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { badgeStyle } from "@/shell";
 
+import { CATCH_KIND_LABEL, NO_RESULT_MESSAGE } from "../catch-text";
+import { CATCH_NAMES } from "../flow-model";
 import { REJECT_BADGE } from "../panels/ChecksPanel";
 import { cellText } from "./ValueTable";
 
@@ -126,7 +130,14 @@ export function TraceDetail({ nodeId, node, flow, traceViolations, desc, onOpenR
   }
 
   const violations = node.violations && node.violations.length > 0 ? node.violations : node.status === "ERROR" ? [...traceViolations] : [];
+  /** 받은 룰인데 받은 위반이 없으면 결과 없음이다(R2 — 결과 없음은 빈 목록). */
+  const noResult = node.status === "CAUGHT" && violations.length === 0;
   const result = node.result;
+  /** CATCH 노드가 넣은 값 — CATCH_NAMES 순서(KIND·RULE·CODE·MSG) 그대로. */
+  const catchValues: Record<string, TypedValue> =
+    node.kind === "CATCH"
+      ? Object.fromEntries(CATCH_NAMES.map((n, i) => [n, { type: "STRING", value: [node.catchKind, node.ruleId, node.code, node.message][i] ?? "" } as TypedValue]))
+      : {};
 
   return (
     <div className="rsf-panel" data-testid="sim-detail">
@@ -136,7 +147,9 @@ export function TraceDetail({ nodeId, node, flow, traceViolations, desc, onOpenR
         </p>
         <span className="rsim-badges">
           <span style={badgeStyle("neutral")}>{KIND_TEXT[node.kind]}</span>
-          <span style={node.status === "ERROR" ? REJECT_BADGE : badgeStyle("success")}>{node.status === "ERROR" ? "오류" : "정상"}</span>
+          <span style={node.status === "ERROR" ? REJECT_BADGE : node.status === "CAUGHT" ? badgeStyle("warning") : badgeStyle("success")}>
+            {node.status === "ERROR" ? "오류" : node.status === "CAUGHT" ? "받음" : "정상"}
+          </span>
           <span style={badgeStyle("neutral")}>{`${node.seq}단계`}</span>
         </span>
       </div>
@@ -146,6 +159,15 @@ export function TraceDetail({ nodeId, node, flow, traceViolations, desc, onOpenR
         <p className="rsf-muted" data-testid="sim-detail-task">
           빈 단계 — 아무것도 읽거나 만들지 않고 지나갔다
         </p>
+      )}
+      {node.kind === "CATCH" && (
+        <div data-testid="sim-detail-catch">
+          <p className="rsf-panel-note">
+            {`${node.catchKind ? CATCH_KIND_LABEL[node.catchKind as CatchKind] : "-"} · ${node.code ?? ""} — ${node.message ?? ""}`}
+          </p>
+          <Sub>처리 갈래가 읽는 값</Sub>
+          <Pairs testId="sim-detail-catch-values" values={catchValues} empty="값이 없다" />
+        </div>
       )}
       {node.kind === "RULE" && (
         <>
@@ -234,10 +256,11 @@ export function TraceDetail({ nodeId, node, flow, traceViolations, desc, onOpenR
         </>
       )}
 
-      {violations.length > 0 && (
+      {(violations.length > 0 || noResult) && (
         <>
-          <Sub>오류</Sub>
+          <Sub>{node.status === "CAUGHT" ? "받은 예외" : "오류"}</Sub>
           <ul className="rsim-list rsim-errors" data-testid="sim-detail-errors">
+            {noResult && <li data-testid="sim-violation-no-result">{NO_RESULT_MESSAGE}</li>}
             {violations.map((v, i) => (
               <li key={`${v.code}-${i}`} data-testid={`sim-violation-${i}`} title={violationTip(v)}>
                 {v.message}
