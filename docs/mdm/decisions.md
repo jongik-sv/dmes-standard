@@ -1231,3 +1231,11 @@
 - **Rationale**: 그룹 틀이 1단계부터 `draggable:false`·누름 통과라 제목 누르기 선택만 됐고, 고르면 틀이 노드를 가렸다. 그룹 자리는 소속 노드에서 계산하므로 소속 노드를 옮기는 것이 그룹 이동이다.
 - **Reversible**: yes
 - **Source**: 사용자 요청. 커밋 4623051f·149a6f4b, 병합 6558cb67·c43d0c99. 브라우저 확인 `gm-browser-check-report.md`.
+
+## D-130 (2026-10-01T00:00:00Z)
+- **Phase**: plan(룰 세트 흐름도 — 룰 노드 외관 옵션, 사용자가 세부 판단을 맡김)
+- **Decision needed**: 룰·빈 단계 노드 외관 옵션의 저장·표시·편집 방식(사용자 요청 「각 룰에 대해 외관 옵션도 있으면 좋겠다」 — 색·크기·표시 항목·아이콘·모양 모두, 룰·빈 단계만, 크기는 모서리 끌기, 아이콘·모양은 정해진 목록)
+- **Decision made**: S-D1 저장은 `view.styles[nodeId]`, 빈 값이면 키 생략(메모리에서도) · S-D2 색은 고정 팔레트 7가지(채움·테두리 한 쌍, shared 의미 토큰을 섞은 `:root` 토큰 + `[data-mantine-color-scheme="dark"]` 값) · S-D3 상태 표시(디버그·선택·검사)가 색보다 우선(색 규칙은 `.rsf-node:where([data-color])`) · S-D4 크기 232~640 × 68~320, 손잡이 e·s·se(잇기 손잡이를 비켜 75% 자리), 왼쪽 위 고정 · S-D5 모든 크기 계산을 `nodeSizeOf` 로 통일, 접힌 블록은 기본 크기(그룹 틀도 그린 접힌 상자로 잰다) · S-D6 크기를 바꾸면 그린 위치 전부를 저장 위치로 적고(크기가 그대로면 적지 않음) 커져서 겹치면 겹친 채 둔다 · S-D7 숨길 항목은 sub·id·open 3개, 제목·상태 표시는 늘 보임 · S-D8 아이콘 12개(Tabler), 모양 3가지 · S-D9 외관 편집 UI 는 오른쪽 패널 「외관」 섹션(편집 모드만, 누름 단추·체크·숫자 칸), 크기만 캔버스 손잡이도 · S-D10 빈 단계→룰 지정·붙여넣기·복제 때 외관 유지·복사 · S-D11 높이가 기본보다 크면 제목을 여러 줄(line-clamp)로 · S-D12 스타일 정리는 정규화 한 곳(`stylesFor` — toEditFlow·clone·done·dropNodes). 자동 배치는 폭이 다른 갈래가 겹치면 갈래를 벌린다(`spreadLanes`)
+- **Rationale**: 백엔드가 view 를 그대로 통과시켜 계약 변경이 없고, 외관 없는 세트의 저장 글자·dirty 기준이 그대로다(G2 pad 와 같은 원칙). Camunda Modeler 의 요소 색·크기 조절 방식과 같고, 그린 크기와 배치·스냅·그룹·선 계산이 어긋나지 않는다
+- **Reversible**: yes(선택 필드)
+- **Source**: 스펙 `docs/superpowers/specs/2026-10-01-rule-set-flow-node-style-design.md` §6, 계획 `docs/superpowers/plans/2026-10-01-rule-set-flow-node-style.md` Rulings, 사용자 요청. 영향: view 저장 형식(선택 필드), 캔버스 노드·오른쪽 패널. 병합 커밋: 593547f9(모델·크기), 271a72f6(노드 그리기), 3dccb27e(외관 섹션), acaaf93e(크기 손잡이)
