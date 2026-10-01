@@ -14,7 +14,7 @@
  */
 import { useContext, type MouseEvent } from "react";
 
-import { IconExternalLink } from "@tabler/icons-react";
+import { IconExternalLink, IconPencil } from "@tabler/icons-react";
 
 import type { FlowNode } from "@/contract/engine-contract.generated";
 
@@ -207,6 +207,9 @@ function LinkHandles({ node, isConnectable }: { node: FlowNode; isConnectable: b
 }
 
 /** 시작·끝·룰·IF·병렬·합류 — 모양은 kind 로 갈린다. */
+/** 값 고친 지점 표시(4단계 E4) — 디버그 겹침 `overlay.edited` 가 있을 때 오른쪽 아래 작은 원. */
+export const EDITED_NODE_TITLE = "이 노드 직전에 값을 고쳤다";
+
 export function FlowNodeView({ data, isConnectable }: NodeProps<FlowRfNode>) {
   const { node, overlay, selected, flash, mark, collapsed } = data;
   const kind = node.kind;
@@ -236,6 +239,11 @@ export function FlowNodeView({ data, isConnectable }: NodeProps<FlowRfNode>) {
       )}
       {!collapsed && kind === "MERGE" && mark && <span className="rsf-mark" data-severity={mark} data-testid={`flow-node-mark-${node.id}`} />}
       <Badges id={node.id} overlay={overlay} />
+      {overlay?.edited && (
+        <span className="rsf-edited" data-testid={`flow-node-edited-${node.id}`} title={EDITED_NODE_TITLE} aria-label={EDITED_NODE_TITLE}>
+          <IconPencil size={10} aria-hidden="true" />
+        </span>
+      )}
       {kind !== "END" && <Handle id={ANCHOR_OUT} type="source" position={Position.Bottom} className="rsf-anchor" isConnectableStart={false} />}
       {data.linkable && <LinkHandles node={node} isConnectable={isConnectable} />}
     </div>
