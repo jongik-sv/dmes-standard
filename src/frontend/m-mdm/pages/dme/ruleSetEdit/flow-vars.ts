@@ -100,3 +100,19 @@ export function blockDragPositions(
   }
   return out;
 }
+
+/**
+ * 흐름 좌표 `at` 을 품은 노드(그린 상자 = pos 좌상단 + NODE_SIZE) 가운데 kinds 에 든 것 — 겹치면 흐름 노드 배열에서 뒤의 것. 없으면 null.
+ * 룰 목록 줄을 빈 단계·룰 노드 위에 놓을 때(4단계 T1).
+ */
+export function nodeAtPoint(f: RuleSetFlow, pos: Readonly<Record<string, FlowPos>>, at: FlowPos, kinds: ReadonlySet<string>): string | null {
+  let hit: string | null = null;
+  for (const n of f.nodes ?? []) {
+    if (!kinds.has(n.kind)) continue;
+    const p = pos[n.id];
+    if (!p) continue;
+    const s = NODE_SIZE[n.kind];
+    if (at.x >= p.x && at.x <= p.x + s.w && at.y >= p.y && at.y <= p.y + s.h) hit = n.id;
+  }
+  return hit;
+}

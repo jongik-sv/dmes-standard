@@ -34,7 +34,7 @@ export interface CanvasActions {
   fit(): void;
   autoLayout(): void;
   addNote(at: FlowPos): void;
-  /** 룰 찾기 팝업 → 그 선에 끼움. */
+  /** 그 선에 빈 단계를 끼우고 「룰 지정」 섹션을 연다(4단계 T1). */
   pickRuleFor(edgeId: string): void;
   insertSplitAt(edgeId: string, kind: "IF" | "PARALLEL"): void;
   removeNode(nodeId: string): void;

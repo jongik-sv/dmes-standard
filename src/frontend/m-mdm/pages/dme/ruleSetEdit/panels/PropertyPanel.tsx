@@ -27,6 +27,7 @@ import {
   removeNode,
   removeNote,
   reorderBranches,
+  TASK_LABEL,
   updateEdge,
   updateGroup,
   updateNodeLabel,
@@ -201,6 +202,48 @@ function branchesOf(flow: EditFlow, splitId: string): FlowEdge[] {
   return [...outs].sort((a, b) => key(a) - key(b));
 }
 
+/** 빈 단계(4단계 T1) — 제목·노드 ID·설명·검사 문구·[지우기]. 룰은 위 「룰 지정」 섹션에서 고른다. */
+function TaskProps({ node, props }: { node: FlowNode; props: PropertyPanelProps }) {
+  const { checks, editable, onEdit, sections } = props;
+  return (
+    <div className="rsf-panel" data-testid="flow-prop-task">
+      <Section kind="TASK" id="task-basic" title="빈 단계" memory={sections}>
+        <table style={DETAIL_TABLE_STYLE}>
+          <tbody>
+            <tr>
+              <th style={DETAIL_LABEL_CELL}>제목</th>
+              <td style={DETAIL_VALUE_CELL}>
+                <Input
+                  data-testid="flow-prop-task-title"
+                  value={node.label ?? ""}
+                  placeholder={TASK_LABEL}
+                  readOnly={!editable}
+                  onChange={(v) => onEdit((f) => updateNodeLabel(f, node.id, blankToNull(v)), { mergeKey: `nlabel:${node.id}` })}
+                />
+              </td>
+            </tr>
+            <tr>
+              <th style={DETAIL_LABEL_CELL}>노드 ID</th>
+              <td style={DETAIL_VALUE_CELL}>
+                <code>{node.id}</code>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p className="rsf-panel-note">
+          실행 때 아무것도 읽거나 만들지 않고 지나간다(디버거는 한 단계로 멈춘다). 「룰 지정」 에서 룰을 고르면 같은 자리의 룰 노드가 된다
+        </p>
+        <CheckLines checks={checks.filter((c) => c.nodeId === node.id)} />
+        {editable && (
+          <div className="rsf-panel-actions">
+            <DeleteButton onClick={() => onEdit((f) => removeNode(f, node.id))} />
+          </div>
+        )}
+      </Section>
+    </div>
+  );
+}
+
 function SplitProps({ node, props }: { node: FlowNode; props: PropertyPanelProps }) {
   const { flow, checks, editable, onEdit, sections } = props;
   const kind: PanelKind = node.kind === "IF" ? "IF" : "PARALLEL";
@@ -368,6 +411,7 @@ export function PropertyPanel(props: PropertyPanelProps) {
 
   const node = flow.nodes.find((n) => n.id === selectedId);
   if (node) {
+    if (node.kind === "TASK") return <TaskProps node={node} props={props} />;
     if (node.kind === "RULE") return <RuleProps node={node} io={node.ruleId ? rules[node.ruleId] : undefined} tree={tree} props={props} />;
     if (node.kind === "IF" || node.kind === "PARALLEL") return <SplitProps node={node} props={props} />;
     return <PlainNodeProps node={node} sections={props.sections} />;

@@ -9,6 +9,7 @@
 import type { RefObject } from "react";
 
 import { Button, Input } from "@dk-oasis/shared/form";
+import { badgeStyle } from "@/shell";
 
 import type { RuleSearch } from "../state/useRuleSearch";
 import type { RuleIo } from "../types";
@@ -19,6 +20,8 @@ export type RuleListMode = "view" | "insert" | "assign";
 export interface RulePanelProps {
   mode: RuleListMode;
   search: RuleSearch;
+  /** 흐름에 이미 있는 룰 — 줄에 「사용 중」 배지(4단계 Task 9, 지운 룰 찾기 창의 표시를 옮김). 막지는 않는다. */
+  usedRuleIds?: ReadonlySet<string>;
   /** 찾기 칸 — 룰 지정 섹션을 열 때 초점을 둔다. */
   inputRef?: RefObject<HTMLInputElement | null>;
   /** 두 번 누르기(insert). */
@@ -33,7 +36,7 @@ const ROW_TITLE: Record<RuleListMode, string | undefined> = {
   view: undefined,
 };
 
-export function RulePanel({ mode, search, inputRef, onInsert, onAssign }: RulePanelProps) {
+export function RulePanel({ mode, search, usedRuleIds, inputRef, onInsert, onAssign }: RulePanelProps) {
   const active = mode !== "view";
   const { rows } = search;
   return (
@@ -81,6 +84,11 @@ export function RulePanel({ mode, search, inputRef, onInsert, onAssign }: RulePa
               <span className="rsf-rule-row-id">{r.ruleId}</span>
               <span className="rsf-rule-row-name">{r.ruleName ?? "(이름 없음)"}</span>
               <span className="rsf-rule-row-kind">{r.ruleKind ?? "-"}</span>
+              {usedRuleIds?.has(r.ruleId) && (
+                <span className="rsf-rule-used" data-testid={`flow-rule-used-${r.ruleId}`} style={badgeStyle("warning")}>
+                  사용 중
+                </span>
+              )}
               {mode === "assign" && (
                 <Button
                   size="mini"

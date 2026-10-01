@@ -15,6 +15,7 @@
  * 3단계(계획 P2): 모드는 보기·편집·디버그 셋이고 끌기·연결은 편집 모드에서만 된다. 키 입력은 받지 않는다 — Delete 등 단축키는 page 가
  * 캔버스 감싸개(`rsf-canvas-host`)의 `onKeyDown` 에서 단축키 디스패처(`shortcuts.ts`)로 받는다(`tabIndex=0` 은 초점을 받으려고 남긴다).
  * 팔레트·룰 줄을 놓으면 놓은 자리에서 화면 80px 안 가장 가까운 선을 찾아(`dropRadius`) 그 선 ID(없으면 null)를 함께 올린다(A1).
+ * 룰 줄을 빈 단계·룰 노드 상자 위에 놓으면 선 대신 그 노드에 룰을 지정한다(`onAssignDrop`, 4단계 T1).
  * 우클릭은 모든 모드에서 `onContextMenu` 로 올리고(항목은 메뉴 제공자가 모드로 거른다), 편집 모드면 선 가운데에 [+] 단추를 둔다(올리거나 고른 선만 — 아래 L1).
  * [+] 는 선 데이터에 콜백을 넣지 않고 캔버스 틀의 click 위임으로 부른다(선 데이터 참조가 바뀌면 선을 모두 다시 그린다, Local-Rules §16).
  *
@@ -64,7 +65,7 @@ import type { RuleSetFlow, TypedValue } from "@/contract/engine-contract.generat
 import { MAX_LABEL_OFFSET, blockMembers, normalizePad, type GroupPad, type FlowNote, type FlowPos, type EditFlow, type LabelOffset, type LabelPart } from "../flow-edit";
 import { NODE_SIZE, beyondLine, drawnPositions, foldOffsetX, spaceMinDelta, type SpaceAxis, type SpaceBlocks } from "../flow-layout";
 import { typedText } from "../trace-view";
-import { blockDragPositions, dropTargetAt, edgeChips, edgeMarks, nodeMarks, resolveNodeDrop } from "../flow-vars";
+import { blockDragPositions, dropTargetAt, edgeChips, edgeMarks, nodeAtPoint, nodeMarks, resolveNodeDrop } from "../flow-vars";
 import type { FlowMode } from "../state/useRuleSetEdit";
 import type { RuleIoMap, RuleSetCheck, VarDisplay } from "../types";
 import { collapseView } from "./collapse";
@@ -109,7 +110,9 @@ export const DROP_RADIUS_PX = 80;
 export const dropRadius = (zoom: number) => DROP_RADIUS_PX / (zoom > 0 ? zoom : 1);
 const PALETTE_ITEMS: readonly string[] = ["rule", "if", "par", "note", "group"];
 /** 중단점을 걸 수 있는 노드 종류(E2). */
-const BREAKABLE = new Set(["RULE", "IF", "PARALLEL", "MERGE"]);
+const BREAKABLE = new Set(["RULE", "TASK", "IF", "PARALLEL", "MERGE"]);
+/** 룰 목록 줄을 놓아 룰을 지정할 노드 종류(4단계 T1). */
+const ASSIGN_DROP_KINDS: ReadonlySet<string> = new Set(["TASK", "RULE"]);
 /** [+] 단추를 선 이름표 오른쪽에 둘 때의 거리(px). */
 const ADD_LABEL_GAP = 44;
 /** [+] 가 칩·라벨과 겹쳐 옆으로 비킬 때 상자와의 간격(px, U1). 좁게 둬 칩 → [+] 로 옮겨 가는 사이 hover 유예(150ms)가 끊기지 않는다. */
@@ -242,6 +245,10 @@ export interface FlowCanvasProps {
   onDropPalette: (item: PaletteItem, at: FlowPos, edgeId: string | null) => void;
   /** 룰 목록 줄을 놓음(A4). */
   onDropRule: (ruleId: string, edgeId: string | null) => void;
+  /** 룰 목록 줄을 빈 단계·룰 노드 위에 놓음(4단계 T1) — 룰 지정. 없으면 노드 위에 놓아도 선 끼우기 규칙 그대로다. */
+  onAssignDrop?: (nodeId: string, ruleId: string) => void;
+  /** 빈 단계 제목 두 번 눌러 고치기(4단계 T1, 편집 모드에서만 노드에 넘긴다). 빈 문자열이면 null(기본 제목). */
+  onRenameTask?: (nodeId: string, label: string | null) => void;
   onNoteChange: (id: string, patch: Partial<FlowNote>) => void;
   /** 선 경로(꺾는 점 목록, 흐름 좌표)를 통째로 바꿈(C14) — 손잡이를 놓을 때·점을 더하거나 뺄 때 한 번. 빈 목록이면 경로를 지운다. */
   onRouteChange?: (edgeId: string, points: FlowPos[]) => void;
@@ -985,7 +992,7 @@ function Inner(props: FlowCanvasProps) {
   const {
     flow, rules, checks, mode, varDisplay, varLabels, selectedId, selectedEdgeId, overlay, focusId, focusSeq, focusReveal, fitSignal, fitKey,
     breakpoints, collapsed, valueAt, showMiniMap, editingCondEdgeId,
-    onSelect, onSelectEdge, onOpenRule, onMove, onMoveNode, onConnect, onReconnect, onDropPalette, onDropRule, onNoteChange, onContextMenu, onToggleBreakpoint,
+    onSelect, onSelectEdge, onOpenRule, onMove, onMoveNode, onConnect, onReconnect, onDropPalette, onDropRule, onAssignDrop, onRenameTask, onNoteChange, onContextMenu, onToggleBreakpoint,
     onEditCond, onRouteChange, onLabelOffsetChange, removeRoutePointRef, clearSelectionRef, alignSourceRef, selectionRef, onEditCondClose, onSelectionChange,
     spaceTool, onSpaceToolChange, onShiftSpace, dragTool,
   } = props;
@@ -1004,6 +1011,14 @@ function Inner(props: FlowCanvasProps) {
     if (dropEdgeRef.current === id) return; // 같은 값이면 상태를 바꾸지 않는다(다시 그리기 반복 방지)
     dropEdgeRef.current = id;
     setDropEdgeState(id);
+  }, []);
+  /** 룰 줄을 끄는 동안 놓일 빈 단계·룰 노드(4단계 T1) — 노드 위면 선 강조 대신 노드를 강조한다. */
+  const [dropNode, setDropNodeState] = useState<string | null>(null);
+  const dropNodeRef = useRef<string | null>(null);
+  const setDropNode = useCallback((id: string | null) => {
+    if (dropNodeRef.current === id) return;
+    dropNodeRef.current = id;
+    setDropNodeState(id);
   }, []);
   /** 조건식 즉석 편집 중인 선(B10) — 메뉴가 연 `editingCondEdgeId` 와 같은 칸을 쓴다. */
   const [condEdge, setCondEdge] = useState<string | null>(null);
@@ -1112,6 +1127,8 @@ function Inner(props: FlowCanvasProps) {
         onToggleBreakpoint,
         varDisplay,
         linkable: editable,
+        dropTarget: dropNode === n.id,
+        onRenameTask: editable ? onRenameTask : undefined,
       };
       out.push({
         id: n.id, type: "rsfFlow", position: p, width: s.w, height: s.h, measured: measured[n.id], data, handles: handlesOf(block ? "RULE" : n.kind), draggable: editable,
@@ -1126,7 +1143,7 @@ function Inner(props: FlowCanvasProps) {
       });
     }
     return out;
-  }, [flow, vflow, view, pos, drag, space, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured, varDisplay, groupDrag]);
+  }, [flow, vflow, view, pos, drag, space, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured, varDisplay, groupDrag, dropNode, onRenameTask]);
   /** 지금 그린 노드 배열 — 끌기 시작 때 스냅 후보(보이는 흐름 노드·메모)를 여기서 모은다(G1). */
   const nodesRef = useRef(nodes);
   nodesRef.current = nodes;
@@ -1255,7 +1272,7 @@ function Inner(props: FlowCanvasProps) {
 
   /** 흐름 노드(룰·IF·병렬)만 선 위에 놓아 옮길 수 있다. */
   const isMovable = (n: Node) =>
-    n.type === "rsfFlow" && !viewRef.current.blocks[n.id] && ["RULE", "IF", "PARALLEL"].includes(flowRef.current.nodes.find((x) => x.id === n.id)?.kind ?? "");
+    n.type === "rsfFlow" && !viewRef.current.blocks[n.id] && ["RULE", "TASK", "IF", "PARALLEL"].includes(flowRef.current.nodes.find((x) => x.id === n.id)?.kind ?? "");
   const isSplit = (id: string) => ["IF", "PARALLEL"].includes(flowRef.current.nodes.find((x) => x.id === id)?.kind ?? "");
   /**
    * 분기를 끄는 동안 블록 멤버가 같은 만큼 움직인 위치. 분기가 아니면 빈 맵.
@@ -1944,11 +1961,17 @@ function Inner(props: FlowCanvasProps) {
     if (!editable || !carries(e)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
-    setDropEdge(dropTargetAt(vflow, pos, flowAt(e.clientX, e.clientY), rf.getZoom()));
+    const at = flowAt(e.clientX, e.clientY);
+    const rule = Array.from(e.dataTransfer?.types ?? []).includes(RULE_MIME);
+    const overNode = rule && onAssignDrop ? nodeAtPoint(vflow, pos, at, ASSIGN_DROP_KINDS) : null;
+    setDropNode(overNode);
+    setDropEdge(overNode ? null : dropTargetAt(vflow, pos, at, rf.getZoom()));
   };
   const onDragLeave = (e: DragEvent<HTMLDivElement>) => {
     // 캔버스 안의 자식 사이를 오가는 것은 떠남이 아니다.
-    if (!e.currentTarget.contains(e.relatedTarget as globalThis.Node | null)) setDropEdge(null);
+    if (e.currentTarget.contains(e.relatedTarget as globalThis.Node | null)) return;
+    setDropEdge(null);
+    setDropNode(null);
   };
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
     if (!editable || !e.dataTransfer) return;
@@ -1956,9 +1979,17 @@ function Inner(props: FlowCanvasProps) {
     const ruleId = e.dataTransfer.getData(RULE_MIME);
     const isPalette = PALETTE_ITEMS.includes(item);
     setDropEdge(null);
+    setDropNode(null);
     if (!isPalette && !ruleId) return;
     e.preventDefault();
     const at = flowAt(e.clientX, e.clientY);
+    if (!isPalette && onAssignDrop) {
+      const target = nodeAtPoint(vflow, pos, at, ASSIGN_DROP_KINDS);
+      if (target) {
+        onAssignDrop(target, ruleId);
+        return;
+      }
+    }
     const edgeId = dropTargetAt(vflow, pos, at, rf.getZoom());
     if (isPalette) onDropPalette(item as PaletteItem, at, edgeId);
     else onDropRule(ruleId, edgeId);

@@ -26,6 +26,7 @@ export const DRAG_CSS = `
 .rsf-rule-row:hover { background: var(--color-bg-hover); }
 .rsf-rule-row-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--font-size-sm); overflow: hidden; text-overflow: ellipsis; }
 .rsf-rule-row-name { grid-column: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-size-sm); color: var(--color-text-muted); }
+.rsf-rule-used { grid-row: 2; grid-column: 2; justify-self: end; }
 .rsf-rule-row-kind { grid-row: 1; grid-column: 2; font-size: var(--font-size-sm); color: var(--color-text-muted); }
 .rsf-rule-assign { grid-row: 1 / span 2; grid-column: 3; align-self: center; }
 `;

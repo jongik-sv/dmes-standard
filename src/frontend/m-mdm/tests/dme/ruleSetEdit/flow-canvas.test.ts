@@ -13,7 +13,6 @@ vi.mock("../../../pages/dme/ruleSetEdit/api", async (importOriginal) => ({
 import { insertSplit, toEditFlow, updateEdge, type EditFlow } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { FlowCanvas, type FlowCanvasProps } from "../../../pages/dme/ruleSetEdit/canvas/FlowCanvas";
 import { FlowPalette } from "../../../pages/dme/ruleSetEdit/canvas/FlowPalette";
-import { RuleSearchModal } from "../../../pages/dme/ruleSetEdit/canvas/RuleSearchModal";
 import type { RuleIo, RuleSetCheck } from "../../../pages/dme/ruleSetEdit/types";
 import { flush, installDomStorage } from "../helpers/render";
 
@@ -204,38 +203,5 @@ describe("FlowPalette", () => {
     expect(onPick).toHaveBeenCalledWith("if");
     await act(async () => { root.render(createElement(DmesUiProvider, null, createElement(FlowPalette, { onPick, disabled: true }))); });
     expect((q("flow-add-rule") as HTMLButtonElement).disabled).toBe(true);
-  });
-});
-
-describe("RuleSearchModal", () => {
-  it("확정 버전 없는 후보는 빠지고, 세트에 있는 룰에 사용 중이 붙으며, 늦은 응답은 버린다", async () => {
-    const onPick = vi.fn();
-    mocks.searchRules.mockResolvedValue({ rules: [ioOf("R_A"), ioOf("R_B"), ioOf("R_C", { releasedVer: null })] });
-    const render = () => act(async () => {
-      root.render(createElement(DmesUiProvider, null, createElement(RuleSearchModal, { opened: true, usedRuleIds: new Set(["R_A"]), onClose: noop, onPick })));
-    });
-    await render();
-    await click(q("flow-rule-search-find")!);
-    await flush();
-    expect(q("flow-rule-cand-R_A")).not.toBeNull();
-    expect(q("flow-rule-cand-R_B")).not.toBeNull();
-    expect(q("flow-rule-cand-R_C")).toBeNull();
-    expect(q("flow-rule-cand-R_A")!.textContent).toContain("사용 중");
-    expect(q("flow-rule-cand-R_B")!.textContent).not.toContain("사용 중");
-    await click(q("flow-rule-cand-R_A")!);
-    expect(onPick).toHaveBeenCalledTimes(1);
-
-    // 늦은 응답: 첫 요청이 두 번째보다 늦게 오면 버린다.
-    let late!: (v: unknown) => void;
-    mocks.searchRules.mockReset();
-    mocks.searchRules.mockImplementationOnce(() => new Promise((r) => { late = r; }));
-    mocks.searchRules.mockResolvedValueOnce({ rules: [ioOf("R_NEW")] });
-    await click(q("flow-rule-search-find")!);
-    await click(q("flow-rule-search-find")!);
-    await flush();
-    late({ rules: [ioOf("R_OLD")] });
-    await flush();
-    expect(q("flow-rule-cand-R_NEW")).not.toBeNull();
-    expect(q("flow-rule-cand-R_OLD")).toBeNull();
   });
 });

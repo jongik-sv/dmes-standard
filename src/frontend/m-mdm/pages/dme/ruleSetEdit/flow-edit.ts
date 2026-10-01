@@ -6,6 +6,7 @@
  * 모두 가진다(없는 값은 null, otherwise 는 boolean). 1단계 `parseFlow` 는 입력을 정규화하지 않으므로 이 모양이 곧 계약이다.
  * `flowJsonOf` 는 서버 `RuleSetFlowJson.canonical`(P2)과 같은 키 순서로 써서 dirty 비교가 문자열 비교로 맞게 한다.
  * 3단계(계획 P6)는 옮기기·룰 바꾸기·복사·붙여넣기·복제·분기 종류 바꾸기·분기 풀기·갈래 순서를 더한다(파일 끝).
+ * 4단계(계획 Task 9): 빈 단계(TASK) 끼우기·룰 지정, 빈 단계는 지우기·옮기기·복사에서 룰과 같다.
  */
 import type { FlowEdge, FlowNode, FlowNodeKind, RuleSetFlow } from "@/contract/engine-contract.generated";
 
@@ -99,6 +100,8 @@ const int = (v: unknown): number | null => (typeof v === "number" && Number.isFi
 const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const isSplitKind = (k: FlowNodeKind): k is "IF" | "PARALLEL" => k === "IF" || k === "PARALLEL";
+/** 룰처럼 선 하나 들어오고 하나 나가는 단계(4단계 T1 — 빈 단계 포함). */
+const isStep = (k: FlowNodeKind): boolean => k === "RULE" || k === "TASK";
 
 /** 모든 칸을 채운 노드. */
 function node(id: string, kind: FlowNodeKind, ruleId: string | null = null, splitId: string | null = null, label: string | null = null): FlowNode {
@@ -373,6 +376,31 @@ export function insertRule(f: EditFlow, edgeId: string, ruleId: string): EditRes
   return done(g);
 }
 
+/** 빈 단계(TASK, 4단계 T1) 기본 제목. */
+export const TASK_LABEL = "빈 단계";
+
+/**
+ * 선 e(A→B) 위에 빈 단계를 끼운다 — insertRule 과 같은 자리·선 규칙, 룰 ID 없이 제목만.
+ * 노드 ID 는 룰과 같은 `r` 접두어다(룰을 지정해도 ID 가 그대로라 한 줄 흐름의 r1…rN 규칙과 맞는다).
+ */
+export function insertTask(f: EditFlow, edgeId: string, label: string = TASK_LABEL): EditResult {
+  const g = clone(f);
+  const ei = g.edges.findIndex((e) => e.id === edgeId);
+  if (ei < 0) return fail(`선 ${edgeId}를 찾지 못했다`);
+  const e = g.edges[ei];
+  const taken = takenIds(g);
+  const t = node(fresh(taken, "r"), "TASK", null, null, label);
+  const out = edge(fresh(taken, "e"), t.id, e.to);
+  insertAfter(
+    g.nodes,
+    g.nodes.findIndex((n) => n.id === e.from),
+    t,
+  );
+  e.to = t.id;
+  insertAfter(g.edges, ei, out);
+  return done(g);
+}
+
 /** 선 e(A→B) 위에 분기 s·짝 합류 m 을 끼운다. 갈래 두 개와 합류 출구 {m→B} 를 만든다. */
 export function insertSplit(f: EditFlow, edgeId: string, kind: "IF" | "PARALLEL"): EditResult {
   const g = clone(f);
@@ -413,7 +441,7 @@ export function removeNode(f: EditFlow, nodeId: string): EditResult {
   if (n.kind === "END") return fail("끝 노드는 지울 수 없다");
   if (n.kind === "MERGE") return fail("합류 노드는 분기를 지워서 없앤다");
   const ins = inOf(g, nodeId);
-  if (n.kind === "RULE") {
+  if (isStep(n.kind)) {
     const outs = outOf(g, nodeId);
     if (ins.length !== 1 || outs.length !== 1) return fail(RULE_EDGES_NOT_ONE);
     ins[0].to = outs[0].to;
@@ -712,7 +740,7 @@ export interface Fragment {
 }
 
 /** 붙여 넣을 때 새 ID 접두어(종류별). START·END 는 조각에 들지 않는다. */
-const NODE_PREFIX: Partial<Record<FlowNodeKind, string>> = { RULE: "r", IF: SPLIT_PREFIX.IF, PARALLEL: SPLIT_PREFIX.PARALLEL, MERGE: "m" };
+const NODE_PREFIX: Partial<Record<FlowNodeKind, string>> = { RULE: "r", TASK: "r", IF: SPLIT_PREFIX.IF, PARALLEL: SPLIT_PREFIX.PARALLEL, MERGE: "m" };
 const KIND_NAME: Record<"IF" | "PARALLEL", string> = { IF: "IF", PARALLEL: "병렬" };
 const MOVE_FIXED: Partial<Record<FlowNodeKind, string>> = {
   START: "시작 노드는 옮길 수 없다",
@@ -750,7 +778,7 @@ export function blockMembers(f: EditFlow, splitId: string): string[] | null {
  */
 export function moveExcludedEdges(f: EditFlow, nodeId: string): ReadonlySet<string> {
   const n = findNode(f, nodeId);
-  if (n?.kind === "RULE") return new Set(f.edges.filter((e) => e.from === nodeId || e.to === nodeId).map((e) => e.id));
+  if (n && isStep(n.kind)) return new Set(f.edges.filter((e) => e.from === nodeId || e.to === nodeId).map((e) => e.id));
   const members = n && isSplitKind(n.kind) ? blockMembers(f, nodeId) : null;
   if (!members) return new Set();
   const inside = new Set(members);
@@ -776,7 +804,7 @@ export function moveNode(f: EditFlow, nodeId: string, edgeId: string): EditResul
   const taken = takenIds(g); // 떼기 전에 모은다 — 방금 지운 선 ID 를 새 선에 다시 쓰지 않는다
   let exitId: string;
   let out: FlowEdge;
-  if (n.kind === "RULE") {
+  if (isStep(n.kind)) {
     const ins = inOf(g, nodeId);
     const outs = outOf(g, nodeId);
     if (ins.length !== 1 || outs.length !== 1) return fail(RULE_EDGES_NOT_ONE_MOVE);
@@ -813,11 +841,29 @@ export function replaceRule(f: EditFlow, nodeId: string, ruleId: string): EditRe
   return done(g);
 }
 
+/**
+ * 룰 지정(4단계 T1) — 빈 단계면 RULE 로 바꾸고 룰 ID 를 넣고, 룰 노드면 룰만 바꾼다(`replaceRule`).
+ * 노드 ID·자리(view.positions)·들어오고 나가는 선·경로·이름표는 그대로고, 빈 단계의 제목(노드 라벨)은 비운다. 편집 한 번이라 되돌리기 한 번에 돌아간다.
+ */
+export function assignRule(f: EditFlow, nodeId: string, ruleId: string): EditResult {
+  const n = findNode(f, nodeId);
+  if (!n) return fail(notFound(nodeId));
+  if (n.kind === "RULE") return replaceRule(f, nodeId, ruleId);
+  if (n.kind !== "TASK") return fail("빈 단계·룰 노드에만 룰을 지정한다");
+  if (ruleId.trim() === "") return fail("룰 ID 가 비었다");
+  const g = clone(f);
+  const m = findNode(g, nodeId)!;
+  m.kind = "RULE";
+  m.ruleId = ruleId;
+  m.label = null; // 룰 노드는 라벨을 보이지 않는다 — 빈 단계 제목이 저장·복사에 숨어 남지 않게 비운다
+  return done(g);
+}
+
 /** 룰 노드 하나 또는 분기 블록(합류까지)의 깊은 복사. 문자열이면 거부 사유다. */
 export function copyFragment(f: EditFlow, nodeId: string): Fragment | string {
   const n = findNode(f, nodeId);
   if (!n) return notFound(nodeId);
-  if (n.kind === "RULE") return { nodes: [copyNode(n)], edges: [], entry: nodeId, exit: nodeId };
+  if (isStep(n.kind)) return { nodes: [copyNode(n)], edges: [], entry: nodeId, exit: nodeId };
   if (!isSplitKind(n.kind)) return NO_COPY;
   const members = blockMembers(f, nodeId);
   if (!members) return `분기 ${nodeId}의 블록을 찾지 못해 복사할 수 없다`;
