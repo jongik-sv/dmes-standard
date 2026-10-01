@@ -7,6 +7,7 @@ import dagre from "@dagrejs/dagre";
 import type { FlowNodeKind, RuleSetFlow } from "@/contract/engine-contract.generated";
 
 import { clearLabels, clearRoutes, setPositions, type EditFlow, type FlowPos } from "./flow-edit";
+import { parseFlow, type Seq } from "./flow-model";
 
 export const NODE_SIZE: Readonly<Record<FlowNodeKind, { w: number; h: number }>> = {
   START: { w: 120, h: 36 },
@@ -33,13 +34,63 @@ export function autoLayout(f: RuleSetFlow, blocks: Readonly<Record<string, unkno
   }
   for (const e of f.edges ?? []) g.setEdge(e.from, e.to);
   dagre.layout(g);
+  const cx = new Map<string, number>();
+  for (const n of f.nodes ?? []) cx.set(n.id, g.node(n.id).x);
+  orderBranches(f, g, cx, (id) => sizeOf((f.nodes ?? []).find((n) => n.id === id)!).w);
   const out: Record<string, FlowPos> = {};
   for (const n of f.nodes ?? []) {
     const p = g.node(n.id);
     const s = sizeOf(n);
-    out[n.id] = { x: Math.round(p.x - s.w / 2), y: Math.round(p.y - s.h / 2) };
+    out[n.id] = { x: Math.round(cx.get(n.id)! - s.w / 2), y: Math.round(p.y - s.h / 2) };
   }
   return out;
+}
+
+/** 갈래 몸(중첩 분기·합류 포함)의 노드 ID. */
+function bodyIds(seq: Seq, out: string[] = []): string[] {
+  for (const b of seq.items) {
+    if (b.type === "SEQ") bodyIds(b, out);
+    else if (b.type === "SPLIT") {
+      out.push(b.nodeId, b.mergeId);
+      for (const br of b.branches) bodyIds(br.body, out);
+    } else out.push(b.nodeId);
+  }
+  return out;
+}
+
+/**
+ * 분기 갈래를 갈래 순서(IF: 조건 갈래 순서 뒤 그 외, 병렬: 갈래 순서)대로 왼쪽부터 놓는다(4단계 브라우저 확인).
+ * dagre 는 같은 층에서 갈래 순서를 지키지 않는다(뒤 갈래가 왼쪽에 오기도 한다). 그러면 갈래 라벨(순서대로 왼쪽→오른쪽)과
+ * 노드 자리가 어긋나 "갈래 1" 에 넣은 노드가 오른쪽에 그려진다. dagre 가 고른 갈래 자리(가운데 x)는 그대로 쓰고,
+ * 그 자리를 왼쪽부터 갈래 순서대로 다시 나눠 갈래 몸을 통째로 옮긴다. 빈 갈래의 자리는 분기→합류 선이 지나는 x 다.
+ * 바깥 분기를 먼저 맞추고 안쪽으로 들어간다(갈래 몸은 통째로 움직이므로 안쪽 상대 배치는 그대로다). 흐름을 해석하지 못하면 손대지 않는다.
+ */
+function orderBranches(f: RuleSetFlow, g: InstanceType<typeof dagre.graphlib.Graph>, cx: Map<string, number>, widthOf: (id: string) => number) {
+  const tree = parseFlow(f).tree;
+  if (!tree) return;
+  const visit = (seq: Seq) => {
+    for (const b of seq.items) {
+      if (b.type === "SEQ") visit(b);
+      if (b.type !== "SPLIT") continue;
+      const lanes = b.branches.map((br) => {
+        const ids = bodyIds(br.body).filter((id) => cx.has(id));
+        if (ids.length > 0) {
+          const left = Math.min(...ids.map((id) => cx.get(id)! - widthOf(id) / 2));
+          const right = Math.max(...ids.map((id) => cx.get(id)! + widthOf(id) / 2));
+          return { ids, at: (left + right) / 2 };
+        }
+        const pts = (g.edge(b.nodeId, b.mergeId) as { points?: { x: number }[] } | undefined)?.points ?? [];
+        return { ids, at: pts.length > 0 ? pts[Math.floor(pts.length / 2)].x : cx.get(b.nodeId)! };
+      });
+      const slots = lanes.map((l) => l.at).sort((a, c) => a - c);
+      lanes.forEach((l, i) => {
+        const d = slots[i] - l.at;
+        if (d !== 0) for (const id of l.ids) cx.set(id, cx.get(id)! + d);
+      });
+      for (const br of b.branches) visit(br.body);
+    }
+  };
+  visit(tree.root);
 }
 
 /**
