@@ -9,7 +9,8 @@
  * 폐기는 두 단계(폐기 → 폐기 확인/취소)로만 한다(I14·D14). 저장 버튼은 편집 모드·dirty·거부 검사 없음·조건식 IO 기다리지 않음일 때만 켜진다(P-D4·P10).
  *
  * 3단계(계획 P1·P12): 모드 단추 셋(보기·편집·디버그 — 디버그는 누구나), 되돌리기·다시 하기(편집 모드이고 기록이 있을 때), 미니맵 켜고 끄기.
- * 찾기 칸(Enter·[다음] 으로 돈다)과 단축키 도움말 [?] 를 둔다(Task 8). 도움말은 지금 모드의 단축키만 짧은 정의 목록으로 보인다.
+ * [노드 찾기] 단추와 단축키 도움말 [?] 를 둔다(Task 8). 도움말은 지금 모드의 단축키만 짧은 정의 목록으로 보인다.
+ * 찾기 칸·[다음]·건수는 2026-10-01 캔버스 오른쪽 위 찾기 위젯(`FindWidget`, VS Code 방식)으로 옮겼고, 툴바에는 위젯을 여는 돋보기 단추(`flow-find-open`)만 남겼다.
  * 단추는 모두 아이콘만 있고(`ToolButton`), 이름·꺼진 이유는 단추를 감싼 `span.rsf-tip[data-tip]` 가 그리는 즉시 CSS 툴팁(`styles/toolbox.ts`, 단추 아래 — 단추 루트가 overflow:hidden 이라 단추 안에서 그리면 잘린다)이고 `title` 은 두지 않는다(브라우저 툴팁과 겹침 방지).
  * S1 의 [공간] 토글은 4단계 P1 에서 도구 상자(`FlowToolbox`)로 옮겼다.
  *
@@ -19,12 +20,11 @@
  * 값을 뒤집는다(`keepFocusOffButtons` 는 단추만 막는다). 자동 저장이 진행 중이면 수동 쓰기([세트 저장]·폐기·되살리기)를 막는다(같은 row_version
  * 으로 두 요청이 나가지 않게). 편집·되돌리기는 막지 않는다.
  */
-import { useEffect, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 
 import {
   IconArchive,
   IconArrowBackUp,
-  IconArrowDown,
   IconArrowForwardUp,
   IconArrowsMaximize,
   IconBug,
@@ -45,10 +45,8 @@ import {
   IconX,
 } from "@tabler/icons-react";
 
-import { Input } from "@dk-oasis/shared/form";
 import { badgeStyle } from "@/shell";
 
-import type { FindState } from "../state/useFind";
 import type { VarDisplay } from "../types";
 import type { AutoSave } from "../state/useAutoSave";
 import type { FlowMode, RuleSetEditState, RuleSetMessage } from "../state/useRuleSetEdit";
@@ -91,10 +89,10 @@ export interface FlowToolbarProps {
   onFit: () => void;
   showMiniMap: boolean;
   onToggleMiniMap: () => void;
-  /** 노드 찾기(Task 8 이 찾기 칸을 그린다). */
-  find: FindState;
-  /** 찾기 칸 — 단축키 Ctrl/Cmd+F 가 여기로 초점을 옮긴다(Task 8 이 칸에 단다). */
-  findInputRef: RefObject<HTMLInputElement | null>;
+  /** [노드 찾기] — 캔버스 오른쪽 위 찾기 위젯(`FindWidget`)을 열고 입력 칸에 초점을 둔다(Ctrl/Cmd+F 와 같다). */
+  onOpenFind: () => void;
+  /** 찾기 위젯이 열려 있는가(`aria-expanded`). */
+  findOpen: boolean;
   /**
    * 도움말을 Esc 로 닫은 뒤, 초점이 [?] 단추·도움말 안·body 에 있을 때만 부른다 — page 가 캔버스로 초점을 돌려 다음 Esc·단축키가
    * 캔버스 디스패처에 닿게 한다(브라우저 확인 8번 단서).
@@ -112,7 +110,7 @@ export function keepFocusOffButtons(e: MouseEvent<HTMLElement>): void {
 
 export function FlowToolbar(props: FlowToolbarProps) {
   const { state, canDo, canEdit, mode, onMode, varDisplay, onToggleVars, onAutoLayout, onFit, showMiniMap, onToggleMiniMap } = props;
-  const { lead, find, findInputRef, onHelpEscape, autoSave } = props;
+  const { lead, onOpenFind, findOpen, onHelpEscape, autoSave } = props;
   const [helpOpen, setHelpOpen] = useState(false);
   const view = state.view!;
   const set = view.set;
@@ -165,7 +163,7 @@ export function FlowToolbar(props: FlowToolbarProps) {
 
   return (
     // 단추는 마우스로 눌러도 초점을 가져가지 않는다(Figma 툴바 방식, S1 리뷰 Important 2) — 초점이 단추에 남으면 스페이스+끌기(화면 이동)의
-    // 스페이스가 그 단추를 다시 누른다. 키보드 Tab·Enter·Space 는 그대로이고, 찾기 칸 같은 입력칸은 해당 없다.
+    // 스페이스가 그 단추를 다시 누른다. 키보드 Tab·Enter·Space 는 그대로이고, 세트 고르기 칸 같은 입력칸은 해당 없다.
     <div data-testid="flow-toolbar" className="rsf-toolbar" onMouseDown={keepFocusOffButtons}>
       <div className="rsf-toolbar-row">
         {lead}
@@ -234,37 +232,16 @@ export function FlowToolbar(props: FlowToolbarProps) {
         </span>
 
         <span className="rsf-toolbar-sep" aria-hidden />
-        <span className="rsf-toolbar-group" role="search" aria-label="노드 찾기">
-          <IconSearch size={14} aria-hidden="true" />
-          <Input
-            data-testid="flow-find"
-            {...({ ref: findInputRef } as object)}
-            className="rsf-find-input"
-            placeholder="노드 찾기"
-            title="룰 ID·이름·라벨로 찾는다"
-            aria-label="노드 찾기"
-            value={find.query}
-            onChange={find.setQuery}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-                e.preventDefault();
-                find.next();
-              }
-            }}
-          />
+        <span className="rsf-toolbar-group">
           <ToolButton
-            data-testid="flow-find-next"
-            label="다음 결과"
-            tip="다음 결과 (Enter)"
-            icon={<IconArrowDown size={14} aria-hidden="true" />}
-            disabled={find.hits.length === 0}
-            onClick={find.next}
+            data-testid="flow-find-open"
+            label="노드 찾기"
+            tip={`노드 찾기 (${mac ? "⌘F" : "Ctrl+F"})`}
+            icon={<IconSearch size={14} aria-hidden="true" />}
+            aria-expanded={findOpen}
+            onClick={onOpenFind}
           />
-          <span data-testid="flow-find-count" className="rsf-find-count" aria-live="polite">
-            {find.hits.length === 0 ? "0/0" : `${find.index + 1}/${find.hits.length}`}
-          </span>
         </span>
-
         <span ref={helpAnchorRef} className="rsf-toolbar-group rsf-help-anchor">
           <ToolButton
             data-testid="flow-help"

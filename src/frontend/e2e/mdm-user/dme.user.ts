@@ -1875,10 +1875,21 @@ test.describe("C 룰 세트", () => {
     await tid(page, "flow-rule-panel-search").fill(SA);
     await tid(page, "flow-rule-panel-find").click();
     await expect(tid(page, `flow-rule-row-${SA}`)).toBeVisible({ timeout: 20_000 });
+    // 노드 찾기 위젯 — 툴바 [노드 찾기] 로 열고 다음·이전·옵션 셋을 눌러 본 뒤 [닫기].
+    await tid(page, "flow-find-open").click();
+    await expect(tid(page, "flow-find-widget")).toBeVisible();
     await tid(page, "flow-find").fill(SA);
     await expect(tid(page, "flow-find-count")).toHaveText("1/1");
     await tid(page, "flow-find-next").click();
+    await tid(page, "flow-find-prev").click();
+    for (const opt of ["flow-find-case", "flow-find-word", "flow-find-regex"]) {
+      await tid(page, opt).click();
+      await expect(tid(page, opt)).toHaveAttribute("aria-pressed", "true");
+      await tid(page, opt).click();
+    }
     await tid(page, "flow-find").fill("");
+    await tid(page, "flow-find-close").click();
+    await expect(tid(page, "flow-find-widget")).toHaveCount(0);
     const controls = tid(page, "flow-canvas").locator(".react-flow__controls-button");
     for (let i = 0, n = await controls.count(); i < n; i++) await controls.nth(i).click();
 

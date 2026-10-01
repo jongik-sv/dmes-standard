@@ -163,7 +163,6 @@ export const BASE_CSS = `
 .rsf-toolbar { padding: var(--spacing-xs) var(--spacing-md); border-bottom: 1px solid var(--color-border-light); }
 .rsf-toolbar-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-xs) var(--spacing-sm); }
 .rsf-toolbar-group { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: var(--spacing-xs); }
-.rsf-toolbar .rsf-tip > .form-button { padding-inline: 7px; }
 .rsf-toolbar-head { min-width: 0; }
 .rsf-toolbar-head > span { white-space: nowrap; }
 .rsf-toolbar-title { display: inline-block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }

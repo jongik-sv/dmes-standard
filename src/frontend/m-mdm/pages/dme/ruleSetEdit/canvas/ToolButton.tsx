@@ -1,10 +1,12 @@
 "use client";
 
 /**
- * 툴바 아이콘 단추 — 흐름 툴바(`FlowToolbar`)·디버그 툴바(`DebugToolbar`)가 함께 쓴다.
+ * 툴바 아이콘 단추 — 흐름 툴바(`FlowToolbar`)·디버그 툴바(`DebugToolbar`)·찾기 위젯(`FindWidget`)이 함께 쓴다.
  * 글자 없이 아이콘만 보이고, 이름은 `aria-label`(= label), 설명은 단추를 감싼 `span.rsf-tip[data-tip]` 의 즉시 CSS 툴팁(`styles/toolbox.ts`)으로 보인다.
  * `title` 은 두지 않는다(브라우저 툴팁과 겹침 방지). tip 을 주지 않으면 label 을 툴팁으로 쓴다.
  * align="end" 는 툴팁을 단추 오른쪽 끝에 맞춘다 — 툴바 오른쪽 끝 단추의 긴 툴팁이 화면 밖으로 나가지 않게 한다.
+ * 크기(2026-10-01): 26×26 정사각형(VS Code 툴바 단추 크기). 공용 Button 의 size 를 바꾸지 않고 단추에 `rsf-tool-btn` 을 붙여 `styles/toolbox.ts` 한 규칙으로
+ * 너비·높이·안쪽 여백을 고정한다 — 흐름 툴바·디버그 툴바·찾기 위젯이 같은 크기다. Mantine 이 크기 변수를 단추 style 에 직접 쓰므로 변수가 아니라 속성을 덮는다.
  */
 import type { ReactNode } from "react";
 
@@ -21,10 +23,10 @@ export interface ToolButtonProps extends Omit<ButtonProps, "children" | "ariaLab
   tipOff?: boolean;
 }
 
-export function ToolButton({ label, icon, tip, align = "center", tipOff, ...rest }: ToolButtonProps) {
+export function ToolButton({ label, icon, tip, align = "center", tipOff, className, ...rest }: ToolButtonProps) {
   return (
     <span className="rsf-tip" data-tip={tip ?? label} data-tip-align={align === "end" ? "end" : undefined} data-tip-off={tipOff ? "" : undefined}>
-      <Button ariaLabel={label} {...rest}>
+      <Button ariaLabel={label} className={className ? `rsf-tool-btn ${className}` : "rsf-tool-btn"} {...rest}>
         {icon}
       </Button>
     </span>
