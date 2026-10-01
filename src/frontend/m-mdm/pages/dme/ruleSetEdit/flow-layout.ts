@@ -180,10 +180,11 @@ function bodyIds(seq: Seq, out: string[] = []): string[] {
   for (const b of seq.items) {
     if (b.type === "SEQ") bodyIds(b, out);
     else if (b.type === "SPLIT") {
-      out.push(b.nodeId, b.mergeId);
+      out.push(b.nodeId);
+      if (b.mergeId) out.push(b.mergeId);
       for (const br of b.branches) bodyIds(br.body, out);
     } else if (b.type === "GUARDED") {
-      out.push(b.rule.nodeId);
+      out.push(b.step.nodeId);
       if (b.mergeId) out.push(b.mergeId);
       bodyIds(b.normal, out);
       for (const h of b.handlers) bodyIds(h.body, out);
@@ -227,13 +228,13 @@ function orderBranches(f: RuleSetFlow, g: InstanceType<typeof dagre.graphlib.Gra
         const { x1, x2, boxes } = spanOf(ids);
         return { ids, at: (x1 + x2) / 2, boxes };
       }
-      const pts = (g.edge(b.nodeId, b.mergeId) as { points?: { x: number }[] } | undefined)?.points ?? [];
+      const pts = (g.edge(b.nodeId, b.joinId) as { points?: { x: number }[] } | undefined)?.points ?? [];
       const at = pts.length > 0 ? pts[Math.floor(pts.length / 2)].x : cx.get(b.nodeId)!;
       // 빈 갈래(선만 지나는 자리)도 룰 하나 너비만큼 자리를 둔다 — dagre 는 너비 0 인 점으로 놓아 이웃 갈래 노드가 분기 가운데 아래에 걸친다
       // (사용자 요청 "갈래 1 노드가 조금 더 왼쪽으로"). 세로 범위는 분기~합류라 그 사이 이웃 갈래 노드와 견준다. 옮길 노드는 없다.
       const half = NODE_SIZE.RULE.w / 2;
       const y1 = (g.node(b.nodeId) as { y: number }).y;
-      const y2 = (g.node(b.mergeId) as { y: number }).y;
+      const y2 = (g.node(b.joinId) as { y: number }).y;
       return { ids, at, boxes: [{ x1: at - half, x2: at + half, y1, y2 }] as LaneBox[] };
     });
     const slots = spreadLanes(lanes, lanes.map((l) => l.at).sort((a, c) => a - c), NODESEP);
@@ -245,9 +246,9 @@ function orderBranches(f: RuleSetFlow, g: InstanceType<typeof dagre.graphlib.Gra
    * 정상 갈래를 상자 가운데가 아니라 첫 노드로 맞추는 것은 안쪽 받는 룰의 처리 갈래가 오른쪽으로 넓혀 둔 몸도 줄기가 룰 아래에 오게 하려는 것이다.
    */
   const placeGuarded = (b: Guarded) => {
-    const ruleX = cx.get(b.rule.nodeId)!;
+    const ruleX = cx.get(b.step.nodeId)!;
     const normalIds = bodyIds(b.normal).filter((id) => cx.has(id));
-    let right = ruleX + sizeOf(b.rule.nodeId).w / 2;
+    let right = ruleX + sizeOf(b.step.nodeId).w / 2;
     const head = firstNode(b.normal);
     if (normalIds.length > 0 && head && cx.has(head)) {
       shift(normalIds, ruleX - cx.get(head)!);
@@ -344,7 +345,7 @@ function firstNode(seq: Seq): string | null {
   const b = seq.items[0];
   if (!b) return null;
   if (b.type === "SEQ") return firstNode(b);
-  if (b.type === "GUARDED") return b.rule.nodeId;
+  if (b.type === "GUARDED") return b.step.nodeId;
   return b.nodeId;
 }
 
@@ -357,8 +358,8 @@ function lastExit(seq: Seq): string | null {
       if (x) return x;
       continue;
     }
-    if (b.type === "SPLIT") return b.mergeId;
-    if (b.type === "GUARDED") return b.mergeId ?? b.rule.nodeId;
+    if (b.type === "SPLIT") return b.mergeId ?? b.joinId;
+    if (b.type === "GUARDED") return b.mergeId ?? b.step.nodeId;
     return b.nodeId;
   }
   return null;

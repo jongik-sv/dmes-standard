@@ -2336,16 +2336,6 @@
             "ruleId": null,
             "otherRuleId": null,
             "varName": null,
-            "message": "end의 들어오는 선이 2개다. 1개여야 한다",
-            "nodeId": "end",
-            "edgeId": null
-          },
-          {
-            "code": "FLOW_STRUCTURE",
-            "severity": "REJECT",
-            "ruleId": null,
-            "otherRuleId": null,
-            "varName": null,
             "message": "분기 p1를 닫는 합류가 0개다. 정확히 1개여야 한다",
             "nodeId": "p1",
             "edgeId": null
@@ -5827,7 +5817,7 @@
             "ruleId": null,
             "otherRuleId": null,
             "varName": null,
-            "message": "m1를 두 번 지난다. 순환이 있거나 갈래가 짝 합류 밖에서 만난다",
+            "message": "m1를 두 번 지난다. 순환이 있거나 갈래가 모이는 자리 밖에서 만난다",
             "nodeId": "m1",
             "edgeId": null
           }
@@ -6563,26 +6553,6 @@
             "varName": null,
             "message": "R_NONE는 없는 룰이다",
             "nodeId": "r2",
-            "edgeId": null
-          },
-          {
-            "code": "FLOW_STRUCTURE",
-            "severity": "REJECT",
-            "ruleId": null,
-            "otherRuleId": null,
-            "varName": null,
-            "message": "end의 들어오는 선이 2개다. 1개여야 한다",
-            "nodeId": "end",
-            "edgeId": null
-          },
-          {
-            "code": "FLOW_STRUCTURE",
-            "severity": "REJECT",
-            "ruleId": null,
-            "otherRuleId": null,
-            "varName": null,
-            "message": "분기 if1를 닫는 합류가 0개다. 정확히 1개여야 한다",
-            "nodeId": "if1",
             "edgeId": null
           }
         ]
@@ -7711,7 +7681,7 @@
       }
     },
     {
-      "name": "받는 노드 — 붙은 룰이 없다(FLOW_CATCH)",
+      "name": "받는 노드 — 붙은 노드가 없다(FLOW_CATCH)",
       "flow": {
         "version": 1,
         "nodes": [
@@ -7732,7 +7702,7 @@
         "io": { "inputs": [], "results": [] },
         "deps": { "C1": [] },
         "checks": [
-          { "code": "FLOW_CATCH", "severity": "REJECT", "message": "받는 노드 c1가 붙은 룰 zz가 없다", "nodeId": "c1" }
+          { "code": "FLOW_CATCH", "severity": "REJECT", "message": "받는 노드 c1가 붙은 노드 zz가 없다", "nodeId": "c1" }
         ]
       }
     },
@@ -7769,7 +7739,7 @@
       }
     },
     {
-      "name": "받는 노드 — 빈 단계에는 붙일 수 없다(FLOW_CATCH)",
+      "name": "받는 노드 — 빈 단계에 붙으면 CATCH_NEVER 경고다(D-136)",
       "flow": {
         "version": 1,
         "nodes": [
@@ -7791,12 +7761,12 @@
         "deps": {},
         "checks": [
           { "code": "EMPTY_TASK", "severity": "WARN", "message": "빈 단계 1개 — 실행 때 그냥 지나간다" },
-          { "code": "FLOW_CATCH", "severity": "REJECT", "message": "받는 노드 c1는 룰 노드에만 붙일 수 있다(t1는 TASK)", "nodeId": "c1" }
+          { "code": "CATCH_NEVER", "severity": "WARN", "message": "t1는 빈 단계라 c1가 받는 예외가 일어나지 않는다", "nodeId": "c1" }
         ]
       }
     },
     {
-      "name": "받는 노드 — 처리 갈래가 다른 분기의 합류로 간다(FLOW_STRUCTURE 2단계)",
+      "name": "받는 노드 — 처리 갈래가 둘러싼 IF 의 옛 합류로 돌아오면 받는다(D-136)",
       "flow": {
         "version": 1,
         "nodes": [
@@ -7816,18 +7786,17 @@
           { "id": "e3", "from": "m9", "to": "end" }
         ]
       },
+      "condIo": { "b1": { "ok": true, "message": null, "vars": [] } },
       "ids": ["C1"],
       "rules": { "C1": { "exists": true, "status": "INUSE", "releasedVer": 1 } },
       "expect": {
         "io": { "inputs": [], "results": [] },
         "deps": { "C1": [] },
-        "checks": [
-          { "code": "FLOW_STRUCTURE", "severity": "REJECT", "message": "처리 갈래 c1가 끝에 닿지 않고 m9로 나간다", "nodeId": "m9" }
-        ]
+        "checks": []
       }
     },
     {
-      "name": "받는 노드 — 처리 갈래 안 IF 갈래는 END 로 못 간다(지금 문구, 편차 F7)",
+      "name": "받는 노드 — 처리 갈래 안 옛 형식 IF 의 갈래는 END 로 못 간다(옛 합류는 모든 갈래를 닫는다)",
       "flow": {
         "version": 1,
         "nodes": [
@@ -8054,6 +8023,301 @@
         },
         "deps": { "D1": [], "D2": ["D1", "D9", "D8"], "D9": [], "D8": [] },
         "checks": []
+      }
+    },
+    {
+      "name": "흐름 — 새 형식 IF 의 빈 갈래 둘이 같은 노드로 간다(f4, J-D7)",
+      "flow": { "version": 1,
+        "nodes": [{ "id": "start", "kind": "START" }, { "id": "if1", "kind": "IF" }, { "id": "a", "kind": "RULE", "ruleId": "A" }, { "id": "end", "kind": "END" }],
+        "edges": [{ "id": "e1", "from": "start", "to": "if1" }, { "id": "e2", "from": "if1", "to": "a", "order": 1, "cond": "X > 0" },
+          { "id": "e3", "from": "if1", "to": "a", "otherwise": true }, { "id": "e4", "from": "a", "to": "end" }] },
+      "ids": ["A"],
+      "rules": { "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] } },
+      "expect": {
+        "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A"] }], "results": [{ "name": "RA", "by": ["A"], "readers": [] }] },
+        "deps": { "A": [] },
+        "checks": [{ "code": "FLOW_STRUCTURE", "severity": "REJECT", "message": "IF if1의 갈래 e3가 갈래 e2와 같은 노드 a로 간다. 같은 노드로 가는 갈래는 하나만 둔다", "nodeId": "if1", "edgeId": "e3" }]
+      }
+    },
+    {
+      "name": "흐름 — 끝내는 갈래가 END 로 가고 그 외 빈 갈래가 이어진다(§1 둘째 예, D-136)",
+      "flow": { "version": 1,
+        "nodes": [{ "id": "start", "kind": "START" }, { "id": "r1", "kind": "RULE", "ruleId": "P" }, { "id": "if1", "kind": "IF", "label": "단가 확인" },
+          { "id": "r8", "kind": "RULE", "ruleId": "L" }, { "id": "r2", "kind": "RULE", "ruleId": "M" }, { "id": "end", "kind": "END" }],
+        "edges": [{ "id": "e1", "from": "start", "to": "r1" }, { "id": "e2", "from": "r1", "to": "if1" },
+          { "id": "e3", "from": "if1", "to": "r8", "order": 1, "cond": "PRICE = NULL", "label": "단가 없음" }, { "id": "e4", "from": "r8", "to": "end" },
+          { "id": "e5", "from": "if1", "to": "r2", "otherwise": true, "label": "그 외" }, { "id": "e6", "from": "r2", "to": "end" }] },
+      "condIo": { "e3": { "ok": true, "message": null, "vars": [{ "name": "PRICE", "source": "NONE" }] } },
+      "ids": ["P", "L", "M"],
+      "rules": {
+        "P": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "PRICE" }] },
+        "L": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "LOG" }] },
+        "M": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "PRICE", "source": "NONE" }], "results": [{ "name": "AMOUNT" }] }
+      },
+      "expect": {
+        "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["P", "L"] }],
+          "results": [{ "name": "PRICE", "by": ["P"], "readers": ["M"] }, { "name": "LOG", "by": ["L"], "readers": [] }, { "name": "AMOUNT", "by": ["M"], "readers": [] }] },
+        "deps": { "P": [], "L": [], "M": ["P"] },
+        "checks": []
+      }
+    },
+    {
+      "name": "흐름 — 갈래가 다른 갈래 중간 노드로 들어가면 두 번 지난다(N5)",
+      "flow": { "version": 1,
+        "nodes": [{ "id": "start", "kind": "START" }, { "id": "if1", "kind": "IF" }, { "id": "a", "kind": "RULE", "ruleId": "A" }, { "id": "b", "kind": "RULE", "ruleId": "B" },
+          { "id": "c", "kind": "RULE", "ruleId": "C" }, { "id": "y", "kind": "RULE", "ruleId": "D" }, { "id": "z", "kind": "RULE", "ruleId": "E" }, { "id": "end", "kind": "END" }],
+        "edges": [{ "id": "e1", "from": "start", "to": "if1" }, { "id": "b1", "from": "if1", "to": "a", "order": 1, "cond": "X > 1" },
+          { "id": "b2", "from": "if1", "to": "b", "order": 2, "cond": "X > 2" }, { "id": "bo", "from": "if1", "to": "c", "otherwise": true },
+          { "id": "ea", "from": "a", "to": "y" }, { "id": "eb", "from": "b", "to": "y" }, { "id": "ec", "from": "c", "to": "z" }, { "id": "ey", "from": "y", "to": "z" },
+          { "id": "ez", "from": "z", "to": "end" }] },
+      "ids": ["A", "B", "C", "D", "E"],
+      "rules": {
+        "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
+        "B": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RB" }] },
+        "C": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RC" }] },
+        "D": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RD" }] },
+        "E": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RE" }] }
+      },
+      "expect": {
+        "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A", "B", "C", "D", "E"] }],
+          "results": [{ "name": "RA", "by": ["A"], "readers": [] }, { "name": "RB", "by": ["B"], "readers": [] }, { "name": "RC", "by": ["C"], "readers": [] },
+            { "name": "RD", "by": ["D"], "readers": [] }, { "name": "RE", "by": ["E"], "readers": [] }] },
+        "deps": { "A": [], "B": [], "C": [], "D": [], "E": [] },
+        "checks": [{ "code": "FLOW_STRUCTURE", "severity": "REJECT", "message": "y를 두 번 지난다. 순환이 있거나 갈래가 모이는 자리 밖에서 만난다", "nodeId": "y" }]
+      }
+    },
+    {
+      "name": "흐름 — 모이는 자리가 아닌 병렬 합류로 블록 밖 선이 하나 더 들어온다(N6, S5)",
+      "flow": { "version": 1,
+        "nodes": [{ "id": "start", "kind": "START" }, { "id": "if1", "kind": "IF" }, { "id": "p1", "kind": "PARALLEL" }, { "id": "a", "kind": "RULE", "ruleId": "A" },
+          { "id": "b", "kind": "RULE", "ruleId": "B" }, { "id": "c", "kind": "RULE", "ruleId": "C" }, { "id": "pm", "kind": "MERGE", "splitId": "p1" }, { "id": "end", "kind": "END" }],
+        "edges": [{ "id": "e1", "from": "start", "to": "if1" }, { "id": "b1", "from": "if1", "to": "p1", "order": 1, "cond": "X > 0" },
+          { "id": "bo", "from": "if1", "to": "c", "otherwise": true }, { "id": "pa", "from": "p1", "to": "a", "order": 1 }, { "id": "pb", "from": "p1", "to": "b", "order": 2 },
+          { "id": "ea", "from": "a", "to": "pm" }, { "id": "eb", "from": "b", "to": "pm" }, { "id": "ec", "from": "c", "to": "pm" }, { "id": "ep", "from": "pm", "to": "end" }] },
+      "ids": ["A", "B", "C"],
+      "rules": {
+        "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
+        "B": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RB" }] },
+        "C": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RC" }] }
+      },
+      "expect": {
+        "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A", "B", "C"] }],
+          "results": [{ "name": "RA", "by": ["A"], "readers": [] }, { "name": "RB", "by": ["B"], "readers": [] }, { "name": "RC", "by": ["C"], "readers": [] }] },
+        "deps": { "A": [], "B": [], "C": [] },
+        "checks": [{ "code": "FLOW_STRUCTURE", "severity": "REJECT", "message": "갈래가 pm에서 닫히지 않고 end로 나간다", "nodeId": "end" }]
+      }
+    },
+    {
+      "name": "흐름 — 갈래가 IF 앞으로 되돌아가면 모이는 자리를 다시 찾다 두 번 지난다(N7)",
+      "flow": { "version": 1,
+        "nodes": [{ "id": "start", "kind": "START" }, { "id": "r1", "kind": "RULE", "ruleId": "A" }, { "id": "if1", "kind": "IF" }, { "id": "a", "kind": "RULE", "ruleId": "B" },
+          { "id": "end", "kind": "END" }],
+        "edges": [{ "id": "e1", "from": "start", "to": "r1" }, { "id": "e2", "from": "r1", "to": "if1" }, { "id": "b1", "from": "if1", "to": "a", "order": 1, "cond": "X > 0" },
+          { "id": "bo", "from": "if1", "to": "end", "otherwise": true }, { "id": "ea", "from": "a", "to": "r1" }] },
+      "ids": ["A", "B"],
+      "rules": {
+        "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
+        "B": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RB" }] }
+      },
+      "expect": {
+        "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A", "B"] }], "results": [{ "name": "RA", "by": ["A"], "readers": [] }, { "name": "RB", "by": ["B"], "readers": [] }] },
+        "deps": { "A": [], "B": [] },
+        "checks": [{ "code": "FLOW_STRUCTURE", "severity": "REJECT", "message": "if1를 두 번 지난다. 순환이 있거나 갈래가 모이는 자리 밖에서 만난다", "nodeId": "if1" }]
+      }
+    },
+    {
+      "name": "받는 노드 — 두 처리 갈래가 서로 다른 노드로 돌아온다(N10, S7)",
+      "flow": { "version": 1,
+        "nodes": [{ "id": "start", "kind": "START" }, { "id": "r1", "kind": "RULE", "ruleId": "A" }, { "id": "x", "kind": "RULE", "ruleId": "B" }, { "id": "y", "kind": "RULE", "ruleId": "C" },
+          { "id": "c1", "kind": "CATCH", "attachTo": "r1", "catches": ["NO_RESULT"] }, { "id": "h1", "kind": "RULE", "ruleId": "D" },
+          { "id": "c2", "kind": "CATCH", "attachTo": "r1", "catches": ["EVAL_ERROR"] }, { "id": "end", "kind": "END" }],
+        "edges": [{ "id": "e1", "from": "start", "to": "r1" }, { "id": "e2", "from": "r1", "to": "x" }, { "id": "e3", "from": "x", "to": "y" }, { "id": "e4", "from": "y", "to": "end" },
+          { "id": "e5", "from": "c1", "to": "h1" }, { "id": "e6", "from": "h1", "to": "x" }, { "id": "e7", "from": "c2", "to": "y" }] },
+      "ids": ["A", "B", "C", "D"],
+      "rules": {
+        "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
+        "B": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RB" }] },
+        "C": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RC" }] },
+        "D": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RD" }] }
+      },
+      "expect": {
+        "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A", "B", "C", "D"] }],
+          "results": [{ "name": "RA", "by": ["A"], "readers": [] }, { "name": "RB", "by": ["B"], "readers": [] }, { "name": "RC", "by": ["C"], "readers": [] },
+            { "name": "RD", "by": ["D"], "readers": [] }] },
+        "deps": { "A": [], "B": [], "C": [], "D": [] },
+        "checks": [{ "code": "FLOW_STRUCTURE", "severity": "REJECT", "message": "r1의 처리 갈래 c2가 y로 돌아온다. 앞 처리 갈래 c1처럼 x로 돌아와야 한다", "nodeId": "c2" }]
+      }
+    },
+    {
+      "name": "받는 노드 — 빈 단계의 받는 노드 둘(돌아옴·끝냄)은 CATCH_NEVER 한 줄씩이고 처리 갈래 경로 상태는 그대로 센다(N15)",
+      "flow": { "version": 1,
+        "nodes": [{ "id": "start", "kind": "START" }, { "id": "t1", "kind": "TASK", "label": "빈 단계" }, { "id": "c1", "kind": "CATCH", "attachTo": "t1", "catches": ["NO_RESULT"] },
+          { "id": "h", "kind": "RULE", "ruleId": "H" }, { "id": "c2", "kind": "CATCH", "attachTo": "t1", "catches": ["EVAL_ERROR"] }, { "id": "n", "kind": "RULE", "ruleId": "F" },
+          { "id": "end", "kind": "END" }],
+        "edges": [{ "id": "e1", "from": "start", "to": "t1" }, { "id": "e2", "from": "t1", "to": "n" }, { "id": "e3", "from": "c1", "to": "h" }, { "id": "e4", "from": "h", "to": "n" },
+          { "id": "e5", "from": "c2", "to": "end" }, { "id": "e6", "from": "n", "to": "end" }] },
+      "ids": ["H", "F"],
+      "rules": {
+        "H": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
+        "F": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "V", "source": "NONE" }], "results": [{ "name": "W" }] }
+      },
+      "expect": {
+        "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["H"] }], "results": [{ "name": "V", "by": ["H"], "readers": ["F"] }, { "name": "W", "by": ["F"], "readers": [] }] },
+        "deps": { "H": [], "F": ["H"] },
+        "checks": [
+          { "code": "EMPTY_TASK", "severity": "WARN", "message": "빈 단계 1개 — 실행 때 그냥 지나간다" },
+          { "code": "CATCH_NEVER", "severity": "WARN", "message": "t1는 빈 단계라 c1가 받는 예외가 일어나지 않는다", "nodeId": "c1" },
+          { "code": "CATCH_NEVER", "severity": "WARN", "message": "t1는 빈 단계라 c2가 받는 예외가 일어나지 않는다", "nodeId": "c2" },
+          { "code": "FLOW_PARTIAL", "severity": "WARN", "ruleId": "F", "varName": "V", "message": "F가 읽는 V는 IF 의 일부 갈래에서만 만들어진다. 다른 갈래를 타면 판정 오류다", "nodeId": "n" }
+        ]
+      }
+    },
+    {
+      "name": "받는 노드 — 처리 갈래가 병렬 합류로 돌아오면 정상 갈래가 병렬을 넘어 END 로 빠진다(N16, S5)",
+      "flow": { "version": 1,
+        "nodes": [{ "id": "start", "kind": "START" }, { "id": "r1", "kind": "RULE", "ruleId": "A" }, { "id": "p1", "kind": "PARALLEL" }, { "id": "a", "kind": "RULE", "ruleId": "B" },
+          { "id": "b", "kind": "RULE", "ruleId": "C" }, { "id": "pm", "kind": "MERGE", "splitId": "p1" }, { "id": "x", "kind": "RULE", "ruleId": "D" },
+          { "id": "c1", "kind": "CATCH", "attachTo": "r1", "catches": ["NO_RESULT"] }, { "id": "h", "kind": "RULE", "ruleId": "E" }, { "id": "end", "kind": "END" }],
+        "edges": [{ "id": "e1", "from": "start", "to": "r1" }, { "id": "e2", "from": "r1", "to": "p1" }, { "id": "pa", "from": "p1", "to": "a", "order": 1 },
+          { "id": "pb", "from": "p1", "to": "b", "order": 2 }, { "id": "ea", "from": "a", "to": "pm" }, { "id": "eb", "from": "b", "to": "pm" }, { "id": "ep", "from": "pm", "to": "x" },
+          { "id": "ex", "from": "x", "to": "end" }, { "id": "ec", "from": "c1", "to": "h" }, { "id": "eh", "from": "h", "to": "pm" }] },
+      "ids": ["A", "B", "C", "D", "E"],
+      "rules": {
+        "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
+        "B": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RB" }] },
+        "C": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RC" }] },
+        "D": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RD" }] },
+        "E": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RE" }] }
+      },
+      "expect": {
+        "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A", "B", "C", "D", "E"] }],
+          "results": [{ "name": "RA", "by": ["A"], "readers": [] }, { "name": "RB", "by": ["B"], "readers": [] }, { "name": "RC", "by": ["C"], "readers": [] },
+            { "name": "RD", "by": ["D"], "readers": [] }, { "name": "RE", "by": ["E"], "readers": [] }] },
+        "deps": { "A": [], "B": [], "C": [], "D": [], "E": [] },
+        "checks": [{ "code": "FLOW_STRUCTURE", "severity": "REJECT", "message": "갈래가 pm에서 닫히지 않고 end로 나간다", "nodeId": "end" }]
+      }
+    },
+    {
+      "name": "흐름 — 룰의 들어오는 선이 0개면 1개 이상이어야 한다(N17)",
+      "flow": { "version": 1,
+        "nodes": [{ "id": "start", "kind": "START" }, { "id": "r1", "kind": "RULE", "ruleId": "A" }, { "id": "r2", "kind": "RULE", "ruleId": "B" }, { "id": "end", "kind": "END" }],
+        "edges": [{ "id": "e1", "from": "start", "to": "r1" }, { "id": "e2", "from": "r1", "to": "end" }, { "id": "e3", "from": "r2", "to": "end" }] },
+      "ids": ["A", "B"],
+      "rules": {
+        "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
+        "B": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RB" }] }
+      },
+      "expect": {
+        "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A", "B"] }], "results": [{ "name": "RA", "by": ["A"], "readers": [] }, { "name": "RB", "by": ["B"], "readers": [] }] },
+        "deps": { "A": [], "B": [] },
+        "checks": [{ "code": "FLOW_STRUCTURE", "severity": "REJECT", "message": "r2의 들어오는 선이 0개다. 1개 이상이어야 한다", "nodeId": "r2" }]
+      }
+    },
+    {
+      "name": "흐름 — IF 에 옛 합류가 둘이다(N18)",
+      "flow": { "version": 1,
+        "nodes": [{ "id": "start", "kind": "START" }, { "id": "if1", "kind": "IF" }, { "id": "a", "kind": "RULE", "ruleId": "A" }, { "id": "b", "kind": "RULE", "ruleId": "B" },
+          { "id": "c", "kind": "RULE", "ruleId": "C" }, { "id": "m1", "kind": "MERGE", "splitId": "if1" }, { "id": "m2", "kind": "MERGE", "splitId": "if1" }, { "id": "end", "kind": "END" }],
+        "edges": [{ "id": "e1", "from": "start", "to": "if1" }, { "id": "b1", "from": "if1", "to": "a", "order": 1, "cond": "X > 1" },
+          { "id": "b2", "from": "if1", "to": "b", "order": 2, "cond": "X > 2" }, { "id": "bo", "from": "if1", "to": "c", "otherwise": true },
+          { "id": "ea", "from": "a", "to": "m1" }, { "id": "eb", "from": "b", "to": "m1" }, { "id": "ec", "from": "c", "to": "m2" }, { "id": "em", "from": "m1", "to": "m2" },
+          { "id": "ee", "from": "m2", "to": "end" }] },
+      "ids": ["A", "B", "C"],
+      "rules": {
+        "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
+        "B": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RB" }] },
+        "C": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RC" }] }
+      },
+      "expect": {
+        "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A", "B", "C"] }],
+          "results": [{ "name": "RA", "by": ["A"], "readers": [] }, { "name": "RB", "by": ["B"], "readers": [] }, { "name": "RC", "by": ["C"], "readers": [] }] },
+        "deps": { "A": [], "B": [], "C": [] },
+        "checks": [{ "code": "FLOW_STRUCTURE", "severity": "REJECT", "message": "IF if1를 닫는 합류가 2개다. IF 는 합류를 두지 않는다", "nodeId": "if1" }]
+      }
+    },
+    {
+      "name": "흐름 — 모든 갈래가 따로 END 로 가는데 그 외가 END 직행이면 조건 갈래가 이어진다(N20)",
+      "flow": { "version": 1,
+        "nodes": [{ "id": "start", "kind": "START" }, { "id": "if1", "kind": "IF" }, { "id": "a", "kind": "RULE", "ruleId": "A" }, { "id": "end", "kind": "END" }],
+        "edges": [{ "id": "e1", "from": "start", "to": "if1" }, { "id": "b1", "from": "if1", "to": "a", "order": 1, "cond": "X > 0" },
+          { "id": "bo", "from": "if1", "to": "end", "otherwise": true }, { "id": "ea", "from": "a", "to": "end" }] },
+      "condIo": { "b1": { "ok": true, "message": null, "vars": [{ "name": "X", "source": "DICT" }] } },
+      "ids": ["A"],
+      "rules": { "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] } },
+      "expect": {
+        "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A"] }], "results": [{ "name": "RA", "by": ["A"], "readers": [] }] },
+        "deps": { "A": [] },
+        "checks": []
+      }
+    },
+    {
+      "name": "흐름 — 병렬 갈래 안 IF 의 그 외에 몸을 두어 END 로 보내면 조건 갈래가 끝내는 갈래가 되어 합류를 지난다(N21, S5)",
+      "flow": { "version": 1,
+        "nodes": [{ "id": "start", "kind": "START" }, { "id": "p1", "kind": "PARALLEL" }, { "id": "if1", "kind": "IF" }, { "id": "a", "kind": "RULE", "ruleId": "A" },
+          { "id": "e", "kind": "RULE", "ruleId": "E" }, { "id": "k", "kind": "RULE", "ruleId": "K" }, { "id": "pm", "kind": "MERGE", "splitId": "p1" }, { "id": "end", "kind": "END" }],
+        "edges": [{ "id": "e0", "from": "start", "to": "p1" }, { "id": "pa", "from": "p1", "to": "if1", "order": 1 }, { "id": "pb", "from": "p1", "to": "k", "order": 2 },
+          { "id": "d1", "from": "if1", "to": "a", "order": 1, "cond": "X > 0" }, { "id": "do", "from": "if1", "to": "e", "otherwise": true },
+          { "id": "ea", "from": "a", "to": "pm" }, { "id": "ee", "from": "e", "to": "end" }, { "id": "ek", "from": "k", "to": "pm" }, { "id": "ep", "from": "pm", "to": "end" }] },
+      "ids": ["A", "E", "K"],
+      "rules": {
+        "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
+        "E": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RE" }] },
+        "K": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RK" }] }
+      },
+      "expect": {
+        "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A", "E", "K"] }],
+          "results": [{ "name": "RA", "by": ["A"], "readers": [] }, { "name": "RE", "by": ["E"], "readers": [] }, { "name": "RK", "by": ["K"], "readers": [] }] },
+        "deps": { "A": [], "E": [], "K": [] },
+        "checks": [{ "code": "FLOW_STRUCTURE", "severity": "REJECT", "message": "갈래가 end에서 닫히지 않고 pm로 나간다", "nodeId": "pm" }]
+      }
+    },
+    {
+      "name": "받는 노드 — 처리 갈래가 아직 지나지 않은 다른 병렬의 합류를 지나면 돌아올 자리 문구로 멈춘다(N25, S9)",
+      "flow": { "version": 1,
+        "nodes": [{ "id": "start", "kind": "START" }, { "id": "if1", "kind": "IF" }, { "id": "r1", "kind": "RULE", "ruleId": "A" },
+          { "id": "c1", "kind": "CATCH", "attachTo": "r1", "catches": ["NO_RESULT"] }, { "id": "h", "kind": "RULE", "ruleId": "B" }, { "id": "p3", "kind": "PARALLEL" },
+          { "id": "a", "kind": "RULE", "ruleId": "C" }, { "id": "pm3", "kind": "MERGE", "splitId": "p3" }, { "id": "j", "kind": "RULE", "ruleId": "D" }, { "id": "end", "kind": "END" }],
+        "edges": [{ "id": "e1", "from": "start", "to": "if1" }, { "id": "b1", "from": "if1", "to": "r1", "order": 1, "cond": "X > 0" },
+          { "id": "bo", "from": "if1", "to": "p3", "otherwise": true }, { "id": "e2", "from": "r1", "to": "j" }, { "id": "ec", "from": "c1", "to": "h" },
+          { "id": "eh", "from": "h", "to": "pm3" }, { "id": "pa", "from": "p3", "to": "a", "order": 1 }, { "id": "pb", "from": "p3", "to": "pm3", "order": 2 },
+          { "id": "ea", "from": "a", "to": "pm3" }, { "id": "ep", "from": "pm3", "to": "j" }, { "id": "ej", "from": "j", "to": "end" }] },
+      "ids": ["A", "B", "C", "D"],
+      "rules": {
+        "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
+        "B": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RB" }] },
+        "C": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RC" }] },
+        "D": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RD" }] }
+      },
+      "expect": {
+        "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A", "B", "C", "D"] }],
+          "results": [{ "name": "RA", "by": ["A"], "readers": [] }, { "name": "RB", "by": ["B"], "readers": [] }, { "name": "RC", "by": ["C"], "readers": [] },
+            { "name": "RD", "by": ["D"], "readers": [] }] },
+        "deps": { "A": [], "B": [], "C": [], "D": [] },
+        "checks": [{ "code": "FLOW_STRUCTURE", "severity": "REJECT", "message": "처리 갈래 c1가 돌아올 자리 j나 끝에 닿지 않고 pm3로 나간다", "nodeId": "pm3" }]
+      }
+    },
+    {
+      "name": "흐름 — 바깥 새 형식 IF 안에서 안쪽 IF 의 그 외를 END 로 보내면 바깥 갈래도 끝내는 갈래가 되어 뒤에서 두 번 지난다(N26, 편차 F3)",
+      "flow": { "version": 1,
+        "nodes": [{ "id": "start", "kind": "START" }, { "id": "if1", "kind": "IF" }, { "id": "if2", "kind": "IF" }, { "id": "a", "kind": "RULE", "ruleId": "A" },
+          { "id": "e", "kind": "RULE", "ruleId": "E" }, { "id": "c", "kind": "RULE", "ruleId": "C" }, { "id": "x", "kind": "RULE", "ruleId": "F" }, { "id": "end", "kind": "END" }],
+        "edges": [{ "id": "e0", "from": "start", "to": "if1" }, { "id": "b1", "from": "if1", "to": "if2", "order": 1, "cond": "X > 0" },
+          { "id": "bo", "from": "if1", "to": "c", "otherwise": true }, { "id": "d1", "from": "if2", "to": "a", "order": 1, "cond": "X > 1" },
+          { "id": "do", "from": "if2", "to": "e", "otherwise": true }, { "id": "ea", "from": "a", "to": "x" }, { "id": "ee", "from": "e", "to": "end" },
+          { "id": "ec", "from": "c", "to": "x" }, { "id": "ex", "from": "x", "to": "end" }] },
+      "ids": ["A", "E", "C", "F"],
+      "rules": {
+        "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
+        "E": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RE" }] },
+        "C": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RC" }] },
+        "F": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RF" }] }
+      },
+      "expect": {
+        "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A", "E", "C", "F"] }],
+          "results": [{ "name": "RA", "by": ["A"], "readers": [] }, { "name": "RE", "by": ["E"], "readers": [] }, { "name": "RC", "by": ["C"], "readers": [] },
+            { "name": "RF", "by": ["F"], "readers": [] }] },
+        "deps": { "A": [], "E": [], "C": [], "F": [] },
+        "checks": [{ "code": "FLOW_STRUCTURE", "severity": "REJECT", "message": "x를 두 번 지난다. 순환이 있거나 갈래가 모이는 자리 밖에서 만난다", "nodeId": "x" }]
       }
     }
   ]

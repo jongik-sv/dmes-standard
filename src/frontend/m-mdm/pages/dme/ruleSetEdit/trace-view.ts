@@ -140,11 +140,11 @@ function scopePaths(flow: RuleSetFlow): {
       if (b.type === "RULE" || b.type === "TASK") paths.set(b.nodeId, path);
       else if (b.type === "SEQ") walk(b, path);
       else if (b.type === "GUARDED") {
-        paths.set(b.rule.nodeId, path);
-        guardRules.add(b.rule.nodeId);
+        paths.set(b.step.nodeId, path);
+        guardRules.add(b.step.nodeId);
         if (b.mergeId) {
           paths.set(b.mergeId, path);
-          guardMerges.set(b.mergeId, b.rule.nodeId);
+          guardMerges.set(b.mergeId, b.step.nodeId);
         }
         walk(b.normal, path);
         for (const h of b.handlers) {
@@ -153,7 +153,7 @@ function scopePaths(flow: RuleSetFlow): {
         }
       } else {
         paths.set(b.nodeId, path);
-        paths.set(b.mergeId, path);
+        if (b.mergeId) paths.set(b.mergeId, path);
         if (b.kind === "PARALLEL") branchEdges.set(b.nodeId, b.branches.map((br) => br.edgeId));
         for (const br of b.branches) walk(br.body, b.kind === "PARALLEL" ? [...path, { split: b.nodeId, edge: br.edgeId }] : path);
       }

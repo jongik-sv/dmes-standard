@@ -281,7 +281,7 @@ final class FlowRun {
 
     /** 받는 룰(받는 노드 spec §4). */
     private void guarded(Guarded g, Map<String, Object> ctx, Map<String, Object> made) {
-        RuleStep r = g.rule();
+        RuleStep r = (RuleStep) g.step(); // SEAM(T2): TASK 블록·돌아오는 자리(joinId)·IF 끝냄은 Task 2 가 실행한다
         Map<String, Object> outer = catchValues(ctx);
         RuleDefinition def = startRule(r, ctx, made);
         Map<String, Object> before = new LinkedHashMap<>(ctx);
@@ -453,7 +453,9 @@ final class FlowRun {
                     List.copyOf(curBranches), curChosen, null, null, null, null, null, null, null));
         }
         seq(chosen.body(), ctx, made);
-        merge(s, null, ctx, made);
+        if (s.mergeId() != null) {
+            merge(s, null, ctx, made);
+        }
     }
 
     private void parallel(Split s, Map<String, Object> ctx, Map<String, Object> made) {

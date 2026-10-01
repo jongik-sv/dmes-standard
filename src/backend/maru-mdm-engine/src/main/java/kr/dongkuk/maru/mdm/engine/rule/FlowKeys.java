@@ -22,6 +22,7 @@ import kr.dongkuk.maru.mdm.engine.flow.Guarded;
 import kr.dongkuk.maru.mdm.engine.flow.RuleStep;
 import kr.dongkuk.maru.mdm.engine.flow.Seq;
 import kr.dongkuk.maru.mdm.engine.flow.Split;
+import kr.dongkuk.maru.mdm.engine.flow.Step;
 import kr.dongkuk.maru.mdm.engine.flow.TaskStep;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.DataType;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.NodeKind;
@@ -168,7 +169,9 @@ final class FlowKeys {
                 case Guarded g -> {
                     Set<String> sureBefore = new HashSet<>(sure);
                     Set<String> maybeBefore = new HashSet<>(maybe);
-                    ruleKeys(g.rule(), g.handlerFor(CatchKind.INPUT_ERROR) != null, available, sure, maybe, reported, out);
+                    if (g.step() instanceof RuleStep r) {
+                        ruleKeys(r, g.handlerFor(CatchKind.INPUT_ERROR) != null, available, sure, maybe, reported, out);
+                    }
                     // ruleKeys 가 룰 결과를 sure 에 넣었다 — 받는 룰은 갈래 합류 규칙으로 다시 정한다.
                     sure.clear();
                     sure.addAll(sureBefore);
@@ -215,15 +218,18 @@ final class FlowKeys {
         maybe.removeAll(results);
     }
 
-    /** 룰 결과 이름(정의가 없으면 빈 집합). */
-    private Set<String> produced(RuleStep r) {
+    /** 단계 결과 이름 — 빈 단계·정의 없는 룰은 빈 집합. */
+    private Set<String> produced(Step s) {
+        if (!(s instanceof RuleStep r)) {
+            return new HashSet<>();
+        }
         RuleDefinition def = defs.get(r.ruleId());
         return def == null ? new HashSet<>() : new HashSet<>(RuleEvaluator.resultNames(def));
     }
 
     /** 받는 룰 뒤에 반드시 있는 이름 — (룰 결과 ∪ 정상 갈래) ∩ 돌아오는 처리 갈래(끝내는 갈래는 세지 않는다). */
     private Set<String> guardSure(Guarded g) {
-        Set<String> inter = produced(g.rule());
+        Set<String> inter = produced(g.step());
         inter.addAll(sureProduced(g.normal()));
         for (Guarded.Handler h : g.handlers()) {
             if (!h.ends()) {
@@ -235,7 +241,7 @@ final class FlowKeys {
 
     /** 받는 룰 뒤에 있을 수 있는 이름 — 룰 결과·정상 갈래·돌아오는 처리 갈래가 만들 수 있는 모든 이름. */
     private Set<String> guardAll(Guarded g) {
-        Set<String> any = produced(g.rule());
+        Set<String> any = produced(g.step());
         any.addAll(allProduced(g.normal()));
         for (Guarded.Handler h : g.handlers()) {
             if (!h.ends()) {

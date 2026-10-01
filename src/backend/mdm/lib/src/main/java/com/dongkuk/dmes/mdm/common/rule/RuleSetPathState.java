@@ -125,9 +125,11 @@ public final class RuleSetPathState {
         /** 받는 룰 — 받는 룰·정상 갈래 룰·처리 갈래 룰을 모두 적는다(룰 확정 형제 판정이 노드마다 직전 상태를 읽는다). */
         void guarded(Guarded g, At st) {
             At before = new At(new HashSet<>(st.defined()), new HashSet<>(st.maybe()));
-            out.putIfAbsent(g.rule().nodeId(), new At(Set.copyOf(st.defined()), Set.copyOf(st.maybe())));
+            if (g.step() instanceof RuleStep r) {
+                out.putIfAbsent(r.nodeId(), new At(Set.copyOf(st.defined()), Set.copyOf(st.maybe())));
+            }
             At normal = new At(new HashSet<>(st.defined()), new HashSet<>(st.maybe()));
-            Set<String> made = produces.apply(g.rule().ruleId());
+            Set<String> made = g.step() instanceof RuleStep r ? produces.apply(r.ruleId()) : null;
             if (made != null) {
                 normal.defined().addAll(made);
             }

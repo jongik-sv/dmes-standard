@@ -327,9 +327,13 @@ function pathChecks(tree: FlowTree, rules: RuleIoMap, condIo: CondIoMap, out: Ru
     }
   };
 
-  /** CATCH_NEVER(R12) — 처리 갈래 순서·받는 종류 저장 순서. 룰이 있고 RELEASED 가 있을 때만. */
+  /** CATCH_NEVER(R12, implicit-join spec §6) — 빈 단계는 받는 노드마다 한 줄, 룰은 처리 갈래 순서·받는 종류 저장 순서(룰이 있고 RELEASED 가 있을 때만). */
   const never = (g: Guarded) => {
-    const id = g.rule.ruleId;
+    if (g.step.type === "TASK") {
+      for (const h of g.handlers) out.push(check("CATCH_NEVER", "WARN", null, null, null, `${g.step.nodeId}는 빈 단계라 ${h.catchNodeId}가 받는 예외가 일어나지 않는다`, h.catchNodeId));
+      return;
+    }
+    const id = g.step.ruleId;
     const r = ruleOf(rules, id);
     if (!r || !r.exists || r.releasedVer == null) return;
     for (const h of g.handlers) {
@@ -348,7 +352,7 @@ function pathChecks(tree: FlowTree, rules: RuleIoMap, condIo: CondIoMap, out: Ru
   /** 받는 룰 — 서버 `RuleSetAnalyzer.PathWalk.guarded` 와 같은 순서·합류 규칙. */
   const guarded = (g: Guarded, s: PathState) => {
     const before = copyState(s);
-    rule(g.rule, s);
+    if (g.step.type === "RULE") rule(g.step, s);
     never(g);
     const normal = copyState(s);
     walk(g.normal, normal);

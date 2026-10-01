@@ -95,4 +95,11 @@ public final class FlowFixtures {
                         br("b1", "if1", "a", 1, "X > 0"), other("bo", "if1", "m1"), e("ea", "a", "m1"),
                         e("em", "m1", "pm"), e("eb", "b", "pm"), e("ee", "pm", "end")));
     }
+
+    /** 새 형식 IF(implicit-join spec §1) — start → if1 [b1 "X > 10" → a(R_A)] [b2 "X > 0" → b(R_B)] [그 외 bo → c(R_C)] → j(빈 단계) → end. */
+    public static FlowDefinition ifFlowNew() {
+        return flow(List.of(start(), ifNode("if1"), rule("a", "R_A"), rule("b", "R_B"), rule("c", "R_C"), task("j"), end()),
+                List.of(e("e0", "start", "if1"), br("b1", "if1", "a", 1, "X > 10"), br("b2", "if1", "b", 2, "X > 0"), other("bo", "if1", "c"),
+                        e("ea", "a", "j"), e("eb", "b", "j"), e("ec", "c", "j"), e("ej", "j", "end")));
+    }
 }
