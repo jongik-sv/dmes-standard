@@ -12,7 +12,7 @@
  * - 몸통 받기 `body`(편집 모드만, START 제외): 노드 전체를 덮는 투명 target. 평소에는 누름을 받지 않고(노드 끌기·누르기·우클릭이 그대로) 연결을 끄는 동안에만
  *   받는다(React Flow 가 붙이는 `connectionindicator` 클래스) — 몸통 어디에 놓아도 이어진다.
  */
-import { useContext, useRef, useState, type MouseEvent } from "react";
+import { useContext, useRef, useState, type CSSProperties, type HTMLAttributes, type MouseEvent, type ReactNode } from "react";
 
 import { IconExternalLink, IconPencil } from "@tabler/icons-react";
 
@@ -20,9 +20,10 @@ import type { FlowNode } from "@/contract/engine-contract.generated";
 
 import { TASK_LABEL, type FlowNote } from "../flow-edit";
 import { NODE_SIZE } from "../flow-layout";
-import type { NodeSize, NodeStyle } from "../node-style";
+import { NODE_H_MIN, NODE_ICON_LABEL, type NodeSize, type NodeStyle } from "../node-style";
 import type { RuleIo, VarDisplay } from "../types";
 import { GROUP_GRIPS, GroupSizeContext, type GroupGrip } from "./group-size";
+import { NODE_ICON_COMPONENT } from "./node-icons";
 import type { NodeOverlay } from "./overlay";
 import { Handle, Position, type Node, type NodeProps, type NodeTypes } from "./react-flow";
 
@@ -77,6 +78,48 @@ const KIND_CLASS: Record<string, string> = {
   MERGE: "rsf-merge",
 };
 
+/** 제목 줄 높이·작은 줄 높이·위아래 여백(styles/base.ts 의 .rsf-title 16px·.rsf-sub/.rsf-id 15px·padding 6px). */
+const TITLE_LINE = 16;
+const SMALL_LINE = 15;
+const PAD_Y = 12;
+/**
+ * 제목 줄 수(S-D11, 계획 Ruling 15) — 기본 높이면 1(한 줄 말줄임), 더 높으면 남는 높이를 제목 줄 높이로 나눈 수(1 이상).
+ * smallRows 는 보이는 작은 줄(종류·정책·룰 ID·안내) 수다.
+ */
+export function titleLines(h: number, smallRows: number): number {
+  if (h <= NODE_H_MIN) return 1;
+  return Math.max(1, Math.floor((h - PAD_Y - smallRows * SMALL_LINE) / TITLE_LINE));
+}
+
+/** 아이콘(있으면) + 제목. 여러 줄이면 data-lines 와 줄 수 `--rsf-lines`(CSS 가 line-clamp 로 쓴다). 제목 칸의 testid·두 번 누르기는 그대로 넘긴다. */
+function TitleRow({ nodeId, style, lines, titleProps, children }: {
+  nodeId: string;
+  style: NodeStyle | undefined;
+  lines: number;
+  titleProps?: HTMLAttributes<HTMLDivElement> & { "data-testid"?: string };
+  children: ReactNode;
+}) {
+  const Icon = style?.icon ? NODE_ICON_COMPONENT[style.icon] : null;
+  const multi = lines > 1;
+  return (
+    <div className="rsf-title-row">
+      {Icon && style?.icon && (
+        <span className="rsf-node-icon" data-testid={`flow-node-icon-${nodeId}`} data-icon={style.icon} title={NODE_ICON_LABEL[style.icon]}>
+          <Icon size={16} aria-hidden="true" />
+        </span>
+      )}
+      <div
+        {...titleProps}
+        className={`rsf-title${titleProps?.className ? ` ${titleProps.className}` : ""}`}
+        data-lines={multi ? lines : undefined}
+        style={multi ? ({ "--rsf-lines": lines } as CSSProperties) : undefined}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function Badges({ id, overlay }: { id: string; overlay: NodeOverlay | undefined }) {
   if (!overlay) return null;
   const showSeq = overlay.seq != null && (overlay.state === "run" || overlay.state === "current" || overlay.state === "error");
@@ -89,7 +132,8 @@ function Badges({ id, overlay }: { id: string; overlay: NodeOverlay | undefined 
 }
 
 function RuleBody({ data }: { data: FlowNodeData }) {
-  const { node, io, mark, onOpenRule, varDisplay } = data;
+  const { node, io, mark, onOpenRule, varDisplay, style } = data;
+  const hide = new Set(style?.hide ?? []);
   const ruleId = node.ruleId ?? "";
   const missing = !io || !io.exists;
   const open = (e: MouseEvent) => {
@@ -100,21 +144,26 @@ function RuleBody({ data }: { data: FlowNodeData }) {
   const idMode = !missing && varDisplay === "id";
   const title = missing ? "(없는 룰)" : idMode ? ruleId : (io.ruleName ?? ruleId);
   const small = idMode ? (io.ruleName ?? "") : ruleId;
+  const showSub = !hide.has("sub");
+  const showId = small !== "" && !hide.has("id");
+  const lines = titleLines(style?.h ?? NODE_H_MIN, (showSub ? 1 : 0) + (showId ? 1 : 0));
   return (
     <>
-      <div className="rsf-title">{title}</div>
-      <div className="rsf-sub">{missing ? "룰 정보를 찾지 못했다" : [io.ruleKind, io.hitPolicy].filter(Boolean).join(" · ")}</div>
-      {small !== "" && <div className="rsf-id">{small}</div>}
-      <button
-        type="button"
-        className="rsf-open nodrag"
-        data-testid={`flow-rule-open-${node.id}`}
-        aria-label="룰 편집 열기"
-        title="룰 편집 열기"
-        onClick={open}
-      >
-        <IconExternalLink size={12} />
-      </button>
+      <TitleRow nodeId={node.id} style={style} lines={lines}>{title}</TitleRow>
+      {showSub && <div className="rsf-sub">{missing ? "룰 정보를 찾지 못했다" : [io.ruleKind, io.hitPolicy].filter(Boolean).join(" · ")}</div>}
+      {showId && <div className="rsf-id">{small}</div>}
+      {!hide.has("open") && (
+        <button
+          type="button"
+          className="rsf-open nodrag"
+          data-testid={`flow-rule-open-${node.id}`}
+          aria-label="룰 편집 열기"
+          title="룰 편집 열기"
+          onClick={open}
+        >
+          <IconExternalLink size={12} />
+        </button>
+      )}
       {mark && <span className="rsf-mark" data-severity={mark} data-testid={`flow-node-mark-${node.id}`} title={mark === "REJECT" ? "거부 검사 있음" : "경고 검사 있음"} />}
     </>
   );
@@ -126,7 +175,9 @@ function RuleBody({ data }: { data: FlowNodeData }) {
  * 제목 줄에 `nopan` 을 달아 두 번 누르기가 화면 확대(React Flow zoomOnDoubleClick)로 새지 않게 한다. 노드 끌기는 그대로다(`nodrag` 없음).
  */
 function TaskBody({ data }: { data: FlowNodeData }) {
-  const { node, mark, onRenameTask } = data;
+  const { node, mark, onRenameTask, style } = data;
+  const showSub = !(style?.hide ?? []).includes("sub");
+  const lines = titleLines(style?.h ?? NODE_H_MIN, showSub ? 1 : 0);
   const title = node.label ?? TASK_LABEL;
   const [draft, setDraft] = useState<string | null>(null);
   /** 칸이 열려 있는가 — Enter 로 닫은 뒤 칸이 빠지며 오는 blur 가 한 번 더 저장하지 않게 ref 로 막는다. */
@@ -172,23 +223,26 @@ function TaskBody({ data }: { data: FlowNodeData }) {
           onBlur={() => close(true)}
         />
       ) : (
-        <div
-          className="rsf-title nopan"
-          data-testid={`flow-task-title-${node.id}`}
-          title={onRenameTask ? "두 번 눌러 제목을 고친다" : undefined}
-          onDoubleClick={
-            onRenameTask
+        <TitleRow
+          nodeId={node.id}
+          style={style}
+          lines={lines}
+          titleProps={{
+            className: "nopan",
+            "data-testid": `flow-task-title-${node.id}`,
+            title: onRenameTask ? "두 번 눌러 제목을 고친다" : undefined,
+            onDoubleClick: onRenameTask
               ? (e: MouseEvent) => {
                   e.stopPropagation();
                   open();
                 }
-              : undefined
-          }
+              : undefined,
+          }}
         >
           {title}
-        </div>
+        </TitleRow>
       )}
-      <div className="rsf-sub">빈 단계 — 룰을 지정하면 룰 노드가 된다</div>
+      {showSub && <div className="rsf-sub">빈 단계 — 룰을 지정하면 룰 노드가 된다</div>}
       {mark && <span className="rsf-mark" data-severity={mark} data-testid={`flow-node-mark-${node.id}`} />}
     </>
   );
@@ -295,10 +349,20 @@ export const EDITED_NODE_TITLE = "이 노드 직전에 값을 고쳤다";
 export function FlowNodeView({ data, isConnectable }: NodeProps<FlowRfNode>) {
   const { node, overlay, selected, flash, mark, collapsed } = data;
   const kind = node.kind;
+  const st = collapsed ? undefined : data.style;
   const stateCls = overlay ? STATE_CLASS[overlay.state] : undefined;
   const cls = `rsf-node ${collapsed ? "rsf-block" : KIND_CLASS[kind]}${stateCls ? ` ${stateCls}` : ""}${flash ? " rsf-flash" : ""}${data.dropTarget ? " rsf-node-drop" : ""}`;
   return (
-    <div className={cls} data-testid={`flow-node-${node.id}`} data-state={overlay?.state ?? "idle"} data-selected={selected ? "true" : "false"} data-kind={kind}>
+    <div
+      className={cls}
+      data-testid={`flow-node-${node.id}`}
+      data-state={overlay?.state ?? "idle"}
+      data-selected={selected ? "true" : "false"}
+      data-kind={kind}
+      data-color={st?.color}
+      data-shape={st?.shape}
+      data-no-open={kind === "RULE" && st?.hide?.includes("open") ? "true" : undefined}
+    >
       {kind !== "START" && <Handle id={ANCHOR_IN} type="target" position={Position.Top} className="rsf-anchor" isConnectableStart={false} />}
       <BreakpointDot data={data} />
       {collapsed && <CollapsedBody data={data} info={collapsed} />}

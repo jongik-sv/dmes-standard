@@ -4,6 +4,8 @@
  * 어두운 화면 값은 Mantine 이 붙이는 `[data-mantine-color-scheme="dark"]` 에 둔다 — 앱은 지금 밝은 테마만 쓴다(계획 Ruling 4).
  * `:root` 의 사용자 정의 속성은 `:root` 에서 풀리므로 `.rsf-canvas` 에만 있는 `--rsf-node-bg`·`--rsf-border` 를 섞지 않는다.
  */
+import { NODE_COLORS } from "../node-style";
+
 const PALETTE = `
 :root {
   --rsf-c-blue-border: var(--color-primary);
@@ -35,4 +37,34 @@ const PALETTE = `
 }
 `;
 
-export const NODE_STYLE_CSS = PALETTE;
+/**
+ * 노드 규칙(계획 Task 2, Ruling 7) — 색·모양은 `.rsf-node:where([…])` 로 우선순위 (0,1,0)이다. base(`.rsf-node`) 뒤에 와서 기본 테두리는 이기고,
+ * 상태 규칙(선택·디버그·끌어 놓기 대상·hover, 모두 0,2,0)에는 진다(S-D3). `--rsf-border` 는 바꾸지 않는다 — pending 이 그 회색을 쓴다.
+ * 채움은 `--rsf-node-bg` 를 노드에서 다시 정해 검사 점 테두리·값 고침 표시도 같은 채움을 따른다. 한 변 색 바는 쓰지 않는다(Local-Rules §8).
+ */
+const COLOR_RULES = NODE_COLORS.filter((c) => c !== "default")
+  .map((c) => `.rsf-node:where([data-color="${c}"]) { --rsf-node-bg: var(--rsf-c-${c}-bg); border-color: var(--rsf-c-${c}-border); }`)
+  .join("\n");
+
+const NODE_RULES = `
+${COLOR_RULES}
+.rsf-node:where([data-shape="square"]) { border-radius: 0; }
+.rsf-node:where([data-shape="pill"]) { border-radius: 999px; padding-left: 16px; padding-right: 34px; }
+.rsf-node.rsf-task:where([data-shape="pill"]) { padding-left: 16px; padding-right: 16px; } /* .rsf-node.rsf-task(0,2,0)의 padding 을 이기려고 같은 우선순위로 */
+.rsf-node.rsf-rule[data-no-open="true"] { padding-right: 10px; }
+.rsf-node.rsf-rule[data-no-open="true"]:where([data-shape="pill"]) { padding-right: 16px; } /* 위 규칙(0,3,0)이 알약의 34px 를 이기므로 알약+열기 숨김은 둥근 끝 여백(16px)으로 되돌린다 */
+.rsf-node:where([data-shape="pill"]) .rsf-open { right: 10px; }
+
+/* 아이콘 + 제목 한 줄(아이콘은 제목 첫 줄에 맞춘다) */
+.rsf-title-row { display: flex; align-items: flex-start; gap: 4px; min-width: 0; }
+.rsf-title-row > .rsf-title { flex: 1 1 auto; min-width: 0; }
+.rsf-node-icon { flex: none; display: inline-flex; width: 16px; height: 16px; color: var(--color-text-secondary); }
+
+/* 높이를 키운 노드의 제목 — 줄바꿈하고 남는 줄 수만큼 보인 뒤 말줄임(S-D11). 줄 수는 노드가 인라인 --rsf-lines 로 준다. */
+.rsf-title[data-lines] {
+  white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--rsf-lines); line-clamp: var(--rsf-lines); overflow: hidden;
+}
+`;
+
+export const NODE_STYLE_CSS = [PALETTE, NODE_RULES].join("\n");
