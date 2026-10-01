@@ -197,6 +197,17 @@ be_module_gradlew() {
   fi
 }
 
+# 모듈별 bootRun 인자. mdm 은 빈 DB(처음 받은 체크아웃)에만 로컬 샘플 데이터를 한 번 넣는다
+# (MdmLocalSampleLoader — 용어 사전이 비어 있을 때만, 이미 쓰던 DB 는 건드리지 않는다). 끄려면 MDM_SAMPLE=0.
+# 경로는 bootRun 작업 디렉터리(src/backend/mdm) 기준이다. 자동 테스트·E2E 는 이 스크립트를 거치지 않아 영향이 없다.
+be_module_boot_args() {
+  local args='--spring.profiles.active=local'
+  if [ "$1" = "mdm" ] && [ "${MDM_SAMPLE:-1}" != "0" ]; then
+    args="$args --mdm.sample.path=sample/mdm-local-sample.sql"
+  fi
+  printf '%s' "$args"
+}
+
 be_selected_contains() {
   local m
   for m in "${SELECTED_MODULES[@]:-}"; do
@@ -624,7 +635,7 @@ trap 'cleanup EXIT' EXIT
 # ── 백엔드 실행 ─────────────────────────────────────────────
 for m in "${SELECTED_MODULES[@]}"; do
   run_with_prefix "be-$m" "$BACKEND_DIR/$m" \
-    "$(be_module_gradlew "$m")" :api:bootRun --args='--spring.profiles.active=local' --console=plain
+    "$(be_module_gradlew "$m")" :api:bootRun --args="$(be_module_boot_args "$m")" --console=plain
 done
 
 dev_log_print "be" "기동 대상: $(printf '%s ' "${SELECTED_MODULES[@]}")"

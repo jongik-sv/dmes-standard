@@ -6,8 +6,12 @@
 --          Flyway 마이그레이션이 아니다 — db/migration 폴더에 두지 않는다.
 -- 값 원천: docs/mdm/design/basic/html/02~06 기본설계 시안의 표·목업 값. 시안에 없는 값만 같은 맥락으로 보충했다.
 --          식의 AST(STD_AST·BIZ_AST·GRP_COND_AST·Expression 셀 ast)는 실행 중인 mdm 백엔드 엔진이 만든 값이다.
--- 전제   : mdm 을 한 번 기동해 Flyway V1~V12 가 적용된 mdm.db. TB_MDM_SYSTEM 6행(V2 시드) 외 원장 테이블이 비어 있을 때 넣는다.
--- 적재   : (저장소 루트에서)
+-- 전제   : mdm 을 한 번 기동해 Flyway 가 적용된 mdm.db(2026-10-01 V15 기준 확인). TB_MDM_SYSTEM 6행(V2 시드) 외 원장 테이블이 비어 있을 때 넣는다.
+-- 자동   : ./be-run.sh(local-run.sh) 로 mdm 을 띄우면 Flyway 뒤 용어 사전(TB_MDM_TERM)이 비어 있을 때만 이 파일을 한 번 넣는다
+--          (MdmLocalSampleLoader, mdm.sample.path). 이미 쓰던 DB 는 건드리지 않는다. 끄려면 MDM_SAMPLE=0 ./be-run.sh --mdm.
+--          자동 적재는 아래 sqlite3 전용 줄(.bail·.timeout)과 BEGIN/COMMIT 을 빼고 한 트랜잭션으로 넣는다.
+--          MdmLocalSampleStrictTest 가 최신 마이그레이션에 OR IGNORE 없이 넣어 보므로, 스키마가 바뀌어 깨지면 테스트가 알린다.
+-- 적재   : 수동으로 넣을 때(저장소 루트에서)
 --            cp src/backend/data/mdm.db /tmp/mdm.db.bak        # 먼저 백업
 --            sqlite3 src/backend/data/mdm.db < src/backend/mdm/sample/mdm-local-sample.sql
 --            sqlite3 src/backend/data/mdm.db "PRAGMA foreign_key_check;"   # 빈 결과여야 한다

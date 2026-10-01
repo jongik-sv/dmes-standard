@@ -67,6 +67,9 @@ tasks.named('test') {
     inputs.files(rootProject.file('lib/src/test/resources/com/dongkuk/dmes/mdm/common/rule/rule-set-corpus.json'),
                 rootProject.file('lib/src/test/resources/com/dongkuk/dmes/mdm/common/rule/rule-set-fuzz.json'))
             .withPropertyName('ruleSetCorpusAndFuzz').withPathSensitivity(PathSensitivity.RELATIVE)
+    // MdmLocalSample*Test — 로컬 샘플 SQL(리소스가 아니라 파일 경로로 읽는다)
+    inputs.files(rootProject.file('sample/mdm-local-sample.sql'))
+            .withPropertyName('mdmLocalSample').withPathSensitivity(PathSensitivity.RELATIVE)
     // *OasisHttpTest·MdmSecurityChainTest 등 — 클라이언트 키, application.yml 의 JWT 비밀 기본값을 덮는 환경 변수
     inputs.property('env.BACKEND_CLIENT_KEY.sha256', rootProject.mdmEnvFingerprint.call('BACKEND_CLIENT_KEY'))
     inputs.property('env.CACTUS_JWT_SECRET.sha256', rootProject.mdmEnvFingerprint.call('CACTUS_JWT_SECRET'))
