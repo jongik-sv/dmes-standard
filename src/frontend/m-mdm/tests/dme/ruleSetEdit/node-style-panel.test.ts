@@ -90,22 +90,14 @@ describe("오른쪽 패널 「외관」 섹션(S-D9)", () => {
     expect(q("flow-section-node-style")).toBeNull();
   });
 
-  it("색 견본 — 누르면 편집 한 번(되돌리기 한 칸), aria-pressed 가 따르고 저장 JSON 에 실린다. [기본]은 칸 지우기", async () => {
+  it("색 견본은 패널에 없다 — 색은 노드 우클릭 메뉴 「색상」으로 옮겼다(C1)", async () => {
     await openSet("NP_2", viewOf("NP_2"));
     await click("flow-mode-edit");
     await click("flow-node-r1");
-    expect(pressed("flow-style-color-default")).toBe("true");
-    await click("flow-style-color-purple");
-    expect(pressed("flow-style-color-purple")).toBe("true");
-    expect(pressed("flow-style-color-default")).toBe("false");
-    await click("flow-style-color-default");
-    expect(pressed("flow-style-color-default")).toBe("true");
-    await click("flow-undo");
-    expect(pressed("flow-style-color-purple")).toBe("true");
-    await click("flow-undo");
-    expect(undoDisabled()).toBe(true); // 두 번 = 두 칸
-    await click("flow-style-color-purple");
-    expect((await saved()).view.styles).toEqual({ r1: { color: "purple" } });
+    expect(q("flow-section-node-style")).not.toBeNull();
+    expect(document.querySelector('[data-testid^="flow-style-color-"]')).toBeNull();
+    expect(document.querySelector(".rsf-style-swatch")).toBeNull();
+    expect(q("flow-style-icon-none")).not.toBeNull(); // 나머지 조작은 그대로
   });
 
   it("아이콘·모양·표시 항목 — 조작마다 편집 한 번(되돌리기 한 칸씩)", async () => {
@@ -197,14 +189,14 @@ describe("오른쪽 패널 「외관」 섹션(S-D9)", () => {
     await click("flow-style-size-reset");
     expect((byTestId("flow-style-size-reset") as HTMLButtonElement).disabled).toBe(true);
     expect(byTestId<HTMLInputElement>("flow-style-w").value).toBe("232");
-    expect(pressed("flow-style-color-blue")).toBe("true"); // 색은 남는다
-    await click("flow-style-reset");
+    await click("flow-style-reset"); // 색도 지운다
     expect((byTestId("flow-style-reset") as HTMLButtonElement).disabled).toBe(true);
-    expect(pressed("flow-style-color-default")).toBe("true");
+    expect(byTestId("flow-node-r1").hasAttribute("data-color")).toBe(false);
     await click("flow-undo");
     await click("flow-undo");
     expect(undoDisabled()).toBe(true); // 두 번 = 두 칸
     expect(byTestId<HTMLInputElement>("flow-style-w").value).toBe("400");
+    expect(byTestId("flow-node-r1").getAttribute("data-color")).toBe("blue");
     await click("flow-style-size-reset");
     expect((await saved()).view.styles).toEqual({ r1: { color: "blue" } });
   });

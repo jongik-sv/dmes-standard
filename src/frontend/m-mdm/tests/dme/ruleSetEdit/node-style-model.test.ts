@@ -6,7 +6,7 @@ import {
   removeBranch, removeNode, setNodeStyle, toEditFlow, type EditFlow, type EditResult,
 } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { autoArrange } from "../../../pages/dme/ruleSetEdit/flow-layout";
-import { NODE_H_MAX, NODE_W_MAX, mergeNodeStyle, normalizeNodeStyle, stylesFor } from "../../../pages/dme/ruleSetEdit/node-style";
+import { NODE_COLORS, NODE_COLOR_LABEL, NODE_H_MAX, NODE_W_MAX, mergeNodeStyle, normalizeNodeStyle, stylesFor } from "../../../pages/dme/ruleSetEdit/node-style";
 import { NODE_STYLE_CSS } from "../../../pages/dme/ruleSetEdit/styles/node-style";
 
 function ok(r: EditResult): EditFlow {
@@ -89,17 +89,40 @@ describe("view.styles 코덱(S-D1)", () => {
     expect(toEditFlow(raw as never, []).view.styles).toEqual({ r1: { color: "purple", w: 640 } });
   });
 
-  it("팔레트 토큰 — 여섯 색 모두 채움·테두리 토큰이 :root 와 어두운 화면에 있고 16진수·rgb() 가 없다", () => {
+  it("팔레트는 Camunda 와 같은 6색(기본·파랑·주황·초록·빨강·보라) — 노랑은 없고 저장돼 있던 yellow 는 버려진다(C2)", () => {
+    expect(NODE_COLORS).toEqual(["default", "blue", "orange", "green", "red", "purple"]);
+    expect(Object.keys(NODE_COLOR_LABEL)).toEqual([...NODE_COLORS]);
+    expect(normalizeNodeStyle({ color: "yellow" })).toBeNull();
+    expect(normalizeNodeStyle({ color: "yellow", h: 100 })).toEqual({ h: 100 });
+  });
+
+  it("팔레트 토큰 — 다섯 색 모두 채움·테두리 토큰이 :root 와 어두운 화면에 있고 노랑·16진수·rgb() 가 없다", () => {
     const css = NODE_STYLE_CSS.replace(/\s+/g, " ");
     const light = /:root \{([^}]*)\}/.exec(css)![1];
     const dark = /:root\[data-mantine-color-scheme="dark"\] \{([^}]*)\}/.exec(css)![1];
-    for (const c of ["blue", "green", "yellow", "orange", "red", "purple"]) {
+    for (const c of ["blue", "orange", "green", "red", "purple"]) {
       for (const part of ["bg", "border"]) {
         expect(light).toContain(`--rsf-c-${c}-${part}:`);
         expect(dark).toContain(`--rsf-c-${c}-${part}:`);
       }
     }
     expect(css).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(|prefers-color-scheme/);
+    expect(css).not.toContain("yellow");
+  });
+
+  it("진하게(C3) — 채움은 기준색 25~30% 를 배경에, 테두리는 기준색 60~70% 를 글자색(--color-text)에 섞는다", () => {
+    const css = NODE_STYLE_CSS.replace(/\s+/g, " ");
+    const light = /:root \{([^}]*)\}/.exec(css)![1];
+    for (const c of ["blue", "orange", "green", "red", "purple"]) {
+      const bg = new RegExp(`--rsf-c-${c}-bg: color-mix\\(in srgb, (.+) (\\d+)%, var\\(--color-bg\\)\\);`).exec(light);
+      expect(bg, `${c} bg`).not.toBeNull();
+      expect(Number(bg![2])).toBeGreaterThanOrEqual(25);
+      expect(Number(bg![2])).toBeLessThanOrEqual(30);
+      const border = new RegExp(`--rsf-c-${c}-border: color-mix\\(in srgb, (.+) (\\d+)%, var\\(--color-text\\)\\);`).exec(light);
+      expect(border, `${c} border`).not.toBeNull();
+      expect(Number(border![2])).toBeGreaterThanOrEqual(60);
+      expect(Number(border![2])).toBeLessThanOrEqual(70);
+    }
   });
 });
 
@@ -142,8 +165,8 @@ describe("노드 연산과 외관(S-D10·S-D12)", () => {
   it("빈 단계에 룰을 지정해도(같은 노드 ID) 외관이 남는다", () => {
     let f = ok(insertTask(base(), "e2"));
     const id = f.edges.find((e) => e.id === "e2")!.to;
-    f = styled(f, id, { color: "yellow", h: 120 });
-    expect(ok(assignRule(f, id, "NS_C")).view.styles).toEqual({ [id]: { color: "yellow", h: 120 } });
+    f = styled(f, id, { color: "orange", h: 120 });
+    expect(ok(assignRule(f, id, "NS_C")).view.styles).toEqual({ [id]: { color: "orange", h: 120 } });
   });
 
   it("복사·붙여넣기·복제는 새 ID 로 외관을 옮기고 원본 외관은 그대로", () => {

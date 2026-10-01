@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * 오른쪽 패널 「외관」 섹션 본문(S1 §3) — 룰·빈 단계 노드 하나의 색·아이콘·모양·표시 항목·크기. 조작 하나가 편집 한 번이다(되돌리기 한 칸).
- * 색 견본·아이콘·모양은 누름 단추(aria-pressed), 표시 항목은 체크, 크기는 숫자 칸(Enter·칸 밖 누르기에 저장, 계획 Ruling 6).
+ * 오른쪽 패널 「외관」 섹션 본문(S1 §3) — 룰·빈 단계 노드 하나의 아이콘·모양·표시 항목·크기. 조작 하나가 편집 한 번이다(되돌리기 한 칸).
+ * 아이콘·모양은 누름 단추(aria-pressed), 표시 항목은 체크, 크기는 숫자 칸(Enter·칸 밖 누르기에 저장, 계획 Ruling 6).
  * shared 에 SegmentedControl·NumberInput·Tooltip 래퍼가 없고 화면은 `@mantine/*` 를 import 하지 않는다 — 툴팁은 title.
- * 색 견본은 캔버스와 같은 팔레트 토큰(`--rsf-c-{색}-bg|border`, styles/node-style.ts 의 :root)을 쓴다.
+ * 색은 여기 없다 — 노드 우클릭 메뉴 「색상」에서 고른다(Task 6, C1). [외관 초기화]는 색도 지운다.
  */
 import { useRef, useState } from "react";
 
@@ -13,7 +13,7 @@ import { Button, Checkbox, Input } from "@dk-oasis/shared/form";
 
 import { NODE_ICON_COMPONENT } from "../canvas/node-icons";
 import {
-  NODE_COLORS, NODE_COLOR_LABEL, NODE_H_MAX, NODE_H_MIN, NODE_ICONS, NODE_ICON_LABEL, NODE_PARTS, NODE_PART_LABEL, NODE_SHAPE_CHOICES,
+  NODE_H_MAX, NODE_H_MIN, NODE_ICONS, NODE_ICON_LABEL, NODE_PARTS, NODE_PART_LABEL, NODE_SHAPE_CHOICES,
   NODE_SHAPE_LABEL, NODE_W_MAX, NODE_W_MIN, TASK_SUB_LABEL, type NodePart, type NodeStyle, type NodeStylePatch,
 } from "../node-style";
 
@@ -77,7 +77,6 @@ function SizeField({ label, testId, value, min, max, disabled, onCommit }: {
 }
 
 export function NodeStylePanel({ node, style, disabled, onChange }: NodeStylePanelProps) {
-  const color = style?.color ?? "default";
   const shape = style?.shape ?? "round";
   const hide = style?.hide ?? [];
   const w = style?.w ?? NODE_W_MIN;
@@ -86,26 +85,6 @@ export function NodeStylePanel({ node, style, disabled, onChange }: NodeStylePan
   const partLabel = (p: NodePart) => (node.kind === "TASK" && p === "sub" ? TASK_SUB_LABEL : NODE_PART_LABEL[p]);
   return (
     <div className="rsf-style" data-testid="flow-style">
-      <div className="rsf-style-row">
-        <span className="rsf-style-label">색</span>
-        <div className="rsf-style-swatches" role="group" aria-label="색">
-          {NODE_COLORS.map((c) => (
-            <button
-              key={c}
-              type="button"
-              className="rsf-style-swatch"
-              data-color={c}
-              data-testid={`flow-style-color-${c}`}
-              aria-pressed={color === c}
-              aria-label={NODE_COLOR_LABEL[c]}
-              title={NODE_COLOR_LABEL[c]}
-              disabled={disabled}
-              onClick={() => onChange({ color: c === "default" ? null : c })}
-            />
-          ))}
-        </div>
-      </div>
-
       <div className="rsf-style-row">
         <span className="rsf-style-label">아이콘</span>
         <div className="rsf-style-icons" role="group" aria-label="아이콘">
