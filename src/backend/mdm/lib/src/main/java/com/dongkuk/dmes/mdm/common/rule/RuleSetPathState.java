@@ -7,9 +7,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import kr.dongkuk.maru.mdm.engine.expr.ReservedNames;
 import kr.dongkuk.maru.mdm.engine.flow.Block;
 import kr.dongkuk.maru.mdm.engine.flow.Branch;
 import kr.dongkuk.maru.mdm.engine.flow.FlowTree;
+import kr.dongkuk.maru.mdm.engine.flow.Guarded;
 import kr.dongkuk.maru.mdm.engine.flow.RuleStep;
 import kr.dongkuk.maru.mdm.engine.flow.Seq;
 import kr.dongkuk.maru.mdm.engine.flow.Split;
@@ -23,6 +25,7 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.NodeKind;
  * <ul>
  *   <li>IF: {@code defined = base.defined ∪ ⋂ 갈래 defined}, {@code maybe = base.maybe ∪ ⋃ 갈래 maybe ∪ (⋃ 갈래 defined − defined)}</li>
  *   <li>PARALLEL: {@code defined = base.defined ∪ ⋃ 갈래 defined}, {@code maybe = base.maybe ∪ ⋃ 갈래 maybe}</li>
+ *   <li>받는 룰: 정상 갈래는 룰 결과 뒤, 처리 갈래는 룰 직전 상태 + CATCH_* 에서 시작하고 끝나면 CATCH_* 를 뺀다. 합류는 IF 규칙(끝내는 처리 갈래 제외).</li>
  * </ul>
  */
 public final class RuleSetPathState {
@@ -99,6 +102,8 @@ public final class RuleSetPathState {
                     if (made != null) {
                         st.defined().addAll(made);
                     }
+                } else if (b instanceof Guarded g) {
+                    guarded(g, st);
                 } else if (b instanceof Split sp) {
                     List<At> outs = new ArrayList<>();
                     for (Branch br : sp.branches()) {
@@ -115,6 +120,33 @@ public final class RuleSetPathState {
                     seq(q, st);
                 }
             }
+        }
+
+        /** 받는 룰 — 받는 룰·정상 갈래 룰·처리 갈래 룰을 모두 적는다(룰 확정 형제 판정이 노드마다 직전 상태를 읽는다). */
+        void guarded(Guarded g, At st) {
+            At before = new At(new HashSet<>(st.defined()), new HashSet<>(st.maybe()));
+            out.putIfAbsent(g.rule().nodeId(), new At(Set.copyOf(st.defined()), Set.copyOf(st.maybe())));
+            At normal = new At(new HashSet<>(st.defined()), new HashSet<>(st.maybe()));
+            Set<String> made = produces.apply(g.rule().ruleId());
+            if (made != null) {
+                normal.defined().addAll(made);
+            }
+            seq(g.normal(), normal);
+            List<At> back = new ArrayList<>(List.of(normal));
+            for (Guarded.Handler h : g.handlers()) {
+                At hs = new At(new HashSet<>(before.defined()), new HashSet<>(before.maybe()));
+                hs.defined().addAll(ReservedNames.CATCH_NAMES);
+                seq(h.body(), hs);
+                hs.defined().removeAll(ReservedNames.CATCH_NAMES);
+                if (!h.ends()) {
+                    back.add(hs);
+                }
+            }
+            At merged = mergeIf(before, back);
+            st.defined().clear();
+            st.defined().addAll(merged.defined());
+            st.maybe().clear();
+            st.maybe().addAll(merged.maybe());
         }
     }
 }

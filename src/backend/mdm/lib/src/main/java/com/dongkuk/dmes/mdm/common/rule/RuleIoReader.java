@@ -5,7 +5,6 @@ import com.dongkuk.dmes.mdm.common.rule.RuleIo.IoName;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.entity.MdmRuleRow;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
-import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -31,7 +30,8 @@ import org.springframework.stereotype.Component;
  * 검색·구성 지침이 모두 이것을 쓴다.
  *
  * <ul>
- *   <li>버전 — 룰마다 RELEASED 가운데 VER 최대({@link RuleQueries#latestReleasedVers}). 적용 시점은 보지 않는다.</li>
+ *   <li>버전 — 룰마다 RELEASED 가운데 VER 최대({@link RuleQueries#latestReleasedVers}). 적용 시점은 보지 않는다. 그 버전의 적중 정책·기본 행
+ *       여부(hasDefault)는 {@link RuleQueries#releasedHeads} 한 문장으로 읽는다.</li>
  *   <li>results — 결과 열마다 {@code RES_GRP} 가 있으면 그 이름, 없으면 {@code VAR_NAME}(엔진 {@code RuleEvaluator.resultNames} 와 같다).</li>
  *   <li>conds — (Expression 이 아닌 조건 열: 식 변수면 {@code VAR_AST} 참조, 아니면 {@code VAR_NAME}) → (결과 열 {@code GRP_COND_AST} 참조) →
  *       (행 순서대로 DISP {@code Expression} 열의 셀 {@code ast} 참조). EvalEx 상수·자기 결과 이름·이미 나온 이름은 대소문자 무시로 버리고,
@@ -86,10 +86,10 @@ public class RuleIoReader {
         Map<String, MdmRule> rules = new HashMap<>();
         ruleRepository.findAllById(ids).forEach(r -> rules.put(r.getMaruRuleId(), r));
         Map<String, Integer> vers = queries.latestReleasedVers(rules.keySet());
-        Map<String, String> hitPolicies = new HashMap<>();
-        for (MdmRuleVer v : queries.versionsOf(vers.keySet())) {
-            if (v.getVer().equals(vers.get(v.getMaruRuleId()))) {
-                hitPolicies.put(v.getMaruRuleId(), v.getHitPolicy());
+        Map<String, RuleQueries.ReleasedHead> heads = new HashMap<>();
+        for (RuleQueries.ReleasedHead h : queries.releasedHeads(vers.keySet())) {
+            if (Integer.valueOf(h.ver()).equals(vers.get(h.ruleId()))) {
+                heads.put(h.ruleId(), h);
             }
         }
         Map<String, Integer> released = new LinkedHashMap<>();
@@ -125,7 +125,9 @@ public class RuleIoReader {
             } else if (ver == null) {
                 out.put(id, new RuleIo(id, rule.getMaruRuleName(), rule.getRuleKind(), rule.getStatus(), true, null, null, List.of(), List.of()));
             } else {
-                out.put(id, compute(rule, ver, hitPolicies.get(id), varsByRule.get(id), collected.get(id), scope));
+                RuleQueries.ReleasedHead head = heads.get(id);
+                out.put(id, compute(rule, ver, head == null ? null : head.hitPolicy(), head != null && head.hasDefault(), varsByRule.get(id),
+                        collected.get(id), scope));
             }
         }
         return out;
@@ -245,7 +247,7 @@ public class RuleIoReader {
         return new Collected(results, conds.list);
     }
 
-    private RuleIo compute(MdmRule rule, int ver, String hitPolicy, List<MdmRuleVar> vars, Collected collected,
+    private RuleIo compute(MdmRule rule, int ver, String hitPolicy, boolean hasDefault, List<MdmRuleVar> vars, Collected collected,
                            RuleVarTypeResolver.Scope scope) {
         String id = rule.getMaruRuleId();
         Map<String, MdmRuleVar> results = collected.results();
@@ -287,7 +289,7 @@ public class RuleIoReader {
             resultOut.add(ioName(name, null, resolved.get(k++)));
         }
         return new RuleIo(id, rule.getMaruRuleName(), rule.getRuleKind(), rule.getStatus(), true, ver, hitPolicy, List.copyOf(condOut),
-                List.copyOf(resultOut));
+                List.copyOf(resultOut), hasDefault);
     }
 
     /** 같은 이름(대소문자 무시)의 이름 조건 열이 도메인·데이터 타입을 선언했으면 그 열. */

@@ -76,6 +76,8 @@ export type Block = Seq | RuleStep | TaskStep | Split | Guarded;
 export const CATCH_KINDS: readonly CatchKind[] = ["NO_RESULT", "INPUT_ERROR", "EVAL_ERROR", "HIT_CONFLICT"];
 /** 받는 노드를 붙일 수 있는 노드 종류(엔진 `FlowParser.catchable`). 하위 세트 호출 스펙이 SET 을 더한다. */
 export const CATCHABLE: ReadonlySet<FlowNodeKind> = new Set<FlowNodeKind>(["RULE"]);
+/** 처리 갈래 안에서만 있는 예약 이름(엔진 `ReservedNames.CATCH_NAMES`, 받는 노드 spec §4). */
+export const CATCH_NAMES: readonly string[] = ["CATCH_KIND", "CATCH_RULE", "CATCH_CODE", "CATCH_MSG"];
 const isCatchKind = (k: string): k is CatchKind => (CATCH_KINDS as readonly string[]).includes(k);
 
 /** nodeId 에 붙은 받는 노드(노드 배열 순서, 겹친 ID 는 첫 노드만). 붙은 노드가 받을 수 있는 종류인지는 보지 않는다. */

@@ -67,6 +67,29 @@ public class RuleQueries {
                 MdmRuleVer.class).setParameter("ids", ruleIds).getResultList();
     }
 
+    /** RELEASED 버전 하나의 적중 정책과 기본(DEFAULT) 행 여부 — {@link #releasedHeads}. */
+    public record ReleasedHead(String ruleId, int ver, String hitPolicy, boolean hasDefault) {
+    }
+
+    /**
+     * 여러 룰의 RELEASED 버전마다 적중 정책·기본 행 여부를 한 문장으로(룰 ID·VER 내림차순). 기본 행은 행을 따로 읽지 않는 룰(Expression 열 없음)도
+     * 봐야 해서 버전 조회에 EXISTS 로 얹는다 — 룰 세트 조회의 SQL 문 수를 늘리지 않는다.
+     */
+    public List<ReleasedHead> releasedHeads(Collection<String> ruleIds) {
+        if (ruleIds.isEmpty()) {
+            return List.of();
+        }
+        List<Object[]> rows = entityManager.createQuery("SELECT v.maruRuleId, v.ver, v.hitPolicy, CASE WHEN EXISTS (SELECT 1 FROM MdmRuleRow r "
+                        + "WHERE r.maruRuleId = v.maruRuleId AND r.ver = v.ver AND r.rowKind = 'DEFAULT') THEN 1 ELSE 0 END FROM MdmRuleVer v "
+                        + "WHERE v.status = 'RELEASED' AND v.maruRuleId IN :ids ORDER BY v.maruRuleId, v.ver DESC", Object[].class)
+                .setParameter("ids", ruleIds).getResultList();
+        List<ReleasedHead> out = new ArrayList<>(rows.size());
+        for (Object[] row : rows) {
+            out.add(new ReleasedHead((String) row[0], ((Number) row[1]).intValue(), (String) row[2], ((Number) row[3]).intValue() == 1));
+        }
+        return out;
+    }
+
     /** 룰 고르기 — 룰 ID·룰명 앞부분(대문자 비교, {@code %}·{@code _} 는 글자 그대로), 룰 ID 순 {@code limit} 건. 키워드가 없으면 앞에서부터. */
     public List<MdmRule> searchPrefix(String keyword, int limit) {
         String jpql = "SELECT r FROM MdmRule r"

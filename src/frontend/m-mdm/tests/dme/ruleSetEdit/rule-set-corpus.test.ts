@@ -1,8 +1,8 @@
 // TSK-08-06 design §3.3·§6.8·I9 — 세트 계산 코퍼스 동치(TS 쪽). 한 벌 코퍼스(mdm/lib test resources)를 화면 즉시 계산 `set-model.ts` 로 돌려
 // `io`·`deps`·`checks`(message 포함)가 expect 와 순서까지 같은지 본다. Java 짝은 mdm/lib `RuleSetCorpusTest`(같은 파일·같은 하한).
 // 파일이 없으면 실패한다 — 건너뛰지 않는다.
-// 읽기 규칙(두 러너 공통): `rules` 원소의 빠진 칸은 null·false·빈 목록(`exists` 를 빠뜨리면 없는 룰), `rules` 에 키가 없는 ID 는 없는 룰,
-// `checks` 의 빠진 칸과 null 은 같다. 실제 값은 투영하지 않고 그대로 비교한다(구현이 undefined 를 내면 드러난다).
+// 읽기 규칙(두 러너 공통): `rules` 원소의 빠진 칸은 null·false·빈 목록(`exists` 를 빠뜨리면 없는 룰, `hitPolicy`·`hasDefault` 가 빠지면 null·false),
+// `rules` 에 키가 없는 ID 는 없는 룰, `checks` 의 빠진 칸과 null 은 같다. 실제 값은 투영하지 않고 그대로 비교한다(구현이 undefined 를 내면 드러난다).
 // 흐름 사례(`flow`)는 노드·선의 빠진 칸을 null(`otherwise` 는 false)로 채우고, `ids` 가 흐름을 펼친 룰 목록과 같은지 먼저 본다. `checks` 의 `nodeId`·`edgeId` 도 비교한다.
 // 같은 형식의 퍼즈 파일 `rule-set-fuzz.json`(코퍼스 옆, Java `RuleSetFlowFuzz` 가 시드로 만들고 expect 는 Java 분석기 결과)도 돌린다 — 두 언어 차분.
 // 퍼즈 사례가 어긋나면 작은 흐름으로 줄여 코퍼스 사례로 옮기고 원인을 고친다.
@@ -17,7 +17,7 @@ import type { CondIo, IoName, IoSource, RuleIo } from "../../../pages/dme/ruleSe
 import { PACKAGE_ROOT, RULE_SET_CORPUS_PATH } from "../../helpers/engine-paths";
 
 /** Java `RuleSetCorpusTest.MIN_CASES` 와 같아야 한다(I9). 사례를 더하면 두 러너를 함께 올린다. */
-const MIN_CASES = 59;
+const MIN_CASES = 64;
 /** Java `RuleSetCorpusTest.MIN_FUZZ_CASES` 와 같아야 한다. */
 const MIN_FUZZ_CASES = 200;
 /** 퍼즈 파일 — 코퍼스와 같은 폴더(mdm/lib test resources). */
@@ -29,6 +29,8 @@ interface CorpusRule {
   exists?: boolean;
   status?: string | null;
   releasedVer?: number | null;
+  hitPolicy?: string | null;
+  hasDefault?: boolean;
   conds?: Array<{ name: string; source?: IoSource | null }>;
   results?: Array<{ name: string }>;
 }
@@ -121,9 +123,10 @@ function rule(id: string, r: CorpusRule): RuleIo {
     status: r.status ?? null,
     exists: r.exists ?? false,
     releasedVer: r.releasedVer ?? null,
-    hitPolicy: null,
+    hitPolicy: r.hitPolicy ?? null,
     conds: (r.conds ?? []).map((c) => ioName(c.name, c.source ?? null)),
     results: (r.results ?? []).map((x) => ioName(x.name, null)),
+    hasDefault: r.hasDefault ?? false,
   };
 }
 
