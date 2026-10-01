@@ -8,6 +8,7 @@
  *   두지 않는다(Local-Rules §12). 바로 앞 노드가 바꾼 줄은 노란 배경, 새로 생긴 줄은 "새" 배지(`getRowClassExtra`).
  * - 값 고치기(4단계 E4, 스펙 §2.4): `sim.canEditValues` 일 때 값 칸을 두 번 눌러 고친다(AG Grid 기본 편집기 + `onCellValueChanged` — 칸 렌더러에 입력 요소를 두지 않는다,
  *   Local-Rules §12). 원래 타입(NULL 이면 세트 선언 타입)에 맞지 않으면 거절하고 새 행 객체로 다시 그려 칸을 되돌린다. LIST 는 [비우기]만. 줄 끝 [비우기]·[되돌리기], 아래 [변수 추가]·[고침 취소].
+ *   받는 노드가 넣는 CATCH_* 줄은 고치지 않고(칸·[비우기] 없음) [변수 추가] 도 그 이름을 거절한다(컨트롤러 Ruling 3 — `catchEditText`).
  * - 노드 상세: 고른 흐름 노드가 커서 앞에서 실행됐으면 2단계 `TraceDetail`(`sim-detail*`), 아니면 "아직 실행하지 않은 노드다"(P-D13).
  * - 식 평가: Enter 로 서버 파싱 → 화면 평가(`useExprEval`). `validate` 권한이 없으면 칸이 꺼진다(P-D1).
  * 기록이 없으면 변수 표·식 평가 자리에 "실행하면 커서 시점 값이 보인다". 낡은 기록(P-D9)도 옛 기록 기준으로 보인다(툴바가 배지를 보인다).
@@ -25,7 +26,7 @@ import type { EditFlow } from "../flow-edit";
 import { flowIo } from "../set-model";
 import { typedText } from "../trace-view";
 import type { RuleIoMap } from "../types";
-import { LIST_REJECT, NULL_VALUE, editKindOfVar, parseEditText, reservedKeyText, type EditKind } from "./debug-model";
+import { LIST_REJECT, NULL_VALUE, catchEditText, editKindOfVar, parseEditText, reservedKeyText, type EditKind } from "./debug-model";
 import { declaredTypes, FALLBACK_TEXT, SERVER_JUDGES_TEXT, type ExprResult } from "./expr-eval";
 import { loadStrings, saveStrings, storeKeys } from "./local-store";
 import { NodeDescNote, TraceDetail } from "./TraceDetail";
@@ -184,16 +185,19 @@ export function VariablePanel({ sim, setId, flow, rules, selectedId, canParse, o
 
   const rows = useMemo(
     () =>
-      sim.variables.map((v) => ({
-        name: v.name,
-        value: typedText(v.value),
-        state: v.pending ? "고침 대기" : v.edited ? "고침" : v.created ? "새" : v.changed ? "바뀜" : "",
-        pin: pinned.has(v.name.toLowerCase()),
-        pending: !!v.pending,
-        canEdit,
-        editKind: editKindOfVar(v, types[v.name.toUpperCase()]),
-        act: !canEdit ? "" : v.pending ? "undo" : "clear",
-      })),
+      sim.variables.map((v) => {
+        const rowEdit = canEdit && catchEditText(v.name) == null;
+        return {
+          name: v.name,
+          value: typedText(v.value),
+          state: v.pending ? "고침 대기" : v.edited ? "고침" : v.created ? "새" : v.changed ? "바뀜" : "",
+          pin: pinned.has(v.name.toLowerCase()),
+          pending: !!v.pending,
+          canEdit: rowEdit,
+          editKind: editKindOfVar(v, types[v.name.toUpperCase()]),
+          act: !rowEdit ? "" : v.pending ? "undo" : "clear",
+        };
+      }),
     // rev: 거절한 편집을 되돌릴 때만 올려 새 행 객체를 만든다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [sim.variables, pinned, canEdit, types, rev],
@@ -224,7 +228,7 @@ export function VariablePanel({ sim, setId, flow, rules, selectedId, canParse, o
       setEditError(ADD_NAME_TEXT);
       return;
     }
-    const reserved = reservedKeyText(name);
+    const reserved = reservedKeyText(name) ?? catchEditText(name);
     if (reserved) {
       setEditError(reserved);
       return;

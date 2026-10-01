@@ -29,6 +29,7 @@ import type { InputRow, RuleIoMap, SimWarning } from "../types";
 import { validEdits } from "../trace-view";
 import {
   applyPending,
+  catchEditText,
   droppedEditsNotice,
   editsJsonOf,
   mergeEdits,
@@ -127,7 +128,7 @@ export interface Simulation {
   pendingEdit: TraceEdit | null;
   /** 지금 기록에 들어간 고친 값(서버가 되돌려 준 `trace.edits` 가운데 자리가 맞는 것), 없으면 빈 목록. */
   appliedEdits: readonly TraceEdit[];
-  /** 커서 자리에서 이름 하나를 고친다(대소문자 무시로 같은 이름을 덮는다). 비우기는 `{type:"NULL"}`. 고칠 수 없으면 무시. */
+  /** 커서 자리에서 이름 하나를 고친다(대소문자 무시로 같은 이름을 덮는다). 비우기는 `{type:"NULL"}`. 고칠 수 없거나 CATCH_* 이름이면 무시(Ruling 3). */
   editValue(name: string, value: TypedValue): void;
   /** 고침 대기에서 이름 하나를 뺀다. 이름을 주지 않으면 모두 뺀다. 실행 중이면 무시. */
   cancelEdit(name?: string): void;
@@ -419,7 +420,7 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
   const editValue = useCallback(
     (name: string, value: TypedValue) => {
       const r = recNow();
-      if (!editableNow(r)) return;
+      if (!editableNow(r) || catchEditText(name) != null) return; // CATCH_* 는 받는 노드가 넣는 값이라 고치지 않는다(Ruling 3)
       const node = r.last!.trace.nodes[r.cursor];
       const base = r.pending && r.pending.beforeSeq === node.seq ? r.pending.values : {};
       const lower = name.toLowerCase();
