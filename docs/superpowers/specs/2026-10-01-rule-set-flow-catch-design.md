@@ -3,6 +3,7 @@
 - 날짜: 2026-10-01
 - 앞 문서: `2026-09-29-rule-set-flow-design.md`(흐름 모델 §3·실행 의미 §4·검사 §5), `2026-10-01-rule-set-flow-phase4-design.md`(TASK·E4 값 고치기)
 - 뒤 문서: `2026-10-01-rule-set-flow-subset-call-design.md`(하위 세트 호출 — 이 문서의 받는 노드를 `SET` 노드에도 붙인다)
+- 바뀜: §2·§3·§4·§8 의 "돌아오는 MERGE" 는 D-136(`2026-10-02-rule-set-flow-implicit-join-design.md`)으로 바뀌었다 — 처리 갈래는 합류 없이 정상 경로 노드(돌아오는 자리)로 바로 돌아오고, 처리 갈래 안 IF 갈래도 END 로 갈 수 있다(X-D5·X-D6 대체). 옛 형식은 엔진이 그대로 받는다
 - 엔진: `src/backend/maru-mdm-engine`(`spi/DefinitionLookup`·`flow/*`·`rule/MdmRuleEngine`·`rule/RunTrace`·`expr/ReservedNames`)
 - 서버: `src/backend/mdm/lib`(`common/rule/RuleSetAnalyzer`·`RuleSetRunner`·`check/ledger/RuleSetOrderCheck`)
 - 화면: `src/frontend/m-mdm/pages/dme/ruleSetEdit/`(`flow-model.ts`·`set-model.ts`·캔버스·디버거)
