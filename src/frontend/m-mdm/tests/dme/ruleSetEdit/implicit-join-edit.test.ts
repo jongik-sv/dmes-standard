@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { FlowEdge, FlowNode } from "../../../src/contract/engine-contract.generated";
 import {
   ENDING_TO_PARALLEL, IF_EMPTY_TWICE, KEEP_ENDING, MERGE_EXIT_NOT_ONE, MERGE_ONLY_BY_SPLIT, MOVE_GUARDED, RETURN_JOIN_END, RETURN_TO_END,
-  TASK_LABEL, addBranch, addCatch, blockMembers, insertRule, changeSplitKind, copyFragment, dissolveSplit, duplicateNode, insertSplit, moveNode, pasteFragment, reconnectEdge,
+  TASK_LABEL, addBranch, addCatch, assignRule, blockMembers, insertRule, changeSplitKind, copyFragment, dissolveSplit, duplicateNode, insertSplit, moveNode, pasteFragment, reconnectEdge,
   removeBranch, removeNode, returnCatch, tailsOf, toEditFlow, updateEdge, type EditFlow, type EditResult, type Fragment,
 } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { endingBranches, joinOf, parseFlow, returnOf } from "../../../pages/dme/ruleSetEdit/flow-model";
@@ -170,6 +170,15 @@ describe("받는 노드 연산(implicit-join spec §8.2)", () => {
     expect(g.nodes.some((n) => n.kind === "MERGE")).toBe(false);
     expect(edgesOf(g)).toEqual(["e1:start>t1", "e2:t1>n", "e3:n>end", "e4:c1>n"]);
     expect(returnOf(g, "t1")).toBe("n");
+  });
+
+  it("빈 단계에 받는 노드를 붙이고 룰을 지정해도 받는 노드가 남는다", () => {
+    const f = ef([N("start", "START"), N("t1", "TASK", { label: "빈 단계" }), R("n"), N("end", "END")], [E("e1", "start", "t1"), E("e2", "t1", "n"), E("e3", "n", "end")]);
+    const g = ok(assignRule(ok(addCatch(f, "t1", "n")), "t1", "R_NEW"));
+    expect(g.nodes.find((n) => n.id === "t1")!.kind).toBe("RULE");
+    const c = g.nodes.filter((n) => n.kind === "CATCH");
+    expect(c).toHaveLength(1);
+    expect(c[0].attachTo).toBe("t1");
   });
 
   it("처리 갈래 선 끝을 정상 경로 노드로 옮기면 그 선이 곧 돌아오는 선이다", () => {
