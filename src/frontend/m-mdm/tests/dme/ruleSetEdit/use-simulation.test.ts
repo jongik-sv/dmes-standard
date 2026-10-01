@@ -598,4 +598,36 @@ describe("useSimulation — 값 고쳐 이어 실행(4단계 E4)", () => {
     expect(h.current.cursor).toBe(2);
     expect(h.current.notice).toBe(PASSED_NOTICE);
   });
+
+  it("E9. JSON 칸이나 판정 시각에 입력 오류가 있으면 고칠 수 없다", async () => {
+    await mount();
+    await toCursor(2);
+    expect(h.current.canEditValues).toBe(true);
+    await run((s) => s.setJson("{잘못"));
+    expect(h.current.jsonError).not.toBeNull();
+    expect(h.current.canEditValues).toBe(false);
+    await run((s) => s.editValue("GT_G", STR("B")));
+    expect(h.current.pendingEdit).toBeNull();
+    await run((s) => s.setJson(""));
+    await run((s) => s.setEvalTs("어제"));
+    expect(h.current.canEditValues).toBe(false);
+    await run((s) => s.editValue("GT_G", STR("B")));
+    expect(h.current.pendingEdit).toBeNull();
+  });
+
+  it("E10. 요청이 실패하면 대기를 남기고, 다시 눌러 성공하면 보낸 대기만 지운다", async () => {
+    await mount();
+    await toCursor(2);
+    await run((s) => s.editValue("GT_G", STR("B")));
+    replies.push(Promise.reject(new Error("서버 오류")));
+    await run((s) => s.next());
+    expect(h.current.error).toContain("서버 오류");
+    expect(h.current.pendingEdit?.values).toEqual({ GT_G: STR("B") });
+    expect(h.current.cursor).toBe(2);
+    replies.push(withEdits(A.response as RuleSetSimulateResult, EDIT_IF1));
+    await run((s) => s.next());
+    expect(sentEdits(2)).toBe('[{"beforeSeq":3,"nodeId":"if1","values":{"GT_G":"B"}}]');
+    expect(h.current.pendingEdit).toBeNull();
+    expect(h.current.cursor).toBe(3);
+  });
 });

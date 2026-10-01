@@ -196,6 +196,16 @@ describe("variablesAt — 고친 값(4단계 E4)", () => {
   });
 });
 
+describe("variablesAt — 병렬 합류 직전 고침(4단계 E4)", () => {
+  it("m1 에서도 끝에서도 고친 값이고 edited 가 남는다", () => {
+    const { flow, trace } = golden("PARALLEL_MERGE");
+    const t = { ...trace, edits: [edit(8, "m1", { GT_F: NUM("9") })] };
+    const atM1 = trace.nodes.findIndex((n) => n.nodeId === "m1");
+    expect(variablesAt(t, flow, atM1).find((v) => v.name === "GT_F")).toMatchObject({ value: NUM("9"), edited: true });
+    expect(variablesAt(t, flow, t.nodes.length).find((v) => v.name === "GT_F")).toMatchObject({ value: NUM("9"), edited: true });
+  });
+});
+
 describe("고침 대기·쌓기·보내기 모양(4단계 E4)", () => {
   it("applyPending — 있는 줄은 값을 덮고 pending, 없는 이름은 새 줄, 이름 순", () => {
     const vars = [

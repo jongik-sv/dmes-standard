@@ -121,7 +121,7 @@ export interface Simulation {
   /** 한 줄 알림(여기까지 실행 등). 다음 동작에서 지운다. */
   notice: string | null;
   // ── 값 고치기 — 4단계 E4(스펙 §2.4) ──
-  /** 고칠 수 있는가 — 기록이 최신(낡지 않고 입력이 기록 입력과 같다)이고 커서가 노드 k 실행 전(0 ≤ k < n)이며 실행 중이 아니다. */
+  /** 고칠 수 있는가 — 기록이 최신(낡지 않고 입력이 오류 없이 기록 입력과 같다)이고 커서가 노드 k 실행 전(0 ≤ k < n)이며 실행 중이 아니다. */
   canEditValues: boolean;
   /** 고침 대기 — 커서 자리(노드 k 실행 전)에서 고쳤고 아직 보내지 않은 값. 없으면 null. */
   pendingEdit: TraceEdit | null;
@@ -409,7 +409,8 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
 
   /** 지금 고칠 수 있는가 — 새로 실행할 필요가 없고(기록 최신·입력 같음), 커서가 노드 k 실행 전이며, 실행 중이 아니다. */
   const editableNow = useCallback(
-    (r: Rec): boolean => !runningRef.current && !needsFresh(r) && r.cursor >= 0 && r.cursor < r.last!.trace.nodes.length,
+    (r: Rec): boolean =>
+      !runningRef.current && inputOf(inputsRef.current, metasRef.current) != null && !needsFresh(r) && r.cursor >= 0 && r.cursor < r.last!.trace.nodes.length,
     [needsFresh],
   );
 
@@ -591,7 +592,7 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
   const pending = last ? cur.pending : null;
   const appliedEdits = useMemo(() => (last ? validEdits(last.trace) : NO_EDITS), [last]);
   const inputNow = useMemo(() => inputOf(inputs, metas), [inputs, metas]);
-  const canEditValues = !!last && !stale && (inputNow == null || sameInput(inputNow, last.input)) && cursor >= 0 && cursor < n && !running;
+  const canEditValues = !!last && !stale && (inputNow != null && sameInput(inputNow, last.input)) && cursor >= 0 && cursor < n && !running;
   // 변수는 기록 때의 흐름 사본으로 푼다(병렬 범위가 기록과 맞아야 한다). 커서·대기가 바뀔 때만 다시 계산한다(Local-Rules §16).
   const variables = useMemo(
     () => (last ? applyPending(variablesAt(last.trace, last.flow, cursor), pending) : NO_VARIABLES),

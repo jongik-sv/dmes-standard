@@ -180,6 +180,14 @@ export function frames(trace: RunTrace, flow: RuleSetFlow): TraceFrame[] {
               if (!written.includes(name)) written.push(name);
             }
           }
+          // 엔진 FlowRun 은 갈래를 합친 뒤 merge() 에서 edit 를 넣는다 — 고친 값이 합친 값을 이긴다(made 에 이미 있으면 made 도).
+          if (edit) {
+            for (const [name, raw] of Object.entries(edit.values ?? {})) {
+              const value = raw ?? NULL_TYPED;
+              putReplacing(scope.ctx, name, value);
+              if (lookup(scope.made, name) !== undefined) putReplacing(scope.made, name, value);
+            }
+          }
           for (const name of written) note(name, lookup(before, name), lookup(scope.ctx, name)!);
           branchScopes.delete(splitId);
         }

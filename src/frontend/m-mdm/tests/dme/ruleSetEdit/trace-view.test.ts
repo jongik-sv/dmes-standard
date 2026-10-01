@@ -402,4 +402,15 @@ describe("trace-view — 고친 값 반영(4단계 E4)", () => {
     expect("edited" in debugOverlay(t, flow, 3).nodes.r1).toBe(false);
     expect("edited" in debugOverlay(trace, flow, 3).nodes.if1).toBe(false);
   });
+
+  it("병렬 합류 직전 고침 — 엔진은 갈래를 합친 뒤 edit 를 넣으므로 고친 값이 갈래 값을 이긴다(finalValues 까지)", () => {
+    const { flow, trace } = golden("PARALLEL_MERGE"); // m1 = seq 8
+    const t = withEdits(trace, [{ beforeSeq: 8, nodeId: "m1", values: { GT_F: N("9") } }]);
+    const fr = frames(t, flow);
+    const m = fr.find((f) => f.node.nodeId === "m1")!;
+    expect(m.before.GT_F).toEqual(N("9")); // 커서 m1 에서 보인다
+    expect(m.ctx.GT_F).toEqual(N("9")); // 합친 뒤에도 고친 값
+    expect(m.edited).toEqual(["GT_F"]);
+    expect(fr.at(-1)!.ctx.GT_F).toEqual(N("9"));
+  });
 });
