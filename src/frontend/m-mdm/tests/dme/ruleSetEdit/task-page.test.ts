@@ -185,7 +185,7 @@ describe("빈 단계 화면(4단계 Task 9)", () => {
     expect(document.activeElement).toBe(other);
   });
 
-  it("라벨 없는 빈 단계를 열었다 그대로 닫아도 편집이 생기지 않고, 룰 지정은 제목을 비우며 되돌리면 제목이 돌아온다", async () => {
+  it("라벨 없는 빈 단계를 열었다 그대로 닫아도 편집이 생기지 않고, 룰 지정은 사용자 제목을 룰 노드 이름으로 남기며 되돌리면 빈 단계 제목이 돌아온다", async () => {
     const f = must(insertTask(toEditFlow(null, ["TK_A", "TK_B"]), "e2", "검사 자리"));
     const pos = positionsOf(f);
     await openSet("TK_10", viewOf("TK_10", setPositions(f, pos)));
@@ -195,7 +195,7 @@ describe("빈 단계 화면(4단계 Task 9)", () => {
     await click("flow-rule-assign-TK_NEW");
     await click("set-save");
     const saved = JSON.parse(String((calls("save").at(-1)!.body.params as Record<string, unknown>).flowJson)) as EditFlow;
-    expect(saved.nodes.find((n) => n.id === "r3")).toEqual({ id: "r3", kind: "RULE", ruleId: "TK_NEW", splitId: null, label: null });
+    expect(saved.nodes.find((n) => n.id === "r3")).toEqual({ id: "r3", kind: "RULE", ruleId: "TK_NEW", splitId: null, label: "검사 자리" });
     await click("flow-undo");
     expect(kindOf("r3")).toBe("TASK");
     expect(visibleText(byTestId("flow-node-r3"))).toContain("검사 자리");
