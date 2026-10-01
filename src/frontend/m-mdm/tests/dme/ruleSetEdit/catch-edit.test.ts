@@ -4,10 +4,10 @@ import { describe, expect, it } from "vitest";
 import type { FlowNode, RuleSetFlow } from "../../../src/contract/engine-contract.generated";
 import {
   CATCH_BAD_TARGET, CATCH_FULL, CATCH_KINDS_EMPTY, CATCH_NO_IN, CATCH_ONE_OUT, CATCH_TAKEN, MOVE_GUARDED, NO_COPY_CATCH, NO_COPY_CATCH_NODE,
-  RETURN_MERGE_NOT_ONE, RETURN_MERGE_STUCK, addCatch, addGroup, blockMembers, connect, copyFragment, dissolveSplit, duplicateNode, flowJsonOf, insertRule, moveExcludedEdges,
+  MERGE_ONLY_BY_SPLIT, RETURN_JOIN_END, addCatch, addGroup, blockMembers, connect, copyFragment, dissolveSplit, duplicateNode, flowJsonOf, insertRule, insertSplit, moveExcludedEdges,
   moveNode, reconnectEdge, removeNode, setCatchKinds, setPositions, toEditFlow, updateGroup, updateNodeDesc, type EditFlow, type EditResult,
 } from "../../../pages/dme/ruleSetEdit/flow-edit";
-import { parseFlow } from "../../../pages/dme/ruleSetEdit/flow-model";
+import { parseFlow, returnOf } from "../../../pages/dme/ruleSetEdit/flow-model";
 
 function ok(r: EditResult): EditFlow {
   if (!r.ok) throw new Error(r.reason);
@@ -24,7 +24,10 @@ const n = (id: string, kind: FlowNode["kind"], ruleId: string | null = null): Fl
 const c = (id: string, attachTo: string, catches: FlowNode["catches"]): FlowNode => ({ ...n(id, "CATCH"), attachTo, catches });
 const e = (id: string, from: string, to: string) => ({ id, from, to, order: null, cond: null, otherwise: false, label: null });
 
-/** 스펙 §2 예시: start → r1 → m1(splitId=r1) → r2 → end, c1 → r9 → m1, c2 → end. */
+/**
+ * 스펙 §2 예시(옛 형식): start → r1 → m1(splitId=r1) → r2 → end, c1 → r9 → m1, c2 → end.
+ * toEditFlow 가 돌아오는 합류를 없애 연다(implicit-join §12.2): start → r1 → r2 → end(e1 e2 e7), c1 → r9 → r2(e3 e4), c2 → end(e5).
+ */
 const specFlow = (): EditFlow =>
   toEditFlow(
     {
@@ -59,7 +62,7 @@ describe("받는 노드 편집 연산(받는 노드 spec §8)", () => {
     let f = base();
     for (let i = 0; i < 4; i++) f = ok(addCatch(f, "r1", null));
     expect(reason(addCatch(f, "r1", null))).toBe(CATCH_FULL);
-    expect(reason(addCatch(base(), "end", null))).toBe("룰 노드에만 예외 받기를 붙인다");
+    expect(reason(addCatch(base(), "end", null))).toBe("룰·빈 단계 노드에만 예외 받기를 붙인다");
     expect(reason(addCatch(base(), "r1", "start"))).toBe(CATCH_BAD_TARGET);
     expect(reason(addCatch(base(), "r1", "r1"))).toBe(CATCH_BAD_TARGET);
   });
@@ -110,13 +113,14 @@ describe("받는 노드 편집 연산(받는 노드 spec §8)", () => {
     expect(g.edges.some((e) => e.from === "c1")).toBe(false);
   });
 
-  it("돌아오는 처리 갈래가 있는 룰을 지우면 돌아오는 합류를 걷어 정상 쪽을 잇고, 처리 갈래에만 있던 노드는 끊긴 채 남아 검사가 알린다", () => {
+  it("돌아오는 처리 갈래가 있는 룰을 지우면 정상 쪽을 잇고, 처리 갈래에만 있던 노드는 끊긴 채 남아 검사가 알린다(합류 없음)", () => {
     const f = specFlow();
     expect(parseFlow(f).issues).toEqual([]);
     const g = ok(removeNode(f, "r1"));
     expect(ids(g)).toEqual(["start", "r9", "r2", "end"]);
     expect(g.edges.map((e) => [e.id, e.from, e.to])).toEqual([
       ["e1", "start", "r2"],
+      ["e4", "r9", "r2"],
       ["e7", "r2", "end"],
     ]);
     // 지운 룰을 가리키는 합류가 남지 않는다
@@ -145,7 +149,7 @@ describe("받는 노드 편집 연산(받는 노드 spec §8)", () => {
     expect(g.edges.map((e) => [e.from, e.to])).toEqual([["start", "r1"], ["r1", "end"]]);
   });
 
-  it("정상 쪽에 노드가 더 있어도 돌아오는 합류로 들어오는 정상 쪽 선을 합류 출구로 잇는다", () => {
+  it("정상 쪽에 노드가 더 있어도 들어오는 선을 정상 다음 노드로 잇고 처리 갈래 선은 돌아오는 자리로 그대로 간다", () => {
     // start → r1 → r3 → m1 → r2 → end, c1 → r9 → m1
     const f = toEditFlow(
       {
@@ -164,14 +168,15 @@ describe("받는 노드 편집 연산(받는 노드 spec §8)", () => {
     expect(g.edges.map((x) => [x.id, x.from, x.to])).toEqual([
       ["e1", "start", "r3"],
       ["e8", "r3", "r2"],
+      ["e4", "r9", "r2"],
       ["e7", "r2", "end"],
     ]);
   });
 
-  it("돌아오는 합류의 정상 쪽 선이 하나가 아니면 룰을 지우지 않는다", () => {
+  it("돌아오는 자리이고 다음이 끝 노드인 노드는 지우지 않는다(지우면 처리 갈래가 끝내기로 바뀐다)", () => {
     const f = specFlow();
-    const twisted: EditFlow = { ...f, edges: [...f.edges, e("e9", "start", "m1")] };
-    expect(reason(removeNode(twisted, "r1"))).toBe(RETURN_MERGE_NOT_ONE);
+    expect(returnOf(f, "r1")).toBe("r2");
+    expect(reason(removeNode(f, "r2"))).toBe(RETURN_JOIN_END);
   });
 
   it("받는 노드만 지우면 그 나가는 선만 지운다", () => {
@@ -181,12 +186,13 @@ describe("받는 노드 편집 연산(받는 노드 spec §8)", () => {
     expect(g.edges.map((e) => [e.from, e.to])).toEqual([["start", "r1"], ["r1", "end"]]);
   });
 
-  /** 돌아오는 합류 m1 을 걷어 낸 모양 — 정상 쪽 선 e2 가 합류 출구 도착 r2 로 가고, 처리 갈래 r9 는 끊긴 채 남는다. */
+  /** 받는 노드 c1 을 지운 모양 — 정상 쪽은 그대로이고, 처리 갈래 r9 는 끊긴 채 남는다(돌아오는 자리 r2 로 가는 선은 남는다). */
   const expectUnwound = (g: EditFlow) => {
     expect(ids(g)).toEqual(["start", "r1", "r9", "c2", "r2", "end"]);
     expect(g.edges.map((x) => [x.id, x.from, x.to])).toEqual([
       ["e1", "start", "r1"],
       ["e2", "r1", "r2"],
+      ["e4", "r9", "r2"],
       ["e5", "c2", "end"],
       ["e7", "r2", "end"],
     ]);
@@ -196,47 +202,50 @@ describe("받는 노드 편집 연산(받는 노드 spec §8)", () => {
     expect(issues.map((i) => i.nodeId)).toContain("r9");
   };
 
-  it("돌아오는 처리 갈래의 마지막 받는 노드를 지우면 돌아오는 합류도 걷어 정상 쪽을 합류 출구로 잇는다", () => {
+  it("돌아오는 처리 갈래의 받는 노드를 지우면 받는 노드와 그 나가는 선만 지운다(걷어 낼 합류가 없다)", () => {
     const f = specFlow();
     const before = JSON.stringify(f);
     expectUnwound(ok(removeNode(f, "c1")));
     expect(JSON.stringify(f)).toBe(before); // 원래 흐름을 고치지 않는다 — 되돌리기가 앞 흐름을 그대로 쓴다
   });
 
-  it("돌아오는 합류를 바로 지우면 받는 노드 지우기와 같은 방식으로 걷어 내고 받는 노드는 남긴다", () => {
-    const g = ok(removeNode(specFlow(), "m1"));
-    expect(ids(g)).toEqual(["start", "r1", "c1", "r9", "c2", "r2", "end"]);
-    expect(g.edges.map((x) => [x.id, x.from, x.to])).toEqual([
+  it("옛 돌아오는 합류는 열 때 없어져 처리 갈래가 돌아오는 자리로 바로 간다(implicit-join §12.2)", () => {
+    const f = specFlow();
+    expect(f.nodes.some((x) => x.kind === "MERGE")).toBe(false);
+    expect(f.edges.map((x) => [x.id, x.from, x.to])).toEqual([
       ["e1", "start", "r1"],
       ["e2", "r1", "r2"],
       ["e3", "c1", "r9"],
+      ["e4", "r9", "r2"],
       ["e5", "c2", "end"],
       ["e7", "r2", "end"],
     ]);
-    expect(parseFlow(g).issues.filter((i) => i.message.includes("짝 분기"))).toEqual([]);
-    // 합류를 먼저 지우고 받는 노드를 지워도 받는 노드를 먼저 지운 것과 같은 모양이 된다
-    expectUnwound(ok(removeNode(ok(removeNode(specFlow(), "m1")), "c1")));
+    expect(returnOf(f, "r1")).toBe("r2");
   });
 
-  it("돌아오는 받는 노드가 둘이면 하나를 지워도 합류를 남긴다", () => {
+  it("돌아오는 받는 노드가 둘이면 하나를 지워도 다른 처리 갈래는 그대로 돌아온다", () => {
     const f = specFlow();
-    const twoBack: EditFlow = { ...f, edges: f.edges.map((x) => (x.id === "e5" ? { ...x, to: "m1" } : x)) }; // c2 → m1
+    const twoBack: EditFlow = { ...f, edges: f.edges.map((x) => (x.id === "e5" ? { ...x, to: "r2" } : x)) }; // c2 → r2
     expect(parseFlow(twoBack).issues).toEqual([]);
     const g = ok(removeNode(twoBack, "c1"));
-    expect(ids(g)).toEqual(["start", "r1", "r9", "c2", "m1", "r2", "end"]);
-    expect(g.edges.map((x) => [x.from, x.to])).toEqual([["start", "r1"], ["r1", "m1"], ["r9", "m1"], ["c2", "m1"], ["m1", "r2"], ["r2", "end"]]);
+    expect(ids(g)).toEqual(["start", "r1", "r9", "c2", "r2", "end"]);
+    expect(g.edges.map((x) => [x.from, x.to])).toEqual([["start", "r1"], ["r1", "r2"], ["r9", "r2"], ["c2", "r2"], ["r2", "end"]]);
+    expect(returnOf(g, "r1")).toBe("r2");
   });
 
-  it("분기의 합류와 돌아오는 합류의 선이 하나씩이 아니면 합류를 지우지 않는다", () => {
-    expect(reason(removeNode(ifWithGuard(), "m1"))).toBe("합류 노드는 분기를 지워서 없앤다");
-    const f = specFlow();
-    const twisted: EditFlow = { ...f, edges: [...f.edges, e("e9", "start", "m1")] };
-    expect(reason(removeNode(twisted, "m1"))).toBe(RETURN_MERGE_STUCK);
-    // 받는 노드 지우기는 합류를 걷지 못해도 받는 노드만 지운다(예전 동작)
-    expect(ids(ok(removeNode(twisted, "c1")))).toContain("m1");
+  it("병렬 합류는 분기로 지우고, 끝 앞 돌아오는 자리(옛 합류가 바뀐 빈 단계)는 지우지 않는다", () => {
+    expect(reason(removeNode(ok(insertSplit(base(), "e2", "PARALLEL")), "m1"))).toBe(MERGE_ONLY_BY_SPLIT);
+    const f = ifWithGuard();
+    expect(f.nodes.find((x) => x.id === "m1")?.kind).toBe("TASK");
+    expect(reason(removeNode(f, "m1"))).toBe(RETURN_JOIN_END);
+    // 받는 노드 지우기는 받는 노드만 지운다
+    expect(ids(ok(removeNode(f, "c1")))).toContain("m1");
   });
 
-  /** start → if1 [b1 → r1(R_A) → mr → m1][그 외 → m1] → end. r1 에 c1 → r9(R_C) → mr, c2 → end. */
+  /**
+   * 옛 형식: start → if1 [b1 → r1(R_A) → mr → m1][그 외 → m1] → end. r1 에 c1 → r9(R_C) → mr, c2 → end.
+   * toEditFlow 뒤(implicit-join §12.2): m1 은 끝 앞이라 빈 단계 m1 이 되고 mr 은 지워진다 — r1·r9 → m1(e2 e4), 그 외 bo → m1, m1 → end(e7).
+   */
   const ifWithGuard = (): EditFlow =>
     toEditFlow(
       {
@@ -270,17 +279,17 @@ describe("받는 노드 편집 연산(받는 노드 spec §8)", () => {
   it("받는 룰이 든 IF 블록은 받는 노드·처리 갈래(끝으로 가는 것 포함)까지 한 블록이라 지우기·접기 대상이다", () => {
     const f = ifWithGuard();
     expect(parseFlow(f).issues).toEqual([]);
-    expect(blockMembers(f, "if1")).toEqual(["if1", "r1", "c1", "r9", "c2", "mr", "m1"]);
+    expect(blockMembers(f, "if1")).toEqual(["if1", "r1", "c1", "r9", "c2"]); // 모이는 자리 m1(빈 단계)은 블록 밖
     const g = ok(removeNode(f, "if1"));
-    expect(ids(g)).toEqual(["start", "end"]);
+    expect(ids(g)).toEqual(["start", "m1", "end"]);
   });
 
   it("받는 룰이 든 갈래를 남기고 분기를 풀면 받는 노드·처리 갈래가 함께 남고, 다른 갈래를 고르면 함께 지워진다", () => {
     const kept = ok(dissolveSplit(ifWithGuard(), "if1", "b1"));
-    expect(ids(kept)).toEqual(["start", "r1", "c1", "r9", "c2", "mr", "end"]);
-    expect(kept.edges.find((e) => e.id === "e6")).toMatchObject({ from: "mr", to: "end" });
+    expect(ids(kept)).toEqual(["start", "r1", "c1", "r9", "c2", "m1", "end"]);
+    expect(kept.edges.find((e) => e.id === "e2")).toMatchObject({ from: "r1", to: "m1" });
     expect(parseFlow(kept).issues).toEqual([]);
-    expect(ids(ok(dissolveSplit(ifWithGuard(), "if1", "bo")))).toEqual(["start", "end"]);
+    expect(ids(ok(dissolveSplit(ifWithGuard(), "if1", "bo")))).toEqual(["start", "m1", "end"]);
   });
 
   it("받는 노드가 든 블록은 복사하지 않는다", () => {
@@ -306,8 +315,8 @@ describe("받는 노드 편집 연산(받는 노드 spec §8)", () => {
   it("처리 갈래 첫 선의 도착 끝은 옮길 수 있고, 받는 노드로 옮기거나 선이 있는 받는 노드에서 나가게 옮기는 것은 막는다", () => {
     // start → r1 → r2 → end(e1 e2 e3), c1 → end(e4), c2 → end(e5)
     const f = ok(addCatch(ok(addCatch(toEditFlow(null, ["R_A", "R_B"]), "r1", null)), "r1", null));
-    // 룰의 정상 다음 노드(r2)로 옮기면 돌아오는 합류를 만들어 그 합류로 간다(돌아오기, catch-return.test).
-    expect(ok(reconnectEdge(f, "e4", { to: "r2" })).edges.find((e) => e.id === "e4")).toMatchObject({ from: "c1", to: "m1" });
+    // 룰의 정상 다음 노드(r2)로 옮기면 그 선이 곧 돌아오는 선이다(implicit-join §8.2, catch-return.test).
+    expect(ok(reconnectEdge(f, "e4", { to: "r2" })).edges.find((e) => e.id === "e4")).toMatchObject({ from: "c1", to: "r2" });
     expect(reason(reconnectEdge(f, "e4", { to: "c2" }))).toBe(CATCH_NO_IN);
     expect(reason(reconnectEdge(f, "e2", { from: "c2" }))).toBe(CATCH_ONE_OUT);
   });
@@ -365,7 +374,7 @@ describe("받는 노드 편집 연산(받는 노드 spec §8)", () => {
   });
 
   it("돌아오는 처리 갈래 안 선 위로도 룰을 옮기지 않는다", () => {
-    const f = specFlow(); // c1 → r9 → m1(e3 e4), c2 → end(e5)
+    const f = specFlow(); // c1 → r9 → r2(e3 e4), c2 → end(e5)
     expect([...moveExcludedEdges(f, "r1")].sort()).toEqual(["e1", "e2", "e3", "e4", "e5"]);
     expect(reason(moveNode(f, "r1", "e4"))).toBe(MOVE_GUARDED);
   });

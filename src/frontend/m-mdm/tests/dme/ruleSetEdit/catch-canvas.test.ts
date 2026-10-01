@@ -79,8 +79,8 @@ describe("받는 노드 캔버스 규칙(받는 노드 spec §8)", () => {
     const ruleItems = editMenu({ kind: "node", nodeId: "r1" }, ctx("edit"));
     ruleItems.find((i) => i.id === "catch-add")!.run!();
     expect(calls).toEqual(["addCatch:r1"]);
-    // 끝내는 처리 갈래(c1 → end)라 「흐름으로 돌아오기」 가 「삭제」 앞에 있다(돌아오기, catch-return.test).
-    expect(editMenu({ kind: "node", nodeId: "c1" }, ctx("edit")).map((i) => i.id)).toEqual(["catch-return", "delete"]);
+    // 끝내는 처리 갈래(c1 → end)지만 룰 다음이 끝이라 돌아올 자리가 없어 「흐름으로 돌아오기」 는 없다(RETURN_TO_END, implicit-join J-D10, catch-return.test).
+    expect(editMenu({ kind: "node", nodeId: "c1" }, ctx("edit")).map((i) => i.id)).toEqual(["delete"]);
     expect(editMenu({ kind: "node", nodeId: "r1" }, ctx("view"))).toEqual([]);
   });
 

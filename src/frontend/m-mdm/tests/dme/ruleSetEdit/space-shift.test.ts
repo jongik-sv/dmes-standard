@@ -55,17 +55,17 @@ describe("shiftSpace — 메모·꺾는 점", () => {
 });
 
 describe("shiftSpace — 접힌 블록", () => {
-  /** start→r1→if1[갈래1: r4 | 그 외]→m1→r2→r3→end, if1 접힘. */
+  /** start→r1→if1[갈래1: r5 → r4(빈 단계) | 그 외]→r2(모이는 자리)→r3→end, if1 접힘(implicit-join §8.2 — 합류 없음). */
   function folded() {
     let f = ok(insertSplit(chain(), "e2", "IF"));
-    f = ok(insertRule(f, "e5", "C")); // r4 (갈래 1 안)
-    f = ok(setRoute(f, "e8", [{ x: 5, y: 5 }])); // 숨은 선(r4→m1)의 꺾는 점
+    f = ok(insertRule(f, "e5", "C")); // r5 (갈래 1 안, 빈 단계 r4 앞)
+    f = ok(setRoute(f, "e8", [{ x: 5, y: 5 }])); // 숨은 선(r5→r4)의 꺾는 점
     const v = collapseView(f, new Set(["if1"]));
-    expect([...v.hidden].sort()).toEqual(["m1", "r4"]);
+    expect([...v.hidden].sort()).toEqual(["r4", "r5"]);
     // 보이는 노드는 접힌 자리, 숨은 멤버는 블록과 맞춘 전체 흐름 자리(캔버스가 이렇게 넘긴다).
     const drawn: Record<string, FlowPos> = {
       start: { x: 0, y: 0 }, r1: { x: 0, y: 100 }, if1: { x: 300, y: 200 }, r2: { x: 0, y: 300 }, r3: { x: 0, y: 400 }, end: { x: 0, y: 500 },
-      r4: { x: 290, y: 280 }, m1: { x: 400, y: 360 },
+      r5: { x: 290, y: 280 }, r4: { x: 400, y: 360 },
     };
     return { f, v, drawn };
   }
@@ -74,8 +74,8 @@ describe("shiftSpace — 접힌 블록", () => {
     const { f, v, drawn } = folded();
     const g = shiftSpace(f, "x", 200, 50, drawn, v.blocks);
     expect(g.view.positions.if1).toEqual({ x: 350 + foldOffsetX("IF"), y: 200 });
-    expect(g.view.positions.r4).toEqual({ x: 340, y: 280 });
-    expect(g.view.positions.m1).toEqual({ x: 450, y: 360 });
+    expect(g.view.positions.r5).toEqual({ x: 340, y: 280 });
+    expect(g.view.positions.r4).toEqual({ x: 450, y: 360 });
     expect(g.view.positions.r2).toEqual(drawn.r2);
     expect(g.view.routes.e8).toEqual([{ x: 55, y: 5 }]); // 점 자체는 기준선 앞이지만 블록을 따른다
     // 접은 채 다시 그리면 접힌 상자는 옮긴 자리(350)에 있다.
@@ -85,11 +85,11 @@ describe("shiftSpace — 접힌 블록", () => {
   it("블록이 앞이면 숨은 멤버는 기준선 너머에 있어도 그대로다(블록을 따른다)", () => {
     const { f, v, drawn } = folded();
     drawn.r3 = { x: 500, y: 400 }; // 보이는 노드 하나는 너머에 둔다
-    const g = shiftSpace(f, "x", 350, 50, drawn, v.blocks); // if1(300) 앞, m1(400) 은 숨어서 블록을 따른다
+    const g = shiftSpace(f, "x", 350, 50, drawn, v.blocks); // if1(300) 앞, r4(400) 은 숨어서 블록을 따른다
     expect(g.view.positions.r3).toEqual({ x: 550, y: 400 });
     expect(g.view.positions.if1).toEqual({ x: 300 + foldOffsetX("IF"), y: 200 });
-    expect(g.view.positions.m1).toEqual(drawn.m1);
     expect(g.view.positions.r4).toEqual(drawn.r4);
+    expect(g.view.positions.r5).toEqual(drawn.r5);
   });
 });
 

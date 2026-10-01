@@ -86,16 +86,17 @@ describe("끌어 놓기 순수 함수(Task 7)", () => {
     expect(resolveNodeDrop(f, pos, "r2", mid(f, "e3", pos), 1)).not.toBe("e3");
   });
 
-  it("blockDragPositions: 분기·안쪽·짝 합류가 같은 만큼 움직이고 바깥 노드는 그대로다", () => {
-    const r = insertSplit(chain(), "e2", "IF");
+  it("blockDragPositions: 분기·안쪽이 같은 만큼 움직이고 바깥 노드(모이는 자리 포함)는 그대로다", () => {
+    const r = insertSplit(chain(), "e2", "IF"); // r1 → if1 [e5 → r4(빈 단계) → r2][e6 그 외 → r2] → r2(모이는 자리)
     if (!r.ok) throw new Error(r.reason);
     const f = r.flow;
     const base = positionsOf(f);
     const out = blockDragPositions(f, "if1", { x: 10, y: -5 }, base);
-    expect(Object.keys(out).sort()).toEqual(["if1", "m1"]);
+    expect(Object.keys(out).sort()).toEqual(["if1", "r4"]);
     expect(out.if1).toEqual({ x: base.if1.x + 10, y: base.if1.y - 5 });
-    expect(out.m1).toEqual({ x: base.m1.x + 10, y: base.m1.y - 5 });
+    expect(out.r4).toEqual({ x: base.r4.x + 10, y: base.r4.y - 5 });
     expect(out.r1).toBeUndefined();
+    expect(out.r2).toBeUndefined();
     expect(blockDragPositions(f, "r1", { x: 1, y: 1 }, base)).toEqual({});
   });
 

@@ -35,13 +35,14 @@ describe("flow-edit", () => {
     expect(f.nodes.find((n) => n.ruleId === "R_B")?.id).toBe("r2");
   });
 
-  it("IF 를 끼우면 짝 합류와 조건 갈래·그 외 갈래가 생기고, 조건식을 채우면 검사 오류가 없다", () => {
+  it("IF 를 끼우면 합류 없이 조건 갈래(빈 단계)·그 외 갈래가 생기고, 조건식을 채우면 검사 오류가 없다(implicit-join §8.2)", () => {
     const f = ok(insertSplit(base, "e2", "IF"));
     expect(parseFlow(f).issues.map((i) => i.code)).toEqual(["FLOW_IF_ELSE"]); // 조건식 없음
     const out = f.edges.filter((e) => e.from === "if1");
     expect(out.map((e) => [e.order, e.otherwise, e.label])).toEqual([[1, false, "갈래 1"], [null, true, "그 외"]]);
     const g = valid(ok(updateEdge(f, out[0].id, { cond: 'S_A = "X"' })));
-    expect(g.nodes.find((n) => n.kind === "MERGE")?.splitId).toBe("if1");
+    expect(g.nodes.some((n) => n.kind === "MERGE")).toBe(false);
+    expect(g.nodes.find((n) => n.id === out[0].to)?.kind).toBe("TASK");
   });
 
   it("병렬을 끼우고 갈래를 더하고 옮기고 지운다", () => {
@@ -58,6 +59,17 @@ describe("flow-edit", () => {
   });
 
   it("그 외 갈래는 지울 수 없고, 분기를 지우면 안쪽 노드까지 사라진다", () => {
+    let f = ok(insertSplit(toEditFlow(null, ["R_A", "R_Z"]), "e2", "IF")); // r1 → if1 [e4 → r3(빈 단계) → r2] [e5 그 외 → r2] → r2(모이는 자리)
+    const cond = f.edges.find((e) => e.from === "if1" && !e.otherwise)!;
+    f = ok(updateEdge(f, cond.id, { cond: "true" }));
+    f = valid(ok(insertRule(f, cond.id, "R_IN")));
+    const other = f.edges.find((e) => e.from === "if1" && e.otherwise)!;
+    expect(removeBranch(f, "if1", other.id)).toEqual({ ok: false, reason: '"그 외" 갈래는 지울 수 없다' });
+    const g = valid(ok(removeNode(f, "if1")));
+    expect(g.nodes.map((n) => n.id)).toEqual(["start", "r1", "r2", "end"]);
+  });
+
+  it("END 앞 선에 끼운 IF 는 「그 외」 가 끝내는 갈래라 갈래 1 에 넣은 노드는 IF 를 지워도 남는다(implicit-join F9)", () => {
     let f = ok(insertSplit(base, "e2", "IF"));
     const cond = f.edges.find((e) => e.from === "if1" && !e.otherwise)!;
     f = ok(updateEdge(f, cond.id, { cond: "true" }));
@@ -65,7 +77,7 @@ describe("flow-edit", () => {
     const other = f.edges.find((e) => e.from === "if1" && e.otherwise)!;
     expect(removeBranch(f, "if1", other.id)).toEqual({ ok: false, reason: '"그 외" 갈래는 지울 수 없다' });
     const g = valid(ok(removeNode(f, "if1")));
-    expect(g.nodes.map((n) => n.id)).toEqual(["start", "r1", "end"]);
+    expect(g.nodes.map((n) => n.id)).toEqual(["start", "r1", "r3", "r2", "end"]);
   });
 
   it("룰을 지우면 앞뒤 선을 잇고 view 흔적을 치운다", () => {
@@ -163,7 +175,7 @@ describe("flow-edit 보강", () => {
   it("분기 노드는 A 뒤에, 분기 label 은 조건·병렬이다", () => {
     const f = ok(insertSplit(base, "e1", "IF"));
     expect(f.nodes.map((n) => [n.id, n.kind, n.label])).toEqual([
-      ["start", "START", null], ["if1", "IF", "조건"], ["m1", "MERGE", null], ["r1", "RULE", null], ["end", "END", null],
+      ["start", "START", null], ["if1", "IF", "조건"], ["r2", "TASK", "빈 단계"], ["r1", "RULE", null], ["end", "END", null],
     ]);
     const p = ok(insertSplit(base, "e2", "PARALLEL"));
     expect(p.nodes.find((n) => n.id === "par1")?.label).toBe("병렬");
@@ -172,18 +184,18 @@ describe("flow-edit 보강", () => {
 
   it("끝·합류 노드와 선이 하나씩이 아닌 룰은 지우지 않는다", () => {
     expect(removeNode(base, "end")).toEqual({ ok: false, reason: "끝 노드는 지울 수 없다" });
-    const f = ok(insertSplit(base, "e2", "IF"));
+    const f = ok(insertSplit(base, "e2", "PARALLEL"));
     expect(removeNode(f, "m1")).toEqual({ ok: false, reason: "합류 노드는 분기를 지워서 없앤다" });
     const g = ok(connect(base, "start", "end"));
     const h = ok(connect(g, "r1", "start"));
-    expect(removeNode(h, "r1")).toEqual({ ok: false, reason: "룰 노드의 선이 하나씩이 아니라 지울 수 없다. 선을 먼저 정리한다" });
+    expect(removeNode(h, "r1")).toEqual({ ok: false, reason: "룰 노드의 나가는 선이 하나가 아니라 지울 수 없다. 선을 먼저 정리한다" });
   });
 
   it("짝 합류가 없는 분기는 지우지도 갈래를 더하지도 않는다", () => {
-    const f = ok(insertSplit(base, "e2", "IF"));
+    const f = ok(insertSplit(base, "e2", "PARALLEL"));
     const broken: EditFlow = { ...f, nodes: f.nodes.map((n) => (n.kind === "MERGE" ? { ...n, splitId: null } : n)) };
-    expect(removeNode(broken, "if1")).toEqual({ ok: false, reason: "분기 if1의 짝 합류를 찾지 못해 지울 수 없다" });
-    expect(addBranch(broken, "if1")).toEqual({ ok: false, reason: "분기 if1의 짝 합류를 찾지 못했다" });
+    expect(removeNode(broken, "par1")).toEqual({ ok: false, reason: "분기 par1의 짝 합류를 찾지 못해 지울 수 없다" });
+    expect(addBranch(broken, "par1")).toEqual({ ok: false, reason: "분기 par1의 짝 합류를 찾지 못했다" });
   });
 
   it("중첩 분기를 지우면 안쪽 분기·합류까지 사라진다", () => {
@@ -247,11 +259,11 @@ describe("flow-edit 보강", () => {
     expect(addGroup(base, ["start", "end"], "빈")).toEqual({ ok: false, reason: "그룹에 넣을 노드를 고른다" });
   });
   it("뒤 선으로 앞쪽 노드에 닿는 분기는 지우지 않는다(리뷰 Important 1 사례 A)", () => {
-    let f = ok(insertSplit(base, "e2", "IF"));
-    f = ok(insertRule(f, "e3", "R_B"));
-    f = ok(connect(f, "r2", "r1"));
+    // r1 → if1 [e4 → r3(빈 단계) → r2] [e5 그 외 → r2] → r2 → end, 갈래 안 r3 에서 IF 앞 r1 로 뒤 선
+    let f = ok(insertSplit(toEditFlow(null, ["R_A", "R_Z"]), "e2", "IF"));
+    f = ok(connect(f, "r3", "r1"));
     const before = flowJsonOf(f);
-    expect(removeNode(f, "if1")).toEqual({ ok: false, reason: "분기 if1의 짝 합류를 찾지 못해 지울 수 없다" });
+    expect(removeNode(f, "if1")).toEqual({ ok: false, reason: "분기 if1의 갈래가 모이는 자리를 찾지 못해 지울 수 없다" });
     expect(flowJsonOf(f)).toBe(before);
   });
 
@@ -264,10 +276,11 @@ describe("flow-edit 보강", () => {
   });
 
   it("블록 밖에서 안쪽 노드나 합류로 들어오는 선이 있으면 분기를 지우지 않는다", () => {
-    let f = ok(insertSplit(base, "e2", "IF"));
-    f = ok(insertRule(f, "e3", "R_B"));
-    expect(removeNode(ok(connect(f, "start", "r2")), "if1")).toEqual({ ok: false, reason: "분기 if1의 짝 합류를 찾지 못해 지울 수 없다" });
-    expect(removeNode(ok(connect(f, "r1", "m1")), "if1")).toEqual({ ok: false, reason: "분기 if1의 짝 합류를 찾지 못해 지울 수 없다" });
+    // r1 → if1 [e4 → r3(빈 단계) → r2] [e5 그 외 → r2] → r2(모이는 자리) → end
+    const f = ok(insertSplit(toEditFlow(null, ["R_A", "R_Z"]), "e2", "IF"));
+    expect(removeNode(ok(connect(f, "start", "r3")), "if1")).toEqual({ ok: false, reason: "분기 if1의 갈래가 모이는 자리를 찾지 못해 지울 수 없다" });
+    // 새 IF 의 모이는 자리는 블록 밖에서도 선을 받는다(implicit-join §8.1)
+    expect(removeNode(ok(connect(f, "start", "r2")), "if1").ok).toBe(true);
     const p = ok(addBranch(ok(insertRule(ok(insertSplit(base, "e2", "PARALLEL")), "e3", "R_B")), "par1"));
     const other = p.edges.find((e) => e.from === "par1" && e.order === 2)!;
     const crossed = { ...p, edges: p.edges.map((e) => (e.id === other.id ? { ...e, to: "r2" } : e)) };
