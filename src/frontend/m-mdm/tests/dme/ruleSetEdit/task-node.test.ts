@@ -43,7 +43,7 @@ describe("빈 단계 편집 연산(4단계 Task 9)", () => {
     expect(insertTask(base(), "zz")).toEqual({ ok: false, reason: "선 zz를 찾지 못했다" });
   });
 
-  it("assignRule — TASK 는 같은 ID·자리·선·경로·선 라벨·노드 라벨 그대로 RULE 이 되고, RULE 은 룰만 바뀐다", () => {
+  it("assignRule — TASK 는 같은 ID·자리·선·경로·선 라벨 그대로, 노드 라벨만 비워 RULE 이 되고, RULE 은 룰만 바뀐다", () => {
     let f = ok(insertTask(base(), "e2"));
     f = setPositions(f, { r3: { x: 40, y: 200 } });
     f = ok(setRoute(f, "e2", [{ x: 10, y: 150 }]));
@@ -51,7 +51,7 @@ describe("빈 단계 편집 연산(4단계 Task 9)", () => {
     const before = flowJsonOf(f);
     const g = valid(ok(assignRule(f, "r3", "R_Z")));
     expect(flowJsonOf(f)).toBe(before); // 입력을 바꾸지 않는다
-    expect(g.nodes.find((n) => n.id === "r3")).toEqual({ id: "r3", kind: "RULE", ruleId: "R_Z", splitId: null, label: TASK_LABEL });
+    expect(g.nodes.find((n) => n.id === "r3")).toEqual({ id: "r3", kind: "RULE", ruleId: "R_Z", splitId: null, label: null });
     expect(g.view.positions.r3).toEqual({ x: 40, y: 200 });
     expect(g.view.routes.e2).toEqual([{ x: 10, y: 150 }]);
     expect(g.edges).toEqual(f.edges);

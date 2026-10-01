@@ -132,14 +132,20 @@ function TaskBody({ data }: { data: FlowNodeData }) {
     editingRef.current = true;
     setDraft(title);
   };
-  const close = (save: boolean) => {
+  /**
+   * 칸을 닫는다. Enter·Esc(`from` 을 넘김)면 초점을 캔버스로 돌려 단축키가 이어지게 한다(칸이 빠지면 초점이 body 로 간다, Local-Rules §19).
+   * 칸 밖 누르기(blur)는 초점을 훔치지 않는다 — 다른 입력 칸으로 간 초점을 그대로 둔다.
+   */
+  const close = (save: boolean, from?: Element) => {
     if (!editingRef.current || draft === null) return;
     editingRef.current = false;
     const v = draft.trim();
     setDraft(null);
+    if (from) from.closest<HTMLElement>('[data-testid="flow-canvas"]')?.focus({ preventScroll: true });
     if (!save) return;
     const next = v === "" ? null : v;
-    if (next !== node.label) onRenameTask?.(node.id, next);
+    // 보이는 제목이 그대로면(라벨 없음 + 기본 제목 그대로 등) 편집을 만들지 않는다.
+    if ((next ?? TASK_LABEL) !== title) onRenameTask?.(node.id, next);
   };
   return (
     <>
@@ -154,10 +160,10 @@ function TaskBody({ data }: { data: FlowNodeData }) {
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.nativeEvent.isComposing) {
               e.preventDefault();
-              close(true);
+              close(true, e.currentTarget);
             } else if (e.key === "Escape") {
               e.preventDefault();
-              close(false);
+              close(false, e.currentTarget);
             }
           }}
           onBlur={() => close(true)}

@@ -27,7 +27,7 @@ vi.mock("@/shell", async (importOriginal) => ({
 }));
 
 import { FlowCanvas, RULE_MIME, type FlowCanvasProps } from "../../../pages/dme/ruleSetEdit/canvas/FlowCanvas";
-import { insertTask, setPositions, toEditFlow, type EditFlow, type EditResult, type FlowPos } from "../../../pages/dme/ruleSetEdit/flow-edit";
+import { insertTask, setPositions, toEditFlow, updateNodeLabel, type EditFlow, type EditResult, type FlowPos } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { positionsOf } from "../../../pages/dme/ruleSetEdit/flow-layout";
 import type { RuleIo, RuleSetView } from "../../../pages/dme/ruleSetEdit/types";
 import { flush, installDomStorage, typeInto, visibleText } from "../helpers/render";
@@ -163,6 +163,44 @@ describe("빈 단계 화면(4단계 Task 9)", () => {
     expect(q("flow-task-title-input-r3")).toBeNull();
   });
 
+  it("Enter·Esc 로 닫으면 초점이 캔버스로 돌아오고, 다른 입력 칸으로 나가면 그 칸에 남는다. 바뀐 게 없으면 편집이 생기지 않는다", async () => {
+    const { flow } = taskFlow();
+    await openSet("TK_9", viewOf("TK_9", flow));
+    await click("flow-mode-edit");
+    await dblTitle("r3");
+    await keyOn(byTestId("flow-task-title-input-r3"), "Enter"); // 라벨이 null 이 아니라 "빈 단계" 라 같은 제목 — 편집 없음
+    expect(document.activeElement).toBe(byTestId("flow-canvas"));
+    expect((byTestId("flow-undo") as HTMLButtonElement).disabled).toBe(true);
+    await dblTitle("r3");
+    await typeInto(byTestId<HTMLInputElement>("flow-task-title-input-r3"), "버림");
+    await keyOn(byTestId("flow-task-title-input-r3"), "Escape");
+    expect(document.activeElement).toBe(byTestId("flow-canvas"));
+    await dblTitle("r3");
+    const other = byTestId<HTMLInputElement>("flow-rule-panel-search");
+    await act(async () => {
+      other.focus();
+    });
+    await flush();
+    expect(q("flow-task-title-input-r3")).toBeNull();
+    expect(document.activeElement).toBe(other);
+  });
+
+  it("라벨 없는 빈 단계를 열었다 그대로 닫아도 편집이 생기지 않고, 룰 지정은 제목을 비우며 되돌리면 제목이 돌아온다", async () => {
+    const f = must(insertTask(toEditFlow(null, ["TK_A", "TK_B"]), "e2", "검사 자리"));
+    const pos = positionsOf(f);
+    await openSet("TK_10", viewOf("TK_10", setPositions(f, pos)));
+    await click("flow-mode-edit");
+    await click("flow-node-r3");
+    await findRules("TK_");
+    await click("flow-rule-assign-TK_NEW");
+    await click("set-save");
+    const saved = JSON.parse(String((calls("save").at(-1)!.body.params as Record<string, unknown>).flowJson)) as EditFlow;
+    expect(saved.nodes.find((n) => n.id === "r3")).toEqual({ id: "r3", kind: "RULE", ruleId: "TK_NEW", splitId: null, label: null });
+    await click("flow-undo");
+    expect(kindOf("r3")).toBe("TASK");
+    expect(visibleText(byTestId("flow-node-r3"))).toContain("검사 자리");
+  });
+
   it("룰 줄을 빈 단계 노드 위에 끌면 노드가 강조되고, 놓으면 지정된다(새 노드 없음). 빈 곳은 그대로 「선 위에 놓아야 한다」", async () => {
     const { flow, pos } = taskFlow();
     await openSet("TK_5", viewOf("TK_5", flow));
@@ -265,5 +303,19 @@ describe("FlowCanvas — 빈 단계 제목 칸은 onRenameTask 하나만 바뀌�
     await typeInto(input, "새 제목");
     await keyOn(input, "Enter");
     expect(onRenameTask).toHaveBeenCalledWith("r2", "새 제목");
+  });
+  it("라벨이 null 인 빈 단계를 열었다 바꾸지 않고 닫으면 onRenameTask 를 부르지 않는다", async () => {
+    const f = must(updateNodeLabel(must(insertTask(toEditFlow(null, ["R_A"]), "e2")), "r2", null));
+    const onRenameTask = vi.fn();
+    const noop = () => {};
+    await draw({
+      flow: f, rules: {}, checks: [], mode: "edit", varDisplay: "off", selectedId: null, selectedEdgeId: null, overlay: null, focusId: null, focusSeq: 0,
+      onSelect: noop, onSelectEdge: noop, onOpenRule: noop, onMove: noop, onConnect: noop, onDropPalette: noop, onNoteChange: noop,
+      breakpoints: new Set(), collapsed: new Set(), showMiniMap: false, editingCondEdgeId: null, onMoveNode: noop, onDropRule: noop,
+      onContextMenu: noop, onEditCond: noop, onEditCondClose: noop, onToggleBreakpoint: noop, onRenameTask,
+    });
+    await dblTitle("r2");
+    await keyOn(document.querySelector('[data-testid="flow-task-title-input-r2"]')!, "Enter");
+    expect(onRenameTask).not.toHaveBeenCalled();
   });
 });
