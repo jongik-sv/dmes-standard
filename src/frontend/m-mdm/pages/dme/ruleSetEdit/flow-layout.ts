@@ -8,7 +8,7 @@ import dagre from "@dagrejs/dagre";
 import type { FlowNodeKind, RuleSetFlow } from "@/contract/engine-contract.generated";
 
 import { clearLabels, clearRoutes, setNodeStyle, setPositions, type EditFlow, type EditResult, type FlowPos } from "./flow-edit";
-import { isBlankJava, parseFlow, type Seq } from "./flow-model";
+import { CATCHABLE, isBlankJava, parseFlow, type Seq } from "./flow-model";
 import { STYLED_KINDS, type NodeSize, type NodeStyle, type NodeStylePatch } from "./node-style";
 
 export const NODE_SIZE: Readonly<Record<FlowNodeKind, { w: number; h: number }>> = {
@@ -43,6 +43,50 @@ export function nodeSizeOf(f: StyledFlow, n: { id: string; kind: FlowNodeKind },
 /** dagre 같은 층 노드 사이 가로 간격 — 갈래를 다시 벌릴 때(spreadLanes)도 같은 값을 쓴다. */
 const NODESEP = 40;
 
+/** 받는 노드 가로 자리(Ruling R15) — 룰 왼쪽 테두리에서 처음 16, 받는 노드마다 36씩 오른쪽. */
+export const CATCH_LEFT = 16;
+export const CATCH_STEP = 36;
+
+/** 받는 노드 좌상단 — 룰 아래 테두리에 걸친다(세로 가운데가 테두리). k 는 그 룰의 받는 노드 순번(노드 배열 순서). */
+export function catchSpot(rule: FlowPos, ruleSize: NodeSize, k: number): FlowPos {
+  return { x: rule.x + CATCH_LEFT + k * CATCH_STEP, y: rule.y + ruleSize.h - Math.round(NODE_SIZE.CATCH.h / 2) };
+}
+
+/** 받는 노드 ID → 붙은 노드 ID·순번(노드 배열 순서). 붙은 노드가 없거나 받을 수 없는 종류면 넣지 않는다. */
+export function catchSlots(f: RuleSetFlow): Map<string, { attachTo: string; k: number }> {
+  const out = new Map<string, { attachTo: string; k: number }>();
+  const kindOf = new Map((f.nodes ?? []).map((n) => [n.id, n.kind] as const));
+  const count = new Map<string, number>();
+  for (const n of f.nodes ?? []) {
+    if (n.kind !== "CATCH" || !n.attachTo) continue;
+    const k = kindOf.get(n.attachTo);
+    if (!k || !CATCHABLE.has(k)) continue;
+    const i = count.get(n.attachTo) ?? 0;
+    count.set(n.attachTo, i + 1);
+    out.set(n.id, { attachTo: n.attachTo, k: i });
+  }
+  return out;
+}
+
+/** 받는 노드 자리를 붙은 룰의 자리·크기에서 다시 정한다. 붙은 룰 자리가 없으면(접힌 블록 안 등) 그 키를 뺀다. 받는 노드가 없으면 입력을 그대로 돌려준다. */
+export function placeCatches(
+  f: RuleSetFlow & StyledFlow, pos: Readonly<Record<string, FlowPos>>, blocks: Readonly<Record<string, unknown>> = {},
+): Record<string, FlowPos> {
+  const slots = catchSlots(f);
+  if (slots.size === 0) return pos as Record<string, FlowPos>;
+  const byId = new Map((f.nodes ?? []).map((n) => [n.id, n] as const));
+  const out: Record<string, FlowPos> = { ...pos };
+  for (const [id, s] of slots) {
+    const at = pos[s.attachTo];
+    if (!at) {
+      delete out[id];
+      continue;
+    }
+    out[id] = catchSpot(at, nodeSizeOf(f, byId.get(s.attachTo)!, blocks), s.k);
+  }
+  return out;
+}
+
 /**
  * dagre 자동 배치. blocks 에 든 분기(접힌 블록, D16)는 룰 크기 상자로 그리므로 룰 크기로 배치한다 — 제 크기(병렬 200×14 등)로 배치하면
  * 접힌 상자가 아래 노드와 겹치고, 겹침 풀기가 그 노드를 옆으로 민다(고침 2회차 N1). RULE·TASK 는 외관 크기로 배치한다(S1).
@@ -61,7 +105,8 @@ export function autoLayout(f: RuleSetFlow & StyledFlow, blocks: Readonly<Record<
   // 여러 호출자가 같은 결과를 나눠 쓰므로 사본을 준다(positionsOf 는 좌표 객체를 그대로 펼쳐 넘긴다).
   const out: Record<string, FlowPos> = {};
   for (const [id, p] of Object.entries(hit)) out[id] = { x: p.x, y: p.y };
-  return out;
+  // 받는 노드 자리는 캐시한 배치가 아니라 이 사본에서 붙은 룰 테두리로 다시 정한다(R15).
+  return placeCatches(f, out, blocks);
 }
 
 /**
@@ -75,13 +120,13 @@ export function clearLayoutCache(): void {
   layoutCache.clear();
 }
 /**
- * 캐시 키 — autoLayout 이 읽는 칸 전부: 노드(순서·ID·종류·룰·짝 분기·이름), 선(순서·ID·양 끝·갈래 순서·조건식·그 외·이름), 노드별 그린 크기
+ * 캐시 키 — autoLayout 이 읽는 칸 전부: 노드(순서·ID·종류·룰·짝 분기·이름·붙은 노드·받는 종류), 선(순서·ID·양 끝·갈래 순서·조건식·그 외·이름), 노드별 그린 크기
  * (외관 w·h 와 접힌 블록이 여기로 들어온다). dagre 결과는 노드·선을 넣은 순서에도 달라지므로 배열 순서를 그대로 둔다.
  * 객체를 통째로 직렬화하지 않고 칸을 골라 적는다 — 서버에서 읽은 흐름과 편집으로 만든 흐름은 칸 순서·여분 칸이 달라 같은 흐름이 엇갈린다.
  */
 function layoutKey(f: RuleSetFlow, size: ReadonlyMap<string, NodeSize>): string {
   return JSON.stringify([
-    (f.nodes ?? []).map((n) => [n.id, n.kind, n.ruleId, n.splitId, n.label, size.get(n.id)!.w, size.get(n.id)!.h]),
+    (f.nodes ?? []).map((n) => [n.id, n.kind, n.ruleId, n.splitId, n.label, n.attachTo ?? null, n.catches ?? null, size.get(n.id)!.w, size.get(n.id)!.h]),
     (f.edges ?? []).map((e) => [e.id, e.from, e.to, e.order, e.cond, e.otherwise, e.label]),
   ]);
 }
@@ -95,6 +140,8 @@ function runLayout(f: RuleSetFlow, nodes: NonNullable<RuleSetFlow["nodes"]>, siz
     g.setNode(n.id, { width: s.w, height: s.h });
   }
   for (const e of f.edges ?? []) g.setEdge(e.from, e.to);
+  // 받는 노드는 선이 아니라 attachTo 로 붙는다 — 룰에서 나가는 가상 선으로 넣어 처리 갈래가 룰 아래 층에 오게 한다(스펙 §8).
+  for (const [id, s] of catchSlots(f)) g.setEdge(s.attachTo, id);
   dagre.layout(g);
   const cx = new Map<string, number>();
   for (const n of nodes) cx.set(n.id, g.node(n.id).x);
@@ -139,22 +186,43 @@ function bodyIds(seq: Seq, out: string[] = []): string[] {
 function orderBranches(f: RuleSetFlow, g: InstanceType<typeof dagre.graphlib.Graph>, cx: Map<string, number>, sizeOf: (id: string) => NodeSize) {
   const tree = parseFlow(layoutCopy(f)).tree;
   if (!tree) return;
+  const boxOf = (id: string): LaneBox => {
+    const s = sizeOf(id);
+    const x = cx.get(id)!;
+    const y = (g.node(id) as { y: number }).y; // dagre 가 놓은 가운데 y
+    return { x1: x - s.w / 2, x2: x + s.w / 2, y1: y - s.h / 2, y2: y + s.h / 2 };
+  };
+  const shift = (ids: readonly string[], d: number) => {
+    if (d !== 0) for (const id of ids) cx.set(id, cx.get(id)! + d);
+  };
   const visit = (seq: Seq) => {
     for (const b of seq.items) {
       if (b.type === "SEQ") visit(b);
       if (b.type === "GUARDED") {
-        // 처리 갈래를 오른쪽에 두는 배치는 Task 7. 여기서는 안쪽 분기의 갈래 순서만 맞춘다.
+        // 받는 노드 spec §8 — 정상 갈래는 룰 가운데 아래, 처리 갈래는 받는 노드 순서로 그 오른쪽, 돌아오는 MERGE 는 룰 가운데 아래.
+        const ruleX = cx.get(b.rule.nodeId)!;
+        const normalIds = bodyIds(b.normal).filter((id) => cx.has(id));
+        let right = ruleX + sizeOf(b.rule.nodeId).w / 2;
+        if (normalIds.length > 0) {
+          const boxes = normalIds.map(boxOf);
+          shift(normalIds, ruleX - (Math.min(...boxes.map((x) => x.x1)) + Math.max(...boxes.map((x) => x.x2))) / 2);
+          right = Math.max(right, ...normalIds.map((id) => boxOf(id).x2));
+        }
+        for (const h of b.handlers) {
+          const ids = bodyIds(h.body).filter((id) => cx.has(id));
+          if (ids.length === 0) continue;
+          const boxes = ids.map(boxOf);
+          const x1 = Math.min(...boxes.map((x) => x.x1));
+          const x2 = Math.max(...boxes.map((x) => x.x2));
+          shift(ids, right + NODESEP - x1);
+          right += NODESEP + (x2 - x1);
+        }
+        if (b.mergeId && cx.has(b.mergeId)) cx.set(b.mergeId, ruleX);
         visit(b.normal);
         for (const h of b.handlers) visit(h.body);
         continue;
       }
       if (b.type !== "SPLIT") continue;
-      const boxOf = (id: string): LaneBox => {
-        const s = sizeOf(id);
-        const x = cx.get(id)!;
-        const y = (g.node(id) as { y: number }).y; // dagre 가 놓은 가운데 y
-        return { x1: x - s.w / 2, x2: x + s.w / 2, y1: y - s.h / 2, y2: y + s.h / 2 };
-      };
       const lanes = b.branches.map((br) => {
         const ids = bodyIds(br.body).filter((id) => cx.has(id));
         if (ids.length > 0) {
@@ -171,10 +239,7 @@ function orderBranches(f: RuleSetFlow, g: InstanceType<typeof dagre.graphlib.Gra
         return { ids, at, boxes: [{ x1: at - half, x2: at + half, y1, y2 }] as LaneBox[] };
       });
       const slots = spreadLanes(lanes, lanes.map((l) => l.at).sort((a, c) => a - c), NODESEP);
-      lanes.forEach((l, i) => {
-        const d = slots[i] - l.at;
-        if (d !== 0) for (const id of l.ids) cx.set(id, cx.get(id)! + d);
-      });
+      lanes.forEach((l, i) => shift(l.ids, slots[i] - l.at));
       for (const br of b.branches) visit(br.body);
     }
   };
@@ -321,12 +386,14 @@ export function resolveOverlaps(
 /**
  * 캔버스가 그리는 위치 — `positionsOf` 에 겹침 풀기를 더한다. 저장 위치가 있는 노드가 고정이다.
  * blocks 에 든 분기(접힌 블록)는 룰 크기 상자로 그리므로 그 크기로 본다(D16). RULE·TASK 는 외관 크기로 본다(S1). 위치를 읽는 곳(끌기·블록 끌기·메모 자리)은 모두 이 값을 쓴다.
+ * 받는 노드(CATCH)는 마지막에 붙은 룰 자리에서 다시 정한다(저장 위치를 쓰지 않는다).
  */
 export function drawnPositions(f: EditFlow, blocks: Readonly<Record<string, unknown>> = {}): Record<string, FlowPos> {
   const saved = f.view?.positions ?? {};
-  const pinned = new Set((f.nodes ?? []).filter((n) => saved[n.id]).map((n) => n.id));
-  const boxes = (f.nodes ?? []).map((n) => ({ id: n.id, ...nodeSizeOf(f, n, blocks) }));
-  return resolveOverlaps(boxes, positionsOf(f, blocks), pinned);
+  const nodes = (f.nodes ?? []).filter((n) => n.kind !== "CATCH"); // 받는 노드는 룰 테두리에 걸친다 — 겹침으로 보지 않는다(R15)
+  const pinned = new Set(nodes.filter((n) => saved[n.id]).map((n) => n.id));
+  const boxes = nodes.map((n) => ({ id: n.id, ...nodeSizeOf(f, n, blocks) }));
+  return placeCatches(f, resolveOverlaps(boxes, positionsOf(f, blocks), pinned), blocks);
 }
 
 /** [자동 정렬] — 모든 노드 위치를 자동 배치로 덮고 선 경로(C14)·이름표 오프셋(L1)을 함께 지운다. 한 번의 편집(이력 한 칸)이다. */
