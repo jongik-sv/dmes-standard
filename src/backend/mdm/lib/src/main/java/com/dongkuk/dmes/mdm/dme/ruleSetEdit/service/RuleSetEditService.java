@@ -45,6 +45,7 @@ import com.dongkuk.dmes.mdm.entity.MdmRuleSetTestCase;
 import com.dongkuk.dmes.mdm.repository.MdmRuleSetRepository;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.HashSet;
@@ -307,6 +308,7 @@ public class RuleSetEditService {
     /**
      * 흐름·판정 오류는 던지지 않고 기록에 담는다(흐름을 읽지 못하면 {@code nodes=[]}·FLOW_INVALID). 저장된 룰 정의가 깨졌으면 MDM026(P-D9).
      * 경고는 폐기 룰(흐름에서 처음 나온 순서) → IF 갈래 조건식 NULL(기록 순서) → 룰 경고(RULE 노드 seq 순)다.
+     * 고친 값({@code editsJson}, 4단계 E4)이 있으면 끼워 처음부터 다시 실행하고 기록 {@code edits} 로 되돌려 준다.
      */
     public RuleSetSimulateResult simulate(RuleSetSimulateRequest request) {
         String flowJson = requireFlowJson(request == null ? null : request.getFlowJson());
@@ -319,14 +321,59 @@ public class RuleSetEditService {
             throw new BusinessException(ErrorCode.INVALID_VALUE, "레코드 JSON 은 객체여야 합니다: " + recordJson);
         }
         Instant ts = request.getEvalTs() == null || request.getEvalTs().isBlank() ? null : RuleSetRunner.parseKst(request.getEvalTs());
+        List<RunTrace.TraceEdit> edits = edits(request.getEditsJson());
         RunTrace trace;
         try {
-            trace = runner.trace(flowJson, record, ts);
+            trace = runner.trace(flowJson, record, ts, edits);
         } catch (StoredDefinitionException e) {
             throw MdmErrors.of(MdmErrorCode.STORED_DEFINITION_CORRUPT, "룰 세트 흐름의 저장된 룰 정의를 읽을 수 없어 실행하지 않습니다 — " + e.getMessage(),
                     List.of());
         }
         return new RuleSetSimulateResult(RunTraceJson.toMap(trace), simulateWarnings(flowJson, trace));
+    }
+
+    /**
+     * 4단계 E4 — {@code editsJson}(JSON 배열 문자열)을 고친 값 목록으로. 비었거나 공백이면 빈 목록. 항목은 {@code {beforeSeq: 1 이상 정수,
+     * nodeId: 글자, values: 객체}} 이고 values 는 {@code recordJson} 과 같은 변환기({@link RuleCaseJudge#array})로 푼다. 모양이 틀리면
+     * {@code recordJson} 과 같은 INVALID_VALUE 로 거부한다(실행하지 않는다).
+     */
+    private static List<RunTrace.TraceEdit> edits(String editsJson) {
+        if (editsJson == null || editsJson.isBlank()) {
+            return List.of();
+        }
+        List<Object> items = RuleCaseJudge.array(editsJson);
+        if (items == null) {
+            throw new BusinessException(ErrorCode.INVALID_VALUE, "고친 값 JSON 은 배열이어야 합니다: " + editsJson);
+        }
+        List<RunTrace.TraceEdit> out = new ArrayList<>(items.size());
+        for (int i = 0; i < items.size(); i++) {
+            RunTrace.TraceEdit e = edit(items.get(i));
+            if (e == null) {
+                throw new BusinessException(ErrorCode.INVALID_VALUE, "고친 값 JSON 의 " + (i + 1)
+                        + "번째 항목은 {beforeSeq: 1 이상 정수, nodeId: 글자, values: 객체} 여야 합니다: " + editsJson);
+            }
+            out.add(e);
+        }
+        return List.copyOf(out);
+    }
+
+    /** 고친 값 항목 하나 — 모양이 틀리면 null. values 의 null 값(비우기)을 지키려고 Map.copyOf 를 쓰지 않는다. */
+    private static RunTrace.TraceEdit edit(Object item) {
+        if (!(item instanceof Map<?, ?> m)) {
+            return null;
+        }
+        if (!(m.get("beforeSeq") instanceof Integer seq) || seq < 1) {
+            return null;
+        }
+        if (!(m.get("nodeId") instanceof String nodeId) || nodeId.isBlank()) {
+            return null;
+        }
+        if (!(m.get("values") instanceof Map<?, ?> values)) {
+            return null;
+        }
+        Map<String, Object> copy = new LinkedHashMap<>();
+        values.forEach((k, v) -> copy.put(String.valueOf(k), v));
+        return new RunTrace.TraceEdit(seq, nodeId, Collections.unmodifiableMap(copy));
     }
 
     /**

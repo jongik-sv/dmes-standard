@@ -57,6 +57,16 @@ public final class RuleCaseJudge {
         }
     }
 
+    /** JSON 배열 문자열 → 목록({@link #object} 와 같은 변환 — 소수는 BigDecimal). 배열이 아니거나 읽지 못하면 null(4단계 editsJson). */
+    public static List<Object> array(String json) {
+        try {
+            Object v = INPUT.readValue(json, Object.class);
+            return v instanceof List<?> l ? new ArrayList<Object>(l) : null;
+        } catch (JsonProcessingException e) {
+            return null;
+        }
+    }
+
     // ------------------------------------------------------------------ 판정
 
     public static Evaluated evaluate(MdmRuleEngine engine, String ruleId, Map<String, Object> input, Instant ts) {

@@ -220,4 +220,20 @@ class RuleSetCaseRunTest extends AbstractMdmSharedDbTest {
         String fifty = String.join(",", java.util.stream.IntStream.rangeClosed(1, 50).mapToObj(String::valueOf).toList());
         assertEquals(50, run(flow, SET, fifty).getCases().size());
     }
+
+    @Test
+    void runCases_는_editsJson_을_읽지_않는다_잘못된_JSON_이어도_돈다() {
+        putCase(1, "{\"GT_THK\":\"12\"}", RuleSetSimulateTest.EVAL_TS, "{\"GT_G\":\"A\"}");
+        RuleSetSimulateRequest r = new RuleSetSimulateRequest();
+        r.setFlowJson(flow);
+        r.setSetId(SET);
+        r.setRunCases(true);
+        r.setCaseIds("1");
+        r.setEditsJson("이건 JSON 이 아니다");
+
+        RuleSetSimulateResult out = service.simulate(r);
+
+        assertNull(out.getTrace());
+        assertEquals(Boolean.TRUE, only(out, 1).get("pass"), only(out, 1).toString());
+    }
 }
