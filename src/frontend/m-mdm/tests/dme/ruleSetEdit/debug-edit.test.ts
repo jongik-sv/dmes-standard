@@ -175,6 +175,18 @@ describe("디버거 값 고치기(4단계 E4)", () => {
     expect(lastExecute().editsJson).toBe('[{"beforeSeq":5,"nodeId":"m1","values":{"GT_F":2.50}}]');
   });
 
+  it("3-1. [변수 추가] 는 레코드 입력이 막는 예약 이름(상수·EVAL_TS·_ 접두)을 같은 문구로 거절한다", async () => {
+    await stepTo(2);
+    await click("var-add");
+    for (const name of ["EVAL_TS", "pi", "_hidden"]) {
+      await typeInto(byTestId<HTMLInputElement>("var-add-name"), name);
+      await click("var-add-ok");
+      expect(visibleText(byTestId("var-edit-error"))).toBe(`예약된 레코드 키: ${name}`);
+      expect(q("var-add-form")).not.toBeNull();
+    }
+    expect(status()).toBe("3/6 · if1 실행 전");
+  });
+
   it("3. [변수 추가]·[비우기]·[되돌리기]·[고침 취소]", async () => {
     await stepTo(2);
     await click("var-add");

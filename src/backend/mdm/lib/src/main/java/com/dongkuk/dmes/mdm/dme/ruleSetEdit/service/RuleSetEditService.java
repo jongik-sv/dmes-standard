@@ -54,6 +54,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import kr.dongkuk.maru.mdm.engine.expr.ReservedNames;
 import kr.dongkuk.maru.mdm.engine.rule.RunTrace;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.FlowDefinition;
 import org.springframework.stereotype.Service;
@@ -357,6 +358,18 @@ public class RuleSetEditService {
         return List.copyOf(out);
     }
 
+    /** 레코드 입력(RecordKeys)이 막는 예약 이름(EvalEx 상수·EVAL_TS·'_' 접두)은 고친 값 이름으로도 받지 않는다. */
+    private static void requireEditableName(String name) {
+        String upper = name.toUpperCase(java.util.Locale.ROOT);
+        String why = ReservedNames.CONSTANTS.contains(upper) ? "EvalEx 상수 이름이다"
+                : upper.equals(ReservedNames.EVAL_TS) ? "평가 시각 예약 이름이다"
+                : name.startsWith(ReservedNames.RESERVED_PREFIX) ? "'" + ReservedNames.RESERVED_PREFIX + "' 로 시작한다"
+                : null;
+        if (why != null) {
+            throw new BusinessException(ErrorCode.INVALID_VALUE, "고친 값 이름 '" + name + "' 는 " + why);
+        }
+    }
+
     /** 고친 값 항목 하나 — 모양이 틀리면 null. values 의 null 값(비우기)을 지키려고 Map.copyOf 를 쓰지 않는다. */
     private static RunTrace.TraceEdit edit(Object item) {
         if (!(item instanceof Map<?, ?> m)) {
@@ -373,6 +386,7 @@ public class RuleSetEditService {
         }
         Map<String, Object> copy = new LinkedHashMap<>();
         values.forEach((k, v) -> copy.put(String.valueOf(k), v));
+        copy.keySet().forEach(RuleSetEditService::requireEditableName);
         return new RunTrace.TraceEdit(seq, nodeId, Collections.unmodifiableMap(copy));
     }
 
