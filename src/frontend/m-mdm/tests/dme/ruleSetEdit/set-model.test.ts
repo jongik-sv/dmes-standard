@@ -389,6 +389,13 @@ describe("flowChecks — 받는 노드(CATCH, 받는 노드 spec §5)", () => {
     expect(flowChecks(guarded(["NO_RESULT"], null), rules, {}).map((c) => c.code)).toEqual(["FLOW_PARTIAL"]);
   });
 
+  it("처리 갈래 룰이 받는 룰의 결과를 읽으면 UNKNOWN_INPUT 거부다(처리 갈래는 받는 룰 직전 상태 — Java RuleSetAnalyzerTest 짝)", () => {
+    const rules = byId(rule("R1", [n("A", "DICT")], [n("P")]), rule("R9", [n("P")], [n("X")]), rule("R2", [], [n("Q")]));
+    expect(flowChecks(guarded(["NO_RESULT"], "R9"), rules, {})).toEqual([
+      { code: "UNKNOWN_INPUT", severity: "REJECT", ruleId: "R9", otherRuleId: null, varName: "P", message: "R9의 조건 변수 P는 컬럼 사전에 없고 세트 안의 어느 룰도 만들지 않는다", nodeId: "h1", edgeId: null },
+    ]);
+  });
+
   it("처리 갈래 밖에서 CATCH_* 를 읽으면 ORDER, 안에서는 지나간다", () => {
     const rules = byId(rule("R1", [n("A", "DICT")], [n("P")]), rule("R9", [n("CATCH_CODE", "PROG")], [n("P")]), rule("R2", [n("CATCH_MSG")], [n("Q")]));
     const out = flowChecks(guarded(["NO_RESULT"], "R9"), rules, {});

@@ -411,6 +411,42 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
                 + "(QLTY_GRD_JDG ← [COIL_WID], R_WID ← [PRC_FCT])"), e.getMessage());
     }
 
+    /** 받는 룰 하나에 돌아오는 처리 갈래 하나 — {@code start → rg(guarded) → mr → end}, {@code c1(rg, EVAL_ERROR) → rh(handler) → mr}(정상 갈래는 비었다). */
+    private void guardedSet(String setId, String guarded, String handler) {
+        String flow = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"},{\"id\":\"rg\",\"kind\":\"RULE\",\"ruleId\":\"" + guarded + "\"},"
+                + "{\"id\":\"c1\",\"kind\":\"CATCH\",\"attachTo\":\"rg\",\"catches\":[\"EVAL_ERROR\"]},"
+                + "{\"id\":\"rh\",\"kind\":\"RULE\",\"ruleId\":\"" + handler + "\"},{\"id\":\"mr\",\"kind\":\"MERGE\",\"splitId\":\"rg\"},"
+                + "{\"id\":\"end\",\"kind\":\"END\"}],"
+                + "\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"rg\"},{\"id\":\"e2\",\"from\":\"rg\",\"to\":\"mr\"},"
+                + "{\"id\":\"e3\",\"from\":\"c1\",\"to\":\"rh\"},{\"id\":\"e4\",\"from\":\"rh\",\"to\":\"mr\"},{\"id\":\"e5\",\"from\":\"mr\",\"to\":\"end\"}]}";
+        ruleSet(setId, "INUSE", guarded, handler);
+        DmeTestSupport.ruleSetFlow(jdbc, setId, flow);
+    }
+
+    /** 받는 노드 spec §5 — 처리 갈래가 실패한 룰과 같은 결과 변수를 쓰는 것은 정상이다(받는 룰과 처리 갈래 룰은 EXCLUSIVE). */
+    @Test
+    void 처리_갈래_룰이_받는_룰과_같은_결과를_대입해도_SET_DUP_RESULT_가_아니다() {
+        otherRule("R_DUP", "X_IN", "PRC_FCT");
+        guardedSet("S_GDUP", "QLTY_GRD_JDG", "R_DUP");
+
+        RuleEditSaveResult r = save(sample());
+
+        assertTrue(issues(r, "SET_DUP_RESULT").isEmpty(), r.getIssues().toString());
+    }
+
+    /** 받는 노드 spec §5 — 실패한 RULE 의 결과는 정의되지 않은 것으로 본다. 처리 갈래 룰이 받는 룰의 결과를 읽으면 IF 형제와 같은 SET_IF_SIBLING 이다. */
+    @Test
+    void 처리_갈래_룰이_받는_룰의_결과를_읽으면_SET_IF_SIBLING_으로_거부한다() {
+        otherRule("R_G", "X_IN", "COIL_WID");
+        guardedSet("S_GREAD", "R_G", "QLTY_GRD_JDG");
+
+        BusinessException e = rejected(() -> save(sample()));
+
+        assertEquals(List.of("SET_IF_SIBLING"), codes(e), e.getMessage());
+        assertTrue(e.getMessage().contains("세트 S_GREAD: QLTY_GRD_JDG와(과) R_G가 같은 IF 의 다른 갈래에 있는데 한쪽이 다른 쪽 결과를 읽는다"
+                + "(QLTY_GRD_JDG ← [COIL_WID], R_G ← []) — 그 갈래를 타면 값이 없다"), e.getMessage());
+    }
+
     // ── 세트 형제 판정의 경로 상태(§9.1-6, P4) ──
 
     /**
