@@ -53,6 +53,9 @@
  * 편집 모드 룰 노드의 "예외" 연결점(`CATCH_HANDLE`)을 끌어 놓으면 `onAddCatch(룰, 놓은 노드)` 를 놓을 때 한 번 부른다. 받는 노드에서 나가는 선은 빨간 점선이다.
  * 받는 노드로 들어가는 선은 `linkAllowed` 가 막는다(받는 노드에는 잇기 손잡이가 없어 새 선이 시작하지 않고, 처리 갈래 첫 선의 끝 옮기기는 된다). 스냅 후보에서 받는 노드를 뺀다.
  *
+ * 받는 노드 디버거(받는 노드 spec §9): 겹침은 `trace-view.ts` 가 만들고 캔버스는 그리기만 한다 — 받는 노드로 넘긴 룰은 `data-state="caught"`(주황 점선)와
+ * 종류 칩, 탄 받는 노드·처리 갈래는 run, 받은 룰의 정상 갈래 선은 칠하지 않는다. 받는 노드는 중단점 대상(`BREAKABLE`)이 아니다(R17).
+ *
  * 그룹 크기(4단계 G2): 그룹 틀 = 소속 노드 경계 + 여백 16 + `view.groups[].pad`. 편집 모드에서 고른 그룹에 네 모서리·네 변 손잡이(nodes.tsx)가 뜬다.
  * 끄는 동안은 `GroupPadStore` 에만 두고(캔버스 안에서만 다시 그린다) 놓을 때 `onGroupPadChange` 를 한 번 부른다. 여백으로 저장하므로
  * 소속 노드를 옮기면 틀이 따라가고 소속 노드보다 작게는 줄지 않는다. 크기를 바꿔도 소속은 바뀌지 않는다.
@@ -1064,7 +1067,7 @@ const NO_SEGS: readonly SegmentHandle[] = Object.freeze([]);
 const EDGE_TYPES: EdgeTypes = { rsfFlow: FlowEdgeView };
 
 /**
- * 접힌 분기 블록 요약(D16). `count` 는 분기·짝 합류를 뺀 안쪽 노드 수, `ran` 은 그 가운데 디버그/실행 기록에서 실행된 수(run·error),
+ * 접힌 분기 블록 요약(D16). `count` 는 분기·짝 합류를 뺀 안쪽 노드 수, `ran` 은 그 가운데 디버그/실행 기록에서 실행된 수(run·error·caught — 받는 노드로 넘긴 룰도 실행됐다),
  * `error` 는 안쪽 또는 합류가 오류로 끝났는가. 겹침이 없으면 0·false.
  */
 function blockInfo(flow: EditFlow, block: { count: number; members: string[] }, splitId: string, overlay: Overlay | null): CollapsedBlockInfo {
@@ -1075,7 +1078,7 @@ function blockInfo(flow: EditFlow, block: { count: number; members: string[] }, 
     if (id === splitId) continue;
     const st = overlay?.nodes[id]?.state;
     if (st === "error") error = true;
-    if (id !== mergeId && (st === "run" || st === "error")) ran++;
+    if (id !== mergeId && (st === "run" || st === "error" || st === "caught")) ran++;
   }
   return { count: block.count, ran, error };
 }

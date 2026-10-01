@@ -142,7 +142,7 @@ function TitleRow({ nodeId, style, lines, desc, titleProps, children }: {
 
 function Badges({ id, overlay }: { id: string; overlay: NodeOverlay | undefined }) {
   if (!overlay) return null;
-  const showSeq = overlay.seq != null && (overlay.state === "run" || overlay.state === "current" || overlay.state === "error");
+  const showSeq = overlay.seq != null && (overlay.state === "run" || overlay.state === "current" || overlay.state === "error" || overlay.state === "caught");
   return (
     <>
       {showSeq && <span className="rsf-seq" data-testid={`flow-node-seq-${id}`}>{overlay.seq}</span>}
@@ -294,8 +294,8 @@ function TaskBody({ data }: { data: FlowNodeData }) {
   );
 }
 
-/** 겹침 상태 → 모양 클래스(디버그 커서 겹침 — current 굵은 테두리·next 점선·pending 회색). */
-const STATE_CLASS: Partial<Record<string, string>> = { current: "rsf-node-current", next: "rsf-node-next", pending: "rsf-node-pending" };
+/** 겹침 상태 → 모양 클래스(디버그 커서 겹침 — current 굵은 테두리·next 점선·pending 회색, caught 받는 노드로 넘긴 룰). */
+const STATE_CLASS: Partial<Record<string, string>> = { current: "rsf-node-current", next: "rsf-node-next", pending: "rsf-node-pending", caught: "rsf-node-caught" };
 
 /**
  * 중단점 점(3단계 E2) — 왼쪽 가장자리 가운데. 디버그 모드(`canBreak`)에서는 눌러 켜고 끄는 단추이고(노드 선택은 바뀌지 않는다),

@@ -3,8 +3,8 @@
  * Task 8 이 병합되기 전에도 캔버스가 컴파일되도록 타입만 먼저 여기 둔다 — Task 8 은 이 파일에서 import 한다.
  */
 
-/** 3단계(P9·P-D13): `next` 는 디버그 커서 바로 다음 노드(점선) — 디버그 겹침(`debugOverlay`)만 쓴다. */
-export type NodeState = "run" | "error" | "current" | "next" | "pending" | "dim";
+/** 3단계(P9·P-D13): `next` 는 디버그 커서 바로 다음 노드(점선) — 디버그 겹침(`debugOverlay`)만 쓴다. 받는 노드 spec §9: caught = 받는 노드로 넘긴 룰(주황 점선). */
+export type NodeState = "run" | "error" | "caught" | "current" | "next" | "pending" | "dim";
 /** 4단계 E4: `edited` 는 이 노드 직전에 값을 고친 기록이면 true(그 밖에는 키가 없다 — 옛 겹침 비교가 그대로 맞는다). */
 export interface NodeOverlay { state: NodeState; seq: number | null; chip: string | null; edited?: boolean; }
 export type EdgeState = "run" | "chosen" | "dim" | "idle";
