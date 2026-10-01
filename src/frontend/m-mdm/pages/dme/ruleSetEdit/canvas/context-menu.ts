@@ -65,6 +65,8 @@ export interface CanvasActions {
   copy(nodeId: string): void;
   paste(edgeId: string): void;
   duplicate(nodeId: string): void;
+  /** 룰 노드에 받는 노드를 붙인다 — 끝으로 가는 처리 갈래(받는 노드 spec §8, R14). */
+  addCatch(ruleNodeId: string): void;
   /** 그 노드를 고르고 오른쪽 「룰 지정」 섹션을 펴 찾기 칸에 초점(4단계 Task 8). */
   openRuleAssign(nodeId: string): void;
   changeSplitKind(splitId: string, kind: "IF" | "PARALLEL"): void;

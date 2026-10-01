@@ -53,9 +53,13 @@ export const editMenu: MenuProvider = (t, ctx) => {
         { id: "rule-replace", label: "룰 바꾸기…", run: () => act.openRuleAssign(id) },
         { id: "copy", label: "복사", run: () => act.copy(id) },
         { id: "duplicate", label: "복제", run: () => act.duplicate(id) },
+        { id: "catch-add", label: "예외 받기 추가", run: () => act.addCatch(id) },
         colorItem(flow, ctx, id),
         { id: "delete", label: "삭제", danger: true, run: () => act.removeNode(id) },
       ];
+    }
+    if (n.kind === "CATCH") {
+      return [{ id: "delete", label: "삭제", danger: true, run: () => act.removeNode(id) }];
     }
     if (n.kind === "TASK") {
       return [

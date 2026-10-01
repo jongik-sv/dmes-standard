@@ -14,10 +14,11 @@
  */
 import { useContext, useRef, useState, type CSSProperties, type HTMLAttributes, type MouseEvent, type ReactNode } from "react";
 
-import { IconExternalLink, IconInfoCircle, IconPencil } from "@tabler/icons-react";
+import { IconBolt, IconExternalLink, IconInfoCircle, IconPencil } from "@tabler/icons-react";
 
 import type { FlowNode } from "@/contract/engine-contract.generated";
 
+import { catchTitle } from "../catch-text";
 import { TASK_LABEL, type FlowNote } from "../flow-edit";
 import { NODE_SIZE } from "../flow-layout";
 import { NODE_H_MIN, NODE_ICON_LABEL, type NodeSize, type NodeStyle } from "../node-style";
@@ -81,6 +82,7 @@ const KIND_CLASS: Record<string, string> = {
   IF: "rsf-if",
   PARALLEL: "rsf-par",
   MERGE: "rsf-merge",
+  CATCH: "rsf-catch",
 };
 
 /** 제목 줄 높이·작은 줄 높이·위아래 여백(styles/base.ts 의 .rsf-title 16px·.rsf-sub/.rsf-id 15px·padding 6px). */
@@ -354,6 +356,9 @@ const ANCHOR_PX = 8;
 /** 잇기 손잡이 지름(px) — `styles/connect.ts` 와 같은 값. */
 export const LINK_HANDLE_PX = 10;
 
+/** 룰 노드의 "예외" 연결점 id — 끌어 놓으면 받는 노드와 처리 갈래 첫 선을 함께 만든다(받는 노드 spec §8). */
+export const CATCH_HANDLE = "catch";
+
 /** 편집 모드 잇기 손잡이·몸통 받기(C1). START 는 들어오는 선이 없어 몸통 받기가 없고, END 는 나가는 선이 없어 잇기 손잡이가 없다. */
 function LinkHandles({ node, isConnectable }: { node: FlowNode; isConnectable: boolean }) {
   return (
@@ -386,6 +391,23 @@ function LinkHandles({ node, isConnectable }: { node: FlowNode; isConnectable: b
   );
 }
 
+/** 룰 노드 오른쪽 아래 "예외" 연결점(편집 모드만, 받는 노드 spec §8). 노드에 마우스를 올리면 보인다. */
+function CatchHandle({ node, isConnectable }: { node: FlowNode; isConnectable: boolean }) {
+  return (
+    <Handle
+      id={CATCH_HANDLE}
+      type="source"
+      position={Position.Bottom}
+      className="rsf-catch-link"
+      isConnectable={isConnectable}
+      data-testid={`flow-catch-handle-${node.id}`}
+      title="끌어서 놓으면 예외를 받는 노드와 처리 갈래를 만든다"
+    >
+      <IconBolt size={10} aria-hidden="true" />
+    </Handle>
+  );
+}
+
 /** 값 고친 지점 표시(4단계 E4) — 디버그 겹침 `overlay.edited` 가 있을 때 오른쪽 아래 작은 원. */
 export const EDITED_NODE_TITLE = "이 노드 직전에 값을 고쳤다";
 
@@ -410,7 +432,7 @@ export function FlowNodeView({ data, isConnectable }: NodeProps<FlowRfNode>) {
       data-shape={st?.shape}
       data-no-open={kind === "RULE" && st?.hide?.includes("open") ? "true" : undefined}
     >
-      {kind !== "START" && <Handle id={ANCHOR_IN} type="target" position={Position.Top} className="rsf-anchor" isConnectableStart={false} />}
+      {kind !== "START" && kind !== "CATCH" && <Handle id={ANCHOR_IN} type="target" position={Position.Top} className="rsf-anchor" isConnectableStart={false} />}
       <BreakpointDot data={data} />
       {collapsed && <CollapsedBody data={data} info={collapsed} />}
       {collapsed && mark && <span className="rsf-mark" data-severity={mark} data-testid={`flow-node-mark-${node.id}`} />}
@@ -437,6 +459,11 @@ export function FlowNodeView({ data, isConnectable }: NodeProps<FlowRfNode>) {
         </>
       )}
       {!collapsed && kind === "MERGE" && mark && <span className="rsf-mark" data-severity={mark} data-testid={`flow-node-mark-${node.id}`} />}
+      {!collapsed && kind === "CATCH" && (
+        <span className="rsf-catch-icon" title={catchTitle(node)} aria-label={`받는 노드 ${catchTitle(node)}`}>
+          <IconBolt size={14} aria-hidden="true" />
+        </span>
+      )}
       <Badges id={node.id} overlay={overlay} />
       {overlay?.edited && (
         <span className="rsf-edited" data-testid={`flow-node-edited-${node.id}`} title={EDITED_NODE_TITLE} aria-label={EDITED_NODE_TITLE}>
@@ -444,7 +471,8 @@ export function FlowNodeView({ data, isConnectable }: NodeProps<FlowRfNode>) {
         </span>
       )}
       {kind !== "END" && <Handle id={ANCHOR_OUT} type="source" position={Position.Bottom} className="rsf-anchor" isConnectableStart={false} />}
-      {data.linkable && <LinkHandles node={node} isConnectable={isConnectable} />}
+      {data.linkable && kind !== "CATCH" && <LinkHandles node={node} isConnectable={isConnectable} />}
+      {data.linkable && kind === "RULE" && !collapsed && <CatchHandle node={node} isConnectable={isConnectable} />}
       {data.resizable &&
         sizing &&
         NODE_GRIPS.map((g) => (
@@ -529,5 +557,10 @@ export function handlesOf(kind: FlowNode["kind"], size: NodeSize = NODE_SIZE[kin
   const sides = [side("top", w / 2, 0), side("right", w, h / 2), side("bottom", w / 2, h), side("left", 0, h / 2)];
   if (kind === "START") return [out, ...sides];
   if (kind === "END") return [into, body];
+  if (kind === "CATCH") return [out];
+  if (kind === "RULE") {
+    const catchHandle = { id: CATCH_HANDLE, type: "source" as const, position: Position.Bottom, x: w - g * 2, y: h - g / 2, width: g, height: g };
+    return [into, body, out, ...sides, catchHandle];
+  }
   return [into, body, out, ...sides];
 }

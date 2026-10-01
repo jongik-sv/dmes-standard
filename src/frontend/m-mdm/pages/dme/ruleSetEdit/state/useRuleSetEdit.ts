@@ -154,6 +154,17 @@ function condKey(f: EditFlow | null): string {
 const hasSplit = (f: EditFlow) => f.nodes.some((n) => n.kind === "IF" || n.kind === "PARALLEL");
 /** 구성 지침은 룰 ID 만으로 흐름을 갈아 끼우므로, 분기나 빈 단계가 있으면 적용하지 않는다(빈 단계를 말없이 지우지 않는다). */
 const hasEmptyStep = (f: EditFlow) => f.nodes.some((n) => n.kind === "TASK");
+
+/**
+ * 구성 지침(한 줄 순서 제안)을 적용할 수 없는 흐름이면 그 이유(화면 안내 문구), 아니면 null. 적용은 흐름을 `linearFlow(order)` 로 통째로 바꾸므로
+ * 분기·빈 단계·받는 노드(R19)를 잃는다.
+ */
+export function guideBlockReason(f: EditFlow): string | null {
+  if (hasSplit(f)) return "분기가 있는 흐름에는 적용하지 않는다";
+  if (hasEmptyStep(f)) return "빈 단계가 있는 흐름에는 적용하지 않는다";
+  if (f.nodes.some((n) => n.kind === "CATCH")) return "받는 노드가 있는 흐름에는 적용하지 않는다";
+  return null;
+}
 const isEditResult = (r: EditResult | EditFlow): r is EditResult => typeof (r as EditResult).ok === "boolean";
 
 export function useRuleSetEdit(): RuleSetEditState {
@@ -389,7 +400,7 @@ export function useRuleSetEdit(): RuleSetEditState {
   const applyGuide = useCallback(
     (order: readonly string[], ios: readonly RuleIo[]) => {
       const cur = flowRef.current;
-      if (!cur || hasSplit(cur) || hasEmptyStep(cur)) return;
+      if (!cur || guideBlockReason(cur)) return;
       setRules((prev) => toMap(ios, prev));
       edit(() => toEditFlow(linearFlow(order), []));
     },
