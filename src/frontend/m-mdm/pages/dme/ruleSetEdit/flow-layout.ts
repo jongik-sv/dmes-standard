@@ -367,7 +367,7 @@ function lastExit(seq: Seq): string | null {
 /** 선 양 끝 연결점의 반 크기 — 캔버스 연결점(nodes.tsx `ANCHOR_PX` 8)의 절반. 선은 나가는 연결점 아래 끝에서 나와 들어오는 연결점 위 끝으로 간다. */
 const ANCHOR_HALF = 4;
 /** 경로가 연결점에서 곧게 나오고 들어가는 길이(route-path `AUTO_ROUTE_OFFSET` 과 같다). */
-const ROUTE_STUB = 20;
+const ENDING_STUB = 20;
 /** 비켜 가는 세로 줄과 그 왼쪽 노드 사이 간격. */
 const LANE_GAP = NODESEP / 2;
 
@@ -417,8 +417,8 @@ export function endingRoutes(
     const sy = sp.y + ss.h + ANCHOR_HALF;
     const tx = tp.x + ts.w / 2;
     const ty = tp.y - ANCHOR_HALF;
-    const top = sy + ROUTE_STUB;
-    const bottom = ty - ROUTE_STUB;
+    const top = sy + ENDING_STUB;
+    const bottom = ty - ENDING_STUB;
     if (bottom <= top) continue;
     const others = boxes.filter((b) => b.id !== e.from && b.id !== e.to);
     const mid = (top + bottom) / 2;

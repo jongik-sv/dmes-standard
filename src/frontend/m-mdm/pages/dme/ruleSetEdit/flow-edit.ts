@@ -1363,6 +1363,7 @@ function handlerTrail(g: EditFlow, c: FlowNode): { members: Set<string>; tail: F
     if (t.kind === "END") return { members, tail: outs[0], ends: true };
     if (t.kind === "MERGE" && t.splitId === rule) return { members, tail: outs[0], ends: false };
     if (t.kind === "START" || t.kind === "CATCH" || t.kind === "MERGE" || t.id === rule || members.has(t.id)) return open;
+    if (inOf(g, t.id).length !== 1) return open; // 올바른 처리 갈래 몸은 들어오는 선이 하나다(정상 경로로 흘러 들어간 것을 막는다)
     if (!isSplitKind(t.kind)) members.add(t.id);
     cur = t;
   }

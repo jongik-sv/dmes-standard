@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import type { FlowEdge, FlowNode, FlowNodeKind, RuleSetFlow } from "../../../src/contract/engine-contract.generated";
 import {
-  RETURN_ALREADY, RETURN_NO_EXIT, addCatch, connect, flowJsonOf, insertRule, reconnectEdge, returnCatch, setRoute, toEditFlow,
+  RETURN_ALREADY, RETURN_NO_EXIT, RETURN_OPEN, addCatch, connect, flowJsonOf, insertRule, reconnectEdge, returnCatch, setRoute, toEditFlow,
   type EditFlow, type EditResult, type FlowPos,
 } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { NODE_SIZE, autoLayout, clearLayoutCache, drawnPositions, endingRoutes } from "../../../pages/dme/ruleSetEdit/flow-layout";
@@ -183,6 +183,27 @@ describe("받는 노드 우클릭 메뉴 「흐름으로 돌아오기」", () =>
     expect(editMenu({ kind: "node", nodeId: "c1" }, ctx(specFromScratch())).map((i) => i.id)).toEqual(["delete"]);
     expect(editMenu({ kind: "node", nodeId: "c2" }, ctx(specFromScratch())).map((i) => i.id)).toEqual(["catch-return", "delete"]);
     expect(editMenu({ kind: "node", nodeId: "c1" }, ctx(endingHandler(), "view"))).toEqual([]);
+  });
+});
+
+describe("돌아오기 — 이미 잘못된 흐름(처리 갈래 첫 선이 정상 경로에 닿음)에서는 합류를 만들지 않는다", () => {
+  /** start → r1 → r2 → r3 → r4 → end, c1(r2) → r4 — 예외 연결점을 다음 노드가 아닌 r4 에 놓았다(r4 에 들어오는 선 둘). */
+  const malformed = (): EditFlow => ok(addCatch(toEditFlow(null, ["R_A", "R_B", "R_C", "R_D"]), "r2", "r4"));
+  const ctx = (flow: EditFlow): MenuContext => ({
+    flow, rules: {}, mode: "edit", hasClipboard: false, selectedEdgeId: null, collapsed: new Set(), breakpoints: new Set(), canRun: true,
+    act: new Proxy({}, { get: () => () => undefined }) as unknown as CanvasActions,
+  });
+
+  it("returnCatch 는 거부하고 메뉴 항목도 없다", () => {
+    const f = malformed();
+    expect(reason(returnCatch(f, "c1"))).toBe(RETURN_OPEN);
+    expect(editMenu({ kind: "node", nodeId: "c1" }, ctx(f)).map((i) => i.id)).toEqual(["delete"]);
+  });
+
+  it("정상 경로 노드에서 처리 갈래가 닿은 노드로 이어도 합류를 만들지 않는다", () => {
+    const f = ok(connect(malformed(), "r4", "r3"));
+    expect(merges(f)).toEqual([]);
+    expect(f.edges.at(-1)).toMatchObject({ from: "r4", to: "r3" });
   });
 });
 
