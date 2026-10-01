@@ -62,6 +62,36 @@ describe("frames — 돌아오는 자리(implicit-join spec §11)", () => {
     expect(fr[6].edited).toEqual(["CATCH_CODE"]);
   });
 
+  it("돌아오는 자리가 받는 노드가 붙은 단계면 앞 블록을 되돌린 뒤 그 단계 직전 값을 적는다", () => {
+    // start → r1 → r2 → r3 → end. c1(r1) → h → r2(돌아오는 자리 = r2). c2(r2) → f → r3(돌아오는 자리 = r3). 엔진: guarded(r1) 끝에서 되돌린 뒤 guarded(r2) 가 outer 를 적는다.
+    const flow: RuleSetFlow = {
+      version: 1,
+      nodes: [fn("start", "START"), fn("r1", "RULE", { ruleId: "R_ERR" }), fn("c1", "CATCH", { attachTo: "r1", catches: ["EVAL_ERROR"] }), fn("h", "RULE", { ruleId: "R_H" }),
+        fn("r2", "RULE", { ruleId: "R_G" }), fn("c2", "CATCH", { attachTo: "r2", catches: ["NO_RESULT"] }), fn("f", "RULE", { ruleId: "R_FILL" }),
+        fn("r3", "RULE", { ruleId: "R_AFTER" }), fn("end", "END")],
+      edges: [fe("e1", "start", "r1"), fe("e2", "r1", "r2"), fe("e3", "c1", "h"), fe("e4", "h", "r2"), fe("e5", "r2", "r3"), fe("e6", "c2", "f"), fe("e7", "f", "r3"),
+        fe("e8", "r3", "end")],
+    };
+    const head = [
+      nt(1, "start", "START"),
+      nt(2, "r1", "RULE", { status: "CAUGHT", ruleId: "R_ERR", ver: 1, reads: { X: N("5") }, violations: [] }),
+      nt(3, "c1", "CATCH", { ruleId: "R_ERR", catchKind: "EVAL_ERROR", code: "EVALUATION_ERROR", message: "나누기 오류" }),
+      nt(4, "h", "RULE", { ruleId: "R_H", ver: 1, reads: {}, result: res("R_H", { H: N("1") }) }),
+    ];
+    // r2 정상 — r3 앞에 CATCH_* 가 없다.
+    const ok = frames(run([...head, nt(5, "r2", "RULE", { ruleId: "R_G", ver: 1, reads: {}, result: res("R_G", { G: N("2") }) }),
+      nt(6, "r3", "RULE", { ruleId: "R_AFTER", ver: 1, reads: {}, result: res("R_AFTER", { Z: N("10") }) }), nt(7, "end", "END")], {}), flow);
+    expect(ok[4].before.CATCH_KIND).toBeUndefined(); // r2 — r1 블록이 닫혔다
+    expect(ok[5].before.CATCH_KIND).toBeUndefined(); // r3 — r2 블록 직전 값(빈 값)으로
+    // r2 도 받음 — f 는 c2 값, r3 앞에는 c1·c2 어느 값도 없다.
+    const caught = frames(run([...head, nt(5, "r2", "RULE", { status: "CAUGHT", ruleId: "R_G", ver: 1, reads: {}, violations: [] }),
+      nt(6, "c2", "CATCH", { ruleId: "R_G", catchKind: "NO_RESULT", code: "NO_RESULT", message: "맞는 행과 기본 행이 없다" }),
+      nt(7, "f", "RULE", { ruleId: "R_FILL", ver: 1, reads: {}, result: res("R_FILL", { G: N("0") }) }),
+      nt(8, "r3", "RULE", { ruleId: "R_AFTER", ver: 1, reads: {}, result: res("R_AFTER", { Z: N("10") }) }), nt(9, "end", "END")], {}), flow);
+    expect(caught[6].before.CATCH_KIND).toEqual(S("NO_RESULT"));
+    for (const n of ["CATCH_KIND", "CATCH_RULE", "CATCH_CODE", "CATCH_MSG"]) expect(caught[7].before[n]).toBeUndefined();
+  });
+
   it("병렬_갈래_안_IF_끝냄_기록의_END_프레임은_열린_갈래를_합친다", () => {
     // p1 [p1a → a → pm] [p1i → if1 [b1 "X > 0" → k → end] [그 외 → pm]] [p1b → b → pm] → pm → end
     const flow: RuleSetFlow = {

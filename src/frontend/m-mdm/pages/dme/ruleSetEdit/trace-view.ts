@@ -215,8 +215,7 @@ export function frames(trace: RunTrace, flow: RuleSetFlow): TraceFrame[] {
     if (node.kind === "END") {
       for (const splitId of [...branchScopes.keys()].reverse()) mergeBranches(splitId, branchScopes.get(splitId)!, scopeOf(paths.get(splitId) ?? []));
     }
-    // R3·R4 — 엔진은 받는 노드가 붙은 단계를 시작하기 전에 CATCH_* 를 적고, 돌아오는 자리·END 는 고친 값을 넣기 전에 CATCH_* 를 되돌리거나 지운다.
-    if ((node.kind === "RULE" || node.kind === "TASK") && guardSteps.has(node.nodeId)) outerCatch.set(node.nodeId, pickCatch(scope.ctx));
+    // R3·R4 — 엔진은 돌아오는 자리·END 에서 고친 값을 넣기 전에 CATCH_* 를 되돌리거나 지우고, 받는 노드가 붙은 단계를 시작하기 전에 CATCH_* 를 적는다.
     // 돌아오는 자리 — 그 자리를 끝으로 하는 블록을 안쪽부터, 블록 단계 직전 CATCH_* 가 적힌 것만 되돌린다. 범위는 받는 노드 블록의 범위다
     // (병렬 갈래 안 블록이 병렬 합류로 돌아오면 엔진은 갈래 범위에서 되돌린 뒤 합친다).
     for (const step of guardJoins.get(node.nodeId) ?? []) {
@@ -225,6 +224,8 @@ export function frames(trace: RunTrace, flow: RuleSetFlow): TraceFrame[] {
       restoreCatch(scopeOf(paths.get(step) ?? []).ctx, saved);
       outerCatch.delete(step);
     }
+    // 새 형식은 돌아오는 자리가 받는 노드가 붙은 단계일 수 있다 — 엔진은 앞 블록을 닫은(되돌린) 뒤 다음 블록의 outer 를 적으므로 되돌림 뒤에 적는다.
+    if ((node.kind === "RULE" || node.kind === "TASK") && guardSteps.has(node.nodeId)) outerCatch.set(node.nodeId, pickCatch(scope.ctx));
     if (node.kind === "END") restoreCatch(scope.ctx, {});
     // 4단계 E4 — 노드를 시작하기 직전에 그 노드 범위에 고친 값을 넣는다. 같은 이름이 그 범위 made 에 있으면 made 도 바꾼다(스펙 §2.2).
     const edited: string[] = [];
