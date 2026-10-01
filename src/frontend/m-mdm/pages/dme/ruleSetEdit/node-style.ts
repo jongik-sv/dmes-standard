@@ -3,7 +3,7 @@
  * 흐름 JSON `view.styles[노드 ID]` 에 둔다. 백엔드는 view 를 그대로 통과시킨다(계약 변경 없음, S-D1).
  * 기본값과 같은 칸(default 색·232·68·빈 hide)은 두지 않고, 남는 칸이 없으면 노드 키도 두지 않는다 — 외관 없는 세트의 저장 글자가 예전과 같다.
  */
-export type NodeColor = "default" | "blue" | "green" | "yellow" | "orange" | "red" | "purple";
+export type NodeColor = "default" | "blue" | "orange" | "green" | "red" | "purple";
 export type NodePart = "sub" | "id" | "open";
 export type NodeIcon = "calc" | "check" | "filter" | "calendar" | "money" | "alert" | "database" | "ruler" | "scale" | "truck" | "settings" | "flag";
 export type NodeShape = "square" | "pill";
@@ -29,9 +29,10 @@ export interface NodeSize {
   h: number;
 }
 
-export const NODE_COLORS: readonly NodeColor[] = ["default", "blue", "green", "yellow", "orange", "red", "purple"];
+/** 색 견본 격자 순서(왼→오, 위→아래) — Camunda Modeler 와 같은 6색. */
+export const NODE_COLORS: readonly NodeColor[] = ["default", "blue", "orange", "green", "red", "purple"];
 export const NODE_COLOR_LABEL: Readonly<Record<NodeColor, string>> = {
-  default: "기본", blue: "파랑", green: "초록", yellow: "노랑", orange: "주황", red: "빨강", purple: "보라",
+  default: "기본", blue: "파랑", orange: "주황", green: "초록", red: "빨강", purple: "보라",
 };
 export const NODE_PARTS: readonly NodePart[] = ["sub", "id", "open"];
 export const NODE_PART_LABEL: Readonly<Record<NodePart, string>> = { sub: "종류·정책 줄", id: "룰 ID 줄", open: "룰 편집 열기 단추" };

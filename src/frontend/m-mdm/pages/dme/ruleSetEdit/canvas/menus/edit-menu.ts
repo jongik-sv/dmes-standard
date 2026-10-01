@@ -5,7 +5,8 @@
 import type { FlowNodeKind } from "@/contract/engine-contract.generated";
 
 import type { EditFlow } from "../../flow-edit";
-import type { MenuItem, MenuProvider } from "../context-menu";
+import { NODE_COLORS, NODE_COLOR_LABEL } from "../../node-style";
+import type { MenuContext, MenuItem, MenuProvider } from "../context-menu";
 
 const EMPTY_BRANCH = "(빈 갈래)";
 
@@ -22,6 +23,26 @@ function dissolveChildren(f: EditFlow, splitId: string, run: (edgeId: string) =>
     });
 }
 
+/**
+ * 「색상」(붓) — 룰·빈 단계 노드 메뉴 「삭제」 앞. 우클릭한 노드가 다중 선택 안이고 선택 안 룰·빈 단계가 둘 이상이면 그 전부에, 아니면 그 노드 하나에 칠한다(C4).
+ * 고른 칸은 우클릭한 노드의 지금 색(없으면 기본).
+ */
+function colorItem(f: EditFlow, ctx: MenuContext, nodeId: string): MenuItem {
+  const styled = (id: string) => {
+    const k = f.nodes.find((x) => x.id === id)?.kind;
+    return k === "RULE" || k === "TASK";
+  };
+  const picked = (ctx.selection ?? []).filter(styled);
+  const targets = ctx.selection?.includes(nodeId) && picked.length >= 2 ? picked : [nodeId];
+  const cur = f.view.styles?.[nodeId]?.color ?? "default";
+  return {
+    id: "color",
+    label: "색상",
+    icon: "brush",
+    swatches: NODE_COLORS.map((c) => ({ id: `color-${c}`, label: NODE_COLOR_LABEL[c], color: c, active: c === cur, run: () => ctx.act.setNodeColor(targets, c) })),
+  };
+}
+
 export const editMenu: MenuProvider = (t, ctx) => {
   if (ctx.mode !== "edit") return [];
   const { flow, act } = ctx;
@@ -35,6 +56,7 @@ export const editMenu: MenuProvider = (t, ctx) => {
         { id: "rule-replace", label: "룰 바꾸기…", run: () => act.openRuleAssign(id) },
         { id: "copy", label: "복사", run: () => act.copy(id) },
         { id: "duplicate", label: "복제", run: () => act.duplicate(id) },
+        colorItem(flow, ctx, id),
         { id: "delete", label: "삭제", danger: true, run: () => act.removeNode(id) },
       ];
     }
@@ -43,6 +65,7 @@ export const editMenu: MenuProvider = (t, ctx) => {
         { id: "rule-assign", label: "룰 지정…", run: () => act.openRuleAssign(id) },
         { id: "copy", label: "복사", run: () => act.copy(id) },
         { id: "duplicate", label: "복제", run: () => act.duplicate(id) },
+        colorItem(flow, ctx, id),
         { id: "delete", label: "삭제", danger: true, run: () => act.removeNode(id) },
       ];
     }

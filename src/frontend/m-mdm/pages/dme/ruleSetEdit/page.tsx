@@ -41,11 +41,11 @@ import { useTestCases } from "./debugger/useTestCases";
 import { ValuesTab } from "./debugger/ValuesTab";
 import { VariablePanel } from "./debugger/VariablePanel";
 import {
-  connect, flowJsonOf, reconnectEdge, setGroupPad, setLabelOffset, setPositions, setRoute, shiftRoutes, updateEdge, updateNodeLabel, updateNote,
+  connect, flowJsonOf, reconnectEdge, setGroupPad, setLabelOffset, setNodesColor, setPositions, setRoute, shiftRoutes, updateEdge, updateNodeLabel, updateNote,
   type EditFlow, type EditResult, type FlowNote, type FlowPos, type GroupPad, type LabelOffset, type LabelPart,
 } from "./flow-edit";
 import { autoArrange, restyleNode, shiftSpace, type NodeLayoutSource, type SpaceAxis, type SpaceBlocks } from "./flow-layout";
-import type { NodeSize } from "./node-style";
+import type { NodeColor, NodeSize } from "./node-style";
 import { openRule } from "./links";
 import { BottomPanel, type BottomTab } from "./panels/BottomPanel";
 import { ChecksPanel } from "./panels/ChecksPanel";
@@ -282,6 +282,12 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
       editing && edit((f) => restyleNode(f, id, { w: size.w, h: size.h }, drawn, blocks)),
     [editing, edit],
   );
+  // 노드 색(S1, 우클릭 「색상」) — 여러 노드여도 편집 한 번. 크기가 안 바뀌므로 위치는 건드리지 않는다. 이미 그 색이면 편집을 만들지 않는다.
+  const onNodeColor = useCallback(
+    (nodeIds: readonly string[], color: NodeColor) =>
+      editing && edit((f) => setNodesColor(f, nodeIds, color)),
+    [editing, edit],
+  );
   const onMoveNode = useCallback(
     (nodeId: string, edgeId: string, pos: Record<string, FlowPos>) => {
       if (editing) drag.moveNodeTo(nodeId, edgeId, pos);
@@ -387,8 +393,9 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
       runTo: (id: string) => void runTo(id),
       align: onAlign,
       distribute: onDistribute,
+      setNodeColor: onNodeColor,
     }),
-    [editActions.actions, collapse.toggle, sim.toggleBreakpoint, runTo, onAlign, onDistribute],
+    [editActions.actions, collapse.toggle, sim.toggleBreakpoint, runTo, onAlign, onDistribute, onNodeColor],
   );
   const menuItems = useMemo(
     () =>

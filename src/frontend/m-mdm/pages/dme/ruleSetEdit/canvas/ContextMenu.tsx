@@ -5,9 +5,12 @@
  * 항목을 누르면 `run()` 뒤 닫는다. Esc·바깥 누르기·스크롤로 닫는다. 화면 밖으로 넘치면 안쪽으로 당긴다. 항목이 0개면 열지 않는다.
  * 메뉴는 캔버스 감싸개 안에 있으므로 메뉴 안 키 입력은 여기서 끊는다 — 메뉴 단추에 초점이 있을 때 Delete 등이 캔버스 단축키로 올라가지 않게.
  * `children` 은 떠 있는 하위 메뉴가 아니라 제목 아래 들여 쓴 버튼 묶음으로 그린다(분기 풀기 갈래 고르기).
+ * `swatches` 가 있는 항목은 [아이콘 + 라벨] 단추로 그리고, 누르면 메뉴를 닫지 않고 그 아래에 3열 견본 격자를 펼친다(색상). 견본을 누르면 `run()` 뒤 닫는다.
  * 화면 모듈은 Mantine 을 쓰지 않으므로(Part B §4-2) 기본 버튼과 `styles/menu.ts` 규칙으로 그린다.
  */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+
+import { IconBrush, type TablerIcon } from "@tabler/icons-react";
 
 import type { MenuItem } from "./context-menu";
 
@@ -41,7 +44,53 @@ function ItemButton({ item, onClose, nested }: { item: MenuItem; onClose(): void
   );
 }
 
+const ITEM_ICON: Readonly<Record<NonNullable<MenuItem["icon"]>, TablerIcon>> = { brush: IconBrush };
+
+/** 견본 격자를 펼치는 항목(색상) — 단추는 메뉴를 닫지 않고, 견본을 누르면 run 뒤 닫는다. */
+function SwatchEntry({ item, onClose }: { item: MenuItem; onClose(): void }) {
+  const [open, setOpen] = useState(false);
+  const Icon = item.icon ? ITEM_ICON[item.icon] : null;
+  return (
+    <div className="rsf-menu-group">
+      <button
+        type="button"
+        role="menuitem"
+        className="rsf-menu-item rsf-menu-item-icon"
+        data-testid={`flow-menu-item-${item.id}`}
+        aria-expanded={open}
+        disabled={item.disabled}
+        title={item.title}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {Icon && <Icon size={14} aria-hidden="true" />}
+        <span>{item.label}</span>
+      </button>
+      {open && (
+        <div className="rsf-menu-swatches" role="group" aria-label={item.label}>
+          {item.swatches!.map((sw) => (
+            <button
+              key={sw.id}
+              type="button"
+              className="rsf-menu-swatch"
+              data-color={sw.color}
+              data-testid={`flow-menu-swatch-${sw.color}`}
+              aria-label={sw.label}
+              title={sw.label}
+              aria-pressed={sw.active}
+              onClick={() => {
+                sw.run();
+                onClose();
+              }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Entry({ item, onClose }: { item: MenuItem; onClose(): void }) {
+  if (item.swatches && item.swatches.length > 0) return <SwatchEntry item={item} onClose={onClose} />;
   if (!item.children || item.children.length === 0) return <ItemButton item={item} onClose={onClose} nested={false} />;
   return (
     <div className="rsf-menu-group" role="group" aria-label={item.label}>

@@ -2,6 +2,13 @@
  * 우클릭·[+] 메뉴·툴바 찾기·단축키 도움말 스타일(3단계 계획 P4). Task 0 이 메뉴 틀(`ContextMenu`)과 선 [+] 단추 규칙을 두고, Task 8 이 찾기·도움말을 더한다.
  * 색은 의미 토큰만 쓴다. 한 변 색 바는 쓰지 않는다(Local-Rules §8).
  */
+import { NODE_COLORS } from "../node-style";
+
+/** 색상 견본 — 채움 = 그 색의 연한 노드 채움, 테두리 = 진한 노드 테두리(캔버스와 같은 :root 토큰). 기본은 중립색. */
+const SWATCH_RULES = NODE_COLORS.filter((c) => c !== "default")
+  .map((c) => `.rsf-menu-swatch[data-color="${c}"] { background: var(--rsf-c-${c}-bg); border-color: var(--rsf-c-${c}-border); }`)
+  .join("\n");
+
 export const MENU_CSS = `
 /* 우클릭·[+] 메뉴 — 떠 있는 레이어 하나 */
 .rsf-menu {
@@ -17,7 +24,18 @@ export const MENU_CSS = `
 .rsf-menu-item:disabled { color: var(--color-text-muted); cursor: default; }
 .rsf-menu-item[data-danger="true"]:not(:disabled) { color: var(--color-danger); }
 .rsf-menu-item-nested { padding-left: calc(var(--spacing-md) * 2); }
+.rsf-menu-item-icon { display: flex; align-items: center; gap: var(--spacing-xs); }
 .rsf-menu-group { display: flex; flex-direction: column; }
+/* 색상 견본 격자 — 3열 × 2줄, 고른 칸은 견본 둘레에 회색(--color-bg-hover) 칸(한 변 색 바 아님, Local-Rules §8) */
+.rsf-menu-swatches { display: grid; grid-template-columns: repeat(3, 28px); gap: 8px; padding: 8px var(--spacing-md); }
+.rsf-menu-swatch {
+  box-sizing: border-box; width: 28px; height: 28px; margin: 0; padding: 0; cursor: pointer;
+  background: var(--color-bg); border: 2px solid var(--color-border-strong); border-radius: var(--radius-md);
+}
+.rsf-menu-swatch[data-color="default"] { background: var(--color-bg); border-color: var(--color-border-strong); }
+${SWATCH_RULES}
+.rsf-menu-swatch:hover, .rsf-menu-swatch:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 1px; }
+.rsf-menu-swatch[aria-pressed="true"] { box-shadow: 0 0 0 4px var(--color-bg-hover); }
 .rsf-menu-group-title { padding: 4px var(--spacing-md); font-size: var(--font-size-sm); color: var(--color-text-secondary); }
 
 /* 선 [+] 단추 — 선 이름표 층(pointer-events: none) 위에서 누를 수 있게 한다. 보일 때 늘 변수 칩(z-index 1)·라벨보다 위다(U1). */

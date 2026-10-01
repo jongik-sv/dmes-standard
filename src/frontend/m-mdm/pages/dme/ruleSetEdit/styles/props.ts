@@ -1,9 +1,3 @@
-import { NODE_COLORS } from "../node-style";
-
-/** 「외관」 색 견본 — 캔버스와 같은 팔레트 토큰(색마다 한 줄). */
-const SWATCH_RULES = NODE_COLORS.filter((c) => c !== "default")
-  .map((c) => `.rsf-style-swatch[data-color="${c}"] { background: var(--rsf-c-${c}-bg); border-color: var(--rsf-c-${c}-border); }`)
-  .join("\n");
 /** 속성 패널 보강 스타일(3단계 계획 Task 9 — 갈래 순서 끌기 손잡이). */
 export const PROPS_CSS = `
 .rsf-branch-grip { display: flex; align-items: center; cursor: grab; margin-right: var(--spacing-xs); }
@@ -29,29 +23,26 @@ export const PROPS_CSS = `
 .rsf-section-body .rsf-rule-panel { flex: none; overflow: visible; }
 .rsf-section-body .rsf-rule-list-search, .rsf-section-body .rsf-rule-rows { padding-left: 0; padding-right: 0; }
 
-/* 「외관」 섹션(S1 §3) — 색 견본은 캔버스와 같은 팔레트 토큰. 고른 것은 바깥 고리(한 변 색 바 아님, Local-Rules §8). */
+/* 「외관」 섹션(S1 §3) — 고른 것은 바깥 고리(한 변 색 바 아님, Local-Rules §8). */
 .rsf-style { display: flex; flex-direction: column; gap: var(--spacing-sm); }
 .rsf-style-row { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .rsf-style-label { font-size: var(--font-size-sm); font-weight: 600; color: var(--color-text-secondary); }
-.rsf-style-swatches, .rsf-style-shapes { display: flex; flex-wrap: wrap; gap: 4px; }
+.rsf-style-shapes { display: flex; flex-wrap: wrap; gap: 4px; }
 .rsf-style-icons { display: grid; grid-template-columns: repeat(auto-fill, minmax(30px, 1fr)); gap: 4px; }
-.rsf-style-swatch, .rsf-style-icon, .rsf-style-shape {
+.rsf-style-icon, .rsf-style-shape {
   box-sizing: border-box; margin: 0; font: inherit; color: var(--color-text); cursor: pointer;
   background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-sm);
 }
-.rsf-style-swatch { width: 22px; height: 22px; padding: 0; }
-.rsf-style-swatch[data-color="default"] { background: var(--color-bg); border-color: var(--color-border-strong); }
 .rsf-style-icon { height: 30px; display: inline-flex; align-items: center; justify-content: center; padding: 0 4px; font-size: var(--font-size-xs); }
 .rsf-style-shape { height: 26px; padding: 0 var(--spacing-sm); font-size: var(--font-size-sm); }
 .rsf-style-shape[data-shape="square"] { border-radius: 0; }
 .rsf-style-shape[data-shape="pill"] { border-radius: 999px; }
-.rsf-style-swatch[aria-pressed="true"], .rsf-style-icon[aria-pressed="true"], .rsf-style-shape[aria-pressed="true"] {
+.rsf-style-icon[aria-pressed="true"], .rsf-style-shape[aria-pressed="true"] {
   outline: 2px solid var(--color-primary); outline-offset: 1px;
 }
 .rsf-style-icon[aria-pressed="true"], .rsf-style-shape[aria-pressed="true"] { background: var(--color-primary-soft); border-color: var(--color-primary); }
-.rsf-style-swatch:disabled, .rsf-style-icon:disabled, .rsf-style-shape:disabled { cursor: default; opacity: 0.5; }
+.rsf-style-icon:disabled, .rsf-style-shape:disabled { cursor: default; opacity: 0.5; }
 .rsf-style-parts { display: flex; flex-direction: column; gap: 4px; }
 .rsf-style-size { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--spacing-xs); }
 .rsf-style-size-field { display: flex; flex-direction: column; gap: 2px; width: 96px; font-size: var(--font-size-sm); color: var(--color-text-secondary); }
-${SWATCH_RULES}
 `;
