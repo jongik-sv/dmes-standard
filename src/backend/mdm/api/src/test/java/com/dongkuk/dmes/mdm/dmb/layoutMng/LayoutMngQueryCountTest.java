@@ -9,6 +9,7 @@ import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngSearchRequest;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -80,9 +81,33 @@ class LayoutMngQueryCountTest extends LayoutTestSupport {
             seed(h);
             LayoutMngSearchRequest r = new LayoutMngSearchRequest();
             r.setTarget("HEADER");
-            counts.put("header" + h, probe.inTx("search-header-h" + h, () -> layoutService.search(r)));
+            QueryCountProbe.Measured<Map<String, Object>> m = probe.measureInTx("search-header-h" + h, () -> layoutService.search(r));
+            counts.put("header" + h, m.count());
+            assertHeaders(h, m.result());
         }
         assertEquals(counts.get("header2"), counts.get("header6"), counts::toString);
         assertTrue(counts.get("header6") <= 5, counts::toString);
+    }
+
+    /**
+     * 고치기 전(0afccb3e)과 같은 응답 — 헤더는 만든 순서, 짝수 번째는 EAI 코드가 "EZ"(저장 경로) 가 아니라 앞선 "EA" 이고 홀수 번째는 null, 항목은 SEQ 순서의 저장한 항목.
+     */
+    @SuppressWarnings("unchecked")
+    private void assertHeaders(int h, Map<String, Object> out) {
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) out.get("headers");
+        assertEquals(h, rows.size());
+        for (int n = 0; n < h; n++) {
+            Map<String, Object> row = rows.get(n);
+            assertEquals("헤더 " + h + "-" + n, row.get("LAYOUT_NAME"), "헤더 순서");
+            assertEquals(n % 2 == 0 ? "EA" + n : null, row.get("EAI_CODE"), "헤더 " + n);
+            List<Map<String, Object>> want = n % 4 == 0 ? l100Items() : l110Items();
+            List<Map<String, Object>> items = (List<Map<String, Object>>) row.get("items");
+            assertEquals(want.size(), items.size(), "헤더 " + n + " 항목 수");
+            for (int i = 0; i < want.size(); i++) {
+                assertEquals(want.get(i).get("SEQ"), items.get(i).get("SEQ"), "헤더 " + n + " 항목 " + i);
+                assertEquals(want.get(i).get("FILL_KIND"), items.get(i).get("FILL_KIND"), "헤더 " + n + " 항목 " + i);
+                assertEquals(want.get(i).get("COLUMN_PHYS"), items.get(i).get("COLUMN_PHYS"), "헤더 " + n + " 항목 " + i);
+            }
+        }
     }
 }

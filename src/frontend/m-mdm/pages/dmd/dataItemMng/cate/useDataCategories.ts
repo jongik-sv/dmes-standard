@@ -84,6 +84,8 @@ export function useDataCategories({ maruDataId, active, onError, onChanged }: Da
   const listSeq = useRef(0);
   const detailSeq = useRef(0);
   const previewSeq = useRef(0);
+  /** 지금 읽는 중인 상세(마루 데이터 + 카테고리). 끝나면 null. */
+  const detailInFlight = useRef<string | null>(null);
   const previewTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const pendingPreview = useRef<{ defExpr: string; defTarget: string } | undefined>(undefined);
   const current = useRef(maruDataId);
@@ -111,6 +113,7 @@ export function useDataCategories({ maruDataId, active, onError, onChanged }: Da
 
   const loadDetail = useCallback(async (md: string, cateId: string) => {
     const seq = ++detailSeq.current;
+    detailInFlight.current = `${md}\u0000${cateId}`;
     if (previewTimer.current !== undefined) clearTimeout(previewTimer.current);
     previewTimer.current = undefined;
     pendingPreview.current = undefined;
@@ -127,6 +130,8 @@ export function useDataCategories({ maruDataId, active, onError, onChanged }: Da
       }
     } catch (e) {
       if (seq === detailSeq.current) fail(e);
+    } finally {
+      if (seq === detailSeq.current) detailInFlight.current = null;
     }
   }, [fail, runPreview]);
 
@@ -147,6 +152,7 @@ export function useDataCategories({ maruDataId, active, onError, onChanged }: Da
       if (keep) await loadDetail(md, keep);
       else {
         detailSeq.current++;
+        detailInFlight.current = null;
         setDetail(null);
         setPreview(null);
       }
@@ -164,6 +170,7 @@ export function useDataCategories({ maruDataId, active, onError, onChanged }: Da
   useEffect(() => {
     listSeq.current++;
     detailSeq.current++;
+    detailInFlight.current = null;
     if (previewTimer.current !== undefined) clearTimeout(previewTimer.current);
     previewTimer.current = undefined;
     pendingPreview.current = undefined;
@@ -199,8 +206,11 @@ export function useDataCategories({ maruDataId, active, onError, onChanged }: Da
     loadedFor.current = "";
   }, []);
 
+  // 행 한 번 누름에 그리드가 onRowClick·onFocusedRowChange 를 둘 다 부른다 — 같은 상세를 읽는 중이면 다시 부르지 않는다.
+  // 읽기가 끝난 뒤 같은 행을 다시 누르면 예전처럼 다시 읽는다.
   const select = useCallback((cateId: string) => {
     setSelectedCateId(cateId);
+    if (detailInFlight.current === `${current.current}\u0000${cateId}`) return;
     void loadDetail(current.current, cateId);
   }, [loadDetail]);
 

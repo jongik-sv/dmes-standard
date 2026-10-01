@@ -300,6 +300,14 @@ describe("dataItemMng 속도·부하 낭비", () => {
     expect(last?.params.defExpr).toBe("([0-9");
   });
 
+  it("카테고리 행 한 번 누름에 상세(view)는 한 번만 읽는다 (onRowClick·onFocusedRowChange 가 함께 불려도)", async () => {
+    await render();
+    const before = count("dataCateEdit", "view");
+    await click(testId("cate-row-R1"));
+    await waitDebounce();
+    expect(count("dataCateEdit", "view") - before).toBe(1);
+  });
+
   it("정규식 입력 직후 화면을 닫으면 대기 중인 compare 를 부르지 않는다", async () => {
     await render();
     await click(testId("cate-row-R1"));

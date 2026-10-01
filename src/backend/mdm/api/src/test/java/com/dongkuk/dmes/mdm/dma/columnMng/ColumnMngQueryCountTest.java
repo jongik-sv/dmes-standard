@@ -79,6 +79,8 @@ class ColumnMngQueryCountTest extends AbstractMdmSharedDbTest {
         probe.stop();
     }
 
+    private final List<Long> lastIds = new ArrayList<>();
+
     /** 용어 t 개를 만들고 [t..1 역순, 첫 용어 한 번 더, 없는 용어 99999] 를 가리키는 컬럼 하나. */
     private long seed(int t) {
         DmaTestSupport.clear(jdbc);
@@ -88,6 +90,8 @@ class ColumnMngQueryCountTest extends AbstractMdmSharedDbTest {
             MdmTerm term = DmaTestSupport.term(terms, "용어" + t + "_" + i, "AB" + t + "_" + i, "Eng " + i, null);
             ids.add(term.getTermId());
         }
+        lastIds.clear();
+        lastIds.addAll(ids);
         List<Long> ref = new ArrayList<>(ids.reversed());
         ref.add(ids.get(0));
         ref.add(99999L);
@@ -103,9 +107,39 @@ class ColumnMngQueryCountTest extends AbstractMdmSharedDbTest {
             long id = seed(t);
             ColumnMngViewRequest r = new ColumnMngViewRequest();
             r.setColumnId(id);
-            counts.put("view" + t, probe.inTx("view-t" + t, () -> service.view(r)));
+            QueryCountProbe.Measured<Map<String, Object>> m = probe.measureInTx("view-t" + t, () -> service.view(r));
+            counts.put("view" + t, m.count());
+            assertTerms(t, m.result());
         }
         assertEquals(counts.get("view3"), counts.get("view10"), counts::toString);
         assertTrue(counts.get("view10") <= 3, counts::toString);
+    }
+
+    /**
+     * 고치기 전(0afccb3e)과 같은 응답 — 용어마다 [termId, termName, senseNo, engAbbr, missing] 한 행씩, TERM_IDS 순서대로(t..1 역순, 첫 용어 반복, 없는 99999).
+     */
+    @SuppressWarnings("unchecked")
+    private void assertTerms(int t, Map<String, Object> out) {
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) out.get("terms");
+        List<Long> expected = new ArrayList<>(lastIds.reversed());
+        expected.add(lastIds.get(0));
+        expected.add(99999L);
+        assertEquals(expected, rows.stream().map(x -> (Long) x.get("termId")).toList(), "TERM_IDS 순서·반복 유지");
+        for (int i = 0; i < rows.size(); i++) {
+            Map<String, Object> row = rows.get(i);
+            boolean missing = expected.get(i) == 99999L;
+            assertEquals(missing, row.get("missing"), "행 " + i);
+            if (missing) {
+                assertEquals(null, row.get("termName"));
+                assertEquals(null, row.get("senseNo"));
+                assertEquals(null, row.get("engAbbr"));
+            } else {
+                int idx = lastIds.indexOf(expected.get(i));
+                assertEquals("용어" + t + "_" + idx, row.get("termName"), "행 " + i);
+                assertEquals("AB" + t + "_" + idx, row.get("engAbbr"), "행 " + i);
+                assertEquals(terms.findById(expected.get(i)).orElseThrow().getSenseNo(), row.get("senseNo"), "행 " + i);
+            }
+        }
+        assertEquals(t + 2, rows.size());
     }
 }

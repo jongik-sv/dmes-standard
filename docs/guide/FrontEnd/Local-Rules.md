@@ -222,3 +222,15 @@ shared `Modal`(Mantine)은 열린 창마다 window 의 Escape 를 받는다. 등
 - **노드·선 배열을 memo 로 통째로 새로 만들면 노드 하나를 끌거나 선택만 바꿔도 모든 노드·선이 다시 그려진다.** React Flow v12 는 사용자 노드·선 객체의 참조가 바뀌면 그 항목을 다시 그린다. 내용이 같은 항목은 이전 참조를 그대로 넘기고(`canvas/reuse.ts` 의 `useStableById`), `onNodeClick`·`onNodeContextMenu`·`onEdgeClick`·`onEdgeContextMenu` 는 `useCallback` 으로 고정한다. 이 콜백들은 모든 NodeWrapper·EdgeWrapper 의 prop 이므로 인라인 함수 하나만 있어도 전체가 다시 그려진다. 362노드에서 선택 한 번에 드는 노드 렌더가 1086회에서 4회로 줄었다. 자동 배치(dagre)는 배치가 읽는 칸으로 키를 만든 캐시(`flow-layout.ts` 의 `autoLayout`)를 거치므로, 위치·경로·이름표만 바꾼 편집에는 다시 돌지 않는다. 노드 다시 그리기 범위(선택·편집·끌기 프레임)는 `flow-canvas-reuse` 테스트가, dagre 캐시는 `layout-cache` 테스트가 지킨다.
 - **초점을 가진 요소를 지우면 초점이 body 로 빠져 캔버스 단축키가 끊긴다**(선 Delete 뒤 Ctrl+Z 무반응). 단축키 디스패처가 처리한 뒤 `document.activeElement` 가 body 면 캔버스 host 로 돌린다.
 - 예시: `canvas/FlowCanvas.tsx`, `canvas/FlowToolbar.tsx`, `styles/collapse.ts`(칩)·`styles/space.ts`(선택 상자), `page.tsx` 의 `onCanvasKeyDown`.
+
+## 20. AgDataGrid 화면 — 입력 한 글자·셀 편집 한 번이 그리드 전체를 다시 그리지 않게 (2026-10-01)
+
+MDM 화면들(dataItemMng·codeItemEdit·codeMng·layoutMng·domainMng)에서 실측한 낭비다. `AgDataGrid` 는 `columns` 참조가 바뀌면 보이는 모든 셀 렌더러를 다시 돌리고, `data` 참조가 바뀌면 행 단위 갱신(auto 너비면 열 너비 맞춤까지)을 한다.
+
+- **`columns`·`data` 는 `useMemo` 로 만들고, deps 에 그 값이 실제로 읽는 것만 둔다.** `versionColumns(view.me)`·`rows.map(...)` 을 JSX 에서 바로 넘기면 검색 칸 한 글자마다 그리드가 다시 그려진다.
+- **훅이 여러 값을 돌려줄 때는 반환 객체를 `useMemo` 로 감싼다.** 렌더마다 새 객체를 돌려주면 그 객체를 deps 로 둔 열 정의가 다른 칸 입력에도 다시 만들어진다(카테고리 탭 `cate` 객체, 셀 렌더러 55호출 → 0). 열 정의 deps 에는 고정된 함수(`close`·`reopen`)와 셀이 그리는 값만 둔다.
+- **빈 결과를 새 빈 객체로 갈아끼우지 않는다.** 검증 응답이 비었고 이전도 비었으면 `setIssues` 를 건너뛴다(편집마다 열 정의 재생성 + 렌더러 140호출 → 5).
+- **행 복제는 바뀐 행만 새로 만든다. 단, 원본 상태 객체를 그대로 넘기지 않는다.** ag-grid 는 확정한 편집 값을 넘겨받은 행 객체에 직접 쓴다. 상태 원본을 넘기면 취소해도 값이 돌아오지 않는다. 원본 행 하나당 복제본 하나를 `WeakMap` 으로 재사용하고, 편집해도 원본이 바뀌지 않는 행(닫힌 행 등)은 재사용하지 않는다.
+- **행마다 달라지는 버튼 상태(draft·busy)는 열 정의 deps 에 넣지 않는다.** 작업 열을 셀 컴포넌트로 빼고 작은 저장소를 구독하게 한다. 저장소 갱신은 `useLayoutEffect` 로 그리기 전에 한다(dataItemMng `ItemActionCell`).
+- **입력마다 서버를 부르는 미리보기는 디바운스(300ms)하고, 결과를 쓰는 탭·패널이 보일 때만 부른다.** 편집 패널이 닫히면 대기 중인 마지막 값은 버리지 말고 바로 보낸다(예전 결과와 같게). 같은 조회 기준이면 탭을 오가도 다시 부르지 않는다.
+- 측정은 렌더러 호출 수·columns 재생성 수·새 행 객체 수·요청 수처럼 결정적인 값으로 테스트에 남긴다(`tests/dmd/dataItemMng/data-item-perf.test.ts`, `tests/dmc/codeItemEdit/code-item-edit-perf.test.ts`). ms 는 이 PC 에서 2배 흔들려 쓰지 않는다.

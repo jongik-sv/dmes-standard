@@ -8,6 +8,7 @@ import com.dongkuk.dmes.mdm.entity.MdmLayoutVer;
 import com.dongkuk.dmes.mdm.repository.MdmLayoutRepository;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -66,13 +67,15 @@ public class LayoutVersioner {
         }
         Map<Long, MdmLayoutSnapshot> snapshots = assembler.readAll(
                 messageIds.stream().distinct().map(layouts::get).filter(Objects::nonNull).toList(), cache);
-        Map<Long, MdmLayoutVer> latest = queries.latestVersions(messageIds);
+        // 같은 ID 가 겹쳐 들어와도 한 번만 기록한다 — 최신 버전은 반복 전에 읽으므로 두 번째 처리는 낡은 값과 비교하게 된다.
+        List<Long> ids = new ArrayList<>(new LinkedHashSet<>(messageIds));
+        Map<Long, MdmLayoutVer> latest = queries.latestVersions(ids);
         // 변경 요약에 쓰는 표시명 — 최신 이력에만 있는 물리명까지 한 번에 읽어 둔다.
         List<MdmLayoutSnapshot> prevs = new ArrayList<>();
         latest.values().forEach(v -> prevs.add(LayoutSnapshotJson.read(v.getSnapshotJson())));
         cache.byPhysNames(physNames(prevs.toArray(MdmLayoutSnapshot[]::new)));
-        List<Outcome> out = new ArrayList<>(messageIds.size());
-        for (Long id : messageIds) {
+        List<Outcome> out = new ArrayList<>(ids.size());
+        for (Long id : ids) {
             MdmLayout layout = layouts.get(id);
             if (layout == null) {
                 throw LayoutRejections.notFound(id, "MESSAGE");
