@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { insertRule, insertSplit, insertTask, toEditFlow, updateEdge, type EditFlow } from "../../../pages/dme/ruleSetEdit/flow-edit";
-import { NODE_SIZE, autoLayout, positionsOf } from "../../../pages/dme/ruleSetEdit/flow-layout";
+import { NODE_SIZE, autoLayout, clearLayoutCache, endingRoutes, positionsOf } from "../../../pages/dme/ruleSetEdit/flow-layout";
 
 function ifFlow(): EditFlow {
   const r = insertSplit(toEditFlow(null, ["R_A"]), "e2", "IF");
@@ -30,7 +30,7 @@ describe("flow-layout", () => {
   });
   it("노드 크기 표", () => {
     expect(NODE_SIZE.RULE).toEqual({ w: 232, h: 68 });
-    expect(NODE_SIZE.MERGE).toEqual({ w: 28, h: 28 });
+    expect(NODE_SIZE.MERGE).toEqual({ w: 200, h: 14 });
   });
 });
 
@@ -128,5 +128,35 @@ describe("flow-layout — 조건식이 빈 IF(막 넣은 IF)도 갈래 순서·�
     const before = JSON.stringify(f);
     autoLayout(f);
     expect(JSON.stringify(f)).toBe(before);
+  });
+});
+
+describe("자동 배치 — 합류 없애기(implicit-join spec §9)", () => {
+  const N = (id: string, kind: "START" | "END" | "RULE" | "IF") => ({ id, kind, ruleId: kind === "RULE" ? id.toUpperCase() : null, splitId: null, label: null });
+  const E = (id: string, from: string, to: string, over: { order?: number; cond?: string; otherwise?: boolean } = {}) =>
+    ({ id, from, to, order: over.order ?? null, cond: over.cond ?? null, otherwise: over.otherwise ?? false, label: null });
+  /** start → r0 → if1 [b1 "X > 0" → e1 → e2 → end](끝내는 갈래) [그 외 → a] → a → b → end */
+  const ending = () => toEditFlow({ version: 1,
+    nodes: [N("start", "START"), N("r0", "RULE"), N("if1", "IF"), N("e1", "RULE"), N("e2", "RULE"), N("a", "RULE"), N("b", "RULE"), N("end", "END")],
+    edges: [E("s0", "start", "r0"), E("s1", "r0", "if1"), E("b1", "if1", "e1", { order: 1, cond: "X > 0" }), E("ee1", "e1", "e2"), E("ee2", "e2", "end"),
+      E("bo", "if1", "a", { otherwise: true }), E("ea", "a", "b"), E("eb", "b", "end")] }, []);
+
+  it("병렬 합류는 병렬 분기와 같은 200×14 막대다", () => {
+    expect(NODE_SIZE.MERGE).toEqual({ w: 200, h: 14 });
+  });
+
+  it("끝내는 IF 갈래 몸은 같은 높이의 IF 뒤 노드 오른쪽으로 비켜 놓는다", () => {
+    clearLayoutCache();
+    const pos = autoLayout(ending());
+    const overlapY = (p: string, q: string) => pos[p].y < pos[q].y + 68 && pos[q].y < pos[p].y + 68;
+    expect(overlapY("e1", "a")).toBe(true);
+    expect(pos.e1.x).toBeGreaterThanOrEqual(pos.a.x + 232 + 40 - 1);
+    expect(pos.e2.x).toBeGreaterThanOrEqual(pos.b.x + 232 + 40 - 1);
+  });
+
+  it("끝내는 IF 갈래 끝 선도 기본 꺾은선이 다른 노드를 지나면 비켜 가는 경로를 만든다", () => {
+    const pos = { start: { x: 56, y: -200 }, r0: { x: 0, y: -120 }, if1: { x: 28, y: 0 }, e1: { x: 300, y: 100 }, e2: { x: 300, y: 200 },
+      a: { x: 0, y: 150 }, b: { x: 0, y: 300 }, end: { x: 56, y: 400 } };
+    expect(Object.keys(endingRoutes(ending(), pos))).toEqual(["ee2"]);
   });
 });
