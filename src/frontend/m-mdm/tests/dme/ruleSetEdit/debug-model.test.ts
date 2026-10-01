@@ -12,6 +12,7 @@ import {
   droppedEditsNotice,
   editCount,
   editKindOf,
+  editKindOfVar,
   editsJsonOf,
   mergeEdits,
   numberText,
@@ -216,7 +217,7 @@ describe("고침 대기·쌓기·보내기 모양(4단계 E4)", () => {
     expect(applyPending(vars, edit(2, "r1", { c: NULL_VALUE, B: NUM("2") }))).toEqual([
       { name: "A", value: STR("1"), created: false, changed: false, edited: false },
       { name: "B", value: NUM("2"), created: false, changed: false, edited: false, pending: true },
-      { name: "C", value: NULL_VALUE, created: true, changed: false, edited: false, pending: true },
+      { name: "C", value: NULL_VALUE, created: true, changed: false, edited: false, pending: true, was: STR("3") },
     ]);
   });
 
@@ -247,6 +248,14 @@ describe("고침 대기·쌓기·보내기 모양(4단계 E4)", () => {
     expect(numberText("000")).toBe("0");
     expect(numberText("-0012")).toBe("-12");
     expect(numberText("0.50")).toBe("0.50");
+  });
+
+  it("editKindOfVar — 비운 줄(NULL)은 비우기 전 값의 타입으로 다시 고친다(어느 룰도 선언하지 않은 변수도)", () => {
+    const vars = [{ name: "A", value: NUM("1"), created: false, changed: false, edited: false }, { name: "L", value: { type: "LIST", items: [] } as TypedValue, created: false, changed: false, edited: false }];
+    const [a, l] = applyPending(vars, edit(2, "r1", { A: NULL_VALUE, L: NULL_VALUE }));
+    expect(editKindOfVar(a, undefined)).toBe("NUMBER");
+    expect(editKindOfVar(l, undefined)).toBe("STRING"); // LIST 였던 줄은 예전처럼 선언 타입 규칙
+    expect(editKindOfVar({ name: "N", value: NULL_VALUE, created: false, changed: false, edited: false }, undefined)).toBe("STRING");
   });
 
   it("parseEditText·editKindOf — 원래 타입에 맞지 않으면 거절, NULL 줄은 선언 타입, LIST 는 고칠 수 없다", () => {

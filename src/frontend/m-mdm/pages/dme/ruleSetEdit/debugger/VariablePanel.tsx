@@ -19,14 +19,13 @@ import { IconArrowBackUp, IconEraser, IconPin, IconPinFilled, IconPlus, IconX } 
 import type { TypedValue } from "@/contract/engine-contract.generated";
 import { Button, Input, Select } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
-import { checkRecordKeys } from "@/evalex";
 import { badgeStyle } from "@/shell";
 
 import type { EditFlow } from "../flow-edit";
 import { flowIo } from "../set-model";
 import { typedText } from "../trace-view";
 import type { RuleIoMap } from "../types";
-import { LIST_REJECT, NULL_VALUE, editKindOf, parseEditText, type EditKind } from "./debug-model";
+import { LIST_REJECT, NULL_VALUE, editKindOfVar, parseEditText, reservedKeyText, type EditKind } from "./debug-model";
 import { declaredTypes, FALLBACK_TEXT, SERVER_JUDGES_TEXT, type ExprResult } from "./expr-eval";
 import { loadStrings, saveStrings, storeKeys } from "./local-store";
 import { TraceDetail } from "./TraceDetail";
@@ -192,7 +191,7 @@ export function VariablePanel({ sim, setId, flow, rules, selectedId, canParse, o
         pin: pinned.has(v.name.toLowerCase()),
         pending: !!v.pending,
         canEdit,
-        editKind: editKindOf(v.value, types[v.name.toUpperCase()]),
+        editKind: editKindOfVar(v, types[v.name.toUpperCase()]),
         act: !canEdit ? "" : v.pending ? "undo" : "clear",
       })),
     // rev: 거절한 편집을 되돌릴 때만 올려 새 행 객체를 만든다.
@@ -225,9 +224,9 @@ export function VariablePanel({ sim, setId, flow, rules, selectedId, canParse, o
       setEditError(ADD_NAME_TEXT);
       return;
     }
-    const reserved = checkRecordKeys([name]);
+    const reserved = reservedKeyText(name);
     if (reserved) {
-      setEditError(`예약된 레코드 키: ${reserved.key}`); // 레코드 입력과 같은 규칙·문구
+      setEditError(reserved);
       return;
     }
     if (sim.variables.some((v) => v.name.toLowerCase() === name.toLowerCase())) {
