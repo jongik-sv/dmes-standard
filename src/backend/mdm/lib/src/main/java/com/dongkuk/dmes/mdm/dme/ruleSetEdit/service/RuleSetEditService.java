@@ -369,11 +369,12 @@ public class RuleSetEditService {
         return List.copyOf(out);
     }
 
-    /** 레코드 입력(RecordKeys)이 막는 예약 이름(EvalEx 상수·EVAL_TS·'_' 접두)은 고친 값 이름으로도 받지 않는다. */
+    /** 레코드 입력(RecordKeys)이 막는 예약 이름(EvalEx 상수·EVAL_TS·받는 노드 CATCH_*·'_' 접두)은 고친 값 이름으로도 받지 않는다. */
     private static void requireEditableName(String name) {
         String upper = name.toUpperCase(java.util.Locale.ROOT);
         String why = ReservedNames.CONSTANTS.contains(upper) ? "EvalEx 상수 이름이다"
                 : upper.equals(ReservedNames.EVAL_TS) ? "평가 시각 예약 이름이다"
+                : ReservedNames.CATCH_NAMES.contains(upper) ? "받는 노드 예약 이름이다"
                 : name.startsWith(ReservedNames.RESERVED_PREFIX) ? "'" + ReservedNames.RESERVED_PREFIX + "' 로 시작한다"
                 : null;
         if (why != null) {

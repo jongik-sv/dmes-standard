@@ -512,9 +512,10 @@ export function insertSplit(f: EditFlow, edgeId: string, kind: "IF" | "PARALLEL"
 
 /**
  * 노드를 지운다. RULE 은 앞뒤 선을 잇고 붙은 받는 노드와 그 나가는 선도 지운다. 분기는 짝 합류까지 안쪽을 통째로 지운다.
- * 처리 갈래가 돌아오는 룰이면 돌아오는 합류(splitId = 그 룰)도 걷어 낸다 — 정상 쪽에서 합류로 들어오는 선을 합류 출구 도착으로 잇고,
- * 처리 갈래에서 합류로 들어오는 선과 합류를 지운다. 들어오는 선이 없는(떨어진) 룰·빈 단계는 나가는 선과 함께 지운다.
- * 받는 노드는 자기와 나가는 선만 지운다. 어느 쪽이든 처리 갈래 안 노드는 남긴다(받는 노드 spec §8, 검사가 연결 끊김을 알린다).
+ * 처리 갈래가 돌아오는 룰이면 돌아오는 합류(splitId = 그 룰)도 걷어 낸다(unwindReturnMerge). 들어오는 선이 없는(떨어진) 룰·빈 단계는 나가는 선과 함께 지운다.
+ * 받는 노드는 자기와 나가는 선을 지우고, 그 룰로 돌아오는 처리 갈래가 더 없으면 돌아오는 합류도 걷어 낸다(걷지 못하면 합류는 남긴다).
+ * 돌아오는 합류는 바로 지울 수도 있다 — 같은 방식으로 걷어 내고 받는 노드는 남긴다. 분기의 합류는 분기를 지워서 없앤다.
+ * 어느 쪽이든 처리 갈래 안 노드는 남긴다(받는 노드 spec §8, 검사가 연결 끊김을 알린다).
  */
 export function removeNode(f: EditFlow, nodeId: string): EditResult {
   const g = clone(f);
@@ -522,8 +523,13 @@ export function removeNode(f: EditFlow, nodeId: string): EditResult {
   if (!n) return fail(`노드 ${nodeId}를 찾지 못했다`);
   if (n.kind === "START") return fail("시작 노드는 지울 수 없다");
   if (n.kind === "END") return fail("끝 노드는 지울 수 없다");
-  if (n.kind === "MERGE") return fail("합류 노드는 분기를 지워서 없앤다");
-  if (n.kind === "CATCH") return done(dropNodes(g, new Set([nodeId])));
+  if (n.kind === "MERGE") {
+    const rule = n.splitId == null ? undefined : findNode(g, n.splitId);
+    if (!rule || !CATCHABLE.has(rule.kind)) return fail("합류 노드는 분기를 지워서 없앤다");
+    const why = unwindReturnMerge(g, n, handlerNodes(g, rule.id, n.id));
+    return why ? fail(why) : done(dropNodes(g, new Set([nodeId])));
+  }
+  if (n.kind === "CATCH") return done(removeCatch(g, n));
   const ins = inOf(g, nodeId);
   if (isStep(n.kind)) {
     const outs = outOf(g, nodeId);
@@ -539,10 +545,7 @@ export function removeNode(f: EditFlow, nodeId: string): EditResult {
     ins[0].to = outs[0].to;
     g.edges = g.edges.filter((e) => e !== outs[0]);
     if (m && handler) {
-      const normalIn = inOf(g, m.id).filter((e) => !handler.has(e.from));
-      const exits = outOf(g, m.id);
-      if (normalIn.length !== 1 || exits.length !== 1) return fail(RETURN_MERGE_NOT_ONE);
-      normalIn[0].to = exits[0].to;
+      if (unwindReturnMerge(g, m, handler)) return fail(RETURN_MERGE_NOT_ONE);
       drop.add(m.id); // 합류 출구·처리 갈래에서 들어오는 선은 dropNodes 가 함께 지운다
     }
     return done(dropNodes(g, drop));
@@ -556,6 +559,30 @@ export function removeNode(f: EditFlow, nodeId: string): EditResult {
   if (!inner) return fail(cannot);
   ins[0].to = exits[0].to;
   return done(dropNodes(g, new Set([nodeId, ...inner, m.id])));
+}
+
+/**
+ * 돌아오는 합류 m 을 걷어 낼 수 있게 선을 고친다 — 정상 쪽(handler 밖)에서 합류로 들어오는 선을 합류 출구 도착으로 잇는다.
+ * 합류와 처리 갈래에서 들어오던 선·합류 출구는 부르는 쪽이 dropNodes 로 지운다. 정상 쪽 선·출구가 하나씩이 아니면 고치지 않고 사유를 돌려준다.
+ */
+function unwindReturnMerge(g: EditFlow, m: FlowNode, handler: ReadonlySet<string>): string | null {
+  const normalIn = inOf(g, m.id).filter((e) => !handler.has(e.from));
+  const exits = outOf(g, m.id);
+  if (normalIn.length !== 1 || exits.length !== 1) return RETURN_MERGE_STUCK;
+  normalIn[0].to = exits[0].to;
+  return null;
+}
+
+/** 받는 노드 c 를 지운다. 그 룰로 돌아오는 처리 갈래가 더 없으면 돌아오는 합류도 걷어 낸다 — 걷지 못하는 모양이면 합류는 남긴다(검사가 알린다). */
+function removeCatch(g: EditFlow, c: FlowNode): EditFlow {
+  const rule = c.attachTo;
+  const m = rule == null ? null : mergeOf(g, rule);
+  if (rule == null || !m) return dropNodes(g, new Set([c.id]));
+  const handler = handlerNodes(g, rule, m.id); // 지우기 전에 모아야 지운 받는 노드의 처리 갈래도 정상 쪽에서 뺀다
+  const h = dropNodes(g, new Set([c.id]));
+  const left = handlerNodes(h, rule, m.id);
+  if (inOf(h, m.id).some((e) => left.has(e.from))) return h;
+  return unwindReturnMerge(h, m, handler) ? h : dropNodes(h, new Set([m.id]));
 }
 
 /** 분기 s 와 그 갈래 선 e 를 확인한다. */
@@ -1245,6 +1272,7 @@ export const NO_COPY_CATCH = "받는 노드가 든 블록은 복사하지 않는
 export const NO_COPY_CATCH_NODE = "받는 노드는 복사하지 않는다";
 export const MOVE_GUARDED = "처리 갈래가 돌아오는 룰은 옮길 수 없다";
 export const RETURN_MERGE_NOT_ONE = "돌아오는 합류의 선이 하나씩이 아니라 룰을 지울 수 없다. 선을 먼저 정리한다";
+export const RETURN_MERGE_STUCK = "돌아오는 합류의 선이 하나씩이 아니라 합류를 지울 수 없다. 선을 먼저 정리한다";
 export const CATCH_NO_IN = "받는 노드로 들어가는 선은 둘 수 없다";
 export const CATCH_ONE_OUT = "받는 노드에서 나가는 선은 하나다";
 export const CATCH_TAKEN = (kind: CatchKind, owner: string) => `예외 종류 ${kind}는 ${owner}가 이미 받는다`;

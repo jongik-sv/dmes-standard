@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { FlowNode, RuleSetFlow } from "../../../src/contract/engine-contract.generated";
 import {
   CATCH_BAD_TARGET, CATCH_FULL, CATCH_KINDS_EMPTY, CATCH_NO_IN, CATCH_ONE_OUT, CATCH_TAKEN, MOVE_GUARDED, NO_COPY_CATCH, NO_COPY_CATCH_NODE,
-  RETURN_MERGE_NOT_ONE, addCatch, addGroup, blockMembers, connect, copyFragment, dissolveSplit, duplicateNode, flowJsonOf, insertRule, moveExcludedEdges,
+  RETURN_MERGE_NOT_ONE, RETURN_MERGE_STUCK, addCatch, addGroup, blockMembers, connect, copyFragment, dissolveSplit, duplicateNode, flowJsonOf, insertRule, moveExcludedEdges,
   moveNode, reconnectEdge, removeNode, setCatchKinds, setPositions, toEditFlow, updateGroup, updateNodeDesc, type EditFlow, type EditResult,
 } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { parseFlow } from "../../../pages/dme/ruleSetEdit/flow-model";
@@ -179,6 +179,61 @@ describe("받는 노드 편집 연산(받는 노드 spec §8)", () => {
     const g = ok(removeNode(f, "c1"));
     expect(ids(g)).toEqual(["start", "r1", "end"]);
     expect(g.edges.map((e) => [e.from, e.to])).toEqual([["start", "r1"], ["r1", "end"]]);
+  });
+
+  /** 돌아오는 합류 m1 을 걷어 낸 모양 — 정상 쪽 선 e2 가 합류 출구 도착 r2 로 가고, 처리 갈래 r9 는 끊긴 채 남는다. */
+  const expectUnwound = (g: EditFlow) => {
+    expect(ids(g)).toEqual(["start", "r1", "r9", "c2", "r2", "end"]);
+    expect(g.edges.map((x) => [x.id, x.from, x.to])).toEqual([
+      ["e1", "start", "r1"],
+      ["e2", "r1", "r2"],
+      ["e5", "c2", "end"],
+      ["e7", "r2", "end"],
+    ]);
+    expect(g.nodes.some((x) => x.kind === "MERGE")).toBe(false);
+    const issues = parseFlow(g).issues;
+    expect(issues.filter((i) => i.message.includes("짝 분기"))).toEqual([]);
+    expect(issues.map((i) => i.nodeId)).toContain("r9");
+  };
+
+  it("돌아오는 처리 갈래의 마지막 받는 노드를 지우면 돌아오는 합류도 걷어 정상 쪽을 합류 출구로 잇는다", () => {
+    const f = specFlow();
+    const before = JSON.stringify(f);
+    expectUnwound(ok(removeNode(f, "c1")));
+    expect(JSON.stringify(f)).toBe(before); // 원래 흐름을 고치지 않는다 — 되돌리기가 앞 흐름을 그대로 쓴다
+  });
+
+  it("돌아오는 합류를 바로 지우면 받는 노드 지우기와 같은 방식으로 걷어 내고 받는 노드는 남긴다", () => {
+    const g = ok(removeNode(specFlow(), "m1"));
+    expect(ids(g)).toEqual(["start", "r1", "c1", "r9", "c2", "r2", "end"]);
+    expect(g.edges.map((x) => [x.id, x.from, x.to])).toEqual([
+      ["e1", "start", "r1"],
+      ["e2", "r1", "r2"],
+      ["e3", "c1", "r9"],
+      ["e5", "c2", "end"],
+      ["e7", "r2", "end"],
+    ]);
+    expect(parseFlow(g).issues.filter((i) => i.message.includes("짝 분기"))).toEqual([]);
+    // 합류를 먼저 지우고 받는 노드를 지워도 받는 노드를 먼저 지운 것과 같은 모양이 된다
+    expectUnwound(ok(removeNode(ok(removeNode(specFlow(), "m1")), "c1")));
+  });
+
+  it("돌아오는 받는 노드가 둘이면 하나를 지워도 합류를 남긴다", () => {
+    const f = specFlow();
+    const twoBack: EditFlow = { ...f, edges: f.edges.map((x) => (x.id === "e5" ? { ...x, to: "m1" } : x)) }; // c2 → m1
+    expect(parseFlow(twoBack).issues).toEqual([]);
+    const g = ok(removeNode(twoBack, "c1"));
+    expect(ids(g)).toEqual(["start", "r1", "r9", "c2", "m1", "r2", "end"]);
+    expect(g.edges.map((x) => [x.from, x.to])).toEqual([["start", "r1"], ["r1", "m1"], ["r9", "m1"], ["c2", "m1"], ["m1", "r2"], ["r2", "end"]]);
+  });
+
+  it("분기의 합류와 돌아오는 합류의 선이 하나씩이 아니면 합류를 지우지 않는다", () => {
+    expect(reason(removeNode(ifWithGuard(), "m1"))).toBe("합류 노드는 분기를 지워서 없앤다");
+    const f = specFlow();
+    const twisted: EditFlow = { ...f, edges: [...f.edges, e("e9", "start", "m1")] };
+    expect(reason(removeNode(twisted, "m1"))).toBe(RETURN_MERGE_STUCK);
+    // 받는 노드 지우기는 합류를 걷지 못해도 받는 노드만 지운다(예전 동작)
+    expect(ids(ok(removeNode(twisted, "c1")))).toContain("m1");
   });
 
   /** start → if1 [b1 → r1(R_A) → mr → m1][그 외 → m1] → end. r1 에 c1 → r9(R_C) → mr, c2 → end. */
