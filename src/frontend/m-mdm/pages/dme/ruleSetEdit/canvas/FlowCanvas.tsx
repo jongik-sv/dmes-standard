@@ -52,6 +52,9 @@
  * 그룹 크기(4단계 G2): 그룹 틀 = 소속 노드 경계 + 여백 16 + `view.groups[].pad`. 편집 모드에서 고른 그룹에 네 모서리·네 변 손잡이(nodes.tsx)가 뜬다.
  * 끄는 동안은 `GroupPadStore` 에만 두고(캔버스 안에서만 다시 그린다) 놓을 때 `onGroupPadChange` 를 한 번 부른다. 여백으로 저장하므로
  * 소속 노드를 옮기면 틀이 따라가고 소속 노드보다 작게는 줄지 않는다. 크기를 바꿔도 소속은 바뀌지 않는다.
+ *
+ * 노드 외관(S1): RULE·TASK 노드는 `view.styles` 의 크기로 그린다 — 크기는 모두 `nodeSizeOf`(접힌 분기는 룰 크기)로 재고, 노드 데이터 `style` 로 색·아이콘·모양·표시 항목을 넘긴다.
+ * 배치 memo(`basePos`)는 표시 흐름(vflow) 참조에 묶여 있어 외관만 바뀐 편집에도 다시 돈다(편집은 늘 새 흐름 객체다).
  */
 import {
   createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore,
@@ -63,7 +66,8 @@ import { IconPlus } from "@tabler/icons-react";
 import type { RuleSetFlow, TypedValue } from "@/contract/engine-contract.generated";
 
 import { MAX_LABEL_OFFSET, blockMembers, normalizePad, type GroupPad, type FlowNote, type FlowPos, type EditFlow, type LabelOffset, type LabelPart } from "../flow-edit";
-import { NODE_SIZE, beyondLine, drawnPositions, foldOffsetX, spaceMinDelta, type SpaceAxis, type SpaceBlocks } from "../flow-layout";
+import { beyondLine, drawnPositions, foldOffsetX, nodeSizeOf, spaceMinDelta, type SpaceAxis, type SpaceBlocks } from "../flow-layout";
+import type { NodeSize } from "../node-style";
 import { typedText } from "../trace-view";
 import { blockDragPositions, dropTargetAt, edgeChips, edgeMarks, nodeAtPoint, nodeMarks, resolveNodeDrop } from "../flow-vars";
 import type { FlowMode } from "../state/useRuleSetEdit";
@@ -988,14 +992,16 @@ function blockInfo(flow: EditFlow, block: { count: number; members: string[] }, 
   return { count: block.count, ran, error };
 }
 
-/** 그룹 틀 — 멤버 위치의 바깥 상자 + 여백 + 더한 여백(pad, G2). 멤버가 하나도 없으면 null. */
-function groupBox(nodeIds: readonly string[], pos: Record<string, FlowPos>, kinds: Map<string, keyof typeof NODE_SIZE>, pad: GroupPad | null | undefined) {
+/** 캐시한 잰 크기가 새 크기와 다른가 — getNodeDimensions 는 measured 를 width 보다 먼저 보므로 옛 값을 넘기면 옛 크기로 그린다(계획 Ruling 9). */
+const staleMeasure = (m: Measured | undefined, s: NodeSize) => !!m && (m.width !== s.w || m.height !== s.h);
+
+/** 그룹 틀 — 멤버의 그린 상자(노드별 크기, 접힌 분기는 룰 크기)의 바깥 상자 + 여백 + 더한 여백(pad, G2). 멤버가 하나도 없으면 null. */
+function groupBox(nodeIds: readonly string[], pos: Record<string, FlowPos>, sizes: ReadonlyMap<string, NodeSize>, pad: GroupPad | null | undefined) {
   let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
   for (const id of nodeIds) {
     const p = pos[id];
-    const k = kinds.get(id);
-    if (!p || !k) continue;
-    const s = NODE_SIZE[k];
+    const s = sizes.get(id);
+    if (!p || !s) continue;
     x1 = Math.min(x1, p.x);
     y1 = Math.min(y1, p.y);
     x2 = Math.max(x2, p.x + s.w);
@@ -1121,10 +1127,10 @@ function Inner(props: FlowCanvasProps) {
 
   const nodes = useMemo(() => {
     const out: Node[] = [];
-    const kinds = new Map(vflow.nodes.map((n) => [n.id, n.kind] as const));
+    const sizes = new Map(vflow.nodes.map((n) => [n.id, nodeSizeOf(vflow, n, view.blocks)] as const));
     for (const g of flow.view.groups) {
       const pad = groupDrag?.groupId === g.id ? groupDrag.pad : g.pad; // 끄는 중이면 그 값(G2)
-      const b = groupBox(g.nodeIds, pos, kinds, pad);
+      const b = groupBox(g.nodeIds, pos, sizes, pad);
       if (!b) continue;
       const data: GroupNodeData = { id: g.id, title: g.title, selected: selectedId === g.id, resizable: editable && selectedId === g.id };
       out.push({
@@ -1138,7 +1144,7 @@ function Inner(props: FlowCanvasProps) {
     for (const n of vflow.nodes) {
       const p = pos[n.id] ?? { x: 0, y: 0 };
       const block = view.blocks[n.id];
-      const s = NODE_SIZE[block ? "RULE" : n.kind];
+      const s = sizes.get(n.id)!;
       const data: FlowNodeData = {
         node: n,
         io: n.ruleId ? rules[n.ruleId] : undefined,
@@ -1155,9 +1161,11 @@ function Inner(props: FlowCanvasProps) {
         linkable: editable,
         dropTarget: dropNode === n.id,
         onRenameTask: editable ? onRenameTask : undefined,
+        style: block ? undefined : vflow.view.styles?.[n.id],
       };
       out.push({
-        id: n.id, type: "rsfFlow", position: p, width: s.w, height: s.h, measured: measured[n.id], data, handles: handlesOf(block ? "RULE" : n.kind), draggable: editable,
+        id: n.id, type: "rsfFlow", position: p, width: s.w, height: s.h, measured: staleMeasure(measured[n.id], s) ? { width: s.w, height: s.h } : measured[n.id], data,
+        handles: handlesOf(block ? "RULE" : n.kind, s), draggable: editable,
         selected: rfSel.has(n.id),
       });
     }
@@ -1566,7 +1574,7 @@ function Inner(props: FlowCanvasProps) {
     const n = vflow.nodes.find((x) => x.id === target);
     const p = pos[target];
     if (n && p) {
-      const s = NODE_SIZE[view.blocks[target] ? "RULE" : n.kind];
+      const s = nodeSizeOf(vflow, n, view.blocks);
       if (!(focusReveal && inView(p.x, p.y, s.w, s.h))) {
         void rf.setCenter(p.x + s.w / 2, p.y + s.h / 2, { zoom: rf.getZoom(), duration: 300 });
       }

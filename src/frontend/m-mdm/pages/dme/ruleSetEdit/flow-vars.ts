@@ -4,7 +4,7 @@
 import type { RuleSetFlow } from "@/contract/engine-contract.generated";
 
 import { blockMembers, moveExcludedEdges, type EditFlow, type FlowPos } from "./flow-edit";
-import { NODE_SIZE } from "./flow-layout";
+import { nodeSizeOf, type StyledFlow } from "./flow-layout";
 import type { RuleIoMap, RuleSetCheck } from "./types";
 
 /** RULE 노드에서 나가는 선 → 그 룰 결과 이름(순서대로). 결과가 없으면 키를 만들지 않는다. */
@@ -39,24 +39,24 @@ export const edgeMarks = (checks: readonly RuleSetCheck[]) => marks(checks, "edg
  * `exclude` 에 든 선은 후보에서 뺀다(노드를 옮길 때 자기 자리·자기 블록 안 선).
  */
 export function nearestEdge(
-  f: RuleSetFlow,
+  f: RuleSetFlow & StyledFlow,
   pos: Readonly<Record<string, FlowPos>>,
   at: FlowPos,
   max = 80,
   exclude?: ReadonlySet<string>,
 ): string | null {
-  const kind = new Map((f.nodes ?? []).map((n) => [n.id, n.kind] as const));
+  const size = new Map((f.nodes ?? []).map((n) => [n.id, nodeSizeOf(f, n)] as const));
   let best: string | null = null;
   let bestD = Infinity;
   for (const e of f.edges ?? []) {
     if (exclude?.has(e.id)) continue;
     const a = pos[e.from];
     const b = pos[e.to];
-    const ka = kind.get(e.from);
-    const kb = kind.get(e.to);
-    if (!a || !b || !ka || !kb) continue;
-    const mx = (a.x + NODE_SIZE[ka].w / 2 + b.x + NODE_SIZE[kb].w / 2) / 2;
-    const my = (a.y + NODE_SIZE[ka].h + b.y) / 2;
+    const sa = size.get(e.from);
+    const sb = size.get(e.to);
+    if (!a || !b || !sa || !sb) continue;
+    const mx = (a.x + sa.w / 2 + b.x + sb.w / 2) / 2;
+    const my = (a.y + sa.h + b.y) / 2;
     const d = Math.hypot(mx - at.x, my - at.y);
     if (d <= max && d < bestD) {
       best = e.id;
@@ -72,7 +72,7 @@ const radiusAt = (zoom: number) => DROP_RADIUS_PX / (zoom > 0 ? zoom : 1);
 
 /** 놓은 자리(흐름 좌표)의 대상 선 — 확대 배율을 반영한 반경 안 가장 가까운 선. */
 export function dropTargetAt(
-  f: RuleSetFlow,
+  f: RuleSetFlow & StyledFlow,
   pos: Readonly<Record<string, FlowPos>>,
   at: FlowPos,
   zoom: number,
@@ -102,16 +102,16 @@ export function blockDragPositions(
 }
 
 /**
- * 흐름 좌표 `at` 을 품은 노드(그린 상자 = pos 좌상단 + NODE_SIZE) 가운데 kinds 에 든 것 — 겹치면 흐름 노드 배열에서 뒤의 것. 없으면 null.
+ * 흐름 좌표 `at` 을 품은 노드(그린 상자 = pos 좌상단 + 노드별 크기 `nodeSizeOf`) 가운데 kinds 에 든 것 — 겹치면 흐름 노드 배열에서 뒤의 것. 없으면 null.
  * 룰 목록 줄을 빈 단계·룰 노드 위에 놓을 때(4단계 T1).
  */
-export function nodeAtPoint(f: RuleSetFlow, pos: Readonly<Record<string, FlowPos>>, at: FlowPos, kinds: ReadonlySet<string>): string | null {
+export function nodeAtPoint(f: RuleSetFlow & StyledFlow, pos: Readonly<Record<string, FlowPos>>, at: FlowPos, kinds: ReadonlySet<string>): string | null {
   let hit: string | null = null;
   for (const n of f.nodes ?? []) {
     if (!kinds.has(n.kind)) continue;
     const p = pos[n.id];
     if (!p) continue;
-    const s = NODE_SIZE[n.kind];
+    const s = nodeSizeOf(f, n);
     if (at.x >= p.x && at.x <= p.x + s.w && at.y >= p.y && at.y <= p.y + s.h) hit = n.id;
   }
   return hit;

@@ -1,13 +1,15 @@
 /**
  * 룰 세트 흐름 자동 배치(2단계 계획 P8) — dagre 로 위→아래 쌓는다. React 의존이 없다.
  * 좌표는 노드 좌상단이고 정수다. 저장된 `view.positions` 가 자동 배치를 덮는다.
+ * 노드 크기는 모두 `nodeSize`·`nodeSizeOf` 로 잰다 — 종류별 `NODE_SIZE`, RULE·TASK 는 외관(`view.styles`, S1)의 w·h, 접힌 분기는 룰 크기.
  */
 import dagre from "@dagrejs/dagre";
 
 import type { FlowNodeKind, RuleSetFlow } from "@/contract/engine-contract.generated";
 
-import { clearLabels, clearRoutes, setPositions, type EditFlow, type FlowPos } from "./flow-edit";
+import { clearLabels, clearRoutes, setNodeStyle, setPositions, type EditFlow, type EditResult, type FlowPos } from "./flow-edit";
 import { parseFlow, type Seq } from "./flow-model";
+import { STYLED_KINDS, type NodeSize, type NodeStyle, type NodeStylePatch } from "./node-style";
 
 export const NODE_SIZE: Readonly<Record<FlowNodeKind, { w: number; h: number }>> = {
   START: { w: 120, h: 36 },
@@ -19,28 +21,50 @@ export const NODE_SIZE: Readonly<Record<FlowNodeKind, { w: number; h: number }>>
   MERGE: { w: 28, h: 28 },
 };
 
+/** 외관(view.styles)을 읽을 수 있는 흐름 — EditFlow, 또는 view 없는 RuleSetFlow. */
+export type StyledFlow = { view?: { styles?: Readonly<Record<string, NodeStyle>> } };
+
+/**
+ * 노드 하나의 그린 크기(S-D5) — 종류별 크기, RULE·TASK 는 외관의 w·h, 접힌 분기(folded)는 룰 기본 크기.
+ * 반복문에서 흐름을 다시 찾지 않도록 종류·외관·접힘을 받는다.
+ */
+export function nodeSize(kind: FlowNodeKind, style?: NodeStyle | null, folded = false): NodeSize {
+  if (folded) return NODE_SIZE.RULE;
+  const base = NODE_SIZE[kind];
+  if (!style || !STYLED_KINDS.has(kind)) return base;
+  return { w: style.w ?? base.w, h: style.h ?? base.h };
+}
+/** 흐름 노드 하나의 그린 크기 — blocks 에 든 분기(접힌 블록)는 룰 기본 크기. */
+export function nodeSizeOf(f: StyledFlow, n: { id: string; kind: FlowNodeKind }, blocks: Readonly<Record<string, unknown>> = {}): NodeSize {
+  return nodeSize(n.kind, f.view?.styles?.[n.id], !!blocks[n.id]);
+}
+
+/** dagre 같은 층 노드 사이 가로 간격 — 갈래를 다시 벌릴 때(spreadLanes)도 같은 값을 쓴다. */
+const NODESEP = 40;
+
 /**
  * dagre 자동 배치. blocks 에 든 분기(접힌 블록, D16)는 룰 크기 상자로 그리므로 룰 크기로 배치한다 — 제 크기(병렬 200×14 등)로 배치하면
- * 접힌 상자가 아래 노드와 겹치고, 겹침 풀기가 그 노드를 옆으로 민다(고침 2회차 N1).
+ * 접힌 상자가 아래 노드와 겹치고, 겹침 풀기가 그 노드를 옆으로 민다(고침 2회차 N1). RULE·TASK 는 외관 크기로 배치한다(S1).
  */
-export function autoLayout(f: RuleSetFlow, blocks: Readonly<Record<string, unknown>> = {}): Record<string, FlowPos> {
-  const sizeOf = (n: { id: string; kind: FlowNodeKind }) => NODE_SIZE[blocks[n.id] ? "RULE" : n.kind];
+export function autoLayout(f: RuleSetFlow & StyledFlow, blocks: Readonly<Record<string, unknown>> = {}): Record<string, FlowPos> {
+  const nodes = f.nodes ?? [];
+  const size = new Map(nodes.map((n) => [n.id, nodeSizeOf(f, n, blocks)] as const));
   const g = new dagre.graphlib.Graph();
-  g.setGraph({ rankdir: "TB", nodesep: 40, ranksep: 46 });
+  g.setGraph({ rankdir: "TB", nodesep: NODESEP, ranksep: 46 });
   g.setDefaultEdgeLabel(() => ({}));
-  for (const n of f.nodes ?? []) {
-    const s = sizeOf(n);
+  for (const n of nodes) {
+    const s = size.get(n.id)!;
     g.setNode(n.id, { width: s.w, height: s.h });
   }
   for (const e of f.edges ?? []) g.setEdge(e.from, e.to);
   dagre.layout(g);
   const cx = new Map<string, number>();
-  for (const n of f.nodes ?? []) cx.set(n.id, g.node(n.id).x);
-  orderBranches(f, g, cx, (id) => sizeOf((f.nodes ?? []).find((n) => n.id === id)!).w);
+  for (const n of nodes) cx.set(n.id, g.node(n.id).x);
+  orderBranches(f, g, cx, (id) => size.get(id)!);
   const out: Record<string, FlowPos> = {};
-  for (const n of f.nodes ?? []) {
+  for (const n of nodes) {
     const p = g.node(n.id);
-    const s = sizeOf(n);
+    const s = size.get(n.id)!;
     out[n.id] = { x: Math.round(cx.get(n.id)! - s.w / 2), y: Math.round(p.y - s.h / 2) };
   }
   return out;
@@ -64,25 +88,31 @@ function bodyIds(seq: Seq, out: string[] = []): string[] {
  * 노드 자리가 어긋나 "갈래 1" 에 넣은 노드가 오른쪽에 그려진다. dagre 가 고른 갈래 자리(가운데 x)는 그대로 쓰고,
  * 그 자리를 왼쪽부터 갈래 순서대로 다시 나눠 갈래 몸을 통째로 옮긴다. 빈 갈래의 자리는 분기→합류 선이 지나는 x 다.
  * 바깥 분기를 먼저 맞추고 안쪽으로 들어간다(갈래 몸은 통째로 움직이므로 안쪽 상대 배치는 그대로다). 흐름을 해석하지 못하면 손대지 않는다.
+ * 폭이 다른 갈래를 다른 갈래 자리로 옮기면 겹칠 수 있으므로 옮길 자리를 `spreadLanes` 로 벌린다(외관 S1, 계획 Ruling 10).
  */
-function orderBranches(f: RuleSetFlow, g: InstanceType<typeof dagre.graphlib.Graph>, cx: Map<string, number>, widthOf: (id: string) => number) {
+function orderBranches(f: RuleSetFlow, g: InstanceType<typeof dagre.graphlib.Graph>, cx: Map<string, number>, sizeOf: (id: string) => NodeSize) {
   const tree = parseFlow(f).tree;
   if (!tree) return;
   const visit = (seq: Seq) => {
     for (const b of seq.items) {
       if (b.type === "SEQ") visit(b);
       if (b.type !== "SPLIT") continue;
+      const boxOf = (id: string): LaneBox => {
+        const s = sizeOf(id);
+        const x = cx.get(id)!;
+        const y = (g.node(id) as { y: number }).y; // dagre 가 놓은 가운데 y
+        return { x1: x - s.w / 2, x2: x + s.w / 2, y1: y - s.h / 2, y2: y + s.h / 2 };
+      };
       const lanes = b.branches.map((br) => {
         const ids = bodyIds(br.body).filter((id) => cx.has(id));
         if (ids.length > 0) {
-          const left = Math.min(...ids.map((id) => cx.get(id)! - widthOf(id) / 2));
-          const right = Math.max(...ids.map((id) => cx.get(id)! + widthOf(id) / 2));
-          return { ids, at: (left + right) / 2 };
+          const boxes = ids.map(boxOf);
+          return { ids, at: (Math.min(...boxes.map((x) => x.x1)) + Math.max(...boxes.map((x) => x.x2))) / 2, boxes };
         }
         const pts = (g.edge(b.nodeId, b.mergeId) as { points?: { x: number }[] } | undefined)?.points ?? [];
-        return { ids, at: pts.length > 0 ? pts[Math.floor(pts.length / 2)].x : cx.get(b.nodeId)! };
+        return { ids, at: pts.length > 0 ? pts[Math.floor(pts.length / 2)].x : cx.get(b.nodeId)!, boxes: [] as LaneBox[] };
       });
-      const slots = lanes.map((l) => l.at).sort((a, c) => a - c);
+      const slots = spreadLanes(lanes, lanes.map((l) => l.at).sort((a, c) => a - c), NODESEP);
       lanes.forEach((l, i) => {
         const d = slots[i] - l.at;
         if (d !== 0) for (const id of l.ids) cx.set(id, cx.get(id)! + d);
@@ -91,6 +121,45 @@ function orderBranches(f: RuleSetFlow, g: InstanceType<typeof dagre.graphlib.Gra
     }
   };
   visit(tree.root);
+}
+
+/** 갈래 겹침 판정용 노드 상자(흐름 좌표, 가운데 x 는 갈래를 옮기기 전 자리). */
+export interface LaneBox {
+  x1: number;
+  x2: number;
+  y1: number;
+  y2: number;
+}
+/**
+ * 갈래(왼쪽부터, 각자 옮기기 전 가운데 at·노드 상자)를 slots 자리로 옮길 때, **세로 범위가 겹치는**(같은 높이의) 두 노드가 gap 보다 가까우면
+ * 오른쪽 갈래와 그 뒤 갈래들을 민 뒤 전체 자리 가운데를 처음 자리 가운데로 되돌린다(외관 S1 — 폭이 다른 갈래를 다른 갈래 자리에 옮기면 겹칠 수 있다, 계획 Ruling 10).
+ * 갈래 경계 상자끼리가 아니라 노드끼리 견준다 — 중첩 분기가 든 갈래는 아래 층에서만 넓으므로 경계 상자로 견주면 겹치지 않는 기본 배치까지 바뀐다.
+ * 빈 갈래(상자 없음)는 함께 밀릴 뿐 견주지 않는다. 움직일 것이 없으면 slots 를 그대로 돌려준다(기본 크기 흐름의 배치 불변).
+ */
+export function spreadLanes(lanes: readonly { at: number; boxes: readonly LaneBox[] }[], slots: readonly number[], gap: number): number[] {
+  const out = [...slots];
+  let moved = false;
+  for (let i = 1; i < lanes.length; i++) {
+    if (lanes[i].boxes.length === 0) continue;
+    const di = out[i] - lanes[i].at;
+    let need = 0;
+    for (let j = 0; j < i; j++) {
+      const dj = out[j] - lanes[j].at;
+      for (const a of lanes[j].boxes) {
+        for (const b of lanes[i].boxes) {
+          if (a.y1 < b.y2 && b.y1 < a.y2) need = Math.max(need, a.x2 + dj + gap - (b.x1 + di));
+        }
+      }
+    }
+    if (need > 0.5) { // dagre 좌표의 소수 오차로 움직이지 않게
+      for (let k = i; k < out.length; k++) out[k] += need;
+      moved = true;
+    }
+  }
+  if (!moved) return out;
+  const mid = (xs: readonly number[]) => (Math.min(...xs) + Math.max(...xs)) / 2;
+  const d = mid(slots) - mid(out);
+  return out.map((x) => x + d);
 }
 
 /**
@@ -174,12 +243,12 @@ export function resolveOverlaps(
 
 /**
  * 캔버스가 그리는 위치 — `positionsOf` 에 겹침 풀기를 더한다. 저장 위치가 있는 노드가 고정이다.
- * blocks 에 든 분기(접힌 블록)는 룰 크기 상자로 그리므로 그 크기로 본다(D16). 위치를 읽는 곳(끌기·블록 끌기·메모 자리)은 모두 이 값을 쓴다.
+ * blocks 에 든 분기(접힌 블록)는 룰 크기 상자로 그리므로 그 크기로 본다(D16). RULE·TASK 는 외관 크기로 본다(S1). 위치를 읽는 곳(끌기·블록 끌기·메모 자리)은 모두 이 값을 쓴다.
  */
 export function drawnPositions(f: EditFlow, blocks: Readonly<Record<string, unknown>> = {}): Record<string, FlowPos> {
   const saved = f.view?.positions ?? {};
   const pinned = new Set((f.nodes ?? []).filter((n) => saved[n.id]).map((n) => n.id));
-  const boxes = (f.nodes ?? []).map((n) => ({ id: n.id, ...NODE_SIZE[blocks[n.id] ? "RULE" : n.kind] }));
+  const boxes = (f.nodes ?? []).map((n) => ({ id: n.id, ...nodeSizeOf(f, n, blocks) }));
   return resolveOverlaps(boxes, positionsOf(f, blocks), pinned);
 }
 
@@ -276,4 +345,40 @@ export function shiftSpace(
   }
   g.view.routes = routes;
   return g;
+}
+
+/** 크기·자리 바꾸기에 쓰는 그린 위치 묶음 — 캔버스가 정렬 출처(alignSourceRef)로 올린다(page 의 layoutSource). */
+export interface NodeLayoutSource {
+  drawn: Record<string, FlowPos>;
+  blocks: SpaceBlocks;
+}
+
+/** 그린 위치 전부를 저장 위치로 적는다 — 접힌 분기는 제 크기 기준 좌표(+foldOffsetX). 그린 위치가 없는 노드는 건드리지 않는다. */
+export function pinDrawn(f: EditFlow, drawn: Readonly<Record<string, FlowPos>>, blocks: SpaceBlocks = {}): EditFlow {
+  const pos: Record<string, FlowPos> = {};
+  for (const n of f.nodes ?? []) {
+    const p = drawn[n.id];
+    if (!p) continue;
+    pos[n.id] = blocks[n.id] ? { x: p.x + foldOffsetX(n.kind), y: p.y } : { x: p.x, y: p.y };
+  }
+  return Object.keys(pos).length > 0 ? setPositions(f, pos) : f;
+}
+
+// ───────────────────────── 노드 외관(S1) ─────────────────────────
+
+/**
+ * 외관 편집(패널·크기 손잡이 공통, S1). `setNodeStyle` 결과에서 그 노드의 그린 크기가 바뀌었으면 그때 그린 위치 전부를 저장 위치로 적는다(S-D6) —
+ * 저장 위치가 없는 노드는 자동 배치가 다시 놓으므로 한 노드 크기만 바꿔도 이웃이 밀리기 때문이다(`shiftSpace` 와 같은 방식).
+ * 크기가 그대로면(색·아이콘만, 같은 크기) 위치를 적지 않는다 — 저장 글자가 바뀌지 않아 되돌리기 칸이 헛돌지 않는다. 커져서 이웃과 겹치면 겹친 채 둔다.
+ */
+export function restyleNode(
+  f: EditFlow, nodeId: string, patch: NodeStylePatch | null, drawn: Readonly<Record<string, FlowPos>> = {}, blocks: SpaceBlocks = {},
+): EditResult {
+  const r = setNodeStyle(f, nodeId, patch);
+  if (!r.ok) return r;
+  const n = f.nodes.find((x) => x.id === nodeId)!;
+  const before = nodeSizeOf(f, n);
+  const after = nodeSizeOf(r.flow, n);
+  if (before.w === after.w && before.h === after.h) return r;
+  return { ok: true, flow: pinDrawn(r.flow, drawn, blocks) };
 }
