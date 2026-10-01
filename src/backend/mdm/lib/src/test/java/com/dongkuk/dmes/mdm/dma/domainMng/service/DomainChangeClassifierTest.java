@@ -62,7 +62,7 @@ class DomainChangeClassifierTest {
     @ParameterizedTest
     @CsvSource({
             "DOMAIN_KIND,STRUCTURAL,STRUCTURAL", "DATA_TYPE,STRUCTURAL,STRUCTURAL", "UNIT_CODE,STRUCTURAL,STRUCTURAL",
-            "PARENT_DOMAIN_ID,STRUCTURAL,STRUCTURAL",
+            "PARENT_DOMAIN_ID,PARENT_CHANGE,RELINK",
             "LENGTH,NARROW_OR_WIDEN,NARROW", "SCALE,NARROW_OR_WIDEN,WIDEN", "STD_RULE,NARROW_OR_WIDEN,CHANGE",
             "BIZ_RULE,NARROW_OR_WIDEN,CHANGE", "MARU_CODE_ID,NARROW_OR_WIDEN,CHANGE", "CATE_ID,NARROW_OR_WIDEN,CHANGE",
             "DOMAIN_NAME,COMPATIBLE,COMPATIBLE", "STD_NAME,COMPATIBLE,COMPATIBLE", "DESCRIPTION,COMPATIBLE,COMPATIBLE",
@@ -113,7 +113,50 @@ class DomainChangeClassifierTest {
     }
 
     @Test
+    void 부모_연결과_제거는_방향이_LINK_UNLINK_다() {
+        DomainNode top = node(7).name("두께").std("THK").kind("QTY").type("NUMBER").unit("mm").build(ev);
+        DomainChangeClassifier.Classification link = classifier.classify(top, DomainDraft.from(DomainDrafts.request(r -> {
+            r.setDomainId(7L);
+            r.setDomainName("두께");
+            r.setStdName("THK");
+            r.setDomainKind("QTY");
+            r.setDataType("NUMBER");
+            r.setUnitCode("mm");
+            r.setParentDomainId(1L);
+        }), List.of(), List.of()));
+        assertEquals("PARENT_CHANGE", link.kind());
+        assertEquals("LINK", link.diff().get(0).get("DIRECTION"));
+        DomainChangeClassifier.Classification unlink = classifier.classify(before, same(r -> r.setParentDomainId(null)));
+        assertEquals("UNLINK", unlink.diff().get(0).get("DIRECTION"));
+    }
+
+    @Test
+    void 부모가_바뀌면_단위_칸_변경은_구조_변경이_아니다() {
+        DomainChangeClassifier.Classification c = classifier.classify(before, same(r -> {
+            r.setParentDomainId(null);
+            r.setUnitCode("cm");
+            r.setLength(5);
+        }));
+        assertEquals("PARENT_CHANGE", c.kind());
+        assertEquals(List.of("UNIT_CODE", "PARENT_DOMAIN_ID", "LENGTH"), c.diff().stream().map(m -> m.get("FIELD")).toList());
+        assertEquals("CHANGE", c.diff().get(0).get("DIRECTION"));
+    }
+
+    @Test
+    void 하위_재검사는_값_정의_변경과_부모_변경에서만_한다() {
+        assertEquals(true, DomainChangeClassifier.rechecksDescendants("PARENT_CHANGE"));
+        assertEquals(true, DomainChangeClassifier.rechecksDescendants("NARROW_OR_WIDEN"));
+        assertEquals(false, DomainChangeClassifier.rechecksDescendants("COMPATIBLE"));
+        assertEquals(false, DomainChangeClassifier.rechecksDescendants("NEW"));
+        assertEquals(false, DomainChangeClassifier.rechecksDescendants("STRUCTURAL"));
+    }
+
+    @Test
     void 구조_변경이_섞이면_구조_변경이_이긴다() {
+        assertEquals("STRUCTURAL", classifier.classify(before, same(r -> {
+            r.setParentDomainId(2L);
+            r.setDomainKind("TEXT");
+        })).kind());
         assertEquals("STRUCTURAL", classifier.classify(before, same(r -> {
             r.setLength(5);
             r.setDataType("STRING");
