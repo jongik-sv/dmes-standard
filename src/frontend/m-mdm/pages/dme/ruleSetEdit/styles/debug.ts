@@ -1,7 +1,7 @@
 /**
  * 디버그 모드 규칙(3단계 계획 Task 10) — 디버그 툴바·입력 패널·테스트 케이스·변수 패널·실행 비교·값 표 탭. 노드 상세(`TraceDetail`)·값 표(`ValueTable`)가 쓰는 `.rsim-list`·`.rsim-values`·`.rsim-pairs` 등은 `base.ts` 에 있다.
  * 색은 의미 토큰만 쓴다. 한 변 색 바는 쓰지 않는다(Local-Rules §8) — 상태는 배경 톤·배지·글자 색으로 보인다.
- * 표 줄 강조는 `AgDataGrid` `getRowClassExtra` 클래스(`rsf-var-new`·`rsf-var-changed`·`rsf-cmp-diff`)에 공용 행 상태(grid.css)와 같은 방식으로 배경을 준다.
+ * 표 줄 강조는 `AgDataGrid` `getRowClassExtra` 클래스(`rsf-var-new`·`rsf-var-changed`·`rsf-var-pending`·`rsf-cmp-diff`)에 공용 행 상태(grid.css)와 같은 방식으로 배경을 준다.
  */
 const DEBUG_MODE_CSS = `
 /* 디버그 툴바 — 흐름 툴바 아래 둘째 줄(P-D22) */
@@ -65,7 +65,19 @@ const DEBUG_MODE_CSS = `
 .rsf-var-watch-value { flex: 1 1 auto; min-width: 0; text-align: right; overflow-wrap: anywhere; font-family: var(--font-family-mono); }
 .rsf-var-grid .ag-row.rsf-var-changed { background-color: var(--color-warning-soft); }
 .rsf-var-grid .ag-row.rsf-var-new { background-color: var(--color-primary-soft); }
+.rsf-var-grid .ag-row.rsf-var-pending { background-color: var(--color-edited); }
 .rsf-var-grid [col-id="pin"] { cursor: pointer; }
+.rsf-var-grid [col-id="act"] button { padding: 0 4px; }
+.rsf-var-add { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-xs); min-width: 0; }
+.rsf-var-add > * { min-width: 0; }
+.rsf-var-edit-error { margin: 0; font-size: var(--font-size-sm); color: var(--color-danger); overflow-wrap: anywhere; }
+
+/* 값 고친 지점(4단계 E4) — 노드 오른쪽 아래 작은 원. 한 변 색 바가 아니다(Local-Rules §8). title 이 뜨도록 누름을 받는다 */
+.rsf-edited {
+  position: absolute; right: -8px; bottom: -8px; width: 16px; height: 16px; box-sizing: border-box; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center; z-index: 2; pointer-events: auto;
+  background: var(--color-warning); color: var(--color-on-primary); border: 2px solid var(--rsf-node-bg);
+}
 .rsf-expr-result { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
 .rsf-expr-result[data-kind="true"] { color: var(--color-success); }
 .rsf-expr-result[data-kind="error"], .rsf-expr-result[data-kind="fallback"] { color: var(--color-danger); }
