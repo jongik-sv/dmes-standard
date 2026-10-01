@@ -8,7 +8,7 @@ import dagre from "@dagrejs/dagre";
 import type { FlowNodeKind, RuleSetFlow } from "@/contract/engine-contract.generated";
 
 import { clearLabels, clearRoutes, setNodeStyle, setPositions, type EditFlow, type EditResult, type FlowPos } from "./flow-edit";
-import { isBlankJava, parseFlow, type Seq } from "./flow-model";
+import { CATCHABLE, isBlankJava, parseFlow, type Guarded, type Seq, type Split } from "./flow-model";
 import { STYLED_KINDS, type NodeSize, type NodeStyle, type NodeStylePatch } from "./node-style";
 
 export const NODE_SIZE: Readonly<Record<FlowNodeKind, { w: number; h: number }>> = {
@@ -43,6 +43,50 @@ export function nodeSizeOf(f: StyledFlow, n: { id: string; kind: FlowNodeKind },
 /** dagre 같은 층 노드 사이 가로 간격 — 갈래를 다시 벌릴 때(spreadLanes)도 같은 값을 쓴다. */
 const NODESEP = 40;
 
+/** 받는 노드 가로 자리(Ruling R15) — 룰 왼쪽 테두리에서 처음 16, 받는 노드마다 36씩 오른쪽. */
+export const CATCH_LEFT = 16;
+export const CATCH_STEP = 36;
+
+/** 받는 노드 좌상단 — 룰 아래 테두리에 걸친다(세로 가운데가 테두리). k 는 그 룰의 받는 노드 순번(노드 배열 순서). */
+export function catchSpot(rule: FlowPos, ruleSize: NodeSize, k: number): FlowPos {
+  return { x: rule.x + CATCH_LEFT + k * CATCH_STEP, y: rule.y + ruleSize.h - Math.round(NODE_SIZE.CATCH.h / 2) };
+}
+
+/** 받는 노드 ID → 붙은 노드 ID·순번(노드 배열 순서). 붙은 노드가 없거나 받을 수 없는 종류면 넣지 않는다. */
+export function catchSlots(f: RuleSetFlow): Map<string, { attachTo: string; k: number }> {
+  const out = new Map<string, { attachTo: string; k: number }>();
+  const kindOf = new Map((f.nodes ?? []).map((n) => [n.id, n.kind] as const));
+  const count = new Map<string, number>();
+  for (const n of f.nodes ?? []) {
+    if (n.kind !== "CATCH" || !n.attachTo) continue;
+    const k = kindOf.get(n.attachTo);
+    if (!k || !CATCHABLE.has(k)) continue;
+    const i = count.get(n.attachTo) ?? 0;
+    count.set(n.attachTo, i + 1);
+    out.set(n.id, { attachTo: n.attachTo, k: i });
+  }
+  return out;
+}
+
+/** 받는 노드 자리를 붙은 룰의 자리·크기에서 다시 정한다. 붙은 룰 자리가 없으면(접힌 블록 안 등) 그 키를 뺀다. 받는 노드가 없으면 입력을 그대로 돌려준다. */
+export function placeCatches(
+  f: RuleSetFlow & StyledFlow, pos: Readonly<Record<string, FlowPos>>, blocks: Readonly<Record<string, unknown>> = {},
+): Record<string, FlowPos> {
+  const slots = catchSlots(f);
+  if (slots.size === 0) return pos as Record<string, FlowPos>;
+  const byId = new Map((f.nodes ?? []).map((n) => [n.id, n] as const));
+  const out: Record<string, FlowPos> = { ...pos };
+  for (const [id, s] of slots) {
+    const at = pos[s.attachTo];
+    if (!at) {
+      delete out[id];
+      continue;
+    }
+    out[id] = catchSpot(at, nodeSizeOf(f, byId.get(s.attachTo)!, blocks), s.k);
+  }
+  return out;
+}
+
 /**
  * dagre 자동 배치. blocks 에 든 분기(접힌 블록, D16)는 룰 크기 상자로 그리므로 룰 크기로 배치한다 — 제 크기(병렬 200×14 등)로 배치하면
  * 접힌 상자가 아래 노드와 겹치고, 겹침 풀기가 그 노드를 옆으로 민다(고침 2회차 N1). RULE·TASK 는 외관 크기로 배치한다(S1).
@@ -61,7 +105,8 @@ export function autoLayout(f: RuleSetFlow & StyledFlow, blocks: Readonly<Record<
   // 여러 호출자가 같은 결과를 나눠 쓰므로 사본을 준다(positionsOf 는 좌표 객체를 그대로 펼쳐 넘긴다).
   const out: Record<string, FlowPos> = {};
   for (const [id, p] of Object.entries(hit)) out[id] = { x: p.x, y: p.y };
-  return out;
+  // 받는 노드 자리는 캐시한 배치가 아니라 이 사본에서 붙은 룰 테두리로 다시 정한다(R15).
+  return placeCatches(f, out, blocks);
 }
 
 /**
@@ -75,13 +120,13 @@ export function clearLayoutCache(): void {
   layoutCache.clear();
 }
 /**
- * 캐시 키 — autoLayout 이 읽는 칸 전부: 노드(순서·ID·종류·룰·짝 분기·이름), 선(순서·ID·양 끝·갈래 순서·조건식·그 외·이름), 노드별 그린 크기
+ * 캐시 키 — autoLayout 이 읽는 칸 전부: 노드(순서·ID·종류·룰·짝 분기·이름·붙은 노드·받는 종류), 선(순서·ID·양 끝·갈래 순서·조건식·그 외·이름), 노드별 그린 크기
  * (외관 w·h 와 접힌 블록이 여기로 들어온다). dagre 결과는 노드·선을 넣은 순서에도 달라지므로 배열 순서를 그대로 둔다.
  * 객체를 통째로 직렬화하지 않고 칸을 골라 적는다 — 서버에서 읽은 흐름과 편집으로 만든 흐름은 칸 순서·여분 칸이 달라 같은 흐름이 엇갈린다.
  */
 function layoutKey(f: RuleSetFlow, size: ReadonlyMap<string, NodeSize>): string {
   return JSON.stringify([
-    (f.nodes ?? []).map((n) => [n.id, n.kind, n.ruleId, n.splitId, n.label, size.get(n.id)!.w, size.get(n.id)!.h]),
+    (f.nodes ?? []).map((n) => [n.id, n.kind, n.ruleId, n.splitId, n.label, n.attachTo ?? null, n.catches ?? null, size.get(n.id)!.w, size.get(n.id)!.h]),
     (f.edges ?? []).map((e) => [e.id, e.from, e.to, e.order, e.cond, e.otherwise, e.label]),
   ]);
 }
@@ -95,6 +140,8 @@ function runLayout(f: RuleSetFlow, nodes: NonNullable<RuleSetFlow["nodes"]>, siz
     g.setNode(n.id, { width: s.w, height: s.h });
   }
   for (const e of f.edges ?? []) g.setEdge(e.from, e.to);
+  // 받는 노드는 선이 아니라 attachTo 로 붙는다 — 룰에서 나가는 가상 선으로 넣어 처리 갈래가 룰 아래 층에 오게 한다(스펙 §8).
+  for (const [id, s] of catchSlots(f)) g.setEdge(s.attachTo, id);
   dagre.layout(g);
   const cx = new Map<string, number>();
   for (const n of nodes) cx.set(n.id, g.node(n.id).x);
@@ -108,7 +155,10 @@ function runLayout(f: RuleSetFlow, nodes: NonNullable<RuleSetFlow["nodes"]>, siz
   return out;
 }
 
-/** 갈래 몸(중첩 분기·합류 포함)의 노드 ID. */
+/**
+ * 갈래 몸(중첩 분기·합류·받는 룰 블록 포함)의 노드 ID. 받는 노드(CATCH)는 넣지 않는다 — 자리를 `placeCatches` 가 룰 테두리로 다시 정하므로
+ * 옮길 까닭이 없고, dagre 가 놓은 자리(룰과 정상 갈래 사이 층)를 갈래 폭에 넣으면 폭이 틀린다.
+ */
 function bodyIds(seq: Seq, out: string[] = []): string[] {
   for (const b of seq.items) {
     if (b.type === "SEQ") bodyIds(b, out);
@@ -119,10 +169,7 @@ function bodyIds(seq: Seq, out: string[] = []): string[] {
       out.push(b.rule.nodeId);
       if (b.mergeId) out.push(b.mergeId);
       bodyIds(b.normal, out);
-      for (const h of b.handlers) {
-        out.push(h.catchNodeId);
-        bodyIds(h.body, out);
-      }
+      for (const h of b.handlers) bodyIds(h.body, out);
     } else out.push(b.nodeId);
   }
   return out;
@@ -135,50 +182,153 @@ function bodyIds(seq: Seq, out: string[] = []): string[] {
  * 그 자리를 왼쪽부터 갈래 순서대로 다시 나눠 갈래 몸을 통째로 옮긴다. 빈 갈래의 자리는 분기→합류 선이 지나는 x 다.
  * 바깥 분기를 먼저 맞추고 안쪽으로 들어간다(갈래 몸은 통째로 움직이므로 안쪽 상대 배치는 그대로다). 흐름을 해석하지 못하면 손대지 않는다.
  * 폭이 다른 갈래를 다른 갈래 자리로 옮기면 겹칠 수 있으므로 옮길 자리를 `spreadLanes` 로 벌린다(외관 S1, 계획 Ruling 10).
+ * 받는 룰 블록(GUARDED)이 든 몸은 **안쪽부터** 맞춘다(Task 7 고침 1회차) — 처리 갈래를 오른쪽으로 미는 것은 블록 폭을 넓히므로,
+ * 바깥 분기·바깥 받는 룰이 갈래 폭을 재기 전에 끝나야 이웃 갈래와 겹치지 않는다. 받는 룰 블록이 없는 몸은 지금처럼 바깥부터 맞춘다
+ * (받는 노드 없는 흐름의 좌표가 그대로다).
  */
 function orderBranches(f: RuleSetFlow, g: InstanceType<typeof dagre.graphlib.Graph>, cx: Map<string, number>, sizeOf: (id: string) => NodeSize) {
   const tree = parseFlow(layoutCopy(f)).tree;
   if (!tree) return;
-  const visit = (seq: Seq) => {
-    for (const b of seq.items) {
-      if (b.type === "SEQ") visit(b);
-      if (b.type === "GUARDED") {
-        // 처리 갈래를 오른쪽에 두는 배치는 Task 7. 여기서는 안쪽 분기의 갈래 순서만 맞춘다.
-        visit(b.normal);
-        for (const h of b.handlers) visit(h.body);
-        continue;
+  const boxOf = (id: string): LaneBox => {
+    const s = sizeOf(id);
+    const x = cx.get(id)!;
+    const y = (g.node(id) as { y: number }).y; // dagre 가 놓은 가운데 y
+    return { x1: x - s.w / 2, x2: x + s.w / 2, y1: y - s.h / 2, y2: y + s.h / 2 };
+  };
+  const shift = (ids: readonly string[], d: number) => {
+    if (d !== 0) for (const id of ids) cx.set(id, cx.get(id)! + d);
+  };
+  const spanOf = (ids: readonly string[]) => {
+    const boxes = ids.map(boxOf);
+    return { x1: Math.min(...boxes.map((x) => x.x1)), x2: Math.max(...boxes.map((x) => x.x2)), boxes };
+  };
+  /** 분기 하나의 갈래를 갈래 순서대로 왼쪽부터 놓는다(안쪽은 건드리지 않는다). */
+  const placeSplit = (b: Split) => {
+    const lanes = b.branches.map((br) => {
+      const ids = bodyIds(br.body).filter((id) => cx.has(id));
+      if (ids.length > 0) {
+        const { x1, x2, boxes } = spanOf(ids);
+        return { ids, at: (x1 + x2) / 2, boxes };
       }
-      if (b.type !== "SPLIT") continue;
-      const boxOf = (id: string): LaneBox => {
-        const s = sizeOf(id);
-        const x = cx.get(id)!;
-        const y = (g.node(id) as { y: number }).y; // dagre 가 놓은 가운데 y
-        return { x1: x - s.w / 2, x2: x + s.w / 2, y1: y - s.h / 2, y2: y + s.h / 2 };
-      };
-      const lanes = b.branches.map((br) => {
-        const ids = bodyIds(br.body).filter((id) => cx.has(id));
-        if (ids.length > 0) {
-          const boxes = ids.map(boxOf);
-          return { ids, at: (Math.min(...boxes.map((x) => x.x1)) + Math.max(...boxes.map((x) => x.x2))) / 2, boxes };
-        }
-        const pts = (g.edge(b.nodeId, b.mergeId) as { points?: { x: number }[] } | undefined)?.points ?? [];
-        const at = pts.length > 0 ? pts[Math.floor(pts.length / 2)].x : cx.get(b.nodeId)!;
-        // 빈 갈래(선만 지나는 자리)도 룰 하나 너비만큼 자리를 둔다 — dagre 는 너비 0 인 점으로 놓아 이웃 갈래 노드가 분기 가운데 아래에 걸친다
-        // (사용자 요청 "갈래 1 노드가 조금 더 왼쪽으로"). 세로 범위는 분기~합류라 그 사이 이웃 갈래 노드와 견준다. 옮길 노드는 없다.
-        const half = NODE_SIZE.RULE.w / 2;
-        const y1 = (g.node(b.nodeId) as { y: number }).y;
-        const y2 = (g.node(b.mergeId) as { y: number }).y;
-        return { ids, at, boxes: [{ x1: at - half, x2: at + half, y1, y2 }] as LaneBox[] };
-      });
-      const slots = spreadLanes(lanes, lanes.map((l) => l.at).sort((a, c) => a - c), NODESEP);
-      lanes.forEach((l, i) => {
-        const d = slots[i] - l.at;
-        if (d !== 0) for (const id of l.ids) cx.set(id, cx.get(id)! + d);
-      });
-      for (const br of b.branches) visit(br.body);
+      const pts = (g.edge(b.nodeId, b.mergeId) as { points?: { x: number }[] } | undefined)?.points ?? [];
+      const at = pts.length > 0 ? pts[Math.floor(pts.length / 2)].x : cx.get(b.nodeId)!;
+      // 빈 갈래(선만 지나는 자리)도 룰 하나 너비만큼 자리를 둔다 — dagre 는 너비 0 인 점으로 놓아 이웃 갈래 노드가 분기 가운데 아래에 걸친다
+      // (사용자 요청 "갈래 1 노드가 조금 더 왼쪽으로"). 세로 범위는 분기~합류라 그 사이 이웃 갈래 노드와 견준다. 옮길 노드는 없다.
+      const half = NODE_SIZE.RULE.w / 2;
+      const y1 = (g.node(b.nodeId) as { y: number }).y;
+      const y2 = (g.node(b.mergeId) as { y: number }).y;
+      return { ids, at, boxes: [{ x1: at - half, x2: at + half, y1, y2 }] as LaneBox[] };
+    });
+    const slots = spreadLanes(lanes, lanes.map((l) => l.at).sort((a, c) => a - c), NODESEP);
+    lanes.forEach((l, i) => shift(l.ids, slots[i] - l.at));
+  };
+  /**
+   * 받는 룰 블록 하나를 놓는다(받는 노드 spec §8) — 정상 갈래는 첫 노드가 룰 가운데 아래, 처리 갈래는 받는 노드 순서로 그 오른쪽에
+   * NODESEP 간격, 돌아오는 MERGE 는 룰 가운데 아래. 갈래 몸은 통째로 옮기므로 안쪽에서 먼저 정한 상대 배치는 그대로다.
+   * 정상 갈래를 상자 가운데가 아니라 첫 노드로 맞추는 것은 안쪽 받는 룰의 처리 갈래가 오른쪽으로 넓혀 둔 몸도 줄기가 룰 아래에 오게 하려는 것이다.
+   */
+  const placeGuarded = (b: Guarded) => {
+    const ruleX = cx.get(b.rule.nodeId)!;
+    const normalIds = bodyIds(b.normal).filter((id) => cx.has(id));
+    let right = ruleX + sizeOf(b.rule.nodeId).w / 2;
+    const head = firstNode(b.normal);
+    if (normalIds.length > 0 && head && cx.has(head)) {
+      shift(normalIds, ruleX - cx.get(head)!);
+      right = Math.max(right, spanOf(normalIds).x2);
+    }
+    for (const h of b.handlers) {
+      const ids = bodyIds(h.body).filter((id) => cx.has(id));
+      if (ids.length === 0) continue;
+      const { x1, x2 } = spanOf(ids);
+      shift(ids, right + NODESEP - x1);
+      right += NODESEP + (x2 - x1);
+    }
+    if (b.mergeId && cx.has(b.mergeId)) cx.set(b.mergeId, ruleX);
+  };
+  /** 받는 룰 블록이 없는 몸 — 바깥 분기부터 안쪽으로(고침 전과 같은 순서). */
+  const outsideIn = (seq: Seq) => {
+    for (const b of seq.items) {
+      if (b.type === "SEQ") outsideIn(b);
+      else if (b.type === "SPLIT") {
+        placeSplit(b);
+        for (const br of b.branches) outsideIn(br.body);
+      } else if (b.type === "GUARDED") insideOut({ type: "SEQ", items: [b] }); // hasGuarded 가 거른다 — 타입 완결용
     }
   };
-  visit(tree.root);
+  /** 받는 룰 블록이 든 몸 — 안쪽을 먼저 다 놓은 뒤 이 층의 분기·받는 룰 블록이 갈래 폭을 잰다. */
+  const insideOut = (seq: Seq) => {
+    if (!hasGuarded(seq)) return outsideIn(seq);
+    for (const b of seq.items) {
+      if (b.type === "SEQ") insideOut(b);
+      else if (b.type === "SPLIT") {
+        for (const br of b.branches) insideOut(br.body);
+        placeSplit(b);
+      } else if (b.type === "GUARDED") {
+        insideOut(b.normal);
+        for (const h of b.handlers) insideOut(h.body);
+        placeGuarded(b);
+      }
+    }
+  };
+  insideOut(tree.root);
+  if (!hasGuarded(tree.root)) return;
+  /**
+   * 끝내는 처리 갈래(END 로 가는, Task 7 고침 2회차) — dagre 가 END 바로 위까지 층을 늘리므로 받는 룰 뒤 블록(같은 몸·바깥 몸)과 같은 높이를 차지한다.
+   * 몸 세로 범위와 겹치는 다른 노드(받는 노드·자기 몸·같은 룰의 뒤 처리 갈래 제외) 전부의 오른쪽 끝 + NODESEP 너머로 몸을 통째로 민다.
+   * 같은 룰의 처리 갈래는 앞 갈래 오른쪽 끝 + NODESEP 을 넘도록 뒤따라 밀어 받는 노드 순서(왼쪽→오른쪽)를 지킨다. 안쪽 블록부터 한다.
+   * 민 몸은 그때 놓인 모든 노드의 오른쪽에 서고, 움직이지 않은 노드는 그대로이므로 민 몸끼리·다른 노드와 겹치지 않는다.
+   */
+  const catchIds = new Set((f.nodes ?? []).filter((n) => n.kind === "CATCH").map((n) => n.id));
+  const others = [...cx.keys()].filter((id) => !catchIds.has(id));
+  const clearEnding = (b: Guarded) => {
+    const bodies = b.handlers.map((h) => bodyIds(h.body).filter((id) => cx.has(id)));
+    let prevRight = -Infinity;
+    b.handlers.forEach((h, k) => {
+      const ids = bodies[k];
+      if (ids.length === 0) return;
+      const { x1, x2, boxes } = spanOf(ids);
+      let need = prevRight + NODESEP - x1;
+      if (h.ends) {
+        const y1 = Math.min(...boxes.map((x) => x.y1));
+        const y2 = Math.max(...boxes.map((x) => x.y2));
+        const skip = new Set([...ids, ...bodies.slice(k + 1).flat()]);
+        for (const id of others) {
+          if (skip.has(id)) continue;
+          const o = boxOf(id);
+          if (o.y1 < y2 && y1 < o.y2) need = Math.max(need, o.x2 + NODESEP - x1);
+        }
+      }
+      const d = need > 0.5 ? need : 0; // dagre 좌표의 소수 오차로 움직이지 않게
+      shift(ids, d);
+      prevRight = x2 + d;
+    });
+  };
+  const walk = (seq: Seq) => {
+    for (const b of seq.items) {
+      if (b.type === "SEQ") walk(b);
+      else if (b.type === "SPLIT") for (const br of b.branches) walk(br.body);
+      else if (b.type === "GUARDED") {
+        walk(b.normal);
+        for (const h of b.handlers) walk(h.body);
+        clearEnding(b);
+      }
+    }
+  };
+  walk(tree.root);
+}
+
+/** 몸에 받는 룰 블록(GUARDED)이 하나라도 있는가(중첩 포함). */
+function hasGuarded(seq: Seq): boolean {
+  return seq.items.some((b) => b.type === "GUARDED" || (b.type === "SEQ" && hasGuarded(b)) || (b.type === "SPLIT" && b.branches.some((br) => hasGuarded(br.body))));
+}
+
+/** 몸의 첫 노드(룰·빈 단계·분기·받는 룰). 빈 몸이면 null. */
+function firstNode(seq: Seq): string | null {
+  const b = seq.items[0];
+  if (!b) return null;
+  if (b.type === "SEQ") return firstNode(b);
+  if (b.type === "GUARDED") return b.rule.nodeId;
+  return b.nodeId;
 }
 
 /** 배치용 IF 조건식 자리표시 — 갈래 구조만 얻으려 넣고 저장 흐름·검사에는 쓰지 않는다. */
@@ -321,12 +471,14 @@ export function resolveOverlaps(
 /**
  * 캔버스가 그리는 위치 — `positionsOf` 에 겹침 풀기를 더한다. 저장 위치가 있는 노드가 고정이다.
  * blocks 에 든 분기(접힌 블록)는 룰 크기 상자로 그리므로 그 크기로 본다(D16). RULE·TASK 는 외관 크기로 본다(S1). 위치를 읽는 곳(끌기·블록 끌기·메모 자리)은 모두 이 값을 쓴다.
+ * 받는 노드(CATCH)는 마지막에 붙은 룰 자리에서 다시 정한다(저장 위치를 쓰지 않는다).
  */
 export function drawnPositions(f: EditFlow, blocks: Readonly<Record<string, unknown>> = {}): Record<string, FlowPos> {
   const saved = f.view?.positions ?? {};
-  const pinned = new Set((f.nodes ?? []).filter((n) => saved[n.id]).map((n) => n.id));
-  const boxes = (f.nodes ?? []).map((n) => ({ id: n.id, ...nodeSizeOf(f, n, blocks) }));
-  return resolveOverlaps(boxes, positionsOf(f, blocks), pinned);
+  const nodes = (f.nodes ?? []).filter((n) => n.kind !== "CATCH"); // 받는 노드는 룰 테두리에 걸친다 — 겹침으로 보지 않는다(R15)
+  const pinned = new Set(nodes.filter((n) => saved[n.id]).map((n) => n.id));
+  const boxes = nodes.map((n) => ({ id: n.id, ...nodeSizeOf(f, n, blocks) }));
+  return placeCatches(f, resolveOverlaps(boxes, positionsOf(f, blocks), pinned), blocks);
 }
 
 /** [자동 정렬] — 모든 노드 위치를 자동 배치로 덮고 선 경로(C14)·이름표 오프셋(L1)을 함께 지운다. 한 번의 편집(이력 한 칸)이다. */
