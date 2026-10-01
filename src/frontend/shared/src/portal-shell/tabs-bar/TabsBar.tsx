@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { ActionIcon } from "@mantine/core";
 import {
+  IconArrowsMaximize,
   IconCamera,
   IconChevronDown,
   IconChevronLeft,
@@ -65,6 +66,8 @@ export interface TabsBarProps {
   onToggleFavorite?: () => void;
   /** 활성 탭 컨텐츠를 PNG 로 캡쳐. 미지정 시 캡쳐 버튼 숨김. */
   onCapture?: () => void;
+  /** 활성 탭 페이지만 전체 화면으로 본다. 미지정 시 버튼 숨김. */
+  onEnterFullscreen?: () => void;
 }
 
 export function TabsBar({
@@ -80,6 +83,7 @@ export function TabsBar({
   isCurrentPageFavorite = false,
   onToggleFavorite,
   onCapture,
+  onEnterFullscreen,
 }: TabsBarProps) {
   const tabsScrollRef = useRef<HTMLDivElement>(null);
   const [showScrollButtons, setShowScrollButtons] = useState(false);
@@ -528,6 +532,20 @@ export function TabsBar({
               </div>
             )}
           </div>
+
+          {/* 탭 전체 화면 */}
+          {onEnterFullscreen && (
+            <ActionIcon
+              variant="subtle"
+              size="md"
+              style={CONTROL_ICON_VARS}
+              onClick={onEnterFullscreen}
+              title="전체 화면으로 보기"
+              aria-label="전체 화면으로 보기"
+            >
+              <IconArrowsMaximize size={14} stroke={2} />
+            </ActionIcon>
+          )}
 
           {/* Header toggle button (rightmost) */}
           {onToggleHeader && (

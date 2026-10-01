@@ -2,6 +2,7 @@
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@mantine/core";
+import { IconArrowsMinimize } from "@tabler/icons-react";
 import { signOut } from "next-auth/react";
 import { readSecureJson, writeSecureJson } from "../secure-storage";
 import { cloneSnapshot, isSnapshotEqual } from "../snapshot";
@@ -30,6 +31,7 @@ import type { FavoriteFolderNode } from "./sidebar/FavoritesTree";
 import { TabPageContext } from "./tab-page-context";
 import { ErrorBoundary } from "../components/error-boundary";
 import { useTabHistory } from "./use-tab-history";
+import { useTabFullscreen } from "./use-tab-fullscreen";
 import "./portal-shell.css";
 
 const PORTAL_HEADER_HEIGHT = 44;
@@ -492,6 +494,14 @@ export function PortalShell({
     setIsHeaderVisible((prev) => !prev);
   }, []);
 
+  // 탭 전체 화면 — 헤더·사이드바·탭바를 숨기고 활성 탭 페이지만 보인다. isHeaderVisible 은 건드리지 않는다.
+  const tabFullscreen = useTabFullscreen();
+  const { isTabFullscreen, exit: exitTabFullscreen } = tabFullscreen;
+  useEffect(() => {
+    // 탭이 모두 닫혀 대시보드만 남으면 탭바 없이 갇히지 않게 빠져나온다.
+    if (isTabFullscreen && !activeTab) exitTabFullscreen();
+  }, [isTabFullscreen, activeTab, exitTabFullscreen]);
+
   const isCurrentPageFavorite = useMemo(() => {
     if (!activeTab) return false;
     return favoritePageIdSet.has(activeTab.pageId);
@@ -763,8 +773,8 @@ export function PortalShell({
 
   return (
     <AppShell
-      className="portal-shell"
-      header={{ height: PORTAL_HEADER_HEIGHT, collapsed: !isHeaderVisible }}
+      className={`portal-shell${isTabFullscreen ? " portal-shell--tab-fullscreen" : ""}`}
+      header={{ height: PORTAL_HEADER_HEIGHT, collapsed: !isHeaderVisible || isTabFullscreen }}
       padding={0}
     >
       <AppShell.Header className="portal-shell__header" withBorder={false}>
@@ -815,8 +825,21 @@ export function PortalShell({
                 isCurrentPageFavorite={isCurrentPageFavorite}
                 onToggleFavorite={handleToggleFavorite}
                 onCapture={handleCapture}
+                onEnterFullscreen={activeTab ? tabFullscreen.enter : undefined}
               />
               <div className="portal-shell__content-area">
+                {isTabFullscreen && (
+                  <button
+                    type="button"
+                    className="portal-shell__fullscreen-exit"
+                    onClick={exitTabFullscreen}
+                    title="전체 화면 끝내기 (Esc)"
+                    aria-label="전체 화면 끝내기"
+                  >
+                    <IconArrowsMinimize size={14} stroke={2} aria-hidden="true" />
+                    <span>전체 화면 끝내기</span>
+                  </button>
+                )}
                 {tabs.length === 0 ? (
                   <Dashboard />
                 ) : (

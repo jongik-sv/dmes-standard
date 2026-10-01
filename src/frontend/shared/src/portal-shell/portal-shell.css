@@ -102,6 +102,45 @@
   overflow: hidden;
 }
 
+/* 탭 전체 화면 — 사이드바·탭바를 숨긴다(언마운트하지 않아 메뉴 트리·탭 상태가 남는다).
+   헤더는 AppShell header collapsed 로 접는다. */
+.portal-shell--tab-fullscreen .sidebar-container,
+.portal-shell--tab-fullscreen .tabs-bar-wrapper {
+  display: none;
+}
+
+/* 끝내기 버튼 — 화면 제목(왼쪽)·상단 버튼 바(오른쪽)·토스트(오른쪽 아래)를 피해 위쪽 가운데에 둔다.
+   평소에는 옅게, 가리키면 또렷하게. AppShell(100) 위, 모달(200 이상) 아래. */
+.portal-shell--tab-fullscreen .portal-shell__fullscreen-exit {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 150;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-top: none;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  box-shadow: var(--shadow-dropdown);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  opacity: 0.45;
+  transition: opacity var(--transition-normal);
+}
+
+.portal-shell--tab-fullscreen .portal-shell__fullscreen-exit:hover,
+.portal-shell--tab-fullscreen .portal-shell__fullscreen-exit:focus-visible {
+  opacity: 1;
+  color: var(--color-primary);
+}
+
 /* 메뉴 검색 — 공통 Modal(cm-modal) 위에 얹는다. className 이 .cm-modal 에 붙는다. */
 .cm-modal.portal-menu-search {
   --cm-modal-width: 720px;
