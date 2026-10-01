@@ -13,7 +13,7 @@
  * 단추는 모두 아이콘만 있고(`ToolButton`), 이름·꺼진 이유는 단추를 감싼 `span.rsf-tip[data-tip]` 가 그리는 즉시 CSS 툴팁(`styles/toolbox.ts`, 단추 아래 — 단추 루트가 overflow:hidden 이라 단추 안에서 그리면 잘린다)이고 `title` 은 두지 않는다(브라우저 툴팁과 겹침 방지).
  * S1 의 [공간] 토글은 4단계 P1 에서 도구 상자(`FlowToolbox`)로 옮겼다.
  *
- * 자동 저장: 편집 모드에서만 [세트 저장] 옆에 [자동 저장] 켜고 끄기 단추와 짧은 상태 글(`set-autosave-status`, 경고 문장은 title)을 둔다.
+ * 자동 저장: 편집 모드에서만 [세트 저장] 옆에 [자동 저장] 켜고 끄기 단추와 짧은 상태 글(`set-autosave-status`, 길면 말줄임 — 경고 문장이 있으면 title, 없으면 상태 글이 title)을 둔다.
  * 단추는 [미니맵]·[변수 흐름] 과 같은 `aria-pressed` 토글이다 — 체크박스 입력은 눌러도 초점을 가져가 스페이스+끌기의 스페이스가
  * 값을 뒤집는다(`keepFocusOffButtons` 는 단추만 막는다). 자동 저장이 진행 중이면 수동 쓰기([세트 저장]·폐기·되살리기)를 막는다(같은 row_version
  * 으로 두 요청이 나가지 않게). 편집·되돌리기는 막지 않는다.
@@ -400,7 +400,7 @@ export function FlowToolbar(props: FlowToolbarProps) {
                   data-testid="set-autosave-status"
                   className="rsf-autosave-status"
                   role="status"
-                  title={autoStatus.title}
+                  title={autoStatus.title ?? autoStatus.text}
                   style={{ color: AUTO_STATUS_COLOR[autoStatus.kind] }}
                 >
                   {autoStatus.text}

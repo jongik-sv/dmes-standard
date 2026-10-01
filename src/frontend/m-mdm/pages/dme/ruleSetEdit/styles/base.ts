@@ -162,14 +162,15 @@ export const BASE_CSS = `
    단추는 아이콘만 두고 좌우 여백을 줄여 거의 정사각형으로 보인다. 세트 이름은 길면 말줄임한다(전체는 title). */
 .rsf-toolbar { padding: var(--spacing-xs) var(--spacing-md); border-bottom: 1px solid var(--color-border-light); }
 .rsf-toolbar-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-xs) var(--spacing-sm); }
-.rsf-toolbar-group { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: var(--spacing-xs); white-space: nowrap; }
+.rsf-toolbar-group { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: var(--spacing-xs); }
 .rsf-toolbar .rsf-tip > .form-button { padding-inline: 7px; }
 .rsf-toolbar-head { min-width: 0; }
-.rsf-toolbar-title { display: inline-block; max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+.rsf-toolbar-head > span { white-space: nowrap; }
+.rsf-toolbar-title { display: inline-block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
 .rsf-toolbar-end { margin-left: auto; }
 .rsf-toolbar-sep { align-self: stretch; width: 1px; margin: 2px 0; background: var(--color-border); }
 .rsf-toolbar-message { padding-top: var(--spacing-xs); }
-.rsf-autosave-status { font-size: var(--font-size-sm); white-space: nowrap; cursor: default; }
+.rsf-autosave-status { max-width: 140px; overflow: hidden; text-overflow: ellipsis; font-size: var(--font-size-sm); white-space: nowrap; cursor: default; }
 
 /* 본문 — 캔버스 패널 안(팔레트 | 캔버스) */
 .rsf-body { display: flex; flex: 1 1 0; min-height: 0; min-width: 0; }
