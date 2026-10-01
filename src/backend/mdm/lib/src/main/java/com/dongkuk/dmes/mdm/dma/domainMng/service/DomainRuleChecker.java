@@ -96,6 +96,9 @@ public class DomainRuleChecker {
         }
         if (stored != null) {
             structural(stored, d, out);
+            if (!cycle && parentExists && !Objects.equals(stored.parentDomainId(), d.parentDomainId())) {
+                parentUnit(stored, d, snapshot, out);
+            }
         }
         if (!cycle && parentExists) {
             inheritance(d, snapshot, out);
@@ -228,12 +231,36 @@ public class DomainRuleChecker {
         return false;
     }
 
-    /** S01 — 구조 칼럼(종류·타입·단위·부모)은 수정에서 바꿀 수 없다. */
+    /**
+     * S01 — 구조 칼럼(종류·타입·단위)은 수정에서 바꿀 수 없다. 부모는 구조 칼럼이 아니다(부모 연결·교체·제거 허용, D-132).
+     * 부모가 바뀌면 자기 단위 칸은 여기서 보지 않는다 — 연결 제거는 상속받던 단위를 자기 행에 복사하므로 칸 값이 바뀐다.
+     * 유효 단위가 그대로인지는 {@link #parentUnit} 이 본다.
+     */
     private static void structural(DomainNode stored, DomainDraft d, List<DomainIssue> out) {
         compare("DOMAIN_KIND", stored.domainKind(), d.domainKind(), out);
         compare("DATA_TYPE", stored.dataType(), d.dataType(), out);
-        compare("UNIT_CODE", stored.unitCode(), d.unitCode(), out);
-        compare("PARENT_DOMAIN_ID", stored.parentDomainId(), d.parentDomainId(), out);
+        if (Objects.equals(stored.parentDomainId(), d.parentDomainId())) {
+            compare("UNIT_CODE", stored.unitCode(), d.unitCode(), out);
+        }
+    }
+
+    /**
+     * S02 — 부모를 바꿔도 유효 단위는 그대로여야 한다(D-132). 자기 단위가 비어 상속받던 도메인을 단위가 다른 부모 밑으로
+     * 옮기는 경우를 잡는다(자기 단위가 있는 경우는 {@link #inheritance} 의 S02 가 잡는다).
+     */
+    private void parentUnit(DomainNode stored, DomainDraft d, DomainTreeSnapshot snapshot, List<DomainIssue> out) {
+        String before;
+        String after;
+        try {
+            before = assembler.assemble(snapshot.chainRootFirst(stored.domainId())).unitCode();
+            DomainNode node = d.toNode(compiler.ast(d.stdRule()), compiler.ast(d.bizRule()), null);
+            after = assembler.assemble(snapshot.withDraft(node).chainRootFirst(node.domainId())).unitCode();
+        } catch (DomainTreeSnapshot.CycleException e) {
+            return;
+        }
+        if (!Objects.equals(before, after)) {
+            out.add(DomainIssue.of(DomainIssueCode.S02, "UNIT_CODE", "유효 단위 " + before + " → " + after));
+        }
     }
 
     private static void compare(String field, Object before, Object after, List<DomainIssue> out) {

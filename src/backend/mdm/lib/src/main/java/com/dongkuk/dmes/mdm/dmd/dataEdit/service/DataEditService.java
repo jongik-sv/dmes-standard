@@ -53,18 +53,16 @@ public class DataEditService {
     private final DataSegmentLock lock;
     private final DataItemChecks checks;
     private final DataSegmentRowStore rowStore;
-    private final DataCategoryResolver resolver;
     private final MdmDataRepository dataRepo;
     private final TransactionTemplate tx;
     private final TransactionTemplate readTx;
 
     public DataEditService(DataSegmentLock lock, DataItemChecks checks, DataSegmentRowStore rowStore,
-                           DataCategoryResolver resolver, MdmDataRepository dataRepo,
+                           MdmDataRepository dataRepo,
                            PlatformTransactionManager transactionManager) {
         this.lock = lock;
         this.checks = checks;
         this.rowStore = rowStore;
-        this.resolver = resolver;
         this.dataRepo = dataRepo;
         this.tx = new TransactionTemplate(transactionManager);
         this.readTx = new TransactionTemplate(transactionManager);
@@ -169,10 +167,12 @@ public class DataEditService {
 
     /**
      * 카테고리 요약 카드 — 닫힌 카테고리는 매칭 0(R5), TABLE 은 열린 소속 수, REGEX(BASE 포함)는 열린 항목 중 매칭 수
-     * ({@link DataCategoryResolver#preview} 를 그대로 호출 — 재구현하지 않는다, B1 산출물).
+     * ({@link DataCategoryResolver#preview} 를 그대로 호출 — 재구현하지 않는다, B1 산출물). 키별 마지막 항목 행은 첫 REGEX
+     * 카테고리에서 한 번만 읽고 나머지 카테고리는 그 목록으로 센다(카테고리마다 다시 읽지 않는다).
      */
     private List<CategorySummaryRow> categorySummaries(String maruDataId) {
         List<CategorySummaryRow> out = new ArrayList<>();
+        List<ItemSegmentRow> latestItems = null;
         for (CateSegmentRow cate : rowStore.latestCateRows(maruDataId)) {
             DataCateValue v = cate.value();
             boolean open = cate.isOpen();
@@ -181,7 +181,10 @@ public class DataEditService {
                 if (DataCateValue.TABLE.equals(v.defKind())) {
                     matchCount = rowStore.openMemberCodes(maruDataId, cate.key().cateId()).size();
                 } else {
-                    matchCount = resolver.preview(maruDataId, v.defExpr(), v.defTarget()).count();
+                    if (latestItems == null) {
+                        latestItems = rowStore.latestItemRows(maruDataId);
+                    }
+                    matchCount = DataCategoryResolver.preview(latestItems, v.defExpr(), v.defTarget()).count();
                 }
             }
             out.add(new CategorySummaryRow(cate.key().cateId(), v.cateName(), v.defKind(), open, matchCount));

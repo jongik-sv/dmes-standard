@@ -167,18 +167,32 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
     }
   }, [loadCategories]);
 
+  // 결과는 [코드 테스트] 탭만 쓴다 — 그 탭이 보일 때만 부른다. 다른 탭에 있는 동안 조회 기준(view·코드·카테고리)이
+  // 바뀌었으면 탭에 돌아올 때 한 번 부르고, 그대로면 앞 결과를 그대로 보여 준다(탭을 오갈 때마다 다시 부르지 않는다).
+  const previewFor = useRef<{ view: unknown; maruCodeId: string | null; cateId: string | null } | null>(null);
   useEffect(() => {
     const ver = view?.selected?.ver;
     if (!maruCodeId || !ver || !cateId) {
+      previewFor.current = null;
       setPreview(null);
       return;
     }
+    if (rightTab !== "codeTest") return;
+    const last = previewFor.current;
+    if (last && last.view === view && last.maruCodeId === maruCodeId && last.cateId === cateId) return;
+    previewFor.current = { view, maruCodeId, cateId };
     let live = true;
+    let done = false;
     previewCategory(maruCodeId, ver, cateId)
       .then((out) => { if (live) setPreview(out); })
-      .catch(() => { if (live) setPreview(null); });
-    return () => { live = false; };
-  }, [view, maruCodeId, cateId]);
+      .catch(() => { if (live) setPreview(null); })
+      .finally(() => { done = true; });
+    return () => {
+      live = false;
+      // 응답 전에 조회 기준이 바뀌거나 탭을 떠나면 이번 호출은 버려진다 — 다음에 다시 부르게 기준을 지운다.
+      if (!done) previewFor.current = null;
+    };
+  }, [view, maruCodeId, cateId, rightTab]);
 
   // 마루 코드 화면이 [코드 편집]으로 넘긴 마루 코드·버전(openMdmPage)을 받는다(§6.10). RELEASED 도 열린다(읽기 전용).
   useMdmPageParams(COMPONENT_PATH, tabId, (params) => {
@@ -213,7 +227,8 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
         const key = i.itemKey ?? "";
         (map[key] ??= []).push(i);
       }
-      setIssues(map);
+      // 비었는데 또 비었으면 새 `{}` 로 갈아끼우지 않는다 — columns(deps: issues)가 매번 다시 만들어진다.
+      setIssues((prev) => (Object.keys(prev).length === 0 && Object.keys(map).length === 0 ? prev : map));
       setCateIssues(out.cateIssues ?? []);
     } catch {
       // 미리 보기 검사는 저장을 막지 않는다 — 판정은 save 가 한다.
@@ -319,12 +334,21 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
   })), [view]);
   // 변경·동작 칸은 값 없이 행 상태로 그린다. 상태를 그 칸 값으로 실어야 ag-grid 가 행 갱신 때 두 칸을 다시 그린다
   // (값이 그대로인 칸은 다시 그리지 않아 [취소]·"삭제" 배지가 저장 전에 안 보였다).
+  // 행 객체는 원본 행(상태 `rows`·`closedRows` 의 객체) 하나당 복제본 하나를 재사용한다 — 편집된 행만 새 객체가 되어
+  // ag-grid 가 나머지 행을 다시 그리지 않는다. 복제본이라 ag-grid 가 편집 값을 넘겨받은 행 객체에 직접 써도 상태 원본은
+  // 오염되지 않고(취소해도 원래 값), 편집하면 원본 행이 새 객체로 바뀌므로 값을 쓴 복제본은 다시 쓰이지 않는다.
+  const rowClones = useRef(new WeakMap<EditRow, Record<string, unknown>>());
   const visibleRows = useMemo(() => [
     ...filterByNode(rows, filter),
     ...(showClosed ? filterByNode(closedRows, filter) : []),
   ].map((r) => {
+    const cached = rowClones.current.get(r);
+    if (cached) return cached;
     const state = `${r.__local}|${String(r.change ?? "")}`;
-    return { ...r, __change: state, __action: state };
+    const clone = { ...r, __change: state, __action: state };
+    // 닫힌 행은 편집해도 원본 행이 바뀌지 않는다 — 복제본을 다시 쓰면 ag-grid 가 써 넣은 값이 남으므로 매번 새로 만든다.
+    if (!r.__closed) rowClones.current.set(r, clone);
+    return clone;
   }), [rows, closedRows, filter, showClosed]);
 
   const columns = useMemo<GridColumn[]>(() => {
@@ -396,12 +420,14 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
   }, [editable, lvlCnt, attrLabels, issues, canRestore, selected]);
 
   // ── 트리 ──
-  const treeNodes = useMemo(() => buildCodeTree(rows.filter((r) => r.__local !== "deleted" && r.code !== "")
+  // 트리는 [트리] 탭과 거르기 칩(filterIsGroup)만 쓴다 — 코드 탭에서 거르기가 없을 때는 편집마다 다시 계산하지 않는다.
+  const needTree = tab === "tree" || filter !== null;
+  const treeNodes = useMemo(() => !needTree ? [] : buildCodeTree(rows.filter((r) => r.__local !== "deleted" && r.code !== "")
     .map((r): HierRow => {
       const h: HierRow = { code: r.code, name: blank(r.name) ? null : String(r.name), seq: blank(r.seq) ? null : Number(r.seq) };
       for (const k of LVL_KEYS) h[k] = blank(r[k]) ? null : String(r[k]);
       return h;
-    })), [rows]);
+    })), [rows, needTree]);
   const treeItems = useMemo(() => toTreeItems(treeNodes), [treeNodes]);
   const filterIsGroup = useMemo(() => {
     if (!filter) return false;

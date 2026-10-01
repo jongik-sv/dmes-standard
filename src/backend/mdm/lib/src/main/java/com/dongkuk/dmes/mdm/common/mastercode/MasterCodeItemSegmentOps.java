@@ -25,8 +25,11 @@ import com.dongkuk.dmes.mdm.entity.MdmCodeVer;
 import com.dongkuk.dmes.mdm.repository.MdmCodeCateItemRepository;
 import com.dongkuk.dmes.mdm.repository.MdmCodeItemRepository;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.TreeSet;
 import org.springframework.stereotype.Component;
@@ -152,6 +155,154 @@ public class MasterCodeItemSegmentOps {
             closed.add(ci.getCateId());
         }
         return List.copyOf(closed);
+    }
+
+    /**
+     * 코드 행 변경 여러 건을 차례로 적용한다 — 같은 순서로 {@link #addItem}·{@link #changeItem}·{@link #removeItem} 을
+     * 부른 것과 쓰기·오류·돌려주는 값이 같다(코드 편집 합친 저장, 2026-10-01 쿼리 낭비 정리).
+     *
+     * <p>단건 메서드는 행마다 버전 행을 다시 읽고(DRAFT 확인) 그 코드의 ITEM·CATE_ITEM 을 전부 다시 읽는다. 여기서는 DRAFT
+     * 확인을 첫 행에서 한 번만 하고, ITEM 은 한 번·CATE_ITEM 은 첫 삭제 행에서 한 번 읽어 메모리 목록으로 판정한다. 메모리
+     * 목록은 앞 행의 쓰기(닫기·지우기·새 구간·다시 열기)를 그대로 반영한다 — 저장한 뒤 돌려받은 엔티티로 바꿔 끼우므로 트랜잭션
+     * 밖(detached, merge)에서도 다음 행이 최신 상태를 본다. 쓰기는 단건 메서드와 같은 {@code saveAndFlush}·
+     * {@code delete}+{@code flush} 다(같은 PK 를 지운 뒤 다시 넣는 경우 때문에 행마다 flush 한다, 클래스 설명 ②).
+     *
+     * @return 삭제한 코드 → 그 코드 때문에 닫거나 지운 소속의 cate_id(정렬), 삭제 행 순서
+     */
+    public Map<String, List<String>> applyItems(VersionRef draft, List<MasterCodeItemProjection.Change> changes) {
+        Map<String, List<String>> closedCategories = new LinkedHashMap<>();
+        ItemWork work = new ItemWork(draft);
+        for (MasterCodeItemProjection.Change c : changes) {
+            switch (c.status()) {
+                case DELETED -> closedCategories.put(c.code(), work.remove(c.code()));
+                case CHANGED -> work.change(c.code(), c.values());
+                case ADDED -> work.add(c.code(), c.values());
+            }
+        }
+        return closedCategories;
+    }
+
+    /** {@link #applyItems} 한 번의 메모리 상태 — 단건 메서드와 같은 판정을 DB 재조회 대신 이 목록으로 한다. */
+    private final class ItemWork {
+
+        private final VersionRef draft;
+        private final BigDecimal v;
+        private List<MdmCodeItem> items;
+        private List<MdmCodeCateItem> cateItems;
+
+        ItemWork(VersionRef draft) {
+            this.draft = draft;
+            this.v = draft.ver();
+        }
+
+        /** 단건 메서드의 {@code requireDraft} 자리 — 첫 행에서만 버전을 읽는다(그 뒤 버전 상태는 이 저장 안에서 바뀌지 않는다). */
+        private void requireDraftOnce() {
+            if (items == null) {
+                requireDraft(draft);
+                items = new ArrayList<>(rows.items(draft.objectId()));
+            }
+        }
+
+        void add(String code, MasterCodeItemValues values) {
+            requireLengths(values);
+            requireDraftOnce();
+            if (validAt(code).isPresent()) {
+                throw rejected(MasterCodeItemIssueCode.SEGMENT_OVERLAP, code, "이 버전에 이미 있는 코드다");
+            }
+            MdmCodeItem item = new MdmCodeItem(draft.objectId(), code, v);
+            write(item, values);
+            item.setToVer(OPEN);
+            items.add(itemRepository.saveAndFlush(item));
+        }
+
+        void change(String code, MasterCodeItemValues values) {
+            requireLengths(values);
+            requireDraftOnce();
+            MdmCodeItem r = validAt(code)
+                    .orElseThrow(() -> rejected(MasterCodeItemIssueCode.CODE_NOT_FOUND, code, "이 버전에 없는 코드다"));
+            if (same(r.getFromVer(), v)) {
+                Optional<MdmCodeItem> o = closedAt(code);
+                if (o.isPresent() && valuesOf(o.get()).equals(values)) {
+                    deleteItem(r);
+                    dropSame(items, r);
+                    o.get().setToVer(OPEN);
+                    swap(items, o.get(), itemRepository.saveAndFlush(o.get()));
+                    return;
+                }
+                write(r, values);
+                swap(items, r, itemRepository.saveAndFlush(r));
+                return;
+            }
+            if (valuesOf(r).equals(values)) {
+                return;
+            }
+            r.setToVer(v);
+            swap(items, r, itemRepository.saveAndFlush(r));
+            MdmCodeItem n = new MdmCodeItem(draft.objectId(), code, v);
+            write(n, values);
+            n.setToVer(OPEN);
+            items.add(itemRepository.saveAndFlush(n));
+        }
+
+        List<String> remove(String code) {
+            requireDraftOnce();
+            MdmCodeItem r = validAt(code)
+                    .orElseThrow(() -> rejected(MasterCodeItemIssueCode.CODE_NOT_FOUND, code, "이 버전에 없는 코드다"));
+            if (same(r.getFromVer(), v)) {
+                deleteItem(r);
+                dropSame(items, r);
+            } else {
+                r.setToVer(v);
+                swap(items, r, itemRepository.saveAndFlush(r));
+            }
+            if (cateItems == null) {
+                cateItems = new ArrayList<>(rows.cateItems(draft.objectId()));
+            }
+            TreeSet<String> closed = new TreeSet<>();
+            for (MdmCodeCateItem ci : List.copyOf(cateItems)) {
+                if (!code.equals(ci.getCode()) || !valid(ci.getFromVer(), ci.getToVer(), v)) {
+                    continue;
+                }
+                if (same(ci.getFromVer(), v)) {
+                    deleteCateItem(ci);
+                    dropSame(cateItems, ci);
+                } else {
+                    ci.setToVer(v);
+                    swap(cateItems, ci, cateItemRepository.saveAndFlush(ci));
+                }
+                closed.add(ci.getCateId());
+            }
+            return List.copyOf(closed);
+        }
+
+        private Optional<MdmCodeItem> validAt(String code) {
+            return items.stream().filter(e -> code.equals(e.getCode()) && valid(e.getFromVer(), e.getToVer(), v))
+                    .findFirst();
+        }
+
+        private Optional<MdmCodeItem> closedAt(String code) {
+            return items.stream().filter(e -> code.equals(e.getCode()) && same(e.getToVer(), v)).findFirst();
+        }
+    }
+
+    /** 목록에서 그 엔티티(같은 인스턴스)를 뺀다. */
+    private static <T> void dropSame(List<T> list, T e) {
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i) == e) {
+                list.remove(i);
+                return;
+            }
+        }
+    }
+
+    /** 저장 전 엔티티 자리에 저장이 돌려준 엔티티를 넣는다(트랜잭션 안이면 같은 인스턴스, 밖이면 merge 사본). */
+    private static <T> void swap(List<T> list, T before, T after) {
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i) == before) {
+                list.set(i, after);
+                return;
+            }
+        }
     }
 
     /** ITEM·CATE_ITEM 되돌리기(04:50-57). CATE 는 호출자가 거른다(TSK-06-04 몫, D3). */

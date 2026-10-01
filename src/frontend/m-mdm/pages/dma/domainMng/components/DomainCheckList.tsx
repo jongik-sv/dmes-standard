@@ -1,6 +1,7 @@
 "use client";
 
 /** 검사 목록(L-041)과 하위 도메인 재실행 결과 — 도메인검증 응답. 첫 오류에서 멈추지 않고 모두 보인다. */
+import { useMemo } from "react";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { issueLevelLabel, resultLabel } from "../change-view";
 import type { IssueRow, TestResultRow } from "../types";
@@ -25,10 +26,14 @@ export interface DomainCheckListProps {
   ok: boolean | undefined;
   issues: IssueRow[];
   descendantResults: TestResultRow[];
+  /** 검사 전 안내 문구. */
+  pendingHint?: string;
 }
 
-export function DomainCheckList({ validated, ok, issues, descendantResults }: DomainCheckListProps) {
-  if (!validated) return <p style={hint}>[도메인검증] 을 누르면 검사 목록이 보입니다</p>;
+export function DomainCheckList({ validated, ok, issues, descendantResults, pendingHint }: DomainCheckListProps) {
+  const issueData = useMemo(() => issues.map((i, idx) => ({ ...i, ROW_KEY: idx })), [issues]);
+  const descData = useMemo(() => descendantResults.map((r, idx) => ({ ...r, ROW_KEY: idx })), [descendantResults]);
+  if (!validated) return <p style={hint}>{pendingHint ?? "[도메인검증] 을 누르면 검사 목록이 보입니다"}</p>;
   return (
     <div className="domain-mng__checks">
       <p className="domain-mng__check-summary" style={ok ? { color: "var(--color-success)" } : { color: "var(--color-danger)" }}>
@@ -36,11 +41,11 @@ export function DomainCheckList({ validated, ok, issues, descendantResults }: Do
         {issues.filter((i) => i.LEVEL === "WARN").length}건
       </p>
       {issues.length > 0 && (
-        <AgDataGrid columnSizing="fit" columns={ISSUE_COLUMNS} data={issues.map((i, idx) => ({ ...i, ROW_KEY: idx }))} rowKey="ROW_KEY"
+        <AgDataGrid columnSizing="fit" columns={ISSUE_COLUMNS} data={issueData} rowKey="ROW_KEY"
           height={160} />
       )}
       {descendantResults.length > 0 && (
-        <AgDataGrid columnSizing="fit" columns={DESC_COLUMNS} data={descendantResults.map((r, idx) => ({ ...r, ROW_KEY: idx }))}
+        <AgDataGrid columnSizing="fit" columns={DESC_COLUMNS} data={descData}
           rowKey="ROW_KEY" height={140} />
       )}
     </div>

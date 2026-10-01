@@ -2,7 +2,7 @@
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_ruleMng" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-tool" exporterVersion="1.3.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
   <bpmn:process id="ruleMng" name="룰" isExecutable="true">
     <bpmn:documentation>ruleMng — 룰 헤더·버전 (To-Be only 신규 화면, dme 업무기준).
-정본: docs/mdm/screens/ruleMng/ruleMng_기능설계서.md, TSK-08-02 design.md §6.1, decisions.md D-105.
+정본: docs/mdm/screens/ruleMng/ruleMng_기능설계서.md, TSK-08-02 design.md §6.1, decisions.md D-105·D-133.
 
 D-105 — 마루 코드(D-101)·마스터데이터(D-104)가 한 분할을 정했으므로 룰도 그 분할을 따��다.
 이 화면은 목록 + 상세(① 헤더 · ② 버전) 이고, 내용 편집(③ 의사결정표·열 설정, ④⑤⑥ 값 테스트·케이스, ⑧ 활용처)은
@@ -11,15 +11,15 @@ ruleEdit 화면이다. 헤더·버전 관리를 content 화면의 카드에서 �
 action=search   -> searchTask (ruleMngService.search)    READ  — 서버 페이징(I29)
 action=reg      -> regTask    (ruleMngService.register) EDIT  — MDM 원천 등록, VER 1 DRAFT 자동 선점(I2·I3)
 action=view     -> viewTask   (ruleMngService.view)      READ  — ① 헤더 + ② 버전 목록 + 버튼 flags(D-105)
-action=save     -> saveTask   (ruleMngService.save)      EDIT  — target HEADER(룰명·설명·활용처) / VERSION(적중 정책)
+action=save     -> saveTask   (ruleMngService.save)      EDIT  — target HEADER(룰명·설명·활용처). 적중 정책은 D-133 으로 ruleEdit save part TABLE
 action=copy     -> copyTask   (ruleMngService.copy)      EDIT  — 새 버전(직전 RELEASED 복사)
 action=delete   -> deleteTask (ruleMngService.delete)    EDIT  — target VERSION(DRAFT 삭제)·RULE(폐기)·CONFIRM(확정 취소, D8)
 action=lock     -> lockTask     (ruleMngService.lock)     EDIT  — DRAFT 선점
 action=unlock   -> unlockTask   (ruleMngService.unlock)   EDIT  — DRAFT 해제(소유자만 — 역할을 보지 않는다, ADR-0002 D3)
 action=handover -> handoverTask (ruleMngService.handover) EDIT  — DRAFT 넘기기
 
-save 는 target 으로 HEADER 와 VERSION 을 가른다(D-105 (7)). 액션을 둘로 나누지 않는 이유는 권한 어휘 16종(MdmActions)에
-헤더 저장용 이름이 없다는 점이다. dme 의 search(target=RULE·DOMAIN)·delete(target=VERSION·RULE·CONFIRM)와 같은 관용구다.
+save 는 target HEADER 만 받는다(D-105 (7) — 권한 어휘 16종(MdmActions)에 헤더 저장용 이름이 없어 target 관용구를 쓴다).
+옛 target VERSION(적중 정책)은 D-133 으로 없앴다 — 보내면 거부한다. dme 의 search(target=RULE·DOMAIN)·delete(target=VERSION·RULE·CONFIRM)와 같은 관용구다.
 
 BPMN 의 action(RBAC 키)과 서비스의 method(자바 메서드명)는 별개다. 담당자 역할은 서버가 RuleStewardCheck 로 다시 본다(MDM013).</bpmn:documentation>
     <bpmn:startEvent id="start" name="시작">

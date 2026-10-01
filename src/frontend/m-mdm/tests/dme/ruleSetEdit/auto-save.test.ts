@@ -173,7 +173,9 @@ describe("자동 저장 — 켜고 끄기·디바운스", () => {
     expect(h.current.s.flow!.view.positions.r1).toEqual({ x: 10, y: 0 });
     expect(api.viewSet).toHaveBeenCalledTimes(1);
     expect(h.current.s.loading).toBe(false);
-    expect(h.current.a.status?.text).toBe("자동 저장됨 15:42:12");
+    // 정보 글은 상태 글로 내지 않고 시각만 savedAt(단추 툴팁)으로 넘긴다.
+    expect(h.current.a.status).toBeNull();
+    expect(h.current.a.savedAt).toBe("15:42:12");
     await advance(10_000);
     expect(api.saveSet).toHaveBeenCalledTimes(1);
   });
@@ -311,7 +313,7 @@ describe("자동 저장 — 진행 중 변경·실패", () => {
     await advance(AUTO_SAVE_DELAY_MS);
     expect(api.saveSet).toHaveBeenCalledTimes(1);
     expect(h.current.s.autoSaving).toBe(true);
-    expect(h.current.a.status?.text).toBe("저장 중");
+    expect(h.current.a.status).toBeNull();
     await move(); // 저장 중 변경(x=20)
     await advance(10_000);
     expect(api.saveSet).toHaveBeenCalledTimes(1);
@@ -385,7 +387,8 @@ describe("자동 저장 — 진행 중 변경·실패", () => {
     await advance(AUTO_SAVE_DELAY_MS);
     await advance(0);
     expect(h.current.s.message).toBeNull();
-    expect(h.current.a.status).toEqual({ kind: "warning", text: "자동 저장됨 15:42:12 · 경고 2건", title: "경고 하나\n경고 둘" });
+    expect(h.current.a.status).toEqual({ kind: "warning", text: "자동 저장 경고 2건", title: "경고 하나\n경고 둘" });
+    expect(h.current.a.savedAt).toBe("15:42:12");
   });
 
   it("14. 자동 저장 뒤에도 되돌리기 이력이 남고, 되돌리면 다시 dirty 가 되어 저장한다", async () => {

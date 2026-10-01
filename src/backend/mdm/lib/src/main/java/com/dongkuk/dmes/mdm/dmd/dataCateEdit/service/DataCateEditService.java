@@ -42,10 +42,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  * {@code save→save}, {@code delete→close}, {@code restore→reopen}.
  *
  * <p>{@code reg}·{@code save}(REGEX 정의 수정)·{@code delete}·{@code restore} 는 {@link DataCategorySegmentCore} 를
- * 그대로 호출한다(잠금·검사는 그 6개 메서드가 이미 갖고 있다 — 이 서비스는 스스로 {@link com.dongkuk.dmes.mdm.common.segment.DataSegmentLock}
- * 을 부르지 않는다, R2′). {@code save}(TABLE 소속 일괄 적용)만 예외로 이 서비스가 직접 쥔 {@link TransactionTemplate}
- * 으로 {@code addMember}/{@code removeMember} 호출 N 개를 한 트랜잭션에 묶는다(전부-아니면-전무, R12) — 개별 호출은
- * 각자 {@link DataCategorySegmentCore} 안에서 잠그므로 이 트랜잭션은 join(기본 전파 REQUIRED)일 뿐 이중 잠금이 아니다.
+ * 그대로 호출한다(잠금·검사는 그 메서드들이 이미 갖고 있다 — 이 서비스는 스스로 {@link com.dongkuk.dmes.mdm.common.segment.DataSegmentLock}
+ * 을 부르지 않는다, R2′). {@code save}(TABLE 소속 일괄 적용)는 {@link DataCategorySegmentCore#applyMembers} 한 번으로
+ * 추가·해제 N 건을 한 트랜잭션에 적용한다(전부-아니면-전무, R12) — 잠금은 그 안에서 한 번이고, 이 서비스의 트랜잭션은
+ * join(기본 전파 REQUIRED)일 뿐 이중 잠금이 아니다.
  *
  * <p><b>{@code @Transactional} 을 붙이지 않는다(MUST)</b> — CGLIB 프록시가 파라미터명을 지워 OASIS 바인딩이 죽는다(F18).
  */
@@ -79,10 +79,11 @@ public class DataCateEditService {
         String maruDataId = requireId(request == null ? null : request.getMaruDataId());
         return readTx.execute(status -> {
             Header header = header(maruDataId);
-            Set<String> openItemCodes = openItemCodes(maruDataId);
+            List<ItemSegmentRow> openItems = openItemRows(maruDataId);
+            Set<String> openItemCodes = codes(openItems);
             List<CateRow> list = new ArrayList<>();
             for (CateSegmentRow cate : rows.latestCateRows(maruDataId)) {
-                list.add(toCateRow(maruDataId, cate, openItemCodes));
+                list.add(toCateRow(maruDataId, cate, openItemCodes, openItems));
             }
             CateSearchResult result = new CateSearchResult();
             result.setMaruDataId(maruDataId);
@@ -188,20 +189,14 @@ public class DataCateEditService {
         return codes;
     }
 
-    /** R12 — 추가·해제 목록 중 하나라도 실패하면 전체 롤백. 개별 호출이 각자 잠그므로(R2′) 이 트랜잭션은 join 뿐이다. */
+    /**
+     * R12 — 추가·해제 목록 중 하나라도 실패하면 전체 롤백. {@link DataCategorySegmentCore#applyMembers} 가 한 번만 잠그고(R2′)
+     * 그 안에서 대상 행을 한 번에 읽는다 — 잠금이 먼저라는 말은 {@code applyMembers} 안의 읽기에 대한 것이고, 위
+     * {@code latestCate} 는 예전처럼 잠금 전에 읽는다. 소속마다 {@code addMember}/{@code removeMember} 를 부르던 것과 판정·오류 순서가 같다.
+     */
     private void applyMembers(MemberApplyRequest request) {
-        List<String> add = request.addCodes();
-        if (add != null) {
-            for (String code : add) {
-                categorySegmentCore.addMember(request.maruDataId(), request.cateId(), code);
-            }
-        }
-        List<String> remove = request.removeCodes();
-        if (remove != null) {
-            for (String code : remove) {
-                categorySegmentCore.removeMember(request.maruDataId(), request.cateId(), code);
-            }
-        }
+        categorySegmentCore.applyMembers(request.maruDataId(), request.cateId(), request.addCodes(),
+                request.removeCodes());
     }
 
     // ── action: delete(닫기) ───────────────────────────────────────────────
@@ -237,9 +232,8 @@ public class DataCateEditService {
             throw keyIssue(DataItemMessages.KEY_NOT_FOUND + ": " + cateId, cateId);
         }
         List<ItemSegmentRow> openItems = openItemRows(maruDataId);
-        Set<String> openItemCodes = openItems.stream().map(r -> r.key().code())
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-        CateRow row = toCateRow(maruDataId, cate, openItemCodes);
+        Set<String> openItemCodes = codes(openItems);
+        CateRow row = toCateRow(maruDataId, cate, openItemCodes, openItems);
         CateViewResult result = new CateViewResult();
         result.setCate(row);
         if (row.isOpen() && DataCateValue.TABLE.equals(row.getDefKind())) {
@@ -261,14 +255,19 @@ public class DataCateEditService {
         return own.isEmpty() ? null : own.get(own.size() - 1);
     }
 
-    /** R5 — 매칭·소속 판정은 항상 "카테고리가 지금 열려 있는가"를 먼저 본다. 닫힌 카테고리는 종류 무관 0. */
-    private CateRow toCateRow(String maruDataId, CateSegmentRow cate, Set<String> openItemCodes) {
+    /**
+     * R5 — 매칭·소속 판정은 항상 "카테고리가 지금 열려 있는가"를 먼저 본다. 닫힌 카테고리는 종류 무관 0. REGEX 건수는
+     * 호출자가 한 번 읽은 열린 항목 행({@code openItems})으로 센다 — 카테고리마다 항목 행을 다시 읽지 않는다(미리보기는 열린
+     * 행만 보므로 결과가 같다).
+     */
+    private CateRow toCateRow(String maruDataId, CateSegmentRow cate, Set<String> openItemCodes,
+                              List<ItemSegmentRow> openItems) {
         boolean open = cate.isOpen();
         int matchCount = 0;
         DataCateValue v = cate.value();
         if (open) {
             if (DataCateValue.REGEX.equals(v.defKind())) {
-                matchCount = resolver.preview(maruDataId, v.defExpr(), v.defTarget()).count();
+                matchCount = DataCategoryResolver.preview(openItems, v.defExpr(), v.defTarget()).count();
             } else if (DataCateValue.TABLE.equals(v.defKind())) {
                 matchCount = (int) rows.openMemberCodes(maruDataId, cate.key().cateId()).stream()
                         .filter(openItemCodes::contains).count();
@@ -290,9 +289,8 @@ public class DataCateEditService {
         return rows.latestItemRows(maruDataId).stream().filter(ItemSegmentRow::isOpen).toList();
     }
 
-    private Set<String> openItemCodes(String maruDataId) {
-        return openItemRows(maruDataId).stream().map(r -> r.key().code())
-                .collect(Collectors.toCollection(LinkedHashSet::new));
+    private static Set<String> codes(List<ItemSegmentRow> items) {
+        return items.stream().map(r -> r.key().code()).collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     private record Header(String maruDataId, String name, int lvlCnt, List<String> attrLabels) {

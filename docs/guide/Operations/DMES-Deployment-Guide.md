@@ -295,7 +295,7 @@ flowchart LR
     GW --> MQC["/mqc · mqc.war"]
     GW --> HUB["/caravan-hub · caravan-hub.war"]
     GW --> ANA["Analog service"]
-    MCM --> DB["개발 MSSQL · schema 분리"]
+    MCM --> DB["운영 방언 DB(고객사 확정) 개발 인스턴스 · schema 분리"]
     MLS --> DB
     MPN --> DB
     MPP --> DB
@@ -308,7 +308,7 @@ flowchart LR
 |---|---|
 | WildFly | WildFly 40 통합 인스턴스부터 시작 가능; 자원·장애영역 문제 시 MPN/Caravan 분리 |
 | Backend profile | 모든 WAR에 `spring.profiles.active=dev` 명시 |
-| DB | 개발 MSSQL, 모듈별 schema·계정; SQLite는 로컬 테스트 전용 |
+| DB | 운영 방언 DB(고객사 확정)의 개발 인스턴스, 모듈별 schema·계정; SQLite는 로컬 개발·테스트 전용 |
 | Portal | Next standalone artifact로 서비스 기동 |
 | Routing | `BACKEND_API_URL`이 내부 dev Gateway를 가리킴; 모듈별 URL은 진단 예외 |
 | Kafka | localKafka 또는 개발 Kafka; 운영 데이터 연결 금지 |
@@ -328,7 +328,7 @@ flowchart LR
     BG --> MES["MPP · MQC · MLS WildFly Groups"]
     BG --> IF["Caravan Hub WildFly Group"]
     BG --> LOG["Analog service"]
-    AUTH --> DB["운영 MSSQL · schema/계정 분리"]
+    AUTH --> DB["운영 방언 DB(고객사 확정) · schema/계정 분리"]
     PLAN --> DB
     MES --> DB
     IF --> DB
@@ -340,7 +340,7 @@ flowchart LR
 | WildFly | MCM, MPN, MES 업무군, Caravan Hub를 독립 JVM/server group으로 분리 |
 | 이중화 | Portal A/B, 핵심 WildFly는 2노드 또는 rolling 가능한 group |
 | Backend profile | `prod` 강제, 기본 profile fail-fast |
-| DB | MSSQL 최소권한 계정, `ddl-auto=none`, 승인 migration만 적용 |
+| DB | 운영 방언 DB(고객사 확정) 최소권한 계정, `ddl-auto=none`, 승인 migration만 적용 |
 | Secret | WildFly credential store/JNDI 또는 조직 secret store |
 | Portal | 동일 standalone checksum을 A/B에 배포하고 upstream 전환 |
 | Portal 필수 env | `PORT`, `HOSTNAME`, `NEXTAUTH_URL`, `AUTH_SECRET`, `AUTH_COOKIE_PREFIX`, `BACKEND_API_URL`, `BACKEND_CLIENT_KEY`, `RBAC_DEFAULT_DENY=true` |
@@ -538,7 +538,7 @@ Portal component의 상세 전제·구조·이식성 검증은 §3.2~3.6을 적�
 | Artifact | 승인 branch 자동배포 가능 | 개발계 통과 checksum 승격 | UAT 승인 checksum만 승격 |
 | Backend | 통합 WildFly 허용 | 운영유사 group/context/Gateway | 장애영역 분리·rolling |
 | Portal | 단일 Node 허용 | standalone·실 route 검증 | A/B 동일 artifact·upstream 전환 |
-| DB | 개발 MSSQL·schema 분리 | prod-like clone·versioned migration | 최소권한·승인 migration |
+| DB | 운영 방언 DB(고객사 확정) 개발 인스턴스·schema 분리 | prod-like clone·versioned migration | 최소권한·승인 migration |
 | Kafka/IF | 개발 Kafka | 상대 staging | 운영 Kafka/실 IF |
 | Gate | 자동 test+smoke | 전체 프로세스·UAT·복구 | go/no-go·post-smoke·reconciliation |
 
@@ -578,7 +578,7 @@ destructive down migration은 DBA 승인 없이 실행하지 않는다.
 |---|---|
 | Unit/API | failures/errors 0, 예상하지 않은 skip 0 |
 | SQLite/local | 격리 fixture와 상태·수량 불변식 PASS |
-| MSSQL | migration·권한·대표 query·schema diff PASS |
+| 운영 방언 DB(고객사 확정) | migration·권한·대표 query·schema diff PASS |
 | Artifact | checksum 일치, secret scan 0, 빈 디렉터리 이식 smoke PASS |
 | Security | 401·403·default deny·내부 헤더 위조 negative PASS |
 | Integration | Portal→Gateway→각 모듈, Kafka/IF 계약 PASS |
@@ -672,7 +672,7 @@ P0 차단사항이 남은 artifact는 진단용으로만 개발계에 배포하�
 | [🕒][⚠️] | T-DMES-DEP-203 | Portal package·routing·테스트 페이지 P0 결함 종결 |
 | [🕒][⚠️] | T-DMES-DEP-204 | 신뢰헤더 인증우회 차단·RBAC default-deny·required-env preflight |
 | [🕒][⚠️] | T-DMES-DEP-205 | Portal refresh token 비저장·세션회전·CSRF/Origin 방어 |
-| [🕒][⚠️] | T-DMES-DEP-301 | Dev WildFly·Gateway·Portal·MSSQL·Kafka 설치 |
+| [🕒][⚠️] | T-DMES-DEP-301 | Dev WildFly·Gateway·Portal·운영 DB·Kafka 설치 |
 | [🕒][⚠️] | T-DMES-DEP-302 | 6개 WAR+Portal 최초 통합배포와 로그인·대표 API smoke |
 | [🕒] | T-DMES-DEP-303 | 반복배포·checksum·증적·rollback rehearsal |
 | [🕒] | T-DMES-DEP-304 | 공통 로그·release/correlation ID·metrics·trace·alert 기반 구축 |

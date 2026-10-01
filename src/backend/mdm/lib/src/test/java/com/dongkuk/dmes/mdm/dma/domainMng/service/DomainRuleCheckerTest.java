@@ -37,7 +37,9 @@ class DomainRuleCheckerTest {
                 node(2).name("코일 두께").std("COIL_THK").kind("QTY").type("NUMBER").parent(1L).length(10).build(ev),
                 node(3).name("공정 코드").std("PROC_CD").kind("CODE").type("STRING").code("PROC_CD", "BASE").build(ev),
                 node(4).name("허용값").std("YN").kind("FLAG").type("STRING").stdRule("value == \"Y\" || value == \"N\"")
-                        .build(ev)));
+                        .build(ev),
+                node(5).name("중량").std("WGT").kind("QTY").type("NUMBER").unit("ton").length(30).build(ev),
+                node(6).name("길이").std("LEN").kind("QTY").type("NUMBER").unit("mm").length(30).build(ev)));
     }
 
     private Set<String> codes(DomainDraft d) {
@@ -95,7 +97,7 @@ class DomainRuleCheckerTest {
     }
 
     @Test
-    void R07_상속_순환은_구조_변경과_함께_모두_나온다() {
+    void R07_상속_순환은_거부하고_부모_변경_자체는_구조_변경이_아니다() {
         Set<String> c = codes(draft(r -> {
             r.setDomainId(1L);
             r.setVer(0L);
@@ -110,7 +112,7 @@ class DomainRuleCheckerTest {
             r.setParentDomainId(2L);
         }));
         assertTrue(c.contains("R07"), c.toString());
-        assertTrue(c.contains("S01"), c.toString());
+        assertFalse(c.contains("S01"), "부모 변경은 S01 이 아니다(D-132): " + c);
         Set<String> self = codes(draft(r -> {
             r.setDomainId(2L);
             r.setParentDomainId(2L);
@@ -142,7 +144,7 @@ class DomainRuleCheckerTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"DOMAIN_KIND", "DATA_TYPE", "UNIT_CODE", "PARENT_DOMAIN_ID"})
+    @ValueSource(strings = {"DOMAIN_KIND", "DATA_TYPE", "UNIT_CODE"})
     void S01_구조_칼럼을_바꾸면_거부한다(String column) {
         List<DomainIssue> issues = checker.check(draft(r -> {
             r.setDomainId(2L);
@@ -156,8 +158,7 @@ class DomainRuleCheckerTest {
             switch (column) {
                 case "DOMAIN_KIND" -> r.setDomainKind("TEXT");
                 case "DATA_TYPE" -> r.setDataType("STRING");
-                case "UNIT_CODE" -> r.setUnitCode("ton");
-                default -> r.setParentDomainId(null);
+                default -> r.setUnitCode("ton");
             }
         }), tree(), facts);
         assertTrue(issues.stream().anyMatch(i -> i.code() == DomainIssueCode.S01 && column.equals(i.field())),
@@ -187,6 +188,51 @@ class DomainRuleCheckerTest {
             r.setStdRule("value < 1");
         }));
         assertFalse(same.contains("S02"));
+    }
+
+    /** D-132 — 부모 연결·교체·제거는 허용하되 종류·타입·유효 단위는 새 부모와 맞아야 한다. */
+    private DomainDraft move(Long parent, String unit) {
+        return draft(r -> {
+            r.setDomainId(2L);
+            r.setVer(0L);
+            r.setDomainName("코일 두께");
+            r.setStdName("COIL_THK");
+            r.setParentDomainId(parent);
+            r.setDomainKind("QTY");
+            r.setDataType("NUMBER");
+            r.setUnitCode(unit);
+            r.setLength(10);
+        });
+    }
+
+    @Test
+    void 부모_교체는_유효_단위가_같으면_통과한다() {
+        Set<String> c = codes(move(6L, null));
+        assertFalse(c.contains("S01") || c.contains("S02"), c.toString());
+        assertTrue(c.stream().noneMatch(x -> x.startsWith("R") || x.startsWith("S")), c.toString());
+    }
+
+    @Test
+    void 부모_교체로_상속_단위가_바뀌면_S02() {
+        List<DomainIssue> issues = checker.check(move(5L, null), tree(), facts);
+        assertTrue(issues.stream().anyMatch(i -> i.code() == DomainIssueCode.S02 && "UNIT_CODE".equals(i.field())
+                && i.message().contains("mm → ton")), issues.toString());
+        assertTrue(issues.stream().noneMatch(i -> i.code() == DomainIssueCode.S01), issues.toString());
+    }
+
+    @Test
+    void 부모_연결은_종류_타입이_다르면_S02() {
+        Set<String> c = codes(move(3L, null));
+        assertTrue(c.contains("S02"), c.toString());
+        assertFalse(c.contains("S01"), c.toString());
+    }
+
+    @Test
+    void 연결_제거에서_단위를_구체화하면_S01_이_아니고_유효_단위도_같다() {
+        Set<String> c = codes(move(null, "mm"));
+        assertFalse(c.contains("S01") || c.contains("S02"), c.toString());
+        Set<String> lost = codes(move(null, "ton"));
+        assertTrue(lost.contains("S02"), "구체화한 단위가 상속 단위와 다르면 유효 단위가 바뀐다: " + lost);
     }
 
     @Test

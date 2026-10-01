@@ -4,6 +4,7 @@
  * 등록 검증 표(TSK-05-03 design.md §2·§6.2) — 03 거부 조건 7종을 원문 순서로(#·거부 조건·코드·결과·메시지) + 표 밖 이슈. 검증은 서버
  * validate 가 현재 편집 상태로 한다(쓰지 않는다). 결과 배지: 통과·거부·경고(판정 불가는 저장을 막지 않는다, D6).
  */
+import { useMemo } from "react";
 import { Button } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { badge, hint, row } from "@/layout/styles";
@@ -38,6 +39,8 @@ export interface LayoutCheckPanelProps {
 export function LayoutCheckPanel({ result, busy, canRun, onRun }: LayoutCheckPanelProps) {
   const checks = result?.checks ?? [];
   const others = result?.otherIssues ?? [];
+  const rawChecks = result?.checks;
+  const data = useMemo(() => (rawChecks ?? []).map((c) => ({ ...c, MESSAGE: c.MESSAGES.join(" / ") })), [rawChecks]);
   return (
     <div>
       <div style={row}>
@@ -53,7 +56,7 @@ export function LayoutCheckPanel({ result, busy, canRun, onRun }: LayoutCheckPan
           <AgDataGrid
             columnSizing="fit"
             columns={COLUMNS}
-            data={checks.map((c) => ({ ...c, MESSAGE: c.MESSAGES.join(" / ") }))}
+            data={data}
             rowKey="NO"
             height="auto"
           />

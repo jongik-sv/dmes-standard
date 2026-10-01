@@ -8,7 +8,7 @@ import { expect, test, type Page } from "@playwright/test";
  * 고유: T5 수용 1(ID 물리명 규칙 — 즉시 안내 + 서버 거부), T6 수용 2(원천 선택 칸 없음), T7 권한(READ 는 [룰 등록] 버튼이 비활성).
  *
  * D-105 — 이 화면이 ① 헤더·② 버전(목록 + 상세)까지 맡는다. H 계열은 옮겨 온 시험이다:
- * 헤더 저장(낙관적 잠금 auditVer)·폐기·적중 정책·새 버전·DRAFT 삭제·선점·해제·넘기기·확정 취소·확정 이동.
+ * 헤더 저장(낙관적 잠금 auditVer)·폐기·적중 정책 표시(D-133 — 고치는 곳은 ruleEdit)·새 버전·DRAFT 삭제·선점·해제·넘기기·확정 취소·확정 이동.
  *
  * 전제(design.md 「E2E 서버 절차」): 새 mcm.db·mdm.db 로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고,
  * mcm 기동 뒤 e2e/fixtures/mdm-rbac-users.sql·mdm-ruleEdit-users.sql, mdm 기동 뒤 e2e/fixtures/mdm-ruleEdit-data.sql 을 넣는다.
@@ -196,23 +196,14 @@ test.describe("mdm dme/ruleMng", () => {
     await expect(page.getByTestId("rule-unapplied-notice")).toContainText("미적용 버전");
   });
 
-  test("H3 적중 정책(D-105 (4)): 버전 속성이므로 여기서 저장하고 저장된 값이 검사 입력이 된다", async ({ page }) => {
+  test("H3 적중 정책(D-133): 버전 목록에 보이기만 하고 고치는 칸이 없다 — 고치는 곳은 룰 편집 화면의 의사결정표", async ({ page }) => {
     await login(page, STEWARD);
     await openRuleMng(page);
     await openDetail(page, "QLTY_GRD_JDG");
-    const policy = page.getByTestId("rule-hit-policy");
-    await expect(policy).toHaveValue("FIRST");
-    await policy.selectOption("UNIQUE");
-    await page.getByTestId("rule-hit-policy-save").click();
-    await expect(policy).toHaveValue("UNIQUE", { timeout: 20_000 });
-    await page.reload();
-    await openRuleMng(page);
-    await openDetail(page, "QLTY_GRD_JDG");
-    await expect(page.getByTestId("rule-hit-policy")).toHaveValue("UNIQUE");
-    // 되돌린다(다음 시험이 FIRST 를 가정한다).
-    await page.getByTestId("rule-hit-policy").selectOption("FIRST");
-    await page.getByTestId("rule-hit-policy-save").click();
-    await expect(page.getByTestId("rule-hit-policy")).toHaveValue("FIRST", { timeout: 20_000 });
+    await expect(versionRow(page, 1).locator('.ag-cell[col-id="hitPolicy"]')).toHaveText("FIRST");
+    await expect(page.getByTestId("rule-hit-policy")).toHaveCount(0);
+    await expect(page.getByTestId("rule-hit-policy-save")).toHaveCount(0);
+    await expect(page.getByTestId("rule-hit-policy-hint")).toContainText("의사결정표");
   });
 
   test("H4 수용 4: 다른 담당자가 편집 중인 DRAFT 는 잠김이고 헤더·버전 조작이 모두 막힌다", async ({ page }) => {

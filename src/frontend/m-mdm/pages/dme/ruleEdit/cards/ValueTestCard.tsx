@@ -125,13 +125,17 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
     setLastRun(null);
   }, [ruleId]);
 
+  // 계약 원본은 편집본(BODY) 대상일 때만 표 카드가 올린 표(행·적중 정책)에 기댄다. tableDraft 객체 자체에 기대면 저장된 버전 대상이거나
+  // 다른 룰·버전의 표가 올라와도, dirty 만 바뀌어도 계약(행 수 × 변수)을 다시 계산한다 — 실제로 읽는 행 배열·적중 정책만 기준으로 삼는다.
+  const body = choice?.target === "BODY" ? bodyTable(view, choice.ver, tableDraft) : null;
+  const bodyRows = body?.rows ?? null;
+  const bodyHit = body?.hitPolicy ?? null;
   const src = useMemo<ContractSource | null>(() => {
     if (!choice || !def) return null;
     const base = contractSourceOfView(def, "current");
-    if (!base || choice.target !== "BODY") return base;
-    const table = bodyTable(view, choice.ver, tableDraft);
-    return { ...base, hitPolicy: table.hitPolicy, rows: table.rows };
-  }, [choice, def, view, tableDraft]);
+    if (!base || choice.target !== "BODY" || !bodyRows) return base;
+    return { ...base, hitPolicy: bodyHit, rows: bodyRows };
+  }, [choice, def, bodyRows, bodyHit]);
 
   // 식 AST 는 서버 파싱으로 받는다(ContractChangeNotice 와 같은 조건 — 편집 가능하고 validate 권한이 있을 때만).
   const parseEnabled = canParseOnServer({ editable, canValidate: canDo("validate") });

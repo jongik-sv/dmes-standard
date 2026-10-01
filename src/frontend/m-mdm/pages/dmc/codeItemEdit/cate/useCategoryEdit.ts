@@ -57,6 +57,11 @@ export function useCategoryEdit({ maruCodeId, ver, codeRows }: CategoryEditArgs)
   const [membersByCate, setMembersByCate] = useState<Map<string, Set<string>>>(new Map());
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [issues, setIssues] = useState<Issue[]>([]);
+  /** 비었는데 또 비었으면 새 `[]` 로 갈아끼우지 않는다 — issuesByCate 와 그에 기대는 열 정의가 매번 다시 만들어진다. */
+  const setIssuesStable = useCallback(
+    (next: Issue[]) => setIssues((prev) => (prev.length === 0 && next.length === 0 ? prev : next)),
+    [],
+  );
   /** 요청 순번 — 다른 마루 코드·버전으로 옮긴 뒤 늦게 온 옛 카테고리 응답이 새 목록을 덮지 않게 한다(Local-Rules §11). */
   const loadSeq = useRef(0);
 
@@ -141,17 +146,23 @@ export function useCategoryEdit({ maruCodeId, ver, codeRows }: CategoryEditArgs)
     return { issuesByCate: byCate, otherIssues: other };
   }, [issues, rows]);
 
-  const add = (def: CategoryDef) => {
+  // 열 정의·핸들러가 기대는 함수는 모두 안정된 참조로 둔다 — 코드 셀 편집마다 카테고리 열 정의가 다시 만들어지지 않게.
+  const add = useCallback((def: CategoryDef) => {
     setRows((rs) => addCategoryRow(rs, def));
     setSelectedCateId(def.cateId);
-  };
-  const edit = (cateId: string, patch: Partial<CategoryDef>) => setRows((rs) => editCategoryRow(rs, cateId, patch));
-  const remove = (cateId: string) => setRows((rs) => removeCategoryRow(rs, cateId));
+  }, []);
+  const edit = useCallback(
+    (cateId: string, patch: Partial<CategoryDef>) => setRows((rs) => editCategoryRow(rs, cateId, patch)),
+    [],
+  );
+  const remove = useCallback((cateId: string) => setRows((rs) => removeCategoryRow(rs, cateId)), []);
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
   // 추가만 하고 저장하지 않은(new) 카테고리를 취소하면 목록에서 아예 빠진다 — 남은 소속 편집도 함께 버려 같은
   // cateId 를 다시 추가했을 때 묵은 소속이 되살아나지 않게 한다(닫은 기존 카테고리는 membersByCate 를 그대로 두고
   // openCateIds 로만 저장에서 뺀다 — 취소하면 다시 열릴 수 있어서다).
-  const undo = (cateId: string) => {
-    const wasNew = rows.find((r) => r.cateId === cateId)?.__local === "new";
+  const undo = useCallback((cateId: string) => {
+    const wasNew = rowsRef.current.find((r) => r.cateId === cateId)?.__local === "new";
     setRows((rs) => undoCategoryLocal(rs, cateId));
     if (wasNew) {
       setMembersByCate((prev) => {
@@ -161,14 +172,18 @@ export function useCategoryEdit({ maruCodeId, ver, codeRows }: CategoryEditArgs)
         return next;
       });
     }
-  };
-  const changeMembers = (next: Set<string>) => {
+  }, []);
+  const changeMembers = useCallback((next: Set<string>) => {
     if (!selectedCateId) return;
     setMembersByCate((prev) => new Map(prev).set(selectedCateId, next));
-  };
+  }, [selectedCateId]);
 
-  return {
+  // 렌더마다 새 객체를 돌려주면 이 값에 기대는 열 정의·메모가 매번 다시 만들어진다 — 값이 실제로 바뀔 때만 새로 만든다.
+  return useMemo(() => ({
     view, loadError, rows, selectedCateId, selectedRow, membersByCate, candidates, preview, issuesByCate, otherIssues,
-    changes, load, reset, setIssues, select: setSelectedCateId, add, edit, remove, undo, changeMembers,
-  };
+    changes, load, reset, setIssues: setIssuesStable, select: setSelectedCateId, add, edit, remove, undo, changeMembers,
+  }), [
+    view, loadError, rows, selectedCateId, selectedRow, membersByCate, candidates, preview, issuesByCate, otherIssues,
+    changes, load, reset, setIssuesStable, add, edit, remove, undo, changeMembers,
+  ]);
 }

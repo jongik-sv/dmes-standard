@@ -42,6 +42,12 @@ public class LayoutConstJudge {
         return (phys, value) -> judge(views.get(phys), phys, value);
     }
 
+    /** {@link #forColumns(Collection)} 와 같되 요청 범위 사전 {@code cache} 로 읽는다. */
+    public BiFunction<String, String, Judgement> forColumns(Collection<String> physNames, LayoutDictionary.Cache cache) {
+        Map<String, EffectiveDomainView> views = cache.views(physNames);
+        return (phys, value) -> judge(views.get(phys), phys, value);
+    }
+
     public Judgement judge(String columnPhys, String value) {
         return forColumns(List.of(columnPhys)).apply(columnPhys, value);
     }

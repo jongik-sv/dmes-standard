@@ -5,7 +5,7 @@ import java.util.List;
 /**
  * TABLE 소속 일괄 적용 내부 전달 값(design.md §2) — OASIS 에 직접 바인딩되지 않는다({@code CateSaveRequest} 가
  * 받는다). 서비스가 {@code addCodes}·{@code removeCodes} 를 이 값으로 묶어 한 트랜잭션(R12) 안에서
- * {@code addMember}/{@code removeMember} N 회를 돈다.
+ * {@code applyMembers} 한 번으로 적용한다(잠금 한 번·대상 행 일괄 조회).
  */
 public class MemberApplyRequest {
 

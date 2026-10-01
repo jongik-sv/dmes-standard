@@ -244,6 +244,89 @@ class DomainMngOasisFlowTest {
         assertEquals("첫 저장", row(ids[1]).get("DESCRIPTION"));
     }
 
+    /** 저장된 행 그대로의 초안(화면 모달이 만드는 것)에 부모만 바꾼다(D-132). */
+    private ObjectNode relink(long id, Long parentId) {
+        Map<String, Object> r = row(id);
+        ObjectNode p = draft((String) r.get("STD_NAME"), (String) r.get("DOMAIN_KIND"), (String) r.get("DATA_TYPE"));
+        p.put("domainId", id);
+        p.put("ver", ((Number) r.get("VER")).longValue());
+        if (parentId != null) {
+            p.put("parentDomainId", parentId);
+        }
+        if (r.get("LENGTH") != null) {
+            p.put("length", ((Number) r.get("LENGTH")).intValue());
+        }
+        if (r.get("UNIT_CODE") != null) {
+            p.put("unitCode", (String) r.get("UNIT_CODE"));
+        }
+        if (r.get("STD_RULE") != null) {
+            p.put("stdRule", (String) r.get("STD_RULE"));
+        }
+        return p;
+    }
+
+    @Test
+    @Timeout(value = 30, unit = TimeUnit.SECONDS)
+    void B7_부모_연결_뒤_하위_테스트_케이스가_실패하면_롤백된다() throws Exception {
+        ObjectNode t = draft(uniq("T"), "QTY", "NUMBER");
+        t.put("unitCode", "mm");
+        t.put("stdRule", "value <= 20");
+        long top = saveOk(t, grids("15", "true"));
+        long[] ids = parentAndChild(); // P(value <= 30, 케이스 25) — C(케이스 25)
+        jdbc.update("UPDATE TB_MDM_DOMAIN SET TEST_CASES = '[{\"value\":\"15\",\"expect\":true}]' WHERE DOMAIN_ID = ?", ids[0]);
+        Map<String, Object> before = row(ids[0]);
+        ObjectNode link = relink(ids[0], top);
+        JsonNode validated = post("validate", link, grids("15", "true")).path("data").path("result");
+        assertFalse(validated.path("ok").asBoolean(true), validated.toString());
+        assertEquals("PARENT_CHANGE", validated.path("classification").asText());
+        JsonNode r = post("save", link, grids("15", "true"));
+        assertFalse(r.path("meta").path("success").asBoolean(true), r.toString());
+        String message = r.path("meta").path("message").asText();
+        assertTrue(message.contains("R08") && message.contains(String.valueOf(ids[1])), message);
+        Map<String, Object> after = row(ids[0]);
+        for (String col : new String[] {"PARENT_DOMAIN_ID", "VER", "U_AT"}) {
+            assertEquals(before.get(col), after.get(col), col + " 가 되돌려지지 않았다");
+        }
+    }
+
+    @Test
+    @Timeout(value = 30, unit = TimeUnit.SECONDS)
+    void B8_부모_교체_뒤_하위_길이가_넘치면_롤백되고_통과하면_연결된다() throws Exception {
+        ObjectNode n = draft(uniq("N"), "QTY", "NUMBER");
+        n.put("unitCode", "mm");
+        n.put("length", 10);
+        long narrow = saveOk(n, grids());
+        ObjectNode w = draft(uniq("W"), "QTY", "NUMBER");
+        w.put("unitCode", "mm");
+        w.put("length", 40);
+        long wide = saveOk(w, grids());
+        long[] ids = parentAndChild(); // P(길이 20) — C(길이 15)
+        jdbc.update("UPDATE TB_MDM_DOMAIN SET LENGTH = NULL, TEST_CASES = NULL WHERE DOMAIN_ID = ?", ids[0]);
+        Map<String, Object> before = row(ids[0]);
+        JsonNode rejected = post("save", relink(ids[0], narrow), grids());
+        assertFalse(rejected.path("meta").path("success").asBoolean(true), rejected.toString());
+        assertTrue(rejected.path("meta").path("message").asText().contains("R06"), rejected.toString());
+        assertEquals(before.get("PARENT_DOMAIN_ID"), row(ids[0]).get("PARENT_DOMAIN_ID"));
+        assertEquals(before.get("VER"), row(ids[0]).get("VER"));
+
+        JsonNode ok = post("save", relink(ids[0], wide), grids());
+        assertTrue(ok.path("meta").path("success").asBoolean(), ok.toString());
+        assertEquals("PARENT_CHANGE", ok.path("data").path("result").path("classification").asText());
+        assertEquals(wide, ((Number) row(ids[0]).get("PARENT_DOMAIN_ID")).longValue());
+    }
+
+    @Test
+    void B9_연결_제거는_상속값을_구체화해_저장한다() throws Exception {
+        long[] ids = parentAndChild(); // P(mm, 길이 20, value <= 30) — C(길이 15, value >= 0)
+        JsonNode r = post("save", relink(ids[1], null), grids("25", "true"));
+        assertTrue(r.path("meta").path("success").asBoolean(), r.toString());
+        assertTrue(r.path("data").path("result").path("warnings").toString().contains("W05"), r.toString());
+        Map<String, Object> c = row(ids[1]);
+        assertEquals(null, c.get("PARENT_DOMAIN_ID"));
+        assertEquals("mm", c.get("UNIT_CODE"));
+        assertEquals("(value <= 30) && (value >= 0)", c.get("STD_RULE"));
+    }
+
     @Test
     void B6_서버_미리보기는_평가만_하고_쓰지_않는다() throws Exception {
         jdbc.update("INSERT OR IGNORE INTO TB_MDM_UNIT (UNIT_CODE, DIMENSION, BASE_UNIT, FACTOR, CHG_SEQ) VALUES ('ton','MASS','ton',1,0)");

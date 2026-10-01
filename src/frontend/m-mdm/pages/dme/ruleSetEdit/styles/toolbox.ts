@@ -26,9 +26,12 @@ export const TOOLBOX_CSS = `
   color: var(--color-text); background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-sm);
   box-shadow: var(--shadow-dropdown);
 }
-/* 툴바 아이콘 단추(되돌리기·다시 하기·도움말) — 단추를 감싼 span 이 단추 아래로 바로 뜨는 툴팁을 그린다.
-   단추 루트(Mantine Button)가 overflow:hidden 이라 단추 안(::after)에서 그리면 잘린다. 꺼진 단추도 :hover 가 래퍼에 닿아 뜬다. 도움말이 열려 있으면 숨긴다. */
+/* 툴바 아이콘 단추(흐름 툴바·디버그 툴바의 ToolButton) — 단추를 감싼 span 이 단추 아래로 바로 뜨는 툴팁을 그린다.
+   단추 루트(Mantine Button)가 overflow:hidden 이라 단추 안(::after)에서 그리면 잘린다. 꺼진 단추도 :hover 가 래퍼에 닿아 뜬다. 도움말이 열려 있으면 숨긴다.
+   data-tip-align="end" 는 툴팁 오른쪽 끝을 단추 오른쪽 끝에 맞춘다(툴바 오른쪽 끝 단추의 긴 툴팁이 화면 밖으로 나가지 않게). */
 .rsf-tip { position: relative; display: inline-flex; }
+/* 툴바 아이콘 단추 크기 — 26x26 정사각형, 아이콘 14px(흐름 툴바·디버그 툴바·찾기 위젯 공통). Mantine 이 크기 변수를 단추 style 에 쓰므로 속성을 직접 덮는다. */
+.rsf-tip > .rsf-tool-btn { width: 26px; min-width: 26px; height: 26px; min-height: 26px; padding: 0; }
 .rsf-tip:hover::after, .rsf-tip:focus-within::after {
   content: attr(data-tip); position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); z-index: 10;
   padding: 2px var(--spacing-sm); white-space: nowrap; pointer-events: none; font-size: var(--font-size-sm); font-weight: normal;
@@ -36,4 +39,5 @@ export const TOOLBOX_CSS = `
   box-shadow: var(--shadow-dropdown);
 }
 .rsf-tip[data-tip-off]::after { display: none; }
+.rsf-tip[data-tip-align="end"]:hover::after, .rsf-tip[data-tip-align="end"]:focus-within::after { left: auto; right: 0; transform: none; }
 `;

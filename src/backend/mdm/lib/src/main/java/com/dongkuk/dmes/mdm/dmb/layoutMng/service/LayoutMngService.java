@@ -121,19 +121,21 @@ public class LayoutMngService {
             // 헤더 추가 팝업 — 저장 전 전문에서도 상수 편집을 열 수 있게 헤더 항목(기본값·파생값)을 함께 준다
             List<MdmLayout> picked = headerLayouts.stream()
                     .filter(h -> LayoutRows.matches(h.getLayoutName(), request.getKeyword())).toList();
-            Map<Long, List<MdmLayoutItem>> items = new LinkedHashMap<>();
+            // 항목·EAI 는 헤더 수와 무관하게 IN 으로 한 번씩 읽는다(헤더별 순서는 단건 조회와 같다 — 항목 SEQ 순, EAI 코드 순 첫 행)
+            List<Long> pickedIds = picked.stream().map(MdmLayout::getLayoutId).toList();
+            Map<Long, List<MdmLayoutItem>> items = queries.itemsOf(pickedIds);
+            Map<Long, List<MdmEai>> eais = queries.eaisOfHeaders(pickedIds);
             List<String> phys = new ArrayList<>();
             for (MdmLayout h : picked) {
-                List<MdmLayoutItem> list = queries.itemsOf(h.getLayoutId());
-                items.put(h.getLayoutId(), list);
-                list.stream().map(MdmLayoutItem::getColumnPhys).filter(Objects::nonNull).forEach(phys::add);
+                items.getOrDefault(h.getLayoutId(), List.of()).stream().map(MdmLayoutItem::getColumnPhys).filter(Objects::nonNull)
+                        .forEach(phys::add);
             }
             Map<String, LayoutColumnInfo> dict = dictionary.byPhysNames(phys);
             List<Map<String, Object>> rows = new ArrayList<>();
             for (MdmLayout h : picked) {
                 Map<String, Object> row = headerOption(h);
-                row.put("EAI_CODE", queries.eaiOfHeader(h.getLayoutId()).stream().map(MdmEai::getEaiCode).findFirst().orElse(null));
-                row.put("items", LayoutRows.items(items.get(h.getLayoutId()), dict));
+                row.put("EAI_CODE", eais.getOrDefault(h.getLayoutId(), List.of()).stream().map(MdmEai::getEaiCode).findFirst().orElse(null));
+                row.put("items", LayoutRows.items(items.getOrDefault(h.getLayoutId(), List.of()), dict));
                 rows.add(row);
             }
             out.put("headers", rows);

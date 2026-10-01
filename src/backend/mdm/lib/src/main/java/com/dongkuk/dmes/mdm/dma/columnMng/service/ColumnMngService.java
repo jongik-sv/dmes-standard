@@ -68,6 +68,8 @@ public class ColumnMngService {
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final String REF_KIND_MASTER = "MASTER";
+    /** IN 목록 한 번에 넣는 최대 수. */
+    private static final int TERM_IN_CHUNK = 500;
 
     private final MdmColumnRepository columnRepository;
     private final MdmColumnSystemRepository columnSystemRepository;
@@ -162,9 +164,17 @@ public class ColumnMngService {
             systems.add(row);
         });
 
+        // 용어는 IN 으로 한 번에 읽고 TERM_IDS 순서(중복·없는 용어 포함)대로 다시 늘어놓는다.
+        List<Long> termIds = parseTermIds(column.getTermIds());
+        Map<Long, MdmTerm> termById = new HashMap<>();
+        List<Long> distinctIds = List.copyOf(new LinkedHashSet<>(termIds));
+        for (int from = 0; from < distinctIds.size(); from += TERM_IN_CHUNK) {
+            termRepository.findAllById(distinctIds.subList(from, Math.min(distinctIds.size(), from + TERM_IN_CHUNK)))
+                    .forEach(t -> termById.put(t.getTermId(), t));
+        }
         List<Map<String, Object>> terms = new ArrayList<>();
-        for (Long termId : parseTermIds(column.getTermIds())) {
-            Optional<MdmTerm> term = termRepository.findById(termId);
+        for (Long termId : termIds) {
+            Optional<MdmTerm> term = Optional.ofNullable(termById.get(termId));
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("termId", termId);
             row.put("termName", term.map(MdmTerm::getTermName).orElse(null));

@@ -47,9 +47,8 @@ export interface CaseLoadRequest {
 }
 
 export interface WorkbenchState {
+  /** 지금 올라온 표 — 내용(룰·버전·적중 정책·행)이 같은 표가 다시 올라오면 rev 를 올리지 않는다(`sameTableContent`). */
   tableDraft: TableDraft | null;
-  /** 표 내용 서명 — 같으면 rev 를 올리지 않는다. */
-  sig: string | null;
   testRun: TestRunView | null;
   /** BODY 결과 뒤 표가 바뀌어 결과를 지웠다(새 결과를 받으면 꺼진다). */
   testRunCleared: boolean;
@@ -61,21 +60,45 @@ export type WorkbenchAction =
   | { type: "setTestRun"; run: TestRunView | null }
   | { type: "setColDirty"; dirty: boolean };
 
-export const INITIAL_WORKBENCH: WorkbenchState = { tableDraft: null, sig: null, testRun: null, testRunCleared: false, colDirty: false };
+export const INITIAL_WORKBENCH: WorkbenchState = { tableDraft: null, testRun: null, testRunCleared: false, colDirty: false };
+
+/** 평범한 객체 한 단계 비교 — 키 순서·값이 같으면 같다(`JSON.stringify` 결과가 같은 것과 같은 판정, undefined 칸은 없는 칸으로 본다). */
+function sameFlat(a: object, b: object): boolean {
+  if (a === b) return true;
+  const ka = Object.keys(a).filter((k) => (a as Record<string, unknown>)[k] !== undefined);
+  const kb = Object.keys(b).filter((k) => (b as Record<string, unknown>)[k] !== undefined);
+  if (ka.length !== kb.length) return false;
+  for (let i = 0; i < ka.length; i++) {
+    if (ka[i] !== kb[i] || (a as Record<string, unknown>)[ka[i]] !== (b as Record<string, unknown>)[kb[i]]) return false;
+  }
+  return true;
+}
+
+/**
+ * 두 표의 내용(룰·버전·적중 정책·행)이 같은가. 예전에는 표를 통째로 `JSON.stringify` 한 서명을 견주었다(편집 1회에 표 전체 직렬화).
+ * 표 카드는 바뀌지 않은 행에 같은 저장 행 객체를 넘기므로 행 비교는 대부분 참조 비교로 끝난다.
+ */
+function sameTableContent(prev: TableDraft | null, d: Omit<TableDraft, "rev">): boolean {
+  if (!prev || prev.ruleId !== d.ruleId || prev.ver !== d.ver || prev.hitPolicy !== d.hitPolicy) return false;
+  if (prev.rows === d.rows) return true;
+  if (prev.rows.length !== d.rows.length) return false;
+  for (let i = 0; i < d.rows.length; i++) if (!sameFlat(prev.rows[i], d.rows[i])) return false;
+  return true;
+}
 
 export function workbenchReducer(state: WorkbenchState, action: WorkbenchAction): WorkbenchState {
   switch (action.type) {
     case "publishTable": {
       const d = action.draft;
-      const sig = JSON.stringify([d.ruleId, d.ver, d.hitPolicy, d.rows]);
-      if (sig === state.sig && d.dirty === state.tableDraft?.dirty) return state;
-      const rev = (state.tableDraft?.rev ?? 0) + (sig === state.sig ? 0 : 1);
+      const same = sameTableContent(state.tableDraft, d);
+      if (same && d.dirty === state.tableDraft?.dirty) return state;
+      const rev = (state.tableDraft?.rev ?? 0) + (same ? 0 : 1);
       const tableDraft: TableDraft = { ...d, rev };
       const next = testRunAfterTableChange(state.testRun, tableDraft);
       // 안내는 같은 룰·버전의 표를 계속 고치는 동안 남고, 룰·버전을 바꾸면 꺼진다.
       const sameTable = state.tableDraft?.ruleId === d.ruleId && state.tableDraft?.ver === d.ver;
       const cleared = next.cleared || (sameTable && state.testRunCleared && next.run === null);
-      return { ...state, tableDraft, sig, testRun: next.run, testRunCleared: cleared };
+      return { ...state, tableDraft, testRun: next.run, testRunCleared: cleared };
     }
     case "setTestRun":
       return { ...state, testRun: action.run, testRunCleared: false };

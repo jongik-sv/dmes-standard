@@ -46,7 +46,7 @@
    - 매트릭스 표 미작성 시 1번 단계 진입 금지
 
    **★ As-Is 가 있는 화면의 경우 추가 MUST (analyze-service 호출 + T1~T4 전수 추출 의무화)**:
-   - `/analyze-service {SCREEN-ID}` 를 실행한다. cache 가 이미 있으면 자동 스킵, 없으면 Phase 1~4 (구조 / C# partial class / MSSQL SP / WinForms UI) 자동 수행. (cache 는 BE 와 공유 — BE 가이드 §1-3 Step 0 이 먼저 호출했다면 재실행 불요)
+   - `/analyze-service {SCREEN-ID}` 를 실행한다. cache 가 이미 있으면 자동 스킵, 없으면 Phase 1~4 (구조 / C# partial class / 레거시 DB SP / WinForms UI) 자동 수행. (cache 는 BE 와 공유 — BE 가이드 §1-3 Step 0 이 먼저 호출했다면 재실행 불요)
    - 산출 cache 위치: `docs/external/KsmErpK/orgErpReport/{areaId}/{moduleId}/.cache/{SCREEN-ID}/sql_analysis.json`
    - 위 cache 가 존재하지 않으면 본 Step 0 진입 게이트 차단 — 이후 단계 진행 금지.
 

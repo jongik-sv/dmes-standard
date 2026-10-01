@@ -27,7 +27,7 @@
 | 9 속성 패널·변수 칩 | sonnet | 4, 6, 8 | `rse/panels/PropertyPanel.tsx`·`PanelHeader.tsx`, `rse/flow-vars.ts`, `rse/styles/props.ts` | — (10 과 함께 돌 수 있다) |
 | 10 디버거 | opus | 3, 8 | `rse/trace-view.ts`, `rse/canvas/overlay.ts`·`nodes.tsx`, `rse/debugger/debug-model.ts`·`DebugToolbar.tsx`·`TraceDetail.tsx`, `rse/styles/catch.ts` | — (9 와 함께 돌 수 있다) |
 | 11 e2e 시나리오(목록 확인까지) | sonnet | 8, 9, 10 | `src/frontend/e2e/mdm-ruleSetEdit.spec.ts`, `src/frontend/e2e/fixtures/mdm-ruleSet-data.sql` | — |
-| 12 문서·결정 D-132·계약 문서·기능설계서 | haiku | 1~11 | `docs/mdm/decisions.md`, `docs/mdm/engine-contract.md`, `docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md` | — |
+| 12 문서·결정 D-134·계약 문서·기능설계서 | haiku | 1~11 | `docs/mdm/decisions.md`, `docs/mdm/engine-contract.md`, `docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md` | — |
 
 첫 물결은 1 단독. 그다음 2 단독(코퍼스·`flow-model.ts`·`Guarded` 가 3·4·6·7 의 바탕이다). 2 가 병합되면 3·4·6 을 열고, 자리가 나면 7 → 5 → 8 → (9 ∥ 10) → 11 → 12 순으로 앞 조건이 모두 병합된 것을 연다. 서버 분석기(4)와 화면 모델(2·4 의 `flow-model.ts`·`set-model.ts`)은 코퍼스를 함께 고치는 관계라 같은 태스크 안에서 Java·TS 를 함께 바꾼다. 같은 파일(`page.tsx`·`nodes.tsx`·`FlowCanvas.tsx`·`set-model.ts`·코퍼스)을 고치는 태스크가 겹쳐 병합 충돌이 나면 나중에 병합하는 쪽에서 컨트롤러가 푼다.
 
@@ -5491,13 +5491,13 @@ import 에 `CATCH_KIND_LABEL`(`../catch-text`), `CATCH_NAMES`(`../flow-model`), 
 
 ---
 
-### Task 12: 문서·결정 — D-132(X-D1~X-D12)·엔진 계약 문서·기능설계서
+### Task 12: 문서·결정 — D-134(X-D1~X-D12)·엔진 계약 문서·기능설계서
 
 **권장 모델:** haiku — 정해진 내용을 정해진 자리에 옮겨 적는 문서 작업이다.
 **병렬:** 마지막(Task 1~11 병합 뒤). Task 11 과 함께 돌 수 있다.
 
 **Files:**
-- Modify: `docs/mdm/decisions.md`(끝에 D-132, append-only)
+- Modify: `docs/mdm/decisions.md`(끝에 D-134, append-only)
 - Modify: `docs/mdm/engine-contract.md`(§3 흐름 문단, §6 예약 이름 표, §8 세트 결과·실행 기록·오류 코드 문단)
 - Modify: `docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md`(§3.2 캔버스 노드, §5.5 우클릭 메뉴, §6.2 세트 검사, §4.1·§5.3 디버거 줄)
 
@@ -5508,12 +5508,12 @@ import 에 `CATCH_KIND_LABEL`(`../catch-text`), `CATCH_NAMES`(`../flow-model`), 
 - [ ] **Step 1: decisions.md 끝 형식 확인**
 
 Run: `tail -n 12 docs/mdm/decisions.md`
-Expected: 마지막 항목이 `## D-131 (2026-10-01T00:00:00Z)` 이고, 항목마다 `- **Phase**:`·`- **Decision needed**:`·`- **Decision made**:`·`- **Rationale**:`·`- **Reversible**:`·`- **Source**:` 여섯 줄이다. 마지막이 D-131 이 아니면(다른 작업이 먼저 더했으면) 다음 번호를 쓰고 이 계획의 "D-132" 를 모두 그 번호로 읽는다.
+Expected: 마지막 항목이 `## D-133 (2026-10-01T00:00:00Z)` 이고, 항목마다 `- **Phase**:`·`- **Decision needed**:`·`- **Decision made**:`·`- **Rationale**:`·`- **Reversible**:`·`- **Source**:` 여섯 줄이다. 마지막이 D-133 이 아니면(다른 작업이 먼저 더했으면) 다음 번호를 쓰고 이 계획의 "D-134" 를 모두 그 번호로 읽는다.
 
-- [ ] **Step 2: D-132 를 끝에 더한다** — **Source** 끝에 태스크 병합 커밋 해시를 덧붙인다(`/usr/bin/git log --oneline --merges feat/rule-set-flow-catch` 에서 찾는다). 진행 장부에 이 기능에 관한 Ruling 이 더 있으면 결정 줄 끝에 "(Ruling N)" 으로 덧붙인다.
+- [ ] **Step 2: D-134 를 끝에 더한다** — **Source** 끝에 태스크 병합 커밋 해시를 덧붙인다(`/usr/bin/git log --oneline --merges feat/rule-set-flow-catch` 에서 찾는다). 진행 장부에 이 기능에 관한 Ruling 이 더 있으면 결정 줄 끝에 "(Ruling N)" 으로 덧붙인다.
 
 ```markdown
-## D-132 (2026-10-01T00:00:00Z)
+## D-134 (2026-10-01T00:00:00Z)
 - **Phase**: plan(룰 세트 흐름도 — 예외 받는 노드 CATCH)
 - **Decision needed**: 룰이 실패하거나 결과가 없을 때 흐름 안에서 처리하는 방법(스펙 `2026-10-01-rule-set-flow-catch-design.md` §11, 사용자 요청 "룰에 대한 exception이 없어 exception 노드가 필요해", "처리 결과가 없으면 끝으로 가던지 아니면 다른 처리를 하게 하던지")
 - **Decision made**: X-D1 받는 노드(CATCH)는 RULE 에 붙이고 세트 전체 처리기는 두지 않는다 · X-D2 받는 종류는 결과 없음(NO_RESULT)·입력 오류(INPUT_ERROR = MISSING_KEY·REQUIRED_NULL·TYPE_CONVERSION)·계산 오류(EVAL_ERROR = EVALUATION_ERROR)·판정 충돌(HIT_CONFLICT = UNIQUE_MULTIPLE_HITS·ANY_CONFLICT) 넷이고 정의·설정 오류(RULE_NOT_FOUND·SET_NOT_FOUND·SET_DEPRECATED·FLOW_INVALID·CONSTANT_KEY·RESERVED_KEY·EVAL_TS_KEY·BRANCH_EVAL_ERROR·EDIT_POINT_MISMATCH)는 받지 않는다 · X-D3 결과 없음은 그 종류를 받는 노드가 있을 때만 exception 이고 없으면 지금처럼 NULL 결과로 진행한다 · X-D4 RULE 과 CATCH 는 선이 아니라 `attachTo` 로 잇는다(BPMN attachedToRef) · X-D5 돌아오는 MERGE 의 `splitId` 는 그 RULE 노드 ID 다 · X-D6 처리 갈래는 맨 바깥 순차에서만 END 로 간다 · X-D7 FLOW_JSON `version` 은 1 그대로다 · X-D8 처리 갈래가 읽는 값은 예약 이름 `CATCH_KIND`·`CATCH_RULE`·`CATCH_CODE`·`CATCH_MSG`(레코드 키로 오면 RESERVED_KEY) · X-D9 INPUT_ERROR 를 받는 룰의 입력은 사전 검사에서 빼고 실행 직전에 본다 · X-D10 `RuleSetResult`·`RunTrace` 에 `endedBy`, `RuleSetResult` 에 `caught`, 노드 상태 `CAUGHT` · X-D11 병렬 갈래 안에서 끝내면 남은 형제 갈래는 실행하지 않는다 · X-D12 받는 노드는 팔레트에 두지 않고 룰의 "예외" 연결점·우클릭 「예외 받기 추가」로만 만든다. 구현 세부(계획 Rulings R1~R17): CATCH 기록에 실패한 룰 ID, CAUGHT 룰 기록에 result 없음, CATCH 노드는 고친 값 뒤 CATCH_* 넣기, 돌아오는 합류는 룰 직전 CATCH_* 로 되돌림(중첩이면 바깥 값), 받는 노드 위치는 저장하지 않고 룰 테두리에 계산, 받는 노드가 든 분기 블록 복사 거부
@@ -5527,49 +5527,49 @@ Expected: 마지막 항목이 `## D-131 (2026-10-01T00:00:00Z)` 이고, 항목�
 
 §3 「룰 세트 흐름」 문단(`- **룰 세트 흐름(2026-09-30, …)**` 줄) 끝에 붙인다.
 ```markdown
- **받는 노드(2026-10-01, D-132).** `NodeKind` 에 `CATCH` 가 더해졌다. `FlowNode(id, kind, ruleId, splitId, label, attachTo, catches)` 의 `attachTo`(붙은 룰 노드 ID)·`catches`(받을 종류 키 `NO_RESULT`·`INPUT_ERROR`·`EVAL_ERROR`·`HIT_CONFLICT`)는 CATCH 노드만 쓰고, 스키마에서 선택 칸이며 FLOW_JSON 정규 글자에도 CATCH 노드에만 있다. 받는 노드는 선이 아니라 `attachTo` 로 룰에 붙고(들어오는 선 0, 나가는 선 1), 처리 갈래가 돌아오는 MERGE 의 `splitId` 는 그 룰 노드 ID 다. 구조 해석은 받는 룰을 `flow.Guarded(rule, normal, handlers, mergeId)` 블록으로 만들고, 받는 종류·코드 표는 `flow.CatchKind` 한 곳에 있다(`flow` 는 `spi` 만 보므로 코드는 이름 문자열로 둔다).
+ **받는 노드(2026-10-01, D-134).** `NodeKind` 에 `CATCH` 가 더해졌다. `FlowNode(id, kind, ruleId, splitId, label, attachTo, catches)` 의 `attachTo`(붙은 룰 노드 ID)·`catches`(받을 종류 키 `NO_RESULT`·`INPUT_ERROR`·`EVAL_ERROR`·`HIT_CONFLICT`)는 CATCH 노드만 쓰고, 스키마에서 선택 칸이며 FLOW_JSON 정규 글자에도 CATCH 노드에만 있다. 받는 노드는 선이 아니라 `attachTo` 로 룰에 붙고(들어오는 선 0, 나가는 선 1), 처리 갈래가 돌아오는 MERGE 의 `splitId` 는 그 룰 노드 ID 다. 구조 해석은 받는 룰을 `flow.Guarded(rule, normal, handlers, mergeId)` 블록으로 만들고, 받는 종류·코드 표는 `flow.CatchKind` 한 곳에 있다(`flow` 는 `spi` 만 보므로 코드는 이름 문자열로 둔다).
 ```
 §6 예약 이름 표에 한 줄을 더한다.
 ```markdown
-| `CATCH_KIND` `CATCH_RULE` `CATCH_CODE` `CATCH_MSG` | 받는 노드 처리 갈래 안에서만 ctx 에 있다(종류 키·실패한 룰 ID·첫 위반 코드 또는 `NO_RESULT`·첫 위반 문구 또는 `맞는 행과 기본 행이 없다`). 돌아오는 MERGE 에서 룰 직전 값으로 되돌리고 END 에서 지운다. `finalValues` 에 넣지 않는다. 대소문자를 무시하고 레코드 키로 오면 판정 오류다 | `RESERVED_KEY` | 받는 노드 spec §4·§6, D-132 |
+| `CATCH_KIND` `CATCH_RULE` `CATCH_CODE` `CATCH_MSG` | 받는 노드 처리 갈래 안에서만 ctx 에 있다(종류 키·실패한 룰 ID·첫 위반 코드 또는 `NO_RESULT`·첫 위반 문구 또는 `맞는 행과 기본 행이 없다`). 돌아오는 MERGE 에서 룰 직전 값으로 되돌리고 END 에서 지운다. `finalValues` 에 넣지 않는다. 대소문자를 무시하고 레코드 키로 오면 판정 오류다 | `RESERVED_KEY` | 받는 노드 spec §4·§6, D-134 |
 ```
 §8 의 세트 결과 문단 첫 문장 `**룰 세트 결과 `RuleSetResult(setId, evalTs, steps, finalValues, path, warnings)`**` 를 `RuleSetResult(setId, evalTs, steps, finalValues, path, warnings, caught, endedBy)` 로 고치고, 문단 끝에 붙인다.
 ```markdown
- 받는 노드(D-132): 룰이 실패했거나 결과가 없는데 그 종류를 받는 노드가 있으면 그 룰 결과를 쓰지 않고(`steps` 에 넣지 않고 `PathStep.stepIndex` 는 null) 룰 직전 ctx 로 처리 갈래를 실행한다. `path` 에 CATCH 노드도 든다. `caught` 는 받아 처리한 exception `CaughtException(ruleNodeId, ruleId, catchNodeId, kind, code, message)` 목록(실행 순서)이고, 처리 갈래가 END 에 닿아 끝났으면 `endedBy` 가 그 CATCH 노드 ID 다(아니면 null). 병렬 갈래 안에서 끝내면 남은 형제 갈래는 실행하지 않고 `finalValues` 는 끝난 형제와 지금 갈래의 결과까지다. INPUT_ERROR 를 받는 룰의 입력은 세트 입력 키 사전 검사에서 빠지고 그 룰 실행 직전에 본다. 받는 노드가 없으면 지금처럼 실패는 판정 오류, 결과 없음은 NULL 결과로 진행한다.
+ 받는 노드(D-134): 룰이 실패했거나 결과가 없는데 그 종류를 받는 노드가 있으면 그 룰 결과를 쓰지 않고(`steps` 에 넣지 않고 `PathStep.stepIndex` 는 null) 룰 직전 ctx 로 처리 갈래를 실행한다. `path` 에 CATCH 노드도 든다. `caught` 는 받아 처리한 exception `CaughtException(ruleNodeId, ruleId, catchNodeId, kind, code, message)` 목록(실행 순서)이고, 처리 갈래가 END 에 닿아 끝났으면 `endedBy` 가 그 CATCH 노드 ID 다(아니면 null). 병렬 갈래 안에서 끝내면 남은 형제 갈래는 실행하지 않고 `finalValues` 는 끝난 형제와 지금 갈래의 결과까지다. INPUT_ERROR 를 받는 룰의 입력은 세트 입력 키 사전 검사에서 빠지고 그 룰 실행 직전에 본다. 받는 노드가 없으면 지금처럼 실패는 판정 오류, 결과 없음은 NULL 결과로 진행한다.
 ```
 실행 기록 문단 끝에 붙인다.
 ```markdown
- 받는 노드(D-132): `RunTrace` 에 `endedBy`(없으면 JSON 에서 키를 뺀다), 노드 상태 `CAUGHT`(받는 노드로 넘긴 룰 — `violations` 는 받은 위반, 결과 없음이면 빈 목록, `result` 없음), CATCH 노드 기록은 `status=OK`·`ruleId`(실패한 룰)·`catchKind`·`code`·`message`(세 칸은 CATCH 노드에만 있고 JSON 에서 null 이면 키를 뺀다). 돌아오는 MERGE 기록의 `splitId` 는 받는 룰 노드 ID 이고 `merged` 는 null 이다.
+ 받는 노드(D-134): `RunTrace` 에 `endedBy`(없으면 JSON 에서 키를 뺀다), 노드 상태 `CAUGHT`(받는 노드로 넘긴 룰 — `violations` 는 받은 위반, 결과 없음이면 빈 목록, `result` 없음), CATCH 노드 기록은 `status=OK`·`ruleId`(실패한 룰)·`catchKind`·`code`·`message`(세 칸은 CATCH 노드에만 있고 JSON 에서 null 이면 키를 뺀다). 돌아오는 MERGE 기록의 `splitId` 는 받는 룰 노드 ID 이고 `merged` 는 null 이다.
 ```
-오류 코드 문단(`코드(Code) 14종: …`)은 지금 코드 수(`EDIT_POINT_MISMATCH` 포함 15종)와 다르면 맞추고, 문단 끝에 `받는 노드가 받을 수 있는 코드는 MISSING_KEY·REQUIRED_NULL·TYPE_CONVERSION(INPUT_ERROR)·EVALUATION_ERROR(EVAL_ERROR)·UNIQUE_MULTIPLE_HITS·ANY_CONFLICT(HIT_CONFLICT)뿐이다(D-132).` 를 붙인다.
+오류 코드 문단(`코드(Code) 14종: …`)은 지금 코드 수(`EDIT_POINT_MISMATCH` 포함 15종)와 다르면 맞추고, 문단 끝에 `받는 노드가 받을 수 있는 코드는 MISSING_KEY·REQUIRED_NULL·TYPE_CONVERSION(INPUT_ERROR)·EVALUATION_ERROR(EVAL_ERROR)·UNIQUE_MULTIPLE_HITS·ANY_CONFLICT(HIT_CONFLICT)뿐이다(D-134).` 를 붙인다.
 
 - [ ] **Step 4: 기능설계서** — 아래 행을 더한다(번호는 그 표의 다음 번호 — 겹치면 뒤 번호로).
 
-§5.5 우클릭 메뉴 표의 룰 노드 편집 행 항목에 `· 예외 받기 추가(\`catch-add\` — 끝으로 가는 처리 갈래와 받는 노드를 만든다, 받을 종류는 그 룰에서 아직 아무도 받지 않는 첫 종류, D-132)` 를 `복제` 뒤에 넣고, 표 끝에 행을 더한다.
+§5.5 우클릭 메뉴 표의 룰 노드 편집 행 항목에 `· 예외 받기 추가(\`catch-add\` — 끝으로 가는 처리 갈래와 받는 노드를 만든다, 받을 종류는 그 룰에서 아직 아무도 받지 않는 첫 종류, D-134)` 를 `복제` 뒤에 넣고, 표 끝에 행을 더한다.
 ```markdown
 | 받는 노드 | 삭제(`delete` — 받는 노드와 그 나가는 선만, 처리 갈래 안 노드는 남는다) | 편집 |
 ```
 §6.2 세트 검사 표 끝(XV-009 앞)에 두 행을 더하고, XV-005 `ORDER` 의 조건 끝에 ` / 받는 노드 처리 갈래 밖에서 CATCH_* 를 읽는다` 와 문구 끝에 ` / {id}가 읽는 {name}는 받는 노드의 처리 갈래 안에서만 있다` 를 더한다.
 ```markdown
-| XV-024 | `FLOW_CATCH` | 거부 | 받는 노드의 `attachTo` 가 없거나 룰이 아니다, `catches` 가 비었거나 모르는 키·겹친 키가 있다, 한 룰에서 같은 종류를 두 받는 노드가 받는다(문구·순서 정본은 `FlowParser`·`flow-model.ts`·코퍼스) | 받는 노드 {c}가 붙은 룰 {r}가 없다 / 받는 노드 {c}는 룰 노드에만 붙일 수 있다({r}는 {kind}) / 받는 노드 {c}에 받을 예외 종류가 없다 / 받는 노드 {c}의 예외 종류 {k}를 모른다 / 받는 노드 {c}에 예외 종류 {k}가 겹친다 / 룰 노드 {r}에서 예외 종류 {k}를 {c1}와 {c2}가 함께 받는다 (D-132) |
-| XV-025 | `CATCH_NEVER` | 경고 | 받는 종류가 그 룰에서 일어날 수 없다 — 결과 없음인데 최신 RELEASED 에 기본 행이 있음, 판정 충돌인데 적중 정책이 UNIQUE·ANY 가 아님 | {id}에 기본 행이 있어 {c}가 받는 결과 없음이 일어나지 않는다 / {id}의 적중 정책 {정책}에서는 {c}가 받는 판정 충돌이 일어나지 않는다 (D-132) |
+| XV-024 | `FLOW_CATCH` | 거부 | 받는 노드의 `attachTo` 가 없거나 룰이 아니다, `catches` 가 비었거나 모르는 키·겹친 키가 있다, 한 룰에서 같은 종류를 두 받는 노드가 받는다(문구·순서 정본은 `FlowParser`·`flow-model.ts`·코퍼스) | 받는 노드 {c}가 붙은 룰 {r}가 없다 / 받는 노드 {c}는 룰 노드에만 붙일 수 있다({r}는 {kind}) / 받는 노드 {c}에 받을 예외 종류가 없다 / 받는 노드 {c}의 예외 종류 {k}를 모른다 / 받는 노드 {c}에 예외 종류 {k}가 겹친다 / 룰 노드 {r}에서 예외 종류 {k}를 {c1}와 {c2}가 함께 받는다 (D-134) |
+| XV-025 | `CATCH_NEVER` | 경고 | 받는 종류가 그 룰에서 일어날 수 없다 — 결과 없음인데 최신 RELEASED 에 기본 행이 있음, 판정 충돌인데 적중 정책이 UNIQUE·ANY 가 아님 | {id}에 기본 행이 있어 {c}가 받는 결과 없음이 일어나지 않는다 / {id}의 적중 정책 {정책}에서는 {c}가 받는 판정 충돌이 일어나지 않는다 (D-134) |
 ```
 XV-013 `FLOW_STRUCTURE` 의 조건 끝에 ` · 받는 노드: 처리 갈래가 돌아오는 합류나 끝이 아닌 곳으로 감, 돌아오는 합류가 둘 이상, 처리 갈래 안 IF·병렬 갈래가 끝으로 감(받는 노드가 있으면 END 들어오는 선은 1개 이상)` 을, 문구 예시 끝에 ` / 처리 갈래 {c}가 합류 {m}나 끝에 닿지 않고 {cur}로 나간다 / 룰 {r}로 돌아오는 합류가 {n}개다. 1개까지 둔다` 를 더한다.
 
-§3.2 캔버스 노드 표(118행 아래)에 받는 노드 행을 더한다 — 내용: `CATCH`(받는 노드) — 룰 아래 테두리에 걸친 빨간 원(번개), 룰을 따라 움직이고 위치는 저장하지 않는다. 나가는 선은 빨간 점선. 편집 모드 룰 노드 오른쪽 아래 "예외" 연결점을 끌어 다른 노드에 놓으면 받는 노드와 처리 갈래 첫 선이 함께 생긴다. 고르면 오른쪽 패널 「받는 노드」·「받을 예외」 섹션(종류 네 개 체크, 같은 룰의 다른 받는 노드가 받는 종류는 꺼짐, 종류 옆 CATCH_NEVER 경고). 처리 갈래 첫 선의 변수 칩은 CATCH_* 넷 (D-132). 표의 열 모양은 그 표의 기존 행을 그대로 따른다.
+§3.2 캔버스 노드 표(118행 아래)에 받는 노드 행을 더한다 — 내용: `CATCH`(받는 노드) — 룰 아래 테두리에 걸친 빨간 원(번개), 룰을 따라 움직이고 위치는 저장하지 않는다. 나가는 선은 빨간 점선. 편집 모드 룰 노드 오른쪽 아래 "예외" 연결점을 끌어 다른 노드에 놓으면 받는 노드와 처리 갈래 첫 선이 함께 생긴다. 고르면 오른쪽 패널 「받는 노드」·「받을 예외」 섹션(종류 네 개 체크, 같은 룰의 다른 받는 노드가 받는 종류는 꺼짐, 종류 옆 CATCH_NEVER 경고). 처리 갈래 첫 선의 변수 칩은 CATCH_* 넷 (D-134). 표의 열 모양은 그 표의 기존 행을 그대로 따른다.
 
-§4.1 디버그 모드 필드 또는 §5.3 캔버스 동작의 디버그 줄에 더한다 — 받은 룰은 주황 점선 테두리와 종류 배지(결과 없음·입력 오류·계산 오류·판정 충돌), 탄 받는 노드·처리 갈래는 실행 표시, 안 탄 받는 노드는 흐림. 툴바 상태 문구 `예외로 끝남: {받는 노드 제목} · {n}단계 · 결과 변수 {m}개`, [받은 예외 N건] 목록(`dbg-caught-toggle`). 노드 상세: 받는 노드는 종류·코드·메시지·CATCH_* 값, 받은 룰은 위반 목록과 [룰 편집 열기] (D-132).
+§4.1 디버그 모드 필드 또는 §5.3 캔버스 동작의 디버그 줄에 더한다 — 받은 룰은 주황 점선 테두리와 종류 배지(결과 없음·입력 오류·계산 오류·판정 충돌), 탄 받는 노드·처리 갈래는 실행 표시, 안 탄 받는 노드는 흐림. 툴바 상태 문구 `예외로 끝남: {받는 노드 제목} · {n}단계 · 결과 변수 {m}개`, [받은 예외 N건] 목록(`dbg-caught-toggle`). 노드 상세: 받는 노드는 종류·코드·메시지·CATCH_* 값, 받은 룰은 위반 목록과 [룰 편집 열기] (D-134).
 
 - [ ] **Step 5: 확인**
 
-Run: `grep -n "D-132" docs/mdm/decisions.md docs/mdm/engine-contract.md docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md`
-Expected: 세 파일 모두 한 줄 이상. `grep -c "^## D-132" docs/mdm/decisions.md` → 1.
+Run: `grep -n "D-134" docs/mdm/decisions.md docs/mdm/engine-contract.md docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md`
+Expected: 세 파일 모두 한 줄 이상. `grep -c "^## D-134" docs/mdm/decisions.md` → 1.
 
 - [ ] **Step 6: 커밋**
 
 ```bash
 /usr/bin/git add docs/mdm/decisions.md docs/mdm/engine-contract.md docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md
-/usr/bin/git commit -m "docs(mdm): 룰 세트 받는 노드 결정 D-132 와 엔진 계약 문서·기능설계서를 갱신한다" -m "Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- docs/mdm/decisions.md docs/mdm/engine-contract.md docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md
+/usr/bin/git commit -m "docs(mdm): 룰 세트 받는 노드 결정 D-134 와 엔진 계약 문서·기능설계서를 갱신한다" -m "Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- docs/mdm/decisions.md docs/mdm/engine-contract.md docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md
 ```
 
 ---

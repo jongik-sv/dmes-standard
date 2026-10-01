@@ -1,9 +1,9 @@
 ---
 name: analyze-queries
-description: "MSSQL inline SQL / 쿼리 텍스트 분석. SampleErp 환경에서는 procedure/function 분석은 /analyze-plsql 을 사용하고, 본 스킬은 C# 코드 안의 inline SqlCommand 또는 별도 쿼리 텍스트 모음 분석에만 사용한다. 부산 시절의 query-cache 의존이 제거된 단순 분석 모드만 지원."
+description: "레거시 DB(Oracle·PostgreSQL·MSSQL·SQLite) inline SQL / 쿼리 텍스트 분석. SampleErp 환경에서는 procedure/function 분석은 /analyze-plsql 을 사용하고, 본 스킬은 C# 코드 안의 inline SqlCommand 또는 별도 쿼리 텍스트 모음 분석에만 사용한다. 부산 시절의 query-cache 의존이 제거된 단순 분석 모드만 지원."
 ---
 
-# SQL 쿼리 분석 (SampleErp / MSSQL)
+# SQL 쿼리 분석 (SampleErp / 레거시 DB)
 
 > ⭐ **V4 (2026-05-13) — 영역 분리 폴더 구조 (필수)**
 >
@@ -21,6 +21,8 @@ SampleErp 환경에서 SQL 쿼리 분석의 진입점은 다음과 같이 구분
 2. **C# inline SQL 추출** → analyze-service Phase 2 의 일부로 자동 처리
 3. **개별 쿼리 텍스트 분석** → 본 스킬 (간단한 1회성 분석)
 
+> 쿼리 텍스트의 방언은 [`_shared/vocabulary-mapping.md`](../_shared/vocabulary-mapping.md) §3-1 순서(README `원천 DBMS:` 줄 → 쿼리 문법 단서 → 사용자 확인)로 판정하고, 이후 파라미터·함수·페이징 해석은 그 방언 열을 따른다. 짧은 쿼리는 단서가 부족하므로 README 표기를 우선한다.
+
 > 부산 시절의 `query-cache` (Oracle 캐시 + L2 cache + orchestrator) 의존성은 SampleErp 환경에서 제거되었다. SampleErp 의 모든 SQL 본문은 정적 파일이므로 캐시가 필요하지 않다.
 
 ## 사용법
@@ -29,7 +31,7 @@ SampleErp 환경에서 SQL 쿼리 분석의 진입점은 다음과 같이 구분
 
 ```
 /analyze-queries
-  쿼리1: SELECT * FROM TB_XXX WHERE COL = @p
+  쿼리1: SELECT * FROM TB_XXX WHERE COL = :p      (바인드 표기는 원천 DBMS 따라 :p / $1 / @p / ?)
   쿼리2: UPDATE TB_YYY SET ... WHERE ...
 ```
 
@@ -50,11 +52,11 @@ SampleErp 환경에서 SQL 쿼리 분석의 진입점은 다음과 같이 구분
 
 각 쿼리에 대해:
 
-1. **queryType 분류**: 첫 키워드로 판단 (SELECT, INSERT, UPDATE, DELETE, MERGE, EXEC)
+1. **queryType 분류**: 첫 키워드로 판단 (SELECT, INSERT, UPDATE, DELETE, MERGE, 그리고 호출문 — Oracle `BEGIN PKG.PROC(...); END;`·`CALL` / PostgreSQL `CALL`·`SELECT f(...)` / MSSQL `EXEC`)
 2. **tables 추출**: FROM, JOIN, INTO, UPDATE, MERGE INTO 절에서 테이블명과 별칭 추출
 3. **columns 추출**: SELECT 절 컬럼, INSERT 컬럼, UPDATE SET 절 컬럼 추출
 4. **joins 추출**: JOIN 절 또는 WHERE 절의 조인 조건 추출
-5. **parameters 추출**: `@변수명` 형태의 바인드 변수 추출
+5. **parameters 추출**: 판정 방언의 바인드 변수 추출 — Oracle `:name` · PostgreSQL `$1` · MSSQL `@name` · SQLite `?`/`:name`/`@name`/`$name`
 6. **businessPurpose**: 테이블명, 컬럼명, 조건을 기반으로 비즈니스 목적 추론 (한글)
 7. **queryLogic**: 주요 조건, 정렬, 집계, 서브쿼리 등 로직 요약
 8. **performanceInfo**: 조인 수, 서브쿼리 깊이, UNION 등으로 복잡도 판단
@@ -84,7 +86,8 @@ SampleErp 환경에서 SQL 쿼리 분석의 진입점은 다음과 같이 구분
 ## 쿼리 1: SELECT
 - 비즈니스 목적: ...
 - 테이블: TB_XXX (메인)
-- 파라미터: @p1, @p2
+- 파라미터: :p1, :p2 (원천 DBMS 표기 그대로)
+- 원천 DBMS: X (판정 근거)
 - ...
 ```
 
@@ -100,4 +103,4 @@ SampleErp 환경에서 SQL 쿼리 분석의 진입점은 다음과 같이 구분
 - procedure/function 분석은 `/analyze-plsql {NAME}` 사용
 - C# inline SQL 자동 추출은 analyze-service Phase 2 에서 수행
 - 본 스킬은 임시 쿼리 텍스트 분석에만 사용
-- 본문 어휘 매핑: [`_shared/vocabulary-mapping.md`](../_shared/vocabulary-mapping.md) (특히 `@변수명`, `EXEC dbo.X` 등 MSSQL 패턴)
+- 본문 어휘 매핑: [`_shared/vocabulary-mapping.md`](../_shared/vocabulary-mapping.md) §3 (원천 DBMS 판정 후 바인드 변수·호출 구문·페이징 등 방언 열)

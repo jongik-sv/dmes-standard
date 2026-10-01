@@ -1,9 +1,10 @@
 "use client";
 
-import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { ActionIcon } from "@mantine/core";
+import { memo, useCallback, useEffect, useRef, useState, type ReactElement } from "react";
+import { ActionIcon, Tooltip } from "@mantine/core";
 import {
   IconArrowsMaximize,
+  IconArrowsMinimize,
   IconCamera,
   IconChevronDown,
   IconChevronLeft,
@@ -66,8 +67,20 @@ export interface TabsBarProps {
   onToggleFavorite?: () => void;
   /** 활성 탭 컨텐츠를 PNG 로 캡쳐. 미지정 시 캡쳐 버튼 숨김. */
   onCapture?: () => void;
-  /** 활성 탭 페이지만 전체 화면으로 본다. 미지정 시 버튼 숨김. */
+  /** 활성 탭 페이지를 탭바와 함께 전체 화면으로 본다. 미지정 시 버튼 숨김. */
   onEnterFullscreen?: () => void;
+  /** 전체 화면 중이면 전체 화면 버튼이 끝내기 버튼으로 바뀌고 헤더 토글을 숨긴다. */
+  isFullscreen?: boolean;
+  onExitFullscreen?: () => void;
+}
+
+/** 탭바 아이콘 버튼 툴팁 — 네이티브 title 은 늦게 뜨거나 보이지 않아 Mantine Tooltip 으로 띄운다. */
+function ControlTooltip({ label, children }: { label: string; children: ReactElement }) {
+  return (
+    <Tooltip label={label} position="bottom" withArrow openDelay={200} fz="xs">
+      {children}
+    </Tooltip>
+  );
 }
 
 export function TabsBar({
@@ -84,6 +97,8 @@ export function TabsBar({
   onToggleFavorite,
   onCapture,
   onEnterFullscreen,
+  isFullscreen = false,
+  onExitFullscreen,
 }: TabsBarProps) {
   const tabsScrollRef = useRef<HTMLDivElement>(null);
   const [showScrollButtons, setShowScrollButtons] = useState(false);
@@ -337,30 +352,33 @@ export function TabsBar({
       <div className="tabs-bar tab-bar">
         {/* Home tab */}
         {homeTab && (
-          <button
-            type="button"
-            className={`tab-item home-tab ${activeTabId === homeTab.id ? "active" : ""}`}
-            onClick={() => onTabClick(homeTab.id)}
-            title="홈"
-          >
-            <IconHome size={16} stroke={2} />
-          </button>
+          <ControlTooltip label="홈">
+            <button
+              type="button"
+              className={`tab-item home-tab ${activeTabId === homeTab.id ? "active" : ""}`}
+              onClick={() => onTabClick(homeTab.id)}
+              aria-label="홈"
+            >
+              <IconHome size={16} stroke={2} />
+            </button>
+          </ControlTooltip>
         )}
 
         {/* Scroll left */}
         {showScrollButtons && (
-          <ActionIcon
-            className={`scroll-btn scroll-left ${!canScrollLeft ? "disabled" : ""}`}
-            variant="subtle"
-            size="md"
-            style={CONTROL_ICON_VARS}
-            onClick={scrollLeft}
-            disabled={!canScrollLeft}
-            title="왼쪽으로 스크롤"
-            aria-label="왼쪽으로 스크롤"
-          >
-            <IconChevronLeft size={14} stroke={2} />
-          </ActionIcon>
+          <ControlTooltip label="왼쪽으로 스크롤">
+            <ActionIcon
+              className={`scroll-btn scroll-left ${!canScrollLeft ? "disabled" : ""}`}
+              variant="subtle"
+              size="md"
+              style={CONTROL_ICON_VARS}
+              onClick={scrollLeft}
+              disabled={!canScrollLeft}
+              aria-label="왼쪽으로 스크롤"
+            >
+              <IconChevronLeft size={14} stroke={2} />
+            </ActionIcon>
+          </ControlTooltip>
         )}
 
         {/* Tabs scroll area */}
@@ -408,78 +426,84 @@ export function TabsBar({
 
         {/* Scroll right */}
         {showScrollButtons && (
-          <ActionIcon
-            className={`scroll-btn scroll-right ${!canScrollRight ? "disabled" : ""}`}
-            variant="subtle"
-            size="md"
-            style={CONTROL_ICON_VARS}
-            onClick={scrollRight}
-            disabled={!canScrollRight}
-            title="오른쪽으로 스크롤"
-            aria-label="오른쪽으로 스크롤"
-          >
-            <IconChevronRight size={14} stroke={2} />
-          </ActionIcon>
+          <ControlTooltip label="오른쪽으로 스크롤">
+            <ActionIcon
+              className={`scroll-btn scroll-right ${!canScrollRight ? "disabled" : ""}`}
+              variant="subtle"
+              size="md"
+              style={CONTROL_ICON_VARS}
+              onClick={scrollRight}
+              disabled={!canScrollRight}
+              aria-label="오른쪽으로 스크롤"
+            >
+              <IconChevronRight size={14} stroke={2} />
+            </ActionIcon>
+          </ControlTooltip>
         )}
 
         {/* Controls */}
         <div className="tabs-controls">
           {/* Refresh button */}
           {onRefresh && (
-            <ActionIcon
-              variant="subtle"
-              size="md"
-              style={CONTROL_ICON_VARS}
-              onClick={onRefresh}
-              title="새로고침"
-              aria-label="새로고침"
-            >
-              <IconRefresh size={14} stroke={2} />
-            </ActionIcon>
+            <ControlTooltip label="새로고침">
+              <ActionIcon
+                variant="subtle"
+                size="md"
+                style={CONTROL_ICON_VARS}
+                onClick={onRefresh}
+                aria-label="새로고침"
+              >
+                <IconRefresh size={14} stroke={2} />
+              </ActionIcon>
+            </ControlTooltip>
           )}
 
           {/* Capture button — 활성 탭 컨텐츠를 PNG 로 다운로드 */}
           {onCapture && (
-            <ActionIcon
-              variant="subtle"
-              size="md"
-              style={CONTROL_ICON_VARS}
-              onClick={onCapture}
-              title="화면 캡쳐 (PNG 다운로드)"
-              aria-label="화면 캡쳐 (PNG 다운로드)"
-            >
-              <IconCamera size={14} stroke={2} />
-            </ActionIcon>
+            <ControlTooltip label="화면 캡쳐 (PNG 다운로드)">
+              <ActionIcon
+                variant="subtle"
+                size="md"
+                style={CONTROL_ICON_VARS}
+                onClick={onCapture}
+                aria-label="화면 캡쳐 (PNG 다운로드)"
+              >
+                <IconCamera size={14} stroke={2} />
+              </ActionIcon>
+            </ControlTooltip>
           )}
 
           {/* Favorite toggle button */}
-          <ActionIcon
-            className={isCurrentPageFavorite ? "favorite-active" : undefined}
-            variant="subtle"
-            size="md"
-            style={isCurrentPageFavorite ? FAVORITE_ACTIVE_ICON_VARS : CONTROL_ICON_VARS}
-            onClick={onToggleFavorite}
-            title={isCurrentPageFavorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
-            aria-label={isCurrentPageFavorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
-          >
-            {isCurrentPageFavorite ? (
-              <IconStarFilled size={14} />
-            ) : (
-              <IconStar size={14} stroke={2} />
-            )}
-          </ActionIcon>
+          <ControlTooltip label={isCurrentPageFavorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}>
+            <ActionIcon
+              className={isCurrentPageFavorite ? "favorite-active" : undefined}
+              variant="subtle"
+              size="md"
+              style={isCurrentPageFavorite ? FAVORITE_ACTIVE_ICON_VARS : CONTROL_ICON_VARS}
+              onClick={onToggleFavorite}
+              aria-label={isCurrentPageFavorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+            >
+              {isCurrentPageFavorite ? (
+                <IconStarFilled size={14} />
+              ) : (
+                <IconStar size={14} stroke={2} />
+              )}
+            </ActionIcon>
+          </ControlTooltip>
 
           {/* Tab list dropdown */}
           <div className="tab-list-dropdown">
-            <button
-              type="button"
-              className="control-btn"
-              onClick={() => setShowTabList(!showTabList)}
-              title="탭 목록"
-            >
-              <IconList size={14} stroke={2} />
-              {nonHomeTabs.length > 0 && <span className="tab-count">{nonHomeTabs.length}</span>}
-            </button>
+            <ControlTooltip label="탭 목록">
+              <button
+                type="button"
+                className="control-btn"
+                onClick={() => setShowTabList(!showTabList)}
+                aria-label="탭 목록"
+              >
+                <IconList size={14} stroke={2} />
+                {nonHomeTabs.length > 0 && <span className="tab-count">{nonHomeTabs.length}</span>}
+              </button>
+            </ControlTooltip>
 
             {showTabList && nonHomeTabs.length > 0 && (
               <div className="dropdown-menu">
@@ -490,11 +514,10 @@ export function TabsBar({
                       type="button"
                       onClick={closeSelectedTabs}
                       disabled={selectedTabs.length === 0}
-                      title="선택 닫기"
                     >
                       선택 닫기
                     </button>
-                    <button type="button" onClick={closeAllTabs} title="전체 닫기">
+                    <button type="button" onClick={closeAllTabs}>
                       전체 닫기
                     </button>
                   </div>
@@ -534,35 +557,51 @@ export function TabsBar({
           </div>
 
           {/* 탭 전체 화면 */}
-          {onEnterFullscreen && (
-            <ActionIcon
-              variant="subtle"
-              size="md"
-              style={CONTROL_ICON_VARS}
-              onClick={onEnterFullscreen}
-              title="전체 화면으로 보기"
-              aria-label="전체 화면으로 보기"
-            >
-              <IconArrowsMaximize size={14} stroke={2} />
-            </ActionIcon>
-          )}
-
-          {/* Header toggle button (rightmost) */}
-          {onToggleHeader && (
-            <ActionIcon
-              variant="subtle"
-              size="md"
-              style={CONTROL_ICON_VARS}
-              onClick={onToggleHeader}
-              title={isHeaderVisible ? "헤더 접기" : "헤더 펼치기"}
-              aria-label={isHeaderVisible ? "헤더 접기" : "헤더 펼치기"}
-            >
-              {isHeaderVisible ? (
-                <IconChevronUp size={14} stroke={2} />
-              ) : (
-                <IconChevronDown size={14} stroke={2} />
+          {isFullscreen
+            ? onExitFullscreen && (
+                <ControlTooltip label="전체 화면 끝내기 (Esc)">
+                  <ActionIcon
+                    variant="subtle"
+                    size="md"
+                    style={CONTROL_ICON_VARS}
+                    onClick={onExitFullscreen}
+                    aria-label="전체 화면 끝내기"
+                  >
+                    <IconArrowsMinimize size={14} stroke={2} />
+                  </ActionIcon>
+                </ControlTooltip>
+              )
+            : onEnterFullscreen && (
+                <ControlTooltip label="전체 화면으로 보기">
+                  <ActionIcon
+                    variant="subtle"
+                    size="md"
+                    style={CONTROL_ICON_VARS}
+                    onClick={onEnterFullscreen}
+                    aria-label="전체 화면으로 보기"
+                  >
+                    <IconArrowsMaximize size={14} stroke={2} />
+                  </ActionIcon>
+                </ControlTooltip>
               )}
-            </ActionIcon>
+
+          {/* Header toggle button (rightmost) — 전체 화면 중에는 헤더가 접혀 있으므로 숨긴다. */}
+          {onToggleHeader && !isFullscreen && (
+            <ControlTooltip label={isHeaderVisible ? "헤더 접기" : "헤더 펼치기"}>
+              <ActionIcon
+                variant="subtle"
+                size="md"
+                style={CONTROL_ICON_VARS}
+                onClick={onToggleHeader}
+                aria-label={isHeaderVisible ? "헤더 접기" : "헤더 펼치기"}
+              >
+                {isHeaderVisible ? (
+                  <IconChevronUp size={14} stroke={2} />
+                ) : (
+                  <IconChevronDown size={14} stroke={2} />
+                )}
+              </ActionIcon>
+            </ControlTooltip>
           )}
         </div>
       </div>

@@ -143,8 +143,13 @@ public class HeaderMngService {
         Map<String, LayoutColumnInfo> dict = dictionary.byPhysNames(
                 items.stream().map(MdmLayoutItem::getColumnPhys).filter(Objects::nonNull).toList());
         List<Map<String, Object>> usedBy = new ArrayList<>();
-        for (MdmLayoutHeader h : queries.stacksUsing(layout.getLayoutId())) {
-            MdmLayout msg = layoutRepository.findById(h.getLayoutId()).orElse(null);
+        List<MdmLayoutHeader> stacks = queries.stacksUsing(layout.getLayoutId());
+        Map<Long, MdmLayout> messages = new HashMap<>();
+        for (List<Long> chunk : LayoutQueries.chunks(stacks.stream().map(MdmLayoutHeader::getLayoutId).toList())) {
+            layoutRepository.findAllById(chunk).forEach(m -> messages.put(m.getLayoutId(), m));
+        }
+        for (MdmLayoutHeader h : stacks) {
+            MdmLayout msg = messages.get(h.getLayoutId());
             if (msg == null) {
                 continue;
             }
@@ -191,11 +196,13 @@ public class HeaderMngService {
                 && (LayoutRows.text(request.getEaiName()) == null || LayoutRows.text(request.getEncoding()) == null)) {
             issues.add(LayoutIssue.of(LayoutIssueCode.L11, null, "EAI_CODE", "새 EAI 에는 이름과 인코딩이 필요하다: " + eaiCode));
         }
-        Map<String, LayoutColumnInfo> dict = dictionary.byPhysNames(LayoutRows.physNames(drafts));
+        // 컬럼 사전·도메인 트리는 이 요청에서 한 번씩만 읽는다 — 헤더 저장은 사전·도메인을 고치지 않는다(검사·사용 전문 버전 기록이 같이 쓴다).
+        LayoutDictionary.Cache cache = dictionary.cache();
+        Map<String, LayoutColumnInfo> dict = cache.byPhysNames(LayoutRows.physNames(drafts));
         issues.addAll(LayoutItemRules.check(drafts, dict));
         // 03 등록 거부 #2·#3·#4·#7(TSK-05-03 L12~L15) — 헤더 인코딩: 요청 → 이 헤더를 가리키는 EAI → 고른 EAI → UTF-8
         issues.addAll(LayoutRegistrationRules.check(drafts, dict, codecs.units(), LayoutDraftBuilder.charset(encoding(request, layout, eai)),
-                LayoutDraftBuilder.lengthsBySeq(drafts, dict), constJudge.forColumns(LayoutRows.physNames(drafts)), new ArrayList<>()));
+                LayoutDraftBuilder.lengthsBySeq(drafts, dict), constJudge.forColumns(LayoutRows.physNames(drafts), cache), new ArrayList<>()));
         if (!issues.isEmpty()) {
             throw LayoutRejections.reject(LayoutRejections.HEADER_PREFIX, issues);
         }
@@ -266,10 +273,13 @@ public class HeaderMngService {
         writer.insertConsts(repaired);
         // ⑩ 사용 전문 재계산
         List<Map<String, Object>> recalculated = writer.recalculateUsers(headerId);
-        // ⑪ 사용 전문마다 스냅샷 버전(TSK-05-03 I18) — 스냅샷이 바뀐 전문만 새 버전이 생긴다
+        // ⑪ 사용 전문마다 스냅샷 버전(TSK-05-03 I18) — 스냅샷이 바뀐 전문만 새 버전이 생긴다. 원장은 재계산 쓰기(flush) 뒤에 한 번에 읽는다
+        List<LayoutVersioner.Outcome> outcomes = versioner.recordAll(
+                recalculated.stream().map(r -> ((Number) r.get("LAYOUT_ID")).longValue()).toList(), cache);
         List<Map<String, Object>> versioned = new ArrayList<>();
-        for (Map<String, Object> r : recalculated) {
-            LayoutVersioner.Outcome o = versioner.record(((Number) r.get("LAYOUT_ID")).longValue());
+        for (int i = 0; i < recalculated.size(); i++) {
+            Map<String, Object> r = recalculated.get(i);
+            LayoutVersioner.Outcome o = outcomes.get(i);
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("LAYOUT_ID", r.get("LAYOUT_ID"));
             row.put("LAYOUT_VERSION", o.layoutVersion());

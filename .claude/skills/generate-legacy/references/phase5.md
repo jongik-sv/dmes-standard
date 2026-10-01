@@ -2,7 +2,7 @@
 
 SampleErp 화면 분석의 마지막 단계로, Phase 1-4 의 모든 분석 결과를 통합하여 종합 마크다운 문서를 생성한다. 최종 분석 문서의 양식(`templates/legacy_analysis_report_template.md`) 을 정확하게 따라서 작성한다.
 
-> 산출물 템플릿 헤딩 / placeholder 는 부산 시절 그대로 보존한다 — 산출물 동일성 우선. 본문 채울 때 어휘만 [`_shared/vocabulary-mapping.md`](../../_shared/vocabulary-mapping.md) 의 Java→C# / PL/SQL→T-SQL 매핑을 적용한다.
+> 산출물 템플릿 헤딩 / placeholder 는 부산 시절 그대로 보존한다 — 산출물 동일성 우선. 본문 채울 때 어휘만 [`_shared/vocabulary-mapping.md`](../../_shared/vocabulary-mapping.md) 의 Java→C# 어휘 + 원천 DBMS 방언(§3) 매핑을 적용한다 (원천 DBMS 는 같은 파일 §3-1 순서로 판정).
 
 ❌ 현대화 방안 제언, 추가적인 개선 사항 작성을 금지한다.
 
@@ -16,7 +16,7 @@ moduleId 추출: SCREEN-ID 의 앞 3글자
 
 1. **Phase 1 결과 (structure.json)**: `docs/external/SampleErp/orgErpReport/{moduleId}/.temp/{SCREEN-ID}_structure.json`
 2. **Phase 2 결과 (java_analysis.json)**: `{SCREEN-ID}_java_analysis.json` (키 이름 보존, 의미는 C# partial class 분석)
-3. **Phase 3 결과 (sql_analysis.json)**: `{SCREEN-ID}_sql_analysis.json` (의미는 MSSQL procedure 분석)
+3. **Phase 3 결과 (sql_analysis.json)**: `{SCREEN-ID}_sql_analysis.json` (의미는 판정된 원천 DBMS 의 procedure 분석)
 4. **Phase 4 결과 (ui_analysis.json)**: `{SCREEN-ID}_ui_analysis.json` (WinForms Designer.cs/.resx 분석)
 
 5. **커스텀 클래스 상세 분석 보고서 확인** (java_analysis.json 의 customActivities 기반)
@@ -51,7 +51,7 @@ moduleId 추출: SCREEN-ID 의 앞 3글자
 **출력 위치 (V2 표준)**: `docs/external/SampleErp/orgErpReport/{moduleId}/{SCREEN-ID}/{SCREEN-ID}_legacy_analysis.md`
 
 > V1 → V2 변경: 화면 폴더 안에 `bpa.md`, `bpmn`, `legacy_analysis.md` 가 형제로 위치한다. `service/ui/`, `service/nui/` 분기는 더 이상 사용하지 않는다.
-**문서 양식**: `mes-plugin/skills/generate-legacy/templates/legacy_analysis_report_template.md` (헤딩 그대로, 본문은 C#/MSSQL 어휘 매핑 적용)
+**문서 양식**: `mes-plugin/skills/generate-legacy/templates/legacy_analysis_report_template.md` (헤딩 그대로, 본문은 C# 어휘 + 원천 DBMS 방언 어휘 매핑 적용)
 
 **동적 챕터 처리**:
 - 템플릿의 `<!-- CONDITIONAL: [조건] -->` 주석을 기반으로 동적 챕터 생성
@@ -104,7 +104,7 @@ moduleId 추출: SCREEN-ID 의 앞 3글자
 | `### Form 컴포넌트` | WinForms Form 위 입력 컨트롤 (TextBox/ComboBox/DateTimePicker) |
 | `### Grid 컴포넌트` | FpSpread / DataGridView / C1FlexGrid |
 | `### JavaScript 모듈` | "해당 없음 (WinForms 데스크톱 — JS 미사용)" + 클라이언트 이벤트 핸들러 메서드 표 |
-| `## PL/SQL 함수/프로시저` | MSSQL Stored Procedure / Function (헤딩 그대로 두되 본문은 MSSQL T-SQL 어휘) |
+| `## PL/SQL 함수/프로시저` | 판정된 원천 DBMS 의 Stored Procedure / Function — Oracle 이면 PACKAGE 멤버 포함 (헤딩 그대로 두되 본문은 그 방언 어휘) |
 
 ### Step 3: Mermaid 다이어그램 생성
 
@@ -164,7 +164,7 @@ moduleId 추출: SCREEN-ID 의 앞 3글자
 
 1. **Spread/Grid 컬럼**: 모든 컬럼을 빠짐없이 나열하되, 각 컬럼에 `필드명: 타입 - 설명 (너비px, 정렬)` 포맷 적용. 숨김 컬럼도 `(숨김)` 표시하여 포함.
 2. **Form 필드**: 모든 필드를 나열하고, 콤보/라디오/버튼 등 입력 유형과 연결 이벤트 명시.
-3. **MSSQL 호출**: 단순 "조회" 한 줄로 끝내지 말 것. 각 procedure 호출의 목적, JOIN 관계, WHERE 조건의 비즈니스 의미, 바인드 변수(`@변수명`) 를 상세히 기술.
+3. **DB procedure 호출**: 단순 "조회" 한 줄로 끝내지 말 것. 각 procedure 호출의 목적, JOIN 관계, WHERE 조건의 비즈니스 의미, 바인드 변수(판정 방언 표기 — Oracle `:name` · PostgreSQL `$1`/인자명 · MSSQL `@name`) 를 상세히 기술.
 4. **비즈니스 로직**: SQL 에 CASE WHEN/CTE 등 변환/집계 로직이 있으면 반드시 별도 케이스로 기술.
 5. **화면 동작 흐름**: 최소 2개 이상의 시나리오로 분화 (초기 로딩, 조회, 화면 이동/Dialog 등).
 6. **클라이언트 이벤트 핸들러**: 실제 cs partial class 에서 확인한 핸들러만 나열. 베이스 클래스 가상 메서드 오버라이드(`OnSearch`, `OnSave`) 와 직접 정의 핸들러(`btnXxx_Click`) 구체적 명시.

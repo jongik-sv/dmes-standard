@@ -21,7 +21,7 @@
  *
  * 진입 마루 데이터는 handoff(openMdmPage, 한 번) > snapshot > 첫 항목 순서로 정하고, 고른 값은 snapshot 에 남긴다(§6.10).
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
   ContentBody,
@@ -47,6 +47,7 @@ import { useDataCategories } from "./cate/useDataCategories";
 import { DataHistoryTimeline } from "./history/DataHistoryTimeline";
 import { searchDataHistory } from "./history/api";
 import type { DataHistoryResult } from "./history/types";
+import { ItemActionCell, type ItemActionState, type ItemActionStore } from "./ItemActionCell";
 import { ItemTreePanel } from "./ItemTreePanel";
 import {
   closeDataItem,
@@ -403,73 +404,76 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
   const canCateSave = canDoButton(rbac, CATE_OBJ_ID, "save");
   const editable = !!header?.editable;
 
+  // 「작업」 열 — 열 정의는 고정이고 버튼 상태는 작은 저장소로 셀에 전한다(셀 편집마다 열 정의를 다시 만들지 않는다).
+  // 저장소는 그리기 전(layout effect)에 갱신하고 구독한 셀만 다시 그린다. 행 동작은 눌린 시점의 목록 행 + draft 로 처리한다.
+  const rowMap = useMemo(() => new Map(rows.map((r) => [r.code, r])), [rows]);
+  const draftCodes = useMemo(() => new Set(Object.keys(drafts)), [drafts]);
+  const openMap = useMemo(() => new Map(rows.map((r) => [r.code, r.open])), [rows]);
+  const rowMapRef = useRef(rowMap);
+  const draftsRef = useRef(drafts);
+  const rowActionRef = useRef(rowAction);
+  rowActionRef.current = rowAction;
+  const actionState = useRef<ItemActionState>({
+    open: openMap, draftCodes, busy, editable, canSave, canClose, canReopen,
+  });
+  const actionListeners = useRef(new Set<() => void>());
+  useLayoutEffect(() => {
+    rowMapRef.current = rowMap;
+    draftsRef.current = drafts;
+    actionState.current = { open: openMap, draftCodes, busy, editable, canSave, canClose, canReopen };
+    actionListeners.current.forEach((l) => l());
+  }, [rowMap, drafts, openMap, draftCodes, busy, editable, canSave, canClose, canReopen]);
+  const cancelDraftRef = useRef(cancelDraft);
+  cancelDraftRef.current = cancelDraft;
+  const actionStore = useMemo<ItemActionStore>(
+    () => ({
+      getState: () => actionState.current,
+      subscribe: (listener) => {
+        actionListeners.current.add(listener);
+        return () => void actionListeners.current.delete(listener);
+      },
+      act: (code, action) => {
+        const row = { ...(rowMapRef.current.get(code) ?? { code }), ...(draftsRef.current[code] ?? {}) };
+        void rowActionRef.current(row as Record<string, unknown>, action);
+      },
+      cancel: (code) => cancelDraftRef.current(code),
+    }),
+    [],
+  );
   const renderActions = useCallback(
-    (row: Record<string, unknown>) => {
-      const code = String(row.code ?? "");
-      const hasDraft = !!drafts[code];
-      const historyButton = (
-        <Button size="mini" data-testid={`item-history-${code}`} onClick={() => void rowAction(row, "history")}>
-          이력
-        </Button>
-      );
-      if (editable && row.open === true && hasDraft) {
-        return (
-          <span style={{ display: "inline-flex", gap: "var(--spacing-xs)" }}>
-            <Button
-              size="mini"
-              variant="primary"
-              data-testid={`item-save-${code}`}
-              disabled={busy || !canSave}
-              onClick={() => void rowAction(row, "save")}
-            >
-              저장
-            </Button>
-            <Button size="mini" data-testid={`item-cancel-${code}`} onClick={() => cancelDraft(code)}>
-              취소
-            </Button>
-          </span>
-        );
-      }
-      if (editable && row.open === true) {
-        return (
-          <span style={{ display: "inline-flex", gap: "var(--spacing-xs)" }}>
-            <Button
-              size="mini"
-              data-testid={`item-close-${code}`}
-              disabled={busy || !canClose}
-              onClick={() => void rowAction(row, "close")}
-            >
-              닫기
-            </Button>
-            {historyButton}
-          </span>
-        );
-      }
-      if (editable) {
-        return (
-          <span style={{ display: "inline-flex", gap: "var(--spacing-xs)" }}>
-            <Button
-              size="mini"
-              data-testid={`item-reopen-${code}`}
-              disabled={busy || !canReopen}
-              onClick={() => void rowAction(row, "reopen")}
-            >
-              다시 열기
-            </Button>
-            {historyButton}
-          </span>
-        );
-      }
-      return historyButton;
-    },
-    [busy, canClose, canReopen, canSave, cancelDraft, drafts, editable, rowAction],
+    (row: Record<string, unknown>) => <ItemActionCell code={String(row.code ?? "")} store={actionStore} />,
+    [actionStore],
   );
 
   const columns = useMemo(() => buildItemColumns(header, { renderActions }), [header, renderActions]);
 
+  // ag-grid 는 편집한 칸을 넘겨 받은 행 객체에 직접 쓴다 — 목록 원본(rows)을 그대로 넘기지 않고 로드당 한 번 복제해 둔다.
+  // draft 가 바뀐 행만 새 객체이고, 나머지는 같은 복제본이라 편집마다 전체 행을 복제하지 않는다.
+  const gridRowCache = useMemo(() => new Map<string, Record<string, unknown>>(), [rows]);
+  const draftRowCache = useMemo(() => new WeakMap<object, Record<string, unknown>>(), [rows]);
   const gridRows = useMemo(
-    () => rows.map((r) => ({ ...r, ...(drafts[r.code] ?? {}) }) as Record<string, unknown>),
-    [rows, drafts],
+    () =>
+      rows.map((r) => {
+        const d = drafts[r.code];
+        if (d) {
+          // 편집으로 오염됐을 수 있는 복제본은 버린다 — 취소하면 원본에서 다시 복제한다.
+          gridRowCache.delete(r.code);
+          // 같은 draft 객체면 같은 행 객체 — 다른 행을 고칠 때 이 행은 다시 만들지 않는다.
+          let g = draftRowCache.get(d);
+          if (!g) {
+            g = { ...r, ...d } as Record<string, unknown>;
+            draftRowCache.set(d, g);
+          }
+          return g;
+        }
+        let g = gridRowCache.get(r.code);
+        if (!g) {
+          g = { ...r } as Record<string, unknown>;
+          gridRowCache.set(r.code, g);
+        }
+        return g;
+      }),
+    [rows, drafts, gridRowCache, draftRowCache],
   );
 
   const handleCellChange = useCallback(

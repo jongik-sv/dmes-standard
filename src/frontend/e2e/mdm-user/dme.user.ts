@@ -273,8 +273,16 @@ async function newColKeys(page: Page): Promise<string[]> {
   return ids.filter((i) => /^n\d+$/.test(i));
 }
 
+/** 열 설정 섹션을 펼친다 — 처음에는 접혀 있다(2026-10-01). 이미 펼쳐져 있으면 그대로 둔다. */
+async function openColumns(page: Page) {
+  const toggle = tid(page, "rule-section-columns-toggle");
+  if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+  await expect(tid(page, "rule-section-columns-body")).toBeVisible();
+}
+
 /** [조건 열 추가]·[결과 열 추가]를 누르고 새로 생긴 열의 키를 돌려준다. */
 async function clickAddColumn(page: Page, kind: "COND" | "RESULT"): Promise<string> {
+  await openColumns(page);
   const before = await newColKeys(page);
   await tid(page, kind === "COND" ? "col-add-cond" : "col-add-result").click();
   let added: string[] = [];
@@ -1211,6 +1219,8 @@ test.describe("A 룰 등록·편집·확정", () => {
       await tid(page, `rule-group-${g}-toggle`).click();
       await expect(tid(page, `rule-group-${g}-body`)).toBeVisible();
     }
+    // 열 설정은 처음에 접혀 있으므로(2026-10-01) 먼저 펼쳐 둔 뒤 접기·펼치기를 본다.
+    await openColumns(page);
     for (const s of ["rule-section-columns", "pivot-section"]) {
       await tid(page, `${s}-toggle`).click();
       await expect(page.locator(`[data-testid="${s}-body"]`)).toBeHidden();
@@ -1875,10 +1885,21 @@ test.describe("C 룰 세트", () => {
     await tid(page, "flow-rule-panel-search").fill(SA);
     await tid(page, "flow-rule-panel-find").click();
     await expect(tid(page, `flow-rule-row-${SA}`)).toBeVisible({ timeout: 20_000 });
+    // 노드 찾기 위젯 — 툴바 [노드 찾기] 로 열고 다음·이전·옵션 셋을 눌러 본 뒤 [닫기].
+    await tid(page, "flow-find-open").click();
+    await expect(tid(page, "flow-find-widget")).toBeVisible();
     await tid(page, "flow-find").fill(SA);
     await expect(tid(page, "flow-find-count")).toHaveText("1/1");
     await tid(page, "flow-find-next").click();
+    await tid(page, "flow-find-prev").click();
+    for (const opt of ["flow-find-case", "flow-find-word", "flow-find-regex"]) {
+      await tid(page, opt).click();
+      await expect(tid(page, opt)).toHaveAttribute("aria-pressed", "true");
+      await tid(page, opt).click();
+    }
     await tid(page, "flow-find").fill("");
+    await tid(page, "flow-find-close").click();
+    await expect(tid(page, "flow-find-widget")).toHaveCount(0);
     const controls = tid(page, "flow-canvas").locator(".react-flow__controls-button");
     for (let i = 0, n = await controls.count(); i < n; i++) await controls.nth(i).click();
 

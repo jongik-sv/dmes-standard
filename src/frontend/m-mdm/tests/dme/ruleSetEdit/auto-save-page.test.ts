@@ -65,7 +65,7 @@ describe("자동 저장 단추·상태 글", () => {
     expect(q("set-autosave")).toBeNull();
     await click("flow-mode-edit");
     expect(toggle().getAttribute("aria-pressed")).toBe("false");
-    expect(visibleText(toggle())).toContain("자동 저장");
+    expect(toggle().getAttribute("aria-label")).toBe("자동 저장");
     expect(status()).toBeNull();
   });
 
@@ -90,7 +90,7 @@ describe("자동 저장 단추·상태 글", () => {
     expect(localStorage.getItem(storeKeys.autoSave)).toBe("false");
   });
 
-  it("4. 켜 두면 세트명을 고친 2초 뒤 저장하고, 서버를 다시 부르지 않고 시각·경고 건수를 상태 글에 보인다", async () => {
+  it("4. 켜 두면 세트명을 고친 2초 뒤 저장하고, 서버를 다시 부르지 않고 경고 건수는 상태 글, 시각은 단추 툴팁에 보인다", async () => {
     srv.replies.save = ok({
       setId: "E2S_CHAIN",
       rowVersion: 4,
@@ -110,14 +110,16 @@ describe("자동 저장 단추·상태 글", () => {
     await advance(50);
     expect(calls("view")).toHaveLength(1);
     expect(visibleText(byTestId("set-row-version"))).toBe("row_version 4");
-    expect(visibleText(status()!)).toBe("자동 저장됨 09:05:09 · 경고 1건");
+    // "자동 저장됨 HH:MM:SS" 글은 툴바에 없고 시각은 단추 툴팁에 붙는다. 경고는 건수만 짧게 보인다.
+    expect(visibleText(status()!)).toBe("자동 저장 경고 1건");
     expect(status()!.getAttribute("title")).toBe("경고 문장");
+    expect(toggle().parentElement!.getAttribute("data-tip")).toContain("마지막 자동 저장 09:05:09");
     expect(q("set-message")).toBeNull();
     expect(byTestId<HTMLButtonElement>("set-save").disabled).toBe(true);
     expect(byTestId<HTMLInputElement>("set-name").value).toBe("사슬(자동)");
   });
 
-  it("5. 자동 저장이 진행 중이면 상태 글이 '저장 중' 이고 [세트 저장]·[폐기] 를 누를 수 없다", async () => {
+  it("5. 자동 저장이 진행 중이면 단추 툴팁이 '저장 중' 이고(상태 글 없음) [세트 저장]·[폐기] 를 누를 수 없다", async () => {
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
     srv.replies.save = ok({ setId: "E2S_CHAIN", rowVersion: 4, checks: [] });
@@ -132,7 +134,8 @@ describe("자동 저장 단추·상태 글", () => {
     vi.useFakeTimers();
     await typeInto(byTestId<HTMLInputElement>("set-name"), "사슬(자동)");
     await advance(2000);
-    expect(visibleText(status()!)).toBe("저장 중");
+    expect(status()).toBeNull();
+    expect(toggle().parentElement!.getAttribute("data-tip")).toContain("· 저장 중");
     await typeInto(byTestId<HTMLInputElement>("set-name"), "사슬(자동2)");
     expect(byTestId<HTMLButtonElement>("set-save").disabled).toBe(true);
     expect(byTestId<HTMLButtonElement>("set-deprecate").disabled).toBe(true);

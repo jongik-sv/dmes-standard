@@ -244,7 +244,8 @@ class DataCateEditServiceSqliteTest extends AbstractMdmSharedDbTest {
                 DmdSegmentTestSupport.OPEN);
         DmdSegmentTestSupport.insertItemRow(jdbc, "MD1", "A", "Alpha", DmdSegmentTestSupport.T0,
                 DmdSegmentTestSupport.OPEN, 0, null, null);
-        // "NOPE" 는 존재하지 않는 항목이다 — A(유효, 먼저) 뒤에 와서 실제 부분 삽입이 일어난 뒤 실패해야 한다
+        // "NOPE" 는 존재하지 않는 항목이다 — A(유효, 먼저) 뒤에 온다. 2026-10-01 부터 applyMembers 가 모든 검사를 쓰기 전에
+        // 끝내므로 A 도 쓰이지 않는다(쓰기 중 오류는 한 트랜잭션이라 함께 롤백된다).
 
         CateSaveRequest req = new CateSaveRequest();
         req.setMaruDataId("MD1");
@@ -254,6 +255,33 @@ class DataCateEditServiceSqliteTest extends AbstractMdmSharedDbTest {
 
         assertEquals(0, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM TB_MDM_DATA_CATE_ITEM WHERE MARU_DATA_ID='MD1' AND CATE_ID='GRP'", Integer.class));
+    }
+
+    @Test
+    void R12_TABLE_일괄_적용은_쓰기_도중_실패하면_먼저_쓴_소속도_롤백된다() {
+        DmdSegmentTestSupport.insertMdm(jdbc, "MD1", 0);
+        DmdSegmentTestSupport.insertCateRow(jdbc, "MD1", "GRP", "TABLE", null, null, DmdSegmentTestSupport.T0,
+                DmdSegmentTestSupport.OPEN);
+        DmdSegmentTestSupport.insertItemRow(jdbc, "MD1", "A", "Alpha", DmdSegmentTestSupport.T0,
+                DmdSegmentTestSupport.OPEN, 0, null, null);
+        DmdSegmentTestSupport.insertItemRow(jdbc, "MD1", "B", "Bravo", DmdSegmentTestSupport.T0,
+                DmdSegmentTestSupport.OPEN, 0, null, null);
+        // 검사는 모두 통과한다 — 두 번째 코드(B)의 소속 INSERT 만 DB 가 거부해, 첫 코드(A)의 INSERT 가 이미 나간 뒤 실패한다.
+        jdbc.execute("DROP TRIGGER IF EXISTS TR_CATE_ITEM_FAIL");
+        jdbc.execute("CREATE TRIGGER TR_CATE_ITEM_FAIL BEFORE INSERT ON TB_MDM_DATA_CATE_ITEM "
+                + "WHEN NEW.CODE = 'B' BEGIN SELECT RAISE(ABORT, 'forced failure'); END");
+        try {
+            CateSaveRequest req = new CateSaveRequest();
+            req.setMaruDataId("MD1");
+            req.setCateId("GRP");
+
+            assertThrows(RuntimeException.class, () -> service.save(req, codeRows("A", "B"), null));
+
+            assertEquals(0, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM TB_MDM_DATA_CATE_ITEM WHERE MARU_DATA_ID='MD1' AND CATE_ID='GRP'", Integer.class));
+        } finally {
+            jdbc.execute("DROP TRIGGER IF EXISTS TR_CATE_ITEM_FAIL");
+        }
     }
 
     @Test
@@ -276,7 +304,7 @@ class DataCateEditServiceSqliteTest extends AbstractMdmSharedDbTest {
         assertEquals(List.of("B"), view.getMemberCodes());
     }
 
-    // ── R2′ — dataCateEdit 는 스스로 잠그지 않는다(DataCategorySegmentCore 가 딱 한 번씩) ──
+    // ── R2′ — dataCateEdit 는 스스로 잠그지 않는다(DataCategorySegmentCore 가 저장 한 번에 딱 한 번) ──
 
     @Test
     void R2_reg는_잠금을_한_번만_한다() {
@@ -290,7 +318,7 @@ class DataCateEditServiceSqliteTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
-    void R2_TABLE_일괄_적용은_addCodes와_removeCodes_수만큼_잠근다() {
+    void R2_TABLE_일괄_적용은_소속_수와_무관하게_한_번만_잠근다() {
         DmdSegmentTestSupport.insertMdm(jdbc, "MD1", 0);
         DmdSegmentTestSupport.insertCateRow(jdbc, "MD1", "GRP", "TABLE", null, null, DmdSegmentTestSupport.T0,
                 DmdSegmentTestSupport.OPEN);
@@ -307,7 +335,8 @@ class DataCateEditServiceSqliteTest extends AbstractMdmSharedDbTest {
 
         spiedService.save(req, codeRows("A", "B"), null);
 
-        verify(spyLock, times(2)).lock("MD1"); // addMember 두 번 — 각자 DataCategorySegmentCore 안에서 한 번씩만 잠근다
+        // 2026-10-01 쿼리 낭비 정리 — 예전에는 소속마다 잠갔다(addMember 두 번 = 2). 지금은 applyMembers 가 값을 읽기 전에 한 번.
+        verify(spyLock, times(1)).lock("MD1");
     }
 
     // ── search·view·compare ────────────────────────────────────────────────

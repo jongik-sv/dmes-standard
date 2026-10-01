@@ -260,14 +260,15 @@ public class RuleMngService {
     }
 
     // ────────────────────────────────────────────────────────────────
-    // action: save — target HEADER(룰명·설명·활용처) / VERSION(적중 정책). D-105 (7).
+    // action: save — target HEADER(룰명·설명·활용처). D-105 (7). 적중 정책(옛 target VERSION)은 D-133 으로 ruleEdit 표 저장이 한다.
     // ────────────────────────────────────────────────────────────────
 
     /**
-     * 헤더·버전 화면의 저장. {@code target} 으로 갈린다. 액션을 둘로 나누지 않는 이유는 권한 어휘 16종에 헤더 저장용 이름이
-     * 없다는 점이다 — dme 의 {@code search}(target)·{@code delete}(target) 와 같은 관용구다.
+     * 헤더 화면의 저장. {@code target} 은 {@code HEADER} 하나만 받는다. 액션 이름을 따로 만들지 않은 이유는 권한 어휘 16종에 헤더
+     * 저장용 이름이 없다는 점이다 — dme 의 {@code search}(target)·{@code delete}(target) 와 같은 관용구다.
      *
-     * <p><b>다른 쪽 칸이 섞여 있으면 조용히 버리지 않고 거부한다</b> — 버려진 칸이 있으면 화면이 계약을 잘못 읽은 것이다.
+     * <p>옛 {@code target VERSION}(적중 정책 저장)은 D-133 으로 없앴다. 적중 정책은 판정표의 해석 규칙이라 내용 화면
+     * ({@code ruleEdit} save part TABLE)이 표와 같은 트랜잭션에서 저장한다. 옛 화면이 VERSION 을 보내면 조용히 버리지 않고 거부한다.
      */
     public RuleMngSaveResult save(RuleMngSaveRequest request) {
         if (request == null) {
@@ -275,34 +276,13 @@ public class RuleMngService {
         }
         String target = blankToNull(request.getTarget());
         if (RuleMngSaveRequest.TARGET_HEADER.equals(target)) {
-            rejectFields(request, target, List.of("ver", "rowVersion", "hitPolicy"));
             return headerService.saveHeader(request);
         }
-        if (RuleMngSaveRequest.TARGET_VERSION.equals(target)) {
-            rejectFields(request, target, List.of("auditVer", "maruRuleName", "description", "usageNote"));
-            return versionService.saveHitPolicy(request);
+        if ("VERSION".equals(target)) {
+            throw new BusinessException(ErrorCode.INVALID_VALUE,
+                    "적중 정책은 룰 편집 화면(ruleEdit)의 의사결정표에서 표 저장과 함께 저장합니다(D-133).");
         }
-        throw new BusinessException(ErrorCode.INVALID_VALUE,
-                "저장 대상은 " + RuleMngSaveRequest.TARGET_HEADER + "·" + RuleMngSaveRequest.TARGET_VERSION + " 중 하나여야 합니다: " + target);
-    }
-
-    /** target 과 맞지 않는 칸이 들어오면 그 이름을 들어 거절한다. */
-    private static void rejectFields(RuleMngSaveRequest request, String target, List<String> forbidden) {
-        for (String field : forbidden) {
-            Object value = switch (field) {
-                case "ver" -> request.getVer();
-                case "rowVersion" -> request.getRowVersion();
-                case "hitPolicy" -> request.getHitPolicy();
-                case "auditVer" -> request.getAuditVer();
-                case "maruRuleName" -> request.getMaruRuleName();
-                case "description" -> request.getDescription();
-                default -> request.getUsageNote();
-            };
-            if (value != null && !(value instanceof String s && s.isBlank())) {
-                throw new BusinessException(ErrorCode.INVALID_VALUE,
-                        "저장 대상이 " + target + " 인데 " + field + " 칸이 함께 왔습니다");
-            }
-        }
+        throw new BusinessException(ErrorCode.INVALID_VALUE, "저장 대상은 " + RuleMngSaveRequest.TARGET_HEADER + " 여야 합니다: " + target);
     }
 
     // ────────────────────────────────────────────────────────────────

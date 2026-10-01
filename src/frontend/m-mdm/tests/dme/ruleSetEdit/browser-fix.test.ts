@@ -429,8 +429,9 @@ describe("도움말 Esc 뒤 초점(브라우저 확인 8번 단서)", () => {
     expect(q("rf__edge-e2")!.classList.contains("selected")).toBe(false);
   });
 
-  it("도움말을 연 채 찾기 칸에 초점을 두고 Esc — 도움말만 닫고 초점은 찾기 칸에 남는다(리뷰 Minor 1)", async () => {
+  it("도움말을 연 채 찾기 칸에 초점을 두고 Esc — 도움말만 닫고 찾기 위젯은 열린 채 초점이 찾기 칸에 남는다(리뷰 Minor 1)", async () => {
     await openSet("BF_HELP3", viewOf("BF_HELP3", chain()));
+    await click("flow-find-open");
     await click("flow-help");
     const find = byTestId<HTMLInputElement>("flow-find");
     await act(async () => {
@@ -438,6 +439,7 @@ describe("도움말 Esc 뒤 초점(브라우저 확인 8번 단서)", () => {
     });
     await key(find, { key: "Escape" });
     expect(q("flow-help-panel")).toBeNull();
+    expect(q("flow-find-widget")).not.toBeNull();
     expect(document.activeElement).toBe(find);
   });
 

@@ -2,7 +2,6 @@
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@mantine/core";
-import { IconArrowsMinimize } from "@tabler/icons-react";
 import { signOut } from "next-auth/react";
 import { readSecureJson, writeSecureJson } from "../secure-storage";
 import { cloneSnapshot, isSnapshotEqual } from "../snapshot";
@@ -31,6 +30,7 @@ import type { FavoriteFolderNode } from "./sidebar/FavoritesTree";
 import { TabPageContext } from "./tab-page-context";
 import { ErrorBoundary } from "../components/error-boundary";
 import { useTabHistory } from "./use-tab-history";
+import { useFullscreenSidebarHover } from "./use-fullscreen-sidebar-hover";
 import { useTabFullscreen } from "./use-tab-fullscreen";
 import "./portal-shell.css";
 
@@ -494,13 +494,40 @@ export function PortalShell({
     setIsHeaderVisible((prev) => !prev);
   }, []);
 
-  // 탭 전체 화면 — 헤더·사이드바·탭바를 숨기고 활성 탭 페이지만 보인다. isHeaderVisible 은 건드리지 않는다.
+  // 탭 전체 화면 — 헤더를 접고 사이드바는 화면 위에 겹쳐 여닫는 슬라이딩 메뉴로 바꾼다. 탭바는 남겨
+  // 전체 화면 중에도 탭을 옮기고 메뉴로 다른 화면을 열 수 있다. isHeaderVisible 은 건드리지 않는다.
   const tabFullscreen = useTabFullscreen();
   const { isTabFullscreen, exit: exitTabFullscreen } = tabFullscreen;
+  // 슬라이딩 메뉴의 열림 상태는 평소 사이드바 펼침(isSideNavigationExpanded)과 따로 둔다.
+  const [isFullscreenSidebarOpen, setIsFullscreenSidebarOpen] = useState<boolean>(false);
   useEffect(() => {
-    // 탭이 모두 닫혀 대시보드만 남으면 탭바 없이 갇히지 않게 빠져나온다.
+    setIsFullscreenSidebarOpen(false);
+  }, [isTabFullscreen]);
+  useEffect(() => {
+    // 탭이 모두 닫혀 대시보드만 남으면 전체 화면을 끝낸다.
     if (isTabFullscreen && !activeTab) exitTabFullscreen();
   }, [isTabFullscreen, activeTab, exitTabFullscreen]);
+  // 손잡이에 2초 머물면 열고, 메뉴 밖으로 나간 지 2초 뒤 닫는다.
+  useFullscreenSidebarHover(isTabFullscreen, isFullscreenSidebarOpen, setIsFullscreenSidebarOpen);
+  useEffect(() => {
+    if (!isTabFullscreen || !isFullscreenSidebarOpen) return;
+    // 메뉴 바깥을 누르면 닫는다. 막(backdrop)을 깔지 않아 그 누름은 탭바·화면에도 그대로 간다.
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      // 사이드바가 띄운 모달·드롭다운(Mantine Portal)을 누른 것도 바깥으로 치지 않는다.
+      if (target instanceof Element && target.closest(".sidebar-container, [data-portal]")) return;
+      setIsFullscreenSidebarOpen(false);
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [isTabFullscreen, isFullscreenSidebarOpen]);
+  const handleSidebarMenuItemClick = useCallback(
+    (pageId: string) => {
+      openPageTab(pageId);
+      if (isTabFullscreen) setIsFullscreenSidebarOpen(false);
+    },
+    [openPageTab, isTabFullscreen]
+  );
 
   const isCurrentPageFavorite = useMemo(() => {
     if (!activeTab) return false;
@@ -773,7 +800,7 @@ export function PortalShell({
 
   return (
     <AppShell
-      className={`portal-shell${isTabFullscreen ? " portal-shell--tab-fullscreen" : ""}`}
+      className={isTabFullscreen ? "portal-shell portal-shell--tab-fullscreen" : "portal-shell"}
       header={{ height: PORTAL_HEADER_HEIGHT, collapsed: !isHeaderVisible || isTabFullscreen }}
       padding={0}
     >
@@ -796,10 +823,12 @@ export function PortalShell({
             favoriteFolders={favoriteTree}
             navigationViewMode={navigationViewMode}
             onNavigationViewModeChange={setNavigationViewMode}
-            isExpanded={isSideNavigationExpanded}
-            onExpandedChange={setIsSideNavigationExpanded}
+            isExpanded={isTabFullscreen ? isFullscreenSidebarOpen : isSideNavigationExpanded}
+            onExpandedChange={
+              isTabFullscreen ? setIsFullscreenSidebarOpen : setIsSideNavigationExpanded
+            }
             activePageId={activeTab?.pageId ?? null}
-            onMenuItemClick={openPageTab}
+            onMenuItemClick={handleSidebarMenuItemClick}
             onAddFavoriteFolder={handleAddFavoriteFolder}
             onDeleteFavoriteFolder={handleDeleteFavoriteFolder}
             onDeleteFavorite={handleDeleteFavorite}
@@ -826,20 +855,10 @@ export function PortalShell({
                 onToggleFavorite={handleToggleFavorite}
                 onCapture={handleCapture}
                 onEnterFullscreen={activeTab ? tabFullscreen.enter : undefined}
+                isFullscreen={isTabFullscreen}
+                onExitFullscreen={exitTabFullscreen}
               />
               <div className="portal-shell__content-area">
-                {isTabFullscreen && (
-                  <button
-                    type="button"
-                    className="portal-shell__fullscreen-exit"
-                    onClick={exitTabFullscreen}
-                    title="전체 화면 끝내기 (Esc)"
-                    aria-label="전체 화면 끝내기"
-                  >
-                    <IconArrowsMinimize size={14} stroke={2} aria-hidden="true" />
-                    <span>전체 화면 끝내기</span>
-                  </button>
-                )}
                 {tabs.length === 0 ? (
                   <Dashboard />
                 ) : (

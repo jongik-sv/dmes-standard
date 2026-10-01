@@ -63,7 +63,7 @@ SampleErp 화면 1개의 **모든 분석 결과 (BPA 본문 + 기술 상세 + �
 - `품목미결처리(품질)` → 그대로 유지 (괄호 OK)
 - `Job 매칭/조회` → `Job 매칭조회` (슬래시 제거)
 
-> 산출물 템플릿(`templates/bpa_report_template.md`) 의 §1~11 헤딩 / placeholder 는 부산 시절 그대로 보존한다 — 산출물 동일성 우선. §A 기술 상세 Appendix 는 V3 신설. 본문 채울 때 어휘만 [`_shared/vocabulary-mapping.md`](../_shared/vocabulary-mapping.md) 의 Java→C# / PL/SQL→T-SQL 매핑을 적용한다.
+> 산출물 템플릿(`templates/bpa_report_template.md`) 의 §1~11 헤딩 / placeholder 는 부산 시절 그대로 보존한다 — 산출물 동일성 우선. §A 기술 상세 Appendix 는 V3 신설. 본문 채울 때 어휘만 [`_shared/vocabulary-mapping.md`](../_shared/vocabulary-mapping.md) 의 Java→C# 어휘 + 원천 DBMS 방언(§3) 매핑을 적용한다 (원천 DBMS 는 같은 파일 §3-1 순서로 판정).
 
 ---
 
@@ -305,7 +305,7 @@ docs/external/SampleErp/orgErpReport/{moduleId}/.cache/{SCREEN-ID}/ui_analysis.j
 메인 + 연관 화면 모두:
 1. `structure.json` → 화면 구조, 컴포넌트 목록, 서브화면
 2. `java_analysis.json` → 커스텀 partial class 정보 (의미는 C# 클래스 — vocabulary-mapping 적용)
-3. `sql_analysis.json` → MSSQL procedure 분석, 테이블 정보
+3. `sql_analysis.json` → 레거시 DB procedure 분석 (판정된 원천 DBMS 기준), 테이블 정보
 4. `ui_analysis.json` → 화면 레이아웃 (WinForms Designer.cs/.resx), 이벤트
 
 ### Step 4: 커스텀 클래스 분석 보고서 로드
@@ -318,7 +318,7 @@ class_analysis.md 의 "총 라인 수" 또는 `wc -l` 로 확인. **200줄 이�
 
 ### Step 6: BPA 보고서 생성
 
-**반드시 [templates/bpa_report_template.md](templates/bpa_report_template.md) 을 먼저 읽은 후**, 그 구조를 정확히 따라 작성한다. 본문 채울 때 [`../_shared/vocabulary-mapping.md`](../_shared/vocabulary-mapping.md) 의 Java→C# / PL/SQL→T-SQL 어휘 매핑을 적용한다.
+**반드시 [templates/bpa_report_template.md](templates/bpa_report_template.md) 을 먼저 읽은 후**, 그 구조를 정확히 따라 작성한다. 본문 채울 때 [`../_shared/vocabulary-mapping.md`](../_shared/vocabulary-mapping.md) 의 Java→C# 어휘 + 원천 DBMS 방언(§3) 매핑을 적용한다.
 
 #### 데이터 소스별 섹션 매핑:
 
@@ -496,11 +496,11 @@ class_analysis.md 의 "총 라인 수" 또는 `wc -l` 로 확인. **200줄 이�
 ## A1. 컴포넌트 / 이벤트 핸들러 매핑
 (structure.json 의 activities / customActivities 표화. 각 행: 컴포넌트명 / 핸들러 / 호출 procedure / 비즈니스 의미 / P-XX 매핑)
 
-## A2. MSSQL procedure 호출 매핑
-(sql_analysis.json 의 `plsqlCalls.detectedCalls` 표화. 각 행: procedure 명 / 유형 / 용도 / 분석 보고서 링크)
+## A2. DB procedure 호출 매핑
+(sql_analysis.json 의 `plsqlCalls.detectedCalls` 표화. 각 행: procedure 명 / 유형 / 용도 / 분석 보고서 링크. 표 위에 `원천 DBMS: X` 한 줄 명시. 호출명은 판정 방언 표기 — Oracle `{PKG}.{PROC}` · PostgreSQL `{schema}.{fn}` · MSSQL `dbo.{name}`)
 | # | 호출명 | 유형 | 용도 | 상세 분석 |
 |---|--------|------|------|----------|
-| 1 | dbo.{name} | procedure | {용도} | [../DBMS/procedures/{name}.md](../DBMS/procedures/{name}.md) |
+| 1 | {schema}.{name} | procedure | {용도} | [../DBMS/procedures/{name}.md](../DBMS/procedures/{name}.md) |
 
 ## A3. inline SQL 쿼리
 (`.cache/{SCREEN-ID}/inline_queries.md` 가 있으면 본문 인라인 인용. 없으면 "inline SQL 없음" 표기)
@@ -512,7 +512,7 @@ class_analysis.md 의 "총 라인 수" 또는 `wc -l` 로 확인. **200줄 이�
 (ui_analysis.json 의 컨트롤 계층 트리 표화. 본 화면이 WinForms 가 아닌 경우 생략)
 ```
 
-> Appendix 본문 어휘에도 `_shared/vocabulary-mapping.md` 의 Java→C# / PL/SQL→T-SQL 매핑 적용.
+> Appendix 본문 어휘에도 `_shared/vocabulary-mapping.md` 의 Java→C# 어휘 + 원천 DBMS 방언(§3) 매핑 적용.
 
 > Appendix 가 비어있는 경우 (조회 전용 + 기술 정보 거의 없음) 도 §A 헤딩과 "본 화면은 기술 상세 정보가 충분치 않습니다" 한 줄로 명시 (사용자가 §A 의 부재를 의심하지 않도록).
 
@@ -560,7 +560,7 @@ docs/external/SampleErp/orgErpReport/{moduleId}/screens/{SCREEN-ID}_{화면명}.
 이 스킬을 서브에이전트에 위임할 때, 다음을 **프롬프트에 반드시 포함**한다:
 
 1. **템플릿 파일 경로** 와 "반드시 이 파일을 읽고 섹션 구조를 정확히 따를 것"
-2. **vocabulary-mapping.md 경로** 와 "본문 채울 때 Java→C# / PL/SQL→T-SQL 어휘 매핑 적용"
+2. **vocabulary-mapping.md 경로** 와 "본문 채울 때 Java→C# 어휘 + 원천 DBMS 방언(§3) 매핑 적용" (판정된 원천 DBMS 를 알면 함께 전달)
 3. 아래 규칙 블록:
 
 ```
@@ -577,5 +577,5 @@ docs/external/SampleErp/orgErpReport/{moduleId}/screens/{SCREEN-ID}_{화면명}.
 10. 핵심 워크플로우 노드 품질 — 섹션 3 노드는 비즈니스 의미 단위. 프로그램 실행 단계 나열 금지
 11. BPMN 동시 산출 — BPA md 와 함께 `{MODULE}/screens/{SCREEN-ID}_{화면명}.bpmn` 산출 (V3.1 — screens/ 평탄 구조 내 형제. 파일명에 한글 화면명 포함). **반드시 `bpmn-skill` (= `@cothe/bpmn-tool` CLI) 사용. 직접 XML 편집 금지** — DI 좌표·BPMNShape/BPMNEdge 는 `bpmn-tool create` 가 자동 관리. 규칙은 `bpmn-skill/SKILL.md` + `_shared/bpmn-output-convention.md` 참조
 12. 간결 문체 — 종결 어미 제거. 접속어 축약. 백틱 컬럼명 제거. procedure 파라미터 나열 금지
-13. 본문 어휘 매핑 — `_shared/vocabulary-mapping.md` 적용 (Java→C#, PL/SQL→T-SQL)
+13. 본문 어휘 매핑 — `_shared/vocabulary-mapping.md` 적용 (Java→C#, DB 는 판정된 원천 DBMS 방언)
 ```

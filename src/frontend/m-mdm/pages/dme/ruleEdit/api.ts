@@ -4,7 +4,7 @@
  *
  * <p>D-105 로 헤더·버전 관리(_HEADER_ 저장·폐기·새 버전·DRAFT 삭제·선점·해제·넘기기·확정 취소)는 `ruleMng` 화면으로
  * 옮겨 갔다 — 서버 서비스도 `ruleMng` 의 `view`·`save`·`copy`·`delete`·`lock`·`unlock`·`handover` 로 옮겨 갔다.
- * 적중 정책(HIT_POLICY)도 버전 속성이므로 그쪽에서 저장한다(D-105 (4)) — 여기는 <b>저장된 값을 읽어</b> 표 저장을 한다.
+ * 적중 정책(HIT_POLICY)은 판정표의 해석 규칙이라 여기서 표와 함께 저장한다(D-133, D-105 (4) 번복).
  *
  * <p>표 저장의 행은 params 가 아니라 `grids.rows.rows` 로 보낸다(Build 이탈 B4). 쓰기 뒤에는 화면이 view 를 다시 불러
  * row_version 을 맞춘다.
@@ -45,11 +45,23 @@ export interface TableSaveRow {
 }
 
 /**
- * 표 저장 — 적중 정책은 보내지 않는다(D-105 (4)). 서버는 그 버전에 <b>저장된</b> 값을 읽어 검사 입력으로 쓴다.
- * 정책은 헤더·버전 화면(`ruleMng save target VERSION`)이 따로 저장한다.
+ * 표 저장 — 행과 적중 정책을 한 요청·한 트랜잭션으로 저장한다(D-133). 정책은 판정 룰(DECISION)만 싣고, 산출 룰은 비운다
+ * (서버가 거부한다). 서버는 정책이 바뀌면 새 정책으로 표를 검사하고, 저장된 열 설정(집계·순위·결과 열 그룹)이 새 정책과
+ * 어긋나면 거부한다.
  */
-export function saveTable(ruleId: string, ver: number, rowVersion: number, rows: TableSaveRow[]): Promise<RuleTableSaveResult> {
-  return callOasis<RuleTableSaveResult>(SERVICE, "save", { part: "TABLE", maruRuleId: ruleId, ver, rowVersion }, { rows: { rows: tableGridRows(rows) } });
+export function saveTable(
+  ruleId: string,
+  ver: number,
+  rowVersion: number,
+  rows: TableSaveRow[],
+  hitPolicy?: HitPolicyCode | null,
+): Promise<RuleTableSaveResult> {
+  return callOasis<RuleTableSaveResult>(
+    SERVICE,
+    "save",
+    { part: "TABLE", maruRuleId: ruleId, ver, rowVersion, hitPolicy: hitPolicy ?? undefined },
+    { rows: { rows: tableGridRows(rows) } },
+  );
 }
 
 /** 표 행 → `grids.rows.rows` 한 줄(빈 행 설명은 뺀다). 표 저장과 값 테스트 BODY 가 같은 모양을 쓴다. */

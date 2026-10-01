@@ -54,8 +54,26 @@ public class DataCategoryResolver {
         } catch (PatternSyntaxException e) {
             return new Preview(true, List.of());
         }
+        return match(rows.latestItemRows(maruDataId), pattern, defTarget);
+    }
+
+    /**
+     * {@link #preview(String, String, String)} 와 같다 — 다만 호출자가 이미 읽은 {@link DataSegmentRowStore#latestItemRows}
+     * (또는 그중 열린 행만)를 받는다. 한 요청에서 REGEX 카테고리 여러 개를 셀 때 항목 행을 카테고리마다 다시 읽지 않게 한다.
+     */
+    public static Preview preview(List<ItemSegmentRow> latestRows, String defExpr, String defTarget) {
+        Pattern pattern;
+        try {
+            pattern = Pattern.compile(defExpr);
+        } catch (PatternSyntaxException e) {
+            return new Preview(true, List.of());
+        }
+        return match(latestRows, pattern, defTarget);
+    }
+
+    private static Preview match(List<ItemSegmentRow> latestRows, Pattern pattern, String defTarget) {
         List<Match> matched = new ArrayList<>();
-        for (ItemSegmentRow row : rows.latestItemRows(maruDataId)) {
+        for (ItemSegmentRow row : latestRows) {
             if (row.isOpen() && matches(pattern, targetValue(row, defTarget))) {
                 matched.add(new Match(row.key().code(), row.value().name()));
             }

@@ -1,6 +1,7 @@
 "use client";
 
 /** A-IMPACT 영향도 표(L-021·L-022)·변경 분류·diff(L-031). 03·06 참조는 서버가 SPI 로 모은 결과다. */
+import { useMemo } from "react";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { classificationLabel, diffValue, directionLabel } from "../change-view";
 import type { DiffRow, ImpactTable } from "../types";
@@ -46,9 +47,10 @@ export interface DomainImpactPanelProps {
 }
 
 export function DomainImpactPanel({ impact, classification, diff }: DomainImpactPanelProps) {
+  const impactData = useMemo(() => impactRows(impact), [impact]);
   return (
     <div className="domain-mng__impact">
-      <AgDataGrid columnSizing="fit" columns={IMPACT_COLUMNS} data={impactRows(impact)} rowKey="ID" height={200}
+      <AgDataGrid columnSizing="fit" columns={IMPACT_COLUMNS} data={impactData} rowKey="ID" height={200}
         emptyMessage="도메인을 선택하면 영향도가 보입니다" />
       <p style={sectionTitle}>
         변경 분류: <span className="domain-mng__classification">{classificationLabel(classification)}</span>

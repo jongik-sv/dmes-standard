@@ -46,5 +46,12 @@ public enum RuleSaveIssueCode {
     SET_IF_SIBLING,
     SET_PAR_SIBLING,
     CONTRACT_CHANGED,
-    EXPR_TYPE_BY_CASE
+    EXPR_TYPE_BY_CASE,
+    /**
+     * 적중 정책을 바꾼 표 저장에서 저장된 열 설정이 새 정책과 어긋남(D-133). 이름과 문구는 열 설정 검사({@code RuleColumnsService},
+     * 화면 {@code column-draft.ts})와 같다 — 집계는 COLLECT, 순위는 PRIORITY, 결과 열 그룹은 FIRST·UNIQUE 에서만.
+     */
+    AGG_COLLECT,
+    PRIO_PRIORITY,
+    GRP_POLICY
 }

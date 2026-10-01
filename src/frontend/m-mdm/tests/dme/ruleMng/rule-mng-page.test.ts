@@ -2,7 +2,8 @@
 
 // D-105 — rulMng 상세(① 헤더·② 버전) 화면 테스트.
 //
-// 헤더 저장·폐기·새 버전·DRAFT 삭제·선점·해제·넘기기·확정 취소와 적중 정책 저장이 이 화면으로 옮겨 왔고(D-105),
+// 헤더 저장·폐기·새 버전·DRAFT 삭제·선점·해제·넘기기·확정 취소가 이 화면으로 옮겨 왔고(D-105 — 적중 정책 저장은 D-133 으로
+// ruleEdit 표 저장으로 다시 갔다. 여기는 버전 목록에 보이기만 한다),
 // 낙관적 잠금(auditVer)이 새로 들어왔다. 나머지(룰 고르기·handoff 수신·편집 켜기/끄기·버전 고르기·활용처)는
 // ruleEdit 화면 테스트가 본다.
 import { createElement, act } from "react";
@@ -13,7 +14,7 @@ import { HANDOVER_AVAILABLE, HANDOVER_PENDING_TEXT, takeMdmPageParams } from "@/
 
 import RuleMngPage from "../../../pages/dme/ruleMng/page";
 import type { RuleMngView } from "../../../pages/dme/ruleMng/types";
-import { RBAC_STORE_KEY, findButton, flush, installDomStorage, jsonResponse, selectValue, typeInto } from "../helpers/render";
+import { RBAC_STORE_KEY, findButton, flush, installDomStorage, jsonResponse, typeInto } from "../helpers/render";
 import { RULE_EDIT_TARGET_KEY } from "../../../src/dme/rule-handoff";
 
 const HANDOVER_LABEL = "넘기기(준비 중)";
@@ -349,37 +350,29 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
     expect(byTestId<HTMLButtonElement>("rule-cancel-confirm")!.disabled).toBe(true);
   });
 
-  // ── 적중 정책 (D-105 (4)) ──
+  // ── 적중 정책 (D-133 — D-105 (4) 번복: 고치는 곳은 ruleEdit 의사결정표, 여기는 보이기만) ──
 
-  it("적중 정책 저장은 target VERSION·ver·rowVersion·hitPolicy 를 보내고 헤더 칸은 싣지 않는다", async () => {
+  it("적중 정책은 버전 목록 칸에 보이기만 하고 고르는 칸·저장 버튼이 없다", async () => {
+    view = draftDetail({ versions: [{ ...draftDetail().versions[0], hitPolicy: "UNIQUE" }, draftDetail().versions[1]] });
     await render();
-    await selectValue(byTestId<HTMLSelectElement>("rule-hit-policy")!, "UNIQUE");
-    await act(async () => byTestId<HTMLButtonElement>("rule-hit-policy-save")!.click());
-    await flush();
-    expect(params("save")).toEqual({ target: "VERSION", maruRuleId: "QLTY_GRD_JDG", ver: 2, rowVersion: 3, hitPolicy: "UNIQUE" });
-    expect(params("save")).not.toHaveProperty("auditVer");
-    expect(params("save")).not.toHaveProperty("maruRuleName");
+    expect(byTestId("rule-hit-policy")).toBeNull();
+    expect(byTestId("rule-hit-policy-save")).toBeNull();
+    expect(Array.from(container.querySelectorAll("button")).some((b) => b.textContent?.includes("적중 정책 저장"))).toBe(false);
+    const versions = byTestId("rule-version-table")!.textContent ?? "";
+    expect(versions).toContain("적중 정책");
+    expect(versions).toContain("UNIQUE");
+    expect(byTestId("rule-hit-policy-hint")?.textContent).toContain("의사결정표");
+    expect(requests.some((r) => r.action === "save")).toBe(false);
   });
 
-  it("적중 정책이 이미 그 값이면 [적중 정책 저장] 은 꺼져 있다", async () => {
-    await render();
-    expect(byTestId<HTMLSelectElement>("rule-hit-policy")!.value).toBe("FIRST");
-    expect(byTestId<HTMLButtonElement>("rule-hit-policy-save")!.disabled).toBe(true);
-  });
-
-  it("산출 룰(DERIVE)에는 적중 정책 칸 대신 없다고 말한다(서버가 거부하는 값)", async () => {
+  it("산출 룰(DERIVE)은 적중 정책이 없어 목록 칸이 - 이고 안내도 없다", async () => {
     view = draftDetail({
       header: { ...draftDetail().header, ruleKind: "DERIVE" },
+      versions: draftDetail().versions.map((v) => ({ ...v, hitPolicy: null })),
     });
     await render();
-    expect(byTestId("rule-hit-policy-none")?.textContent).toContain("산출 룰에는 없습니다");
-    expect(byTestId("rule-hit-policy")).toBeNull();
-  });
-
-  it("소유자가 아니면 적중 정책을 고를 수 없다", async () => {
-    view = draftDetail({ versions: [{ ...draftDetail().versions[0], ownerId: "someone_else" }, draftDetail().versions[1]] });
-    await render();
-    expect(byTestId<HTMLSelectElement>("rule-hit-policy")?.disabled).toBe(true);
+    expect(byTestId("rule-hit-policy-hint")).toBeNull();
+    expect(byTestId("rule-version-table")!.textContent).toContain("-");
   });
 
   // ── 룰 등록 팝업 — 목록 헤더 [룰 등록] 이 연다 ──

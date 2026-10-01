@@ -8,7 +8,11 @@ import com.dongkuk.dmes.mdm.contract.data.MdmTemporalSegmentRules;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import org.hibernate.query.NativeQuery;
 import org.springframework.stereotype.Repository;
 
@@ -35,6 +39,9 @@ public class DataSegmentRowStore {
             + "DEF_TARGET, DESCRIPTION, CHG_SEQ";
     static final String CATE_ITEM_COLUMNS = "MARU_DATA_ID, CATE_ID, CODE, VALID_FROM, VALID_TO, CHG_SEQ";
 
+    /** IN 목록 한 번에 묶는 값 수 — SQLite 옛 바인딩 한도(999)·다른 방언 한도(2100 등)보다 작게 둔다. */
+    static final int IN_CHUNK = 500;
+
     private static final String AUDIT_SET = ", U_USR_ID = :uUsrId, U_AT = :uAt, U_SVC_ID = :uSvcId, U_PGM_ID = :uPgmId, "
             + "VER = COALESCE(VER, 0) + 1";
     private static final String AUDIT_VALUES = ":cUsrId, :cAt, :cSvcId, :cPgmId, :cUsrId, :cAt, :cSvcId, :cPgmId, 0";
@@ -57,6 +64,25 @@ public class DataSegmentRowStore {
         bindString(q, "md", maruDataId);
         bindString(q, "code", code);
         return itemList(q.getResultList());
+    }
+
+    /**
+     * 여러 키의 항목 선분 행 — CODE 별 목록(각각 valid_from 오름차순, {@link #itemRows} 와 같은 순서). 행이 없는 CODE 는 맵에
+     * 없다. IN 목록은 {@link #IN_CHUNK} 개씩 나눠 읽는다(바인딩 한도).
+     */
+    public Map<String, List<ItemSegmentRow>> itemRowsByCodes(String maruDataId, Collection<String> codes) {
+        Map<String, List<ItemSegmentRow>> out = new LinkedHashMap<>();
+        for (List<String> chunk : chunks(codes)) {
+            String sql = "SELECT " + ITEM_COLUMNS + " FROM TB_MDM_DATA_ITEM WHERE MARU_DATA_ID = :md AND CODE IN (:codes) "
+                    + "ORDER BY CODE, VALID_FROM";
+            NativeQuery<?> q = query(sql);
+            bindString(q, "md", maruDataId);
+            q.setParameterList("codes", chunk, String.class);
+            for (ItemSegmentRow row : itemList(q.getResultList())) {
+                out.computeIfAbsent(row.key().code(), k -> new ArrayList<>()).add(row);
+            }
+        }
+        return out;
     }
 
     /** 마루 데이터 안 키별 마지막 행(닫힌 키 포함) — 검사 5-1·일괄 upsert 판정용. 키 오름차순. */
@@ -232,6 +258,30 @@ public class DataSegmentRowStore {
         return out;
     }
 
+    /**
+     * 여러 소속 키({@code cateId} 하나·CODE 여럿)의 선분 행 — CODE 별 목록(각각 valid_from 오름차순, {@link #cateItemRows} 와
+     * 같은 순서). 행이 없는 CODE 는 맵에 없다. IN 목록은 {@link #IN_CHUNK} 개씩 나눠 읽는다(바인딩 한도).
+     */
+    public Map<String, List<CateItemSegmentRow>> cateItemRowsByCodes(String maruDataId, String cateId,
+                                                                    Collection<String> codes) {
+        Map<String, List<CateItemSegmentRow>> out = new LinkedHashMap<>();
+        for (List<String> chunk : chunks(codes)) {
+            String sql = "SELECT " + CATE_ITEM_COLUMNS + " FROM TB_MDM_DATA_CATE_ITEM WHERE MARU_DATA_ID = :md "
+                    + "AND CATE_ID = :cateId AND CODE IN (:codes) ORDER BY CODE, VALID_FROM";
+            NativeQuery<?> q = query(sql);
+            bindString(q, "md", maruDataId);
+            bindString(q, "cateId", cateId);
+            q.setParameterList("codes", chunk, String.class);
+            for (Object o : q.getResultList()) {
+                Object[] r = (Object[]) o;
+                CateItemSegmentRow row = new CateItemSegmentRow(new DataCateItemKey((String) r[0], (String) r[1],
+                        (String) r[2]), temporal.fromDb(r[3]), temporal.fromDb(r[4]), ((Number) r[5]).longValue());
+                out.computeIfAbsent(row.key().code(), k -> new ArrayList<>()).add(row);
+            }
+        }
+        return out;
+    }
+
     public void insertCateItem(CateItemSegmentRow row, AuditStamp stamp) {
         String sql = "INSERT INTO TB_MDM_DATA_CATE_ITEM (" + CATE_ITEM_COLUMNS + ", " + NATIVE_COLUMN_LIST + ") VALUES ("
                 + ":md, :cateId, :code, :vf, :vt, 0, " + AUDIT_VALUES + ")";
@@ -289,6 +339,16 @@ public class DataSegmentRowStore {
         DataCateValue value = new DataCateValue((String) r[4], (String) r[5], (String) r[6], (String) r[7], (String) r[8]);
         return new CateSegmentRow(new DataCateKey((String) r[0], (String) r[1]), temporal.fromDb(r[2]),
                 temporal.fromDb(r[3]), value, ((Number) r[9]).longValue());
+    }
+
+    /** 중복을 뺀(처음 순서 유지) 값을 {@link #IN_CHUNK} 개씩 나눈다. */
+    private static List<List<String>> chunks(Collection<String> values) {
+        List<String> distinct = new ArrayList<>(new LinkedHashSet<>(values));
+        List<List<String>> out = new ArrayList<>();
+        for (int i = 0; i < distinct.size(); i += IN_CHUNK) {
+            out.add(distinct.subList(i, Math.min(distinct.size(), i + IN_CHUNK)));
+        }
+        return out;
     }
 
     private static String prefixed(String alias, String columns) {

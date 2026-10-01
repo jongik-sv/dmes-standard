@@ -10,7 +10,6 @@ const DEBUG_MODE_CSS = `
   padding: var(--spacing-xs) var(--spacing-md); border-bottom: 1px solid var(--color-border-light); background: var(--color-bg-light);
 }
 .rsf-dbg-buttons { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-xs); }
-.rsf-dbg-buttons button svg { margin-right: 2px; }
 .rsf-dbg-sep { align-self: stretch; width: 1px; margin: 2px 0; background: var(--color-border); }
 .rsf-dbg-status { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .rsf-dbg-status[data-end="error"] { color: var(--color-danger); }

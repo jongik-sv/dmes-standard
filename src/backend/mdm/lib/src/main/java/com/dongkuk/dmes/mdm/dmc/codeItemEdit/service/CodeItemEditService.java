@@ -91,16 +91,18 @@ public class CodeItemEditService {
 
     private final MasterCodeRows rows;
     private final MasterCodeSegmentService segments;
+    private final MasterCodeItemSegmentOps itemOps;
     private final VersionWriteGuard versionWriteGuard;
     private final MdmCurrentUser currentUser;
     private final MdmCodeItemRepository itemRepository;
     private final Clock clock;
 
-    public CodeItemEditService(MasterCodeRows rows, MasterCodeSegmentService segments,
+    public CodeItemEditService(MasterCodeRows rows, MasterCodeSegmentService segments, MasterCodeItemSegmentOps itemOps,
                                VersionWriteGuard versionWriteGuard, MdmCurrentUser currentUser,
                                MdmCodeItemRepository itemRepository, Clock clock) {
         this.rows = rows;
         this.segments = segments;
+        this.itemOps = itemOps;
         this.versionWriteGuard = versionWriteGuard;
         this.currentUser = currentUser;
         this.itemRepository = itemRepository;
@@ -328,14 +330,8 @@ public class CodeItemEditService {
         // 여기까지 쓰기가 없다(불변 규칙 22). 아래부터는 OASIS 트랜잭션 안에서 함께 커밋·롤백된다.
         VersionRef ref = ref(code.getMaruCodeId(), v);
         long rowVersion = versionWriteGuard.beginDraftWrite(ref, request.getRowVersion(), currentUser.userId());
-        Map<String, Object> closedCategories = new LinkedHashMap<>();
-        for (Change c : projected.changes()) {
-            switch (c.status()) {
-                case DELETED -> closedCategories.put(c.code(), segments.removeItem(ref, c.code()));
-                case CHANGED -> segments.changeItem(ref, c.code(), c.values());
-                case ADDED -> segments.addItem(ref, c.code(), c.values());
-            }
-        }
+        // 행마다 segments.addItem·changeItem·removeItem 을 부른 것과 같다 — 다만 버전·코드 행을 행마다 다시 읽지 않는다.
+        Map<String, Object> closedCategories = new LinkedHashMap<>(itemOps.applyItems(ref, projected.changes()));
         MasterCodeCateSaves.apply(segments, ref, projected.cate());
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("rowVersion", rowVersion);

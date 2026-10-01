@@ -561,13 +561,16 @@ describe("디버그 모드 — 변수·조사식·식 평가·입력", () => {
     expect(q("var-grid")).toBeNull();
   });
 
-  it("11. 권한이 view·search 뿐이면 [디버그] 는 들어가지만 실행·케이스 쓰기·식 평가가 꺼져 있고 title 로 이유를 보인다", async () => {
+  it("11. 권한이 view·search 뿐이면 [디버그] 는 들어가지만 실행·케이스 쓰기·식 평가가 꺼져 있고 툴팁·title 로 이유를 보인다", async () => {
     srv.rbacRows = ["search", "view"].map((action) => ({ objId: "ruleSetEdit", action, endpoint: "*", httpMethod: "*" }));
     await openDebug([CASE_A]);
     expect(pressed("flow-mode-debug")).toBe("true");
+    // 디버그 툴바 단추는 아이콘 단추라 이유를 감싼 span 의 툴팁(data-tip)으로 보인다. [모두 실행]은 title 그대로다.
     for (const id of ["dbg-continue", "dbg-step", "dbg-restart", "dbg-finish", "case-run-all"]) {
       expect(disabled(id), id).toBe(true);
-      expect(byTestId(id).getAttribute("title"), id).toBe("디버거는 편집 권한이 있어야 쓸 수 있다");
+      const el = byTestId(id);
+      const reason = id.startsWith("dbg-") ? el.parentElement!.getAttribute("data-tip") : el.getAttribute("title");
+      expect(reason, id).toBe("디버거는 편집 권한이 있어야 쓸 수 있다");
     }
     expect(disabled("case-save-current")).toBe(true);
     const expr = byTestId<HTMLInputElement>("expr-input");

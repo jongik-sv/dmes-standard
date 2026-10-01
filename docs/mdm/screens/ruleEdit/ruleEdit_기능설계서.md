@@ -20,6 +20,11 @@ moduleGroup: dme
 > 것을 표로 한 번 더 펼쳐 놓은 것뿐이었고 엔진은 축을 읽지 않았다. 두 표현 중 그룹만 남긴다. 아래 절에서 이
 > 둘을 언급하지 않는다.
 >
+> **2026-10-01 — 적중 정책은 이 화면(§5.3)에서 고친다(D-133, D-105 (4) 번복).** D-105 로 ① 헤더·② 버전 카드(§5.1·§5.2)는
+> 룰 화면(`ruleMng`) 상세로 옮겨 갔고 그쪽이 정본이다(이 문서의 §5.1·§5.2 는 옮기기 전 기록). 적중 정책은 D-105 (4) 때 함께
+> `ruleMng` ② 버전으로 갔다가 D-133 으로 되돌아왔다 — 의사결정표의 해석 규칙이라 표와 함께 고치고 [표 저장] 한 번에 저장한다.
+> `ruleMng` 은 버전 목록에 보이기만 한다.
+>
 > **Frontend 개발 연계 값** — mesModule `m-mdm` / moduleGroup `dme` / pageName `ruleEdit` / pageId `ruleEdit` / 포털 pageId
 > `mdm:dme/ruleEdit` / tsup entry key `pages/dme/ruleEdit/page`
 
@@ -123,8 +128,17 @@ row_version 을 서버 값으로 맞춘다. 거부가 MDM001 이면 "다른 창�
 
 ### 5.3 카드 ③ 의사결정표 (`DecisionTableCard`)
 
-**적중 정책**(DECISION 만): FIRST·UNIQUE·PRIORITY·COLLECT·ANY 와 한 줄 설명. 산출(DERIVE) 룰은 "산출 룰은 열 설정(TSK-08-03)에서
-편집한다" 안내와 읽기 전용 표.
+**적중 정책**(DECISION 만, D-133): 표 위 Select(`dt-hit-policy`) — FIRST·UNIQUE·PRIORITY·COLLECT·ANY 와 한 줄 설명. 산출(DERIVE)
+룰은 "산출 룰은 열 설정(TSK-08-03)에서 편집한다" 안내와 읽기 전용 표이고 정책 칸이 없다.
+
+| 항목 | 규칙 |
+|---|---|
+| 고칠 수 있는 때 | 표 편집과 같다 — 서버 `editable`(원천 MDM·선택 버전 DRAFT·소유자 = 나) && DECISION && `save` 권한. 아니면 Select 가 꺼진다 |
+| 바꾸면 | 즉시 검사(Worker, I13)가 새 정책으로 다시 돈다(예: UNIQUE 면 겹침이 오류). 정책만 바꿔도 "저장 안 한 변경"(`dt-dirty`)이고, 머리에 `불러온 값 → 새 값 (표 저장 때 함께 저장)`(`dt-hit-policy-changed`)을 보인다. 값 테스트(편집본)도 이 정책으로 돈다 |
+| 되돌리기 | 행과 함께 정책도 불러온 값으로 되돌린다 |
+| 저장 | 따로 저장하지 않는다 — [표 저장] 이 `hitPolicy` 를 실어 행과 같은 트랜잭션에 저장한다(서버는 같은 값이면 쓰지 않는다) |
+| 열 설정과 어긋남 | 정책을 바꿨을 때 저장된 열 설정이 새 정책과 맞지 않으면 열 설정 검사와 같은 문구로 알리고(`dt-hit-policy-conflicts`, [열 설정 보기]) [표 저장] 을 끈다: 집계(LIST 밖)는 COLLECT, 순위는 PRIORITY, 결과 열 그룹은 FIRST·UNIQUE 에서만(`AGG_COLLECT`·`PRIO_PRIORITY`·`GRP_POLICY`). 기본 집계 LIST 는 어긋남이 아니고, 정책이 COLLECT 밖으로 바뀌면 서버가 그 버전의 LIST 를 비운다. 열 설정을 먼저 지금 정책에서 고친 뒤 정책을 바꾼다 |
+| 열 설정 섹션 | 열 설정 검사·적용은 **저장된** 정책을 쓴다(표의 저장 안 한 정책은 쓰지 않는다). 열 설정 초안이 있으면 표 저장이 막히므로(불변 13) 둘이 섞여 저장되지 않는다 |
 
 **그리드 열**(3줄 머리 — shared `AgDataGrid` 열 그룹, D8):
 
@@ -153,8 +167,8 @@ row_version 을 서버 값으로 맞춘다. 거부가 MDM001 이면 "다른 창�
 |---|---|
 | 행 추가 | 조건 셀 모두 `-`, 결과 셀 없음, 기본 행 앞(임시 ID 는 음수, 지운 번호를 다시 쓰지 않는다) |
 | 기본 행 추가 | 기본 행이 없을 때만 |
-| 되돌리기 | 마지막으로 불러온 상태로 |
-| 표 저장 | `save{part: TABLE, maruRuleId, ver, rowVersion, hitPolicy}` + `grids.rows.rows[{rowId, rowKind, cells(JSON 문자열), note?}]`(보이는 순서, seq 는 서버가 정한다 — I10). ~~조건 전부 `-` 인 행(ALL_NA_ROW 오류)이 있어도 저장한다(D3)~~ → TSK-08-04 부터 저장 시 검사 ERROR 가 하나라도 있으면 쓰기 전에 거부한다(§6.1). 거부되면 표 아래 `dt-save-rejected` 와 오류 창이 뜨고 편집은 남는다 |
+| 되돌리기 | 마지막으로 불러온 상태로(적중 정책 포함, D-133) |
+| 표 저장 | `save{part: TABLE, maruRuleId, ver, rowVersion, hitPolicy}` + `grids.rows.rows[{rowId, rowKind, cells(JSON 문자열), note?}]`(보이는 순서, seq 는 서버가 정한다 — I10). `hitPolicy` 는 DECISION 만 싣고(비우면 서버가 저장된 값을 쓴다, DERIVE 에 오면 거부), 정책이 바뀌면 서버가 새 정책으로 검사·저장한다(D-133). part COLUMNS·CASE 에 `hitPolicy` 가 오면 거부한다. ~~조건 전부 `-` 인 행(ALL_NA_ROW 오류)이 있어도 저장한다(D3)~~ → TSK-08-04 부터 저장 시 검사 ERROR 가 하나라도 있으면 쓰기 전에 거부한다(§6.1). 거부되면 표 아래 `dt-save-rejected` 와 오류 창이 뜨고 편집은 남는다 |
 
 **강조**: base 버전 대비 새 행(초록)·바뀐 칸(노랑, `ast` 는 견주지 않는다 — I22), 선택 행의 `-` 가 아닌 조건 칸(테두리), 검사
 이슈가 걸린 칸(오류 붉게·경고 노랗게). 색은 shared 그리드 셀 상태 클래스만 쓴다.
@@ -163,6 +177,12 @@ row_version 을 서버 값으로 맞춘다. 거부가 MDM001 이면 "다른 창�
 "오류/경고 [코드] 행 a, b — 메시지", 표 단위(VALUE_GAP·NULL_GAP)는 "표 단위 검사" 줄에 모은다. 표 저장 응답이 오면 저장 전 화면
 검사(임시 ID 를 발급 번호로 바꾼 것)와 서버 검사를 견주어 "화면·서버 검사 일치" 또는 "서버 결과가 기준" 을 보인다(수용 7).
 화면 분석기가 예외를 내는 칸(값 칸이 없는 셀 등)이 있으면 "화면 검사를 할 수 없는 칸이 있습니다(저장하면 서버가 검사한다)".
+
+**열 설정 섹션**(TSK-08-03, 표 카드 아래 `rule-section-columns`): **처음에는 접혀 있다**(2026-10-01 — 표를 먼저 보이게).
+제목 줄의 [펼치기/접기](`rule-section-columns-toggle`)로 열고, 접혀도 제목 줄의 「열 설정 초안(저장 안 함)」(`col-dirty`)·「읽기 전용」
+(`col-readonly`) 배지는 보인다. 다음 때는 스스로 펼친다: 표의 열 머리를 눌러 그 열 줄을 고를 때, 적중 정책을 바꿔 열 설정과 어긋날 때
+표 카드의 [열 설정 보기](`dt-hit-policy-show-columns`)를 누를 때, 저장 안 한 초안을 되살렸을 때(표 저장을 막으므로). 접어도 본문은
+내리지 않고 숨긴다(초안·dirty 가 그대로다).
 
 ### 5.4 카드 ⑧ 활용처 (`RuleUsageCard`)
 
@@ -302,3 +322,4 @@ EXTERNAL 룰은 저장 자체가 막히므로 검사를 돌리지 않는다. 상
 | N-2 | 겹침·ALL_NA_ROW 오류가 있어도 표를 저장한다(거부 정책은 TSK-08-04) | design D3 |
 | N-3 | 의사결정표 그리드는 열 구조·편집 여부·버전이 바뀌면 새로 마운트한다(열 정의가 바뀌면 ag-grid 머리 그룹 셀이 null 그룹을 읽어 죽는다 — e2e 실측) | design Build 이탈 B9 |
 | N-4 | 카드 ⑦ 배포 대상은 그리지 않는다 | design D11 |
+| N-5 | 적중 정책은 이 화면 ③ 에서 고르고 표 저장과 함께 저장한다. `ruleMng save target VERSION` 은 없앴다 | decisions.md D-133(D-105 (4) 번복) |

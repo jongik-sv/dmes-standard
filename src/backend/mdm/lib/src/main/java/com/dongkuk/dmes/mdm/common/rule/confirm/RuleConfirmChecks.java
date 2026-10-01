@@ -80,7 +80,11 @@ public class RuleConfirmChecks {
         String id = draft.objectId();
         int ver = draft.ver().intValueExact();
         MdmRule rule = rules.findById(id).orElseThrow(() -> new IllegalStateException("룰이 없습니다: " + id));
-        Stored s = stored.read(id, ver).orElseThrow(() -> new IllegalStateException("룰 " + id + " 에 버전 " + ver + " 이(가) 없습니다"));
+        // 보고서는 쓰지 않는다(I14) — 저장된 변수·케이스 정의·결과 변수 참조의 타입을 한 해석 범위로 푼다(도메인 트리·결과 변수 한 번, 컬럼
+        // 사전은 이름을 모아 한 번). 저장 검사(validator)는 저장 경로와 같게 호출마다 읽는다.
+        RuleVarTypeResolver.Scope scope = resolver.scope();
+        Stored s = stored.read(id, ver, scope)
+                .orElseThrow(() -> new IllegalStateException("룰 " + id + " 에 버전 " + ver + " 이(가) 없습니다"));
 
         List<Map<String, Object>> saveIssues = validator.validate(new RuleCheckInput(id, ver, rule.getRuleKind(), s.version().getHitPolicy(),
                 s.rawVars(), s.vars(), s.rows(), RuleSaveTarget.STORED)).issues();
@@ -88,14 +92,14 @@ public class RuleConfirmChecks {
         List<Map<String, Object>> cases = List.of();
         String caseFailure = null;
         try {
-            cases = cases(id, rule.getRuleKind(), s);
+            cases = cases(id, rule.getRuleKind(), s, scope);
         } catch (RuntimeException e) {
             caseFailure = String.valueOf(e.getMessage());
         }
 
         List<MdmCheckIssue> resultVar;
         try {
-            resultVar = resultVarIssues(id, ver, s);
+            resultVar = resultVarIssues(id, ver, s, scope);
         } catch (RuntimeException e) {
             resultVar = List.of(RuleConfirmReport.producerCheckFailed(String.valueOf(e.getMessage())));
         }
@@ -124,19 +128,19 @@ public class RuleConfirmChecks {
     }
 
     /** 값 테스트 VERSION 분기와 같은 조립·판정(I8). 케이스가 없으면 정의를 조립하지 않는다. */
-    private List<Map<String, Object>> cases(String id, String ruleKind, Stored s) {
+    private List<Map<String, Object>> cases(String id, String ruleKind, Stored s, RuleVarTypeResolver.Scope scope) {
         List<MdmRuleTestCase> cases = caseQueries.cases(id);
         if (cases.isEmpty()) {
             return List.of();
         }
-        RuleDefinition def = stored.assemble(id, ruleKind, s).definition();
+        RuleDefinition def = stored.assemble(id, ruleKind, s, scope).definition();
         Integer defaultRowId = def.rows().stream().filter(r -> r.rowKind() == RowKind.DEFAULT).map(RuleRow::rowId).findFirst().orElse(null);
         MdmRuleEngine engine = new MdmRuleEngine(evaluator, new SingleRuleDefinitionLookup(def));
         Instant ts = clock.instant().truncatedTo(ChronoUnit.SECONDS);
         return cases.stream().map(c -> RuleCaseJudge.runCase(engine, id, c, ts, defaultRowId)).toList();
     }
 
-    private List<MdmCheckIssue> resultVarIssues(String id, int ver, Stored s) {
+    private List<MdmCheckIssue> resultVarIssues(String id, int ver, Stored s, RuleVarTypeResolver.Scope scope) {
         RuleDefinitionReads.Names names = RuleDefinitionReads.of(s.rawVars(), s.rows().stream().map(DraftRow::cells).toList());
         Set<String> candidates = new LinkedHashSet<>(names.reads());
         candidates.removeAll(names.produces());
@@ -144,17 +148,19 @@ public class RuleConfirmChecks {
         Set<String> producerIds = new LinkedHashSet<>();
         producers.values().forEach(producerIds::addAll);
         Set<String> released = queries.latestReleasedVers(producerIds).keySet();
-        return RuleConfirmReport.resultVarIssues(names.reads(), names.produces(), columnNames(id, ver), producers, released);
+        // 컬럼 사전은 생산 룰이 있는 이름만 묻는다(RuleConfirmReport.resultVarIssues) — 그 이름들을 한 번에 읽어 둔다.
+        scope.preloadColumns(candidates.stream().filter(n -> producers.get(n) != null && !producers.get(n).isEmpty()).toList());
+        return RuleConfirmReport.resultVarIssues(names.reads(), names.produces(), columnNames(id, ver, scope), producers, released);
     }
 
     /** 컬럼 사전 이름인가 — 해석기에 이름 하나짜리 COND 탐침을 물어 typeSource 가 COLUMN 인지 본다(한 호출 안에서 캐시). */
-    private Predicate<String> columnNames(String id, int ver) {
+    private Predicate<String> columnNames(String id, int ver, RuleVarTypeResolver.Scope scope) {
         Map<String, Boolean> cache = new HashMap<>();
         return name -> cache.computeIfAbsent(name, n -> {
             MdmRuleVar probe = new MdmRuleVar(id, ver, 0, "COND", 1);
             probe.setDispType("Equal");
             probe.setVarName(n);
-            return Optional.ofNullable(resolver.resolve(id, ver, List.of(probe))).filter(l -> !l.isEmpty())
+            return Optional.ofNullable(scope.resolve(id, ver, List.of(probe))).filter(l -> !l.isEmpty())
                     .map(l -> RuleVarTypeResolver.COLUMN.equals(l.get(0).typeSource())).orElse(false);
         });
     }

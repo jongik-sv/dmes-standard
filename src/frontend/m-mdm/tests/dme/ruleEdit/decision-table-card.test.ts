@@ -35,7 +35,7 @@ import { mapRowIds, runAnalysis, sameIssues, splitIssues } from "../../../pages/
 import { buildTableColumns, cellEditable } from "../../../pages/dme/ruleEdit/decision-table/columns";
 import type { RuleEditCardProps } from "../../../pages/dme/ruleEdit/cards";
 import type { RuleEditView, RuleIssueView } from "../../../pages/dme/ruleEdit/types";
-import { RBAC_STORE_KEY, findButton, flush, installDomStorage, jsonResponse, visibleText } from "../helpers/render";
+import { RBAC_STORE_KEY, findButton, flush, installDomStorage, jsonResponse, selectValue, visibleText } from "../helpers/render";
 import { SAMPLE_ROWS, SAMPLE_VARS, draftView } from "./fixtures";
 
 function codes(state: TableState): string[] {
@@ -91,16 +91,33 @@ describe("표 상태 — 편집과 즉시 검사(I13·I19~I21)", () => {
     expect(c).toContain("UNREACHABLE:WARNING:2/1");
   });
 
-  // D-105 (4) — 적중 정책(HIT_POLICY)은 버전 속성이므로 이 화면에서 고치지 않는다. 헤더·버전 화면이 저장하고
-  // 여기는 저장된 값을 읽어 검사만 돈다. 그래서 `setHitPolicy` 액션이 없다 — 남은 질문은 "저장된 정책이 검사 입력으로
-  // 쓰이는가" 뿐이다.
-  it("저장된 적중 정책이 검사 입력으로 쓰인다(D-105 — 이 화면에서 바꾸지 않는다)", () => {
-    expect(s0.hitPolicy).toBe("FIRST");
-    expect(s0.loadedHit).toBe("FIRST");
-    expect(isDirty(s0, { stored: SAMPLE_ROWS, loadedJson: JSON.stringify(SAMPLE_ROWS) })).toBe(false);
-    // 표를 고쳐도 적중 정책은 따라가지 않는다 — 별도 화면에서 고치는 값이라 여기서 만질 수 없다.
-    const edited = run(s0, { type: "editCell", rowId: 2, varId: 3, key: "left", value: "A" });
-    expect(edited.hitPolicy).toBe("FIRST");
+  // D-133 — 적중 정책은 이 화면에서 고르고 표와 함께 저장한다(D-105 (4) 번복). 표 편집과 한 묶음이라 즉시 검사·dirty·되돌리기에 든다.
+  it("적중 정책을 바꾸면 즉시 검사가 새 정책으로 돌고(UNIQUE 겹침 = 오류) dirty 가 된다", () => {
+    const overlap = run(s0, { type: "editCell", rowId: 2, varId: 3, key: "left", value: "A" });
+    expect(codes(overlap)).toContain("OVERLAP:WARNING:1/2");
+    const unique = run(overlap, { type: "setHitPolicy", value: "UNIQUE" });
+    expect(unique.hitPolicy).toBe("UNIQUE");
+    expect(unique.loadedHit).toBe("FIRST");
+    expect(codes(unique)).toContain("OVERLAP:ERROR:1/2");
+    // 정책만 바꿔도(행 그대로) 저장 안 한 변경이다.
+    const onlyHit = run(s0, { type: "setHitPolicy", value: "UNIQUE" });
+    expect(onlyHit.rows).toBe(s0.rows);
+    expect(isDirty(onlyHit)).toBe(true);
+    expect(isDirty(run(onlyHit, { type: "setHitPolicy", value: "FIRST" }))).toBe(false);
+  });
+
+  it("되돌리기는 적중 정책도 불러온 값으로 되돌린다", () => {
+    const s = run(s0, { type: "setHitPolicy", value: "COLLECT" }, { type: "addRow" });
+    const back = run(s, { type: "revert" });
+    expect(back.hitPolicy).toBe("FIRST");
+    expect(back.rows).toBe(s0.loadedRows);
+    expect(isDirty(back)).toBe(false);
+  });
+
+  it("산출 룰(DERIVE)에는 적중 정책을 두지 않는다 — setHitPolicy 를 받지 않는다", () => {
+    const derive = draftView("e2e_mdm_steward");
+    const s = initTableState({ ...derive, rule: { ...derive.rule, ruleKind: "DERIVE" }, versions: derive.versions.map((v) => ({ ...v, hitPolicy: null })) });
+    expect(run(s, { type: "setHitPolicy", value: "FIRST" }).hitPolicy).toBeNull();
   });
 
   it("드래그로 순서를 바꾸면 seq 가 다시 매겨지고 검사도 새 순서로 돈다", () => {
@@ -540,8 +557,8 @@ describe("DecisionTableCard 렌더", () => {
     expect(q("dt-check-table-body").hidden).toBe(true);
   });
 
-  // D-105 (4) — 표 저장 요청에 hitPolicy 가 없다. 서버는 그 버전에 저장된 값을 읽어 검사 입력으로 쓴다.
-  it("저장 요청은 part TABLE·row_version 과 grids.rows.rows(순서·음수 임시 ID·cells 문자열)다 — 적중 정책은 싣지 않는다", async () => {
+  // D-133 — 표 저장 요청에 지금 적중 정책을 싣는다(서버가 같은 트랜잭션에 저장, 같으면 쓰지 않는다).
+  it("저장 요청은 part TABLE·row_version·적중 정책과 grids.rows.rows(순서·음수 임시 ID·cells 문자열)다", async () => {
     await renderCard(draftView("e2e_mdm_steward"));
     await act(async () => {
       findButton(container, "행 추가").click();
@@ -552,13 +569,57 @@ describe("DecisionTableCard 렌더", () => {
     await flush();
     expect(saveBodies).toHaveLength(1);
     const body = saveBodies[0] as { params: Record<string, unknown>; grids: { rows: { rows: Array<Record<string, unknown>> } } };
-    expect(body.params).toEqual({ part: "TABLE", maruRuleId: "QLTY_GRD_JDG", ver: 2, rowVersion: 3 });
-    expect(body.params).not.toHaveProperty("hitPolicy");
+    expect(body.params).toEqual({ part: "TABLE", maruRuleId: "QLTY_GRD_JDG", ver: 2, rowVersion: 3, hitPolicy: "FIRST" });
     expect(body.grids.rows.rows.map((r) => r.rowId)).toEqual([1, 2, 3, -1, 4]);
     expect(body.grids.rows.rows[3]).toEqual({ rowId: -1, rowKind: "NORMAL", cells: '{"1":{"op":"NA"},"2":{"op":"NA"},"3":{"op":"NA"}}' });
     expect(typeof body.grids.rows.rows[0].cells).toBe("string");
     // 저장 전 화면 검사(임시 ID → 발급 번호)와 서버 검사가 같다.
     expect(visibleText(container)).toContain("화면·서버 검사 일치");
+  });
+
+  it("적중 정책을 고르면 저장 안 한 변경이 되고 [표 저장] 한 번에 행과 함께 실려 간다", async () => {
+    await renderCard(draftView("e2e_mdm_steward"));
+    const select = () => container.querySelector<HTMLSelectElement>("[data-testid='dt-hit-policy']")!;
+    expect(select().disabled).toBe(false);
+    expect(select().value).toBe("FIRST");
+    expect(container.querySelector("[data-testid='dt-dirty']")).toBeNull();
+    await selectValue(select(), "UNIQUE");
+    expect(container.querySelector("[data-testid='dt-dirty']")).not.toBeNull();
+    expect(container.querySelector("[data-testid='dt-hit-policy-changed']")?.textContent).toContain("FIRST → UNIQUE");
+    await act(async () => {
+      findButton(container, "표 저장").click();
+    });
+    await flush();
+    expect(saveBodies).toHaveLength(1);
+    expect((saveBodies[0] as { params: Record<string, unknown> }).params.hitPolicy).toBe("UNIQUE");
+    // 되돌리기는 정책까지 되돌린다.
+    await selectValue(select(), "COLLECT");
+    await act(async () => {
+      findButton(container, "되돌리기").click();
+    });
+    expect(select().value).toBe("FIRST");
+  });
+
+  it("편집할 수 없거나(내 DRAFT 가 아님) 저장 권한이 없으면 적중 정책을 고를 수 없다", async () => {
+    await renderCard(draftView("someone_else"));
+    expect(container.querySelector<HTMLSelectElement>("[data-testid='dt-hit-policy']")!.disabled).toBe(true);
+  });
+
+  it("바꾼 정책이 저장된 열 설정과 어긋나면 열 설정 검사 문구로 알리고 [표 저장] 을 막는다", async () => {
+    const base = draftView("e2e_mdm_steward");
+    await renderCard({
+      ...base,
+      versions: base.versions.map((v) => (v.ver === 2 ? { ...v, hitPolicy: "COLLECT" } : v)),
+      varMeta: [{ varId: 4, collectAgg: "SUM" }],
+    });
+    expect(container.querySelector("[data-testid='dt-hit-policy-conflicts']")).toBeNull();
+    await selectValue(container.querySelector<HTMLSelectElement>("[data-testid='dt-hit-policy']")!, "FIRST");
+    const conflicts = container.querySelector("[data-testid='dt-hit-policy-conflicts']");
+    expect(conflicts?.textContent).toContain("집계는 COLLECT 적중 정책의 결과 열에만 둡니다");
+    expect(findButton(container, "표 저장").disabled).toBe(true);
+    // 다시 COLLECT 로 고르면 풀린다.
+    await selectValue(container.querySelector<HTMLSelectElement>("[data-testid='dt-hit-policy']")!, "COLLECT");
+    expect(container.querySelector("[data-testid='dt-hit-policy-conflicts']")).toBeNull();
   });
 
   it("행 복사는 행 번호로 고른 행을 바로 아래에 복사하고 저장 요청에 음수 임시 ID 로 싣는다(고르지 않았거나 기본 행이면 꺼짐)", async () => {

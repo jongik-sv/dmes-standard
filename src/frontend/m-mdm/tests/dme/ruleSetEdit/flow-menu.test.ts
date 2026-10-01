@@ -302,13 +302,14 @@ describe("흐름 우클릭 메뉴·편집(3단계 Task 8)", () => {
     expect(edgeEl("e2").classList.contains("selected")).toBe(false);
   });
 
-  it("10. 찾기 — Ctrl+F 가 찾기 칸에 초점, GRD 는 1/2, Enter 로 다음 결과를 깜빡이며 접힌 블록을 펴고, 없으면 0/0. 찾기 칸 안 Ctrl+Z·Delete 는 막지 않는다", async () => {
+  it("10. 찾기 — Ctrl+F 가 찾기 위젯을 열고 입력 칸에 초점, GRD 는 1/2, Enter 로 다음 결과를 깜빡이며 접힌 블록을 펴고, 없으면 '결과 없음'. 찾기 칸 안 Ctrl+Z·Delete 는 막지 않는다", async () => {
     const rules = [rule("E2S_GRD", "SET_THK", "S_GRD"), rule("E2S_GRD_B", "S_GRD", "S_B"), rule("E2S_FCT", "S_B", "S_FCT")];
     await openSet("E2S_FIND", viewOf("E2S_FIND", null, ["E2S_GRD", "E2S_GRD_B", "E2S_FCT"], rules));
     await click("flow-mode-edit");
-    const find = byTestId<HTMLInputElement>("flow-find");
+    expect(q("flow-find-widget")).toBeNull();
     const f = await key(canvas(), { key: "f", ctrlKey: true });
     expect(f.defaultPrevented).toBe(true);
+    const find = byTestId<HTMLInputElement>("flow-find");
     expect(document.activeElement).toBe(find);
 
     await typeInto(find, "GRD");
@@ -341,7 +342,7 @@ describe("흐름 우클릭 메뉴·편집(3단계 Task 8)", () => {
     expect(del.defaultPrevented).toBe(false);
 
     await typeInto(find, "zzz");
-    expect(byTestId("flow-find-count").textContent).toBe("0/0");
+    expect(byTestId("flow-find-count").textContent).toBe("결과 없음");
   });
 
   it("10b. Mac 에서는 Ctrl+Z 가 되돌리기가 아니고 Cmd+Z 가 되돌리기다", async () => {
@@ -362,6 +363,7 @@ describe("흐름 우클릭 메뉴·편집(3단계 Task 8)", () => {
     const rules = [rule("E2S_GRD", "SET_THK", "S_GRD"), rule("E2S_GRD_B", "S_GRD", "S_B")];
     await openSet("E2S_FIND", viewOf("E2S_FIND", null, ["E2S_GRD", "E2S_GRD_B"], rules));
     await click("flow-mode-edit");
+    await click("flow-find-open");
     const find = byTestId<HTMLInputElement>("flow-find");
     await typeInto(find, "GRD");
     mocks.expandFor.mockClear();

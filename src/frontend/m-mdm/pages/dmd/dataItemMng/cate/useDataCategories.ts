@@ -24,6 +24,9 @@ import {
 import { diffMembers } from "./transfer";
 import { errorMessage, type CateRow, type CateViewResult, type ComparePreview } from "./types";
 
+/** 정규식 입력 디바운스(ms) — 입력이 이 시간 멈춘 뒤 마지막 값으로 compare 를 한 번 부른다. */
+const PREVIEW_DEBOUNCE_MS = 300;
+
 export interface DataCategoriesArgs {
   maruDataId: string;
   /** [카테고리] 탭이 보이는 중인지 — 처음 조회 시점. */
@@ -55,8 +58,10 @@ export interface DataCategoriesState {
   close: (cateId: string) => Promise<void>;
   reopen: (cateId: string) => Promise<void>;
   saveRegex: (cateName: string, defExpr: string, defTarget: string, description: string) => Promise<void>;
-  /** REGEX 후보 정의로 미리보기(compare)를 다시 부른다 — 편집 칸이 바뀔 때마다. */
+  /** REGEX 후보 정의로 미리보기(compare)를 다시 부른다 — 편집 칸이 바뀐 뒤 입력이 멈추면(디바운스). */
   previewCandidate: (defExpr: string, defTarget: string) => Promise<void>;
+  /** 대기 중인 후보 미리보기를 바로 부른다(편집 칸이 사라질 때). */
+  flushPreview: () => void;
   setMemberCodes: (next: Set<string>) => void;
   applyMembers: () => Promise<void>;
 }
@@ -79,6 +84,10 @@ export function useDataCategories({ maruDataId, active, onError, onChanged }: Da
   const listSeq = useRef(0);
   const detailSeq = useRef(0);
   const previewSeq = useRef(0);
+  /** 지금 읽는 중인 상세(마루 데이터 + 카테고리). 끝나면 null. */
+  const detailInFlight = useRef<string | null>(null);
+  const previewTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const pendingPreview = useRef<{ defExpr: string; defTarget: string } | undefined>(undefined);
   const current = useRef(maruDataId);
   current.current = maruDataId;
   const errorRef = useRef(onError);
@@ -104,6 +113,10 @@ export function useDataCategories({ maruDataId, active, onError, onChanged }: Da
 
   const loadDetail = useCallback(async (md: string, cateId: string) => {
     const seq = ++detailSeq.current;
+    detailInFlight.current = `${md}\u0000${cateId}`;
+    if (previewTimer.current !== undefined) clearTimeout(previewTimer.current);
+    previewTimer.current = undefined;
+    pendingPreview.current = undefined;
     previewSeq.current++;
     setPreview(null);
     try {
@@ -117,6 +130,8 @@ export function useDataCategories({ maruDataId, active, onError, onChanged }: Da
       }
     } catch (e) {
       if (seq === detailSeq.current) fail(e);
+    } finally {
+      if (seq === detailSeq.current) detailInFlight.current = null;
     }
   }, [fail, runPreview]);
 
@@ -137,6 +152,7 @@ export function useDataCategories({ maruDataId, active, onError, onChanged }: Da
       if (keep) await loadDetail(md, keep);
       else {
         detailSeq.current++;
+        detailInFlight.current = null;
         setDetail(null);
         setPreview(null);
       }
@@ -154,6 +170,10 @@ export function useDataCategories({ maruDataId, active, onError, onChanged }: Da
   useEffect(() => {
     listSeq.current++;
     detailSeq.current++;
+    detailInFlight.current = null;
+    if (previewTimer.current !== undefined) clearTimeout(previewTimer.current);
+    previewTimer.current = undefined;
+    pendingPreview.current = undefined;
     previewSeq.current++;
     loadedFor.current = "";
     setRows([]);
@@ -168,6 +188,13 @@ export function useDataCategories({ maruDataId, active, onError, onChanged }: Da
     if (active && maruDataId && loadedFor.current !== maruDataId) void loadList(maruDataId, null);
   }, [active, maruDataId, loadList]);
 
+  // 화면을 떠나면 대기 중인 미리보기 호출을 버린다.
+  useEffect(() => () => {
+    if (previewTimer.current !== undefined) clearTimeout(previewTimer.current);
+    previewTimer.current = undefined;
+    pendingPreview.current = undefined;
+  }, []);
+
   const selectedRef = useRef(selectedCateId);
   selectedRef.current = selectedCateId;
 
@@ -179,8 +206,11 @@ export function useDataCategories({ maruDataId, active, onError, onChanged }: Da
     loadedFor.current = "";
   }, []);
 
+  // 행 한 번 누름에 그리드가 onRowClick·onFocusedRowChange 를 둘 다 부른다 — 같은 상세를 읽는 중이면 다시 부르지 않는다.
+  // 읽기가 끝난 뒤 같은 행을 다시 누르면 예전처럼 다시 읽는다.
   const select = useCallback((cateId: string) => {
     setSelectedCateId(cateId);
+    if (detailInFlight.current === `${current.current}\u0000${cateId}`) return;
     void loadDetail(current.current, cateId);
   }, [loadDetail]);
 
@@ -224,8 +254,31 @@ export function useDataCategories({ maruDataId, active, onError, onChanged }: Da
     await write(() => saveRegex(md, cateId, cateName, defExpr, defTarget, description), "저장했습니다", cateId);
   }, [write]);
 
+  /**
+   * 편집 칸이 사라질 때 대기 중인 후보 미리보기를 바로 부른다 — 디바운스 전처럼 마지막 입력값의 결과가 남는다.
+   * 이미 날아간 응답은 버리지 않는다(저장된 정의로 채우는 loadDetail 의 미리보기도 그대로 둔다).
+   */
+  const flushPreview = useCallback(() => {
+    const pending = pendingPreview.current;
+    if (previewTimer.current !== undefined) clearTimeout(previewTimer.current);
+    previewTimer.current = undefined;
+    pendingPreview.current = undefined;
+    if (pending) void runPreview(current.current, pending.defExpr, pending.defTarget);
+  }, [runPreview]);
+
+  /** 정규식 한 글자마다 compare 를 부르지 않게 입력이 멈춘 뒤 마지막 값으로 한 번만 부른다. */
   const previewCandidate = useCallback(
-    (defExpr: string, defTarget: string) => runPreview(current.current, defExpr, defTarget),
+    async (defExpr: string, defTarget: string) => {
+      if (previewTimer.current !== undefined) clearTimeout(previewTimer.current);
+      // 이미 날아간 옛 후보 응답이 새 입력 뒤에 도착해 덮지 않게 한다.
+      previewSeq.current++;
+      pendingPreview.current = { defExpr, defTarget };
+      previewTimer.current = setTimeout(() => {
+        previewTimer.current = undefined;
+        pendingPreview.current = undefined;
+        void runPreview(current.current, defExpr, defTarget);
+      }, PREVIEW_DEBOUNCE_MS);
+    },
     [runPreview],
   );
 
@@ -240,9 +293,13 @@ export function useDataCategories({ maruDataId, active, onError, onChanged }: Da
 
   const selectedRow = useMemo(() => rows.find((r) => r.cateId === selectedCateId) ?? null, [rows, selectedCateId]);
 
-  return {
+  // 렌더마다 새 객체를 돌려주면 이 값에 기대는 열 정의·메모가 매번 다시 만들어진다 — 값이 실제로 바뀔 때만 새로 만든다.
+  return useMemo(() => ({
     maruDataId, rows, lvlCnt, attrLabels, selectedCateId, selectedRow, detail, memberCodes, preview, busy, writeCount,
-    reload, invalidate, select, add, close, reopen, saveRegex: saveRegexDef, previewCandidate,
+    reload, invalidate, select, add, close, reopen, saveRegex: saveRegexDef, previewCandidate, flushPreview,
     setMemberCodes, applyMembers,
-  };
+  }), [
+    maruDataId, rows, lvlCnt, attrLabels, selectedCateId, selectedRow, detail, memberCodes, preview, busy, writeCount,
+    reload, invalidate, select, add, close, reopen, saveRegexDef, previewCandidate, flushPreview, applyMembers,
+  ]);
 }

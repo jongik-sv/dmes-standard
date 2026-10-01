@@ -1,6 +1,6 @@
 ---
 name: analyze-service
-description: "SampleErp(C# WinForms + MSSQL) 레거시 화면 데이터 수집 자동 실행 (Phase 1-4 오케스트레이션). Phase 1(구조 파악), Phase 2(C# partial class 분석), Phase 2.5(커스텀 클래스), Phase 3(MSSQL 분석), Phase 4(WinForms UI 분석)를 순차 실행하여 중간 JSON 을 {moduleId}/.cache/{SCREEN-ID}/ 에 저장 (V3 — 화면별 격리). 화면 통합 보고서 생성은 /generate-bpa 사용 (V3 — BPA 본문 + 기술 상세 Appendix 단일 MD). 사용 시점: /analyze-service SCREEN-ID 호출 시, SampleErp 화면(예: SOA004K, QMA001K, GIA044K)의 종합 분석 요청 시. 개별 Phase만 실행 요청도 지원."
+description: "SampleErp(C# WinForms + 레거시 DB: Oracle·PostgreSQL·MSSQL) 레거시 화면 데이터 수집 자동 실행 (Phase 1-4 오케스트레이션). Phase 1(구조 파악), Phase 2(C# partial class 분석), Phase 2.5(커스텀 클래스), Phase 3(DB procedure 분석), Phase 4(WinForms UI 분석)를 순차 실행하여 중간 JSON 을 {moduleId}/.cache/{SCREEN-ID}/ 에 저장 (V3 — 화면별 격리). 화면 통합 보고서 생성은 /generate-bpa 사용 (V3 — BPA 본문 + 기술 상세 Appendix 단일 MD). 사용 시점: /analyze-service SCREEN-ID 호출 시, SampleErp 화면(예: SOA004K, QMA001K, GIA044K)의 종합 분석 요청 시. 개별 Phase만 실행 요청도 지원."
 ---
 
 # SampleErp 화면 전체 분석
@@ -17,17 +17,17 @@ description: "SampleErp(C# WinForms + MSSQL) 레거시 화면 데이터 수집 �
 >
 > 예: `/analyze-service QMA001K` → `docs/external/SampleErp/orgErpReport/품질/QMA/.cache/QMA001K/`. `extractModuleId(SCREEN-ID)` 와 함께 `extractAreaId(moduleId)` 도 lookup 후 경로 조립.
 
-SampleErp(C# WinForms + MSSQL T-SQL) 화면을 Phase 1~4 순차 실행하여 비즈니스 로직, 데이터 구조, UI 요구사항을 중간 JSON 으로 추출한다. 화면 통합 보고서 생성은 `/generate-bpa` 를 사용한다 (`/generate-legacy` 는 V3 부터 deprecated alias).
+SampleErp(C# WinForms + 레거시 DB — 원천 DBMS 는 고객사마다 다름: Oracle PL/SQL · PostgreSQL PL/pgSQL · MSSQL T-SQL) 화면을 Phase 1~4 순차 실행하여 비즈니스 로직, 데이터 구조, UI 요구사항을 중간 JSON 으로 추출한다. 화면 통합 보고서 생성은 `/generate-bpa` 를 사용한다 (`/generate-legacy` 는 V3 부터 deprecated alias).
 
 **핵심 목표**: Phase 1~4 데이터 수집을 자동화하여 후속 문서 생성 스킬의 입력 데이터를 확보
 
-> 산출물 템플릿/JSON 스키마 키는 부산 시절 그대로 보존한다. C#/MSSQL 본문 어휘는 [`_shared/vocabulary-mapping.md`](../_shared/vocabulary-mapping.md) 를 참조하여 매핑한다.
+> 산출물 템플릿/JSON 스키마 키는 부산 시절 그대로 보존한다. C# 본문 어휘와 DB 방언 어휘(원천 DBMS 판정 후 그 방언 열)는 [`_shared/vocabulary-mapping.md`](../_shared/vocabulary-mapping.md) 를 참조하여 매핑한다.
 
 분석 흐름:
 1. Phase 1: 구조 파악 (Designer.cs / 화면 폴더 파싱) → [references/phase1.md](references/phase1.md)
 2. 서브화면(다른 화면 호출) 재귀 분석
 3. Phase 2+2.5: C# 심층 분석 (LLM 직접 분석 + /analyze-custom-class 위임) → [references/phase2.md](references/phase2.md)
-4. Phase 3: MSSQL Stored Procedure 분석 (procedures/*.sql 정적 파일 직접 읽기) → [references/phase3.md](references/phase3.md)
+4. Phase 3: 레거시 DB Package / Stored Procedure 분석 (원천 DBMS 판정 → procedures/*.sql 정적 파일 직접 읽기) → [references/phase3.md](references/phase3.md)
 5. Phase 4: WinForms UI 분석 (Designer.cs `InitializeComponent()` + .resx) → [references/phase4.md](references/phase4.md)
 
 ## 공통 사전 준비
@@ -165,11 +165,15 @@ structure.json 의 `customActivities` 배열에 등록된 각 클래스에 대�
 
 완료 후: `echo "✅ Step 3 완료: $(date '+%H:%M:%S')"`
 
-### Step 4: Phase 3 - MSSQL Stored Procedure 분석
+### Step 4: Phase 3 - 레거시 DB Stored Procedure 분석
 
-Bash 로 시작 시각 출력: `echo "⏱️ Step 4 (Phase 3 MSSQL 분석) 시작: $(date '+%H:%M:%S')"`
+Bash 로 시작 시각 출력: `echo "⏱️ Step 4 (Phase 3 레거시 DB 분석) 시작: $(date '+%H:%M:%S')"`
 
 **"없으면 분석, 있으면 사용" 전략으로 procedures/functions 정적 파일 → sql_analysis.json 생성**
+
+#### 4-0. 원천 DBMS 판정
+
+[`_shared/vocabulary-mapping.md`](../_shared/vocabulary-mapping.md) §3-1 순서(README `원천 DBMS:` 줄 → `.sql` 본문 문법 단서 → 사용자 확인)로 한 번 판정한다. 이후 패턴 적용과 서브에이전트 위임에 같은 값을 쓴다. SQLite 원천이면 저장 프로시저가 없으므로 4-2 를 건너뛰고 앱 inline SQL 만 분석한다.
 
 #### 4-1. 호출 procedure/function 목록 확정
 
@@ -184,16 +188,19 @@ structure.json 의 `dataFlow.sqlQueries` + `dataFlow.javaSqlQueries` (C# 코드�
 #### 4-3. 분석 알고리즘
 
 phase3.md 참조. 각 procedure 본문에 대해:
-- `CREATE PROCEDURE` 헤더에서 파라미터/리턴 추출
+- `CREATE [OR REPLACE|OR ALTER] PACKAGE/PROCEDURE/FUNCTION` 헤더에서 파라미터/리턴 추출 (Oracle 은 PACKAGE 단위)
 - `SELECT/INSERT/UPDATE/DELETE` 문 추출 + 테이블/컬럼/JOIN 분석
-- inline 호출 패턴 (`exec\s+(?:dbo\.)?(\w+)`, `dbo\.(\w+)\s*\(`) 으로 다른 procedure/function 호출 감지
+- 판정 방언의 호출 패턴으로 다른 procedure/function 호출 감지
+  - Oracle: `PKG.PROC(...)`, 블록 안 단독 `PROC(...);`, `EXECUTE IMMEDIATE`
+  - PostgreSQL: `CALL p(...)`, `PERFORM f(...)`, `SELECT f(...)`, `EXECUTE format(...)`
+  - MSSQL: `exec\s+(?:dbo\.)?(\w+)`, `dbo\.(\w+)\s*\(`, `sp_executesql`
 
 출력: `docs/external/SampleErp/orgErpReport/{moduleId}/.cache/{SCREEN-ID}/sql_analysis.json` (V3)
 
 #### Fallback (분석 불가 시)
 
 1. [references/phase3.md](references/phase3.md) 참조
-2. Agent tool 로 `mssql-sql-analyzer` (또는 `oracle-sql-analyzer` — 본문 어휘만 MSSQL 로 갱신됨) subagent 실행 (`model="sonnet"`)
+2. Agent tool 로 `general-purpose` subagent 실행 (`model="sonnet"`, **`team_name`/`name` 파라미터 절대 불포함**). 프롬프트에 `/analyze-plsql {NAME}` 스킬 호출과 4-0 에서 판정한 `원천 DBMS: X` 를 함께 넘긴다 (전용 SQL 분석 에이전트 타입은 두지 않는다)
 
 완료 후: `echo "✅ Step 4 완료: $(date '+%H:%M:%S')"`
 
@@ -238,13 +245,13 @@ Bash 로 완료 시각 출력: `echo "⏱️ 전체 데이터 수집 완료: $(d
 ## 실행 정책
 
 - **세션 완수 정책 준수**: [`../_shared/session-completion-policy.md`](../_shared/session-completion-policy.md) — Phase 1~4 JSON 산출 도중 "다음 세션 Phase X" 로 미루기 금지. 한 응답 한도 초과 시 같은 세션 내 turn 분할로 4 Phase 모두 완수.
-- **팀원 spawn 절대 금지**: 팀모드(tmux)에서 실행되더라도 TeamCreate 등으로 새 팀원을 spawn 하지 않는다. 모든 병렬/위임 작업은 반드시 **Agent tool**의 `subagent_type` 파라미터를 지정하여 서브에이전트로 실행한다. **Agent tool 호출 시 `team_name`, `name` 파라미터를 절대 포함하지 않는다** — 이 파라미터가 포함되면 서브에이전트가 아닌 팀원이 생성된다. 이 규칙은 재귀 호출(서브화면 분석, MSSQL procedure 분석 등) 포함 모든 단계에 적용된다.
+- **팀원 spawn 절대 금지**: 팀모드(tmux)에서 실행되더라도 TeamCreate 등으로 새 팀원을 spawn 하지 않는다. 모든 병렬/위임 작업은 반드시 **Agent tool**의 `subagent_type` 파라미터를 지정하여 서브에이전트로 실행한다. **Agent tool 호출 시 `team_name`, `name` 파라미터를 절대 포함하지 않는다** — 이 파라미터가 포함되면 서브에이전트가 아닌 팀원이 생성된다. 이 규칙은 재귀 호출(서브화면 분석, DB procedure 분석 등) 포함 모든 단계에 적용된다.
 - **순차 실행 필수**: Phase 2 → 3 → 4 는 이전 Phase 완료 확인 후 다음 시작
 - **절대로 동일 메시지에서 여러 Agent 동시 호출 금지**
 - **Early Termination**: customActivities 비어있으면 Phase 2 에서 빈 JSON 생성 후 즉시 종료
 - **중간 JSON 자동 스킵**: 출력 JSON 존재 시 자동 스킵. `--force` 옵션으로 중간 JSON 강제 재생성 가능
 - **MCP**: Serena MCP 가 C# 을 지원하면 활용. 미지원 또는 부재 시 Read+Grep 으로 fallback (기능 손실 없음, 효율만 저하).
-- **DB 미접속**: SampleErp 는 정적 파일 dump 이므로 sqlcl/oracle DB 접속 불필요. 모든 SQL 본문은 Read 로 가져온다.
+- **DB 미접속**: SampleErp 는 정적 파일 dump 이므로 원천 DBMS 와 무관하게 DB 접속(sqlcl·psql·sqlcmd 등) 불필요. 모든 SQL 본문은 Read 로 가져온다.
 - **query-cache 미사용**: SampleErp 환경에서는 query-cache 의존 없음.
 
 ## 에러 처리

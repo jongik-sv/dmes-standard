@@ -139,7 +139,7 @@ describe("디버거 값 고치기(4단계 E4)", () => {
     await editCell("GT_G", "B");
     expect(gridRowOf("GT_G")).toMatchObject({ value: "B", state: "고침 대기" });
     expect(status()).toBe("3/6 · if1 실행 전 · 고침 대기 1건");
-    expect(byTestId("dbg-step").getAttribute("title")).toBe("고친 값으로 처음부터 다시 실행한 뒤 한 단계 (F10)");
+    expect(byTestId("dbg-step").parentElement!.getAttribute("data-tip")).toBe("고친 값으로 처음부터 다시 실행한 뒤 한 단계 (F10)");
     expect(calls("execute")).toHaveLength(1);
 
     srv.replies.execute = editedReply(EDIT_IF1);

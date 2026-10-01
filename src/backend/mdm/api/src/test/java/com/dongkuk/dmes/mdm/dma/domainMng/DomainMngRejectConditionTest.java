@@ -108,7 +108,8 @@ class DomainMngRejectConditionTest extends DomainMngApiSupport {
         });
         assertRejected("R07", cycle, cases(tc("abc", true)));
         List<String> codes = issueCodes(service.validate(cycle, cases(tc("abc", true)), List.of()));
-        assertTrue(codes.contains("R07") && codes.contains("S01"), "검사기는 전부 모은다(I7): " + codes);
+        assertTrue(codes.contains("R07"), codes.toString());
+        assertFalse(codes.contains("S01"), "부모 변경은 구조 변경이 아니다(D-132): " + codes);
     }
 
     @Test
@@ -151,13 +152,8 @@ class DomainMngRejectConditionTest extends DomainMngApiSupport {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"DOMAIN_KIND", "DATA_TYPE", "UNIT_CODE", "PARENT_DOMAIN_ID"})
+    @ValueSource(strings = {"DOMAIN_KIND", "DATA_TYPE", "UNIT_CODE"})
     void S01_구조_변경은_거부한다(String column) {
-        Long other = saveOk(req(r -> {
-            r.setDomainKind("QTY");
-            r.setDataType("NUMBER");
-            r.setUnitCode("mm");
-        }));
         String std = uniq("S");
         Long id = saveOk(req(r -> {
             r.setStdName(std);
@@ -176,11 +172,7 @@ class DomainMngRejectConditionTest extends DomainMngApiSupport {
             switch (column) {
                 case "DOMAIN_KIND" -> r.setDomainKind("TEXT");
                 case "DATA_TYPE" -> r.setDataType("STRING");
-                case "UNIT_CODE" -> r.setUnitCode("ton");
-                default -> {
-                    r.setParentDomainId(other);
-                    r.setUnitCode(null);
-                }
+                default -> r.setUnitCode("ton");
             }
         });
         assertRejected("S01", change);

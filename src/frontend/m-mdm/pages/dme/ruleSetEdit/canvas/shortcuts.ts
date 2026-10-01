@@ -1,6 +1,7 @@
 /**
  * 캔버스 단축키 디스패처(3단계 계획 P3) — 캔버스에 초점이 있을 때 page 가 onKeyDown 에서 한 번 부른다. 입력 칸이면 무시하고,
  * 그 모드에 손잡이가 있는 키만 preventDefault·stopPropagation 한다(나머지는 브라우저·포털 동작 그대로, 스펙 §2).
+ * Ctrl/Cmd+F(`find`)는 찾기 위젯을 연다. 위젯 안의 Enter·Shift+Enter·Esc·Ctrl/Cmd+F 는 위젯(`FindWidget`)이 받고 여기로 오지 않는다(도움말 표에만 있다).
  */
 import type { FlowMode } from "../state/useRuleSetEdit";
 
@@ -97,16 +98,20 @@ export function dispatchShortcut(
  * Alt+끌기 공간 넓히기와 노드 Alt+끌기 스냅 끄기(G1)는 캔버스가 포인터 이벤트의 altKey 로 본다(새 keydown 처리 없음).
  */
 export type GestureId = "boxSelect" | "spaceDrag" | "snapOff" | "pan" | "zoom" | "handDrag";
+/** 찾기 위젯 안의 키(2026-10-01) — 디스패처가 아니라 위젯(`FindWidget`)이 받는다. 도움말 표에만 있다. */
+export type FindKeyId = "findNext" | "findClose";
 
 /** 도움말 표(툴바 [?], Task 8 이 그린다). */
-export const SHORTCUT_HELP: readonly { id: ShortcutId | GestureId; win: string; mac: string; label: string; modes: readonly FlowMode[] }[] = [
+export const SHORTCUT_HELP: readonly { id: ShortcutId | GestureId | FindKeyId; win: string; mac: string; label: string; modes: readonly FlowMode[] }[] = [
   { id: "undo", win: "Ctrl+Z", mac: "⌘Z", label: "되돌리기", modes: ["edit"] },
   { id: "redo", win: "Ctrl+Shift+Z · Ctrl+Y", mac: "⌘⇧Z · ⌘Y", label: "다시 하기", modes: ["edit"] },
   { id: "delete", win: "Delete · Backspace", mac: "⌫ · Delete", label: "선택 삭제(여럿 고르면 고른 노드·메모·그룹·선 모두 · 고른 꺾는 점이 있으면 그 점)", modes: ["edit"] },
   { id: "copy", win: "Ctrl+C", mac: "⌘C", label: "복사", modes: ["edit"] },
   { id: "paste", win: "Ctrl+V", mac: "⌘V", label: "고른 선에 붙여넣기", modes: ["edit"] },
   { id: "duplicate", win: "Ctrl+D", mac: "⌘D", label: "복제", modes: ["edit"] },
-  { id: "find", win: "Ctrl+F", mac: "⌘F", label: "노드 찾기", modes: ["view", "edit", "debug"] },
+  { id: "find", win: "Ctrl+F", mac: "⌘F", label: "노드 찾기 — 캔버스 오른쪽 위 찾기 위젯을 연다(열려 있으면 찾을 글을 전체 선택)", modes: ["view", "edit", "debug"] },
+  { id: "findNext", win: "Enter · Shift+Enter", mac: "Enter · ⇧Enter", label: "찾기 위젯에서 다음 · 이전 결과", modes: ["view", "edit", "debug"] },
+  { id: "findClose", win: "Esc(찾기 위젯)", mac: "Esc(찾기 위젯)", label: "찾기 위젯 닫기 — 캔버스로 돌아간다(찾을 글·옵션은 남는다)", modes: ["view", "edit", "debug"] },
   { id: "escape", win: "Esc", mac: "Esc", label: "선택 해제·메뉴 닫기(다른 도구를 골랐으면 먼저 기본 도구로 돌아간다)", modes: ["view", "edit", "debug"] },
   { id: "continue", win: "F5", mac: "fn+F5", label: "계속(다음 중단점까지)", modes: ["debug"] },
   { id: "step", win: "F10", mac: "fn+F10", label: "한 단계", modes: ["debug"] },

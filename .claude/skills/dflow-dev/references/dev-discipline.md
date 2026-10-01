@@ -284,7 +284,7 @@ worker-prompt.md·resolve-prompt.md, `/dflow-merge` 「방언 검증」 은 이 
 도커나 Testcontainers 를 쓰는 명령을 돌리지 않는다.
 
 - 도커 CLI: `docker …`·`docker compose`·`docker-compose`·`podman`·`nerdctl`·`orb`·`orbctl`·`colima`.
-- 이름에 `container`·`testcontainers`·`docker`, 또는 컨테이너로 띄우는 DB 제품명(`mssql`·`oracle` 등)이 든(대소문자 무시) 빌드
+- 이름에 `container`·`testcontainers`·`docker`, 또는 컨테이너로 띄우는 DB 제품명(`oracle`·`postgres`·`mssql`·`mysql` 등)이 든(대소문자 무시) 빌드
   태스크·스크립트. 예: Gradle `containerTest`·`dbContainerTest`, npm `test:docker`.
 - Testcontainers 를 쓰는 테스트 클래스·파일. 테스트 폴더에서 `grep -rliE 'testcontainers' <테스트 폴더>` 로 찾는다
   (`org.testcontainers`·`@Testcontainers`·npm·pip 의 `testcontainers` 모두 걸린다).
@@ -472,7 +472,7 @@ Flyway 의 `V<버전>__<설명>.sql` 처럼 파일명이 곧 버전인 마이그
   (예: `git ls-tree --name-only origin/<기본브랜치> <마이그레이션 폴더>/`). 기점 이후 다른 Task 가 먼저 머지했을 수 있어
   로컬 기점이 아니라 origin 을 본다.
 - Phase 06 push 직전에 한 번 더 확인한다. 그사이 개발 브랜치가 같은 번호나 더 큰 번호를 가져갔으면 이 브랜치의 파일을
-  다음 번호로 옮기고(`git mv`) 그 파일명·버전을 가리키는 참조를 함께 고쳐 커밋한다. 방언별 폴더(sqlite·mssql 등)에 짝을
+  다음 번호로 옮기고(`git mv`) 그 파일명·버전을 가리키는 참조를 함께 고쳐 커밋한다. 방언별 폴더(sqlite·oracle·postgresql 등)에 짝을
   이룬 파일은 같은 번호로 옮긴다.
 - 이미 개발 브랜치에 있는 마이그레이션의 번호·내용은 바꾸지 않는다(적용 이력과 얽힌다).
 

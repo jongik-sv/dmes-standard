@@ -10,6 +10,7 @@ describe("change-view", () => {
     expect(classificationLabel("COMPATIBLE")).toBe("호환");
     expect(classificationLabel("NARROW_OR_WIDEN")).toBe("좁히기·넓히기");
     expect(classificationLabel("STRUCTURAL")).toBe("구조 변경(금지)");
+    expect(classificationLabel("PARENT_CHANGE")).toBe("부모 변경");
     expect(classificationLabel(undefined)).toBe("-");
   });
 
@@ -19,6 +20,9 @@ describe("change-view", () => {
     expect(directionLabel("CHANGE")).toBe("변경");
     expect(directionLabel("STRUCTURAL")).toBe("구조 변경");
     expect(directionLabel("COMPATIBLE")).toBe("호환");
+    expect(directionLabel("LINK")).toBe("연결");
+    expect(directionLabel("RELINK")).toBe("교체");
+    expect(directionLabel("UNLINK")).toBe("연결 제거");
   });
 
   it("이슈 수준과 테스트 결과 LV-004", () => {

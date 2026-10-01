@@ -56,7 +56,7 @@ CATCH 가 정했을 세부 가운데 이 계획이 그대로 따르는 것: 받�
 | 9 | §1 "기존 생성자는 null 로 위임한다" | 계약 record 의 생성자는 `Record` 생성자만 부를 수 있다(`ContractTypeShapeTest.계약_record_생성자는_Record_생성자만_부른다` — `this(...)` 위임도 막힌다) | 새 칸을 더한 계약 record(`FlowNode`·`Violation`·`PathStep`·`RuleSetResult`·`NodeTrace`·`CaughtException`)는 **모든 호출부**에 새 인자를 적는다(Task 1 이 grep 으로 찾는다. 2e02d29d 기준 `new FlowNode(` 15곳, `new Violation(` 20곳, `new NodeTrace(` 7곳, `new PathStep(` 6곳, `new RuleSetResult(` 1곳 + CATCH 가 더한 곳) |
 | 10 | §2 `SetCallIo(setId, exists, status, inputs, outputs)` | §5 표의 `CATCH_NEVER`(SUBSET_ENDED 인데 하위 세트에 END 로 가는 처리 갈래가 없다)를 화면·서버가 판정하려면 그 정보가 겉모양에 있어야 한다 | `SetCallIo` 를 `(setId, setName, exists, status, inputs, outputs, endsEarly)` 로 둔다. `endsEarly`(하위 세트 흐름에 END 로 가는 처리 갈래가 있는가)는 `CATCH_NEVER` 판정에, `setName` 은 SET 노드 제목(§9 "라벨·세트명·세트 ID")에 쓴다(Ruling 19). 둘 다 연쇄 재검사의 겉모양 비교(§6.1-2)에는 넣지 않는다(경고·표시만 바뀐다) |
 | 11 | §3 "부모 `ctx` 의 사본을 입력 레코드로" | 처리 갈래 안의 `ctx` 에는 `CATCH_*` 가 있고, 예약 이름은 레코드 키로 오면 `RESERVED_KEY` 다(CATCH 스펙 §6 `ReservedNames`). 그대로 넘기면 처리 갈래 안 SET 노드는 늘 하위 세트의 레코드 키 검사에서 멈춘다 | 하위 세트 입력 = 부모 `ctx` 사본에서 `CATCH_KIND`·`CATCH_RULE`·`CATCH_CODE`·`CATCH_MSG`·`CATCH_SET` 다섯 이름(대소문자 무시)을 뺀 것(Ruling 3, Review Focus 3) |
-| 12 | §6.2 폐기 때 INUSE 부모가 있으면 거부 | 지금 폐기는 "검사를 돌리지 않는다(I14)"(`RuleSetEditService.java:244`) | 스펙대로 부르는 세트 검사를 넣는다. I14 가 "폐기는 경로 검사를 돌리지 않고, 부르는 INUSE 세트가 있으면 거부한다" 로 바뀐다(D-133 에 적는다) |
+| 12 | §6.2 폐기 때 INUSE 부모가 있으면 거부 | 지금 폐기는 "검사를 돌리지 않는다(I14)"(`RuleSetEditService.java:244`) | 스펙대로 부르는 세트 검사를 넣는다. I14 가 "폐기는 경로 검사를 돌리지 않고, 부르는 INUSE 세트가 있으면 거부한다" 로 바뀐다(D-135 에 적는다) |
 
 ---
 
@@ -74,7 +74,7 @@ CATCH 가 정했을 세부 가운데 이 계획이 그대로 따르는 것: 받�
 | 7 화면 세트 탭 | opus | 0 | `page.tsx` → `RuleSetEditor.tsx`(새)·`RuleSetTabs.tsx`(새)·`tabs-model.ts`(새)·`useRuleSetEdit.ts`·`styles/tabs.ts`(새) | 백엔드 태스크와 병렬(화면 파일만) |
 | 8 화면 SET 노드 | opus | 1, 2, 5, 6, 7 | `api.ts`·`types.ts`·`flow-edit.ts`·`flow-layout.ts`·캔버스·패널·`RuleSetEditor.tsx`·e2e | 단독 |
 | 9 디버거 들어가기 | sonnet | 6, 7 | `debugger/call-stack.ts`(새)·`useSimulation.ts`·`trace-view.ts`·`TraceDetail.tsx`·`RuleSetEditor.tsx` | Task 8 과 `RuleSetEditor.tsx`·`TraceDetail.tsx` 가 겹친다 → Task 8 병합 뒤 |
-| 10 문서·결정 | haiku | 1~9 | `docs/mdm/decisions.md`(D-133)·`docs/mdm/engine-contract.md`·기능설계서 | 단독 |
+| 10 문서·결정 | haiku | 1~9 | `docs/mdm/decisions.md`(D-135)·`docs/mdm/engine-contract.md`·기능설계서 | 단독 |
 
 순서: Task 0 → (Task 1 ∥ Task 3 ∥ Task 7) → Task 2 → (Task 4 ∥ Task 5) → Task 6 → Task 8 → Task 9 → Task 10. 동시에 도는 구현 에이전트는 셋까지다. 첫 물결은 1·3·7 이다.
 
@@ -7714,12 +7714,12 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- src/fro
 
 ---
 
-### Task 10: 문서·결정 — D-133(C-D1~C-D16)·엔진 계약 문서·기능설계서
+### Task 10: 문서·결정 — D-135(C-D1~C-D16)·엔진 계약 문서·기능설계서
 
 **모델:** haiku — 정해진 문구를 정해진 자리에 옮겨 적는 일이다.
 
 **Files:**
-- Modify: `docs/mdm/decisions.md`(끝에 D-133, append-only)
+- Modify: `docs/mdm/decisions.md`(끝에 D-135, append-only)
 - Modify: `docs/mdm/engine-contract.md`(§3 spi 흐름 문단, §6 예약 이름 표, §8 결과·기록·오류)
 - Modify: `docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md`(§2 화면 영역, §5.1 버튼, §5.3 캔버스, §5.5 우클릭, §6.2 세트 검사, §11 설계 결정)
 
@@ -7730,13 +7730,13 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- src/fro
 - [ ] **Step 1: decisions.md 끝 형식 확인**
 
 Run: `tail -n 30 docs/mdm/decisions.md`
-Expected: 마지막 항목이 CATCH 의 `## D-132 (…)` 이고, 항목마다 `- **Phase**:`·`- **Decision needed**:`·`- **Decision made**:`·`- **Rationale**:`·`- **Reversible**:`·`- **Source**:` 여섯 줄이다. 마지막이 D-132 가 아니면 그 다음 번호를 쓰고 이 계획·스펙의 "D-133" 언급을 그 번호로 읽는다(보고에 적는다).
+Expected: 마지막 항목이 CATCH 의 `## D-134 (…)` 이고, 항목마다 `- **Phase**:`·`- **Decision needed**:`·`- **Decision made**:`·`- **Rationale**:`·`- **Reversible**:`·`- **Source**:` 여섯 줄이다. 마지막이 D-134 가 아니면 그 다음 번호를 쓰고 이 계획·스펙의 "D-135" 언급을 그 번호로 읽는다(보고에 적는다).
 
-- [ ] **Step 2: D-133 을 끝에 더한다**
+- [ ] **Step 2: D-135 을 끝에 더한다**
 
 **Source** 끝의 커밋은 `/usr/bin/git log --oneline --merges feat/rule-set-subset-call` 에서 Task 1~9 병합 커밋을 찾아 `Task N <해시>` 로 적는다.
 ```markdown
-## D-133 (2026-10-01T00:00:00Z)
+## D-135 (2026-10-01T00:00:00Z)
 - **Phase**: plan·implement(룰 세트 흐름도 — 하위 세트 호출(SET 노드)·편집 화면 안 세트 탭, 사용자가 방향을 승인하고 세부 판단을 맡김)
 - **Decision needed**: 룰 세트에서 다른 룰 세트를 부르는 방법과, 여러 세트를 한 편집 화면 안에서 함께 여는 방법(사용자 요청 "룰 세트에서 또 다른 룰 세트를 호출하게 하려면", "룰세트 편집 안에 여러개의 탭")
 - **Decision made**: C-D1 하위 세트는 블랙박스 `SET` 노드(입력은 하위 입력, 출력은 최종 결과만, 이름은 그대로 주고받는다) · C-D2 호출 시점의 저장된 현재 행, INUSE 만 · C-D3 `TB_MDM_RULE_SET.CALL_SET_IDS`(서버가 흐름에서 계산), `RULE_IDS` 는 자기 RULE 노드만 · C-D4 겉모양(`SetCallIo`)은 서버만 계산하고 화면은 받아서 검사에 넣는다 · C-D5 출력마다 `always`, 일부 경로 출력은 `maybe`(`FLOW_PARTIAL`) · C-D6 하위 세트의 처리되지 않은 위반은 SET 노드에서 같은 종류로 받고, 받지 않는 코드는 중단 · C-D7 예약 이름 `CATCH_SET` · C-D8 하위 세트의 처리 갈래 끝냄은 opt-in 종류 `SUBSET_ENDED`(받는 노드가 없으면 정상 완료) · C-D9 `caught` 는 `setPath` 를 붙여 최상위까지 이어 붙이고 `endedBy` 는 자기 세트만 · C-D10 순환·깊이 5 초과는 저장 때 거부(`CALL_CYCLE`·`CALL_DEPTH`), 실행 때 `SET_CALL_CYCLE`·`SET_CALL_DEPTH` · C-D11 겉모양이 바뀌는 저장(세트·룰)은 부르는 세트를 연쇄 재검사해 새 거부는 막고(`CALLER_BROKEN`·`SET_CALLER_BROKEN`) 새 경고는 알린다(`CALLER_WARN`) · C-D12 부르는 INUSE 세트가 있으면 폐기 거부 · C-D13 편집 화면 안 세트 탭(최대 8), SET 링크는 같은 화면의 새 탭 · C-D14 탭마다 세트 상태·되돌리기·디버거를 따로, 보는 사람 설정은 함께 · C-D15 디버거 "안으로 들어가기"는 같은 캔버스에서 경로 표시로 오가고 탭을 열지 않는다 · C-D16 흐름 `version` 1 유지. 구현 편차(계획 `docs/superpowers/plans/2026-10-01-rule-set-flow-subset-call.md`): 새 조회는 action 이 아니라 `search` 의 `target` `CALL_IO`·`CALLERS`(ADR-0003 권한 어휘), 룰 저장 검사 `RuleSetCallerCheck` 는 `@Order(9)`, V16 은 세트 테스트 케이스 표(V15 FK)를 함께 옮겨 다시 만든다, 하위 세트는 준비 단계에서 읽고 판정한다(룰 없음과 같은 시점), 엔진은 실행용 겉모양 `SetShape` 을 같은 알고리즘으로 스스로 계산한다, 하위 세트 입력에서 `CATCH_*` 다섯 이름을 뺀다, `SetCallIo` 에 `setName`·`endsEarly` 를 더한다, 세트 탭은 네이티브 탭 머리 + `display:none` 패널이다(Mantine `Tabs` 는 화면에서 쓰지 못하고 9.6 의 `keepMounted` 기본 모드 `activity` 는 숨은 탭의 효과를 내린다), I14 가 "폐기는 경로 검사를 하지 않고, 부르는 INUSE 세트가 있으면 거부한다" 로 바뀐다.
@@ -7748,35 +7748,35 @@ Expected: 마지막 항목이 CATCH 의 `## D-132 (…)` 이고, 항목마다 `-
 - [ ] **Step 3: 엔진 계약 문서**
 
 `docs/mdm/engine-contract.md`:
-- §3 의 "**룰 세트 흐름(2026-09-30 …)**" 문단 끝에 다음 문장을 잇는다: ` 하위 세트 호출(2026-10-01, D-133): 노드 종류 SET 은 FlowNode 의 setId(부르는 세트 ID)만 쓰고, 구조에서는 RULE 과 같다(들어오는 선 1·나가는 선 1). 하위 세트도 DefinitionLookup.ruleSet 으로 받는다 — 엔진은 DB 를 부르지 않는다.`
+- §3 의 "**룰 세트 흐름(2026-09-30 …)**" 문단 끝에 다음 문장을 잇는다: ` 하위 세트 호출(2026-10-01, D-135): 노드 종류 SET 은 FlowNode 의 setId(부르는 세트 ID)만 쓰고, 구조에서는 RULE 과 같다(들어오는 선 1·나가는 선 1). 하위 세트도 DefinitionLookup.ruleSet 으로 받는다 — 엔진은 DB 를 부르지 않는다.`
 - §6 예약 이름 표 끝에 한 줄:
 ```markdown
-| `CATCH_SET` | 처리 갈래 안에서만 ctx 에 있다 — 위반이 난 가장 안쪽 세트 ID. 레코드 키로 오면 판정 오류이고 하위 세트 입력으로 넘기지 않는다(`CATCH_*` 다섯 이름 모두) | `RESERVED_KEY` | 하위 세트 spec §4.1, D-133 |
+| `CATCH_SET` | 처리 갈래 안에서만 ctx 에 있다 — 위반이 난 가장 안쪽 세트 ID. 레코드 키로 오면 판정 오류이고 하위 세트 입력으로 넘기지 않는다(`CATCH_*` 다섯 이름 모두) | `RESERVED_KEY` | 하위 세트 spec §4.1, D-135 |
 ```
 - §8 의 "**룰 세트 결과 …**" 문단 끝에 다음 문단을 잇는다:
 ```markdown
-**하위 세트 호출(D-133)**: `RuleSetResult` 끝에 `calls`(실행한 SET 노드마다 `SetCall(nodeId, setId, result)`, 실행 순서 — `result` 는 하위 세트의 `RuleSetResult` 전체)가 더해지고, `PathStep` 끝에 `callIndex`(SET 결과가 `calls` 의 몇 번째인지, 그 밖은 null)가 더해진다. `steps` 는 이 세트의 RULE 결과만 담는다. SET 노드는 부모 ctx 사본(예약 이름 `CATCH_*` 다섯은 뺀다)을 입력으로 하위 세트를 같은 평가 시각으로 실행하고, 하위 세트의 최종 결과 가운데 하위 finalValues 에 키가 있는 이름만 부모 ctx 에 덮어쓴다(값이 NULL 이어도). 하위 세트는 준비 단계에서 SET 노드마다 재귀로 읽고 없음 `SET_NOT_FOUND`·폐기 `SET_DEPRECATED`·순환 `SET_CALL_CYCLE`·최상위에서 5 단계 초과 `SET_CALL_DEPTH` 를 `SET_CHECK` 단계로 낸다(모두 받지 않는 코드). 부모의 입력 키 사전 검사에는 반드시 실행되는 SET 노드의 반드시 읽는 하위 입력이 든다(`INPUT_ERROR` 를 받는 SET 은 뺀다). 하위 세트의 처리되지 않은 위반은 `Violation.setPath`(최상위에서 위반 세트까지 거친 SET 노드 ID, 이 세트에서 났으면 빈 목록 — JSON 에서는 키를 뺀다)를 붙여 올라오고, SET 노드에 붙은 받는 노드가 CATCH 종류 표로 받을 수 있다. 하위 세트가 자기 처리 갈래로 끝나면(`endedBy`) 부모는 `SUBSET_ENDED` 를 받는 노드가 있을 때만 예외로 보고, 없으면 정상 완료다. `caught` 는 하위의 것을 `setPath` 를 붙여 이어 붙인다. 실행 기록의 SET 노드는 `reads`(부모 ctx 의 하위 입력 값)·`outputs`(넘겨받은 이름 → 값)·`sub`(하위 세트의 `RunTrace`)를 채우고, 없으면 JSON 에서 키를 뺀다.
+**하위 세트 호출(D-135)**: `RuleSetResult` 끝에 `calls`(실행한 SET 노드마다 `SetCall(nodeId, setId, result)`, 실행 순서 — `result` 는 하위 세트의 `RuleSetResult` 전체)가 더해지고, `PathStep` 끝에 `callIndex`(SET 결과가 `calls` 의 몇 번째인지, 그 밖은 null)가 더해진다. `steps` 는 이 세트의 RULE 결과만 담는다. SET 노드는 부모 ctx 사본(예약 이름 `CATCH_*` 다섯은 뺀다)을 입력으로 하위 세트를 같은 평가 시각으로 실행하고, 하위 세트의 최종 결과 가운데 하위 finalValues 에 키가 있는 이름만 부모 ctx 에 덮어쓴다(값이 NULL 이어도). 하위 세트는 준비 단계에서 SET 노드마다 재귀로 읽고 없음 `SET_NOT_FOUND`·폐기 `SET_DEPRECATED`·순환 `SET_CALL_CYCLE`·최상위에서 5 단계 초과 `SET_CALL_DEPTH` 를 `SET_CHECK` 단계로 낸다(모두 받지 않는 코드). 부모의 입력 키 사전 검사에는 반드시 실행되는 SET 노드의 반드시 읽는 하위 입력이 든다(`INPUT_ERROR` 를 받는 SET 은 뺀다). 하위 세트의 처리되지 않은 위반은 `Violation.setPath`(최상위에서 위반 세트까지 거친 SET 노드 ID, 이 세트에서 났으면 빈 목록 — JSON 에서는 키를 뺀다)를 붙여 올라오고, SET 노드에 붙은 받는 노드가 CATCH 종류 표로 받을 수 있다. 하위 세트가 자기 처리 갈래로 끝나면(`endedBy`) 부모는 `SUBSET_ENDED` 를 받는 노드가 있을 때만 예외로 보고, 없으면 정상 완료다. `caught` 는 하위의 것을 `setPath` 를 붙여 이어 붙인다. 실행 기록의 SET 노드는 `reads`(부모 ctx 의 하위 입력 값)·`outputs`(넘겨받은 이름 → 값)·`sub`(하위 세트의 `RunTrace`)를 채우고, 없으면 JSON 에서 키를 뺀다.
 ```
 - §8 의 "코드(`Code`) 14종" 문장을 실제 목록으로 고친다 — `EngineEvaluationException.Code` 를 그대로 옮겨(지금 `EDIT_POINT_MISMATCH`·`SET_CALL_CYCLE`·`SET_CALL_DEPTH` 를 포함한 수) "코드(`Code`) N종" 과 끝에 `` `EDIT_POINT_MISMATCH`(디버거 고친 값 자리 어긋남), `SET_CALL_CYCLE`(세트 호출 순환), `SET_CALL_DEPTH`(세트 호출 5 단계 초과) `` 를 잇는다. CATCH 가 더한 종류 표(`CatchKind`) 설명에 `SUBSET_ENDED`(하위 세트 예외 끝 — SET 노드 받는 노드만, 오류 코드와 짝이 없다) 를 더한다.
 
 - [ ] **Step 4: 기능설계서**
 
-`docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md` 의 각 절에 다음 행·문단을 더한다. 행 번호는 그 절 표의 마지막 번호 다음 번호다. 각 행 끝에 `(D-133)` 을 단다.
-- §2 화면 영역: 영역 표에 `A-TABS | 세트 탭 머리(set-tabs) — 열린 세트마다 탭(세트 ID, 이름은 툴팁, 저장 안 한 변경 ●, 닫기 ×, 마지막 탭은 닫기 없음), 최대 8개 | (D-133)` 을 위 바(A-TOP) 다음에.
+`docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md` 의 각 절에 다음 행·문단을 더한다. 행 번호는 그 절 표의 마지막 번호 다음 번호다. 각 행 끝에 `(D-135)` 을 단다.
+- §2 화면 영역: 영역 표에 `A-TABS | 세트 탭 머리(set-tabs) — 열린 세트마다 탭(세트 ID, 이름은 툴팁, 저장 안 한 변경 ●, 닫기 ×, 마지막 탭은 닫기 없음), 최대 8개 | (D-135)` 을 위 바(A-TOP) 다음에.
 - §5.1 버튼: `도구 상자 「룰 세트」(flow-add-set) | 편집 모드 | 세트 검색 팝업(INUSE, 지금 세트 제외)을 열고 고른 세트를 고른 선(없으면 END 앞 선)에 SET 노드로 끼운다`, `SET 노드 링크(flow-set-open-{id})·속성 패널 「세트 탭으로 열기」(flow-prop-set-open) | 늘 | 그 세트가 열린 탭으로, 없으면 지금 탭 오른쪽 새 탭`, `탭 닫기(set-tab-close-{key}) | 탭이 둘 이상 | 저장 안 한 변경이 있으면 "저장하지 않은 변경이 있다. 닫으면 변경을 버린다." 확인`, `디버그 SET 노드 상세 「안으로 들어가기」(sim-detail-enter) | 디버그 모드·실행된 SET | 같은 캔버스가 하위 흐름을 읽기 전용으로 그리고 경로 표시(dbg-callpath)가 뜬다. 경로의 앞 단계를 누르면 돌아온다`.
 - §5.3 캔버스: SET 노드 모양(룰과 같은 크기, 굵은 테두리, 제목은 라벨·세트명·세트 ID 순, "룰 세트 {ID}" 줄, 입력·출력 개수 칩), SET 노드 뒤 선의 변수 칩은 하위 세트 출력, 받는 노드는 RULE·SET 에 붙는다(SET 은 `SUBSET_ENDED` 를 고를 수 있고 `NO_RESULT` 는 없다), 외관 옵션은 SET 에 없다.
 - §5.5 우클릭: SET 노드 「세트 열기」·「복사」·「복제」·「삭제」, 선 「룰 세트 넣기」.
 - §6.2 세트 검사 표: `CALL_MISSING`(거부, 화면·서버 — 문구 Ruling 8), `CALL_CYCLE`·`CALL_DEPTH`·`CALLER_BROKEN`(거부, 서버만 — 저장 응답), `CALLER_WARN`(경고, 서버만 — 저장 결과), `FLOW_CATCH` 의 SET 규칙과 `CATCH_NEVER`(SUBSET_ENDED) 문구(Ruling 9), `EMPTY` 는 RULE·TASK·SET 노드가 하나도 없을 때. 세트 검사 문구에서 하위 세트는 `세트 {ID}` 로 보인다.
-- §11 설계 결정: `D-133 하위 세트 호출·세트 탭 — 스펙 2026-10-01-rule-set-flow-subset-call-design.md §13, 계획 편차 1~14` 한 줄.
+- §11 설계 결정: `D-135 하위 세트 호출·세트 탭 — 스펙 2026-10-01-rule-set-flow-subset-call-design.md §13, 계획 편차 1~14` 한 줄.
 
 - [ ] **Step 5: 확인과 커밋**
 
-Run: `grep -n "D-133" docs/mdm/decisions.md docs/mdm/engine-contract.md docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md`
+Run: `grep -n "D-135" docs/mdm/decisions.md docs/mdm/engine-contract.md docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md`
 Expected: 세 파일 모두에 나온다.
 
 ```bash
 /usr/bin/git add docs/mdm/decisions.md docs/mdm/engine-contract.md docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md
-/usr/bin/git commit -m "docs(mdm): 하위 세트 호출·세트 탭 결정 D-133 과 엔진 계약·기능설계서를 갱신한다
+/usr/bin/git commit -m "docs(mdm): 하위 세트 호출·세트 탭 결정 D-135 과 엔진 계약·기능설계서를 갱신한다
 
 Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- docs/mdm/decisions.md docs/mdm/engine-contract.md docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md
 ```
@@ -7834,7 +7834,7 @@ Expected: 모두 초록, 기준선 대비 늘어난 시험 수를 진행 장부�
 | §10 세트 탭(구조·나누기·열기·닫기·연동) | 7, 8 |
 | §11 디버거 | 9 |
 | §12 테스트(엔진·서버·코퍼스·화면·e2e) | 4, 5, 6, 7, 8, 9 |
-| §13 결정 D-133 | 10 |
+| §13 결정 D-135 | 10 |
 | §14 미루는 것 | 다루지 않는다(하위 기록 안 E4 는 Task 9 가 끈다) |
 
 **2. 자리 표시 점검**: "TBD·나중에·적절히" 같은 빈 지시가 없는지 훑었다. CATCH 계획 문서(`2026-10-01-rule-set-flow-catch.md`)가 생긴 뒤 그 Produces 이름과 대조해 코드 블록에 직접 썼다(`CatchKind` 는 `flow` 패키지·코드 목록 생성자, `CATCH_NAMES` 는 CATCH 가 넷으로 만든 것을 다섯으로, `catchable`·`CATCHABLE`·`CATCH_KINDS`, `catchNode(id, attachTo, kinds...)`, R20 다음 R21). 남은 "Task 0 장부" 언급은 CATCH 구현이 계획과 다르게 병합됐을 때의 대비다. `<이 태스크가 바꾼 화면 파일 모두>` 는 `git status` 로 모으는 목록이다(파일 목록 자체가 태스크 Files 에 있다).

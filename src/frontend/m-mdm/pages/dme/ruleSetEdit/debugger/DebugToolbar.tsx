@@ -2,7 +2,8 @@
 
 /**
  * 디버그 툴바(3단계 계획 §4.3·P-D22) — 흐름 툴바 아래 둘째 줄. [계속 F5] [한 단계 F10] [이전] [여기까지] [처음부터] [끝내기]·상태 문구·낡은 기록 배지·알림.
- * 실행을 부를 수 있는 단추(계속·한 단계·여기까지·처음부터·끝내기)는 `execute` 권한이 없으면 꺼지고 title 로 이유를 보인다. 실행 중에는 모두 꺼진다.
+ * 단추는 아이콘만 있고(`ToolButton`) 이름·단축키·꺼진 이유는 툴팁(`data-tip`)으로 보인다(2026-10-01 한 줄 툴바와 같은 방식).
+ * 실행을 부를 수 있는 단추(계속·한 단계·여기까지·처음부터·끝내기)는 `execute` 권한이 없으면 꺼지고 툴팁으로 이유를 보인다. 실행 중에는 모두 꺼진다.
  * [여기까지]는 고른 흐름 노드 기준이다(page 가 흐름 노드일 때만 selectedId 를 넘긴다). 상태 문구는 `debugStatus`(커서 k = "노드 k 실행 전", P-D13).
  * 4단계 E4: 고침 대기가 있으면 [계속]·[한 단계]·[여기까지]·[끝내기]가 고친 값으로 처음부터 다시 실행한다(훅이 판정한다). 상태 문구 끝에 고친 값·고침 대기 수.
  * 낡은 기록(흐름 구조가 실행 뒤 바뀜)이면 "지난 흐름 기준" 배지를 보이고, 다음 동작이 새로 실행한다(P-D9 — 훅이 판정한다).
@@ -14,6 +15,7 @@ import { useState, type ReactNode } from "react";
 import { Button } from "@dk-oasis/shared/form";
 import { badgeStyle } from "@/shell";
 
+import { ToolButton } from "../canvas/ToolButton";
 import { CATCH_KIND_LABEL, catchTitle } from "../catch-text";
 import { RUN_DENIED_TITLE, debugStatus } from "./debug-model";
 import type { Simulation } from "./useSimulation";
@@ -43,11 +45,8 @@ export function DebugToolbar({ sim, canRun, selectedId }: DebugToolbarProps) {
   const alert = sim.notice ?? sim.error;
   const end = !sim.last ? "idle" : n === 0 || (sim.cursor >= n && sim.last.trace.nodes[n - 1]?.status === "ERROR") ? "error" : sim.cursor >= n ? "done" : "running";
 
-  const btn = (testId: string, label: string, icon: ReactNode, onClick: () => void, off: boolean, title: string) => (
-    <Button size="sm" data-testid={testId} ariaLabel={label} title={title} disabled={off} onClick={onClick}>
-      {icon}
-      {label}
-    </Button>
+  const btn = (testId: string, label: string, icon: ReactNode, onClick: () => void, off: boolean, tip: string) => (
+    <ToolButton size="sm" data-testid={testId} label={label} tip={tip} icon={icon} disabled={off} onClick={onClick} />
   );
 
   return (

@@ -42,6 +42,7 @@ export type TableAction =
   | { type: "editNote"; rowId: number; value: string }
   | { type: "deleteRow"; rowId: number }
   | { type: "reorder"; keys: (string | number)[] }
+  | { type: "setHitPolicy"; value: HitPolicyCode }
   | { type: "revert" }
   | { type: "selectRow"; rowId: number | null };
 
@@ -121,12 +122,18 @@ export function tableReducer(state: TableState, action: TableAction): TableState
     case "reorder": {
       const byKey = new Map(state.rows.map((r) => [String(r.rowId), r]));
       const ordered = action.keys.map((k) => byKey.get(String(k))).filter((r): r is GridRow => !!r);
-      const rest = state.rows.filter((r) => !action.keys.map(String).includes(String(r.rowId)));
+      // 키 집합은 한 번만 만든다(행마다 키 목록을 다시 만들면 2,600행 표에서 O(n²)).
+      const keySet = new Set(action.keys.map(String));
+      const rest = state.rows.filter((r) => !keySet.has(String(r.rowId)));
       return { ...state, rows: resequence([...ordered, ...rest]) };
     }
+    case "setHitPolicy":
+      // 적중 정책은 판정 룰(DECISION)에만 있다 — 표와 함께 [표 저장] 한 번으로 저장한다(D-133).
+      if (state.ruleKind !== "DECISION" || state.hitPolicy === action.value) return state;
+      return { ...state, hitPolicy: action.value };
     case "revert":
-      // 적중 정책은 revert 대상이 아니다(D-105 (4)) — 되돌리는 건 헤더·버전 화면 몫이라 여기는 건드리지 않는다.
-      return { ...state, rows: state.loadedRows, selectedRowId: null };
+      // 적중 정책도 되돌린다(D-133) — 표 편집과 한 묶음이다.
+      return { ...state, rows: state.loadedRows, hitPolicy: state.loadedHit, selectedRowId: null };
   }
   return state;
 }
@@ -145,15 +152,36 @@ export function loadedRowsJson(state: Pick<TableState, "vars" | "loadedRows">): 
   return JSON.stringify(storedRowsFromGrid(state.vars, state.loadedRows));
 }
 
-/** `pre` — 이미 만든 편집본 행·불러온 표 직렬화가 있으면 다시 만들지 않는다. */
+/** 저장 행 두 벌이 같은가 — 행마다 칸(rowId·seq·rowKind·cells·note)을 견준다. 두 벌을 통째로 `JSON.stringify` 해 견준 것과 같은 판정이다. */
+export function sameStoredRows(a: readonly StoredRow[], b: readonly StoredRow[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i];
+    const y = b[i];
+    if (x === y) continue;
+    if (x.rowId !== y.rowId || x.seq !== y.seq || x.rowKind !== y.rowKind || x.cells !== y.cells || x.note !== y.note) return false;
+  }
+  return true;
+}
+
+/**
+ * `pre` — 이미 만든 편집본 행(`stored`)·불러온 표 저장 행(`loaded`)이 있으면 다시 만들지 않는다. `loaded` 가 있으면 행마다 견주어
+ * 표 전체를 직렬화하지 않는다(바뀌지 않은 행은 같은 저장 행 객체라 참조 비교로 끝난다). `loadedJson` 은 옛 호출 모양이다.
+ */
 export function isDirty(
   state: Pick<TableState, "vars" | "rows" | "loadedRows" | "hitPolicy" | "loadedHit">,
-  pre: { stored?: readonly StoredRow[]; loadedJson?: string } = {},
+  pre: { stored?: readonly StoredRow[]; loaded?: readonly StoredRow[]; loadedJson?: string } = {},
 ): boolean {
-  // 적중 정책은 이 화면에서 안 변한다(D-105 (4)) — dirty 판정에서 제외한다.
+  // 적중 정책을 바꿨으면 행과 상관없이 저장 안 한 변경이다(D-133).
+  if (state.hitPolicy !== state.loadedHit) return true;
   // 불러온 뒤 편집이 없으면 같은 배열이다 — 직렬화 비교를 건너뛴다.
   if (state.rows === state.loadedRows) return false;
-  return JSON.stringify(pre.stored ?? tableStoredRows(state)) !== (pre.loadedJson ?? loadedRowsJson(state));
+  const stored = pre.stored ?? tableStoredRows(state);
+  if (pre.loaded || pre.loadedJson === undefined) {
+    return !sameStoredRows(stored, pre.loaded ?? storedRowsFromGrid(state.vars, state.loadedRows));
+  }
+  return JSON.stringify(stored) !== pre.loadedJson;
 }
 
 /** 즉시 검사 — `ruleDefFromStored(storedRowsFromGrid(…))` → evalex `analyzeRule`(I13). */

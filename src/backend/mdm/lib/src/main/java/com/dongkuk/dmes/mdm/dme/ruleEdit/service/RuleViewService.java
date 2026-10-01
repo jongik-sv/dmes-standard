@@ -33,6 +33,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 import kr.dongkuk.maru.mdm.engine.rule.RuleAnalyzer;
 import org.springframework.stereotype.Service;
 
@@ -99,20 +100,23 @@ public class RuleViewService {
             out.setEditable(false);
         } else {
             int ver = selected.getVer();
+            Integer baseVer = selected.getBaseVer();
             out.setSelectedVer(ver);
-            List<ResolvedVar> vars = resolver.resolve(id, ver, queries.vars(id, ver));
+            // 읽기 경로 — 두 버전 변수 타입을 한 해석 범위로 푼다(도메인 트리·결과 변수 한 번, 컬럼 사전은 이름을 모아 한 번). 변수는 한 번 읽어 쓴다.
+            List<MdmRuleVar> rawVars = queries.vars(id, ver);
+            List<MdmRuleVar> baseRawVars = baseVer == null ? List.of() : queries.vars(id, baseVer);
+            RuleVarTypeResolver.Scope scope = resolver.scope();
+            scope.preloadColumns(Stream.concat(rawVars.stream(), baseRawVars.stream()).map(MdmRuleVar::getVarName).toList());
+            List<ResolvedVar> vars = scope.resolve(id, ver, rawVars);
             List<MdmRuleRow> rows = queries.rows(id, ver);
             out.setVars(vars);
             out.setRows(rows.stream().map(RuleViewService::rowInfo).toList());
-            out.setBaseRows(selected.getBaseVer() == null ? List.of()
-                    : queries.rows(id, selected.getBaseVer()).stream().map(RuleViewService::rowInfo).toList());
-            out.setBaseVars(selected.getBaseVer() == null ? List.of()
-                    : resolver.resolve(id, selected.getBaseVer(), queries.vars(id, selected.getBaseVer())));
-            out.setVarCandidates(varCandidates(id));
-            out.setVarMeta(queries.vars(id, ver).stream().map(RuleViewService::varMeta).toList());
+            out.setBaseRows(baseVer == null ? List.of() : queries.rows(id, baseVer).stream().map(RuleViewService::rowInfo).toList());
+            out.setBaseVars(baseVer == null ? List.of() : scope.resolve(id, baseVer, baseRawVars));
+            out.setVarCandidates(varCandidates(scope.resultVarsExcept(id)));
+            out.setVarMeta(rawVars.stream().map(RuleViewService::varMeta).toList());
             // base 버전의 저장 원값 — 입력 계약 diff 가 base 의 열 조건(grp_cond) 참조를 지금 값과 섞지 않게 한다.
-            out.setBaseVarMeta(selected.getBaseVer() == null ? List.of()
-                    : queries.vars(id, selected.getBaseVer()).stream().map(RuleViewService::varMeta).toList());
+            out.setBaseVarMeta(baseVer == null ? List.of() : baseRawVars.stream().map(RuleViewService::varMeta).toList());
             List<StoredRow> stored = rows.stream().map(r -> new StoredRow(r.getRowId(), r.getSeq(), r.getRowKind(), r.getCells())).toList();
             out.setIssues(RuleIssueMaps.of(RuleAnalyzer.analyze(
                     RuleAnalysisInputMapper.toAnalysisRule(id, rule.getRuleKind(), selected.getHitPolicy(), vars, stored))));
@@ -133,8 +137,8 @@ public class RuleViewService {
                 v.getDomainId(), v.getDataType());
     }
 
-    /** 식 입력 칸 datalist 소스 — 컬럼 사전 물리명·앞 룰 결과 변수(resolver 가 쓰는 것과 같은 조회, TSK-08-03). */
-    private List<VarCandidate> varCandidates(String id) {
+    /** 식 입력 칸 datalist 소스 — 컬럼 사전 물리명·앞 룰 결과 변수(resolver 가 쓰는 것과 같은 목록 {@code resultVars}, TSK-08-03). */
+    private List<VarCandidate> varCandidates(List<MdmRuleVar> resultVars) {
         List<VarCandidate> out = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         for (MdmColumn c : columnRepository.findAllByOrderByPhysNameAsc()) {
@@ -143,7 +147,7 @@ public class RuleViewService {
                 out.add(new VarCandidate(c.getPhysName(), label, "COLUMN"));
             }
         }
-        for (MdmRuleVar r : queries.latestReleasedResultVarsExcept(id)) {
+        for (MdmRuleVar r : resultVars) {
             if (r.getVarName() != null && r.getVarName().isBlank()) {
                 continue;
             }

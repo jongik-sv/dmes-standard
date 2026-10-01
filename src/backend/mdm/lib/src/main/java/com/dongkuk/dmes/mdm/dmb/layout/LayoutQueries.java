@@ -5,10 +5,16 @@ import com.dongkuk.dmes.mdm.entity.MdmLayout;
 import com.dongkuk.dmes.mdm.entity.MdmLayoutConst;
 import com.dongkuk.dmes.mdm.entity.MdmLayoutHeader;
 import com.dongkuk.dmes.mdm.entity.MdmLayoutItem;
+import com.dongkuk.dmes.mdm.entity.MdmLayoutVer;
 import jakarta.persistence.EntityManager;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.function.Function;
 import org.springframework.stereotype.Component;
 
 /**
@@ -22,6 +28,9 @@ import org.springframework.stereotype.Component;
 public class LayoutQueries {
 
     public static final int COLUMN_SEARCH_LIMIT = 100;
+
+    /** IN 목록 한 번에 넣는 최대 수. */
+    public static final int IN_CHUNK = 500;
 
     private static final String COLUMN_SELECT = "SELECT c.PHYS_NAME, c.COLUMN_NAME, c.LABEL_LONG, c.DOMAIN_ID, d.DOMAIN_NAME "
             + "FROM TB_MDM_COLUMN c JOIN TB_MDM_DOMAIN d ON d.DOMAIN_ID = c.DOMAIN_ID ";
@@ -112,6 +121,65 @@ public class LayoutQueries {
 
     public List<MdmEai> allEais() {
         return em.createQuery("SELECT e FROM MdmEai e ORDER BY e.eaiCode", MdmEai.class).getResultList();
+    }
+
+    // ── 여러 레이아웃을 한 번에(IN, {@value #IN_CHUNK}개씩) — 레이아웃별로 묶은 값은 위 단건 조회와 같은 순서다 ──
+
+    /** 레이아웃 ID → 항목({@link #itemsOf} 순서). 항목이 없는 레이아웃은 맵에 없다. */
+    public Map<Long, List<MdmLayoutItem>> itemsOf(Collection<Long> layoutIds) {
+        return grouped(layoutIds, ids -> em.createQuery("SELECT i FROM MdmLayoutItem i WHERE i.layoutId IN :ids ORDER BY i.layoutId, i.seq",
+                MdmLayoutItem.class).setParameter("ids", ids).getResultList(), MdmLayoutItem::getLayoutId);
+    }
+
+    /** 전문 ID → 헤더 적층({@link #headersOf} 순서). */
+    public Map<Long, List<MdmLayoutHeader>> headersOf(Collection<Long> messageIds) {
+        return grouped(messageIds, ids -> em.createQuery("SELECT h FROM MdmLayoutHeader h WHERE h.layoutId IN :ids ORDER BY h.layoutId, h.seq",
+                MdmLayoutHeader.class).setParameter("ids", ids).getResultList(), MdmLayoutHeader::getLayoutId);
+    }
+
+    /** 전문 ID → 재정의({@link #constsOf} 순서). */
+    public Map<Long, List<MdmLayoutConst>> constsOf(Collection<Long> messageIds) {
+        return grouped(messageIds, ids -> em.createQuery("SELECT c FROM MdmLayoutConst c WHERE c.layoutId IN :ids "
+                + "ORDER BY c.layoutId, c.headerLayoutId, c.headerSeq", MdmLayoutConst.class).setParameter("ids", ids).getResultList(),
+                MdmLayoutConst::getLayoutId);
+    }
+
+    /** 헤더 ID → 그 헤더를 가리키는 EAI({@link #eaiOfHeader} 순서 — EAI 코드 순). */
+    public Map<Long, List<MdmEai>> eaisOfHeaders(Collection<Long> headerLayoutIds) {
+        return grouped(headerLayoutIds, ids -> em.createQuery("SELECT e FROM MdmEai e WHERE e.headerLayoutId IN :ids ORDER BY e.eaiCode",
+                MdmEai.class).setParameter("ids", ids).getResultList(), MdmEai::getHeaderLayoutId);
+    }
+
+    /** 레이아웃 ID → 그 레이아웃의 최신 버전 이력 한 행. 이력이 없는 레이아웃은 맵에 없다. */
+    public Map<Long, MdmLayoutVer> latestVersions(Collection<Long> layoutIds) {
+        Map<Long, MdmLayoutVer> out = new HashMap<>();
+        for (List<Long> ids : chunks(layoutIds)) {
+            em.createQuery("SELECT v FROM MdmLayoutVer v WHERE v.layoutId IN :ids AND v.layoutVersion = "
+                    + "(SELECT MAX(w.layoutVersion) FROM MdmLayoutVer w WHERE w.layoutId = v.layoutId)", MdmLayoutVer.class)
+                    .setParameter("ids", ids).getResultList().forEach(v -> out.put(v.getLayoutId(), v));
+        }
+        return out;
+    }
+
+    /** 중복·null 을 뺀 목록을 {@value #IN_CHUNK}개씩 자른다. 비면 빈 목록(SQLite {@code IN ()} 문법 오류를 피한다). */
+    public static <T> List<List<T>> chunks(Collection<T> values) {
+        List<T> all = new ArrayList<>(new LinkedHashSet<>(values));
+        all.remove(null);
+        List<List<T>> out = new ArrayList<>();
+        for (int from = 0; from < all.size(); from += IN_CHUNK) {
+            out.add(all.subList(from, Math.min(all.size(), from + IN_CHUNK)));
+        }
+        return out;
+    }
+
+    private static <T> Map<Long, List<T>> grouped(Collection<Long> keys, Function<List<Long>, List<T>> read, Function<T, Long> key) {
+        Map<Long, List<T>> out = new HashMap<>();
+        for (List<Long> ids : chunks(keys)) {
+            for (T row : read.apply(ids)) {
+                out.computeIfAbsent(key.apply(row), k -> new ArrayList<>()).add(row);
+            }
+        }
+        return out;
     }
 
     // ── 네이티브 SQL(예약어 없는 칼럼만) ──

@@ -1,9 +1,9 @@
 ---
 name: analyze-table-schema
-description: "MSSQL 테이블 schema 심층 분석. DDL 본문에서 컬럼 카탈로그, FK, 인덱스, CHECK 제약을 추출하고, 본 테이블에 매칭되는 트리거 / 본 테이블을 노출하는 뷰 / 본 테이블을 read/write 하는 procedure 의 lineage 를 종합한다. SampleErp 정적 DDL 파일 `docs/external/SampleErp/tables/{TABLE}.sql` 을 직접 읽어 분석. 사용 시점: /analyze-table-schema TABLE-NAME 호출 시, 모듈 DBMS 자산 베이스라인 / 화면 §4 데이터 요구사항 보강이 필요할 때. 예: /analyze-table-schema B_ITEM_INFO"
+description: "레거시 DB(Oracle·PostgreSQL·MSSQL·SQLite) 테이블 schema 심층 분석. DDL 본문에서 컬럼 카탈로그, FK, 인덱스, CHECK 제약을 추출하고, 본 테이블에 매칭되는 트리거 / 본 테이블을 노출하는 뷰 / 본 테이블을 read/write 하는 procedure 의 lineage 를 종합한다. SampleErp 정적 DDL 파일 `docs/external/SampleErp/tables/{TABLE}.sql` 을 직접 읽어 분석. 사용 시점: /analyze-table-schema TABLE-NAME 호출 시, 모듈 DBMS 자산 베이스라인 / 화면 §4 데이터 요구사항 보강이 필요할 때. 예: /analyze-table-schema B_ITEM_INFO"
 ---
 
-# MSSQL 테이블 Schema 통합 분석
+# 레거시 DB 테이블 Schema 통합 분석
 
 > ⭐ **V4 (2026-05-13) — 영역 분리 폴더 구조 (필수)**
 >
@@ -17,14 +17,14 @@ description: "MSSQL 테이블 schema 심층 분석. DDL 본문에서 컬럼 카�
 >
 > 예: `Q_INSPECTION_REQUEST` (QMA 의존) → `품질/QMA/DBMS/tables/Q_INSPECTION_REQUEST_schema_analysis.md`. cross-module 테이블은 `_shared/DBMS/tables/` (root, 영역 prefix 없음).
 
-SampleErp 의 MSSQL 테이블 정적 DDL 파일을 심층 분석하여 컬럼 카탈로그 / FK / 인덱스 / CHECK 제약 / 트리거 매칭 / 뷰 매핑 / procedure 별 컬럼 lineage 를 추출하고 종합 schema 분석 보고서를 생성한다.
+SampleErp 의 레거시 DB 테이블 정적 DDL 파일을 원천 DBMS(Oracle · PostgreSQL · MSSQL · SQLite) 판정 후 그 방언으로 심층 분석하여 컬럼 카탈로그 / FK / 인덱스 / CHECK 제약 / 트리거 매칭 / 뷰 매핑 / procedure 별 컬럼 lineage 를 추출하고 종합 schema 분석 보고서를 생성한다.
 
 > 본 스킬은 generate-bpa §5/§9, generate-legacy §4, generate-process-group §4 의 **schema 통합** 단계가 인용하는 기반 산출물을 만드는 단계다. 화면/PG 분석 보고서 작성 전에 의존 테이블에 대해 본 스킬을 먼저 실행하는 것이 권장된다.
 
 ## 매개변수
 
 - `TABLE-NAME`: 테이블명 (예: `B_ITEM_INFO`, `P_WORK_ORDER`)
-  - 스키마 prefix 불필요 (SampleErp 는 dbo 기본)
+  - 스키마 prefix 불필요 (기본 스키마 — Oracle 소유 스키마 · PostgreSQL `public` · MSSQL `dbo`)
 
 ## 입력 정적 파일
 
@@ -45,21 +45,23 @@ docs/external/SampleErp/orgErpReport/{moduleId}/DBMS/tables/{TABLE}_schema_analy
 
 ## 실행 절차
 
-### Step 1: DDL Read
+### Step 1: DDL Read + 원천 DBMS 판정
 
 `docs/external/SampleErp/tables/{TABLE}.sql` Read. 미존재 시 즉시 종료 ("SampleErp 에 {TABLE} DDL 이 없습니다").
+
+원천 DBMS 는 [`_shared/vocabulary-mapping.md`](../_shared/vocabulary-mapping.md) §3-1 순서(README `원천 DBMS:` 줄 → DDL 문법 단서 → 사용자 확인)로 판정한다. DDL 단서: Oracle `VARCHAR2`·`NUMBER(`·`TABLESPACE` · PostgreSQL `SERIAL`·`text`·`timestamptz`·`::` · MSSQL `NVARCHAR`·`IDENTITY(`·`[dbo].`·`GO` · SQLite `AUTOINCREMENT`·`INTEGER PRIMARY KEY`·`WITHOUT ROWID`.
 
 ### Step 2: 컬럼 카탈로그 추출
 
 CREATE TABLE 본문에서 각 컬럼 다음 항목을 추출:
 
 - 컬럼명
-- 타입 (varchar(N), int, numeric(p,s), datetime 등)
+- 타입 (방언 타입 그대로 — Oracle `VARCHAR2(N)`·`NUMBER(p,s)`·`DATE` / PostgreSQL `varchar(N)`·`numeric(p,s)`·`timestamp` / MSSQL `nvarchar(N)`·`numeric(p,s)`·`datetime` / SQLite 선언 타입은 affinity 라 제약으로 단정하지 않음)
 - NULL/NOT NULL
 - DEFAULT
-- IDENTITY (있을 시)
+- 자동 증가 (있을 시 — Oracle 시퀀스·`GENERATED ... AS IDENTITY` / PostgreSQL `SERIAL`·`GENERATED ... AS IDENTITY` / MSSQL `IDENTITY` / SQLite `INTEGER PRIMARY KEY [AUTOINCREMENT]`)
 - CHECK 제약 (컬럼 단위)
-- 코멘트/주석 (있을 시 — `--`, `/* */` 본문)
+- 코멘트/주석 (있을 시 — `--`, `/* */` 본문, Oracle·PostgreSQL `COMMENT ON COLUMN`, MSSQL `sp_addextendedproperty 'MS_Description'`)
 
 본문 길이가 길면 다음 4개 분류로 본문을 나누어 표시 (가독성):
 
@@ -77,11 +79,11 @@ CREATE TABLE 본문에서 각 컬럼 다음 항목을 추출:
 
 ### Step 4: 인덱스 추출
 
-CREATE [UNIQUE] [CLUSTERED|NONCLUSTERED] INDEX 구문 발췌. 본 화면이 SELECT WHERE 절에서 활용 가능한 인덱스를 식별.
+`CREATE [UNIQUE] INDEX` 구문 발췌 (MSSQL 은 `CLUSTERED|NONCLUSTERED`, PostgreSQL 은 `USING btree|gin|...`·부분 인덱스 `WHERE`, Oracle 은 함수 기반 인덱스·`BITMAP` 도 표시). 본 화면이 SELECT WHERE 절에서 활용 가능한 인덱스를 식별.
 
 ### Step 5: 트리거 매칭
 
-Glob 으로 `docs/external/SampleErp/triggers/*.sql` 전수 탐색. 각 트리거 DDL 의 `ON dbo.{TABLE}` 또는 `ON {TABLE}` 패턴으로 본 테이블에 attach 된 트리거 확인.
+Glob 으로 `docs/external/SampleErp/triggers/*.sql` 전수 탐색. 각 트리거 DDL 의 `ON [{schema}.]{TABLE}` 패턴(스키마 접두 `dbo.`·`public.`·`OWNER.` 와 인용 `[X]`·`"X"`·무인용 모두 허용)으로 본 테이블에 attach 된 트리거 확인. PostgreSQL 은 트리거 DDL 의 `EXECUTE FUNCTION|PROCEDURE {fn}()` 를 따라 `functions/{fn}.sql`(트리거 함수) 본문까지 읽어야 부수 적재를 알 수 있다.
 
 매칭 결과:
 - 트리거명, 발동 시점 (BEFORE/AFTER/INSTEAD OF), 발동 이벤트 (INSERT/UPDATE/DELETE)
@@ -131,7 +133,8 @@ procedure 분석 보고서가 미존재하면 본 lineage 절은 "분석 미완�
 
 | 항목 | 내용 |
 |---|---|
-| 테이블 ID | dbo.{TABLE} |
+| 원천 DBMS | {Oracle \| PostgreSQL \| MSSQL \| SQLite} (판정 근거) |
+| 테이블 ID | {schema}.{TABLE} |
 | 한글명 | ... |
 | 분류 | ... |
 | 원본 DDL | `docs/external/SampleErp/tables/{TABLE}.sql` |
@@ -177,4 +180,4 @@ POC 산출물 (V2 표준):
 
 ## 어휘 매핑
 
-본문 어휘는 [`_shared/vocabulary-mapping.md`](../_shared/vocabulary-mapping.md) 의 PL/SQL → T-SQL 매핑 적용.
+본문 어휘는 [`_shared/vocabulary-mapping.md`](../_shared/vocabulary-mapping.md) §3 에서 판정된 원천 DBMS 의 방언 열을 적용.

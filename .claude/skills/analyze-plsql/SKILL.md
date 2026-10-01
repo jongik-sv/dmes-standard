@@ -1,9 +1,9 @@
 ---
 name: analyze-plsql
-description: "MSSQL Stored Procedure / Function 심층 분석 및 종합 보고서 생성. SampleErp 정적 SQL 파일(`docs/external/SampleErp/procedures/{NAME}.sql`, `functions/{NAME}.sql`) 을 직접 읽어 분석. 호출관계에 있는 procedure/function 전체를 재귀적으로 분석하여 하나의 통합 보고서 생성. 사용 시점: /analyze-plsql NAME 호출 시, MSSQL procedure/function 분석이 필요할 때. 예: /analyze-plsql doAddress, /analyze-plsql FNGETCOMMNAME"
+description: "레거시 DB(Oracle·PostgreSQL·MSSQL) Package / Stored Procedure / Function 심층 분석 및 종합 보고서 생성. 원천 DBMS 를 판정한 뒤 SampleErp 정적 SQL 파일(`docs/external/SampleErp/procedures/{NAME}.sql`, `functions/{NAME}.sql`) 을 직접 읽어 분석. 호출관계에 있는 procedure/function 전체를 재귀적으로 분석하여 하나의 통합 보고서 생성. 사용 시점: /analyze-plsql NAME 호출 시, DB procedure/function/package 분석이 필요할 때. 예: /analyze-plsql doAddress, /analyze-plsql FNGETCOMMNAME"
 ---
 
-# MSSQL Stored Procedure / Function 심층 분석
+# 레거시 DB Package / Stored Procedure / Function 심층 분석
 
 > ⭐ **V4 (2026-05-13) — 영역 분리 폴더 구조 (필수)**
 >
@@ -17,16 +17,17 @@ description: "MSSQL Stored Procedure / Function 심층 분석 및 종합 보고�
 >
 > **호출자 모듈 결정**: procedure 호출자가 단일 모듈이면 → `{areaId}/{moduleId}/DBMS/procedures/`. cross-module/미파악 → `_shared/DBMS/procedures/` (root, 영역 prefix 없음).
 
-SampleErp 의 MSSQL Stored Procedure / Function 정적 SQL 파일을 심층 분석하여 비즈니스 로직, 데이터 흐름, 본문 상세를 추출하고 종합 보고서를 생성한다. 호출관계에 있는 다른 procedure/function 전체를 포함하여 하나의 문서로 생성한다.
+SampleErp 의 레거시 DB(원천 DBMS 는 고객사마다 다름 — Oracle PL/SQL · PostgreSQL PL/pgSQL · MSSQL T-SQL) Package / Stored Procedure / Function 정적 SQL 파일을 심층 분석하여 비즈니스 로직, 데이터 흐름, 본문 상세를 추출하고 종합 보고서를 생성한다. 호출관계에 있는 다른 procedure/function 전체를 포함하여 하나의 문서로 생성한다.
 
-> 산출물 템플릿(`templates/plsql_package_analysis_report_template.md`) 헤딩은 부산 시절 그대로 보존한다 — 산출물 동일성 우선. 본문 어휘는 PL/SQL → T-SQL 매핑을 [`_shared/vocabulary-mapping.md`](../_shared/vocabulary-mapping.md) 와 [`references/plsql-analysis.md`](references/plsql-analysis.md) 에 따라 적용한다. 보고서 §1 에서 "MSSQL — 패키지 개념 없음, 단일 procedure/function" 명시.
+> 산출물 템플릿(`templates/plsql_package_analysis_report_template.md`) 헤딩은 부산 시절 그대로 보존한다 — 산출물 동일성 우선. 본문 어휘는 [`_shared/vocabulary-mapping.md`](../_shared/vocabulary-mapping.md) §3 에서 **판정된 원천 DBMS 의 방언 열**과 [`references/plsql-analysis.md`](references/plsql-analysis.md) 에 따라 적용한다. 보고서 §1 첫 줄에 `원천 DBMS: X` 와 분석 단위(Oracle 은 PACKAGE 또는 단일 객체, PostgreSQL·MSSQL 은 "패키지 없음, 단일 procedure/function")를 명시.
 
 **출력 형식**: `templates/plsql_package_analysis_report_template.md` 참조
 
 ## 매개변수
-- `NAME`: Stored Procedure 또는 Function 이름 (예: `doAddress`, `FNGETCOMMNAME`)
-  - 스키마명 불필요 (SampleErp 는 dbo 기본)
+- `NAME`: Package / Stored Procedure / Function 이름 (예: `doAddress`, `FNGETCOMMNAME`, Oracle 이면 `PKG_ORDER` 또는 `PKG_ORDER.PROC_SAVE`)
+  - 스키마명 불필요 (기본 스키마 — Oracle 소유 스키마 · PostgreSQL `public` · MSSQL `dbo`)
   - procedure / function 구분 불필요 (자동 감지: procedures/, functions/ 양쪽 검색)
+  - Oracle 에서 `PKG.PROC` 로 주어지면 `PKG` 패키지 전체를 분석 단위로 삼고 `PROC` 를 진입점으로 표시
 
 ## 실행 흐름
 
@@ -38,14 +39,16 @@ SampleErp 의 MSSQL Stored Procedure / Function 정적 SQL 파일을 심층 분�
 
 ### Step 0: 사전 검증
 
-Bash 로 시작 시각 출력: `echo "⏱️ MSSQL procedure/function 분석 시작: $(date '+%H:%M:%S')"`
+Bash 로 시작 시각 출력: `echo "⏱️ 레거시 DB procedure/function 분석 시작: $(date '+%H:%M:%S')"`
 
 1. NAME 파라미터 검증
-2. (선택) Serena MCP 가용 여부 확인 — 미사용 가능
+2. **원천 DBMS 판정** — [`_shared/vocabulary-mapping.md`](../_shared/vocabulary-mapping.md) §3-1 순서(README 표기 → 문법 단서 → 사용자 확인). 호출자(analyze-service Phase 3 등)가 프롬프트로 `원천 DBMS` 를 넘겼으면 그 값을 쓴다. 문법 단서 판정은 Step 1 에서 본문을 읽은 뒤 확정해도 된다.
+   - **SQLite 로 판정되면** 저장 프로시저가 없으므로 "원천 DBMS: SQLite — 저장 프로시저 없음" 을 안내하고 종료한다 (트리거·뷰는 `/analyze-trigger`·`/analyze-view`, 앱 inline SQL 은 `/analyze-queries`).
+3. (선택) Serena MCP 가용 여부 확인 — 미사용 가능
 
 ### Step 0.5: 기존 분석 문서 검색
 
-NAME 으로부터 예상 파일명 `{NAME}_analysis_report.md` 를 생성하여 아래 위치 모두 검색.
+NAME 으로부터 예상 파일명 `{NAME}_analysis_report.md` 를 생성하여 아래 위치 모두 검색. 이때 `{NAME}` 은 해석된 이름이다 — Oracle `PKG.PROC` 는 `PKG`(패키지 단위 보고서), 스키마 접두 `dbo.X`·`sales.X` 는 `X`. 해석 규칙은 [references/plsql-analysis.md](references/plsql-analysis.md) Step 1-1 이며 보고서 저장(Step 6)·재귀 분석도 같은 이름을 쓴다.
 
 1. **호출자 모듈 디렉토리** — `docs/external/SampleErp/orgErpReport/{moduleId}/DBMS/procedures/{NAME}_analysis_report.md`
 2. **공유 디렉토리** — `docs/external/SampleErp/orgErpReport/_shared/DBMS/procedures/{NAME}_analysis_report.md`
@@ -72,14 +75,16 @@ Bash: `echo "⏱️ Step 1 (소스 검색) 시작: $(date '+%H:%M:%S')"`
 
 대소문자 무시 매칭 권장 (Glob `**/{NAME}.sql` 도 가능).
 
+Oracle PACKAGE 는 `procedures/` 아래에 패키지명으로 둔다고 보고 `procedures/{PKG}*.sql` 을 Glob 한다 — SPEC 과 BODY 가 한 파일이면 그대로, `{PKG}_SPEC.sql`·`{PKG}_BODY.sql` 처럼 나뉘어 있으면 둘 다 읽는다. `NAME` 이 `PKG.PROC` 형태면 `PKG` 로 검색한다.
+
 **검색 결과 처리**:
 - **1개 발견** → 자동 선택, 본문 Read
 - **2개 이상 발견 (예: procedures + functions 둘 다)** → AskUserQuestion 으로 선택
 - **0개 발견** → 종료 ("SampleErp 안에 `{NAME}` 정의가 없습니다")
 
-본문 첫 줄의 `CREATE PROCEDURE` / `CREATE FUNCTION` / `CREATE VIEW` / `CREATE TRIGGER` 헤더에서 객체 타입 자동 감지.
+본문의 `CREATE [OR REPLACE|OR ALTER] PACKAGE [BODY]` / `PROCEDURE` / `FUNCTION` / `VIEW` / `TRIGGER` 헤더에서 객체 타입 자동 감지. Step 0 에서 원천 DBMS 를 README 로 정하지 못했으면 여기서 읽은 본문의 문법 단서로 확정한다.
 
-> **DB 미접속**: SampleErp 는 정적 파일 dump 만 제공. sqlcl/oracle/MSSQL 직접 접속 금지.
+> **DB 미접속**: SampleErp 는 정적 파일 dump 만 제공. sqlcl·psql·sqlcmd 등 어떤 DB 에도 직접 접속 금지.
 
 완료 후: `echo "✅ Step 1 완료: $(date '+%H:%M:%S')"`
 
@@ -87,13 +92,14 @@ Bash: `echo "⏱️ Step 1 (소스 검색) 시작: $(date '+%H:%M:%S')"`
 
 Bash: `echo "⏱️ Step 2 (구조 분석) 시작: $(date '+%H:%M:%S')"`
 
-- 오브젝트 타입별 분석 전략 결정 (PROCEDURE / FUNCTION / VIEW / TRIGGER)
-- 메타데이터 수집 (오브젝트명, 스키마(dbo 기본), 타입, 본문 줄 수)
-- 헤더에서 파라미터/리턴 타입 추출
-  - `CREATE PROCEDURE [dbo].[NAME] ( @p1 INT, @p2 NVARCHAR(50) OUT, ... ) AS BEGIN ...`
-  - `CREATE FUNCTION [dbo].[NAME] (@p1 INT) RETURNS INT AS BEGIN ... RETURN ... END`
+- 오브젝트 타입별 분석 전략 결정 (PACKAGE / PROCEDURE / FUNCTION / VIEW / TRIGGER)
+- 메타데이터 수집 (오브젝트명, 스키마(판정 방언의 기본 스키마), 타입, 본문 줄 수)
+- 헤더에서 파라미터/리턴 타입 추출 (방언별 헤더 형태는 vocabulary-mapping.md §3-3 "객체 헤더" 행)
+  - Oracle: `CREATE OR REPLACE PROCEDURE NAME (p1 IN NUMBER, p2 OUT VARCHAR2) IS ... BEGIN ... END;` — PACKAGE 면 SPEC 의 멤버 선언 목록부터
+  - PostgreSQL: `CREATE OR REPLACE FUNCTION name(p1 int, OUT p2 text) RETURNS ... LANGUAGE plpgsql AS $$ ... $$`
+  - MSSQL: `CREATE PROCEDURE [dbo].[NAME] @p1 INT, @p2 NVARCHAR(50) OUTPUT AS BEGIN ...`
 
-> MSSQL 은 패키지 개념이 없으므로 항상 단일 객체. 보고서 §1 에서 "패키지 개념 없음, MSSQL 단일 PROCEDURE/FUNCTION" 명시.
+> **분석 단위**: Oracle 은 PACKAGE 단위로 묶어 분석하고(멤버 procedure/function 을 §3 에 각각 전개, 같은 패키지 내 호출은 내부 호출), 독립 PROCEDURE/FUNCTION 은 단일 객체로 분석한다. PostgreSQL·MSSQL 은 패키지 개념이 없으므로 단일 객체로 분석한다(PostgreSQL 은 schema 로 묶여 있으면 §1 에 schema 를 그룹으로 표기). 보고서 §1 에 단위를 명시.
 
 완료 후: `echo "✅ Step 2 완료: $(date '+%H:%M:%S')"`
 
@@ -105,12 +111,12 @@ Bash: `echo "⏱️ Step 3 (심층 분석) 시작: $(date '+%H:%M:%S')"`
 
 1. **비즈니스 목적 추론** (핵심 업무, 입출력)
 2. **실행 흐름 분석** (BEGIN-END 단계별)
-3. **제어 흐름 분석** (`IF`/`WHILE`/`CASE`)
+3. **제어 흐름 분석** (`IF`/`LOOP`/`WHILE`/`CASE`)
 4. **데이터 접근 패턴** (SELECT/INSERT/UPDATE/DELETE/MERGE)
 5. **비즈니스 규칙 추출** (검증, 계산, 특수처리)
-6. **트랜잭션 제어** (`BEGIN TRAN`, `SAVE TRANSACTION`, `COMMIT`, `ROLLBACK`)
-7. **예외 처리** (`BEGIN TRY/CATCH`, `RAISERROR`, `THROW`)
-8. **외부 의존성** (호출 procedure/function — 본문 정규식)
+6. **트랜잭션 제어** (Oracle `SAVEPOINT`/`ROLLBACK TO`/`COMMIT` · PostgreSQL PROCEDURE 의 `COMMIT`/`ROLLBACK` 과 EXCEPTION 블록 · MSSQL `BEGIN TRAN`/`SAVE TRANSACTION`/`COMMIT`/`ROLLBACK`)
+7. **예외 처리** (Oracle·PostgreSQL `EXCEPTION WHEN ... THEN`, `RAISE_APPLICATION_ERROR`/`RAISE EXCEPTION` · MSSQL `BEGIN TRY/CATCH`, `RAISERROR`, `THROW`)
+8. **외부 의존성** (호출 package/procedure/function — 판정 방언의 본문 정규식)
 
 상세는 [references/plsql-analysis.md](references/plsql-analysis.md) 참조.
 
@@ -121,7 +127,10 @@ Bash: `echo "⏱️ Step 3 (심층 분석) 시작: $(date '+%H:%M:%S')"`
 Bash: `echo "⏱️ Step 3.5 (재귀 분석) 시작: $(date '+%H:%M:%S')"`
 
 - 호출하는 외부 procedure/function 을 재귀적으로 분석
-- 본문 정규식으로 호출 감지 (`exec\s+(?:dbo\.)?(\w+)`, `\bdbo\.(\w+)\s*\(`)
+- 본문 정규식으로 호출 감지 — 판정 방언의 패턴만 적용 ([references/plsql-analysis.md](references/plsql-analysis.md) §3-6)
+  - Oracle: `PKG.PROC(...)`, 블록 안 단독 `PROC(...);`, `EXECUTE IMMEDIATE`
+  - PostgreSQL: `CALL p(...)`, `PERFORM f(...)`, `SELECT f(...)`, `EXECUTE format(...)`
+  - MSSQL: `exec\s+(?:dbo\.)?(\w+)`, `\bdbo\.(\w+)\s*\(`, `sp_executesql`
 - 기존 보고서 있으면 재활용, 없으면 Step 1~6 재귀 호출
 - **최대 재귀 깊이: 3** (초과 시 호출 기록만 남김)
 - **순환 참조 방지**: analyzedSet 으로 추적
@@ -143,11 +152,11 @@ Bash: `echo "⏱️ Step 3.5 (재귀 분석) 시작: $(date '+%H:%M:%S')"`
 Bash: `echo "⏱️ Step 6 (보고서 생성) 시작: $(date '+%H:%M:%S')"`
 
 - 템플릿 로드: `templates/plsql_package_analysis_report_template.md` (헤딩 그대로 사용)
-- 본문 채울 때 PL/SQL → T-SQL 어휘 매핑 적용 (vocabulary-mapping.md 참조)
-- 보고서 §1 에서 "MSSQL — 패키지 개념 없음" 명시
+- 본문 채울 때 판정된 원천 DBMS 의 방언 어휘 적용 (vocabulary-mapping.md §3-3 참조)
+- 보고서 §1 첫 줄에 `원천 DBMS: X (판정 근거)` 와 분석 단위 명시 (PostgreSQL·MSSQL 이면 "패키지 없음, 단일 procedure/function")
 - 호출 procedure 요약 및 링크 삽입
 
-완료 후: `echo "✅ MSSQL procedure/function 분석 완료: $(date '+%H:%M:%S')"`
+완료 후: `echo "✅ 레거시 DB procedure/function 분석 완료: $(date '+%H:%M:%S')"`
 
 **출력 경로 (V2 표준)**:
 
@@ -177,4 +186,4 @@ Bash: `echo "⏱️ Step 6 (보고서 생성) 시작: $(date '+%H:%M:%S')"`
 ## 제한사항
 - 중간 JSON 파일 미생성 (Markdown 보고서만)
 - 정적 분석만 수행 (실행 성능 미측정)
-- 동적 SQL (`EXEC sp_executesql @sql`) 은 제한적 분석
+- 동적 SQL (Oracle `EXECUTE IMMEDIATE` · PostgreSQL `EXECUTE format(...)` · MSSQL `EXEC sp_executesql @sql`) 은 제한적 분석
