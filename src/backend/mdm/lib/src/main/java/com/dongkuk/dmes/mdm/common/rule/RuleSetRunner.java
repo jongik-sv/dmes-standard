@@ -55,6 +55,7 @@ import org.springframework.stereotype.Service;
  * <p>OASIS BPMN 은 {@code camunda:class="ruleSetRunner"} + {@code method=execute} serviceTask 하나로 부른다. 판정 오류는 {@link #run} 에서
  * {@link EngineEvaluationException} 으로 올라가고, {@link #execute} 는 {@link RuleErrorText} 문구(룰이 있으면 앞에 {@code [ruleId] })로 바꾼
  * 업무 예외를 던진다. 저장 데이터 손상(행 조립 실패·FLOW_JSON·AST 읽기 실패, {@link StoredDefinitionException})은 {@link #execute} 에서 MDM026 이다.
+ * 받는 노드로 받은 실패는 던지지 않고 {@code RuleSetRunResult.endedBy}·{@code caught} 로 싣는다.
  * {@code @Transactional} 을 붙이지 않는다 — OASIS 파라미터 이름 바인딩이 깨진다(읽기만 한다).
  */
 @Service("ruleSetRunner")
@@ -234,6 +235,17 @@ public class RuleSetRunner {
             return m;
         }).toList());
         out.setWarnings(warnings(request.getSetId(), r));
+        out.setEndedBy(r.endedBy());
+        out.setCaught(r.caught().stream().map(c -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("ruleNodeId", c.ruleNodeId());
+            m.put("ruleId", c.ruleId());
+            m.put("catchNodeId", c.catchNodeId());
+            m.put("kind", c.kind().name());
+            m.put("code", c.code());
+            m.put("message", c.message());
+            return m;
+        }).toList());
         return out;
     }
 
