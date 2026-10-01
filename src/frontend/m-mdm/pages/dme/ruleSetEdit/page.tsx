@@ -44,7 +44,8 @@ import {
   connect, flowJsonOf, reconnectEdge, setGroupPad, setLabelOffset, setPositions, setRoute, shiftRoutes, updateEdge, updateNodeLabel, updateNote,
   type EditFlow, type EditResult, type FlowNote, type FlowPos, type GroupPad, type LabelOffset, type LabelPart,
 } from "./flow-edit";
-import { autoArrange, shiftSpace, type NodeLayoutSource, type SpaceAxis, type SpaceBlocks } from "./flow-layout";
+import { autoArrange, restyleNode, shiftSpace, type NodeLayoutSource, type SpaceAxis, type SpaceBlocks } from "./flow-layout";
+import type { NodeSize } from "./node-style";
 import { openRule } from "./links";
 import { BottomPanel, type BottomTab } from "./panels/BottomPanel";
 import { ChecksPanel } from "./panels/ChecksPanel";
@@ -273,6 +274,12 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   // 그룹 크기(G2) — 손잡이를 놓을 때 한 번 = 편집 한 번(되돌리기 한 칸).
   const onGroupPadChange = useCallback(
     (id: string, pad: GroupPad) => editing && edit((f) => setGroupPad(f, id, pad)),
+    [editing, edit],
+  );
+  // 노드 크기(S1) — 손잡이를 놓을 때 한 번 = 편집 한 번(되돌리기 한 칸). 그린 위치 전부를 함께 적는다(S-D6, restyleNode).
+  const onNodeSizeChange = useCallback(
+    (id: string, size: NodeSize, drawn: Record<string, FlowPos>, blocks: SpaceBlocks) =>
+      editing && edit((f) => restyleNode(f, id, { w: size.w, h: size.h }, drawn, blocks)),
     [editing, edit],
   );
   const onMoveNode = useCallback(
@@ -661,6 +668,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         onRouteChange={onRouteChange}
                         onLabelOffsetChange={onLabelOffsetChange}
                         onGroupPadChange={onGroupPadChange}
+                        onNodeSizeChange={onNodeSizeChange}
                         removeRoutePointRef={removeRoutePointRef}
                         clearSelectionRef={clearCanvasSelectionRef}
                         alignSourceRef={alignSourceRef}
