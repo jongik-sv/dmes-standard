@@ -147,7 +147,7 @@ export function flowDeps(flow: RuleSetFlow, rules: RuleIoMap): Record<string, st
 }
 
 /**
- * 계획 C4 — 존재·상태 → EMPTY → 구조(있으면 끝) → 경로 검사. 서버 `RuleSetAnalyzer.checks(flow, rules, condIo)` 와 같은 코드·문구·순서다.
+ * 계획 C4 — 존재·상태 → EMPTY → 빈 단계(EMPTY_TASK) → 구조(있으면 끝) → 경로 검사. 서버 `RuleSetAnalyzer.checks(flow, rules, condIo)` 와 같은 코드·문구·순서다.
  */
 export function flowChecks(flow: RuleSetFlow, rules: RuleIoMap, condIo: CondIoMap): RuleSetCheck[] {
   const out: RuleSetCheck[] = [];
@@ -155,10 +155,12 @@ export function flowChecks(flow: RuleSetFlow, rules: RuleIoMap, condIo: CondIoMa
   // 겹친 노드 ID 는 첫 노드만 보고(C3), 공백 판정은 Java isBlank 의미(flow-model.ts 의 blank 를 `isBlankJava` 로 export 해 쓴다).
   const firstNode = new Map<string, string>();
   const seenNodeIds = new Set<string>();
+  let tasks = 0;
   for (const n of flow.nodes ?? []) {
     if (seenNodeIds.has(n.id)) continue;
     seenNodeIds.add(n.id);
     if (n.kind === "RULE" && !isBlankJava(n.ruleId) && !firstNode.has(n.ruleId!)) firstNode.set(n.ruleId!, n.id);
+    if (n.kind === "TASK") tasks++;
   }
   for (const id of flowRuleIds(flow, parsed)) {
     const r = ruleOf(rules, id);
@@ -171,7 +173,9 @@ export function flowChecks(flow: RuleSetFlow, rules: RuleIoMap, condIo: CondIoMa
       out.push(check("NO_RELEASED", "WARN", id, null, null, `${id}는 RELEASED 버전이 없어 입출력을 계산하지 않았다. 이대로 부르면 판정 오류다`, at));
     }
   }
-  if (!(flow.nodes ?? []).some((n) => n.kind === "RULE")) out.push(check("EMPTY", "REJECT", null, null, null, "룰이 하나도 없다"));
+  // 빈 단계도 단계로 센다 — 그림부터 그리고 룰을 나중에 채우는 흐름을 저장할 수 있게(컨트롤러 Ruling)
+  if (!(flow.nodes ?? []).some((n) => n.kind === "RULE" || n.kind === "TASK")) out.push(check("EMPTY", "REJECT", null, null, null, "룰이 하나도 없다"));
+  if (tasks > 0) out.push(check("EMPTY_TASK", "WARN", null, null, null, `빈 단계 ${tasks}개 — 실행 때 그냥 지나간다`));
   if (!parsed.tree) {
     for (const i of parsed.issues) out.push(check(i.code, "REJECT", null, null, null, i.message, i.nodeId, i.edgeId));
     return out;

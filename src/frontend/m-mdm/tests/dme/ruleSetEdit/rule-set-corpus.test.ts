@@ -17,7 +17,7 @@ import type { CondIo, IoName, IoSource, RuleIo } from "../../../pages/dme/ruleSe
 import { PACKAGE_ROOT, RULE_SET_CORPUS_PATH } from "../../helpers/engine-paths";
 
 /** Java `RuleSetCorpusTest.MIN_CASES` 와 같아야 한다(I9). 사례를 더하면 두 러너를 함께 올린다. */
-const MIN_CASES = 52;
+const MIN_CASES = 54;
 /** Java `RuleSetCorpusTest.MIN_FUZZ_CASES` 와 같아야 한다. */
 const MIN_FUZZ_CASES = 200;
 /** 퍼즈 파일 — 코퍼스와 같은 폴더(mdm/lib test resources). */

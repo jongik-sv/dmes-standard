@@ -10,7 +10,7 @@ action=save    -&gt; saveTask    (ruleSetEditService.save)    EDIT — 서버 �
 action=delete  -&gt; deleteTask  (ruleSetEditService.delete)  EDIT — 폐기(INUSE -&gt; DEPRECATED)
 action=restore -&gt; restoreTask (ruleSetEditService.restore) EDIT — 되살리기(검사 통과 시 DEPRECATED -&gt; INUSE)
 action=validate -&gt; validateTask (ruleSetEditService.condIo)   EDIT — 편집 중 흐름의 IF 갈래 조건식 입력(params.flowJson, 원장에 쓰지 않음) (exprText 면 식 파싱)
-action=execute  -&gt; executeTask  (ruleSetEditService.simulate) EDIT — 저장 전 흐름 기록 실행 = 디버거(params.flowJson·recordJson·evalTs, 엔진 스키마 RunTrace) (runCases 면 케이스 일괄 실행)
+action=execute  -&gt; executeTask  (ruleSetEditService.simulate) EDIT — 저장 전 흐름 기록 실행 = 디버거(params.flowJson·recordJson·evalTs, 엔진 스키마 RunTrace) (runCases 면 케이스 일괄 실행) (editsJson 이면 고친 값을 끼워 처음부터 다시 실행 — 응답 trace.edits)
 
 BPMN 의 action(RBAC 키)과 서비스의 method(자바 메서드명)는 별개다. search 의 갈래(target)는 Java 가 가른다(두 번째 게이트웨이 금지).
 세트에는 버전·DRAFT·선점이 없고 ROW_VERSION(MDM001)으로만 동시 편집을 막는다. 담당자 역할은 서버가 RuleStewardCheck 로 다시 본다(MDM013).</bpmn:documentation>

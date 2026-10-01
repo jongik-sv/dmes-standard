@@ -7650,6 +7650,65 @@
           }
         ]
       }
+    },
+    {
+      "name": "흐름 — 빈 단계는 경로 검사에서 지나가고 경고 한 줄을 낸다(4단계 T1)",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          {"id": "start", "kind": "START"},
+          {"id": "t1", "kind": "TASK", "label": "빈 단계"},
+          {"id": "r1", "kind": "RULE", "ruleId": "D1"},
+          {"id": "if1", "kind": "IF"},
+          {"id": "t2", "kind": "TASK", "label": "나중에 채울 단계"},
+          {"id": "r2", "kind": "RULE", "ruleId": "D2"},
+          {"id": "m1", "kind": "MERGE", "splitId": "if1"},
+          {"id": "end", "kind": "END"}
+        ],
+        "edges": [
+          {"id": "e1", "from": "start", "to": "t1"},
+          {"id": "e2", "from": "t1", "to": "r1"},
+          {"id": "e3", "from": "r1", "to": "if1"},
+          {"id": "e4", "from": "if1", "to": "t2", "order": 1, "cond": "PLAN == \"A\""},
+          {"id": "e5", "from": "if1", "to": "r2", "otherwise": true},
+          {"id": "e6", "from": "t2", "to": "m1"},
+          {"id": "e7", "from": "r2", "to": "m1"},
+          {"id": "e8", "from": "m1", "to": "end"}
+        ]
+      },
+      "condIo": {"e4": {"ok": true, "message": null, "vars": [{"name": "PLAN", "source": "NONE"}]}},
+      "ids": ["D1", "D2"],
+      "rules": {
+        "D1": {"exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{"name": "DESIGN_NEED", "source": "DICT"}], "results": [{"name": "PLAN"}]},
+        "D2": {"exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{"name": "PLAN", "source": "NONE"}], "results": [{"name": "CONFIRMED"}]}
+      },
+      "expect": {
+        "io": {
+          "inputs": [{"name": "DESIGN_NEED", "source": "DICT", "users": ["D1"]}],
+          "results": [{"name": "PLAN", "by": ["D1"], "readers": ["D2"]}, {"name": "CONFIRMED", "by": ["D2"], "readers": []}]
+        },
+        "deps": {"D1": [], "D2": ["D1"]},
+        "checks": [
+          {"code": "EMPTY_TASK", "severity": "WARN", "ruleId": null, "otherRuleId": null, "varName": null, "message": "빈 단계 2개 — 실행 때 그냥 지나간다"}
+        ]
+      }
+    },
+    {
+      "name": "흐름 — 빈 단계만 있으면 EMPTY 없이 빈 단계 경고만(4단계 T1, Ruling: 그림부터 그리기)",
+      "flow": {
+        "version": 1,
+        "nodes": [{"id": "start", "kind": "START"}, {"id": "t1", "kind": "TASK", "label": "빈 단계"}, {"id": "end", "kind": "END"}],
+        "edges": [{"id": "e1", "from": "start", "to": "t1"}, {"id": "e2", "from": "t1", "to": "end"}]
+      },
+      "ids": [],
+      "rules": {},
+      "expect": {
+        "io": {"inputs": [], "results": []},
+        "deps": {},
+        "checks": [
+          {"code": "EMPTY_TASK", "severity": "WARN", "ruleId": null, "otherRuleId": null, "varName": null, "message": "빈 단계 1개 — 실행 때 그냥 지나간다"}
+        ]
+      }
     }
   ]
 }

@@ -34,6 +34,8 @@ public record RuleSetCheck(String code, String severity, String ruleId, String o
     public static final String FLOW_READONLY = "FLOW_READONLY";
     /** IF 조건식의 DICT 변수를 세트 안 어느 룰도 선언하지 않았다(WARN, 흐름도 2단계 P3). */
     public static final String COND_UNTYPED = "COND_UNTYPED";
+    /** 흐름에 빈 단계(TASK) 노드가 있다(WARN, 4단계 spec §1.1). 저장·되살리기를 막지 않는다. 위치 없이 세트 단위 한 줄이다. */
+    public static final String EMPTY_TASK = "EMPTY_TASK";
 
     /** 노드 위치 없는 검사(목록 입력·세트 단위 거부). */
     public RuleSetCheck(String code, String severity, String ruleId, String otherRuleId, String varName, String message) {
