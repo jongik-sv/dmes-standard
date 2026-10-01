@@ -30,7 +30,7 @@ import { FlowCanvas, type AlignSource, type MoveShift, type PaletteItem } from "
 import { FlowToolbar } from "./canvas/FlowToolbar";
 import { FlowToolbox, defaultTool, type CanvasTool } from "./canvas/FlowToolbox";
 import { MENU_PROVIDERS } from "./canvas/menus";
-import { UNHANDLED, dispatchShortcut, isMacPlatform, isTypingTarget, shortcutOf, type ShortcutHandlers } from "./canvas/shortcuts";
+import { UNHANDLED, dispatchShortcut, isMacPlatform, isShown, isTypingTarget, shortcutOf, type ShortcutHandlers } from "./canvas/shortcuts";
 import { DebugInputs } from "./debugger/DebugInputs";
 import { DebugToolbar } from "./debugger/DebugToolbar";
 import { varLabelsOf } from "./set-model";
@@ -521,9 +521,11 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
 
   // 되돌리기·다시 하기만 캔버스 밖(오른쪽 패널·툴바 단추·body)에서도 받는다. 입력 칸·캔버스 안·대화 상자/메뉴 안·보기·디버그 모드는 건드리지 않는다.
   // 되돌릴 것이 없거나 바쁜 중이어도 입력 칸 밖이므로 브라우저 기본 되돌리기가 초점을 옮기지 않게 preventDefault 는 한다. 최신 값은 ref 로 읽는다.
+  // 화면이 보이지 않으면(포털이 고르지 않은 탭을 display:none 으로 숨긴다) 아무것도 하지 않는다 — 다른 탭에서 누른 ⌘Z 가 숨은 흐름을 되돌리지 않게.
   const outsideUndoRef = useRef<(e: globalThis.KeyboardEvent) => void>(() => undefined);
   outsideUndoRef.current = (e) => {
     if (!editing || e.defaultPrevented) return;
+    if (!isShown(canvasHostRef.current)) return;
     const t = e.target as Element | null;
     if (isTypingTarget(t)) return;
     if (canvasHostRef.current?.contains(t as Node | null)) return;

@@ -8,7 +8,7 @@ import dagre from "@dagrejs/dagre";
 import type { FlowNodeKind, RuleSetFlow } from "@/contract/engine-contract.generated";
 
 import { clearLabels, clearRoutes, setNodeStyle, setPositions, type EditFlow, type EditResult, type FlowPos } from "./flow-edit";
-import { parseFlow, type Seq } from "./flow-model";
+import { isBlankJava, parseFlow, type Seq } from "./flow-model";
 import { STYLED_KINDS, type NodeSize, type NodeStyle, type NodeStylePatch } from "./node-style";
 
 export const NODE_SIZE: Readonly<Record<FlowNodeKind, { w: number; h: number }>> = {
@@ -91,7 +91,7 @@ function bodyIds(seq: Seq, out: string[] = []): string[] {
  * 폭이 다른 갈래를 다른 갈래 자리로 옮기면 겹칠 수 있으므로 옮길 자리를 `spreadLanes` 로 벌린다(외관 S1, 계획 Ruling 10).
  */
 function orderBranches(f: RuleSetFlow, g: InstanceType<typeof dagre.graphlib.Graph>, cx: Map<string, number>, sizeOf: (id: string) => NodeSize) {
-  const tree = parseFlow(f).tree;
+  const tree = parseFlow(layoutCopy(f)).tree;
   if (!tree) return;
   const visit = (seq: Seq) => {
     for (const b of seq.items) {
@@ -127,6 +127,25 @@ function orderBranches(f: RuleSetFlow, g: InstanceType<typeof dagre.graphlib.Gra
     }
   };
   visit(tree.root);
+}
+
+/** 배치용 IF 조건식 자리표시 — 갈래 구조만 얻으려 넣고 저장 흐름·검사에는 쓰지 않는다. */
+const LAYOUT_COND = "true";
+/**
+ * 배치 계산에만 쓰는 흐름 사본 — 조건식이 빈 IF 조건 갈래(막 넣은 IF)에 자리표시 조건을 채운다. 조건식이 비면 `parseFlow` 가
+ * FLOW_IF_ELSE 로 트리를 만들지 않아 갈래 순서·빈 갈래 자리(L1)가 돌지 않는다(I3). 흐름은 바꾸지 않고, 채울 것이 없으면 그대로 돌려준다.
+ * 그 밖의 구조 문제로 트리가 없으면 지금처럼 손대지 않는다.
+ */
+function layoutCopy(f: RuleSetFlow): RuleSetFlow {
+  const ifs = new Set((f.nodes ?? []).filter((n) => n.kind === "IF").map((n) => n.id));
+  if (ifs.size === 0) return f;
+  let filled = false;
+  const edges = (f.edges ?? []).map((e) => {
+    if (!ifs.has(e.from) || e.otherwise === true || !isBlankJava(e.cond)) return e;
+    filled = true;
+    return { ...e, cond: LAYOUT_COND };
+  });
+  return filled ? { ...f, edges } : f;
 }
 
 /** 갈래 겹침 판정용 노드 상자(흐름 좌표, 가운데 x 는 갈래를 옮기기 전 자리). */
