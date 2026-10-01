@@ -149,6 +149,8 @@ const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const DEFAULT_ROW = (key: string): CaseFormRow => ({ key, value: "", on: true, extra: false });
 
 /** 두 입력이 같은가 — 레코드 JSON 글자와 판정 시각이 모두 같아야 같다. */
+/** 기록의 판정 시각(`RunTraceJson`, KST `yyyy-MM-dd'T'HH:mm:ss`)을 요청 형식(KST `yyyy-MM-dd HH:mm:ss`)으로. */
+export const kstRequestTs = (traceTs: string) => traceTs.replace("T", " ");
 export const sameInput = (a: DebugInput, b: DebugInput) => a.recordJson === b.recordJson && a.evalTs === b.evalTs;
 
 /** 훅 안 기록 — 공개 `SimResult` 에 그 기록을 만든 세트를 더한다(P9). */
@@ -512,7 +514,8 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
           r.pending,
           dropped > 0 ? droppedEditsNotice(dropped) : null,
           // 판정 시각이 빈 칸이면 서버가 요청 시각을 쓰므로, 고친 값으로 다시 돌릴 때만 앞 기록의 시각에 고정한다(입력 상태는 건드리지 않는다).
-          r.last!.trace.evalTs,
+          // 기록은 KST `yyyy-MM-dd'T'HH:mm:ss`, 요청은 KST `yyyy-MM-dd HH:mm:ss` 라 T 만 공백으로 바꾼다(둘 다 초 단위).
+          kstRequestTs(r.last!.trace.evalTs),
         );
       }
       const next = onLast(r.last!.trace, r.cursor);

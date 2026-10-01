@@ -633,7 +633,7 @@ describe("useSimulation — 값 고쳐 이어 실행(4단계 E4)", () => {
   it("E10. 판정 시각 빈 칸 + 고침 대기 — 이어 실행 요청만 첫 기록의 trace.evalTs 로 고정하고 입력 상태는 그대로다", async () => {
     await mount();
     const first = A.response as RuleSetSimulateResult;
-    replies.push({ ...first, trace: { ...first.trace, evalTs: "2026-10-01 09:30:00" } });
+    replies.push({ ...first, trace: { ...first.trace, evalTs: "2026-10-01T09:30:00" } }); // 서버 RunTraceJson 은 KST "T" 형식으로 싣는다
     await run((s) => s.setInput("GT_THK", { value: "12" }));
     await run((s) => s.next());
     for (let i = 0; i < 2; i++) await run((s) => s.next());
