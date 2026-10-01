@@ -44,7 +44,8 @@ class RuleSetIfEndTest {
 
     private final InMemoryDefinitionLookup lookup = FlowRules.lookup(
             RuleSetCatchTest.grade("R_G", HitPolicy.FIRST), calc("R_A", "A", "X + 1", "X"), calc("R_B", "B", "X + 2", "X"),
-            calc("R_ERR", "E", "X / 0", "X"), calc("R_FILL", "G", "0"), calc("R_AFTER", "Z", "X * 2", "X"), calc("R_W", "Q", "W + 1", "W"));
+            calc("R_ERR", "E", "X / 0", "X"), calc("R_FILL", "G", "0"), calc("R_AFTER", "Z", "X * 2", "X"), calc("R_W", "Q", "W + 1", "W"),
+            calc("R_N", "N", "A + 1", "A"));
     private final MdmRuleEngine engine = new MdmRuleEngine(MdmEvaluatorFixtures.of(TestExpressionConfig.create()), lookup);
 
     private RuleSetResult run(FlowDefinition f, Map<String, Object> record) {
@@ -177,5 +178,16 @@ class RuleSetIfEndTest {
         NodeTrace last = t.nodes().get(t.nodes().size() - 1);
         assertEquals("if1", last.nodeId());
         assertEquals(NodeStatus.ERROR, last.status());
+    }
+
+    @Test
+    void 끝내는_갈래에서만_만드는_이름은_뒤_흐름_입력으로_치지_않는다() {
+        // start → if1 [b1 "X > 0" → a(R_A) → end](끝내는 갈래) [그 외 → n] → n(R_N, A 를 읽는다) → end. A 는 n 에 닿는 어느 길에서도 만들어지지 않는다.
+        FlowDefinition f = flow(List.of(start(), ifNode("if1"), rule("a", "R_A"), rule("n", "R_N"), end()),
+                List.of(e("e0", "start", "if1"), br("b1", "if1", "a", 1, "X > 0"), e("ea", "a", "end"), other("bo", "if1", "n"), e("en", "n", "end")));
+        // 끝내는 갈래를 탈 입력이어도 사전 검사가 먼저 막는다(지연 검사로 미루지 않는다).
+        EngineEvaluationException ex = assertThrows(EngineEvaluationException.class, () -> run(f, rec("X", new BigDecimal("5"))));
+        assertEquals(Code.MISSING_KEY, ex.violations().get(0).code());
+        assertEquals("A", ex.violations().get(0).name());
     }
 }
