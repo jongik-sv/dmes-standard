@@ -259,8 +259,8 @@ export function reservedKeyText(name: string): string | null {
 }
 
 /**
- * 받는 노드가 넣는 이름(CATCH_*, 대소문자 무시)이면 거절 문구(컨트롤러 Ruling 3). 엔진은 받는 룰 직전 CATCH_* 를 적어 두고 돌아오는 합류에서
- * 그 값으로 되돌리므로(이름 그대로 지운다) 고친 CATCH_* 는 합류에서 조용히 사라지거나, 대소문자가 다르면 합류 뒤까지 남는다 — 그래서 고치지 않는다.
+ * 받는 노드가 넣는 이름(CATCH_*, 대소문자 무시)이면 거절 문구(컨트롤러 Ruling 3). 엔진은 받는 룰 직전 CATCH_* 를 적어 두고 돌아오는 자리(블록 끝)에서
+ * 그 값으로 되돌리므로(이름 그대로 지운다) 고친 CATCH_* 는 그 자리에서 조용히 사라지거나, 대소문자가 다르면 그 뒤까지 남는다 — 그래서 고치지 않는다.
  */
 export function catchEditText(name: string): string | null {
   return CATCH_NAMES.includes(name.toUpperCase()) ? `받는 노드가 넣는 값이라 고치지 않는다: ${name}` : null;

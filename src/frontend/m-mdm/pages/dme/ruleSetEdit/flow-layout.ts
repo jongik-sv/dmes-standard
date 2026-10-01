@@ -380,7 +380,7 @@ function firstNode(seq: Seq): string | null {
   return b.nodeId;
 }
 
-/** 몸의 맨 바깥 순차 마지막 출구(룰·빈 단계는 자기, 분기·돌아오는 합류가 있는 받는 룰은 그 합류, 합류 없는 받는 룰은 룰). 빈 몸이면 null. */
+/** 몸의 맨 바깥 순차 마지막 출구(룰·빈 단계는 자기, 분기가 있으면 병렬 합류·IF 모이는 자리, 돌아오는 자리가 있는 받는 룰은 그 자리, 그 밖의 받는 룰은 룰). 빈 몸이면 null. */
 function lastExit(seq: Seq): string | null {
   for (let i = seq.items.length - 1; i >= 0; i--) {
     const b = seq.items[i];
