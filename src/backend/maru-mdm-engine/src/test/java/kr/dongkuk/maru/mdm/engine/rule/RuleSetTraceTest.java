@@ -14,6 +14,7 @@ import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.par;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.pe;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.rule;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.start;
+import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.task;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
@@ -232,5 +233,46 @@ class RuleSetTraceTest {
         RunTrace four = engine.traceSet(set, rec("X", new BigDecimal("20")), SampleRules.EVAL_TS, List.of());
         assertEquals(three, four);
         assertNull(four.edits());
+    }
+
+    @Test
+    void 빈_단계는_칸_없는_OK_노드로_남고_결과를_바꾸지_않는다() {
+        FlowDefinition f = flow(List.of(start(), task("t1"), rule("a", "R_A"), end()),
+                List.of(e("e1", "start", "t1"), e("e2", "t1", "a"), e("e3", "a", "end")));
+        RunTrace t = trace(f, rec("X", BigDecimal.ONE));
+        assertNull(t.violations());
+        assertEquals(List.of("1:start:START:OK", "2:t1:TASK:OK", "3:a:RULE:OK", "4:end:END:OK"), kinds(t));
+        NodeTrace tn = t.nodes().get(1);
+        assertEquals(new NodeTrace(2, "t1", NodeKind.TASK, NodeStatus.OK, null, null, null, null, null, null, null, null, null, null), tn);
+        assertNum("2", t.finalValues().get("A"));
+    }
+
+    @Test
+    void 룰_없이_빈_단계만_있는_흐름도_실행된다() {
+        FlowDefinition f = flow(List.of(start(), task("t1"), end()), List.of(e("e1", "start", "t1"), e("e2", "t1", "end")));
+        RunTrace t = trace(f, rec("X", BigDecimal.ONE));
+        assertNull(t.violations());
+        assertEquals(List.of("1:start:START:OK", "2:t1:TASK:OK", "3:end:END:OK"), kinds(t));
+        assertEquals(Map.of(), t.finalValues());
+    }
+
+    @Test
+    void IF_갈래_안의_빈_단계를_타면_결과가_없다() {
+        FlowDefinition f = flow(List.of(start(), ifNode("if1"), task("t1"), rule("c", "R_C"), merge("m1", "if1"), end()),
+                List.of(e("e0", "start", "if1"), br("b1", "if1", "t1", 1, "X > 10"), other("bo", "if1", "c"),
+                        e("et", "t1", "m1"), e("ec", "c", "m1"), e("ee", "m1", "end")));
+        RunTrace t = trace(f, rec("X", new BigDecimal("20")));
+        assertEquals(List.of("1:start:START:OK", "2:if1:IF:OK", "3:t1:TASK:OK", "4:m1:MERGE:OK", "5:end:END:OK"), kinds(t));
+        assertEquals(Map.of(), t.finalValues());
+    }
+
+    @Test
+    void 병렬_갈래_안의_빈_단계는_합칠_이름이_없다() {
+        FlowDefinition f = flow(List.of(start(), par("p1"), task("t1"), rule("b", "R_B"), merge("pm", "p1"), end()),
+                List.of(e("e0", "start", "p1"), pe("p1a", "p1", "t1", 1), pe("p1b", "p1", "b", 2),
+                        e("et", "t1", "pm"), e("eb", "b", "pm"), e("ee", "pm", "end")));
+        RunTrace t = trace(f, rec("X", BigDecimal.ONE));
+        assertEquals(List.of("1:start:START:OK", "2:p1:PARALLEL:OK", "3:t1:TASK:OK", "4:b:RULE:OK", "5:pm:MERGE:OK", "6:end:END:OK"), kinds(t));
+        assertEquals(List.of("B"), t.nodes().get(4).merged());
     }
 }

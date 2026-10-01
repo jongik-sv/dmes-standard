@@ -68,7 +68,7 @@ public final class FlowTree {
     }
 
     /**
-     * 두 노드(RULE·IF·PARALLEL)의 관계. 두 ID 가 같으면(a==b) 노드를 찾지 않고 바로 SAME 을 낸다. 지나온 분기 목록을 앞에서부터 비교해 같은 분기에서 갈래 번호가 처음 달라지면 그
+     * 두 노드(RULE·TASK·IF·PARALLEL)의 관계. 두 ID 가 같으면(a==b) 노드를 찾지 않고 바로 SAME 을 낸다. 지나온 분기 목록을 앞에서부터 비교해 같은 분기에서 갈래 번호가 처음 달라지면 그
      * 분기 종류로 EXCLUSIVE(IF)·PARALLEL 을 낸다. 달라지는 곳이 없으면 같은 경로이고 깊이 우선 순번으로 BEFORE·AFTER 다.
      *
      * @throws IllegalArgumentException 트리에 없는 노드(START·END·MERGE 포함)

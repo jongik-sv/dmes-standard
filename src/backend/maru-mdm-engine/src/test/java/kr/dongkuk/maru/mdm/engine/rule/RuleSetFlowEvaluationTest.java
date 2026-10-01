@@ -15,6 +15,7 @@ import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.par;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.pe;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.rule;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.start;
+import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.task;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -347,5 +348,27 @@ class RuleSetFlowEvaluationTest {
     void 룰_실행_오류는_지금처럼_세트를_멈춘다() {
         FlowDefinition f = flow(List.of(start(), rule("x", "R_ERR"), end()), List.of(e("e1", "start", "x"), e("e2", "x", "end")));
         assertThrows(EngineEvaluationException.class, () -> run(f, rec("X", BigDecimal.ONE)));
+    }
+
+    // ── 빈 단계(TASK, 4단계 spec §1.1) ──
+
+    @Test
+    void 빈_단계는_path_에_TASK_로_남고_steps_와_결과는_그대로다() {
+        FlowDefinition f = flow(List.of(start(), task("t1"), rule("a", "R_A"), end()),
+                List.of(e("e1", "start", "t1"), e("e2", "t1", "a"), e("e3", "a", "end")));
+        RuleSetResult r = run(f, rec("X", BigDecimal.ONE));
+        assertEquals(List.of("start:START:null:null", "t1:TASK:null:null", "a:RULE:null:0", "end:END:null:null"), path(r));
+        assertEquals(List.of("R_A"), r.steps().stream().map(RuleResult::ruleId).toList());
+        assertNum("2", r.finalValues().get("A"));
+    }
+
+    @Test
+    void 빈_단계는_아무_이름도_만들지_않는다_IF_한_갈래가_빈_단계면_합류_뒤_읽기는_지연_키_검사다() {
+        // start → if1 [b1 "X > 10" → t1] [그 외 → a(R_A)] → m1 → d(R_D: A + 1) → end
+        FlowDefinition f = flow(List.of(start(), ifNode("if1"), task("t1"), rule("a", "R_A"), merge("m1", "if1"), rule("d", "R_D"), end()),
+                List.of(e("e0", "start", "if1"), br("b1", "if1", "t1", 1, "X > 10"), other("bo", "if1", "a"),
+                        e("et", "t1", "m1"), e("ea", "a", "m1"), e("em", "m1", "d"), e("ed", "d", "end")));
+        assertEquals(List.of("SET_CHECK/MISSING_KEY/R_D/null/A"), violations(fail(f, rec("X", new BigDecimal("20")))));
+        assertNum("1", run(f, rec("X", new BigDecimal("-1"))).finalValues().get("D"));
     }
 }
