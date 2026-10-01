@@ -58,21 +58,8 @@ export interface RuleRegResult {
 // D-105 — 헤더·버전 상세(action=view) 타입
 // ────────────────────────────────────────────────────────────────────────
 
-/** 적중 정책 — `CK_TB_MDM_RULE_VER_HIT` 와 같은 값 집합. 산출 룰(DERIVE)에는 없다. */
+/** 적중 정책 — `CK_TB_MDM_RULE_VER_HIT` 와 같은 값 집합. 산출 룰(DERIVE)에는 없다. 이 화면은 보이기만 한다(고치는 곳은 ruleEdit 표 저장, D-133). */
 export type HitPolicyCode = "FIRST" | "UNIQUE" | "PRIORITY" | "COLLECT" | "ANY";
-
-export const HIT_POLICY_LABELS: Record<HitPolicyCode, string> = {
-  FIRST: "첫 행(FIRST)",
-  UNIQUE: "유일(UNIQUE)",
-  PRIORITY: "우선순위(PRIORITY)",
-  COLLECT: "모음(COLLECT)",
-  ANY: "전부(ANY)",
-};
-
-export const HIT_POLICY_OPTIONS = (Object.keys(HIT_POLICY_LABELS) as HitPolicyCode[]).map((value) => ({
-  value,
-  label: HIT_POLICY_LABELS[value],
-}));
 
 /** 버전 상태 — 서버 `VersionStatus`. REQUESTED·APPROVED·CANCELLED 는 상수로만 있어 실제로 나오지 않는다(PRD §2 규칙 7). */
 export type VersionStatus = "DRAFT" | "REQUESTED" | "APPROVED" | "RELEASED" | "CANCELLED";
@@ -127,10 +114,8 @@ export interface RuleMngView {
 /** action=save 응답 — 저장 뒤의 감사 카운터(HEADER) 또는 row_version(VERSION). */
 export interface RuleMngSaveResult {
   maruRuleId?: string;
-  target?: "HEADER" | "VERSION";
+  target?: "HEADER";
   auditVer?: number | null;
-  ver?: number | null;
-  rowVersion?: number | null;
 }
 
 /** 버전 조작 응답 — 새 버전 번호(copy)·새 row_version(lock·unlock·handover). 해당 없는 칸은 undefined. */

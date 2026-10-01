@@ -12,6 +12,7 @@ import {
   columnDraftStorageKey,
   draftFromView,
   exprsOf,
+  hitPolicyColumnConflicts,
   isColumnDraftDirty,
   moveColumn,
   newColumn,
@@ -405,6 +406,39 @@ describe("초안 dirty 와 차단(불변 13)", () => {
 
   it("초안 sessionStorage 키는 룰·버전별이다(시안 ST.cd 관례)", () => {
     expect(columnDraftStorageKey("QLTY_GRD_JDG", 2)).toBe("mdm-ruleEdit-colDraft:QLTY_GRD_JDG:2");
+  });
+});
+
+describe("적중 정책 변경과 저장된 열 설정의 어긋남(D-133)", () => {
+  const view = (meta: RuleEditView["varMeta"]) => ({ vars: SAMPLE_VARS, varMeta: meta });
+  const codesOf = (meta: RuleEditView["varMeta"], hit: "FIRST" | "UNIQUE" | "PRIORITY" | "COLLECT" | "ANY", loaded: "FIRST" | "COLLECT" | "PRIORITY" = "FIRST") =>
+    hitPolicyColumnConflicts(view(meta), hit, loaded).map((c) => `${c.code}:${c.key}`);
+
+  it("정책이 그대로면 검사하지 않는다 — 이미 저장된 상태를 표 저장이 새로 막지 않는다", () => {
+    expect(codesOf([{ varId: 4, collectAgg: "SUM", prioList: ["A"], resGrp: "G" }], "FIRST", "FIRST")).toEqual([]);
+  });
+
+  it("고른 집계(LIST 밖)는 COLLECT 밖으로, 순위는 PRIORITY 밖으로 못 나간다 — 기본 집계 LIST 는 어긋남이 아니다", () => {
+    expect(codesOf([{ varId: 4, collectAgg: "SUM" }, { varId: 5, collectAgg: "LIST" }], "FIRST", "COLLECT")).toEqual(["AGG_COLLECT:v4"]);
+    expect(codesOf([{ varId: 4, prioList: ["A", "B"] }], "UNIQUE", "PRIORITY")).toEqual(["PRIO_PRIORITY:v4"]);
+    expect(codesOf([{ varId: 4, prioList: ["A", "B"] }], "PRIORITY", "FIRST")).toEqual([]);
+  });
+
+  it("결과 열 그룹이 있으면 FIRST·UNIQUE 밖으로 못 나가고 문구는 열 설정 검사와 같다", () => {
+    const out = hitPolicyColumnConflicts(view([{ varId: 4, resGrp: "G" }, { varId: 5, resGrp: "G" }]), "COLLECT", "FIRST");
+    expect(out.map((c) => c.code)).toEqual(["GRP_POLICY"]);
+    expect(out[0].message).toBe("결과 열 그룹은 FIRST·UNIQUE 적중 정책에서만 둘 수 있습니다: COLLECT");
+    expect(codesOf([{ varId: 4, resGrp: "G" }], "UNIQUE")).toEqual([]);
+  });
+
+  it("문구는 서버 표 저장(RuleTableService.policyConflicts)과 같다", () => {
+    const java = readFileSync(
+      path.resolve(__dirname, "../../../../../backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dme/ruleEdit/service/RuleTableService.java"),
+      "utf8",
+    );
+    for (const code of ["AGG_COLLECT", "PRIO_PRIORITY", "GRP_POLICY"]) {
+      expect(java, code).toContain(COLUMN_RULES.find((r) => r.code === code)!.serverMessage);
+    }
   });
 });
 

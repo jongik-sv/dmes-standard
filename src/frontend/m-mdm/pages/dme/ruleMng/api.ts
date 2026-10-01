@@ -1,18 +1,16 @@
 /**
  * ruleMng 화면의 OASIS 호출(TSK-08-02 design §6.1, decisions.md D-105) —
- * `search`(서버 페이징)·`reg`(MDM 원천 룰 등록)·`view`(① 헤더 + ② 버전)·`save`(target HEADER|VERSION)·
+ * `search`(서버 페이징)·`reg`(MDM 원천 룰 등록)·`view`(① 헤더 + ② 버전)·`save`(target HEADER)·
  * `copy`·`delete`(target VERSION|RULE|CONFIRM)·`lock`·`unlock`·`handover`.
  *
  * <p>D-105 로 헤더·버전 관리가 이 화면의 몫이 되었다. 마루 코드(D-101)·마스터데이터(D-104)와 같은 모양이다.
  *
- * <p>`save` 는 target 으로 갈린다. 액션을 둘로 나누지 않는 이유는 서버가 권한 어휘 16종 밖의 이름을 받지 않기 때문이다
- * (D-105 (7)) — `ruleEdit` 의 `search`(target=RULE|DOMAIN)·`delete`(target=VERSION|RULE|CONFIRM)와 같은 관용구다.
- * 그래서 <b>target 에 맞지 않는 칸을 같이 보내지 않는다</b> — 서버가 그 이름을 들어 거절한다.
+ * <p>`save` 는 target HEADER 만 받는다(D-105 (7) — 권한 어휘 16종에 헤더 저장용 이름이 없어 target 관용구를 쓴다).
+ * 적중 정책(옛 target VERSION)은 D-133 으로 `ruleEdit` 의 표 저장이 표와 함께 저장한다 — 이 화면은 버전 목록에 보이기만 한다.
  */
 import { callOasis } from "@/dme/oasis-call";
 
 import type {
-  HitPolicyCode,
   RuleMngSaveResult,
   RuleMngView,
   RuleRegForm,
@@ -67,7 +65,6 @@ export interface HeaderForm {
 /**
  * action=save target=HEADER — 룰명·설명·활용처 메모.
  *
- * <p>버전 칸(`ver`·`rowVersion`·`hitPolicy`)을 <b>보내지 않는다</b> — 서버가 target 과 맞지 않는 칸을 거절한다.
  * 저장 뒤 새 감사 카운터를 받아 두어야 다음 저장을 이어갈 수 있다(카운터가 어긋나면 MDM001).
  */
 export function saveHeader(ruleId: string, form: HeaderForm, auditVer: number | null): Promise<RuleMngSaveResult> {
@@ -79,17 +76,6 @@ export function saveHeader(ruleId: string, form: HeaderForm, auditVer: number | 
     description: form.description || undefined,
     usageNote: form.usageNote || undefined,
   });
-}
-
-/**
- * action=save target=VERSION — 적중 정책(D-105 (4)).
- *
- * <p>`TB_MDM_RULE_VER.HIT_POLICY` 는 버전마다 복제되는 버전 속성이므로 헤더·버전 화면이 저장한다. 서버는 저장 전에
- * 저장된 정의를 이 정책으로 다시 검사한다(`RuleSaveTarget.STORED`) — 정책이 바뀌어 내용이 안 맞으면 거절한다.
- * 헤더 칸(`auditVer`·`maruRuleName`·`description`·`usageNote`)은 보내지 않는다.
- */
-export function saveHitPolicy(ruleId: string, ver: number, rowVersion: number, hitPolicy: HitPolicyCode): Promise<RuleMngSaveResult> {
-  return callOasis<RuleMngSaveResult>(SERVICE, "save", { target: "VERSION", maruRuleId: ruleId, ver, rowVersion, hitPolicy });
 }
 
 /** action=copy — 새 버전(직전 RELEASED 의 변수·행을 번호 그대로 복사, 06:931). */
