@@ -104,7 +104,7 @@ moduleGroup: dme
 | `A-DBG` | 디버그 툴바(`dbg-toolbar`, 디버그 모드만) | [계속](`dbg-continue`)·[한 단계](`dbg-step`)·[이전](`dbg-step-back`)·[여기까지](`dbg-run-to`)·[처음부터](`dbg-restart`)·[끝내기](`dbg-finish`) · 상태 문구(`dbg-status`, `data-end` = idle·running·done·error) · 낡은 기록 배지(`dbg-stale`) · 알림(`dbg-notice`, `data-kind` = notice·error) |
 | `A-LEFT` | 왼쪽 패널 | 디버그 모드만 = **입력 패널**(`dbg-inputs`, 3단계 P-D10). 보기·편집 모드는 왼쪽 칸이 없다(4단계 P1) (D-128) |
 | `A-TOOLBOX` | 도구 상자(`flow-toolbox`) | 캔버스 안 왼쪽 위(12px) 세로 막대. 도구 [손](`flow-tool-hand`)·[영역 선택](`flow-tool-select`)·[공간](`flow-space-tool`, 편집만) — 한 번에 하나, `aria-pressed`. 구분선 아래 요소(`flow-palette` — `flow-add-*`, 편집만). 아이콘만, 이름은 오른쪽 툴팁·`aria-label`. 기본 도구 = 편집 [영역 선택]·보기·디버그 [손], Esc·모드 바꾸기·다른 세트 열기로 기본 도구로 돌아간다. 저장하지 않는다 (D-128) |
-| `A-CANVAS` | 흐름도 캔버스(`flow-canvas`) | React Flow. 노드·선·메모·그룹 틀. 표시 내용은 §3.2. 오른쪽 아래 확대 막대(`Controls` — 확대·축소·화면 맞춤, 잠금 단추 없음), 오른쪽 위 미니맵. 캔버스 감싸개(`rsf-canvas-host`)가 단축키(§5.4)를 받고 우클릭·[+] 메뉴(`flow-menu`, §5.5)를 안에 띄운다 |
+| `A-CANVAS` | 흐름도 캔버스(`flow-canvas`) | React Flow. 노드·선·메모·그룹 틀. 표시 내용은 §3.2. 오른쪽 아래 확대 막대(`Controls` — 확대·축소·화면 맞춤, 잠금 단추 없음), 오른쪽 위 미니맵. 캔버스 감싸개(`rsf-canvas-host`)가 단축키(§5.4)를 받고(되돌리기·다시 하기만 편집 모드에서 캔버스 밖에서도 받는다 — 입력 칸·대화 상자·메뉴 안 제외, 화면이 숨으면 받지 않는다, D-131) 우클릭·[+] 메뉴(`flow-menu`, §5.5)를 안에 띄운다 |
 | `A-PROPS` | 오른쪽 패널(`flow-props`) | 보기·편집 = **머리글**(`flow-panel-header` — 종류 아이콘·종류 이름 `flow-panel-kind`·이름 `flow-panel-name`) + **접는 섹션**(`flow-section-{id}`, 머리 `flow-section-{id}-head` `aria-expanded`, 여러 개 함께 펼침, 펼침 상태는 종류별로 화면 메모리에만 두고 저장하지 않는다). 섹션 목록은 4단계 계획 Task 8 의 섹션 표 그대로 — 세트(고른 것 없음): 기본 정보·세트 입출력·구성 지침·룰 목록, 룰: 룰 정보·입력 변수 N개·결과 변수 N개, IF·병렬: 분기·갈래 N개, 시작·끝·합류: 설명, 메모: 메모, 그룹: 그룹·구성 노드 N개. 속성 패널 testid 는 그대로다 — 세트 패널 `flow-prop-set`(세트명 `set-name`·설명 `set-desc`·세트 입출력 표 `set-io-*`·구성 지침 `set-guide-*`), 룰 노드 `flow-prop-rule`, IF `flow-prop-if`, 병렬 `flow-prop-par`, 시작·끝·합류 `flow-prop-node`, 메모 `flow-prop-note`, 그룹 `flow-prop-group`. 세트 패널로 돌아가려면 캔버스 빈 곳을 누른다. **룰 목록 섹션**(`rules`): 편집 모드에서 룰 노드를 고르면 「룰 지정」(맨 위, 줄마다 [지정] `flow-rule-assign-{ruleId}`), 그 밖은 「룰 목록」(맨 아래). 선을 고르면 속성 섹션 없이 룰 목록만 보인다. 디버그 = **변수 패널**(`var-panel`) — 조사식(`var-watches`)·변수 표(`var-grid` — 값 칸 편집·줄 끝 [비우기] `var-clear-{name}`/[되돌리기] `var-edit-undo-{name}`·[변수 추가] `var-add`(`var-add-form`·`var-add-name`·`var-add-type`·`var-add-value`·`var-add-ok`·`var-add-close`)·[고침 취소] `var-edit-cancel`·거절 문구 `var-edit-error`·안내 `var-edit-note`)·노드 상세(`sim-detail`)·식 평가(`expr-input`) 보기·편집 모드의 룰 목록(`flow-rule-panel` — 접기는 섹션 머리 `flow-section-rules-head`, 검색 `flow-rule-panel-search`·`flow-rule-panel-find`, 목록 `flow-rule-rows`, 줄 `flow-rule-row-{ruleId}`)은 룰 목록 섹션 안에 있다 (D-128) |
 | `A-BOTTOM` | 아래 패널(`flow-bottom`) | 접기 `flow-bottom-toggle`(`aria-expanded`). 보기·편집 = 탭 하나 「검사 결과 n」(`flow-tab-checks`, 검사 목록 `set-checks`·항목 `set-check-{i}`). 디버그 = 「값 표」(`flow-tab-values`, 안에 `sim-values`·`sim-warnings`)·「실행 비교」(`flow-tab-compare`, 안에 `run-compare`)·「검사 결과 n」. 탭 testid 는 탭 버튼 안쪽 `span` 에 붙어 있다(`aria-selected` 는 부모 버튼 `role="tab"` 에 있다) |
 
@@ -203,7 +203,7 @@ moduleGroup: dme
 | D-017 | 식 | TextBox(`expr-input`) | N | 빈값 | Enter 로 평가. 최근 식 5개(`expr-recent-{i}`) |
 | D-018 | 변수 값 고치기 | 변수 표 값 칸 두 번 누르기(AG Grid 글자 편집기)·줄 끝 [비우기](`var-clear-{name}`) | N | 커서 자리 값 | 기록이 최신이고(흐름·입력이 실행 때와 같다) 커서가 노드 k 실행 전(k < n)일 때만 열린다(4단계 E4). 원래 타입에 맞지 않으면 칸에서 거절하고 원래 값으로 되돌린다 — NUMBER 는 `^[+-]?\d+(\.\d+)?$`(「숫자가 아니다 — 값을 고치지 않았다」), BOOLEAN 은 true·false(대소문자 무시), STRING 은 글자 그대로, NULL 줄은 세트 선언 타입(없거나 DATE 면 글자), LIST 는 [비우기]만. 고친 줄은 「고침 대기」, [되돌리기](`var-edit-undo-{name}`)·[고침 취소](`var-edit-cancel`)로 버린다. 저장하지 않는다(이번 디버그 실행에만) (D-124) |
 | D-019 | 변수 추가 | [변수 추가](`var-add`) → 이름(`var-add-name`)·타입(`var-add-type` 글자·숫자·참거짓)·값(`var-add-value`) → [넣기](`var-add-ok`) | N | — | 이름이 비면 「변수 이름을 적는다」, 커서 자리에 이미 있는 이름(대소문자 무시)이면 「이 자리에 이미 있는 이름이다. 표에서 값을 고친다」. 값이 비면 NULL. 검증은 D-018 과 같다 (D-124) |
-| D-007 | (`FLOW_JSON.view.styles`) | 외관(S1) | 오른쪽 「외관」 섹션(`flow-section-node-style`, 편집 모드의 룰·빈 단계만): 색 견본 7개 `flow-style-color-{색}`, 아이콘 13칸 `flow-style-icon-{키\|none}`, 모양 3가지 `flow-style-shape-{round\|square\|pill}`, 표시 항목 체크(「…보이기」), 너비·높이 `flow-style-w`·`flow-style-h` + [기본 크기] `flow-style-size-reset`, [외관 초기화] `flow-style-reset` | — | 없음(지금 모양) | 조작 하나가 편집 한 번(되돌리기 한 칸). 숫자 칸은 Enter·칸 밖 누르기에 저장하고 범위로 자른다. 크기를 바꾸면 그때 그린 위치 전부를 저장 위치로 적는다. 외관을 쓰지 않은 세트는 `styles` 키가 없어 저장 글자가 예전과 같다(D-130) |
+| D-007 | (`FLOW_JSON.view.styles`) | 외관(S1) | 오른쪽 「외관」 섹션(`flow-section-node-style`, 편집 모드의 룰·빈 단계만): 아이콘 13칸 `flow-style-icon-{키\|none}`, 모양 3가지 `flow-style-shape-{round\|square\|pill}`, 표시 항목 체크(「…보이기」), 너비·높이 `flow-style-w`·`flow-style-h` + [기본 크기] `flow-style-size-reset`, [외관 초기화] `flow-style-reset` | — | 없음(지금 모양) | 조작 하나가 편집 한 번(되돌리기 한 칸). 숫자 칸은 Enter·칸 밖 누르기에 저장하고 범위로 자른다. 크기를 바꾸면 그때 그린 위치 전부를 저장 위치로 적는다. 외관을 쓰지 않은 세트는 `styles` 키가 없어 저장 글자가 예전과 같다(D-130). 색은 이 섹션이 아니라 노드 우클릭 메뉴 「색상」(§5.5, 견본 `flow-menu-swatch-{색}`, 6색 default·blue·orange·green·red·purple)에서 고른다(D-131) |
 
 
 ## 5. 버튼 및 기능 동작 정의
@@ -229,9 +229,9 @@ moduleGroup: dme
 | B-015 | 그룹 구성 노드 빼기(`flow-prop-group-remove-{nodeId}`)·선택 노드 더하기(`flow-prop-group-add`) | A-PROPS(그룹) | (없음) | 구성 노드 목록 `flow-prop-group-member-{nodeId}`. 다 빼면 그룹이 없어진다 |
 | B-016 | 접기(`flow-bottom-toggle`)·탭(`flow-tab-checks`, 디버그 모드는 `flow-tab-values`·`flow-tab-compare` 가 더 있다) | A-BOTTOM | (없음) | |
 | B-017 | 검사 항목(`set-check-{i}`) | A-BOTTOM | (없음) | 누르면 그 노드를 고르고 캔버스를 그 노드로 옮긴다(노드 ID 가 없는 항목은 눌 수 없다) |
-| B-018 | 되돌리기(`flow-undo`)·다시 하기(`flow-redo`) | A-TOOL | (없음) | 편집 모드에서 이력이 있을 때만 켜진다. 단축키 Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z·Y(§5.4). 이력은 흐름 사본 100개까지 |
+| B-018 | 되돌리기(`flow-undo`)·다시 하기(`flow-redo`) | A-TOOL | (없음) | 편집 모드에서 이력이 있을 때만 켜진다. 단축키 Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z·Y(§5.4 — 편집 모드면 캔버스 밖에서도, 입력 칸 제외). 이력은 흐름 사본 100개까지. 아이콘만 있는 단추라 마우스를 올리거나 키보드 초점(focus-visible)을 두면 단추 아래에 즉시 툴팁(`data-tip` — Mac 「되돌리기 (⌘Z)」·「다시 하기 (⌘⇧Z)」, Win 「되돌리기 (Ctrl+Z)」·「다시 하기 (Ctrl+Shift+Z)」)이 뜬다. 꺼진 단추에서도 뜬다. 브라우저 기본 툴팁과 겹치지 않게 `title` 은 두지 않고 `aria-label` 로 이름을 준다 (D-131) |
 | B-019 | 찾기 칸(`flow-find`)·다음(`flow-find-next`)·개수(`flow-find-count`) | A-TOOL | (없음) | 룰 ID·룰 이름·노드 라벨로 찾는다(대소문자 무시). **Enter(또는 [다음])에서만** 다음 결과로 옮기고 글자를 치는 동안은 옮기지 않는다 — 첫 Enter 는 첫 결과, 그다음부터 한 칸씩 돌아 끝에서 처음으로 간다. 옮기면 그 노드를 고르고 캔버스를 그 노드로 옮기며 깜빡인다. 접힌 블록 안의 노드면 블록을 펼친다 |
-| B-020 | 단축키 도움말(`flow-help` → `flow-help-panel`) | A-TOOL | (없음) | 지금 모드에서 쓸 수 있는 단축키만 표로 보인다. Mac 이면 「F9·F10·F5 는 fn 과 함께 누른다」 안내. Esc 로 닫을 때 초점이 [?] 단추·도움말 안·문서 본문(body)에 있으면 초점을 캔버스(`flow-canvas`)로 돌려 다음 Esc·단축키가 캔버스에 닿는다(찾기 칸 등 다른 곳의 초점은 그대로). [?] 를 다시 눌러 닫으면 초점을 옮기지 않는다(바깥 누르기로 닫는 동작은 없다) |
+| B-020 | 단축키 도움말(`flow-help` → `flow-help-panel`) | A-TOOL | (없음) | [?] 단추도 B-018 과 같은 즉시 툴팁(`data-tip`)이고 도움말이 열린 동안은 툴팁을 숨긴다. 지금 모드에서 쓸 수 있는 단축키만 표로 보인다. Mac 이면 「F9·F10·F5 는 fn 과 함께 누른다」 안내. Esc 로 닫을 때 초점이 [?] 단추·도움말 안·문서 본문(body)에 있으면 초점을 캔버스(`flow-canvas`)로 돌려 다음 Esc·단축키가 캔버스에 닿는다(찾기 칸 등 다른 곳의 초점은 그대로). [?] 를 다시 눌러 닫으면 초점을 옮기지 않는다(바깥 누르기로 닫는 동작은 없다) |
 | B-021 | 룰 목록 찾기(`flow-rule-panel-find`, 검색 칸 Enter)·줄(`flow-rule-row-{ruleId}`)·[지정](`flow-rule-assign-{ruleId}`) | A-PROPS(룰 목록 섹션) | `search`(RULE) | 룰 ID·룰명으로 찾아 RELEASED 버전이 있는 룰만 보인다. 편집 모드 「룰 목록」: 줄을 선 위로 끌거나 두 번 누르면 끼운다(두 번 누르기는 고른 선, 없으면 END 앞 선 — 끼운 뒤 새 룰에서 나가는 선을 골라 다음 두 번 누르기가 그 뒤에 잇는다). 「룰 지정」(빈 단계·룰 노드를 고름): [지정]·두 번 누르기, 또는 줄을 빈 단계·룰 노드 위에 끌어 놓으면 룰을 지정한다 — 빈 단계는 같은 ID·자리·선·경로의 룰 노드가 되고, 룰 노드는 룰만 바뀐다. 되돌리기 한 번. 흐름에 이미 있는 룰은 줄에 「사용 중」(`flow-rule-used-{id}`) — 막지는 않는다. 찾은 줄은 섹션을 접거나 자리가 바뀌어도 남는다 |
 | B-022 | 계속(`dbg-continue`)·한 단계(`dbg-step`)·여기까지(`dbg-run-to`)·처음부터(`dbg-restart`)·끝내기(`dbg-finish`) | A-DBG | `execute` | `execute` 권한(EDIT)이 없으면 꺼지고 title `디버거는 편집 권한이 있어야 쓸 수 있다`(2단계 P-D3). 실행 중에는 모두 꺼진다. [여기까지]는 캔버스에서 고른 흐름 노드가 있어야 켜진다. 동작은 §5.2 |
 | B-023 | 이전(`dbg-step-back`) | A-DBG | (없음) | 커서를 한 칸 되돌린다(0 아래로는 가지 않는다). 서버를 부르지 않으므로 `execute` 권한과 무관하다. Shift+F10 |
@@ -311,12 +311,12 @@ moduleGroup: dme
 
 ### 5.4 단축키
 
-스펙 §2: 단축키는 보조 수단이다 — 모든 동작은 툴바·메뉴 버튼으로 할 수 있어야 한다. 키 처리는 **디스패처 한 곳**(`canvas/shortcuts.ts`)이다. page 가 캔버스 감싸개(`rsf-canvas-host`)의 `onKeyDown` 에서 모드별 손잡이 표를 만들어 한 번 부른다. 디스패처가 받은 키로 편집한 뒤 초점이 문서(body)로 빠졌으면(초점을 가진 선·노드를 지웠을 때) 다시 그린 뒤 캔버스로 초점을 돌려 이어서 Ctrl+Z 등이 먹게 한다(FF U3 — 도움말 Esc·메뉴 닫힘의 초점 복귀와 같은 규칙, 초점이 입력 칸 등 다른 곳이면 두지 않는다).
+스펙 §2: 단축키는 보조 수단이다 — 모든 동작은 툴바·메뉴 버튼으로 할 수 있어야 한다. 키 처리는 **디스패처 한 곳**(`canvas/shortcuts.ts`)이다. page 가 캔버스 감싸개(`rsf-canvas-host`)의 `onKeyDown` 에서 모드별 손잡이 표를 만들어 한 번 부른다. **예외 — 되돌리기·다시 하기**는 편집 모드에서 화면 어디서나(오른쪽 패널·툴바 단추·문서 본문) 받는다: page 가 마운트된 동안 `document` keydown 을 듣되 입력 칸(`input`·`textarea`·`select`·`contenteditable` — 입력 칸 되돌리기 그대로)·캔버스 감싸개 안(감싸개 처리와 이중 실행 방지)·열린 대화 상자(`role="dialog"`)·메뉴(`role="menu"`) 안에서 온 키와 보기·디버그 모드는 건드리지 않는다. 화면이 보이지 않으면(포털이 고르지 않은 탭을 `display:none` 으로 숨긴다) 받지 않는다 — 다른 탭에서 누른 Cmd+Z 가 숨은 흐름을 되돌리지 않게. 받으면 되돌릴 것이 없거나 바빠도 `preventDefault` 한다(브라우저 기본 되돌리기가 세트 찾기 칸으로 초점을 옮기지 않게). 초점은 옮기지 않는다. 나머지 단축키는 캔버스에서만 받는다(패널에 초점이 있을 때 노드가 지워지는 사고 방지) (D-131). 디스패처가 받은 키로 편집한 뒤 초점이 문서(body)로 빠졌으면(초점을 가진 선·노드를 지웠을 때) 다시 그린 뒤 캔버스로 초점을 돌려 이어서 Ctrl+Z 등이 먹게 한다(FF U3 — 도움말 Esc·메뉴 닫힘의 초점 복귀와 같은 규칙, 초점이 입력 칸 등 다른 곳이면 두지 않는다).
 
 | 동작 | Win/Linux | Mac | 모드 | 설명 |
 |---|---|---|---|---|
-| 되돌리기 | Ctrl+Z | Cmd+Z | 편집 | 흐름 사본 이력 100개까지. 저장해도 비우지 않는다 |
-| 다시 하기 | Ctrl+Shift+Z · Ctrl+Y | Cmd+Shift+Z · Cmd+Y | 편집 | |
+| 되돌리기 | Ctrl+Z | Cmd+Z | 편집 | 흐름 사본 이력 100개까지. 저장해도 비우지 않는다. 캔버스 밖에서도 받는다(위 예외, 입력 칸 제외) |
+| 다시 하기 | Ctrl+Shift+Z · Ctrl+Y | Cmd+Shift+Z · Cmd+Y | 편집 | 캔버스 밖에서도 받는다(위 예외, 입력 칸 제외) |
 | 선택 삭제 | Delete · Backspace | ⌫ · Delete | 편집 | 고른 꺾는 점(C14)이 있으면 그 점만 먼저 빼고 이웃 점을 고른 채로 둔다(점이 남아 있는 동안 연속 Delete 는 이웃 점을 뺀다. 마지막 점을 뺀 뒤의 Delete 는 선을 지운다). 고른 점이 없으면 고른 노드·메모·그룹·선을 지운다. 영역 선택·Shift 누르기로 **여럿 골랐으면**(또는 캔버스 선택이 단일 선택과 다르면) 고른 흐름 노드·메모·그룹 전부를 **편집 한 번**(되돌리기 한 칸)에 지운다 — 시작·끝·합류와 앞서 지운 분기 블록 안 노드는 건너뛰고, 하나도 못 지우면 단일 삭제와 같은 알림을 띄운다(FF M2). 노드를 고른 채 Shift(Cmd·Ctrl)+선을 눌러 **노드와 선을 섞어 골랐으면 고른 선도 같은 편집에서 함께 지운다**(Figma 처럼 고른 것 전부, FF N1). 선은 노드를 지운 뒤에 지우고, 지운 노드에 붙어 있던 선은 노드와 함께 정리되므로 다시 지우지 않는다(룰 노드를 지우면 앞뒤를 잇는 선은 남는다). 선만 골랐으면 그 선을 지운다. 시작·끝·합류는 지울 수 없다. 고른 것이 없으면 키를 쓰지 않는다(preventDefault 안 함). Shift+Delete·Shift+Backspace 는 무시한다 |
 | 복사 / 붙여넣기 / 복제 | Ctrl+C / Ctrl+V / Ctrl+D | Cmd+C / Cmd+V / Cmd+D | 편집 | 복사·복제는 흐름 노드를 골라야 하고, 붙여넣기는 선을 골라야 한다(없으면 알림) |
 | 노드 찾기 | Ctrl+F | Cmd+F | 모든 모드 | 툴바 찾기 칸으로 초점을 옮긴다 |
@@ -335,7 +335,7 @@ moduleGroup: dme
 | 한 단계 / 이전 | F10 / Shift+F10 | fn+F10 / fn+Shift+F10 | 디버그 | 한 단계는 `execute` 권한이 있을 때만, 이전은 권한과 무관 |
 | 중단점 켜고 끄기 | F9 | fn+F9 | 디버그 | 흐름 노드를 골랐을 때만 |
 
-- **캔버스 초점 규칙**: 키 이벤트는 초점을 가진 캔버스(`rsf-canvas`, `tabIndex=0` — 캔버스를 누르면 초점이 간다)에서 올라온 것만 받는다. 캔버스 밖(툴바·패널)에서는 받지 않는다.
+- **캔버스 초점 규칙**: 키 이벤트는 초점을 가진 캔버스(`rsf-canvas`, `tabIndex=0` — 캔버스를 누르면 초점이 간다)에서 올라온 것만 받는다. 캔버스 밖(툴바·패널)에서는 받지 않는다 — 되돌리기·다시 하기만 예외(위 머리말).
 - **입력 칸 무시**: 초점이 `input`·`textarea`·`select`·`contenteditable` 에 있으면 판정하지 않는다(입력 칸에서 Delete·Ctrl+Z 가 캔버스를 건드리지 않는다). Alt 가 눌렸으면 정렬 글쇠(Alt+A·D·W·S·H·V, Shift 는 H·V 만)만 받고 나머지는 무시한다. Mac 에서 Ctrl+Z, Win 에서 Meta+Z 는 무시한다. F 키·Delete·Esc 는 Ctrl/Cmd 가 눌리면 무시한다.
 - **손잡이가 있을 때만 가로챈다**: 그 모드에 손잡이가 있는 키만 `preventDefault`·`stopPropagation` 한다. 손잡이가 없으면 브라우저·포털 동작이 그대로다 — 예: 보기 모드의 Ctrl+D 는 북마크, 캔버스 초점 밖의 F5 는 새로 고침, `execute` 권한이 없는 디버그 모드의 F5·F10 도 브라우저 동작 그대로다. 캔버스 초점 밖에서 Cmd+F 는 브라우저 찾기가 뜬다.
 - **Mac fn**: Mac 에서 F5·F9·F10 은 fn 을 함께 눌러야 한다(도움말에 안내).
@@ -350,8 +350,8 @@ moduleGroup: dme
 
 | 대상 | 항목(id) | 모드 |
 |---|---|---|
-| 빈 단계 | 룰 지정…(`rule-assign` — 그 노드를 고르고 「룰 지정」 섹션을 펴 찾기 칸에 초점) · 복사 · 복제 · 삭제 | 편집 |
-| 룰 노드 | 룰 바꾸기…(`rule-replace` — 그 노드를 고르고 「룰 지정」 섹션을 펴 찾기 칸에 초점) · 복사(`copy`) · 복제(`duplicate`) · 삭제(`delete`) | 편집 |
+| 빈 단계 | 룰 지정…(`rule-assign` — 그 노드를 고르고 「룰 지정」 섹션을 펴 찾기 칸에 초점) · 복사 · 복제 · 색상(`color`, 룰 노드와 같다) · 삭제 | 편집 |
+| 룰 노드 | 룰 바꾸기…(`rule-replace` — 그 노드를 고르고 「룰 지정」 섹션을 펴 찾기 칸에 초점) · 복사(`copy`) · 복제(`duplicate`) · 색상(`color`, 붓 아이콘 — 누르면 메뉴를 닫지 않고 그 아래에 3×2 견본 격자 `flow-menu-swatch-{색}` 를 펼친다. 6색 기본·파랑·주황·초록·빨강·보라(default·blue·orange·green·red·purple), 우클릭한 노드의 지금 색이 `aria-pressed`. 견본을 누르면 칠하고 닫는다. 우클릭한 노드가 다중 선택 안이고 고른 룰·빈 단계가 둘 이상이면 그 전부에 편집 한 번으로 칠한다. 색 칠한 노드는 고른 동안에도 테두리가 노드 색이고 선택은 바깥 고리로 보인다, D-131) · 삭제(`delete`) | 편집 |
 | 룰 노드 | 중단점 켜기/끄기(`bp-toggle`) · 여기까지 실행(`run-to`, `execute` 권한이 없으면 꺼짐) | 디버그 |
 | 룰 노드 | 룰 편집 열기(`open-rule`) | 모든 모드 |
 | 분기(IF·병렬) | IF↔병렬 바꾸기(`split-kind`, 「병렬로 바꾸기」/「IF로 바꾸기」) · 분기 풀기(`dissolve` — 남길 갈래를 `dissolve-{edgeId}` 하위 항목으로 들여 써서 보인다. 라벨 = 갈래 이름, 빈 갈래면 「(빈 갈래)」) · 갈래 더하기(`add-branch`) · 블록 복사(`copy`) · 블록 삭제(`delete`) | 편집 |
