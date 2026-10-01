@@ -235,6 +235,8 @@ export interface FlowCanvasProps {
   valueAt?: (name: string) => TypedValue | null | undefined;
   /** 즉석 조건식 편집 중인 선(B10 — Task 7). */
   editingCondEdgeId: string | null;
+  /** 선 라벨 즉석 편집 중인 선(Task 9) — 메뉴가 연다. 없으면 두 번 누르기로만 연다. */
+  editingLabelEdgeId?: string | null;
   onSelect: (id: string | null) => void;
   onSelectEdge: (edgeId: string | null) => void;
   onOpenRule: (ruleId: string) => void; // 링크 아이콘만
@@ -293,6 +295,10 @@ export interface FlowCanvasProps {
   onEditCond: (edgeId: string, cond: string) => void;
   /** 즉석 조건식 Esc·밖 누르기(B10 — Task 7). */
   onEditCondClose: () => void;
+  /** 선 라벨 즉석 편집 Enter(Task 9). 빈 값 = 지움. */
+  onEditLabel?: (edgeId: string, label: string) => void;
+  /** 선 라벨 즉석 편집 Esc·밖 누르기·확정 뒤 닫기(Task 9). */
+  onEditLabelClose?: () => void;
   /** 중단점 점 누르기(E2 — Task 11). */
   onToggleBreakpoint: (nodeId: string) => void;
   /**
@@ -360,6 +366,8 @@ type EdgeData = {
   condEditable: boolean;
   /** 조건식 즉석 편집 중(B10 — Task 7). */
   editingCond: boolean;
+  /** 저장된 라벨 그대로(대체 라벨 `갈래 N`·`그 외` 없이) — 라벨 입력 칸의 처음 값. */
+  rawLabel: string | null;
   /** 칩 툴팁 값(E3 — Task 11). */
   valueOf?: (name: string) => TypedValue | null | undefined;
   /** 저장된 꺾는 점(C14). 접힌 분기가 이어 받은 선은 null. */
@@ -376,6 +384,12 @@ type EdgeData = {
   chipsOff: LabelOffset | null;
   /** 편집 모드이고 접힌 분기가 이어 받은 선이 아님 — 라벨·칩을 끌어 옮길 수 있다(L1). */
   labelsMovable: boolean;
+  /** 분기에서 나가지 않는 일반 선의 라벨 — 갈래 칩이 아니라 테두리 없는 작은 글자로 그린다(Task 9). */
+  plainLabel: boolean;
+  /** 편집 모드이고 접힌 분기가 이어 받은 선이 아님 — 라벨 즉석 편집(우클릭 메뉴·일반 선 라벨 두 번 누르기). */
+  labelEditable: boolean;
+  /** 라벨 즉석 편집 중. */
+  editingLabel: boolean;
 };
 type FlowRfEdge = Edge<EdgeData, "rsfFlow">;
 
@@ -386,9 +400,20 @@ interface CondEditActions {
 }
 const CondEditContext = createContext<CondEditActions | null>(null);
 
-/** 선 라벨 자리의 조건식 입력 칸(B10) — Enter 확정, Esc·칸 밖 누르기 취소. 키 입력은 캔버스 단축키로 번지지 않게 막는다. */
-function CondInput({ edgeId, initial }: { edgeId: string; initial: string }) {
-  const actions = useContext(CondEditContext);
+/** 선 라벨 즉석 편집 칸의 확정·취소(Task 9) — 조건식 칸과 같은 방식. */
+interface LabelEditActions {
+  commit(edgeId: string, label: string): void;
+  cancel(): void;
+}
+const LabelEditContext = createContext<LabelEditActions | null>(null);
+
+/**
+ * 선 라벨 자리의 즉석 입력 칸 — Enter 확정, Esc 취소. 칸 밖 누르기·초점 잃기는 조건식 칸이면 취소, 라벨 칸(`saveOnLeave`)이면 저장이다. 키 입력은 캔버스 단축키로 번지지 않게 막는다.
+ * 한글 조합 중 Enter 는 확정이 아니라 조합 끝이라 무시한다.
+ */
+function EdgeTextInput({
+  edgeId, initial, ariaLabel, testId, actions, saveOnLeave = false,
+}: { edgeId: string; initial: string; ariaLabel: string; testId: string; actions: CondEditActions | LabelEditActions | null; saveOnLeave?: boolean }) {
   const ref = useRef<HTMLInputElement>(null);
   const done = useRef(false);
   const finish = (commit: boolean) => {
@@ -401,7 +426,7 @@ function CondInput({ edgeId, initial }: { edgeId: string; initial: string }) {
     ref.current?.focus();
     ref.current?.select();
     const outside = (e: Event) => {
-      if (!ref.current?.contains(e.target as globalThis.Node)) finish(false);
+      if (!ref.current?.contains(e.target as globalThis.Node)) finish(saveOnLeave);
     };
     document.addEventListener("mousedown", outside, true);
     document.addEventListener("pointerdown", outside, true);
@@ -416,22 +441,33 @@ function CondInput({ edgeId, initial }: { edgeId: string; initial: string }) {
       ref={ref}
       type="text"
       className="rsf-cond-input nodrag nopan nowheel"
-      data-testid={`flow-edge-cond-input-${edgeId}`}
+      data-testid={testId}
       defaultValue={initial}
-      aria-label="조건식"
+      aria-label={ariaLabel}
       onKeyDown={(e) => {
         e.stopPropagation();
         if (e.key === "Enter") {
           e.preventDefault();
+          if (e.nativeEvent.isComposing || e.keyCode === 229) return;
           finish(true);
         } else if (e.key === "Escape") {
           e.preventDefault();
           finish(false);
         }
       }}
-      onBlur={() => finish(false)}
+      onBlur={() => finish(saveOnLeave)}
     />
   );
+}
+
+/** 선 라벨 자리의 조건식 입력 칸(B10). */
+function CondInput({ edgeId, initial }: { edgeId: string; initial: string }) {
+  return <EdgeTextInput edgeId={edgeId} initial={initial} ariaLabel="조건식" testId={`flow-edge-cond-input-${edgeId}`} actions={useContext(CondEditContext)} />;
+}
+
+/** 선 라벨 즉석 입력 칸(Task 9). */
+function LabelInput({ edgeId, initial }: { edgeId: string; initial: string }) {
+  return <EdgeTextInput edgeId={edgeId} initial={initial} ariaLabel="선 라벨" testId={`flow-edge-label-input-${edgeId}`} actions={useContext(LabelEditContext)} saveOnLeave />;
 }
 
 /** 변수 칩 툴팁(E3) — 모드와 관계없이 `표시명 (ID)`(표시명이 없으면 `ID`) 뒤에 값이 만들어졌으면 ` = 값`, 아직이면 ` · 아직 없음`. valueOf 가 없으면(디버그 모드가 아니거나 낡은 기록) 값 부분이 없고, 덧붙일 것도 없으면(표시명 없음) 툴팁이 없다. */
@@ -856,9 +892,29 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
         <BaseEdge id={id} path={path} style={style} markerEnd={props.markerEnd} interactionWidth={20} className={data?.dropTarget ? "rsf-edge-drop" : undefined} />
       </g>
       <EdgeLabelRenderer>
-        {data?.editingCond && data.condEditable ? (
+        {data?.editingLabel && data.labelEditable ? (
+          <div className="rsf-elabel" style={at(lx, ly)}>
+            <LabelInput edgeId={id} initial={data.rawLabel ?? ""} />
+          </div>
+        ) : data?.editingCond && data.condEditable ? (
           <div className="rsf-elabel" style={at(lx, ly)}>
             <CondInput edgeId={id} initial={data.cond ?? ""} />
+          </div>
+        ) : data?.label && data.plainLabel ? (
+          <div className="rsf-elabel" style={at(lx + labelOff.dx, ly + labelOff.dy)}>
+            <span
+              className={"rsf-edge-text" + (data.labelEditable ? " rsf-edge-text-edit nopan" : "") + (movable ? " rsf-elabel-drag nodrag nopan nokey" : "")}
+              data-testid={`flow-edge-label-${id}`}
+              data-state={state ?? "idle"}
+              ref={labelRef}
+              data-label-edge={data.labelEditable ? id : undefined}
+              data-dragging={labelDrag?.part === "label" ? "true" : undefined}
+              title={data.label}
+              {...hoverProps}
+              {...dragProps("label", data.labelOff)}
+            >
+              {data.label}
+            </span>
           </div>
         ) : (
           data?.label && (
@@ -1028,7 +1084,7 @@ function groupBox(nodeIds: readonly string[], pos: Record<string, FlowPos>, size
 function Inner(props: FlowCanvasProps) {
   const {
     flow, rules, checks, mode, varDisplay, varLabels, selectedId, selectedEdgeId, overlay, focusId, focusSeq, focusReveal, fitSignal, fitKey,
-    breakpoints, collapsed, valueAt, showMiniMap, editingCondEdgeId,
+    breakpoints, collapsed, valueAt, showMiniMap, editingCondEdgeId, editingLabelEdgeId, onEditLabel, onEditLabelClose,
     onSelect, onSelectEdge, onOpenRule, onMove, onMoveNode, onConnect, onReconnect, onDropPalette, onDropRule, onAssignDrop, onRenameTask, onNoteChange, onContextMenu, onToggleBreakpoint,
     onEditCond, onRouteChange, onLabelOffsetChange, removeRoutePointRef, clearSelectionRef, alignSourceRef, selectionRef, onEditCondClose, onSelectionChange,
     spaceTool, onSpaceToolChange, onShiftSpace, dragTool,
@@ -1059,6 +1115,8 @@ function Inner(props: FlowCanvasProps) {
   }, []);
   /** 조건식 즉석 편집 중인 선(B10) — 메뉴가 연 `editingCondEdgeId` 와 같은 칸을 쓴다. */
   const [condEdge, setCondEdge] = useState<string | null>(null);
+  /** 선 라벨 즉석 편집 중인 선(Task 9) — 메뉴가 연 `editingLabelEdgeId` 와 같은 칸을 쓴다. */
+  const [labelEdge, setLabelEdge] = useState<string | null>(null);
   /** React Flow 선택(노드·메모·그룹 ID). 노드 배열을 제어하므로 select 변경을 여기 적는다. */
   const [rfSel, setRfSel] = useState<ReadonlySet<string>>(() => new Set());
   /**
@@ -1122,8 +1180,24 @@ function Inner(props: FlowCanvasProps) {
       cancel: close,
     };
   }, [onEditCond, onEditCondClose]);
+  const labelActions = useMemo<LabelEditActions>(() => {
+    const close = () => {
+      setLabelEdge(null);
+      onEditLabelClose?.();
+    };
+    return {
+      commit: (edgeId, label) => {
+        onEditLabel?.(edgeId, label);
+        close();
+      },
+      cancel: close,
+    };
+  }, [onEditLabel, onEditLabelClose]);
   useEffect(() => {
-    if (!editable) setCondEdge(null);
+    if (!editable) {
+      setCondEdge(null);
+      setLabelEdge(null);
+    }
   }, [editable]);
   const marks = useMemo(() => nodeMarks(checks), [checks]);
   const eMarks = useMemo(() => edgeMarks(checks), [checks]);
@@ -1217,13 +1291,18 @@ function Inner(props: FlowCanvasProps) {
       const fromSplit = !folded && (kindOf.get(e.from) === "IF" || kindOf.get(e.from) === "PARALLEL");
       const condEditable = editable && !folded && kindOf.get(e.from) === "IF" && !e.otherwise;
       // 조건 갈래는 이름(label)이 없어도 두 번 누를 자리가 있어야 한다(F10) — 대체 라벨 `갈래 {order}`.
-      const label = fromSplit ? (e.label ?? (e.otherwise ? "그 외" : condEditable ? `갈래 ${e.order ?? ""}`.trim() : null)) : null;
+      // 분기에서 나가지 않는 일반 선은 저장된 라벨이 있을 때만 그린다(Task 9).
+      const label = fromSplit ? (e.label ?? (e.otherwise ? "그 외" : condEditable ? `갈래 ${e.order ?? ""}`.trim() : null)) : (e.label || null);
       const data: EdgeData = {
         label, cond: e.cond, chips: chips[e.id] ?? [], state: overlay?.edges[e.id], mark: eMarks[e.id], varDisplay, varLabels: varLabels ?? NO_LABELS,
         dropTarget: dropEdge === e.id,
         insertable: editable,
         condEditable,
         editingCond: (editingCondEdgeId ?? condEdge) === e.id,
+        rawLabel: e.label,
+        plainLabel: !fromSplit,
+        labelEditable: editable && !folded,
+        editingLabel: (editingLabelEdgeId ?? labelEdge) === e.id,
         valueOf: debugging ? valueAt : undefined,
         // 접힌 분기가 이어 받은 선(같은 ID 라도 양 끝이 다르다)에는 원래 경로를 그리지 않는다.
         route: routeOf(e.id, folded),
@@ -1244,7 +1323,7 @@ function Inner(props: FlowCanvasProps) {
         data,
       };
     });
-  }, [flow, vflow, view, chips, overlay, eMarks, varDisplay, varLabels, selectedEdgeId, editable, debugging, valueAt, editingCondEdgeId, condEdge, dropEdge, onReconnect, onLabelOffsetChange]);
+  }, [flow, vflow, view, chips, overlay, eMarks, varDisplay, varLabels, selectedEdgeId, editable, debugging, valueAt, editingCondEdgeId, condEdge, editingLabelEdgeId, labelEdge, dropEdge, onReconnect, onLabelOffsetChange]);
 
   /** 영역 선택(상자 끌기) 중인가 — onSelectionStart~onSelectionEnd. pointercancel·빈 곳 새 누르기·편집 모드 떠나기에서도 푼다. */
   const boxingRef = useRef(false);
@@ -2187,11 +2266,18 @@ function Inner(props: FlowCanvasProps) {
   const onDoubleClick = (e: ReactMouseEvent<HTMLDivElement>) => {
     if (!editable) return;
     const id = (e.target as Element | null)?.closest?.("[data-cond-edge]")?.getAttribute("data-cond-edge");
-    if (id) setCondEdge(id);
+    if (id) {
+      setCondEdge(id);
+      return;
+    }
+    // 일반 선 라벨 칩을 두 번 누르면 라벨 입력 칸(Task 9).
+    const labelId = (e.target as Element | null)?.closest?.("[data-label-edge]")?.getAttribute("data-label-edge");
+    if (labelId) setLabelEdge(labelId);
   };
 
   return (
     <CondEditContext.Provider value={condActions}>
+    <LabelEditContext.Provider value={labelActions}>
     <RouteContext.Provider value={routeApi}>
     <SpaceContext.Provider value={spaceStore}>
     <HoverContext.Provider value={hoverStore}>
@@ -2286,6 +2372,7 @@ function Inner(props: FlowCanvasProps) {
     </HoverContext.Provider>
     </SpaceContext.Provider>
     </RouteContext.Provider>
+    </LabelEditContext.Provider>
     </CondEditContext.Provider>
   );
 }

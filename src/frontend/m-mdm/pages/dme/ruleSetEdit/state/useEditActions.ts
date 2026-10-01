@@ -69,6 +69,8 @@ export interface EditActionsDeps {
   openRuleAssign(nodeId: string): void;
   fit(): void;
   setEditingCond(edgeId: string | null): void;
+  /** 선 라벨 즉석 편집 칸 열기·닫기(Task 9). */
+  setEditingLabel(edgeId: string | null): void;
   /** 메뉴가 열려 있으면 닫고 true. */
   closeMenu(): boolean;
   clearSelection(): void;
@@ -149,7 +151,7 @@ function centerOf(f: EditFlow, collapsed: ReadonlySet<string>): FlowPos {
 }
 
 export function useEditActions(deps: EditActionsDeps): EditActions {
-  const { state, flow, editing, selectedId, selectedEdgeId, multiSel, select, selectEdge, openRuleAssign, fit, setEditingCond, closeMenu, clearSelection } = deps;
+  const { state, flow, editing, selectedId, selectedEdgeId, multiSel, select, selectEdge, openRuleAssign, fit, setEditingCond, setEditingLabel, closeMenu, clearSelection } = deps;
   const collapsed = deps.collapsed ?? NO_COLLAPSED;
   const { edit, addRuleIo } = state;
   /** 복사한 조각(B9) — 화면이 살아 있는 동안 남고 세트를 바꿔도 유지한다. */
@@ -301,8 +303,9 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
   const escape = useCallback(() => {
     if (closeMenu()) return;
     setEditingCond(null);
+    setEditingLabel(null);
     clearSelection();
-  }, [closeMenu, setEditingCond, clearSelection]);
+  }, [closeMenu, setEditingCond, setEditingLabel, clearSelection]);
 
   /** 룰 지정(4단계 T1) — 빈 단계는 룰 노드가 되고 룰 노드는 룰만 바뀐다. IO 를 먼저 룰 맵에 넣고 편집 한 번(되돌리기 한 칸). */
   const assignRuleTo = useCallback(
@@ -374,6 +377,9 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
       editCond: (edgeId: string) => {
         if (editing) setEditingCond(edgeId);
       },
+      editLabel: (edgeId: string) => {
+        if (editing) setEditingLabel(edgeId);
+      },
       copy,
       paste,
       duplicate: (nodeId: string) => {
@@ -389,7 +395,7 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
         if (editing) edit((f) => dissolveSplit(f, splitId, keepEdgeId));
       },
     }),
-    [editing, edit, fit, placeNote, placeTask, insertAt, setEditingCond, copy, paste, openRuleAssign],
+    [editing, edit, fit, placeNote, placeTask, insertAt, setEditingCond, setEditingLabel, copy, paste, openRuleAssign],
   );
 
   return {
