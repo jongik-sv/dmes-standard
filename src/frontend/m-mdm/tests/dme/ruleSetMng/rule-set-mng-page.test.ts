@@ -215,6 +215,20 @@ describe("RuleSetMngPage", () => {
     expect(byTestId<HTMLButtonElement>("set-reg-save").disabled).toBe(false);
   });
 
+  it("세트 ID 에 소문자를 넣으면 대문자로 바꿔 보이고 그대로 보낸다", async () => {
+    await render();
+    await typeInto(byTestId<HTMLInputElement>("set-reg-id"), "e2s_low_1");
+    await typeInto(byTestId<HTMLInputElement>("set-reg-name"), "소문자 입력");
+    expect(byTestId<HTMLInputElement>("set-reg-id").value).toBe("E2S_LOW_1");
+    expect(container.querySelector('[data-testid="set-reg-id-error"]')).toBeNull();
+    await act(async () => {
+      byTestId<HTMLButtonElement>("set-reg-save").click();
+    });
+    await flush();
+    const reg = requests.find((r) => r.url.includes("/ruleSetMng/reg"))!;
+    expect(reg.body.params).toEqual({ setId: "E2S_LOW_1", setName: "소문자 입력" });
+  });
+
   it("세트명이 비면 저장을 막는다", async () => {
     await render();
     await typeInto(byTestId<HTMLInputElement>("set-reg-id"), "E2S_OK");

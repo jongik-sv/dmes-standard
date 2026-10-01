@@ -2,7 +2,7 @@
 
 /**
  * 룰 세트 등록 폼(TSK-08-06 design §6.11). 빈 세트(INUSE, 룰 없음) 한 행만 만들고 룰은 편집 화면에서 담는다.
- * 세트 ID 는 컬럼 물리명 규칙을 즉시 안내하고 어기면 저장을 막는다(서버가 다시 판정한다, I1).
+ * 세트 ID 는 입력하는 대로 대문자로 바꾸고, 컬럼 물리명 규칙을 즉시 안내하고 어기면 저장을 막는다(서버가 다시 판정한다, I1).
  * 저장에 성공하면 룰 세트 편집 탭을 그 세트로 연다(I22).
  */
 import { useState } from "react";
@@ -61,7 +61,7 @@ export function RuleSetRegisterForm({ canRegister, onRegistered, onError }: Rule
                 placeholder="LS_A3"
                 disabled={busy}
                 aria-invalid={!!idError}
-                onChange={(v) => set("setId", v)}
+                onChange={(v) => set("setId", v.toUpperCase())}
               />
               {idError ? (
                 <span data-testid="set-reg-id-error" className="form-error-message" role="alert">
