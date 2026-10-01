@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 
 import type { FlowNode, RuleSetFlow } from "../../../src/contract/engine-contract.generated";
 import {
-  CATCH_BAD_TARGET, CATCH_FULL, CATCH_KINDS_EMPTY, CATCH_NO_IN, CATCH_ONE_OUT, CATCH_TAKEN, NO_COPY_CATCH, addCatch, blockMembers, connect,
-  copyFragment, dissolveSplit, flowJsonOf, reconnectEdge, removeNode, setCatchKinds, setPositions, toEditFlow, updateNodeDesc, type EditFlow,
-  type EditResult,
+  CATCH_BAD_TARGET, CATCH_FULL, CATCH_KINDS_EMPTY, CATCH_NO_IN, CATCH_ONE_OUT, CATCH_TAKEN, MOVE_GUARDED, NO_COPY_CATCH, NO_COPY_CATCH_NODE,
+  RETURN_MERGE_NOT_ONE, addCatch, addGroup, blockMembers, connect, copyFragment, dissolveSplit, duplicateNode, flowJsonOf, insertRule, moveExcludedEdges,
+  moveNode, reconnectEdge, removeNode, setCatchKinds, setPositions, toEditFlow, updateGroup, updateNodeDesc, type EditFlow, type EditResult,
 } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { parseFlow } from "../../../pages/dme/ruleSetEdit/flow-model";
 
@@ -19,6 +19,24 @@ const catchOf = (f: EditFlow, id: string) => f.nodes.find((n) => n.id === id) as
 
 /** start → r1(R_A) → end. */
 const base = () => toEditFlow(null, ["R_A"]);
+
+const n = (id: string, kind: FlowNode["kind"], ruleId: string | null = null): FlowNode => ({ id, kind, ruleId, splitId: null, label: null });
+const c = (id: string, attachTo: string, catches: FlowNode["catches"]): FlowNode => ({ ...n(id, "CATCH"), attachTo, catches });
+const e = (id: string, from: string, to: string) => ({ id, from, to, order: null, cond: null, otherwise: false, label: null });
+
+/** 스펙 §2 예시: start → r1 → m1(splitId=r1) → r2 → end, c1 → r9 → m1, c2 → end. */
+const specFlow = (): EditFlow =>
+  toEditFlow(
+    {
+      version: 1,
+      nodes: [
+        n("start", "START"), n("r1", "RULE", "R_A"), c("c1", "r1", ["NO_RESULT"]), n("r9", "RULE", "R_C"), c("c2", "r1", ["INPUT_ERROR", "EVAL_ERROR"]),
+        { ...n("m1", "MERGE"), splitId: "r1" }, n("r2", "RULE", "R_B"), n("end", "END"),
+      ],
+      edges: [e("e1", "start", "r1"), e("e2", "r1", "m1"), e("e3", "c1", "r9"), e("e4", "r9", "m1"), e("e5", "c2", "end"), e("e6", "m1", "r2"), e("e7", "r2", "end")],
+    },
+    [],
+  );
 
 describe("받는 노드 편집 연산(받는 노드 spec §8)", () => {
   it("addCatch 는 끝으로 가는 처리 갈래를 만들고 첫 빈 종류를 받으며 룰 바로 뒤에 놓인다", () => {
@@ -92,43 +110,68 @@ describe("받는 노드 편집 연산(받는 노드 spec §8)", () => {
     expect(g.edges.some((e) => e.from === "c1")).toBe(false);
   });
 
-  it("돌아오는 처리 갈래가 있는 룰을 지우면 처리 갈래에만 있던 노드와 돌아오는 합류가 남고 검사가 알린다", () => {
-    // 스펙 §2 예시: start → r1 → m1 → r2 → end, c1 → r9 → m1, c2 → end.
+  it("돌아오는 처리 갈래가 있는 룰을 지우면 돌아오는 합류를 걷어 정상 쪽을 잇고, 처리 갈래에만 있던 노드는 끊긴 채 남아 검사가 알린다", () => {
+    const f = specFlow();
+    expect(parseFlow(f).issues).toEqual([]);
+    const g = ok(removeNode(f, "r1"));
+    expect(ids(g)).toEqual(["start", "r9", "r2", "end"]);
+    expect(g.edges.map((e) => [e.id, e.from, e.to])).toEqual([
+      ["e1", "start", "r2"],
+      ["e7", "r2", "end"],
+    ]);
+    // 지운 룰을 가리키는 합류가 남지 않는다
+    expect(g.nodes.some((n) => n.kind === "MERGE")).toBe(false);
+    expect(parseFlow(g).issues.map((i) => i.nodeId)).toContain("r9");
+  });
+
+  it("남은 처리 갈래 룰(들어오는 선 0개)은 지울 수 있고, 새로 끼운 룰이 지운 룰의 ID 를 다시 받아도 그 ID 를 가리키는 합류가 없다", () => {
+    const g = ok(removeNode(specFlow(), "r1"));
+    const h = ok(removeNode(g, "r9"));
+    expect(ids(h)).toEqual(["start", "r2", "end"]);
+    expect(parseFlow(h).issues).toEqual([]);
+    const k = ok(insertRule(h, "e1", "R_N"));
+    expect(ids(k)).toEqual(["start", "r1", "r2", "end"]);
+    const nodeIds = new Set(k.nodes.map((n) => n.id));
+    expect(k.nodes.filter((n) => n.kind === "MERGE" && !nodeIds.has(n.splitId ?? ""))).toEqual([]);
+    expect(parseFlow(k).issues).toEqual([]);
+  });
+
+  it("들어오는 선이 없는 룰은 나가는 선·붙은 받는 노드와 함께 지운다", () => {
+    // r2 로 들어오는 선을 지워 떨어진 룰을 만든다: start → r1 → end, r2 → end, c1(r2) → end
+    const f = ok(addCatch(toEditFlow(null, ["R_A", "R_B"]), "r2", null));
+    const loose: EditFlow = { ...f, edges: f.edges.map((x) => (x.id === "e2" ? { ...x, to: "end" } : x)) }; // e2: r1 → r2 를 r1 → end 로
+    const g = ok(removeNode(loose, "r2"));
+    expect(ids(g)).toEqual(["start", "r1", "end"]);
+    expect(g.edges.map((e) => [e.from, e.to])).toEqual([["start", "r1"], ["r1", "end"]]);
+  });
+
+  it("정상 쪽에 노드가 더 있어도 돌아오는 합류로 들어오는 정상 쪽 선을 합류 출구로 잇는다", () => {
+    // start → r1 → r3 → m1 → r2 → end, c1 → r9 → m1
     const f = toEditFlow(
       {
         version: 1,
         nodes: [
-          { id: "start", kind: "START", ruleId: null, splitId: null, label: null },
-          { id: "r1", kind: "RULE", ruleId: "R_A", splitId: null, label: null },
-          { id: "c1", kind: "CATCH", ruleId: null, splitId: null, label: null, attachTo: "r1", catches: ["NO_RESULT"] },
-          { id: "r9", kind: "RULE", ruleId: "R_C", splitId: null, label: null },
-          { id: "c2", kind: "CATCH", ruleId: null, splitId: null, label: null, attachTo: "r1", catches: ["INPUT_ERROR", "EVAL_ERROR"] },
-          { id: "m1", kind: "MERGE", ruleId: null, splitId: "r1", label: null },
-          { id: "r2", kind: "RULE", ruleId: "R_B", splitId: null, label: null },
-          { id: "end", kind: "END", ruleId: null, splitId: null, label: null },
+          n("start", "START"), n("r1", "RULE", "R_A"), c("c1", "r1", ["NO_RESULT"]), n("r3", "RULE", "R_D"), n("r9", "RULE", "R_C"),
+          { ...n("m1", "MERGE"), splitId: "r1" }, n("r2", "RULE", "R_B"), n("end", "END"),
         ],
-        edges: [
-          { id: "e1", from: "start", to: "r1", order: null, cond: null, otherwise: false, label: null },
-          { id: "e2", from: "r1", to: "m1", order: null, cond: null, otherwise: false, label: null },
-          { id: "e3", from: "c1", to: "r9", order: null, cond: null, otherwise: false, label: null },
-          { id: "e4", from: "r9", to: "m1", order: null, cond: null, otherwise: false, label: null },
-          { id: "e5", from: "c2", to: "end", order: null, cond: null, otherwise: false, label: null },
-          { id: "e6", from: "m1", to: "r2", order: null, cond: null, otherwise: false, label: null },
-          { id: "e7", from: "r2", to: "end", order: null, cond: null, otherwise: false, label: null },
-        ],
+        edges: [e("e1", "start", "r1"), e("e2", "r1", "r3"), e("e8", "r3", "m1"), e("e3", "c1", "r9"), e("e4", "r9", "m1"), e("e6", "m1", "r2"), e("e7", "r2", "end")],
       },
       [],
     );
     expect(parseFlow(f).issues).toEqual([]);
     const g = ok(removeNode(f, "r1"));
-    expect(ids(g)).toEqual(["start", "r9", "m1", "r2", "end"]);
-    expect(g.edges.map((e) => [e.id, e.from, e.to])).toEqual([
-      ["e1", "start", "m1"],
-      ["e4", "r9", "m1"],
-      ["e6", "m1", "r2"],
+    expect(ids(g)).toEqual(["start", "r3", "r9", "r2", "end"]);
+    expect(g.edges.map((x) => [x.id, x.from, x.to])).toEqual([
+      ["e1", "start", "r3"],
+      ["e8", "r3", "r2"],
       ["e7", "r2", "end"],
     ]);
-    expect(parseFlow(g).issues.length).toBeGreaterThan(0);
+  });
+
+  it("돌아오는 합류의 정상 쪽 선이 하나가 아니면 룰을 지우지 않는다", () => {
+    const f = specFlow();
+    const twisted: EditFlow = { ...f, edges: [...f.edges, e("e9", "start", "m1")] };
+    expect(reason(removeNode(twisted, "r1"))).toBe(RETURN_MERGE_NOT_ONE);
   });
 
   it("받는 노드만 지우면 그 나가는 선만 지운다", () => {
@@ -217,5 +260,41 @@ describe("받는 노드 편집 연산(받는 노드 spec §8)", () => {
     const f = ok(addCatch(base(), "r1", null));
     expect(reason(updateNodeDesc(f, "c1", "설명"))).toBe("받는 노드에는 설명을 달 수 없다");
     expect(reason(updateNodeDesc(f, "r1", "설명"))).toBeNull();
+  });
+
+  it("처리 갈래가 돌아오는 룰은 옮기지 않는다", () => {
+    expect(reason(moveNode(specFlow(), "r1", "e7"))).toBe(MOVE_GUARDED);
+  });
+
+  it("처리 갈래가 끝으로 가는 룰은 옮길 수 있지만, 자기 받는 노드에서 나가는 선 위로는 옮기지 않는다", () => {
+    // start → r1 → r2 → r3 → end(e1 e2 e3 e4), c1 → end(e5)
+    const f = ok(addCatch(toEditFlow(null, ["R_A", "R_B", "R_C"]), "r1", null));
+    expect(moveExcludedEdges(f, "r1").has("e5")).toBe(true);
+    expect(reason(moveNode(f, "r1", "e5"))).toBe("자기 자리나 자기 블록 안으로는 옮길 수 없다");
+    const g = ok(moveNode(f, "r1", "e3"));
+    expect(g.edges.map((x) => [x.from, x.to])).toEqual([["start", "r2"], ["r2", "r1"], ["r1", "r3"], ["r3", "end"], ["c1", "end"]]);
+    expect(parseFlow(g).issues).toEqual([]);
+  });
+
+  it("받는 룰이 든 블록은 처리 갈래에서 끝으로 가는 선 위로 옮기지 않는다", () => {
+    const f = ifWithGuard();
+    expect(moveExcludedEdges(f, "if1").has("e5")).toBe(true);
+    expect(reason(moveNode(f, "if1", "e5"))).toBe("자기 자리나 자기 블록 안으로는 옮길 수 없다");
+  });
+
+  it("받는 노드는 옮기지도 복사·복제하지도 않는다", () => {
+    const f = ok(addCatch(base(), "r1", null));
+    expect(reason(moveNode(f, "c1", "e1"))).toBe("받는 노드는 룰을 옮겨서 옮긴다");
+    expect(copyFragment(f, "c1")).toBe(NO_COPY_CATCH_NODE);
+    expect(reason(duplicateNode(f, "c1"))).toBe(NO_COPY_CATCH_NODE);
+  });
+
+  it("받는 노드는 그룹에 넣지 않는다", () => {
+    const f = ok(addCatch(base(), "r1", null));
+    expect(reason(addGroup(f, ["c1"], "G"))).toBe("그룹에 넣을 노드를 고른다");
+    const g = addGroup(f, ["r1", "c1"], "G");
+    expect(g.ok && g.flow.view.groups[0].nodeIds).toEqual(["r1"]);
+    const h = updateGroup(ok(g), g.ok ? g.id! : "", { nodeIds: ["c1", "r1"] });
+    expect(h.view.groups[0].nodeIds).toEqual(["r1"]);
   });
 });
