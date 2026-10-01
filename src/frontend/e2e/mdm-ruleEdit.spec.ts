@@ -267,6 +267,7 @@ test.describe("mdm dme/ruleEdit", () => {
     await expect(checkRows(page)).toContainText("오류 [OVERLAP] 행 1, 2");
     await page.getByRole("button", { name: "표 저장", exact: true }).click();
     await expect(page.getByTestId("dt-save-rejected")).toContainText("OVERLAP", { timeout: 30_000 });
+    await closeErrorModal(page);
     await page.getByRole("button", { name: "되돌리기", exact: true }).click();
     await expect(page.getByTestId("dt-hit-policy")).toHaveValue("FIRST");
     await expect(page.getByTestId("dt-dirty")).toHaveCount(0);

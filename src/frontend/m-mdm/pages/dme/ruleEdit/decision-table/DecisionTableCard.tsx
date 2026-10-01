@@ -149,6 +149,7 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
   // 열 설정 섹션과 나누는 상태 — 초안이 dirty 면 표 저장을 막고(불변 13), 열 머리를 누르면 열 설정 표의 그 줄을 하이라이트한다(design §6).
   const [colDirty, setColDirty] = useState(false);
   const [highlightVarId, setHighlightVarId] = useState<number | null>(null);
+  const [revealSeq, setRevealSeq] = useState(0);
   const [saveRejected, setSaveRejected] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   // 검사 영역과 그 안의 표 단위 검사는 접을 수 있다. 접혀도 제목 줄의 오류·경고 개수와 일치 배지는 보인다.
@@ -182,8 +183,8 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
     [tableVars, tableRows, loadedRows, hitPolicy, loadedHit, storedRows, loadedStored],
   );
   const columnShared = useMemo(
-    () => ({ colDirty, setColDirty, highlightVarId, setHighlightVarId, tableDirty: dirty }),
-    [colDirty, highlightVarId, dirty],
+    () => ({ colDirty, setColDirty, highlightVarId, setHighlightVarId, tableDirty: dirty, revealSeq }),
+    [colDirty, highlightVarId, dirty, revealSeq],
   );
   const saveBlocked = tableSaveBlocked(colDirty);
   // view 를 다시 불러오면 useRuleEdit 가 dirty 목록을 비우므로, 편집이 남아 있으면 다시 알린다.
@@ -381,7 +382,10 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
               </ul>
               <Button
                 data-testid="dt-hit-policy-show-columns"
-                onClick={() => setHighlightVarId(Number(hitConflicts[0].key.slice(1)))}
+                onClick={() => {
+                  setRevealSeq((n) => n + 1);
+                  setHighlightVarId(Number(hitConflicts[0].key.slice(1)));
+                }}
               >
                 열 설정 보기
               </Button>

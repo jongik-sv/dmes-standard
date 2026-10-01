@@ -161,10 +161,14 @@ export function ColumnSettingsSection({ view, editable, runWrite, notify, setDir
   const baseByKey = useMemo(() => new Map(baseline.map((r) => [r.key, r])), [baseline]);
 
   // 열 머리를 누르면 그 줄을 하이라이트·스크롤한다. 접혀 있으면 먼저 펼친다.
-  const { highlightVarId } = shared;
+  const { highlightVarId, revealSeq = 0 } = shared;
   useEffect(() => {
     if (highlightVarId != null) setOpen(true);
   }, [highlightVarId]);
+  // 표 카드의 [열 설정 보기](적중 정책이 열 설정과 어긋날 때) — 누를 때마다 펼친다.
+  useEffect(() => {
+    if (revealSeq > 0) setOpen(true);
+  }, [revealSeq]);
   const highlightKey = highlightVarId == null ? null : (rows.find((r) => r.varId === highlightVarId)?.key ?? null);
   // 그리드는 안에서만 스크롤하므로(scrollToRow) 페이지도 그 줄이 보이게 옮긴다. 펼친 뒤 행이 그려진 다음 프레임에 한다.
   useEffect(() => {

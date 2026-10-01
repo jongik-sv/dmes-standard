@@ -345,6 +345,15 @@ describe("표 카드 + 열 설정 섹션(불변 13)", () => {
       q<HTMLButtonElement>("[data-testid='dt-hit-policy-show-columns']").click();
     });
     expect(q<HTMLElement>("[data-testid='rule-section-columns-body']").hidden).toBe(false);
+    // 접었다가 다시 눌러도(같은 열) 펼친다.
+    await act(async () => {
+      q<HTMLButtonElement>("[data-testid='rule-section-columns-toggle']").click();
+    });
+    expect(q<HTMLElement>("[data-testid='rule-section-columns-body']").hidden).toBe(true);
+    await act(async () => {
+      q<HTMLButtonElement>("[data-testid='dt-hit-policy-show-columns']").click();
+    });
+    expect(q<HTMLElement>("[data-testid='rule-section-columns-body']").hidden).toBe(false);
   });
 });
 

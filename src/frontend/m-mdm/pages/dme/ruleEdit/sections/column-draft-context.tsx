@@ -13,6 +13,8 @@ export interface ColumnDraftShared {
   setColDirty: (dirty: boolean) => void;
   highlightVarId: number | null;
   setHighlightVarId: (varId: number | null) => void;
+  /** 오를 때마다 열 설정 섹션을 펼친다(표 카드 [열 설정 보기], D-133). 같은 열을 다시 골라도 펼쳐지게 값이 아닌 횟수다. */
+  revealSeq?: number;
 }
 
 const NOOP: ColumnDraftShared = {
