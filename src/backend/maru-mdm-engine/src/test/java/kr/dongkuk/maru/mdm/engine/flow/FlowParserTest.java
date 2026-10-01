@@ -14,6 +14,7 @@ import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.parFlow;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.pe;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.rule;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.start;
+import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.task;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -123,6 +124,38 @@ class FlowParserTest {
         assertEquals(List.of(), p.issues());
         assertNotNull(p.tree());
         assertEquals(List.of(), p.tree().root().items());
+    }
+
+    @Test
+    void TASK_는_TaskStep_블록이고_ruleSteps_에_들지_않지만_관계는_있다() {
+        FlowDefinition f = flow(List.of(start(), task("t1"), rule("a", "R_A"), end()),
+                List.of(e("e1", "start", "t1"), e("e2", "t1", "a"), e("e3", "a", "end")));
+        FlowParse p = FlowParser.parse(f);
+        assertEquals(List.of(), p.issues());
+        assertEquals(List.of(new TaskStep("t1"), new RuleStep("a", "R_A")), p.tree().root().items());
+        assertEquals(List.of(new RuleStep("a", "R_A")), p.tree().ruleSteps());
+        assertEquals(List.of("R_A"), p.tree().ruleIds());
+        assertEquals(FlowTree.Relation.BEFORE, p.tree().relation("t1", "a"));
+        assertFalse(p.tree().branched());
+    }
+
+    @Test
+    void IF_갈래_안의_TASK_는_그_갈래_본문이고_다른_갈래와_EXCLUSIVE() {
+        FlowDefinition f = flow(List.of(start(), ifNode("if1"), task("t1"), rule("c", "R_C"), merge("m1", "if1"), end()),
+                List.of(e("e0", "start", "if1"), br("b1", "if1", "t1", 1, "X > 10"), other("bo", "if1", "c"),
+                        e("et", "t1", "m1"), e("ec", "c", "m1"), e("ee", "m1", "end")));
+        FlowParse p = FlowParser.parse(f);
+        assertEquals(List.of(), p.issues());
+        Split s = (Split) p.tree().root().items().get(0);
+        assertEquals(List.of(new TaskStep("t1")), s.branches().get(0).body().items());
+        assertEquals(FlowTree.Relation.EXCLUSIVE, p.tree().relation("t1", "c"));
+    }
+
+    @Test
+    void TASK_는_나가는_선이_하나여야_한다() {
+        FlowDefinition f = flow(List.of(start(), task("t1"), rule("a", "R_A"), rule("b", "R_B"), end()),
+                List.of(e("e1", "start", "t1"), e("e2", "t1", "a"), e("e3", "t1", "b"), e("e4", "a", "end"), e("e5", "b", "end")));
+        assertTrue(issues(f).contains("FLOW_STRUCTURE|t1|null|t1의 나가는 선이 2개다. 1개여야 한다"), issues(f).toString());
     }
 
     // ── 1단계(모두 모은다) ──

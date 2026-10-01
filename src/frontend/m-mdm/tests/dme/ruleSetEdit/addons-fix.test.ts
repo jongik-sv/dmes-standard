@@ -410,7 +410,8 @@ describe("캔버스 — 선 [+] 자리(U1)·선 끝 손잡이 두 번 누르기(
     await fire(anchor, "dblclick", { clientX: 300, clientY: 300 });
     expect(onRouteChange).toHaveBeenCalledTimes(1);
     expect(onRouteChange.mock.calls[0][0]).toBe("e3");
-    expect(onRouteChange.mock.calls[0][1]).toHaveLength(1);
+    // e3 은 꺾이는 자동 경로라 두 모서리를 이어받고 누른 자리 점이 하나 더해진다(W1 Ruling — 선이 튀지 않는다).
+    expect(onRouteChange.mock.calls[0][1]).toHaveLength(3);
     // 보기 모드에는 끝 손잡이가 없고 두 번 누르기도 없다.
     onRouteChange.mockClear();
     await draw(cprops({ flow: short(), selectedEdgeId: "e3", onRouteChange, mode: "view" }));

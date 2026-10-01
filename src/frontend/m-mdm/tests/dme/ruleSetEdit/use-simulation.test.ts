@@ -9,11 +9,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const oasis = vi.hoisted(() => ({ callOasis: vi.fn() }));
 vi.mock("@/dme/oasis-call", () => ({ callOasis: (...args: unknown[]) => oasis.callOasis(...args) }));
 
+import type { TraceEdit, TypedValue } from "../../../src/contract/engine-contract.generated";
 import type { RuleSetSimulateResult } from "../../../pages/dme/ruleSetEdit/types";
 import type { RuleIo, RuleIoMap } from "../../../pages/dme/ruleSetEdit/types";
 import { toEditFlow, type EditFlow } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { useSimulation, type DebugInput, type Simulation } from "../../../pages/dme/ruleSetEdit/debugger/useSimulation";
-import { NOT_ON_PATH_NOTICE, PASSED_NOTICE } from "../../../pages/dme/ruleSetEdit/debugger/debug-model";
+import { NOT_ON_PATH_NOTICE, PASSED_NOTICE, droppedEditsNotice, pendingDroppedNotice } from "../../../pages/dme/ruleSetEdit/debugger/debug-model";
 import { installDomStorage } from "../helpers/render";
 import { golden } from "../helpers/rule-set-golden";
 
@@ -430,5 +431,220 @@ describe("useSimulation — 입력(P-D9)", () => {
       await h.current.next();
     });
     expect(h.current.cursor).toBe(2);
+  });
+});
+
+// ── 4단계 E4 — 값 고쳐 이어 실행(스펙 §2.4) ─────────────────────────────────────────────────────────────
+
+const STR = (value: string): TypedValue => ({ type: "STRING", value });
+const EDIT_IF1: TraceEdit[] = [{ beforeSeq: 3, nodeId: "if1", values: { GT_G: STR("B") } }];
+/** 골든 응답에 edits 를 붙인 사본 — 서버가 받은 edit 를 그대로 되돌려 준다(스펙 §2.3). */
+const withEdits = (res: RuleSetSimulateResult, edits: TraceEdit[]): RuleSetSimulateResult => ({ ...res, trace: { ...res.trace, edits } });
+const sentEdits = (i: number) => (executes()[i][2] as { editsJson?: string }).editsJson;
+
+/** GT_THK=12 로 첫 실행 뒤 커서를 k 에 둔다(서버 호출 1번). */
+async function toCursor(k: number) {
+  await run((s) => s.setInput("GT_THK", { value: "12" }));
+  await run((s) => s.next());
+  for (let i = 0; i < k; i++) await run((s) => s.next());
+}
+/** if1 직전(커서 2)에 GT_G=B 를 고쳐 [한 단계]로 반영 — 커서 3, 서버 호출 2번. */
+async function appliedAtIf1() {
+  await toCursor(2);
+  await run((s) => s.editValue("GT_G", STR("B")));
+  replies.push(withEdits(A.response as RuleSetSimulateResult, EDIT_IF1));
+  await run((s) => s.next());
+}
+
+describe("useSimulation — 값 고쳐 이어 실행(4단계 E4)", () => {
+  it("E1. 기록이 최신이고 커서가 노드 k 실행 전일 때만 고친다. 고친 값은 대기로 보이고 서버를 부르지 않는다", async () => {
+    await mount();
+    expect(h.current.canEditValues).toBe(false);
+    await toCursor(2);
+    expect(h.current.canEditValues).toBe(true);
+    await run((s) => s.editValue("GT_G", STR("B")));
+    expect(h.current.pendingEdit).toEqual({ beforeSeq: 3, nodeId: "if1", values: { GT_G: STR("B") } });
+    expect(h.current.variables.find((v) => v.name === "GT_G")).toMatchObject({ value: STR("B"), pending: true });
+    expect(h.current.valueAt("gt_g")).toEqual(STR("B"));
+    await run((s) => s.editValue("gt_g", STR("C"))); // 같은 이름(대소문자 무시)은 덮는다
+    expect(h.current.pendingEdit?.values).toEqual({ gt_g: STR("C") });
+    await run((s) => s.cancelEdit("GT_G"));
+    expect(h.current.pendingEdit).toBeNull();
+    await run((s) => s.finish());
+    expect(h.current.canEditValues).toBe(false); // 끝(k = n)
+    await run((s) => s.editValue("GT_G", STR("B")));
+    expect(h.current.pendingEdit).toBeNull();
+    expect(executes()).toHaveLength(1);
+    expect(sentEdits(0)).toBeUndefined();
+  });
+
+  it("E2. 대기가 있으면 [한 단계] 는 edit 와 함께 다시 실행하고 커서 k 에서 한 칸. edit 기록도 입력이 같으면 낡지 않았다", async () => {
+    await mount();
+    await toCursor(2);
+    const first = h.current.last;
+    await run((s) => s.editValue("GT_G", STR("B")));
+    replies.push(withEdits(A.response as RuleSetSimulateResult, EDIT_IF1));
+    await run((s) => s.next());
+    expect(executes()).toHaveLength(2);
+    expect(sentRecord(1)).toBe('{"GT_THK":"12"}');
+    expect(sentEdits(1)).toBe('[{"beforeSeq":3,"nodeId":"if1","values":{"GT_G":"B"}}]');
+    expect(h.current.cursor).toBe(3);
+    expect(h.current.pendingEdit).toBeNull();
+    expect(h.current.appliedEdits).toEqual(EDIT_IF1);
+    expect(h.current.previous).toBe(first);
+    expect(h.current.stale).toBe(false);
+    expect(h.current.variables.find((v) => v.name === "GT_G")).toMatchObject({ value: STR("B"), edited: true });
+    await run((s) => s.next());
+    expect(executes()).toHaveLength(2); // needsFresh 가 edit 기록을 낡았다고 보지 않는다
+    expect(h.current.cursor).toBe(4);
+  });
+
+  it("E3. 같은 지점에서 다시 고치면 값을 합친다", async () => {
+    await mount();
+    await appliedAtIf1();
+    await run((s) => s.setCursor(2));
+    await run((s) => s.editValue("GT_THK", STR("30")));
+    await run((s) => s.next());
+    expect(sentEdits(2)).toBe('[{"beforeSeq":3,"nodeId":"if1","values":{"GT_G":"B","GT_THK":"30"}}]');
+    expect(h.current.notice).toBeNull();
+    expect(h.current.cursor).toBe(3);
+  });
+
+  it("E4. 앞 지점 j 에서 새로 고치면 beforeSeq > j 인 edit 를 버리고 한 줄 알린다", async () => {
+    await mount();
+    await appliedAtIf1();
+    await run((s) => s.setCursor(1)); // r1 실행 전(seq 2)
+    await run((s) => s.editValue("GT_THK", STR("5")));
+    await run((s) => s.next());
+    expect(sentEdits(2)).toBe('[{"beforeSeq":2,"nodeId":"r1","values":{"GT_THK":"5"}}]');
+    expect(h.current.notice).toBe(droppedEditsNotice(1));
+    expect(h.current.cursor).toBe(2);
+  });
+
+  it("E5. [처음부터] 는 고친 값을 모두 지운다 — edit 기록이면 edit 없이 다시 실행, 대기만 있으면 대기를 버리고 서버를 부르지 않는다", async () => {
+    await mount();
+    await appliedAtIf1();
+    await run((s) => s.restart());
+    expect(executes()).toHaveLength(3);
+    expect(sentEdits(2)).toBeUndefined();
+    expect(h.current.cursor).toBe(0);
+    expect(h.current.appliedEdits).toEqual([]);
+    await run((s) => s.next());
+    await run((s) => s.editValue("GT_G", STR("B")));
+    await run((s) => s.restart());
+    expect(h.current.pendingEdit).toBeNull();
+    expect(h.current.cursor).toBe(0);
+    expect(executes()).toHaveLength(3);
+  });
+
+  it("E6. 입력을 바꾸거나 흐름 구조가 바뀌면 대기를 지우고, 다음 동작은 edit 없이 새로 실행한다", async () => {
+    await mount();
+    await toCursor(2);
+    await run((s) => s.editValue("GT_G", STR("B")));
+    await run((s) => s.setInput("GT_THK", { value: "13" }));
+    expect(h.current.pendingEdit).toBeNull();
+    expect(h.current.canEditValues).toBe(false); // 입력이 기록 입력과 다르다
+    await run((s) => s.next());
+    expect(executes()).toHaveLength(2);
+    expect(sentEdits(1)).toBeUndefined();
+    expect(h.current.cursor).toBe(0);
+    await run((s) => s.editValue("GT_THK", STR("1")));
+    expect(h.current.pendingEdit).not.toBeNull();
+    await rerender({ flowVersion: 2 });
+    expect(h.current.pendingEdit).toBeNull();
+    expect(h.current.canEditValues).toBe(false); // 낡은 기록
+  });
+
+  it("E7. 실행을 기다리는 동안에는 고치거나 취소할 수 없고, 응답이 오면 보낸 대기만 지운다(Local-Rules §11)", async () => {
+    await mount();
+    await toCursor(2);
+    await run((s) => s.editValue("GT_G", STR("B")));
+    let release!: (v: RuleSetSimulateResult) => void;
+    replies.push(new Promise<RuleSetSimulateResult>((r) => { release = r; }));
+    let pending: Promise<void> = Promise.resolve();
+    await act(async () => {
+      pending = h.current.next();
+    });
+    expect(h.current.running).toBe(true);
+    expect(h.current.canEditValues).toBe(false);
+    await run((s) => s.editValue("GT_G", STR("C")));
+    await run((s) => s.cancelEdit());
+    expect(h.current.pendingEdit?.values).toEqual({ GT_G: STR("B") });
+    await act(async () => {
+      release(withEdits(A.response as RuleSetSimulateResult, EDIT_IF1));
+      await pending;
+    });
+    expect(h.current.pendingEdit).toBeNull();
+    expect(h.current.cursor).toBe(3);
+    expect(sentEdits(1)).toBe('[{"beforeSeq":3,"nodeId":"if1","values":{"GT_G":"B"}}]');
+  });
+
+  it("E8. [이전] 은 대기를 버리고 알린다. [끝내기] 는 대기를 반영해 끝으로, [여기까지] 는 커서 k 에서 찾는다", async () => {
+    await mount();
+    await toCursor(2);
+    await run((s) => s.editValue("GT_G", STR("B")));
+    await run((s) => s.prev());
+    expect(h.current.pendingEdit).toBeNull();
+    expect(h.current.notice).toBe(pendingDroppedNotice(1));
+    expect(h.current.cursor).toBe(1);
+    await run((s) => s.editValue("GT_THK", STR("9")));
+    await run((s) => s.finish());
+    expect(sentEdits(1)).toBe('[{"beforeSeq":2,"nodeId":"r1","values":{"GT_THK":"9"}}]');
+    expect(h.current.cursor).toBe(N);
+    await run((s) => s.setCursor(2));
+    await run((s) => s.editValue("GT_G", STR("B")));
+    await run((s) => s.runTo("r1")); // r1 은 커서 2 앞 — 반영은 하고 커서는 그대로, 알림
+    expect(executes()).toHaveLength(3);
+    expect(h.current.cursor).toBe(2);
+    expect(h.current.notice).toBe(PASSED_NOTICE);
+  });
+
+  it("E9. JSON 칸이나 판정 시각에 입력 오류가 있으면 고칠 수 없다", async () => {
+    await mount();
+    await toCursor(2);
+    expect(h.current.canEditValues).toBe(true);
+    await run((s) => s.setJson("{잘못"));
+    expect(h.current.jsonError).not.toBeNull();
+    expect(h.current.canEditValues).toBe(false);
+    await run((s) => s.editValue("GT_G", STR("B")));
+    expect(h.current.pendingEdit).toBeNull();
+    await run((s) => s.setJson(""));
+    await run((s) => s.setEvalTs("어제"));
+    expect(h.current.canEditValues).toBe(false);
+    await run((s) => s.editValue("GT_G", STR("B")));
+    expect(h.current.pendingEdit).toBeNull();
+  });
+
+  it("E10. 요청이 실패하면 대기를 남기고, 다시 눌러 성공하면 보낸 대기만 지운다", async () => {
+    await mount();
+    await toCursor(2);
+    await run((s) => s.editValue("GT_G", STR("B")));
+    replies.push(Promise.reject(new Error("서버 오류")));
+    await run((s) => s.next());
+    expect(h.current.error).toContain("서버 오류");
+    expect(h.current.pendingEdit?.values).toEqual({ GT_G: STR("B") });
+    expect(h.current.cursor).toBe(2);
+    replies.push(withEdits(A.response as RuleSetSimulateResult, EDIT_IF1));
+    await run((s) => s.next());
+    expect(sentEdits(2)).toBe('[{"beforeSeq":3,"nodeId":"if1","values":{"GT_G":"B"}}]');
+    expect(h.current.pendingEdit).toBeNull();
+    expect(h.current.cursor).toBe(3);
+  });
+  it("E10. 판정 시각 빈 칸 + 고침 대기 — 이어 실행 요청만 첫 기록의 trace.evalTs 로 고정하고 입력 상태는 그대로다", async () => {
+    await mount();
+    const first = A.response as RuleSetSimulateResult;
+    replies.push({ ...first, trace: { ...first.trace, evalTs: "2026-10-01T09:30:00" } }); // 서버 RunTraceJson 은 KST "T" 형식으로 싣는다
+    await run((s) => s.setInput("GT_THK", { value: "12" }));
+    await run((s) => s.next());
+    for (let i = 0; i < 2; i++) await run((s) => s.next());
+    expect((executes()[0][2] as { evalTs?: string }).evalTs).toBeUndefined();
+    await run((s) => s.editValue("GT_G", STR("B")));
+    replies.push(withEdits(first, EDIT_IF1));
+    await run((s) => s.next());
+    expect((executes()[1][2] as { evalTs?: string }).evalTs).toBe("2026-10-01 09:30:00");
+    expect(h.current.evalTs).toBe("");
+    expect(h.current.currentInput().evalTs).toBe("");
+    expect(h.current.last?.input.evalTs).toBe("");
+    expect(h.current.canEditValues).toBe(true); // sameInput 유지 — 다시 고칠 수 있다
   });
 });

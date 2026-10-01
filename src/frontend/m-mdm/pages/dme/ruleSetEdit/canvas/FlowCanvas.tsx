@@ -6,6 +6,7 @@
  * 부모가 편집 모드일 때만 `mode="edit"` 로 부른다. 보기 모드는 끌기·연결이 꺼지고 선택만 된다.
  * 편집 모드에서는 여러 노드를 고를 수 있다 — Shift(또는 Cmd·Ctrl)+누르기로 더하기, 빈 곳 끌기 상자(부분 포함). 고른 흐름 노드 ID 목록은 `onSelectionChange` 로 올린다(Ruling 11).
  * 편집 모드 화면 이동은 Figma 방식이다(S1, Ruling 21) — 스페이스+끌기·가운데 버튼 끌기·두 손가락 스크롤, 확대는 핀치·Ctrl/Cmd+휠. 보기·디버그 모드는 끌기 = 화면 이동 그대로다.
+ * 4단계 P1: 빈 곳 끌기는 `dragTool`([손]·[영역 선택])을 따르고 없으면 모드 기본이다.
  *
  * 공간 넓히기(S1): 편집 모드에서 [공간] 토글(`spaceTool`)이 켜졌거나 Alt 를 누른 채 빈 곳(pane)을 끌면, 누른 자리를 기준으로 처음 6px 을 넘는 순간
  * 주축으로 방향을 정하고 기준선 너머(상자 좌상단 기준)의 노드·메모·꺾는 점을 화면에서만 옮긴다. 미리보기는 캔버스 안 저장소(`SpaceStore`)에만 두고
@@ -14,6 +15,7 @@
  * 3단계(계획 P2): 모드는 보기·편집·디버그 셋이고 끌기·연결은 편집 모드에서만 된다. 키 입력은 받지 않는다 — Delete 등 단축키는 page 가
  * 캔버스 감싸개(`rsf-canvas-host`)의 `onKeyDown` 에서 단축키 디스패처(`shortcuts.ts`)로 받는다(`tabIndex=0` 은 초점을 받으려고 남긴다).
  * 팔레트·룰 줄을 놓으면 놓은 자리에서 화면 80px 안 가장 가까운 선을 찾아(`dropRadius`) 그 선 ID(없으면 null)를 함께 올린다(A1).
+ * 룰 줄을 빈 단계·룰 노드 상자 위에 놓으면 선 대신 그 노드에 룰을 지정한다(`onAssignDrop`, 4단계 T1).
  * 우클릭은 모든 모드에서 `onContextMenu` 로 올리고(항목은 메뉴 제공자가 모드로 거른다), 편집 모드면 선 가운데에 [+] 단추를 둔다(올리거나 고른 선만 — 아래 L1).
  * [+] 는 선 데이터에 콜백을 넣지 않고 캔버스 틀의 click 위임으로 부른다(선 데이터 참조가 바뀌면 선을 모두 다시 그린다, Local-Rules §16).
  *
@@ -22,6 +24,10 @@
  * 손잡이를 고른 채 Delete·Backspace 는 page 의 단축키 디스패처가 받는다 — page 가 내려준 `removeRoutePointRef` 에 캔버스가
  * "고른 꺾는 점 빼기(뺐으면 true)" 를 채우고, page 의 delete 핸들러가 그것을 먼저 부른 뒤 false 면 원래 선택 삭제로 간다.
  * 뺀 뒤에는 이웃 점을 고른 채로 둬 연속 Delete 가 선 전체 삭제로 새지 않는다(점이 없으면 선택 없음).
+ *
+ * 선분 손잡이(4단계 W1): 편집 모드에서 선에 마우스를 올리거나(HoverStore 150ms 유예) 선을 고르면 저장 점·자동 경로 점(`autoRoute` — getSmoothStepPath 와 같은 점)·가로·세로 선분 가운데 막대가 뜬다.
+ * 막대를 끌면 선분이 수직으로만 움직이고(노드에 붙은 선분은 짧은 선분을 끼운다), 이웃과 화면 6px 안이면 일직선으로 맞춘다. 안쪽 선분은 노드에 붙은 이웃이 20px 밑으로 줄지 않게 자른다(`clampSegmentDelta`).
+ * 끄는 동안은 `RouteStore` 에만 두고 놓을 때 `finishRoute` 로 정리해 `onRouteChange` 를 한 번 부른다. 자동 점은 고를 수 없다(Delete 없음). 경로 없는 선을 두 번 누르면 자동 경로의 꺾임을 이어받아 점을 더한다.
  *
  * 선 [+]·이름표 옮기기(L1): 편집 모드의 [+] 는 그 선에 마우스가 올라가 있거나(선·라벨·칩·[+] 위, 떠난 뒤 150ms 유예) 그 선을 골랐을 때,
  * 또는 끌어 끼우기 대상일 때만 그린다. hover 는 캔버스 안 저장소(`HoverStore`)에 두고 선마다 "내가 올려진 선인가" 만 구독한다(page 는 그대로).
@@ -42,6 +48,10 @@
  * 같은 두 노드의 선이 이미 있는지는 `connect`·`reconnectEdge` 가 거부해 편집 실패 알림을 보인다. 선은 손잡이와 관계없이 늘 출발 노드 아래(`out`) → 도착 노드 위(`in`)로 그린다
  * (선 객체에만 주고 저장하지 않는다). 누르기 잇기(`connectOnClick`)는 끈다 — 손잡이를 잘못 누른 뒤 노드를 누르면 선이 생기는 것을 막는다.
  * 끄는 동안의 연결 상태는 React Flow 내부 저장소에만 있어 page 를 다시 그리지 않고 배치(dagre)도 다시 돌지 않는다. page 는 놓을 때 `onConnect` 를 한 번 받는다.
+ *
+ * 그룹 크기(4단계 G2): 그룹 틀 = 소속 노드 경계 + 여백 16 + `view.groups[].pad`. 편집 모드에서 고른 그룹에 네 모서리·네 변 손잡이(nodes.tsx)가 뜬다.
+ * 끄는 동안은 `GroupPadStore` 에만 두고(캔버스 안에서만 다시 그린다) 놓을 때 `onGroupPadChange` 를 한 번 부른다. 여백으로 저장하므로
+ * 소속 노드를 옮기면 틀이 따라가고 소속 노드보다 작게는 줄지 않는다. 크기를 바꿔도 소속은 바뀌지 않는다.
  */
 import {
   createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore,
@@ -52,16 +62,18 @@ import { IconPlus } from "@tabler/icons-react";
 
 import type { RuleSetFlow, TypedValue } from "@/contract/engine-contract.generated";
 
-import { MAX_LABEL_OFFSET, blockMembers, type FlowNote, type FlowPos, type EditFlow, type LabelOffset, type LabelPart } from "../flow-edit";
+import { MAX_LABEL_OFFSET, blockMembers, normalizePad, type GroupPad, type FlowNote, type FlowPos, type EditFlow, type LabelOffset, type LabelPart } from "../flow-edit";
 import { NODE_SIZE, beyondLine, drawnPositions, foldOffsetX, spaceMinDelta, type SpaceAxis, type SpaceBlocks } from "../flow-layout";
 import { typedText } from "../trace-view";
-import { blockDragPositions, dropTargetAt, edgeChips, edgeMarks, nodeMarks, resolveNodeDrop } from "../flow-vars";
+import { blockDragPositions, dropTargetAt, edgeChips, edgeMarks, nodeAtPoint, nodeMarks, resolveNodeDrop } from "../flow-vars";
 import type { FlowMode } from "../state/useRuleSetEdit";
 import type { RuleIoMap, RuleSetCheck, VarDisplay } from "../types";
 import { collapseView } from "./collapse";
 import { boundsOf, snapHitIn, snapIndex, snapThreshold, type Box, type Guide, type SnapIndex } from "./snap";
-import { insertRoutePoint, routeMidpoint, routePath } from "./route-path";
+import { ROUTE_RADIUS, ROUTE_STUB, autoRoute, finishRoute, insertRoutePoint, isClear, moveSegment, roundPoint, routeMidpoint, routePath, segmentAxis, segmentHandles, snapSegmentDelta, type SegmentHandle } from "./route-path";
+import { SEG_BAR_LONG, SEG_BAR_SHORT } from "../styles/route";
 import type { MenuTarget } from "./context-menu";
+import { GroupSizeContext, ZERO_PAD, createGroupPadStore, dragGroupPad, samePad, type GroupSizeApi } from "./group-size";
 import { ANCHOR_IN, ANCHOR_OUT, GroupNodeData, NODE_TYPES, NoteNodeData, FlowNodeData, handlesOf, type CollapsedBlockInfo } from "./nodes";
 import type { EdgeState, Overlay } from "./overlay";
 import {
@@ -98,7 +110,9 @@ export const DROP_RADIUS_PX = 80;
 export const dropRadius = (zoom: number) => DROP_RADIUS_PX / (zoom > 0 ? zoom : 1);
 const PALETTE_ITEMS: readonly string[] = ["rule", "if", "par", "note", "group"];
 /** 중단점을 걸 수 있는 노드 종류(E2). */
-const BREAKABLE = new Set(["RULE", "IF", "PARALLEL", "MERGE"]);
+const BREAKABLE = new Set(["RULE", "TASK", "IF", "PARALLEL", "MERGE"]);
+/** 룰 목록 줄을 놓아 룰을 지정할 노드 종류(4단계 T1). */
+const ASSIGN_DROP_KINDS: ReadonlySet<string> = new Set(["TASK", "RULE"]);
 /** [+] 단추를 선 이름표 오른쪽에 둘 때의 거리(px). */
 const ADD_LABEL_GAP = 44;
 /** [+] 가 칩·라벨과 겹쳐 옆으로 비킬 때 상자와의 간격(px, U1). 좁게 둬 칩 → [+] 로 옮겨 가는 사이 hover 유예(150ms)가 끊기지 않는다. */
@@ -126,8 +140,39 @@ export function addSpot(at: FlowPos, size: { w: number; h: number }, boxes: read
   }
   return { x, y: at.y };
 }
-/** 미니맵을 확대·축소 단추 줄(가로) 위에 둔다. */
-const MINIMAP_STYLE = { marginBottom: 48 } as const;
+/** 선분 손잡이 막대 상자(흐름 좌표, 가운데 기준, W1) — [+] 비킴(addSpot)이 피한다. 크기는 styles/route.ts 의 막대와 같다. */
+export function segmentBox(s: SegmentHandle): CenterBox {
+  return s.axis === "h"
+    ? { x: s.at.x, y: s.at.y, w: SEG_BAR_LONG, h: SEG_BAR_SHORT }
+    : { x: s.at.x, y: s.at.y, w: SEG_BAR_SHORT, h: SEG_BAR_LONG };
+}
+/**
+ * 안쪽 선분(노드에 붙지 않은 선분)을 옮길 때의 delta 제한(W1). 노드에 붙은 이웃 선분이 원래 길이가 stub 이상이면 stub 밑으로,
+ * 더 짧으면 그 길이 밑으로 줄거나 뒤집히지 않게 자른다 — 뒤집히면 선이 노드 반대쪽으로 나간다. 노드에 붙은 선분(첫·끝)은 moveSegment 가 stub 을 끼운다.
+ */
+export function clampSegmentDelta(full: readonly FlowPos[], seg: number, delta: number, stub = ROUTE_STUB): number {
+  const last = full.length - 1;
+  const a = full[seg];
+  const b = full[seg + 1];
+  if (!a || !b || seg < 1 || seg + 1 >= last) return delta;
+  const axis = segmentAxis(a, b);
+  if (!axis) return delta;
+  const c: "x" | "y" = axis === "h" ? "y" : "x";
+  let out = delta;
+  // 앞 이웃: full[0] → full[seg] 선분의 끝이 움직인다(seg === 1 일 때만 노드에 붙는다).
+  if (seg === 1) {
+    const dir = Math.sign(full[1][c] - full[0][c]);
+    const keep = Math.min(stub, Math.abs(full[1][c] - full[0][c]));
+    if (dir !== 0) out = dir > 0 ? Math.max(out, full[0][c] + keep - full[1][c]) : Math.min(out, full[0][c] - keep - full[1][c]);
+  }
+  // 뒤 이웃: full[seg + 1] → full[last] 선분의 시작이 움직인다(seg + 2 === last 일 때만 노드에 붙는다).
+  if (seg + 2 === last) {
+    const dir = Math.sign(full[last][c] - full[seg + 1][c]);
+    const keep = Math.min(stub, Math.abs(full[last][c] - full[seg + 1][c]));
+    if (dir !== 0) out = dir > 0 ? Math.min(out, full[last][c] - keep - full[seg + 1][c]) : Math.max(out, full[last][c] + keep - full[seg + 1][c]);
+  }
+  return out;
+}
 const GROUP_MARGIN = 16;
 const FLASH_MS = 1200;
 /** 화면 맞춤 여백·확대 한계. 최소 배율 0.1 — 노드 24~27개(높이 약 2050px) 흐름이 400px 대 캔버스에 들어가려면 약 0.17 이 필요하다. */
@@ -138,8 +183,6 @@ const MAX_ZOOM = 2;
 export const ADD_HOVER_GRACE_MS = 150;
 /** 이 화면 거리(px) 미만으로 움직이고 놓으면 라벨·칩 끌기가 아니다(두 번 누르기·툴팁 그대로, L1). */
 export const LABEL_DRAG_THRESHOLD_PX = 4;
-/** 선 경로 모서리 반경(C14). */
-const ROUTE_RADIUS = 8;
 /** 경로가 있는 선의 변수 칩을 가운데 라벨 아래로 띄우는 거리(px). */
 const ROUTE_CHIP_GAP = 20;
 /**
@@ -179,7 +222,7 @@ export interface FlowCanvasProps {
   breakpoints: ReadonlySet<string>;
   /** 접힌 분기 ID(D16 — 그리기는 Task 11). */
   collapsed: ReadonlySet<string>;
-  /** 오른쪽 아래 미니맵(D14). */
+  /** 오른쪽 위 미니맵(D14, 4단계 P1). */
   showMiniMap: boolean;
   /** 변수 칩 툴팁 값(E3, undefined = 아직 없음 — Task 11). */
   valueAt?: (name: string) => TypedValue | null | undefined;
@@ -202,6 +245,10 @@ export interface FlowCanvasProps {
   onDropPalette: (item: PaletteItem, at: FlowPos, edgeId: string | null) => void;
   /** 룰 목록 줄을 놓음(A4). */
   onDropRule: (ruleId: string, edgeId: string | null) => void;
+  /** 룰 목록 줄을 빈 단계·룰 노드 위에 놓음(4단계 T1) — 룰 지정. 없으면 노드 위에 놓아도 선 끼우기 규칙 그대로다. */
+  onAssignDrop?: (nodeId: string, ruleId: string) => void;
+  /** 빈 단계 제목 두 번 눌러 고치기(4단계 T1, 편집 모드에서만 노드에 넘긴다). 빈 문자열이면 null(기본 제목). */
+  onRenameTask?: (nodeId: string, label: string | null) => void;
   onNoteChange: (id: string, patch: Partial<FlowNote>) => void;
   /** 선 경로(꺾는 점 목록, 흐름 좌표)를 통째로 바꿈(C14) — 손잡이를 놓을 때·점을 더하거나 뺄 때 한 번. 빈 목록이면 경로를 지운다. */
   onRouteChange?: (edgeId: string, points: FlowPos[]) => void;
@@ -210,6 +257,8 @@ export interface FlowCanvasProps {
    * 임계값(화면 4px) 미만이거나 처음 오프셋 그대로면 부르지 않는다. 편집 모드에서만 부른다.
    */
   onLabelOffsetChange?: (edgeId: string, part: LabelPart, off: LabelOffset | null) => void;
+  /** 그룹 크기 손잡이를 놓음(G2) — 새 여백(흐름 좌표, 0~2000 정수). 끄는 동안은 부르지 않고 놓을 때 한 번, 바뀌었을 때만. 편집 모드에서만 부른다. */
+  onGroupPadChange?: (groupId: string, pad: GroupPad) => void;
   /** 캔버스가 "고른 꺾는 점 빼기 — 뺐으면 true" 를 채우는 ref(page 의 delete 단축키가 먼저 부른다, C14). */
   removeRoutePointRef?: MutableRefObject<(() => boolean) | null>;
   /** 캔버스가 "React Flow 선택 모두 비우기" 를 채우는 ref(page 의 Esc 가 부른다 — disableKeyboardA11y 로 내장 Esc 가 없다). */
@@ -236,6 +285,12 @@ export interface FlowCanvasProps {
    * 메모·그룹만 고른 경우는 올리지 않는다 — 노드를 여러 개 고른 뒤 그룹 제목을 눌러 [선택 노드 더하기] 를 쓸 수 있게 한다.
    */
   onSelectionChange?: (nodeIds: string[]) => void;
+  /**
+   * 빈 곳 끌기 도구(4단계 P1) — "hand" 면 끌기 = 화면 이동, "select" 면 끌기 = 영역 선택(이동은 가운데 버튼·스페이스+끌기).
+   * 없으면 모드 기본(편집 = select, 보기·디버그 = hand — 3단계 동작 그대로). 휠·Shift 영역 선택·다중 선택 키는 도구와 관계없이 모드를 따른다.
+   * [공간] 은 따로 `spaceTool` 이다(빈 곳 누르기를 캡처 단계에서 가로채 영역 선택·화면 이동보다 이긴다).
+   */
+  dragTool?: "hand" | "select";
   /** [공간] 토글(S1) — 켜져 있으면 편집 모드의 빈 곳 끌기가 공간 넓히기다(영역 선택보다 이긴다). */
   spaceTool?: boolean;
   /** 공간 넓히기 끌기를 놓으면(방향 미확정·0 이어도) 토글이 켜져 있었을 때 false 로 부른다 — 한 번 쓰면 꺼진다. */
@@ -268,7 +323,7 @@ export function linkAllowed(flow: Pick<EditFlow, "nodes">, from: string | null |
 
 /** 편집 모드 다중 선택 키 — 누르기로 더하기. */
 const MULTI_KEYS = ["Shift", "Meta", "Control"];
-/** 편집 모드 화면 이동 마우스 단추 — 가운데(1)만. 왼쪽 끌기는 영역 선택, 오른쪽은 메뉴(S1). */
+/** 영역 선택 도구일 때 화면 이동 마우스 단추 — 가운데(1)만. 왼쪽 끌기는 영역 선택, 오른쪽은 메뉴(S1). */
 const EDIT_PAN_BUTTONS = [1];
 /** 공간 넓히기 방향을 정하는 화면 거리(px). */
 export const SPACE_THRESHOLD_PX = 6;
@@ -374,7 +429,8 @@ function chipTitle(name: string, label: string | undefined, valueOf: EdgeData["v
 
 /** 손잡이 끌기·고른 손잡이 저장소(C14). 선 하나만 구독해 끄는 동안 그 선만 다시 그린다(다른 선·page 는 그대로). */
 interface RouteStore {
-  drag: { edgeId: string; index: number; points: FlowPos[] } | null;
+  /** 점 끌기는 index = 점 번호. 선분 끌기는 index -1, seg = 옮기는 선분 번호(짧은 선분을 끼우면 새 번호, W1). */
+  drag: { edgeId: string; index: number; points: FlowPos[]; seg?: number } | null;
   sel: { edgeId: string; index: number } | null;
   subscribe(cb: () => void): () => void;
   emit(): void;
@@ -401,7 +457,10 @@ interface RouteApi {
   store: RouteStore;
   /** 그린 선마다 지금 모양을 읽는 함수(편집 가능한 선만) — 선 끝 손잡이 두 번 누르기가 쓴다(U2). */
   geo: Map<string, () => EdgeGeo>;
-  startDrag(e: ReactPointerEvent, edgeId: string, index: number, points: readonly FlowPos[]): void;
+  /** 점 손잡이 끌기. auto 면 자동 경로의 점이라 고른 손잡이로 두지 않는다(Delete 없음, W1). */
+  startDrag(e: ReactPointerEvent, edgeId: string, index: number, points: readonly FlowPos[], auto?: boolean): void;
+  /** 선분 막대 끌기(W1) — full 은 양 끝을 포함한 지금 꺾은선(자동 경로면 autoRoute 점). 놓을 때 finishRoute 로 정리해 한 번 올린다. */
+  startSegmentDrag(e: ReactPointerEvent, edgeId: string, seg: number, full: readonly FlowPos[]): void;
   addPoint(edgeId: string, points: readonly FlowPos[], source: FlowPos, target: FlowPos, clientX: number, clientY: number): void;
   removePoint(edgeId: string, points: readonly FlowPos[], index: number): void;
 }
@@ -626,19 +685,23 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
     },
     () => null,
   );
-  const dragged = useSyncExternalStore(
+  const dragState = useSyncExternalStore(
     routeApi ? routeApi.store.subscribe : NO_SUBSCRIBE,
-    () => (routeApi?.store.drag?.edgeId === id ? routeApi.store.drag.points : null),
+    () => (routeApi?.store.drag?.edgeId === id ? routeApi.store.drag : null),
     () => null,
   );
+  const dragged = dragState?.points ?? null;
   const selHandle = useSyncExternalStore(
     routeApi ? routeApi.store.subscribe : NO_SUBSCRIBE,
     () => (routeApi?.store.sel?.edgeId === id ? routeApi.store.sel.index : -1),
     () => -1,
   );
+  // 손잡이(W1) — 편집 모드에서 올려진 선·고른 선·끄는 중인 선에만. 배율은 손잡이를 그릴 때만 구독한다(다른 선은 확대에 다시 그리지 않는다).
+  const showHandles = !!data?.routeEditable && !!routeApi && (hovered || !!data.routeHandles || dragState !== null);
+  const zoom = useStore((st) => (showHandles ? st.transform[2] : 1));
   const baseRoute = dragged ?? data?.route ?? null;
   const route = spaceShift && baseRoute ? baseRoute.map((p) => shifted(spaceShift, p)) : baseRoute;
-  const [smoothPath, slx, sly] = getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 8 });
+  const [smoothPath, slx, sly] = getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: ROUTE_RADIUS });
   let path = smoothPath;
   let lx = slx;
   let ly = sly;
@@ -689,6 +752,14 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
   const [addShift, setAddShift] = useState(0);
   const labelAt = { x: lx + labelOff.dx, y: ly + labelOff.dy };
   const chipsAt = { x: chipBase.x + chipsOff.dx, y: chipBase.y + chipsOff.dy };
+  // 선분 막대·자동 점 자리(W1) — 라벨·[+] 자리에서 화면 24px 비킨다. 자동 경로면 getSmoothStepPath 와 같은 점(autoRoute)에 둔다.
+  const hasRoute = !!route && route.length > 0;
+  const autoPts = showHandles && !hasRoute ? autoRoute({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition }) : null;
+  const avoid: FlowPos[] = [];
+  if (data?.label) avoid.push(labelAt);
+  if (showAdd) avoid.push({ x: addX, y: ly });
+  const fullPts = showHandles ? [{ x: sourceX, y: sourceY }, ...(hasRoute ? route! : (autoPts ?? [])), { x: targetX, y: targetY }] : null;
+  const segs = fullPts ? segmentHandles(fullPts, zoom, avoid) : NO_SEGS;
   useLayoutEffect(() => {
     let next = 0;
     const btn = addRef.current;
@@ -699,13 +770,25 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
       };
       box(labelRef.current, labelAt);
       box(chipsRef.current, chipsAt);
+      for (const s of segs) boxes.push(segmentBox(s));
       next = addSpot({ x: addX, y: ly }, { w: btn.offsetWidth, h: btn.offsetHeight }, boxes).x - addX;
     }
     if (next !== addShift) setAddShift(next);
   });
   // 선 끝 손잡이 두 번 누르기(U2) — 캔버스가 그 선의 지금 경로·양 끝을 읽어 꺾는 점을 더한다. 끝 손잡이를 끄는 동안 선이 잠깐 빠졌다 돌아와도 커밋 때 다시 건다.
   const geoRef = useRef<EdgeGeo>({ route: [], source: { x: sourceX, y: sourceY }, target: { x: targetX, y: targetY } });
-  geoRef.current = { route: route ?? [], source: { x: sourceX, y: sourceY }, target: { x: targetX, y: targetY } };
+  // 경로 없는 선은 자동 경로의 꺾임을 이어받는다(W1 Ruling) — 선 두 번 누르기·끝 손잡이 두 번 누르기가 같은 값을 쓴다. 정수로 반올림한다.
+  const inheritedRoute = (): FlowPos[] =>
+    route && route.length > 0
+      ? route
+      : autoRoute({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition }).map(roundPoint);
+  geoRef.current = {
+    get route() {
+      return inheritedRoute();
+    },
+    source: { x: sourceX, y: sourceY },
+    target: { x: targetX, y: targetY },
+  };
   const routeEditable = !!data?.routeEditable;
   useLayoutEffect(() => {
     if (!routeApi || !routeEditable) return;
@@ -723,7 +806,14 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
           data?.routeEditable && routeApi
             ? (e) => {
                 e.stopPropagation();
-                routeApi.addPoint(id, route ?? [], { x: sourceX, y: sourceY }, { x: targetX, y: targetY }, e.clientX, e.clientY);
+                routeApi.addPoint(
+                  id,
+                  inheritedRoute(),
+                  { x: sourceX, y: sourceY },
+                  { x: targetX, y: targetY },
+                  e.clientX,
+                  e.clientY,
+                );
               }
             : undefined
         }
@@ -782,10 +872,10 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
             </span>
           </div>
         )}
-        {data?.routeHandles &&
-          routeApi &&
-          route?.map((p, i) => (
-            <div key={i} className="rsf-elabel" style={at(p.x, p.y)}>
+        {showHandles &&
+          hasRoute &&
+          route!.map((p, i) => (
+            <div key={`p${i}`} className="rsf-elabel" style={at(p.x, p.y)}>
               <span
                 className="rsf-route-handle nodrag nopan"
                 role="button"
@@ -793,15 +883,47 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
                 title="끌어 옮기고, 두 번 눌러 뺀다"
                 data-testid={`flow-route-handle-${id}-${i}`}
                 data-selected={selHandle === i ? "true" : undefined}
-                data-dragging={dragged && routeApi.store.drag?.index === i ? "true" : undefined}
-                onPointerDown={(e) => routeApi.startDrag(e, id, i, route)}
+                data-dragging={dragState && dragState.seg === undefined && dragState.index === i ? "true" : undefined}
+                {...hoverProps}
+                onPointerDown={(e) => routeApi!.startDrag(e, id, i, route!)}
                 onDoubleClick={(e) => {
                   e.stopPropagation();
-                  routeApi.removePoint(id, route, i);
+                  routeApi!.removePoint(id, route!, i);
                 }}
               />
             </div>
           ))}
+        {autoPts?.map((p, i) =>
+          isClear(p, avoid, zoom) ? (
+            <div key={`a${i}`} className="rsf-elabel" style={at(p.x, p.y)}>
+              <span
+                className="rsf-route-handle nodrag nopan"
+                role="button"
+                aria-label="꺾는 점"
+                title="끌어 옮긴다"
+                data-testid={`flow-route-auto-${id}-${i}`}
+                data-auto="true"
+                {...hoverProps}
+                onPointerDown={(e) => routeApi!.startDrag(e, id, i, autoPts, true)}
+              />
+            </div>
+          ) : null,
+        )}
+        {segs.map((s) => (
+          <div key={`s${s.index}`} className="rsf-elabel" style={at(s.at.x, s.at.y)}>
+            <span
+              className="rsf-route-seg nodrag nopan"
+              role="button"
+              aria-label="선분"
+              title="끌어 선분을 옮긴다"
+              data-testid={`flow-route-seg-${id}-${s.index}`}
+              data-axis={s.axis}
+              data-dragging={dragState?.seg === s.index ? "true" : undefined}
+              {...hoverProps}
+              onPointerDown={(e) => routeApi!.startSegmentDrag(e, id, s.index, fullPts!)}
+            />
+          </div>
+        ))}
         {showAdd && (
           <button
             ref={addRef}
@@ -823,6 +945,7 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
 }
 
 const NO_SUBSCRIBE = () => () => {};
+const NO_SEGS: readonly SegmentHandle[] = Object.freeze([]);
 const EDGE_TYPES: EdgeTypes = { rsfFlow: FlowEdgeView };
 
 /**
@@ -842,8 +965,8 @@ function blockInfo(flow: EditFlow, block: { count: number; members: string[] }, 
   return { count: block.count, ran, error };
 }
 
-/** 그룹 틀 — 멤버 위치의 바깥 상자 + 여백. 멤버가 하나도 없으면 null. */
-function groupBox(nodeIds: readonly string[], pos: Record<string, FlowPos>, kinds: Map<string, keyof typeof NODE_SIZE>) {
+/** 그룹 틀 — 멤버 위치의 바깥 상자 + 여백 + 더한 여백(pad, G2). 멤버가 하나도 없으면 null. */
+function groupBox(nodeIds: readonly string[], pos: Record<string, FlowPos>, kinds: Map<string, keyof typeof NODE_SIZE>, pad: GroupPad | null | undefined) {
   let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
   for (const id of nodeIds) {
     const p = pos[id];
@@ -856,19 +979,27 @@ function groupBox(nodeIds: readonly string[], pos: Record<string, FlowPos>, kind
     y2 = Math.max(y2, p.y + s.h);
   }
   if (!Number.isFinite(x1)) return null;
-  return { x: x1 - GROUP_MARGIN, y: y1 - GROUP_MARGIN, w: x2 - x1 + GROUP_MARGIN * 2, h: y2 - y1 + GROUP_MARGIN * 2 };
+  const d = pad ?? ZERO_PAD;
+  return {
+    x: x1 - GROUP_MARGIN - d.l,
+    y: y1 - GROUP_MARGIN - d.t,
+    w: x2 - x1 + GROUP_MARGIN * 2 + d.l + d.r,
+    h: y2 - y1 + GROUP_MARGIN * 2 + d.t + d.b,
+  };
 }
 
 function Inner(props: FlowCanvasProps) {
   const {
     flow, rules, checks, mode, varDisplay, varLabels, selectedId, selectedEdgeId, overlay, focusId, focusSeq, focusReveal, fitSignal, fitKey,
     breakpoints, collapsed, valueAt, showMiniMap, editingCondEdgeId,
-    onSelect, onSelectEdge, onOpenRule, onMove, onMoveNode, onConnect, onReconnect, onDropPalette, onDropRule, onNoteChange, onContextMenu, onToggleBreakpoint,
+    onSelect, onSelectEdge, onOpenRule, onMove, onMoveNode, onConnect, onReconnect, onDropPalette, onDropRule, onAssignDrop, onRenameTask, onNoteChange, onContextMenu, onToggleBreakpoint,
     onEditCond, onRouteChange, onLabelOffsetChange, removeRoutePointRef, clearSelectionRef, alignSourceRef, selectionRef, onEditCondClose, onSelectionChange,
-    spaceTool, onSpaceToolChange, onShiftSpace,
+    spaceTool, onSpaceToolChange, onShiftSpace, dragTool,
   } = props;
   const editable = mode === "edit";
   const debugging = mode === "debug";
+  /** [손] 도구 — 빈 곳 끌기가 화면 이동이다(4단계 P1). */
+  const hand = (dragTool ?? (editable ? "select" : "hand")) === "hand";
   const rf = useReactFlow();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<Record<string, FlowPos>>({});
@@ -880,6 +1011,14 @@ function Inner(props: FlowCanvasProps) {
     if (dropEdgeRef.current === id) return; // 같은 값이면 상태를 바꾸지 않는다(다시 그리기 반복 방지)
     dropEdgeRef.current = id;
     setDropEdgeState(id);
+  }, []);
+  /** 룰 줄을 끄는 동안 놓일 빈 단계·룰 노드(4단계 T1) — 노드 위면 선 강조 대신 노드를 강조한다. */
+  const [dropNode, setDropNodeState] = useState<string | null>(null);
+  const dropNodeRef = useRef<string | null>(null);
+  const setDropNode = useCallback((id: string | null) => {
+    if (dropNodeRef.current === id) return;
+    dropNodeRef.current = id;
+    setDropNodeState(id);
   }, []);
   /** 조건식 즉석 편집 중인 선(B10) — 메뉴가 연 `editingCondEdgeId` 와 같은 칸을 쓴다. */
   const [condEdge, setCondEdge] = useState<string | null>(null);
@@ -953,13 +1092,18 @@ function Inner(props: FlowCanvasProps) {
   const eMarks = useMemo(() => edgeMarks(checks), [checks]);
   const chips = useMemo(() => edgeChips(vflow as RuleSetFlow, rules), [vflow, rules]);
 
+  // 그룹 크기 끌기(G2) — 끄는 동안의 여백. 구독 값이 바뀌면 Inner 가 다시 그려 nodes memo 가 다시 돈다(공간 넓히기 미리보기와 같은 방식 — page·dagre 는 그대로다).
+  const groupStore = useMemo(createGroupPadStore, []);
+  const groupDrag = useSyncExternalStore(groupStore.subscribe, () => groupStore.drag, () => null);
+
   const nodes = useMemo(() => {
     const out: Node[] = [];
     const kinds = new Map(vflow.nodes.map((n) => [n.id, n.kind] as const));
     for (const g of flow.view.groups) {
-      const b = groupBox(g.nodeIds, pos, kinds);
+      const pad = groupDrag?.groupId === g.id ? groupDrag.pad : g.pad; // 끄는 중이면 그 값(G2)
+      const b = groupBox(g.nodeIds, pos, kinds, pad);
       if (!b) continue;
-      const data: GroupNodeData = { id: g.id, title: g.title, selected: selectedId === g.id };
+      const data: GroupNodeData = { id: g.id, title: g.title, selected: selectedId === g.id, resizable: editable && selectedId === g.id };
       out.push({
         id: g.id, type: "rsfGroup", position: { x: b.x, y: b.y }, width: b.w, height: b.h, measured: measured[g.id], data, selected: rfSel.has(g.id),
         draggable: false, connectable: false, zIndex: -1, style: { pointerEvents: "none" },
@@ -983,6 +1127,8 @@ function Inner(props: FlowCanvasProps) {
         onToggleBreakpoint,
         varDisplay,
         linkable: editable,
+        dropTarget: dropNode === n.id,
+        onRenameTask: editable ? onRenameTask : undefined,
       };
       out.push({
         id: n.id, type: "rsfFlow", position: p, width: s.w, height: s.h, measured: measured[n.id], data, handles: handlesOf(block ? "RULE" : n.kind), draggable: editable,
@@ -997,7 +1143,7 @@ function Inner(props: FlowCanvasProps) {
       });
     }
     return out;
-  }, [flow, vflow, view, pos, drag, space, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured, varDisplay]);
+  }, [flow, vflow, view, pos, drag, space, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured, varDisplay, groupDrag, dropNode, onRenameTask]);
   /** 지금 그린 노드 배열 — 끌기 시작 때 스냅 후보(보이는 흐름 노드·메모)를 여기서 모은다(G1). */
   const nodesRef = useRef(nodes);
   nodesRef.current = nodes;
@@ -1126,7 +1272,7 @@ function Inner(props: FlowCanvasProps) {
 
   /** 흐름 노드(룰·IF·병렬)만 선 위에 놓아 옮길 수 있다. */
   const isMovable = (n: Node) =>
-    n.type === "rsfFlow" && !viewRef.current.blocks[n.id] && ["RULE", "IF", "PARALLEL"].includes(flowRef.current.nodes.find((x) => x.id === n.id)?.kind ?? "");
+    n.type === "rsfFlow" && !viewRef.current.blocks[n.id] && ["RULE", "TASK", "IF", "PARALLEL"].includes(flowRef.current.nodes.find((x) => x.id === n.id)?.kind ?? "");
   const isSplit = (id: string) => ["IF", "PARALLEL"].includes(flowRef.current.nodes.find((x) => x.id === id)?.kind ?? "");
   /**
    * 분기를 끄는 동안 블록 멤버가 같은 만큼 움직인 위치. 분기가 아니면 빈 맵.
@@ -1398,12 +1544,12 @@ function Inner(props: FlowCanvasProps) {
       addPoint: (edgeId, points, source, target, clientX, clientY) => {
         routeChangeRef.current?.(edgeId, insertRoutePoint(points, source, target, flowAtRef.current(clientX, clientY)));
       },
-      startDrag: (e, edgeId, index, points) => {
+      startDrag: (e, edgeId, index, points, auto = false) => {
         if (e.button !== 0) return;
         e.stopPropagation();
         wrapRef.current?.focus({ preventScroll: true });
         const original = points.map((p) => ({ x: p.x, y: p.y }));
-        routeStore.sel = { edgeId, index };
+        routeStore.sel = auto ? null : { edgeId, index };
         routeStore.drag = { edgeId, index, points: original };
         routeStore.emit();
         let moved = false;
@@ -1426,7 +1572,7 @@ function Inner(props: FlowCanvasProps) {
           const final = routeStore.drag?.points;
           routeStore.drag = null;
           routeStore.emit();
-          if (moved && final) routeChangeRef.current?.(edgeId, final);
+          if (moved && final) routeChangeRef.current?.(edgeId, final.map(roundPoint));
         };
         const onCancelEvt = () => {
           stop();
@@ -1437,8 +1583,56 @@ function Inner(props: FlowCanvasProps) {
         window.addEventListener("pointerup", onUpEvt);
         window.addEventListener("pointercancel", onCancelEvt);
       },
+      startSegmentDrag: (e, edgeId, seg, full) => {
+        if (e.button !== 0) return;
+        const origin = full.map((p) => ({ x: p.x, y: p.y }));
+        const axis = origin[seg] && origin[seg + 1] ? segmentAxis(origin[seg], origin[seg + 1]) : null;
+        if (!axis) return;
+        e.stopPropagation();
+        wrapRef.current?.focus({ preventScroll: true });
+        // 선분을 옮기면 점 번호가 바뀐다(끼움·합치기) — 고른 꺾는 점을 비워 Delete 가 엉뚱한 점을 빼지 않게 한다.
+        routeStore.sel = null;
+        const sx = e.clientX;
+        const sy = e.clientY;
+        let lastDelta = 0;
+        routeStore.drag = { edgeId, index: -1, seg, points: origin.slice(1, -1) };
+        routeStore.emit();
+        const onMoveEvt = (ev: MouseEvent) => {
+          // 단추가 모두 떨어진 채 움직이면 pointerup 을 잃은 것이다(창 밖에서 놓음) — 기록 없이 버린다(L1 과 같다).
+          if (ev.buttons === 0) {
+            finish(false);
+            return;
+          }
+          const k = rf.getZoom() || 1;
+          const raw = (axis === "h" ? ev.clientY - sy : ev.clientX - sx) / k;
+          const delta = clampSegmentDelta(origin, seg, snapSegmentDelta(origin, seg, raw, k));
+          if (delta === lastDelta && routeStore.drag?.edgeId === edgeId) return;
+          const r = moveSegment(origin, seg, delta);
+          if (!r) return;
+          lastDelta = delta;
+          routeStore.drag = { edgeId, index: -1, seg: r.seg, points: r.points };
+          routeStore.emit();
+        };
+        const stop = () => {
+          window.removeEventListener("pointermove", onMoveEvt);
+          window.removeEventListener("pointerup", onUpEvt);
+          window.removeEventListener("pointercancel", onCancelEvt);
+        };
+        const finish = (commit: boolean) => {
+          stop();
+          const d = routeStore.drag;
+          routeStore.drag = null;
+          routeStore.emit();
+          if (commit && d && lastDelta !== 0) routeChangeRef.current?.(edgeId, finishRoute(origin[0], d.points, origin[origin.length - 1]));
+        };
+        const onUpEvt = () => finish(true);
+        const onCancelEvt = () => finish(false);
+        window.addEventListener("pointermove", onMoveEvt);
+        window.addEventListener("pointerup", onUpEvt);
+        window.addEventListener("pointercancel", onCancelEvt);
+      },
     };
-  }, [routeStore]);
+  }, [routeStore, rf]);
 
   // 고른 손잡이는 편집 모드에서 그 선을 고르고 있는 동안, 그 점이 남아 있는 동안만 유지한다.
   useEffect(() => {
@@ -1546,6 +1740,65 @@ function Inner(props: FlowCanvasProps) {
     }
   }, [editable, labelStore]);
   useEffect(() => () => labelDragRef.current?.stop(), []);
+
+  // 그룹 크기(G2) — 끄는 동안은 groupStore 에만 두고 놓을 때 onGroupPadChange 를 한 번 부른다(page 는 끄는 동안 다시 그리지 않는다).
+  // 새 prop 은 구조 분해에 넣지 않고 props 로 읽는다(구조 분해 줄은 도구 모드 태스크가 고친다).
+  const groupPadChangeRef = useRef(props.onGroupPadChange);
+  groupPadChangeRef.current = props.onGroupPadChange;
+  const groupDragRef = useRef<{ stop: () => void } | null>(null);
+  const groupSizeApi = useMemo<GroupSizeApi>(() => ({
+    startDrag: (e, groupId, grip) => {
+      if (e.button !== 0 || !editableRef.current) return;
+      e.stopPropagation();
+      groupDragRef.current?.stop();
+      const base = normalizePad(fullRef.current.view.groups.find((g) => g.id === groupId)?.pad) ?? ZERO_PAD;
+      const sx = e.clientX;
+      const sy = e.clientY;
+      const onMoveEvt = (ev: MouseEvent) => {
+        // 단추가 모두 떨어진 채 움직이면 pointerup 을 잃은 것이다(창 밖에서 놓음) — 기록 없이 버린다(L1 과 같다).
+        if (ev.buttons === 0) {
+          finish(false);
+          return;
+        }
+        const k = rf.getZoom() || 1;
+        const pad = dragGroupPad(base, grip, (ev.clientX - sx) / k, (ev.clientY - sy) / k);
+        const cur = groupStore.drag;
+        if (cur && cur.groupId === groupId && samePad(cur.pad, pad)) return;
+        groupStore.drag = { groupId, pad };
+        groupStore.emit();
+      };
+      const finish = (commit: boolean) => {
+        stop();
+        const d = groupStore.drag;
+        if (!d) return;
+        groupStore.drag = null;
+        groupStore.emit();
+        if (commit && editableRef.current && !samePad(d.pad, base)) groupPadChangeRef.current?.(groupId, d.pad);
+      };
+      const onUpEvt = () => finish(true);
+      const onCancelEvt = () => finish(false);
+      const stop = () => {
+        groupDragRef.current = null;
+        window.removeEventListener("pointermove", onMoveEvt);
+        window.removeEventListener("pointerup", onUpEvt);
+        window.removeEventListener("pointercancel", onCancelEvt);
+      };
+      groupDragRef.current = { stop };
+      window.addEventListener("pointermove", onMoveEvt);
+      window.addEventListener("pointerup", onUpEvt);
+      window.addEventListener("pointercancel", onCancelEvt);
+    },
+  }), [groupStore, rf]);
+  // 편집 모드를 떠나거나 언마운트하면 끌던 크기를 버린다.
+  useEffect(() => {
+    if (editable) return;
+    groupDragRef.current?.stop();
+    if (groupStore.drag) {
+      groupStore.drag = null;
+      groupStore.emit();
+    }
+  }, [editable, groupStore]);
+  useEffect(() => () => groupDragRef.current?.stop(), []);
 
   useEffect(() => {
     if (!clearSelectionRef) return;
@@ -1708,11 +1961,17 @@ function Inner(props: FlowCanvasProps) {
     if (!editable || !carries(e)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
-    setDropEdge(dropTargetAt(vflow, pos, flowAt(e.clientX, e.clientY), rf.getZoom()));
+    const at = flowAt(e.clientX, e.clientY);
+    const rule = Array.from(e.dataTransfer?.types ?? []).includes(RULE_MIME);
+    const overNode = rule && onAssignDrop ? nodeAtPoint(vflow, pos, at, ASSIGN_DROP_KINDS) : null;
+    setDropNode(overNode);
+    setDropEdge(overNode ? null : dropTargetAt(vflow, pos, at, rf.getZoom()));
   };
   const onDragLeave = (e: DragEvent<HTMLDivElement>) => {
     // 캔버스 안의 자식 사이를 오가는 것은 떠남이 아니다.
-    if (!e.currentTarget.contains(e.relatedTarget as globalThis.Node | null)) setDropEdge(null);
+    if (e.currentTarget.contains(e.relatedTarget as globalThis.Node | null)) return;
+    setDropEdge(null);
+    setDropNode(null);
   };
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
     if (!editable || !e.dataTransfer) return;
@@ -1720,9 +1979,17 @@ function Inner(props: FlowCanvasProps) {
     const ruleId = e.dataTransfer.getData(RULE_MIME);
     const isPalette = PALETTE_ITEMS.includes(item);
     setDropEdge(null);
+    setDropNode(null);
     if (!isPalette && !ruleId) return;
     e.preventDefault();
     const at = flowAt(e.clientX, e.clientY);
+    if (!isPalette && onAssignDrop) {
+      const target = nodeAtPoint(vflow, pos, at, ASSIGN_DROP_KINDS);
+      if (target) {
+        onAssignDrop(target, ruleId);
+        return;
+      }
+    }
     const edgeId = dropTargetAt(vflow, pos, at, rf.getZoom());
     if (isPalette) onDropPalette(item as PaletteItem, at, edgeId);
     else onDropRule(ruleId, edgeId);
@@ -1772,12 +2039,14 @@ function Inner(props: FlowCanvasProps) {
     <SpaceContext.Provider value={spaceStore}>
     <HoverContext.Provider value={hoverStore}>
     <LabelContext.Provider value={labelApi}>
+    <GroupSizeContext.Provider value={groupSizeApi}>
     <div
       ref={wrapRef}
       className="rsf-canvas"
       data-testid="flow-canvas"
       data-mode={mode}
       data-space-tool={editable && spaceTool ? "true" : undefined}
+      data-drag-tool={hand ? "hand" : "select"}
       tabIndex={0}
       onPointerDownCapture={onPointerDownCapture}
       onPointerCancelCapture={onPointerCancelCapture}
@@ -1803,11 +2072,11 @@ function Inner(props: FlowCanvasProps) {
         deleteKeyCode={null}
         selectionKeyCode={editable ? "Shift" : null}
         multiSelectionKeyCode={editable ? MULTI_KEYS : null}
-        // 편집 모드는 Figma 방식(S1, Ruling 21): 빈 곳 끌기 = 영역 선택(상자에 조금이라도 걸린 노드), 이동 = 스페이스+끌기·가운데 버튼·두 손가락 스크롤,
-        // 확대 = 핀치·Ctrl/Cmd+휠(zoomActivationKeyCode 설치본 기본값 — Mac Meta, 그 밖 Control). 보기·디버그 모드는 끌기 = 이동, 휠 = 확대 그대로다.
-        selectionOnDrag={editable}
+        // 빈 곳 끌기는 도구(4단계 P1)를 따른다 — [영역 선택] = 영역 선택(상자에 조금이라도 걸린 노드), 이동은 스페이스+끌기·가운데 버튼,
+        // [손] = 화면 이동. 휠·Shift·다중 선택 키는 모드를 따른다(편집 = 두 손가락 스크롤 이동·핀치/Ctrl+휠 확대, 보기·디버그 = 휠 확대).
+        selectionOnDrag={!hand}
         selectionMode={SelectionMode.Partial}
-        panOnDrag={editable ? EDIT_PAN_BUTTONS : true}
+        panOnDrag={hand ? true : EDIT_PAN_BUTTONS}
         panOnScroll={editable}
         panActivationKeyCode="Space"
         zoomOnPinch
@@ -1846,13 +2115,14 @@ function Inner(props: FlowCanvasProps) {
         onEdgeContextMenu={onEdgeContextMenu}
         onPaneContextMenu={onPaneContextMenu}
       >
-        {/* 오른쪽 아래 — 확대·축소 단추 줄 위에 미니맵(D14) */}
+        {/* 오른쪽 아래 확대·축소 단추 줄, 오른쪽 위 미니맵(4단계 P1 — 왼쪽 위는 page 가 그리는 도구 상자 자리) */}
         <Controls position="bottom-right" orientation="horizontal" showInteractive={false} />
-        {showMiniMap && <MiniMap position="bottom-right" style={MINIMAP_STYLE} pannable zoomable />}
+        {showMiniMap && <MiniMap position="top-right" pannable zoomable />}
         <SpaceGuide store={spaceStore} />
         <SnapGuides store={snapStore} />
       </ReactFlow>
     </div>
+    </GroupSizeContext.Provider>
     </LabelContext.Provider>
     </HoverContext.Provider>
     </SpaceContext.Provider>

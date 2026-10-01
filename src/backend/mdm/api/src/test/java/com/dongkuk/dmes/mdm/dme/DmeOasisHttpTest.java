@@ -393,6 +393,30 @@ class DmeOasisHttpTest {
     }
 
     /**
+     * 4단계 E4 — 고친 값은 execute params 의 editsJson 문자열로 받는다. BPMN execute 는 dto 클래스로 바인딩하므로 DTO 필드만 더해 전달된다
+     * (BPMN 입력을 더하지 않는다). 받은 기록은 엔진 스키마 RunTrace 를 따르고 trace.edits 로 고친 값을 되돌려 준다.
+     */
+    @Test
+    void 기록_실행은_editsJson_문자열로_고친_값을_끼워_다시_실행한다() throws Exception {
+        RuleSetSimulateTest.seedGolden(jdbc);
+        JsonNode golden = RuleSetSimulateTest.readGolden().get("IF_FIRST_TRUE");
+        ObjectNode params = json.createObjectNode().put("flowJson", golden.path("flowJson").asText())
+                .put("recordJson", golden.path("recordJson").asText()).put("evalTs", golden.path("evalTs").asText())
+                .put("editsJson", RuleSetSimulateTest.EDIT_IF1_B);
+
+        JsonNode exec = post("ruleSetEdit", "execute", "kim", envelope("ruleSetEdit", params));
+
+        assertTrue(exec.path("meta").path("success").asBoolean(false), exec.toString());
+        JsonNode trace = exec.path("data").path("result").path("trace");
+        List<String> nodeIds = new java.util.ArrayList<>();
+        trace.path("nodes").forEach(n -> nodeIds.add(n.path("nodeId").asText()));
+        assertEquals(List.of("start", "r1", "if1", "r3", "m1", "end"), nodeIds, trace.toString());
+        assertEquals("if1", trace.path("edits").path(0).path("nodeId").asText(), trace.toString());
+        assertEquals("B", trace.path("edits").path(0).path("values").path("GT_G").path("value").asText(), trace.toString());
+        assertEquals(java.util.Set.of(), RuleSetSimulateTest.RUN_TRACE_SCHEMA.validate(trace), trace.toString());
+    }
+
+    /**
      * 흐름도 3단계 P7 — 케이스 저장(save part=CASE)·조회(view cases)·일괄 실행(execute runCases)·식 파싱(validate exprText)도 화면이 보낼 모양
      * 그대로 params 에 문자열·스칼라만 싣는다(caseIds 는 콤마 문자열, inputJson·expectedJson 은 JSON 문자열, grids 없음).
      */

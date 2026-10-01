@@ -72,7 +72,7 @@ class ContractTypeShapeTest {
                     "rule.RuleResult", "rule.RuleResult$Hit", "rule.RuleResult$RowTrace",
                     "rule.RuleSetResult", "rule.RuleSetResult$PathStep",
                     "rule.RunTrace", "rule.RunTrace$NodeTrace", "rule.RunTrace$BranchTrace", "rule.RunTrace$NodeStatus",
-                    "rule.RunTrace$BranchOutcome",
+                    "rule.RunTrace$BranchOutcome", "rule.RunTrace$TraceEdit",
                     "rule.RuleView", "rule.RuleView$ColumnView", "rule.RuleView$RowView", "rule.RuleView$CellView",
                     // domain
                     "domain.DomainValidator", "domain.DomainValidator$ValidationResult", "domain.DomainValidator$Failure",

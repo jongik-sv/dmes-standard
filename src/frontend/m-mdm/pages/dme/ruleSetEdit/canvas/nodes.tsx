@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 캔버스 노드 7종(2단계 계획 Task 9) — 시작·끝(TerminalNode)·룰·IF·병렬·합류·메모·그룹. 표시만 하고 상태를 갖지 않는다.
+ * 캔버스 노드 8종(2단계 계획 Task 9, 4단계 빈 단계 더함) — 시작·끝(TerminalNode)·룰·IF·병렬·합류·메모·그룹. 표시만 하고 상태를 갖지 않는다.
  * testid·data-state 는 노드 루트 요소에 둔다. 한 변 색 바는 쓰지 않는다(Local-Rules §8) — 선택·실행·오류는 전체 테두리·배경·배지로 보인다.
  *
  * 연결점(추가 Task C1, Ruling 28) — 세 가지를 둔다. 모두 `handlesOf` 에도 같은 id·종류·자리로 적는다(React Flow 는 노드 객체가 바뀔 때마다
@@ -12,15 +12,16 @@
  * - 몸통 받기 `body`(편집 모드만, START 제외): 노드 전체를 덮는 투명 target. 평소에는 누름을 받지 않고(노드 끌기·누르기·우클릭이 그대로) 연결을 끄는 동안에만
  *   받는다(React Flow 가 붙이는 `connectionindicator` 클래스) — 몸통 어디에 놓아도 이어진다.
  */
-import type { MouseEvent } from "react";
+import { useContext, useRef, useState, type MouseEvent } from "react";
 
-import { IconExternalLink } from "@tabler/icons-react";
+import { IconExternalLink, IconPencil } from "@tabler/icons-react";
 
 import type { FlowNode } from "@/contract/engine-contract.generated";
 
-import type { FlowNote } from "../flow-edit";
+import { TASK_LABEL, type FlowNote } from "../flow-edit";
 import { NODE_SIZE } from "../flow-layout";
 import type { RuleIo, VarDisplay } from "../types";
+import { GROUP_GRIPS, GroupSizeContext, type GroupGrip } from "./group-size";
 import type { NodeOverlay } from "./overlay";
 import { Handle, Position, type Node, type NodeProps, type NodeTypes } from "./react-flow";
 
@@ -51,9 +52,13 @@ export type FlowNodeData = {
   varDisplay: VarDisplay;
   /** 편집 모드 — 네 변 잇기 손잡이와 몸통 받기를 그린다(추가 Task C1). */
   linkable: boolean;
+  /** 룰 목록 줄을 끄는 동안 이 노드 위에 있다(4단계 T1) — 놓으면 룰 지정. */
+  dropTarget: boolean;
+  /** 빈 단계 제목 고치기(편집 모드만, 4단계 T1). 없으면 두 번 눌러도 칸이 열리지 않는다. */
+  onRenameTask?: (nodeId: string, label: string | null) => void;
 };
 export type NoteNodeData = { note: FlowNote; selected: boolean; editable: boolean; onChange: (id: string, patch: Partial<FlowNote>) => void };
-export type GroupNodeData = { id: string; title: string; selected: boolean };
+export type GroupNodeData = { id: string; title: string; selected: boolean; /** 편집 모드이고 고른 그룹 — 네 모서리·네 변 크기 손잡이(G2). */ resizable: boolean };
 
 type FlowRfNode = Node<FlowNodeData, "rsfFlow">;
 type NoteRfNode = Node<NoteNodeData, "rsfNote">;
@@ -63,6 +68,7 @@ const KIND_CLASS: Record<string, string> = {
   START: "rsf-terminal",
   END: "rsf-terminal",
   RULE: "rsf-rule",
+  TASK: "rsf-task",
   IF: "rsf-if",
   PARALLEL: "rsf-par",
   MERGE: "rsf-merge",
@@ -107,6 +113,80 @@ function RuleBody({ data }: { data: FlowNodeData }) {
         <IconExternalLink size={12} />
       </button>
       {mark && <span className="rsf-mark" data-severity={mark} data-testid={`flow-node-mark-${node.id}`} title={mark === "REJECT" ? "거부 검사 있음" : "경고 검사 있음"} />}
+    </>
+  );
+}
+
+/**
+ * 빈 단계(4단계 T1) — 점선 테두리(`rsf-task`), 제목만. 편집 모드면 제목을 두 번 눌러 고친다(Enter·칸 밖 누르기 = 저장, Esc = 취소).
+ * 조건식 즉석 편집(B10)과 같은 두 번 누르기 방식이다(메모는 글 칸이 늘 열려 있어 따로 제목 고치기가 없다).
+ * 제목 줄에 `nopan` 을 달아 두 번 누르기가 화면 확대(React Flow zoomOnDoubleClick)로 새지 않게 한다. 노드 끌기는 그대로다(`nodrag` 없음).
+ */
+function TaskBody({ data }: { data: FlowNodeData }) {
+  const { node, mark, onRenameTask } = data;
+  const title = node.label ?? TASK_LABEL;
+  const [draft, setDraft] = useState<string | null>(null);
+  /** 칸이 열려 있는가 — Enter 로 닫은 뒤 칸이 빠지며 오는 blur 가 한 번 더 저장하지 않게 ref 로 막는다. */
+  const editingRef = useRef(false);
+  const open = () => {
+    editingRef.current = true;
+    setDraft(title);
+  };
+  /**
+   * 칸을 닫는다. Enter·Esc(`from` 을 넘김)면 초점을 캔버스로 돌려 단축키가 이어지게 한다(칸이 빠지면 초점이 body 로 간다, Local-Rules §19).
+   * 칸 밖 누르기(blur)는 초점을 훔치지 않는다 — 다른 입력 칸으로 간 초점을 그대로 둔다.
+   */
+  const close = (save: boolean, from?: Element) => {
+    if (!editingRef.current || draft === null) return;
+    editingRef.current = false;
+    const v = draft.trim();
+    setDraft(null);
+    if (from) from.closest<HTMLElement>('[data-testid="flow-canvas"]')?.focus({ preventScroll: true });
+    if (!save) return;
+    const next = v === "" ? null : v;
+    // 보이는 제목이 그대로면(라벨 없음 + 기본 제목 그대로 등) 편집을 만들지 않는다.
+    if ((next ?? TASK_LABEL) !== title) onRenameTask?.(node.id, next);
+  };
+  return (
+    <>
+      {draft !== null ? (
+        <input
+          className="rsf-task-input nodrag nopan"
+          data-testid={`flow-task-title-input-${node.id}`}
+          aria-label="빈 단계 제목"
+          value={draft}
+          autoFocus
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              close(true, e.currentTarget);
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              close(false, e.currentTarget);
+            }
+          }}
+          onBlur={() => close(true)}
+        />
+      ) : (
+        <div
+          className="rsf-title nopan"
+          data-testid={`flow-task-title-${node.id}`}
+          title={onRenameTask ? "두 번 눌러 제목을 고친다" : undefined}
+          onDoubleClick={
+            onRenameTask
+              ? (e: MouseEvent) => {
+                  e.stopPropagation();
+                  open();
+                }
+              : undefined
+          }
+        >
+          {title}
+        </div>
+      )}
+      <div className="rsf-sub">빈 단계 — 룰을 지정하면 룰 노드가 된다</div>
+      {mark && <span className="rsf-mark" data-severity={mark} data-testid={`flow-node-mark-${node.id}`} />}
     </>
   );
 }
@@ -205,12 +285,15 @@ function LinkHandles({ node, isConnectable }: { node: FlowNode; isConnectable: b
   );
 }
 
+/** 값 고친 지점 표시(4단계 E4) — 디버그 겹침 `overlay.edited` 가 있을 때 오른쪽 아래 작은 원. */
+export const EDITED_NODE_TITLE = "이 노드 직전에 값을 고쳤다";
+
 /** 시작·끝·룰·IF·병렬·합류 — 모양은 kind 로 갈린다. */
 export function FlowNodeView({ data, isConnectable }: NodeProps<FlowRfNode>) {
   const { node, overlay, selected, flash, mark, collapsed } = data;
   const kind = node.kind;
   const stateCls = overlay ? STATE_CLASS[overlay.state] : undefined;
-  const cls = `rsf-node ${collapsed ? "rsf-block" : KIND_CLASS[kind]}${stateCls ? ` ${stateCls}` : ""}${flash ? " rsf-flash" : ""}`;
+  const cls = `rsf-node ${collapsed ? "rsf-block" : KIND_CLASS[kind]}${stateCls ? ` ${stateCls}` : ""}${flash ? " rsf-flash" : ""}${data.dropTarget ? " rsf-node-drop" : ""}`;
   return (
     <div className={cls} data-testid={`flow-node-${node.id}`} data-state={overlay?.state ?? "idle"} data-selected={selected ? "true" : "false"} data-kind={kind}>
       {kind !== "START" && <Handle id={ANCHOR_IN} type="target" position={Position.Top} className="rsf-anchor" isConnectableStart={false} />}
@@ -220,6 +303,7 @@ export function FlowNodeView({ data, isConnectable }: NodeProps<FlowRfNode>) {
       {!collapsed && kind === "START" && <span>시작</span>}
       {!collapsed && kind === "END" && <span>끝</span>}
       {!collapsed && kind === "RULE" && <RuleBody data={data} />}
+      {!collapsed && kind === "TASK" && <TaskBody data={data} />}
       {!collapsed && kind === "IF" && (
         <>
           <span className="rsf-diamond" aria-hidden="true" />
@@ -235,6 +319,11 @@ export function FlowNodeView({ data, isConnectable }: NodeProps<FlowRfNode>) {
       )}
       {!collapsed && kind === "MERGE" && mark && <span className="rsf-mark" data-severity={mark} data-testid={`flow-node-mark-${node.id}`} />}
       <Badges id={node.id} overlay={overlay} />
+      {overlay?.edited && (
+        <span className="rsf-edited" data-testid={`flow-node-edited-${node.id}`} title={EDITED_NODE_TITLE} aria-label={EDITED_NODE_TITLE}>
+          <IconPencil size={10} aria-hidden="true" />
+        </span>
+      )}
       {kind !== "END" && <Handle id={ANCHOR_OUT} type="source" position={Position.Bottom} className="rsf-anchor" isConnectableStart={false} />}
       {data.linkable && <LinkHandles node={node} isConnectable={isConnectable} />}
     </div>
@@ -259,10 +348,30 @@ export function NoteNodeView({ data }: NodeProps<NoteRfNode>) {
   );
 }
 
+/** 크기 손잡이 이름(aria-label). */
+const GRIP_LABEL: Record<GroupGrip, string> = {
+  nw: "왼쪽 위 모서리", n: "위 변", ne: "오른쪽 위 모서리", e: "오른쪽 변", se: "오른쪽 아래 모서리", s: "아래 변", sw: "왼쪽 아래 모서리", w: "왼쪽 변",
+};
+
 export function GroupNodeView({ data }: NodeProps<GroupRfNode>) {
+  const size = useContext(GroupSizeContext);
   return (
     <div className="rsf-group" data-testid={`flow-group-${data.id}`} data-selected={data.selected ? "true" : "false"}>
       <span className="rsf-group-title">{data.title}</span>
+      {data.resizable &&
+        size &&
+        GROUP_GRIPS.map((g) => (
+          <span
+            key={g}
+            className="rsf-group-grip nodrag nopan"
+            role="button"
+            data-grip={g}
+            data-testid={`flow-group-grip-${data.id}-${g}`}
+            aria-label={`그룹 크기 — ${GRIP_LABEL[g]}`}
+            title="끌어 그룹 크기를 바꾼다"
+            onPointerDown={(e) => size.startDrag(e, data.id, g)}
+          />
+        ))}
     </div>
   );
 }

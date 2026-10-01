@@ -34,7 +34,7 @@ export interface CanvasActions {
   fit(): void;
   autoLayout(): void;
   addNote(at: FlowPos): void;
-  /** 룰 찾기 팝업 → 그 선에 끼움. */
+  /** 그 선에 빈 단계를 끼우고 「룰 지정」 섹션을 연다(4단계 T1). */
   pickRuleFor(edgeId: string): void;
   insertSplitAt(edgeId: string, kind: "IF" | "PARALLEL"): void;
   removeNode(nodeId: string): void;
@@ -47,8 +47,8 @@ export interface CanvasActions {
   copy(nodeId: string): void;
   paste(edgeId: string): void;
   duplicate(nodeId: string): void;
-  /** 룰 찾기 팝업 → replaceRule. */
-  replaceRule(nodeId: string): void;
+  /** 그 노드를 고르고 오른쪽 「룰 지정」 섹션을 펴 찾기 칸에 초점(4단계 Task 8). */
+  openRuleAssign(nodeId: string): void;
   changeSplitKind(splitId: string, kind: "IF" | "PARALLEL"): void;
   dissolveSplit(splitId: string, keepEdgeId: string): void;
   toggleCollapse(splitId: string): void;

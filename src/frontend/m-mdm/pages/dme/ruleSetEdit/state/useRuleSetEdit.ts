@@ -126,6 +126,8 @@ function condKey(f: EditFlow | null): string {
 }
 
 const hasSplit = (f: EditFlow) => f.nodes.some((n) => n.kind === "IF" || n.kind === "PARALLEL");
+/** 구성 지침은 룰 ID 만으로 흐름을 갈아 끼우므로, 분기나 빈 단계가 있으면 적용하지 않는다(빈 단계를 말없이 지우지 않는다). */
+const hasEmptyStep = (f: EditFlow) => f.nodes.some((n) => n.kind === "TASK");
 const isEditResult = (r: EditResult | EditFlow): r is EditResult => typeof (r as EditResult).ok === "boolean";
 
 export function useRuleSetEdit(): RuleSetEditState {
@@ -340,7 +342,7 @@ export function useRuleSetEdit(): RuleSetEditState {
   const applyGuide = useCallback(
     (order: readonly string[], ios: readonly RuleIo[]) => {
       const cur = flowRef.current;
-      if (!cur || hasSplit(cur)) return;
+      if (!cur || hasSplit(cur) || hasEmptyStep(cur)) return;
       setRules((prev) => toMap(ios, prev));
       edit(() => toEditFlow(linearFlow(order), []));
     },

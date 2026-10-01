@@ -95,19 +95,25 @@ public class RuleSetRunner {
      * 올라간다(P-D9). 판정 시각이 null 이면 서비스 시계.
      */
     public RunTrace trace(String flowJson, Map<String, Object> record, Instant evalTs) {
+        return trace(flowJson, record, evalTs, List.of());
+    }
+
+    /** 4단계 E4 — 고친 값을 끼워 기록 실행한다. 흐름을 읽지 못한 기록에도 받은 고친 값을 되돌려 준다(비었으면 null). */
+    public RunTrace trace(String flowJson, Map<String, Object> record, Instant evalTs, List<RunTrace.TraceEdit> edits) {
         if (record == null) {
             throw new BusinessException(ErrorCode.REQUIRED_VALUE, "레코드는 필수입니다.");
         }
         Instant ts = ts(evalTs);
+        List<RunTrace.TraceEdit> echo = edits.isEmpty() ? null : List.copyOf(edits);
         FlowDefinition def;
         try {
             def = RuleSetFlowJson.parse(flowJson);
         } catch (IllegalArgumentException e) {
             return new RunTrace(UNSAVED, ts, Collections.unmodifiableMap(new LinkedHashMap<>(record)), List.of(), Map.of(),
-                    List.of(new Violation(Stage.SET_CHECK, Code.FLOW_INVALID, null, null, null, "흐름을 읽을 수 없다: " + e.getMessage())));
+                    List.of(new Violation(Stage.SET_CHECK, Code.FLOW_INVALID, null, null, null, "흐름을 읽을 수 없다: " + e.getMessage())), echo);
         }
         RuleSetDefinition set = new RuleSetDefinition(UNSAVED, RuleSetFlowJson.ruleIds(def), SetStatus.INUSE, def);
-        return engine().traceSet(set, record, ts);
+        return engine().traceSet(set, record, ts, edits);
     }
 
     /** OASIS serviceTask 입구 — 레코드 JSON·KST 시각 문자열을 받고, 판정 오류를 업무 예외로 바꾼다. */

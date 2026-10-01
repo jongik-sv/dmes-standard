@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * 캔버스 편집 동작(3단계 계획 P4·A1·A4) — 팔레트 누르기·끌어 놓기, 룰 넣기, 선택 지우기, Esc, 메뉴 항목이 부르는 편집(`CanvasActions`).
+ * 캔버스 편집 동작(3단계 계획 P4·A1·A4) — 팔레트 누르기·끌어 놓기, 빈 단계 놓기, 선택 지우기, Esc, 메뉴 항목이 부르는 편집(`CanvasActions`).
+ * 팔레트 [룰]·[+] 「룰 넣기」 는 빈 단계를 끼우고 「룰 지정」 섹션을 연다(4단계 T1). 룰은 거기서 [지정]·끌어 놓기로 고른다.
  * 2단계 page 의 `insertAt`·`pick`·`onPickRule` 를 옮겼다. 편집은 모두 `state.edit` 로 하고, 실패 사유는 메시지 줄에 보인다.
  *
  * 끌어 놓기(A1)는 캔버스가 놓은 자리의 선(없으면 null)을 계산해 넘긴다 — 룰·IF·병렬은 선 위에 놓아야 한다(2단계의 "선택된 선에 넣기"는 없앴다).
@@ -18,6 +19,7 @@ import {
   addBranch,
   addGroup,
   addNote,
+  assignRule,
   changeSplitKind,
   clearEdgeLayout,
   copyFragment,
@@ -25,12 +27,12 @@ import {
   duplicateNode,
   insertRule,
   insertSplit,
+  insertTask,
   pasteFragment,
   removeEdge,
   removeGroup,
   removeNode,
   removeNote,
-  replaceRule,
   type EditFlow,
   type EditResult,
   type Fragment,
@@ -50,9 +52,6 @@ const GROUP_TITLE = "그룹";
 /** 새 메모를 선택 노드 오른쪽에 둘 때의 간격(px). */
 const NOTE_GAP = 24;
 
-/** 룰 찾기 팝업을 여는 목적 — 선에 끼우기 또는 룰 바꾸기(Task 8). */
-export type RuleModalPurpose = { purpose: "insert"; edgeId: string | null } | { purpose: "replace"; nodeId: string };
-
 export interface EditActionsDeps {
   state: RuleSetEditState;
   flow: EditFlow | null;
@@ -66,7 +65,8 @@ export interface EditActionsDeps {
   collapsed?: ReadonlySet<string>;
   select(id: string | null): void;
   selectEdge(id: string | null): void;
-  openRuleModal(purpose: RuleModalPurpose): void;
+  /** 룰 지정 섹션 열기(4단계 Task 8) — 노드를 고르고 섹션을 펴 찾기 칸에 초점. */
+  openRuleAssign(nodeId: string): void;
   fit(): void;
   setEditingCond(edgeId: string | null): void;
   /** 메뉴가 열려 있으면 닫고 true. */
@@ -78,8 +78,8 @@ export interface EditActions {
   actions: Omit<CanvasActions, "toggleCollapse" | "toggleBreakpoint" | "runTo" | "align" | "distribute">;
   /** 팔레트 항목 누르기 — 고른 선(없으면 END 앞 선)에. */
   pickPalette(item: PaletteItem): void;
-  /** 룰 찾기 팝업에서 고른 룰을 끼운다(목적 insert). edgeId 가 null 이면 END 앞 선. */
-  insertPickedRule(edgeId: string | null, io: RuleIo): void;
+  /** 룰 목록 두 번 누르기(4단계 Task 8) — 고른 선(없으면 END 앞 선)에 끼우고 새 룰에서 나가는 선을 고른다. */
+  insertListRule(edgeId: string | null, io: RuleIo): void;
   dropPalette(item: PaletteItem, at: FlowPos, edgeId: string | null): void;
   dropRule(ruleId: string, edgeId: string | null): void;
   /**
@@ -89,7 +89,8 @@ export interface EditActions {
   deleteSelection(picked?: readonly string[]): boolean;
   escape(): void;
   hasClipboard: boolean;
-  applyReplace(nodeId: string, io: RuleIo): void;
+  /** 룰 지정 — [지정]·두 번 누르기·노드 위 끌어 놓기(4단계 T1). */
+  assignRule(nodeId: string, io: RuleIo): void;
 }
 
 const fail = (reason: string): EditResult => ({ ok: false, reason });
@@ -148,40 +149,37 @@ function centerOf(f: EditFlow, collapsed: ReadonlySet<string>): FlowPos {
 }
 
 export function useEditActions(deps: EditActionsDeps): EditActions {
-  const { state, flow, editing, selectedId, selectedEdgeId, multiSel, select, openRuleModal, fit, setEditingCond, closeMenu, clearSelection } = deps;
+  const { state, flow, editing, selectedId, selectedEdgeId, multiSel, select, selectEdge, openRuleAssign, fit, setEditingCond, closeMenu, clearSelection } = deps;
   const collapsed = deps.collapsed ?? NO_COLLAPSED;
   const { edit, addRuleIo } = state;
   /** 복사한 조각(B9) — 화면이 살아 있는 동안 남고 세트를 바꿔도 유지한다. */
   const [clipboard, setClipboard] = useState<{ frag: Fragment; ios: RuleIo[] } | null>(null);
 
-  /** 노드 add 개를 끼우는 연산 — 상한을 먼저 보고, 끼울 선을 고른 뒤, 새 노드(선 e 의 새 도착 노드)를 고른다. */
+  /**
+   * 노드 add 개를 끼우는 연산 — 상한을 먼저 보고, 끼울 선을 고른 뒤, 새 노드(선 e 의 새 도착 노드)를 고른다. 새 노드 ID(실패면 null)를 돌려준다.
+   * pick 이 "out" 이면 새 노드 대신 새 노드에서 나가는 선을 고른다(룰 목록 두 번 누르기 — 다음 두 번 누르기가 그 뒤에 잇는다, 4단계 Task 8).
+   */
   const insertAt = useCallback(
-    (preferred: string | null, add: number, op: (f: EditFlow, edgeId: string) => EditResult) => {
+    (preferred: string | null, add: number, op: (f: EditFlow, edgeId: string) => EditResult, pick: "node" | "out" = "node"): string | null => {
       let created: string | null = null;
+      let out: string | null = null;
       const reason = edit((f) => {
         if (f.nodes.length + add > MAX_NODES) return fail(NODE_LIMIT_MESSAGE);
         const edgeId = targetEdge(f, preferred);
         if (!edgeId) return fail(NO_TARGET_EDGE);
         const r = op(f, edgeId);
-        if (r.ok) created = r.flow.edges.find((e) => e.id === edgeId)?.to ?? null;
+        if (r.ok) {
+          created = r.flow.edges.find((e) => e.id === edgeId)?.to ?? null;
+          out = r.flow.edges.find((e) => e.from === created)?.id ?? null;
+        }
         return r;
       });
-      if (!reason && created) select(created);
+      if (reason || !created) return null;
+      if (pick === "out" && out) selectEdge(out);
+      else select(created);
+      return created;
     },
-    [edit, select],
-  );
-
-  /** 룰 찾기 팝업을 연다(끼우기) — 상한이면 팝업 없이 문구만. */
-  const askRule = useCallback(
-    (edgeId: string | null) => {
-      if (!flow) return;
-      if (flow.nodes.length + 1 > MAX_NODES) {
-        edit(() => fail(NODE_LIMIT_MESSAGE));
-        return;
-      }
-      openRuleModal({ purpose: "insert", edgeId });
-    },
-    [flow, edit, openRuleModal],
+    [edit, select, selectEdge],
   );
 
   const placeNote = useCallback(
@@ -206,6 +204,15 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
     [flow, selectedId, collapsed, edit, select],
   );
 
+  /** 빈 단계를 끼우고(4단계 T1 — 팔레트 [룰]·[+] 「룰 넣기」) 그 노드를 고른 채 오른쪽 「룰 지정」 섹션을 펴 찾기 칸에 초점을 둔다. */
+  const placeTask = useCallback(
+    (edgeId: string | null) => {
+      const id = insertAt(edgeId, 1, (f, e) => insertTask(f, e));
+      if (id) openRuleAssign(id);
+    },
+    [insertAt, openRuleAssign],
+  );
+
   /** 그룹 — 캔버스 다중 선택(없으면 단일 선택 노드)으로 만든다. */
   const makeGroup = useCallback(() => {
     if (!flow) return;
@@ -223,12 +230,12 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
   const pickPalette = useCallback(
     (item: PaletteItem) => {
       if (!flow || !editing) return;
-      if (item === "rule") askRule(selectedEdgeId);
+      if (item === "rule") placeTask(selectedEdgeId);
       else if (item === "if" || item === "par") insertAt(selectedEdgeId, 2, (f, e) => insertSplit(f, e, item === "if" ? "IF" : "PARALLEL"));
       else if (item === "note") placeNote(undefined);
       else makeGroup();
     },
-    [flow, editing, selectedEdgeId, askRule, insertAt, placeNote, makeGroup],
+    [flow, editing, selectedEdgeId, placeTask, insertAt, placeNote, makeGroup],
   );
 
   const dropPalette = useCallback(
@@ -240,10 +247,10 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
         edit(() => fail(DROP_ON_EDGE));
         return;
       }
-      if (item === "rule") askRule(edgeId);
+      if (item === "rule") placeTask(edgeId);
       else insertAt(edgeId, 2, (f, e) => insertSplit(f, e, item === "if" ? "IF" : "PARALLEL"));
     },
-    [flow, editing, edit, placeNote, makeGroup, askRule, insertAt],
+    [flow, editing, edit, placeNote, makeGroup, placeTask, insertAt],
   );
 
   const dropRule = useCallback(
@@ -258,11 +265,12 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
     [flow, editing, edit, insertAt],
   );
 
-  const insertPickedRule = useCallback(
+  /** 룰 목록 두 번 누르기(4단계 Task 8) — 고른 선(없으면 END 앞 선)에 끼우고 새 룰에서 나가는 선을 고른다. */
+  const insertListRule = useCallback(
     (edgeId: string | null, io: RuleIo) => {
       if (!editing) return;
       addRuleIo(io);
-      insertAt(edgeId, 1, (f, e) => insertRule(f, e, io.ruleId));
+      insertAt(edgeId, 1, (f, e) => insertRule(f, e, io.ruleId), "out");
     },
     [editing, addRuleIo, insertAt],
   );
@@ -296,11 +304,12 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
     clearSelection();
   }, [closeMenu, setEditingCond, clearSelection]);
 
-  const applyReplace = useCallback(
+  /** 룰 지정(4단계 T1) — 빈 단계는 룰 노드가 되고 룰 노드는 룰만 바뀐다. IO 를 먼저 룰 맵에 넣고 편집 한 번(되돌리기 한 칸). */
+  const assignRuleTo = useCallback(
     (nodeId: string, io: RuleIo) => {
       if (!editing) return;
       addRuleIo(io);
-      edit((f) => replaceRule(f, nodeId, io.ruleId));
+      edit((f) => assignRule(f, nodeId, io.ruleId));
     },
     [editing, addRuleIo, edit],
   );
@@ -345,7 +354,7 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
         if (editing) placeNote(at);
       },
       pickRuleFor: (edgeId: string) => {
-        if (editing) askRule(edgeId);
+        if (editing) placeTask(edgeId);
       },
       insertSplitAt: (edgeId: string, kind: "IF" | "PARALLEL") => {
         if (editing) insertAt(edgeId, 2, (f, e) => insertSplit(f, e, kind));
@@ -370,8 +379,8 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
       duplicate: (nodeId: string) => {
         if (editing) edit((f) => duplicateNode(f, nodeId));
       },
-      replaceRule: (nodeId: string) => {
-        if (editing) openRuleModal({ purpose: "replace", nodeId });
+      openRuleAssign: (nodeId: string) => {
+        if (editing) openRuleAssign(nodeId);
       },
       changeSplitKind: (splitId: string, kind: "IF" | "PARALLEL") => {
         if (editing) edit((f) => changeSplitKind(f, splitId, kind));
@@ -380,18 +389,18 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
         if (editing) edit((f) => dissolveSplit(f, splitId, keepEdgeId));
       },
     }),
-    [editing, edit, fit, placeNote, askRule, insertAt, setEditingCond, copy, paste, openRuleModal],
+    [editing, edit, fit, placeNote, placeTask, insertAt, setEditingCond, copy, paste, openRuleAssign],
   );
 
   return {
     actions,
     pickPalette,
-    insertPickedRule,
+    insertListRule,
     dropPalette,
     dropRule,
     deleteSelection,
     escape,
     hasClipboard: clipboard !== null,
-    applyReplace,
+    assignRule: assignRuleTo,
   };
 }

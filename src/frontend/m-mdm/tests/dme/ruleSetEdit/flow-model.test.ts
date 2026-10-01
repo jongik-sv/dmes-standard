@@ -345,3 +345,53 @@ describe("linearFlow·flowRuleIds", () => {
     expect(parsed.tree).not.toBeNull();
   });
 });
+
+describe("빈 단계(TASK) — 4단계 spec §1.1", () => {
+  /** start → t1(TASK) → r1(R1) → end */
+  const taskFlow = (): RuleSetFlow =>
+    flow(
+      [node("start", "START"), node("t1", "TASK", { label: "빈 단계" }), node("r1", "RULE", { ruleId: "R1" }), node("end", "END")],
+      [edge("e1", "start", "t1"), edge("e2", "t1", "r1"), edge("e3", "r1", "end")],
+    );
+
+  it("TASK 는 블록 트리의 TASK 칸이 되고 룰 목록에는 들지 않는다", () => {
+    const p = parseFlow(taskFlow());
+    expect(p.issues).toEqual([]);
+    expect(p.tree!.root.items).toEqual([
+      { type: "TASK", nodeId: "t1" },
+      { type: "RULE", nodeId: "r1", ruleId: "R1" },
+    ]);
+    expect(p.tree!.ruleIds()).toEqual(["R1"]);
+    expect(flowRuleIds(taskFlow())).toEqual(["R1"]);
+    expect(p.tree!.relation("t1", "r1")).toBe("BEFORE");
+  });
+
+  it("IF 갈래 안의 TASK 는 그 갈래 본문이고 다른 갈래와 EXCLUSIVE 다", () => {
+    const f = flow(
+      [node("start", "START"), node("if1", "IF"), node("t1", "TASK"), node("r2", "RULE", { ruleId: "R2" }), node("m1", "MERGE", { splitId: "if1" }), node("end", "END")],
+      [
+        edge("e1", "start", "if1"),
+        edge("e2", "if1", "t1", { order: 1, cond: "A = 1" }),
+        edge("e3", "if1", "r2", { otherwise: true }),
+        edge("e4", "t1", "m1"),
+        edge("e5", "r2", "m1"),
+        edge("e6", "m1", "end"),
+      ],
+    );
+    const p = parseFlow(f);
+    expect(p.issues).toEqual([]);
+    const split = p.tree!.root.items[0];
+    expect(split.type).toBe("SPLIT");
+    if (split.type !== "SPLIT") return;
+    expect(split.branches[0].body.items).toEqual([{ type: "TASK", nodeId: "t1" }]);
+    expect(p.tree!.relation("t1", "r2")).toBe("EXCLUSIVE");
+  });
+
+  it("TASK 는 나가는 선이 하나여야 한다", () => {
+    const f = flow(
+      [node("start", "START"), node("t1", "TASK"), node("r1", "RULE", { ruleId: "R1" }), node("r2", "RULE", { ruleId: "R2" }), node("end", "END")],
+      [edge("e1", "start", "t1"), edge("e2", "t1", "r1"), edge("e3", "t1", "r2"), edge("e4", "r1", "end"), edge("e5", "r2", "end")],
+    );
+    expect(parseFlow(f).issues).toContainEqual(S("t1", "t1의 나가는 선이 2개다. 1개여야 한다"));
+  });
+});

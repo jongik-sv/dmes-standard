@@ -2,8 +2,8 @@
 // 골든의 trace 는 서버 execute 응답 그대로(엔진 RunTrace 스키마)이고, flowJson 은 P2 정규 JSON 문자열이다.
 import { describe, expect, it } from "vitest";
 
-import type { FlowNodeKind, NodeTrace, RuleSetFlow, RunTrace, TypedValue } from "../../../src/contract/engine-contract.generated";
-import { frames, overlayAt, typedText, valueTable } from "../../../pages/dme/ruleSetEdit/trace-view";
+import type { FlowNodeKind, NodeTrace, RuleSetFlow, RunTrace, TraceEdit, TypedValue } from "../../../src/contract/engine-contract.generated";
+import { debugOverlay, frames, overlayAt, typedText, validEdits, valueTable } from "../../../pages/dme/ruleSetEdit/trace-view";
 import { golden, goldenCases } from "../helpers/rule-set-golden";
 
 const CASE_NAMES = ["IF_FIRST_TRUE", "IF_NULL_ELSE", "IF_ERROR_STOPS", "PARALLEL_MERGE", "IF_IN_PARALLEL", "STRUCTURE_ERROR", "MISSING_INPUT"];
@@ -304,5 +304,113 @@ describe("trace-view(손 기록)", () => {
     expect(typedText(null)).toBe("NULL");
     expect(typedText({ type: "BOOLEAN", value: "true" })).toBe("true");
     expect(typedText({ type: "LIST", items: [{ type: "NUMBER", value: "1.10" }, { type: "STRING", value: "a" }] })).toBe("[1.10, a]");
+  });
+  it("병렬 갈래 안의 빈 단계(TASK)는 그 갈래 범위의 값을 본다 — 앞 룰 결과가 보이고 형제 갈래 값은 안 보인다", () => {
+    /** start → par1 ─(p1: ra → t1)─(p2: rb)→ m1 → end */
+    const flow: RuleSetFlow = {
+      version: 1,
+      nodes: [fnode("start", "START"), fnode("par1", "PARALLEL"), fnode("ra", "RULE", { ruleId: "RA" }), fnode("t1", "TASK"),
+        fnode("rb", "RULE", { ruleId: "RB" }), fnode("m1", "MERGE", { splitId: "par1" }), fnode("end", "END")],
+      edges: [fedge("e1", "start", "par1"), fedge("p1", "par1", "ra", 1), fedge("e2", "ra", "t1"), fedge("e3", "t1", "m1"),
+        fedge("p2", "par1", "rb", 2), fedge("e4", "rb", "m1"), fedge("e5", "m1", "end")],
+    };
+    const trace: RunTrace = {
+      setId: "(저장 전)", evalTs: "2026-06-01T09:00:00", input: { X: N("0") }, violations: null,
+      finalValues: { X: N("1"), Y: N("3") },
+      nodes: [
+        node(1, "start", "START"),
+        node(2, "par1", "PARALLEL", { order: ["p1", "p2"] }),
+        ruleNode(3, "ra", "RA", { X: N("1") }),
+        node(4, "t1", "TASK"),
+        ruleNode(5, "rb", "RB", { Y: N("3") }),
+        node(6, "m1", "MERGE", { splitId: "par1", merged: ["X", "Y"] }),
+        node(7, "end", "END"),
+      ],
+    };
+    const fr = frames(trace, flow);
+    expect(fr[3].before.X).toEqual(N("1"));
+    expect(fr[3].changed).toEqual([]);
+    expect(fr[4].before.X).toEqual(N("0"));
+  });
+});
+
+// ── 4단계 E4 — 고친 값(edits)의 퍼짐 규칙(스펙 §2.2). 엔진 FlowRun 과 같은 규칙이다 ─────────────────────────
+
+/** 골든 기록에 edits 를 붙인 사본(서버가 받은 edit 를 그대로 되돌려 준다 — 스펙 §2.3). 나머지 기록은 바꾸지 않는다. */
+const withEdits = (t: RunTrace, edits: TraceEdit[]): RunTrace => ({ ...t, edits });
+
+describe("trace-view — 고친 값 반영(4단계 E4)", () => {
+  it("최상위 — 노드 seq 직전에 그 범위 ctx 에 넣는다. before 부터 보이고 edited 에 이름이 남는다", () => {
+    const { flow, trace } = golden("IF_FIRST_TRUE"); // start(1) r1(2) if1(3) r2(4) m1(5) end(6)
+    const fr = frames(withEdits(trace, [{ beforeSeq: 3, nodeId: "if1", values: { GT_G: S("B"), GT_THK: NULL, GT_NEW: N("1") } }]), flow);
+    expect(fr[1].ctx).toMatchObject({ GT_G: S("A") }); // r1 실행 뒤는 그대로
+    expect(fr[2].before).toMatchObject({ GT_G: S("B"), GT_THK: NULL, GT_NEW: N("1") });
+    expect(fr[2].edited).toEqual(["GT_G", "GT_THK", "GT_NEW"]);
+    expect(fr[3].before.GT_G).toEqual(S("B"));
+    expect(fr[5].ctx.GT_G).toEqual(S("B"));
+    expect(fr[1].edited).toEqual([]);
+  });
+
+  it("이름은 대소문자 무시로 바꿔 넣는다 — 옛 키를 지우고 edit 의 철자로", () => {
+    const { flow, trace } = golden("IF_FIRST_TRUE");
+    const fr = frames(withEdits(trace, [{ beforeSeq: 3, nodeId: "if1", values: { gt_g: S("B") } }]), flow);
+    expect(fr[2].before.gt_g).toEqual(S("B"));
+    expect(fr[2].before.GT_G).toBeUndefined();
+  });
+
+  it("병렬 — 갈래 안 입력 고침은 그 갈래 안에서만, 갈래 made 에 있는 결과 고침은 합류까지 간다(made 키도 edit 철자로)", () => {
+    const { flow, trace } = golden("PARALLEL_MERGE"); // start(1) r1(2) par1(3) [p1: r2(4) rs1(5)] [p2: r3(6) rs2(7)] m1(8) end(9)
+    const fr = frames(
+      withEdits(trace, [
+        { beforeSeq: 5, nodeId: "rs1", values: { gt_f: N("9") } }, // p1 갈래가 만든 GT_F(결과) — made 에 있다
+        { beforeSeq: 6, nodeId: "r3", values: { GT_THK: S("30") } }, // p2 갈래 입력 — made 에 없다
+      ]),
+      flow,
+    );
+    expect(fr[4].before.gt_f).toEqual(N("9"));
+    expect(fr[4].before.GT_THK).toEqual(S("12")); // p1 갈래는 p2 의 입력 고침을 모른다
+    expect(fr[5].before.GT_THK).toEqual(S("30"));
+    expect(fr[5].before.gt_f).toBeUndefined(); // p2 갈래는 p1 결과를 모른다
+    expect(fr[6].ctx.GT_THK).toEqual(S("30"));
+    expect(fr[7].ctx.GT_THK).toEqual(S("12")); // 합류 뒤 — 갈래 ctx 는 버린다
+    expect(fr[7].ctx.gt_f).toEqual(N("9")); // 갈래 made 를 합친다
+    expect(fr[7].ctx.GT_F).toBeUndefined();
+    expect(fr[7].changed).not.toContain("GT_THK");
+  });
+
+  it("그 자리 노드 ID 가 다른 edit 는 적용하지 않는다(서버는 EDIT_POINT_MISMATCH 로 멈춘다)", () => {
+    const { flow, trace } = golden("IF_FIRST_TRUE");
+    const t = withEdits(trace, [{ beforeSeq: 3, nodeId: "r2", values: { GT_G: S("B") } }]);
+    expect(validEdits(t)).toEqual([]);
+    const fr = frames(t, flow);
+    expect(fr[2].before.GT_G).toEqual(S("A"));
+    expect(fr[2].edited).toEqual([]);
+  });
+
+  it("edits 가 없거나 null 이면 지금과 같다", () => {
+    const { flow, trace } = golden("PARALLEL_MERGE");
+    expect(frames(withEdits(trace, []), flow).map((f) => f.ctx)).toEqual(frames(trace, flow).map((f) => f.ctx));
+    expect(frames({ ...trace, edits: null }, flow).map((f) => f.before)).toEqual(frames(trace, flow).map((f) => f.before));
+  });
+
+  it("debugOverlay — 고친 지점 노드에 edited, 끝(k = n)에서도. 고치지 않은 노드에는 키가 없다", () => {
+    const { flow, trace } = golden("IF_FIRST_TRUE");
+    const t = withEdits(trace, [{ beforeSeq: 3, nodeId: "if1", values: { GT_G: S("B") } }]);
+    expect(debugOverlay(t, flow, 3).nodes.if1).toEqual({ state: "run", seq: 3, chip: null, edited: true });
+    expect(debugOverlay(t, flow, 1).nodes.if1).toEqual({ state: "next", seq: null, chip: null, edited: true }); // 아직 안 지난 지점에도
+    expect(debugOverlay(t, flow, t.nodes.length).nodes.if1.edited).toBe(true);
+    expect("edited" in debugOverlay(t, flow, 3).nodes.r1).toBe(false);
+    expect("edited" in debugOverlay(trace, flow, 3).nodes.if1).toBe(false);
+  });
+
+  it("병렬 합류 직전 고침 — 엔진은 갈래를 합친 뒤 edit 를 넣으므로 고친 값이 갈래 값을 이긴다(finalValues 까지)", () => {
+    const { flow, trace } = golden("PARALLEL_MERGE"); // m1 = seq 8
+    const t = withEdits(trace, [{ beforeSeq: 8, nodeId: "m1", values: { GT_F: N("9") } }]);
+    const fr = frames(t, flow);
+    const m = fr.find((f) => f.node.nodeId === "m1")!;
+    expect(m.before.GT_F).toEqual(N("9")); // 커서 m1 에서 보인다
+    expect(m.ctx.GT_F).toEqual(N("9")); // 합친 뒤에도 고친 값
+    expect(m.edited).toEqual(["GT_F"]);
+    expect(fr.at(-1)!.ctx.GT_F).toEqual(N("9"));
   });
 });

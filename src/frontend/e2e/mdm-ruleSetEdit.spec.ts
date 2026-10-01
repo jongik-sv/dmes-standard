@@ -6,6 +6,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  *
  * 스모크 넷: E1 메뉴 이동, E2 서버 데이터(캔버스 노드·입출력 표·검사), E5 수정 한 번(저장·다시 불러와도 유지), E8 서버 오류(MDM001).
  * 고유: E3 캔버스 편집(IF 끼우기 → 거부로 저장 꺼짐 → 조건식 → 저장 켜짐)·dirty 확인, E4 순환은 즉시 거부되고 저장이 꺼진다(P-D4),
+ * (4단계) 룰은 도구 상자 [룰] 로 빈 단계를 놓고 오른쪽 「룰 지정」 으로 고른다 — 룰 찾기 팝업은 없다.
  * E5 수용 4 중복 대입 경고, E6 구성 지침 → 제안 순서 적용 → 저장 → 다시 열어 순서 유지, E7 폐기·되살리기, E9 권한(READ — 디버그 모드는 들어가지만 실행 단추가 꺼진다),
  * E10 속성 패널의 룰 편집 열기, E11 디버그 모드(단계 실행·중단점·계속·끝내기·값 표), E12 룰 박스 링크 아이콘과 박스 누르기,
  * E13 편집기(룰 목록에서 선으로 끌어 넣기·되돌리기·다시 하기·[+] 메뉴로 IF 넣기·분기 종류 바꾸기·Ctrl+Z),
@@ -96,13 +97,18 @@ async function enterEditMode(page: Page) {
   await expect(page.getByTestId("flow-palette")).toBeVisible();
 }
 
-/** 팔레트 [룰] → 룰 찾기 팝업 → 후보를 눌러 끼운다. 끼울 선을 고르지 않았으면 END 로 들어가는 선에 끼워진다. */
+/**
+ * 도구 상자 [룰] → 고른 선(없으면 END 앞 선)에 빈 단계가 놓이고 오른쪽 「룰 지정」 섹션의 찾기 칸에 초점이 간다 → 찾아 [지정].
+ * 빈 단계는 같은 ID(r 접두어)의 룰 노드가 된다 — 끼운 순서대로 r(N+1)… 이다.
+ */
 async function addRule(page: Page, keyword: string, ruleIds: string[]) {
   for (const id of ruleIds) {
     await page.getByTestId("flow-add-rule").click();
-    await page.getByTestId("flow-rule-search-keyword").fill(keyword);
-    await page.getByTestId("flow-rule-search-find").click();
-    await page.getByTestId(`flow-rule-cand-${id}`).click();
+    await expect(page.getByTestId("flow-panel-kind")).toHaveText("빈 단계");
+    await page.getByTestId("flow-rule-panel-search").fill(keyword);
+    await page.getByTestId("flow-rule-panel-find").click();
+    await page.getByTestId(`flow-rule-assign-${id}`).click();
+    await expect(page.getByTestId("flow-panel-kind")).toHaveText("룰");
   }
 }
 

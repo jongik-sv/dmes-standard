@@ -612,7 +612,7 @@ describe("화면 — [공간] 토글·Alt+끌기", () => {
 
   it("보기 모드 — [공간] 이 꺼져 있고 Alt+끌기도 무시한다. 편집 모드를 떠나면 켜 둔 토글이 꺼진다", async () => {
     await openSet("SC_V", viewOf("SC_V", chain()));
-    expect((byTestId("flow-space-tool") as HTMLButtonElement).disabled).toBe(true);
+    expect(q("flow-space-tool")).toBeNull(); // 보기 모드 도구 상자는 [손]·[영역 선택] 만
     const r2 = at("r2");
     await spaceDrag({ x: r2.x + 10, y: r2.y - 10 }, 2, 60, { altKey: true });
     expect(at("r2")).toEqual(r2);
@@ -620,7 +620,7 @@ describe("화면 — [공간] 토글·Alt+끌기", () => {
     await click("flow-space-tool");
     expect(pressed()).toBe("true");
     await click("flow-mode-view");
-    expect(pressed()).toBe("false");
+    expect(q("flow-space-tool")).toBeNull();
     await click("flow-mode-edit");
     expect(pressed()).toBe("false");
   });

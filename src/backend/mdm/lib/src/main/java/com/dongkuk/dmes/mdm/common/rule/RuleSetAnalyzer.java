@@ -121,16 +121,22 @@ public final class RuleSetAnalyzer {
         return checks(FlowParser.linear(ids), rules, Map.of()).stream().map(RuleSetCheck::withoutLocation).toList();
     }
 
-    /** 계획 C4 — 존재·상태 → EMPTY → 구조 → 경로(깊이 우선). */
+    /** 계획 C4 — 존재·상태 → EMPTY → 빈 단계(EMPTY_TASK) → 구조 → 경로(깊이 우선). */
     public static List<RuleSetCheck> checks(FlowDefinition flow, Map<String, RuleIo> rules, Map<String, CondIo> condIo) {
         List<RuleSetCheck> out = new ArrayList<>();
         FlowParse parse = FlowParser.parse(flow);
         List<String> ids = RuleSetFlowJson.ruleIds(flow, parse);
         Map<String, String> firstNode = new HashMap<>();
         Set<String> seenNodes = new HashSet<>();
+        int tasks = 0;
         for (FlowNode n : flow.nodes()) {
-            if (seenNodes.add(n.id()) && n.kind() == NodeKind.RULE && n.ruleId() != null) {
+            if (!seenNodes.add(n.id())) {
+                continue;
+            }
+            if (n.kind() == NodeKind.RULE && n.ruleId() != null) {
                 firstNode.putIfAbsent(n.ruleId(), n.id());
+            } else if (n.kind() == NodeKind.TASK) {
+                tasks++;
             }
         }
         for (String id : ids) {
@@ -145,8 +151,12 @@ public final class RuleSetAnalyzer {
                         id + "는 RELEASED 버전이 없어 입출력을 계산하지 않았다. 이대로 부르면 판정 오류다", node, null));
             }
         }
-        if (flow.nodes().stream().noneMatch(n -> n.kind() == NodeKind.RULE)) {
+        // 빈 단계도 단계로 센다 — 그림부터 그리고 룰을 나중에 채우는 흐름을 저장할 수 있게(컨트롤러 Ruling)
+        if (flow.nodes().stream().noneMatch(n -> n.kind() == NodeKind.RULE || n.kind() == NodeKind.TASK)) {
             out.add(new RuleSetCheck(RuleSetCheck.EMPTY, RuleSetCheck.REJECT, null, null, null, "룰이 하나도 없다"));
+        }
+        if (tasks > 0) {
+            out.add(new RuleSetCheck(RuleSetCheck.EMPTY_TASK, RuleSetCheck.WARN, null, null, null, "빈 단계 " + tasks + "개 — 실행 때 그냥 지나간다"));
         }
         for (FlowIssue i : parse.issues()) {
             out.add(new RuleSetCheck(i.code(), RuleSetCheck.REJECT, null, null, null, i.message(), i.nodeId(), i.edgeId()));

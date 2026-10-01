@@ -12,6 +12,7 @@ export const NODE_SIZE: Readonly<Record<FlowNodeKind, { w: number; h: number }>>
   START: { w: 120, h: 36 },
   END: { w: 120, h: 36 },
   RULE: { w: 232, h: 68 },
+  TASK: { w: 232, h: 68 }, // 빈 단계 — 룰과 같은 크기(룰을 지정해도 자리가 흔들리지 않는다, 4단계 spec §1.2)
   IF: { w: 176, h: 44 },
   PARALLEL: { w: 200, h: 14 },
   MERGE: { w: 28, h: 28 },

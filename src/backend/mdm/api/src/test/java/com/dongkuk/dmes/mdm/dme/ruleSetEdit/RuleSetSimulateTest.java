@@ -5,9 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.dongkuk.dmes.cactus.audit.CactusAudit;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.rule.CondIo;
+import com.dongkuk.dmes.mdm.common.rule.RuleSetCheck;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetFlowJson;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetRunner;
 import com.dongkuk.dmes.mdm.common.rule.dto.RuleSetRunRequest;
@@ -17,11 +19,14 @@ import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetCondIoRequest;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetCondIoResult;
+import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetSaveRequest;
+import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetSaveResult;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetSimulateRequest;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetSimulateResult;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetStatusRequest;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetViewRequest;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.service.RuleSetEditService;
+import com.dongkuk.oasis.audit.AuditHolder;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -448,5 +453,154 @@ public class RuleSetSimulateTest extends AbstractMdmSharedDbTest {
         assertEquals("MDM026", code(r), r.getMessage());
         assertTrue(r.getMessage().contains("GT_BROKEN_OLD"), r.getMessage());
         assertEquals("DEPRECATED", jdbc.queryForObject("SELECT STATUS FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = 'GT_BROKEN_OLD'", String.class));
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // 4단계 E4(editsJson)·T1(빈 단계)
+    // ────────────────────────────────────────────────────────────────
+
+    /** IF_FIRST_TRUE 의 if1(순번 3) 직전에 GT_G 를 B 로 고친다 — 그 외 갈래(e4 → r3 GT_SLOW)로 간다. */
+    public static final String EDIT_IF1_B = "[{\"beforeSeq\":3,\"nodeId\":\"if1\",\"values\":{\"GT_G\":\"B\"}}]";
+
+    private RuleSetSimulateResult simulate(String flowJson, String recordJson, String editsJson) {
+        RuleSetSimulateRequest req = request(flowJson, recordJson, EVAL_TS);
+        req.setEditsJson(editsJson);
+        return service.simulate(req);
+    }
+
+    private static List<String> nodeIds(JsonNode trace) {
+        List<String> ids = new ArrayList<>();
+        trace.path("nodes").forEach(n -> ids.add(n.path("nodeId").asText()));
+        return ids;
+    }
+
+    @Test
+    void 고친_값을_끼워_다시_실행하면_갈래가_바뀌고_받은_edits_를_TypedValue_로_되돌려_준다() throws Exception {
+        GoldenCase c = golden("IF_FIRST_TRUE");
+        JsonNode trace = response(simulate(c.flowJson(), c.recordJson(), EDIT_IF1_B)).path("trace");
+
+        assertEquals(List.of("start", "r1", "if1", "r3", "m1", "end"), nodeIds(trace));
+        assertEquals("e4", trace.path("nodes").get(2).path("chosenEdgeId").asText());
+        assertEquals("B", trace.path("finalValues").path("GT_G").path("value").asText());
+        assertEquals("5", trace.path("finalValues").path("GT_S").path("value").asText());
+        assertTrue(trace.path("violations").isNull(), trace.toString());
+        assertEquals(JSON.readTree("[{\"beforeSeq\":3,\"nodeId\":\"if1\",\"values\":{\"GT_G\":{\"type\":\"STRING\",\"value\":\"B\"}}}]"),
+                trace.path("edits"));
+        assertTrue(RUN_TRACE_SCHEMA.validate(trace).isEmpty(), trace.toString());
+    }
+
+    @Test
+    void 비었거나_빈_배열인_editsJson_은_고친_값_없는_골든과_같고_edits_키가_없다() throws IOException {
+        GoldenCase c = golden("IF_FIRST_TRUE");
+        JsonNode expected = readGolden().get("IF_FIRST_TRUE").path("response").path("trace");
+        for (String none : java.util.Arrays.asList(null, "", " ", "[]")) {
+            JsonNode trace = response(simulate(c.flowJson(), c.recordJson(), none)).path("trace");
+            assertEquals(expected, trace, String.valueOf(none));
+            assertTrue(!trace.has("edits"), String.valueOf(none));
+        }
+    }
+
+    @Test
+    void 잘못된_editsJson_은_recordJson_과_같은_INVALID_VALUE_로_거부한다() {
+        GoldenCase c = golden("IF_FIRST_TRUE");
+        for (String notArray : List.of("{}", "고침")) {
+            BusinessException e = assertThrows(BusinessException.class, () -> simulate(c.flowJson(), c.recordJson(), notArray));
+            assertEquals(ErrorCode.INVALID_VALUE, e.getErrorCode(), notArray);
+            assertEquals("고친 값 JSON 은 배열이어야 합니다: " + notArray, e.getMessage());
+        }
+        for (String bad : List.of("[1]",
+                "[{\"beforeSeq\":0,\"nodeId\":\"if1\",\"values\":{}}]",
+                "[{\"beforeSeq\":\"3\",\"nodeId\":\"if1\",\"values\":{}}]",
+                "[{\"beforeSeq\":3,\"nodeId\":\" \",\"values\":{}}]",
+                "[{\"beforeSeq\":3,\"nodeId\":\"if1\",\"values\":[]}]",
+                "[{\"beforeSeq\":3,\"nodeId\":\"if1\",\"values\":null}]",
+                "[{\"beforeSeq\":3,\"nodeId\":\"if1\"}]",
+                "[{\"nodeId\":\"if1\",\"values\":{}}]",
+                "[{\"beforeSeq\":3,\"values\":{}}]")) {
+            BusinessException e = assertThrows(BusinessException.class, () -> simulate(c.flowJson(), c.recordJson(), bad));
+            assertEquals(ErrorCode.INVALID_VALUE, e.getErrorCode(), bad);
+            assertEquals("고친 값 JSON 의 1번째 항목은 {beforeSeq: 1 이상 정수, nodeId: 글자, values: 객체} 여야 합니다: " + bad, e.getMessage());
+        }
+        String second = "[{\"beforeSeq\":3,\"nodeId\":\"if1\",\"values\":{}},5]";
+        BusinessException e = assertThrows(BusinessException.class, () -> simulate(c.flowJson(), c.recordJson(), second));
+        assertTrue(e.getMessage().startsWith("고친 값 JSON 의 2번째 항목은"), e.getMessage());
+    }
+
+    @Test
+    void 레코드_입력이_막는_예약_이름은_고친_값_이름으로도_INVALID_VALUE_로_거부한다() {
+        GoldenCase c = golden("IF_FIRST_TRUE");
+        for (String key : List.of("EVAL_TS", "eval_ts", "PI", "_hidden")) {
+            String edits = "[{\"beforeSeq\":3,\"nodeId\":\"if1\",\"values\":{\"" + key + "\":\"B\"}}]";
+            BusinessException e = assertThrows(BusinessException.class, () -> simulate(c.flowJson(), c.recordJson(), edits));
+            assertEquals(ErrorCode.INVALID_VALUE, e.getErrorCode(), key);
+            assertTrue(e.getMessage().contains("고친 값 이름 '" + key + "'"), e.getMessage());
+        }
+    }
+
+    @Test
+    void 고친_값의_NUMBER_글자와_비우기_null_이_왕복한다() throws Exception {
+        GoldenCase c = golden("IF_FIRST_TRUE");
+        String edits = "[{\"beforeSeq\":3,\"nodeId\":\"if1\",\"values\":{\"GT_THK\":2.50,\"GT_G\":null}}]";
+        JsonNode trace = response(simulate(c.flowJson(), c.recordJson(), edits)).path("trace");
+
+        JsonNode values = trace.path("edits").get(0).path("values");
+        assertEquals("NUMBER", values.path("GT_THK").path("type").asText(), trace.toString());
+        assertEquals("2.50", values.path("GT_THK").path("value").asText(), trace.toString());
+        assertEquals("NULL", values.path("GT_G").path("type").asText(), trace.toString());
+        assertTrue(RUN_TRACE_SCHEMA.validate(trace).isEmpty(), trace.toString());
+    }
+
+    @Test
+    void 자리가_어긋난_고친_값은_EDIT_POINT_MISMATCH_위반으로_기록에_담긴다() {
+        GoldenCase c = golden("IF_FIRST_TRUE");
+        JsonNode trace = response(simulate(c.flowJson(), c.recordJson(),
+                "[{\"beforeSeq\":3,\"nodeId\":\"r2\",\"values\":{\"GT_G\":\"B\"}}]")).path("trace");
+
+        assertEquals(List.of("start", "r1", "if1"), nodeIds(trace));
+        assertEquals("ERROR", trace.path("nodes").get(2).path("status").asText());
+        JsonNode v = trace.path("violations").get(0);
+        assertEquals("INPUT_CHECK", v.path("stage").asText());
+        assertEquals("EDIT_POINT_MISMATCH", v.path("code").asText());
+        assertEquals("r2", v.path("name").asText());
+        assertTrue(RUN_TRACE_SCHEMA.validate(trace).isEmpty(), trace.toString());
+    }
+
+    /** start → r1(GT_GRADE) → t1(TASK) → end. */
+    static String taskFlow() {
+        Flow f = new Flow();
+        f.node("start", "START", null, null).node("r1", "RULE", "GT_GRADE", null).node("t1", "TASK", null, null).node("end", "END", null, null);
+        f.edge("e1", "start", "r1", null, null, false).edge("e2", "r1", "t1", null, null, false).edge("e3", "t1", "end", null, null, false);
+        return f.canonical();
+    }
+
+    @Test
+    void 빈_단계가_있는_흐름은_저장되고_view_와_save_가_EMPTY_TASK_경고를_싣고_실행은_지나간다() throws Exception {
+        RuleSetCheck warn = new RuleSetCheck(RuleSetCheck.EMPTY_TASK, RuleSetCheck.WARN, null, null, null, "빈 단계 1개 — 실행 때 그냥 지나간다");
+        storedSet("GT_TASK", "INUSE", taskFlow());
+        AuditHolder.setAudit(new CactusAudit("kim", "ruleSetEditMenu", "ruleSetEdit"));
+        try {
+            RuleSetViewRequest view = new RuleSetViewRequest();
+            view.setSetId("GT_TASK");
+            List<RuleSetCheck> viewChecks = service.view(view).getChecks();
+            assertTrue(viewChecks.contains(warn), viewChecks.toString());
+
+            RuleSetSaveRequest save = new RuleSetSaveRequest();
+            save.setSetId("GT_TASK");
+            save.setSetName("빈 단계 세트");
+            save.setRowVersion(0L);
+            save.setFlowJson(taskFlow());
+            RuleSetSaveResult saved = service.save(save);
+            assertTrue(saved.getChecks().contains(warn), saved.getChecks().toString());
+            assertEquals(JSON.readTree("[\"GT_GRADE\"]"),
+                    JSON.readTree(jdbc.queryForObject("SELECT RULE_IDS FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = 'GT_TASK'", String.class)));
+        } finally {
+            AuditHolder.remove();
+        }
+
+        JsonNode trace = response(simulate(taskFlow(), "{\"GT_THK\":\"12\"}", null)).path("trace");
+        assertEquals(List.of("start", "r1", "t1", "end"), nodeIds(trace));
+        assertEquals("TASK", trace.path("nodes").get(2).path("kind").asText());
+        assertTrue(trace.path("violations").isNull(), trace.toString());
+        assertTrue(RUN_TRACE_SCHEMA.validate(trace).isEmpty(), trace.toString());
     }
 }

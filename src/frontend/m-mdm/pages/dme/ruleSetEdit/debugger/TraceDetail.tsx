@@ -23,6 +23,7 @@ const KIND_TEXT: Record<NodeTrace["kind"], string> = {
   START: "시작",
   END: "끝",
   RULE: "룰",
+  TASK: "빈 단계",
   IF: "IF 분기",
   PARALLEL: "병렬 분기",
   MERGE: "합류",
@@ -126,6 +127,11 @@ export function TraceDetail({ nodeId, node, flow, traceViolations, onOpenRule }:
         </span>
       </div>
 
+      {node.kind === "TASK" && (
+        <p className="rsf-muted" data-testid="sim-detail-task">
+          빈 단계 — 아무것도 읽거나 만들지 않고 지나갔다
+        </p>
+      )}
       {node.kind === "RULE" && (
         <>
           <p className="rsf-panel-note">

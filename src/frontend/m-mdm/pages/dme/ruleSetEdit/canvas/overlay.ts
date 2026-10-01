@@ -5,6 +5,7 @@
 
 /** 3단계(P9·P-D13): `next` 는 디버그 커서 바로 다음 노드(점선) — 디버그 겹침(`debugOverlay`)만 쓴다. */
 export type NodeState = "run" | "error" | "current" | "next" | "pending" | "dim";
-export interface NodeOverlay { state: NodeState; seq: number | null; chip: string | null; }
+/** 4단계 E4: `edited` 는 이 노드 직전에 값을 고친 기록이면 true(그 밖에는 키가 없다 — 옛 겹침 비교가 그대로 맞는다). */
+export interface NodeOverlay { state: NodeState; seq: number | null; chip: string | null; edited?: boolean; }
 export type EdgeState = "run" | "chosen" | "dim" | "idle";
 export interface Overlay { nodes: Record<string, NodeOverlay>; edges: Record<string, EdgeState>; }

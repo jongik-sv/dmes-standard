@@ -245,22 +245,17 @@ describe("흐름 우클릭 메뉴·편집(3단계 Task 8)", () => {
     expect(canvasNodeIds()).toHaveLength(200);
   });
 
-  it("7. 룰 바꾸기 — 룰 찾기에서 고르면 노드 자리·선은 그대로 ruleId 만 바뀌고 IO 가 들어온다", async () => {
+  it("7. 룰 바꾸기 — 「룰 지정」 섹션에서 고르면 노드 자리·선은 그대로 ruleId 만 바뀌고 IO 가 들어온다", async () => {
     const NEW = rule("E2S_NEW", "S_GRD", "S_NEW", "새 룰");
     srv.replies["search:RULE"] = ok({ rules: [NEW] });
     await openSet("E2S_CHAIN", chainView());
     await click("flow-mode-edit");
     await ctxMenu("flow-node-r2");
     await click("flow-menu-item-rule-replace");
-    await typeInto(inDoc<HTMLInputElement>("flow-rule-search-keyword"), "E2S_");
-    await act(async () => {
-      inDoc("flow-rule-search-find").click();
-    });
-    await flush();
-    await act(async () => {
-      inDoc("flow-rule-cand-E2S_NEW").click();
-    });
-    await flush();
+    await typeInto(byTestId<HTMLInputElement>("flow-rule-panel-search"), "E2S_");
+    await click("flow-rule-panel-find");
+    await settle(20);
+    await click("flow-rule-assign-E2S_NEW");
     expect(canvasNodeIds().sort()).toEqual(["end", "r1", "r2", "r3", "start"].sort());
     expect(visibleText(byTestId("flow-node-r2"))).toContain("E2S_NEW");
     expect(edgeEl("e2")).not.toBeNull();

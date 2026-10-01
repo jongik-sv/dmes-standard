@@ -215,6 +215,11 @@ public final class FlowParser {
                     cur = next(cur);
                     continue;
                 }
+                if (n.kind() == NodeKind.TASK) {
+                    items.add(new TaskStep(cur));
+                    cur = next(cur);
+                    continue;
+                }
                 String mergeId = mergeOf.get(cur);
                 splitKinds.put(cur, n.kind());
                 List<FlowEdge> ordered = ordered(n.kind(), out.get(cur));

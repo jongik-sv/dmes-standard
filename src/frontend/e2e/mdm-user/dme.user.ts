@@ -1717,12 +1717,10 @@ test.describe("C 룰 세트", () => {
     await expect(tid(page, `flow-node-${nodeSB}`)).toHaveAttribute("data-selected", "true");
     await expect(tid(page, "flow-prop-rule")).toContainText(SB);
 
-    // 같은 룰을 다시 찾으면 후보에 "사용 중" 이 붙는다(다른 갈래에 두려고 다시 담을 수는 있어 막지는 않는다). 닫으면 그대로다.
-    await tid(page, "flow-add-rule").click();
-    await tid(page, "flow-rule-search-keyword").fill(SA);
-    await tid(page, "flow-rule-search-find").click();
-    await expect(tid(page, `flow-rule-cand-${SA}`)).toContainText("사용 중");
-    await modal(page).locator("button", { hasText: /^닫기$/ }).click();
+    // 같은 룰을 룰 목록에서 찾으면 줄에 "사용 중" 이 붙는다(다른 갈래에 두려고 다시 담을 수는 있어 막지는 않는다).
+    await tid(page, "flow-rule-panel-search").fill(SA);
+    await tid(page, "flow-rule-panel-find").click();
+    await expect(tid(page, `flow-rule-used-${SA}`)).toHaveText("사용 중", { timeout: 20_000 });
     await expect.poll(setOrder).toEqual([SB, SA]);
     await layout.layout(page, "ruleSetEdit 순서 거부");
     await snap(page, "dme-ruleSetEdit-02-order-rejected");
@@ -1831,6 +1829,11 @@ test.describe("C 룰 세트", () => {
     // 디버그 모드의 실행 단추·케이스. 마지막은 보기 모드·검사 탭으로 돌려 둔다.
     await tid(page, "flow-mode-edit").click();
     await expect(tid(page, "flow-palette")).toBeVisible();
+    // 도구 상자 [공간] 켜기·끄기(끄면 기본 도구 [영역 선택] 으로 돌아온다).
+    await tid(page, "flow-space-tool").click();
+    await expect(tid(page, "flow-space-tool")).toHaveAttribute("aria-pressed", "true");
+    await tid(page, "flow-space-tool").click();
+    await expect(tid(page, "flow-tool-select")).toHaveAttribute("aria-pressed", "true");
     // 편집 모드 — 선의 [+] 로 IF 를 넣고 되돌리기 → 다시 하기 → 되돌리기(저장한 흐름으로 돌아온다).
     const ifNodes = tid(page, "flow-canvas").locator('[data-kind="IF"]');
     // 선 [+] 는 올리거나 고른 선에만 보인다(L1) — 첫 선의 누름 영역에 mouseover 를 보낸 뒤 누른다.
@@ -1861,9 +1864,14 @@ test.describe("C 룰 세트", () => {
     await expect(tid(page, "flow-help-panel")).toBeVisible();
     await tid(page, "flow-help").click();
     await expect(tid(page, "flow-help-panel")).toHaveCount(0);
-    await tid(page, "flow-rule-panel-toggle").click();
+    // 도구 상자 도구 — 보기 모드 기본은 [손]이므로 [영역 선택] 을 눌렀다가 [손] 으로 돌려 놓는다.
+    await tid(page, "flow-tool-select").click();
+    await expect(tid(page, "flow-tool-select")).toHaveAttribute("aria-pressed", "true");
+    await tid(page, "flow-tool-hand").click();
+    await expect(tid(page, "flow-tool-hand")).toHaveAttribute("aria-pressed", "true");
+    await tid(page, "flow-section-rules-head").click();
     await expect(tid(page, "flow-rule-panel-search")).toHaveCount(0);
-    await tid(page, "flow-rule-panel-toggle").click();
+    await tid(page, "flow-section-rules-head").click();
     await tid(page, "flow-rule-panel-search").fill(SA);
     await tid(page, "flow-rule-panel-find").click();
     await expect(tid(page, `flow-rule-row-${SA}`)).toBeVisible({ timeout: 20_000 });
@@ -1919,6 +1927,7 @@ test.describe("C 룰 세트", () => {
       ...(await dynamicAllow("expr-recent-", "최근 식 채우기 — 식 평가는 이 시나리오에서 하지 않는다")),
       ...(await dynamicAllow("flow-bp-", "노드마다 있는 중단점 점 — 하나(SA)는 위에서 켰다 껐다. 나머지는 같은 동작이다")),
       ...(await dynamicAllow("flow-rule-open-", "룰 박스 링크 아이콘은 다음 TC-DME-SED-06 에서 누른다(누르면 룰 화면으로 옮겨 간다)")),
+      ...(await dynamicAllow("flow-section-", "오른쪽 섹션 머리 — 펴고 접기는 flow-section-rules-head 로 확인했고 나머지는 같은 동작이다")),
       "sim-detail-open-rule": "노드 상세의 [룰 편집 열기] 는 누르면 룰 화면으로 옮겨 가 다음 TC-DME-SED-06 흐름이 깨진다",
     });
 
@@ -1941,6 +1950,7 @@ test.describe("C 룰 세트", () => {
     );
     await assertAllButtonsPressed(page, "ruleSetEdit", {
       ...ruleOpenAllow,
+      ...(await dynamicAllow("flow-section-", "오른쪽 섹션 머리 — 펴고 접기는 flow-section-rules-head 로 확인했고 나머지는 같은 동작이다")),
       [`set-var-link-${GRD}`]: "결과 변수 링크는 다음 TC-DME-SED-06 에서 누른다(누르면 룰 화면으로 옮겨 간다)",
       [`set-var-link-${FCT}`]: "결과 변수 링크는 다음 TC-DME-SED-06 에서 누른다(누르면 룰 화면으로 옮겨 간다)",
     });
@@ -2301,12 +2311,13 @@ async function clearFlowSelection(page: Page) {
   await expect(tid(page, "flow-prop-set")).toBeVisible();
 }
 
-/** 팔레트 [룰] → 룰 찾기 팝업 → 후보를 눌러 끼운다. 고른 선이 없으면 END 로 들어가는 선에 끼워지고 새 룰 박스가 선택된다. */
+/** 도구 상자 [룰] → 빈 단계 → 「룰 지정」 에서 [지정]. 고른 선이 없으면 END 앞 선이고 지정한 룰 박스가 선택된 채다. */
 async function addRuleToFlow(page: Page, id: string) {
   await tid(page, "flow-add-rule").click();
-  await tid(page, "flow-rule-search-keyword").fill(id);
-  await tid(page, "flow-rule-search-find").click();
-  await tid(page, `flow-rule-cand-${id}`).click();
+  await expect(tid(page, "flow-panel-kind")).toHaveText("빈 단계");
+  await tid(page, "flow-rule-panel-search").fill(id);
+  await tid(page, "flow-rule-panel-find").click();
+  await tid(page, `flow-rule-assign-${id}`).click();
 }
 
 /** 룰 박스를 골라 속성 패널의 [지우기] 로 뺀다(앞뒤 선은 이어진다). */

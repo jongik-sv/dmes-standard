@@ -119,6 +119,20 @@ export const BASE_CSS = `
   font-size: var(--font-size-xs); font-weight: 700; color: var(--color-text-secondary); white-space: nowrap;
 }
 .rsf-group-title:hover { background: var(--color-bg-hover); }
+/* 그룹 크기 손잡이(G2, 4단계) — 편집 모드에서 고른 그룹의 네 모서리·네 변. 틀은 누름을 받지 않으므로 손잡이만 다시 켠다. */
+.rsf-group-grip {
+  position: absolute; box-sizing: border-box; width: 10px; height: 10px; pointer-events: auto; touch-action: none;
+  background: var(--color-bg); border: 1.5px solid var(--color-primary); border-radius: 2px;
+}
+.rsf-group-grip:hover { background: var(--color-primary-soft); }
+.rsf-group-grip[data-grip="nw"] { left: -5px; top: -5px; cursor: nwse-resize; }
+.rsf-group-grip[data-grip="n"] { left: calc(50% - 5px); top: -5px; cursor: ns-resize; }
+.rsf-group-grip[data-grip="ne"] { right: -5px; top: -5px; cursor: nesw-resize; }
+.rsf-group-grip[data-grip="e"] { right: -5px; top: calc(50% - 5px); cursor: ew-resize; }
+.rsf-group-grip[data-grip="se"] { right: -5px; bottom: -5px; cursor: nwse-resize; }
+.rsf-group-grip[data-grip="s"] { left: calc(50% - 5px); bottom: -5px; cursor: ns-resize; }
+.rsf-group-grip[data-grip="sw"] { left: -5px; bottom: -5px; cursor: nesw-resize; }
+.rsf-group-grip[data-grip="w"] { left: -5px; top: calc(50% - 5px); cursor: ew-resize; }
 
 /* 연결점 — 그리기 연결점·네 변 잇기 손잡이·몸통 받기는 styles/connect.ts(추가 Task C1) */
 
@@ -137,20 +151,6 @@ export const BASE_CSS = `
   font: 500 10px/16px ui-monospace, monospace; padding: 0 5px; border-radius: 3px;
   background: var(--color-bg-light); border: 1px solid var(--color-border); color: var(--color-text-secondary);
 }
-
-/* 팔레트 */
-.rsf-palette { display: flex; flex-direction: column; gap: var(--spacing-xs); padding: var(--spacing-sm); }
-.rsf-palette button[draggable="true"] { cursor: grab; }
-
-/* 룰 찾기 */
-.rsf-cands { list-style: none; margin: var(--spacing-sm) 0 0; padding: 0; }
-.rsf-cand {
-  display: flex; align-items: center; gap: var(--spacing-sm); width: 100%; padding: 4px var(--spacing-sm); text-align: left; cursor: pointer;
-  background: var(--color-bg); border: 1px solid var(--color-border-light); border-radius: var(--radius-sm); margin-bottom: 2px; color: var(--color-text);
-}
-.rsf-cand:hover { background: var(--color-bg-hover); }
-.rsf-cand-id { flex: none; width: 140px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--font-size-sm); overflow: hidden; text-overflow: ellipsis; }
-.rsf-cand-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* 룰 세트 편집 — 툴바·오른쪽 패널·아래 패널(2단계 계획 Task 10). 색은 의미 토큰만 쓴다. 한 변 색 바는 쓰지 않는다(Local-Rules §8). */
 
@@ -228,6 +228,5 @@ export const BASE_CSS = `
 
 /* 3단계 본문 틀(계획 Task 0) — 왼쪽 패널(룰 패널·디버그 입력)과 스크롤하지 않는 아래 탭 */
 .rsf-rule-panel { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; overflow-y: auto; }
-.rsf-rule-panel > .rsf-palette { flex: none; border-bottom: 1px solid var(--color-border-light); }
 .rsf-bottom-body[data-scroll="false"] { overflow: hidden; display: flex; flex-direction: column; }
 `;

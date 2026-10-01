@@ -51,7 +51,6 @@ import {
   click,
   clickFake,
   handoff,
-  inDoc,
   installServer,
   ok,
   pageContainer,
@@ -505,20 +504,15 @@ describe("RuleSetEditPage", () => {
     expect(saveButton().disabled).toBe(true);
   });
 
-  it("팔레트 [룰] → 룰 찾기에서 고르면 END 앞 선에 끼운다", async () => {
+  it("팔레트 [룰] → END 앞 선에 빈 단계, 「룰 지정」 에서 고르면 같은 노드가 그 룰이 된다", async () => {
     srv.replies["search:RULE"] = ok({ rules: [DUP] });
     await openChain();
     await click("flow-mode-edit");
     await click("flow-add-rule");
-    await typeInto(inDoc<HTMLInputElement>("flow-rule-search-keyword"), "E2S_");
-    await act(async () => {
-      inDoc("flow-rule-search-find").click();
-    });
-    await flush();
-    await act(async () => {
-      inDoc("flow-rule-cand-E2S_DUP").click();
-    });
-    await flush();
+    await typeInto(byTestId<HTMLInputElement>("flow-rule-panel-search"), "E2S_");
+    await click("flow-rule-panel-find");
+    await settle(20);
+    await click("flow-rule-assign-E2S_DUP");
     expect(canvasNodeIds()).toContain("r4");
     expect(visibleText(byTestId("flow-node-r4"))).toContain("E2S_DUP");
     expect(visibleText(byTestId("set-checks"))).toContain("E2S_GRD와 E2S_DUP가 같은 결과 변수 S_GRD에 대입한다");
@@ -595,6 +589,34 @@ describe("RuleSetEditPage", () => {
     expect(saved.view.groups).toEqual([{ id: "g1", title: "그룹", nodeIds: ["r1", "r3"] }]);
   });
 
+  it("그룹 크기(G2) — 고른 그룹의 오른쪽 아래 손잡이를 끌어 놓으면 틀이 커지고, 되돌리기 한 번에 돌아오며, 저장 본문에 pad 가 실린다", async () => {
+    srv.replies.save = ok({ setId: "E2S_CHAIN", rowVersion: 4, checks: [] });
+    await openChain();
+    await click("flow-mode-edit");
+    await click("flow-node-r1");
+    await click("flow-add-group");
+    const frame = () => document.querySelector('.react-flow__node[data-id="g1"]') as HTMLElement;
+    const size = () => ({ w: parseFloat(frame().style.width), h: parseFloat(frame().style.height) });
+    const k = Number(/scale\(\s*([\d.]+)\s*\)/.exec((document.querySelector(".react-flow__viewport") as HTMLElement).style.transform)?.[1] ?? 1);
+    const before = size();
+    const grip = byTestId("flow-group-grip-g1-se");
+    await act(async () => { grip.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, cancelable: true, button: 0, clientX: 0, clientY: 0 })); });
+    await act(async () => { window.dispatchEvent(new MouseEvent("pointermove", { bubbles: true, clientX: 40, clientY: 30, buttons: 1 })); });
+    await act(async () => { window.dispatchEvent(new MouseEvent("pointerup", { bubbles: true, clientX: 40, clientY: 30 })); });
+    await flush();
+    const grown = { w: before.w + Math.round(40 / k), h: before.h + Math.round(30 / k) };
+    expect(size()).toEqual(grown);
+    expect(saveButton().disabled).toBe(false);
+    await click("flow-undo");
+    expect(size()).toEqual(before);
+    await click("flow-redo");
+    expect(size()).toEqual(grown);
+    await click("set-save");
+    await settle();
+    const saved = JSON.parse((calls("save")[0].body.params as Record<string, string>).flowJson) as { view: { groups: Array<{ pad?: unknown }> } };
+    expect(saved.view.groups[0].pad).toEqual({ l: 0, t: 0, r: Math.round(40 / k), b: Math.round(30 / k) });
+  });
+
   it("노드 상한 — 200개면 [룰]·[IF] 를 끼우지 않고 메시지 줄에 문구를 보인다", async () => {
     const ids = Array.from({ length: 198 }, (_, i) => `E2S_R${i + 1}`);
     await openChain(chainView({ set: { ...chainView().set, ruleIds: ids }, rules: [] }));
@@ -605,7 +627,7 @@ describe("RuleSetEditPage", () => {
     expect(byTestId("set-message").style.color).toBe("var(--color-danger)");
     expect(canvasNodeIds()).toHaveLength(200);
     await click("flow-add-rule");
-    expect(document.querySelector('[data-testid="flow-rule-search-keyword"]')).toBeNull();
+    expect(visibleText(byTestId("set-message"))).toContain("노드는 흐름 하나에 200개까지 둔다");
     expect(canvasNodeIds()).toHaveLength(200);
   });
 
@@ -801,6 +823,32 @@ describe("useRuleSetEdit", () => {
     expect(state!.condIo).toEqual({ e3: S_GRD_OK });
     expect(state!.dirty).toBe(false);
     const before = state!.flow;
+    await act(async () => {
+      state!.applyGuide(["E2S_GRD"], [GRD]);
+    });
+    expect(state!.flow).toBe(before);
+    expect(state!.dirty).toBe(false);
+  });
+
+  it("빈 단계(TASK)가 있는 흐름에는 applyGuide 가 흐름을 바꾸지 않는다(빈 단계를 말없이 지우지 않는다)", async () => {
+    const taskFlow: RuleSetFlow = {
+      version: 1,
+      nodes: [
+        { id: "start", kind: "START", ruleId: null, splitId: null, label: null },
+        { id: "r1", kind: "RULE", ruleId: "E2S_GRD", splitId: null, label: null },
+        { id: "t1", kind: "TASK", ruleId: null, splitId: null, label: "검토" },
+        { id: "end", kind: "END", ruleId: null, splitId: null, label: null },
+      ],
+      edges: [
+        { id: "e1", from: "start", to: "r1", order: null, cond: null, otherwise: false, label: null },
+        { id: "e2", from: "r1", to: "t1", order: null, cond: null, otherwise: false, label: null },
+        { id: "e3", from: "t1", to: "end", order: null, cond: null, otherwise: false, label: null },
+      ],
+    };
+    srv.views.E2S_CHAIN = chainView({ set: { ...chainView().set, flow: taskFlow } });
+    await mountProbe("E2S_CHAIN");
+    const before = state!.flow;
+    expect(before!.nodes.some((n) => n.kind === "TASK")).toBe(true);
     await act(async () => {
       state!.applyGuide(["E2S_GRD"], [GRD]);
     });

@@ -23,6 +23,7 @@ import kr.dongkuk.maru.mdm.engine.rule.RunTrace;
  *   <li>값({@code input}·{@code finalValues}·{@code reads}·{@code result.results}): TypedValue — null → NULL, 숫자 → NUMBER(십진 문자열),
  *       String → STRING, Boolean → BOOLEAN({@code "true"}/{@code "false"}), List → LIST. 그 밖의 타입은 {@link IllegalStateException}.</li>
  *   <li>{@code NodeTrace}: 스키마 속성을 모두 싣되 {@code result} 가 null 이면 키를 뺀다. 나머지 null 칸은 null 로 싣는다.</li>
+ *   <li>{@code edits}: null 이면 키를 뺀다(4단계 spec §2.3). 있으면 violations 뒤에 {@code {beforeSeq, nodeId, values}}, values 는 TypedValue.</li>
  * </ul>
  * 키 순서는 스키마 속성 순서다(골든 파일이 사람이 읽는 순서).
  */
@@ -45,6 +46,17 @@ public final class RunTraceJson {
         m.put("nodes", nodes);
         m.put("finalValues", values(t.finalValues()));
         m.put("violations", violations(t.violations()));
+        if (t.edits() != null) {
+            m.put("edits", t.edits().stream().map(RunTraceJson::edit).toList());
+        }
+        return m;
+    }
+
+    private static Map<String, Object> edit(RunTrace.TraceEdit e) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("beforeSeq", e.beforeSeq());
+        m.put("nodeId", e.nodeId());
+        m.put("values", values(e.values()));
         return m;
     }
 

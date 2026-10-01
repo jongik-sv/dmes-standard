@@ -7,6 +7,7 @@
  *
  * - 쓰기 단추는 `canEditCases`(= view.editable && INUSE && save 권한)일 때만 켜진다. [모두 실행]·[디버그로 열기]는 `execute` 권한.
  * - 새 케이스의 기대값은 낡지 않은 마지막 기록이 있고 그 입력이 지금 입력과 같을 때만 최종 변수로 채운다(`expectedFromFinal`, Review Focus 1).
+ *   고친 값이 든 기록(4단계 E4)이면 채우지 않고 단추 title 로 이유를 보인다(스펙 §2.4 [기대값으로] 막기 — 편차 후보 1).
  * - [디버그로 열기] = 입력을 폼에 넣고 [처음부터]. 입력이 기록 입력과 다르면 훅이 새로 실행한다(P-D9).
  * - 요약 "p/t 통과" 의 분모는 기대값이 있는 케이스만이다(pass=null "실행만" 은 뺀다).
  * - 오류로 끝난 케이스는 차이 표 대신 오류 문장을 보이고 단계·코드는 title 에 둔다(Local-Rules §13).
@@ -20,7 +21,7 @@ import { badgeStyle } from "@/shell";
 import { REJECT_BADGE } from "../panels/ChecksPanel";
 import type { CaseDraft, CaseRunResult, RuleSetCaseView } from "../types";
 import { CaseEditModal } from "./CaseEditModal";
-import { RUN_DENIED_TITLE, expectedFromFinal } from "./debug-model";
+import { EDITED_EXPECTED_TITLE, RUN_DENIED_TITLE, expectedFromFinal } from "./debug-model";
 import { loadExactInput } from "./InputForm";
 import { sameInput, type Simulation } from "./useSimulation";
 import type { TestCases } from "./useTestCases";
@@ -128,11 +129,14 @@ export function TestCasePanel({ sim, tests, canEditCases, canRun }: TestCasePane
     setConfirmDelete(false);
   };
 
+  /** 지금 기록이 고친 값으로 나왔는가(4단계 E4) — 그 결과는 새 케이스 기대값으로 쓰지 않는다. */
+  const editedRecord = !!sim.last && !sim.stale && sim.appliedEdits.length > 0;
+
   const openNew = () => {
     const input = sim.currentInput();
     if (!input) return;
     const last = sim.last;
-    const expectedJson = last && !sim.stale && sameInput(last.input, input) ? expectedFromFinal(last.trace.finalValues ?? {}) : "";
+    const expectedJson = last && !sim.stale && !editedRecord && sameInput(last.input, input) ? expectedFromFinal(last.trace.finalValues ?? {}) : "";
     setDraft({
       caseId: null,
       rowVersion: null,
@@ -191,7 +195,7 @@ export function TestCasePanel({ sim, tests, canEditCases, canRun }: TestCasePane
           size="sm"
           data-testid="case-save-current"
           disabled={!canEditCases || !current || tests.running}
-          title={editTitle ?? (current ? "지금 입력을 케이스로 저장한다" : "입력 오류를 먼저 고친다")}
+          title={editTitle ?? (current ? (editedRecord ? EDITED_EXPECTED_TITLE : "지금 입력을 케이스로 저장한다") : "입력 오류를 먼저 고친다")}
           onClick={openNew}
         >
           지금 입력 저장
