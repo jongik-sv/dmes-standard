@@ -1,0 +1,69 @@
+백업: /Users/jji/project/dmes-standard/src/backend/data/mdm.db.bak-20261001-155252-dictcand
+추가/기존사용: {"unit": [0, 31], "term": [0, 1452], "domain": [5, 114], "column": [0, 7674], "column_system": [0, 10961], "column_domain_fixed": 451}
+
+## term (12)
+- 계획: 기존 PLAN 유지 (후보 PLN)
+- 길이: 기존 LEN 유지 (후보 LTH)
+- 비중: 기존 SPEC_GRAV 유지 (후보 GRA)
+- 생산: 기존 PROD 유지 (후보 PDN)
+- 소둔배치: 기존 ANN_BATCH 유지 (후보 BTH)
+- 온도: 기존 TEMP 유지 (후보 TEM)
+- 일자: 기존 DT 유지 (후보 DD)
+- 지시: 기존 ORD 유지 (후보 INST)
+- 출하: 기존 SHIP 유지 (후보 SHPG)
+- 폭: 기존 WID 유지 (후보 WTH)
+- 표면: 기존 SURF 유지 (후보 SUR)
+- 품질: 기존 QLTY 유지 (후보 QLT)
+
+## domain (7)
+- 일자(DD) → 기존 30 일자(DT) 사용
+- 여부(YN) → 기존 50 여부(YN) 사용
+- 공정 코드(PROC_CD) ↛ 기존 40 공정 코드: 코드 참조 PROC_CD → 새 도메인 공정 코드 (2)(PROC_CD_2)
+- 코일 아이디(COIL_ID) ↛ 기존 20 코일 식별자: 기존 검증식과 다른 판정 ['A123456'] → 새 도메인 코일 아이디 (7)(COIL_ID_7)
+- 수량(QTY) ↛ 기존 68 수량: 단위 EA≠None; 길이 6<13; 자리 (6,0)<(13,3) → 새 도메인 수량 (13,3)(QTY_13)
+- 중량(WGT) ↛ 기존 12 중량: 단위 ton≠kg; 길이 7<15; 자리 (7,3)<(15,0); 기존 검증식과 다른 판정 ['0'] → 새 도메인 중량 (15 kg)(WGT_15)
+- 코일 중량(COIL_WGT) ↛ 기존 13 코일 중량: 단위 None≠kg; 기존 검증식과 다른 판정 ['18500'] → 새 도메인 코일 중량 (5 kg)(COIL_WGT_5)
+
+## column (19)
+- 공정 코드(PROC_CD) → 기존 34 공정 코드(PROC_CD)
+- 코일 아이디(COIL_ID) → 기존 1 코일 아이디(COIL_ID)
+- 자재 코드(MTL_CD) → 기존 25 자재 코드(MAT_CD)
+- 코일 중량(COIL_WGT) → 기존 14 코일 중량(COIL_WGT)
+- 코일 두께(COIL_THK) → 기존 2 코일 두께(COIL_THK)
+- 코일 폭(COIL_WTH) → 기존 10 코일 폭(COIL_WID)
+- 코일 길이(COIL_LTH) → 기존 12 코일 길이(COIL_LEN)
+- 코일 외경(COIL_ODIA) → 기존 17 코일 외경(COIL_OUT_DIA)
+- 시트 길이(SHT_LTH) → 기존 20 시트 길이(SHEET_LEN)
+- 코일 내경(COIL_IDIA) → 기존 18 코일 내경(COIL_IN_DIA)
+- 제품 형태(PRD_SHP) → 기존 15 제품 형태(PROD_TYPE)
+- 사용 여부(USE_YN) → 기존 36 사용 여부(USE_YN)
+- 순번(SEQ) → 기존 53 순번(SEQUENCE_NO)
+- 일자(DD) → 기존 55 일자(DATE)
+- 제품 중량(PRD_WGT) → 기존 22 제품 중량(PROD_WGT)
+- EAI 인터페이스 아이디(EAI_IF_ID) → 기존 47 EAI인터페이스ID(EAI_IF_ID)
+- 수신 공정 구분(RCV_PROC_TP) → 기존 44 수신프로세스구분(RCV_PROC_TP)
+- 트랜잭션코드 코드(TC_CD) → 기존 40 TC코드(TC_CD)
+- 길이(LTH) → 기존 54 길이(LENGTH)
+
+## abbr_dup (0)
+
+## domain_rule (19)
+- 수치(219): QTY 최상위인데 단위 없음
+- 압력(221): QTY 최상위인데 단위 없음
+- 농도(222): QTY 최상위인데 단위 없음
+- 장력(227): QTY 최상위인데 단위 없음
+- 힘(228): QTY 최상위인데 단위 없음
+- 경도(231): QTY 최상위인데 단위 없음
+- 재질 수치(232): QTY 최상위인데 단위 없음
+- 색상 차(234): QTY 최상위인데 단위 없음
+- 비중(237): QTY 최상위인데 단위 없음
+- 점도(238): QTY 최상위인데 단위 없음
+- 전도도(242): QTY 최상위인데 단위 없음
+- 원단위(243): QTY 최상위인데 단위 없음
+- 환율(244): QTY 최상위인데 단위 없음
+- 전압(248): QTY 최상위인데 단위 없음
+- 속도 소수(253): QTY 최상위인데 단위 없음
+- 정밀 단가(254): QTY 최상위인데 단위 없음
+- 필름 두께 소수(256): QTY 최상위인데 단위 없음
+- 점도 소수(261): QTY 최상위인데 단위 없음
+- 수량 (13,3)(264): QTY 최상위인데 단위 없음
