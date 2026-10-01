@@ -6,6 +6,7 @@
  * `rules` 에 없거나 `exists=false` 인 룰, `conds`·`results` 가 null 인 룰은 조건·결과가 빈 것으로 본다. 이름 비교는 대소문자를 구분한다.
  * 비어 있는 칸은 undefined 가 아니라 null 로 낸다(서버 JSON 과 같게).
  * 흐름 세트는 계획 C4 의 경로 검사(`flowChecks`)를 쓰고, 목록 세트는 한 줄 흐름으로 같은 검사를 돌린다(`setChecks`).
+ * IF 블록 뒤 상태는 이어지는 갈래만 합친다 — 끝내는 IF 갈래·끝내는 처리 갈래는 세지 않는다(implicit-join spec §6).
  */
 import type { RuleSetFlow } from "@/contract/engine-contract.generated";
 
@@ -382,11 +383,12 @@ function pathChecks(tree: FlowTree, rules: RuleIoMap, condIo: CondIoMap, out: Ru
       else if (b.type === "GUARDED") guarded(b, s);
       else {
         if (b.kind === "IF") for (const br of b.branches) if (!br.otherwise) cond(b.nodeId, br.edgeId, s);
-        const ends = b.branches.map((br) => {
+        const ends: PathState[] = [];
+        for (const br of b.branches) {
           const sb = copyState(s);
           walk(br.body, sb);
-          return sb;
-        });
+          if (!br.ends) ends.push(sb); // 끝내는 IF 갈래는 블록 뒤로 이어지지 않는다(implicit-join spec §6)
+        }
         mergeState(b.kind, s, ends);
       }
     }

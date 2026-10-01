@@ -177,4 +177,17 @@ class RuleSetPathStateTest {
         assertEquals(Set.of(), b.get("r1").defined(), "r1 을 적은 뒤 r1 의 결과를 더해도 r1 직전 상태는 그대로다");
         assertThrows(UnsupportedOperationException.class, () -> b.get("r2").defined().add("Q"));
     }
+
+    @Test
+    void 끝내는_IF_갈래는_블록_뒤_상태에_들지_않는다() {
+        EDGES.clear();
+        // start → if1 [b1 "X > 0" → r1(R_A) → end](끝내는 갈래) [그 외 → r2(R_B)] → r2 → r3 → end
+        String e = String.join(",", edge("start", "if1", ""), edge("if1", "r1", "\"order\":1,\"cond\":\"X > 0\""), edge("if1", "r2", "\"otherwise\":true"),
+                edge("r1", "end", ""), edge("r2", "r3", ""), edge("r3", "end", ""));
+        Map<String, At> b = before(String.join(",", split("if1", "IF"), rule("r1", "R_A"), rule("r2", "R_B"), rule("r3", "R_C")), e);
+
+        assertEquals(at(Set.of(), Set.of()), b.get("r1"));
+        assertEquals(at(Set.of(), Set.of()), b.get("r2"), "끝내는 갈래(r1)의 Y·Z 는 블록 뒤에 없다");
+        assertEquals(at(Set.of("Y"), Set.of()), b.get("r3"));
+    }
 }

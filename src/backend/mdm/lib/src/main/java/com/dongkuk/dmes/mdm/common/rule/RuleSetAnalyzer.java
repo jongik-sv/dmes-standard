@@ -311,7 +311,9 @@ public final class RuleSetAnalyzer {
             for (Branch br : sp.branches()) {
                 State b = st.copy();
                 seq(br.body(), b);
-                outs.add(b);
+                if (!br.ends()) {
+                    outs.add(b); // 끝내는 IF 갈래는 블록 뒤로 이어지지 않는다(implicit-join spec §6) — 조건식·몸 검사는 했다
+                }
             }
             // defined·maybe 합치기는 확정 검사와 한 벌(P4 RuleSetPathState), prodBy 합치기는 이 검사 전용.
             RuleSetPathState.At merged = RuleSetPathState.merge(sp.kind(), st.at(), outs.stream().map(State::at).toList());
