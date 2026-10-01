@@ -3,6 +3,8 @@
  * 받는 노드에서 나가는 선의 빨간 점선은 선 그리기(FlowCanvas 의 선 style)가 정한다.
  * 디버거(받는 노드 spec §9): 받는 노드로 넘긴 룰(`data-state="caught"`)은 주황 점선 테두리·주황 칩. 상태 규칙은 base 의 `data-state` 규칙과 같은
  * 우선순위이고 이 파일이 뒤에 붙어 이긴다. 툴바 [받은 예외 N건] 목록은 단추 아래에 뜬다.
+ * 받는 노드 원 자신의 겹침 상태: `.rsf-node.rsf-catch` 의 `border` 줄임 속성이 같은 구체성(0,2,0)의 상태 규칙(base·collapse)을 뒤에서 덮으므로,
+ * run·current·next·pending 은 `.rsf-node.rsf-catch` 에 상태를 더한 규칙(0,3,0)으로 다시 칠한다.
  */
 export const CATCH_CSS = `
 .rsf-node.rsf-catch {
@@ -21,6 +23,10 @@ export const CATCH_CSS = `
 .rsf-node[data-state="caught"] { border-color: var(--color-warning); border-style: dashed; border-width: 2px; }
 .rsf-node[data-state="caught"] .rsf-seq { background: var(--color-warning); }
 .rsf-node[data-state="caught"] .rsf-chip { background: var(--color-warning-soft); color: var(--color-warning); border-color: var(--color-warning); }
+.rsf-node.rsf-catch[data-state="run"] { border-color: var(--color-success); }
+.rsf-node.rsf-catch[data-state="current"] { border-color: var(--color-primary); border-width: 3px; }
+.rsf-node.rsf-catch.rsf-node-next { border-style: dashed; border-color: var(--color-primary); border-width: 1.5px; }
+.rsf-node.rsf-catch.rsf-node-pending { border-color: var(--rsf-border); }
 .rsf-dbg-caught { position: relative; }
 .rsf-dbg-caught-list { position: absolute; top: 100%; left: 0; z-index: 20; min-width: 320px; margin: var(--spacing-xs) 0 0; padding: var(--spacing-xs);
   list-style: none; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-sm); }

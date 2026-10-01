@@ -25,6 +25,8 @@ import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 
 import type { FlowEdge, FlowNode, FlowNodeKind, NodeTrace, RuleSetFlow, RunTrace, TypedValue } from "../../../src/contract/engine-contract.generated";
 import { NO_RESULT_MESSAGE } from "../../../pages/dme/ruleSetEdit/catch-text";
+import { RSF_CSS } from "../../../pages/dme/ruleSetEdit/rsf-styles";
+import { CATCH_CSS } from "../../../pages/dme/ruleSetEdit/styles/catch";
 import { catchEditText, debugStatus, variablesAt } from "../../../pages/dme/ruleSetEdit/debugger/debug-model";
 import { DebugToolbar } from "../../../pages/dme/ruleSetEdit/debugger/DebugToolbar";
 import { TraceDetail } from "../../../pages/dme/ruleSetEdit/debugger/TraceDetail";
@@ -174,6 +176,24 @@ describe("디버거 — 받는 노드(받는 노드 spec §9)", () => {
     expect(o.nodes.c1.state).toBe("current");
     expect(o.nodes.r1).toMatchObject({ state: "caught", seq: 2, chip: "결과 없음" });
     expect(o.edges.e2).toBe("idle");
+  });
+
+  it("받는 노드 원의 테두리 규칙(.rsf-node.rsf-catch, 0,2,0)이 디버그 상태 테두리를 덮지 않게 더 구체적인 상태 규칙이 뒤에 있다", () => {
+    const rule = (sel: string) => new RegExp(`${sel.replace(/[.[\]"=()-]/g, (c) => `\\${c}`)}\\s*\\{([^}]*)\\}`).exec(CATCH_CSS)?.[1] ?? "";
+    const base = CATCH_CSS.indexOf(".rsf-node.rsf-catch {");
+    expect(base).toBeGreaterThanOrEqual(0);
+    const cases: Array<[string, RegExp[]]> = [
+      ['.rsf-node.rsf-catch[data-state="run"]', [/border-color:\s*var\(--color-success\)/]],
+      ['.rsf-node.rsf-catch[data-state="current"]', [/border-color:\s*var\(--color-primary\)/, /border-width:\s*3px/]],
+      [".rsf-node.rsf-catch.rsf-node-next", [/border-style:\s*dashed/, /border-color:\s*var\(--color-primary\)/]],
+      [".rsf-node.rsf-catch.rsf-node-pending", [/border-color:\s*var\(--rsf-border\)/]],
+    ];
+    for (const [sel, decls] of cases) {
+      expect(CATCH_CSS.indexOf(`${sel} {`), sel).toBeGreaterThan(base);
+      for (const d of decls) expect(rule(sel), sel).toMatch(d);
+    }
+    // 이 파일이 RSF_CSS 맨 끝에 붙으므로(collapse.ts 의 상태 클래스보다 뒤) 같은 구체성에서도 이긴다.
+    expect(RSF_CSS.endsWith(CATCH_CSS)).toBe(true);
   });
 
   it("CATCH_* 이름은 값 고치기 대상이 아니다(대소문자 무시)", () => {
