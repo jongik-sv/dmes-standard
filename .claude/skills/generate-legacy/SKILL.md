@@ -24,7 +24,7 @@ description: "[V3 부터 deprecated] 별도 산출물을 만들지 않고 /gener
 | `{moduleId}/{SCREEN-ID}/{SCREEN-ID}_legacy_analysis.md` | (별도 파일 없음) |
 | §1 시스템 개요 ~ §3 비즈니스 로직 | `screens/{SCREEN-ID}.md` §1~5 (비즈니스 본문) |
 | §4 데이터 요구사항 (테이블/컬럼) | `screens/{SCREEN-ID}.md` §9 (관련 엔티티) + `DBMS/tables/` 링크 |
-| §5 MSSQL procedure 호출 매핑 | `screens/{SCREEN-ID}.md` §A2 (Appendix) + `DBMS/procedures/` 링크 |
+| §5 procedure 호출 매핑 | `screens/{SCREEN-ID}.md` §A2 DB procedure 호출 매핑 (Appendix) + `DBMS/procedures/` 링크 |
 | §6 WinForms UI 분석 | `screens/{SCREEN-ID}.md` §8 (화면 구성) + §A5 (Designer 컨트롤 트리) |
 | §7 inline SQL | `screens/{SCREEN-ID}.md` §A3 (Appendix) |
 

@@ -19,7 +19,7 @@ description: "모듈 내 모든 화면 통합 보고서 (screens/*.md, V3) 를 �
 
 개별 BPA 문서 목록을 입력으로, **비즈니스 프로세스 관점** 의 상위 그룹 분류 문서를 생성한다.
 
-> 산출물 헤딩 / 파일명 컨벤션은 부산 시절 그대로 보존. 본문 어휘는 [`_shared/vocabulary-mapping.md`](../_shared/vocabulary-mapping.md) 의 Java→C# / PL/SQL→T-SQL 매핑을 적용.
+> 산출물 헤딩 / 파일명 컨벤션은 부산 시절 그대로 보존. 본문 어휘는 [`_shared/vocabulary-mapping.md`](../_shared/vocabulary-mapping.md) 의 Java→C# 어휘 + 원천 DBMS 방언(§3) 매핑을 적용.
 
 ---
 

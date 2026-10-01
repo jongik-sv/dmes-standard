@@ -1,8 +1,8 @@
-# Phase 3 - SQL 쿼리 분석 (MSSQL Stored Procedure / Function)
+# Phase 3 - SQL 쿼리 분석 (레거시 DB Package / Stored Procedure / Function)
 
-SampleErp 화면 분석의 세 번째 단계로, 화면이 호출하는 **MSSQL Stored Procedure / Function 정적 파일** 을 분석하여 데이터베이스 스키마와 데이터 흐름을 추출한다.
+SampleErp 화면 분석의 세 번째 단계로, 화면이 호출하는 **레거시 DB(Oracle · PostgreSQL · MSSQL) Package / Stored Procedure / Function 정적 파일** 을 분석하여 데이터베이스 스키마와 데이터 흐름을 추출한다.
 
-> 산출 JSON 파일명(`sql_analysis.json`) 과 키 이름은 부산 시절 그대로 보존한다 — 산출물 템플릿 호환 우선. `plsqlCalls` 키도 보존하되 의미는 "MSSQL procedure/function 호출"로 사용. 본문 어휘는 [`_shared/vocabulary-mapping.md`](../../_shared/vocabulary-mapping.md) 참조.
+> 산출 JSON 파일명(`sql_analysis.json`) 과 키 이름은 부산 시절 그대로 보존한다 — 산출물 템플릿 호환 우선. `plsqlCalls` 키도 보존하되 의미는 "판정된 원천 DBMS 의 procedure/function 호출"로 사용. 본문 어휘는 [`_shared/vocabulary-mapping.md`](../../_shared/vocabulary-mapping.md) §3 의 방언 열 참조.
 
 ## MANDATORY EARLY TERMINATION RULE
 
@@ -14,6 +14,18 @@ SampleErp 화면 분석의 세 번째 단계로, 화면이 호출하는 **MSSQL 
 5. TERMINATE immediately
 
 ## 실행 알고리즘
+
+### Step 0: 원천 DBMS 판정
+
+Phase 3 시작 시 한 번만 판정하고 이후 모든 Step 과 서브에이전트 위임에 같은 값을 쓴다. 판정 순서는 [`_shared/vocabulary-mapping.md`](../../_shared/vocabulary-mapping.md) §3-1 (README `원천 DBMS:` 줄 → Step 3 에서 읽은 `.sql` 본문의 문법 단서 → 사용자 확인).
+
+```javascript
+let DBMS = readDbmsFromReadme('docs/external/SampleErp/README.md');   // 'ORACLE' | 'POSTGRESQL' | 'MSSQL' | 'SQLITE' | null
+// null 이면 Step 3 에서 첫 본문을 읽은 직후 detectDialect(body) 로 확정, 그래도 null 이면 AskUserQuestion
+```
+
+- **SQLite 원천**이면 저장 프로시저가 없다 — procedures/functions 매핑(Step 3)과 호출 감지(Step 6)를 건너뛰고, 앱 inline SQL 만 Step 4 대상으로 삼는다.
+- 판정 결과는 `/analyze-plsql` 위임 프롬프트(Step 6-4)에 넘긴다. sql_analysis.json 에는 새 키를 추가하지 않는다 (키 이름 보존 정책) — 후속 스킬은 같은 §3-1 순서로 다시 판정한다.
 
 ### Step 1: structure.json 로드
 
@@ -103,6 +115,9 @@ const integratedSqlMappings = {
 
 발견된 파일은 Read 로 본문 로드. 미발견은 별도 처리 (Step 5 의 plsqlCalls 미분석 항목으로).
 
+- **Oracle** 원천에서 key 가 `PKG.PROC` 형태면 `procedures/{PKG}.sql`(SPEC/BODY 분리 시 `procedures/{PKG}*.sql`) 을 읽고 그 안의 `PROC` 멤버를 분석 대상으로 삼는다.
+- **PostgreSQL** 원천에서 key 에 schema 접두(`sales.fn_x`)가 있으면 접두를 떼고 파일을 찾는다.
+
 ### Step 4: 쿼리 분석 (각 발견된 procedure/function 본문에 대해)
 
 C# 코드에서 호출되는 procedure 는 본문 자체가 SELECT/INSERT/UPDATE/DELETE/MERGE 묶음이므로, procedure 본문 안의 각 SQL 문을 별도 쿼리로 보고 분석한다 (또는 procedure 1개를 1개 쿼리로 단순화 — 호출자 입장에서는 procedure 호출 1회).
@@ -112,10 +127,10 @@ C# 코드에서 호출되는 procedure 는 본문 자체가 SELECT/INSERT/UPDATE
 2. **테이블 추출**: FROM/JOIN/INTO/UPDATE/DELETE FROM 절
 3. **컬럼 분석**: SELECT 절, WHERE 조건, INSERT/UPDATE 컬럼
 4. **JOIN 관계**: INNER/LEFT/RIGHT/FULL JOIN, 조인 조건
-5. **파라미터 분석**: `@변수명` 바인드 변수 (MSSQL)
-6. **결과 컬럼**: SELECT 절 반환 컬럼, 별칭, 집계 함수
-7. **트랜잭션 제어**: `BEGIN TRAN`, `SAVE TRANSACTION`, `COMMIT TRANSACTION`, `ROLLBACK TRANSACTION` 위치
-8. **에러 처리**: `BEGIN TRY/CATCH`, `RAISERROR`, `THROW`
+5. **파라미터 분석**: 판정 방언의 바인드 변수 — Oracle `:name`(본문은 파라미터명 직접) · PostgreSQL `$1`/이름 있는 인자 · MSSQL `@name`
+6. **결과 컬럼**: SELECT 절 반환 컬럼, 별칭, 집계 함수 (PostgreSQL `RETURNS TABLE(...)`, Oracle `SYS_REFCURSOR` 포함)
+7. **트랜잭션 제어**: Oracle `SAVEPOINT`/`ROLLBACK TO`/`COMMIT` · PostgreSQL PROCEDURE 의 `COMMIT`/`ROLLBACK` · MSSQL `BEGIN TRAN`/`SAVE TRANSACTION`/`COMMIT TRANSACTION`/`ROLLBACK TRANSACTION` 위치
+8. **에러 처리**: Oracle·PostgreSQL `EXCEPTION WHEN`, `RAISE_APPLICATION_ERROR`/`RAISE EXCEPTION` · MSSQL `BEGIN TRY/CATCH`, `RAISERROR`, `THROW`
 
 > SampleErp 의 procedure 는 정적 파일 dump 이므로 query-cache 의존이 없다. 모든 본문은 Read 로 가져온다.
 
@@ -126,40 +141,64 @@ C# 코드에서 호출되는 procedure 는 본문 자체가 SELECT/INSERT/UPDATE
 3. **테이블 정의 보강**: `docs/external/SampleErp/tables/{테이블명}.sql` 존재 시 Read 하여 컬럼/타입/PK/FK 정확히 추출
 4. **ER 관계도 구성**: JOIN 조건 기반 관계 추출
 
-### Step 6: MSSQL procedure/function 호출 감지 및 추가 분석
+### Step 6: 레거시 DB procedure/function 호출 감지 및 추가 분석
 
 #### 6-1. 호출 패턴 감지
 
-procedure/function 본문 안의 다른 procedure/function 호출 패턴 검색.
+procedure/function 본문 안의 다른 procedure/function 호출 패턴 검색. **Step 0 에서 판정한 방언의 패턴만** 적용한다 (방언별 전체 정규식은 [`analyze-plsql/references/plsql-analysis.md`](../../analyze-plsql/references/plsql-analysis.md) §3-6).
 
-**감지 대상 패턴 (MSSQL T-SQL)**:
+**감지 대상 패턴**:
 ```sql
+-- Oracle PL/SQL
+PKG_ORDER.PROC_SAVE(p_id, v_res);          -- 패키지 멤버
+PROC_LOCAL(p_id);                          -- 블록 안 단독 문장
+v_name := PKG_COMM.FN_GET_NAME(p_cd);
+EXECUTE IMMEDIATE v_sql USING p_id;        -- 동적 SQL (기록만)
+
+-- PostgreSQL PL/pgSQL
+CALL sp_save_order(p_id);
+PERFORM fn_write_log(p_id);
+SELECT * FROM fn_list_orders(p_date);
+EXECUTE format('...', v_tbl) USING p_id;   -- 동적 SQL (기록만)
+
+-- MSSQL T-SQL
 EXEC dbo.procName @p1, @p2;
 EXECUTE dbo.procName(@p1, @p2);
-EXEC procName @p1, @p2;
 SELECT dbo.funcName(@p) AS result;
 SELECT col1 FROM dbo.tableValuedFuncName(@p);
+EXEC sp_executesql @sql;                   -- 동적 SQL (기록만)
 ```
 
 **감지 로직**:
 ```javascript
-const callPatterns = [
-  /(?:EXEC|EXECUTE)\s+(?:dbo\.)?(\w+)/gi,
-  /\bdbo\.(\w+)\s*\(/gi,
-  /\b(\w+)\s*\(\s*@/gi,  // 인라인 함수 호출 (false positive 가능 — context 검증)
-];
+const callPatterns = {
+  ORACLE: [
+    /\b(\w+)\.(\w+)\s*\(/gi,                 // PKG.PROC(...) — 별칭.컬럼 오탐은 context 검증
+    /^\s*(\w+)\s*\([^;]*\)\s*;/gim,           // 단독 문장 PROC(...);
+  ],
+  POSTGRESQL: [
+    /\b(?:CALL|PERFORM)\s+(?:\w+\.)?(\w+)\s*\(/gi,
+    /(?::=|\bFROM)\s*(?:\w+\.)?(\w+)\s*\(/gi,  // 내장 함수 제외 필요
+  ],
+  MSSQL: [
+    /(?:EXEC|EXECUTE)\s+(?:dbo\.)?(\w+)/gi,
+    /\bdbo\.(\w+)\s*\(/gi,
+    /\b(\w+)\s*\(\s*@/gi,                    // 인라인 함수 호출 (false positive 가능 — context 검증)
+  ],
+}[DBMS];
 ```
 
 #### 6-2. 감지된 오브젝트 분류
 
 ```javascript
-detectedCalls.forEach(callName => {
-  // MSSQL 에서는 패키지 개념이 없으므로 항상 STANDALONE
+detectedCalls.forEach(call => {
+  // Oracle 패키지 멤버 호출(PKG.PROC)만 PACKAGE_MEMBER, 그 외(PostgreSQL·MSSQL 전부, Oracle 독립 객체)는 STANDALONE
+  const isPackageCall = DBMS === 'ORACLE' && call.qualifier && isPackageFile(call.qualifier);
   detectedObjects.push({
-    objectName: callName,
-    procedureName: null,
-    callType: 'STANDALONE',
-    fullCall: callName
+    objectName: isPackageCall ? call.qualifier : call.name,   // 분석 단위 = 패키지
+    procedureName: isPackageCall ? call.name : null,
+    callType: isPackageCall ? 'PACKAGE_MEMBER' : 'STANDALONE',   // phase3-generator.py 와 같은 값
+    fullCall: call.text
   });
 });
 ```
@@ -181,18 +220,20 @@ for (const obj of uniqueObjects) {
 
 #### 6-4. /analyze-plsql 자동 서브에이전트 호출
 
-**스킬 이름은 `analyze-plsql` 그대로 보존** (산출물 일관성). 의미는 "MSSQL procedure 분석" 으로 사용:
+**스킬 이름은 `analyze-plsql` 그대로 보존** (산출물 일관성). 의미는 "판정된 원천 DBMS 의 package/procedure/function 분석" 으로 사용. 전용 분석 에이전트 타입은 두지 않고 `general-purpose` 서브에이전트에 `/analyze-plsql` 스킬과 원천 DBMS 를 넘긴다:
 
 ```javascript
 if (pendingAnalysis.length > 0) {
   for (const obj of pendingAnalysis) {
     await Task({
-      description: `MSSQL procedure 분석 ${obj.objectName}`,
-      subagent_type: "mssql-sql-analyzer",  // 또는 "oracle-sql-analyzer" (본문이 MSSQL 로 갱신됨)
+      description: `레거시 DB procedure 분석 ${obj.objectName}`,
+      subagent_type: "general-purpose",
       prompt: `/analyze-plsql ${obj.objectName}\n\n` +
+        `원천 DBMS: ${DBMS}\n` +
         `SampleErp procedure 분석 요청. 정적 파일 위치: docs/external/SampleErp/procedures/${obj.objectName}.sql\n` +
         `호출 형태: ${obj.fullCall}\n` +
-        `analyze-plsql 스킬 파일: .claude/skills/analyze-plsql/SKILL.md 를 먼저 읽고 지침에 따라 수행해주세요.`
+        `analyze-plsql 스킬 파일: .claude/skills/analyze-plsql/SKILL.md 를 먼저 읽고 지침에 따라 수행해주세요. ` +
+        `원천 DBMS 는 위 값으로 확정됐으니 다시 판정하지 말고 그 방언 패턴으로 분석해주세요.`
     });
   }
 }
@@ -261,7 +302,7 @@ function getReportPath(objectName, callerModuleId) {
     "totalAnalyzed": "number",
     "totalSkipped": "number",
     "detectedCalls": [
-      {"objectName": "string", "procedureName": "string|null", "callType": "STANDALONE", "fullCall": "string", "analyzed": "boolean", "reportPath": "string|null"}
+      {"objectName": "string", "procedureName": "string|null", "callType": "STANDALONE|PACKAGE_MEMBER", "fullCall": "string", "analyzed": "boolean", "reportPath": "string|null"}
     ]
   }
 }
@@ -272,11 +313,12 @@ function getReportPath(objectName, callerModuleId) {
 ## 주의사항
 - **최우선**: SQL Key 종합 검색 후 없으면 즉시 조기 종료
 - structure.json 필수 (Phase 1 먼저 실행)
-- MSSQL 바인드 변수: `@변수명` 인식
-- **MSSQL 호출 감지**: `EXEC`, `EXECUTE`, `dbo.X(...)` 패턴 감지 시 `/analyze-plsql` 을 서브에이전트로 자동 호출
+- **원천 DBMS 판정 선행**: Step 0 에서 한 번 판정하고 모든 패턴·위임에 같은 값을 쓴다
+- 바인드 변수: 판정 방언 기준 인식 (Oracle `:name` · PostgreSQL `$1`/이름 있는 인자 · MSSQL `@name`)
+- **호출 감지**: 판정 방언의 호출 구문(Oracle `PKG.PROC(...)` · PostgreSQL `CALL`/`PERFORM`/`SELECT f()` · MSSQL `EXEC`/`EXECUTE`/`dbo.X(...)`) 감지 시 `/analyze-plsql` 을 서브에이전트로 자동 호출
 - **분석 중복 방지**: `docs/external/SampleErp/orgErpReport/{moduleId}/DBMS/` 또는 `_shared/DBMS/` 에 이미 분석 보고서가 존재하면 스킵
-- **분석 자동 실행**: 사용자 확인 없이 감지된 미분석 오브젝트를 `mssql-sql-analyzer` (또는 `oracle-sql-analyzer` — 본문이 MSSQL 로 갱신됨) 서브에이전트로 순차 자동 분석
-- **DB 미접속**: SampleErp 는 정적 파일 dump 만 다룬다. sqlcl 호출 금지.
+- **분석 자동 실행**: 사용자 확인 없이 감지된 미분석 오브젝트를 `general-purpose` 서브에이전트(프롬프트에 `/analyze-plsql` 과 `원천 DBMS` 전달)로 순차 자동 분석
+- **DB 미접속**: SampleErp 는 정적 파일 dump 만 다룬다. sqlcl·psql·sqlcmd 등 DB 클라이언트 호출 금지.
 
 ## 에러 처리
 - structure.json 없음 → 즉시 종료

@@ -1,8 +1,8 @@
-# 어휘 매핑표 — Java/PL/SQL → C#/T-SQL
+# 어휘 매핑표 — 부산 템플릿 어휘 → 레거시 원천(앱·DB 방언)
 
-mes-plugin 의 산출물 템플릿(BPA / 레거시 / 프로세스그룹 / 프로시저 분석) 은 부산 프로젝트(GLUE Framework + Java + Oracle PL/SQL) 시절 헤딩으로 굳어졌다. **템플릿 헤딩과 JSON 스키마 키 이름은 그대로 두고**, 본문을 채울 때 본 표로 의미를 SampleErp(C# WinForms + MSSQL T-SQL) 맥락으로 매핑한다.
+mes-plugin 의 산출물 템플릿(BPA / 레거시 / 프로세스그룹 / 프로시저 분석) 은 부산 프로젝트(GLUE Framework + Java + Oracle PL/SQL) 시절 헤딩으로 굳어졌다. **템플릿 헤딩과 JSON 스키마 키 이름은 그대로 두고**, 본문을 채울 때 본 표로 의미를 분석 대상 레거시 맥락으로 매핑한다. 앱 계층은 SampleErp(C# WinForms) 기준 §1·§2 를, DB 계층은 **원천 DBMS 를 먼저 판정(§3-1)한 뒤** 그 방언 열(§3-3)을 따른다. 원천 DBMS 는 고객사마다 다르다 — Oracle PL/SQL · PostgreSQL PL/pgSQL · MSSQL T-SQL 순으로 지원하고, SQLite 원천(저장 프로시저 없음)은 §3-4 로 다룬다.
 
-본 파일은 4개 generate-* / analyze-* 스킬이 공통으로 참조한다.
+본 파일은 generate-* / analyze-* / define-process-groups 스킬이 공통으로 참조한다.
 
 ## 1. 화면/클래스 단위
 
@@ -84,27 +84,76 @@ this.panelTop.Controls.Add(this.btnSearch);
 | 사내 라이브러리 | `SmartLabel` | 라벨 (다국어) |
 | 사내 라이브러리 | `MessageBoxEx` | 메시지 박스 (확장) |
 
-## 3. SQL / 데이터베이스
+## 3. SQL / 데이터베이스 (원천 DBMS 방언)
 
-| 영역 | 부산 (Oracle PL/SQL) | SampleErp (MSSQL T-SQL) |
+### 3-1. 원천 DBMS 판정 (모든 analyze-* 의 첫 단계)
+
+DB 객체를 분석하기 전에 원천 DBMS 를 하나로 정한다. 아래 순서로 판정하고, 앞 단계에서 정해지면 뒤 단계는 건너뛴다.
+
+1. **README 표기** — `docs/external/{시스템명}/README.md` 에서 값이 하나뿐인 `원천 DBMS: X` 줄을 읽는다. 형식 안내 문구(`{Oracle|PostgreSQL|MSSQL|SQLite}` 처럼 중괄호·`|` 가 든 줄)는 미기재로 본다.
+2. **원천 SQL 문법 단서** — README 에 없으면 분석 대상 `.sql` 본문(없으면 `tables/` 의 DDL 몇 개)에서 단서를 찾는다.
+
+   | 판정 | 단서 |
+   |---|---|
+   | Oracle | `CREATE OR REPLACE PACKAGE [BODY]`, `VARCHAR2`, `NUMBER(`, `IS`/`AS` 뒤 `BEGIN ... END 이름;`, `:NEW`/`:OLD`, `NVL(`, `SYSDATE`, `/` 단독 줄 |
+   | PostgreSQL | `LANGUAGE plpgsql`, `$$` 본문 구분자, `RETURNS TRIGGER`/`RETURNS SETOF`, `::타입` 캐스트, `SERIAL`, `EXECUTE FUNCTION` |
+   | MSSQL | `GO` 단독 줄, `NVARCHAR`, `@변수`, `dbo.`·`[dbo].[...]`, `BEGIN TRY`, `@@ROWCOUNT` |
+   | SQLite | `procedures/`·`functions/` 가 비어 있고 `AUTOINCREMENT`, `INTEGER PRIMARY KEY`, `PRAGMA`, `sqlite_master` |
+
+   단서가 두 방언에 걸치면(예: `COALESCE` 처럼 공통 문법만 있음) 판정 불가로 본다.
+3. **사용자 확인** — 판정 불가면 AskUserQuestion 으로 원천 DBMS 를 묻는다. 추측으로 진행하지 않는다.
+
+판정 결과는 **각 분석 보고서 §1 첫 줄(또는 메타데이터 표의 첫 행)에 `원천 DBMS: X`** 로 적고(판정 근거 — README / 문법 단서 / 사용자 확인 — 를 괄호로 덧붙임), 하위 서브에이전트에 위임할 때 프롬프트에 그대로 넘긴다.
+
+### 3-2. 공통 (방언 무관)
+
+| 영역 | 내용 |
+|---|---|
+| SQL 본문 위치 | 정적 파일 (`docs/external/{시스템명}/{procedures\|functions\|tables\|views\|triggers}/{이름}.sql`). DB 직접 접속은 하지 않는다 |
+| 의존성 조회 | 시스템 카탈로그 접근 불가 → 본문 정규식(§3-3 "호출 구문" 행)이 유일한 방법 |
+| 기본 스키마 표기 | Oracle = 소유 스키마(파일에 없으면 생략), PostgreSQL = `public`, MSSQL = `dbo`. 보고서의 `{schema}.{객체}` 표기는 이 값을 쓴다 |
+| 식별자 인용 | Oracle `"X"`(인용 없으면 대문자), PostgreSQL `"x"`(인용 없으면 소문자), MSSQL `[X]`. 정규식은 세 형태와 무인용을 모두 허용한다 |
+
+### 3-3. 방언 매핑표
+
+| 영역 | Oracle PL/SQL | PostgreSQL PL/pgSQL | MSSQL T-SQL |
+|---|---|---|---|
+| 분석 단위 | `PACKAGE`(SPEC + BODY) 단위로 묶어 분석. 독립 `PROCEDURE` / `FUNCTION` 은 단일 객체 | 단일 `FUNCTION` / `PROCEDURE`(11+). 패키지 없음 — schema 로 묶여 있으면 §1 에 schema 를 그룹으로 표기 | 단일 `PROCEDURE` / `FUNCTION`. 패키지 없음 |
+| 보고서 §1 단위 표기 | "PACKAGE {PKG} (멤버 N개)" 또는 "단일 PROCEDURE/FUNCTION" | "패키지 없음, 단일 FUNCTION/PROCEDURE" | "패키지 없음, 단일 PROCEDURE/FUNCTION" |
+| 객체 헤더 | `CREATE OR REPLACE PACKAGE [BODY] p IS\|AS`, `CREATE OR REPLACE PROCEDURE p (a IN VARCHAR2, b OUT NUMBER) IS` | `CREATE OR REPLACE FUNCTION f(a text, OUT b int) RETURNS ... LANGUAGE plpgsql AS $$ ... $$` | `CREATE [OR ALTER] PROCEDURE [dbo].[p] @a INT, @b INT OUTPUT AS BEGIN ... END` |
+| 파라미터 모드 | `IN` / `OUT` / `IN OUT` | `IN` / `OUT` / `INOUT` / `VARIADIC` | 입력 / `OUTPUT` |
+| 변수 선언·식별 | `IS`/`DECLARE` 절의 `v_x NUMBER;` — 접두 기호 없음(관례 `p_`·`v_`·`l_`) | `DECLARE` 절의 `v_x int;` — 접두 기호 없음 | `DECLARE @v INT` — `@` 접두 |
+| 바인드 변수 | `:name` (앱 SQL), 본문은 파라미터명 직접 | `$1`·`$2` (prepared / 동적 SQL), 본문은 이름 있는 인자 | `@name` |
+| 호출 구문 | `PKG.PROC(...)`, `SCHEMA.PKG.PROC(...)`, 블록 안 `PROC(...);` 단독 문장, `CALL p(...)`, 동적 `EXECUTE IMMEDIATE '...' USING ...`, `DBMS_SQL` | `CALL p(...)`, `PERFORM f(...)`, `SELECT f(...)`, `x := f(...)`, `SELECT * FROM f(...)`, 동적 `EXECUTE format('...', ...) USING ...` | `EXEC`/`EXECUTE [dbo.]p @a, @b`, `dbo.f(...)`, `SELECT * FROM dbo.tvf(...)`, 동적 `EXEC(@sql)`·`sp_executesql` |
+| 커서 | `CURSOR c IS SELECT ...; OPEN c; FETCH c INTO ...; EXIT WHEN c%NOTFOUND; CLOSE c;` 또는 `FOR rec IN (SELECT ...) LOOP ... END LOOP;` | `FOR rec IN SELECT ... LOOP ... END LOOP;`, `DECLARE c CURSOR FOR ...; OPEN c; FETCH c INTO ...; EXIT WHEN NOT FOUND;`, `refcursor` | `DECLARE c CURSOR FOR SELECT ...; OPEN c; FETCH NEXT FROM c INTO @v1; WHILE @@FETCH_STATUS=0 BEGIN ... END; CLOSE c; DEALLOCATE c;` |
+| 트랜잭션 | `SAVEPOINT sp1`, `ROLLBACK TO sp1`, `COMMIT`, `ROLLBACK` (암묵 시작), `PRAGMA AUTONOMOUS_TRANSACTION` | FUNCTION 안에서는 `COMMIT` 불가. PROCEDURE(11+)는 `COMMIT`/`ROLLBACK` 가능. `EXCEPTION` 블록이 암묵 SAVEPOINT 역할 | `BEGIN TRAN`, `SAVE TRANSACTION sp1`, `ROLLBACK TRANSACTION sp1`, `COMMIT TRANSACTION`, `@@TRANCOUNT`, `SET XACT_ABORT ON` |
+| 에러 발생 | `RAISE_APPLICATION_ERROR(-20001, 'msg')`, `RAISE 예외명` | `RAISE EXCEPTION 'msg %', v USING ERRCODE = '...'` | `RAISERROR('msg', 16, 1)`, `THROW 50001, 'msg', 1` |
+| 예외 처리 | `EXCEPTION WHEN NO_DATA_FOUND / OTHERS THEN ...`, `SQLCODE`·`SQLERRM` | `EXCEPTION WHEN unique_violation / OTHERS THEN ...`, `SQLSTATE`·`SQLERRM`, `GET STACKED DIAGNOSTICS` | `BEGIN TRY ... END TRY BEGIN CATCH ... END CATCH`, `ERROR_NUMBER()`·`ERROR_MESSAGE()` |
+| 결과 반환 | `OUT` 파라미터, `SYS_REFCURSOR`, `RETURN 값` (FUNCTION), `PIPELINED` | `RETURNS SETOF`·`RETURNS TABLE(...)` + `RETURN QUERY`, `OUT`/`INOUT`, `refcursor` | 결과집합 `SELECT ...`, `OUTPUT` 파라미터, `RETURN 정수` |
+| 트리거 정의 | `CREATE OR REPLACE TRIGGER t BEFORE\|AFTER\|INSTEAD OF ... ON tbl [FOR EACH ROW] BEGIN ... END;` (본문 내장) | `CREATE TRIGGER t BEFORE\|AFTER\|INSTEAD OF ... ON tbl FOR EACH ROW\|STATEMENT EXECUTE FUNCTION fn();` — **본문은 `RETURNS TRIGGER` 함수(`functions/{fn}.sql`)에 있다** | `CREATE TRIGGER t ON tbl AFTER\|FOR\|INSTEAD OF INSERT, UPDATE, DELETE AS ...` — 문장 단위만, 기본 AFTER |
+| 트리거 행 참조 | `:NEW.col` / `:OLD.col` + `FOR EACH ROW`, 분기 `INSERTING`/`UPDATING`/`DELETING` | 트리거 함수의 `NEW.col` / `OLD.col`, 분기 `TG_OP`, 문장 단위는 `REFERENCING NEW TABLE AS ...` | 가상 테이블 `inserted` / `deleted` (여러 행), 분기는 두 테이블 행 존재 여부 |
+| 시퀀스·자동 증가 | `seq.NEXTVAL`/`CURRVAL`, 12c+ `GENERATED ... AS IDENTITY`, 트리거 채번 | `nextval('seq')`, `SERIAL`/`BIGSERIAL`, `GENERATED ... AS IDENTITY` | `IDENTITY(1,1)`, `SCOPE_IDENTITY()`, `NEXT VALUE FOR seq` |
+| NULL 대체 | `NVL(x, d)`, `NVL2`, `COALESCE`, `DECODE` | `COALESCE(x, d)`, `NULLIF` | `ISNULL(x, d)`, `COALESCE` |
+| 문자열 연결 | `\|\|` | `\|\|`, `concat()` | `+`, `CONCAT` |
+| 현재 시각 | `SYSDATE`, `SYSTIMESTAMP` | `now()`, `CURRENT_TIMESTAMP` | `GETDATE()`, `SYSDATETIME()` |
+| 페이징 / TOP-N | `WHERE ROWNUM <= N`, 12c+ `OFFSET n ROWS FETCH NEXT m ROWS ONLY` | `LIMIT m OFFSET n` | `SELECT TOP N`, 2012+ `OFFSET n ROWS FETCH NEXT m ROWS ONLY` |
+| 단일행 조회 | `SELECT 1 FROM DUAL` | `SELECT 1` | `SELECT 1` |
+| 시스템 카탈로그 (본문 안 참조 시 시스템 테이블로 분류) | `ALL_*`/`USER_*`/`DBA_*` (`ALL_SOURCE`, `ALL_DEPENDENCIES`), `V$SESSION` | `pg_catalog.*` (`pg_proc`, `pg_depend`), `information_schema.*`, `pg_stat_activity` | `sys.*` (`sys.objects`, `sys.sql_modules`, `sys.dm_exec_connections`), `INFORMATION_SCHEMA.*` |
+| 세션 정보 (트리거 감사용) | `SYS_CONTEXT('USERENV', ...)`, `USER` | `current_user`, `inet_client_addr()`, `pg_backend_pid()` | `@@SPID`, `HOST_NAME()`, `SUSER_SNAME()` |
+
+### 3-4. SQLite 원천
+
+SQLite 는 저장 프로시저·사용자 정의 함수가 DB 안에 없다(함수는 앱이 등록). 원천이 SQLite 면:
+
+- `/analyze-plsql` 대상이 없다 — 보고서 §1 에 "원천 DBMS: SQLite — 저장 프로시저 없음" 으로 적고 종료한다. 업무 로직은 앱 코드 inline SQL(`/analyze-queries`)과 트리거·뷰에 있다.
+- 트리거: `CREATE TRIGGER t BEFORE|AFTER|INSTEAD OF ... ON tbl [FOR EACH ROW] [WHEN ...] BEGIN ... END;` — 항상 행 단위, `NEW.col`/`OLD.col`, 오류는 `RAISE(ABORT, 'msg')`. `INSTEAD OF` 는 뷰에만.
+- 그 밖: 바인드 `?`·`:name`·`@name`·`$name`, NULL 대체 `IFNULL`/`COALESCE`, 연결 `||`, 페이징 `LIMIT ... OFFSET`, 자동 증가 `INTEGER PRIMARY KEY [AUTOINCREMENT]`, 카탈로그 `sqlite_master`(`sqlite_schema`). 타입은 선언과 무관한 동적 타입(affinity)이라 DDL 타입을 제약으로 단정하지 않는다.
+
+### 3-5. 앱 → DB 호출
+
+| 영역 | 부산 (Java → Oracle) | SampleErp (C# WinForms) |
 |---|---|---|
-| SQL 본문 위치 | DB 직접 (sqlcl MCP `ALL_SOURCE`) | 정적 파일 (`docs/external/SampleErp/{procedures\|functions\|tables\|views\|triggers}/{이름}.sql`) |
-| 분석 단위 | `PACKAGE` / `PROCEDURE` / `FUNCTION` | `PROCEDURE` / `FUNCTION` (패키지 개념 없음 — 보고서 §1 에서 "패키지 없음, MSSQL 단일 프로시저/함수" 명시) |
-| 패키지 멤버 호출 | `pkg_name.proc_name(...)` | `dbo.proc_name(...)` (스키마.프로시저) |
-| 바인드 변수 | `:변수명`, `#변수명#` | `@변수명` |
-| 커서 | `CURSOR c IS SELECT ... ; OPEN c; FETCH c INTO ...; CLOSE c;` 또는 `FOR rec IN (SELECT ...) LOOP ... END LOOP;` | `DECLARE c CURSOR FOR SELECT ...; OPEN c; FETCH NEXT FROM c INTO @v1, @v2; WHILE @@FETCH_STATUS=0 BEGIN ... FETCH NEXT FROM c ... END; CLOSE c; DEALLOCATE c;` |
-| 트랜잭션 | `SAVEPOINT sp1`, `ROLLBACK TO sp1`, `COMMIT`, `ROLLBACK` | `SAVE TRANSACTION sp1`, `ROLLBACK TRANSACTION sp1`, `COMMIT TRANSACTION`, `ROLLBACK TRANSACTION` |
-| 에러 발생 | `RAISE_APPLICATION_ERROR(-20001, 'msg')` | `RAISERROR('msg', 16, 1)` 또는 `THROW 50001, 'msg', 1` |
-| 예외 처리 | `EXCEPTION WHEN ... THEN ...` 블록 | `BEGIN TRY ... END TRY BEGIN CATCH ... END CATCH` |
-| 결과 반환 | `OUT 파라미터`, `SYS_REFCURSOR`, `RETURN 값` (FUNCTION) | 결과집합 `SELECT ...`, `OUTPUT 파라미터`, `RETURN 값` |
-| 의존성 조회 | `ALL_DEPENDENCIES` 뷰 | 본문 정규식 — `exec\s+(?:dbo\.)?(\w+)`, `dbo\.(\w+)\s*\(` |
-| 시스템 카탈로그 | `ALL_OBJECTS`, `ALL_TAB_COLUMNS`, `ALL_SOURCE` | 정적 파일 직접 (`tables/*.sql` 의 `CREATE TABLE` 본문 파싱) |
-| Bind 호출 (Java→Oracle) | `getProperty(SQLKEY)` + named parameter | `AppDB.Execute("procName", new { p1=val1, p2=val2 })` 또는 `SqlCommand.Parameters.AddWithValue("@p1", val1)` |
-| NULL 처리 | `NVL(x, default)` | `ISNULL(x, default)` 또는 `COALESCE(x, default)` |
-| 문자열 연결 | `\|\|` | `+` 또는 `CONCAT` |
-| TOP-N | `WHERE ROWNUM <= N` | `SELECT TOP N ...` |
-| 시퀀스 | `seq.NEXTVAL` | `IDENTITY` 컬럼, `NEXT VALUE FOR seq` (SEQUENCE 객체) |
-| DUAL | `SELECT 1 FROM DUAL` | `SELECT 1` (DUAL 불필요) |
+| Bind 호출 | `getProperty(SQLKEY)` + named parameter | `AppDB.Execute("procName", new { p1=val1, p2=val2 })` 또는 `{Provider}Command.Parameters.AddWithValue(...)` — 제공자 클래스는 원천 DBMS 따라 `OracleCommand` / `NpgsqlCommand` / `SqlCommand` / `SqliteCommand` |
 
 ### inline SQL 추출 패턴 (C# 코드 안)
 
@@ -127,17 +176,17 @@ cmd.Parameters.AddWithValue("@id", coilId);
 
 산출물 템플릿(헤딩) 은 변경하지 않고, 본문을 채울 때 다음 매핑을 따른다.
 
-| 템플릿 헤딩 | 부산 본문 어휘 (지양) | SampleErp 본문 어휘 (적용) |
+| 템플릿 헤딩 | 부산 본문 어휘 (지양) | 레거시 원천 본문 어휘 (적용) |
 |---|---|---|
 | BPA §6 "커스텀 클래스 워크플로우" | "Java Activity 200줄+" | "C# partial class 200줄+ — 핸들러/비즈니스 메서드 합산" |
 | BPA §8 "화면 구성 개요 (UI만 해당)" | JSP 영역 + Form/Grid XML | Designer.cs 의 `InitializeComponent()` + `.resx` 리소스 |
 | 레거시 §"⚙️ Java 컴포넌트 분석" | Java 클래스 헤딩 그대로 | C# partial class — 헤딩 그대로, 본문은 C# 어휘 |
 | 레거시 §"JavaScript 모듈" | JSP+JS 함수 | "해당 없음 (WinForms — 클라이언트 JS 미사용)" + 클라이언트 이벤트 핸들러 메서드 표 |
 | 레거시 §"이벤트 핸들러" | JSP `onclick=...` | C# Designer.cs 의 `Click += new EventHandler(...)` 매핑 |
-| PL/SQL §"프로시저/함수 상세 분석" | PACKAGE 멤버 / PROCEDURE / FUNCTION | (Stored) PROCEDURE / FUNCTION (패키지 개념 N/A — §1에 명시) |
-| PL/SQL §"의존성 — 내부 호출 / 외부 의존성" | 같은 패키지 내 / `ALL_DEPENDENCIES` | 본문 정규식으로 `exec dbo.X` / `dbo.X()` 추출 |
-| PL/SQL §"제어 흐름 — 트랜잭션 제어" | SAVEPOINT/ROLLBACK TO/COMMIT | SAVE TRANSACTION/ROLLBACK TRANSACTION/COMMIT TRANSACTION |
-| PL/SQL §"제어 흐름 — 커서 루프 상세 분석" | `FOR rec IN (...) LOOP` | `WHILE @@FETCH_STATUS=0 BEGIN ... END` |
+| PL/SQL §"프로시저/함수 상세 분석" | (DB 직접 조회 기준) PACKAGE 멤버 / PROCEDURE / FUNCTION | 판정된 원천 DBMS 의 §3-3 "분석 단위" 행 — Oracle 이면 PACKAGE 멤버별, PostgreSQL·MSSQL 이면 단일 객체 (§1 에 단위 명시) |
+| PL/SQL §"의존성 — 내부 호출 / 외부 의존성" | `ALL_DEPENDENCIES` 조회 | 본문 정규식 — §3-3 "호출 구문" 행의 판정 방언 패턴 (Oracle 은 같은 패키지 내 호출을 "내부 호출" 로 구분) |
+| PL/SQL §"제어 흐름 — 트랜잭션 제어" | SAVEPOINT/ROLLBACK TO/COMMIT | §3-3 "트랜잭션" 행의 판정 방언 구문 |
+| PL/SQL §"제어 흐름 — 커서 루프 상세 분석" | `FOR rec IN (...) LOOP` | §3-3 "커서" 행의 판정 방언 구문 |
 
 ## 5. JSON 스키마 키 이름 보존 정책
 

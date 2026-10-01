@@ -19,7 +19,7 @@ description: "프로세스 그룹 ID(PG-XX) 를 입력으로, 해당 그룹에 �
 
 모듈 진입점 `{MODULE-ID}_PROCESS_INDEX.md` 에서 지정된 프로세스 그룹의 화면 목록을 추출하고, 해당 화면들의 개별 BPA 를 읽어 **End-to-End 통합 프로세스 분석서** 를 생성한다.
 
-> 산출물 템플릿(`templates/process_group_report_template.md`) 의 헤딩은 부산 시절 그대로 보존 — 산출물 동일성 우선. 본문 어휘는 [`_shared/vocabulary-mapping.md`](../_shared/vocabulary-mapping.md) 의 Java→C# / PL/SQL→T-SQL 매핑을 적용.
+> 산출물 템플릿(`templates/process_group_report_template.md`) 의 헤딩은 부산 시절 그대로 보존 — 산출물 동일성 우선. 본문 어휘는 [`_shared/vocabulary-mapping.md`](../_shared/vocabulary-mapping.md) 의 Java→C# 어휘 + 원천 DBMS 방언(§3) 매핑을 적용.
 
 ---
 

@@ -1,9 +1,9 @@
 ---
 name: analyze-view
-description: "MSSQL 뷰 심층 분석. SELECT 본문 / JOIN 구조 / CTE 구조 / 노출 컬럼 ↔ 원본 테이블 lineage 를 추출하고, 하드코딩 가정 (PlantCd, CoCd 등) 과 BI 활용 패턴을 식별한다. SampleErp 정적 DDL 파일 `docs/external/SampleErp/views/{VIEW}.sql` 직접 읽기. 사용 시점: /analyze-view VIEW-NAME 호출 시. 예: /analyze-view BI_*_VIEW"
+description: "레거시 DB(Oracle·PostgreSQL·MSSQL·SQLite) 뷰 심층 분석. SELECT 본문 / JOIN 구조 / CTE 구조 / 노출 컬럼 ↔ 원본 테이블 lineage 를 추출하고, 하드코딩 가정 (PlantCd, CoCd 등) 과 BI 활용 패턴을 식별한다. SampleErp 정적 DDL 파일 `docs/external/SampleErp/views/{VIEW}.sql` 직접 읽기. 사용 시점: /analyze-view VIEW-NAME 호출 시. 예: /analyze-view BI_*_VIEW"
 ---
 
-# MSSQL 뷰 심층 분석
+# 레거시 DB 뷰 심층 분석
 
 > ⭐ **V4 (2026-05-13) — 영역 분리 폴더 구조 (필수)**
 >
@@ -15,7 +15,7 @@ description: "MSSQL 뷰 심층 분석. SELECT 본문 / JOIN 구조 / CTE 구조 
 > - **조업**: PMA · (향후 PCA · PFA · PGA · MAA · MCM · BOA · BOP)
 > - 신규 모듈은 사용자에게 영역 결정 요청.
 
-SampleErp 의 MSSQL 뷰 정적 DDL 파일을 심층 분석하여 SELECT 본문 구조, JOIN 분석, CTE 분석, 노출 컬럼 lineage 를 추출하고 종합 분석 보고서를 생성한다.
+SampleErp 의 레거시 DB 뷰 정적 DDL 파일을 원천 DBMS(Oracle · PostgreSQL · MSSQL · SQLite) 판정 후 그 방언으로 심층 분석하여 SELECT 본문 구조, JOIN 분석, CTE 분석, 노출 컬럼 lineage 를 추출하고 종합 분석 보고서를 생성한다.
 
 > 본 스킬은 generate-legacy §4 (조회 lineage) 및 모듈 DB 자산 베이스라인 작성 시 인용할 기반 산출물을 만드는 단계다. BI 리포트 / 외부 리포트 시스템과 본 ERP 의 접점을 분석할 때 핵심.
 
@@ -42,33 +42,40 @@ docs/external/SampleErp/orgErpReport/{moduleId}/DBMS/views/{VIEW}_analysis.md
 
 ## 실행 절차
 
-### Step 1: DDL Read
+### Step 1: DDL Read + 원천 DBMS 판정
 
 `docs/external/SampleErp/views/{VIEW}.sql` Read. 미존재 시 즉시 종료.
+
+원천 DBMS 는 [`_shared/vocabulary-mapping.md`](../_shared/vocabulary-mapping.md) §3-1 순서(README `원천 DBMS:` 줄 → DDL 문법 단서 → 사용자 확인)로 판정한다. 뷰 본문은 표준 SELECT 라 단서가 적으므로 README 표기를 우선한다 (본문 단서 예: Oracle `NVL`·`DECODE`·`(+)` 외부 조인·`ROWNUM` · PostgreSQL `::` 캐스트·`ILIKE` · MSSQL `ISNULL`·`TOP`·`[dbo].` · SQLite `IFNULL`·`||`).
 
 ### Step 2: 뷰 헤더 분석
 
 ```sql
-CREATE [OR ALTER] VIEW [dbo].[{VIEW}]
-[WITH ...]
-AS
-SELECT ... FROM ...
+-- Oracle
+CREATE [OR REPLACE] [FORCE] VIEW {VIEW} [(컬럼 목록)] AS SELECT ... [WITH READ ONLY | WITH CHECK OPTION];
+-- PostgreSQL
+CREATE [OR REPLACE] [MATERIALIZED] VIEW {schema}.{VIEW} [WITH (security_barrier)] AS SELECT ... [WITH CHECK OPTION];
+-- MSSQL
+CREATE [OR ALTER] VIEW [dbo].[{VIEW}] [WITH SCHEMABINDING | ENCRYPTION] AS SELECT ... FROM ...
+-- SQLite
+CREATE [TEMP] VIEW [IF NOT EXISTS] {VIEW} AS SELECT ...;
 ```
 
 추출:
-- 뷰 옵션 (`WITH SCHEMABINDING`, `WITH ENCRYPTION` 등)
-- updatable view 여부 (단일 테이블 + 직선 매핑) 판단
+- 뷰 옵션 (Oracle `FORCE`·`WITH READ ONLY` · PostgreSQL `MATERIALIZED`·`security_barrier` · MSSQL `WITH SCHEMABINDING`·`WITH ENCRYPTION` · 공통 `WITH CHECK OPTION`)
+- materialized view 여부 (Oracle `CREATE MATERIALIZED VIEW` · PostgreSQL `MATERIALIZED`) — 갱신 주기(`REFRESH`)가 있으면 조회 시점 데이터가 실시간이 아님을 명시
+- updatable view 여부 (단일 테이블 + 직선 매핑) 판단. SQLite 뷰는 읽기 전용이며 갱신은 `INSTEAD OF` 트리거로만 가능
 
 ### Step 3: CTE 추출 (있는 경우)
 
 `WITH {CTE명} AS ( SELECT ... )` 본문 분석:
 - CTE 명, 목적, 컬럼 정의
-- CTE 내부 집계/계산 패턴 (예: `DATEDIFF(MINUTE, ...)`, `CONVERT`, `MAX(COALESCE(...))`)
-- 재귀 CTE 인 경우 명시
+- CTE 내부 집계/계산 패턴 (예: MSSQL `DATEDIFF(MINUTE, ...)`·`CONVERT`, Oracle `(d2 - d1) * 24 * 60`·`TO_CHAR`, PostgreSQL `EXTRACT(EPOCH FROM ...)`·`::`, 공통 `MAX(COALESCE(...))`)
+- 재귀 CTE 표기는 PostgreSQL·SQLite `WITH RECURSIVE`, Oracle·MSSQL `WITH` (Oracle 은 `CONNECT BY` 계층 질의도 같은 범주로 다룸)
 
 ### Step 4: FROM / JOIN 분석
 
-SELECT 본문의 FROM/JOIN 절을 표 형태로 분해:
+SELECT 본문의 FROM/JOIN 절을 표 형태로 분해 (Oracle 구식 외부 조인 `a.col = b.col(+)` 은 WHERE 절에서 찾아 LEFT/RIGHT JOIN 으로 환산해 적는다):
 
 | 별칭 | 테이블/뷰 | JOIN 종류 | JOIN 조건 | 비고 |
 |---|---|---|---|---|
@@ -83,7 +90,7 @@ SELECT 절의 각 컬럼이 어느 원본 테이블 / CTE 에서 유래하는지
 | 노출 컬럼 | 원본 | 변환 | 비고 |
 |---|---|---|---|
 | `INSP_REQ_NO` | `a.INSP_REQ_NO` | 그대로 | PK |
-| `STATUS_NAME` | (스칼라 서브쿼리) `dbo.fnGetCommName('Q030', c.STATUS, '4000')` | 코드값→의미명 | 하드코딩 `'4000'` |
+| `STATUS_NAME` | (함수 호출) `{schema}.fnGetCommName('Q030', c.STATUS, '4000')` | 코드값→의미명 | 하드코딩 `'4000'` |
 | `QELT` | (CTE TimeCalc) | `DATEDIFF(MINUTE, ...) * 1.0 / 60` | hour 단위 |
 
 ### Step 6: 하드코딩 / 가정 식별
@@ -96,7 +103,7 @@ SELECT 절의 각 컬럼이 어느 원본 테이블 / CTE 에서 유래하는지
 
 ### Step 7: 함수 의존성
 
-`dbo.{함수}()` 호출을 식별하고 각 함수의 역할 (스칼라 / 인라인 TVF / 멀티문 TVF) 분석. 함수가 모듈 DBMS 의 procedure 분석에 등록된 경우 링크.
+판정 방언의 함수 호출을 식별하고(Oracle `PKG.FN()`·`FN()` · PostgreSQL `[schema.]fn()` · MSSQL `dbo.fn()`) 각 함수의 역할 분석 — 스칼라 / 집합 반환(Oracle `PIPELINED`·`TABLE(fn())`, PostgreSQL `RETURNS SETOF`/`TABLE`, MSSQL 인라인 TVF / 멀티문 TVF). 내장 함수(`NVL`·`COALESCE`·`ISNULL` 등)는 제외. 함수가 모듈 DBMS 의 procedure 분석에 등록된 경우 링크.
 
 ### Step 8: 보고서 구조
 
@@ -105,7 +112,8 @@ SELECT 절의 각 컬럼이 어느 원본 테이블 / CTE 에서 유래하는지
 
 | 항목 | 내용 |
 |---|---|
-| 뷰 ID | dbo.{VIEW} |
+| 원천 DBMS | {Oracle \| PostgreSQL \| MSSQL \| SQLite} (판정 근거) |
+| 뷰 ID | {schema}.{VIEW} |
 | 분류 | BI 종합 뷰 / 조회 단순 뷰 / 마스터 룩업 뷰 등 |
 | 원본 본문 | `docs/external/SampleErp/views/{VIEW}.sql` |
 | 분석 일시 | ... |
@@ -146,4 +154,4 @@ POC 산출물 (V2 표준):
 
 ## 어휘 매핑
 
-본문 어휘는 [`_shared/vocabulary-mapping.md`](../_shared/vocabulary-mapping.md) 의 PL/SQL → T-SQL 매핑 적용.
+본문 어휘는 [`_shared/vocabulary-mapping.md`](../_shared/vocabulary-mapping.md) §3 에서 판정된 원천 DBMS 의 방언 열을 적용.
