@@ -32,6 +32,7 @@ import kr.dongkuk.maru.mdm.engine.rule.RunTrace.NodeTrace;
 import kr.dongkuk.maru.mdm.engine.rule.RunTrace.TraceEdit;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.NodeKind;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleDefinition;
+import kr.dongkuk.maru.mdm.engine.spi.Nullable;
 
 /**
  * 흐름 실행 한 번(룰 세트 흐름도 spec §4, plan C5). 블록 트리를 따라가며 ctx 에 룰 결과를 덮어쓴다. IF 는 처음 참인 갈래 하나,
@@ -40,9 +41,10 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleDefinition;
  * 실행 중 위반은 {@link EngineEvaluationException} 으로 던진다. {@code tracing} 이면 노드마다 {@link NodeTrace} 를 남기고,
  * 던지기 직전 처리 중이던 노드를 {@link #failed} 로 ERROR 기록할 수 있게 둔다.
  *
- * <p>받는 룰(받는 노드 spec §4): 룰이 실패했거나 결과가 없는데 그 종류를 받는 노드가 있으면 룰 결과를 ctx 에 쓰지 않고 룰 직전 ctx 로
- * 되돌린 뒤 CATCH_* 넷을 넣고 처리 갈래를 실행한다. 돌아오는 MERGE 에서 CATCH_* 를 룰 직전 값으로 되돌리고(중첩이면 바깥 값, R4), 처리 갈래가
- * END 에 닿으면 {@link Ended} 로 세트를 끝낸다(R5). 받는 노드가 없으면 지금처럼 실패는 멈춤, 결과 없음은 NULL 결과로 진행한다(X-D3).
+ * <p>받는 노드 블록(받는 노드 spec §4, implicit-join spec §5): 단계가 실패했거나 결과가 없는데 그 종류를 받는 노드가 있으면 결과를 ctx 에 쓰지 않고
+ * 룰 직전 ctx 로 되돌린 뒤 CATCH_* 넷을 넣고 처리 갈래를 실행한다. 블록이 돌아오는 자리(joinId)로 끝나면 CATCH_* 를 룰 직전 값으로 되돌리고
+ * (중첩이면 바깥 값, R4) 옛 형식이면 MERGE 를 기록한다. 처리 갈래가 END 에 닿으면 {@link Ended} 로 세트를 끝낸다. 빈 단계 블록은 처리 갈래를 타지 않는다.
+ * 끝내는 IF 갈래는 몸을 실행한 뒤 {@code Ended(null)} 을 던진다 — 처리 갈래 안이면 그 받는 노드의 끝냄으로 바꾼다(J-D18).
  *
  * <p>고친 값(4단계 spec §2.2): 노드를 시작할 때 다음 순번({@code nodes.size() + 1})이 {@code beforeSeq} 인 고친 값을 그 노드 범위의 ctx 에
  * {@link RecordKeys#putReplacing} 으로 넣고, 같은 이름(대소문자 무시)이 그 범위 made 에 있으면 made 도 같은 방법으로 바꾼다. 자리의 노드 ID 가
@@ -54,12 +56,12 @@ final class FlowRun {
     private static final List<String> CATCH_ORDER =
             List.of(ReservedNames.CATCH_KIND, ReservedNames.CATCH_RULE, ReservedNames.CATCH_CODE, ReservedNames.CATCH_MSG);
 
-    /** 처리 갈래가 END 에 닿았다 — 위반이 아닌 제어 신호(R5). {@link #run} 이 받는다. */
+    /** 끝냄 신호 — 위반이 아닌 제어 신호(R5, implicit-join R6). 처리 갈래 안 끝냄이면 그 받는 노드 ID, 끝내는 IF 갈래면 null. {@link #run} 이 받는다. */
     static final class Ended extends RuntimeException {
         private static final long serialVersionUID = 1L;
         final String catchNodeId;
 
-        Ended(String catchNodeId) {
+        Ended(@Nullable String catchNodeId) {
             super(null, null, false, false);
             this.catchNodeId = catchNodeId;
         }
@@ -102,7 +104,7 @@ final class FlowRun {
     final List<NodeTrace> nodes = new ArrayList<>();
     /** 받아 처리한 exception, 실행 순서(받는 노드 spec §6). */
     final List<CaughtException> caught = new ArrayList<>();
-    /** 처리 갈래가 END 로 끝냈으면 그 CATCH 노드 ID. */
+    /** 처리 갈래 안에서 끝냈으면 그 받는 노드 ID(끝내는 IF 갈래로 끝나면 null). */
     String endedBy;
 
     // 지금 처리 중인 노드 — 실행 중 위반이 나면 traceSet 이 ERROR 노드로 남긴다.
@@ -212,6 +214,11 @@ final class FlowRun {
     private void plain(String nodeId, NodeKind kind, Map<String, Object> ctx, Map<String, Object> made) {
         begin(nodeId, kind);
         edit(ctx, made);
+        record(nodeId, kind);
+    }
+
+    /** 칸 없는 노드의 path·기록. */
+    private void record(String nodeId, NodeKind kind) {
         path.add(new PathStep(nodeId, kind, null, null));
         if (tracing) {
             nodes.add(new NodeTrace(nodes.size() + 1, nodeId, kind, NodeStatus.OK, null, null, null, null, null, null, null,
@@ -279,10 +286,38 @@ final class FlowRun {
         }
     }
 
-    /** 받는 룰(받는 노드 spec §4). */
+    /** 받는 노드 블록(받는 노드 spec §4, implicit-join spec §5). */
     private void guarded(Guarded g, Map<String, Object> ctx, Map<String, Object> made) {
-        RuleStep r = (RuleStep) g.step(); // SEAM(T2): TASK 블록·돌아오는 자리(joinId)·IF 끝냄은 Task 2 가 실행한다
         Map<String, Object> outer = catchValues(ctx);
+        if (g.step() instanceof TaskStep t) {
+            // 빈 단계는 실패하지 않는다 — 처리 갈래를 타지 않는다(J-D4). 정상 갈래 입력 키는 기록 전에 본다(R5).
+            begin(t.nodeId(), NodeKind.TASK);
+            edit(ctx, made);
+            List<Violation> missing = keys.check(g.normal(), ctx.keySet());
+            if (!missing.isEmpty()) {
+                throw new EngineEvaluationException(missing);
+            }
+            record(t.nodeId(), NodeKind.TASK);
+            seq(g.normal(), ctx, made);
+        } else {
+            guardedRule((RuleStep) g.step(), g, ctx, made);
+        }
+        if (g.joinId() != null) {
+            restoreCatch(ctx, outer); // R3·R4 — 돌아오는 자리를 시작하기 전에 룰 직전 값으로(중첩이면 바깥 값)
+            if (g.mergeId() != null) { // 옛 형식 돌아오는 MERGE 만 기록한다
+                begin(g.mergeId(), NodeKind.MERGE);
+                edit(ctx, made);
+                path.add(new PathStep(g.mergeId(), NodeKind.MERGE, null, null));
+                if (tracing) {
+                    nodes.add(new NodeTrace(nodes.size() + 1, g.mergeId(), NodeKind.MERGE, NodeStatus.OK, null, null, null, null, null,
+                            null, null, g.nodeId(), null, null, null, null, null));
+                }
+            }
+        }
+    }
+
+    /** 룰이 받는 노드 블록의 단계일 때 — 받기 판정·정상 갈래·처리 갈래. */
+    private void guardedRule(RuleStep r, Guarded g, Map<String, Object> ctx, Map<String, Object> made) {
         RuleDefinition def = startRule(r, ctx, made);
         Map<String, Object> before = new LinkedHashMap<>(ctx);
         RuleResult ok = null;
@@ -310,25 +345,20 @@ final class FlowRun {
             }
             accept(r, ok, ctx, made);
             seq(g.normal(), ctx, made);
-        } else {
-            ctx.clear();
-            ctx.putAll(before); // 룰이 바꿔 넣은 입력 타입을 되돌린다(편차 F6)
-            caughtRule(r, c);
-            catchNode(r, c, ctx, made);
-            seq(c.handler.body(), ctx, made);
-            if (c.handler.ends()) {
-                throw new Ended(c.handler.catchNodeId());
-            }
+            return;
         }
-        if (g.mergeId() != null) {
-            restoreCatch(ctx, outer); // R3·R4
-            begin(g.mergeId(), NodeKind.MERGE);
-            edit(ctx, made);
-            path.add(new PathStep(g.mergeId(), NodeKind.MERGE, null, null));
-            if (tracing) {
-                nodes.add(new NodeTrace(nodes.size() + 1, g.mergeId(), NodeKind.MERGE, NodeStatus.OK, null, null, null, null, null,
-                        null, null, r.nodeId(), null, null, null, null, null));
-            }
+        ctx.clear();
+        ctx.putAll(before); // 룰이 바꿔 넣은 입력 타입을 되돌린다(편차 F6)
+        caughtRule(r, c);
+        catchNode(r, c, ctx, made);
+        try {
+            seq(c.handler.body(), ctx, made);
+        } catch (Ended e) {
+            // 처리 갈래 안 IF 끝냄(Ended(null))은 이 받는 노드의 끝냄이다(J-D18). 안쪽 받는 노드 끝냄은 그대로 던진다.
+            throw e.catchNodeId == null ? new Ended(c.handler.catchNodeId()) : e;
+        }
+        if (c.handler.ends()) {
+            throw new Ended(c.handler.catchNodeId());
         }
     }
 
@@ -453,8 +483,11 @@ final class FlowRun {
                     List.copyOf(curBranches), curChosen, null, null, null, null, null, null, null));
         }
         seq(chosen.body(), ctx, made);
+        if (chosen.ends()) {
+            throw new Ended(null); // 끝내는 IF 갈래 — 정상 완료(J-D17)
+        }
         if (s.mergeId() != null) {
-            merge(s, null, ctx, made);
+            merge(s, null, ctx, made); // 옛 형식 IF 합류만 기록한다
         }
     }
 

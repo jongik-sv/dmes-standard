@@ -44,6 +44,12 @@ class RuleSetRunnerTest extends AbstractMdmSharedDbTest {
             + "{\"id\":\"e3\",\"from\":\"if1\",\"to\":\"r1\",\"otherwise\":true},"
             + "{\"id\":\"e4\",\"from\":\"r1\",\"to\":\"m1\"},{\"id\":\"e5\",\"from\":\"m1\",\"to\":\"end\"}]}";
 
+    /** 새 형식(합류 없음) — if1 [e2 "COIL_THK >= 3" → end](끝내는 갈래) [그 외 e3 → r1] → r1 → end. */
+    static final String IF_FLOW_NEW = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"},{\"id\":\"if1\",\"kind\":\"IF\"},"
+            + "{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"QLTY_GRD_JDG\"},{\"id\":\"end\",\"kind\":\"END\"}],\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"if1\"},"
+            + "{\"id\":\"e2\",\"from\":\"if1\",\"to\":\"end\",\"order\":1,\"cond\":\"COIL_THK >= 3\"},"
+            + "{\"id\":\"e3\",\"from\":\"if1\",\"to\":\"r1\",\"otherwise\":true},{\"id\":\"e4\",\"from\":\"r1\",\"to\":\"end\"}]}";
+
     static final Map<String, Object> RECORD = Map.of("COIL_THK", new BigDecimal("2.0"), "COIL_WID", new BigDecimal("1200"), "SURF_GRD", "A");
     static final Instant TS = Instant.parse("2026-03-01T00:00:00Z");
 
@@ -103,6 +109,20 @@ class RuleSetRunnerTest extends AbstractMdmSharedDbTest {
         assertNull(t.violations());
         assertEquals(List.of("start", "if1", "r1", "m1", "end"), t.nodes().stream().map(RunTrace.NodeTrace::nodeId).toList());
         assertEquals("A", t.finalValues().get("QLTY_GRD"));
+    }
+
+    @Test
+    void 새_형식_흐름은_합류_기록_없이_실행하고_IF_갈래로_끝내면_정상_완료다() {
+        RunTrace t = runner.trace(IF_FLOW_NEW, RECORD, TS);
+        assertNull(t.violations());
+        assertNull(t.endedBy());
+        assertEquals(List.of("start", "if1", "r1", "end"), t.nodes().stream().map(RunTrace.NodeTrace::nodeId).toList());
+        assertEquals("A", t.finalValues().get("QLTY_GRD"));
+        RunTrace ended = runner.trace(IF_FLOW_NEW, Map.of("COIL_THK", new BigDecimal("3.5"), "COIL_WID", new BigDecimal("1200"), "SURF_GRD", "A"), TS);
+        assertNull(ended.violations());
+        assertNull(ended.endedBy());
+        assertEquals(List.of("start", "if1", "end"), ended.nodes().stream().map(RunTrace.NodeTrace::nodeId).toList());
+        assertEquals(Map.of(), ended.finalValues());
     }
 
     @Test
