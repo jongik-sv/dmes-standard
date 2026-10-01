@@ -250,6 +250,8 @@ export function VariablePanel({ sim, setId, flow, rules, selectedId, canParse, o
   };
 
   // ── 식 평가 ──
+  /** 끝내는 IF 갈래로 끝난 실행이면 END 상세에 보일 문장(R18) — 기록의 IF 마다 흐름을 풀어 보므로 기록이 바뀔 때만 계산한다(Local-Rules §16). */
+  const endedBranch = useMemo(() => (last ? endedBranchText(last.trace, last.flow) : null), [last]);
   const ctx = useMemo<Record<string, TypedValue> | null>(
     () => (last ? Object.fromEntries(sim.variables.map((v) => [v.name, v.value] as const)) : null),
     [last, sim.variables],
@@ -359,7 +361,7 @@ export function VariablePanel({ sim, setId, flow, rules, selectedId, canParse, o
               traceViolations={last.trace.violations ?? []}
               desc={flow.view.descs?.[selectedId]}
               onOpenRule={onOpenRule}
-              endedBranch={endedBranchText(last.trace, last.flow)}
+              endedBranch={endedBranch}
             />
           ) : (
             <div className="rsf-panel" data-testid="sim-detail">

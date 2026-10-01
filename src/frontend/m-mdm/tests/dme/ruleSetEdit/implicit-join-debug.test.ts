@@ -56,6 +56,32 @@ describe("frames — 돌아오는 자리(implicit-join spec §11)", () => {
     expect(fr[7].before.CATCH_CODE).toBeUndefined(); // after — 바깥 블록도 닫혔다
   });
 
+  it("같은_자리를_닫는_중첩_블록은_안쪽부터_되돌려_가장_바깥_블록_직전_값이_남는다", () => {
+    // r1 → after → end. c1(r1) EVAL_ERROR → h1 → after. c9(h1) NO_RESULT → f → after — 두 블록이 모두 after 로 돌아온다(guardJoins after → [h1, r1]).
+    const same: RuleSetFlow = {
+      version: 1,
+      nodes: [fn("start", "START"), fn("r1", "RULE", { ruleId: "R_ERR" }), fn("c1", "CATCH", { attachTo: "r1", catches: ["EVAL_ERROR"] }), fn("h1", "RULE", { ruleId: "R_G" }),
+        fn("c9", "CATCH", { attachTo: "h1", catches: ["NO_RESULT"] }), fn("f", "RULE", { ruleId: "R_FILL" }), fn("after", "RULE", { ruleId: "R_AFTER" }), fn("end", "END")],
+      edges: [fe("e1", "start", "r1"), fe("e2", "r1", "after"), fe("e3", "c1", "h1"), fe("e4", "h1", "after"), fe("e5", "c9", "f"), fe("e6", "f", "after"),
+        fe("e7", "after", "end")],
+    };
+    const nodes = [
+      nt(1, "start", "START"),
+      nt(2, "r1", "RULE", { status: "CAUGHT", ruleId: "R_ERR", ver: 1, reads: {}, violations: [] }),
+      nt(3, "c1", "CATCH", { ruleId: "R_ERR", catchKind: "EVAL_ERROR", code: "EVALUATION_ERROR", message: "나누기 오류" }),
+      nt(4, "h1", "RULE", { status: "CAUGHT", ruleId: "R_G", ver: 1, reads: {}, violations: [] }),
+      nt(5, "c9", "CATCH", { ruleId: "R_G", catchKind: "NO_RESULT", code: "NO_RESULT", message: "맞는 행과 기본 행이 없다" }),
+      nt(6, "f", "RULE", { ruleId: "R_FILL", ver: 1, reads: {}, result: res("R_FILL", { G: N("0") }) }),
+      nt(7, "after", "RULE", { ruleId: "R_AFTER", ver: 1, reads: {}, result: res("R_AFTER", { Z: N("10") }) }),
+      nt(8, "end", "END"),
+    ];
+    const fr = frames(run(nodes, {}), same);
+    expect(fr[5].before.CATCH_KIND).toEqual(S("NO_RESULT")); // f — 안쪽 처리 갈래
+    for (const n of ["CATCH_KIND", "CATCH_RULE", "CATCH_CODE", "CATCH_MSG"]) expect(fr[6].before[n]).toBeUndefined(); // 바깥부터 되돌리면 c1 값이 남는다
+    const edited = frames(run(nodes, {}, { edits: [{ beforeSeq: 7, nodeId: "after", values: { CATCH_KIND: S("EDITED") } }] }), same);
+    expect(edited[6].before.CATCH_KIND).toEqual(S("EDITED"));
+  });
+
   it("돌아오는 자리에 건 고친 값은 되돌림 뒤에 들어간다(R3)", () => {
     const fr = frames(run(nestedNodes(), {}, { edits: [{ beforeSeq: 7, nodeId: "k", values: { CATCH_CODE: S("EDITED") } }] }), nested);
     expect(fr[6].before.CATCH_CODE).toEqual(S("EDITED"));
@@ -135,6 +161,15 @@ describe("끝낸 갈래 표시(R12)", () => {
     expect(endedBranchText(through, flow)).toBeNull();
     expect(debugStatus(through, 5, 0, flow)).toBe("완료 · 5단계 · 결과 변수 2개");
     expect(endedBranchText({ ...ended, endedBy: "c1" }, flow)).toBeNull();
+  });
+
+  it("IF·갈래 label 이 비었거나 공백이면 「조건」·기본 갈래 이름으로 보인다", () => {
+    const blank: RuleSetFlow = {
+      ...flow,
+      nodes: flow.nodes.map((x) => (x.id === "if1" ? { ...x, label: "  " } : x)),
+      edges: flow.edges.map((x) => (x.id === "b1" ? { ...x, label: "" } : x)),
+    };
+    expect(endedBranchText(ended, blank)).toBe("IF 조건의 「갈래 1」 갈래에서 끝냈다");
   });
 
   describe("END 노드 상세", () => {

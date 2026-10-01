@@ -137,7 +137,7 @@ export function debugStatus(trace: RunTrace | null, cursor: number, pending = 0,
 
 /**
  * 끝내는 IF 갈래로 끝난 실행의 표시 문장(R12, implicit-join spec §11) — `endedBy` 가 없고 마지막 기록이 END 일 때, 기록의 IF 가운데 고른 선이
- * 끝내는 갈래인 마지막 IF. 제목은 IF label(없으면 "조건"), 갈래는 선 label(없으면 "그 외"·"갈래 {order}"). 아니면 null. 계약 칸이 아니라 화면 계산이다(J-D17).
+ * 끝내는 갈래인 마지막 IF. 제목은 IF label(없거나 공백이면 "조건"), 갈래는 선 label(없거나 공백이면 편집기 기본 이름처럼 "그 외"·"갈래 {order}"). 아니면 null. 계약 칸이 아니라 화면 계산이다(J-D17).
  */
 export function endedBranchText(trace: RunTrace, flow: RuleSetFlow): string | null {
   const n = trace.nodes.length;
@@ -146,9 +146,9 @@ export function endedBranchText(trace: RunTrace, flow: RuleSetFlow): string | nu
     const t = trace.nodes[i];
     if (t.kind !== "IF" || !t.chosenEdgeId) continue;
     if (!(endingBranches(flow, t.nodeId) ?? []).includes(t.chosenEdgeId)) continue;
-    const title = flow.nodes.find((x) => x.id === t.nodeId)?.label ?? "조건";
+    const title = flow.nodes.find((x) => x.id === t.nodeId)?.label?.trim() || "조건";
     const e = flow.edges.find((x) => x.id === t.chosenEdgeId);
-    const branch = e?.label ?? (e?.otherwise ? "그 외" : `갈래 ${e?.order ?? ""}`.trim());
+    const branch = e?.label?.trim() || (e?.otherwise ? "그 외" : `갈래 ${e?.order ?? ""}`.trim());
     return `IF ${title}의 「${branch}」 갈래에서 끝냈다`;
   }
   return null;
