@@ -676,6 +676,8 @@ interface SnapDrag {
   targets: readonly string[];
 }
 const NO_TARGETS: readonly string[] = Object.freeze([]);
+/** React Flow 가 고른 노드에 더하는 z 값(@xyflow/system calculateZ, elevateNodesOnSelect). */
+const SELECT_ELEVATION = 1000;
 /** 노드 상자(흐름 좌표, 주인 ID 포함). 크기가 없으면 NaN 이라 스냅 후보·대상에서 빠진다. */
 const boxOf = (n: Node): Box => ({ x: n.position.x, y: n.position.y, w: n.width ?? Number.NaN, h: n.height ?? Number.NaN, id: n.id });
 
@@ -1128,7 +1130,9 @@ function Inner(props: FlowCanvasProps) {
       out.push({
         id: g.id, type: "rsfGroup", position: { x: b.x, y: b.y }, width: b.w, height: b.h, measured: measured[g.id], data, selected: rfSel.has(g.id),
         // 제목만 끌기 손잡이 — 틀 몸통은 누름을 받지 않아 그룹 안 빈 곳에서 영역 선택·화면 이동이 그대로 된다.
-        draggable: editable, dragHandle: ".rsf-group-title", connectable: false, zIndex: -1, style: { pointerEvents: "none" },
+        // React Flow 는 고른 노드를 1000 올려 그린다(elevateNodesOnSelect) — 고른 그룹 틀이 소속 노드를 가리지 않게 그만큼 내려 둔다.
+        draggable: editable, dragHandle: ".rsf-group-title", connectable: false, zIndex: rfSel.has(g.id) ? -1 - SELECT_ELEVATION : -1,
+        style: { pointerEvents: "none" },
       });
     }
     for (const n of vflow.nodes) {
