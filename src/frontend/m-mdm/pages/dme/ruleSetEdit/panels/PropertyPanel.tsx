@@ -7,6 +7,7 @@
  * - IF: 분기 이름, 갈래(order 순, "그 외" 마지막)의 이름·조건식·▲▼✕·검사 문구, [갈래 더하기]. 병렬: 갈래 이름·▲▼✕·[갈래 더하기].
  * - 룰·빈 단계: 편집 모드면 「외관」 섹션(S1, NodeStylePanel)
  * - 룰·빈 단계·분기·시작·끝: 「설명」 여러 줄 입력 칸(`view.descs`, 최대 1000자). 보기 모드는 읽기 전용, 입력하는 동안은 되돌리기 한 칸으로 묶는다. 합류는 없다.
+ * - 받는 노드: 제목·붙은 룰·CATCH_* 안내, 받을 예외 네 개 체크(같은 룰의 다른 받는 노드가 받는 종류는 꺼짐)·CATCH_NEVER 경고, [지우기]. 설명 칸은 없다.
  * - 합류·시작·끝: 종류 설명. 메모: 글. 그룹: 제목.
  * 갈래는 머리행 있는 표가 아니라 칸 묶음으로 쌓는다(입력 요소를 그리드 칸에 두지 않는다, Local-Rules §12).
  * 4단계 Task 8: 머리글(이름)은 `SidePanel`, 각 소제목은 접는 섹션(`Section`) — testid 는 그대로.
@@ -15,9 +16,9 @@ import { useMemo } from "react";
 
 import { IconArrowDown, IconArrowUp, IconExternalLink, IconGripVertical, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 
-import type { FlowEdge, FlowNode } from "@/contract/engine-contract.generated";
+import type { CatchKind, FlowEdge, FlowNode } from "@/contract/engine-contract.generated";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
-import { Button, Input, Textarea } from "@dk-oasis/shared/form";
+import { Button, Checkbox, Input, Textarea } from "@dk-oasis/shared/form";
 import { badgeStyle } from "@/shell";
 
 import { SOURCE_LABEL, SOURCE_TONE, typeText } from "../cards/SetIoTables";
@@ -29,6 +30,7 @@ import {
   removeNode,
   removeNote,
   reorderBranches,
+  setCatchKinds,
   TASK_LABEL,
   updateEdge,
   updateGroup,
@@ -38,9 +40,10 @@ import {
   type EditFlow,
   type EditResult,
 } from "../flow-edit";
+import { CATCH_KIND_LABEL, catchTitle } from "../catch-text";
 import { MAX_DESC } from "../node-desc";
 import { restyleNode, type NodeLayoutSource } from "../flow-layout";
-import { parseFlow, type FlowTree } from "../flow-model";
+import { CATCH_KINDS, catchesOf, parseFlow, type FlowTree } from "../flow-model";
 import type { NodeStylePatch } from "../node-style";
 import type { IoName, RuleIo, RuleIoMap, RuleSetCheck } from "../types";
 import { CheckBadge } from "./ChecksPanel";
@@ -75,7 +78,7 @@ const KIND_TEXT: Record<FlowNode["kind"], string> = {
   IF: "IF 분기",
   PARALLEL: "병렬 분기",
   MERGE: "합류",
-  CATCH: "받는 노드 — 붙은 룰이 실패하거나 결과가 없을 때 처리 갈래를 실행한다", // SEAM(T9): 받는 노드 속성 섹션은 Task 9
+  CATCH: "받는 노드 — 붙은 룰이 실패하거나 결과가 없을 때 처리 갈래를 실행한다",
 };
 
 const blankToNull = (v: string) => (v === "" ? null : v);
@@ -470,6 +473,82 @@ function SplitProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
   );
 }
 
+/** 받는 노드(받는 노드 spec §8): 제목·붙은 룰·CATCH_* 안내, 받을 예외 네 개 체크, 종류 옆 CATCH_NEVER 경고, 검사 문구·[지우기]. */
+function CatchProps({ node, props }: { node: FlowNode; props: PropertyPanelProps }) {
+  const { flow, checks, editable, onEdit, sections } = props;
+  const mine = (node.catches ?? []) as CatchKind[];
+  const owners = new Map<CatchKind, string>();
+  for (const other of node.attachTo ? catchesOf(flow, node.attachTo) : []) {
+    if (other.id === node.id) continue;
+    for (const k of (other.catches ?? []) as CatchKind[]) owners.set(k, other.id);
+  }
+  const own = checks.filter((c) => c.nodeId === node.id);
+  // CATCH_NEVER 는 한 코드를 두 종류가 나눠 쓰므로 종류는 문구의 종류 이름으로만 가른다(R12).
+  const neverOf = (k: CatchKind) => own.find((c) => c.code === "CATCH_NEVER" && c.message.includes(CATCH_KIND_LABEL[k]));
+  return (
+    <div className="rsf-panel" data-testid="flow-prop-catch">
+      <Section kind="CATCH" id="catch-basic" title="받는 노드" memory={sections}>
+        <table style={DETAIL_TABLE_STYLE}>
+          <tbody>
+            <tr>
+              <th style={DETAIL_LABEL_CELL}>제목</th>
+              <td style={DETAIL_VALUE_CELL}>
+                <Input
+                  data-testid="flow-prop-catch-title"
+                  value={node.label ?? ""}
+                  placeholder={catchTitle({ label: null, catches: node.catches })}
+                  readOnly={!editable}
+                  onChange={(v) => onEdit((f) => updateNodeLabel(f, node.id, blankToNull(v)), { mergeKey: `nlabel:${node.id}` })}
+                />
+              </td>
+            </tr>
+            <tr>
+              <th style={DETAIL_LABEL_CELL}>붙은 룰</th>
+              <td style={DETAIL_VALUE_CELL}>
+                <code>{node.attachTo ?? "-"}</code>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p className="rsf-panel-note">
+          붙은 룰이 받는 예외로 실패하면(결과 없음은 받을 때만) 룰 결과를 쓰지 않고 처리 갈래를 실행한다. 처리 갈래에서 CATCH_KIND·CATCH_RULE·CATCH_CODE·CATCH_MSG 를 읽을 수 있다
+        </p>
+      </Section>
+      <Section kind="CATCH" id="catch-kinds" title="받을 예외" memory={sections}>
+        <div className="rsf-catch-kinds">
+          {CATCH_KINDS.map((k) => {
+            const owner = owners.get(k);
+            const never = neverOf(k);
+            return (
+              <div key={k} className="rsf-catch-kind" data-testid={`flow-prop-catch-kind-${k}`}>
+                <Checkbox
+                  label={CATCH_KIND_LABEL[k]}
+                  aria-label={`${CATCH_KIND_LABEL[k]} 받기`}
+                  checked={mine.includes(k)}
+                  disabled={!editable || owner != null}
+                  onChange={(on) => onEdit((f) => setCatchKinds(f, node.id, on ? [...mine, k] : mine.filter((x) => x !== k)))}
+                />
+                {owner && <span className="rsf-muted" data-testid={`flow-prop-catch-owner-${k}`}>{`${owner}가 받는다`}</span>}
+                {never && (
+                  <p className="rsf-panel-note" data-testid={`flow-prop-catch-never-${k}`} style={badgeStyle("warning")}>
+                    {never.message}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <CheckLines checks={own.filter((c) => c.code !== "CATCH_NEVER")} />
+        {editable && (
+          <div className="rsf-panel-actions">
+            <DeleteButton onClick={() => onEdit((f) => removeNode(f, node.id))} />
+          </div>
+        )}
+      </Section>
+    </div>
+  );
+}
+
 function PlainNodeProps({ node, props }: { node: FlowNode; props: PropertyPanelProps }) {
   const { sections } = props;
   const text = node.kind === "MERGE" ? `합류 — 분기 ${node.splitId ?? "-"}의 갈래가 여기서 모인다. 분기를 지우면 함께 없어진다` : KIND_TEXT[node.kind];
@@ -490,6 +569,7 @@ export function PropertyPanel(props: PropertyPanelProps) {
   const node = flow.nodes.find((n) => n.id === selectedId);
   if (node) {
     if (node.kind === "TASK") return <TaskProps node={node} props={props} />;
+    if (node.kind === "CATCH") return <CatchProps node={node} props={props} />;
     if (node.kind === "RULE") return <RuleProps node={node} io={node.ruleId ? rules[node.ruleId] : undefined} tree={tree} props={props} />;
     if (node.kind === "IF" || node.kind === "PARALLEL") return <SplitProps node={node} props={props} />;
     return <PlainNodeProps node={node} props={props} />;

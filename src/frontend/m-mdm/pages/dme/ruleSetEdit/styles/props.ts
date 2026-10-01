@@ -44,4 +44,6 @@ export const PROPS_CSS = `
 .rsf-style-parts { display: flex; flex-direction: column; gap: 4px; }
 .rsf-style-size { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--spacing-xs); }
 .rsf-style-size-field { display: flex; flex-direction: column; gap: 2px; width: 96px; font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+.rsf-catch-kinds { display: flex; flex-direction: column; gap: var(--spacing-xs); }
+.rsf-catch-kind { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-xs); }
 `;
