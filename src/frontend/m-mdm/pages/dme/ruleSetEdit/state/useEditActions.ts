@@ -39,7 +39,7 @@ import {
   type FlowPos,
 } from "../flow-edit";
 import { collapseView } from "../canvas/collapse";
-import { NODE_SIZE, autoArrange, drawnPositions } from "../flow-layout";
+import { autoArrange, drawnPositions, nodeSizeOf } from "../flow-layout";
 import { openRule } from "../links";
 import type { RuleIo } from "../types";
 import type { RuleSetEditState } from "./useRuleSetEdit";
@@ -131,19 +131,19 @@ function targetEdge(f: EditFlow, preferred: string | null): string | null {
   return f.edges.find((e) => e.to === end?.id)?.id ?? null;
 }
 
-/** 캔버스가 그린 노드 전체 상자(접힌 흐름·겹침 풀기 반영, 접힌 분기는 룰 크기)의 가운데 — 메모를 둘 기본 자리(Minor D). */
+/** 캔버스가 그린 노드 전체 상자(접힌 흐름·겹침 풀기 반영, 노드별 크기 — 접힌 분기는 룰 크기)의 가운데 — 메모를 둘 기본 자리(Minor D). */
 function centerOf(f: EditFlow, collapsed: ReadonlySet<string>): FlowPos {
   const v = collapseView(f, collapsed);
   const pos = drawnPositions(v.flow, v.blocks);
-  const kinds = new Map(v.flow.nodes.map((n) => [n.id, v.blocks[n.id] ? "RULE" : n.kind] as const));
   let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
-  for (const [id, p] of Object.entries(pos)) {
-    const k = kinds.get(id);
-    if (!k) continue;
+  for (const n of v.flow.nodes) {
+    const p = pos[n.id];
+    if (!p) continue;
+    const s = nodeSizeOf(v.flow, n, v.blocks);
     x1 = Math.min(x1, p.x);
     y1 = Math.min(y1, p.y);
-    x2 = Math.max(x2, p.x + NODE_SIZE[k].w);
-    y2 = Math.max(y2, p.y + NODE_SIZE[k].h);
+    x2 = Math.max(x2, p.x + s.w);
+    y2 = Math.max(y2, p.y + s.h);
   }
   return Number.isFinite(x1) ? { x: Math.round((x1 + x2) / 2), y: Math.round((y1 + y2) / 2) } : { x: 0, y: 0 };
 }
@@ -191,7 +191,7 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
         // 캔버스가 그린 자리(접힌 흐름·겹침 풀기 반영) 옆 — 접힌 분기는 룰 크기로 그린다.
         const v = collapseView(flow, collapsed);
         const p = drawnPositions(v.flow, v.blocks)[selNode.id];
-        if (p) place = { x: p.x + NODE_SIZE[v.blocks[selNode.id] ? "RULE" : selNode.kind].w + NOTE_GAP, y: p.y };
+        if (p) place = { x: p.x + nodeSizeOf(v.flow, selNode, v.blocks).w + NOTE_GAP, y: p.y };
       }
       let id: string | null = null;
       const reason = edit((f) => {

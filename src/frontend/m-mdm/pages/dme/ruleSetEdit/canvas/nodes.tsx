@@ -20,6 +20,7 @@ import type { FlowNode } from "@/contract/engine-contract.generated";
 
 import { TASK_LABEL, type FlowNote } from "../flow-edit";
 import { NODE_SIZE } from "../flow-layout";
+import type { NodeSize, NodeStyle } from "../node-style";
 import type { RuleIo, VarDisplay } from "../types";
 import { GROUP_GRIPS, GroupSizeContext, type GroupGrip } from "./group-size";
 import type { NodeOverlay } from "./overlay";
@@ -56,6 +57,8 @@ export type FlowNodeData = {
   dropTarget: boolean;
   /** 빈 단계 제목 고치기(편집 모드만, 4단계 T1). 없으면 두 번 눌러도 칸이 열리지 않는다. */
   onRenameTask?: (nodeId: string, label: string | null) => void;
+  /** 외관(S1) — RULE·TASK 이고 접히지 않았을 때만. 그리기는 계획 Task 2. */
+  style?: NodeStyle;
 };
 export type NoteNodeData = { note: FlowNote; selected: boolean; editable: boolean; onChange: (id: string, patch: Partial<FlowNote>) => void };
 export type GroupNodeData = { id: string; title: string; selected: boolean; /** 편집 모드이고 고른 그룹 — 네 모서리·네 변 크기 손잡이(G2). */ resizable: boolean };
@@ -382,9 +385,10 @@ export const NODE_TYPES: NodeTypes = { rsfFlow: FlowNodeView, rsfNote: NoteNodeV
  * 노드에 넘기는 연결점 목록 — React Flow 가 측정 없이 연결점 위치를 알고(테스트 환경에서도 선이 그려진다), 끌기를 시작한 손잡이를 id 로 찾는다.
  * 그리는 연결점(`FlowNodeView`)과 id·종류·자리가 같아야 한다(C1). 잇기 손잡이·몸통 받기는 편집 모드에서만 그리지만 목록에는 늘 둔다
  * (없는 요소는 누를 수 없으니 해가 없고, 모드가 바뀔 때 목록을 다시 맞추지 않아도 된다).
+ * size 는 그린 크기(노드별 크기 `nodeSizeOf`, S1) — 없으면 종류별 크기.
  */
-export function handlesOf(kind: FlowNode["kind"]): NonNullable<Node["handles"]> {
-  const { w, h } = NODE_SIZE[kind];
+export function handlesOf(kind: FlowNode["kind"], size: NodeSize = NODE_SIZE[kind]): NonNullable<Node["handles"]> {
+  const { w, h } = size;
   const s = ANCHOR_PX;
   const g = LINK_HANDLE_PX;
   const into = { id: ANCHOR_IN, type: "target" as const, position: Position.Top, x: w / 2 - s / 2, y: -s / 2, width: s, height: s };

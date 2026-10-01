@@ -7,10 +7,12 @@
  * `flowJsonOf` 는 서버 `RuleSetFlowJson.canonical`(P2)과 같은 키 순서로 써서 dirty 비교가 문자열 비교로 맞게 한다.
  * 3단계(계획 P6)는 옮기기·룰 바꾸기·복사·붙여넣기·복제·분기 종류 바꾸기·분기 풀기·갈래 순서를 더한다(파일 끝).
  * 4단계(계획 Task 9): 빈 단계(TASK) 끼우기·룰 지정, 빈 단계는 지우기·옮기기·복사에서 룰과 같다.
+ * 외관(S1): `view.styles` 의 노드 외관은 `stylesFor` 로 toEditFlow·clone·done·dropNodes 에서 정리하고, `setNodeStyle` 이 바꾼다(파일 끝).
  */
 import type { FlowEdge, FlowNode, FlowNodeKind, RuleSetFlow } from "@/contract/engine-contract.generated";
 
 import { linearFlow } from "./flow-model";
+import { mergeNodeStyle, normalizeNodeStyle, stylesFor, type NodeStyle, type NodeStylePatch } from "./node-style";
 
 export interface FlowPos {
   x: number;
@@ -47,6 +49,8 @@ export interface FlowView {
   routes: Record<string, FlowPos[]>;
   /** 선 ID → 조건 라벨·변수 칩 묶음의 기본 자리에서의 오프셋(흐름 좌표, L1). 옮기지 않은 선은 키가 없다. */
   labels: Record<string, EdgeLabelOffsets>;
+  /** 노드 ID → 외관(S1, 룰·빈 단계만). 비면 키를 두지 않는다(저장 글자·dirty 비교가 예전 세트와 같다, S-D1). */
+  styles?: Record<string, NodeStyle>;
 }
 /** 선 이름표 오프셋(흐름 좌표, 정수). 기본 자리(선 끝·경로에서 계산한 자리)에 더한다 — 선 끝이 움직여도 기본 자리를 따라간다. */
 export interface LabelOffset {
@@ -165,19 +169,28 @@ function labelsFor(
   return out;
 }
 
-function copyView(v: FlowView | undefined, edges: readonly FlowEdge[]): FlowView {
+/** view 에 외관을 싣는다 — 비면 styles 키를 두지 않는다(계획 Ruling 1). 나머지 칸은 그대로(복사하지 않는다). */
+function withStyles(v: FlowView, styles: Record<string, NodeStyle>): FlowView {
+  const out: FlowView = { positions: v.positions, notes: v.notes, groups: v.groups, routes: v.routes, labels: v.labels };
+  if (Object.keys(styles).length > 0) out.styles = styles;
+  return out;
+}
+
+function copyView(v: FlowView | undefined, nodes: readonly FlowNode[], edges: readonly FlowEdge[]): FlowView {
   const positions: Record<string, FlowPos> = {};
   for (const [k, p] of Object.entries(v?.positions ?? {})) positions[k] = copyPos(p);
-  return {
+  const view: FlowView = {
     positions, notes: (v?.notes ?? []).map(copyNote), groups: (v?.groups ?? []).map(copyGroup), routes: routesFor(edges, v?.routes),
     labels: labelsFor(edges, v?.labels),
   };
+  return withStyles(view, stylesFor(nodes, v?.styles));
 }
 
-/** 고쳐도 되는 깊은 복사본(칸을 모두 채운다). 흐름에 없는 선의 경로·이름표 오프셋은 버린다. */
+/** 고쳐도 되는 깊은 복사본(칸을 모두 채운다). 흐름에 없는 선의 경로·이름표 오프셋, 흐름에 없는 노드·룰/빈 단계가 아닌 노드의 외관은 버린다. */
 function clone(f: EditFlow): EditFlow {
+  const nodes = (f.nodes ?? []).map(copyNode);
   const edges = (f.edges ?? []).map(copyEdge);
-  return { version: 1, nodes: (f.nodes ?? []).map(copyNode), edges, view: copyView(f.view, edges) };
+  return { version: 1, nodes, edges, view: copyView(f.view, nodes, edges) };
 }
 
 /** 모양이 맞는 view 항목만 남긴다(P7 toEditFlow). */
@@ -223,6 +236,14 @@ function sanitizeView(raw: unknown): FlowView {
       if (c.label || c.chips) view.labels[k] = c;
     }
   }
+  if (isObj(raw.styles)) {
+    const styles: Record<string, NodeStyle> = {};
+    for (const [k, s] of Object.entries(raw.styles)) {
+      const n = normalizeNodeStyle(s);
+      if (n) styles[k] = n;
+    }
+    if (Object.keys(styles).length > 0) view.styles = styles;
+  }
   return view;
 }
 
@@ -255,11 +276,12 @@ export function nextId(f: EditFlow, prefix: string): string {
 // ───────────────────────── 구조 도우미 ─────────────────────────
 
 const fail = (reason: string): EditResult => ({ ok: false, reason });
-/** 결과를 돌려주기 전에 사라진 선의 경로·이름표 오프셋을 버린다(연산이 선을 지우거나 바꿨을 수 있다). */
+/** 결과를 돌려주기 전에 사라진 선의 경로·이름표 오프셋, 사라진 노드의 외관을 버린다(연산이 노드·선을 지우거나 바꿨을 수 있다). */
 const done = (flow: EditFlow): EditResult => {
-  const routes = routesFor(flow.edges, flow.view?.routes);
-  const labels = labelsFor(flow.edges, flow.view?.labels);
-  return { ok: true, flow: flow.view ? { ...flow, view: { ...flow.view, routes, labels } } : flow };
+  if (!flow.view) return { ok: true, flow };
+  const routes = routesFor(flow.edges, flow.view.routes);
+  const labels = labelsFor(flow.edges, flow.view.labels);
+  return { ok: true, flow: { ...flow, view: withStyles({ ...flow.view, routes, labels }, stylesFor(flow.nodes, flow.view.styles)) } };
 };
 const findNode = (f: EditFlow, id: string) => f.nodes.find((n) => n.id === id);
 const findEdge = (f: EditFlow, id: string) => f.edges.find((e) => e.id === id);
@@ -316,7 +338,7 @@ function branchNodes(f: EditFlow, splitId: string, edgeId: string, mergeId: stri
   return e ? reach(f, [e.to], mergeId, splitId, (x) => x.id === edgeId) : null;
 }
 
-/** 노드들을 지우고, 닿는 선을 모두 지우고, view 흔적(배치·그룹·메모 붙임)을 치운다. f 는 복사본이다. */
+/** 노드들을 지우고, 닿는 선을 모두 지우고, view 흔적(배치·그룹·메모 붙임·외관)을 치운다. f 는 복사본이다. */
 function dropNodes(f: EditFlow, ids: ReadonlySet<string>): EditFlow {
   const nodes = f.nodes.filter((n) => !ids.has(n.id));
   const edges = f.edges.filter((e) => !ids.has(e.from) && !ids.has(e.to));
@@ -326,7 +348,10 @@ function dropNodes(f: EditFlow, ids: ReadonlySet<string>): EditFlow {
     .map((g) => ({ ...g, nodeIds: g.nodeIds.filter((x) => !ids.has(x)) }))
     .filter((g) => g.nodeIds.length > 0);
   const notes = f.view.notes.map((n) => (n.attach != null && ids.has(n.attach) ? { ...n, attach: null } : n));
-  return { version: f.version, nodes, edges, view: { positions, notes, groups, routes: f.view.routes, labels: f.view.labels } };
+  return {
+    version: f.version, nodes, edges,
+    view: withStyles({ positions, notes, groups, routes: f.view.routes, labels: f.view.labels }, stylesFor(nodes, f.view.styles)),
+  };
 }
 
 function insertAfter<T>(list: T[], index: number, ...items: T[]): void {
@@ -338,22 +363,24 @@ function insertAfter<T>(list: T[], index: number, ...items: T[]): void {
 /** null 이면 `linearFlow(ruleIds)` + 빈 view. raw 가 있으면 칸을 채워 복사하고 모양이 맞는 view 항목만 남긴다. */
 export function toEditFlow(raw: (RuleSetFlow & { view?: unknown }) | null, ruleIds: readonly string[]): EditFlow {
   const src = raw ?? linearFlow(ruleIds);
+  const nodes = (Array.isArray(src.nodes) ? src.nodes : []).map(copyNode);
   const edges = (Array.isArray(src.edges) ? src.edges : []).map(copyEdge);
-  const view = raw ? sanitizeView(raw.view) : { positions: {}, notes: [], groups: [], routes: {}, labels: {} };
+  const view: FlowView = raw ? sanitizeView(raw.view) : { positions: {}, notes: [], groups: [], routes: {}, labels: {} };
   return {
     version: 1,
-    nodes: (Array.isArray(src.nodes) ? src.nodes : []).map(copyNode),
+    nodes,
     edges,
-    view: { ...view, routes: routesFor(edges, view.routes), labels: labelsFor(edges, view.labels) },
+    view: withStyles({ ...view, routes: routesFor(edges, view.routes), labels: labelsFor(edges, view.labels) }, stylesFor(nodes, view.styles)),
   };
 }
 
-/** P2 정규 JSON 과 같은 키 순서의 문자열. view 항목도 고정 키 순서로 쓴다. */
+/** P2 정규 JSON 과 같은 키 순서의 문자열. view 항목도 고정 키 순서로 쓴다 — 외관(styles)은 있을 때만 마지막 키(S-D1). */
 export function flowJsonOf(f: EditFlow): string {
   const c = clone(f);
   const v = c.view;
   return JSON.stringify({
-    version: 1, nodes: c.nodes, edges: c.edges, view: { positions: v.positions, notes: v.notes, groups: v.groups, routes: v.routes, labels: v.labels },
+    version: 1, nodes: c.nodes, edges: c.edges,
+    view: { positions: v.positions, notes: v.notes, groups: v.groups, routes: v.routes, labels: v.labels, ...(v.styles ? { styles: v.styles } : {}) },
   });
 }
 
@@ -752,6 +779,8 @@ export interface Fragment {
   edges: FlowEdge[];
   entry: string;
   exit: string;
+  /** 조각 노드의 외관(S-D10 — 붙여 넣을 때 새 ID 로 옮긴다). 없으면 키가 없다. */
+  styles?: Record<string, NodeStyle>;
 }
 
 /** 붙여 넣을 때 새 ID 접두어(종류별). START·END 는 조각에 들지 않는다. */
@@ -874,20 +903,33 @@ export function assignRule(f: EditFlow, nodeId: string, ruleId: string): EditRes
   return done(g);
 }
 
-/** 룰 노드 하나 또는 분기 블록(합류까지)의 깊은 복사. 문자열이면 거부 사유다. */
+/** 조각 노드의 외관(없으면 undefined — 키를 싣지 않는다). */
+function fragmentStyles(f: EditFlow, nodes: readonly FlowNode[]): Record<string, NodeStyle> | undefined {
+  const s = stylesFor(nodes, f.view?.styles);
+  return Object.keys(s).length > 0 ? s : undefined;
+}
+
+/** 룰 노드 하나 또는 분기 블록(합류까지)의 깊은 복사(조각 노드의 외관 포함). 문자열이면 거부 사유다. */
 export function copyFragment(f: EditFlow, nodeId: string): Fragment | string {
   const n = findNode(f, nodeId);
   if (!n) return notFound(nodeId);
-  if (isStep(n.kind)) return { nodes: [copyNode(n)], edges: [], entry: nodeId, exit: nodeId };
+  if (isStep(n.kind)) {
+    const nodes = [copyNode(n)];
+    const styles = fragmentStyles(f, nodes);
+    return { nodes, edges: [], entry: nodeId, exit: nodeId, ...(styles ? { styles } : {}) };
+  }
   if (!isSplitKind(n.kind)) return NO_COPY;
   const members = blockMembers(f, nodeId);
   if (!members) return `분기 ${nodeId}의 블록을 찾지 못해 복사할 수 없다`;
   const inside = new Set(members);
+  const nodes = f.nodes.filter((x) => inside.has(x.id)).map(copyNode);
+  const styles = fragmentStyles(f, nodes);
   return {
-    nodes: f.nodes.filter((x) => inside.has(x.id)).map(copyNode),
+    nodes,
     edges: f.edges.filter((e) => inside.has(e.from) && inside.has(e.to)).map(copyEdge),
     entry: nodeId,
     exit: mergeOf(f, nodeId)!.id,
+    ...(styles ? { styles } : {}),
   };
 }
 
@@ -905,7 +947,7 @@ function wellFormed(frag: Fragment): boolean {
 
 /**
  * 조각을 선 t(X→Y) 에 새 ID 로 붙여 넣는다. t.to = 새 entry, 새 선 {새 exit → Y}. 노드는 X 뒤(없으면 끝), 조각 선·출구 선은 t 바로 뒤.
- * 라벨·조건식·order·otherwise 는 복사하고, 합류의 splitId 는 새 분기 ID 로 바꾼다. 배치는 넣지 않는다(P-D18).
+ * 라벨·조건식·order·otherwise 는 복사하고, 합류의 splitId 는 새 분기 ID 로 바꾼다. 외관은 새 ID 로 옮긴다(S-D10). 배치는 넣지 않는다(P-D18).
  */
 export function pasteFragment(f: EditFlow, edgeId: string, frag: Fragment): EditResult {
   if (f.nodes.length + frag.nodes.length > MAX_NODES) return fail(NODE_LIMIT_MESSAGE);
@@ -930,6 +972,11 @@ export function pasteFragment(f: EditFlow, edgeId: string, frag: Fragment): Edit
   );
   t.to = nid(frag.entry);
   insertAfter(g.edges, ti, ...edges, exit);
+  if (frag.styles) {
+    const styles: Record<string, NodeStyle> = { ...g.view.styles };
+    for (const [oldId, s] of Object.entries(frag.styles)) if (idOf.has(oldId)) styles[nid(oldId)] = s;
+    g.view = { ...g.view, styles }; // done 이 노드 순서·정규화로 다시 맞춘다
+  }
   return done(g);
 }
 
@@ -1023,5 +1070,25 @@ export function reorderBranches(f: EditFlow, splitId: string, edgeIds: readonly 
   edgeIds.forEach((id, i) => {
     findEdge(g, id)!.order = i + 1;
   });
+  return done(g);
+}
+
+// ───────────────────────── 노드 외관(S1) ─────────────────────────
+
+/**
+ * 룰·빈 단계 노드 하나의 외관을 바꾼다(S1). 조각의 값은 그 칸을, null 은 칸 지우기, 조각이 null 이면 전부 지우기([외관 초기화]).
+ * 범위 밖 크기는 자르고 기본값과 같은 칸은 두지 않는다. 위치는 건드리지 않는다 — 크기를 바꾸며 그린 위치를 고정하는 것은 `restyleNode`(flow-layout).
+ */
+export function setNodeStyle(f: EditFlow, nodeId: string, patch: NodeStylePatch | null): EditResult {
+  const n = findNode(f, nodeId);
+  if (!n) return fail(notFound(nodeId));
+  if (!isStep(n.kind)) return fail("룰·빈 단계 노드만 외관을 바꾼다");
+  if (patch && [patch.w, patch.h].some((v) => v != null && !finite(v))) return fail("노드 크기가 올바르지 않다");
+  const g = clone(f);
+  const styles: Record<string, NodeStyle> = { ...g.view.styles };
+  const next = mergeNodeStyle(styles[nodeId], patch);
+  if (next) styles[nodeId] = next;
+  else delete styles[nodeId];
+  g.view = { ...g.view, styles };
   return done(g);
 }

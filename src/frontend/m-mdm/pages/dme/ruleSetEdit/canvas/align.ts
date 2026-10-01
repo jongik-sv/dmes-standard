@@ -4,13 +4,13 @@
  *
  * - drawn: 지금 그린 위치(겹침을 푼 것) — 보이는 노드는 그린 상자 좌상단(접힌 분기는 접힌 상자), 숨은 멤버는 블록과 맞춘 전체 흐름 자리.
  *   캔버스가 `alignSourceRef` 로 올린다(공간 넓히기의 `spaceDrawn` 과 같다). 메모는 drawn 이 아니라 `view.notes` 의 자기 위치를 쓴다.
- * - 상자 크기: 흐름 노드는 종류별 `NODE_SIZE`(접힌 분기는 룰 크기), 메모는 자기 w×h. 그룹 틀은 멤버에서 계산하므로 다루지 않는다.
+ * - 상자 크기: 흐름 노드는 노드별 크기 `nodeSizeOf`(외관 w·h, 접힌 분기는 룰 크기), 메모는 자기 w×h. 그룹 틀은 멤버에서 계산하므로 다루지 않는다.
  * - 노드 위치는 `view.positions` 에, 메모는 `view.notes` 에 적는다. 하나라도 움직이면 고른 노드 전부를 그린 위치로 적어 고정한다.
  *   접힌 분기는 제 크기 기준 좌표(+foldOffsetX)로 적는다. 분기(접힘·펼침 모두)가 움직이면 블록 멤버·합류가 같은 만큼 함께 간다(끌기와 같다).
  *   맞춤 기준 상자는 고른 노드 상자 그대로다(블록 경계로 넓히지 않는다). 정렬·간격은 선의 꺾는 점을 옮기지 않는다.
  * - 화살표 옮기기는 그룹 ID 를 소속 노드로 펼치고, 두 끝이 모두 옮겨진 선의 꺾는 점도 같은 만큼 옮긴다(`shiftRoutes`).
  */
-import { NODE_SIZE, foldOffsetX, type SpaceBlocks } from "../flow-layout";
+import { foldOffsetX, nodeSizeOf, type SpaceBlocks } from "../flow-layout";
 import { blockMembers, setPositions, shiftRoutes, type EditFlow, type FlowPos } from "../flow-edit";
 
 export type AlignKind = "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom";
@@ -42,7 +42,7 @@ function itemsOf(f: EditFlow, ids: readonly string[], drawn: Readonly<Record<str
     const p = drawn[id];
     if (n && p) {
       const block = blocks[id];
-      const size = NODE_SIZE[block ? "RULE" : n.kind];
+      const size = nodeSizeOf(f, n, blocks);
       out.push({
         id, x: p.x, y: p.y, w: size.w, h: size.h, fold: block ? foldOffsetX(n.kind) : 0,
         members: (block ? [...block.members] : (["IF", "PARALLEL"].includes(n.kind) ? (blockMembers(f, id) ?? []) : [])).filter((m) => m !== id),
