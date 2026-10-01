@@ -17,7 +17,7 @@ vi.mock("@dagrejs/dagre", async (importOriginal) => {
 });
 
 import { FlowCanvas, type FlowCanvasProps } from "../../../pages/dme/ruleSetEdit/canvas/FlowCanvas";
-import { addNote, insertSplit, setPositions, toEditFlow, type EditFlow, type FlowPos } from "../../../pages/dme/ruleSetEdit/flow-edit";
+import { addNote, insertSplit, setNodeStyle, setPositions, toEditFlow, type EditFlow, type FlowPos } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { NODE_SIZE, drawnPositions, foldOffsetX } from "../../../pages/dme/ruleSetEdit/flow-layout";
 import { RSF_CSS } from "../../../pages/dme/ruleSetEdit/rsf-styles";
 import { flush, installDomStorage } from "../helpers/render";
@@ -341,6 +341,21 @@ describe("끌 때 맞춤 안내선·스냅(G1)", () => {
     expect(at("r3")).toEqual({ x: 600, y: 300 });
     await fire(window, "mouseup", { clientX: 0, clientY: 0 });
     expect(onMove).not.toHaveBeenCalled();
+  });
+
+  it("크기를 키운 노드는 새 크기 상자로 맞춘다 — 아래 변이 다른 노드의 아래 변에 붙는다(S1)", async () => {
+    // r3 를 높이 200 으로 키운다(600..832 × 300..500). 흐름 y -130 → 아래 변 370 이 r2 의 아래(368)와 2 차이, 위(170)·가운데(270)는 어느 것과도 6px 밖.
+    // 예전 크기(68)였다면 위 170·가운데 204·아래 238 모두 맞는 자리가 없어 붙지 않는다.
+    const r = setNodeStyle(chainFlow(), "r3", { h: 200 });
+    if (!r.ok) throw new Error(r.reason);
+    const onMove = vi.fn();
+    await draw(props({ onMove, flow: r.flow }));
+    await dragNode("r3", { x: at("r3").x + 20, y: at("r3").y + 20 }, 300, -130, {}, false);
+    expect(at("r3")).toEqual({ x: 900, y: 168 });
+    const g = guides();
+    expect(g).toHaveLength(1);
+    expect(g[0].getAttribute("data-axis")).toBe("y");
+    expect(g[0].getAttribute("data-at")).toBe("368");
   });
 
   it("안내선 CSS 는 styles 문자열이고 색은 의미 토큰(--color-primary)이다", () => {

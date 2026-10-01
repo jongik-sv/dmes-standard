@@ -67,4 +67,19 @@ ${COLOR_RULES}
 }
 `;
 
-export const NODE_STYLE_CSS = [PALETTE, NODE_RULES].join("\n");
+/**
+ * 노드 크기 손잡이(계획 Task 4, Ruling 16) — 오른쪽·아래 변 가운데에는 네 변 잇기 손잡이(.rsf-link, z-index 6)가 있어 75% 자리에 둔다.
+ * 몸통 받기(.rsf-drop, z-index 5)·잇기 손잡이보다 위. 누름을 받는 표시라 nodrag nopan 을 단다.
+ */
+const GRIP_RULES = `
+.rsf-node-grip {
+  position: absolute; box-sizing: border-box; width: 10px; height: 10px; z-index: 7; pointer-events: auto; touch-action: none;
+  background: var(--color-bg); border: 1.5px solid var(--color-primary); border-radius: 2px;
+}
+.rsf-node-grip:hover { background: var(--color-primary-soft); }
+.rsf-node-grip[data-grip="e"] { right: -5px; top: calc(75% - 5px); cursor: ew-resize; }
+.rsf-node-grip[data-grip="s"] { left: calc(75% - 5px); bottom: -5px; cursor: ns-resize; }
+.rsf-node-grip[data-grip="se"] { right: -5px; bottom: -5px; cursor: nwse-resize; }
+`;
+
+export const NODE_STYLE_CSS = [PALETTE, NODE_RULES, GRIP_RULES].join("\n");

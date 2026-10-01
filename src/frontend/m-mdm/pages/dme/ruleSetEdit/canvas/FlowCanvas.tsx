@@ -53,6 +53,8 @@
  * 끄는 동안은 `GroupPadStore` 에만 두고(캔버스 안에서만 다시 그린다) 놓을 때 `onGroupPadChange` 를 한 번 부른다. 여백으로 저장하므로
  * 소속 노드를 옮기면 틀이 따라가고 소속 노드보다 작게는 줄지 않는다. 크기를 바꿔도 소속은 바뀌지 않는다.
  *
+ * 노드 크기(S1 §2.2): 편집 모드에서 하나만 고른 RULE·TASK(접힌 상자 아님)에 오른쪽·아래·오른쪽 아래 손잡이(nodes.tsx)가 뜬다. 왼쪽 위는 고정이다.
+ * 끄는 동안은 `NodeSizeStore` 에만 두고 놓을 때 `onNodeSizeChange` 를 그린 위치 전체와 함께 한 번 부른다(page 가 `restyleNode` 로 크기와 위치를 한 편집으로 적는다).
  * 노드 외관(S1): RULE·TASK 노드는 `view.styles` 의 크기로 그린다 — 크기는 모두 `nodeSizeOf`(접힌 분기는 룰 크기)로 재고, 노드 데이터 `style` 로 색·아이콘·모양·표시 항목을 넘긴다.
  * 배치 memo(`basePos`)는 표시 흐름(vflow) 참조에 묶여 있어 외관만 바뀐 편집에도 다시 돈다(편집은 늘 새 흐름 객체다).
  */
@@ -67,7 +69,7 @@ import type { RuleSetFlow, TypedValue } from "@/contract/engine-contract.generat
 
 import { MAX_LABEL_OFFSET, blockMembers, normalizePad, type GroupPad, type FlowNote, type FlowPos, type EditFlow, type LabelOffset, type LabelPart } from "../flow-edit";
 import { beyondLine, drawnPositions, foldOffsetX, nodeSizeOf, spaceMinDelta, type SpaceAxis, type SpaceBlocks } from "../flow-layout";
-import type { NodeSize } from "../node-style";
+import { STYLED_KINDS, type NodeSize } from "../node-style";
 import { typedText } from "../trace-view";
 import { blockDragPositions, dropTargetAt, edgeChips, edgeMarks, nodeAtPoint, nodeMarks, resolveNodeDrop } from "../flow-vars";
 import type { FlowMode } from "../state/useRuleSetEdit";
@@ -77,6 +79,7 @@ import { boundsOf, snapHitIn, snapIndex, snapThreshold, type Box, type Guide, ty
 import { ROUTE_RADIUS, ROUTE_STUB, autoRoute, finishRoute, insertRoutePoint, isClear, moveSegment, roundPoint, routeMidpoint, routePath, segmentAxis, segmentHandles, snapSegmentDelta, type SegmentHandle } from "./route-path";
 import { SEG_BAR_LONG, SEG_BAR_SHORT } from "../styles/route";
 import type { MenuTarget } from "./context-menu";
+import { NodeSizeContext, createNodeSizeStore, dragNodeSize, sameSize, type NodeSizeApi } from "./node-size";
 import { GroupSizeContext, ZERO_PAD, createGroupPadStore, dragGroupPad, samePad, type GroupSizeApi } from "./group-size";
 import { ANCHOR_IN, ANCHOR_OUT, GroupNodeData, NODE_TYPES, NoteNodeData, FlowNodeData, handlesOf, type CollapsedBlockInfo } from "./nodes";
 import type { EdgeState, Overlay } from "./overlay";
@@ -266,6 +269,11 @@ export interface FlowCanvasProps {
   onLabelOffsetChange?: (edgeId: string, part: LabelPart, off: LabelOffset | null) => void;
   /** 그룹 크기 손잡이를 놓음(G2) — 새 여백(흐름 좌표, 0~2000 정수). 끄는 동안은 부르지 않고 놓을 때 한 번, 바뀌었을 때만. 편집 모드에서만 부른다. */
   onGroupPadChange?: (groupId: string, pad: GroupPad) => void;
+  /**
+   * 노드 크기 손잡이를 놓음(S1 §2.2) — 새 크기(흐름 좌표, 범위로 자른 정수)와 그때 그린 위치 전체·접힌 블록(S-D6, page 가 `restyleNode` 로 함께 적는다).
+   * 끄는 동안은 부르지 않고 놓을 때 한 번, 바뀌었을 때만. 편집 모드에서만 부른다.
+   */
+  onNodeSizeChange?: (nodeId: string, size: NodeSize, drawn: Record<string, FlowPos>, blocks: SpaceBlocks) => void;
   /** 캔버스가 "고른 꺾는 점 빼기 — 뺐으면 true" 를 채우는 ref(page 의 delete 단축키가 먼저 부른다, C14). */
   removeRoutePointRef?: MutableRefObject<(() => boolean) | null>;
   /** 캔버스가 "React Flow 선택 모두 비우기" 를 채우는 ref(page 의 Esc 가 부른다 — disableKeyboardA11y 로 내장 Esc 가 없다). */
@@ -1124,10 +1132,15 @@ function Inner(props: FlowCanvasProps) {
   // 그룹 크기 끌기(G2) — 끄는 동안의 여백. 구독 값이 바뀌면 Inner 가 다시 그려 nodes memo 가 다시 돈다(공간 넓히기 미리보기와 같은 방식 — page·dagre 는 그대로다).
   const groupStore = useMemo(createGroupPadStore, []);
   const groupDrag = useSyncExternalStore(groupStore.subscribe, () => groupStore.drag, () => null);
+  // 노드 크기 끌기(S1) — 끄는 동안의 크기. 구독 값이 바뀌면 Inner 가 다시 그려 nodes memo 만 다시 돈다(page·dagre 는 그대로).
+  const nodeSizeStore = useMemo(createNodeSizeStore, []);
+  const nodeSizeDrag = useSyncExternalStore(nodeSizeStore.subscribe, () => nodeSizeStore.drag, () => null);
 
   const nodes = useMemo(() => {
     const out: Node[] = [];
     const sizes = new Map(vflow.nodes.map((n) => [n.id, nodeSizeOf(vflow, n, view.blocks)] as const));
+    if (nodeSizeDrag && sizes.has(nodeSizeDrag.nodeId)) sizes.set(nodeSizeDrag.nodeId, nodeSizeDrag.size);
+    const single = rfSel.size <= 1;
     for (const g of flow.view.groups) {
       const pad = groupDrag?.groupId === g.id ? groupDrag.pad : g.pad; // 끄는 중이면 그 값(G2)
       const b = groupBox(g.nodeIds, pos, sizes, pad);
@@ -1162,6 +1175,7 @@ function Inner(props: FlowCanvasProps) {
         dropTarget: dropNode === n.id,
         onRenameTask: editable ? onRenameTask : undefined,
         style: block ? undefined : vflow.view.styles?.[n.id],
+        resizable: editable && single && selectedId === n.id && !block && STYLED_KINDS.has(n.kind),
       };
       out.push({
         id: n.id, type: "rsfFlow", position: p, width: s.w, height: s.h, measured: staleMeasure(measured[n.id], s) ? { width: s.w, height: s.h } : measured[n.id], data,
@@ -1177,7 +1191,7 @@ function Inner(props: FlowCanvasProps) {
       });
     }
     return out;
-  }, [flow, vflow, view, pos, drag, space, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured, varDisplay, groupDrag, dropNode, onRenameTask]);
+  }, [flow, vflow, view, pos, drag, space, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured, varDisplay, groupDrag, nodeSizeDrag, dropNode, onRenameTask]);
   /** 지금 그린 노드 배열 — 끌기 시작 때 스냅 후보(보이는 흐름 노드·메모)를 여기서 모은다(G1). */
   const nodesRef = useRef(nodes);
   nodesRef.current = nodes;
@@ -1946,6 +1960,68 @@ function Inner(props: FlowCanvasProps) {
     return out;
   };
   spaceDrawnRef.current = spaceDrawn;
+
+  // 노드 크기(S1) — 끄는 동안은 nodeSizeStore 에만 두고 놓을 때 onNodeSizeChange 를 한 번 부른다. 그린 위치 전체를 함께 넘긴다(S-D6).
+  const nodeSizeChangeRef = useRef(props.onNodeSizeChange);
+  nodeSizeChangeRef.current = props.onNodeSizeChange;
+  const nodeSizeDragRef = useRef<{ stop: () => void } | null>(null);
+  const nodeSizeApi = useMemo<NodeSizeApi>(() => ({
+    startDrag: (e, nodeId, grip) => {
+      if (e.button !== 0 || !editableRef.current) return;
+      e.stopPropagation();
+      nodeSizeDragRef.current?.stop();
+      const n = fullRef.current.nodes.find((x) => x.id === nodeId);
+      if (!n) return;
+      const base = nodeSizeOf(fullRef.current, n);
+      const sx = e.clientX;
+      const sy = e.clientY;
+      const onMoveEvt = (ev: MouseEvent) => {
+        if (ev.buttons === 0) {
+          finish(false); // pointerup 을 잃었다(창 밖에서 놓음) — 기록 없이 버린다
+          return;
+        }
+        const k = rf.getZoom() || 1;
+        const size = dragNodeSize(base, grip, (ev.clientX - sx) / k, (ev.clientY - sy) / k);
+        const cur = nodeSizeStore.drag;
+        if (cur && cur.nodeId === nodeId && sameSize(cur.size, size)) return;
+        nodeSizeStore.drag = { nodeId, size };
+        nodeSizeStore.emit();
+      };
+      const finish = (commit: boolean) => {
+        stop();
+        const d = nodeSizeStore.drag;
+        if (!d) return;
+        nodeSizeStore.drag = null;
+        nodeSizeStore.emit();
+        // 끄는 중 되돌리기·삭제로 노드가 사라졌거나 룰·빈 단계가 아니게 됐으면 적지 않는다.
+        const alive = fullRef.current.nodes.find((x) => x.id === nodeId);
+        if (commit && alive && STYLED_KINDS.has(alive.kind) && editableRef.current && !sameSize(d.size, base)) {
+          nodeSizeChangeRef.current?.(nodeId, d.size, spaceDrawnRef.current(), viewRef.current.blocks);
+        }
+      };
+      const onUpEvt = () => finish(true);
+      const onCancelEvt = () => finish(false);
+      const stop = () => {
+        nodeSizeDragRef.current = null;
+        window.removeEventListener("pointermove", onMoveEvt);
+        window.removeEventListener("pointerup", onUpEvt);
+        window.removeEventListener("pointercancel", onCancelEvt);
+      };
+      nodeSizeDragRef.current = { stop };
+      window.addEventListener("pointermove", onMoveEvt);
+      window.addEventListener("pointerup", onUpEvt);
+      window.addEventListener("pointercancel", onCancelEvt);
+    },
+  }), [nodeSizeStore, rf]);
+  useEffect(() => {
+    if (editable) return;
+    nodeSizeDragRef.current?.stop();
+    if (nodeSizeStore.drag) {
+      nodeSizeStore.drag = null;
+      nodeSizeStore.emit();
+    }
+  }, [editable, nodeSizeStore]);
+  useEffect(() => () => nodeSizeDragRef.current?.stop(), []);
   const startSpaceDrag = (clientX: number, clientY: number) => {
     spaceDragRef.current?.stop();
     const origin = rf.screenToFlowPosition({ x: clientX, y: clientY });
@@ -2121,6 +2197,7 @@ function Inner(props: FlowCanvasProps) {
     <HoverContext.Provider value={hoverStore}>
     <LabelContext.Provider value={labelApi}>
     <GroupSizeContext.Provider value={groupSizeApi}>
+    <NodeSizeContext.Provider value={nodeSizeApi}>
     <div
       ref={wrapRef}
       className="rsf-canvas"
@@ -2203,6 +2280,7 @@ function Inner(props: FlowCanvasProps) {
         <SnapGuides store={snapStore} />
       </ReactFlow>
     </div>
+    </NodeSizeContext.Provider>
     </GroupSizeContext.Provider>
     </LabelContext.Provider>
     </HoverContext.Provider>

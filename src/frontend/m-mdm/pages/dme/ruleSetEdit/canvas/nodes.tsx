@@ -23,6 +23,7 @@ import { NODE_SIZE } from "../flow-layout";
 import { NODE_H_MIN, NODE_ICON_LABEL, type NodeSize, type NodeStyle } from "../node-style";
 import type { RuleIo, VarDisplay } from "../types";
 import { GROUP_GRIPS, GroupSizeContext, type GroupGrip } from "./group-size";
+import { NODE_GRIPS, NodeSizeContext, type NodeGrip } from "./node-size";
 import { NODE_ICON_COMPONENT } from "./node-icons";
 import type { NodeOverlay } from "./overlay";
 import { Handle, Position, type Node, type NodeProps, type NodeTypes } from "./react-flow";
@@ -60,6 +61,8 @@ export type FlowNodeData = {
   onRenameTask?: (nodeId: string, label: string | null) => void;
   /** 외관(S1) — RULE·TASK 이고 접히지 않았을 때만. 그리기는 계획 Task 2. */
   style?: NodeStyle;
+  /** 편집 모드이고 하나만 고른 RULE·TASK(접힌 상자 아님) — 오른쪽·아래·오른쪽 아래 크기 손잡이(S1 §2.2). */
+  resizable?: boolean;
 };
 export type NoteNodeData = { note: FlowNote; selected: boolean; editable: boolean; onChange: (id: string, patch: Partial<FlowNote>) => void };
 export type GroupNodeData = { id: string; title: string; selected: boolean; /** 편집 모드이고 고른 그룹 — 네 모서리·네 변 크기 손잡이(G2). */ resizable: boolean };
@@ -345,8 +348,11 @@ function LinkHandles({ node, isConnectable }: { node: FlowNode; isConnectable: b
 /** 값 고친 지점 표시(4단계 E4) — 디버그 겹침 `overlay.edited` 가 있을 때 오른쪽 아래 작은 원. */
 export const EDITED_NODE_TITLE = "이 노드 직전에 값을 고쳤다";
 
+const NODE_GRIP_LABEL: Record<NodeGrip, string> = { e: "오른쪽 변", s: "아래 변", se: "오른쪽 아래 모서리" };
+
 /** 시작·끝·룰·IF·병렬·합류 — 모양은 kind 로 갈린다. */
 export function FlowNodeView({ data, isConnectable }: NodeProps<FlowRfNode>) {
+  const sizing = useContext(NodeSizeContext);
   const { node, overlay, selected, flash, mark, collapsed } = data;
   const kind = node.kind;
   const st = collapsed ? undefined : data.style;
@@ -393,6 +399,20 @@ export function FlowNodeView({ data, isConnectable }: NodeProps<FlowRfNode>) {
       )}
       {kind !== "END" && <Handle id={ANCHOR_OUT} type="source" position={Position.Bottom} className="rsf-anchor" isConnectableStart={false} />}
       {data.linkable && <LinkHandles node={node} isConnectable={isConnectable} />}
+      {data.resizable &&
+        sizing &&
+        NODE_GRIPS.map((g) => (
+          <span
+            key={g}
+            className="rsf-node-grip nodrag nopan"
+            role="button"
+            data-grip={g}
+            data-testid={`flow-node-grip-${node.id}-${g}`}
+            aria-label={`노드 크기 — ${NODE_GRIP_LABEL[g]}`}
+            title="끌어 노드 크기를 바꾼다"
+            onPointerDown={(e) => sizing.startDrag(e, node.id, g)}
+          />
+        ))}
     </div>
   );
 }

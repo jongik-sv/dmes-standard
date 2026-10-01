@@ -110,7 +110,13 @@ function orderBranches(f: RuleSetFlow, g: InstanceType<typeof dagre.graphlib.Gra
           return { ids, at: (Math.min(...boxes.map((x) => x.x1)) + Math.max(...boxes.map((x) => x.x2))) / 2, boxes };
         }
         const pts = (g.edge(b.nodeId, b.mergeId) as { points?: { x: number }[] } | undefined)?.points ?? [];
-        return { ids, at: pts.length > 0 ? pts[Math.floor(pts.length / 2)].x : cx.get(b.nodeId)!, boxes: [] as LaneBox[] };
+        const at = pts.length > 0 ? pts[Math.floor(pts.length / 2)].x : cx.get(b.nodeId)!;
+        // 빈 갈래(선만 지나는 자리)도 룰 하나 너비만큼 자리를 둔다 — dagre 는 너비 0 인 점으로 놓아 이웃 갈래 노드가 분기 가운데 아래에 걸친다
+        // (사용자 요청 "갈래 1 노드가 조금 더 왼쪽으로"). 세로 범위는 분기~합류라 그 사이 이웃 갈래 노드와 견준다. 옮길 노드는 없다.
+        const half = NODE_SIZE.RULE.w / 2;
+        const y1 = (g.node(b.nodeId) as { y: number }).y;
+        const y2 = (g.node(b.mergeId) as { y: number }).y;
+        return { ids, at, boxes: [{ x1: at - half, x2: at + half, y1, y2 }] as LaneBox[] };
       });
       const slots = spreadLanes(lanes, lanes.map((l) => l.at).sort((a, c) => a - c), NODESEP);
       lanes.forEach((l, i) => {
@@ -134,7 +140,7 @@ export interface LaneBox {
  * 갈래(왼쪽부터, 각자 옮기기 전 가운데 at·노드 상자)를 slots 자리로 옮길 때, **세로 범위가 겹치는**(같은 높이의) 두 노드가 gap 보다 가까우면
  * 오른쪽 갈래와 그 뒤 갈래들을 민 뒤 전체 자리 가운데를 처음 자리 가운데로 되돌린다(외관 S1 — 폭이 다른 갈래를 다른 갈래 자리에 옮기면 겹칠 수 있다, 계획 Ruling 10).
  * 갈래 경계 상자끼리가 아니라 노드끼리 견준다 — 중첩 분기가 든 갈래는 아래 층에서만 넓으므로 경계 상자로 견주면 겹치지 않는 기본 배치까지 바뀐다.
- * 빈 갈래(상자 없음)는 함께 밀릴 뿐 견주지 않는다. 움직일 것이 없으면 slots 를 그대로 돌려준다(기본 크기 흐름의 배치 불변).
+ * 상자 없는 갈래는 함께 밀릴 뿐 견주지 않는다(orderBranches 는 빈 갈래에 룰 너비 가상 상자를 준다). 움직일 것이 없으면 slots 를 그대로 돌려준다.
  */
 export function spreadLanes(lanes: readonly { at: number; boxes: readonly LaneBox[] }[], slots: readonly number[], gap: number): number[] {
   const out = [...slots];
