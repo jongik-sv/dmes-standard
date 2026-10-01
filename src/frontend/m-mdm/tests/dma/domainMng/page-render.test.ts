@@ -70,4 +70,14 @@ describe("domainMng page", () => {
     expect(container.querySelector(".domain-mng__count")?.textContent).toBe("도메인 2건");
     expect(container.textContent).toContain("└ 코일 두께");
   });
+
+  it("부모 연결·연결 제거 단추가 있고 도메인을 고르기 전에는 잠겨 있다(D-132)", async () => {
+    stubFetch([]);
+    await render();
+    for (const label of ["부모 연결", "연결 제거"]) {
+      const b = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find((x) => x.textContent?.trim() === label);
+      expect(b, label).toBeDefined();
+      expect(b!.disabled, label).toBe(true);
+    }
+  });
 });

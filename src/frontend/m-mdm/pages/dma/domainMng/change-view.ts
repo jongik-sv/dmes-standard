@@ -5,6 +5,7 @@ const CLASSIFICATION: Record<string, string> = {
   COMPATIBLE: "호환",
   NARROW_OR_WIDEN: "좁히기·넓히기",
   STRUCTURAL: "구조 변경(금지)",
+  PARENT_CHANGE: "부모 변경",
 };
 
 const DIRECTION: Record<string, string> = {
@@ -13,6 +14,9 @@ const DIRECTION: Record<string, string> = {
   CHANGE: "변경",
   STRUCTURAL: "구조 변경",
   COMPATIBLE: "호환",
+  LINK: "연결",
+  RELINK: "교체",
+  UNLINK: "연결 제거",
 };
 
 const LEVEL: Record<string, string> = { ERROR: "오류", WARN: "경고" };

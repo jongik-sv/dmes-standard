@@ -6,6 +6,7 @@
  * 들여쓴 상속 트리 + 기본 속성 + 두 칸 검증식 + 미리보기·테스트 케이스 + 영향도·변경 분류·diff·검사 목록.
  * 표준식 미리보기는 서버가 준 유효 표준 AST 를 화면 JS 로 즉시 평가하고, 비즈니스식과 편집 중인 식은
  * 400 ms 디바운스한 서버 `execute` 로 평가한다(편집 권한자만). 저장은 현재 초안으로 도메인검증을 통과한 뒤에만 열린다.
+ * 부모 연결·교체·제거는 [부모 연결]·[연결 제거] 대화상자에서 저장된 행 기준으로 따로 검사·저장한다(D-132).
  * OBJECT_ID = screenId = BPMN process id = 'domainMng'(불변 I17).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -17,6 +18,7 @@ import { useMessage } from "@dk-oasis/shared/message-provider";
 import { MdmPageLayout } from "@/shell";
 import { executePreview, saveDomain, searchDomains, validateDomain, viewDomain } from "./api";
 import { parentCandidates } from "./domain-tree";
+import { storedForm, type ParentLinkMode } from "./parent-link";
 import { previewStandard } from "./preview";
 import { DomainBasicForm, KIND_OPTIONS } from "./components/DomainBasicForm";
 import { DomainCheckList } from "./components/DomainCheckList";
@@ -25,9 +27,10 @@ import { DomainPreviewPanel } from "./components/DomainPreviewPanel";
 import { DomainRuleEditor } from "./components/DomainRuleEditor";
 import { DomainTestCaseGrid } from "./components/DomainTestCaseGrid";
 import { DomainTreeGrid } from "./components/DomainTreeGrid";
+import { ParentLinkModal } from "./components/ParentLinkModal";
 import { hint, sectionBody, sectionTitle } from "./components/styles";
 import type {
-  DomainDraft, DomainRow, ExecuteResult, ImpactTable, RequiredVarRow, SearchFilters, TestCaseRow, ValidateResult,
+  DomainDetail, DomainDraft, DomainRow, ExecuteResult, ImpactTable, RequiredVarRow, SearchFilters, TestCaseRow, ValidateResult,
 } from "./types";
 
 const SCREEN_ID = "domainMng";
@@ -63,7 +66,7 @@ export default function DomainMngPage() {
   const [rows, setRows] = useState<DomainRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [selectedRow, setSelectedRow] = useState<DomainRow | null>(null);
+  const [selectedRow, setSelectedRow] = useState<DomainDetail | null>(null);
   const [mode, setMode] = useState<Mode>("none");
   const [draft, setDraft] = useState<DomainDraft>(EMPTY_DRAFT);
   const [storedExprKey, setStoredExprKey] = useState<string | null>(null);
@@ -79,6 +82,8 @@ export default function DomainMngPage() {
   const [serverPending, setServerPending] = useState(false);
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [parentLink, setParentLink] = useState<ParentLinkMode | null>(null);
+  const [storedKey, setStoredKey] = useState<string | null>(null);
 
   const readOnly = mode === "none" || !canEdit || busy;
   const currentKey = useMemo(() => JSON.stringify([draft, cases, examplesText]), [draft, cases, examplesText]);
@@ -119,20 +124,16 @@ export default function DomainMngPage() {
       const out = await viewDomain(id);
       const d = out.domain;
       if (!d) return;
-      const next: DomainDraft = {
-        domainId: d.DOMAIN_ID, ver: d.VER, domainName: d.DOMAIN_NAME, stdName: d.STD_NAME,
-        parentDomainId: d.PARENT_DOMAIN_ID, domainKind: d.DOMAIN_KIND, dataType: d.DATA_TYPE, length: d.LENGTH,
-        scale: d.SCALE, unitCode: d.UNIT_CODE, maruCodeId: d.MARU_CODE_ID, cateId: d.CATE_ID,
-        stdRule: d.STD_RULE ?? "", bizRule: d.BIZ_RULE ?? "", description: d.DESCRIPTION ?? "",
-      };
+      const stored = storedForm(d);
+      const next = stored.draft;
+      const examples = stored.examples.join(", ");
       setSelectedId(d.DOMAIN_ID);
       setSelectedRow(d);
       setDraft(next);
       setStoredExprKey(exprKey(next));
-      setCases((d.TEST_CASES ?? []).map((c) => ({
-        VALUE: c.VALUE ?? "", EXPECT: c.EXPECT !== false, VARS: c.VARS ?? "", MEMO: c.MEMO ?? "",
-      })));
-      setExamplesText((d.EXAMPLES ?? []).join(", "));
+      setCases(stored.cases);
+      setExamplesText(examples);
+      setStoredKey(JSON.stringify([next, stored.cases, examples]));
       setRequiredVars(out.requiredVars ?? []);
       setImpact(out.impact ?? null);
       setMode("edit");
@@ -265,6 +266,10 @@ export default function DomainMngPage() {
         { id: "btn_search", label: "조회", type: "primary", action: "search", onClick: () => void runSearch(filters) },
         { id: "btn_new", label: "도메인 등록", action: "save", disabled: busy, onClick: startNew },
         { id: "btn_child", label: "하위 도메인 등록", action: "save", disabled: busy || !selectedRow, onClick: startChild },
+        { id: "btn_link_parent", label: "부모 연결", action: "save", disabled: busy || mode !== "edit" || !selectedRow,
+          onClick: () => setParentLink("link") },
+        { id: "btn_unlink_parent", label: "연결 제거", action: "save",
+          disabled: busy || mode !== "edit" || selectedRow?.PARENT_DOMAIN_ID == null, onClick: () => setParentLink("unlink") },
       ]}
     >
       <SearchArea onSearch={() => void runSearch(filters)}>
@@ -339,6 +344,13 @@ export default function DomainMngPage() {
         </ContentPanel>
       </ContentBody>
 
+      {selectedRow && (
+        <ParentLinkModal open={parentLink !== null} mode={parentLink ?? "link"} domain={selectedRow}
+          dirty={storedKey !== null && storedKey !== currentKey} onClose={() => setParentLink(null)}
+          onChanged={(id) => {
+            void runSearch(filters).then(() => openDomain(id));
+          }} />
+      )}
       {errorMessage && <ErrorModal message={errorMessage} onClose={() => setErrorMessage(null)} />}
     </MdmPageLayout>
   );

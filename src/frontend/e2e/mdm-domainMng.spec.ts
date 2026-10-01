@@ -7,6 +7,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  *   E1 메뉴 이동·빈 상태(스모크 1·2)          E2 화면 조작만으로 등록 → 목록 반영(스모크 3·2)
  *   E3 상속 등록·JS 미리보기(서버 호출 없음)   E4 거부 표시(R06, 저장 비활성 — 수용 기준 1 화면 쪽)
  *   E5 서버 오류 표시(동시 수정 MDM001, 스모크 4)  E6 영향도(수용 기준 6 화면 쪽)   E7 담당자 RBAC
+ *   E8 부모 교체·연결 제거 대화상자(D-132 — 경고 확인 뒤 저장, 제거는 상속값 구체화)
  *
  * 전제: 격리 DB 로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고 e2e/fixtures/mdm-rbac-users.sql 을 넣는다.
  * SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다(기본값 5100 은 메인 체크아웃 포털 → 거짓 통과).
@@ -23,6 +24,8 @@ const PARENT_NAME = `E2E 식별자 ${STAMP}`;
 const PARENT_STD = `E2E_ID_${STAMP}`;
 const CHILD_NAME = `E2E 식별자 하위 ${STAMP}`;
 const CHILD_STD = `E2E_ID_C_${STAMP}`;
+const OTHER_NAME = `E2E 식별자 다른 부모 ${STAMP}`;
+const OTHER_STD = `E2E_ID_O_${STAMP}`;
 const BREADCRUMB = "마루 MDM > 용어·도메인 > 도메인 관리";
 const API = "/api/mdm/oasis/domainMng";
 
@@ -224,6 +227,55 @@ test.describe("mdm 도메인 관리", () => {
     await page.screenshot({ path: screenshot("dma-domainMng-impact.png"), fullPage: true });
   });
 
+  test("E8 부모 교체·연결 제거는 대화상자에서 경고를 보고 확인한 뒤 바뀐다", async ({ page }) => {
+    await login(page, ADMIN);
+    const created = await page.request.post(`${BASE_URL}${API}/save`, {
+      data: {
+        meta: { menuId: "domainMng" },
+        params: { domainName: OTHER_NAME, stdName: OTHER_STD, domainKind: "ID", dataType: "STRING", length: 30,
+          stdRule: "STR_LENGTH(value) <= 30" },
+        grids: { testCases: { rows: [{ VALUE: "C24090401AB", EXPECT: true }] }, examples: { rows: [] } },
+      },
+    });
+    expect((await created.json()).meta.success, "다른 부모 후보 등록").toBe(true);
+    const layout = await openDomainMng(page);
+    await search(layout, STAMP);
+    await selectRow(layout, CHILD_NAME);
+    await expect(layout.locator('select[aria-label="부모 도메인"]')).toBeDisabled(); // 수정 폼에서는 고정
+
+    // ── 교체 — 부모가 있으니 [부모 연결] 은 교체다. 고르면 검증하고 영향 경고(W04)·diff 를 보인다 ──
+    await layout.getByRole("button", { name: "부모 연결", exact: true }).click();
+    const dialog = page.getByTestId("domain-parent-link-modal");
+    const dialogButton = (name: string) => page.locator(".cm-modal").getByRole("button", { name, exact: true });
+    await expect(page.locator(".cm-modal-title")).toHaveText("부모 교체");
+    const validated = page.waitForResponse((r) => r.url().includes(`${API}/validate`), { timeout: 30_000 });
+    await dialog.locator('select[aria-label="부모 도메인"]').selectOption({ label: `${OTHER_NAME} (${OTHER_STD})` });
+    await validated;
+    await expect(dialog.locator(".domain-mng__check-summary")).toContainText("검사 통과", { timeout: 30_000 });
+    await expect(dialog.locator(".domain-mng__checks")).toContainText("W04");
+    await expect(dialog.locator(".domain-mng__classification")).toHaveText("부모 변경");
+    await page.screenshot({ path: screenshot("dma-domainMng-relink.png"), fullPage: true });
+    await dialogButton("교체").click();
+    await expect(dialog).toHaveCount(0, { timeout: 30_000 });
+    await search(layout, STAMP);
+    let child = await viewChild(page);
+    expect(child.PARENT_DOMAIN_ID, "새 부모로 바뀐다").toBe(await domainId(page, OTHER_STD));
+
+    // ── 연결 제거 — 열자마자 검증하고 구체화 경고(W05)를 보인 뒤 확인하면 최상위가 된다 ──
+    await selectRow(layout, CHILD_NAME);
+    await layout.getByRole("button", { name: "연결 제거", exact: true }).click();
+    await expect(page.locator(".cm-modal-title")).toHaveText("부모 연결 제거");
+    await expect(dialog.locator(".domain-mng__checks")).toContainText("W05", { timeout: 30_000 });
+    await page.screenshot({ path: screenshot("dma-domainMng-unlink.png"), fullPage: true });
+    await dialogButton("연결 제거").click();
+    await expect(dialog).toHaveCount(0, { timeout: 30_000 });
+    child = await viewChild(page);
+    expect(child.PARENT_DOMAIN_ID).toBeNull();
+    expect(child.STD_RULE, "상속받던 표준식을 이어 붙인다").toBe("(STR_LENGTH(value) <= 30) && (STR_LENGTH(value) <= 15)");
+    await search(layout, STAMP);
+    await expect(gridRow(layout, CHILD_NAME)).not.toContainText("└");
+  });
+
   test("E7 담당자는 목록을 보되 검증·저장 버튼이 없고 서버 미리보기를 부르지 않는다", async ({ page }) => {
     const forbidden: string[] = [];
     page.on("response", (r) => {
@@ -238,12 +290,32 @@ test.describe("mdm 도메인 관리", () => {
     await expect(layout.locator(".domain-mng__preview-std")).toHaveText("표준 실패");
     await expect(layout.getByRole("button", { name: "도메인검증" })).toHaveCount(0);
     await expect(layout.getByRole("button", { name: "저장", exact: true })).toHaveCount(0);
+    // 상단 버튼은 숨지 않고 RBAC(save 권한 없음)로 잠긴다(PageLayout)
+    await expect(layout.getByRole("button", { name: "부모 연결", exact: true })).toBeDisabled();
+    await expect(layout.getByRole("button", { name: "연결 제거", exact: true })).toBeDisabled();
     await expect(layout.locator('input[aria-label="도메인명"]')).toBeDisabled();
     await page.waitForTimeout(800);
     expect(forbidden, "담당자 화면이 권한 없는 action 을 부르면 안 된다").toEqual([]);
     await page.screenshot({ path: screenshot("dma-domainMng-steward.png"), fullPage: true });
   });
 });
+
+async function domainId(page: Page, std: string): Promise<number> {
+  const res = await page.request.post(`${BASE_URL}${API}/search`, {
+    data: { meta: { menuId: "domainMng" }, params: { keyword: std } },
+  });
+  const rows = (await res.json()).data.result.domains as Array<{ DOMAIN_ID: number; STD_NAME: string }>;
+  const row = rows.find((r) => r.STD_NAME === std);
+  if (!row) throw new Error(`도메인을 찾지 못했다: ${std}`);
+  return row.DOMAIN_ID;
+}
+
+async function viewChild(page: Page): Promise<{ PARENT_DOMAIN_ID: number | null; STD_RULE: string | null }> {
+  const res = await page.request.post(`${BASE_URL}${API}/view`, {
+    data: { meta: { menuId: "domainMng" }, params: { domainId: await domainId(page, CHILD_STD) } },
+  });
+  return (await res.json()).data.result.domain;
+}
 
 async function childId(page: Page): Promise<number> {
   const res = await page.request.post(`${BASE_URL}${API}/search`, {

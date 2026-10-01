@@ -10,8 +10,11 @@ import java.util.function.Function;
 import org.springframework.stereotype.Component;
 
 /**
- * 변경 분류와 저장 전 diff(TSK-04-03 design.md §3.3, D6, 불변 I9). 구조 칼럼이 하나라도 바뀌면 STRUCTURAL(S01 거부),
- * 값 정의 칼럼이 바뀌면 NARROW_OR_WIDEN(하위 재검사), 호환 칼럼만이면 COMPATIBLE, 신규는 NEW.
+ * 변경 분류와 저장 전 diff(TSK-04-03 design.md §3.3, D6, 불변 I9). 구조 칼럼(종류·타입·단위)이 하나라도 바뀌면
+ * STRUCTURAL(S01 거부), 부모가 바뀌면 PARENT_CHANGE(부모 연결·교체·제거, 하위 재검사 — D-132), 값 정의 칼럼이 바뀌면
+ * NARROW_OR_WIDEN(하위 재검사), 호환 칼럼만이면 COMPATIBLE, 신규는 NEW. 순서대로 앞의 것이 이긴다.
+ * 부모가 바뀔 때 단위 칸은 구조 칼럼으로 보지 않는다 — 연결 제거는 상속받던 단위를 자기 행에 복사하고(구체화),
+ * 유효 단위가 그대로인지는 검사기가 S02 로 본다.
  * 식의 좁힘·넓힘 방향은 판정하지 않는다 — {@code DIRECTION} 은 길이·소수 숫자 비교에서만 NARROW/WIDEN 이다.
  */
 @Component
@@ -21,8 +24,10 @@ public class DomainChangeClassifier {
     public static final String COMPATIBLE = "COMPATIBLE";
     public static final String NARROW_OR_WIDEN = "NARROW_OR_WIDEN";
     public static final String STRUCTURAL = "STRUCTURAL";
+    /** 부모 연결·교체·제거(D-132). */
+    public static final String PARENT_CHANGE = "PARENT_CHANGE";
 
-    private enum Category { STRUCTURAL, VALUE, COMPATIBLE }
+    private enum Category { STRUCTURAL, PARENT, VALUE, COMPATIBLE }
 
     private record Column(String field, String label, Category category,
                           Function<DomainNode, Object> before, Function<DomainDraft, Object> after) {}
@@ -31,7 +36,7 @@ public class DomainChangeClassifier {
             new Column("DOMAIN_KIND", "종류", Category.STRUCTURAL, DomainNode::domainKind, DomainDraft::domainKind),
             new Column("DATA_TYPE", "데이터 타입", Category.STRUCTURAL, DomainNode::dataType, DomainDraft::dataType),
             new Column("UNIT_CODE", "단위", Category.STRUCTURAL, DomainNode::unitCode, DomainDraft::unitCode),
-            new Column("PARENT_DOMAIN_ID", "부모 도메인", Category.STRUCTURAL, DomainNode::parentDomainId, DomainDraft::parentDomainId),
+            new Column("PARENT_DOMAIN_ID", "부모 도메인", Category.PARENT, DomainNode::parentDomainId, DomainDraft::parentDomainId),
             new Column("LENGTH", "길이", Category.VALUE, DomainNode::length, DomainDraft::length),
             new Column("SCALE", "소수 자리", Category.VALUE, DomainNode::scale, DomainDraft::scale),
             new Column("STD_RULE", "표준 검증식", Category.VALUE, DomainNode::stdRule, DomainDraft::stdRule),
@@ -55,7 +60,9 @@ public class DomainChangeClassifier {
             return new Classification(NEW, List.of());
         }
         List<Map<String, Object>> diff = new ArrayList<>();
+        boolean parentChanged = !Objects.equals(before.parentDomainId(), after.parentDomainId());
         boolean structural = false;
+        boolean parent = false;
         boolean value = false;
         for (Column c : COLUMNS) {
             Object b = norm(c.before().apply(before));
@@ -63,23 +70,31 @@ public class DomainChangeClassifier {
             if (Objects.equals(b, a)) {
                 continue;
             }
-            structural |= c.category() == Category.STRUCTURAL;
-            value |= c.category() == Category.VALUE;
+            Category category = parentChanged && "UNIT_CODE".equals(c.field()) ? Category.VALUE : c.category();
+            structural |= category == Category.STRUCTURAL;
+            parent |= category == Category.PARENT;
+            value |= category == Category.VALUE;
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("FIELD", c.field());
             row.put("LABEL", c.label());
             row.put("BEFORE", b);
             row.put("AFTER", a);
-            row.put("DIRECTION", direction(c, b, a));
+            row.put("DIRECTION", direction(category, b, a));
             diff.add(row);
         }
-        String kind = structural ? STRUCTURAL : value ? NARROW_OR_WIDEN : COMPATIBLE;
+        String kind = structural ? STRUCTURAL : parent ? PARENT_CHANGE : value ? NARROW_OR_WIDEN : COMPATIBLE;
         return new Classification(kind, diff);
     }
 
-    private static String direction(Column c, Object before, Object after) {
-        return switch (c.category()) {
+    /** 하위 도메인 재검사(R06·R08)가 필요한 분류 — 값 정의 변경과 부모 변경. */
+    public static boolean rechecksDescendants(String kind) {
+        return NARROW_OR_WIDEN.equals(kind) || PARENT_CHANGE.equals(kind);
+    }
+
+    private static String direction(Category category, Object before, Object after) {
+        return switch (category) {
             case STRUCTURAL -> "STRUCTURAL";
+            case PARENT -> before == null ? "LINK" : after == null ? "UNLINK" : "RELINK";
             case COMPATIBLE -> "COMPATIBLE";
             case VALUE -> before instanceof Integer b && after instanceof Integer a ? (a < b ? "NARROW" : "WIDEN") : "CHANGE";
         };

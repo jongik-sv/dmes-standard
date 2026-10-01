@@ -2,7 +2,8 @@ package com.dongkuk.dmes.mdm.dma.domainMng.service;
 
 /**
  * 도메인 저장 검사 이슈 코드(TSK-04-03 design.md §3.2, 기능설계서 §6). R01~R10 은 02:177 저장 거부 조건을 문장 순서대로,
- * S01~S06 은 원천의 다른 절에서 온 보충 거부, W01~W03 은 저장을 막지 않는 경고다. 문구는 기능설계서 §6 과 같다.
+ * S01~S06 은 원천의 다른 절에서 온 보충 거부, W01~W05 는 저장을 막지 않는 경고다(W04·W05 는 부모 연결 변경, D-132).
+ * 문구는 기능설계서 §6 과 같다.
  */
 public enum DomainIssueCode {
 
@@ -24,7 +25,9 @@ public enum DomainIssueCode {
     S06(Level.ERROR, "필수 입력·형식을 확인하세요"),
     W01(Level.WARN, "부모와 정의가 같습니다. 컬럼이 부모를 직접 참조하면 됩니다."),
     W02(Level.WARN, "코드 판정을 할 수 없어 건너뛰었습니다"),
-    W03(Level.WARN, "테스트 케이스를 추가하세요");
+    W03(Level.WARN, "테스트 케이스를 추가하세요"),
+    W04(Level.WARN, "부모 연결을 바꾸면 이 도메인을 참조하는 컬럼과 하위 도메인이 영향을 받습니다"),
+    W05(Level.WARN, "상속받던 값을 이 도메인에 복사해 같은 정의를 유지합니다");
 
     public enum Level { ERROR, WARN }
 

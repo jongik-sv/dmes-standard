@@ -44,6 +44,10 @@ import org.springframework.stereotype.Service;
  * <p>정본: 기능설계서 {@code docs/mdm/screens/domainMng/domainMng_기능설계서.md}, 구현 설계 {@code docs/mdm/tasks/TSK-04-03/design.md}.
  * BPMN {@code services/dma/domainMng.bpmn} 의 {@code actionGateway} 5 분기와 1:1 이다. 쓰기는 {@code save} 만 한다(불변 I16).
  *
+ * <p>부모 연결·교체·제거(D-132)는 따로 액션을 두지 않고 {@code validate}(경고 미리보기) → {@code save}(확인 후 쓰기)로 한다.
+ * 액션 이름은 RBAC 키라 {@code MdmActions} 어휘 안에서만 고르고, 두 단계 흐름·하위 재검사·동시 수정 검사·롤백이 이미 거기 있다.
+ * 부모가 없어지면 {@link DomainUnlinkMaterializer} 가 상속받던 값을 초안에 복사한 뒤 같은 검사를 돈다.
+ *
  * <p><b>{@code @Transactional} 을 붙이지 않는다.</b> 붙이면 CGLIB 프록시가 파라미터 이름을 잃어 OASIS 바인딩이
  * {@code ParameterName must not be null} 로 죽는다. 트랜잭션은 OASIS action 한 건이다 — {@code save} 가 하위 재검사에서
  * 던지면 {@code SpringTransactionHandler} 가 자기 행 쓰기까지 되돌린다(F3, 불변 I6).
@@ -63,6 +67,7 @@ public class DomainMngService {
     private final DomainRuleChecker checker;
     private final DomainTestCaseRunner runner;
     private final DomainChangeClassifier classifier;
+    private final DomainUnlinkMaterializer materializer;
     private final DomainExpressionCompiler compiler;
     private final DomainImpactQueries queries;
     private final MdmDomainImpactLookup impactLookup;
@@ -71,7 +76,8 @@ public class DomainMngService {
 
     public DomainMngService(DomainTreeReader reader, DomainChainAssembler assembler, DomainRuleChecker checker,
                             DomainTestCaseRunner runner, DomainChangeClassifier classifier,
-                            DomainExpressionCompiler compiler, DomainImpactQueries queries,
+                            DomainUnlinkMaterializer materializer, DomainExpressionCompiler compiler,
+                            DomainImpactQueries queries,
                             MdmDomainImpactLookup impactLookup, MdmDomainRepository domainRepository,
                             MdmUnitRepository unitRepository) {
         this.reader = reader;
@@ -79,6 +85,7 @@ public class DomainMngService {
         this.checker = checker;
         this.runner = runner;
         this.classifier = classifier;
+        this.materializer = materializer;
         this.compiler = compiler;
         this.queries = queries;
         this.impactLookup = impactLookup;
@@ -152,12 +159,12 @@ public class DomainMngService {
 
     public Map<String, Object> validate(DomainDraftRequest request, List<Map<String, Object>> testCases,
                                         List<Map<String, Object>> examples) {
-        DomainDraft draft = DomainDraft.from(request, testCases, examples);
         DomainTreeSnapshot snapshot = reader.load();
-        Check check = check(draft, snapshot);
+        Check check = check(DomainDraft.from(request, testCases, examples), snapshot);
+        DomainDraft draft = check.draft();
         List<DomainIssue> issues = new ArrayList<>(check.issues());
         List<Map<String, Object>> results = new ArrayList<>(check.results());
-        if (DomainChangeClassifier.NARROW_OR_WIDEN.equals(check.classification().kind()) && check.stored() != null
+        if (DomainChangeClassifier.rechecksDescendants(check.classification().kind()) && check.stored() != null
                 && check.node() != null) {
             // 저장 경로의 하위 재검사(쓰고 나서 DB 기준)를 초안을 얹은 메모리 스냅샷으로 미리 보여 준다
             DomainTreeSnapshot memory = snapshot.withDraft(check.node());
@@ -217,18 +224,19 @@ public class DomainMngService {
 
     public Map<String, Object> save(DomainDraftRequest request, List<Map<String, Object>> testCases,
                                     List<Map<String, Object>> examples) {
-        DomainDraft draft = DomainDraft.from(request, testCases, examples);
+        DomainDraft requested = DomainDraft.from(request, testCases, examples);
         // 1 스냅샷(요청 스레드) · 대상 존재 · 동시 수정(D5)
         DomainTreeSnapshot snapshot = reader.load();
         MdmDomain entity = null;
-        if (draft.domainId() != null) {
-            entity = domainRepository.findById(draft.domainId()).orElse(null);
-            if (entity != null && !Objects.equals(draft.ver(), entity.getVersion())) {
+        if (requested.domainId() != null) {
+            entity = domainRepository.findById(requested.domainId()).orElse(null);
+            if (entity != null && !Objects.equals(requested.ver(), entity.getVersion())) {
                 throw MdmErrors.of(MdmErrorCode.ROW_VERSION_CONFLICT);
             }
         }
-        // 2 자기 행 검사 — 전부 모은다. 하위 도메인은 여기서 보지 않는다(쓰고 나서 DB 기준, 불변 I6)
-        Check check = check(draft, snapshot);
+        // 2 자기 행 검사 — 전부 모은다(연결 제거면 구체화한 초안으로). 하위 도메인은 여기서 보지 않는다(쓰고 나서 DB 기준, 불변 I6)
+        Check check = check(requested, snapshot);
+        DomainDraft draft = check.draft();
         if (check.issues().stream().anyMatch(DomainIssue::isError)) {
             throw DomainRejections.reject(check.issues());
         }
@@ -238,10 +246,10 @@ public class DomainMngService {
         }
         apply(entity, draft);
         entity = domainRepository.saveAndFlush(entity);
-        // 4 값 정의 변경 — 같은 트랜잭션에서 다시 읽어 하위 구조 제약·테스트 케이스 재실행. 실패하면 던져 전체를 되돌린다
+        // 4 값 정의·부모 변경 — 같은 트랜잭션에서 다시 읽어 하위 구조 제약·테스트 케이스 재실행. 실패하면 던져 전체를 되돌린다
         List<DomainIssue> warnings = new ArrayList<>(check.issues());
         List<Long> rerun = new ArrayList<>();
-        if (DomainChangeClassifier.NARROW_OR_WIDEN.equals(check.classification().kind())) {
+        if (DomainChangeClassifier.rechecksDescendants(check.classification().kind())) {
             DomainTreeSnapshot written = reader.load();
             List<DomainIssue> after = new ArrayList<>(checker.descendantLengthIssues(written, entity.getDomainId()));
             Descendants d = runDescendants(written, entity.getDomainId());
@@ -265,17 +273,26 @@ public class DomainMngService {
     // 내부
     // ────────────────────────────────────────────────────────────────
 
-    private record Check(List<DomainIssue> issues, DomainChangeClassifier.Classification classification,
+    /** @param draft 검사한 초안 — 연결 제거면 구체화한 것. 저장은 이 값을 쓴다 */
+    private record Check(DomainDraft draft, List<DomainIssue> issues, DomainChangeClassifier.Classification classification,
                          List<Map<String, Object>> results, EffectiveDomainView view, DomainNode node, DomainNode stored) {}
 
     private record Descendants(List<DomainIssue> issues, List<Map<String, Object>> results, List<Long> rerunIds) {}
 
-    /** 자기 행 검사 — 거부 조건·경고 + 결과 타입 + 자기 테스트 케이스. */
-    private Check check(DomainDraft draft, DomainTreeSnapshot snapshot) {
-        DomainNode stored = draft.domainId() == null ? null : snapshot.find(draft.domainId()).orElse(null);
+    /** 자기 행 검사 — (연결 제거면 구체화) 거부 조건·경고 + 결과 타입 + 자기 테스트 케이스 + 부모 변경 경고. */
+    private Check check(DomainDraft requested, DomainTreeSnapshot snapshot) {
+        DomainNode stored = requested.domainId() == null ? null : snapshot.find(requested.domainId()).orElse(null);
+        DomainUnlinkMaterializer.Result materialized = materializer.materialize(stored, requested, snapshot);
+        DomainDraft draft = materialized.draft();
         List<DomainIssue> issues = new ArrayList<>(checker.check(draft, snapshot, facts()));
         issues.addAll(runner.checkResultTypes(draft));
         DomainChangeClassifier.Classification classification = classifier.classify(stored, draft);
+        if (DomainChangeClassifier.PARENT_CHANGE.equals(classification.kind())) {
+            issues.add(parentImpact(stored, draft, snapshot));
+            if (!materialized.fields().isEmpty()) {
+                issues.add(DomainIssue.of(DomainIssueCode.W05, "PARENT_DOMAIN_ID", String.join(", ", materialized.fields())));
+            }
+        }
         DomainNode node = draft.toNode(compiler.ast(draft.stdRule()), compiler.ast(draft.bizRule()),
                 stored == null ? null : stored.ver());
         EffectiveDomainView view = null;
@@ -305,7 +322,34 @@ public class DomainMngService {
                 issues.add(DomainIssue.of(DomainIssueCode.W02, "TEST_CASES", "코드 판정이 필요한 케이스를 판정하지 않았다"));
             }
         }
-        return new Check(issues, classification, results, view, node, stored);
+        return new Check(draft, issues, classification, results, view, node, stored);
+    }
+
+    /** W04 — 부모 변경 영향(참조 컬럼 수는 자기와 하위 도메인을 참조하는 컬럼, 영향도 표와 같은 재귀 조회). */
+    private DomainIssue parentImpact(DomainNode stored, DomainDraft draft, DomainTreeSnapshot snapshot) {
+        Set<Long> descendants = new HashSet<>();
+        Set<Long> columns = new HashSet<>();
+        for (DomainImpactQueries.SubtreeRow r : queries.subtree(stored.domainId())) {
+            if (r.depth() >= 1 && !r.domainId().equals(stored.domainId())) {
+                descendants.add(r.domainId());
+            }
+            if (r.columnId() != null) {
+                columns.add(r.columnId());
+            }
+        }
+        String effect = draft.parentDomainId() == null
+                ? "연결 제거 — 유효 정의는 그대로다"
+                : "유효 정의가 새 부모 기준으로 바뀐다";
+        return DomainIssue.of(DomainIssueCode.W04, "PARENT_DOMAIN_ID", "부모 " + domainLabel(stored.parentDomainId(), snapshot)
+                + " → " + domainLabel(draft.parentDomainId(), snapshot) + ", 참조 컬럼 " + columns.size() + "개, 하위 도메인 "
+                + descendants.size() + "개 — " + effect);
+    }
+
+    private static String domainLabel(Long id, DomainTreeSnapshot snapshot) {
+        if (id == null) {
+            return "(없음)";
+        }
+        return snapshot.find(id).map(n -> n.domainName() + "(" + id + ")").orElse(String.valueOf(id));
     }
 
     /** 하위 도메인 테스트 케이스 재실행 — 주어진 스냅샷(검증: 메모리, 저장: 쓰고 난 DB) 기준 유효 정의로. */
