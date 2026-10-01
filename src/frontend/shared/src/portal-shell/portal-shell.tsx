@@ -507,7 +507,7 @@ export function PortalShell({
     // 탭이 모두 닫혀 대시보드만 남으면 전체 화면을 끝낸다.
     if (isTabFullscreen && !activeTab) exitTabFullscreen();
   }, [isTabFullscreen, activeTab, exitTabFullscreen]);
-  // 손잡이에 2초 머물면 열고, 메뉴 밖으로 나간 지 2초 뒤 닫는다.
+  // 손잡이에 1초 머물면 열고, 메뉴 밖으로 나간 지 2초 뒤 닫는다.
   useFullscreenSidebarHover(isTabFullscreen, isFullscreenSidebarOpen, setIsFullscreenSidebarOpen);
   useEffect(() => {
     if (!isTabFullscreen || !isFullscreenSidebarOpen) return;

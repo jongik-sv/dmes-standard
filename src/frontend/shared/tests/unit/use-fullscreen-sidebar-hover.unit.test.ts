@@ -3,7 +3,8 @@ import { act, createElement, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  FULLSCREEN_SIDEBAR_HOVER_DELAY_MS,
+  FULLSCREEN_SIDEBAR_CLOSE_DELAY_MS,
+  FULLSCREEN_SIDEBAR_OPEN_DELAY_MS,
   useFullscreenSidebarHover,
 } from "../../src/portal-shell/use-fullscreen-sidebar-hover";
 
@@ -59,34 +60,36 @@ describe("useFullscreenSidebarHover", () => {
     vi.useRealTimers();
   });
 
-  it("손잡이에 2초 머물면 연다", () => {
+  it("손잡이에 1초 머물면 연다", () => {
+    expect(FULLSCREEN_SIDEBAR_OPEN_DELAY_MS).toBe(1000);
     mount();
     pointerOver("handle");
-    wait(FULLSCREEN_SIDEBAR_HOVER_DELAY_MS - 1);
+    wait(FULLSCREEN_SIDEBAR_OPEN_DELAY_MS - 1);
     expect(open).toBe(false);
     wait(1);
     expect(open).toBe(true);
   });
 
-  it("2초가 되기 전에 손잡이를 벗어나면 열지 않는다", () => {
+  it("1초가 되기 전에 손잡이를 벗어나면 열지 않는다", () => {
     mount();
     pointerOver("handle");
-    wait(1000);
+    wait(FULLSCREEN_SIDEBAR_OPEN_DELAY_MS - 100);
     pointerOver("content");
-    wait(FULLSCREEN_SIDEBAR_HOVER_DELAY_MS);
+    wait(FULLSCREEN_SIDEBAR_OPEN_DELAY_MS);
     expect(open).toBe(false);
   });
 
   it("열린 메뉴 바깥으로 나가면 2초 뒤 닫고, 그 전에 돌아오면 닫지 않는다", () => {
+    expect(FULLSCREEN_SIDEBAR_CLOSE_DELAY_MS).toBe(2000);
     mount(true, true);
     pointerOver("content");
     wait(1500);
     pointerOver("menu-item");
-    wait(FULLSCREEN_SIDEBAR_HOVER_DELAY_MS);
+    wait(FULLSCREEN_SIDEBAR_CLOSE_DELAY_MS);
     expect(open).toBe(true);
 
     pointerOver("content");
-    wait(FULLSCREEN_SIDEBAR_HOVER_DELAY_MS - 1);
+    wait(FULLSCREEN_SIDEBAR_CLOSE_DELAY_MS - 1);
     expect(open).toBe(true);
     wait(1);
     expect(open).toBe(false);
@@ -97,14 +100,14 @@ describe("useFullscreenSidebarHover", () => {
     act(() => {
       document.documentElement.dispatchEvent(new Event("mouseleave"));
     });
-    wait(FULLSCREEN_SIDEBAR_HOVER_DELAY_MS);
+    wait(FULLSCREEN_SIDEBAR_CLOSE_DELAY_MS);
     expect(open).toBe(false);
   });
 
   it("전체 화면이 아니면 아무것도 하지 않는다", () => {
     mount(false);
     pointerOver("handle");
-    wait(FULLSCREEN_SIDEBAR_HOVER_DELAY_MS * 2);
+    wait(FULLSCREEN_SIDEBAR_CLOSE_DELAY_MS * 2);
     expect(open).toBe(false);
   });
 });

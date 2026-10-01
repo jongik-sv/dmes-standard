@@ -2,8 +2,10 @@
 
 import { useEffect } from "react";
 
-/** 손잡이에 머물러 열기·메뉴 밖으로 나가 닫기까지 기다리는 시간. */
-export const FULLSCREEN_SIDEBAR_HOVER_DELAY_MS = 2000;
+/** 펼침 손잡이에 머물러 열기까지 기다리는 시간. */
+export const FULLSCREEN_SIDEBAR_OPEN_DELAY_MS = 1000;
+/** 메뉴 밖으로 나가 닫기까지 기다리는 시간. */
+export const FULLSCREEN_SIDEBAR_CLOSE_DELAY_MS = 2000;
 
 /** 메뉴 안으로 치는 영역 — 사이드바와 사이드바가 띄운 모달·드롭다운(Mantine Portal). */
 const SIDEBAR_AREA_SELECTOR = ".sidebar-container, [data-portal]";
@@ -12,7 +14,7 @@ const SIDEBAR_HANDLE_SELECTOR = ".sidebar-toggle-button";
 /**
  * 탭 전체 화면의 슬라이딩 메뉴를 마우스 머묾으로 여닫는다.
  *
- * <p>닫혀 있으면 펼침 손잡이에 2초 머물 때 열고, 열려 있으면 메뉴 밖으로 나간 지 2초 뒤 닫는다.
+ * <p>닫혀 있으면 펼침 손잡이에 1초 머물 때 열고, 열려 있으면 메뉴 밖으로 나간 지 2초 뒤 닫는다.
  * 그 사이 돌아오면 타이머를 취소한다. 손잡이 클릭·바깥 클릭으로 바로 여닫는 동작은 호출부가 따로 둔다.
  */
 export function useFullscreenSidebarHover(
@@ -31,10 +33,13 @@ export function useFullscreenSidebarHover(
     };
     const schedule = () => {
       if (timer !== null) return;
-      timer = setTimeout(() => {
-        timer = null;
-        setOpen(!isOpen);
-      }, FULLSCREEN_SIDEBAR_HOVER_DELAY_MS);
+      timer = setTimeout(
+        () => {
+          timer = null;
+          setOpen(!isOpen);
+        },
+        isOpen ? FULLSCREEN_SIDEBAR_CLOSE_DELAY_MS : FULLSCREEN_SIDEBAR_OPEN_DELAY_MS
+      );
     };
 
     const handlePointerOver = (event: Event) => {
