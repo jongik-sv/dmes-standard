@@ -159,4 +159,13 @@ describe("자동 배치 — 합류 없애기(implicit-join spec §9)", () => {
       a: { x: 0, y: 150 }, b: { x: 0, y: 300 }, end: { x: 56, y: 400 } };
     expect(Object.keys(endingRoutes(ending(), pos))).toEqual(["ee2"]);
   });
+
+  it("본문 없는 끝내는 IF 갈래(IF → END 직결)도 기본 꺾은선이 다른 노드를 지나면 비켜 가는 경로를 만든다", () => {
+    const f = toEditFlow({ version: 1,
+      nodes: [N("start", "START"), N("if1", "IF"), N("a", "RULE"), N("b", "RULE"), N("end", "END")],
+      edges: [E("s0", "start", "if1"), E("b1", "if1", "end", { order: 1, cond: "X > 0" }), E("bo", "if1", "a", { otherwise: true }), E("ea", "a", "b"), E("eb", "b", "end")] }, []);
+    const pos = { start: { x: 56, y: -100 }, if1: { x: 28, y: 0 }, a: { x: 0, y: 120 }, b: { x: 0, y: 240 }, end: { x: 56, y: 360 } };
+    expect(Object.keys(endingRoutes(f, pos))).toEqual(["b1"]);
+  });
 });
+

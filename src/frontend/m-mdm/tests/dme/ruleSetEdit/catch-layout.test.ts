@@ -208,17 +208,30 @@ describe("끝내는 처리 갈래는 같은 높이의 다른 노드와 겹치지
 });
 
 describe("빈 처리 갈래 판정(implicit-join spec §9)", () => {
-  const N = (id: string, kind: "START" | "END" | "RULE") => ({ id, kind, ruleId: kind === "RULE" ? id.toUpperCase() : null, splitId: null, label: null });
-  const E = (id: string, from: string, to: string) => ({ id, from, to, order: null, cond: null, otherwise: false, label: null });
-  it("정상 경로 중간 노드로 바로 돌아오는 빈 처리 갈래는 가상 선을 넣지 않아 받는 노드 없는 흐름과 배치가 같다", () => {
-    const nodes = [N("start", "START"), N("r1", "RULE"), N("x", "RULE"), N("n", "RULE"), N("end", "END")];
-    const edges = [E("e1", "start", "r1"), E("e2", "r1", "x"), E("e3", "x", "n"), E("e4", "n", "end")];
-    const base = toEditFlow({ version: 1, nodes, edges }, []);
-    const guarded = toEditFlow({ version: 1, nodes: [...nodes, { ...N("c1", "RULE"), kind: "CATCH" as const, ruleId: null, attachTo: "r1", catches: ["NO_RESULT"] }],
-      edges: [...edges, E("e5", "c1", "n")] }, []);
+  const N = (id: string, kind: "START" | "END" | "RULE" | "IF") => ({ id, kind, ruleId: kind === "RULE" ? id.toUpperCase() : null, splitId: null, label: null });
+  const E = (id: string, from: string, to: string, over: { order?: number; cond?: string; otherwise?: boolean } = {}) =>
+    ({ id, from, to, order: over.order ?? null, cond: over.cond ?? null, otherwise: over.otherwise ?? false, label: null });
+  /** start → i(IF) [r1 → x → n](조건 갈래) [a → n](그 외) → end. r1 에 붙은 빈 CATCH c1 은 IF 뒤 모이는 노드 n 으로 돌아온다. */
+  const build = (withCatch: boolean) => {
+    const nodes = [N("start", "START"), N("i", "IF"), N("r1", "RULE"), N("x", "RULE"), N("a", "RULE"), N("n", "RULE"), N("end", "END")];
+    const edges = [E("e1", "start", "i"), E("e2", "i", "r1", { order: 1, cond: "X>0" }), E("e3", "r1", "x"), E("e4", "x", "n"),
+      E("e5", "i", "a", { otherwise: true }), E("e6", "a", "n"), E("e7", "n", "end")];
+    if (!withCatch) return toEditFlow({ version: 1, nodes, edges }, []);
+    return toEditFlow({ version: 1, nodes: [...nodes, { ...N("c1", "RULE"), kind: "CATCH" as const, ruleId: null, attachTo: "r1", catches: ["NO_RESULT"] }],
+      edges: [...edges, E("e8", "c1", "n")] }, []);
+  };
+  it("IF 뒤 모이는 노드로 바로 돌아오는 빈 처리 갈래는 가상 선을 넣지 않아 받는 노드 없는 흐름과 배치가 같다", () => {
     clearLayoutCache();
-    const a = autoLayout(base);
-    const b = autoLayout(guarded);
-    for (const id of ["start", "r1", "x", "n", "end"]) expect(b[id], id).toEqual(a[id]);
+    const a = autoLayout(build(false));
+    clearLayoutCache();
+    const b = autoLayout(build(true));
+    for (const id of ["start", "i", "r1", "x", "a", "n", "end"]) expect(b[id], id).toEqual(a[id]);
+  });
+
+  it("돌아오는 노드는 바깥 순차 노드라 dagre 자리 그대로다 — 정상 갈래 아래 층에 오고 갈래 위에서 가운데로 모인다", () => {
+    clearLayoutCache();
+    const pos = autoLayout(build(true));
+    expect(pos.n.y).toBeGreaterThan(pos.x.y);
+    expect(pos.n.y).toBeGreaterThan(pos.a.y);
   });
 });
