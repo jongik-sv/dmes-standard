@@ -46,7 +46,7 @@ ${SWATCH_RULES}
 .rsf-edge-add:hover { border-color: var(--color-primary); color: var(--color-primary); }
 
 /* 툴바 찾기 칸·단축키 도움말 */
-.rsf-find-input { width: 180px; }
+.rsf-find-input { width: 120px; }
 .rsf-find-count { min-width: 36px; text-align: center; font-size: var(--font-size-sm); color: var(--color-text-secondary); }
 .rsf-help-anchor { position: relative; }
 .rsf-help-panel {

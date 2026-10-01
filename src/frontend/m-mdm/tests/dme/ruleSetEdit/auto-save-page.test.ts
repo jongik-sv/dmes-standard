@@ -65,7 +65,7 @@ describe("자동 저장 단추·상태 글", () => {
     expect(q("set-autosave")).toBeNull();
     await click("flow-mode-edit");
     expect(toggle().getAttribute("aria-pressed")).toBe("false");
-    expect(visibleText(toggle())).toContain("자동 저장");
+    expect(toggle().getAttribute("aria-label")).toBe("자동 저장");
     expect(status()).toBeNull();
   });
 

@@ -121,13 +121,14 @@ describe("[변수 흐름] 단추 — 세 상태", () => {
   });
   afterEach(() => uninstallServer());
   const mode = () => attr("flow-var-toggle", "data-mode");
-  const text = () => byTestId("flow-var-toggle").textContent;
+  // 아이콘 단추라 글자 대신 aria-label 로 상태를 보인다(한 줄 툴바).
+  const text = () => byTestId("flow-var-toggle").getAttribute("aria-label");
   const stored = () => localStorage.getItem(storeKeys.varDisplay);
 
   it("누를 때마다 off → id → name → off, 글자·aria-pressed·data-mode·저장소가 따라간다", async () => {
     await openSet("V1S", chainView());
     expect([mode(), attr("flow-var-toggle", "aria-pressed"), text()]).toEqual(["off", "false", "표시: 끔"]);
-    expect(attr("flow-var-toggle", "title")).toBe("선 변수 칩과 룰 노드 제목을 ID·이름으로 바꾼다. 끄면 변수 칩을 숨긴다");
+    expect(byTestId("flow-var-toggle").parentElement!.getAttribute("data-tip")).toBe("표시: 끔 — 선 변수 칩과 룰 노드 제목을 ID·이름으로 바꾼다. 끄면 변수 칩을 숨긴다");
     await click("flow-var-toggle");
     expect([mode(), attr("flow-var-toggle", "aria-pressed"), text()]).toEqual(["id", "true", "표시: ID"]);
     expect(chipTexts()).toContain("S_GRD");
@@ -139,7 +140,7 @@ describe("[변수 흐름] 단추 — 세 상태", () => {
     expect(stored()).toBe('"name"');
     await click("flow-var-toggle");
     expect([mode(), attr("flow-var-toggle", "aria-pressed"), text()]).toEqual(["off", "false", "표시: 끔"]);
-    expect(attr("flow-var-toggle", "title")).toBe("선 변수 칩과 룰 노드 제목을 ID·이름으로 바꾼다. 끄면 변수 칩을 숨긴다");
+    expect(byTestId("flow-var-toggle").parentElement!.getAttribute("data-tip")).toBe("표시: 끔 — 선 변수 칩과 룰 노드 제목을 ID·이름으로 바꾼다. 끄면 변수 칩을 숨긴다");
     expect(q("flow-edge-chips-e2")).toBeNull();
     expect(stored()).toBe('"off"');
   });

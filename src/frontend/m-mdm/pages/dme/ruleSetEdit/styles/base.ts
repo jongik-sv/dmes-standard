@@ -158,10 +158,14 @@ export const BASE_CSS = `
 
 /* 룰 세트 편집 — 툴바·오른쪽 패널·아래 패널(2단계 계획 Task 10). 색은 의미 토큰만 쓴다. 한 변 색 바는 쓰지 않는다(Local-Rules §8). */
 
-/* 툴바 */
+/* 툴바 — 세트 고르기와 툴바를 한 줄에 둔다. 묶음 안에서는 줄을 바꾸지 않고, 창이 좁으면 묶음 단위로 다음 줄로 넘어간다.
+   단추는 아이콘만 두고 좌우 여백을 줄여 거의 정사각형으로 보인다. 세트 이름은 길면 말줄임한다(전체는 title). */
 .rsf-toolbar { padding: var(--spacing-xs) var(--spacing-md); border-bottom: 1px solid var(--color-border-light); }
 .rsf-toolbar-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-xs) var(--spacing-sm); }
-.rsf-toolbar-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-xs); }
+.rsf-toolbar-group { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: var(--spacing-xs); white-space: nowrap; }
+.rsf-toolbar .rsf-tip > .form-button { padding-inline: 7px; }
+.rsf-toolbar-head { min-width: 0; }
+.rsf-toolbar-title { display: inline-block; max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
 .rsf-toolbar-end { margin-left: auto; }
 .rsf-toolbar-sep { align-self: stretch; width: 1px; margin: 2px 0; background: var(--color-border); }
 .rsf-toolbar-message { padding-top: var(--spacing-xs); }
