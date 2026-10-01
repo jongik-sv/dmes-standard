@@ -73,7 +73,7 @@
 
 1단계 스펙 §3.2 의 중첩 블록 규칙을 다음처럼 넓힌다.
 
-- **CATCH 노드**: 들어오는 선 0, 나가는 선 정확히 1. `attachTo` 는 RULE 이어야 한다(TASK·IF·PARALLEL·MERGE·START·END 에는 붙일 수 없다).
+- **CATCH 노드**: 들어오는 선 0, 나가는 선 정확히 1. `attachTo` 는 RULE 이어야 한다(TASK·IF·PARALLEL·MERGE·START·END 에는 붙일 수 없다). 뒤 문서(하위 세트 호출)가 `attachTo` 를 `SET` 노드로 넓히고, 예약 이름 `CATCH_SET` 과 종류 `SUBSET_ENDED` 를 더한다.
 - **한 RULE 에 받는 노드 여러 개**를 붙일 수 있다. 같은 종류를 두 노드가 함께 받을 수는 없다.
 - **처리 갈래**는 CATCH 에서 나가는 선부터 시작하는 순차 블록이다. 안에 RULE·TASK·IF·PARALLEL 을 평소처럼 둘 수 있고, 처리 갈래 안의 RULE 에 다시 받는 노드를 붙일 수도 있다.
 - **처리 갈래의 끝**은 둘 중 하나다.
