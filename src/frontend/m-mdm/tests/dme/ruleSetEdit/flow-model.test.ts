@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { FlowEdge, FlowNode, FlowNodeKind, RuleSetFlow } from "../../../src/contract/engine-contract.generated";
-import { catchesOf, flowRuleIds, linearFlow, parseFlow, type FlowIssue } from "../../../pages/dme/ruleSetEdit/flow-model";
+import { catchesOf, endingBranches, flowRuleIds, handlerTarget, joinOf, linearFlow, parseFlow, returnOf, type FlowIssue } from "../../../pages/dme/ruleSetEdit/flow-model";
 
 const node = (id: string, kind: FlowNodeKind, over: Partial<FlowNode> = {}): FlowNode => ({
   id,
@@ -83,9 +83,10 @@ describe("parseFlow — 정상 흐름과 블록 트리", () => {
           nodeId: "if1",
           kind: "IF",
           mergeId: "m1",
+          joinId: "m1",
           branches: [
-            { edgeId: "e2", cond: "A = 1", otherwise: false, label: null, body: { type: "SEQ", items: [{ type: "RULE", nodeId: "r1", ruleId: "R1" }] } },
-            { edgeId: "e3", cond: null, otherwise: true, label: null, body: { type: "SEQ", items: [{ type: "RULE", nodeId: "r2", ruleId: "R2" }] } },
+            { edgeId: "e2", cond: "A = 1", otherwise: false, label: null, body: { type: "SEQ", items: [{ type: "RULE", nodeId: "r1", ruleId: "R1" }] }, ends: false },
+            { edgeId: "e3", cond: null, otherwise: true, label: null, body: { type: "SEQ", items: [{ type: "RULE", nodeId: "r2", ruleId: "R2" }] }, ends: false },
           ],
         },
       ],
@@ -143,12 +144,12 @@ describe("parseFlow — 1단계 구조 오류(C3, 모두 모은다)", () => {
 
   it("b1 시작 노드가 없으면 개수 오류 다음에 차수 오류", () => {
     const p = parseFlow(flow(ifNodes().filter((n) => n.id !== "start"), ifEdges().filter((e) => e.id !== "e1")));
-    expect(p.issues).toEqual([S(null, "시작 노드가 0개다. 정확히 1개여야 한다"), S("if1", "if1의 들어오는 선이 0개다. 1개여야 한다")]);
+    expect(p.issues).toEqual([S(null, "시작 노드가 0개다. 정확히 1개여야 한다"), S("if1", "if1의 들어오는 선이 0개다. 1개 이상이어야 한다")]);
   });
 
   it("b2 끝 노드가 둘이다", () => {
     const p = parseFlow(flow([...ifNodes(), node("end2", "END")], ifEdges()));
-    expect(p.issues).toEqual([S(null, "끝 노드가 2개다. 정확히 1개여야 한다"), S("end2", "end2의 들어오는 선이 0개다. 1개여야 한다")]);
+    expect(p.issues).toEqual([S(null, "끝 노드가 2개다. 정확히 1개여야 한다"), S("end2", "end2의 들어오는 선이 0개다. 1개 이상이어야 한다")]);
   });
 
   it("c 없는 노드를 가리키는 선은 차수 계산에서 빠진다", () => {
@@ -156,13 +157,13 @@ describe("parseFlow — 1단계 구조 오류(C3, 모두 모은다)", () => {
     expect(p.issues).toEqual([
       S("nowhere", "선 e6가 없는 노드 nowhere를 가리킨다", "e6"),
       S("m1", "m1의 나가는 선이 0개다. 1개여야 한다"),
-      S("end", "end의 들어오는 선이 0개다. 1개여야 한다"),
+      S("end", "end의 들어오는 선이 0개다. 1개 이상이어야 한다"),
     ]);
   });
 
-  it("d1·d2 차수 — 노드 배열 순서로 나간다·들어온다", () => {
+  it("d1·d2 차수 — 노드 배열 순서로 나간다·들어온다(룰의 들어오는 선은 1개 이상이면 된다)", () => {
     const p = parseFlow(flow(ifNodes(), [...ifEdges(), edge("e7", "r1", "r2")]));
-    expect(p.issues).toEqual([S("r1", "r1의 나가는 선이 2개다. 1개여야 한다"), S("r2", "r2의 들어오는 선이 2개다. 1개여야 한다")]);
+    expect(p.issues).toEqual([S("r1", "r1의 나가는 선이 2개다. 1개여야 한다")]);
   });
 
   it("d 분기의 나가는 선이 하나면 2개 이상이어야 한다", () => {
@@ -177,15 +178,9 @@ describe("parseFlow — 1단계 구조 오류(C3, 모두 모은다)", () => {
     expect(p.issues).toEqual([S("r1", "룰 노드 r1에 룰 ID가 없다")]);
   });
 
-  it("f1·f2 합류의 짝 분기가 없으면 그 분기를 닫는 합류도 0개다", () => {
-    expect(parseFlow(flow(withNode(ifNodes(), "m1", { splitId: "zz" }), ifEdges())).issues).toEqual([
-      S("m1", "합류 m1의 짝 분기 zz가 없다"),
-      S("if1", "분기 if1를 닫는 합류가 0개다. 정확히 1개여야 한다"),
-    ]);
-    expect(parseFlow(flow(withNode(ifNodes(), "m1", { splitId: null }), ifEdges())).issues).toEqual([
-      S("m1", "합류 m1의 짝 분기 -가 없다"),
-      S("if1", "분기 if1를 닫는 합류가 0개다. 정확히 1개여야 한다"),
-    ]);
+  it("f1 합류의 짝 분기가 없으면 보고하고, IF 는 합류 0개가 맞다", () => {
+    expect(parseFlow(flow(withNode(ifNodes(), "m1", { splitId: "zz" }), ifEdges())).issues).toEqual([S("m1", "합류 m1의 짝 분기 zz가 없다")]);
+    expect(parseFlow(flow(withNode(ifNodes(), "m1", { splitId: null }), ifEdges())).issues).toEqual([S("m1", "합류 m1의 짝 분기 -가 없다")]);
   });
 
   it("g1·g2·g4 그 외 갈래가 없으면 IF_ELSE 둘 다음 순서 없음", () => {
@@ -414,13 +409,14 @@ describe("받는 노드(CATCH) — 받는 노드 spec §3", () => {
     expect(p.tree!.root.items).toEqual([
       {
         type: "GUARDED",
-        rule: { type: "RULE", nodeId: "r1", ruleId: "R_A" },
+        step: { type: "RULE", nodeId: "r1", ruleId: "R_A" },
         normal: { type: "SEQ", items: [] },
         handlers: [
           { catchNodeId: "c1", kinds: ["NO_RESULT"], body: { type: "SEQ", items: [{ type: "RULE", nodeId: "r9", ruleId: "R_C" }] }, ends: false },
           { catchNodeId: "c2", kinds: ["INPUT_ERROR", "EVAL_ERROR"], body: { type: "SEQ", items: [] }, ends: true },
         ],
         mergeId: "mr",
+        joinId: "mr",
       },
       { type: "RULE", nodeId: "r2", ruleId: "R_B" },
     ]);
@@ -456,8 +452,7 @@ describe("받는 노드(CATCH) — 받는 노드 spec §3", () => {
         edge("e6", "c2", "end"), edge("e7", "c3", "end"), edge("e8", "c4", "end")],
     );
     expect(parseFlow(f).issues).toEqual([
-      C("c0", "받는 노드 c0가 붙은 룰 zz가 없다"),
-      C("c1", "받는 노드 c1는 룰 노드에만 붙일 수 있다(t1는 TASK)"),
+      C("c0", "받는 노드 c0가 붙은 노드 zz가 없다"),
       C("c2", "받는 노드 c2에 받을 예외 종류가 없다"),
       C("c3", "받는 노드 c3의 예외 종류 BOOM를 모른다"),
       C("c3", "받는 노드 c3에 예외 종류 NO_RESULT가 겹친다"),
@@ -465,15 +460,20 @@ describe("받는 노드(CATCH) — 받는 노드 spec §3", () => {
     ]);
   });
 
-  it("받는 노드가 있으면 END 는 들어오는 선이 여럿이어도 된다", () => {
+  it("END 는 들어오는 선이 여럿이어도 되고 룰은 들어오는 선이 없으면 거부한다", () => {
     const f = flow(
       [node("start", "START"), node("r1", "RULE", { ruleId: "R_A" }), cnode("c1", "r1", "NO_RESULT"), node("end", "END")],
       [edge("e1", "start", "r1"), edge("e2", "r1", "end"), edge("e3", "c1", "end")],
     );
     expect(parseFlow(f).issues).toEqual([]);
+    const orphan = flow(
+      [node("start", "START"), node("r1", "RULE", { ruleId: "R_A" }), node("r2", "RULE", { ruleId: "R_B" }), node("end", "END")],
+      [edge("e1", "start", "r1"), edge("e2", "r1", "end"), edge("e3", "r2", "end")],
+    );
+    expect(parseFlow(orphan).issues).toEqual([S("r2", "r2의 들어오는 선이 0개다. 1개 이상이어야 한다")]);
   });
 
-  it("돌아오는 합류는 하나까지, 처리 갈래가 다른 합류로 가거나 처리 갈래 안 IF 갈래가 END 로 가면 멈춘다", () => {
+  it("돌아오는 합류는 하나까지, 처리 갈래가 둘러싼 IF 의 옛 합류로 돌아오면 받고, 처리 갈래 안 옛 형식 IF 갈래가 END 로 가면 멈춘다", () => {
     const two = flow(
       [node("start", "START"), node("r1", "RULE", { ruleId: "R_A" }), cnode("c1", "r1", "NO_RESULT"), node("m1", "MERGE", { splitId: "r1" }),
         node("m2", "MERGE", { splitId: "r1" }), node("end", "END")],
@@ -486,7 +486,12 @@ describe("받는 노드(CATCH) — 받는 노드 spec §3", () => {
       [edge("e0", "start", "if9"), edge("b1", "if9", "r1", { order: 1, cond: "X > 0" }), edge("bo", "if9", "m9", { otherwise: true }),
         edge("e1", "r1", "m9"), edge("e2", "c1", "m9"), edge("e3", "m9", "end")],
     );
-    expect(parseFlow(jump).issues).toEqual([S("m9", "처리 갈래 c1가 끝에 닿지 않고 m9로 나간다")]);
+    const pj = parseFlow(jump);
+    expect(pj.issues).toEqual([]);
+    const sj = pj.tree!.root.items[0];
+    if (sj.type !== "SPLIT") throw new Error("SPLIT 아님");
+    const gj = sj.branches[0].body.items[0];
+    expect(gj.type === "GUARDED" && { joinId: gj.joinId, mergeId: gj.mergeId, normal: gj.normal.items }).toEqual({ joinId: "m9", mergeId: null, normal: [] });
     const nested = flow(
       [node("start", "START"), node("r1", "RULE", { ruleId: "R_A" }), cnode("c1", "r1", "NO_RESULT"), node("if1", "IF"),
         node("m2", "MERGE", { splitId: "if1" }), node("mr", "MERGE", { splitId: "r1" }), node("end", "END")],
@@ -494,5 +499,132 @@ describe("받는 노드(CATCH) — 받는 노드 spec §3", () => {
         edge("b2", "if1", "m2", { order: 2, cond: "X > 1" }), edge("bo", "if1", "m2", { otherwise: true }), edge("e4", "m2", "mr"), edge("e5", "mr", "end")],
     );
     expect(parseFlow(nested).issues).toEqual([S("end", "갈래가 m2에서 닫히지 않고 end로 나간다")]);
+  });
+});
+
+describe("모이는 자리·돌아오는 자리(implicit-join spec §2) — Java FlowParserTest 짝", () => {
+  const R = (id: string, ruleId: string) => node(id, "RULE", { ruleId });
+  const br = (id: string, from: string, to: string, order: number, cond: string) => edge(id, from, to, { order, cond });
+  const other = (id: string, from: string, to: string) => edge(id, from, to, { otherwise: true });
+  const pe = (id: string, from: string, to: string, order: number) => edge(id, from, to, { order });
+  const catchN = (id: string, attachTo: string, ...catches: string[]) => node(id, "CATCH", { attachTo, catches });
+  const firstSplit = (f: RuleSetFlow) => {
+    const p = parseFlow(f);
+    expect(p.issues).toEqual([]);
+    const s = p.tree!.root.items[0];
+    if (s.type !== "SPLIT") throw new Error("SPLIT 아님");
+    return s;
+  };
+  const msgs = (f: RuleSetFlow) => parseFlow(f).issues.map((i) => `${i.code}|${i.nodeId}|${i.edgeId}|${i.message}`);
+
+  it("새 형식 IF 는 합류 없이 모이고 끝내는 갈래는 END 로 간다(§1 둘째 예)", () => {
+    const s = firstSplit(
+      flow(
+        [node("start", "START"), node("if1", "IF"), R("r8", "L"), R("r2", "M"), node("end", "END")],
+        [edge("e0", "start", "if1"), br("e3", "if1", "r8", 1, "PRICE = NULL"), edge("e4", "r8", "end"), other("e5", "if1", "r2"), edge("e6", "r2", "end")],
+      ),
+    );
+    expect(s.mergeId).toBeNull();
+    expect(s.joinId).toBe("r2");
+    expect(s.branches.map((b) => b.ends)).toEqual([true, false]);
+  });
+
+  it("그 외가 END 로 바로 가면 조건 갈래가 이어진다(N20)", () => {
+    const s = firstSplit(
+      flow([node("start", "START"), node("if1", "IF"), R("a", "A"), node("end", "END")], [edge("e0", "start", "if1"), br("b1", "if1", "a", 1, "X > 0"), other("bo", "if1", "end"), edge("ea", "a", "end")]),
+    );
+    expect(s.joinId).toBe("a");
+    expect(s.branches.map((b) => b.ends)).toEqual([false, true]);
+  });
+
+  it("다른 갈래와 노드를 함께 지나면 이어지는 갈래다(N24)", () => {
+    const s = firstSplit(
+      flow(
+        [node("start", "START"), node("if1", "IF"), R("a", "A"), R("b", "B"), R("c", "C"), R("s", "S"), node("end", "END")],
+        [edge("e0", "start", "if1"), br("b1", "if1", "a", 1, "X > 0"), br("b2", "if1", "b", 2, "X > 1"), other("bo", "if1", "c"), edge("ea", "a", "s"), edge("eb", "b", "s"), edge("ec", "c", "end"), edge("es", "s", "end")],
+      ),
+    );
+    expect(s.joinId).toBe("s");
+    expect(s.branches.map((b) => b.ends)).toEqual([false, false, true]);
+  });
+
+  it("f4·S6·S7·S8·S9 셋째·S5 문구가 Java 와 같다", () => {
+    expect(msgs(flow([node("start", "START"), node("if1", "IF"), R("a", "A"), node("end", "END")], [edge("e1", "start", "if1"), br("e2", "if1", "a", 1, "X > 0"), other("e3", "if1", "a"), edge("e4", "a", "end")]))).toEqual([
+      "FLOW_STRUCTURE|if1|e3|IF if1의 갈래 e3가 갈래 e2와 같은 노드 a로 간다. 같은 노드로 가는 갈래는 하나만 둔다",
+    ]);
+    expect(
+      msgs(flow([node("start", "START"), R("r1", "A"), node("if1", "IF"), R("a", "B"), node("end", "END")], [edge("e1", "start", "r1"), edge("e2", "r1", "if1"), br("b1", "if1", "a", 1, "X > 0"), other("bo", "if1", "end"), edge("ea", "a", "r1")])),
+    ).toEqual(["FLOW_STRUCTURE|if1|null|if1를 두 번 지난다. 순환이 있거나 갈래가 모이는 자리 밖에서 만난다"]);
+    expect(
+      msgs(
+        flow(
+          [node("start", "START"), R("r1", "A"), R("x", "B"), R("y", "C"), catchN("c1", "r1", "NO_RESULT"), R("h1", "D"), catchN("c2", "r1", "EVAL_ERROR"), node("end", "END")],
+          [edge("e1", "start", "r1"), edge("e2", "r1", "x"), edge("e3", "x", "y"), edge("e4", "y", "end"), edge("e5", "c1", "h1"), edge("e6", "h1", "x"), edge("e7", "c2", "y")],
+        ),
+      ),
+    ).toEqual(["FLOW_STRUCTURE|c2|null|r1의 처리 갈래 c2가 y로 돌아온다. 앞 처리 갈래 c1처럼 x로 돌아와야 한다"]);
+    expect(
+      msgs(
+        flow(
+          [node("start", "START"), R("r1", "A"), R("n1", "B"), R("n2", "C"), catchN("c1", "r1", "NO_RESULT"), node("if1", "IF"), R("h1", "D"), R("h2", "E"), node("end", "END")],
+          [edge("e1", "start", "r1"), edge("e2", "r1", "n1"), edge("e3", "n1", "n2"), edge("e4", "n2", "end"), edge("e5", "c1", "if1"), br("b1", "if1", "h1", 1, "X > 0"), other("bo", "if1", "h2"), edge("e6", "h1", "n1"), edge("e7", "h2", "n2")],
+        ),
+      ),
+    ).toEqual(["FLOW_STRUCTURE|n1|null|처리 갈래 c1가 r1의 정상 갈래 노드 n1로 들어간다. 처리 갈래는 한 노드로 돌아오거나 끝 노드로 가야 한다"]);
+    expect(
+      msgs(
+        flow(
+          [node("start", "START"), node("if1", "IF"), R("r1", "A"), catchN("c1", "r1", "NO_RESULT"), R("h", "B"), node("p3", "PARALLEL"), R("a", "C"), node("pm3", "MERGE", { splitId: "p3" }), R("j", "D"), node("end", "END")],
+          [edge("e1", "start", "if1"), br("b1", "if1", "r1", 1, "X > 0"), other("bo", "if1", "p3"), edge("e2", "r1", "j"), edge("ec", "c1", "h"), edge("eh", "h", "pm3"), pe("pa", "p3", "a", 1), pe("pb", "p3", "pm3", 2), edge("ea", "a", "pm3"), edge("ep", "pm3", "j"), edge("ej", "j", "end")],
+        ),
+      ),
+    ).toEqual(["FLOW_STRUCTURE|pm3|null|처리 갈래 c1가 돌아올 자리 j나 끝에 닿지 않고 pm3로 나간다"]);
+    expect(
+      msgs(
+        flow(
+          [node("start", "START"), R("r1", "A"), node("p1", "PARALLEL"), R("a", "B"), R("b", "C"), node("pm", "MERGE", { splitId: "p1" }), R("x", "D"), catchN("c1", "r1", "NO_RESULT"), R("h", "E"), node("end", "END")],
+          [edge("e1", "start", "r1"), edge("e2", "r1", "p1"), pe("pa", "p1", "a", 1), pe("pb", "p1", "b", 2), edge("ea", "a", "pm"), edge("eb", "b", "pm"), edge("ep", "pm", "x"), edge("ex", "x", "end"), edge("ec", "c1", "h"), edge("eh", "h", "pm")],
+        ),
+      ),
+    ).toEqual(["FLOW_STRUCTURE|end|null|갈래가 pm에서 닫히지 않고 end로 나간다"]);
+  });
+
+  it("빈 단계에 붙은 받는 노드는 TASK step 의 GUARDED 다", () => {
+    const p = parseFlow(
+      flow(
+        [node("start", "START"), node("t1", "TASK", { label: "빈 단계" }), catchN("c1", "t1", "NO_RESULT"), R("h", "H"), catchN("c2", "t1", "EVAL_ERROR"), R("n", "F"), node("end", "END")],
+        [edge("e1", "start", "t1"), edge("e2", "t1", "n"), edge("e3", "c1", "h"), edge("e4", "h", "n"), edge("e5", "c2", "end"), edge("e6", "n", "end")],
+      ),
+    );
+    expect(p.issues).toEqual([]);
+    const g = p.tree!.root.items[0];
+    expect(g.type === "GUARDED" && { step: g.step, joinId: g.joinId, ends: g.handlers.map((h) => h.ends) }).toEqual({ step: { type: "TASK", nodeId: "t1" }, joinId: "n", ends: [false, true] });
+    expect(p.tree!.ruleIds()).toEqual(["H", "F"]);
+  });
+
+  it("관대한 도우미 — joinOf·endingBranches·handlerTarget·returnOf, 깨진 흐름은 null", () => {
+    const f = flow(
+      [node("start", "START"), R("r1", "G"), catchN("c1", "r1", "NO_RESULT"), node("if1", "IF"), R("e", "E"), R("h", "H"), catchN("c2", "r1", "EVAL_ERROR"), R("n", "F"), node("end", "END")],
+      [edge("e1", "start", "r1"), edge("e2", "r1", "n"), edge("e3", "c1", "if1"), br("b1", "if1", "e", 1, "X > 0"), other("bo", "if1", "h"), edge("ee", "e", "end"), edge("eh", "h", "n"), edge("e5", "c2", "end"), edge("en", "n", "end")],
+    );
+    expect(joinOf(f, "if1")).toBe("h");
+    expect(endingBranches(f, "if1")).toEqual(["b1"]);
+    expect(handlerTarget(f, "c1")).toBe("n");
+    expect(handlerTarget(f, "c2")).toBe("end");
+    expect(returnOf(f, "r1")).toBe("n");
+    expect(joinOf(flow(ifNodes(), ifEdges()), "if1")).toBe("m1");
+    expect(endingBranches(flow(ifNodes(), ifEdges()), "if1")).toEqual([]);
+    expect(joinOf(flow(parNodes(), parEdges()), "p1")).toBe("m1");
+    expect(joinOf(f, "r1")).toBeNull();
+    // 순환(a → c → a)이면 모이는 자리를 정하지 못한다.
+    const loop = flow(
+      [node("start", "START"), node("if1", "IF"), R("a", "A"), R("c", "C"), R("b", "B"), node("end", "END")],
+      [edge("e0", "start", "if1"), br("b1", "if1", "a", 1, "X > 0"), other("bo", "if1", "b"), edge("ea", "a", "c"), edge("ec", "c", "a"), edge("eb", "b", "end")],
+    );
+    expect(joinOf(loop, "if1")).toBeNull();
+    expect(endingBranches(loop, "if1")).toBeNull();
+    // 받는 노드가 붙은 노드가 없거나 나가는 선이 없으면 null.
+    expect(handlerTarget(flow([node("start", "START"), catchN("c9", "zz", "NO_RESULT"), node("end", "END")], [edge("e1", "start", "end")]), "c9")).toBeNull();
+    expect(returnOf(f, "n")).toBeNull();
   });
 });

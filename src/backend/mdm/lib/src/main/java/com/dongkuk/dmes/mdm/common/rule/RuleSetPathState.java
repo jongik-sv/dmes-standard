@@ -23,7 +23,7 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.NodeKind;
  *
  * <p>분기 합치기(갈래마다 분기 직전 상태의 사본으로 본문을 돈 뒤):
  * <ul>
- *   <li>IF: {@code defined = base.defined ∪ ⋂ 갈래 defined}, {@code maybe = base.maybe ∪ ⋃ 갈래 maybe ∪ (⋃ 갈래 defined − defined)}</li>
+ *   <li>IF: {@code defined = base.defined ∪ ⋂ 갈래 defined}, {@code maybe = base.maybe ∪ ⋃ 갈래 maybe ∪ (⋃ 갈래 defined − defined)}. 끝내는 IF 갈래(implicit-join spec §2.2)는 합치지 않는다.</li>
  *   <li>PARALLEL: {@code defined = base.defined ∪ ⋃ 갈래 defined}, {@code maybe = base.maybe ∪ ⋃ 갈래 maybe}</li>
  *   <li>받는 룰: 정상 갈래는 룰 결과 뒤, 처리 갈래는 룰 직전 상태 + CATCH_* 에서 시작하고 끝나면 CATCH_* 를 뺀다. 합류는 IF 규칙(끝내는 처리 갈래 제외).</li>
  * </ul>
@@ -109,7 +109,9 @@ public final class RuleSetPathState {
                     for (Branch br : sp.branches()) {
                         At copy = new At(new HashSet<>(st.defined()), new HashSet<>(st.maybe()));
                         seq(br.body(), copy);
-                        outs.add(copy);
+                        if (!br.ends()) {
+                            outs.add(copy);
+                        }
                     }
                     At merged = merge(sp.kind(), st, outs);
                     st.defined().clear();
@@ -125,9 +127,11 @@ public final class RuleSetPathState {
         /** 받는 룰 — 받는 룰·정상 갈래 룰·처리 갈래 룰을 모두 적는다(룰 확정 형제 판정이 노드마다 직전 상태를 읽는다). */
         void guarded(Guarded g, At st) {
             At before = new At(new HashSet<>(st.defined()), new HashSet<>(st.maybe()));
-            out.putIfAbsent(g.rule().nodeId(), new At(Set.copyOf(st.defined()), Set.copyOf(st.maybe())));
+            if (g.step() instanceof RuleStep r) {
+                out.putIfAbsent(r.nodeId(), new At(Set.copyOf(st.defined()), Set.copyOf(st.maybe())));
+            }
             At normal = new At(new HashSet<>(st.defined()), new HashSet<>(st.maybe()));
-            Set<String> made = produces.apply(g.rule().ruleId());
+            Set<String> made = g.step() instanceof RuleStep r ? produces.apply(r.ruleId()) : null;
             if (made != null) {
                 normal.defined().addAll(made);
             }

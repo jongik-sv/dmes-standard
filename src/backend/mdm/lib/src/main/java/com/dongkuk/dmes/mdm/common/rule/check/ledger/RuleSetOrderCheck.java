@@ -271,9 +271,11 @@ public class RuleSetOrderCheck implements RuleSaveCheck {
         } else if (b instanceof Guarded g) {
             collectPairs(g.normal(), out);
             for (Guarded.Handler h : g.handlers()) {
-                List<String> inside = new ArrayList<>();
-                ruleNodes(h.body(), inside);
-                inside.forEach(id -> out.add(new NodePair(g.nodeId(), id)));
+                if (g.step() instanceof RuleStep) {
+                    List<String> inside = new ArrayList<>();
+                    ruleNodes(h.body(), inside);
+                    inside.forEach(id -> out.add(new NodePair(g.nodeId(), id)));
+                }
                 collectPairs(h.body(), out);
             }
         }
@@ -288,7 +290,9 @@ public class RuleSetOrderCheck implements RuleSaveCheck {
         } else if (b instanceof Split sp) {
             sp.branches().forEach(br -> ruleNodes(br.body(), out));
         } else if (b instanceof Guarded g) {
-            out.add(g.nodeId());
+            if (g.step() instanceof RuleStep) {
+                out.add(g.nodeId());
+            }
             ruleNodes(g.normal(), out);
             g.handlers().forEach(h -> ruleNodes(h.body(), out));
         }

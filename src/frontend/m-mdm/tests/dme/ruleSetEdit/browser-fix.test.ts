@@ -180,14 +180,15 @@ describe("저장 위치가 있는 흐름에 새 노드 넣기(브라우저 확�
   });
 
   it("항목 5 — 옮겨 둔 IF 블록의 합류 자리에 올 룰을 다른 IF 의 '그 외' 선에 붙여도 그려진 상자가 서로 겹치지 않는다(좌표를 저장하지 않는 것은 복제 케이스가 저장 요청으로 본다)", async () => {
-    let g = ok(insertSplit(chain(), "e2", "IF")); // if1·m1
-    g = ok(insertSplit(g, g.edges.find((e) => e.to === "r3")!.id, "IF")); // if2·m2
+    // 합류가 없는 IF(implicit-join §8.2) — if1 블록은 if1·r4(「갈래 1」 빈 단계), 모이는 자리 r2. if2 블록은 if2·r5, 모이는 자리 r3.
+    let g = ok(insertSplit(chain(), "e2", "IF")); // if1·r4
+    g = ok(insertSplit(g, g.edges.find((e) => e.to === "r3")!.id, "IF")); // if2·r5
     const other = g.edges.find((e) => e.from === "if2" && e.otherwise)!.id;
-    const spot = autoLayout(ok(pasteFragment(g, other, copyFragment(g, "r1") as Fragment))).r4;
+    const spot = autoLayout(ok(pasteFragment(g, other, copyFragment(g, "r1") as Fragment))).r6;
     const moved = positionsOf(g);
-    const dx = spot.x - moved.m1.x;
-    const dy = spot.y - moved.m1.y;
-    const f = setPositions(g, Object.fromEntries(["if1", "r2", "m1"].map((id) => [id, { x: moved[id].x + dx, y: moved[id].y + dy }])));
+    const dx = spot.x - moved.r4.x;
+    const dy = spot.y - moved.r4.y;
+    const f = setPositions(g, Object.fromEntries(["if1", "r4", "r2"].map((id) => [id, { x: moved[id].x + dx, y: moved[id].y + dy }])));
     await openSet("BF_ITEM5", viewOf("BF_ITEM5", f));
     await click("flow-mode-edit");
     await click("flow-node-r1");
@@ -195,7 +196,7 @@ describe("저장 위치가 있는 흐름에 새 노드 넣기(브라우저 확�
     await key(canvas(), { key: "c", ctrlKey: true });
     await clickEdge(other);
     await key(canvas(), { key: "v", ctrlKey: true });
-    expect(canvasNodeIds()).toContain("r4");
+    expect(canvasNodeIds()).toContain("r6");
     expect(allClashes(renderedBoxes())).toEqual([]);
   });
 
@@ -224,16 +225,16 @@ describe("저장 위치가 있는 흐름에 새 노드 넣기(브라우저 확�
   });
 
   it("리뷰 시나리오 2 — 블록을 접은 채 그 아래에 넣어도 접힌 표시에서 겹치지 않는다", async () => {
-    const f = pinStart(ok(insertSplit(chain(), "e2", "IF"))); // start→r1→[if1 빈 갈래 둘]→m1→r2→r3→end
+    const f = pinStart(ok(insertSplit(chain(), "e2", "IF"))); // start→r1→[if1 갈래 1: r4(빈 단계) | 그 외]→r2(모이는 자리)→r3→end
     await openSet("BF_S2", viewOf("BF_S2", f));
     await click("flow-mode-edit");
     await ctxMenu("flow-node-if1");
     await click("flow-menu-item-collapse");
-    expect(canvasNodeIds()).not.toContain("m1"); // 접혔다
+    expect(canvasNodeIds()).not.toContain("r4"); // 접혔다
     await click("flow-node-r2");
     await focusCanvas();
-    await key(canvas(), { key: "d", ctrlKey: true }); // r4 가 r2→r3 선에
-    expect(canvasNodeIds()).toContain("r4");
+    await key(canvas(), { key: "d", ctrlKey: true }); // r5 가 r2→r3 선에
+    expect(canvasNodeIds()).toContain("r5");
     expect(allClashes(renderedBoxes())).toEqual([]);
   });
 
@@ -268,14 +269,14 @@ describe("저장 위치가 있는 흐름에 새 노드 넣기(브라우저 확�
     expect({ x: Number(m[1]), y: Number(m[2]) }).toEqual({ x: r2.x2 + 24, y: r2.y1 });
   });
 
-  it("[+] → IF 넣기 — 새 분기·합류가 다른 노드와 겹치지 않는다", async () => {
+  it("[+] → IF 넣기 — 새 분기·「갈래 1」 빈 단계가 다른 노드와 겹치지 않는다", async () => {
     const f = trap((g) => ok(insertSplit(g, "e3", "IF")), "if1", "r1");
     await openSet("BF_IF", viewOf("BF_IF", f));
     await click("flow-mode-edit");
     await hoverEdge("e3");
     await click("flow-edge-add-e3");
     await click("flow-menu-item-insert-if");
-    expect(canvasNodeIds()).toEqual(expect.arrayContaining(["if1", "m1"]));
+    expect(canvasNodeIds()).toEqual(expect.arrayContaining(["if1", "r4"]));
     expect(allClashes(renderedBoxes())).toEqual([]);
   });
 });
@@ -325,7 +326,7 @@ describe("비켜 그린 노드를 끌면 그린 자리에서 시작한다(Ruling
   }
   /** IF 블록(if1·m1)이 자동 배치 자리에서, 저장 위치 노드 r1 이 그 자리를 덮어 블록이 비켜 그려지는 흐름. */
   function pushedIf(): EditFlow {
-    const g = ok(insertSplit(chain(), "e3", "IF")); // r2 → if1 → m1 → r3
+    const g = ok(insertSplit(chain(), "e3", "IF")); // r2 → if1 [갈래 1 → r4(빈 단계)][그 외] → r3(모이는 자리)
     return setPositions(g, { r1: positionsOf(g).if1 });
   }
 
@@ -376,21 +377,21 @@ describe("비켜 그린 노드를 끌면 그린 자리에서 시작한다(Ruling
     expect(at("if1")).toEqual(drawn.if1);
     await drag("if1");
     const moved = onMove.mock.calls[0][0] as Record<string, { x: number; y: number }>;
-    // 멤버는 그린 자리에서 분기와 같은 만큼 움직인다.
-    expect(moved.m1.x - drawn.m1.x).toBe(moved.if1.x - drawn.if1.x);
-    expect(moved.m1.y - drawn.m1.y).toBe(moved.if1.y - drawn.if1.y);
+    // 멤버(「갈래 1」 빈 단계 r4)는 그린 자리에서 분기와 같은 만큼 움직인다.
+    expect(moved.r4.x - drawn.r4.x).toBe(moved.if1.x - drawn.if1.x);
+    expect(moved.r4.y - drawn.r4.y).toBe(moved.if1.y - drawn.if1.y);
 
-    // 접힌 채 — 숨은 멤버(m1)는 전체 흐름의 그린 자리에서 분기와 같은 만큼 움직인다. m1 만 비키는 흐름으로 본다.
+    // 접힌 채 — 숨은 멤버(r4)는 전체 흐름의 그린 자리에서 분기와 같은 만큼 움직인다. r4 만 비키는 흐름으로 본다.
     const g = ok(insertSplit(chain(), "e3", "IF"));
-    const f2 = setPositions(g, { r1: positionsOf(g).m1 });
+    const f2 = setPositions(g, { r1: positionsOf(g).r4 });
     const full = drawnPositions(f2);
-    expect(full.m1.x - full.if1.x).not.toBe(positionsOf(f2).m1.x - positionsOf(f2).if1.x); // m1 만 비켰다
+    expect(full.r4.x - full.if1.x).not.toBe(positionsOf(f2).r4.x - positionsOf(f2).if1.x); // r4 만 비켰다
     onMove.mockClear();
     await draw(props(f2, { onMove, onMoveNode: (_n, _e, pos) => onMove(pos), collapsed: new Set(["if1"]) }));
     await drag("if1");
     const moved2 = onMove.mock.calls[0][0] as Record<string, { x: number; y: number }>;
-    expect(moved2.m1.x - moved2.if1.x).toBe(full.m1.x - full.if1.x);
-    expect(moved2.m1.y - moved2.if1.y).toBe(full.m1.y - full.if1.y);
+    expect(moved2.r4.x - moved2.if1.x).toBe(full.r4.x - full.if1.x);
+    expect(moved2.r4.y - moved2.if1.y).toBe(full.r4.y - full.if1.y);
   });
 });
 

@@ -105,8 +105,9 @@ describe("블록 접기(D16)", () => {
     expect(text("flow-collapsed-if1")).toBe("IF 조건 · 노드 2개");
     expect(has("r2")).toBe(false);
     expect(has("r3")).toBe(false);
-    expect(has("m1")).toBe(false);
-    expect(canvasNodeIds().sort()).toEqual(["end", "if1", "r1", "start"]);
+    // 옛 합류 m1 은 끝 앞이라 열 때 빈 단계가 되고(implicit-join §12.2) 모이는 자리로 블록 밖에 남는다.
+    expect(has("m1")).toBe(true);
+    expect(canvasNodeIds().sort()).toEqual(["end", "if1", "m1", "r1", "start"]);
 
     await ctxMenu("flow-node-if1");
     expect(text("flow-menu-item-collapse")).toBe("펼치기");

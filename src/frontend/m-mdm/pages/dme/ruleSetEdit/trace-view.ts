@@ -6,8 +6,9 @@
  * 바꿔 넣는다 — `RecordKeys.putReplacing`). PARALLEL 은 갈래마다 분기 직전 ctx 의 사본을 범위로 두고, 짝 MERGE 에서
  * 갈래를 기록의 `order`(실행 순서)대로 돌며 **그 갈래가 쓴 이름**만 바깥 범위에 덮어쓴다(뒤 갈래가 이긴다). IF 는 범위를 만들지 않는다.
  * 4단계 E4: 기록의 `edits` 를 노드 seq 직전에 그 노드 범위에 넣는다(엔진 `FlowRun` 퍼짐 규칙 — 스펙 §2.2).
- * 받는 노드(받는 노드 spec §4·§9, R3·R4·R5): CATCH 노드는 CATCH_* 넷을 그 범위 ctx 에 넣고(made 에는 넣지 않는다), 돌아오는 합류는 받는 룰 직전 값으로
- * 되돌리며, END 는 지운다. 병렬 갈래 안에서 끝냈으면 END 앞에서 열린 갈래를 합류 규칙대로 합친다. CAUGHT 룰은 겹침 상태 `caught` 다.
+ * 받는 노드(받는 노드 spec §4·§9, implicit-join spec §11): CATCH 노드는 CATCH_* 넷을 그 범위 ctx 에 넣고(made 에는 넣지 않는다), 받는 노드 블록의
+ * 돌아오는 자리(옛 형식이면 돌아오는 합류) 기록은 고친 값 전에 그 자리를 끝으로 하는 블록을 안쪽부터 블록 직전 값으로 되돌리며, END 는 지운다.
+ * 병렬 갈래 안에서 끝냈으면(받는 노드·IF 끝냄 모두) END 앞에서 열린 갈래를 합류 규칙대로 합친다. CAUGHT 룰은 겹침 상태 `caught` 다.
  */
 import type { CatchKind, NodeTrace, RunTrace, RuleSetFlow, TraceEdit, TypedValue } from "@/contract/engine-contract.generated";
 
@@ -120,65 +121,65 @@ export function validEdits(trace: RunTrace): TraceEdit[] {
   return edits.filter((e) => idAt.get(e.beforeSeq) === e.nodeId);
 }
 
-/** 노드 → 병렬 갈래 경로. MERGE 는 짝 분기와 같은 경로, START·END·트리에 없는 노드는 루트([]). 받는 룰·그 돌아오는 합류도 함께 모은다. */
+/** 노드 → 병렬 갈래 경로. MERGE 는 짝 분기와 같은 경로, START·END·트리에 없는 노드는 루트([]). 받는 노드 블록의 단계·돌아오는 자리도 함께 모은다. */
 function scopePaths(flow: RuleSetFlow): {
   paths: Map<string, ScopePath>;
   branchEdges: Map<string, string[]>;
-  /** 돌아오는 합류 ID → 받는 룰 노드 ID. */
-  guardMerges: Map<string, string>;
-  /** 받는 룰 노드 ID(받는 노드가 붙은 룰). */
-  guardRules: Set<string>;
+  /** 돌아오는 자리(옛 형식이면 돌아오는 합류) → 그 자리를 끝으로 하는 받는 노드 블록의 단계 ID(안쪽 블록이 먼저). */
+  guardJoins: Map<string, string[]>;
+  /** 받는 노드가 붙은 단계 ID(RULE·TASK). */
+  guardSteps: Set<string>;
 } {
   const paths = new Map<string, ScopePath>();
   const branchEdges = new Map<string, string[]>();
-  const guardMerges = new Map<string, string>();
-  const guardRules = new Set<string>();
+  const guardJoins = new Map<string, string[]>();
+  const guardSteps = new Set<string>();
   const tree = parseFlow(flow).tree;
-  if (!tree) return { paths, branchEdges, guardMerges, guardRules };
+  if (!tree) return { paths, branchEdges, guardJoins, guardSteps };
   const walk = (s: Seq, path: ScopePath) => {
     for (const b of s.items) {
       if (b.type === "RULE" || b.type === "TASK") paths.set(b.nodeId, path);
       else if (b.type === "SEQ") walk(b, path);
       else if (b.type === "GUARDED") {
-        paths.set(b.rule.nodeId, path);
-        guardRules.add(b.rule.nodeId);
-        if (b.mergeId) {
-          paths.set(b.mergeId, path);
-          guardMerges.set(b.mergeId, b.rule.nodeId);
-        }
+        paths.set(b.step.nodeId, path);
+        guardSteps.add(b.step.nodeId);
+        if (b.mergeId) paths.set(b.mergeId, path);
         walk(b.normal, path);
         for (const h of b.handlers) {
           paths.set(h.catchNodeId, path);
           walk(h.body, path);
         }
+        // 안쪽을 다 걸은 뒤에 넣으므로 같은 자리를 닫는 블록은 안쪽이 먼저다.
+        if (b.joinId) guardJoins.set(b.joinId, [...(guardJoins.get(b.joinId) ?? []), b.step.nodeId]);
       } else {
         paths.set(b.nodeId, path);
-        paths.set(b.mergeId, path);
+        if (b.mergeId) paths.set(b.mergeId, path);
         if (b.kind === "PARALLEL") branchEdges.set(b.nodeId, b.branches.map((br) => br.edgeId));
         for (const br of b.branches) walk(br.body, b.kind === "PARALLEL" ? [...path, { split: b.nodeId, edge: br.edgeId }] : path);
       }
     }
   };
   walk(tree.root, []);
-  return { paths, branchEdges, guardMerges, guardRules };
+  return { paths, branchEdges, guardJoins, guardSteps };
 }
 
 /**
  * 단계(= trace.nodes 순번)마다 그 노드를 실행하기 전·뒤 그 노드 범위의 ctx 사본과 바뀐 이름.
- * 받는 노드(받는 노드 spec §4, R3·R4): 받는 룰 직전 그 범위의 CATCH_* 를 적어 두고, 돌아오는 합류는 고친 값 전에 그 값으로 되돌리며,
+ * 받는 노드(받는 노드 spec §4, implicit-join spec §11, R3·R4): 받는 노드가 붙은 단계 직전 그 범위의 CATCH_* 를 적어 두고, 돌아오는 자리는 고친 값 전에
+ * 그 자리를 끝으로 하는 블록을 안쪽부터 그 값으로 되돌리며,
  * END 는 고친 값 전에 CATCH_* 를 지운다. CATCH 노드는 고친 값 뒤 CATCH_* 를 ctx 에만 넣는다. 병렬 갈래 안에서 끝냈으면(R5) END 는 CATCH_* 를
  * 지우기 전에 아직 열린 병렬 갈래를 안쪽부터 합류 규칙대로 합친다(엔진 `FlowRun.parallel` 의 `Ended` 처리).
  */
 export function frames(trace: RunTrace, flow: RuleSetFlow): TraceFrame[] {
   if (trace.nodes.length === 0) return [];
-  const { paths, branchEdges, guardMerges, guardRules } = scopePaths(flow);
+  const { paths, branchEdges, guardJoins, guardSteps } = scopePaths(flow);
   const root: Scope = { ctx: { ...trace.input }, made: {} };
   const editsAt = new Map(validEdits(trace).map((e) => [e.beforeSeq, e] as const));
   /** 병렬 분기 ID → 갈래 선 ID → 갈래 범위. */
   const branchScopes = new Map<string, Map<string, Scope>>();
   /** 병렬 분기 ID → 합칠 갈래 순서(기록의 order). */
   const mergeOrder = new Map<string, string[]>();
-  /** 받는 룰 노드 ID → 그 룰 직전 그 범위의 CATCH_* 값(엔진 `FlowRun.guarded` 의 outer). */
+  /** 받는 노드가 붙은 단계 ID → 그 단계 직전 그 범위의 CATCH_* 값(엔진 `FlowRun.guarded` 의 outer). */
   const outerCatch = new Map<string, Ctx>();
 
   const scopeOf = (path: ScopePath): Scope => {
@@ -214,10 +215,17 @@ export function frames(trace: RunTrace, flow: RuleSetFlow): TraceFrame[] {
     if (node.kind === "END") {
       for (const splitId of [...branchScopes.keys()].reverse()) mergeBranches(splitId, branchScopes.get(splitId)!, scopeOf(paths.get(splitId) ?? []));
     }
-    // R3·R4 — 엔진은 받는 룰을 시작하기 전에 CATCH_* 를 적고, 돌아오는 합류·END 는 고친 값을 넣기 전에 CATCH_* 를 되돌리거나 지운다.
-    if (node.kind === "RULE" && guardRules.has(node.nodeId)) outerCatch.set(node.nodeId, pickCatch(scope.ctx));
-    const guardOf = node.kind === "MERGE" ? guardMerges.get(node.nodeId) : undefined;
-    if (guardOf !== undefined) restoreCatch(scope.ctx, outerCatch.get(guardOf) ?? {});
+    // R3·R4 — 엔진은 돌아오는 자리·END 에서 고친 값을 넣기 전에 CATCH_* 를 되돌리거나 지우고, 받는 노드가 붙은 단계를 시작하기 전에 CATCH_* 를 적는다.
+    // 돌아오는 자리 — 그 자리를 끝으로 하는 블록을 안쪽부터, 블록 단계 직전 CATCH_* 가 적힌 것만 되돌린다. 범위는 받는 노드 블록의 범위다
+    // (병렬 갈래 안 블록이 병렬 합류로 돌아오면 엔진은 갈래 범위에서 되돌린 뒤 합친다).
+    for (const step of guardJoins.get(node.nodeId) ?? []) {
+      const saved = outerCatch.get(step);
+      if (saved === undefined) continue;
+      restoreCatch(scopeOf(paths.get(step) ?? []).ctx, saved);
+      outerCatch.delete(step);
+    }
+    // 새 형식은 돌아오는 자리가 받는 노드가 붙은 단계일 수 있다 — 엔진은 앞 블록을 닫은(되돌린) 뒤 다음 블록의 outer 를 적으므로 되돌림 뒤에 적는다.
+    if ((node.kind === "RULE" || node.kind === "TASK") && guardSteps.has(node.nodeId)) outerCatch.set(node.nodeId, pickCatch(scope.ctx));
     if (node.kind === "END") restoreCatch(scope.ctx, {});
     // 4단계 E4 — 노드를 시작하기 직전에 그 노드 범위에 고친 값을 넣는다. 같은 이름이 그 범위 made 에 있으면 made 도 바꾼다(스펙 §2.2).
     const edited: string[] = [];

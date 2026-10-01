@@ -90,4 +90,20 @@ class FlowTreeTest {
         assertEquals(Relation.EXCLUSIVE, n.relation("n1", "h1"));
         assertEquals(Relation.EXCLUSIVE, n.relation("h1", "n1"));
     }
+
+    @Test
+    void 끝내는_갈래_안_노드는_IF_뒤_노드보다_앞이고_빈_단계_블록도_위치를_갖는다() {
+        // if1 [b1 → e → end](끝내는 갈래) [그 외 → a] → a → z → end
+        FlowTree t = tree(flow(List.of(start(), ifNode("if1"), rule("e", "R_E"), rule("a", "R_A"), rule("z", "R_Z"), end()),
+                List.of(e("e0", "start", "if1"), br("b1", "if1", "e", 1, "X > 0"), other("bo", "if1", "a"), e("ee", "e", "end"), e("ea", "a", "z"),
+                        e("ez", "z", "end"))));
+        assertEquals(Relation.AFTER, t.relation("z", "e"), "블록 뒤에서 끝내는 갈래 결과를 읽으면 IF_SIBLING 이 아니라 뒤 경로다(§6)");
+        assertEquals(List.of("e", "a", "z"), t.ruleSteps().stream().map(RuleStep::nodeId).toList());
+        FlowTree tk = tree(flow(List.of(start(), kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.task("t1"), catchNode("c1", "t1", "NO_RESULT"),
+                        rule("h", "R_H"), rule("n", "R_F"), end()),
+                List.of(e("e1", "start", "t1"), e("e2", "t1", "n"), e("e3", "c1", "h"), e("e4", "h", "n"), e("e5", "n", "end"))));
+        assertEquals(Relation.BEFORE, tk.relation("t1", "h"));
+        assertEquals(Relation.BEFORE, tk.relation("h", "n"));
+        assertEquals(List.of("h", "n"), tk.ruleSteps().stream().map(RuleStep::nodeId).toList());
+    }
 }

@@ -67,7 +67,7 @@ export interface CanvasActions {
   duplicate(nodeId: string): void;
   /** 룰 노드에 받는 노드를 붙인다 — 끝으로 가는 처리 갈래(받는 노드 spec §8, R14). */
   addCatch(ruleNodeId: string): void;
-  /** 끝내는 처리 갈래를 룰의 돌아오는 합류로 옮긴다(받는 노드 우클릭 「흐름으로 돌아오기」). */
+  /** 끝내는 처리 갈래를 룰의 돌아오는 자리(정상 줄기 위 노드)로 옮긴다(받는 노드 우클릭 「흐름으로 돌아오기」). */
   returnCatch(catchId: string): void;
   /** 그 노드를 고르고 오른쪽 「룰 지정」 섹션을 펴 찾기 칸에 초점(4단계 Task 8). */
   openRuleAssign(nodeId: string): void;

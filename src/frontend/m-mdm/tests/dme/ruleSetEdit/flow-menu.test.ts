@@ -42,7 +42,7 @@ function viewOf(setId: string, flow: EditFlow | null, ruleIds = ["E2S_GRD", "E2S
 }
 const chainView = (setId = "E2S_CHAIN") => viewOf(setId, null);
 
-/** r1 → IF(갈래 1: r3, 갈래 2: 빈) → r2. */
+/** r1 → IF(갈래 1: r4 → r3(빈 단계), 갈래 2(그 외): 빈) → r2(모이는 자리, implicit-join §8.2). */
 function ifFlow(): EditFlow {
   const base = toEditFlow(null, ["E2S_GRD", "E2S_FCT"]);
   const s = insertSplit(base, "e2", "IF");

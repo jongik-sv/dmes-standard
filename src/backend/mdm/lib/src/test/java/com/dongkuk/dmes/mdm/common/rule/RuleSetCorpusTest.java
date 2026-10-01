@@ -41,7 +41,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 class RuleSetCorpusTest {
 
     /** 사례 수 하한 — TS 러너와 같은 값(design §3.3). TS 러너({@code rule-set-corpus.test.ts})도 같은 값으로 맞춘다. */
-    static final int MIN_CASES = 64;
+    static final int MIN_CASES = 90;
 
     /** 퍼즈 파일 사례 수 하한 — TS 러너와 같은 값({@link RuleSetFlowFuzz#COUNT}). */
     static final int MIN_FUZZ_CASES = 200;

@@ -48,11 +48,10 @@ describe("받는 노드 배치(받는 노드 spec §8, Ruling R15)", () => {
     expect([...catchSlots(f).keys()]).toEqual(["c1", "c2"]);
   });
 
-  it("자동 배치 — 정상 갈래는 룰 아래, 처리 갈래는 그 오른쪽 순서대로, 돌아오는 합류는 룰 가운데 아래", () => {
+  it("자동 배치 — 정상 갈래는 룰 아래, 처리 갈래는 그 오른쪽 순서대로", () => {
     const pos = autoLayout(guarded());
     const W = NODE_SIZE.RULE.w;
     expect(cx(pos.n1, W)).toBeCloseTo(cx(pos.r1, W), 0);
-    expect(cx(pos.mr, NODE_SIZE.MERGE.w)).toBeCloseTo(cx(pos.r1, W), 0);
     expect(pos.h1.x).toBeGreaterThanOrEqual(pos.n1.x + W);
     expect(pos.h2.x).toBeGreaterThanOrEqual(pos.h1.x + W);
     expect(pos.n1.y).toBeGreaterThan(pos.r1.y);
@@ -86,7 +85,7 @@ describe("받는 노드 배치(받는 노드 spec §8, Ruling R15)", () => {
       edges: [ed("e1", "start", "r1"), ed("e2", "r1", "end")] };
     expect(Object.keys(autoLayout(plain))).toEqual(["start", "r1", "end"]);
     expect(catchSlots(plain).size).toBe(0);
-    // 갈래 있는 흐름의 자리 — 받는 노드 처리를 넣기 전(6c433334) 값 그대로다.
+    // 갈래 있는 흐름의 자리 — 받는 노드 처리를 넣기 전(6c433334) 값에서 합류 막대 크기(200×14)만 바뀐다.
     const ifFlow: RuleSetFlow = {
       version: 1,
       nodes: [nd("start", "START"), nd("r1", "RULE", { ruleId: "R1" }), nd("if1", "IF"), nd("a1", "RULE", { ruleId: "A1" }),
@@ -96,7 +95,7 @@ describe("받는 노드 배치(받는 노드 spec §8, Ruling R15)", () => {
     };
     expect(autoLayout(ifFlow)).toEqual({
       start: { x: 192, y: 0 }, r1: { x: 136, y: 82 }, if1: { x: 164, y: 196 }, a1: { x: 0, y: 286 },
-      a2: { x: 272, y: 400 }, a3: { x: 0, y: 400 }, m1: { x: 238, y: 514 }, end: { x: 192, y: 588 },
+      a2: { x: 272, y: 400 }, a3: { x: 0, y: 400 }, m1: { x: 152, y: 514 }, end: { x: 192, y: 574 },
     });
   });
 });
@@ -205,5 +204,34 @@ describe("끝내는 처리 갈래는 같은 높이의 다른 노드와 겹치지
     expect(pos.h1.x).toBeGreaterThanOrEqual(ifRight);
     expect(pos.h2.x).toBeGreaterThanOrEqual(pos.h1.x + NODE_SIZE.RULE.w); // 순서 유지
     expect(pos.c2).toEqual(catchSpot(pos.r1, NODE_SIZE.RULE, 1));
+  });
+});
+
+describe("빈 처리 갈래 판정(implicit-join spec §9)", () => {
+  const N = (id: string, kind: "START" | "END" | "RULE" | "IF") => ({ id, kind, ruleId: kind === "RULE" ? id.toUpperCase() : null, splitId: null, label: null });
+  const E = (id: string, from: string, to: string, over: { order?: number; cond?: string; otherwise?: boolean } = {}) =>
+    ({ id, from, to, order: over.order ?? null, cond: over.cond ?? null, otherwise: over.otherwise ?? false, label: null });
+  /** start → i(IF) [r1 → x → n](조건 갈래) [a → n](그 외) → end. r1 에 붙은 빈 CATCH c1 은 IF 뒤 모이는 노드 n 으로 돌아온다. */
+  const build = (withCatch: boolean) => {
+    const nodes = [N("start", "START"), N("i", "IF"), N("r1", "RULE"), N("x", "RULE"), N("a", "RULE"), N("n", "RULE"), N("end", "END")];
+    const edges = [E("e1", "start", "i"), E("e2", "i", "r1", { order: 1, cond: "X>0" }), E("e3", "r1", "x"), E("e4", "x", "n"),
+      E("e5", "i", "a", { otherwise: true }), E("e6", "a", "n"), E("e7", "n", "end")];
+    if (!withCatch) return toEditFlow({ version: 1, nodes, edges }, []);
+    return toEditFlow({ version: 1, nodes: [...nodes, { ...N("c1", "RULE"), kind: "CATCH" as const, ruleId: null, attachTo: "r1", catches: ["NO_RESULT"] }],
+      edges: [...edges, E("e8", "c1", "n")] }, []);
+  };
+  it("IF 뒤 모이는 노드로 바로 돌아오는 빈 처리 갈래는 가상 선을 넣지 않아 받는 노드 없는 흐름과 배치가 같다", () => {
+    clearLayoutCache();
+    const a = autoLayout(build(false));
+    clearLayoutCache();
+    const b = autoLayout(build(true));
+    for (const id of ["start", "i", "r1", "x", "a", "n", "end"]) expect(b[id], id).toEqual(a[id]);
+  });
+
+  it("돌아오는 노드는 바깥 순차 노드라 dagre 자리 그대로다 — 정상 갈래 아래 층에 오고 갈래 위에서 가운데로 모인다", () => {
+    clearLayoutCache();
+    const pos = autoLayout(build(true));
+    expect(pos.n.y).toBeGreaterThan(pos.x.y);
+    expect(pos.n.y).toBeGreaterThan(pos.a.y);
   });
 });

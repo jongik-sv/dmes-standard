@@ -44,7 +44,7 @@ function ok(r: EditResult): EditFlow {
 }
 /** start → r1 → r2 → r3 → end. 선 e1(start→r1) e2(r1→r2) e3(r2→r3) e4(r3→end). */
 const chain = () => toEditFlow(null, IDS);
-/** start→r1→[분기 빈 갈래 둘]→m1→r2→r3→end. */
+/** IF: start→r1→if1[갈래1: r4(빈 단계) | 그 외]→r2(모이는 자리)→r3→end(implicit-join §8.2). 병렬: start→r1→par1[빈 갈래 둘]→m1→r2→r3→end. */
 const splitFlow = (kind: "IF" | "PARALLEL") => ok(insertSplit(chain(), "e2", kind));
 
 describe("Minor C — 접힌 블록을 끈 만큼 펼쳐진다", () => {
@@ -100,7 +100,7 @@ describe("Minor C — 접힌 블록을 끈 만큼 펼쳐진다", () => {
       expect(onMove).toHaveBeenCalledTimes(1);
       const g = setPositions(f, onMove.mock.calls[0][0]);
       const after = drawnPositions(g); // 펼친 흐름
-      for (const id of [split, "m1"]) {
+      for (const id of [split, kind === "IF" ? "r4" : "m1"]) { // 숨은 블록 멤버 — IF 는 「갈래 1」 빈 단계, 병렬은 짝 합류
         expect({ id, x: after[id].x - before[id].x, y: after[id].y - before[id].y }).toEqual({ id, ...d });
       }
       // 접은 채 다시 그리면 놓은 자리에 있다(튀지 않는다).
@@ -120,7 +120,7 @@ describe("Minor D — 선택 없는 메모 기본 자리는 그린(접힌) 위�
   });
 
   it("if1 을 접은 채(갈래에 룰 둘) 선택 없이 [메모] — 메모 좌상단이 그린 노드 전체 상자의 가운데다", async () => {
-    // start→r1→if1[갈래1: r4→r5 | 그 외]→m1→r2→r3→end
+    // start→r1→if1[갈래1: r5→r4(빈 단계)→r6 | 그 외]→r2(모이는 자리)→r3→end
     let f = splitFlow("IF");
     f = ok(insertRule(f, "e5", "SM_C"));
     f = ok(insertRule(f, f.edges.find((e) => e.from === "r4")!.id, "SM_B"));

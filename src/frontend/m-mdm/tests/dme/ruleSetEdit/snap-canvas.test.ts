@@ -222,13 +222,13 @@ describe("끌 때 맞춤 안내선·스냅(G1)", () => {
   });
 
   it("분기를 끌면 붙은 이동량만큼 블록 멤버도 함께 간다 — 함께 움직이는 멤버는 후보가 아니다, dagre 호출 불변", async () => {
-    const r = insertSplit(toEditFlow(null, ["R_A"]), "e2", "IF");
+    const r = insertSplit(toEditFlow(null, ["R_A", "R_Z"]), "e2", "IF"); // r1 → if1 [갈래 1 → 빈 단계 → r2][그 외 → r2] → r2(모이는 자리) → end
     if (!r.ok) throw new Error(r.reason);
     const ifId = r.flow.nodes.find((n) => n.kind === "IF")!.id;
-    const mId = r.flow.nodes.find((n) => n.kind === "MERGE")!.id;
-    // 블록(분기 0,0 · 합류 74,200)만 가까이 두고 나머지는 멀리. 메모 왼쪽 3 은 분기 왼쪽 0 과 3 차이.
+    const mId = r.flow.nodes.find((n) => n.kind === "TASK")!.id; // 블록 멤버 — 「갈래 1」 빈 단계(implicit-join §8.2, 합류 없음)
+    // 블록(분기 0,0 · 갈래 빈 단계 74,200)만 가까이 두고 나머지(모이는 자리 r2 포함)는 멀리. 메모 왼쪽 3 은 분기 왼쪽 0 과 3 차이.
     const base = setPositions(r.flow, {
-      start: { x: -3000, y: -3000 }, r1: { x: -3000, y: 3000 }, end: { x: 3000, y: 6000 }, [ifId]: { x: 0, y: 0 }, [mId]: { x: 74, y: 200 },
+      start: { x: -3000, y: -3000 }, r1: { x: -3000, y: 3000 }, r2: { x: -6000, y: 6000 }, end: { x: 3000, y: 6000 }, [ifId]: { x: 0, y: 0 }, [mId]: { x: 74, y: 200 },
     });
     const { flow } = addNote(base, { x: 3, y: 1000 }, null);
     const onMove = vi.fn();
@@ -245,12 +245,12 @@ describe("끌 때 맞춤 안내선·스냅(G1)", () => {
   });
 
   it("접힌 블록은 접힌 상자(룰 크기)로 후보가 된다", async () => {
-    const r = insertSplit(toEditFlow(null, ["R_A"]), "e2", "IF");
+    const r = insertSplit(toEditFlow(null, ["R_A", "R_Z"]), "e2", "IF"); // r1 → if1 [갈래 1 → 빈 단계 → r2][그 외 → r2] → r2(모이는 자리) → end
     if (!r.ok) throw new Error(r.reason);
     const ifId = r.flow.nodes.find((n) => n.kind === "IF")!.id;
-    const mId = r.flow.nodes.find((n) => n.kind === "MERGE")!.id;
+    const mId = r.flow.nodes.find((n) => n.kind === "TASK")!.id; // 블록 멤버 — 「갈래 1」 빈 단계(implicit-join §8.2, 합류 없음)
     const flow = setPositions(r.flow, {
-      start: { x: -3000, y: -3000 }, r1: { x: -3000, y: 3000 }, end: { x: 1000, y: 500 }, [ifId]: { x: 0, y: 0 }, [mId]: { x: 74, y: 200 },
+      start: { x: -3000, y: -3000 }, r1: { x: -3000, y: 3000 }, r2: { x: -6000, y: 6000 }, end: { x: 1000, y: 500 }, [ifId]: { x: 0, y: 0 }, [mId]: { x: 74, y: 200 },
     });
     const onMove = vi.fn();
     await draw(props({ flow, onMove, collapsed: new Set([ifId]) }));
@@ -307,11 +307,11 @@ describe("끌 때 맞춤 안내선·스냅(G1)", () => {
   });
 
   it("맞은 대상이 고정 안 된 접힌 분기면 제 크기 기준(+foldOffsetX)으로 적고 숨은 블록 멤버도 함께 고정한다(I2)", async () => {
-    const r = insertSplit(toEditFlow(null, ["R_A"]), "e2", "IF");
+    const r = insertSplit(toEditFlow(null, ["R_A", "R_Z"]), "e2", "IF"); // r1 → if1 [갈래 1 → 빈 단계 → r2][그 외 → r2] → r2(모이는 자리) → end
     if (!r.ok) throw new Error(r.reason);
     const flow = r.flow; // 저장 위치 없음
     const ifId = flow.nodes.find((n) => n.kind === "IF")!.id;
-    const mId = flow.nodes.find((n) => n.kind === "MERGE")!.id;
+    const mId = flow.nodes.find((n) => n.kind === "TASK")!.id; // 숨은 블록 멤버 — 「갈래 1」 빈 단계
     const collapsed = new Set([ifId]);
     const onMove = vi.fn();
     await draw(props({ flow, onMove, collapsed }));
@@ -321,7 +321,7 @@ describe("끌 때 맞춤 안내선·스냅(G1)", () => {
     const moved = onMove.mock.calls[0][0] as Record<string, FlowPos>;
     expect(moved.end).toEqual({ x: box.x + NODE_SIZE.RULE.w, y: box.y });
     expect(moved[ifId]).toEqual({ x: box.x + foldOffsetX("IF"), y: box.y });
-    expect(moved[mId]).toBeDefined(); // 숨은 합류도 블록과 맞춘 자리로 고정
+    expect(moved[mId]).toBeDefined(); // 숨은 블록 멤버도 블록과 맞춘 자리로 고정
     await draw(props({ flow: setPositions(flow, moved), onMove, collapsed }));
     expect(at(ifId)).toEqual(box);
     expect(at("end")).toEqual({ x: box.x + NODE_SIZE.RULE.w, y: box.y });

@@ -17,7 +17,7 @@ import kr.dongkuk.maru.mdm.engine.spi.Nullable;
  * @param finalValues 멈춘 시점(또는 끝)까지 최상위에서 만든 결과 변수
  * @param violations  멈췄으면 위반 목록, 끝까지 갔으면 null
  * @param edits       고친 값을 끼워 다시 실행했으면 받은 고친 값 그대로(4단계 spec §2.3), 아니면 null. JSON 에서는 null 이면 키를 뺀다
- * @param endedBy     받는 노드 처리 갈래가 END 에 닿아 끝났으면 그 CATCH 노드 ID(받는 노드 spec §4), 아니면 null. JSON 에서는 null 이면 키를 뺀다
+ * @param endedBy     처리 갈래 안에서 END 에 닿아 끝났으면(처리 갈래 안 IF 의 끝내는 갈래 포함) 가장 안쪽 처리 갈래의 받는 노드 ID, 아니면 null(끝내는 IF 갈래로 끝난 실행 포함, D-136). JSON 에서는 null 이면 키를 뺀다
  */
 public record RunTrace(String setId, Instant evalTs, Map<String, Object> input, List<NodeTrace> nodes,
         Map<String, Object> finalValues, @Nullable List<Violation> violations, @Nullable List<TraceEdit> edits,
@@ -27,7 +27,7 @@ public record RunTrace(String setId, Instant evalTs, Map<String, Object> input, 
      * 노드 하나의 기록. 종류마다 쓰는 칸만 채우고 나머지는 null 이다.
      * RULE: ruleId·ver·reads(실행 직전 ctx 에서 이 룰이 읽은 값)·result(OK 인 RULE 에만 있다. 없으면 JSON 에서 키를 뺀다).
      * IF: branches·chosenEdgeId. PARALLEL: order.
-     * MERGE: splitId(짝 분기 또는 받는 룰 노드 ID)·merged(병렬 합류에서 합친 결과 이름). TASK: 칸 없이 status 만. ERROR 노드: violations.
+     * MERGE: splitId(짝 PARALLEL, 옛 형식이면 IF·받는 노드가 붙은 노드)·merged(병렬 합류에서 합친 결과 이름). TASK: 칸 없이 status 만. ERROR 노드: violations.
      * CAUGHT RULE(받는 노드로 넘긴 룰): ruleId·ver·reads·violations(결과 없음이면 빈 목록), result 는 null.
      * CATCH: ruleId(실패한 룰 ID)·catchKind·code·message, status 는 OK. 세 칸은 CATCH 가 아니면 null 이고 JSON 에서 키를 뺀다.
      *

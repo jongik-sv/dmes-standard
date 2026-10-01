@@ -63,6 +63,8 @@ class FlowParserTest {
         assertTrue(s.branches().get(2).otherwise());
         assertEquals(List.of(new RuleStep("a", "R_A")), s.branches().get(0).body().items());
         assertTrue(p.tree().branched());
+        assertEquals("m1", s.joinId());
+        assertFalse(s.branches().get(0).ends());
     }
 
     @Test
@@ -183,7 +185,7 @@ class FlowParserTest {
         assertEquals(List.of(
                 "FLOW_STRUCTURE|null|null|시작 노드가 0개다. 정확히 1개여야 한다",
                 "FLOW_STRUCTURE|null|null|끝 노드가 0개다. 정확히 1개여야 한다",
-                "FLOW_STRUCTURE|a|null|a의 들어오는 선이 0개다. 1개여야 한다",
+                "FLOW_STRUCTURE|a|null|a의 들어오는 선이 0개다. 1개 이상이어야 한다",
                 "FLOW_STRUCTURE|a|null|a의 나가는 선이 0개다. 1개여야 한다"), issues(f));
     }
 
@@ -220,13 +222,19 @@ class FlowParserTest {
     }
 
     @Test
-    void f1_f2_짝_분기가_없는_합류와_합류가_없는_분기() {
+    void f1_짝_분기가_없는_합류_f2_합류가_없는_병렬과_합류가_둘인_IF() {
         FlowDefinition f = line(List.of(start(), ifNode("if1"), rule("a", "R_A"), rule("b", "R_B"), merge("m1", null), end()),
                 List.of(e("e0", "start", "if1"), br("b1", "if1", "a", 1, "X > 0"), other("bo", "if1", "b"),
                         e("ea", "a", "m1"), e("eb", "b", "m1"), e("ee", "m1", "end")));
-        assertEquals(List.of(
-                "FLOW_STRUCTURE|m1|null|합류 m1의 짝 분기 -가 없다",
-                "FLOW_STRUCTURE|if1|null|분기 if1를 닫는 합류가 0개다. 정확히 1개여야 한다"), issues(f));
+        assertEquals(List.of("FLOW_STRUCTURE|m1|null|합류 m1의 짝 분기 -가 없다"), issues(f), "IF 는 합류가 0개여도 된다");
+        FlowDefinition par = line(List.of(start(), par("p1"), rule("a", "R_A"), rule("b", "R_B"), end()),
+                List.of(e("e0", "start", "p1"), pe("p1a", "p1", "a", 1), pe("p1b", "p1", "b", 2), e("ea", "a", "end"), e("eb", "b", "end")));
+        assertEquals(List.of("FLOW_STRUCTURE|p1|null|분기 p1를 닫는 합류가 0개다. 정확히 1개여야 한다"), issues(par));
+        FlowDefinition two = line(List.of(start(), ifNode("if1"), rule("a", "R_A"), rule("b", "R_B"), rule("c", "R_C"), merge("m1", "if1"),
+                        merge("m2", "if1"), end()),
+                List.of(e("e0", "start", "if1"), br("b1", "if1", "a", 1, "X > 1"), br("b2", "if1", "b", 2, "X > 2"), other("bo", "if1", "c"),
+                        e("ea", "a", "m1"), e("eb", "b", "m1"), e("ec", "c", "m2"), e("em", "m1", "m2"), e("ee", "m2", "end")));
+        assertEquals(List.of("FLOW_STRUCTURE|if1|null|IF if1를 닫는 합류가 2개다. IF 는 합류를 두지 않는다"), issues(two));
     }
 
     @Test
@@ -278,7 +286,6 @@ class FlowParserTest {
                 "FLOW_STRUCTURE|null|null|끝 노드가 0개다. 정확히 1개여야 한다",
                 "FLOW_STRUCTURE|zz|e1|선 e1가 없는 노드 zz를 가리킨다",
                 "FLOW_STRUCTURE|if1|null|if1의 나가는 선이 0개다. 2개 이상이어야 한다",
-                "FLOW_STRUCTURE|if1|null|분기 if1를 닫는 합류가 0개다. 정확히 1개여야 한다",
                 "FLOW_IF_ELSE|if1|null|IF if1에 \"그 외\" 갈래가 0개다. 정확히 1개여야 한다"), issues(f));
     }
 
@@ -291,7 +298,7 @@ class FlowParserTest {
                 List.of(e("e0", "start", "if1"), br("b1", "if1", "a", 1, "X > 0"), other("bo", "if1", "m1"), e("ea", "a", "m1"),
                         e("e1", "m1", "if2"), br("c1", "if2", "m1", 1, "X > 1"), br("c2", "if2", "m2", 2, "X > 2"),
                         other("co", "if2", "m2"), e("ee", "m2", "end")));
-        assertEquals(List.of("FLOW_STRUCTURE|m1|null|m1를 두 번 지난다. 순환이 있거나 갈래가 짝 합류 밖에서 만난다"), issues(f));
+        assertEquals(List.of("FLOW_STRUCTURE|m1|null|m1를 두 번 지난다. 순환이 있거나 갈래가 모이는 자리 밖에서 만난다"), issues(f));
     }
 
     @Test
@@ -352,9 +359,10 @@ class FlowParserTest {
         FlowParse p = FlowParser.parse(guardedFlow());
         assertEquals(List.of(), p.issues());
         Guarded g = (Guarded) p.tree().root().items().get(0);
-        assertEquals(new RuleStep("r1", "R_A"), g.rule());
+        assertEquals(new RuleStep("r1", "R_A"), g.step());
         assertEquals("r1", g.nodeId());
         assertEquals("mr", g.mergeId());
+        assertEquals("mr", g.joinId());
         assertEquals(List.of(), g.normal().items());
         assertEquals(new Guarded.Handler("c1", List.of(CatchKind.NO_RESULT), new Seq(List.of(new RuleStep("r9", "R_C"))), false),
                 g.handlers().get(0));
@@ -375,6 +383,7 @@ class FlowParserTest {
         assertEquals(List.of(), p.issues());
         Guarded g = (Guarded) p.tree().root().items().get(0);
         assertNull(g.mergeId());
+        assertNull(g.joinId());
         assertEquals(List.of(), g.normal().items());
         assertTrue(g.handlers().get(0).ends());
         assertEquals(new RuleStep("r2", "R_B"), p.tree().root().items().get(1));
@@ -405,8 +414,7 @@ class FlowParserTest {
                 List.of(e("e1", "start", "r1"), e("e2", "r1", "t1"), e("e3", "t1", "end"), e("e4", "c0", "end"), e("e5", "c1", "end"),
                         e("e6", "c2", "end"), e("e7", "c3", "end"), e("e8", "c4", "end")));
         assertEquals(List.of(
-                "FLOW_CATCH|c0|null|받는 노드 c0가 붙은 룰 zz가 없다",
-                "FLOW_CATCH|c1|null|받는 노드 c1는 룰 노드에만 붙일 수 있다(t1는 TASK)",
+                "FLOW_CATCH|c0|null|받는 노드 c0가 붙은 노드 zz가 없다",
                 "FLOW_CATCH|c2|null|받는 노드 c2에 받을 예외 종류가 없다",
                 "FLOW_CATCH|c3|null|받는 노드 c3의 예외 종류 BOOM를 모른다",
                 "FLOW_CATCH|c3|null|받는 노드 c3에 예외 종류 NO_RESULT가 겹친다",
@@ -414,13 +422,13 @@ class FlowParserTest {
     }
 
     @Test
-    void 받는_노드가_있으면_END_는_들어오는_선이_여럿이어도_되고_없으면_지금처럼_하나다() {
+    void END_는_들어오는_선이_여럿이어도_되고_룰은_들어오는_선이_없으면_거부한다() {
         FlowDefinition withCatch = flow(List.of(start(), rule("r1", "R_A"), catchNode("c1", "r1", "NO_RESULT"), end()),
                 List.of(e("e1", "start", "r1"), e("e2", "r1", "end"), e("e3", "c1", "end")));
         assertEquals(List.of(), issues(withCatch));
-        FlowDefinition without = flow(List.of(start(), rule("r1", "R_A"), rule("r2", "R_B"), end()),
+        FlowDefinition orphan = flow(List.of(start(), rule("r1", "R_A"), rule("r2", "R_B"), end()),
                 List.of(e("e1", "start", "r1"), e("e2", "r1", "end"), e("e3", "r2", "end")));
-        assertTrue(issues(without).contains("FLOW_STRUCTURE|end|null|end의 들어오는 선이 2개다. 1개여야 한다"), issues(without).toString());
+        assertEquals(List.of("FLOW_STRUCTURE|r2|null|r2의 들어오는 선이 0개다. 1개 이상이어야 한다"), issues(orphan));
     }
 
     @Test
@@ -434,17 +442,231 @@ class FlowParserTest {
     }
 
     @Test
-    void 처리_갈래가_다른_합류로_가면_멈추고_처리_갈래_안_IF_갈래는_END_로_못_간다() {
+    void 처리_갈래가_둘러싼_IF_의_옛_합류로_돌아오면_받고_옛_형식_IF_갈래는_END_로_못_간다() {
         // start → if9 [b1 → r1 → m9][그 외 → m9] → end. r1 에 c1 → m9(if9 의 합류).
         FlowDefinition jump = flow(List.of(start(), ifNode("if9"), rule("r1", "R_A"), catchNode("c1", "r1", "NO_RESULT"), merge("m9", "if9"), end()),
                 List.of(e("e0", "start", "if9"), br("b1", "if9", "r1", 1, "X > 0"), other("bo", "if9", "m9"), e("e1", "r1", "m9"),
                         e("e2", "c1", "m9"), e("e3", "m9", "end")));
-        assertEquals(List.of("FLOW_STRUCTURE|m9|null|처리 갈래 c1가 끝에 닿지 않고 m9로 나간다"), issues(jump));
+        FlowParse p = FlowParser.parse(jump);
+        assertEquals(List.of(), p.issues());
+        Split s = (Split) p.tree().root().items().get(0);
+        Guarded g = (Guarded) s.branches().get(0).body().items().get(0);
+        assertEquals("m9", g.joinId());
+        assertNull(g.mergeId());
+        assertEquals(List.of(), g.normal().items());
         // start → r1 → mr → end. c1 → if1 [b1 → end][b2 → m2][그 외 → m2] → m2 → mr.
         FlowDefinition nested = flow(List.of(start(), rule("r1", "R_A"), catchNode("c1", "r1", "NO_RESULT"), ifNode("if1"), merge("m2", "if1"),
                         guardMerge("mr", "r1"), end()),
                 List.of(e("e1", "start", "r1"), e("e2", "r1", "mr"), e("e3", "c1", "if1"), br("b1", "if1", "end", 1, "X > 0"),
                         br("b2", "if1", "m2", 2, "X > 1"), other("bo", "if1", "m2"), e("e4", "m2", "mr"), e("e5", "mr", "end")));
         assertEquals(List.of("FLOW_STRUCTURE|end|null|갈래가 m2에서 닫히지 않고 end로 나간다"), issues(nested));
+    }
+
+    // ── 모이는 자리·끝내는 갈래(implicit-join spec §2.2) ──
+
+    private static Split split(FlowDefinition f, int index) {
+        FlowParse p = FlowParser.parse(f);
+        assertEquals(List.of(), p.issues());
+        return (Split) p.tree().root().items().get(index);
+    }
+
+    @Test
+    void 새_형식_IF_는_갈래가_다음_노드로_바로_모인다() {
+        FlowParse p = FlowParser.parse(kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.ifFlowNew());
+        assertEquals(List.of(), p.issues());
+        Split s = (Split) p.tree().root().items().get(0);
+        assertNull(s.mergeId());
+        assertEquals("j", s.joinId());
+        assertEquals(List.of("b1", "b2", "bo"), s.branches().stream().map(Branch::edgeId).toList());
+        assertTrue(s.branches().stream().noneMatch(Branch::ends));
+        assertEquals(new TaskStep("j"), p.tree().root().items().get(1));
+    }
+
+    @Test
+    void 빈_갈래는_모이는_자리로_바로_가는_선이고_중첩_IF_는_같은_자리에서_함께_닫힌다() {
+        // if1 [b1 → if2 [d1 → a][그 외 → b]] [그 외 → z(빈 갈래)], a·b → z → end — 두 IF 가 z 에서 함께 닫힌다.
+        FlowDefinition g = flow(List.of(start(), ifNode("if1"), ifNode("if2"), rule("a", "R_A"), rule("b", "R_B"), rule("z", "R_Z"), end()),
+                List.of(e("e0", "start", "if1"), br("b1", "if1", "if2", 1, "X > 0"), other("bo", "if1", "z"), br("d1", "if2", "a", 1, "X > 1"),
+                        other("do", "if2", "b"), e("ea", "a", "z"), e("eb", "b", "z"), e("ez", "z", "end")));
+        Split outer = split(g, 0);
+        assertEquals("z", outer.joinId());
+        assertEquals(List.of(), outer.branches().get(1).body().items(), "그 외는 z 로 바로 가는 빈 갈래");
+        Split inner = (Split) outer.branches().get(0).body().items().get(0);
+        assertEquals("z", inner.joinId());
+        assertEquals(new RuleStep("z", "R_Z"), FlowParser.parse(g).tree().root().items().get(1));
+    }
+
+    @Test
+    void END_로_바로_가는_갈래는_끝내는_갈래이고_빈_갈래로_세지_않는다() {
+        // if1 [b1 "X > 0" → end] [그 외 → a] → a → end. 두 갈래가 겹치지 않아 §2.2 5 — END 로 바로 가지 않는 마지막 갈래(그 외)가 이어진다.
+        Split s = split(flow(List.of(start(), ifNode("if1"), rule("a", "R_A"), end()),
+                List.of(e("e0", "start", "if1"), br("b1", "if1", "end", 1, "X > 0"), other("bo", "if1", "a"), e("ea", "a", "end"))), 0);
+        assertEquals("a", s.joinId());
+        assertTrue(s.branches().get(0).ends());
+        assertEquals(List.of(), s.branches().get(0).body().items());
+        assertFalse(s.branches().get(1).ends());
+        assertEquals(List.of(), s.branches().get(1).body().items());
+    }
+
+    @Test
+    void 몸_있는_끝내는_갈래_여럿과_이어지는_갈래_둘이면_이어지는_갈래가_처음_만나는_노드가_모이는_자리다() {
+        FlowDefinition f = flow(List.of(start(), ifNode("if1"), rule("e1n", "R_E1"), rule("e2n", "R_E2"), rule("a", "R_A"), rule("b", "R_B"),
+                        rule("x", "R_X"), end()),
+                List.of(e("e0", "start", "if1"), br("b1", "if1", "e1n", 1, "X > 1"), br("b2", "if1", "e2n", 2, "X > 2"), br("b3", "if1", "a", 3, "X > 3"),
+                        other("bo", "if1", "b"), e("ee1", "e1n", "end"), e("ee2", "e2n", "end"), e("ea", "a", "x"), e("eb", "b", "x"),
+                        e("ex", "x", "end")));
+        Split s = split(f, 0);
+        assertEquals("x", s.joinId());
+        assertEquals(List.of(true, true, false, false), s.branches().stream().map(Branch::ends).toList());
+        assertEquals(List.of(new RuleStep("e1n", "R_E1")), s.branches().get(0).body().items());
+    }
+
+    @Test
+    void 모든_갈래가_따로_END_로_가면_실행_순서_마지막의_END_직행_아닌_갈래가_이어진다() {
+        // 그 외에 노드가 있으면 그 외가 이어진다(§1 둘째 예).
+        Split s1 = split(flow(List.of(start(), ifNode("if1"), rule("r8", "R_L"), rule("r2", "R_M"), end()),
+                List.of(e("e0", "start", "if1"), br("e3", "if1", "r8", 1, "PRICE = NULL"), e("e4", "r8", "end"), other("e5", "if1", "r2"),
+                        e("e6", "r2", "end"))), 0);
+        assertEquals("r2", s1.joinId());
+        assertEquals(List.of(true, false), s1.branches().stream().map(Branch::ends).toList());
+        // 그 외가 END 로 바로 가면 조건 갈래가 이어진다(N20).
+        Split s2 = split(flow(List.of(start(), ifNode("if1"), rule("a", "R_A"), end()),
+                List.of(e("e0", "start", "if1"), br("b1", "if1", "a", 1, "X > 0"), other("bo", "if1", "end"), e("ea", "a", "end"))), 0);
+        assertEquals("a", s2.joinId());
+        assertEquals(List.of(false, true), s2.branches().stream().map(Branch::ends).toList());
+    }
+
+    @Test
+    void 다른_갈래와_노드를_함께_지나는_갈래는_끝내는_갈래가_아니다() {
+        // b1·b2 는 s 를 함께 지난 뒤 END, 그 외는 c → END 따로(N24).
+        Split s = split(flow(List.of(start(), ifNode("if1"), rule("a", "R_A"), rule("b", "R_B"), rule("c", "R_C"), rule("s", "R_S"), end()),
+                List.of(e("e0", "start", "if1"), br("b1", "if1", "a", 1, "X > 0"), br("b2", "if1", "b", 2, "X > 1"), other("bo", "if1", "c"),
+                        e("ea", "a", "s"), e("eb", "b", "s"), e("ec", "c", "end"), e("es", "s", "end"))), 0);
+        assertEquals("s", s.joinId());
+        assertEquals(List.of(false, false, true), s.branches().stream().map(Branch::ends).toList());
+    }
+
+    @Test
+    void f4_새_형식_IF_의_같은_도착_갈래_선_둘은_거부하고_옛_IF_와_병렬은_받는다() {
+        FlowDefinition f = flow(List.of(start(), ifNode("if1"), rule("a", "R_A"), end()),
+                List.of(e("e1", "start", "if1"), br("e2", "if1", "a", 1, "X > 0"), other("e3", "if1", "a"), e("e4", "a", "end")));
+        assertEquals(List.of("FLOW_STRUCTURE|if1|e3|IF if1의 갈래 e3가 갈래 e2와 같은 노드 a로 간다. 같은 노드로 가는 갈래는 하나만 둔다"), issues(f));
+        FlowDefinition old = flow(List.of(start(), ifNode("if1"), merge("m1", "if1"), end()),
+                List.of(e("e1", "start", "if1"), br("e2", "if1", "m1", 1, "X > 0"), other("e3", "if1", "m1"), e("e4", "m1", "end")));
+        assertEquals(List.of(), issues(old));
+        FlowDefinition par = flow(List.of(start(), par("p1"), merge("pm", "p1"), end()),
+                List.of(e("e1", "start", "p1"), pe("e2", "p1", "pm", 1), pe("e3", "p1", "pm", 2), e("e4", "pm", "end")));
+        assertEquals(List.of(), issues(par));
+    }
+
+    @Test
+    void S6_줄기_순환과_모이는_자리_재진입() {
+        // if1 [b1 → a → c → a(순환)] [그 외 → b] → b → end: 모이는 자리를 계산하는 줄기가 a 를 두 번 만난다.
+        FlowDefinition loop = flow(List.of(start(), ifNode("if1"), rule("a", "R_A"), rule("c", "R_C"), rule("b", "R_B"), end()),
+                List.of(e("e0", "start", "if1"), br("b1", "if1", "a", 1, "X > 0"), other("bo", "if1", "b"), e("ea", "a", "c"), e("ec", "c", "a"),
+                        e("eb", "b", "end")));
+        assertEquals(List.of("FLOW_STRUCTURE|a|null|a를 두 번 지난다. 순환이 있거나 갈래가 모이는 자리 밖에서 만난다"), issues(loop));
+        // r1 → if1 [b1 → a → r1] [그 외 → end]: if1 의 모이는 자리를 계산하다 다시 if1 의 모이는 자리가 필요하다(N7).
+        FlowDefinition back = flow(List.of(start(), rule("r1", "R_A"), ifNode("if1"), rule("a", "R_B"), end()),
+                List.of(e("e1", "start", "r1"), e("e2", "r1", "if1"), br("b1", "if1", "a", 1, "X > 0"), other("bo", "if1", "end"), e("ea", "a", "r1")));
+        assertEquals(List.of("FLOW_STRUCTURE|if1|null|if1를 두 번 지난다. 순환이 있거나 갈래가 모이는 자리 밖에서 만난다"), issues(back));
+    }
+
+    @Test
+    void S6_갈래가_다른_갈래_중간_노드로_들어간다() {
+        // N5 — 세 갈래가 모두 z 에서 만나고 b1·b2 는 y 를 함께 지난다: b2 가 이미 지난 y 를 다시 만난다.
+        FlowDefinition f = flow(List.of(start(), ifNode("if1"), rule("a", "A"), rule("b", "B"), rule("c", "C"), rule("y", "D"), rule("z", "E"), end()),
+                List.of(e("e1", "start", "if1"), br("b1", "if1", "a", 1, "X > 1"), br("b2", "if1", "b", 2, "X > 2"), other("bo", "if1", "c"),
+                        e("ea", "a", "y"), e("eb", "b", "y"), e("ec", "c", "z"), e("ey", "y", "z"), e("ez", "z", "end")));
+        assertEquals(List.of("FLOW_STRUCTURE|y|null|y를 두 번 지난다. 순환이 있거나 갈래가 모이는 자리 밖에서 만난다"), issues(f));
+    }
+
+    // ── 돌아오는 자리(implicit-join spec §2.3) ──
+
+    @Test
+    void 처리_갈래가_룰_바로_뒤_노드나_정상_경로_중간_노드로_돌아온다() {
+        FlowParse p = FlowParser.parse(flow(List.of(start(), rule("r1", "R_G"), catchNode("c1", "r1", "NO_RESULT"), rule("h", "R_H"), rule("n", "R_F"), end()),
+                List.of(e("e1", "start", "r1"), e("e2", "r1", "n"), e("e3", "c1", "h"), e("e4", "h", "n"), e("e5", "n", "end"))));
+        assertEquals(List.of(), p.issues());
+        Guarded g = (Guarded) p.tree().root().items().get(0);
+        assertEquals("n", g.joinId());
+        assertNull(g.mergeId());
+        assertEquals(List.of(), g.normal().items());
+        assertEquals(new Guarded.Handler("c1", List.of(CatchKind.NO_RESULT), new Seq(List.of(new RuleStep("h", "R_H"))), false), g.handlers().get(0));
+        assertEquals(new RuleStep("n", "R_F"), p.tree().root().items().get(1));
+        FlowParse mid = FlowParser.parse(flow(List.of(start(), rule("r1", "R_G"), rule("n1", "R_K"), catchNode("c1", "r1", "NO_RESULT"), rule("h", "R_H"),
+                        rule("n2", "R_F"), end()),
+                List.of(e("e1", "start", "r1"), e("e2", "r1", "n1"), e("e3", "n1", "n2"), e("e4", "c1", "h"), e("e5", "h", "n2"), e("e6", "n2", "end"))));
+        Guarded gm = (Guarded) mid.tree().root().items().get(0);
+        assertEquals("n2", gm.joinId());
+        assertEquals(List.of(new RuleStep("n1", "R_K")), gm.normal().items());
+    }
+
+    @Test
+    void S7_두_처리_갈래가_서로_다른_노드로_돌아온다() {
+        FlowDefinition f = flow(List.of(start(), rule("r1", "A"), rule("x", "B"), rule("y", "C"), catchNode("c1", "r1", "NO_RESULT"), rule("h1", "D"),
+                        catchNode("c2", "r1", "EVAL_ERROR"), end()),
+                List.of(e("e1", "start", "r1"), e("e2", "r1", "x"), e("e3", "x", "y"), e("e4", "y", "end"), e("e5", "c1", "h1"), e("e6", "h1", "x"),
+                        e("e7", "c2", "y")));
+        assertEquals(List.of("FLOW_STRUCTURE|c2|null|r1의 처리 갈래 c2가 y로 돌아온다. 앞 처리 갈래 c1처럼 x로 돌아와야 한다"), issues(f));
+    }
+
+    @Test
+    void S8_처리_갈래가_정상_갈래_노드로_들어가면_방문_검사보다_먼저_멈춘다() {
+        // c1 → if1 [b1 → h1 → n1] [그 외 → h2 → n2]: if1 의 갈래는 n2 에서 만나 돌아오는 자리는 n2, 그런데 b1 은 정상 갈래 노드 n1 을 지난다.
+        FlowDefinition f = flow(List.of(start(), rule("r1", "A"), rule("n1", "B"), rule("n2", "C"), catchNode("c1", "r1", "NO_RESULT"), ifNode("if1"),
+                        rule("h1", "D"), rule("h2", "E"), end()),
+                List.of(e("e1", "start", "r1"), e("e2", "r1", "n1"), e("e3", "n1", "n2"), e("e4", "n2", "end"), e("e5", "c1", "if1"),
+                        br("b1", "if1", "h1", 1, "X > 0"), other("bo", "if1", "h2"), e("e6", "h1", "n1"), e("e7", "h2", "n2")));
+        assertEquals(List.of("FLOW_STRUCTURE|n1|null|처리 갈래 c1가 r1의 정상 갈래 노드 n1로 들어간다. 처리 갈래는 한 노드로 돌아오거나 끝 노드로 가야 한다"),
+                issues(f));
+    }
+
+    @Test
+    void S9_셋째_문구와_정상_갈래가_병렬을_넘어_END_로_빠지는_S5() {
+        // N25 — 처리 갈래가 아직 지나지 않은 다른 병렬의 합류 pm3 을 지나 돌아오는 자리 j 로 가려 한다.
+        FlowDefinition s9 = flow(List.of(start(), ifNode("if1"), rule("r1", "A"), catchNode("c1", "r1", "NO_RESULT"), rule("h", "B"), par("p3"),
+                        rule("a", "C"), merge("pm3", "p3"), rule("j", "D"), end()),
+                List.of(e("e1", "start", "if1"), br("b1", "if1", "r1", 1, "X > 0"), other("bo", "if1", "p3"), e("e2", "r1", "j"), e("ec", "c1", "h"),
+                        e("eh", "h", "pm3"), pe("pa", "p3", "a", 1), pe("pb", "p3", "pm3", 2), e("ea", "a", "pm3"), e("ep", "pm3", "j"), e("ej", "j", "end")));
+        assertEquals(List.of("FLOW_STRUCTURE|pm3|null|처리 갈래 c1가 돌아올 자리 j나 끝에 닿지 않고 pm3로 나간다"), issues(s9));
+        // N16 — 처리 갈래가 병렬 합류 pm 으로 돌아온다(J = pm). 정상 갈래는 병렬을 한 칸으로 넘어 pm 에 닿지 않고 END 로 빠진다.
+        FlowDefinition s5 = flow(List.of(start(), rule("r1", "A"), par("p1"), rule("a", "B"), rule("b", "C"), merge("pm", "p1"), rule("x", "D"),
+                        catchNode("c1", "r1", "NO_RESULT"), rule("h", "E"), end()),
+                List.of(e("e1", "start", "r1"), e("e2", "r1", "p1"), pe("pa", "p1", "a", 1), pe("pb", "p1", "b", 2), e("ea", "a", "pm"), e("eb", "b", "pm"),
+                        e("ep", "pm", "x"), e("ex", "x", "end"), e("ec", "c1", "h"), e("eh", "h", "pm")));
+        assertEquals(List.of("FLOW_STRUCTURE|end|null|갈래가 pm에서 닫히지 않고 end로 나간다"), issues(s5));
+    }
+
+    @Test
+    void 돌아오는_자리가_IF_모이는_자리이거나_병렬_합류여도_받는다() {
+        // N13 — r1 은 if1 의 b1 갈래 안, c1 → h → j(= if1 의 모이는 자리).
+        Split s = split(flow(List.of(start(), ifNode("if1"), rule("r1", "G"), catchNode("c1", "r1", "NO_RESULT"), rule("h", "H"), rule("x", "K"),
+                        rule("j", "F"), end()),
+                List.of(e("e0", "start", "if1"), br("b1", "if1", "r1", 1, "X > 0"), other("bo", "if1", "x"), e("e2", "r1", "j"), e("ec", "c1", "h"),
+                        e("eh", "h", "j"), e("ex", "x", "j"), e("ej", "j", "end"))), 0);
+        assertEquals("j", s.joinId());
+        assertEquals("j", ((Guarded) s.branches().get(0).body().items().get(0)).joinId());
+        // N14 — 병렬 갈래 안 r1 의 처리 갈래가 병렬 합류 pm 으로 돌아온다.
+        Split p = split(flow(List.of(start(), par("p1"), rule("r1", "G"), catchNode("c1", "r1", "NO_RESULT"), rule("h", "H"), rule("y", "K"),
+                        merge("pm", "p1"), rule("z", "F"), end()),
+                List.of(e("e0", "start", "p1"), pe("pa", "p1", "r1", 1), pe("pb", "p1", "y", 2), e("e2", "r1", "pm"), e("ec", "c1", "h"),
+                        e("eh", "h", "pm"), e("ey", "y", "pm"), e("ep", "pm", "z"), e("ez", "z", "end"))), 0);
+        Guarded g = (Guarded) p.branches().get(0).body().items().get(0);
+        assertEquals("pm", g.joinId());
+        assertNull(g.mergeId());
+    }
+
+    @Test
+    void 빈_단계에도_받는_노드를_붙이고_TaskStep_블록이_된다() {
+        FlowParse p = FlowParser.parse(flow(List.of(start(), task("t1"), catchNode("c1", "t1", "NO_RESULT"), rule("h", "H"),
+                        catchNode("c2", "t1", "EVAL_ERROR"), rule("n", "F"), end()),
+                List.of(e("e1", "start", "t1"), e("e2", "t1", "n"), e("e3", "c1", "h"), e("e4", "h", "n"), e("e5", "c2", "end"), e("e6", "n", "end"))));
+        assertEquals(List.of(), p.issues());
+        Guarded g = (Guarded) p.tree().root().items().get(0);
+        assertEquals(new TaskStep("t1"), g.step());
+        assertEquals("n", g.joinId());
+        assertTrue(g.handlers().get(1).ends());
+        assertEquals(List.of("H", "F"), p.tree().ruleIds());
     }
 }

@@ -211,17 +211,22 @@ describe("화면 — 여럿 고른 뒤 Delete(M2)", () => {
 
   it("removeMany — 분기와 그 안 노드를 함께 골라도 블록째 한 번 지우고, 없는 ID·합류는 건너뛴다", async () => {
     const { insertRule, insertSplit } = await import("../../../pages/dme/ruleSetEdit/flow-edit");
-    const s = insertSplit(toEditFlow(null, ["FF_A"]), "e2", "IF");
+    // r1 → if1 [갈래 1 → 빈 단계 → r2][그 외 → r2] → r2(모이는 자리, 블록 밖) — IF 에는 합류가 없다(implicit-join §8.2)
+    const s = insertSplit(toEditFlow(null, ["FF_A", "FF_Z"]), "e2", "IF");
     if (!s.ok) throw new Error(s.reason);
     const ifId = s.flow.nodes.find((n) => n.kind === "IF")!.id;
-    const mId = s.flow.nodes.find((n) => n.kind === "MERGE")!.id;
     const branch = s.flow.edges.find((e) => e.from === ifId && !e.otherwise)!;
     const r = insertRule(s.flow, branch.id, "FF_B");
     if (!r.ok) throw new Error(r.reason);
     const inner = r.flow.nodes.find((n) => n.ruleId === "FF_B")!.id;
-    const out = removeMany(r.flow, [ifId, inner, mId, "없음"]);
+    const out = removeMany(r.flow, [ifId, inner, "없음"]);
     expect(out.ok).toBe(true);
-    if (out.ok) expect(out.flow.nodes.map((n) => n.id).sort()).toEqual(["end", "r1", "start"]);
+    if (out.ok) expect(out.flow.nodes.map((n) => n.id).sort()).toEqual(["end", "r1", "r2", "start"]);
+    // 병렬은 짝 합류를 함께 골라도 블록째 한 번 지운다
+    const p = insertSplit(toEditFlow(null, ["FF_A"]), "e2", "PARALLEL");
+    if (!p.ok) throw new Error(p.reason);
+    const pm = removeMany(p.flow, ["par1", "m1"]);
+    expect(pm.ok && pm.flow.nodes.map((n) => n.id).sort()).toEqual(["end", "r1", "start"]);
     expect(removeMany(r.flow, ["start", "end"])).toEqual({ ok: false, reason: "시작 노드는 지울 수 없다" });
   });
 });

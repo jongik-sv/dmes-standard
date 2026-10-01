@@ -156,10 +156,11 @@ public interface DefinitionLookup {
     record FlowDefinition(int version, List<FlowNode> nodes, List<FlowEdge> edges) {}
 
     /**
-     * {@code ruleId} 는 RULE 만, {@code splitId}(짝 분기 노드 ID)는 MERGE 만 쓴다. {@code label} 은 화면 표시용이다.
+     * {@code ruleId} 는 RULE 만, {@code splitId} 는 MERGE 만 쓴다. {@code label} 은 화면 표시용이다.
      * TASK(빈 단계, 4단계 spec §1.1)는 {@code label} 만 쓰고 실행 때 아무것도 읽거나 만들지 않고 지나간다.
-     * CATCH(받는 노드, 받는 노드 spec §2)는 {@code attachTo}(붙은 룰 노드 ID)·{@code catches}(받을 종류 키)를 쓴다. 돌아오는 MERGE 의
-     * {@code splitId} 는 그 룰 노드 ID 다. 두 칸은 CATCH 가 아니면 null 이다.
+     * CATCH(받는 노드, 받는 노드 spec §2)는 {@code attachTo}(붙은 룰 노드 ID)·{@code catches}(받을 종류 키)를 쓴다. {@code splitId} 는 짝 PARALLEL
+     * (옛 형식은 IF·받는 노드가 붙은 노드)이고, IF 와 처리 갈래는 합류 없이 모이는 자리·돌아오는 자리로 바로 간다(D-136).
+     * {@code attachTo} 는 RULE·TASK. 두 칸은 CATCH 가 아니면 null 이다.
      */
     record FlowNode(String id, NodeKind kind, @Nullable String ruleId, @Nullable String splitId, @Nullable String label,
             @Nullable String attachTo, @Nullable List<String> catches) {}

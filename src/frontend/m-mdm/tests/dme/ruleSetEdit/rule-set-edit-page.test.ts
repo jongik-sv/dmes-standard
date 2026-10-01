@@ -240,11 +240,13 @@ describe("RuleSetEditPage", () => {
     expect(q("flow-palette")).not.toBeNull();
     expect(byTestId("flow-canvas").getAttribute("data-mode")).toBe("edit");
     await click("flow-add-if");
-    expect(canvasNodeIds().sort()).toEqual(["end", "if1", "m1", "r1", "r2", "r3", "start"]);
+    // r4 = 「갈래 1」 빈 단계, r5 = END 앞 모이는 자리 빈 단계(합류 없음, implicit-join §8.2 수정 1회차)
+    expect(canvasNodeIds().sort()).toEqual(["end", "if1", "r1", "r2", "r3", "r4", "r5", "start"]);
     const checks = visibleText(byTestId("set-checks"));
     expect(checks).toContain("IF if1의 갈래 e5에 조건식이 없다");
     expect(checks).toContain("거부");
-    expect(visibleText(byTestId("flow-tab-checks"))).toContain("검사 결과 1");
+    expect(checks).toContain("빈 단계 2개"); // 「갈래 1」·모이는 자리 빈 단계의 EMPTY_TASK 경고 한 줄(implicit-join §8.2)
+    expect(visibleText(byTestId("flow-tab-checks"))).toContain("검사 결과 2");
     expect(saveButton().disabled).toBe(true);
   });
 
@@ -304,7 +306,8 @@ describe("RuleSetEditPage", () => {
     const flow = JSON.parse(params.flowJson as string) as RuleSetFlow & { view: unknown };
     const kinds = flow.nodes.map((n) => n.kind);
     expect(kinds).toContain("IF");
-    expect(kinds).toContain("MERGE");
+    expect(kinds).toContain("TASK"); // IF 는 합류 없이 「갈래 1」 빈 단계를 둔다(implicit-join §8.2)
+    expect(kinds).not.toContain("MERGE");
     expect(flow.view).toEqual({ positions: {}, notes: [], groups: [], routes: {}, labels: {} });
     expect(calls("view")).toHaveLength(2);
     const msg = visibleText(byTestId("set-message"));
@@ -339,7 +342,8 @@ describe("RuleSetEditPage", () => {
     });
     await flush();
     expect(visibleText(byTestId("set-checks"))).not.toContain("첫 응답(버려야 함)");
-    expect(visibleText(byTestId("set-checks"))).toContain("통과");
+    expect(visibleText(byTestId("set-checks"))).not.toContain("거부");
+    expect(visibleText(byTestId("set-checks"))).toContain("빈 단계 2개"); // END 앞에 IF 를 끼우면 「갈래 1」·모이는 자리 빈 단계가 생긴다(EMPTY_TASK 경고뿐)
     expect(saveButton().disabled).toBe(false);
   });
 
@@ -433,16 +437,17 @@ describe("RuleSetEditPage", () => {
   // 10
   it("분기 세트를 열면 흐름 그대로 그리고 편집할 수 있다(분기 안내 없음)", async () => {
     await openChain(branchedView());
-    expect(canvasNodeIds().sort()).toEqual(["end", "if1", "m1", "r1", "r2", "r3", "start"]);
+    expect(canvasNodeIds().sort()).toEqual(["end", "if1", "r1", "r2", "r3", "start"]); // 옛 합류 m1 은 열 때 없어진다(implicit-join §12.2)
     expect(q("set-branched-notice")).toBeNull();
     expect(byTestId<HTMLButtonElement>("flow-mode-edit").disabled).toBe(false);
     await click("flow-mode-edit");
     expect(q("flow-palette")).not.toBeNull();
     await click("flow-node-if1");
     await click("flow-prop-add-branch");
-    expect(q("flow-prop-branch-e8-cond")).not.toBeNull();
+    // 새 갈래 선 ID — 변환이 지운 합류 출구 e6 자리를 다시 쓴다(새 빈 단계 r4 → 모이는 자리 r3 선은 e8)
+    expect(q("flow-prop-branch-e6-cond")).not.toBeNull();
     expect(saveButton().disabled).toBe(true); // 새 갈래 조건식이 비어 거부
-    expect(visibleText(byTestId("set-checks"))).toContain("IF if1의 갈래 e8에 조건식이 없다");
+    expect(visibleText(byTestId("set-checks"))).toContain("IF if1의 갈래 e6에 조건식이 없다");
   });
 
   // 11
@@ -777,6 +782,14 @@ describe("RuleSetEditPage", () => {
     await click("flow-bottom-toggle");
     expect(q("set-checks")).not.toBeNull();
   });
+
+  it("옛 합류가 있는 세트를 열면 없앤 형식으로 그리고 알림을 한 번 보이며 dirty 가 아니다(implicit-join R14·J-D12)", async () => {
+    await openChain(branchedView());
+    expect(canvasNodeIds()).not.toContain("m1");
+    expect(visibleText(byTestId("set-message"))).toContain("옛 합류 노드 1개를 없앤 형식으로 바꿔 열었다. 저장하면 새 형식으로 남는다.");
+    await click("flow-mode-edit");
+    expect(saveButton().disabled).toBe(true);
+  });
 });
 
 describe("useRuleSetEdit", () => {
@@ -819,7 +832,7 @@ describe("useRuleSetEdit", () => {
     srv.views.E2S_CHAIN = branchedView();
     await mountProbe("E2S_CHAIN");
     expect(state!.mode).toBe("view");
-    expect(state!.flow!.nodes.map((n) => n.id)).toEqual(BRANCHED_FLOW.nodes.map((n) => n.id));
+    expect(state!.flow!.nodes.map((n) => n.id)).toEqual(BRANCHED_FLOW.nodes.map((n) => n.id).filter((id) => id !== "m1")); // 옛 합류는 열 때 없어진다
     expect(state!.condIo).toEqual({ e3: S_GRD_OK });
     expect(state!.dirty).toBe(false);
     const before = state!.flow;

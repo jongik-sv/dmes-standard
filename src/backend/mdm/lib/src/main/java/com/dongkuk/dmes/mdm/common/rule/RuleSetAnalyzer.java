@@ -237,7 +237,9 @@ public final class RuleSetAnalyzer {
          */
         void guarded(Guarded g, State st) {
             State before = st.copy();
-            rule(g.rule(), st);
+            if (g.step() instanceof RuleStep r) {
+                rule(r, st);
+            }
             never(g);
             State normal = st.copy();
             seq(g.normal(), normal);
@@ -269,9 +271,16 @@ public final class RuleSetAnalyzer {
             st.prodBy().putAll(over);
         }
 
-        /** CATCH_NEVER(R12) — 처리 갈래 순서·받는 종류 저장 순서. 룰이 있고 RELEASED 가 있을 때만. */
+        /** CATCH_NEVER(R12, implicit-join spec §6) — 처리 갈래 순서. 빈 단계는 받는 노드마다 한 줄, 룰은 받는 종류 저장 순서·룰이 있고 RELEASED 가 있을 때만. */
         void never(Guarded g) {
-            String id = g.rule().ruleId();
+            if (!(g.step() instanceof RuleStep step)) {
+                for (Guarded.Handler h : g.handlers()) {
+                    out.add(new RuleSetCheck(RuleSetCheck.CATCH_NEVER, RuleSetCheck.WARN, null, null, null,
+                            g.nodeId() + "는 빈 단계라 " + h.catchNodeId() + "가 받는 예외가 일어나지 않는다", h.catchNodeId(), null));
+                }
+                return;
+            }
+            String id = step.ruleId();
             RuleIo r = rules.get(id);
             if (r == null || !r.exists() || r.releasedVer() == null) {
                 return;
@@ -302,7 +311,9 @@ public final class RuleSetAnalyzer {
             for (Branch br : sp.branches()) {
                 State b = st.copy();
                 seq(br.body(), b);
-                outs.add(b);
+                if (!br.ends()) {
+                    outs.add(b); // 끝내는 IF 갈래는 블록 뒤로 이어지지 않는다(implicit-join spec §6) — 조건식·몸 검사는 했다
+                }
             }
             // defined·maybe 합치기는 확정 검사와 한 벌(P4 RuleSetPathState), prodBy 합치기는 이 검사 전용.
             RuleSetPathState.At merged = RuleSetPathState.merge(sp.kind(), st.at(), outs.stream().map(State::at).toList());

@@ -221,7 +221,7 @@ describe("빈 단계 화면(4단계 Task 9)", () => {
     expect(byTestId("flow-node-r3").classList.contains("rsf-node-drop")).toBe(false);
   });
 
-  it("우클릭 — 빈 단계는 [룰 지정…]·복사·복제·색상·삭제. [룰 지정…] 은 그 노드를 고르고 「룰 지정」 을 펴고 찾기 칸에 초점", async () => {
+  it("우클릭 — 빈 단계는 [룰 지정…]·복사·복제·예외 받기 추가·색상·삭제. [룰 지정…] 은 그 노드를 고르고 「룰 지정」 을 펴고 찾기 칸에 초점", async () => {
     const { flow } = taskFlow();
     await openSet("TK_6", viewOf("TK_6", flow));
     await click("flow-mode-edit");
@@ -230,7 +230,7 @@ describe("빈 단계 화면(4단계 Task 9)", () => {
       byTestId("flow-node-r3").dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 120, clientY: 80 }));
     });
     await flush();
-    expect(menuIds()).toEqual(["rule-assign", "copy", "duplicate", "color", "delete"]);
+    expect(menuIds()).toEqual(["rule-assign", "copy", "duplicate", "catch-add", "color", "delete"]);
     expect(visibleText(byTestId("flow-menu-item-rule-assign"))).toBe("룰 지정…");
     await click("flow-menu-item-rule-assign");
     await settle(10);
