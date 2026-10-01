@@ -7786,13 +7786,14 @@
           { "id": "e3", "from": "m9", "to": "end" }
         ]
       },
-      "condIo": { "b1": { "ok": true, "message": null, "vars": [] } },
       "ids": ["C1"],
       "rules": { "C1": { "exists": true, "status": "INUSE", "releasedVer": 1 } },
       "expect": {
         "io": { "inputs": [], "results": [] },
         "deps": { "C1": [] },
-        "checks": []
+        "checks": [
+          { "code": "FLOW_COND", "severity": "REJECT", "message": "b1 갈래 조건식을 읽을 수 없다: 조건식 정보 없음", "nodeId": "if9", "edgeId": "b1" }
+        ]
       }
     },
     {
