@@ -8,6 +8,7 @@
  *
  * 3단계(계획 P1·P12): 모드 단추 셋(보기·편집·디버그 — 디버그는 누구나), 되돌리기·다시 하기(편집 모드이고 기록이 있을 때), 미니맵 켜고 끄기.
  * 찾기 칸(Enter·[다음] 으로 돈다)과 단축키 도움말 [?] 를 둔다(Task 8). 도움말은 지금 모드의 단축키만 짧은 정의 목록으로 보인다.
+ * 아이콘만 있는 단추(되돌리기·다시 하기·도움말)는 `data-tip` 즉시 CSS 툴팁(`styles/toolbox.ts`, 단추 아래)이고 `title` 은 두지 않는다(브라우저 툴팁과 겹침 방지).
  * S1 의 [공간] 토글은 4단계 P1 에서 도구 상자(`FlowToolbox`)로 옮겼다.
  */
 import { useEffect, useRef, useState, type MouseEvent, type RefObject } from "react";
@@ -156,7 +157,7 @@ export function FlowToolbar(props: FlowToolbarProps) {
           <Button
             data-testid="flow-undo"
             ariaLabel="되돌리기"
-            title={`되돌리기 (${mac ? "⌘Z" : "Ctrl+Z"})`}
+            data-tip={`되돌리기 (${mac ? "⌘Z" : "Ctrl+Z"})`}
             disabled={!editing || !state.canUndo || busy}
             onClick={state.undo}
           >
@@ -165,7 +166,7 @@ export function FlowToolbar(props: FlowToolbarProps) {
           <Button
             data-testid="flow-redo"
             ariaLabel="다시 하기"
-            title={`다시 하기 (${mac ? "⌘⇧Z" : "Ctrl+Shift+Z"})`}
+            data-tip={`다시 하기 (${mac ? "⌘⇧Z" : "Ctrl+Shift+Z"})`}
             disabled={!editing || !state.canRedo || busy}
             onClick={state.redo}
           >
@@ -200,7 +201,7 @@ export function FlowToolbar(props: FlowToolbarProps) {
         </span>
 
         <span ref={helpAnchorRef} className="rsf-toolbar-group rsf-help-anchor">
-          <Button data-testid="flow-help" ariaLabel="단축키 도움말" title="단축키 도움말" aria-expanded={helpOpen} onClick={() => setHelpOpen((o) => !o)}>
+          <Button data-testid="flow-help" ariaLabel="단축키 도움말" data-tip="단축키 도움말" aria-expanded={helpOpen} onClick={() => setHelpOpen((o) => !o)}>
             <IconHelp size={14} aria-hidden="true" />
           </Button>
           {helpOpen && (

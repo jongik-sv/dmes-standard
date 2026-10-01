@@ -30,7 +30,7 @@ import { FlowCanvas, type AlignSource, type MoveShift, type PaletteItem } from "
 import { FlowToolbar } from "./canvas/FlowToolbar";
 import { FlowToolbox, defaultTool, type CanvasTool } from "./canvas/FlowToolbox";
 import { MENU_PROVIDERS } from "./canvas/menus";
-import { UNHANDLED, dispatchShortcut, isMacPlatform, type ShortcutHandlers } from "./canvas/shortcuts";
+import { UNHANDLED, dispatchShortcut, isMacPlatform, isTypingTarget, shortcutOf, type ShortcutHandlers } from "./canvas/shortcuts";
 import { DebugInputs } from "./debugger/DebugInputs";
 import { DebugToolbar } from "./debugger/DebugToolbar";
 import { varLabelsOf } from "./set-model";
@@ -518,6 +518,29 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     }
     if (dispatchShortcut(e, handlers, mac)) keepCanvasFocus();
   };
+
+  // 되돌리기·다시 하기만 캔버스 밖(오른쪽 패널·툴바 단추·body)에서도 받는다. 입력 칸·캔버스 안·대화 상자/메뉴 안·보기·디버그 모드는 건드리지 않는다.
+  // 되돌릴 것이 없거나 바쁜 중이어도 입력 칸 밖이므로 브라우저 기본 되돌리기가 초점을 옮기지 않게 preventDefault 는 한다. 최신 값은 ref 로 읽는다.
+  const outsideUndoRef = useRef<(e: globalThis.KeyboardEvent) => void>(() => undefined);
+  outsideUndoRef.current = (e) => {
+    if (!editing || e.defaultPrevented) return;
+    const t = e.target as Element | null;
+    if (isTypingTarget(t)) return;
+    if (canvasHostRef.current?.contains(t as Node | null)) return;
+    if (t?.closest?.('[role="dialog"], [role="menu"]')) return;
+    const id = shortcutOf(e, mac);
+    if (id !== "undo" && id !== "redo") return;
+    e.preventDefault();
+    if (state.loading) return;
+    if (id === "undo") {
+      if (state.canUndo) state.undo();
+    } else if (state.canRedo) state.redo();
+  };
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => outsideUndoRef.current(e);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
 
   // 캔버스 겹침 — 기록·흐름 사본·단계(커서)가 바뀔 때만 다시 만든다(Local-Rules §16).
   // 디버그 모드는 새 기록일 때만 커서 겹침을 그리고 낡은 기록이면 그리지 않는다(P-D9). 보기·편집 모드는 겹침이 없다.
