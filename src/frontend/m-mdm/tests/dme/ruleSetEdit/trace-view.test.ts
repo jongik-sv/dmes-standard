@@ -305,4 +305,31 @@ describe("trace-view(손 기록)", () => {
     expect(typedText({ type: "BOOLEAN", value: "true" })).toBe("true");
     expect(typedText({ type: "LIST", items: [{ type: "NUMBER", value: "1.10" }, { type: "STRING", value: "a" }] })).toBe("[1.10, a]");
   });
+  it("병렬 갈래 안의 빈 단계(TASK)는 그 갈래 범위의 값을 본다 — 앞 룰 결과가 보이고 형제 갈래 값은 안 보인다", () => {
+    /** start → par1 ─(p1: ra → t1)─(p2: rb)→ m1 → end */
+    const flow: RuleSetFlow = {
+      version: 1,
+      nodes: [fnode("start", "START"), fnode("par1", "PARALLEL"), fnode("ra", "RULE", { ruleId: "RA" }), fnode("t1", "TASK"),
+        fnode("rb", "RULE", { ruleId: "RB" }), fnode("m1", "MERGE", { splitId: "par1" }), fnode("end", "END")],
+      edges: [fedge("e1", "start", "par1"), fedge("p1", "par1", "ra", 1), fedge("e2", "ra", "t1"), fedge("e3", "t1", "m1"),
+        fedge("p2", "par1", "rb", 2), fedge("e4", "rb", "m1"), fedge("e5", "m1", "end")],
+    };
+    const trace: RunTrace = {
+      setId: "(저장 전)", evalTs: "2026-06-01T09:00:00", input: { X: N("0") }, violations: null,
+      finalValues: { X: N("1"), Y: N("3") },
+      nodes: [
+        node(1, "start", "START"),
+        node(2, "par1", "PARALLEL", { order: ["p1", "p2"] }),
+        ruleNode(3, "ra", "RA", { X: N("1") }),
+        node(4, "t1", "TASK"),
+        ruleNode(5, "rb", "RB", { Y: N("3") }),
+        node(6, "m1", "MERGE", { splitId: "par1", merged: ["X", "Y"] }),
+        node(7, "end", "END"),
+      ],
+    };
+    const fr = frames(trace, flow);
+    expect(fr[3].before.X).toEqual(N("1"));
+    expect(fr[3].changed).toEqual([]);
+    expect(fr[4].before.X).toEqual(N("0"));
+  });
 });

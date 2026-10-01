@@ -155,7 +155,10 @@ public interface DefinitionLookup {
     /** 흐름 정의 — FLOW_JSON 의 nodes·edges. 화면 전용 view 는 싣지 않는다. {@code version} 은 형식 버전(지금 1). */
     record FlowDefinition(int version, List<FlowNode> nodes, List<FlowEdge> edges) {}
 
-    /** {@code ruleId} 는 RULE 만, {@code splitId}(짝 분기 노드 ID)는 MERGE 만 쓴다. {@code label} 은 화면 표시용. */
+    /**
+     * {@code ruleId} 는 RULE 만, {@code splitId}(짝 분기 노드 ID)는 MERGE 만 쓴다. {@code label} 은 화면 표시용이다.
+     * TASK(빈 단계, 4단계 spec §1.1)는 {@code label} 만 쓰고 실행 때 아무것도 읽거나 만들지 않고 지나간다.
+     */
     record FlowNode(String id, NodeKind kind, @Nullable String ruleId, @Nullable String splitId, @Nullable String label) {}
 
     /**
@@ -165,5 +168,5 @@ public interface DefinitionLookup {
     record FlowEdge(String id, String from, String to, @Nullable Integer order, @Nullable String cond, boolean otherwise,
             @Nullable String label) {}
 
-    enum NodeKind { START, END, RULE, IF, PARALLEL, MERGE }
+    enum NodeKind { START, END, RULE, TASK, IF, PARALLEL, MERGE }
 }

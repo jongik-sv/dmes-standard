@@ -160,7 +160,7 @@
       "description": "판정 오류 코드(Java EngineEvaluationException.Code 와 같은 이름).",
       "enum": ["RULE_NOT_FOUND", "SET_NOT_FOUND", "SET_DEPRECATED", "MISSING_KEY", "REQUIRED_NULL", "TYPE_CONVERSION",
                "CONSTANT_KEY", "RESERVED_KEY", "EVAL_TS_KEY", "UNIQUE_MULTIPLE_HITS", "ANY_CONFLICT", "EVALUATION_ERROR",
-               "BRANCH_EVAL_ERROR", "FLOW_INVALID"]
+               "BRANCH_EVAL_ERROR", "FLOW_INVALID", "EDIT_POINT_MISMATCH"]
     },
 
     "CorpusFile": {
@@ -364,7 +364,7 @@
       "additionalProperties": false
     },
     "RunTrace": {
-      "description": "룰 세트 실행 기록(Java RunTrace, 룰 세트 흐름도 spec §4.2). 판정 오류는 던지지 않고 violations 에 담는다. 실행 전 오류면 nodes 가 비었다.",
+      "description": "룰 세트 실행 기록(Java RunTrace, 룰 세트 흐름도 spec §4.2). 판정 오류는 던지지 않고 violations 에 담는다. 실행 전 오류면 nodes 가 비었다. edits 는 디버거에서 고친 값을 끼워 다시 실행했을 때만 있고(4단계 spec §2.3), 없으면 키를 뺀다.",
       "type": "object",
       "properties": {
         "setId": { "type": "string" },
@@ -372,13 +372,14 @@
         "input": { "type": "object", "additionalProperties": { "$ref": "#/$defs/TypedValue" } },
         "nodes": { "type": "array", "items": { "$ref": "#/$defs/NodeTrace" } },
         "finalValues": { "type": "object", "additionalProperties": { "$ref": "#/$defs/TypedValue" } },
-        "violations": { "type": ["array", "null"], "items": { "$ref": "#/$defs/Violation" } }
+        "violations": { "type": ["array", "null"], "items": { "$ref": "#/$defs/Violation" } },
+        "edits": { "type": "array", "items": { "$ref": "#/$defs/TraceEdit" } }
       },
       "required": ["setId", "evalTs", "input", "nodes", "finalValues", "violations"],
       "additionalProperties": false
     },
     "NodeTrace": {
-      "description": "노드 하나의 기록(Java RunTrace.NodeTrace). RULE: ruleId·ver·reads·result, IF: branches·chosenEdgeId, PARALLEL: order, MERGE: splitId·merged, ERROR: violations. result 는 OK 인 RULE 노드에만 있고, 값이 없으면 키를 뺀다(null 을 쓰지 않는다).",
+      "description": "노드 하나의 기록(Java RunTrace.NodeTrace). RULE: ruleId·ver·reads·result, IF: branches·chosenEdgeId, PARALLEL: order, MERGE: splitId·merged, TASK: 칸 없이 status 만, ERROR: violations. result 는 OK 인 RULE 노드에만 있고, 값이 없으면 키를 뺀다(null 을 쓰지 않는다).",
       "type": "object",
       "properties": {
         "seq": { "type": "integer" },
@@ -410,6 +411,17 @@
       "required": ["edgeId", "outcome", "message"],
       "additionalProperties": false
     },
+    "TraceEdit": {
+      "description": "디버거에서 고친 값 하나(Java RunTrace.TraceEdit, 4단계 spec §2.2). beforeSeq 번째 노드(1부터, NodeTrace.seq 와 같은 수)를 시작하기 직전에 그 노드 범위의 ctx 에 values 를 넣는다. NULL 은 비우기, ctx 에 없던 이름은 추가다.",
+      "type": "object",
+      "properties": {
+        "beforeSeq": { "type": "integer", "minimum": 1 },
+        "nodeId": { "type": "string", "minLength": 1 },
+        "values": { "type": "object", "additionalProperties": { "$ref": "#/$defs/TypedValue" } }
+      },
+      "required": ["beforeSeq", "nodeId", "values"],
+      "additionalProperties": false
+    },
     "NodeStatus": { "description": "노드 실행 상태(Java RunTrace.NodeStatus).", "enum": ["OK", "ERROR"] },
     "BranchOutcome": { "description": "IF 갈래 평가 결과(Java RunTrace.BranchOutcome). NOT_EVALUATED = 앞 갈래가 참이었거나 앞 갈래 평가가 오류로 멈춰 평가하지 않음. IF 의 branches 는 늘 나가는 선마다 하나씩, 실행 순서대로 있다.", "enum": ["TRUE", "FALSE", "NULL", "ERROR", "NOT_EVALUATED"] },
     "RuleSetFlow": {
@@ -424,7 +436,7 @@
       "additionalProperties": false
     },
     "FlowNode": {
-      "description": "흐름 노드(Java DefinitionLookup.FlowNode). ruleId 는 RULE 만, splitId 는 MERGE 만 쓴다.",
+      "description": "흐름 노드(Java DefinitionLookup.FlowNode). ruleId 는 RULE 만, splitId 는 MERGE 만 쓴다. TASK(빈 단계)는 label 만 쓰고 실행 때 그냥 지나간다.",
       "type": "object",
       "properties": {
         "id": { "type": "string", "minLength": 1 },
@@ -451,7 +463,7 @@
       "required": ["id", "from", "to", "order", "cond", "otherwise", "label"],
       "additionalProperties": false
     },
-    "FlowNodeKind": { "description": "흐름 노드 종류(Java DefinitionLookup.NodeKind).", "enum": ["START", "END", "RULE", "IF", "PARALLEL", "MERGE"] },
+    "FlowNodeKind": { "description": "흐름 노드 종류(Java DefinitionLookup.NodeKind). TASK = 빈 단계(4단계 spec §1.1).", "enum": ["START", "END", "RULE", "TASK", "IF", "PARALLEL", "MERGE"] },
     "EngineError": {
       "description": "판정 오류 응답(Java EngineEvaluationException.violations 의 JSON 모양).",
       "type": "object",

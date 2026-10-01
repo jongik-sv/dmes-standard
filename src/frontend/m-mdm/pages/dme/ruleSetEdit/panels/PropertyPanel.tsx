@@ -54,6 +54,7 @@ const KIND_TEXT: Record<FlowNode["kind"], string> = {
   START: "시작 — 세트를 부르면 여기서 시작한다. 지울 수 없다",
   END: "끝 — 여기까지 오면 모은 결과 변수를 돌려준다. 지울 수 없다",
   RULE: "룰",
+  TASK: "빈 단계 — 입력·출력 없이 지나간다. 룰을 지정하면 룰 노드가 된다",
   IF: "IF 분기",
   PARALLEL: "병렬 분기",
   MERGE: "합류",

@@ -82,7 +82,7 @@ class EngineContractSchemaTest {
             new EnumPair("E10", "NodeStatus", () -> enumNames(RunTrace.NodeStatus.class), () -> enumOf("NodeStatus")),
             new EnumPair("E11", "BranchOutcome", () -> enumNames(RunTrace.BranchOutcome.class), () -> enumOf("BranchOutcome")));
 
-    /** R1-R18 — Java record ↔ 스키마 객체 정의(유니온이면 유니온 뷰). */
+    /** R1-R19 — Java record ↔ 스키마 객체 정의(유니온이면 유니온 뷰). */
     private static final Map<String, RecordPair> RECORDS = orderedMap(
             // params: Java 는 빈 목록(null 아님), JSON 은 자식이 없으면 키를 뺀다(AstExporter 규칙) — 표지 대조에서 뺀다.
             new RecordPair("R1", AstNode.class, "AstNode", Set.of(), Set.of("params")),
@@ -105,7 +105,9 @@ class EngineContractSchemaTest {
             // 세트 실행 기록(plan C5). NodeTrace.result 는 $ref 라 required 에서만 뺀다(선택 = required 아님).
             new RecordPair("R16", RunTrace.class, "RunTrace", Set.of(), Set.of()),
             new RecordPair("R17", RunTrace.NodeTrace.class, "NodeTrace", Set.of(), Set.of()),
-            new RecordPair("R18", RunTrace.BranchTrace.class, "BranchTrace", Set.of(), Set.of()));
+            new RecordPair("R18", RunTrace.BranchTrace.class, "BranchTrace", Set.of(), Set.of()),
+            // 4단계 E4 — 디버거에서 고친 값(4단계 spec §2.2). RunTrace.edits 는 JSON 에서 선택 칸이다(없으면 키를 뺀다).
+            new RecordPair("R19", RunTrace.TraceEdit.class, "TraceEdit", Set.of(), Set.of()));
 
     /** Java 대응이 없는 $defs 와 그 사유. */
     private static final Set<String> SCHEMA_ONLY = Set.of(
@@ -233,7 +235,7 @@ class EngineContractSchemaTest {
 
     @Test
     void expr_rule_패키지의_record_enum_은_스키마_대응이_있거나_Java_전용_목록에_있다() {
-        // E1·E4-E8·E10-E11 의 Java enum 과 R1-R18 record 중 expr·rule 에 있는 것(spi 의 대응 타입은 검사 범위 밖이다).
+        // E1·E4-E8·E10-E11 의 Java enum 과 R1-R19 record 중 expr·rule 에 있는 것(spi 의 대응 타입은 검사 범위 밖이다).
         Set<String> mapped = Stream.concat(
                         RECORDS.values().stream().map(RecordPair::type),
                         Stream.of(AstNode.Type.class, DefinitionLookup.DataType.class, EngineEvaluationException.Code.class,

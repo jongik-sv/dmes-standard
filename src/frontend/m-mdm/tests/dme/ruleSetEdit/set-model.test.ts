@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import type { FlowEdge, FlowNode, FlowNodeKind, RuleSetFlow } from "../../../src/contract/engine-contract.generated";
 import { condMarks, flowChecks, flowIo, isFinalResult, laterDeps, setChecks, setDeps, setIo } from "../../../pages/dme/ruleSetEdit/set-model";
-import type { CondIo, IoName, IoSource, RuleIo } from "../../../pages/dme/ruleSetEdit/types";
+import type { CondIo, IoName, IoSource, RuleIo, RuleSetCheck } from "../../../pages/dme/ruleSetEdit/types";
 
 const n = (name: string, source: IoSource | null = null, extra: Partial<IoName> = {}): IoName => ({
   name,
@@ -338,5 +338,26 @@ describe("flowChecks — 흐름 기준 검사(계획 C4)", () => {
   it("목록 검사(setChecks)는 한 줄 흐름으로 돌리고 위치를 비운다", () => {
     const rules = byId(rule("A", [n("S_X", "NONE")], [n("S_A")]), rule("B", [], [n("S_X")]));
     expect(setChecks(["A", "B"], rules).map((c) => [c.code, c.nodeId, c.edgeId])).toEqual([["ORDER", null, null]]);
+  });
+});
+
+describe("flowChecks — 빈 단계(TASK)가 있는 흐름(4단계)", () => {
+  const tn = (id: string, kind: FlowNodeKind, over: Partial<FlowNode> = {}): FlowNode => ({ id, kind, ruleId: null, splitId: null, label: null, ...over });
+  const te = (id: string, from: string, to: string): FlowEdge => ({ id, from, to, order: null, cond: null, otherwise: false, label: null });
+
+  it("TASK 는 경로 검사에서 읽고 만드는 것이 없다 — 빈 단계 경고(EMPTY_TASK, Task 3)를 빼면 TASK 를 뺀 흐름의 검사와 같다", () => {
+    const rules = byId(rule("R1", [], [n("A")]), rule("R2", [n("A")], [n("B")]));
+    const withTask: RuleSetFlow = {
+      version: 1,
+      nodes: [tn("start", "START"), tn("r1", "RULE", { ruleId: "R1" }), tn("t1", "TASK"), tn("r2", "RULE", { ruleId: "R2" }), tn("end", "END")],
+      edges: [te("e1", "start", "r1"), te("e2", "r1", "t1"), te("e3", "t1", "r2"), te("e4", "r2", "end")],
+    };
+    const without: RuleSetFlow = {
+      version: 1,
+      nodes: [tn("start", "START"), tn("r1", "RULE", { ruleId: "R1" }), tn("r2", "RULE", { ruleId: "R2" }), tn("end", "END")],
+      edges: [te("e1", "start", "r1"), te("e3", "r1", "r2"), te("e4", "r2", "end")],
+    };
+    const strip = (cs: RuleSetCheck[]) => cs.filter((c) => c.code !== "EMPTY_TASK");
+    expect(strip(flowChecks(withTask, rules, {}))).toEqual(flowChecks(without, rules, {}));
   });
 });

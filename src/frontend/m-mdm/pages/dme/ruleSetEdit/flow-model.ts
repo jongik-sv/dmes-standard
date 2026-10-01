@@ -27,6 +27,12 @@ export interface RuleStep {
   ruleId: string;
 }
 
+/** 빈 단계(TASK) 노드 하나 — 읽거나 만드는 것 없이 지나간다(4단계 spec §1.1). 엔진 `flow.TaskStep` 의 짝(Task 2). */
+export interface TaskStep {
+  type: "TASK";
+  nodeId: string;
+}
+
 export interface Branch {
   edgeId: string;
   cond: string | null;
@@ -44,7 +50,7 @@ export interface Split {
   branches: Branch[];
 }
 
-export type Block = Seq | RuleStep | Split;
+export type Block = Seq | RuleStep | TaskStep | Split;
 
 export type Relation = "SAME" | "BEFORE" | "AFTER" | "EXCLUSIVE" | "PARALLEL";
 
@@ -61,8 +67,8 @@ interface Degree {
 const ONE: Degree = { min: 1, max: 1 };
 const NONE: Degree = { min: 0, max: 0 };
 const MANY: Degree = { min: 2, max: Number.POSITIVE_INFINITY };
-const IN_DEGREE: Record<FlowNodeKind, Degree> = { START: NONE, END: ONE, RULE: ONE, IF: ONE, PARALLEL: ONE, MERGE: MANY };
-const OUT_DEGREE: Record<FlowNodeKind, Degree> = { START: ONE, END: NONE, RULE: ONE, IF: MANY, PARALLEL: MANY, MERGE: ONE };
+const IN_DEGREE: Record<FlowNodeKind, Degree> = { START: NONE, END: ONE, RULE: ONE, TASK: ONE, IF: ONE, PARALLEL: ONE, MERGE: MANY };
+const OUT_DEGREE: Record<FlowNodeKind, Degree> = { START: ONE, END: NONE, RULE: ONE, TASK: ONE, IF: MANY, PARALLEL: MANY, MERGE: ONE };
 
 const degreeText = (d: Degree) => (d.max === 0 ? "없어야 한다" : d.max === 1 ? "1개여야 한다" : "2개 이상이어야 한다");
 /** Java `String.isBlank()` 과 같은 판정(C3 공백 규칙). `trim()` 은 NBSP·BOM 을 공백으로 봐 Java 와 갈라진다. */
@@ -206,6 +212,11 @@ function build(unique: readonly FlowNode[], byId: ReadonlyMap<string, FlowNode>,
         cur = next(cur);
         continue;
       }
+      if (node.kind === "TASK") {
+        items.push({ type: "TASK", nodeId: cur });
+        cur = next(cur);
+        continue;
+      }
       const splitId = cur;
       const mergeId = mergeOf.get(splitId)!;
       const branches = sortBranches(node.kind, outOf(splitId)).map((e) => ({
@@ -238,7 +249,7 @@ function build(unique: readonly FlowNode[], byId: ReadonlyMap<string, FlowNode>,
 interface Position {
   /** 루트에서 이 노드까지 지나는 (분기, 갈래 번호). */
   chain: ReadonlyArray<{ split: string; kind: "IF" | "PARALLEL"; branch: number }>;
-  /** 깊이 우선 순번(RULE·분기 노드). */
+  /** 깊이 우선 순번(RULE·TASK·분기 노드). */
   order: number;
 }
 
@@ -259,6 +270,8 @@ export class FlowTree {
         if (b.type === "RULE") {
           this.positions.set(b.nodeId, { chain, order: counter++ });
           this.steps.push(b);
+        } else if (b.type === "TASK") {
+          this.positions.set(b.nodeId, { chain, order: counter++ });
         } else if (b.type === "SPLIT") {
           this.hasSplit = true;
           this.positions.set(b.nodeId, { chain, order: counter++ });
