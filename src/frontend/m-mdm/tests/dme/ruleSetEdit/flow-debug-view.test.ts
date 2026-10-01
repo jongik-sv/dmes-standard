@@ -159,6 +159,7 @@ describe("블록 접기(D16)", () => {
     await openView();
     await toggleCollapse("if1");
     expect(has("r3")).toBe(false);
+    await click("flow-find-open");
     const box = byTestId<HTMLInputElement>("flow-find");
     await typeInto(box, "GT_SLOW");
     await settle(50);

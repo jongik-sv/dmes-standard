@@ -554,7 +554,7 @@ describe("화면 — [공간] 토글·Alt+끌기", () => {
     expect(document.activeElement).toBe(byTestId("flow-canvas"));
   });
 
-  it("툴바·팔레트 단추는 마우스로 눌러도 초점을 가져가지 않는다(mousedown 기본 동작 막음). 찾기 칸은 그대로", async () => {
+  it("툴바·팔레트·찾기 위젯 단추는 마우스로 눌러도 초점을 가져가지 않는다(mousedown 기본 동작 막음). 찾기 칸은 그대로", async () => {
     await openSet("SC_M", viewOf("SC_M", chain()));
     await click("flow-mode-edit");
     const down = (id: string) => {
@@ -562,7 +562,9 @@ describe("화면 — [공간] 토글·Alt+끌기", () => {
       byTestId(id).dispatchEvent(ev);
       return ev.defaultPrevented;
     };
-    for (const id of ["flow-undo", "flow-space-tool", "flow-auto-layout", "flow-fit", "flow-help", "flow-mode-view"]) expect(down(id), id).toBe(true);
+    for (const id of ["flow-undo", "flow-space-tool", "flow-auto-layout", "flow-fit", "flow-help", "flow-mode-view", "flow-find-open"]) expect(down(id), id).toBe(true);
+    await click("flow-find-open");
+    for (const id of ["flow-find-prev", "flow-find-next", "flow-find-close", "flow-find-case", "flow-find-word", "flow-find-regex"]) expect(down(id), id).toBe(true);
     expect(down("flow-find")).toBe(false);
     // 팔레트는 HTML5 끌기(draggable)를 살리려고 mousedown 을 막지 않고, 마우스로 누른 뒤 초점을 놓는다.
     const note = byTestId("flow-add-note");

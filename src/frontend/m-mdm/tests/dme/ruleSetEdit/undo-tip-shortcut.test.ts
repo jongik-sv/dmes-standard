@@ -182,6 +182,7 @@ describe("화면 — 되돌리기·다시 하기 단축키는 캔버스 밖에�
   it("입력 칸(찾기 칸)에 초점이 있으면 흐름을 되돌리지 않는다", async () => {
     await openSet("UT_INPUT", viewOf("UT_INPUT"));
     await editOnce();
+    await click("flow-find-open");
     const ev = await key(byTestId("flow-find"), { key: "z", metaKey: true });
     expect(ev.defaultPrevented).toBe(false);
     expect(noteCount()).toBe(1);

@@ -553,6 +553,9 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await pickSet(page, "E2S_FLOW");
     await expect(flowNodes(page)).toHaveCount(7, { timeout: 20_000 });
 
+    // 툴바 [노드 찾기] 가 캔버스 오른쪽 위 찾기 위젯을 연다(Ctrl/Cmd+F 와 같다).
+    await page.getByTestId("flow-find-open").click();
+    await expect(page.getByTestId("flow-find-widget")).toBeVisible();
     await page.getByTestId("flow-find").fill("E2S_FCT");
     await expect(page.getByTestId("flow-find-count")).toHaveText("1/1");
 

@@ -14,6 +14,8 @@
  * - 아래 탭: 보기·편집 = 검사 결과 하나, 디버그 = 값 표·실행 비교·검사 결과. 디버그로 들고 날 때 그 모드의 첫 탭으로 간다
  *   (보기↔편집은 탭이 같아 그대로 둔다). 디버그 모드에 들어가면 [변수 흐름]을 켜고 나오면 들어가기 전 값으로 돌린다(P-D16).
  * 단축키(P3)는 캔버스 감싸개(`rsf-canvas-host`)의 onKeyDown 에서만 디스패처로 받는다 — 손잡이 표는 모드별로 여기서 만든다.
+ * 노드 찾기(2026-10-01): Ctrl/Cmd+F·툴바 [노드 찾기] 가 감싸개 안 오른쪽 위에 찾기 위젯(`FindWidget`)을 연다. 열려 있는 동안 감싸개에 `data-find-open` 을
+ * 붙여 미니맵을 위젯 아래로 내린다(styles/menu.ts). Esc·[닫기] 는 초점을 캔버스로 돌리고 닫는다. 글자·옵션은 `useFind` 가 들고 있어 닫아도 남는다.
  * 우클릭·[+] 메뉴(P4)는 제공자(`canvas/menus`)가 항목을 만들고 `ContextMenu` 가 그린다. 항목이 0개면 열지 않는다.
  * 분할 골격(`ContentBody`/`ContentPanel`)은 이 파일의 직접 자식으로 둔다(Part B §4-3 — 드래그 막대가 직접 자식에만 붙는다).
  * 디버그 모드 밖에서는 왼쪽 칸을 그리지 않는다 — 너비는 shared 가 key(`left`)로 기억하므로 디버그로 돌아오면 사용자가 끈 너비 그대로다.
@@ -27,6 +29,7 @@ import { searchSets } from "./api";
 import { ContextMenu } from "./canvas/ContextMenu";
 import { alignNodes, distributeNodes, nudgeNodes, type AlignKind, type DistributeAxis } from "./canvas/align";
 import { buildMenu, type CanvasActions, type MenuItem, type MenuTarget } from "./canvas/context-menu";
+import { FindWidget } from "./canvas/FindWidget";
 import { FlowCanvas, type AlignSource, type MoveShift, type PaletteItem } from "./canvas/FlowCanvas";
 import { FlowToolbar } from "./canvas/FlowToolbar";
 import { FlowToolbox, defaultTool, type CanvasTool } from "./canvas/FlowToolbox";
@@ -133,8 +136,16 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   const [editingCond, setEditingCond] = useState<string | null>(null);
   /** 선 라벨 즉석 편집 중인 선(Task 9) — 우클릭 메뉴 「라벨 편집」이 연다. */
   const [editingLabel, setEditingLabel] = useState<string | null>(null);
-  /** 툴바 찾기 칸(Task 8 이 단다) — Ctrl/Cmd+F 가 초점을 옮긴다. */
+  /** 찾기 위젯(`FindWidget`)의 입력 칸. */
   const findInputRef = useRef<HTMLInputElement | null>(null);
+  /** 찾기 위젯이 열려 있는가 — 닫아도 글자·옵션은 `useFind` 에 남는다. */
+  const [findOpen, setFindOpen] = useState(false);
+  /** 올릴 때마다 위젯이 입력 칸에 초점을 두고 전체 선택한다(Ctrl/Cmd+F·툴바 [노드 찾기]). */
+  const [findFocusSeq, setFindFocusSeq] = useState(0);
+  const openFind = useCallback(() => {
+    setFindOpen(true);
+    setFindFocusSeq((s) => s + 1);
+  }, []);
   const flowRef = useRef<EditFlow | null>(flow);
   flowRef.current = flow;
 
@@ -450,6 +461,11 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
    * 단축키로 편집한 뒤 — 초점을 가진 요소(누른 선·노드)가 지워지면 초점이 문서(body)로 빠져 다음 단축키(Ctrl+Z 등)가 캔버스에 닿지 않는다.
    * 다시 그린 뒤 초점이 body·없음·떨어져 나간 요소면 캔버스로 돌린다(U3, 도움말 Esc·메뉴 닫힘과 같은 규칙). 초점이 다른 곳(입력 칸 등)에 있으면 두지 않는다.
    */
+  /** 찾기 위젯 닫기(Esc·[닫기]) — 입력 칸이 사라지며 초점이 body 로 빠지지 않게 캔버스로 먼저 옮긴 뒤 닫는다. */
+  const closeFind = useCallback(() => {
+    focusCanvas();
+    setFindOpen(false);
+  }, [focusCanvas]);
   const keepCanvasFocus = useCallback(() => {
     setTimeout(() => {
       const a = document.activeElement;
@@ -493,8 +509,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     if (!menuWasOpen) clearCanvasSelectionRef.current?.();
   };
   const onCanvasKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    const focusFind = findInputRef.current ? () => findInputRef.current?.focus() : undefined;
-    const common: ShortcutHandlers = { escape: onEscape, find: focusFind };
+    const common: ShortcutHandlers = { escape: onEscape, find: openFind };
     let handlers: ShortcutHandlers = common;
     if (editing) {
       handlers = {
@@ -680,8 +695,8 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
               onFit={fit}
               showMiniMap={showMiniMap}
               onToggleMiniMap={onToggleMiniMap}
-              find={find}
-              findInputRef={findInputRef}
+              onOpenFind={openFind}
+              findOpen={findOpen}
               onHelpEscape={focusCanvas}
               autoSave={autoSave}
             />
@@ -695,7 +710,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                 )}
                 <ContentPanel key="canvas" flex="1 1 0" minSize={320}>
                   <div className="rsf-body">
-                    <div ref={canvasHostRef} className="rsf-canvas-host" onKeyDown={onCanvasKeyDown}>
+                    <div ref={canvasHostRef} className="rsf-canvas-host" data-find-open={findOpen ? "" : undefined} onKeyDown={onCanvasKeyDown}>
                       <FlowCanvas
                         flow={flow}
                         rules={state.rules}
@@ -750,6 +765,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         onShiftSpace={onShiftSpace}
                       />
                       <FlowToolbox mode={mode} tool={tool} onTool={onTool} onPick={onPickElement} disabled={state.loading} />
+                      {findOpen && <FindWidget find={find} inputRef={findInputRef} focusSeq={findFocusSeq} onClose={closeFind} mac={mac} />}
                       <ContextMenu items={menuItems} at={menu?.at ?? null} onClose={onCloseMenu} />
                     </div>
                   </div>
