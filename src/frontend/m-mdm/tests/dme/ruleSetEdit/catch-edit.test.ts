@@ -297,4 +297,34 @@ describe("받는 노드 편집 연산(받는 노드 spec §8)", () => {
     const h = updateGroup(ok(g), g.ok ? g.id! : "", { nodeIds: ["c1", "r1"] });
     expect(h.view.groups[0].nodeIds).toEqual(["r1"]);
   });
+
+  it("처리 갈래가 길어도 룰을 자기 처리 갈래 안의 선 위로 옮기지 않는다(끝으로 가는 갈래)", () => {
+    // start → r1 → r2 → end(e1 e2 e3), c1 → r9 → end(e4 e9)
+    const f0 = toEditFlow(null, ["R_A", "R_B"]);
+    const f = ok(addCatch({ ...f0, nodes: [...f0.nodes, n("r9", "RULE", "R_X")], edges: [...f0.edges, e("e9", "r9", "end")] }, "r1", "r9"));
+    expect(f.edges.find((x) => x.id === "e4")).toMatchObject({ from: "c1", to: "r9" });
+    expect([...moveExcludedEdges(f, "r1")].sort()).toEqual(["e1", "e2", "e4", "e9"]);
+    expect(reason(moveNode(f, "r1", "e9"))).toBe("자기 자리나 자기 블록 안으로는 옮길 수 없다");
+    expect(ok(moveNode(f, "r1", "e3")).edges.find((x) => x.id === "e9")).toMatchObject({ from: "r9", to: "end" });
+  });
+
+  it("돌아오는 처리 갈래 안 선 위로도 룰을 옮기지 않는다", () => {
+    const f = specFlow(); // c1 → r9 → m1(e3 e4), c2 → end(e5)
+    expect([...moveExcludedEdges(f, "r1")].sort()).toEqual(["e1", "e2", "e3", "e4", "e5"]);
+    expect(reason(moveNode(f, "r1", "e4"))).toBe(MOVE_GUARDED);
+  });
+
+  it("받는 룰이 든 블록은 처리 갈래가 길어도 그 갈래 안 선 위로 옮기지 않는다", () => {
+    // ifWithGuard 의 c2 → end 를 c2 → r8 → end 로 늘린다
+    const f0 = ifWithGuard();
+    const f: EditFlow = {
+      ...f0,
+      nodes: [...f0.nodes.slice(0, -1), n("r8", "RULE", "R_D"), f0.nodes[f0.nodes.length - 1]],
+      edges: [...f0.edges.map((x) => (x.id === "e5" ? { ...x, to: "r8" } : x)), e("e8", "r8", "end")],
+    };
+    expect(parseFlow(f).issues).toEqual([]);
+    expect(blockMembers(f, "if1")).toContain("r8");
+    expect(moveExcludedEdges(f, "if1").has("e8")).toBe(true);
+    expect(reason(moveNode(f, "if1", "e8"))).toBe("자기 자리나 자기 블록 안으로는 옮길 수 없다");
+  });
 });

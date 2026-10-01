@@ -902,15 +902,16 @@ export function blockMembers(f: EditFlow, splitId: string): string[] | null {
 }
 
 /**
- * 노드를 옮길 때 놓을 대상에서 뺄 선. 룰은 자기로 들어오는·나가는 선과 붙은 받는 노드에서 나가는 선, 분기는 분기로 들어오는 선과
+ * 노드를 옮길 때 놓을 대상에서 뺄 선. 룰은 자기로 들어오는·나가는 선과 처리 갈래(받는 노드부터 돌아오는 합류·END 직전까지, 안쪽 블록 포함)
+ * 노드에서 나가는 모든 선, 분기는 분기로 들어오는 선과
  * 블록 멤버(분기·안쪽·합류, 받는 노드 포함)에서 나가는 모든 선(합류 출구·처리 갈래에서 끝으로 가는 선 포함).
  * 그 밖 종류이거나 블록이 닫히지 않으면 빈 집합(옮기기 자체가 거부된다).
  */
 export function moveExcludedEdges(f: EditFlow, nodeId: string): ReadonlySet<string> {
   const n = findNode(f, nodeId);
   if (n && isStep(n.kind)) {
-    const catches = new Set(catchesOf(f, nodeId).map((c) => c.id));
-    return new Set(f.edges.filter((e) => e.from === nodeId || e.to === nodeId || catches.has(e.from)).map((e) => e.id));
+    const handler = handlerNodes(f, nodeId, mergeOf(f, nodeId)?.id ?? null); // 받는 노드 + 처리 갈래 노드(돌아오는 합류·END 직전까지)
+    return new Set(f.edges.filter((e) => e.from === nodeId || e.to === nodeId || handler.has(e.from)).map((e) => e.id));
   }
   const members = n && isSplitKind(n.kind) ? blockMembers(f, nodeId) : null;
   if (!members) return new Set();
