@@ -55,6 +55,7 @@ moduleGroup: dme
 | `A-PAGE` | 페이지 이동 | shared `Pagination`(이전·다음, 총 건수) |
 | `A-REG` | 등록 팝업 | MDM 원천 룰 등록. A-GRID 헤더의 [룰 등록]이 열고, 열 때마다 빈 칸으로 시작한다 |
 | `A-BTN` | 버튼 | `MdmPageLayout.buttons`(조회) |
+| `A-DETAIL` | 상세 ① 헤더·② 버전 | D-105 로 `ruleEdit` 에서 옮겨 온 헤더 수정·폐기·새 버전·DRAFT 삭제·선점·해제·넘기기·확정 취소. ② 버전 목록 칸: 버전·상태·적용 구간·소유자·base·**적중 정책(읽기 전용, DERIVE 는 `-`)** — 고치는 곳은 `ruleEdit` 의사결정표(D-133). DECISION 이면 그 안내 한 줄(`rule-hit-policy-hint`)을 보인다 |
 
 ## 3. 조회조건 정의 (영역: A-FILTER)
 
@@ -177,3 +178,4 @@ moduleGroup: dme
 | N-2 | 배포 대상 칸·조건·EXTERNAL 등록 변형은 두지 않는다 | design D11, spec "⑦배포 대상은 보류" |
 | N-3 | 빈 상태 문구를 그리드 오버레이가 아니라 목록 아래 글자로 보인다 | shared `AgDataGrid` 는 조회가 끝나 `loading` 이 풀릴 때 `hideOverlay()` 로 빈 행 오버레이까지 지운다(e2e 실측) |
 | N-4 | 목록 칸은 `columnSizing="fit"` + `minWidth` 로 줄어들게 한다 | 등록 폼과 나란히 두면 1280 폭에서 칸이 가상화되어 적중 정책 칸이 그려지지 않았다(e2e 실측). 등록 폼을 팝업으로 옮긴 뒤에도 상세와 나란히 서므로 유지한다 |
+| N-5 | 적중 정책은 목록(G-007)과 ② 버전 목록에 보이기만 한다. 편집 칸·[적중 정책 저장]·`save target VERSION` 은 없앴고, `save` 는 target HEADER 만 받는다(VERSION 이 오면 거부) | decisions.md D-133(D-105 (4) 번복 — 정책은 판정표의 해석 규칙이라 `ruleEdit` 표 저장과 함께 저장한다) |
