@@ -104,7 +104,7 @@ describe("흐름 우클릭 메뉴·편집(3단계 Task 8)", () => {
     uninstallServer();
   });
 
-  it("1. 룰 노드 우클릭 — 편집 모드는 바꾸기·복사·복제·삭제 뒤 룰 편집 열기, 보기 모드는 룰 편집 열기만, 디버그 모드는 편집 항목 없음", async () => {
+  it("1. 룰 노드 우클릭 — 편집 모드는 바꾸기·복사·복제·색상·삭제 뒤 룰 편집 열기, 보기 모드는 룰 편집 열기만, 디버그 모드는 편집 항목 없음", async () => {
     await openSet("E2S_CHAIN", chainView());
     await ctxMenu("flow-node-r1");
     expect(menuIds()).toEqual(["open-rule"]);
@@ -113,7 +113,7 @@ describe("흐름 우클릭 메뉴·편집(3단계 Task 8)", () => {
 
     await click("flow-mode-edit");
     await ctxMenu("flow-node-r1");
-    expect(menuIds()).toEqual(["rule-replace", "copy", "duplicate", "delete", "open-rule"]);
+    expect(menuIds()).toEqual(["rule-replace", "copy", "duplicate", "color", "delete", "open-rule"]);
     await key(byTestId("flow-menu"), { key: "Escape" });
 
     await click("flow-mode-debug");

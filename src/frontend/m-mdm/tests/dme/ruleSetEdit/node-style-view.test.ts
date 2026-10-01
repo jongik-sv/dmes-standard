@@ -133,16 +133,26 @@ describe("CSS — 상태 표시가 색보다 우선(S-D3, Review Focus 4)", () =
   it("색 규칙은 .rsf-node:where([data-color]) 로 base 뒤, !important·box-shadow·border-width·--rsf-border 없음", () => {
     const css = NODE_STYLE_CSS.replace(/\s+/g, " ");
     const colorRules = css.match(/[^{}]*\[data-color=[^{}]*\{[^}]*\}/g) ?? [];
-    expect(colorRules).toHaveLength(6);
+    expect(colorRules).toHaveLength(5);
     for (const r of colorRules) {
       expect(r.trim().startsWith('.rsf-node:where([data-color="')).toBe(true);
       expect(r).not.toMatch(/!important|box-shadow|border-width|border-style|--rsf-border:/);
+      // 제목 글자·아이콘도 진한 색(C3) — 글자색은 pending 규칙(0,2,0)이 이긴다.
+      const c = /data-color="(\w+)"/.exec(r)![1];
+      expect(r).toContain(`color: var(--rsf-c-${c}-border)`);
     }
+    expect(css).toMatch(/\.rsf-node:where\(\[data-color\]\) \.rsf-node-icon \{[^}]*color: inherit/);
     expect(RSF_CSS.indexOf(NODE_STYLE_CSS)).toBeGreaterThan(RSF_CSS.indexOf(BASE_CSS));
     const all = RSF_CSS.replace(/\s+/g, " ");
     expect(all).toMatch(/\.rsf-node\.rsf-node-current \{[^}]*border-color: var\(--color-primary\)/);
     expect(all).toMatch(/\.rsf-node\[data-state="error"\] \{[^}]*border-color: var\(--color-danger\)/);
-    expect(all).toMatch(/\.rsf-node\[data-selected="true"\] \{[^}]*border-color: var\(--color-primary\)/);
+    // 선택(C5) — 색 없는 노드만 테두리를 파랑으로, 색 칠한 노드는 노드 색 테두리를 두고 바깥 고리(box-shadow)만 준다. 둘 다 0,2,0.
+    expect(all).toMatch(/\.rsf-node\[data-selected="true"\] \{[^}]*box-shadow: 0 0 0 3px var\(--rsf-ring\)/);
+    expect(all).toMatch(/\.rsf-node\[data-selected="true"\]:where\(:not\(\[data-color\]\)\) \{[^}]*border-color: var\(--color-primary\)/);
+    expect(all).not.toMatch(/\.rsf-node\[data-selected="true"\] \{[^}]*border-color/);
+    // hover 도 색 노드의 테두리를 덮지 않는다 — 색 없는 노드만(0,2,0 유지, 디버그 상태 규칙은 뒤에서 그대로 이김).
+    expect(all).toMatch(/\.rsf-node:hover:where\(:not\(\[data-color\]\)\) \{[^}]*border-color: var\(--color-text-muted\)/);
+    expect(all).not.toMatch(/\.rsf-node:hover \{/);
     expect(all).toMatch(/\.rsf-node\.rsf-node-pending \{[^}]*border-color: var\(--rsf-border\)/);
   });
 

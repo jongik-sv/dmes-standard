@@ -6,6 +6,7 @@
 import type { FlowPos, EditFlow } from "../flow-edit";
 import type { AlignKind, DistributeAxis } from "./align";
 import type { FlowMode } from "../state/useRuleSetEdit";
+import type { NodeColor } from "../node-style";
 import type { RuleIoMap } from "../types";
 
 /** 메뉴를 연 자리 — 흐름 노드, 선(우클릭 또는 [+] 단추), 빈 곳(메모·그룹 우클릭도 빈 곳, 흐름 좌표). */
@@ -13,6 +14,17 @@ export type MenuTarget =
   | { kind: "node"; nodeId: string }
   | { kind: "edge"; edgeId: string; via: "context" | "plus" }
   | { kind: "pane"; at: FlowPos };
+
+/** 색상 견본 한 칸 — `color` 는 노드 색 키(칠한 색 토큰 `--rsf-c-{color}-*` 로 그린다, 기본은 중립색). */
+export interface MenuSwatch {
+  /** testid 는 `flow-menu-swatch-${color}`. */
+  id: string;
+  label: string;
+  color: NodeColor;
+  /** 고른 칸(우클릭한 노드의 지금 색). */
+  active: boolean;
+  run: () => void;
+}
 
 export interface MenuItem {
   /** testid 는 `flow-menu-item-${id}`. */
@@ -24,6 +36,10 @@ export interface MenuItem {
   /** 꺼진 이유. */
   title?: string;
   danger?: boolean;
+  /** 앞에 붙일 아이콘 키(그리기가 아이콘 컴포넌트로 바꾼다 — 모델은 React 의존이 없다). */
+  icon?: "brush";
+  /** 있으면 단추를 누를 때 메뉴를 닫지 않고 그 아래에 견본 격자를 펼친다. 견본을 누르면 `run()` 뒤 닫는다. */
+  swatches?: MenuSwatch[];
   /** 하위 항목(분기 풀기 갈래 고르기). 메뉴 안에 들여 쓴 묶음으로 그린다(떠 있는 하위 메뉴 없음). */
   children?: MenuItem[];
 }
@@ -58,6 +74,8 @@ export interface CanvasActions {
   align(kind: AlignKind): void;
   /** 고른 노드·메모의 간격을 고르게 한다(A1, 3개 이상). */
   distribute(axis: DistributeAxis): void;
+  /** 룰·빈 단계 노드 여럿에 색을 한 번에 칠한다(편집 한 번 = 되돌리기 한 칸). `default` 는 칸 지우기. */
+  setNodeColor(nodeIds: readonly string[], color: NodeColor): void;
 }
 
 export interface MenuContext {

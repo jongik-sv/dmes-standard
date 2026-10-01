@@ -12,7 +12,7 @@
 import type { FlowEdge, FlowNode, FlowNodeKind, RuleSetFlow } from "@/contract/engine-contract.generated";
 
 import { linearFlow } from "./flow-model";
-import { mergeNodeStyle, normalizeNodeStyle, stylesFor, type NodeStyle, type NodeStylePatch } from "./node-style";
+import { mergeNodeStyle, normalizeNodeStyle, stylesFor, type NodeColor, type NodeStyle, type NodeStylePatch } from "./node-style";
 
 export interface FlowPos {
   x: number;
@@ -1091,4 +1091,19 @@ export function setNodeStyle(f: EditFlow, nodeId: string, patch: NodeStylePatch 
   else delete styles[nodeId];
   g.view = { ...g.view, styles };
   return done(g);
+}
+
+/**
+ * 룰·빈 단계 노드 여럿의 색을 한 번에 바꾼다(우클릭 「색상」, 편집 한 번). `default` 는 색 칸 지우기. 룰·빈 단계가 아닌 노드·없는 노드는 건너뛴다.
+ * 위치는 건드리지 않는다(크기가 안 바뀐다). 바뀌는 것이 없으면 같은 흐름 객체를 돌려준다.
+ */
+export function setNodesColor(f: EditFlow, nodeIds: readonly string[], color: NodeColor): EditFlow {
+  let cur = f;
+  for (const id of nodeIds) {
+    const n = findNode(cur, id);
+    if (!n || !isStep(n.kind) || (cur.view.styles?.[id]?.color ?? "default") === color) continue;
+    const r = setNodeStyle(cur, id, { color: color === "default" ? null : color });
+    if (r.ok) cur = r.flow;
+  }
+  return cur;
 }
