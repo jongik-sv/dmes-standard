@@ -26,7 +26,7 @@ import type { EditFlow } from "../flow-edit";
 import { flowIo } from "../set-model";
 import { typedText } from "../trace-view";
 import type { RuleIoMap } from "../types";
-import { LIST_REJECT, NULL_VALUE, catchEditText, editKindOfVar, parseEditText, reservedKeyText, type EditKind } from "./debug-model";
+import { LIST_REJECT, NULL_VALUE, catchEditText, editKindOfVar, endedBranchText, parseEditText, reservedKeyText, type EditKind } from "./debug-model";
 import { declaredTypes, FALLBACK_TEXT, SERVER_JUDGES_TEXT, type ExprResult } from "./expr-eval";
 import { loadStrings, saveStrings, storeKeys } from "./local-store";
 import { NodeDescNote, TraceDetail } from "./TraceDetail";
@@ -359,6 +359,7 @@ export function VariablePanel({ sim, setId, flow, rules, selectedId, canParse, o
               traceViolations={last.trace.violations ?? []}
               desc={flow.view.descs?.[selectedId]}
               onOpenRule={onOpenRule}
+              endedBranch={endedBranchText(last.trace, last.flow)}
             />
           ) : (
             <div className="rsf-panel" data-testid="sim-detail">
