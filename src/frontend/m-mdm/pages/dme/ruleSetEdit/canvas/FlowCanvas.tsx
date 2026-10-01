@@ -83,6 +83,7 @@ import { NodeSizeContext, createNodeSizeStore, dragNodeSize, sameSize, type Node
 import { GroupSizeContext, ZERO_PAD, createGroupPadStore, dragGroupPad, samePad, type GroupSizeApi } from "./group-size";
 import { ANCHOR_IN, ANCHOR_OUT, GroupNodeData, NODE_TYPES, NoteNodeData, FlowNodeData, handlesOf, type CollapsedBlockInfo } from "./nodes";
 import type { EdgeState, Overlay } from "./overlay";
+import { useStableById } from "./reuse";
 import {
   BaseEdge,
   ConnectionMode,
@@ -1128,7 +1129,8 @@ function Inner(props: FlowCanvasProps) {
   const [measured, setMeasured] = useState<Readonly<Record<string, Measured>>>({});
 
   // 부모가 새 흐름을 내려주면 끌던 중 위치는 버린다(부모 값이 정본).
-  useEffect(() => setDrag({}), [flow]);
+  // 비어 있으면 그대로 둔다 — 편집마다 캔버스 전체를 한 번 더 그리지 않게.
+  useEffect(() => setDrag((d) => (Object.keys(d).length === 0 ? d : {})), [flow]);
 
   /** 접힌 분기를 반영한 표시 흐름(D16). 저장 흐름(`flow`)은 그대로다. */
   const view = useMemo(() => collapseView(flow, collapsed), [flow, collapsed]);
@@ -1210,7 +1212,7 @@ function Inner(props: FlowCanvasProps) {
   const nodeSizeStore = useMemo(createNodeSizeStore, []);
   const nodeSizeDrag = useSyncExternalStore(nodeSizeStore.subscribe, () => nodeSizeStore.drag, () => null);
 
-  const nodes = useMemo(() => {
+  const rawNodes = useMemo(() => {
     const out: Node[] = [];
     const sizes = new Map(vflow.nodes.map((n) => [n.id, nodeSizeOf(vflow, n, view.blocks)] as const));
     if (nodeSizeDrag && sizes.has(nodeSizeDrag.nodeId)) sizes.set(nodeSizeDrag.nodeId, nodeSizeDrag.size);
@@ -1266,11 +1268,16 @@ function Inner(props: FlowCanvasProps) {
     }
     return out;
   }, [flow, vflow, view, pos, drag, space, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured, varDisplay, groupDrag, nodeSizeDrag, dropNode, onRenameTask]);
+  /**
+   * 내용이 같은 노드는 이전 객체를 그대로 넘긴다(구조적 공유, `reuse.ts`) — 끌기 프레임·선택마다 위 memo 가 모든 노드를 새로 만들어도
+   * React Flow 는 바뀐 노드만 다시 그린다. 잰 크기(measured)도 견주므로 화면 맞춤(fitView) 동작은 그대로다.
+   */
+  const nodes = useStableById(rawNodes);
   /** 지금 그린 노드 배열 — 끌기 시작 때 스냅 후보(보이는 흐름 노드·메모)를 여기서 모은다(G1). */
   const nodesRef = useRef(nodes);
   nodesRef.current = nodes;
 
-  const edges = useMemo(() => {
+  const rawEdges = useMemo(() => {
     const kindOf = new Map(vflow.nodes.map((n) => [n.id, n.kind] as const));
     // 같은 두 노드를 잇는 경로 없는 선 묶음 — 묶음 안 순서대로 이름표를 가로로 벌린다(가운데 기준).
     const routeOf = (id: string, folded: boolean) => (folded ? null : (flow.view.routes?.[id] ?? null));
@@ -1324,6 +1331,8 @@ function Inner(props: FlowCanvasProps) {
       };
     });
   }, [flow, vflow, view, chips, overlay, eMarks, varDisplay, varLabels, selectedEdgeId, editable, debugging, valueAt, editingCondEdgeId, condEdge, editingLabelEdgeId, labelEdge, dropEdge, onReconnect, onLabelOffsetChange]);
+  /** 선도 같은 방식 — 선택·조건식 편집·놓일 선 강조가 바뀌어도 바뀐 선만 다시 그린다. */
+  const edges = useStableById(rawEdges);
 
   /** 영역 선택(상자 끌기) 중인가 — onSelectionStart~onSelectionEnd. pointercancel·빈 곳 새 누르기·편집 모드 떠나기에서도 푼다. */
   const boxingRef = useRef(false);
@@ -2236,9 +2245,21 @@ function Inner(props: FlowCanvasProps) {
     e.preventDefault();
     onContextMenu(target, { x: e.clientX, y: e.clientY });
   };
-  const onNodeContextMenu = (e: ReactMouseEvent, n: Node) =>
-    openMenu(e, n.type === "rsfFlow" ? { kind: "node", nodeId: n.id } : { kind: "pane", at: flowAt(e.clientX, e.clientY) });
-  const onEdgeContextMenu = (e: ReactMouseEvent, ed: Edge) => openMenu(e, { kind: "edge", edgeId: ed.id, via: "context" });
+  // 노드·선 누르기·우클릭 콜백은 참조를 고정한다 — React Flow 는 이 콜백을 모든 NodeWrapper·EdgeWrapper 에 prop 으로 넘기므로,
+  // 렌더마다 새 함수면 노드 객체를 재사용해도(useStableById) 선택·끌기 프레임마다 모든 노드·선이 다시 그려진다(Local-Rules §19).
+  // openMenu·flowAt 은 onContextMenu·rf 만 읽는다.
+  const onNodeContextMenu = useCallback((e: ReactMouseEvent, n: Node) =>
+    openMenu(e, n.type === "rsfFlow" ? { kind: "node", nodeId: n.id } : { kind: "pane", at: flowAt(e.clientX, e.clientY) }),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [onContextMenu, rf]);
+  const onEdgeContextMenu = useCallback((e: ReactMouseEvent, ed: Edge) => openMenu(e, { kind: "edge", edgeId: ed.id, via: "context" }),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [onContextMenu]);
+  const onNodeClick = useCallback((_e: ReactMouseEvent, n: Node) => {
+    canvasPickRef.current = n.id;
+    onSelect(n.id);
+  }, [onSelect]);
+  const onEdgeClick = useCallback((_e: ReactMouseEvent, ed: Edge) => onSelectEdge(ed.id), [onSelectEdge]);
   const onPaneContextMenu = (e: ReactMouseEvent | MouseEvent) => openMenu(e, { kind: "pane", at: flowAt(e.clientX, e.clientY) });
 
   // [+] 단추 — 선 이름표 층의 단추를 틀에서 위임으로 받는다(단추 아래 왼쪽에 메뉴를 연다).
@@ -2336,11 +2357,8 @@ function Inner(props: FlowCanvasProps) {
         onConnect={onConnectCb}
         onReconnect={editable && onReconnect ? onReconnectCb : undefined}
         edgesReconnectable={false}
-        onNodeClick={(_e, n) => {
-          canvasPickRef.current = n.id;
-          onSelect(n.id);
-        }}
-        onEdgeClick={(_e, ed) => onSelectEdge(ed.id)}
+        onNodeClick={onNodeClick}
+        onEdgeClick={onEdgeClick}
         onEdgeDoubleClick={editable ? onEdgeDoubleClick : undefined}
         onPaneClick={() => {
           onSelect(null);

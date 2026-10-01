@@ -207,7 +207,18 @@ export function useRuleSetEdit(): RuleSetEditState {
   const dirtyRef = useRef(false);
   dirtyRef.current = dirty;
 
-  const checks = useMemo(() => (flow ? flowChecks(flow, rules, condIo) : []), [flow, rules, condIo]);
+  // flowChecks 는 노드·선만 읽는다(view 를 읽지 않는다). 위치·경로·메모·외관만 바꾼 편집은 노드·선 내용이 같으므로 이전 결과(같은 참조)를 쓴다 —
+  // 362노드에서 약 4ms 이고, 같은 참조라 캔버스의 표시(marks)도 다시 계산하지 않는다.
+  const checksMemo = useRef<{ key: string; rules: Record<string, RuleIo>; condIo: Record<string, CondIo>; checks: RuleSetCheck[] } | null>(null);
+  const checks = useMemo(() => {
+    if (!flow) return [];
+    const key = JSON.stringify([flow.nodes, flow.edges]);
+    const last = checksMemo.current;
+    if (last && last.key === key && last.rules === rules && last.condIo === condIo) return last.checks;
+    const next = flowChecks(flow, rules, condIo);
+    checksMemo.current = { key, rules, condIo, checks: next };
+    return next;
+  }, [flow, rules, condIo]);
 
   /** 새 흐름으로 바꾼다. nodes·edges 가 바뀌었으면 flowVersion 을 올리고, 조건식이 바뀌었으면 조건식 IO 를 다시 받는다. */
   const replaceFlow = useCallback(

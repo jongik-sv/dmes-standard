@@ -219,5 +219,6 @@ shared `Modal`(Mantine)은 열린 창마다 window 의 Escape 를 받는다. 등
 - **`EdgeLabelRenderer` 층은 `pointer-events: none` 이다.** 안에 둔 칩·라벨은 이를 물려받아 hover 를 못 받으므로 `title` 툴팁이 뜨지 않는다. 누름·hover 가 필요한 요소만 `pointer-events: auto` 로 다시 켠다.
 - **영역 선택 뒤 선택 상자(`.react-flow__nodesselection-rect`)가 상자 안 누름·우클릭을 가로챈다.** 고른 노드 우클릭 메뉴·손잡이·링크가 막힌다. 상자에 `pointer-events: none` 을 준다(여러 개 끌기는 고른 노드를 끌어서 된다).
 - **툴바 단추가 초점을 쥐고 있으면 스페이스+끌기(화면 이동) 때 그 단추가 다시 눌린다.** 캔버스 툴바 단추는 mousedown 기본 동작(초점 이동)을 막는다(키보드 Tab·Enter 는 그대로).
+- **노드·선 배열을 memo 로 통째로 새로 만들면 노드 하나를 끌거나 선택만 바꿔도 모든 노드·선이 다시 그려진다.** React Flow v12 는 사용자 노드·선 객체의 참조가 바뀌면 그 항목을 다시 그린다. 내용이 같은 항목은 이전 참조를 그대로 넘기고(`canvas/reuse.ts` 의 `useStableById`), `onNodeClick`·`onNodeContextMenu`·`onEdgeClick`·`onEdgeContextMenu` 는 `useCallback` 으로 고정한다. 이 콜백들은 모든 NodeWrapper·EdgeWrapper 의 prop 이므로 인라인 함수 하나만 있어도 전체가 다시 그려진다. 362노드에서 선택 한 번에 드는 노드 렌더가 1086회에서 4회로 줄었다. 자동 배치(dagre)는 배치가 읽는 칸으로 키를 만든 캐시(`flow-layout.ts` 의 `autoLayout`)를 거치므로, 위치·경로·이름표만 바꾼 편집에는 다시 돌지 않는다. 노드 다시 그리기 범위(선택·편집·끌기 프레임)는 `flow-canvas-reuse` 테스트가, dagre 캐시는 `layout-cache` 테스트가 지킨다.
 - **초점을 가진 요소를 지우면 초점이 body 로 빠져 캔버스 단축키가 끊긴다**(선 Delete 뒤 Ctrl+Z 무반응). 단축키 디스패처가 처리한 뒤 `document.activeElement` 가 body 면 캔버스 host 로 돌린다.
 - 예시: `canvas/FlowCanvas.tsx`, `canvas/FlowToolbar.tsx`, `styles/collapse.ts`(칩)·`styles/space.ts`(선택 상자), `page.tsx` 의 `onCanvasKeyDown`.

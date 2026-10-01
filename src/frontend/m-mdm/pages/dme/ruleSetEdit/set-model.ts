@@ -148,6 +148,7 @@ export function flowDeps(flow: RuleSetFlow, rules: RuleIoMap): Record<string, st
 
 /**
  * 계획 C4 — 존재·상태 → EMPTY → 빈 단계(EMPTY_TASK) → 구조(있으면 끝) → 경로 검사. 서버 `RuleSetAnalyzer.checks(flow, rules, condIo)` 와 같은 코드·문구·순서다.
+ * 노드·선만 읽고 `view` 는 읽지 않는다 — `useRuleSetEdit` 의 `checks` 가 이 전제로 노드·선 JSON 을 캐시 키로 쓴다. `view` 를 읽게 되면 그 키도 고친다.
  */
 export function flowChecks(flow: RuleSetFlow, rules: RuleIoMap, condIo: CondIoMap): RuleSetCheck[] {
   const out: RuleSetCheck[] = [];

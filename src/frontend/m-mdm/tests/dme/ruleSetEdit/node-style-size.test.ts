@@ -18,7 +18,7 @@ vi.mock("@dagrejs/dagre", async (importOriginal) => {
 
 import { FlowCanvas, type FlowCanvasProps } from "../../../pages/dme/ruleSetEdit/canvas/FlowCanvas";
 import { addGroup, insertSplit, setNodeStyle, setPositions, toEditFlow, type EditFlow, type EditResult, type FlowPos } from "../../../pages/dme/ruleSetEdit/flow-edit";
-import { autoLayout } from "../../../pages/dme/ruleSetEdit/flow-layout";
+import { autoLayout, clearLayoutCache } from "../../../pages/dme/ruleSetEdit/flow-layout";
 import { flush, installDomStorage } from "../helpers/render";
 
 function ok(r: EditResult): EditFlow {
@@ -35,6 +35,7 @@ let root: Root;
 beforeEach(() => {
   installDomStorage();
   layout.calls = 0;
+  clearLayoutCache(); // 앞 테스트가 같은 흐름을 배치해 둔 캐시에 맞으면 dagre 를 부르지 않는다
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);

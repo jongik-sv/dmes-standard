@@ -49,6 +49,43 @@ const NODESEP = 40;
 export function autoLayout(f: RuleSetFlow & StyledFlow, blocks: Readonly<Record<string, unknown>> = {}): Record<string, FlowPos> {
   const nodes = f.nodes ?? [];
   const size = new Map(nodes.map((n) => [n.id, nodeSizeOf(f, n, blocks)] as const));
+  const key = layoutKey(f, size);
+  let hit = layoutCache.get(key);
+  if (hit) layoutCache.delete(key); // 가장 최근 칸으로 옮긴다
+  else {
+    hit = runLayout(f, nodes, size);
+    if (layoutCache.size >= LAYOUT_CACHE_SIZE) layoutCache.delete(layoutCache.keys().next().value!);
+  }
+  layoutCache.set(key, hit);
+  // 여러 호출자가 같은 결과를 나눠 쓰므로 사본을 준다(positionsOf 는 좌표 객체를 그대로 펼쳐 넘긴다).
+  const out: Record<string, FlowPos> = {};
+  for (const [id, p] of Object.entries(hit)) out[id] = { x: p.x, y: p.y };
+  return out;
+}
+
+/**
+ * 자동 배치 결과 캐시(작은 LRU) — 위치·선 경로·이름표·메모·그룹만 바뀐 편집은 dagre 를 다시 돌리지 않는다(362노드 약 28ms).
+ * 칸이 하나면 캔버스의 표시 흐름(접힌 보기)과 전체 흐름(블록 끌기)·자동 정렬·메모 자리 계산이 서로를 밀어내므로 몇 칸 둔다.
+ */
+const LAYOUT_CACHE_SIZE = 4;
+const layoutCache = new Map<string, Readonly<Record<string, FlowPos>>>();
+/** 자동 배치 캐시를 비운다 — dagre 호출 수를 세는 테스트가 앞 테스트가 남긴 캐시에 기대지 않게 한다. */
+export function clearLayoutCache(): void {
+  layoutCache.clear();
+}
+/**
+ * 캐시 키 — autoLayout 이 읽는 칸 전부: 노드(순서·ID·종류·룰·짝 분기·이름), 선(순서·ID·양 끝·갈래 순서·조건식·그 외·이름), 노드별 그린 크기
+ * (외관 w·h 와 접힌 블록이 여기로 들어온다). dagre 결과는 노드·선을 넣은 순서에도 달라지므로 배열 순서를 그대로 둔다.
+ * 객체를 통째로 직렬화하지 않고 칸을 골라 적는다 — 서버에서 읽은 흐름과 편집으로 만든 흐름은 칸 순서·여분 칸이 달라 같은 흐름이 엇갈린다.
+ */
+function layoutKey(f: RuleSetFlow, size: ReadonlyMap<string, NodeSize>): string {
+  return JSON.stringify([
+    (f.nodes ?? []).map((n) => [n.id, n.kind, n.ruleId, n.splitId, n.label, size.get(n.id)!.w, size.get(n.id)!.h]),
+    (f.edges ?? []).map((e) => [e.id, e.from, e.to, e.order, e.cond, e.otherwise, e.label]),
+  ]);
+}
+
+function runLayout(f: RuleSetFlow, nodes: NonNullable<RuleSetFlow["nodes"]>, size: ReadonlyMap<string, NodeSize>): Record<string, FlowPos> {
   const g = new dagre.graphlib.Graph();
   g.setGraph({ rankdir: "TB", nodesep: NODESEP, ranksep: 46 });
   g.setDefaultEdgeLabel(() => ({}));

@@ -20,7 +20,7 @@ vi.mock("@dagrejs/dagre", async (importOriginal) => {
 
 import { FlowCanvas, type FlowCanvasProps } from "../../../pages/dme/ruleSetEdit/canvas/FlowCanvas";
 import { setPositions, toEditFlow, type EditFlow, type FlowPos } from "../../../pages/dme/ruleSetEdit/flow-edit";
-import { NODE_SIZE } from "../../../pages/dme/ruleSetEdit/flow-layout";
+import { NODE_SIZE, clearLayoutCache } from "../../../pages/dme/ruleSetEdit/flow-layout";
 import type { RuleIo, RuleSetView } from "../../../pages/dme/ruleSetEdit/types";
 import { flush, installDomStorage } from "../helpers/render";
 import { byTestId, click, installServer, openSet, q, settle, uninstallServer } from "../helpers/rule-set-page";
@@ -105,6 +105,7 @@ describe("FlowCanvas 네 변 잇기 손잡이", () => {
     installDomStorage();
     installBelow();
     layout.calls = 0;
+    clearLayoutCache(); // 앞 테스트가 같은 흐름을 배치해 둔 캐시에 맞으면 dagre 를 부르지 않는다
     host = document.createElement("div");
     document.body.appendChild(host);
     root = createRoot(host);

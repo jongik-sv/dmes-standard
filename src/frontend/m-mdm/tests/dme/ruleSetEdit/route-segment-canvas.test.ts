@@ -23,6 +23,7 @@ import { ROUTE_RADIUS } from "../../../pages/dme/ruleSetEdit/canvas/route-path";
 import { ROUTE_LIMIT_MESSAGE, setPositions, setRoute, toEditFlow, type EditFlow, type EditResult, type FlowPos } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { RSF_CSS } from "../../../pages/dme/ruleSetEdit/rsf-styles";
 import { flush, installDomStorage } from "../helpers/render";
+import { clearLayoutCache } from "../../../pages/dme/ruleSetEdit/flow-layout";
 
 function ok(r: EditResult): EditFlow {
   if (!r.ok) throw new Error(r.reason);
@@ -39,6 +40,7 @@ let root: Root;
 beforeEach(() => {
   installDomStorage();
   layout.calls = 0;
+  clearLayoutCache(); // 앞 테스트가 같은 흐름을 배치해 둔 캐시에 맞으면 dagre 를 부르지 않는다
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);

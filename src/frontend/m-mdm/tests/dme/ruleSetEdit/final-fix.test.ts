@@ -19,6 +19,7 @@ vi.mock("@dagrejs/dagre", async (importOriginal) => {
 import { FlowCanvas, type FlowCanvasProps } from "../../../pages/dme/ruleSetEdit/canvas/FlowCanvas";
 import { addNote, insertSplit, toEditFlow, type EditFlow } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { flush, installDomStorage } from "../helpers/render";
+import { clearLayoutCache } from "../../../pages/dme/ruleSetEdit/flow-layout";
 
 const noop = () => {};
 let host: HTMLDivElement;
@@ -26,6 +27,7 @@ let root: Root;
 beforeEach(() => {
   installDomStorage();
   layout.calls = 0;
+  clearLayoutCache(); // 앞 테스트가 같은 흐름을 배치해 둔 캐시에 맞으면 dagre 를 부르지 않는다
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
