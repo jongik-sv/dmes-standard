@@ -290,4 +290,45 @@ class RuleSetRunnerTest extends AbstractMdmSharedDbTest {
         assertEquals(List.of("EXPR_CELL_NULL"), r.getWarnings().stream().map(w -> w.get("code")).toList(), r.getWarnings().toString());
         assertEquals("R_EXPR", r.getWarnings().get(0).get("ruleId"));
     }
+
+    static final String CATCH_FLOW = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"},"
+            + "{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"QLTY_GRD_JDG\"},"
+            + "{\"id\":\"c1\",\"kind\":\"CATCH\",\"attachTo\":\"r1\",\"catches\":[\"INPUT_ERROR\"],\"label\":\"입력 부족\"},{\"id\":\"end\",\"kind\":\"END\"}],"
+            + "\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"r1\"},{\"id\":\"e2\",\"from\":\"r1\",\"to\":\"end\"},{\"id\":\"e3\",\"from\":\"c1\",\"to\":\"end\"}]}";
+
+    @Test
+    void execute_는_받는_노드로_끝난_실행의_endedBy_와_caught_를_싣는다() {
+        DmeTestSupport.ruleSet(jdbc, "RS_CATCH", "받는 노드", "[\"QLTY_GRD_JDG\"]", "INUSE", 0);
+        DmeTestSupport.ruleSetFlow(jdbc, "RS_CATCH", CATCH_FLOW);
+        RuleSetRunRequest req = new RuleSetRunRequest();
+        req.setSetId("RS_CATCH");
+        req.setRecordJson("{}");
+        req.setEvalTs("2026-03-01 09:00:00");
+
+        RuleSetRunResult out = runner.execute(req);
+
+        assertEquals("c1", out.getEndedBy());
+        assertEquals(1, out.getCaught().size());
+        Map<String, Object> c = out.getCaught().get(0);
+        assertEquals(List.of("ruleNodeId", "ruleId", "catchNodeId", "kind", "code", "message"), List.copyOf(c.keySet()));
+        assertEquals("r1", c.get("ruleNodeId"));
+        assertEquals("QLTY_GRD_JDG", c.get("ruleId"));
+        assertEquals("INPUT_ERROR", c.get("kind"));
+        assertEquals("MISSING_KEY", c.get("code"));
+        assertEquals(List.of("start", "r1", "c1", "end"), out.getPath().stream().map(p -> p.get("nodeId")).toList());
+        assertEquals(Map.of(), out.getFinalValues());
+    }
+
+    @Test
+    void execute_는_받는_노드_없는_세트에서_endedBy_null_caught_빈_목록이다() {
+        RuleSetRunRequest req = new RuleSetRunRequest();
+        req.setSetId("RS_LINE");
+        req.setRecordJson("{\"COIL_THK\":2.0,\"COIL_WID\":1200,\"SURF_GRD\":\"A\"}");
+        req.setEvalTs("2026-03-01 09:00:00");
+
+        RuleSetRunResult out = runner.execute(req);
+
+        assertNull(out.getEndedBy());
+        assertEquals(List.of(), out.getCaught());
+    }
 }
