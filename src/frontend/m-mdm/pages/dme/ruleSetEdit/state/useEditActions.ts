@@ -67,6 +67,8 @@ export interface EditActionsDeps {
   select(id: string | null): void;
   selectEdge(id: string | null): void;
   openRuleModal(purpose: RuleModalPurpose): void;
+  /** 룰 지정 섹션 열기(4단계 Task 8) — 노드를 고르고 섹션을 펴 찾기 칸에 초점. */
+  openRuleAssign(nodeId: string): void;
   fit(): void;
   setEditingCond(edgeId: string | null): void;
   /** 메뉴가 열려 있으면 닫고 true. */
@@ -80,6 +82,8 @@ export interface EditActions {
   pickPalette(item: PaletteItem): void;
   /** 룰 찾기 팝업에서 고른 룰을 끼운다(목적 insert). edgeId 가 null 이면 END 앞 선. */
   insertPickedRule(edgeId: string | null, io: RuleIo): void;
+  /** 룰 목록 두 번 누르기(4단계 Task 8) — 고른 선(없으면 END 앞 선)에 끼우고 새 룰에서 나가는 선을 고른다. */
+  insertListRule(edgeId: string | null, io: RuleIo): void;
   dropPalette(item: PaletteItem, at: FlowPos, edgeId: string | null): void;
   dropRule(ruleId: string, edgeId: string | null): void;
   /**
@@ -148,27 +152,37 @@ function centerOf(f: EditFlow, collapsed: ReadonlySet<string>): FlowPos {
 }
 
 export function useEditActions(deps: EditActionsDeps): EditActions {
-  const { state, flow, editing, selectedId, selectedEdgeId, multiSel, select, openRuleModal, fit, setEditingCond, closeMenu, clearSelection } = deps;
+  const { state, flow, editing, selectedId, selectedEdgeId, multiSel, select, selectEdge, openRuleModal, openRuleAssign, fit, setEditingCond, closeMenu, clearSelection } = deps;
   const collapsed = deps.collapsed ?? NO_COLLAPSED;
   const { edit, addRuleIo } = state;
   /** 복사한 조각(B9) — 화면이 살아 있는 동안 남고 세트를 바꿔도 유지한다. */
   const [clipboard, setClipboard] = useState<{ frag: Fragment; ios: RuleIo[] } | null>(null);
 
-  /** 노드 add 개를 끼우는 연산 — 상한을 먼저 보고, 끼울 선을 고른 뒤, 새 노드(선 e 의 새 도착 노드)를 고른다. */
+  /**
+   * 노드 add 개를 끼우는 연산 — 상한을 먼저 보고, 끼울 선을 고른 뒤, 새 노드(선 e 의 새 도착 노드)를 고른다. 새 노드 ID(실패면 null)를 돌려준다.
+   * pick 이 "out" 이면 새 노드 대신 새 노드에서 나가는 선을 고른다(룰 목록 두 번 누르기 — 다음 두 번 누르기가 그 뒤에 잇는다, 4단계 Task 8).
+   */
   const insertAt = useCallback(
-    (preferred: string | null, add: number, op: (f: EditFlow, edgeId: string) => EditResult) => {
+    (preferred: string | null, add: number, op: (f: EditFlow, edgeId: string) => EditResult, pick: "node" | "out" = "node"): string | null => {
       let created: string | null = null;
+      let out: string | null = null;
       const reason = edit((f) => {
         if (f.nodes.length + add > MAX_NODES) return fail(NODE_LIMIT_MESSAGE);
         const edgeId = targetEdge(f, preferred);
         if (!edgeId) return fail(NO_TARGET_EDGE);
         const r = op(f, edgeId);
-        if (r.ok) created = r.flow.edges.find((e) => e.id === edgeId)?.to ?? null;
+        if (r.ok) {
+          created = r.flow.edges.find((e) => e.id === edgeId)?.to ?? null;
+          out = r.flow.edges.find((e) => e.from === created)?.id ?? null;
+        }
         return r;
       });
-      if (!reason && created) select(created);
+      if (reason || !created) return null;
+      if (pick === "out" && out) selectEdge(out);
+      else select(created);
+      return created;
     },
-    [edit, select],
+    [edit, select, selectEdge],
   );
 
   /** 룰 찾기 팝업을 연다(끼우기) — 상한이면 팝업 없이 문구만. */
@@ -263,6 +277,16 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
       if (!editing) return;
       addRuleIo(io);
       insertAt(edgeId, 1, (f, e) => insertRule(f, e, io.ruleId));
+    },
+    [editing, addRuleIo, insertAt],
+  );
+
+  /** 룰 목록 두 번 누르기(4단계 Task 8) — 고른 선(없으면 END 앞 선)에 끼우고 새 룰에서 나가는 선을 고른다. */
+  const insertListRule = useCallback(
+    (edgeId: string | null, io: RuleIo) => {
+      if (!editing) return;
+      addRuleIo(io);
+      insertAt(edgeId, 1, (f, e) => insertRule(f, e, io.ruleId), "out");
     },
     [editing, addRuleIo, insertAt],
   );
@@ -370,8 +394,8 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
       duplicate: (nodeId: string) => {
         if (editing) edit((f) => duplicateNode(f, nodeId));
       },
-      replaceRule: (nodeId: string) => {
-        if (editing) openRuleModal({ purpose: "replace", nodeId });
+      openRuleAssign: (nodeId: string) => {
+        if (editing) openRuleAssign(nodeId);
       },
       changeSplitKind: (splitId: string, kind: "IF" | "PARALLEL") => {
         if (editing) edit((f) => changeSplitKind(f, splitId, kind));
@@ -380,13 +404,14 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
         if (editing) edit((f) => dissolveSplit(f, splitId, keepEdgeId));
       },
     }),
-    [editing, edit, fit, placeNote, askRule, insertAt, setEditingCond, copy, paste, openRuleModal],
+    [editing, edit, fit, placeNote, askRule, insertAt, setEditingCond, copy, paste, openRuleAssign],
   );
 
   return {
     actions,
     pickPalette,
     insertPickedRule,
+    insertListRule,
     dropPalette,
     dropRule,
     deleteSelection,

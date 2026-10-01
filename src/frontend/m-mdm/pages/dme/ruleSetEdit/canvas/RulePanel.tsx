@@ -1,115 +1,101 @@
 "use client";
 
 /**
- * 룰 목록 패널(3단계 계획 A4·P-D10) — 찾기·끌어 넣기. 4단계 Task 7 부터 오른쪽 패널 아래 임시 자리(Task 8 이 섹션으로 바꾼다). 팔레트는 도구 상자(`FlowToolbox`)로 옮겼다.
- * 디버그 모드의 왼쪽은 입력 패널(`DebugInputs`)이라 page 가 이 패널을 그리지 않는다.
- * 룰 목록은 찾기 결과에서 확정 버전이 있는 룰만 보이고, 줄을 캔버스 선 위로 끌거나 두 번 누르면 끼운다(편집 모드만).
- * 늦은 응답은 요청 순번으로 버린다(Local-Rules §11).
+ * 룰 목록(3단계 계획 A4 → 4단계 Task 8 에서 오른쪽 섹션 본문) — 찾기 칸과 확정 버전 룰 줄. 섹션 머리·접기는 `Section`, 찾기 상태는 page 의 `useRuleSearch` 가 맡는다.
+ * - insert(편집): 줄을 캔버스 선 위로 끌거나, 두 번 눌러 고른 선(없으면 END 앞 선)에 끼운다.
+ * - assign(편집에서 룰을 지정할 노드를 고름): 줄마다 [지정], 두 번 누르기도 지정. 선 위로 끌어 끼우기는 그대로 된다.
+ * - view(보기): 찾기·보기만(끌기·두 번 누르기·[지정] 없음).
  */
-import { useRef, useState } from "react";
-
-import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
+import type { RefObject } from "react";
 
 import { Button, Input } from "@dk-oasis/shared/form";
 
-import { searchRules } from "../api";
-import type { FlowMode } from "../state/useRuleSetEdit";
+import type { RuleSearch } from "../state/useRuleSearch";
 import type { RuleIo } from "../types";
 import { RULE_MIME } from "./FlowCanvas";
 
+export type RuleListMode = "view" | "insert" | "assign";
+
 export interface RulePanelProps {
-  mode: FlowMode;
-  /** 룰 줄 [넣기] 의 대상 선. */
-  selectedEdgeId: string | null;
-  /** 찾은 룰의 입출력을 page 의 룰 맵에 더한다. */
-  onRules(ios: RuleIo[]): void;
-  /** 룰 줄 [넣기] — 고른 선(없으면 END 앞 선)에 끼운다. */
-  onInsertRule(ruleId: string): void;
-  onError(e: unknown): void;
+  mode: RuleListMode;
+  search: RuleSearch;
+  /** 찾기 칸 — 룰 지정 섹션을 열 때 초점을 둔다. */
+  inputRef?: RefObject<HTMLInputElement | null>;
+  /** 두 번 누르기(insert). */
+  onInsert(io: RuleIo): void;
+  /** [지정]·두 번 누르기(assign). */
+  onAssign(io: RuleIo): void;
 }
 
-export function RulePanel(props: RulePanelProps) {
-  const { mode, onRules, onInsertRule, onError } = props;
-  const editing = mode === "edit";
-  const [open, setOpen] = useState(true);
-  const [keyword, setKeyword] = useState("");
-  const [rows, setRows] = useState<RuleIo[] | null>(null);
-  const seq = useRef(0);
+const ROW_TITLE: Record<RuleListMode, string | undefined> = {
+  insert: "선 위로 끌거나 두 번 눌러 넣는다",
+  assign: "두 번 누르거나 [지정] 을 누르면 고른 노드의 룰이 된다. 선 위로 끌면 끼운다",
+  view: undefined,
+};
 
-  const find = async () => {
-    const mine = ++seq.current;
-    try {
-      const res = await searchRules(keyword);
-      if (mine !== seq.current) return; // 늦게 온 앞 응답은 버린다
-      const found = (res.rules ?? []).filter((r) => r.releasedVer != null);
-      onRules(found);
-      setRows(found);
-    } catch (e) {
-      if (mine !== seq.current) return;
-      onError(e);
-    }
-  };
-
+export function RulePanel({ mode, search, inputRef, onInsert, onAssign }: RulePanelProps) {
+  const active = mode !== "view";
+  const { rows } = search;
   return (
-    <div className="rsf-rule-panel" data-testid="flow-rule-panel">
-      <div className="rsf-rule-list">
-        <button
-          type="button"
-          className="rsf-rule-list-head"
-          data-testid="flow-rule-panel-toggle"
-          aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
-        >
-          {open ? <IconChevronDown size={14} aria-hidden="true" /> : <IconChevronRight size={14} aria-hidden="true" />}
-          룰 목록
-        </button>
-        {open && (
-          <>
-            <div className="rsf-rule-list-search">
-              <Input
-                data-testid="flow-rule-panel-search"
-                value={keyword}
-                placeholder="룰 ID·룰명"
-                onChange={setKeyword}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.nativeEvent.isComposing) void find();
-                }}
-                style={{ flex: 1, minWidth: 0 }}
-              />
-              <Button data-testid="flow-rule-panel-find" onClick={() => void find()}>
-                찾기
-              </Button>
-            </div>
-            {rows && rows.length === 0 && <p className="rsf-rule-list-empty">확정된 룰이 없다</p>}
-            {rows && rows.length > 0 && (
-              <ul className="rsf-rule-rows" data-testid="flow-rule-rows">
-                {rows.map((r) => (
-                  <li
-                    key={r.ruleId}
-                    className="rsf-rule-row"
-                    data-testid={`flow-rule-row-${r.ruleId}`}
-                    draggable={editing}
-                    title={editing ? "선 위로 끌거나 두 번 눌러 넣는다" : undefined}
-                    onDragStart={(e) => {
-                      if (!editing) {
-                        e.preventDefault();
-                        return;
-                      }
-                      e.dataTransfer.setData(RULE_MIME, r.ruleId);
-                      e.dataTransfer.effectAllowed = "copy";
-                    }}
-                    onDoubleClick={() => editing && onInsertRule(r.ruleId)}
-                  >
-                    <span className="rsf-rule-row-id">{r.ruleId}</span>
-                    <span className="rsf-rule-row-name">{r.ruleName ?? "(이름 없음)"}</span>
-                    <span className="rsf-rule-row-kind">{r.ruleKind ?? "-"}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
-        )}
+    <div className="rsf-rule-panel" data-testid="flow-rule-panel" data-mode={mode}>
+      <div className="rsf-rule-list-search">
+        <Input
+          data-testid="flow-rule-panel-search"
+          {...({ ref: inputRef } as object)}
+          value={search.keyword}
+          placeholder="룰 ID·룰명"
+          aria-label="룰 찾기"
+          onChange={search.setKeyword}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.nativeEvent.isComposing) void search.find();
+          }}
+          style={{ flex: 1, minWidth: 0 }}
+        />
+        <Button data-testid="flow-rule-panel-find" onClick={() => void search.find()}>
+          찾기
+        </Button>
       </div>
+      {rows && rows.length === 0 && <p className="rsf-rule-list-empty">확정된 룰이 없다</p>}
+      {rows && rows.length > 0 && (
+        <ul className="rsf-rule-rows" data-testid="flow-rule-rows">
+          {rows.map((r) => (
+            <li
+              key={r.ruleId}
+              className="rsf-rule-row"
+              data-testid={`flow-rule-row-${r.ruleId}`}
+              draggable={active}
+              title={ROW_TITLE[mode]}
+              onDragStart={(e) => {
+                if (!active) {
+                  e.preventDefault();
+                  return;
+                }
+                e.dataTransfer.setData(RULE_MIME, r.ruleId);
+                e.dataTransfer.effectAllowed = "copy";
+              }}
+              onDoubleClick={() => {
+                if (mode === "insert") onInsert(r);
+                else if (mode === "assign") onAssign(r);
+              }}
+            >
+              <span className="rsf-rule-row-id">{r.ruleId}</span>
+              <span className="rsf-rule-row-name">{r.ruleName ?? "(이름 없음)"}</span>
+              <span className="rsf-rule-row-kind">{r.ruleKind ?? "-"}</span>
+              {mode === "assign" && (
+                <Button
+                  size="mini"
+                  className="rsf-rule-assign"
+                  data-testid={`flow-rule-assign-${r.ruleId}`}
+                  ariaLabel={`${r.ruleId} 지정`}
+                  onClick={() => onAssign(r)}
+                >
+                  지정
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

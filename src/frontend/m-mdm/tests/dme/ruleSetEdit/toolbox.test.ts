@@ -204,6 +204,27 @@ describe("화면 — 도구 상자·도구 모드·미니맵 자리", () => {
     expect(byTestId("flow-node-r1").getAttribute("data-selected")).toBe("false");
   });
 
+  it("마우스로 요소 아이콘을 누른 뒤에도 초점은 캔버스 — 이어지는 Esc 가 [손] 을 [영역 선택] 으로 돌린다", async () => {
+    await openSet("TB_2F", viewOf("TB_2F"));
+    await click("flow-mode-edit");
+    await click("flow-tool-hand");
+    expect(pressed("flow-tool-hand")).toBe("true");
+    await act(async () => {
+      byTestId("flow-add-if").focus(); // 마우스 누름이 단추에 초점을 옮긴다
+    });
+    await act(async () => {
+      // 마우스 클릭 = detail > 0 (키보드 Enter·Space 는 0)
+      byTestId("flow-add-if").dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }));
+    });
+    await flush();
+    expect(document.activeElement).toBe(byTestId("flow-canvas"));
+    await act(async () => {
+      document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    });
+    await flush();
+    expect(pressed("flow-tool-select")).toBe("true");
+  });
+
   it("보기 [영역 선택] — 끌기 = 영역 선택, 휠은 그대로 확대. Esc 는 보기 기본 [손] 으로", async () => {
     await openSet("TB_3", viewOf("TB_3"));
     expect(lastRf()).toMatchObject({ selectionOnDrag: false, panOnDrag: true, panOnScroll: false });

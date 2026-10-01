@@ -1871,9 +1871,9 @@ test.describe("C 룰 세트", () => {
     await expect(tid(page, "flow-tool-select")).toHaveAttribute("aria-pressed", "true");
     await tid(page, "flow-tool-hand").click();
     await expect(tid(page, "flow-tool-hand")).toHaveAttribute("aria-pressed", "true");
-    await tid(page, "flow-rule-panel-toggle").click();
+    await tid(page, "flow-section-rules-head").click();
     await expect(tid(page, "flow-rule-panel-search")).toHaveCount(0);
-    await tid(page, "flow-rule-panel-toggle").click();
+    await tid(page, "flow-section-rules-head").click();
     await tid(page, "flow-rule-panel-search").fill(SA);
     await tid(page, "flow-rule-panel-find").click();
     await expect(tid(page, `flow-rule-row-${SA}`)).toBeVisible({ timeout: 20_000 });
@@ -1929,6 +1929,7 @@ test.describe("C 룰 세트", () => {
       ...(await dynamicAllow("expr-recent-", "최근 식 채우기 — 식 평가는 이 시나리오에서 하지 않는다")),
       ...(await dynamicAllow("flow-bp-", "노드마다 있는 중단점 점 — 하나(SA)는 위에서 켰다 껐다. 나머지는 같은 동작이다")),
       ...(await dynamicAllow("flow-rule-open-", "룰 박스 링크 아이콘은 다음 TC-DME-SED-06 에서 누른다(누르면 룰 화면으로 옮겨 간다)")),
+      ...(await dynamicAllow("flow-section-", "오른쪽 섹션 머리 — 펴고 접기는 flow-section-rules-head 로 확인했고 나머지는 같은 동작이다")),
       "sim-detail-open-rule": "노드 상세의 [룰 편집 열기] 는 누르면 룰 화면으로 옮겨 가 다음 TC-DME-SED-06 흐름이 깨진다",
     });
 
@@ -1951,6 +1952,7 @@ test.describe("C 룰 세트", () => {
     );
     await assertAllButtonsPressed(page, "ruleSetEdit", {
       ...ruleOpenAllow,
+      ...(await dynamicAllow("flow-section-", "오른쪽 섹션 머리 — 펴고 접기는 flow-section-rules-head 로 확인했고 나머지는 같은 동작이다")),
       [`set-var-link-${GRD}`]: "결과 변수 링크는 다음 TC-DME-SED-06 에서 누른다(누르면 룰 화면으로 옮겨 간다)",
       [`set-var-link-${FCT}`]: "결과 변수 링크는 다음 TC-DME-SED-06 에서 누른다(누르면 룰 화면으로 옮겨 간다)",
     });
