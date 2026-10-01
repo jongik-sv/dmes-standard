@@ -597,6 +597,21 @@ export function setRoute(f: EditFlow, edgeId: string, points: readonly FlowPos[]
   return done(g);
 }
 
+/**
+ * 두 끝이 모두 `ids` 에 든 선의 꺾는 점을 (dx, dy) 만큼 옮긴다 — 노드 여럿·그룹을 같은 만큼 옮길 때 그 사이 선 모양을 지킨다.
+ * 한 끝만 든 선은 그대로 둔다. 옮길 것이 없으면 입력 그대로.
+ */
+export function shiftRoutes(f: EditFlow, ids: ReadonlySet<string>, dx: number, dy: number): EditFlow {
+  if (dx === 0 && dy === 0) return f;
+  const hit = f.edges.filter((e) => ids.has(e.from) && ids.has(e.to) && f.view.routes[e.id]?.length);
+  if (hit.length === 0) return f;
+  const g = clone(f);
+  const routes = { ...g.view.routes };
+  for (const e of hit) routes[e.id] = routes[e.id].map((p) => ({ x: p.x + dx, y: p.y + dy }));
+  g.view.routes = routes;
+  return g;
+}
+
 /** 모든 선의 경로를 지운다(자동 정렬). */
 export function clearRoutes(f: EditFlow): EditFlow {
   const g = clone(f);

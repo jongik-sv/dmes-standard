@@ -119,6 +119,8 @@ export const BASE_CSS = `
   font-size: var(--font-size-xs); font-weight: 700; color: var(--color-text-secondary); white-space: nowrap;
 }
 .rsf-group-title:hover { background: var(--color-bg-hover); }
+/* 편집 모드 — 제목이 그룹 통째로 옮기기 손잡이다(React Flow 가 끌 수 있는 노드에 draggable 을 붙인다). */
+.react-flow__node.draggable .rsf-group-title { cursor: move; }
 /* 그룹 크기 손잡이(G2, 4단계) — 편집 모드에서 고른 그룹의 네 모서리·네 변. 틀은 누름을 받지 않으므로 손잡이만 다시 켠다. */
 .rsf-group-grip {
   position: absolute; box-sizing: border-box; width: 10px; height: 10px; pointer-events: auto; touch-action: none;

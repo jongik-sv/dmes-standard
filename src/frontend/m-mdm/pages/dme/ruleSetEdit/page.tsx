@@ -26,7 +26,7 @@ import { searchSets } from "./api";
 import { ContextMenu } from "./canvas/ContextMenu";
 import { alignNodes, distributeNodes, nudgeNodes, type AlignKind, type DistributeAxis } from "./canvas/align";
 import { buildMenu, type CanvasActions, type MenuItem, type MenuTarget } from "./canvas/context-menu";
-import { FlowCanvas, type AlignSource, type PaletteItem } from "./canvas/FlowCanvas";
+import { FlowCanvas, type AlignSource, type MoveShift, type PaletteItem } from "./canvas/FlowCanvas";
 import { FlowToolbar } from "./canvas/FlowToolbar";
 import { FlowToolbox, defaultTool, type CanvasTool } from "./canvas/FlowToolbox";
 import { MENU_PROVIDERS } from "./canvas/menus";
@@ -41,7 +41,7 @@ import { useTestCases } from "./debugger/useTestCases";
 import { ValuesTab } from "./debugger/ValuesTab";
 import { VariablePanel } from "./debugger/VariablePanel";
 import {
-  connect, flowJsonOf, reconnectEdge, setGroupPad, setLabelOffset, setPositions, setRoute, updateEdge, updateNodeLabel, updateNote,
+  connect, flowJsonOf, reconnectEdge, setGroupPad, setLabelOffset, setPositions, setRoute, shiftRoutes, updateEdge, updateNodeLabel, updateNote,
   type EditFlow, type EditResult, type FlowNote, type FlowPos, type GroupPad, type LabelOffset, type LabelPart,
 } from "./flow-edit";
 import { autoArrange, shiftSpace, type SpaceAxis, type SpaceBlocks } from "./flow-layout";
@@ -250,8 +250,12 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   });
 
   const onMove = useCallback(
-    (pos: Record<string, FlowPos>, notes: Record<string, FlowPos> = {}) =>
-      editing && edit((f) => Object.entries(notes).reduce((g, [id, p]) => updateNote(g, id, p), setPositions(f, pos))),
+    (pos: Record<string, FlowPos>, notes: Record<string, FlowPos> = {}, shift?: MoveShift) =>
+      editing &&
+      edit((f) => {
+        const g = Object.entries(notes).reduce((h, [id, p]) => updateNote(h, id, p), setPositions(f, pos));
+        return shift ? shiftRoutes(g, new Set(shift.ids), shift.dx, shift.dy) : g; // 함께 옮긴 노드 사이 선의 꺾는 점도 같은 만큼
+      }),
     [editing, edit],
   );
   // 공간 넓히기(S1) — 놓을 때 한 번 = 편집 한 번(되돌리기 한 칸). 모든 노드 위치를 그린 위치로 적는다(shiftSpace).
