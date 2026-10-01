@@ -272,11 +272,19 @@ describe("끝내는 처리 갈래 선은 다른 노드 상자를 지나지 않�
       const pos = drawnPositions(f);
       const e = f.edges.find((x) => x.id === edgeId)!;
       const routes = endingRoutes(f, pos);
-      if (edgeId !== "e6" || make !== endingBody) expect(crossed(f, pos, e, polyline(f, pos, e, undefined))).not.toEqual([]); // 고치기 전 모양(전제)
+      expect(crossed(f, pos, e, polyline(f, pos, e, undefined))).not.toEqual([]); // 고치기 전 모양(전제)
       expect(crossed(f, pos, e, polyline(f, pos, e, routes[edgeId]))).toEqual([]);
       for (const x of f.edges) if (x.id !== edgeId) expect(routes[x.id]).toBeUndefined(); // 끝내는 갈래의 끝 선만
     });
   }
+
+  it("빈 끝내는 갈래가 있어도 정상 갈래는 룰 가운데 아래 한 줄로 선다(고치기 전에는 r3·r4 가 옆으로 85 밀렸다)", () => {
+    // 몸 있는 끝내는 갈래(endingBody)는 고치기 전·후 모두 정상 갈래가 옆으로 밀린다 — 보고서 우려 항목.
+    const mid = (p: FlowPos, w: number) => p.x + w / 2;
+    const pos = autoLayout(endingOnly());
+    for (const id of ["r2", "r3", "r4"]) expect(mid(pos[id], NODE_SIZE.RULE.w)).toBe(mid(pos.r1, NODE_SIZE.RULE.w));
+    expect(mid(pos.end, NODE_SIZE.END.w)).toBe(mid(pos.r1, NODE_SIZE.RULE.w));
+  });
 
   it("돌아오는 선·평범한 선에는 경로를 만들지 않고, 받는 노드 없는 흐름은 빈 결과다", () => {
     const f = toEditFlow({ ...spec2() } as never, []);
