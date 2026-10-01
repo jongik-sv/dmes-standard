@@ -208,7 +208,7 @@ describe("RuleSetEditPage", () => {
     expect(byTestId("set-card-id").textContent).toBe("E2S_CHAIN");
     expect(byTestId("set-status").textContent).toContain("INUSE");
     expect(visibleText(byTestId("flow-toolbar"))).toContain("row_version 3");
-    expect(visibleText(pageContainer())).toContain("버전·승인 없음");
+    expect(byTestId("set-status").getAttribute("title")).toContain("버전·승인 없음");
     expect(byTestId<HTMLInputElement>("set-name").value).toBe("사슬");
     expect(visibleText(byTestId("set-checks"))).toContain("통과");
     expect(visibleText(byTestId("flow-tab-checks"))).toContain("검사 결과 0");
@@ -694,7 +694,7 @@ describe("RuleSetEditPage", () => {
     expect(calls("delete")).toHaveLength(0);
     expect(visibleText(byTestId("set-message"))).toContain("폐기하면 이 세트를 부르는 호출은 판정 오류가 난다.");
     await act(async () => {
-      findButton(pageContainer(), "취소").click();
+      byTestId<HTMLButtonElement>("set-deprecate-cancel").click();
     });
     expect(q("set-deprecate-confirm")).toBeNull();
     expect(calls("delete")).toHaveLength(0);

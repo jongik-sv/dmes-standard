@@ -3,8 +3,9 @@
 /**
  * ruleSetEdit — 룰 세트 편집(TSK-08-06, 2단계 계획 Task 10, 3단계 계획 Task 0). 정본: docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md, 스펙 §7.
  *
- * 상단 바의 세트 고르기(`IdPicker`)로 고르거나, 룰 세트 화면(등록·목록 링크)이 넘긴 setId 로 연다(`useMdmPageParams`, I22).
- * 그 아래 흐름 툴바(`FlowToolbar`, 디버그 모드면 그 아래 줄에 `DebugToolbar`), 본문 3단(왼쪽 | 흐름 캔버스 | 오른쪽), 아래 패널을 둔다.
+ * 툴바 줄 맨 앞의 세트 고르기(`IdPicker`)로 고르거나, 룰 세트 화면(등록·목록 링크)이 넘긴 setId 로 연다(`useMdmPageParams`, I22).
+ * 세트 고르기와 흐름 툴바(`FlowToolbar`)는 한 줄이다(세트 고르기를 `lead` 로 넘긴다). 디버그 모드면 그 아래 줄에 `DebugToolbar`,
+ * 본문 3단(왼쪽 | 흐름 캔버스 | 오른쪽), 아래 패널을 둔다.
  * 한 줄 세트와 분기 세트 모두 캔버스로 편집하고 흐름(`flowJson`)으로 저장한다(P-D5).
  *
  * 모드(3단계 P1) — 세트를 열면 보기 모드다. 편집 모드는 서버 판정(`editable`)·INUSE·RBAC(save)일 때만 켠다(P10). 디버그 모드는 누구나 들어간다.
@@ -622,6 +623,22 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     />
   );
 
+  // 세트 고르기 — 흐름 툴바 줄 맨 앞에 둔다(세트를 열기 전에는 이것만 있는 줄). set-edit-topbar 는 [찾기] 를 찾는 테스트 기준이다.
+  const picker = (
+    <span data-testid="set-edit-topbar" className="rsf-toolbar-group">
+      <IdPicker
+        placeholder="세트 ID·세트명"
+        noun="세트"
+        testId="set-pick"
+        search={searchSetPicks}
+        limit={SET_PICK_LIMIT}
+        inputWidth={150}
+        onPick={(id) => void open(id)}
+        onError={state.reportError}
+      />
+    </span>
+  );
+
   return (
     <>
       {/* 화면 스타일 — 포털이 dist 의 page.css 를 불러오지 않으므로 문서 head 에 한 번만 넣는다(React 19 precedence, href 로 중복 제거). */}
@@ -629,44 +646,29 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
         {RSF_CSS}
       </style>
       <MdmPageLayout group="dme" screenId={SCREEN_ID} title="룰 세트 편집">
-        <div
-          data-testid="set-edit-topbar"
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "center",
-            gap: "var(--spacing-sm)",
-            padding: "var(--spacing-sm) var(--spacing-md)",
-            borderBottom: "1px solid var(--color-border-light)",
-          }}
-        >
-          <IdPicker
-            label="룰 세트"
-            placeholder="세트 ID·세트명"
-            noun="세트"
-            testId="set-pick"
-            search={searchSetPicks}
-            limit={SET_PICK_LIMIT}
-            onPick={(id) => void open(id)}
-            onError={state.reportError}
-          />
-          {view && (
-            <>
-              <span aria-hidden style={{ alignSelf: "stretch", width: 1, margin: "2px var(--spacing-xs)", background: "var(--color-border)" }} />
-              <span data-testid="set-edit-current" style={{ fontWeight: 600 }}>
-                {`${view.set.setId} · ${view.set.setName}`}
-              </span>
-            </>
-          )}
-        </div>
-
         {!view || !flow ? (
-          <p data-testid="set-edit-empty" style={{ padding: "var(--spacing-lg) var(--spacing-md)", color: "var(--color-text-muted)" }}>
-            세트를 골라 편집한다. 새 세트는 룰 세트 화면에서 등록한다
-          </p>
+          <>
+            <div className="rsf-toolbar">
+              <div className="rsf-toolbar-row">
+                {picker}
+                {view && (
+                  <>
+                    <span className="rsf-toolbar-sep" aria-hidden />
+                    <span data-testid="set-edit-current" className="rsf-toolbar-title" style={{ fontWeight: 600 }}>
+                      {`${view.set.setId} · ${view.set.setName}`}
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+            <p data-testid="set-edit-empty" style={{ padding: "var(--spacing-lg) var(--spacing-md)", color: "var(--color-text-muted)" }}>
+              세트를 골라 편집한다. 새 세트는 룰 세트 화면에서 등록한다
+            </p>
+          </>
         ) : (
           <>
             <FlowToolbar
+              lead={picker}
               state={state}
               canDo={canDo}
               canEdit={canEdit}
