@@ -1067,7 +1067,7 @@ const NO_SEGS: readonly SegmentHandle[] = Object.freeze([]);
 const EDGE_TYPES: EdgeTypes = { rsfFlow: FlowEdgeView };
 
 /**
- * 접힌 분기 블록 요약(D16). `count` 는 분기·짝 합류를 뺀 안쪽 노드 수, `ran` 은 그 가운데 디버그/실행 기록에서 실행된 수(run·error),
+ * 접힌 분기 블록 요약(D16). `count` 는 분기·짝 합류를 뺀 안쪽 노드 수, `ran` 은 그 가운데 디버그/실행 기록에서 실행된 수(run·error·caught — 받는 노드로 넘긴 룰도 실행됐다),
  * `error` 는 안쪽 또는 합류가 오류로 끝났는가. 겹침이 없으면 0·false.
  */
 function blockInfo(flow: EditFlow, block: { count: number; members: string[] }, splitId: string, overlay: Overlay | null): CollapsedBlockInfo {
@@ -1078,7 +1078,7 @@ function blockInfo(flow: EditFlow, block: { count: number; members: string[] }, 
     if (id === splitId) continue;
     const st = overlay?.nodes[id]?.state;
     if (st === "error") error = true;
-    if (id !== mergeId && (st === "run" || st === "error")) ran++;
+    if (id !== mergeId && (st === "run" || st === "error" || st === "caught")) ran++;
   }
   return { count: block.count, ran, error };
 }

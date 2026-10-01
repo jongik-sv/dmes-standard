@@ -98,8 +98,8 @@ function restoreCatch(ctx: Ctx, saved: Ctx): void {
   Object.assign(ctx, saved);
 }
 
-/** CATCH 노드 기록이 넣는 네 값(엔진 `FlowRun.catchNode` 순서 — CATCH_NAMES 와 같다). */
-function catchValues(node: NodeTrace): Ctx {
+/** CATCH 노드 기록이 넣는 네 값(엔진 `FlowRun.catchNode` 순서 — CATCH_NAMES 와 같다). 노드 상세(TraceDetail)도 쓴다. */
+export function catchValues(node: NodeTrace): Record<string, TypedValue> {
   return {
     CATCH_KIND: { type: "STRING", value: node.catchKind ?? "" },
     CATCH_RULE: { type: "STRING", value: node.ruleId ?? "" },

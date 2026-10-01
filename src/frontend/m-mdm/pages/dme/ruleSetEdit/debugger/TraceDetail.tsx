@@ -19,8 +19,8 @@ import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { badgeStyle } from "@/shell";
 
 import { CATCH_KIND_LABEL, NO_RESULT_MESSAGE } from "../catch-text";
-import { CATCH_NAMES } from "../flow-model";
 import { REJECT_BADGE } from "../panels/ChecksPanel";
+import { catchValues } from "../trace-view";
 import { cellText } from "./ValueTable";
 
 const KIND_TEXT: Record<NodeTrace["kind"], string> = {
@@ -133,11 +133,6 @@ export function TraceDetail({ nodeId, node, flow, traceViolations, desc, onOpenR
   /** 받은 룰인데 받은 위반이 없으면 결과 없음이다(R2 — 결과 없음은 빈 목록). */
   const noResult = node.status === "CAUGHT" && violations.length === 0;
   const result = node.result;
-  /** CATCH 노드가 넣은 값 — CATCH_NAMES 순서(KIND·RULE·CODE·MSG) 그대로. */
-  const catchValues: Record<string, TypedValue> =
-    node.kind === "CATCH"
-      ? Object.fromEntries(CATCH_NAMES.map((n, i) => [n, { type: "STRING", value: [node.catchKind, node.ruleId, node.code, node.message][i] ?? "" } as TypedValue]))
-      : {};
 
   return (
     <div className="rsf-panel" data-testid="sim-detail">
@@ -166,7 +161,7 @@ export function TraceDetail({ nodeId, node, flow, traceViolations, desc, onOpenR
             {`${node.catchKind ? CATCH_KIND_LABEL[node.catchKind as CatchKind] : "-"} · ${node.code ?? ""} — ${node.message ?? ""}`}
           </p>
           <Sub>처리 갈래가 읽는 값</Sub>
-          <Pairs testId="sim-detail-catch-values" values={catchValues} empty="값이 없다" />
+          <Pairs testId="sim-detail-catch-values" values={catchValues(node)} empty="값이 없다" />
         </div>
       )}
       {node.kind === "RULE" && (

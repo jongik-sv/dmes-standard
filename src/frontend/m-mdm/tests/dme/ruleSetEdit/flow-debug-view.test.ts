@@ -50,6 +50,13 @@ function errorResponse() {
   return { trace: t, warnings: [] };
 }
 
+/** r2(안쪽 룰)가 받는 노드로 넘긴(CAUGHT) 기록 — 겹침 상태만 caught 로 바뀐다(받는 노드 spec §9). */
+function caughtResponse() {
+  const t = JSON.parse(JSON.stringify(FIRST.trace)) as RunTrace;
+  t.nodes.find((n) => n.nodeId === "r2")!.status = "CAUGHT";
+  return { trace: t, warnings: [] };
+}
+
 const nodeState = (id: string) => byTestId(`flow-node-${id}`).getAttribute("data-state");
 const text = (id: string) => visibleText(byTestId(id)).trim();
 const has = (id: string) => q(`flow-node-${id}`) !== null;
@@ -142,6 +149,18 @@ describe("블록 접기(D16)", () => {
     await run("dbg-finish");
     expect(calls("execute")).toHaveLength(2);
     expect(byTestId("flow-collapsed-if1").getAttribute("data-error")).toBe("true");
+  });
+
+  it("2-1. 안쪽 룰이 받는 노드로 넘겼으면(caught) 실행으로 세고 오류로 보지 않는다", async () => {
+    srv.replies.validate = ok({ condIo: COND_IO });
+    srv.replies.execute = ok(caughtResponse());
+    await openSet("GT_SET", viewOf());
+    await click("flow-mode-debug");
+    await toggleCollapse("if1");
+    await inputAndStep(1);
+    await run("dbg-finish");
+    expect(text("flow-collapsed-ran-if1")).toBe("안쪽 실행 1개");
+    expect(byTestId("flow-collapsed-if1").getAttribute("data-error")).not.toBe("true");
   });
 
   it("3. 디버그 커서가 접힌 블록 안 노드면 접힌 블록으로 옮기고 펼치지 않는다", async () => {
