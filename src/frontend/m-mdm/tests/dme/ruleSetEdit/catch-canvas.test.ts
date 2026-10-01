@@ -53,10 +53,10 @@ async function draw(p: FlowCanvasProps) {
 const q = (id: string) => document.querySelector(`[data-testid="${id}"]`) as HTMLElement | null;
 
 describe("받는 노드 캔버스 규칙(받는 노드 spec §8)", () => {
-  it("룰 노드 연결점 목록에 예외 연결점이 있고 받는 노드는 나가는 그리기 연결점만 있다", () => {
+  it("룰·빈 단계 연결점 목록에 예외 연결점이 있고 받는 노드는 나가는 그리기 연결점만 있다", () => {
     expect(handlesOf("RULE").map((h) => h.id)).toContain(CATCH_HANDLE);
     expect(handlesOf("CATCH").map((h) => h.id)).toEqual(["out"]);
-    expect(handlesOf("TASK").map((h) => h.id)).not.toContain(CATCH_HANDLE);
+    expect(handlesOf("TASK").map((h) => h.id)).toContain(CATCH_HANDLE);
   });
 
   it("받는 노드로 들어가는 선은 막고, 예외 연결점은 룰에서 시작·받는 노드·자기 자신이 아닌 곳으로만", () => {

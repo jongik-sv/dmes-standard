@@ -140,8 +140,7 @@ describe("흐름 우클릭 메뉴·편집(3단계 Task 8)", () => {
     expect(ids.filter((i) => i.startsWith("dissolve-"))).toHaveLength(2);
     expect(visibleText(byTestId("flow-menu-item-split-kind"))).toBe("병렬로 바꾸기");
     const labels = Array.from(document.querySelectorAll('[data-testid^="flow-menu-item-dissolve-"]')).map((e) => visibleText(e));
-    // SEAM(T6): IF 에 합류가 없어져(implicit-join §8.2) 지금 메뉴는 「(빈 갈래)」 를 붙이지 않는다. edit-menu 가 joinOf 기준(§8.3)이 되면 1 로 되돌린다.
-    expect(labels.filter((l) => l.includes("(빈 갈래)"))).toHaveLength(0);
+    expect(labels.filter((l) => l.includes("(빈 갈래)"))).toHaveLength(1);
 
     await click("flow-menu-item-split-kind");
     expect(kindOf("if1")).toBe("PARALLEL");

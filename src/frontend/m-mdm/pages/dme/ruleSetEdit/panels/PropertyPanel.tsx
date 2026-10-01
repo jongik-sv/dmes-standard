@@ -43,7 +43,7 @@ import {
 import { CATCH_KIND_LABEL, catchTitle } from "../catch-text";
 import { MAX_DESC } from "../node-desc";
 import { restyleNode, type NodeLayoutSource } from "../flow-layout";
-import { CATCH_KINDS, catchesOf, parseFlow, type FlowTree } from "../flow-model";
+import { CATCH_KINDS, catchesOf, endingBranches, parseFlow, type FlowTree } from "../flow-model";
 import type { NodeStylePatch } from "../node-style";
 import type { IoName, RuleIo, RuleIoMap, RuleSetCheck } from "../types";
 import { CheckBadge } from "./ChecksPanel";
@@ -77,7 +77,7 @@ const KIND_TEXT: Record<FlowNode["kind"], string> = {
   TASK: "빈 단계 — 입력·출력 없이 지나간다. 룰을 지정하면 룰 노드가 된다",
   IF: "IF 분기",
   PARALLEL: "병렬 분기",
-  MERGE: "합류",
+  MERGE: "병렬 합류",
   CATCH: "받는 노드 — 붙은 룰이 실패하거나 결과가 없을 때 처리 갈래를 실행한다",
 };
 
@@ -323,6 +323,10 @@ function SplitProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
   const isIf = node.kind === "IF";
   const branches = branchesOf(flow, node.id);
   const ordered = branches.filter((e) => !e.otherwise);
+  const ending = new Set(isIf ? (endingBranches(flow, node.id) ?? []) : []);
+  const endId = flow.nodes.find((n) => n.kind === "END")?.id;
+  /** 몸 있는 끝내는 갈래가 있을 때만 안내한다(R21 — END 앞에 끼운 IF 의 END 직행 「그 외」 는 고칠 것이 없다). */
+  const endingHelp = [...ending].some((id) => flow.edges.find((x) => x.id === id)?.to !== endId);
   const nodeChecks = checks.filter((c) => c.nodeId === node.id && !c.edgeId);
 
   const handleDrop = (toEdgeId: string) => (e: React.DragEvent<HTMLDivElement>) => {
@@ -409,6 +413,11 @@ function SplitProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
                     style={{ flex: 1, minWidth: 0 }}
                     onChange={(v) => onEdit((f) => updateEdge(f, e.id, { label: blankToNull(v) }), { mergeKey: `elabel:${e.id}` })}
                   />
+                  {ending.has(e.id) && (
+                    <span data-testid={`flow-prop-branch-${e.id}-ending`} style={badgeStyle("neutral")} title="이 갈래를 타면 세트를 여기서 끝낸다">
+                      끝냄
+                    </span>
+                  )}
                   {editable && !other && (
                     <>
                       <Button
@@ -459,6 +468,11 @@ function SplitProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
             );
           })}
         </div>
+        {isIf && endingHelp && (
+          <p className="rsf-panel-note rsf-muted" data-testid="flow-prop-if-ending-help">
+            흐름을 이어 갈 갈래는 「그 외」로 둔다. 끝낼 갈래는 조건 갈래로 두고 끝 노드로 잇는다.
+          </p>
+        )}
 
         {editable && (
           <div className="rsf-panel-actions">
@@ -483,6 +497,10 @@ function CatchProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
     for (const k of (other.catches ?? []) as CatchKind[]) owners.set(k, other.id);
   }
   const own = checks.filter((c) => c.nodeId === node.id);
+  const host = node.attachTo ? flow.nodes.find((n) => n.id === node.attachTo) : undefined;
+  const onTask = host?.kind === "TASK";
+  /** 빈 단계에 붙은 받는 노드 경고(implicit-join spec §6) — 종류 이름이 없어 종류 옆이 아니라 섹션 머리에 한 줄씩 보인다(R19). */
+  const taskNever = own.filter((c) => c.code === "CATCH_NEVER" && c.ruleId == null);
   // CATCH_NEVER 는 한 코드를 두 종류가 나눠 쓰므로 종류는 문구의 종류 이름으로만 가른다(R12).
   const neverOf = (k: CatchKind) => own.find((c) => c.code === "CATCH_NEVER" && c.message.includes(CATCH_KIND_LABEL[k]));
   return (
@@ -503,7 +521,7 @@ function CatchProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>붙은 룰</th>
+              <th style={DETAIL_LABEL_CELL}>{onTask ? "붙은 노드" : "붙은 룰"}</th>
               <td style={DETAIL_VALUE_CELL}>
                 <code>{node.attachTo ?? "-"}</code>
               </td>
@@ -515,6 +533,11 @@ function CatchProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
         </p>
       </Section>
       <Section kind="CATCH" id="catch-kinds" title="받을 예외" memory={sections}>
+        {taskNever.map((c) => (
+          <p key={c.message} className="rsf-panel-note" data-testid="flow-prop-catch-never-task" style={badgeStyle("warning")}>
+            {c.message}
+          </p>
+        ))}
         <div className="rsf-catch-kinds">
           {CATCH_KINDS.map((k) => {
             const owner = owners.get(k);
@@ -551,7 +574,7 @@ function CatchProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
 
 function PlainNodeProps({ node, props }: { node: FlowNode; props: PropertyPanelProps }) {
   const { sections } = props;
-  const text = node.kind === "MERGE" ? `합류 — 분기 ${node.splitId ?? "-"}의 갈래가 여기서 모인다. 분기를 지우면 함께 없어진다` : KIND_TEXT[node.kind];
+  const text = node.kind === "MERGE" ? `병렬 합류 — 병렬 ${node.splitId ?? "-"}의 갈래가 모두 끝나면 결과를 갈래 순서대로 합친다. 병렬 분기를 지우면 함께 없어진다` : KIND_TEXT[node.kind];
   return (
     <div className="rsf-panel" data-testid="flow-prop-node">
       <Section kind={node.kind as PanelKind} id="node-basic" title="설명" memory={sections}>

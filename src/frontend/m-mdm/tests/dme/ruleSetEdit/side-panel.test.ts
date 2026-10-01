@@ -115,20 +115,20 @@ describe("오른쪽 머리글·섹션(4단계 Task 8)", () => {
     expect(isOpen("rule-inputs")).toBe(true);
   });
 
-  it("머리글 이름 — START·END 는 종류 이름, MERGE 는 「분기 {IF} 합류」 (노드 ID 를 보이지 않는다)", () => {
+  it("머리글 이름 — START·END 는 종류 이름, MERGE 는 「병렬 {분기} 합류」 (노드 ID 를 보이지 않는다)", () => {
     const f = richFlow();
     const name = (id: string) => panelTargetOf(f, {}, id, null, "세트").name;
     expect(name("start")).toBe("시작");
     expect(name("end")).toBe("끝");
     // 합류는 병렬에만 있다(implicit-join §8.2).
     const par = must(insertSplit(toEditFlow(null, ["SP_A"]), "e2", "PARALLEL"));
-    expect(panelTargetOf(par, {}, "m1", null, "세트").name).toBe("분기 par1 합류");
+    expect(panelTargetOf(par, {}, "m1", null, "세트").name).toBe("병렬 par1 합류");
   });
 
-  it("머리글 — 병렬 합류를 고르면 「합류」 와 분기 이름이다", async () => {
+  it("머리글 — 병렬 합류를 고르면 「병렬 합류」 와 분기 이름이다", async () => {
     await openSet("SP_M", viewOf("SP_M", must(insertSplit(toEditFlow(null, ["SP_A"]), "e2", "PARALLEL"))));
     await click("flow-node-m1");
-    expect(header()).toEqual(["합류", "분기 par1 합류"]);
+    expect(header()).toEqual(["병렬 합류", "병렬 par1 합류"]);
   });
 
   it("섹션 aria-controls — 펼친 동안만 있고 실제 본문 id 를 가리키며, 접으면 없다", async () => {

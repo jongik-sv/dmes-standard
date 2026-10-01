@@ -391,7 +391,7 @@ function LinkHandles({ node, isConnectable }: { node: FlowNode; isConnectable: b
   );
 }
 
-/** 룰 노드 오른쪽 아래 "예외" 연결점(편집 모드만, 받는 노드 spec §8). 노드에 마우스를 올리면 보인다. */
+/** 룰·빈 단계 노드 오른쪽 아래 "예외" 연결점(편집 모드만, 받는 노드 spec §8). 노드에 마우스를 올리면 보인다. */
 function CatchHandle({ node, isConnectable }: { node: FlowNode; isConnectable: boolean }) {
   return (
     <Handle
@@ -425,6 +425,7 @@ export function FlowNodeView({ data, isConnectable }: NodeProps<FlowRfNode>) {
     <div
       className={cls}
       data-testid={`flow-node-${node.id}`}
+      title={kind === "MERGE" ? "병렬 합류" : undefined}
       data-state={overlay?.state ?? "idle"}
       data-selected={selected ? "true" : "false"}
       data-kind={kind}
@@ -472,7 +473,7 @@ export function FlowNodeView({ data, isConnectable }: NodeProps<FlowRfNode>) {
       )}
       {kind !== "END" && <Handle id={ANCHOR_OUT} type="source" position={Position.Bottom} className="rsf-anchor" isConnectableStart={false} />}
       {data.linkable && kind !== "CATCH" && <LinkHandles node={node} isConnectable={isConnectable} />}
-      {data.linkable && kind === "RULE" && !collapsed && <CatchHandle node={node} isConnectable={isConnectable} />}
+      {data.linkable && (kind === "RULE" || kind === "TASK") && !collapsed && <CatchHandle node={node} isConnectable={isConnectable} />}
       {data.resizable &&
         sizing &&
         NODE_GRIPS.map((g) => (
@@ -558,7 +559,7 @@ export function handlesOf(kind: FlowNode["kind"], size: NodeSize = NODE_SIZE[kin
   if (kind === "START") return [out, ...sides];
   if (kind === "END") return [into, body];
   if (kind === "CATCH") return [out];
-  if (kind === "RULE") {
+  if (kind === "RULE" || kind === "TASK") {
     const catchHandle = { id: CATCH_HANDLE, type: "source" as const, position: Position.Bottom, x: w - g * 2, y: h - g / 2, width: g, height: g };
     return [into, body, out, ...sides, catchHandle];
   }

@@ -4,22 +4,26 @@
  */
 import type { FlowNodeKind } from "@/contract/engine-contract.generated";
 
-import { returnCatch, type EditFlow } from "../../flow-edit";
+import { KEEP_ENDING, returnCatch, type EditFlow } from "../../flow-edit";
+import { endingBranches, joinOf } from "../../flow-model";
 import { NODE_COLORS, NODE_COLOR_LABEL, STYLED_KINDS } from "../../node-style";
 import type { MenuContext, MenuItem, MenuProvider } from "../context-menu";
 
 const EMPTY_BRANCH = "(빈 갈래)";
+const ENDING_BRANCH = "(끝냄)";
 
 const isSplit = (k: FlowNodeKind) => k === "IF" || k === "PARALLEL";
 
-/** 분기 풀기 갈래 항목 — 라벨 = 갈래 이름(없으면 "갈래 N"), 합류로 바로 가는 빈 갈래면 "(빈 갈래)" 를 붙인다. */
+/** 분기 풀기 갈래 항목 — 라벨 = 갈래 이름(없으면 "갈래 N"), 모이는 자리로 바로 가는 빈 갈래면 "(빈 갈래)", 끝내는 갈래면 "(끝냄)" 이고 흐리다(§8.3). */
 function dissolveChildren(f: EditFlow, splitId: string, run: (edgeId: string) => void): MenuItem[] {
-  const merge = f.nodes.find((n) => n.kind === "MERGE" && n.splitId === splitId);
+  const join = joinOf(f, splitId);
+  const ending = new Set(endingBranches(f, splitId) ?? []);
   return f.edges
     .filter((e) => e.from === splitId)
     .map((e, i) => {
       const name = e.label && e.label.trim() !== "" ? e.label : `갈래 ${i + 1}`;
-      return { id: `dissolve-${e.id}`, label: merge && e.to === merge.id ? `${name} ${EMPTY_BRANCH}` : name, run: () => run(e.id) };
+      if (ending.has(e.id)) return { id: `dissolve-${e.id}`, label: `${name} ${ENDING_BRANCH}`, disabled: true, title: KEEP_ENDING, run: () => run(e.id) };
+      return { id: `dissolve-${e.id}`, label: join != null && e.to === join ? `${name} ${EMPTY_BRANCH}` : name, run: () => run(e.id) };
     });
 }
 
@@ -68,6 +72,7 @@ export const editMenu: MenuProvider = (t, ctx) => {
         { id: "rule-assign", label: "룰 지정…", run: () => act.openRuleAssign(id) },
         { id: "copy", label: "복사", run: () => act.copy(id) },
         { id: "duplicate", label: "복제", run: () => act.duplicate(id) },
+        { id: "catch-add", label: "예외 받기 추가", run: () => act.addCatch(id) },
         colorItem(flow, ctx, id),
         { id: "delete", label: "삭제", danger: true, run: () => act.removeNode(id) },
       ];

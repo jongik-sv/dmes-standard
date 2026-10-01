@@ -80,13 +80,15 @@ export const BASE_CSS = `
 .rsf-diamond { width: 16px; height: 16px; flex: none; transform: rotate(45deg); border: 1.5px solid var(--color-primary); background: var(--color-primary-soft); border-radius: 2px; }
 .rsf-if .rsf-title { font-size: var(--font-size-lg); }
 
-/* 병렬 막대 · 합류 원 */
+/* 병렬 막대 · 병렬 합류 이중선 */
 .rsf-par { background: var(--rsf-par-bar); border: 0; border-radius: 3px; box-shadow: none; }
 .rsf-par[data-selected="true"] { outline: 2px solid var(--color-primary); outline-offset: 3px; box-shadow: none; }
 .rsf-par[data-state="run"], .rsf-par[data-state="current"] { background: var(--color-success); box-shadow: none; }
 .rsf-par-label { position: absolute; left: 16px; bottom: calc(100% + 4px); font-size: var(--font-size-xs); font-weight: 600; color: var(--color-text-secondary); white-space: nowrap; }
-.rsf-merge { border-radius: 50%; border: 2px solid var(--rsf-border); box-shadow: none; }
-.rsf-merge[data-state="run"] { background: var(--color-success-soft); border-color: var(--color-success); }
+/* 병렬 합류 — 병렬 분기와 같은 크기의 이중선 막대(implicit-join spec §10). 배경 없이 위·아래 4px 두 줄, 가운데 6px 빈 줄 */
+.rsf-merge { background: transparent; border: 0; border-top: 4px solid var(--rsf-par-bar); border-bottom: 4px solid var(--rsf-par-bar); border-radius: 0; box-shadow: none; box-sizing: border-box; }
+.rsf-merge[data-selected="true"] { outline: 2px solid var(--color-primary); outline-offset: 3px; box-shadow: none; }
+.rsf-merge[data-state="run"], .rsf-merge[data-state="current"] { background: transparent; border-top-color: var(--color-success); border-bottom-color: var(--color-success); box-shadow: none; }
 
 /* 겹침 배지 · 칩 */
 .rsf-seq {
