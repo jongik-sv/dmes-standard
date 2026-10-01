@@ -26,12 +26,14 @@ export interface DomainCheckListProps {
   ok: boolean | undefined;
   issues: IssueRow[];
   descendantResults: TestResultRow[];
+  /** 검사 전 안내 문구. */
+  pendingHint?: string;
 }
 
-export function DomainCheckList({ validated, ok, issues, descendantResults }: DomainCheckListProps) {
+export function DomainCheckList({ validated, ok, issues, descendantResults, pendingHint }: DomainCheckListProps) {
   const issueData = useMemo(() => issues.map((i, idx) => ({ ...i, ROW_KEY: idx })), [issues]);
   const descData = useMemo(() => descendantResults.map((r, idx) => ({ ...r, ROW_KEY: idx })), [descendantResults]);
-  if (!validated) return <p style={hint}>[도메인검증] 을 누르면 검사 목록이 보입니다</p>;
+  if (!validated) return <p style={hint}>{pendingHint ?? "[도메인검증] 을 누르면 검사 목록이 보입니다"}</p>;
   return (
     <div className="domain-mng__checks">
       <p className="domain-mng__check-summary" style={ok ? { color: "var(--color-success)" } : { color: "var(--color-danger)" }}>

@@ -4,6 +4,7 @@
 import { Input, Select, Textarea } from "@dk-oasis/shared/form";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import type { DomainDraft, DomainRow } from "../types";
+import { ParentDomainSelect } from "./ParentDomainSelect";
 import { hint, row as rowStyle } from "./styles";
 
 export const KIND_OPTIONS = [
@@ -18,7 +19,7 @@ export const TYPE_OPTIONS = [
 
 export interface DomainBasicFormProps {
   draft: DomainDraft;
-  /** 부모가 있으면(하위 등록·수정) 종류·타입·단위 고정, 수정이면 부모도 고정. */
+  /** 부모가 있으면(하위 등록·수정) 종류·타입·단위 고정, 수정이면 부모도 고정([부모 연결]·[연결 제거] 대화상자로 바꾼다). */
   structureLocked: boolean;
   parentLocked: boolean;
   readOnly: boolean;
@@ -62,10 +63,8 @@ export function DomainBasicForm(props: DomainBasicFormProps) {
           <th style={DETAIL_LABEL_CELL}>부모 도메인</th>
           <td style={DETAIL_VALUE_CELL}>
             <div style={rowStyle}>
-              <Select aria-label="부모 도메인" value={draft.parentDomainId ?? ""} placeholder="(없음 — 최상위)"
-                options={parentOptions.map((r) => ({ value: String(r.DOMAIN_ID), label: `${r.DOMAIN_NAME} (${r.STD_NAME})` }))}
-                disabled={readOnly || parentLocked}
-                onChange={(v) => onChange({ parentDomainId: v === "" ? null : Number(v) })} />
+              <ParentDomainSelect value={draft.parentDomainId} options={parentOptions} placeholder="(없음 — 최상위)"
+                disabled={readOnly || parentLocked} onChange={(parentDomainId) => onChange({ parentDomainId })} />
               {parentLocked && fixed}
             </div>
           </td>
