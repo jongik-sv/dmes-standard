@@ -35,6 +35,11 @@ public final class FlowFixtures {
         return new FlowNode(id, NodeKind.MERGE, null, splitId, null);
     }
 
+    /** 빈 단계(TASK, 4단계 spec §1.1). */
+    public static FlowNode task(String id) {
+        return new FlowNode(id, NodeKind.TASK, null, null, "빈 단계");
+    }
+
     /** 분기 밖 보통 선. */
     public static FlowEdge e(String id, String from, String to) {
         return new FlowEdge(id, from, to, null, null, false, null);

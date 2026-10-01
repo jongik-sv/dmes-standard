@@ -20,6 +20,7 @@ import kr.dongkuk.maru.mdm.engine.flow.Branch;
 import kr.dongkuk.maru.mdm.engine.flow.RuleStep;
 import kr.dongkuk.maru.mdm.engine.flow.Seq;
 import kr.dongkuk.maru.mdm.engine.flow.Split;
+import kr.dongkuk.maru.mdm.engine.flow.TaskStep;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.DataType;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.NodeKind;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RowContract;
@@ -136,6 +137,9 @@ final class FlowKeys {
                     sure.addAll(results);
                     maybe.removeAll(results);
                 }
+                case TaskStep t -> {
+                    // 빈 단계 — 읽는 이름도 만드는 이름도 없다(4단계 spec §1.1).
+                }
                 case Split s when s.kind() == NodeKind.IF -> {
                     for (Branch br : s.branches()) {
                         if (br.otherwise()) {
@@ -196,6 +200,9 @@ final class FlowKeys {
                         out.addAll(RuleEvaluator.resultNames(def));
                     }
                 }
+                case TaskStep t -> {
+                    // 빈 단계 — 읽는 이름도 만드는 이름도 없다(4단계 spec §1.1).
+                }
                 case Split s when s.kind() == NodeKind.IF -> {
                     Set<String> inter = null;
                     for (Branch br : s.branches()) {
@@ -227,6 +234,9 @@ final class FlowKeys {
                     if (def != null) {
                         out.addAll(RuleEvaluator.resultNames(def));
                     }
+                }
+                case TaskStep t -> {
+                    // 빈 단계 — 읽는 이름도 만드는 이름도 없다(4단계 spec §1.1).
                 }
                 case Split s -> s.branches().forEach(br -> out.addAll(allProduced(br.body())));
                 case Seq inner -> out.addAll(allProduced(inner));
