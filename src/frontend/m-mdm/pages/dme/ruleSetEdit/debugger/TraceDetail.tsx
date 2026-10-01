@@ -98,9 +98,11 @@ export interface TraceDetailProps {
   /** 이 노드의 설명(`view.descs`). 없으면 보이지 않는다. */
   desc?: string;
   onOpenRule: (ruleId: string) => void;
+  /** END 노드에 보일 끝낸 갈래 문장(R18). */
+  endedBranch?: string | null;
 }
 
-export function TraceDetail({ nodeId, node, flow, traceViolations, desc, onOpenRule }: TraceDetailProps) {
+export function TraceDetail({ nodeId, node, flow, traceViolations, desc, onOpenRule, endedBranch }: TraceDetailProps) {
   const edges = useMemo(() => new Map(flow.edges.map((e) => [e.id, e] as const)), [flow]);
   const edgeName = (id: string) => edges.get(id)?.label ?? id;
   const flowNode = flow.nodes.find((n) => n.id === nodeId);
@@ -150,6 +152,11 @@ export function TraceDetail({ nodeId, node, flow, traceViolations, desc, onOpenR
       </div>
       <NodeDescNote desc={desc} />
 
+      {node.kind === "END" && endedBranch && (
+        <p className="rsf-panel-note" data-testid="sim-detail-ended-branch">
+          {endedBranch}
+        </p>
+      )}
       {node.kind === "TASK" && (
         <p className="rsf-muted" data-testid="sim-detail-task">
           빈 단계 — 아무것도 읽거나 만들지 않고 지나갔다

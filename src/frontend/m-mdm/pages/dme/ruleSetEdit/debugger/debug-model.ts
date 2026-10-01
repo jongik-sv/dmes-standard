@@ -9,7 +9,7 @@ import type { DataType, RunTrace, RuleSetFlow, TraceEdit, TypedValue } from "@/c
 import { EVAL_TS, RESERVED_CONSTANTS, RESERVED_PREFIX } from "@/evalex/contract-constants";
 
 import { catchTitle } from "../catch-text";
-import { CATCH_NAMES } from "../flow-model";
+import { CATCH_NAMES, endingBranches } from "../flow-model";
 import { frames, sameTyped, validEdits } from "../trace-view";
 
 /** 변수 패널 한 줄 — 커서 자리에서 본 값. created·changed 는 바로 앞 노드가 만들었거나 바꿨는가.
@@ -126,12 +126,32 @@ export const RUN_DENIED_TITLE = "디버거는 편집 권한이 있어야 쓸 수
  * 기록 없음 → 시작 안내, 기록 노드 0개 → `실행 전 오류 — {첫 위반}`, k < n → `{k+1}/{n} · {nodeId} 실행 전`,
  * k = n 이고 마지막 노드가 ERROR → `오류로 멈춤 — {nodeId}: {첫 위반}`, k = n 이고 `endedBy` 가 있으면(처리 갈래가 끝냄, 받는 노드 spec §9)
  * `예외로 끝남: {받는 노드 제목} · {n}단계 · 결과 변수 {m}개`(제목은 실행 흐름 `flow` 의 label, 없으면 받는 종류 이름, 노드를 못 찾으면 ID),
- * 그 밖 k = n → `완료 · {n}단계 · 결과 변수 {m}개`. 첫 위반은 그 노드의 위반, 없으면 세트 전체 위반의 첫 문구다.
+ * 그 밖 k = n → `완료 · {n}단계 · 결과 변수 {m}개`, 끝내는 IF 갈래로 끝났으면 뒤에 ` · IF {제목}의 「{갈래}」 갈래에서 끝냈다`(R12).
+ * 첫 위반은 그 노드의 위반, 없으면 세트 전체 위반의 첫 문구다.
  */
 export function debugStatus(trace: RunTrace | null, cursor: number, pending = 0, flow?: RuleSetFlow): string {
   if (!trace) return NO_RECORD_STATUS;
   const edited = editCount(validEdits(trace));
   return `${baseStatus(trace, cursor, flow)}${edited > 0 ? ` · 고친 값 ${edited}건` : ""}${pending > 0 ? ` · 고침 대기 ${pending}건` : ""}`;
+}
+
+/**
+ * 끝내는 IF 갈래로 끝난 실행의 표시 문장(R12, implicit-join spec §11) — `endedBy` 가 없고 마지막 기록이 END 일 때, 기록의 IF 가운데 고른 선이
+ * 끝내는 갈래인 마지막 IF. 제목은 IF label(없거나 공백이면 "조건"), 갈래는 선 label(없거나 공백이면 편집기 기본 이름처럼 "그 외"·"갈래 {order}"). 아니면 null. 계약 칸이 아니라 화면 계산이다(J-D17).
+ */
+export function endedBranchText(trace: RunTrace, flow: RuleSetFlow): string | null {
+  const n = trace.nodes.length;
+  if (trace.endedBy || n === 0 || trace.nodes[n - 1].kind !== "END") return null;
+  for (let i = n - 1; i >= 0; i--) {
+    const t = trace.nodes[i];
+    if (t.kind !== "IF" || !t.chosenEdgeId) continue;
+    if (!(endingBranches(flow, t.nodeId) ?? []).includes(t.chosenEdgeId)) continue;
+    const title = flow.nodes.find((x) => x.id === t.nodeId)?.label?.trim() || "조건";
+    const e = flow.edges.find((x) => x.id === t.chosenEdgeId);
+    const branch = e?.label?.trim() || (e?.otherwise ? "그 외" : `갈래 ${e?.order ?? ""}`.trim());
+    return `IF ${title}의 「${branch}」 갈래에서 끝냈다`;
+  }
+  return null;
 }
 
 function baseStatus(trace: RunTrace, cursor: number, flow?: RuleSetFlow): string {
@@ -147,7 +167,8 @@ function baseStatus(trace: RunTrace, cursor: number, flow?: RuleSetFlow): string
     const c = flow?.nodes.find((x) => x.id === trace.endedBy);
     return `예외로 끝남: ${c ? catchTitle(c) || c.id : trace.endedBy} · ${tail}`;
   }
-  return `완료 · ${tail}`;
+  const ended = flow ? endedBranchText(trace, flow) : null;
+  return `완료 · ${tail}${ended ? ` · ${ended}` : ""}`;
 }
 
 /** TypedValue → 기대값 JSON 값. 서버 `RuleCaseJudge.sameValue` 가 받는 모양(NUMBER 는 십진 문자열 그대로, LIST 는 items 를 원소마다). */
