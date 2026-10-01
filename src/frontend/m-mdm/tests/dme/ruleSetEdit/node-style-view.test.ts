@@ -150,6 +150,9 @@ describe("CSS — 상태 표시가 색보다 우선(S-D3, Review Focus 4)", () =
     expect(all).toMatch(/\.rsf-node\[data-selected="true"\] \{[^}]*box-shadow: 0 0 0 3px var\(--rsf-ring\)/);
     expect(all).toMatch(/\.rsf-node\[data-selected="true"\]:where\(:not\(\[data-color\]\)\) \{[^}]*border-color: var\(--color-primary\)/);
     expect(all).not.toMatch(/\.rsf-node\[data-selected="true"\] \{[^}]*border-color/);
+    // hover 도 색 노드의 테두리를 덮지 않는다 — 색 없는 노드만(0,2,0 유지, 디버그 상태 규칙은 뒤에서 그대로 이김).
+    expect(all).toMatch(/\.rsf-node:hover:where\(:not\(\[data-color\]\)\) \{[^}]*border-color: var\(--color-text-muted\)/);
+    expect(all).not.toMatch(/\.rsf-node:hover \{/);
     expect(all).toMatch(/\.rsf-node\.rsf-node-pending \{[^}]*border-color: var\(--rsf-border\)/);
   });
 

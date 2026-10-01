@@ -167,13 +167,44 @@ describe("메뉴 그리기 — 색상 격자", () => {
     m.done();
   });
 
+  it("창 아래쪽에서 연 메뉴를 「색상」으로 펼쳐도 메뉴 아래 끝이 창 안에 있다(위치를 다시 당긴다)", async () => {
+    const desc = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetHeight");
+    const innerH = window.innerHeight;
+    // happy-dom 은 크기를 재지 않으므로 메뉴 높이를 흉내낸다 — 접힘 100px, 격자를 펴면 200px.
+    Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
+      configurable: true,
+      get(this: HTMLElement) {
+        return this.classList.contains("rsf-menu") ? (this.querySelector(".rsf-menu-swatches") ? 200 : 100) : 0;
+      },
+    });
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 300 });
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    try {
+      await act(async () => {
+        root.render(createElement(ContextMenu, { items: [{ id: "color", label: "색상", icon: "brush", swatches: SWATCHES(vi.fn()) }], at: { x: 10, y: 250 }, onClose: vi.fn() }));
+      });
+      const menu = el(host, "flow-menu")!;
+      expect(parseFloat(menu.style.top) + 100).toBeLessThanOrEqual(300);
+      await act(async () => el(host, "flow-menu-item-color")!.click());
+      expect(parseFloat(menu.style.top) + 200).toBeLessThanOrEqual(300);
+    } finally {
+      act(() => root.unmount());
+      host.remove();
+      if (desc) Object.defineProperty(HTMLElement.prototype, "offsetHeight", desc);
+      Object.defineProperty(window, "innerHeight", { configurable: true, value: innerH });
+    }
+  });
+
   it("CSS — 견본은 노드 색 토큰으로 칠하고(기본은 --color-bg·--color-border-strong) 16진수·rgb() 가 없다", () => {
     const css = MENU_CSS.replace(/\s+/g, " ");
     for (const c of ["blue", "orange", "green", "red", "purple"]) {
       expect(css).toMatch(new RegExp(`\\.rsf-menu-swatch\\[data-color="${c}"\\] \\{[^}]*background: var\\(--rsf-c-${c}-bg\\)[^}]*border-color: var\\(--rsf-c-${c}-border\\)`));
     }
-    expect(css).toMatch(/\.rsf-menu-swatch\[data-color="default"\] \{[^}]*var\(--color-bg\)[^}]*var\(--color-border-strong\)/);
-    expect(css).toMatch(/\.rsf-menu-swatch\[aria-pressed="true"\] \{[^}]*var\(--color-bg-hover\)/);
+    expect(css).toMatch(/\.rsf-menu-swatch \{[^}]*background: var\(--color-bg\)[^}]*border: 2px solid var\(--color-border-strong\)/); // 기본 견본
+    expect(css).not.toContain('.rsf-menu-swatch[data-color="default"]');
+    expect(css).toMatch(/\.rsf-menu-swatch\[aria-pressed="true"\] \{[^}]*var\(--color-border-light\)[^}]*var\(--color-border-strong\)/); // 고른 칸
     expect(css).toMatch(/\.rsf-menu-swatches \{[^}]*grid-template-columns: repeat\(3,/);
     expect(css).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(/);
   });

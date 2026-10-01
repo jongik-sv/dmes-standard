@@ -8,7 +8,7 @@
  * `swatches` 가 있는 항목은 [아이콘 + 라벨] 단추로 그리고, 누르면 메뉴를 닫지 않고 그 아래에 3열 견본 격자를 펼친다(색상). 견본을 누르면 `run()` 뒤 닫는다.
  * 화면 모듈은 Mantine 을 쓰지 않으므로(Part B §4-2) 기본 버튼과 `styles/menu.ts` 규칙으로 그린다.
  */
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { IconBrush, type TablerIcon } from "@tabler/icons-react";
 
@@ -47,7 +47,7 @@ function ItemButton({ item, onClose, nested }: { item: MenuItem; onClose(): void
 const ITEM_ICON: Readonly<Record<NonNullable<MenuItem["icon"]>, TablerIcon>> = { brush: IconBrush };
 
 /** 견본 격자를 펼치는 항목(색상) — 단추는 메뉴를 닫지 않고, 견본을 누르면 run 뒤 닫는다. */
-function SwatchEntry({ item, onClose }: { item: MenuItem; onClose(): void }) {
+function SwatchEntry({ item, onClose, onResize }: { item: MenuItem; onClose(): void; onResize(): void }) {
   const [open, setOpen] = useState(false);
   const Icon = item.icon ? ITEM_ICON[item.icon] : null;
   return (
@@ -60,7 +60,10 @@ function SwatchEntry({ item, onClose }: { item: MenuItem; onClose(): void }) {
         aria-expanded={open}
         disabled={item.disabled}
         title={item.title}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          setOpen((v) => !v);
+          onResize();
+        }}
       >
         {Icon && <Icon size={14} aria-hidden="true" />}
         <span>{item.label}</span>
@@ -89,8 +92,8 @@ function SwatchEntry({ item, onClose }: { item: MenuItem; onClose(): void }) {
   );
 }
 
-function Entry({ item, onClose }: { item: MenuItem; onClose(): void }) {
-  if (item.swatches && item.swatches.length > 0) return <SwatchEntry item={item} onClose={onClose} />;
+function Entry({ item, onClose, onResize }: { item: MenuItem; onClose(): void; onResize(): void }) {
+  if (item.swatches && item.swatches.length > 0) return <SwatchEntry item={item} onClose={onClose} onResize={onResize} />;
   if (!item.children || item.children.length === 0) return <ItemButton item={item} onClose={onClose} nested={false} />;
   return (
     <div className="rsf-menu-group" role="group" aria-label={item.label}>
@@ -112,6 +115,9 @@ export function ContextMenu({ items, at, onClose }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(at);
   const open = !!at && items.length > 0;
+  /** 항목이 메뉴 높이를 바꾸면(색상 격자 펼침) 올려 위치 당김을 다시 돌린다. */
+  const [resizes, setResizes] = useState(0);
+  const onResize = useCallback(() => setResizes((n) => n + 1), []);
 
   // 여는 자리가 바뀌면 그 자리에 두고, 그린 뒤 화면 밖으로 넘치면 안쪽으로 당긴다.
   useLayoutEffect(() => {
@@ -124,7 +130,7 @@ export function ContextMenu({ items, at, onClose }: ContextMenuProps) {
     const x = vw > 0 && at.x + w + EDGE_GAP > vw ? Math.max(EDGE_GAP, vw - w - EDGE_GAP) : at.x;
     const y = vh > 0 && at.y + h + EDGE_GAP > vh ? Math.max(EDGE_GAP, vh - h - EDGE_GAP) : at.y;
     setPos({ x, y });
-  }, [open, at]);
+  }, [open, at, resizes]);
 
   // 열리면 첫 항목에 초점을 준다 — 키보드만으로도 쓸 수 있게(활성 항목이 없으면 메뉴 틀에).
   useEffect(() => {
@@ -187,7 +193,7 @@ export function ContextMenu({ items, at, onClose }: ContextMenuProps) {
       }}
     >
       {items.map((item) => (
-        <Entry key={item.id} item={item} onClose={onClose} />
+        <Entry key={item.id} item={item} onClose={onClose} onResize={onResize} />
       ))}
     </div>
   );

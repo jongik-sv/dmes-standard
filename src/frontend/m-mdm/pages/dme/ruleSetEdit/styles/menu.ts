@@ -26,16 +26,15 @@ export const MENU_CSS = `
 .rsf-menu-item-nested { padding-left: calc(var(--spacing-md) * 2); }
 .rsf-menu-item-icon { display: flex; align-items: center; gap: var(--spacing-xs); }
 .rsf-menu-group { display: flex; flex-direction: column; }
-/* 색상 견본 격자 — 3열 × 2줄, 고른 칸은 견본 둘레에 회색(--color-bg-hover) 칸(한 변 색 바 아님, Local-Rules §8) */
+/* 색상 견본 격자 — 3열 × 2줄, 고른 칸은 견본 둘레에 회색(--color-border-light) 칸 + 진한 가장자리(한 변 색 바 아님, Local-Rules §8) */
 .rsf-menu-swatches { display: grid; grid-template-columns: repeat(3, 28px); gap: 8px; padding: 8px var(--spacing-md); }
 .rsf-menu-swatch {
   box-sizing: border-box; width: 28px; height: 28px; margin: 0; padding: 0; cursor: pointer;
   background: var(--color-bg); border: 2px solid var(--color-border-strong); border-radius: var(--radius-md);
 }
-.rsf-menu-swatch[data-color="default"] { background: var(--color-bg); border-color: var(--color-border-strong); }
 ${SWATCH_RULES}
 .rsf-menu-swatch:hover, .rsf-menu-swatch:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 1px; }
-.rsf-menu-swatch[aria-pressed="true"] { box-shadow: 0 0 0 4px var(--color-bg-hover); }
+.rsf-menu-swatch[aria-pressed="true"] { box-shadow: 0 0 0 4px var(--color-border-light), 0 0 0 5px var(--color-border-strong); }
 .rsf-menu-group-title { padding: 4px var(--spacing-md); font-size: var(--font-size-sm); color: var(--color-text-secondary); }
 
 /* 선 [+] 단추 — 선 이름표 층(pointer-events: none) 위에서 누를 수 있게 한다. 보일 때 늘 변수 칩(z-index 1)·라벨보다 위다(U1). */

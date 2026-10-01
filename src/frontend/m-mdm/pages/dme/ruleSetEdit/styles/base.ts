@@ -40,7 +40,7 @@ export const BASE_CSS = `
   user-select: none;
   transition: opacity 0.18s, box-shadow 0.18s, border-color 0.18s;
 }
-.rsf-node:hover { border-color: var(--color-text-muted); }
+.rsf-node:hover:where(:not([data-color])) { border-color: var(--color-text-muted); }
 .rsf-node[data-selected="true"] { box-shadow: 0 0 0 3px var(--rsf-ring); }
 /* 색을 칠한 노드는 고른 동안에도 노드 색 테두리를 두고 선택은 바깥 고리로만 보인다(C5). :where 라 우선순위는 그대로 (0,2,0). */
 .rsf-node[data-selected="true"]:where(:not([data-color])) { border-color: var(--color-primary); }

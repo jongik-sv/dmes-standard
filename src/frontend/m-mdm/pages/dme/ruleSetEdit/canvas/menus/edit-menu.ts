@@ -5,7 +5,7 @@
 import type { FlowNodeKind } from "@/contract/engine-contract.generated";
 
 import type { EditFlow } from "../../flow-edit";
-import { NODE_COLORS, NODE_COLOR_LABEL } from "../../node-style";
+import { NODE_COLORS, NODE_COLOR_LABEL, STYLED_KINDS } from "../../node-style";
 import type { MenuContext, MenuItem, MenuProvider } from "../context-menu";
 
 const EMPTY_BRANCH = "(빈 갈래)";
@@ -28,10 +28,7 @@ function dissolveChildren(f: EditFlow, splitId: string, run: (edgeId: string) =>
  * 고른 칸은 우클릭한 노드의 지금 색(없으면 기본).
  */
 function colorItem(f: EditFlow, ctx: MenuContext, nodeId: string): MenuItem {
-  const styled = (id: string) => {
-    const k = f.nodes.find((x) => x.id === id)?.kind;
-    return k === "RULE" || k === "TASK";
-  };
+  const styled = (id: string) => STYLED_KINDS.has(f.nodes.find((x) => x.id === id)?.kind ?? "");
   const picked = (ctx.selection ?? []).filter(styled);
   const targets = ctx.selection?.includes(nodeId) && picked.length >= 2 ? picked : [nodeId];
   const cur = f.view.styles?.[nodeId]?.color ?? "default";
