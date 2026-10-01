@@ -6,6 +6,7 @@
  * 4단계 E4: 고친 값 표시·고침 대기 쌓기·보내기 모양(`editsJsonOf`)·칸 편집 검증(Task 10).
  */
 import type { DataType, RunTrace, RuleSetFlow, TraceEdit, TypedValue } from "@/contract/engine-contract.generated";
+import { EVAL_TS, RESERVED_CONSTANTS, RESERVED_PREFIX } from "@/evalex/contract-constants";
 
 import { frames, sameTyped, validEdits } from "../trace-view";
 
@@ -18,6 +19,8 @@ export interface DebugVar {
   changed: boolean;
   edited: boolean;
   pending?: boolean;
+  /** 고침 대기가 덮기 전의 값 — [비우기] 뒤에도 원래 타입으로 다시 고치려고 둔다. */
+  was?: TypedValue;
 }
 
 /** [여기까지 실행] 결과 — 멈출 자리(index) 또는 한 줄 알림. */
@@ -220,6 +223,18 @@ export function editKindOf(value: TypedValue, declared: DataType | undefined): E
   }
 }
 
+/** 레코드 입력이 막는 예약 이름(상수·EVAL_TS·'_' 접두, 대소문자 무시)이면 거절 문구 — evalex `checkRecordKeys` 와 같은 규칙·문구다. 이 폴더는 evalex 함수를 쓰지 않아(불변 9) 상수만 가져온다. */
+export function reservedKeyText(name: string): string | null {
+  const u = name.toUpperCase();
+  return (RESERVED_CONSTANTS as readonly string[]).includes(u) || u === EVAL_TS || name.startsWith(RESERVED_PREFIX) ? `예약된 레코드 키: ${name}` : null;
+}
+
+/** 줄의 편집 타입 — 비워 NULL 이 된 줄은 비우기 전 값의 타입을 따른다(LIST 였던 줄은 선언 타입 규칙). */
+export function editKindOfVar(v: DebugVar, declared: DataType | undefined): EditKind | null {
+  const base = v.value.type === "NULL" && v.was && v.was.type !== "NULL" && v.was.type !== "LIST" ? v.was : v.value;
+  return editKindOf(base, declared);
+}
+
 /** 이름을 대소문자 무시로 바꿔 넣는다(엔진 `RecordKeys.putReplacing`). */
 function putName(values: Record<string, TypedValue>, name: string, value: TypedValue): void {
   const lower = name.toLowerCase();
@@ -273,7 +288,7 @@ export function applyPending(vars: DebugVar[], pending: TraceEdit | null): Debug
     const hit = rest.get(v.name.toLowerCase());
     if (!hit) return v;
     rest.delete(v.name.toLowerCase());
-    return { ...v, value: hit[1], pending: true };
+    return { ...v, value: hit[1], pending: true, was: v.value };
   });
   for (const [name, value] of rest.values()) out.push({ name, value, created: false, changed: false, edited: false, pending: true });
   return out.sort((a, b) => a.name.localeCompare(b.name));

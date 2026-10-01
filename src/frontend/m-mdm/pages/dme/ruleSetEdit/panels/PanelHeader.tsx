@@ -45,7 +45,8 @@ export function panelTargetOf(flow: EditFlow, rules: RuleIoMap, selectedId: stri
         const io = n.ruleId ? rules[n.ruleId] : undefined;
         return { kind: "RULE", id: n.id, name: io && io.exists ? (io.ruleName ?? n.ruleId ?? n.id) : "(없는 룰)" };
       }
-      return { kind: n.kind as PanelKind, id: n.id, name: n.label ?? (n.kind === "TASK" ? TASK_LABEL : n.id) };
+      const fallback = n.kind === "TASK" ? TASK_LABEL : n.kind === "MERGE" ? `분기 ${n.splitId ?? n.id} 합류` : n.kind === "START" || n.kind === "END" ? PANEL_KIND[n.kind].label : n.id;
+      return { kind: n.kind as PanelKind, id: n.id, name: n.label ?? fallback };
     }
     const note = flow.view.notes.find((x) => x.id === selectedId);
     if (note) return { kind: "NOTE", id: note.id, name: note.text.split("\n")[0].trim() || note.id };

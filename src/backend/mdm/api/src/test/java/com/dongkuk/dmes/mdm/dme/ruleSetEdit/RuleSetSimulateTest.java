@@ -527,6 +527,17 @@ public class RuleSetSimulateTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void 레코드_입력이_막는_예약_이름은_고친_값_이름으로도_INVALID_VALUE_로_거부한다() {
+        GoldenCase c = golden("IF_FIRST_TRUE");
+        for (String key : List.of("EVAL_TS", "eval_ts", "PI", "_hidden")) {
+            String edits = "[{\"beforeSeq\":3,\"nodeId\":\"if1\",\"values\":{\"" + key + "\":\"B\"}}]";
+            BusinessException e = assertThrows(BusinessException.class, () -> simulate(c.flowJson(), c.recordJson(), edits));
+            assertEquals(ErrorCode.INVALID_VALUE, e.getErrorCode(), key);
+            assertTrue(e.getMessage().contains("고친 값 이름 '" + key + "'"), e.getMessage());
+        }
+    }
+
+    @Test
     void 고친_값의_NUMBER_글자와_비우기_null_이_왕복한다() throws Exception {
         GoldenCase c = golden("IF_FIRST_TRUE");
         String edits = "[{\"beforeSeq\":3,\"nodeId\":\"if1\",\"values\":{\"GT_THK\":2.50,\"GT_G\":null}}]";

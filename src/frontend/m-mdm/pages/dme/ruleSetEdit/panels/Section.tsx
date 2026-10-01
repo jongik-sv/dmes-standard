@@ -64,7 +64,7 @@ export function Section({ kind, id, title, memory, children }: SectionProps) {
         className="rsf-section-head"
         data-testid={`flow-section-${id}-head`}
         aria-expanded={open}
-        aria-controls={bodyId}
+        aria-controls={open ? bodyId : undefined}
         onClick={() => memory.toggle(kind, id)}
       >
         <span className="rsf-section-title">{title}</span>

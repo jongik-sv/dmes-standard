@@ -14,6 +14,7 @@ vi.mock("@/shell", async (importOriginal) => ({
   openMdmPage: (...args: unknown[]) => mocks.openMdmPage(...args),
 }));
 
+import { panelTargetOf } from "../../../pages/dme/ruleSetEdit/panels/PanelHeader";
 import { addGroup, addNote, insertSplit, toEditFlow, type EditFlow, type EditResult } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import type { RuleIo, RuleSetView } from "../../../pages/dme/ruleSetEdit/types";
 import { flush, typeInto, visibleText } from "../helpers/render";
@@ -88,7 +89,7 @@ describe("오른쪽 머리글·섹션(4단계 Task 8)", () => {
     await click("flow-node-if1");
     expect(header()).toEqual(["IF 분기", "조건"]);
     await click("flow-node-m1");
-    expect(header()).toEqual(["합류", "m1"]);
+    expect(header()).toEqual(["합류", "분기 if1 합류"]);
     await clickEdge("e2");
     expect(header()).toEqual(["연결선", "r1 → r2"]);
     await click("flow-note-n1");
@@ -114,6 +115,25 @@ describe("오른쪽 머리글·섹션(4단계 Task 8)", () => {
     expect(isOpen("rule-inputs")).toBe(false);
     await click("flow-section-rule-inputs-head");
     expect(isOpen("rule-inputs")).toBe(true);
+  });
+
+  it("머리글 이름 — START·END 는 종류 이름, MERGE 는 「분기 {IF} 합류」 (노드 ID 를 보이지 않는다)", () => {
+    const f = richFlow();
+    const name = (id: string) => panelTargetOf(f, {}, id, null, "세트").name;
+    expect(name("start")).toBe("시작");
+    expect(name("end")).toBe("끝");
+    expect(name("m1")).toBe("분기 if1 합류");
+  });
+
+  it("섹션 aria-controls — 펼친 동안만 있고 실제 본문 id 를 가리키며, 접으면 없다", async () => {
+    await openSet("SP_AC", viewOf("SP_AC"));
+    const head = byTestId("flow-section-set-basic-head");
+    const target = head.getAttribute("aria-controls");
+    expect(target).toBeTruthy();
+    expect(document.getElementById(target!)).not.toBeNull();
+    await click("flow-section-set-basic-head");
+    expect(byTestId("flow-section-set-basic-head").hasAttribute("aria-controls")).toBe(false);
+    for (const el of Array.from(byTestId("flow-side").querySelectorAll(".rsf-section-head[aria-controls]"))) expect(document.getElementById(el.getAttribute("aria-controls")!)).not.toBeNull();
   });
 
   it("속성 섹션 안 기존 testid 가 그대로다(편집 입력·지우기·갈래)", async () => {
