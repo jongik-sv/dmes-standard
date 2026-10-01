@@ -447,7 +447,7 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
 
   /** 새 실행 — 입력 오류면 하지 않는다. 늦은 응답은 버리고, 실패하면 오류 문구만 두고 기록·커서는 그대로. */
   const fresh = useCallback(
-    async (pick: Pick, edits: readonly TraceEdit[] = NO_EDITS, sent: TraceEdit | null = null, lead: string | null = null) => {
+    async (pick: Pick, edits: readonly TraceEdit[] = NO_EDITS, sent: TraceEdit | null = null, lead: string | null = null, pinnedTs?: string) => {
       const f = flowRef.current;
       const input = inputOf(inputsRef.current, metasRef.current);
       if (!f || !input) return;
@@ -457,7 +457,7 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
       setRunning(true);
       setError(null);
       try {
-        const res = await simulate(flowJsonOf(f), input.recordJson, input.evalTs || undefined, edits.length > 0 ? editsJsonOf(edits) : undefined);
+        const res = await simulate(flowJsonOf(f), input.recordJson, (edits.length > 0 ? pinnedTs : undefined) || input.evalTs || undefined, edits.length > 0 ? editsJsonOf(edits) : undefined);
         if (mine !== seq.current) return;
         if (versionRef.current !== version || setIdRef.current !== forSet) {
           setRunning(false);
@@ -511,6 +511,8 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
           edits,
           r.pending,
           dropped > 0 ? droppedEditsNotice(dropped) : null,
+          // 판정 시각이 빈 칸이면 서버가 요청 시각을 쓰므로, 고친 값으로 다시 돌릴 때만 앞 기록의 시각에 고정한다(입력 상태는 건드리지 않는다).
+          r.last!.trace.evalTs,
         );
       }
       const next = onLast(r.last!.trace, r.cursor);

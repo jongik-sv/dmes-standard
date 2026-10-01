@@ -630,4 +630,21 @@ describe("useSimulation — 값 고쳐 이어 실행(4단계 E4)", () => {
     expect(h.current.pendingEdit).toBeNull();
     expect(h.current.cursor).toBe(3);
   });
+  it("E10. 판정 시각 빈 칸 + 고침 대기 — 이어 실행 요청만 첫 기록의 trace.evalTs 로 고정하고 입력 상태는 그대로다", async () => {
+    await mount();
+    const first = A.response as RuleSetSimulateResult;
+    replies.push({ ...first, trace: { ...first.trace, evalTs: "2026-10-01 09:30:00" } });
+    await run((s) => s.setInput("GT_THK", { value: "12" }));
+    await run((s) => s.next());
+    for (let i = 0; i < 2; i++) await run((s) => s.next());
+    expect((executes()[0][2] as { evalTs?: string }).evalTs).toBeUndefined();
+    await run((s) => s.editValue("GT_G", STR("B")));
+    replies.push(withEdits(first, EDIT_IF1));
+    await run((s) => s.next());
+    expect((executes()[1][2] as { evalTs?: string }).evalTs).toBe("2026-10-01 09:30:00");
+    expect(h.current.evalTs).toBe("");
+    expect(h.current.currentInput().evalTs).toBe("");
+    expect(h.current.last?.input.evalTs).toBe("");
+    expect(h.current.canEditValues).toBe(true); // sameInput 유지 — 다시 고칠 수 있다
+  });
 });
