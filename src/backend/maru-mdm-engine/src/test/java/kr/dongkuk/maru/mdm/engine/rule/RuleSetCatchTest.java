@@ -15,16 +15,20 @@ import static kr.dongkuk.maru.mdm.engine.rule.fixture.RuleFixtures.rowContract;
 import static kr.dongkuk.maru.mdm.engine.rule.fixture.RuleFixtures.val;
 import static kr.dongkuk.maru.mdm.engine.rule.fixture.RuleFixtures.vt;
 import static kr.dongkuk.maru.mdm.engine.rule.fixture.RuleFixtures.vts;
+import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.br;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.catchNode;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.e;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.end;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.flow;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.guardMerge;
+import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.ifNode;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.merge;
+import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.other;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.par;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.pe;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.rule;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.start;
+import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.task;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -321,5 +325,76 @@ class RuleSetCatchTest {
                 () -> run(returning("R_G", "R_FILL", "NO_RESULT"), rec("X", BigDecimal.ONE, "catch_kind", "x")));
         assertEquals(Code.RESERVED_KEY, ex.violations().get(0).code());
         assertEquals("레코드 키 'catch_kind' 는 받는 노드 예약 이름이다", ex.violations().get(0).message());
+    }
+
+    // ── implicit-join spec §5 — 돌아오는 자리·빈 단계 블록 ──
+
+    @Test
+    void 빈_단계에_붙은_받는_노드는_처리_갈래를_타지_않는다() {
+        // start → t1(빈 단계) → n(R_AFTER) → end. c1(NO_RESULT) → h(R_FILL) → n.
+        FlowDefinition f = flow(List.of(start(), task("t1"), catchNode("c1", "t1", "NO_RESULT"), rule("h", "R_FILL"), rule("n", "R_AFTER"), end()),
+                List.of(e("e1", "start", "t1"), e("e2", "t1", "n"), e("e3", "c1", "h"), e("e4", "h", "n"), e("e5", "n", "end")));
+        RuleSetResult r = run(f, rec("X", new BigDecimal("5")));
+        assertEquals(List.of("start:START:null", "t1:TASK:null", "n:RULE:0", "end:END:null"), path(r));
+        assertEquals(List.of(), r.caught());
+        assertFalse(r.finalValues().containsKey("G"));
+        assertNum("10", r.finalValues().get("Z"));
+        RunTrace t = trace(f, rec("X", new BigDecimal("5")));
+        assertEquals(List.of("1:start:START:OK", "2:t1:TASK:OK", "3:n:RULE:OK", "4:end:END:OK"), kinds(t));
+    }
+
+    /** 새 형식 중첩 — r1(R_ERR) → after(R_AFTER) → end. c1 EVAL_ERROR → h1(R_G) → k(R_CODE) → after. c9(h1) NO_RESULT → f(R_FILL) → k. */
+    static FlowDefinition nestedReturn() {
+        return flow(List.of(start(), rule("r1", "R_ERR"), catchNode("c1", "r1", "EVAL_ERROR"), rule("h1", "R_G"), catchNode("c9", "h1", "NO_RESULT"),
+                        rule("f", "R_FILL"), rule("k", "R_CODE"), rule("after", "R_AFTER"), end()),
+                List.of(e("e1", "start", "r1"), e("e2", "r1", "after"), e("e3", "c1", "h1"), e("e4", "h1", "k"), e("e5", "c9", "f"), e("e6", "f", "k"),
+                        e("e7", "k", "after"), e("e8", "after", "end")));
+    }
+
+    @Test
+    void 새_형식_중첩_처리_갈래는_돌아오는_자리에서_바깥_CATCH_값을_되찾고_합류_기록이_없다() {
+        RuleSetResult r = run(nestedReturn(), rec("X", new BigDecimal("5")));
+        assertEquals("EVALUATION_ERROR", r.finalValues().get("CODE"));
+        assertNum("10", r.finalValues().get("Z"));
+        assertNull(r.endedBy());
+        assertEquals(List.of("start", "r1", "c1", "h1", "c9", "f", "k", "after", "end"), r.path().stream().map(RuleSetResult.PathStep::nodeId).toList());
+    }
+
+    @Test
+    void 돌아오는_자리에_건_고친_값은_CATCH_를_되돌린_뒤에_들어간다() {
+        // 순번 1 start, 2 r1(CAUGHT), 3 c1, 4 h1(CAUGHT), 5 c9, 6 f, 7 k, 8 after, 9 end. k 직전 고친 값이 안쪽 블록 되돌림에 지워지지 않는다(R3).
+        RunTrace t = engine.traceSet(new RuleSetDefinition("DRAFT", List.of(), SetStatus.INUSE, nestedReturn()), rec("X", new BigDecimal("5")),
+                SampleRules.EVAL_TS, List.of(new TraceEdit(7, "k", Map.of("CATCH_CODE", "EDITED"))));
+        assertNull(t.violations());
+        assertEquals("EDITED", t.finalValues().get("CODE"));
+    }
+
+    @Test
+    void 돌아오는_자리가_IF_모이는_자리와_같으면_CATCH_를_되돌린_뒤_IF_도_닫힌다() {
+        // if1 [b1 "X > 0" → r1(R_G) → j] [그 외 → x(R_B) → j] → j(R_AFTER) → end. r1 c1 NO_RESULT → h(R_CODE) → j.
+        FlowDefinition f = flow(List.of(start(), ifNode("if1"), rule("r1", "R_G"), catchNode("c1", "r1", "NO_RESULT"), rule("h", "R_CODE"), rule("x", "R_B"),
+                        rule("j", "R_AFTER"), end()),
+                List.of(e("e0", "start", "if1"), br("b1", "if1", "r1", 1, "X > 0"), other("bo", "if1", "x"), e("e2", "r1", "j"), e("ec", "c1", "h"),
+                        e("eh", "h", "j"), e("ex", "x", "j"), e("ej", "j", "end")));
+        RuleSetResult r = run(f, rec("X", new BigDecimal("5")));
+        assertEquals("NO_RESULT", r.finalValues().get("CODE"));
+        assertNum("10", r.finalValues().get("Z"));
+        assertEquals(List.of("start", "if1", "r1", "c1", "h", "j", "end"), r.path().stream().map(RuleSetResult.PathStep::nodeId).toList());
+        for (String k : r.finalValues().keySet()) {
+            assertFalse(k.startsWith("CATCH_"), k);
+        }
+    }
+
+    @Test
+    void 병렬_갈래_안_처리_갈래가_병렬_합류로_돌아오면_갈래_범위에서_되돌린_뒤_합친다() {
+        // p1 [1 → r1(R_G) → pm] [2 → y(R_B) → pm] → pm → end. r1 c1 NO_RESULT → h(R_FILL) → pm.
+        FlowDefinition f = flow(List.of(start(), par("p1"), rule("r1", "R_G"), catchNode("c1", "r1", "NO_RESULT"), rule("h", "R_FILL"), rule("y", "R_B"),
+                        merge("pm", "p1"), end()),
+                List.of(e("e0", "start", "p1"), pe("pa", "p1", "r1", 1), pe("pb", "p1", "y", 2), e("e2", "r1", "pm"), e("ec", "c1", "h"),
+                        e("eh", "h", "pm"), e("ey", "y", "pm"), e("ee", "pm", "end")));
+        RunTrace t = trace(f, rec("X", new BigDecimal("5")));
+        NodeTrace pm = t.nodes().stream().filter(n -> n.nodeId().equals("pm")).findFirst().orElseThrow();
+        assertEquals(List.of("G", "B"), pm.merged());
+        assertEquals(List.of("G", "B"), List.copyOf(t.finalValues().keySet()));
     }
 }

@@ -42,7 +42,7 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.VarType;
  *
  * <p>받는 룰(받는 노드 spec §4): 룰 자신의 입력은 보통 룰처럼 보되 INPUT_ERROR 를 받는 룰이면 없는 이름을 사전 검사에서 빼고 지연 목록에
  * 넣는다(실행 직전 검사). 정상 갈래·처리 갈래는 IF 갈래처럼 들어갈 때 본다. 뒤로는 (룰 결과 ∪ 정상 갈래) ∩ 돌아오는 처리 갈래가 반드시 있고,
- * 끝내는 처리 갈래는 세지 않는다.
+ * 끝내는 처리 갈래는 세지 않는다. IF 의 반드시·있을 수 있는 이름은 이어지는 갈래만 센다 — 끝내는 IF 갈래는 블록 뒤로 이어지지 않는다(implicit-join spec §5).
  */
 final class FlowKeys {
 
@@ -139,6 +139,9 @@ final class FlowKeys {
                     Set<String> inter = null;
                     Set<String> any = new HashSet<>();
                     for (Branch br : s.branches()) {
+                        if (br.ends()) {
+                            continue; // 끝내는 갈래는 블록 뒤로 이어지지 않는다(implicit-join spec §5)
+                        }
                         Set<String> made = sureProduced(br.body());
                         if (inter == null) {
                             inter = new HashSet<>(made);
@@ -147,8 +150,10 @@ final class FlowKeys {
                         }
                         any.addAll(allProduced(br.body()));
                     }
-                    sure.addAll(inter);
-                    maybe.removeAll(inter);
+                    if (inter != null) {
+                        sure.addAll(inter);
+                        maybe.removeAll(inter);
+                    }
                     any.removeAll(sure);
                     maybe.addAll(any);
                 }
@@ -268,6 +273,9 @@ final class FlowKeys {
                 case Split s when s.kind() == NodeKind.IF -> {
                     Set<String> inter = null;
                     for (Branch br : s.branches()) {
+                        if (br.ends()) {
+                            continue;
+                        }
                         Set<String> made = sureProduced(br.body());
                         if (inter == null) {
                             inter = made;
@@ -301,6 +309,8 @@ final class FlowKeys {
                 case TaskStep t -> {
                     // 빈 단계 — 읽는 이름도 만드는 이름도 없다(4단계 spec §1.1).
                 }
+                case Split s when s.kind() == NodeKind.IF ->
+                        s.branches().stream().filter(br -> !br.ends()).forEach(br -> out.addAll(allProduced(br.body())));
                 case Split s -> s.branches().forEach(br -> out.addAll(allProduced(br.body())));
                 case Seq inner -> out.addAll(allProduced(inner));
                 case Guarded g -> out.addAll(guardAll(g));
