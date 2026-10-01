@@ -234,3 +234,10 @@ MDM 화면들(dataItemMng·codeItemEdit·codeMng·layoutMng·domainMng)에서 �
 - **행마다 달라지는 버튼 상태(draft·busy)는 열 정의 deps 에 넣지 않는다.** 작업 열을 셀 컴포넌트로 빼고 작은 저장소를 구독하게 한다. 저장소 갱신은 `useLayoutEffect` 로 그리기 전에 한다(dataItemMng `ItemActionCell`).
 - **입력마다 서버를 부르는 미리보기는 디바운스(300ms)하고, 결과를 쓰는 탭·패널이 보일 때만 부른다.** 편집 패널이 닫히면 대기 중인 마지막 값은 버리지 말고 바로 보낸다(예전 결과와 같게). 같은 조회 기준이면 탭을 오가도 다시 부르지 않는다.
 - 측정은 렌더러 호출 수·columns 재생성 수·새 행 객체 수·요청 수처럼 결정적인 값으로 테스트에 남긴다(`tests/dmd/dataItemMng/data-item-perf.test.ts`, `tests/dmc/codeItemEdit/code-item-edit-perf.test.ts`). ms 는 이 PC 에서 2배 흔들려 쓰지 않는다.
+
+## 21. className 조건부 클래스 — 템플릿 문자열 안 앞 공백은 Prettier 가 지운다 (2026-10-01)
+
+shared·m-mcm 의 Prettier 는 `prettier-plugin-tailwindcss` 를 쓴다. 이 플러그인은 className 문자열을 정리하면서 `` `a${on ? " b" : ""}` `` 의 `" b"` 앞 공백을 지워 `ab` 라는 한 단어 클래스를 만든다. 포털 탭 전체 화면이 이 때문에 `portal-shellportal-shell--tab-fullscreen` 이 되어 CSS 가 하나도 먹지 않았다(타입 검사·단위 테스트는 통과).
+
+- 조건부 클래스는 통째 문자열 두 개 중 하나를 고른다: `className={on ? "a b" : "a"}`. 또는 `` `a ${on ? "b" : ""}` `` 처럼 공백을 템플릿 리터럴 쪽(고정 부분)에 둔다.
+- 예시: `shared/src/portal-shell/portal-shell.tsx` 의 AppShell className.
