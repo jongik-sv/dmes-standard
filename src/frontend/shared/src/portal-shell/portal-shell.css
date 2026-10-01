@@ -102,43 +102,30 @@
   overflow: hidden;
 }
 
-/* 탭 전체 화면 — 사이드바·탭바를 숨긴다(언마운트하지 않아 메뉴 트리·탭 상태가 남는다).
-   헤더는 AppShell header collapsed 로 접는다. */
-.portal-shell--tab-fullscreen .sidebar-container,
-.portal-shell--tab-fullscreen .tabs-bar-wrapper {
-  display: none;
+/* 탭 전체 화면 — 사이드바를 본문 위에 겹치는 슬라이딩 메뉴로 바꾼다(본문 폭은 그대로).
+   닫혀 있을 때는 왼쪽 가장자리의 펼침 손잡이만 보이고, 열면 그림자와 함께 미끄러져 나온다.
+   탭바는 남겨 전체 화면 중에도 탭을 옮길 수 있다. 헤더는 AppShell header collapsed 로 접는다. */
+.portal-shell--tab-fullscreen .portal-shell__body {
+  position: relative;
 }
 
-/* 끝내기 버튼 — 화면 제목(왼쪽)·상단 버튼 바(오른쪽)·토스트(오른쪽 아래)를 피해 위쪽 가운데에 둔다.
-   평소에는 옅게, 가리키면 또렷하게. AppShell(100) 위, 모달(200 이상) 아래. */
-.portal-shell--tab-fullscreen .portal-shell__fullscreen-exit {
+.portal-shell--tab-fullscreen .sidebar-container {
   position: absolute;
   top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 150;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 22px;
-  padding: 0 10px;
-  border: 1px solid var(--color-border);
-  border-top: none;
-  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
-  background: var(--color-bg);
-  color: var(--color-text-muted);
-  box-shadow: var(--shadow-dropdown);
-  font: inherit;
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-  opacity: 0.45;
-  transition: opacity var(--transition-normal);
+  bottom: 0;
+  left: 0;
+  z-index: 140; /* AppShell(100) 위, 사이드바 손잡이(150)·모달(200) 아래 */
+  height: auto;
 }
 
-.portal-shell--tab-fullscreen .portal-shell__fullscreen-exit:hover,
-.portal-shell--tab-fullscreen .portal-shell__fullscreen-exit:focus-visible {
-  opacity: 1;
-  color: var(--color-primary);
+.portal-shell--tab-fullscreen .sidebar.sidebar-open {
+  box-shadow: var(--shadow-dropdown);
+}
+
+/* 닫힘은 바로 — 전체 화면에 들어갈 때 macOS 전환 애니메이션 동안 width transition 이 멈춰
+   펼친 사이드바가 1~2초 남았다가 늦게 사라졌다. 여는 쪽만 미끄러져 나온다. */
+.portal-shell--tab-fullscreen .sidebar.sidebar-closed {
+  transition: none;
 }
 
 /* 메뉴 검색 — 공통 Modal(cm-modal) 위에 얹는다. className 이 .cm-modal 에 붙는다. */

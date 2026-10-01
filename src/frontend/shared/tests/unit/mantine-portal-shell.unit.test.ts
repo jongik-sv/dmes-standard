@@ -132,8 +132,8 @@ describe("portal-shell (Mantine 구현) 계약", () => {
     );
 
     const buttons = Array.from(r.host.querySelectorAll<HTMLElement>(".tabs-controls button"));
-    const refresh = buttons.find((b) => b.getAttribute("title") === "새로고침");
-    const favorite = buttons.find((b) => b.getAttribute("title") === "즐겨찾기 추가");
+    const refresh = buttons.find((b) => b.getAttribute("aria-label") === "새로고침");
+    const favorite = buttons.find((b) => b.getAttribute("aria-label") === "즐겨찾기 추가");
     expect(refresh).toBeDefined();
     expect(favorite).toBeDefined();
 
@@ -143,6 +143,65 @@ describe("portal-shell (Mantine 구현) 계약", () => {
     expect(onToggleFavorite).toHaveBeenCalled();
 
     r.unmount();
+  });
+
+  it("TabsBar 의 아이콘 버튼은 네이티브 title 대신 Mantine Tooltip 을 쓴다", () => {
+    // happy-dom 에서는 floating-ui hover 가 열리지 않아 툴팁 표시는 브라우저에서 확인한다.
+    const source = readFileSync(
+      resolve(process.cwd(), "src/portal-shell/tabs-bar/TabsBar.tsx"),
+      "utf8"
+    );
+    const controls = source.slice(source.indexOf('className="tabs-controls"'));
+    expect(controls).not.toMatch(/\btitle=/);
+    for (const label of ["새로고침", "탭 목록", "전체 화면으로 보기", "전체 화면 끝내기 (Esc)"]) {
+      expect(controls).toContain(`<ControlTooltip label="${label}">`);
+    }
+  });
+
+  it("PortalShell 은 전체 화면에서 portal-shell--tab-fullscreen 을 별도 클래스로 붙인다", () => {
+    // prettier-plugin-tailwindcss 가 `" portal-shell--…"` 앞 공백을 지워 클래스가 붙어 버린 적이 있다.
+    const source = readFileSync(
+      resolve(process.cwd(), "src/portal-shell/portal-shell.tsx"),
+      "utf8"
+    );
+    expect(source).toContain('"portal-shell portal-shell--tab-fullscreen"');
+  });
+
+  it("TabsBar 의 전체 화면 버튼은 전체 화면 중에 끝내기 버튼으로 바뀌고 헤더 토글을 숨긴다", () => {
+    const onEnterFullscreen = vi.fn();
+    const onExitFullscreen = vi.fn();
+    const props = {
+      tabs: [tab("t1", "사용자 관리", "mcm:csa/commUserMng")],
+      activeTabId: "t1",
+      onTabClick: () => {},
+      onTabClose: () => {},
+      onGoHome: () => {},
+      onToggleHeader: () => {},
+      onEnterFullscreen,
+      onExitFullscreen,
+    };
+    const titles = (r: ReturnType<typeof renderWithMantine>) =>
+      Array.from(r.host.querySelectorAll<HTMLElement>(".tabs-controls button")).map((b) =>
+        b.getAttribute("aria-label")
+      );
+
+    const normal = renderWithMantine(createElement(TabsBar, props));
+    expect(titles(normal)).toContain("헤더 접기");
+    const enter = normal.host.querySelector<HTMLElement>("button[aria-label='전체 화면으로 보기']");
+    act(() => enter!.click());
+    expect(onEnterFullscreen).toHaveBeenCalled();
+    normal.unmount();
+
+    const fullscreen = renderWithMantine(createElement(TabsBar, { ...props, isFullscreen: true }));
+    expect(titles(fullscreen)).not.toContain("헤더 접기");
+    expect(titles(fullscreen)).not.toContain("전체 화면으로 보기");
+    const exit = fullscreen.host.querySelector<HTMLElement>(
+      "button[aria-label='전체 화면 끝내기']"
+    );
+    expect(exit).not.toBeNull();
+    act(() => exit!.click());
+    expect(onExitFullscreen).toHaveBeenCalled();
+    fullscreen.unmount();
   });
 
   it("Header 는 사용자명을 표시하고 메뉴에서 로그아웃을 호출한다", () => {
@@ -408,9 +467,7 @@ describe("portal-shell (Mantine 구현) 계약", () => {
     // 문제(round 2, Playwright 의 부분일치가 토글 기본 라벨의 "password" 문자열에도
     // 걸렸다) — 토글 라벨을 한국어로 분리해 "Password" 부분일치에서 빠지는지 직접 검증.
     expect(
-      r.host
-        .querySelector(".mantine-PasswordInput-visibilityToggle")
-        ?.getAttribute("aria-label")
+      r.host.querySelector(".mantine-PasswordInput-visibilityToggle")?.getAttribute("aria-label")
     ).toBe("비밀번호 표시 전환");
 
     // hydration 전 제출이 네이티브 GET 으로 나가 비밀번호가 쿼리스트링에 노출되던
