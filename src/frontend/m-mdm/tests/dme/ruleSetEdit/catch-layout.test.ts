@@ -170,3 +170,42 @@ describe("중첩된 받는 룰의 처리 갈래는 이웃 갈래와 겹치지 �
     expect(pos.h3.x).toBeGreaterThanOrEqual(pos.g1.x + NODE_SIZE.RULE.w); // 다음 처리 갈래는 앞 처리 갈래 블록 전체의 오른쪽
   });
 });
+
+describe("끝내는 처리 갈래는 같은 높이의 다른 노드와 겹치지 않는다(고침 2회차)", () => {
+  it("끝내는 처리 갈래가 길어도 받는 룰 뒤의 IF 블록과 겹치지 않는다", () => {
+    const f: RuleSetFlow = {
+      version: 1,
+      nodes: [nd("start", "START"), rule("r1"), catchOn("c1", "r1"), rule("h1"), rule("h1b"), rule("h1c"), rule("h1d"), nd("if1", "IF"),
+        rule("a1"), rule("a1b"), rule("a2"), rule("a2b"), nd("m1", "MERGE", { splitId: "if1" }), nd("end", "END")],
+      edges: [ed("e1", "start", "r1"), ed("e2", "r1", "if1"), ed("e3", "if1", "a1", { order: 1, cond: "x > 1" }), ed("e4", "if1", "a2", { otherwise: true }),
+        ed("e5", "a1", "a1b"), ed("e6", "a1b", "m1"), ed("e7", "a2", "a2b"), ed("e8", "a2b", "m1"), ed("e9", "m1", "end"),
+        ed("e10", "c1", "h1"), ed("e11", "h1", "h1b"), ed("e12", "h1b", "h1c"), ed("e13", "h1c", "h1d"), ed("e14", "h1d", "end")],
+    };
+    expect(parseFlow(f).tree).toBeTruthy();
+    const pos = autoLayout(f);
+    expect(overlapsOf(f, pos)).toEqual([]);
+    expect(pos.h1.x).toBeGreaterThanOrEqual(pos.a2.x + NODE_SIZE.RULE.w); // 처리 갈래는 IF 블록 전체의 오른쪽
+    expect(pos.c1).toEqual(catchSpot(pos.r1, NODE_SIZE.RULE, 0));
+  });
+
+  it("같은 룰의 끝내는 처리 갈래 둘이 넓은 IF 블록을 모두 피하고 받는 노드 순서대로 왼쪽→오른쪽에 선다", () => {
+    const f: RuleSetFlow = {
+      version: 1,
+      nodes: [nd("start", "START"), rule("r1"), catchOn("c1", "r1"), rule("h1"), rule("h1b"), rule("h1c"),
+        catchOn("c2", "r1", "EVAL_ERROR"), rule("h2"), rule("h2b"), rule("h2c"), nd("if1", "IF"),
+        rule("a1"), rule("a1b"), rule("a2"), rule("a2b"), rule("a3"), rule("a3b"), nd("m1", "MERGE", { splitId: "if1" }), nd("end", "END")],
+      edges: [ed("e1", "start", "r1"), ed("e2", "r1", "if1"), ed("e3", "if1", "a1", { order: 1, cond: "x > 1" }), ed("e4", "if1", "a2", { order: 2, cond: "x > 2" }),
+        ed("e5", "if1", "a3", { otherwise: true }), ed("e6", "a1", "a1b"), ed("e7", "a1b", "m1"), ed("e8", "a2", "a2b"), ed("e9", "a2b", "m1"),
+        ed("e10", "a3", "a3b"), ed("e11", "a3b", "m1"), ed("e12", "m1", "end"),
+        ed("e13", "c1", "h1"), ed("e14", "h1", "h1b"), ed("e15", "h1b", "h1c"), ed("e16", "h1c", "end"),
+        ed("e17", "c2", "h2"), ed("e18", "h2", "h2b"), ed("e19", "h2b", "h2c"), ed("e20", "h2c", "end")],
+    };
+    expect(parseFlow(f).tree).toBeTruthy();
+    const pos = autoLayout(f);
+    expect(overlapsOf(f, pos)).toEqual([]);
+    const ifRight = Math.max(...["if1", "a1", "a1b", "a2", "a2b", "a3", "a3b"].map((id) => pos[id].x + NODE_SIZE[id === "if1" ? "IF" : "RULE"].w));
+    expect(pos.h1.x).toBeGreaterThanOrEqual(ifRight);
+    expect(pos.h2.x).toBeGreaterThanOrEqual(pos.h1.x + NODE_SIZE.RULE.w); // 순서 유지
+    expect(pos.c2).toEqual(catchSpot(pos.r1, NODE_SIZE.RULE, 1));
+  });
+});

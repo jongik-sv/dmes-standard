@@ -271,6 +271,50 @@ function orderBranches(f: RuleSetFlow, g: InstanceType<typeof dagre.graphlib.Gra
     }
   };
   insideOut(tree.root);
+  if (!hasGuarded(tree.root)) return;
+  /**
+   * 끝내는 처리 갈래(END 로 가는, Task 7 고침 2회차) — dagre 가 END 바로 위까지 층을 늘리므로 받는 룰 뒤 블록(같은 몸·바깥 몸)과 같은 높이를 차지한다.
+   * 몸 세로 범위와 겹치는 다른 노드(받는 노드·자기 몸·같은 룰의 뒤 처리 갈래 제외) 전부의 오른쪽 끝 + NODESEP 너머로 몸을 통째로 민다.
+   * 같은 룰의 처리 갈래는 앞 갈래 오른쪽 끝 + NODESEP 을 넘도록 뒤따라 밀어 받는 노드 순서(왼쪽→오른쪽)를 지킨다. 안쪽 블록부터 한다.
+   * 민 몸은 그때 놓인 모든 노드의 오른쪽에 서고, 움직이지 않은 노드는 그대로이므로 민 몸끼리·다른 노드와 겹치지 않는다.
+   */
+  const catchIds = new Set((f.nodes ?? []).filter((n) => n.kind === "CATCH").map((n) => n.id));
+  const others = [...cx.keys()].filter((id) => !catchIds.has(id));
+  const clearEnding = (b: Guarded) => {
+    const bodies = b.handlers.map((h) => bodyIds(h.body).filter((id) => cx.has(id)));
+    let prevRight = -Infinity;
+    b.handlers.forEach((h, k) => {
+      const ids = bodies[k];
+      if (ids.length === 0) return;
+      const { x1, x2, boxes } = spanOf(ids);
+      let need = prevRight + NODESEP - x1;
+      if (h.ends) {
+        const y1 = Math.min(...boxes.map((x) => x.y1));
+        const y2 = Math.max(...boxes.map((x) => x.y2));
+        const skip = new Set([...ids, ...bodies.slice(k + 1).flat()]);
+        for (const id of others) {
+          if (skip.has(id)) continue;
+          const o = boxOf(id);
+          if (o.y1 < y2 && y1 < o.y2) need = Math.max(need, o.x2 + NODESEP - x1);
+        }
+      }
+      const d = need > 0.5 ? need : 0; // dagre 좌표의 소수 오차로 움직이지 않게
+      shift(ids, d);
+      prevRight = x2 + d;
+    });
+  };
+  const walk = (seq: Seq) => {
+    for (const b of seq.items) {
+      if (b.type === "SEQ") walk(b);
+      else if (b.type === "SPLIT") for (const br of b.branches) walk(br.body);
+      else if (b.type === "GUARDED") {
+        walk(b.normal);
+        for (const h of b.handlers) walk(h.body);
+        clearEnding(b);
+      }
+    }
+  };
+  walk(tree.root);
 }
 
 /** 몸에 받는 룰 블록(GUARDED)이 하나라도 있는가(중첩 포함). */
