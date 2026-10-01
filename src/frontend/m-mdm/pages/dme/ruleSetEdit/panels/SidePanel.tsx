@@ -13,6 +13,7 @@ import { useEffect, useRef } from "react";
 
 import { RulePanel, type RuleListMode } from "../canvas/RulePanel";
 import type { EditFlow } from "../flow-edit";
+import type { NodeLayoutSource } from "../flow-layout";
 import type { RuleSearch } from "../state/useRuleSearch";
 import type { FlowMode } from "../state/useRuleSetEdit";
 import type { RuleIo, RuleIoMap, RuleSetCheck } from "../types";
@@ -63,6 +64,8 @@ export interface SidePanelProps {
   usedRuleIds: ReadonlySet<string>;
   /** [지정]·두 번 누르기 — 고른 노드에 룰을 지정한다(빈 단계는 룰 노드가 되고 룰 노드는 룰만 바뀐다). */
   onAssignRule(nodeId: string, io: RuleIo): void;
+  /** 외관 크기를 바꿀 때 그린 위치(S-D6) — PropertyPanel 로 넘긴다. */
+  layoutSource?: () => NodeLayoutSource | null;
 }
 
 export function SidePanel(p: SidePanelProps) {
@@ -129,6 +132,8 @@ export function SidePanel(p: SidePanelProps) {
         selectedId={target.id}
         selectedNodeIds={p.selectedNodeIds}
         editable={editable}
+        editing={editing}
+        layoutSource={p.layoutSource}
         onEdit={p.onEdit}
         onOpenRule={p.onOpenRule}
         sections={sections}
