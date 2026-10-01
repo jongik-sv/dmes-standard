@@ -17,6 +17,7 @@ import {
   MAX_NODES,
   NODE_LIMIT_MESSAGE,
   addBranch,
+  addCatch,
   addGroup,
   addNote,
   assignRule,
@@ -384,6 +385,9 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
       paste,
       duplicate: (nodeId: string) => {
         if (editing) edit((f) => duplicateNode(f, nodeId));
+      },
+      addCatch: (ruleNodeId: string) => {
+        if (editing) edit((f) => addCatch(f, ruleNodeId, null));
       },
       openRuleAssign: (nodeId: string) => {
         if (editing) openRuleAssign(nodeId);

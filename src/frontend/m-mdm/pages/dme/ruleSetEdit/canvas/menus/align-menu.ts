@@ -6,6 +6,7 @@ import type { MenuItem, MenuProvider } from "../context-menu";
 
 export const alignMenu: MenuProvider = (t, ctx) => {
   if (ctx.mode !== "edit" || t.kind !== "node") return [];
+  if (ctx.flow.nodes.find((x) => x.id === t.nodeId)?.kind === "CATCH") return []; // 받는 노드는 룰을 따라 그린다 — 정렬 대상 아님
   const sel = ctx.selection ?? [];
   if (sel.length < 2 || !sel.includes(t.nodeId)) return [];
   const { act } = ctx;

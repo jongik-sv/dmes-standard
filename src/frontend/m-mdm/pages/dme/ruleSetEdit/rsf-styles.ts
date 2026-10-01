@@ -10,6 +10,7 @@
  * (base 기본 · drag 끌기 · menu 메뉴·찾기 · props 속성 패널 · debug 디버그 모드 · collapse 접기·중단점 · route 선 경로 손잡이 · space 공간 넓히기 · label 선 이름표 옮기기 · snap 맞춤 안내선 · connect 연결점·네 변 잇기 · toolbox 도구 상자 · task 빈 단계 · node-style 노드 외관). 이 파일은 순서대로 잇기만 한다.
  */
 import { BASE_CSS } from "./styles/base";
+import { CATCH_CSS } from "./styles/catch";
 import { COLLAPSE_CSS } from "./styles/collapse";
 import { CONNECT_CSS } from "./styles/connect";
 import { DEBUG_CSS } from "./styles/debug";
@@ -26,4 +27,4 @@ import { TOOLBOX_CSS } from "./styles/toolbox";
 
 export const RSF_STYLE_HREF = "rsf-flow-styles";
 
-export const RSF_CSS = [BASE_CSS, DRAG_CSS, MENU_CSS, PROPS_CSS, DEBUG_CSS, COLLAPSE_CSS, ROUTE_CSS, SPACE_CSS, LABEL_CSS, SNAP_CSS, CONNECT_CSS, TOOLBOX_CSS, TASK_CSS, NODE_STYLE_CSS].join("\n");
+export const RSF_CSS = [BASE_CSS, DRAG_CSS, MENU_CSS, PROPS_CSS, DEBUG_CSS, COLLAPSE_CSS, ROUTE_CSS, SPACE_CSS, LABEL_CSS, SNAP_CSS, CONNECT_CSS, TOOLBOX_CSS, TASK_CSS, NODE_STYLE_CSS, CATCH_CSS].join("\n");

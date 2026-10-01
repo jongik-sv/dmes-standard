@@ -62,9 +62,7 @@ describe("받는 노드 배치(받는 노드 spec §8, Ruling R15)", () => {
   });
 
   it("그린 위치에서 받는 노드는 저장 위치가 있는 룰을 따라가고, 받는 노드의 저장 위치(옛 값)는 무시한다", () => {
-    // 노드는 원본 배열로 둔다 — 이 태스크는 flow-edit 를 고치지 않으므로 copyNode 의 attachTo 보존(Task 6)에 기대지 않는다.
-    const raw = guarded();
-    const f = { ...toEditFlow({ ...raw, view: { positions: { r1: { x: 500, y: 40 }, c1: { x: 0, y: 0 } } } } as never, []), nodes: raw.nodes! };
+    const f = toEditFlow({ ...guarded(), view: { positions: { r1: { x: 500, y: 40 }, c1: { x: 0, y: 0 } } } } as never, []);
     const pos = drawnPositions(f);
     expect(pos.r1).toEqual({ x: 500, y: 40 });
     expect(pos.c1).toEqual({ x: 516, y: 94 });
