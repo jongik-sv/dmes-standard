@@ -38,9 +38,8 @@ export const PROPS_CSS = `
 .rsf-style-shape[data-shape="square"] { border-radius: 0; }
 .rsf-style-shape[data-shape="pill"] { border-radius: 999px; }
 .rsf-style-icon[aria-pressed="true"], .rsf-style-shape[aria-pressed="true"] {
-  outline: 2px solid var(--color-primary); outline-offset: 1px;
+  background: var(--color-primary-soft); border-color: var(--color-primary); outline: 2px solid var(--color-primary); outline-offset: 1px;
 }
-.rsf-style-icon[aria-pressed="true"], .rsf-style-shape[aria-pressed="true"] { background: var(--color-primary-soft); border-color: var(--color-primary); }
 .rsf-style-icon:disabled, .rsf-style-shape:disabled { cursor: default; opacity: 0.5; }
 .rsf-style-parts { display: flex; flex-direction: column; gap: 4px; }
 .rsf-style-size { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--spacing-xs); }

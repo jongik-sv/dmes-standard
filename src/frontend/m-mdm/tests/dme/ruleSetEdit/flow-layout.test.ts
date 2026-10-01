@@ -95,3 +95,38 @@ describe("flow-layout — 갈래 순서대로 왼쪽부터(4단계 브라우저 
     expect(cx(p, t, "TASK")).toBeLessThan(cx(p, rb, "RULE"));
   });
 });
+
+describe("flow-layout — 조건식이 빈 IF(막 넣은 IF)도 갈래 순서·빈 갈래 자리를 맞춘다(I3)", () => {
+  const cx = (p: Record<string, { x: number }>, id: string, kind: keyof typeof NODE_SIZE) => p[id].x + NODE_SIZE[kind].w / 2;
+  /** 막 넣은 IF — 조건 갈래의 조건식이 비어 있다(흐름 검사는 FLOW_IF_ELSE 로 트리를 만들지 않는다). */
+  function bareIf(): EditFlow {
+    const r = insertSplit(toEditFlow(null, ["R_A"]), "e2", "IF");
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.flow.edges.find((e) => e.from === "if1" && !e.otherwise)!.cond ?? "").toBe("");
+    return r.flow;
+  }
+  it("첫 갈래에만 노드가 있으면 그 노드 상자 전체가 IF 가운데보다 왼쪽이다", () => {
+    const f = bareIf();
+    const first = f.edges.find((e) => e.from === "if1" && !e.otherwise)!;
+    const r = insertTask(f, first.id);
+    if (!r.ok) throw new Error(r.reason);
+    const t = r.flow.nodes.find((n) => n.kind === "TASK")!.id;
+    const p = autoLayout(r.flow);
+    expect(p[t].x + NODE_SIZE.TASK.w).toBeLessThanOrEqual(cx(p, "if1", "IF"));
+  });
+  it("그 외 갈래에만 노드가 있으면 그 노드 상자 전체가 IF 가운데보다 오른쪽이다", () => {
+    const f = bareIf();
+    const other = f.edges.find((e) => e.from === "if1" && e.otherwise)!;
+    const r = insertTask(f, other.id);
+    if (!r.ok) throw new Error(r.reason);
+    const t = r.flow.nodes.find((n) => n.kind === "TASK")!.id;
+    const p = autoLayout(r.flow);
+    expect(p[t].x).toBeGreaterThanOrEqual(cx(p, "if1", "IF"));
+  });
+  it("배치 계산은 흐름을 바꾸지 않는다(조건식은 빈 채로 남는다)", () => {
+    const f = bareIf();
+    const before = JSON.stringify(f);
+    autoLayout(f);
+    expect(JSON.stringify(f)).toBe(before);
+  });
+});

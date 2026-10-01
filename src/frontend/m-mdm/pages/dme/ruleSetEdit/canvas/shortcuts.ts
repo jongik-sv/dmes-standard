@@ -35,6 +35,16 @@ export function isTypingTarget(t: EventTarget | null): boolean {
   return el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable || el.getAttribute?.("contenteditable") === "true";
 }
 
+/**
+ * 요소가 화면에 보이는지 — 조상 중 display:none 이 있으면(포털이 고르지 않은 탭을 숨긴 경우) 보이지 않는다.
+ * `checkVisibility` 가 있으면 그것(조상의 계산된 display 를 본다), 없는 옛 브라우저는 `offsetParent` 로 본다(셸 F8 처리와 같은 판정).
+ */
+export function isShown(el: HTMLElement | null | undefined): boolean {
+  if (!el || !el.isConnected) return false;
+  if (typeof el.checkVisibility === "function") return el.checkVisibility();
+  return el.offsetParent !== null;
+}
+
 export function shortcutOf(e: KeyLike, mac: boolean): ShortcutId | null {
   if (isTypingTarget(e.target)) return null;
   if (e.altKey) {

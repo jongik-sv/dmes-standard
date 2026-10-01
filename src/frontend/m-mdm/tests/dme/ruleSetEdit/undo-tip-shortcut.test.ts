@@ -175,7 +175,17 @@ describe("화면 — 되돌리기·다시 하기 단축키는 캔버스 밖에�
     await click("flow-menu-item-note-add");
     expect(noteCount()).toBe(2);
     await act(async () => canvas().focus());
-    await key(canvas(), { key: "z", metaKey: true });
+    // 캔버스 처리기는 preventDefault·stopPropagation 을 부른다. 그 둘에 가려지면 감싸개 제외 조건이 없어도 통과하므로
+    // 이 이벤트에서는 둘을 아무 일 없게 바꿔 document 리스너까지 그대로 닿게 한다 — 감싸개 안이면 document 쪽은 건너뛰어야 한다.
+    const ev = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "z", metaKey: true });
+    let prevented = 0;
+    Object.defineProperty(ev, "preventDefault", { value: () => void prevented++ });
+    Object.defineProperty(ev, "stopPropagation", { value: () => undefined });
+    await act(async () => {
+      canvas().dispatchEvent(ev);
+    });
+    await flush();
+    expect(prevented).toBe(1); // 캔버스 처리기 한 번만
     expect(noteCount()).toBe(1);
   });
 
@@ -200,6 +210,44 @@ describe("화면 — 되돌리기·다시 하기 단축키는 캔버스 밖에�
     dlg.remove();
     expect(ev.defaultPrevented).toBe(false);
     expect(noteCount()).toBe(1);
+  });
+
+  it("우클릭 메뉴(role=menu) 안에서 온 키는 무시한다", async () => {
+    await openSet("UT_MENU", viewOf("UT_MENU"));
+    await editOnce();
+    const menu = document.createElement("div");
+    menu.setAttribute("role", "menu");
+    const item = document.createElement("button");
+    menu.appendChild(item);
+    document.body.appendChild(menu);
+    const ev = await key(item, { key: "z", metaKey: true });
+    menu.remove();
+    expect(ev.defaultPrevented).toBe(false);
+    expect(noteCount()).toBe(1);
+  });
+
+  it("디버그 모드에서는 되돌리지 않고 기본 동작도 막지 않는다", async () => {
+    await openSet("UT_DEBUG", viewOf("UT_DEBUG"));
+    await editOnce();
+    await click("flow-mode-debug");
+    expect(byTestId("flow-mode-debug").getAttribute("aria-pressed")).toBe("true");
+    const ev = await key(document.body, { key: "z", metaKey: true });
+    expect(ev.defaultPrevented).toBe(false);
+    expect(noteCount()).toBe(1);
+  });
+
+  it("화면이 숨으면(포털의 고르지 않은 탭 — 조상 display:none) 되돌리지 않고 기본 동작도 막지 않는다, 다시 보이면 된다", async () => {
+    await openSet("UT_HIDDEN", viewOf("UT_HIDDEN"));
+    await editOnce();
+    expect(pageContainer().contains(byTestId("flow-canvas"))).toBe(true);
+    pageContainer().style.display = "none";
+    let ev = await key(document.body, { key: "z", metaKey: true });
+    expect(ev.defaultPrevented).toBe(false);
+    expect(noteCount()).toBe(1);
+    pageContainer().style.display = "";
+    ev = await key(document.body, { key: "z", metaKey: true });
+    expect(ev.defaultPrevented).toBe(true);
+    expect(noteCount()).toBe(0);
   });
 
   it("화면을 떠나면 리스너가 사라진다", async () => {
