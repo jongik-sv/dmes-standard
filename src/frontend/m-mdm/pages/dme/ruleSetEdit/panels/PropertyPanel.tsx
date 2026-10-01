@@ -134,6 +134,18 @@ function RuleProps({ node, io, tree, props }: { node: FlowNode; io: RuleIo | und
         <table style={DETAIL_TABLE_STYLE}>
           <tbody>
             <tr>
+              <th style={DETAIL_LABEL_CELL}>이름</th>
+              <td style={DETAIL_VALUE_CELL}>
+                <Input
+                  data-testid="flow-prop-rule-label"
+                  value={node.label ?? ""}
+                  placeholder={missing ? ruleId : (io.ruleName ?? ruleId)}
+                  readOnly={!editable}
+                  onChange={(v) => onEdit((f) => updateNodeLabel(f, node.id, blankToNull(v)), { mergeKey: `nlabel:${node.id}` })}
+                />
+              </td>
+            </tr>
+            <tr>
               <th style={DETAIL_LABEL_CELL}>룰 ID</th>
               <td style={DETAIL_VALUE_CELL}>
                 <code>{ruleId}</code> <span className="rsf-muted">{`(노드 ${node.id})`}</span>

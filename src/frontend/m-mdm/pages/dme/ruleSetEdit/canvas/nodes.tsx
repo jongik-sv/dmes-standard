@@ -135,7 +135,7 @@ function Badges({ id, overlay }: { id: string; overlay: NodeOverlay | undefined 
 }
 
 function RuleBody({ data }: { data: FlowNodeData }) {
-  const { node, io, mark, onOpenRule, varDisplay, style } = data;
+  const { node, io, mark, onOpenRule, varDisplay, style, onRenameTask } = data;
   const hide = new Set(style?.hide ?? []);
   const ruleId = node.ruleId ?? "";
   const missing = !io || !io.exists;
@@ -144,15 +144,17 @@ function RuleBody({ data }: { data: FlowNodeData }) {
     onOpenRule(ruleId);
   };
   // ID 모드: 제목=룰 ID, 작은 줄=룰명(없으면 생략). 그 밖·없는 룰은 제목=룰명(없으면 ID), 작은 줄=ID.
+  // 사용자 이름(label)이 있으면 제목=이름(모드와 상관없이)이고, 작은 줄은 이름이 없을 때 제목이던 값이다(Task 8, N1).
   const idMode = !missing && varDisplay === "id";
-  const title = missing ? "(없는 룰)" : idMode ? ruleId : (io.ruleName ?? ruleId);
-  const small = idMode ? (io.ruleName ?? "") : ruleId;
+  const base = missing ? "(없는 룰)" : idMode ? ruleId : (io.ruleName ?? ruleId);
+  const title = node.label ?? base;
+  const small = node.label != null ? (missing ? ruleId : base) : idMode ? (io.ruleName ?? "") : ruleId;
   const showSub = !hide.has("sub");
   const showId = small !== "" && !hide.has("id");
   const lines = titleLines(style?.h ?? NODE_H_MIN, (showSub ? 1 : 0) + (showId ? 1 : 0));
   return (
     <>
-      <TitleRow nodeId={node.id} style={style} lines={lines}>{title}</TitleRow>
+      <EditableTitle node={node} style={style} lines={lines} shown={title} fallback={base} testPrefix="flow-rule-title" inputLabel="룰 노드 이름" onRename={onRenameTask} />
       {showSub && <div className="rsf-sub">{missing ? "룰 정보를 찾지 못했다" : [io.ruleKind, io.hitPolicy].filter(Boolean).join(" · ")}</div>}
       {showId && <div className="rsf-id">{small}</div>}
       {!hide.has("open") && (
@@ -173,21 +175,29 @@ function RuleBody({ data }: { data: FlowNodeData }) {
 }
 
 /**
- * 빈 단계(4단계 T1) — 점선 테두리(`rsf-task`), 제목만. 편집 모드면 제목을 두 번 눌러 고친다(Enter·칸 밖 누르기 = 저장, Esc = 취소).
- * 조건식 즉석 편집(B10)과 같은 두 번 누르기 방식이다(메모는 글 칸이 늘 열려 있어 따로 제목 고치기가 없다).
+ * 제목 즉석 편집(빈 단계 4단계 T1·룰 노드 이름 Task 8) — 편집 모드(`onRename` 있음)면 제목을 두 번 눌러 고친다(Enter·칸 밖 누르기 = 저장, Esc = 취소,
+ * 빈 값 = 라벨 지우기). 조건식 즉석 편집(B10)과 같은 두 번 누르기 방식이다(메모는 글 칸이 늘 열려 있어 따로 제목 고치기가 없다).
  * 제목 줄에 `nopan` 을 달아 두 번 누르기가 화면 확대(React Flow zoomOnDoubleClick)로 새지 않게 한다. 노드 끌기는 그대로다(`nodrag` 없음).
+ * `shown` 은 지금 보이는 제목이다 — 칸의 처음 값이고, 닫을 때 새 제목이 `shown` 과 같으면 편집을 만들지 않는다.
+ * `fallback` 은 라벨이 없을 때 보이는 제목(빈 단계 기본 제목·룰명)이라 빈 값으로 닫았을 때의 새 제목이다.
  */
-function TaskBody({ data }: { data: FlowNodeData }) {
-  const { node, mark, onRenameTask, style } = data;
-  const showSub = !(style?.hide ?? []).includes("sub");
-  const lines = titleLines(style?.h ?? NODE_H_MIN, showSub ? 1 : 0);
-  const title = node.label ?? TASK_LABEL;
+function EditableTitle({ node, style, lines, shown, fallback, testPrefix, inputLabel, onRename }: {
+  node: FlowNode;
+  style: NodeStyle | undefined;
+  lines: number;
+  shown: string;
+  fallback: string;
+  /** testid 앞부분 — `flow-task-title` · `flow-rule-title` (칸은 `-input-{id}`). */
+  testPrefix: string;
+  inputLabel: string;
+  onRename?: (nodeId: string, label: string | null) => void;
+}) {
   const [draft, setDraft] = useState<string | null>(null);
   /** 칸이 열려 있는가 — Enter 로 닫은 뒤 칸이 빠지며 오는 blur 가 한 번 더 저장하지 않게 ref 로 막는다. */
   const editingRef = useRef(false);
   const open = () => {
     editingRef.current = true;
-    setDraft(title);
+    setDraft(shown);
   };
   /**
    * 칸을 닫는다. Enter·Esc(`from` 을 넘김)면 초점을 캔버스로 돌려 단축키가 이어지게 한다(칸이 빠지면 초점이 body 로 간다, Local-Rules §19).
@@ -202,49 +212,60 @@ function TaskBody({ data }: { data: FlowNodeData }) {
     if (!save) return;
     const next = v === "" ? null : v;
     // 보이는 제목이 그대로면(라벨 없음 + 기본 제목 그대로 등) 편집을 만들지 않는다.
-    if ((next ?? TASK_LABEL) !== title) onRenameTask?.(node.id, next);
+    if ((next ?? fallback) !== shown) onRename?.(node.id, next);
   };
+  if (draft !== null) {
+    return (
+      <input
+        className="rsf-task-input nodrag nopan"
+        data-testid={`${testPrefix}-input-${node.id}`}
+        aria-label={inputLabel}
+        value={draft}
+        autoFocus
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+            e.preventDefault();
+            close(true, e.currentTarget);
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            close(false, e.currentTarget);
+          }
+        }}
+        onBlur={() => close(true)}
+      />
+    );
+  }
+  return (
+    <TitleRow
+      nodeId={node.id}
+      style={style}
+      lines={lines}
+      titleProps={{
+        className: "nopan",
+        "data-testid": `${testPrefix}-${node.id}`,
+        title: onRename ? "두 번 눌러 제목을 고친다" : undefined,
+        onDoubleClick: onRename
+          ? (e: MouseEvent) => {
+              e.stopPropagation();
+              open();
+            }
+          : undefined,
+      }}
+    >
+      {shown}
+    </TitleRow>
+  );
+}
+
+/** 빈 단계(4단계 T1) — 점선 테두리(`rsf-task`), 제목만. 제목 고치기는 `EditableTitle`. */
+function TaskBody({ data }: { data: FlowNodeData }) {
+  const { node, mark, onRenameTask, style } = data;
+  const showSub = !(style?.hide ?? []).includes("sub");
+  const lines = titleLines(style?.h ?? NODE_H_MIN, showSub ? 1 : 0);
   return (
     <>
-      {draft !== null ? (
-        <input
-          className="rsf-task-input nodrag nopan"
-          data-testid={`flow-task-title-input-${node.id}`}
-          aria-label="빈 단계 제목"
-          value={draft}
-          autoFocus
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-              e.preventDefault();
-              close(true, e.currentTarget);
-            } else if (e.key === "Escape") {
-              e.preventDefault();
-              close(false, e.currentTarget);
-            }
-          }}
-          onBlur={() => close(true)}
-        />
-      ) : (
-        <TitleRow
-          nodeId={node.id}
-          style={style}
-          lines={lines}
-          titleProps={{
-            className: "nopan",
-            "data-testid": `flow-task-title-${node.id}`,
-            title: onRenameTask ? "두 번 눌러 제목을 고친다" : undefined,
-            onDoubleClick: onRenameTask
-              ? (e: MouseEvent) => {
-                  e.stopPropagation();
-                  open();
-                }
-              : undefined,
-          }}
-        >
-          {title}
-        </TitleRow>
-      )}
+      <EditableTitle node={node} style={style} lines={lines} shown={node.label ?? TASK_LABEL} fallback={TASK_LABEL} testPrefix="flow-task-title" inputLabel="빈 단계 제목" onRename={onRenameTask} />
       {showSub && <div className="rsf-sub">빈 단계 — 룰을 지정하면 룰 노드가 된다</div>}
       {mark && <span className="rsf-mark" data-severity={mark} data-testid={`flow-node-mark-${node.id}`} />}
     </>
