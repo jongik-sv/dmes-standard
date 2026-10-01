@@ -5,7 +5,7 @@
  * 속성·세트 섹션은 `PropertyPanel`·`SetPanel` 이 그리고, 룰 목록 섹션(ID `rules`)은 이 파일이 붙인다.
  * - 편집 모드에서 룰을 지정할 노드(`ASSIGNABLE_KINDS`)를 고름 → 제목 「룰 지정」, 맨 위, 줄마다 [지정].
  * - 그 밖(세트·선·분기·합류·메모·그룹, 보기 모드 전부) → 제목 「룰 목록」, 맨 아래.
- * - 선을 고르면 속성 섹션이 없고 룰 목록 섹션만 있다(두 번 누르기가 그 선에 끼운다).
+ * - 선을 고르면 속성 자리에 「연결선」 섹션(라벨 칸, Task 9)과 룰 목록 섹션이 있다(룰 목록 두 번 누르기가 그 선에 끼운다).
  * `assignSignal` 이 바뀌면(page 의 `openRuleAssign`) 룰 지정 섹션을 펴고 그다음 커밋에서 찾기 칸에 초점을 둔다.
  * 섹션 순서가 바뀌어도 같은 key 로 두어 다시 마운트하지 않는다(찾기 상태는 page 의 `useRuleSearch` 라 다시 마운트돼도 남는다).
  */
@@ -17,6 +17,7 @@ import type { NodeLayoutSource } from "../flow-layout";
 import type { RuleSearch } from "../state/useRuleSearch";
 import type { FlowMode } from "../state/useRuleSetEdit";
 import type { RuleIo, RuleIoMap, RuleSetCheck } from "../types";
+import { EdgePanel } from "./EdgePanel";
 import { PanelHeader, panelTargetOf } from "./PanelHeader";
 import { PropertyPanel, type PropertyPanelProps } from "./PropertyPanel";
 import { Section, type SectionMemory } from "./Section";
@@ -123,7 +124,9 @@ export function SidePanel(p: SidePanelProps) {
         onError={p.onError}
         sections={sections}
       />
-    ) : target.kind === "EDGE" || !target.id ? null : (
+    ) : target.kind === "EDGE" && target.id ? (
+      <EdgePanel key="props" flow={p.flow} rules={p.rules} edgeId={target.id} editable={editable} onEdit={p.onEdit} sections={sections} />
+    ) : !target.id ? null : (
       <PropertyPanel
         key="props"
         flow={p.flow}

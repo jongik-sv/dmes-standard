@@ -887,7 +887,8 @@ export function replaceRule(f: EditFlow, nodeId: string, ruleId: string): EditRe
 
 /**
  * 룰 지정(4단계 T1) — 빈 단계면 RULE 로 바꾸고 룰 ID 를 넣고, 룰 노드면 룰만 바꾼다(`replaceRule`).
- * 노드 ID·자리(view.positions)·들어오고 나가는 선·경로·이름표는 그대로고, 빈 단계의 제목(노드 라벨)은 비운다. 편집 한 번이라 되돌리기 한 번에 돌아간다.
+ * 노드 ID·자리(view.positions)·들어오고 나가는 선·경로·이름표는 그대로다. 사용자가 붙인 제목(노드 라벨)은 룰 노드 이름으로 남는다(D-125 그림 먼저) —
+ * 단 새 빈 단계의 기본 제목(`TASK_LABEL`)은 이름이 아니라 자리 표시라 비운다. 편집 한 번이라 되돌리기 한 번에 돌아간다.
  */
 export function assignRule(f: EditFlow, nodeId: string, ruleId: string): EditResult {
   const n = findNode(f, nodeId);
@@ -899,7 +900,7 @@ export function assignRule(f: EditFlow, nodeId: string, ruleId: string): EditRes
   const m = findNode(g, nodeId)!;
   m.kind = "RULE";
   m.ruleId = ruleId;
-  m.label = null; // 룰 노드는 라벨을 보이지 않는다 — 빈 단계 제목이 저장·복사에 숨어 남지 않게 비운다
+  if (m.label === TASK_LABEL) m.label = null; // 기본 제목은 이름이 아니다 — 룰 노드에 「빈 단계」 가 이름으로 남지 않게 비운다
   return done(g);
 }
 
