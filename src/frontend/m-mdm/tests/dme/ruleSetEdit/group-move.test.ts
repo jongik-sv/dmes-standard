@@ -173,6 +173,16 @@ describe("FlowCanvas 그룹 통째로 옮기기", () => {
     expect(Object.keys(onMove.mock.calls[0][0])).toEqual(["r3"]);
   });
 
+  it("그룹을 골라도 틀은 소속 노드 아래에 그린다(고른 노드 올리기로 틀이 노드를 가리지 않는다)", async () => {
+    await draw(props({ selectedId: "g1" }));
+    await fire(titleEl("g1"), "click", screenOf(titleAt("g1")));
+    await flush();
+    expect(nodeEl("g1").classList.contains("selected")).toBe(true);
+    const z = (id: string) => Number(nodeEl(id).style.zIndex || 0);
+    expect(z("g1")).toBeLessThan(z("r1"));
+    expect(z("g1")).toBeLessThan(0);
+  });
+
   it("보기 모드에서는 제목을 끌어도 옮겨지지 않는다", async () => {
     const onMove = vi.fn();
     await draw(props({ mode: "view", onMove }));
