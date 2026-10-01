@@ -158,8 +158,11 @@ public interface DefinitionLookup {
     /**
      * {@code ruleId} 는 RULE 만, {@code splitId}(짝 분기 노드 ID)는 MERGE 만 쓴다. {@code label} 은 화면 표시용이다.
      * TASK(빈 단계, 4단계 spec §1.1)는 {@code label} 만 쓰고 실행 때 아무것도 읽거나 만들지 않고 지나간다.
+     * CATCH(받는 노드, 받는 노드 spec §2)는 {@code attachTo}(붙은 룰 노드 ID)·{@code catches}(받을 종류 키)를 쓴다. 돌아오는 MERGE 의
+     * {@code splitId} 는 그 룰 노드 ID 다. 두 칸은 CATCH 가 아니면 null 이다.
      */
-    record FlowNode(String id, NodeKind kind, @Nullable String ruleId, @Nullable String splitId, @Nullable String label) {}
+    record FlowNode(String id, NodeKind kind, @Nullable String ruleId, @Nullable String splitId, @Nullable String label,
+            @Nullable String attachTo, @Nullable List<String> catches) {}
 
     /**
      * {@code order}·{@code cond}·{@code otherwise} 는 IF·PARALLEL 에서 나가는 선만 쓴다. {@code otherwise=true} 는 IF 의
@@ -168,5 +171,5 @@ public interface DefinitionLookup {
     record FlowEdge(String id, String from, String to, @Nullable Integer order, @Nullable String cond, boolean otherwise,
             @Nullable String label) {}
 
-    enum NodeKind { START, END, RULE, TASK, IF, PARALLEL, MERGE }
+    enum NodeKind { START, END, RULE, TASK, IF, PARALLEL, MERGE, CATCH }
 }

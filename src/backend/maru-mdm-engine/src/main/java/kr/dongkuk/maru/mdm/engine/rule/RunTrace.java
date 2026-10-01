@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Violation;
+import kr.dongkuk.maru.mdm.engine.flow.CatchKind;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.NodeKind;
 import kr.dongkuk.maru.mdm.engine.spi.Nullable;
 
@@ -16,15 +17,19 @@ import kr.dongkuk.maru.mdm.engine.spi.Nullable;
  * @param finalValues 멈춘 시점(또는 끝)까지 최상위에서 만든 결과 변수
  * @param violations  멈췄으면 위반 목록, 끝까지 갔으면 null
  * @param edits       고친 값을 끼워 다시 실행했으면 받은 고친 값 그대로(4단계 spec §2.3), 아니면 null. JSON 에서는 null 이면 키를 뺀다
+ * @param endedBy     받는 노드 처리 갈래가 END 에 닿아 끝났으면 그 CATCH 노드 ID(받는 노드 spec §4), 아니면 null. JSON 에서는 null 이면 키를 뺀다
  */
 public record RunTrace(String setId, Instant evalTs, Map<String, Object> input, List<NodeTrace> nodes,
-        Map<String, Object> finalValues, @Nullable List<Violation> violations, @Nullable List<TraceEdit> edits) {
+        Map<String, Object> finalValues, @Nullable List<Violation> violations, @Nullable List<TraceEdit> edits,
+        @Nullable String endedBy) {
 
     /**
      * 노드 하나의 기록. 종류마다 쓰는 칸만 채우고 나머지는 null 이다.
      * RULE: ruleId·ver·reads(실행 직전 ctx 에서 이 룰이 읽은 값)·result(OK 인 RULE 에만 있다. 없으면 JSON 에서 키를 뺀다).
      * IF: branches·chosenEdgeId. PARALLEL: order.
-     * MERGE: splitId·merged(병렬 합류에서 합친 결과 이름). TASK: 칸 없이 status 만. ERROR 노드: violations.
+     * MERGE: splitId(짝 분기 또는 받는 룰 노드 ID)·merged(병렬 합류에서 합친 결과 이름). TASK: 칸 없이 status 만. ERROR 노드: violations.
+     * CAUGHT RULE(받는 노드로 넘긴 룰): ruleId·ver·reads·violations(결과 없음이면 빈 목록), result 는 null.
+     * CATCH: ruleId(실패한 룰 ID)·catchKind·code·message, status 는 OK. 세 칸은 CATCH 가 아니면 null 이고 JSON 에서 키를 뺀다.
      *
      * @param seq 1부터
      */
@@ -32,7 +37,7 @@ public record RunTrace(String setId, Instant evalTs, Map<String, Object> input, 
             @Nullable String ruleId, @Nullable Integer ver, @Nullable Map<String, Object> reads, @Nullable RuleResult result,
             @Nullable List<BranchTrace> branches, @Nullable String chosenEdgeId,
             @Nullable List<String> order, @Nullable String splitId, @Nullable List<String> merged,
-            @Nullable List<Violation> violations) {}
+            @Nullable List<Violation> violations, @Nullable CatchKind catchKind, @Nullable String code, @Nullable String message) {}
 
     /** IF 갈래 선 하나의 평가. {@code message} 는 ERROR 일 때 원인. */
     public record BranchTrace(String edgeId, BranchOutcome outcome, @Nullable String message) {}
@@ -43,7 +48,8 @@ public record RunTrace(String setId, Instant evalTs, Map<String, Object> input, 
      */
     public record TraceEdit(int beforeSeq, String nodeId, Map<String, Object> values) {}
 
-    public enum NodeStatus { OK, ERROR }
+    /** CAUGHT = 받는 노드로 넘긴 RULE(받는 노드 spec §6). 처리되지 않은 실패는 ERROR. */
+    public enum NodeStatus { OK, ERROR, CAUGHT }
 
     /**
      * NOT_EVALUATED = 앞 갈래가 참이었거나 앞 갈래 평가가 오류로 멈춰 평가하지 않았다(그 외 선은 안 골랐을 때 포함).

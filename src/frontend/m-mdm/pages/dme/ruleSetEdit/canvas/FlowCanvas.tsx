@@ -49,6 +49,13 @@
  * (선 객체에만 주고 저장하지 않는다). 누르기 잇기(`connectOnClick`)는 끈다 — 손잡이를 잘못 누른 뒤 노드를 누르면 선이 생기는 것을 막는다.
  * 끄는 동안의 연결 상태는 React Flow 내부 저장소에만 있어 page 를 다시 그리지 않고 배치(dagre)도 다시 돌지 않는다. page 는 놓을 때 `onConnect` 를 한 번 받는다.
  *
+ * 받는 노드(받는 노드 spec §8): CATCH 노드는 끌 수 없고 자리는 붙은 룰의 지금 그린 자리(끌기 중 포함)에서 `catchSpot` 으로 정한다 — 룰을 끌면 같은 렌더에서 따라간다.
+ * 편집 모드 룰 노드의 "예외" 연결점(`CATCH_HANDLE`)을 끌어 놓으면 `onAddCatch(룰, 놓은 노드)` 를 놓을 때 한 번 부른다. 받는 노드에서 나가는 선은 빨간 점선이다.
+ * 받는 노드로 들어가는 선은 `linkAllowed` 가 막는다(받는 노드에는 잇기 손잡이가 없어 새 선이 시작하지 않고, 처리 갈래 첫 선의 끝 옮기기는 된다). 스냅 후보에서 받는 노드를 뺀다.
+ *
+ * 받는 노드 디버거(받는 노드 spec §9): 겹침은 `trace-view.ts` 가 만들고 캔버스는 그리기만 한다 — 받는 노드로 넘긴 룰은 `data-state="caught"`(주황 점선)와
+ * 종류 칩, 탄 받는 노드·처리 갈래는 run, 받은 룰의 정상 갈래 선은 칠하지 않는다. 받는 노드는 중단점 대상(`BREAKABLE`)이 아니다(R17).
+ *
  * 그룹 크기(4단계 G2): 그룹 틀 = 소속 노드 경계 + 여백 16 + `view.groups[].pad`. 편집 모드에서 고른 그룹에 네 모서리·네 변 손잡이(nodes.tsx)가 뜬다.
  * 끄는 동안은 `GroupPadStore` 에만 두고(캔버스 안에서만 다시 그린다) 놓을 때 `onGroupPadChange` 를 한 번 부른다. 여백으로 저장하므로
  * 소속 노드를 옮기면 틀이 따라가고 소속 노드보다 작게는 줄지 않는다. 크기를 바꿔도 소속은 바뀌지 않는다.
@@ -68,7 +75,8 @@ import { IconPlus } from "@tabler/icons-react";
 import type { RuleSetFlow, TypedValue } from "@/contract/engine-contract.generated";
 
 import { MAX_LABEL_OFFSET, blockMembers, normalizePad, type GroupPad, type FlowNote, type FlowPos, type EditFlow, type LabelOffset, type LabelPart } from "../flow-edit";
-import { beyondLine, drawnPositions, foldOffsetX, nodeSizeOf, spaceMinDelta, type SpaceAxis, type SpaceBlocks } from "../flow-layout";
+import { beyondLine, catchSlots, catchSpot, drawnPositions, endingRoutes, foldOffsetX, nodeSizeOf, spaceMinDelta, type SpaceAxis, type SpaceBlocks } from "../flow-layout";
+import { CATCHABLE } from "../flow-model";
 import { STYLED_KINDS, type NodeSize } from "../node-style";
 import { typedText } from "../trace-view";
 import { blockDragPositions, dropTargetAt, edgeChips, edgeMarks, nodeAtPoint, nodeMarks, resolveNodeDrop } from "../flow-vars";
@@ -81,7 +89,7 @@ import { SEG_BAR_LONG, SEG_BAR_SHORT } from "../styles/route";
 import type { MenuTarget } from "./context-menu";
 import { NodeSizeContext, createNodeSizeStore, dragNodeSize, sameSize, type NodeSizeApi } from "./node-size";
 import { GroupSizeContext, ZERO_PAD, createGroupPadStore, dragGroupPad, samePad, type GroupSizeApi } from "./group-size";
-import { ANCHOR_IN, ANCHOR_OUT, GroupNodeData, NODE_TYPES, NoteNodeData, FlowNodeData, handlesOf, type CollapsedBlockInfo } from "./nodes";
+import { ANCHOR_IN, ANCHOR_OUT, CATCH_HANDLE, GroupNodeData, NODE_TYPES, NoteNodeData, FlowNodeData, handlesOf, type CollapsedBlockInfo } from "./nodes";
 import type { EdgeState, Overlay } from "./overlay";
 import { useStableById } from "./reuse";
 import {
@@ -249,6 +257,8 @@ export interface FlowCanvasProps {
   /** 놓인 노드·블록을 선 위에 놓음(A2 — Task 7). */
   onMoveNode: (nodeId: string, edgeId: string, pos: Record<string, FlowPos>) => void;
   onConnect: (from: string, to: string) => void;
+  /** 룰 노드 "예외" 연결점을 끌어 다른 노드에 놓음(받는 노드 spec §8) — page 가 `addCatch(f, 룰, 놓은 노드)` 로 편집 한 번을 만든다. 편집 모드에서만 부른다. */
+  onAddCatch?: (ruleNodeId: string, to: string) => void;
   /**
    * 고른 선의 한쪽 끝을 다른 노드 손잡이에 놓음(R1 — 선 끝 옮기기). 바뀐 끝만 담는다(`from` = 출발 쪽, `to` = 도착 쪽).
    * 편집 모드에서 선을 골랐을 때만 끝 손잡이가 뜨고, 안 넘기면(또는 보기·디버그 모드면) 끝 손잡이가 없다. 끌기 중에는 부르지 않고 놓을 때 한 번 부른다.
@@ -340,7 +350,17 @@ export function linkAllowed(flow: Pick<EditFlow, "nodes">, from: string | null |
   const kindOf = (id: string) => flow.nodes.find((n) => n.id === id)?.kind;
   const a = kindOf(from);
   const b = kindOf(to);
-  return !!a && !!b && a !== "END" && b !== "START";
+  // 받는 노드는 선이 아니라 attachTo 로 붙는다 — 들어오는 선은 막는다(받는 노드 spec §3). 받는 노드에는 잇기 손잡이가 없어 새 선이 그곳에서
+  // 시작하지 못하고, 처리 갈래 첫 선의 끝 옮기기(R1)는 출발이 받는 노드인 채 허용된다(두 번째 나가는 선은 connect·reconnectEdge 가 막는다).
+  return !!a && !!b && a !== "END" && b !== "START" && b !== "CATCH";
+}
+
+/** 룰 노드 "예외" 연결점에서 이을 수 있는가 — 받을 수 있는 노드(지금은 룰)에서 시작·받는 노드·자기 자신이 아닌 노드로. */
+export function catchLinkAllowed(flow: Pick<EditFlow, "nodes">, from: string | null | undefined, to: string | null | undefined): boolean {
+  if (!from || !to || from === to) return false;
+  const a = flow.nodes.find((n) => n.id === from)?.kind;
+  const b = flow.nodes.find((n) => n.id === to)?.kind;
+  return !!a && !!b && CATCHABLE.has(a) && b !== "START" && b !== "CATCH";
 }
 
 /** 편집 모드 다중 선택 키 — 누르기로 더하기. */
@@ -351,6 +371,8 @@ const EDIT_PAN_BUTTONS = [1];
 export const SPACE_THRESHOLD_PX = 6;
 
 type EdgeData = {
+  /** 받는 노드에서 나가는 처리 갈래 첫 선 — 빨간 점선(받는 노드 spec §8). */
+  fromCatch: boolean;
   label: string | null;
   /** 지금 조건식(B10 입력 칸의 처음 값). */
   cond: string | null;
@@ -785,6 +807,10 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
   lx += data?.spread ?? 0; // 같은 두 노드를 잇는 선끼리 이름표를 벌린다(경로가 있는 선은 0)
   const state = data?.state;
   const style: React.CSSProperties = { stroke: "var(--rsf-edge)", strokeWidth: 1.5 };
+  if (data?.fromCatch) {
+    style.stroke = "var(--color-danger)";
+    style.strokeDasharray = "6 4";
+  }
   if (data?.mark) style.stroke = data.mark === "REJECT" ? "var(--color-danger)" : "var(--color-warning)";
   if (selected) {
     style.stroke = "var(--color-primary)";
@@ -1041,7 +1067,7 @@ const NO_SEGS: readonly SegmentHandle[] = Object.freeze([]);
 const EDGE_TYPES: EdgeTypes = { rsfFlow: FlowEdgeView };
 
 /**
- * 접힌 분기 블록 요약(D16). `count` 는 분기·짝 합류를 뺀 안쪽 노드 수, `ran` 은 그 가운데 디버그/실행 기록에서 실행된 수(run·error),
+ * 접힌 분기 블록 요약(D16). `count` 는 분기·짝 합류를 뺀 안쪽 노드 수, `ran` 은 그 가운데 디버그/실행 기록에서 실행된 수(run·error·caught — 받는 노드로 넘긴 룰도 실행됐다),
  * `error` 는 안쪽 또는 합류가 오류로 끝났는가. 겹침이 없으면 0·false.
  */
 function blockInfo(flow: EditFlow, block: { count: number; members: string[] }, splitId: string, overlay: Overlay | null): CollapsedBlockInfo {
@@ -1052,7 +1078,7 @@ function blockInfo(flow: EditFlow, block: { count: number; members: string[] }, 
     if (id === splitId) continue;
     const st = overlay?.nodes[id]?.state;
     if (st === "error") error = true;
-    if (id !== mergeId && (st === "run" || st === "error")) ran++;
+    if (id !== mergeId && (st === "run" || st === "error" || st === "caught")) ran++;
   }
   return { count: block.count, ran, error };
 }
@@ -1086,7 +1112,7 @@ function Inner(props: FlowCanvasProps) {
   const {
     flow, rules, checks, mode, varDisplay, varLabels, selectedId, selectedEdgeId, overlay, focusId, focusSeq, focusReveal, fitSignal, fitKey,
     breakpoints, collapsed, valueAt, showMiniMap, editingCondEdgeId, editingLabelEdgeId, onEditLabel, onEditLabelClose,
-    onSelect, onSelectEdge, onOpenRule, onMove, onMoveNode, onConnect, onReconnect, onDropPalette, onDropRule, onAssignDrop, onRenameTask, onNoteChange, onContextMenu, onToggleBreakpoint,
+    onSelect, onSelectEdge, onOpenRule, onMove, onMoveNode, onConnect, onAddCatch, onReconnect, onDropPalette, onDropRule, onAssignDrop, onRenameTask, onNoteChange, onContextMenu, onToggleBreakpoint,
     onEditCond, onRouteChange, onLabelOffsetChange, removeRoutePointRef, clearSelectionRef, alignSourceRef, selectionRef, onEditCondClose, onSelectionChange,
     spaceTool, onSpaceToolChange, onShiftSpace, dragTool,
   } = props;
@@ -1140,6 +1166,8 @@ function Inner(props: FlowCanvasProps) {
    * 같은 memo 안에서 겹침을 푼다(Ruling 19) — 저장 위치가 없는 노드가 저장 위치 노드와 겹치면 그리는(접힌) 흐름에서 가로로 비킨다. 좌표는 저장하지 않는다.
    */
   const basePos = useMemo(() => drawnPositions(vflow, view.blocks), [vflow, view.blocks]);
+  /** 끝내는 처리 갈래가 END 로 들어가는 선의 자동 경로(다른 노드 상자를 비켜 간다) — 저장 경로가 없을 때만 쓴다. 끌기·공간 넓히기 미리보기는 저장 경로처럼 따른다. */
+  const catchRoutes = useMemo(() => endingRoutes(vflow, basePos, view.blocks), [vflow, basePos, view.blocks]);
   // 공간 넓히기 미리보기(S1) — 캔버스 안 저장소를 구독한다. 배치(dagre)는 다시 돌지 않고 너머 좌표만 옮긴다.
   const spaceStore = useMemo(createSpaceStore, []);
   const space = useSyncExternalStore(spaceStore.subscribe, () => spaceStore.shift, () => null);
@@ -1216,6 +1244,7 @@ function Inner(props: FlowCanvasProps) {
     const out: Node[] = [];
     const sizes = new Map(vflow.nodes.map((n) => [n.id, nodeSizeOf(vflow, n, view.blocks)] as const));
     if (nodeSizeDrag && sizes.has(nodeSizeDrag.nodeId)) sizes.set(nodeSizeDrag.nodeId, nodeSizeDrag.size);
+    const slots = catchSlots(vflow);
     const single = rfSel.size <= 1;
     for (const g of flow.view.groups) {
       const pad = groupDrag?.groupId === g.id ? groupDrag.pad : g.pad; // 끄는 중이면 그 값(G2)
@@ -1231,7 +1260,10 @@ function Inner(props: FlowCanvasProps) {
       });
     }
     for (const n of vflow.nodes) {
-      const p = pos[n.id] ?? { x: 0, y: 0 };
+      const slot = n.kind === "CATCH" ? slots.get(n.id) : undefined;
+      const rulePos = slot ? pos[slot.attachTo] : undefined;
+      if (n.kind === "CATCH" && !rulePos) continue; // 붙은 룰이 안 보이면(접힌 블록 안) 받는 노드도 그리지 않는다
+      const p = rulePos && slot ? catchSpot(rulePos, sizes.get(slot.attachTo)!, slot.k) : (pos[n.id] ?? { x: 0, y: 0 });
       const block = view.blocks[n.id];
       const s = sizes.get(n.id)!;
       const data: FlowNodeData = {
@@ -1256,7 +1288,9 @@ function Inner(props: FlowCanvasProps) {
       };
       out.push({
         id: n.id, type: "rsfFlow", position: p, width: s.w, height: s.h, measured: staleMeasure(measured[n.id], s) ? { width: s.w, height: s.h } : measured[n.id], data,
-        handles: handlesOf(block ? "RULE" : n.kind, s), draggable: editable,
+        handles: handlesOf(block ? "RULE" : n.kind, s), draggable: editable && n.kind !== "CATCH",
+        // 고르거나 끄는 룰은 React Flow 가 1000 올려 그린다 — 받는 노드(룰 테두리에 걸친 원)가 그 아래로 깔려 위쪽 반이 가려지지 않게 더 올려 둔다.
+        ...(n.kind === "CATCH" ? { zIndex: SELECT_ELEVATION + 1 } : {}),
         selected: rfSel.has(n.id),
       });
     }
@@ -1281,7 +1315,7 @@ function Inner(props: FlowCanvasProps) {
   const rawEdges = useMemo(() => {
     const kindOf = new Map(vflow.nodes.map((n) => [n.id, n.kind] as const));
     // 같은 두 노드를 잇는 경로 없는 선 묶음 — 묶음 안 순서대로 이름표를 가로로 벌린다(가운데 기준).
-    const routeOf = (id: string, folded: boolean) => (folded ? null : (flow.view.routes?.[id] ?? null));
+    const routeOf = (id: string, folded: boolean) => (folded ? null : (flow.view.routes?.[id] ?? catchRoutes[id] ?? null));
     const twins = new Map<string, string[]>();
     for (const e of vflow.edges) {
       if (routeOf(e.id, !!view.blocks[e.from])?.length) continue;
@@ -1302,6 +1336,7 @@ function Inner(props: FlowCanvasProps) {
       // 분기에서 나가지 않는 일반 선은 저장된 라벨이 있을 때만 그린다(Task 9).
       const label = fromSplit ? (e.label ?? (e.otherwise ? "그 외" : condEditable ? `갈래 ${e.order ?? ""}`.trim() : null)) : (e.label || null);
       const data: EdgeData = {
+        fromCatch: kindOf.get(e.from) === "CATCH",
         label, cond: e.cond, chips: chips[e.id] ?? [], state: overlay?.edges[e.id], mark: eMarks[e.id], varDisplay, varLabels: varLabels ?? NO_LABELS,
         dropTarget: dropEdge === e.id,
         insertable: editable,
@@ -1331,7 +1366,7 @@ function Inner(props: FlowCanvasProps) {
         data,
       };
     });
-  }, [flow, vflow, view, chips, overlay, eMarks, varDisplay, varLabels, selectedEdgeId, editable, debugging, valueAt, editingCondEdgeId, condEdge, editingLabelEdgeId, labelEdge, dropEdge, onReconnect, onLabelOffsetChange]);
+  }, [flow, vflow, view, catchRoutes, chips, overlay, eMarks, varDisplay, varLabels, selectedEdgeId, editable, debugging, valueAt, editingCondEdgeId, condEdge, editingLabelEdgeId, labelEdge, dropEdge, onReconnect, onLabelOffsetChange]);
   /** 선도 같은 방식 — 선택·조건식 편집·놓일 선 강조가 바뀌어도 바뀐 선만 다시 그린다. */
   const edges = useStableById(rawEdges);
 
@@ -1472,7 +1507,8 @@ function Inner(props: FlowCanvasProps) {
     for (const n of moving) for (const id of Object.keys(blockPositionsOf(n))) skip.add(id);
     const others: Box[] = [];
     for (const n of nodesRef.current) {
-      if ((n.type === "rsfFlow" || n.type === "rsfNote") && !skip.has(n.id)) others.push(boxOf(n));
+      const isCatch = n.type === "rsfFlow" && (n.data as FlowNodeData).node.kind === "CATCH";
+      if ((n.type === "rsfFlow" || n.type === "rsfNote") && !skip.has(n.id) && !isCatch) others.push(boxOf(n));
     }
     const start = new Map(dragged.map((n) => [n.id, { ...n.position }] as const));
     snapRef.current = { ids, groups, start, index: snapIndex(others), dx: 0, dy: 0, targets: NO_TARGETS };
@@ -1641,10 +1677,19 @@ function Inner(props: FlowCanvasProps) {
 
   // 네 변 잇기(C1) — 어느 손잡이에서 시작했든 방향은 끈 노드(source) → 놓은 노드(target). 끄는 동안은 부르지 않고 놓을 때 한 번.
   const onConnectCb = useCallback((c: Connection) => {
-    if (editable && linkAllowed(flowRef.current, c.source, c.target)) onConnect(c.source, c.target);
-  }, [editable, onConnect]);
+    if (!editable) return;
+    if (c.sourceHandle === CATCH_HANDLE) {
+      if (catchLinkAllowed(flowRef.current, c.source, c.target)) onAddCatch?.(c.source, c.target);
+      return;
+    }
+    if (linkAllowed(flowRef.current, c.source, c.target)) onConnect(c.source, c.target);
+  }, [editable, onConnect, onAddCatch]);
   /** 끄는 동안 놓을 자리가 맞는지(C1) — 새 선·선 끝 옮기기 모두. 흐름은 ref 로 읽어 참조가 바뀌지 않는다. */
-  const isValidLink = useCallback((c: Connection | Edge) => linkAllowed(flowRef.current, c.source, c.target), []);
+  const isValidLink = useCallback(
+    (c: Connection | Edge) =>
+      c.sourceHandle === CATCH_HANDLE ? catchLinkAllowed(flowRef.current, c.source, c.target) : linkAllowed(flowRef.current, c.source, c.target),
+    [],
+  );
 
   // 선 끝 옮기기(R1) — 놓을 때 한 번. RF 는 끝이 제자리여도 부르므로 바뀐 끝이 있을 때만 올린다.
   const onReconnectCb = useCallback((old: Edge, c: Connection) => {

@@ -10,7 +10,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  * E5 수용 4 중복 대입 경고, E6 구성 지침 → 제안 순서 적용 → 저장 → 다시 열어 순서 유지, E7 폐기·되살리기, E9 권한(READ — 디버그 모드는 들어가지만 실행 단추가 꺼진다),
  * E10 속성 패널의 룰 편집 열기, E11 디버그 모드(단계 실행·중단점·계속·끝내기·값 표), E12 룰 박스 링크 아이콘과 박스 누르기,
  * E13 편집기(룰 목록에서 선으로 끌어 넣기·되돌리기·다시 하기·[+] 메뉴로 IF 넣기·분기 종류 바꾸기·Ctrl+Z),
- * E14 테스트 케이스(현재 입력 저장 → 모두 실행 1/1 통과 → 삭제), E15 찾기·블록 접기(접힌 블록 안 노드를 찾으면 펼쳐진다).
+ * E14 테스트 케이스(현재 입력 저장 → 모두 실행 1/1 통과 → 삭제), E15 찾기·블록 접기(접힌 블록 안 노드를 찾으면 펼쳐진다), E16 받는 노드(룰 우클릭 「예외 받기 추가」 → 저장 → 디버그에서 결과 없음 처리 갈래로 끝냄).
  *
  * 전제(design.md 「E2E 서버 절차」): 새 mcm.db·mdm.db 로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고,
  * mcm 기동 뒤 e2e/fixtures/mdm-rbac-users.sql, mdm 기동 뒤 e2e/fixtures/mdm-ruleSet-data.sql 을 넣는다.
@@ -571,5 +571,29 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await expect(page.getByTestId("flow-collapsed-if1")).toHaveCount(0);
     await expect(page.getByTestId("flow-node-r2")).toBeVisible();
     await expect(page.getByTestId("flow-node-r2")).toHaveAttribute("data-selected", "true");
+  });
+
+  test("E16 받는 노드: 룰에 예외 받기를 붙여 저장하고, 결과 없는 입력으로 실행하면 처리 갈래로 끝나고 받은 예외가 1건이다", async ({ page }) => {
+    await login(page, STEWARD);
+    await openRuleSetEdit(page);
+    await pickSet(page, "E2S_CATCHSET");
+    await enterEditMode(page);
+
+    await page.getByTestId("flow-node-r1").click({ button: "right" });
+    await page.getByTestId("flow-menu-item-catch-add").click();
+    await expect(page.getByTestId("flow-node-c1")).toBeVisible();
+    await page.getByTestId("flow-node-c1").click();
+    await expect(page.getByTestId("flow-panel-kind")).toHaveText("받는 노드");
+    await expect(page.getByTestId("flow-prop-catch")).toBeVisible();
+
+    await page.getByTestId("set-save").click();
+    await expect(page.getByTestId("set-save")).toBeDisabled({ timeout: 30_000 });
+
+    await enterDebugMode(page);
+    await page.getByTestId("dbg-input-SET_THK").fill("1");
+    await page.getByTestId("dbg-finish").click();
+    await expect(page.getByTestId("dbg-status")).toHaveText("예외로 끝남: 결과 없음 · 4단계 · 결과 변수 0개", { timeout: 30_000 });
+    await expect(page.getByTestId("flow-node-r1")).toHaveAttribute("data-state", "caught");
+    await expect(page.getByTestId("dbg-caught-toggle")).toContainText("받은 예외 1건");
   });
 });

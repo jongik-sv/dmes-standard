@@ -166,4 +166,32 @@ class RuleSetFlowJsonTest {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> RuleSetFlowJson.canonical(json));
         assertTrue(e.getMessage().startsWith("정규화한 흐름 JSON 이 ") && e.getMessage().endsWith("자다. 262144자까지 받는다"), e.getMessage());
     }
+
+    @Test
+    void 받는_노드는_attachTo_catches_를_읽고_정규_JSON_은_CATCH_노드에만_두_칸을_쓴다() {
+        String in = """
+            {"version":1,"nodes":[{"id":"start","kind":"START"},{"id":"r1","kind":"RULE","ruleId":"A"},
+             {"id":"c1","kind":"CATCH","attachTo":"r1","catches":["NO_RESULT","BOOM"],"label":"단가 없음"},{"id":"end","kind":"END"}],
+             "edges":[{"id":"e1","from":"start","to":"r1"},{"id":"e2","from":"r1","to":"end"},{"id":"e3","from":"c1","to":"end"}]}""";
+        FlowDefinition f = RuleSetFlowJson.parse(in);
+        assertEquals("r1", f.nodes().get(2).attachTo());
+        assertEquals(List.of("NO_RESULT", "BOOM"), f.nodes().get(2).catches());
+        assertNull(f.nodes().get(1).attachTo());
+        assertNull(f.nodes().get(1).catches());
+        String c = RuleSetFlowJson.canonical(in);
+        assertTrue(c.contains("{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"A\",\"splitId\":null,\"label\":null},"), c);
+        assertTrue(c.contains("{\"id\":\"c1\",\"kind\":\"CATCH\",\"ruleId\":null,\"splitId\":null,\"label\":\"단가 없음\",\"attachTo\":\"r1\",\"catches\":[\"NO_RESULT\",\"BOOM\"]}"), c);
+    }
+
+    @Test
+    void catches_는_문자열_배열이어야_한다() {
+        String bad = """
+            {"version":1,"nodes":[{"id":"c1","kind":"CATCH","attachTo":"r1","catches":"NO_RESULT"}],"edges":[]}""";
+        assertEquals("nodes[0].catches 는 문자열 배열이어야 한다",
+                assertThrows(IllegalArgumentException.class, () -> RuleSetFlowJson.parse(bad)).getMessage());
+        String badItem = """
+            {"version":1,"nodes":[{"id":"c1","kind":"CATCH","attachTo":"r1","catches":[1]}],"edges":[]}""";
+        assertEquals("nodes[0].catches 는 문자열 배열이어야 한다",
+                assertThrows(IllegalArgumentException.class, () -> RuleSetFlowJson.parse(badItem)).getMessage());
+    }
 }

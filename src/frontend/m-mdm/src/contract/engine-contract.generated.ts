@@ -204,19 +204,26 @@ export type Expect =
  */
 export type EngineWarningCode = "EXPR_CELL_NULL" | "GRP_COND_NULL" | "BRANCH_COND_NULL";
 /**
- * 흐름 노드 종류(Java DefinitionLookup.NodeKind). TASK = 빈 단계(4단계 spec §1.1).
+ * 흐름 노드 종류(Java DefinitionLookup.NodeKind). TASK = 빈 단계(4단계 spec §1.1), CATCH = 받는 노드(받는 노드 spec §2).
  *
  * This interface was referenced by `EngineContract`'s JSON-Schema
  * via the `definition` "FlowNodeKind".
  */
-export type FlowNodeKind = "START" | "END" | "RULE" | "TASK" | "IF" | "PARALLEL" | "MERGE";
+export type FlowNodeKind = "START" | "END" | "RULE" | "TASK" | "IF" | "PARALLEL" | "MERGE" | "CATCH";
 /**
- * 노드 실행 상태(Java RunTrace.NodeStatus).
+ * 받는 노드가 받는 exception 종류(Java flow.CatchKind, 받는 노드 spec §1). NO_RESULT = 결과 없음, INPUT_ERROR = MISSING_KEY·REQUIRED_NULL·TYPE_CONVERSION, EVAL_ERROR = EVALUATION_ERROR, HIT_CONFLICT = UNIQUE_MULTIPLE_HITS·ANY_CONFLICT.
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "CatchKind".
+ */
+export type CatchKind = "NO_RESULT" | "INPUT_ERROR" | "EVAL_ERROR" | "HIT_CONFLICT";
+/**
+ * 노드 실행 상태(Java RunTrace.NodeStatus). CAUGHT = 받는 노드로 넘긴 RULE(받는 노드 spec §6).
  *
  * This interface was referenced by `EngineContract`'s JSON-Schema
  * via the `definition` "NodeStatus".
  */
-export type NodeStatus = "OK" | "ERROR";
+export type NodeStatus = "OK" | "ERROR" | "CAUGHT";
 /**
  * IF 갈래 평가 결과(Java RunTrace.BranchOutcome). NOT_EVALUATED = 앞 갈래가 참이었거나 앞 갈래 평가가 오류로 멈춰 평가하지 않음. IF 의 branches 는 늘 나가는 선마다 하나씩, 실행 순서대로 있다.
  *
@@ -465,7 +472,7 @@ export interface EngineWarning {
   message: string;
 }
 /**
- * 룰 세트 판정 결과(Java RuleSetResult, 06:429 + 룰 세트 흐름도 spec §4.1). steps 는 실행한 룰마다 결과, finalValues 는 마지막 룰 뒤 결과 변수 전체, path 는 방문한 노드, warnings 는 세트 경고(BRANCH_COND_NULL).
+ * 룰 세트 판정 결과(Java RuleSetResult, 06:429 + 룰 세트 흐름도 spec §4.1 + 받는 노드 spec §6). steps 는 결과를 쓴 룰마다 결과, finalValues 는 마지막 룰 뒤 결과 변수 전체, path 는 방문한 노드, warnings 는 세트 경고(BRANCH_COND_NULL), caught 는 받는 노드가 받아 처리한 exception(실행 순서), endedBy 는 처리 갈래가 END 로 끝냈을 때 그 CATCH 노드 ID.
  *
  * This interface was referenced by `EngineContract`'s JSON-Schema
  * via the `definition` "RuleSetResult".
@@ -479,6 +486,8 @@ export interface RuleSetResult {
   };
   path: PathStep[];
   warnings: EngineWarning[];
+  caught: CaughtException[];
+  endedBy: string | null;
 }
 /**
  * 세트에서 방문한 노드 하나(Java RuleSetResult.PathStep). chosenEdgeId 는 IF 에서 고른 선, stepIndex 는 RULE 결과의 steps 자리.
@@ -493,7 +502,21 @@ export interface PathStep {
   stepIndex: number | null;
 }
 /**
- * 룰 세트 실행 기록(Java RunTrace, 룰 세트 흐름도 spec §4.2). 판정 오류는 던지지 않고 violations 에 담는다. 실행 전 오류면 nodes 가 비었다. edits 는 디버거에서 고친 값을 끼워 다시 실행했을 때만 있고(4단계 spec §2.3), 없으면 키를 뺀다.
+ * 받는 노드가 받아 처리한 exception 하나(Java RuleSetResult.CaughtException). code 는 첫 위반 코드, 결과 없음이면 NO_RESULT.
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "CaughtException".
+ */
+export interface CaughtException {
+  ruleNodeId: string;
+  ruleId: string;
+  catchNodeId: string;
+  kind: CatchKind;
+  code: string;
+  message: string;
+}
+/**
+ * 룰 세트 실행 기록(Java RunTrace, 룰 세트 흐름도 spec §4.2). 판정 오류는 던지지 않고 violations 에 담는다. 실행 전 오류면 nodes 가 비었다. edits 는 디버거에서 고친 값을 끼워 다시 실행했을 때만 있고(4단계 spec §2.3), 없으면 키를 뺀다. endedBy 는 받는 노드 처리 갈래가 END 로 끝냈을 때만 있고, 없으면 키를 뺀다.
  *
  * This interface was referenced by `EngineContract`'s JSON-Schema
  * via the `definition` "RunTrace".
@@ -510,9 +533,10 @@ export interface RunTrace {
   };
   violations: Violation[] | null;
   edits?: TraceEdit[];
+  endedBy?: string;
 }
 /**
- * 노드 하나의 기록(Java RunTrace.NodeTrace). RULE: ruleId·ver·reads·result, IF: branches·chosenEdgeId, PARALLEL: order, MERGE: splitId·merged, TASK: 칸 없이 status 만, ERROR: violations. result 는 OK 인 RULE 노드에만 있고, 값이 없으면 키를 뺀다(null 을 쓰지 않는다).
+ * 노드 하나의 기록(Java RunTrace.NodeTrace). RULE: ruleId·ver·reads·result, IF: branches·chosenEdgeId, PARALLEL: order, MERGE: splitId·merged, TASK: 칸 없이 status 만, ERROR: violations. CAUGHT RULE(받는 노드로 넘긴 룰): violations(결과 없음이면 빈 목록). CATCH: ruleId(실패한 룰)·catchKind·code·message 이고 셋은 CATCH 노드에만 있으며 없으면 키를 뺀다. result 는 OK 인 RULE 노드에만 있고, 값이 없으면 키를 뺀다(null 을 쓰지 않는다).
  *
  * This interface was referenced by `EngineContract`'s JSON-Schema
  * via the `definition` "NodeTrace".
@@ -534,6 +558,9 @@ export interface NodeTrace {
   splitId: string | null;
   merged: string[] | null;
   violations: Violation[] | null;
+  catchKind?: CatchKind;
+  code?: string;
+  message?: string;
 }
 /**
  * IF 갈래 선 하나의 평가(Java RunTrace.BranchTrace). message 는 ERROR 원인.
@@ -585,7 +612,7 @@ export interface RuleSetFlow {
   edges: FlowEdge[];
 }
 /**
- * 흐름 노드(Java DefinitionLookup.FlowNode). ruleId 는 RULE 만, splitId 는 MERGE 만 쓴다. TASK(빈 단계)는 label 만 쓰고 실행 때 그냥 지나간다.
+ * 흐름 노드(Java DefinitionLookup.FlowNode). ruleId 는 RULE 만, splitId 는 MERGE 만 쓴다(받는 룰로 돌아오는 MERGE 는 그 룰 노드 ID). TASK(빈 단계)는 label 만 쓰고 실행 때 그냥 지나간다. CATCH(받는 노드)는 attachTo(붙은 룰 노드 ID)·catches(받을 종류 키)를 쓰고, 두 칸은 CATCH 노드에만 있다.
  *
  * This interface was referenced by `EngineContract`'s JSON-Schema
  * via the `definition` "FlowNode".
@@ -596,6 +623,8 @@ export interface FlowNode {
   ruleId: string | null;
   splitId: string | null;
   label: string | null;
+  attachTo?: string | null;
+  catches?: string[] | null;
 }
 /**
  * 흐름 선(Java DefinitionLookup.FlowEdge). order·cond·otherwise 는 IF·PARALLEL 에서 나가는 선만 쓴다. otherwise=true 는 IF 의 "그 외" 선.

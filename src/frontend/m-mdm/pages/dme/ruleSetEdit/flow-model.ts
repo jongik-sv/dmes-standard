@@ -5,9 +5,9 @@
  *
  * 중복 노드 ID 는 첫 노드만 본다(a 오류로 보고한다). 빠진 칸(undefined)은 null 로 본다 — 서버 FLOW_JSON 과 코퍼스가 null 칸을 뺄 수 있다.
  */
-import type { FlowEdge, FlowNode, FlowNodeKind, RuleSetFlow } from "@/contract/engine-contract.generated";
+import type { CatchKind, FlowEdge, FlowNode, FlowNodeKind, RuleSetFlow } from "@/contract/engine-contract.generated";
 
-export type FlowIssueCode = "FLOW_STRUCTURE" | "FLOW_IF_ELSE";
+export type FlowIssueCode = "FLOW_STRUCTURE" | "FLOW_IF_ELSE" | "FLOW_CATCH";
 
 export interface FlowIssue {
   code: FlowIssueCode;
@@ -50,7 +50,47 @@ export interface Split {
   branches: Branch[];
 }
 
-export type Block = Seq | RuleStep | TaskStep | Split;
+/** 처리 갈래 하나(받는 노드 spec §3) — 엔진 `flow.Guarded.Handler` 짝. ends = END 로 가서 세트를 끝낸다. */
+export interface Handler {
+  catchNodeId: string;
+  kinds: CatchKind[];
+  body: Seq;
+  ends: boolean;
+}
+
+/**
+ * 받는 노드가 붙은 룰(받는 노드 spec §3) — 엔진 `flow.Guarded` 짝. 돌아오는 처리 갈래가 없으면 normal 은 비고 mergeId 는 null 이다.
+ * 맨 위에 nodeId 를 두지 않는다 — 블록을 걷는 코드가 GUARDED 를 빼먹으면 tsc 가 `b.kind`·`b.nodeId` 에서 막는다.
+ */
+export interface Guarded {
+  type: "GUARDED";
+  rule: RuleStep;
+  normal: Seq;
+  handlers: Handler[];
+  mergeId: string | null;
+}
+
+export type Block = Seq | RuleStep | TaskStep | Split | Guarded;
+
+/** 받는 종류의 저장 순서(엔진 `CatchKind` 선언 순서). */
+export const CATCH_KINDS: readonly CatchKind[] = ["NO_RESULT", "INPUT_ERROR", "EVAL_ERROR", "HIT_CONFLICT"];
+/** 받는 노드를 붙일 수 있는 노드 종류(엔진 `FlowParser.catchable`). 하위 세트 호출 스펙이 SET 을 더한다. */
+export const CATCHABLE: ReadonlySet<FlowNodeKind> = new Set<FlowNodeKind>(["RULE"]);
+/** 처리 갈래 안에서만 있는 예약 이름(엔진 `ReservedNames.CATCH_NAMES`, 받는 노드 spec §4). */
+export const CATCH_NAMES: readonly string[] = ["CATCH_KIND", "CATCH_RULE", "CATCH_CODE", "CATCH_MSG"];
+const isCatchKind = (k: string): k is CatchKind => (CATCH_KINDS as readonly string[]).includes(k);
+
+/** nodeId 에 붙은 받는 노드(노드 배열 순서, 겹친 ID 는 첫 노드만). 붙은 노드가 받을 수 있는 종류인지는 보지 않는다. */
+export function catchesOf(flow: RuleSetFlow, nodeId: string): FlowNode[] {
+  const seen = new Set<string>();
+  const out: FlowNode[] = [];
+  for (const n of flow.nodes ?? []) {
+    if (seen.has(n.id)) continue;
+    seen.add(n.id);
+    if (n.kind === "CATCH" && n.attachTo === nodeId) out.push(n);
+  }
+  return out;
+}
 
 export type Relation = "SAME" | "BEFORE" | "AFTER" | "EXCLUSIVE" | "PARALLEL";
 
@@ -67,10 +107,11 @@ interface Degree {
 const ONE: Degree = { min: 1, max: 1 };
 const NONE: Degree = { min: 0, max: 0 };
 const MANY: Degree = { min: 2, max: Number.POSITIVE_INFINITY };
-const IN_DEGREE: Record<FlowNodeKind, Degree> = { START: NONE, END: ONE, RULE: ONE, TASK: ONE, IF: ONE, PARALLEL: ONE, MERGE: MANY };
-const OUT_DEGREE: Record<FlowNodeKind, Degree> = { START: ONE, END: NONE, RULE: ONE, TASK: ONE, IF: MANY, PARALLEL: MANY, MERGE: ONE };
+const IN_DEGREE: Record<FlowNodeKind, Degree> = { START: NONE, END: ONE, RULE: ONE, TASK: ONE, IF: ONE, PARALLEL: ONE, MERGE: MANY, CATCH: NONE };
+const OUT_DEGREE: Record<FlowNodeKind, Degree> = { START: ONE, END: NONE, RULE: ONE, TASK: ONE, IF: MANY, PARALLEL: MANY, MERGE: ONE, CATCH: ONE };
 
-const degreeText = (d: Degree) => (d.max === 0 ? "없어야 한다" : d.max === 1 ? "1개여야 한다" : "2개 이상이어야 한다");
+const AT_LEAST_ONE: Degree = { min: 1, max: Number.POSITIVE_INFINITY };
+const degreeText = (d: Degree) => (d.max === 0 ? "없어야 한다" : d.max === 1 ? "1개여야 한다" : d.min === 1 ? "1개 이상이어야 한다" : "2개 이상이어야 한다");
 /** Java `String.isBlank()` 과 같은 판정(C3 공백 규칙). `trim()` 은 NBSP·BOM 을 공백으로 봐 Java 와 갈라진다. */
 const JAVA_WS = /^(?:[\t\n\u000B\f\r\u001C-\u001F]|(?![\u00A0\u2007\u202F])[\p{Zs}\p{Zl}\p{Zp}])*$/u;
 export const isBlankJava = (s: string | null | undefined) => s == null || JAVA_WS.test(s);
@@ -98,6 +139,18 @@ export function parseFlow(flow: RuleSetFlow): FlowParse {
     else {
       byId.set(n.id, n);
       unique.push(n);
+    }
+  }
+
+  const hasCatch = unique.some((n) => n.kind === "CATCH");
+  /** 받는 룰 → 붙은 받는 노드(노드 배열 순서). 붙임이 맞는 것만 — e·h6·h7·2단계가 쓴다. */
+  const catchMap = new Map<string, FlowNode[]>();
+  for (const n of unique) {
+    if (n.kind !== "CATCH" || isBlankJava(n.attachTo)) continue;
+    const t = byId.get(n.attachTo as string);
+    if (t && CATCHABLE.has(t.kind)) {
+      if (!catchMap.has(t.id)) catchMap.set(t.id, []);
+      catchMap.get(t.id)!.push(n);
     }
   }
 
@@ -132,7 +185,7 @@ export function parseFlow(flow: RuleSetFlow): FlowParse {
   for (const n of unique) {
     const inN = (ins.get(n.id) ?? []).length;
     const outN = outOf(n.id).length;
-    const di = IN_DEGREE[n.kind];
+    const di = n.kind === "END" && hasCatch ? AT_LEAST_ONE : IN_DEGREE[n.kind];
     const dout = OUT_DEGREE[n.kind];
     if (inN < di.min || inN > di.max) issues.push(issue("FLOW_STRUCTURE", n.id, null, `${n.id}의 들어오는 선이 ${inN}개다. ${degreeText(di)}`));
     if (outN < dout.min || outN > dout.max) issues.push(issue("FLOW_STRUCTURE", n.id, null, `${n.id}의 나가는 선이 ${outN}개다. ${degreeText(dout)}`));
@@ -140,7 +193,7 @@ export function parseFlow(flow: RuleSetFlow): FlowParse {
     if (n.kind === "MERGE") {
       const splitId = orNull(n.splitId);
       const s = splitId == null ? undefined : byId.get(splitId);
-      if (!s || !isSplit(s.kind)) issues.push(issue("FLOW_STRUCTURE", n.id, null, `합류 ${n.id}의 짝 분기 ${splitId ?? "-"}가 없다`));
+      if (!s || (!isSplit(s.kind) && !catchMap.has(s.id))) issues.push(issue("FLOW_STRUCTURE", n.id, null, `합류 ${n.id}의 짝 분기 ${splitId ?? "-"}가 없다`));
     }
   }
 
@@ -173,9 +226,40 @@ export function parseFlow(flow: RuleSetFlow): FlowParse {
     }
   }
 
+  // h1~h5 — 받는 노드별(FLOW_CATCH)
+  for (const n of unique) {
+    if (n.kind !== "CATCH") continue;
+    const at = orNull(n.attachTo);
+    const target = isBlankJava(at) ? undefined : byId.get(at as string);
+    if (!target) issues.push(issue("FLOW_CATCH", n.id, null, `받는 노드 ${n.id}가 붙은 룰 ${isBlankJava(at) ? "-" : at}가 없다`));
+    else if (!CATCHABLE.has(target.kind)) issues.push(issue("FLOW_CATCH", n.id, null, `받는 노드 ${n.id}는 룰 노드에만 붙일 수 있다(${target.id}는 ${target.kind})`));
+    const keys = n.catches ?? [];
+    if (keys.length === 0) issues.push(issue("FLOW_CATCH", n.id, null, `받는 노드 ${n.id}에 받을 예외 종류가 없다`));
+    const seenKeys = new Set<string>();
+    for (const k of keys) {
+      if (!isCatchKind(k)) issues.push(issue("FLOW_CATCH", n.id, null, `받는 노드 ${n.id}의 예외 종류 ${k}를 모른다`));
+      else if (seenKeys.has(k)) issues.push(issue("FLOW_CATCH", n.id, null, `받는 노드 ${n.id}에 예외 종류 ${k}가 겹친다`));
+      else seenKeys.add(k);
+    }
+  }
+  // h6·h7 — 받는 룰별
+  for (const [ruleNode, cs] of catchMap) {
+    const owner = new Map<string, string>();
+    for (const c of cs) {
+      for (const k of c.catches ?? []) {
+        if (!isCatchKind(k)) continue;
+        const prev = owner.get(k);
+        if (prev === undefined) owner.set(k, c.id);
+        else if (prev !== c.id) issues.push(issue("FLOW_CATCH", c.id, null, `룰 노드 ${ruleNode}에서 예외 종류 ${k}를 ${prev}와 ${c.id}가 함께 받는다`));
+      }
+    }
+    const merges = unique.filter((m) => m.kind === "MERGE" && orNull(m.splitId) === ruleNode).length;
+    if (merges > 1) issues.push(issue("FLOW_STRUCTURE", ruleNode, null, `룰 ${ruleNode}로 돌아오는 합류가 ${merges}개다. 1개까지 둔다`));
+  }
+
   if (issues.length > 0) return { tree: null, issues };
   try {
-    return { tree: build(unique, byId, outOf), issues: [] };
+    return { tree: build(unique, byId, outOf, catchMap), issues: [] };
   } catch (e) {
     if (e instanceof ParseStop) return { tree: null, issues: [e.issue] };
     throw e;
@@ -189,52 +273,80 @@ function sortBranches(kind: FlowNodeKind, out: readonly FlowEdge[]): FlowEdge[] 
 }
 
 /** 2단계 — seq(from, stop) 로 블록 트리를 만든다(C3 의사코드). 첫 오류에서 ParseStop 을 던진다. */
-function build(unique: readonly FlowNode[], byId: ReadonlyMap<string, FlowNode>, outOf: (id: string) => FlowEdge[]): FlowTree {
+function build(
+  unique: readonly FlowNode[],
+  byId: ReadonlyMap<string, FlowNode>,
+  outOf: (id: string) => FlowEdge[],
+  catchMap: ReadonlyMap<string, readonly FlowNode[]>,
+): FlowTree {
   const visited = new Set<string>();
   const mergeOf = new Map<string, string>();
   for (const m of unique) if (m.kind === "MERGE" && m.splitId != null) mergeOf.set(m.splitId, m.id);
   const next = (id: string) => outOf(id)[0].to;
+  const end = unique.find((n) => n.kind === "END")!;
+
+  /** 노드 하나를 블록으로 만들어 items 에 넣고 다음 노드 ID 를 돌려준다(Java `Builder.step`). */
+  const step = (cur: string, items: Block[], notClosed: string): string => {
+    if (visited.has(cur)) {
+      throw new ParseStop(issue("FLOW_STRUCTURE", cur, null, `${cur}를 두 번 지난다. 순환이 있거나 갈래가 짝 합류 밖에서 만난다`));
+    }
+    const node = byId.get(cur)!;
+    if (node.kind === "START" || node.kind === "END" || node.kind === "MERGE") {
+      throw new ParseStop(issue("FLOW_STRUCTURE", cur, null, `${notClosed}${cur}로 나간다`));
+    }
+    visited.add(cur);
+    if (node.kind === "RULE") {
+      const rule: RuleStep = { type: "RULE", nodeId: cur, ruleId: node.ruleId as string };
+      const cs = catchMap.get(cur) ?? [];
+      if (cs.length === 0) {
+        items.push(rule);
+        return next(cur);
+      }
+      const g = guarded(rule, cs);
+      items.push(g);
+      return g.mergeId == null ? next(cur) : next(g.mergeId);
+    }
+    if (node.kind === "TASK") {
+      items.push({ type: "TASK", nodeId: cur });
+      return next(cur);
+    }
+    const splitId = cur;
+    const mergeId = mergeOf.get(splitId)!;
+    const branches = sortBranches(node.kind, outOf(splitId)).map((e) => ({
+      edgeId: e.id,
+      cond: orNull(e.cond),
+      otherwise: e.otherwise === true,
+      label: orNull(e.label),
+      body: seq(e.to, mergeId),
+    }));
+    visited.add(mergeId);
+    items.push({ type: "SPLIT", nodeId: splitId, kind: node.kind as "IF" | "PARALLEL", mergeId, branches });
+    return next(mergeId);
+  };
 
   const seq = (from: string, stop: string): Seq => {
     const items: Block[] = [];
     let cur = from;
-    while (cur !== stop) {
-      if (visited.has(cur)) {
-        throw new ParseStop(issue("FLOW_STRUCTURE", cur, null, `${cur}를 두 번 지난다. 순환이 있거나 갈래가 짝 합류 밖에서 만난다`));
-      }
-      const node = byId.get(cur)!;
-      if (node.kind === "START" || node.kind === "END" || node.kind === "MERGE") {
-        throw new ParseStop(issue("FLOW_STRUCTURE", cur, null, `갈래가 ${stop}에서 닫히지 않고 ${cur}로 나간다`));
-      }
-      visited.add(cur);
-      if (node.kind === "RULE") {
-        items.push({ type: "RULE", nodeId: cur, ruleId: node.ruleId as string });
-        cur = next(cur);
-        continue;
-      }
-      if (node.kind === "TASK") {
-        items.push({ type: "TASK", nodeId: cur });
-        cur = next(cur);
-        continue;
-      }
-      const splitId = cur;
-      const mergeId = mergeOf.get(splitId)!;
-      const branches = sortBranches(node.kind, outOf(splitId)).map((e) => ({
-        edgeId: e.id,
-        cond: orNull(e.cond),
-        otherwise: e.otherwise === true,
-        label: orNull(e.label),
-        body: seq(e.to, mergeId),
-      }));
-      visited.add(mergeId);
-      items.push({ type: "SPLIT", nodeId: splitId, kind: node.kind as "IF" | "PARALLEL", mergeId, branches });
-      cur = next(mergeId);
-    }
+    while (cur !== stop) cur = step(cur, items, `갈래가 ${stop}에서 닫히지 않고 `);
     return { type: "SEQ", items };
   };
 
+  const guarded = (rule: RuleStep, cs: readonly FlowNode[]): Guarded => {
+    const mergeId = mergeOf.get(rule.nodeId) ?? null;
+    const normal: Seq = mergeId == null ? { type: "SEQ", items: [] } : seq(next(rule.nodeId), mergeId);
+    const handlers = cs.map((c): Handler => {
+      visited.add(c.id);
+      const items: Block[] = [];
+      const notClosed = `처리 갈래 ${c.id}가 ${mergeId == null ? "끝" : `합류 ${mergeId}나 끝`}에 닿지 않고 `;
+      let cur = next(c.id);
+      while (cur !== end.id && cur !== mergeId) cur = step(cur, items, notClosed);
+      return { catchNodeId: c.id, kinds: (c.catches ?? []).filter(isCatchKind), body: { type: "SEQ", items }, ends: cur === end.id };
+    });
+    if (mergeId != null) visited.add(mergeId);
+    return { type: "GUARDED", rule, normal, handlers, mergeId };
+  };
+
   const start = unique.find((n) => n.kind === "START")!;
-  const end = unique.find((n) => n.kind === "END")!;
   visited.add(start.id);
   const root = seq(next(start.id), end.id);
   visited.add(end.id);
@@ -247,8 +359,8 @@ function build(unique: readonly FlowNode[], byId: ReadonlyMap<string, FlowNode>,
 }
 
 interface Position {
-  /** 루트에서 이 노드까지 지나는 (분기, 갈래 번호). */
-  chain: ReadonlyArray<{ split: string; kind: "IF" | "PARALLEL"; branch: number }>;
+  /** 루트에서 이 노드까지 지나는 (분기 또는 받는 룰, 갈래 번호). 받는 룰은 0 = 정상 갈래, k+1 = k번째 처리 갈래(Ruling R8). */
+  chain: ReadonlyArray<{ split: string; kind: "IF" | "PARALLEL" | "GUARD"; branch: number }>;
   /** 깊이 우선 순번(RULE·TASK·분기 노드). */
   order: number;
 }
@@ -272,6 +384,11 @@ export class FlowTree {
           this.steps.push(b);
         } else if (b.type === "TASK") {
           this.positions.set(b.nodeId, { chain, order: counter++ });
+        } else if (b.type === "GUARDED") {
+          this.positions.set(b.rule.nodeId, { chain, order: counter++ });
+          this.steps.push(b.rule);
+          walk(b.normal, [...chain, { split: b.rule.nodeId, kind: "GUARD", branch: 0 }]);
+          b.handlers.forEach((h, i) => walk(h.body, [...chain, { split: b.rule.nodeId, kind: "GUARD", branch: i + 1 }]));
         } else if (b.type === "SPLIT") {
           this.hasSplit = true;
           this.positions.set(b.nodeId, { chain, order: counter++ });
@@ -284,7 +401,7 @@ export class FlowTree {
     walk(root, []);
   }
 
-  /** 모든 RULE 노드, 깊이 우선(갈래 실행 순서). */
+  /** 모든 RULE 노드, 깊이 우선(갈래 실행 순서, 받는 룰은 정상 갈래 다음 처리 갈래). */
   ruleSteps(): RuleStep[] {
     return [...this.steps];
   }
@@ -298,7 +415,7 @@ export class FlowTree {
     return this.hasSplit;
   }
 
-  /** a 기준 b 의 관계. 같은 분기에서 갈래 번호가 처음 달라지면 IF=EXCLUSIVE, PARALLEL=PARALLEL, 아니면 같은 경로(순번 비교). */
+  /** a 기준 b 의 관계. 같은 분기에서 갈래 번호가 처음 달라지면 PARALLEL=PARALLEL, 그 밖(IF·받는 룰의 정상·처리 갈래)=EXCLUSIVE, 아니면 같은 경로(순번 비교). */
   relation(a: string, b: string): Relation {
     if (a === b) return "SAME";
     const pa = this.positions.get(a);
@@ -309,7 +426,7 @@ export class FlowTree {
       const x = pa.chain[i];
       const y = pb.chain[i];
       if (x.split !== y.split) break;
-      if (x.branch !== y.branch) return x.kind === "IF" ? "EXCLUSIVE" : "PARALLEL";
+      if (x.branch !== y.branch) return x.kind === "PARALLEL" ? "PARALLEL" : "EXCLUSIVE";
     }
     return pa.order < pb.order ? "BEFORE" : "AFTER";
   }

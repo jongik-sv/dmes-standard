@@ -12,32 +12,32 @@ public final class FlowFixtures {
     private FlowFixtures() {}
 
     public static FlowNode start() {
-        return new FlowNode("start", NodeKind.START, null, null, null);
+        return new FlowNode("start", NodeKind.START, null, null, null, null, null);
     }
 
     public static FlowNode end() {
-        return new FlowNode("end", NodeKind.END, null, null, null);
+        return new FlowNode("end", NodeKind.END, null, null, null, null, null);
     }
 
     public static FlowNode rule(String id, String ruleId) {
-        return new FlowNode(id, NodeKind.RULE, ruleId, null, null);
+        return new FlowNode(id, NodeKind.RULE, ruleId, null, null, null, null);
     }
 
     public static FlowNode ifNode(String id) {
-        return new FlowNode(id, NodeKind.IF, null, null, null);
+        return new FlowNode(id, NodeKind.IF, null, null, null, null, null);
     }
 
     public static FlowNode par(String id) {
-        return new FlowNode(id, NodeKind.PARALLEL, null, null, null);
+        return new FlowNode(id, NodeKind.PARALLEL, null, null, null, null, null);
     }
 
     public static FlowNode merge(String id, String splitId) {
-        return new FlowNode(id, NodeKind.MERGE, null, splitId, null);
+        return new FlowNode(id, NodeKind.MERGE, null, splitId, null, null, null);
     }
 
     /** 빈 단계(TASK, 4단계 spec §1.1). */
     public static FlowNode task(String id) {
-        return new FlowNode(id, NodeKind.TASK, null, null, "빈 단계");
+        return new FlowNode(id, NodeKind.TASK, null, null, "빈 단계", null, null);
     }
 
     /** 분기 밖 보통 선. */
@@ -76,6 +76,16 @@ public final class FlowFixtures {
         return flow(List.of(start(), par("p1"), rule("a", "R_A"), rule("b", "R_B"), merge("pm", "p1"), rule("c", "R_C"), end()),
                 List.of(e("e0", "start", "p1"), pe("p1a", "p1", "a", 1), pe("p1b", "p1", "b", 2), e("ea", "a", "pm"),
                         e("eb", "b", "pm"), e("ep", "pm", "c"), e("ec", "c", "end")));
+    }
+
+    /** 받는 노드(받는 노드 spec §2). kinds 는 저장 키(CatchKind 이름). */
+    public static FlowNode catchNode(String id, String attachTo, String... kinds) {
+        return new FlowNode(id, NodeKind.CATCH, null, null, null, attachTo, List.of(kinds));
+    }
+
+    /** 받는 룰로 돌아오는 합류 — splitId 가 룰 노드 ID 다. */
+    public static FlowNode guardMerge(String id, String ruleNodeId) {
+        return new FlowNode(id, NodeKind.MERGE, null, ruleNodeId, null, null, null);
     }
 
     /** start → p1 [p1a 1 → if1(b1 "X > 0" → a(R_A), 그 외 bo → 빈 갈래) → m1] [p1b 2 → b(R_B)] → pm → end. */

@@ -249,6 +249,25 @@ class RuleSetAnalyzerTest {
                 RuleSetAnalyzer.checks(List.of("E2S_FCT"), CHAIN));
     }
 
+    /**
+     * 받는 노드 spec §5 — 처리 갈래는 받는 룰 직전 상태에서 시작하므로 받는 룰의 결과는 처리 갈래에 없다. 지금 문구 그대로 UNKNOWN_INPUT 거부다
+     * (TS {@code set-model.test.ts} 같은 사례와 짝). {@code start → r1(R1) → mr → r2(R2) → end}, {@code c1(r1, NO_RESULT) → h1(R9: P 읽기) → mr}.
+     */
+    @Test
+    void 처리_갈래_룰이_받는_룰의_결과를_읽으면_UNKNOWN_INPUT_거부다() {
+        String flow = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"},{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"R1\"},"
+                + "{\"id\":\"c1\",\"kind\":\"CATCH\",\"attachTo\":\"r1\",\"catches\":[\"NO_RESULT\"]},{\"id\":\"h1\",\"kind\":\"RULE\",\"ruleId\":\"R9\"},"
+                + "{\"id\":\"mr\",\"kind\":\"MERGE\",\"splitId\":\"r1\"},{\"id\":\"r2\",\"kind\":\"RULE\",\"ruleId\":\"R2\"},{\"id\":\"end\",\"kind\":\"END\"}],"
+                + "\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"r1\"},{\"id\":\"e2\",\"from\":\"r1\",\"to\":\"mr\"},"
+                + "{\"id\":\"e3\",\"from\":\"c1\",\"to\":\"h1\"},{\"id\":\"e4\",\"from\":\"h1\",\"to\":\"mr\"},"
+                + "{\"id\":\"e5\",\"from\":\"mr\",\"to\":\"r2\"},{\"id\":\"e6\",\"from\":\"r2\",\"to\":\"end\"}]}";
+        Map<String, RuleIo> rs = rules(rule("R1", List.of(cond("A", DICT)), "P"), rule("R9", List.of(cond("P", null)), "X"), rule("R2", List.of(), "Q"));
+
+        assertEquals(List.of(new RuleSetCheck("UNKNOWN_INPUT", "REJECT", "R9", null, "P",
+                        "R9의 조건 변수 P는 컬럼 사전에 없고 세트 안의 어느 룰도 만들지 않는다", "h1", null)),
+                RuleSetAnalyzer.checks(RuleSetFlowJson.parse(flow), rs, Map.of()));
+    }
+
     @Test
     void 세_번_대입하면_경고가_두_건이고_앞_생산자를_상대로_적는다() {
         RuleIo a = rule("A", List.of(), "X");

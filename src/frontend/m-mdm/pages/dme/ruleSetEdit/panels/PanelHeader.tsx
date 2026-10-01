@@ -5,14 +5,15 @@
  * 보기·편집 모드에서 늘 맨 위다. 디버그 모드 오른쪽은 변수 패널이라 없다.
  */
 import {
-  IconArrowRight, IconArrowsSplit, IconBoxMultiple, IconGitBranch, IconGitMerge, IconListDetails, IconNote, IconPlayerPlay, IconPlayerStop, IconSitemap,
+  IconBolt, IconArrowRight, IconArrowsSplit, IconBoxMultiple, IconGitBranch, IconGitMerge, IconListDetails, IconNote, IconPlayerPlay, IconPlayerStop, IconSitemap,
 } from "@tabler/icons-react";
 
 import { TASK_LABEL, type EditFlow } from "../flow-edit";
+import { catchTitle } from "../catch-text";
 import type { RuleIoMap } from "../types";
 
 /** 머리글·섹션 기억의 종류. 흐름 노드 종류는 이름 그대로다(TASK 는 Task 9 가 흐름에 더한다 — 여기서는 자기 유니온의 문자열일 뿐이다). */
-export type PanelKind = "SET" | "EDGE" | "START" | "END" | "RULE" | "TASK" | "IF" | "PARALLEL" | "MERGE" | "NOTE" | "GROUP";
+export type PanelKind = "SET" | "EDGE" | "START" | "END" | "RULE" | "TASK" | "IF" | "PARALLEL" | "MERGE" | "CATCH" | "NOTE" | "GROUP";
 
 /** 종류 이름·아이콘 — 룰·빈 단계·IF·병렬·메모·그룹은 도구 상자(`PALETTE_ITEMS`)와 같은 아이콘이다(빈 단계는 [룰] 단추가 놓는다). */
 export const PANEL_KIND: Readonly<Record<PanelKind, { label: string; icon: typeof IconNote }>> = {
@@ -25,6 +26,7 @@ export const PANEL_KIND: Readonly<Record<PanelKind, { label: string; icon: typeo
   IF: { label: "IF 분기", icon: IconGitBranch },
   PARALLEL: { label: "병렬 분기", icon: IconArrowsSplit },
   MERGE: { label: "합류", icon: IconGitMerge },
+  CATCH: { label: "받는 노드", icon: IconBolt },
   NOTE: { label: "메모", icon: IconNote },
   GROUP: { label: "그룹", icon: IconBoxMultiple },
 };
@@ -45,7 +47,7 @@ export function panelTargetOf(flow: EditFlow, rules: RuleIoMap, selectedId: stri
         const io = n.ruleId ? rules[n.ruleId] : undefined;
         return { kind: "RULE", id: n.id, name: n.label ?? (io && io.exists ? (io.ruleName ?? n.ruleId ?? n.id) : "(없는 룰)") };
       }
-      const fallback = n.kind === "TASK" ? TASK_LABEL : n.kind === "MERGE" ? `분기 ${n.splitId ?? n.id} 합류` : n.kind === "START" || n.kind === "END" ? PANEL_KIND[n.kind].label : n.id;
+      const fallback = n.kind === "TASK" ? TASK_LABEL : n.kind === "CATCH" ? catchTitle({ label: null, catches: n.catches }) : n.kind === "MERGE" ? `분기 ${n.splitId ?? n.id} 합류` : n.kind === "START" || n.kind === "END" ? PANEL_KIND[n.kind].label : n.id;
       return { kind: n.kind as PanelKind, id: n.id, name: n.label ?? fallback };
     }
     const note = flow.view.notes.find((x) => x.id === selectedId);

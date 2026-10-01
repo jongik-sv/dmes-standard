@@ -33,6 +33,9 @@ final class RecordKeys {
             } else if (key.equalsIgnoreCase(ReservedNames.EVAL_TS)) {
                 out.add(new Violation(stage, Code.EVAL_TS_KEY, ruleId, null, key,
                         "레코드 키 '" + key + "' 는 평가 시각 예약 키다"));
+            } else if (ReservedNames.CATCH_NAMES.contains(upper)) {
+                out.add(new Violation(stage, Code.RESERVED_KEY, ruleId, null, key,
+                        "레코드 키 '" + key + "' 는 받는 노드 예약 이름이다"));
             } else if (key.startsWith(ReservedNames.RESERVED_PREFIX)) {
                 out.add(new Violation(stage, Code.RESERVED_KEY, ruleId, null, key,
                         "레코드 키 '" + key + "' 는 '" + ReservedNames.RESERVED_PREFIX + "' 로 시작한다"));

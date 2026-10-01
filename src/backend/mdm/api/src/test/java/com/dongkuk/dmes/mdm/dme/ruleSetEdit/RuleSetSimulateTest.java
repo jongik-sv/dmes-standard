@@ -538,6 +538,17 @@ public class RuleSetSimulateTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void 받는_노드_예약_이름_CATCH_은_대소문자와_상관없이_고친_값_이름으로_거부한다() {
+        GoldenCase c = golden("IF_FIRST_TRUE");
+        for (String key : List.of("CATCH_MSG", "catch_kind")) {
+            String edits = "[{\"beforeSeq\":3,\"nodeId\":\"if1\",\"values\":{\"" + key + "\":\"B\"}}]";
+            BusinessException e = assertThrows(BusinessException.class, () -> simulate(c.flowJson(), c.recordJson(), edits));
+            assertEquals(ErrorCode.INVALID_VALUE, e.getErrorCode(), key);
+            assertEquals("고친 값 이름 '" + key + "' 는 받는 노드 예약 이름이다", e.getMessage());
+        }
+    }
+
+    @Test
     void 고친_값의_NUMBER_글자와_비우기_null_이_왕복한다() throws Exception {
         GoldenCase c = golden("IF_FIRST_TRUE");
         String edits = "[{\"beforeSeq\":3,\"nodeId\":\"if1\",\"values\":{\"GT_THK\":2.50,\"GT_G\":null}}]";

@@ -33,7 +33,7 @@ vi.mock("@dk-oasis/shared/grid", async (importOriginal) => {
 
 import type { RunTrace, TraceEdit } from "../../../src/contract/engine-contract.generated";
 import type { RuleIo, RuleSetView } from "../../../pages/dme/ruleSetEdit/types";
-import { EDITED_EXPECTED_TITLE, NUMBER_REJECT } from "../../../pages/dme/ruleSetEdit/debugger/debug-model";
+import { EDITED_EXPECTED_TITLE, NUMBER_REJECT, catchEditText } from "../../../pages/dme/ruleSetEdit/debugger/debug-model";
 import { ADD_EXISTS_TEXT } from "../../../pages/dme/ruleSetEdit/debugger/VariablePanel";
 import { EDITED_NODE_TITLE } from "../../../pages/dme/ruleSetEdit/canvas/nodes";
 import { flush, selectValue, typeInto, visibleText } from "../helpers/render";
@@ -184,6 +184,21 @@ describe("디버거 값 고치기(4단계 E4)", () => {
       expect(visibleText(byTestId("var-edit-error"))).toBe(`예약된 레코드 키: ${name}`);
       expect(q("var-add-form")).not.toBeNull();
     }
+    expect(status()).toBe("3/6 · if1 실행 전");
+  });
+
+  it("3-2. 받는 노드가 넣는 CATCH_* 는 고치지 않는다 — 칸 편집이 와도 고침 대기가 생기지 않고, [변수 추가] 는 대소문자 무시로 거절한다(Ruling 3)", async () => {
+    await stepTo(2);
+    await act(async () => {
+      grid().onCellValueChanged({ rowKey: "CATCH_KIND", field: "value", newValue: "X", oldValue: "NO_RESULT", row: { name: "CATCH_KIND", value: "X", editKind: "STRING" } });
+    });
+    await flush();
+    expect(status()).toBe("3/6 · if1 실행 전");
+    expect(q("var-edit-cancel")).toBeNull();
+    await click("var-add");
+    await typeInto(byTestId<HTMLInputElement>("var-add-name"), "catch_msg");
+    await click("var-add-ok");
+    expect(visibleText(byTestId("var-edit-error"))).toBe(catchEditText("catch_msg"));
     expect(status()).toBe("3/6 · if1 실행 전");
   });
 

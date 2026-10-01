@@ -5,14 +5,24 @@ import type { RuleSetFlow } from "@/contract/engine-contract.generated";
 
 import { blockMembers, moveExcludedEdges, type EditFlow, type FlowPos } from "./flow-edit";
 import { nodeSizeOf, type StyledFlow } from "./flow-layout";
+import { CATCH_NAMES } from "./flow-model";
 import type { RuleIoMap, RuleSetCheck } from "./types";
 
-/** RULE 노드에서 나가는 선 → 그 룰 결과 이름(순서대로). 결과가 없으면 키를 만들지 않는다. */
+/** RULE 노드에서 나가는 선 → 그 룰 결과 이름(순서대로). 받는 노드에서 나가는 선은 처리 갈래가 읽는 CATCH_* 넷. 이름이 없으면 키를 만들지 않는다. */
 export function edgeChips(f: RuleSetFlow, rules: RuleIoMap): Record<string, string[]> {
   const ruleOf = new Map<string, string>();
-  for (const n of f.nodes ?? []) if (n.kind === "RULE" && n.ruleId) ruleOf.set(n.id, n.ruleId);
+  const catches = new Set<string>();
+  for (const n of f.nodes ?? []) {
+    if (n.kind === "RULE" && n.ruleId) ruleOf.set(n.id, n.ruleId);
+    if (n.kind === "CATCH") catches.add(n.id);
+  }
   const out: Record<string, string[]> = {};
   for (const e of f.edges ?? []) {
+    // 처리 갈래 첫 선: 받는 노드가 넣는 예약 이름(받는 노드 spec §8)
+    if (catches.has(e.from)) {
+      out[e.id] = [...CATCH_NAMES];
+      continue;
+    }
     const rid = ruleOf.get(e.from);
     if (rid === undefined) continue;
     const names = (rules[rid]?.results ?? []).map((r) => r.name);

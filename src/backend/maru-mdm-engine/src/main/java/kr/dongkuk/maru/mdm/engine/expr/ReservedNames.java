@@ -23,5 +23,12 @@ public final class ReservedNames {
     /** 도메인 표준식의 검사 대상 변수(evalex-guide §7). */
     public static final String DOMAIN_VALUE = "value";
 
+    /** 받는 노드 처리 갈래가 읽는 예약 이름(받는 노드 spec §4·X-D8). 처리 갈래 안에서만 ctx 에 있고, 레코드 키로 오면 RESERVED_KEY 다. */
+    public static final String CATCH_KIND = "CATCH_KIND";
+    public static final String CATCH_RULE = "CATCH_RULE";
+    public static final String CATCH_CODE = "CATCH_CODE";
+    public static final String CATCH_MSG = "CATCH_MSG";
+    public static final Set<String> CATCH_NAMES = Set.of(CATCH_KIND, CATCH_RULE, CATCH_CODE, CATCH_MSG);
+
     private ReservedNames() {}
 }

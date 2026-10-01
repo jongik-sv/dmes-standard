@@ -120,6 +120,16 @@ class EngineContractConstantsTest {
     }
 
     @Test
+    void 받는_노드_예약_이름은_CATCH_네_개다() {
+        assertEquals(new TreeSet<>(Set.of("CATCH_KIND", "CATCH_RULE", "CATCH_CODE", "CATCH_MSG")), new TreeSet<>(ReservedNames.CATCH_NAMES));
+        assertAll(
+                () -> assertEquals("CATCH_KIND", ReservedNames.CATCH_KIND),
+                () -> assertEquals("CATCH_RULE", ReservedNames.CATCH_RULE),
+                () -> assertEquals("CATCH_CODE", ReservedNames.CATCH_CODE),
+                () -> assertEquals("CATCH_MSG", ReservedNames.CATCH_MSG));
+    }
+
+    @Test
     void Slot_표지는_DOMAIN_BIZ_만_비즈니스_함수_DOMAIN_STD_만_value_전용이다() {
         Set<Slot> business = Arrays.stream(Slot.values()).filter(Slot::businessFunctions).collect(Collectors.toSet());
         Set<Slot> valueOnly = Arrays.stream(Slot.values()).filter(Slot::valueOnly).collect(Collectors.toSet());

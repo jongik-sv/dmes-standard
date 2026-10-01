@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { FlowEdge, FlowNode, FlowNodeKind, RuleSetFlow } from "../../../src/contract/engine-contract.generated";
-import { flowRuleIds, linearFlow, parseFlow, type FlowIssue } from "../../../pages/dme/ruleSetEdit/flow-model";
+import { catchesOf, flowRuleIds, linearFlow, parseFlow, type FlowIssue } from "../../../pages/dme/ruleSetEdit/flow-model";
 
 const node = (id: string, kind: FlowNodeKind, over: Partial<FlowNode> = {}): FlowNode => ({
   id,
@@ -393,5 +393,106 @@ describe("빈 단계(TASK) — 4단계 spec §1.1", () => {
       [edge("e1", "start", "t1"), edge("e2", "t1", "r1"), edge("e3", "t1", "r2"), edge("e4", "r1", "end"), edge("e5", "r2", "end")],
     );
     expect(parseFlow(f).issues).toContainEqual(S("t1", "t1의 나가는 선이 2개다. 1개여야 한다"));
+  });
+});
+
+describe("받는 노드(CATCH) — 받는 노드 spec §3", () => {
+  const cnode = (id: string, attachTo: string, ...catches: string[]) => node(id, "CATCH", { attachTo, catches });
+  const C = (nodeId: string, message: string) => ({ code: "FLOW_CATCH", nodeId, edgeId: null, message });
+  /** start → r1(R_A) → mr → r2(R_B) → end. c1(NO_RESULT) → r9(R_C) → mr, c2(INPUT_ERROR·EVAL_ERROR) → end. */
+  const guardedFlow = (): RuleSetFlow =>
+    flow(
+      [node("start", "START"), node("r1", "RULE", { ruleId: "R_A" }), cnode("c1", "r1", "NO_RESULT"), node("r9", "RULE", { ruleId: "R_C" }),
+        cnode("c2", "r1", "INPUT_ERROR", "EVAL_ERROR"), node("mr", "MERGE", { splitId: "r1" }), node("r2", "RULE", { ruleId: "R_B" }), node("end", "END")],
+      [edge("e1", "start", "r1"), edge("e2", "r1", "mr"), edge("e3", "c1", "r9"), edge("e4", "r9", "mr"), edge("e5", "c2", "end"),
+        edge("e6", "mr", "r2"), edge("e7", "r2", "end")],
+    );
+
+  it("받는 룰은 GUARDED 블록이고 처리 갈래는 돌아옴과 끝냄을 안다", () => {
+    const p = parseFlow(guardedFlow());
+    expect(p.issues).toEqual([]);
+    expect(p.tree!.root.items).toEqual([
+      {
+        type: "GUARDED",
+        rule: { type: "RULE", nodeId: "r1", ruleId: "R_A" },
+        normal: { type: "SEQ", items: [] },
+        handlers: [
+          { catchNodeId: "c1", kinds: ["NO_RESULT"], body: { type: "SEQ", items: [{ type: "RULE", nodeId: "r9", ruleId: "R_C" }] }, ends: false },
+          { catchNodeId: "c2", kinds: ["INPUT_ERROR", "EVAL_ERROR"], body: { type: "SEQ", items: [] }, ends: true },
+        ],
+        mergeId: "mr",
+      },
+      { type: "RULE", nodeId: "r2", ruleId: "R_B" },
+    ]);
+    expect(p.tree!.ruleIds()).toEqual(["R_A", "R_C", "R_B"]);
+    expect(p.tree!.relation("r1", "r9")).toBe("BEFORE");
+    expect(p.tree!.relation("r9", "r2")).toBe("BEFORE");
+    expect(p.tree!.branched()).toBe(false);
+    expect(catchesOf(guardedFlow(), "r1").map((n) => n.id)).toEqual(["c1", "c2"]);
+  });
+
+  it("정상 갈래와 처리 갈래는 EXCLUSIVE, 처리 갈래 안 룰의 받는 노드는 안쪽 GUARDED 다", () => {
+    const f = flow(
+      [node("start", "START"), node("r1", "RULE", { ruleId: "R_A" }), node("n1", "RULE", { ruleId: "R_B" }), cnode("c1", "r1", "NO_RESULT"),
+        node("h1", "RULE", { ruleId: "R_C" }), cnode("c9", "h1", "EVAL_ERROR"), node("mr", "MERGE", { splitId: "r1" }), node("end", "END")],
+      [edge("e1", "start", "r1"), edge("e2", "r1", "n1"), edge("e3", "n1", "mr"), edge("e4", "c1", "h1"), edge("e5", "h1", "mr"),
+        edge("e6", "c9", "end"), edge("e7", "mr", "end")],
+    );
+    const p = parseFlow(f);
+    expect(p.issues).toEqual([]);
+    expect(p.tree!.relation("n1", "h1")).toBe("EXCLUSIVE");
+    expect(p.tree!.ruleIds()).toEqual(["R_A", "R_B", "R_C"]);
+    const g = p.tree!.root.items[0];
+    if (g.type !== "GUARDED") throw new Error("GUARDED 가 아니다");
+    const inner = g.handlers[0].body.items[0];
+    expect(inner.type).toBe("GUARDED");
+  });
+
+  it("받는 노드 오류는 FLOW_CATCH 로 모두 모은다(Java 와 같은 순서·문구)", () => {
+    const f = flow(
+      [node("start", "START"), node("r1", "RULE", { ruleId: "R_A" }), node("t1", "TASK"), cnode("c0", "zz", "NO_RESULT"), cnode("c1", "t1", "NO_RESULT"),
+        cnode("c2", "r1"), cnode("c3", "r1", "NO_RESULT", "BOOM", "NO_RESULT"), cnode("c4", "r1", "NO_RESULT"), node("end", "END")],
+      [edge("e1", "start", "r1"), edge("e2", "r1", "t1"), edge("e3", "t1", "end"), edge("e4", "c0", "end"), edge("e5", "c1", "end"),
+        edge("e6", "c2", "end"), edge("e7", "c3", "end"), edge("e8", "c4", "end")],
+    );
+    expect(parseFlow(f).issues).toEqual([
+      C("c0", "받는 노드 c0가 붙은 룰 zz가 없다"),
+      C("c1", "받는 노드 c1는 룰 노드에만 붙일 수 있다(t1는 TASK)"),
+      C("c2", "받는 노드 c2에 받을 예외 종류가 없다"),
+      C("c3", "받는 노드 c3의 예외 종류 BOOM를 모른다"),
+      C("c3", "받는 노드 c3에 예외 종류 NO_RESULT가 겹친다"),
+      C("c4", "룰 노드 r1에서 예외 종류 NO_RESULT를 c3와 c4가 함께 받는다"),
+    ]);
+  });
+
+  it("받는 노드가 있으면 END 는 들어오는 선이 여럿이어도 된다", () => {
+    const f = flow(
+      [node("start", "START"), node("r1", "RULE", { ruleId: "R_A" }), cnode("c1", "r1", "NO_RESULT"), node("end", "END")],
+      [edge("e1", "start", "r1"), edge("e2", "r1", "end"), edge("e3", "c1", "end")],
+    );
+    expect(parseFlow(f).issues).toEqual([]);
+  });
+
+  it("돌아오는 합류는 하나까지, 처리 갈래가 다른 합류로 가거나 처리 갈래 안 IF 갈래가 END 로 가면 멈춘다", () => {
+    const two = flow(
+      [node("start", "START"), node("r1", "RULE", { ruleId: "R_A" }), cnode("c1", "r1", "NO_RESULT"), node("m1", "MERGE", { splitId: "r1" }),
+        node("m2", "MERGE", { splitId: "r1" }), node("end", "END")],
+      [edge("e1", "start", "r1"), edge("e2", "r1", "m1"), edge("e3", "c1", "m1"), edge("e4", "m1", "m2"), edge("e5", "c1", "m2"), edge("e6", "m2", "end")],
+    );
+    expect(parseFlow(two).issues).toContainEqual(S("r1", "룰 r1로 돌아오는 합류가 2개다. 1개까지 둔다"));
+    const jump = flow(
+      [node("start", "START"), node("if9", "IF"), node("r1", "RULE", { ruleId: "R_A" }), cnode("c1", "r1", "NO_RESULT"),
+        node("m9", "MERGE", { splitId: "if9" }), node("end", "END")],
+      [edge("e0", "start", "if9"), edge("b1", "if9", "r1", { order: 1, cond: "X > 0" }), edge("bo", "if9", "m9", { otherwise: true }),
+        edge("e1", "r1", "m9"), edge("e2", "c1", "m9"), edge("e3", "m9", "end")],
+    );
+    expect(parseFlow(jump).issues).toEqual([S("m9", "처리 갈래 c1가 끝에 닿지 않고 m9로 나간다")]);
+    const nested = flow(
+      [node("start", "START"), node("r1", "RULE", { ruleId: "R_A" }), cnode("c1", "r1", "NO_RESULT"), node("if1", "IF"),
+        node("m2", "MERGE", { splitId: "if1" }), node("mr", "MERGE", { splitId: "r1" }), node("end", "END")],
+      [edge("e1", "start", "r1"), edge("e2", "r1", "mr"), edge("e3", "c1", "if1"), edge("b1", "if1", "end", { order: 1, cond: "X > 0" }),
+        edge("b2", "if1", "m2", { order: 2, cond: "X > 1" }), edge("bo", "if1", "m2", { otherwise: true }), edge("e4", "m2", "mr"), edge("e5", "mr", "end")],
+    );
+    expect(parseFlow(nested).issues).toEqual([S("end", "갈래가 m2에서 닫히지 않고 end로 나간다")]);
   });
 });

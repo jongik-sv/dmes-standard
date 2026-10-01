@@ -11,13 +11,16 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import kr.dongkuk.maru.mdm.engine.expr.ReservedNames;
 import kr.dongkuk.maru.mdm.engine.flow.Block;
 import kr.dongkuk.maru.mdm.engine.flow.Branch;
+import kr.dongkuk.maru.mdm.engine.flow.CatchKind;
 import kr.dongkuk.maru.mdm.engine.flow.FlowIssue;
 import kr.dongkuk.maru.mdm.engine.flow.FlowParse;
 import kr.dongkuk.maru.mdm.engine.flow.FlowParser;
 import kr.dongkuk.maru.mdm.engine.flow.FlowTree;
 import kr.dongkuk.maru.mdm.engine.flow.FlowTree.Relation;
+import kr.dongkuk.maru.mdm.engine.flow.Guarded;
 import kr.dongkuk.maru.mdm.engine.flow.RuleStep;
 import kr.dongkuk.maru.mdm.engine.flow.Seq;
 import kr.dongkuk.maru.mdm.engine.flow.Split;
@@ -218,10 +221,71 @@ public final class RuleSetAnalyzer {
             for (Block b : s.items()) {
                 if (b instanceof RuleStep r) {
                     rule(r, st);
+                } else if (b instanceof Guarded g) {
+                    guarded(g, st);
                 } else if (b instanceof Split sp) {
                     split(sp, st);
                 } else if (b instanceof Seq q) {
                     seq(q, st);
+                }
+            }
+        }
+
+        /**
+         * 받는 룰(받는 노드 spec §5) — 룰 검사, CATCH_NEVER, 정상 갈래(룰 결과 뒤), 처리 갈래(룰 직전 상태 + CATCH_*, 끝나면 CATCH_* 를 뺀다).
+         * 합류 뒤는 IF 합류 규칙 — 정상 갈래 끝과 돌아오는 처리 갈래 끝의 교집합이 defined, 나머지는 maybe. 끝내는 처리 갈래는 세지 않는다.
+         */
+        void guarded(Guarded g, State st) {
+            State before = st.copy();
+            rule(g.rule(), st);
+            never(g);
+            State normal = st.copy();
+            seq(g.normal(), normal);
+            List<State> back = new ArrayList<>(List.of(normal));
+            for (Guarded.Handler h : g.handlers()) {
+                State hs = before.copy();
+                hs.defined().addAll(ReservedNames.CATCH_NAMES);
+                seq(h.body(), hs);
+                hs.defined().removeAll(ReservedNames.CATCH_NAMES);
+                if (!h.ends()) {
+                    back.add(hs);
+                }
+            }
+            RuleSetPathState.At merged = RuleSetPathState.mergeIf(before.at(), back.stream().map(State::at).toList());
+            Map<String, RuleStep> over = new LinkedHashMap<>();
+            for (State b : back) {
+                b.prodBy().forEach((k, v) -> {
+                    if (!v.equals(before.prodBy().get(k))) {
+                        over.putIfAbsent(k, v);
+                    }
+                });
+            }
+            st.defined().clear();
+            st.defined().addAll(merged.defined());
+            st.maybe().clear();
+            st.maybe().addAll(merged.maybe());
+            st.prodBy().clear();
+            st.prodBy().putAll(before.prodBy());
+            st.prodBy().putAll(over);
+        }
+
+        /** CATCH_NEVER(R12) — 처리 갈래 순서·받는 종류 저장 순서. 룰이 있고 RELEASED 가 있을 때만. */
+        void never(Guarded g) {
+            String id = g.rule().ruleId();
+            RuleIo r = rules.get(id);
+            if (r == null || !r.exists() || r.releasedVer() == null) {
+                return;
+            }
+            for (Guarded.Handler h : g.handlers()) {
+                for (CatchKind k : h.kinds()) {
+                    if (k == CatchKind.NO_RESULT && r.hasDefault()) {
+                        out.add(new RuleSetCheck(RuleSetCheck.CATCH_NEVER, RuleSetCheck.WARN, id, null, null,
+                                id + "에 기본 행이 있어 " + h.catchNodeId() + "가 받는 결과 없음이 일어나지 않는다", h.catchNodeId(), null));
+                    } else if (k == CatchKind.HIT_CONFLICT && !"UNIQUE".equals(r.hitPolicy()) && !"ANY".equals(r.hitPolicy())) {
+                        out.add(new RuleSetCheck(RuleSetCheck.CATCH_NEVER, RuleSetCheck.WARN, id, null, null,
+                                id + "의 적중 정책 " + (r.hitPolicy() == null ? "-" : r.hitPolicy()) + "에서는 " + h.catchNodeId()
+                                        + "가 받는 판정 충돌이 일어나지 않는다", h.catchNodeId(), null));
+                    }
                 }
             }
         }
@@ -290,6 +354,15 @@ public final class RuleSetAnalyzer {
             String id = n.ruleId();
             String node = n.nodeId();
             for (IoName c : conds(rules, id)) {
+                // 받는 노드 예약 이름(R13) — 처리 갈래 안이면 지나가고, 밖이면 ORDER 다.
+                String upper = c.name().toUpperCase(Locale.ROOT);
+                if (ReservedNames.CATCH_NAMES.contains(upper)) {
+                    if (!st.defined().contains(upper)) {
+                        out.add(new RuleSetCheck(RuleSetCheck.ORDER, RuleSetCheck.REJECT, id, null, c.name(),
+                                id + "가 읽는 " + c.name() + "는 받는 노드의 처리 갈래 안에서만 있다", node, null));
+                    }
+                    continue;
+                }
                 if (RuleIo.DICT.equals(c.source()) || st.defined().contains(c.name())) {
                     continue;
                 }

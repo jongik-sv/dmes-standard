@@ -22,11 +22,15 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import kr.dongkuk.maru.mdm.engine.flow.Block;
 import kr.dongkuk.maru.mdm.engine.flow.FlowParse;
 import kr.dongkuk.maru.mdm.engine.flow.FlowParser;
 import kr.dongkuk.maru.mdm.engine.flow.FlowTree;
 import kr.dongkuk.maru.mdm.engine.flow.FlowTree.Relation;
+import kr.dongkuk.maru.mdm.engine.flow.Guarded;
 import kr.dongkuk.maru.mdm.engine.flow.RuleStep;
+import kr.dongkuk.maru.mdm.engine.flow.Seq;
+import kr.dongkuk.maru.mdm.engine.flow.Split;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.FlowDefinition;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -39,6 +43,9 @@ import org.springframework.stereotype.Component;
  *
  * <p>형제 읽기(SET_IF_SIBLING·SET_PAR_SIBLING 의 읽기 판정)는 2단계 계획 P4 로 노드 쌍 단위다 — 세트 저장 검사와 같은 경로 상태
  * ({@link RuleSetPathState#before})로, 읽는 노드 직전 경로에서 이미 정의됐을 수 있는 이름(defined·maybe)은 형제가 만들어도 문제 삼지 않는다.
+ *
+ * <p>받는 룰과 그 처리 갈래 안(중첩 포함) 룰은 EXCLUSIVE 로 본다(받는 노드 spec §5 — 실패한 룰의 결과는 정의되지 않은 것으로 보고, 처리 갈래가 같은
+ * 결과 변수를 쓰는 것은 정상이다). {@code FlowTree.relation} 은 이 쌍을 BEFORE·AFTER 로 내므로 {@link #guardedPairs} 로 덮는다.
  */
 @Component
 @Order(1)
@@ -108,13 +115,14 @@ public class RuleSetOrderCheck implements RuleSaveCheck {
             // P4 — 노드마다 직전 경로 상태. me 는 저장하려는 정의, 다른 룰은 최신 RELEASED(없으면 만드는 이름 없음).
             Map<String, At> before = RuleSetPathState.before(tree, id -> id.equals(me) ? self.produces()
                     : others.containsKey(id) ? others.get(id).produces() : Set.of());
+            Set<NodePair> guarded = guardedPairs(tree);
             for (Map.Entry<String, Names> e : others.entrySet()) {
                 String other = e.getKey();
                 Names o = e.getValue();
                 Set<String> readsOther = common(self.reads(), o.produces());
                 Set<String> readByOther = common(self.produces(), o.reads());
                 Set<String> dup = common(self.produces(), o.produces());
-                Set<Relation> rels = relations(tree, me, other);
+                Set<Relation> rels = relations(tree, guarded, me, other);
                 boolean seq = rels.contains(Relation.BEFORE) || rels.contains(Relation.AFTER);
                 if (!readsOther.isEmpty() && !readByOther.isEmpty() && seq) {
                     out.add(error(RuleSaveIssueCode.SET_CYCLE, "세트 " + s + ": " + me + "와(과) " + other + "가 서로의 결과를 읽는다(" + me + " ← "
@@ -127,7 +135,7 @@ public class RuleSetOrderCheck implements RuleSaveCheck {
                             + "를 읽는다. 이 룰을 " + other + " 앞으로 옮긴다"));
                 }
                 // P4 — 형제 읽기는 노드 쌍 단위로, 읽는 노드 직전 경로에서 이미 정의됐을 수 있는 이름을 뺀다.
-                List<SiblingRead> pairs = siblingPairs(s, tree, before, me, other, readsOther, readByOther);
+                List<SiblingRead> pairs = siblingPairs(s, tree, guarded, before, me, other, readsOther, readByOther);
                 siblings.addAll(pairs);
                 Set<String> parMe = filtered(readsOther, pairs, Relation.PARALLEL, true);
                 Set<String> parOther = filtered(readByOther, pairs, Relation.PARALLEL, false);
@@ -158,8 +166,8 @@ public class RuleSetOrderCheck implements RuleSaveCheck {
      * P4 — me 노드 a·other 노드 b 가 EXCLUSIVE·PARALLEL 인 쌍마다: a 가 읽는 이름(readsOther) 가운데 {@code before(a)} 에 없는 것, b 가 읽는 이름
      * (readByOther) 가운데 {@code before(b)} 에 없는 것.
      */
-    private static List<SiblingRead> siblingPairs(String setId, FlowTree tree, Map<String, At> before, String me, String other,
-            Set<String> readsOther, Set<String> readByOther) {
+    private static List<SiblingRead> siblingPairs(String setId, FlowTree tree, Set<NodePair> guarded, Map<String, At> before, String me,
+            String other, Set<String> readsOther, Set<String> readByOther) {
         List<SiblingRead> out = new ArrayList<>();
         if (readsOther.isEmpty() && readByOther.isEmpty()) {
             return out;
@@ -172,7 +180,7 @@ public class RuleSetOrderCheck implements RuleSaveCheck {
                 if (!b.ruleId().equals(other)) {
                     continue;
                 }
-                Relation rel = tree.relation(a.nodeId(), b.nodeId());
+                Relation rel = relation(tree, guarded, a.nodeId(), b.nodeId());
                 if (rel != Relation.EXCLUSIVE && rel != Relation.PARALLEL) {
                     continue;
                 }
@@ -221,7 +229,7 @@ public class RuleSetOrderCheck implements RuleSaveCheck {
     }
 
     /** me 의 모든 노드 × other 의 모든 노드 관계(relation(meNode, otherNode)). */
-    private static Set<Relation> relations(FlowTree tree, String me, String other) {
+    private static Set<Relation> relations(FlowTree tree, Set<NodePair> guarded, String me, String other) {
         Set<Relation> out = EnumSet.noneOf(Relation.class);
         for (RuleStep a : tree.ruleSteps()) {
             if (!a.ruleId().equals(me)) {
@@ -229,11 +237,61 @@ public class RuleSetOrderCheck implements RuleSaveCheck {
             }
             for (RuleStep b : tree.ruleSteps()) {
                 if (b.ruleId().equals(other)) {
-                    out.add(tree.relation(a.nodeId(), b.nodeId()));
+                    out.add(relation(tree, guarded, a.nodeId(), b.nodeId()));
                 }
             }
         }
         return out;
+    }
+
+    /** 받는 룰 노드와 그 처리 갈래 안 룰 노드 한 쌍(순서 없음). */
+    private record NodePair(String guarded, String handler) {
+    }
+
+    /** 두 노드 관계 — 받는 룰과 그 처리 갈래 안 룰이면 EXCLUSIVE, 그 밖은 {@code FlowTree.relation}. */
+    private static Relation relation(FlowTree tree, Set<NodePair> guarded, String a, String b) {
+        if (guarded.contains(new NodePair(a, b)) || guarded.contains(new NodePair(b, a))) {
+            return Relation.EXCLUSIVE;
+        }
+        return tree.relation(a, b);
+    }
+
+    /** 흐름의 모든 받는 룰마다 (받는 룰 노드, 처리 갈래 안 룰 노드 — 처리 갈래 안의 IF·병렬·중첩 받는 룰 포함) 쌍. 끝내는 처리 갈래도 넣는다. */
+    private static Set<NodePair> guardedPairs(FlowTree tree) {
+        Set<NodePair> out = new LinkedHashSet<>();
+        collectPairs(tree.root(), out);
+        return out;
+    }
+
+    private static void collectPairs(Block b, Set<NodePair> out) {
+        if (b instanceof Seq q) {
+            q.items().forEach(i -> collectPairs(i, out));
+        } else if (b instanceof Split sp) {
+            sp.branches().forEach(br -> collectPairs(br.body(), out));
+        } else if (b instanceof Guarded g) {
+            collectPairs(g.normal(), out);
+            for (Guarded.Handler h : g.handlers()) {
+                List<String> inside = new ArrayList<>();
+                ruleNodes(h.body(), inside);
+                inside.forEach(id -> out.add(new NodePair(g.nodeId(), id)));
+                collectPairs(h.body(), out);
+            }
+        }
+    }
+
+    /** 블록 안의 모든 RULE 노드 ID(받는 룰·그 정상·처리 갈래 포함). */
+    private static void ruleNodes(Block b, List<String> out) {
+        if (b instanceof RuleStep r) {
+            out.add(r.nodeId());
+        } else if (b instanceof Seq q) {
+            q.items().forEach(i -> ruleNodes(i, out));
+        } else if (b instanceof Split sp) {
+            sp.branches().forEach(br -> ruleNodes(br.body(), out));
+        } else if (b instanceof Guarded g) {
+            out.add(g.nodeId());
+            ruleNodes(g.normal(), out);
+            g.handlers().forEach(h -> ruleNodes(h.body(), out));
+        }
     }
 
     private static Map<String, Object> error(RuleSaveIssueCode code, String message) {

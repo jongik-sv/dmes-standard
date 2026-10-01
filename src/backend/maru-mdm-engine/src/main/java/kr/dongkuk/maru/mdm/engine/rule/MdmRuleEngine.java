@@ -77,7 +77,7 @@ public final class MdmRuleEngine implements RuleEngine {
         FlowRun run = new FlowRun(evaluator, runner, p.tree, p.defs, p.keys, record, ts, false, List.of());
         run.run();
         return new RuleSetResult(setId, ts, List.copyOf(run.steps), Collections.unmodifiableMap(run.finalValues),
-                List.copyOf(run.path), List.copyOf(run.warnings));
+                List.copyOf(run.path), List.copyOf(run.warnings), List.copyOf(run.caught), run.endedBy);
     }
 
     @Override
@@ -97,7 +97,7 @@ public final class MdmRuleEngine implements RuleEngine {
         try {
             p = prepare(set, record, ts);
         } catch (EngineEvaluationException e) {
-            return new RunTrace(set.setId(), ts, input, List.of(), Map.of(), e.violations(), echo);
+            return new RunTrace(set.setId(), ts, input, List.of(), Map.of(), e.violations(), echo, null);
         }
         FlowRun run = new FlowRun(evaluator, runner, p.tree, p.defs, p.keys, record, ts, true, edits);
         try {
@@ -105,12 +105,12 @@ public final class MdmRuleEngine implements RuleEngine {
         } catch (EngineEvaluationException e) {
             run.nodes.add(run.failed(e.violations()));
             return new RunTrace(set.setId(), ts, input, List.copyOf(run.nodes), Collections.unmodifiableMap(run.finalValues),
-                    e.violations(), echo);
+                    e.violations(), echo, null);
         }
         // 안 쓰인 고친 값은 정상 완료 때만 본다 — run() 안에서 던지면 failed() 가 END 를 ERROR 노드로 잘못 남긴다(4단계 spec §2.2).
         List<Violation> unused = run.unusedEdits();
         return new RunTrace(set.setId(), ts, input, List.copyOf(run.nodes), Collections.unmodifiableMap(run.finalValues),
-                unused.isEmpty() ? null : List.copyOf(unused), echo);
+                unused.isEmpty() ? null : List.copyOf(unused), echo, run.endedBy);
     }
 
     /** 판정 준비된 세트 — 트리·룰 정의(룰 ID → 정의)·입력 키 검사기. */

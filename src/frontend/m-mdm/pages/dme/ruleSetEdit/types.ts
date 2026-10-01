@@ -37,6 +37,8 @@ export interface RuleIo {
   hitPolicy: string | null;
   conds: IoName[] | null;
   results: IoName[] | null;
+  /** 최신 RELEASED 버전에 기본 행이 있는가(서버 `RuleIoReader`). 받는 노드 검사 CATCH_NEVER 가 쓴다. 옛 응답·시험 리터럴은 없을 수 있다(없으면 false). */
+  hasDefault?: boolean;
 }
 
 /** 세트 계산에 넘기는 룰 입출력 맵(룰 ID → IO). 없는 키는 없는 룰이다. */
@@ -74,6 +76,10 @@ export type RuleSetCheckCode =
   | "FLOW_PARTIAL"
   | "FLOW_READONLY"
   | "COND_UNTYPED"
+  /** 받는 노드 붙임·종류 오류(REJECT, 받는 노드 spec §5). `flow-model.ts` 구조 검사가 낸다. */
+  | "FLOW_CATCH"
+  /** 받는 노드가 받는 종류가 그 룰에서 일어날 수 없다(WARN, 받는 노드 spec §5). nodeId = 받는 노드. */
+  | "CATCH_NEVER"
   /** 흐름에 빈 단계(TASK)가 있다(WARN, 4단계 spec §1.1). 서버 `RuleSetAnalyzer`·화면 `set-model.ts` 가 내는 것은 Task 3. */
   | "EMPTY_TASK";
 

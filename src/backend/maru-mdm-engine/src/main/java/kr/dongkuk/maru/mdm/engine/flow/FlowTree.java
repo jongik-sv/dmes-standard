@@ -50,7 +50,7 @@ public final class FlowTree {
         return endId;
     }
 
-    /** 모든 RULE 노드, 깊이 우선(갈래 실행 순서) 순서. */
+    /** 모든 RULE 노드, 깊이 우선(갈래 실행 순서, 받는 룰은 정상 갈래 다음 처리 갈래) 순서. */
     public List<RuleStep> ruleSteps() {
         return ruleSteps;
     }
@@ -68,10 +68,11 @@ public final class FlowTree {
     }
 
     /**
-     * 두 노드(RULE·TASK·IF·PARALLEL)의 관계. 두 ID 가 같으면(a==b) 노드를 찾지 않고 바로 SAME 을 낸다. 지나온 분기 목록을 앞에서부터 비교해 같은 분기에서 갈래 번호가 처음 달라지면 그
-     * 분기 종류로 EXCLUSIVE(IF)·PARALLEL 을 낸다. 달라지는 곳이 없으면 같은 경로이고 깊이 우선 순번으로 BEFORE·AFTER 다.
+     * 두 노드(RULE·TASK·IF·PARALLEL)의 관계. 두 ID 가 같으면(a==b) 노드를 찾지 않고 바로 SAME 을 낸다. 지나온 분기 목록을 앞에서부터 비교해 같은 분기에서 갈래 번호가
+     * 처음 달라지면 그 분기가 PARALLEL 이면 PARALLEL, 그 밖(IF, 받는 룰의 정상 갈래·처리 갈래 — 받는 노드 spec §3)이면 EXCLUSIVE 를 낸다. 달라지는 곳이 없으면
+     * 같은 경로이고 깊이 우선 순번으로 BEFORE·AFTER 다.
      *
-     * @throws IllegalArgumentException 트리에 없는 노드(START·END·MERGE 포함)
+     * @throws IllegalArgumentException 트리에 없는 노드(START·END·MERGE·CATCH 포함)
      */
     public Relation relation(String nodeA, String nodeB) {
         if (nodeA.equals(nodeB)) {
@@ -87,7 +88,7 @@ public final class FlowTree {
                 break;
             }
             if (fa.branch() != fb.branch()) {
-                return splitKinds.get(fa.splitId()) == NodeKind.IF ? Relation.EXCLUSIVE : Relation.PARALLEL;
+                return splitKinds.get(fa.splitId()) == NodeKind.PARALLEL ? Relation.PARALLEL : Relation.EXCLUSIVE;
             }
         }
         return a.order() < b.order() ? Relation.BEFORE : Relation.AFTER;

@@ -4,7 +4,7 @@
  */
 import type { FlowNodeKind } from "@/contract/engine-contract.generated";
 
-import type { EditFlow } from "../../flow-edit";
+import { returnCatch, type EditFlow } from "../../flow-edit";
 import { NODE_COLORS, NODE_COLOR_LABEL, STYLED_KINDS } from "../../node-style";
 import type { MenuContext, MenuItem, MenuProvider } from "../context-menu";
 
@@ -53,9 +53,15 @@ export const editMenu: MenuProvider = (t, ctx) => {
         { id: "rule-replace", label: "룰 바꾸기…", run: () => act.openRuleAssign(id) },
         { id: "copy", label: "복사", run: () => act.copy(id) },
         { id: "duplicate", label: "복제", run: () => act.duplicate(id) },
+        { id: "catch-add", label: "예외 받기 추가", run: () => act.addCatch(id) },
         colorItem(flow, ctx, id),
         { id: "delete", label: "삭제", danger: true, run: () => act.removeNode(id) },
       ];
+    }
+    if (n.kind === "CATCH") {
+      // 「흐름으로 돌아오기」 는 연산이 될 때만(끝내는 처리 갈래이고 룰의 돌아올 자리가 정해질 때) — 메뉴와 연산이 어긋나지 않게 연산으로 판정한다.
+      const back: MenuItem[] = returnCatch(flow, id).ok ? [{ id: "catch-return", label: "흐름으로 돌아오기", run: () => act.returnCatch(id) }] : [];
+      return [...back, { id: "delete", label: "삭제", danger: true, run: () => act.removeNode(id) }];
     }
     if (n.kind === "TASK") {
       return [

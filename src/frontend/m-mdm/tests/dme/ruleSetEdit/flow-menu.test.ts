@@ -113,7 +113,7 @@ describe("흐름 우클릭 메뉴·편집(3단계 Task 8)", () => {
 
     await click("flow-mode-edit");
     await ctxMenu("flow-node-r1");
-    expect(menuIds()).toEqual(["rule-replace", "copy", "duplicate", "color", "delete", "open-rule"]);
+    expect(menuIds()).toEqual(["rule-replace", "copy", "duplicate", "catch-add", "color", "delete", "open-rule"]);
     await key(byTestId("flow-menu"), { key: "Escape" });
 
     await click("flow-mode-debug");

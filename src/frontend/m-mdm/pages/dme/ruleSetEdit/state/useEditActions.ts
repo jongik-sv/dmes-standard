@@ -17,6 +17,7 @@ import {
   MAX_NODES,
   NODE_LIMIT_MESSAGE,
   addBranch,
+  addCatch,
   addGroup,
   addNote,
   assignRule,
@@ -33,6 +34,7 @@ import {
   removeGroup,
   removeNode,
   removeNote,
+  returnCatch,
   type EditFlow,
   type EditResult,
   type Fragment,
@@ -99,7 +101,7 @@ const fail = (reason: string): EditResult => ({ ok: false, reason });
 const NO_COLLAPSED: ReadonlySet<string> = new Set();
 
 /**
- * 고른 것 여럿을 편집 한 번에 지운다(M2·N1) — 흐름 노드(분기는 블록째)·메모·그룹, 그다음 고른 선(edgeIds). 시작·끝·합류와 앞에서 지운 블록 안이라
+ * 고른 것 여럿을 편집 한 번에 지운다(M2·N1) — 흐름 노드(분기는 블록째)·메모·그룹, 그다음 고른 선(edgeIds). 시작·끝·분기의 합류와 앞에서 지운 블록 안이라
  * 이미 없는 것은 건너뛴다. 선은 노드를 지운 뒤에 지우며, 원래 흐름에서 지운 노드에 붙어 있던 선은 건너뛴다 — 노드와 함께 사라졌거나
  * 룰 노드 지우기가 앞뒤를 잇는 데 그 선 ID 를 이어 썼기 때문이다(다시 지우면 이은 선이 끊긴다). 하나도 못 지우면 처음 실패 사유(단일 삭제와 같은 문구)로 실패한다.
  */
@@ -384,6 +386,12 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
       paste,
       duplicate: (nodeId: string) => {
         if (editing) edit((f) => duplicateNode(f, nodeId));
+      },
+      addCatch: (ruleNodeId: string) => {
+        if (editing) edit((f) => addCatch(f, ruleNodeId, null));
+      },
+      returnCatch: (catchId: string) => {
+        if (editing) edit((f) => returnCatch(f, catchId));
       },
       openRuleAssign: (nodeId: string) => {
         if (editing) openRuleAssign(nodeId);

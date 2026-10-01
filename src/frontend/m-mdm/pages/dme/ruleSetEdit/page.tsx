@@ -45,7 +45,7 @@ import { useTestCases } from "./debugger/useTestCases";
 import { ValuesTab } from "./debugger/ValuesTab";
 import { VariablePanel } from "./debugger/VariablePanel";
 import {
-  connect, flowJsonOf, reconnectEdge, setGroupPad, setLabelOffset, setNodesColor, setPositions, setRoute, shiftRoutes, updateEdge, updateNodeLabel, updateNote,
+  addCatch, connect, flowJsonOf, reconnectEdge, setGroupPad, setLabelOffset, setNodesColor, setPositions, setRoute, shiftRoutes, nextId, updateEdge, updateNodeLabel, updateNote,
   type EditFlow, type EditResult, type FlowNote, type FlowPos, type GroupPad, type LabelOffset, type LabelPart,
 } from "./flow-edit";
 import { autoArrange, restyleNode, shiftSpace, type NodeLayoutSource, type SpaceAxis, type SpaceBlocks } from "./flow-layout";
@@ -62,7 +62,7 @@ import { useEditActions } from "./state/useEditActions";
 import { useFind } from "./state/useFind";
 import { useRuleSearch } from "./state/useRuleSearch";
 import { useAutoSave } from "./state/useAutoSave";
-import { useRuleSetEdit, type FlowMode } from "./state/useRuleSetEdit";
+import { guideBlockReason, useRuleSetEdit, type FlowMode } from "./state/useRuleSetEdit";
 import { debugOverlay } from "./trace-view";
 import type { RuleIo, RuleSetCaseView, VarDisplay } from "./types";
 
@@ -89,7 +89,6 @@ async function searchSetPicks(keyword: string): Promise<IdPickRow[]> {
 }
 
 const fail = (reason: string): EditResult => ({ ok: false, reason });
-const branched = (f: EditFlow) => f.nodes.some((n) => n.kind === "IF" || n.kind === "PARALLEL");
 
 export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   const rbac = useUserButtonRbac();
@@ -315,6 +314,16 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     [editing, drag],
   );
   const onConnect = useCallback((from: string, to: string) => editing && edit((f) => connect(f, from, to)), [editing, edit]);
+  // 예외 연결점 끌기(받는 노드 spec §8) — 받는 노드와 처리 갈래 첫 선을 편집 한 번으로 만들고 새 받는 노드를 고른다(속성 패널이 열린다).
+  const onAddCatch = useCallback(
+    (ruleNodeId: string, to: string) => {
+      const cur = flowRef.current; // 흐름을 의존성에 넣지 않는다 — 콜백 참조가 바뀌면 캔버스 memo 가 다시 돈다(Local-Rules §19)
+      if (!editing || !cur) return;
+      const id = nextId(cur, "c");
+      if (edit((f) => addCatch(f, ruleNodeId, to)) === null) select(id);
+    },
+    [editing, edit, select],
+  );
   // 선 끝 옮기기(R1) — 한 번이 되돌리기 한 칸. 거부(같은 선이 이미 있음·자기 잇기)는 edit 가 실패 알림으로 알리고 흐름은 그대로다.
   const onReconnect = useCallback(
     (edgeId: string, end: { from?: string; to?: string }) => editing && edit((f) => reconnectEdge(f, edgeId, end)),
@@ -601,15 +610,8 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
 
   const usedRuleIds = useMemo(() => new Set((flow?.nodes ?? []).map((n) => n.ruleId).filter((x): x is string => !!x)), [flow]);
 
-  const isBranched = !!flow && branched(flow);
-  const hasEmptyStep = !!flow && flow.nodes.some((n) => n.kind === "TASK");
-  const guideHint = !editing
-    ? "편집 모드에서 적용한다"
-    : isBranched
-      ? "분기가 있는 흐름에는 적용하지 않는다"
-      : hasEmptyStep
-        ? "빈 단계가 있는 흐름에는 적용하지 않는다"
-        : undefined;
+  const guideBlock = flow ? guideBlockReason(flow) : null;
+  const guideHint = !editing ? "편집 모드에서 적용한다" : (guideBlock ?? undefined);
 
   const checksTab: BottomTab = {
     key: "checks",
@@ -748,6 +750,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         selectionRef={canvasSelectionRef}
                         onMoveNode={onMoveNode}
                         onConnect={onConnect}
+                        onAddCatch={onAddCatch}
                         onReconnect={onReconnect}
                         onDropPalette={editActions.dropPalette}
                         onDropRule={editActions.dropRule}
@@ -796,7 +799,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         description={state.description}
                         onSetName={state.setSetName}
                         onDescription={state.setDescription}
-                        canApplyGuide={editing && !isBranched && !hasEmptyStep && !state.loading}
+                        canApplyGuide={editing && !guideBlock && !state.loading}
                         guideHint={guideHint}
                         onApplyGuide={state.applyGuide}
                         onError={state.reportError}
