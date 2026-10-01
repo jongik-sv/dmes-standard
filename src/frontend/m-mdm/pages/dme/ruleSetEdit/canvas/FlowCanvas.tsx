@@ -1993,7 +1993,9 @@ function Inner(props: FlowCanvasProps) {
         if (!d) return;
         nodeSizeStore.drag = null;
         nodeSizeStore.emit();
-        if (commit && editableRef.current && !sameSize(d.size, base)) {
+        // 끄는 중 되돌리기·삭제로 노드가 사라졌거나 룰·빈 단계가 아니게 됐으면 적지 않는다.
+        const alive = fullRef.current.nodes.find((x) => x.id === nodeId);
+        if (commit && alive && STYLED_KINDS.has(alive.kind) && editableRef.current && !sameSize(d.size, base)) {
           nodeSizeChangeRef.current?.(nodeId, d.size, spaceDrawnRef.current(), viewRef.current.blocks);
         }
       };

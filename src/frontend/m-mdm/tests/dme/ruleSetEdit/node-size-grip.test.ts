@@ -18,7 +18,7 @@ vi.mock("@dagrejs/dagre", async (importOriginal) => {
 
 import { FlowCanvas, type FlowCanvasProps } from "../../../pages/dme/ruleSetEdit/canvas/FlowCanvas";
 import { NODE_GRIPS, dragNodeSize } from "../../../pages/dme/ruleSetEdit/canvas/node-size";
-import { insertSplit, insertTask, setPositions, toEditFlow, type EditFlow, type EditResult, type FlowPos } from "../../../pages/dme/ruleSetEdit/flow-edit";
+import { insertSplit, insertTask, removeNode, setPositions, toEditFlow, type EditFlow, type EditResult, type FlowPos } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { restyleNode, type SpaceBlocks } from "../../../pages/dme/ruleSetEdit/flow-layout";
 import type { NodeSize } from "../../../pages/dme/ruleSetEdit/node-style";
 import { flush, installDomStorage } from "../helpers/render";
@@ -170,6 +170,33 @@ describe("FlowCanvas 노드 크기 손잡이(S-D4)", () => {
     await fire(window, "pointermove", { clientX: 90, clientY: 0, buttons: 0 });
     await fire(window, "pointerup", { clientX: 90, clientY: 0 });
     expect(box("r1").w).toBe(232);
+    expect(onNodeSizeChange).not.toHaveBeenCalled();
+  });
+
+  it("줌 배율 — 화면 거리를 배율로 나눈 흐름 거리만큼 커진다", async () => {
+    const onNodeSizeChange = vi.fn();
+    await draw(props({ onNodeSizeChange }));
+    const vp = document.querySelector(".react-flow__viewport") as HTMLElement;
+    const k = (el: HTMLElement) => Number(/scale\(\s*([\d.]+)\s*\)/.exec(el.style.transform)?.[1] ?? 1);
+    // 확대 단추로 배율을 올린다(happy-dom 에서 휠은 줌을 일으키지 않는다).
+    const zoomIn = document.querySelector(".react-flow__controls-zoomin") as HTMLElement;
+    for (let i = 0; i < 3; i++) {
+      await fire(zoomIn, "click");
+      await flush();
+    }
+    const z = k(vp);
+    expect(z).toBeGreaterThan(1.2);
+    await dragGrip("flow-node-grip-r1-e", 100, 0);
+    expect(onNodeSizeChange).toHaveBeenCalledTimes(1);
+    expect(onNodeSizeChange.mock.calls[0][1]).toEqual({ w: 232 + Math.round(100 / z), h: 68 });
+  });
+
+  it("끄는 중 노드가 흐름에서 사라지면 놓아도 올리지 않는다", async () => {
+    const onNodeSizeChange = vi.fn();
+    await draw(props({ onNodeSizeChange }));
+    await dragGrip("flow-node-grip-r1-e", 100, 0, false);
+    await draw(props({ onNodeSizeChange, flow: ok(removeNode(pinned(), "r1")), selectedId: null }));
+    await fire(window, "pointerup", { clientX: 100, clientY: 0 });
     expect(onNodeSizeChange).not.toHaveBeenCalled();
   });
 

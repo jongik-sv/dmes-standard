@@ -348,9 +348,9 @@ function LinkHandles({ node, isConnectable }: { node: FlowNode; isConnectable: b
 /** 값 고친 지점 표시(4단계 E4) — 디버그 겹침 `overlay.edited` 가 있을 때 오른쪽 아래 작은 원. */
 export const EDITED_NODE_TITLE = "이 노드 직전에 값을 고쳤다";
 
-/** 시작·끝·룰·IF·병렬·합류 — 모양은 kind 로 갈린다. */
 const NODE_GRIP_LABEL: Record<NodeGrip, string> = { e: "오른쪽 변", s: "아래 변", se: "오른쪽 아래 모서리" };
 
+/** 시작·끝·룰·IF·병렬·합류 — 모양은 kind 로 갈린다. */
 export function FlowNodeView({ data, isConnectable }: NodeProps<FlowRfNode>) {
   const sizing = useContext(NodeSizeContext);
   const { node, overlay, selected, flash, mark, collapsed } = data;
