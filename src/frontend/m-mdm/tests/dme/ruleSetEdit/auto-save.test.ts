@@ -28,6 +28,7 @@ import {
   setRoute,
   toEditFlow,
   updateEdge,
+  updateNodeDesc,
   type EditFlow,
   type EditResult,
 } from "../../../pages/dme/ruleSetEdit/flow-edit";
@@ -487,7 +488,7 @@ describe("자동 저장 기준점 — 보낸 JSON 과 다시 계산한 기준 JS
     }
   });
 
-  it("19. 위치·메모·그룹(여백)·꺾는 점·이름표 오프셋·외관이 모두 있는 흐름", () => {
+  it("19. 위치·메모·그룹(여백)·꺾는 점·이름표 오프셋·외관·노드 설명이 모두 있는 흐름", () => {
     let f = toEditFlow(JSON.parse(goldenCases[0].flowJson), []);
     const ruleNode = f.nodes.find((n) => n.kind === "RULE")!;
     const edge = f.edges[0];
@@ -499,6 +500,8 @@ describe("자동 저장 기준점 — 보낸 JSON 과 다시 계산한 기준 JS
     f = okFlow(setRoute(f, edge.id, [{ x: 100, y: 50 }, { x: 120, y: 80 }]));
     f = okFlow(setLabelOffset(f, edge.id, "label", { dx: 12, dy: -8 }));
     f = okFlow(setNodeStyle(f, ruleNode.id, { color: "blue", w: 300, icon: "calc", shape: "pill", hide: ["id"] }));
+    // 입력 중인 설명은 앞뒤 공백을 다듬지 않고, 저장 글자(flowJsonOf)에서만 지운다.
+    f = okFlow(updateNodeDesc(f, ruleNode.id, "  단가를 정한다\n둘째 줄  "));
     const json = flowJsonOf(f);
     const parsed = JSON.parse(json).view;
     expect(Object.keys(parsed.positions).length).toBeGreaterThan(0);
@@ -508,6 +511,7 @@ describe("자동 저장 기준점 — 보낸 JSON 과 다시 계산한 기준 JS
     expect(parsed.routes[edge.id]).toHaveLength(2);
     expect(parsed.labels[edge.id]).toBeDefined();
     expect(parsed.styles[ruleNode.id]).toBeDefined();
+    expect(parsed.descs[ruleNode.id]).toBe("단가를 정한다\n둘째 줄");
     expect(roundTrip(json)).toBe(json);
   });
 
