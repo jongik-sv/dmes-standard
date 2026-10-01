@@ -127,6 +127,8 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   const [menu, setMenu] = useState<{ target: MenuTarget; at: { x: number; y: number }; selection: string[] } | null>(null);
   /** 즉석 조건식 편집 중인 선(B10, Task 7 이 입력 칸을 그린다). */
   const [editingCond, setEditingCond] = useState<string | null>(null);
+  /** 선 라벨 즉석 편집 중인 선(Task 9) — 우클릭 메뉴 「라벨 편집」이 연다. */
+  const [editingLabel, setEditingLabel] = useState<string | null>(null);
   /** 툴바 찾기 칸(Task 8 이 단다) — Ctrl/Cmd+F 가 초점을 옮긴다. */
   const findInputRef = useRef<HTMLInputElement | null>(null);
   const flowRef = useRef<EditFlow | null>(flow);
@@ -152,6 +154,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     setFocus((f) => ({ id: null, seq: f.seq }));
     setMenu(null);
     setEditingCond(null);
+    setEditingLabel(null);
     setTool(defaultTool(modeRef.current));
   }, [setId]);
 
@@ -184,6 +187,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     setTool(defaultTool(mode)); // 도구는 모드마다 기본으로(4단계 P1)
     setMenu(null);
     setEditingCond(null);
+    setEditingLabel(null);
   }, [mode]);
 
   const select = useCallback((id: string | null) => {
@@ -246,6 +250,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     openRuleAssign,
     fit,
     setEditingCond,
+    setEditingLabel,
     closeMenu,
     clearSelection,
   });
@@ -333,6 +338,18 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     [editing, edit],
   );
   const onEditCondClose = useCallback(() => setEditingCond(null), []);
+  /** 선 라벨 즉석 편집 확정(Task 9) — 빈 값은 지움(null), 같은 값이면 편집 없음. */
+  const onEditLabel = useCallback(
+    (id: string, text: string) => {
+      const next = text.trim() === "" ? null : text;
+      if (editing) {
+        edit((f) => ((f.edges.find((e) => e.id === id)?.label ?? null) === next ? f : updateEdge(f, id, { label: next })), { mergeKey: `elabel:${id}` });
+      }
+      setEditingLabel(null);
+    },
+    [editing, edit],
+  );
+  const onEditLabelClose = useCallback(() => setEditingLabel(null), []);
   const onAutoLayout = useCallback(() => editing && edit((f) => autoArrange(f)), [editing, edit]);
   // 정렬·옮기기(A1) — 캔버스가 채우는 "고른 것과 그린 위치" 함수. 메뉴는 열 때 고른 ID 를 적어 둔다(정렬 메뉴 조건).
   const alignSourceRef = useRef<(() => AlignSource) | null>(null);
@@ -693,6 +710,9 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         showMiniMap={showMiniMap}
                         valueAt={debugging && !sim.stale ? sim.valueAt : undefined}
                         editingCondEdgeId={editingCond}
+                        editingLabelEdgeId={editingLabel}
+                        onEditLabel={onEditLabel}
+                        onEditLabelClose={onEditLabelClose}
                         onSelect={select}
                         onSelectEdge={selectEdge}
                         onOpenRule={openRule}

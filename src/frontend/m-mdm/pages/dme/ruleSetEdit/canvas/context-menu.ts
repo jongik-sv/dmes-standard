@@ -60,6 +60,8 @@ export interface CanvasActions {
   addBranch(splitId: string): void;
   /** 즉석 조건식 칸 열기. */
   editCond(edgeId: string): void;
+  /** 즉석 선 라벨 칸 열기(Task 9). */
+  editLabel(edgeId: string): void;
   copy(nodeId: string): void;
   paste(edgeId: string): void;
   duplicate(nodeId: string): void;
