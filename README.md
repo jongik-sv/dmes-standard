@@ -61,9 +61,66 @@
 - 모듈 앱 — `m-mcm`(포털 호스트 + BFF + 공통관리 화면 — **실동작**), `m-analog`(로그 뷰어 — **실동작**), `m-mpn`(APS), `m-mls`, `m-mpp`, `m-mqc`
 - 공유 — `shared`(`@dk-oasis/shared` — 공통 컴포넌트·http·grid·portal-shell), `m-design-dummy`(디자인 핸드오프 샌드박스)
 
+## 처음 받은 뒤 셋업
+
+DB 를 따로 설치하거나 만들 필요가 없다. local 프로파일은 모듈마다 SQLite 파일(`src/backend/data/{모듈}.db`)을 쓰고,
+서버를 처음 띄울 때 파일 생성·스키마·기본 데이터가 자동으로 채워진다.
+
+### 1. 준비물
+
+| 항목 | 내용 |
+|---|---|
+| JDK 21 | 백엔드 컴파일 대상이 21 이다. 기본 `java` 가 17 이하면 실행할 때 `JAVA_HOME` 을 21 로 준다(아래 2번). Gradle wrapper jar 는 저장소에 들어 있다. |
+| Node.js · pnpm | 프론트엔드(`src/frontend`, pnpm 모노레포). 처음 실행 때 `fe-run.sh` 가 `pnpm install` 과 화면 라이브러리 build 를 한다. |
+| sqlite3 (선택) | DB 내용을 직접 보거나 MDM 샘플을 손으로 넣을 때만 쓴다. |
+
+### 2. 첫 실행
+
+```bash
+git clone https://github.com/jongik-sv/dmes-standard.git
+cd dmes-standard
+JAVA_HOME=<JDK 21 경로> PATH="$JAVA_HOME/bin:$PATH" ./local-run.sh   # 백엔드 + 프론트 (기본 --all)
+```
+
+- 설정 파일 없이도 뜬다. 띄울 모듈을 줄이려면 [`.run.env.example`](.run.env.example) 을 `.run.env` 로 복사해 `BE_RUN_ARGS` 등을 고친다.
+- `src/frontend/m-mcm/.env` 가 없으면 `fe-run.sh` 가 `.env.example` 로 만들고 `AUTH_SECRET` 을 발급한다.
+- 브라우저에서 포털 http://localhost:5100 에 **`admin` / `admin123`** 으로 로그인한다.
+
+### 3. 첫 기동 때 자동으로 되는 일 (DB)
+
+| 무엇 | 누가 |
+|---|---|
+| `src/backend/data/` 폴더와 모듈별 `*.db` 파일 생성 | `be-run.sh` · SQLite 드라이버 |
+| 테이블 생성과 기본 시드 (mls·mqc·mpp·mpn·aps 의 `V1__init_sample_*` 샘플 행 포함) | 모듈별 Flyway 마이그레이션 (`db/migration/**`) |
+| 관리자 계정·메뉴·권한·OBJECT·마스터 시드 (MDM 메뉴 포함) | mcm `DataInitializer` (멱등) |
+| MDM 화면 확인용 샘플 데이터 (용어·도메인·컬럼·레이아웃·마루 코드·마루 데이터·업무 룰) | mdm `MdmLocalSampleLoader` — **`be-run.sh` 로 띄우고 용어 사전이 빈 DB 일 때만 한 번** 넣는다 |
+
+- MDM 샘플 원본은 텍스트 파일 [`src/backend/mdm/sample/mdm-local-sample.sql`](src/backend/mdm/sample/mdm-local-sample.sql) 이다. 이미 쓰던 `mdm.db` 에는 넣지 않는다.
+  끄려면 `MDM_SAMPLE=0 ./be-run.sh`. 자동 테스트·E2E 는 `be-run.sh` 를 거치지 않으므로 샘플이 섞이지 않는다.
+- 샘플을 손으로 넣을 때(예: Windows, 또는 모듈 폴더에서 `gradlew :api:bootRun` 으로 직접 띄운 경우) — mdm 을 한 번 띄워 `mdm.db` 를 만든 뒤 저장소 루트에서:
+  ```bash
+  sqlite3 src/backend/data/mdm.db < src/backend/mdm/sample/mdm-local-sample.sql
+  ```
+
+### 4. DB 를 처음 상태로 되돌리기
+
+서버를 끄고 `src/backend/data/*.db` 를 지운 뒤(필요하면 먼저 백업) 다시 띄우면 3번이 처음부터 다시 된다.
+모듈 하나만 되돌리려면 그 모듈의 `{모듈}.db` 만 지운다. `*.db` 는 `.gitignore` 대상이라 커밋되지 않는다.
+
+### 5. (선택) D'Flow 에이전트 스킬
+
+`.claude/skills/dflow-*` 를 쓰려면 개인 설정 파일이 필요하다. 샘플을 복사하고 토큰만 채운다.
+
+```bash
+cp .dflow.local.example .dflow.local   # pats= 에 D'Flow 웹 /account 「내 토큰」 값을 넣고 dev_branch 를 확인한다
+.claude/skills/dflow-work/scripts/dflow.sh doctor
+```
+
+`.dflow.local` 은 개인 토큰이 들어가므로 커밋하지 않는다(`.gitignore`). 필요한 명령: git · curl · jq · python3 · gh.
+
 ## 빌드·실행
 
-복제 직후 아래 한 줄이면 백엔드 6개 모듈과 프론트엔드가 전부 뜬다. Ctrl+C 한 번으로 전부 정리된다.
+복제 직후 아래 한 줄이면 백엔드 7개 모듈과 프론트엔드가 전부 뜬다. Ctrl+C 한 번으로 전부 정리된다.
 
 ```bash
 ./local-run.sh
@@ -84,7 +141,7 @@
 
 | 스크립트 | 기본 동작 | 주요 옵션 |
 |---|---|---|
-| `be-run` | 6개 모듈 동시 기동 | `--all` / 모듈별 `--mcm --mpn --mls --mqc --mpp --analog` / `--keep-port` |
+| `be-run` | 7개 모듈 동시 기동 | `--all` / 모듈별 `--mcm --mpn --mls --mqc --mpp --mdm --analog` / `--keep-port` |
 | `fe-run` | pnpm install → 화면 라이브러리 build → 전체 dev | `--all` · `--mpn` · `-q`(설치·빌드 skip) · `--clean` · `--build` |
 | `local-run` | BE + FE 동시 | 인자는 FE 로 전달. BE 대상은 `.run.env` 의 `BE_RUN_ARGS` |
 
@@ -99,19 +156,19 @@ local-run.cmd
 powershell -NoProfile -ExecutionPolicy Bypass -File .\local-run.ps1
 ```
 
-`.run.env`·포트·옵션은 셸 판과 동일하다. `.ps1` 은 Windows PowerShell 5.1 이 한글을 깨뜨리지 않도록
+`.run.env`·포트·옵션은 셸 판과 동일하다. 단 PowerShell 판 `be-run.ps1` 은 아직 `mdm` 모듈을 띄우지 않는다(MDM 샘플 자동 적재도 셸 판에만 있다). `.ps1` 은 Windows PowerShell 5.1 이 한글을 깨뜨리지 않도록
 UTF-8 BOM + CRLF 로 커밋돼 있다(`.gitattributes` 가 고정).
 
 기본 인자는 `.run.env` 에서 바꾼다 (`BE_RUN_ARGS` / `FE_RUN_ARGS` / `LOCAL_RUN_ARGS`).
 이 파일은 개인 설정이라 git 에 없다 — [`.run.env.example`](.run.env.example) 을 복사해 쓰고,
 없으면 스크립트가 `--all` 로 폴백하므로 복제 직후 설정 없이도 그대로 뜬다.
 
-**로컬 포트** — 포털 `5100` · mls `8092` · mqc `8093` · mpp `8094` · mpn `8095` · **mcm `8100`(포털 호스트)** · analog `8191`.
+**로컬 포트** — 포털 `5100` · mls `8092` · mqc `8093` · mpp `8094` · mpn `8095` · mdm `8096` · **mcm `8100`(포털 호스트)** · analog `8191`.
 FE 는 `m-mcm/.env` 의 `{모듈}_WAS_URL` 로 각 백엔드를 찾는다. 이 파일이 없으면 `fe-run.sh` 가
 `.env.example` 에서 만들고 `AUTH_SECRET` 을 자동 발급한다 (로컬 전용 — 실 프로젝트에서 반드시 교체).
 
 **초기 계정은 `admin` / `admin123`.** local 프로파일은 SQLite(`src/backend/data/*.db`)를 쓰고,
-빈 DB 로 시작해도 `DataInitializer` 가 메뉴·권한·마스터 시드를 멱등 적재한다.
+빈 DB 로 시작해도 `DataInitializer` 가 메뉴·권한·마스터 시드를 멱등 적재한다(자세한 내용은 §"처음 받은 뒤 셋업").
 
 개별 모듈만 다룰 때:
 
