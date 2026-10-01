@@ -30,6 +30,7 @@ import type { FavoriteFolderNode } from "./sidebar/FavoritesTree";
 import { TabPageContext } from "./tab-page-context";
 import { ErrorBoundary } from "../components/error-boundary";
 import { useTabHistory } from "./use-tab-history";
+import { useFullscreenSidebarHover } from "./use-fullscreen-sidebar-hover";
 import { useTabFullscreen } from "./use-tab-fullscreen";
 import "./portal-shell.css";
 
@@ -506,6 +507,8 @@ export function PortalShell({
     // 탭이 모두 닫혀 대시보드만 남으면 전체 화면을 끝낸다.
     if (isTabFullscreen && !activeTab) exitTabFullscreen();
   }, [isTabFullscreen, activeTab, exitTabFullscreen]);
+  // 손잡이에 2초 머물면 열고, 메뉴 밖으로 나간 지 2초 뒤 닫는다.
+  useFullscreenSidebarHover(isTabFullscreen, isFullscreenSidebarOpen, setIsFullscreenSidebarOpen);
   useEffect(() => {
     if (!isTabFullscreen || !isFullscreenSidebarOpen) return;
     // 메뉴 바깥을 누르면 닫는다. 막(backdrop)을 깔지 않아 그 누름은 탭바·화면에도 그대로 간다.
