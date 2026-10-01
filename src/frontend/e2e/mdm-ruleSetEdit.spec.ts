@@ -278,8 +278,8 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await expect(message).toContainText("저장 · row_version 1", { timeout: 20_000 });
     await expect(message).toContainText(warn);
     await expect(page.getByTestId("set-row-version")).toHaveText("row_version 1");
-    // 저장하면 서버가 돌려준 정규 흐름으로 다시 불러오고 보기 모드로 돌아간다.
-    await expect(page.getByTestId("flow-mode-view")).toHaveAttribute("aria-pressed", "true");
+    // 저장하면 서버가 돌려준 정규 흐름으로 다시 불러오되, 편집 모드는 그대로 유지한다(자동 저장 도입 뒤 동작).
+    await expect(page.getByTestId("flow-mode-edit")).toHaveAttribute("aria-pressed", "true");
     await page.screenshot({ path: screenshot("dme-ruleSetEdit-warn.png"), fullPage: true });
 
     // 다른 세트를 거쳐 다시 열면(선택이 풀려 세트 패널이 보인다) 저장된 흐름·세트명·덮어씀 표시가 유지된다.
