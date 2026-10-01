@@ -146,6 +146,15 @@ describe("CSS — 상태 표시가 색보다 우선(S-D3, Review Focus 4)", () =
     expect(all).toMatch(/\.rsf-node\.rsf-node-pending \{[^}]*border-color: var\(--rsf-border\)/);
   });
 
+  it("알약 + 열기 단추 숨김 — 오른쪽 여백이 10px 로 줄지 않고 16px(Ruling 19), 규칙은 숨김 규칙 뒤에 있다", () => {
+    const css = NODE_STYLE_CSS.replace(/\s+/g, " ");
+    const hidden = css.indexOf('.rsf-node.rsf-rule[data-no-open="true"] {');
+    const pillHidden = css.indexOf('.rsf-node.rsf-rule[data-no-open="true"]:where([data-shape="pill"]) {');
+    expect(hidden).toBeGreaterThan(-1);
+    expect(pillHidden).toBeGreaterThan(hidden);
+    expect(css.slice(pillHidden)).toMatch(/^[^{]*\{[^}]*padding-right: 16px/);
+  });
+
   it("모양 규칙도 낮은 우선순위, 제목 여러 줄은 줄바꿈 말줄임, 16진수·rgb() 없음", () => {
     const css = NODE_STYLE_CSS.replace(/\s+/g, " ");
     expect(css).toMatch(/\.rsf-node:where\(\[data-shape="square"\]\) \{[^}]*border-radius: 0/);

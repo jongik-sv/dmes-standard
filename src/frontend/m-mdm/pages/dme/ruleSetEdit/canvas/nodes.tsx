@@ -23,8 +23,8 @@ import { NODE_SIZE } from "../flow-layout";
 import { NODE_H_MIN, NODE_ICON_LABEL, type NodeSize, type NodeStyle } from "../node-style";
 import type { RuleIo, VarDisplay } from "../types";
 import { GROUP_GRIPS, GroupSizeContext, type GroupGrip } from "./group-size";
-import type { NodeOverlay } from "./overlay";
 import { NODE_ICON_COMPONENT } from "./node-icons";
+import type { NodeOverlay } from "./overlay";
 import { Handle, Position, type Node, type NodeProps, type NodeTypes } from "./react-flow";
 
 /** 접힌 블록 요약(3단계 계획 P2·D16) — 안쪽 노드 수·실행된 수·오류 여부. 그리기는 Task 11. */

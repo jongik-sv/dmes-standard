@@ -52,6 +52,7 @@ ${COLOR_RULES}
 .rsf-node:where([data-shape="pill"]) { border-radius: 999px; padding-left: 16px; padding-right: 34px; }
 .rsf-node.rsf-task:where([data-shape="pill"]) { padding-left: 16px; padding-right: 16px; } /* .rsf-node.rsf-task(0,2,0)의 padding 을 이기려고 같은 우선순위로 */
 .rsf-node.rsf-rule[data-no-open="true"] { padding-right: 10px; }
+.rsf-node.rsf-rule[data-no-open="true"]:where([data-shape="pill"]) { padding-right: 16px; } /* 위 규칙(0,3,0)이 알약의 34px 를 이기므로 알약+열기 숨김은 둥근 끝 여백(16px)으로 되돌린다 */
 .rsf-node:where([data-shape="pill"]) .rsf-open { right: 10px; }
 
 /* 아이콘 + 제목 한 줄(아이콘은 제목 첫 줄에 맞춘다) */
