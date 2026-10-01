@@ -13,6 +13,12 @@
  * 모드(3단계 P1): 보기·편집·디버그. 세트를 열거나(`open`) [다시 불러오기](`reload`)하면 보기 모드이고 편집 이력을 비운다. 자기 쓰기(저장·폐기·되살리기) 뒤
  * 다시 불러오기는 모드와 이력을 그대로 두되, 편집 모드인데 새 view 로 편집할 수 없게 되면(`editable && INUSE` 거짓) 보기로 내린다.
  * 되돌리기·다시 하기(P5)는 Task 3 이 `state/edit-history.ts` 로 채운다.
+ *
+ * 자동 저장(`useAutoSave`)은 조용한 저장 경로 `saveQuiet` 를 쓴다. 화면을 막지 않고(loading 을 켜지 않는다) 서버 값을 다시 불러오지 않는다.
+ * 보낼 때 흐름 JSON·세트명·설명·row_version 을 떠 두고, 성공하면 그 값으로 기준점(view.set 의 flow·setName·description)을 옮기고
+ * 응답의 row_version 을 넣는다. 기준 흐름은 보낸 JSON 을 푼 값이다 — `baseJson`(toEditFlow → flowJsonOf)이 보낸 JSON 과 같아진다
+ * (auto-save.test 가 고정한다). 그래서 저장 중에 생긴 변경은 dirty 로 남고, 편집 이력·선택·화면 위치는 그대로다.
+ * 진행 중이면 `autoSaving` 이 켜지고 수동 쓰기(save·deprecate·restore)는 보내지 않는다(동시에 두 요청 없음).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -23,7 +29,7 @@ import { EditHistory } from "./edit-history";
 import { flowJsonOf, toEditFlow, type EditFlow, type EditResult } from "../flow-edit";
 import { linearFlow } from "../flow-model";
 import { flowChecks } from "../set-model";
-import type { CondIo, RuleIo, RuleSetCheck, RuleSetView } from "../types";
+import type { CondIo, RuleIo, RuleSetCheck, RuleSetSaveResult, RuleSetView } from "../types";
 
 export const CONFLICT_MESSAGE = "다른 창에서 바뀌었습니다. 다시 불러오세요";
 const DIRTY_CONFIRM = "저장하지 않은 변경이 있습니다. 버리고 이동할까요?";
@@ -46,6 +52,17 @@ export interface RuleSetMessage {
   lines?: string[];
 }
 
+/** 조용한 저장(`saveQuiet`) 결과. `key` 는 보낸 내용의 비교 키(`contentKeyOf`). */
+export type QuietSaveResult =
+  | { status: "saved"; key: string; checks: RuleSetCheck[] }
+  | { status: "conflict" | "error"; key: string }
+  | { status: "skipped" };
+
+/** 저장 내용(흐름 JSON·세트명·설명)의 비교 키 — 자동 저장이 "이 내용을 이미 보냈는가" 를 가린다. */
+export const contentKeyOf = (flowJson: string, setName: string, description: string) => JSON.stringify([flowJson, setName, description]);
+
+const NO_ROW_VERSION = "자동 저장 응답에 row_version 이 없다. 다시 불러온다";
+
 export interface RuleSetEditState {
   view: RuleSetView | null;
   flow: EditFlow | null;
@@ -58,7 +75,11 @@ export interface RuleSetEditState {
   setName: string;
   description: string;
   dirty: boolean;
+  /** 지금 편집 내용의 비교 키(`contentKeyOf(flowJson, setName, description)`). 세트가 없으면 빈 문자열. */
+  contentKey: string;
   loading: boolean;
+  /** 조용한 저장(자동 저장)이 진행 중이다. 화면은 막지 않고 수동 쓰기 단추만 막는다. */
+  autoSaving: boolean;
   conflict: boolean;
   message: RuleSetMessage | null;
   error: string | null;
@@ -90,6 +111,11 @@ export interface RuleSetEditState {
   /** 구성 지침의 제안 순서로 한 줄 흐름을 만든다(분기가 있으면 아무것도 하지 않는다, P-D5). */
   applyGuide(order: readonly string[], ios: readonly RuleIo[]): void;
   save(): Promise<void>;
+  /**
+   * 조용한 저장 — 화면을 막지 않고 서버 값을 다시 불러오지 않는다. 성공하면 보낸 값으로 기준점을 옮기고 row_version 만 반영한다.
+   * 실패는 수동 저장과 같은 메시지 줄·충돌 안내를 쓴다. 진행 중·세트 없음이면 아무것도 하지 않는다(`skipped`).
+   */
+  saveQuiet(): Promise<QuietSaveResult>;
   deprecate(): Promise<void>;
   restore(): Promise<void>;
   /** 쓰기 밖(찾기 등) 오류를 오류 창으로 보인다. */
@@ -140,6 +166,8 @@ export function useRuleSetEdit(): RuleSetEditState {
   const [setName, setSetName] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
+  const [autoSaving, setAutoSaving] = useState(false);
+  const autoSavingRef = useRef(false);
   const [conflict, setConflict] = useState(false);
   const [message, setMessage] = useState<RuleSetMessage | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -150,6 +178,12 @@ export function useRuleSetEdit(): RuleSetEditState {
   const setIdRef = useRef<string | null>(null);
   const viewRef = useRef<RuleSetView | null>(null);
   viewRef.current = view;
+  const setNameRef = useRef("");
+  setNameRef.current = setName;
+  const descriptionRef = useRef("");
+  descriptionRef.current = description;
+  /** 불러오기 순번 — 조용한 저장 응답이 오기 전에 세트를 다시 불러왔으면 그 응답을 버린다. */
+  const loadSeq = useRef(0);
   /** 편집 실패 문구가 메시지 줄에 떠 있는가 — 다음 편집이 성공하면 지운다. */
   const editFailShown = useRef(false);
   const condTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -206,6 +240,7 @@ export function useRuleSetEdit(): RuleSetEditState {
     !!view && (flowJson !== baseJson || setName !== (view.set.setName ?? "") || description !== (view.set.description ?? ""));
   const dirtyRef = useRef(false);
   dirtyRef.current = dirty;
+  const contentKey = useMemo(() => (view ? contentKeyOf(flowJson, setName, description) : ""), [view, flowJson, setName, description]);
 
   // flowChecks 는 노드·선만 읽는다(view 를 읽지 않는다). 위치·경로·메모·외관만 바꾼 편집은 노드·선 내용이 같으므로 이전 결과(같은 참조)를 쓴다 —
   // 362노드에서 약 4ms 이고, 같은 참조라 캔버스의 표시(marks)도 다시 계산하지 않는다.
@@ -238,6 +273,7 @@ export function useRuleSetEdit(): RuleSetEditState {
    */
   const load = useCallback(
     async (setId: string, opts: { keepHistory: boolean }): Promise<boolean> => {
+      loadSeq.current += 1;
       setLoading(true);
       try {
         const next = await viewSet(setId);
@@ -305,7 +341,7 @@ export function useRuleSetEdit(): RuleSetEditState {
   const runWrite = useCallback(
     async <T>(fn: () => Promise<T>, done: (result: T) => RuleSetMessage) => {
       const id = setIdRef.current;
-      if (!id) return;
+      if (!id || autoSavingRef.current) return;
       setLoading(true);
       let result: T;
       try {
@@ -403,6 +439,50 @@ export function useRuleSetEdit(): RuleSetEditState {
     );
   }, [setName, description, runWrite]);
 
+  const saveQuiet = useCallback(async (): Promise<QuietSaveResult> => {
+    const v = viewRef.current;
+    const f = flowRef.current;
+    if (!v || !f || autoSavingRef.current) return { status: "skipped" };
+    // 보낼 때의 값을 떠 둔다 — 기준점은 응답 뒤 ref 가 아니라 이 값으로 옮긴다(저장 중 변경이 기준점에 섞이지 않게).
+    const json = flowJsonOf(f);
+    const name = setNameRef.current;
+    const desc = descriptionRef.current;
+    const key = contentKeyOf(json, name, desc);
+    const seq = loadSeq.current;
+    autoSavingRef.current = true;
+    setAutoSaving(true);
+    try {
+      let r: RuleSetSaveResult;
+      try {
+        r = await saveSet(v.set.setId, name, desc, v.set.rowVersion, json);
+      } catch (e) {
+        if (seq !== loadSeq.current) return { status: "skipped" };
+        fail(e);
+        return { status: isRowVersionConflict(e) ? "conflict" : "error", key };
+      }
+      if (seq !== loadSeq.current) return { status: "skipped" };
+      if (r.rowVersion == null) {
+        // row_version 을 모르면 다음 저장이 반드시 충돌한다 — 충돌처럼 다시 불러오기를 안내한다.
+        editFailShown.current = false;
+        setConflict(true);
+        setMessage({ kind: "error", text: NO_ROW_VERSION });
+        return { status: "conflict", key };
+      }
+      const next: RuleSetView = {
+        ...v,
+        set: { ...v.set, flow: JSON.parse(json) as RuleSetView["set"]["flow"], setName: name, description: desc, rowVersion: r.rowVersion },
+      };
+      viewRef.current = next;
+      setView(next);
+      // 앞선 쓰기 실패 문구는 지운다(편집 실패 문구는 다음 편집이 지운다).
+      if (!editFailShown.current) setMessage((m) => (m && m.kind === "error" ? null : m));
+      return { status: "saved", key, checks: r.checks ?? [] };
+    } finally {
+      autoSavingRef.current = false;
+      setAutoSaving(false);
+    }
+  }, [fail]);
+
   const deprecate = useCallback(async () => {
     const v = viewRef.current;
     if (!v) return;
@@ -435,7 +515,9 @@ export function useRuleSetEdit(): RuleSetEditState {
     setName,
     description,
     dirty,
+    contentKey,
     loading,
+    autoSaving,
     conflict,
     message,
     error,
@@ -454,6 +536,7 @@ export function useRuleSetEdit(): RuleSetEditState {
     addRuleIo,
     applyGuide,
     save,
+    saveQuiet,
     deprecate,
     restore,
     reportError,
