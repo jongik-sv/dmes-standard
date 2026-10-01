@@ -50,6 +50,31 @@ describe("flow-layout — 갈래 순서대로 왼쪽부터(4단계 브라우저 
     const p = autoLayout(f);
     expect(cx(p, t, "TASK")).toBeLessThan(cx(p, "if1", "IF"));
   });
+  it("첫 갈래에만 노드가 있으면 그 노드 상자 전체가 IF 가운데보다 왼쪽이다(빈 갈래도 룰 하나 너비만큼 자리를 둔다)", () => {
+    const f = ifWithTaskInFirst();
+    const t = f.nodes.find((n) => n.kind === "TASK")!.id;
+    const p = autoLayout(f);
+    expect(p[t].x + NODE_SIZE.TASK.w).toBeLessThanOrEqual(cx(p, "if1", "IF"));
+  });
+  it("그 외 갈래에만 노드가 있으면 그 노드 상자 전체가 IF 가운데보다 오른쪽이다", () => {
+    const f = ifFlow();
+    const other = f.edges.find((e) => e.from === "if1" && e.otherwise)!;
+    const r = insertTask(f, other.id);
+    if (!r.ok) throw new Error(r.reason);
+    const t = r.flow.nodes.find((n) => n.kind === "TASK")!.id;
+    const p = autoLayout(r.flow);
+    expect(p[t].x).toBeGreaterThanOrEqual(cx(p, "if1", "IF"));
+  });
+  it("두 갈래 모두 노드가 있으면 빈 갈래 자리 넓히기가 배치를 바꾸지 않는다(노드 사이 간격 = dagre 간격)", () => {
+    const f = ifWithTaskInFirst();
+    const other = f.edges.find((e) => e.from === "if1" && e.otherwise)!;
+    const r = insertRule(f, other.id, "R_B");
+    if (!r.ok) throw new Error(r.reason);
+    const t = r.flow.nodes.find((n) => n.kind === "TASK")!.id;
+    const rb = r.flow.nodes.find((n) => n.kind === "RULE" && n.ruleId === "R_B")!.id;
+    const p = autoLayout(r.flow);
+    expect(p[rb].x - (p[t].x + NODE_SIZE.TASK.w)).toBe(40);
+  });
   it("그 외 갈래에 넣은 노드는 IF 가운데보다 오른쪽이다", () => {
     const f = ifFlow();
     const other = f.edges.find((e) => e.from === "if1" && e.otherwise)!;
