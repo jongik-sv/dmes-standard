@@ -165,6 +165,7 @@ export const BASE_CSS = `
 .rsf-toolbar-end { margin-left: auto; }
 .rsf-toolbar-sep { align-self: stretch; width: 1px; margin: 2px 0; background: var(--color-border); }
 .rsf-toolbar-message { padding-top: var(--spacing-xs); }
+.rsf-autosave-status { font-size: var(--font-size-sm); white-space: nowrap; cursor: default; }
 
 /* 본문 — 캔버스 패널 안(팔레트 | 캔버스) */
 .rsf-body { display: flex; flex: 1 1 0; min-height: 0; min-width: 0; }

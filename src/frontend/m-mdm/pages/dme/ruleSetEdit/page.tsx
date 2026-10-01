@@ -57,6 +57,7 @@ import { useDragActions } from "./state/useDragActions";
 import { useEditActions } from "./state/useEditActions";
 import { useFind } from "./state/useFind";
 import { useRuleSearch } from "./state/useRuleSearch";
+import { useAutoSave } from "./state/useAutoSave";
 import { useRuleSetEdit, type FlowMode } from "./state/useRuleSetEdit";
 import { debugOverlay } from "./trace-view";
 import type { RuleIo, RuleSetCaseView, VarDisplay } from "./types";
@@ -102,6 +103,8 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   const editing = mode === "edit";
   const debugging = mode === "debug";
   const canRun = canDo("execute");
+  /** 자동 저장(켜고 끄기) — 편집 모드(편집할 수 있을 때)에서만 저장한다. */
+  const autoSave = useAutoSave(state, editing);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
@@ -678,6 +681,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
               find={find}
               findInputRef={findInputRef}
               onHelpEscape={focusCanvas}
+              autoSave={autoSave}
             />
             {debugging && <DebugToolbar sim={sim} canRun={canRun} selectedId={isFlowNode ? selectedId : null} />}
             <ContentBody root direction="column" resizable storageKey={STORAGE_KEY}>

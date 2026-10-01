@@ -10,16 +10,22 @@
  * 찾기 칸(Enter·[다음] 으로 돈다)과 단축키 도움말 [?] 를 둔다(Task 8). 도움말은 지금 모드의 단축키만 짧은 정의 목록으로 보인다.
  * 아이콘만 있는 단추(되돌리기·다시 하기·도움말)는 단추를 감싼 `span.rsf-tip[data-tip]` 가 그리는 즉시 CSS 툴팁(`styles/toolbox.ts`, 단추 아래 — 단추 루트가 overflow:hidden 이라 단추 안에서 그리면 잘린다)이고 `title` 은 두지 않는다(브라우저 툴팁과 겹침 방지).
  * S1 의 [공간] 토글은 4단계 P1 에서 도구 상자(`FlowToolbox`)로 옮겼다.
+ *
+ * 자동 저장: 편집 모드에서만 [세트 저장] 옆에 [자동 저장] 켜고 끄기 단추와 짧은 상태 글(`set-autosave-status`, 경고 문장은 title)을 둔다.
+ * 단추는 [미니맵]·[변수 흐름] 과 같은 `Button` + `aria-pressed` 토글이다 — 체크박스 입력은 눌러도 초점을 가져가 스페이스+끌기의 스페이스가
+ * 값을 뒤집는다(`keepFocusOffButtons` 는 단추만 막는다). 자동 저장이 진행 중이면 수동 쓰기([세트 저장]·폐기·되살리기)를 막는다(같은 row_version
+ * 으로 두 요청이 나가지 않게). 편집·되돌리기는 막지 않는다.
  */
 import { useEffect, useRef, useState, type MouseEvent, type RefObject } from "react";
 
-import { IconArrowBackUp, IconArrowForwardUp, IconArrowsMaximize, IconHelp, IconLayoutDistributeHorizontal, IconMap, IconSearch, IconVariable } from "@tabler/icons-react";
+import { IconArrowBackUp, IconArrowForwardUp, IconArrowsMaximize, IconDeviceFloppy, IconHelp, IconLayoutDistributeHorizontal, IconMap, IconSearch, IconVariable } from "@tabler/icons-react";
 
 import { Button, Input } from "@dk-oasis/shared/form";
 import { badgeStyle } from "@/shell";
 
 import type { FindState } from "../state/useFind";
 import type { VarDisplay } from "../types";
+import type { AutoSave } from "../state/useAutoSave";
 import type { FlowMode, RuleSetEditState, RuleSetMessage } from "../state/useRuleSetEdit";
 import { SHORTCUT_HELP, isMacPlatform } from "./shortcuts";
 
@@ -27,6 +33,12 @@ import { SHORTCUT_HELP, isMacPlatform } from "./shortcuts";
 const VAR_DISPLAY_TEXT: Record<VarDisplay, string> = { off: "표시: 끔", id: "표시: ID", name: "표시: 이름" };
 const MAC_FN_NOTE = "F9·F10·F5 는 fn 과 함께 누른다";
 const DEPRECATE_WARNING = "폐기하면 이 세트를 부르는 호출은 판정 오류가 난다.";
+/** 자동 저장 상태 글 색(의미 토큰). */
+const AUTO_STATUS_COLOR: Record<"info" | "warning" | "error", string> = {
+  info: "var(--color-text-secondary)",
+  warning: "var(--color-warning)",
+  error: "var(--color-danger)",
+};
 
 export interface FlowToolbarProps {
   state: RuleSetEditState;
@@ -53,6 +65,8 @@ export interface FlowToolbarProps {
    * [?] 를 다시 눌러 닫을 때는 부르지 않는다(마우스로 닫으면 초점을 억지로 옮기지 않는다).
    */
   onHelpEscape?: () => void;
+  /** 자동 저장 켜고 끄기·상태 글(편집 모드에서만 보인다). */
+  autoSave: AutoSave;
 }
 
 /** 단추 위 mousedown 의 기본 동작(초점 옮기기)을 막는다. 누르기(click)는 그대로 온다. */
@@ -62,12 +76,14 @@ export function keepFocusOffButtons(e: MouseEvent<HTMLElement>): void {
 
 export function FlowToolbar(props: FlowToolbarProps) {
   const { state, canDo, canEdit, mode, onMode, varDisplay, onToggleVars, onAutoLayout, onFit, showMiniMap, onToggleMiniMap } = props;
-  const { find, findInputRef, onHelpEscape } = props;
+  const { find, findInputRef, onHelpEscape, autoSave } = props;
   const [helpOpen, setHelpOpen] = useState(false);
   const view = state.view!;
   const set = view.set;
   const inUse = set.status === "INUSE";
   const busy = state.loading;
+  /** 쓰기 요청을 보낼 수 없다 — 로딩 중이거나 자동 저장이 진행 중이다. */
+  const writeBusy = busy || state.autoSaving;
   const editing = mode === "edit";
   const mac = isMacPlatform();
   const [confirmDeprecate, setConfirmDeprecate] = useState(false);
@@ -93,16 +109,19 @@ export function FlowToolbar(props: FlowToolbarProps) {
   }, [helpOpen]);
 
   const hasReject = state.checks.some((c) => c.severity === "REJECT");
-  const canSave = editing && canEdit && state.dirty && !hasReject && !state.condIoPending && !busy;
-  const canDeprecate = view.editable && inUse && canDo("delete") && !busy;
-  const canRestore = view.restorable && !inUse && canDo("restore") && !busy;
+  const canSave = editing && canEdit && state.dirty && !hasReject && !state.condIoPending && !writeBusy;
+  const canDeprecate = view.editable && inUse && canDo("delete") && !writeBusy;
+  const canRestore = view.restorable && !inUse && canDo("restore") && !writeBusy;
   const saveTitle = !editing
     ? "편집 모드에서 저장한다"
     : hasReject
       ? "거부 검사가 있어 저장할 수 없다. 아래 검사 결과를 고친다"
       : state.condIoPending
         ? "조건식을 확인하는 중이다"
-        : undefined;
+        : state.autoSaving
+          ? "자동 저장하는 중이다"
+          : undefined;
+  const autoStatus = autoSave.status;
 
   const message: RuleSetMessage | null = confirmDeprecate ? { kind: "error", text: DEPRECATE_WARNING } : state.message;
 
@@ -270,6 +289,31 @@ export function FlowToolbar(props: FlowToolbarProps) {
           <Button variant="primary" data-testid="set-save" disabled={!canSave} title={saveTitle} onClick={() => void state.save()}>
             세트 저장
           </Button>
+          {editing && (
+            <>
+              <Button
+                data-testid="set-autosave"
+                aria-pressed={autoSave.enabled}
+                variant={autoSave.enabled ? "primary" : "default"}
+                title="켜 두면 마지막 변경 2초 뒤 저장한다. 거부 검사가 있으면 저장하지 않는다"
+                onClick={() => autoSave.setEnabled(!autoSave.enabled)}
+              >
+                <IconDeviceFloppy size={14} aria-hidden="true" style={{ marginRight: "var(--spacing-xs)" }} />
+                자동 저장
+              </Button>
+              {autoStatus && (
+                <span
+                  data-testid="set-autosave-status"
+                  className="rsf-autosave-status"
+                  role="status"
+                  title={autoStatus.title}
+                  style={{ color: AUTO_STATUS_COLOR[autoStatus.kind] }}
+                >
+                  {autoStatus.text}
+                </span>
+              )}
+            </>
+          )}
         </span>
       </div>
 

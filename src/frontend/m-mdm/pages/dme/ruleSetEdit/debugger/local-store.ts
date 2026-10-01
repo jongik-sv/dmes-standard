@@ -1,5 +1,5 @@
 /**
- * 룰 세트 화면 개인 편의 저장소(3단계 계획 P10) — 중단점·조사식·최근 입력·최근 식·미니맵. 모든 읽기·쓰기를 try/catch 로 감싸
+ * 룰 세트 화면 개인 편의 저장소(3단계 계획 P10) — 중단점·조사식·최근 입력·최근 식·미니맵·자동 저장 켜짐. 모든 읽기·쓰기를 try/catch 로 감싸
  * 저장소가 없거나(사설 창·미리보기) 던져도 기본값으로 동작한다(스펙 §2). 서버에 저장하지 않는다.
  */
 import type { VarDisplay } from "../types";
@@ -13,6 +13,8 @@ export const storeKeys = {
   recentExprs: (setId: string) => `rsf:expr:${setId}`,
   miniMap: "rsf:minimap",
   varDisplay: "rsf:varDisplay",
+  /** 편집 모드 [자동 저장] 켜짐(세트와 무관한 보는 사람 설정, 기본 꺼짐). */
+  autoSave: "rsf:autoSave",
 } as const;
 
 function read(key: string): unknown {
