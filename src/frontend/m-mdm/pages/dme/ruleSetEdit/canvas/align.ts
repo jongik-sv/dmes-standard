@@ -7,10 +7,11 @@
  * - 상자 크기: 흐름 노드는 종류별 `NODE_SIZE`(접힌 분기는 룰 크기), 메모는 자기 w×h. 그룹 틀은 멤버에서 계산하므로 다루지 않는다.
  * - 노드 위치는 `view.positions` 에, 메모는 `view.notes` 에 적는다. 하나라도 움직이면 고른 노드 전부를 그린 위치로 적어 고정한다.
  *   접힌 분기는 제 크기 기준 좌표(+foldOffsetX)로 적는다. 분기(접힘·펼침 모두)가 움직이면 블록 멤버·합류가 같은 만큼 함께 간다(끌기와 같다).
- *   맞춤 기준 상자는 고른 노드 상자 그대로다(블록 경계로 넓히지 않는다). 선의 꺾는 점은 옮기지 않는다.
+ *   맞춤 기준 상자는 고른 노드 상자 그대로다(블록 경계로 넓히지 않는다). 정렬·간격은 선의 꺾는 점을 옮기지 않는다.
+ * - 화살표 옮기기는 그룹 ID 를 소속 노드로 펼치고, 두 끝이 모두 옮겨진 선의 꺾는 점도 같은 만큼 옮긴다(`shiftRoutes`).
  */
 import { NODE_SIZE, foldOffsetX, type SpaceBlocks } from "../flow-layout";
-import { blockMembers, setPositions, type EditFlow, type FlowPos } from "../flow-edit";
+import { blockMembers, setPositions, shiftRoutes, type EditFlow, type FlowPos } from "../flow-edit";
 
 export type AlignKind = "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom";
 export type DistributeAxis = "x" | "y";
@@ -133,7 +134,16 @@ export function distributeNodes(
 export function nudgeNodes(
   f: EditFlow, ids: readonly string[], dx: number, dy: number, drawn: Readonly<Record<string, FlowPos>>, blocks: SpaceBlocks = {},
 ): EditFlow {
-  const items = itemsOf(f, ids, drawn, blocks);
+  const items = itemsOf(f, withGroupMembers(f, ids), drawn, blocks);
   if (items.length === 0) return f;
-  return apply(f, items, new Map(items.map((i) => [i.id, { x: dx, y: dy }])), drawn);
+  const g = apply(f, items, new Map(items.map((i) => [i.id, { x: dx, y: dy }])), drawn);
+  if (g === f) return f;
+  const moved = new Set(items.filter((i) => !i.note).flatMap((i) => [i.id, ...i.members]));
+  return shiftRoutes(g, moved, dx, dy);
+}
+
+/** 그룹 ID 를 소속 노드 ID 로 펼친다(나머지는 그대로). 중복은 itemsOf 가 거른다. */
+function withGroupMembers(f: EditFlow, ids: readonly string[]): string[] {
+  const groups = new Map((f.view?.groups ?? []).map((g) => [g.id, g.nodeIds] as const));
+  return ids.flatMap((id) => groups.get(id) ?? [id]);
 }

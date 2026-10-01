@@ -231,8 +231,11 @@ export interface FlowCanvasProps {
   onSelect: (id: string | null) => void;
   onSelectEdge: (edgeId: string | null) => void;
   onOpenRule: (ruleId: string) => void; // 링크 아이콘만
-  /** 선 밖에 놓은 끌기 끝(편집 모드만). 끈 메모 위치도 함께 올려 이력이 한 칸으로 남는다(B5). */
-  onMove: (pos: Record<string, FlowPos>, notes?: Record<string, FlowPos>) => void;
+  /**
+   * 선 밖에 놓은 끌기 끝(편집 모드만). 끈 메모 위치도 함께 올려 이력이 한 칸으로 남는다(B5).
+   * 흐름 노드 둘 이상(그룹 포함)을 같은 만큼 옮겼으면 `shift` 에 옮긴 노드와 이동량을 담는다 — 두 끝이 모두 든 선의 꺾는 점을 같이 옮긴다.
+   */
+  onMove: (pos: Record<string, FlowPos>, notes?: Record<string, FlowPos>, shift?: MoveShift) => void;
   /** 놓인 노드·블록을 선 위에 놓음(A2 — Task 7). */
   onMoveNode: (nodeId: string, edgeId: string, pos: Record<string, FlowPos>) => void;
   onConnect: (from: string, to: string) => void;
@@ -265,7 +268,7 @@ export interface FlowCanvasProps {
   clearSelectionRef?: MutableRefObject<(() => void) | null>;
   /**
    * 캔버스가 "지금 고른 흐름 노드·메모와 그린 위치" 를 얻는 함수를 채우는 ref(A1 — 정렬·간격·화살표 옮기기·정렬 메뉴가 부른다).
-   * clearSelectionRef 와 같은 방식이다. 고른 것은 React Flow 선택(그룹 틀 제외), 없으면 selectedId 하나.
+   * clearSelectionRef 와 같은 방식이다. 고른 것은 React Flow 선택(그룹 포함 — 화살표 옮기기만 소속 노드로 펼친다), 없으면 selectedId 하나.
    */
   alignSourceRef?: MutableRefObject<(() => AlignSource) | null>;
   /**
@@ -646,9 +649,27 @@ function SnapGuides({ store }: { store: SnapStore }) {
   );
 }
 
-/** 끄는 동안의 스냅 상태(G1) — 끄는 대상 ID, 끌기 시작 때 모은 후보 색인, 지난 프레임에 붙인 이동량과 맞은 상자 ID(I2). */
+/** 노드 여럿을 같은 만큼 옮긴 끌기 — 옮긴 흐름 노드 ID 와 이동량(흐름 좌표, 정수). */
+export interface MoveShift {
+  ids: readonly string[];
+  dx: number;
+  dy: number;
+}
+
+/** 끄는 그룹 하나 — 끌기 시작 때의 틀 좌상단과 그때 그린 소속 노드(보이는 흐름 노드만). */
+interface GroupDrag {
+  at: FlowPos;
+  members: readonly Node[];
+}
+
+/**
+ * 끄는 동안의 스냅 상태(G1) — 끄는 대상 ID, 끌기 시작 때 모은 후보 색인, 지난 프레임에 붙인 이동량과 맞은 상자 ID(I2).
+ * 그룹 틀을 끌면 `groups` 에 시작 상태를 두고 소속 노드를 같은 이동량으로 끈 것처럼 다룬다. `start` 는 끄기 시작 때 React Flow 가 끈 노드의 자리.
+ */
 interface SnapDrag {
   ids: ReadonlySet<string>;
+  groups: ReadonlyMap<string, GroupDrag>;
+  start: ReadonlyMap<string, FlowPos>;
   index: SnapIndex;
   dx: number;
   dy: number;
@@ -1106,7 +1127,8 @@ function Inner(props: FlowCanvasProps) {
       const data: GroupNodeData = { id: g.id, title: g.title, selected: selectedId === g.id, resizable: editable && selectedId === g.id };
       out.push({
         id: g.id, type: "rsfGroup", position: { x: b.x, y: b.y }, width: b.w, height: b.h, measured: measured[g.id], data, selected: rfSel.has(g.id),
-        draggable: false, connectable: false, zIndex: -1, style: { pointerEvents: "none" },
+        // 제목만 끌기 손잡이 — 틀 몸통은 누름을 받지 않아 그룹 안 빈 곳에서 영역 선택·화면 이동이 그대로 된다.
+        draggable: editable, dragHandle: ".rsf-group-title", connectable: false, zIndex: -1, style: { pointerEvents: "none" },
       });
     }
     for (const n of vflow.nodes) {
@@ -1241,7 +1263,11 @@ function Inner(props: FlowCanvasProps) {
         return next;
       });
     }
-    const moved = changes.filter((c): c is Extract<NodeChange, { type: "position" }> => c.type === "position" && !!c.position);
+    // 그룹 틀 자리는 소속 노드에서 계산한다 — React Flow 가 주는 틀 끌기 위치는 적지 않는다(소속 노드는 onNodeDrag 가 옮긴다).
+    const frames = new Set(fullRef.current.view.groups.map((g) => g.id));
+    const moved = changes.filter(
+      (c): c is Extract<NodeChange, { type: "position" }> => c.type === "position" && !!c.position && !frames.has(c.id),
+    );
     if (moved.length === 0) return;
     // React Flow 가 주는 끌기 위치는 붙이기 전 값이다 — 지난 프레임에 붙인 이동량을 끄는 대상에 더한다(G1). 놓을 때(dragging=false)의 마지막 변경도
     // 붙인 자리로 적어 한 프레임도 붙기 전 자리로 튀지 않는다. 이번 프레임의 이동량은 이어서 오는 onNodeDrag 가 다시 재서 덮어쓴다.
@@ -1291,19 +1317,50 @@ function Inner(props: FlowCanvasProps) {
   const nudged = (n: Node, dx: number, dy: number): Node =>
     dx === 0 && dy === 0 ? n : { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } };
 
+  /**
+   * 끄는 것 가운데 그룹 틀을 소속 노드로 바꾼다 — 틀이 움직인 만큼 옮긴 소속 노드(시작 때 그린 노드 기준). 이미 함께 끄는 노드는 그대로 둔다.
+   * 그룹이 없으면 입력 그대로.
+   */
+  const withGroupMembers = (dragged: Node[], groups: ReadonlyMap<string, GroupDrag> | undefined): Node[] => {
+    if (!dragged.some((n) => n.type === "rsfGroup")) return dragged;
+    const out = dragged.filter((n) => n.type !== "rsfGroup");
+    const have = new Set(out.map((n) => n.id));
+    for (const g of dragged) {
+      const info = g.type === "rsfGroup" ? groups?.get(g.id) : undefined;
+      if (!info) continue;
+      const dx = g.position.x - info.at.x;
+      const dy = g.position.y - info.at.y;
+      for (const m of info.members) {
+        if (have.has(m.id)) continue;
+        have.add(m.id);
+        out.push(nudged(m, dx, dy));
+      }
+    }
+    return out;
+  };
+
   /** 끌기 시작(G1) — 끌지 않는 보이는 흐름 노드·메모(접힌 블록은 접힌 상자)의 기준값을 한 번 모아 정렬해 둔다. 함께 움직이는 블록 멤버·그룹 틀은 뺀다. */
   const onNodeDragStart = useCallback((_e: MouseEvent | TouchEvent, _node: Node, dragged: Node[]) => {
     snapStore.set(NO_GUIDES);
     snapRef.current = null;
     if (!editable) return;
-    const ids = new Set(dragged.map((n) => n.id));
+    // 그룹 틀을 끌면 그때 그린 소속 노드를 모아 둔다(끄는 동안 틀이 움직인 만큼 함께 옮긴다).
+    const groups = new Map<string, GroupDrag>();
+    for (const g of dragged) {
+      if (g.type !== "rsfGroup") continue;
+      const ids = new Set(fullRef.current.view.groups.find((x) => x.id === g.id)?.nodeIds ?? []);
+      groups.set(g.id, { at: { ...g.position }, members: nodesRef.current.filter((n) => n.type === "rsfFlow" && ids.has(n.id)) });
+    }
+    const moving = withGroupMembers(dragged, groups);
+    const ids = new Set(moving.map((n) => n.id));
     const skip = new Set(ids);
-    for (const n of dragged) for (const id of Object.keys(blockPositionsOf(n))) skip.add(id);
+    for (const n of moving) for (const id of Object.keys(blockPositionsOf(n))) skip.add(id);
     const others: Box[] = [];
     for (const n of nodesRef.current) {
       if ((n.type === "rsfFlow" || n.type === "rsfNote") && !skip.has(n.id)) others.push(boxOf(n));
     }
-    snapRef.current = { ids, index: snapIndex(others), dx: 0, dy: 0, targets: NO_TARGETS };
+    const start = new Map(dragged.map((n) => [n.id, { ...n.position }] as const));
+    snapRef.current = { ids, groups, start, index: snapIndex(others), dx: 0, dy: 0, targets: NO_TARGETS };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editable, snapStore]);
 
@@ -1348,11 +1405,14 @@ function Inner(props: FlowCanvasProps) {
       } else target = dropEdgeRef.current;
     }
     setDropEdge(target);
-    const { dx, dy } = snapStep(e, dragged, target);
-    // 분기 자신은 React Flow 가 준 위치(그린 상자 좌상단)에 스냅 이동량만 더해 둔다 — 블록 위치의 분기 값은 저장 기준(접힌 분기면 foldOffsetX 만큼 다르다).
-    const next = blockPositionsOf(nudged(node, dx, dy));
-    delete next[node.id];
-    for (const n of dragged) next[n.id] = { x: n.position.x + dx, y: n.position.y + dy };
+    // 그룹 틀은 소속 노드로 바꿔 끈다 — 끼우기 판정(위)은 원래 끄는 것 기준이라 그룹은 선에 끼우지 않는다.
+    const moving = withGroupMembers(dragged, snapRef.current?.groups);
+    const { dx, dy } = snapStep(e, moving, target);
+    // 분기는 블록 멤버도 같은 만큼 옮긴다. 분기 자신은 React Flow 가 준 위치(그린 상자 좌상단)에 스냅 이동량만 더해 둔다 —
+    // 블록 위치의 분기 값은 저장 기준(접힌 분기면 foldOffsetX 만큼 다르다)이라 아래에서 덮어쓴다.
+    const next: Record<string, FlowPos> = {};
+    for (const n of moving) Object.assign(next, blockPositionsOf(nudged(n, dx, dy)));
+    for (const n of moving) next[n.id] = { x: n.position.x + dx, y: n.position.y + dy };
     setDrag((d) => ({ ...d, ...next }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editable, rf, setDropEdge, snapStore]);
@@ -1396,7 +1456,7 @@ function Inner(props: FlowCanvasProps) {
     const noteIds = new Set(flow.view.notes.map((n) => n.id));
     const moved: Record<string, FlowPos> = {};
     const movedNotes: Record<string, FlowPos> = {};
-    for (const raw of dragged) {
+    for (const raw of withGroupMembers(dragged, snap?.groups)) {
       const n = nudged(raw, dx, dy);
       const p = { x: Math.round(n.position.x), y: Math.round(n.position.y) };
       if (noteIds.has(n.id)) movedNotes[n.id] = p;
@@ -1409,11 +1469,19 @@ function Inner(props: FlowCanvasProps) {
       if (Object.keys(movedNotes).length > 0) onMove({}, movedNotes); // 메모만 끌었어도 놓을 때 한 번(B5)
       return;
     }
+    // 같은 만큼 옮긴 흐름 노드(스냅 고정 대상을 더하기 전) — 둘 이상이면 그 사이 선의 꺾는 점을 함께 옮긴다.
+    const from = snap?.start.get(node.id);
+    const shiftIds = Object.keys(moved);
+    const shift: MoveShift | null =
+      from && shiftIds.length > 1
+        ? { ids: shiftIds, dx: Math.round(node.position.x + dx - from.x), dy: Math.round(node.position.y + dy - from.y) }
+        : null;
     pinSnapTargets(moved, snap?.targets ?? NO_TARGETS);
     if (target && dragged.length === 1 && isMovable(node)) {
       onMoveNode(node.id, target, moved);
       setDrag({}); // 옮기기가 거부돼 흐름이 그대로면 끌던 위치를 되돌린다(성공하면 새 흐름 위치가 정본)
-    } else if (Object.keys(movedNotes).length > 0) onMove(moved, movedNotes);
+    } else if (shift && (shift.dx !== 0 || shift.dy !== 0)) onMove(moved, movedNotes, shift);
+    else if (Object.keys(movedNotes).length > 0) onMove(moved, movedNotes);
     else onMove(moved);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editable, flow, onMove, onMoveNode, setDropEdge, snapStore]);
@@ -1818,7 +1886,8 @@ function Inner(props: FlowCanvasProps) {
     if (!alignSourceRef) return;
     alignSourceRef.current = () => {
       const cur = fullRef.current;
-      const known = new Set([...cur.nodes.map((n) => n.id), ...cur.view.notes.map((n) => n.id)]);
+      // 그룹도 넘긴다 — 화살표 옮기기는 소속 노드로 펼치고, 정렬·간격은 그룹을 세지 않는다.
+      const known = new Set([...cur.nodes.map((n) => n.id), ...cur.view.notes.map((n) => n.id), ...cur.view.groups.map((g) => g.id)]);
       let ids = [...rfSelRef.current].filter((id) => known.has(id));
       if (ids.length === 0 && selectedIdRef.current && known.has(selectedIdRef.current)) ids = [selectedIdRef.current];
       return { ids, drawn: spaceDrawnRef.current(), blocks: viewRef.current.blocks };
