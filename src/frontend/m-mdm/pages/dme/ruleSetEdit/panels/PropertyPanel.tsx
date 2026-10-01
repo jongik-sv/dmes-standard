@@ -6,6 +6,7 @@
  * - 룰: 룰명·룰 ID·종류·정책·확정 버전, 입력 변수(출처 배지·어디서 오는지·걸린 검사 문구), 결과 변수, [룰 편집 열기], [지우기].
  * - IF: 분기 이름, 갈래(order 순, "그 외" 마지막)의 이름·조건식·▲▼✕·검사 문구, [갈래 더하기]. 병렬: 갈래 이름·▲▼✕·[갈래 더하기].
  * - 룰·빈 단계: 편집 모드면 「외관」 섹션(S1, NodeStylePanel)
+ * - 룰·빈 단계·분기·시작·끝: 「설명」 여러 줄 입력 칸(`view.descs`, 최대 1000자). 보기 모드는 읽기 전용, 입력하는 동안은 되돌리기 한 칸으로 묶는다. 합류는 없다.
  * - 합류·시작·끝: 종류 설명. 메모: 글. 그룹: 제목.
  * 갈래는 머리행 있는 표가 아니라 칸 묶음으로 쌓는다(입력 요소를 그리드 칸에 두지 않는다, Local-Rules §12).
  * 4단계 Task 8: 머리글(이름)은 `SidePanel`, 각 소제목은 접는 섹션(`Section`) — testid 는 그대로.
@@ -31,11 +32,13 @@ import {
   TASK_LABEL,
   updateEdge,
   updateGroup,
+  updateNodeDesc,
   updateNodeLabel,
   updateNote,
   type EditFlow,
   type EditResult,
 } from "../flow-edit";
+import { MAX_DESC } from "../node-desc";
 import { restyleNode, type NodeLayoutSource } from "../flow-layout";
 import { parseFlow, type FlowTree } from "../flow-model";
 import type { NodeStylePatch } from "../node-style";
@@ -99,6 +102,23 @@ function CheckLines({ checks }: { checks: readonly RuleSetCheck[] }) {
   );
 }
 
+/** 노드 설명 입력 칸 — 편집은 노드 제목 고치기처럼 입력하는 동안 mergeKey 로 한 칸에 묶는다. 보기 모드(editable 거짓)는 읽기 전용. */
+function DescField({ node, props }: { node: FlowNode; props: PropertyPanelProps }) {
+  const { flow, editable, onEdit } = props;
+  return (
+    <Textarea
+      data-testid="flow-prop-desc"
+      value={flow.view.descs?.[node.id] ?? ""}
+      rows={3}
+      maxLength={MAX_DESC}
+      readOnly={!editable}
+      placeholder={editable ? "이 노드가 하는 일을 적는다" : ""}
+      aria-label="노드 설명"
+      onChange={(v) => onEdit((f) => updateNodeDesc(f, node.id, v), { mergeKey: `ndesc:${node.id}` })}
+    />
+  );
+}
+
 function DeleteButton({ onClick }: { onClick: () => void }) {
   return (
     <Button data-testid="flow-prop-delete" variant="danger" size="sm" onClick={onClick}>
@@ -143,6 +163,12 @@ function RuleProps({ node, io, tree, props }: { node: FlowNode; io: RuleIo | und
                   readOnly={!editable}
                   onChange={(v) => onEdit((f) => updateNodeLabel(f, node.id, blankToNull(v)), { mergeKey: `nlabel:${node.id}` })}
                 />
+              </td>
+            </tr>
+            <tr>
+              <th style={DETAIL_LABEL_CELL}>설명</th>
+              <td style={DETAIL_VALUE_CELL}>
+                <DescField node={node} props={props} />
               </td>
             </tr>
             <tr>
@@ -259,6 +285,12 @@ function TaskProps({ node, props }: { node: FlowNode; props: PropertyPanelProps 
               </td>
             </tr>
             <tr>
+              <th style={DETAIL_LABEL_CELL}>설명</th>
+              <td style={DETAIL_VALUE_CELL}>
+                <DescField node={node} props={props} />
+              </td>
+            </tr>
+            <tr>
               <th style={DETAIL_LABEL_CELL}>노드 ID</th>
               <td style={DETAIL_VALUE_CELL}>
                 <code>{node.id}</code>
@@ -316,6 +348,12 @@ function SplitProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
                   readOnly={!editable}
                   onChange={(v) => onEdit((f) => updateNodeLabel(f, node.id, blankToNull(v)), { mergeKey: `nlabel:${node.id}` })}
                 />
+              </td>
+            </tr>
+            <tr>
+              <th style={DETAIL_LABEL_CELL}>설명</th>
+              <td style={DETAIL_VALUE_CELL}>
+                <DescField node={node} props={props} />
               </td>
             </tr>
           </tbody>
@@ -431,12 +469,14 @@ function SplitProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
   );
 }
 
-function PlainNodeProps({ node, sections }: { node: FlowNode; sections: SectionMemory }) {
+function PlainNodeProps({ node, props }: { node: FlowNode; props: PropertyPanelProps }) {
+  const { sections } = props;
   const text = node.kind === "MERGE" ? `합류 — 분기 ${node.splitId ?? "-"}의 갈래가 여기서 모인다. 분기를 지우면 함께 없어진다` : KIND_TEXT[node.kind];
   return (
     <div className="rsf-panel" data-testid="flow-prop-node">
       <Section kind={node.kind as PanelKind} id="node-basic" title="설명" memory={sections}>
         <p className="rsf-panel-note">{text}</p>
+        {node.kind !== "MERGE" && <DescField node={node} props={props} />}
       </Section>
     </div>
   );
@@ -451,7 +491,7 @@ export function PropertyPanel(props: PropertyPanelProps) {
     if (node.kind === "TASK") return <TaskProps node={node} props={props} />;
     if (node.kind === "RULE") return <RuleProps node={node} io={node.ruleId ? rules[node.ruleId] : undefined} tree={tree} props={props} />;
     if (node.kind === "IF" || node.kind === "PARALLEL") return <SplitProps node={node} props={props} />;
-    return <PlainNodeProps node={node} sections={props.sections} />;
+    return <PlainNodeProps node={node} props={props} />;
   }
 
   const note = flow.view.notes.find((n) => n.id === selectedId);

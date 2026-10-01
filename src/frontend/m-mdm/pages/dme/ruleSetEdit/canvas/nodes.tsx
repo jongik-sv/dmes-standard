@@ -14,7 +14,7 @@
  */
 import { useContext, useRef, useState, type CSSProperties, type HTMLAttributes, type MouseEvent, type ReactNode } from "react";
 
-import { IconExternalLink, IconPencil } from "@tabler/icons-react";
+import { IconExternalLink, IconInfoCircle, IconPencil } from "@tabler/icons-react";
 
 import type { FlowNode } from "@/contract/engine-contract.generated";
 
@@ -63,6 +63,8 @@ export type FlowNodeData = {
   style?: NodeStyle;
   /** 편집 모드이고 하나만 고른 RULE·TASK(접힌 상자 아님) — 오른쪽·아래·오른쪽 아래 크기 손잡이(S1 §2.2). */
   resizable?: boolean;
+  /** 노드 설명(`view.descs`) — 있으면 제목 옆에 설명 아이콘을 그리고 title 로 전체를 보인다. 접힌 분기 상자는 설명을 그리지 않는다. */
+  desc?: string;
 };
 export type NoteNodeData = { note: FlowNote; selected: boolean; editable: boolean; onChange: (id: string, patch: Partial<FlowNote>) => void };
 export type GroupNodeData = { id: string; title: string; selected: boolean; /** 편집 모드이고 고른 그룹 — 네 모서리·네 변 크기 손잡이(G2). */ resizable: boolean };
@@ -94,10 +96,22 @@ export function titleLines(h: number, smallRows: number): number {
   return Math.max(1, Math.floor((h - PAD_Y - smallRows * SMALL_LINE) / TITLE_LINE));
 }
 
-/** 아이콘(있으면) + 제목. 여러 줄이면 data-lines 와 줄 수 `--rsf-lines`(CSS 가 line-clamp 로 쓴다). 제목 칸의 testid·두 번 누르기는 그대로 넘긴다. */
-function TitleRow({ nodeId, style, lines, titleProps, children }: {
+/** 설명 아이콘 — 설명이 있을 때만. 마우스를 올리면 title 로 설명 전체가 툴팁으로 보인다(shared 에 Tooltip 래퍼가 없어 title 을 쓴다). */
+function DescIcon({ nodeId, desc }: { nodeId: string; desc: string | undefined }) {
+  if (!desc) return null;
+  return (
+    <span className="rsf-desc-icon" data-testid={`flow-node-desc-${nodeId}`} title={desc} aria-label={`설명: ${desc}`}>
+      <IconInfoCircle size={14} aria-hidden="true" />
+    </span>
+  );
+}
+
+/** 아이콘(있으면) + 제목(+ 설명 아이콘). 여러 줄이면 data-lines 와 줄 수 `--rsf-lines`(CSS 가 line-clamp 로 쓴다). 제목 칸의 testid·두 번 누르기는 그대로 넘긴다. */
+function TitleRow({ nodeId, style, lines, desc, titleProps, children }: {
   nodeId: string;
   style: NodeStyle | undefined;
+  /** 보일 설명(표시 항목에서 숨겼으면 undefined). */
+  desc?: string;
   lines: number;
   titleProps?: HTMLAttributes<HTMLDivElement> & { "data-testid"?: string };
   children: ReactNode;
@@ -119,6 +133,7 @@ function TitleRow({ nodeId, style, lines, titleProps, children }: {
       >
         {children}
       </div>
+      <DescIcon nodeId={nodeId} desc={desc} />
     </div>
   );
 }
@@ -152,9 +167,10 @@ function RuleBody({ data }: { data: FlowNodeData }) {
   const showSub = !hide.has("sub");
   const showId = small !== "" && !hide.has("id");
   const lines = titleLines(style?.h ?? NODE_H_MIN, (showSub ? 1 : 0) + (showId ? 1 : 0));
+  const desc = hide.has("desc") ? undefined : data.desc;
   return (
     <>
-      <EditableTitle node={node} style={style} lines={lines} shown={title} fallback={base} testPrefix="flow-rule-title" inputLabel="룰 노드 이름" onRename={onRenameTask} />
+      <EditableTitle node={node} style={style} lines={lines} desc={desc} shown={title} fallback={base} testPrefix="flow-rule-title" inputLabel="룰 노드 이름" onRename={onRenameTask} />
       {showSub && <div className="rsf-sub">{missing ? "룰 정보를 찾지 못했다" : [io.ruleKind, io.hitPolicy].filter(Boolean).join(" · ")}</div>}
       {showId && <div className="rsf-id">{small}</div>}
       {!hide.has("open") && (
@@ -181,9 +197,10 @@ function RuleBody({ data }: { data: FlowNodeData }) {
  * `shown` 은 지금 보이는 제목이다 — 칸의 처음 값이고, 닫을 때 새 제목이 `shown` 과 같으면 편집을 만들지 않는다.
  * `fallback` 은 라벨이 없을 때 보이는 제목(빈 단계 기본 제목·룰명)이라 빈 값으로 닫았을 때의 새 제목이다.
  */
-function EditableTitle({ node, style, lines, shown, fallback, testPrefix, inputLabel, onRename }: {
+function EditableTitle({ node, style, lines, desc, shown, fallback, testPrefix, inputLabel, onRename }: {
   node: FlowNode;
   style: NodeStyle | undefined;
+  desc?: string;
   lines: number;
   shown: string;
   fallback: string;
@@ -242,6 +259,7 @@ function EditableTitle({ node, style, lines, shown, fallback, testPrefix, inputL
       nodeId={node.id}
       style={style}
       lines={lines}
+      desc={desc}
       titleProps={{
         className: "nopan",
         "data-testid": `${testPrefix}-${node.id}`,
@@ -264,9 +282,10 @@ function TaskBody({ data }: { data: FlowNodeData }) {
   const { node, mark, onRenameTask, style } = data;
   const showSub = !(style?.hide ?? []).includes("sub");
   const lines = titleLines(style?.h ?? NODE_H_MIN, showSub ? 1 : 0);
+  const desc = (style?.hide ?? []).includes("desc") ? undefined : data.desc;
   return (
     <>
-      <EditableTitle node={node} style={style} lines={lines} shown={node.label ?? TASK_LABEL} fallback={TASK_LABEL} testPrefix="flow-task-title" inputLabel="빈 단계 제목" onRename={onRenameTask} />
+      <EditableTitle node={node} style={style} lines={lines} desc={desc} shown={node.label ?? TASK_LABEL} fallback={TASK_LABEL} testPrefix="flow-task-title" inputLabel="빈 단계 제목" onRename={onRenameTask} />
       {showSub && <div className="rsf-sub">빈 단계 — 룰을 지정하면 룰 노드가 된다</div>}
       {mark && <span className="rsf-mark" data-severity={mark} data-testid={`flow-node-mark-${node.id}`} />}
     </>
@@ -397,18 +416,23 @@ export function FlowNodeView({ data, isConnectable }: NodeProps<FlowRfNode>) {
       {collapsed && mark && <span className="rsf-mark" data-severity={mark} data-testid={`flow-node-mark-${node.id}`} />}
       {!collapsed && kind === "START" && <span>시작</span>}
       {!collapsed && kind === "END" && <span>끝</span>}
+      {!collapsed && (kind === "START" || kind === "END") && <DescIcon nodeId={node.id} desc={data.desc} />}
       {!collapsed && kind === "RULE" && <RuleBody data={data} />}
       {!collapsed && kind === "TASK" && <TaskBody data={data} />}
       {!collapsed && kind === "IF" && (
         <>
           <span className="rsf-diamond" aria-hidden="true" />
           <span className="rsf-title">{node.label ?? "조건"}</span>
+          <DescIcon nodeId={node.id} desc={data.desc} />
           {mark && <span className="rsf-mark" data-severity={mark} data-testid={`flow-node-mark-${node.id}`} />}
         </>
       )}
       {!collapsed && kind === "PARALLEL" && (
         <>
-          <span className="rsf-par-label">{node.label ?? "병렬"}</span>
+          <span className="rsf-par-label">
+            {node.label ?? "병렬"}
+            <DescIcon nodeId={node.id} desc={data.desc} />
+          </span>
           {mark && <span className="rsf-mark" data-severity={mark} data-testid={`flow-node-mark-${node.id}`} />}
         </>
       )}

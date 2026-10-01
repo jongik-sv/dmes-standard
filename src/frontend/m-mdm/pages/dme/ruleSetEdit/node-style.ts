@@ -4,7 +4,7 @@
  * 기본값과 같은 칸(default 색·232·68·빈 hide)은 두지 않고, 남는 칸이 없으면 노드 키도 두지 않는다 — 외관 없는 세트의 저장 글자가 예전과 같다.
  */
 export type NodeColor = "default" | "blue" | "orange" | "green" | "red" | "purple";
-export type NodePart = "sub" | "id" | "open";
+export type NodePart = "sub" | "id" | "open" | "desc";
 export type NodeIcon = "calc" | "check" | "filter" | "calendar" | "money" | "alert" | "database" | "ruler" | "scale" | "truck" | "settings" | "flag";
 export type NodeShape = "square" | "pill";
 /** 패널 모양 고르기 — round 는 칸 지우기(지금 모양). */
@@ -34,8 +34,9 @@ export const NODE_COLORS: readonly NodeColor[] = ["default", "blue", "orange", "
 export const NODE_COLOR_LABEL: Readonly<Record<NodeColor, string>> = {
   default: "기본", blue: "파랑", orange: "주황", green: "초록", red: "빨강", purple: "보라",
 };
-export const NODE_PARTS: readonly NodePart[] = ["sub", "id", "open"];
-export const NODE_PART_LABEL: Readonly<Record<NodePart, string>> = { sub: "종류·정책 줄", id: "룰 ID 줄", open: "룰 편집 열기 단추" };
+/** 순서가 곧 `hide` 저장 순서다 — 새 항목은 맨 뒤에 더해 예전 저장 글자를 지킨다. */
+export const NODE_PARTS: readonly NodePart[] = ["sub", "id", "open", "desc"];
+export const NODE_PART_LABEL: Readonly<Record<NodePart, string>> = { sub: "종류·정책 줄", id: "룰 ID 줄", open: "룰 편집 열기 단추", desc: "설명 아이콘" };
 /** 빈 단계의 `sub` 이름(빈 단계에는 `id`·`open` 이 없다). */
 export const TASK_SUB_LABEL = "안내 줄";
 export const NODE_ICONS: readonly NodeIcon[] = ["calc", "check", "filter", "calendar", "money", "alert", "database", "ruler", "scale", "truck", "settings", "flag"];

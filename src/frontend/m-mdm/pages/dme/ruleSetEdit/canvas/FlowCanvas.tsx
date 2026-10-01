@@ -1251,6 +1251,7 @@ function Inner(props: FlowCanvasProps) {
         dropTarget: dropNode === n.id,
         onRenameTask: editable ? onRenameTask : undefined,
         style: block ? undefined : vflow.view.styles?.[n.id],
+        desc: block ? undefined : vflow.view.descs?.[n.id],
         resizable: editable && single && selectedId === n.id && !block && STYLED_KINDS.has(n.kind),
       };
       out.push({

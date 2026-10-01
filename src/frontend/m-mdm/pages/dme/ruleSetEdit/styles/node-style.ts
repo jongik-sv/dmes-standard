@@ -56,6 +56,12 @@ ${COLOR_RULES}
 .rsf-title-row > .rsf-title { flex: 1 1 auto; min-width: 0; }
 .rsf-node-icon { flex: none; display: inline-flex; width: 16px; height: 16px; color: var(--color-text-secondary); }
 
+/* 설명 아이콘(제목 옆, 마우스를 올리면 title 툴팁). 시작·끝·분기·병렬 라벨 옆에도 같은 모양. */
+.rsf-desc-icon { flex: none; display: inline-flex; align-items: center; width: 14px; height: 14px; margin-left: 4px; color: var(--color-text-muted); cursor: help; }
+.rsf-title-row > .rsf-desc-icon { margin-left: 0; margin-top: 1px; }
+.rsf-node:where([data-color]) .rsf-desc-icon { color: inherit; }
+.rsf-par-label .rsf-desc-icon { vertical-align: middle; }
+
 /* 높이를 키운 노드의 제목 — 줄바꿈하고 남는 줄 수만큼 보인 뒤 말줄임(S-D11). 줄 수는 노드가 인라인 --rsf-lines 로 준다. */
 .rsf-title[data-lines] {
   white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical;

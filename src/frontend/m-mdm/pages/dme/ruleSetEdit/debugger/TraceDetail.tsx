@@ -72,6 +72,16 @@ const ROW_COLUMNS: GridColumn[] = [
   { key: "firstFalse", header: "처음 거짓 열", width: 110 },
 ];
 
+/** 노드 설명(`view.descs`) — 있을 때만. 줄바꿈은 그대로 보인다. 지금 편집 중인 흐름의 설명이다(실행 사본에는 view 가 없다). */
+export function NodeDescNote({ desc }: { desc: string | undefined }) {
+  if (!desc) return null;
+  return (
+    <p className="rsf-panel-note rsf-node-desc" data-testid="sim-detail-desc" style={{ whiteSpace: "pre-wrap" }}>
+      {desc}
+    </p>
+  );
+}
+
 export interface TraceDetailProps {
   nodeId: string;
   /** 이 노드의 기록. 이번 실행에서 실행되지 않았으면 null. */
@@ -80,10 +90,12 @@ export interface TraceDetailProps {
   flow: RuleSetFlow;
   /** 세트 전체 위반(노드에 위반이 없을 때 대신 보인다). */
   traceViolations: readonly Violation[];
+  /** 이 노드의 설명(`view.descs`). 없으면 보이지 않는다. */
+  desc?: string;
   onOpenRule: (ruleId: string) => void;
 }
 
-export function TraceDetail({ nodeId, node, flow, traceViolations, onOpenRule }: TraceDetailProps) {
+export function TraceDetail({ nodeId, node, flow, traceViolations, desc, onOpenRule }: TraceDetailProps) {
   const edges = useMemo(() => new Map(flow.edges.map((e) => [e.id, e] as const)), [flow]);
   const edgeName = (id: string) => edges.get(id)?.label ?? id;
   const flowNode = flow.nodes.find((n) => n.id === nodeId);
@@ -106,6 +118,7 @@ export function TraceDetail({ nodeId, node, flow, traceViolations, onOpenRule }:
         <p className="rsf-panel-title">
           {flowNode?.label ?? nodeId} <code>{nodeId}</code>
         </p>
+        <NodeDescNote desc={desc} />
         <p className="rsf-panel-note">이번 실행에서 실행되지 않은 노드다</p>
       </div>
     );
@@ -126,6 +139,7 @@ export function TraceDetail({ nodeId, node, flow, traceViolations, onOpenRule }:
           <span style={badgeStyle("neutral")}>{`${node.seq}단계`}</span>
         </span>
       </div>
+      <NodeDescNote desc={desc} />
 
       {node.kind === "TASK" && (
         <p className="rsf-muted" data-testid="sim-detail-task">

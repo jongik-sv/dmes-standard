@@ -81,7 +81,7 @@ export function NodeStylePanel({ node, style, disabled, onChange }: NodeStylePan
   const hide = style?.hide ?? [];
   const w = style?.w ?? NODE_W_MIN;
   const h = style?.h ?? NODE_H_MIN;
-  const parts: readonly NodePart[] = node.kind === "RULE" ? NODE_PARTS : ["sub"];
+  const parts: readonly NodePart[] = node.kind === "RULE" ? NODE_PARTS : ["sub", "desc"];
   const partLabel = (p: NodePart) => (node.kind === "TASK" && p === "sub" ? TASK_SUB_LABEL : NODE_PART_LABEL[p]);
   return (
     <div className="rsf-style" data-testid="flow-style">

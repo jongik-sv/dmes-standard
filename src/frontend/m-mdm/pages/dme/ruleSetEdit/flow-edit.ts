@@ -8,10 +8,12 @@
  * 3단계(계획 P6)는 옮기기·룰 바꾸기·복사·붙여넣기·복제·분기 종류 바꾸기·분기 풀기·갈래 순서를 더한다(파일 끝).
  * 4단계(계획 Task 9): 빈 단계(TASK) 끼우기·룰 지정, 빈 단계는 지우기·옮기기·복사에서 룰과 같다.
  * 외관(S1): `view.styles` 의 노드 외관은 `stylesFor` 로 toEditFlow·clone·done·dropNodes 에서 정리하고, `setNodeStyle` 이 바꾼다(파일 끝).
+ * 설명: `view.descs` 의 노드 설명도 같은 자리에서 `descsFor` 로 정리하고, `updateNodeDesc` 가 바꾼다(`node-desc.ts`).
  */
 import type { FlowEdge, FlowNode, FlowNodeKind, RuleSetFlow } from "@/contract/engine-contract.generated";
 
 import { linearFlow } from "./flow-model";
+import { descsFor, normalizeDesc, trimDesc } from "./node-desc";
 import { mergeNodeStyle, normalizeNodeStyle, stylesFor, type NodeColor, type NodeStyle, type NodeStylePatch } from "./node-style";
 
 export interface FlowPos {
@@ -51,6 +53,8 @@ export interface FlowView {
   labels: Record<string, EdgeLabelOffsets>;
   /** 노드 ID → 외관(S1, 룰·빈 단계만). 비면 키를 두지 않는다(저장 글자·dirty 비교가 예전 세트와 같다, S-D1). */
   styles?: Record<string, NodeStyle>;
+  /** 노드 ID → 설명(RULE·TASK·IF·PARALLEL·START·END, 최대 1000자). 비면 키를 두지 않는다(저장 글자·dirty 비교가 예전 세트와 같다). */
+  descs?: Record<string, string>;
 }
 /** 선 이름표 오프셋(흐름 좌표, 정수). 기본 자리(선 끝·경로에서 계산한 자리)에 더한다 — 선 끝이 움직여도 기본 자리를 따라간다. */
 export interface LabelOffset {
@@ -169,10 +173,11 @@ function labelsFor(
   return out;
 }
 
-/** view 에 외관을 싣는다 — 비면 styles 키를 두지 않는다(계획 Ruling 1). 나머지 칸은 그대로(복사하지 않는다). */
-function withStyles(v: FlowView, styles: Record<string, NodeStyle>): FlowView {
+/** view 에 외관·설명을 싣는다 — 비면 styles·descs 키를 두지 않는다(계획 Ruling 1). 나머지 칸은 그대로(복사하지 않는다). 키 순서는 …labels, styles, descs. */
+function withStyles(v: FlowView, styles: Record<string, NodeStyle>, descs: Record<string, string> = {}): FlowView {
   const out: FlowView = { positions: v.positions, notes: v.notes, groups: v.groups, routes: v.routes, labels: v.labels };
   if (Object.keys(styles).length > 0) out.styles = styles;
+  if (Object.keys(descs).length > 0) out.descs = descs;
   return out;
 }
 
@@ -183,7 +188,7 @@ function copyView(v: FlowView | undefined, nodes: readonly FlowNode[], edges: re
     positions, notes: (v?.notes ?? []).map(copyNote), groups: (v?.groups ?? []).map(copyGroup), routes: routesFor(edges, v?.routes),
     labels: labelsFor(edges, v?.labels),
   };
-  return withStyles(view, stylesFor(nodes, v?.styles));
+  return withStyles(view, stylesFor(nodes, v?.styles), descsFor(nodes, v?.descs));
 }
 
 /** 고쳐도 되는 깊은 복사본(칸을 모두 채운다). 흐름에 없는 선의 경로·이름표 오프셋, 흐름에 없는 노드·룰/빈 단계가 아닌 노드의 외관은 버린다. */
@@ -244,6 +249,14 @@ function sanitizeView(raw: unknown): FlowView {
     }
     if (Object.keys(styles).length > 0) view.styles = styles;
   }
+  if (isObj(raw.descs)) {
+    const descs: Record<string, string> = {};
+    for (const [k, d] of Object.entries(raw.descs)) {
+      const t = trimDesc(d); // 읽을 때 앞뒤 공백을 지운다(편집 중에는 지우지 않는다)
+      if (t !== null) descs[k] = t;
+    }
+    if (Object.keys(descs).length > 0) view.descs = descs;
+  }
   return view;
 }
 
@@ -281,7 +294,7 @@ const done = (flow: EditFlow): EditResult => {
   if (!flow.view) return { ok: true, flow };
   const routes = routesFor(flow.edges, flow.view.routes);
   const labels = labelsFor(flow.edges, flow.view.labels);
-  return { ok: true, flow: { ...flow, view: withStyles({ ...flow.view, routes, labels }, stylesFor(flow.nodes, flow.view.styles)) } };
+  return { ok: true, flow: { ...flow, view: withStyles({ ...flow.view, routes, labels }, stylesFor(flow.nodes, flow.view.styles), descsFor(flow.nodes, flow.view.descs)) } };
 };
 const findNode = (f: EditFlow, id: string) => f.nodes.find((n) => n.id === id);
 const findEdge = (f: EditFlow, id: string) => f.edges.find((e) => e.id === id);
@@ -350,7 +363,7 @@ function dropNodes(f: EditFlow, ids: ReadonlySet<string>): EditFlow {
   const notes = f.view.notes.map((n) => (n.attach != null && ids.has(n.attach) ? { ...n, attach: null } : n));
   return {
     version: f.version, nodes, edges,
-    view: withStyles({ positions, notes, groups, routes: f.view.routes, labels: f.view.labels }, stylesFor(nodes, f.view.styles)),
+    view: withStyles({ positions, notes, groups, routes: f.view.routes, labels: f.view.labels }, stylesFor(nodes, f.view.styles), descsFor(nodes, f.view.descs)),
   };
 }
 
@@ -370,17 +383,21 @@ export function toEditFlow(raw: (RuleSetFlow & { view?: unknown }) | null, ruleI
     version: 1,
     nodes,
     edges,
-    view: withStyles({ ...view, routes: routesFor(edges, view.routes), labels: labelsFor(edges, view.labels) }, stylesFor(nodes, view.styles)),
+    view: withStyles({ ...view, routes: routesFor(edges, view.routes), labels: labelsFor(edges, view.labels) }, stylesFor(nodes, view.styles), descsFor(nodes, view.descs)),
   };
 }
 
-/** P2 정규 JSON 과 같은 키 순서의 문자열. view 항목도 고정 키 순서로 쓴다 — 외관(styles)은 있을 때만 마지막 키(S-D1). */
+/**
+ * P2 정규 JSON 과 같은 키 순서의 문자열. view 항목도 고정 키 순서로 쓴다 — 외관(styles)과 설명(descs)은 있을 때만 이 순서로 뒤에 둔다(S-D1).
+ * 설명은 쓸 때 앞뒤 공백을 지운다(편집 중 상태는 공백을 그대로 둔다 — 입력 중 단어 사이 공백이 사라지지 않게).
+ */
 export function flowJsonOf(f: EditFlow): string {
   const c = clone(f);
   const v = c.view;
+  const descs = descsFor(c.nodes, v.descs, true);
   return JSON.stringify({
     version: 1, nodes: c.nodes, edges: c.edges,
-    view: { positions: v.positions, notes: v.notes, groups: v.groups, routes: v.routes, labels: v.labels, ...(v.styles ? { styles: v.styles } : {}) },
+    view: { positions: v.positions, notes: v.notes, groups: v.groups, routes: v.routes, labels: v.labels, ...(v.styles ? { styles: v.styles } : {}), ...(Object.keys(descs).length > 0 ? { descs } : {}) },
   });
 }
 
@@ -781,6 +798,8 @@ export interface Fragment {
   exit: string;
   /** 조각 노드의 외관(S-D10 — 붙여 넣을 때 새 ID 로 옮긴다). 없으면 키가 없다. */
   styles?: Record<string, NodeStyle>;
+  /** 조각 노드의 설명(붙여 넣을 때 새 ID 로 옮긴다). 없으면 키가 없다. */
+  descs?: Record<string, string>;
 }
 
 /** 붙여 넣을 때 새 ID 접두어(종류별). START·END 는 조각에 들지 않는다. */
@@ -910,14 +929,21 @@ function fragmentStyles(f: EditFlow, nodes: readonly FlowNode[]): Record<string,
   return Object.keys(s).length > 0 ? s : undefined;
 }
 
-/** 룰 노드 하나 또는 분기 블록(합류까지)의 깊은 복사(조각 노드의 외관 포함). 문자열이면 거부 사유다. */
+/** 조각 노드의 설명(없으면 undefined — 키를 싣지 않는다). */
+function fragmentDescs(f: EditFlow, nodes: readonly FlowNode[]): Record<string, string> | undefined {
+  const d = descsFor(nodes, f.view?.descs);
+  return Object.keys(d).length > 0 ? d : undefined;
+}
+
+/** 룰 노드 하나 또는 분기 블록(합류까지)의 깊은 복사(조각 노드의 외관·설명 포함). 문자열이면 거부 사유다. */
 export function copyFragment(f: EditFlow, nodeId: string): Fragment | string {
   const n = findNode(f, nodeId);
   if (!n) return notFound(nodeId);
   if (isStep(n.kind)) {
     const nodes = [copyNode(n)];
     const styles = fragmentStyles(f, nodes);
-    return { nodes, edges: [], entry: nodeId, exit: nodeId, ...(styles ? { styles } : {}) };
+    const descs = fragmentDescs(f, nodes);
+    return { nodes, edges: [], entry: nodeId, exit: nodeId, ...(styles ? { styles } : {}), ...(descs ? { descs } : {}) };
   }
   if (!isSplitKind(n.kind)) return NO_COPY;
   const members = blockMembers(f, nodeId);
@@ -925,12 +951,14 @@ export function copyFragment(f: EditFlow, nodeId: string): Fragment | string {
   const inside = new Set(members);
   const nodes = f.nodes.filter((x) => inside.has(x.id)).map(copyNode);
   const styles = fragmentStyles(f, nodes);
+  const descs = fragmentDescs(f, nodes);
   return {
     nodes,
     edges: f.edges.filter((e) => inside.has(e.from) && inside.has(e.to)).map(copyEdge),
     entry: nodeId,
     exit: mergeOf(f, nodeId)!.id,
     ...(styles ? { styles } : {}),
+    ...(descs ? { descs } : {}),
   };
 }
 
@@ -977,6 +1005,11 @@ export function pasteFragment(f: EditFlow, edgeId: string, frag: Fragment): Edit
     const styles: Record<string, NodeStyle> = { ...g.view.styles };
     for (const [oldId, s] of Object.entries(frag.styles)) if (idOf.has(oldId)) styles[nid(oldId)] = s;
     g.view = { ...g.view, styles }; // done 이 노드 순서·정규화로 다시 맞춘다
+  }
+  if (frag.descs) {
+    const descs: Record<string, string> = { ...g.view.descs };
+    for (const [oldId, d] of Object.entries(frag.descs)) if (idOf.has(oldId)) descs[nid(oldId)] = d;
+    g.view = { ...g.view, descs };
   }
   return done(g);
 }
@@ -1107,4 +1140,23 @@ export function setNodesColor(f: EditFlow, nodeIds: readonly string[], color: No
     if (r.ok) cur = r.flow;
   }
   return cur;
+}
+
+// ───────────────────────── 노드 설명 ─────────────────────────
+
+/**
+ * 노드 하나의 설명을 바꾼다. 빈 값(null·공백뿐)이면 설명을 지우고, 1000자를 넘으면 자른다. 공백은 다듬지 않는다 — 입력하는 동안 단어 사이·끝 공백이
+ * 지워지지 않게 하고, 앞뒤 공백은 `flowJsonOf` 가 쓸 때 지운다. 합류(MERGE)와 없는 노드는 거부한다.
+ */
+export function updateNodeDesc(f: EditFlow, nodeId: string, text: string | null): EditResult {
+  const n = findNode(f, nodeId);
+  if (!n) return fail(notFound(nodeId));
+  if (n.kind === "MERGE") return fail("합류 노드에는 설명을 달 수 없다");
+  const g = clone(f);
+  const descs: Record<string, string> = { ...g.view.descs };
+  const next = normalizeDesc(text);
+  if (next !== null) descs[nodeId] = next;
+  else delete descs[nodeId];
+  g.view = { ...g.view, descs };
+  return done(g);
 }
