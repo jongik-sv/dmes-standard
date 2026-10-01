@@ -758,7 +758,18 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
   });
   // 선 끝 손잡이 두 번 누르기(U2) — 캔버스가 그 선의 지금 경로·양 끝을 읽어 꺾는 점을 더한다. 끝 손잡이를 끄는 동안 선이 잠깐 빠졌다 돌아와도 커밋 때 다시 건다.
   const geoRef = useRef<EdgeGeo>({ route: [], source: { x: sourceX, y: sourceY }, target: { x: targetX, y: targetY } });
-  geoRef.current = { route: route ?? [], source: { x: sourceX, y: sourceY }, target: { x: targetX, y: targetY } };
+  // 경로 없는 선은 자동 경로의 꺾임을 이어받는다(W1 Ruling) — 선 두 번 누르기·끝 손잡이 두 번 누르기가 같은 값을 쓴다. 정수로 반올림한다.
+  const inheritedRoute = (): FlowPos[] =>
+    route && route.length > 0
+      ? route
+      : autoRoute({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition }).map(roundPoint);
+  geoRef.current = {
+    get route() {
+      return inheritedRoute();
+    },
+    source: { x: sourceX, y: sourceY },
+    target: { x: targetX, y: targetY },
+  };
   const routeEditable = !!data?.routeEditable;
   useLayoutEffect(() => {
     if (!routeApi || !routeEditable) return;
@@ -778,7 +789,7 @@ function FlowEdgeView(props: EdgeProps<FlowRfEdge>) {
                 e.stopPropagation();
                 routeApi.addPoint(
                   id,
-                  route && route.length > 0 ? route : autoRoute({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition }),
+                  inheritedRoute(),
                   { x: sourceX, y: sourceY },
                   { x: targetX, y: targetY },
                   e.clientX,
@@ -1537,6 +1548,8 @@ function Inner(props: FlowCanvasProps) {
         if (!axis) return;
         e.stopPropagation();
         wrapRef.current?.focus({ preventScroll: true });
+        // 선분을 옮기면 점 번호가 바뀐다(끼움·합치기) — 고른 꺾는 점을 비워 Delete 가 엉뚱한 점을 빼지 않게 한다.
+        routeStore.sel = null;
         const sx = e.clientX;
         const sy = e.clientY;
         let lastDelta = 0;

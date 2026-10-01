@@ -20,7 +20,7 @@ vi.mock("@dagrejs/dagre", async (importOriginal) => {
 import { ADD_HOVER_GRACE_MS, FlowCanvas, addSpot, clampSegmentDelta, segmentBox, type FlowCanvasProps } from "../../../pages/dme/ruleSetEdit/canvas/FlowCanvas";
 import { Position, getSmoothStepPath } from "../../../pages/dme/ruleSetEdit/canvas/react-flow";
 import { ROUTE_RADIUS } from "../../../pages/dme/ruleSetEdit/canvas/route-path";
-import { setPositions, setRoute, toEditFlow, type EditFlow, type EditResult, type FlowPos } from "../../../pages/dme/ruleSetEdit/flow-edit";
+import { ROUTE_LIMIT_MESSAGE, setPositions, setRoute, toEditFlow, type EditFlow, type EditResult, type FlowPos } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { RSF_CSS } from "../../../pages/dme/ruleSetEdit/rsf-styles";
 import { flush, installDomStorage } from "../helpers/render";
 
@@ -255,6 +255,31 @@ describe("자동 점·선분 끌기", () => {
     expect(onRouteChange).toHaveBeenCalledWith("e2", [P(116, 92), P(300, 92), P(300, 250), P(716, 250)]);
   });
 
+  it("고른 선의 끝 손잡이를 두 번 눌러도 자동 경로의 꺾임을 이어받는다(U2) — 선이 대각선으로 튀지 않는다", async () => {
+    const onRouteChange = vi.fn();
+    await draw(props({ selectedEdgeId: "e2", onRouteChange, onReconnect: noop }));
+    const anchor = q("rf__edge-e2")!.querySelector(".react-flow__edgeupdater-target")!;
+    await fire(anchor, "dblclick", { clientX: 716, clientY: 390 });
+    expect(onRouteChange).toHaveBeenCalledTimes(1);
+    expect(onRouteChange).toHaveBeenCalledWith("e2", [P(116, 234), P(716, 234), P(716, 390)]);
+  });
+
+  it("선분을 끌어 놓은 뒤에는 고른 꺾는 점이 비워져 Delete(removeRoutePointRef)가 엉뚱한 점을 빼지 않는다", async () => {
+    const flow = ok(setRoute(wide(), "e2", [P(116, 150), P(300, 150), P(300, 250), P(716, 250)]));
+    const onRouteChange = vi.fn();
+    const ref = { current: null as (() => boolean) | null };
+    await draw(props({ flow, selectedEdgeId: "e2", onRouteChange, removeRoutePointRef: ref }));
+    await fire(q("flow-route-handle-e2-2")!, "pointerdown", { clientX: 300, clientY: 250, button: 0 });
+    await fire(window, "pointerup", { clientX: 300, clientY: 250 });
+    expect(q("flow-route-handle-e2-2")!.getAttribute("data-selected")).toBe("true");
+    await dragBar("flow-route-seg-e2-3", P(508, 250), P(508, 200)); // 안쪽 선분 — 점 수가 그대로여도 고른 점은 비운다
+    expect(onRouteChange).toHaveBeenCalledTimes(1);
+    onRouteChange.mockClear();
+    expect(ref.current!()).toBe(false);
+    expect(onRouteChange).not.toHaveBeenCalled();
+    expect(host.querySelector('[data-selected="true"]')).toBeNull();
+  });
+
   it("pointercancel·단추 뗀 움직임이면 올리지 않고 제자리로 돌아간다", async () => {
     const onRouteChange = vi.fn();
     await draw(props({ selectedEdgeId: "e2", onRouteChange }));
@@ -280,6 +305,44 @@ describe("자동 점·선분 끌기", () => {
     // r2(위 400)가 기준선 y 100 너머라 90 내려가 e2 가 (116,72)→(116,486) — 가운데는 [+] 자리라 출발 쪽 1/4
     expect(xy("flow-route-seg-e2-0")).toEqual(P(116, 72 + 414 / 4));
     await fire(window, "pointercancel", {});
+  });
+});
+
+describe("꺾는 점 상한", () => {
+  it("선분 끌기로 점이 20개를 넘으면 조용히 자르지 않고 거부(ROUTE_LIMIT_MESSAGE)하고 선은 끌기 전 모양으로 돌아간다", async () => {
+    const stair: FlowPos[] = [P(116, 100)];
+    let x = 116;
+    let y = 100;
+    for (let i = 0; i < 9; i++) {
+      x += 30;
+      stair.push(P(x, y));
+      y += 10;
+      stair.push(P(x, y));
+    }
+    expect(stair).toHaveLength(19);
+    const results: EditResult[] = [];
+    function CapHost() {
+      const [flow, setFlow] = useState(() => ok(setRoute(wide(), "e2", stair)));
+      return createElement(FlowCanvas, props({
+        flow, selectedEdgeId: "e2",
+        onRouteChange: (id: string, pts: FlowPos[]) => {
+          const r = setRoute(flow, id, pts);
+          results.push(r);
+          if (r.ok) setFlow(r.flow);
+        },
+      }));
+    }
+    await act(async () => {
+      root.render(wrap(createElement(CapHost)));
+    });
+    await flush();
+    const before = pathOf("e2");
+    await dragBar("flow-route-seg-e2-0", P(116, 86), P(126, 86)); // 노드에 붙은 첫 선분 — 짧은 선분 둘이 끼어 21개가 된다
+    await flush();
+    expect(results).toHaveLength(1);
+    expect(results[0].ok).toBe(false);
+    expect(!results[0].ok && results[0].reason).toBe(ROUTE_LIMIT_MESSAGE);
+    expect(pathOf("e2")).toBe(before);
   });
 });
 
