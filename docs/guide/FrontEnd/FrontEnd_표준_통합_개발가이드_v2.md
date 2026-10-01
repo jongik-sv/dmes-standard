@@ -17,6 +17,7 @@
 | 케이스 선택, 범위 외 시나리오, 완료 체크리스트, 동적 메뉴 인프라 | [03. 케이스, 체크리스트, 메뉴 인프라](standard-v2/frontend-standard/03-cases-checklist-menu.md) |
 | API 서비스, 페이지 본체, 재내보내기, 엔트리, tsup 템플릿 | [04. 표준 템플릿](standard-v2/frontend-standard/04-templates.md) |
 | `@dk-oasis/shared` 허용 목록, import 경로, 금지 사항 | [Part B. shared 사용 정책](standard-v2/part-b-shared-policy.md) |
+| **화면 모양(배치·버튼·그리드·상세 폼·메시지)을 정할 때** — 누가 만들어도 같은 모습이 나오게 하는 유형별 골격·고정값·타입 검사 통과 예제 | [화면 표준 골격](../../../.claude/skills/mantine-aggrid-ui/references/screen-patterns.md), 컴포넌트별 사용법 [`llms.txt`](../../../.claude/skills/mantine-aggrid-ui/references/components/llms.txt) |
 | 처음 구현하거나 E2E 예시가 필요할 때 | [Part C. Master 페이지 Quick Sample](standard-v2/part-c-master-sample.md) |
 | **m-mpn(APS) 개발 시** 로컬 공통 모듈(`src/_shared`·도메인 공통) 목록과 사용 규칙 | [Part D. m-mpn 공통 모듈 카탈로그](standard-v2/part-d-mpn-shared-catalog.md) |
 

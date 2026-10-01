@@ -275,7 +275,7 @@ import {
 } from "@dk-oasis/shared/message-provider";
 ```
 
-- MUST: 사용자 메시지 표시는 `useGfnMessage` 만 사용한다.
+- MUST: 사용자 메시지 표시는 이 모듈로만 한다. 새 화면은 `useMessage().showMessage`(객체 인자)를 쓰고, 상황별 문구·`alertType`·토스트 여부는 [`mantine-aggrid-ui` 스킬의 화면 표준 골격](../../../../.claude/skills/mantine-aggrid-ui/references/screen-patterns.md) §메시지 표를 따른다. `useGfnMessage`(위치 인자)는 기존 화면 호환용이다([UI 시각 표준 §8](../UI-Visual-Standard.md) 과 같은 범위).
 - MUST NOT: `alert`, `console.error`, 자작 토스트 사용.
 
 ---

@@ -7,10 +7,11 @@ Frontend, portal, shared package, private npm registry 관련 가이드는 이 �
 | 작업 | 먼저 읽을 문서 | 보조 문서 |
 |---|---|---|
 | Frontend 로컬 운영 규칙·UI 검증·중요 액션 UX | [`Local-Rules.md`](Local-Rules.md) | 본 인덱스 |
-| Frontend 화면 구현 (APS/MES 공통) | [`FrontEnd_표준_통합_개발가이드_v2.md`](FrontEnd_표준_통합_개발가이드_v2.md) | 화면별 기능/디자인설계서 |
+| Frontend 화면 구현 (APS/MES 공통) | [`FrontEnd_표준_통합_개발가이드_v2.md`](FrontEnd_표준_통합_개발가이드_v2.md) | 화면 모양은 [화면 표준 골격](../../../.claude/skills/mantine-aggrid-ui/references/screen-patterns.md)(유형별 예제·고정값), 화면별 기능/디자인설계서 |
 | Portal 화면/메뉴/BFF 개발 | [`Portal-Development-Guide.md`](Portal-Development-Guide.md) | [`Portal-Menu-Role-Policy.md`](Portal-Menu-Role-Policy.md) |
 | Portal 메뉴 역할 정책 | [`Portal-Menu-Role-Policy.md`](Portal-Menu-Role-Policy.md) | [`../Security/Security-Guide.md`](../Security/Security-Guide.md) |
 | private npm / Verdaccio | [`Verdaccio-Guide.md`](Verdaccio-Guide.md) | [`../Operations/DMES-Module-Package-Publishing-and-Consumption-Guide.md`](../Operations/DMES-Module-Package-Publishing-and-Consumption-Guide.md) |
+| MES 화면을 누가 만들어도 같은 모습이 나오게 하는 화면 유형별 골격·고정값·예제, shared 컴포넌트별 사용법 | [화면 표준 골격](../../../.claude/skills/mantine-aggrid-ui/references/screen-patterns.md) | [컴포넌트 색인 `llms.txt`](../../../.claude/skills/mantine-aggrid-ui/references/components/llms.txt), [Mantine 대응표](../../../.claude/skills/mantine-aggrid-ui/references/mantine-catalog.md) |
 | Mantine 9 · ag-grid-community 사용법 확인, 옛 API 이관, UI 규칙 자동 점검 | [`mantine-aggrid-ui` 스킬](../../../.claude/skills/mantine-aggrid-ui/SKILL.md) | 본 인덱스 §자동 점검 |
 | 화면 색·글꼴·크기·셸·토스트 등 시각 표준 | [`UI-Visual-Standard.md`](UI-Visual-Standard.md) | [`standard-v2/part-b-shared-policy.md`](standard-v2/part-b-shared-policy.md) §4, [`Local-Rules.md`](Local-Rules.md) §8 |
 | 공통 UI 기반(전 모듈 횡단) 결정 근거 확인 | [전 모듈 ADR-0001: 공통 UI 기반 Mantine 9 채택과 그리드 ag-grid-community 유지](../adr/0001-ui-library-mantine9-aggrid.md) | [`standard-v2/part-b-shared-policy.md`](standard-v2/part-b-shared-policy.md) |

@@ -59,7 +59,8 @@
 ### 3-1. types.ts
 
 ```ts
-export interface ProductRow {
+// useGridDataManager<T extends Record<string, unknown>> 제약 때문에 Record 를 확장한다.
+export interface ProductRow extends Record<string, unknown> {
   productId: string;
   productNm: string;
   productType: string;
@@ -77,12 +78,15 @@ export interface ProductSearchRequest {
 ### 3-2. constants.ts
 
 ```ts
-export const PRODUCT_COLUMNS = [
-  { key: "productId", header: "제품코드", width: 120 },
-  { key: "productNm", header: "제품명", width: 200 },
-  { key: "productType", header: "유형", width: 120 },
-  { key: "useYn", header: "사용", width: 80 },
-] as const;
+import type { GridColumn } from "@dk-oasis/shared/grid";
+
+// `as const` 를 붙이면 readonly 배열이 되어 AgDataGrid 의 columns(GridColumn[])에 들어가지 않는다.
+export const PRODUCT_COLUMNS: GridColumn[] = [
+  { key: "productId", header: "제품코드", width: 120, align: "left" },
+  { key: "productNm", header: "제품명", width: 180, align: "left" },
+  { key: "productType", header: "유형", width: 120, align: "left" },
+  { key: "useYn", header: "사용", width: 80, align: "center" },
+];
 
 export const USE_YN_OPTIONS = [
   { value: "", label: "전체" },
@@ -136,7 +140,6 @@ import {
   ContentBody,
   ContentPanel,
 } from "@dk-oasis/shared/layout";
-import { Button } from "@dk-oasis/shared/form";
 import { AgDataGrid, useGridDataManager } from "@dk-oasis/shared/grid";
 import { useApiCall } from "@dk-oasis/shared/use-api-call";
 import { searchProducts, saveProducts } from "./product-api";
@@ -163,16 +166,27 @@ const ProductPage: PortalShellPageComponent = () => {
   });
 
   const handleSearch = async () => {
-    const data = await apiCall(() => searchProducts(filter), { successMessage: "조회 완료" });
+    // successMessage 는 토스트가 아니라 모달로 뜬다. 조회 성공은 알리지 않는다(mantine-aggrid-ui screen-patterns §메시지).
+    const data = await apiCall(() => searchProducts(filter));
     if (data) grid.setRows(data);
   };
 
+  // buttons 는 JSX 가 아니라 PageButton 객체 배열이다(id·label·type·action 은 screen-patterns §상단 버튼).
   return (
     <PageLayout
       title="제품 관리"
+      screenId="mstProduct"
+      objId="mstProduct"
       buttons={[
-        <Button key="s" onClick={handleSearch}>조회</Button>,
-        <Button key="v" onClick={grid.save}>저장</Button>,
+        { id: "btn_search", label: "조회", onClick: () => void handleSearch(), type: "primary", action: "search" },
+        {
+          id: "btn_save",
+          label: "저장",
+          onClick: () => void grid.handleSave(),
+          type: "save",
+          disabled: grid.isSaving || !grid.hasChanges,
+          action: "save",
+        },
       ]}
     >
       <SearchArea>
@@ -186,7 +200,7 @@ const ProductPage: PortalShellPageComponent = () => {
       </SearchArea>
       <ContentBody root>
         <ContentPanel>
-          <AgDataGrid columns={PRODUCT_COLUMNS} data={grid.rows} />
+          <AgDataGrid rowKey="productId" columns={PRODUCT_COLUMNS} data={grid.rows} columnSizing="fit" />
         </ContentPanel>
       </ContentBody>
     </PageLayout>
@@ -196,7 +210,7 @@ const ProductPage: PortalShellPageComponent = () => {
 export default ProductPage;
 ```
 
-> `useGridDataManager` 의 정확한 반환 필드(`rows`, `setRows`, `save` 등) 는 실제 `shared/src/components/grid/useGridDataManager.ts` 에서 확인한 뒤 그대로 사용한다. 이름이 다르면 실제 export 를 따른다 (ASK 대신 소스 확인).
+> `useGridDataManager` 의 반환 필드는 `rows`·`setRows`·`handleSave`·`hasChanges`·`isSaving`·`saveError` 등이다(정본: `shared/src/components/grid/useGridDataManager.ts`). 행추가·행삭제·셀 편집·저장 실패 표시까지 갖춘 완전한 예는 `.claude/skills/mantine-aggrid-ui/references/examples/grid-edit/` (타입 검사 통과본)를 본다.
 
 ### 3-5. pages/master/mstProduct.tsx (MES — camelCase 단일 토큰)
 
