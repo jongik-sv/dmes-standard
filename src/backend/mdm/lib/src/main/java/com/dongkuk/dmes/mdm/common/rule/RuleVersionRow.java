@@ -15,7 +15,7 @@ public class RuleVersionRow {
     private String applyTo;
     private String ownerId;
     private Integer baseVer;
-    /** 적중 정책(FIRST·UNIQUE·PRIORITY·COLLECT·ANY) — 버전 속성이므로 D-105 부터 헤더·버전 화면에서 고친다. */
+    /** 적중 정책(FIRST·UNIQUE·PRIORITY·COLLECT·ANY) — 버전마다 복제되지만 D-133 부터 룰 편집 화면의 표 저장에서만 고친다. */
     private String hitPolicy;
     private long rowVersion;
 

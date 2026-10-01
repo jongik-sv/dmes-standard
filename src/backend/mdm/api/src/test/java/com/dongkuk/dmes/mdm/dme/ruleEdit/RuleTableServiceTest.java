@@ -95,7 +95,7 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
         return m;
     }
 
-    /** 적중 정책은 요청으로 받지 않는다(D-105 (4)) — 저장된 값을 읽어 검사 입력으로 쓴다. */
+    /** 적중 정책은 싣지 않는다 — 비우면 저장된 값을 검사 입력으로 쓴다(D-133). 정책을 바꾸는 시험은 {@code setHitPolicy} 를 더한다. */
     static RuleEditSaveRequest table(long rowVersion, List<Map<String, Object>> rows) {
         RuleEditSaveRequest r = new RuleEditSaveRequest();
         r.setPart("TABLE");
@@ -230,10 +230,111 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
         r.setVer(1);
         assertEquals("INVALID_VALUE", mdm(() -> service.save(r)));
         r.setRows(List.of(row(-1, "NORMAL", "{\"1\":{\"op\":\"GE\",\"left\":\"1\"},\"2\":{\"val\":\"2\"}}", null)));
-        // 적중 정책 거부는 더 이상 표 저장이 하지 않는다(D-105 (4)) — 헤더·버전 화면 save target VERSION 이 한다.
-        // 여기서는 저장된 값이 검사 입력으로 쓰이는지만 본다.
+        // 산출 룰에는 적중 정책이 없다 — 값을 실으면 거부한다(D-133, 원래 표 저장 규칙 그대로).
+        r.setHitPolicy("FIRST");
+        assertEquals("INVALID_VALUE", mdm(() -> service.save(r)));
+        r.setHitPolicy(null);
         service.save(r);
         assertEquals(1, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'CALC'"));
+    }
+
+    // ── D-133 적중 정책은 표 저장이 함께 저장한다 ──
+
+    private String storedHit() {
+        return jdbc.queryForObject("SELECT HIT_POLICY FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2", String.class);
+    }
+
+    private static RuleEditSaveRequest withHit(String hit) {
+        RuleEditSaveRequest r = table(0, sample());
+        r.setHitPolicy(hit);
+        return r;
+    }
+
+    /** 거부 이슈 코드(details 첫 행은 MDM 코드). */
+    private static List<String> rejectCodes(Executable call) {
+        BusinessException e = assertThrows(BusinessException.class, call);
+        assertEquals("MDM021", e.getErrors().get(0).code(), e.getMessage());
+        return e.getErrors().stream().skip(1).map(ErrorDetail::code).toList();
+    }
+
+    @Test
+    void 적중_정책을_행과_같은_트랜잭션에_저장하고_COLLECT_가_아니면_기본_집계를_비운다() {
+        assertEquals(5, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 AND COLLECT_AGG = 'LIST'"),
+                "JDBC 픽스처 변수는 DB 기본 집계 LIST 를 갖는다");
+
+        RuleEditSaveResult r = service.save(withHit("UNIQUE"));
+
+        assertEquals(1L, r.getRowVersion());
+        assertEquals("UNIQUE", storedHit());
+        assertEquals(0, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 AND COLLECT_AGG IS NOT NULL"),
+                "정책이 COLLECT 가 아니면 기본 집계(LIST)를 비운다 — 열 설정 검사가 막지 않게");
+        assertEquals(5, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 1 AND COLLECT_AGG = 'LIST'"),
+                "다른 버전은 건드리지 않는다");
+    }
+
+    @Test
+    void 정책이_같거나_비면_정책과_변수를_쓰지_않는다() {
+        service.save(withHit("FIRST"));
+        service.save(table(1, sample()));
+        assertEquals("FIRST", storedHit());
+        assertEquals(5, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 AND COLLECT_AGG = 'LIST'"),
+                "정책이 그대로면 기본 집계도 건드리지 않는다(정책을 바꿀 때만 쓴다)");
+    }
+
+    @Test
+    void 모르는_정책과_비소유자의_정책_변경은_거부하고_아무것도_바꾸지_않는다() {
+        assertEquals("INVALID_VALUE", mdm(() -> service.save(withHit("LAST"))));
+        currentUser.set("lee", STEWARD);
+        assertEquals("MDM003", mdm(() -> service.save(withHit("UNIQUE"))));
+        assertEquals("FIRST", storedHit());
+        assertEquals(0L, rowVersion(jdbc, "QLTY_GRD_JDG", 2));
+    }
+
+    @Test
+    void COLLECT_를_벗어날_때_고른_집계가_있으면_AGG_COLLECT_로_거부한다() {
+        DmeTestSupport.setStoredHitPolicy(jdbc, "QLTY_GRD_JDG", 2, "COLLECT");
+        jdbc.update("UPDATE TB_MDM_RULE_VAR SET COLLECT_AGG = 'SUM' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 AND VAR_ID = 5");
+
+        assertEquals(List.of("AGG_COLLECT"), rejectCodes(() -> service.save(withHit("FIRST"))));
+        assertEquals("COLLECT", storedHit());
+        assertEquals(0L, rowVersion(jdbc, "QLTY_GRD_JDG", 2));
+
+        // 기본 집계(LIST)만 남았으면 바꿀 수 있다 — COLLECT 에서 다른 정책으로 못 가는 막다른 길을 만들지 않는다.
+        jdbc.update("UPDATE TB_MDM_RULE_VAR SET COLLECT_AGG = 'LIST' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 AND VAR_ID = 5");
+        service.save(withHit("FIRST"));
+        assertEquals("FIRST", storedHit());
+    }
+
+    @Test
+    void PRIORITY_를_벗어날_때_순위가_있으면_PRIO_PRIORITY_로_거부한다() {
+        DmeTestSupport.setStoredHitPolicy(jdbc, "QLTY_GRD_JDG", 2, "PRIORITY");
+        jdbc.update("UPDATE TB_MDM_RULE_VAR SET PRIO_LIST = '[\"A\",\"B\"]' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 AND VAR_ID = 4");
+
+        assertEquals(List.of("PRIO_PRIORITY"), rejectCodes(() -> service.save(withHit("FIRST"))));
+        assertEquals("PRIORITY", storedHit());
+    }
+
+    @Test
+    void 결과_열_그룹이_있으면_FIRST_UNIQUE_밖으로_바꾸지_못한다() {
+        jdbc.update("UPDATE TB_MDM_RULE_VAR SET RES_GRP = 'G' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2 AND VAR_ID IN (4, 5)");
+
+        assertEquals(List.of("GRP_POLICY"), rejectCodes(() -> service.save(withHit("COLLECT"))));
+        assertEquals("FIRST", storedHit());
+        service.save(withHit("UNIQUE"));
+        assertEquals("UNIQUE", storedHit());
+    }
+
+    @Test
+    void 적중_정책은_표_저장만_받고_열_설정_저장에_오면_거부한다() {
+        RuleEditSaveRequest r = new RuleEditSaveRequest();
+        r.setPart("COLUMNS");
+        r.setMaruRuleId("QLTY_GRD_JDG");
+        r.setVer(2);
+        r.setRowVersion(0L);
+        r.setRows(List.of());
+        r.setHitPolicy("UNIQUE");
+        assertEquals("INVALID_VALUE", mdm(() -> editService.save(r)));
+        assertEquals("FIRST", storedHit());
     }
 
     @Test

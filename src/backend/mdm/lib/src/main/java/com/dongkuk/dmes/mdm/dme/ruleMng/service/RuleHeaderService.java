@@ -102,7 +102,7 @@ public class RuleHeaderService {
             promoteIfApplied(rule, versions, now);
             return out;
         });
-        return new RuleMngSaveResult(rule.getMaruRuleId(), RuleMngSaveRequest.TARGET_HEADER, saved.getVersion(), null, null);
+        return new RuleMngSaveResult(rule.getMaruRuleId(), RuleMngSaveRequest.TARGET_HEADER, saved.getVersion());
     }
 
     /**

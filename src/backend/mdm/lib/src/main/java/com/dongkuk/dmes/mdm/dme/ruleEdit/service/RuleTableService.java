@@ -14,6 +14,7 @@ import com.dongkuk.dmes.mdm.common.rule.RuleAnalysisInputMapper.StoredRow;
 import com.dongkuk.dmes.mdm.common.rule.RuleCellsCodec;
 import com.dongkuk.dmes.mdm.common.rule.RuleIssueMaps;
 import com.dongkuk.dmes.mdm.common.rule.RuleHitPolicies;
+import com.dongkuk.dmes.mdm.common.rule.RuleNativeWrites;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckInput;
@@ -52,13 +53,18 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * 카드 ③ 의사결정표 저장(part TABLE, TSK-08-02 design §6.3.8).
  *
- * <p>한 트랜잭션: {@code beginDraftWrite}(소유자·DRAFT·row_version 검사 후 +1 — 판정은 공통 서비스만 한다, I6·I7) → 요청 행 검사(행
- * 종류·기본 행 하나·DERIVE 에 기본 행 금지·기존 row_id 는 이 DRAFT 에 있던 것만·셀 모양 I17·적중 정책) → 행 수·셀 길이 상한 →
- * 저장 시 검사({@link RuleSaveValidator}, 적용 지점 TABLE — TSK-08-04 design §6.1) → 새 행 수만큼 한 번 발급 → 그 버전 행 전부 삭제 →
- * 요청 순서로 정규화한 셀을 INSERT(NORMAL seq 1..n, DEFAULT 0 — 부분 유일 인덱스 때문에 UPDATE 로 순서를 바꾸지 않는다, I8·I10) →
- * HIT_POLICY 네이티브 UPDATE. 변수(TB_MDM_RULE_VAR)는 읽기만 한다. 상한·검사에 ERROR 가 하나라도 있으면 쓰기 전에 MDM021 로 거부하고
- * 트랜잭션이 row_version 까지 되돌린다(08-04 D10 — 08-02 D3 의 "ERROR 가 있어도 저장한다"를 뒤집었다). 트랜잭션 밖에서 저장한 정의로
- * 서버 분석을 돌려 응답에 싣고(I12), 그 뒤에 검사기의 비분석 이슈(경고)를 발급 번호로 바꿔 잇는다.
+ * <p>한 트랜잭션: {@code beginDraftWrite}(소유자·DRAFT·row_version 검사 후 +1 — 판정은 공통 서비스만 한다, I6·I7) → 적중 정책(요청 값,
+ * 비면 저장된 값) → 정책이 바뀌면 저장된 열 설정과의 어긋남 검사({@link #policyConflicts}) → 요청 행 검사(행 종류·기본 행 하나·DERIVE 에
+ * 기본 행 금지·기존 row_id 는 이 DRAFT 에 있던 것만·셀 모양 I17) → 행 수·셀 길이 상한 → 저장 시 검사({@link RuleSaveValidator}, 적용
+ * 지점 TABLE, <b>새 정책으로</b> — TSK-08-04 design §6.1) → 새 행 수만큼 한 번 발급 → 그 버전 행 전부 삭제 → 요청 순서로 정규화한
+ * 셀을 INSERT(NORMAL seq 1..n, DEFAULT 0 — 부분 유일 인덱스 때문에 UPDATE 로 순서를 바꾸지 않는다, I8·I10) → 정책이 바뀌었으면
+ * HIT_POLICY 네이티브 UPDATE(COLLECT 가 아니게 바뀌면 기본 집계 LIST 도 비운다). 변수는 그 밖에는 읽기만 한다. 상한·검사에 ERROR 가
+ * 하나라도 있으면 쓰기 전에 MDM021 로 거부하고 트랜잭션이 row_version 까지 되돌린다(08-04 D10 — 08-02 D3 의 "ERROR 가 있어도
+ * 저장한다"를 뒤집었다). 트랜잭션 밖에서 저장한 정의로 서버 분석을 돌려 응답에 싣고(I12), 그 뒤에 검사기의 비분석 이슈(경고)를 발급
+ * 번호로 바꿔 잇는다.
+ *
+ * <p><b>적중 정책은 여기서 쓴다(D-133, D-105 (4) 번복)</b>. 정책은 판정표의 해석 규칙(겹침이 경고인지 오류인지 등)이라 표 편집과 한
+ * 묶음으로 고치고 한 번에 저장한다. 그래서 "정책만 바뀌고 표는 그 정책에 안 맞는" 상태가 저장되지 않는다.
  */
 @Service
 public class RuleTableService implements RuleEditSavePart {
@@ -73,13 +79,15 @@ public class RuleTableService implements RuleEditSavePart {
     private final RuleVarTypeResolver resolver;
     private final MdmRuleRowRepository rowRepository;
     private final RuleSaveValidator validator;
+    private final RuleNativeWrites writes;
     private final TransactionTemplate tx;
 
     public RuleTableService(RuleScreenSupport support, RuleQueries queries, VersionWriteGuard writeGuard,
                             MdmRuleIdIssuer issuer, RuleVarTypeResolver resolver, MdmRuleRowRepository rowRepository,
-                            RuleSaveValidator validator, PlatformTransactionManager transactionManager) {
+                            RuleSaveValidator validator, RuleNativeWrites writes, PlatformTransactionManager transactionManager) {
         this.support = support;
         this.queries = queries;
+        this.writes = writes;
         this.writeGuard = writeGuard;
         this.issuer = issuer;
         this.resolver = resolver;
@@ -108,12 +116,23 @@ public class RuleTableService implements RuleEditSavePart {
         int ver = requireVer(request.getVer());
         long expected = requireRowVersion(request.getRowVersion());
         List<Map<String, Object>> requested = request.getRows() == null ? List.of() : request.getRows();
+        // 비면 저장된 값을 쓴다. 값이 오면 정규화한다 — DERIVE 에 값이 오면 여기서 거부한다(정책이 없는 룰).
+        String requestedHit = request.getHitPolicy() == null || request.getHitPolicy().isBlank() ? null
+                : RuleHitPolicies.normalize(rule.getRuleKind(), request.getHitPolicy());
         String me = support.me();
 
         Saved saved = tx.execute(status -> {
             long rowVersion = writeGuard.beginDraftWrite(ref(id, ver), expected, me);
-            String hit = storedHitPolicy(id, ver);
+            String storedHit = storedHitPolicy(id, ver);
+            String hit = requestedHit != null ? requestedHit : storedHit;
+            boolean hitChanged = !Objects.equals(hit, storedHit);
             List<MdmRuleVar> rawVars = queries.vars(id, ver);
+            if (hitChanged) {
+                List<Map<String, Object>> conflicts = policyConflicts(hit, rawVars);
+                if (!conflicts.isEmpty()) {
+                    throw RuleSaveRejections.reject(conflicts);
+                }
+            }
             Set<Integer> varIds = rawVars.stream().map(MdmRuleVar::getVarId).collect(Collectors.toSet());
             List<RequestedRow> rows = checkRows(rule, requested, varIds, new HashSet<>(queries.rowIds(id, ver)));
             limits(rows);
@@ -158,6 +177,12 @@ public class RuleTableService implements RuleEditSavePart {
             }
             rowRepository.saveAll(entities);
             rowRepository.flush();
+            if (hitChanged) {
+                writes.updateHitPolicy(id, ver, hit);
+                if (!"COLLECT".equals(hit)) {
+                    writes.clearDefaultCollectAgg(id, ver);
+                }
+            }
             Map<String, Integer> rowIdMap = new LinkedHashMap<>();
             issued.forEach((tmp, real) -> rowIdMap.put(String.valueOf(tmp), real));
             return new Saved(rowVersion, rowIdMap, out, stored, withIssuedRowIds(report.nonAnalysisIssues(), issued));
@@ -228,9 +253,47 @@ public class RuleTableService implements RuleEditSavePart {
     }
 
     /**
-     * 저장된 적중 정책 — D-105 (4) 로 표 저장은 더 이상 {@code hitPolicy} 를 쓰지 않는다. 정책은 헤더·버전 화면
-     * ({@code ruleMng save target VERSION})이 따로 저장하고, 여기는 그 값을 읽어 검사 입력으로만 쓴다.
+     * 정책을 바꿀 때 저장된 열 설정과 어긋나는 곳(D-133) — 열 설정 검사({@code RuleColumnsService.check}·화면 {@code column-draft.ts})와 같은
+     * 규칙·문구다: 집계는 COLLECT, 순위는 PRIORITY, 결과 열 그룹은 FIRST·UNIQUE 에서만. 하나라도 있으면 표 저장 전체를 거부한다 — 열
+     * 설정을 먼저 고치고(지금 정책에서 집계·순위·그룹을 비운 뒤) 정책을 바꾼다.
+     *
+     * <p>집계 {@code LIST} 는 어긋남으로 보지 않는다. 열 설정이 COLLECT 결과 열에 채우는 기본값이자 DB 기본값이라 사람이 고른 값과
+     * 구별되지 않고, 정책이 COLLECT 가 아니게 바뀌면 저장 때 비운다({@link RuleNativeWrites#clearDefaultCollectAgg}). 이것까지 막으면
+     * COLLECT 에서 다른 정책으로는 영영 못 바꾼다(열 설정은 COLLECT 결과 열의 빈 집계를 LIST 로 채운다).
      */
+    static List<Map<String, Object>> policyConflicts(String hit, List<MdmRuleVar> rawVars) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        boolean grouped = false;
+        for (MdmRuleVar v : rawVars) {
+            if (!"RESULT".equals(v.getVarKind())) {
+                continue;
+            }
+            String agg = v.getCollectAgg() == null || v.getCollectAgg().isBlank() ? null : v.getCollectAgg().trim();
+            if (agg != null && !"LIST".equals(agg) && !"COLLECT".equals(hit)) {
+                out.add(policyIssue(RuleSaveIssueCode.AGG_COLLECT, v.getVarId(),
+                        "집계는 COLLECT 적중 정책의 결과 열에만 둡니다: " + v.getVarName() + "(" + agg + ")"));
+            }
+            if (hasPrio(v.getPrioList()) && !"PRIORITY".equals(hit)) {
+                out.add(policyIssue(RuleSaveIssueCode.PRIO_PRIORITY, v.getVarId(),
+                        "순위는 PRIORITY 적중 정책의 결과 열에만 둡니다: " + v.getVarName()));
+            }
+            grouped |= v.getResGrp() != null && !v.getResGrp().isBlank();
+        }
+        if (grouped && !"FIRST".equals(hit) && !"UNIQUE".equals(hit)) {
+            out.add(policyIssue(RuleSaveIssueCode.GRP_POLICY, null, "결과 열 그룹은 FIRST·UNIQUE 적중 정책에서만 둘 수 있습니다: " + hit));
+        }
+        return out;
+    }
+
+    private static boolean hasPrio(String json) {
+        return json != null && !json.isBlank() && !json.replaceAll("\\s", "").equals("[]");
+    }
+
+    private static Map<String, Object> policyIssue(RuleSaveIssueCode code, Integer varId, String message) {
+        return RuleCheckReport.issue(code.name(), RuleCheckReport.ERROR, List.of(), varId, message);
+    }
+
+    /** 저장된 적중 정책 — 요청이 정책을 비우면 이 값을 쓰고, 요청 값과 견주어 바뀌었는지 가린다(D-133). */
     private String storedHitPolicy(String id, int ver) {
         // DERIVE 는 저장된 정책이 null 이다 — Optional.of(null) 로 터지지 않게 조건을 건너뛴다.
         return queries.versions(id).stream()
