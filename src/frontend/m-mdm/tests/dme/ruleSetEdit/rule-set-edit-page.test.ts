@@ -830,6 +830,32 @@ describe("useRuleSetEdit", () => {
     expect(state!.dirty).toBe(false);
   });
 
+  it("빈 단계(TASK)가 있는 흐름에는 applyGuide 가 흐름을 바꾸지 않는다(빈 단계를 말없이 지우지 않는다)", async () => {
+    const taskFlow: RuleSetFlow = {
+      version: 1,
+      nodes: [
+        { id: "start", kind: "START", ruleId: null, splitId: null, label: null },
+        { id: "r1", kind: "RULE", ruleId: "E2S_GRD", splitId: null, label: null },
+        { id: "t1", kind: "TASK", ruleId: null, splitId: null, label: "검토" },
+        { id: "end", kind: "END", ruleId: null, splitId: null, label: null },
+      ],
+      edges: [
+        { id: "e1", from: "start", to: "r1", order: null, cond: null, otherwise: false, label: null },
+        { id: "e2", from: "r1", to: "t1", order: null, cond: null, otherwise: false, label: null },
+        { id: "e3", from: "t1", to: "end", order: null, cond: null, otherwise: false, label: null },
+      ],
+    };
+    srv.views.E2S_CHAIN = chainView({ set: { ...chainView().set, flow: taskFlow } });
+    await mountProbe("E2S_CHAIN");
+    const before = state!.flow;
+    expect(before!.nodes.some((n) => n.kind === "TASK")).toBe(true);
+    await act(async () => {
+      state!.applyGuide(["E2S_GRD"], [GRD]);
+    });
+    expect(state!.flow).toBe(before);
+    expect(state!.dirty).toBe(false);
+  });
+
   it("flowVersion 은 nodes·edges 가 바뀔 때만 오르고, 위치만 바꾸면 그대로다(dirty 는 된다)", async () => {
     srv.views.E2S_CHAIN = chainView();
     await mountProbe("E2S_CHAIN");

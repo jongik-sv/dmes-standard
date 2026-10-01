@@ -518,7 +518,14 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   const usedRuleIds = useMemo(() => new Set((flow?.nodes ?? []).map((n) => n.ruleId).filter((x): x is string => !!x)), [flow]);
 
   const isBranched = !!flow && branched(flow);
-  const guideHint = !editing ? "편집 모드에서 적용한다" : isBranched ? "분기가 있는 흐름에는 적용하지 않는다" : undefined;
+  const hasEmptyStep = !!flow && flow.nodes.some((n) => n.kind === "TASK");
+  const guideHint = !editing
+    ? "편집 모드에서 적용한다"
+    : isBranched
+      ? "분기가 있는 흐름에는 적용하지 않는다"
+      : hasEmptyStep
+        ? "빈 단계가 있는 흐름에는 적용하지 않는다"
+        : undefined;
 
   const checksTab: BottomTab = {
     key: "checks",
@@ -698,7 +705,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         description={state.description}
                         onSetName={state.setSetName}
                         onDescription={state.setDescription}
-                        canApplyGuide={editing && !isBranched && !state.loading}
+                        canApplyGuide={editing && !isBranched && !hasEmptyStep && !state.loading}
                         guideHint={guideHint}
                         onApplyGuide={state.applyGuide}
                         onError={state.reportError}
