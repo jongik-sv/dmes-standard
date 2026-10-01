@@ -5,16 +5,17 @@
  * ctx 는 엔진 `FlowRun` 을 따라간다: 처음은 input, RULE(OK) 는 지금 범위의 ctx 에 결과를 덮어쓴다(이름은 대소문자 무시로
  * 바꿔 넣는다 — `RecordKeys.putReplacing`). PARALLEL 은 갈래마다 분기 직전 ctx 의 사본을 범위로 두고, 짝 MERGE 에서
  * 갈래를 기록의 `order`(실행 순서)대로 돌며 **그 갈래가 쓴 이름**만 바깥 범위에 덮어쓴다(뒤 갈래가 이긴다). IF 는 범위를 만들지 않는다.
+ * 4단계 E4: 기록의 `edits` 를 노드 seq 직전에 그 노드 범위에 넣는다(엔진 `FlowRun` 퍼짐 규칙 — 스펙 §2.2).
  */
-import type { NodeTrace, RunTrace, RuleSetFlow, TypedValue } from "@/contract/engine-contract.generated";
+import type { NodeTrace, RunTrace, RuleSetFlow, TraceEdit, TypedValue } from "@/contract/engine-contract.generated";
 
 import type { EdgeState, NodeOverlay, Overlay } from "./canvas/overlay";
 import { parseFlow, type Seq } from "./flow-model";
 
 export type { EdgeState, NodeOverlay, NodeState, Overlay } from "./canvas/overlay";
 
-/** 단계 프레임 — `before` 는 노드를 실행하기 전 그 노드 범위의 ctx 사본(3단계 P9: MERGE 는 합치기 전, PARALLEL 은 갈래 범위를 만들기 전), `ctx` 는 실행 뒤. */
-export interface TraceFrame { index: number; node: NodeTrace; before: Record<string, TypedValue>; ctx: Record<string, TypedValue>; changed: string[]; }
+/** 단계 프레임 — `before` 는 노드를 실행하기 전 그 노드 범위의 ctx 사본(3단계 P9: MERGE 는 합치기 전, PARALLEL 은 갈래 범위를 만들기 전), `ctx` 는 실행 뒤. `edited` 는 이 노드 직전에 고친 이름(edit 의 철자, 4단계 E4). */
+export interface TraceFrame { index: number; node: NodeTrace; before: Record<string, TypedValue>; ctx: Record<string, TypedValue>; changed: string[]; edited: string[]; }
 export interface ValueTable { vars: string[]; cols: { index: number; nodeId: string; label: string }[]; cells: (TypedValue | null)[][]; changed: boolean[][]; }
 
 type Ctx = Record<string, TypedValue>;
@@ -83,6 +84,16 @@ function putReplacing(ctx: Ctx, name: string, value: TypedValue): void {
 
 // ── 프레임 ─────────────────────────────────────────────────────────────────────
 
+const NULL_TYPED: TypedValue = { type: "NULL" };
+
+/** 적용되는 고친 값 — beforeSeq 자리 노드 ID 가 edit.nodeId 와 같은 것만(기록 순서). 서버는 어긋나면 EDIT_POINT_MISMATCH 로 멈춘다. */
+export function validEdits(trace: RunTrace): TraceEdit[] {
+  const edits = trace.edits ?? [];
+  if (edits.length === 0) return [];
+  const idAt = new Map(trace.nodes.map((n) => [n.seq, n.nodeId] as const));
+  return edits.filter((e) => idAt.get(e.beforeSeq) === e.nodeId);
+}
+
 /** 노드 → 병렬 갈래 경로. MERGE 는 짝 분기와 같은 경로, START·END·트리에 없는 노드는 루트([]). */
 function scopePaths(flow: RuleSetFlow): { paths: Map<string, ScopePath>; branchEdges: Map<string, string[]> } {
   const paths = new Map<string, ScopePath>();
@@ -110,6 +121,7 @@ export function frames(trace: RunTrace, flow: RuleSetFlow): TraceFrame[] {
   if (trace.nodes.length === 0) return [];
   const { paths, branchEdges } = scopePaths(flow);
   const root: Scope = { ctx: { ...trace.input }, made: {} };
+  const editsAt = new Map(validEdits(trace).map((e) => [e.beforeSeq, e] as const));
   /** 병렬 분기 ID → 갈래 선 ID → 갈래 범위. */
   const branchScopes = new Map<string, Map<string, Scope>>();
   /** 병렬 분기 ID → 합칠 갈래 순서(기록의 order). */
@@ -130,6 +142,17 @@ export function frames(trace: RunTrace, flow: RuleSetFlow): TraceFrame[] {
   return trace.nodes.map((node, index) => {
     const path = paths.get(node.nodeId) ?? [];
     const scope = scopeOf(path);
+    // 4단계 E4 — 노드를 시작하기 직전에 그 노드 범위에 고친 값을 넣는다. 같은 이름이 그 범위 made 에 있으면 made 도 바꾼다(스펙 §2.2).
+    const edited: string[] = [];
+    const edit = editsAt.get(node.seq);
+    if (edit) {
+      for (const [name, raw] of Object.entries(edit.values ?? {})) {
+        const value = raw ?? NULL_TYPED;
+        putReplacing(scope.ctx, name, value);
+        if (lookup(scope.made, name) !== undefined) putReplacing(scope.made, name, value);
+        edited.push(name);
+      }
+    }
     const before = { ...scope.ctx };
     const changed: string[] = [];
     const note = (name: string, old: TypedValue | undefined, after: TypedValue) => {
@@ -157,12 +180,20 @@ export function frames(trace: RunTrace, flow: RuleSetFlow): TraceFrame[] {
               if (!written.includes(name)) written.push(name);
             }
           }
+          // 엔진 FlowRun 은 갈래를 합친 뒤 merge() 에서 edit 를 넣는다 — 고친 값이 합친 값을 이긴다(made 에 이미 있으면 made 도).
+          if (edit) {
+            for (const [name, raw] of Object.entries(edit.values ?? {})) {
+              const value = raw ?? NULL_TYPED;
+              putReplacing(scope.ctx, name, value);
+              if (lookup(scope.made, name) !== undefined) putReplacing(scope.made, name, value);
+            }
+          }
           for (const name of written) note(name, lookup(before, name), lookup(scope.ctx, name)!);
           branchScopes.delete(splitId);
         }
       }
     }
-    return { index, node, before, ctx: { ...scope.ctx }, changed };
+    return { index, node, before, ctx: { ...scope.ctx }, changed, edited };
   });
 }
 
@@ -211,6 +242,16 @@ export function overlayAt(trace: RunTrace, flow: RuleSetFlow, step: number): Ove
  * k ≥ n 이면 끝 — 2단계 최종 겹침(안 탄 갈래 dim). 기록이 비면 모두 pending.
  */
 export function debugOverlay(trace: RunTrace, flow: RuleSetFlow, cursor: number): Overlay {
+  const o = debugOverlayAt(trace, flow, cursor);
+  // 4단계 E4 — 고친 지점 노드에 표시(커서와 무관하게, 끝 겹침에서도). overlayAt·debugOverlayAt 은 늘 새 객체를 돌려준다.
+  for (const e of validEdits(trace)) {
+    const cur = o.nodes[e.nodeId];
+    if (cur) o.nodes[e.nodeId] = { ...cur, edited: true };
+  }
+  return o;
+}
+
+function debugOverlayAt(trace: RunTrace, flow: RuleSetFlow, cursor: number): Overlay {
   const n = trace.nodes.length;
   const k = Math.max(0, Math.trunc(cursor));
   if (k >= n) return overlayAt(trace, flow, n > 0 ? n - 1 : 0);

@@ -9,12 +9,16 @@
  * (`needsFresh`) 다음 [한 단계]·[계속]·[여기까지]·[처음부터]·[끝내기] 가 새로 실행한다. 그 밖에는 서버를 다시 부르지 않는다(스펙 §4.2).
  * 다른 세트를 열면(`setId` 가 바뀌면) 기록·커서를 비우고 그 세트의 중단점·최근 입력을 읽는다. 늦게 온 응답은 요청 순번·세트·flowVersion 으로 버린다(Local-Rules §11).
  *
+ * 4단계 E4(스펙 §2.4): 커서 자리에서 고친 값은 고침 대기(`pending`, 기록·커서와 한 묶음)로 두고, 대기가 있을 때 [한 단계]·[계속]·[여기까지]·[끝내기]는
+ * 기록의 edit 에 합쳐(`mergeEdits`) `editsJson` 과 함께 새로 실행한 뒤 커서 k 에서 그 동작을 한다. [처음부터]·입력 변경·흐름 변경·자리 옮김은 대기를 버리고,
+ * [처음부터] 는 edit 기록이면 edit 없이 다시 실행한다. edit 는 입력이 아니므로 `needsFresh` 의 입력 비교에 들지 않는다.
+ *
  * 한 처리 안에서 `loadInput` 뒤 곧바로 `restart` 를 부르는 경우(케이스 [디버그로 열기])에도 바뀐 입력을 보도록 입력·기록·커서는 ref 에 같이 적고
  * 동작은 ref 를 읽는다. 기록·커서는 한 상태로 묶어 한 번에 바꾼다(한 렌더에 섞인 값이 보이지 않게). 중단점·최근 입력은 `local-store` 로만 읽고 쓴다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { FlowNodeKind, RunTrace, TypedValue } from "@/contract/engine-contract.generated";
+import type { FlowNodeKind, RunTrace, TraceEdit, TypedValue } from "@/contract/engine-contract.generated";
 
 import { inputFormOf, inputJsonOf, parseObject, type CaseFormRow } from "../../ruleEdit/value-test/case-form";
 import { simulate } from "../api";
@@ -22,7 +26,18 @@ import type { EditFlow } from "../flow-edit";
 import { flowJsonOf } from "../flow-edit";
 import { flowIo } from "../set-model";
 import type { InputRow, RuleIoMap, SimWarning } from "../types";
-import { nextStop, runToIndex, variablesAt, type DebugVar } from "./debug-model";
+import { validEdits } from "../trace-view";
+import {
+  applyPending,
+  droppedEditsNotice,
+  editsJsonOf,
+  mergeEdits,
+  nextStop,
+  pendingDroppedNotice,
+  runToIndex,
+  variablesAt,
+  type DebugVar,
+} from "./debug-model";
 import { loadInputs, loadStrings, pushRecent, saveInputs, saveStrings, storeKeys } from "./local-store";
 
 /** 판정 시각 형식 — 서버 `evalTs` 와 같은 `yyyy-MM-dd HH:mm:ss`. */
@@ -101,21 +116,34 @@ export interface Simulation {
   finish(): Promise<void>;
   setCursor(n: number): void;
   breakpoints: ReadonlySet<string>;
-  /** RULE·IF·PARALLEL·MERGE 만, 세트별 localStorage. */
+  /** RULE·TASK·IF·PARALLEL·MERGE 만, 세트별 localStorage. */
   toggleBreakpoint(nodeId: string): void;
   /** 한 줄 알림(여기까지 실행 등). 다음 동작에서 지운다. */
   notice: string | null;
+  // ── 값 고치기 — 4단계 E4(스펙 §2.4) ──
+  /** 고칠 수 있는가 — 기록이 최신(낡지 않고 입력이 오류 없이 기록 입력과 같다)이고 커서가 노드 k 실행 전(0 ≤ k < n)이며 실행 중이 아니다. */
+  canEditValues: boolean;
+  /** 고침 대기 — 커서 자리(노드 k 실행 전)에서 고쳤고 아직 보내지 않은 값. 없으면 null. */
+  pendingEdit: TraceEdit | null;
+  /** 지금 기록에 들어간 고친 값(서버가 되돌려 준 `trace.edits` 가운데 자리가 맞는 것), 없으면 빈 목록. */
+  appliedEdits: readonly TraceEdit[];
+  /** 커서 자리에서 이름 하나를 고친다(대소문자 무시로 같은 이름을 덮는다). 비우기는 `{type:"NULL"}`. 고칠 수 없으면 무시. */
+  editValue(name: string, value: TypedValue): void;
+  /** 고침 대기에서 이름 하나를 뺀다. 이름을 주지 않으면 모두 뺀다. 실행 중이면 무시. */
+  cancelEdit(name?: string): void;
 }
 
 /** 빈 값 — 참조가 렌더마다 바뀌지 않게 모듈 상수로 둔다(Local-Rules §16). */
 const NO_BREAKPOINTS: ReadonlySet<string> = new Set<string>();
 const NO_RECENT: DebugInput[] = [];
 const NO_VARIABLES: DebugVar[] = [];
+const NO_EDITS: readonly TraceEdit[] = [];
+const joinNotice = (a: string | null, b: string | null) => (a && b ? `${a} · ${b}` : (a ?? b));
 
 /** 최근 입력 개수(세트별). */
 export const RECENT_LIMIT = 10;
 /** 중단점을 걸 수 있는 노드 종류(P9). */
-const BREAKABLE: ReadonlySet<FlowNodeKind> = new Set<FlowNodeKind>(["RULE", "IF", "PARALLEL", "MERGE"]);
+const BREAKABLE: ReadonlySet<FlowNodeKind> = new Set<FlowNodeKind>(["RULE", "TASK", "IF", "PARALLEL", "MERGE"]);
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const DEFAULT_ROW = (key: string): CaseFormRow => ({ key, value: "", on: true, extra: false });
@@ -135,8 +163,10 @@ interface Rec {
   cursor: number;
   setId: string | null;
   flowVersion: number;
+  /** 고침 대기(4단계 E4) — 커서 자리 한 곳. 기록·커서와 한 번에 바꾼다. */
+  pending: TraceEdit | null;
 }
-const emptyRec = (setId: string | null, flowVersion: number): Rec => ({ last: null, previous: null, cursor: -1, setId, flowVersion });
+const emptyRec = (setId: string | null, flowVersion: number): Rec => ({ last: null, previous: null, cursor: -1, setId, flowVersion, pending: null });
 
 /** 입력 칸 묶음 — 폼 줄·JSON 붙여 넣기·판정 시각. */
 interface Inputs {
@@ -197,7 +227,13 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
   const bpRef = useRef(breakpoints);
   const [recent, setRecentState] = useState<DebugInput[]>(NO_RECENT);
   const recentRef = useRef(recent);
-  const [running, setRunning] = useState(false);
+  const [running, setRunningState] = useState(false);
+  const runningRef = useRef(false);
+  /** 실행 중 표시 — ref 에도 적어 한 처리 안의 editValue·cancelEdit 가 본다. */
+  const setRunning = useCallback((v: boolean) => {
+    runningRef.current = v;
+    setRunningState(v);
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -260,14 +296,14 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
     if (recRef.current.flowVersion !== flowVersion) {
       seq.current += 1;
       setRunning(false); // 늦게 올 응답은 순번이 안 맞아 버려지므로 실행 중 표시를 곧바로 끈다.
-      writeRec((r) => ({ ...r, flowVersion }));
+      writeRec((r) => ({ ...r, flowVersion, pending: null }));
       const cur = [...bpRef.current];
       if (f) {
         const kept = breakableIn(f, cur);
         if (!sameList(kept, cur)) writeBreakpoints(kept, setId);
       }
     }
-  }, [setId, flowVersion, writeRec, writeInputs, writeBreakpoints, writeRecent]);
+  }, [setId, flowVersion, writeRec, writeInputs, writeBreakpoints, writeRecent, setRunning]);
 
   // 이 렌더의 세트와 다른 묶음(세트가 막 바뀐 렌더)은 없는 것으로 본다 — 옛 세트의 기록을 한 번도 그리지 않는다.
   const cur = rec.setId === setId ? rec : emptyRec(setId, flowVersion);
@@ -292,26 +328,40 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
   const jsonError = useMemo(() => jsonErrorOf(inputs.json), [inputs.json]);
   const evalTsError = evalTsErrorOf(inputs.evalTs);
 
+  /** 고침 대기를 버린다 — 입력이 바뀌면 그 대기는 뜻을 잃는다(스펙 §2.4). 대기가 없으면 상태를 건드리지 않는다. */
+  const dropPending = useCallback(() => {
+    if (recRef.current.pending) writeRec((r) => ({ ...r, pending: null }));
+  }, [writeRec]);
+
   const setInput = useCallback(
     (key: string, patch: { value?: string; on?: boolean }) => {
+      dropPending();
       const prev = inputsRef.current.rows;
       const i = prev.findIndex((r) => r.key === key);
       const row = { ...(i >= 0 ? prev[i] : DEFAULT_ROW(key)), ...patch };
       writeInputs({ rows: i >= 0 ? prev.map((r, j) => (j === i ? row : r)) : [...prev, row] });
     },
-    [writeInputs],
+    [writeInputs, dropPending],
   );
 
   const setJson = useCallback(
     (v: string) => {
+      dropPending();
       writeInputs({ json: v });
       setImportError(null);
     },
-    [writeInputs],
+    [writeInputs, dropPending],
   );
-  const setEvalTs = useCallback((v: string) => writeInputs({ evalTs: v }), [writeInputs]);
+  const setEvalTs = useCallback(
+    (v: string) => {
+      dropPending();
+      writeInputs({ evalTs: v });
+    },
+    [writeInputs, dropPending],
+  );
 
   const importJson = useCallback(() => {
+    dropPending();
     try {
       const rows = inputFormOf(
         metasRef.current.map((m) => m.name),
@@ -322,12 +372,13 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
     } catch (e) {
       setImportError(errorText(e));
     }
-  }, [writeInputs]);
+  }, [writeInputs, dropPending]);
 
   const currentInput = useCallback((): DebugInput | null => inputOf(inputsRef.current, metasRef.current), []);
 
   const loadInput = useCallback(
     (input: DebugInput) => {
+      dropPending();
       let rows: CaseFormRow[] | null = null;
       try {
         rows = inputFormOf(
@@ -340,7 +391,7 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
       writeInputs(rows ? { rows, json: "", evalTs: input.evalTs } : { json: input.recordJson, evalTs: input.evalTs });
       setImportError(null);
     },
-    [writeInputs],
+    [writeInputs, dropPending],
   );
 
   /** 이 세트의 지금 기록 묶음(세트가 막 바뀌어 아직 비우지 않았으면 빈 묶음). */
@@ -356,9 +407,47 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
     return input != null && !sameInput(input, r.last.input);
   }, []);
 
+  /** 지금 고칠 수 있는가 — 새로 실행할 필요가 없고(기록 최신·입력 같음), 커서가 노드 k 실행 전이며, 실행 중이 아니다. */
+  const editableNow = useCallback(
+    (r: Rec): boolean =>
+      !runningRef.current && inputOf(inputsRef.current, metasRef.current) != null && !needsFresh(r) && r.cursor >= 0 && r.cursor < r.last!.trace.nodes.length,
+    [needsFresh],
+  );
+
+  const editValue = useCallback(
+    (name: string, value: TypedValue) => {
+      const r = recNow();
+      if (!editableNow(r)) return;
+      const node = r.last!.trace.nodes[r.cursor];
+      const base = r.pending && r.pending.beforeSeq === node.seq ? r.pending.values : {};
+      const lower = name.toLowerCase();
+      const values: Record<string, TypedValue> = {};
+      for (const [k, v] of Object.entries(base)) if (k.toLowerCase() !== lower) values[k] = v;
+      values[name] = value;
+      writeRec((x) => ({ ...x, pending: { beforeSeq: node.seq, nodeId: node.nodeId, values } }));
+    },
+    [recNow, editableNow, writeRec],
+  );
+
+  const cancelEdit = useCallback(
+    (name?: string) => {
+      const r = recNow();
+      if (!r.pending || runningRef.current) return;
+      if (name === undefined) {
+        writeRec((x) => ({ ...x, pending: null }));
+        return;
+      }
+      const lower = name.toLowerCase();
+      const values = Object.fromEntries(Object.entries(r.pending.values).filter(([k]) => k.toLowerCase() !== lower));
+      const next = Object.keys(values).length === 0 ? null : { ...r.pending, values };
+      writeRec((x) => ({ ...x, pending: next }));
+    },
+    [recNow, writeRec],
+  );
+
   /** 새 실행 — 입력 오류면 하지 않는다. 늦은 응답은 버리고, 실패하면 오류 문구만 두고 기록·커서는 그대로. */
   const fresh = useCallback(
-    async (pick: Pick) => {
+    async (pick: Pick, edits: readonly TraceEdit[] = NO_EDITS, sent: TraceEdit | null = null, lead: string | null = null) => {
       const f = flowRef.current;
       const input = inputOf(inputsRef.current, metasRef.current);
       if (!f || !input) return;
@@ -368,7 +457,7 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
       setRunning(true);
       setError(null);
       try {
-        const res = await simulate(flowJsonOf(f), input.recordJson, input.evalTs || undefined);
+        const res = await simulate(flowJsonOf(f), input.recordJson, input.evalTs || undefined, edits.length > 0 ? editsJsonOf(edits) : undefined);
         if (mine !== seq.current) return;
         if (versionRef.current !== version || setIdRef.current !== forSet) {
           setRunning(false);
@@ -382,8 +471,10 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
           last: record,
           previous: r.last ?? r.previous,
           cursor: next.cursor,
+          // 보낸 대기만 지운다 — 요청 중에는 editValue 가 막히므로 보통 같은 객체다(Local-Rules §11).
+          pending: r.pending === sent ? null : r.pending,
         }));
-        setNotice(next.notice);
+        setNotice(joinNotice(lead, next.notice));
         const list = pushRecent(recentRef.current, input, sameInput, RECENT_LIMIT);
         writeRecent(list);
         if (forSet != null) saveInputs(storeKeys.recentInputs(forSet), list);
@@ -394,15 +485,34 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
         setRunning(false);
       }
     },
-    [writeRec, writeRecent],
+    [writeRec, writeRecent, setRunning],
   );
 
-  /** 기록을 쓸 수 있으면 그 기록으로 커서를 옮기고, 아니면 새로 실행한다. 알림은 먼저 지운다. */
+  /**
+   * 기록을 쓸 수 있으면 그 기록으로 커서를 옮기고, 아니면 새로 실행한다. 알림은 먼저 지운다.
+   * 고침 대기가 있으면(4단계 E4) 기록의 edit 에 합쳐 edit 와 함께 새로 실행하고, 새 기록 위에서 커서 k 에서 그 동작을 한다.
+   */
   const move = useCallback(
     async (onFresh: Pick, onLast: (trace: RunTrace, cursor: number) => { cursor: number; notice: string | null }) => {
       setNotice(null);
       const r = recNow();
-      if (needsFresh(r)) return fresh(onFresh);
+      if (needsFresh(r)) {
+        if (r.pending) writeRec((x) => ({ ...x, pending: null }));
+        return fresh(onFresh);
+      }
+      if (r.pending) {
+        const k = r.cursor;
+        const { edits, dropped } = mergeEdits(validEdits(r.last!.trace), r.pending);
+        return fresh(
+          (t) => {
+            const nx = onLast(t, Math.min(k, t.nodes.length));
+            return { cursor: Math.min(nx.cursor, t.nodes.length), notice: nx.notice };
+          },
+          edits,
+          r.pending,
+          dropped > 0 ? droppedEditsNotice(dropped) : null,
+        );
+      }
       const next = onLast(r.last!.trace, r.cursor);
       writeRec((x) => ({ ...x, cursor: next.cursor }));
       setNotice(next.notice);
@@ -437,26 +547,36 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
       ),
     [move],
   );
-  const restart = useCallback(() => move(() => at(0), () => at(0)), [move]);
+  /** [처음부터] — 고친 값을 모두 지운다(스펙 §2.4). edit 기록이면 needsFresh 가 아니어도 edit 없이 다시 실행한다. */
+  const restart = useCallback(async () => {
+    setNotice(null);
+    const r = recNow();
+    if (r.pending) writeRec((x) => ({ ...x, pending: null }));
+    if (needsFresh(r) || (r.last?.trace.edits?.length ?? 0) > 0) return fresh(() => at(0));
+    writeRec((x) => ({ ...x, cursor: 0 }));
+  }, [recNow, needsFresh, fresh, writeRec]);
   const finish = useCallback(
     () => move((t) => at(t.nodes.length), (t) => at(t.nodes.length)),
     [move],
   );
-  const prev = useCallback(() => {
-    setNotice(null);
-    const r = recNow();
-    if (!r.last) return;
-    writeRec((x) => ({ ...x, cursor: Math.max(0, x.cursor - 1) }));
-  }, [recNow, writeRec]);
-  const setCursor = useCallback(
-    (k: number) => {
+
+  /** 커서를 to 로 — 실제로 옮기면 그 자리의 고침 대기를 버리고 알린다. */
+  const moveCursor = useCallback(
+    (to: (r: Rec) => number) => {
       setNotice(null);
       const r = recNow();
       if (!r.last) return;
-      const total = r.last.trace.nodes.length;
-      writeRec((x) => ({ ...x, cursor: Math.max(0, Math.min(total, Math.trunc(k))) }));
+      const k = to(r);
+      const drop = !!r.pending && k !== r.cursor;
+      writeRec((x) => ({ ...x, cursor: k, pending: drop ? null : x.pending }));
+      if (drop) setNotice(pendingDroppedNotice(Object.keys(r.pending!.values).length));
     },
     [recNow, writeRec],
+  );
+  const prev = useCallback(() => moveCursor((r) => Math.max(0, r.cursor - 1)), [moveCursor]);
+  const setCursor = useCallback(
+    (k: number) => moveCursor((r) => Math.max(0, Math.min(r.last!.trace.nodes.length, Math.trunc(k)))),
+    [moveCursor],
   );
 
   const toggleBreakpoint = useCallback(
@@ -469,8 +589,15 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
     [writeBreakpoints],
   );
 
-  // 변수는 기록 때의 흐름 사본으로 푼다(병렬 범위가 기록과 맞아야 한다). 커서가 바뀔 때만 다시 계산한다(Local-Rules §16).
-  const variables = useMemo(() => (last ? variablesAt(last.trace, last.flow, cursor) : NO_VARIABLES), [last, cursor]);
+  const pending = last ? cur.pending : null;
+  const appliedEdits = useMemo(() => (last ? validEdits(last.trace) : NO_EDITS), [last]);
+  const inputNow = useMemo(() => inputOf(inputs, metas), [inputs, metas]);
+  const canEditValues = !!last && !stale && (inputNow != null && sameInput(inputNow, last.input)) && cursor >= 0 && cursor < n && !running;
+  // 변수는 기록 때의 흐름 사본으로 푼다(병렬 범위가 기록과 맞아야 한다). 커서·대기가 바뀔 때만 다시 계산한다(Local-Rules §16).
+  const variables = useMemo(
+    () => (last ? applyPending(variablesAt(last.trace, last.flow, cursor), pending) : NO_VARIABLES),
+    [last, cursor, pending],
+  );
   const valueMap = useMemo(() => new Map(variables.map((v) => [v.name.toLowerCase(), v.value] as const)), [variables]);
   const valueAt = useCallback((name: string): TypedValue | null | undefined => valueMap.get(name.toLowerCase()), [valueMap]);
 
@@ -506,5 +633,10 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
     breakpoints,
     toggleBreakpoint,
     notice,
+    canEditValues,
+    pendingEdit: pending,
+    appliedEdits,
+    editValue,
+    cancelEdit,
   };
 }

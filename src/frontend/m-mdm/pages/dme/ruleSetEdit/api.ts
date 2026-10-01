@@ -63,9 +63,12 @@ export function validateFlow(flowJson: string): Promise<RuleSetCondIoResult> {
   return callOasis<RuleSetCondIoResult>(SERVICE, "validate", { flowJson });
 }
 
-/** 기록 실행(디버거) — 저장하지 않은 흐름을 레코드로 돌려 노드별 기록을 받는다. evalTs 가 없으면 서버 현재 시각. */
-export function simulate(flowJson: string, recordJson: string, evalTs: string | undefined): Promise<RuleSetSimulateResult> {
-  return callOasis<RuleSetSimulateResult>(SERVICE, "execute", { flowJson, recordJson, evalTs: blankToUndefined(evalTs) });
+/**
+ * 기록 실행(디버거) — 저장하지 않은 흐름을 레코드로 돌려 노드별 기록을 받는다. evalTs 가 없으면 서버 현재 시각.
+ * editsJson(4단계 E4)은 멈춘 자리에서 고친 값 목록(`editsJsonOf`)이고, 없으면 칸을 보내지 않는다.
+ */
+export function simulate(flowJson: string, recordJson: string, evalTs: string | undefined, editsJson?: string): Promise<RuleSetSimulateResult> {
+  return callOasis<RuleSetSimulateResult>(SERVICE, "execute", { flowJson, recordJson, evalTs: blankToUndefined(evalTs), editsJson: blankToUndefined(editsJson) });
 }
 
 /** 폐기(INUSE → DEPRECATED). */
