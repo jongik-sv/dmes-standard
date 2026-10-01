@@ -114,6 +114,8 @@ const NO_JOIN_DISSOLVE = (s: string) => `분기 ${s}의 갈래가 모이는 자�
 export const KEEP_ENDING = "끝내는 갈래만 남기면 뒤 흐름에 닿을 수 없다";
 export const ENDING_TO_PARALLEL = "끝내는 갈래가 있는 IF 는 병렬로 바꿀 수 없다. 병렬 갈래는 모두 합류로 모여야 한다";
 export const MERGE_ONLY_BY_SPLIT = "합류 노드는 분기를 지워서 없앤다";
+/** 옛 돌아오는 합류(받는 노드 없음)를 걷어 낼 수 없을 때(수정 1회차). */
+export const MERGE_EXIT_NOT_ONE = "합류의 나가는 선이 하나가 아니라 지울 수 없다. 선을 먼저 정리한다";
 /** 열 때 옛 합류를 바꿨다는 알림(R14). */
 export const UPGRADE_NOTICE = (n: number) => `옛 합류 노드 ${n}개를 없앤 형식으로 바꿔 열었다. 저장하면 새 형식으로 남는다.`;
 const NO_IDS: ReadonlySet<string> = new Set<string>();
@@ -456,6 +458,17 @@ function dissolveMerge(g: EditFlow, mId: string): EditFlow | null {
   return dropNodes(g, new Set([mId]));
 }
 
+/** 합류 m 을 같은 ID 의 빈 단계로 바꾼다(splitId null, 제목 TASK_LABEL, 위치 지움 — END 앞 합류, J-D10). 선은 그대로다. g 는 복사본이다. */
+function mergeToTask(g: EditFlow, mId: string): void {
+  const m = findNode(g, mId)!;
+  m.kind = "TASK";
+  m.splitId = null;
+  m.label = TASK_LABEL;
+  const positions = { ...g.view.positions };
+  delete positions[mId];
+  g.view.positions = positions;
+}
+
 /** 짝 합류 없는 IF s 의 같은 도착 갈래 선이 둘 이상이면 실행 순서 마지막 선만 남기고 나머지마다 빈 단계를 끼운다(B2, R8). g 는 복사본이다. 끼운 수. */
 function fillEmptyBranches(g: EditFlow, s: string, taken: Set<string>): number {
   const byTo = new Map<string, FlowEdge[]>();
@@ -521,13 +534,7 @@ export function upgradeLegacyMerges(f: EditFlow): { flow: EditFlow; upgraded: nu
   for (const id of targets) {
     const outs = outOf(g, id);
     if (endId !== null && outs.length === 1 && outs[0].to === endId) {
-      const m = findNode(g, id)!;
-      m.kind = "TASK";
-      m.splitId = null;
-      m.label = TASK_LABEL;
-      const positions = { ...g.view.positions };
-      delete positions[id];
-      g.view.positions = positions;
+      mergeToTask(g, id);
       upgraded++;
     } else rest.push(id);
   }
@@ -624,6 +631,8 @@ export function insertTask(f: EditFlow, edgeId: string, label: string = TASK_LAB
 
 /**
  * 선 e(A→B) 위에 분기를 끼운다. IF 는 합류 없이 갈래 `{s→t, 갈래 1}`·`{s→B, 그 외}`·선 `{t→B}`(t = 새 빈 단계)를 e 바로 뒤에, 노드는 A 뒤에 s, t.
+ * B 가 END 면 모이는 자리 빈 단계 j 를 하나 더 두어 `{s→t}`·`{s→j, 그 외}`·`{t→j}`·`{j→END}`, 노드는 A 뒤에 s, t, j 다 — 「그 외」 가 끝내는 갈래가
+ * 되지 않고 블록이 j 에서 닫혀 지우기·풀기·종류 바꾸기·갈래 더하기·옮기기·접기가 END 아닌 자리와 같게 된다(J-D10 과 같은 근거, 수정 1회차 판정).
  * 병렬은 짝 합류 m 과 갈래 두 개·합류 출구 {m→B} 를 만든다.
  */
 export function insertSplit(f: EditFlow, edgeId: string, kind: "IF" | "PARALLEL"): EditResult {
@@ -636,12 +645,16 @@ export function insertSplit(f: EditFlow, edgeId: string, kind: "IF" | "PARALLEL"
   const at = g.nodes.findIndex((n) => n.id === e.from);
   if (kind === "IF") {
     const t = node(fresh(taken, "r"), "TASK", null, null, TASK_LABEL);
+    const toEnd = findNode(g, e.to)?.kind === "END";
+    const j = toEnd ? node(fresh(taken, "r"), "TASK", null, null, TASK_LABEL) : null;
+    const join = j ? j.id : e.to;
     const b1 = edge(fresh(taken, "e"), s.id, t.id, { order: 1, label: IF_BRANCH_LABEL(1) });
-    const bo = edge(fresh(taken, "e"), s.id, e.to, { otherwise: true, label: OTHERWISE_LABEL });
-    const te = edge(fresh(taken, "e"), t.id, e.to);
-    insertAfter(g.nodes, at, s, t);
+    const bo = edge(fresh(taken, "e"), s.id, join, { otherwise: true, label: OTHERWISE_LABEL });
+    const te = edge(fresh(taken, "e"), t.id, join);
+    const je = j ? [edge(fresh(taken, "e"), j.id, e.to)] : [];
+    insertAfter(g.nodes, at, s, t, ...(j ? [j] : []));
     e.to = s.id;
-    insertAfter(g.edges, ei, b1, bo, te);
+    insertAfter(g.edges, ei, b1, bo, te, ...je);
     return done(g);
   }
   const m = node(fresh(taken, "m"), "MERGE", null, s.id);
@@ -659,7 +672,8 @@ export function insertSplit(f: EditFlow, edgeId: string, kind: "IF" | "PARALLEL"
 /**
  * 노드를 지운다(§8.2). RULE·TASK: 들어오는 선이 없으면 나가는 선과 함께, 있으면 모두 나가는 선 도착으로 옮기고(선 ID 유지) 노드·붙은 받는 노드·그 나가는 선을 지운다
  * (처리 갈래 안 노드는 남긴다). 돌아오는 자리이고 다음이 END 면 거부(RETURN_JOIN_END). IF 는 들어오는 선을 모이는 자리로 옮기고 블록(끝내는 갈래 몸 포함)을 지운다.
- * 병렬은 짝 합류까지 지우고 들어오는 선을 합류 출구 도착으로(R9). 합류는 분기로 지운다. 받는 노드는 자기와 나가는 선만. 결과에 빈 갈래가 둘이면 거부(B2).
+ * 병렬은 짝 합류까지 지우고 들어오는 선을 합류 출구 도착으로(R9). 합류는 분기로 지운다 — 단 받는 노드가 없는데 룰·빈 단계를 가리키는 옛 돌아오는 합류는
+ * 들어오는 선을 출구 도착으로 옮겨 걷어 낸다(수정 1회차, 출구가 하나일 때). 받는 노드는 자기와 나가는 선만. 결과에 빈 갈래가 둘이면 거부(B2).
  */
 export function removeNode(f: EditFlow, nodeId: string): EditResult {
   const g = clone(f);
@@ -667,7 +681,12 @@ export function removeNode(f: EditFlow, nodeId: string): EditResult {
   if (!n) return fail(`노드 ${nodeId}를 찾지 못했다`);
   if (n.kind === "START") return fail("시작 노드는 지울 수 없다");
   if (n.kind === "END") return fail("끝 노드는 지울 수 없다");
-  if (n.kind === "MERGE") return fail(MERGE_ONLY_BY_SPLIT);
+  if (n.kind === "MERGE") {
+    const host = n.splitId == null ? undefined : findNode(g, n.splitId);
+    if (!host || !CATCHABLE.has(host.kind)) return fail(MERGE_ONLY_BY_SPLIT);
+    const next = dissolveMerge(g, nodeId);
+    return next ? checked(next) : fail(MERGE_EXIT_NOT_ONE);
+  }
   if (n.kind === "CATCH") return done(dropNodes(g, new Set([nodeId])));
   const endId = endIdOf(g);
   const ins = inOf(g, nodeId);
@@ -1318,6 +1337,7 @@ export function duplicateNode(f: EditFlow, nodeId: string): EditResult {
  * - 병렬로: 끝내는 갈래가 있으면 거부. 새 합류 m(splitId = s)을 모이는 자리 바로 앞에 넣고 꼬리를 m 으로(꺾는 점 지움), 출구 {m → 모이는 자리} 를 마지막 꼬리 뒤에.
  *   갈래를 실행 순서대로 order 1..n, 조건식·그 외 없앰.
  * - IF 로: 갈래를 order 순으로 두고 마지막을 "그 외"(order·조건식 null), 나머지는 order 1..n-1. 짝 합류를 dissolveMerge 하고 같은 도착 갈래에 빈 단계를 채운다.
+ *   합류 출구가 END 면 합류를 지우지 않고 같은 ID 의 빈 단계로 바꿔 모이는 자리로 둔다(J-D10, 수정 1회차 — 끝내는 갈래가 생기지 않아 병렬로 되돌릴 수 있다).
  * - 라벨은 기본 라벨(분기 `조건`·`병렬`, 갈래 `갈래 N`·`그 외`)이거나 비었을 때만 새 규칙으로 다시 붙인다.
  */
 export function changeSplitKind(f: EditFlow, splitId: string, kind: "IF" | "PARALLEL"): EditResult {
@@ -1358,9 +1378,15 @@ export function changeSplitKind(f: EditFlow, splitId: string, kind: "IF" | "PARA
   if (s.label == null || s.label === SPLIT_LABEL.IF || s.label === SPLIT_LABEL.PARALLEL) s.label = SPLIT_LABEL[kind];
   s.kind = kind;
   if (kind === "IF") {
-    const next = dissolveMerge(g, mergeOf(g, splitId)!.id);
-    if (!next) return fail(`분기 ${splitId}의 짝 합류를 찾지 못했다`);
-    g = next;
+    const m = mergeOf(g, splitId)!;
+    const exits = outOf(g, m.id);
+    const endId = endIdOf(g);
+    if (endId !== null && exits.length === 1 && exits[0].to === endId) mergeToTask(g, m.id);
+    else {
+      const next = dissolveMerge(g, m.id);
+      if (!next) return fail(`분기 ${splitId}의 짝 합류를 찾지 못했다`);
+      g = next;
+    }
     fillEmptyBranches(g, splitId, takenIds(g));
   }
   return done(g);

@@ -240,11 +240,12 @@ describe("RuleSetEditPage", () => {
     expect(q("flow-palette")).not.toBeNull();
     expect(byTestId("flow-canvas").getAttribute("data-mode")).toBe("edit");
     await click("flow-add-if");
-    expect(canvasNodeIds().sort()).toEqual(["end", "if1", "r1", "r2", "r3", "r4", "start"]); // r4 = 「갈래 1」 빈 단계(합류 없음, implicit-join §8.2)
+    // r4 = 「갈래 1」 빈 단계, r5 = END 앞 모이는 자리 빈 단계(합류 없음, implicit-join §8.2 수정 1회차)
+    expect(canvasNodeIds().sort()).toEqual(["end", "if1", "r1", "r2", "r3", "r4", "r5", "start"]);
     const checks = visibleText(byTestId("set-checks"));
     expect(checks).toContain("IF if1의 갈래 e5에 조건식이 없다");
     expect(checks).toContain("거부");
-    expect(checks).toContain("빈 단계 1개"); // 「갈래 1」 빈 단계의 EMPTY_TASK 경고(implicit-join §8.2)
+    expect(checks).toContain("빈 단계 2개"); // 「갈래 1」·모이는 자리 빈 단계의 EMPTY_TASK 경고 한 줄(implicit-join §8.2)
     expect(visibleText(byTestId("flow-tab-checks"))).toContain("검사 결과 2");
     expect(saveButton().disabled).toBe(true);
   });
@@ -342,7 +343,7 @@ describe("RuleSetEditPage", () => {
     await flush();
     expect(visibleText(byTestId("set-checks"))).not.toContain("첫 응답(버려야 함)");
     expect(visibleText(byTestId("set-checks"))).not.toContain("거부");
-    expect(visibleText(byTestId("set-checks"))).toContain("빈 단계 1개"); // IF 를 끼우면 「갈래 1」 빈 단계가 생긴다(EMPTY_TASK 경고뿐)
+    expect(visibleText(byTestId("set-checks"))).toContain("빈 단계 2개"); // END 앞에 IF 를 끼우면 「갈래 1」·모이는 자리 빈 단계가 생긴다(EMPTY_TASK 경고뿐)
     expect(saveButton().disabled).toBe(false);
   });
 

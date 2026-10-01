@@ -3,11 +3,12 @@ import { describe, expect, it } from "vitest";
 
 import type { FlowEdge, FlowNode } from "../../../src/contract/engine-contract.generated";
 import {
-  ENDING_TO_PARALLEL, IF_EMPTY_TWICE, KEEP_ENDING, MERGE_ONLY_BY_SPLIT, MOVE_GUARDED, RETURN_JOIN_END, RETURN_TO_END,
-  addBranch, addCatch, changeSplitKind, copyFragment, dissolveSplit, duplicateNode, insertSplit, moveNode, pasteFragment, reconnectEdge,
+  ENDING_TO_PARALLEL, IF_EMPTY_TWICE, KEEP_ENDING, MERGE_EXIT_NOT_ONE, MERGE_ONLY_BY_SPLIT, MOVE_GUARDED, RETURN_JOIN_END, RETURN_TO_END,
+  TASK_LABEL, addBranch, addCatch, blockMembers, insertRule, changeSplitKind, copyFragment, dissolveSplit, duplicateNode, insertSplit, moveNode, pasteFragment, reconnectEdge,
   removeBranch, removeNode, returnCatch, tailsOf, toEditFlow, updateEdge, type EditFlow, type EditResult, type Fragment,
 } from "../../../pages/dme/ruleSetEdit/flow-edit";
-import { joinOf, parseFlow, returnOf } from "../../../pages/dme/ruleSetEdit/flow-model";
+import { endingBranches, joinOf, parseFlow, returnOf } from "../../../pages/dme/ruleSetEdit/flow-model";
+import { collapseView } from "../../../pages/dme/ruleSetEdit/canvas/collapse";
 
 const N = (id: string, kind: FlowNode["kind"], over: Partial<FlowNode> = {}): FlowNode => ({ id, kind, ruleId: null, splitId: null, label: null, ...over });
 const R = (id: string, ruleId = id.toUpperCase()) => N(id, "RULE", { ruleId });
@@ -192,3 +193,82 @@ describe("받는 노드 연산(implicit-join spec §8.2)", () => {
     expect(returnCatch(atEnd, "c1")).toEqual({ ok: false, reason: RETURN_TO_END });
   });
 });
+
+// ── 수정 1회차(컨트롤러 판정): END 앞 IF·병렬은 모이는 자리 빈 단계를 둔다 ──
+
+describe("END 앞 선에 끼운 IF — 모이는 자리 빈 단계(수정 1회차)", () => {
+  /** start → r1 → if1 [e3 "X > 0" → r2(빈 단계) → r3][e4 그 외 → r3] → r3(모이는 자리 빈 단계) → end. */
+  const atEnd = () => ok(updateEdge(ok(insertSplit(toEditFlow(null, ["R_A"]), "e2", "IF")), "e3", { cond: "X > 0" }));
+
+  it("END 로 들어가는 선에 IF 를 끼우면 「갈래 1」 빈 단계와 모이는 자리 빈 단계를 두고 「그 외」 는 끝내는 갈래가 아니다", () => {
+    const f = ok(insertSplit(toEditFlow(null, ["R_A"]), "e2", "IF"));
+    expect(f.nodes.map((n) => `${n.id}:${n.kind}`)).toEqual(["start:START", "r1:RULE", "if1:IF", "r2:TASK", "r3:TASK", "end:END"]);
+    expect(f.nodes.find((n) => n.id === "r3")!.label).toBe(TASK_LABEL);
+    expect(edgesOf(f)).toEqual(["e1:start>r1", "e2:r1>if1", "e3:if1>r2", "e4:if1>r3", "e5:r2>r3", "e6:r3>end"]);
+    expect(f.edges.find((e) => e.id === "e4")).toMatchObject({ otherwise: true, label: "그 외" });
+    const g = atEnd();
+    expect(parseFlow(g).issues).toEqual([]);
+    expect(joinOf(g, "if1")).toBe("r3");
+    expect(endingBranches(g, "if1")).toEqual([]);
+    expect(blockMembers(g, "if1")).toEqual(["if1", "r2"]);
+  });
+
+  it("IF 를 지우면 들어오는 선이 모이는 자리로 가고 갈래 빈 단계만 지운다(모이는 자리 빈 단계는 남는다)", () => {
+    const g = ok(removeNode(atEnd(), "if1"));
+    expect(ids(g)).toEqual(["start", "r1", "r3", "end"]);
+    expect(edgesOf(g)).toEqual(["e1:start>r1", "e2:r1>r3", "e6:r3>end"]);
+  });
+
+  it("「그 외」 를 남기고 풀 수 있고 병렬로 바꿀 수 있다", () => {
+    expect(edgesOf(ok(dissolveSplit(atEnd(), "if1", "e4")))).toEqual(["e1:start>r1", "e2:r1>r3", "e6:r3>end"]);
+    const p = ok(changeSplitKind(atEnd(), "if1", "PARALLEL"));
+    expect(p.nodes.map((n) => `${n.id}:${n.kind}`)).toEqual(["start:START", "r1:RULE", "if1:PARALLEL", "r2:TASK", "m1:MERGE", "r3:TASK", "end:END"]);
+    expect(edgesOf(p)).toEqual(["e1:start>r1", "e2:r1>if1", "e3:if1>r2", "e4:if1>m1", "e5:r2>m1", "e7:m1>r3", "e6:r3>end"]);
+    expect(parseFlow(p).issues).toEqual([]);
+  });
+
+  it("갈래를 더하면 새 빈 단계가 모이는 자리로 간다(「갈래 1」 빈 단계로 들어가지 않는다)", () => {
+    const g = ok(addBranch(atEnd(), "if1"));
+    expect(ids(g)).toEqual(["start", "r1", "if1", "r4", "r2", "r3", "end"]);
+    expect(edgesOf(g)).toEqual(["e1:start>r1", "e2:r1>if1", "e3:if1>r2", "e7:if1>r4", "e8:r4>r3", "e4:if1>r3", "e5:r2>r3", "e6:r3>end"]);
+  });
+
+  it("갈래 1 에 룰을 넣은 블록은 옮기기·접기에서 갈래 안 노드가 함께 다뤄진다", () => {
+    const f = ok(insertRule(atEnd(), "e3", "R_B")); // if1 → r4(R_B) → r2 → r3
+    expect(blockMembers(f, "if1")).toEqual(["if1", "r4", "r2"]);
+    const g = ok(moveNode(f, "if1", "e1")); // start 바로 뒤로
+    expect(edgesOf(g)).toEqual(["e1:start>if1", "e2:r1>r3", "e3:if1>r4", "e7:r4>r2", "e4:if1>r1", "e5:r2>r1", "e6:r3>end"]);
+    expect(parseFlow(g).issues.filter((i) => i.code !== "FLOW_IF_ELSE")).toEqual([]);
+    const v = collapseView(f, new Set(["if1"]));
+    expect([...v.hidden].sort()).toEqual(["r2", "r4"]);
+    expect(v.blocks.if1.count).toBe(2);
+  });
+});
+
+describe("END 앞 병렬 ⇄ IF 왕복(수정 1회차)", () => {
+  it("병렬 → IF 는 END 앞 합류를 같은 ID 의 빈 단계로 바꾸고, 다시 병렬로 바꿀 수 있다", () => {
+    const par = ok(insertSplit(toEditFlow(null, ["R_A"]), "e2", "PARALLEL")); // r1 → par1 [e3·e4 → m1] → m1 → e5 → end
+    const iff = ok(changeSplitKind(par, "par1", "IF"));
+    expect(iff.nodes.map((n) => `${n.id}:${n.kind}`)).toEqual(["start:START", "r1:RULE", "par1:IF", "r2:TASK", "m1:TASK", "end:END"]);
+    expect(iff.nodes.find((n) => n.id === "m1")).toMatchObject({ splitId: null, label: TASK_LABEL });
+    expect(edgesOf(iff)).toEqual(["e1:start>r1", "e2:r1>par1", "e3:par1>r2", "e6:r2>m1", "e4:par1>m1", "e5:m1>end"]);
+    expect(endingBranches(iff, "par1")).toEqual([]);
+    const back = ok(changeSplitKind(iff, "par1", "PARALLEL"));
+    expect(back.nodes.map((n) => `${n.id}:${n.kind}`)).toEqual(["start:START", "r1:RULE", "par1:PARALLEL", "r2:TASK", "m2:MERGE", "m1:TASK", "end:END"]);
+    expect(parseFlow(back).issues).toEqual([]);
+  });
+});
+
+describe("받는 노드 없는 옛 돌아오는 합류 지우기(수정 1회차)", () => {
+  it("룰을 가리키는 합류는 들어오는 선을 출구 도착으로 옮겨 걷어 내고, 출구가 하나가 아니면 거부한다", () => {
+    const f = ef([N("start", "START"), R("r1"), N("m1", "MERGE", { splitId: "r1" }), R("r2"), N("end", "END")],
+      [E("e1", "start", "r1"), E("e2", "r1", "m1"), E("e3", "m1", "r2"), E("e4", "r2", "end")]);
+    expect(f.nodes.some((n) => n.id === "m1")).toBe(true); // 받는 노드가 없어 변환 대상이 아니다
+    const g = ok(removeNode(f, "m1"));
+    expect(ids(g)).toEqual(["start", "r1", "r2", "end"]);
+    expect(edgesOf(g)).toEqual(["e1:start>r1", "e2:r1>r2", "e4:r2>end"]);
+    const two: EditFlow = { ...f, edges: [...f.edges, E("e9", "m1", "end")] };
+    expect(removeNode(two, "m1")).toEqual({ ok: false, reason: MERGE_EXIT_NOT_ONE });
+  });
+});
+

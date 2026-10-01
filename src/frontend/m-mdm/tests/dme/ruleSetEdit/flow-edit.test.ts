@@ -69,7 +69,8 @@ describe("flow-edit", () => {
     expect(g.nodes.map((n) => n.id)).toEqual(["start", "r1", "r2", "end"]);
   });
 
-  it("END 앞 선에 끼운 IF 는 「그 외」 가 끝내는 갈래라 갈래 1 에 넣은 노드는 IF 를 지워도 남는다(implicit-join F9)", () => {
+  it("END 앞 선에 끼운 IF 는 모이는 자리 빈 단계를 두어, 지우면 갈래 안 노드까지 사라지고 모이는 자리 빈 단계만 남는다(수정 1회차)", () => {
+    // r1 → if1 [e3 → r2(빈 단계) → r3][e4 그 외 → r3] → r3(모이는 자리 빈 단계) → end
     let f = ok(insertSplit(base, "e2", "IF"));
     const cond = f.edges.find((e) => e.from === "if1" && !e.otherwise)!;
     f = ok(updateEdge(f, cond.id, { cond: "true" }));
@@ -77,7 +78,7 @@ describe("flow-edit", () => {
     const other = f.edges.find((e) => e.from === "if1" && e.otherwise)!;
     expect(removeBranch(f, "if1", other.id)).toEqual({ ok: false, reason: '"그 외" 갈래는 지울 수 없다' });
     const g = valid(ok(removeNode(f, "if1")));
-    expect(g.nodes.map((n) => n.id)).toEqual(["start", "r1", "r3", "r2", "end"]);
+    expect(g.nodes.map((n) => n.id)).toEqual(["start", "r1", "r3", "end"]);
   });
 
   it("룰을 지우면 앞뒤 선을 잇고 view 흔적을 치운다", () => {
