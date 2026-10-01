@@ -294,20 +294,28 @@ test.describe("mdm dme/ruleEdit", () => {
 
   // ── TSK-08-03: 열 설정·피벗·산출 룰·입력 계약 ──
 
-  /** 룰을 열고 고른 버전을 맞춘다(기본은 가장 최신 버전). */
+  /** 열 설정 섹션을 펼친다 — 처음에는 접혀 있다(2026-10-01). 이미 펼쳐져 있으면(되살린 초안 등) 그대로 둔다. */
+  async function openColumns(page: Page) {
+    await expect(page.getByTestId("rule-section-columns")).toBeVisible({ timeout: 30_000 });
+    const toggle = page.getByTestId("rule-section-columns-toggle");
+    if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+    await expect(page.getByTestId("rule-section-columns-body")).toBeVisible();
+  }
+
+  /** 룰을 열고 고른 버전을 맞춘 뒤 열 설정을 펼친다(기본은 가장 최신 버전). */
   async function openRuleVer(page: Page, ruleId: string, ver: number) {
     await openRule(page, STEWARD, ruleId);
     const select = page.getByTestId("rule-ver-select");
     if ((await select.inputValue()) !== String(ver)) await select.selectOption(String(ver));
     await expect(select).toHaveValue(String(ver));
-    await expect(page.getByTestId("rule-section-columns")).toBeVisible({ timeout: 30_000 });
+    await openColumns(page);
   }
 
   async function reopen(page: Page, ruleId: string) {
     await page.reload();
     await openRuleEdit(page);
     await pickRule(page, ruleId);
-    await expect(page.getByTestId("rule-section-columns")).toBeVisible({ timeout: 30_000 });
+    await openColumns(page);
   }
 
   test("C1 열 설정: BASE_SPD_LKP v2 의 결과 열 그룹 8열과 열 조건이 보이고 FLUORO 열 조건을 고쳐 적용하면 다시 불러와도 같다", async ({ page }) => {
@@ -421,7 +429,7 @@ test.describe("mdm dme/ruleEdit", () => {
     await openRule(page, STEWARD, "COIL_WGT_CALC");
     await page.getByRole("button", { name: "새 버전", exact: true }).click();
     await expect(page.getByTestId("rule-ver-select")).toHaveValue("2", { timeout: 20_000 });
-    await expect(page.getByTestId("rule-section-columns")).toBeVisible({ timeout: 30_000 });
+    await openColumns(page);
     await expect(page.getByTestId("dt-derive-notice")).toBeVisible();
     await expect(page.getByTestId("col-expr-v1")).toHaveText("ROUND(COIL_THK * COIL_WID * COIL_LEN * SPEC_GRAV / 1000, 1)");
 

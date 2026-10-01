@@ -14,7 +14,7 @@ import { TABLE_SECTIONS } from "../../../pages/dme/ruleEdit/sections";
 import { columnDraftStorageKey, draftFromView, newColumn, type ColumnDraftRow } from "../../../pages/dme/ruleEdit/sections/columns/column-draft";
 import type { RuleEditCardProps } from "../../../pages/dme/ruleEdit/cards";
 import type { RuleEditView } from "../../../pages/dme/ruleEdit/types";
-import { findButton, flush, installDomStorage, jsonResponse, typeInto, visibleText } from "../helpers/render";
+import { findButton, flush, installDomStorage, jsonResponse, selectValue, typeInto, visibleText } from "../helpers/render";
 import { ContractChangeNotice } from "../../../pages/dme/ruleEdit/sections/contract/ContractChangeNotice";
 import { PROD_WGT_CALC, PROD_WGT_CALC_PV2 } from "../../fixtures/evalex-rules";
 import { ast } from "../../helpers/parse-expr";
@@ -272,14 +272,24 @@ describe("열 설정 섹션 렌더", () => {
     expect(q<HTMLElement>("[data-testid='rule-section-columns-body']").hidden).toBe(false);
   });
 
+  it("처음에는 접혀 있고 펼치기 단추로 연다 — 접혀도 읽기 전용 배지는 제목 줄에 보인다", async () => {
+    await mount(createElement(ColumnSettingsSection, props(view({ editable: false }))));
+    const toggle = q<HTMLButtonElement>("[data-testid='rule-section-columns-toggle']");
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(q<HTMLElement>("[data-testid='rule-section-columns-body']").hidden).toBe(true);
+    expect(q("[data-testid='col-readonly']")).not.toBeNull();
+    await act(async () => {
+      toggle.click();
+    });
+    expect(q<HTMLElement>("[data-testid='rule-section-columns-body']").hidden).toBe(false);
+  });
+
   it("접힌 채로 열 머리를 누르면(highlightVarId) 섹션을 펼친다", async () => {
     const base = { colDirty: false, tableDirty: false, setColDirty: () => {}, setHighlightVarId: () => {} };
     const render = (highlightVarId: number | null) =>
       createElement(DmesUiProvider, null, createElement(ColumnDraftSharedContext.Provider, { value: { ...base, highlightVarId } }, createElement(ColumnSettingsSection, props(view()))));
     await mount(createElement(ColumnDraftSharedContext.Provider, { value: { ...base, highlightVarId: null } }, createElement(ColumnSettingsSection, props(view()))));
-    await act(async () => {
-      q<HTMLButtonElement>("[data-testid='rule-section-columns-toggle']").click();
-    });
+    // 처음에는 접혀 있다(2026-10-01).
     expect(q<HTMLElement>("[data-testid='rule-section-columns-body']").hidden).toBe(true);
     await act(async () => {
       root!.render(render(3));
@@ -322,6 +332,19 @@ describe("표 카드 + 열 설정 섹션(불변 13)", () => {
     });
     expect(findButton(container, "표 저장").disabled).toBe(false);
     expect(container.querySelector("[data-testid='dt-col-block']")).toBeNull();
+  });
+
+  it("적중 정책을 바꿔 열 설정과 어긋나면 [열 설정 보기] 가 접힌 열 설정을 펼친다(D-133)", async () => {
+    const base = view({ varMeta: [{ varId: 4, collectAgg: "SUM" }] });
+    const v = { ...base, versions: base.versions.map((x) => (x.ver === 2 ? { ...x, hitPolicy: "COLLECT" as const } : x)) };
+    await mount(createElement(DecisionTableCard, { ...props(v), extraSections: TABLE_SECTIONS }));
+    expect(q<HTMLElement>("[data-testid='rule-section-columns-body']").hidden).toBe(true);
+    await selectValue(q<HTMLSelectElement>("[data-testid='dt-hit-policy']"), "FIRST");
+    expect(q("[data-testid='dt-hit-policy-conflicts']").textContent).toContain("AGG_COLLECT");
+    await act(async () => {
+      q<HTMLButtonElement>("[data-testid='dt-hit-policy-show-columns']").click();
+    });
+    expect(q<HTMLElement>("[data-testid='rule-section-columns-body']").hidden).toBe(false);
   });
 });
 
