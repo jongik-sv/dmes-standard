@@ -75,7 +75,10 @@ describe("툴바 — 되돌리기·다시 하기 즉시 툴팁", () => {
     for (const [id, tip, label] of [["flow-undo", "되돌리기 (Ctrl+Z)", "되돌리기"], ["flow-redo", "다시 하기 (Ctrl+Shift+Z)", "다시 하기"]] as const) {
       const b = byTestId<HTMLButtonElement>(id);
       expect(b.disabled).toBe(true); // 보기 모드 — 꺼짐
-      expect(b.getAttribute("data-tip")).toBe(tip);
+      const wrap = b.parentElement!; // 툴팁은 단추(overflow:hidden)가 아니라 감싼 span 이 그린다
+      expect(wrap.classList.contains("rsf-tip")).toBe(true);
+      expect(wrap.getAttribute("data-tip")).toBe(tip);
+      expect(b.hasAttribute("data-tip")).toBe(false);
       expect(b.hasAttribute("title")).toBe(false);
       expect(b.getAttribute("aria-label")).toBe(label);
     }
@@ -84,20 +87,41 @@ describe("툴바 — 되돌리기·다시 하기 즉시 툴팁", () => {
   it("맥: ⌘Z·⌘⇧Z", async () => {
     vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
     await openSet("UT_TIP2", viewOf("UT_TIP2"));
-    expect(byTestId("flow-undo").getAttribute("data-tip")).toBe("되돌리기 (⌘Z)");
-    expect(byTestId("flow-redo").getAttribute("data-tip")).toBe("다시 하기 (⌘⇧Z)");
+    expect(byTestId("flow-undo").parentElement!.getAttribute("data-tip")).toBe("되돌리기 (⌘Z)");
+    expect(byTestId("flow-redo").parentElement!.getAttribute("data-tip")).toBe("다시 하기 (⌘⇧Z)");
   });
 
-  it("CSS — 툴바 단추 툴팁 규칙: hover·focus-visible, 단추 아래, 꺼진 단추도 뜸, 16진수 색 없음", () => {
-    const m = RSF_CSS.match(/\.rsf-toolbar \[data-tip\][^{]*\{[^}]*\}/g) ?? [];
-    const css = m.join("\n");
-    expect(css).toMatch(/:hover::after/);
-    expect(css).toMatch(/:focus-visible::after/);
+  it("도움말 [?] 도 래퍼가 툴팁을 그리고, 열리면 숨긴다", async () => {
+    await openSet("UT_TIP3", viewOf("UT_TIP3"));
+    const wrap = byTestId("flow-help").parentElement!;
+    expect(wrap.classList.contains("rsf-tip")).toBe(true);
+    expect(wrap.getAttribute("data-tip")).toBe("단축키 도움말");
+    expect(byTestId("flow-help").getAttribute("aria-label")).toBe("단축키 도움말");
+    await click("flow-help");
+    expect(wrap.hasAttribute("data-tip-off")).toBe(true);
+  });
+
+  it("툴팁을 그리는 요소는 단추 안이 아니다(단추 루트 overflow:hidden 에 잘리지 않음)", async () => {
+    await openSet("UT_TIP4", viewOf("UT_TIP4"));
+    for (const id of ["flow-undo", "flow-redo", "flow-help"]) {
+      const b = byTestId(id);
+      expect(b.closest("[data-tip]")).toBe(b.parentElement); // 가장 가까운 data-tip 은 단추가 아닌 래퍼
+      expect(b.closest("[data-tip]")).not.toBe(b);
+      expect(b.querySelector("[data-tip]")).toBeNull();
+    }
+    expect(RSF_CSS).not.toMatch(/button\[data-tip\]|\.form-button\[data-tip\]/);
+  });
+
+  it("CSS — 래퍼 툴팁 규칙: hover·focus-within, 아래쪽, 꺼진 단추도 뜸, 16진수 색 없음", () => {
+    const css = (RSF_CSS.match(/\.rsf-tip[^{]*\{[^}]*\}/g) ?? []).join("\n");
+    expect(css).toMatch(/\.rsf-tip:hover::after/);
+    expect(css).toMatch(/\.rsf-tip:focus-within::after/);
     expect(css).toMatch(/top:\s*calc\(100% \+/);
     expect(css).toMatch(/content:\s*attr\(data-tip\)/);
     expect(css).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgb\(/);
-    expect(RSF_CSS).toMatch(/\.rsf-toolbar \[data-tip\]\s*\{[^}]*position:\s*relative/);
-    expect(RSF_CSS).not.toMatch(/\.rsf-toolbar \[data-tip\]:hover:not\(:disabled\)/);
+    expect(RSF_CSS).toMatch(/\.rsf-tip\s*\{[^}]*position:\s*relative/);
+    expect(RSF_CSS).toMatch(/\.rsf-tip\[data-tip-off\]::after\s*\{\s*display:\s*none/);
+    expect(RSF_CSS).not.toMatch(/\.rsf-tip[^{]*:not\(:disabled\)/);
   });
 });
 
