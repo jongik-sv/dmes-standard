@@ -12,6 +12,9 @@
  * 실패: 행 버전 충돌이면 이 화면에서 자동 저장을 끄고(보는 사람 설정은 그대로 둔다) 기존 충돌 안내·다시 불러오기에 맡긴다.
  * 다른 오류는 메시지 줄에 보이고, 그 내용(`contentKey`)이 바뀔 때까지 다시 시도하지 않는다. 껐다 켜도 다시 시도한다.
  * 보낸 내용과 지금 내용이 같은데도 dirty 가 남으면(기준점 계산이 어긋난 경우) 같은 내용을 다시 보내지 않는다 — 2초마다 저장하는 고리를 막는다.
+ *
+ * 상태 글(2026-10-01): 툴바에는 알아야 할 것(보류·실패·저장 뒤 경고 건수)만 보인다. "저장 중"·"자동 저장됨 HH:MM:SS" 같은 정보 글은
+ * 툴바에 두지 않고, 마지막 자동 저장 시각(`savedAt`)을 [자동 저장] 단추 툴팁이 보인다.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -21,9 +24,9 @@ import type { RuleSetEditState } from "./useRuleSetEdit";
 /** 마지막 변경 뒤 자동 저장까지 기다리는 시간(ms). */
 export const AUTO_SAVE_DELAY_MS = 2000;
 
-/** 툴바 [자동 저장] 옆 상태 글. 경고 문장은 title 로 보인다. */
+/** 툴바 [자동 저장] 옆 상태 글 — 보류·실패·경고만. 경고 문장은 title 로 보인다. */
 export interface AutoSaveStatus {
-  kind: "info" | "warning" | "error";
+  kind: "warning" | "error";
   text: string;
   title?: string;
 }
@@ -34,6 +37,8 @@ export interface AutoSave {
   setEnabled(on: boolean): void;
   /** 상태 글 — 꺼져 있거나 보일 것이 없으면 null. */
   status: AutoSaveStatus | null;
+  /** 마지막 자동 저장 시각("HH:MM:SS") — 단추 툴팁용. 없으면 null. */
+  savedAt: string | null;
 }
 
 const two = (n: number) => String(n).padStart(2, "0");
@@ -107,15 +112,11 @@ export function useAutoSave(state: RuleSetEditState, active: boolean): AutoSave 
   }, []);
 
   let status: AutoSaveStatus | null = null;
-  if (enabled) {
-    if (autoSaving) status = { kind: "info", text: "저장 중" };
-    else if (dirty && hasReject) status = { kind: "warning", text: "거부 검사가 있어 자동 저장 보류" };
+  if (enabled && !autoSaving) {
+    if (dirty && hasReject) status = { kind: "warning", text: "거부 검사가 있어 자동 저장 보류" };
     else if (dirty && key === failedKey) status = { kind: "error", text: "자동 저장 실패. 고치면 다시 저장한다" };
-    else if (savedAt) {
-      const text = `자동 저장됨 ${clock(savedAt)}`;
-      status = warnings.length > 0 ? { kind: "warning", text: `${text} · 경고 ${warnings.length}건`, title: warnings.join("\n") } : { kind: "info", text };
-    }
+    else if (savedAt && warnings.length > 0) status = { kind: "warning", text: `자동 저장 경고 ${warnings.length}건`, title: warnings.join("\n") };
   }
 
-  return { enabled, setEnabled, status };
+  return { enabled, setEnabled, status, savedAt: savedAt ? clock(savedAt) : null };
 }
