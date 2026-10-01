@@ -75,6 +75,7 @@ const KIND_TEXT: Record<FlowNode["kind"], string> = {
   IF: "IF 분기",
   PARALLEL: "병렬 분기",
   MERGE: "합류",
+  CATCH: "받는 노드 — 붙은 룰이 실패하거나 결과가 없을 때 처리 갈래를 실행한다", // SEAM(T9): 받는 노드 속성 섹션은 Task 9
 };
 
 const blankToNull = (v: string) => (v === "" ? null : v);

@@ -173,7 +173,7 @@ public final class RuleSetFlowJson {
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("노드 종류 " + kind + " 를 모른다");
             }
-            nodes.add(new FlowNode(id, k, text(n, "ruleId", where), text(n, "splitId", where), text(n, "label", where)));
+            nodes.add(new FlowNode(id, k, text(n, "ruleId", where), text(n, "splitId", where), text(n, "label", where), null, null));
         }
         List<FlowEdge> edges = new ArrayList<>();
         for (int i = 0; i < es.size(); i++) {

@@ -243,7 +243,7 @@ class RuleSetTraceTest {
         assertNull(t.violations());
         assertEquals(List.of("1:start:START:OK", "2:t1:TASK:OK", "3:a:RULE:OK", "4:end:END:OK"), kinds(t));
         NodeTrace tn = t.nodes().get(1);
-        assertEquals(new NodeTrace(2, "t1", NodeKind.TASK, NodeStatus.OK, null, null, null, null, null, null, null, null, null, null), tn);
+        assertEquals(new NodeTrace(2, "t1", NodeKind.TASK, NodeStatus.OK, null, null, null, null, null, null, null, null, null, null, null, null, null), tn);
         assertNum("2", t.finalValues().get("A"));
     }
 

@@ -316,12 +316,12 @@ class FlowParserTest {
         int depth = 99;
         List<FlowNode> nodes = new ArrayList<>();
         List<FlowEdge> edges = new ArrayList<>();
-        nodes.add(new FlowNode("start", NodeKind.START, null, null, null));
+        nodes.add(new FlowNode("start", NodeKind.START, null, null, null, null, null));
         for (int i = 1; i <= depth; i++) {
-            nodes.add(new FlowNode("if" + i, NodeKind.IF, null, null, null));
-            nodes.add(new FlowNode("m" + i, NodeKind.MERGE, null, "if" + i, null));
+            nodes.add(new FlowNode("if" + i, NodeKind.IF, null, null, null, null, null));
+            nodes.add(new FlowNode("m" + i, NodeKind.MERGE, null, "if" + i, null, null, null));
         }
-        nodes.add(new FlowNode("end", NodeKind.END, null, null, null));
+        nodes.add(new FlowNode("end", NodeKind.END, null, null, null, null, null));
         edges.add(new FlowEdge("e0", "start", "if1", null, null, false, null));
         for (int i = 1; i <= depth; i++) {
             String inner = i < depth ? "if" + (i + 1) : "m" + i;

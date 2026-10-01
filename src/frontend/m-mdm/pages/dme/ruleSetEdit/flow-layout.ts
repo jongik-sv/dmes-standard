@@ -19,6 +19,7 @@ export const NODE_SIZE: Readonly<Record<FlowNodeKind, { w: number; h: number }>>
   IF: { w: 176, h: 44 },
   PARALLEL: { w: 200, h: 14 },
   MERGE: { w: 28, h: 28 },
+  CATCH: { w: 28, h: 28 }, // 받는 노드 — 룰 아래 테두리에 걸친 작은 원(받는 노드 spec §8, Ruling R15)
 };
 
 /** 외관(view.styles)을 읽을 수 있는 흐름 — EditFlow, 또는 view 없는 RuleSetFlow. */

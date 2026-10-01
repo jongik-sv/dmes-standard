@@ -142,7 +142,7 @@ public class RuleSetRunner {
             Object known = parsed(flowJson);
             if (known instanceof IllegalArgumentException e) {
                 return new RunTrace(UNSAVED, ts, Collections.unmodifiableMap(new LinkedHashMap<>(record)), List.of(), Map.of(),
-                        List.of(new Violation(Stage.SET_CHECK, Code.FLOW_INVALID, null, null, null, "흐름을 읽을 수 없다: " + e.getMessage())), echo);
+                        List.of(new Violation(Stage.SET_CHECK, Code.FLOW_INVALID, null, null, null, "흐름을 읽을 수 없다: " + e.getMessage())), echo, null);
             }
             Parsed flow = (Parsed) known;
             if (flow.parse().tree() != null) {

@@ -93,7 +93,7 @@ final class FlowRun {
     /** 처리 중이던 노드의 ERROR 기록. */
     NodeTrace failed(List<Violation> violations) {
         return new NodeTrace(nodes.size() + 1, curNodeId, curKind, NodeStatus.ERROR, curRuleId, curVer, curReads, null,
-                curBranches == null ? null : List.copyOf(curBranches), curChosen, null, null, null, List.copyOf(violations));
+                curBranches == null ? null : List.copyOf(curBranches), curChosen, null, null, null, List.copyOf(violations), null, null, null);
     }
 
     /** 정상 완료 뒤 쓰이지 않은 고친 값마다 위반 하나(없으면 빈 목록). 실행 중 오류로 멈춘 경우에는 부르지 않는다. */
@@ -163,7 +163,7 @@ final class FlowRun {
         path.add(new PathStep(nodeId, kind, null, null));
         if (tracing) {
             nodes.add(new NodeTrace(nodes.size() + 1, nodeId, kind, NodeStatus.OK, null, null, null, null, null, null, null,
-                    null, null, null));
+                    null, null, null, null, null, null));
         }
     }
 
@@ -207,7 +207,7 @@ final class FlowRun {
         path.add(new PathStep(r.nodeId(), NodeKind.RULE, null, index));
         if (tracing) {
             nodes.add(new NodeTrace(nodes.size() + 1, r.nodeId(), NodeKind.RULE, NodeStatus.OK, curRuleId, curVer, curReads, result,
-                    null, null, null, null, null, null));
+                    null, null, null, null, null, null, null, null, null));
         }
     }
 
@@ -258,7 +258,7 @@ final class FlowRun {
         path.add(new PathStep(s.nodeId(), NodeKind.IF, chosen.edgeId(), null));
         if (tracing) {
             nodes.add(new NodeTrace(nodes.size() + 1, s.nodeId(), NodeKind.IF, NodeStatus.OK, null, null, null, null,
-                    List.copyOf(curBranches), curChosen, null, null, null, null));
+                    List.copyOf(curBranches), curChosen, null, null, null, null, null, null, null));
         }
         seq(chosen.body(), ctx, made);
         merge(s, null, ctx, made);
@@ -270,7 +270,7 @@ final class FlowRun {
         path.add(new PathStep(s.nodeId(), NodeKind.PARALLEL, null, null));
         if (tracing) {
             nodes.add(new NodeTrace(nodes.size() + 1, s.nodeId(), NodeKind.PARALLEL, NodeStatus.OK, null, null, null, null, null,
-                    null, s.branches().stream().map(Branch::edgeId).toList(), null, null, null));
+                    null, s.branches().stream().map(Branch::edgeId).toList(), null, null, null, null, null, null));
         }
         Map<String, Object> base = new LinkedHashMap<>(ctx);
         List<Map<String, Object>> outs = new ArrayList<>();
@@ -300,7 +300,7 @@ final class FlowRun {
         path.add(new PathStep(s.mergeId(), NodeKind.MERGE, null, null));
         if (tracing) {
             nodes.add(new NodeTrace(nodes.size() + 1, s.mergeId(), NodeKind.MERGE, NodeStatus.OK, null, null, null, null, null,
-                    null, null, s.nodeId(), merged == null ? null : List.copyOf(merged), null));
+                    null, null, s.nodeId(), merged == null ? null : List.copyOf(merged), null, null, null, null));
         }
     }
 }

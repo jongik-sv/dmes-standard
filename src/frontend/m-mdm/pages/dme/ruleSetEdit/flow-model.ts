@@ -67,8 +67,8 @@ interface Degree {
 const ONE: Degree = { min: 1, max: 1 };
 const NONE: Degree = { min: 0, max: 0 };
 const MANY: Degree = { min: 2, max: Number.POSITIVE_INFINITY };
-const IN_DEGREE: Record<FlowNodeKind, Degree> = { START: NONE, END: ONE, RULE: ONE, TASK: ONE, IF: ONE, PARALLEL: ONE, MERGE: MANY };
-const OUT_DEGREE: Record<FlowNodeKind, Degree> = { START: ONE, END: NONE, RULE: ONE, TASK: ONE, IF: MANY, PARALLEL: MANY, MERGE: ONE };
+const IN_DEGREE: Record<FlowNodeKind, Degree> = { START: NONE, END: ONE, RULE: ONE, TASK: ONE, IF: ONE, PARALLEL: ONE, MERGE: MANY, CATCH: NONE };
+const OUT_DEGREE: Record<FlowNodeKind, Degree> = { START: ONE, END: NONE, RULE: ONE, TASK: ONE, IF: MANY, PARALLEL: MANY, MERGE: ONE, CATCH: ONE };
 
 const degreeText = (d: Degree) => (d.max === 0 ? "없어야 한다" : d.max === 1 ? "1개여야 한다" : "2개 이상이어야 한다");
 /** Java `String.isBlank()` 과 같은 판정(C3 공백 규칙). `trim()` 은 NBSP·BOM 을 공백으로 봐 Java 와 갈라진다. */

@@ -10,7 +10,7 @@ import { generateEngineContract, OUTPUT_PATH, SCHEMA_PATH } from "../scripts/gen
  */
 const PACKAGE_ROOT = path.resolve(__dirname, "..");
 
-/** design §6.4 「생성 TS export 목록」(50개). 스키마 $defs 이름 + 루트 EngineContract. */
+/** design §6.4 「생성 TS export 목록」(52개). 스키마 $defs 이름 + 루트 EngineContract. */
 const EXPECTED_EXPORTS = [
   "EngineContract",
   "AstNode",
@@ -61,6 +61,8 @@ const EXPECTED_EXPORTS = [
   "BranchTrace",
   "TraceEdit",
   "NodeStatus",
+  "CatchKind",
+  "CaughtException",
   "BranchOutcome",
 ];
 
