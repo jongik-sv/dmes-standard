@@ -178,6 +178,6 @@ export async function clickFake(id: string): Promise<void> {
 export function canvasNodeIds(): string[] {
   return Array.from(pageContainer().querySelectorAll('[data-testid^="flow-node-"]'))
     .map((e) => e.getAttribute("data-testid")!)
-    .filter((t) => !/^flow-node-(mark|seq|chip)-/.test(t))
+    .filter((t) => !/^flow-node-(mark|seq|chip|icon|edited|grip)-/.test(t))
     .map((t) => t.slice("flow-node-".length));
 }
