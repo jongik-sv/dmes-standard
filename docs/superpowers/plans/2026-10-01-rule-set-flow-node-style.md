@@ -77,7 +77,7 @@
 7. **색 규칙의 우선순위:** `.rsf-node:where([data-color="blue"]) { --rsf-node-bg: …; border-color: … }` — 우선순위 (0,1,0)이라 base `.rsf-node` 뒤에 두면 기본 테두리를 이기고, 상태 규칙(`.rsf-node.rsf-node-current`·`[data-state]`·`[data-selected]`·`:hover`·`.rsf-node-drop`, 모두 0,2,0)에는 진다. `--rsf-border` 는 바꾸지 않는다(pending 이 `var(--rsf-border)` 회색을 쓴다). 모양도 같은 방식(`.rsf-node:where([data-shape=…])`). 색 노드에 마우스를 올리면 hover 테두리(회색)가 잠깐 이긴다 — 지금 hover 동작 그대로다.
 8. **`groupBox` 의 접힌 분기 크기:** 지금은 접힌 분기를 제 종류 크기(IF 176×44)로 재 그룹 틀이 그린 상자(232×68)보다 작다. 노드별 크기로 바꾸면서 접힌 분기는 그린 상자(룰 기본 크기)로 잰다 — 동작이 바뀌므로 시험을 둔다(Task 1). `nearestEdge`·`nodeAtPoint` 는 지금처럼 접힘을 보지 않는다(`blocks` 인자 없음, 바뀌는 동작 없음).
 9. **`measured` 캐시:** `@xyflow/system` 의 `getNodeDimensions` 는 `node.measured?.width ?? node.width` 순서라 크기가 바뀐 뒤 옛 `measured` 를 넘기면 옛 크기가 이긴다. 캐시가 있고 새 크기와 다르면 `{width: s.w, height: s.h}` 를 넘기고, 같거나 캐시가 없으면 지금처럼 넘긴다(캐시가 없을 때 measured 를 새로 만들면 fitView 시점이 바뀐다).
-10. **갈래 다시 벌리기:** `orderBranches` 가 갈래를 dagre 의 다른 갈래 자리로 옮긴 뒤, 이웃한 비지 않은 갈래 사이가 40(nodesep)보다 좁으면 오른쪽 갈래들을 밀고 전체를 처음 범위 가운데로 되돌린다(`spreadLanes`). 겹치지 않으면 아무것도 하지 않으므로 기본 크기 흐름의 배치는 바뀌지 않는다. 빈 갈래(선만 지나는 자리)는 폭 0 으로 보고 비교에서 건너뛴다.
+10. **갈래 다시 벌리기:** `orderBranches` 가 갈래를 dagre 의 다른 갈래 자리로 옮긴 뒤, 왼쪽 갈래의 노드와 **세로 범위가 겹치는**(같은 높이의) 오른쪽 갈래 노드 사이가 40(nodesep)보다 좁으면 그 갈래와 뒤 갈래들을 밀고 전체를 처음 자리 가운데로 되돌린다(`spreadLanes`). 갈래 경계 상자끼리 견주면 중첩 분기가 든 갈래(아래 층에서만 넓다)와 이웃이 겹친다고 잘못 보아 기본 배치까지 바뀌므로 노드끼리 견준다. 실제로 가까운 노드가 없으면 아무것도 하지 않으므로 기본 크기 흐름의 배치는 바뀌지 않는다. 빈 갈래(선만 지나는 자리)는 견주지 않고 함께 밀린다.
 11. **크기 바꾸기 + 위치 고정은 `flow-layout.ts` 의 `restyleNode`** — `foldOffsetX` 가 필요하고 `flow-layout.ts` 가 `flow-edit.ts` 를 import 하므로(순환 방지) `shiftSpace` 옆에 둔다. 순수 외관 편집 `setNodeStyle` 은 `flow-edit.ts` 에 둔다. 패널·손잡이 모두 `restyleNode` 를 부른다.
 12. **패널이 쓰는 그린 위치:** page 가 이미 있는 `alignSourceRef`(캔버스가 채움, `drawn`·`blocks` 포함)에서 `layoutSource()` 를 만들어 SidePanel → PropertyPanel 로 넘긴다. 캔버스가 없으면 null 이고 위치를 적지 않는다.
 13. **「외관」 섹션은 편집 모드면 보이고, 불러오는 동안은 조작만 끈다.** `editable` 은 `editing && !loading` 이라 그것으로 감추면 저장·검사 때마다 섹션이 깜빡인다. PropertyPanel 에 `editing` 을 따로 넘긴다. 보기 모드는 감추고, 디버그 모드는 오른쪽에 변수 패널이 그려져 원래 없다.
@@ -99,7 +99,7 @@
 - Create: `canvas/node-icons.ts`(아이콘 키 → Tabler 컴포넌트)
 - Create: `styles/node-style.ts`(팔레트 토큰 `NODE_STYLE_CSS` — 이 태스크는 `:root` 토큰만)
 - Modify: `flow-edit.ts`(`FlowView.styles`, `copyView`·`clone`·`sanitizeView`·`done`·`dropNodes`·`toEditFlow`·`flowJsonOf`, `Fragment.styles`·`copyFragment`·`pasteFragment`, 새 `setNodeStyle`)
-- Modify: `flow-layout.ts`(`nodeSize`·`nodeSizeOf`·`StyledFlow`, `autoLayout`·`orderBranches`(+`spreadLanes`)·`drawnPositions`, 새 `pinDrawn`·`restyleNode`·`NodeLayoutSource`)
+- Modify: `flow-layout.ts`(`nodeSize`·`nodeSizeOf`·`StyledFlow`, `autoLayout`·`orderBranches`(+`spreadLanes`·`LaneBox`)·`drawnPositions`, 새 `pinDrawn`·`restyleNode`·`NodeLayoutSource`)
 - Modify: `flow-vars.ts:41-67, 104-118`(`nearestEdge`·`nodeAtPoint`)
 - Modify: `state/useEditActions.ts:134-149, 186-195`(`centerOf`·`placeNote`)
 - Modify: `canvas/align.ts:13, 45`(`itemsOf`)
@@ -706,7 +706,7 @@ import {
   addBranch, flowJsonOf, insertSplit, insertTask, setNodeStyle, setPositions, toEditFlow, type EditFlow, type EditResult, type FlowPos,
 } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import {
-  NODE_SIZE, autoLayout, drawnPositions, foldOffsetX, nodeSize, nodeSizeOf, restyleNode,
+  NODE_SIZE, autoLayout, drawnPositions, foldOffsetX, nodeSize, nodeSizeOf, restyleNode, spreadLanes,
 } from "../../../pages/dme/ruleSetEdit/flow-layout";
 import { nearestEdge, nodeAtPoint } from "../../../pages/dme/ruleSetEdit/flow-vars";
 import { NODE_H_MIN, NODE_W_MIN, type NodeStyle } from "../../../pages/dme/ruleSetEdit/node-style";
@@ -769,6 +769,28 @@ describe("자동 배치 — 큰 노드(Review Focus 3)", () => {
   it("기본 크기 세 갈래도 겹치지 않는다(배치가 바뀌지 않음은 기존 branch-order·flow-layout 시험이 그대로 지킨다)", () => {
     const { f } = threeLanes();
     expectNoOverlap(f, autoLayout(f));
+  });
+
+  it("spreadLanes — 갈래 경계는 겹쳐도 같은 높이의 노드가 떨어져 있으면 움직이지 않는다(중첩 분기가 든 갈래)", () => {
+    // 왼쪽 갈래: 위층 룰(136~368, y 0~68) + 아래층 중첩 분기의 넓은 줄(0~504, y 100~168). 오른쪽 갈래: 위층 룰(420~652, y 0~68).
+    const left = { at: 252, boxes: [{ x1: 136, x2: 368, y1: 0, y2: 68 }, { x1: 0, x2: 504, y1: 100, y2: 168 }] };
+    const right = { at: 536, boxes: [{ x1: 420, x2: 652, y1: 0, y2: 68 }] };
+    expect(spreadLanes([left, right], [252, 536], 40)).toEqual([252, 536]);
+  });
+
+  it("spreadLanes — 같은 높이에서 40 보다 가까우면 오른쪽 갈래를 밀고 전체 가운데를 되돌린다", () => {
+    const wide = { at: 320, boxes: [{ x1: 0, x2: 640, y1: 0, y2: 200 }] };
+    const narrow = { at: 416, boxes: [{ x1: 300, x2: 532, y1: 0, y2: 68 }] };
+    const out = spreadLanes([wide, narrow], [320, 416], 40);
+    expect(out).toEqual([130, 606]); // 380 밀고 가운데(368)로 되돌림
+    expect(640 + (out[0] - 320) + 40).toBe(300 + (out[1] - 416)); // 사이가 꼭 40
+  });
+
+  it("중첩 분기가 든 갈래가 있는 기본 크기 흐름도 겹치지 않는다", () => {
+    const { f, lanes } = threeLanes();
+    const inner = f.edges.find((e) => e.to === lanes[0])!.id; // 첫 갈래 빈 단계로 들어가는 선
+    const g = ok(insertSplit(f, inner, "IF"));
+    expectNoOverlap(g, autoLayout(g));
   });
 
   it("겹침 풀기(drawnPositions)는 노드별 크기로 본다 — 고정한 큰 노드에 겹친 자동 노드가 비킨다", () => {
@@ -894,7 +916,7 @@ export function autoLayout(f: RuleSetFlow & StyledFlow, blocks: Readonly<Record<
   dagre.layout(g);
   const cx = new Map<string, number>();
   for (const n of nodes) cx.set(n.id, g.node(n.id).x);
-  orderBranches(f, g, cx, (id) => size.get(id)!.w);
+  orderBranches(f, g, cx, (id) => size.get(id)!);
   const out: Record<string, FlowPos> = {};
   for (const n of nodes) {
     const p = g.node(n.id);
@@ -907,58 +929,79 @@ export function autoLayout(f: RuleSetFlow & StyledFlow, blocks: Readonly<Record<
 
 `const NODESEP = 40;` 을 `autoLayout` 위에 두고 `g.setGraph` 의 40 을 바꾼다.
 
-`orderBranches` — 갈래마다 반폭(`half`)을 더하고 옮긴 자리를 `spreadLanes` 로 벌린다:
+`orderBranches` — 네 번째 인자를 `widthOf` 에서 노드 크기 `sizeOf` 로 바꾸고(`autoLayout` 은 `orderBranches(f, g, cx, (id) => size.get(id)!)` 로 부른다), 갈래마다 노드 상자(세로는 dagre 자리)를 모아 옮긴 자리를 `spreadLanes` 로 벌린다:
 
 ```ts
+function orderBranches(f: RuleSetFlow, g: InstanceType<typeof dagre.graphlib.Graph>, cx: Map<string, number>, sizeOf: (id: string) => NodeSize) {
+  // … (tree·visit 그대로)
+      const boxOf = (id: string): LaneBox => {
+        const s = sizeOf(id);
+        const x = cx.get(id)!;
+        const y = g.node(id).y;
+        return { x1: x - s.w / 2, x2: x + s.w / 2, y1: y - s.h / 2, y2: y + s.h / 2 };
+      };
       const lanes = b.branches.map((br) => {
         const ids = bodyIds(br.body).filter((id) => cx.has(id));
         if (ids.length > 0) {
-          const left = Math.min(...ids.map((id) => cx.get(id)! - widthOf(id) / 2));
-          const right = Math.max(...ids.map((id) => cx.get(id)! + widthOf(id) / 2));
-          return { ids, at: (left + right) / 2, half: (right - left) / 2 };
+          const boxes = ids.map(boxOf);
+          return { ids, at: (Math.min(...boxes.map((x) => x.x1)) + Math.max(...boxes.map((x) => x.x2))) / 2, boxes };
         }
         const pts = (g.edge(b.nodeId, b.mergeId) as { points?: { x: number }[] } | undefined)?.points ?? [];
-        return { ids, at: pts.length > 0 ? pts[Math.floor(pts.length / 2)].x : cx.get(b.nodeId)!, half: 0 };
+        return { ids, at: pts.length > 0 ? pts[Math.floor(pts.length / 2)].x : cx.get(b.nodeId)!, boxes: [] as LaneBox[] };
       });
-      const slots = spreadLanes(lanes.map((l) => l.at).sort((a, c) => a - c), lanes.map((l) => l.half), NODESEP);
+      const slots = spreadLanes(lanes, lanes.map((l) => l.at).sort((a, c) => a - c), NODESEP);
       lanes.forEach((l, i) => {
         const d = slots[i] - l.at;
         if (d !== 0) for (const id of l.ids) cx.set(id, cx.get(id)! + d);
       });
 ```
 
-`orderBranches` 아래에 더한다:
+`orderBranches` 아래에 더한다(시험이 직접 부르도록 내보낸다):
 
 ```ts
+/** 갈래 겹침 판정용 노드 상자(흐름 좌표, 가운데 x 는 갈래를 옮기기 전 자리). */
+export interface LaneBox {
+  x1: number;
+  x2: number;
+  y1: number;
+  y2: number;
+}
 /**
- * 갈래 가운데 자리(왼쪽부터) xs 와 반폭 halves — 이웃한 비지 않은 갈래 사이가 gap 보다 좁으면 오른쪽 갈래들을 민 뒤
- * 전체 범위의 가운데를 처음 범위 가운데로 되돌린다(외관 S1 — 폭이 다른 갈래를 다른 갈래 자리에 옮기면 겹칠 수 있다, 계획 Ruling 10).
- * 빈 갈래(반폭 0, 선만 지나는 자리)는 비교에서 건너뛰고 함께 밀린다. 겹치지 않으면 xs 를 그대로 돌려준다.
+ * 갈래(왼쪽부터, 각자 옮기기 전 가운데 at·노드 상자)를 slots 자리로 옮길 때, **세로 범위가 겹치는**(같은 높이의) 두 노드가 gap 보다 가까우면
+ * 오른쪽 갈래와 그 뒤 갈래들을 민 뒤 전체 자리 가운데를 처음 자리 가운데로 되돌린다(외관 S1 — 폭이 다른 갈래를 다른 갈래 자리에 옮기면 겹칠 수 있다, 계획 Ruling 10).
+ * 갈래 경계 상자끼리가 아니라 노드끼리 견준다 — 중첩 분기가 든 갈래는 아래 층에서만 넓으므로 경계 상자로 견주면 겹치지 않는 기본 배치까지 바뀐다.
+ * 빈 갈래(상자 없음)는 함께 밀릴 뿐 견주지 않는다. 움직일 것이 없으면 slots 를 그대로 돌려준다(기본 크기 흐름의 배치 불변).
  */
-function spreadLanes(xs: readonly number[], halves: readonly number[], gap: number): number[] {
-  const out = [...xs];
-  let prev = -1;
+export function spreadLanes(lanes: readonly { at: number; boxes: readonly LaneBox[] }[], slots: readonly number[], gap: number): number[] {
+  const out = [...slots];
   let moved = false;
-  for (let i = 0; i < out.length; i++) {
-    if (halves[i] === 0) continue;
-    if (prev >= 0) {
-      const need = out[prev] + halves[prev] + gap + halves[i];
-      if (out[i] < need) {
-        const d = need - out[i];
-        for (let k = i; k < out.length; k++) out[k] += d;
-        moved = true;
+  for (let i = 1; i < lanes.length; i++) {
+    if (lanes[i].boxes.length === 0) continue;
+    const di = out[i] - lanes[i].at;
+    let need = 0;
+    for (let j = 0; j < i; j++) {
+      const dj = out[j] - lanes[j].at;
+      for (const a of lanes[j].boxes) {
+        for (const b of lanes[i].boxes) {
+          if (a.y1 < b.y2 && b.y1 < a.y2) need = Math.max(need, a.x2 + dj + gap - (b.x1 + di));
+        }
       }
     }
-    prev = i;
+    if (need > 0.5) { // dagre 좌표의 소수 오차로 움직이지 않게
+      for (let k = i; k < out.length; k++) out[k] += need;
+      moved = true;
+    }
   }
   if (!moved) return out;
-  const span = (a: readonly number[]) => (Math.min(...a.map((x, i) => x - halves[i])) + Math.max(...a.map((x, i) => x + halves[i]))) / 2;
-  const d = span(xs) - span(out);
+  const mid = (xs: readonly number[]) => (Math.min(...xs) + Math.max(...xs)) / 2;
+  const d = mid(slots) - mid(out);
   return out.map((x) => x + d);
 }
 ```
 
-주의: 이 계산은 겹칠 때만 움직이므로 기존 `branch-order.test.ts`·`flow-layout.test.ts` 는 기대값을 고치지 않고 통과해야 한다. 하나라도 깨지면 기대값을 고치지 말고, 그 사례의 이전·이후 상자를 적어 DONE_WITH_CONCERNS 로 보고한다(그 사례는 예전에도 겹치던 배치다).
+`import { STYLED_KINDS, type NodeSize, … } from "./node-style";` 의 `NodeSize` 를 여기서도 쓴다.
+
+주의: 이 계산은 같은 높이의 노드가 실제로 가까울 때만 움직이므로 기존 `flow-layout.test.ts`·`branch-order` 관련 배치 시험은 기대값을 고치지 않고 통과해야 한다. 하나라도 깨지면 기대값을 고치지 말고, 그 사례의 이전·이후 상자를 적어 DONE_WITH_CONCERNS 로 보고한다(그 사례는 예전에도 같은 높이에서 겹치던 배치다).
 
 `drawnPositions` 의 상자:
 
@@ -1514,7 +1557,7 @@ const NODE_RULES = `
 ${COLOR_RULES}
 .rsf-node:where([data-shape="square"]) { border-radius: 0; }
 .rsf-node:where([data-shape="pill"]) { border-radius: 999px; padding-left: 16px; padding-right: 34px; }
-.rsf-node.rsf-task:where([data-shape="pill"]) { padding-right: 16px; }
+.rsf-node.rsf-task:where([data-shape="pill"]) { padding-left: 16px; padding-right: 16px; } /* .rsf-node.rsf-task(0,2,0)의 padding 을 이기려고 같은 우선순위로 */
 .rsf-node.rsf-rule[data-no-open="true"] { padding-right: 10px; }
 .rsf-node:where([data-shape="pill"]) .rsf-open { right: 10px; }
 
