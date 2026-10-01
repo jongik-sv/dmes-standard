@@ -105,7 +105,7 @@ moduleGroup: dme
 | `A-LEFT` | 왼쪽 패널 | 디버그 모드만 = **입력 패널**(`dbg-inputs`, 3단계 P-D10). 보기·편집 모드는 왼쪽 칸이 없다(4단계 P1) |
 | `A-TOOLBOX` | 도구 상자(`flow-toolbox`) | 캔버스 안 왼쪽 위(12px) 세로 막대. 도구 [손](`flow-tool-hand`)·[영역 선택](`flow-tool-select`)·[공간](`flow-space-tool`, 편집만) — 한 번에 하나, `aria-pressed`. 구분선 아래 요소(`flow-palette` — `flow-add-*`, 편집만). 아이콘만, 이름은 오른쪽 툴팁·`aria-label`. 기본 도구 = 편집 [영역 선택]·보기·디버그 [손], Esc·모드 바꾸기·다른 세트 열기로 기본 도구로 돌아간다. 저장하지 않는다 |
 | `A-CANVAS` | 흐름도 캔버스(`flow-canvas`) | React Flow. 노드·선·메모·그룹 틀. 표시 내용은 §3.2. 오른쪽 아래 확대 막대(`Controls` — 확대·축소·화면 맞춤, 잠금 단추 없음), 오른쪽 위 미니맵. 캔버스 감싸개(`rsf-canvas-host`)가 단축키(§5.4)를 받고 우클릭·[+] 메뉴(`flow-menu`, §5.5)를 안에 띄운다 |
-| `A-PROPS` | 오른쪽 패널(`flow-props`) | 보기·편집 = 선택이 없으면 **세트 패널**(`flow-prop-set` — 세트명 `set-name`·설명 `set-desc`·세트 입출력 표 `set-io-*`·구성 지침 `set-guide-*`), 룰 노드면 `flow-prop-rule`, IF 면 `flow-prop-if`, 병렬이면 `flow-prop-par`, 시작·끝·합류면 `flow-prop-node`, 메모면 `flow-prop-note`, 그룹이면 `flow-prop-group`. 세트 패널로 돌아가려면 캔버스 빈 곳을 누른다. 디버그 = **변수 패널**(`var-panel`) — 조사식(`var-watches`)·변수 표(`var-grid`)·노드 상세(`sim-detail`)·식 평가(`expr-input`) 보기·편집 모드는 속성·세트 패널 아래 룰 목록(`flow-rule-panel` — 접기 `flow-rule-panel-toggle`, 검색 `flow-rule-panel-search`·`flow-rule-panel-find`, 목록 `flow-rule-rows`, 줄 `flow-rule-row-{ruleId}`; 4단계 Task 8 이 섹션으로 바꾼다) |
+| `A-PROPS` | 오른쪽 패널(`flow-props`) | 보기·편집 = **머리글**(`flow-panel-header` — 종류 아이콘·종류 이름 `flow-panel-kind`·이름 `flow-panel-name`) + **접는 섹션**(`flow-section-{id}`, 머리 `flow-section-{id}-head` `aria-expanded`, 여러 개 함께 펼침, 펼침 상태는 종류별로 화면 메모리에만 두고 저장하지 않는다). 섹션 목록은 4단계 계획 Task 8 의 섹션 표 그대로 — 세트(고른 것 없음): 기본 정보·세트 입출력·구성 지침·룰 목록, 룰: 룰 정보·입력 변수 N개·결과 변수 N개, IF·병렬: 분기·갈래 N개, 시작·끝·합류: 설명, 메모: 메모, 그룹: 그룹·구성 노드 N개. 속성 패널 testid 는 그대로다 — 세트 패널 `flow-prop-set`(세트명 `set-name`·설명 `set-desc`·세트 입출력 표 `set-io-*`·구성 지침 `set-guide-*`), 룰 노드 `flow-prop-rule`, IF `flow-prop-if`, 병렬 `flow-prop-par`, 시작·끝·합류 `flow-prop-node`, 메모 `flow-prop-note`, 그룹 `flow-prop-group`. 세트 패널로 돌아가려면 캔버스 빈 곳을 누른다. **룰 목록 섹션**(`rules`): 편집 모드에서 룰 노드를 고르면 「룰 지정」(맨 위, 줄마다 [지정] `flow-rule-assign-{ruleId}`), 그 밖은 「룰 목록」(맨 아래). 선을 고르면 속성 섹션 없이 룰 목록만 보인다. 디버그 = **변수 패널**(`var-panel`) — 조사식(`var-watches`)·변수 표(`var-grid`)·노드 상세(`sim-detail`)·식 평가(`expr-input`) 보기·편집 모드의 룰 목록(`flow-rule-panel` — 접기는 섹션 머리 `flow-section-rules-head`, 검색 `flow-rule-panel-search`·`flow-rule-panel-find`, 목록 `flow-rule-rows`, 줄 `flow-rule-row-{ruleId}`)은 룰 목록 섹션 안에 있다 |
 | `A-BOTTOM` | 아래 패널(`flow-bottom`) | 접기 `flow-bottom-toggle`(`aria-expanded`). 보기·편집 = 탭 하나 「검사 결과 n」(`flow-tab-checks`, 검사 목록 `set-checks`·항목 `set-check-{i}`). 디버그 = 「값 표」(`flow-tab-values`, 안에 `sim-values`·`sim-warnings`)·「실행 비교」(`flow-tab-compare`, 안에 `run-compare`)·「검사 결과 n」. 탭 testid 는 탭 버튼 안쪽 `span` 에 붙어 있다(`aria-selected` 는 부모 버튼 `role="tab"` 에 있다) |
 
 
@@ -181,9 +181,9 @@ moduleGroup: dme
 | D-001 | `MARU_RULE_SET_NAME` | 세트명 | TextBox(`set-name`) | Y | 불러온 값 | 100자 이하 |
 | D-002 | `DESCRIPTION` | 설명 | Textarea(`set-desc`) | N | 불러온 값 | 빈 값은 null |
 | D-003 | `FLOW_JSON` | 흐름 | 캔버스 편집(팔레트 끼우기·끌어 놓기·놓인 노드/블록 옮기기·선 위 [+]·복사 붙여넣기·복제·룰 바꾸기·분기 바꾸기·풀기·갈래 순서 끌기·선 경로 편집(Task 15)·연결·속성 패널·지침 적용) | — | 불러온 흐름(없으면 `RULE_IDS` 의 한 줄 흐름) | P2 정규 JSON 문자열(`flowJson`). 서버가 파싱한 정의로 다시 써 저장하고 `RULE_IDS` 는 서버가 흐름을 깊이 우선으로 펼친 중복 없는 룰 목록으로 채운다. 같은 룰이 다른 갈래에 두 번 있을 수 있다. 노드는 200개까지이고 넘게 하는 끼우기·붙여넣기는 거부한다(「노드는 흐름 하나에 200개까지 둔다」) |
-| D-004 | — | 룰 찾기(팝업) | TextBox(`flow-rule-search-keyword`) + 찾기(`flow-rule-search-find`) | — | — | 팔레트 [룰]·선 [+]/우클릭 「룰 넣기」·노드 「룰 바꾸기」가 연다. `search{target:"RULE"}` 룰 ID·룰명 앞부분 20건(후보 `flow-rule-cand-{id}`, 룰명·상태·버전, 이미 세트에 있으면 "사용 중" 배지). RELEASED 버전이 없는 룰은 뺀다. 누르면 끼울 선에 새 룰 노드를 끼우거나(넣기) 노드의 `ruleId` 만 바꾼다(바꾸기 — 자리·선은 그대로, 같은 룰이 이미 세트에 있어도 막지 않고 검사가 판단한다). 실패 문구 `flow-rule-search-error` |
+| D-004 | — | 룰 찾기(팝업) | TextBox(`flow-rule-search-keyword`) + 찾기(`flow-rule-search-find`) | — | — | 도구 상자 [룰]·선 [+]/우클릭 「룰 넣기」가 연다. `search{target:"RULE"}` 룰 ID·룰명 앞부분 20건(후보 `flow-rule-cand-{id}`, 룰명·상태·버전, 이미 세트에 있으면 "사용 중" 배지). RELEASED 버전이 없는 룰은 뺀다. 누르면 끼울 선에 새 룰 노드를 끼운다(룰 바꾸기는 오른쪽 「룰 지정」 섹션이 한다 — 이 팝업은 4단계 Task 9 가 지운다). 실패 문구 `flow-rule-search-error` |
 | D-005 | — | 지침 결과 변수 | TextBox(`set-guide-var`) + 찾기(`set-guide-run`) | — | — | `search{target:"GUIDE", resultVar}` — 세트 패널에 있다 |
-| D-006 | (`FLOW_JSON.view`) | 속성 패널 입력 | 룰(읽기 전용 표), IF·병렬 갈래 이름 `flow-prop-branch-{edgeId}-label`·조건식 `flow-prop-branch-{edgeId}-cond`("그 외" 갈래는 조건식 칸 없음), 분기 이름 `flow-prop-label`, 메모 글 `flow-prop-note-text`, 그룹 제목 `flow-prop-group-title` | — | — | 보기 모드에서는 모두 읽기 전용이고 ▲▼✕·지우기·더하기·끌기 손잡이가 없다. 입력 칸은 같은 칸을 1초 안에 연달아 고치면 되돌리기 기록 한 번으로 합친다(§5.4) |
+| D-006 | (`FLOW_JSON.view`) | 속성 패널 입력(오른쪽 접는 섹션 안 — 4단계 Task 8) | 룰(읽기 전용 표), IF·병렬 갈래 이름 `flow-prop-branch-{edgeId}-label`·조건식 `flow-prop-branch-{edgeId}-cond`("그 외" 갈래는 조건식 칸 없음), 분기 이름 `flow-prop-label`, 메모 글 `flow-prop-note-text`, 그룹 제목 `flow-prop-group-title` | — | — | 보기 모드에서는 모두 읽기 전용이고 ▲▼✕·지우기·더하기·끌기 손잡이가 없다. 입력 칸은 같은 칸을 1초 안에 연달아 고치면 되돌리기 기록 한 번으로 합친다(§5.4) |
 
 ### 4.1 디버그 모드 입력 필드 (영역: A-DBG·A-LEFT·A-PROPS)
 
@@ -228,7 +228,7 @@ moduleGroup: dme
 | B-018 | 되돌리기(`flow-undo`)·다시 하기(`flow-redo`) | A-TOOL | (없음) | 편집 모드에서 이력이 있을 때만 켜진다. 단축키 Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z·Y(§5.4). 이력은 흐름 사본 100개까지 |
 | B-019 | 찾기 칸(`flow-find`)·다음(`flow-find-next`)·개수(`flow-find-count`) | A-TOOL | (없음) | 룰 ID·룰 이름·노드 라벨로 찾는다(대소문자 무시). **Enter(또는 [다음])에서만** 다음 결과로 옮기고 글자를 치는 동안은 옮기지 않는다 — 첫 Enter 는 첫 결과, 그다음부터 한 칸씩 돌아 끝에서 처음으로 간다. 옮기면 그 노드를 고르고 캔버스를 그 노드로 옮기며 깜빡인다. 접힌 블록 안의 노드면 블록을 펼친다 |
 | B-020 | 단축키 도움말(`flow-help` → `flow-help-panel`) | A-TOOL | (없음) | 지금 모드에서 쓸 수 있는 단축키만 표로 보인다. Mac 이면 「F9·F10·F5 는 fn 과 함께 누른다」 안내. Esc 로 닫을 때 초점이 [?] 단추·도움말 안·문서 본문(body)에 있으면 초점을 캔버스(`flow-canvas`)로 돌려 다음 Esc·단축키가 캔버스에 닿는다(찾기 칸 등 다른 곳의 초점은 그대로). [?] 를 다시 눌러 닫으면 초점을 옮기지 않는다(바깥 누르기로 닫는 동작은 없다) |
-| B-021 | 룰 목록 찾기(`flow-rule-panel-find`, 검색 칸 Enter)·줄(`flow-rule-row-{ruleId}`) | A-LEFT | `search`(RULE) | 룰 ID·룰명으로 찾아 RELEASED 버전이 있는 룰만 보인다. 편집 모드에서 줄을 캔버스 선 위로 끌거나 두 번 누르면 끼운다(두 번 누르기는 **고른 선이 있어야** 하고 없으면 「넣을 선을 먼저 고른다」 — END 앞 선으로 넘어가지 않는다) |
+| B-021 | 룰 목록 찾기(`flow-rule-panel-find`, 검색 칸 Enter)·줄(`flow-rule-row-{ruleId}`)·[지정](`flow-rule-assign-{ruleId}`) | A-PROPS(룰 목록 섹션) | `search`(RULE) | 룰 ID·룰명으로 찾아 RELEASED 버전이 있는 룰만 보인다. 편집 모드 「룰 목록」: 줄을 선 위로 끌거나 두 번 누르면 끼운다(두 번 누르기는 고른 선, 없으면 END 앞 선 — 끼운 뒤 새 룰에서 나가는 선을 골라 다음 두 번 누르기가 그 뒤에 잇는다). 「룰 지정」: [지정]·두 번 누르기가 고른 노드의 룰을 바꾼다(자리·선 그대로, 되돌리기 한 번). 찾은 줄은 섹션을 접거나 자리가 바뀌어도 남는다 |
 | B-022 | 계속(`dbg-continue`)·한 단계(`dbg-step`)·여기까지(`dbg-run-to`)·처음부터(`dbg-restart`)·끝내기(`dbg-finish`) | A-DBG | `execute` | `execute` 권한(EDIT)이 없으면 꺼지고 title `디버거는 편집 권한이 있어야 쓸 수 있다`(2단계 P-D3). 실행 중에는 모두 꺼진다. [여기까지]는 캔버스에서 고른 흐름 노드가 있어야 켜진다. 동작은 §5.2 |
 | B-023 | 이전(`dbg-step-back`) | A-DBG | (없음) | 커서를 한 칸 되돌린다(0 아래로는 가지 않는다). 서버를 부르지 않으므로 `execute` 권한과 무관하다. Shift+F10 |
 | B-024 | 중단점 점(`flow-bp-{nodeId}`)·우클릭 「중단점 켜기/끄기」·F9 | A-CANVAS | (없음) | 룰·IF·병렬·합류에 걸 수 있다. 개인 화면 상태(브라우저 저장소 `rsf:bp:<setId>`)라 권한과 무관하다. 흐름에서 사라진 노드의 중단점은 불러올 때 버린다 |
@@ -237,6 +237,7 @@ moduleGroup: dme
 | B-027 | 아래 탭 값 표(`flow-tab-values`)·실행 비교(`flow-tab-compare`) | A-BOTTOM(디버그) | (없음) | 서버를 부르지 않는다 |
 | B-028 | 공간(`flow-space-tool`, `aria-pressed`) | A-TOOLBOX | (없음) | 도구 상자의 도구 하나(4단계 P1 — 툴바에서 옮김). 다시 누르면 [영역 선택] 으로 돌아간다. S1(사용자 승인 추가). 편집 모드에서만 켜진다(보기·디버그 모드는 단추가 없다). 켜고 끌 때 모두 초점을 캔버스로 옮긴다(단추에 초점이 남으면 Esc 가 캔버스 단축키에 닿지 않고, 스페이스+끌기의 스페이스가 단추를 다시 누른다). 흐름 툴바 단추는 모두 마우스로 눌러도 초점을 가져가지 않고(mousedown 기본 동작을 막는다 — 키보드 Tab·Enter 는 그대로), 팔레트 단추는 HTML5 끌기를 살리려고 누르거나 끌어 놓은 뒤 초점을 놓는다. 켜면 캔버스 빈 곳 끌기가 공간 넓히기다(§5.3, 영역 선택보다 이긴다). 한 번 쓰면(놓으면) 저절로 꺼지고, Esc(켜져 있으면 끄기만 하고 선택은 그대로)·편집 모드를 떠나기·다른 세트 열기로도 꺼진다. Alt(⌥)+끌기는 단추 없이 같은 동작이다 |
 | B-029 | [손](`flow-tool-hand`)·[영역 선택](`flow-tool-select`) | A-TOOLBOX | (없음) | 빈 곳 끌기를 화면 이동/영역 선택으로 바꾼다. 휠·Shift+끌기 영역 선택·다중 선택 키는 모드를 따른다. 누르면 초점을 캔버스로 옮긴다 |
+| B-030 | 섹션 머리(`flow-section-{id}-head`) | A-PROPS | (없음) | 누르면 펴고 접는다. 종류(룰 세트·룰·분기 등)마다 따로 기억하고 저장하지 않는다 |
 
 ### 5.1-1 캔버스·표 안의 인라인 동작 (GB-NNN)
 
@@ -248,7 +249,7 @@ moduleGroup: dme
 | GB-004 | 선 위 [+](`flow-edge-add-{edgeId}`) | 캔버스 선(편집 모드) | 메뉴 열기(`{kind:"edge", via:"plus"}`) | 룰 넣기·IF 넣기·병렬 넣기·(클립보드가 있으면) 붙여넣기. 누른 자리 화면 좌표에 뜬다 |
 | GB-005 | 선 라벨 두 번 누르기(`flow-edge-label-{edgeId}`) | 캔버스 선(편집 모드, IF 의 「그 외」가 아닌 갈래만) | 즉석 조건식 입력 칸 | 3단계 P-D17 — 라벨은 갈래 이름을 보이지만 여는 칸은 **조건식(`cond`)** 이다. Enter 확정(속성 패널과 같은 `updateEdge`, 되돌리기 합치기 키 `cond:{edgeId}`), Esc·칸 밖 누르기·초점 잃음은 취소 |
 | GB-006 | 중단점 점(`flow-bp-{nodeId}`) | 캔버스 노드(디버그 모드) | `toggleBreakpoint(nodeId)` | 노드 선택은 바뀌지 않는다 |
-| GB-007 | 룰 목록 줄 두 번 누르기 | 왼쪽 룰 패널(편집 모드) | `dropRule(ruleId, 고른 선)` | B-021 |
+| GB-007 | 룰 목록 줄 두 번 누르기 | 오른쪽 룰 목록 섹션(편집 모드) | `insertListRule(고른 선 또는 END 앞 선)` / 「룰 지정」이면 `applyReplace(고른 노드)` | B-021 |
 
 ### 5.2 버튼별 동작 상세
 
@@ -342,7 +343,7 @@ moduleGroup: dme
 
 | 대상 | 항목(id) | 모드 |
 |---|---|---|
-| 룰 노드 | 룰 바꾸기(`rule-replace`) · 복사(`copy`) · 복제(`duplicate`) · 삭제(`delete`) | 편집 |
+| 룰 노드 | 룰 바꾸기…(`rule-replace` — 그 노드를 고르고 「룰 지정」 섹션을 펴 찾기 칸에 초점) · 복사(`copy`) · 복제(`duplicate`) · 삭제(`delete`) | 편집 |
 | 룰 노드 | 중단점 켜기/끄기(`bp-toggle`) · 여기까지 실행(`run-to`, `execute` 권한이 없으면 꺼짐) | 디버그 |
 | 룰 노드 | 룰 편집 열기(`open-rule`) | 모든 모드 |
 | 분기(IF·병렬) | IF↔병렬 바꾸기(`split-kind`, 「병렬로 바꾸기」/「IF로 바꾸기」) · 분기 풀기(`dissolve` — 남길 갈래를 `dissolve-{edgeId}` 하위 항목으로 들여 써서 보인다. 라벨 = 갈래 이름, 빈 갈래면 「(빈 갈래)」) · 갈래 더하기(`add-branch`) · 블록 복사(`copy`) · 블록 삭제(`delete`) | 편집 |

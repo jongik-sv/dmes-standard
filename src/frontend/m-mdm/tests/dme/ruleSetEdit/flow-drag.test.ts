@@ -349,9 +349,9 @@ describe("룰 목록 패널(Task 7)", () => {
     expect(pageById("flow-rule-row-E2S_NEW").getAttribute("draggable")).toBe("false");
     await click("flow-mode-edit");
     expect(pageById("flow-rule-row-E2S_NEW").getAttribute("draggable")).toBe("true");
-    await click("flow-rule-panel-toggle");
+    await click("flow-section-rules-head");
     expect(pageQ("flow-rule-row-E2S_NEW")).toBeNull();
-    await click("flow-rule-panel-toggle");
+    await click("flow-section-rules-head");
     expect(pageQ("flow-rule-row-E2S_NEW")).not.toBeNull();
   });
 
@@ -414,7 +414,7 @@ describe("룰 목록 패널(Task 7)", () => {
     expect(visibleText(pageById("flow-node-r3"))).toContain("E2S_NEW");
   });
 
-  it("4b. 줄을 두 번 누르면 고른 선에 끼우고, 고른 선이 없으면 '넣을 선을 먼저 고른다'", async () => {
+  it("4b. 줄을 두 번 누르면 고른 선에, 고른 선이 없으면 END 앞 선에 끼운다", async () => {
     await openSet("E2S_CHAIN", view());
     await click("flow-mode-edit");
     await find();
@@ -424,16 +424,14 @@ describe("룰 목록 패널(Task 7)", () => {
       });
     await dbl();
     await settle(20);
-    expect(visibleText(pageById("set-message"))).toContain("넣을 선을 먼저 고른다");
-    expect(pageQ("flow-node-r3")).toBeNull();
+    expect(pageQ("set-message")?.textContent ?? "").not.toContain("넣을 선을 먼저 고른다");
+    expect(pageQ("flow-node-r3")).not.toBeNull();
     await act(async () => {
-      pageQ("rf__edge-e2")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      pageQ("rf__edge-e1")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     await flush();
     await dbl();
     await settle(20);
-    expect(pageQ("flow-node-r3")).not.toBeNull();
-    // 보기 모드에서는 꺼진다
-    await click("flow-mode-view");
+    expect(pageQ("flow-node-r4")).not.toBeNull();
   });
 });

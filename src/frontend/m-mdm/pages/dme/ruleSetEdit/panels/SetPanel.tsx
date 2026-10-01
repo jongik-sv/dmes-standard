@@ -3,6 +3,7 @@
 /**
  * 오른쪽 패널 — 선택이 없을 때(2단계 계획 Task 10, P10). 세트명·설명(편집 모드만 입력), 세트 입출력 표(`flowIo`), 구성 지침.
  * 1단계 룰 세트 카드의 세트명·설명과 오른쪽 지침 카드를 옮겼다.
+ * 4단계 Task 8: 머리글(세트명)은 `SidePanel`, 본문은 접는 섹션(기본 정보·세트 입출력·구성 지침) — testid 는 그대로.
  */
 import { useMemo } from "react";
 
@@ -15,6 +16,7 @@ import { SetIoTables } from "../cards/SetIoTables";
 import type { EditFlow } from "../flow-edit";
 import { flowIo } from "../set-model";
 import type { RuleIo, RuleIoMap } from "../types";
+import { Section, type SectionMemory } from "./Section";
 
 export interface SetPanelProps {
   flow: EditFlow;
@@ -29,42 +31,44 @@ export interface SetPanelProps {
   guideHint: string | undefined;
   onApplyGuide: (order: readonly string[], ios: readonly RuleIo[]) => void;
   onError: (e: unknown) => void;
+  sections: SectionMemory;
 }
 
 export function SetPanel(props: SetPanelProps) {
-  const { flow, rules, setName, description, editable } = props;
+  const { flow, rules, setName, description, editable, sections } = props;
   const io = useMemo(() => flowIo(flow, rules), [flow, rules]);
   return (
     <div className="rsf-panel" data-testid="flow-prop-set">
-      <p className="rsf-panel-title">룰 세트</p>
-      <table style={DETAIL_TABLE_STYLE}>
-        <tbody>
-          <tr>
-            <th style={DETAIL_LABEL_CELL}>세트명 *</th>
-            <td style={DETAIL_VALUE_CELL}>
-              <Input data-testid="set-name" value={setName} disabled={!editable} onChange={props.onSetName} />
-            </td>
-          </tr>
-          <tr>
-            <th style={DETAIL_LABEL_CELL}>설명</th>
-            <td style={DETAIL_VALUE_CELL}>
-              <Textarea data-testid="set-desc" value={description} rows={2} disabled={!editable} onChange={props.onDescription} />
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <p className="rsf-panel-note">
-        <MutedText>
-          저장하면 바로 반영된다. 배포(스냅샷 발행)는 보류다. 세트 안의 룰은 각자 판정 시각에 유효한 RELEASED 버전으로 돈다. 노드를 누르면 그 노드의 속성을
-          보인다
-        </MutedText>
-      </p>
-
-      <SetIoTables io={io} />
-
-      <div className="rsf-panel-block">
+      <Section kind="SET" id="set-basic" title="기본 정보" memory={sections}>
+        <table style={DETAIL_TABLE_STYLE}>
+          <tbody>
+            <tr>
+              <th style={DETAIL_LABEL_CELL}>세트명 *</th>
+              <td style={DETAIL_VALUE_CELL}>
+                <Input data-testid="set-name" value={setName} disabled={!editable} onChange={props.onSetName} />
+              </td>
+            </tr>
+            <tr>
+              <th style={DETAIL_LABEL_CELL}>설명</th>
+              <td style={DETAIL_VALUE_CELL}>
+                <Textarea data-testid="set-desc" value={description} rows={2} disabled={!editable} onChange={props.onDescription} />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p className="rsf-panel-note">
+          <MutedText>
+            저장하면 바로 반영된다. 배포(스냅샷 발행)는 보류다. 세트 안의 룰은 각자 판정 시각에 유효한 RELEASED 버전으로 돈다. 노드를 누르면 그 노드의 속성을
+            보인다
+          </MutedText>
+        </p>
+      </Section>
+      <Section kind="SET" id="set-io" title="세트 입출력" memory={sections}>
+        <SetIoTables io={io} />
+      </Section>
+      <Section kind="SET" id="set-guide" title="구성 지침" memory={sections}>
         <GuideCard canApply={props.canApplyGuide} applyHint={props.guideHint} onApply={props.onApplyGuide} onError={props.onError} />
-      </div>
+      </Section>
     </div>
   );
 }

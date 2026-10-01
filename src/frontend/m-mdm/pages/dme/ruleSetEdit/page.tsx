@@ -9,7 +9,7 @@
  *
  * 모드(3단계 P1) — 세트를 열면 보기 모드다. 편집 모드는 서버 판정(`editable`)·INUSE·RBAC(save)일 때만 켠다(P10). 디버그 모드는 누구나 들어간다.
  * - 왼쪽: 디버그 모드만 입력 패널(`DebugInputs`). 보기·편집 모드는 왼쪽 칸이 없고 캔버스 안 왼쪽 위에 도구 상자(`FlowToolbox`)가 뜬다(4단계 P1)
- * - 오른쪽: 보기·편집 = 속성·세트 패널(선택에 따라 하나), 디버그 = 변수 패널(`VariablePanel`)
+ * - 오른쪽: 보기·편집 = 머리글 + 접는 섹션(`SidePanel` — 속성·세트 섹션과 「룰 목록」/「룰 지정」 섹션), 디버그 = 변수 패널(`VariablePanel`)
  * - 아래 탭: 보기·편집 = 검사 결과 하나, 디버그 = 값 표·실행 비교·검사 결과. 디버그로 들고 날 때 그 모드의 첫 탭으로 간다
  *   (보기↔편집은 탭이 같아 그대로 둔다). 디버그 모드에 들어가면 [변수 흐름]을 켜고 나오면 들어가기 전 값으로 돌린다(P-D16).
  * 단축키(P3)는 캔버스 감싸개(`rsf-canvas-host`)의 onKeyDown 에서만 디스패처로 받는다 — 손잡이 표는 모드별로 여기서 만든다.
@@ -26,11 +26,10 @@ import { searchSets } from "./api";
 import { ContextMenu } from "./canvas/ContextMenu";
 import { alignNodes, distributeNodes, nudgeNodes, type AlignKind, type DistributeAxis } from "./canvas/align";
 import { buildMenu, type CanvasActions, type MenuItem, type MenuTarget } from "./canvas/context-menu";
-import { FlowCanvas, type AlignSource } from "./canvas/FlowCanvas";
+import { FlowCanvas, type AlignSource, type PaletteItem } from "./canvas/FlowCanvas";
 import { FlowToolbar } from "./canvas/FlowToolbar";
 import { FlowToolbox, defaultTool, type CanvasTool } from "./canvas/FlowToolbox";
 import { MENU_PROVIDERS } from "./canvas/menus";
-import { RulePanel } from "./canvas/RulePanel";
 import { RuleSearchModal } from "./canvas/RuleSearchModal";
 import { UNHANDLED, dispatchShortcut, isMacPlatform, type ShortcutHandlers } from "./canvas/shortcuts";
 import { DebugInputs } from "./debugger/DebugInputs";
@@ -50,13 +49,14 @@ import { autoArrange, shiftSpace, type SpaceAxis, type SpaceBlocks } from "./flo
 import { openRule } from "./links";
 import { BottomPanel, type BottomTab } from "./panels/BottomPanel";
 import { ChecksPanel } from "./panels/ChecksPanel";
-import { PropertyPanel } from "./panels/PropertyPanel";
-import { SetPanel } from "./panels/SetPanel";
+import { useSectionMemory } from "./panels/Section";
+import { SidePanel } from "./panels/SidePanel";
 import { RSF_CSS, RSF_STYLE_HREF } from "./rsf-styles";
 import { useCollapse } from "./state/useCollapse";
 import { useDragActions } from "./state/useDragActions";
 import { useEditActions, type RuleModalPurpose } from "./state/useEditActions";
 import { useFind } from "./state/useFind";
+import { useRuleSearch } from "./state/useRuleSearch";
 import { useRuleSetEdit, type FlowMode } from "./state/useRuleSetEdit";
 import { debugOverlay } from "./trace-view";
 import type { RuleIo, RuleSetCaseView, VarDisplay } from "./types";
@@ -68,8 +68,6 @@ const STORAGE_KEY = "mdm.dme.ruleSetEdit";
 const SET_PICK_LIMIT = 20;
 const COPY_NEEDS_NODE = "복사할 노드를 먼저 고른다";
 const PASTE_NEEDS_EDGE = "붙여 넣을 선을 먼저 고른다";
-/** 룰 목록 줄 [넣기] — 고른 선이 없을 때(A4). */
-const INSERT_NEEDS_EDGE = "넣을 선을 먼저 고른다";
 /**
  * 아래 패널 기본 높이(px, 사용자가 끌어 바꾼 값은 storageKey 로 남는다). 220 → 280: 탭 머리(약 36)와 고정 버튼 줄(따라가기 상태 포함 약 60)을 빼고도
  * 입력 칸 4~5줄이 보이게. 1030px 높이 화면에서 캔버스 쪽은 minSize 200 보다 넉넉히 남는다.
@@ -203,6 +201,19 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     setSelectedEdgeId(null);
   }, []);
 
+  /** 섹션 펼침 기억(종류별, 화면 메모리 — 4단계 Task 8). 모드를 바꿔도 남게 page 에 둔다. */
+  const sections = useSectionMemory();
+  /** 룰 지정 섹션 열기 신호 — 올릴 때마다 오른쪽 패널이 「룰 지정」 섹션을 펴고 찾기 칸에 초점을 둔다. */
+  const [assignSignal, setAssignSignal] = useState(0);
+  /** 룰 지정 섹션 열기(4단계 Task 8 입구 — 우클릭 [룰 바꾸기…], Task 9 의 빈 단계 놓기·[룰 지정…]). 그 노드를 고르고 신호를 올린다. */
+  const openRuleAssign = useCallback(
+    (nodeId: string) => {
+      select(nodeId);
+      setAssignSignal((s) => s + 1);
+    },
+    [select],
+  );
+
   /** 노드로 옮기기 — 접힌 블록 안이면 먼저 펴고, 고르고, 캔버스를 옮긴다(검사 항목·찾기). */
   const reveal = useCallback(
     (nodeId: string) => {
@@ -235,6 +246,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     select,
     selectEdge,
     openRuleModal: setRuleModal,
+    openRuleAssign,
     fit,
     setEditingCond,
     closeMenu,
@@ -292,15 +304,12 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
       editing && edit((f) => updateNote(f, id, patch), patch.text !== undefined ? { mergeKey: `note:${id}` } : undefined),
     [editing, edit],
   );
-  /** 룰 목록 줄 [넣기](A4) — 고른 선에 끼운다. 룰 IO 는 목록이 `onRules` 로 먼저 룰 맵에 넣는다. */
-  const onInsertRule = useCallback(
-    (ruleId: string) => {
-      if (selectedEdgeId) editActions.dropRule(ruleId, selectedEdgeId);
-      else edit(() => fail(INSERT_NEEDS_EDGE));
-    },
-    [selectedEdgeId, editActions, edit],
-  );
   const onRules = useCallback((ios: RuleIo[]) => ios.forEach(state.addRuleIo), [state.addRuleIo]);
+  const ruleSearch = useRuleSearch(onRules, state.reportError);
+  /** 룰 목록 두 번 누르기 — 고른 선(없으면 END 앞 선)에 끼운다. */
+  const onInsertListRule = useCallback((io: RuleIo) => editActions.insertListRule(selectedEdgeId, io), [editActions, selectedEdgeId]);
+  /** [지정]·두 번 누르기(룰 지정) — 지금은 RULE 노드 룰 바꾸기. Task 9 가 빈 단계(TASK → RULE)까지 넓힌다(`editActions.assignRule`). */
+  const onAssignRule = useCallback((nodeId: string, io: RuleIo) => editActions.applyReplace(nodeId, io), [editActions]);
   const onEditCond = useCallback(
     (id: string, cond: string) => {
       if (editing) edit((f) => updateEdge(f, id, { cond }), { mergeKey: `cond:${id}` });
@@ -416,6 +425,14 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     },
     [focusCanvas],
   );
+  /** 도구 상자 요소 누르기 — 끼운 뒤 초점을 캔버스로 옮긴다(마우스로 누르면 단추가 초점을 놓아 body 로 빠져 이어지는 Esc 가 캔버스에 닿지 않는다). */
+  const onPickElement = useCallback(
+    (item: PaletteItem) => {
+      editActions.pickPalette(item);
+      focusCanvas();
+    },
+    [editActions, focusCanvas],
+  );
   /** 캔버스가 공간 넓히기를 한 번 끝내면 false 로 부른다 — 영역 선택으로 돌아간다. */
   const onSpaceToolChange = useCallback((on: boolean) => {
     if (!on) setTool("select");
@@ -502,10 +519,6 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
 
   const usedRuleIds = useMemo(() => new Set((flow?.nodes ?? []).map((n) => n.ruleId).filter((x): x is string => !!x)), [flow]);
 
-  const selectedExists =
-    !!flow &&
-    !!selectedId &&
-    (flow.nodes.some((n) => n.id === selectedId) || flow.view.notes.some((n) => n.id === selectedId) || flow.view.groups.some((g) => g.id === selectedId));
   const isBranched = !!flow && branched(flow);
   const guideHint = !editing ? "편집 모드에서 적용한다" : isBranched ? "분기가 있는 흐름에는 적용하지 않는다" : undefined;
 
@@ -654,7 +667,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         onSpaceToolChange={onSpaceToolChange}
                         onShiftSpace={onShiftSpace}
                       />
-                      <FlowToolbox mode={mode} tool={tool} onTool={onTool} onPick={editActions.pickPalette} disabled={state.loading} />
+                      <FlowToolbox mode={mode} tool={tool} onTool={onTool} onPick={onPickElement} disabled={state.loading} />
                       <ContextMenu items={menuItems} at={menu?.at ?? null} onClose={onCloseMenu} />
                     </div>
                   </div>
@@ -672,42 +685,31 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         onOpenRule={openRule}
                       />
                     ) : (
-                      <>
-                        {selectedExists && selectedId ? (
-                          <PropertyPanel
-                            flow={flow}
-                            rules={state.rules}
-                            checks={state.checks}
-                            selectedId={selectedId}
-                            selectedNodeIds={multiSel}
-                            editable={editing && !state.loading}
-                            onEdit={edit}
-                            onOpenRule={openRule}
-                          />
-                        ) : (
-                          <SetPanel
-                            flow={flow}
-                            rules={state.rules}
-                            setName={state.setName}
-                            description={state.description}
-                            editable={editing && !state.loading}
-                            onSetName={state.setSetName}
-                            onDescription={state.setDescription}
-                            canApplyGuide={editing && !isBranched && !state.loading}
-                            guideHint={guideHint}
-                            onApplyGuide={state.applyGuide}
-                            onError={state.reportError}
-                          />
-                        )}
-                        {/* 룰 목록 — 임시 자리(4단계 Task 7). Task 8 이 오른쪽 섹션 패널의 「룰 목록」/「룰 지정」 섹션으로 바꾼다. */}
-                        <RulePanel
-                          mode={mode}
-                          selectedEdgeId={selectedEdgeId}
-                          onRules={onRules}
-                          onInsertRule={onInsertRule}
-                          onError={state.reportError}
-                        />
-                      </>
+                      <SidePanel
+                        flow={flow}
+                        rules={state.rules}
+                        checks={state.checks}
+                        mode={mode}
+                        loading={state.loading}
+                        selectedId={selectedId}
+                        selectedEdgeId={selectedEdgeId}
+                        selectedNodeIds={multiSel}
+                        setName={state.setName}
+                        description={state.description}
+                        onSetName={state.setSetName}
+                        onDescription={state.setDescription}
+                        canApplyGuide={editing && !isBranched && !state.loading}
+                        guideHint={guideHint}
+                        onApplyGuide={state.applyGuide}
+                        onError={state.reportError}
+                        onEdit={edit}
+                        onOpenRule={openRule}
+                        sections={sections}
+                        ruleSearch={ruleSearch}
+                        assignSignal={assignSignal}
+                        onInsertRule={onInsertListRule}
+                        onAssignRule={onAssignRule}
+                      />
                     )}
                   </div>
                 </ContentPanel>

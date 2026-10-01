@@ -47,8 +47,8 @@ export interface CanvasActions {
   copy(nodeId: string): void;
   paste(edgeId: string): void;
   duplicate(nodeId: string): void;
-  /** 룰 찾기 팝업 → replaceRule. */
-  replaceRule(nodeId: string): void;
+  /** 그 노드를 고르고 오른쪽 「룰 지정」 섹션을 펴 찾기 칸에 초점(4단계 Task 8). */
+  openRuleAssign(nodeId: string): void;
   changeSplitKind(splitId: string, kind: "IF" | "PARALLEL"): void;
   dissolveSplit(splitId: string, keepEdgeId: string): void;
   toggleCollapse(splitId: string): void;
