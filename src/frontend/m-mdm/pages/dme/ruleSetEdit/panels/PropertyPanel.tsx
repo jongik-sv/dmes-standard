@@ -5,6 +5,7 @@
  *
  * - 룰: 룰명·룰 ID·종류·정책·확정 버전, 입력 변수(출처 배지·어디서 오는지·걸린 검사 문구), 결과 변수, [룰 편집 열기], [지우기].
  * - IF: 분기 이름, 갈래(order 순, "그 외" 마지막)의 이름·조건식·▲▼✕·검사 문구, [갈래 더하기]. 병렬: 갈래 이름·▲▼✕·[갈래 더하기].
+ * - 룰·빈 단계: 편집 모드면 「외관」 섹션(S1, NodeStylePanel)
  * - 합류·시작·끝: 종류 설명. 메모: 글. 그룹: 제목.
  * 갈래는 머리행 있는 표가 아니라 칸 묶음으로 쌓는다(입력 요소를 그리드 칸에 두지 않는다, Local-Rules §12).
  * 4단계 Task 8: 머리글(이름)은 `SidePanel`, 각 소제목은 접는 섹션(`Section`) — testid 는 그대로.
@@ -35,10 +36,13 @@ import {
   type EditFlow,
   type EditResult,
 } from "../flow-edit";
+import { restyleNode, type NodeLayoutSource } from "../flow-layout";
 import { parseFlow, type FlowTree } from "../flow-model";
+import type { NodeStylePatch } from "../node-style";
 import type { IoName, RuleIo, RuleIoMap, RuleSetCheck } from "../types";
 import { CheckBadge } from "./ChecksPanel";
 import type { PanelKind } from "./PanelHeader";
+import { NodeStylePanel } from "./NodeStylePanel";
 import { Section, type SectionMemory } from "./Section";
 
 export interface PropertyPanelProps {
@@ -50,6 +54,10 @@ export interface PropertyPanelProps {
   selectedNodeIds?: readonly string[];
   /** 편집 모드 — 입력·▲▼✕·지우기를 켠다. */
   editable: boolean;
+  /** 편집 모드(불러오는 동안에도 true) — 「외관」 섹션을 보인다. editable 은 불러오는 동안 false 라 섹션을 감추면 깜빡인다(계획 Ruling 13). */
+  editing?: boolean;
+  /** 외관 크기를 바꿀 때 그때 그린 위치(S-D6) — page 가 캔버스의 정렬 출처에서 만든다. 없으면 위치를 적지 않는다. */
+  layoutSource?: () => NodeLayoutSource | null;
   onEdit: (fn: (f: EditFlow) => EditResult | EditFlow, opts?: { mergeKey?: string }) => string | null;
   onOpenRule: (ruleId: string) => void;
   /** 섹션 펼침 기억(종류별, 화면 메모리). */
@@ -191,6 +199,7 @@ function RuleProps({ node, io, tree, props }: { node: FlowNode; io: RuleIo | und
           </ul>
         )}
       </Section>
+      <StyleSection node={node} props={props} />
     </div>
   );
 }
@@ -200,6 +209,21 @@ function branchesOf(flow: EditFlow, splitId: string): FlowEdge[] {
   const outs = flow.edges.filter((e) => e.from === splitId);
   const key = (e: FlowEdge) => (e.otherwise ? Number.POSITIVE_INFINITY : (e.order ?? Number.MAX_SAFE_INTEGER));
   return [...outs].sort((a, b) => key(a) - key(b));
+}
+
+/** 「외관」 섹션(S1 §3) — 편집 모드의 룰·빈 단계에서만. 조작 하나 = 편집 한 번(restyleNode — 크기가 바뀌면 그린 위치 전부 고정). */
+function StyleSection({ node, props }: { node: FlowNode; props: PropertyPanelProps }) {
+  const { flow, editing, editable, onEdit, layoutSource, sections } = props;
+  if (!editing) return null;
+  const change = (patch: NodeStylePatch | null) => {
+    const src = layoutSource?.() ?? null;
+    onEdit((f) => restyleNode(f, node.id, patch, src?.drawn ?? {}, src?.blocks ?? {}));
+  };
+  return (
+    <Section kind={node.kind as PanelKind} id="node-style" title="외관" memory={sections}>
+      <NodeStylePanel node={node} style={flow.view.styles?.[node.id]} disabled={!editable} onChange={change} />
+    </Section>
+  );
 }
 
 /** 빈 단계(4단계 T1) — 제목·노드 ID·설명·검사 문구·[지우기]. 룰은 위 「룰 지정」 섹션에서 고른다. */
@@ -240,6 +264,7 @@ function TaskProps({ node, props }: { node: FlowNode; props: PropertyPanelProps 
           </div>
         )}
       </Section>
+      <StyleSection node={node} props={props} />
     </div>
   );
 }

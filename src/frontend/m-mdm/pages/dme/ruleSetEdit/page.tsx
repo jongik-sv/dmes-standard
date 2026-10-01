@@ -44,7 +44,7 @@ import {
   connect, flowJsonOf, reconnectEdge, setGroupPad, setLabelOffset, setPositions, setRoute, shiftRoutes, updateEdge, updateNodeLabel, updateNote,
   type EditFlow, type EditResult, type FlowNote, type FlowPos, type GroupPad, type LabelOffset, type LabelPart,
 } from "./flow-edit";
-import { autoArrange, shiftSpace, type SpaceAxis, type SpaceBlocks } from "./flow-layout";
+import { autoArrange, shiftSpace, type NodeLayoutSource, type SpaceAxis, type SpaceBlocks } from "./flow-layout";
 import { openRule } from "./links";
 import { BottomPanel, type BottomTab } from "./panels/BottomPanel";
 import { ChecksPanel } from "./panels/ChecksPanel";
@@ -323,6 +323,11 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   const onAutoLayout = useCallback(() => editing && edit((f) => autoArrange(f)), [editing, edit]);
   // 정렬·옮기기(A1) — 캔버스가 채우는 "고른 것과 그린 위치" 함수. 메뉴는 열 때 고른 ID 를 적어 둔다(정렬 메뉴 조건).
   const alignSourceRef = useRef<(() => AlignSource) | null>(null);
+  /** 외관 크기 바꾸기(S-D6)가 쓸 그린 위치 — 캔버스가 채운 정렬 출처에서 꺼낸다. 캔버스가 없으면 null(위치를 적지 않는다). */
+  const layoutSource = useCallback((): NodeLayoutSource | null => {
+    const s = alignSourceRef.current?.();
+    return s ? { drawn: s.drawn, blocks: s.blocks } : null;
+  }, []);
   /** 캔버스가 채우는 "React Flow 로 고른 것(흐름 노드·메모·그룹)" — Delete 가 여럿 지우기에 쓴다(M2). */
   const canvasSelectionRef = useRef<(() => string[]) | null>(null);
   const onContextMenu = useCallback(
@@ -721,6 +726,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         onInsertRule={onInsertListRule}
                         onAssignRule={onAssignRule}
                         usedRuleIds={usedRuleIds}
+                        layoutSource={layoutSource}
                       />
                     )}
                   </div>
