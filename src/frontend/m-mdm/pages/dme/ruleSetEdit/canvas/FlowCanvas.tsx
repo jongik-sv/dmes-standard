@@ -6,6 +6,7 @@
  * 부모가 편집 모드일 때만 `mode="edit"` 로 부른다. 보기 모드는 끌기·연결이 꺼지고 선택만 된다.
  * 편집 모드에서는 여러 노드를 고를 수 있다 — Shift(또는 Cmd·Ctrl)+누르기로 더하기, 빈 곳 끌기 상자(부분 포함). 고른 흐름 노드 ID 목록은 `onSelectionChange` 로 올린다(Ruling 11).
  * 편집 모드 화면 이동은 Figma 방식이다(S1, Ruling 21) — 스페이스+끌기·가운데 버튼 끌기·두 손가락 스크롤, 확대는 핀치·Ctrl/Cmd+휠. 보기·디버그 모드는 끌기 = 화면 이동 그대로다.
+ * 접힌 새 형식 IF 는 꼬리 대신 그리기 전용 대표 선 fold:{분기} 로 이어진다 — 고르기·우클릭·[+]·끝 손잡이를 주지 않는다(implicit-join spec §8.4, J-D14).
  * 4단계 P1: 빈 곳 끌기는 `dragTool`([손]·[영역 선택])을 따르고 없으면 모드 기본이다.
  *
  * 공간 넓히기(S1): 편집 모드에서 [공간] 토글(`spaceTool`)이 켜졌거나 Alt 를 누른 채 빈 곳(pane)을 끌면, 누른 자리를 기준으로 처음 6px 을 넘는 순간
@@ -82,7 +83,7 @@ import { typedText } from "../trace-view";
 import { blockDragPositions, dropTargetAt, edgeChips, edgeMarks, nodeAtPoint, nodeMarks, resolveNodeDrop } from "../flow-vars";
 import type { FlowMode } from "../state/useRuleSetEdit";
 import type { RuleIoMap, RuleSetCheck, VarDisplay } from "../types";
-import { collapseView } from "./collapse";
+import { FOLD_EDGE_PREFIX, collapseView } from "./collapse";
 import { boundsOf, snapHitIn, snapIndex, snapThreshold, type Box, type Guide, type SnapIndex } from "./snap";
 import { ROUTE_RADIUS, ROUTE_STUB, autoRoute, finishRoute, insertRoutePoint, isClear, moveSegment, roundPoint, routeMidpoint, routePath, segmentAxis, segmentHandles, snapSegmentDelta, type SegmentHandle } from "./route-path";
 import { SEG_BAR_LONG, SEG_BAR_SHORT } from "../styles/route";
@@ -1330,6 +1331,7 @@ function Inner(props: FlowCanvasProps) {
     return vflow.edges.map<FlowRfEdge>((e) => {
       // 접힌 분기에서 나가는 선은 합류에서 나가던 선이다 — 갈래 이름·조건식이 없다.
       const folded = !!view.blocks[e.from];
+      const rep = e.id.startsWith(FOLD_EDGE_PREFIX); // 접힌 IF 의 대표 선 — 그리기 전용(J-D14)
       const fromSplit = !folded && (kindOf.get(e.from) === "IF" || kindOf.get(e.from) === "PARALLEL");
       const condEditable = editable && !folded && kindOf.get(e.from) === "IF" && !e.otherwise;
       // 조건 갈래는 이름(label)이 없어도 두 번 누를 자리가 있어야 한다(F10) — 대체 라벨 `갈래 {order}`.
@@ -1339,7 +1341,7 @@ function Inner(props: FlowCanvasProps) {
         fromCatch: kindOf.get(e.from) === "CATCH",
         label, cond: e.cond, chips: chips[e.id] ?? [], state: overlay?.edges[e.id], mark: eMarks[e.id], varDisplay, varLabels: varLabels ?? NO_LABELS,
         dropTarget: dropEdge === e.id,
-        insertable: editable,
+        insertable: editable && !rep,
         condEditable,
         editingCond: (editingCondEdgeId ?? condEdge) === e.id,
         rawLabel: e.label,
@@ -2298,14 +2300,22 @@ function Inner(props: FlowCanvasProps) {
     openMenu(e, n.type === "rsfFlow" ? { kind: "node", nodeId: n.id } : { kind: "pane", at: flowAt(e.clientX, e.clientY) }),
   // eslint-disable-next-line react-hooks/exhaustive-deps
   [onContextMenu, rf]);
-  const onEdgeContextMenu = useCallback((e: ReactMouseEvent, ed: Edge) => openMenu(e, { kind: "edge", edgeId: ed.id, via: "context" }),
+  const onEdgeContextMenu = useCallback((e: ReactMouseEvent, ed: Edge) => {
+    if (ed.id.startsWith(FOLD_EDGE_PREFIX)) {
+      e.preventDefault(); // 대표 선은 메뉴가 없다(J-D14)
+      return;
+    }
+    openMenu(e, { kind: "edge", edgeId: ed.id, via: "context" });
+  },
   // eslint-disable-next-line react-hooks/exhaustive-deps
   [onContextMenu]);
   const onNodeClick = useCallback((_e: ReactMouseEvent, n: Node) => {
     canvasPickRef.current = n.id;
     onSelect(n.id);
   }, [onSelect]);
-  const onEdgeClick = useCallback((_e: ReactMouseEvent, ed: Edge) => onSelectEdge(ed.id), [onSelectEdge]);
+  const onEdgeClick = useCallback((_e: ReactMouseEvent, ed: Edge) => {
+    if (!ed.id.startsWith(FOLD_EDGE_PREFIX)) onSelectEdge(ed.id);
+  }, [onSelectEdge]);
   const onPaneContextMenu = (e: ReactMouseEvent | MouseEvent) => openMenu(e, { kind: "pane", at: flowAt(e.clientX, e.clientY) });
 
   // [+] 단추 — 선 이름표 층의 단추를 틀에서 위임으로 받는다(단추 아래 왼쪽에 메뉴를 연다).

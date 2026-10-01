@@ -25,7 +25,7 @@ export const PANEL_KIND: Readonly<Record<PanelKind, { label: string; icon: typeo
   TASK: { label: "빈 단계", icon: IconListDetails },
   IF: { label: "IF 분기", icon: IconGitBranch },
   PARALLEL: { label: "병렬 분기", icon: IconArrowsSplit },
-  MERGE: { label: "합류", icon: IconGitMerge },
+  MERGE: { label: "병렬 합류", icon: IconGitMerge },
   CATCH: { label: "받는 노드", icon: IconBolt },
   NOTE: { label: "메모", icon: IconNote },
   GROUP: { label: "그룹", icon: IconBoxMultiple },
@@ -47,7 +47,7 @@ export function panelTargetOf(flow: EditFlow, rules: RuleIoMap, selectedId: stri
         const io = n.ruleId ? rules[n.ruleId] : undefined;
         return { kind: "RULE", id: n.id, name: n.label ?? (io && io.exists ? (io.ruleName ?? n.ruleId ?? n.id) : "(없는 룰)") };
       }
-      const fallback = n.kind === "TASK" ? TASK_LABEL : n.kind === "CATCH" ? catchTitle({ label: null, catches: n.catches }) : n.kind === "MERGE" ? `분기 ${n.splitId ?? n.id} 합류` : n.kind === "START" || n.kind === "END" ? PANEL_KIND[n.kind].label : n.id;
+      const fallback = n.kind === "TASK" ? TASK_LABEL : n.kind === "CATCH" ? catchTitle({ label: null, catches: n.catches }) : n.kind === "MERGE" ? `병렬 ${n.splitId ?? n.id} 합류` : n.kind === "START" || n.kind === "END" ? PANEL_KIND[n.kind].label : n.id;
       return { kind: n.kind as PanelKind, id: n.id, name: n.label ?? fallback };
     }
     const note = flow.view.notes.find((x) => x.id === selectedId);

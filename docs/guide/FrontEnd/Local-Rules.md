@@ -222,6 +222,7 @@ shared `Modal`(Mantine)은 열린 창마다 window 의 Escape 를 받는다. 등
 - **노드·선 배열을 memo 로 통째로 새로 만들면 노드 하나를 끌거나 선택만 바꿔도 모든 노드·선이 다시 그려진다.** React Flow v12 는 사용자 노드·선 객체의 참조가 바뀌면 그 항목을 다시 그린다. 내용이 같은 항목은 이전 참조를 그대로 넘기고(`canvas/reuse.ts` 의 `useStableById`), `onNodeClick`·`onNodeContextMenu`·`onEdgeClick`·`onEdgeContextMenu` 는 `useCallback` 으로 고정한다. 이 콜백들은 모든 NodeWrapper·EdgeWrapper 의 prop 이므로 인라인 함수 하나만 있어도 전체가 다시 그려진다. 362노드에서 선택 한 번에 드는 노드 렌더가 1086회에서 4회로 줄었다. 자동 배치(dagre)는 배치가 읽는 칸으로 키를 만든 캐시(`flow-layout.ts` 의 `autoLayout`)를 거치므로, 위치·경로·이름표만 바꾼 편집에는 다시 돌지 않는다. 노드 다시 그리기 범위(선택·편집·끌기 프레임)는 `flow-canvas-reuse` 테스트가, dagre 캐시는 `layout-cache` 테스트가 지킨다.
 - **초점을 가진 요소를 지우면 초점이 body 로 빠져 캔버스 단축키가 끊긴다**(선 Delete 뒤 Ctrl+Z 무반응). 단축키 디스패처가 처리한 뒤 `document.activeElement` 가 body 면 캔버스 host 로 돌린다.
 - 예시: `canvas/FlowCanvas.tsx`, `canvas/FlowToolbar.tsx`, `styles/collapse.ts`(칩)·`styles/space.ts`(선택 상자), `page.tsx` 의 `onCanvasKeyDown`.
+- **룰 세트 IF 의 끝내는 갈래(D-136, implicit-join spec J-D19)** — 흐름을 이어 갈 갈래는 「그 외」로 두고, 끝낼 갈래는 조건 갈래로 두어 끝 노드로 잇는다. 모든 갈래가 따로 END 로 가면 실행 순서 마지막 갈래(END 직행 제외)가 이어지는 갈래로 정해지므로, 안쪽 IF 에서 반대로 그리면(조건 갈래가 바깥 모이는 자리로, 「그 외」 에 몸을 두고 END 로) 구조 오류(S5·S6)로 거부된다. 화면은 IF 패널 갈래 목록 아래 안내(`flow-prop-if-ending-help`)로 같은 규칙을 보인다.
 
 ## 20. AgDataGrid 화면 — 입력 한 글자·셀 편집 한 번이 그리드 전체를 다시 그리지 않게 (2026-10-01)
 
