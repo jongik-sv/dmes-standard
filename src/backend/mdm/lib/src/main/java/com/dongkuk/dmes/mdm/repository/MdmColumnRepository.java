@@ -1,6 +1,7 @@
 package com.dongkuk.dmes.mdm.repository;
 
 import com.dongkuk.dmes.mdm.entity.MdmColumn;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -13,6 +14,9 @@ public interface MdmColumnRepository extends JpaRepository<MdmColumn, Long> {
 
     /** TSK-04-04 — 표준 물리명 유일성 검사(MDM019)·역분해 중복 목록. */
     Optional<MdmColumn> findByPhysName(String physName);
+
+    /** 룰 세트 편집 부하 — 여러 물리명을 한 번에(이름은 그대로 비교한다, {@link #findByPhysName} 과 같은 일치). */
+    List<MdmColumn> findByPhysNameIn(Collection<String> physNames);
 
     /** TSK-08-03 — 룰 화면 자동완성 후보(varCandidates) 전체, 물리명 순. */
     List<MdmColumn> findAllByOrderByPhysNameAsc();

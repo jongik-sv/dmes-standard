@@ -8,11 +8,13 @@ import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 import org.springframework.stereotype.Repository;
 
 /**
@@ -21,6 +23,9 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public class RuleQueries {
+
+    /** {@link #varsOf}·{@link #rowsOf} 한 문장의 (룰, 버전) 쌍 수 — 바인드 변수는 그 두 배다. */
+    static final int PAIR_CHUNK = 200;
 
     private final EntityManager entityManager;
 
@@ -92,6 +97,45 @@ public class RuleQueries {
         return entityManager.createQuery("SELECT r FROM MdmRuleRow r WHERE r.maruRuleId = :id AND r.ver = :ver "
                         + "ORDER BY CASE WHEN r.rowKind = 'NORMAL' THEN 0 ELSE 1 END, r.seq, r.rowId", MdmRuleRow.class)
                 .setParameter("id", ruleId).setParameter("ver", ver).getResultList();
+    }
+
+    /**
+     * 여러 (룰, 버전)의 변수를 한 번에 — 룰마다 {@link #vars} 와 같은 순서(COND 먼저, seq·var_id 순). 결과는 {@code ruleVers} 의 순서대로 룰 ID →
+     * 변수 목록이고, 변수가 없는 룰은 빈 목록이다. 조건은 (룰 ID, VER) 쌍 그대로라 {@link #vars} 를 룰마다 부른 것과 같은 행을 읽는다.
+     */
+    public Map<String, List<MdmRuleVar>> varsOf(Map<String, Integer> ruleVers) {
+        return byRule(ruleVers, "SELECT v FROM MdmRuleVar v WHERE ", " ORDER BY v.maruRuleId, CASE WHEN v.varKind = 'COND' THEN 0 ELSE 1 END, "
+                + "v.seq, v.varId", "v", MdmRuleVar.class, MdmRuleVar::getMaruRuleId);
+    }
+
+    /** 여러 (룰, 버전)의 행을 한 번에 — 룰마다 {@link #rows} 와 같은 순서(NORMAL 먼저 seq·row_id 순, 기본 행은 마지막). {@link #varsOf} 와 같은 모양. */
+    public Map<String, List<MdmRuleRow>> rowsOf(Map<String, Integer> ruleVers) {
+        return byRule(ruleVers, "SELECT r FROM MdmRuleRow r WHERE ", " ORDER BY r.maruRuleId, CASE WHEN r.rowKind = 'NORMAL' THEN 0 ELSE 1 END, "
+                + "r.seq, r.rowId", "r", MdmRuleRow.class, MdmRuleRow::getMaruRuleId);
+    }
+
+    /** (룰 ID, VER) 쌍 조건을 OR 로 이어 {@link #PAIR_CHUNK} 쌍씩 읽고 룰 ID 로 묶는다. 묶음마다 룰 ID 가 겹치지 않아 룰 안 순서가 지켜진다. */
+    private <T> Map<String, List<T>> byRule(Map<String, Integer> ruleVers, String select, String orderBy, String alias, Class<T> type,
+                                           Function<T, String> ruleIdOf) {
+        Map<String, List<T>> out = new LinkedHashMap<>();
+        ruleVers.keySet().forEach(id -> out.put(id, new ArrayList<>()));
+        List<Map.Entry<String, Integer>> pairs = List.copyOf(ruleVers.entrySet());
+        for (int from = 0; from < pairs.size(); from += PAIR_CHUNK) {
+            List<Map.Entry<String, Integer>> chunk = pairs.subList(from, Math.min(pairs.size(), from + PAIR_CHUNK));
+            StringBuilder where = new StringBuilder();
+            for (int i = 0; i < chunk.size(); i++) {
+                where.append(i == 0 ? "" : " OR ").append("(").append(alias).append(".maruRuleId = :id").append(i).append(" AND ")
+                        .append(alias).append(".ver = :ver").append(i).append(")");
+            }
+            TypedQuery<T> q = entityManager.createQuery(select + where + orderBy, type);
+            for (int i = 0; i < chunk.size(); i++) {
+                q.setParameter("id" + i, chunk.get(i).getKey()).setParameter("ver" + i, chunk.get(i).getValue());
+            }
+            for (T row : q.getResultList()) {
+                out.get(ruleIdOf.apply(row)).add(row);
+            }
+        }
+        return out;
     }
 
     /** 한 버전의 row_id — 엔티티를 영속성 컨텍스트에 올리지 않는다(같은 트랜잭션에서 행을 지우고 다시 넣는다). */
@@ -173,6 +217,19 @@ public class RuleQueries {
                   AND r.ver = (SELECT MAX(r2.ver) FROM MdmRuleVer r2 WHERE r2.maruRuleId = r.maruRuleId AND r2.status = 'RELEASED')
                 ORDER BY v.maruRuleId, v.seq, v.varId
                 """, MdmRuleVar.class).setParameter("ruleId", ruleId).getResultList();
+    }
+
+    /**
+     * 모든 룰의 최신 RELEASED 버전(VER 최대) 결과 변수 — {@link #latestReleasedResultVarsExcept} 에서 룰 하나를 빼는 조건만 없앤 것(정렬 같음).
+     * 여러 룰의 타입을 한 번에 풀 때 한 번 읽어 룰마다 거른다({@link RuleVarTypeResolver.Scope}).
+     */
+    public List<MdmRuleVar> latestReleasedResultVars() {
+        return entityManager.createQuery("""
+                SELECT v FROM MdmRuleVar v, MdmRuleVer r
+                WHERE r.maruRuleId = v.maruRuleId AND r.ver = v.ver AND r.status = 'RELEASED' AND v.varKind = 'RESULT'
+                  AND r.ver = (SELECT MAX(r2.ver) FROM MdmRuleVer r2 WHERE r2.maruRuleId = r.maruRuleId AND r2.status = 'RELEASED')
+                ORDER BY v.maruRuleId, v.seq, v.varId
+                """, MdmRuleVar.class).getResultList();
     }
 
     /**

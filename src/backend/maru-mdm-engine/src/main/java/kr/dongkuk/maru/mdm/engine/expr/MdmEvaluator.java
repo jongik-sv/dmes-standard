@@ -9,6 +9,7 @@ import com.ezylang.evalex.parser.ParseException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -38,15 +39,22 @@ import kr.dongkuk.maru.mdm.engine.spi.FunctionProvider.BusinessFunction;
  * 시간을 넘기면 작업을 인터럽트하고 {@code EVALUATION_ERROR}(reason TIMEOUT)를 던진다. 한계: 인터럽트를 보지 않고
  * CPU 만 쓰는 평가는 인터럽트로 멈추지 않는다. 호출자는 타임아웃으로 풀려나지만 그 작업은 끝날 때까지 돈다.
  *
+ * <p>캐시 크기에는 상한({@link #MAX_CACHED})이 있다. 다 차면 새 식을 넣기 전에 아무 항목 하나를 비운다 — 캐시는 다시 파싱하지 않으려는 것일
+ * 뿐이라 비운 식은 다음에 다시 컴파일되고 결과는 같다(메모리 안전, 식 텍스트가 끝없이 늘어나는 호출자 대비).
+ *
  * <p>룰 엔진도 이 평가기로 평가한다(TSK-03-03 D20).
  */
 public final class MdmEvaluator {
 
     public static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(1);
 
+    /** 컴파일 캐시에 두는 식 수의 상한. */
+    public static final int MAX_CACHED = 10_000;
+
     private final ExpressionConfiguration configuration;
     private final Set<String> businessFunctionNames;
     private final Duration timeout;
+    private final int maxCached;
     private final Map<String, Expression> cache = new ConcurrentHashMap<>();
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
 
@@ -65,9 +73,18 @@ public final class MdmEvaluator {
      * {@code kr.dongkuk.maru.mdm.engine.expr.MdmEvaluatorFixtures}(test) 하나다.
      */
     MdmEvaluator(ExpressionConfiguration configuration, Set<String> businessFunctionNames, Duration timeout) {
+        this(configuration, businessFunctionNames, timeout, MAX_CACHED);
+    }
+
+    /** 패키지 전용 — 캐시 상한을 작게 잡아 비우기를 시험할 때만 쓴다({@code MdmEvaluatorFixtures}). */
+    MdmEvaluator(ExpressionConfiguration configuration, Set<String> businessFunctionNames, Duration timeout, int maxCached) {
         this.configuration = Objects.requireNonNull(configuration, "configuration");
         this.businessFunctionNames = Set.copyOf(Objects.requireNonNull(businessFunctionNames, "businessFunctionNames"));
         this.timeout = Objects.requireNonNull(timeout, "timeout");
+        if (maxCached < 1) {
+            throw new IllegalArgumentException("maxCached 는 1 이상이어야 한다: " + maxCached);
+        }
+        this.maxCached = maxCached;
     }
 
     private static Set<String> businessFunctionNames(EngineLookups lookups) {
@@ -148,6 +165,13 @@ public final class MdmEvaluator {
     }
 
     private Expression compiled(String text) {
+        Expression hit = cache.get(text);
+        if (hit != null) {
+            return hit;
+        }
+        if (cache.size() >= maxCached) {
+            evictOne(); // computeIfAbsent 밖에서 비운다 — 매핑 함수 안에서 맵을 고치면 ConcurrentHashMap 이 던진다
+        }
         return cache.computeIfAbsent(text, t -> {
             Expression e = new Expression(t, configuration);
             try {
@@ -158,6 +182,15 @@ public final class MdmEvaluator {
             }
             return e;
         });
+    }
+
+    /** 아무 항목 하나를 비운다. 여러 스레드가 동시에 비우면 상한보다 조금 적어질 수 있다(정확한 LRU 가 아니다). */
+    private void evictOne() {
+        Iterator<String> it = cache.keySet().iterator();
+        if (it.hasNext()) {
+            it.next();
+            it.remove();
+        }
     }
 
     private static ExpressionFailure translate(String text, Map<String, ?> values, Throwable cause) {

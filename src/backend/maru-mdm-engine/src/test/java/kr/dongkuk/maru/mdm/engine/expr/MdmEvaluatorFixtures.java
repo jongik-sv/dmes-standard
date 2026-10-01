@@ -24,6 +24,11 @@ public final class MdmEvaluatorFixtures {
         return new MdmEvaluator(configuration, Set.of(), timeout);
     }
 
+    /** 캐시 상한을 작게 잡은 평가기(비우기 시험용). */
+    public static MdmEvaluator withCacheLimit(ExpressionConfiguration configuration, int maxCached) {
+        return new MdmEvaluator(configuration, Set.of(), FIXTURE_TIMEOUT, maxCached);
+    }
+
     /** 테스트용 — 캐시한 식 수. */
     public static int cacheSize(MdmEvaluator evaluator) {
         return evaluator.cacheSize();

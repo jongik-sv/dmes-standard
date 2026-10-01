@@ -63,6 +63,20 @@ class MdmEvaluatorTest {
     }
 
     @Test
+    void 캐시는_상한을_넘지_않고_비운_식도_같은_결과로_다시_평가한다() {
+        MdmEvaluator e = MdmEvaluatorFixtures.withCacheLimit(MdmExpressionConfig.create(InMemoryLookups.create().build()), 3);
+        for (int round = 0; round < 2; round++) {
+            for (int i = 0; i < 10; i++) {
+                EvaluationValue r = e.evaluate("A + " + i, vars("A", BigDecimal.ONE), TS);
+                assertEquals(0, BigDecimal.valueOf(1 + i).compareTo(r.getNumberValue()), "A + " + i);
+                assertTrue(e.cacheSize() <= 3, "캐시 " + e.cacheSize());
+            }
+        }
+        assertThrows(ExpressionFailure.class, () -> e.compile("A +"));
+        assertTrue(e.cacheSize() <= 3);
+    }
+
+    @Test
     void 평가_뒤_캐시_원본에는_값이_남지_않는다() {
         MdmEvaluator e = plain();
         EvaluationValue r = e.evaluate("A + 1", vars("A", new BigDecimal("5")), TS);

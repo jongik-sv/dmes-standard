@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mdm.dme.ruleSetEdit.service;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
+import com.dongkuk.dmes.mdm.common.rule.CondIo;
 import com.dongkuk.dmes.mdm.common.rule.RuleCaseJudge;
 import com.dongkuk.dmes.mdm.common.rule.RuleIdRules;
 import com.dongkuk.dmes.mdm.common.rule.RuleIo;
@@ -18,6 +19,7 @@ import com.dongkuk.dmes.mdm.common.rule.RuleSetTestCaseQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleCaseInputs;
 import com.dongkuk.dmes.mdm.common.rule.RunTraceJson;
 import com.dongkuk.dmes.mdm.common.rule.RuleStewardCheck;
+import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionException;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
@@ -161,7 +163,10 @@ public class RuleSetEditService {
         }
         Map<String, List<String>> producers = ioReader.producersOfActiveRules();
         Map<String, RuleIo> cache = new HashMap<>();
-        Function<String, RuleIo> io = id -> cache.computeIfAbsent(id, k -> ioReader.read(List.of(k)).get(k));
+        // 지침이 룰을 거슬러 올라가며 하나씩 묻는다(다음 룰은 앞 룰의 입력을 봐야 안다) — 룰 ID 를 미리 모을 수 없어 한 번에 읽지 못하고,
+        // 해석 범위 하나로 도메인 트리·결과 변수·컬럼 사전 조회만 같이 쓴다.
+        RuleVarTypeResolver.Scope scope = ioReader.scope();
+        Function<String, RuleIo> io = id -> cache.computeIfAbsent(id, k -> ioReader.read(List.of(k), scope).get(k));
         RuleSetGuide.GuideResult g = RuleSetGuide.suggest(target, n -> producers.getOrDefault(n, List.of()), io);
         List<RuleIo> rules = g.order().stream().map(io).toList();
         return new RuleSetGuideResult(target, g.order(), g.ambiguous(), g.error(), rules);
@@ -175,16 +180,18 @@ public class RuleSetEditService {
         String setId = requireSetId(request == null ? null : request.getSetId());
         MdmRuleSet set = setRepository.findById(setId).orElseThrow(() -> notFound(setId));
         List<String> ruleIds = ruleIdsOf(set.getRuleIds());
-        Map<String, RuleIo> io = ioReader.read(ruleIds);
+        RuleVarTypeResolver.Scope scope = ioReader.scope();
+        Map<String, RuleIo> io = ioReader.read(ruleIds, scope);
         FlowDefinition flow = storedFlow(setId, set.getFlowJson());
-        List<RuleSetCheck> checks = flowChecks(ruleIds, io, flow);
+        Map<String, CondIo> condIo = flow == null ? Map.of() : ioReader.condIo(flow, scope);
+        List<RuleSetCheck> checks = flowChecks(ruleIds, io, flow, condIo);
         boolean steward = stewardCheck.isSteward();
         RuleSetViewResult.Header header = new RuleSetViewResult.Header(set.getMaruRuleSetId(), set.getMaruRuleSetName(),
                 set.getDescription(), set.getStatus(), set.getRowVersion(), ruleIds,
                 flow == null ? null : RuleSetFlowJson.toMap(set.getFlowJson()), flow != null && RuleSetFlowJson.branched(flow));
         return new RuleSetViewResult(header, List.copyOf(io.values()), checks,
                 steward && INUSE.equals(set.getStatus()), steward && DEPRECATED.equals(set.getStatus()),
-                flow == null ? Map.of() : ioReader.condIo(flow), cases(setId));
+                condIo, cases(setId));
     }
 
     /** 저장된 테스트 케이스 — 세트 상태와 무관하게 싣는다(폐기 세트도, P-D8). */
@@ -221,7 +228,8 @@ public class RuleSetEditService {
             ids = RuleSetFlowJson.ruleIds(flow);
             ids.forEach(RuleIdRules::validateRuleId);
             stewardCheck.requireSteward();
-            checks = RuleSetAnalyzer.checks(flow, ioReader.read(ids), ioReader.condIo(flow));
+            RuleVarTypeResolver.Scope scope = ioReader.scope();
+            checks = RuleSetAnalyzer.checks(flow, ioReader.read(ids, scope), ioReader.condIo(flow, scope));
             flowJson = requestFlowJson(request.getFlowJson());
         } else {
             ids = requestRuleIds(request.getRules());
@@ -274,7 +282,9 @@ public class RuleSetEditService {
             }
             List<String> ids = ruleIdsOf(state.ruleIds());
             FlowDefinition flow = storedFlow(setId, state.flowJson());
-            List<RuleSetCheck> checks = flowChecks(ids, ioReader.read(ids), flow);
+            RuleVarTypeResolver.Scope scope = ioReader.scope();
+            Map<String, RuleIo> io = ioReader.read(ids, scope);
+            List<RuleSetCheck> checks = flowChecks(ids, io, flow, flow == null ? Map.of() : ioReader.condIo(flow, scope));
             rejectIfAny(checks);
             if (writes.restore(setId, rv) == 0) {
                 throw writeMissed(setId, rv, DEPRECATED);
@@ -323,14 +333,15 @@ public class RuleSetEditService {
         }
         Instant ts = request.getEvalTs() == null || request.getEvalTs().isBlank() ? null : RuleSetRunner.parseKst(request.getEvalTs());
         List<RunTrace.TraceEdit> edits = edits(request.getEditsJson());
+        RuleSetRunner.Session session = runner.session();
         RunTrace trace;
         try {
-            trace = runner.trace(flowJson, record, ts, edits);
+            trace = session.trace(flowJson, record, ts, edits);
         } catch (StoredDefinitionException e) {
             throw MdmErrors.of(MdmErrorCode.STORED_DEFINITION_CORRUPT, "룰 세트 흐름의 저장된 룰 정의를 읽을 수 없어 실행하지 않습니다 — " + e.getMessage(),
                     List.of());
         }
-        return new RuleSetSimulateResult(RunTraceJson.toMap(trace), simulateWarnings(flowJson, trace));
+        return new RuleSetSimulateResult(RunTraceJson.toMap(trace), simulateWarnings(session, flowJson, trace));
     }
 
     /**
@@ -403,6 +414,8 @@ public class RuleSetEditService {
         if (picked.size() > RuleSetTestCaseService.MAX_CASES_PER_SET) {
             throw RuleCaseInputs.limit("한 번에 " + picked.size() + "건을 돌리려 한다. " + RuleSetTestCaseService.MAX_CASES_PER_SET + "건까지 돌린다");
         }
+        // 케이스 사이에 룰 정의 조회기를 같이 쓴다 — 판정 시각은 케이스마다 정하고 조회기가 시각마다 버전을 고르므로 결과는 케이스마다 새로 돌린 것과 같다.
+        RuleSetRunner.Session session = runner.session();
         List<Map<String, Object>> out = new ArrayList<>();
         for (MdmRuleSetTestCase c : picked) {
             Map<String, Object> record = RuleCaseJudge.object(c.getInputJson());
@@ -413,7 +426,7 @@ public class RuleSetEditService {
             Instant ts = c.getEvalTs() == null ? null : RuleSetRunner.parseKst(c.getEvalTs());
             RunTrace trace;
             try {
-                trace = runner.trace(flowJson, record, ts);
+                trace = session.trace(flowJson, record, ts);
             } catch (StoredDefinitionException e) {
                 throw MdmErrors.of(MdmErrorCode.STORED_DEFINITION_CORRUPT,
                         "룰 세트 흐름의 저장된 룰 정의를 읽을 수 없어 실행하지 않습니다 — " + e.getMessage(), List.of());
@@ -442,15 +455,16 @@ public class RuleSetEditService {
         return m;
     }
 
-    private List<Map<String, Object>> simulateWarnings(String flowJson, RunTrace trace) {
+    /** 흐름 파싱 결과·룰 헤더는 기록 실행이 쓴 {@code session} 의 것을 다시 쓴다(다시 파싱하거나 다시 읽지 않는다). */
+    private static List<Map<String, Object>> simulateWarnings(RuleSetRunner.Session session, String flowJson, RunTrace trace) {
         List<Map<String, Object>> out = new ArrayList<>();
         List<String> ruleIds;
         try {
-            ruleIds = RuleSetFlowJson.ruleIds(RuleSetFlowJson.parse(flowJson));
+            ruleIds = session.ruleIds(flowJson);
         } catch (IllegalArgumentException e) {
             ruleIds = List.of(); // 흐름을 읽지 못함 — 기록이 FLOW_INVALID 를 담는다
         }
-        out.addAll(runner.deprecatedWarnings(ruleIds));
+        out.addAll(session.deprecatedWarnings(ruleIds));
         for (RunTrace.NodeTrace n : trace.nodes()) {
             if (n.branches() == null) {
                 continue;
@@ -534,9 +548,9 @@ public class RuleSetEditService {
         return DomainJson.readList(json).stream().map(String::valueOf).toList();
     }
 
-    /** 흐름이 있으면 흐름 기준, 없으면 목록 기준 검사. */
-    private List<RuleSetCheck> flowChecks(List<String> ids, Map<String, RuleIo> io, FlowDefinition flow) {
-        return flow == null ? RuleSetAnalyzer.checks(ids, io) : RuleSetAnalyzer.checks(flow, io, ioReader.condIo(flow));
+    /** 흐름이 있으면 흐름 기준(조건식 IO {@code condIo}), 없으면 목록 기준 검사. */
+    private static List<RuleSetCheck> flowChecks(List<String> ids, Map<String, RuleIo> io, FlowDefinition flow, Map<String, CondIo> condIo) {
+        return flow == null ? RuleSetAnalyzer.checks(ids, io) : RuleSetAnalyzer.checks(flow, io, condIo);
     }
 
     /**

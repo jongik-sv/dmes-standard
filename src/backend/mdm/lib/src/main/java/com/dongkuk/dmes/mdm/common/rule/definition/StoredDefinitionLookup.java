@@ -4,18 +4,24 @@ import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetFlowJson;
+import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
 import com.dongkuk.dmes.mdm.common.rule.RuleVersions;
 import com.dongkuk.dmes.mdm.common.support.MdmClockConfig;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
+import com.dongkuk.dmes.mdm.entity.MdmRuleRow;
 import com.dongkuk.dmes.mdm.entity.MdmRuleSet;
+import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleSetRepository;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -28,7 +34,10 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup;
  * ({@link RuleVersions#currentReleased}: {@code APPLY_FROM <= now < APPLY_TO}), 세트는 현재 행(FLOW_JSON 이 없으면 흐름 null = 한 줄 흐름).
  *
  * <p><b>스프링 빈이 아니다</b> — {@code MdmBusinessRuleMigrationTest} 가 {@code DefinitionLookup} 빈 0개를 요구한다. {@code RuleSetRunner} 가 호출마다
- * 만든다. 한 인스턴스 안에서 (룰, 판정 시각) 결과를 캐시한다. 컬럼 검증 정의는 이 조회기의 몫이 아니라 빈 값이다.
+ * (테스트 케이스 일괄 실행이면 한 요청에 하나) 만든다. 한 인스턴스 안에서 룰 헤더·버전 목록·(룰, 버전) 정의·(룰, 판정 시각) 결과를 캐시하고,
+ * 타입 해석은 해석 범위 하나({@link RuleVarTypeResolver.Scope})로 도메인 트리·결과 변수·컬럼 사전 조회를 같이 쓴다. 정의는 버전 행만으로 정해지고
+ * 판정 시각과 무관하므로, 판정 시각이 다른 호출은 시각마다 버전을 고르고 같은 버전이면 정의를 같이 쓴다. 원장을 고치는 경로에서 쓰지 않는다.
+ * 컬럼 검증 정의는 이 조회기의 몫이 아니라 빈 값이다.
  *
  * <p>저장 데이터가 깨졌으면 판정하지 않고 {@link StoredDefinitionException} 을 던진다(P-D9, spec §9.1-9). 원인은 행 셀 읽기·행 조립 실패
  * {@code BusinessException}(MDM021), 저장된 AST 읽기 실패 {@code IllegalStateException}(조립기), FLOW_JSON·RULE_IDS 읽기 실패
@@ -41,6 +50,15 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
     private final MdmRuleRepository rules;
     private final MdmRuleSetRepository sets;
     private final Map<String, Optional<RuleDefinition>> cache = new HashMap<>();
+    private final Map<String, Optional<MdmRule>> headers = new HashMap<>();
+    private final Map<String, List<MdmRuleVer>> versions = new HashMap<>();
+    private final Map<String, Optional<RuleDefinition>> definitions = new HashMap<>();
+    private final Map<String, Raw> prefetched = new HashMap<>();
+    private RuleVarTypeResolver.Scope scope;
+
+    /** 미리 읽어 둔 (룰, 버전)의 변수·행 — 아직 해석하지 않은 원장 행 그대로. */
+    private record Raw(List<MdmRuleVar> vars, List<MdmRuleRow> rows) {
+    }
 
     public StoredDefinitionLookup(RuleQueries queries, StoredRuleDefinitions stored, MdmRuleRepository rules, MdmRuleSetRepository sets) {
         this.queries = queries;
@@ -56,7 +74,64 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
 
     @Override
     public Optional<RuleDefinition> rule(String ruleId, Instant evalTs) {
-        return cache.computeIfAbsent(ruleId + "@" + evalTs, k -> load(ruleId, evalTs));
+        String key = ruleId + "@" + evalTs;
+        Optional<RuleDefinition> known = cache.get(key);
+        if (known == null) {
+            known = load(ruleId, evalTs);
+            cache.put(key, known);
+        }
+        return known;
+    }
+
+    /**
+     * 판정 시각 {@code evalTs} 로 {@link #rule} 을 부를 룰들을 미리 한 번에 읽어 둔다 — 헤더·버전 목록, 그 시각에 고를 RELEASED 버전의 변수·행.
+     * 룰마다 따로 읽을 것을 묶을 뿐 읽는 행은 같다. 저장값을 해석하지 않으므로 손상으로 던지지 않는다(손상 판단은 {@link #rule} 이 지금처럼 한다).
+     * 엔진이 실제로 정의를 물을 룰만 넘긴다(흐름 구조가 올바를 때 트리의 룰).
+     */
+    public void prefetch(Collection<String> ruleIds, Instant evalTs) {
+        headers(ruleIds);
+        List<String> missing = ruleIds.stream().filter(id -> headers.get(id).isPresent() && !versions.containsKey(id)).distinct().toList();
+        if (!missing.isEmpty()) {
+            Map<String, List<MdmRuleVer>> found = new HashMap<>();
+            for (MdmRuleVer v : queries.versionsOf(missing)) {            // 룰 ID·VER 내림차순 — 룰마다 versions(ruleId) 와 같은 순서
+                found.computeIfAbsent(v.getMaruRuleId(), k -> new ArrayList<>()).add(v);
+            }
+            missing.forEach(id -> versions.put(id, found.getOrDefault(id, List.of())));
+        }
+        LocalDateTime now = LocalDateTime.ofInstant(evalTs, MdmClockConfig.KST);
+        Map<String, Integer> pairs = new LinkedHashMap<>();
+        for (String id : ruleIds) {
+            if (headers.get(id).isEmpty() || pairs.containsKey(id)) {
+                continue;
+            }
+            RuleVersions.currentReleased(versions.get(id), now).map(MdmRuleVer::getVer)
+                    .filter(ver -> !definitions.containsKey(id + "@" + ver) && !prefetched.containsKey(id + "@" + ver))
+                    .ifPresent(ver -> pairs.put(id, ver));
+        }
+        if (pairs.isEmpty()) {
+            return;
+        }
+        Map<String, List<MdmRuleVar>> vars = queries.varsOf(pairs);
+        Map<String, List<MdmRuleRow>> rows = queries.rowsOf(pairs);
+        pairs.forEach((id, ver) -> prefetched.put(id + "@" + ver, new Raw(vars.get(id), rows.get(id))));
+    }
+
+    /**
+     * 룰 헤더 — 이 조회기가 이미 읽은 것은 다시 읽지 않고, 나머지만 한 번에 읽는다. 없는 룰은 빠진다. 폐기 룰 경고({@code RuleSetRunner})가 판정 때
+     * 읽은 헤더를 다시 읽지 않게 한다.
+     */
+    public Map<String, MdmRule> headers(Collection<String> ruleIds) {
+        List<String> missing = ruleIds.stream().filter(id -> !headers.containsKey(id)).distinct().toList();
+        if (!missing.isEmpty()) {
+            Map<String, MdmRule> found = new HashMap<>();
+            rules.findAllById(missing).forEach(r -> found.put(r.getMaruRuleId(), r));
+            missing.forEach(id -> headers.put(id, Optional.ofNullable(found.get(id))));
+        }
+        Map<String, MdmRule> out = new LinkedHashMap<>();
+        for (String id : ruleIds) {
+            headers.get(id).ifPresent(r -> out.put(id, r));
+        }
+        return out;
     }
 
     @Override
@@ -74,13 +149,51 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
     }
 
     private Optional<RuleDefinition> load(String ruleId, Instant evalTs) {
-        MdmRule rule = rules.findById(ruleId).orElse(null);
+        MdmRule rule = header(ruleId).orElse(null);
         if (rule == null) {
             return Optional.empty();
         }
         LocalDateTime now = LocalDateTime.ofInstant(evalTs, MdmClockConfig.KST);
-        Optional<MdmRuleVer> ver = RuleVersions.currentReleased(queries.versions(ruleId), now);
-        return ver.flatMap(v -> readStored(() -> stored.read(ruleId, v.getVer()).map(s -> definition(ruleId, rule.getRuleKind(), s))));
+        Optional<MdmRuleVer> ver = RuleVersions.currentReleased(versions(ruleId), now);
+        if (ver.isEmpty()) {
+            return Optional.empty();
+        }
+        MdmRuleVer v = ver.get();
+        String key = ruleId + "@" + v.getVer();
+        Optional<RuleDefinition> known = definitions.get(key);
+        if (known == null) {
+            // 저장값 손상은 캐시하지 않는다 — 던지면 다음 호출이 다시 읽는다(예전과 같다).
+            Raw raw = prefetched.remove(key);
+            known = Optional.of(readStored(() -> definition(ruleId, rule.getRuleKind(),
+                    raw == null ? stored.read(ruleId, v, scope()) : stored.read(ruleId, v, raw.vars(), raw.rows(), scope()))));
+            definitions.put(key, known);
+        }
+        return known;
+    }
+
+    private Optional<MdmRule> header(String ruleId) {
+        Optional<MdmRule> known = headers.get(ruleId);
+        if (known == null) {
+            known = rules.findById(ruleId);
+            headers.put(ruleId, known);
+        }
+        return known;
+    }
+
+    private List<MdmRuleVer> versions(String ruleId) {
+        List<MdmRuleVer> known = versions.get(ruleId);
+        if (known == null) {
+            known = queries.versions(ruleId);
+            versions.put(ruleId, known);
+        }
+        return known;
+    }
+
+    private RuleVarTypeResolver.Scope scope() {
+        if (scope == null) {
+            scope = stored.scope();
+        }
+        return scope;
     }
 
     /**
@@ -88,7 +201,7 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
      * 그대로 쓰면 운영 판정이 깨진 행을 조용히 건너뛰어 다른 행(기본 행 등)으로 넘어간다.
      */
     private RuleDefinition definition(String ruleId, String ruleKind, StoredRuleDefinitions.Stored s) {
-        RuleDefinitionAssembler.Assembled a = stored.assemble(ruleId, ruleKind, s);
+        RuleDefinitionAssembler.Assembled a = stored.assemble(ruleId, ruleKind, s, scope());
         if (!a.failures().isEmpty() || !a.skippedRows().isEmpty()) {
             String detail = a.failures().stream().map(f -> "row " + f.rowId() + " var_id " + f.varId() + ": " + f.message())
                     .collect(Collectors.joining("; "));

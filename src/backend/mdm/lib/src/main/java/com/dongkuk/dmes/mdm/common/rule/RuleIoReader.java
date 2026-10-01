@@ -6,7 +6,6 @@ import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.entity.MdmRuleRow;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
-import com.dongkuk.dmes.mdm.repository.MdmColumnRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -40,7 +39,8 @@ import org.springframework.stereotype.Component;
  *   <li>출처 — 컬럼 사전에 있으면 DICT, 아니면 같은 이름의 이름 조건 열에 도메인·데이터 타입을 선언했으면 PROG, 아니면 NONE.
  *       {@link RuleVarTypeResolver} 의 typeSource 로 가르지 않는다(DECLARED 가 COLUMN 보다 먼저라서).</li>
  * </ul>
- * 타입·표시명은 룰마다 {@link RuleVarTypeResolver#resolve} 한 번으로 푼다. NONE 은 비운다.
+ * 타입·표시명은 룰마다 해석기를 한 번 불러 푼다. NONE 은 비운다. 한 번의 읽기({@link #read}) 안에서는 해석 범위
+ * ({@link RuleVarTypeResolver.Scope}) 하나로 도메인 트리·결과 변수·컬럼 사전 조회를 같이 쓰고, 변수·행은 룰마다가 아니라 한 번에 읽는다.
  */
 @Component
 public class RuleIoReader {
@@ -48,22 +48,35 @@ public class RuleIoReader {
     private static final String EXPRESSION = "Expression";
 
     private final MdmRuleRepository ruleRepository;
-    private final MdmColumnRepository columnRepository;
     private final RuleQueries queries;
     private final RuleVarTypeResolver resolver;
     private final MdmEvaluator evaluator;
 
-    public RuleIoReader(MdmRuleRepository ruleRepository, MdmColumnRepository columnRepository, RuleQueries queries,
-                        RuleVarTypeResolver resolver, MdmEvaluator evaluator) {
+    public RuleIoReader(MdmRuleRepository ruleRepository, RuleQueries queries, RuleVarTypeResolver resolver, MdmEvaluator evaluator) {
         this.evaluator = evaluator;
         this.ruleRepository = ruleRepository;
-        this.columnRepository = columnRepository;
         this.queries = queries;
         this.resolver = resolver;
     }
 
     /** 입력 순서를 지킨다(같은 ID 는 한 번). 없는 룰은 {@code exists=false}, RELEASED 가 없는 룰은 {@code releasedVer=null}·빈 목록. */
     public Map<String, RuleIo> read(Collection<String> ruleIds) {
+        return read(ruleIds, resolver.scope());
+    }
+
+    /**
+     * 한 요청에서 {@link #read}·{@link #condIo} 를 여러 번 부를 때 같이 쓸 타입 해석 범위(도메인 트리·결과 변수·컬럼 사전 조회를 같이 쓴다).
+     * 원장을 고치기 전에 읽는 읽기 경로에서만 쓴다.
+     */
+    public RuleVarTypeResolver.Scope scope() {
+        return resolver.scope();
+    }
+
+    /**
+     * {@link #read(Collection)} 와 같되 타입 해석 범위 {@code scope} 를 쓴다. 변수·행은 (룰, RELEASED 최대 VER) 쌍으로 한 번에 읽고(룰마다 읽던
+     * 것과 같은 행·순서), 컬럼 사전은 모든 룰의 읽는 이름·결과 이름을 한 번에 읽어 둔다.
+     */
+    public Map<String, RuleIo> read(Collection<String> ruleIds, RuleVarTypeResolver.Scope scope) {
         Set<String> ids = new LinkedHashSet<>();
         for (String id : ruleIds) {
             if (id != null) {
@@ -79,7 +92,30 @@ public class RuleIoReader {
                 hitPolicies.put(v.getMaruRuleId(), v.getHitPolicy());
             }
         }
-        Map<String, Boolean> dictionary = new HashMap<>();
+        Map<String, Integer> released = new LinkedHashMap<>();
+        for (String id : ids) {
+            if (rules.containsKey(id) && vers.containsKey(id)) {
+                released.put(id, vers.get(id));
+            }
+        }
+        Map<String, List<MdmRuleVar>> varsByRule = queries.varsOf(released);
+        Map<String, Integer> withExpressions = new LinkedHashMap<>();
+        released.forEach((id, ver) -> {
+            if (varsByRule.get(id).stream().anyMatch(v -> EXPRESSION.equals(v.getDispType()))) {
+                withExpressions.put(id, ver);
+            }
+        });
+        Map<String, List<MdmRuleRow>> rowsByRule = queries.rowsOf(withExpressions);
+        Map<String, Collected> collected = new LinkedHashMap<>();
+        Set<String> names = new LinkedHashSet<>();
+        released.forEach((id, ver) -> {
+            Collected c = collect(varsByRule.get(id), rowsByRule.getOrDefault(id, List.of()));
+            collected.put(id, c);
+            names.addAll(c.condNames());
+            c.results().values().forEach(v -> names.add(v.getVarName()));
+        });
+        scope.preloadColumns(names);
+
         Map<String, RuleIo> out = new LinkedHashMap<>();
         for (String id : ids) {
             MdmRule rule = rules.get(id);
@@ -89,7 +125,7 @@ public class RuleIoReader {
             } else if (ver == null) {
                 out.put(id, new RuleIo(id, rule.getMaruRuleName(), rule.getRuleKind(), rule.getStatus(), true, null, null, List.of(), List.of()));
             } else {
-                out.put(id, compute(rule, ver, hitPolicies.get(id), dictionary));
+                out.put(id, compute(rule, ver, hitPolicies.get(id), varsByRule.get(id), collected.get(id), scope));
             }
         }
         return out;
@@ -101,34 +137,54 @@ public class RuleIoReader {
      * {@code vars} 는 null 이 아니라 빈 목록을 보장한다(분석기가 null 을 받지 못한다).
      */
     public Map<String, CondIo> condIo(FlowDefinition flow) {
+        return condIo(flow, resolver.scope());
+    }
+
+    /** {@link #condIo(FlowDefinition)} 와 같되 컬럼 사전을 {@code scope} 로 읽는다(모든 갈래의 이름을 한 번에). */
+    public Map<String, CondIo> condIo(FlowDefinition flow, RuleVarTypeResolver.Scope scope) {
         Set<String> ifs = new HashSet<>();
         for (FlowNode n : flow.nodes()) {
             if (n.kind() == NodeKind.IF) {
                 ifs.add(n.id());
             }
         }
-        Map<String, Boolean> dictionary = new HashMap<>();
-        Map<String, CondIo> out = new LinkedHashMap<>();
+        Map<String, Object> parsed = new LinkedHashMap<>();                 // 선 ID → 읽는 이름 목록 또는 파싱 실패
+        Set<String> names = new LinkedHashSet<>();
         for (FlowEdge e : flow.edges()) {
             if (!ifs.contains(e.from()) || e.otherwise() || e.cond() == null || e.cond().isBlank()) {
                 continue;
             }
-            List<IoName> vars = new ArrayList<>();
+            List<String> used = new ArrayList<>();
             try {
                 evaluator.compile(e.cond());
                 for (String name : evaluator.usedVariables(e.cond())) {
                     if (ReservedNames.EVAL_TS.equalsIgnoreCase(name) || name.startsWith(ReservedNames.RESERVED_PREFIX)) {
                         continue;
                     }
-                    boolean dict = dictionary.computeIfAbsent(name, n -> columnRepository.findByPhysName(n).isPresent());
-                    vars.add(new IoName(name, dict ? RuleIo.DICT : RuleIo.NONE, null, null, null, false, null));
+                    used.add(name);
                 }
             } catch (ExpressionFailure f) {
-                out.put(e.id(), new CondIo(false, f.getMessage(), List.of()));
+                parsed.put(e.id(), f);
                 continue;
             }
-            out.put(e.id(), new CondIo(true, null, vars));
+            parsed.put(e.id(), used);
+            names.addAll(used);
         }
+        scope.preloadColumns(names);
+        Map<String, CondIo> out = new LinkedHashMap<>();
+        parsed.forEach((edgeId, p) -> {
+            if (p instanceof ExpressionFailure f) {
+                out.put(edgeId, new CondIo(false, f.getMessage(), List.of()));
+                return;
+            }
+            List<IoName> vars = new ArrayList<>();
+            for (Object o : (List<?>) p) {
+                String name = (String) o;
+                boolean dict = scope.column(name).isPresent();
+                vars.add(new IoName(name, dict ? RuleIo.DICT : RuleIo.NONE, null, null, null, false, null));
+            }
+            out.put(edgeId, new CondIo(true, null, vars));
+        });
         return out;
     }
 
@@ -147,10 +203,11 @@ public class RuleIoReader {
         return out;
     }
 
-    private RuleIo compute(MdmRule rule, int ver, String hitPolicy, Map<String, Boolean> dictionary) {
-        String id = rule.getMaruRuleId();
-        List<MdmRuleVar> vars = queries.vars(id, ver);
+    /** 한 룰 버전에서 모은 결과 이름(→ 대표 열)·읽는 이름 — 원장만 보고 정한다. */
+    private record Collected(Map<String, MdmRuleVar> results, List<String> condNames) {
+    }
 
+    private static Collected collect(List<MdmRuleVar> vars, List<MdmRuleRow> rows) {
         Map<String, MdmRuleVar> results = new LinkedHashMap<>();          // 결과 이름 → 대표 열(그룹이면 첫 열)
         for (MdmRuleVar v : vars) {
             String name = resName(v);
@@ -175,7 +232,7 @@ public class RuleIoReader {
         }
         List<MdmRuleVar> expressionColumns = vars.stream().filter(v -> EXPRESSION.equals(v.getDispType())).toList();
         if (!expressionColumns.isEmpty()) {
-            for (MdmRuleRow row : queries.rows(id, ver)) {
+            for (MdmRuleRow row : rows) {
                 Map<Integer, Map<String, Object>> cells = RuleCellsCodec.parse(row.getCells());
                 for (MdmRuleVar v : expressionColumns) {
                     Map<String, Object> cell = cells.get(v.getVarId());
@@ -185,16 +242,23 @@ public class RuleIoReader {
                 }
             }
         }
+        return new Collected(results, conds.list);
+    }
+
+    private RuleIo compute(MdmRule rule, int ver, String hitPolicy, List<MdmRuleVar> vars, Collected collected,
+                           RuleVarTypeResolver.Scope scope) {
+        String id = rule.getMaruRuleId();
+        Map<String, MdmRuleVar> results = collected.results();
 
         // 출처를 가르고, 타입을 풀 열을 한 목록에 모아 resolver 를 한 번 부른다.
-        List<String> condNames = conds.list;
+        List<String> condNames = collected.condNames();
         List<String> sources = new ArrayList<>(condNames.size());
         List<MdmRuleVar> typed = new ArrayList<>();
         List<Integer> typedIndex = new ArrayList<>();                       // cond 자리 → typed 자리(없으면 -1)
         for (int k = 0; k < condNames.size(); k++) {
             String name = condNames.get(k);
             MdmRuleVar source = null;
-            if (dictionary.computeIfAbsent(name, n -> columnRepository.findByPhysName(n).isPresent())) {
+            if (scope.column(name).isPresent()) {
                 sources.add(RuleIo.DICT);
                 source = new MdmRuleVar(id, ver, -(k + 1), "COND", k + 1);
                 source.setVarName(name);
@@ -209,7 +273,7 @@ public class RuleIoReader {
         }
         int resultStart = typed.size();
         typed.addAll(results.values());
-        List<ResolvedVar> resolved = typed.isEmpty() ? List.of() : resolver.resolve(id, ver, typed);
+        List<ResolvedVar> resolved = typed.isEmpty() ? List.of() : scope.resolve(id, ver, typed);
 
         List<IoName> condOut = new ArrayList<>(condNames.size());
         for (int k = 0; k < condNames.size(); k++) {

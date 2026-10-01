@@ -37,23 +37,56 @@ public class StoredRuleDefinitions {
     public record Stored(MdmRuleVer version, List<MdmRuleVar> rawVars, List<ResolvedVar> vars, List<DraftRow> rows) {
     }
 
+    /** 여러 룰을 한 번에 읽는 읽기 경로가 쓰는 타입 해석 범위({@link RuleVarTypeResolver#scope}). */
+    public RuleVarTypeResolver.Scope scope() {
+        return resolver.scope();
+    }
+
     public Optional<MdmRuleVer> version(String ruleId, int ver) {
         return queries.versions(ruleId).stream().filter(v -> v.getVer() == ver).findFirst();
     }
 
     /** 버전이 없으면 빈 값. */
     public Optional<Stored> read(String ruleId, int ver) {
-        return version(ruleId, ver).map(v -> {
-            List<MdmRuleVar> raw = queries.vars(ruleId, ver);
-            List<DraftRow> rows = queries.rows(ruleId, ver).stream().map(StoredRuleDefinitions::draftRow).toList();
-            return new Stored(v, raw, resolver.resolve(ruleId, ver, raw), rows);
-        });
+        return version(ruleId, ver).map(v -> read(ruleId, v, resolver::resolve));
+    }
+
+    /**
+     * 이미 읽은 버전 행으로 읽는다(버전 목록을 다시 읽지 않는다). 타입은 해석 범위 {@code scope} 로 푼다 — 여러 룰을 한 번에 읽는 읽기 경로
+     * ({@link StoredDefinitionLookup})가 도메인 트리·결과 변수·컬럼 사전 조회를 같이 쓴다.
+     */
+    public Stored read(String ruleId, MdmRuleVer v, RuleVarTypeResolver.Scope scope) {
+        return read(ruleId, v, scope::resolve);
+    }
+
+    /** {@link #read(String, MdmRuleVer, RuleVarTypeResolver.Scope)} 와 같되 이미 읽은 변수·행({@link RuleQueries#vars}·{@link RuleQueries#rows} 순서)을 쓴다. */
+    public Stored read(String ruleId, MdmRuleVer v, List<MdmRuleVar> raw, List<MdmRuleRow> rows, RuleVarTypeResolver.Scope scope) {
+        return stored(ruleId, v, raw, rows, scope::resolve);
+    }
+
+    private Stored read(String ruleId, MdmRuleVer v, Resolve resolve) {
+        int ver = v.getVer();
+        return stored(ruleId, v, queries.vars(ruleId, ver), queries.rows(ruleId, ver), resolve);
+    }
+
+    private static Stored stored(String ruleId, MdmRuleVer v, List<MdmRuleVar> raw, List<MdmRuleRow> rawRows, Resolve resolve) {
+        List<DraftRow> rows = rawRows.stream().map(StoredRuleDefinitions::draftRow).toList();
+        return new Stored(v, raw, resolve.resolve(ruleId, v.getVer(), raw), rows);
     }
 
     /** 저장된 버전을 엔진 정의로. */
     public Assembled assemble(String ruleId, String ruleKind, Stored s) {
+        return assemble(ruleId, ruleKind, s, externalTypes(ruleId, s.version().getVer()));
+    }
+
+    /** {@link #assemble(String, String, Stored)} 와 같되 룰 밖 이름의 타입을 해석 범위 {@code scope} 로 푼다. */
+    public Assembled assemble(String ruleId, String ruleKind, Stored s, RuleVarTypeResolver.Scope scope) {
+        return assemble(ruleId, ruleKind, s, externalTypes(ruleId, s.version().getVer(), scope::resolve));
+    }
+
+    private static Assembled assemble(String ruleId, String ruleKind, Stored s, Function<String, VarType> externalTypes) {
         return RuleDefinitionAssembler.assemble(ruleId, s.version().getVer(), ruleKind, s.version().getHitPolicy(), s.version().getApplyFrom(),
-                s.version().getApplyTo(), s.rawVars(), s.vars(), s.rows(), externalTypes(ruleId, s.version().getVer()));
+                s.version().getApplyTo(), s.rawVars(), s.vars(), s.rows(), externalTypes);
     }
 
     /**
@@ -61,16 +94,26 @@ public class StoredRuleDefinitions {
      * {@code RuleSaveValidator} 와 같은 방식). 모르면 null. 한 요청 안에서 캐시한다.
      */
     public Function<String, VarType> externalTypes(String ruleId, int ver) {
+        return externalTypes(ruleId, ver, resolver::resolve);
+    }
+
+    private static Function<String, VarType> externalTypes(String ruleId, int ver, Resolve resolve) {
         Map<String, Optional<VarType>> cache = new HashMap<>();
         return name -> cache.computeIfAbsent(name, n -> {
             MdmRuleVar probe = new MdmRuleVar(ruleId, ver, 0, "COND", 1);
             probe.setDispType("Equal");
             probe.setVarName(n);
-            return Optional.ofNullable(resolver.resolve(ruleId, ver, List.of(probe))).filter(l -> !l.isEmpty()).map(l -> l.get(0))
+            return Optional.ofNullable(resolve.resolve(ruleId, ver, List.of(probe))).filter(l -> !l.isEmpty()).map(l -> l.get(0))
                     .filter(v -> RuleVarTypeResolver.COLUMN.equals(v.typeSource()) || RuleVarTypeResolver.RULE_RESULT.equals(v.typeSource()))
                     .map(v -> new VarType(n, v.dataType() == null ? DataType.STRING : DataType.valueOf(v.dataType()), v.scale(),
                             v.domainId() == null ? null : String.valueOf(v.domainId())));
         }).orElse(null);
+    }
+
+    /** 타입 해석 한 번 — 호출마다 새로 읽는 {@link RuleVarTypeResolver#resolve} 또는 범위의 {@link RuleVarTypeResolver.Scope#resolve}. */
+    @FunctionalInterface
+    private interface Resolve {
+        List<ResolvedVar> resolve(String ruleId, int ver, List<MdmRuleVar> vars);
     }
 
     private static DraftRow draftRow(MdmRuleRow r) {

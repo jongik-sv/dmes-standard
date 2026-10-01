@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -215,7 +214,7 @@ class RuleSetCaseRunTest extends AbstractMdmSharedDbTest {
         }
         BusinessException e = assertThrows(BusinessException.class, () -> run(flow, SET, ""));
         assertTrue(e.getMessage().contains("한 번에 51건을 돌리려 한다. 50건까지 돌린다"), e.getMessage());
-        verify(runner, never()).trace(any(), any(), any());
+        verify(runner, never()).session();
 
         String fifty = String.join(",", java.util.stream.IntStream.rangeClosed(1, 50).mapToObj(String::valueOf).toList());
         assertEquals(50, run(flow, SET, fifty).getCases().size());

@@ -23,6 +23,7 @@ import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +34,8 @@ import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Stage;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Violation;
 import kr.dongkuk.maru.mdm.engine.expr.EngineWarning;
 import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
+import kr.dongkuk.maru.mdm.engine.flow.FlowParse;
+import kr.dongkuk.maru.mdm.engine.flow.FlowParser;
 import kr.dongkuk.maru.mdm.engine.rule.MdmRuleEngine;
 import kr.dongkuk.maru.mdm.engine.rule.RuleSetResult;
 import kr.dongkuk.maru.mdm.engine.rule.RunTrace;
@@ -44,8 +47,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * 룰 세트 실행(spec §6.2, ADR 0005) — OASIS 업무 서비스와 룰 세트 편집 화면 디버거가 부른다. 호출마다 {@link StoredDefinitionLookup}(빈 아님)과
- * {@link MdmRuleEngine} 을 만들고 공유 {@link MdmEvaluator} 빈을 넘겨 컴파일 캐시를 같이 쓴다. 판정 시각이 없으면 서비스 시계(KST)로 채운다
+ * 룰 세트 실행(spec §6.2, ADR 0005) — OASIS 업무 서비스와 룰 세트 편집 화면 디버거가 부른다. 호출마다(한 요청에서 여러 번 실행하면
+ * {@link #session} 하나에) {@link StoredDefinitionLookup}(빈 아님)과 {@link MdmRuleEngine} 을 만들고 공유 {@link MdmEvaluator} 빈을 넘겨 컴파일
+ * 캐시를 같이 쓴다. 판정 시각이 없으면 서비스 시계(KST)로 채운다
  * (엔진은 시계를 읽지 않는다, decisions.md:161).
  *
  * <p>OASIS BPMN 은 {@code camunda:class="ruleSetRunner"} + {@code method=execute} serviceTask 하나로 부른다. 판정 오류는 {@link #run} 에서
@@ -100,20 +104,97 @@ public class RuleSetRunner {
 
     /** 4단계 E4 — 고친 값을 끼워 기록 실행한다. 흐름을 읽지 못한 기록에도 받은 고친 값을 되돌려 준다(비었으면 null). */
     public RunTrace trace(String flowJson, Map<String, Object> record, Instant evalTs, List<RunTrace.TraceEdit> edits) {
-        if (record == null) {
-            throw new BusinessException(ErrorCode.REQUIRED_VALUE, "레코드는 필수입니다.");
+        return session().trace(flowJson, record, evalTs, edits);
+    }
+
+    /**
+     * 한 요청 안에서 기록 실행을 여러 번 하거나(테스트 케이스 일괄 실행) 기록 실행 뒤 폐기 룰 경고를 만들 때 쓰는 실행 묶음. 룰 정의 조회기
+     * ({@link StoredDefinitionLookup}) 하나를 같이 써 같은 룰 정의를 다시 읽지 않는다. 판정 시각은 호출마다 따로 정하고, 조회기는 판정 시각마다
+     * 그 시각의 RELEASED 버전을 고르므로 결과는 호출마다 새로 실행한 것과 같다. 요청을 넘겨 들고 있지 않는다(원장을 고치는 요청에서 쓰지 않는다).
+     */
+    public Session session() {
+        return new Session(new StoredDefinitionLookup(queries, stored, rules, sets));
+    }
+
+    /** {@link #session} 이 돌려주는 실행 묶음 — 정의 조회기·엔진과 흐름 JSON 파싱 결과를 같이 쓴다. */
+    public final class Session {
+        private final StoredDefinitionLookup lookup;
+        private final MdmRuleEngine engine;
+        private final Map<String, Object> flows = new HashMap<>();             // 흐름 JSON → Parsed 또는 읽지 못한 IllegalArgumentException
+
+        private Session(StoredDefinitionLookup lookup) {
+            this.lookup = lookup;
+            this.engine = new MdmRuleEngine(evaluator, lookup);
         }
-        Instant ts = ts(evalTs);
-        List<RunTrace.TraceEdit> echo = edits.isEmpty() ? null : List.copyOf(edits);
-        FlowDefinition def;
-        try {
-            def = RuleSetFlowJson.parse(flowJson);
-        } catch (IllegalArgumentException e) {
-            return new RunTrace(UNSAVED, ts, Collections.unmodifiableMap(new LinkedHashMap<>(record)), List.of(), Map.of(),
-                    List.of(new Violation(Stage.SET_CHECK, Code.FLOW_INVALID, null, null, null, "흐름을 읽을 수 없다: " + e.getMessage())), echo);
+
+        /** {@link RuleSetRunner#trace(String, Map, Instant)} 와 같다. */
+        public RunTrace trace(String flowJson, Map<String, Object> record, Instant evalTs) {
+            return trace(flowJson, record, evalTs, List.of());
         }
-        RuleSetDefinition set = new RuleSetDefinition(UNSAVED, RuleSetFlowJson.ruleIds(def), SetStatus.INUSE, def);
-        return engine().traceSet(set, record, ts, edits);
+
+        /** {@link RuleSetRunner#trace(String, Map, Instant, List)} 와 같다. */
+        public RunTrace trace(String flowJson, Map<String, Object> record, Instant evalTs, List<RunTrace.TraceEdit> edits) {
+            if (record == null) {
+                throw new BusinessException(ErrorCode.REQUIRED_VALUE, "레코드는 필수입니다.");
+            }
+            Instant ts = ts(evalTs);
+            List<RunTrace.TraceEdit> echo = edits.isEmpty() ? null : List.copyOf(edits);
+            Object known = parsed(flowJson);
+            if (known instanceof IllegalArgumentException e) {
+                return new RunTrace(UNSAVED, ts, Collections.unmodifiableMap(new LinkedHashMap<>(record)), List.of(), Map.of(),
+                        List.of(new Violation(Stage.SET_CHECK, Code.FLOW_INVALID, null, null, null, "흐름을 읽을 수 없다: " + e.getMessage())), echo);
+            }
+            Parsed flow = (Parsed) known;
+            if (flow.parse().tree() != null) {
+                // 엔진은 구조가 올바른 흐름에서만 트리의 룰 정의를 차례로 묻는다 — 그 룰들을 미리 한 번에 읽어 둔다(구조 오류면 묻지 않으니 읽지 않는다).
+                lookup.prefetch(flow.parse().tree().ruleIds(), ts);
+            }
+            RuleSetDefinition set = new RuleSetDefinition(UNSAVED, flow.ruleIds(), SetStatus.INUSE, flow.def());
+            return engine.traceSet(set, record, ts, edits);
+        }
+
+        /** 흐름의 룰 ID({@link RuleSetFlowJson#ruleIds}). 흐름을 읽지 못하면 {@link IllegalArgumentException}. */
+        public List<String> ruleIds(String flowJson) {
+            Object known = parsed(flowJson);
+            if (known instanceof IllegalArgumentException e) {
+                throw e;
+            }
+            return ((Parsed) known).ruleIds();
+        }
+
+        /** {@link RuleSetRunner#deprecatedWarnings(List)} 와 같되 판정 때 읽은 룰 헤더를 다시 읽지 않는다. */
+        public List<Map<String, Object>> deprecatedWarnings(List<String> ruleIds) {
+            return RuleSetRunner.deprecatedWarnings(ruleIds, lookup.headers(ruleIds));
+        }
+
+        /**
+         * 흐름 JSON → {@link Parsed}, 코덱이 읽지 못하면 그 {@link IllegalArgumentException}(던지지 않고 돌려준다). 같은 문자열은 한 번만 읽는다.
+         * 정의는 불변이다.
+         */
+        private Object parsed(String flowJson) {
+            Object known = flows.get(flowJson);
+            if (known == null) {
+                FlowDefinition def = null;
+                try {
+                    def = RuleSetFlowJson.parse(flowJson);
+                } catch (IllegalArgumentException e) {
+                    known = e;
+                }
+                if (def != null) {
+                    // 구조 파싱은 코덱 바깥 — 예전처럼 여기서 난 예외는 FLOW_INVALID 기록으로 바꾸지 않는다.
+                    FlowParse parse = FlowParser.parse(def);
+                    known = new Parsed(def, parse, RuleSetFlowJson.ruleIds(def, parse));
+                }
+                if (flowJson != null) {
+                    flows.put(flowJson, known);
+                }
+            }
+            return known;
+        }
+    }
+
+    /** 읽은 흐름 — 정의, 엔진과 같은 구조 파싱 결과, 룰 ID({@link RuleSetFlowJson#ruleIds}). */
+    private record Parsed(FlowDefinition def, FlowParse parse, List<String> ruleIds) {
     }
 
     /** OASIS serviceTask 입구 — 레코드 JSON·KST 시각 문자열을 받고, 판정 오류를 업무 예외로 바꾼다. */

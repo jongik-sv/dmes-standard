@@ -9,7 +9,10 @@ import com.dongkuk.dmes.mdm.entity.MdmColumn;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import com.dongkuk.dmes.mdm.repository.MdmColumnRepository;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -54,17 +57,31 @@ public class RuleVarTypeResolver {
         this.ruleQueries = ruleQueries;
     }
 
-    /** 입력 순서를 지켜 돌려준다. {@code ver} 는 이 룰의 버전(해석 규칙은 버전과 무관하다). */
+    /**
+     * 입력 순서를 지켜 돌려준다. {@code ver} 는 이 룰의 버전(해석 규칙은 버전과 무관하다). 부를 때마다 도메인 트리·앞 룰 결과 변수·컬럼 사전을
+     * 새로 읽는다 — 쓰기 트랜잭션 안에서 방금 flush 한 값이 보여야 하는 호출자(저장 검사 등, I6)는 이것을 쓴다.
+     */
     public List<ResolvedVar> resolve(String ruleId, int ver, List<MdmRuleVar> vars) {
-        Lazy lazy = new Lazy(ruleId);
+        return resolve(vars, new Lazy(ruleId));
+    }
+
+    /**
+     * 읽기 한 번(룰 세트 IO 읽기 한 번, 기록 실행 한 요청)에서 여러 룰을 풀 때 도메인 트리·결과 변수 전체·컬럼 사전 조회를 같이 쓰는 범위.
+     * 요청을 넘겨 들고 있지 않는다. 범위 안에서 원장을 고치지 않는 읽기 경로에서만 쓴다 — 범위가 읽은 뒤 바뀐 값은 보이지 않는다.
+     */
+    public Scope scope() {
+        return new Scope();
+    }
+
+    private List<ResolvedVar> resolve(List<MdmRuleVar> vars, Source source) {
         List<ResolvedVar> out = new ArrayList<>(vars.size());
         for (MdmRuleVar v : vars) {
-            out.add(resolveOne(v, lazy));
+            out.add(resolveOne(v, source));
         }
         return out;
     }
 
-    private ResolvedVar resolveOne(MdmRuleVar v, Lazy lazy) {
+    private ResolvedVar resolveOne(MdmRuleVar v, Source lazy) {
         boolean exprVar = v.getVarAst() != null && !v.getVarAst().isBlank();
         if ("COND".equals(v.getVarKind()) && "Expression".equals(v.getDispType())) {
             return build(v, exprVar, "STRING", null, false, null, null, null, EXPRESSION_COLUMN, v.getLabel(), v.getDescription());
@@ -79,7 +96,7 @@ public class RuleVarTypeResolver {
             return build(v, exprVar, v.getDataType(), null, false, null, null, null, DECLARED, v.getLabel(), v.getDescription());
         }
         if (!exprVar && notBlank(v.getVarName())) {
-            Optional<MdmColumn> column = columnRepository.findByPhysName(v.getVarName());
+            Optional<MdmColumn> column = lazy.column(v.getVarName());
             if (column.isPresent() && column.get().getDomainId() != null) {
                 MdmColumn c = column.get();
                 String label = notBlank(v.getLabel()) ? v.getLabel() : notBlank(c.getLabelMid()) ? c.getLabelMid() : c.getLabelLong();
@@ -106,7 +123,7 @@ public class RuleVarTypeResolver {
     }
 
     private Optional<ResolvedVar> fromDomain(MdmRuleVar v, boolean exprVar, Long domainId, String source, String label, String description,
-                                             Lazy lazy) {
+                                             Source lazy) {
         DomainTreeSnapshot snapshot = lazy.domains();
         Optional<DomainNode> node = snapshot.find(domainId);
         if (node.isEmpty() || snapshot.cyclic(domainId)) {
@@ -131,8 +148,31 @@ public class RuleVarTypeResolver {
         return s != null && !s.isBlank();
     }
 
-    /** 한 번의 해석에서 도메인 트리·앞 룰 결과 변수를 필요할 때 한 번만 읽는다. */
-    private final class Lazy {
+    /** 해석이 읽는 원장 값 — 도메인 트리·앞 룰 결과 변수(이름 → 결과 변수)·컬럼 사전. */
+    private interface Source {
+        DomainTreeSnapshot domains();
+
+        Map<String, MdmRuleVar> producers();
+
+        Optional<MdmColumn> column(String physName);
+    }
+
+    /** 결과 변수 이름(그룹이면 그룹 이름도) → 결과 변수. 같은 이름이 여럿이면 들어온 순서(룰 ID·seq·var_id 순)로 처음 것. */
+    private static Map<String, MdmRuleVar> producersOf(List<MdmRuleVar> resultVars) {
+        Map<String, MdmRuleVar> producers = new LinkedHashMap<>();
+        for (MdmRuleVar r : resultVars) {
+            if (notBlank(r.getVarName())) {
+                producers.putIfAbsent(r.getVarName(), r);
+            }
+            if (notBlank(r.getResGrp())) {
+                producers.putIfAbsent(r.getResGrp(), r);
+            }
+        }
+        return producers;
+    }
+
+    /** 한 번의 해석에서 도메인 트리·앞 룰 결과 변수를 필요할 때 한 번만 읽는다. 컬럼 사전은 이름마다 읽는다. */
+    private final class Lazy implements Source {
         private final String ruleId;
         private DomainTreeSnapshot domains;
         private Map<String, MdmRuleVar> producers;
@@ -141,27 +181,110 @@ public class RuleVarTypeResolver {
             this.ruleId = ruleId;
         }
 
-        DomainTreeSnapshot domains() {
+        @Override
+        public DomainTreeSnapshot domains() {
             if (domains == null) {
                 domains = domainTreeReader.load();
             }
             return domains;
         }
 
-        /** 결과 변수 이름(그룹이면 그룹 이름도) → 결과 변수. 같은 이름이 여럿이면 룰 ID·seq 순으로 처음 것. */
-        Map<String, MdmRuleVar> producers() {
+        @Override
+        public Map<String, MdmRuleVar> producers() {
             if (producers == null) {
-                producers = new LinkedHashMap<>();
-                for (MdmRuleVar r : ruleQueries.latestReleasedResultVarsExcept(ruleId)) {
-                    if (notBlank(r.getVarName())) {
-                        producers.putIfAbsent(r.getVarName(), r);
-                    }
-                    if (notBlank(r.getResGrp())) {
-                        producers.putIfAbsent(r.getResGrp(), r);
-                    }
-                }
+                producers = producersOf(ruleQueries.latestReleasedResultVarsExcept(ruleId));
             }
             return producers;
+        }
+
+        @Override
+        public Optional<MdmColumn> column(String physName) {
+            return columnRepository.findByPhysName(physName);
+        }
+    }
+
+    /**
+     * 여러 룰에 걸친 해석 범위({@link #scope}). 도메인 트리·모든 룰의 최신 RELEASED 결과 변수는 처음 필요할 때 한 번 읽고, 룰마다 그 룰을 뺀
+     * 결과 변수로 {@link Lazy} 와 같은 이름 → 결과 변수 표를 만든다(읽은 순서를 바꾸지 않고 거르기만 하므로 같은 이름의 승자가 같다).
+     * 컬럼 사전은 이름마다 한 번 읽고, {@link #preloadColumns} 로 여러 이름을 한 번에 읽어 둘 수 있다.
+     */
+    public final class Scope {
+        private static final int IN_CHUNK = 500;
+
+        private DomainTreeSnapshot domains;
+        private List<MdmRuleVar> resultVars;
+        private final Map<String, Map<String, MdmRuleVar>> producers = new HashMap<>();
+        private final Map<String, Optional<MdmColumn>> columns = new HashMap<>();
+
+        private Scope() {
+        }
+
+        /** {@link RuleVarTypeResolver#resolve} 와 같은 결과를 범위의 읽기로 낸다. */
+        public List<ResolvedVar> resolve(String ruleId, int ver, List<MdmRuleVar> vars) {
+            return RuleVarTypeResolver.this.resolve(vars, new Source() {
+                @Override
+                public DomainTreeSnapshot domains() {
+                    return Scope.this.domains();
+                }
+
+                @Override
+                public Map<String, MdmRuleVar> producers() {
+                    return Scope.this.producers(ruleId);
+                }
+
+                @Override
+                public Optional<MdmColumn> column(String physName) {
+                    return Scope.this.column(physName);
+                }
+            });
+        }
+
+        /** 컬럼 사전에서 물리명 하나 — {@code findByPhysName} 과 같은 일치. 범위 안에서 한 번만 읽는다. */
+        public Optional<MdmColumn> column(String physName) {
+            Optional<MdmColumn> known = columns.get(physName);
+            if (known == null) {
+                known = columnRepository.findByPhysName(physName);
+                columns.put(physName, known);
+            }
+            return known;
+        }
+
+        /** 아직 읽지 않은 물리명을 한 번에(묶음으로 나눠) 읽어 둔다. 사전에 없는 이름은 없음으로 기억한다. */
+        public void preloadColumns(Collection<String> physNames) {
+            Set<String> missing = new LinkedHashSet<>();
+            for (String n : physNames) {
+                if (n != null && !columns.containsKey(n)) {
+                    missing.add(n);
+                }
+            }
+            List<String> all = List.copyOf(missing);
+            for (int from = 0; from < all.size(); from += IN_CHUNK) {
+                List<String> chunk = all.subList(from, Math.min(all.size(), from + IN_CHUNK));
+                Map<String, MdmColumn> found = new HashMap<>();
+                columnRepository.findByPhysNameIn(chunk).forEach(c -> found.put(c.getPhysName(), c));
+                for (String n : chunk) {
+                    columns.put(n, Optional.ofNullable(found.get(n)));
+                }
+            }
+        }
+
+        private DomainTreeSnapshot domains() {
+            if (domains == null) {
+                domains = domainTreeReader.load();
+            }
+            return domains;
+        }
+
+        private Map<String, MdmRuleVar> producers(String ruleId) {
+            Map<String, MdmRuleVar> known = producers.get(ruleId);
+            if (known == null) {
+                if (resultVars == null) {
+                    resultVars = ruleQueries.latestReleasedResultVars();
+                }
+                known = producersOf(resultVars.stream().filter(v -> !ruleId.equals(v.getMaruRuleId())).toList());
+                producers.put(ruleId, known);
+            }
+            return known;
         }
     }
 }
