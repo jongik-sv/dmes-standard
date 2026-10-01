@@ -28,7 +28,7 @@ import type { RuleIoMap } from "../types";
 import { LIST_REJECT, NULL_VALUE, editKindOfVar, parseEditText, reservedKeyText, type EditKind } from "./debug-model";
 import { declaredTypes, FALLBACK_TEXT, SERVER_JUDGES_TEXT, type ExprResult } from "./expr-eval";
 import { loadStrings, saveStrings, storeKeys } from "./local-store";
-import { TraceDetail } from "./TraceDetail";
+import { NodeDescNote, TraceDetail } from "./TraceDetail";
 import { useExprEval } from "./useExprEval";
 import type { Simulation } from "./useSimulation";
 
@@ -353,6 +353,7 @@ export function VariablePanel({ sim, setId, flow, rules, selectedId, canParse, o
               node={last.trace.nodes[ranIndex]}
               flow={last.flow}
               traceViolations={last.trace.violations ?? []}
+              desc={flow.view.descs?.[selectedId]}
               onOpenRule={onOpenRule}
             />
           ) : (
@@ -360,6 +361,7 @@ export function VariablePanel({ sim, setId, flow, rules, selectedId, canParse, o
               <p className="rsf-panel-title">
                 {flow.nodes.find((n) => n.id === selectedId)?.label ?? selectedId} <code>{selectedId}</code>
               </p>
+              <NodeDescNote desc={flow.view.descs?.[selectedId]} />
               <p className="rsf-panel-note">{last ? NOT_RUN_NOTE : NO_RECORD_NOTE}</p>
             </div>
           )}
