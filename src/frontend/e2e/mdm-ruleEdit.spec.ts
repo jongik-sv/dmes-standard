@@ -136,7 +136,8 @@ test.describe.configure({ mode: "serial" });
 
 // D-105 — ① 헤더·② 버전은 ruleMng 화면으로 옮겨 갔다(dmc D-101·dmd D-104 와 같은 분할). 이 스펙은 **내용 편집만**
 // 본다: 의사결정표·열 설정·값 테스트·테스트 케이스·활용처, 그리고 상단 버전 고르기.
-// 헤더 저장·폐기·새 버전·DRAFT 삭제·선점·해제·넘기기·확정 취소·적중 정책 저장은 mdm-ruleMng.spec.ts 가 본다.
+// 헤더 저장·폐기·새 버전·DRAFT 삭제·선점·해제·넘기기·확정 취소는 mdm-ruleMng.spec.ts 가 본다. 적중 정책 저장은 D-133 으로
+// 이 화면(표 저장과 함께, S6)이 본다.
 test.describe("mdm dme/ruleEdit", () => {
   test.setTimeout(240_000);
 
@@ -258,15 +259,24 @@ test.describe("mdm dme/ruleEdit", () => {
     await expect(checkRows(page)).toContainText("경고 [OVERLAP] 행 1, 2");
     await expect(page.getByTestId("dt-dirty")).toHaveCount(0);
 
-    // D-105 (4) — 적중 정책은 버전 속성이므로 여기서 고치지 않는다. 저장된 값(FIRST)이 검사 입력으로 쓰인다.
-    await expect(page.getByTestId("dt-hit-policy")).toHaveText("첫 행(FIRST)");
-    await expect(page.getByTestId("dt-hit-policy")).toHaveAttribute("data-testid", "dt-hit-policy");
+    // D-133 — 적중 정책은 여기서 고르고 표 저장과 함께 저장한다. UNIQUE 로 고르면 즉시 검사가 다시 돌아 겹침이 오류가 되고,
+    // 저장이 거부된다(정책·행 모두 그대로). 되돌리기는 정책까지 되돌린다.
+    await expect(page.getByTestId("dt-hit-policy")).toHaveValue("FIRST");
+    await page.getByTestId("dt-hit-policy").selectOption("UNIQUE");
+    await expect(page.getByTestId("dt-dirty")).toBeVisible();
+    await expect(checkRows(page)).toContainText("오류 [OVERLAP] 행 1, 2");
+    await page.getByRole("button", { name: "표 저장", exact: true }).click();
+    await expect(page.getByTestId("dt-save-rejected")).toContainText("OVERLAP", { timeout: 30_000 });
+    await closeErrorModal(page);
+    await page.getByRole("button", { name: "되돌리기", exact: true }).click();
+    await expect(page.getByTestId("dt-hit-policy")).toHaveValue("FIRST");
+    await expect(page.getByTestId("dt-dirty")).toHaveCount(0);
 
     // 다시 불러와도 저장된 FIRST 이 그대로고, 첫 저장의 칸 값은 남는다.
     await page.reload();
     await openRuleEdit(page);
     await pickRule(page, "QLTY_GRD_JDG");
-    await expect(page.getByTestId("dt-hit-policy")).toHaveText("첫 행(FIRST)");
+    await expect(page.getByTestId("dt-hit-policy")).toHaveValue("FIRST");
     await expect(cell(page, 2, "c3_left")).toHaveText("A");
   });
 
@@ -285,20 +295,28 @@ test.describe("mdm dme/ruleEdit", () => {
 
   // ── TSK-08-03: 열 설정·피벗·산출 룰·입력 계약 ──
 
-  /** 룰을 열고 고른 버전을 맞춘다(기본은 가장 최신 버전). */
+  /** 열 설정 섹션을 펼친다 — 처음에는 접혀 있다(2026-10-01). 이미 펼쳐져 있으면(되살린 초안 등) 그대로 둔다. */
+  async function openColumns(page: Page) {
+    await expect(page.getByTestId("rule-section-columns")).toBeVisible({ timeout: 30_000 });
+    const toggle = page.getByTestId("rule-section-columns-toggle");
+    if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+    await expect(page.getByTestId("rule-section-columns-body")).toBeVisible();
+  }
+
+  /** 룰을 열고 고른 버전을 맞춘 뒤 열 설정을 펼친다(기본은 가장 최신 버전). */
   async function openRuleVer(page: Page, ruleId: string, ver: number) {
     await openRule(page, STEWARD, ruleId);
     const select = page.getByTestId("rule-ver-select");
     if ((await select.inputValue()) !== String(ver)) await select.selectOption(String(ver));
     await expect(select).toHaveValue(String(ver));
-    await expect(page.getByTestId("rule-section-columns")).toBeVisible({ timeout: 30_000 });
+    await openColumns(page);
   }
 
   async function reopen(page: Page, ruleId: string) {
     await page.reload();
     await openRuleEdit(page);
     await pickRule(page, ruleId);
-    await expect(page.getByTestId("rule-section-columns")).toBeVisible({ timeout: 30_000 });
+    await openColumns(page);
   }
 
   test("C1 열 설정: BASE_SPD_LKP v2 의 결과 열 그룹 8열과 열 조건이 보이고 FLUORO 열 조건을 고쳐 적용하면 다시 불러와도 같다", async ({ page }) => {
@@ -412,7 +430,7 @@ test.describe("mdm dme/ruleEdit", () => {
     await openRule(page, STEWARD, "COIL_WGT_CALC");
     await page.getByRole("button", { name: "새 버전", exact: true }).click();
     await expect(page.getByTestId("rule-ver-select")).toHaveValue("2", { timeout: 20_000 });
-    await expect(page.getByTestId("rule-section-columns")).toBeVisible({ timeout: 30_000 });
+    await openColumns(page);
     await expect(page.getByTestId("dt-derive-notice")).toBeVisible();
     await expect(page.getByTestId("col-expr-v1")).toHaveText("ROUND(COIL_THK * COIL_WID * COIL_LEN * SPEC_GRAV / 1000, 1)");
 
@@ -676,8 +694,8 @@ test.describe("mdm dme/ruleEdit", () => {
 
   test("V6 저장 거부: UNIQUE 표에서 두 행을 겹치게 고쳐 저장하면 거부되고 편집은 남으며 다시 불러오면 바뀌지 않았다", async ({ page }) => {
     await openRule(page, STEWARD, VT_RULE);
-    // D-105 (4) — 이 룰은 서버에 UNIQUE 로 저장돼 있고, 표는 그 저장된 값을 읽어 검사한다.
-    await expect(page.getByTestId("dt-hit-policy")).toHaveText("유일(UNIQUE)");
+    // 이 룰은 서버에 UNIQUE 로 저장돼 있고, 표는 그 값으로 검사한다(D-133 — 바꾸면 표 저장과 함께 저장된다).
+    await expect(page.getByTestId("dt-hit-policy")).toHaveValue("UNIQUE");
     // 2행 표면등급 B → A: 1행과 겹친다.
     await editText(page, 2, "c2_left", "A");
     await expect(checkRows(page)).toContainText("오류 [OVERLAP] 행 1, 2");

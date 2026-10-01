@@ -106,10 +106,15 @@ public class RuleEditService {
     }
 
     // action: save — part 전략(확장 지점 §6.8). HEADER 는 D-105 로 ruleMng 으로 갔다 — 여기 남는 부분은 TABLE·COLUMNS·CASE 뿐이다.
+    // 적중 정책(hitPolicy)은 표 저장(part TABLE)만 받는다(D-133). 다른 part 에 오면 조용히 버리지 않고 거부한다.
     public RuleEditSaveResult save(RuleEditSaveRequest request) {
         RuleEditSavePart part = parts.get(request.getPart());
         if (part == null) {
             throw new BusinessException(ErrorCode.INVALID_VALUE, "모르는 저장 부분입니다: " + request.getPart());
+        }
+        if (!RuleTableService.PART.equals(part.part()) && request.getHitPolicy() != null && !request.getHitPolicy().isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_VALUE,
+                    "적중 정책은 표 저장(part TABLE)에서만 받습니다: part " + request.getPart());
         }
         return part.save(request);
     }

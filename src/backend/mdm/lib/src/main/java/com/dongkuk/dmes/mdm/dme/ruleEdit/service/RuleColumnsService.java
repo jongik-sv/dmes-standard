@@ -172,8 +172,9 @@ public class RuleColumnsService implements RuleEditSavePart {
     }
 
     /**
-     * 저장된 적중 정책 — D-105 (4) 로 열 설정 저장은 더 이상 {@code hitPolicy} 를 받지 않는다. 정책은 헤더·버전 화면이 따로
-     * 저장하고, 여기는 그 값을 읽어 검사 입력으로만 쓴다.
+     * 저장된 적중 정책 — 열 설정 저장은 {@code hitPolicy} 를 받지 않는다. 정책은 표 저장(part TABLE, D-133)이 표와 함께 저장하고,
+     * 여기는 저장된 값을 읽어 검사 입력으로만 쓴다(표의 저장 안 한 정책 변경은 열 설정 검사에 쓰지 않는다 — 열 설정 초안이 있으면
+     * 표 저장이 막히므로 둘이 섞여 저장되지 않는다).
      */
     private String currentHitPolicy(String id, int ver) {
         List<String> hits = entityManager

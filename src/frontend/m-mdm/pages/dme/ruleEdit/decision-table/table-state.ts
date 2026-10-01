@@ -42,6 +42,7 @@ export type TableAction =
   | { type: "editNote"; rowId: number; value: string }
   | { type: "deleteRow"; rowId: number }
   | { type: "reorder"; keys: (string | number)[] }
+  | { type: "setHitPolicy"; value: HitPolicyCode }
   | { type: "revert" }
   | { type: "selectRow"; rowId: number | null };
 
@@ -126,9 +127,13 @@ export function tableReducer(state: TableState, action: TableAction): TableState
       const rest = state.rows.filter((r) => !keySet.has(String(r.rowId)));
       return { ...state, rows: resequence([...ordered, ...rest]) };
     }
+    case "setHitPolicy":
+      // 적중 정책은 판정 룰(DECISION)에만 있다 — 표와 함께 [표 저장] 한 번으로 저장한다(D-133).
+      if (state.ruleKind !== "DECISION" || state.hitPolicy === action.value) return state;
+      return { ...state, hitPolicy: action.value };
     case "revert":
-      // 적중 정책은 revert 대상이 아니다(D-105 (4)) — 되돌리는 건 헤더·버전 화면 몫이라 여기는 건드리지 않는다.
-      return { ...state, rows: state.loadedRows, selectedRowId: null };
+      // 적중 정책도 되돌린다(D-133) — 표 편집과 한 묶음이다.
+      return { ...state, rows: state.loadedRows, hitPolicy: state.loadedHit, selectedRowId: null };
   }
   return state;
 }
@@ -168,7 +173,8 @@ export function isDirty(
   state: Pick<TableState, "vars" | "rows" | "loadedRows" | "hitPolicy" | "loadedHit">,
   pre: { stored?: readonly StoredRow[]; loaded?: readonly StoredRow[]; loadedJson?: string } = {},
 ): boolean {
-  // 적중 정책은 이 화면에서 안 변한다(D-105 (4)) — dirty 판정에서 제외한다.
+  // 적중 정책을 바꿨으면 행과 상관없이 저장 안 한 변경이다(D-133).
+  if (state.hitPolicy !== state.loadedHit) return true;
   // 불러온 뒤 편집이 없으면 같은 배열이다 — 직렬화 비교를 건너뛴다.
   if (state.rows === state.loadedRows) return false;
   const stored = pre.stored ?? tableStoredRows(state);

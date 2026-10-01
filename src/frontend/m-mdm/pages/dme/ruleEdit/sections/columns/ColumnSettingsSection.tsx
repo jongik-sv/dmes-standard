@@ -4,7 +4,7 @@
  * 열 설정 섹션(TSK-08-03 design §2.1) — 의사결정표 아래에서 모든 열을 한 번에 고치는 **초안 → 전체 검사 → 원자 적용/초안 버리기** 흐름.
  * 초안은 `column-draft.ts`(순수 함수)가 검사·적용 계산을 하고, 이 컴포넌트는 그리기·서버 호출만 한다. 적용은 part COLUMNS 한 번의 요청이며
  * 거부가 하나라도 있으면 요청을 만들지 않는다(불변 2). 초안이 dirty 면 표 저장·열 머리 드래그를 막는다(불변 13, `DecisionTableCard`).
- * 초안은 sessionStorage 키 `mdm-ruleEdit-colDraft:{ruleId}:{ver}` 에 둔다(시안 ST.cd 관례).
+ * 초안은 sessionStorage 키 `mdm-ruleEdit-colDraft:{ruleId}:{ver}` 에 둔다(시안 ST.cd 관례). 섹션은 처음에 접혀 있다(2026-10-01).
  * 표는 의사결정표와 같은 shared `AgDataGrid`(`column-grid.tsx`)다. 식 칸(변수 식·열 조건·산출 결과 식)의 서버 파싱은 보이지 않는
  * `ExprProbe` 가 맡고, 참조 변수·오류·미리보기는 "식 결과" 칸에 보인다.
  */
@@ -118,13 +118,17 @@ export function ColumnSettingsSection({ view, editable, runWrite, notify, setDir
   const [domainEdits, setDomainEdits] = useState(0);
   const domainSeq = useRef(0);
   const [previewText, setPreviewText] = useState("");
-  const [open, setOpen] = useState(true);
+  // 처음에는 접어 둔다(2026-10-01 — 표를 먼저 보이게). 열 머리를 누르거나(highlightVarId), 표 카드의 [열 설정 보기]
+  // (적중 정책을 바꿔 열 설정과 어긋날 때), 저장 안 한 초안을 되살렸을 때 펼친다. 접혀도 제목 줄의 초안·읽기 전용 배지는 보인다.
+  const [open, setOpen] = useState(false);
   const counter = useRef(0);
 
   // view 가 바뀌면(룰·버전 전환·적용 뒤 다시 불러오기) 초안을 다시 잡는다 — 같은 row_version 의 저장 초안이 있으면 되살린다.
   useEffect(() => {
     const restored = storageKey && canEdit ? readStored(storageKey, selected?.rowVersion ?? -1) : null;
     setRows(restored ?? baseline);
+    // 되살린 초안은 표 저장을 막으므로(불변 13) 무엇이 남았는지 보이게 펼친다.
+    if (restored) setOpen(true);
     setApplyRejects(null);
     setDomainPopup(null);
   }, [baseline, storageKey, canEdit, selected?.rowVersion]);
@@ -157,10 +161,14 @@ export function ColumnSettingsSection({ view, editable, runWrite, notify, setDir
   const baseByKey = useMemo(() => new Map(baseline.map((r) => [r.key, r])), [baseline]);
 
   // 열 머리를 누르면 그 줄을 하이라이트·스크롤한다. 접혀 있으면 먼저 펼친다.
-  const { highlightVarId } = shared;
+  const { highlightVarId, revealSeq = 0 } = shared;
   useEffect(() => {
     if (highlightVarId != null) setOpen(true);
   }, [highlightVarId]);
+  // 표 카드의 [열 설정 보기](적중 정책이 열 설정과 어긋날 때) — 누를 때마다 펼친다.
+  useEffect(() => {
+    if (revealSeq > 0) setOpen(true);
+  }, [revealSeq]);
   const highlightKey = highlightVarId == null ? null : (rows.find((r) => r.varId === highlightVarId)?.key ?? null);
   // 그리드는 안에서만 스크롤하므로(scrollToRow) 페이지도 그 줄이 보이게 옮긴다. 펼친 뒤 행이 그려진 다음 프레임에 한다.
   useEffect(() => {

@@ -4,14 +4,15 @@
  * ruleMng 오른쪽 상세 ① 헤더 + ② 버전 (decisions.md D-105).
  *
  * <p>D-101(dmc)·D-104(dmd)에 이어 룰도 같은 분할을 따른다. 옛 `ruleEdit` 카드 ①② 를 여기로 옮긴 것이고, 서버
- * 서비스도 `ruleMng` 의 `view`·`save`(target HEADER|VERSION)·`copy`·`delete`·`lock`·`unlock`·`handover` 로 옮겨 갔다.
+ * 서비스도 `ruleMng` 의 `view`·`save`(target HEADER)·`copy`·`delete`·`lock`·`unlock`·`handover` 로 옮겨 갔다.
  *
  * <p>Part B §4-3 MUST: 분할 영역(`ContentBody`/`ContentPanel`)은 `page.tsx` 의 **직접 자식**이어야 drag bar 가 붙는다
  * (shared `ContentBody.tsx` 의 `isLayoutItem` 은 `React.Children` 로 받은 직접 자식의 type 만 본다). 그래서 이 파일은
  * 골격을 그리지 않고 카드 내용만 돌려준다.
  *
- * <p>버전 관리는 여기서 끝난다 — 확정 이동(`openMdmPage("dme/ruleConfirm")`)만 남긴다. 적중 정책(HIT_POLICY)은 버전
- * 속성이므로 ② 의 [적중 정책] 에서 바꾼다(D-105 (4)); 내용 화면은 저장된 값을 읽어 검사 입력으로만 쓴다.
+ * <p>버전 관리는 여기서 끝난다 — 확정 이동(`openMdmPage("dme/ruleConfirm")`)만 남긴다. 적중 정책(HIT_POLICY)은 ② 버전 목록의
+ * 「적중 정책」 칸에 <b>보이기만</b> 한다. 고치는 곳은 룰 편집 화면(`ruleEdit`) 의사결정표이고, 표 저장과 함께 저장된다
+ * (D-133 — D-105 (4) 번복: 정책은 판정표의 해석 규칙이라 표와 한 묶음으로 고친다).
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -29,15 +30,12 @@ import {
   lockVersion,
   newVersion,
   saveHeader,
-  saveHitPolicy,
   unlockVersion,
   type HeaderForm,
 } from "./api";
 import {
-  HIT_POLICY_OPTIONS,
   RULE_KIND_LABELS,
   RULE_STATUS_LABELS,
-  type HitPolicyCode,
   type RuleHeader,
   type RuleMngView,
   type RuleVersionInfo,
@@ -76,6 +74,8 @@ const versionColumns: GridColumn[] = [
   { key: "range", header: "적용 구간", width: 190 },
   { key: "ownerId", header: "소유자", width: 110 },
   { key: "baseVer", header: "base", width: 70 },
+  // 버전마다 다를 수 있어 목록에 보인다(읽기 전용). 고치는 곳은 룰 편집 화면의 의사결정표(D-133).
+  { key: "hitPolicy", header: "적중 정책", width: 90 },
 ];
 
 export interface RuleDetailPanelProps {
@@ -121,11 +121,6 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
   const selected = view.versions.find((v) => v.ver === selectedVer) ?? null;
 
   const [handoverTo, setHandoverTo] = useState("");
-  const [hitPolicy, setHitPolicy] = useState<HitPolicyCode | "">("");
-  useEffect(() => {
-    const h = selected?.hitPolicy;
-    setHitPolicy(h && h in Object.fromEntries(HIT_POLICY_OPTIONS.map((o) => [o.value, o])) ? (h as HitPolicyCode) : "");
-  }, [selectedVer, selected?.hitPolicy]);
 
   const changed = form.maruRuleName !== initial.maruRuleName || form.description !== initial.description || form.usageNote !== initial.usageNote;
   const editable = flags.headerEditable && !external;
@@ -143,13 +138,21 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
   const canHandover = HANDOVER_AVAILABLE && !external && mine && canDo("handover") && !busy;
   const showLock = !external && !!draft && !selected?.ownerId;
   const canMoveToConfirm = !external && !!draft && !busy;
-  // 산출 룰(DERIVE)에는 적중 정책이 없다 — 서버가 거부한다.
+  // 산출 룰(DERIVE)에는 적중 정책이 없다.
   const derive = header.ruleKind === "DERIVE";
-  const canSaveHit = !external && !!selected && !derive && hitPolicy !== "" && hitPolicy !== selected.hitPolicy && mine && canDo("save") && !busy;
 
   const versionRows = useMemo(
-    () => view.versions.map((v) => ({ ver: v.ver, status: v.status, applyFrom: v.applyFrom, range: applyRange(v), ownerId: v.ownerId ?? "", baseVer: v.baseVer ?? "" })),
-    [view.versions],
+    () =>
+      view.versions.map((v) => ({
+        ver: v.ver,
+        status: v.status,
+        applyFrom: v.applyFrom,
+        range: applyRange(v),
+        ownerId: v.ownerId ?? "",
+        baseVer: v.baseVer ?? "",
+        hitPolicy: derive ? "-" : (v.hitPolicy ?? ""),
+      })),
+    [view.versions, derive],
   );
 
   /** 쓰기 한 번 — 성공하면 상세 를 다시 불러 row_version·auditVer 을 맞춘다. */
@@ -287,32 +290,12 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
           </p>
         )}
 
-        {/* 적중 정책 — 버전 속성이므로 여기서 바꾼다(D-105 (4)). */}
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-xs)", padding: "var(--spacing-xs) 0" }}>
-          <span style={{ fontSize: "var(--font-size-sm)" }}>적중 정책</span>
-          {derive ? (
-            <span data-testid="rule-hit-policy-none" style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-secondary)" }}>
-              산출 룰에는 없습니다
-            </span>
-          ) : (
-            <>
-              <Select
-                data-testid="rule-hit-policy"
-                value={hitPolicy}
-                options={HIT_POLICY_OPTIONS}
-                disabled={!mine || !selected || busy}
-                onChange={(v) => setHitPolicy(v as HitPolicyCode)}
-              />
-              <Button
-                data-testid="rule-hit-policy-save"
-                disabled={!canSaveHit}
-                onClick={() => selected && void runWrite(() => saveHitPolicy(id, selected.ver, selected.rowVersion, hitPolicy as HitPolicyCode))}
-              >
-                적중 정책 저장
-              </Button>
-            </>
-          )}
-        </div>
+        {/* 적중 정책은 목록 칸에 보이기만 한다 — 고치는 곳은 룰 편집 화면의 의사결정표(D-133). */}
+        {!derive && (
+          <p data-testid="rule-hit-policy-hint" style={{ color: "var(--color-text-secondary)", margin: "var(--spacing-xs) 0" }}>
+            적중 정책은 [내용 편집 →] 의 의사결정표에서 바꾸고 표 저장과 함께 저장합니다.
+          </p>
+        )}
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-xs)", alignItems: "center" }}>
           <Button data-testid="rule-new-version" disabled={!canCopy} onClick={() => void runWrite(() => newVersion(id))}>

@@ -106,8 +106,8 @@ public final class DmeTestSupport {
     }
 
     /**
-     * 저장된 버전의 적중 정책을 바꾼다 — 헤더·버전 화면({@code ruleMng save target VERSION})이 하는 일의 시험용 흉내다.
-     * D-105 (4) 로 표 저장 요청엔 {@code hitPolicy} 가 없고 서버는 <b>저장된 값</b>을 읽어 검사 입력으로 쓴다.
+     * 저장된 버전의 적중 정책을 바로 바꾼다(시험 준비용). 화면 경로는 표 저장(part TABLE)이 {@code hitPolicy} 를 실어 표와 함께
+     * 저장하는 것이다(D-133). 요청이 정책을 비우면 서버는 이렇게 <b>저장된 값</b>을 검사 입력으로 쓴다.
      */
     public static void setStoredHitPolicy(JdbcTemplate jdbc, String id, int ver, String hit) {
         jdbc.update("UPDATE TB_MDM_RULE_VER SET HIT_POLICY = ? WHERE MARU_RULE_ID = ? AND VER = ?", hit, id, ver);

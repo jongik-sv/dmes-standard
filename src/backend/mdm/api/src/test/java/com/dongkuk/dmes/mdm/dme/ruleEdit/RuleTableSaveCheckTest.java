@@ -22,6 +22,7 @@ import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveCheck;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveRejections;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
+import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleTableService;
 import java.nio.file.Path;
@@ -118,11 +119,15 @@ class RuleTableSaveCheckTest {
         return m;
     }
 
-    /** 거부(MDM021, "룰 저장 거부:")이고 원장이 그대로인지 보고 details 의 이슈 코드를 돌려준다. */
-    /** 적중 정책은 요청으로 받지 않는다(D-105 (4)) — 저장된 값을 검사 입력으로 쓴다. */
+    /** 거부(MDM021, "룰 저장 거부:")이고 원장이 그대로인지 보고 details 의 이슈 코드를 돌려준다. 적중 정책은 저장된 값을 쓴다. */
     private List<String> rejected(long rowVersion, List<Map<String, Object>> rows) {
+        return rejected(table(rowVersion, rows));
+    }
+
+    /** 요청 그대로 — 적중 정책을 실은 표 저장(D-133)의 거부도 같은 방식으로 본다. */
+    private List<String> rejected(RuleEditSaveRequest request) {
         Map<String, Object> before = state();
-        BusinessException e = assertThrows(BusinessException.class, () -> service.save(table(rowVersion, rows)));
+        BusinessException e = assertThrows(BusinessException.class, () -> service.save(request));
         assertEquals("MDM021", e.getErrors().get(0).code(), e.getMessage());
         assertTrue(e.getMessage().startsWith(RuleSaveRejections.PREFIX), e.getMessage());
         assertEquals(before, state(), "거부된 저장은 행·적중 정책·row_version·LAST_ROW_ID 를 바꾸지 않는다(I1)");
@@ -146,23 +151,33 @@ class RuleTableSaveCheckTest {
 
     @Test
     void UNIQUE_겹침은_거부하고_같은_표를_FIRST_로는_저장하고_OVERLAP_경고를_싣는다() {
-        // 적중 정책은 이제 헤더·버전 화면이 저장하고 표 저장은 저장된 값을 읽는다(D-105 (4)).
-        // 그래서 "UNIQUE 로 검사"를 하려면 저장된 버전을 먼저 UNIQUE 로 만들어 둔다.
-        setStoredHitPolicy("UNIQUE");
+        // D-133 — 적중 정책은 표 저장 요청에 실려 온다. 검사는 <b>요청한 새 정책</b>으로 돈다(저장된 FIRST 가 아니다).
         List<Map<String, Object>> rows = sample();
         rows.set(1, row(2, "NORMAL", Q_ROW2.replace("[\"B\"]", "[\"A\",\"B\"]"), null));
 
-        assertEquals(List.of("OVERLAP"), rejected(0, rows));
+        assertEquals(List.of("OVERLAP"), rejected(withHit(table(0, rows), "UNIQUE")));
 
-        setStoredHitPolicy("FIRST"); // FIRST 로 바꾸면 겹침이 경고로 내려간다
-        RuleEditSaveResult r = service.save(table(0, rows));
+        RuleEditSaveResult r = service.save(withHit(table(0, rows), "FIRST")); // FIRST 면 겹침이 경고로 내려간다
         assertEquals(1L, r.getRowVersion());
         assertTrue(r.getIssues().stream().anyMatch(i -> "OVERLAP".equals(i.get("code")) && "WARNING".equals(i.get("severity"))), r.getIssues().toString());
     }
 
-    /** 헤더·버전 화면({@code ruleMng save target VERSION})이 저장하는 값을 테스트에서 그대로 흉내 낸다. */
-    private void setStoredHitPolicy(String hit) {
-        jdbc.update("UPDATE TB_MDM_RULE_VER SET HIT_POLICY = ? WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2", hit);
+    @Test
+    void 저장된_UNIQUE_를_FIRST_로_바꾸는_표_저장은_새_정책으로_검사하고_정책도_함께_바꾼다() {
+        jdbc.update("UPDATE TB_MDM_RULE_VER SET HIT_POLICY = 'UNIQUE' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2");
+        List<Map<String, Object>> rows = sample();
+        rows.set(1, row(2, "NORMAL", Q_ROW2.replace("[\"B\"]", "[\"A\",\"B\"]"), null));
+
+        assertEquals(List.of("OVERLAP"), rejected(0, rows), "정책을 비우면 저장된 UNIQUE 로 검사한다");
+
+        RuleEditSaveResult r = service.save(withHit(table(0, rows), "FIRST"));
+        assertEquals(1L, r.getRowVersion());
+        assertEquals("FIRST", jdbc.queryForObject("SELECT HIT_POLICY FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2", String.class));
+    }
+
+    private static RuleEditSaveRequest withHit(RuleEditSaveRequest r, String hit) {
+        r.setHitPolicy(hit);
+        return r;
     }
 
     @Test

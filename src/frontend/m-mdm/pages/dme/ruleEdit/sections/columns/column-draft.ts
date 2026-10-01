@@ -222,6 +222,43 @@ export function tableSaveBlocked(colDirty: boolean): boolean {
   return colDirty;
 }
 
+/**
+ * 적중 정책을 바꿀 때 저장된 열 설정과 어긋나는 곳(D-133) — 서버 `RuleTableService.policyConflicts` 와 같은 규칙·문구다.
+ * 열 설정 검사(`AGG_COLLECT`·`PRIO_PRIORITY`·`GRP_POLICY`)와 코드·문구가 같고, 하나라도 있으면 표 저장을 막는다.
+ * 정책이 그대로면(`hitPolicy === loadedHit`) 검사하지 않는다 — 이미 저장된 상태를 표 저장이 새로 막지 않는다.
+ *
+ * 집계 `LIST` 는 어긋남으로 보지 않는다 — 열 설정이 COLLECT 결과 열에 채우는 기본값(DB 기본값)이라 고른 값과 구별되지 않고,
+ * 서버가 정책을 COLLECT 밖으로 바꿀 때 비운다. 이것까지 막으면 COLLECT 에서 다른 정책으로 영영 못 바꾼다.
+ */
+export function hitPolicyColumnConflicts(
+  view: Pick<RuleEditView, "vars" | "varMeta">,
+  hitPolicy: HitPolicyCode | null,
+  loadedHit: HitPolicyCode | null,
+): ColumnCheck[] {
+  if (hitPolicy === loadedHit) return [];
+  const metaOf = new Map((view.varMeta ?? []).map((m) => [m.varId, m]));
+  const out: ColumnCheck[] = [];
+  let groupKey: string | null = null;
+  for (const v of view.vars) {
+    if (v.varKind !== "RESULT") continue;
+    const m = metaOf.get(v.varId);
+    const key = `v${v.varId}`;
+    const name = v.varName ?? "";
+    const agg = nonEmpty(m?.collectAgg);
+    if (agg != null && agg !== "LIST" && hitPolicy !== "COLLECT") {
+      out.push({ code: "AGG_COLLECT", severity: "REJECT", key, message: `집계는 COLLECT 적중 정책의 결과 열에만 둡니다: ${name}(${agg})` });
+    }
+    if ((m?.prioList ?? []).length > 0 && hitPolicy !== "PRIORITY") {
+      out.push({ code: "PRIO_PRIORITY", severity: "REJECT", key, message: `순위는 PRIORITY 적중 정책의 결과 열에만 둡니다: ${name}` });
+    }
+    if (groupKey == null && nonEmpty(m?.resGrp) != null) groupKey = key;
+  }
+  if (groupKey != null && hitPolicy !== "FIRST" && hitPolicy !== "UNIQUE") {
+    out.push({ code: "GRP_POLICY", severity: "REJECT", key: groupKey, message: `결과 열 그룹은 FIRST·UNIQUE 적중 정책에서만 둘 수 있습니다: ${hitPolicy ?? "없음"}` });
+  }
+  return out;
+}
+
 /** 열 설정 초안이 있으면 열 머리 드래그도 막는다(불변 13). */
 export function columnDragBlocked(colDirty: boolean): boolean {
   return colDirty;

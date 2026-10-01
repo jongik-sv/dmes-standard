@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 카드 ③ 의사결정표(TSK-08-02 design §6.7.4). 적중 정책, 3줄 머리 그리드(shared `AgDataGrid` 열 그룹·행 드래그, D8),
+ * 카드 ③ 의사결정표(TSK-08-02 design §6.7.4). 적중 정책(D-133 — 여기서 고르고 표 저장과 함께 저장), 3줄 머리 그리드(shared `AgDataGrid` 열 그룹·행 드래그, D8),
  * 행 추가·기본 행 추가·행 복사·표 저장·되돌리기, 검사 요약, 행 선택 강조.
  *
  * 편집은 서버 판정 `editable`(DECISION 만)일 때만 켠다(I7). 편집할 때마다 evalex `analyzeRule` 로 즉시 검사하고(I13 — Worker 에서
@@ -24,7 +24,7 @@ import { badgeStyle } from "@/shell";
 import { isRowVersionConflict } from "@/dme/oasis-call";
 
 import { ColumnDraftSharedContext } from "../sections/column-draft-context";
-import { tableSaveBlocked } from "../sections/columns/column-draft";
+import { hitPolicyColumnConflicts, tableSaveBlocked } from "../sections/columns/column-draft";
 import { SectionFrame } from "../sections/SectionFrame";
 
 import { saveTable } from "../api";
@@ -56,6 +56,7 @@ const HIT_POLICIES: Array<{ value: HitPolicyCode; label: string; desc: string }>
   { value: "COLLECT", label: "COLLECT", desc: "맞는 행을 모두 모아 집계한다." },
   { value: "ANY", label: "ANY", desc: "맞는 행이 여럿이어도 결과가 모두 같아야 한다." },
 ];
+const HIT_POLICY_OPTIONS = HIT_POLICIES.map((p) => ({ value: p.value, label: p.label }));
 
 /** 그리드 표시 행의 드래그 가능 여부 — 모듈 수준 함수라 렌더마다 바뀌지 않는다. */
 function isDraggableDisplayRow(row: Record<string, unknown>): boolean {
@@ -148,6 +149,7 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
   // 열 설정 섹션과 나누는 상태 — 초안이 dirty 면 표 저장을 막고(불변 13), 열 머리를 누르면 열 설정 표의 그 줄을 하이라이트한다(design §6).
   const [colDirty, setColDirty] = useState(false);
   const [highlightVarId, setHighlightVarId] = useState<number | null>(null);
+  const [revealSeq, setRevealSeq] = useState(0);
   const [saveRejected, setSaveRejected] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   // 검사 영역과 그 안의 표 단위 검사는 접을 수 있다. 접혀도 제목 줄의 오류·경고 개수와 일치 배지는 보인다.
@@ -181,8 +183,8 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
     [tableVars, tableRows, loadedRows, hitPolicy, loadedHit, storedRows, loadedStored],
   );
   const columnShared = useMemo(
-    () => ({ colDirty, setColDirty, highlightVarId, setHighlightVarId, tableDirty: dirty }),
-    [colDirty, highlightVarId, dirty],
+    () => ({ colDirty, setColDirty, highlightVarId, setHighlightVarId, tableDirty: dirty, revealSeq }),
+    [colDirty, highlightVarId, dirty, revealSeq],
   );
   const saveBlocked = tableSaveBlocked(colDirty);
   // view 를 다시 불러오면 useRuleEdit 가 dirty 목록을 비우므로, 편집이 남아 있으면 다시 알린다.
@@ -288,7 +290,8 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
     setSaveRejected(null);
     const res = await runWrite(async () => {
       try {
-        return await saveTable(view.rule.maruRuleId, selected.ver, selected.rowVersion, saveRowsOf(state));
+        // 적중 정책은 판정 룰만 싣는다 — 행과 한 요청·한 트랜잭션으로 저장한다(D-133).
+        return await saveTable(view.rule.maruRuleId, selected.ver, selected.rowVersion, saveRowsOf(state), decision ? state.hitPolicy : null);
       } catch (e) {
         // 저장 시 검사 거부(MDM021 "룰 저장 거부: …")는 표 아래에도 남긴다 — 편집 상태는 그대로다(runWrite 는 실패 때 다시 불러오지 않는다).
         if (!isRowVersionConflict(e)) setSaveRejected(e instanceof Error ? e.message : String(e));
@@ -307,7 +310,14 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
   // 행 복사 대상 = 고른 NORMAL 행(기본 행은 하나뿐이라 복사하지 않는다).
   const canCopy = state.rows.some((r) => r.rowId === state.selectedRowId && r.rowKind === "NORMAL");
   const policy = HIT_POLICIES.find((p) => p.value === state.hitPolicy);
-  const canSave = editable && dirty && canDo("save") && !busy && !saveBlocked;
+  // 적중 정책 편집(D-133) — 표 편집과 같은 조건(DRAFT·내가 선점·원천 MDM = 서버 editable, DECISION)에 저장 권한까지.
+  const canEditHit = editable && canDo("save");
+  // 정책을 바꿨는데 저장된 열 설정(집계·순위·결과 열 그룹)이 새 정책과 어긋나면 표 저장을 막는다 — 서버도 같은 규칙으로 거부한다.
+  const hitConflicts = useMemo(
+    () => (decision ? hitPolicyColumnConflicts(view, hitPolicy, loadedHit) : []),
+    [decision, view, hitPolicy, loadedHit],
+  );
+  const canSave = editable && dirty && canDo("save") && !busy && !saveBlocked && hitConflicts.length === 0;
   const fitHeight = Math.min(560, 3 * 28 + Math.max(state.rows.length, 3) * 26 + 24);
   const gridHeight = expandedHeight == null ? fitHeight : Math.max(fitHeight, expandedHeight);
 
@@ -335,17 +345,52 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
       }
     >
       {decision ? (
-        // 적중 정책은 여기서 **읽기 전용으로** 보여준다(D-105 (4)). `TB_MDM_RULE_VER.HIT_POLICY` 는 버전마다 복제되는
-        // 버전 속성이므로 헤더·버전 화면(`ruleMng`)의 ② 버전 카드가 [적중 정책 저장] 으로 바꾼다. 여기서 고치면
-        // 표 저장이 저장된 값과 어긋나 "저장했는데 정책이 안 바뀌는" 상태가 된다.
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-sm)", paddingBottom: "var(--spacing-xs)" }}>
-          <span>적중 정책</span>
-          <span data-testid="dt-hit-policy" style={{ fontWeight: 600 }}>
-            {HIT_POLICIES.find((p) => p.value === state.hitPolicy)?.label ?? "미지정"}
-          </span>
-          <MutedText>
-            {policy?.desc ?? ""} {state.hitPolicy !== state.loadedHit ? "바꾸려면 룰(헤더·버전) 화면에서 고르세요." : ""}
-          </MutedText>
+        // 적중 정책은 여기서 고른다(D-133, D-105 (4) 번복). 판정표의 해석 규칙(겹침이 경고인지 오류인지 등)이라 표 편집과 한 묶음이다 —
+        // 바꾸면 즉시 검사가 새 정책으로 다시 돌고, 되돌리기·저장 안 한 변경 표시에 들며, [표 저장] 한 번으로 행과 함께 저장된다.
+        <div style={{ paddingBottom: "var(--spacing-xs)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-sm)", flexWrap: "wrap" }}>
+            <span>적중 정책</span>
+            <span style={{ width: 140 }}>
+              <Select
+                data-testid="dt-hit-policy"
+                aria-label="적중 정책"
+                value={state.hitPolicy ?? ""}
+                options={HIT_POLICY_OPTIONS}
+                placeholder={state.hitPolicy == null ? "미지정" : undefined}
+                disabled={!canEditHit || busy}
+                onChange={(v) => {
+                  if (v) edit({ type: "setHitPolicy", value: v as HitPolicyCode });
+                }}
+              />
+            </span>
+            {state.hitPolicy !== state.loadedHit && (
+              <span data-testid="dt-hit-policy-changed" style={badgeStyle("warning")}>
+                {state.loadedHit ?? "미지정"} → {state.hitPolicy ?? "미지정"} (표 저장 때 함께 저장)
+              </span>
+            )}
+            <MutedText>{policy?.desc ?? ""}</MutedText>
+          </div>
+          {hitConflicts.length > 0 && (
+            <div data-testid="dt-hit-policy-conflicts" role="alert" style={{ color: "var(--color-danger)", paddingTop: "var(--spacing-xs)" }}>
+              이 적중 정책으로는 표를 저장할 수 없습니다. 열 설정을 지금 정책에서 먼저 고치세요(집계·순위·결과 열 그룹):
+              <ul style={{ margin: 0, paddingLeft: "var(--spacing-lg)" }}>
+                {hitConflicts.map((c, i) => (
+                  <li key={`${c.code}-${i}`}>
+                    [{c.code}] {c.message}
+                  </li>
+                ))}
+              </ul>
+              <Button
+                data-testid="dt-hit-policy-show-columns"
+                onClick={() => {
+                  setRevealSeq((n) => n + 1);
+                  setHighlightVarId(Number(hitConflicts[0].key.slice(1)));
+                }}
+              >
+                열 설정 보기
+              </Button>
+            </div>
+          )}
         </div>
       ) : (
         <p data-testid="dt-derive-notice" style={{ margin: "0 0 var(--spacing-xs)", color: "var(--color-text-secondary)" }}>

@@ -26,7 +26,7 @@ class DmeBpmnActionTest {
     private static final String CAMUNDA = "http://camunda.org/schema/1.0/bpmn";
 
     /**
-     * D-105 — 헤더·버전 관리가 이 화면으로 왔다. {@code save} 는 target HEADER(룰명 등)와 target VERSION(적중 정책)을 가른다.
+     * D-105 — 헤더·버전 관리가 이 화면으로 왔다. {@code save} 는 target HEADER(룰명 등)만 받는다(적중 정책은 D-133 으로 ruleEdit 표 저장).
      * {@code delete} 는 target VERSION(DRAFT 삭제)·RULE(폐기)·CONFIRM(확정 취소, ADR-0002 D8)를 가른다.
      */
     @Test

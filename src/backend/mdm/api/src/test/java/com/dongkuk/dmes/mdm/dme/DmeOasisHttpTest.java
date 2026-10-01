@@ -85,7 +85,7 @@ class DmeOasisHttpTest {
     }
 
     private ObjectNode tableBody(long rowVersion) {
-        // 적중 정책은 헤더·버전 화면이 저장한다(D-105 (4)) — 표 저장 요청엔 더 싣지 않는다.
+        // 적중 정책은 싣지 않는다 — 비우면 저장된 값을 쓴다(D-133). 싣는 경로는 아래 적중 정책 시험이 본다.
         ObjectNode params = json.createObjectNode().put("part", "TABLE").put("maruRuleId", "HTTP_JDG").put("ver", 1)
                 .put("rowVersion", rowVersion);
         ObjectNode body = envelope("ruleEdit", params);
@@ -123,6 +123,27 @@ class DmeOasisHttpTest {
         assertEquals("kim", v.path("me").asText());
         assertEquals("NUMBER", v.path("vars").path(0).path("dataType").asText(), view.toString());
         assertEquals(2, v.path("rows").size());
+    }
+
+    /**
+     * D-133 — 표 저장(part TABLE)이 적중 정책을 params 로 받아 표와 함께 저장한다(실제 BPMN·DTO 바인딩). 옛 ruleMng save target VERSION
+     * 은 없어졌으므로 거부된다.
+     */
+    @Test
+    void 표_저장은_적중_정책을_함께_받고_룰_화면의_VERSION_저장은_거부된다() throws Exception {
+        registerByKim();
+        ObjectNode body = tableBody(0);
+        ((ObjectNode) body.path("params")).put("hitPolicy", "UNIQUE");
+
+        JsonNode save = post("ruleEdit", "save", "kim", body);
+
+        assertTrue(save.path("meta").path("success").asBoolean(false), save.toString());
+        assertEquals("UNIQUE", jdbc.queryForObject("SELECT HIT_POLICY FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = 'HTTP_JDG' AND VER = 1", String.class));
+
+        JsonNode old = post("ruleMng", "save", "kim", envelope("ruleMng", json.createObjectNode().put("target", "VERSION")
+                .put("maruRuleId", "HTTP_JDG").put("ver", 1).put("rowVersion", 1).put("hitPolicy", "FIRST")));
+        assertFalse(old.path("meta").path("success").asBoolean(true), old.toString());
+        assertEquals("UNIQUE", jdbc.queryForObject("SELECT HIT_POLICY FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = 'HTTP_JDG' AND VER = 1", String.class));
     }
 
     /** TSK-08-04 — 값 테스트(execute)는 실제 BPMN 을 타고 원장에 쓰지 않는다. 비소유 담당자도 부른다(D3). BODY 행은 grids.rows.rows. */
