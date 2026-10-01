@@ -44,6 +44,12 @@ public class DataCateItemSegmentStore implements MdmTemporalSegmentStore<DataCat
         return new MdmTemporalSegmentResult<>(MdmTemporalSegmentAction.CLOSE, null);
     }
 
+    /** {@link #close} 와 같다 — 다만 호출자가 잠금 뒤 이미 읽은 열린 행의 valid_from 을 받아 다시 읽지 않는다(일괄 적용용). */
+    public MdmTemporalSegmentResult<Void> closeOpen(DataCateItemKey key, LocalDateTime openValidFrom, LocalDateTime at) {
+        rows.closeCateItem(key.maruDataId(), key.cateId(), key.code(), openValidFrom, at, audit.currentStamp());
+        return new MdmTemporalSegmentResult<>(MdmTemporalSegmentAction.CLOSE, null);
+    }
+
     @Override
     public MdmTemporalSegmentResult<Void> reopen(DataCateItemKey key, LocalDateTime at) {
         insert(key, at);

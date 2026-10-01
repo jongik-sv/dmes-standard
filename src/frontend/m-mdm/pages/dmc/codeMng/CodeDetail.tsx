@@ -16,7 +16,7 @@
  * [코드 편집] 하나로 줄인 버튼(D-101)은 버전을 하나 고르면 늘 켠다 — 읽기 전용 여부는 codeItemEdit 이 판단하므로
  * 권한도 쓰기 액션이 아닌 `view` 로 본다. 헤더의 [폐기]/[삭제] 전환(D-102)은 `flags.neverReleased` 로 고른다.
  */
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
@@ -291,6 +291,9 @@ export function CodeVersionCard({
     });
   }, [selected, onCancelConfirm, showMessage]);
 
+  // 렌더마다 새 열 배열을 만들면 부모의 검색 입력 한 글자마다 그리드 열 정의가 다시 만들어진다.
+  const columns = useMemo(() => versionColumns(view.me), [view.me]);
+
   return (
     <>
       <p style={cardTitle}>③ 버전 목록</p>
@@ -364,7 +367,7 @@ export function CodeVersionCard({
         <div data-testid="version-list" style={{ padding: "0 var(--spacing-md)", height: VERSION_GRID_HEIGHT }}>
           <AgDataGrid
             columnSizing="fit"
-            columns={versionColumns(view.me)}
+            columns={columns}
             data={view.versions as unknown as Record<string, unknown>[]}
             rowKey="ver"
             highlightedRowKey={selectedVer}

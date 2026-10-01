@@ -36,13 +36,12 @@ import type { HitPolicy } from "@/evalex";
 import type { HitPolicyCode, RuleEditView, RuleIssueView } from "../types";
 import { runShownOnTable, testMarksOf } from "../value-test/test-marks";
 import { mapRowIds, sameIssues, serverOnlyIssues, splitIssues } from "./analysis";
-import { ROW_LABEL_FIELD, TEST_HIT_ROW_CLASS, buildTableColumns, displayRows, parseField } from "./columns";
+import { ROW_LABEL_FIELD, TEST_HIT_ROW_CLASS, buildTableColumns, createDisplayRowCache, displayRows, forgetDisplayRow, markTokenOf, parseField } from "./columns";
 import { diffTable } from "./diff";
 import {
   initTableState,
   isDirty,
   isRowDraggable,
-  loadedRowsJson,
   saveRowsOf,
   tableReducer,
   tableStoredRows,
@@ -174,11 +173,12 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
 
   // 행 고르기(selectedRowId)는 표 내용이 아니다 — 아래 계산은 행·변수·적중 정책이 바뀔 때만 다시 한다(2,600행 표에서 고를 때마다 검사가 돌면 느리다).
   const { ruleId, ruleKind, vars: tableVars, rows: tableRows, loadedRows, hitPolicy, loadedHit } = state;
+  // 저장 행은 행별로 재사용된다(storedRowsFromGrid) — 편집 1회에 바뀐 행만 직렬화하고, dirty 는 불러온 표의 저장 행과 행마다 견준다.
   const storedRows = useMemo(() => tableStoredRows({ vars: tableVars, rows: tableRows }), [tableVars, tableRows]);
-  const loadedJson = useMemo(() => loadedRowsJson({ vars: tableVars, loadedRows }), [tableVars, loadedRows]);
+  const loadedStored = useMemo(() => tableStoredRows({ vars: tableVars, rows: loadedRows }), [tableVars, loadedRows]);
   const dirty = useMemo(
-    () => isDirty({ vars: tableVars, rows: tableRows, loadedRows, hitPolicy, loadedHit }, { stored: storedRows, loadedJson }),
-    [tableVars, tableRows, loadedRows, hitPolicy, loadedHit, storedRows, loadedJson],
+    () => isDirty({ vars: tableVars, rows: tableRows, loadedRows, hitPolicy, loadedHit }, { stored: storedRows, loaded: loadedStored }),
+    [tableVars, tableRows, loadedRows, hitPolicy, loadedHit, storedRows, loadedStored],
   );
   const columnShared = useMemo(
     () => ({ colDirty, setColDirty, highlightVarId, setHighlightVarId, tableDirty: dirty }),
@@ -251,12 +251,15 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
     [varsSig, editable],
   );
   const gridKey = `${view.rule.maruRuleId}:${view.selectedVer ?? "-"}:${editable ? "edit" : "read"}:${varsSig}`;
+  // 표시 행 캐시는 그리드(gridKey)마다 하나 — 바뀌지 않은 행은 앞 객체를 그대로 넘겨 그리드가 그 행을 건드리지 않는다.
+  const displayCache = useMemo(() => createDisplayRowCache(), [gridKey]);
   const data = useMemo(
-    () => displayRows(state.rows, state.vars, { diff, split, serverShown: !dirty, test: testMarks }),
-    [state.rows, state.vars, diff, split, dirty, testMarks],
+    () => displayRows(state.rows, state.vars, { diff, split, serverShown: !dirty, test: testMarks }, displayCache),
+    [state.rows, state.vars, diff, split, dirty, testMarks, displayCache],
   );
   // 행 고르기는 표시 행(data)에 싣지 않는다 — 고른 행은 highlightedRowKey 가 이전·새 행만 다시 그린다(고를 때마다 표 전체를 그리면 느리다).
-  const markToken = useMemo(() => JSON.stringify(data.map((r) => [r.rowKey, r.__mk, r.__added, r.__hit])), [data]);
+  // 토큰은 행별 조각을 표시 행 객체마다 기억해 이어 붙인다(바뀐 행만 직렬화, 글자는 표 전체 직렬화와 같다).
+  const markToken = useMemo(() => markTokenOf(data), [data]);
   // 어느 칸을 눌러도, ↑/↓ 로 포커스 칸을 옮겨도 그 행을 고른다(읽기 전용 표는 그리드 컨테이너 ↑/↓ 가 onRowClick 을 부른다).
   const handleRowClick = useCallback((row: Record<string, unknown>) => {
     const rowId = Number(row.rowId);
@@ -266,6 +269,8 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
   const handleCellChange = useCallback(
     (p: { rowKey: string | number; field: string; newValue: unknown }) => {
       const rowId = Number(p.rowKey);
+      // 그리드는 확정한 값을 표시 행 객체에 직접 썼다 — 그 행은 다음 표시 때 새로 만든다(편집이 거부돼도 고친 글자가 남지 않게).
+      forgetDisplayRow(displayCache, rowId);
       if (p.field === "note") {
         edit({ type: "editNote", rowId, value: String(p.newValue ?? "") });
         return;
@@ -273,7 +278,7 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
       const f = parseField(p.field);
       if (f) edit({ type: "editCell", rowId, varId: f.varId, key: f.key, value: String(p.newValue ?? "") });
     },
-    [edit],
+    [edit, displayCache],
   );
 
   const handleSave = useCallback(async () => {

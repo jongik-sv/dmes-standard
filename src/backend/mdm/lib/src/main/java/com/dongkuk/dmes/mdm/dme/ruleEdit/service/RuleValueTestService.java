@@ -15,6 +15,7 @@ import com.dongkuk.dmes.mdm.common.rule.RuleCaseJudge.Evaluated;
 import com.dongkuk.dmes.mdm.common.rule.RuleHitPolicies;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleTestCaseQueries;
+import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckInput;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckInput.DraftRow;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckReport;
@@ -106,7 +107,10 @@ public class RuleValueTestService {
         List<Map<String, Object>> requested = body && request.getRows() != null ? request.getRows() : List.of();
         rowLimits(requested);
         Map<String, Object> input = input(request.getInputJson());
-        Stored s = stored.read(id, ver)
+        // 원장에 쓰지 않는 읽기 경로(I19) — 저장된 변수·룰 밖 이름의 타입을 한 해석 범위로 푼다(컬럼 사전은 이름을 모아 한 번).
+        // BODY 행 검사(validator)는 저장 검사와 같은 경로라 그대로 호출마다 읽는다.
+        RuleVarTypeResolver.Scope scope = stored.scope();
+        Stored s = stored.read(id, ver, scope)
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_VALUE, "룰 " + id + " 에 버전 " + ver + " 이(가) 없습니다."));
 
         List<Map<String, Object>> cellErrors = new ArrayList<>();
@@ -128,7 +132,7 @@ public class RuleValueTestService {
             rows = s.rows();
         }
         Assembled assembled = RuleDefinitionAssembler.assemble(id, ver, rule.getRuleKind(), hit, s.version().getApplyFrom(),
-                s.version().getApplyTo(), s.rawVars(), s.vars(), rows, stored.externalTypes(id, ver));
+                s.version().getApplyTo(), s.rawVars(), s.vars(), rows, stored.externalTypes(id, ver, scope));
         assembled.failures().forEach(f -> cellErrors.add(cellError(f.rowId(), f.varId(), RuleSaveIssueCode.GENERATE_FAILED.name(), f.message())));
         skipped.addAll(assembled.skippedRows());
         RuleDefinition def = assembled.definition();

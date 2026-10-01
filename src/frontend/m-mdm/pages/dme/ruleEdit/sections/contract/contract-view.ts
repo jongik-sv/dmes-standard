@@ -10,7 +10,7 @@ import type { AstNode, InputContract, VarType } from "@/contract/engine-contract
 import { computeInputContract, type RuleDef, type RuleVarDef } from "@/evalex";
 
 import type { ExprSlot } from "../../api";
-import { parseCells, ruleDefFromStored } from "../../decision-table/grid-model";
+import { parseCells, ruleDefFromStored, type CellObj } from "../../decision-table/grid-model";
 import type { HitPolicyCode, ResolvedVar, RuleEditView, StoredRow, VarMeta } from "../../types";
 
 /** 계약을 계산할 한 버전의 저장 형태. */
@@ -30,6 +30,20 @@ export interface ContractResult {
   contract: InputContract;
   /** AST 를 못 받은 식 텍스트 — 그 참조 변수는 계약에서 빠졌다. */
   pending: string[];
+}
+
+/**
+ * 저장 행 → 파싱한 셀(편집마다 표 전체를 다시 JSON.parse 하지 않게). 표 카드는 바뀌지 않은 행에 같은 저장 행 객체를 넘기므로
+ * 행 객체를 열쇠로 기억하고, 셀 JSON 글자가 같을 때만 다시 쓴다. 여기서 받은 셀은 읽기만 한다(고칠 때는 사본을 만든다 — `toRuleDef`).
+ */
+const parsedCells = new WeakMap<StoredRow, { json: string; cells: Record<number, CellObj> }>();
+
+function cellsOf(row: StoredRow): Record<number, CellObj> {
+  const hit = parsedCells.get(row);
+  if (hit && hit.json === row.cells) return hit.cells;
+  const cells = parseCells(row.cells);
+  parsedCells.set(row, { json: row.cells, cells });
+  return cells;
 }
 
 /** 서버 파싱이 필요한 식 텍스트 — 조건 식 변수(변수 이름 자리에 식)와 열 조건. 중복 없이 처음 나온 순서. */
@@ -66,7 +80,7 @@ export function exprSlotsOf(src: ContractSource | null): Array<{ text: string; s
   const exprCols = src.vars.filter((v) => v.dispType === "Expression");
   if (exprCols.length > 0) {
     for (const r of src.rows) {
-      const cells = parseCells(r.cells);
+      const cells = cellsOf(r);
       for (const v of exprCols) push(astlessExpr(cells[v.varId]), v.varKind === "COND" ? "RULE_COND_EXPR" : "RULE_RESULT_EXPR");
     }
   }
@@ -87,7 +101,12 @@ function typeResolverOf(vars: readonly ResolvedVar[]): (name: string) => VarType
 
 /** 저장 형태 → evalex `RuleDef`. 식 변수 참조·열 조건 AST·결과 열 그룹은 varMeta·서버 AST 로 채운다. */
 function toRuleDef(src: ContractSource, asts: AstByText, pending: string[]): RuleDef {
-  const base = ruleDefFromStored(src.ruleId, src.ruleKind, src.hitPolicy, src.vars, src.rows);
+  // 행은 `ruleDefFromStored` 와 같은 모양으로 직접 만든다 — 셀 파싱만 행 객체마다 한 번(cellsOf).
+  const def = ruleDefFromStored(src.ruleId, src.ruleKind, src.hitPolicy, src.vars, []);
+  const base: RuleDef = {
+    ...def,
+    rows: src.rows.map((r) => ({ rowId: r.rowId, seq: r.seq, rowKind: r.rowKind, cells: cellsOf(r) as RuleDef["rows"][number]["cells"] })),
+  };
   const vars: RuleVarDef[] = base.vars.map((d) => {
     const v = src.vars.find((x) => x.varId === d.varId)!;
     const m = src.meta.find((x) => x.varId === d.varId);

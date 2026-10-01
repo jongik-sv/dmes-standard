@@ -51,6 +51,8 @@ export interface CategoryTabProps {
 export function CategoryTab({ cate, loaded, editable, canSave, onError }: CategoryTabProps) {
   const { selectedRow, detail } = cate;
   const canEdit = editable && canSave;
+  // 훅 객체 전체가 아니라 안정된 함수만 열 정의에 건다.
+  const { close: closeCate, reopen: reopenCate } = cate;
   const [addOpen, setAddOpen] = useState(false);
   const [regexOpen, setRegexOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
@@ -97,10 +99,10 @@ export function CategoryTab({ cate, loaded, editable, canSave, onError }: Catego
           <span style={{ display: "inline-flex", gap: "var(--spacing-xs)" }}>
             {r.open ? (
               <Button size="mini" data-testid={`cate-close-${r.cateId}`}
-                onClick={() => void cate.close(r.cateId)}>닫기</Button>
+                onClick={() => void closeCate(r.cateId)}>닫기</Button>
             ) : (
               <Button size="mini" data-testid={`cate-reopen-${r.cateId}`}
-                onClick={() => void cate.reopen(r.cateId)}>다시 열기</Button>
+                onClick={() => void reopenCate(r.cateId)}>다시 열기</Button>
             )}
             <Button size="mini" data-testid={`cate-edit-${r.cateId}`}
               onClick={() => (r.defKind === "REGEX" ? setRegexOpen(true) : setTransferOpen(true))}>
@@ -110,7 +112,7 @@ export function CategoryTab({ cate, loaded, editable, canSave, onError }: Catego
         );
       },
     },
-  ], [canEdit, cate, targetOptions]);
+  ], [canEdit, closeCate, reopenCate, targetOptions]);
 
   const memberColumns = useMemo<GridColumn[]>(() => [
     { key: "code", header: "코드", width: 120 },
@@ -233,6 +235,7 @@ export function CategoryTab({ cate, loaded, editable, canSave, onError }: Catego
               canEdit={canEdit && selectedRow.open}
               onSave={(name, expr, target, desc) => void cate.saveRegex(name, expr, target, desc)}
               onPreview={(expr, target) => void cate.previewCandidate(expr, target)}
+              onFlushPreview={cate.flushPreview}
             />
           </div>
         )}

@@ -268,6 +268,21 @@ public class RuleVarTypeResolver {
             }
         }
 
+        /**
+         * 이 룰을 뺀 모든 룰의 최신 RELEASED 결과 변수 — {@link RuleQueries#latestReleasedResultVarsExcept} 와 같은 행·순서다(범위가 한 번 읽은
+         * 전체 목록을 거르기만 한다). 해석과 같은 목록을 화면 후보로 쓸 때 다시 읽지 않는다.
+         */
+        public List<MdmRuleVar> resultVarsExcept(String ruleId) {
+            return resultVars().stream().filter(v -> !ruleId.equals(v.getMaruRuleId())).toList();
+        }
+
+        private List<MdmRuleVar> resultVars() {
+            if (resultVars == null) {
+                resultVars = ruleQueries.latestReleasedResultVars();
+            }
+            return resultVars;
+        }
+
         private DomainTreeSnapshot domains() {
             if (domains == null) {
                 domains = domainTreeReader.load();
@@ -278,10 +293,7 @@ public class RuleVarTypeResolver {
         private Map<String, MdmRuleVar> producers(String ruleId) {
             Map<String, MdmRuleVar> known = producers.get(ruleId);
             if (known == null) {
-                if (resultVars == null) {
-                    resultVars = ruleQueries.latestReleasedResultVars();
-                }
-                known = producersOf(resultVars.stream().filter(v -> !ruleId.equals(v.getMaruRuleId())).toList());
+                known = producersOf(resultVarsExcept(ruleId));
                 producers.put(ruleId, known);
             }
             return known;

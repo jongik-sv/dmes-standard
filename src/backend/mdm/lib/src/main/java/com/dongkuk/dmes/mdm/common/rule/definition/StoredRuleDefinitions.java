@@ -52,6 +52,19 @@ public class StoredRuleDefinitions {
     }
 
     /**
+     * {@link #read(String, int)} 와 같되 타입을 해석 범위 {@code scope} 로 푼다 — 변수 이름의 컬럼 사전 행을 한 번에 읽어 둔다. 범위 안에서
+     * 원장을 고치지 않는 읽기 경로(값 테스트·확정 검사 보고서)에서만 쓴다.
+     */
+    public Optional<Stored> read(String ruleId, int ver, RuleVarTypeResolver.Scope scope) {
+        return version(ruleId, ver).map(v -> {
+            List<MdmRuleVar> raw = queries.vars(ruleId, ver);
+            List<MdmRuleRow> rows = queries.rows(ruleId, ver);
+            scope.preloadColumns(raw.stream().map(MdmRuleVar::getVarName).toList());
+            return stored(ruleId, v, raw, rows, scope::resolve);
+        });
+    }
+
+    /**
      * 이미 읽은 버전 행으로 읽는다(버전 목록을 다시 읽지 않는다). 타입은 해석 범위 {@code scope} 로 푼다 — 여러 룰을 한 번에 읽는 읽기 경로
      * ({@link StoredDefinitionLookup})가 도메인 트리·결과 변수·컬럼 사전 조회를 같이 쓴다.
      */
@@ -95,6 +108,11 @@ public class StoredRuleDefinitions {
      */
     public Function<String, VarType> externalTypes(String ruleId, int ver) {
         return externalTypes(ruleId, ver, resolver::resolve);
+    }
+
+    /** {@link #externalTypes(String, int)} 와 같되 해석 범위 {@code scope} 로 푼다(읽기 경로 전용). */
+    public Function<String, VarType> externalTypes(String ruleId, int ver, RuleVarTypeResolver.Scope scope) {
+        return externalTypes(ruleId, ver, scope::resolve);
     }
 
     private static Function<String, VarType> externalTypes(String ruleId, int ver, Resolve resolve) {

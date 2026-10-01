@@ -9,6 +9,8 @@ import com.dongkuk.dmes.mdm.repository.MdmLayoutHeaderRepository;
 import com.dongkuk.dmes.mdm.repository.MdmLayoutItemRepository;
 import com.dongkuk.dmes.mdm.repository.MdmLayoutRepository;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -82,6 +84,7 @@ public class LayoutWriter {
     /**
      * 이 헤더를 쌓은 전문 전체의 본문 오프셋·총 길이를 다시 민다(§6.4, 불변 I12). 본문 항목 길이는 저장된 LENGTH 를 그대로 쓴다.
      * 업무 버전({@code VERSION})은 여기서 올리지 않는다 — 호출자가 같은 action 에서 {@link LayoutVersioner} 로 기록한다(TSK-05-03 I18).
+     * 전문·적층·헤더·본문 항목은 전문 수와 무관하게 IN 으로 한 번씩 읽고, 쓰기는 전문마다 항목·전문 순으로 flush 한다.
      *
      * @return 바뀐 전문 {@code [LAYOUT_ID, LAYOUT_NAME, TOTAL_LENGTH_BEFORE, TOTAL_LENGTH_AFTER]}
      */
@@ -91,16 +94,26 @@ public class LayoutWriter {
             messageIds.add(h.getLayoutId());
         }
         List<Map<String, Object>> changed = new ArrayList<>();
+        if (messageIds.isEmpty()) {
+            return changed;
+        }
+        Map<Long, MdmLayout> messages = layoutsById(messageIds);
+        Map<Long, List<MdmLayoutHeader>> stacks = queries.headersOf(messageIds);
+        List<Long> headerIds = new ArrayList<>();
+        stacks.values().forEach(list -> list.forEach(h -> headerIds.add(h.getHeaderLayoutId())));
+        Map<Long, MdmLayout> headers = layoutsById(headerIds);
+        Map<Long, List<MdmLayoutItem>> bodies = queries.itemsOf(messageIds);
         for (Long messageId : messageIds) {
-            MdmLayout message = layoutRepository.findById(messageId).orElse(null);
+            MdmLayout message = messages.get(messageId);
             if (message == null) {
                 continue;
             }
             List<Integer> headerTotals = new ArrayList<>();
-            for (MdmLayoutHeader h : queries.headersOf(messageId)) {
-                headerTotals.add(layoutRepository.findById(h.getHeaderLayoutId()).map(MdmLayout::getTotalLength).orElse(0));
+            for (MdmLayoutHeader h : stacks.getOrDefault(messageId, List.of())) {
+                MdmLayout header = headers.get(h.getHeaderLayoutId());
+                headerTotals.add(header == null ? 0 : header.getTotalLength());
             }
-            List<MdmLayoutItem> body = queries.itemsOf(messageId);
+            List<MdmLayoutItem> body = bodies.getOrDefault(messageId, List.of());
             List<Integer> lengths = body.stream().map(MdmLayoutItem::getLength).toList();
             LayoutOffsetCalculator.Stacked s = LayoutOffsetCalculator.placeMessage(headerTotals, lengths);
             for (int i = 0; i < body.size(); i++) {
@@ -119,5 +132,14 @@ public class LayoutWriter {
             changed.add(row);
         }
         return changed;
+    }
+
+    /** 레이아웃 ID → 행({@value LayoutQueries#IN_CHUNK}개씩 IN). 없는 ID 는 맵에 없다. */
+    Map<Long, MdmLayout> layoutsById(Collection<Long> ids) {
+        Map<Long, MdmLayout> out = new HashMap<>();
+        for (List<Long> chunk : LayoutQueries.chunks(ids)) {
+            layoutRepository.findAllById(chunk).forEach(l -> out.put(l.getLayoutId(), l));
+        }
+        return out;
     }
 }

@@ -197,41 +197,120 @@ function sourceRow(row: Record<string, unknown>): GridRow {
   return row.__row as GridRow;
 }
 
-/** 그리드 표시 행 — 칸 문자와 강조 표시를 편다. */
-export function displayRows(rows: readonly GridRow[], vars: readonly ResolvedVar[], marks: TableMarks): Record<string, unknown>[] {
-  return rows.map((r) => {
-    const out: Record<string, unknown> = {
-      rowKey: String(r.rowId),
-      rowId: r.rowId,
-      rowKind: r.rowKind,
-      [ROW_LABEL_FIELD]: r.rowKind === "DEFAULT" ? "기본" : String(r.seq),
-      note: r.note,
-      __row: r,
+/** 표시 행 한 줄의 강조 부분 — 오류·경고 개수 문구와 칸별 표시. */
+function rowMarks(r: GridRow, vars: readonly ResolvedVar[], marks: TableMarks): { mk: Record<number, CellMark>; check: string; hit: boolean } {
+  const d = marks.diff.rows.get(r.rowId);
+  const mk: Record<number, CellMark> = {};
+  for (const v of vars) {
+    const sev = marks.split.byCell.get(`${r.rowId}:${v.varId}`);
+    mk[v.varId] = {
+      e: sev === "ERROR",
+      w: sev === "WARNING",
+      c: d?.status === "CHANGED" && d.changedVarIds.has(v.varId),
+      t: testMark(marks.test, r.rowId, v.varId),
     };
+  }
+  const counts = marks.split.byRow.get(r.rowId);
+  const parts: string[] = [];
+  if (counts?.errors) parts.push(`오류 ${counts.errors}`);
+  if (counts?.warnings) parts.push(`경고 ${counts.warnings}`);
+  const check = parts.length > 0 ? `${parts.join(" · ")}${marks.serverShown ? " (서버)" : ""}` : "";
+  return { mk, check, hit: !!marks.test?.hitRowIds.has(r.rowId) };
+}
+
+function buildRow(r: GridRow, vars: readonly ResolvedVar[], marks: TableMarks, m: ReturnType<typeof rowMarks>): Record<string, unknown> {
+  const out: Record<string, unknown> = {
+    rowKey: String(r.rowId),
+    rowId: r.rowId,
+    rowKind: r.rowKind,
+    [ROW_LABEL_FIELD]: r.rowKind === "DEFAULT" ? "기본" : String(r.seq),
+    note: r.note,
+    __row: r,
+  };
+  const d = marks.diff.rows.get(r.rowId);
+  for (const v of vars) {
+    const cell = r.cells[v.varId];
+    for (const { key } of leafKeys(v)) out[fieldOf(v.varId, key)] = cellText(cell, key);
+  }
+  out.__mk = m.mk;
+  out.check = m.check;
+  out.__added = d?.status === "ADDED";
+  out.__hit = m.hit;
+  out.__noteChanged = !!d?.noteChanged;
+  return out;
+}
+
+function sameMark(a: CellMark | undefined, b: CellMark | undefined): boolean {
+  return !!a && !!b && a.e === b.e && a.w === b.w && a.c === b.c && a.t === b.t;
+}
+
+/**
+ * 표시 행 캐시 — 같은 그리드 행·변수 목록이고 강조가 같으면 앞서 만든 표시 행 객체를 그대로 쓴다. 그리드(ag-grid)는 행 객체 참조가
+ * 같으면 그 행을 건드리지 않고, `markTokenOf` 도 바뀐 행만 다시 직렬화한다. 그리드 하나에 캐시 하나(그리드가 표시 행을 직접 고치므로
+ * 다른 그리드와 나누지 않는다).
+ */
+export interface DisplayRowCache {
+  entries: Map<number, { row: GridRow; vars: readonly ResolvedVar[]; out: Record<string, unknown> }>;
+}
+
+export function createDisplayRowCache(): DisplayRowCache {
+  return { entries: new Map() };
+}
+
+/**
+ * 그리드가 칸 편집을 확정하면 표시 행 객체에 값을 직접 쓴다(ag-grid 기본 valueSetter). 그 행은 다음에 새로 만들도록 잊는다 —
+ * 편집이 받아들여지지 않아(잠긴 칸·같은 값) 그리드 행이 그대로여도 고친 글자가 남지 않게.
+ */
+export function forgetDisplayRow(cache: DisplayRowCache, rowId: number): void {
+  cache.entries.delete(rowId);
+}
+
+/** 그리드 표시 행 — 칸 문자와 강조 표시를 편다. `cache` 를 주면 바뀌지 않은 행은 앞 객체를 다시 쓴다(값은 캐시 없이 만든 것과 같다). */
+export function displayRows(rows: readonly GridRow[], vars: readonly ResolvedVar[], marks: TableMarks, cache?: DisplayRowCache): Record<string, unknown>[] {
+  const next: DisplayRowCache["entries"] | null = cache ? new Map() : null;
+  const out = rows.map((r) => {
+    const m = rowMarks(r, vars, marks);
     const d = marks.diff.rows.get(r.rowId);
-    const mk: Record<number, CellMark> = {};
-    for (const v of vars) {
-      const cell = r.cells[v.varId];
-      for (const { key } of leafKeys(v)) out[fieldOf(v.varId, key)] = cellText(cell, key);
-      const sev = marks.split.byCell.get(`${r.rowId}:${v.varId}`);
-      mk[v.varId] = {
-        e: sev === "ERROR",
-        w: sev === "WARNING",
-        c: d?.status === "CHANGED" && d.changedVarIds.has(v.varId),
-        t: testMark(marks.test, r.rowId, v.varId),
-      };
+    const prev = cache?.entries.get(r.rowId);
+    if (prev && prev.row === r && prev.vars === vars) {
+      const o = prev.out;
+      const pmk = o.__mk as Record<number, CellMark>;
+      if (
+        o.check === m.check &&
+        o.__hit === m.hit &&
+        o.__added === (d?.status === "ADDED") &&
+        o.__noteChanged === !!d?.noteChanged &&
+        vars.every((v) => sameMark(pmk[v.varId], m.mk[v.varId]))
+      ) {
+        next!.set(r.rowId, prev);
+        return o;
+      }
     }
-    out.__mk = mk;
-    const counts = marks.split.byRow.get(r.rowId);
-    const parts: string[] = [];
-    if (counts?.errors) parts.push(`오류 ${counts.errors}`);
-    if (counts?.warnings) parts.push(`경고 ${counts.warnings}`);
-    out.check = parts.length > 0 ? `${parts.join(" · ")}${marks.serverShown ? " (서버)" : ""}` : "";
-    out.__added = d?.status === "ADDED";
-    out.__hit = !!marks.test?.hitRowIds.has(r.rowId);
-    out.__noteChanged = !!d?.noteChanged;
-    return out;
+    const built = buildRow(r, vars, marks, m);
+    next?.set(r.rowId, { row: r, vars, out: built });
+    return built;
   });
+  if (cache && next) cache.entries = next;
+  return out;
+}
+
+/** 표시 행 강조 직렬화 — 행마다 한 번만 만들어 둔다(표시 행 객체는 캐시로 재사용되므로 바뀐 행만 다시 직렬화한다). */
+const markJson = new WeakMap<Record<string, unknown>, string>();
+
+/**
+ * 그리드 행 클래스 갱신 토큰 — `JSON.stringify(data.map((r) => [r.rowKey, r.__mk, r.__added, r.__hit]))` 와 글자까지 같다.
+ * 행별 조각을 표시 행 객체마다 기억해 이어 붙인다.
+ */
+export function markTokenOf(data: readonly Record<string, unknown>[]): string {
+  const parts = data.map((r) => {
+    let s = markJson.get(r);
+    if (s === undefined) {
+      s = JSON.stringify([r.rowKey, r.__mk, r.__added, r.__hit]);
+      markJson.set(r, s);
+    }
+    return s;
+  });
+  return `[${parts.join(",")}]`;
 }
 
 function cellRules(varId: number): GridColumn["cellClassRules"] {

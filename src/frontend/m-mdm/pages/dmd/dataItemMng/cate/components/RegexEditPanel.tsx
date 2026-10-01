@@ -3,9 +3,9 @@
 /**
  * REGEX 카테고리 정의 편집(TSK-07-02 design.md §2). defTarget 후보는 D5 — 그 마루 데이터의 lvlCnt·라벨 있는 attr
  * 로만 제한한다(서버 `cateDefIssues` 는 이 정합을 검사하지 않는다). 정규식은 화면이 실행하지 않고, 값이 바뀔 때마다
- * 부모가 compare 를 불러 미리보기(PreviewPanel)를 새로 그린다.
+ * 부모가 입력이 멈춘 뒤(디바운스) compare 를 불러 미리보기를 새로 그린다.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Input, Select } from "@dk-oasis/shared/form";
 import { buildDefTargetOptions } from "../defTargetOptions";
 import type { CateRow } from "../types";
@@ -17,10 +17,12 @@ export interface RegexEditPanelProps {
   canEdit: boolean;
   onSave: (cateName: string, defExpr: string, defTarget: string, description: string) => void;
   onPreview: (defExpr: string, defTarget: string) => void;
+  /** 이 패널이 사라질 때 대기 중인 미리보기 호출을 바로 보낸다. */
+  onFlushPreview?: () => void;
 }
 
 export function RegexEditPanel(props: RegexEditPanelProps) {
-  const { cate, lvlCnt, attrLabels, canEdit, onSave, onPreview } = props;
+  const { cate, lvlCnt, attrLabels, canEdit, onSave, onPreview, onFlushPreview } = props;
   const [cateName, setCateName] = useState(cate.cateName ?? "");
   const [defExpr, setDefExpr] = useState(cate.defExpr ?? "");
   const [defTarget, setDefTarget] = useState(cate.defTarget ?? "KEY");
@@ -32,6 +34,10 @@ export function RegexEditPanel(props: RegexEditPanelProps) {
     setDefTarget(cate.defTarget ?? "KEY");
     setDescription(cate.description ?? "");
   }, [cate.cateId, cate.cateName, cate.defExpr, cate.defTarget, cate.description]);
+
+  const flushRef = useRef(onFlushPreview);
+  flushRef.current = onFlushPreview;
+  useEffect(() => () => flushRef.current?.(), []);
 
   const options = buildDefTargetOptions(lvlCnt, attrLabels);
   const disabled = !canEdit || !cate.open;

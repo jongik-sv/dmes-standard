@@ -4,7 +4,7 @@
  * 컬럼·도메인 변경 영향 전문 목록(TSK-05-03 design.md §2·§6.7) — 컬럼 표준 물리명이나 도메인 표준명·이름으로 찾는다. 그 컬럼을 쓰는
  * 전문과 상대 시스템, 헤더면 사용 전문 수가 보이고, 안 쓰는 컬럼은 "레이아웃에서 쓰지 않는다" 한 줄로 보인다(03:48).
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button, Input } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { empty, hint, row, sectionTitle } from "@/layout/styles";
@@ -26,6 +26,11 @@ export interface ImpactPanelProps {
 
 export function ImpactPanel({ rows, loading, onSearch }: ImpactPanelProps) {
   const [keyword, setKeyword] = useState("");
+  // 검색어 입력 한 글자마다 행 배열을 새로 만들지 않는다.
+  const data = useMemo(
+    () => (rows ?? []).map((r, i) => ({ ...r, ROW_KEY: i })) as unknown as Record<string, unknown>[],
+    [rows],
+  );
   return (
     <div>
       <p style={{ ...sectionTitle, padding: "var(--spacing-xs) 0" }}>영향 전문</p>
@@ -46,7 +51,7 @@ export function ImpactPanel({ rows, loading, onSearch }: ImpactPanelProps) {
           <AgDataGrid
             columnSizing="fit"
             columns={COLUMNS}
-            data={rows.map((r, i) => ({ ...r, ROW_KEY: i })) as unknown as Record<string, unknown>[]}
+            data={data}
             rowKey="ROW_KEY"
             height={180}
             loading={loading}

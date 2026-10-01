@@ -68,16 +68,35 @@ export function gridRowsFromStored(_vars: readonly StoredVar[], rows: readonly S
   );
 }
 
-/** 그리드 행 → 저장 형태. seq 는 배열 순서대로 NORMAL 1..n, 기본 행 0(서버도 같게 정한다, I10). */
+/**
+ * 행별 직렬화 재사용(편집 1회에 표 전체를 다시 직렬화하지 않게). 그리드 행·셀 객체는 바꾸지 않고 새로 만든다(reducer)는 전제로
+ * 셀 객체 → 셀 JSON, 그리드 행 → 저장 행을 기억한다. 저장 행은 seq·내용이 같을 때만 다시 쓴다(행 객체 참조가 같아도 seq 는 자리로 정해진다).
+ */
+const cellsJsonOf = new WeakMap<object, string>();
+const storedOf = new WeakMap<GridRow, StoredRow>();
+
+function cellsJson(cells: Record<number, CellObj>): string {
+  let s = cellsJsonOf.get(cells);
+  if (s === undefined) {
+    s = writeCells(cells);
+    cellsJsonOf.set(cells, s);
+  }
+  return s;
+}
+
+/** 그리드 행 → 저장 형태. seq 는 배열 순서대로 NORMAL 1..n, 기본 행 0(서버도 같게 정한다, I10). 바뀌지 않은 행은 앞서 만든 저장 행 객체를 그대로 돌려준다. */
 export function storedRowsFromGrid(_vars: readonly StoredVar[], rows: readonly GridRow[]): StoredRow[] {
   let n = 0;
-  return rows.map((r) => ({
-    rowId: r.rowId,
-    seq: r.rowKind === "DEFAULT" ? 0 : ++n,
-    rowKind: r.rowKind,
-    cells: writeCells(r.cells),
-    note: r.note === "" ? null : r.note,
-  }));
+  return rows.map((r) => {
+    const seq = r.rowKind === "DEFAULT" ? 0 : ++n;
+    const cells = cellsJson(r.cells);
+    const note = r.note === "" ? null : r.note;
+    const prev = storedOf.get(r);
+    if (prev && prev.seq === seq && prev.rowId === r.rowId && prev.rowKind === r.rowKind && prev.cells === cells && prev.note === note) return prev;
+    const out: StoredRow = { rowId: r.rowId, seq, rowKind: r.rowKind, cells, note };
+    storedOf.set(r, out);
+    return out;
+  });
 }
 
 const DISP: Record<string, DispType> = { Equal: "EQUAL", "1": "ONE", "2": "TWO", Expression: "EXPRESSION", Value: "VALUE" };
@@ -214,6 +233,9 @@ export function newDefaultRow(tempId: number): GridRow {
 /** NORMAL 은 지금 순서대로 1..n, 기본 행은 늘 마지막(seq 0). */
 export function resequence(rows: readonly GridRow[]): GridRow[] {
   let n = 0;
-  const normal = rows.filter((r) => r.rowKind !== "DEFAULT").map((r) => ({ ...r, seq: ++n }));
-  return [...normal, ...rows.filter((r) => r.rowKind === "DEFAULT").map((r) => ({ ...r, seq: 0 }))];
+  // seq 가 이미 맞는 행은 그 객체를 그대로 둔다(구조적 공유) — 행 추가·삭제·순서 바꾸기 때 모든 행이 새 객체가 되면
+  // 뒤따르는 직렬화·base 비교·표시 행 캐시가 모두 빗나간다.
+  const at = (r: GridRow, seq: number): GridRow => (r.seq === seq ? r : { ...r, seq });
+  const normal = rows.filter((r) => r.rowKind !== "DEFAULT").map((r) => at(r, ++n));
+  return [...normal, ...rows.filter((r) => r.rowKind === "DEFAULT").map((r) => at(r, 0))];
 }

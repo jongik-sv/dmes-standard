@@ -5,10 +5,12 @@ import com.dongkuk.dmes.mdm.contract.category.CategoryConventions;
 import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.data.MdmTemporalSegmentAction;
+import com.dongkuk.dmes.mdm.contract.data.MdmTemporalSegmentRules;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -151,6 +153,70 @@ public class DataCategorySegmentCore {
             LocalDateTime at = SegmentBoundary.next(now, own);
             memberStore.close(new DataCateItemKey(maruDataId, cateId, code), at);
             return new SegmentOutcome(MdmTemporalSegmentAction.CLOSE, at);
+        });
+    }
+
+    /**
+     * TABLE 소속 일괄 적용(R12) — {@code addCodes} 를 차례로 {@link #addMember}, 이어서 {@code removeCodes} 를 차례로
+     * {@link #removeMember} 한 것과 판정·오류(어느 코드의 어떤 오류가 먼저인지)·쓰기가 같다. 한 트랜잭션이라 하나라도
+     * 거부되면 아무 것도 남지 않는다.
+     *
+     * <p>단건 메서드는 소속마다 잠그고(L1) 소속 행·항목 행·카테고리 행을 다시 읽는다. 여기서는 값을 읽기 전에 한 번만
+     * 잠그고(R2), 대상 코드의 소속 행·항목 행을 IN 으로 한 번, 카테고리 행을 한 번 읽는다. 앞 코드의 쓰기(새 소속·닫기)는
+     * 메모리의 소속 행 목록에 반영해 다음 코드의 판정·경계(S9)가 단건 반복과 같게 한다. 검사를 모두 마친 뒤 쓴다. 두 목록이
+     * 모두 비면 잠그지도 읽지도 않는다(단건 반복이 아무 것도 부르지 않던 것과 같다).
+     */
+    public void applyMembers(String maruDataId, String cateId, List<String> addCodes, List<String> removeCodes) {
+        List<String> add = addCodes == null ? List.of() : addCodes;
+        List<String> remove = removeCodes == null ? List.of() : removeCodes;
+        if (add.isEmpty() && remove.isEmpty()) {
+            return;
+        }
+        // 저장 시각은 잠금 전에 읽는다(DataItemSaveCore 와 같은 순서 — 클래스 설명).
+        LocalDateTime now = LocalDateTime.now(clock);
+        tx.executeWithoutResult(status -> {
+            LockedMaruData data = lock.lock(maruDataId);
+            List<String> all = new ArrayList<>(add);
+            all.addAll(remove);
+            Map<String, List<CateItemSegmentRow>> own = rows.cateItemRowsByCodes(maruDataId, cateId, all);
+            Map<String, List<ItemSegmentRow>> items = add.isEmpty() ? Map.of() : rows.itemRowsByCodes(maruDataId, add);
+            List<CateSegmentRow> cateRows = add.isEmpty() ? List.of() : rows.cateRows(maruDataId, cateId);
+            List<Runnable> writes = new ArrayList<>();
+            for (String code : add) {
+                List<CateItemSegmentRow> mine = own.computeIfAbsent(code, k -> new ArrayList<>());
+                List<MdmCheckIssue> issues = checks.membershipIssues(code, items.getOrDefault(code, List.of()), cateRows);
+                checks.requireActive(data);
+                if (!issues.isEmpty()) {
+                    throw DataItemChecks.rejected(issues);
+                }
+                if (mine.stream().anyMatch(CateItemSegmentRow::isOpen)) {
+                    throw keyIssue(DataItemMessages.ALREADY_OPEN, code);
+                }
+                LocalDateTime at = SegmentBoundary.next(now, mine);
+                DataCateItemKey key = new DataCateItemKey(maruDataId, cateId, code);
+                boolean first = mine.isEmpty();
+                writes.add(() -> {
+                    if (first) {
+                        memberStore.register(key, null, at);
+                    } else {
+                        memberStore.reopen(key, at);
+                    }
+                });
+                mine.add(new CateItemSegmentRow(key, at, MdmTemporalSegmentRules.OPEN_END, 0));
+            }
+            for (String code : remove) {
+                List<CateItemSegmentRow> mine = own.computeIfAbsent(code, k -> new ArrayList<>());
+                checks.requireActive(data);
+                CateItemSegmentRow open = SegmentRow.firstOpen(mine);
+                if (open == null) {
+                    throw keyIssue(DataItemMessages.NOT_OPEN, code);
+                }
+                LocalDateTime at = SegmentBoundary.next(now, mine);
+                DataCateItemKey key = new DataCateItemKey(maruDataId, cateId, code);
+                writes.add(() -> memberStore.closeOpen(key, open.validFrom(), at));
+                mine.set(mine.indexOf(open), new CateItemSegmentRow(open.key(), open.validFrom(), at, open.chgSeq()));
+            }
+            writes.forEach(Runnable::run);
         });
     }
 

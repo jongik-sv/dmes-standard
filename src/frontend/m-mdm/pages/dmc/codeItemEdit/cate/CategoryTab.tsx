@@ -44,12 +44,14 @@ export interface CategoryTabProps {
 
 export function CategoryTab({ cate, loaded, editable, canEdit, rowVersion, lvlCnt, attrLabels }: CategoryTabProps) {
   const { selectedRow } = cate;
+  // 훅 객체 전체가 아니라 안정된 값·함수만 열 정의에 건다 — 코드 셀 편집마다 열 정의가 다시 만들어지지 않게.
+  const { undo: undoCate, remove: removeCate, issuesByCate } = cate;
   const [addOpen, setAddOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
 
   const targetOptions = useMemo(() => buildDefTargetOptions(lvlCnt, attrLabels), [lvlCnt, attrLabels]);
   // 행별 저장 검사 이슈는 `useCategoryEdit` 가 cateId 별로 모아 둔다(소속 코드 이슈는 탭 위 목록으로 간다).
-  const issuesOf = (cateId: string) => cate.issuesByCate[cateId] ?? [];
+  const issuesOf = (cateId: string) => issuesByCate[cateId] ?? [];
 
   const categoryColumns = useMemo<GridColumn[]>(() => [
     {
@@ -133,7 +135,7 @@ export function CategoryTab({ cate, loaded, editable, canEdit, rowVersion, lvlCn
         return (
           <span style={{ display: "inline-flex", gap: "var(--spacing-xs)" }}>
             {dirty && (
-              <Button size="mini" data-testid={`cate-undo-${r.cateId}`} onClick={() => cate.undo(r.cateId)}>
+              <Button size="mini" data-testid={`cate-undo-${r.cateId}`} onClick={() => undoCate(r.cateId)}>
                 취소
               </Button>
             )}
@@ -145,7 +147,7 @@ export function CategoryTab({ cate, loaded, editable, canEdit, rowVersion, lvlCn
               </Button>
             )}
             {!dirty && (
-              <Button size="mini" data-testid={`cate-close-${r.cateId}`} onClick={() => cate.remove(r.cateId)}>
+              <Button size="mini" data-testid={`cate-close-${r.cateId}`} onClick={() => removeCate(r.cateId)}>
                 닫기
               </Button>
             )}
@@ -153,7 +155,9 @@ export function CategoryTab({ cate, loaded, editable, canEdit, rowVersion, lvlCn
         );
       },
     },
-  ], [editable, canEdit, cate, targetOptions, selectedRow?.cateId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // cate.rows: [취소]/[닫기] 는 칸 값이 아닌 행 상태(__local)로 갈리므로 행이 바뀌면 열 정의를 다시 만든다.
+  ], [editable, canEdit, cate.rows, issuesByCate, undoCate, removeCate, targetOptions, selectedRow?.cateId]);
 
   const memberColumns = useMemo<GridColumn[]>(() => [
     { key: "code", header: "코드", width: 120 },
