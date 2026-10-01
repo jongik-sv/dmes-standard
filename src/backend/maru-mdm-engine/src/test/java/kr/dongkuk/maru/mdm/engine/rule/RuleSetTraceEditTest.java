@@ -224,4 +224,70 @@ class RuleSetTraceEditTest {
         RuleSetDefinition set = new RuleSetDefinition("DRAFT", List.of(), SetStatus.INUSE, chain());
         assertThrows(NullPointerException.class, () -> engine.traceSet(set, rec("X", BigDecimal.ONE), SampleRules.EVAL_TS, null));
     }
+
+    // ── 리뷰 보완: PARALLEL 자리·made 대소문자·같은 순번·START·IF 갈래 ──
+
+    @Test
+    void 병렬_노드_직전에_고치면_모든_갈래가_고친_값을_보고_합류_뒤에도_이어진다() {
+        // parFlow 순번: 1 start, 2 p1, 3 a, 4 b, 5 pm, 6 c, 7 end.
+        RunTrace t = trace(parFlow(), rec("X", BigDecimal.ONE), edit(2, "p1", "X", new BigDecimal("100")));
+        assertNull(t.violations());
+        assertNum("101", t.finalValues().get("A"));
+        assertNum("102", t.finalValues().get("B"));
+        assertNum("103", t.finalValues().get("C"));
+        assertNum("100", t.nodes().get(5).reads().get("X"));
+        assertFalse(t.finalValues().containsKey("X"));
+    }
+
+    @Test
+    void 고친_표기_a_뒤에_같은_이름_A_를_룰이_만들어도_finalValues_에는_키가_하나다() {
+        FlowDefinition f = flow(List.of(start(), rule("a", "R_A"), rule("a2", "R_A"), end()),
+                List.of(e("e1", "start", "a"), e("e2", "a", "a2"), e("e3", "a2", "end")));
+        RunTrace t = trace(f, rec("X", BigDecimal.ONE), edit(3, "a2", "a", new BigDecimal("10")));
+        assertEquals(1, t.finalValues().size(), t.finalValues().toString());
+        assertNum("2", t.finalValues().get("A"));
+    }
+
+    @Test
+    void 병렬_합류에서도_고친_표기와_갈래가_만든_같은_이름이_키_하나로_합쳐진다() {
+        // 순번: 1 start, 2 a, 3 p1, 4 a2, 5 b, 6 pm, 7 end.
+        FlowDefinition f = flow(List.of(start(), rule("a", "R_A"), par("p1"), rule("a2", "R_A"), rule("b", "R_B"), merge("pm", "p1"), end()),
+                List.of(e("e0", "start", "a"), e("e1", "a", "p1"), pe("p1a", "p1", "a2", 1), pe("p1b", "p1", "b", 2),
+                        e("ea", "a2", "pm"), e("eb", "b", "pm"), e("ee", "pm", "end")));
+        RunTrace t = trace(f, rec("X", BigDecimal.ONE), edit(3, "p1", "a", new BigDecimal("10")));
+        assertNull(t.violations());
+        assertEquals(2, t.finalValues().size(), t.finalValues().toString());
+        assertNum("2", t.finalValues().get("A"));
+        assertNum("3", t.finalValues().get("B"));
+    }
+
+    @Test
+    void 같은_순번의_고친_값이_여럿이면_목록_순서로_적용되어_이름마다_뒤가_이긴다() {
+        RunTrace t = trace(chain(), rec("X", BigDecimal.ONE),
+                edit(2, "a", "X", new BigDecimal("5"), "Y", BigDecimal.ONE),
+                edit(2, "a", "X", new BigDecimal("7")));
+        assertNull(t.violations());
+        assertNum("8", t.finalValues().get("A"));
+        assertNum("9", t.finalValues().get("AB"));
+        assertFalse(t.finalValues().containsKey("Y"));
+    }
+
+    @Test
+    void START_자리_순번_1_에서도_고친다() {
+        RunTrace t = trace(chain(), rec("X", BigDecimal.ONE), edit(1, "start", "X", new BigDecimal("5")));
+        assertNull(t.violations());
+        assertNum("6", t.finalValues().get("A"));
+    }
+
+    @Test
+    void IF_갈래_안_노드에서_고친_결과는_최상위_finalValues_에_반영된다() {
+        // 순번: 1 start, 2 a, 3 if1, 4 t1, 5 m1, 6 end.
+        FlowDefinition f = flow(List.of(start(), rule("a", "R_A"), ifNode("if1"), task("t1"), rule("c", "R_C"), merge("m1", "if1"), end()),
+                List.of(e("e0", "start", "a"), e("e1", "a", "if1"), br("b1", "if1", "t1", 1, "X > 0"), other("bo", "if1", "c"),
+                        e("et", "t1", "m1"), e("ec", "c", "m1"), e("ee", "m1", "end")));
+        RunTrace t = trace(f, rec("X", BigDecimal.ONE), edit(4, "t1", "A", new BigDecimal("50")));
+        assertNull(t.violations());
+        assertEquals(List.of("1:start:START:OK", "2:a:RULE:OK", "3:if1:IF:OK", "4:t1:TASK:OK", "5:m1:MERGE:OK", "6:end:END:OK"), kinds(t));
+        assertNum("50", t.finalValues().get("A"));
+    }
 }

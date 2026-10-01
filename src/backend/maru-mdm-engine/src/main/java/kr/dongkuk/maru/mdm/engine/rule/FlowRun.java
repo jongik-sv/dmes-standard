@@ -202,7 +202,7 @@ final class FlowRun {
         steps.add(result);
         for (Map.Entry<String, Object> e : result.results().entrySet()) {
             RecordKeys.putReplacing(ctx, e.getKey(), e.getValue());
-            made.put(e.getKey(), e.getValue());
+            RecordKeys.putReplacing(made, e.getKey(), e.getValue());
         }
         path.add(new PathStep(r.nodeId(), NodeKind.RULE, null, index));
         if (tracing) {
@@ -284,7 +284,7 @@ final class FlowRun {
         for (Map<String, Object> out : outs) {
             for (Map.Entry<String, Object> e : out.entrySet()) {
                 RecordKeys.putReplacing(ctx, e.getKey(), e.getValue());
-                made.put(e.getKey(), e.getValue());
+                RecordKeys.putReplacing(made, e.getKey(), e.getValue());
                 if (!merged.contains(e.getKey())) {
                     merged.add(e.getKey());
                 }
