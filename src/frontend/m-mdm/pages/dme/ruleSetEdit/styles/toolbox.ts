@@ -26,4 +26,13 @@ export const TOOLBOX_CSS = `
   color: var(--color-text); background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-sm);
   box-shadow: var(--shadow-dropdown);
 }
+/* 툴바 아이콘 단추(되돌리기·다시 하기·도움말) — 단추 아래로 바로 뜨는 툴팁. 꺼진 단추도 pointer-events 가 살아 있어 뜬다. 도움말이 열려 있으면 숨긴다. */
+.rsf-toolbar [data-tip] { position: relative; }
+.rsf-toolbar [data-tip]:hover::after, .rsf-toolbar [data-tip]:focus-visible::after {
+  content: attr(data-tip); position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); z-index: 10;
+  padding: 2px var(--spacing-sm); white-space: nowrap; pointer-events: none; font-size: var(--font-size-sm); font-weight: normal;
+  color: var(--color-text); background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-dropdown);
+}
+.rsf-toolbar [data-tip][aria-expanded="true"]::after { display: none; }
 `;
