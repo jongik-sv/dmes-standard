@@ -38,6 +38,8 @@ public record RuleSetCheck(String code, String severity, String ruleId, String o
     public static final String EMPTY_TASK = "EMPTY_TASK";
     /** 받는 노드 붙임·종류 오류(REJECT, 받는 노드 spec §5). 흐름 구조 검사(`FlowParser`)가 낸다. */
     public static final String FLOW_CATCH = "FLOW_CATCH";
+    /** 받는 노드가 받는 종류가 그 룰에서 일어날 수 없다(WARN, 받는 노드 spec §5) — 결과 없음인데 기본 행이 있음, 판정 충돌인데 UNIQUE·ANY 가 아님. */
+    public static final String CATCH_NEVER = "CATCH_NEVER";
 
     /** 노드 위치 없는 검사(목록 입력·세트 단위 거부). */
     public RuleSetCheck(String code, String severity, String ruleId, String otherRuleId, String varName, String message) {

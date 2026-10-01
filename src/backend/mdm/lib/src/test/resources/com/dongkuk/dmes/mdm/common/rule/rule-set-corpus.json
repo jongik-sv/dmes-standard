@@ -7859,6 +7859,202 @@
           { "code": "FLOW_STRUCTURE", "severity": "REJECT", "message": "갈래가 m2에서 닫히지 않고 end로 나간다", "nodeId": "end" }
         ]
       }
+    },
+    {
+      "name": "받는 노드 — 결과 없음 처리 갈래가 같은 결과를 채우고 돌아온다(교집합·DUP_RESULT 아님·펼친 순서)",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          { "id": "start", "kind": "START" },
+          { "id": "r1", "kind": "RULE", "ruleId": "D1" },
+          { "id": "c1", "kind": "CATCH", "attachTo": "r1", "catches": ["NO_RESULT"] },
+          { "id": "r9", "kind": "RULE", "ruleId": "D9" },
+          { "id": "mr", "kind": "MERGE", "splitId": "r1" },
+          { "id": "r2", "kind": "RULE", "ruleId": "D2" },
+          { "id": "end", "kind": "END" }
+        ],
+        "edges": [
+          { "id": "e1", "from": "start", "to": "r1" },
+          { "id": "e2", "from": "r1", "to": "mr" },
+          { "id": "e3", "from": "c1", "to": "r9" },
+          { "id": "e4", "from": "r9", "to": "mr" },
+          { "id": "e5", "from": "mr", "to": "r2" },
+          { "id": "e6", "from": "r2", "to": "end" }
+        ]
+      },
+      "ids": ["D1", "D9", "D2"],
+      "rules": {
+        "D1": { "exists": true, "status": "INUSE", "releasedVer": 1, "hitPolicy": "FIRST", "conds": [{ "name": "A", "source": "DICT" }], "results": [{ "name": "P" }] },
+        "D9": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [], "results": [{ "name": "P" }] },
+        "D2": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "P", "source": "NONE" }], "results": [{ "name": "Q" }] }
+      },
+      "expect": {
+        "io": {
+          "inputs": [{ "name": "A", "source": "DICT", "users": ["D1"] }],
+          "results": [{ "name": "P", "by": ["D1", "D9"], "readers": ["D2"] }, { "name": "Q", "by": ["D2"], "readers": [] }]
+        },
+        "deps": { "D1": [], "D9": [], "D2": ["D1", "D9"] },
+        "checks": []
+      }
+    },
+    {
+      "name": "받는 노드 — 처리 갈래가 결과를 채우지 않으면 뒤에서 읽을 때 FLOW_PARTIAL, 끝내는 갈래는 세지 않는다",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          { "id": "start", "kind": "START" },
+          { "id": "r1", "kind": "RULE", "ruleId": "D1" },
+          { "id": "c1", "kind": "CATCH", "attachTo": "r1", "catches": ["NO_RESULT"] },
+          { "id": "c2", "kind": "CATCH", "attachTo": "r1", "catches": ["EVAL_ERROR"] },
+          { "id": "mr", "kind": "MERGE", "splitId": "r1" },
+          { "id": "r2", "kind": "RULE", "ruleId": "D2" },
+          { "id": "end", "kind": "END" }
+        ],
+        "edges": [
+          { "id": "e1", "from": "start", "to": "r1" },
+          { "id": "e2", "from": "r1", "to": "mr" },
+          { "id": "e3", "from": "c1", "to": "mr" },
+          { "id": "e4", "from": "c2", "to": "end" },
+          { "id": "e5", "from": "mr", "to": "r2" },
+          { "id": "e6", "from": "r2", "to": "end" }
+        ]
+      },
+      "ids": ["D1", "D2"],
+      "rules": {
+        "D1": { "exists": true, "status": "INUSE", "releasedVer": 1, "hitPolicy": "FIRST", "conds": [{ "name": "A", "source": "DICT" }], "results": [{ "name": "P" }] },
+        "D2": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "P", "source": "NONE" }], "results": [{ "name": "Q" }] }
+      },
+      "expect": {
+        "io": {
+          "inputs": [{ "name": "A", "source": "DICT", "users": ["D1"] }],
+          "results": [{ "name": "P", "by": ["D1"], "readers": ["D2"] }, { "name": "Q", "by": ["D2"], "readers": [] }]
+        },
+        "deps": { "D1": [], "D2": ["D1"] },
+        "checks": [
+          { "code": "FLOW_PARTIAL", "severity": "WARN", "ruleId": "D2", "varName": "P", "message": "D2가 읽는 P는 IF 의 일부 갈래에서만 만들어진다. 다른 갈래를 타면 판정 오류다", "nodeId": "r2" }
+        ]
+      }
+    },
+    {
+      "name": "받는 노드 — CATCH_NEVER: 기본 행이 있는 룰의 결과 없음, FIRST 룰의 판정 충돌",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          { "id": "start", "kind": "START" },
+          { "id": "r1", "kind": "RULE", "ruleId": "D1" },
+          { "id": "c1", "kind": "CATCH", "attachTo": "r1", "catches": ["NO_RESULT", "HIT_CONFLICT"] },
+          { "id": "end", "kind": "END" }
+        ],
+        "edges": [
+          { "id": "e1", "from": "start", "to": "r1" },
+          { "id": "e2", "from": "r1", "to": "end" },
+          { "id": "e3", "from": "c1", "to": "end" }
+        ]
+      },
+      "ids": ["D1"],
+      "rules": {
+        "D1": { "exists": true, "status": "INUSE", "releasedVer": 1, "hitPolicy": "FIRST", "hasDefault": true, "conds": [{ "name": "A", "source": "DICT" }], "results": [{ "name": "P" }] }
+      },
+      "expect": {
+        "io": { "inputs": [{ "name": "A", "source": "DICT", "users": ["D1"] }], "results": [{ "name": "P", "by": ["D1"], "readers": [] }] },
+        "deps": { "D1": [] },
+        "checks": [
+          { "code": "CATCH_NEVER", "severity": "WARN", "ruleId": "D1", "message": "D1에 기본 행이 있어 c1가 받는 결과 없음이 일어나지 않는다", "nodeId": "c1" },
+          { "code": "CATCH_NEVER", "severity": "WARN", "ruleId": "D1", "message": "D1의 적중 정책 FIRST에서는 c1가 받는 판정 충돌이 일어나지 않는다", "nodeId": "c1" }
+        ]
+      }
+    },
+    {
+      "name": "받는 노드 — 처리 갈래 밖 CATCH_* 를 룰이 읽으면 ORDER, 조건식이 읽으면 FLOW_COND, 안에서는 지나간다",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          { "id": "start", "kind": "START" },
+          { "id": "r1", "kind": "RULE", "ruleId": "D1" },
+          { "id": "c1", "kind": "CATCH", "attachTo": "r1", "catches": ["NO_RESULT"] },
+          { "id": "r9", "kind": "RULE", "ruleId": "D9" },
+          { "id": "mr", "kind": "MERGE", "splitId": "r1" },
+          { "id": "if1", "kind": "IF" },
+          { "id": "r3", "kind": "RULE", "ruleId": "D3" },
+          { "id": "m2", "kind": "MERGE", "splitId": "if1" },
+          { "id": "end", "kind": "END" }
+        ],
+        "edges": [
+          { "id": "e1", "from": "start", "to": "r1" },
+          { "id": "e2", "from": "r1", "to": "mr" },
+          { "id": "e3", "from": "c1", "to": "r9" },
+          { "id": "e4", "from": "r9", "to": "mr" },
+          { "id": "e5", "from": "mr", "to": "if1" },
+          { "id": "b1", "from": "if1", "to": "r3", "order": 1, "cond": "CATCH_KIND = \"NO_RESULT\"" },
+          { "id": "bo", "from": "if1", "to": "m2", "otherwise": true },
+          { "id": "e6", "from": "r3", "to": "m2" },
+          { "id": "e7", "from": "m2", "to": "end" }
+        ]
+      },
+      "condIo": { "b1": { "ok": true, "message": null, "vars": [{ "name": "CATCH_KIND", "source": "NONE" }] } },
+      "ids": ["D1", "D9", "D3"],
+      "rules": {
+        "D1": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "A", "source": "DICT" }], "results": [{ "name": "P" }] },
+        "D9": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "CATCH_CODE", "source": "PROG" }], "results": [{ "name": "P" }] },
+        "D3": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "CATCH_MSG", "source": "NONE" }], "results": [{ "name": "Q" }] }
+      },
+      "expect": {
+        "io": {
+          "inputs": [
+            { "name": "A", "source": "DICT", "users": ["D1"] },
+            { "name": "CATCH_CODE", "source": "PROG", "users": ["D9"] },
+            { "name": "CATCH_MSG", "source": "NONE", "users": ["D3"] }
+          ],
+          "results": [{ "name": "P", "by": ["D1", "D9"], "readers": [] }, { "name": "Q", "by": ["D3"], "readers": [] }]
+        },
+        "deps": { "D1": [], "D9": [], "D3": [] },
+        "checks": [
+          { "code": "FLOW_COND", "severity": "REJECT", "varName": "CATCH_KIND", "message": "b1 갈래 조건식이 읽는 CATCH_KIND는 이 지점에서 정의되지 않았다", "nodeId": "if1", "edgeId": "b1" },
+          { "code": "ORDER", "severity": "REJECT", "ruleId": "D3", "varName": "CATCH_MSG", "message": "D3가 읽는 CATCH_MSG는 받는 노드의 처리 갈래 안에서만 있다", "nodeId": "r3" }
+        ]
+      }
+    },
+    {
+      "name": "받는 노드 — 정상 갈래 먼저 펼치고, 끝내는 처리 갈래 안 룰도 RULE_IDS 에 넣으며 같은 결과 변수를 써도 경고가 없다",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          { "id": "start", "kind": "START" },
+          { "id": "r1", "kind": "RULE", "ruleId": "D1" },
+          { "id": "r2", "kind": "RULE", "ruleId": "D2" },
+          { "id": "c1", "kind": "CATCH", "attachTo": "r1", "catches": ["INPUT_ERROR"] },
+          { "id": "r9", "kind": "RULE", "ruleId": "D9" },
+          { "id": "c2", "kind": "CATCH", "attachTo": "r1", "catches": ["EVAL_ERROR"] },
+          { "id": "r8", "kind": "RULE", "ruleId": "D8" },
+          { "id": "mr", "kind": "MERGE", "splitId": "r1" },
+          { "id": "end", "kind": "END" }
+        ],
+        "edges": [
+          { "id": "e1", "from": "start", "to": "r1" },
+          { "id": "e2", "from": "r1", "to": "r2" },
+          { "id": "e3", "from": "r2", "to": "mr" },
+          { "id": "e4", "from": "c1", "to": "r9" },
+          { "id": "e5", "from": "r9", "to": "mr" },
+          { "id": "e6", "from": "c2", "to": "r8" },
+          { "id": "e7", "from": "r8", "to": "end" },
+          { "id": "e8", "from": "mr", "to": "end" }
+        ]
+      },
+      "ids": ["D1", "D2", "D9", "D8"],
+      "rules": {
+        "D1": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "A", "source": "DICT" }], "results": [{ "name": "P" }] },
+        "D2": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "P", "source": "NONE" }], "results": [{ "name": "Q" }] },
+        "D9": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [], "results": [{ "name": "P" }] },
+        "D8": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [], "results": [{ "name": "P" }] }
+      },
+      "expect": {
+        "io": {
+          "inputs": [{ "name": "A", "source": "DICT", "users": ["D1"] }],
+          "results": [{ "name": "P", "by": ["D1", "D9", "D8"], "readers": ["D2"] }, { "name": "Q", "by": ["D2"], "readers": [] }]
+        },
+        "deps": { "D1": [], "D2": ["D1", "D9", "D8"], "D9": [], "D8": [] },
+        "checks": []
+      }
     }
   ]
 }

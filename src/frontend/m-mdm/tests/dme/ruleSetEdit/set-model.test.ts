@@ -361,3 +361,71 @@ describe("flowChecks — 빈 단계(TASK)가 있는 흐름(4단계)", () => {
     expect(strip(flowChecks(withTask, rules, {}))).toEqual(flowChecks(without, rules, {}));
   });
 });
+
+describe("flowChecks — 받는 노드(CATCH, 받는 노드 spec §5)", () => {
+  const tn = (id: string, kind: FlowNodeKind, over: Partial<FlowNode> = {}): FlowNode => ({ id, kind, ruleId: null, splitId: null, label: null, ...over });
+  const te = (id: string, from: string, to: string): FlowEdge => ({ id, from, to, order: null, cond: null, otherwise: false, label: null });
+  /** start → r1(R1) → mr → r2(R2) → end. c1(kinds) → (handler 가 있으면 h1(handler)) → mr. */
+  const guarded = (kinds: string[], handler: string | null): RuleSetFlow => ({
+    version: 1,
+    nodes: [
+      tn("start", "START"), tn("r1", "RULE", { ruleId: "R1" }), tn("c1", "CATCH", { attachTo: "r1", catches: kinds }),
+      ...(handler ? [tn("h1", "RULE", { ruleId: handler })] : []),
+      tn("mr", "MERGE", { splitId: "r1" }), tn("r2", "RULE", { ruleId: "R2" }), tn("end", "END"),
+    ],
+    edges: [
+      te("e1", "start", "r1"), te("e2", "r1", "mr"), ...(handler ? [te("e3", "c1", "h1"), te("e4", "h1", "mr")] : [te("e3", "c1", "mr")]),
+      te("e5", "mr", "r2"), te("e6", "r2", "end"),
+    ],
+  });
+
+  it("처리 갈래가 같은 결과를 채우면 합류 뒤 정의되고 DUP_RESULT 가 아니다", () => {
+    const rules = byId(rule("R1", [n("A", "DICT")], [n("P")]), rule("R9", [], [n("P")]), rule("R2", [n("P")], [n("Q")]));
+    expect(flowChecks(guarded(["NO_RESULT"], "R9"), rules, {})).toEqual([]);
+  });
+
+  it("처리 갈래가 결과를 채우지 않으면 뒤에서 읽을 때 FLOW_PARTIAL", () => {
+    const rules = byId(rule("R1", [n("A", "DICT")], [n("P")]), rule("R2", [n("P")], [n("Q")]));
+    expect(flowChecks(guarded(["NO_RESULT"], null), rules, {}).map((c) => c.code)).toEqual(["FLOW_PARTIAL"]);
+  });
+
+  it("처리 갈래 밖에서 CATCH_* 를 읽으면 ORDER, 안에서는 지나간다", () => {
+    const rules = byId(rule("R1", [n("A", "DICT")], [n("P")]), rule("R9", [n("CATCH_CODE", "PROG")], [n("P")]), rule("R2", [n("CATCH_MSG")], [n("Q")]));
+    const out = flowChecks(guarded(["NO_RESULT"], "R9"), rules, {});
+    expect(out).toEqual([
+      { code: "ORDER", severity: "REJECT", ruleId: "R2", otherRuleId: null, varName: "CATCH_MSG", message: "R2가 읽는 CATCH_MSG는 받는 노드의 처리 갈래 안에서만 있다", nodeId: "r2", edgeId: null },
+    ]);
+  });
+
+  it("CATCH_NEVER — 기본 행이 있는 룰의 결과 없음, UNIQUE·ANY 아닌 룰의 판정 충돌", () => {
+    const r1 = { ...rule("R1", [n("A", "DICT")], [n("P")]), hitPolicy: "FIRST", hasDefault: true };
+    const rules = byId(r1, rule("R9", [], [n("P")]), rule("R2", [], [n("Q")]));
+    expect(flowChecks(guarded(["NO_RESULT", "HIT_CONFLICT"], "R9"), rules, {}).map((c) => [c.code, c.nodeId, c.message])).toEqual([
+      ["CATCH_NEVER", "c1", "R1에 기본 행이 있어 c1가 받는 결과 없음이 일어나지 않는다"],
+      ["CATCH_NEVER", "c1", "R1의 적중 정책 FIRST에서는 c1가 받는 판정 충돌이 일어나지 않는다"],
+    ]);
+  });
+
+  it("중첩 처리 갈래 — 안쪽 합류 뒤에도 바깥 CATCH_* 를 읽을 수 있고, 안쪽 정상 갈래에서만 만든 값은 FLOW_PARTIAL", () => {
+    // start → r1(R1) → m1 → end. c1(r1) → r2(R2) → m2 → r4(R4: CATCH_CODE·Y 읽기) → m1. c2(r2) → r3(R3) → m2.
+    const flow: RuleSetFlow = {
+      version: 1,
+      nodes: [
+        tn("start", "START"), tn("r1", "RULE", { ruleId: "R1" }), tn("c1", "CATCH", { attachTo: "r1", catches: ["NO_RESULT"] }),
+        tn("r2", "RULE", { ruleId: "R2" }), tn("c2", "CATCH", { attachTo: "r2", catches: ["NO_RESULT"] }), tn("r3", "RULE", { ruleId: "R3" }),
+        tn("m2", "MERGE", { splitId: "r2" }), tn("r4", "RULE", { ruleId: "R4" }), tn("m1", "MERGE", { splitId: "r1" }), tn("end", "END"),
+      ],
+      edges: [
+        te("e1", "start", "r1"), te("e2", "r1", "m1"), te("e3", "c1", "r2"), te("e4", "r2", "m2"), te("e5", "c2", "r3"), te("e6", "r3", "m2"),
+        te("e7", "m2", "r4"), te("e8", "r4", "m1"), te("e9", "m1", "end"),
+      ],
+    };
+    const rules = byId(
+      rule("R1", [n("A", "DICT")], [n("P")]),
+      rule("R2", [n("CATCH_KIND")], [n("Y")]),
+      rule("R3", [n("catch_rule")], [n("Z")]),
+      rule("R4", [n("CATCH_CODE"), n("Y")], [n("Q")]),
+    );
+    expect(flowChecks(flow, rules, {}).map((c) => [c.code, c.ruleId, c.varName, c.nodeId])).toEqual([["FLOW_PARTIAL", "R4", "Y", "r4"]]);
+  });
+});

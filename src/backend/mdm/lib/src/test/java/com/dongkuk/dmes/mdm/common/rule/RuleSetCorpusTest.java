@@ -28,8 +28,9 @@ import org.junit.jupiter.params.provider.MethodSource;
  * {@code io}·{@code deps}·{@code checks}(message 포함)가 {@code expect} 와 순서까지 같은지 본다. TS 러너(m-mdm
  * {@code tests/dme/ruleSetEdit/rule-set-corpus.test.ts})가 같은 파일을 읽고 사례 수 하한을 같게 둔다.
  *
- * <p>읽기 규칙(두 러너 공통): {@code rules} 원소의 빠진 칸은 null·false·빈 목록으로 채운다({@code exists} 를 빠뜨리면 없는 룰이다). {@code rules} 에 키가 없는
- * ID 는 없는 룰이다. {@code checks} 의 빠진 칸과 {@code null} 은 같다.
+ * <p>읽기 규칙(두 러너 공통): {@code rules} 원소의 빠진 칸은 null·false·빈 목록으로 채운다({@code exists} 를 빠뜨리면 없는 룰이고,
+ * {@code hitPolicy}·{@code hasDefault} 가 빠지면 null·false 다). {@code rules} 에 키가 없는 ID 는 없는 룰이다. {@code checks} 의 빠진 칸과
+ * {@code null} 은 같다.
  *
  * <p>{@code flow} 가 있으면 {@code ids} 는 {@code RuleSetFlowJson.ruleIds(flow)} 기대값이고, io·deps 는 흐름 오버로드, checks 는
  * {@code checks(flow, rules, condIo)} 로 계산한다. checks 의 빠진 {@code nodeId}·{@code edgeId} 는 null 이다.
@@ -40,7 +41,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 class RuleSetCorpusTest {
 
     /** 사례 수 하한 — TS 러너와 같은 값(design §3.3). TS 러너({@code rule-set-corpus.test.ts})도 같은 값으로 맞춘다. */
-    static final int MIN_CASES = 59;
+    static final int MIN_CASES = 64;
 
     /** 퍼즈 파일 사례 수 하한 — TS 러너와 같은 값({@link RuleSetFlowFuzz#COUNT}). */
     static final int MIN_FUZZ_CASES = 200;
@@ -130,7 +131,7 @@ class RuleSetCorpusTest {
         r.path("results").forEach(n -> results.add(new IoName(text(n, "name"), null, null, null, null, false, null)));
         JsonNode ver = r.path("releasedVer");
         return new RuleIo(id, null, null, text(r, "status"), r.path("exists").asBoolean(false),
-                ver.isNull() || ver.isMissingNode() ? null : ver.asInt(), null, conds, results);
+                ver.isNull() || ver.isMissingNode() ? null : ver.asInt(), text(r, "hitPolicy"), conds, results, r.path("hasDefault").asBoolean(false));
     }
 
     private static Map<String, Object> map(Object... kv) {

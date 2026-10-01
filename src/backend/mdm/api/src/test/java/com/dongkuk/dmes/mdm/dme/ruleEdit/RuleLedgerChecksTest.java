@@ -384,6 +384,33 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
         assertTrue(issues(r, "SET_IF_SIBLING").isEmpty(), r.getIssues().toString());
     }
 
+    /**
+     * 받는 노드(받는 노드 spec §5, Ruling R8·R18) — 정상 갈래 룰(rq)과 처리 갈래 룰(rh)은 서로 다른 경로(EXCLUSIVE)다.
+     * {@code start → rg(R_G) → rq(QLTY_GRD_JDG) → mr → end}, {@code c1(rg, NO_RESULT) → rh(R_WID) → mr}. 둘이 서로의 결과를 읽으면 IF 형제와 같은
+     * SET_IF_SIBLING 이다(경로 상태가 받는 룰·두 갈래 룰을 모두 적어야 한다 — 빠지면 형제 판정이 null 상태를 읽는다).
+     */
+    @Test
+    void 받는_노드의_정상_갈래와_처리_갈래가_서로의_결과를_읽으면_SET_IF_SIBLING_으로_거부한다() {
+        otherRule("R_G", "X_IN", "G_OUT");
+        otherRule("R_WID", "PRC_FCT", "COIL_WID");
+        String flow = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"},{\"id\":\"rg\",\"kind\":\"RULE\",\"ruleId\":\"R_G\"},"
+                + "{\"id\":\"rq\",\"kind\":\"RULE\",\"ruleId\":\"QLTY_GRD_JDG\"},"
+                + "{\"id\":\"c1\",\"kind\":\"CATCH\",\"attachTo\":\"rg\",\"catches\":[\"NO_RESULT\"]},"
+                + "{\"id\":\"rh\",\"kind\":\"RULE\",\"ruleId\":\"R_WID\"},{\"id\":\"mr\",\"kind\":\"MERGE\",\"splitId\":\"rg\"},"
+                + "{\"id\":\"end\",\"kind\":\"END\"}],"
+                + "\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"rg\"},{\"id\":\"e2\",\"from\":\"rg\",\"to\":\"rq\"},"
+                + "{\"id\":\"e3\",\"from\":\"rq\",\"to\":\"mr\"},{\"id\":\"e4\",\"from\":\"c1\",\"to\":\"rh\"},"
+                + "{\"id\":\"e5\",\"from\":\"rh\",\"to\":\"mr\"},{\"id\":\"e6\",\"from\":\"mr\",\"to\":\"end\"}]}";
+        ruleSet("S_CATCH", "INUSE", "R_G", "QLTY_GRD_JDG", "R_WID");
+        DmeTestSupport.ruleSetFlow(jdbc, "S_CATCH", flow);
+
+        BusinessException e = rejected(() -> save(sample()));
+
+        assertEquals(List.of("SET_IF_SIBLING"), codes(e), e.getMessage());
+        assertTrue(e.getMessage().contains("세트 S_CATCH: QLTY_GRD_JDG와(과) R_WID가 같은 IF 의 다른 갈래에 있는데 한쪽이 다른 쪽 결과를 읽는다"
+                + "(QLTY_GRD_JDG ← [COIL_WID], R_WID ← [PRC_FCT])"), e.getMessage());
+    }
+
     // ── 세트 형제 판정의 경로 상태(§9.1-6, P4) ──
 
     /**

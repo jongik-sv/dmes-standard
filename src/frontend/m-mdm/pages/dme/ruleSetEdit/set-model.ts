@@ -9,7 +9,7 @@
  */
 import type { RuleSetFlow } from "@/contract/engine-contract.generated";
 
-import { flowRuleIds, isBlankJava, linearFlow, parseFlow, type FlowTree, type RuleStep, type Seq } from "./flow-model";
+import { CATCH_NAMES, flowRuleIds, isBlankJava, linearFlow, parseFlow, type FlowTree, type Guarded, type RuleStep, type Seq } from "./flow-model";
 import type { CondIoMap, InputRow, IoName, IoSource, ResultRow, RuleIo, RuleIoMap, RuleSetCheck, SetIo } from "./types";
 
 const DICT: IoSource = "DICT";
@@ -270,6 +270,14 @@ function pathChecks(tree: FlowTree, rules: RuleIoMap, condIo: CondIoMap, out: Ru
   const rule = (n: RuleStep, s: PathState) => {
     const id = n.ruleId;
     for (const c of conds(rules, id)) {
+      // 받는 노드 예약 이름(R13) — 처리 갈래 안이면 지나가고, 밖이면 ORDER 다.
+      const upper = c.name.toUpperCase();
+      if (CATCH_NAMES.includes(upper)) {
+        if (!s.defined.has(upper)) {
+          out.push(check("ORDER", "REJECT", id, null, c.name, `${id}가 읽는 ${c.name}는 받는 노드의 처리 갈래 안에서만 있다`, n.nodeId));
+        }
+        continue;
+      }
       if (c.source === DICT || s.defined.has(c.name)) continue;
       if (s.maybe.has(c.name)) {
         out.push(check("FLOW_PARTIAL", "WARN", id, null, c.name, `${id}가 읽는 ${c.name}는 IF 의 일부 갈래에서만 만들어진다. 다른 갈래를 타면 판정 오류다`, n.nodeId));
@@ -319,16 +327,55 @@ function pathChecks(tree: FlowTree, rules: RuleIoMap, condIo: CondIoMap, out: Ru
     }
   };
 
+  /** CATCH_NEVER(R12) — 처리 갈래 순서·받는 종류 저장 순서. 룰이 있고 RELEASED 가 있을 때만. */
+  const never = (g: Guarded) => {
+    const id = g.rule.ruleId;
+    const r = ruleOf(rules, id);
+    if (!r || !r.exists || r.releasedVer == null) return;
+    for (const h of g.handlers) {
+      for (const k of h.kinds) {
+        if (k === "NO_RESULT" && r.hasDefault === true) {
+          out.push(check("CATCH_NEVER", "WARN", id, null, null, `${id}에 기본 행이 있어 ${h.catchNodeId}가 받는 결과 없음이 일어나지 않는다`, h.catchNodeId));
+        } else if (k === "HIT_CONFLICT" && r.hitPolicy !== "UNIQUE" && r.hitPolicy !== "ANY") {
+          out.push(
+            check("CATCH_NEVER", "WARN", id, null, null, `${id}의 적중 정책 ${r.hitPolicy ?? "-"}에서는 ${h.catchNodeId}가 받는 판정 충돌이 일어나지 않는다`, h.catchNodeId),
+          );
+        }
+      }
+    }
+  };
+
+  /** 받는 룰 — 서버 `RuleSetAnalyzer.PathWalk.guarded` 와 같은 순서·합류 규칙. */
+  const guarded = (g: Guarded, s: PathState) => {
+    const before = copyState(s);
+    rule(g.rule, s);
+    never(g);
+    const normal = copyState(s);
+    walk(g.normal, normal);
+    const back: PathState[] = [normal];
+    for (const h of g.handlers) {
+      const hs = copyState(before);
+      for (const x of CATCH_NAMES) hs.defined.add(x);
+      walk(h.body, hs);
+      for (const x of CATCH_NAMES) hs.defined.delete(x);
+      if (!h.ends) back.push(hs);
+    }
+    // s 를 룰 직전 상태로 되돌린 뒤 IF 합류 규칙(defined·maybe·prodBy)으로 합친다.
+    s.defined.clear();
+    for (const x of before.defined) s.defined.add(x);
+    s.maybe.clear();
+    for (const x of before.maybe) s.maybe.add(x);
+    s.prodBy.clear();
+    for (const [k, v] of before.prodBy) s.prodBy.set(k, v);
+    mergeState("IF", s, back);
+  };
+
   const walk = (seq: Seq, s: PathState) => {
     for (const b of seq.items) {
       if (b.type === "RULE") rule(b, s);
       else if (b.type === "SEQ") walk(b, s);
       else if (b.type === "TASK") continue; // 빈 단계 — 읽거나 만드는 이름이 없다(4단계 spec §1.1)
-      else if (b.type === "GUARDED") {
-        // SEAM(T4): 받는 룰의 정상·처리 갈래 경로 검사는 Task 4 가 넣는다. 지금은 룰만 보통 룰처럼 보고 갈래를 건너뛴다.
-        rule(b.rule, s);
-        walk(b.normal, s);
-      }
+      else if (b.type === "GUARDED") guarded(b, s);
       else {
         if (b.kind === "IF") for (const br of b.branches) if (!br.otherwise) cond(b.nodeId, br.edgeId, s);
         const ends = b.branches.map((br) => {

@@ -11,6 +11,7 @@ import java.util.List;
  * @param releasedVer 입출력을 계산한 RELEASED 버전. RELEASED 가 없으면 null 이고 conds·results 는 비어 있다
  * @param conds       읽는 이름(첫 등장 순). {@link IoName#source()} 는 {@link #DICT}·{@link #PROG}·{@link #NONE}
  * @param results     만드는 이름(첫 등장 순). {@link IoName#source()} 는 null
+ * @param hasDefault  최신 RELEASED 버전에 기본(DEFAULT) 행이 있는가 — 받는 노드 검사 CATCH_NEVER(받는 노드 spec §5)가 쓴다
  */
 public record RuleIo(
         String ruleId,
@@ -21,7 +22,8 @@ public record RuleIo(
         Integer releasedVer,
         String hitPolicy,
         List<IoName> conds,
-        List<IoName> results) {
+        List<IoName> results,
+        boolean hasDefault) {
 
     /** 컬럼 사전에 그 물리명이 있다. */
     public static final String DICT = "DICT";
@@ -29,6 +31,12 @@ public record RuleIo(
     public static final String PROG = "PROG";
     /** 어디에도 없다. */
     public static final String NONE = "NONE";
+
+    /** 기본 행 여부를 따지지 않는 곳(없는 룰·RELEASED 없는 룰·시험) — hasDefault=false. */
+    public RuleIo(String ruleId, String ruleName, String ruleKind, String status, boolean exists, Integer releasedVer, String hitPolicy,
+            List<IoName> conds, List<IoName> results) {
+        this(ruleId, ruleName, ruleKind, status, exists, releasedVer, hitPolicy, conds, results, false);
+    }
 
     /** 읽거나 만드는 이름 하나와 그 타입·표시명. NONE 이면 타입·표시명은 null 이다. */
     public record IoName(String name, String source, String label, String dataType, Integer scale, boolean dateString, String maruCodeId) {

@@ -195,6 +195,28 @@ class RuleIoReaderTest extends AbstractMdmSharedDbTest {
                                 e -> e.getValue() instanceof Number n ? (Object) n.longValue() : e.getValue())));
     }
 
+    @Test
+    void 최신_RELEASED_에_기본_행이_있으면_hasDefault_가_참이다() {
+        // R_DEF — Expression 열이 없는 룰(행을 따로 읽지 않는 룰)도 기본 행을 본다.
+        DmeTestSupport.rule(jdbc, "R_DEF", "기본 행 룰", "DECISION", "INUSE");
+        DmeTestSupport.released(jdbc, "R_DEF", 1, "FIRST", "2026-01-01 00:00:00", null);
+        DmeTestSupport.var(jdbc, "R_DEF", 1, 1, "COND", "1", "COIL_WID", 1);
+        DmeTestSupport.var(jdbc, "R_DEF", 1, 2, "RESULT", "Value", "DEF_OUT", 1, "STRING");
+        DmeTestSupport.row(jdbc, "R_DEF", 1, 1, 1, "NORMAL", "{}");
+        DmeTestSupport.row(jdbc, "R_DEF", 1, 2, 0, "DEFAULT", "{}");
+        // R_VER — 기본 행은 옛 RELEASED(VER 1)에만 있다. 지금 RELEASED 는 VER 2 다.
+        DmeTestSupport.row(jdbc, "R_VER", 1, 1, 0, "DEFAULT", "{}");
+
+        Map<String, RuleIo> io = reader.read(List.of("R_MAIN", "R_DEF", "R_VER", "R_OLD", "R_NOREL", "R_NONE"));
+
+        assertTrue(io.get("R_MAIN").hasDefault(), "Expression 열이 있는 룰");
+        assertTrue(io.get("R_DEF").hasDefault(), "Expression 열이 없는 룰");
+        assertFalse(io.get("R_VER").hasDefault(), "옛 RELEASED 버전의 기본 행은 세지 않는다");
+        assertFalse(io.get("R_OLD").hasDefault(), "행이 없다");
+        assertFalse(io.get("R_NOREL").hasDefault(), "RELEASED 가 없다");
+        assertFalse(io.get("R_NONE").hasDefault(), "없는 룰");
+    }
+
     private void producer(String id, String status, int ver, String result) {
         DmeTestSupport.rule(jdbc, id, id, "DECISION", status);
         DmeTestSupport.released(jdbc, id, ver, "FIRST", "2026-01-01 00:00:00", ver == 1 ? "2026-06-01 00:00:00" : null);
