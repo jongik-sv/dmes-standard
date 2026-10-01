@@ -26,7 +26,7 @@ function must(r: EditResult): EditFlow {
 const io = (ruleId: string): RuleIo => ({
   ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST", conds: [], results: [],
 });
-/** start → if1{e5 갈래 1 / e6 그 외} → m1 → r1 → r2 → r3(빈 단계) → end. */
+/** start → if1{e5 갈래 1 → r4(빈 단계) / e6 그 외} → r1(모이는 자리) → r2 → r3(빈 단계) → end(implicit-join §8.2). */
 function flowOf(): EditFlow {
   let f = toEditFlow(null, ["ND_A", "ND_B"]);
   f = must(insertTask(f, "e3"));
@@ -69,6 +69,9 @@ describe("노드 설명 — 속성 패널과 캔버스", () => {
       expect(input().readOnly, id).toBe(false);
       expect(input().maxLength, id).toBe(1000);
     }
+    // 합류는 병렬에만 있다(implicit-join §8.2) — 병렬 세트에서 합류를 고르면 입력 칸이 없다.
+    await openSet("ND_1P", viewOf("ND_1P", must(insertSplit(toEditFlow(null, ["ND_A"]), "e2", "PARALLEL"))));
+    await click("flow-mode-edit");
     await click("flow-node-m1");
     expect(q("flow-prop-desc")).toBeNull();
   });

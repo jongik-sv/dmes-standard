@@ -41,7 +41,7 @@ function ok(r: EditResult): EditFlow {
   if (!r.ok) throw new Error(r.reason);
   return r.flow;
 }
-/** start → r1 → if1{e4 조건 "true" 갈래 / e5 그 외} → m1 → r2 → end. 선: e1 e2 e4 e5 e6 e3. */
+/** start → r1 → if1{e4 조건 "true" 갈래 → r3(빈 단계) / e5 그 외} → r2(모이는 자리) → end. 선: e1 e2 e4 e5 e6(r3→r2) e3(implicit-join §8.2). */
 function ifFlow(): EditFlow {
   const f = ok(insertSplit(toEditFlow(null, ["R_A", "R_B"]), "e2", "IF"));
   return ok(updateEdge(f, f.edges.find((e) => e.from === "if1" && !e.otherwise)!.id, { cond: "true", label: "큰 것" }));
@@ -56,7 +56,7 @@ describe("reconnectEdge", () => {
     expect(JSON.stringify(f)).toBe(before);
     expect(g.edges.map((e) => e.id)).toEqual(f.edges.map((e) => e.id));
     const e6 = g.edges.find((e) => e.id === "e6")!;
-    expect([e6.from, e6.to]).toEqual(["m1", "end"]);
+    expect([e6.from, e6.to]).toEqual(["r3", "end"]);
     for (const e of f.edges.filter((x) => x.id !== "e6")) expect(g.edges.find((x) => x.id === e.id)).toEqual(e);
     expect(g.nodes).toEqual(f.nodes);
   });
@@ -69,7 +69,7 @@ describe("reconnectEdge", () => {
 
   it("cond·label·order·otherwise 를 그대로 둔다", () => {
     const f = ifFlow();
-    const g = ok(reconnectEdge(f, "e4", { to: "r2" }));
+    const g = ok(reconnectEdge(f, "e4", { to: "end" }));
     const a = f.edges.find((e) => e.id === "e4")!;
     const b = g.edges.find((e) => e.id === "e4")!;
     expect({ ...b, to: a.to }).toEqual(a);
@@ -77,8 +77,8 @@ describe("reconnectEdge", () => {
     expect(b.label).toBe("큰 것");
     const other = g.edges.find((e) => e.id === "e5")!;
     expect(other.otherwise).toBe(true);
-    const g2 = ok(reconnectEdge(f, "e5", { to: "r2" }));
-    expect(g2.edges.find((e) => e.id === "e5")).toEqual({ ...f.edges.find((e) => e.id === "e5")!, to: "r2" });
+    const g2 = ok(reconnectEdge(f, "e5", { to: "end" }));
+    expect(g2.edges.find((e) => e.id === "e5")).toEqual({ ...f.edges.find((e) => e.id === "e5")!, to: "end" });
   });
 
   it("그 선의 꺾는 점만 버리고 다른 선의 경로는 남긴다", () => {
@@ -94,12 +94,12 @@ describe("reconnectEdge", () => {
     expect(reconnectEdge(f, "e6", { to: "r2" }).ok).toBe(false); // 제자리에 놓기는 바뀌는 끝이 없다
     const r = reconnectEdge(f, "e2", { from: "start", to: "r1" });
     expect(r).toEqual({ ok: false, reason: "이미 이어진 선이다" });
-    expect(reconnectEdge(f, "e3", { from: "m1", to: "r2" })).toEqual({ ok: false, reason: "이미 이어진 선이다" });
+    expect(reconnectEdge(f, "e3", { from: "if1", to: "r2" })).toEqual({ ok: false, reason: "이미 이어진 선이다" });
   });
 
   it("자기 자신으로 잇기·없는 노드·없는 선을 거부한다", () => {
     const f = ifFlow();
-    expect(reconnectEdge(f, "e6", { to: "m1" }).ok).toBe(false); // m1→m1
+    expect(reconnectEdge(f, "e6", { to: "r3" }).ok).toBe(false); // r3→r3
     expect(reconnectEdge(f, "e6", { from: "r2" }).ok).toBe(false); // r2→r2
     expect(reconnectEdge(f, "e6", { to: "없음" }).ok).toBe(false);
     expect(reconnectEdge(f, "e6", { from: "없음" }).ok).toBe(false);
@@ -166,7 +166,7 @@ describe("FlowCanvas 선 끝 손잡이", () => {
 
   it("접힌 분기가 이어 받은 선에는 없다", async () => {
     await draw(props({ selectedEdgeId: "e6", collapsed: new Set(["if1"]) }));
-    expect(anchors()).toHaveLength(0); // e6 은 m1→r2 였다가 if1→r2 로 이어 받은 선이다
+    expect(anchors()).toHaveLength(0); // e6 은 꼬리 선이라 접으면 대표 선 fold:if1 로 바뀌어 그리지 않는다(implicit-join §8.4)
     await draw(props({ selectedEdgeId: "e3", collapsed: new Set(["if1"]) }));
     expect(anchors()).toHaveLength(2);
   });

@@ -27,7 +27,7 @@ function must(r: EditResult): EditFlow {
 const io = (ruleId: string, extra: Partial<RuleIo> = {}): RuleIo => ({
   ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST", conds: [], results: [], ...extra,
 });
-/** start → r1 → r2 → if1{e4 갈래 1 / e5 그 외} → m1 → end, 메모 n1, 그룹 g1(r1). 선 e1 start→r1, e2 r1→r2, e3 r2→if1, e6 m1→end. */
+/** start → r1 → r2 → if1{e4 갈래 1 → r3(빈 단계) / e5 그 외} → end, 메모 n1, 그룹 g1(r1). 선 e1 start→r1, e2 r1→r2, e3 r2→if1, e6 r3→end(implicit-join §8.2). */
 function richFlow(): EditFlow {
   let f = toEditFlow(null, ["SP_A", "SP_B"]);
   f = must(insertSplit(f, "e3", "IF"));
@@ -88,8 +88,6 @@ describe("오른쪽 머리글·섹션(4단계 Task 8)", () => {
     expect(header()).toEqual(["룰", "SP_A 이름"]);
     await click("flow-node-if1");
     expect(header()).toEqual(["IF 분기", "조건"]);
-    await click("flow-node-m1");
-    expect(header()).toEqual(["합류", "분기 if1 합류"]);
     await clickEdge("e2");
     expect(header()).toEqual(["연결선", "r1 → r2"]);
     await click("flow-note-n1");
@@ -122,7 +120,15 @@ describe("오른쪽 머리글·섹션(4단계 Task 8)", () => {
     const name = (id: string) => panelTargetOf(f, {}, id, null, "세트").name;
     expect(name("start")).toBe("시작");
     expect(name("end")).toBe("끝");
-    expect(name("m1")).toBe("분기 if1 합류");
+    // 합류는 병렬에만 있다(implicit-join §8.2).
+    const par = must(insertSplit(toEditFlow(null, ["SP_A"]), "e2", "PARALLEL"));
+    expect(panelTargetOf(par, {}, "m1", null, "세트").name).toBe("분기 par1 합류");
+  });
+
+  it("머리글 — 병렬 합류를 고르면 「합류」 와 분기 이름이다", async () => {
+    await openSet("SP_M", viewOf("SP_M", must(insertSplit(toEditFlow(null, ["SP_A"]), "e2", "PARALLEL"))));
+    await click("flow-node-m1");
+    expect(header()).toEqual(["합류", "분기 par1 합류"]);
   });
 
   it("섹션 aria-controls — 펼친 동안만 있고 실제 본문 id 를 가리키며, 접으면 없다", async () => {

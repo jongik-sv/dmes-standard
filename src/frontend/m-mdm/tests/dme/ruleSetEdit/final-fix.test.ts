@@ -38,8 +38,9 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
+/** r1 → if1 [갈래 1 → r3(빈 단계) → r2][그 외 → r2] → r2 → end — IF 블록 멤버는 if1·r3(implicit-join §8.2, 모이는 자리 r2 는 블록 밖). */
 function baseFlow(): EditFlow {
-  const r = insertSplit(toEditFlow(null, ["R_A"]), "e2", "IF");
+  const r = insertSplit(toEditFlow(null, ["R_A", "R_Z"]), "e2", "IF");
   if (!r.ok) throw new Error(r.reason);
   return r.flow;
 }

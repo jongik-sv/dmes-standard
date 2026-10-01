@@ -22,7 +22,7 @@ function ok(r: EditResult): EditFlow {
   if (!r.ok) throw new Error(r.reason);
   return r.flow;
 }
-/** start → r1 → if1{e4 조건 / e5 그 외} → m1 → r2 → end. 선: e1 e2 e4 e5 e6 e3. */
+/** start → r1 → if1{e4 조건 → r3(빈 단계) / e5 그 외} → r2(모이는 자리) → end. 선: e1 e2 e4 e5 e6(r3→r2) e3(implicit-join §8.2). */
 function ifFlow(): EditFlow {
   const f = ok(insertSplit(toEditFlow(null, ["R_A", "R_B"]), "e2", "IF"));
   return ok(updateEdge(f, f.edges.find((e) => e.from === "if1" && !e.otherwise)!.id, { cond: "true" }));
@@ -366,9 +366,17 @@ describe("FlowCanvas 선 경로", () => {
   });
 
   it("접힌 분기가 이어 받은 선은 원래 경로를 그리지 않고 손잡이도 없다", async () => {
-    const flow = ok(setRoute(ifFlow(), "e6", [P(500, 300)])); // m1→r2: 접으면 if1→r2
-    await draw(props({ flow, selectedEdgeId: "e6", collapsed: new Set(["if1"]) }));
+    const par = ok(insertSplit(toEditFlow(null, ["R_A", "R_B"]), "e2", "PARALLEL")); // r1 → par1 [e4·e5] → m1 → e6 → r2
+    const flow = ok(setRoute(par, "e6", [P(500, 300)])); // m1→r2: 접으면 par1→r2
+    await draw(props({ flow, selectedEdgeId: "e6", collapsed: new Set(["par1"]) }));
     expect(pathOf("e6")).not.toContain("500");
     expect(handles("e6")).toHaveLength(0);
+  });
+
+  it("접힌 새 형식 IF 는 꼬리 선(e6)을 그리지 않고 대표 선 fold:if1 을 경로 없이 그린다(implicit-join §8.4)", async () => {
+    const flow = ok(setRoute(ifFlow(), "e6", [P(500, 300)])); // r3→r2 꼬리
+    await draw(props({ flow, collapsed: new Set(["if1"]) }));
+    expect(q("rf__edge-e6")).toBeNull();
+    expect(pathOf("fold:if1")).not.toContain("500");
   });
 });

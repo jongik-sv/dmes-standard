@@ -17,12 +17,12 @@ function ok(r: EditResult): EditFlow {
 const base = () => toEditFlow(null, ["NS_A", "NS_B"]);
 const styled = (f: EditFlow, id: string, s: Parameters<typeof setNodeStyle>[2]) => ok(setNodeStyle(f, id, s));
 /**
- * start → r1 → if1{ e4: r3(룰 NS_C) / e5 그 외: r4(빈 단계) } → m1 → r2 → end. r1·r3·r4 에 외관.
- * 노드 배열은 끼운 순서라 [start, r1, if1, r4, r3, m1, r2, end] 다(새 노드는 선의 출발 노드 바로 뒤) — 외관 키 순서도 r1·r4·r3.
+ * start → r1 → if1{ e4: r3(룰 NS_C) / e5 그 외: r4(빈 단계) } → r2(모이는 자리) → end. r1·r3·r4 에 외관.
+ * IF 를 끼우면 「갈래 1」 에 빈 단계 r3 이 생기고(implicit-join §8.2) 그 외 갈래에 빈 단계 r4 를 끼운다.
+ * 노드 배열은 끼운 순서라 [start, r1, if1, r4, r3, r2, end] 다(새 노드는 선의 출발 노드 바로 뒤) — 외관 키 순서도 r1·r4·r3.
  */
 function branched(): EditFlow {
   let f = ok(insertSplit(base(), "e2", "IF"));
-  f = ok(insertTask(f, "e4"));
   f = ok(insertTask(f, "e5"));
   f = ok(assignRule(f, "r3", "NS_C"));
   expect([f.edges.find((e) => e.id === "e4")!.to, f.edges.find((e) => e.id === "e5")!.to]).toEqual(["r3", "r4"]);

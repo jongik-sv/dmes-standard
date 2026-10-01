@@ -9,12 +9,15 @@
  * 4단계(계획 Task 9): 빈 단계(TASK) 끼우기·룰 지정, 빈 단계는 지우기·옮기기·복사에서 룰과 같다.
  * 외관(S1): `view.styles` 의 노드 외관은 `stylesFor` 로 toEditFlow·clone·done·dropNodes 에서 정리하고, `setNodeStyle` 이 바꾼다(파일 끝).
  * 설명: `view.descs` 의 노드 설명도 같은 자리에서 `descsFor` 로 정리하고, `updateNodeDesc` 가 바꾼다(`node-desc.ts`).
- * 받는 노드(받는 노드 spec §8): CATCH 노드만 attachTo·catches 를 label 뒤에 갖는다. 만들기 addCatch·종류 setCatchKinds(파일 끝), 룰을 지우면 붙은 받는 노드도 지우고
- * 돌아오는 합류는 걷어 낸다. 위치는 저장하지 않는다(setPositions). 받는 노드는 옮기기·복사·그룹 대상이 아니고, 처리 갈래가 돌아오는 룰은 옮기지 않는다.
+ * 받는 노드(받는 노드 spec §8): CATCH 노드만 attachTo·catches 를 label 뒤에 갖는다. 만들기 addCatch·종류 setCatchKinds(파일 끝), 룰을 지우면 붙은 받는 노드도
+ * 지운다. 위치는 저장하지 않는다(setPositions). 받는 노드는 옮기기·복사·그룹 대상이 아니고, 처리 갈래가 돌아오는 룰은 옮기지 않는다.
+ * 합류 없애기(implicit-join spec §8, D-136): IF 와 처리 갈래는 합류 없이 모이는 자리·돌아오는 자리로 바로 간다. MERGE 는 병렬 합류에만 쓴다.
+ * `toEditFlow` 는 옛 형식(IF 합류·돌아오는 합류)을 `upgradeLegacyMerges` 로 바꿔 연다. IF 블록의 출구는 선 하나가 아니라 꼬리 선 목록(`tailsOf`)이고,
+ * 끝내는 갈래 몸(END 로 가는 갈래)도 블록에 든다. 연산 결과에 짝 합류 없는 IF 의 같은 from→to 선이 둘 생기면 거부한다(`IF_EMPTY_TWICE`, B2).
  */
 import type { CatchKind, FlowEdge, FlowNode, FlowNodeKind, RuleSetFlow } from "@/contract/engine-contract.generated";
 
-import { CATCHABLE, CATCH_KINDS, catchesOf, linearFlow } from "./flow-model";
+import { CATCHABLE, CATCH_KINDS, catchesOf, endingBranches, handlerTarget, joinOf, linearFlow, returnOf } from "./flow-model";
 import { descsFor, normalizeDesc, trimDesc } from "./node-desc";
 import { mergeNodeStyle, normalizeNodeStyle, stylesFor, type NodeColor, type NodeStyle, type NodeStylePatch } from "./node-style";
 
@@ -101,7 +104,21 @@ const OTHERWISE_LABEL = "그 외";
 const SPLIT_LABEL: Record<"IF" | "PARALLEL", string> = { IF: "조건", PARALLEL: "병렬" };
 const SPLIT_PREFIX: Record<"IF" | "PARALLEL", string> = { IF: "if", PARALLEL: "par" };
 /** 룰 노드를 떼어 낼 수 없을 때(지우기·옮기기 같은 문구). */
-const RULE_EDGES_NOT_ONE = "룰 노드의 선이 하나씩이 아니라 지울 수 없다. 선을 먼저 정리한다";
+const RULE_EDGES_NOT_ONE = "룰 노드의 나가는 선이 하나가 아니라 지울 수 없다. 선을 먼저 정리한다";
+/** 짝 합류 없는 IF 의 같은 도착 갈래 선 둘(B2, R10). */
+export const IF_EMPTY_TWICE = (s: string) => `IF ${s}에 같은 노드로 가는 갈래가 이미 있다. 빈 갈래는 하나만 둔다`;
+const NO_JOIN_BRANCH = (s: string) => `분기 ${s}의 갈래가 모이는 자리를 찾지 못했다`;
+const NO_JOIN_REMOVE = (s: string) => `분기 ${s}의 갈래가 모이는 자리를 찾지 못해 지울 수 없다`;
+const NO_JOIN_MOVE = (s: string) => `분기 ${s}의 갈래가 모이는 자리를 찾지 못해 옮길 수 없다`;
+const NO_JOIN_DISSOLVE = (s: string) => `분기 ${s}의 갈래가 모이는 자리를 찾지 못해 풀 수 없다`;
+export const KEEP_ENDING = "끝내는 갈래만 남기면 뒤 흐름에 닿을 수 없다";
+export const ENDING_TO_PARALLEL = "끝내는 갈래가 있는 IF 는 병렬로 바꿀 수 없다. 병렬 갈래는 모두 합류로 모여야 한다";
+export const MERGE_ONLY_BY_SPLIT = "합류 노드는 분기를 지워서 없앤다";
+/** 옛 돌아오는 합류(받는 노드 없음)를 걷어 낼 수 없을 때(수정 1회차). */
+export const MERGE_EXIT_NOT_ONE = "합류의 나가는 선이 하나가 아니라 지울 수 없다. 선을 먼저 정리한다";
+/** 열 때 옛 합류를 바꿨다는 알림(R14). */
+export const UPGRADE_NOTICE = (n: number) => `옛 합류 노드 ${n}개를 없앤 형식으로 바꿔 열었다. 저장하면 새 형식으로 남는다.`;
+const NO_IDS: ReadonlySet<string> = new Set<string>();
 
 // ───────────────────────── 모양 도우미 ─────────────────────────
 
@@ -315,17 +332,20 @@ function mergeOf(f: EditFlow, splitId: string): FlowNode | null {
 }
 
 /**
- * from 들에서 나가는 선을 따라 stop(짝 합류) 직전까지 닿는 노드 ID. 모은 집합이 닫힌 블록이 아니면 null.
+ * from 들에서 나가는 선을 따라 stop(모이는 자리·짝 합류) 직전까지 닿는 노드 ID. 모은 집합이 닫힌 블록이 아니면 null.
  * - 나가는 쪽: START·END·없는 노드·분기 자신에 닿으면 null(뒤 선으로 앞쪽이나 분기로 돌아가는 순환 포함).
  * - 들어오는 쪽: 모은 노드마다 들어오는 선이 입구 선(entry)이거나 모은 집합 안에서 와야 한다. 블록 밖에서 들어오는 선이
  *   있으면 null — 그 노드를 지우면 블록 밖 흐름까지 끊기기 때문이다.
  * - 받는 노드: 모은 룰에 붙은 받는 노드와 그 처리 갈래도 모은다. 처리 갈래가 END 에 닿으면 그 경로만 멈춘다(블록은 닫힌 것으로 본다).
  *   받는 노드는 들어오는 선이 없어 들어오는 쪽 검사를 그대로 지난다.
+ * - ending: 끝내는 IF 갈래의 첫 노드 — 처리 갈래처럼 END 에 닿으면 그 경로만 멈춘다(implicit-join spec §8.1).
  */
-function reach(f: EditFlow, from: readonly string[], stop: string, splitId: string, entry: (e: FlowEdge) => boolean): Set<string> | null {
+function reach(
+  f: EditFlow, from: readonly string[], stop: string, splitId: string, entry: (e: FlowEdge) => boolean, ending: ReadonlySet<string> = NO_IDS,
+): Set<string> | null {
   const seen = new Set<string>();
-  /** handler = 받는 노드에서 시작한 처리 갈래 경로 — END 에 닿으면 그 경로만 멈춘다. */
-  const queue: { id: string; handler: boolean }[] = from.map((id) => ({ id, handler: false }));
+  /** handler = 받는 노드에서 시작한 처리 갈래·끝내는 IF 갈래 경로 — END 에 닿으면 그 경로만 멈춘다. */
+  const queue: { id: string; handler: boolean }[] = from.map((id) => ({ id, handler: ending.has(id) }));
   while (queue.length > 0) {
     const { id, handler } = queue.shift()!;
     if (id === stop || seen.has(id)) continue;
@@ -347,7 +367,7 @@ function reach(f: EditFlow, from: readonly string[], stop: string, splitId: stri
 }
 
 /**
- * 룰에 붙은 받는 노드와 그 처리 갈래 노드 — 받는 노드에서 나가는 선을 따라 stop(돌아오는 합류) 직전까지. START·END 에서 멈추고,
+ * 룰에 붙은 받는 노드와 그 처리 갈래 노드 — 받는 노드에서 나가는 선을 따라 stop(돌아오는 자리 `returnOf`) 직전까지. START·END 에서 멈추고,
  * 처리 갈래 안 룰에 붙은 받는 노드도 따라간다.
  */
 function handlerNodes(f: EditFlow, ruleNodeId: string, stop: string | null): Set<string> {
@@ -365,24 +385,111 @@ function handlerNodes(f: EditFlow, ruleNodeId: string, stop: string | null): Set
   return seen;
 }
 
-/** 분기 안(합류 제외) 노드 집합 — 분기의 나가는 선들에서 합류 직전까지. 합류로 들어오는 선도 분기·안쪽에서만 와야 한다. */
-function blockNodes(f: EditFlow, splitId: string, mergeId: string): Set<string> | null {
+const endIdOf = (f: EditFlow): string | null => f.nodes.find((n) => n.kind === "END")?.id ?? null;
+
+/**
+ * 분기 안 노드 집합(모이는 자리·짝 합류 제외) — 분기의 나가는 선들에서 joinId 직전까지. 새 형식 IF 의 끝내는 갈래는 END 에서 그 경로만 멈춘다.
+ * 병렬·옛 IF 는 합류로 들어오는 선도 분기·안쪽에서만 와야 한다. 새 IF 의 모이는 자리는 블록 밖에서도 선을 받는다(implicit-join spec §8.1).
+ */
+function blockNodes(f: EditFlow, splitId: string, joinId: string): Set<string> | null {
+  const s = findNode(f, splitId);
+  if (!s) return null;
   const fromSplit = (e: FlowEdge) => e.from === splitId;
-  const inner = reach(
-    f,
-    outOf(f, splitId).map((e) => e.to),
-    mergeId,
-    splitId,
-    fromSplit,
-  );
+  const outs = outOf(f, splitId);
+  const endingIds = new Set(s.kind === "IF" ? (endingBranches(f, splitId) ?? []) : []);
+  const endingStarts = new Set(outs.filter((e) => endingIds.has(e.id)).map((e) => e.to));
+  const inner = reach(f, outs.map((e) => e.to), joinId, splitId, fromSplit, endingStarts);
   if (!inner) return null;
-  return inOf(f, mergeId).every((e) => fromSplit(e) || inner.has(e.from)) ? inner : null;
+  const merged = s.kind === "PARALLEL" || mergeOf(f, splitId) !== null;
+  return !merged || inOf(f, joinId).every((e) => fromSplit(e) || inner.has(e.from)) ? inner : null;
 }
 
-/** 갈래 선 하나의 안쪽 노드 집합(e.to 에서 합류 전까지). 안쪽 노드로는 그 갈래 선과 안쪽 선만 들어와야 한다. */
-function branchNodes(f: EditFlow, splitId: string, edgeId: string, mergeId: string): Set<string> | null {
+/** 갈래 선 하나의 안쪽 노드 집합(e.to 에서 모이는 자리 전까지, 끝내는 갈래는 END 전까지). 안쪽 노드로는 그 갈래 선과 안쪽 선만 들어와야 한다. */
+function branchNodes(f: EditFlow, splitId: string, edgeId: string): Set<string> | null {
   const e = findEdge(f, edgeId);
-  return e ? reach(f, [e.to], mergeId, splitId, (x) => x.id === edgeId) : null;
+  const join = joinOf(f, splitId);
+  if (!e || join == null) return null;
+  const ending = (endingBranches(f, splitId) ?? []).includes(edgeId);
+  return reach(f, [e.to], join, splitId, (x) => x.id === edgeId, ending ? new Set([e.to]) : NO_IDS);
+}
+
+/** id 가 어떤 받는 노드 블록의 돌아오는 자리인가. */
+const isReturnPlace = (f: EditFlow, id: string): boolean =>
+  f.nodes.some((n) => CATCHABLE.has(n.kind) && catchesOf(f, n.id).length > 0 && returnOf(f, n.id) === id);
+
+/** 선들의 도착을 to 로 바꾼다(선 ID·칸·이름표 그대로). */
+const retarget = (edges: readonly FlowEdge[], to: string) => {
+  for (const e of edges) e.to = to;
+};
+
+/** 짝 MERGE 없는 IF 의 같은 from→to 선이 둘 이상이면 그 IF ID(B2, R10). */
+function emptyTwice(f: EditFlow): string | null {
+  for (const s of f.nodes) {
+    if (s.kind !== "IF" || f.nodes.some((m) => m.kind === "MERGE" && m.splitId === s.id)) continue;
+    const seen = new Set<string>();
+    for (const e of outOf(f, s.id)) {
+      if (seen.has(e.to)) return s.id;
+      seen.add(e.to);
+    }
+  }
+  return null;
+}
+
+/** 결과 흐름을 B2 로 확인한 뒤 done. */
+const checked = (g: EditFlow): EditResult => {
+  const s = emptyTwice(g);
+  return s ? fail(IF_EMPTY_TWICE(s)) : done(g);
+};
+
+/** 꺾는 점을 지운다(끝점이 바뀐 선). */
+function dropRoutes(g: EditFlow, edges: readonly FlowEdge[]): void {
+  const routes = { ...g.view.routes };
+  for (const e of edges) delete routes[e.id];
+  g.view.routes = routes;
+}
+
+/** 합류 m 으로 들어오는 선을 모두 m 의 출구 도착으로 옮기고(선 ID·칸·이름표 유지, 꺾는 점 지움) m 과 출구 선을 지운다(§8.1). 출구가 하나가 아니면 null. g 는 복사본이다. */
+function dissolveMerge(g: EditFlow, mId: string): EditFlow | null {
+  const exits = outOf(g, mId);
+  if (exits.length !== 1 || exits[0].to === mId) return null;
+  const ins = inOf(g, mId);
+  retarget(ins, exits[0].to);
+  dropRoutes(g, ins);
+  return dropNodes(g, new Set([mId]));
+}
+
+/** 합류 m 을 같은 ID 의 빈 단계로 바꾼다(splitId null, 제목 TASK_LABEL, 위치 지움 — END 앞 합류, J-D10). 선은 그대로다. g 는 복사본이다. */
+function mergeToTask(g: EditFlow, mId: string): void {
+  const m = findNode(g, mId)!;
+  m.kind = "TASK";
+  m.splitId = null;
+  m.label = TASK_LABEL;
+  const positions = { ...g.view.positions };
+  delete positions[mId];
+  g.view.positions = positions;
+}
+
+/** 짝 합류 없는 IF s 의 같은 도착 갈래 선이 둘 이상이면 실행 순서 마지막 선만 남기고 나머지마다 빈 단계를 끼운다(B2, R8). g 는 복사본이다. 끼운 수. */
+function fillEmptyBranches(g: EditFlow, s: string, taken: Set<string>): number {
+  const byTo = new Map<string, FlowEdge[]>();
+  for (const e of outOf(g, s)) byTo.set(e.to, [...(byTo.get(e.to) ?? []), e]);
+  let added = 0;
+  for (const group of byTo.values()) {
+    if (group.length < 2) continue;
+    const ordered = branchesInOrder(group);
+    const keep = ordered[ordered.length - 1];
+    for (const e of group) {
+      if (e === keep) continue;
+      const t = node(fresh(taken, "r"), "TASK", null, null, TASK_LABEL);
+      insertAfter(g.nodes, g.nodes.findIndex((n) => n.id === s) + added, t);
+      const to = e.to;
+      e.to = t.id;
+      dropRoutes(g, [e]);
+      insertAfter(g.edges, g.edges.indexOf(e), edge(fresh(taken, "e"), t.id, to));
+      added++;
+    }
+  }
+  return added;
 }
 
 /** 노드들을 지우고, 닿는 선을 모두 지우고, view 흔적(배치·그룹·메모 붙임·외관)을 치운다. f 는 복사본이다. */
@@ -407,18 +514,61 @@ function insertAfter<T>(list: T[], index: number, ...items: T[]): void {
 
 // ───────────────────────── 공개 연산 ─────────────────────────
 
-/** null 이면 `linearFlow(ruleIds)` + 빈 view. raw 가 있으면 칸을 채워 복사하고 모양이 맞는 view 항목만 남긴다. */
-export function toEditFlow(raw: (RuleSetFlow & { view?: unknown }) | null, ruleIds: readonly string[]): EditFlow {
+/**
+ * 옛 형식 합류 없애기(implicit-join spec §12.2) — 순수 함수이고 같은 입력이면 같은 결과다.
+ * 대상 = splitId 가 IF 인 MERGE, splitId 가 받는 노드가 붙은 RULE·TASK 인 MERGE. 1) END 로 바로 나가는 대상은 빈 단계로 바꾼다(ID 그대로, 위치 지움, J-D10).
+ * 2) 나머지 대상은 노드 배열 순서로 dissolveMerge(나가는 선이 하나가 아니면 둔다). 3) 짝 합류 없는 IF 의 같은 도착 갈래는 빈 단계를 채운다(B2).
+ * upgraded = 1) 의 수 + 2) 에서 지운 수.
+ */
+export function upgradeLegacyMerges(f: EditFlow): { flow: EditFlow; upgraded: number } {
+  let g = clone(f);
+  const isTarget = (m: FlowNode): boolean => {
+    if (m.kind !== "MERGE" || m.splitId == null) return false;
+    const s = findNode(g, m.splitId);
+    return !!s && (s.kind === "IF" || (CATCHABLE.has(s.kind) && catchesOf(g, s.id).length > 0));
+  };
+  const targets = g.nodes.filter(isTarget).map((n) => n.id);
+  const endId = endIdOf(g);
+  let upgraded = 0;
+  const rest: string[] = [];
+  for (const id of targets) {
+    const outs = outOf(g, id);
+    if (endId !== null && outs.length === 1 && outs[0].to === endId) {
+      mergeToTask(g, id);
+      upgraded++;
+    } else rest.push(id);
+  }
+  for (const id of rest) {
+    const next = dissolveMerge(g, id);
+    if (next) {
+      g = next;
+      upgraded++;
+    }
+  }
+  const taken = takenIds(g);
+  for (const s of g.nodes.filter((n) => n.kind === "IF" && mergeOf(g, n.id) === null).map((n) => n.id)) fillEmptyBranches(g, s, taken);
+  const r = done(g);
+  return { flow: r.ok ? r.flow : g, upgraded };
+}
+
+/** null 이면 `linearFlow(ruleIds)` + 빈 view. raw 가 있으면 칸을 채워 복사하고 모양이 맞는 view 항목만 남긴 뒤 옛 합류를 바꾼다(R15). */
+export function toEditFlowCounted(raw: (RuleSetFlow & { view?: unknown }) | null, ruleIds: readonly string[]): { flow: EditFlow; upgraded: number } {
   const src = raw ?? linearFlow(ruleIds);
   const nodes = (Array.isArray(src.nodes) ? src.nodes : []).map(copyNode);
   const edges = (Array.isArray(src.edges) ? src.edges : []).map(copyEdge);
   const view: FlowView = raw ? sanitizeView(raw.view) : { positions: {}, notes: [], groups: [], routes: {}, labels: {} };
-  return {
+  const base: EditFlow = {
     version: 1,
     nodes,
     edges,
     view: withStyles({ ...view, routes: routesFor(edges, view.routes), labels: labelsFor(edges, view.labels) }, stylesFor(nodes, view.styles), descsFor(nodes, view.descs)),
   };
+  return upgradeLegacyMerges(base);
+}
+
+/** toEditFlowCounted 의 흐름 — 기준 흐름(baseJson)과 편집 흐름이 같은 변환을 거쳐 열기만 해서는 dirty 가 아니다(J-D12). */
+export function toEditFlow(raw: (RuleSetFlow & { view?: unknown }) | null, ruleIds: readonly string[]): EditFlow {
+  return toEditFlowCounted(raw, ruleIds).flow;
 }
 
 /**
@@ -479,7 +629,12 @@ export function insertTask(f: EditFlow, edgeId: string, label: string = TASK_LAB
   return done(g);
 }
 
-/** 선 e(A→B) 위에 분기 s·짝 합류 m 을 끼운다. 갈래 두 개와 합류 출구 {m→B} 를 만든다. */
+/**
+ * 선 e(A→B) 위에 분기를 끼운다. IF 는 합류 없이 갈래 `{s→t, 갈래 1}`·`{s→B, 그 외}`·선 `{t→B}`(t = 새 빈 단계)를 e 바로 뒤에, 노드는 A 뒤에 s, t.
+ * B 가 END 면 모이는 자리 빈 단계 j 를 하나 더 두어 `{s→t}`·`{s→j, 그 외}`·`{t→j}`·`{j→END}`, 노드는 A 뒤에 s, t, j 다 — 「그 외」 가 끝내는 갈래가
+ * 되지 않고 블록이 j 에서 닫혀 지우기·풀기·종류 바꾸기·갈래 더하기·옮기기·접기가 END 아닌 자리와 같게 된다(J-D10 과 같은 근거, 수정 1회차 판정).
+ * 병렬은 짝 합류 m 과 갈래 두 개·합류 출구 {m→B} 를 만든다.
+ */
 export function insertSplit(f: EditFlow, edgeId: string, kind: "IF" | "PARALLEL"): EditResult {
   const g = clone(f);
   const ei = g.edges.findIndex((e) => e.id === edgeId);
@@ -487,35 +642,38 @@ export function insertSplit(f: EditFlow, edgeId: string, kind: "IF" | "PARALLEL"
   const e = g.edges[ei];
   const taken = takenIds(g);
   const s = node(fresh(taken, SPLIT_PREFIX[kind]), kind, null, null, SPLIT_LABEL[kind]);
+  const at = g.nodes.findIndex((n) => n.id === e.from);
+  if (kind === "IF") {
+    const t = node(fresh(taken, "r"), "TASK", null, null, TASK_LABEL);
+    const toEnd = findNode(g, e.to)?.kind === "END";
+    const j = toEnd ? node(fresh(taken, "r"), "TASK", null, null, TASK_LABEL) : null;
+    const join = j ? j.id : e.to;
+    const b1 = edge(fresh(taken, "e"), s.id, t.id, { order: 1, label: IF_BRANCH_LABEL(1) });
+    const bo = edge(fresh(taken, "e"), s.id, join, { otherwise: true, label: OTHERWISE_LABEL });
+    const te = edge(fresh(taken, "e"), t.id, join);
+    const je = j ? [edge(fresh(taken, "e"), j.id, e.to)] : [];
+    insertAfter(g.nodes, at, s, t, ...(j ? [j] : []));
+    e.to = s.id;
+    insertAfter(g.edges, ei, b1, bo, te, ...je);
+    return done(g);
+  }
   const m = node(fresh(taken, "m"), "MERGE", null, s.id);
-  const branches =
-    kind === "IF"
-      ? [
-          edge(fresh(taken, "e"), s.id, m.id, { order: 1, label: IF_BRANCH_LABEL(1) }),
-          edge(fresh(taken, "e"), s.id, m.id, { otherwise: true, label: OTHERWISE_LABEL }),
-        ]
-      : [
-          edge(fresh(taken, "e"), s.id, m.id, { order: 1, label: IF_BRANCH_LABEL(1) }),
-          edge(fresh(taken, "e"), s.id, m.id, { order: 2, label: IF_BRANCH_LABEL(2) }),
-        ];
+  const branches = [
+    edge(fresh(taken, "e"), s.id, m.id, { order: 1, label: IF_BRANCH_LABEL(1) }),
+    edge(fresh(taken, "e"), s.id, m.id, { order: 2, label: IF_BRANCH_LABEL(2) }),
+  ];
   const exit = edge(fresh(taken, "e"), m.id, e.to);
-  insertAfter(
-    g.nodes,
-    g.nodes.findIndex((n) => n.id === e.from),
-    s,
-    m,
-  );
+  insertAfter(g.nodes, at, s, m);
   e.to = s.id;
   insertAfter(g.edges, ei, ...branches, exit);
   return done(g);
 }
 
 /**
- * 노드를 지운다. RULE 은 앞뒤 선을 잇고 붙은 받는 노드와 그 나가는 선도 지운다. 분기는 짝 합류까지 안쪽을 통째로 지운다.
- * 처리 갈래가 돌아오는 룰이면 돌아오는 합류(splitId = 그 룰)도 걷어 낸다(unwindReturnMerge). 들어오는 선이 없는(떨어진) 룰·빈 단계는 나가는 선과 함께 지운다.
- * 받는 노드는 자기와 나가는 선을 지우고, 그 룰로 돌아오는 처리 갈래가 더 없으면 돌아오는 합류도 걷어 낸다(걷지 못하면 합류는 남긴다).
- * 돌아오는 합류는 바로 지울 수도 있다 — 같은 방식으로 걷어 내고 받는 노드는 남긴다. 분기의 합류는 분기를 지워서 없앤다.
- * 어느 쪽이든 처리 갈래 안 노드는 남긴다(받는 노드 spec §8, 검사가 연결 끊김을 알린다).
+ * 노드를 지운다(§8.2). RULE·TASK: 들어오는 선이 없으면 나가는 선과 함께, 있으면 모두 나가는 선 도착으로 옮기고(선 ID 유지) 노드·붙은 받는 노드·그 나가는 선을 지운다
+ * (처리 갈래 안 노드는 남긴다). 돌아오는 자리이고 다음이 END 면 거부(RETURN_JOIN_END). IF 는 들어오는 선을 모이는 자리로 옮기고 블록(끝내는 갈래 몸 포함)을 지운다.
+ * 병렬은 짝 합류까지 지우고 들어오는 선을 합류 출구 도착으로(R9). 합류는 분기로 지운다 — 단 받는 노드가 없는데 룰·빈 단계를 가리키는 옛 돌아오는 합류는
+ * 들어오는 선을 출구 도착으로 옮겨 걷어 낸다(수정 1회차, 출구가 하나일 때). 받는 노드는 자기와 나가는 선만. 결과에 빈 갈래가 둘이면 거부(B2).
  */
 export function removeNode(f: EditFlow, nodeId: string): EditResult {
   const g = clone(f);
@@ -524,74 +682,49 @@ export function removeNode(f: EditFlow, nodeId: string): EditResult {
   if (n.kind === "START") return fail("시작 노드는 지울 수 없다");
   if (n.kind === "END") return fail("끝 노드는 지울 수 없다");
   if (n.kind === "MERGE") {
-    const rule = n.splitId == null ? undefined : findNode(g, n.splitId);
-    if (!rule || !CATCHABLE.has(rule.kind)) return fail("합류 노드는 분기를 지워서 없앤다");
-    const why = unwindReturnMerge(g, n, handlerNodes(g, rule.id, n.id));
-    return why ? fail(why) : done(dropNodes(g, new Set([nodeId])));
+    const host = n.splitId == null ? undefined : findNode(g, n.splitId);
+    if (!host || !CATCHABLE.has(host.kind)) return fail(MERGE_ONLY_BY_SPLIT);
+    const next = dissolveMerge(g, nodeId);
+    return next ? checked(next) : fail(MERGE_EXIT_NOT_ONE);
   }
-  if (n.kind === "CATCH") return done(removeCatch(g, n));
+  if (n.kind === "CATCH") return done(dropNodes(g, new Set([nodeId])));
+  const endId = endIdOf(g);
   const ins = inOf(g, nodeId);
   if (isStep(n.kind)) {
     const outs = outOf(g, nodeId);
-    // 붙은 받는 노드와 그 나가는 선도 지운다 — 처리 갈래 안 노드는 남긴다(스펙 §8, 검사가 연결 끊김을 알린다).
     const drop = new Set([nodeId, ...catchesOf(g, nodeId).map((c) => c.id)]);
-    const m = mergeOf(g, nodeId);
-    if (ins.length === 0) {
-      if (m) drop.add(m.id); // 떨어진 룰의 돌아오는 합류는 이을 앞쪽이 없다
-      return done(dropNodes(g, drop));
-    }
-    if (ins.length !== 1 || outs.length !== 1) return fail(RULE_EDGES_NOT_ONE);
-    const handler = m ? handlerNodes(g, nodeId, m.id) : null; // 선을 고치기 전에 모은다
-    ins[0].to = outs[0].to;
+    if (ins.length === 0) return done(dropNodes(g, drop));
+    if (outs.length !== 1) return fail(RULE_EDGES_NOT_ONE);
+    if (outs[0].to === endId && isReturnPlace(g, nodeId)) return fail(RETURN_JOIN_END);
+    retarget(ins, outs[0].to);
     g.edges = g.edges.filter((e) => e !== outs[0]);
-    if (m && handler) {
-      if (unwindReturnMerge(g, m, handler)) return fail(RETURN_MERGE_NOT_ONE);
-      drop.add(m.id); // 합류 출구·처리 갈래에서 들어오는 선은 dropNodes 가 함께 지운다
-    }
-    return done(dropNodes(g, drop));
+    return checked(dropNodes(g, drop));
+  }
+  if (n.kind === "IF" && mergeOf(g, nodeId) === null) {
+    const join = joinOf(g, nodeId);
+    const members = blockMembers(g, nodeId);
+    if (join == null || !members) return fail(NO_JOIN_REMOVE(nodeId));
+    if (join === endId && isReturnPlace(g, nodeId)) return fail(RETURN_JOIN_END);
+    retarget(ins, join);
+    return checked(dropNodes(g, new Set(members)));
   }
   const cannot = `분기 ${nodeId}의 짝 합류를 찾지 못해 지울 수 없다`;
   const m = mergeOf(g, nodeId);
-  if (!m) return fail(cannot);
-  const exits = outOf(g, m.id);
-  if (ins.length !== 1 || exits.length !== 1) return fail(cannot);
-  const inner = blockNodes(g, nodeId, m.id);
-  if (!inner) return fail(cannot);
-  ins[0].to = exits[0].to;
-  return done(dropNodes(g, new Set([nodeId, ...inner, m.id])));
+  const exits = m ? outOf(g, m.id) : [];
+  const inner = m ? blockNodes(g, nodeId, m.id) : null;
+  if (!m || exits.length !== 1 || !inner) return fail(cannot);
+  if (exits[0].to === endId && isReturnPlace(g, nodeId)) return fail(RETURN_JOIN_END);
+  retarget(ins, exits[0].to);
+  return checked(dropNodes(g, new Set([nodeId, ...inner, m.id])));
 }
 
-/**
- * 돌아오는 합류 m 을 걷어 낼 수 있게 선을 고친다 — 정상 쪽(handler 밖)에서 합류로 들어오는 선을 합류 출구 도착으로 잇는다.
- * 합류와 처리 갈래에서 들어오던 선·합류 출구는 부르는 쪽이 dropNodes 로 지운다. 정상 쪽 선·출구가 하나씩이 아니면 고치지 않고 사유를 돌려준다.
- */
-function unwindReturnMerge(g: EditFlow, m: FlowNode, handler: ReadonlySet<string>): string | null {
-  const normalIn = inOf(g, m.id).filter((e) => !handler.has(e.from));
-  const exits = outOf(g, m.id);
-  if (normalIn.length !== 1 || exits.length !== 1) return RETURN_MERGE_STUCK;
-  normalIn[0].to = exits[0].to;
-  return null;
-}
-
-/** 받는 노드 c 를 지운다. 그 룰로 돌아오는 처리 갈래가 더 없으면 돌아오는 합류도 걷어 낸다 — 걷지 못하는 모양이면 합류는 남긴다(검사가 알린다). */
-function removeCatch(g: EditFlow, c: FlowNode): EditFlow {
-  const rule = c.attachTo;
-  const m = rule == null ? null : mergeOf(g, rule);
-  if (rule == null || !m) return dropNodes(g, new Set([c.id]));
-  const handler = handlerNodes(g, rule, m.id); // 지우기 전에 모아야 지운 받는 노드의 처리 갈래도 정상 쪽에서 뺀다
-  const h = dropNodes(g, new Set([c.id]));
-  const left = handlerNodes(h, rule, m.id);
-  if (inOf(h, m.id).some((e) => left.has(e.from))) return h;
-  return unwindReturnMerge(h, m, handler) ? h : dropNodes(h, new Set([m.id]));
-}
-
-/** 분기 s 와 그 갈래 선 e 를 확인한다. */
-function splitAndMerge(g: EditFlow, splitId: string): { split: FlowNode; merge: FlowNode } | string {
+/** 분기와 그 모이는 자리(병렬은 짝 합류). */
+function splitAndJoin(g: EditFlow, splitId: string): { split: FlowNode; join: string } | string {
   const split = findNode(g, splitId);
   if (!split || !isSplitKind(split.kind)) return `노드 ${splitId}는 분기가 아니다`;
-  const merge = mergeOf(g, splitId);
-  if (!merge) return `분기 ${splitId}의 짝 합류를 찾지 못했다`;
-  return { split, merge };
+  const join = joinOf(g, splitId);
+  if (join == null) return split.kind === "IF" ? NO_JOIN_BRANCH(splitId) : `분기 ${splitId}의 짝 합류를 찾지 못했다`;
+  return { split, join };
 }
 
 function branchEdge(g: EditFlow, splitId: string, edgeId: string): FlowEdge | string {
@@ -604,31 +737,40 @@ function branchEdge(g: EditFlow, splitId: string, edgeId: string): FlowEdge | st
 const maxOrder = (branches: readonly FlowEdge[]) =>
   branches.filter((e) => !e.otherwise && e.order != null).reduce((m, e) => Math.max(m, e.order as number), 0);
 
-/** 빈 갈래를 더한다. IF 는 "그 외" 앞, PARALLEL 은 끝 갈래 뒤. order = 최대 order + 1. */
+/** 갈래를 더한다. IF 는 새 빈 단계 t 와 `s→t`(order = 최대 + 1)·`t→모이는 자리` 를 "그 외" 앞에(t 는 분기 바로 뒤, R8), 병렬은 빈 갈래 `s→합류` 를 끝 갈래 뒤에. */
 export function addBranch(f: EditFlow, splitId: string): EditResult {
   const g = clone(f);
-  const sm = splitAndMerge(g, splitId);
-  if (typeof sm === "string") return fail(sm);
+  const sj = splitAndJoin(g, splitId);
+  if (typeof sj === "string") return fail(sj);
   const outs = outOf(g, splitId);
   const order = maxOrder(outs) + 1;
-  const b = edge(fresh(takenIds(g), "e"), splitId, sm.merge.id, { order, label: IF_BRANCH_LABEL(order) });
-  const other = sm.split.kind === "IF" ? outs.find((e) => e.otherwise) : undefined;
-  if (other) g.edges.splice(g.edges.indexOf(other), 0, b);
-  else insertAfter(g.edges, outs.length > 0 ? g.edges.indexOf(outs[outs.length - 1]) : -1, b);
+  const taken = takenIds(g);
+  const after = outs.length > 0 ? g.edges.indexOf(outs[outs.length - 1]) : -1;
+  if (sj.split.kind === "IF") {
+    const t = node(fresh(taken, "r"), "TASK", null, null, TASK_LABEL);
+    const b = edge(fresh(taken, "e"), splitId, t.id, { order, label: IF_BRANCH_LABEL(order) });
+    const te = edge(fresh(taken, "e"), t.id, sj.join);
+    insertAfter(g.nodes, g.nodes.findIndex((n) => n.id === splitId), t);
+    const other = outs.find((e) => e.otherwise);
+    if (other) g.edges.splice(g.edges.indexOf(other), 0, b, te);
+    else insertAfter(g.edges, after, b, te);
+    return done(g);
+  }
+  insertAfter(g.edges, after, edge(fresh(taken, "e"), splitId, sj.join, { order, label: IF_BRANCH_LABEL(order) }));
   return done(g);
 }
 
-/** 갈래 선 e 와 그 안 노드·선을 지운다. "그 외" 는 지우지 않고, 갈래는 2개 이상 남긴다. */
+/** 갈래 선 e 와 그 안 노드·선을 지운다(이어지는 갈래는 모이는 자리까지, 끝내는 갈래는 END 까지). "그 외" 는 지우지 않고, 갈래는 2개 이상 남긴다. */
 export function removeBranch(f: EditFlow, splitId: string, edgeId: string): EditResult {
   const g = clone(f);
-  const sm = splitAndMerge(g, splitId);
-  if (typeof sm === "string") return fail(sm);
+  const sj = splitAndJoin(g, splitId);
+  if (typeof sj === "string") return fail(sj);
   const e = branchEdge(g, splitId, edgeId);
   if (typeof e === "string") return fail(e);
   if (e.otherwise) return fail('"그 외" 갈래는 지울 수 없다');
   if (outOf(g, splitId).length - 1 < 2) return fail("분기에는 갈래가 2개 이상 있어야 한다");
-  const inner = branchNodes(g, splitId, edgeId, sm.merge.id);
-  if (!inner) return fail(`분기 ${splitId}의 짝 합류를 찾지 못해 지울 수 없다`);
+  const inner = branchNodes(g, splitId, edgeId);
+  if (!inner) return fail(sj.split.kind === "IF" ? NO_JOIN_REMOVE(splitId) : `분기 ${splitId}의 짝 합류를 찾지 못해 지울 수 없다`);
   g.edges = g.edges.filter((x) => x !== e);
   return done(dropNodes(g, inner));
 }
@@ -636,8 +778,8 @@ export function removeBranch(f: EditFlow, splitId: string, edgeId: string): Edit
 /** "그 외" 가 아닌 갈래를 order 로 줄 세워 이웃과 order 값을 바꾼다. */
 export function moveBranch(f: EditFlow, splitId: string, edgeId: string, dir: -1 | 1): EditResult {
   const g = clone(f);
-  const sm = splitAndMerge(g, splitId);
-  if (typeof sm === "string") return fail(sm);
+  const sj = splitAndJoin(g, splitId);
+  if (typeof sj === "string") return fail(sj);
   const e = branchEdge(g, splitId, edgeId);
   if (typeof e === "string") return fail(e);
   const sorted = outOf(g, splitId)
@@ -671,11 +813,9 @@ export function updateNodeLabel(f: EditFlow, nodeId: string, label: string | nul
 
 /**
  * 새 선 {from→to} 을 끝에 더한다. 같은 from·to 선, 받는 노드로 들어가는 선, 이미 나가는 선이 있는 받는 노드에서 나가는 선은 거부한다.
- * 처리 갈래(받는 노드·맨 바깥 순차 노드)에서 그 룰의 정상 다음 노드로 이으면 돌아오는 합류로 잇는다(돌아오기, returnRuleFor).
+ * 받는 노드·처리 갈래 노드에서 정상 경로 노드로 이으면 그 선이 곧 돌아오는 선이다(implicit-join spec §8.2).
  */
 export function connect(f: EditFlow, from: string, to: string): EditResult {
-  const back = returnRuleFor(f, from, to, null);
-  if (back) return connectReturn(f, from, back);
   const g = clone(f);
   if (g.edges.some((e) => e.from === from && e.to === to)) return fail("이미 이어진 선이다");
   const source = findNode(g, from);
@@ -692,22 +832,20 @@ export function connect(f: EditFlow, from: string, to: string): EditResult {
  * 선 하나의 한쪽(또는 양쪽) 끝을 다른 노드로 옮겨 붙인다(다시 잇기, R1). 선 ID·조건식·이름·순서·"그 외" 표시는 그대로이고
  * 그 선의 꺾는 점은 버린다(양 끝이 바뀌면 옛 경로가 맞지 않는다). 이름표 오프셋(L1)은 기본 자리 기준이라 남긴다. 자기 자신으로 잇기·없는 노드·다른 선과 같은 from→to·바뀌는 끝이 없음은 거부한다.
  * 구조가 틀어지는 경우(합류 건너뛰기 등)는 막지 않고 구조 검사가 표시한다. 받는 노드로 들어가게 옮기기와, 이미 다른 나가는 선이 있는
- * 받는 노드에서 나가게 옮기기는 거부한다(처리 갈래 첫 선의 도착 끝 옮기기는 된다). 처리 갈래에서 그 룰의 정상 다음 노드로 옮기면 돌아오는 합류로 간다(connect 와 같다).
+ * 받는 노드에서 나가게 옮기기는 거부한다(처리 갈래 첫 선의 도착 끝 옮기기는 된다).
  */
 export function reconnectEdge(f: EditFlow, edgeId: string, end: { from?: string; to?: string }): EditResult {
   const g = clone(f);
   const e = findEdge(g, edgeId);
   if (!e) return fail(`선 ${edgeId}를 찾지 못했다`);
   const from = end.from ?? e.from;
-  let to = end.to ?? e.to;
+  const to = end.to ?? e.to;
   if (from === e.from && to === e.to) return fail("옮길 끝이 없다");
   if (!findNode(g, from)) return fail(`노드 ${from}를 찾지 못했다`);
   if (!findNode(g, to)) return fail(`노드 ${to}를 찾지 못했다`);
   if (from === to) return fail("노드를 자기 자신에게 이을 수 없다");
   if (findNode(g, to)!.kind === "CATCH") return fail(CATCH_NO_IN);
   if (from !== e.from && findNode(g, from)!.kind === "CATCH" && g.edges.some((x) => x.id !== edgeId && x.from === from)) return fail(CATCH_ONE_OUT);
-  const back = returnRuleFor(g, from, to, edgeId);
-  if (back) to = ensureReturnMerge(g, back, takenIds(g)).id;
   if (g.edges.some((x) => x.id !== edgeId && x.from === from && x.to === to)) return fail("이미 이어진 선이다");
   e.from = from;
   e.to = to;
@@ -889,12 +1027,17 @@ export function setGroupPad(f: EditFlow, id: string, pad: GroupPad | null): Edit
 
 // ───────────────────────── 3단계 편집 연산(계획 P6) ─────────────────────────
 
-/** 복사한 조각 — 노드들과 양 끝이 모두 조각 안인 선. entry 로 들어가 exit 로 나온다(룰 하나면 entry = exit). */
+/** 복사한 조각 — 노드들과 그 안의 선. entry 로 들어가 exit 로 나온다(룰 하나면 entry = exit, 병렬은 짝 합류). 새 IF 블록은 exit 이 null 이고 꼬리·끝 선을 담는다(R7). */
 export interface Fragment {
   nodes: FlowNode[];
+  /** 조각 선 — 원래 선 배열 순서. tails·endTails 의 선은 `to` 가 빈 문자열이다. */
   edges: FlowEdge[];
   entry: string;
-  exit: string;
+  exit: string | null;
+  /** 새 IF 블록의 꼬리 선 ID(edges 안) — 붙일 때 놓는 선의 도착으로 잇는다. */
+  tails?: string[];
+  /** 새 IF 블록의 끝 선 ID(edges 안) — 붙일 때 붙여 넣는 흐름의 END 로 잇는다. */
+  endTails?: string[];
   /** 조각 노드의 외관(S-D10 — 붙여 넣을 때 새 ID 로 옮긴다). 없으면 키가 없다. */
   styles?: Record<string, NodeStyle>;
   /** 조각 노드의 설명(붙여 넣을 때 새 ID 로 옮긴다). 없으면 키가 없다. */
@@ -911,9 +1054,9 @@ const MOVE_FIXED: Partial<Record<FlowNodeKind, string>> = {
   CATCH: "받는 노드는 룰을 옮겨서 옮긴다",
 };
 /** 룰 노드를 옮길 수 없을 때(선이 하나씩이 아님) — 지우기 문구와 따로 둔다. */
-const RULE_EDGES_NOT_ONE_MOVE = "룰 노드의 선이 하나씩이 아니라 옮길 수 없다. 선을 먼저 정리한다";
+const RULE_EDGES_NOT_ONE_MOVE = "룰 노드의 나가는 선이 하나가 아니라 옮길 수 없다. 선을 먼저 정리한다";
 const MOVE_INTO_SELF = "자기 자리나 자기 블록 안으로는 옮길 수 없다";
-const NO_COPY = "시작·끝·합류는 복사하지 않는다. 분기를 복사하면 합류가 함께 복사된다";
+const NO_COPY = "시작·끝·합류는 복사하지 않는다. 병렬 분기를 복사하면 합류가 함께 복사된다";
 const BAD_FRAGMENT = "붙여 넣을 조각이 올바르지 않다";
 const AUTO_BRANCH_LABEL = /^갈래 \d+$/;
 const notFound = (id: string) => `노드 ${id}를 찾지 못했다`;
@@ -924,27 +1067,39 @@ function branchesInOrder(branches: readonly FlowEdge[]): FlowEdge[] {
   return [...branches.filter((e) => !e.otherwise).sort((a, b) => key(a) - key(b)), ...branches.filter((e) => e.otherwise)];
 }
 
-/** 분기 + 안쪽 + 짝 합류의 노드 ID(흐름 노드 배열 순서). 분기가 아니거나 블록이 닫히지 않으면 null. */
+/** 분기 + 안쪽(+ 병렬·옛 IF 의 짝 합류) 노드 ID(흐름 노드 배열 순서). 새 IF 의 모이는 자리는 블록 밖이다. 분기가 아니거나 블록이 닫히지 않으면 null. */
 export function blockMembers(f: EditFlow, splitId: string): string[] | null {
   const s = findNode(f, splitId);
   if (!s || !isSplitKind(s.kind)) return null;
-  const m = mergeOf(f, splitId);
-  const inner = m ? blockNodes(f, splitId, m.id) : null;
-  if (!m || !inner) return null;
-  const members = new Set([splitId, m.id, ...inner]);
+  const join = joinOf(f, splitId);
+  const inner = join == null ? null : blockNodes(f, splitId, join);
+  if (join == null || !inner) return null;
+  const withMerge = s.kind === "PARALLEL" || mergeOf(f, splitId) !== null;
+  const members = new Set([splitId, ...inner, ...(withMerge ? [join] : [])]);
   return f.nodes.filter((n) => members.has(n.id)).map((n) => n.id);
 }
 
+/** 새 형식 IF 블록의 꼬리 선 — 블록 멤버(분기 포함)에서 모이는 자리로 가는 선, 선 배열 순서(§8.1). 새 IF 가 아니거나 블록을 못 정하면 null. */
+export function tailsOf(f: EditFlow, splitId: string): FlowEdge[] | null {
+  const s = findNode(f, splitId);
+  if (!s || s.kind !== "IF" || mergeOf(f, splitId) !== null) return null;
+  const join = joinOf(f, splitId);
+  const members = blockMembers(f, splitId);
+  if (join == null || !members) return null;
+  const inside = new Set(members);
+  return f.edges.filter((e) => inside.has(e.from) && e.to === join);
+}
+
 /**
- * 노드를 옮길 때 놓을 대상에서 뺄 선. 룰은 자기로 들어오는·나가는 선과 처리 갈래(받는 노드부터 돌아오는 합류·END 직전까지, 안쪽 블록 포함)
+ * 노드를 옮길 때 놓을 대상에서 뺄 선. 룰은 자기로 들어오는·나가는 선과 처리 갈래(받는 노드부터 돌아오는 자리·END 직전까지, 안쪽 블록 포함)
  * 노드에서 나가는 모든 선, 분기는 분기로 들어오는 선과
- * 블록 멤버(분기·안쪽·합류, 받는 노드 포함)에서 나가는 모든 선(합류 출구·처리 갈래에서 끝으로 가는 선 포함).
+ * 블록 멤버(분기·안쪽·병렬 합류, 받는 노드 포함)에서 나가는 모든 선(새 IF 의 꼬리·끝 선, 합류 출구·처리 갈래에서 끝으로 가는 선 포함).
  * 그 밖 종류이거나 블록이 닫히지 않으면 빈 집합(옮기기 자체가 거부된다).
  */
 export function moveExcludedEdges(f: EditFlow, nodeId: string): ReadonlySet<string> {
   const n = findNode(f, nodeId);
   if (n && isStep(n.kind)) {
-    const handler = handlerNodes(f, nodeId, mergeOf(f, nodeId)?.id ?? null); // 받는 노드 + 처리 갈래 노드(돌아오는 합류·END 직전까지)
+    const handler = handlerNodes(f, nodeId, returnOf(f, nodeId)); // 받는 노드 + 처리 갈래 노드(돌아오는 자리·END 직전까지)
     return new Set(f.edges.filter((e) => e.from === nodeId || e.to === nodeId || handler.has(e.from)).map((e) => e.id));
   }
   const members = n && isSplitKind(n.kind) ? blockMembers(f, nodeId) : null;
@@ -954,9 +1109,9 @@ export function moveExcludedEdges(f: EditFlow, nodeId: string): ReadonlySet<stri
 }
 
 /**
- * 룰 노드 또는 분기 블록을 선 t(X→Y) 로 옮긴다. 떠난 자리는 앞뒤를 잇고(룰은 removeNode 와 같이, 분기는 들어옴 → 합류 나감 도착),
- * t.to = 노드(분기면 분기 노드), 새 선 {출구 → Y}(출구 = 룰 자신 또는 짝 합류)를 t 바로 뒤에 넣는다.
- * t 의 order·cond·otherwise·label 은 그대로라 IF 갈래 선에 넣어도 갈래 뜻이 남는다. 노드 배열 순서·배치는 바꾸지 않는다.
+ * 룰·빈 단계 또는 분기 블록을 선 t(X→Y) 로 옮긴다(§8.2). 떼어 낼 때 들어오는 선(여럿 가능)을 모두 옮긴다 — 룰은 나가는 선 도착, 새 IF 는 모이는 자리,
+ * 병렬은 합류 출구 도착(R9). 룰은 새 선 {룰 → Y} 를 t 뒤에, 새 IF 는 꼬리를 모두 Y 로(꺾는 점 지움) 옮기고 새 선을 만들지 않으며, 병렬은 {합류 → Y} 를 t 뒤에.
+ * t.to = 노드. t 의 칸은 그대로. 돌아오는 처리 갈래가 있는 룰은 옮기지 않는다(MOVE_GUARDED). 돌아오는 자리이고 다음이 END 면 거부(RETURN_JOIN_END).
  */
 export function moveNode(f: EditFlow, nodeId: string, edgeId: string): EditResult {
   const g = clone(f);
@@ -965,35 +1120,46 @@ export function moveNode(f: EditFlow, nodeId: string, edgeId: string): EditResul
   const fixed = MOVE_FIXED[n.kind];
   if (fixed) return fail(fixed);
   if (!findEdge(g, edgeId)) return fail(`선 ${edgeId}를 찾지 못했다`);
-  if (isStep(n.kind) && mergeOf(g, nodeId)) return fail(MOVE_GUARDED); // 돌아오는 합류·처리 갈래를 두고 룰만 떠나지 않는다
+  if (isStep(n.kind) && returnOf(g, nodeId) !== null) return fail(MOVE_GUARDED);
   if (moveExcludedEdges(g, nodeId).has(edgeId)) return fail(MOVE_INTO_SELF);
+  const endId = endIdOf(g);
   const taken = takenIds(g); // 떼기 전에 모은다 — 방금 지운 선 ID 를 새 선에 다시 쓰지 않는다
-  let exitId: string;
-  let out: FlowEdge;
+  const ins = inOf(g, nodeId);
+  const place = (exitId: string, out: FlowEdge | null): EditResult => {
+    if (out) g.edges = g.edges.filter((e) => e !== out); // 들어오는 선을 고친 뒤에 나가는 선만 지운다
+    const ti = g.edges.findIndex((e) => e.id === edgeId);
+    const t = g.edges[ti];
+    insertAfter(g.edges, ti, edge(fresh(taken, "e"), exitId, t.to));
+    t.to = nodeId;
+    return checked(g);
+  };
   if (isStep(n.kind)) {
-    const ins = inOf(g, nodeId);
     const outs = outOf(g, nodeId);
-    if (ins.length !== 1 || outs.length !== 1) return fail(RULE_EDGES_NOT_ONE_MOVE);
-    ins[0].to = outs[0].to;
-    exitId = nodeId;
-    out = outs[0];
-  } else {
-    const cannot = `분기 ${nodeId}의 짝 합류를 찾지 못해 옮길 수 없다`;
-    const m = mergeOf(g, nodeId);
-    if (!m || !blockNodes(g, nodeId, m.id)) return fail(cannot);
-    const ins = inOf(g, nodeId);
-    const exits = outOf(g, m.id);
-    if (ins.length !== 1 || exits.length !== 1) return fail(cannot);
-    ins[0].to = exits[0].to;
-    exitId = m.id;
-    out = exits[0];
+    if (outs.length !== 1) return fail(RULE_EDGES_NOT_ONE_MOVE);
+    if (outs[0].to === endId && isReturnPlace(g, nodeId)) return fail(RETURN_JOIN_END);
+    retarget(ins, outs[0].to);
+    return place(nodeId, outs[0]);
   }
-  g.edges = g.edges.filter((e) => e !== out); // 들어오는 선을 고친 뒤에 나가는 선만 지운다
-  const ti = g.edges.findIndex((e) => e.id === edgeId);
-  const t = g.edges[ti];
-  insertAfter(g.edges, ti, edge(fresh(taken, "e"), exitId, t.to));
-  t.to = nodeId;
-  return done(g);
+  if (n.kind === "IF" && mergeOf(g, nodeId) === null) {
+    const join = joinOf(g, nodeId);
+    const tails = tailsOf(g, nodeId);
+    if (join == null || !tails || tails.length === 0) return fail(NO_JOIN_MOVE(nodeId));
+    if (join === endId && isReturnPlace(g, nodeId)) return fail(RETURN_JOIN_END);
+    retarget(ins, join);
+    const t = findEdge(g, edgeId)!;
+    retarget(tails, t.to);
+    dropRoutes(g, tails);
+    t.to = nodeId;
+    return checked(g);
+  }
+  const cannot = `분기 ${nodeId}의 짝 합류를 찾지 못해 옮길 수 없다`;
+  const m = mergeOf(g, nodeId);
+  if (!m || !blockNodes(g, nodeId, m.id)) return fail(cannot);
+  const exits = outOf(g, m.id);
+  if (exits.length !== 1) return fail(cannot);
+  if (exits[0].to === endId && isReturnPlace(g, nodeId)) return fail(RETURN_JOIN_END);
+  retarget(ins, exits[0].to);
+  return place(m.id, exits[0]);
 }
 
 /** 룰 노드의 ruleId 만 바꾼다(id·선·라벨·배치 그대로). 같은 세트에 같은 룰이 있어도 막지 않는다. */
@@ -1057,55 +1223,66 @@ export function copyFragment(f: EditFlow, nodeId: string): Fragment | string {
   const nodes = f.nodes.filter((x) => inside.has(x.id)).map(copyNode);
   const styles = fragmentStyles(f, nodes);
   const descs = fragmentDescs(f, nodes);
+  const extra = { ...(styles ? { styles } : {}), ...(descs ? { descs } : {}) };
+  if (n.kind === "IF" && mergeOf(f, nodeId) === null) {
+    const join = joinOf(f, nodeId)!;
+    const endId = endIdOf(f);
+    const tails: string[] = [];
+    const endTails: string[] = [];
+    const edges = f.edges
+      .filter((e) => inside.has(e.from) && (inside.has(e.to) || e.to === join || e.to === endId))
+      .map((e) => {
+        const c = copyEdge(e);
+        if (inside.has(e.to)) return c;
+        (e.to === join ? tails : endTails).push(e.id);
+        return { ...c, to: "" };
+      });
+    return { nodes, edges, entry: nodeId, exit: null, tails, endTails, ...extra };
+  }
   return {
     nodes,
     edges: f.edges.filter((e) => inside.has(e.from) && inside.has(e.to)).map(copyEdge),
     entry: nodeId,
     exit: mergeOf(f, nodeId)!.id,
-    ...(styles ? { styles } : {}),
-    ...(descs ? { descs } : {}),
+    ...extra,
   };
 }
 
-/** copyFragment 가 만든 모양인가 — ID 가 겹치지 않고, entry·exit·선 끝·합류의 splitId 가 조각 안이고, START·END 가 없다. */
+/** copyFragment 가 만든 모양인가 — ID 가 겹치지 않고, entry·exit(없으면 꼬리 하나 이상)·선 끝이 조각 안이고(꼬리·끝 선은 to 빈 문자열), MERGE 의 짝은 조각 안 병렬이다. */
 function wellFormed(frag: Fragment): boolean {
-  const ids = new Set(frag.nodes.map((n) => n.id));
+  const byId = new Map(frag.nodes.map((n) => [n.id, n] as const));
+  const loose = new Set([...(frag.tails ?? []), ...(frag.endTails ?? [])]);
+  const exitOk = frag.exit === null ? (frag.tails ?? []).length > 0 : byId.has(frag.exit);
   return (
-    ids.size === frag.nodes.length &&
-    ids.has(frag.entry) &&
-    ids.has(frag.exit) &&
-    frag.nodes.every((n) => NODE_PREFIX[n.kind] !== undefined && (n.kind !== "MERGE" || ids.has(n.splitId ?? ""))) &&
-    frag.edges.every((e) => ids.has(e.from) && ids.has(e.to))
+    byId.size === frag.nodes.length &&
+    byId.has(frag.entry) &&
+    exitOk &&
+    frag.nodes.every((n) => NODE_PREFIX[n.kind] !== undefined && (n.kind !== "MERGE" || byId.get(n.splitId ?? "")?.kind === "PARALLEL")) &&
+    frag.edges.every((e) => byId.has(e.from) && (loose.has(e.id) ? e.to === "" : byId.has(e.to)))
   );
 }
 
 /**
- * 조각을 선 t(X→Y) 에 새 ID 로 붙여 넣는다. t.to = 새 entry, 새 선 {새 exit → Y}. 노드는 X 뒤(없으면 끝), 조각 선·출구 선은 t 바로 뒤.
- * 라벨·조건식·order·otherwise 는 복사하고, 합류의 splitId 는 새 분기 ID 로 바꾼다. 외관은 새 ID 로 옮긴다(S-D10). 배치는 넣지 않는다(P-D18).
+ * 조각을 새 ID 로 g 에 넣는다 — 노드는 nodeIndex 뒤, 선은 edgeIndex 뒤(조각 선 순서 그대로, 출구 선은 끝). 꼬리는 tailTo, 끝 선은 g 의 END,
+ * 출구(있으면) {출구 → tailTo}. 라벨·조건식·order·otherwise 를 복사하고 합류 splitId 는 새 분기 ID 로, 외관·설명은 새 ID 로 옮긴다. 새 entry ID. g 는 복사본이다.
  */
-export function pasteFragment(f: EditFlow, edgeId: string, frag: Fragment): EditResult {
-  if (f.nodes.length + frag.nodes.length > MAX_NODES) return fail(NODE_LIMIT_MESSAGE);
-  const g = clone(f);
-  const ti = g.edges.findIndex((e) => e.id === edgeId);
-  if (ti < 0) return fail(`선 ${edgeId}를 찾지 못했다`);
-  if (!wellFormed(frag)) return fail(BAD_FRAGMENT);
-  const t = g.edges[ti];
+function instantiate(g: EditFlow, frag: Fragment, nodeIndex: number, tailTo: string, edgeIndex: number): string {
   const taken = takenIds(g);
   const idOf = new Map<string, string>();
   for (const n of frag.nodes) idOf.set(n.id, fresh(taken, NODE_PREFIX[n.kind]!));
   const nid = (id: string) => idOf.get(id)!;
+  const endId = endIdOf(g) ?? "";
+  const tails = new Set(frag.tails ?? []);
+  const endTails = new Set(frag.endTails ?? []);
   const nodes = frag.nodes.map((n) => node(nid(n.id), n.kind, str(n.ruleId), n.kind === "MERGE" ? nid(n.splitId!) : str(n.splitId), str(n.label)));
   const edges = frag.edges.map((e) =>
-    edge(fresh(taken, "e"), nid(e.from), nid(e.to), { order: int(e.order), cond: str(e.cond), otherwise: e.otherwise === true, label: str(e.label) }),
+    edge(fresh(taken, "e"), nid(e.from), tails.has(e.id) ? tailTo : endTails.has(e.id) ? endId : nid(e.to), {
+      order: int(e.order), cond: str(e.cond), otherwise: e.otherwise === true, label: str(e.label),
+    }),
   );
-  const exit = edge(fresh(taken, "e"), nid(frag.exit), t.to);
-  insertAfter(
-    g.nodes,
-    g.nodes.findIndex((n) => n.id === t.from),
-    ...nodes,
-  );
-  t.to = nid(frag.entry);
-  insertAfter(g.edges, ti, ...edges, exit);
+  const exit = frag.exit === null ? [] : [edge(fresh(taken, "e"), nid(frag.exit), tailTo)];
+  insertAfter(g.nodes, nodeIndex, ...nodes);
+  insertAfter(g.edges, edgeIndex, ...edges, ...exit);
   if (frag.styles) {
     const styles: Record<string, NodeStyle> = { ...g.view.styles };
     for (const [oldId, s] of Object.entries(frag.styles)) if (idOf.has(oldId)) styles[nid(oldId)] = s;
@@ -1116,13 +1293,38 @@ export function pasteFragment(f: EditFlow, edgeId: string, frag: Fragment): Edit
     for (const [oldId, d] of Object.entries(frag.descs)) if (idOf.has(oldId)) descs[nid(oldId)] = d;
     g.view = { ...g.view, descs };
   }
+  return nid(frag.entry);
+}
+
+/** 조각을 선 t(X→Y) 에 붙여 넣는다. t.to = 새 entry, 꼬리·출구는 Y 로, 끝 선은 END 로. 노드는 X 뒤, 조각 선은 t 바로 뒤. 배치는 넣지 않는다(P-D18). */
+export function pasteFragment(f: EditFlow, edgeId: string, frag: Fragment): EditResult {
+  if (f.nodes.length + frag.nodes.length > MAX_NODES) return fail(NODE_LIMIT_MESSAGE);
+  const g = clone(f);
+  const ti = g.edges.findIndex((e) => e.id === edgeId);
+  if (ti < 0) return fail(`선 ${edgeId}를 찾지 못했다`);
+  if (!wellFormed(frag) || ((frag.endTails ?? []).length > 0 && endIdOf(g) === null)) return fail(BAD_FRAGMENT);
+  const t = g.edges[ti];
+  t.to = instantiate(g, frag, g.nodes.findIndex((n) => n.id === t.from), t.to, ti);
   return done(g);
 }
 
-/** 원본 바로 뒤에 복제한다 — 룰은 자기에서 나가는 선, 분기는 짝 합류에서 나가는 선에 붙여 넣는다. */
+/** 원본 바로 뒤에 복제한다 — 룰은 자기에서 나가는 선, 병렬은 짝 합류에서 나가는 선에 붙여 넣는다. 새 IF 는 원래 꼬리를 복제 분기로, 복제 꼬리를 원래 모이는 자리로(§8.2). */
 export function duplicateNode(f: EditFlow, nodeId: string): EditResult {
   const frag = copyFragment(f, nodeId);
   if (typeof frag === "string") return fail(frag);
+  if (frag.exit === null) {
+    if (f.nodes.length + frag.nodes.length > MAX_NODES) return fail(NODE_LIMIT_MESSAGE);
+    const g = clone(f);
+    const join = joinOf(g, nodeId);
+    const tails = tailsOf(g, nodeId);
+    const members = blockMembers(g, nodeId);
+    if (join == null || !tails || tails.length === 0 || !members) return fail(`분기 ${nodeId}의 갈래가 모이는 자리를 찾지 못해 복제할 수 없다`);
+    const lastMember = g.nodes.findIndex((n) => n.id === members[members.length - 1]);
+    const copy = instantiate(g, frag, lastMember, join, g.edges.indexOf(tails[tails.length - 1]));
+    retarget(tails, copy);
+    dropRoutes(g, tails);
+    return checked(g);
+  }
   const outs = outOf(f, frag.exit);
   if (outs.length !== 1) {
     return fail(frag.entry === frag.exit ? "룰 노드의 선이 하나씩이 아니라 복제할 수 없다" : `분기 ${nodeId}의 짝 합류를 찾지 못해 복제할 수 없다`);
@@ -1131,18 +1333,32 @@ export function duplicateNode(f: EditFlow, nodeId: string): EditResult {
 }
 
 /**
- * IF ↔ 병렬. 노드 ID·선 배열 순서는 그대로다.
- * - 병렬로: 갈래를 실행 순서대로 order 1..n, 조건식·그 외 없앰.
- * - IF 로: 갈래를 order 순으로 두고 마지막을 "그 외"(order·조건식 null), 나머지는 order 1..n-1(조건식은 비어 FLOW_IF_ELSE 로 드러난다).
+ * IF ↔ 병렬. 노드 ID·선 배열 순서는 그대로다(§8.2).
+ * - 병렬로: 끝내는 갈래가 있으면 거부. 새 합류 m(splitId = s)을 모이는 자리 바로 앞에 넣고 꼬리를 m 으로(꺾는 점 지움), 출구 {m → 모이는 자리} 를 마지막 꼬리 뒤에.
+ *   갈래를 실행 순서대로 order 1..n, 조건식·그 외 없앰.
+ * - IF 로: 갈래를 order 순으로 두고 마지막을 "그 외"(order·조건식 null), 나머지는 order 1..n-1. 짝 합류를 dissolveMerge 하고 같은 도착 갈래에 빈 단계를 채운다.
+ *   합류 출구가 END 면 합류를 지우지 않고 같은 ID 의 빈 단계로 바꿔 모이는 자리로 둔다(J-D10, 수정 1회차 — 끝내는 갈래가 생기지 않아 병렬로 되돌릴 수 있다).
  * - 라벨은 기본 라벨(분기 `조건`·`병렬`, 갈래 `갈래 N`·`그 외`)이거나 비었을 때만 새 규칙으로 다시 붙인다.
  */
 export function changeSplitKind(f: EditFlow, splitId: string, kind: "IF" | "PARALLEL"): EditResult {
-  const g = clone(f);
+  let g = clone(f);
   const s = findNode(g, splitId);
   if (!s) return fail(notFound(splitId));
   if (!isSplitKind(s.kind)) return fail("분기 노드만 바꾼다");
   if (s.kind === kind) return fail(`이미 ${KIND_NAME[kind]} 분기다`);
-  if (!mergeOf(g, splitId)) return fail(`분기 ${splitId}의 짝 합류를 찾지 못했다`);
+  if (kind === "PARALLEL" && mergeOf(g, splitId) === null) {
+    const join = joinOf(g, splitId);
+    if (join == null) return fail(NO_JOIN_BRANCH(splitId));
+    if ((endingBranches(g, splitId) ?? []).length > 0) return fail(ENDING_TO_PARALLEL);
+    const tails = tailsOf(g, splitId);
+    if (!tails || tails.length === 0) return fail(NO_JOIN_BRANCH(splitId));
+    const taken = takenIds(g);
+    const m = node(fresh(taken, "m"), "MERGE", null, splitId);
+    g.nodes.splice(g.nodes.findIndex((n) => n.id === join), 0, m);
+    retarget(tails, m.id);
+    dropRoutes(g, tails);
+    insertAfter(g.edges, g.edges.indexOf(tails[tails.length - 1]), edge(fresh(taken, "e"), m.id, join));
+  } else if (!mergeOf(g, splitId)) return fail(`분기 ${splitId}의 짝 합류를 찾지 못했다`);
   const branches = branchesInOrder(outOf(g, splitId));
   branches.forEach((e, i) => {
     const last = i === branches.length - 1;
@@ -1161,12 +1377,24 @@ export function changeSplitKind(f: EditFlow, splitId: string, kind: "IF" | "PARA
   });
   if (s.label == null || s.label === SPLIT_LABEL.IF || s.label === SPLIT_LABEL.PARALLEL) s.label = SPLIT_LABEL[kind];
   s.kind = kind;
+  if (kind === "IF") {
+    const m = mergeOf(g, splitId)!;
+    const exits = outOf(g, m.id);
+    const endId = endIdOf(g);
+    if (endId !== null && exits.length === 1 && exits[0].to === endId) mergeToTask(g, m.id);
+    else {
+      const next = dissolveMerge(g, m.id);
+      if (!next) return fail(`분기 ${splitId}의 짝 합류를 찾지 못했다`);
+      g = next;
+    }
+    fillEmptyBranches(g, splitId, takenIds(g));
+  }
   return done(g);
 }
 
 /**
- * 분기를 풀어 고른 갈래만 남긴다. 빈 갈래를 고르면 분기 앞뒤를 바로 잇는다. 선을 먼저 고친 뒤 분기·합류·다른 갈래 안 노드를
- * dropNodes 로 지운다(닿는 선·배치·그룹 흔적 함께). 분기로 들어오던 선의 order·cond·otherwise·label 은 그대로다.
+ * 분기를 풀어 고른 갈래만 남긴다(§8.2). 분기로 들어오는 선(여럿 가능, R9)을 남길 갈래 첫 노드(빈 갈래면 모이는 자리)로 옮기고 분기·다른 갈래 안쪽
+ * (끝내는 갈래 몸 포함)·다른 갈래 선을 dropNodes 로 지운다. 끝내는 갈래만 남기기는 거부한다. 병렬(과 옛 IF)은 짝 합류도 지우고 남긴 갈래 꼬리를 합류 출구 도착으로 옮긴다.
  */
 export function dissolveSplit(f: EditFlow, splitId: string, keepEdgeId: string): EditResult {
   const g = clone(f);
@@ -1175,24 +1403,38 @@ export function dissolveSplit(f: EditFlow, splitId: string, keepEdgeId: string):
   if (!isSplitKind(s.kind)) return fail("분기 노드만 푼다");
   const keep = findEdge(g, keepEdgeId);
   if (!keep || keep.from !== splitId) return fail(`분기 ${splitId}의 갈래가 아니다`);
+  const ins = inOf(g, splitId);
+  if (s.kind === "IF" && mergeOf(g, splitId) === null) {
+    const join = joinOf(g, splitId);
+    const inner = join == null ? null : blockNodes(g, splitId, join);
+    if (join == null || !inner) return fail(NO_JOIN_DISSOLVE(splitId));
+    if ((endingBranches(g, splitId) ?? []).includes(keepEdgeId)) return fail(KEEP_ENDING);
+    const drop = new Set([splitId, ...inner]);
+    if (keep.to !== join) {
+      const kept = branchNodes(g, splitId, keep.id);
+      if (!kept) return fail(NO_JOIN_DISSOLVE(splitId));
+      for (const id of kept) drop.delete(id);
+    }
+    retarget(ins, keep.to);
+    return checked(dropNodes(g, drop));
+  }
   const cannot = `분기 ${splitId}의 짝 합류를 찾지 못해 풀 수 없다`;
   const m = mergeOf(g, splitId);
   const inner = m ? blockNodes(g, splitId, m.id) : null;
   if (!m || !inner) return fail(cannot);
-  const ins = inOf(g, splitId);
   const exits = outOf(g, m.id);
-  if (ins.length !== 1 || exits.length !== 1) return fail(cannot);
+  if (exits.length !== 1) return fail(cannot);
   const drop = new Set([splitId, m.id, ...inner]);
   if (keep.to === m.id) {
-    ins[0].to = exits[0].to;
+    retarget(ins, exits[0].to);
   } else {
-    const kept = branchNodes(g, splitId, keep.id, m.id);
+    const kept = branchNodes(g, splitId, keep.id);
     if (!kept) return fail(cannot);
-    ins[0].to = keep.to;
+    retarget(ins, keep.to);
     for (const e of g.edges) if (e.to === m.id && kept.has(e.from)) e.to = exits[0].to;
     for (const id of kept) drop.delete(id);
   }
-  return done(dropNodes(g, drop));
+  return checked(dropNodes(g, drop));
 }
 
 /** "그 외" 아닌 갈래 선들의 order 를 ids 순서대로 1..n 으로 매긴다. 라벨·선 배열 순서·"그 외" 는 그대로. */
@@ -1273,21 +1515,21 @@ export function updateNodeDesc(f: EditFlow, nodeId: string, text: string | null)
 const CATCH_PREFIX = "c";
 export const CATCH_FULL = "이 룰의 예외 종류 네 가지를 모두 받고 있다";
 export const CATCH_KINDS_EMPTY = "받을 예외 종류를 하나 이상 고른다";
-export const CATCH_ONLY_RULE = "룰 노드에만 예외 받기를 붙인다";
+export const CATCH_ONLY_RULE = "룰·빈 단계 노드에만 예외 받기를 붙인다";
 export const CATCH_BAD_TARGET = "처리 갈래는 시작·받는 노드·자기 룰로 갈 수 없다";
 export const NO_COPY_CATCH = "받는 노드가 든 블록은 복사하지 않는다";
 export const NO_COPY_CATCH_NODE = "받는 노드는 복사하지 않는다";
 export const MOVE_GUARDED = "처리 갈래가 돌아오는 룰은 옮길 수 없다";
-export const RETURN_MERGE_NOT_ONE = "돌아오는 합류의 선이 하나씩이 아니라 룰을 지울 수 없다. 선을 먼저 정리한다";
-export const RETURN_MERGE_STUCK = "돌아오는 합류의 선이 하나씩이 아니라 합류를 지울 수 없다. 선을 먼저 정리한다";
+export const RETURN_JOIN_END = "처리 갈래가 돌아오는 자리라 지우면 그 처리 갈래가 끝내기로 바뀐다. 앞에 빈 단계를 두거나 선을 먼저 정리한다";
+export const RETURN_TO_END = "노드 다음이 끝 노드라 흐름으로 돌아올 자리가 없다. 노드 뒤에 빈 단계를 넣은 뒤 다시 한다";
 export const CATCH_NO_IN = "받는 노드로 들어가는 선은 둘 수 없다";
 export const CATCH_ONE_OUT = "받는 노드에서 나가는 선은 하나다";
 export const CATCH_TAKEN = (kind: CatchKind, owner: string) => `예외 종류 ${kind}는 ${owner}가 이미 받는다`;
 
 /**
- * 룰 노드에 받는 노드를 붙인다(연결점 끌기·우클릭 「예외 받기 추가」, Ruling R14). to 는 처리 갈래 첫 노드(null 이면 END).
+ * 룰·빈 단계 노드에 받는 노드를 붙인다(연결점 끌기·우클릭 「예외 받기 추가」, Ruling R14). to 는 처리 갈래 첫 노드(null 이면 END).
  * 받는 종류는 그 룰에서 아직 아무도 받지 않는 첫 종류, label 은 null. 노드는 그 룰의 마지막 받는 노드(없으면 룰) 바로 뒤, 선은 끝에 넣는다.
- * to 가 그 룰의 정상 다음 노드(끝 제외)면 돌아오는 합류로 잇는다(돌아오기 — connect 와 같다).
+ * 정상 다음 노드로 놓으면 빈 돌아오는 갈래다.
  */
 export function addCatch(f: EditFlow, ruleNodeId: string, to: string | null): EditResult & { id?: string } {
   const g = clone(f);
@@ -1305,15 +1547,13 @@ export function addCatch(f: EditFlow, ruleNodeId: string, to: string | null): Ed
   if (t.kind === "START" || t.kind === "CATCH" || t.id === ruleNodeId) return fail(CATCH_BAD_TARGET);
   const usedIds = takenIds(g);
   const c: FlowNode = { ...node(fresh(usedIds, CATCH_PREFIX), "CATCH"), attachTo: ruleNodeId, catches: [kind] };
-  const back = to != null && t.kind !== "END" ? returnTargetOf(g, ruleNodeId) : null;
-  const target = back && typeof back !== "string" && back.next === t.id ? ensureReturnMerge(g, ruleNodeId, usedIds).id : t.id;
   const anchor = siblings.length > 0 ? siblings[siblings.length - 1].id : ruleNodeId;
   insertAfter(
     g.nodes,
     g.nodes.findIndex((n) => n.id === anchor),
     c,
   );
-  g.edges.push(edge(fresh(usedIds, "e"), c.id, target));
+  g.edges.push(edge(fresh(usedIds, "e"), c.id, t.id));
   const res = done(g);
   return res.ok ? { ...res, id: c.id } : res;
 }
@@ -1343,109 +1583,64 @@ export const RETURN_OPEN = "처리 갈래가 끝 노드까지 이어지지 않�
 export const RETURN_NO_EXIT = "룰의 나가는 선이 하나가 아니라 돌아올 자리를 정할 수 없다";
 
 /**
- * 받는 노드 c 에서 처리 갈래의 맨 바깥 순차를 따라간다. IF·병렬은 짝 합류로, 돌아오는 합류가 있는 룰은 그 합류로 건너뛴다(안쪽 갈래는 보지 않는다).
- * members = 받는 노드·맨 바깥 순차의 노드(분기 자신은 빼고 건너뛴 합류는 넣는다). tail = END 나 그 룰의 돌아오는 합류로 들어가는 선(ends 는 END 쪽).
- * 나가는 선이 하나가 아니거나 시작·받는 노드·자기 룰·다른 합류·이미 지난 노드에 닿으면 tail 은 null 이다(열린 처리 갈래).
+ * 처리 갈래의 맨 바깥 순차에서 END 로 들어가는 선(빈 갈래면 받는 노드의 선) — 분기는 모이는 자리로(병렬은 합류 출구로), 돌아오는 자리가 있는 단계는 그 자리로
+ * 건너뛴다(안쪽 갈래는 보지 않는다). 순환·나가는 선이 하나가 아닌 노드·모이는 자리를 못 정하면 null.
  */
-function handlerTrail(g: EditFlow, c: FlowNode): { members: Set<string>; tail: FlowEdge | null; ends: boolean } {
-  const rule = c.attachTo;
-  const members = new Set([c.id]);
-  const open = { members, tail: null, ends: false };
-  let cur = c;
-  for (;;) {
-    const exit = isSplitKind(cur.kind) || isStep(cur.kind) ? mergeOf(g, cur.id) : null;
-    if (isSplitKind(cur.kind) && !exit) return open;
-    if (exit) members.add(exit.id);
-    const outs = outOf(g, exit ? exit.id : cur.id);
-    if (outs.length !== 1) return open;
-    const t = findNode(g, outs[0].to);
-    if (!t) return open;
-    if (t.kind === "END") return { members, tail: outs[0], ends: true };
-    if (t.kind === "MERGE" && t.splitId === rule) return { members, tail: outs[0], ends: false };
-    if (t.kind === "START" || t.kind === "CATCH" || t.kind === "MERGE" || t.id === rule || members.has(t.id)) return open;
-    if (inOf(g, t.id).length !== 1) return open; // 올바른 처리 갈래 몸은 들어오는 선이 하나다(정상 경로로 흘러 들어간 것을 막는다)
-    if (!isSplitKind(t.kind)) members.add(t.id);
-    cur = t;
-  }
-}
-
-/** 룰의 돌아올 자리 — 돌아오는 합류(있으면)와 정상 다음 노드(합류 출구 도착, 없으면 룰의 나가는 선 도착). 정할 수 없으면 사유. */
-function returnTargetOf(g: EditFlow, ruleNodeId: string): { merge: FlowNode | null; next: string } | string {
-  const m = mergeOf(g, ruleNodeId);
-  if (!m && g.nodes.some((n) => n.kind === "MERGE" && n.splitId === ruleNodeId)) return RETURN_NO_EXIT; // 돌아오는 합류가 둘 이상
-  const outs = outOf(g, m ? m.id : ruleNodeId);
-  return outs.length === 1 ? { merge: m, next: outs[0].to } : RETURN_NO_EXIT;
-}
-
-/**
- * from→to 잇기(또는 skipEdge 다시 잇기)를 돌아오는 합류로 보낼 룰. from 이 받을 수 있는 룰 R 의 받는 노드이거나 그 처리 갈래 맨 바깥 순차 노드이고,
- * to 가 R 의 정상 다음 노드일 때만이다. 정상 다음 노드가 끝이면 끝내는 처리 갈래로 보고 보내지 않는다. 다시 잇는 선이 R 의 나가는 선·합류 출구면 보내지 않는다.
- */
-function returnRuleFor(g: EditFlow, from: string, to: string, skipEdge: string | null): string | null {
-  const target = findNode(g, to);
-  if (!target || target.kind === "END" || target.kind === "CATCH") return null;
-  for (const c of g.nodes) {
-    if (c.kind !== "CATCH" || c.attachTo == null || !CATCHABLE.has(findNode(g, c.attachTo)?.kind ?? "START")) continue;
-    if (!handlerTrail(g, c).members.has(from)) continue;
-    const rule = c.attachTo;
-    const back = returnTargetOf(g, rule);
-    if (typeof back === "string" || back.next !== to) return null;
-    const exit = outOf(g, back.merge ? back.merge.id : rule)[0];
-    return exit.id === skipEdge ? null : rule;
+function outerEndEdge(g: EditFlow, c: FlowNode): FlowEdge | null {
+  const endId = endIdOf(g);
+  const seen = new Set<string>();
+  let cur: FlowNode | undefined = c;
+  while (cur) {
+    if (seen.has(cur.id)) return null;
+    seen.add(cur.id);
+    let via: FlowEdge | null = null;
+    let next: string;
+    if (isSplitKind(cur.kind)) {
+      const j = joinOf(g, cur.id);
+      if (j == null) return null;
+      if (cur.kind === "PARALLEL" || mergeOf(g, cur.id) !== null) {
+        const exits = outOf(g, j);
+        if (exits.length !== 1) return null;
+        via = exits[0];
+        next = via.to;
+      } else next = j;
+    } else {
+      const back = isStep(cur.kind) ? returnOf(g, cur.id) : null;
+      if (back !== null) next = back;
+      else {
+        const outs = outOf(g, cur.id);
+        if (outs.length !== 1) return null;
+        via = outs[0];
+        next = via.to;
+      }
+    }
+    if (next === endId) return via;
+    cur = findNode(g, next);
   }
   return null;
 }
 
 /**
- * 룰의 돌아오는 합류 — 없으면 만든다. 룰의 나가는 선(ID 그대로, 꺾는 점은 버린다)을 합류로 돌리고 합류 출구 {합류 → 정상 다음 노드} 를 그 바로 뒤에 넣는다.
- * 합류 노드는 정상 다음 노드 바로 앞에 둔다. returnTargetOf 가 통과한 룰에만 부른다. g 는 복사본이다.
- */
-function ensureReturnMerge(g: EditFlow, ruleNodeId: string, taken: Set<string>): FlowNode {
-  const have = mergeOf(g, ruleNodeId);
-  if (have) return have;
-  const out = outOf(g, ruleNodeId)[0];
-  const m = node(fresh(taken, "m"), "MERGE", null, ruleNodeId);
-  const xi = g.nodes.findIndex((n) => n.id === out.to);
-  g.nodes.splice(xi < 0 ? g.nodes.length : xi, 0, m);
-  insertAfter(g.edges, g.edges.indexOf(out), edge(fresh(taken, "e"), m.id, out.to));
-  out.to = m.id;
-  const routes = { ...g.view.routes };
-  delete routes[out.id];
-  g.view.routes = routes;
-  return m;
-}
-
-/** connect 의 돌아오기 — 받는 노드 나가는 선 하나·같은 선 검사는 합류 기준으로 한다. */
-function connectReturn(f: EditFlow, from: string, rule: string): EditResult {
-  const g = clone(f);
-  if (findNode(g, from)!.kind === "CATCH" && g.edges.some((e) => e.from === from)) return fail(CATCH_ONE_OUT);
-  const taken = takenIds(g);
-  const m = ensureReturnMerge(g, rule, taken);
-  if (g.edges.some((e) => e.from === from && e.to === m.id)) return fail("이미 이어진 선이다");
-  g.edges.push(edge(fresh(taken, "e"), from, m.id));
-  return done(g);
-}
-
-/**
- * 받는 노드 우클릭 「흐름으로 돌아오기」 — 끝내는 처리 갈래의 끝 선(맨 바깥 순차에서 END 로 들어가는 선, 빈 갈래면 받는 노드의 선)을 룰의 돌아오는
- * 합류로 옮긴다. 합류가 없으면 만든다(ensureReturnMerge). 정상 다음 노드가 끝이어도 된다(끝내기와 달리 endedBy 가 남지 않는다).
- * 이미 돌아오는 갈래·열린 갈래·나가는 선이 하나가 아닌 룰은 거부한다. 메뉴는 이 연산이 될 때만 항목을 보인다.
+ * 받는 노드 우클릭 「흐름으로 돌아오기」(§8.2) — 끝내는 처리 갈래의 맨 바깥 끝 선을 돌아올 자리로 옮긴다. 처리 갈래 안 IF 의 끝내는 갈래 끝 선은 그대로다.
+ * 돌아올 자리는 그 노드의 돌아오는 자리(있으면), 없으면 노드의 나가는 선 도착. 그 도착이 END 면 거부(RETURN_TO_END, J-D10). 메뉴는 이 연산이 될 때만 항목을 보인다.
  */
 export function returnCatch(f: EditFlow, catchId: string): EditResult {
   const g = clone(f);
   const c = findNode(g, catchId);
   if (!c || c.kind !== "CATCH") return fail(`받는 노드 ${catchId}를 찾지 못했다`);
-  const rule = c.attachTo == null ? undefined : findNode(g, c.attachTo);
-  if (!rule || !CATCHABLE.has(rule.kind)) return fail(CATCH_ONLY_RULE);
-  const trail = handlerTrail(g, c);
-  if (!trail.tail) return fail(RETURN_OPEN);
-  if (!trail.ends) return fail(RETURN_ALREADY);
-  const back = returnTargetOf(g, rule.id);
-  if (typeof back === "string") return fail(back);
-  const m = ensureReturnMerge(g, rule.id, takenIds(g));
-  trail.tail.to = m.id;
-  const routes = { ...g.view.routes };
-  delete routes[trail.tail.id];
-  g.view.routes = routes;
+  const host = c.attachTo == null ? undefined : findNode(g, c.attachTo);
+  if (!host || !CATCHABLE.has(host.kind)) return fail(CATCH_ONLY_RULE);
+  const endId = endIdOf(g);
+  const target = handlerTarget(g, catchId);
+  if (target === null) return fail(RETURN_OPEN);
+  if (target !== endId) return fail(RETURN_ALREADY);
+  const outs = outOf(g, host.id);
+  const place = returnOf(g, host.id) ?? (outs.length === 1 ? outs[0].to : null);
+  if (place === null) return fail(RETURN_NO_EXIT);
+  if (place === endId) return fail(RETURN_TO_END);
+  const tail = outerEndEdge(g, c);
+  if (!tail) return fail(RETURN_OPEN);
+  tail.to = place;
+  dropRoutes(g, [tail]);
   return done(g);
 }

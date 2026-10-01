@@ -22,7 +22,10 @@ function valid(f: EditFlow) {
   return f;
 }
 
-/** start → r1 → if1{e4 조건 "true" / e5 그 외} → m1 → r2 → end. 선: e1 start→r1, e2 r1→if1, e4·e5 if1→m1, e6 m1→r2, e3 r2→end. */
+/**
+ * start → r1 → if1{e4 조건 "true" → r3(빈 단계) / e5 그 외} → r2(모이는 자리) → end(implicit-join §8.2 insertSplit — 합류 없음).
+ * 선: e1 start→r1, e2 r1→if1, e4 if1→r3, e5 if1→r2, e6 r3→r2, e3 r2→end.
+ */
 function ifFlow(): EditFlow {
   const f = ok(insertSplit(toEditFlow(null, ["R_A", "R_B"]), "e2", "IF"));
   const cond = f.edges.find((e) => e.from === "if1" && !e.otherwise)!.id;
@@ -34,8 +37,8 @@ describe("flow-edit 3단계", () => {
 
   it("ifFlow 도우미는 2단계 insertSplit 규칙의 ID 를 쓴다", () => {
     const f = valid(ifFlow());
-    expect(f.nodes.map((n) => n.id)).toEqual(["start", "r1", "if1", "m1", "r2", "end"]);
-    expect(f.edges.map((e) => `${e.id}:${e.from}>${e.to}`)).toEqual(["e1:start>r1", "e2:r1>if1", "e4:if1>m1", "e5:if1>m1", "e6:m1>r2", "e3:r2>end"]);
+    expect(f.nodes.map((n) => n.id)).toEqual(["start", "r1", "if1", "r3", "r2", "end"]);
+    expect(f.edges.map((e) => `${e.id}:${e.from}>${e.to}`)).toEqual(["e1:start>r1", "e2:r1>if1", "e4:if1>r3", "e5:if1>r2", "e6:r3>r2", "e3:r2>end"]);
   });
 
   it("moveNode — 룰을 다른 선으로 옮기고 떠난 자리를 잇는다", () => {
@@ -53,57 +56,56 @@ describe("flow-edit 3단계", () => {
     expect(moveNode(base, "r2", "e3")).toEqual({ ok: false, reason: "자기 자리나 자기 블록 안으로는 옮길 수 없다" });
     expect(moveNode(base, "start", "e3")).toEqual({ ok: false, reason: "시작 노드는 옮길 수 없다" });
     expect(moveNode(base, "end", "e1")).toEqual({ ok: false, reason: "끝 노드는 옮길 수 없다" });
-    expect(moveNode(ifFlow(), "m1", "e1")).toEqual({ ok: false, reason: "합류 노드는 분기를 옮겨서 옮긴다" });
+    expect(moveNode(ok(insertSplit(base, "e2", "PARALLEL")), "m1", "e1")).toEqual({ ok: false, reason: "합류 노드는 분기를 옮겨서 옮긴다" });
     expect(moveNode(base, "r2", "e9")).toEqual({ ok: false, reason: "선 e9를 찾지 못했다" });
     expect(moveNode(base, "r9", "e1")).toEqual({ ok: false, reason: "노드 r9를 찾지 못했다" });
   });
 
   it("moveNode — 선이 하나씩이 아닌 룰은 옮기기 문구로 거부한다", () => {
     const f = { ...base, edges: [...base.edges, { id: "e9", from: "r1", to: "r3", order: null, cond: null, otherwise: false, label: null }] };
-    expect(moveNode(f, "r1", "e4")).toEqual({ ok: false, reason: "룰 노드의 선이 하나씩이 아니라 옮길 수 없다. 선을 먼저 정리한다" });
+    expect(moveNode(f, "r1", "e4")).toEqual({ ok: false, reason: "룰 노드의 나가는 선이 하나가 아니라 옮길 수 없다. 선을 먼저 정리한다" });
   });
 
   it("moveNode — 분기 블록 전체를 옮기고 자기 블록 안 선은 거부한다", () => {
-    const f = ifFlow(); // start → r1 → if1{…} → m1 → r2 → end
+    const f = ifFlow(); // start → r1 → if1{…} → r2 → end
     const inner = f.edges.find((e) => e.from === "if1" && !e.otherwise)!.id;
     expect(moveNode(f, "if1", inner)).toEqual({ ok: false, reason: "자기 자리나 자기 블록 안으로는 옮길 수 없다" });
     expect(moveNode(f, "if1", "e2").ok).toBe(false); // 분기로 들어오는 선
-    expect(moveNode(f, "if1", "e6").ok).toBe(false); // 합류에서 나가는 선
+    expect(moveNode(f, "if1", "e6").ok).toBe(false); // 꼬리 선(블록 멤버에서 나가는 선)
     const g = valid(ok(moveNode(f, "if1", "e1"))); // start 바로 뒤로
     expect(g.edges.find((e) => e.id === "e1")?.to).toBe("if1");
-    expect(g.edges.find((e) => e.id === "e2")?.to).toBe("r2"); // 떠난 자리를 잇는다
-    expect(g.edges.some((e) => e.from === "m1" && e.to === "r1")).toBe(true);
+    expect(g.edges.find((e) => e.id === "e2")?.to).toBe("r2"); // 떠난 자리를 잇는다(모이는 자리로)
+    expect(["e5", "e6"].map((id) => g.edges.find((e) => e.id === id)?.to)).toEqual(["r1", "r1"]); // 꼬리를 놓는 선의 도착으로, 새 선 없음
+    expect(g.edges).toHaveLength(f.edges.length);
     expect(parseFlow(g).tree?.ruleIds()).toEqual(["R_A", "R_B"]); // 안쪽 룰 없음, 순서 유지
     expect(moveExcludedEdges(f, "if1").has(inner)).toBe(true);
-    expect(blockMembers(f, "if1")).toEqual(["if1", "m1"]);
+    expect(blockMembers(f, "if1")).toEqual(["if1", "r3"]);
   });
 
   it("moveExcludedEdges·blockMembers — 룰은 앞뒤 선, 분기는 들어옴·나감·블록 안 선, 그 밖은 빈 집합", () => {
     expect([...moveExcludedEdges(base, "r2")].sort()).toEqual(["e2", "e3"]);
     expect([...moveExcludedEdges(ifFlow(), "if1")].sort()).toEqual(["e2", "e4", "e5", "e6"]);
     expect(moveExcludedEdges(base, "start").size).toBe(0);
-    expect(moveExcludedEdges(ifFlow(), "m1").size).toBe(0);
+    expect(moveExcludedEdges(ok(insertSplit(base, "e2", "PARALLEL")), "m1").size).toBe(0);
     expect(blockMembers(base, "r1")).toBeNull();
     const nested = ok(insertRule(ifFlow(), "e4", "R_IN"));
-    expect(blockMembers(nested, "if1")).toEqual(["if1", "r3", "m1"]); // 흐름 노드 배열 순서(insertRule 은 새 노드를 if1 뒤에 둔다)
-    const broken = { ...nested, edges: nested.edges.filter((e) => e.from !== "m1") }; // 합류 나감이 없어도 블록은 닫혀 있다
-    expect(blockMembers(broken, "if1")).toEqual(["if1", "r3", "m1"]);
-    const open = { ...nested, nodes: nested.nodes.filter((n) => n.id !== "m1") };
+    expect(blockMembers(nested, "if1")).toEqual(["if1", "r4", "r3"]); // 흐름 노드 배열 순서(insertRule 은 새 노드를 if1 뒤에 둔다), 모이는 자리 r2 는 블록 밖
+    const open = { ...nested, edges: nested.edges.filter((e) => e.from !== "r2") }; // 모이는 자리를 정하지 못한다
     expect(blockMembers(open, "if1")).toBeNull();
     expect(moveExcludedEdges(open, "if1").size).toBe(0);
   });
 
   it("moveNode — 중첩 분기를 바깥으로 옮긴다", () => {
-    const f = ok(insertSplit(ifFlow(), "e4", "IF")); // if1 의 조건 갈래 e4 안에 if2{e7 / e8 그 외} → m2, 출구 e9(m2→m1)
+    const f = ok(insertSplit(ifFlow(), "e4", "IF")); // if1 의 조건 갈래 e4 안에 if2{e7 → r4(빈 단계) / e8 그 외} → r3(모이는 자리), e9 r4→r3
     const g0 = valid(ok(updateEdge(f, "e7", { cond: "false" })));
-    expect(blockMembers(g0, "if1")).toEqual(["if1", "if2", "m2", "m1"]);
+    expect(blockMembers(g0, "if1")).toEqual(["if1", "if2", "r4", "r3"]);
     expect(moveNode(g0, "if1", "e7").ok).toBe(false); // 안쪽 분기의 선도 자기 블록 안이다
     const g = valid(ok(moveNode(g0, "if2", "e3"))); // r2 → end 사이로
     expect(g.edges.find((e) => e.id === "e3")?.to).toBe("if2");
-    expect(g.edges.find((e) => e.id === "e4")).toMatchObject({ to: "m1", cond: "true", order: 1 }); // 바깥 갈래는 비고 조건은 남는다
-    expect(g.edges.find((e) => e.from === "m2")).toMatchObject({ id: "e10", to: "end" });
-    expect(blockMembers(g, "if1")).toEqual(["if1", "m1"]);
-    expect(blockMembers(g, "if2")).toEqual(["if2", "m2"]);
+    expect(g.edges.find((e) => e.id === "e4")).toMatchObject({ to: "r3", cond: "true", order: 1 }); // 바깥 갈래는 빈 단계로 가고 조건은 남는다
+    expect(["e8", "e9"].map((id) => g.edges.find((e) => e.id === id)?.to)).toEqual(["end", "end"]); // 꼬리를 놓는 선의 도착(END)으로
+    expect(blockMembers(g, "if1")).toEqual(["if1", "r3"]);
+    expect(blockMembers(g, "if2")).toEqual(["if2"]); // 「그 외」 가 END 로 바로 가 끝내는 갈래, 갈래 1 의 r4 가 모이는 자리(F9)
   });
 
   it("moveNode — IF 갈래 선에 옮겨 넣으면 갈래 조건이 남는다", () => {
@@ -112,13 +114,13 @@ describe("flow-edit 3단계", () => {
     const z = f.nodes.find((n) => n.ruleId === "R_Z")!.id;
     const g = valid(ok(moveNode(f, z, cond.id)));
     expect(g.edges.find((e) => e.id === cond.id)).toMatchObject({ to: z, cond: "true", order: 1 });
-    expect(g.edges.find((e) => e.from === z)?.to).toBe("m1");
+    expect(g.edges.find((e) => e.from === z)?.to).toBe("r3");
   });
 
-  it("moveNode — 갈래 안 유일한 룰을 빼면 갈래 선이 조건을 지닌 채 합류로 간다", () => {
+  it("moveNode — 갈래 안 룰을 빼면 갈래 선이 조건을 지닌 채 다음 노드(빈 단계)로 간다", () => {
     const f = ok(insertRule(ifFlow(), "e4", "R_IN"));
-    const g = valid(ok(moveNode(f, "r3", "e1")));
-    expect(g.edges.find((e) => e.id === "e4")).toMatchObject({ from: "if1", to: "m1", cond: "true", order: 1 });
+    const g = valid(ok(moveNode(f, "r4", "e1")));
+    expect(g.edges.find((e) => e.id === "e4")).toMatchObject({ from: "if1", to: "r3", cond: "true", order: 1 });
     expect(parseFlow(g).tree?.ruleIds()).toEqual(["R_IN", "R_A", "R_B"]);
   });
 
@@ -136,21 +138,22 @@ describe("flow-edit 3단계", () => {
     const frag = copyFragment(f, "if1");
     if (typeof frag === "string") throw new Error(frag);
     expect(frag.entry).toBe("if1");
-    expect(frag.exit).toBe("m1");
-    expect(frag.edges.map((e) => e.id)).toEqual(["e4", "e5"]);
+    expect(frag.exit).toBeNull();
+    expect(frag.edges.map((e) => e.id)).toEqual(["e4", "e5", "e6"]);
+    expect(frag.tails).toEqual(["e5", "e6"]);
     const g = valid(ok(pasteFragment(f, "e1", frag)));
     const ifs = g.nodes.filter((n) => n.kind === "IF").map((n) => n.id);
     expect(ifs).toHaveLength(2);
     const newIf = ifs.find((id) => id !== "if1")!;
-    expect(g.nodes.find((n) => n.kind === "MERGE" && n.splitId === newIf)).toBeTruthy();
+    expect(g.nodes.some((n) => n.kind === "MERGE")).toBe(false);
     expect(g.edges.filter((e) => e.from === newIf && !e.otherwise).map((e) => e.cond)).toEqual(["true"]);
     expect(g.edges.filter((e) => e.from === newIf).map((e) => [e.order, e.otherwise, e.label])).toEqual([[1, false, "갈래 1"], [null, true, "그 외"]]);
     expect(g.edges.find((e) => e.id === "e1")?.to).toBe(newIf);
     expect(g.nodes.map((n) => n.id).indexOf(newIf)).toBe(1); // start 뒤
     expect(g.view.positions).toEqual({}); // 위치는 넣지 않는다(P-D18)
-    expect(copyFragment(f, "m1")).toBe("시작·끝·합류는 복사하지 않는다. 분기를 복사하면 합류가 함께 복사된다");
-    expect(copyFragment(f, "start")).toBe("시작·끝·합류는 복사하지 않는다. 분기를 복사하면 합류가 함께 복사된다");
-    const open = { ...f, nodes: f.nodes.filter((n) => n.id !== "m1") };
+    expect(copyFragment(ok(insertSplit(base, "e2", "PARALLEL")), "m1")).toBe("시작·끝·합류는 복사하지 않는다. 병렬 분기를 복사하면 합류가 함께 복사된다");
+    expect(copyFragment(f, "start")).toBe("시작·끝·합류는 복사하지 않는다. 병렬 분기를 복사하면 합류가 함께 복사된다");
+    const open = { ...f, edges: f.edges.filter((e) => e.from !== "r2") };
     expect(copyFragment(open, "if1")).toBe("분기 if1의 블록을 찾지 못해 복사할 수 없다");
   });
 
@@ -173,8 +176,8 @@ describe("flow-edit 3단계", () => {
     expect(f.nodes.map((n) => n.id)).toEqual(["start", "r1", "r4", "r2", "r3", "end"]);
     const g = valid(ok(duplicateNode(ifFlow(), "if1")));
     expect(g.nodes.filter((n) => n.kind === "IF")).toHaveLength(2);
-    expect(g.edges.find((e) => e.id === "e6")?.to).toBe("if2"); // 짝 합류 뒤
-    expect(duplicateNode(base, "end")).toEqual({ ok: false, reason: "시작·끝·합류는 복사하지 않는다. 분기를 복사하면 합류가 함께 복사된다" });
+    expect(["e5", "e6"].map((id) => g.edges.find((e) => e.id === id)?.to)).toEqual(["if2", "if2"]); // 원래 꼬리가 복제 분기로
+    expect(duplicateNode(base, "end")).toEqual({ ok: false, reason: "시작·끝·합류는 복사하지 않는다. 병렬 분기를 복사하면 합류가 함께 복사된다" });
   });
 
   it("붙여 넣은 결과가 200 을 넘으면 거부한다", () => {
@@ -197,8 +200,8 @@ describe("flow-edit 3단계", () => {
     expect(changeSplitKind(f, "if1", "IF")).toEqual({ ok: false, reason: "이미 IF 분기다" });
     expect(changeSplitKind(p, "if1", "PARALLEL")).toEqual({ ok: false, reason: "이미 병렬 분기다" });
     expect(changeSplitKind(f, "r1", "IF")).toEqual({ ok: false, reason: "분기 노드만 바꾼다" });
-    const open = { ...f, nodes: f.nodes.filter((n) => n.id !== "m1") };
-    expect(changeSplitKind(open, "if1", "PARALLEL")).toEqual({ ok: false, reason: "분기 if1의 짝 합류를 찾지 못했다" });
+    const open = { ...f, edges: f.edges.filter((e) => e.from !== "r2") };
+    expect(changeSplitKind(open, "if1", "PARALLEL")).toEqual({ ok: false, reason: "분기 if1의 갈래가 모이는 자리를 찾지 못했다" });
   });
 
   it("changeSplitKind — 사용자가 붙인 라벨은 그대로 둔다", () => {
@@ -220,21 +223,21 @@ describe("flow-edit 3단계", () => {
     const kept = valid(ok(dissolveSplit(f, "if1", cond)));
     expect(parseFlow(kept).tree?.ruleIds()).toEqual(["R_A", "R_IN", "R_B"]);
     expect(kept.nodes.some((n) => n.kind === "IF" || n.kind === "MERGE")).toBe(false);
-    expect(kept.edges.find((e) => e.id === "e2")?.to).toBe("r3"); // 분기로 들어오던 선이 갈래 첫 노드로
+    expect(kept.edges.find((e) => e.id === "e2")?.to).toBe("r4"); // 분기로 들어오던 선이 갈래 첫 노드로
     const empty = valid(ok(dissolveSplit(f, "if1", other)));
     expect(parseFlow(empty).tree?.ruleIds()).toEqual(["R_A", "R_B"]);
     expect(empty.edges.find((e) => e.id === "e2")?.to).toBe("r2");
     expect(dissolveSplit(f, "r1", cond)).toEqual({ ok: false, reason: "분기 노드만 푼다" });
     expect(dissolveSplit(f, "if1", "e1")).toEqual({ ok: false, reason: "분기 if1의 갈래가 아니다" });
-    const open = { ...f, nodes: f.nodes.filter((n) => n.id !== "m1") };
-    expect(dissolveSplit(open, "if1", cond)).toEqual({ ok: false, reason: "분기 if1의 짝 합류를 찾지 못해 풀 수 없다" });
+    const open = { ...f, edges: f.edges.filter((e) => e.from !== "r2") };
+    expect(dissolveSplit(open, "if1", cond)).toEqual({ ok: false, reason: "분기 if1의 갈래가 모이는 자리를 찾지 못해 풀 수 없다" });
   });
 
   it("dissolveSplit — 지운 노드의 배치·그룹을 치운다", () => {
     const f0 = ok(insertRule(ifFlow(), "e5", "R_OUT"));
-    const f = { ...f0, view: { positions: { r3: { x: 1, y: 2 }, r1: { x: 0, y: 0 } }, notes: [], groups: [{ id: "g1", title: "그룹", nodeIds: ["r3", "r1"] }] } };
+    const f = { ...f0, view: { positions: { r4: { x: 1, y: 2 }, r1: { x: 0, y: 0 } }, notes: [], groups: [{ id: "g1", title: "그룹", nodeIds: ["r4", "r1"] }] } };
     const g = valid(ok(dissolveSplit(f, "if1", "e4")));
-    expect(g.nodes.some((n) => n.id === "r3")).toBe(false);
+    expect(g.nodes.some((n) => n.id === "r4")).toBe(false);
     expect(g.view.positions).toEqual({ r1: { x: 0, y: 0 } });
     expect(g.view.groups).toEqual([{ id: "g1", title: "그룹", nodeIds: ["r1"] }]);
   });

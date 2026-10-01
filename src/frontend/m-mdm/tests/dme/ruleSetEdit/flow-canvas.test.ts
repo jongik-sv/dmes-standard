@@ -70,7 +70,7 @@ const click = async (el: Element) => act(async () => { el.dispatchEvent(new Mous
 describe("FlowCanvas", () => {
   it("노드 5개를 그리고 링크 아이콘은 룰에만 있다", async () => {
     await draw(props());
-    for (const id of ["start", "r1", "if1", "m1", "end"]) expect(q(`flow-node-${id}`), id).not.toBeNull();
+    for (const id of ["start", "r1", "if1", "r2", "end"]) expect(q(`flow-node-${id}`), id).not.toBeNull(); // r2 = 「갈래 1」 빈 단계(implicit-join §8.2)
     expect(q("flow-rule-open-r1")).not.toBeNull();
     expect(document.querySelectorAll('[data-testid^="flow-rule-open-"]').length).toBe(1);
     expect(q("flow-rule-open-r1")!.getAttribute("aria-label")).toBe("룰 편집 열기");
@@ -167,14 +167,14 @@ describe("FlowCanvas 다중 선택", () => {
     await click(q("flow-node-r1")!);
     expect(onSelectionChange).toHaveBeenLastCalledWith(["r1"]);
     await key("keydown");
-    await click(q("flow-node-m1")!);
-    expect(onSelectionChange).toHaveBeenLastCalledWith(["r1", "m1"]);
+    await click(q("flow-node-r2")!);
+    expect(onSelectionChange).toHaveBeenLastCalledWith(["r1", "r2"]);
     await click(q("flow-note-n1")!);
     for (const call of onSelectionChange.mock.calls) {
       expect(call[0]).not.toContain("n1");
       expect(call[0]).not.toContain("g1");
     }
-    expect(onSelectionChange).toHaveBeenLastCalledWith(["r1", "m1"]);
+    expect(onSelectionChange).toHaveBeenLastCalledWith(["r1", "r2"]);
     await key("keyup");
     // 편집 모드는 빈 곳 끌기가 영역 선택이라(S1) React Flow 가 빈 곳 누르기를 pointerdown→pointerup 으로 받는다(click 이벤트가 아니라).
     const pane = document.querySelector(".react-flow__pane")!;

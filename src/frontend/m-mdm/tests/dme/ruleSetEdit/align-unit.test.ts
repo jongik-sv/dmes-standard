@@ -17,9 +17,12 @@ function ok<T extends { ok: boolean }>(r: T): Extract<T, { ok: true }> {
 const ifFlow = (): EditFlow => ok(insertSplit(toEditFlow(null, ["R_A"]), "e2", "IF")).flow;
 const DRAWN: Record<string, FlowPos> = { r1: { x: 0, y: 0 }, if1: { x: 300, y: 140 }, end: { x: 700, y: 40 } };
 const IDS = ["r1", "if1", "end"]; // 크기 232×68, 176×44, 120×36 (합류 m1 은 if1 블록 멤버라 세지 않는다)
-/** if1 의 갈래 선에 룰 하나를 끼운다. */
+/**
+ * r1 → if1 [갈래 1 → R_B → r3(빈 단계)] [그 외] → r2(모이는 자리) → end — IF 블록 멤버는 if1·R_B·r3 이고 모이는 자리 r2 는 블록 밖이다(implicit-join §8.1).
+ * (END 앞 선에 끼운 IF 는 「갈래 1」 이 이어지는 갈래라 갈래 안 룰이 모이는 자리가 되므로 뒤에 룰을 하나 둔 흐름에 끼운다, F9.)
+ */
 const withInnerRule = () => {
-  const f = ifFlow();
+  const f = ok(insertSplit(toEditFlow(null, ["R_A", "R_Z"]), "e2", "IF")).flow;
   return ok(insertRule(f, f.edges.find((e) => e.from === "if1")!.id, "R_B")).flow;
 };
 
@@ -81,13 +84,13 @@ describe("펼친 분기는 블록째 옮긴다(끌기와 같다)", () => {
     const f = withInnerRule();
     return { f, id: f.nodes.find((n) => n.ruleId === "R_B")!.id };
   };
-  const drawn = (id: string): Record<string, FlowPos> => ({ r1: { x: 0, y: 0 }, if1: { x: 300, y: 100 }, [id]: { x: 320, y: 200 }, m1: { x: 310, y: 300 } });
-  it("펼친 IF 를 화살표로 옮기면 안쪽·합류가 같이 간다(접힘 없음)", () => {
+  const drawn = (id: string): Record<string, FlowPos> => ({ r1: { x: 0, y: 0 }, if1: { x: 300, y: 100 }, [id]: { x: 320, y: 200 }, r3: { x: 310, y: 300 } });
+  it("펼친 IF 를 화살표로 옮기면 안쪽(갈래 빈 단계 포함)이 같이 간다(접힘 없음)", () => {
     const { f, id } = inner();
     const g = nudgeNodes(f, ["if1"], 5, 0, drawn(id));
     expect(g.view.positions.if1).toEqual({ x: 305, y: 100 });
     expect(g.view.positions[id]).toEqual({ x: 325, y: 200 });
-    expect(g.view.positions.m1).toEqual({ x: 315, y: 300 });
+    expect(g.view.positions.r3).toEqual({ x: 315, y: 300 });
     expect(g.view.positions.r1).toBeUndefined(); // 고르지 않은 것은 건드리지 않는다
   });
   it("정렬도 분기 노드 상자 기준으로 맞추고 블록을 같이 옮긴다. 경계 상자는 블록으로 넓히지 않는다", () => {
@@ -95,15 +98,15 @@ describe("펼친 분기는 블록째 옮긴다(끌기와 같다)", () => {
     const g = alignNodes(f, ["r1", "if1"], "left", drawn(id));
     expect(g.view.positions.if1).toEqual({ x: 0, y: 100 });
     expect(g.view.positions[id]).toEqual({ x: 20, y: 200 });
-    expect(g.view.positions.m1).toEqual({ x: 10, y: 300 });
+    expect(g.view.positions.r3).toEqual({ x: 10, y: 300 });
     expect(g.view.positions.r1).toEqual({ x: 0, y: 0 });
   });
   it("블록 멤버가 선택에 같이 들어 있어도 이중 이동하지 않는다", () => {
     const { f, id } = inner();
-    const g = nudgeNodes(f, ["if1", id, "m1"], 5, 0, drawn(id));
+    const g = nudgeNodes(f, ["if1", id, "r3"], 5, 0, drawn(id));
     expect(g.view.positions.if1).toEqual({ x: 305, y: 100 });
     expect(g.view.positions[id]).toEqual({ x: 325, y: 200 });
-    expect(g.view.positions.m1).toEqual({ x: 315, y: 300 });
+    expect(g.view.positions.r3).toEqual({ x: 315, y: 300 });
   });
 });
 

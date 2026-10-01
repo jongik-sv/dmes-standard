@@ -1,14 +1,15 @@
-// 처리 갈래 돌아오기(받는 노드 spec §8 「돌아오기」) — 정상 다음 노드로 잇기·다시 잇기가 돌아오는 합류로 가고, 받는 노드 우클릭 「흐름으로 돌아오기」.
+// 처리 갈래 돌아오기(받는 노드 spec §8 「돌아오기」, implicit-join spec §8.2) — 정상 다음 노드로 잇기·다시 잇기가 합류 없이 그 노드로 바로 가고,
+// 받는 노드 우클릭 「흐름으로 돌아오기」.
 // 자동 배치 고침(browser-check 추가 1) — 룰과 처리 갈래 사이 빈 층 없음, 끝내는 처리 갈래 선이 다른 노드 상자를 지나지 않음.
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { FlowEdge, FlowNode, FlowNodeKind, RuleSetFlow } from "../../../src/contract/engine-contract.generated";
 import {
-  RETURN_ALREADY, RETURN_NO_EXIT, RETURN_OPEN, addCatch, connect, flowJsonOf, insertRule, reconnectEdge, returnCatch, setRoute, toEditFlow,
+  RETURN_ALREADY, RETURN_NO_EXIT, RETURN_OPEN, RETURN_TO_END, addCatch, connect, flowJsonOf, insertRule, reconnectEdge, returnCatch, setRoute, toEditFlow,
   type EditFlow, type EditResult, type FlowPos,
 } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { NODE_SIZE, autoLayout, clearLayoutCache, drawnPositions, endingRoutes } from "../../../pages/dme/ruleSetEdit/flow-layout";
-import { parseFlow, type Guarded } from "../../../pages/dme/ruleSetEdit/flow-model";
+import { parseFlow, returnOf, type Guarded } from "../../../pages/dme/ruleSetEdit/flow-model";
 import { smoothStepPoints } from "../../../pages/dme/ruleSetEdit/canvas/route-path";
 import { editMenu } from "../../../pages/dme/ruleSetEdit/canvas/menus/edit-menu";
 import type { CanvasActions, MenuContext } from "../../../pages/dme/ruleSetEdit/canvas/context-menu";
@@ -38,35 +39,37 @@ const endingHandler = (): EditFlow => ok(insertRule(ok(addCatch(toEditFlow(null,
 const specFromScratch = (): EditFlow => ok(addCatch(ok(reconnectEdge(endingHandler(), "e5", { to: "r2" })), "r1", null));
 
 describe("돌아오기 A — 정상 다음 노드로 잇기·다시 잇기", () => {
-  it("처리 갈래 노드에서 룰의 정상 다음 노드로 이으면 돌아오는 합류를 만들어 그 합류로 잇는다", () => {
+  it("처리 갈래 노드에서 룰의 정상 다음 노드로 이으면 그 선이 곧 돌아오는 선이다(합류를 만들지 않는다)", () => {
     const f = ok(connect(openHandler(), "h1", "r2"));
-    expect(merges(f)).toEqual([nd("m1", "MERGE", { splitId: "r1" })]);
-    expect(ids(f)).toEqual(["start", "r1", "c1", "m1", "r2", "end", "h1"]); // 합류는 정상 다음 노드 바로 앞
-    // 룰의 나가는 선(e2)은 ID 를 지킨 채 합류로 가고, 합류 출구(e5)는 그 바로 뒤, 새 선(e6)은 끝.
-    expect(pairs(f)).toEqual(["e1:start>r1", "e2:r1>m1", "e5:m1>r2", "e3:r2>end", "e4:c1>h1", "e6:h1>m1"]);
+    expect(merges(f)).toEqual([]);
+    expect(ids(f)).toEqual(["start", "r1", "c1", "r2", "end", "h1"]);
+    // 룰의 나가는 선(e2)은 그대로, 새 선(e5)은 끝.
+    expect(pairs(f)).toEqual(["e1:start>r1", "e2:r1>r2", "e3:r2>end", "e4:c1>h1", "e5:h1>r2"]);
+    expect(returnOf(f, "r1")).toBe("r2");
     expect(parseFlow(f).issues).toEqual([]);
   });
 
-  it("룰의 나가는 선에 있던 꺾는 점은 합류를 끼우면서 버린다", () => {
+  it("룰의 나가는 선에 있던 꺾는 점은 그대로 둔다(합류를 끼우지 않는다)", () => {
     const f0 = ok(setRoute(openHandler(), "e2", [{ x: 1, y: 2 }]));
-    expect(ok(connect(f0, "h1", "r2")).view.routes).toEqual({});
+    expect(ok(connect(f0, "h1", "r2")).view.routes).toEqual({ e2: [{ x: 1, y: 2 }] });
   });
 
-  it("돌아오는 합류가 이미 있으면 합류 출구 도착으로 잇는 선을 그 합류로 보낸다(새 합류 없음)", () => {
-    const f0 = specFromScratch(); // r1 → m1 → r2, c1 → r3 → m1, c2 → end
+  it("다른 처리 갈래도 정상 다음 노드로 이으면 같은 돌아오는 자리로 간다", () => {
+    const f0 = specFromScratch(); // r1 → r2, c1 → r3 → r2, c2 → end
     const f1: EditFlow = { ...f0, nodes: [...f0.nodes, nd("h9", "RULE", { ruleId: "R_H" })] };
     const f = ok(connect(ok(addCatch(f1, "r1", "h9")), "h9", "r2"));
-    expect(merges(f).map((m) => m.id)).toEqual(["m1"]);
-    expect(f.edges.at(-1)).toMatchObject({ from: "h9", to: "m1" });
+    expect(merges(f)).toEqual([]);
+    expect(f.edges.at(-1)).toMatchObject({ from: "h9", to: "r2" });
+    expect(returnOf(f, "r1")).toBe("r2");
     expect(parseFlow(f).issues).toEqual([]);
   });
 
-  it("돌아오는 합류로 바로 잇는 것은 지금과 같다", () => {
+  it("돌아오는 자리로 잇기는 선 하나만 끝에 더한다", () => {
     const f0 = specFromScratch();
     const f1: EditFlow = { ...f0, nodes: [...f0.nodes, nd("h9", "RULE", { ruleId: "R_H" })] };
     const g = ok(addCatch(f1, "r1", "h9"));
-    const f = ok(connect(g, "h9", "m1"));
-    expect(f.edges).toEqual([...g.edges, ed(f.edges.at(-1)!.id, "h9", "m1")]);
+    const f = ok(connect(g, "h9", "r2"));
+    expect(f.edges).toEqual([...g.edges, ed(f.edges.at(-1)!.id, "h9", "r2")]);
   });
 
   it("처리 갈래가 아닌 노드의 잇기는 글자 하나 다르지 않다", () => {
@@ -86,35 +89,35 @@ describe("돌아오기 A — 정상 다음 노드로 잇기·다시 잇기", () 
     expect(parseFlow(f).issues).toEqual([]);
   });
 
-  it("돌아오는 합류의 출구가 끝이어도 다른 받는 노드의 처리 갈래는 끝으로 이을 수 있다", () => {
-    // start → r1 → end, c1 → end 를 돌아오게 한 뒤(r1 → m1 → end, c1 → m1), c2 → h2 를 끝으로 잇는다
-    const f0 = ok(returnCatch(ok(addCatch(toEditFlow(null, ["R_A"]), "r1", null)), "c1"));
+  it("돌아오는 처리 갈래가 있어도 다른 받는 노드의 처리 갈래는 끝으로 이을 수 있다", () => {
+    // start → r1 → r2 → end, c1 → end 를 돌아오게 한 뒤(c1 → r2), c2 → h2 를 끝으로 잇는다
+    const f0 = ok(returnCatch(ok(addCatch(toEditFlow(null, ["R_A", "R_B"]), "r1", null)), "c1"));
     const f1 = ok(addCatch({ ...f0, nodes: [...f0.nodes, nd("h2", "RULE", { ruleId: "R_H" })] }, "r1", "h2"));
     const f = ok(connect(f1, "h2", "end"));
     expect(f.edges.at(-1)).toMatchObject({ from: "h2", to: "end" });
     expect(parseFlow(f).issues).toEqual([]);
   });
 
-  it("끝내는 처리 갈래의 끝 선을 정상 다음 노드로 다시 이으면 합류를 만들어 그 합류로 간다(선 ID·경로)", () => {
+  it("끝내는 처리 갈래의 끝 선을 정상 다음 노드로 다시 이으면 그 선이 돌아오는 선이 된다(선 ID 그대로, 경로는 버린다)", () => {
     const f0 = ok(setRoute(endingHandler(), "e5", [{ x: 5, y: 5 }]));
     const f = ok(reconnectEdge(f0, "e5", { to: "r2" }));
-    expect(pairs(f)).toEqual(["e1:start>r1", "e2:r1>m1", "e6:m1>r2", "e3:r2>end", "e4:c1>r3", "e5:r3>m1"]);
+    expect(pairs(f)).toEqual(["e1:start>r1", "e2:r1>r2", "e3:r2>end", "e4:c1>r3", "e5:r3>r2"]);
     expect(f.view.routes).toEqual({});
     expect(parseFlow(f).issues).toEqual([]);
   });
 
-  it("빈 처리 갈래(받는 노드 → 끝)의 첫 선을 정상 다음 노드로 옮기면 합류로 간다", () => {
+  it("빈 처리 갈래(받는 노드 → 끝)의 첫 선을 정상 다음 노드로 옮기면 그 노드로 바로 간다", () => {
     const f0 = ok(addCatch(toEditFlow(null, ["R_A", "R_B"]), "r1", null)); // c1 → end(e4)
     const f = ok(reconnectEdge(f0, "e4", { to: "r2" }));
-    expect(f.edges.find((x) => x.id === "e4")).toMatchObject({ from: "c1", to: "m1" });
+    expect(f.edges.find((x) => x.id === "e4")).toMatchObject({ from: "c1", to: "r2" });
     expect(parseFlow(f).issues).toEqual([]);
   });
 
-  it("예외 연결점을 정상 다음 노드에 놓아도(addCatch) 돌아오는 합류로 잇는다", () => {
+  it("예외 연결점을 정상 다음 노드에 놓으면(addCatch) 빈 돌아오는 갈래다", () => {
     const r = addCatch(toEditFlow(null, ["R_A", "R_B"]), "r1", "r2");
     const f = ok(r);
     expect(r.ok && r.id).toBe("c1");
-    expect(pairs(f)).toEqual(["e1:start>r1", "e2:r1>m1", "e4:m1>r2", "e3:r2>end", "e5:c1>m1"]);
+    expect(pairs(f)).toEqual(["e1:start>r1", "e2:r1>r2", "e3:r2>end", "e4:c1>r2"]);
     expect(parseFlow(f).issues).toEqual([]);
   });
 
@@ -123,40 +126,42 @@ describe("돌아오기 A — 정상 다음 노드로 잇기·다시 잇기", () 
     const p = parseFlow(f);
     expect(p.issues).toEqual([]);
     const g = p.tree!.root.items.find((b) => b.type === "GUARDED") as Guarded;
-    expect(g.mergeId).toBe("m1");
+    expect(g.mergeId).toBeNull();
+    expect(g.joinId).toBe("r2");
     expect(g.handlers.map((h) => [h.catchNodeId, h.ends])).toEqual([["c1", false], ["c2", true]]);
   });
 });
 
 describe("돌아오기 B — 받는 노드 「흐름으로 돌아오기」(returnCatch)", () => {
-  it("끝내는 처리 갈래의 끝 선을 합류를 만들어 그 합류로 옮긴다", () => {
+  it("끝내는 처리 갈래의 끝 선을 정상 다음 노드로 옮긴다(합류 없음)", () => {
     const f = ok(returnCatch(endingHandler(), "c1"));
-    expect(pairs(f)).toEqual(["e1:start>r1", "e2:r1>m1", "e6:m1>r2", "e3:r2>end", "e4:c1>r3", "e5:r3>m1"]);
+    expect(pairs(f)).toEqual(["e1:start>r1", "e2:r1>r2", "e3:r2>end", "e4:c1>r3", "e5:r3>r2"]);
     expect(parseFlow(f).issues).toEqual([]);
   });
 
-  it("빈 처리 갈래(받는 노드 → 끝)는 받는 노드에서 바로 합류로 간다", () => {
+  it("빈 처리 갈래(받는 노드 → 끝)는 받는 노드에서 바로 정상 다음 노드로 간다", () => {
     const f = ok(returnCatch(ok(addCatch(toEditFlow(null, ["R_A", "R_B"]), "r1", null)), "c1"));
-    expect(f.edges.find((x) => x.id === "e4")).toMatchObject({ from: "c1", to: "m1" });
+    expect(f.edges.find((x) => x.id === "e4")).toMatchObject({ from: "c1", to: "r2" });
     expect(parseFlow(f).issues).toEqual([]);
   });
 
-  it("돌아오는 합류가 이미 있으면 그 합류를 쓰고, 정상 다음 노드가 끝이어도 돌아오게 할 수 있다", () => {
+  it("돌아오는 자리가 이미 있으면 그 자리로 돌아오고, 정상 다음 노드가 끝이면 거부한다(J-D10)", () => {
     const f = ok(returnCatch(specFromScratch(), "c2"));
-    expect(merges(f).map((m) => m.id)).toEqual(["m1"]);
-    expect(f.edges.find((x) => x.from === "c2")).toMatchObject({ to: "m1" });
+    expect(merges(f)).toEqual([]);
+    expect(f.edges.find((x) => x.from === "c2")).toMatchObject({ to: "r2" });
     expect(parseFlow(f).issues).toEqual([]);
-    const g = ok(returnCatch(ok(addCatch(toEditFlow(null, ["R_A"]), "r1", null)), "c1"));
-    expect(pairs(g)).toEqual(["e1:start>r1", "e2:r1>m1", "e4:m1>end", "e3:c1>m1"]);
-    expect(parseFlow(g).issues).toEqual([]);
+    expect(reason(returnCatch(ok(addCatch(toEditFlow(null, ["R_A"]), "r1", null)), "c1"))).toBe(RETURN_TO_END);
   });
 
   it("이미 돌아오는 처리 갈래·받는 노드가 아닌 노드·나가는 선이 하나가 아닌 룰은 거부한다", () => {
     expect(reason(returnCatch(specFromScratch(), "c1"))).toBe(RETURN_ALREADY);
     expect(reason(returnCatch(specFromScratch(), "r1"))).toBe("받는 노드 r1를 찾지 못했다");
     const f0 = endingHandler();
+    const twoOut: EditFlow = { ...f0, edges: [...f0.edges, ed("e9", "r1", "end")] };
+    expect(reason(returnCatch(twoOut, "c1"))).toBe(RETURN_NO_EXIT);
+    // 나가는 선이 없으면 처리 갈래 도착을 정하지 못한다
     const noOut: EditFlow = { ...f0, edges: f0.edges.filter((x) => x.id !== "e2") };
-    expect(reason(returnCatch(noOut, "c1"))).toBe(RETURN_NO_EXIT);
+    expect(reason(returnCatch(noOut, "c1"))).toBe(RETURN_OPEN);
   });
 
   it("처리 갈래가 끝까지 이어지지 않으면 거부한다", () => {
@@ -186,8 +191,8 @@ describe("받는 노드 우클릭 메뉴 「흐름으로 돌아오기」", () =>
   });
 });
 
-describe("돌아오기 — 이미 잘못된 흐름(처리 갈래 첫 선이 정상 경로에 닿음)에서는 합류를 만들지 않는다", () => {
-  /** start → r1 → r2 → r3 → r4 → end, c1(r2) → r4 — 예외 연결점을 다음 노드가 아닌 r4 에 놓았다(r4 에 들어오는 선 둘). */
+describe("돌아오기 — 처리 갈래 첫 선이 정상 경로 뒤쪽 노드에 닿으면 이미 돌아오는 갈래다(합류를 만들지 않는다)", () => {
+  /** start → r1 → r2 → r3 → r4 → end, c1(r2) → r4 — 예외 연결점을 다음 노드가 아닌 r4 에 놓았다(돌아오는 자리 r4, implicit-join §2.3). */
   const malformed = (): EditFlow => ok(addCatch(toEditFlow(null, ["R_A", "R_B", "R_C", "R_D"]), "r2", "r4"));
   const ctx = (flow: EditFlow): MenuContext => ({
     flow, rules: {}, mode: "edit", hasClipboard: false, selectedEdgeId: null, collapsed: new Set(), breakpoints: new Set(), canRun: true,
@@ -196,7 +201,8 @@ describe("돌아오기 — 이미 잘못된 흐름(처리 갈래 첫 선이 정�
 
   it("returnCatch 는 거부하고 메뉴 항목도 없다", () => {
     const f = malformed();
-    expect(reason(returnCatch(f, "c1"))).toBe(RETURN_OPEN);
+    expect(returnOf(f, "r2")).toBe("r4");
+    expect(reason(returnCatch(f, "c1"))).toBe(RETURN_ALREADY);
     expect(editMenu({ kind: "node", nodeId: "c1" }, ctx(f)).map((i) => i.id)).toEqual(["delete"]);
   });
 

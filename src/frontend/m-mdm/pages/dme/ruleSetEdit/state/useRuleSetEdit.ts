@@ -26,7 +26,7 @@ import { isRowVersionConflict } from "@/dme/oasis-call";
 
 import { deprecateSet, restoreSet, saveSet, validateFlow, viewSet } from "../api";
 import { EditHistory } from "./edit-history";
-import { flowJsonOf, toEditFlow, type EditFlow, type EditResult } from "../flow-edit";
+import { UPGRADE_NOTICE, flowJsonOf, toEditFlow, toEditFlowCounted, type EditFlow, type EditResult } from "../flow-edit";
 import { linearFlow } from "../flow-model";
 import { flowChecks } from "../set-model";
 import type { CondIo, RuleIo, RuleSetCheck, RuleSetSaveResult, RuleSetView } from "../types";
@@ -291,7 +291,8 @@ export function useRuleSetEdit(): RuleSetEditState {
         setIdRef.current = setId;
         cancelCondIo();
         setView(next);
-        replaceFlow(toEditFlow(next.set.flow, next.set.ruleIds ?? []), { refetchCond: false });
+        const loaded = toEditFlowCounted(next.set.flow, next.set.ruleIds ?? []);
+        replaceFlow(loaded.flow, { refetchCond: false });
         setRules(toMap(next.rules));
         setCondIo(next.condIo ?? {});
         setSetName(next.set.setName ?? "");
@@ -307,6 +308,7 @@ export function useRuleSetEdit(): RuleSetEditState {
         }
         setConflict(false);
         editFailShown.current = false;
+        if (loaded.upgraded > 0) setMessage({ kind: "info", text: UPGRADE_NOTICE(loaded.upgraded) });
         return true;
       } catch (e) {
         setError(errorText(e));

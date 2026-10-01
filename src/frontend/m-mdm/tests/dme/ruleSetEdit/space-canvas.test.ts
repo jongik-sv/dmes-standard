@@ -227,7 +227,7 @@ describe("FlowCanvas — 공간 넓히기", () => {
   });
 
   it("접힌 블록 — 블록이 너머면 숨은 멤버도 같은 delta 로 가고, 펼치면 블록 모양 그대로 옮겨져 있다", async () => {
-    const f = ok(insertSplit(chain(), "e2", "IF")); // start→r1→if1[빈 갈래 둘]→m1→r2→r3→end
+    const f = ok(insertSplit(chain(), "e2", "IF")); // start→r1→if1[갈래1: r4(빈 단계) | 그 외]→r2(모이는 자리)→r3→end(implicit-join §8.2)
     const full = drawnPositions(f);
     const onShiftSpace = vi.fn();
     await draw(props({ flow: f, onShiftSpace, collapsed: new Set(["if1"]) }));
@@ -238,11 +238,11 @@ describe("FlowCanvas — 공간 넓히기", () => {
     expect(onShiftSpace).toHaveBeenCalledTimes(1);
     const [axis, line, delta, drawn, blocks] = onShiftSpace.mock.calls[0];
     expect(Object.keys(blocks)).toEqual(["if1"]);
-    expect(drawn.m1).toEqual(full.m1); // 숨은 멤버 — 블록과 맞춘 전체 흐름 자리
+    expect(drawn.r4).toEqual(full.r4); // 숨은 멤버 — 블록과 맞춘 전체 흐름 자리
     const g = shiftSpace(f, axis, line, delta, drawn, blocks);
     const after = drawnPositions(g); // 펼친 흐름
     expect(after.if1).toEqual({ x: full.if1.x, y: full.if1.y + delta });
-    expect(after.m1).toEqual({ x: full.m1.x, y: full.m1.y + delta });
+    expect(after.r4).toEqual({ x: full.r4.x, y: full.r4.y + delta });
     expect(after.r1).toEqual(full.r1);
   });
 
