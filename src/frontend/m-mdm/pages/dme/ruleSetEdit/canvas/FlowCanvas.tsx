@@ -1284,6 +1284,8 @@ function Inner(props: FlowCanvasProps) {
       out.push({
         id: n.id, type: "rsfFlow", position: p, width: s.w, height: s.h, measured: staleMeasure(measured[n.id], s) ? { width: s.w, height: s.h } : measured[n.id], data,
         handles: handlesOf(block ? "RULE" : n.kind, s), draggable: editable && n.kind !== "CATCH",
+        // 고르거나 끄는 룰은 React Flow 가 1000 올려 그린다 — 받는 노드(룰 테두리에 걸친 원)가 그 아래로 깔려 위쪽 반이 가려지지 않게 더 올려 둔다.
+        ...(n.kind === "CATCH" ? { zIndex: SELECT_ELEVATION + 1 } : {}),
         selected: rfSel.has(n.id),
       });
     }

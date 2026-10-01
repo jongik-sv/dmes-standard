@@ -108,4 +108,11 @@ describe("받는 노드 캔버스 그리기", () => {
     await draw(props({ mode: "view" }));
     expect(q("flow-catch-handle-r1")).toBeNull();
   });
+
+  it("룰을 고르면(React Flow 가 z-index 를 올린다) 받는 노드는 그보다 위에 그려진다", async () => {
+    await draw(props({ mode: "edit", selectedId: "r1" }));
+    const z = (id: string) => Number((q(id)!.closest(".react-flow__node") as HTMLElement).style.zIndex || 0);
+    expect(z("flow-node-r1")).toBeGreaterThan(0);
+    expect(z("flow-node-c1")).toBeGreaterThan(z("flow-node-r1"));
+  });
 });
