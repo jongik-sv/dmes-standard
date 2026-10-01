@@ -1,0 +1,78 @@
+# DMES 공통 UI 컴포넌트 (MES 화면용)
+
+> 화면(m-*)은 `@dk-oasis/shared/*` 래퍼만 쓴다. Mantine·ag-grid 를 직접 import 하지 않는다.
+> 화면 전체 모양은 먼저 [화면 표준 골격](../screen-patterns.md)에서 유형을 고르고 예제를 복사한다.
+> 이 파일은 `python3 .claude/skills/mantine-aggrid-ui/scripts/ui_docs.py index --write` 가 생성한다. 직접 고치지 않는다.
+
+## 시작
+
+- [화면 표준 골격](../screen-patterns.md): 화면 유형(조회·조회+상세·그리드 편집·마스터-디테일·등록 팝업)을 고르고 고정값과 예제를 확인할 때 쓴다.
+- [Mantine 대응표](../mantine-catalog.md): Mantine 컴포넌트가 어떤 shared 래퍼로 감싸져 있는지, 래퍼가 없으면 무엇을 할지 확인할 때 쓴다.
+
+## 화면 골격 (`@dk-oasis/shared/layout`)
+
+- [PageLayout](page-layout.md): 화면 제목, 상단 버튼(조회·신규·저장·삭제·엑셀), 본문, 하단 화면 ID 를 한 틀로 묶고 버튼 권한(RBAC)과 F8 조회 단축키를 처리할 때 쓴다.
+- [SearchArea](search-area.md): 조회조건 입력칸을 격자로 배치하고 어느 입력에서든 Enter 로 조회가 실행되게 할 때 쓴다. 칸 하나는 SearchField 로 만든다.
+- [ContentBody](content-body.md): 화면 본문을 좌우 또는 상하 패널로 나누고, 필요하면 드래그로 크기를 조절하고 패널을 최대화할 때 쓴다. 패널 하나는 ContentPanel 로 만든다.
+- [상세 폼 (DETAIL_TABLE_STYLE · DETAIL_LABEL_CELL · DETAIL_VALUE_CELL)](detail-form.md): 선택한 행의 상세 정보를 라벨-값 두 칸짜리 표로 보여 주고 수정할 때 쓴다.
+
+## 입력 (`@dk-oasis/shared/form`)
+
+- [Button](button.md): 팝업 footer, 상세 폼 안, 패널 머리처럼 PageLayout 상단 버튼이 아닌 자리에서 동작을 실행하는 버튼이 필요할 때 쓴다.
+- [Input](input.md): 한 줄 텍스트나 숫자를 입력받거나 읽기전용 값을 보여 줄 때 쓴다.
+- [Select](select.md): 정해진 선택지 중 하나를 드롭다운으로 고를 때 쓴다.
+- [ComboBox](combo-box.md): 선택지가 많거나 검색해서 고르고 싶을 때, 또는 목록에 없는 값을 새로 만들 수 있게 할 때 쓴다.
+- [MultiSelectComboBox](multi-select-combo-box.md): 여러 항목을 검색해서 골라 태그로 보여 줄 때 쓴다.
+- [DatePicker](date-picker.md): 날짜(년-월-일) 하나를 달력으로 고르거나 `yyyy-MM-dd` 로 직접 입력받을 때 쓴다.
+- [DateTimePicker](date-time-picker.md): 날짜와 시각(24시간제, 초까지)을 `yyyy-MM-dd HH:mm:ss` 로 입력받을 때 쓴다.
+- [Checkbox](checkbox.md): 참·거짓 하나를 켜고 끄는 입력(여부 항목, 동의 확인)이 필요할 때 쓴다.
+- [Radio](radio.md): 2~4개의 선택지 중 하나를 모두 펼쳐 보여 주며 고르게 할 때 쓴다.
+- [Textarea](textarea.md): 비고·내용처럼 여러 줄 텍스트를 입력받을 때 쓴다.
+- [FormGroup](form-group.md): 라벨과 입력을 한 줄로 묶고 필수 표시·툴팁·오류 문구를 자동 연결해 주는 기존 화면용 폼 행이 필요할 때 쓴다. 새 화면에서는 쓰지 않는다.
+- [Spinner · LoadingOverlay · ProgressBar](loading.md): 조회·저장이 진행 중임을 보여 줄 때 쓴다. 그리드 목록의 로딩은 AgDataGrid 의 `loading` 이 먼저이고, 이 컴포넌트들은 그 밖의 영역과 긴 작업에 쓴다.
+
+## 목록 (`@dk-oasis/shared/grid`)
+
+- [AgDataGrid](ag-data-grid.md): 데이터 목록(머리행 + 데이터 행 반복)을 화면에 표로 그릴 때 쓴다. 열 정의는 `GridColumn` 으로 준다.
+- [GridPanel](grid-panel.md): 그리드 위에 목록 제목·건수·행추가/행삭제/행복사 버튼을 붙이는 머리를 만들 때 쓴다. 모든 목록은 이 안에 `AgDataGrid` 를 둔다.
+- [useGridDataManager](use-grid-data-manager.md): 그리드 편집 화면에서 행 추가·수정·삭제 상태를 관리하고, 변경된 행만 모아 저장 페이로드로 넘길 때 쓴다. 저장형 화면은 반드시 이 훅으로 행 상태를 관리한다(Part B MUST).
+- [GridBadge](grid-badge.md): 그리드 셀 안에 OK/NG 같은 상태 값을 색 배지로 보일 때 쓴다. 여러 배지는 `GridBadgeGroup`, 셀 정렬은 `GridBadgeCell` 이 맡는다.
+- [Pagination](pagination.md): 서버 쪽 페이징으로 목록을 나눠 조회할 때 그리드 아래에 이전/다음 페이지 이동 막대를 붙이는 데 쓴다.
+
+## 팝업·메시지 (`modal`, `message-provider`, `use-api-call`)
+
+- [Modal](modal.md): 등록·수정·선택 팝업을 화면 위에 띄울 때 쓴다. 알림·확인 대화상자(`MessageModal`)는 직접 쓰지 않고 `useMessage` 로 띄운다.
+- [메시지 (useMessage · useGfnMessage · MessageProvider · useApiCall · ErrorModal)](message.md): 저장·삭제 결과 토스트, 입력 검증 경고, 삭제 확인, 오류 모달 같은 사용자 메시지를 모든 화면에서 같은 방식으로 띄울 때 쓴다.
+
+## 탭·트리·룩업·기타
+
+- [Tabs](tabs.md): 한 영역 안에서 내용을 밑줄형 탭으로 나눠 보여 줄 때 쓴다. 탭 머리줄만 그리므로 본문 전환은 화면이 직접 한다.
+- [Tree](tree.md): 메뉴·코드 계층처럼 부모-자식 구조를 접고 펼치는 트리로 보여 주고 한 노드를 고르게 할 때 쓴다.
+- [LookupModal (LookupTextField · LookupIconButton)](lookup.md): 코드(품목·부서 등)를 직접 입력하거나, 돋보기 버튼·F4 로 검색 팝업을 열어 코드·명 한 행을 골라 채울 때 쓴다.
+- [MatrixTable](matrix-table.md): "첫 열(라벨) + 동적으로 늘어나는 열 + 셀마다 직접 그린 값" 구조의 비교 매트릭스(피벗) 표를 보일 때 쓴다.
+- [차트 (DonutChart · PieChart · HBarChart · LineChart · StackedBarChart)](charts.md): 현황 대시보드에서 비율(도넛·파이), 항목별 크기(가로 막대), 추이(선), 구성 비율(누적 막대)을 간단한 SVG 차트로 보일 때 쓴다.
+- [exportToExcel](export-to-excel.md): 화면의 목록 데이터를 엑셀(.xlsx) 파일로 내려받게 할 때 쓴다. ag-grid 의 Excel Export 는 Enterprise 기능이라 쓰지 않는다.
+- [아이콘 (@tabler/icons-react)](icons.md): 버튼·툴바·셀 안에 작은 그림 아이콘을 넣을 때 쓴다. 화면의 아이콘은 `@tabler/icons-react` 만 쓴다.
+
+## 화면 문서에 싣지 않는 shared export
+
+- `DataGrid`: AgDataGrid 의 별칭. 새 코드는 AgDataGrid
+- `useRowStateManager`: 옛 행 상태 훅(_rowState). 새 화면은 useGridDataManager
+- `ResizableFormPanel`: Part B §4-3 이 새 화면 사용 금지. ContentBody resizable
+- `MaxHandle`: ContentBody·GridPanel 내부용
+- `SearchHistoryInput`: SearchField 내부용(APS 최근검색)
+- `isSearchHistoryPage`: SearchField 내부용
+- `clearAllSearchHistory`: 포털 셸용
+- `clearSearchHistory`: 포털 셸용
+- `readSearchHistory`: SearchField 내부용
+- `emitSearch`: PageLayout·SearchArea 내부용
+- `subscribeSearch`: PageLayout·SearchArea 내부용
+- `useContentMaximize`: ContentBody 최대화 내부용
+- `canDoButton`: 팝업 내부 버튼 권한 판정용(page-layout 문서 참고)
+- `useUserButtonRbac`: 팝업 내부 버튼 권한 판정용(page-layout 문서 참고)
+- `INPUT_BASE`: 원시 input 스타일. 화면은 form 래퍼
+- `INPUT_READONLY`: 원시 input 스타일. 화면은 form 래퍼
+- `INPUT_DISABLED`: 원시 input 스타일. 화면은 form 래퍼
+- `GridHelpButton`: GridPanel help prop 으로 쓴다
+- `GRID_TEMP_ID_FIELD`: GridPanel·useGridDataManager 내부 필드
+- `MessageProvider`: 호스트 root layout 이 감싼다

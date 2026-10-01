@@ -15,7 +15,9 @@ description: Mantine 9(@mantine/core · dates · hooks · modals · notification
 
 | 작업 | 진행 |
 |---|---|
-| DMES 화면(`m-*`) 구현·수정 | §3 → shared 래퍼 소스가 근거. 라이브러리 문서는 래퍼 동작이 불분명할 때만 |
+| DMES 화면(`m-*`) 새로 만들기·고치기 | [screen-patterns.md](references/screen-patterns.md) 에서 화면 유형을 고르고 `references/examples/` 예제를 복사한다 → 요소별 세부는 [components/llms.txt](references/components/llms.txt) 색인 → §3 |
+| 특정 shared 컴포넌트 사용법 | `U get <이름>` (예: `U get AgDataGrid`) |
+| Mantine 컴포넌트를 화면에 쓰고 싶음 | [mantine-catalog.md](references/mantine-catalog.md) 에서 대응 래퍼를 찾는다. 래퍼가 없으면 사용자에게 shared 추가를 제안한다 |
 | shared 래퍼·테마·`grid.css` 수정 | §2 조회 → 구현 → §4 검증 |
 | 쓸 Mantine 컴포넌트를 모름 | `M search <단어>` → `M get <이름>` |
 | ag-grid 기능·옵션 구현 | [references/aggrid.md](references/aggrid.md) 먼저, `A search` → `A get <slug>` → `A types <옵션>` |
@@ -25,7 +27,7 @@ description: Mantine 9(@mantine/core · dates · hooks · modals · notification
 
 ## 2. 문서 조회
 
-아래와 본문의 `M <명령>` 은 `python3 $D/mantine_docs.py <명령>`, `A <명령>` 은 `python3 $D/aggrid_docs.py <명령>` 을 줄여 쓴 것이다. 두 라이브러리 모두 `llms.txt` 색인 + 페이지별 Markdown 을 제공한다(PrimeReact 와 같은 방식). 조회는 스크립트로 하고, 결과는 `~/.cache/` 에 7일간 캐시한다. **WebFetch 는 쓰지 않는다.** 요약 모델이 Props 표와 예제를 뭉개고, ag-grid.com 은 요청 자체를 403 으로 막는다.
+아래와 본문의 `M <명령>` 은 `python3 $D/mantine_docs.py <명령>`, `A <명령>` 은 `python3 $D/aggrid_docs.py <명령>`, `U <명령>` 은 `python3 $D/ui_docs.py <명령>`(DMES shared 컴포넌트 문서: `index`·`get`·`full`·`coverage`·`check-examples`)을 줄여 쓴 것이다. 두 라이브러리 모두 `llms.txt` 색인 + 페이지별 Markdown 을 제공한다(PrimeReact 와 같은 방식). 조회는 스크립트로 하고, 결과는 `~/.cache/` 에 7일간 캐시한다. **WebFetch 는 쓰지 않는다.** 요약 모델이 Props 표와 예제를 뭉개고, ag-grid.com 은 요청 자체를 403 으로 막는다.
 
 ```bash
 D=.claude/skills/mantine-aggrid-ui/scripts          # 저장소 루트 기준
@@ -46,7 +48,7 @@ python3 $D/aggrid_docs.py recommendations           # 공식 ag-dev 의 LLM 흔�
 
 ## 3. DMES 계층 (src/frontend 작업)
 
-**구현 전에 읽는다:** `docs/guide/FrontEnd/README.md` 의 읽기 순서, 특히 `docs/guide/FrontEnd/standard-v2/part-b-shared-policy.md`(허용 export·금지 사항)와 `docs/guide/FrontEnd/UI-Visual-Standard.md`(토큰·크기·그리드·토스트). 값은 이 스킬에 복사하지 않았으므로 정본 문서를 본다. 아래 표와 목록은 정본을 찾아가는 **길 안내**다. 가이드와 다르면 가이드를 따르고, 차이를 사용자에게 알린다. audit 가 강제하는 규칙 목록은 `docs/guide/FrontEnd/README.md` §자동 점검에 있다.
+**구현 전에 읽는다:** `docs/guide/FrontEnd/README.md` 의 읽기 순서, 특히 `docs/guide/FrontEnd/standard-v2/part-b-shared-policy.md`(허용 export·금지 사항)와 `docs/guide/FrontEnd/UI-Visual-Standard.md`(토큰·크기·그리드·토스트). **허용·금지 같은 정책**은 가이드가 정본이고, **props 이름·모양 같은 API**는 shared 래퍼 소스가 정본이다(가이드의 예제 코드가 소스와 다르면 소스를 따르고 차이를 보고한다). 화면의 **모습을 통일하는 고정값**(버튼 순서·문구, 패널 폭, 열 폭, 메시지 문구 등)은 [screen-patterns.md](references/screen-patterns.md) 가 정한다. audit 가 강제하는 규칙 목록은 `docs/guide/FrontEnd/README.md` §자동 점검에 있다.
 
 - **화면 모듈은 `@mantine/*`, `ag-grid-react`, `ag-grid-community` 를 import 하지 않는다**(Part B §4-2·§6·§17). `Group`·`Stack`·`Collapse` 같은 배치 요소도 예외가 아니다. Mantine 은 호스트 root layout 과 `shared` 안에서만 쓴다.
 - 화면은 `@dk-oasis/shared/*` 만 쓴다:
@@ -72,6 +74,7 @@ python3 $D/aggrid_docs.py recommendations           # 공식 ag-dev 의 LLM 흔�
 
 ## 4. 검증과 보고
 
+0. 이 스킬의 문서·예제를 고쳤다면 `U check-examples`(예제 타입 검사 + audit)와 `U coverage`(shared export 누락, `llms.txt`·`llms-full.txt` 최신 여부)를 돌린다. 생성물은 `U index --write`·`U full --write` 로 갱신한다.
 1. `M audit <바꾼 파일·폴더>` 와 `A audit <…>` — 옛 API, deprecated 옵션(설치본 `.d.ts` 에서 자동 추출), 금지 import, 화면(`m-*`) CSS 의 색 값 직접 사용을 잡는다. **바꾼 파일만** 넘긴다(기존 CSS 에는 이미 색 값이 남아 있다). 의심 건은 문서로 확인하고, 오탐이면 이유를 보고에 적는다.
 2. 대상 패키지 lint·build (`pnpm -C src/frontend/<앱> lint`, `build`). shared 를 고쳤다면 shared 를 먼저 build 한다.
 3. 브라우저 확인은 사용자 승인 후에만 한다(`docs/guide/FrontEnd/Local-Rules.md` §4). ag-grid 기능이 조용히 동작하지 않으면 콘솔의 `AG Grid: error #…`(모듈 미등록)을 먼저 본다.
@@ -83,6 +86,12 @@ python3 $D/aggrid_docs.py recommendations           # 공식 ag-dev 의 LLM 흔�
 | 실수 | 바로잡기 |
 |---|---|
 | 화면에서 `import { Button, Group } from "@mantine/core"` | `@dk-oasis/shared/form` · `layout` 래퍼 |
+| `PageLayout buttons` 에 `<Button>` JSX 를 넣음 | `PageButton` 객체 배열(`{ id, label, onClick, type, action }`) — [screen-patterns.md](references/screen-patterns.md) §상단 버튼 |
+| 메시지를 `useGfnMessage`·`ErrorModal`·`alert` 로 제각각 띄움 | `useMessage().showMessage` + screen-patterns.md §메시지 문구 표 |
+| 기간 조회조건을 `<div style={{display:"flex"}}>` 나 `span-2` 로 직접 묶음 | `SearchField` 두 개, 두 번째 `label="~"` |
+| 패널 안을 flex `div` 로 다시 감싸거나 안내 `<p style>` 추가 | 감싸지 않는다. ContentPanel·GridPanel 이 높이를 맡는다 |
+| 행추가·행삭제를 상단 버튼으로 만들고 임시 키를 직접 생성 | `GridPanel showAddButton` + `buttons` 의 확인창 행삭제 + `useGridDataManager` (screen-patterns.md §상단 버튼) |
+| `today()` 값을 `DatePicker` 에 바로 넣음 | `formatDateStr(today())` (`today()` 는 `yyyyMMdd`) |
 | 화면에서 `AgGridReact` 와 `ColDef[]` 로 그리드 조립 | `AgDataGrid` + `GridColumn[]` |
 | 카드 안 작은 목록을 원시 `<table>` 로 그림 | `AgDataGrid height="auto"` |
 | "SearchArea 가 레이아웃에 안 맞아서" 직접 조립 | 사용자에게 알리고, 필요하면 shared 를 확장 |
