@@ -36,6 +36,8 @@ public record RuleSetCheck(String code, String severity, String ruleId, String o
     public static final String COND_UNTYPED = "COND_UNTYPED";
     /** 흐름에 빈 단계(TASK) 노드가 있다(WARN, 4단계 spec §1.1). 저장·되살리기를 막지 않는다. 위치 없이 세트 단위 한 줄이다. */
     public static final String EMPTY_TASK = "EMPTY_TASK";
+    /** 받는 노드 붙임·종류 오류(REJECT, 받는 노드 spec §5). 흐름 구조 검사(`FlowParser`)가 낸다. */
+    public static final String FLOW_CATCH = "FLOW_CATCH";
 
     /** 노드 위치 없는 검사(목록 입력·세트 단위 거부). */
     public RuleSetCheck(String code, String severity, String ruleId, String otherRuleId, String varName, String message) {

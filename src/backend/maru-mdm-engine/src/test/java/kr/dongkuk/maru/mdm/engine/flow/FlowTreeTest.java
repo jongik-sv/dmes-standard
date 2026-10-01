@@ -1,9 +1,11 @@
 package kr.dongkuk.maru.mdm.engine.flow;
 
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.br;
+import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.catchNode;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.e;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.end;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.flow;
+import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.guardMerge;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.ifFlow;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.ifNode;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.merge;
@@ -13,6 +15,7 @@ import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.parFlow;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.rule;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.start;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.List;
@@ -72,5 +75,19 @@ class FlowTreeTest {
     void 모르는_노드의_관계는_예외() {
         FlowTree t = tree(ifFlow());
         assertThrows(IllegalArgumentException.class, () -> t.relation("a", "nope"));
+    }
+
+    @Test
+    void 정상_갈래와_처리_갈래는_EXCLUSIVE_이고_받는_룰보다_뒤이며_branched_는_그대로다() {
+        FlowTree t = tree(FlowParserTest.guardedFlow());
+        assertEquals(Relation.BEFORE, t.relation("r1", "r9"));
+        assertEquals(Relation.AFTER, t.relation("r9", "r1"));
+        assertEquals(Relation.BEFORE, t.relation("r9", "r2"));
+        assertFalse(t.branched());
+        FlowTree n = tree(kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.flow(
+                List.of(start(), rule("r1", "R_A"), rule("n1", "R_B"), catchNode("c1", "r1", "NO_RESULT"), rule("h1", "R_C"), guardMerge("mr", "r1"), end()),
+                List.of(e("e1", "start", "r1"), e("e2", "r1", "n1"), e("e3", "n1", "mr"), e("e4", "c1", "h1"), e("e5", "h1", "mr"), e("e6", "mr", "end"))));
+        assertEquals(Relation.EXCLUSIVE, n.relation("n1", "h1"));
+        assertEquals(Relation.EXCLUSIVE, n.relation("h1", "n1"));
     }
 }

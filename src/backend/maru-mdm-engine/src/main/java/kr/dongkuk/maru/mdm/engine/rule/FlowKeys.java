@@ -17,6 +17,7 @@ import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
 import kr.dongkuk.maru.mdm.engine.expr.ReservedNames;
 import kr.dongkuk.maru.mdm.engine.flow.Block;
 import kr.dongkuk.maru.mdm.engine.flow.Branch;
+import kr.dongkuk.maru.mdm.engine.flow.Guarded;
 import kr.dongkuk.maru.mdm.engine.flow.RuleStep;
 import kr.dongkuk.maru.mdm.engine.flow.Seq;
 import kr.dongkuk.maru.mdm.engine.flow.Split;
@@ -185,6 +186,7 @@ final class FlowKeys {
                     maybe.addAll(any);
                 }
                 case Seq inner -> walk(inner, available, sure, maybe, reported, out);
+                case Guarded g -> throw new UnsupportedOperationException("받는 룰 실행은 Task 3 이 한다"); // SEAM(T3)
             }
         }
     }
@@ -219,6 +221,7 @@ final class FlowKeys {
                 }
                 case Split s -> s.branches().forEach(br -> out.addAll(sureProduced(br.body())));
                 case Seq inner -> out.addAll(sureProduced(inner));
+                case Guarded g -> throw new UnsupportedOperationException("받는 룰 실행은 Task 3 이 한다"); // SEAM(T3)
             }
         }
         return out;
@@ -240,6 +243,7 @@ final class FlowKeys {
                 }
                 case Split s -> s.branches().forEach(br -> out.addAll(allProduced(br.body())));
                 case Seq inner -> out.addAll(allProduced(inner));
+                case Guarded g -> throw new UnsupportedOperationException("받는 룰 실행은 Task 3 이 한다"); // SEAM(T3)
             }
         }
         return out;

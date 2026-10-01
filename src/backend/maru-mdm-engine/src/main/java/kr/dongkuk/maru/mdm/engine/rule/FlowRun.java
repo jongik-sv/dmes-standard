@@ -13,6 +13,7 @@ import kr.dongkuk.maru.mdm.engine.expr.EngineWarning;
 import kr.dongkuk.maru.mdm.engine.flow.Block;
 import kr.dongkuk.maru.mdm.engine.flow.Branch;
 import kr.dongkuk.maru.mdm.engine.flow.FlowTree;
+import kr.dongkuk.maru.mdm.engine.flow.Guarded;
 import kr.dongkuk.maru.mdm.engine.flow.RuleStep;
 import kr.dongkuk.maru.mdm.engine.flow.Seq;
 import kr.dongkuk.maru.mdm.engine.flow.Split;
@@ -175,6 +176,7 @@ final class FlowRun {
                 case Split s when s.kind() == NodeKind.IF -> ifSplit(s, ctx, made);
                 case Split s -> parallel(s, ctx, made);
                 case Seq inner -> seq(inner, ctx, made);
+                case Guarded g -> throw new UnsupportedOperationException("받는 룰 실행은 Task 3 이 한다"); // SEAM(T3)
             }
         }
     }

@@ -21,8 +21,8 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.NodeKind;
 
 /**
  * 룰 세트 흐름 JSON(FLOW_JSON) 코덱 — spec §3.3, 계획 C1·C6. 엔진은 Jackson 을 쓰지 않으므로 JSON ↔ 엔진 {@link FlowDefinition} 변환은
- * mdm/lib 이 맡는다. 노드 종류 키는 {@code kind}, IF "그 외" 선은 {@code "otherwise": true}(D2). {@code view} 는 화면 전용이라 읽지 않고
- * {@link #canonical} 이 그대로 싣는다. 형식이 틀리면 {@link IllegalArgumentException}(호출자가 MDM021 로 바꾼다).
+ * mdm/lib 이 맡는다. 노드 종류 키는 {@code kind}, 받는 노드(CATCH)는 {@code attachTo}·{@code catches} 를 더 갖는다,
+ * IF "그 외" 선은 {@code "otherwise": true}(D2). {@code view} 는 화면 전용이라 읽지 않고 {@link #canonical} 이 그대로 싣는다. 형식이 틀리면 {@link IllegalArgumentException}(호출자가 MDM021 로 바꾼다).
  */
 public final class RuleSetFlowJson {
 
@@ -54,6 +54,16 @@ public final class RuleSetFlowJson {
             o.put("ruleId", n.ruleId());
             o.put("splitId", n.splitId());
             o.put("label", n.label());
+            // 받는 노드만 두 칸을 쓴다 — 받는 노드 없는 세트의 정규 글자는 그대로다(Ruling R11).
+            if (n.kind() == NodeKind.CATCH) {
+                o.put("attachTo", n.attachTo());
+                if (n.catches() == null) {
+                    o.putNull("catches");
+                } else {
+                    ArrayNode cs = o.putArray("catches");
+                    n.catches().forEach(cs::add);
+                }
+            }
         }
         ArrayNode es = out.putArray("edges");
         for (FlowEdge e : f.edges()) {
@@ -173,7 +183,8 @@ public final class RuleSetFlowJson {
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("노드 종류 " + kind + " 를 모른다");
             }
-            nodes.add(new FlowNode(id, k, text(n, "ruleId", where), text(n, "splitId", where), text(n, "label", where), null, null));
+            nodes.add(new FlowNode(id, k, text(n, "ruleId", where), text(n, "splitId", where), text(n, "label", where),
+                    text(n, "attachTo", where), strings(n, "catches", where)));
         }
         List<FlowEdge> edges = new ArrayList<>();
         for (int i = 0; i < es.size(); i++) {
@@ -226,6 +237,25 @@ public final class RuleSetFlowJson {
             throw new IllegalArgumentException(where + "." + field + " 가 없다");
         }
         return v;
+    }
+
+    /** 문자열 배열 칸 — 없거나 null 이면 null, 배열이 아니거나 문자열이 아닌 원소가 있으면 형식 오류. */
+    private static List<String> strings(JsonNode node, String field, String where) {
+        JsonNode v = node.get(field);
+        if (v == null || v.isNull()) {
+            return null;
+        }
+        if (!v.isArray()) {
+            throw new IllegalArgumentException(where + "." + field + " 는 문자열 배열이어야 한다");
+        }
+        List<String> out = new ArrayList<>();
+        for (JsonNode x : v) {
+            if (!x.isTextual()) {
+                throw new IllegalArgumentException(where + "." + field + " 는 문자열 배열이어야 한다");
+            }
+            out.add(x.textValue());
+        }
+        return List.copyOf(out);
     }
 
     /** 문자열 칸 — 없거나 null 이면 null, 문자열이 아니면 형식 오류. */

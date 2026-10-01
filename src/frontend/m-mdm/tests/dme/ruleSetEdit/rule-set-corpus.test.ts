@@ -17,7 +17,7 @@ import type { CondIo, IoName, IoSource, RuleIo } from "../../../pages/dme/ruleSe
 import { PACKAGE_ROOT, RULE_SET_CORPUS_PATH } from "../../helpers/engine-paths";
 
 /** Java `RuleSetCorpusTest.MIN_CASES` 와 같아야 한다(I9). 사례를 더하면 두 러너를 함께 올린다. */
-const MIN_CASES = 54;
+const MIN_CASES = 59;
 /** Java `RuleSetCorpusTest.MIN_FUZZ_CASES` 와 같아야 한다. */
 const MIN_FUZZ_CASES = 200;
 /** 퍼즈 파일 — 코퍼스와 같은 폴더(mdm/lib test resources). */
@@ -39,6 +39,8 @@ interface CorpusFlowNode {
   ruleId?: string | null;
   splitId?: string | null;
   label?: string | null;
+  attachTo?: string | null;
+  catches?: string[] | null;
 }
 
 interface CorpusFlowEdge {
@@ -77,7 +79,10 @@ interface CorpusCase {
 
 /** 코퍼스 흐름의 빠진 칸을 null(otherwise 는 false)로 채운다 — Java 러너와 같은 읽기 규칙. */
 function flowOf(f: NonNullable<CorpusCase["flow"]>): RuleSetFlow {
-  const nodes: FlowNode[] = f.nodes.map((n) => ({ id: n.id, kind: n.kind, ruleId: n.ruleId ?? null, splitId: n.splitId ?? null, label: n.label ?? null }));
+  const nodes: FlowNode[] = f.nodes.map((n) => {
+    const base: FlowNode = { id: n.id, kind: n.kind, ruleId: n.ruleId ?? null, splitId: n.splitId ?? null, label: n.label ?? null };
+    return n.kind === "CATCH" ? { ...base, attachTo: n.attachTo ?? null, catches: n.catches ?? null } : base;
+  });
   const edges: FlowEdge[] = f.edges.map((e) => ({
     id: e.id,
     from: e.from,

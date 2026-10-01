@@ -115,6 +115,14 @@ function bodyIds(seq: Seq, out: string[] = []): string[] {
     else if (b.type === "SPLIT") {
       out.push(b.nodeId, b.mergeId);
       for (const br of b.branches) bodyIds(br.body, out);
+    } else if (b.type === "GUARDED") {
+      out.push(b.rule.nodeId);
+      if (b.mergeId) out.push(b.mergeId);
+      bodyIds(b.normal, out);
+      for (const h of b.handlers) {
+        out.push(h.catchNodeId);
+        bodyIds(h.body, out);
+      }
     } else out.push(b.nodeId);
   }
   return out;
@@ -134,6 +142,12 @@ function orderBranches(f: RuleSetFlow, g: InstanceType<typeof dagre.graphlib.Gra
   const visit = (seq: Seq) => {
     for (const b of seq.items) {
       if (b.type === "SEQ") visit(b);
+      if (b.type === "GUARDED") {
+        // 처리 갈래를 오른쪽에 두는 배치는 Task 7. 여기서는 안쪽 분기의 갈래 순서만 맞춘다.
+        visit(b.normal);
+        for (const h of b.handlers) visit(h.body);
+        continue;
+      }
       if (b.type !== "SPLIT") continue;
       const boxOf = (id: string): LaneBox => {
         const s = sizeOf(id);

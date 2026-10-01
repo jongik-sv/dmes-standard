@@ -324,6 +324,11 @@ function pathChecks(tree: FlowTree, rules: RuleIoMap, condIo: CondIoMap, out: Ru
       if (b.type === "RULE") rule(b, s);
       else if (b.type === "SEQ") walk(b, s);
       else if (b.type === "TASK") continue; // 빈 단계 — 읽거나 만드는 이름이 없다(4단계 spec §1.1)
+      else if (b.type === "GUARDED") {
+        // SEAM(T4): 받는 룰의 정상·처리 갈래 경로 검사는 Task 4 가 넣는다. 지금은 룰만 보통 룰처럼 보고 갈래를 건너뛴다.
+        rule(b.rule, s);
+        walk(b.normal, s);
+      }
       else {
         if (b.kind === "IF") for (const br of b.branches) if (!br.otherwise) cond(b.nodeId, br.edgeId, s);
         const ends = b.branches.map((br) => {

@@ -1,9 +1,11 @@
 package kr.dongkuk.maru.mdm.engine.flow;
 
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.br;
+import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.catchNode;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.e;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.end;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.flow;
+import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.guardMerge;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.ifFlow;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.ifNode;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.merge;
@@ -333,5 +335,116 @@ class FlowParserTest {
         FlowParse p = FlowParser.parse(new FlowDefinition(1, nodes, edges));
         assertEquals(List.of(), p.issues());
         assertNotNull(p.tree());
+    }
+
+    // ── 받는 노드(받는 노드 spec §3) ──
+
+    /** start → r1(R_A) → mr → r2(R_B) → end. c1(NO_RESULT) → r9(R_C) → mr, c2(INPUT_ERROR·EVAL_ERROR) → end. */
+    static FlowDefinition guardedFlow() {
+        return flow(List.of(start(), rule("r1", "R_A"), catchNode("c1", "r1", "NO_RESULT"), rule("r9", "R_C"),
+                        catchNode("c2", "r1", "INPUT_ERROR", "EVAL_ERROR"), guardMerge("mr", "r1"), rule("r2", "R_B"), end()),
+                List.of(e("e1", "start", "r1"), e("e2", "r1", "mr"), e("e3", "c1", "r9"), e("e4", "r9", "mr"), e("e5", "c2", "end"),
+                        e("e6", "mr", "r2"), e("e7", "r2", "end")));
+    }
+
+    @Test
+    void 받는_룰은_Guarded_블록이고_처리_갈래는_돌아옴과_끝냄을_안다() {
+        FlowParse p = FlowParser.parse(guardedFlow());
+        assertEquals(List.of(), p.issues());
+        Guarded g = (Guarded) p.tree().root().items().get(0);
+        assertEquals(new RuleStep("r1", "R_A"), g.rule());
+        assertEquals("r1", g.nodeId());
+        assertEquals("mr", g.mergeId());
+        assertEquals(List.of(), g.normal().items());
+        assertEquals(new Guarded.Handler("c1", List.of(CatchKind.NO_RESULT), new Seq(List.of(new RuleStep("r9", "R_C"))), false),
+                g.handlers().get(0));
+        assertEquals(new Guarded.Handler("c2", List.of(CatchKind.INPUT_ERROR, CatchKind.EVAL_ERROR), new Seq(List.of()), true),
+                g.handlers().get(1));
+        assertEquals(g.handlers().get(1), g.handlerFor(CatchKind.EVAL_ERROR));
+        assertNull(g.handlerFor(CatchKind.HIT_CONFLICT));
+        assertEquals(new RuleStep("r2", "R_B"), p.tree().root().items().get(1));
+        assertEquals(List.of("R_A", "R_C", "R_B"), p.tree().ruleIds());
+        assertFalse(p.tree().branched());
+    }
+
+    @Test
+    void 돌아오는_처리_갈래가_없으면_정상_갈래가_비고_룰의_나가는_선이_그대로_이어진다() {
+        FlowDefinition f = flow(List.of(start(), rule("r1", "R_A"), catchNode("c1", "r1", "EVAL_ERROR"), rule("r2", "R_B"), end()),
+                List.of(e("e1", "start", "r1"), e("e2", "r1", "r2"), e("e3", "c1", "end"), e("e4", "r2", "end")));
+        FlowParse p = FlowParser.parse(f);
+        assertEquals(List.of(), p.issues());
+        Guarded g = (Guarded) p.tree().root().items().get(0);
+        assertNull(g.mergeId());
+        assertEquals(List.of(), g.normal().items());
+        assertTrue(g.handlers().get(0).ends());
+        assertEquals(new RuleStep("r2", "R_B"), p.tree().root().items().get(1));
+    }
+
+    @Test
+    void 정상_갈래에_노드가_있고_처리_갈래_안_룰에도_받는_노드를_붙일_수_있다() {
+        FlowDefinition f = flow(List.of(start(), rule("r1", "R_A"), rule("n1", "R_B"), catchNode("c1", "r1", "NO_RESULT"), rule("h1", "R_C"),
+                        catchNode("c9", "h1", "EVAL_ERROR"), guardMerge("mr", "r1"), end()),
+                List.of(e("e1", "start", "r1"), e("e2", "r1", "n1"), e("e3", "n1", "mr"), e("e4", "c1", "h1"), e("e5", "h1", "mr"),
+                        e("e6", "c9", "end"), e("e7", "mr", "end")));
+        FlowParse p = FlowParser.parse(f);
+        assertEquals(List.of(), p.issues());
+        Guarded g = (Guarded) p.tree().root().items().get(0);
+        assertEquals(List.of(new RuleStep("n1", "R_B")), g.normal().items());
+        Guarded inner = (Guarded) g.handlers().get(0).body().items().get(0);
+        assertEquals("h1", inner.nodeId());
+        assertNull(inner.mergeId());
+        assertTrue(inner.handlers().get(0).ends());
+        assertEquals(List.of("R_A", "R_B", "R_C"), p.tree().ruleIds());
+    }
+
+    @Test
+    void 받는_노드_오류는_FLOW_CATCH_로_모두_모은다() {
+        FlowDefinition f = flow(List.of(start(), rule("r1", "R_A"), task("t1"), catchNode("c0", "zz", "NO_RESULT"), catchNode("c1", "t1", "NO_RESULT"),
+                        new FlowNode("c2", NodeKind.CATCH, null, null, null, "r1", List.of()), catchNode("c3", "r1", "NO_RESULT", "BOOM", "NO_RESULT"),
+                        catchNode("c4", "r1", "NO_RESULT"), end()),
+                List.of(e("e1", "start", "r1"), e("e2", "r1", "t1"), e("e3", "t1", "end"), e("e4", "c0", "end"), e("e5", "c1", "end"),
+                        e("e6", "c2", "end"), e("e7", "c3", "end"), e("e8", "c4", "end")));
+        assertEquals(List.of(
+                "FLOW_CATCH|c0|null|받는 노드 c0가 붙은 룰 zz가 없다",
+                "FLOW_CATCH|c1|null|받는 노드 c1는 룰 노드에만 붙일 수 있다(t1는 TASK)",
+                "FLOW_CATCH|c2|null|받는 노드 c2에 받을 예외 종류가 없다",
+                "FLOW_CATCH|c3|null|받는 노드 c3의 예외 종류 BOOM를 모른다",
+                "FLOW_CATCH|c3|null|받는 노드 c3에 예외 종류 NO_RESULT가 겹친다",
+                "FLOW_CATCH|c4|null|룰 노드 r1에서 예외 종류 NO_RESULT를 c3와 c4가 함께 받는다"), issues(f));
+    }
+
+    @Test
+    void 받는_노드가_있으면_END_는_들어오는_선이_여럿이어도_되고_없으면_지금처럼_하나다() {
+        FlowDefinition withCatch = flow(List.of(start(), rule("r1", "R_A"), catchNode("c1", "r1", "NO_RESULT"), end()),
+                List.of(e("e1", "start", "r1"), e("e2", "r1", "end"), e("e3", "c1", "end")));
+        assertEquals(List.of(), issues(withCatch));
+        FlowDefinition without = flow(List.of(start(), rule("r1", "R_A"), rule("r2", "R_B"), end()),
+                List.of(e("e1", "start", "r1"), e("e2", "r1", "end"), e("e3", "r2", "end")));
+        assertTrue(issues(without).contains("FLOW_STRUCTURE|end|null|end의 들어오는 선이 2개다. 1개여야 한다"), issues(without).toString());
+    }
+
+    @Test
+    void 돌아오는_합류는_받는_룰마다_하나까지이고_받는_노드_없는_룰은_짝이_아니다() {
+        FlowDefinition two = flow(List.of(start(), rule("r1", "R_A"), catchNode("c1", "r1", "NO_RESULT"), guardMerge("m1", "r1"), guardMerge("m2", "r1"), end()),
+                List.of(e("e1", "start", "r1"), e("e2", "r1", "m1"), e("e3", "c1", "m1"), e("e4", "m1", "m2"), e("e5", "c1", "m2"), e("e6", "m2", "end")));
+        assertTrue(issues(two).contains("FLOW_STRUCTURE|r1|null|룰 r1로 돌아오는 합류가 2개다. 1개까지 둔다"), issues(two).toString());
+        FlowDefinition bare = flow(List.of(start(), rule("r1", "R_A"), guardMerge("m1", "r1"), end()),
+                List.of(e("e1", "start", "r1"), e("e2", "r1", "m1"), e("e3", "m1", "end")));
+        assertTrue(issues(bare).contains("FLOW_STRUCTURE|m1|null|합류 m1의 짝 분기 r1가 없다"), issues(bare).toString());
+    }
+
+    @Test
+    void 처리_갈래가_다른_합류로_가면_멈추고_처리_갈래_안_IF_갈래는_END_로_못_간다() {
+        // start → if9 [b1 → r1 → m9][그 외 → m9] → end. r1 에 c1 → m9(if9 의 합류).
+        FlowDefinition jump = flow(List.of(start(), ifNode("if9"), rule("r1", "R_A"), catchNode("c1", "r1", "NO_RESULT"), merge("m9", "if9"), end()),
+                List.of(e("e0", "start", "if9"), br("b1", "if9", "r1", 1, "X > 0"), other("bo", "if9", "m9"), e("e1", "r1", "m9"),
+                        e("e2", "c1", "m9"), e("e3", "m9", "end")));
+        assertEquals(List.of("FLOW_STRUCTURE|m9|null|처리 갈래 c1가 끝에 닿지 않고 m9로 나간다"), issues(jump));
+        // start → r1 → mr → end. c1 → if1 [b1 → end][b2 → m2][그 외 → m2] → m2 → mr.
+        FlowDefinition nested = flow(List.of(start(), rule("r1", "R_A"), catchNode("c1", "r1", "NO_RESULT"), ifNode("if1"), merge("m2", "if1"),
+                        guardMerge("mr", "r1"), end()),
+                List.of(e("e1", "start", "r1"), e("e2", "r1", "mr"), e("e3", "c1", "if1"), br("b1", "if1", "end", 1, "X > 0"),
+                        br("b2", "if1", "m2", 2, "X > 1"), other("bo", "if1", "m2"), e("e4", "m2", "mr"), e("e5", "mr", "end")));
+        assertEquals(List.of("FLOW_STRUCTURE|end|null|갈래가 m2에서 닫히지 않고 end로 나간다"), issues(nested));
     }
 }

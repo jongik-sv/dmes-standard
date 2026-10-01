@@ -7709,6 +7709,156 @@
           {"code": "EMPTY_TASK", "severity": "WARN", "ruleId": null, "otherRuleId": null, "varName": null, "message": "빈 단계 1개 — 실행 때 그냥 지나간다"}
         ]
       }
+    },
+    {
+      "name": "받는 노드 — 붙은 룰이 없다(FLOW_CATCH)",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          { "id": "start", "kind": "START" },
+          { "id": "r1", "kind": "RULE", "ruleId": "C1" },
+          { "id": "c1", "kind": "CATCH", "attachTo": "zz", "catches": ["NO_RESULT"] },
+          { "id": "end", "kind": "END" }
+        ],
+        "edges": [
+          { "id": "e1", "from": "start", "to": "r1" },
+          { "id": "e2", "from": "r1", "to": "end" },
+          { "id": "e3", "from": "c1", "to": "end" }
+        ]
+      },
+      "ids": ["C1"],
+      "rules": { "C1": { "exists": true, "status": "INUSE", "releasedVer": 1 } },
+      "expect": {
+        "io": { "inputs": [], "results": [] },
+        "deps": { "C1": [] },
+        "checks": [
+          { "code": "FLOW_CATCH", "severity": "REJECT", "message": "받는 노드 c1가 붙은 룰 zz가 없다", "nodeId": "c1" }
+        ]
+      }
+    },
+    {
+      "name": "받는 노드 — 빈 종류·모르는 키·한 룰에서 같은 종류 둘(FLOW_CATCH 순서)",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          { "id": "start", "kind": "START" },
+          { "id": "r1", "kind": "RULE", "ruleId": "C1" },
+          { "id": "c1", "kind": "CATCH", "attachTo": "r1", "catches": [] },
+          { "id": "c2", "kind": "CATCH", "attachTo": "r1", "catches": ["NO_RESULT", "BOOM"] },
+          { "id": "c3", "kind": "CATCH", "attachTo": "r1", "catches": ["NO_RESULT"] },
+          { "id": "end", "kind": "END" }
+        ],
+        "edges": [
+          { "id": "e1", "from": "start", "to": "r1" },
+          { "id": "e2", "from": "r1", "to": "end" },
+          { "id": "e3", "from": "c1", "to": "end" },
+          { "id": "e4", "from": "c2", "to": "end" },
+          { "id": "e5", "from": "c3", "to": "end" }
+        ]
+      },
+      "ids": ["C1"],
+      "rules": { "C1": { "exists": true, "status": "INUSE", "releasedVer": 1 } },
+      "expect": {
+        "io": { "inputs": [], "results": [] },
+        "deps": { "C1": [] },
+        "checks": [
+          { "code": "FLOW_CATCH", "severity": "REJECT", "message": "받는 노드 c1에 받을 예외 종류가 없다", "nodeId": "c1" },
+          { "code": "FLOW_CATCH", "severity": "REJECT", "message": "받는 노드 c2의 예외 종류 BOOM를 모른다", "nodeId": "c2" },
+          { "code": "FLOW_CATCH", "severity": "REJECT", "message": "룰 노드 r1에서 예외 종류 NO_RESULT를 c2와 c3가 함께 받는다", "nodeId": "c3" }
+        ]
+      }
+    },
+    {
+      "name": "받는 노드 — 빈 단계에는 붙일 수 없다(FLOW_CATCH)",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          { "id": "start", "kind": "START" },
+          { "id": "t1", "kind": "TASK", "label": "빈 단계" },
+          { "id": "c1", "kind": "CATCH", "attachTo": "t1", "catches": ["EVAL_ERROR"] },
+          { "id": "end", "kind": "END" }
+        ],
+        "edges": [
+          { "id": "e1", "from": "start", "to": "t1" },
+          { "id": "e2", "from": "t1", "to": "end" },
+          { "id": "e3", "from": "c1", "to": "end" }
+        ]
+      },
+      "ids": [],
+      "rules": {},
+      "expect": {
+        "io": { "inputs": [], "results": [] },
+        "deps": {},
+        "checks": [
+          { "code": "EMPTY_TASK", "severity": "WARN", "message": "빈 단계 1개 — 실행 때 그냥 지나간다" },
+          { "code": "FLOW_CATCH", "severity": "REJECT", "message": "받는 노드 c1는 룰 노드에만 붙일 수 있다(t1는 TASK)", "nodeId": "c1" }
+        ]
+      }
+    },
+    {
+      "name": "받는 노드 — 처리 갈래가 다른 분기의 합류로 간다(FLOW_STRUCTURE 2단계)",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          { "id": "start", "kind": "START" },
+          { "id": "if9", "kind": "IF" },
+          { "id": "r1", "kind": "RULE", "ruleId": "C1" },
+          { "id": "c1", "kind": "CATCH", "attachTo": "r1", "catches": ["NO_RESULT"] },
+          { "id": "m9", "kind": "MERGE", "splitId": "if9" },
+          { "id": "end", "kind": "END" }
+        ],
+        "edges": [
+          { "id": "e0", "from": "start", "to": "if9" },
+          { "id": "b1", "from": "if9", "to": "r1", "order": 1, "cond": "X > 0" },
+          { "id": "bo", "from": "if9", "to": "m9", "otherwise": true },
+          { "id": "e1", "from": "r1", "to": "m9" },
+          { "id": "e2", "from": "c1", "to": "m9" },
+          { "id": "e3", "from": "m9", "to": "end" }
+        ]
+      },
+      "ids": ["C1"],
+      "rules": { "C1": { "exists": true, "status": "INUSE", "releasedVer": 1 } },
+      "expect": {
+        "io": { "inputs": [], "results": [] },
+        "deps": { "C1": [] },
+        "checks": [
+          { "code": "FLOW_STRUCTURE", "severity": "REJECT", "message": "처리 갈래 c1가 끝에 닿지 않고 m9로 나간다", "nodeId": "m9" }
+        ]
+      }
+    },
+    {
+      "name": "받는 노드 — 처리 갈래 안 IF 갈래는 END 로 못 간다(지금 문구, 편차 F7)",
+      "flow": {
+        "version": 1,
+        "nodes": [
+          { "id": "start", "kind": "START" },
+          { "id": "r1", "kind": "RULE", "ruleId": "C1" },
+          { "id": "c1", "kind": "CATCH", "attachTo": "r1", "catches": ["NO_RESULT"] },
+          { "id": "if1", "kind": "IF" },
+          { "id": "m2", "kind": "MERGE", "splitId": "if1" },
+          { "id": "mr", "kind": "MERGE", "splitId": "r1" },
+          { "id": "end", "kind": "END" }
+        ],
+        "edges": [
+          { "id": "e1", "from": "start", "to": "r1" },
+          { "id": "e2", "from": "r1", "to": "mr" },
+          { "id": "e3", "from": "c1", "to": "if1" },
+          { "id": "b1", "from": "if1", "to": "end", "order": 1, "cond": "X > 0" },
+          { "id": "b2", "from": "if1", "to": "m2", "order": 2, "cond": "X > 1" },
+          { "id": "bo", "from": "if1", "to": "m2", "otherwise": true },
+          { "id": "e4", "from": "m2", "to": "mr" },
+          { "id": "e5", "from": "mr", "to": "end" }
+        ]
+      },
+      "ids": ["C1"],
+      "rules": { "C1": { "exists": true, "status": "INUSE", "releasedVer": 1 } },
+      "expect": {
+        "io": { "inputs": [], "results": [] },
+        "deps": { "C1": [] },
+        "checks": [
+          { "code": "FLOW_STRUCTURE", "severity": "REJECT", "message": "갈래가 m2에서 닫히지 않고 end로 나간다", "nodeId": "end" }
+        ]
+      }
     }
   ]
 }

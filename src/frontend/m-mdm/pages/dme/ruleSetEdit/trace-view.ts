@@ -104,7 +104,15 @@ function scopePaths(flow: RuleSetFlow): { paths: Map<string, ScopePath>; branchE
     for (const b of s.items) {
       if (b.type === "RULE" || b.type === "TASK") paths.set(b.nodeId, path);
       else if (b.type === "SEQ") walk(b, path);
-      else {
+      else if (b.type === "GUARDED") {
+        paths.set(b.rule.nodeId, path);
+        if (b.mergeId) paths.set(b.mergeId, path);
+        walk(b.normal, path);
+        for (const h of b.handlers) {
+          paths.set(h.catchNodeId, path);
+          walk(h.body, path);
+        }
+      } else {
         paths.set(b.nodeId, path);
         paths.set(b.mergeId, path);
         if (b.kind === "PARALLEL") branchEdges.set(b.nodeId, b.branches.map((br) => br.edgeId));

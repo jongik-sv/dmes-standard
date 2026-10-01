@@ -74,6 +74,8 @@ export type RuleSetCheckCode =
   | "FLOW_PARTIAL"
   | "FLOW_READONLY"
   | "COND_UNTYPED"
+  /** 받는 노드 붙임·종류 오류(REJECT, 받는 노드 spec §5). `flow-model.ts` 구조 검사가 낸다. */
+  | "FLOW_CATCH"
   /** 흐름에 빈 단계(TASK)가 있다(WARN, 4단계 spec §1.1). 서버 `RuleSetAnalyzer`·화면 `set-model.ts` 가 내는 것은 Task 3. */
   | "EMPTY_TASK";
 
