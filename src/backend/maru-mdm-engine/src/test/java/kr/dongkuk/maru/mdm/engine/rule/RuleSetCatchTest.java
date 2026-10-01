@@ -397,4 +397,26 @@ class RuleSetCatchTest {
         assertEquals(List.of("G", "B"), pm.merged());
         assertEquals(List.of("G", "B"), List.copyOf(t.finalValues().keySet()));
     }
+
+    /** r0(R_ERR) → end. c0 EVAL_ERROR → if1 [b1 "X > 0" → r1(R_G) → j] [그 외 → x(R_B) → j] → j(R_CODE) → end. c1(r1) NO_RESULT → h(R_KIND) → j. */
+    static FlowDefinition ifJoinReturn() {
+        return flow(List.of(start(), rule("r0", "R_ERR"), catchNode("c0", "r0", "EVAL_ERROR"), ifNode("if1"), rule("r1", "R_G"),
+                        catchNode("c1", "r1", "NO_RESULT"), rule("h", "R_KIND"), rule("x", "R_B"), rule("j", "R_CODE"), end()),
+                List.of(e("e1", "start", "r0"), e("e2", "r0", "end"), e("e3", "c0", "if1"), br("b1", "if1", "r1", 1, "X > 0"),
+                        other("bo", "if1", "x"), e("e4", "r1", "j"), e("e5", "c1", "h"), e("e6", "h", "j"), e("e7", "x", "j"), e("e8", "j", "end")));
+    }
+
+    @Test
+    void 돌아오는_자리가_IF_모이는_자리와_같으면_CATCH_를_되돌린_뒤_고친_값이_들어간다() {
+        // (1) 되돌림: j 는 안쪽(c1, NO_RESULT)이 아니라 바깥(c0) 값을 읽는다.
+        RuleSetResult r = run(ifJoinReturn(), rec("X", new BigDecimal("5")));
+        assertEquals("NO_RESULT", r.finalValues().get("KIND"));
+        assertEquals("EVALUATION_ERROR", r.finalValues().get("CODE"));
+        assertEquals("c0", r.endedBy());
+        // (2) 순서: 1 start, 2 r0(CAUGHT), 3 c0, 4 if1, 5 r1(CAUGHT), 6 c1, 7 h, 8 j, 9 end — j 직전 고친 값은 되돌림에 지워지지 않는다.
+        RunTrace t = engine.traceSet(new RuleSetDefinition("DRAFT", List.of(), SetStatus.INUSE, ifJoinReturn()), rec("X", new BigDecimal("5")),
+                SampleRules.EVAL_TS, List.of(new TraceEdit(8, "j", Map.of("CATCH_CODE", "EDITED"))));
+        assertNull(t.violations());
+        assertEquals("EDITED", t.finalValues().get("CODE"));
+    }
 }
