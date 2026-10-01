@@ -51,7 +51,6 @@ import {
   click,
   clickFake,
   handoff,
-  inDoc,
   installServer,
   ok,
   pageContainer,
@@ -505,20 +504,15 @@ describe("RuleSetEditPage", () => {
     expect(saveButton().disabled).toBe(true);
   });
 
-  it("팔레트 [룰] → 룰 찾기에서 고르면 END 앞 선에 끼운다", async () => {
+  it("팔레트 [룰] → END 앞 선에 빈 단계, 「룰 지정」 에서 고르면 같은 노드가 그 룰이 된다", async () => {
     srv.replies["search:RULE"] = ok({ rules: [DUP] });
     await openChain();
     await click("flow-mode-edit");
     await click("flow-add-rule");
-    await typeInto(inDoc<HTMLInputElement>("flow-rule-search-keyword"), "E2S_");
-    await act(async () => {
-      inDoc("flow-rule-search-find").click();
-    });
-    await flush();
-    await act(async () => {
-      inDoc("flow-rule-cand-E2S_DUP").click();
-    });
-    await flush();
+    await typeInto(byTestId<HTMLInputElement>("flow-rule-panel-search"), "E2S_");
+    await click("flow-rule-panel-find");
+    await settle(20);
+    await click("flow-rule-assign-E2S_DUP");
     expect(canvasNodeIds()).toContain("r4");
     expect(visibleText(byTestId("flow-node-r4"))).toContain("E2S_DUP");
     expect(visibleText(byTestId("set-checks"))).toContain("E2S_GRD와 E2S_DUP가 같은 결과 변수 S_GRD에 대입한다");
@@ -633,7 +627,7 @@ describe("RuleSetEditPage", () => {
     expect(byTestId("set-message").style.color).toBe("var(--color-danger)");
     expect(canvasNodeIds()).toHaveLength(200);
     await click("flow-add-rule");
-    expect(document.querySelector('[data-testid="flow-rule-search-keyword"]')).toBeNull();
+    expect(visibleText(byTestId("set-message"))).toContain("노드는 흐름 하나에 200개까지 둔다");
     expect(canvasNodeIds()).toHaveLength(200);
   });
 

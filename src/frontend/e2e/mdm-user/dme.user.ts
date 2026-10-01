@@ -1717,12 +1717,10 @@ test.describe("C 룰 세트", () => {
     await expect(tid(page, `flow-node-${nodeSB}`)).toHaveAttribute("data-selected", "true");
     await expect(tid(page, "flow-prop-rule")).toContainText(SB);
 
-    // 같은 룰을 다시 찾으면 후보에 "사용 중" 이 붙는다(다른 갈래에 두려고 다시 담을 수는 있어 막지는 않는다). 닫으면 그대로다.
-    await tid(page, "flow-add-rule").click();
-    await tid(page, "flow-rule-search-keyword").fill(SA);
-    await tid(page, "flow-rule-search-find").click();
-    await expect(tid(page, `flow-rule-cand-${SA}`)).toContainText("사용 중");
-    await modal(page).locator("button", { hasText: /^닫기$/ }).click();
+    // 같은 룰을 룰 목록에서 찾으면 줄에 "사용 중" 이 붙는다(다른 갈래에 두려고 다시 담을 수는 있어 막지는 않는다).
+    await tid(page, "flow-rule-panel-search").fill(SA);
+    await tid(page, "flow-rule-panel-find").click();
+    await expect(tid(page, `flow-rule-used-${SA}`)).toHaveText("사용 중", { timeout: 20_000 });
     await expect.poll(setOrder).toEqual([SB, SA]);
     await layout.layout(page, "ruleSetEdit 순서 거부");
     await snap(page, "dme-ruleSetEdit-02-order-rejected");
@@ -2313,12 +2311,13 @@ async function clearFlowSelection(page: Page) {
   await expect(tid(page, "flow-prop-set")).toBeVisible();
 }
 
-/** 팔레트 [룰] → 룰 찾기 팝업 → 후보를 눌러 끼운다. 고른 선이 없으면 END 로 들어가는 선에 끼워지고 새 룰 박스가 선택된다. */
+/** 도구 상자 [룰] → 빈 단계 → 「룰 지정」 에서 [지정]. 고른 선이 없으면 END 앞 선이고 지정한 룰 박스가 선택된 채다. */
 async function addRuleToFlow(page: Page, id: string) {
   await tid(page, "flow-add-rule").click();
-  await tid(page, "flow-rule-search-keyword").fill(id);
-  await tid(page, "flow-rule-search-find").click();
-  await tid(page, `flow-rule-cand-${id}`).click();
+  await expect(tid(page, "flow-panel-kind")).toHaveText("빈 단계");
+  await tid(page, "flow-rule-panel-search").fill(id);
+  await tid(page, "flow-rule-panel-find").click();
+  await tid(page, `flow-rule-assign-${id}`).click();
 }
 
 /** 룰 박스를 골라 속성 패널의 [지우기] 로 뺀다(앞뒤 선은 이어진다). */

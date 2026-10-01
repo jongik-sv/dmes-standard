@@ -152,16 +152,6 @@ export const BASE_CSS = `
   background: var(--color-bg-light); border: 1px solid var(--color-border); color: var(--color-text-secondary);
 }
 
-/* 룰 찾기 */
-.rsf-cands { list-style: none; margin: var(--spacing-sm) 0 0; padding: 0; }
-.rsf-cand {
-  display: flex; align-items: center; gap: var(--spacing-sm); width: 100%; padding: 4px var(--spacing-sm); text-align: left; cursor: pointer;
-  background: var(--color-bg); border: 1px solid var(--color-border-light); border-radius: var(--radius-sm); margin-bottom: 2px; color: var(--color-text);
-}
-.rsf-cand:hover { background: var(--color-bg-hover); }
-.rsf-cand-id { flex: none; width: 140px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--font-size-sm); overflow: hidden; text-overflow: ellipsis; }
-.rsf-cand-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
 /* 룰 세트 편집 — 툴바·오른쪽 패널·아래 패널(2단계 계획 Task 10). 색은 의미 토큰만 쓴다. 한 변 색 바는 쓰지 않는다(Local-Rules §8). */
 
 /* 툴바 */

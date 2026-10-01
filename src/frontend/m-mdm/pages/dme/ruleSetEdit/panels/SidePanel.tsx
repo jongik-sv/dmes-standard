@@ -23,8 +23,8 @@ import { SetPanel, type SetPanelProps } from "./SetPanel";
 
 /** 룰 목록 섹션 ID — 제목만 「룰 목록」/「룰 지정」 으로 바뀐다. */
 export const RULES_SECTION = "rules";
-/** 「룰 지정」 대상 노드 종류. Task 9 가 "TASK" 를 더한다(문자열 집합 — 계약에 TASK 가 없을 때도 tsc 가 통과한다). */
-export const ASSIGNABLE_KINDS: ReadonlySet<string> = new Set(["RULE"]);
+/** 「룰 지정」 대상 노드 종류 — 빈 단계(TASK)·룰(RULE). */
+export const ASSIGNABLE_KINDS: ReadonlySet<string> = new Set(["RULE", "TASK"]);
 
 export function ruleListMode(flow: EditFlow, selectedId: string | null, editing: boolean): RuleListMode {
   if (!editing) return "view";
@@ -59,7 +59,9 @@ export interface SidePanelProps {
   assignSignal: number;
   /** 룰 목록 두 번 누르기 — 고른 선(없으면 END 앞 선)에 끼운다. */
   onInsertRule(io: RuleIo): void;
-  /** [지정]·두 번 누르기 — 고른 노드에 룰을 지정한다(Task 8: RULE 바꾸기, Task 9: 빈 단계도). */
+  /** 흐름에 이미 있는 룰 — 룰 줄 「사용 중」 배지. */
+  usedRuleIds: ReadonlySet<string>;
+  /** [지정]·두 번 누르기 — 고른 노드에 룰을 지정한다(빈 단계는 룰 노드가 되고 룰 노드는 룰만 바뀐다). */
   onAssignRule(nodeId: string, io: RuleIo): void;
 }
 
@@ -92,6 +94,7 @@ export function SidePanel(p: SidePanelProps) {
       <RulePanel
         mode={listMode}
         search={p.ruleSearch}
+        usedRuleIds={p.usedRuleIds}
         inputRef={inputRef}
         onInsert={p.onInsertRule}
         onAssign={(io) => {

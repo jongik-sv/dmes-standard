@@ -8,7 +8,7 @@ import {
   IconArrowRight, IconArrowsSplit, IconBoxMultiple, IconGitBranch, IconGitMerge, IconListDetails, IconNote, IconPlayerPlay, IconPlayerStop, IconSitemap,
 } from "@tabler/icons-react";
 
-import type { EditFlow } from "../flow-edit";
+import { TASK_LABEL, type EditFlow } from "../flow-edit";
 import type { RuleIoMap } from "../types";
 
 /** 머리글·섹션 기억의 종류. 흐름 노드 종류는 이름 그대로다(TASK 는 Task 9 가 흐름에 더한다 — 여기서는 자기 유니온의 문자열일 뿐이다). */
@@ -45,7 +45,7 @@ export function panelTargetOf(flow: EditFlow, rules: RuleIoMap, selectedId: stri
         const io = n.ruleId ? rules[n.ruleId] : undefined;
         return { kind: "RULE", id: n.id, name: io && io.exists ? (io.ruleName ?? n.ruleId ?? n.id) : "(없는 룰)" };
       }
-      return { kind: n.kind as PanelKind, id: n.id, name: n.label ?? n.id };
+      return { kind: n.kind as PanelKind, id: n.id, name: n.label ?? (n.kind === "TASK" ? TASK_LABEL : n.id) };
     }
     const note = flow.view.notes.find((x) => x.id === selectedId);
     if (note) return { kind: "NOTE", id: note.id, name: note.text.split("\n")[0].trim() || note.id };

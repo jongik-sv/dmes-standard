@@ -20,8 +20,9 @@ import { PROPS_CSS } from "./styles/props";
 import { ROUTE_CSS } from "./styles/route";
 import { SNAP_CSS } from "./styles/snap";
 import { SPACE_CSS } from "./styles/space";
+import { TASK_CSS } from "./styles/task";
 import { TOOLBOX_CSS } from "./styles/toolbox";
 
 export const RSF_STYLE_HREF = "rsf-flow-styles";
 
-export const RSF_CSS = [BASE_CSS, DRAG_CSS, MENU_CSS, PROPS_CSS, DEBUG_CSS, COLLAPSE_CSS, ROUTE_CSS, SPACE_CSS, LABEL_CSS, SNAP_CSS, CONNECT_CSS, TOOLBOX_CSS].join("\n");
+export const RSF_CSS = [BASE_CSS, DRAG_CSS, MENU_CSS, PROPS_CSS, DEBUG_CSS, COLLAPSE_CSS, ROUTE_CSS, SPACE_CSS, LABEL_CSS, SNAP_CSS, CONNECT_CSS, TOOLBOX_CSS, TASK_CSS].join("\n");

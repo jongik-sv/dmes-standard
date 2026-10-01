@@ -7,7 +7,7 @@ import type { FlowNodeKind } from "@/contract/engine-contract.generated";
 import { RUN_DENIED_TITLE } from "../../debugger/debug-model";
 import type { MenuProvider } from "../context-menu";
 
-const BREAKABLE: ReadonlySet<FlowNodeKind> = new Set<FlowNodeKind>(["RULE", "IF", "PARALLEL", "MERGE"]);
+const BREAKABLE: ReadonlySet<FlowNodeKind> = new Set<FlowNodeKind>(["RULE", "TASK", "IF", "PARALLEL", "MERGE"]);
 
 export const debugMenu: MenuProvider = (t, ctx) => {
   if (ctx.mode !== "debug" || t.kind !== "node") return [];

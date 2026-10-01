@@ -38,6 +38,14 @@ export const editMenu: MenuProvider = (t, ctx) => {
         { id: "delete", label: "삭제", danger: true, run: () => act.removeNode(id) },
       ];
     }
+    if (n.kind === "TASK") {
+      return [
+        { id: "rule-assign", label: "룰 지정…", run: () => act.openRuleAssign(id) },
+        { id: "copy", label: "복사", run: () => act.copy(id) },
+        { id: "duplicate", label: "복제", run: () => act.duplicate(id) },
+        { id: "delete", label: "삭제", danger: true, run: () => act.removeNode(id) },
+      ];
+    }
     if (isSplit(n.kind)) {
       const toParallel = n.kind === "IF";
       return [

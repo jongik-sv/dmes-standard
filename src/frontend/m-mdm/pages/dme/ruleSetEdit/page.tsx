@@ -30,7 +30,6 @@ import { FlowCanvas, type AlignSource, type PaletteItem } from "./canvas/FlowCan
 import { FlowToolbar } from "./canvas/FlowToolbar";
 import { FlowToolbox, defaultTool, type CanvasTool } from "./canvas/FlowToolbox";
 import { MENU_PROVIDERS } from "./canvas/menus";
-import { RuleSearchModal } from "./canvas/RuleSearchModal";
 import { UNHANDLED, dispatchShortcut, isMacPlatform, type ShortcutHandlers } from "./canvas/shortcuts";
 import { DebugInputs } from "./debugger/DebugInputs";
 import { DebugToolbar } from "./debugger/DebugToolbar";
@@ -42,7 +41,7 @@ import { useTestCases } from "./debugger/useTestCases";
 import { ValuesTab } from "./debugger/ValuesTab";
 import { VariablePanel } from "./debugger/VariablePanel";
 import {
-  connect, flowJsonOf, reconnectEdge, setGroupPad, setLabelOffset, setPositions, setRoute, updateEdge, updateNote,
+  connect, flowJsonOf, reconnectEdge, setGroupPad, setLabelOffset, setPositions, setRoute, updateEdge, updateNodeLabel, updateNote,
   type EditFlow, type EditResult, type FlowNote, type FlowPos, type GroupPad, type LabelOffset, type LabelPart,
 } from "./flow-edit";
 import { autoArrange, shiftSpace, type SpaceAxis, type SpaceBlocks } from "./flow-layout";
@@ -54,7 +53,7 @@ import { SidePanel } from "./panels/SidePanel";
 import { RSF_CSS, RSF_STYLE_HREF } from "./rsf-styles";
 import { useCollapse } from "./state/useCollapse";
 import { useDragActions } from "./state/useDragActions";
-import { useEditActions, type RuleModalPurpose } from "./state/useEditActions";
+import { useEditActions } from "./state/useEditActions";
 import { useFind } from "./state/useFind";
 import { useRuleSearch } from "./state/useRuleSearch";
 import { useRuleSetEdit, type FlowMode } from "./state/useRuleSetEdit";
@@ -123,8 +122,6 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   const [showMiniMap, setShowMiniMap] = useState(() => loadFlag(storeKeys.miniMap, true));
   const [bottomTab, setBottomTab] = useState<string>(FIRST_TAB.other);
   const [bottomCollapsed, setBottomCollapsed] = useState(false);
-  /** 룰 찾기 팝업 — 선에 끼우기(insert) 또는 룰 바꾸기(replace, Task 8). */
-  const [ruleModal, setRuleModal] = useState<RuleModalPurpose | null>(null);
   /** 우클릭·[+] 메뉴를 연 대상과 화면 좌표. */
   const [menu, setMenu] = useState<{ target: MenuTarget; at: { x: number; y: number }; selection: string[] } | null>(null);
   /** 즉석 조건식 편집 중인 선(B10, Task 7 이 입력 칸을 그린다). */
@@ -245,24 +242,12 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     collapsed: collapse.collapsed,
     select,
     selectEdge,
-    openRuleModal: setRuleModal,
     openRuleAssign,
     fit,
     setEditingCond,
     closeMenu,
     clearSelection,
   });
-
-  const onPickRule = useCallback(
-    (io: RuleIo) => {
-      const m = ruleModal;
-      setRuleModal(null);
-      if (!m) return;
-      if (m.purpose === "insert") editActions.insertPickedRule(m.edgeId, io);
-      else editActions.applyReplace(m.nodeId, io);
-    },
-    [ruleModal, editActions],
-  );
 
   const onMove = useCallback(
     (pos: Record<string, FlowPos>, notes: Record<string, FlowPos> = {}) =>
@@ -308,8 +293,21 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   const ruleSearch = useRuleSearch(onRules, state.reportError);
   /** 룰 목록 두 번 누르기 — 고른 선(없으면 END 앞 선)에 끼운다. */
   const onInsertListRule = useCallback((io: RuleIo) => editActions.insertListRule(selectedEdgeId, io), [editActions, selectedEdgeId]);
-  /** [지정]·두 번 누르기(룰 지정) — 지금은 RULE 노드 룰 바꾸기. Task 9 가 빈 단계(TASK → RULE)까지 넓힌다(`editActions.assignRule`). */
-  const onAssignRule = useCallback((nodeId: string, io: RuleIo) => editActions.applyReplace(nodeId, io), [editActions]);
+  /** [지정]·두 번 누르기(룰 지정) — 빈 단계는 룰 노드가 되고 룰 노드는 룰만 바뀐다(4단계 T1). */
+  const onAssignRule = useCallback((nodeId: string, io: RuleIo) => editActions.assignRule(nodeId, io), [editActions]);
+  /** 룰 줄을 빈 단계·룰 노드 위에 놓음(4단계 T1) — 찾을 때 룰 맵에 넣은 IO 로 지정한다. */
+  const onAssignDrop = useCallback(
+    (nodeId: string, ruleId: string) => {
+      const io = state.rules[ruleId];
+      if (io) editActions.assignRule(nodeId, io);
+    },
+    [state.rules, editActions],
+  );
+  /** 빈 단계 제목 두 번 눌러 고치기(4단계 T1) — 편집 한 번. */
+  const onRenameTask = useCallback(
+    (nodeId: string, label: string | null) => editing && edit((f) => updateNodeLabel(f, nodeId, label)),
+    [editing, edit],
+  );
   const onEditCond = useCallback(
     (id: string, cond: string) => {
       if (editing) edit((f) => updateEdge(f, id, { cond }), { mergeKey: `cond:${id}` });
@@ -656,6 +654,8 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         onReconnect={onReconnect}
                         onDropPalette={editActions.dropPalette}
                         onDropRule={editActions.dropRule}
+                        onAssignDrop={onAssignDrop}
+                        onRenameTask={onRenameTask}
                         onNoteChange={onNoteChange}
                         onContextMenu={onContextMenu}
                         onEditCond={onEditCond}
@@ -709,6 +709,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         assignSignal={assignSignal}
                         onInsertRule={onInsertListRule}
                         onAssignRule={onAssignRule}
+                        usedRuleIds={usedRuleIds}
                       />
                     )}
                   </div>
@@ -724,7 +725,6 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                 </ContentPanel>
               )}
             </ContentBody>
-            <RuleSearchModal opened={!!ruleModal} usedRuleIds={usedRuleIds} onClose={() => setRuleModal(null)} onPick={onPickRule} />
           </>
         )}
 
