@@ -425,7 +425,10 @@ export function endingRoutes(
     const plain: FlowPos[] = [{ x: sx, y: sy }, { x: sx, y: mid }, { x: tx, y: mid }, { x: tx, y: ty }];
     if (!others.some((b) => crossesBox(plain, b))) continue;
     const lane = Math.max(sx, ...others.filter((b) => b.y1 < bottom && top < b.y2).map((b) => b.x2 + LANE_GAP));
-    const pts = lane > sx ? [{ x: sx, y: top }, { x: lane, y: top }, { x: lane, y: bottom }] : [{ x: sx, y: bottom }];
+    // 가로 구간은 그 아래 노드 위 끝까지 틈의 1/4 높이로 — 아래 노드로 들어가는 화살촉과 이웃 받는 노드 선의 가운데 꺾임(틈의 1/2)을 피한다(browser-check2 4).
+    const under = others.filter((b) => b.y1 >= sy && b.x1 < Math.max(sx, lane) && Math.min(sx, lane) < b.x2).map((b) => b.y1);
+    const escape = under.length > 0 ? Math.min(top, sy + (Math.min(...under) - sy) / 4) : top;
+    const pts = lane > sx ? [{ x: sx, y: escape }, { x: lane, y: escape }, { x: lane, y: bottom }] : [{ x: sx, y: bottom }];
     out[e.id] = [...pts, { x: tx, y: bottom }].map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) }));
   }
   return out;

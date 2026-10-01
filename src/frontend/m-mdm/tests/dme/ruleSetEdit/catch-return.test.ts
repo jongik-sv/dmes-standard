@@ -299,6 +299,24 @@ describe("끝내는 처리 갈래 선은 다른 노드 상자를 지나지 않�
     });
   }
 
+  it("비켜 가는 가로 구간은 아래 노드 위 끝(들어오는 화살촉)과 이웃 받는 노드 선의 가운데 꺾임에서 떨어져 있다(browser-check2 4)", () => {
+    // 스펙 §2 — c2 → end 의 가로 구간이 r9 위 약 5px 를 지나 c1 → r9 화살촉·c1 선의 가로 구간과 겹쳐 보였다.
+    const f = toEditFlow({ ...spec2() } as never, []);
+    const pos = drawnPositions(f);
+    const route = endingRoutes(f, pos).e5;
+    const h = route[0].y;
+    expect(route[1].y).toBe(h); // 첫 구간이 가로
+    const [lx, hx] = [Math.min(route[0].x, route[1].x), Math.max(route[0].x, route[1].x)];
+    const below = f.nodes
+      .filter((n) => n.kind !== "CATCH" && pos[n.id] && pos[n.id].y > h)
+      .filter((n) => pos[n.id].x < hx && lx < pos[n.id].x + NODE_SIZE[n.kind].w)
+      .map((n) => pos[n.id].y);
+    const nearest = Math.min(...below);
+    expect(nearest - h).toBeGreaterThanOrEqual(16);
+    const sy = pos.c2.y + NODE_SIZE.CATCH.h + 4; // 출발 연결점 아래 끝(연결점 반 크기 4) — 이웃 받는 노드 선은 이 높이와 아래 노드 위 끝의 가운데에서 꺾인다
+    expect(Math.abs(h - (sy + nearest) / 2)).toBeGreaterThanOrEqual(6);
+  });
+
   it("빈 끝내는 갈래가 있어도 정상 갈래는 룰 가운데 아래 한 줄로 선다(고치기 전에는 r3·r4 가 옆으로 85 밀렸다)", () => {
     // 몸 있는 끝내는 갈래(endingBody)는 고치기 전·후 모두 정상 갈래가 옆으로 밀린다 — 보고서 우려 항목.
     const mid = (p: FlowPos, w: number) => p.x + w / 2;
