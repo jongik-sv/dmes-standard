@@ -10,7 +10,8 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  * E5 수용 4 중복 대입 경고, E6 구성 지침 → 제안 순서 적용 → 저장 → 다시 열어 순서 유지, E7 폐기·되살리기, E9 권한(READ — 디버그 모드는 들어가지만 실행 단추가 꺼진다),
  * E10 속성 패널의 룰 편집 열기, E11 디버그 모드(단계 실행·중단점·계속·끝내기·값 표), E12 룰 박스 링크 아이콘과 박스 누르기,
  * E13 편집기(룰 목록에서 선으로 끌어 넣기·되돌리기·다시 하기·[+] 메뉴로 IF 넣기·분기 종류 바꾸기·Ctrl+Z),
- * E14 테스트 케이스(현재 입력 저장 → 모두 실행 1/1 통과 → 삭제), E15 찾기·블록 접기(접힌 블록 안 노드를 찾으면 펼쳐진다), E16 받는 노드(룰 우클릭 「예외 받기 추가」 → 저장 → 디버그에서 결과 없음 처리 갈래로 끝냄).
+ * E14 테스트 케이스(현재 입력 저장 → 모두 실행 1/1 통과 → 삭제), E15 찾기·블록 접기(접힌 블록 안 노드를 찾으면 펼쳐진다), E16 받는 노드(룰 우클릭 「예외 받기 추가」 → 저장 → 디버그에서 결과 없음 처리 갈래로 끝냄),
+ * E17 옛 형식 열기(E2S_FLOW 를 열면 합류 없이 그려지고 알림, dirty 아님, 저장 뒤 다시 열면 알림 없음), E18 끝내는 갈래(갈래 마지막 선을 끝으로 옮겨 저장 → 디버그에서 그 갈래로 끝냄).
  *
  * 전제(design.md 「E2E 서버 절차」): 새 mcm.db·mdm.db 로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고,
  * mcm 기동 뒤 e2e/fixtures/mdm-rbac-users.sql, mdm 기동 뒤 e2e/fixtures/mdm-ruleSet-data.sql 을 넣는다.
@@ -21,6 +22,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  * 한 줄 세트(FLOW_JSON 없음)는 start · r1 … rN · end 의 노드 ID 로 그려진다(linearFlow). 노드를 누르면 오른쪽이 속성 패널이 되고
  * 세트명·입출력 표·지침(세트 패널)은 선택이 없을 때만 보인다 — 세트 패널을 쓰는 단계는 노드를 고르기 전에 한다.
  * 저장은 편집 모드에서 dirty 이고 거부(REJECT) 검사가 없을 때만 된다 — 서버 MDM024 거부 경로는 서버 테스트가 맡는다.
+ * IF 는 합류 노드가 없다 — 갈래가 모이는 자리로 바로 간다(D-136). 저장된 옛 형식 세트(E2S_FLOW)는 열 때 바꿔 그린다.
  */
 
 const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
@@ -77,7 +79,7 @@ async function pickSet(page: Page, setId: string) {
   await expect(page.getByTestId("set-card-id")).toHaveText(setId);
 }
 
-/** 캔버스에 그려진 흐름 노드(시작·끝·룰·IF·병렬·합류). 뱃지·칩·링크 아이콘은 data-kind 가 없어 세지 않는다. */
+/** 캔버스에 그려진 흐름 노드(시작·끝·룰·빈 단계·IF·병렬·병렬 합류). 뱃지·칩·링크 아이콘은 data-kind 가 없어 세지 않는다. */
 const flowNodes = (page: Page): Locator => page.getByTestId("flow-canvas").locator("[data-kind]");
 const ruleNodes = (page: Page): Locator => page.getByTestId("flow-canvas").locator('[data-kind="RULE"]');
 
@@ -211,11 +213,13 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await enterEditMode(page);
     await expect(page.getByTestId("set-save")).toBeDisabled();
 
-    // 고른 선이 없으면 END 로 들어가는 선(e4)에 끼운다 — IF if1 · 합류 m1, 새 갈래 e5(조건식 칸)·e6(그 외).
+    // 고른 선이 없으면 END 로 들어가는 선(e4)에 끼운다 — IF if1 과 「갈래 1」 빈 단계 r4·모이는 자리 빈 단계 r5(합류 없음), 새 갈래 e5(조건식 칸)·e6(그 외), 선 e7(r4 → r5)·e8(r5 → 끝).
     await page.getByTestId("flow-add-if").click();
     await expect(page.getByTestId("flow-node-if1")).toBeVisible();
-    await expect(page.getByTestId("flow-node-m1")).toBeVisible();
-    await expect(flowNodes(page)).toHaveCount(7);
+    await expect(page.getByTestId("flow-node-r4")).toBeVisible();
+    await expect(page.getByTestId("flow-node-r5")).toBeVisible();
+    await expect(flowNodes(page)).toHaveCount(8);
+    await expect(page.getByTestId("flow-canvas").locator('[data-kind="MERGE"]')).toHaveCount(0);
     await expect(page.getByTestId("set-checks")).toContainText("갈래 e5에 조건식이 없다");
     await expect(page.getByTestId("set-save")).toBeDisabled();
     await page.screenshot({ path: screenshot("dme-ruleSetEdit-if-reject.png"), fullPage: true });
@@ -224,6 +228,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await page.getByTestId("flow-prop-branch-e5-cond").fill('S_GRD = "A"');
     await expect(page.getByTestId("set-save")).toBeEnabled({ timeout: 20_000 });
     await expect(page.getByTestId("set-checks")).not.toContainText("갈래 e5에 조건식이 없다");
+    await expect(page.getByTestId("set-checks")).toContainText("빈 단계 2개 — 실행 때 그냥 지나간다");
 
     // 저장하지 않고 다른 세트로 가려 하면 dirty 확인이 뜬다 — 취소하면 그대로 남는다.
     // window.confirm 은 처리될 때까지 클릭을 붙잡으므로 대화상자 처리기를 먼저 걸고 그 안에서 닫는다.
@@ -422,8 +427,8 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await login(page, STEWARD);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_FLOW");
-    // 분기 세트도 캔버스로 그려진다: 시작 · r1 · if1 · r2 · m1 · r3 · 끝.
-    await expect(flowNodes(page)).toHaveCount(7, { timeout: 20_000 });
+    // 분기 세트도 캔버스로 그려진다(옛 합류 m1 은 열 때 없앤다): 시작 · r1 · if1 · r2 · r3 · 끝.
+    await expect(flowNodes(page)).toHaveCount(6, { timeout: 20_000 });
 
     await enterDebugMode(page);
     await fillDebugInputs(page);
@@ -497,31 +502,36 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await page.getByTestId("flow-redo").click();
     await expect(flowNodes(page)).toHaveCount(6);
 
-    // 선의 [+] → 메뉴 [IF 넣기] → IF 와 합류가 생긴다.
+    // 선의 [+] → 메뉴 [IF 넣기] → IF 와 「갈래 1」 빈 단계가 생긴다(합류 없음).
     await revealEdgeAdd(page, "e1");
     await page.getByTestId("flow-edge-add-e1").click();
     await page.getByTestId("flow-menu-item-insert-if").click();
     await expect(page.getByTestId("flow-canvas").locator('[data-kind="IF"]')).toHaveCount(1);
     await expect(flowNodes(page)).toHaveCount(8);
+    await expect(page.getByTestId("flow-canvas").locator('[data-kind="MERGE"]')).toHaveCount(0);
 
     // IF 우클릭 → [병렬로 바꾸기].
     await page.getByTestId("flow-canvas").locator('[data-kind="IF"]').first().click({ button: "right" });
     await page.getByTestId("flow-menu-item-split-kind").click();
     await expect(page.getByTestId("flow-canvas").locator('[data-kind="PARALLEL"]')).toHaveCount(1);
     await expect(page.getByTestId("flow-canvas").locator('[data-kind="IF"]')).toHaveCount(0);
+    await expect(page.getByTestId("flow-canvas").locator('[data-kind="MERGE"]')).toHaveCount(1); // 병렬 합류(이중선 막대)
+    await expect(flowNodes(page)).toHaveCount(9);
 
     // 캔버스를 누른 뒤 Ctrl+Z(맥은 ⌘Z) → 다시 IF.
     await page.getByTestId("flow-canvas").locator(".react-flow__pane").click({ position: { x: 6, y: 6 } });
     await page.keyboard.press("ControlOrMeta+z");
     await expect(page.getByTestId("flow-canvas").locator('[data-kind="IF"]')).toHaveCount(1);
     await expect(page.getByTestId("flow-canvas").locator('[data-kind="PARALLEL"]')).toHaveCount(0);
+    await expect(page.getByTestId("flow-canvas").locator('[data-kind="MERGE"]')).toHaveCount(0);
+    await expect(flowNodes(page)).toHaveCount(8);
   });
 
   test("E14 테스트 케이스: 디버그 모드에서 지금 입력을 케이스로 저장하고 모두 실행하면 1/1 통과이며, 삭제하면 표가 비는다", async ({ page }) => {
     await login(page, STEWARD);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_FLOW");
-    await expect(flowNodes(page)).toHaveCount(7, { timeout: 20_000 });
+    await expect(flowNodes(page)).toHaveCount(6, { timeout: 20_000 });
     await enterDebugMode(page);
     await fillDebugInputs(page);
 
@@ -551,7 +561,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await login(page, STEWARD);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_FLOW");
-    await expect(flowNodes(page)).toHaveCount(7, { timeout: 20_000 });
+    await expect(flowNodes(page)).toHaveCount(6, { timeout: 20_000 });
 
     // 툴바 [노드 찾기] 가 캔버스 오른쪽 위 찾기 위젯을 연다(Ctrl/Cmd+F 와 같다).
     await page.getByTestId("flow-find-open").click();
@@ -595,5 +605,71 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await expect(page.getByTestId("dbg-status")).toHaveText("예외로 끝남: 결과 없음 · 4단계 · 결과 변수 0개", { timeout: 30_000 });
     await expect(page.getByTestId("flow-node-r1")).toHaveAttribute("data-state", "caught");
     await expect(page.getByTestId("dbg-caught-toggle")).toContainText("받은 예외 1건");
+  });
+
+  test("E17 옛 형식 열기: E2S_FLOW 를 열면 합류 없이 그려지고 알림이 보이며 dirty 가 아니고, 저장 뒤 다시 열면 같은 그림에 알림이 없다", async ({ page }) => {
+    await login(page, STEWARD);
+    await openRuleSetEdit(page);
+    await pickSet(page, "E2S_FLOW");
+    await expect(flowNodes(page)).toHaveCount(6, { timeout: 20_000 });
+    await expect(page.getByTestId("flow-node-m1")).toHaveCount(0);
+    await expect(page.getByTestId("set-message")).toContainText("옛 합류 노드 1개를 없앤 형식으로 바꿔 열었다. 저장하면 새 형식으로 남는다.");
+    await enterEditMode(page);
+    await expect(page.getByTestId("set-save")).toBeDisabled();
+
+    // 세트명을 고쳐 저장하면 새 형식(합류 없음)으로 남는다.
+    await page.getByTestId("set-name").fill("E2E 분기 흐름 세트(새 형식)");
+    await expect(page.getByTestId("set-save")).toBeEnabled({ timeout: 20_000 });
+    await page.getByTestId("set-save").click();
+    await expect(page.getByTestId("set-message")).toContainText(/저장 · row_version \d+/, { timeout: 20_000 });
+
+    // 다른 세트를 거쳐 다시 열면 같은 그림이고 알림이 없다.
+    await pickSet(page, "E2S_CHAIN");
+    await pickSet(page, "E2S_FLOW");
+    await expect(flowNodes(page)).toHaveCount(6, { timeout: 20_000 });
+    await expect(page.getByTestId("set-name")).toHaveValue("E2E 분기 흐름 세트(새 형식)");
+    await expect(page.getByText("옛 합류 노드")).toHaveCount(0);
+  });
+
+  test("E18 끝내는 갈래: 「등급 A」 갈래의 마지막 선을 끝으로 옮겨 저장하고 그 갈래를 타는 입력으로 실행하면 완료·끝낸 갈래 표시가 보이고 IF 뒤 노드는 돌지 않는다", async ({ page }) => {
+    await login(page, STEWARD);
+    await openRuleSetEdit(page);
+    await pickSet(page, "E2S_IFEND");
+    await expect(flowNodes(page)).toHaveCount(6, { timeout: 20_000 });
+    await expect(page.getByText("옛 합류 노드")).toHaveCount(0);
+    await enterEditMode(page);
+
+    // 캔버스가 작으면 끝 노드가 가장자리에 걸려 끌 때 자동 이동(autopan)이 일어나 놓을 자리가 밀린다 — 화면을 키우고 [화면 맞춤] 으로 전체를 보이게 한 뒤 끈다.
+    await page.setViewportSize({ width: 1440, height: 1300 });
+    await page.getByTestId("flow-fit").click();
+    await page.waitForTimeout(500);
+    // 선 e5(r2 → r3)를 골라 도착 끝 손잡이를 끝 노드 몸통에 놓는다(R13 — 선 끝 옮기기 R1).
+    await page.locator('[data-testid="rf__edge-e5"] .react-flow__edge-interaction').dispatchEvent("click");
+    const handle = page.locator('[data-testid="rf__edge-e5"] .react-flow__edgeupdater-target');
+    await expect(handle).toBeAttached({ timeout: 10_000 });
+    const hb = await handle.boundingBox();
+    const eb = await page.getByTestId("flow-node-end").boundingBox();
+    if (!hb || !eb) throw new Error("끝 손잡이나 끝 노드가 안 보인다");
+    await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(eb.x + eb.width / 2, eb.y + eb.height / 2, { steps: 15 });
+    await page.mouse.up();
+
+    // IF 를 고르면 「등급 A」 갈래 옆에 「끝냄」 과 이어지는 갈래 안내가 보인다.
+    await page.getByTestId("flow-node-if1").click();
+    await expect(page.getByTestId("flow-prop-branch-e3-ending")).toHaveText("끝냄");
+    await expect(page.getByTestId("flow-prop-if-ending-help")).toBeVisible();
+
+    await expect(page.getByTestId("set-save")).toBeEnabled({ timeout: 20_000 });
+    await page.getByTestId("set-save").click();
+    await expect(page.getByTestId("set-save")).toBeDisabled({ timeout: 30_000 });
+
+    // E2S_GRD 는 언제나 "A" 라 「등급 A」 갈래를 타고 r2(E2S_FCT) 뒤 끝난다 — 기록 start·r1·if1·r2·end, 결과 변수 S_GRD·S_FCT.
+    await enterDebugMode(page);
+    await fillDebugInputs(page);
+    await page.getByTestId("dbg-finish").click();
+    await expect(page.getByTestId("dbg-status")).toHaveText("완료 · 5단계 · 결과 변수 2개 · IF 등급 확인의 「등급 A」 갈래에서 끝냈다", { timeout: 30_000 });
+    await expect(page.getByTestId("flow-node-r2")).toHaveAttribute("data-state", "run");
+    await expect(page.getByTestId("flow-node-r3")).toHaveAttribute("data-state", "dim");
   });
 });
