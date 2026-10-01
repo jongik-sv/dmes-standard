@@ -222,6 +222,7 @@ function EditableTitle({ node, style, lines, shown, fallback, testPrefix, inputL
         aria-label={inputLabel}
         value={draft}
         autoFocus
+        onFocus={(e) => e.currentTarget.select()} // 열 때 기존 제목 전체를 골라 바로 치면 바뀌게(선 라벨 칸과 같다)
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.nativeEvent.isComposing) {

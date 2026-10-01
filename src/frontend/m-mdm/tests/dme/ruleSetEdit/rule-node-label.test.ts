@@ -157,6 +157,14 @@ describe("룰 노드 이름 — 그리기와 즉석 편집", () => {
     expect(document.activeElement).toBe(document.querySelector('[data-testid="flow-canvas"]'));
   });
 
+  it("칸이 열리면 기존 제목 전체가 선택돼 바로 치면 바뀐다(브라우저 확인 — 뒤에 이어 붙던 문제)", async () => {
+    await draw({ mode: "edit", onRenameTask: vi.fn() }, rulesA, named("내 이름"));
+    await dbl();
+    const el = input()!;
+    expect(document.activeElement).toBe(el);
+    expect([el.selectionStart, el.selectionEnd]).toEqual([0, "내 이름".length]);
+  });
+
   it("Esc 는 취소, 빈 값은 null(라벨 지우기), 보이는 값 그대로면 편집 없음, IME 조합 중 Enter 는 무시", async () => {
     const onRenameTask = vi.fn();
     await draw({ mode: "edit", onRenameTask }, rulesA, named("내 이름"));
