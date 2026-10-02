@@ -290,6 +290,7 @@ BE `EndpointPermissionFilter.AUTH_ONLY_OBJ_ACTION_PREFIXES` 와 FE `m-mcm/proxy.
 | 미디어 올리기 | FE `POST /api/mcm/rest/commWidgetMng/upload/api/mcm/commWidgetMng/upload`(multipart, 필드 `file`) → BE `POST /api/mcm/commWidgetMng/upload` | `{ fileId, origNm, contentType, size }` |
 
 - PERM_ALL 토큰: `search`·`save`·`delete` 는 기존 값, `previewQuery`·`searchLayouts`·`loadLayout`·`saveLayout`·`deleteLayout`·`searchDepts`·`upload` 는 Task 0 에서 `DataInitializer` 에 더했다(여기 없는 action 은 SYSADMIN 도 403).
+- 실행되는 action 은 **URL 경로의 action 하나뿐**이다. 요청 본문 `params`·`grids` 에 `action` 키가 있으면 cactus `CactusRequestConverter` 가 BPMN 시작 전에 E002 로 거절한다(2026-10-03 보안 지적 — 본문 값이 경로 action 을 덮어쓰면 URL 로 판정한 권한과 BPMN 이 분기하는 action 이 달라진다). 그래서 action 별 권한(예: `previewQuery` 만 빼고 주기)과 §5.1 AUTH_ONLY 의 서비스/action 단위 개방이 실제 실행 범위와 같다.
 
 ### 5.3 서버 검사
 
