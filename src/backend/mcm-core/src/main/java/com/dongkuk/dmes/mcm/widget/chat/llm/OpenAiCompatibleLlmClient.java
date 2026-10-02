@@ -88,8 +88,11 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
         return body;
     }
 
+    /**
+     * assistant 차례는 늘 다시 짠다 — 받은 message 원본(reasoning_content·annotations 같은 출력 전용 칸)을 입력으로 되돌리면
+     * 일부 호환 서버가 400 을 낸다. (Anthropic 은 thinking 서명 때문에 원본을 되돌리지만 여기는 그런 요구가 없다.)
+     */
     private static ObjectNode assistantMessage(LlmMessage m) {
-        if (m.rawAssistant() instanceof ObjectNode raw) return raw.deepCopy();
         ObjectNode msg = LlmJson.MAPPER.createObjectNode();
         msg.put("role", "assistant");
         if (m.toolCalls().isEmpty()) {
@@ -119,7 +122,6 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
         }
         String text = message.hasNonNull("content") ? message.get("content").asText("") : "";
         List<LlmToolCall> calls = new ArrayList<>();
-        boolean generatedId = false;
         JsonNode toolCalls = message.path("tool_calls");
         if (toolCalls.isArray()) {
             int i = 0;
@@ -127,17 +129,14 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
                 i++;
                 JsonNode fn = tc.path("function");
                 String id = tc.path("id").asText("");
-                if (id.isBlank()) {
-                    // 일부 호환 서버는 id 를 주지 않는다 — 만들어 쓰고, 되돌려 줄 때는 원본 대신 다시 짠 메시지를 쓴다.
-                    id = "call_" + i;
-                    generatedId = true;
-                }
+                if (id.isBlank()) id = "call_" + i; // 일부 호환 서버는 id 를 주지 않는다 — 만들어 쓴다
                 JsonNode args = fn.path("arguments");
                 calls.add(new LlmToolCall(id, fn.path("name").asText(),
                         args.isObject() ? LlmJson.toMap(args) : LlmJson.parseObject(args.asText(""))));
             }
         }
         String stop = choice.hasNonNull("finish_reason") ? choice.get("finish_reason").asText() : null;
-        return new LlmReply(text, calls, stop, generatedId ? null : message);
+        // 원본 message 는 되돌리지 않는다(assistantMessage 참고).
+        return new LlmReply(text, calls, stop, null);
     }
 }

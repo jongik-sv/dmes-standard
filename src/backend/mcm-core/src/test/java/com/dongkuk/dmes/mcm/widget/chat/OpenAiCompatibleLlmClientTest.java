@@ -133,11 +133,11 @@ class OpenAiCompatibleLlmClientTest {
     }
 
     @Test
-    @DisplayName("도구 반복 중 assistant tool_calls 메시지를 되돌려 주고, 결과는 호출마다 role=tool·tool_call_id 메시지로 보낸다")
+    @DisplayName("도구 반복 중 assistant tool_calls 메시지를 다시 짜서(출력 전용 칸 없이) 보내고, 결과는 호출마다 role=tool·tool_call_id 메시지로 보낸다")
     void echoesToolCallsAndToolMessages() {
         server.expect(requestTo(URL))
                 .andRespond(withSuccess("""
-                        {"choices":[{"message":{"role":"assistant","content":"",
+                        {"choices":[{"message":{"role":"assistant","content":"","reasoning_content":"생각 중",
                            "tool_calls":[{"id":"call_1","type":"function",
                                           "function":{"name":"run_widget_query","arguments":"{\\"defId\\":\\"def.a\\"}"}}]},
                           "finish_reason":"tool_calls"}]}
@@ -145,8 +145,11 @@ class OpenAiCompatibleLlmClientTest {
         server.expect(requestTo(URL))
                 .andExpect(jsonPath("$.messages.length()").value(4))
                 .andExpect(jsonPath("$.messages[2].role").value("assistant"))
+                .andExpect(jsonPath("$.messages[2].reasoning_content").doesNotExist())
                 .andExpect(jsonPath("$.messages[2].tool_calls[0].id").value("call_1"))
+                .andExpect(jsonPath("$.messages[2].tool_calls[0].type").value("function"))
                 .andExpect(jsonPath("$.messages[2].tool_calls[0].function.name").value("run_widget_query"))
+                .andExpect(jsonPath("$.messages[2].tool_calls[0].function.arguments").value("{\"defId\":\"def.a\"}"))
                 .andExpect(jsonPath("$.messages[3].role").value("tool"))
                 .andExpect(jsonPath("$.messages[3].tool_call_id").value("call_1"))
                 .andExpect(jsonPath("$.messages[3].content").value("{\"columns\":[\"QTY\"]}"))
