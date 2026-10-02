@@ -179,7 +179,7 @@ public class MdmValidator {
 
 ## 7. 파일럿과 문서
 
-- 파일럿 화면: m-mls `lsh/noticeMgmt`. MDM 컬럼 사전에 `TITLE`(STRING 1000)·`CATEGORY`(STRING 240)·`USE_YN`·`SORT_SEQ` 가 있다. 화면은 그 칸의 `header` 를 비워 MDM 캡션을 쓰고(B1 이 눈에 보이게), 머리글 툴팁, 그리드 `mdmValidate`, 서버 `fieldErrors` 표시를 켠다. 서버 `save()` 는 `MdmValidator.check` 로 MDM 정의가 DB 칸보다 느슨하거나 같은 컬럼만 검사한다(DB 길이와 비교해 MDM 이 더 엄격한 칸은 넣지 않는다).
+- 파일럿 화면: m-mls `lsh/noticeMgmt`. MDM 컬럼 사전에 `TITLE`(STRING 1000)·`CATEGORY`(STRING 240)·`USE_YN`·`SORT_SEQ` 가 있다. 화면은 그 칸의 `header` 를 지우지 않고 대체 캡션으로 두되 화면을 `MdmMetaProvider captionPriority="mdm"`(module 은 바깥 포털 공급자를 따른다)으로 감싸 MDM 이 있으면 표준 캡션이 이기게 하고(B1 이 눈에 보이게 — MDM 을 받지 못할 때 열 key 가 머리글로 보이지 않는다), 머리글 툴팁, 그리드 `mdmValidate`, 서버 `fieldErrors` 표시를 켠다. 서버 `save()` 는 `MdmValidator.check` 로 MDM 정의가 DB 칸보다 느슨하거나 같은 컬럼만 검사한다(DB 길이와 비교해 MDM 이 더 엄격한 칸은 넣지 않는다).
 - 문서: 백엔드 가이드 §11.2 "저장 검증", 프런트 가이드(standard-v2 또는 Local-Rules)에 "MDM 캡션·툴팁·검증" 절, `mantine-aggrid-ui` 스킬의 컴포넌트 문서·색인(`mdm-meta`, `MdmMetaCard`, `AgDataGrid`·`FormGroup` 새 prop).
 
 ## 8. 후속(이번 범위 밖)

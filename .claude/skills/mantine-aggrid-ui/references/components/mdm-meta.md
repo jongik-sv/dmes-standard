@@ -10,7 +10,7 @@
 
 ## 언제 쓰나
 
-- 쓴다: 그리드 `header`·폼 `label` 을 표준 용어(MDM)로 맞추고 싶을 때 — 그냥 비운다. 화면이 직접 메타를 읽어 표시할 때 `useMdmColumn`. 화면 고유 위치에 MDM 정보 카드를 띄울 때 `MdmMetaCard`.
+- 쓴다: 그리드 `header`·폼 `label` 을 표준 용어(MDM)로 맞추고 싶을 때 — 새 화면은 그냥 비운다. 기존 화면을 표준 캡션으로 바꿀 때는 header 를 지우지 말고 `captionPriority="mdm"` 을 쓴다(대체 캡션 유지). 화면이 직접 메타를 읽어 표시할 때 `useMdmColumn`. 화면 고유 위치에 MDM 정보 카드를 띄울 때 `MdmMetaCard`.
 - 쓴다(값 검사): 폼은 `useMdmValidation()` 결과를 `FormGroup error` 로, 그리드는 `mdmValidate`, 저장 전 전체 검사는 `validateRows`, 저장 실패는 `toFieldErrors` → 그리드 `fieldErrors`·폼 `error`.
 - 쓰지 않는다: 값 검사에 `useMdmColumn` 으로 메타를 읽어 길이·필수를 손으로 비교하지 않는다 — `useMdmValidation` 이나 `validateMdmValue(column, value)`(같은 판정)가 서버와 같은 판정·문구를 낸다. 비즈니스식(업무 규칙)은 화면에서 검사하지 않는다(서버 `MdmValidator` 몫).
 - [ag-data-grid](ag-data-grid.md)·[form-group](form-group.md) 은 이 공급자를 스스로 읽는다. 머리글·라벨에는 이 문서의 훅을 따로 쓰지 않는다.
@@ -37,6 +37,8 @@ import { MdmMetaProvider } from "@dk-oasis/shared/mdm-meta";
   <AgDataGrid columns={COLUMNS} data={rows} rowKey="NOTICE_ID" />
 </MdmMetaProvider>
 ```
+
+기존 화면을 표준 캡션으로 바꿀 때는 header 를 지우지 말고 `captionPriority="mdm"` 을 쓴다(대체 캡션 유지) — `module` 은 지정하지 않는다(바깥 포털 공급자를 따른다). MDM 이 있으면 표준 캡션, 없거나 받지 못하면 적어 둔 header 가 보인다. 사전에 없는 파생 열은 `meta: false` 로 연결을 끈다.
 
 ## 변형
 
@@ -153,6 +155,7 @@ async function save() {
 | 실수 | 바로잡기 |
 |---|---|
 | MDM 캡션을 쓰려고 `header: ""`·`label=""` 를 준다 | 생략한다. `""` 는 일부러 비운 캡션으로 그대로 남는다 |
+| 기존 화면의 `header` 를 지워 MDM 캡션을 쓴다 | 지우지 말고 화면을 `captionPriority="mdm"` 으로 감싼다 — MDM 을 받지 못할 때 열 key 가 머리글로 보이고 다른 곳의 라벨과 어긋난다 |
 | 엑셀 내보내기에서 `c.header` 를 읽어 빈 머리글이 나온다 | `useResolvedGridColumns(COLUMNS)` 결과를 쓴다 |
 | 화면에서 `fetch("/api/mls/mdmMeta/columns")` 를 직접 부른다 | `useMdmColumn(s)`·`requestColumns` — 묶음 요청·보관·401 처리가 들어 있다 |
 | 문자열 길이를 `s.length` 로 잰다(이모지 2자) | `codePointLength(s)` — 서버도 code point 로 잰다 |
@@ -164,7 +167,7 @@ async function save() {
 
 - `src/frontend/shared/src/portal-shell/portal-shell.tsx` `TabPageSlot`: 탭 본문을 `MdmMetaProvider` 로 감싼다.
 - 화면 파일럿: `src/frontend/m-mls/pages/lsh/noticeMgmt/`(2026-10-03)
-  - `notice-columns.tsx`: `TITLE` 열의 `header` 를 비워 MDM 캡션·머리글 툴팁을 쓴다. 파생 열(`CATEGORY_LABEL` 등)은 header 를 그대로 적는다.
+  - `notice-columns.tsx`: `TITLE` 열은 대체 `header`("제목")를 두고, 화면(`page.tsx` 의 default export)이 `MdmMetaProvider captionPriority="mdm"` 으로 감싸 MDM 이 있으면 MDM 캡션·머리글 툴팁이 이긴다. 파생 열(`CATEGORY_LABEL` 등)은 header 를 적고 `meta: false` 로 연결을 끈다.
   - `NoticeTitleRow.tsx`: 상세 표(th/td) 제목 줄 — 라벨은 `useMdmColumn` + `resolveCaption`, 입력 중 검사는 같은 `column` 으로 `validateMdmValue` → `Input error`(MDM 장애 중에도 요청은 등록 한 번).
   - `page.tsx`: 저장 전 `validateRow` 로 막고, 저장 실패는 `toFieldErrors(e, "master")` → 칸별 `error`(고치면 지운다). 그리드에 `mdmValidate`(목록이 읽기 전용이라 지금은 검사할 칸이 없다).
   - `api.ts`: `NoticeApiError.errors` 에 OASIS 봉투의 `errors` 를 실어 `toFieldErrors` 가 읽게 한다.
