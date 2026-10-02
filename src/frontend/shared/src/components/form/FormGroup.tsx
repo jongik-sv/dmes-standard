@@ -6,19 +6,16 @@ import React, {
   cloneElement,
   isValidElement,
   useId,
-  useState,
-  useRef,
-  useCallback,
   type ReactElement,
   type ReactNode,
   type CSSProperties,
 } from "react";
-import { createPortal } from "react-dom";
 import { Input } from "@mantine/core";
 // 배럴(../../mdm-meta)을 거치지 않는다 — 배럴의 화면 값 검증(validate.ts)이 식 평가기(evalex·decimal.js)를 form 묶음에 끌어들인다.
 import { MdmMetaCard } from "../../mdm-meta/MdmMetaCard";
 import { resolveCaption } from "../../mdm-meta/caption";
 import { useMdmCaptionPriority, useMdmColumn } from "../../mdm-meta/context";
+import { HoverTipPortal, useHoverTip } from "./useHoverTip";
 
 export interface FormGroupProps {
   /**
@@ -80,41 +77,8 @@ export function FormGroup({
       : null;
   const resolvedControlId =
     singleChild && typeof singleChild.props.id === "string" ? singleChild.props.id : controlId;
-  const labelRef = useRef<HTMLLabelElement>(null);
-  // 툴팁을 document.body 로 portal + position:fixed 로 렌더 → 스크롤/overflow 컨테이너에 잘리거나
-  // 다른 패널에 가려지지 않고 항상 최상단에 표시된다.
-  //
-  // Mantine `Tooltip` 로 교체를 시도했으나 채택하지 않았다: Mantine `Tooltip`/`Transition` 은
-  // `opened` 를 true 로 바꿔도 실제 DOM 마운트가 추가 React 커밋(내부 `useTransition` 상태
-  // 갱신, `@mantine/core/Transition` 관련 "not wrapped in act" 경고로 확인됨)을 거친 뒤에야
-  // 일어난다 — `renderWithMantine`(mantine-test-utils.ts) 이 `MantineProvider` 에 `env="test"`
-  // 를 주지 않는 한(그러면 Transition 이 동기 렌더로 바뀐다 — Transition.tsx 의
-  // `if (env === "test") return mounted ? ... : ...` 분기) `act(() => input.focus())` 직후
-  // 동기 `document.querySelector` 로는 툴팁 노드를 찾을 수 없다. env="test" 적용은
-  // mantine-test-utils.ts(공유 테스트 인프라, 담당 파일 아님) 변경이 필요해 이번 라운드에서는
-  // 보류하고(리드에게 후속 제안), 검증된 기존 커스텀 포지셔닝을 유지한다.
-  const [tipPos, setTipPos] = useState<{ left: number; top: number; above: boolean } | null>(null);
-
-  // 툴팁은 라벨 좌측 기준으로 라벨 위쪽에 띄운다. 위쪽 공간이 모자랄 때만 아래로 뒤집는다.
-  // 실제 높이는 above 일 때 translateY(-100%) 로 보정하므로, 아래 상수는 뒤집기 판정에만 쓰인다.
-  const showTip = useCallback(() => {
-    const el = labelRef.current;
-    if (!el || typeof window === "undefined") return;
-    const rect = el.getBoundingClientRect();
-    const TIP_MAX_WIDTH = 320;
-    // 글자 툴팁은 두세 줄, MDM 카드 같은 노드 툴팁은 더 크다 — 위쪽 공간 판정에만 쓴다.
-    const TIP_EST_HEIGHT = tipIsText ? 72 : 200;
-    const GAP = 6;
-    const GUTTER = 8;
-    const maxLeft = Math.max(GUTTER, window.innerWidth - TIP_MAX_WIDTH - GUTTER);
-    const above = rect.top - GAP >= TIP_EST_HEIGHT + GUTTER;
-    setTipPos({
-      left: Math.min(Math.max(rect.left, GUTTER), maxLeft),
-      top: above ? rect.top - GAP : rect.bottom + GAP,
-      above,
-    });
-  }, [tipIsText]);
-  const hideTip = useCallback(() => setTipPos(null), []);
+  // 툴팁은 라벨 박스 기준으로 document.body 포털(position:fixed)에 띄운다 — 위치 판정·포털·Mantine Tooltip 비채택 사유는 useHoverTip.tsx.
+  const { anchorRef: labelRef, tipPos, showTip, hideTip } = useHoverTip<HTMLLabelElement>(tipIsText);
 
   const enhancedChildren = (() => {
     if (!singleChild) {
@@ -184,24 +148,7 @@ export function FormGroup({
           </span>
         )}
       </div>
-      {tip &&
-        tipPos &&
-        typeof document !== "undefined" &&
-        createPortal(
-          <span
-            className="form-tip-text form-tip-text--portal"
-            style={{
-              position: "fixed",
-              left: tipPos.left,
-              top: tipPos.top,
-              display: "block",
-              ...(tipPos.above ? { transform: "translateY(-100%)" } : {}),
-            }}
-          >
-            {tip}
-          </span>,
-          document.body
-        )}
+      {tip && <HoverTipPortal tipPos={tipPos}>{tip}</HoverTipPortal>}
     </div>
   );
 }
