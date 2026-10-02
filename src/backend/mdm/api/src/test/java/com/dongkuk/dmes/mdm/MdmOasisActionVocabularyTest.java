@@ -196,6 +196,8 @@ class MdmOasisActionVocabularyTest {
         // metaFeed(services/feed) 는 화면이 아니라 업무 모듈 캐시가 부르는 서비스다 — 그룹 RBAC(seedMdmObjectRbac)를 받지 않고
         // SYSADMIN 전용 OBJECT 로만 시드한다(Task 11 의 seedMdmCacheMenus). spec 2026-10-02-mdm-meta-cache-design §5.5·§9.
         bpmnScreens.remove("metaFeed");
+        assertTrue(source.contains("insertMcmSecObjIfAbsent(\"metaFeed\", "),
+                "metaFeed OBJECT(SYSTEM_CODE=mdm, SYSADMIN 전용) 시드가 없다 — BFF 권한키 mdm/metafeed/save 가 없어 화면 삭제·재등록이 403 이다");
 
         Set<String> seeded = objectIdsFromSeedCalls(source);
         Set<String> missing = new LinkedHashSet<>(bpmnScreens);
