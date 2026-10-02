@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mcm.screenusage.service;
 
+import com.dongkuk.dmes.mcm.common.web.ClientIpResolver;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,12 +24,12 @@ class RequestClientIpTest {
         request.setRemoteAddr("10.0.0.7");
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
 
-        assertThat(new RequestClientIp().current()).isEqualTo("10.0.0.7");
+        assertThat(new RequestClientIp(new ClientIpResolver("127.0.0.1,::1")).current()).isEqualTo("10.0.0.7");
     }
 
     @Test
     @DisplayName("요청 밖(스케줄러 등)에서는 null")
     void noRequest() {
-        assertThat(new RequestClientIp().current()).isNull();
+        assertThat(new RequestClientIp(new ClientIpResolver("127.0.0.1,::1")).current()).isNull();
     }
 }
