@@ -381,7 +381,7 @@ export function MasterDataScreen() {
               title: "품목 목록",
               summary: "가장 빈도가 높은 단일 조회·편집 Grid 패턴입니다.",
               columns: COLUMNS.map((column) => ({
-                header: column.header,
+                header: column.header ?? column.key,
                 description: column.editable
                   ? "더블클릭하여 편집"
                   : "조회 전용",

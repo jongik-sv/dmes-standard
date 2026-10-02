@@ -32,8 +32,17 @@ export interface ModuleStatus {
   consecutiveFailures: number;
   lastError: string | null;
   counts: Record<string, number>;
+  /** 종류별 추정 크기 합계(바이트, UTF-8 JSON 직렬화 기준 — 실제 힙 점유는 이보다 크다). 옛 모듈은 없다. */
+  bytes?: Record<string, number>;
+  /** 추정 크기 전체 합계(바이트). */
+  totalBytes?: number;
+  /** 이 인스턴스 JVM 힙 — Runtime.totalMemory()-freeMemory(), maxMemory(). */
+  heap?: { usedBytes: number; maxBytes: number };
   maxEntries: number;
+  /** 적재 뒤 절대 상한(초). 조회가 많아도 이 시간 뒤에는 다시 받는다. */
   maxAgeSeconds: number;
+  /** 마지막 조회 뒤 유휴 수명(초). 조회될 때마다 연장된다. 옛 모듈은 없다. */
+  maxIdleSeconds?: number;
 }
 
 /**
@@ -63,6 +72,13 @@ export interface ModuleStatusRow extends Record<string, unknown> {
   lastSuccessAt: string;
   consecutiveFailures: number | null;
   total: number | null;
+  /** 캐시 추정 크기(바이트). 숫자로 두고 표시는 formatBytes — 열 정렬이 글자 순이 되지 않게. 모르면 null. */
+  totalBytes: number | null;
+  heapUsed: number | null;
+  heapMax: number | null;
+  /** "남은 수명" 도움말용. 모르면 null. */
+  maxIdleSeconds: number | null;
+  maxAgeSeconds: number | null;
 }
 
 export interface CacheEntryRow extends Record<string, unknown> {
@@ -71,8 +87,13 @@ export interface CacheEntryRow extends Record<string, unknown> {
   key: string;
   absent: boolean;
   loadedAt: string;
+  /** 마지막 조회(get 히트) 로컬 "yyyy-MM-dd HH:mm:ss". 적재 뒤 조회가 없으면 적재 시각과 같다. 옛 모듈은 빈 문자열. */
+  lastAccessAt: string;
   hits: number;
+  /** 두 기한(마지막 조회 + 유휴 수명, 적재 + 절대 상한) 중 이른 쪽까지. */
   remainingSeconds: number;
+  /** 추정 크기(바이트). -1 = 잴 수 없음, null = 옛 모듈. */
+  bytes: number | null;
 }
 
 /**
@@ -85,9 +106,13 @@ export interface CacheEntryDetail {
   absent: boolean;
   /** 로컬 "yyyy-MM-dd HH:mm:ss". */
   loadedAt: string;
+  /** 로컬 "yyyy-MM-dd HH:mm:ss". 옛 모듈은 빈 문자열. */
+  lastAccessAt: string;
   hits: number;
   remainingSeconds: number;
   loadSeq: number;
+  /** 추정 크기(바이트). -1 = 잴 수 없음, null = 옛 모듈. */
+  bytes: number | null;
   value: unknown;
 }
 
@@ -109,12 +134,22 @@ export interface CacheEntryPage {
   items: CacheEntryRow[];
 }
 
+/** 항목 정렬 — key(종류·키 순, 서버 기본)·bytes(추정 크기 큰 순)·hits(조회 수 많은 순). 서버가 쪽을 자르기 전에 정렬한다. */
+export type EntrySort = "key" | "bytes" | "hits";
+
+export const ENTRY_SORT_OPTIONS: Array<{ value: EntrySort; label: string }> = [
+  { value: "key", label: "키" },
+  { value: "bytes", label: "크기" },
+  { value: "hits", label: "조회 수" },
+];
+
 export interface EntryFilters {
   type: "" | MdmTargetType;
   q: string;
+  sort: EntrySort;
 }
 
-export const emptyFilters = (): EntryFilters => ({ type: "", q: "" });
+export const emptyFilters = (): EntryFilters => ({ type: "", q: "", sort: "key" });
 
 export interface LoadResult {
   loaded: string[];

@@ -5,7 +5,7 @@
  * `column-draft.test.ts` 가 대조한다, 수용 1). 식 파싱은 서버 EvalEx 가 단일 진원이라(불변 9) 이 파일에는 파서가 없다:
  * 식이 참조하는 변수는 서버 `parseExpr` 응답(`ColumnDraftContext.parsed`)만 읽고, 응답이 아직 없으면 판정을 미룬다(저장 때 서버 기준).
  */
-import { EVAL_TS, RESERVED_CONSTANTS, RESERVED_PREFIX } from "@/evalex/contract-constants";
+import { EVAL_TS, RESERVED_CONSTANTS, RESERVED_PREFIX } from "@/evalex";
 import { normVer } from "@/shell/version-format";
 
 import type { ExprSlot } from "../../api";

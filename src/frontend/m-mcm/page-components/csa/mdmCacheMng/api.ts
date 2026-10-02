@@ -1,5 +1,6 @@
 /**
  * mdmCacheMng 호출 — 업무 모듈 cactus 엔드포인트 /api/{module}/mdmMeta/*(GET status·entries·entry, POST load)와 MDM OASIS metaFeed/save(강제 기록).
+ * status 의 추정 크기·힙·수명과 entries·entry 의 bytes·lastAccessAt 은 A2(2026-10-02) 에 더해졌다 — 옛 모듈 응답에는 없으므로 null·빈 문자열로 둔다.
  * spec docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md §5.5·§6. 강제 기록 봉투의 키 목록은 grids.keys.rows 다(params 배열 금지).
  *
  * 모듈별 status·entries·entry 는 apiRequest 가 아니라 getJson 으로 부른다 — apiRequest 는 401 이면 로그인 화면으로 보내므로, 모듈 하나가 BFF 요청을
@@ -42,8 +43,22 @@ interface EntryPayload {
   total: number;
   page: number;
   size: number;
-  items: Array<{ type: MdmTargetType; key: string; absent: boolean; loadedAt: string; hits: number; remainingSeconds: number }>;
+  items: Array<{
+    type: MdmTargetType;
+    key: string;
+    absent: boolean;
+    loadedAt: string;
+    /** 옛 모듈은 없다. */
+    lastAccessAt?: string;
+    hits: number;
+    remainingSeconds: number;
+    /** 옛 모듈은 없다. */
+    bytes?: number;
+  }>;
 }
+
+/** 숫자면 그대로, 아니면(옛 모듈 응답에 칸이 없음) null. */
+const numberOrNull = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
 /** ISO 시각을 로컬 "yyyy-MM-dd HH:mm:ss" 로. 비면 빈 문자열. */
 export function formatInstant(iso: string | null | undefined): string {
@@ -106,6 +121,11 @@ export async function fetchAllStatus(modules: readonly string[]): Promise<{ rows
         lastSuccessAt: "",
         consecutiveFailures: null,
         total: null,
+        totalBytes: null,
+        heapUsed: null,
+        heapMax: null,
+        maxIdleSeconds: null,
+        maxAgeSeconds: null,
       };
     }
     const v = s.value;
@@ -118,6 +138,11 @@ export async function fetchAllStatus(modules: readonly string[]): Promise<{ rows
       lastSuccessAt: formatInstant(v.lastSuccessAt),
       consecutiveFailures: v.consecutiveFailures,
       total: Object.values(v.counts ?? {}).reduce((a, b) => a + b, 0),
+      totalBytes: numberOrNull(v.totalBytes),
+      heapUsed: numberOrNull(v.heap?.usedBytes),
+      heapMax: numberOrNull(v.heap?.maxBytes),
+      maxIdleSeconds: numberOrNull(v.maxIdleSeconds),
+      maxAgeSeconds: numberOrNull(v.maxAgeSeconds),
     };
   });
   return { rows, latestSeq };
@@ -127,6 +152,8 @@ export async function fetchEntries(module: string, filters: EntryFilters, page =
   const q = new URLSearchParams();
   if (filters.type) q.set("type", filters.type);
   if (filters.q.trim()) q.set("q", filters.q.trim());
+  // 키 순은 서버 기본이라 보내지 않는다. 크기·조회 수 순은 서버가 전체를 정렬한 뒤 쪽을 자른다.
+  if (filters.sort && filters.sort !== "key") q.set("sort", filters.sort);
   q.set("page", String(page));
   q.set("size", String(size));
   let res: EntryPayload;
@@ -142,8 +169,10 @@ export async function fetchEntries(module: string, filters: EntryFilters, page =
     key: e.key,
     absent: e.absent,
     loadedAt: formatInstant(e.loadedAt),
+    lastAccessAt: formatInstant(e.lastAccessAt),
     hits: e.hits,
     remainingSeconds: e.remainingSeconds,
+    bytes: numberOrNull(e.bytes),
   }));
   return { total: res.total, page: res.page, size: res.size, items };
 }
@@ -185,7 +214,7 @@ export async function fetchEntry(module: string, type: MdmTargetType, key: strin
     const label = MODULE_STATE_LABELS[failureState(response)];
     throw new Error(`${label}: ${typeof b.message === "string" && b.message ? b.message : `HTTP ${response.status}`}`);
   }
-  const res = body as CacheEntryDetail; // loadedAt 은 ISO — 아래에서 로컬 시각으로 바꾼다
+  const res = body as CacheEntryDetail; // loadedAt·lastAccessAt 은 ISO — 아래에서 로컬 시각으로 바꾼다
   return {
     found: true,
     detail: {
@@ -193,9 +222,11 @@ export async function fetchEntry(module: string, type: MdmTargetType, key: strin
       key: res.key,
       absent: res.absent,
       loadedAt: formatInstant(res.loadedAt),
+      lastAccessAt: formatInstant(res.lastAccessAt),
       hits: res.hits,
       remainingSeconds: res.remainingSeconds,
       loadSeq: res.loadSeq,
+      bytes: numberOrNull(res.bytes),
       value: res.absent ? null : res.value,
     },
   };

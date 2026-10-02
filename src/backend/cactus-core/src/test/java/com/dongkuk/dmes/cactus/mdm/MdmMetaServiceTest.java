@@ -50,6 +50,21 @@ class MdmMetaServiceTest {
         assertThat(feed.fetchCalls.get()).isEqualTo(1);
     }
 
+    /** 하위 프로젝트 C §6.2-4 — 검증기의 평가 단계는 캐시만 읽는다. 캐시에 없으면 MDM 을 부르지 않고 빈 값이다. */
+    @Test
+    void cached_는_캐시만_읽고_MDM_을_부르지_않는다() {
+        assertThat(service.cached(MdmTargetType.COLUMN, "A")).isEmpty();
+        assertThat(feed.fetchCalls.get()).isZero();
+
+        service.lookup(MdmTargetType.COLUMN, List.of("A", "X"));
+
+        assertThat(service.cached(MdmTargetType.COLUMN, "A")).hasValueSatisfying(e -> assertThat(e.value()).isEqualTo("a"));
+        assertThat(service.cached(MdmTargetType.COLUMN, "X")).hasValueSatisfying(e -> assertThat(e.absent()).isTrue());
+        assertThat(service.cached(MdmTargetType.COLUMN, "B")).isEmpty();
+        assertThat(service.cached(MdmTargetType.COLUMN, null)).isEmpty();
+        assertThat(feed.fetchCalls.get()).isEqualTo(1);
+    }
+
     @Test
     void 같은_키_동시_적재는_한_번만_한다() throws Exception {
         feed.fetchGate = new CountDownLatch(1);

@@ -8,8 +8,10 @@ import {
   formatPeriodShort,
   roleNameMap,
   rowToForm,
+  NOTICE_MDM_FIELDS,
   sameForm,
   targetLabel,
+  toFormFieldErrors,
   toLocalDate,
   toLocalDateTime,
   validateNotice,
@@ -251,5 +253,38 @@ describe("formatPeriodShort", () => {
     expect(formatPeriodShort("2026-10-01", "2026-10-05")).toBe("10-01~10-05");
     expect(formatPeriodShort("2026-10-01", null)).toBe("10-01~");
     expect(formatPeriodShort("", "")).toBe("");
+  });
+});
+
+describe("MDM 칸 오류 — toFormFieldErrors", () => {
+  it("MDM 에 연결한 칸은 서버 MdmValidator 가 검사하는 TITLE 하나다", () => {
+    expect([...NOTICE_MDM_FIELDS]).toEqual(["TITLE"]);
+  });
+
+  it("서버 오류의 field 를 폼 칸에 붙인다 — 저장은 한 행이라 rowIndex(0)는 보지 않는다", () => {
+    expect(
+      toFormFieldErrors([
+        { rowIndex: 0, field: "TITLE", message: "제목은(는) 최대 1000자입니다" },
+        { rowIndex: 0, field: "PIN_YN", message: "상단 고정 값이 올바르지 않습니다" },
+      ]),
+    ).toEqual({
+      TITLE: "제목은(는) 최대 1000자입니다",
+      PIN_YN: "상단 고정 값이 올바르지 않습니다",
+    });
+  });
+
+  it("같은 칸은 첫 문구만, 소문자 field 는 대문자로 맞추고, 폼에 없는 칸은 버린다", () => {
+    expect(
+      toFormFieldErrors([
+        { field: "title", message: "첫째" },
+        { field: "TITLE", message: "둘째" },
+        { field: "NOPE", message: "없는 칸" },
+        { field: "rowStatus", message: "폼 값이 아님" },
+      ]),
+    ).toEqual({ TITLE: "첫째" });
+  });
+
+  it("오류가 없으면 빈 객체", () => {
+    expect(toFormFieldErrors([])).toEqual({});
   });
 });

@@ -74,6 +74,7 @@ cactus:
     client-key: ${BACKEND_CLIENT_KEY:dmes-bff-local-client-key-2026}
     poll-interval: 10s
     max-entries: 20000
-    max-age: 60m
+    max-age: 24h         # 적재 뒤 절대 상한 — 조회가 많아도 이 시간 뒤에는 MDM 에서 다시 받는다
+    max-idle: 60m        # 마지막 조회 뒤 이 시간 동안 조회가 없으면 만료(조회될 때마다 연장)
     connect-timeout: 2s
     read-timeout: 5s

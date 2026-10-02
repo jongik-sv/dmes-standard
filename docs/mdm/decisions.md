@@ -1352,6 +1352,22 @@
 - **Reversible**: yes(검사 한 줄과 화면 조건)
 - **Source**: 사용자 요청 2026-10-02 "경계값 생성은 EQP_CHK_JDG 룰로 해". TSK-08-04 I29 의 "케이스 쓰기도 MDM 원천만" 을 번복
 
+## D-146 (2026-10-03T00:30:00Z)
+- **Phase**: design(MDM 화면 메타 연동 — 하위 프로젝트 B)
+- **Decision needed**: idea.md "UI 캡션/라벨을 MDM에서 자동으로 가져옴", "Form·Grid 헤더 툴팁". 캡션 우선순위, 툴팁 내용·순서, 받는 시점, 적용 범위
+- **Decision made**: (1) 명시 우선 — 그리드 `header`·폼 `label` 을 적으면 그대로, 비우면 MDM(그리드 labelShort→Mid→Long, 폼 labelMid→Long→Short). `MdmMetaProvider captionPriority="mdm"` 로 화면 단위 전환 (2) 툴팁: 제목·물리명 → 설명 → 형식·필수·기본값 → 도메인·단위 → 표준식 → 허용 코드(10개) → "저장할 때 서버에서 확인"(비즈니스식 원문 없음) (3) 화면이 열릴 때 한 틱 모아 모듈당 1회 요청, 브라우저 메모리 5분 (4) 포털 탭마다 공급자를 자동으로 씌우고 모듈은 pageId 앞부분, mdmMeta 없는 모듈은 세션 동안 끔·401 에도 로그인 이동 없음
+- **Rationale**: 기존 화면이 바뀌거나 깜빡이지 않고, 새 화면은 캡션을 적지 않으면 MDM 을 따른다. 툴팁은 덧붙는 기능이라 전 화면 자동 적용이 안전하다
+- **Reversible**: yes(공급자 옵션·shared 내부 규칙)
+- **Source**: 사용자 위임 2026-10-03. 스펙 [`2026-10-03-mdm-screen-meta-validation-design.md`](../superpowers/specs/2026-10-03-mdm-screen-meta-validation-design.md) §2 B1~B8
+
+## D-147 (2026-10-03T00:30:00Z)
+- **Phase**: design(MDM 값 검증 — 하위 프로젝트 C)
+- **Decision needed**: idea.md "룰 엔진 실행 검증(화면 값 자동 검증, BE 에서 값 검증 및 체크)". 켜는 방식, 길이 단위, MDM 장애 정책, 룰 세트 위반 판정, 평가 중 MDM 호출
+- **Decision made**: (1) 화면·서버 모두 화면/서비스가 명시해 켠다(그리드 `mdmValidate`, `useMdmValidation`, `MdmValidator.check(columns…)`) — 컬럼 사전이 테이블 구분 없는 전역 물리명이라 자동 적용하지 않는다 (2) 길이는 code point (3) 정의를 받을 수 없으면 기본 저장 거부(`MDM_UNAVAILABLE`), 모듈 설정 `cactus.mdm.validation.on-unavailable: PASS` 로 경고 후 통과 (4) 룰 세트는 받는 노드가 받지 않은 엔진 위반만 오류, caught·finalValues 는 호출자 판단 (5) 미리 받기 뒤 캐시 전용 조회기로 평가(평가 중 HTTP 금지) (6) 화면 평가기는 m-mdm 에서 shared 로 옮기고 m-mdm 은 다시 내보냄 (7) 사전에 없는 컬럼·룰 세트는 WARN 후 건너뜀(MDM 관리 변경이 업무 저장을 막지 않게) — 결과 `missing` 에 담고 `ok()` 판정에는 넣지 않으며 예외를 던지지 않는다
+- **Rationale**: 잘못 맞은 사전 이름 하나가 전 화면 입력을 막지 않게 한다. 엔진 평가 1초 제한이 HTTP 5초보다 짧고 엔진 예외는 원인을 잃는다. D8 "서버가 기준"
+- **Reversible**: yes(설정·호출부)
+- **Source**: 사용자 위임 2026-10-03. 같은 스펙 §2 C1~C9. 마루 데이터 MASTER 는 범위 밖(엔진·MDM 모두 MasterLookup.NONE, 로컬 도메인 164건 중 직접 사용 0건)
+
 ## D-148 (2026-10-02T16:02:23Z)
 - **Phase**: build(MDM 버전 관리 3단계 — 레이아웃·헤더, D-144 의 3단계 구현 결정)
 - **Decision needed**: 전문 레이아웃·헤더에 버전 관리(D-144, 3단계)를 구현하면서 스펙이 열어 둔 구현 방식과 구현 중 생긴 판단을 한곳에 남긴다

@@ -8,13 +8,7 @@
  * 좌우 경계는 끌어서 크기를 바꾸고 사용자별로 기억한다(ContentBody resizable, SPLIT_STORAGE_KEY).
  * SIDEBAR / HEADER / TabsBar 는 포털 PortalShell 이 그린다. 이 화면은 PageLayout 안쪽만 맡는다.
  */
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ContentBody,
@@ -26,12 +20,7 @@ import {
   SearchArea,
   SearchField,
 } from "@dk-oasis/shared/layout";
-import {
-  AgDataGrid,
-  GridBadge,
-  GridPanel,
-  type GridColumn,
-} from "@dk-oasis/shared/grid";
+import { AgDataGrid, GridPanel } from "@dk-oasis/shared/grid";
 import {
   Checkbox,
   DatePicker,
@@ -41,7 +30,9 @@ import {
   SegmentedControl,
   Select,
 } from "@dk-oasis/shared/form";
+import { toFieldErrors } from "@dk-oasis/shared/http";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { MdmMetaProvider, useMdmValidation } from "@dk-oasis/shared/mdm-meta";
 
 import {
   changeNoticeStatus,
@@ -51,22 +42,26 @@ import {
   searchRoles,
   toUserMessage,
 } from "./api";
+import { NOTICE_COLUMNS } from "./notice-columns";
 import { NoticeBodyEditor } from "./NoticeBodyEditor";
 import { NoticeHomePreview } from "./NoticeHomePreview";
+import { NoticeTitleRow } from "./NoticeTitleRow";
 import {
+  NOTICE_MDM_FIELDS,
   emptyNoticeForm,
   findSavedId,
   formToSaveRow,
   formatPeriod,
-  formatPeriodShort,
   roleNameMap,
   rowToForm,
   sameForm,
   targetLabel,
   toCategory,
   toContentFormat,
+  toFormFieldErrors,
   toLocalDateTime,
   validateNotice,
+  type NoticeFieldErrors,
 } from "./notice-logic";
 import { NOTICE_MGMT_CSS, NOTICE_MGMT_STYLE_HREF } from "./notice-styles";
 import {
@@ -83,7 +78,6 @@ import {
   SCREEN_ID,
   SPLIT_STORAGE_KEY,
   TARGET_SCOPE_RADIO,
-  TITLE_MAX,
   emptyFilters,
   type ContentFormat,
   type NoticeForm,
@@ -93,105 +87,21 @@ import {
   type TargetScope,
 } from "./types";
 
-const CATEGORY_BADGE: Record<
-  string,
-  { bg?: string; color?: string; muted?: boolean }
-> = {
-  URGENT: { bg: "var(--color-danger-soft)", color: "var(--color-danger)" },
-  MAINT: { bg: "var(--color-warning-soft)", color: "var(--color-warning)" },
-  NORMAL: { muted: true },
-};
-
-const STATUS_BADGE: Record<
-  string,
-  { bg?: string; color?: string; muted?: boolean }
-> = {
-  [NOTICE_STATUS.POSTED]: {
-    bg: "var(--color-success-soft)",
-    color: "var(--color-success)",
-  },
-  [NOTICE_STATUS.STOPPED]: {
-    bg: "var(--color-warning-soft)",
-    color: "var(--color-warning)",
-  },
-  [NOTICE_STATUS.DRAFT]: { muted: true },
-};
-
 /**
- * §3.2 목록 열. 표시용 파생 칸(*_LABEL 등)은 gridRows 에서 만든다 — 툴팁은 그 값(전체 글자)을 보인다.
- * columnSizing="fit" 에서 width 는 픽셀이 아니라 비율 가중치다(ag-data-grid.md). 그래서 짧은 열은 가중치 1 에
- * 내용 폭만큼 minWidth 를 주어 거의 그 폭에 머물게 하고, 제목만 큰 가중치로 남는 폭을 모두 가져가게 한다.
- * 칸 안쪽 여백은 좌우 8px(grid.css .ag-cell)이다. 열 합이 목록 폭보다 크면 그리드가 가로로 스크롤한다.
- * 최소 폭 합 552px — 포털 1300px·상세 460 기본 배치의 목록 폭(약 570px)에 맞춘다. 등록일은 상세·홈 미리보기에서 본다.
+ * 화면 진입점 — 포털 탭 공급자 안쪽에 `captionPriority="mdm"` 만 바꿔 둔다(module 은 지정하지 않아 바깥 포털 공급자를 따른다).
+ * 그러면 MDM 컬럼 사전에 있는 칸(목록 TITLE 열·상세 제목 라벨)은 MDM 이 있을 때 표준 캡션, 없거나 받지 못하면 적어 둔 "제목" 이 보인다.
+ * 기존 화면을 표준 캡션으로 바꿀 때 header 를 지우지 않는 이유다(프런트 Local-Rules 의 "MDM 캡션·툴팁·값 검증" 절). 화면 안의 훅(useMdmValidation 등)도
+ * 이 범위 안에서 돈다.
  */
-const NARROW = 1;
-const COLUMNS: GridColumn[] = [
-  {
-    key: "CATEGORY_LABEL",
-    header: "분류",
-    width: NARROW,
-    minWidth: 60,
-    align: "center",
-    render: (v, row) => (
-      <GridBadge
-        label={String(v ?? "")}
-        {...CATEGORY_BADGE[String(row.NOTICE_CATEGORY_CODE)]}
-      />
-    ),
-  },
-  {
-    key: "FORMAT_LABEL",
-    header: "형식",
-    width: NARROW,
-    minWidth: 52,
-    align: "center",
-  },
-  { key: "TITLE", header: "제목", width: 100, minWidth: 180, align: "left" },
-  {
-    key: "STATUS_LABEL",
-    header: "게시상태",
-    width: NARROW,
-    minWidth: 74,
-    align: "center",
-    render: (v, row) => (
-      <GridBadge
-        label={String(v ?? "")}
-        {...STATUS_BADGE[String(row.NOTICE_STATUS)]}
-      />
-    ),
-  },
-  {
-    key: "POST_PERIOD",
-    header: "게시기간",
-    width: NARROW,
-    minWidth: 100,
-    align: "center",
-    // 칸에는 "MM-dd~MM-dd", 툴팁(값)에는 연도까지 보인다.
-    render: (_v, row) =>
-      formatPeriodShort(
-        row.POST_START_DT as string | null,
-        row.POST_END_DT as string | null,
-      ),
-  },
-  {
-    key: "PIN_LABEL",
-    header: "고정",
-    width: NARROW,
-    minWidth: 42,
-    align: "center",
-    render: (v) => (v ? "●" : ""),
-  },
-  {
-    key: "TARGET_LABEL",
-    header: "대상",
-    width: NARROW,
-    minWidth: 66,
-    align: "left",
-    render: (_v, row) => String(row.TARGET_SHORT ?? ""),
-  },
-];
-
 export default function NoticeMgmtPage() {
+  return (
+    <MdmMetaProvider captionPriority="mdm">
+      <NoticeMgmtScreen />
+    </MdmMetaProvider>
+  );
+}
+
+function NoticeMgmtScreen() {
   const { showMessage } = useMessage();
   const [filters, setFilters] = useState<NoticeMgmtFilters>(emptyFilters);
   const [rows, setRows] = useState<NoticeRow[]>([]);
@@ -211,6 +121,12 @@ export default function NoticeMgmtPage() {
   const [rolesFailed, setRolesFailed] = useState(false);
   /** 늦게 도착한 이전 조회 응답을 버리기 위한 요청 순번(Local-Rules §11). */
   const searchSeq = useRef(0);
+  /**
+   * 저장 때 서버·저장 전 MDM 검사가 상세 폼 칸에 준 오류. 그 칸을 고치거나 다른 공지를 열거나 새로 쓰면 지운다.
+   * 입력 중 즉시 검사(화면 문구)는 NoticeTitleRow 가 따로 보인다.
+   */
+  const [fieldErrors, setFieldErrors] = useState<NoticeFieldErrors>({});
+  const { validateRow } = useMdmValidation();
 
   const selectedId = selectedRow?.NOTICE_ID ?? "";
   const isDirty = !!form && !!baseline && !sameForm(form, baseline);
@@ -257,6 +173,7 @@ export default function NoticeMgmtPage() {
     const next = row ? rowToForm(row) : null;
     setForm(next);
     setBaseline(next);
+    setFieldErrors({});
   }, []);
 
   /**
@@ -349,6 +266,7 @@ export default function NoticeMgmtPage() {
       setSelectedRow(null);
       setForm(next);
       setBaseline(next);
+      setFieldErrors({});
       setNewSeq((n) => n + 1);
     });
   }, [confirmDiscard]);
@@ -356,6 +274,12 @@ export default function NoticeMgmtPage() {
   const setField = useCallback(
     <K extends keyof NoticeForm>(key: K, value: NoticeForm[K]) => {
       setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
+      // 서버·저장 전 검사 오류는 그 칸을 고치면 낡은 판정이다.
+      setFieldErrors((prev) => {
+        if (prev[key] === undefined) return prev;
+        const { [key]: _gone, ...rest } = prev;
+        return rest;
+      });
     },
     [],
   );
@@ -366,6 +290,20 @@ export default function NoticeMgmtPage() {
     const issue = validateNotice(form);
     if (issue) {
       showMessage({ message: issue.message, alertType: "warning" });
+      return;
+    }
+    // MDM 컬럼 사전 검사(화면) — 서버 MdmValidator 와 같은 판정·문구. 걸리면 서버를 부르지 않고 그 칸에 보인다.
+    const mdmIssues = validateRow({ TITLE: form.TITLE.trim() }, [
+      ...NOTICE_MDM_FIELDS,
+    ]);
+    const mdmFirst = Object.entries(mdmIssues)[0];
+    if (mdmFirst) {
+      setFieldErrors(
+        Object.fromEntries(
+          Object.entries(mdmIssues).map(([k, v]) => [k, v.message]),
+        ),
+      );
+      showMessage({ message: mdmFirst[1].message, alertType: "warning" });
       return;
     }
     const isNew = !form.NOTICE_ID;
@@ -389,6 +327,8 @@ export default function NoticeMgmtPage() {
           : undefined,
       );
     } catch (e) {
+      // 서버 저장 검증 오류(errors 상세)를 입력 칸에 붙인다. 저장은 한 행이라 "master" 그리드의 오류가 이 폼 것이다.
+      setFieldErrors(toFormFieldErrors(toFieldErrors(e, "master")));
       showMessage({
         title: "오류",
         message: toUserMessage(
@@ -400,7 +340,7 @@ export default function NoticeMgmtPage() {
     } finally {
       setIsBusy(false);
     }
-  }, [form, rows, filters, runSearch, showMessage]);
+  }, [form, rows, filters, runSearch, showMessage, validateRow]);
 
   /** B-004 삭제 — 확인 후 서버에서 바로 지우고 다시 조회한다. 게시중 건은 버튼이 비활성이다(§7.4). */
   const handleDelete = useCallback(() => {
@@ -587,7 +527,9 @@ export default function NoticeMgmtPage() {
           <GridPanel title="공지사항 목록" count={rows.length}>
             <AgDataGrid
               rowKey="NOTICE_ID"
-              columns={COLUMNS}
+              columns={NOTICE_COLUMNS}
+              // 목록은 읽기 전용이라 지금은 켜 둔 것만으로 검사할 칸이 없다 — 편집 열을 더하면 MDM 연결 칸이 바로 검사된다.
+              mdmValidate
               data={gridRows}
               columnSizing="fit"
               sortable
@@ -634,19 +576,13 @@ export default function NoticeMgmtPage() {
                     />
                   </td>
                 </tr>
-                <tr>
-                  <th style={DETAIL_LABEL_CELL}>제목 *</th>
-                  <td style={DETAIL_VALUE_CELL}>
-                    <Input
-                      value={form?.TITLE ?? ""}
-                      maxLength={TITLE_MAX}
-                      placeholder="홈 화면 목록에 보이는 제목"
-                      disabled={formDisabled}
-                      aria-label="제목"
-                      onChange={(v) => setField("TITLE", v)}
-                    />
-                  </td>
-                </tr>
+                <NoticeTitleRow
+                  key={editorKey}
+                  value={form?.TITLE ?? ""}
+                  disabled={formDisabled}
+                  error={fieldErrors.TITLE}
+                  onChange={(v) => setField("TITLE", v)}
+                />
                 <tr>
                   <th style={DETAIL_LABEL_CELL}>분류</th>
                   <td style={DETAIL_VALUE_CELL}>
@@ -767,7 +703,6 @@ export default function NoticeMgmtPage() {
               onPreview={() => setPreviewOpen(true)}
               onChange={(v) => setField("CONTENT", v)}
             />
-
           </div>
           <NoticeHomePreview
             open={previewOpen}

@@ -12,7 +12,7 @@ vi.mock("@dk-oasis/shared/http", () => ({
 const httpError = (status: number) => Object.assign(new Error(`HTTP ${status}`), { name: "HttpError", status });
 
 import * as api from "../../../page-components/csa/mdmCacheMng/api";
-import { MODULE_STATE_LABELS, isReachable } from "../../../page-components/csa/mdmCacheMng/types";
+import { MODULE_STATE_LABELS, emptyFilters, isReachable } from "../../../page-components/csa/mdmCacheMng/types";
 
 const bodyOf = (call: unknown[]) => JSON.parse((call[1] as { body: string }).body);
 
@@ -25,8 +25,12 @@ const status = (module: string, appliedSeq: number, latestSeq: number, consecuti
   consecutiveFailures,
   lastError: null,
   counts: { COLUMN: 2, DOMAIN: 1 },
+  bytes: { COLUMN: 2048, DOMAIN: 512 },
+  totalBytes: 2560,
+  heap: { usedBytes: 300 * 1024 * 1024, maxBytes: 4 * 1024 * 1024 * 1024 },
   maxEntries: 20000,
-  maxAgeSeconds: 3600,
+  maxAgeSeconds: 86400,
+  maxIdleSeconds: 3600,
 });
 
 describe("mdmCacheMng api", () => {
@@ -63,6 +67,35 @@ describe("mdmCacheMng api", () => {
     ]);
     expect(rows[0].total).toBe(3);
     expect(rows[2].appliedSeq).toBeNull();
+    // 추정 크기·힙·수명 — 숫자 그대로 둔다(열 정렬이 글자 순이 되지 않게, 표시는 화면이 formatBytes 로)
+    expect(rows[0]).toMatchObject({
+      totalBytes: 2560,
+      heapUsed: 300 * 1024 * 1024,
+      heapMax: 4 * 1024 * 1024 * 1024,
+      maxIdleSeconds: 3600,
+      maxAgeSeconds: 86400,
+    });
+    expect(rows[2]).toMatchObject({ totalBytes: null, heapUsed: null, heapMax: null, maxIdleSeconds: null, maxAgeSeconds: null });
+  });
+
+  it("상태 — 크기·힙·유휴 수명을 모르는 옛 모듈 응답이면 그 칸만 null 이다", async () => {
+    getJson.mockImplementation(async () => {
+      const old: Record<string, unknown> = { ...status("mcm", 9, 9), maxAgeSeconds: 3600 };
+      for (const k of ["bytes", "totalBytes", "heap", "maxIdleSeconds"]) delete old[k];
+      return old;
+    });
+
+    const { rows } = await api.fetchAllStatus(["mcm"]);
+
+    expect(rows[0]).toMatchObject({
+      state: "OK",
+      total: 3,
+      totalBytes: null,
+      heapUsed: null,
+      heapMax: null,
+      maxIdleSeconds: null,
+      maxAgeSeconds: 3600,
+    });
   });
 
   it("상태 — 401 은 인증 실패, 403 은 권한 없음, 네트워크·5xx 는 연결 안 됨이고 로그인으로 보내는 apiRequest 를 쓰지 않는다", async () => {
@@ -90,7 +123,7 @@ describe("mdmCacheMng api", () => {
 
   it("항목 — 401 이어도 로그인으로 보내지 않고 상태 이름을 붙여 throw", async () => {
     getJson.mockRejectedValue(httpError(401));
-    await expect(api.fetchEntries("mqc", { type: "", q: "" })).rejects.toThrow("인증 실패");
+    await expect(api.fetchEntries("mqc", { type: "", q: "", sort: "key" })).rejects.toThrow("인증 실패");
     expect(apiRequest).not.toHaveBeenCalled();
   });
 
@@ -99,14 +132,55 @@ describe("mdmCacheMng api", () => {
       total: 1,
       page: 0,
       size: 200,
-      items: [{ type: "COLUMN", key: "COIL_THK", absent: false, loadedAt: "2026-10-02T00:00:00Z", hits: 3, remainingSeconds: 3000 }],
+      items: [
+        {
+          type: "COLUMN",
+          key: "COIL_THK",
+          absent: false,
+          loadedAt: "2026-10-02T00:00:00Z",
+          lastAccessAt: "2026-10-02T00:10:00Z",
+          hits: 3,
+          remainingSeconds: 3000,
+          bytes: 1536,
+        },
+      ],
     });
 
-    const page = await api.fetchEntries("mls", { type: "COLUMN", q: " coil " });
+    const page = await api.fetchEntries("mls", { type: "COLUMN", q: " coil ", sort: "key" });
 
     expect(getJson.mock.calls[0][0]).toBe("/api/mls/mdmMeta/entries?type=COLUMN&q=coil&page=0&size=200");
     expect(page.items[0].rowId).toBe("COLUMN:COIL_THK");
     expect(page.items[0].hits).toBe(3);
+    expect(page.items[0].bytes).toBe(1536);
+    expect(page.items[0].lastAccessAt).toBe(api.formatInstant("2026-10-02T00:10:00Z"));
+    expect(page.items[0].lastAccessAt).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+  });
+
+  it("항목 — 정렬이 크기·조회 수면 sort 를 보내고(서버가 쪽을 자르기 전에 정렬), 키 순(기본)이면 보내지 않는다", async () => {
+    getJson.mockResolvedValue({ total: 0, page: 0, size: 200, items: [] });
+
+    await api.fetchEntries("mls", { type: "", q: "", sort: "bytes" });
+    await api.fetchEntries("mls", { type: "RULE", q: "", sort: "hits" });
+    await api.fetchEntries("mls", emptyFilters());
+
+    expect(getJson.mock.calls.map((c) => c[0])).toEqual([
+      "/api/mls/mdmMeta/entries?sort=bytes&page=0&size=200",
+      "/api/mls/mdmMeta/entries?type=RULE&sort=hits&page=0&size=200",
+      "/api/mls/mdmMeta/entries?page=0&size=200",
+    ]);
+  });
+
+  it("항목 — 크기·마지막 조회를 모르는 옛 모듈 응답이면 크기는 null, 마지막 조회는 빈 문자열이다", async () => {
+    getJson.mockResolvedValue({
+      total: 1,
+      page: 0,
+      size: 200,
+      items: [{ type: "DOMAIN", key: "7", absent: true, loadedAt: "2026-10-02T00:00:00Z", hits: 0, remainingSeconds: 10 }],
+    });
+
+    const page = await api.fetchEntries("mls", { type: "", q: "", sort: "key" });
+
+    expect(page.items[0]).toMatchObject({ bytes: null, lastAccessAt: "" });
   });
 
   describe("항목 상세(entry)", () => {
@@ -135,9 +209,11 @@ describe("mdmCacheMng api", () => {
       key: "COIL_THK",
       absent: false,
       loadedAt: "2026-10-02T00:00:00Z",
+      lastAccessAt: "2026-10-02T00:30:00Z",
       hits: 0,
       remainingSeconds: 3600,
       loadSeq: 7,
+      bytes: 2048,
       value: { physName: "COIL_THK", bizExpr: { text: "value <= COIL_WID" } },
     };
 
@@ -167,6 +243,8 @@ describe("mdmCacheMng api", () => {
       expect(r.detail.loadSeq).toBe(7);
       expect(r.detail.loadedAt).toBe(api.formatInstant("2026-10-02T00:00:00Z"));
       expect(r.detail.loadedAt).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+      expect(r.detail.lastAccessAt).toBe(api.formatInstant("2026-10-02T00:30:00Z"));
+      expect(r.detail.bytes).toBe(2048);
     });
 
     it("없음 항목은 absent 와 null 값이다", async () => {
@@ -288,9 +366,9 @@ describe("mdmCacheMng api", () => {
     expect(api.parseKeys("A, B\nC  A")).toEqual(["A", "B", "C"]);
     expect(
       api.groupByType([
-        { rowId: "COLUMN:A", type: "COLUMN", key: "A", absent: false, loadedAt: "", hits: 0, remainingSeconds: 0 },
-        { rowId: "RULE:R", type: "RULE", key: "R", absent: false, loadedAt: "", hits: 0, remainingSeconds: 0 },
-        { rowId: "COLUMN:B", type: "COLUMN", key: "B", absent: true, loadedAt: "", hits: 0, remainingSeconds: 0 },
+        { rowId: "COLUMN:A", type: "COLUMN", key: "A", absent: false, loadedAt: "", lastAccessAt: "", hits: 0, remainingSeconds: 0, bytes: 1 },
+        { rowId: "RULE:R", type: "RULE", key: "R", absent: false, loadedAt: "", lastAccessAt: "", hits: 0, remainingSeconds: 0, bytes: 1 },
+        { rowId: "COLUMN:B", type: "COLUMN", key: "B", absent: true, loadedAt: "", lastAccessAt: "", hits: 0, remainingSeconds: 0, bytes: 0 },
       ]),
     ).toEqual([
       ["COLUMN", ["A", "B"]],

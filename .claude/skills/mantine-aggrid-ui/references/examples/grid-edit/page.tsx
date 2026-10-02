@@ -14,6 +14,7 @@ import {
   getRowIdentifier,
   isTempRow,
   useGridDataManager,
+  useResolvedGridColumns,
   type GridColumn,
 } from "@dk-oasis/shared/grid";
 import { useMessage } from "@dk-oasis/shared/message-provider";
@@ -71,6 +72,8 @@ export default function DefectCodeMngPage() {
   const [filters, setFilters] = useState<DefectCodeFilters>(EMPTY_FILTERS);
   const [isBusy, setIsBusy] = useState(false);
 
+  // 엑셀 머리글은 그리드에 보이는 캡션과 같게(header 를 생략한 열은 MDM 캡션) — mdm-meta 문서 참고.
+  const excelColumns = useResolvedGridColumns(COLUMNS);
   const grid = useGridDataManager<DefectCodeRow>({
     rowKey: ROW_KEY,
     emptyForm: EMPTY_FORM,
@@ -147,9 +150,9 @@ export default function DefectCodeMngPage() {
       grid.rows,
       `불량코드관리_${today()}.xlsx`,
       "Sheet1",
-      COLUMNS.map(({ key, header }) => ({ key, header })),
+      excelColumns.map(({ key, header }) => ({ key, header: header ?? key })),
     );
-  }, [grid.rows]);
+  }, [grid.rows, excelColumns]);
 
   const setFilter = (key: keyof DefectCodeFilters, value: string) =>
     setFilters((prev) => ({ ...prev, [key]: value }));

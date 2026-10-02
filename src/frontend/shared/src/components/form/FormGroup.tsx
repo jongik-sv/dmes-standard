@@ -15,17 +15,32 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 import { Input } from "@mantine/core";
+// 배럴(../../mdm-meta)을 거치지 않는다 — 배럴의 화면 값 검증(validate.ts)이 식 평가기(evalex·decimal.js)를 form 묶음에 끌어들인다.
+import { MdmMetaCard } from "../../mdm-meta/MdmMetaCard";
+import { resolveCaption } from "../../mdm-meta/caption";
+import { useMdmCaptionPriority, useMdmColumn } from "../../mdm-meta/context";
 
 export interface FormGroupProps {
+  /**
+   * 라벨. 비우면(undefined) `name` 이 있을 때 MDM 폼 캡션(labelMid → labelLong → labelShort → columnName), 그것도 없으면 `name`.
+   * 공급자가 `captionPriority="mdm"` 이면 MDM 캡션이 적은 값을 이긴다(spec B1·B2).
+   */
   label?: string;
+  /**
+   * MDM 컬럼 사전 연결 키 — 화면 필드 이름(`noticeTitle`·`TITLE`). 물리명으로 바꿔(`codeNm` → `CODE_NM`) 캡션·툴팁 메타를 찾는다.
+   * 포털 탭(MDM 공급자) 밖에서는 쓰지 않는다. FormGroup 은 입력값을 보지 않는다 — 폼 검증은 화면이 훅 결과를 `error` 로 준다.
+   */
+  name?: string;
+  /** 명시 물리명(이름보다 우선). `false` 면 MDM 연결을 끈다(spec B6). */
+  meta?: string | false;
   required?: boolean;
   children?: ReactNode;
   className?: string;
   labelWidth?: number;
   style?: CSSProperties;
   error?: string;
-  /** 라벨 hover 시 표시되는 툴팁 텍스트 */
-  tip?: string;
+  /** 라벨 hover·필드 focus 시 표시되는 툴팁(글자 또는 React 노드). 없고 MDM 메타가 있으면 MdmMetaCard 를 띄운다. */
+  tip?: string | ReactNode;
 }
 
 function mergeIds(...values: Array<unknown>): string | undefined {
@@ -36,15 +51,24 @@ function mergeIds(...values: Array<unknown>): string | undefined {
 }
 
 export function FormGroup({
-  label,
+  label: labelProp,
   required = false,
   children,
   className = "",
   labelWidth = 120,
   style,
   error,
-  tip,
+  tip: tipProp,
+  name,
+  meta,
 }: FormGroupProps) {
+  // MDM 화면 메타 — 공급자(포털 탭) 밖이거나 name·meta 가 없으면 아무것도 부르지 않고 예전과 같다.
+  const mdm = useMdmColumn(name, meta);
+  const captionPriority = useMdmCaptionPriority();
+  const label = name ? resolveCaption(mdm.column, "form", labelProp, captionPriority, name) : labelProp;
+  const tip: ReactNode =
+    tipProp ?? (mdm.column ? <MdmMetaCard column={mdm.column} domain={mdm.domain} /> : undefined);
+  const tipIsText = typeof tip === "string";
   const generatedId = useId();
   const labelId = `${generatedId}-label`;
   const controlId = `${generatedId}-control`;
@@ -78,7 +102,8 @@ export function FormGroup({
     if (!el || typeof window === "undefined") return;
     const rect = el.getBoundingClientRect();
     const TIP_MAX_WIDTH = 320;
-    const TIP_EST_HEIGHT = 72;
+    // 글자 툴팁은 두세 줄, MDM 카드 같은 노드 툴팁은 더 크다 — 위쪽 공간 판정에만 쓴다.
+    const TIP_EST_HEIGHT = tipIsText ? 72 : 200;
     const GAP = 6;
     const GUTTER = 8;
     const maxLeft = Math.max(GUTTER, window.innerWidth - TIP_MAX_WIDTH - GUTTER);
@@ -88,7 +113,7 @@ export function FormGroup({
       top: above ? rect.top - GAP : rect.bottom + GAP,
       above,
     });
-  }, []);
+  }, [tipIsText]);
   const hideTip = useCallback(() => setTipPos(null), []);
 
   const enhancedChildren = (() => {

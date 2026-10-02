@@ -205,6 +205,7 @@ MES 백엔드 트랜잭션 로직은 앞단(FE)에서 넘어온 값을 그대로
 - 예: 입고처리에서 메인 그리드 입고일자를 FE 에서 바꾸고 저장하지 않은 채 입고처리를 눌러 FE 가 변경값을 보내더라도, 백엔드는 해당 행의 저장된 입고일자를 재조회해 그 일자로 입고처리한다. 미저장 FE 값으로 처리하지 않는다.
 - 권한·마감·확정여부 등 가드도 백엔드 재조회로 검증한다. FE 의 disabled/숨김만 믿지 않는다.
 - 설계 단계에서 각 트랜잭션 BR 에 "백엔드 재검증" 을 명시한다.
+- 입력값의 타입·길이·필수·표준식은 MDM 컬럼 사전 정의로도 서버에서 확인한다 — [§11.2 저장 검증](#112-저장-검증mdmvalidator).
 
 ## 6. REST Controller와 응답
 
@@ -409,20 +410,30 @@ MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 
       page-limit: 1000                  # 폴 요청 한 번에 최대 응답 행 수. revision-lookback 이 0 보다 크면 page-limit 은 revision-lookback 보다 커야 한다(아니면 기동 시 예외)
       revision-lookback: 100            # 늦게 커밋된 기록 재처리 구간. 0 이면 끔(보강 안 함)
       max-entries: 20000
-      max-age: 60m
+      max-age: 24h        # 적재 뒤 절대 상한
+      max-idle: 60m       # 마지막 조회 뒤 유휴 수명(조회될 때마다 연장)
       connect-timeout: 2s
       read-timeout: 5s
   ```
 
+- 수명: 마지막 조회 뒤 `max-idle` 동안 조회가 없거나 적재 뒤 `max-age`(절대 상한)가 지나면 만료다 — 자주 조회되는 항목일수록 오래 남는다.
+  만료 항목은 폴링마다(약 10초) 쓸어 내고, 상한(`max-entries`)을 넘으면 만료 항목, 그다음 오래 조회되지 않은 순(LRU)으로 지운다.
+  관리 화면 읽기(`entries`·`entry`)는 수명을 연장하지 않는다.
 - 빌드: cactus-core 가 `maru-mdm-engine` 을 api 로 문다. 새 업무 모듈은 settings.gradle 에 `includeBuild('../maru-mdm-engine')` +
   `substitute module('kr.dongkuk.maru.mdm:maru-mdm-engine') using project(':')` 를 둔다(기존 다섯 모듈 선례).
-- 코드에서 쓰기: `MdmDefinitionLookup`(엔진 `DefinitionLookup`·`CodeLookup` 빈)을 주입해 `DefaultDomainValidator`·룰 엔진에 넘긴다.
-  MDM 을 받을 수 없으면 `MdmUnavailableException` 이다. 여러 키는 `MdmMetaService.lookup(type, keys)` 로 한 번에 받는다.
+- 코드에서 쓰기(업무 서비스가 자기 업무 룰을 돌릴 때): `MdmDefinitionLookup`(엔진 `DefinitionLookup`·`CodeLookup` 빈)을 주입해
+  `DefaultDomainValidator`·룰 엔진에 넘긴다. 이 엔진은 평가 중 캐시에 없는 정의를 MDM 에서 받으므로 MDM 을 받을 수 없으면
+  `MdmUnavailableException` 이다. 여러 키는 `MdmMetaService.lookup(type, keys)` 로 한 번에 받는다. **저장 검증은 이 엔진으로 하지 않는다** —
+  [`MdmValidator`](#112-저장-검증mdmvalidator) 는 캐시 전용 엔진(`MdmCachedDefinitions`)을 스스로 만들어 쓰고, 자동 설정은 그 엔진을
+  `MdmEvaluator`·`DomainValidator`·`RuleEngine` 빈으로 내놓지 않는다. 그래서 모듈이 위처럼 만든 엔진을 빈으로 둬도 검증기에 섞이지 않고,
+  반대로 그 타입을 주입받는 코드가 캐시 전용 엔진을 얻는 일도 없다.
 - 엔드포인트 `/api/{module}/mdmMeta/`: `columns`·`domains`(POST, 로그인 사용자 — 화면 메타·툴팁), `status`·`entries`·`entry`(GET)·`load`(POST)는
   SYSADMIN 만(`X-Authenticated-Role`). BFF `m-mcm/proxy.ts` 는 모듈 이름과 무관한 한 규칙(`authOnlyPatterns: /^\/api\/[^/]+\/mdmMeta\//`)으로
   모든 모듈을 로그인 전용으로 연다 — 새 모듈 때 고치지 않는다. `entries` 는 캐시 값을 싣지 않는다(`bizExpr.text` 같은 서버 전용 값이 브라우저로
   나가지 않게, 있음·없음은 `absent`). 예외로 `entry?type=&key=` 는 항목 하나의 캐시 값 전체(`bizExpr.text` 포함)를 SYSADMIN 에게 준다
-  (2026-10-02 사용자 결정, 캐시 관리 화면 상세 보기). 캐시를 읽기만 하고(조회 수·적재 없음) 캐시에 없으면 404 다.
+  (2026-10-02 사용자 결정, 캐시 관리 화면 상세 보기). 캐시를 읽기만 하고(조회 수·적재 없음) 캐시에 없으면 404 다. `status` 는 대상별 추정
+  크기(`bytes`·`totalBytes` — UTF-8 JSON 직렬화 기준, 실제 힙 점유는 이보다 크다)·JVM `heap`·`maxIdleSeconds` 도 주고, `entries` 는
+  `sort=key|bytes|hits` 로 정렬한다(그 밖의 값 400).
 - 무효화: MDM 원장 쓰기 서비스는 같은 트랜잭션에서 `MetaRevisionRecorder` 를 부른다(판정 값이 바뀌는 쓰기만, 의심스러우면 건다). 새 원장
   쓰기 경로를 만들면 기록 호출을 함께 넣는다. 버전 있는 정의(룰·룰 세트)는 RELEASED 버전 목록째 캐시하고 판정 시각으로 고르므로 DRAFT 쓰기에는
   기록하지 않는다. 확정·확정 취소는 공통 `DefaultVersionStateService` 한 곳에서 기록한다(호출하는 쪽에 또 걸면 이중 기록).
@@ -471,3 +482,61 @@ MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 
    ```
 
    `401` + `WWW-Authenticate: Basic` 이면 2번이 빠진 것이고, `401 A001` 이면 클라이언트 키가 다르다. 비관리자 역할이면 403 이 맞다.
+
+### 11.2 저장 검증(MdmValidator)
+
+업무 서비스 `save()` 가 MDM 컬럼 사전·룰 세트로 입력값을 한 번 더 검사한다(화면 즉시 검증과 같은 정의, 서버가 기준). 설계는
+[spec](../../superpowers/specs/2026-10-03-mdm-screen-meta-validation-design.md) §6, 파일럿은 mls `noticeMgmt` 다. 끼어들기(AOP)는 없다 —
+**서비스가 명시적으로 부르고, 검사할 컬럼·룰 세트를 요청에 적는다.**
+
+- 받기: `MdmValidator` 를 `ObjectProvider<MdmValidator>` 로 주입한다. `cactus.mdm.enabled=false`(MDM 캐시를 끈 모듈·시험)면 빈이 없으므로
+  `getIfAvailable()` 이 null 일 때는 MDM 검증 없이 저장한다. 직접 `MdmValidator` 로 받으면 끈 모듈에서 기동이 실패한다.
+- 부르기: 저장 목록(`rowStatus`·`rowKey` 를 그대로 둔 행)과 컬럼을 넘기고 `check()` 로 던진다. 폼 한 건이면 `MdmValidationRequest.record(map)`.
+
+  ```java
+  validator.check(MdmValidationRequest.rows("master", rows)   // grid = 응답 errors[].grid, 화면 그리드 이름과 같아야 한다
+          .columns("TITLE")                                    // 화면 키(camelCase 도 된다) 또는 물리명
+          .ruleSet("RS_NOTICE_SAVE")                           // 선택 — 행마다 룰 세트를 판정한다
+          .build());
+  ```
+
+- 행: `rowStatus` 가 `D`·`deleted` 인 행은 검증기가 건너뛴다(없으면 폼으로 보고 검사). `rowIndex` 는 **요청 목록의 자리**라서 오류가 화면의 그
+  행에 붙는다. 서비스가 저장하지 않을 행(미변경·null)까지 목록에 있으면 그 자리를 `Map.of("rowStatus", "D")` 로 바꿔 자리를 지킨 채 건너뛰게 한다
+  (자리를 줄이면 오류 행 번호가 어긋난다. 미변경 행의 옛 값이 지금 저장을 막아서도 안 된다). 검증기도 `null` 행은 건너뛴다. 저장할 행이 하나도 없으면(삭제만) 부르지 않는다.
+- 키: 행 키는 물리명으로 맞춰 찾는다(`title`·`TITLE` 모두 `TITLE`). 같은 물리명으로 바뀌는 키가 한 행에 둘 이상이면(`title`+`TITLE`, `" TITLE"`)
+  검증기는 하나를 고르지 않고 그 칸을 `E002` 로 거부한다 — 서비스가 저장하는 키와 검증기가 검사하는 키가 갈려 검증을 우회당하지 않게(룰 세트를
+  부를 때는 행의 모든 칸이 대상이다). 검사 칸(`columns`·그 비즈니스식 요구 변수)의 값이 배열·객체여도 `E002` 다. 서비스는 검증기가 본 키
+  (요청 행의 그 키)로 값을 읽는다.
+- **칸 고르기: MDM 이 DB 보다 엄격하지 않은 칸만 `columns(...)` 에 넣는다.** MDM 컬럼 사전은 테이블 구분 없이 물리명 하나로 전역이라, 이름만
+  같고 뜻이 다른 칸이 있으면 DB 가 받는 값을 막는다. 넣기 전에 DB DDL(Flyway·엔티티)의 길이·NOT NULL 과 MDM 정의(`TB_MDM_COLUMN` +
+  `TB_MDM_DOMAIN` 의 `DATA_TYPE`·`LENGTH`·`SCALE`·`REQUIRED`)를 견주고, MDM 이 더 엄격한 칸은 빼고 이유를 주석에 남긴다. 컬럼 사전에
+  없는 컬럼·룰 세트를 적었거나 MDM 관리자가 나중에 이름을 바꾸거나 지우면 검증기는 **예외 없이 그 항목만 건너뛰고** WARN 을 한 번 남긴다
+  (모듈·grid·이름). 결과 `missing`(`COLUMN:X`·`RULE_SET:Y`)에 담기며 `ok()` 판정에는 들지 않고 `REJECT` 정책에서도 저장을 막지 않는다 — MDM 관리 변경이
+  업무 저장을 통째로 막지 않게 하려는 것이다(받을 수 없음 `unavailable` 과 다르다). 서비스가 `missing` 을 쓸 일은 없지만 시험은 본다.
+  빈 컬럼 이름 같은 코드 결함만 `IllegalArgumentException` 이다.
+- 기존 수작업 검증(`validateRow` 등)은 지우지 않는다. 겹쳐도 되고, 수작업은 DB 한도·업무 코드 값처럼 MDM 에 없는 것을 본다. 오류를 한 응답으로 모으는
+  서비스(noticeMgmt)는 `check()` 가 던진 `INVALID_VALUE` 의 `getErrors()` 를 자기 `errors` 에 합쳐서, **쓰기 전에** 먼저 보고 오류가 있으면 아무것도 쓰지
+  않는다. 한 칸(행+필드)에 두 오류가 겹치면 수작업(더 엄격한 DB 한도) 쪽만 남긴다 — 둘 다 내리면 화면이 어느 것을 보이느냐에 따라 "1000자로 줄여도
+  200자 오류" 같은 어긋난 안내가 된다. 검증 불가(`BUSINESS_ERROR`·`MDM_UNAVAILABLE`)는 합치지 말고 그대로 던진다.
+- 오류 모양: `ErrorDetail(grid, rowKey, rowIndex, field, code, message)`, `field` 는 요청 행의 원래 키, 코드는 필수 `E001`·그 밖 `E002`·검증 불가
+  `MDM_UNAVAILABLE`. 서비스가 가진 기존 `ErrorDetail` 의 `rowKey`(예: 공지번호)와 다를 수 있다 — MDM 쪽 `rowKey` 는 행의 `rowKey` 키 값이다.
+- MDM 장애(캐시에 정의가 없고 MDM 도 받을 수 없음): 기본은 저장 거부(`cactus.mdm.validation.on-unavailable: REJECT`), `PASS` 면 WARN 만 남기고 통과.
+  받아 둔 정의는 캐시(유휴 60분·최대 24시간)가 지키므로 영향은 오래 안 쓴 정의뿐이다. 마루 데이터 대상 `MASTER` 는 지원하지 않는다(그 컬럼은 검증 불가).
+- 시험: 서비스 시험 기반 클래스(mls `MlsTestDb`)에서 `cactus.mdm.enabled=false` 로 MDM 캐시를 끈다 — 켜 두면 로컬 MDM(8096)의 가동 여부에 따라 저장
+  결과가 달라진다. 검증기를 끼우는 시험은 `@MockitoBean MdmValidator`(요청 모양·오류 합치기)와, 가짜 `MdmMetaFeed` 위에 진짜 `MdmValidator` 를 만들어
+  `StaticListableBeanFactory` 로 서비스에 넣는 방식(오류 위치·문구, 장애 정책)을 쓴다. 예: mls `NoticeMgmtMdmSaveTest`·`NoticeMgmtMdmRealValidatorTest`.
+
+#### 파일럿 — mls noticeMgmt 칸 비교(2026-10-03, 로컬 `mdm.db`)
+
+| 서비스 키 | DB 칸 (`TB_MLS_NOTICE`) | MDM 정의 | MDM vs DB | 결과 |
+|---|---|---|---|---|
+| `TITLE` | VARCHAR(200) NOT NULL | `TITLE` STRING(1000), 선택, 도메인 `DESC`(183) | 길이 1000 ≥ 200, 필수 아님 — MDM 이 느슨 | `columns("TITLE")` 에 넣음 (200자·필수는 `validateRow` 가 계속 본다) |
+| `NOTICE_CATEGORY` | VARCHAR(10) NOT NULL | 같은 물리명 없음 (`CATEGORY` STRING(240) 은 다른 이름) | — | 뺌 (별칭 매칭은 후속, 코드 값은 `validateRow`) |
+| `CONTENT` | VARCHAR(4000)·선택 (서버 상한 20만 자, 본문 소독) | 같은 물리명 없음 | — | 뺌 |
+| `NOTICE_STATUS` | VARCHAR(10) NOT NULL | 같은 물리명 없음 | — | 뺌 (코드 값은 `validateRow`) |
+| `CONTENT_FORMAT` | VARCHAR(10) NOT NULL | 같은 물리명 없음 | — | 뺌 |
+| `PIN_YN` | CHAR(1) NOT NULL | 같은 물리명 없음 (`USE_YN` STRING(1) 필수 는 다른 이름) | — | 뺌 |
+| `TARGET_SCOPE`·`NOTICE_ID`·`POST_START_DT`·`POST_END_DT` | VARCHAR(10)·VARCHAR(30)·DATE·DATE | 같은 물리명 없음 | — | 뺌 |
+
+spec §7 이 말한 `CATEGORY`·`USE_YN`·`SORT_SEQ` 는 `TB_MLS_NOTICE` 의 칸이 아니다(공지의 분류 칸은 `NOTICE_CATEGORY`). 그래서 화면 파일럿은 MDM 과 이름이
+맞는 칸이 `TITLE` 하나뿐이다.

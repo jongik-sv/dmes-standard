@@ -17,7 +17,7 @@
 ```tsx
 import { exportToExcel, today } from "@dk-oasis/shared/utils";
 import { useMessage } from "@dk-oasis/shared/message-provider";
-import type { GridColumn } from "@dk-oasis/shared/grid";
+import { useResolvedGridColumns, type GridColumn } from "@dk-oasis/shared/grid";
 
 const COLUMNS: GridColumn[] = [
   { key: "inspNo", header: "검사번호", width: 120, align: "left" },
@@ -27,6 +27,8 @@ const COLUMNS: GridColumn[] = [
 
 export function useInspExport(rows: Record<string, unknown>[]) {
   const { showMessage } = useMessage();
+  // header 를 생략한 열(MDM 캡션)도 그리드에 보이는 머리글과 같게 채운다.
+  const columns = useResolvedGridColumns(COLUMNS);
   return async () => {
     // 데이터가 0건이면 exportToExcel 은 아무 알림 없이 끝나므로 화면이 먼저 알린다.
     if (rows.length === 0) {
@@ -34,7 +36,7 @@ export function useInspExport(rows: Record<string, unknown>[]) {
       return;
     }
     try {
-      await exportToExcel(rows, `검사결과_${today()}.xlsx`, "Sheet1", COLUMNS.map((c) => ({ key: c.key, header: c.header })));
+      await exportToExcel(rows, `검사결과_${today()}.xlsx`, "Sheet1", columns.map((c) => ({ key: c.key, header: c.header ?? c.key })));
     } catch (e) {
       showMessage({ title: "오류", message: e instanceof Error ? e.message : String(e), alertType: "error" });
     }
@@ -77,7 +79,7 @@ const EXCEL_COLUMNS: ExcelColumn[] = [
 ## 표준값: 모든 화면 동일
 
 - 파일 이름은 `<화면명>_<yyyyMMdd>.xlsx`(`today()` 가 `yyyyMMdd` 를 준다), 시트 이름은 `"Sheet1"`.
-- 열은 `COLUMNS.map((c) => ({ key: c.key, header: c.header }))` 로 목록 열 정의에서 만든다.
+- 열은 `useResolvedGridColumns(COLUMNS).map((c) => ({ key: c.key, header: c.header ?? c.key }))` 로 목록 열 정의에서 만든다(`header` 를 생략한 열은 그리드와 같은 MDM 캡션).
 - PageLayout 상단 버튼은 id `btn_export`, label "엑셀", action `export`.
 
 ## 흔한 실수

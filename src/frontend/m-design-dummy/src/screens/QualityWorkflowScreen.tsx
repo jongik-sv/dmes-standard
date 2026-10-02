@@ -215,7 +215,7 @@ export function QualityWorkflowScreen() {
               summary:
                 "현행 부적합가공검토 화면처럼 행을 선택하고 가공검토 팝업에서 처리합니다.",
               columns: QUALITY_COLUMNS.map((column) => ({
-                header: column.header,
+                header: column.header ?? column.key,
                 description: "조회 항목",
               })),
             }}
