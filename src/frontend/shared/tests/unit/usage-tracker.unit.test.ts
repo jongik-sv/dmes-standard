@@ -458,6 +458,43 @@ describe("UsageTracker 15분 경과", () => {
   });
 });
 
+describe("UsageTracker 15분 경과 — 판정 타이머가 멈춘 사이 다시 볼 때", () => {
+  it("일시정지 뒤 15분이 지난 탭으로 돌아오면 옛 구간을 내보내고 RESUME 으로 새로 연다", () => {
+    const t = create();
+    t.activate("csa/a", "OPEN");
+    vi.setSystemTime(BASE + 2 * MIN);
+    t.activate("csa/b", "OPEN"); // a 일시정지(2분)
+    vi.setSystemTime(BASE + 3 * MIN);
+    t.activate(null); // b 일시정지(1분)
+    vi.setSystemTime(BASE + 20 * MIN); // 타이머 없이 시계만 간다
+    t.activate("csa/a");
+    expect(emitted.map(rows)).toEqual([
+      [
+        ["csa/a", "OPEN", 0, 2 * MIN, 2 * MIN],
+        ["csa/b", "OPEN", 2 * MIN, 3 * MIN, MIN],
+      ],
+    ]);
+    vi.setSystemTime(BASE + 21 * MIN);
+    t.end();
+    expect(emitted.slice(1).map(rows)).toEqual([[["csa/a", "RESUME", 20 * MIN, 21 * MIN, MIN]]]);
+  });
+
+  it("가려진 채 15분이 지난 뒤(절전 등) 다시 보이면 옛 구간을 내보내고 RESUME 으로 새로 연다", () => {
+    const t = create();
+    t.activate("csa/a", "OPEN");
+    vi.setSystemTime(BASE + 2 * MIN);
+    setVisibility("hidden");
+    vi.setSystemTime(BASE + 3 * 60 * MIN);
+    setVisibility("visible");
+    expect(emitted.map(rows)).toEqual([[["csa/a", "OPEN", 0, 2 * MIN, 2 * MIN]]]);
+    vi.setSystemTime(BASE + 3 * 60 * MIN + 2000);
+    t.end();
+    expect(emitted.slice(1).map(rows)).toEqual([
+      [["csa/a", "RESUME", 3 * 60 * MIN, 3 * 60 * MIN + 2000, 2000]],
+    ]);
+  });
+});
+
 describe("UsageTracker 빠른 전환", () => {
   it("짧은 간격으로 오가도 같은 clientSegId 가 두 번 나오지 않고, 이용 시간 합이 경과 시간을 넘지 않는다", () => {
     const t = create({ createId: createUsageSegmentId }); // 실제 ID 생성기

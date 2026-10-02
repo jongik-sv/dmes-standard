@@ -141,6 +141,7 @@ export class UsageTracker {
       return;
     }
     this.lastInputAt = t;
+    this.expire(t); // 가려진 사이 판정 타이머가 멈췄다면 15분 지난 구간을 먼저 내보낸다(다시 보면 RESUME)
     this.resumeIfVisible(t);
   };
 
@@ -154,7 +155,9 @@ export class UsageTracker {
     const t = this.time();
     this.closeIfIdle(t); // 판정 타이머가 멈춰 있던 무입력 30분 — 공백을 이용 시간으로 넣지 않는다
     this.lastInputAt = t;
-    if (!this.running()) this.resumeIfVisible(t); // 무입력·pagehide 뒤 돌아온 입력 → RESUME
+    if (this.running()) return;
+    this.expire(t); // 판정 타이머가 멈춘 사이 15분 지난 일시정지 구간을 먼저 내보낸다
+    this.resumeIfVisible(t); // 무입력·pagehide 뒤 돌아온 입력 → RESUME
   };
 
   constructor(options: UsageTrackerOptions) {
@@ -191,6 +194,9 @@ export class UsageTracker {
     }
     const t = this.time();
     if (!this.closeIfIdle(t)) this.pauseRunning(t);
+    // 판정 타이머가 멈춘 사이(절전·백그라운드 제한) 15분 지난 일시정지 구간을 먼저 내보낸다 — 옛 구간을 이어 쓰면
+    // endedAt 이 늦어지고 벽시계 길이가 24시간을 넘으면 서버가 행을 버린다. 지금은 보고 있는 구간이 없다.
+    this.expire(t);
     this.currentKey = key;
     this.currentPageId = pageId;
     this.nextKind = startKind;
