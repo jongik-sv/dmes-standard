@@ -12,7 +12,7 @@
  */
 import { apiRequest } from "@dk-oasis/shared/http";
 
-import type { ConvertPreviewForm, DimensionOption, UnitForm, UnitRow } from "./types";
+import type { ConvertPreviewForm, DimensionOption, UnitForm, UnitOption, UnitRow } from "./types";
 
 const OASIS_BASE = "/api/mdm/oasis/unitMng";
 
@@ -25,6 +25,7 @@ interface CactusEnvelope {
 export interface UnitSearchPayload {
   list?: UnitRow[];
   dimensionOptions?: DimensionOption[];
+  unitOptions?: UnitOption[];
 }
 
 export interface ConvertPreviewPayload {

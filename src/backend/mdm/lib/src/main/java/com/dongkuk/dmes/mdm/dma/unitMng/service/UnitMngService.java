@@ -80,7 +80,12 @@ public class UnitMngService {
                 .toList();
 
         log.info("[unitMng] search — unitCode={} dimension={} rows={}", unitCodeFilter, dimensionFilter, rows.size());
-        return new UnitSearchResult(rows, dimensionOptions);
+        // 환산 미리보기 콤보용 전체 단위 — 조건·optionsOnly 와 무관하게 항상 돌려준다.
+        List<UnitRow> unitOptions = all.stream()
+                .map(u -> new UnitRow(u.getUnitCode(), u.getDimension(), u.getBaseUnit(), u.getFactor()))
+                .sorted(java.util.Comparator.comparing(UnitRow::getDimension).thenComparing(UnitRow::getUnitCode))
+                .toList();
+        return new UnitSearchResult(rows, dimensionOptions, unitOptions);
     }
 
     // ────────────────────────────────────────────────────────────────

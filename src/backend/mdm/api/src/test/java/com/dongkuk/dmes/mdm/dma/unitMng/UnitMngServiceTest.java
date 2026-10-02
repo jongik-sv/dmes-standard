@@ -55,6 +55,9 @@ class UnitMngServiceTest extends AbstractMdmSharedDbTest {
         var out = service.search(q);
         assertTrue(out.getList().isEmpty());
         assertTrue(out.getDimensionOptions().stream().anyMatch(o -> "MASSO".equals(o.getDimension())));
+        // 환산 미리보기 콤보용 전체 단위는 optionsOnly 에서도 채워진다.
+        assertTrue(out.getUnitOptions().stream()
+                .anyMatch(r -> "KGO".equals(r.getUnitCode()) && "MASSO".equals(r.getDimension())));
     }
 
     // ── I3 ──

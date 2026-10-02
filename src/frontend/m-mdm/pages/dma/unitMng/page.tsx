@@ -29,10 +29,13 @@ import {
   emptyConvertPreviewForm,
   emptyFilters,
   emptyUnitForm,
+  fromUnitComboData,
+  toUnitComboData,
   type ConvertPreviewForm,
   type DimensionOption,
   type UnitForm,
   type UnitMngFilters,
+  type UnitOption,
   type UnitRow,
 } from "./types";
 
@@ -48,6 +51,7 @@ export default function UnitMngPage() {
   const [filters, setFilters] = useState<UnitMngFilters>(emptyFilters);
   const [rows, setRows] = useState<UnitRow[]>([]);
   const [dimensionOptions, setDimensionOptions] = useState<DimensionOption[]>([]);
+  const [unitOptions, setUnitOptions] = useState<UnitOption[]>([]);
   const [selectedUnitCode, setSelectedUnitCode] = useState<string>("");
   const [form, setForm] = useState<UnitForm | null>(null);
   const [isNewDimension, setIsNewDimension] = useState(false);
@@ -72,12 +76,32 @@ export default function UnitMngPage() {
     [dimensionOptions],
   );
 
+  const fromUnitComboItems = useMemo(() => fromUnitComboData(unitOptions), [unitOptions]);
+  const toUnitComboItems = useMemo(
+    () => toUnitComboData(unitOptions, previewForm.fromUnitCode),
+    [unitOptions, previewForm.fromUnitCode],
+  );
+
+  /** 입력 단위를 바꾸면 다른 차원이 된 표시 단위는 비운다. */
+  const handlePreviewFromChange = useCallback(
+    (value: string) => {
+      setPreviewForm((p) => {
+        const from = unitOptions.find((u) => u.unitCode === value);
+        const to = unitOptions.find((u) => u.unitCode === p.toUnitCode);
+        const keepTo = !from || !to || from.dimension === to.dimension;
+        return { ...p, fromUnitCode: value, toUnitCode: keepTo ? p.toUnitCode : "" };
+      });
+    },
+    [unitOptions],
+  );
+
   const handleSearch = useCallback(async () => {
     setIsBusy(true);
     try {
       const payload = await searchUnits(filters.unitCode, filters.dimension);
       setRows(payload.list ?? []);
       setDimensionOptions(payload.dimensionOptions ?? []);
+      setUnitOptions(payload.unitOptions ?? []);
       setSelectedUnitCode("");
       setForm(null);
     } catch (e) {
@@ -93,7 +117,9 @@ export default function UnitMngPage() {
     let alive = true;
     loadUnitOptions()
       .then((payload) => {
-        if (alive) setDimensionOptions(payload.dimensionOptions ?? []);
+        if (!alive) return;
+        setDimensionOptions(payload.dimensionOptions ?? []);
+        setUnitOptions(payload.unitOptions ?? []);
       })
       .catch((e) => {
         if (alive) setErrorMessage(e instanceof Error ? e.message : String(e));
@@ -324,18 +350,24 @@ export default function UnitMngPage() {
               <tr>
                 <th style={DETAIL_LABEL_CELL}>입력 단위</th>
                 <td style={DETAIL_VALUE_CELL}>
-                  <Input
+                  <ComboBox
+                    data={fromUnitComboItems}
                     value={previewForm.fromUnitCode}
-                    onChange={(v) => setPreviewForm((p) => ({ ...p, fromUnitCode: v }))}
+                    onChange={handlePreviewFromChange}
+                    placeholder="입력 단위 선택"
+                    aria-label="입력 단위"
                   />
                 </td>
               </tr>
               <tr>
                 <th style={DETAIL_LABEL_CELL}>표시 단위</th>
                 <td style={DETAIL_VALUE_CELL}>
-                  <Input
+                  <ComboBox
+                    data={toUnitComboItems}
                     value={previewForm.toUnitCode}
                     onChange={(v) => setPreviewForm((p) => ({ ...p, toUnitCode: v }))}
+                    placeholder="표시 단위 선택"
+                    aria-label="표시 단위"
                   />
                 </td>
               </tr>

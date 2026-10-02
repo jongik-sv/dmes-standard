@@ -49,7 +49,17 @@ describe("UnitMngPage", () => {
       const url = String(input);
       if (url.includes("/oasis/unitMng/search")) {
         return jsonResponse({
-          data: { result: { list: [], dimensionOptions: [] } },
+          data: {
+            result: {
+              list: [],
+              dimensionOptions: [],
+              unitOptions: [
+                { unitCode: "KG", dimension: "MASS" },
+                { unitCode: "G", dimension: "MASS" },
+                { unitCode: "M", dimension: "LENGTH" },
+              ],
+            },
+          },
           meta: { success: true },
         });
       }
@@ -109,5 +119,20 @@ describe("UnitMngPage", () => {
     });
     // ErrorModal 은 Mantine Portal 로 document.body 에 렌더된다(container 의 자손이 아니다).
     expect(visibleText(document.body)).toContain("단위 코드는 영문·숫자·밑줄 20자 이내여야 합니다.");
+  });
+
+  it("환산 미리보기의 입력·표시 단위가 콤보 입력으로 그려진다", async () => {
+    await render();
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20)); // loadUnitOptions 응답 반영
+    });
+    const from = container.querySelector('input[aria-label="입력 단위"]') as HTMLInputElement | null;
+    const to = container.querySelector('input[aria-label="표시 단위"]') as HTMLInputElement | null;
+    expect(from).toBeTruthy();
+    expect(to).toBeTruthy();
+    // 글자 입력 칸이 아니라 콤보(Mantine Select) 입력이다. 드롭다운 열기는 happy-dom 에서 재현되지 않아
+    // 선택지 구성·차원 좁힘은 preview-combo.test.ts 의 순수 함수 테스트가 맡는다.
+    expect(from!.getAttribute("aria-haspopup")).toBe("listbox");
+    expect(to!.getAttribute("aria-haspopup")).toBe("listbox");
   });
 });

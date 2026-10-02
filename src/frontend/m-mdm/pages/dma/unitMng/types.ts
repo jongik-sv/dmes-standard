@@ -63,3 +63,25 @@ export interface ConvertPreviewForm {
 export function emptyConvertPreviewForm(): ConvertPreviewForm {
   return { value: "", fromUnitCode: "", toUnitCode: "" };
 }
+
+/** 환산 미리보기 콤보용 단위 선택지(서버 search 응답의 unitOptions). */
+export interface UnitOption {
+  unitCode: string;
+  dimension: string;
+}
+
+export interface ComboItem {
+  value: string;
+  label: string;
+}
+
+/** 입력 단위 콤보 — 전체 단위. */
+export function fromUnitComboData(units: UnitOption[]): ComboItem[] {
+  return units.map((u) => ({ value: u.unitCode, label: `${u.unitCode} (${dimensionLabel(u.dimension)})` }));
+}
+
+/** 표시 단위 콤보 — 입력 단위와 같은 차원만(다른 차원 간 환산은 서버가 거부한다). 입력 단위가 없으면 전체. */
+export function toUnitComboData(units: UnitOption[], fromUnitCode: string): ComboItem[] {
+  const from = units.find((u) => u.unitCode === fromUnitCode);
+  return fromUnitComboData(from ? units.filter((u) => u.dimension === from.dimension) : units);
+}
