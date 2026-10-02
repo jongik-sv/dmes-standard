@@ -1,6 +1,6 @@
 /**
  * `@dk-oasis/shared/mdm-meta` — MDM 화면 메타(캡션·툴팁) 공통(spec docs/superpowers/specs/2026-10-03-mdm-screen-meta-validation-design.md §4).
- * 화면 검증(validate.ts)은 이 서브패스에 따로 더해진다.
+ * 화면 값 검증(validate.ts, spec §5)도 여기서 내보낸다.
  */
 export * from "./types";
 export { toPhysName } from "./names";
@@ -27,3 +27,11 @@ export {
   type MdmMetaScope,
 } from "./context";
 export { MdmMetaCard, formatMdmDataType, MDM_META_CARD_MAX_CODES, type MdmMetaCardProps } from "./MdmMetaCard";
+export {
+  validateMdmValue,
+  codePointLength,
+  useMdmValidation,
+  type MdmValueIssue,
+  type MdmValueIssueCode,
+  type MdmRowIssue,
+} from "./validate";
