@@ -32,6 +32,9 @@ Mantine 문서 조회: `python3 .claude/skills/mantine-aggrid-ui/scripts/mantine
 | `Pagination` | **쓰지 않는다** → shared `Pagination` (`grid`, 자체 구현) | [pagination](components/pagination.md) |
 | `Splitter` | **쓰지 않는다** → `ContentBody resizable` | [content-body](components/content-body.md) |
 | `Badge` (그리드 셀) | `GridBadge` (`grid`, 자체 구현) | [grid-badge](components/grid-badge.md) |
+| `Badge` (그리드 밖) | `Badge` (`form`, 자체 구현) | [badge](components/badge.md) |
+| `SegmentedControl` | `SegmentedControl` (`form`) | [segmented-control](components/segmented-control.md) |
+| `Card`·`SimpleGrid` (대시보드) | **쓰지 않는다** → `DashboardGrid`·`DashboardCard`·`KpiTile` (`dashboard`, 자체 구현) | [dashboard](components/dashboard.md) |
 | `CopyButton` | `CopyTextButton` (shared 내부, `ErrorModal` 이 사용) | — |
 | `@mantine/tiptap` `RichTextEditor` | **쓰지 않는다** → `MarkdownEditor`·`MarkdownView`·`MarkdownField` (`markdown-editor`, Tiptap 직접 사용) | [markdown-editor](components/markdown-editor.md) |
 
@@ -41,7 +44,7 @@ Mantine 이 아닌 shared 공통 요소: `AgDataGrid`·`GridPanel`·`useGridData
 
 ## ② 셸·Provider 안에서만 쓴다 — 화면은 의식하지 않는다
 
-`AppShell` · `Menu` · `UnstyledButton` · `ScrollArea` · `SegmentedControl` · `Container` · `Stack` · `MantineProvider` · `createTheme` · dates `DatesProvider` · `@mantine/modals` `ModalsProvider` · `@mantine/notifications` `Notifications`. 정본은 `src/frontend/shared/src/{portal-shell,ui-provider}` 다.
+`AppShell` · `Menu` · `UnstyledButton` · `ScrollArea` · `Container` · `Stack` · `MantineProvider` · `createTheme` · dates `DatesProvider` · `@mantine/modals` `ModalsProvider` · `@mantine/notifications` `Notifications`. 정본은 `src/frontend/shared/src/{portal-shell,ui-provider}` 다.
 
 ## ③ MES 에 쓸모가 있지만 래퍼가 없다 — shared 추가 후보
 
@@ -53,14 +56,12 @@ Mantine 이 아닌 shared 공통 요소: `AgDataGrid`·`GridPanel`·`useGridData
 | dates `MonthPickerInput` · `YearPickerInput` | 월별·연도별 실적 조회조건 | 높음 | `DatePicker` 로 일자 입력 |
 | `Tooltip` | 아이콘 버튼·잘린 값 설명 | 높음 | `title` 속성, `FormGroup tip` |
 | dates `TimeInput` · `TimePicker` | 교대 시작 시각, 설비 가동 시각 | 중간 | `DateTimePicker` |
-| `Badge` (그리드 밖) | 상세 폼·패널 머리의 상태 표시 | 중간 | `GridBadge` 를 그리드 밖에서 쓰지 않는다 |
 | `Alert` | 화면 위 안내·경고 상자 | 중간 | 없음(`<p style>` 금지) |
 | `Stepper` | 공정·승인 단계 진행 표시 | 중간 | 없음 |
 | `Timeline` | 상태 변경 이력 | 중간 | `AgDataGrid` 이력 목록 |
 | `FileInput` · `FileButton` | 첨부·CSV 업로드 | 중간 | 원시 `<input type="file">` (`m-mdm/pages/dmd/dataCsvUploadPop`) |
 | `TagsInput` | LOT·시리얼 번호 여러 개 입력 | 중간 | `Textarea` 줄바꿈 |
 | `Cascader` · `TreeSelect` | 공장 > 라인 > 설비 같은 계층 코드 선택 | 중간 | `ComboBox` 여러 개 · `LookupModal` |
-| `SegmentedControl` | 일·주·월 보기 전환 | 낮음 | `Radio` |
 | `Switch` | 사용 여부 즉시 토글 | 낮음 | `Radio`(사용/미사용) |
 | `Accordion` · `Fieldset` | 긴 상세 폼의 묶음 | 낮음 | `Tabs` |
 | `Drawer` | 옆에서 여는 상세 | 낮음 | `ContentBody` 좌우 분할 |

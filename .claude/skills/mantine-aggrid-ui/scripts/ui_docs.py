@@ -33,11 +33,12 @@ GROUPS: list[tuple[str, list[str]]] = [
     ("화면 골격 (`@dk-oasis/shared/layout`)", ["page-layout", "search-area", "content-body", "detail-form"]),
     ("입력 (`@dk-oasis/shared/form`)", [
         "button", "input", "select", "combo-box", "multi-select-combo-box", "date-picker",
-        "date-time-picker", "checkbox", "radio", "textarea", "form-group", "loading",
+        "date-time-picker", "checkbox", "radio", "segmented-control", "textarea", "form-group", "loading", "badge",
     ]),
     ("목록 (`@dk-oasis/shared/grid`)", ["ag-data-grid", "grid-panel", "use-grid-data-manager", "grid-badge", "pagination"]),
     ("팝업·메시지 (`modal`, `message-provider`, `use-api-call`)", ["modal", "message"]),
-    ("탭·트리·룩업·기타", ["tabs", "tree", "lookup", "markdown-editor", "matrix-table", "charts", "export-to-excel", "icons"]),
+    ("대시보드 (`@dk-oasis/shared/dashboard`)", ["dashboard"]),
+    ("탭·트리·룩업·기타", ["tabs", "tree", "lookup", "markdown-editor", "notice-body-view", "matrix-table", "charts", "export-to-excel", "icons"]),
 ]
 
 # 화면 문서에 싣지 않는 shared export 와 이유. coverage 가 이 목록을 "의도적 제외"로 본다.
@@ -73,6 +74,8 @@ EXPORT_FILES = [
     "components/tree/index.ts",
     "components/lookup/index.ts",
     "components/markdown-editor/index.ts",
+    "components/notice-body-view/index.ts",
+    "components/dashboard/index.ts",
     "components/matrix-table/index.ts",
     "components/charts/index.ts",
     "components/modal.tsx",

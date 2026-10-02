@@ -12,3 +12,9 @@ export { MultiSelectComboBox, type MultiSelectComboBoxProps } from "./MultiSelec
 export { Spinner, type SpinnerProps } from "./Spinner";
 export { LoadingOverlay, type LoadingOverlayProps } from "./LoadingOverlay";
 export { ProgressBar, type ProgressBarProps, type ProgressStatus } from "./ProgressBar";
+export {
+  SegmentedControl,
+  type SegmentedControlProps,
+  type SegmentedControlOption,
+} from "./SegmentedControl";
+export { Badge, type BadgeProps, type BadgeTone, type BadgeVariant } from "./Badge";

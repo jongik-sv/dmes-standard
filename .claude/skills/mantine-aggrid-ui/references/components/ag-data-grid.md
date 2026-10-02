@@ -182,7 +182,7 @@ export function InspList({ rows, selectedId, isBusy, onSelect }: {
 | 실수 | 바로잡기 |
 |---|---|
 | 소스의 JSDoc("columnSizing 기본 fixed")을 믿고 생략한다 | 실제 기본값은 `"auto"` 다. auto 에서는 `width` 가 무시되고 내용 폭으로 잰다. 표준대로 항상 명시한다 |
-| 비고 열을 폭 생략하고 남는 폭을 기대한다 | fit 에서는 가중치 1 이라 최소 폭 50px 까지 줄고, fixed 에서는 120px 이 된다. 넓게 보이려면 fit 의 `width` 를 큰 가중치로 준다 |
+| 비고·제목 열을 폭 생략하고 남는 폭을 기대한다 | fit 에서는 가중치 1 이라 최소 폭 50px 까지 줄고, fixed 에서는 120px 이 된다. 넓게 보이려면 fit 의 `width` 를 큰 가중치(예: `100`)로 주고 `minWidth`(예: `180`)를 함께 준다. 좁은 목록이면 짧은 열은 가중치 `1` + 내용 폭 `minWidth` 로 둔다([screen-patterns](../screen-patterns.md) §목록 그리드) |
 | `useGridDataManager` 의 추가·수정 행에 배경이 자동으로 칠린다고 본다 | 소스는 `nativeeditor_status === "deleted"` 만 `ag-row-deleted` 로 칠하고, 추가·수정 배경은 `_rowState`(`useRowStateManager`)일 때만 칠한다. UI-Visual-Standard §7 과 어긋나는 shared 결함이다. 자세한 내용은 [use-grid-data-manager](use-grid-data-manager.md) |
 | `columns` 를 렌더 안에서 새로 만든다 | 열 상태와 선택이 초기화된다. 모듈 상수로 둔다 |
 | `data` 의 행을 제자리에서 바꾼다 | 참조 비교라 갱신되지 않는다. 새 객체로 교체한다 |

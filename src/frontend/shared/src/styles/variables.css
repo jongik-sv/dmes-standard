@@ -16,6 +16,7 @@
   --c-blue-50: #e8f1fd;
   --c-blue-100: #d3e3fa;
   --c-blue-150: #dbe8fb;
+  --c-blue-300: #7aabee;
   --c-blue-600: #0b62d6;
   --c-blue-700: #0a53b5;
   --c-blue-800: #084595;
@@ -67,6 +68,14 @@
   --color-success-soft: var(--c-green-50);
   --color-warning: var(--c-amber-700);
   --color-warning-soft: var(--c-amber-50);
+
+  /* 차트 계열색 (2026-10-02 포털 홈) — 여러 계열을 한 차트에 그릴 때 순서대로 쓴다. 상태(위험·주의)는 위 상태색을 쓴다. */
+  --color-chart-1: var(--c-blue-600);
+  --color-chart-2: var(--c-blue-300);
+  --color-chart-3: var(--c-green-700);
+  --color-chart-4: var(--c-amber-700);
+  --color-chart-5: var(--c-slate-500);
+  --color-chart-grid: var(--c-slate-150);
 
   --color-text: var(--c-slate-950);
   --color-text-secondary: var(--c-slate-700);

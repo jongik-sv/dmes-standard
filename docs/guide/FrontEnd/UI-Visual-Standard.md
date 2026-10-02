@@ -70,6 +70,7 @@ DMES 전 모듈 화면의 색·글꼴·크기·밀도·셸 배치를 정한다. 
 | 위험 | `--color-danger` / `--color-danger-soft` | `#d42a2a` / `#fdeaea` |
 | 성공 | `--color-success` / `--color-success-soft` | `#13663a` / `#d8f0e0` |
 | 경고·수정됨 | `--color-warning` / `--color-edited` | `#a15c07` / `#fef3c7` |
+| 차트 계열 1~5 / 차트 눈금선 | `--color-chart-1` … `--color-chart-5` / `--color-chart-grid` | `#0b62d6` · `#7aabee` · `#13663a` · `#a15c07` · `#8a94a3` / `#e3e7ec` |
 
 ## 6. 포털 셸
 

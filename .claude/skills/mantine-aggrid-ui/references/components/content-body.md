@@ -98,7 +98,7 @@ MaxHandleProps: `panelId: string`(필수), `style?: React.CSSProperties`, `class
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:283` `root` + `ContentPanel` + `ContentPanel width={460}`. 폭 460 은 표준과 같다. 단, `resizable`·`storageKey` 가 없어 표준과 다르다.
+- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx` `root resizable storageKey="mls.lsh.noticeMgmt"` + `ContentPanel minSize={320}`(목록) + `ContentPanel minSize={420}`(상세). 사용자 요청으로 상세 폭을 고정하지 않고 목록·상세를 50:50 으로 나눈다(표준 460 의 예외). 상세 패널 안은 세로 flex 스크롤 영역 하나이고, 본문 편집기가 남은 높이를 채운다(Local-Rules §23). 홈 표시 미리보기는 팝업이다.
 - `src/frontend/m-mdm/pages/dme/ruleMng/page.tsx:225` `root resizable storageKey="mdm.dme.ruleMng"`.
 - `src/frontend/m-mdm/pages/dme/ruleSetEdit/page.tsx:664` column 분할 + 중첩 ContentBody(`flex`, `minSize`).
 - `src/frontend/m-mcm/page-components/cmb/masterRuleFrame/page.tsx:344` `panelId`. `MaxHandle` 연결 예는 `src/frontend/m-design-dummy/src/screens/ResizableLayoutCatalogScreen.tsx:194`(디자인 더미 화면).

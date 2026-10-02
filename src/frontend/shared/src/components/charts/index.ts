@@ -12,3 +12,10 @@ export type { LineDataPoint } from "./LineChart";
 
 export { default as StackedBarChart } from "./StackedBarChart";
 export type { StackedBarSegment, StackedBarRow } from "./StackedBarChart";
+
+export { default as StackedColumnChart } from "./StackedColumnChart";
+export type {
+  StackedColumnChartProps,
+  StackedColumnSeries,
+  StackedColumnLine,
+} from "./StackedColumnChart";

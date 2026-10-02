@@ -1,8 +1,8 @@
-# 차트 (DonutChart · PieChart · HBarChart · LineChart · StackedBarChart)
+# 차트 (DonutChart · PieChart · HBarChart · LineChart · StackedBarChart · StackedColumnChart)
 
-현황 대시보드에서 비율(도넛·파이), 항목별 크기(가로 막대), 추이(선), 구성 비율(누적 막대)을 간단한 SVG 차트로 보일 때 쓴다.
+현황 대시보드에서 비율(도넛·파이), 항목별 크기(가로 막대), 추이(선), 구성 비율(누적 막대), 기간별 누적 실적과 계획선(세로 누적 막대)을 간단한 SVG 차트로 보일 때 쓴다.
 
-- import: `import { DonutChart, PieChart, HBarChart, LineChart, StackedBarChart } from "@dk-oasis/shared/charts";` (CSS 없음)
+- import: `import { DonutChart, PieChart, HBarChart, LineChart, StackedBarChart, StackedColumnChart } from "@dk-oasis/shared/charts";` (CSS 없음)
 - 소스: `src/frontend/shared/src/components/charts/` (서브패스 export 이름은 `index.ts` 와 shared `package.json` 의 `./charts` 로 확인했다)
 - 내부 구현: 직접 그린 SVG 와 인라인 스타일. 차트 라이브러리를 쓰지 않는다
 - **ASK 대상이다.** Part B 허용 목록(§1)에 `charts` 서브패스가 없다. 새 화면에서 쓰기 전에 사용자에게 확인한다. 이 문서는 확인을 받은 뒤 쓰는 방법이다.
@@ -54,6 +54,23 @@ const ROWS: StackedBarRow[] = [{ label: "1호", values: { done: 70, remain: 30 }
 
 `LineChart` 는 부모 크기를 재서 폭을 맞춘다. 높이를 부모에 맞추려면 `height="100%"` 로 준다.
 
+### 세로 누적 막대 + 계획선 (StackedColumnChart)
+
+월·주 같은 항목마다 여러 계열(제품군 등)을 위로 쌓고, 계획 합계를 점선으로 겹친다. `dimFrom` 부터의 막대는 옅게(전망 구간), `totalAt` 막대 위에는 합계를 적는다. 폭은 부모의 실제 픽셀 폭(ResizeObserver)으로 다시 계산해 글자는 10px 로 고정되고 막대·간격만 늘어난다. 높이는 `height`(px)로 정한다 — 카드 본문 높이를 채우려면 본문 높이에서 범례 줄(약 26px)을 뺀 값을 넘긴다. 계열 색은 `--color-chart-1` … `--color-chart-5` 를 순서대로 쓴다.
+
+```tsx
+import { StackedColumnChart, type StackedColumnSeries } from "@dk-oasis/shared/charts";
+
+const SERIES: StackedColumnSeries[] = [
+  { key: "cold", label: "냉연", color: "var(--color-chart-1)", values: [112, 101, 118] },
+  { key: "coated", label: "도금", color: "var(--color-chart-2)", values: [96, 88, 101] },
+];
+const PLAN = { label: "계획(합계)", color: "var(--color-chart-4)", values: [215, 190, 225] };
+
+// <StackedColumnChart categories={["1월", "2월", "3월"]} series={SERIES} line={PLAN}
+//   dimFrom={2} dimLabel="3월은 전망(옅은 색)" totalAt={1} unit="천 t" ariaLabel="월별 생산 실적" />
+```
+
 ## Props
 
 차트 컴포넌트의 props interface 는 export 되지 않는다. 데이터 타입만 export 된다(`DonutSlice`, `PieSlice`, `BarData`, `LineDataPoint`, `StackedBarSegment`, `StackedBarRow`).
@@ -86,9 +103,25 @@ LineChart
 
 StackedBarChart: `rows: StackedBarRow[]`(`{ label, values: Record<string, number> }`), `segments: StackedBarSegment[]`(`{ key, label, color }`), `barHeight`(26), `labelWidth`(50), `chartWidth`(400), `showPercentLabels`(`true`).
 
+StackedColumnChart (`StackedColumnChartProps` 를 export 한다)
+
+| Prop | 타입 | 기본값 | 설명 |
+|---|---|---|---|
+| categories | `string[]` | 필수 | 가로축 항목 |
+| series | `StackedColumnSeries[]` | 필수 | `{ key, label, color, values }`, 아래에서 위로 쌓는다 |
+| line | `StackedColumnLine` | - | `{ label, color, values, dashed? }` 기준선(기본 점선) |
+| dimFrom | `number` | - | 이 순번부터 막대를 옅게 |
+| dimLabel | `string` | - | 범례 끝 설명 |
+| totalAt | `number` | - | 이 순번 막대 위에 합계 |
+| unit | `string` | `""` | 툴팁 단위 |
+| height | `number` | `230` | 그림 높이(px, 최소 120). 범례 줄은 별도 |
+| showLegend | `boolean` | `true` | 범례 |
+| ariaLabel | `string` | - | 그림 설명 |
+| testId | `string` | - | 뿌리 `data-testid` |
+
 ## 표준값: 모든 화면 동일
 
-- 색은 데이터·`color`·`avgColor` 모두 의미 토큰만 쓴다(성공 `--color-success`, 위험 `--color-danger`, 주의 `--color-warning`, 기본 `--color-primary`).
+- 색은 데이터·`color`·`avgColor` 모두 의미 토큰만 쓴다(성공 `--color-success`, 위험 `--color-danger`, 주의 `--color-warning`, 기본 `--color-primary`). 상태가 아닌 여러 계열(제품군·교대조 등)은 `--color-chart-1` … `--color-chart-5` 를 순서대로 쓴다.
 - 합계가 0 이거나 데이터가 없으면 "데이터 없음" 글자가 보인다. 별도 빈 상태 문구를 만들지 않는다.
 
 ## 흔한 실수
@@ -103,6 +136,6 @@ StackedBarChart: `rows: StackedBarRow[]`(`{ label, values: Record<string, number
 
 ## 실제 사용 예
 
-- 업무 화면(m-mpp·m-mqc·m-mls·m-mcm·m-mdm)에서는 아직 사용처 없음.
+- `src/frontend/m-mcm/page-components/home/page.tsx`: 포털 홈 — `StackedColumnChart`(월별 실적 + 계획선), `DonutChart`(설비 가동), `StackedBarChart`(교대조 누적, `showPercentLabels={false}`), `HBarChart`(불량 유형). 색은 `--color-chart-*`·상태 토큰(표준과 같다).
 - `src/frontend/m-design-dummy/src/screens/ChartDashboardScreen.tsx:134-230`: 다섯 차트를 모두 쓰는 카탈로그 샘플. 단, `COLORS` 상수(`#337ab7` 등)와 `"#dfe4e9"` 같은 16진수 색을 주는 점은 표준과 다름.
 - `src/frontend/m-design-dummy/src/screens/OperationsDashboardScreen.tsx:174-197`: `LineChart`(`color="#337ab7"`)·`DonutChart`. 단, 16진수 색은 표준과 다름.

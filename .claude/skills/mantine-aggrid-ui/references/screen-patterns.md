@@ -78,7 +78,10 @@ MES 화면(`m-mpp`·`m-mqc`·`m-mls`·`m-mcm` 등)을 누가 만들어도, 어�
 | 날짜 | 100 | center | 값은 `yyyy-MM-dd` |
 | 수량·금액 | 100 | right | `type: "number"` |
 | 상태·여부 | 80 | center | `render` 에서 `GridBadge` |
-| 비고 | (생략) | left | 남는 폭 |
+| 비고·제목(남는 폭) | 큰 가중치(예: `100`) + `minWidth`(예: `180`) | left | 남는 폭. **폭을 생략하지 않는다** |
+
+- `"fit"` 에서 `width` 는 픽셀이 아니라 **비율 가중치**다(위 표의 값은 그 비율). 폭을 생략하면 가중치 1 이 되어 최소 50px 까지 줄어, 남는 폭을 가져가기는커녕 가장 좁아진다. 남는 폭을 줄 열은 큰 가중치와 `minWidth` 를 함께 준다.
+- 목록이 좁은 배치(좌우 분할의 왼쪽 목록 등)에서는 짧은 열에 가중치 `1` + 내용 폭만큼의 `minWidth`(배지 2자 ≈ 52, 4자 ≈ 74, 칸 좌우 여백 8px 포함)를 주어 그 폭에 머물게 하고, 남는 폭 열 하나만 큰 가중치를 준다. `minWidth` 합이 목록 폭을 넘으면 가로 스크롤이 생기므로, 기본 배치의 목록 폭 안에 들도록 열을 줄인다(예: `m-mls/pages/lsh/noticeMgmt` — `minWidth` 합 574. 목록·상세 50:50 이라 1300px 포털에서는 목록이 약 520px 로 조금 가로 스크롤한다).
 
 ### 배지 색 (`GridBadge`)
 
@@ -172,11 +175,12 @@ B 예제에서 오른쪽 `ContentPanel`·상세 상태·신규/저장/삭제 버
 | 메시지 훅 | Part B §9 는 `useGfnMessage` MUST 였고, 화면은 `useMessage` 14·`ErrorModal` 15·`useGfnMessage` 0 | `useMessage().showMessage` (Part B §9 도 2026-10-01 같은 내용으로 정정) | UI-Visual-Standard §8 이 둘 다 허용, 객체 인자가 위치 인자보다 오용이 적음, 다수 사용 |
 | 저장형 행 상태 | Part B §6 MUST 이나 사용 화면 0 | `useGridDataManager` | 정책 MUST |
 | 상세 폼 | `FormGroup` 0, `DETAIL_TABLE_STYLE` 21 | `DETAIL_*` 표 | 다수 사용 |
-| 상세 패널 폭 | 360·380·440·460 | 460 | MES 실례 `noticeMgmt` |
+| 상세 패널 폭 | 360·380·440·460 | 460 | 표준값. `noticeMgmt` 는 본문 편집기가 넓어야 해 사용자 요청으로 50:50(2026-10-02 예외) |
 | 기간 조회조건 | `label="~"` 쌍 / `span-2` 안 인라인 묶음 | `label="~"` 쌍 | 인라인 스타일 없이 SearchArea 가 배치 |
 | 행추가·행삭제 위치 | 상단 버튼 / 그리드 머리 | `GridPanel` 머리. 행삭제는 확인창 버튼(`buttons`) | 래퍼 내장 행추가. 내장 행삭제는 확인창이 없어 개선 후 시험에서 상단으로 새는 일이 있었다 |
 | 빈 목록·로딩 문구 | 화면마다 다름 | 래퍼 기본값 | 문구 통일 |
 | 상단 버튼 라벨 | "단위 등록" 등 업무명 포함 | 신규·저장·삭제·엑셀 | 화면 간 동일 |
+| fit 의 남는 폭 열 | 표는 "(생략) 남는 폭" 이었으나 fit 에서 생략하면 가중치 1 로 가장 좁아짐(noticeMgmt 제목 열 실측, 2026-10-02) | 큰 가중치 + `minWidth`, 좁은 목록은 짧은 열 가중치 1 + `minWidth` | `AgDataGrid` 소스(fit: `flex = width ?? 1`, `minWidth = col.minWidth ?? width ?? 50`) |
 
 ## 예제 검증
 
