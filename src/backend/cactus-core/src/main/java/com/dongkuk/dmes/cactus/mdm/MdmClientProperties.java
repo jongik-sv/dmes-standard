@@ -24,6 +24,11 @@ public class MdmClientProperties {
     private Duration readTimeout = Duration.ofSeconds(5);
     /** 한 번 폴링에서 받는 변경 수 상한. 넘으면(truncated) 캐시를 비운다(§5.3-3). */
     private int pageLimit = 1000;
+    /**
+     * 순번 역전 대비 되돌아보기(계획 검토 A1) — 폴러가 {@code since = max(0, appliedSeq - 이 값)} 으로 최근 순번을 다시 훑어 늦게 커밋된 낮은
+     * 순번을 잡는다. 0 이면 끈다. 켰으면 {@code page-limit} 이 이 값보다 커야 한다(아니면 기동 때 예외).
+     */
+    private int revisionLookback = MdmRevisionPoller.DEFAULT_LOOKBACK;
 
     public boolean isEnabled() { return enabled; }
     public String getModule() { return module; }
@@ -35,6 +40,7 @@ public class MdmClientProperties {
     public Duration getConnectTimeout() { return connectTimeout; }
     public Duration getReadTimeout() { return readTimeout; }
     public int getPageLimit() { return pageLimit; }
+    public int getRevisionLookback() { return revisionLookback; }
 
     public void setEnabled(boolean v) { this.enabled = v; }
     public void setModule(String v) { this.module = v; }
@@ -46,4 +52,5 @@ public class MdmClientProperties {
     public void setConnectTimeout(Duration v) { this.connectTimeout = v; }
     public void setReadTimeout(Duration v) { this.readTimeout = v; }
     public void setPageLimit(int v) { this.pageLimit = v; }
+    public void setRevisionLookback(int v) { this.revisionLookback = v; }
 }
