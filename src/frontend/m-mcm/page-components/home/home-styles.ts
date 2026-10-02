@@ -6,6 +6,9 @@
 export const HOME_STYLE_HREF = "mcm-home";
 
 export const HOME_CSS = `
+/* 포털 .page-layout 은 overflow:hidden·높이 고정이라, 홈 내용(인사말·위젯 보드)이 화면보다 길면 이 칸이 남은 높이를 차지하고 스스로 스크롤한다.
+   위젯 서랍(.cm-widget-picker, position: sticky)은 이 스크롤 칸 기준으로 위에 붙는다. */
+.mcm-home { flex: 1 1 auto; min-height: 0; overflow: auto; }
 .mcm-home-welcome { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; min-height: 30px; }
 .mcm-home-welcome__hello { margin: 0; font-size: var(--font-size-title); font-weight: 700; color: var(--color-text); }
 .mcm-home-welcome__date { font-size: var(--font-size-sm); color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
