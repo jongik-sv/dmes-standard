@@ -4,6 +4,7 @@ export {
   MdmGridTooltip,
   useResolvedGridColumns,
   type AgDataGridProps,
+  type AgDataGridFieldError,
   type GridColumn,
   type MdmGridTooltipParams,
 } from "./AgDataGrid";
