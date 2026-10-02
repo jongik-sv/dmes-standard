@@ -218,6 +218,35 @@ describe("UsageTracker 브라우저 탭 가림·pagehide", () => {
     expect(emitted.map(rows)).toEqual([[["csa/a", "OPEN", 5000, 7000]]]);
   });
 
+  it("가려진 채 OPEN 으로 연 탭에 같은 화면 activate(SWITCH)가 다시 와도 보류 중인 OPEN 을 잃지 않는다", () => {
+    doc.visibilityState = "hidden";
+    const t = create();
+    t.activate("csa/a", "OPEN");
+    t.activate("csa/a", "SWITCH"); // StrictMode 이중 호출 등
+    advance(3000);
+    setVisibility("visible");
+    advance(2000);
+    t.end();
+    expect(emitted.map(rows)).toEqual([[["csa/a", "OPEN", 3000, 5000]]]);
+  });
+
+  it("무입력으로 닫힌 뒤 같은 화면을 다시 activate 해도 RESUME 이 유지된다", () => {
+    const t = create({ maxSegmentMs: 3 * 60 * MIN });
+    t.activate("csa/a", "OPEN");
+    advance(5 * MIN);
+    input();
+    advance(30 * MIN); // 35분 판정 — 마지막 입력(5분)에서 닫힘
+    advance(MIN); // 36분
+    t.activate("csa/a"); // SWITCH 기본값
+    input();
+    advance(2000);
+    t.end();
+    expect(emitted.map(rows)).toEqual([
+      [["csa/a", "OPEN", 0, 5 * MIN]],
+      [["csa/a", "RESUME", 36 * MIN, 36 * MIN + 2000]],
+    ]);
+  });
+
   it("pagehide 에서 닫고, 돌아와 입력이 오면 RESUME 으로 연다", () => {
     const t = create();
     t.activate("csa/a", "OPEN");
@@ -299,6 +328,42 @@ describe("UsageTracker 15분 자르기", () => {
         ["csa/a", "OPEN", 0, 15 * MIN],
         ["csa/a", "RESUME", 15 * MIN, 30 * MIN],
         ["csa/a", "RESUME", 30 * MIN, 40 * MIN],
+      ],
+    ]);
+  });
+});
+
+describe("UsageTracker 15분 자르기 — 상한과 여러 바퀴", () => {
+  it("타이머가 멈춘 사이 입력이 이어졌으면 시작+15분 상한으로 자르고 마지막 입력 시각까지 반복해 잇는다", () => {
+    const t = create();
+    t.activate("csa/a", "OPEN");
+    advance(5 * MIN);
+    input(); // 5분
+    advance(10 * MIN); // 15분 판정 — 마지막 입력(5분)에서 자른다
+    expect(emitted.map(rows)).toEqual([[["csa/a", "OPEN", 0, 5 * MIN]]]);
+
+    vi.setSystemTime(BASE + 33 * MIN); // 타이머가 멈춘 사이 시계만 간다
+    input(); // 33분
+    vi.setSystemTime(BASE + 36 * MIN);
+    t.tick(); // 5분부터 31분째 — 5~20(상한), 20~33(마지막 입력)
+    expect(emitted.map(rows)).toEqual([
+      [["csa/a", "OPEN", 0, 5 * MIN]],
+      [
+        ["csa/a", "RESUME", 5 * MIN, 20 * MIN],
+        ["csa/a", "RESUME", 20 * MIN, 33 * MIN],
+      ],
+    ]);
+  });
+
+  it("무입력 20분 뒤 화면을 바꾸면 15분과 5분 두 구간으로 나간다(합의된 동작)", () => {
+    const t = create();
+    t.activate("csa/a", "OPEN");
+    advance(20 * MIN);
+    t.activate("csa/b");
+    expect(emitted.map(rows)).toEqual([
+      [
+        ["csa/a", "OPEN", 0, 15 * MIN],
+        ["csa/a", "RESUME", 15 * MIN, 20 * MIN],
       ],
     ]);
   });

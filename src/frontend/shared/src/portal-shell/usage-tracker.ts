@@ -163,7 +163,12 @@ export class UsageTracker {
   /** 활성 화면이 바뀌었다. 이전 구간을 지금 닫고, pageId 가 있으면 새 구간을 연다(가려져 있으면 보일 때 연다). */
   activate(pageId: string | null, startKind: UsageActivateKind = "SWITCH"): void {
     if (this.disposed) return;
-    if (pageId != null && pageId === this.pageId && this.open) return;
+    if (pageId != null && pageId === this.pageId) {
+      // 같은 화면 재활성화 — 구간을 쪼개거나 시작 사유·마지막 입력 시각을 덮어쓰지 않는다.
+      // 아직 열리지 않은 구간(가려진 채 연 탭 등)이 OPEN 을 요청받은 경우에만 OPEN 으로 올린다.
+      if (!this.open && startKind === "OPEN") this.nextKind = "OPEN";
+      return;
+    }
     const t = this.time();
     this.close(t);
     this.pageId = pageId;
