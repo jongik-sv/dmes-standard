@@ -88,6 +88,7 @@ import { boundsOf, snapHitIn, snapIndex, snapThreshold, type Box, type Guide, ty
 import { ROUTE_RADIUS, ROUTE_STUB, autoRoute, finishRoute, insertRoutePoint, isClear, moveSegment, roundPoint, routeMidpoint, routePath, segmentAxis, segmentHandles, snapSegmentDelta, type SegmentHandle } from "./route-path";
 import { SEG_BAR_LONG, SEG_BAR_SHORT } from "../styles/route";
 import type { MenuTarget } from "./context-menu";
+import { NoteSizeContext, createNoteSizeStore, dragNoteSize, sameNoteSize, type NoteSizeApi } from "./note-size";
 import { NodeSizeContext, createNodeSizeStore, dragNodeSize, sameSize, type NodeSizeApi } from "./node-size";
 import { GroupSizeContext, ZERO_PAD, createGroupPadStore, dragGroupPad, samePad, type GroupSizeApi } from "./group-size";
 import { ANCHOR_IN, ANCHOR_OUT, CATCH_HANDLE, GroupNodeData, NODE_TYPES, NoteNodeData, FlowNodeData, handlesOf, type CollapsedBlockInfo } from "./nodes";
@@ -1240,6 +1241,9 @@ function Inner(props: FlowCanvasProps) {
   // 노드 크기 끌기(S1) — 끄는 동안의 크기. 구독 값이 바뀌면 Inner 가 다시 그려 nodes memo 만 다시 돈다(page·dagre 는 그대로).
   const nodeSizeStore = useMemo(createNodeSizeStore, []);
   const nodeSizeDrag = useSyncExternalStore(nodeSizeStore.subscribe, () => nodeSizeStore.drag, () => null);
+  // 메모 크기 끌기 — 끄는 동안의 크기(노드 크기와 같은 방식).
+  const noteSizeStore = useMemo(createNoteSizeStore, []);
+  const noteSizeDrag = useSyncExternalStore(noteSizeStore.subscribe, () => noteSizeStore.drag, () => null);
 
   const rawNodes = useMemo(() => {
     const out: Node[] = [];
@@ -1251,7 +1255,7 @@ function Inner(props: FlowCanvasProps) {
       const pad = groupDrag?.groupId === g.id ? groupDrag.pad : g.pad; // 끄는 중이면 그 값(G2)
       const b = groupBox(g.nodeIds, pos, sizes, pad);
       if (!b) continue;
-      const data: GroupNodeData = { id: g.id, title: g.title, selected: selectedId === g.id, resizable: editable && selectedId === g.id };
+      const data: GroupNodeData = { id: g.id, title: g.title, color: g.color ?? null, selected: selectedId === g.id, resizable: editable && selectedId === g.id };
       out.push({
         id: g.id, type: "rsfGroup", position: { x: b.x, y: b.y }, width: b.w, height: b.h, measured: measured[g.id], data, selected: rfSel.has(g.id),
         // 제목만 끌기 손잡이 — 틀 몸통은 누름을 받지 않아 그룹 안 빈 곳에서 영역 선택·화면 이동이 그대로 된다.
@@ -1296,14 +1300,15 @@ function Inner(props: FlowCanvasProps) {
       });
     }
     for (const note of flow.view.notes) {
-      const data: NoteNodeData = { note, selected: selectedId === note.id, editable, onChange: onNoteChange };
+      const ns = noteSizeDrag && noteSizeDrag.noteId === note.id ? noteSizeDrag.size : { w: note.w, h: note.h };
+      const data: NoteNodeData = { note, selected: selectedId === note.id, editable, resizable: editable && rfSel.size <= 1 && selectedId === note.id, onChange: onNoteChange };
       out.push({
         id: note.id, type: "rsfNote", position: shifted(space, { x: drag[note.id]?.x ?? note.x, y: drag[note.id]?.y ?? note.y }),
-        width: note.w, height: note.h, measured: measured[note.id], data, draggable: editable, connectable: false, selected: rfSel.has(note.id),
+        width: ns.w, height: ns.h, measured: staleMeasure(measured[note.id], { w: ns.w, h: ns.h }) ? { width: ns.w, height: ns.h } : measured[note.id], data, draggable: editable, connectable: false, selected: rfSel.has(note.id),
       });
     }
     return out;
-  }, [flow, vflow, view, pos, drag, space, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured, varDisplay, groupDrag, nodeSizeDrag, dropNode, onRenameTask]);
+  }, [flow, vflow, view, pos, drag, space, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured, varDisplay, groupDrag, nodeSizeDrag, noteSizeDrag, dropNode, onRenameTask]);
   /**
    * 내용이 같은 노드는 이전 객체를 그대로 넘긴다(구조적 공유, `reuse.ts`) — 끌기 프레임·선택마다 위 memo 가 모든 노드를 새로 만들어도
    * React Flow 는 바뀐 노드만 다시 그린다. 잰 크기(measured)도 견주므로 화면 맞춤(fitView) 동작은 그대로다.
@@ -2158,6 +2163,64 @@ function Inner(props: FlowCanvasProps) {
     }
   }, [editable, nodeSizeStore]);
   useEffect(() => () => nodeSizeDragRef.current?.stop(), []);
+  // 메모 크기 — 끄는 동안은 noteSizeStore 에만 두고 놓을 때 onNoteChange(id, {w,h}) 를 한 번 부른다(되돌리기 한 칸).
+  const noteChangeRef = useRef(props.onNoteChange);
+  noteChangeRef.current = props.onNoteChange;
+  const noteSizeDragRef = useRef<{ stop: () => void } | null>(null);
+  const noteSizeApi = useMemo<NoteSizeApi>(() => ({
+    startDrag: (e, noteId, grip) => {
+      if (e.button !== 0 || !editableRef.current) return;
+      e.stopPropagation();
+      noteSizeDragRef.current?.stop();
+      const n = fullRef.current.view.notes.find((x) => x.id === noteId);
+      if (!n) return;
+      const base = { w: n.w, h: n.h };
+      const sx = e.clientX;
+      const sy = e.clientY;
+      const onMoveEvt = (ev: MouseEvent) => {
+        if (ev.buttons === 0) {
+          finish(false); // pointerup 을 잃었다(창 밖에서 놓음) — 기록 없이 버린다
+          return;
+        }
+        const k = rf.getZoom() || 1;
+        const size = dragNoteSize(base, grip, (ev.clientX - sx) / k, (ev.clientY - sy) / k);
+        const cur = noteSizeStore.drag;
+        if (cur && cur.noteId === noteId && sameNoteSize(cur.size, size)) return;
+        noteSizeStore.drag = { noteId, size };
+        noteSizeStore.emit();
+      };
+      const finish = (commit: boolean) => {
+        stop();
+        const d = noteSizeStore.drag;
+        if (!d) return;
+        noteSizeStore.drag = null;
+        noteSizeStore.emit();
+        const alive = fullRef.current.view.notes.some((x) => x.id === noteId);
+        if (commit && alive && editableRef.current && !sameNoteSize(d.size, base)) noteChangeRef.current(noteId, { w: d.size.w, h: d.size.h });
+      };
+      const onUpEvt = () => finish(true);
+      const onCancelEvt = () => finish(false);
+      const stop = () => {
+        noteSizeDragRef.current = null;
+        window.removeEventListener("pointermove", onMoveEvt);
+        window.removeEventListener("pointerup", onUpEvt);
+        window.removeEventListener("pointercancel", onCancelEvt);
+      };
+      noteSizeDragRef.current = { stop };
+      window.addEventListener("pointermove", onMoveEvt);
+      window.addEventListener("pointerup", onUpEvt);
+      window.addEventListener("pointercancel", onCancelEvt);
+    },
+  }), [noteSizeStore, rf]);
+  useEffect(() => {
+    if (editable) return;
+    noteSizeDragRef.current?.stop();
+    if (noteSizeStore.drag) {
+      noteSizeStore.drag = null;
+      noteSizeStore.emit();
+    }
+  }, [editable, noteSizeStore]);
+  useEffect(() => () => noteSizeDragRef.current?.stop(), []);
   const startSpaceDrag = (clientX: number, clientY: number) => {
     spaceDragRef.current?.stop();
     const origin = rf.screenToFlowPosition({ x: clientX, y: clientY });
@@ -2288,7 +2351,7 @@ function Inner(props: FlowCanvasProps) {
     else onDropRule(ruleId, edgeId);
   };
 
-  // 우클릭 — 모든 모드. 메모·그룹은 빈 곳 메뉴로 연다.
+  // 우클릭 — 모든 모드. 메모·그룹은 빈 곳 메뉴로 연다(그룹이면 groupId 를 실어 그룹 「색상」을 더한다).
   const openMenu = (e: ReactMouseEvent | MouseEvent, target: MenuTarget) => {
     e.preventDefault();
     onContextMenu(target, { x: e.clientX, y: e.clientY });
@@ -2297,7 +2360,9 @@ function Inner(props: FlowCanvasProps) {
   // 렌더마다 새 함수면 노드 객체를 재사용해도(useStableById) 선택·끌기 프레임마다 모든 노드·선이 다시 그려진다(Local-Rules §19).
   // openMenu·flowAt 은 onContextMenu·rf 만 읽는다.
   const onNodeContextMenu = useCallback((e: ReactMouseEvent, n: Node) =>
-    openMenu(e, n.type === "rsfFlow" ? { kind: "node", nodeId: n.id } : { kind: "pane", at: flowAt(e.clientX, e.clientY) }),
+    openMenu(e, n.type === "rsfFlow"
+      ? { kind: "node", nodeId: n.id }
+      : { kind: "pane", at: flowAt(e.clientX, e.clientY), ...(n.type === "rsfGroup" ? { groupId: n.id } : {}) }),
   // eslint-disable-next-line react-hooks/exhaustive-deps
   [onContextMenu, rf]);
   const onEdgeContextMenu = useCallback((e: ReactMouseEvent, ed: Edge) => {
@@ -2361,6 +2426,7 @@ function Inner(props: FlowCanvasProps) {
     <LabelContext.Provider value={labelApi}>
     <GroupSizeContext.Provider value={groupSizeApi}>
     <NodeSizeContext.Provider value={nodeSizeApi}>
+    <NoteSizeContext.Provider value={noteSizeApi}>
     <div
       ref={wrapRef}
       className="rsf-canvas"
@@ -2440,6 +2506,7 @@ function Inner(props: FlowCanvasProps) {
         <SnapGuides store={snapStore} />
       </ReactFlow>
     </div>
+    </NoteSizeContext.Provider>
     </NodeSizeContext.Provider>
     </GroupSizeContext.Provider>
     </LabelContext.Provider>

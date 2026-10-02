@@ -283,7 +283,12 @@ describe("화면 — 되돌리기·다시 하기 단축키는 캔버스 밖에�
     unmountPage();
     const ev = await key(document.body, { key: "z", metaKey: true });
     expect(ev.defaultPrevented).toBe(false);
-    expect(add.mock.calls.length).toBe(0);
+    // 고른 메모의 패널 편집기(shared MarkdownEditor, Tiptap)는 내릴 때 ProseMirror 가 selectionchange 를 잠깐 다시 걸었다가
+    // 편집기를 지우며 뗀다(@tiptap/react EditorContent.componentWillUnmount → view.setProps). 남는 리스너가 없어야 한다.
+    await new Promise((r) => setTimeout(r, 50));
+    const removed = remove.mock.calls.map(([, h]) => h);
+    expect(add.mock.calls.filter(([t]) => t !== "selectionchange")).toEqual([]);
+    expect(add.mock.calls.filter(([, h]) => !removed.includes(h))).toEqual([]);
     expect(remove.mock.calls.some(([t]) => t === "keydown")).toBe(true);
   });
 });

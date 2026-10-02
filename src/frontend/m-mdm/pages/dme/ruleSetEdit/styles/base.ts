@@ -3,6 +3,16 @@
  * 영역별 새 규칙은 이 파일이 아니라 `styles/` 의 자기 영역 파일(drag·menu·props·debug·collapse)에 넣는다(3단계 계획 Task 0 Step 12).
  * 색은 의미 토큰만 쓴다. 한 변 색 바는 쓰지 않는다(Local-Rules §8).
  */
+import { NODE_COLORS } from "../node-style";
+
+/**
+ * 그룹 색 — 노드 색과 같은 토큰(`--rsf-c-{색}-bg` 연한 채움·`-border` 진한 테두리, styles/node-style.ts 의 :root 팔레트)으로 그룹 배경·테두리 변수만 바꾼다.
+ * `:where` 라 우선순위는 (0,1,0) — 선택 규칙(0,2,0)이 테두리를 지금처럼 실선 파랑으로 덮는다. 기본은 규칙이 없다(지금 그룹 색).
+ */
+const GROUP_COLOR_RULES = NODE_COLORS.filter((c) => c !== "default")
+  .map((c) => `.rsf-group:where([data-color="${c}"]) { --rsf-group-bg: var(--rsf-c-${c}-bg); --rsf-group-border: var(--rsf-c-${c}-border); }`)
+  .join("\n");
+
 export const BASE_CSS = `
 /* 룰 세트 흐름 캔버스 — 시안 06-rule-set-flow.html 의 노드 모양. 색은 한 곳(.rsf-canvas)에서 토큰으로 옮긴다. */
 .rsf-canvas {
@@ -80,15 +90,15 @@ export const BASE_CSS = `
 .rsf-diamond { width: 16px; height: 16px; flex: none; transform: rotate(45deg); border: 1.5px solid var(--color-primary); background: var(--color-primary-soft); border-radius: 2px; }
 .rsf-if .rsf-title { font-size: var(--font-size-lg); }
 
-/* 병렬 막대 · 병렬 합류 이중선 */
+/* 병렬 막대 · 병렬 합류(속 빈 막대) */
 .rsf-par { background: var(--rsf-par-bar); border: 0; border-radius: 3px; box-shadow: none; }
 .rsf-par[data-selected="true"] { outline: 2px solid var(--color-primary); outline-offset: 3px; box-shadow: none; }
 .rsf-par[data-state="run"], .rsf-par[data-state="current"] { background: var(--color-success); box-shadow: none; }
 .rsf-par-label { position: absolute; left: 16px; bottom: calc(100% + 4px); font-size: var(--font-size-xs); font-weight: 600; color: var(--color-text-secondary); white-space: nowrap; }
-/* 병렬 합류 — 병렬 분기와 같은 크기의 이중선 막대(implicit-join spec §10). 배경 없이 위·아래 4px 두 줄, 가운데 6px 빈 줄 */
-.rsf-merge { background: transparent; border: 0; border-top: 4px solid var(--rsf-par-bar); border-bottom: 4px solid var(--rsf-par-bar); border-radius: 0; box-shadow: none; box-sizing: border-box; }
-.rsf-merge[data-selected="true"] { outline: 2px solid var(--color-primary); outline-offset: 3px; box-shadow: none; }
-.rsf-merge[data-state="run"], .rsf-merge[data-state="current"] { background: transparent; border-top-color: var(--color-success); border-bottom-color: var(--color-success); box-shadow: none; }
+/* 병렬 합류 — 병렬 분기와 같은 크기·모서리의 속 빈 막대(implicit-join spec §10). 고르면 테두리는 그대로 두고 병렬 분기처럼 바깥선만 그린다 */
+.rsf-merge { background: transparent; border: 3px solid var(--rsf-par-bar); border-radius: 3px; box-shadow: none; box-sizing: border-box; }
+.rsf-merge[data-selected="true"] { border-color: var(--rsf-par-bar); outline: 2px solid var(--color-primary); outline-offset: 3px; box-shadow: none; }
+.rsf-merge[data-state="run"], .rsf-merge[data-state="current"] { background: transparent; border-color: var(--color-success); box-shadow: none; }
 
 /* 겹침 배지 · 칩 */
 .rsf-seq {
@@ -117,6 +127,7 @@ export const BASE_CSS = `
   box-sizing: border-box; width: 100%; height: 100%; pointer-events: none;
   border: 1px dashed var(--rsf-group-border); background: var(--rsf-group-bg); border-radius: 6px;
 }
+${GROUP_COLOR_RULES}
 .rsf-group[data-selected="true"] { border-style: solid; border-color: var(--color-primary); }
 .rsf-group-title {
   position: absolute; left: 8px; top: 5px; pointer-events: auto; padding: 2px 4px; border-radius: 3px; cursor: pointer;

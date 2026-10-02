@@ -74,6 +74,7 @@ export default function RuleEditPage() {
         }}
       >
         <RulePicker
+          currentId={state.ruleId}
           onPick={(ruleId) => void open(ruleId)}
           onError={(text) => state.notify({ kind: "error", text })}
         />

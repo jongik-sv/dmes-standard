@@ -70,6 +70,32 @@ afterEach(() => {
 });
 
 describe("IdPicker", () => {
+  it("currentId 를 주면 처음부터 칸에 채우고, 다른 ID 로 바뀌면 그 ID 로 바꾼다(링크로 열린 화면)", async () => {
+    const search = vi.fn(async () => ROWS);
+    await render({ search, currentId: "PORT" });
+    expect(input().value).toBe("PORT");
+    const rerender = async (currentId: string | null) => {
+      await act(async () => {
+        root!.render(
+          createElement(
+            DmesUiProvider,
+            null,
+            createElement(IdPicker, { placeholder: "ID·이름", noun: "세트", testId: "t-pick", limit: 2, onPick: vi.fn(), onError: vi.fn(), search, currentId }),
+          ),
+        );
+      });
+      await flush();
+    };
+    await type("CU");
+    await rerender("PORT");
+    expect(input().value).toBe("CU"); // 같은 ID 인 동안은 친 글자를 덮지 않는다
+    await rerender("CUST");
+    expect(input().value).toBe("CUST");
+    await rerender(null);
+    expect(input().value).toBe("CUST"); // 닫혀도 칸은 비우지 않는다
+    expect(search).not.toHaveBeenCalled();
+  });
+
   it("Enter 로 찾아 ID·이름·외부·상태 배지를 보이고, 건수가 차면 좁혀 검색하라고 안내한다", async () => {
     const search = vi.fn(async () => ROWS);
     await render({ search });

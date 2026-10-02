@@ -1,5 +1,5 @@
 /**
- * 룰 세트 화면 개인 편의 저장소(3단계 계획 P10) — 중단점·조사식·최근 입력·최근 식·미니맵·자동 저장 켜짐. 모든 읽기·쓰기를 try/catch 로 감싸
+ * 룰 세트 화면 개인 편의 저장소(3단계 계획 P10) — 중단점·조사식·최근 입력·최근 식·미니맵·자동 저장 켜짐·메모 편집 방식. 모든 읽기·쓰기를 try/catch 로 감싸
  * 저장소가 없거나(사설 창·미리보기) 던져도 기본값으로 동작한다(스펙 §2). 서버에 저장하지 않는다.
  */
 import type { VarDisplay } from "../types";
@@ -15,6 +15,9 @@ export const storeKeys = {
   varDisplay: "rsf:varDisplay",
   /** 편집 모드 [자동 저장] 켜짐(세트와 무관한 보는 사람 설정, 기본 꺼짐). */
   autoSave: "rsf:autoSave",
+  /** 메모 편집 방식(서식 wysiwyg · 원문 markdown) 저장 키 — shared MarkdownEditor·MarkdownField 의 modeStorageKey 로 넘긴다
+   *  (읽기·쓰기는 shared 가 한다). 캔버스·패널이 같은 키라 같이 바뀐다. 값을 잃지 않게 키를 바꾸지 않는다. */
+  noteEditMode: "rsf:noteEditMode",
 } as const;
 
 function read(key: string): unknown {

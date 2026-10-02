@@ -515,7 +515,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await page.getByTestId("flow-menu-item-split-kind").click();
     await expect(page.getByTestId("flow-canvas").locator('[data-kind="PARALLEL"]')).toHaveCount(1);
     await expect(page.getByTestId("flow-canvas").locator('[data-kind="IF"]')).toHaveCount(0);
-    await expect(page.getByTestId("flow-canvas").locator('[data-kind="MERGE"]')).toHaveCount(1); // 병렬 합류(이중선 막대)
+    await expect(page.getByTestId("flow-canvas").locator('[data-kind="MERGE"]')).toHaveCount(1); // 병렬 합류(속 빈 막대)
     await expect(flowNodes(page)).toHaveCount(9);
 
     // 캔버스를 누른 뒤 Ctrl+Z(맥은 ⌘Z) → 다시 IF.

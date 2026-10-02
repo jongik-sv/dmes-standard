@@ -9,11 +9,14 @@ import type { FlowMode } from "../state/useRuleSetEdit";
 import type { NodeColor } from "../node-style";
 import type { RuleIoMap } from "../types";
 
-/** 메뉴를 연 자리 — 흐름 노드, 선(우클릭 또는 [+] 단추), 빈 곳(메모·그룹 우클릭도 빈 곳, 흐름 좌표). */
+/**
+ * 메뉴를 연 자리 — 흐름 노드, 선(우클릭 또는 [+] 단추), 빈 곳(메모·그룹 우클릭도 빈 곳, 흐름 좌표).
+ * 그룹 우클릭이면 `groupId` 가 있다 — 빈 곳 항목은 그대로 두고 그룹 「색상」을 앞에 더한다.
+ */
 export type MenuTarget =
   | { kind: "node"; nodeId: string }
   | { kind: "edge"; edgeId: string; via: "context" | "plus" }
-  | { kind: "pane"; at: FlowPos };
+  | { kind: "pane"; at: FlowPos; groupId?: string };
 
 /** 색상 견본 한 칸 — `color` 는 노드 색 키(칠한 색 토큰 `--rsf-c-{color}-*` 로 그린다, 기본은 중립색). */
 export interface MenuSwatch {
@@ -82,6 +85,8 @@ export interface CanvasActions {
   distribute(axis: DistributeAxis): void;
   /** 룰·빈 단계 노드 여럿에 색을 한 번에 칠한다(편집 한 번 = 되돌리기 한 칸). `default` 는 칸 지우기. */
   setNodeColor(nodeIds: readonly string[], color: NodeColor): void;
+  /** 그룹 여럿에 색을 한 번에 칠한다(편집 한 번 = 되돌리기 한 칸). `default` 는 색 지우기. */
+  setGroupColor(groupIds: readonly string[], color: NodeColor): void;
 }
 
 export interface MenuContext {

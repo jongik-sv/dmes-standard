@@ -45,7 +45,7 @@ import { useTestCases } from "./debugger/useTestCases";
 import { ValuesTab } from "./debugger/ValuesTab";
 import { VariablePanel } from "./debugger/VariablePanel";
 import {
-  addCatch, connect, flowJsonOf, reconnectEdge, setGroupPad, setLabelOffset, setNodesColor, setPositions, setRoute, shiftRoutes, nextId, updateEdge, updateNodeLabel, updateNote,
+  addCatch, connect, flowJsonOf, reconnectEdge, setGroupPad, setGroupsColor, setLabelOffset, setNodesColor, setPositions, setRoute, shiftRoutes, nextId, updateEdge, updateNodeLabel, updateNote,
   type EditFlow, type EditResult, type FlowNote, type FlowPos, type GroupPad, type LabelOffset, type LabelPart,
 } from "./flow-edit";
 import { autoArrange, restyleNode, shiftSpace, type NodeLayoutSource, type SpaceAxis, type SpaceBlocks } from "./flow-layout";
@@ -307,6 +307,12 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
       editing && edit((f) => setNodesColor(f, nodeIds, color)),
     [editing, edit],
   );
+  // 그룹 색(그룹 우클릭 「색상」) — 노드 색과 같이 여러 그룹이어도 편집 한 번. 이미 그 색이면 편집을 만들지 않는다.
+  const onGroupColor = useCallback(
+    (groupIds: readonly string[], color: NodeColor) =>
+      editing && edit((f) => setGroupsColor(f, groupIds, color)),
+    [editing, edit],
+  );
   const onMoveNode = useCallback(
     (nodeId: string, edgeId: string, pos: Record<string, FlowPos>) => {
       if (editing) drag.moveNodeTo(nodeId, edgeId, pos);
@@ -435,8 +441,9 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
       align: onAlign,
       distribute: onDistribute,
       setNodeColor: onNodeColor,
+      setGroupColor: onGroupColor,
     }),
-    [editActions.actions, collapse.toggle, sim.toggleBreakpoint, runTo, onAlign, onDistribute, onNodeColor],
+    [editActions.actions, collapse.toggle, sim.toggleBreakpoint, runTo, onAlign, onDistribute, onNodeColor, onGroupColor],
   );
   const menuItems = useMemo(
     () =>
@@ -650,6 +657,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
         search={searchSetPicks}
         limit={SET_PICK_LIMIT}
         inputWidth={150}
+        currentId={view?.set.setId ?? null}
         onPick={(id) => void open(id)}
         onError={state.reportError}
       />

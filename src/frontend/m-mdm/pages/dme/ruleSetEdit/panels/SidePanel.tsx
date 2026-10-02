@@ -4,7 +4,8 @@
  * 오른쪽 패널(보기·편집 모드, 4단계 계획 Task 8 · 스펙 §1.3 Camunda Modeler 식) — 맨 위 머리글, 그 아래 접는 섹션 목록.
  * 속성·세트 섹션은 `PropertyPanel`·`SetPanel` 이 그리고, 룰 목록 섹션(ID `rules`)은 이 파일이 붙인다.
  * - 편집 모드에서 룰을 지정할 노드(`ASSIGNABLE_KINDS`)를 고름 → 제목 「룰 지정」, 맨 위, 줄마다 [지정].
- * - 그 밖(세트·선·분기·합류·메모·그룹, 보기 모드 전부) → 제목 「룰 목록」, 맨 아래.
+ * - 아무것도 안 고름(세트)·선(편집 모드는 끼우기 대상, 보기 모드는 찾기만)·보기 모드의 룰·빈 단계 → 제목 「룰 목록」, 맨 아래.
+ * - 시작·끝·IF·병렬·합류·받는 노드·메모·그룹(`NO_RULE_LIST_KINDS`, 접힌 블록도 같은 노드 종류)을 고르면 룰 목록 섹션을 그리지 않는다(쓸 데가 없다).
  * - 선을 고르면 속성 자리에 「연결선」 섹션(라벨 칸, Task 9)과 룰 목록 섹션이 있다(룰 목록 두 번 누르기가 그 선에 끼운다).
  * `assignSignal` 이 바뀌면(page 의 `openRuleAssign`) 룰 지정 섹션을 펴고 그다음 커밋에서 찾기 칸에 초점을 둔다.
  * 섹션 순서가 바뀌어도 같은 key 로 두어 다시 마운트하지 않는다(찾기 상태는 page 의 `useRuleSearch` 라 다시 마운트돼도 남는다).
@@ -27,6 +28,9 @@ import { SetPanel, type SetPanelProps } from "./SetPanel";
 export const RULES_SECTION = "rules";
 /** 「룰 지정」 대상 노드 종류 — 빈 단계(TASK)·룰(RULE). */
 export const ASSIGNABLE_KINDS: ReadonlySet<string> = new Set(["RULE", "TASK"]);
+
+/** 룰 목록을 쓸 데가 없는 선택 — 시작·끝·IF·병렬·합류·받는 노드·메모·그룹. 이때는 섹션을 그리지 않는다(룰 끼우기는 선·고른 것 없음, 룰 지정은 룰·빈 단계). */
+export const NO_RULE_LIST_KINDS: ReadonlySet<string> = new Set(["START", "END", "IF", "PARALLEL", "MERGE", "CATCH", "NOTE", "GROUP"]);
 
 export function ruleListMode(flow: EditFlow, selectedId: string | null, editing: boolean): RuleListMode {
   if (!editing) return "view";
@@ -107,6 +111,7 @@ export function SidePanel(p: SidePanelProps) {
       />
     </Section>
   );
+  const showRules = !NO_RULE_LIST_KINDS.has(target.kind);
   const body =
     target.kind === "SET" ? (
       <SetPanel
@@ -145,7 +150,7 @@ export function SidePanel(p: SidePanelProps) {
   return (
     <div className="rsf-side" data-testid="flow-side" data-kind={target.kind}>
       <PanelHeader target={target} />
-      {listMode === "assign" ? [ruleSection, body] : [body, ruleSection]}
+      {!showRules ? body : listMode === "assign" ? [ruleSection, body] : [body, ruleSection]}
     </div>
   );
 }

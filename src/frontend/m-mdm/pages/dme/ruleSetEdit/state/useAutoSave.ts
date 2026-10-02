@@ -13,8 +13,10 @@
  * 다른 오류는 메시지 줄에 보이고, 그 내용(`contentKey`)이 바뀔 때까지 다시 시도하지 않는다. 껐다 켜도 다시 시도한다.
  * 보낸 내용과 지금 내용이 같은데도 dirty 가 남으면(기준점 계산이 어긋난 경우) 같은 내용을 다시 보내지 않는다 — 2초마다 저장하는 고리를 막는다.
  *
- * 상태 글(2026-10-01): 툴바에는 알아야 할 것(보류·실패·저장 뒤 경고 건수)만 보인다. "저장 중"·"자동 저장됨 HH:MM:SS" 같은 정보 글은
+ * 상태 글(2026-10-01): 툴바에는 알아야 할 것(보류·실패)만 보인다. "저장 중"·"자동 저장됨 HH:MM:SS" 같은 정보 글은
  * 툴바에 두지 않고, 마지막 자동 저장 시각(`savedAt`)을 [자동 저장] 단추 툴팁이 보인다.
+ * 경고(WARN) 검사는 저장을 막지 않고 툴바에도 보이지 않는다 — 아래 검사 결과에만 있다(2026-10-02 사용자 요청).
+ * 저장을 막는 것은 거부(REJECT) 검사뿐이다.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -24,7 +26,7 @@ import type { RuleSetEditState } from "./useRuleSetEdit";
 /** 마지막 변경 뒤 자동 저장까지 기다리는 시간(ms). */
 export const AUTO_SAVE_DELAY_MS = 2000;
 
-/** 툴바 [자동 저장] 옆 상태 글 — 보류·실패·경고만. 경고 문장은 title 로 보인다. */
+/** 툴바 [자동 저장] 옆 상태 글 — 보류·실패만. */
 export interface AutoSaveStatus {
   kind: "warning" | "error";
   text: string;
@@ -51,7 +53,6 @@ const clock = (d: Date) => `${two(d.getHours())}:${two(d.getMinutes())}:${two(d.
 export function useAutoSave(state: RuleSetEditState, active: boolean): AutoSave {
   const [enabled, setEnabledState] = useState(() => loadFlag(storeKeys.autoSave, false));
   const [savedAt, setSavedAt] = useState<Date | null>(null);
-  const [warnings, setWarnings] = useState<string[]>([]);
   /** 실패한 내용의 키 — 내용이 바뀌기 전까지 다시 보내지 않는다. */
   const [failedKey, setFailedKey] = useState<string | null>(null);
   /** 마지막으로 보내 성공한 내용의 키 — dirty 가 남아도 같은 내용은 다시 보내지 않는다. */
@@ -63,7 +64,6 @@ export function useAutoSave(state: RuleSetEditState, active: boolean): AutoSave 
   // 다른 세트를 열거나 [다시 불러오기] 하면 지난 결과를 버린다.
   useEffect(() => {
     setSavedAt(null);
-    setWarnings([]);
     setFailedKey(null);
     setSentKey(null);
   }, [viewEpoch]);
@@ -93,7 +93,6 @@ export function useAutoSave(state: RuleSetEditState, active: boolean): AutoSave 
           setSentKey(r.key);
           setFailedKey(null);
           setSavedAt(new Date());
-          setWarnings(r.checks.map((c) => c.message));
         } else if (r.status === "conflict") {
           setFailedKey(r.key);
           setEnabledState(false);
@@ -115,7 +114,6 @@ export function useAutoSave(state: RuleSetEditState, active: boolean): AutoSave 
   if (enabled && !autoSaving) {
     if (dirty && hasReject) status = { kind: "warning", text: "거부 검사가 있어 자동 저장 보류" };
     else if (dirty && key === failedKey) status = { kind: "error", text: "자동 저장 실패. 고치면 다시 저장한다" };
-    else if (savedAt && warnings.length > 0) status = { kind: "warning", text: `자동 저장 경고 ${warnings.length}건`, title: warnings.join("\n") };
   }
 
   return { enabled, setEnabled, status, savedAt: savedAt ? clock(savedAt) : null };

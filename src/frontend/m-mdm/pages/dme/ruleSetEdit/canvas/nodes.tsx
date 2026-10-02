@@ -12,18 +12,21 @@
  * - 몸통 받기 `body`(편집 모드만, START 제외): 노드 전체를 덮는 투명 target. 평소에는 누름을 받지 않고(노드 끌기·누르기·우클릭이 그대로) 연결을 끄는 동안에만
  *   받는다(React Flow 가 붙이는 `connectionindicator` 클래스) — 몸통 어디에 놓아도 이어진다.
  */
-import { useContext, useRef, useState, type CSSProperties, type HTMLAttributes, type MouseEvent, type ReactNode } from "react";
+import { useContext, useEffect, useRef, useState, type CSSProperties, type HTMLAttributes, type MouseEvent, type ReactNode } from "react";
 
 import { IconBolt, IconExternalLink, IconInfoCircle, IconPencil } from "@tabler/icons-react";
+import { MarkdownEditor, MarkdownView } from "@dk-oasis/shared/markdown-editor";
 
 import type { FlowNode } from "@/contract/engine-contract.generated";
 
 import { catchTitle } from "../catch-text";
+import { storeKeys } from "../debugger/local-store";
 import { TASK_LABEL, type FlowNote } from "../flow-edit";
 import { NODE_SIZE } from "../flow-layout";
 import { NODE_H_MIN, NODE_ICON_LABEL, type NodeSize, type NodeStyle } from "../node-style";
 import type { RuleIo, VarDisplay } from "../types";
 import { GROUP_GRIPS, GroupSizeContext, type GroupGrip } from "./group-size";
+import { NOTE_GRIPS, NoteSizeContext } from "./note-size";
 import { NODE_GRIPS, NodeSizeContext, type NodeGrip } from "./node-size";
 import { NODE_ICON_COMPONENT } from "./node-icons";
 import type { NodeOverlay } from "./overlay";
@@ -67,8 +70,16 @@ export type FlowNodeData = {
   /** 노드 설명(`view.descs`) — 있으면 제목 옆에 설명 아이콘을 그리고 title 로 전체를 보인다. 접힌 분기 상자는 설명을 그리지 않는다. */
   desc?: string;
 };
-export type NoteNodeData = { note: FlowNote; selected: boolean; editable: boolean; onChange: (id: string, patch: Partial<FlowNote>) => void };
-export type GroupNodeData = { id: string; title: string; selected: boolean; /** 편집 모드이고 고른 그룹 — 네 모서리·네 변 크기 손잡이(G2). */ resizable: boolean };
+export type NoteNodeData = { note: FlowNote; selected: boolean; editable: boolean; /** 편집 모드이고 고른 메모 — 크기 손잡이. */ resizable: boolean; onChange: (id: string, patch: Partial<FlowNote>) => void };
+export type GroupNodeData = {
+  id: string;
+  title: string;
+  /** 그룹 색(노드 색과 같은 6색 키, 없으면 null) — 모든 모드에서 `data-color` 로 그린다. */
+  color: NodeStyle["color"] | null;
+  selected: boolean;
+  /** 편집 모드이고 고른 그룹 — 네 모서리·네 변 크기 손잡이(G2). */
+  resizable: boolean;
+};
 
 type FlowRfNode = Node<FlowNodeData, "rsfFlow">;
 type NoteRfNode = Node<NoteNodeData, "rsfNote">;
@@ -492,20 +503,97 @@ export function FlowNodeView({ data, isConnectable }: NodeProps<FlowRfNode>) {
   );
 }
 
+/**
+ * 메모 — 편집 모드에서 한 번 누르면 메모를 고르고(선택 표시·크기 손잡이·끌어 옮기기), 두 번 누르거나 이미 고른 메모를 다시 누르면 서식 편집기
+ * (shared MarkdownEditor, 도구 막대 floating)가 열린다(Esc·편집기 밖으로 초점이 나가면 닫는다). 편집기는 열려 있는 동안만 있어 평소엔 누름이 노드 선택·끌기로 간다.
+ * 고른 채로 끌어 옮긴 뒤 놓는 click 으로 편집기가 열리지 않게, 누른 자리에서 3px 넘게 움직였으면 무시한다.
+ * - 편집하지 않을 때(보기·디버그 모드 포함)는 마크다운을 서식이 적용된 읽기 전용 모습(MarkdownView)으로 그린다. 링크는 새 탭이고 누름이 노드로 가지 않는다
+ *   (링크에 `nodrag nopan` — React Flow 의 끌기는 네이티브 이벤트라 React 의 전파 멈춤으로는 막히지 않는다).
+ * - 편집 중 편집기 뿌리에 `nodrag nowheel nopan nokey`(editingClassName)를 줘 편집기 안 누르기·끌기·휠이 노드 끌기·캔버스 이동·확대가 되지 않는다.
+ *   도구 막대는 편집기 안에 있어 메모 위로 뜬다(편집 중에만 `.rsf-note` 넘침 자르기를 푼다 — styles/note-editor.ts). 고른 노드라 React Flow 가 위로 올려 그린다.
+ * - 편집 방식(서식·MD) 기억은 `storeKeys.noteEditMode`(rsf:noteEditMode) — 오른쪽 패널 「메모」 칸과 같은 키라 같이 바뀐다.
+ * - `flow-note-text-{id}` 는 편집기가 열려 있을 때만 있다(메모 개수 세기·열림 판정 시험이 이 이름에 기댄다).
+ */
+/** 편집 중 편집기 뿌리 — React Flow 가 노드 끌기·휠 확대·캔버스 이동·키 처리를 하지 않는다. */
+const NOTE_EDITING_CLASS = "nodrag nowheel nopan nokey";
+/** 읽기 모습 링크 — 눌러도 노드가 끌리거나 캔버스가 움직이지 않는다. */
+const NOTE_LINK_CLASS = "nodrag nopan";
+
 export function NoteNodeView({ data }: NodeProps<NoteRfNode>) {
-  const { note, selected, editable, onChange } = data;
+  const { note, selected, editable, resizable, onChange } = data;
+  const sizing = useContext(NoteSizeContext);
+  const [editing, setEditing] = useState(false);
+  const down = useRef<{ x: number; y: number; wasSelected: boolean } | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const open = editing && editable;
+  // 보기·디버그 모드로 바뀌면 편집을 끝낸다 — 다시 편집 모드가 되어도 누르기 전엔 열리지 않는다.
+  useEffect(() => {
+    if (!editable) setEditing(false);
+  }, [editable]);
+  /** Esc·초점 나감 — 초점이 메모 안이거나 갈 곳이 없으면 캔버스로 돌려 단축키가 이어지게 한다(다른 칸으로 옮긴 초점은 그대로 둔다). */
+  const exit = () => {
+    const el = rootRef.current;
+    const canvas = el?.closest<HTMLElement>('[data-testid="flow-canvas"]');
+    const active = document.activeElement;
+    const lost = !active || active === document.body || !!el?.contains(active);
+    setEditing(false);
+    if (lost) canvas?.focus({ preventScroll: true });
+  };
   return (
-    <div className="rsf-note" data-testid={`flow-note-${note.id}`} data-selected={selected ? "true" : "false"}>
-      {editable ? (
-        <textarea
-          className="nodrag nowheel"
-          data-testid={`flow-note-text-${note.id}`}
+    <div
+      ref={rootRef}
+      className="rsf-note"
+      data-testid={`flow-note-${note.id}`}
+      data-selected={selected ? "true" : "false"}
+      onPointerDown={(e) => {
+        down.current = { x: e.clientX, y: e.clientY, wasSelected: selected };
+      }}
+      onClick={(e) => {
+        const d = down.current;
+        down.current = null;
+        // 크기 손잡이는 pointerdown 을 멈추므로(d 없음) 놓을 때 오는 click 은 손잡이 것이다 — 편집기를 열지 않는다.
+        if ((e.target as HTMLElement).closest(".rsf-note-grip")) return;
+        if (!editable || open || !(d ? d.wasSelected : selected)) return;
+        if (d && (Math.abs(e.clientX - d.x) > 3 || Math.abs(e.clientY - d.y) > 3)) return;
+        setEditing(true);
+      }}
+      onDoubleClick={(e) => {
+        if (!editable) return;
+        e.stopPropagation();
+        setEditing(true);
+      }}
+    >
+      {open ? (
+        <MarkdownEditor
+          toolbar="floating"
+          editingClassName={NOTE_EDITING_CLASS}
+          linkClassName={NOTE_LINK_CLASS}
+          modeStorageKey={storeKeys.noteEditMode}
+          ariaLabel="메모"
+          testId={`flow-note-text-${note.id}`}
           value={note.text}
-          onChange={(e) => onChange(note.id, { text: e.target.value })}
+          editable
+          autoFocus
+          onChange={(text) => onChange(note.id, { text })}
+          onExit={exit}
         />
       ) : (
-        note.text
+        <MarkdownView value={note.text} linkClassName={NOTE_LINK_CLASS} />
       )}
+      {resizable &&
+        sizing &&
+        NOTE_GRIPS.map((g) => (
+          <span
+            key={g}
+            className="rsf-note-grip nodrag nopan"
+            role="button"
+            data-grip={g}
+            data-testid={`flow-notegrip-${note.id}-${g}`}
+            aria-label={`메모 크기 — ${NODE_GRIP_LABEL[g]}`}
+            title="끌어 메모 크기를 바꾼다"
+            onPointerDown={(e) => sizing.startDrag(e, note.id, g)}
+          />
+        ))}
     </div>
   );
 }
@@ -518,7 +606,7 @@ const GRIP_LABEL: Record<GroupGrip, string> = {
 export function GroupNodeView({ data }: NodeProps<GroupRfNode>) {
   const size = useContext(GroupSizeContext);
   return (
-    <div className="rsf-group" data-testid={`flow-group-${data.id}`} data-selected={data.selected ? "true" : "false"}>
+    <div className="rsf-group" data-testid={`flow-group-${data.id}`} data-selected={data.selected ? "true" : "false"} data-color={data.color ?? undefined}>
       <span className="rsf-group-title">{data.title}</span>
       {data.resizable &&
         size &&

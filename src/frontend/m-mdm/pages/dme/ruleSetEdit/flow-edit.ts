@@ -19,7 +19,7 @@ import type { CatchKind, FlowEdge, FlowNode, FlowNodeKind, RuleSetFlow } from "@
 
 import { CATCHABLE, CATCH_KINDS, catchesOf, endingBranches, handlerTarget, joinOf, linearFlow, returnOf } from "./flow-model";
 import { descsFor, normalizeDesc, trimDesc } from "./node-desc";
-import { mergeNodeStyle, normalizeNodeStyle, stylesFor, type NodeColor, type NodeStyle, type NodeStylePatch } from "./node-style";
+import { mergeNodeStyle, normalizeNodeStyle, paintedColor, stylesFor, type NodeColor, type NodeStyle, type NodeStylePatch } from "./node-style";
 
 export interface FlowPos {
   x: number;
@@ -47,6 +47,8 @@ export interface FlowGroup {
   nodeIds: string[];
   /** 더한 여백(G2). 없으면 기본 크기. 네 값이 모두 0 이면 두지 않는다(저장 글자·dirty 비교가 예전 그룹과 같다). */
   pad?: GroupPad;
+  /** 그룹 색(노드 색과 같은 6색, 우클릭 「색상」). 기본이면 두지 않는다(pad 와 같은 원칙 — 색 없는 그룹의 저장 글자가 예전과 같다). */
+  color?: NodeColor;
 }
 export interface FlowView {
   positions: Record<string, FlowPos>;
@@ -158,10 +160,14 @@ export function normalizePad(p: unknown): GroupPad | null {
   const pad = { l: v(p.l), t: v(p.t), r: v(p.r), b: v(p.b) };
   return pad.l || pad.t || pad.r || pad.b ? pad : null;
 }
-/** 그룹 복사 — pad 는 있을 때만 마지막 키로 둔다. */
+/** 그룹 복사(정규화는 이 한 곳) — 키 순서 id·title·nodeIds·pad·color, pad·color 는 있을 때만 둔다. 모르는 색·기본 색은 버린다. */
 const copyGroup = (g: FlowGroup): FlowGroup => {
+  const out: FlowGroup = { id: g.id, title: g.title, nodeIds: [...g.nodeIds] };
   const pad = normalizePad(g.pad);
-  return pad ? { id: g.id, title: g.title, nodeIds: [...g.nodeIds], pad } : { id: g.id, title: g.title, nodeIds: [...g.nodeIds] };
+  if (pad) out.pad = pad;
+  const color = paintedColor(g.color);
+  if (color) out.color = color;
+  return out;
 };
 
 /** 흐름에 있는 선의 경로만, 선 배열 순서로 복사한다(빈 경로·없는 선은 버린다). */
@@ -243,7 +249,7 @@ function sanitizeView(raw: unknown): FlowView {
     for (const g of raw.groups) {
       if (!isObj(g) || typeof g.id !== "string" || typeof g.title !== "string") continue;
       if (!Array.isArray(g.nodeIds) || !g.nodeIds.every((x) => typeof x === "string")) continue;
-      view.groups.push(copyGroup({ id: g.id, title: g.title, nodeIds: g.nodeIds as string[], pad: normalizePad(g.pad) ?? undefined }));
+      view.groups.push(copyGroup({ id: g.id, title: g.title, nodeIds: g.nodeIds as string[], pad: g.pad as GroupPad | undefined, color: g.color as NodeColor | undefined }));
     }
   }
   if (isObj(raw.routes)) {
@@ -1019,10 +1025,32 @@ export function setGroupPad(f: EditFlow, id: string, pad: GroupPad | null): Edit
   const next = normalizePad(pad);
   g.view.groups = g.view.groups.map((x) => {
     if (x.id !== id) return x;
-    const base = { id: x.id, title: x.title, nodeIds: x.nodeIds };
-    return next ? { ...base, pad: next } : base;
+    const base: FlowGroup = { id: x.id, title: x.title, nodeIds: x.nodeIds };
+    if (next) base.pad = next;
+    if (x.color) base.color = x.color; // 크기를 바꿔도 색은 남는다
+    return base;
   });
   return { ok: true, flow: g };
+}
+
+/**
+ * 그룹 여럿의 색을 한 번에 바꾼다(그룹 우클릭 「색상」, 편집 한 번 — 노드 `setNodesColor` 와 같은 규칙). `default` 는 색 키 지우기.
+ * 없는 그룹·모르는 색은 건너뛴다. 크기(pad)·소속은 그대로다. 바뀌는 것이 없으면 같은 흐름 객체를 돌려준다.
+ */
+export function setGroupsColor(f: EditFlow, groupIds: readonly string[], color: NodeColor): EditFlow {
+  const next = paintedColor(color);
+  if (next === null && color !== "default") return f;
+  const targets = new Set(groupIds);
+  if (!f.view.groups.some((x) => targets.has(x.id) && (x.color ?? null) !== next)) return f;
+  const g = clone(f);
+  g.view.groups = g.view.groups.map((x) => {
+    if (!targets.has(x.id)) return x;
+    const out: FlowGroup = { id: x.id, title: x.title, nodeIds: x.nodeIds };
+    if (x.pad) out.pad = x.pad;
+    if (next) out.color = next;
+    return out;
+  });
+  return g;
 }
 
 // ───────────────────────── 3단계 편집 연산(계획 P6) ─────────────────────────

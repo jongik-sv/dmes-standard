@@ -90,3 +90,17 @@ export function findButton(root: ParentNode, label: string): HTMLButtonElement {
 }
 
 export const RBAC_STORE_KEY = "__dkOasisButtonRbacStore__";
+
+/**
+ * ProseMirror(메모 서식 편집기, Tiptap)가 고르기·스크롤 위치를 잴 때 부르는 DOM API — happy-dom 에 없거나 빈 값이라 0 크기 사각형으로 채운다.
+ * 이미 있는 것은 건드리지 않는다.
+ */
+export function polyfillLayout(): void {
+  const rect = { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, toJSON: () => ({}) } as DOMRect;
+  const list = Object.assign([rect], { item: () => rect }) as unknown as DOMRectList;
+  for (const proto of [Range.prototype, Element.prototype] as unknown as { getClientRects?: () => DOMRectList; getBoundingClientRect?: () => DOMRect }[]) {
+    if (!proto.getClientRects) proto.getClientRects = () => list;
+    if (!proto.getBoundingClientRect) proto.getBoundingClientRect = () => rect;
+  }
+  if (!document.elementFromPoint) (document as unknown as { elementFromPoint: () => null }).elementFromPoint = () => null;
+}

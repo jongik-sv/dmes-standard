@@ -82,6 +82,15 @@ const GRIP_RULES = `
 .rsf-node-grip[data-grip="e"] { right: -5px; top: calc(75% - 5px); cursor: ew-resize; }
 .rsf-node-grip[data-grip="s"] { left: calc(75% - 5px); bottom: -5px; cursor: ns-resize; }
 .rsf-node-grip[data-grip="se"] { right: -5px; bottom: -5px; cursor: nwse-resize; }
+/* 메모 크기 손잡이 — 메모 틀이 넘침을 숨기므로(overflow hidden) 손잡이는 틀 안쪽 가장자리에 둔다. 글 칸 위로 올린다. */
+.rsf-note-grip {
+  position: absolute; box-sizing: border-box; width: 10px; height: 10px; z-index: 7; pointer-events: auto; touch-action: none;
+  background: var(--color-bg); border: 1.5px solid var(--color-primary); border-radius: 2px;
+}
+.rsf-note-grip:hover { background: var(--color-primary-soft); }
+.rsf-note-grip[data-grip="e"] { right: 0; top: calc(50% - 5px); cursor: ew-resize; }
+.rsf-note-grip[data-grip="s"] { left: calc(50% - 5px); bottom: 0; cursor: ns-resize; }
+.rsf-note-grip[data-grip="se"] { right: 0; bottom: 0; cursor: nwse-resize; }
 `;
 
 export const NODE_STYLE_CSS = [PALETTE, NODE_RULES, GRIP_RULES].join("\n");

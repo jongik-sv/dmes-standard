@@ -25,11 +25,13 @@ async function searchRules(keyword: string): Promise<IdPickRow[]> {
 }
 
 export interface RulePickerProps {
+  /** 지금 연 룰 ID — 칸에 채운다(링크로 열렸을 때 포함). */
+  currentId?: string | null;
   onPick: (ruleId: string) => void;
   onError: (message: string) => void;
 }
 
-export function RulePicker({ onPick, onError }: RulePickerProps) {
+export function RulePicker({ currentId, onPick, onError }: RulePickerProps) {
   return (
     <IdPicker
       label="룰"
@@ -38,6 +40,7 @@ export function RulePicker({ onPick, onError }: RulePickerProps) {
       testId="rule-pick"
       search={searchRules}
       limit={RULE_PICK_LIMIT}
+      currentId={currentId}
       onPick={onPick}
       onError={onError}
     />

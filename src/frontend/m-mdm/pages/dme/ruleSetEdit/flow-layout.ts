@@ -18,7 +18,7 @@ export const NODE_SIZE: Readonly<Record<FlowNodeKind, { w: number; h: number }>>
   TASK: { w: 232, h: 68 }, // 빈 단계 — 룰과 같은 크기(룰을 지정해도 자리가 흔들리지 않는다, 4단계 spec §1.2)
   IF: { w: 176, h: 44 },
   PARALLEL: { w: 200, h: 14 },
-  MERGE: { w: 200, h: 14 }, // 병렬 합류 — 병렬 분기와 같은 크기의 이중선 막대(implicit-join spec §10)
+  MERGE: { w: 200, h: 14 }, // 병렬 합류 — 병렬 분기와 같은 크기의 속 빈 막대(implicit-join spec §10)
   CATCH: { w: 28, h: 28 }, // 받는 노드 — 룰 아래 테두리에 걸친 작은 원(받는 노드 spec §8, Ruling R15)
 };
 

@@ -79,7 +79,7 @@ export interface EditActionsDeps {
 }
 
 export interface EditActions {
-  actions: Omit<CanvasActions, "toggleCollapse" | "toggleBreakpoint" | "runTo" | "align" | "distribute" | "setNodeColor">;
+  actions: Omit<CanvasActions, "toggleCollapse" | "toggleBreakpoint" | "runTo" | "align" | "distribute" | "setNodeColor" | "setGroupColor">;
   /** 팔레트 항목 누르기 — 고른 선(없으면 END 앞 선)에. */
   pickPalette(item: PaletteItem): void;
   /** 룰 목록 두 번 누르기(4단계 Task 8) — 고른 선(없으면 END 앞 선)에 끼우고 새 룰에서 나가는 선을 고른다. */

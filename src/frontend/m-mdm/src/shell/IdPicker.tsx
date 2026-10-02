@@ -77,6 +77,11 @@ export interface IdPickerProps {
   onPick: (id: string) => void;
   onError: (message: string) => void;
   inputWidth?: number;
+  /**
+   * 화면이 지금 연 ID. 바뀌면 칸에 그 ID 를 채운다 — 다른 화면의 링크(handoff)로 열렸을 때도 칸이 비지 않게(2026-10-02).
+   * 같은 ID 인 동안에는 사용자가 친 글자를 덮지 않는다.
+   */
+  currentId?: string | null;
 }
 
 /** 이미 받아 둔 후보를 화면에서 거른다 — ID·이름 부분 일치(대소문자 무시), 앞에서 `limit` 건. 빈 글자면 앞에서부터. */
@@ -93,8 +98,8 @@ function subjectOf(noun: string): string {
   return `${noun}${hasFinal ? "이" : "가"}`;
 }
 
-export function IdPicker({ label, placeholder, noun, testId, search, limit, onPick, onError, inputWidth = 220 }: IdPickerProps) {
-  const [keyword, setKeyword] = useState("");
+export function IdPicker({ label, placeholder, noun, testId, search, limit, onPick, onError, inputWidth = 220, currentId }: IdPickerProps) {
+  const [keyword, setKeyword] = useState(currentId ?? "");
   const [picks, setPicks] = useState<IdPickRow[] | null>(null);
   const [active, setActive] = useState(0);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -104,6 +109,19 @@ export function IdPicker({ label, placeholder, noun, testId, search, limit, onPi
   const listId = `${testId}-list`;
 
   const close = () => setPicks(null);
+
+  // 연 ID 가 바뀌면(링크로 열림·목록에서 고름·다른 세트 열기) 칸을 그 ID 로 맞춘다. 첫 그리기는 useState 초기값이 맡는다.
+  const shownId = useRef(currentId ?? null);
+  useEffect(() => {
+    const id = currentId ?? null;
+    if (id === shownId.current) return;
+    shownId.current = id;
+    if (id) {
+      setKeyword(id);
+      findSeq.current++;
+      setPicks(null);
+    }
+  }, [currentId]);
 
   const find = async () => {
     const seq = ++findSeq.current;

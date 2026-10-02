@@ -379,7 +379,7 @@ describe("자동 저장 — 진행 중 변경·실패", () => {
     expect(h.current.s.message).toBeNull();
   });
 
-  it("13. 저장 응답의 경고는 메시지 줄을 띄우지 않고 상태 글에 건수와 title 로 보인다", async () => {
+  it("13. 경고가 있어도 저장하고, 저장 응답의 경고는 메시지 줄에도 툴바 상태 글에도 보이지 않는다(검사 결과에만)", async () => {
     api.saveSet.mockResolvedValue(saved(4, [warn("경고 하나"), warn("경고 둘")]));
     await openEdit();
     await run((p) => p.a.setEnabled(true));
@@ -387,7 +387,9 @@ describe("자동 저장 — 진행 중 변경·실패", () => {
     await advance(AUTO_SAVE_DELAY_MS);
     await advance(0);
     expect(h.current.s.message).toBeNull();
-    expect(h.current.a.status).toEqual({ kind: "warning", text: "자동 저장 경고 2건", title: "경고 하나\n경고 둘" });
+    expect(api.saveSet).toHaveBeenCalledTimes(1);
+    expect(h.current.s.dirty).toBe(false);
+    expect(h.current.a.status).toBeNull();
     expect(h.current.a.savedAt).toBe("15:42:12");
   });
 

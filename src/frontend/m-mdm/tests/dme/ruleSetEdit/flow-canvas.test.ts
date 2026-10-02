@@ -65,6 +65,7 @@ async function draw(p: FlowCanvasProps) {
   });
 }
 const q = (id: string) => document.querySelector(`[data-testid="${id}"]`) as HTMLElement | null;
+const dblclick = async (el: Element) => act(async () => { el.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })); });
 const click = async (el: Element) => act(async () => { el.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
 
 describe("FlowCanvas", () => {
@@ -134,7 +135,24 @@ describe("FlowCanvas", () => {
     expect(q("flow-note-text-n1")).toBeNull();
     expect(q("flow-group-g1")?.textContent).toBe("묶음");
     await draw(props({ flow, mode: "edit" }));
+    expect(q("flow-note-text-n1")).toBeNull(); // 편집 모드여도 평소엔 글 칸이 닫혀 있다 — 누르면 고르기가 먼저다
+    await dblclick(q("flow-note-n1")!);
     expect(q("flow-note-text-n1")).not.toBeNull();
+  });
+
+  it("메모 — 한 번 누르면 고르기만, 고른 메모를 다시 누르면 글 칸이 열리고 Esc 로 닫힌다", async () => {
+    const flow = { ...ifFlow(), view: { positions: {}, notes: [{ id: "n1", text: "메모글", x: 10, y: 10, w: 120, h: 60, attach: null }], groups: [] } };
+    const onSelect = vi.fn();
+    await draw(props({ flow, mode: "edit", onSelect, selectedId: null }));
+    await click(q("flow-note-n1")!);
+    expect(onSelect).toHaveBeenCalledWith("n1");
+    expect(q("flow-note-text-n1")).toBeNull();
+    await draw(props({ flow, mode: "edit", onSelect, selectedId: "n1" }));
+    expect(q("flow-note-n1")!.getAttribute("data-selected")).toBe("true");
+    await click(q("flow-note-n1")!);
+    expect(q("flow-note-text-n1")).not.toBeNull();
+    await act(async () => { q("flow-note-text-n1")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })); });
+    expect(q("flow-note-text-n1")).toBeNull();
   });
 
   it("같은 focusId 로 focusSeq 만 올리면 다시 깜빡이고, focusId 가 null 이면 사라진다", async () => {

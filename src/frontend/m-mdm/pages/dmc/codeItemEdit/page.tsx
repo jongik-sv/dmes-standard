@@ -459,7 +459,7 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
       <SearchArea onSearch={() => void load(maruCodeId, selected?.ver)}>
         <SearchField label="마루 코드" className="span-2">
           <IdPicker placeholder="코드 ID·코드명" noun="마루 코드" testId="code-pick" search={searchCodePicks}
-            limit={CODE_PICK_LIMIT} onPick={chooseCode} onError={(message) => setErrorMessage(message)} inputWidth={150} />
+            limit={CODE_PICK_LIMIT} currentId={header?.maruCodeId ?? null} onPick={chooseCode} onError={(message) => setErrorMessage(message)} inputWidth={150} />
           {header && (
             <span data-testid="code-current" style={{ fontWeight: 600, whiteSpace: "nowrap" }}>
               {`${header.maruCodeId} ${header.maruCodeName}`}

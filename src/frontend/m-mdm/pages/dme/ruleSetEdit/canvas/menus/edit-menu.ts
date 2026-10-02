@@ -44,6 +44,25 @@ function colorItem(f: EditFlow, ctx: MenuContext, nodeId: string): MenuItem {
   };
 }
 
+/**
+ * 그룹 「색상」(붓) — 그룹 우클릭 메뉴 맨 앞. 노드와 같은 6색 격자. 우클릭한 그룹이 다중 선택 안이고 선택 안 그룹이 둘 이상이면
+ * 그 전부에, 아니면 그 그룹 하나에 칠한다(노드 C4 와 같은 규칙 — 선택 안 노드는 세지 않는다). 고른 칸은 우클릭한 그룹의 지금 색.
+ */
+function groupColorItem(f: EditFlow, ctx: MenuContext, groupId: string): MenuItem[] {
+  const group = f.view.groups.find((g) => g.id === groupId);
+  if (!group) return [];
+  const isGroup = (id: string) => f.view.groups.some((g) => g.id === id);
+  const picked = (ctx.selection ?? []).filter(isGroup);
+  const targets = ctx.selection?.includes(groupId) && picked.length >= 2 ? picked : [groupId];
+  const cur = group.color ?? "default";
+  return [{
+    id: "color",
+    label: "색상",
+    icon: "brush",
+    swatches: NODE_COLORS.map((c) => ({ id: `color-${c}`, label: NODE_COLOR_LABEL[c], color: c, active: c === cur, run: () => ctx.act.setGroupColor(targets, c) })),
+  }];
+}
+
 export const editMenu: MenuProvider = (t, ctx) => {
   if (ctx.mode !== "edit") return [];
   const { flow, act } = ctx;
@@ -114,7 +133,10 @@ export const editMenu: MenuProvider = (t, ctx) => {
     return items;
   }
 
-  const items: MenuItem[] = [{ id: "note-add", label: "메모 더하기", run: () => act.addNote(t.at) }];
+  const items: MenuItem[] = [
+    ...(t.groupId ? groupColorItem(flow, ctx, t.groupId) : []),
+    { id: "note-add", label: "메모 더하기", run: () => act.addNote(t.at) },
+  ];
   const target = ctx.selectedEdgeId;
   if (ctx.hasClipboard && target) items.push({ id: "paste", label: "붙여넣기", run: () => act.paste(target) });
   items.push({ id: "auto-layout", label: "자동 정렬", run: () => act.autoLayout() });

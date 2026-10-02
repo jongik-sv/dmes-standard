@@ -641,6 +641,8 @@ describe("RuleSetEditPage", () => {
     srv.views.E2S_OTHER = chainView({ set: { ...chainView().set, setId: "E2S_OTHER", setName: "다른 세트" } });
     handoff("E2S_CHAIN");
     await renderPage({ tabId: "tab-9" });
+    // 링크로 열려도 세트 고르기 칸에 연 세트 ID 가 들어 있다.
+    expect(byTestId<HTMLInputElement>("set-pick-keyword").value).toBe("E2S_CHAIN");
     await click("flow-mode-edit");
     await typeInto(byTestId<HTMLInputElement>("set-name"), "사슬(고침)");
 
@@ -661,6 +663,7 @@ describe("RuleSetEditPage", () => {
     await flush();
     expect(calls("view").at(-1)!.body.params).toEqual({ setId: "E2S_OTHER" });
     expect(byTestId("set-edit-current").textContent).toContain("E2S_OTHER");
+    expect(byTestId<HTMLInputElement>("set-pick-keyword").value).toBe("E2S_OTHER");
     expect(byTestId("flow-canvas").getAttribute("data-mode")).toBe("view");
   });
 

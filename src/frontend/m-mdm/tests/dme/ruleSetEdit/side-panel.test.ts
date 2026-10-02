@@ -107,7 +107,7 @@ describe("오른쪽 머리글·섹션(4단계 Task 8)", () => {
     expect(byTestId("flow-section-rule-inputs-head").getAttribute("aria-expanded")).toBe("false");
     expect(isOpen("rule-basic")).toBe(true);
     await click("flow-node-if1");
-    expect(sectionIds()).toEqual(["split-basic", "split-branches", "rules"]);
+    expect(sectionIds()).toEqual(["split-basic", "split-branches"]); // IF — 룰 목록 없음
     expect(isOpen("split-basic") && isOpen("split-branches")).toBe(true);
     await click("flow-node-r2"); // 같은 종류(RULE)는 접은 상태가 남는다
     expect(isOpen("rule-inputs")).toBe(false);
@@ -205,6 +205,47 @@ describe("오른쪽 머리글·섹션(4단계 Task 8)", () => {
     await dbl("flow-rule-row-SP_NEW");
     expect(visibleText(byTestId("flow-node-r1"))).toContain("SP_A");
     expect(calls("save")).toHaveLength(0);
+  });
+
+  it("「룰 목록」 보임·숨김 — 고른 것과 쓰임이 있을 때만(세트·선·룰·빈 단계 보임 / 시작·끝·IF·병렬·합류·받는 노드·메모·그룹 숨김)", async () => {
+    let f = toEditFlow(null, ["SP_A", "SP_B"]);
+    f = must(insertSplit(f, "e3", "IF")); // r3(빈 단계)·if1
+    f = must(insertSplit(f, "e1", "PARALLEL")); // par·m 합류
+    f = must(addGroup(f, ["r1"], "묶음"));
+    f = addNote(f, { x: 600, y: 40 }, null).flow;
+    const mergeId = f.nodes.find((n) => n.kind === "MERGE")!.id;
+    const parId = f.nodes.find((n) => n.kind === "PARALLEL")!.id;
+    const taskId = f.nodes.find((n) => n.kind === "TASK")!.id;
+    await openSet("SP_K", viewOf("SP_K", f));
+    const hasList = () => q("flow-section-rules") !== null && q("flow-rule-panel-search") !== null;
+    const noteId = f.view.notes[0].id;
+    const groupId = f.view.groups[0].id;
+    const nodeOrView = (id: string) => (id === noteId ? `flow-note-${id}` : id === groupId ? `flow-group-${id}` : `flow-node-${id}`);
+    const cases: Array<[string, string | null, boolean]> = [
+      ["SET", null, true],
+      ["RULE", "r1", true],
+      ["TASK", taskId, true],
+      ["START", "start", false],
+      ["END", "end", false],
+      ["IF", "if1", false],
+      ["PARALLEL", parId, false],
+      ["MERGE", mergeId, false],
+      ["NOTE", noteId, false],
+      ["GROUP", groupId, false],
+    ];
+    for (const mode of ["flow-mode-edit", "flow-mode-view"]) {
+      await click(mode);
+      for (const [kind, id, shown] of cases) {
+        if (id) await click(nodeOrView(id));
+        else await clickPane();
+        expect(byTestId("flow-side").getAttribute("data-kind"), `${mode} ${id}`).toBe(kind);
+        expect(hasList(), `${mode} ${kind}`).toBe(shown);
+      }
+    }
+    await click("flow-mode-edit");
+    await clickEdge("e2");
+    expect(byTestId("flow-side").getAttribute("data-kind")).toBe("EDGE");
+    expect(hasList()).toBe(true); // 선 — 두 번 누르면 그 선에 끼운다
   });
 
   it("찾은 줄은 섹션을 접었다 펴도, 「룰 목록」↔「룰 지정」 으로 자리가 바뀌어도 남는다", async () => {

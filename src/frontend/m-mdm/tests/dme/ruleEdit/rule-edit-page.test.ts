@@ -154,6 +154,8 @@ describe("RuleEditPage", () => {
     await render();
     expect(params("view")).toEqual({ maruRuleId: "QLTY_GRD_JDG", ver: 1 });
     expect(window.sessionStorage.getItem(RULE_EDIT_TARGET_KEY)).toBeNull();
+    // 링크로 열려도 룰 고르기 칸에 연 룰 ID 가 들어 있다.
+    expect((document.querySelector('[data-testid="rule-pick-keyword"]') as HTMLInputElement).value).toBe("QLTY_GRD_JDG");
   });
 
   it("이미 열린 화면은 대상 이벤트를 받으면 그 룰로 바꾼다", async () => {

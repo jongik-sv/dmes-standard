@@ -8,7 +8,7 @@
  * - 룰·빈 단계: 편집 모드면 「외관」 섹션(S1, NodeStylePanel)
  * - 룰·빈 단계·분기·시작·끝: 「설명」 여러 줄 입력 칸(`view.descs`, 최대 1000자). 보기 모드는 읽기 전용, 입력하는 동안은 되돌리기 한 칸으로 묶는다. 합류는 없다.
  * - 받는 노드: 제목·붙은 룰·CATCH_* 안내, 받을 예외 네 개 체크(같은 룰의 다른 받는 노드가 받는 종류는 꺼짐)·CATCH_NEVER 경고, [지우기]. 설명 칸은 없다.
- * - 합류·시작·끝: 종류 설명. 메모: 글. 그룹: 제목.
+ * - 합류·시작·끝: 종류 설명. 메모: 글(마크다운 — 편집 모드면 처음부터 서식 편집기, 보기 모드면 읽기 모습. shared MarkdownField fill). 그룹: 제목.
  * 갈래는 머리행 있는 표가 아니라 칸 묶음으로 쌓는다(입력 요소를 그리드 칸에 두지 않는다, Local-Rules §12).
  * 4단계 Task 8: 머리글(이름)은 `SidePanel`, 각 소제목은 접는 섹션(`Section`) — testid 는 그대로.
  */
@@ -19,6 +19,7 @@ import { IconArrowDown, IconArrowUp, IconExternalLink, IconGripVertical, IconPlu
 import type { CatchKind, FlowEdge, FlowNode } from "@/contract/engine-contract.generated";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { Button, Checkbox, Input, Textarea } from "@dk-oasis/shared/form";
+import { MarkdownField } from "@dk-oasis/shared/markdown-editor";
 import { badgeStyle } from "@/shell";
 
 import { SOURCE_LABEL, SOURCE_TONE, typeText } from "../cards/SetIoTables";
@@ -41,6 +42,7 @@ import {
   type EditResult,
 } from "../flow-edit";
 import { CATCH_KIND_LABEL, catchTitle } from "../catch-text";
+import { storeKeys } from "../debugger/local-store";
 import { MAX_DESC } from "../node-desc";
 import { restyleNode, type NodeLayoutSource } from "../flow-layout";
 import { CATCH_KINDS, catchesOf, endingBranches, parseFlow, type FlowTree } from "../flow-model";
@@ -601,14 +603,18 @@ export function PropertyPanel(props: PropertyPanelProps) {
   const note = flow.view.notes.find((n) => n.id === selectedId);
   if (note) {
     return (
-      <div className="rsf-panel" data-testid="flow-prop-note">
+      // 메모 패널은 남은 높이를 모두 쓴다(rsf-panel-fill — styles/note-editor.ts): 편집 칸이 늘고 「지우기」는 맨 아래.
+      <div className="rsf-panel rsf-panel-fill" data-testid="flow-prop-note">
         <Section kind="NOTE" id="note-basic" title="메모" memory={props.sections}>
-          <Textarea
-            data-testid="flow-prop-note-text"
+          <MarkdownField
+            key={note.id}
+            testId="flow-prop-note-text"
+            viewTestId="flow-prop-note-view"
+            modeStorageKey={storeKeys.noteEditMode}
+            fill
             value={note.text}
-            rows={5}
-            readOnly={!editable}
-            aria-label="메모 글"
+            editable={editable}
+            ariaLabel="메모 글"
             onChange={(v) => onEdit((f) => updateNote(f, note.id, { text: v }), { mergeKey: `note:${note.id}` })}
           />
           {note.attach && <p className="rsf-panel-note rsf-muted">{`노드 ${note.attach} 옆에 붙였다`}</p>}

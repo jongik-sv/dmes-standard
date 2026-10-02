@@ -60,11 +60,17 @@ const finite = (v: unknown): v is number => typeof v === "number" && Number.isFi
 const clampInt = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(v)));
 const among = <T extends string>(list: readonly T[], v: unknown): v is T => typeof v === "string" && (list as readonly string[]).includes(v);
 
+/** 칠한 색(목록에 있고 기본이 아닌 색)이면 그 색, 아니면 null — 노드 외관·그룹 색이 함께 쓴다. */
+export function paintedColor(v: unknown): Exclude<NodeColor, "default"> | null {
+  return among(NODE_COLORS, v) && v !== "default" ? v : null;
+}
+
 /** 모양이 맞는 칸만 정해진 순서로 남긴다. 범위 밖 숫자는 자르고, 기본값과 같은 칸은 버린다. 남는 칸이 없으면 null. */
 export function normalizeNodeStyle(raw: unknown): NodeStyle | null {
   if (!isObj(raw)) return null;
   const out: NodeStyle = {};
-  if (among(NODE_COLORS, raw.color) && raw.color !== "default") out.color = raw.color;
+  const color = paintedColor(raw.color);
+  if (color) out.color = color;
   if (finite(raw.w)) {
     const w = clampInt(raw.w, NODE_W_MIN, NODE_W_MAX);
     if (w !== NODE_W_MIN) out.w = w;

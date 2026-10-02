@@ -572,6 +572,7 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
             testId="item-pick"
             search={searchMaruPicks}
             limit={MARU_PICK_LIMIT}
+            currentId={header?.maruDataId ?? null}
             onPick={(id) => void selectMaruData(id)}
             onError={setError}
             inputWidth={150}

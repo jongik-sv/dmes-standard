@@ -1,5 +1,5 @@
 /** @vitest-environment happy-dom */
-// implicit-join spec §8.3·§8.4·§10 — 이중선 병렬 합류·빈 단계 예외 연결점·접기 대표 선 손잡이 없음·분기 풀기 메뉴·IF 패널 끝냄 표지·안내·빈 단계 받는 노드 경고.
+// implicit-join spec §8.3·§8.4·§10 — 속 빈 병렬 합류·빈 단계 예외 연결점·접기 대표 선 손잡이 없음·분기 풀기 메뉴·IF 패널 끝냄 표지·안내·빈 단계 받는 노드 경고.
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -40,10 +40,15 @@ afterEach(() => {
 const q = (id: string) => document.querySelector(`[data-testid="${id}"]`) as HTMLElement | null;
 const noop = () => {};
 
-describe("이중선 병렬 합류·빈 단계 예외 연결점(§10·§8.3)", () => {
-  it("병렬 합류 스타일은 배경 없이 위·아래 두 줄이다", () => {
-    expect(BASE_CSS).toMatch(/\.rsf-merge \{[^}]*border-top: 4px solid var\(--rsf-par-bar\);[^}]*border-bottom: 4px solid var\(--rsf-par-bar\);/);
+describe("속 빈 병렬 합류·빈 단계 예외 연결점(§10·§8.3)", () => {
+  it("병렬 합류 스타일은 병렬 막대와 같은 모서리의 속 빈 막대다", () => {
+    expect(BASE_CSS).toMatch(/\.rsf-merge \{[^}]*background: transparent;[^}]*border: 3px solid var\(--rsf-par-bar\);[^}]*border-radius: 3px;/);
     expect(BASE_CSS).not.toMatch(/\.rsf-merge \{[^}]*border-radius: 50%/);
+    expect(BASE_CSS).not.toMatch(/\.rsf-merge \{[^}]*border-top:/);
+  });
+
+  it("병렬 합류는 골라도 테두리 색을 바꾸지 않고 바깥선만 그린다", () => {
+    expect(BASE_CSS).toMatch(/\.rsf-merge\[data-selected="true"\] \{[^}]*border-color: var\(--rsf-par-bar\);[^}]*outline: 2px solid var\(--color-primary\);/);
   });
 
   it("빈 단계에도 예외 연결점 손잡이가 있다", () => {

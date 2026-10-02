@@ -110,9 +110,8 @@ describe("자동 저장 단추·상태 글", () => {
     await advance(50);
     expect(calls("view")).toHaveLength(1);
     expect(visibleText(byTestId("set-row-version"))).toBe("row_version 4");
-    // "자동 저장됨 HH:MM:SS" 글은 툴바에 없고 시각은 단추 툴팁에 붙는다. 경고는 건수만 짧게 보인다.
-    expect(visibleText(status()!)).toBe("자동 저장 경고 1건");
-    expect(status()!.getAttribute("title")).toBe("경고 문장");
+    // "자동 저장됨 HH:MM:SS" 글은 툴바에 없고 시각은 단추 툴팁에 붙는다. 경고가 있어도 저장하고, 경고는 툴바에 보이지 않는다(검사 결과에만).
+    expect(status()).toBeNull();
     expect(toggle().parentElement!.getAttribute("data-tip")).toContain("마지막 자동 저장 09:05:09");
     expect(q("set-message")).toBeNull();
     expect(byTestId<HTMLButtonElement>("set-save").disabled).toBe(true);
