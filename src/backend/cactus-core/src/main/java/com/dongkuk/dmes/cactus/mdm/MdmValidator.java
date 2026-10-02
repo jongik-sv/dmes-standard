@@ -20,7 +20,6 @@ import kr.dongkuk.maru.mdm.engine.domain.DomainValidator;
 import kr.dongkuk.maru.mdm.engine.domain.DomainValidator.ValidationResult;
 import kr.dongkuk.maru.mdm.engine.domain.EffectiveExpressions;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException;
-import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Code;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Violation;
 import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
 import kr.dongkuk.maru.mdm.engine.expr.ReservedNames;
@@ -442,17 +441,28 @@ public class MdmValidator {
         results.computeIfAbsent(row.index, k -> new ArrayList<>()).add(result);
     }
 
-    /** 받는 노드가 받지 않은 엔진 위반 하나 → 행 오류(C8). field 는 위반 이름의 원래 키, 행에 없으면 null. */
+    /**
+     * 받는 노드가 받지 않은 엔진 위반 하나 → 행 오류(C8). field 는 위반 이름의 원래 키, 행에 없으면 null.
+     *
+     * <p>문구는 위반 코드마다 고정이다 — 엔진 문구({@link Violation#message()})에는 룰·조건 식 원문과 Java 예외 문구가 들어 있어 화면에 보내지 않고
+     * WARN 로그에만 남긴다(spec B3·§6.2-5, 컬럼 경로의 "검증 규칙을 평가하지 못했습니다" 와 같은 방침).
+     */
     private ErrorDetail ruleError(RowView row, String setId, Violation v) {
+        log.warn("[mdm] 룰 세트 위반 — set={} grid={} row={} code={} rule={} name={} {}", setId, row.grid, row.index, v.code(), v.ruleId(),
+                v.name(), v.message());
         String phys = v.name() == null ? null : MdmNames.toPhysName(v.name());
         String field = phys == null ? null : row.original.get(phys);
         String label = phys == null ? null : service.cached(MdmTargetType.COLUMN, phys) // 캐시만 — 캡션을 얻으려고 MDM 을 부르지 않는다
                 .filter(e -> !e.absent()).map(e -> MdmValueChecks.caption((MdmColumnMeta) e.value(), field != null ? field : v.name()))
                 .orElse(field != null ? field : v.name());
-        if (label != null && (v.code() == Code.MISSING_KEY || v.code() == Code.REQUIRED_NULL)) {
-            return row.error(field, REQUIRED, MdmValueChecks.requiredMessage(label));
-        }
-        String prefix = label != null ? label : "룰 세트 " + setId;
-        return row.error(field, INVALID, prefix + ": " + v.message());
+        String setLabel = "룰 세트 " + setId;
+        return switch (v.code()) {
+            case MISSING_KEY, REQUIRED_NULL -> label != null
+                    ? row.error(field, REQUIRED, MdmValueChecks.requiredMessage(label))
+                    : row.error(field, REQUIRED, setLabel + ": 필수 입력값이 없습니다");
+            case TYPE_CONVERSION -> row.error(field, INVALID, (label != null ? label : setLabel) + ": 값 형식이 올바르지 않습니다");
+            // 평가 오류의 name 은 행 변수가 아니라 함수 이름일 수 있다 — 행 키와 맞을 때만 캡션을 쓰고 아니면 룰 세트 ID 로 적는다
+            default -> row.error(field, INVALID, (field != null ? label : setLabel) + ": 업무 규칙을 평가하지 못했습니다(관리자 확인 필요)");
+        };
     }
 }

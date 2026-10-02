@@ -342,6 +342,52 @@ class MdmValidatorTest {
         assertThat(r.ruleSetResults()).containsOnlyKeys(0);
     }
 
+    /**
+     * 룰 세트 평가 오류(EVALUATION_ERROR)의 엔진 문구에는 식 원문과 Java 예외 문구가 담긴다. 화면(ErrorDetail)에는 고정 문구만 보내고 원문은
+     * 싣지 않는다(spec B3·§6.2-5 — 컬럼 경로의 "검증 규칙을 평가하지 못했습니다" 와 같은 방침).
+     */
+    @Test
+    void 룰_세트_평가_오류는_식_원문_없이_고정_문구다() {
+        RuleVar cond = new RuleVar(1, VarKind.COND, DispType.EXPRESSION, "ORD_QTY", null, null, null, DataType.NUMBER, null, null, null,
+                null, null, null, null, 1);
+        RuleVar result = new RuleVar(2, VarKind.RESULT, DispType.VALUE, "OK_FLAG", null, null, null, DataType.STRING, null, null, null,
+                null, null, null, null, 2);
+        String expr = "ORD_QTY / ZERO_QTY > 1";
+        RuleCell bad = new RuleCell(null, null, null, null, expr, null, null, expr);
+        RuleCell yes = new RuleCell(null, null, null, null, null, null, "Y", "\"Y\"");
+        RuleDefinition rule = new RuleDefinition("R9", new BigDecimal("1.000"), RuleKind.DECISION, HitPolicy.FIRST, FROM, null, "1",
+                List.of(cond, result), new InputContract(List.of(new VarType("ORD_QTY", DataType.NUMBER, null, null),
+                        new VarType("ZERO_QTY", DataType.NUMBER, null, null)), List.of()),
+                List.of(new RuleRow(1, 1, RowKind.NORMAL, Map.of(1, bad, 2, yes))));
+        feed.put(MdmTargetType.RULE_SET, "S9", List.of(set("S9", "R9")));
+        feed.put(MdmTargetType.RULE, "R9", List.of(rule));
+
+        MdmValidationResult r = validator.validate(MdmValidationRequest.rows("g", List.of(row("ordQty", 3, "zeroQty", 0)))
+                .ruleSet("S9").build());
+
+        assertThat(r.errors()).singleElement().satisfies(e -> {
+            assertThat(e.code()).isEqualTo("E002");
+            assertThat(e.message()).doesNotContain(expr).doesNotContain("ZERO_QTY").doesNotContain("평가 오류")
+                    .doesNotContain("Exception").endsWith(": 업무 규칙을 평가하지 못했습니다(관리자 확인 필요)");
+        });
+    }
+
+    @Test
+    void 룰_세트_타입_변환_위반은_값_형식_문구다() {
+        feed.put(MdmTargetType.RULE_SET, "S1", List.of(set("S1", "R1")));
+        feed.put(MdmTargetType.RULE, "R1", List.of(contractRule("R1", "ORD_QTY", DataType.NUMBER)));
+        feed.put(MdmTargetType.COLUMN, "ORD_QTY", num("ORD_QTY", "주문수량", 10, 0, null));
+        service.lookup(MdmTargetType.COLUMN, List.of("ORD_QTY")); // 캡션은 캐시에서만 읽는다
+
+        MdmValidationResult r = validator.validate(MdmValidationRequest.rows("g", List.of(row("ordQty", "abc"))).ruleSet("S1").build());
+
+        assertThat(r.errors()).singleElement().satisfies(e -> {
+            assertThat(e.field()).isEqualTo("ordQty");
+            assertThat(e.code()).isEqualTo("E002");
+            assertThat(e.message()).isEqualTo("주문수량: 값 형식이 올바르지 않습니다");
+        });
+    }
+
     @Test
     void 룰_셀_텍스트의_MASTER_첫_인자_코드도_미리_받고_평가는_캐시로만_한다() {
         RuleVar cond = new RuleVar(1, VarKind.COND, DispType.EQUAL, "PROC", null, null, null, DataType.STRING, null, "8", null, null, null,
