@@ -180,7 +180,9 @@ export default function MdmCacheMngPage() {
     },
     [modules],
   );
-  const entryGridColumns = useMemo(() => entryColumns(lifetimeHelpOf(selectedModule)), [lifetimeHelpOf, selectedModule]);
+  // 도움말 문자열이 바뀔 때만 열을 다시 만든다 — 조회마다 modules 배열이 새로 생겨도 열 정의가 그대로라 사용자가 바꾼 열 폭이 유지된다.
+  const lifetimeHelp = lifetimeHelpOf(selectedModule);
+  const entryGridColumns = useMemo(() => entryColumns(lifetimeHelp), [lifetimeHelp]);
 
   /** 항목 하나의 캐시 값을 받아 상세 패널에 보인다. 서버는 캐시를 읽기만 한다(조회 수·적재 없음). */
   const openDetail = useCallback(async (target: DetailTarget) => {
