@@ -30,3 +30,6 @@ export {
 } from "./frame-context";
 export type { WidgetStatus } from "./frame-context";
 export { WIDGET_CSS, WidgetStyle } from "./styles";
+export { WidgetBoard } from "./WidgetBoard";
+export type { WidgetBoardProps } from "./WidgetBoard";
+export { getDraggingWidget, setDraggingWidget } from "./widget-dnd";
