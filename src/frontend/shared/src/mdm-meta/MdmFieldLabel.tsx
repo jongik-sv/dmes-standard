@@ -9,7 +9,7 @@
  *
  * - 공급자(포털 탭) 밖이거나 사전에 없거나 아직 못 받았으면 `label ?? name` 글자 그대로이고 요청·툴팁이 없다. 값은 단순 텍스트와 같은 DOM 이다
  *   (`className`·`style` 을 줬을 때만 그 값을 가진 `<span>` 으로 감싼다).
- * - 사전에 있으면 글자가 `span.form-tip-trigger` 가 된다. 이 span 은 키보드로 닿고(tabIndex 0) hover·focus 때 `.form-tip-text--portal` 을
+ * - 사전에 있으면 글자가 `span.form-tip-trigger` 가 된다. 이 span 은 Tab 순서에 들지 않고(tabIndex -1 — 입력 화면에서 Tab 이 라벨마다 멈추지 않게) hover·focus 때 `.form-tip-text--portal` 을
  *   document.body 에 띄운다. 스크린리더 설명(`aria-describedby`)은 body 로 포털한 `.form-sr-only` 에 두므로 th 의 글자·접근 이름은 늘지 않는다.
  * - 툴팁 모양은 form.css(`.form-tip-text`)가 정한다 — 호스트 앱이 `@dk-oasis/shared/form.css` 를 싣는다(포털은 이미 싣는다).
  *
@@ -74,7 +74,7 @@ export function MdmFieldLabel({
         ref={anchorRef}
         className={className ? `form-tip-trigger ${className}` : "form-tip-trigger"}
         style={style}
-        tabIndex={0}
+        tabIndex={-1}
         aria-describedby={descId}
         onMouseEnter={showTip}
         onMouseLeave={hideTip}

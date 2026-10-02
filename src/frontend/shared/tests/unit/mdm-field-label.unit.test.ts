@@ -174,11 +174,11 @@ describe("공급자 안 — 툴팁(B3·B8)", () => {
     await show(inProvider(inTh({ name: "TITLE", required: true }), priority));
   }
 
-  it("메타가 있으면 라벨 글자가 툴팁 트리거(form-tip-trigger)가 된다 — 키보드로도 닿는다(tabIndex 0)", async () => {
+  it("메타가 있으면 라벨 글자가 툴팁 트리거(form-tip-trigger)가 된다 — Tab 순서에는 들지 않는다(tabIndex -1, 입력 Tab 흐름 유지)", async () => {
     await loaded();
     const t = trigger()!;
     expect(t.tagName).toBe("SPAN");
-    expect(t.getAttribute("tabindex")).toBe("0");
+    expect(t.getAttribute("tabindex")).toBe("-1");
     expect(portal()).toBeNull(); // 올리기 전에는 뜨지 않는다
   });
 

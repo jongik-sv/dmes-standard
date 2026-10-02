@@ -78,7 +78,7 @@ const issue = column ? validateMdmValue(column, v) : null;   // 같은 column �
 - 저장 전 `validateRow(row, names)` 로 막을 칸은 서버 `MdmValidator.columns(...)` 와 같게 둔다.
 - 훅은 공급자(포털 탭) 밖이면 아무것도 부르지 않고 늘 통과다 — 포털 밖 단독 실행에서도 같은 코드가 돈다.
 - 빈 칸은 입력 중에는 검사하지 않는다(필수는 저장 때). 예: `m-mls/pages/lsh/noticeMgmt/NoticeTitleRow.tsx`.
-- 라벨 글자가 툴팁 트리거라 키보드 Tab 이 라벨에도 멈춘다(`tabIndex` 0). 사전에 있는 칸에만 생긴다.
+- 라벨 글자가 툴팁 트리거지만 Tab 순서에는 들지 않는다(`tabIndex` -1). 입력 화면에서 Tab 이 라벨마다 멈추지 않게 하려는 것이다. 툴팁은 마우스 hover 로 연다.
 
 ### 화면 값 검증(C, 2026-10-03)
 
