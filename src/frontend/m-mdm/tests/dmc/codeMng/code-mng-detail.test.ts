@@ -81,6 +81,17 @@ async function render(props: Record<string, unknown> = {}) {
   await flush();
 }
 
+/** 머리 [조회] — 첫 진입은 목록을 자동 조회하지 않으므로(cf4fbb05) 목록 행이 필요한 시험은 먼저 누른다. */
+async function search() {
+  const btn = Array.from(container.querySelectorAll(".page-layout__header-buttons button")).find((b) => b.textContent === "조회");
+  expect(btn, "조회").toBeTruthy();
+  await act(async () => {
+    (btn as HTMLButtonElement).click();
+  });
+  await flush();
+  await flush();
+}
+
 /** 버전 목록 그리드의 행(ag-row) 을 ver(rowKey) 로 찾는다. */
 function versionRow(ver: string): HTMLElement | null {
   return document.body.querySelector(`[data-testid="version-list"] .ag-row[row-id="${ver}"]`);
@@ -174,6 +185,7 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
 
   it("같은 코드를 다시 불러오는 사이 고친 헤더 폼은 늦게 온 view 응답이 덮지 않는다", async () => {
     await render({ snapshot: { maruCodeId: "PROC_CD" } });
+    await search();
     expect((byTestId("header-name") as HTMLInputElement).value).toBe("공정 코드");
 
     let release: (v: unknown) => void = () => {};
@@ -197,6 +209,8 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
 
   it("코드를 고르기 전에는 안내만 보인다", async () => {
     await render();
+    // 첫 진입은 목록을 자동 조회하지 않는다 — [조회] 를 눌러야 불러온다(cf4fbb05).
+    expect(actions("search")).toHaveLength(0);
     expect(visibleText(container)).toContain("목록에서 마루 코드를 고르거나");
     expect(actions("view")).toHaveLength(0);
     expect(byTestId("version-list")).toBeNull();
@@ -241,6 +255,7 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
 
   it("목록에서 코드를 고르면 상세가 보인다", async () => {
     await render();
+    await search();
     await selectFromList("PROC_CD");
     expect(actions("view").map((c) => c.params.maruCodeId)).toEqual(["PROC_CD"]);
   });

@@ -12,15 +12,28 @@ const RBAC_STORE_KEY = "__dkOasisButtonRbacStore__";
 const originalFetch = globalThis.fetch;
 let container: HTMLDivElement;
 let root: Root | null = null;
+let calls: Record<string, unknown>[] = [];
+const searchParams = () => calls;
 
 function ok(result: unknown) {
   return new Response(JSON.stringify({ meta: { success: true }, data: { result } }), { status: 200 });
 }
 
 function stubFetch(headers: unknown[]) {
-  globalThis.fetch = vi.fn(async (url: RequestInfo | URL) => {
+  calls = [];
+  globalThis.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
     const u = String(url);
-    if (u.startsWith("/api/mdm/oasis/headerMng/search")) return ok({ headers, eais: [] });
+    // [조회] 버튼은 RBAC 로 켜진다 — 이 시험은 조회 권한만 준다(저장 등은 그대로 읽기 전용).
+    if (u === "/api/auth/me") return new Response(JSON.stringify({ user: { id: "u1" } }), { status: 200 });
+    if (u === "/api/mcm/oasis/secUser/myButtonEndpoints") {
+      return new Response(JSON.stringify({ grids: { buttons: { rows: [{ objId: "headerMng", action: "search" }] } } }), { status: 200 });
+    }
+    if (u.startsWith("/api/mdm/oasis/headerMng/search")) {
+      const params = JSON.parse(String(init?.body ?? "{}")).params ?? {};
+      calls.push(params);
+      // optionsOnly 진입 호출은 서버가 목록 없이 콤보만 준다
+      return ok({ headers: params.optionsOnly ? [] : headers, eais: [] });
+    }
     if (u.startsWith("/api/mdm/oasis/headerMng/view")) {
       return ok({
         header: { LAYOUT_ID: 11, LAYOUT_NAME: "L2 구간 헤더", TOTAL_LENGTH: 999, VER: 0 },
@@ -56,6 +69,17 @@ async function render() {
   await settle(50);
 }
 
+/** 머리 [조회] — 첫 진입은 목록을 자동 조회하지 않으므로(cf4fbb05) 목록 행이 필요한 시험은 먼저 누른다. */
+async function search() {
+  const btn = Array.from(container.querySelectorAll(".page-layout__header-buttons button")).find((b) => b.textContent === "조회");
+  expect(btn, "조회").toBeTruthy();
+  await act(async () => {
+    (btn as HTMLButtonElement).click();
+  });
+  await settle(50);
+  await settle(50);
+}
+
 describe("headerMng page", () => {
   beforeEach(() => {
     delete (globalThis as Record<string, unknown>)[RBAC_STORE_KEY];
@@ -82,6 +106,11 @@ describe("headerMng page", () => {
   it("헤더를 열면 헤더 길이를 항목에서 계산하고 사용 전문 영향도를 보인다", async () => {
     stubFetch([{ LAYOUT_ID: 11, LAYOUT_NAME: "L2 구간 헤더", ITEM_COUNT: 6, TOTAL_LENGTH: 30, USED_BY_COUNT: 1, VER: 0 }]);
     await render();
+    // 첫 진입은 콤보만 받고(optionsOnly) 목록은 비어 있다 — [조회] 를 눌러야 목록이 찬다(cf4fbb05).
+    expect(searchParams()).toEqual([{ optionsOnly: true }]);
+    expect(container.querySelector("[data-testid=header-list]")?.textContent ?? "").not.toContain("L2 구간 헤더");
+    await search();
+    expect(searchParams()).toHaveLength(2);
     expect(container.querySelector("[data-testid=header-list]")?.textContent).toContain("L2 구간 헤더");
     const cell = container.querySelector("[data-testid=header-list] .ag-row .ag-cell");
     expect(cell).not.toBeNull();

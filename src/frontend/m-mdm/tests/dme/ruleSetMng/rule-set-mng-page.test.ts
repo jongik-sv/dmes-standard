@@ -78,6 +78,16 @@ async function render() {
   });
 }
 
+/** 머리 [조회] — 첫 진입은 목록을 자동 조회하지 않으므로(cf4fbb05) 목록 행이 필요한 시험은 먼저 누른다. */
+async function search() {
+  const btn = Array.from(container.querySelectorAll(".page-layout__header-buttons button")).find((x) => x.textContent === "조회");
+  expect(btn, "조회").toBeTruthy();
+  await act(async () => {
+    (btn as HTMLButtonElement).click();
+  });
+  await flush();
+}
+
 /** ag-grid 가 행을 그릴 때까지 기다린다(headerMng 선례). */
 async function settle(ms = 300) {
   await act(async () => {
@@ -135,10 +145,14 @@ describe("RuleSetMngPage", () => {
 
   it("처음 조회는 meta.menuId=ruleSetMng, page 0·size 20 으로 요청한다", async () => {
     await render();
-    const search = requests.filter((r) => r.url.includes("/ruleSetMng/search"));
-    expect(search).toHaveLength(1);
-    expect(search[0].body.params).toEqual({ page: 0, size: 20 });
-    expect(search[0].body.meta).toEqual({ menuId: "ruleSetMng" });
+    // 첫 진입은 자동 조회하지 않는다 — [조회] 를 눌러야 요청이 간다(cf4fbb05).
+    expect(requests.filter((r) => r.url.includes("/ruleSetMng/search"))).toHaveLength(0);
+    expect(visibleText(container)).toContain("0건");
+    await search();
+    const searches = requests.filter((r) => r.url.includes("/ruleSetMng/search"));
+    expect(searches).toHaveLength(1);
+    expect(searches[0].body.params).toEqual({ page: 0, size: 20 });
+    expect(searches[0].body.meta).toEqual({ menuId: "ruleSetMng" });
     expect(document.body.querySelector('[role="dialog"]')).toBeNull();
   });
 
@@ -181,6 +195,7 @@ describe("RuleSetMngPage", () => {
   it("계산 칸을 보인다 — 최종 결과 변수 코드 칩, 통과·거부 N·경고 N, DEPRECATED 는 '-'", async () => {
     searchResult = { rows: LIST_ROWS, totalCount: 3 };
     await render();
+    await search();
     await settle();
     expect(cellText("E2S_CHAIN", "ruleCount")).toBe("3");
     expect(cellText("E2S_CHAIN", "inputCount")).toBe("3");
@@ -262,7 +277,8 @@ describe("RuleSetMngPage", () => {
     expect(reg.body.params).toEqual({ setId: "E2S_NEW_SET", setName: "E2E 새 세트" });
     expect(openMdmPage).toHaveBeenCalledTimes(1);
     expect(openMdmPage).toHaveBeenCalledWith("dme/ruleSetEdit", { setId: "E2S_NEW_SET" });
-    expect(requests.filter((r) => r.url.includes("/ruleSetMng/search")).length).toBeGreaterThanOrEqual(2);
+    // 진입 자동 조회 없음 + 등록 뒤 재조회 1건.
+    expect(requests.filter((r) => r.url.includes("/ruleSetMng/search"))).toHaveLength(1);
   });
 
   it("설명을 넣으면 함께 보낸다", async () => {
@@ -281,6 +297,7 @@ describe("RuleSetMngPage", () => {
   it("목록의 세트 ID 를 누르면 룰 세트 편집 화면을 그 세트로 연다", async () => {
     searchResult = { rows: LIST_ROWS, totalCount: 3 };
     await render();
+    await search();
     await settle();
     const link = byTestId<HTMLButtonElement>("set-link-E2S_BADORD");
     await act(async () => {

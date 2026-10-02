@@ -16,6 +16,11 @@ let root: Root | null = null;
 function stubFetch(domains: unknown[]) {
   globalThis.fetch = vi.fn(async (url: RequestInfo | URL) => {
     const u = String(url);
+    // [조회] 버튼은 RBAC 로 켜진다 — 이 시험은 조회 권한만 준다(저장 등은 그대로 읽기 전용).
+    if (u === "/api/auth/me") return new Response(JSON.stringify({ user: { id: "u1" } }), { status: 200 });
+    if (u === "/api/mcm/oasis/secUser/myButtonEndpoints") {
+      return new Response(JSON.stringify({ grids: { buttons: { rows: [{ objId: "domainMng", action: "search" }] } } }), { status: 200 });
+    }
     if (u.startsWith("/api/mdm/oasis/domainMng/search")) {
       return new Response(JSON.stringify({ meta: { success: true }, data: { result: { domains } } }), { status: 200 });
     }
@@ -33,6 +38,17 @@ async function render() {
   await act(async () => {
     await new Promise((r) => setTimeout(r, 20));
   });
+}
+
+/** 머리 [조회] — 첫 진입은 목록을 자동 조회하지 않으므로(cf4fbb05) 목록 행이 필요한 시험은 먼저 누른다. */
+async function search() {
+  const btn = Array.from(container.querySelectorAll(".page-layout__header-buttons button")).find((b) => b.textContent === "조회");
+  expect(btn, "조회").toBeTruthy();
+  await act(async () => {
+    (btn as HTMLButtonElement).click();
+  });
+  await act(async () => { await new Promise((r) => setTimeout(r, 20)); });;
+  await act(async () => { await new Promise((r) => setTimeout(r, 20)); });;
 }
 
 describe("domainMng page", () => {
@@ -66,6 +82,9 @@ describe("domainMng page", () => {
         DATA_TYPE: "NUMBER", EFF_STD_EXPR: "(value > 0) && (value < 9)", BIZ_REQUIRED_VARS: [], MATCHED: true, CHILD_COUNT: 0 },
     ]);
     await render();
+    // 첫 진입은 목록을 자동 조회하지 않는다 — [조회] 를 눌러야 불러온다(cf4fbb05).
+    expect(container.querySelector(".domain-mng__empty")).not.toBeNull();
+    await search();
     expect(container.querySelector(".domain-mng__empty")).toBeNull();
     expect(container.querySelector(".domain-mng__count")?.textContent).toBe("도메인 2건");
     expect(container.textContent).toContain("└ 코일 두께");
