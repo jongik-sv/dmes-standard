@@ -5,7 +5,6 @@ import {
   chartColor,
   chartConfigOf,
   configText,
-  fieldOptions,
   formatCell,
   formatDate,
   formatNumber,
@@ -13,7 +12,6 @@ import {
   hasPieData,
   lineChartHeight,
   MAX_NUMBER_TILES,
-  moveItem,
   normalizeQueryResult,
   numberConfigOf,
   patchConfig,
@@ -22,7 +20,6 @@ import {
   QUERY_EMPTY,
   QUERY_LOAD_ERROR,
   shouldRunQuery,
-  removeAt,
   summarizeResult,
   SYSTEM_VARIABLES,
   TABLE_ROW_KEY,
@@ -38,7 +35,6 @@ import {
   toNumber,
   toNumberTiles,
   toPieSlices,
-  updateAt,
   validateQueryConfig,
 } from "./format";
 
@@ -467,19 +463,6 @@ describe("validateQueryConfig", () => {
 });
 
 describe("편집기 도우미", () => {
-  it("fieldOptions — 미리보기 컬럼, 지금 값이 목록에 없으면 앞에 둔다", () => {
-    expect(fieldOptions(["A", "B"], "A")).toEqual(["A", "B"]);
-    expect(fieldOptions(["A", "B"], "OLD")).toEqual(["OLD", "A", "B"]);
-    expect(fieldOptions(["A", "B"], "")).toEqual(["A", "B"]);
-  });
-
-  it("moveItem — 위아래로 옮기고, 끝을 넘으면 그대로", () => {
-    expect(moveItem(["a", "b", "c"], 1, -1)).toEqual(["b", "a", "c"]);
-    expect(moveItem(["a", "b", "c"], 1, 1)).toEqual(["a", "c", "b"]);
-    expect(moveItem(["a", "b", "c"], 0, -1)).toEqual(["a", "b", "c"]);
-    expect(moveItem(["a", "b", "c"], 2, 1)).toEqual(["a", "b", "c"]);
-  });
-
   it("textCell — 앞뒤 공백을 지우고 빈 글자는 undefined(설정에서 키가 빠진다)", () => {
     expect(textCell(" 수량 ")).toBe("수량");
     expect(textCell("  ")).toBeUndefined();
@@ -506,14 +489,6 @@ describe("편집기 도우미", () => {
     expect(appendMissingFields([], [])).toEqual([]);
   });
 
-  it("removeAt·updateAt — 새 배열을 돌려준다", () => {
-    const list = [{ f: "a" }, { f: "b" }];
-    expect(removeAt(list, 0)).toEqual([{ f: "b" }]);
-    expect(removeAt(list, 5)).toEqual(list);
-    const next = updateAt(list, 1, { f: "z" });
-    expect(next).toEqual([{ f: "a" }, { f: "z" }]);
-    expect(list[1]).toEqual({ f: "b" });
-  });
 });
 
 describe("shouldRunQuery", () => {

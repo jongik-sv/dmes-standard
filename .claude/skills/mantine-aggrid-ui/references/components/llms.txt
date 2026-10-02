@@ -32,6 +32,7 @@
 - [FormGroup](form-group.md): 라벨과 입력을 한 줄로 묶고 필수 표시·툴팁·오류 문구를 자동 연결해 주는 기존 화면용 폼 행이 필요할 때 쓴다. 새 화면에서는 쓰지 않는다.
 - [Spinner · LoadingOverlay · ProgressBar](loading.md): 조회·저장이 진행 중임을 보여 줄 때 쓴다. 그리드 목록의 로딩은 AgDataGrid 의 `loading` 이 먼저이고, 이 컴포넌트들은 그 밖의 영역과 긴 작업에 쓴다.
 - [Badge](badge.md): 그리드 밖(카드·패널 머리·목록 항목)에서 분류·상태·형식을 작은 알약 모양 배지로 보일 때 쓴다. 그리드 셀 안은 GridBadge 다.
+- [SelectOrInput](select-or-input.md): 고를 목록이 있으면 드롭다운으로, 목록이 아직 없으면 직접 입력 칸으로 바뀌는 한 칸 입력을 만들 때 쓴다. 목록이 나중에 채워지는 칸(예: 조회해 본 결과 컬럼 이름)에 맞다.
 
 ## 목록 (`@dk-oasis/shared/grid`)
 
@@ -40,6 +41,7 @@
 - [useGridDataManager](use-grid-data-manager.md): 그리드 편집 화면에서 행 추가·수정·삭제 상태를 관리하고, 변경된 행만 모아 저장 페이로드로 넘길 때 쓴다. 저장형 화면은 반드시 이 훅으로 행 상태를 관리한다(Part B MUST).
 - [GridBadge](grid-badge.md): 그리드 셀 안에 OK/NG 같은 상태 값을 색 배지로 보일 때 쓴다. 여러 배지는 `GridBadgeGroup`, 셀 정렬은 `GridBadgeCell` 이 맡는다.
 - [Pagination](pagination.md): 서버 쪽 페이징으로 목록을 나눠 조회할 때 그리드 아래에 이전/다음 페이지 이동 막대를 붙이는 데 쓴다.
+- [EditableRowList](editable-row-list.md): 작은 설정 목록(표 컬럼 목록, 차트 계열 목록 등)을 칸 편집으로 고치고 행을 추가·위로·아래로·삭제하게 할 때 쓴다. 편집기·팝업 안에서 몇 행짜리 설정 배열을 다루는 칸에 맞다.
 
 ## 팝업·메시지 (`modal`, `message-provider`, `use-api-call`)
 

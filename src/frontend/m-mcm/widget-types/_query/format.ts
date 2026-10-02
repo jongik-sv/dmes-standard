@@ -463,11 +463,6 @@ export function validateQueryConfig(typeId: string, cfg: unknown): string[] {
   return errors;
 }
 
-/** 필드 고르기 선택지 — [쿼리 시험] 결과 컬럼. 지금 값이 목록에 없으면(SQL 을 고친 뒤 등) 잃지 않게 앞에 둔다. */
-export function fieldOptions(columns: readonly string[], current: string): string[] {
-  return current && !columns.includes(current) ? [current, ...columns] : [...columns];
-}
-
 /** 목록 칸 편집 값(글자) — 앞뒤 공백을 지우고, 비면 undefined(저장할 때 키가 빠진다). */
 export function textCell(v: unknown): string | undefined {
   if (v === null || v === undefined) return undefined;
@@ -487,20 +482,4 @@ export function appendMissingFields(
 ): TableColumnConfig[] {
   const have = new Set(list.map((c) => c.field));
   return [...list, ...columns.filter((c) => !have.has(c)).map((field) => ({ field }))];
-}
-
-export function moveItem<T>(list: readonly T[], index: number, delta: -1 | 1): T[] {
-  const to = index + delta;
-  if (index < 0 || index >= list.length || to < 0 || to >= list.length) return [...list];
-  const next = [...list];
-  [next[index], next[to]] = [next[to], next[index]];
-  return next;
-}
-
-export function removeAt<T>(list: readonly T[], index: number): T[] {
-  return list.filter((_, i) => i !== index);
-}
-
-export function updateAt<T extends object>(list: readonly T[], index: number, patch: Partial<T>): T[] {
-  return list.map((item, i) => (i === index ? { ...item, ...patch } : item));
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import type { GridColumn } from "@dk-oasis/shared/grid";
+import { EditableRowList, type GridColumn } from "@dk-oasis/shared/grid";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import type { WidgetTypeEditorProps } from "@dk-oasis/shared/widget";
 
@@ -15,7 +15,6 @@ import {
   type TableColumnConfig,
 } from "../_query/format";
 import { QueryStyle } from "../_query/parts";
-import { RowListEditor } from "../_query/RowListEditor";
 import { SqlEditor } from "../_query/SqlEditor";
 import { useConfigEditor } from "../_query/useConfigEditor";
 
@@ -92,7 +91,8 @@ export default function QueryTableEditor(props: WidgetTypeEditorProps) {
             <th style={DETAIL_LABEL_CELL}>표시 컬럼</th>
             <td style={DETAIL_VALUE_CELL}>
               <div className="wq-editor">
-                <RowListEditor<TableColumnConfig>
+                <EditableRowList<TableColumnConfig>
+                  idPrefix="wq-row"
                   title="표시 컬럼"
                   items={cfg.columns}
                   columns={gridColumns}

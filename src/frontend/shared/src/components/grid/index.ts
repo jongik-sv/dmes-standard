@@ -1,4 +1,6 @@
 export { AgDataGrid, DataGrid, type AgDataGridProps, type GridColumn } from "./AgDataGrid";
+export { EditableRowList, type EditableRowListProps } from "./EditableRowList";
+export { moveItem, removeAt, updateAt } from "./row-list-ops";
 export {
   GridBadge,
   GridBadgeCell,

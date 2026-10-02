@@ -9,6 +9,9 @@ import { QUERY_EMPTY } from "./format";
 
 export const QUERY_STYLE_HREF = "mcm-widget-query";
 
+/** 필드 칸에 [쿼리 시험] 결과 컬럼 목록이 아직 없을 때 직접 입력 칸에 보이는 안내. */
+export const FIELD_INPUT_PLACEHOLDER = "컬럼 이름([쿼리 시험] 뒤에는 목록에서 고릅니다)";
+
 export const QUERY_CSS = `
 .wq-fill { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .wq-fill__grow { flex: 1 1 0; min-height: 0; }
@@ -22,7 +25,6 @@ export const QUERY_CSS = `
 .wq-hint code { font-family: var(--font-family-mono); color: var(--color-text); }
 .wq-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-sm); }
 .wq-summary { font-size: var(--font-size-xs); color: var(--color-text-muted); overflow-wrap: anywhere; }
-.wq-rows { height: 200px; }
 `;
 
 export function QueryStyle() {

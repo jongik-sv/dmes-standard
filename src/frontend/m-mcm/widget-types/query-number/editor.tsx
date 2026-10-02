@@ -1,12 +1,11 @@
 "use client";
 
-import { Input, Select } from "@dk-oasis/shared/form";
+import { Input, Select, SelectOrInput } from "@dk-oasis/shared/form";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import type { WidgetTypeEditorProps } from "@dk-oasis/shared/widget";
 
-import { FieldSelect } from "../_query/FieldSelect";
 import { configText, MAX_NUMBER_TILES, NUMBER_FORMAT_OPTIONS, numberConfigOf } from "../_query/format";
-import { QueryStyle } from "../_query/parts";
+import { FIELD_INPUT_PLACEHOLDER, QueryStyle } from "../_query/parts";
 import { SqlEditor } from "../_query/SqlEditor";
 import { useConfigEditor } from "../_query/useConfigEditor";
 
@@ -35,9 +34,10 @@ export default function QueryNumberEditor(props: WidgetTypeEditorProps) {
           <tr>
             <th style={DETAIL_LABEL_CELL}>라벨 필드 *</th>
             <td style={DETAIL_VALUE_CELL}>
-              <FieldSelect
+              <SelectOrInput
                 value={configText(props.value, "labelField")}
-                columns={columns}
+                options={columns}
+                inputPlaceholder={FIELD_INPUT_PLACEHOLDER}
                 onChange={(labelField) => patch({ labelField })}
                 ariaLabel="라벨 필드"
               />
@@ -46,9 +46,10 @@ export default function QueryNumberEditor(props: WidgetTypeEditorProps) {
           <tr>
             <th style={DETAIL_LABEL_CELL}>값 필드 *</th>
             <td style={DETAIL_VALUE_CELL}>
-              <FieldSelect
+              <SelectOrInput
                 value={configText(props.value, "valueField")}
-                columns={columns}
+                options={columns}
+                inputPlaceholder={FIELD_INPUT_PLACEHOLDER}
                 onChange={(valueField) => patch({ valueField })}
                 ariaLabel="값 필드"
               />
@@ -57,9 +58,10 @@ export default function QueryNumberEditor(props: WidgetTypeEditorProps) {
           <tr>
             <th style={DETAIL_LABEL_CELL}>단위 필드</th>
             <td style={DETAIL_VALUE_CELL}>
-              <FieldSelect
+              <SelectOrInput
                 value={configText(props.value, "unitField")}
-                columns={columns}
+                options={columns}
+                inputPlaceholder={FIELD_INPUT_PLACEHOLDER}
                 optional
                 onChange={(unitField) => patch({ unitField })}
                 ariaLabel="단위 필드"

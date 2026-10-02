@@ -1,15 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
-import { Select } from "@dk-oasis/shared/form";
-import type { GridColumn } from "@dk-oasis/shared/grid";
+import { Select, SelectOrInput } from "@dk-oasis/shared/form";
+import { EditableRowList, type GridColumn } from "@dk-oasis/shared/grid";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import type { WidgetTypeEditorProps } from "@dk-oasis/shared/widget";
 
-import { FieldSelect } from "../_query/FieldSelect";
 import { CHART_TYPE_OPTIONS, chartConfigOf, configText, textCell, type ChartSeriesConfig } from "../_query/format";
-import { QueryStyle } from "../_query/parts";
-import { RowListEditor } from "../_query/RowListEditor";
+import { FIELD_INPUT_PLACEHOLDER, QueryStyle } from "../_query/parts";
 import { SqlEditor } from "../_query/SqlEditor";
 import { useConfigEditor } from "../_query/useConfigEditor";
 
@@ -67,9 +65,10 @@ export default function QueryChartEditor(props: WidgetTypeEditorProps) {
           <tr>
             <th style={DETAIL_LABEL_CELL}>가로축 필드 *</th>
             <td style={DETAIL_VALUE_CELL}>
-              <FieldSelect
+              <SelectOrInput
                 value={configText(props.value, "xField")}
-                columns={columns}
+                options={columns}
+                inputPlaceholder={FIELD_INPUT_PLACEHOLDER}
                 onChange={(xField) => patch({ xField })}
                 ariaLabel="가로축 필드"
               />
@@ -79,7 +78,8 @@ export default function QueryChartEditor(props: WidgetTypeEditorProps) {
             <th style={DETAIL_LABEL_CELL}>값 계열 *</th>
             <td style={DETAIL_VALUE_CELL}>
               <div className="wq-editor">
-                <RowListEditor<ChartSeriesConfig>
+                <EditableRowList<ChartSeriesConfig>
+                  idPrefix="wq-row"
                   title="값 계열"
                   items={cfg.series}
                   columns={seriesColumns}
