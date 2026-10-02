@@ -299,6 +299,11 @@ export function PortalShell({
   const isUsageTrackingEnabled = onUsageSegments != null;
   /** 로그아웃으로 구간을 닫는 동안 onUsageSegments 가 돌려준 Promise 를 모은다(아니면 null). */
   const usageLogoutPendingRef = useRef<Promise<void>[] | null>(null);
+  /**
+   * 로그아웃이 시작됐다. signOut 전 최대 USAGE_LOGOUT_WAIT_MS 기다리는 동안 탭 저장 effect 가 비운 저장소를
+   * 다시 쓰지 않게 막고(공용 단말에서 다음 로그인에 이전 탭이 복원되는 것 방지), doLogout 두 번째 호출을 무시한다.
+   */
+  const loggingOutRef = useRef(false);
 
   const resolvedHomePageId = homePageId?.trim() || defaultHomePageId?.trim() || null;
   const homeTabId = resolvedHomePageId ? createHomeTabId(resolvedHomePageId) : null;
@@ -569,6 +574,8 @@ export function PortalShell({
   }, []);
 
   const doLogout = useCallback(() => {
+    if (loggingOutRef.current) return; // 이미 로그아웃 중 — signOut 을 두 번 내지 않는다
+    loggingOutRef.current = true;
     // 화면 사용 구간을 맨 먼저 닫는다(확인창 취소 때는 불리지 않는 위치). onUsageSegments 가 reason "logout" 으로
     // 불리고, 호출부가 돌려준 Promise(keepalive flush)를 최대 USAGE_LOGOUT_WAIT_MS 기다린 뒤 signOut 한다.
     const pendingUsage: Promise<void>[] = [];
@@ -1056,7 +1063,7 @@ export function PortalShell({
 
   // Persist to storage
   useEffect(() => {
-    if (!isStorageHydrated) return;
+    if (!isStorageHydrated || loggingOutRef.current) return; // 로그아웃 중엔 비운 저장소를 그대로 둔다
     const stored: StoredPortalShellState = {
       tabs: tabs
         .filter((tab) => !tab.isHome)

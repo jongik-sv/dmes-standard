@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PortalShell, type PortalShellProps } from "../../src/portal-shell/portal-shell";
 import type { PortalShellMenuItem, PortalShellPageComponent } from "../../src/portal-shell/types";
 import type { UsageSegment } from "../../src/portal-shell/usage-tracker";
+import { readSecureJson } from "../../src/secure-storage";
 import { renderWithMantine, type Rendered } from "./mantine-test-utils";
 
 for (const name of ["localStorage", "sessionStorage"] as const) {
@@ -319,6 +320,59 @@ describe("PortalShell 화면 사용 구간(onUsageSegments)", () => {
     await act(async () => {
       vi.advanceTimersByTime(1);
     });
+    await flush();
+    expect(signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("로그아웃 대기(flush) 중에 탭을 바꿔도 비운 탭 저장소를 다시 쓰지 않는다(공용 단말 재로그인 복원 방지)", async () => {
+    vi.mocked(signOut).mockClear();
+    const storageKey = `portal-shell-usage-logout-${Math.random()}`;
+    rendered = renderWithMantine(
+      createElement(
+        PortalShell,
+        props({
+          storageKey,
+          onUsageSegments: (segments, info) => {
+            batches.push(segments);
+            return info.reason === "logout" ? new Promise<void>(() => {}) : undefined;
+          },
+        })
+      )
+    );
+    await flush();
+    await openTab("t:a");
+    at(2_000);
+    await openTab("t:b");
+    at(4_000); // 1초 이상 열려 있어야 logout 구간이 나가고 대기가 생긴다
+    expect(readSecureJson<{ tabs: unknown[] }>(storageKey)?.tabs).toHaveLength(2);
+
+    await clickLogout();
+    expect(signOut).not.toHaveBeenCalled(); // 아직 대기 중
+    expect(readSecureJson(storageKey)).toEqual({ tabs: [], activeTabId: null });
+
+    await openTab("t:a"); // 대기 중 탭 전환
+    await openTab("t:c"); // 대기 중 새 탭
+    expect(readSecureJson(storageKey)).toEqual({ tabs: [], activeTabId: null });
+  });
+
+  it("doLogout 이 두 번 불려도 signOut 은 한 번만 나간다", async () => {
+    vi.mocked(signOut).mockClear();
+    rendered = renderWithMantine(
+      createElement(
+        PortalShell,
+        props({
+          onBeforeLogout: (doLogout) => {
+            doLogout();
+            doLogout();
+          },
+        })
+      )
+    );
+    await flush();
+    await openTab("t:a");
+    at(4_000);
+
+    await clickLogout();
     await flush();
     expect(signOut).toHaveBeenCalledTimes(1);
   });
