@@ -14,6 +14,7 @@ const CFG: RbacPolicyConfig = {
     "/api/mcm/oasis/secUser/myButtonEndpoints",
     "/api/mcm/oasis/secFavorite/search",
     "/api/mls/oasis/noticeBoard/search", // m-mcm proxy.ts 와 같은 값 — 포털 홈 공지 목록(2026-10-02)
+    "/api/mls/mdmMeta/", // m-mcm proxy.ts 와 같은 값 — MDM 메타 캐시(2026-10-02)
   ],
   lovPattern: /^\/api\/[^/]+\/lov\//,
   unmatchedDeny: false,
@@ -141,6 +142,11 @@ describe("evaluateApiPolicy 매트릭스 (방식 C — perms 는 로더로 lazy 
     expect(await evaluateApiPolicy("/api/mls/oasis/noticeBoard/search", null, CFG, loadThrow)).toBe("unauthorized");
     expect(await evaluateApiPolicy("/api/mls/oasis/noticeBoard/save", viewer, CFG, loadEmpty)).toBe("forbidden-perm");
     expect(await evaluateApiPolicy("/api/mls/oasis/noticeMgmt/search", viewer, CFG, loadEmpty)).toBe("forbidden-perm");
+  });
+  it("T12 업무 모듈 mdmMeta(MDM 메타 캐시) → AUTH_ONLY pass, loader 미호출 (2026-10-02)", async () => {
+    expect(await evaluateApiPolicy("/api/mls/mdmMeta/columns", viewer, CFG, loadThrow)).toBe("pass");
+    expect(await evaluateApiPolicy("/api/mls/mdmMeta/entries?type=COLUMN", viewer, CFG, loadThrow)).toBe("pass");
+    expect(await evaluateApiPolicy("/api/mls/mdmMeta/status", null, CFG, loadThrow)).toBe("unauthorized");
   });
   it("AUTH_ONLY 라도 미로그인이면 unauthorized", async () => {
     expect(await evaluateApiPolicy("/api/mcm/oasis/secUser/myMenus", null, CFG, loadThrow)).toBe("unauthorized");

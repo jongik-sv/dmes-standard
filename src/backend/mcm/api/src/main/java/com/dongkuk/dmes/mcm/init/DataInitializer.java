@@ -322,7 +322,9 @@ public class DataInitializer implements ApplicationRunner {
                 "lock", "unlock", "handover",
                 // 2026-10-02 — mls 공지사항 관리(services/lsh/noticeMgmt.bpmn) 게시상태 변경. 이 토큰이 없어 SYSADMIN 도
                 //   게시중지가 403 이었다. 이미 시드된 DB 는 아래 ensurePermAllActions 가 끝에 덧붙인다.
-                "changeStatus"
+                "changeStatus",
+                // 2026-10-02 — MDM 캐시 관리(csa/mdmCacheMng) 재등록 버튼. 이미 시드된 DB 는 ensurePermAllActions 가 덧붙인다.
+                "reload"
 
                 // ── 업무 모듈을 붙일 때 여기에 해당 모듈의 OASIS action 을 추가한다 ──────────────
                 // 본 목록은 PERM_ALL 의 PERMISSION_ACTION 이며, UserPermCache 가 콤마 분할해 PermKey
@@ -424,6 +426,9 @@ public class DataInitializer implements ApplicationRunner {
         // 2026-10-02 — 공지사항 관리(lsh/noticeMgmt) 메뉴. 메뉴는 공통관리(mcm) 아래, 코드는 mls. 포털 홈 공지 목록(noticeBoard)은
         //   AUTH_ONLY 라 시드가 없다(seedMlsMenus javadoc).
         seedMlsMenus();
+
+        // 2026-10-02 — MDM 캐시 관리(csa/mdmCacheMng) 화면과 MDM 메타 제공(mdm metaFeed) 강제 기록 권한. seedMdmCacheMenus javadoc 참고.
+        seedMdmCacheMenus();
 
         // 확장 지점 — 신규 업무 모듈을 추가할 때 여기에 seed{Module}Menus() 를 호출한다.
 
@@ -671,6 +676,7 @@ public class DataInitializer implements ApplicationRunner {
             {"commPermMng",               "1020150", "csa"},
             {"commUserRoleCopy",          "1020160", "csa"},
             {"commSyncMng",               "1020170", "csa"},
+            {"mdmCacheMng",               "1020180", "csa"},   // 2026-10-02 MDM 캐시 관리 — 빠지면 잔존 DB 의 FULL_SEQ 가 매 부팅 어긋난다
             {"masterCodeMngList",         "1030100", "cme"},
             {"masterRuleList",            "1040100", "cmb"},
             // 2026-08-14 등재 — 본 배열에 빠지면 잔존 DB 의 FULL_SEQ/PARENT_MENU_ID 가 매 부팅 어긋난 채 남는다
@@ -892,7 +898,36 @@ public class DataInitializer implements ApplicationRunner {
     }
 
     /**
-     * 공지관리 폴더(lsh) 위치 보정 — 부모가 공통관리 루트({@code mcm})가 아니면 옮긴다 (2026-10-02, 멱등).
+     * 2026-10-02 — MDM 캐시 관리(spec docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md §5.5·§6).
+     *
+     * <p>mdmCacheMng — 포털(mcm) 화면 OBJECT + csa 메뉴 leaf(1020180, commSyncMng 다음) + SYSADMIN 전체 권한. 화면이 부르는 업무 모듈
+     * /api/{m}/mdmMeta/* 는 AUTH_ONLY(proxy.ts·EndpointPermissionFilter)이고 관리 action 은 각 모듈 컨트롤러가 SYSADMIN 을 다시 본다.
+     *
+     * <p>metaFeed — 화면의 삭제·재등록은 MDM OASIS /api/mdm/oasis/metaFeed/save 다. BFF 권한키 mdm/metafeed/save 를 위해 OBJECT(SYSTEM_CODE=mdm)와
+     * SYSADMIN 매핑을 둔다(없으면 SYSADMIN 도 403). 업무 그룹 권한(seedMdmObjectRbac)은 주지 않는다 — 강제 기록은 SYSADMIN 만이고 MDM 서비스가
+     * MDM027 로 다시 막는다. 메뉴는 없다(화면이 아니다). 모두 멱등.
+     */
+    private void seedMdmCacheMenus() {
+        final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
+        final String AUDIT_VALS = ", 'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', "
+                                + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
+
+        insertMcmSecObjIfAbsent("mdmCacheMng", "MDM 캐시 관리", "mcm");
+        insertMcmSecMenuIfAbsent("mdmCacheMng", "001", "1020180", "MDM 캐시 관리", "csa", "mdmCacheMng");
+        insertMcmSecObjIfAbsent("metaFeed", "MDM 메타 제공", "mdm");
+        for (String objId : new String[]{"mdmCacheMng", "metaFeed"}) {
+            insertIfAbsentComposite(
+                    "TB_MCM_SEC_ROLE_MAPPING",
+                    new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
+                    new String[]{"SYSADMIN", objId,       "PERM_ALL"},
+                    "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                    "VALUES ('SYSADMIN', '" + escapeSql(objId) + "', 'PERM_ALL'" + AUDIT_VALS + ")");
+        }
+        log.info("[DataInitializer] MDM 캐시 관리 시드 — OBJECT 2(mdmCacheMng=mcm, metaFeed=mdm) + 메뉴 leaf 1(csa/mdmCacheMng) + RBAC(SYSADMIN 2)");
+    }
+
+    /**
+     * 공지관리 폴더(lsh) 위치 보정— 부모가 공통관리 루트({@code mcm})가 아니면 옮긴다 (2026-10-02, 멱등).
      *
      * <p>같은 날 잠깐 물류관리(mls) 루트 아래로 시드된 DB 를 맞춘다. 옮길 때 MENU_SEQ 도 '00000600' 으로 바꾼다 — 옛 값 '00000100' 그대로
      * 공통관리 아래로 가면 cma(100)와 순번이 겹쳐 기존 그룹의 FULL_SEQ 가 한 칸씩 밀린다. 부모가 이미 {@code mcm} 이면 손대지 않으므로

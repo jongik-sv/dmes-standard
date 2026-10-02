@@ -25,3 +25,19 @@ spring:
 
 # 실 프로젝트의 데이터소스(JNDI·다중 DB)·보안 설정은 docs/framework/, docs/cactus/ 의
 # 패턴을 따른다. 위 설정은 bootRun 으로 골격을 띄우기 위한 최소 구성이다.
+
+# ── MDM 메타 캐시(spec docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md §5.1) ──
+#  MDM(8096)에서 컬럼·도메인·룰·룰세트·코드·전문 정의를 받아 이 인스턴스에 캐시하고 10초마다 변경 기록을 확인한다.
+#  끄려면 MDM_CACHE_ENABLED=false. client-key 는 MDM 이 받는 BACKEND_CLIENT_KEY 와 같아야 한다.
+#   이 모듈에는 cactus.oasis.service-group 이 없어 module 을 직접 둔다.
+cactus:
+  mdm:
+    enabled: ${MDM_CACHE_ENABLED:true}
+    module: mpn
+    base-url: ${MDM_WAS_URL:http://localhost:8096}
+    client-key: ${BACKEND_CLIENT_KEY:dmes-bff-local-client-key-2026}
+    poll-interval: 10s
+    max-entries: 20000
+    max-age: 60m
+    connect-timeout: 2s
+    read-timeout: 5s
