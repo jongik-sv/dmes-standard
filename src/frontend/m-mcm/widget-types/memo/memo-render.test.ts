@@ -205,6 +205,13 @@ describe("공용 메모 — 보기만", () => {
     expect((window as unknown as { __memoPwned?: number }).__memoPwned).toBeUndefined();
   });
 
+  it("html 은 정화해서 보인다 — iframe 은 지운다(src 없이 시험: happy-dom 이 주소로 실제 접속하지 않게)", async () => {
+    await renderWidget({ definition: shared("html", "<p>본문</p><iframe></iframe>") });
+    const view = must("widget-memo-shared");
+    expect(view.querySelector("iframe")).toBeNull();
+    expect(view.querySelector("p")?.textContent).toBe("본문");
+  });
+
   it("내용이 비면 「내용이 없습니다」", async () => {
     await renderWidget({ definition: shared("text", "  \n ") });
     expect(container.textContent).toContain("내용이 없습니다");
