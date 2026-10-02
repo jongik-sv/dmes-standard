@@ -1,0 +1,11110 @@
+[
+{
+"members": [
+{
+"id": 496,
+"name": "명",
+"sense": 1,
+"eng": "Name",
+"src": "old",
+"cols": 378
+},
+{
+"id": 3246,
+"name": "Name",
+"sense": 1,
+"eng": "Name",
+"src": "std",
+"cols": 0
+},
+{
+"id": 5047,
+"name": "명칭",
+"sense": 1,
+"eng": "Name",
+"src": "std",
+"cols": 0
+},
+{
+"id": 6436,
+"name": "이름",
+"sense": 1,
+"eng": "Name",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 715,
+"name": "센터",
+"sense": 1,
+"eng": "Center",
+"src": "old",
+"cols": 28
+},
+{
+"id": 3341,
+"name": "Center",
+"sense": 1,
+"eng": "Center",
+"src": "std",
+"cols": 0
+},
+{
+"id": 5390,
+"name": "센타",
+"sense": 1,
+"eng": "Center",
+"src": "std",
+"cols": 0
+},
+{
+"id": 7298,
+"name": "중앙",
+"sense": 1,
+"eng": "Center",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1249,
+"name": "최소",
+"sense": 1,
+"eng": "Minimum",
+"src": "old",
+"cols": 138
+},
+{
+"id": 3205,
+"name": "MIN",
+"sense": 1,
+"eng": "Minimum",
+"src": "std",
+"cols": 0
+},
+{
+"id": 3208,
+"name": "Minimum",
+"sense": 1,
+"eng": "Minimum",
+"src": "std",
+"cols": 0
+},
+{
+"id": 7636,
+"name": "최소값",
+"sense": 1,
+"eng": "MinimumValue",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 409,
+"name": "데이터",
+"sense": 1,
+"eng": "Data",
+"src": "old",
+"cols": 180
+},
+{
+"id": 2446,
+"name": "Data",
+"sense": 1,
+"eng": "Data",
+"src": "std",
+"cols": 0
+},
+{
+"id": 5672,
+"name": "데이타",
+"sense": 1,
+"eng": "Data",
+"src": "std",
+"cols": 0
+},
+{
+"id": 6553,
+"name": "자료",
+"sense": 1,
+"eng": "Data",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 318,
+"name": "구분",
+"sense": 1,
+"eng": "Type",
+"src": "old",
+"cols": 489
+},
+{
+"id": 964,
+"name": "유형",
+"sense": 1,
+"eng": "Type",
+"src": "old",
+"cols": 134
+},
+{
+"id": 4005,
+"name": "Type",
+"sense": 1,
+"eng": "Type",
+"src": "std",
+"cols": 0
+},
+{
+"id": 7510,
+"name": "타입",
+"sense": 1,
+"eng": "Type",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 656,
+"name": "사용",
+"sense": 1,
+"eng": "Use",
+"src": "old",
+"cols": 84
+},
+{
+"id": 921,
+"name": "용도",
+"sense": 1,
+"eng": "Usage",
+"src": "old",
+"cols": 17
+},
+{
+"id": 4026,
+"name": "Use",
+"sense": 1,
+"eng": "Use",
+"src": "std",
+"cols": 0
+},
+{
+"id": 6445,
+"name": "이용",
+"sense": 1,
+"eng": "Use",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 4306,
+"name": "모자재",
+"sense": 1,
+"eng": "ParentMaterial",
+"src": "std",
+"cols": 0
+},
+{
+"id": 4307,
+"name": "모재",
+"sense": 1,
+"eng": "ParentMaterial",
+"src": "std",
+"cols": 0
+},
+{
+"id": 4308,
+"name": "모재료",
+"sense": 1,
+"eng": "ParentMaterial",
+"src": "std",
+"cols": 0
+},
+{
+"id": 4309,
+"name": "모재자재",
+"sense": 1,
+"eng": "ParentMaterial",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 905,
+"name": "오버",
+"sense": 2,
+"eng": "Over",
+"src": "old",
+"cols": 5
+},
+{
+"id": 1239,
+"name": "초과",
+"sense": 1,
+"eng": "Over",
+"src": "old",
+"cols": 3
+},
+{
+"id": 904,
+"name": "오버",
+"sense": 1,
+"eng": "Over",
+"src": "old",
+"cols": 2
+},
+{
+"id": 3042,
+"name": "Over",
+"sense": 1,
+"eng": "Over",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1170,
+"name": "좌측",
+"sense": 1,
+"eng": "Left",
+"src": "old",
+"cols": 4
+},
+{
+"id": 2954,
+"name": "Left",
+"sense": 1,
+"eng": "Left",
+"src": "std",
+"cols": 0
+},
+{
+"id": 5986,
+"name": "왼쪽",
+"sense": 1,
+"eng": "Left",
+"src": "std",
+"cols": 0
+},
+{
+"id": 6675,
+"name": "좌",
+"sense": 1,
+"eng": "Left",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1301,
+"name": "클래스",
+"sense": 1,
+"eng": "Class",
+"src": "old",
+"cols": 10
+},
+{
+"id": 1784,
+"name": "클래스",
+"sense": 2,
+"eng": "Class",
+"src": "gl",
+"cols": 0
+},
+{
+"id": 2305,
+"name": "Class",
+"sense": 1,
+"eng": "Class",
+"src": "std",
+"cols": 0
+},
+{
+"id": 7496,
+"name": "클라스",
+"sense": 1,
+"eng": "Class",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 21,
+"name": "공정",
+"sense": 1,
+"eng": "Process",
+"src": "old",
+"cols": 135
+},
+{
+"id": 1226,
+"name": "처리",
+"sense": 3,
+"eng": "Process",
+"src": "old",
+"cols": 1
+},
+{
+"id": 3465,
+"name": "Process",
+"sense": 1,
+"eng": "Process",
+"src": "std",
+"cols": 0
+},
+{
+"id": 7814,
+"name": "프로세스",
+"sense": 1,
+"eng": "Process",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 974,
+"name": "이메일",
+"sense": 1,
+"eng": "Email",
+"src": "old",
+"cols": 8
+},
+{
+"id": 2563,
+"name": "E_Mail",
+"sense": 1,
+"eng": "E_Mail",
+"src": "std",
+"cols": 0
+},
+{
+"id": 3142,
+"name": "Mail",
+"sense": 1,
+"eng": "Mail",
+"src": "std",
+"cols": 0
+},
+{
+"id": 5035,
+"name": "메일",
+"sense": 1,
+"eng": "Mail",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 673,
+"name": "상부",
+"sense": 1,
+"eng": "Top",
+"src": "old",
+"cols": 213
+},
+{
+"id": 1316,
+"name": "탑",
+"sense": 1,
+"eng": "Top",
+"src": "old",
+"cols": 14
+},
+{
+"id": 3959,
+"name": "Top",
+"sense": 1,
+"eng": "Top",
+"src": "std",
+"cols": 0
+},
+{
+"id": 3964,
+"name": "Top부",
+"sense": 1,
+"eng": "TopPart",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 930,
+"name": "우측",
+"sense": 1,
+"eng": "Right",
+"src": "old",
+"cols": 4
+},
+{
+"id": 4242,
+"name": "Right",
+"sense": 1,
+"eng": "Right",
+"src": "std",
+"cols": 0
+},
+{
+"id": 5922,
+"name": "오른쪽",
+"sense": 1,
+"eng": "Right",
+"src": "std",
+"cols": 0
+},
+{
+"id": 6034,
+"name": "우",
+"sense": 1,
+"eng": "Right",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 508,
+"name": "목적지",
+"sense": 2,
+"eng": "Destination",
+"src": "old",
+"cols": 3
+},
+{
+"id": 7439,
+"name": "착지",
+"sense": 1,
+"eng": "Destination",
+"src": "std",
+"cols": 0
+},
+{
+"id": 7928,
+"name": "행선",
+"sense": 1,
+"eng": "Destination",
+"src": "std",
+"cols": 0
+},
+{
+"id": 7929,
+"name": "행선지",
+"sense": 1,
+"eng": "Destination",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 764,
+"name": "순위",
+"sense": 1,
+"eng": "Rank",
+"src": "old",
+"cols": 16
+},
+{
+"id": 3510,
+"name": "Rank",
+"sense": 1,
+"eng": "Rank",
+"src": "std",
+"cols": 0
+},
+{
+"id": 3512,
+"name": "Ranking",
+"sense": 1,
+"eng": "Ranking",
+"src": "std",
+"cols": 0
+},
+{
+"id": 4978,
+"name": "랭크",
+"sense": 1,
+"eng": "Rank",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 507,
+"name": "목적",
+"sense": 1,
+"eng": "Object",
+"src": "old",
+"cols": 28
+},
+{
+"id": 906,
+"name": "오브젝트",
+"sense": 1,
+"eng": "Object",
+"src": "old",
+"cols": 8
+},
+{
+"id": 2990,
+"name": "Object",
+"sense": 1,
+"eng": "Object",
+"src": "std",
+"cols": 0
+},
+{
+"id": 5924,
+"name": "오브잭트",
+"sense": 1,
+"eng": "Object",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1433,
+"name": "하부",
+"sense": 1,
+"eng": "Bottom",
+"src": "old",
+"cols": 151
+},
+{
+"id": 1434,
+"name": "하부",
+"sense": 2,
+"eng": "Bottom",
+"src": "old",
+"cols": 2
+},
+{
+"id": 2222,
+"name": "Bottom",
+"sense": 1,
+"eng": "Bottom",
+"src": "std",
+"cols": 0
+},
+{
+"id": 2224,
+"name": "Bottom부",
+"sense": 1,
+"eng": "BottomPart",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 712,
+"name": "세정",
+"sense": 1,
+"eng": "Cleaning",
+"src": "old",
+"cols": 8
+},
+{
+"id": 2307,
+"name": "Clean",
+"sense": 1,
+"eng": "Clean",
+"src": "std",
+"cols": 0
+},
+{
+"id": 2308,
+"name": "Cleaning",
+"sense": 1,
+"eng": "Cleaning",
+"src": "std",
+"cols": 0
+},
+{
+"id": 7591,
+"name": "청소",
+"sense": 1,
+"eng": "Clean",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1119,
+"name": "전환",
+"sense": 1,
+"eng": "Convert",
+"src": "old",
+"cols": 19
+},
+{
+"id": 578,
+"name": "변환",
+"sense": 1,
+"eng": "Conversion",
+"src": "old",
+"cols": 3
+},
+{
+"id": 2375,
+"name": "Convert",
+"sense": 1,
+"eng": "Convert",
+"src": "std",
+"cols": 0
+},
+{
+"id": 7469,
+"name": "컨버젼",
+"sense": 1,
+"eng": "Conversion",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 898,
+"name": "예약",
+"sense": 1,
+"eng": "Reserve",
+"src": "old",
+"cols": 19
+},
+{
+"id": 899,
+"name": "예약",
+"sense": 2,
+"eng": "Reserve",
+"src": "old",
+"cols": 0
+},
+{
+"id": 2040,
+"name": "예약",
+"sense": 3,
+"eng": "Reservation",
+"src": "gl",
+"cols": 0
+},
+{
+"id": 4230,
+"name": "Reservation",
+"sense": 1,
+"eng": "Reservation",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 308,
+"name": "구간",
+"sense": 1,
+"eng": "Section",
+"src": "old",
+"cols": 8
+},
+{
+"id": 298,
+"name": "과",
+"sense": 3,
+"eng": "Section",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2068,
+"name": "~과",
+"sense": 1,
+"eng": "Section",
+"src": "std",
+"cols": 0
+},
+{
+"id": 3308,
+"name": "Section",
+"sense": 1,
+"eng": "Section",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 662,
+"name": "사이즈",
+"sense": 1,
+"eng": "Size",
+"src": "old",
+"cols": 27
+},
+{
+"id": 3552,
+"name": "Size",
+"sense": 1,
+"eng": "Size",
+"src": "std",
+"cols": 0
+},
+{
+"id": 7485,
+"name": "크기",
+"sense": 1,
+"eng": "Size",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1357,
+"name": "파라미터",
+"sense": 1,
+"eng": "Parameter",
+"src": "old",
+"cols": 4
+},
+{
+"id": 1963,
+"name": "Parameter",
+"sense": 1,
+"eng": "Parameter",
+"src": "gl",
+"cols": 0
+},
+{
+"id": 8158,
+"name": "파라메터",
+"sense": 1,
+"eng": "Parameter",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1476,
+"name": "확인",
+"sense": 1,
+"eng": "Check",
+"src": "old",
+"cols": 42
+},
+{
+"id": 2288,
+"name": "Check",
+"sense": 1,
+"eng": "Check",
+"src": "std",
+"cols": 0
+},
+{
+"id": 7603,
+"name": "체크",
+"sense": 1,
+"eng": "Check",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 595,
+"name": "보호",
+"sense": 1,
+"eng": "Protect",
+"src": "old",
+"cols": 59
+},
+{
+"id": 3473,
+"name": "Protect",
+"sense": 1,
+"eng": "Protect",
+"src": "std",
+"cols": 0
+},
+{
+"id": 3474,
+"name": "Protection",
+"sense": 1,
+"eng": "Protection",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1215,
+"name": "차",
+"sense": 2,
+"eng": "Next",
+"src": "old",
+"cols": 10
+},
+{
+"id": 3255,
+"name": "Next",
+"sense": 1,
+"eng": "Next",
+"src": "std",
+"cols": 0
+},
+{
+"id": 4600,
+"name": "다음",
+"sense": 1,
+"eng": "Next",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1353,
+"name": "특수",
+"sense": 1,
+"eng": "Special",
+"src": "old",
+"cols": 9
+},
+{
+"id": 3605,
+"name": "Special",
+"sense": 1,
+"eng": "Special",
+"src": "std",
+"cols": 0
+},
+{
+"id": 8130,
+"name": "특별",
+"sense": 1,
+"eng": "Special",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 24,
+"name": "제품",
+"sense": 1,
+"eng": "Product",
+"src": "old",
+"cols": 185
+},
+{
+"id": 3467,
+"name": "Product",
+"sense": 1,
+"eng": "Product",
+"src": "std",
+"cols": 0
+},
+{
+"id": 6873,
+"name": "품",
+"sense": 1,
+"eng": "Product",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1326,
+"name": "테이블",
+"sense": 1,
+"eng": "Table",
+"src": "old",
+"cols": 9
+},
+{
+"id": 3893,
+"name": "Table",
+"sense": 1,
+"eng": "Table",
+"src": "std",
+"cols": 0
+},
+{
+"id": 7996,
+"name": "표",
+"sense": 1,
+"eng": "Table",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 803,
+"name": "시험",
+"sense": 1,
+"eng": "Test",
+"src": "old",
+"cols": 273
+},
+{
+"id": 1325,
+"name": "테스트",
+"sense": 1,
+"eng": "Test",
+"src": "old",
+"cols": 1
+},
+{
+"id": 3934,
+"name": "Test",
+"sense": 1,
+"eng": "Test",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 639,
+"name": "비밀번호",
+"sense": 1,
+"eng": "Password",
+"src": "old",
+"cols": 7
+},
+{
+"id": 3077,
+"name": "Password",
+"sense": 1,
+"eng": "Password",
+"src": "std",
+"cols": 0
+},
+{
+"id": 8188,
+"name": "패스워드",
+"sense": 1,
+"eng": "Password",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 785,
+"name": "슬래브",
+"sense": 1,
+"eng": "Slab",
+"src": "old",
+"cols": 1
+},
+{
+"id": 3565,
+"name": "Slab",
+"sense": 1,
+"eng": "Slab",
+"src": "std",
+"cols": 0
+},
+{
+"id": 5812,
+"name": "슬라브",
+"sense": 1,
+"eng": "Slab",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 684,
+"name": "색상",
+"sense": 1,
+"eng": "Color",
+"src": "old",
+"cols": 128
+},
+{
+"id": 2337,
+"name": "Color",
+"sense": 1,
+"eng": "Color",
+"src": "std",
+"cols": 0
+},
+{
+"id": 7463,
+"name": "칼라",
+"sense": 1,
+"eng": "Color",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 491,
+"name": "메이커",
+"sense": 1,
+"eng": "Maker",
+"src": "old",
+"cols": 35
+},
+{
+"id": 1147,
+"name": "제조",
+"sense": 1,
+"eng": "Maker",
+"src": "old",
+"cols": 1
+},
+{
+"id": 3148,
+"name": "Maker",
+"sense": 1,
+"eng": "Maker",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 794,
+"name": "시스템",
+"sense": 1,
+"eng": "System",
+"src": "old",
+"cols": 21
+},
+{
+"id": 795,
+"name": "시스템",
+"sense": 2,
+"eng": "System",
+"src": "old",
+"cols": 0
+},
+{
+"id": 3889,
+"name": "System",
+"sense": 1,
+"eng": "System",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1379,
+"name": "평균",
+"sense": 1,
+"eng": "Average",
+"src": "old",
+"cols": 91
+},
+{
+"id": 2164,
+"name": "Average",
+"sense": 1,
+"eng": "Average",
+"src": "std",
+"cols": 0
+},
+{
+"id": 8208,
+"name": "평균값",
+"sense": 1,
+"eng": "AverageValue",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1216,
+"name": "차량",
+"sense": 1,
+"eng": "Car",
+"src": "old",
+"cols": 77
+},
+{
+"id": 2269,
+"name": "Car",
+"sense": 1,
+"eng": "Car",
+"src": "std",
+"cols": 0
+},
+{
+"id": 6549,
+"name": "자동차",
+"sense": 1,
+"eng": "Car",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1205,
+"name": "직위",
+"sense": 1,
+"eng": "Position",
+"src": "old",
+"cols": 1
+},
+{
+"id": 1925,
+"name": "포지션",
+"sense": 1,
+"eng": "Position",
+"src": "gl",
+"cols": 0
+},
+{
+"id": 3422,
+"name": "Position",
+"sense": 1,
+"eng": "Position",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 566,
+"name": "베어링",
+"sense": 1,
+"eng": "Bearing",
+"src": "old",
+"cols": 25
+},
+{
+"id": 2194,
+"name": "Bearing",
+"sense": 1,
+"eng": "Bearing",
+"src": "std",
+"cols": 0
+},
+{
+"id": 5418,
+"name": "베이링",
+"sense": 1,
+"eng": "Bearing",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1248,
+"name": "최대",
+"sense": 1,
+"eng": "Maximum",
+"src": "old",
+"cols": 173
+},
+{
+"id": 3161,
+"name": "MAX",
+"sense": 1,
+"eng": "Maximum",
+"src": "std",
+"cols": 0
+},
+{
+"id": 3162,
+"name": "Maximum",
+"sense": 1,
+"eng": "Maximum",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1118,
+"name": "전화",
+"sense": 2,
+"eng": "Mobile Phone",
+"src": "old",
+"cols": 2
+},
+{
+"id": 7926,
+"name": "핸드폰",
+"sense": 1,
+"eng": "Handphone",
+"src": "std",
+"cols": 0
+},
+{
+"id": 8063,
+"name": "휴대폰",
+"sense": 1,
+"eng": "Handphone",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 842,
+"name": "압력",
+"sense": 1,
+"eng": "Pressure",
+"src": "old",
+"cols": 65
+},
+{
+"id": 3448,
+"name": "Pressure",
+"sense": 1,
+"eng": "Pressure",
+"src": "std",
+"cols": 0
+},
+{
+"id": 6130,
+"name": "압",
+"sense": 1,
+"eng": "Pressure",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1196,
+"name": "지역",
+"sense": 2,
+"eng": "Area",
+"src": "old",
+"cols": 3
+},
+{
+"id": 320,
+"name": "구역",
+"sense": 1,
+"eng": "Area",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2143,
+"name": "Area",
+"sense": 1,
+"eng": "Area",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 855,
+"name": "어플리케이션",
+"sense": 1,
+"eng": "Application",
+"src": "old",
+"cols": 6
+},
+{
+"id": 2135,
+"name": "APP",
+"sense": 1,
+"eng": "Application",
+"src": "std",
+"cols": 0
+},
+{
+"id": 2136,
+"name": "Application",
+"sense": 1,
+"eng": "Application",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 445,
+"name": "량",
+"sense": 1,
+"eng": "Amount",
+"src": "old",
+"cols": 50
+},
+{
+"id": 2070,
+"name": "~량",
+"sense": 2,
+"eng": "Amount",
+"src": "std",
+"cols": 0
+},
+{
+"id": 2120,
+"name": "Amount",
+"sense": 1,
+"eng": "Amount",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 559,
+"name": "백업",
+"sense": 1,
+"eng": "Backup",
+"src": "old",
+"cols": 7
+},
+{
+"id": 2175,
+"name": "Backup",
+"sense": 1,
+"eng": "Backup",
+"src": "std",
+"cols": 0
+},
+{
+"id": 2243,
+"name": "BU",
+"sense": 1,
+"eng": "Backup",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 685,
+"name": "샘플",
+"sense": 1,
+"eng": "Sample",
+"src": "old",
+"cols": 65
+},
+{
+"id": 260,
+"name": "견본",
+"sense": 2,
+"eng": "Sample",
+"src": "old",
+"cols": 5
+},
+{
+"id": 3545,
+"name": "Sample",
+"sense": 1,
+"eng": "Sample",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 753,
+"name": "수준",
+"sense": 1,
+"eng": "Level",
+"src": "old",
+"cols": 13
+},
+{
+"id": 2957,
+"name": "Level",
+"sense": 1,
+"eng": "Level",
+"src": "std",
+"cols": 0
+},
+{
+"id": 4979,
+"name": "레벨",
+"sense": 1,
+"eng": "Level",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 3014,
+"name": "OperateSide",
+"sense": 1,
+"eng": "OperateSide",
+"src": "std",
+"cols": 0
+},
+{
+"id": 3020,
+"name": "OperatorSide",
+"sense": 1,
+"eng": "OperatorSide",
+"src": "std",
+"cols": 0
+},
+{
+"id": 3021,
+"name": "Operator-Side",
+"sense": 1,
+"eng": "Operator-Side",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1167,
+"name": "종료",
+"sense": 1,
+"eng": "End",
+"src": "old",
+"cols": 109
+},
+{
+"id": 2608,
+"name": "End",
+"sense": 1,
+"eng": "End",
+"src": "std",
+"cols": 0
+},
+{
+"id": 4770,
+"name": "끝",
+"sense": 1,
+"eng": "End",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 782,
+"name": "스팽글",
+"sense": 1,
+"eng": "Spangle",
+"src": "old",
+"cols": 3
+},
+{
+"id": 781,
+"name": "스팡글",
+"sense": 1,
+"eng": "Spangle",
+"src": "old",
+"cols": 2
+},
+{
+"id": 3598,
+"name": "Spangle",
+"sense": 1,
+"eng": "Spangle",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 458,
+"name": "로컬",
+"sense": 1,
+"eng": "Local",
+"src": "old",
+"cols": 6
+},
+{
+"id": 3105,
+"name": "Local",
+"sense": 1,
+"eng": "Local",
+"src": "std",
+"cols": 0
+},
+{
+"id": 4985,
+"name": "로칼",
+"sense": 1,
+"eng": "Local",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1214,
+"name": "차",
+"sense": 1,
+"eng": "Difference",
+"src": "old",
+"cols": 38
+},
+{
+"id": 2499,
+"name": "Difference",
+"sense": 1,
+"eng": "Difference",
+"src": "std",
+"cols": 0
+},
+{
+"id": 7432,
+"name": "차이",
+"sense": 1,
+"eng": "Difference",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1085,
+"name": "전기",
+"sense": 2,
+"eng": "Electricity",
+"src": "old",
+"cols": 12
+},
+{
+"id": 2587,
+"name": "Electric",
+"sense": 1,
+"eng": "Electric",
+"src": "std",
+"cols": 0
+},
+{
+"id": 3704,
+"name": "전기",
+"sense": 3,
+"eng": "Electric",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 592,
+"name": "보정",
+"sense": 1,
+"eng": "Correction",
+"src": "old",
+"cols": 19
+},
+{
+"id": 2384,
+"name": "Correction",
+"sense": 1,
+"eng": "Correction",
+"src": "std",
+"cols": 0
+},
+{
+"id": 6907,
+"name": "정정",
+"sense": 1,
+"eng": "Correction",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1400,
+"name": "풀하드",
+"sense": 1,
+"eng": "Full Hard",
+"src": "old",
+"cols": 7
+},
+{
+"id": 2639,
+"name": "FH",
+"sense": 1,
+"eng": "FullHard",
+"src": "std",
+"cols": 0
+},
+{
+"id": 2700,
+"name": "FullHard",
+"sense": 1,
+"eng": "FullHard",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1354,
+"name": "티타늄",
+"sense": 1,
+"eng": "Titanium",
+"src": "old",
+"cols": 8
+},
+{
+"id": 3945,
+"name": "Ti",
+"sense": 1,
+"eng": "Titanium",
+"src": "std",
+"cols": 0
+},
+{
+"id": 8146,
+"name": "티나늄",
+"sense": 1,
+"eng": "Titanium",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 452,
+"name": "레코드",
+"sense": 1,
+"eng": "Record",
+"src": "old",
+"cols": 4
+},
+{
+"id": 346,
+"name": "기록",
+"sense": 1,
+"eng": "Record",
+"src": "old",
+"cols": 3
+},
+{
+"id": 3532,
+"name": "Record",
+"sense": 1,
+"eng": "Record",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 529,
+"name": "박스",
+"sense": 1,
+"eng": "Box",
+"src": "old",
+"cols": 13
+},
+{
+"id": 2225,
+"name": "Box",
+"sense": 1,
+"eng": "Box",
+"src": "std",
+"cols": 0
+},
+{
+"id": 7880,
+"name": "함",
+"sense": 1,
+"eng": "Box",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1289,
+"name": "코팅",
+"sense": 1,
+"eng": "Coat",
+"src": "old",
+"cols": 291
+},
+{
+"id": 2318,
+"name": "Coat",
+"sense": 1,
+"eng": "Coat",
+"src": "std",
+"cols": 0
+},
+{
+"id": 2320,
+"name": "Coating",
+"sense": 1,
+"eng": "Coating",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1373,
+"name": "퍼센트",
+"sense": 1,
+"eng": "Percent",
+"src": "old",
+"cols": 15
+},
+{
+"id": 3364,
+"name": "Percentage",
+"sense": 1,
+"eng": "Percentage",
+"src": "std",
+"cols": 0
+},
+{
+"id": 5172,
+"name": "백분율",
+"sense": 1,
+"eng": "Percentage",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1005,
+"name": "인터메시",
+"sense": 1,
+"eng": "Intermesh",
+"src": "old",
+"cols": 7
+},
+{
+"id": 1004,
+"name": "인터마",
+"sense": 1,
+"eng": "Intermesh",
+"src": "old",
+"cols": 2
+},
+{
+"id": 2900,
+"name": "Intermesh",
+"sense": 1,
+"eng": "Intermesh",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1056,
+"name": "장비",
+"sense": 1,
+"eng": "Equipment",
+"src": "old",
+"cols": 29
+},
+{
+"id": 701,
+"name": "설비",
+"sense": 1,
+"eng": "Equipment",
+"src": "old",
+"cols": 4
+},
+{
+"id": 2056,
+"name": "Equipment",
+"sense": 1,
+"eng": "Equipment",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 281,
+"name": "고객사",
+"sense": 1,
+"eng": "Customer",
+"src": "old",
+"cols": 61
+},
+{
+"id": 2429,
+"name": "Customer",
+"sense": 1,
+"eng": "Customer",
+"src": "std",
+"cols": 0
+},
+{
+"id": 3727,
+"name": "고객",
+"sense": 1,
+"eng": "Custmer",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 737,
+"name": "송신",
+"sense": 1,
+"eng": "Send",
+"src": "old",
+"cols": 85
+},
+{
+"id": 3315,
+"name": "Send",
+"sense": 1,
+"eng": "Send",
+"src": "std",
+"cols": 0
+},
+{
+"id": 5112,
+"name": "발송",
+"sense": 1,
+"eng": "Send",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 740,
+"name": "수",
+"sense": 1,
+"eng": "Count",
+"src": "old",
+"cols": 172
+},
+{
+"id": 2389,
+"name": "Count",
+"sense": 1,
+"eng": "Count",
+"src": "std",
+"cols": 0
+},
+{
+"id": 3807,
+"name": "갯수",
+"sense": 1,
+"eng": "Count",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1366,
+"name": "팔레트",
+"sense": 1,
+"eng": "Pallet",
+"src": "old",
+"cols": 9
+},
+{
+"id": 3067,
+"name": "Pallet",
+"sense": 1,
+"eng": "Pallet",
+"src": "std",
+"cols": 0
+},
+{
+"id": 8187,
+"name": "팔랫트",
+"sense": 1,
+"eng": "Pallet",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1052,
+"name": "잡음",
+"sense": 1,
+"eng": "Noise",
+"src": "old",
+"cols": 1
+},
+{
+"id": 3274,
+"name": "Noise",
+"sense": 1,
+"eng": "Noise",
+"src": "std",
+"cols": 0
+},
+{
+"id": 4641,
+"name": "소음",
+"sense": 1,
+"eng": "Noise",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 659,
+"name": "사유",
+"sense": 1,
+"eng": "Reason",
+"src": "old",
+"cols": 45
+},
+{
+"id": 5320,
+"name": "Reason",
+"sense": 1,
+"eng": "Reason",
+"src": "std",
+"cols": 0
+},
+{
+"id": 6449,
+"name": "이유",
+"sense": 1,
+"eng": "Reason",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1144,
+"name": "제목",
+"sense": 1,
+"eng": "Title",
+"src": "old",
+"cols": 5
+},
+{
+"id": 3950,
+"name": "Title",
+"sense": 1,
+"eng": "Title",
+"src": "std",
+"cols": 0
+},
+{
+"id": 7509,
+"name": "타이틀",
+"sense": 1,
+"eng": "Title",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 12,
+"name": "중량",
+"sense": 1,
+"eng": "Weight",
+"src": "old",
+"cols": 245
+},
+{
+"id": 4069,
+"name": "Weight",
+"sense": 1,
+"eng": "Weight",
+"src": "std",
+"cols": 0
+},
+{
+"id": 4331,
+"name": "무게",
+"sense": 1,
+"eng": "Weight",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1201,
+"name": "직경",
+"sense": 1,
+"eng": "Diameter",
+"src": "old",
+"cols": 49
+},
+{
+"id": 2496,
+"name": "Dia",
+"sense": 1,
+"eng": "Diameter",
+"src": "std",
+"cols": 0
+},
+{
+"id": 2497,
+"name": "Diameter",
+"sense": 1,
+"eng": "Diameter",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1261,
+"name": "출측",
+"sense": 1,
+"eng": "Exit",
+"src": "old",
+"cols": 84
+},
+{
+"id": 3542,
+"name": "Exit",
+"sense": 1,
+"eng": "Exit",
+"src": "std",
+"cols": 0
+},
+{
+"id": 7676,
+"name": "출구",
+"sense": 1,
+"eng": "Exit",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1757,
+"name": "야드맵",
+"sense": 1,
+"eng": "Yard Map",
+"src": "gl",
+"cols": 0
+},
+{
+"id": 4113,
+"name": "YardMap",
+"sense": 1,
+"eng": "YardMap",
+"src": "std",
+"cols": 0
+},
+{
+"id": 4117,
+"name": "YM",
+"sense": 1,
+"eng": "YardMap",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1449,
+"name": "항목",
+"sense": 1,
+"eng": "Item",
+"src": "old",
+"cols": 104
+},
+{
+"id": 1401,
+"name": "품목",
+"sense": 1,
+"eng": "Item",
+"src": "old",
+"cols": 36
+},
+{
+"id": 2907,
+"name": "Item",
+"sense": 1,
+"eng": "Item",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 6,
+"name": "아이디",
+"sense": 1,
+"eng": "Identifier",
+"src": "old",
+"cols": 363
+},
+{
+"id": 2854,
+"name": "ID",
+"sense": 1,
+"eng": "Identification",
+"src": "std",
+"cols": 0
+},
+{
+"id": 2855,
+"name": "Identification",
+"sense": 1,
+"eng": "Identification",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1346,
+"name": "투입",
+"sense": 1,
+"eng": "Input",
+"src": "old",
+"cols": 52
+},
+{
+"id": 1021,
+"name": "입력",
+"sense": 1,
+"eng": "Input",
+"src": "old",
+"cols": 14
+},
+{
+"id": 2890,
+"name": "Input",
+"sense": 1,
+"eng": "Input",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 670,
+"name": "산소",
+"sense": 1,
+"eng": "Oxygen",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2987,
+"name": "O",
+"sense": 1,
+"eng": "Oxygen",
+"src": "std",
+"cols": 0
+},
+{
+"id": 3053,
+"name": "Oxygen",
+"sense": 1,
+"eng": "Oxygen",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 609,
+"name": "부재료",
+"sense": 1,
+"eng": "Sub Material",
+"src": "old",
+"cols": 163
+},
+{
+"id": 5563,
+"name": "부원료",
+"sense": 1,
+"eng": "SubMaterial",
+"src": "std",
+"cols": 0
+},
+{
+"id": 5566,
+"name": "부자재",
+"sense": 1,
+"eng": "SubMaterial",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 410,
+"name": "데이터베이스",
+"sense": 1,
+"eng": "Database",
+"src": "old",
+"cols": 3
+},
+{
+"id": 2447,
+"name": "DataBase",
+"sense": 1,
+"eng": "DataBase",
+"src": "std",
+"cols": 0
+},
+{
+"id": 2452,
+"name": "DB",
+"sense": 1,
+"eng": "Database",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 15,
+"name": "등급",
+"sense": 1,
+"eng": "Grade",
+"src": "old",
+"cols": 62
+},
+{
+"id": 2747,
+"name": "Grade",
+"sense": 1,
+"eng": "Grade",
+"src": "std",
+"cols": 0
+},
+{
+"id": 4705,
+"name": "급",
+"sense": 1,
+"eng": "Grade",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1456,
+"name": "행",
+"sense": 1,
+"eng": "Row",
+"src": "old",
+"cols": 6
+},
+{
+"id": 4283,
+"name": "Row",
+"sense": 1,
+"eng": "Row",
+"src": "std",
+"cols": 0
+},
+{
+"id": 7931,
+"name": "행의",
+"sense": 1,
+"eng": "Row",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 614,
+"name": "분",
+"sense": 1,
+"eng": "Minute",
+"src": "old",
+"cols": 12
+},
+{
+"id": 615,
+"name": "분",
+"sense": 2,
+"eng": "Minute",
+"src": "old",
+"cols": 1
+},
+{
+"id": 3211,
+"name": "Minute",
+"sense": 1,
+"eng": "Minute",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 881,
+"name": "열",
+"sense": 1,
+"eng": "Heat",
+"src": "old",
+"cols": 19
+},
+{
+"id": 1510,
+"name": "히트",
+"sense": 2,
+"eng": "Heat",
+"src": "old",
+"cols": 2
+},
+{
+"id": 2779,
+"name": "Heat",
+"sense": 1,
+"eng": "Heat",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 383,
+"name": "농도",
+"sense": 1,
+"eng": "Concentration",
+"src": "old",
+"cols": 48
+},
+{
+"id": 2356,
+"name": "Concentration",
+"sense": 1,
+"eng": "Concentration",
+"src": "std",
+"cols": 0
+},
+{
+"id": 4866,
+"name": "농",
+"sense": 1,
+"eng": "Concentration",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 902,
+"name": "예정",
+"sense": 1,
+"eng": "Schedule",
+"src": "old",
+"cols": 33
+},
+{
+"id": 1014,
+"name": "일정",
+"sense": 1,
+"eng": "Schedule",
+"src": "old",
+"cols": 7
+},
+{
+"id": 3297,
+"name": "Schedule",
+"sense": 1,
+"eng": "Schedule",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 660,
+"name": "사이",
+"sense": 1,
+"eng": "Between",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2204,
+"name": "Between",
+"sense": 1,
+"eng": "Between",
+"src": "std",
+"cols": 0
+},
+{
+"id": 3756,
+"name": "간",
+"sense": 1,
+"eng": "Between",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 868,
+"name": "엠보스",
+"sense": 1,
+"eng": "Emboss",
+"src": "old",
+"cols": 7
+},
+{
+"id": 2599,
+"name": "Emboss",
+"sense": 1,
+"eng": "Emboss",
+"src": "std",
+"cols": 0
+},
+{
+"id": 6187,
+"name": "엠보싱",
+"sense": 1,
+"eng": "Embossing",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 922,
+"name": "용량",
+"sense": 1,
+"eng": "Capacity",
+"src": "old",
+"cols": 5
+},
+{
+"id": 1782,
+"name": "생산능력",
+"sense": 1,
+"eng": "Capacity",
+"src": "gl",
+"cols": 0
+},
+{
+"id": 2268,
+"name": "Capacity",
+"sense": 1,
+"eng": "Capacity",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 363,
+"name": "납",
+"sense": 1,
+"eng": "Lead",
+"src": "old",
+"cols": 11
+},
+{
+"id": 466,
+"name": "리드",
+"sense": 1,
+"eng": "Lead",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2951,
+"name": "Lead",
+"sense": 1,
+"eng": "Lead",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 264,
+"name": "겹침",
+"sense": 1,
+"eng": "Overlap",
+"src": "old",
+"cols": 5
+},
+{
+"id": 3047,
+"name": "Overlap",
+"sense": 1,
+"eng": "Overlap",
+"src": "std",
+"cols": 0
+},
+{
+"id": 3048,
+"name": "Overlapping",
+"sense": 1,
+"eng": "Overlapping",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1120,
+"name": "절단",
+"sense": 1,
+"eng": "Cut",
+"src": "old",
+"cols": 35
+},
+{
+"id": 2431,
+"name": "Cut",
+"sense": 1,
+"eng": "Cut",
+"src": "std",
+"cols": 0
+},
+{
+"id": 2435,
+"name": "Cutting",
+"sense": 1,
+"eng": "Cutting",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 225,
+"name": "X선",
+"sense": 1,
+"eng": "Ray",
+"src": "old",
+"cols": 5
+},
+{
+"id": 865,
+"name": "엑스레이",
+"sense": 1,
+"eng": "X-Ray",
+"src": "old",
+"cols": 2
+},
+{
+"id": 4106,
+"name": "X_Ray",
+"sense": 1,
+"eng": "X_Ray",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 852,
+"name": "약어",
+"sense": 1,
+"eng": "Abbreviation",
+"src": "old",
+"cols": 8
+},
+{
+"id": 6150,
+"name": "약칭",
+"sense": 1,
+"eng": "Abbreviation",
+"src": "std",
+"cols": 0
+},
+{
+"id": 6152,
+"name": "약호",
+"sense": 1,
+"eng": "Abbreviation",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1306,
+"name": "킬로그램",
+"sense": 1,
+"eng": "Kilogram",
+"src": "old",
+"cols": 2
+},
+{
+"id": 2922,
+"name": "KG",
+"sense": 1,
+"eng": "Kilogram",
+"src": "std",
+"cols": 0
+},
+{
+"id": 2924,
+"name": "kilogram",
+"sense": 1,
+"eng": "kilogram",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1049,
+"name": "잔여",
+"sense": 1,
+"eng": "Remain",
+"src": "old",
+"cols": 12
+},
+{
+"id": 4221,
+"name": "Remain",
+"sense": 1,
+"eng": "Remain",
+"src": "std",
+"cols": 0
+},
+{
+"id": 4222,
+"name": "Remaining",
+"sense": 1,
+"eng": "Remaining",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 469,
+"name": "리젝트",
+"sense": 1,
+"eng": "Reject",
+"src": "old",
+"cols": 10
+},
+{
+"id": 532,
+"name": "반려",
+"sense": 1,
+"eng": "Reject",
+"src": "old",
+"cols": 4
+},
+{
+"id": 4220,
+"name": "Reject",
+"sense": 1,
+"eng": "Reject",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 613,
+"name": "부하",
+"sense": 1,
+"eng": "Load",
+"src": "old",
+"cols": 7
+},
+{
+"id": 456,
+"name": "로드",
+"sense": 1,
+"eng": "Load",
+"src": "old",
+"cols": 3
+},
+{
+"id": 3103,
+"name": "Load",
+"sense": 1,
+"eng": "Load",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 6737,
+"name": "적중률",
+"sense": 1,
+"eng": "HitRatio",
+"src": "std",
+"cols": 0
+},
+{
+"id": 6738,
+"name": "적중율",
+"sense": 1,
+"eng": "HitRatio",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 7113,
+"name": "주민등록번호",
+"sense": 1,
+"eng": "ResidentRegistrationNumber",
+"src": "std",
+"cols": 0
+},
+{
+"id": 7114,
+"name": "주민번호",
+"sense": 1,
+"eng": "ResidentRegistrationNumber",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 5214,
+"name": "선박명",
+"sense": 1,
+"eng": "ShipName",
+"src": "std",
+"cols": 0
+},
+{
+"id": 5215,
+"name": "선박명칭",
+"sense": 1,
+"eng": "ShipName",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 22,
+"name": "코드",
+"sense": 1,
+"eng": "Code",
+"src": "old",
+"cols": 628
+},
+{
+"id": 2321,
+"name": "Code",
+"sense": 1,
+"eng": "Code",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 3343,
+"name": "CenterPositionControl",
+"sense": 1,
+"eng": "CenterPositionControl",
+"src": "std",
+"cols": 0
+},
+{
+"id": 3344,
+"name": "CenterPositioningControl",
+"sense": 1,
+"eng": "CenterPositioningControl",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 4497,
+"name": "구매가격",
+"sense": 1,
+"eng": "PurchasingPrice",
+"src": "std",
+"cols": 0
+},
+{
+"id": 4507,
+"name": "구매가",
+"sense": 1,
+"eng": "PurchasingPrice",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 6614,
+"name": "잔량",
+"sense": 1,
+"eng": "RemainAmount",
+"src": "std",
+"cols": 0
+},
+{
+"id": 6619,
+"name": "잔여량",
+"sense": 1,
+"eng": "RemainAmount",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 455,
+"name": "로그인",
+"sense": 1,
+"eng": "Login",
+"src": "old",
+"cols": 2
+},
+{
+"id": 3114,
+"name": "Login",
+"sense": 1,
+"eng": "Login",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 5154,
+"name": "배부비율",
+"sense": 1,
+"eng": null,
+"src": "std",
+"cols": 0
+},
+{
+"id": 5155,
+"name": "배부율",
+"sense": 1,
+"eng": null,
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1361,
+"name": "파일",
+"sense": 1,
+"eng": "File",
+"src": "old",
+"cols": 17
+},
+{
+"id": 2644,
+"name": "File",
+"sense": 1,
+"eng": "File",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 453,
+"name": "로그",
+"sense": 1,
+"eng": "Log",
+"src": "old",
+"cols": 44
+},
+{
+"id": 3112,
+"name": "Log",
+"sense": 1,
+"eng": "Log",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1177,
+"name": "주소",
+"sense": 1,
+"eng": "Address",
+"src": "old",
+"cols": 26
+},
+{
+"id": 2094,
+"name": "Address",
+"sense": 1,
+"eng": "Address",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1405,
+"name": "프로그램",
+"sense": 1,
+"eng": "Program",
+"src": "old",
+"cols": 13
+},
+{
+"id": 3470,
+"name": "Program",
+"sense": 1,
+"eng": "Program",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 3451,
+"name": "PreTreatment",
+"sense": 1,
+"eng": "PreTreatment",
+"src": "std",
+"cols": 0
+},
+{
+"id": 3452,
+"name": "Pre-Treatment",
+"sense": 1,
+"eng": "Pre-Treatment",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 4767,
+"name": "긴급자재",
+"sense": 1,
+"eng": "UrgencyMaterial",
+"src": "std",
+"cols": 0
+},
+{
+"id": 4768,
+"name": "긴급재",
+"sense": 1,
+"eng": "UrgencyMaterial",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 465,
+"name": "룸",
+"sense": 1,
+"eng": "Room",
+"src": "old",
+"cols": 5
+},
+{
+"id": 4271,
+"name": "Room",
+"sense": 1,
+"eng": "Room",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1136,
+"name": "정보",
+"sense": 1,
+"eng": "Information",
+"src": "old",
+"cols": 27
+},
+{
+"id": 2876,
+"name": "Information",
+"sense": 1,
+"eng": "Information",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 7333,
+"name": "지급금액",
+"sense": 1,
+"eng": null,
+"src": "std",
+"cols": 0
+},
+{
+"id": 7334,
+"name": "지급액",
+"sense": 1,
+"eng": null,
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1706,
+"name": "보류재",
+"sense": 1,
+"eng": "HoldMaterial",
+"src": "gl",
+"cols": 0
+},
+{
+"id": 5455,
+"name": "보류자재",
+"sense": 1,
+"eng": "HoldMaterial",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 333,
+"name": "그룹",
+"sense": 1,
+"eng": "Group",
+"src": "old",
+"cols": 74
+},
+{
+"id": 2755,
+"name": "Group",
+"sense": 1,
+"eng": "Group",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 468,
+"name": "리스트",
+"sense": 1,
+"eng": "List",
+"src": "old",
+"cols": 13
+},
+{
+"id": 3099,
+"name": "List",
+"sense": 1,
+"eng": "List",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 3877,
+"name": "Summer",
+"sense": 1,
+"eng": "Summer",
+"src": "std",
+"cols": 0
+},
+{
+"id": 6191,
+"name": "여름",
+"sense": 1,
+"eng": "Summer",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 571,
+"name": "변경",
+"sense": 1,
+"eng": "Change",
+"src": "old",
+"cols": 117
+},
+{
+"id": 2280,
+"name": "Change",
+"sense": 1,
+"eng": "Change",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 657,
+"name": "사용자",
+"sense": 1,
+"eng": "User",
+"src": "old",
+"cols": 38
+},
+{
+"id": 4027,
+"name": "User",
+"sense": 1,
+"eng": "User",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 717,
+"name": "셀",
+"sense": 1,
+"eng": "Cell",
+"src": "old",
+"cols": 20
+},
+{
+"id": 3340,
+"name": "Cell",
+"sense": 1,
+"eng": "Cell",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 908,
+"name": "오프",
+"sense": 1,
+"eng": "Off",
+"src": "old",
+"cols": 16
+},
+{
+"id": 2994,
+"name": "Off",
+"sense": 1,
+"eng": "Off",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1271,
+"name": "카드",
+"sense": 1,
+"eng": "Card",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2272,
+"name": "Card",
+"sense": 1,
+"eng": "Card",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 2466,
+"name": "DefflectorRoll",
+"sense": 1,
+"eng": "DefflectorRoll",
+"src": "std",
+"cols": 0
+},
+{
+"id": 2467,
+"name": "DeflectorRoll",
+"sense": 1,
+"eng": "DeflectorRoll",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1032,
+"name": "자동",
+"sense": 1,
+"eng": "Auto",
+"src": "old",
+"cols": 14
+},
+{
+"id": 2157,
+"name": "Auto",
+"sense": 1,
+"eng": "Automatic",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 487,
+"name": "맵",
+"sense": 1,
+"eng": "Map",
+"src": "old",
+"cols": 1
+},
+{
+"id": 3151,
+"name": "Map",
+"sense": 1,
+"eng": "Map",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1348,
+"name": "트래킹",
+"sense": 1,
+"eng": "Tracking",
+"src": "old",
+"cols": 7
+},
+{
+"id": 3975,
+"name": "Tracking",
+"sense": 1,
+"eng": "Tracking",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1451,
+"name": "항복점",
+"sense": 1,
+"eng": "Yield Point",
+"src": "old",
+"cols": 15
+},
+{
+"id": 1450,
+"name": "항복",
+"sense": 2,
+"eng": "Yield Point",
+"src": "old",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 345,
+"name": "기능",
+"sense": 1,
+"eng": "Function",
+"src": "old",
+"cols": 3
+},
+{
+"id": 2702,
+"name": "Function",
+"sense": 1,
+"eng": "Function",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1296,
+"name": "크로스",
+"sense": 1,
+"eng": "Cross",
+"src": "old",
+"cols": 10
+},
+{
+"id": 2413,
+"name": "Cross",
+"sense": 1,
+"eng": "Cross",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1410,
+"name": "프린터",
+"sense": 1,
+"eng": "Printer",
+"src": "old",
+"cols": 2
+},
+{
+"id": 3461,
+"name": "Printer",
+"sense": 1,
+"eng": "Printer",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 833,
+"name": "안티",
+"sense": 1,
+"eng": "Anti",
+"src": "old",
+"cols": 10
+},
+{
+"id": 2127,
+"name": "Anti",
+"sense": 1,
+"eng": "Anti",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1338,
+"name": "톤",
+"sense": 1,
+"eng": "Ton",
+"src": "old",
+"cols": 6
+},
+{
+"id": 3955,
+"name": "Ton",
+"sense": 1,
+"eng": "Ton",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 3283,
+"name": "Sampling",
+"sense": 1,
+"eng": "Sampling",
+"src": "std",
+"cols": 0
+},
+{
+"id": 6363,
+"name": "샘플링",
+"sense": 1,
+"eng": "Sampling",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 432,
+"name": "드로잉",
+"sense": 1,
+"eng": "Drawing",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2544,
+"name": "Drawing",
+"sense": 1,
+"eng": "Drawing",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 442,
+"name": "라인",
+"sense": 1,
+"eng": "Line",
+"src": "old",
+"cols": 25
+},
+{
+"id": 3093,
+"name": "Line",
+"sense": 1,
+"eng": "Line",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 920,
+"name": "요청",
+"sense": 1,
+"eng": "Request",
+"src": "old",
+"cols": 199
+},
+{
+"id": 4228,
+"name": "Request",
+"sense": 1,
+"eng": "Request",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 976,
+"name": "이벤트",
+"sense": 1,
+"eng": "Event",
+"src": "old",
+"cols": 5
+},
+{
+"id": 2066,
+"name": "Event",
+"sense": 1,
+"eng": "Event",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1029,
+"name": "잉크",
+"sense": 1,
+"eng": "Ink",
+"src": "old",
+"cols": 13
+},
+{
+"id": 2885,
+"name": "Ink",
+"sense": 1,
+"eng": "Ink",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 4609,
+"name": "단말",
+"sense": 1,
+"eng": "Terminal",
+"src": "std",
+"cols": 0
+},
+{
+"id": 4610,
+"name": "단말기",
+"sense": 1,
+"eng": "Terminal",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 7821,
+"name": "피라멘트",
+"sense": 1,
+"eng": "Filament",
+"src": "std",
+"cols": 0
+},
+{
+"id": 7832,
+"name": "필라멘트",
+"sense": 1,
+"eng": "Filament",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 20,
+"name": "온도",
+"sense": 1,
+"eng": "Temperature",
+"src": "old",
+"cols": 133
+},
+{
+"id": 3919,
+"name": "Temperature",
+"sense": 1,
+"eng": "Temperature",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 231,
+"name": "가스",
+"sense": 1,
+"eng": "Gas",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2718,
+"name": "Gas",
+"sense": 1,
+"eng": "Gas",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1184,
+"name": "중간",
+"sense": 1,
+"eng": "Middle",
+"src": "old",
+"cols": 12
+},
+{
+"id": 3195,
+"name": "Middle",
+"sense": 1,
+"eng": "Middle",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1191,
+"name": "증가",
+"sense": 2,
+"eng": "Increase",
+"src": "old",
+"cols": 5
+},
+{
+"id": 2870,
+"name": "Increase",
+"sense": 1,
+"eng": "Increase",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 4236,
+"name": "ReverseMill",
+"sense": 1,
+"eng": "ReverseMill",
+"src": "std",
+"cols": 0
+},
+{
+"id": 4237,
+"name": "ReversingMill",
+"sense": 1,
+"eng": "ReversingMill",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 3848,
+"name": "겨울",
+"sense": 1,
+"eng": "Winter",
+"src": "std",
+"cols": 0
+},
+{
+"id": 4083,
+"name": "Winter",
+"sense": 1,
+"eng": "Winter",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 369,
+"name": "내부",
+"sense": 2,
+"eng": "Inner",
+"src": "old",
+"cols": 3
+},
+{
+"id": 2887,
+"name": "Inner",
+"sense": 1,
+"eng": "Inner",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 417,
+"name": "도어",
+"sense": 1,
+"eng": "Door",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2531,
+"name": "Door",
+"sense": 1,
+"eng": "Door",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 773,
+"name": "스키드",
+"sense": 1,
+"eng": "Skid",
+"src": "old",
+"cols": 34
+},
+{
+"id": 3558,
+"name": "Skid",
+"sense": 1,
+"eng": "Skid",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1006,
+"name": "인터페이스",
+"sense": 1,
+"eng": "Interface",
+"src": "old",
+"cols": 34
+},
+{
+"id": 1996,
+"name": "Interface",
+"sense": 1,
+"eng": "Interface",
+"src": "gl",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 791,
+"name": "시간",
+"sense": 1,
+"eng": "Time",
+"src": "old",
+"cols": 66
+},
+{
+"id": 3947,
+"name": "Time",
+"sense": 1,
+"eng": "Time",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1372,
+"name": "팬",
+"sense": 1,
+"eng": "Fan",
+"src": "old",
+"cols": 10
+},
+{
+"id": 2621,
+"name": "Fan",
+"sense": 1,
+"eng": "Fan",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1158,
+"name": "조정",
+"sense": 1,
+"eng": "Adjust",
+"src": "old",
+"cols": 16
+},
+{
+"id": 8086,
+"name": "Adjust",
+"sense": 1,
+"eng": "Adjust",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 289,
+"name": "공급",
+"sense": 1,
+"eng": "Supply",
+"src": "old",
+"cols": 4
+},
+{
+"id": 3879,
+"name": "Supply",
+"sense": 1,
+"eng": "Supply",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 516,
+"name": "물",
+"sense": 1,
+"eng": "Water",
+"src": "old",
+"cols": 40
+},
+{
+"id": 4060,
+"name": "Water",
+"sense": 1,
+"eng": "Water",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1304,
+"name": "키",
+"sense": 1,
+"eng": "Key",
+"src": "old",
+"cols": 27
+},
+{
+"id": 2918,
+"name": "Key",
+"sense": 1,
+"eng": "Key",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1329,
+"name": "텍스트",
+"sense": 1,
+"eng": "Text",
+"src": "old",
+"cols": 108
+},
+{
+"id": 3935,
+"name": "Text",
+"sense": 1,
+"eng": "Text",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 2921,
+"name": "Keyword",
+"sense": 1,
+"eng": "Keyword",
+"src": "std",
+"cols": 0
+},
+{
+"id": 7498,
+"name": "키워드",
+"sense": 1,
+"eng": "Keyword",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 3417,
+"name": "PolyviledeneFluoride",
+"sense": 1,
+"eng": "PolyviledeneFluoride",
+"src": "std",
+"cols": 0
+},
+{
+"id": 3418,
+"name": "PolyvinylideneFluoride",
+"sense": 1,
+"eng": "PolyvinylideneFluoride",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 907,
+"name": "오븐",
+"sense": 1,
+"eng": "Oven",
+"src": "old",
+"cols": 40
+},
+{
+"id": 3040,
+"name": "Oven",
+"sense": 1,
+"eng": "Oven",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 914,
+"name": "외",
+"sense": 1,
+"eng": "Out",
+"src": "old",
+"cols": 12
+},
+{
+"id": 3033,
+"name": "Out",
+"sense": 1,
+"eng": "Out",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 3942,
+"name": "Third",
+"sense": 1,
+"eng": "Third",
+"src": "std",
+"cols": 0
+},
+{
+"id": 5378,
+"name": "세번째",
+"sense": 1,
+"eng": "Third",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 3249,
+"name": "Natural",
+"sense": 1,
+"eng": "Natural",
+"src": "std",
+"cols": 0
+},
+{
+"id": 6565,
+"name": "자연",
+"sense": 1,
+"eng": "Natural",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 478,
+"name": "마스터",
+"sense": 1,
+"eng": "Master",
+"src": "old",
+"cols": 110
+},
+{
+"id": 3157,
+"name": "Master",
+"sense": 1,
+"eng": "Master",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 797,
+"name": "시작",
+"sense": 1,
+"eng": "Start",
+"src": "old",
+"cols": 58
+},
+{
+"id": 3649,
+"name": "Start",
+"sense": 1,
+"eng": "Start",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1351,
+"name": "트리머",
+"sense": 1,
+"eng": "Trimmer",
+"src": "old",
+"cols": 9
+},
+{
+"id": 3984,
+"name": "Trimmer",
+"sense": 1,
+"eng": "Trimmer",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 2327,
+"name": "CoilId",
+"sense": 1,
+"eng": "CoilId",
+"src": "std",
+"cols": 0
+},
+{
+"id": 7474,
+"name": "코일ID",
+"sense": 1,
+"eng": "CoilId",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 384,
+"name": "높이",
+"sense": 1,
+"eng": "Height",
+"src": "old",
+"cols": 13
+},
+{
+"id": 2786,
+"name": "Height",
+"sense": 1,
+"eng": "Height",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1204,
+"name": "직선도",
+"sense": 1,
+"eng": "Straightness",
+"src": "old",
+"cols": 2
+},
+{
+"id": 7386,
+"name": "직진도",
+"sense": 1,
+"eng": "Straightness",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1220,
+"name": "채널",
+"sense": 2,
+"eng": "Channel",
+"src": "old",
+"cols": 6
+},
+{
+"id": 2284,
+"name": "Channel",
+"sense": 1,
+"eng": "Channel",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1243,
+"name": "총",
+"sense": 1,
+"eng": "Total",
+"src": "old",
+"cols": 78
+},
+{
+"id": 3965,
+"name": "Total",
+"sense": 1,
+"eng": "Total",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1273,
+"name": "카테고리",
+"sense": 1,
+"eng": "Category",
+"src": "old",
+"cols": 11
+},
+{
+"id": 3323,
+"name": "Category",
+"sense": 1,
+"eng": "Category",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1309,
+"name": "타워",
+"sense": 1,
+"eng": "Tower",
+"src": "old",
+"cols": 3
+},
+{
+"id": 3968,
+"name": "Tower",
+"sense": 1,
+"eng": "Tower",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1397,
+"name": "표준",
+"sense": 1,
+"eng": "Standard",
+"src": "old",
+"cols": 43
+},
+{
+"id": 3646,
+"name": "Standard",
+"sense": 1,
+"eng": "Standard",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1509,
+"name": "히터",
+"sense": 1,
+"eng": "Heater",
+"src": "old",
+"cols": 8
+},
+{
+"id": 2780,
+"name": "Heater",
+"sense": 1,
+"eng": "Heater",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 2642,
+"name": "Field",
+"sense": 1,
+"eng": "Field",
+"src": "std",
+"cols": 0
+},
+{
+"id": 7831,
+"name": "필드",
+"sense": 1,
+"eng": "Field",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 2794,
+"name": "HighBay",
+"sense": 1,
+"eng": "HighBay",
+"src": "std",
+"cols": 0
+},
+{
+"id": 2795,
+"name": "High-Bay",
+"sense": 1,
+"eng": "High-Bay",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 3210,
+"name": "Minus",
+"sense": 1,
+"eng": "Minus",
+"src": "std",
+"cols": 0
+},
+{
+"id": 5005,
+"name": "마이너스",
+"sense": 1,
+"eng": "Minus",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 3966,
+"name": "Total_Al",
+"sense": 1,
+"eng": "TotalAluminum",
+"src": "std",
+"cols": 0
+},
+{
+"id": 3993,
+"name": "TT_Al",
+"sense": 1,
+"eng": "TotalAluminum",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 733,
+"name": "속도",
+"sense": 1,
+"eng": "Speed",
+"src": "old",
+"cols": 141
+},
+{
+"id": 3609,
+"name": "Speed",
+"sense": 1,
+"eng": "Speed",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 2952,
+"name": "Leader",
+"sense": 1,
+"eng": "Leader",
+"src": "std",
+"cols": 0
+},
+{
+"id": 4995,
+"name": "리더",
+"sense": 1,
+"eng": "Leader",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 14,
+"name": "길이",
+"sense": 1,
+"eng": "Length",
+"src": "old",
+"cols": 118
+},
+{
+"id": 2955,
+"name": "Length",
+"sense": 1,
+"eng": "Length",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1384,
+"name": "포장",
+"sense": 1,
+"eng": "Packing",
+"src": "old",
+"cols": 82
+},
+{
+"id": 3058,
+"name": "Packing",
+"sense": 1,
+"eng": "Packing",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 3152,
+"name": "Mark",
+"sense": 1,
+"eng": "Mark",
+"src": "std",
+"cols": 0
+},
+{
+"id": 5010,
+"name": "마크",
+"sense": 1,
+"eng": "Mark",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 261,
+"name": "결과",
+"sense": 1,
+"eng": "Result",
+"src": "old",
+"cols": 41
+},
+{
+"id": 4233,
+"name": "Result",
+"sense": 1,
+"eng": "Result",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 950,
+"name": "위치",
+"sense": 1,
+"eng": "Location",
+"src": "old",
+"cols": 106
+},
+{
+"id": 3108,
+"name": "Location",
+"sense": 1,
+"eng": "Location",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 2244,
+"name": "Bubbling",
+"sense": 1,
+"eng": "Bubbling",
+"src": "std",
+"cols": 0
+},
+{
+"id": 5178,
+"name": "버블링",
+"sense": 1,
+"eng": "Bubbling",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 392,
+"name": "단계",
+"sense": 1,
+"eng": "Step",
+"src": "old",
+"cols": 1
+},
+{
+"id": 3660,
+"name": "Step",
+"sense": 1,
+"eng": "Step",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1380,
+"name": "평균수리시간",
+"sense": 1,
+"eng": "Mean Time To Repair",
+"src": "old",
+"cols": 2
+},
+{
+"id": 1857,
+"name": "평균고장 수리시간",
+"sense": 1,
+"eng": "Mean Time To Repair",
+"src": "gl",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 677,
+"name": "상수",
+"sense": 1,
+"eng": "Constant",
+"src": "old",
+"cols": 7
+},
+{
+"id": 6333,
+"name": "상수값",
+"sense": 1,
+"eng": "Constant",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 714,
+"name": "센서",
+"sense": 1,
+"eng": "Sensor",
+"src": "old",
+"cols": 1
+},
+{
+"id": 3316,
+"name": "Sensor",
+"sense": 1,
+"eng": "Sensor",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 2624,
+"name": "Fax",
+"sense": 1,
+"eng": "Fax",
+"src": "std",
+"cols": 0
+},
+{
+"id": 8191,
+"name": "팩스",
+"sense": 1,
+"eng": "Fax",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 568,
+"name": "베이스",
+"sense": 1,
+"eng": "Base",
+"src": "old",
+"cols": 14
+},
+{
+"id": 2188,
+"name": "Base",
+"sense": 1,
+"eng": "Base",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 700,
+"name": "설명",
+"sense": 1,
+"eng": "Description",
+"src": "old",
+"cols": 34
+},
+{
+"id": 2489,
+"name": "Description",
+"sense": 1,
+"eng": "Description",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 6361,
+"name": "색차후",
+"sense": 1,
+"eng": "ColorDifferenceBack",
+"src": "std",
+"cols": 0
+},
+{
+"id": 6362,
+"name": "색차후면",
+"sense": 1,
+"eng": "ColorDifferenceBack",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 273,
+"name": "계산",
+"sense": 1,
+"eng": "Calculation",
+"src": "old",
+"cols": 8
+},
+{
+"id": 2264,
+"name": "Calculation",
+"sense": 1,
+"eng": "Calculation",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 471,
+"name": "리프트",
+"sense": 1,
+"eng": "Lift",
+"src": "old",
+"cols": 1
+},
+{
+"id": 3091,
+"name": "Lift",
+"sense": 1,
+"eng": "Lift",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1277,
+"name": "커버",
+"sense": 1,
+"eng": "Cover",
+"src": "old",
+"cols": 2
+},
+{
+"id": 2394,
+"name": "Cover",
+"sense": 1,
+"eng": "Cover",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1317,
+"name": "태그",
+"sense": 1,
+"eng": "Tag",
+"src": "old",
+"cols": 33
+},
+{
+"id": 3895,
+"name": "Tag",
+"sense": 1,
+"eng": "Tag",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 560,
+"name": "백업롤",
+"sense": 1,
+"eng": "Backup Roll",
+"src": "old",
+"cols": 10
+},
+{
+"id": 2176,
+"name": "BackUpRoll",
+"sense": 1,
+"eng": "BackUpRoll",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 2893,
+"name": "Insert",
+"sense": 1,
+"eng": "Insert",
+"src": "std",
+"cols": 0
+},
+{
+"id": 6314,
+"name": "삽입",
+"sense": 1,
+"eng": "Insert",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 2998,
+"name": "Oil",
+"sense": 1,
+"eng": "Oil",
+"src": "std",
+"cols": 0
+},
+{
+"id": 5928,
+"name": "오일",
+"sense": 1,
+"eng": "Oil",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 3583,
+"name": "SOL",
+"sense": 1,
+"eng": "SoluteAluminum",
+"src": "std",
+"cols": 0
+},
+{
+"id": 3584,
+"name": "Sol_Al",
+"sense": 1,
+"eng": "SoluteAluminum",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 250,
+"name": "거리",
+"sense": 1,
+"eng": "Distance",
+"src": "old",
+"cols": 5
+},
+{
+"id": 2518,
+"name": "Distance",
+"sense": 1,
+"eng": "Distance",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 501,
+"name": "모드",
+"sense": 1,
+"eng": "Mode",
+"src": "old",
+"cols": 11
+},
+{
+"id": 3223,
+"name": "Mode",
+"sense": 1,
+"eng": "Mode",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 992,
+"name": "인버터",
+"sense": 1,
+"eng": "Inverter",
+"src": "old",
+"cols": 3
+},
+{
+"id": 2902,
+"name": "Inverter",
+"sense": 1,
+"eng": "Inverter",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 462,
+"name": "롤",
+"sense": 1,
+"eng": "Roll",
+"src": "old",
+"cols": 216
+},
+{
+"id": 4255,
+"name": "Roll",
+"sense": 1,
+"eng": "Roll",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 769,
+"name": "스캔",
+"sense": 1,
+"eng": "Scan",
+"src": "old",
+"cols": 2
+},
+{
+"id": 3293,
+"name": "Scan",
+"sense": 1,
+"eng": "Scan",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1283,
+"name": "케이스",
+"sense": 1,
+"eng": "Case",
+"src": "old",
+"cols": 6
+},
+{
+"id": 2274,
+"name": "Case",
+"sense": 1,
+"eng": "Case",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 2124,
+"name": "And",
+"sense": 1,
+"eng": "And",
+"src": "std",
+"cols": 0
+},
+{
+"id": 5067,
+"name": "및",
+"sense": 1,
+"eng": "And",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 3596,
+"name": "Space",
+"sense": 1,
+"eng": "Space",
+"src": "std",
+"cols": 0
+},
+{
+"id": 3858,
+"name": "공간",
+"sense": 1,
+"eng": "Space",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 5379,
+"name": "세번째투입",
+"sense": 1,
+"eng": "ThirdInput",
+"src": "std",
+"cols": 0
+},
+{
+"id": 5391,
+"name": "셋투입",
+"sense": 1,
+"eng": "ThirdInput",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 244,
+"name": "개방",
+"sense": 1,
+"eng": "Open",
+"src": "old",
+"cols": 4
+},
+{
+"id": 3011,
+"name": "Open",
+"sense": 1,
+"eng": "Open",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 490,
+"name": "메시지",
+"sense": 1,
+"eng": "Message",
+"src": "old",
+"cols": 35
+},
+{
+"id": 3178,
+"name": "Message",
+"sense": 1,
+"eng": "Message",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 666,
+"name": "삭제",
+"sense": 1,
+"eng": "Delete",
+"src": "old",
+"cols": 8
+},
+{
+"id": 2472,
+"name": "Delete",
+"sense": 1,
+"eng": "Delete",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1404,
+"name": "프레스",
+"sense": 1,
+"eng": "Press",
+"src": "old",
+"cols": 4
+},
+{
+"id": 3447,
+"name": "Press",
+"sense": 1,
+"eng": "Press",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 3250,
+"name": "Nb",
+"sense": 1,
+"eng": "Niobium",
+"src": "std",
+"cols": 0
+},
+{
+"id": 3326,
+"name": "Cb",
+"sense": 1,
+"eng": "Niobium",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1082,
+"name": "전",
+"sense": 1,
+"eng": "Before",
+"src": "old",
+"cols": 118
+},
+{
+"id": 2195,
+"name": "Before",
+"sense": 1,
+"eng": "Before",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1276,
+"name": "캠버",
+"sense": 1,
+"eng": "Camber",
+"src": "old",
+"cols": 2
+},
+{
+"id": 2266,
+"name": "Camber",
+"sense": 1,
+"eng": "Camber",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1532,
+"name": "세트",
+"sense": 1,
+"eng": "Set",
+"src": "old",
+"cols": 2
+},
+{
+"id": 2968,
+"name": "Set",
+"sense": 1,
+"eng": "Set",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 238,
+"name": "감소",
+"sense": 1,
+"eng": "Decrease",
+"src": "old",
+"cols": 5
+},
+{
+"id": 2463,
+"name": "Decrease",
+"sense": 1,
+"eng": "Decrease",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 547,
+"name": "방법",
+"sense": 1,
+"eng": "Method",
+"src": "old",
+"cols": 32
+},
+{
+"id": 3186,
+"name": "Method",
+"sense": 1,
+"eng": "Method",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1370,
+"name": "패키지",
+"sense": 1,
+"eng": "Package",
+"src": "old",
+"cols": 8
+},
+{
+"id": 3056,
+"name": "Package",
+"sense": 1,
+"eng": "Package",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 520,
+"name": "미터",
+"sense": 1,
+"eng": "Meter",
+"src": "old",
+"cols": 1
+},
+{
+"id": 3182,
+"name": "Meter",
+"sense": 1,
+"eng": "Meter",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 641,
+"name": "비율",
+"sense": 1,
+"eng": "Ratio",
+"src": "old",
+"cols": 85
+},
+{
+"id": 3514,
+"name": "Ratio",
+"sense": 1,
+"eng": "Ratio",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 775,
+"name": "스탠드",
+"sense": 2,
+"eng": "Stand",
+"src": "old",
+"cols": 61
+},
+{
+"id": 3636,
+"name": "Stand",
+"sense": 1,
+"eng": "Stand",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1180,
+"name": "주의",
+"sense": 1,
+"eng": "Caution",
+"src": "old",
+"cols": 2
+},
+{
+"id": 3325,
+"name": "Caution",
+"sense": 1,
+"eng": "Caution",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 439,
+"name": "라우팅",
+"sense": 1,
+"eng": "Routing",
+"src": "old",
+"cols": 1
+},
+{
+"id": 1774,
+"name": "Routing",
+"sense": 1,
+"eng": "Routing",
+"src": "gl",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 633,
+"name": "브레이크",
+"sense": 1,
+"eng": "Brake",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2229,
+"name": "Brake",
+"sense": 1,
+"eng": "Brake",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 894,
+"name": "영향",
+"sense": 1,
+"eng": "Impact",
+"src": "old",
+"cols": 2
+},
+{
+"id": 2864,
+"name": "Impact",
+"sense": 1,
+"eng": "Impact",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1073,
+"name": "재처리",
+"sense": 1,
+"eng": "Reprocess",
+"src": "old",
+"cols": 6
+},
+{
+"id": 4227,
+"name": "Reprocess",
+"sense": 1,
+"eng": "Reprocess",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 2868,
+"name": "Inch",
+"sense": 1,
+"eng": "Inch",
+"src": "std",
+"cols": 0
+},
+{
+"id": 5751,
+"name": "인치",
+"sense": 1,
+"eng": "Inch",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 521,
+"name": "미터링",
+"sense": 1,
+"eng": "Metering",
+"src": "old",
+"cols": 15
+},
+{
+"id": 3183,
+"name": "Metering",
+"sense": 1,
+"eng": "Metering",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 963,
+"name": "유틸리티",
+"sense": 1,
+"eng": "Utility",
+"src": "old",
+"cols": 4
+},
+{
+"id": 4029,
+"name": "Utility",
+"sense": 1,
+"eng": "Utility",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 480,
+"name": "마이그레이션",
+"sense": 1,
+"eng": "Migration",
+"src": "old",
+"cols": 4
+},
+{
+"id": 3197,
+"name": "Migration",
+"sense": 1,
+"eng": "Migration",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1251,
+"name": "최초",
+"sense": 1,
+"eng": "First",
+"src": "old",
+"cols": 17
+},
+{
+"id": 2654,
+"name": "First",
+"sense": 1,
+"eng": "First",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1388,
+"name": "포함",
+"sense": 1,
+"eng": "Include",
+"src": "old",
+"cols": 2
+},
+{
+"id": 2869,
+"name": "Include",
+"sense": 1,
+"eng": "Include",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 4261,
+"name": "RollForce",
+"sense": 1,
+"eng": "RollForce",
+"src": "std",
+"cols": 0
+},
+{
+"id": 4263,
+"name": "RollingForce",
+"sense": 1,
+"eng": "RollingForce",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 6537,
+"name": "자Coil",
+"sense": 1,
+"eng": "SonCoil",
+"src": "std",
+"cols": 0
+},
+{
+"id": 6583,
+"name": "자코일",
+"sense": 1,
+"eng": "SonCoil",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 438,
+"name": "라벨",
+"sense": 1,
+"eng": "Label",
+"src": "old",
+"cols": 5
+},
+{
+"id": 2937,
+"name": "Label",
+"sense": 1,
+"eng": "Label",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 440,
+"name": "라이너",
+"sense": 1,
+"eng": "Liner",
+"src": "old",
+"cols": 2
+},
+{
+"id": 3094,
+"name": "Liner",
+"sense": 1,
+"eng": "Liner",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 681,
+"name": "상태",
+"sense": 1,
+"eng": "Status",
+"src": "old",
+"cols": 89
+},
+{
+"id": 3650,
+"name": "Status",
+"sense": 1,
+"eng": "Status",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1219,
+"name": "참조",
+"sense": 1,
+"eng": "Reference",
+"src": "old",
+"cols": 8
+},
+{
+"id": 4213,
+"name": "Reference",
+"sense": 1,
+"eng": "Reference",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1242,
+"name": "초크",
+"sense": 1,
+"eng": "Chock",
+"src": "old",
+"cols": 21
+},
+{
+"id": 2294,
+"name": "Chock",
+"sense": 1,
+"eng": "Chock",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1320,
+"name": "탱크",
+"sense": 1,
+"eng": "Tank",
+"src": "old",
+"cols": 18
+},
+{
+"id": 3901,
+"name": "Tank",
+"sense": 1,
+"eng": "Tank",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1482,
+"name": "활성화",
+"sense": 1,
+"eng": "Activation",
+"src": "old",
+"cols": 4
+},
+{
+"id": 2091,
+"name": "Activation",
+"sense": 1,
+"eng": "Activation",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 2236,
+"name": "Brinell",
+"sense": 1,
+"eng": "BrinellHardness",
+"src": "std",
+"cols": 0
+},
+{
+"id": 5255,
+"name": "브리넬",
+"sense": 1,
+"eng": "BrinellHardness",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 564,
+"name": "번호",
+"sense": 1,
+"eng": "Number",
+"src": "old",
+"cols": 423
+},
+{
+"id": 2985,
+"name": "Number",
+"sense": 1,
+"eng": "Number",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 835,
+"name": "알람",
+"sense": 1,
+"eng": "Alarm",
+"src": "old",
+"cols": 3
+},
+{
+"id": 2111,
+"name": "Alarm",
+"sense": 1,
+"eng": "Alarm",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1093,
+"name": "전력",
+"sense": 1,
+"eng": "Power",
+"src": "old",
+"cols": 3
+},
+{
+"id": 3428,
+"name": "Power",
+"sense": 1,
+"eng": "Power",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 561,
+"name": "밴딩",
+"sense": 1,
+"eng": "Banding",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2184,
+"name": "Banding",
+"sense": 1,
+"eng": "Banding",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1327,
+"name": "테이퍼",
+"sense": 1,
+"eng": "Taper",
+"src": "old",
+"cols": 6
+},
+{
+"id": 3903,
+"name": "Taper",
+"sense": 1,
+"eng": "Taper",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1501,
+"name": "휠",
+"sense": 1,
+"eng": "Wheel",
+"src": "old",
+"cols": 9
+},
+{
+"id": 4078,
+"name": "Wheel",
+"sense": 1,
+"eng": "Wheel",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 2089,
+"name": "Acrylic",
+"sense": 1,
+"eng": "Acrylic",
+"src": "std",
+"cols": 0
+},
+{
+"id": 6104,
+"name": "아크릴",
+"sense": 1,
+"eng": "Acrylic",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1267,
+"name": "측정점",
+"sense": 3,
+"eng": "Point",
+"src": "old",
+"cols": 5
+},
+{
+"id": 1837,
+"name": "측정지점",
+"sense": 1,
+"eng": "Measuring Point",
+"src": "gl",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1465,
+"name": "현재",
+"sense": 1,
+"eng": "Current",
+"src": "old",
+"cols": 21
+},
+{
+"id": 2426,
+"name": "Current",
+"sense": 1,
+"eng": "Current",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 3012,
+"name": "Opening",
+"sense": 1,
+"eng": "Opening",
+"src": "std",
+"cols": 0
+},
+{
+"id": 3797,
+"name": "개시",
+"sense": 1,
+"eng": "Opening",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 291,
+"name": "공기",
+"sense": 1,
+"eng": "Air",
+"src": "old",
+"cols": 13
+},
+{
+"id": 2105,
+"name": "Air",
+"sense": 1,
+"eng": "Air",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 849,
+"name": "액티비티",
+"sense": 1,
+"eng": "Activity",
+"src": "old",
+"cols": 1
+},
+{
+"id": 7285,
+"name": "활동",
+"sense": 1,
+"eng": "Activity",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1426,
+"name": "피해",
+"sense": 1,
+"eng": "Damage",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2443,
+"name": "Damage",
+"sense": 1,
+"eng": "Damage",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1138,
+"name": "정상",
+"sense": 1,
+"eng": "Normal",
+"src": "old",
+"cols": 0
+},
+{
+"id": 3278,
+"name": "Normal",
+"sense": 1,
+"eng": "Normal",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1511,
+"name": "힘",
+"sense": 1,
+"eng": "Force",
+"src": "old",
+"cols": 27
+},
+{
+"id": 2676,
+"name": "Force",
+"sense": 1,
+"eng": "Force",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 401,
+"name": "대기",
+"sense": 1,
+"eng": "Wait",
+"src": "old",
+"cols": 26
+},
+{
+"id": 4055,
+"name": "Waiting",
+"sense": 1,
+"eng": "Waiting",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1141,
+"name": "정지",
+"sense": 1,
+"eng": "Stop",
+"src": "old",
+"cols": 2
+},
+{
+"id": 3665,
+"name": "Stop",
+"sense": 1,
+"eng": "Stop",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1145,
+"name": "제어",
+"sense": 1,
+"eng": "Control",
+"src": "old",
+"cols": 3
+},
+{
+"id": 2373,
+"name": "Control",
+"sense": 1,
+"eng": "Control",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1152,
+"name": "조건",
+"sense": 1,
+"eng": "Condition",
+"src": "old",
+"cols": 21
+},
+{
+"id": 2358,
+"name": "Condition",
+"sense": 1,
+"eng": "Condition",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1168,
+"name": "종이",
+"sense": 1,
+"eng": "Paper",
+"src": "old",
+"cols": 1
+},
+{
+"id": 3070,
+"name": "Paper",
+"sense": 1,
+"eng": "Paper",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1427,
+"name": "픽업",
+"sense": 1,
+"eng": "Pickup",
+"src": "old",
+"cols": 45
+},
+{
+"id": 3383,
+"name": "Pickup",
+"sense": 1,
+"eng": "Pickup",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 2397,
+"name": "CPU",
+"sense": 1,
+"eng": "CentralProcessingUnit",
+"src": "std",
+"cols": 0
+},
+{
+"id": 3347,
+"name": "CentralProcessingUnit",
+"sense": 1,
+"eng": "CentralProcessingUnit",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 509,
+"name": "목표",
+"sense": 1,
+"eng": "Target",
+"src": "old",
+"cols": 99
+},
+{
+"id": 3906,
+"name": "Target",
+"sense": 1,
+"eng": "Target",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1425,
+"name": "피트",
+"sense": 1,
+"eng": "Feet",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2633,
+"name": "Feet",
+"sense": 1,
+"eng": "Feet",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 493,
+"name": "면장",
+"sense": 1,
+"eng": "Import License",
+"src": "old",
+"cols": 1
+},
+{
+"id": 4439,
+"name": "수입면장",
+"sense": 1,
+"eng": "ImportLicense",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 859,
+"name": "에러",
+"sense": 1,
+"eng": "Error",
+"src": "old",
+"cols": 27
+},
+{
+"id": 2060,
+"name": "Error",
+"sense": 1,
+"eng": "Error",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1368,
+"name": "패널",
+"sense": 1,
+"eng": "Panel",
+"src": "old",
+"cols": 1
+},
+{
+"id": 3069,
+"name": "Panel",
+"sense": 1,
+"eng": "Panel",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1411,
+"name": "프린트",
+"sense": 1,
+"eng": "Print",
+"src": "old",
+"cols": 73
+},
+{
+"id": 3459,
+"name": "Print",
+"sense": 1,
+"eng": "Print",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1121,
+"name": "점",
+"sense": 1,
+"eng": "Point",
+"src": "old",
+"cols": 6
+},
+{
+"id": 3410,
+"name": "Point",
+"sense": 1,
+"eng": "Point",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1287,
+"name": "코스트",
+"sense": 1,
+"eng": "Cost",
+"src": "old",
+"cols": 22
+},
+{
+"id": 2386,
+"name": "Cost",
+"sense": 1,
+"eng": "Cost",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1,
+"name": "코일",
+"sense": 1,
+"eng": "Coil",
+"src": "old",
+"cols": 247
+},
+{
+"id": 2323,
+"name": "Coil",
+"sense": 1,
+"eng": "Coil",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 625,
+"name": "불만",
+"sense": 1,
+"eng": "Complaint",
+"src": "old",
+"cols": 20
+},
+{
+"id": 2350,
+"name": "Complaint",
+"sense": 1,
+"eng": "Complaint",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 727,
+"name": "소수점",
+"sense": 1,
+"eng": "Decimal",
+"src": "old",
+"cols": 8
+},
+{
+"id": 4633,
+"name": "소숫점",
+"sense": 1,
+"eng": "DecimalPoint",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 799,
+"name": "시트",
+"sense": 1,
+"eng": "Sheet",
+"src": "old",
+"cols": 40
+},
+{
+"id": 2982,
+"name": "Sheet",
+"sense": 1,
+"eng": "Sheet",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 989,
+"name": "인덱스",
+"sense": 1,
+"eng": "Index",
+"src": "old",
+"cols": 3
+},
+{
+"id": 2872,
+"name": "Index",
+"sense": 1,
+"eng": "Index",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1333,
+"name": "텔레스코프",
+"sense": 1,
+"eng": "Telescope",
+"src": "old",
+"cols": 1
+},
+{
+"id": 3917,
+"name": "Telescope",
+"sense": 1,
+"eng": "Telescope",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1371,
+"name": "패턴",
+"sense": 1,
+"eng": "Pattern",
+"src": "old",
+"cols": 11
+},
+{
+"id": 3079,
+"name": "Pattern",
+"sense": 1,
+"eng": "Pattern",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 3072,
+"name": "Part",
+"sense": 1,
+"eng": "Part",
+"src": "std",
+"cols": 0
+},
+{
+"id": 8165,
+"name": "파트",
+"sense": 1,
+"eng": "Part",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 3216,
+"name": "Mixing",
+"sense": 1,
+"eng": "Mixing",
+"src": "std",
+"cols": 0
+},
+{
+"id": 7208,
+"name": "혼합",
+"sense": 1,
+"eng": "Mixing",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 4126,
+"name": "Zinc",
+"sense": 1,
+"eng": "Zinc",
+"src": "std",
+"cols": 0
+},
+{
+"id": 4131,
+"name": "Zn",
+"sense": 1,
+"eng": "Zinc",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 378,
+"name": "년도",
+"sense": 1,
+"eng": "Year",
+"src": "old",
+"cols": 13
+},
+{
+"id": 872,
+"name": "연도",
+"sense": 1,
+"eng": "Year",
+"src": "old",
+"cols": 3
+}
+]
+},
+{
+"members": [
+{
+"id": 1472,
+"name": "홀",
+"sense": 1,
+"eng": "Hole",
+"src": "old",
+"cols": 3
+},
+{
+"id": 2813,
+"name": "Hole",
+"sense": 1,
+"eng": "Hole",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 766,
+"name": "숨김",
+"sense": 1,
+"eng": "Hidden",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2792,
+"name": "Hidden",
+"sense": 1,
+"eng": "Hidden",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1174,
+"name": "주문",
+"sense": 1,
+"eng": "Order",
+"src": "old",
+"cols": 225
+},
+{
+"id": 3027,
+"name": "Order",
+"sense": 1,
+"eng": "Order",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 253,
+"name": "검사",
+"sense": 1,
+"eng": "Inspection",
+"src": "old",
+"cols": 62
+},
+{
+"id": 2894,
+"name": "Inspection",
+"sense": 1,
+"eng": "Inspection",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 303,
+"name": "관심",
+"sense": 1,
+"eng": "Attention",
+"src": "old",
+"cols": 7
+},
+{
+"id": 2156,
+"name": "Attention",
+"sense": 1,
+"eng": "Attention",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 437,
+"name": "라미나",
+"sense": 1,
+"eng": "Lamina",
+"src": "old",
+"cols": 56
+},
+{
+"id": 2939,
+"name": "Lamina",
+"sense": 1,
+"eng": "Lamina",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1045,
+"name": "작업롤",
+"sense": 1,
+"eng": "Work Roll",
+"src": "old",
+"cols": 32
+},
+{
+"id": 4094,
+"name": "WorkRoll",
+"sense": 1,
+"eng": "WorkRoll",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1295,
+"name": "크로메이트",
+"sense": 1,
+"eng": "Chromate",
+"src": "old",
+"cols": 5
+},
+{
+"id": 2297,
+"name": "Chromate",
+"sense": 1,
+"eng": "Chromate",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1517,
+"name": "헤더",
+"sense": 1,
+"eng": "Header",
+"src": "old",
+"cols": 2
+},
+{
+"id": 2776,
+"name": "Header",
+"sense": 1,
+"eng": "Header",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 742,
+"name": "수량",
+"sense": 1,
+"eng": "Quantity",
+"src": "old",
+"cols": 258
+},
+{
+"id": 3492,
+"name": "Quantity",
+"sense": 1,
+"eng": "Quantity",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 988,
+"name": "인덕션",
+"sense": 1,
+"eng": "Induction",
+"src": "old",
+"cols": 0
+},
+{
+"id": 2873,
+"name": "Induction",
+"sense": 1,
+"eng": "Induction",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1207,
+"name": "직접",
+"sense": 1,
+"eng": "Direct",
+"src": "old",
+"cols": 3
+},
+{
+"id": 2512,
+"name": "Direct",
+"sense": 1,
+"eng": "Direct",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1282,
+"name": "케미컬",
+"sense": 1,
+"eng": "Chemical",
+"src": "old",
+"cols": 92
+},
+{
+"id": 2289,
+"name": "Chemical",
+"sense": 1,
+"eng": "Chemical",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1288,
+"name": "코터",
+"sense": 1,
+"eng": "Coater",
+"src": "old",
+"cols": 22
+},
+{
+"id": 2319,
+"name": "Coater",
+"sense": 1,
+"eng": "Coater",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 306,
+"name": "교환",
+"sense": 2,
+"eng": "Exchange",
+"src": "old",
+"cols": 3
+},
+{
+"id": 3540,
+"name": "Exchange",
+"sense": 1,
+"eng": "Exchange",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 431,
+"name": "드로스",
+"sense": 1,
+"eng": "Dross",
+"src": "old",
+"cols": 2
+},
+{
+"id": 2549,
+"name": "Dross",
+"sense": 1,
+"eng": "Dross",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 467,
+"name": "리드타임",
+"sense": 1,
+"eng": "Lead Time",
+"src": "old",
+"cols": 2
+},
+{
+"id": 2953,
+"name": "LeadTime",
+"sense": 1,
+"eng": "LeadTime",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 786,
+"name": "슬릿",
+"sense": 1,
+"eng": "Slit",
+"src": "old",
+"cols": 6
+},
+{
+"id": 3571,
+"name": "Slit",
+"sense": 1,
+"eng": "Slit",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 909,
+"name": "온",
+"sense": 1,
+"eng": "On",
+"src": "old",
+"cols": 3
+},
+{
+"id": 3006,
+"name": "On",
+"sense": 1,
+"eng": "On",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 450,
+"name": "레벨러",
+"sense": 1,
+"eng": "Leveller",
+"src": "old",
+"cols": 23
+},
+{
+"id": 2959,
+"name": "Leveller",
+"sense": 1,
+"eng": "Leveller",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 880,
+"name": "연필",
+"sense": 1,
+"eng": "Pencil",
+"src": "old",
+"cols": 6
+},
+{
+"id": 3362,
+"name": "Pencil",
+"sense": 1,
+"eng": "Pencil",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1339,
+"name": "통과",
+"sense": 1,
+"eng": "Pass",
+"src": "old",
+"cols": 16
+},
+{
+"id": 3076,
+"name": "Pass",
+"sense": 1,
+"eng": "Pass",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 582,
+"name": "보고",
+"sense": 1,
+"eng": "Report",
+"src": "old",
+"cols": 7
+},
+{
+"id": 4226,
+"name": "Report",
+"sense": 1,
+"eng": "Report",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 765,
+"name": "순환",
+"sense": 1,
+"eng": "Circulation",
+"src": "old",
+"cols": 20
+},
+{
+"id": 2301,
+"name": "Circulation",
+"sense": 1,
+"eng": "Circulation",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 390,
+"name": "다운",
+"sense": 1,
+"eng": "Down",
+"src": "old",
+"cols": 14
+},
+{
+"id": 2535,
+"name": "Down",
+"sense": 1,
+"eng": "Down",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 396,
+"name": "단위",
+"sense": 1,
+"eng": "Unit",
+"src": "old",
+"cols": 92
+},
+{
+"id": 4014,
+"name": "Unit",
+"sense": 1,
+"eng": "Unit",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 448,
+"name": "레벨2",
+"sense": 1,
+"eng": "Level 2",
+"src": "old",
+"cols": 778
+},
+{
+"id": 2935,
+"name": "L2",
+"sense": 1,
+"eng": "Level2",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 929,
+"name": "우선",
+"sense": 1,
+"eng": "Priority",
+"src": "old",
+"cols": 7
+},
+{
+"id": 3462,
+"name": "Priority",
+"sense": 1,
+"eng": "Priority",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1321,
+"name": "터널",
+"sense": 1,
+"eng": "Tunnel",
+"src": "old",
+"cols": 2
+},
+{
+"id": 3999,
+"name": "Tunnel",
+"sense": 1,
+"eng": "Tunnel",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1396,
+"name": "표시",
+"sense": 1,
+"eng": "Display",
+"src": "old",
+"cols": 10
+},
+{
+"id": 2515,
+"name": "Display",
+"sense": 1,
+"eng": "Display",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 463,
+"name": "루퍼",
+"sense": 1,
+"eng": "Looper",
+"src": "old",
+"cols": 6
+},
+{
+"id": 3120,
+"name": "Looper",
+"sense": 1,
+"eng": "Looper",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 871,
+"name": "연결",
+"sense": 1,
+"eng": "Link",
+"src": "old",
+"cols": 16
+},
+{
+"id": 3097,
+"name": "Link",
+"sense": 1,
+"eng": "Link",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1007,
+"name": "일",
+"sense": 1,
+"eng": "Day",
+"src": "old",
+"cols": 13
+},
+{
+"id": 2451,
+"name": "Day",
+"sense": 1,
+"eng": "Day",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1053,
+"name": "장기",
+"sense": 1,
+"eng": "Long",
+"src": "old",
+"cols": 7
+},
+{
+"id": 3116,
+"name": "Long",
+"sense": 1,
+"eng": "Long",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1250,
+"name": "최종",
+"sense": 1,
+"eng": "Last",
+"src": "old",
+"cols": 60
+},
+{
+"id": 2944,
+"name": "Last",
+"sense": 1,
+"eng": "Last",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1419,
+"name": "플레이트",
+"sense": 1,
+"eng": "Plate",
+"src": "old",
+"cols": 2
+},
+{
+"id": 3400,
+"name": "Plate",
+"sense": 1,
+"eng": "Plate",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 718,
+"name": "셋업",
+"sense": 1,
+"eng": "Setup",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2971,
+"name": "Setup",
+"sense": 1,
+"eng": "Setup",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 831,
+"name": "아카이브",
+"sense": 1,
+"eng": "Archive",
+"src": "old",
+"cols": 4
+},
+{
+"id": 2142,
+"name": "Archive",
+"sense": 1,
+"eng": "Archive",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1468,
+"name": "형태",
+"sense": 1,
+"eng": "Shape",
+"src": "old",
+"cols": 9
+},
+{
+"id": 2977,
+"name": "Shape",
+"sense": 1,
+"eng": "Shape",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 5,
+"name": "두께",
+"sense": 1,
+"eng": "Thickness",
+"src": "old",
+"cols": 185
+},
+{
+"id": 3940,
+"name": "Thickness",
+"sense": 1,
+"eng": "Thickness",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 451,
+"name": "레이아웃",
+"sense": 1,
+"eng": "Layout",
+"src": "old",
+"cols": 47
+},
+{
+"id": 2947,
+"name": "Layout",
+"sense": 1,
+"eng": "Layout",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 923,
+"name": "용어",
+"sense": 1,
+"eng": "Term",
+"src": "old",
+"cols": 13
+},
+{
+"id": 3933,
+"name": "Term",
+"sense": 1,
+"eng": "Term",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 16,
+"name": "표면",
+"sense": 1,
+"eng": "Surface",
+"src": "old",
+"cols": 20
+},
+{
+"id": 3880,
+"name": "Surface",
+"sense": 1,
+"eng": "Surface",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 412,
+"name": "델타",
+"sense": 1,
+"eng": "Delta",
+"src": "old",
+"cols": 14
+},
+{
+"id": 2477,
+"name": "Delta",
+"sense": 1,
+"eng": "Delta",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1149,
+"name": "제트",
+"sense": 1,
+"eng": "Jet",
+"src": "old",
+"cols": 5
+},
+{
+"id": 2910,
+"name": "Jet",
+"sense": 1,
+"eng": "Jet",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 523,
+"name": "밀도",
+"sense": 1,
+"eng": "Density",
+"src": "old",
+"cols": 2
+},
+{
+"id": 2486,
+"name": "Density",
+"sense": 1,
+"eng": "Density",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 632,
+"name": "브러시",
+"sense": 1,
+"eng": "Brush",
+"src": "old",
+"cols": 6
+},
+{
+"id": 2237,
+"name": "Brush",
+"sense": 1,
+"eng": "Brush",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 778,
+"name": "스트립",
+"sense": 1,
+"eng": "Strip",
+"src": "old",
+"cols": 10
+},
+{
+"id": 3674,
+"name": "Strip",
+"sense": 1,
+"eng": "Strip",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1260,
+"name": "출처",
+"sense": 1,
+"eng": "Source",
+"src": "old",
+"cols": 14
+},
+{
+"id": 3592,
+"name": "Source",
+"sense": 1,
+"eng": "Source",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 327,
+"name": "규격",
+"sense": 1,
+"eng": "Specification",
+"src": "old",
+"cols": 0
+},
+{
+"id": 3607,
+"name": "Specification",
+"sense": 1,
+"eng": "Specification",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 812,
+"name": "실린더",
+"sense": 1,
+"eng": "Cylinder",
+"src": "old",
+"cols": 5
+},
+{
+"id": 2439,
+"name": "Cylinder",
+"sense": 1,
+"eng": "Cylinder",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1349,
+"name": "트랜잭션",
+"sense": 1,
+"eng": "Transaction",
+"src": "old",
+"cols": 3
+},
+{
+"id": 2005,
+"name": "Transaction",
+"sense": 1,
+"eng": "Transaction",
+"src": "gl",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 900,
+"name": "예열",
+"sense": 1,
+"eng": "Preheat",
+"src": "old",
+"cols": 1
+},
+{
+"id": 3442,
+"name": "PreHeating",
+"sense": 1,
+"eng": "PreHeating",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 374,
+"name": "내용",
+"sense": 1,
+"eng": "Contents",
+"src": "old",
+"cols": 23
+},
+{
+"id": 2368,
+"name": "Content",
+"sense": 1,
+"eng": "Content",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 477,
+"name": "마그네슘",
+"sense": 1,
+"eng": "Magnesium",
+"src": "old",
+"cols": 14
+},
+{
+"id": 3191,
+"name": "Mg",
+"sense": 1,
+"eng": "Magnesium",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 779,
+"name": "스팀",
+"sense": 1,
+"eng": "Steam",
+"src": "old",
+"cols": 0
+},
+{
+"id": 3653,
+"name": "Steam",
+"sense": 1,
+"eng": "Steam",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 235,
+"name": "각도",
+"sense": 1,
+"eng": "Angle",
+"src": "old",
+"cols": 4
+},
+{
+"id": 4188,
+"name": "각",
+"sense": 1,
+"eng": "Angle",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 407,
+"name": "더미",
+"sense": 1,
+"eng": "Dummy",
+"src": "old",
+"cols": 2
+},
+{
+"id": 2558,
+"name": "Dummy",
+"sense": 1,
+"eng": "Dummy",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 429,
+"name": "드럼",
+"sense": 1,
+"eng": "Drum",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2550,
+"name": "Drum",
+"sense": 1,
+"eng": "Drum",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 936,
+"name": "운영체제",
+"sense": 1,
+"eng": "Operating System",
+"src": "old",
+"cols": 2
+},
+{
+"id": 3016,
+"name": "OperatingSystem",
+"sense": 1,
+"eng": "OperatingSystem",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1233,
+"name": "철",
+"sense": 1,
+"eng": "Iron",
+"src": "old",
+"cols": 26
+},
+{
+"id": 2904,
+"name": "Iron",
+"sense": 1,
+"eng": "Iron",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 240,
+"name": "값",
+"sense": 1,
+"eng": "Value",
+"src": "old",
+"cols": 343
+},
+{
+"id": 4036,
+"name": "Value",
+"sense": 1,
+"eng": "Value",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 735,
+"name": "손실",
+"sense": 1,
+"eng": "Loss",
+"src": "old",
+"cols": 2
+},
+{
+"id": 3121,
+"name": "Loss",
+"sense": 1,
+"eng": "Loss",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 362,
+"name": "나이프",
+"sense": 1,
+"eng": "Knife",
+"src": "old",
+"cols": 27
+},
+{
+"id": 2927,
+"name": "Knife",
+"sense": 1,
+"eng": "Knife",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 664,
+"name": "사전",
+"sense": 1,
+"eng": "Pre",
+"src": "old",
+"cols": 30
+},
+{
+"id": 3437,
+"name": "Pre",
+"sense": 1,
+"eng": "Pre",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1447,
+"name": "핫코일",
+"sense": 1,
+"eng": "Hot Coil",
+"src": "old",
+"cols": 23
+},
+{
+"id": 2822,
+"name": "HotCoil",
+"sense": 1,
+"eng": "HotCoil",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 848,
+"name": "액체",
+"sense": 1,
+"eng": "Liquid",
+"src": "old",
+"cols": 7
+},
+{
+"id": 3098,
+"name": "Liquid",
+"sense": 1,
+"eng": "Liquid",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1112,
+"name": "전진",
+"sense": 1,
+"eng": "Forward",
+"src": "old",
+"cols": 0
+},
+{
+"id": 2680,
+"name": "Forward",
+"sense": 1,
+"eng": "Forward",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 380,
+"name": "노즐",
+"sense": 1,
+"eng": "Nozzle",
+"src": "old",
+"cols": 6
+},
+{
+"id": 3282,
+"name": "Nozzle",
+"sense": 1,
+"eng": "Nozzle",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 703,
+"name": "설정값",
+"sense": 1,
+"eng": "Setting Value",
+"src": "old",
+"cols": 38
+},
+{
+"id": 5358,
+"name": "설정치",
+"sense": 1,
+"eng": "SetValue",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 830,
+"name": "아이",
+"sense": 1,
+"eng": "Eye",
+"src": "old",
+"cols": 4
+},
+{
+"id": 2618,
+"name": "Eye",
+"sense": 1,
+"eng": "Eye",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1031,
+"name": "자",
+"sense": 1,
+"eng": "By",
+"src": "old",
+"cols": 3
+},
+{
+"id": 2255,
+"name": "By",
+"sense": 1,
+"eng": "By",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 252,
+"name": "건조",
+"sense": 1,
+"eng": "Dry",
+"src": "old",
+"cols": 18
+},
+{
+"id": 2551,
+"name": "Dry",
+"sense": 1,
+"eng": "Dry",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 661,
+"name": "사이드트림",
+"sense": 1,
+"eng": "Side Trim",
+"src": "old",
+"cols": 20
+},
+{
+"id": 4210,
+"name": "SideTrimming",
+"sense": 1,
+"eng": "SideTrimming",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 937,
+"name": "운전",
+"sense": 1,
+"eng": "Run",
+"src": "old",
+"cols": 9
+},
+{
+"id": 4296,
+"name": "Run",
+"sense": 1,
+"eng": "Run",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 247,
+"name": "갭",
+"sense": 1,
+"eng": "Gap",
+"src": "old",
+"cols": 18
+},
+{
+"id": 2717,
+"name": "Gap",
+"sense": 1,
+"eng": "Gap",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 375,
+"name": "냉각",
+"sense": 1,
+"eng": "Cooling",
+"src": "old",
+"cols": 28
+},
+{
+"id": 2381,
+"name": "Cooling",
+"sense": 1,
+"eng": "cooling",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 689,
+"name": "서브",
+"sense": 1,
+"eng": "Sub",
+"src": "old",
+"cols": 66
+},
+{
+"id": 3874,
+"name": "Sub",
+"sense": 1,
+"eng": "Sub",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 381,
+"name": "노처",
+"sense": 1,
+"eng": "Notcher",
+"src": "old",
+"cols": 2
+},
+{
+"id": 3280,
+"name": "Notcher",
+"sense": 1,
+"eng": "Notcher",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 809,
+"name": "신선",
+"sense": 1,
+"eng": "Fresh",
+"src": "old",
+"cols": 2
+},
+{
+"id": 2690,
+"name": "Fresh",
+"sense": 1,
+"eng": "Fresh",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1265,
+"name": "측",
+"sense": 1,
+"eng": "Side",
+"src": "old",
+"cols": 35
+},
+{
+"id": 4204,
+"name": "Side",
+"sense": 1,
+"eng": "Side",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1413,
+"name": "플래그",
+"sense": 1,
+"eng": "Flag",
+"src": "old",
+"cols": 66
+},
+{
+"id": 2659,
+"name": "Flag",
+"sense": 1,
+"eng": "Flag",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1500,
+"name": "훅",
+"sense": 1,
+"eng": "Hook",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2816,
+"name": "Hook",
+"sense": 1,
+"eng": "Hook",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 472,
+"name": "린스",
+"sense": 1,
+"eng": "Rinse",
+"src": "old",
+"cols": 15
+},
+{
+"id": 4243,
+"name": "Rinse",
+"sense": 1,
+"eng": "Rinse",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1266,
+"name": "측정",
+"sense": 1,
+"eng": "Measure",
+"src": "old",
+"cols": 11
+},
+{
+"id": 3167,
+"name": "Measurement",
+"sense": 1,
+"eng": "Measurement",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 414,
+"name": "도금",
+"sense": 1,
+"eng": "Galvanizing",
+"src": "old",
+"cols": 40
+},
+{
+"id": 2715,
+"name": "Galvanizing",
+"sense": 1,
+"eng": "Galvanizing",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 818,
+"name": "실제",
+"sense": 1,
+"eng": "Actual",
+"src": "old",
+"cols": 45
+},
+{
+"id": 2092,
+"name": "Actual",
+"sense": 1,
+"eng": "Actual",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 461,
+"name": "로트",
+"sense": 1,
+"eng": "Lot",
+"src": "old",
+"cols": 27
+},
+{
+"id": 3122,
+"name": "Lot",
+"sense": 1,
+"eng": "Lot",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1044,
+"name": "작업",
+"sense": 2,
+"eng": "Job",
+"src": "old",
+"cols": 8
+},
+{
+"id": 2912,
+"name": "Job",
+"sense": 1,
+"eng": "Job",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1095,
+"name": "전면",
+"sense": 1,
+"eng": "Front",
+"src": "old",
+"cols": 77
+},
+{
+"id": 2692,
+"name": "Front",
+"sense": 1,
+"eng": "Front",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1328,
+"name": "테일",
+"sense": 2,
+"eng": "Tail",
+"src": "old",
+"cols": 15
+},
+{
+"id": 3896,
+"name": "Tail",
+"sense": 1,
+"eng": "Tail",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 232,
+"name": "가열",
+"sense": 1,
+"eng": "Heating",
+"src": "old",
+"cols": 8
+},
+{
+"id": 2781,
+"name": "Heating",
+"sense": 1,
+"eng": "Heating",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 263,
+"name": "결함",
+"sense": 1,
+"eng": "Fault",
+"src": "old",
+"cols": 5
+},
+{
+"id": 2623,
+"name": "Fault",
+"sense": 1,
+"eng": "Fault",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 365,
+"name": "내경",
+"sense": 1,
+"eng": "Inner Diameter",
+"src": "old",
+"cols": 20
+},
+{
+"id": 2889,
+"name": "InnerDiameter",
+"sense": 1,
+"eng": "InnerDiameter",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 569,
+"name": "벤더",
+"sense": 1,
+"eng": "Bender",
+"src": "old",
+"cols": 8
+},
+{
+"id": 2200,
+"name": "Bender",
+"sense": 1,
+"eng": "Bender",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 824,
+"name": "싱크롤",
+"sense": 1,
+"eng": "Sink Roll",
+"src": "old",
+"cols": 6
+},
+{
+"id": 3551,
+"name": "SinkRoll",
+"sense": 1,
+"eng": "SinkRoll",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 236,
+"name": "간격",
+"sense": 1,
+"eng": "Interval",
+"src": "old",
+"cols": 3
+},
+{
+"id": 2901,
+"name": "Interval",
+"sense": 1,
+"eng": "Interval",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 925,
+"name": "용접",
+"sense": 1,
+"eng": "Welding",
+"src": "old",
+"cols": 15
+},
+{
+"id": 4073,
+"name": "Welding",
+"sense": 1,
+"eng": "Welding",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 307,
+"name": "구",
+"sense": 1,
+"eng": "Old",
+"src": "old",
+"cols": 33
+},
+{
+"id": 3004,
+"name": "Old",
+"sense": 1,
+"eng": "Old",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1484,
+"name": "황",
+"sense": 1,
+"eng": "Sulfur",
+"src": "old",
+"cols": 10
+},
+{
+"id": 6389,
+"name": "유황",
+"sense": 1,
+"eng": "Sulfur",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1015,
+"name": "읽음",
+"sense": 1,
+"eng": "Read",
+"src": "old",
+"cols": 2
+},
+{
+"id": 3525,
+"name": "Read",
+"sense": 1,
+"eng": "Read",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1224,
+"name": "처리",
+"sense": 1,
+"eng": "Treatment",
+"src": "old",
+"cols": 13
+},
+{
+"id": 3980,
+"name": "Treatment",
+"sense": 1,
+"eng": "Treatment",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1538,
+"name": "복원",
+"sense": 1,
+"eng": "Restore",
+"src": "old",
+"cols": 1
+},
+{
+"id": 4232,
+"name": "Restore",
+"sense": 1,
+"eng": "Restore",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 473,
+"name": "릴",
+"sense": 1,
+"eng": "Reel",
+"src": "old",
+"cols": 2
+},
+{
+"id": 3536,
+"name": "Reel",
+"sense": 1,
+"eng": "Reel",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 618,
+"name": "분말",
+"sense": 1,
+"eng": "Powder",
+"src": "old",
+"cols": 3
+},
+{
+"id": 3426,
+"name": "Powder",
+"sense": 1,
+"eng": "Powder",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1383,
+"name": "포밍",
+"sense": 1,
+"eng": "Forming",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2678,
+"name": "Forming",
+"sense": 1,
+"eng": "Forming",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 826,
+"name": "씰",
+"sense": 1,
+"eng": "Seal",
+"src": "old",
+"cols": 2
+},
+{
+"id": 3302,
+"name": "Seal",
+"sense": 1,
+"eng": "Seal",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1330,
+"name": "텐션레벨러",
+"sense": 1,
+"eng": "Tension Leveler",
+"src": "old",
+"cols": 35
+},
+{
+"id": 3930,
+"name": "TensionLeveller",
+"sense": 1,
+"eng": "TensionLeveller",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 565,
+"name": "범위",
+"sense": 1,
+"eng": "Range",
+"src": "old",
+"cols": 19
+},
+{
+"id": 3509,
+"name": "Range",
+"sense": 1,
+"eng": "Range",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 774,
+"name": "스킨패스밀",
+"sense": 1,
+"eng": "Skin Pass Mill",
+"src": "old",
+"cols": 58
+},
+{
+"id": 3562,
+"name": "SkinpassMill",
+"sense": 1,
+"eng": "SkinpassMill",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 802,
+"name": "시프트",
+"sense": 1,
+"eng": "Shift",
+"src": "old",
+"cols": 3
+},
+{
+"id": 3083,
+"name": "Shift",
+"sense": 1,
+"eng": "Shift",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1179,
+"name": "주요",
+"sense": 1,
+"eng": "Main",
+"src": "old",
+"cols": 17
+},
+{
+"id": 3143,
+"name": "Main",
+"sense": 1,
+"eng": "Main",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1244,
+"name": "총",
+"sense": 2,
+"eng": "Gross",
+"src": "old",
+"cols": 13
+},
+{
+"id": 2753,
+"name": "Gross",
+"sense": 1,
+"eng": "Gross",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1656,
+"name": "Material Code",
+"sense": 1,
+"eng": "Material Code",
+"src": "gl",
+"cols": 0
+},
+{
+"id": 1789,
+"name": "자재코드",
+"sense": 1,
+"eng": "Material Code",
+"src": "gl",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 359,
+"name": "까지",
+"sense": 1,
+"eng": "To",
+"src": "old",
+"cols": 31
+},
+{
+"id": 3953,
+"name": "To",
+"sense": 1,
+"eng": "To",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 348,
+"name": "기본",
+"sense": 1,
+"eng": "Primary",
+"src": "old",
+"cols": 3
+},
+{
+"id": 3453,
+"name": "Primary",
+"sense": 1,
+"eng": "Primary",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 724,
+"name": "소모",
+"sense": 1,
+"eng": "Consume",
+"src": "old",
+"cols": 51
+},
+{
+"id": 2365,
+"name": "Consumption",
+"sense": 1,
+"eng": "Consumption",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1428,
+"name": "픽업롤",
+"sense": 1,
+"eng": "Pickup Roll",
+"src": "old",
+"cols": 50
+},
+{
+"id": 3384,
+"name": "PickUpRoll",
+"sense": 1,
+"eng": "PickUpRoll",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 413,
+"name": "도",
+"sense": 1,
+"eng": "Degree",
+"src": "old",
+"cols": 4
+},
+{
+"id": 2469,
+"name": "Degree",
+"sense": 1,
+"eng": "Degree",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 357,
+"name": "길이방향",
+"sense": 1,
+"eng": "Longitudinal",
+"src": "old",
+"cols": 1
+},
+{
+"id": 3118,
+"name": "Longitudinal",
+"sense": 1,
+"eng": "Longitudinal",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 370,
+"name": "내수",
+"sense": 1,
+"eng": "Domestic",
+"src": "old",
+"cols": 21
+},
+{
+"id": 2530,
+"name": "Domestic",
+"sense": 1,
+"eng": "Domestic",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 693,
+"name": "선박",
+"sense": 2,
+"eng": "Ship",
+"src": "old",
+"cols": 28
+},
+{
+"id": 5150,
+"name": "배",
+"sense": 1,
+"eng": "Ship",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 836,
+"name": "알루미늄",
+"sense": 1,
+"eng": "Aluminum",
+"src": "old",
+"cols": 15
+},
+{
+"id": 2110,
+"name": "Al",
+"sense": 1,
+"eng": "Aluminium",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1359,
+"name": "파이로미터",
+"sense": 1,
+"eng": "Pyrometer",
+"src": "old",
+"cols": 5
+},
+{
+"id": 3485,
+"name": "Pyrometer",
+"sense": 1,
+"eng": "Pyrometer",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1403,
+"name": "프라이머",
+"sense": 1,
+"eng": "Primer",
+"src": "old",
+"cols": 91
+},
+{
+"id": 3455,
+"name": "Primer",
+"sense": 1,
+"eng": "Primer",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1424,
+"name": "피치",
+"sense": 1,
+"eng": "Pitch",
+"src": "old",
+"cols": 3
+},
+{
+"id": 3394,
+"name": "Pitch",
+"sense": 1,
+"eng": "Pitch",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 11,
+"name": "출하",
+"sense": 1,
+"eng": "Shipping",
+"src": "old",
+"cols": 36
+},
+{
+"id": 3085,
+"name": "Shipping",
+"sense": 1,
+"eng": "Shipping",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1303,
+"name": "클리어",
+"sense": 1,
+"eng": "Clear",
+"src": "old",
+"cols": 7
+},
+{
+"id": 2310,
+"name": "Clear",
+"sense": 1,
+"eng": "Clear",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 793,
+"name": "시리얼",
+"sense": 1,
+"eng": "Serial",
+"src": "old",
+"cols": 3
+},
+{
+"id": 3319,
+"name": "Serial",
+"sense": 1,
+"eng": "Serial",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 860,
+"name": "에러메시지",
+"sense": 1,
+"eng": "Error Message",
+"src": "old",
+"cols": 2
+},
+{
+"id": 2062,
+"name": "ErrorMessage",
+"sense": 1,
+"eng": "ErrorMessage",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1043,
+"name": "작업",
+"sense": 1,
+"eng": "Operation",
+"src": "old",
+"cols": 159
+},
+{
+"id": 3017,
+"name": "Operation",
+"sense": 1,
+"eng": "Operation",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1416,
+"name": "플래트너",
+"sense": 1,
+"eng": "Flattener",
+"src": "old",
+"cols": 5
+},
+{
+"id": 2663,
+"name": "Flattener",
+"sense": 1,
+"eng": "Flattener",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 460,
+"name": "로크웰B경도",
+"sense": 1,
+"eng": "Rockwell Hardness B",
+"src": "old",
+"cols": 19
+},
+{
+"id": 4989,
+"name": "록크웰B경도",
+"sense": 1,
+"eng": "RockwellBHardness",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 674,
+"name": "상사",
+"sense": 1,
+"eng": "Firm",
+"src": "old",
+"cols": 2
+},
+{
+"id": 6331,
+"name": "상사(商社)",
+"sense": 1,
+"eng": null,
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1162,
+"name": "조합",
+"sense": 1,
+"eng": "Mix",
+"src": "old",
+"cols": 7
+},
+{
+"id": 3215,
+"name": "Mix",
+"sense": 1,
+"eng": "Mix",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1334,
+"name": "템플릿",
+"sense": 1,
+"eng": "Template",
+"src": "old",
+"cols": 1
+},
+{
+"id": 3923,
+"name": "Template",
+"sense": 1,
+"eng": "Template",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 364,
+"name": "납품",
+"sense": 1,
+"eng": "Delivery",
+"src": "old",
+"cols": 44
+},
+{
+"id": 2473,
+"name": "Delivery",
+"sense": 1,
+"eng": "Delivery",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 883,
+"name": "열간",
+"sense": 1,
+"eng": "Hot",
+"src": "old",
+"cols": 7
+},
+{
+"id": 2820,
+"name": "Hot",
+"sense": 1,
+"eng": "Hot",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1050,
+"name": "잠금",
+"sense": 1,
+"eng": "Lock",
+"src": "old",
+"cols": 5
+},
+{
+"id": 3110,
+"name": "Lock",
+"sense": 1,
+"eng": "Lock",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1166,
+"name": "존",
+"sense": 1,
+"eng": "Zone",
+"src": "old",
+"cols": 14
+},
+{
+"id": 4135,
+"name": "Zone",
+"sense": 1,
+"eng": "Zone",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 254,
+"name": "검사자",
+"sense": 1,
+"eng": "Inspector",
+"src": "old",
+"cols": 5
+},
+{
+"id": 2895,
+"name": "Inspector",
+"sense": 1,
+"eng": "Inspector",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 295,
+"name": "공차",
+"sense": 1,
+"eng": "Tolerance",
+"src": "old",
+"cols": 17
+},
+{
+"id": 3954,
+"name": "Tolerance",
+"sense": 1,
+"eng": "Tolerance",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 586,
+"name": "보류",
+"sense": 1,
+"eng": "Hold",
+"src": "old",
+"cols": 41
+},
+{
+"id": 2810,
+"name": "Hold",
+"sense": 1,
+"eng": "Hold",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 388,
+"name": "니켈",
+"sense": 1,
+"eng": "Nickel",
+"src": "old",
+"cols": 24
+},
+{
+"id": 3256,
+"name": "Ni",
+"sense": 1,
+"eng": "Nickel",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1448,
+"name": "항",
+"sense": 1,
+"eng": "Port",
+"src": "old",
+"cols": 11
+},
+{
+"id": 7901,
+"name": "항구",
+"sense": 1,
+"eng": "Port",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 201,
+"name": "RFID",
+"sense": 1,
+"eng": "Radio Frequency Identification",
+"src": "old",
+"cols": 2
+},
+{
+"id": 4240,
+"name": "RF_ID",
+"sense": 1,
+"eng": "RadioFrequencyIdentification",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 827,
+"name": "아노드",
+"sense": 1,
+"eng": "Anode",
+"src": "old",
+"cols": 3
+},
+{
+"id": 2126,
+"name": "Anode",
+"sense": 1,
+"eng": "Anode",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 336,
+"name": "근무",
+"sense": 1,
+"eng": "Duty",
+"src": "old",
+"cols": 3
+},
+{
+"id": 2561,
+"name": "Duty",
+"sense": 1,
+"eng": "Duty",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 621,
+"name": "분위기",
+"sense": 1,
+"eng": "Atmosphere",
+"src": "old",
+"cols": 6
+},
+{
+"id": 2154,
+"name": "Atmosphere",
+"sense": 1,
+"eng": "Atmosphere",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 767,
+"name": "스나우트",
+"sense": 1,
+"eng": "Snout",
+"src": "old",
+"cols": 5
+},
+{
+"id": 3578,
+"name": "Snout",
+"sense": 1,
+"eng": "Snout",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 915,
+"name": "외경",
+"sense": 1,
+"eng": "Outer Diameter",
+"src": "old",
+"cols": 23
+},
+{
+"id": 3036,
+"name": "OuterDiameter",
+"sense": 1,
+"eng": "OuterDiameter",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1223,
+"name": "챔버",
+"sense": 1,
+"eng": "Chamber",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2278,
+"name": "Chamber",
+"sense": 1,
+"eng": "Chamber",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1230,
+"name": "처리일자",
+"sense": 1,
+"eng": "Processing Date",
+"src": "old",
+"cols": 1
+},
+{
+"id": 7566,
+"name": "처리일",
+"sense": 1,
+"eng": "HandleDay",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 268,
+"name": "경로",
+"sense": 1,
+"eng": "Path",
+"src": "old",
+"cols": 3
+},
+{
+"id": 3078,
+"name": "Path",
+"sense": 1,
+"eng": "Path",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 573,
+"name": "변경일자",
+"sense": 1,
+"eng": "Changed On",
+"src": "old",
+"cols": 1
+},
+{
+"id": 5422,
+"name": "변경일",
+"sense": 1,
+"eng": "UpdateDay",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 806,
+"name": "신규",
+"sense": 1,
+"eng": "New",
+"src": "old",
+"cols": 19
+},
+{
+"id": 5867,
+"name": "신",
+"sense": 1,
+"eng": "New",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 869,
+"name": "엣지",
+"sense": 1,
+"eng": "Edge",
+"src": "old",
+"cols": 8
+},
+{
+"id": 2572,
+"name": "Edge",
+"sense": 1,
+"eng": "Edge",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1298,
+"name": "크롭",
+"sense": 1,
+"eng": "Crop",
+"src": "old",
+"cols": 6
+},
+{
+"id": 2412,
+"name": "Crop",
+"sense": 1,
+"eng": "Crop",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 482,
+"name": "마킹",
+"sense": 1,
+"eng": "Mark",
+"src": "old",
+"cols": 18
+},
+{
+"id": 3153,
+"name": "Marking",
+"sense": 1,
+"eng": "Marking",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 610,
+"name": "부적합",
+"sense": 1,
+"eng": "Defect",
+"src": "old",
+"cols": 84
+},
+{
+"id": 2465,
+"name": "Defect",
+"sense": 1,
+"eng": "Defect",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 863,
+"name": "에지웨이브",
+"sense": 1,
+"eng": "Edge Wave",
+"src": "old",
+"cols": 4
+},
+{
+"id": 2577,
+"name": "EdgeWave",
+"sense": 1,
+"eng": "EdgeWave",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 4,
+"name": "원재료",
+"sense": 1,
+"eng": "Raw Material",
+"src": "old",
+"cols": 256
+},
+{
+"id": 7046,
+"name": "원자재",
+"sense": 1,
+"eng": "RawMaterial",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 309,
+"name": "구동",
+"sense": 1,
+"eng": "Drive",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2547,
+"name": "Drive",
+"sense": 1,
+"eng": "Drive",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 798,
+"name": "시작",
+"sense": 2,
+"eng": "From",
+"src": "old",
+"cols": 31
+},
+{
+"id": 2691,
+"name": "From",
+"sense": 1,
+"eng": "From",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1055,
+"name": "장력",
+"sense": 1,
+"eng": "Tension",
+"src": "old",
+"cols": 110
+},
+{
+"id": 3928,
+"name": "Tension",
+"sense": 1,
+"eng": "Tension",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1003,
+"name": "인콰이어리",
+"sense": 1,
+"eng": "Inquiry",
+"src": "old",
+"cols": 13
+},
+{
+"id": 2892,
+"name": "Inquiry",
+"sense": 1,
+"eng": "Inquiry",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1280,
+"name": "컬",
+"sense": 1,
+"eng": "Curl",
+"src": "old",
+"cols": 2
+},
+{
+"id": 2425,
+"name": "Curl",
+"sense": 1,
+"eng": "Curl",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1778,
+"name": "플랜트",
+"sense": 1,
+"eng": "Plant",
+"src": "gl",
+"cols": 0
+},
+{
+"id": 3398,
+"name": "Plant",
+"sense": 1,
+"eng": "Plant",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 13,
+"name": "폭",
+"sense": 1,
+"eng": "Width",
+"src": "old",
+"cols": 162
+},
+{
+"id": 4080,
+"name": "Width",
+"sense": 1,
+"eng": "Width",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 107,
+"name": "CD방지약품",
+"sense": 1,
+"eng": "C-D Defect Preventive Chemical",
+"src": "old",
+"cols": 2
+},
+{
+"id": 3338,
+"name": "C-D방지약품",
+"sense": 1,
+"eng": "C-D방지약품",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 274,
+"name": "계수",
+"sense": 1,
+"eng": "Coefficient",
+"src": "old",
+"cols": 2
+},
+{
+"id": 2322,
+"name": "Coefficient",
+"sense": 1,
+"eng": "Coefficient",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1497,
+"name": "후면",
+"sense": 1,
+"eng": "Back",
+"src": "old",
+"cols": 123
+},
+{
+"id": 2171,
+"name": "Back",
+"sense": 1,
+"eng": "Back",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 687,
+"name": "샤프트",
+"sense": 1,
+"eng": "Shaft",
+"src": "old",
+"cols": 2
+},
+{
+"id": 2976,
+"name": "Shaft",
+"sense": 1,
+"eng": "Shaft",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 285,
+"name": "고정",
+"sense": 1,
+"eng": "Fix",
+"src": "old",
+"cols": 6
+},
+{
+"id": 2658,
+"name": "Fix",
+"sense": 1,
+"eng": "Fix",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 495,
+"name": "면허",
+"sense": 1,
+"eng": "License",
+"src": "old",
+"cols": 1
+},
+{
+"id": 3090,
+"name": "Licence",
+"sense": 1,
+"eng": "Licence",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 877,
+"name": "연속도장라인",
+"sense": 1,
+"eng": "Continuous Coating Line",
+"src": "old",
+"cols": 32
+},
+{
+"id": 2370,
+"name": "ContinuousColorCoatingLine",
+"sense": 1,
+"eng": "ContinuousColorCoatingLine",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1421,
+"name": "피니시",
+"sense": 1,
+"eng": "Finish",
+"src": "old",
+"cols": 88
+},
+{
+"id": 2648,
+"name": "Finish",
+"sense": 1,
+"eng": "Finish",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1091,
+"name": "전도도",
+"sense": 1,
+"eng": "Conductivity",
+"src": "old",
+"cols": 7
+},
+{
+"id": 2360,
+"name": "Conductivity",
+"sense": 1,
+"eng": "Conductivity",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1286,
+"name": "코발트",
+"sense": 2,
+"eng": "Cobalt",
+"src": "old",
+"cols": 5
+},
+{
+"id": 2317,
+"name": "Co",
+"sense": 1,
+"eng": "Cobalt",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1385,
+"name": "포장지",
+"sense": 1,
+"eng": "Paper",
+"src": "old",
+"cols": 5
+},
+{
+"id": 7983,
+"name": "포장종이",
+"sense": 1,
+"eng": "PackingPaper",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 771,
+"name": "스크랩",
+"sense": 1,
+"eng": "Scrap",
+"src": "old",
+"cols": 21
+},
+{
+"id": 3298,
+"name": "Scrap",
+"sense": 1,
+"eng": "Scrap",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1123,
+"name": "점도",
+"sense": 1,
+"eng": "Viscosity",
+"src": "old",
+"cols": 25
+},
+{
+"id": 4048,
+"name": "Viscosity",
+"sense": 1,
+"eng": "Viscosity",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 415,
+"name": "도금량",
+"sense": 1,
+"eng": "Galvanizing Weight",
+"src": "old",
+"cols": 40
+},
+{
+"id": 5680,
+"name": "도금부착량",
+"sense": 1,
+"eng": "GalvanizeAttachAmount",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 424,
+"name": "동기화",
+"sense": 1,
+"eng": "Synchronization",
+"src": "old",
+"cols": 7
+},
+{
+"id": 3887,
+"name": "Synchronize",
+"sense": 1,
+"eng": "Synchronize",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1165,
+"name": "조회수",
+"sense": 1,
+"eng": "Hit",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2804,
+"name": "Hit",
+"sense": 1,
+"eng": "Hit",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1293,
+"name": "크라운",
+"sense": 1,
+"eng": "Crown",
+"src": "old",
+"cols": 5
+},
+{
+"id": 2418,
+"name": "Crown",
+"sense": 1,
+"eng": "Crown",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1352,
+"name": "특기",
+"sense": 1,
+"eng": "Special Note",
+"src": "old",
+"cols": 60
+},
+{
+"id": 8128,
+"name": "특기사항",
+"sense": 1,
+"eng": "SpecialMentionItem",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 287,
+"name": "곡선",
+"sense": 1,
+"eng": "Curve",
+"src": "old",
+"cols": 3
+},
+{
+"id": 2428,
+"name": "Curve",
+"sense": 1,
+"eng": "Curve",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 780,
+"name": "스판",
+"sense": 1,
+"eng": "Span",
+"src": "old",
+"cols": 3
+},
+{
+"id": 3597,
+"name": "Span",
+"sense": 1,
+"eng": "Span",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 846,
+"name": "압축",
+"sense": 1,
+"eng": "Compression",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2351,
+"name": "Compress",
+"sense": 1,
+"eng": "Compress",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 939,
+"name": "원",
+"sense": 1,
+"eng": "Original",
+"src": "old",
+"cols": 28
+},
+{
+"id": 3028,
+"name": "Original",
+"sense": 1,
+"eng": "Original",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 145,
+"name": "HS코드",
+"sense": 1,
+"eng": "Harmonized System",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2842,
+"name": "HS_Code",
+"sense": 1,
+"eng": "HarmonizedCommodityDescription",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1037,
+"name": "자재",
+"sense": 1,
+"eng": "Material",
+"src": "old",
+"cols": 128
+},
+{
+"id": 3160,
+"name": "Material",
+"sense": 1,
+"eng": "Material",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 227,
+"name": "가격",
+"sense": 1,
+"eng": "Price",
+"src": "old",
+"cols": 11
+},
+{
+"id": 4143,
+"name": "가",
+"sense": 1,
+"eng": "Price",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 376,
+"name": "냉각수",
+"sense": 1,
+"eng": "Coolant",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2379,
+"name": "Coolant",
+"sense": 1,
+"eng": "Coolant",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 616,
+"name": "분기",
+"sense": 1,
+"eng": "Quarter",
+"src": "old",
+"cols": 5
+},
+{
+"id": 3493,
+"name": "Quarter",
+"sense": 1,
+"eng": "Quarter",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 738,
+"name": "송신자",
+"sense": 1,
+"eng": "Sender",
+"src": "old",
+"cols": 2
+},
+{
+"id": 5114,
+"name": "발신자",
+"sense": 1,
+"eng": "TransmitPerson",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 770,
+"name": "스큐",
+"sense": 1,
+"eng": "Skew",
+"src": "old",
+"cols": 2
+},
+{
+"id": 3556,
+"name": "Skew",
+"sense": 1,
+"eng": "Skew",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1269,
+"name": "치수",
+"sense": 1,
+"eng": "Dimension",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2502,
+"name": "Dimension",
+"sense": 1,
+"eng": "Dimension",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 896,
+"name": "예비용해",
+"sense": 1,
+"eng": "Premelt",
+"src": "old",
+"cols": 10
+},
+{
+"id": 3443,
+"name": "Premelt",
+"sense": 1,
+"eng": "Premelt",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 267,
+"name": "경도",
+"sense": 1,
+"eng": "Hardness",
+"src": "old",
+"cols": 34
+},
+{
+"id": 2768,
+"name": "Hardness",
+"sense": 1,
+"eng": "Hardness",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 552,
+"name": "배기",
+"sense": 1,
+"eng": "Exhaust",
+"src": "old",
+"cols": 2
+},
+{
+"id": 3541,
+"name": "Exhaust",
+"sense": 1,
+"eng": "Exhaust",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 680,
+"name": "상차",
+"sense": 1,
+"eng": "Loading",
+"src": "old",
+"cols": 79
+},
+{
+"id": 3104,
+"name": "Loading",
+"sense": 1,
+"eng": "Loading",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1060,
+"name": "장입",
+"sense": 1,
+"eng": "Charge",
+"src": "old",
+"cols": 3
+},
+{
+"id": 2287,
+"name": "Charge",
+"sense": 1,
+"eng": "Charge",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 994,
+"name": "인산염",
+"sense": 1,
+"eng": "Phosphate",
+"src": "old",
+"cols": 14
+},
+{
+"id": 3374,
+"name": "Phosphate",
+"sense": 1,
+"eng": "Phosphate",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1281,
+"name": "컬럼",
+"sense": 1,
+"eng": "Column",
+"src": "old",
+"cols": 10
+},
+{
+"id": 2344,
+"name": "Column",
+"sense": 1,
+"eng": "Column",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1443,
+"name": "합계",
+"sense": 1,
+"eng": "Sum",
+"src": "old",
+"cols": 18
+},
+{
+"id": 7885,
+"name": "합",
+"sense": 1,
+"eng": "Total",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 290,
+"name": "공급업체",
+"sense": 1,
+"eng": "Supplier",
+"src": "old",
+"cols": 30
+},
+{
+"id": 3865,
+"name": "공급자",
+"sense": 1,
+"eng": null,
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 399,
+"name": "당",
+"sense": 2,
+"eng": "Per",
+"src": "old",
+"cols": 1
+},
+{
+"id": 3363,
+"name": "Per",
+"sense": 1,
+"eng": "Per",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 476,
+"name": "마감",
+"sense": 2,
+"eng": "Cut-off",
+"src": "old",
+"cols": 1
+},
+{
+"id": 2432,
+"name": "CutOff",
+"sense": 1,
+"eng": "CutOff",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1238,
+"name": "초",
+"sense": 2,
+"eng": "Second",
+"src": "old",
+"cols": 0
+},
+{
+"id": 3306,
+"name": "Second",
+"sense": 1,
+"eng": "Second",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1297,
+"name": "크롬",
+"sense": 1,
+"eng": "Chromium",
+"src": "old",
+"cols": 30
+},
+{
+"id": 2401,
+"name": "Cr",
+"sense": 3,
+"eng": "Chrome",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1331,
+"name": "텐션릴",
+"sense": 1,
+"eng": "Tension Reel",
+"src": "old",
+"cols": 17
+},
+{
+"id": 3931,
+"name": "TensionReel",
+"sense": 1,
+"eng": "TensionReel",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 1756,
+"name": "라이너카",
+"sense": 1,
+"eng": "Liner Car",
+"src": "gl",
+"cols": 0
+},
+{
+"id": 3095,
+"name": "LinerCar",
+"sense": 1,
+"eng": "LinerCar",
+"src": "std",
+"cols": 0
+}
+]
+},
+{
+"members": [
+{
+"id": 895,
+"name": "예비",
+"sense": 1,
+"eng": "Spare",
+"src": "old",
+"cols": 6
+},
+{
+"id": 3599,
+"name": "Spare",
+"sense": 1,
+"eng": "Spare",
+"src": "std",
+"cols": 0
+}
+]
+}
+]

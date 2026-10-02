@@ -15,6 +15,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -42,6 +43,8 @@ public class OnnxKureEmbeddingEncoder implements TermEmbeddingEncoder, AutoClose
     private final boolean hasTokenTypeIds;
     private final String modelId;
 
+    /** 스프링 빈 생성자. public 생성자가 둘이라 이 생성자를 지정해야 빈을 만들 수 있다. */
+    @Autowired
     public OnnxKureEmbeddingEncoder(@Value("${mdm.embedding.model-dir:}") String modelDirProperty) {
         this(resolveModelDir(modelDirProperty), 1);
     }

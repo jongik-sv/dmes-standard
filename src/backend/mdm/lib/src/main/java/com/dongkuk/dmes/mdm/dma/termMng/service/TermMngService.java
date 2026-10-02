@@ -384,10 +384,19 @@ public class TermMngService {
     // 내부 구현
     // ────────────────────────────────────────────────────────────────
 
-    /** I9·I18 — 인코딩 입력 문자열은 {@code "{표기}: {정의} ({영문명})"} 로 고정한다. */
+    /**
+     * I9·I18 — 인코딩 입력 문자열은 {@code "{표기}: {정의} ({영문명})"} 다(term-embedding.md §2, D-025).
+     * 값은 strip 하고, 정의가 비면 {@code ": {정의}"}, 영문명이 비면 {@code " ({영문명})"} 를 뺀다.
+     */
     static String buildEncodingInput(String termName, String definition, String engName) {
-        return (termName == null ? "" : termName) + ": " + (definition == null ? "" : definition)
-                + " (" + (engName == null ? "" : engName) + ")";
+        StringBuilder sb = new StringBuilder(termName == null ? "" : termName.strip());
+        if (definition != null && !definition.isBlank()) {
+            sb.append(": ").append(definition.strip());
+        }
+        if (engName != null && !engName.isBlank()) {
+            sb.append(" (").append(engName.strip()).append(')');
+        }
+        return sb.toString();
     }
 
     /**

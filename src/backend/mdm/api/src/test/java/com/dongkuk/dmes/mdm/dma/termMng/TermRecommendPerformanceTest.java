@@ -57,7 +57,7 @@ class TermRecommendPerformanceTest extends AbstractMdmSharedDbTest {
                         String termName = "성능용어" + i;
                         String definition = "성능 시험용 정의 " + i;
                         // I9·I18 인코딩 입력 형식("{표기}: {정의} ({영문명})")을 그대로 재현한다(TermMngService.buildEncodingInput).
-                        String encodingInput = termName + ": " + definition + " ()";
+                        String encodingInput = termName + ": " + definition; // 영문명이 비면 " (…)" 를 뺀다
                         byte[] embedding = TermEmbeddingCodec.encode(fixtureEncoder.encode(encodingInput));
                         ps.setString(1, termName);
                         ps.setString(2, definition);

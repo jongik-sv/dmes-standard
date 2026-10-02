@@ -1,0 +1,3 @@
+백업: /Users/jji/project/dmes-standard/src/backend/data/mdm.db.bak-20261002-102304-dictstd
+{"terms_before": 1485, "terms_after": 8152, "inserted": 6667, "updated_existing": 805, "by_origin": {"MDM 자체 스키마 2026-10-01": 30, "llm-wiki 후보 2026-10-01": 1431, "기본설계 02": 24, "용어집.xlsx 2026-10-02": 508, "표준용어.xls 2026-10-02": 6159}, "abbr_conflicts": {"keep": 369, "replace": 9}, "excel_cells_missing": 0, "excel_rows_unassigned": 0, "dangling_term_ids": 0, "dup_name_sense": 0, "bad_json": 0}
+임베딩: 8,152건 KURE-v1/int8-1808718e/cls-l2/in1 (입력이 같은 8,135건은 첫 적재 벡터 재사용, 17건 새로 인코딩), 노름 1±1e-7
