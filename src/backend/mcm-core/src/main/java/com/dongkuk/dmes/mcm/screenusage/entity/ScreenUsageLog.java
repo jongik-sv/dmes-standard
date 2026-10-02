@@ -48,7 +48,7 @@ public class ScreenUsageLog implements Persistable<String> {
     @Column(name = "PAGE_ID", length = 200, nullable = false)
     private String pageId;
 
-    /** OPEN / SWITCH / RESUME */
+    /** OPEN / RESUME (SWITCH 는 2026-10-02 이전 행) */
     @Column(name = "START_KIND", length = 10, nullable = false)
     private String startKind;
 
@@ -58,7 +58,7 @@ public class ScreenUsageLog implements Persistable<String> {
     @Column(name = "ENDED_AT", nullable = false)
     private LocalDateTime endedAt;
 
-    /** 서버가 ENDED_AT - STARTED_AT (ms) 로 계산. */
+    /** 실제 이용 시간(ms). 클라이언트 durationMs(일시정지 제외)가 있으면 그 값, 없으면 ENDED_AT - STARTED_AT. */
     @Column(name = "DURATION_MS", nullable = false)
     private Long durationMs;
 
