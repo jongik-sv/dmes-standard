@@ -63,7 +63,11 @@ public class MdmMetaClient implements MdmMetaFeed {
         JsonNode result = call("view", MdmJson.MAPPER.createObjectNode().put("type", type.name()), keys);
         Map<String, Object> found = new LinkedHashMap<>();
         for (JsonNode n : result.path("items")) {
-            found.put(n.path("key").asText(), convert(type, n.path("value")));
+            JsonNode value = n.path("value");
+            if (value.isMissingNode() || value.isNull()) {
+                continue; // found 에 null 을 넣지 않는다
+            }
+            found.put(n.path("key").asText(), convert(type, value));
         }
         Map<String, String> failed = new LinkedHashMap<>();
         for (JsonNode n : result.path("failed")) {
@@ -117,6 +121,11 @@ public class MdmMetaClient implements MdmMetaFeed {
         if (!root.path("meta").path("success").asBoolean(false)) {
             throw new MdmUnavailableException("MDM 이 거부했습니다(" + action + "): " + root.path("meta").path("message").asText(""));
         }
-        return root.path("data").path("result");
+        JsonNode result = root.path("data").path("result");
+        if (result.isMissingNode() || result.isNull()) {
+            // 빈 결과를 0 으로 읽으면 폴러가 latestSeq=0 을 역행으로 보고 캐시를 통째로 비운다 — 손상된 응답으로 다룬다.
+            throw new MdmUnavailableException("MDM 응답에 data.result 가 없습니다(" + action + ")");
+        }
+        return result;
     }
 }

@@ -163,6 +163,32 @@ class MdmMetaClientTest {
     }
 
     @Test
+    void 성공인데_data_result_가_없거나_null_이면_MdmUnavailableException() {
+        server.expect(requestTo("http://mdm.test/oasis/metaFeed/search"))
+                .andRespond(withSuccess("{\"meta\":{\"success\":true},\"data\":{}}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://mdm.test/oasis/metaFeed/view"))
+                .andRespond(withSuccess("{\"meta\":{\"success\":true},\"data\":{\"result\":null}}", MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client.changes(5, 1000)).isInstanceOf(MdmUnavailableException.class)
+                .hasMessageContaining("data.result");
+        assertThatThrownBy(() -> client.fetch(MdmTargetType.COLUMN, List.of("A"))).isInstanceOf(MdmUnavailableException.class)
+                .hasMessageContaining("data.result");
+        server.verify();
+    }
+
+    @Test
+    void fetch_는_value_가_없거나_null_인_항목을_found_에_넣지_않는다() {
+        server.expect(requestTo("http://mdm.test/oasis/metaFeed/view"))
+                .andRespond(withSuccess(ok("{\"items\":[{\"key\":\"1\",\"value\":{\"layoutName\":\"전문\"}},{\"key\":\"2\",\"value\":null},"
+                        + "{\"key\":\"3\"}],\"failed\":[]}"), MediaType.APPLICATION_JSON));
+
+        MdmFetchResult r = client.fetch(MdmTargetType.LAYOUT, List.of("1", "2", "3"));
+
+        assertThat(r.found()).containsOnlyKeys("1");
+        assertThat(r.found().values()).doesNotContainNull();
+    }
+
+    @Test
     void LAYOUT_값은_맵_그대로다() {
         server.expect(requestTo("http://mdm.test/oasis/metaFeed/view"))
                 .andRespond(withSuccess(ok("{\"items\":[{\"key\":\"3\",\"value\":{\"layoutName\":\"전문\",\"totalLength\":10}}],\"failed\":[]}"),
