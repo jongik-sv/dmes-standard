@@ -47,13 +47,13 @@ class NoticeMgmtMdmRealValidatorTest extends MlsTestDb {
     @Autowired
     NoticeTargetRepository targetRepository;
 
-    private static MdmColumnMeta title(int length) {
+    private static MdmColumnMeta title(int length, boolean required) {
         return new MdmColumnMeta("TITLE", "제목", "제목", "제목", "제목", null, null, "STRING", length, null,
-                false, null, null, null, null, new MdmColumnMeta.DomainRef("183", "설명", "TEXT"), null, null, List.of(), null);
+                required, null, null, null, null, new MdmColumnMeta.DomainRef("183", "설명", "TEXT"), null, null, List.of(), null);
     }
 
-    /** 피드가 TITLE 만 안다. {@code down} 이면 MDM 을 받을 수 없다. */
-    private static MdmMetaFeed feed(boolean down, int titleLength) {
+    /** 피드가 TITLE 만 안다({@code knowsTitle} 이 거짓이면 TITLE 도 모른다 — 관리자가 컬럼을 지운 상태). {@code down} 이면 MDM 을 받을 수 없다. */
+    private static MdmMetaFeed feed(boolean down, int titleLength, boolean knowsTitle, boolean titleRequired) {
         return new MdmMetaFeed() {
             @Override
             public MdmChanges changes(long since, int limit) {
@@ -66,8 +66,8 @@ class NoticeMgmtMdmRealValidatorTest extends MlsTestDb {
                     throw new MdmUnavailableException("MDM 연결 실패");
                 }
                 Map<String, Object> found = new LinkedHashMap<>();
-                if (type == MdmTargetType.COLUMN && keys.contains("TITLE")) {
-                    found.put("TITLE", title(titleLength));
+                if (knowsTitle && type == MdmTargetType.COLUMN && keys.contains("TITLE")) {
+                    found.put("TITLE", title(titleLength, titleRequired));
                 }
                 return new MdmFetchResult(found, Map.of());
             }
@@ -79,10 +79,14 @@ class NoticeMgmtMdmRealValidatorTest extends MlsTestDb {
     }
 
     private NoticeMgmtService serviceWith(boolean down, int titleLength) {
+        return serviceWith(feed(down, titleLength, true, false));
+    }
+
+    private NoticeMgmtService serviceWith(MdmMetaFeed feed) {
         Clock clock = Clock.systemUTC();
         MdmMetaCache cache = new MdmMetaCache(100, Duration.ofMinutes(60), clock);
         cache.clear(0);
-        MdmMetaService meta = new MdmMetaService(feed(down, titleLength), cache, clock);
+        MdmMetaService meta = new MdmMetaService(feed, cache, clock);
         MdmValidator validator = new MdmValidator(meta, FunctionProvider.NONE, MdmValidator.OnUnavailable.REJECT, clock);
         StaticListableBeanFactory beans = new StaticListableBeanFactory();
         beans.addBean("mdmValidator", validator);
@@ -152,5 +156,31 @@ class NoticeMgmtMdmRealValidatorTest extends MlsTestDb {
         assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR);
         assertThat(ex.getErrors()).extracting(ErrorDetail::code).contains(MdmValidator.UNAVAILABLE_CODE);
         assertThat(repository.count()).isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("MDM 컬럼 사전에서 TITLE 이 지워지거나 이름이 바뀌어도 저장은 막히지 않는다(검증기가 그 칸을 건너뛴다)")
+    void titleMissingFromMdmDoesNotBlockSave() {
+        long before = repository.count();
+
+        Map<String, Object> out = serviceWith(feed(false, 1000, false, false)).save(List.of(newRow("정상 제목")));
+
+        assertThat(out).containsEntry("cntMerge", 1);
+        assertThat(repository.count()).isEqualTo(before + 1);
+    }
+
+    @Test
+    @DisplayName("저장하지 않는 자리(null·미변경 행)는 MDM 필수 검사를 받지 않는다 — 필수 TITLE 정의여도 null 행이 E001 을 내지 않는다")
+    void nullRowsDoNotRaiseMdmRequiredErrors() {
+        long before = repository.count();
+        List<Map<String, Object>> master = new java.util.ArrayList<>();
+        master.add(null);
+        master.add(newRow("정상 제목"));
+        master.add(null);
+
+        Map<String, Object> out = serviceWith(feed(false, 1000, true, true)).save(master);
+
+        assertThat(out).containsEntry("cntMerge", 1);
+        assertThat(repository.count()).isEqualTo(before + 1);
     }
 }

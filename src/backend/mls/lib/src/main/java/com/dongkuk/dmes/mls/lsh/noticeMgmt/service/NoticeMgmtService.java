@@ -92,6 +92,7 @@ public class NoticeMgmtService {
      * <ul>
      *   <li>{@code TITLE} — MDM STRING(1000)·선택, DB VARCHAR(200)·NOT NULL. MDM 이 느슨하다 → 넣는다.
      *       (200자·필수는 {@link #validateRow} 가 계속 본다.)</li>
+     *   <li>MDM 관리자가 {@code TITLE} 의 이름을 바꾸거나 지워도 검증기가 그 칸을 건너뛰므로(WARN 한 번) 저장은 막히지 않는다.</li>
      *   <li>{@code NOTICE_CATEGORY} 등 나머지 — 컬럼 사전에 같은 물리명이 없다({@code CATEGORY} 는 다른 이름이라 맞지 않는다,
      *       별칭 매칭은 후속). 코드 값은 {@link #validateRow} 가 본다.</li>
      * </ul>

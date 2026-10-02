@@ -146,8 +146,9 @@ public record MdmValidationRequest(String grid, List<Map<String, Object>> rows, 
     // Builder: columns(String...), ruleSet(String), evalTs(Instant), build()
 }
 public record MdmValidationResult(List<ErrorDetail> errors, List<String> unavailable,
-                                  Map<Integer, List<RuleSetResult>> ruleSetResults) {
-    public boolean ok();   // errors·unavailable 모두 비었다
+                                  Map<Integer, List<RuleSetResult>> ruleSetResults,
+                                  List<String> missing) {   // MDM 에 없어 검사에서 뺀 정의 "COLUMN:X"·"RULE_SET:Y"(unavailable 과 같은 표기)
+    public boolean ok();   // errors·unavailable 모두 비었다 — missing 은 판정에 넣지 않는다
 }
 public class MdmValidator {
     public MdmValidationResult validate(MdmValidationRequest request);
@@ -158,11 +159,11 @@ public class MdmValidator {
 
 ### 6.2 동작
 
-1. 행 거르기: `rowStatus` 가 `D`·`deleted` 면 건너뛴다. `rowStatus` 가 없으면(폼) 검사한다. `rowIndex` 는 요청 목록의 자리, `rowKey` 는 행의 `rowKey` 값.
+1. 행 거르기: `rowStatus` 가 `D`·`deleted`(앞뒤 공백·대소문자 무시)면 건너뛴다. `null` 행도 건너뛴다(빈 행으로 검사하면 필수 칸마다 E001 이 난다). `rowStatus` 가 없으면(폼) 검사한다. `rowIndex` 는 요청 목록의 자리, `rowKey` 는 행의 `rowKey` 값.
 2. 키 정규화: `columns` 의 각 이름과 행 키를 `MdmNames.toPhysName` 으로 맞춘다. 엔진에 넘기는 레코드는 검사 대상 컬럼과 그 `bizRequiredVars` 에 해당하는 행 값만 물리명 키로 담는다(`rowStatus`·`rowKey`·`_` 접두 키·상수 이름 키는 넣지 않는다 — `RecordKeys` 예외 방지). 오류의 `field` 는 행의 원래 키.
 3. 미리 받기(호출자 스레드): 검사 컬럼(`COLUMN`), 그 코드 참조(`CODE`), 룰 세트(`RULE_SET`)와 그 `ruleIds`(`RULE`), 그리고 식 AST 를 훑어 `CODE`·`MASTER`·`MASTER_AT` 의 첫 인자 상수(코드 ID)를 `CODE` 로 받는다. 받을 수 없는 키는 `unavailable` 로 모은다.
 4. 평가: 엔진에는 캐시만 읽는 조회기를 준다(HTTP 를 부르지 않는다). 평가 중 캐시 부재는 검증 한 번 범위의 부재 기록기로 잡아 `unavailable` 로 돌린다.
-5. 컬럼마다: 사전에 없는 컬럼은 서버 오류(프로그램 결함, `IllegalArgumentException`) — 요청에 적은 컬럼이 사전에 없으면 개발 중 바로 드러나야 한다. 있으면 길이·소수(cactus) → `DomainValidator.validate(null, 물리명, 레코드, evalTs)`. 실패를 `ErrorDetail` 로(§2 C9 코드, 문구는 §5 와 같은 꼴, 비즈니스식은 "업무 규칙을 만족하지 않습니다" 로 원문을 싣지 않는다).
+5. 컬럼마다: 사전에 없는 컬럼(요청한 컬럼이나 룰 세트가 MDM 에 없음 — 받을 수 없는 `unavailable` 과 다르다)은 예외 없이 검사에서 빼고 `missing` 에 담으며 WARN 을 한 번 남긴다(모듈·grid·이름). MDM 관리자가 컬럼 이름을 바꾸거나 지우기만 해도 업무 저장이 막히면 안 되고, 서비스의 예외는 일반 오류 경로로 문구가 그대로 브라우저에 나가기 때문이다. 있는 컬럼은 길이·소수(cactus) → `DomainValidator.validate(null, 물리명, 레코드, evalTs)`. 실패를 `ErrorDetail` 로(§2 C9 코드, 문구는 §5 와 같은 꼴, 비즈니스식은 "업무 규칙을 만족하지 않습니다" 로 원문을 싣지 않는다).
 6. 룰 세트마다: `RuleEngine.evaluateSet(setId, 레코드, evalTs)` 의 레코드는 행 전체를 물리명 키로(예약 키 제외). `EngineEvaluationException` 의 위반마다 행 오류(`field` = 위반 `name` 의 원래 키, 없으면 null), 결과는 `ruleSetResults` 에 행 번호로.
 7. `unavailable` 이 비지 않으면 C7: REJECT 는 `BusinessException(ErrorCode.BUSINESS_ERROR, 문구, [ErrorDetail(code="MDM_UNAVAILABLE", field=null)])`, PASS 는 WARN 후 그 항목만 건너뛴다.
 
@@ -190,5 +191,5 @@ public class MdmValidator {
 ## 9. 시험
 
 - shared: `toPhysName`·`resolveCaption`·store 묶음 요청/5분/진행 중 공유/모듈 끄기/401 리다이렉트 없음, 공급자 밖 동작 불변, `MdmMetaCard` 순서, `GridColumn` 캡션·머리글 툴팁, `FormGroup name`, `validateMdmValue` 표(필수·타입·길이 code point(이모지·한글)·소수·코드·표준식·isSupported 거짓 통과), 그리드 `mdmValidate`·`fieldErrors`.
-- cactus-core: 키 정규화·예약 키 제외, 삭제 행 건너뜀, 길이 code point, 소수, 엔진 실패→ErrorDetail, 룰 세트 위반, 미리 받기 후 평가 중 HTTP 0회, 평가 중 캐시 부재→unavailable, REJECT·PASS, 사전에 없는 컬럼→IAE.
+- cactus-core: 키 정규화·예약 키 제외, 삭제 행 건너뜀, 길이 code point, 소수, 엔진 실패→ErrorDetail, 룰 세트 위반, 미리 받기 후 평가 중 HTTP 0회, 평가 중 캐시 부재→unavailable, REJECT·PASS, 사전에 없는 컬럼·룰 세트→건너뛰고 `missing`·WARN 한 번(REJECT 에서도 저장 통과), null 행 건너뜀.
 - 파일럿: mls `NoticeMgmtService` 저장 검증 시험, 화면 vitest.

@@ -1363,7 +1363,7 @@
 ## D-147 (2026-10-03T00:30:00Z)
 - **Phase**: design(MDM 값 검증 — 하위 프로젝트 C)
 - **Decision needed**: idea.md "룰 엔진 실행 검증(화면 값 자동 검증, BE 에서 값 검증 및 체크)". 켜는 방식, 길이 단위, MDM 장애 정책, 룰 세트 위반 판정, 평가 중 MDM 호출
-- **Decision made**: (1) 화면·서버 모두 화면/서비스가 명시해 켠다(그리드 `mdmValidate`, `useMdmValidation`, `MdmValidator.check(columns…)`) — 컬럼 사전이 테이블 구분 없는 전역 물리명이라 자동 적용하지 않는다 (2) 길이는 code point (3) 정의를 받을 수 없으면 기본 저장 거부(`MDM_UNAVAILABLE`), 모듈 설정 `cactus.mdm.validation.on-unavailable: PASS` 로 경고 후 통과 (4) 룰 세트는 받는 노드가 받지 않은 엔진 위반만 오류, caught·finalValues 는 호출자 판단 (5) 미리 받기 뒤 캐시 전용 조회기로 평가(평가 중 HTTP 금지) (6) 화면 평가기는 m-mdm 에서 shared 로 옮기고 m-mdm 은 다시 내보냄
+- **Decision made**: (1) 화면·서버 모두 화면/서비스가 명시해 켠다(그리드 `mdmValidate`, `useMdmValidation`, `MdmValidator.check(columns…)`) — 컬럼 사전이 테이블 구분 없는 전역 물리명이라 자동 적용하지 않는다 (2) 길이는 code point (3) 정의를 받을 수 없으면 기본 저장 거부(`MDM_UNAVAILABLE`), 모듈 설정 `cactus.mdm.validation.on-unavailable: PASS` 로 경고 후 통과 (4) 룰 세트는 받는 노드가 받지 않은 엔진 위반만 오류, caught·finalValues 는 호출자 판단 (5) 미리 받기 뒤 캐시 전용 조회기로 평가(평가 중 HTTP 금지) (6) 화면 평가기는 m-mdm 에서 shared 로 옮기고 m-mdm 은 다시 내보냄 (7) 사전에 없는 컬럼·룰 세트는 WARN 후 건너뜀(MDM 관리 변경이 업무 저장을 막지 않게) — 결과 `missing` 에 담고 `ok()` 판정에는 넣지 않으며 예외를 던지지 않는다
 - **Rationale**: 잘못 맞은 사전 이름 하나가 전 화면 입력을 막지 않게 한다. 엔진 평가 1초 제한이 HTTP 5초보다 짧고 엔진 예외는 원인을 잃는다. D8 "서버가 기준"
 - **Reversible**: yes(설정·호출부)
 - **Source**: 사용자 위임 2026-10-03. 같은 스펙 §2 C1~C9. 마루 데이터 MASTER 는 범위 밖(엔진·MDM 모두 MasterLookup.NONE, 로컬 도메인 164건 중 직접 사용 0건)

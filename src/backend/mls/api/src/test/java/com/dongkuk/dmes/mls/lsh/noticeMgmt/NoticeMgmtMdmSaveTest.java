@@ -52,7 +52,7 @@ class NoticeMgmtMdmSaveTest extends MlsTestDb {
 
     @BeforeEach
     void okByDefault() {
-        when(mdmValidator.check(any())).thenReturn(new MdmValidationResult(List.of(), List.of(), Map.of()));
+        when(mdmValidator.check(any())).thenReturn(new MdmValidationResult(List.of(), List.of(), Map.of(), List.of()));
     }
 
     private static Map<String, Object> newRow(String title) {

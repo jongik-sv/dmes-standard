@@ -49,6 +49,11 @@ import org.slf4j.LoggerFactory;
  *
  * <p>검증 불가 정책(C7): {@link OnUnavailable#REJECT}(기본)면 {@link #check} 가 {@code MDM_UNAVAILABLE} 로 저장을 막고,
  * {@link OnUnavailable#PASS} 면 WARN 을 남기고 그 항목만 건너뛴다.
+ *
+ * <p>사전에 없는 정의(2026-10-03 결정): 요청한 컬럼·룰 세트가 MDM 에 없으면(받을 수 없음과 다르다) 예외 없이 검사에서 빼고
+ * {@link MdmValidationResult#missing()} 에 담으며 WARN 을 한 번 남긴다. 업무 서비스의 예외는 일반 오류 경로로 문구가 그대로 화면에 나가고,
+ * MDM 관리자가 컬럼 이름을 바꾸거나 지우기만 해도 업무 저장이 막히기 때문이다. 이 정의는 검증 불가(unavailable)가 아니라 {@link #check} 도
+ * REJECT 에서 던지지 않는다.
  */
 public class MdmValidator {
 
@@ -73,6 +78,8 @@ public class MdmValidator {
     private final OnUnavailable onUnavailable;
     private final Clock clock;
     private final MdmExprRefs refs;
+    /** 로그에 싣는 이 모듈 코드(mls 등). 모르면 "-". */
+    private final String module;
 
     /**
      * 캐시 전용 엔진(평가기·도메인 검증기·룰 엔진)을 스스로 만든다 — 모두 {@link MdmCachedDefinitions} 위에서. 엔진을 밖에서 받지 않는 것은 평가 중
@@ -82,10 +89,16 @@ public class MdmValidator {
      * @param functions 비즈니스 함수 공급자(없으면 {@link FunctionProvider#NONE}). 마루 데이터 대상 MASTER 는 지원하지 않는다(MasterLookup.NONE, §6.4)
      */
     public MdmValidator(MdmMetaService service, FunctionProvider functions, OnUnavailable onUnavailable, Clock clock) {
-        this(service, cacheOnlyEvaluator(service, functions), onUnavailable, clock);
+        this(service, functions, onUnavailable, clock, null);
     }
 
-    private MdmValidator(MdmMetaService service, MdmEvaluator evaluator, OnUnavailable onUnavailable, Clock clock) {
+    /** @param module 이 모듈 코드 — 사전에 없는 정의를 건너뛰며 남기는 WARN 로그에 싣는다(null 이면 "-"). 자동 설정이 {@code cactus.mdm.module} 을 준다 */
+    public MdmValidator(MdmMetaService service, FunctionProvider functions, OnUnavailable onUnavailable, Clock clock, String module) {
+        this(service, cacheOnlyEvaluator(service, functions), onUnavailable, clock, module);
+    }
+
+    private MdmValidator(MdmMetaService service, MdmEvaluator evaluator, OnUnavailable onUnavailable, Clock clock, String module) {
+        this.module = module == null || module.isBlank() ? "-" : module.trim();
         this.service = Objects.requireNonNull(service, "service");
         this.evaluator = evaluator;
         MdmCachedDefinitions cached = new MdmCachedDefinitions(service);
@@ -128,11 +141,19 @@ public class MdmValidator {
         return r;
     }
 
-    /** 검사만 한다(던지지 않는다 — 단, 사전에 없는 컬럼·룰 세트는 프로그램 결함이라 {@code IllegalArgumentException}). */
+    /**
+     * 검사만 한다(던지지 않는다). MDM 에 없는 컬럼·룰 세트는 검사에서 빼고 {@link MdmValidationResult#missing()} 에 담으며 WARN 을 한 번 남긴다 —
+     * MDM 관리자가 컬럼 이름을 바꾸거나 지워도 업무 저장이 막히지 않게(예외를 던지면 일반 오류 경로로 문구가 그대로 화면에 나간다). 컬럼 이름이 빈
+     * 값이면 호출 코드의 결함이라 {@code IllegalArgumentException}.
+     */
     public MdmValidationResult validate(MdmValidationRequest request) {
         Objects.requireNonNull(request, "request");
         Instant ts = request.evalTs() != null ? request.evalTs() : clock.instant();
         Plan plan = prefetch(request, ts);
+        if (!plan.missing.isEmpty()) {
+            log.warn("[mdm] MDM 에 없는 정의를 검사에서 뺀다(MDM 에서 이름이 바뀌었거나 지워졌는지 확인) — module={} grid={} missing={}",
+                    module, request.grid(), plan.missing);
+        }
         List<ErrorDetail> errors = new ArrayList<>();
         Set<String> unavailable = new LinkedHashSet<>(plan.unavailable);
         Map<Integer, List<RuleSetResult>> results = new LinkedHashMap<>();
@@ -140,8 +161,8 @@ public class MdmValidator {
 
         List<Map<String, Object>> rows = request.rows();
         for (int i = 0; i < rows.size(); i++) {
-            Map<String, Object> row = rows.get(i) == null ? Map.of() : rows.get(i);
-            if (deleted(row)) {
+            Map<String, Object> row = rows.get(i);
+            if (row == null || deleted(row)) { // null 행은 빈 행으로 검사하지 않는다(필수 칸마다 E001 이 난다) — 서비스가 저장하지 않는 자리다
                 continue;
             }
             RowView view = new RowView(request.grid(), i, row);
@@ -156,7 +177,7 @@ public class MdmValidator {
                 }
             }
         }
-        return new MdmValidationResult(errors, new ArrayList<>(unavailable), results);
+        return new MdmValidationResult(errors, new ArrayList<>(unavailable), results, new ArrayList<>(plan.missing));
     }
 
     // ------------------------------------------------------------------ 미리 받기
@@ -165,10 +186,12 @@ public class MdmValidator {
      * 미리 받은 결과.
      *
      * @param columns      요청 컬럼 이름 → 물리명(요청 순서, 물리명 중복 제거)
-     * @param skippedItems 검증 불가로 건너뛸 항목({@code COLUMN:물리명}·{@code RULE_SET:ID})
+     * @param skippedItems 검사에서 뺄 항목({@code COLUMN:물리명}·{@code RULE_SET:ID}) — 검증 불가(unavailable)이거나 MDM 에 없는(missing) 것
      * @param unavailable  검증 불가 원인 {@code 종류:키}
+     * @param missing      MDM 에 없어 뺀 항목 {@code 종류:키}(검증 불가가 아니다 — REJECT 에서도 저장을 막지 않는다)
      */
-    private record Plan(Map<String, String> columns, Map<String, MdmColumnMeta> metas, Set<String> skippedItems, Set<String> unavailable) {
+    private record Plan(Map<String, String> columns, Map<String, MdmColumnMeta> metas, Set<String> skippedItems, Set<String> unavailable,
+                        Set<String> missing) {
     }
 
     @SuppressWarnings("unchecked")
@@ -185,6 +208,7 @@ public class MdmValidator {
             }
         }
         Set<String> unavailable = new LinkedHashSet<>();
+        Set<String> missing = new LinkedHashSet<>();
         Set<String> skipped = new LinkedHashSet<>();
         Map<String, Set<String>> codesByItem = new LinkedHashMap<>(); // 항목 → 그 항목이 참조하는 마루 코드 ID
 
@@ -192,8 +216,8 @@ public class MdmValidator {
         Map<String, MdmColumnMeta> metas = new LinkedHashMap<>();
         if (!physSeen.isEmpty()) {
             MdmMetaService.MdmLookup found = service.lookup(MdmTargetType.COLUMN, physSeen);
-            if (!found.missing().isEmpty()) {
-                throw new IllegalArgumentException("컬럼 사전에 없는 컬럼입니다: " + found.missing());
+            for (String phys : found.missing()) {
+                skipMissing(item(MdmTargetType.COLUMN, phys), skipped, missing);
             }
             for (String phys : found.unavailable()) {
                 skip(item(MdmTargetType.COLUMN, phys), item(MdmTargetType.COLUMN, phys), skipped, unavailable);
@@ -209,8 +233,8 @@ public class MdmValidator {
         Set<String> setIds = new LinkedHashSet<>(request.ruleSets());
         if (!setIds.isEmpty()) {
             MdmMetaService.MdmLookup sets = service.lookup(MdmTargetType.RULE_SET, setIds);
-            if (!sets.missing().isEmpty()) {
-                throw new IllegalArgumentException("MDM 에 없는 룰 세트입니다: " + sets.missing());
+            for (String setId : sets.missing()) {
+                skipMissing(item(MdmTargetType.RULE_SET, setId), skipped, missing);
             }
             for (String setId : sets.unavailable()) {
                 skip(item(MdmTargetType.RULE_SET, setId), item(MdmTargetType.RULE_SET, setId), skipped, unavailable);
@@ -260,12 +284,18 @@ public class MdmValidator {
                 }
             });
         }
-        return new Plan(columns, metas, skipped, unavailable);
+        return new Plan(columns, metas, skipped, unavailable, missing);
     }
 
     private static void skip(String itemKey, String cause, Set<String> skipped, Set<String> unavailable) {
         skipped.add(itemKey);
         unavailable.add(cause);
+    }
+
+    /** MDM 에 없는 항목 — 검사에서 빼되 검증 불가(unavailable)로 세지 않는다. */
+    private static void skipMissing(String itemKey, Set<String> skipped, Set<String> missing) {
+        skipped.add(itemKey);
+        missing.add(itemKey);
     }
 
     private static String item(MdmTargetType type, String key) {

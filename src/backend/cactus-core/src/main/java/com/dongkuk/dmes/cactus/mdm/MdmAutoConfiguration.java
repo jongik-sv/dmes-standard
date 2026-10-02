@@ -77,9 +77,10 @@ public class MdmAutoConfiguration {
     /** 마루 데이터 대상 MASTER 는 지원하지 않는다(MasterLookup.NONE, spec §6.4). 비즈니스 함수 공급자가 빈으로 있으면 싣는다. */
     @Bean
     @ConditionalOnMissingBean
-    public MdmValidator mdmValidator(MdmMetaService service, ObjectProvider<FunctionProvider> functions, MdmClientProperties props) {
+    public MdmValidator mdmValidator(MdmMetaService service, ObjectProvider<FunctionProvider> functions, MdmClientProperties props,
+                                     Environment env) {
         return new MdmValidator(service, functions.getIfAvailable(() -> FunctionProvider.NONE), props.getValidation().getOnUnavailable(),
-                Clock.systemUTC());
+                Clock.systemUTC(), module(props, env));
     }
 
     @Bean

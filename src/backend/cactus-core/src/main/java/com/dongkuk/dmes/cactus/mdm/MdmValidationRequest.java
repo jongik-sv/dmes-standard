@@ -14,8 +14,8 @@ import java.util.Objects;
  *
  * @param grid     오류 {@code ErrorDetail.grid} 에 싣는 그리드 이름. 폼 하나면 null
  * @param rows     행(그리드 저장 목록 그대로 — {@code rowStatus}·{@code rowKey} 를 함께 둔다). 키는 화면 키(camelCase 도 된다)
- * @param columns  검사할 컬럼(화면 키 또는 물리명). 컬럼 사전에 없으면 {@code IllegalArgumentException}
- * @param ruleSets 행마다 판정할 룰 세트 ID
+ * @param columns  검사할 컬럼(화면 키 또는 물리명). 컬럼 사전에 없으면 그 컬럼은 검사에서 빼고 결과 {@code missing} 에 담는다(WARN)
+ * @param ruleSets 행마다 판정할 룰 세트 ID. MDM 에 없으면 그 룰 세트는 검사에서 빼고 결과 {@code missing} 에 담는다(WARN)
  * @param evalTs   판정 시각. null 이면 검증기의 시계로 채운다
  */
 public record MdmValidationRequest(String grid, List<Map<String, Object>> rows, List<String> columns, List<String> ruleSets,

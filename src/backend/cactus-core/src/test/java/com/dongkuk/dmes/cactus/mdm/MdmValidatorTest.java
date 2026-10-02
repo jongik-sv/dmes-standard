@@ -3,6 +3,10 @@ package com.dongkuk.dmes.cactus.mdm;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.cactus.web.response.ErrorDetail;
@@ -42,6 +46,7 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.VarType;
 import kr.dongkuk.maru.mdm.engine.spi.FunctionProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 /**
  * 하위 프로젝트 C spec §6·§9 「cactus-core」 — 서버 저장 검증기. 엔진은 진짜(캐시 전용 조회기 + MdmEvaluator·DefaultDomainValidator·MdmRuleEngine)이고
@@ -568,13 +573,111 @@ class MdmValidatorTest {
     }
 
     @Test
-    void 사전에_없는_컬럼과_룰_세트는_프로그램_결함이라_IllegalArgumentException() {
+    void 사전에_없는_컬럼은_검사에서_빼고_missing_에_담으며_나머지_컬럼은_계속_검사한다() {
         feed.put(MdmTargetType.COLUMN, "TITLE", str("TITLE", "제목", 3, false));
 
-        assertThatThrownBy(() -> validateRows(List.of(row("TITLE", "a")), "TITLE", "NO_SUCH"))
-                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("NO_SUCH");
-        assertThatThrownBy(() -> validator.validate(MdmValidationRequest.rows("g", List.of(row("TITLE", "a"))).ruleSet("NO_SET").build()))
-                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("NO_SET");
+        MdmValidationResult r = validateRows(List.of(row("TITLE", "toolong", "NO_SUCH", "x")), "TITLE", "NO_SUCH");
+
+        assertThat(r.missing()).containsExactly("COLUMN:NO_SUCH");
+        assertThat(r.unavailable()).isEmpty(); // 받을 수 없음(unavailable)과 다르다 — 없는 정의다
+        assertThat(r.errors()).extracting(ErrorDetail::field).containsExactly("TITLE");
+    }
+
+    @Test
+    void 사전에_없는_컬럼만_있으면_오류도_검증_불가도_없어_ok_이고_check_는_REJECT_에서도_던지지_않는다() {
+        // MDM 관리자가 컬럼 이름을 바꾸거나 지워도 업무 저장이 통째로 막히면 안 된다.
+        MdmValidationRequest req = MdmValidationRequest.rows("grid1", List.of(row("TITLE", "a"))).columns("TITLE").build();
+
+        MdmValidationResult validated = validator.validate(req);
+        MdmValidationResult checked = validator.check(req);
+
+        assertThat(validated.missing()).containsExactly("COLUMN:TITLE");
+        assertThat(validated.ok()).isTrue(); // missing 은 ok() 판정에 넣지 않는다
+        assertThat(checked.missing()).containsExactly("COLUMN:TITLE");
+        assertThat(checked.ok()).isTrue();
+    }
+
+    @Test
+    void 사전에_없는_룰_세트는_검사에서_빼고_missing_에_담는다_행_오류도_검증_불가도_없다() {
+        feed.put(MdmTargetType.COLUMN, "TITLE", str("TITLE", "제목", 3, false));
+
+        MdmValidationResult r = validator.check(MdmValidationRequest.rows("g", List.of(row("TITLE", "a"), row("TITLE", "b")))
+                .columns("TITLE").ruleSet("NO_SET").build());
+
+        assertThat(r.missing()).containsExactly("RULE_SET:NO_SET");
+        assertThat(r.errors()).isEmpty();
+        assertThat(r.unavailable()).isEmpty();
+        assertThat(r.ruleSetResults()).isEmpty();
+        assertThat(r.ok()).isTrue();
+    }
+
+    @Test
+    void 사전에_없는_정의와_받을_수_없는_정의가_섞이면_각자_자리에_담긴다() {
+        feed.put(MdmTargetType.COLUMN, "BAD", str("BAD", "나쁨", 3, false));
+        feed.failedKeys.put("BAD", "정의를 만들지 못함");
+
+        MdmValidationResult r = validator.validate(MdmValidationRequest.rows("g", List.of(row("BAD", "x")))
+                .columns("BAD", "NO_SUCH").ruleSet("NO_SET").build());
+
+        assertThat(r.missing()).containsExactly("COLUMN:NO_SUCH", "RULE_SET:NO_SET");
+        assertThat(r.unavailable()).containsExactly("COLUMN:BAD");
+        assertThat(r.ok()).isFalse();
+    }
+
+    @Test
+    void 사전에_없는_정의는_행_수와_상관없이_WARN_한_번으로_모듈_grid_이름을_남긴다() {
+        Logger validatorLog = (Logger) LoggerFactory.getLogger(MdmValidator.class);
+        ListAppender<ILoggingEvent> logs = new ListAppender<>();
+        logs.start();
+        validatorLog.addAppender(logs);
+        try {
+            MdmValidator withModule = new MdmValidator(service, FunctionProvider.NONE, MdmValidator.OnUnavailable.REJECT, clock, "mls");
+            feed.put(MdmTargetType.COLUMN, "TITLE", str("TITLE", "제목", 3, false));
+
+            withModule.validate(MdmValidationRequest.rows("master", List.of(row("TITLE", "a", "NO_SUCH", "x"), row("TITLE", "b"), row("TITLE", "c")))
+                    .columns("TITLE", "NO_SUCH").ruleSet("NO_SET").build());
+
+            List<ILoggingEvent> warns = logs.list.stream().filter(e -> e.getLevel() == Level.WARN).toList();
+            assertThat(warns).hasSize(1);
+            assertThat(warns.get(0).getFormattedMessage()).contains("mls", "master", "COLUMN:NO_SUCH", "RULE_SET:NO_SET");
+        } finally {
+            validatorLog.detachAppender(logs);
+        }
+    }
+
+    @Test
+    void 사전에_다_있으면_missing_은_비고_WARN_도_없다() {
+        Logger validatorLog = (Logger) LoggerFactory.getLogger(MdmValidator.class);
+        ListAppender<ILoggingEvent> logs = new ListAppender<>();
+        logs.start();
+        validatorLog.addAppender(logs);
+        try {
+            feed.put(MdmTargetType.COLUMN, "TITLE", str("TITLE", "제목", 3, false));
+
+            MdmValidationResult r = validateRows(List.of(row("TITLE", "a")), "TITLE");
+
+            assertThat(r.missing()).isEmpty();
+            assertThat(logs.list).noneMatch(e -> e.getLevel() == Level.WARN);
+        } finally {
+            validatorLog.detachAppender(logs);
+        }
+    }
+
+    @Test
+    void 컬럼_이름이_비어_있으면_코드_상수의_결함이라_IllegalArgumentException() {
+        // MDM 상태가 아니라 호출 코드의 결함이다(사전에 없는 컬럼과 다르다).
+        assertThatThrownBy(() -> validateRows(List.of(row("TITLE", "a")), " "))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void null_행은_건너뛴다_빈_행으로_검사해_필수_오류를_내지_않는다() {
+        feed.put(MdmTargetType.COLUMN, "TITLE", str("TITLE", "제목", 3, true));
+        feed.put(MdmTargetType.COLUMN, "NAME", str("NAME", "이름", 3, true));
+
+        MdmValidationResult r = validateRows(Arrays.asList(null, row("TITLE", "", "NAME", "ok"), null, row("TITLE", "ok", "NAME", "ok")), "TITLE", "NAME");
+
+        assertThat(r.errors()).containsExactly(new ErrorDetail("grid1", null, 1, "TITLE", "E001", "제목은(는) 필수입니다")); // 행 번호는 목록 자리 그대로
     }
 
     // ------------------------------------------------------------------ check 정책
