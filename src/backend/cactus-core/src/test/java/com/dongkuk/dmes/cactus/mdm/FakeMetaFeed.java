@@ -56,8 +56,18 @@ final class FakeMetaFeed implements MdmMetaFeed {
     public MdmFetchResult fetch(MdmTargetType type, Collection<String> keys) {
         fetchCalls.incrementAndGet();
         fetchedKeys.add(List.copyOf(keys));
+        // MDM 이 값을 읽은 시점 = 호출 시점. 문(gate)에서 기다리는 동안 바뀐 값은 이 응답에 들어가지 않는다(늦게 도착한 옛 값 재현).
+        Map<String, Object> found = new LinkedHashMap<>();
+        Map<String, String> failed = new LinkedHashMap<>();
+        for (String k : keys) {
+            if (failedKeys.containsKey(k)) {
+                failed.put(k, failedKeys.get(k));
+            } else if (values.get(type).containsKey(k)) {
+                found.put(k, values.get(type).get(k));
+            }
+        }
+        CountDownLatch gate = fetchGate; // 들어왔다고 알리기 전에 읽는다 — 시험이 알림을 받고 fetchGate 를 바꿔도 이 호출은 기다린다
         fetchEntered.countDown();
-        CountDownLatch gate = fetchGate;
         if (gate != null) {
             try {
                 gate.await(5, TimeUnit.SECONDS);
@@ -68,15 +78,6 @@ final class FakeMetaFeed implements MdmMetaFeed {
         RuntimeException error = fetchError;
         if (error != null) {
             throw error;
-        }
-        Map<String, Object> found = new LinkedHashMap<>();
-        Map<String, String> failed = new LinkedHashMap<>();
-        for (String k : keys) {
-            if (failedKeys.containsKey(k)) {
-                failed.put(k, failedKeys.get(k));
-            } else if (values.get(type).containsKey(k)) {
-                found.put(k, values.get(type).get(k));
-            }
         }
         return new MdmFetchResult(found, failed);
     }

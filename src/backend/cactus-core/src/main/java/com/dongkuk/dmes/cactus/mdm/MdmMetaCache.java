@@ -6,35 +6,48 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * MDM 메타 캐시(spec docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md §5.2) — 대상 종류별 {@code ConcurrentHashMap}. 항목은 값 또는
- * "없음", 적재 시각, 적재 직전 {@code appliedSeq}, 조회 수를 가진다. 합계가 {@code max-entries} 를 넘으면 적재가 오래된 순으로 지우고,
- * {@code max-age} 가 지난 항목은 조회 때 버린다. Caffeine 을 쓰지 않는다(§5.1).
+ * "없음", 적재 시각, 적재 직전 {@code appliedSeq}, 조회 수를 가진다. {@code max-age} 가 지난 항목은 조회 때 버린다. Caffeine 을 쓰지 않는다(§5.1).
  *
- * <p>적재와 경합(§5.3-5, Ruling R7): 적재는 시작할 때 {@link Ticket} 을 받는다. 넣을 때 캐시가 통째로 비워졌거나(generation 다름) 그 키가
- * {@code ticket.appliedSeq} 뒤의 변경으로 지워졌으면 넣지 않는다 — 늦게 도착한 옛 값이 남지 않는다. 지움 기록은 5분 뒤 정리한다.
+ * <p>상한: 합계가 {@code max-entries} 를 넘으면 한 번에 {@code max-entries × 0.95} 까지 줄인다 — {@code max-age} 가 지난 항목을 먼저 모두
+ * 지우고, 그래도 넘으면 적재가 오래된 순으로 지운다. 묶음 적재({@link #putAll})는 다 넣은 뒤 한 번만 줄인다(잠금을 쥔 채 정렬을 키 수만큼
+ * 반복하지 않는다).
+ *
+ * <p>적재와 경합(§5.3-5, Ruling R7): 적재는 시작할 때 {@link Ticket} 을 받는다. 넣을 때 캐시가 통째로 비워졌거나(generation 다름), 그 키의
+ * 지움 기록 순번이 {@code ticket.appliedSeq} 보다 크거나, 그 키가 Ticket 을 받은 뒤에 지워졌으면(지움 기록의 stamp 가 Ticket 의 stamp 보다
+ * 큼 — 폴러 지움·이 인스턴스 지움 모두) 넣지 않는다 — 늦게 도착한 옛 값이 남지 않는다. 지움 기록은 5분 뒤 {@link #markApplied} 때 정리한다.
  */
 public final class MdmMetaCache {
 
     static final Duration TOMBSTONE_TTL = Duration.ofMinutes(5);
+    /** 상한을 넘었을 때 줄이는 목표 비율. */
+    static final double TRIM_TARGET_RATIO = 0.95;
 
     private final int maxEntries;
+    private final int trimTarget;
     private final Duration maxAge;
     private final Clock clock;
     private final Map<MdmTargetType, ConcurrentHashMap<String, Entry>> maps = new EnumMap<>(MdmTargetType.class);
     private final ConcurrentHashMap<String, Tombstone> tombstones = new ConcurrentHashMap<>();
     private final AtomicLong generation = new AtomicLong();
+    /** 지움마다 하나씩 오르는 표지. Ticket 이 받은 값보다 큰 지움은 그 Ticket 뒤에 일어난 것이다. */
+    private final AtomicLong stamps = new AtomicLong();
     private volatile long appliedSeq = -1L;
+    private volatile long trimPasses;
 
     public MdmMetaCache(int maxEntries, Duration maxAge, Clock clock) {
         this.maxEntries = Math.max(1, maxEntries);
+        this.trimTarget = Math.max(1, (int) (this.maxEntries * TRIM_TARGET_RATIO));
         this.maxAge = maxAge;
         this.clock = clock;
         for (MdmTargetType t : MdmTargetType.values()) {
@@ -62,8 +75,14 @@ public final class MdmMetaCache {
         public long hits() { return hits.get(); }
     }
 
-    /** 적재 시작 때의 캐시 세대와 적용 순번. */
-    public record Ticket(long generation, long appliedSeq) {
+    /**
+     * 적재 시작 때의 캐시 세대, 적용 순번, 지움 표지. 두 값 생성자는 표지를 {@code Long.MAX_VALUE} 로 둔다(표지 검사를 하지 않는다 — 예전
+     * 두 값 Ticket 과 같은 판정).
+     */
+    public record Ticket(long generation, long appliedSeq, long stamp) {
+        public Ticket(long generation, long appliedSeq) {
+            this(generation, appliedSeq, Long.MAX_VALUE);
+        }
     }
 
     /** 관리 화면용 항목 한 줄. */
@@ -71,7 +90,8 @@ public final class MdmMetaCache {
                             long remainingSeconds, long loadSeq) {
     }
 
-    private record Tombstone(long seq, Instant at) {
+    /** 지움 기록 — 순번(폴러 지움만, 이 인스턴스 지움은 {@code Long.MIN_VALUE}), 시각, 표지. */
+    private record Tombstone(long seq, Instant at, long stamp) {
     }
 
     public int maxEntries() {
@@ -87,8 +107,8 @@ public final class MdmMetaCache {
         return appliedSeq;
     }
 
-    public Ticket ticket() {
-        return new Ticket(generation.get(), appliedSeq);
+    public synchronized Ticket ticket() {
+        return new Ticket(generation.get(), appliedSeq, stamps.get());
     }
 
     public Optional<Entry> get(MdmTargetType type, String key) {
@@ -107,27 +127,41 @@ public final class MdmMetaCache {
 
     /** 적재 결과를 넣는다. 넣지 않았으면 false(경합 — 호출자는 값을 돌려주되 캐시하지 않은 것이다). */
     public synchronized boolean put(MdmTargetType type, String key, Object value, Ticket ticket) {
-        if (ticket.generation() != generation.get()) {
-            return false;
-        }
-        Tombstone t = tombstones.get(id(type, key));
-        if (t != null && t.seq() > ticket.appliedSeq()) {
-            return false;
-        }
-        maps.get(type).put(key, new Entry(value, clock.instant(), ticket.appliedSeq()));
-        trim();
-        return true;
+        boolean put = putOne(type, key, value, ticket, clock.instant());
+        trimIfOver();
+        return put;
     }
 
-    /** 폴링이 받은 변경 하나 — 지우고 지움 기록을 남긴다. */
+    /**
+     * 같은 Ticket 으로 받은 묶음을 넣고 상한 정리는 한 번만 한다. 값이 null 이면 "없음"이다(맵은 null 값을 받아야 한다).
+     *
+     * @return 실제로 넣은 키(경합으로 거른 키는 빠진다)
+     */
+    public synchronized Set<String> putAll(MdmTargetType type, Map<String, Object> values, Ticket ticket) {
+        Instant now = clock.instant();
+        Set<String> put = new LinkedHashSet<>();
+        values.forEach((key, value) -> {
+            if (putOne(type, key, value, ticket, now)) {
+                put.add(key);
+            }
+        });
+        trimIfOver();
+        return put;
+    }
+
+    /** 폴링이 받은 변경 하나 — 지우고 지움 기록을 남긴다(같은 키의 기록이 있으면 큰 순번을 지킨다). */
     public synchronized void evict(MdmTargetType type, String key, long seq) {
         maps.get(type).remove(key);
-        tombstones.put(id(type, key), new Tombstone(seq, clock.instant()));
+        tombstone(type, key, seq);
     }
 
-    /** 이 인스턴스만 지운다(관리 화면 load). 지움 기록을 남기지 않는다. */
-    public void evictLocal(MdmTargetType type, String key) {
+    /**
+     * 이 인스턴스만 지운다(관리 화면 load). 순번 없는 지움 기록(표지만)을 남겨, 그 전에 Ticket 을 받은 진행 중 적재가 옛 값을 다시 넣지 못하게
+     * 한다. 지운 뒤에 받은 Ticket 은 막지 않는다.
+     */
+    public synchronized void evictLocal(MdmTargetType type, String key) {
         maps.get(type).remove(key);
+        tombstone(type, key, Long.MIN_VALUE);
     }
 
     /** 통째로 비운다(기동·truncated·역행, §5.3). 그 전에 시작한 적재는 넣지 않는다. */
@@ -175,18 +209,63 @@ public final class MdmMetaCache {
         return tombstones.size();
     }
 
-    private void trim() {
-        int over = maps.values().stream().mapToInt(Map::size).sum() - maxEntries;
+    /** 시험용 — 상한 정리를 실제로 한 횟수. */
+    long trimPasses() {
+        return trimPasses;
+    }
+
+    /** 잠금 안에서 부른다. */
+    private boolean putOne(MdmTargetType type, String key, Object value, Ticket ticket, Instant now) {
+        if (ticket.generation() != generation.get()) {
+            return false;
+        }
+        Tombstone t = tombstones.get(id(type, key));
+        if (t != null && (t.seq() > ticket.appliedSeq() || t.stamp() > ticket.stamp())) {
+            return false;
+        }
+        maps.get(type).put(key, new Entry(value, now, ticket.appliedSeq()));
+        return true;
+    }
+
+    /** 잠금 안에서 부른다. */
+    private void tombstone(MdmTargetType type, String key, long seq) {
+        long stamp = stamps.incrementAndGet();
+        Instant now = clock.instant();
+        tombstones.merge(id(type, key), new Tombstone(seq, now, stamp),
+                (old, fresh) -> new Tombstone(Math.max(old.seq(), fresh.seq()), fresh.at(), fresh.stamp()));
+    }
+
+    /** 잠금 안에서 부른다. 상한을 넘었으면 한 번에 목표치까지 줄인다 — 만료 항목 먼저, 그다음 적재가 오래된 순. */
+    private void trimIfOver() {
+        int total = 0;
+        for (ConcurrentHashMap<String, Entry> m : maps.values()) {
+            total += m.size();
+        }
+        if (total <= maxEntries) {
+            return;
+        }
+        trimPasses++;
+        Instant now = clock.instant();
+        record Slot(MdmTargetType type, String key, Entry entry) {
+        }
+        List<Slot> live = new ArrayList<>();
+        for (Map.Entry<MdmTargetType, ConcurrentHashMap<String, Entry>> m : maps.entrySet()) {
+            m.getValue().forEach((k, e) -> {
+                if (expired(e, now)) {
+                    m.getValue().remove(k, e);
+                } else {
+                    live.add(new Slot(m.getKey(), k, e));
+                }
+            });
+        }
+        int over = live.size() - trimTarget;
         if (over <= 0) {
             return;
         }
-        record Slot(MdmTargetType type, String key, Instant at) {
-        }
-        List<Slot> all = new ArrayList<>();
-        maps.forEach((t, m) -> m.forEach((k, e) -> all.add(new Slot(t, k, e.loadedAt()))));
-        all.sort(Comparator.comparing(Slot::at));
-        for (int i = 0; i < over && i < all.size(); i++) {
-            maps.get(all.get(i).type()).remove(all.get(i).key());
+        live.sort(Comparator.comparing((Slot s) -> s.entry().loadedAt()));
+        for (int i = 0; i < over; i++) {
+            Slot s = live.get(i);
+            maps.get(s.type()).remove(s.key(), s.entry());
         }
     }
 
