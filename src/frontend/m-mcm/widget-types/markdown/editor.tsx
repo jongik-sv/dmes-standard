@@ -15,7 +15,7 @@ export default function MarkdownTypeEditor({ value, onChange, onValidate }: Widg
   return (
     <div className="mcm-wt-editor" data-testid="widget-type-editor-markdown">
       <ContentStyle />
-      <FormGroup label="글" required>
+      <FormGroup label="글" required className="mcm-fg-block">
         <MarkdownField
           value={cfg.markdown}
           onChange={(md) => onChange({ markdown: md } satisfies MarkdownConfig)}

@@ -38,7 +38,7 @@ export default function ExchangeEditor({ value, onChange, onValidate }: WidgetTy
       <style href={EXT_STYLE_HREF} precedence="default">
         {EXT_CSS}
       </style>
-      <FormGroup label="통화" labelWidth={80}>
+      <FormGroup label="통화" labelWidth={80} className="mcm-fg-block">
         <div className="mcm-extedit__checks" role="group" aria-label="통화 선택">
           {options.map((cur) => {
             const checked = cfg.currencies.includes(cur);

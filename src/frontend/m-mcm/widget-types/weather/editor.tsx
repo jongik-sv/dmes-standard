@@ -81,7 +81,7 @@ export default function WeatherEditor({ value, onChange, onValidate }: WidgetTyp
       <style href={EXT_STYLE_HREF} precedence="default">
         {EXT_CSS}
       </style>
-      <FormGroup label="지점" labelWidth={80}>
+      <FormGroup label="지점" labelWidth={80} className="mcm-fg-block">
         <div className="mcm-extedit">
           {cfg.locations.map((loc, i) => (
             <LocationRow
@@ -100,7 +100,7 @@ export default function WeatherEditor({ value, onChange, onValidate }: WidgetTyp
           </div>
         </div>
       </FormGroup>
-      <FormGroup label="빠른 추가" labelWidth={80}>
+      <FormGroup label="빠른 추가" labelWidth={80} className="mcm-fg-block">
         <div className="mcm-extedit__quick">
           {QUICK_LOCATIONS.map((q) => (
             <Button

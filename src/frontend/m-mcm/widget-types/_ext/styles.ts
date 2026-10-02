@@ -37,4 +37,12 @@ export const EXT_CSS = `
 .mcm-extedit__row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) auto; gap: var(--spacing-sm); align-items: start; }
 .mcm-extedit__quick { display: flex; flex-wrap: wrap; gap: var(--spacing-xs); }
 .mcm-extedit__errors { margin: 0; padding: 0; list-style: none; }
+/* 여러 줄 내용(체크박스 목록·지점 행·편집기)을 담는 FormGroup — 포털 page-layout.css 가 값 칸을 26px 로 고정해 내용이 위아래 줄을 덮던 것을 막는다. */
+.form-group.mcm-fg-block { align-items: stretch; }
+.form-group.mcm-fg-block .form-group-label { height: auto; }
+.form-group.mcm-fg-block .form-group-field { height: auto; min-height: 26px; padding: var(--spacing-xs) var(--spacing-sm); }
+.form-group.mcm-fg-block .form-group-field > * { flex: 1 1 auto; min-width: 0; }
+/* 한 칸 = 입력 하나를 전제로 page-layout.css 가 지운 입력칸 테두리를, 여러 입력이 들어가는 이 칸에서는 되살린다. */
+.page-layout .form-group.mcm-fg-block .form-group-field .form-input,
+.page-layout .form-group.mcm-fg-block .form-group-field .form-select { height: 26px; border: 1px solid var(--color-border); }
 `;

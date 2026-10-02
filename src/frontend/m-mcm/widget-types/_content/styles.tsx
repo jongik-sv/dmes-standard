@@ -23,6 +23,14 @@ export const CONTENT_CSS = `
 .mcm-wt-editor .mcm-wt-code { font-family: var(--font-family-mono); }
 .mcm-wt-editor__warn { padding: var(--spacing-xs) var(--spacing-sm); border: 1px solid var(--color-warning); border-radius: var(--radius-sm); background: var(--color-warning-soft); font-size: var(--font-size-sm); color: var(--color-text); }
 .mcm-wt-editor__note { font-size: var(--font-size-xs); color: var(--color-text-muted); }
+/* 여러 줄 내용(체크박스 목록·지점 행·편집기)을 담는 FormGroup — 포털 page-layout.css 가 값 칸을 26px 로 고정해 내용이 위아래 줄을 덮던 것을 막는다. */
+.form-group.mcm-fg-block { align-items: stretch; }
+.form-group.mcm-fg-block .form-group-label { height: auto; }
+.form-group.mcm-fg-block .form-group-field { height: auto; min-height: 26px; padding: var(--spacing-xs) var(--spacing-sm); }
+.form-group.mcm-fg-block .form-group-field > * { flex: 1 1 auto; min-width: 0; }
+/* 한 칸 = 입력 하나를 전제로 page-layout.css 가 지운 입력칸 테두리를, 여러 입력이 들어가는 이 칸에서는 되살린다. */
+.page-layout .form-group.mcm-fg-block .form-group-field .form-input,
+.page-layout .form-group.mcm-fg-block .form-group-field .form-select { height: 26px; border: 1px solid var(--color-border); }
 
 .mcm-wt-litems { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--spacing-sm); }
 .mcm-wt-litem { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: var(--spacing-xs) var(--spacing-sm); align-items: center; padding: var(--spacing-sm); border: 1px solid var(--color-border-light); border-radius: var(--radius-sm); }

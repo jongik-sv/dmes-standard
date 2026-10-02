@@ -282,3 +282,11 @@ shared `Modal` 의 `lg`·`xl` 은 최소 높이(70·80vh)만 있고 고정 높�
 - 모달 본문 div 는 `flex: 1; min-height: 0; display: flex; flex-direction: column` 이고, 위아래 안내 줄은 `flex: none` 이다.
 - 빈 곳을 없애려고 크기를 `md`(600px)로 낮추지 않는다. 다섯 열 이상의 표는 글자가 잘리고 가로 스크롤이 생긴다.
 - 예시: `m-mdm/pages/dme/ruleEdit/cards/BoundaryCaseModal.tsx` 의 `gridBox`·`gridFill`.
+
+## 26. 포털 FormGroup 값 칸은 26px 고정 — 여러 줄 내용은 넘쳐서 위아래 줄을 덮는다 (2026-10-03)
+
+포털 `m-mcm/app/page-layout.css` 는 `.page-layout .form-group-field` 를 `height: 26px` 로 고정하고, 그 안의 `.form-input`·`.form-select` 테두리를 지운다(한 칸 = 입력 하나 전제). 그래서 FormGroup 안에 체크박스 목록·여러 행·textarea·편집기를 넣으면 내용이 칸 밖으로 넘쳐 **위아래 줄을 덮는다**. 단위 테스트(happy-dom)는 레이아웃을 계산하지 않아 이 문제가 보이지 않는다(위젯 편집기 환율·날씨·글·html 에서 실제로 났다).
+
+- 여러 줄 내용은 FormGroup 에 높이 고정을 푸는 클래스를 주고, 그 클래스에서 `height: auto; min-height: 26px`, 라벨 `height: auto`, 칸 안 입력칸 테두리 복원을 함께 정한다. 예시: `m-mcm/widget-types/_ext/styles.ts` 의 `.mcm-fg-block`.
+- 칸 안 그리드·목록은 `flex: 1 1 auto; min-width: 0` 를 줘야 폭을 얻는다. 주지 않으면 `auto-fill` 그리드가 한 열로 접힌다.
+- 확인은 브라우저에서 한다: 값 칸의 `scrollHeight > clientHeight` 이면 넘친 것이다.
