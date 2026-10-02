@@ -175,17 +175,17 @@ public class ColumnMngService {
         // 용어는 IN 으로 한 번에 읽고 TERM_IDS 순서(중복·없는 용어 포함)대로 다시 늘어놓는다.
         List<Long> termIds = parseTermIds(column.getTermIds());
         Map<Long, MdmTerm> termById = new HashMap<>();
-        List<Long> distinctIds = List.copyOf(new LinkedHashSet<>(termIds));
+        List<Long> distinctIds = termIds.stream().filter(Objects::nonNull).distinct().toList();
         for (int from = 0; from < distinctIds.size(); from += TERM_IN_CHUNK) {
             termRepository.findAllById(distinctIds.subList(from, Math.min(distinctIds.size(), from + TERM_IN_CHUNK)))
                     .forEach(t -> termById.put(t.getTermId(), t));
         }
         List<Map<String, Object>> terms = new ArrayList<>();
         for (Long termId : termIds) {
-            Optional<MdmTerm> term = Optional.ofNullable(termById.get(termId));
+            Optional<MdmTerm> term = Optional.ofNullable(termId == null ? null : termById.get(termId));
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("termId", termId);
-            row.put("termName", term.map(MdmTerm::getTermName).orElse(null));
+            row.put("termName", term.map(MdmTerm::getTermName).orElse(termId == null ? NamingRules.PLACEHOLDER : null));
             row.put("senseNo", term.map(MdmTerm::getSenseNo).orElse(null));
             row.put("engAbbr", term.map(MdmTerm::getEngAbbr).orElse(null));
             row.put("missing", term.isEmpty());
@@ -525,7 +525,8 @@ public class ColumnMngService {
         row.put("domainStdName", domain == null ? null : domain.getStdName());
         row.put("required", column.isRequired() ? "Y" : "N");
         row.put("termNames", parseTermIds(column.getTermIds()).stream()
-                .map(id -> termById.containsKey(id) ? termById.get(id).getTermName() : "?")
+                .map(id -> id == null ? NamingRules.PLACEHOLDER
+                        : termById.containsKey(id) ? termById.get(id).getTermName() : "?")
                 .collect(Collectors.joining(" + ")));
         row.put("systemFields", mappings.stream().map(m -> m.getSystemCode() + ":" + m.getPhysName())
                 .collect(Collectors.joining(", ")));
@@ -607,7 +608,7 @@ public class ColumnMngService {
         }
     }
 
-    /** TERM_IDS JSON 숫자 배열 → ID 목록. 잘못된 값은 건너뛴다. */
+    /** TERM_IDS JSON 숫자 배열 → ID 목록. JSON {@code null} 은 매칭 안 된 자리({@code ***})라 null 로 남긴다. 그 밖의 잘못된 값은 건너뛴다. */
     static List<Long> parseTermIds(String json) {
         List<Long> ids = new ArrayList<>();
         if (json == null || json.isBlank()) {
@@ -617,7 +618,9 @@ public class ColumnMngService {
             JsonNode root = JSON.readTree(json);
             if (root != null && root.isArray()) {
                 for (JsonNode node : root) {
-                    if (node.canConvertToLong()) {
+                    if (node.isNull()) {
+                        ids.add(null);
+                    } else if (node.canConvertToLong()) {
                         ids.add(node.asLong());
                     }
                 }
