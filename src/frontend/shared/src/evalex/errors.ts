@@ -1,4 +1,4 @@
-import type { ErrorCode } from "../contract/engine-contract.generated";
+import type { ErrorCode } from "./engine-contract.generated";
 
 /** 판정 오류 — 서버가 같은 입력에서 내는 오류 코드를 싣는다. */
 export class EvalexError extends Error {

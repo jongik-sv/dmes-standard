@@ -173,6 +173,10 @@
     "./mdm-meta": {
       "types": "./dist/types/mdm-meta/index.d.ts",
       "import": "./dist/mdm-meta.js"
+    },
+    "./evalex": {
+      "types": "./dist/types/evalex/index.d.ts",
+      "import": "./dist/evalex.js"
     }
   },
   "files": [
@@ -191,6 +195,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "decimal.js": "^10.6.0",
     "@tiptap/extension-hard-break": "^3.31.4",
     "@tiptap/extension-list": "^3.31.4",
     "@tiptap/markdown": "^3.31.4",

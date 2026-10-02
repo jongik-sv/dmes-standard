@@ -6,7 +6,7 @@
  * 4단계 E4: 고친 값 표시·고침 대기 쌓기·보내기 모양(`editsJsonOf`)·칸 편집 검증(Task 10).
  */
 import type { DataType, RunTrace, RuleSetFlow, TraceEdit, TypedValue } from "@/contract/engine-contract.generated";
-import { EVAL_TS, RESERVED_CONSTANTS, RESERVED_PREFIX } from "@/evalex/contract-constants";
+import { EVAL_TS, RESERVED_CONSTANTS, RESERVED_PREFIX } from "@/evalex";
 
 import { catchTitle } from "../catch-text";
 import { CATCH_NAMES, endingBranches } from "../flow-model";

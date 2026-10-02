@@ -1,4 +1,4 @@
-import type { CellJson, CodeSets, EngineWarning, ErrorCode } from "../contract/engine-contract.generated";
+import type { CellJson, CodeSets, EngineWarning, ErrorCode } from "./engine-contract.generated";
 import { evaluateCell, type CellVariable } from "./cell-compare";
 import { EvalexError } from "./errors";
 import { alwaysNames } from "./input-contract";

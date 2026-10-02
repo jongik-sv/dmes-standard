@@ -1,4 +1,4 @@
-import type { AstNode } from "../contract/engine-contract.generated";
+import type { AstNode } from "./engine-contract.generated";
 import { RESERVED_CONSTANTS } from "./contract-constants";
 import { FUNCTION_TABLE, type ArgContext, type NullPolicy } from "./functions";
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { previewRule, type HitPolicy, type RuleDef, type RulePreview } from "../src/evalex";
-import { BASE_SPD_LKP, E, PROD_WGT_CALC, QLTY_GRD_JDG, cond, result, row } from "./fixtures/evalex-rules";
+import { previewRule, type HitPolicy, type RuleDef, type RulePreview } from "../../../src/evalex";
+import { BASE_SPD_LKP, E, PROD_WGT_CALC, QLTY_GRD_JDG, cond, result, row } from "./helpers/evalex-rules";
 import { ast } from "./helpers/parse-expr";
 
 /** TSK-03-04 design.md §3.2 「evalex-rule-preview.test.ts (13)」·§6.9. */

@@ -1,4 +1,4 @@
-import type { AstNode, CodeSets, ErrorCode } from "../contract/engine-contract.generated";
+import type { AstNode, CodeSets, ErrorCode } from "./engine-contract.generated";
 import { DT_FORMATS, E_TEXT, EVAL_TS, INFIX_OPERATORS, PI_TEXT, PREFIX_OPERATORS, RESERVED_CONSTANTS, RESERVED_PREFIX } from "./contract-constants";
 import { D, DHigh, NUMBER_TEXT, PLAIN_DECIMAL, decimalWithText, isDec, type Dec } from "./decimal";
 import { EvalexError, FallbackSignal } from "./errors";

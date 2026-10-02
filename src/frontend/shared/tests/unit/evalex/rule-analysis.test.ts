@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { CellJson } from "../src/contract/engine-contract.generated";
-import { analyzeDeriveOrder, analyzeRule, type HitPolicy, type RuleDef, type RuleIssue, type RuleVarDef } from "../src/evalex";
-import { BASE_SPD_LKP, E, QLTY_GRD_JDG, result, row } from "./fixtures/evalex-rules";
+import type { CellJson } from "../../../src/evalex";
+import { analyzeDeriveOrder, analyzeRule, type HitPolicy, type RuleDef, type RuleIssue, type RuleVarDef } from "../../../src/evalex";
+import { BASE_SPD_LKP, E, QLTY_GRD_JDG, result, row } from "./helpers/evalex-rules";
 
 /**
  * TSK-03-04 design.md §3.2 「evalex-rule-analysis.test.ts (21)」·§6.8.

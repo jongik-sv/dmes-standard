@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import tsupConfigs from "../tsup.config";
@@ -23,8 +23,12 @@ describe("evalex 공개 경로", () => {
     expect(entry.index).toBe("src/index.ts");
   });
 
-  it("decimal.js 는 dependencies 에 있고 devDependencies 에 없다", () => {
-    expect(pkg.dependencies["decimal.js"]).toBe("^10.6.0");
-    expect(pkg.devDependencies?.["decimal.js"]).toBeUndefined();
+  it("구현은 shared 로 옮겼다 — evalex/index.ts 는 @dk-oasis/shared/evalex 를 다시 내보내기만 하고 decimal.js 는 shared 소관이다", () => {
+    const reexport = readFileSync(path.join(PACKAGE_ROOT, "src/evalex/index.ts"), "utf8");
+    expect(reexport).toContain('export * from "@dk-oasis/shared/evalex";');
+    expect(readdirSync(path.join(PACKAGE_ROOT, "src/evalex"))).toEqual(["index.ts"]);
+    expect(pkg.dependencies["decimal.js"]).toBeUndefined();
+    const shared = JSON.parse(readFileSync(path.join(PACKAGE_ROOT, "../shared/package.json"), "utf8"));
+    expect(shared.dependencies["decimal.js"]).toBe("^10.6.0");
   });
 });

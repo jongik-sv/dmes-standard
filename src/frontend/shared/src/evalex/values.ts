@@ -1,4 +1,4 @@
-import type { DataType, ErrorCode, TypedValue } from "../contract/engine-contract.generated";
+import type { DataType, ErrorCode, TypedValue } from "./engine-contract.generated";
 import { BIGDECIMAL_TEXT, D, NUMBER_TEXT, PLAIN_DECIMAL, decimalWithText, isDec, type Dec } from "./decimal";
 import { EvalexError } from "./errors";
 

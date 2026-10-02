@@ -1,4 +1,4 @@
-import type { CellJson } from "../contract/engine-contract.generated";
+import type { CellJson } from "./engine-contract.generated";
 import { D, PLAIN_DECIMAL, type Dec } from "./decimal";
 import { cellSummary } from "./input-contract";
 import { PatternRejected, classify, succ } from "./pattern";
