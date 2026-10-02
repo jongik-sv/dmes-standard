@@ -186,6 +186,8 @@ export function PortalShell({
   const loadingTabIdsRef = useRef<Set<string>>(new Set());
   const activeTabIdRef = useRef<string | null>(activeTabId);
   activeTabIdRef.current = activeTabId;
+  /** 새로 만든 탭 ID → 만들 때 보고 있던 탭 ID. tabOrder 동기화가 그 탭 오른쪽에 끼우고 지운다. */
+  const newTabAnchorRef = useRef<Map<string, string | null>>(new Map());
 
   const resolvedHomePageId = homePageId?.trim() || defaultHomePageId?.trim() || null;
   const homeTabId = resolvedHomePageId ? createHomeTabId(resolvedHomePageId) : null;
@@ -397,19 +399,20 @@ export function PortalShell({
         }
         const tabId = createTabId(pageId);
         setActiveTabId(tabId);
-        return [
-          ...prev,
-          {
-            id: tabId,
-            title: displayText,
-            pageId,
-            isHome: false,
-            snapshot: null,
-            component: null,
-            isLoading: true,
-            errorMessage: null,
-          },
-        ];
+        const created: PortalShellTabState = {
+          id: tabId,
+          title: displayText,
+          pageId,
+          isHome: false,
+          snapshot: null,
+          component: null,
+          isLoading: true,
+          errorMessage: null,
+        };
+        // 새 탭은 지금 보고 있는 탭 바로 오른쪽에 둔다(화면 링크·메뉴 모두, 2026-10-02 사용자 요청). 표시 순서는 tabOrder 가
+        // 정하므로 여기서는 기준 탭만 적어 두고, tabOrder 동기화가 그 오른쪽에 끼운다.
+        newTabAnchorRef.current.set(tabId, activeTabIdRef.current);
+        return [...prev, created];
       });
       // 브라우저 히스토리 push 는 setTabs 업데이터(StrictMode 에서 2회 호출) 밖에서 1회만.
       // 이미 활성 탭과 같은 pageId 면 내부에서 skip 된다.
@@ -709,12 +712,24 @@ export function PortalShell({
   // Sync tabOrder with tabs (add new tabs, remove closed tabs)
   useEffect(() => {
     const nonHomeIds = tabs.filter((t) => !t.isHome).map((t) => t.id);
+    // 갱신 함수는 나중에(두 번) 불릴 수 있으므로 지금 값을 떠서 쓰고, 기준 기록은 바로 지운다.
+    const anchors = new Map(newTabAnchorRef.current);
     setTabOrder((prev) => {
-      const existing = prev.filter((id) => nonHomeIds.includes(id));
-      const newIds = nonHomeIds.filter((id) => !prev.includes(id));
-      return [...existing, ...newIds];
+      const next = prev.filter((id) => nonHomeIds.includes(id));
+      for (const id of nonHomeIds) {
+        if (prev.includes(id)) continue;
+        // 기준 탭(만들 때 보던 탭) 바로 오른쪽. 기준이 홈이면 맨 앞, 기준이 없거나(복원 등) 닫혔으면 맨 끝.
+        const anchor = anchors.get(id);
+        const at = anchor == null ? -1 : next.indexOf(anchor);
+        if (at >= 0) next.splice(at + 1, 0, id);
+        else if (anchor != null && anchor === homeTabId) next.unshift(id);
+        else next.push(id);
+      }
+      return next;
     });
-  }, [tabs]);
+    for (const id of anchors.keys())
+      if (nonHomeIds.includes(id)) newTabAnchorRef.current.delete(id);
+  }, [tabs, homeTabId]);
 
   // Ordered tabs for TabsBar display
   const orderedTabs = useMemo(() => {
