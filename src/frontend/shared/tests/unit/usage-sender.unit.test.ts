@@ -33,6 +33,7 @@ function seg(n: number): UsageSegment {
     startKind: "OPEN",
     startedAt: 1_000 * n,
     endedAt: 1_000 * n + 5_000,
+    durationMs: 4_000, // 일시정지를 뺀 실제 이용 시간 — 그대로 싣는다
   };
 }
 const segs = (from: number, count: number) => Array.from({ length: count }, (_, i) => seg(from + i));

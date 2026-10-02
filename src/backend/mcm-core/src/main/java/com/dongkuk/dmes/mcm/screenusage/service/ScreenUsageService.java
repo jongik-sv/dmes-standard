@@ -45,6 +45,7 @@ public class ScreenUsageService {
     static final long MAX_PAST_MS = MAX_PAST_DAYS * 24 * 60 * 60 * 1000;
     static final int MAX_PAGE_ID_LENGTH = 200;
     static final int MAX_SEG_ID_LENGTH = 36;
+    /** 클라이언트는 2026-10-02 부터 OPEN·RESUME 만 보낸다. SWITCH 는 이전 클라이언트·옛 행 호환으로 남긴다. */
     static final Set<String> START_KINDS = Set.of("OPEN", "SWITCH", "RESUME");
 
     private final ScreenUsageLogRepository logRepository;
@@ -138,7 +139,8 @@ public class ScreenUsageService {
     }
 
     /** 검증을 통과한 구간 1건. */
-    private record Candidate(String clientSegId, String pageId, String startKind, long startedAt, long endedAt) {
+    private record Candidate(String clientSegId, String pageId, String startKind, long startedAt, long endedAt,
+                             long durationMs) {
 
         /** 설계 4.3 검증 — 하나라도 어기면 null. 숫자는 ((Number) v).longValue() 로 읽는다(Integer/Long 혼재). */
         static Candidate parse(Map<String, Object> row, long receivedMs) {
@@ -152,11 +154,19 @@ public class ScreenUsageService {
             if (pageId == null || pageId.length() > MAX_PAGE_ID_LENGTH) return null;
             if (kind == null || !START_KINDS.contains(kind)) return null;
             if (started == null || ended == null) return null;
-            long duration = ended - started;
-            if (duration < MIN_DURATION_MS || duration > MAX_DURATION_MS) return null; // ENDED < STARTED 포함
+            long wall = ended - started;
+            if (wall < MIN_DURATION_MS || wall > MAX_DURATION_MS) return null; // ENDED < STARTED 포함
             if (started > receivedMs + MAX_FUTURE_MS) return null;
             if (started < receivedMs - MAX_PAST_MS) return null;
-            return new Candidate(segId, pageId, kind, started, ended);
+            // durationMs(선택) — 클라이언트가 탭 단위로 누적한 실제 이용 시간(일시정지 제외). 없거나 null 이면 벽시계 길이.
+            Object rawDuration = row.get("durationMs");
+            long duration = wall;
+            if (rawDuration != null) {
+                Long d = asLong(rawDuration);
+                if (d == null || d < MIN_DURATION_MS || d > wall) return null;
+                duration = d;
+            }
+            return new Candidate(segId, pageId, kind, started, ended, duration);
         }
 
         ScreenUsageLog toEntity(String userId, String deptCd, String clientIp, LocalDateTime receivedAt) {
@@ -168,7 +178,7 @@ public class ScreenUsageService {
             l.setStartKind(startKind);
             l.setStartedAt(ScreenUsageDates.fromEpochMillis(startedAt));
             l.setEndedAt(ScreenUsageDates.fromEpochMillis(endedAt));
-            l.setDurationMs(endedAt - startedAt);
+            l.setDurationMs(durationMs);
             l.setClientSegId(clientSegId);
             l.setClientIp(clientIp);
             l.setReceivedAt(receivedAt);
