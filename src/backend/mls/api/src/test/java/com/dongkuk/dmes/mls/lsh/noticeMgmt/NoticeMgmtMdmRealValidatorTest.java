@@ -54,11 +54,13 @@ class NoticeMgmtMdmRealValidatorTest extends MlsTestDb {
     @Autowired
     NoticeTargetRepository targetRepository;
 
-    private static final MdmColumnMeta TITLE = new MdmColumnMeta("TITLE", "제목", "제목", "제목", "제목", null, null, "STRING", 1000, null,
-            false, null, null, null, null, new MdmColumnMeta.DomainRef("183", "설명", "TEXT"), null, null, List.of(), null);
+    private static MdmColumnMeta title(int length) {
+        return new MdmColumnMeta("TITLE", "제목", "제목", "제목", "제목", null, null, "STRING", length, null,
+                false, null, null, null, null, new MdmColumnMeta.DomainRef("183", "설명", "TEXT"), null, null, List.of(), null);
+    }
 
     /** 피드가 TITLE 만 안다. {@code down} 이면 MDM 을 받을 수 없다. */
-    private static MdmMetaFeed feed(boolean down) {
+    private static MdmMetaFeed feed(boolean down, int titleLength) {
         return new MdmMetaFeed() {
             @Override
             public MdmChanges changes(long since, int limit) {
@@ -72,7 +74,7 @@ class NoticeMgmtMdmRealValidatorTest extends MlsTestDb {
                 }
                 Map<String, Object> found = new LinkedHashMap<>();
                 if (type == MdmTargetType.COLUMN && keys.contains("TITLE")) {
-                    found.put("TITLE", TITLE);
+                    found.put("TITLE", title(titleLength));
                 }
                 return new MdmFetchResult(found, Map.of());
             }
@@ -80,10 +82,14 @@ class NoticeMgmtMdmRealValidatorTest extends MlsTestDb {
     }
 
     private NoticeMgmtService serviceWith(boolean down) {
+        return serviceWith(down, 1000);
+    }
+
+    private NoticeMgmtService serviceWith(boolean down, int titleLength) {
         Clock clock = Clock.systemUTC();
         MdmMetaCache cache = new MdmMetaCache(100, Duration.ofMinutes(60), clock);
         cache.clear(0);
-        MdmMetaService meta = new MdmMetaService(feed(down), cache, clock);
+        MdmMetaService meta = new MdmMetaService(feed(down, titleLength), cache, clock);
         MdmCachedDefinitions cached = new MdmCachedDefinitions(meta);
         MdmEvaluator evaluator = new MdmEvaluator(
                 new EngineLookups(cached, cached, CodeEffLookup.NONE, MasterLookup.NONE, FunctionProvider.NONE));
@@ -116,21 +122,35 @@ class NoticeMgmtMdmRealValidatorTest extends MlsTestDb {
     }
 
     @Test
-    @DisplayName("MDM 길이(1000자)를 넘으면 그 행·TITLE 칸에 MDM 문구 오류가 붙고 저장되지 않는다")
+    @DisplayName("MDM 길이(1000자)를 넘으면 그 행·TITLE 칸에 오류가 붙고 저장되지 않는다 — 같은 칸의 수작업(200자) 오류와 겹치면 하나만 남는다")
     void titleOverMdmLengthRejected() {
         long before = repository.count();
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> serviceWith(false).save(List.of(newRow("정상"), newRow("가".repeat(1001)))));
 
-        List<ErrorDetail> mdm = ex.getErrors().stream().filter(e -> e.message().contains("1000")).toList();
-        assertThat(mdm).hasSize(1);
-        assertThat(mdm.get(0).grid()).isEqualTo("master");
-        assertThat(mdm.get(0).rowIndex()).isEqualTo(1);
-        assertThat(mdm.get(0).field()).isEqualTo("TITLE");
-        assertThat(mdm.get(0).rowKey()).isEqualTo("r1");
-        assertThat(mdm.get(0).code()).isEqualTo(ErrorCode.INVALID_VALUE.getCode());
+        List<ErrorDetail> titleErrors = ex.getErrors().stream().filter(e -> "TITLE".equals(e.field())).toList();
+        assertThat(titleErrors).hasSize(1); // 한 칸 한 오류 — 1000자로 줄여도 200자 오류가 남는 어긋남이 없다
+        assertThat(titleErrors.get(0).rowIndex()).isEqualTo(1);
+        assertThat(titleErrors.get(0).message()).contains("200자"); // 더 엄격한 DB 한도(수작업)가 남는다
         assertThat(repository.count()).isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("MDM 오류는 수작업 검증이 못 보는 칸에서 그대로 내려간다(grid·rowIndex·field·rowKey·code)")
+    void mdmErrorShape() {
+        // 가짜 MDM 정의를 20자로 좁혀 수작업(200자)이 못 보는 위반을 만든다 — 길이 문구·위치는 진짜 검증기가 만든다.
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> serviceWith(false, 20).save(List.of(newRow("정상"), newRow("가".repeat(21)))));
+
+        assertThat(ex.getErrors()).hasSize(1);
+        ErrorDetail e = ex.getErrors().get(0);
+        assertThat(e.grid()).isEqualTo("master");
+        assertThat(e.rowIndex()).isEqualTo(1);
+        assertThat(e.field()).isEqualTo("TITLE");
+        assertThat(e.rowKey()).isEqualTo("r1");
+        assertThat(e.code()).isEqualTo(ErrorCode.INVALID_VALUE.getCode());
+        assertThat(e.message()).contains("20");
     }
 
     @Test

@@ -170,7 +170,8 @@ public class NoticeMgmtService {
         int cntDelete = 0;
         // MDM 저장 검증 — 쓰기 전에 먼저 본다. 값 오류가 있으면 errors 에 미리 담겨 아래 반복이 아무것도 쓰지 않고(errors 가 비어야
         // 쓴다) 수작업 검증 오류와 한 응답으로 내려간다. 검증 불가(MDM_UNAVAILABLE)는 여기서 그대로 던진다.
-        List<ErrorDetail> errors = new ArrayList<>(mdmValueErrors(master));
+        List<ErrorDetail> mdmErrors = mdmValueErrors(master);
+        List<ErrorDetail> errors = new ArrayList<>(mdmErrors);
         List<String> savedIds = new ArrayList<>();
 
         if (master != null) {
@@ -219,7 +220,7 @@ public class NoticeMgmtService {
 
         if (!errors.isEmpty()) {
             // 한 건이라도 실패하면 전체 롤백한다 (BPMN process 단위 트랜잭션).
-            throw new BusinessException(ErrorCode.REQUIRED_VALUE, "입력값을 확인해주세요.", errors);
+            throw new BusinessException(ErrorCode.REQUIRED_VALUE, "입력값을 확인해주세요.", withoutShadowedMdmErrors(errors, mdmErrors.size()));
         }
 
         int cnt = cntInsert + cntUpdate + cntDelete;
@@ -269,6 +270,31 @@ public class NoticeMgmtService {
             }
             throw e; // MDM_UNAVAILABLE 등 — 그대로
         }
+    }
+
+    /**
+     * 같은 칸(rowIndex+field)에 수작업 검증 오류가 이미 있으면 앞쪽(MDM) 오류를 뺀다. 한 칸에 오류가 둘이면 화면이 어느 것을 보이느냐에 따라
+     * 서로 어긋난 문구가 보인다 — 예: 제목 1001자는 MDM "최대 1000자" 와 DB 한도 "200자" 가 겹치는데, 1000자로 줄여도 200자 오류가 남는다.
+     * 수작업(DB 한도·업무 코드)이 더 엄격하므로 그쪽을 남긴다.
+     *
+     * @param mdmCount {@code errors} 앞쪽 MDM 오류 개수
+     */
+    private static List<ErrorDetail> withoutShadowedMdmErrors(List<ErrorDetail> errors, int mdmCount) {
+        if (mdmCount == 0 || mdmCount == errors.size()) {
+            return errors;
+        }
+        Set<String> manualCells = new LinkedHashSet<>();
+        for (ErrorDetail e : errors.subList(mdmCount, errors.size())) {
+            manualCells.add(e.rowIndex() + "|" + e.field());
+        }
+        List<ErrorDetail> out = new ArrayList<>(errors.size());
+        for (int i = 0; i < errors.size(); i++) {
+            ErrorDetail e = errors.get(i);
+            if (i >= mdmCount || !manualCells.contains(e.rowIndex() + "|" + e.field())) {
+                out.add(e);
+            }
+        }
+        return out;
     }
 
     // ────────────────────────────────────────────────────────────────
