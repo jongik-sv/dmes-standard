@@ -1,14 +1,16 @@
 /**
- * mdmCacheMng 호출 — 업무 모듈 cactus 엔드포인트 /api/{module}/mdmMeta/*(GET status·entries, POST load)와 MDM OASIS metaFeed/save(강제 기록).
+ * mdmCacheMng 호출 — 업무 모듈 cactus 엔드포인트 /api/{module}/mdmMeta/*(GET status·entries·entry, POST load)와 MDM OASIS metaFeed/save(강제 기록).
  * spec docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md §5.5·§6. 강제 기록 봉투의 키 목록은 grids.keys.rows 다(params 배열 금지).
  *
- * 모듈별 status·entries 는 apiRequest 가 아니라 getJson 으로 부른다 — apiRequest 는 401 이면 로그인 화면으로 보내므로, 모듈 하나가 BFF 요청을
+ * 모듈별 status·entries·entry 는 apiRequest 가 아니라 getJson 으로 부른다 — apiRequest 는 401 이면 로그인 화면으로 보내므로, 모듈 하나가 BFF 요청을
  * 인증하지 못해도(예: cactus 보안 설정이 빠진 모듈) 관리자가 로그아웃된다. getJson 은 상태 코드를 가진 HttpError 를 던지고 이동하지 않는다.
  */
 import { apiRequest, getJson } from "@dk-oasis/shared/http";
 
-import { TARGET_TYPE_LABELS, MODULE_STATE_LABELS } from "./types";
+import { ENTRY_NOT_CACHED_MESSAGE, TARGET_TYPE_LABELS, MODULE_STATE_LABELS } from "./types";
 import type {
+  CacheEntryDetail,
+  CacheEntryLookup,
   CacheEntryPage,
   CacheEntryRow,
   EntryFilters,
@@ -138,6 +140,36 @@ export async function fetchEntries(module: string, filters: EntryFilters, page =
     remainingSeconds: e.remainingSeconds,
   }));
   return { total: res.total, page: res.page, size: res.size, items };
+}
+
+/**
+ * 항목 하나의 캐시 값 전체(SYSADMIN 상세 보기). 서버는 캐시를 읽기만 한다(조회 수·적재 없음). 404 는 캐시에 없음(만료·삭제됨)으로
+ * 돌려주고, 그 밖의 실패는 status 와 같은 이유 문구(인증 실패·권한 없음·연결 안 됨)를 붙여 던진다. 로그인 화면으로 보내지 않는다.
+ */
+export async function fetchEntry(module: string, type: MdmTargetType, key: string): Promise<CacheEntryLookup> {
+  const q = new URLSearchParams({ type, key });
+  let res: CacheEntryDetail; // loadedAt 은 ISO — 아래에서 로컬 시각으로 바꾼다
+  try {
+    res = await getWithoutRedirect<CacheEntryDetail>(`${metaBase(module)}/entry?${q.toString()}`);
+  } catch (e) {
+    const status = typeof e === "object" && e !== null && "status" in e ? Number((e as { status: unknown }).status) : NaN;
+    if (status === 404) return { found: false, message: ENTRY_NOT_CACHED_MESSAGE };
+    const label = MODULE_STATE_LABELS[failureState(e)];
+    throw new Error(`${label}: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  return {
+    found: true,
+    detail: {
+      type: res.type,
+      key: res.key,
+      absent: res.absent,
+      loadedAt: formatInstant(res.loadedAt),
+      hits: res.hits,
+      remainingSeconds: res.remainingSeconds,
+      loadSeq: res.loadSeq,
+      value: res.absent ? null : res.value,
+    },
+  };
 }
 
 /** 고른 모듈 인스턴스에 미리 적재(신규 = 등록). */

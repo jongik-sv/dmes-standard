@@ -75,6 +75,27 @@ export interface CacheEntryRow extends Record<string, unknown> {
   remainingSeconds: number;
 }
 
+/**
+ * 업무 모듈 GET /api/{module}/mdmMeta/entry 의 항목 하나(SYSADMIN 상세 보기). `value` 는 캐시 값 전체다 — 컬럼은 bizExpr.text 까지,
+ * 룰은 정의 전체(spec §4.2 의 예외, 2026-10-02 사용자 결정). "없음" 항목이면 absent=true, value=null.
+ */
+export interface CacheEntryDetail {
+  type: MdmTargetType;
+  key: string;
+  absent: boolean;
+  /** 로컬 "yyyy-MM-dd HH:mm:ss". */
+  loadedAt: string;
+  hits: number;
+  remainingSeconds: number;
+  loadSeq: number;
+  value: unknown;
+}
+
+/** 항목 상세 조회 결과 — 캐시에 없으면(만료·삭제됨, 404) found=false. */
+export type CacheEntryLookup = { found: true; detail: CacheEntryDetail } | { found: false; message: string };
+
+export const ENTRY_NOT_CACHED_MESSAGE = "캐시에 없음(만료·삭제됨)";
+
 export interface CacheEntryPage {
   total: number;
   page: number;

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const apiRequest = vi.fn();
 const getJson = vi.fn();
@@ -107,6 +107,72 @@ describe("mdmCacheMng api", () => {
     expect(getJson.mock.calls[0][0]).toBe("/api/mls/mdmMeta/entries?type=COLUMN&q=coil&page=0&size=200");
     expect(page.items[0].rowId).toBe("COLUMN:COIL_THK");
     expect(page.items[0].hits).toBe(3);
+  });
+
+  describe("항목 상세(entry)", () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    const detail = {
+      type: "COLUMN",
+      key: "COIL_THK",
+      absent: false,
+      loadedAt: "2026-10-02T00:00:00Z",
+      hits: 0,
+      remainingSeconds: 3600,
+      loadSeq: 7,
+      value: { physName: "COIL_THK", bizExpr: { text: "value <= COIL_WID" } },
+    };
+
+    it("type·key 를 인코딩해 GET 하고 토큰 헤더를 붙이며 로그인으로 보내는 apiRequest 를 쓰지 않는다", async () => {
+      vi.stubGlobal("window", { localStorage: { getItem: (k: string) => (k === "oasis_access_token" ? "tok" : null) } });
+      getJson.mockResolvedValue({ ...detail, type: "RULE", key: "R 1/가&b" });
+
+      const r = await api.fetchEntry("mls", "RULE", "R 1/가&b");
+
+      expect(getJson).toHaveBeenCalledTimes(1);
+      const [url, init] = getJson.mock.calls[0] as [string, { method: string; headers: Record<string, string> }];
+      expect(url).toBe(`/api/mls/mdmMeta/entry?type=RULE&key=${encodeURIComponent("R 1/가&b").replace(/%20/g, "+")}`);
+      expect(new URL(url, "http://x").searchParams.get("key")).toBe("R 1/가&b");
+      expect(init).toEqual({ method: "GET", headers: { Authorization: "Bearer tok" } });
+      expect(apiRequest).not.toHaveBeenCalled();
+      expect(r.found).toBe(true);
+    });
+
+    it("값 전체(bizExpr.text 포함)와 요약을 돌려주고 적재 시각은 로컬 시각 문자열이다", async () => {
+      getJson.mockResolvedValue(detail);
+
+      const r = await api.fetchEntry("mcm", "COLUMN", "COIL_THK");
+
+      if (!r.found) throw new Error("found 여야 한다");
+      expect(r.detail.value).toEqual(detail.value);
+      expect(r.detail.loadSeq).toBe(7);
+      expect(r.detail.loadedAt).toBe(api.formatInstant("2026-10-02T00:00:00Z"));
+      expect(r.detail.loadedAt).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+    });
+
+    it("없음 항목은 absent 와 null 값이다", async () => {
+      getJson.mockResolvedValue({ ...detail, absent: true, value: null });
+      const r = await api.fetchEntry("mcm", "COLUMN", "NOPE");
+      expect(r).toMatchObject({ found: true, detail: { absent: true, value: null } });
+    });
+
+    it("404 는 캐시에 없음(만료·삭제됨)으로 돌려주고 throw 하지 않는다", async () => {
+      getJson.mockRejectedValue(httpError(404));
+      await expect(api.fetchEntry("mls", "COLUMN", "COIL_THK")).resolves.toEqual({ found: false, message: "캐시에 없음(만료·삭제됨)" });
+      expect(apiRequest).not.toHaveBeenCalled();
+    });
+
+    it("401·403·네트워크 실패는 이유 문구를 붙여 throw 한다", async () => {
+      getJson.mockRejectedValueOnce(httpError(401));
+      await expect(api.fetchEntry("mqc", "COLUMN", "A")).rejects.toThrow("인증 실패");
+      getJson.mockRejectedValueOnce(httpError(403));
+      await expect(api.fetchEntry("mqc", "COLUMN", "A")).rejects.toThrow("권한 없음");
+      getJson.mockRejectedValueOnce(new Error("서버와 연결할 수 없습니다."));
+      await expect(api.fetchEntry("mqc", "COLUMN", "A")).rejects.toThrow("연결 안 됨: 서버와 연결할 수 없습니다.");
+      expect(apiRequest).not.toHaveBeenCalled();
+    });
   });
 
   it("등록 — 고른 모듈에 type·keys 를 POST 한다", async () => {

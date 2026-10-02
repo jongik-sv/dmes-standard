@@ -3,16 +3,27 @@
 /**
  * mdmCacheMng — MDM 캐시 관리(시스템관리 > MDM 캐시 관리). 화면 유형 D(마스터-디테일) + E(등록 팝업).
  * 위: 업무 모듈별 캐시 상태, 아래: 고른 모듈의 캐시 항목. 신규 = 고른 모듈 인스턴스에 미리 적재, 삭제·재등록 = MDM 변경 기록에 강제 기록
- * (모든 모듈·인스턴스가 다음 확인 때 반영). spec docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md §6,
+ * (모든 모듈·인스턴스가 다음 확인 때 반영). 항목 행을 누르면 오른쪽 상세 패널에 그 항목의 캐시 값 전체를 JSON 트리로 보인다(SYSADMIN,
+ * 컬럼 bizExpr.text 포함 — spec §4.2 예외, 2026-10-02 사용자 결정). spec docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md §6,
  * 규칙 정본: .claude/skills/mantine-aggrid-ui/references/screen-patterns.md §D·§E, docs/guide/FrontEnd/Local-Rules.md §9(중요 액션).
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { ContentBody, ContentPanel, PageLayout, SearchArea, SearchField } from "@dk-oasis/shared/layout";
+import {
+  ContentBody,
+  ContentPanel,
+  DETAIL_LABEL_CELL,
+  DETAIL_TABLE_STYLE,
+  DETAIL_VALUE_CELL,
+  PageLayout,
+  SearchArea,
+  SearchField,
+} from "@dk-oasis/shared/layout";
 import { AgDataGrid, GridBadge, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
+import { JsonView } from "@dk-oasis/shared/json-view";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 
-import { describeForceFailure, fetchAllStatus, fetchEntries, forceByType, groupByType } from "./api";
+import { describeForceFailure, fetchAllStatus, fetchEntries, fetchEntry, forceByType, groupByType } from "./api";
 import { RegisterModal } from "./RegisterModal";
 import {
   MDM_CACHE_MODULES,
@@ -21,6 +32,7 @@ import {
   TARGET_TYPE_OPTIONS,
   emptyFilters,
   isReachable,
+  type CacheEntryLookup,
   type CacheEntryRow,
   type EntryFilters,
   type ForceKind,
@@ -76,6 +88,26 @@ const ENTRY_COLUMNS: GridColumn[] = [
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
+/** 상세 패널이 보이는 항목 — 모듈·종류·키. */
+interface DetailTarget {
+  module: string;
+  type: MdmTargetType;
+  key: string;
+}
+
+/** 상세 패널 상태 배지 — 받는 중·실패·캐시에 없음·없음·있음. */
+function DetailStateBadge({ busy, error, lookup }: { busy: boolean; error: string; lookup: CacheEntryLookup | null }) {
+  if (busy) return <GridBadge label="조회 중" muted />;
+  if (error) return <GridBadge label="조회 실패" bg="var(--color-danger-soft)" color="var(--color-danger)" />;
+  if (!lookup) return null;
+  if (!lookup.found) return <GridBadge label={lookup.message} bg="var(--color-warning-soft)" color="var(--color-warning)" />;
+  return lookup.detail.absent ? (
+    <GridBadge label="없음(MDM 에 없음)" muted />
+  ) : (
+    <GridBadge label="있음" bg="var(--color-success-soft)" color="var(--color-success)" />
+  );
+}
+
 export default function MdmCacheMngPage() {
   const { showMessage } = useMessage();
   const [filters, setFilters] = useState<EntryFilters>(emptyFilters);
@@ -87,8 +119,54 @@ export default function MdmCacheMngPage() {
   const [isBusy, setIsBusy] = useState(false);
   const [isDetailBusy, setIsDetailBusy] = useState(false);
   const [registerOpen, setRegisterOpen] = useState(false);
+  const [detailTarget, setDetailTarget] = useState<DetailTarget | null>(null);
+  const [detailLookup, setDetailLookup] = useState<CacheEntryLookup | null>(null);
+  const [detailError, setDetailError] = useState("");
+  const [isEntryBusy, setIsEntryBusy] = useState(false);
+  /** 상세 요청 순번 — 늦게 도착한 앞 요청의 결과가 뒤 요청의 결과를 덮지 않게 한다. */
+  const detailSeq = useRef(0);
 
   const selectedEntries = useMemo(() => entries.filter((e) => selectedKeys.includes(e.rowId)), [entries, selectedKeys]);
+
+  /** 항목 하나의 캐시 값을 받아 상세 패널에 보인다. 서버는 캐시를 읽기만 한다(조회 수·적재 없음). */
+  const openDetail = useCallback(async (target: DetailTarget) => {
+    const seq = ++detailSeq.current;
+    setDetailTarget(target);
+    setDetailError("");
+    setIsEntryBusy(true);
+    try {
+      const lookup = await fetchEntry(target.module, target.type, target.key);
+      if (seq !== detailSeq.current) return;
+      setDetailLookup(lookup);
+    } catch (e) {
+      if (seq !== detailSeq.current) return;
+      setDetailLookup(null);
+      setDetailError(errorText(e));
+    } finally {
+      if (seq === detailSeq.current) setIsEntryBusy(false);
+    }
+  }, []);
+
+  const closeDetail = useCallback(() => {
+    detailSeq.current++;
+    setDetailTarget(null);
+    setDetailLookup(null);
+    setDetailError("");
+    setIsEntryBusy(false);
+  }, []);
+
+  /** 열린 상세를 다시 받는다(삭제·재등록·등록·조회 뒤). 다른 모듈의 상세였으면 닫는다. */
+  const refreshDetail = useCallback(
+    (module: string) => {
+      if (!detailTarget) return;
+      if (detailTarget.module !== module) {
+        closeDetail();
+        return;
+      }
+      void openDetail(detailTarget);
+    },
+    [closeDetail, detailTarget, openDetail],
+  );
 
   const loadEntries = useCallback(
     async (module: string, f: EntryFilters) => {
@@ -115,17 +193,19 @@ export default function MdmCacheMngPage() {
       const keep = rows.find((r) => r.module === selectedModule && isReachable(r.state));
       if (keep) {
         await loadEntries(keep.module, filters);
+        refreshDetail(keep.module);
       } else {
         setSelectedModule("");
         setEntries([]);
         setSelectedKeys([]);
+        closeDetail();
       }
     } catch (e) {
       showMessage({ title: "오류", message: errorText(e), alertType: "error" });
     } finally {
       setIsBusy(false);
     }
-  }, [filters, loadEntries, selectedModule, showMessage]);
+  }, [closeDetail, filters, loadEntries, refreshDetail, selectedModule, showMessage]);
 
   useEffect(() => {
     // 첫 진입 때 한 번 조회한다(조회 결과를 상태에 담는 비동기 호출이라 effect 안 setState 규칙에 걸린다).
@@ -139,6 +219,7 @@ export default function MdmCacheMngPage() {
     async (row: Record<string, unknown>) => {
       const moduleId = String(row.module ?? "");
       setSelectedModule(moduleId);
+      if (moduleId !== detailTarget?.module) closeDetail();
       if (!isReachable(row.state as ModuleState)) {
         setEntries([]);
         setSelectedKeys([]);
@@ -146,7 +227,16 @@ export default function MdmCacheMngPage() {
       }
       await loadEntries(moduleId, filters);
     },
-    [filters, loadEntries],
+    [closeDetail, detailTarget, filters, loadEntries],
+  );
+
+  /** 항목 행을 누르면 그 항목의 상세(캐시 값 전체)를 연다. 같은 행을 다시 누르면 다시 받는다. */
+  const handleEntryClick = useCallback(
+    (row: Record<string, unknown>) => {
+      if (!selectedModule) return;
+      void openDetail({ module: selectedModule, type: row.type as MdmTargetType, key: String(row.key ?? "") });
+    },
+    [openDetail, selectedModule],
   );
 
   const openRegister = () => {
@@ -174,7 +264,10 @@ export default function MdmCacheMngPage() {
         }
         if (outcome.applied.length > 0) {
           setSelectedKeys([]);
-          if (selectedModule) await loadEntries(selectedModule, filters);
+          if (selectedModule) {
+            await loadEntries(selectedModule, filters);
+            refreshDetail(selectedModule);
+          }
         }
       } catch (e) {
         showMessage({ title: "오류", message: errorText(e), alertType: "error" });
@@ -182,7 +275,7 @@ export default function MdmCacheMngPage() {
         setIsBusy(false);
       }
     },
-    [filters, loadEntries, selectedEntries, selectedModule, showMessage],
+    [filters, loadEntries, refreshDetail, selectedEntries, selectedModule, showMessage],
   );
 
   /** 중요 액션(Local-Rules §9) — 영향 범위(모든 모듈·인스턴스, 다음 확인 약 10초)를 보여 주고 확인을 받는다. */
@@ -231,28 +324,92 @@ export default function MdmCacheMngPage() {
             />
           </GridPanel>
         </ContentPanel>
-        <ContentPanel height="40%">
-          <GridPanel title={selectedModule ? `캐시 항목 — ${selectedModule}` : "캐시 항목"} count={entries.length}>
-            <AgDataGrid
-              rowKey="rowId"
-              columns={ENTRY_COLUMNS}
-              data={entries}
-              columnSizing="fit"
-              selectable
-              multiSelect
-              selectedRows={selectedKeys}
-              onRowSelect={(ids) => setSelectedKeys(ids)}
-              loading={isDetailBusy}
-            />
-          </GridPanel>
-        </ContentPanel>
+        <ContentBody height="40%" resizable storageKey="mcm.csa.mdmCacheMng.entries">
+          <ContentPanel>
+            <GridPanel
+              title={selectedModule ? `캐시 항목 — ${selectedModule}` : "캐시 항목"}
+              count={entries.length}
+              buttons={[{ id: "btn_grid_detail_close", label: "상세 닫기", onClick: closeDetail, disabled: !detailTarget }]}
+            >
+              <AgDataGrid
+                rowKey="rowId"
+                columns={ENTRY_COLUMNS}
+                data={entries}
+                columnSizing="fit"
+                selectable
+                multiSelect
+                selectedRows={selectedKeys}
+                onRowSelect={(ids) => setSelectedKeys(ids)}
+                highlightedRowKey={detailTarget ? `${detailTarget.type}:${detailTarget.key}` : undefined}
+                onRowClick={handleEntryClick}
+                loading={isDetailBusy}
+              />
+            </GridPanel>
+          </ContentPanel>
+          {detailTarget ? (
+            <ContentPanel key="detail" width={460}>
+              <table style={DETAIL_TABLE_STYLE}>
+                <tbody>
+                  <tr>
+                    <th style={DETAIL_LABEL_CELL}>대상</th>
+                    <td style={DETAIL_VALUE_CELL}>{TARGET_TYPE_LABELS[detailTarget.type] ?? detailTarget.type}</td>
+                  </tr>
+                  <tr>
+                    <th style={DETAIL_LABEL_CELL}>키</th>
+                    <td style={DETAIL_VALUE_CELL}>{detailTarget.key}</td>
+                  </tr>
+                  <tr>
+                    <th style={DETAIL_LABEL_CELL}>상태</th>
+                    <td style={DETAIL_VALUE_CELL}>
+                      <DetailStateBadge busy={isEntryBusy} error={detailError} lookup={detailLookup} />
+                    </td>
+                  </tr>
+                  {detailError ? (
+                    <tr>
+                      <th style={DETAIL_LABEL_CELL}>오류</th>
+                      <td style={DETAIL_VALUE_CELL} className="form-error-message">
+                        {detailError}
+                      </td>
+                    </tr>
+                  ) : null}
+                  {detailLookup?.found ? (
+                    <>
+                      <tr>
+                        <th style={DETAIL_LABEL_CELL}>적재 시각</th>
+                        <td style={DETAIL_VALUE_CELL}>{detailLookup.detail.loadedAt}</td>
+                      </tr>
+                      <tr>
+                        <th style={DETAIL_LABEL_CELL}>조회 수</th>
+                        <td style={DETAIL_VALUE_CELL}>{detailLookup.detail.hits}</td>
+                      </tr>
+                      <tr>
+                        <th style={DETAIL_LABEL_CELL}>남은 수명(초)</th>
+                        <td style={DETAIL_VALUE_CELL}>{detailLookup.detail.remainingSeconds}</td>
+                      </tr>
+                      <tr>
+                        <th style={DETAIL_LABEL_CELL}>적재 순번</th>
+                        <td style={DETAIL_VALUE_CELL}>{detailLookup.detail.loadSeq}</td>
+                      </tr>
+                    </>
+                  ) : null}
+                </tbody>
+              </table>
+              {detailLookup?.found && !detailLookup.detail.absent ? (
+                <JsonView value={detailLookup.detail.value} fill defaultExpandDepth={2} testId="mdm-cache-entry-value" />
+              ) : null}
+            </ContentPanel>
+          ) : null}
+        </ContentBody>
       </ContentBody>
 
       <RegisterModal
         open={registerOpen}
         module={selectedModule}
         onClose={() => setRegisterOpen(false)}
-        onRegistered={() => void loadEntries(selectedModule, filters)}
+        onRegistered={() => {
+          void loadEntries(selectedModule, filters);
+          refreshDetail(selectedModule);
+        }}
       />
     </PageLayout>
   );
