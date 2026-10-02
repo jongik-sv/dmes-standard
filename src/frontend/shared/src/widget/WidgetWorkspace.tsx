@@ -44,12 +44,15 @@ export interface WidgetWorkspaceProps {
   workspaceWidth?: number;
   testId?: string;
   /**
-   * 정의 위젯 목록(widgetDef/list)을 아직 못 불렀거나 실패했다 — true 면 [배치 편집]을 막고 띠를 보인다.
+   * 정의 위젯 목록(widgetDef/list) 상태(기본 "ready"). "loading"·"error" 면 [배치 편집]을 막는다 —
    * 정의 위젯이 「없는 위젯」으로 보이는 상태에서 저장하면 사용자 배치에서 지워지기 때문이다(스펙 widget-admin-generic §1.1·W-D19).
+   * "error" 면 탭 줄 위에 「위젯 정의를 불러오지 못했습니다」 띠와 [다시 시도](onRetryRegistry 가 있을 때)를 보인다.
    */
-  registryDegraded?: boolean;
-  /** registryDegraded 띠의 [다시 시도]. 없으면 버튼을 그리지 않는다. */
+  registryStatus?: "ready" | "loading" | "error";
+  /** registryStatus="error" 띠의 [다시 시도]. 없으면 버튼을 그리지 않는다. */
   onRetryRegistry?: () => void;
+  /** 위젯 유형 ID → 이름("query-table" → "쿼리 표"). [위젯 추가] 서랍이 정의 위젯 옆에 작은 글씨로 보인다. */
+  typeTitles?: Readonly<Record<string, string>>;
   /** 탭 줄을 숨기고 「홈」 탭 하나만 다룬다 — 관리자 기본 배치 편집용. title 은 보드 위 제목. */
   singleTab?: { title: string };
 }

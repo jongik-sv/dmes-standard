@@ -20,4 +20,10 @@ public interface WidgetQueryRunner {
      * 오류 메시지에 DB 메시지를 담아도 된다(SQL 작성 도움 — §7.3).
      */
     WidgetQueryResult preview(String dataSrc, String sql, int maxRows);
+
+    /**
+     * 저장 전 검사(§7.1) — 한 문장 SELECT·WITH, 금지 낱말 없음, 알려진 시스템 변수만. 어기면 {@code BusinessException}
+     * (ErrorCode.INVALID_VALUE, 사람이 읽을 메시지). 위젯관리 save 가 쿼리 유형 정의를 저장할 때 부른다.
+     */
+    void validateSql(String sql);
 }

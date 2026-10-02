@@ -145,7 +145,7 @@ export function mergeWidgetRegistry(
 | `widget-registry.ts`(새 파일) | `mergeWidgetRegistry` 순수 함수. 정의 위젯의 `load` 는 유형 렌더러를 불러와 `definition` 을 끼워 넣는 본체를 돌려준다 |
 | `WidgetFrame` | `meta.disabled` 면 본체를 불러오지 않고 「사용 중지된 위젯입니다」 빈 칸(보기·편집 모두). 편집 모드에서는 ✕ 로 뺄 수 있다. 본체에 `definition`·`widgetId` 를 넘긴다 |
 | `WidgetPicker` | `disabled` 항목은 보이지 않는다. `kind:"def"` 항목에 유형 이름을 작은 글씨로 보인다 |
-| `WidgetWorkspace` | 새 props: `registryDegraded?: boolean`(true 면 [배치 편집] 막고 띠 표시, `onRetryRegistry?`), `singleTab?: { title: string }`(탭 줄 숨김, 「홈」 탭 하나만 — 관리자 기본 배치 편집용), `homeDefault` 는 그대로(화면이 서버 값 또는 코드 상수를 넘긴다) |
+| `WidgetWorkspace` | 새 props: `registryStatus?: "ready" \| "loading" \| "error"`(기본 ready. loading·error 면 [배치 편집]을 막고, error 면 띠와 `onRetryRegistry?` [다시 시도]), `typeTitles?: Record<유형ID, 이름>`(서랍이 정의 위젯 옆에 유형 이름을 보인다), `singleTab?: { title: string }`(탭 줄 숨김, 「홈」 탭 하나만 — 관리자 기본 배치 편집용), `homeDefault` 는 그대로(화면이 서버 값 또는 코드 상수를 넘긴다) |
 | `WidgetStore` | 변경 없음. 관리자 기본 배치 편집은 같은 인터페이스를 구현한 어댑터로 붙인다(`saveTab`→`saveLayout`, `resetHome`→`deleteLayout`, `load`→그 키의 배치) |
 | `index.ts` | 새 타입·함수 export |
 | 문서 | `mantine-aggrid-ui` 스킬 `references/components/widget.md` 와 색인 갱신 |
@@ -260,7 +260,7 @@ BE `EndpointPermissionFilter.AUTH_ONLY_OBJ_ACTION_PREFIXES` 와 FE `m-mcm/proxy.
 
 | 서비스/action | 입력 | 출력 | 과제 |
 |---|---|---|---|
-| `widgetDef/list` | — | `{ defs: WidgetDefRow[], homeDefault: WidgetItem[] \| null, homeDefaultKey: string \| null }` — 사용자 부서 기준 기본 배치(§4.2 순서), 없으면 null | B |
+| `widgetDef/list` | — | `{ defs: WidgetDefRow[], homeDefault: WidgetItem[] \| null, homeDefaultKey: string \| null }` — 사용자 부서 기준 기본 배치(§4.2 순서), 없으면 null. **모든 사용자가 부르므로 `configJson` 에서 서버 전용 키를 지우고 돌려준다**(`query-*`: `sql`, `chat`: `systemPrompt`·`dataQueryDefIds`). 관리자 `commWidgetMng/search` 는 전부 돌려준다 | B |
 | `widgetData/run` | `defId` | `{ columns: [{name}], rows: [...], truncated: boolean }` | C |
 | `widgetExt/exchange` | `base`(KRW), `symbols`(목록), `days`(1~90) | `{ latest: [{cur, rate, diff, date}], history: [{date, cur, rate}] }` | D |
 | `widgetExt/weather` | `lat`, `lon` | `{ current: {temp, code, wind, humidity}, daily: [{date, min, max, code, pop}] }` | D |
@@ -278,12 +278,12 @@ BE `EndpointPermissionFilter.AUTH_ONLY_OBJ_ACTION_PREFIXES` 와 FE `m-mcm/proxy.
 
 | action | 입력 | 동작 |
 |---|---|---|
-| `search` | — | 정의·덮어쓰기 행 전체 + 위젯별 사용자 수(`TB_MCM_SEC_USER_WIDGET` 에서 `WIDGET_ID` 별 DISTINCT `USER_ID` 수) |
+| `search` | — | `{ defs, usage }` — 정의·덮어쓰기 행 전체(+`userCount`)와 `usage`(`TB_MCM_SEC_USER_WIDGET` 에서 `WIDGET_ID` 별 DISTINCT `USER_ID` 수, DB 행이 없는 코드 위젯 포함) |
 | `save` | 정의 행 1개 | `D` 신규면 ID 생성 후 insert, 그 밖 upsert. 검사 §5.3 |
 | `delete` | `widgetId` | `D` 는 사용자 수 0 일 때만 지운다(그 밖 거절: 「사용 중인 위젯은 지울 수 없습니다. 사용 중지하세요」). `C` 는 덮어쓰기 행을 지운다(= 코드 값으로 되돌리기). action 이름은 PERM_ALL 의 기존 토큰 `delete` 를 쓴다 |
 | `previewQuery` | `dataSrc`, `sql` | 저장 전 SQL 시험 실행. 관리자 본인 시스템 변수로, 행 상한 50 |
 | `searchLayouts` | — | 기본 배치가 있는 키 목록 `[{layoutKey, deptNm, count}]` |
-| `loadLayout` | `layoutKey` | 그 키의 배치 |
+| `loadLayout` | `layoutKey`, `effective`(Y·N) | 그 키의 배치 `{ layoutKey, sourceKey, items }`. `effective='Y'` 이고 그 키에 행이 없으면 그 부서의 상위 부서 → `*` 순서로 처음 찾은 배치를 돌려주고 `sourceKey` 에 실제 키를 적는다(새 부서 배치의 시작점). 아무것도 없으면 `items=[]`·`sourceKey=null`(화면이 코드 상수를 쓴다) |
 | `saveLayout` | `layoutKey` + 위젯 목록 | 그 키를 통째로 바꾼다(지우고 다시 넣기, 한 트랜잭션). 좌표 검사는 A 와 같음 |
 | `deleteLayout` | `layoutKey` | 그 키의 배치를 지운다 |
 | `searchDepts` | `keyword` | 부서 고르기(`TB_MCM_DEPT_INFO` `USE_TP='Y'`) — 기존 부서 조회가 재사용 가능하면 그것을 쓴다 |
@@ -441,7 +441,7 @@ interface LlmClient {
 
 - `page.tsx` 는 `widgetDef/list` 를 불러 `mergeWidgetRegistry(WIDGET_REGISTRY, WIDGET_TYPE_REGISTRY, defs)` 로 등록부를 만들어 `WidgetWorkspace` 에 넘긴다. 응답 전에는 코드 등록부로 보이되 [배치 편집]을 막는다(정의 위젯 손실 방지).
 - `homeDefault` 는 응답의 `homeDefault` 가 있으면 그것, 없으면 `HOME_DEFAULT_LAYOUT`.
-- `widgetDef/list` 실패 → `registryDegraded` (§1.1).
+- `widgetDef/list` 응답 전 → `registryStatus="loading"`, 실패 → `registryStatus="error"` (§1.1).
 
 ## 12. 오류 처리
 
@@ -457,7 +457,7 @@ interface LlmClient {
 
 ## 13. 시험
 
-- **shared 단위**: `mergeWidgetRegistry`(덮어쓰기·사용 중지·유형 없음·코드 없음), `WidgetFrame` 사용 중지 빈 칸, `WidgetPicker` 사용 중지 숨김, `WidgetWorkspace` `registryDegraded`·`singleTab`.
+- **shared 단위**: `mergeWidgetRegistry`(덮어쓰기·사용 중지·유형 없음·코드 없음), `WidgetFrame` 사용 중지 빈 칸, `WidgetPicker` 사용 중지 숨김, `WidgetWorkspace` `registryStatus`·`typeTitles`·`singleTab`.
 - **코드 생성**: 유형 폴더 검사(ID 불일치·파일 누락·중복) 실패.
 - **유형 렌더러·편집기**(vitest): 각 유형 최소 1개 — html 정화/iframe sandbox 속성(`allow-same-origin` 없음), web 같은 출처 거절, links 동작, 쿼리 표 `__preview` 경로.
 - **백엔드(SQLite, 도커 금지)**: 정의 저장 검사·ID 생성·삭제 거절(사용 중), 기본 배치 부서 상위 탐색·순환 방지, `widgetDef/list` 응답, SQL 검사기(허용·거절 사례 표), 실행기 행 상한·롤백·캐시, 환율 빈 날짜 채우기·역수 변환(가짜 HTTP), 날씨 캐시(가짜 HTTP), 미디어 형식·크기·SVG 거절·경로 조작, 챗봇 도구 반복·허용 defId·기록 100개 유지(가짜 LLM). OASIS BPMN 계약 시험(A 의 `SecWidgetBpmnActionTest` 방식).
