@@ -191,6 +191,8 @@ Task 3·4·5 는 Task 1 의 shared 빌드가 끝난 뒤 시작한다(새 props �
 
 ### Task 3: 홈 화면 연결 (B) — Task 1 뒤
 
+> **배정 변경(2026-10-03):** 이 Task 는 **Workflow 2(`widget-bcd-team-2`)** 팀원이 맡는다. **Workflow 1(`widget-bcd-team`)에서 이 Task 의 build·review·fix 로 배정된 에이전트는 파일을 고치지도, 시험을 돌리지도 말고 즉시 끝낸다** — build·fix 면 `status:"done"`, `summary:"Workflow 2 로 이관됨 — 작업 없음"`, `commits:[]`, `files:[]`, `tests:"-"`, review 면 `verdict:"pass"`, `findings:[]`, `testsRerun:"-"`. Workflow 2 팀원은 이 표시를 무시하고 Task 를 수행한다. (Task 0 에서 새 props 타입이 dist 에 이미 있으므로 Task 1 완료를 기다리지 않고 시작한다.)
+
 **소유:** `src/frontend/m-mcm/page-components/home/page.tsx`, 새 `page-components/home/widget-defs.ts`·`page-components/home/widget-defs.test.ts`.
 
 **Interfaces:**
@@ -212,6 +214,8 @@ Task 3·4·5 는 Task 1 의 shared 빌드가 끝난 뒤 시작한다(새 props �
 ---
 
 ### Task 4: 위젯관리 화면 — 위젯 목록 탭·화면 틀 (B) — Task 1 뒤
+
+> **배정 변경(2026-10-03):** 이 Task 는 **Workflow 2(`widget-bcd-team-2`)** 팀원이 맡는다. **Workflow 1(`widget-bcd-team`)에서 이 Task 의 build·review·fix 로 배정된 에이전트는 파일을 고치지도, 시험을 돌리지도 말고 즉시 끝낸다** — build·fix 면 `status:"done"`, `summary:"Workflow 2 로 이관됨 — 작업 없음"`, `commits:[]`, `files:[]`, `tests:"-"`, review 면 `verdict:"pass"`, `findings:[]`, `testsRerun:"-"`. Workflow 2 팀원은 이 표시를 무시하고 Task 를 수행한다. (Task 0 에서 새 props 타입이 dist 에 이미 있으므로 Task 1 완료를 기다리지 않고 시작한다.)
 
 **소유:** `src/frontend/m-mcm/page-components/csa/commWidgetMng/` 의 `page.tsx`·`WidgetListTab.tsx`·`WidgetDetailForm.tsx`·`WidgetPreview.tsx`·`api.ts`·`types.ts`·`form-model.ts`·`styles` 파일(새로 만들면), 시험 `page-components/csa/commWidgetMng/*.test.ts`(Task 5 의 `layout-*.test.ts` 제외). `LayoutTab.tsx`·`layout-*.ts` 는 Task 5 소유 — import 만 한다.
 
@@ -239,6 +243,8 @@ Task 3·4·5 는 Task 1 의 shared 빌드가 끝난 뒤 시작한다(새 props �
 ---
 
 ### Task 5: 위젯관리 화면 — 기본 배치 탭 (B) — Task 1 뒤
+
+> **배정 변경(2026-10-03):** 이 Task 는 **Workflow 2(`widget-bcd-team-2`)** 팀원이 맡는다. **Workflow 1(`widget-bcd-team`)에서 이 Task 의 build·review·fix 로 배정된 에이전트는 파일을 고치지도, 시험을 돌리지도 말고 즉시 끝낸다** — build·fix 면 `status:"done"`, `summary:"Workflow 2 로 이관됨 — 작업 없음"`, `commits:[]`, `files:[]`, `tests:"-"`, review 면 `verdict:"pass"`, `findings:[]`, `testsRerun:"-"`. Workflow 2 팀원은 이 표시를 무시하고 Task 를 수행한다. (Task 0 에서 새 props 타입이 dist 에 이미 있으므로 Task 1 완료를 기다리지 않고 시작한다.)
 
 **소유:** `src/frontend/m-mcm/page-components/csa/commWidgetMng/LayoutTab.tsx`(자리 표시를 통째로 바꾼다)·`layout-api.ts`·`layout-store.ts`·`layout-model.ts`·`DeptPicker.tsx`, 시험 `page-components/csa/commWidgetMng/layout-*.test.ts`.
 
@@ -411,6 +417,8 @@ Task 3·4·5 는 Task 1 의 shared 빌드가 끝난 뒤 시작한다(새 props �
 
 ### Task 12: 환율·날씨 유형 (D)
 
+> **배정 변경(2026-10-03):** 이 Task 는 **Workflow 2(`widget-bcd-team-2`)** 팀원이 맡는다. **Workflow 1(`widget-bcd-team`)에서 이 Task 의 build·review·fix 로 배정된 에이전트는 파일을 고치지도, 시험을 돌리지도 말고 즉시 끝낸다** — build·fix 면 `status:"done"`, `summary:"Workflow 2 로 이관됨 — 작업 없음"`, `commits:[]`, `files:[]`, `tests:"-"`, review 면 `verdict:"pass"`, `findings:[]`, `testsRerun:"-"`. Workflow 2 팀원은 이 표시를 무시하고 Task 를 수행한다.
+
 **소유:** `src/frontend/m-mcm/widget-types/exchange/**`·`weather/**`·`_ext/**`(공용 api·서식·날씨 코드표·시험).
 
 **Interfaces:**
@@ -430,6 +438,8 @@ Task 3·4·5 는 Task 1 의 shared 빌드가 끝난 뒤 시작한다(새 props �
 
 ### Task 13: 미디어 유형 (D)
 
+> **배정 변경(2026-10-03):** 이 Task 는 **Workflow 2(`widget-bcd-team-2`)** 팀원이 맡는다. **Workflow 1(`widget-bcd-team`)에서 이 Task 의 build·review·fix 로 배정된 에이전트는 파일을 고치지도, 시험을 돌리지도 말고 즉시 끝낸다** — build·fix 면 `status:"done"`, `summary:"Workflow 2 로 이관됨 — 작업 없음"`, `commits:[]`, `files:[]`, `tests:"-"`, review 면 `verdict:"pass"`, `findings:[]`, `testsRerun:"-"`. Workflow 2 팀원은 이 표시를 무시하고 Task 를 수행한다.
+
 **소유:** `src/frontend/m-mcm/widget-types/media/**`(시험 포함, 공용 도우미가 필요하면 `widget-types/media/` 안에 둔다).
 
 **Interfaces:**
@@ -447,6 +457,8 @@ Task 3·4·5 는 Task 1 의 shared 빌드가 끝난 뒤 시작한다(새 props �
 ---
 
 ### Task 14: 챗봇 유형 (D)
+
+> **배정 변경(2026-10-03):** 이 Task 는 **Workflow 2(`widget-bcd-team-2`)** 팀원이 맡는다. **Workflow 1(`widget-bcd-team`)에서 이 Task 의 build·review·fix 로 배정된 에이전트는 파일을 고치지도, 시험을 돌리지도 말고 즉시 끝낸다** — build·fix 면 `status:"done"`, `summary:"Workflow 2 로 이관됨 — 작업 없음"`, `commits:[]`, `files:[]`, `tests:"-"`, review 면 `verdict:"pass"`, `findings:[]`, `testsRerun:"-"`. Workflow 2 팀원은 이 표시를 무시하고 Task 를 수행한다.
 
 **소유:** `src/frontend/m-mcm/widget-types/chat/**`(시험 포함).
 
