@@ -440,3 +440,22 @@
 .favorites-tree .selected-menu .fav-delete-btn {
   color: var(--shell-sidebar-active-fg);
 }
+
+/* 메뉴·즐겨찾기·기본 화면 3칸 — 좁은 폭(사이드바 최소 200px)에서는 아이콘을 빼고 글자·여백을 줄여 한 줄을 지킨다. */
+.tab-container label {
+  white-space: nowrap;
+}
+
+.tab-container.tab-container--compact label {
+  padding-left: 2px;
+  padding-right: 2px;
+  font-size: var(--font-size-sm);
+}
+
+/* 기본 화면 목록 — 안내 문구 */
+.start-pages-list .start-pages-hint {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--shell-sidebar-border);
+  color: var(--shell-sidebar-muted);
+  font-size: var(--font-size-sm);
+}

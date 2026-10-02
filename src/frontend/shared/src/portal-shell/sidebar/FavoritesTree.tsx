@@ -60,7 +60,8 @@ function FolderIcon({ open }: { open: boolean }) {
   );
 }
 
-function PageIcon() {
+/** 메뉴 트리와 같은 화면(leaf) 아이콘 — 기본 화면 목록(StartPagesList)도 쓴다. */
+export function PageIcon() {
   return (
     <svg
       width="14"

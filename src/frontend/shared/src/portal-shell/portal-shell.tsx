@@ -22,7 +22,15 @@ import {
 } from "./menu-search";
 import { MenuSearchDialog } from "./MenuSearchDialog";
 import { Header } from "./header/Header";
-import { Sidebar } from "./sidebar/Sidebar";
+import { Sidebar, type SidebarNavigationViewMode } from "./sidebar/Sidebar";
+import type { StartPageLeaf } from "./sidebar/StartPagesList";
+import {
+  clearStartPagesOpened,
+  hasOpenedStartPages,
+  markStartPagesOpened,
+  planStartPageOpen,
+  type PortalStartPageRecord,
+} from "./start-pages";
 import { TabsBar } from "./tabs-bar/TabsBar";
 import { Dashboard } from "./dashboard/Dashboard";
 import { FavoriteFolderPickerModal, type FavoriteFolderChoice } from "./FavoriteFolderPickerModal";
@@ -39,7 +47,7 @@ const DEFAULT_STORAGE_KEY = "oasis.portal.tabs.v1";
 const DEFAULT_HOME_TAB_TITLE = "홈";
 const RECENT_MENU_STORAGE_SUFFIX = ".recent-menu";
 
-type NavigationViewMode = "menu" | "favorites";
+type NavigationViewMode = SidebarNavigationViewMode;
 
 interface PortalShellTabState {
   id: string;
@@ -152,6 +160,15 @@ export interface PortalShellProps {
    * 사이트가 페이지 접근 이력 적재 등 후처리 가능.
    */
   onPageOpen?: (pageId: string) => void;
+  /**
+   * 기본 화면(포털을 처음 시작할 때 자동으로 여는 화면) — 등록 순서. 지정하면 사이드바에 '기본 화면' 칸이 생긴다.
+   * 미지정이면 기본 화면 기능 전체(칸·자동 열기)를 끈다.
+   */
+  startPages?: PortalStartPageRecord[];
+  /** 기본 화면 첫 조회가 끝났는지. 끝난 뒤 한 번만 자동으로 연다. 미지정 시 startPages 를 받은 즉시 끝난 것으로 본다. */
+  isStartPagesLoaded?: boolean;
+  /** 기본 화면 등록/해제 토글 — 탭 우클릭 메뉴와 사이드바 해제 버튼이 부른다. 미지정 시 등록 메뉴를 숨긴다. */
+  onToggleStartPage?: (pageId: string) => void;
 }
 
 export function PortalShell({
@@ -169,6 +186,9 @@ export function PortalShell({
   onDeleteFavoriteFolder,
   onBeforeLogout,
   onPageOpen,
+  startPages,
+  isStartPagesLoaded = true,
+  onToggleStartPage,
 }: PortalShellProps) {
   const [tabs, setTabs] = useState<PortalShellTabState[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
@@ -188,6 +208,10 @@ export function PortalShell({
   activeTabIdRef.current = activeTabId;
   /** 새로 만든 탭 ID → 만들 때 보고 있던 탭 ID. tabOrder 동기화가 그 탭 오른쪽에 끼우고 지운다. */
   const newTabAnchorRef = useRef<Map<string, string | null>>(new Map());
+  /** 저장소에서 복원한 (홈 제외) 탭 수 — 기본 화면을 열 때 활성 탭을 바꿀지 정한다. */
+  const restoredTabCountRef = useRef<number>(0);
+  /** 기본 화면 자동 열기를 이 마운트에서 이미 판단했는지(등록·해제 후 재조회 때 다시 열지 않는다). */
+  const startPagesAppliedRef = useRef<boolean>(false);
 
   const resolvedHomePageId = homePageId?.trim() || defaultHomePageId?.trim() || null;
   const homeTabId = resolvedHomePageId ? createHomeTabId(resolvedHomePageId) : null;
@@ -457,6 +481,8 @@ export function PortalShell({
 
   const doLogout = useCallback(() => {
     writeSecureJson(storageKey, { tabs: [], activeTabId: null });
+    // 다시 로그인하면 처음 시작이다 — 기본 화면을 다시 연다.
+    clearStartPagesOpened(storageKey);
     if (typeof window !== "undefined") {
       localStorage.removeItem("oasis.sidebar.width");
     }
@@ -579,6 +605,31 @@ export function PortalShell({
     [onToggleFavorite]
   );
 
+  // 기본 화면 — 사이드바 목록(등록 순)·탭 우클릭 라벨 판정용 집합.
+  const startPageLeaves = useMemo<StartPageLeaf[] | undefined>(() => {
+    if (!startPages) return undefined;
+    const seen = new Set<string>();
+    const leaves: StartPageLeaf[] = [];
+    for (const page of startPages) {
+      if (!page.pageId || seen.has(page.pageId)) continue;
+      seen.add(page.pageId);
+      leaves.push({
+        pageId: page.pageId,
+        displayText: page.displayText?.trim() || resolveDisplayText(page.pageId, page.pageId),
+      });
+    }
+    return leaves;
+  }, [startPages, resolveDisplayText]);
+  const startPageIdSet = useMemo(
+    () => new Set((startPageLeaves ?? []).map((leaf) => leaf.pageId)),
+    [startPageLeaves]
+  );
+  // 메뉴에 있는 화면만 서버가 기본 화면으로 받는다(홈 화면은 제외).
+  const canRegisterStartPage = useCallback(
+    (pageId: string) => pageId !== resolvedHomePageId && menuSearchItemByPageId.has(pageId),
+    [menuSearchItemByPageId, resolvedHomePageId]
+  );
+
   /**
    * 활성 탭 컨텐츠 PNG 캡쳐 → 다운로드.
    *
@@ -648,6 +699,8 @@ export function PortalShell({
       ? mapStoredTabsToRuntime(stored.tabs).filter((tab) => tab.pageId.length > 0)
       : [];
 
+    restoredTabCountRef.current = storedTabs.length;
+
     if (!resolvedHomePageId || !homeTabId) {
       setTabs(storedTabs);
       setActiveTabId(stored?.activeTabId ?? null);
@@ -669,6 +722,63 @@ export function PortalShell({
     setActiveTabId(nextActiveTabId);
     setIsStorageHydrated(true);
   }, [homeTabId, resolveDisplayText, resolvedHomePageId, storageKey]);
+
+  // 기본 화면 자동 열기 — 저장소 복원·메뉴·기본 화면 목록이 모두 준비된 뒤 마운트당 한 번, 브라우저 탭 세션당 한 번.
+  // openPageTab 을 반복 호출하지 않는다: 기준 탭 기록(같은 자리에 끼워 순서 뒤집힘)·히스토리 push·최근 메뉴·onPageOpen 이
+  // 탭마다 돌고 마지막 탭이 활성화되기 때문이다. 한 번의 setTabs 로 등록 순서대로 맨 끝에 덧붙인다(기준 탭 기록 없음 → 맨 끝).
+  // 위 복원 effect 보다 뒤에 선언해야 같은 커밋에서 복원(교체)이 먼저 적용되고 그 뒤에 덧붙는다.
+  useEffect(() => {
+    if (startPagesAppliedRef.current) return;
+    if (!startPages || !isStartPagesLoaded || !isStorageHydrated) return;
+    if (menuSearchItemByPageId.size === 0) return; // 메뉴(권한) 로드 전
+    startPagesAppliedRef.current = true;
+    if (hasOpenedStartPages(storageKey)) return; // 이번 세션에서 이미 열었다(새로고침·재마운트)
+    markStartPagesOpened(storageKey);
+
+    const allowedPageIds = new Set(menuSearchItemByPageId.keys());
+    const startPageIds = startPages.map((page) => page.pageId);
+    // 복원된 탭 대조는 업데이터의 prev 로 한다(이 렌더의 tabs 는 같은 커밋의 복원 전 값일 수 있다).
+    const candidates = planStartPageOpen({
+      tabs: [],
+      startPageIds,
+      allowedPageIds,
+      homePageId: resolvedHomePageId,
+    });
+    if (candidates.length === 0) return;
+    // 탭 ID 는 업데이터 밖에서 만든다(StrictMode 가 업데이터를 두 번 불러도 같은 ID).
+    const created = candidates.map<PortalShellTabState>((pageId) => ({
+      id: createTabId(pageId),
+      title: resolveDisplayText(pageId, pageId),
+      pageId,
+      isHome: false,
+      snapshot: null,
+      component: null,
+      isLoading: true,
+      errorMessage: null,
+    }));
+    setTabs((prev) => {
+      const toOpen = new Set(
+        planStartPageOpen({ tabs: prev, startPageIds: candidates, allowedPageIds, homePageId: resolvedHomePageId })
+      );
+      const appended = created.filter((tab) => toOpen.has(tab.pageId));
+      return appended.length > 0 ? [...prev, ...appended] : prev;
+    });
+    // 복원된 탭이 있으면 보던 탭을 그대로 두고, 없으면(홈뿐) 첫 기본 화면을 보여 준다.
+    // 목록을 기다리는 사이 사용자가 메뉴로 연 탭이 있으면 그 탭을 그대로 둔다(홈을 보고 있을 때만 바꾼다).
+    if (restoredTabCountRef.current === 0) {
+      const firstId = created[0].id;
+      setActiveTabId((prev) => (prev == null || prev === homeTabId ? firstId : prev));
+    }
+  }, [
+    homeTabId,
+    startPages,
+    isStartPagesLoaded,
+    isStorageHydrated,
+    menuSearchItemByPageId,
+    storageKey,
+    resolvedHomePageId,
+    resolveDisplayText,
+  ]);
 
   // Load tab pages
   useEffect(() => {
@@ -847,6 +957,8 @@ export function PortalShell({
             onAddFavoriteFolder={handleAddFavoriteFolder}
             onDeleteFavoriteFolder={handleDeleteFavoriteFolder}
             onDeleteFavorite={handleDeleteFavorite}
+            startPages={startPageLeaves}
+            onRemoveStartPage={onToggleStartPage}
           />
           <div className="portal-shell__main">
             <div className="portal-shell__content-wrapper">
@@ -872,6 +984,9 @@ export function PortalShell({
                 onEnterFullscreen={activeTab ? tabFullscreen.enter : undefined}
                 isFullscreen={isTabFullscreen}
                 onExitFullscreen={exitTabFullscreen}
+                startPageIds={startPageIdSet}
+                onToggleStartPage={startPages ? onToggleStartPage : undefined}
+                canRegisterStartPage={canRegisterStartPage}
               />
               <div className="portal-shell__content-area">
                 {tabs.length === 0 ? (

@@ -32,7 +32,7 @@ const SESSION_COOKIE_NAME = `${AUTH_COOKIE_PREFIX}.session-token`;
 /**
  * mcm BFF RBAC 정책.
  *  - PUBLIC: NextAuth/로그인 진입점.
- *  - AUTH_ONLY: 내 메뉴/권한/버튼엔드포인트/즐겨찾기 — 로그인만 되면 누구나(서비스 레이어가 본인 데이터 필터).
+ *  - AUTH_ONLY: 내 메뉴/권한/버튼엔드포인트/즐겨찾기/기본 화면 — 로그인만 되면 누구나(서비스 레이어가 본인 데이터 필터).
  *  - LoV: 모듈 무관 `/lov/*` (master/query/service) — cross-domain 콤보/필터 옵션.
  *  - unmatchedDeny: 지금 false(query·service 통과 — rest 는 신경로 규약 `/rest/{objId}/{action}/**` 로 RBAC 편입, 2026-07-28). 마이그레이션 후 `RBAC_DEFAULT_DENY=true` 로 전면차단.
  */
@@ -46,6 +46,8 @@ const RBAC_POLICY: RbacPolicyConfig = {
     "/api/mcm/oasis/secFavorite/toggle",
     "/api/mcm/oasis/secFavorite/addFolder", // 사이드바 즐겨찾기 그룹 추가
     "/api/mcm/oasis/secFavorite/deleteFolder", // 사이드바 즐겨찾기 그룹 삭제
+    "/api/mcm/oasis/secStartPgm/search", // 포털 기본 화면 조회 (BE EndpointPermissionFilter 와 동기화)
+    "/api/mcm/oasis/secStartPgm/toggle", // 탭 우클릭 기본 화면 등록/해제
     // 포털 알림(STOMP push) 스택 도입 시 아래 2건을 추가한다 — BE 의 AUTH_ONLY 접두 목록과 동기화할 것.
     //   "/api/mcm/oasis/ntfNotification/"  알림 조회/읽음 처리
     //   "/api/mcm/notify/ws-ticket"        WS 단명 티켓 발급 (본인 티켓)

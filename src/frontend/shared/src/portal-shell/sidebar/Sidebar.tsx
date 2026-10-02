@@ -2,18 +2,25 @@
 
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { ActionIcon, Group, ScrollArea, SegmentedControl, TextInput } from "@mantine/core";
-import { IconMenu2, IconStar, IconX } from "@tabler/icons-react";
+import { IconHomeStar, IconMenu2, IconStar, IconX } from "@tabler/icons-react";
 import "./Sidebar.css";
 import type { PortalShellMenuItem } from "../types";
 import { getPortalMenuItemPageId } from "../menu-search";
 import { FavoritesTree, type FavoriteFolderNode } from "./FavoritesTree";
+import { StartPagesList, type StartPageLeaf } from "./StartPagesList";
+
+/** 사이드바 상단 전환 — 메뉴 · 즐겨찾기 · 기본 화면(처음 시작할 때 여는 화면). */
+export type SidebarNavigationViewMode = "menu" | "favorites" | "startup";
+
+/** 이 폭보다 좁으면 3칸 라벨에서 아이콘을 빼고 글자를 줄인다(최소 폭 200px 에서 한 줄 유지). */
+const COMPACT_TAB_LABEL_WIDTH = 260;
 
 export interface SidebarProps {
   appName: string;
   menuItems: PortalShellMenuItem[];
   favoriteFolders: FavoriteFolderNode[];
-  navigationViewMode: "menu" | "favorites";
-  onNavigationViewModeChange: (mode: "menu" | "favorites") => void;
+  navigationViewMode: SidebarNavigationViewMode;
+  onNavigationViewModeChange: (mode: SidebarNavigationViewMode) => void;
   isExpanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
   activePageId: string | null;
@@ -24,6 +31,10 @@ export interface SidebarProps {
   onDeleteFavoriteFolder?: (folderId: string) => void;
   /** 즐겨찾기(leaf) 해제. */
   onDeleteFavorite?: (pageId: string) => void;
+  /** 기본 화면 목록(등록 순). 미지정 시 '기본 화면' 칸을 숨긴다. */
+  startPages?: StartPageLeaf[];
+  /** 기본 화면 해제. */
+  onRemoveStartPage?: (pageId: string) => void;
 }
 
 export function Sidebar({
@@ -39,6 +50,8 @@ export function Sidebar({
   onAddFavoriteFolder,
   onDeleteFavoriteFolder,
   onDeleteFavorite,
+  startPages,
+  onRemoveStartPage,
 }: SidebarProps) {
   const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({});
   const [searchTerm, setSearchTerm] = useState("");
@@ -53,6 +66,18 @@ export function Sidebar({
   });
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+
+  // 기본 화면 목록을 받지 않는 호스트는 2칸(메뉴·즐겨찾기) 그대로 둔다.
+  const hasStartPages = startPages !== undefined;
+  const viewMode: SidebarNavigationViewMode =
+    navigationViewMode === "startup" && !hasStartPages ? "menu" : navigationViewMode;
+  const isCompactTabLabel = hasStartPages && sidebarWidth < COMPACT_TAB_LABEL_WIDTH;
+  const tabLabel = (Icon: typeof IconMenu2, text: string) => (
+    <Group gap={isCompactTabLabel ? 0 : 3} justify="center" wrap="nowrap">
+      {!isCompactTabLabel && <Icon size={13} stroke={2} />}
+      {text}
+    </Group>
+  );
 
   // Sync filtered data when menu items change
   useEffect(() => {
@@ -245,38 +270,23 @@ export function Sidebar({
           <span className="toggle-icon">{isExpanded ? "◀" : "▶"}</span>
         </ActionIcon>
 
-        {/* Tab buttons (menu / favorites) */}
+        {/* Tab buttons (menu / favorites / startup) */}
         <SegmentedControl
-          className="tab-container"
-          value={navigationViewMode}
-          onChange={(value) => onNavigationViewModeChange(value as "menu" | "favorites")}
+          className={`tab-container ${isCompactTabLabel ? "tab-container--compact" : ""}`}
+          value={viewMode}
+          onChange={(value) => onNavigationViewModeChange(value as SidebarNavigationViewMode)}
           fullWidth
           size="xs"
           radius={0}
           data={[
-            {
-              value: "menu",
-              label: (
-                <Group gap={4} justify="center" wrap="nowrap">
-                  <IconMenu2 size={14} stroke={2} />
-                  메뉴
-                </Group>
-              ),
-            },
-            {
-              value: "favorites",
-              label: (
-                <Group gap={4} justify="center" wrap="nowrap">
-                  <IconStar size={14} stroke={2} />
-                  즐겨찾기
-                </Group>
-              ),
-            },
+            { value: "menu", label: tabLabel(IconMenu2, "메뉴") },
+            { value: "favorites", label: tabLabel(IconStar, "즐겨찾기") },
+            ...(hasStartPages ? [{ value: "startup", label: tabLabel(IconHomeStar, "기본 화면") }] : []),
           ]}
         />
 
         {/* Search bar (menu mode only) */}
-        {navigationViewMode === "menu" && (
+        {viewMode === "menu" && (
           <div className="search-container">
             <TextInput
               className="search-box"
@@ -335,7 +345,7 @@ export function Sidebar({
 
         {/* Tree scroll area */}
         <ScrollArea className="tree-scroll-area" type="auto" scrollbarSize={6}>
-          {navigationViewMode === "menu" ? (
+          {viewMode === "menu" ? (
             <ul>
               {filteredMenuItems.map((item) => (
                 <TreeItem
@@ -351,6 +361,13 @@ export function Sidebar({
                 />
               ))}
             </ul>
+          ) : viewMode === "startup" ? (
+            <StartPagesList
+              pages={startPages ?? []}
+              activePageId={activePageId}
+              onMenuItemClick={onMenuItemClick}
+              onRemove={onRemoveStartPage}
+            />
           ) : (
             <FavoritesTree
               folders={favoriteFolders}

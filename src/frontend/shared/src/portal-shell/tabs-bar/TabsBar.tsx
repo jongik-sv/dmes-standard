@@ -17,6 +17,7 @@ import {
   IconStarFilled,
 } from "@tabler/icons-react";
 import { createTrailingResizeScheduler, getTabVisibilityScrollLeft } from "./tab-visibility";
+import { getTabCloseTargets, type TabCloseScope } from "../start-pages";
 import "./TabsBar.css";
 
 const VIEWPORT_RESIZE_SETTLE_MS = 120;
@@ -72,6 +73,15 @@ export interface TabsBarProps {
   /** 전체 화면 중이면 전체 화면 버튼이 끝내기 버튼으로 바뀌고 헤더 토글을 숨긴다. */
   isFullscreen?: boolean;
   onExitFullscreen?: () => void;
+  /** 기본 화면으로 등록된 pageId — 컨텍스트 메뉴 라벨(등록/해제)을 정한다. */
+  startPageIds?: ReadonlySet<string>;
+  /**
+   * 탭 우클릭 '기본 화면 등록/해제'. 대상은 활성 탭이 아니라 우클릭한 탭의 pageId 다.
+   * 미지정 시 항목을 숨긴다.
+   */
+  onToggleStartPage?: (pageId: string) => void;
+  /** 등록할 수 있는 화면인지(메뉴에 있는 화면만 서버가 받는다). 미지정 시 모두 허용. 해제는 늘 허용. */
+  canRegisterStartPage?: (pageId: string) => boolean;
 }
 
 /** 탭바 아이콘 버튼 툴팁 — 네이티브 title 은 늦게 뜨거나 보이지 않아 Mantine Tooltip 으로 띄운다. */
@@ -99,6 +109,9 @@ export function TabsBar({
   onEnterFullscreen,
   isFullscreen = false,
   onExitFullscreen,
+  startPageIds,
+  onToggleStartPage,
+  canRegisterStartPage,
 }: TabsBarProps) {
   const tabsScrollRef = useRef<HTMLDivElement>(null);
   const [showScrollButtons, setShowScrollButtons] = useState(false);
@@ -295,20 +308,43 @@ export function TabsBar({
     setContextMenu({ tabId, x: e.clientX, y: e.clientY });
   };
 
-  const closeThisTab = () => {
+  // 닫기 대상은 화면에 보이는 순서(tabs prop)로 계산한다. 홈 탭은 닫지 않는다.
+  const contextCloseTargets = (scope: TabCloseScope): string[] =>
+    contextMenu ? getTabCloseTargets(tabs, contextMenu.tabId, scope) : [];
+
+  const closeFromContextMenu = (scope: TabCloseScope) => {
     if (!contextMenu) return;
-    onTabClose(contextMenu.tabId);
+    const targets = contextCloseTargets(scope);
+    if (targets.length === 0) return; // disabled 항목 — 클릭해도 아무것도 하지 않는다.
+    targets.forEach((tabId) => onTabClose(tabId));
+    // 보고 있던 탭이 닫히면 portal-shell 은 생성 순서 마지막 탭으로 넘어간다. 묶어 닫을 때는 그 대신
+    // 우클릭한 탭(모두 닫기면 홈)을 보여 준다.
+    if (scope !== "this" && activeTabId && targets.includes(activeTabId)) {
+      if (scope === "all") onGoHome();
+      else onTabClick(contextMenu.tabId);
+    }
     setContextMenu(null);
   };
 
-  // 홈 탭과 우클릭 대상 탭을 제외한 모든 탭 닫기
-  const closeOtherTabs = () => {
-    if (!contextMenu) return;
-    tabs.forEach((tab) => {
-      if (!tab.isHome && tab.id !== contextMenu.tabId) onTabClose(tab.id);
-    });
+  const contextTab = contextMenu ? tabs.find((tab) => tab.id === contextMenu.tabId) : undefined;
+  const isContextTabStartPage = !!contextTab && !!startPageIds?.has(contextTab.pageId);
+  const canToggleContextStartPage =
+    !!contextTab &&
+    (isContextTabStartPage || !canRegisterStartPage || canRegisterStartPage(contextTab.pageId));
+
+  const toggleContextStartPage = () => {
+    if (!contextTab || !onToggleStartPage || !canToggleContextStartPage) return;
+    onToggleStartPage(contextTab.pageId);
     setContextMenu(null);
   };
+
+  const contextMenuItems: Array<{ scope: TabCloseScope; label: string }> = [
+    { scope: "this", label: "탭 닫기" },
+    { scope: "left", label: "왼쪽 탭 닫기" },
+    { scope: "right", label: "오른쪽 탭 닫기" },
+    { scope: "others", label: "다른 탭 닫기" },
+    { scope: "all", label: "모든 탭 닫기" },
+  ];
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setIsDragging(true);
@@ -623,12 +659,33 @@ export function TabsBar({
           style={{ top: contextMenu.y, left: contextMenu.x }}
           role="menu"
         >
-          <li className="tab-context-menu-item" role="menuitem" onClick={closeThisTab}>
-            탭 닫기
-          </li>
-          <li className="tab-context-menu-item" role="menuitem" onClick={closeOtherTabs}>
-            다른 탭 닫기
-          </li>
+          {contextMenuItems.map(({ scope, label }) => {
+            const disabled = contextCloseTargets(scope).length === 0;
+            return (
+              <li
+                key={scope}
+                className={`tab-context-menu-item ${disabled ? "is-disabled" : ""}`}
+                role="menuitem"
+                aria-disabled={disabled || undefined}
+                onClick={() => closeFromContextMenu(scope)}
+              >
+                {label}
+              </li>
+            );
+          })}
+          {onToggleStartPage && (
+            <>
+              <li className="tab-context-menu-separator" role="separator" />
+              <li
+                className={`tab-context-menu-item ${canToggleContextStartPage ? "" : "is-disabled"}`}
+                role="menuitem"
+                aria-disabled={!canToggleContextStartPage || undefined}
+                onClick={toggleContextStartPage}
+              >
+                {isContextTabStartPage ? "기본 화면 해제" : "기본 화면 등록"}
+              </li>
+            </>
+          )}
         </ul>
       )}
     </div>

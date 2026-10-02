@@ -425,3 +425,18 @@
 .tab-context-menu-item:hover {
   background-color: var(--color-bg-hover);
 }
+
+.tab-context-menu-item.is-disabled {
+  color: var(--color-text-disabled);
+  cursor: default;
+}
+
+.tab-context-menu-item.is-disabled:hover {
+  background-color: transparent;
+}
+
+.tab-context-menu-separator {
+  height: 1px;
+  margin: 4px 0;
+  background-color: var(--color-border);
+}

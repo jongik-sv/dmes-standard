@@ -81,5 +81,17 @@ for (const app of guardApps) {
         message: "인증이 필요합니다.",
       },
     });
+
+    const portalStartPagesResponse = await request.post(
+      `${app.baseUrl}/api/mcm/oasis/secStartPgm/search`,
+    );
+    expect(portalStartPagesResponse.status()).toBe(401);
+    await expect(portalStartPagesResponse.json()).resolves.toEqual({
+      success: false,
+      error: {
+        code: "UNAUTHORIZED",
+        message: "인증이 필요합니다.",
+      },
+    });
   });
 }

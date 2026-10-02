@@ -7,6 +7,7 @@ import {
   resolvePortalHomePageId,
   usePortalFavorites,
   usePortalMenu,
+  usePortalStartPages,
 } from "@dk-oasis/shared/portal-shell";
 import { useGfnMessage } from "@dk-oasis/shared/message-provider";
 import "@dk-oasis/shared/portal-shell.css";
@@ -21,6 +22,9 @@ const FAVORITES_ENDPOINT = { endpoint: "/api/mcm/oasis/secFavorite/search" };
 const FAVORITE_TOGGLE_ENDPOINT = "/api/mcm/oasis/secFavorite/toggle";
 const FAVORITE_ADD_FOLDER_ENDPOINT = "/api/mcm/oasis/secFavorite/addFolder";
 const FAVORITE_DELETE_FOLDER_ENDPOINT = "/api/mcm/oasis/secFavorite/deleteFolder";
+// 기본 화면(포털을 처음 시작할 때 자동으로 여는 화면) — 즐겨찾기와 같은 방식(사용자별 서버 저장).
+const START_PAGES_ENDPOINT = { endpoint: "/api/mcm/oasis/secStartPgm/search" };
+const START_PAGE_TOGGLE_ENDPOINT = "/api/mcm/oasis/secStartPgm/toggle";
 // 페이지 접근 이력(RECORD_ACCESS) 엔드포인트는 legacy secMenu.bpmn / secMenuService 빈 제거(2026-06-01)와 함께 폐기됨.
 // commMenuMng 신규 자산에 대응 action 미도입 — onPageOpen 콜백 자체를 PortalShell 에 전달하지 않는다.
 const DEFAULT_HOME_PAGE_ID = resolvePortalHomePageId(MODULE_ID, "home");
@@ -29,10 +33,16 @@ function PortalShellWithMessage({
   menu,
   favorites,
   refetchFavorites,
+  startPages,
+  isStartPagesLoaded,
+  refetchStartPages,
 }: {
   menu: NonNullable<ReturnType<typeof usePortalMenu>["menu"]>;
   favorites: ReturnType<typeof usePortalFavorites>["favorites"];
   refetchFavorites: ReturnType<typeof usePortalFavorites>["refetch"];
+  startPages: ReturnType<typeof usePortalStartPages>["startPages"];
+  isStartPagesLoaded: boolean;
+  refetchStartPages: ReturnType<typeof usePortalStartPages>["refetch"];
 }) {
   const gfn_message = useGfnMessage();
 
@@ -144,6 +154,40 @@ function PortalShellWithMessage({
     [gfn_message, callFavoriteFolderAction]
   );
 
+  // 탭 우클릭 '기본 화면 등록/해제' · 사이드바 해제 버튼 → 백엔드 토글 → 목록 재조회.
+  // pageId 는 우클릭한 탭의 것이다. userId 는 BE 가 인증 사용자로 강제한다(body 값은 참고용).
+  const handleToggleStartPage = useCallback(
+    async (pageId: string) => {
+      try {
+        const meRes = await fetch("/api/auth/me", { credentials: "same-origin" });
+        const me = await meRes.json();
+        const userId: string = me.user?.id ?? "";
+        if (!userId) {
+          gfn_message("로그인 세션이 만료되었습니다. 다시 로그인해 주세요.", "", "", "error");
+          return;
+        }
+        const res = await fetch(START_PAGE_TOGGLE_ENDPOINT, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ meta: { userId, menuId: "PORTAL_SHELL" }, params: { userId, pageId } }),
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          throw new Error(`기본 화면 처리 실패 (${res.status}) ${text}`);
+        }
+        const body = await res.json();
+        if (!body.meta?.success) {
+          throw new Error(body.meta?.message ?? "기본 화면 처리 실패");
+        }
+        await refetchStartPages();
+      } catch (err) {
+        gfn_message(err instanceof Error ? err.message : "기본 화면 처리 중 오류가 발생했습니다.", "", "", "error");
+      }
+    },
+    [gfn_message, refetchStartPages]
+  );
+
   // onPageOpen (메뉴 접근 이력) — legacy secMenuService 제거(2026-06-01)와 함께 미연결.
   // commMenuMng 신규 자산에서 페이지 접근 이력 적재 action 이 도입되면 재연결.
 
@@ -158,6 +202,9 @@ function PortalShellWithMessage({
       onToggleFavorite={handleToggleFavorite}
       onAddFavoriteFolder={handleAddFavoriteFolder}
       onDeleteFavoriteFolder={handleDeleteFavoriteFolder}
+      startPages={startPages}
+      isStartPagesLoaded={isStartPagesLoaded}
+      onToggleStartPage={handleToggleStartPage}
     />
   );
 }
@@ -175,6 +222,14 @@ export default function PortalPage() {
     errorMessage: favoritesErrorMessage,
     refetch: refetchFavorites,
   } = usePortalFavorites(FAVORITES_ENDPOINT);
+
+  // 기본 화면 목록은 포털을 가리지 않는다(로딩 화면 조건에 넣지 않음) — 조회가 끝나면 PortalShell 이 한 번 자동으로 연다.
+  // 여기(최상위)에 두어 즐겨찾기 재조회로 PortalShell 이 다시 마운트돼도 목록·조회 상태를 잃지 않는다.
+  const {
+    startPages,
+    isLoaded: isStartPagesLoaded,
+    refetch: refetchStartPages,
+  } = usePortalStartPages(START_PAGES_ENDPOINT);
 
   if (isMenuLoading || isFavoritesLoading) {
     return (
@@ -213,5 +268,14 @@ export default function PortalPage() {
     );
   }
 
-  return <PortalShellWithMessage menu={menu} favorites={favorites} refetchFavorites={refetchFavorites} />;
+  return (
+    <PortalShellWithMessage
+      menu={menu}
+      favorites={favorites}
+      refetchFavorites={refetchFavorites}
+      startPages={startPages}
+      isStartPagesLoaded={isStartPagesLoaded}
+      refetchStartPages={refetchStartPages}
+    />
+  );
 }
