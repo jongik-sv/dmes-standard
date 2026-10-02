@@ -142,12 +142,39 @@ mcm:
     complexity-pattern: ""  # 복잡도 검증 끔
     legacy-grace-days: -1
 
-# ── 위젯 (스펙 2026-10-02-widget-admin-generic) ──
+# ── dmes 자체 설정 (최상위 dmes 키는 여기 하나만 둔다 — 같은 최상위 키가 둘이면 기동이 실패한다) ──
 dmes:
+  # ── 클라이언트 IP 판정 (화면 사용 기록 등) ──
+  # trusted-proxies = X-Forwarded-For 를 믿을 직전 홉 IP 목록(쉼표 구분, CIDR 미지원).
+  # 운영에서는 BFF 와 NGINX 의 IP 를 반드시 추가한다. 목록에 없으면 헤더를 무시하고 remoteAddr 를 쓴다.
+  client-ip:
+    trusted-proxies: 127.0.0.1,::1
+
+  # ── 위젯 (스펙 2026-10-02-widget-admin-generic) ──
   widget:
     # 미디어 위젯 파일 본체 폴더(§4.3). 실행 폴더 기준 상대 경로 — bootRun 은 src/backend/mcm. 없으면 첫 올리기 때 만든다.
     # 파일 이름은 FILE_ID(32자 16진수)만 쓴다. 운영계는 공유 디스크 절대 경로로 바꾼다.
     media-dir: ./data/widget-media
+    # 환율·날씨 위젯(§8). 기본은 키 없는 공개 API. 서버가 밖으로 나갈 수 없는 망이면 enabled: false 로 끈다
+    # (위젯은 「외부 정보를 불러오지 못했습니다」를 보인다).
+    ext:
+      enabled: true
+      exchange:
+        provider: frankfurter                # frankfurter(유럽중앙은행, 키 없음) | koreaexim(한국수출입은행, 키 필요)
+        frankfurter-base-url: https://api.frankfurter.dev/v1
+        koreaexim-key: ${WIDGET_KOREAEXIM_KEY:}   # 키는 환경변수로만 넣는다(로그·저장소에 남기지 않는다)
+        koreaexim-base-url: https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON
+      weather:
+        base-url: https://api.open-meteo.com/v1/forecast
+    # AI 챗봇 위젯(§9). provider 가 빈 값이면 가짜 공급자(정해진 답)로 동작한다.
+    llm:
+      provider: ${WIDGET_LLM_PROVIDER:}      # "" (가짜) | anthropic | openai(OpenAI 호환 — Ollama·vLLM 등 포함)
+      base-url: ${WIDGET_LLM_BASE_URL:}      # openai 호환 서버 주소(예: http://localhost:11434/v1). anthropic 은 비워 둔다
+      model: ${WIDGET_LLM_MODEL:}
+      api-key: ${WIDGET_LLM_API_KEY:}        # 키는 환경변수로만 넣는다(toString·로그는 「설정됨」만 찍는다)
+      timeout-sec: 60
+      # 생각(thinking) 토큰도 한도에 들어가는 모델이 있어 1024 는 답이 잘리기 쉽다(Task 11 권고).
+      max-tokens: 4096
 
 # ── caravan-console 자체 설정 + Repository alias (kmc-core 0.2.0 패턴 B) ──
 # caravan 의존 제거 (2026-05-12) — caravan-console.kafka.* / caravan.* 블록 삭제. caravan 라이브러리는 caravan-hub 호스트에서만 사용 (v4 정본).
@@ -167,13 +194,6 @@ caravan-console:
   repository:                             # caravan-console 메타 Repository → caravan EMF/TxMgr (Kafka 스키마 CARAVANUSER)
     emf-bean: cactusEntityManagerFactoryCaravan
     tx-bean:  cactusTransactionManagerCaravan
-
-# ── 클라이언트 IP 판정 (화면 사용 기록 등) ──
-# trusted-proxies = X-Forwarded-For 를 믿을 직전 홉 IP 목록(쉼표 구분, CIDR 미지원).
-# 운영에서는 BFF 와 NGINX 의 IP 를 반드시 추가한다. 목록에 없으면 헤더를 무시하고 remoteAddr 를 쓴다.
-dmes:
-  client-ip:
-    trusted-proxies: 127.0.0.1,::1
 
 # ── 로깅 ──
 logging:
