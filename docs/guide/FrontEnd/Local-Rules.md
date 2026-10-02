@@ -272,3 +272,12 @@ shared·m-mcm 의 Prettier 는 `prettier-plugin-tailwindcss` 를 쓴다. 이 플
 - 확인창: `삭제`(제목 `확인`)와 `확정취소`(제목 `확정취소`)는 누르면 확인창을 거친 뒤 실행한다.
 - 룰도 마스터코드처럼 `새 버전(major)`·`새 버전(minor)` 두 버튼을 쓴다. 룰 세트·레이아웃·헤더 화면도 같은 두 버튼을 쓴다(D-144, [ADR-0006](../../mdm/adr/0006-object-versioning-major-minor.md)). minor 가 999 이면 minor 버튼만 비활성이다.
 - 활성 조건은 서버 판정값(`cancelConfirmable` 등)을 화면에서 다시 계산하지 않는다. 권한 action 이름은 화면별로 유지한다.
+
+## 25. 모달 안 그리드 — flex 칸만으로는 높이가 0 이 된다 (2026-10-02)
+
+shared `Modal` 의 `lg`·`xl` 은 최소 높이(70·80vh)만 있고 고정 높이는 없다. 그래서 내용이 짧으면 표·footer 아래가 크게 빈다. 이 빈 곳을 그리드로 채우려고 `flex: 1` 칸 안에 `AgDataGrid`(height 를 주지 않으면 부모 높이 100%)를 두면, 그 100% 가 기준 높이를 얻지 못해 **그리드가 0px 로 접힌다**. 단위 테스트(happy-dom)는 레이아웃을 계산하지 않아 이 문제가 보이지 않는다.
+
+- 표 칸은 `flex: 1; min-height: 200px; position: relative` 로 두고, 그 안에 `position: absolute; inset: 0` 칸을 하나 더 두어 그리드를 넣는다. 절대 위치 칸은 표 칸의 실제 높이를 기준으로 삼는다.
+- 모달 본문 div 는 `flex: 1; min-height: 0; display: flex; flex-direction: column` 이고, 위아래 안내 줄은 `flex: none` 이다.
+- 빈 곳을 없애려고 크기를 `md`(600px)로 낮추지 않는다. 다섯 열 이상의 표는 글자가 잘리고 가로 스크롤이 생긴다.
+- 예시: `m-mdm/pages/dme/ruleEdit/cards/BoundaryCaseModal.tsx` 의 `gridBox`·`gridFill`.
