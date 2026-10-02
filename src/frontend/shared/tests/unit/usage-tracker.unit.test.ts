@@ -495,6 +495,66 @@ describe("UsageTracker 15분 경과 — 판정 타이머가 멈춘 사이 다시
   });
 });
 
+describe("UsageTracker 1초 미만으로 버린 OPEN 조각", () => {
+  it("(S2) OPEN 직후 0.8초 만에 다른 탭으로 가 16분 뒤 돌아오면, 이어지는 구간이 OPEN 을 물려받는다", () => {
+    const t = create();
+    t.activate("csa/a", "OPEN");
+    advance(800);
+    t.activate(null); // 활성화 안 된 다른 탭으로 감 — a 일시정지(0.8초)
+    advance(16 * MIN - 800); // 15분 판정에서 a 의 0.8초 OPEN 조각은 버려진다
+    expect(emitted).toEqual([]);
+    t.activate("csa/a");
+    advance(MIN);
+    t.end();
+    expect(emitted.map(rows)).toEqual([[["csa/a", "OPEN", 16 * MIN, 17 * MIN, MIN]]]);
+  });
+
+  it("(S1) OPEN 직후 0.5초에 입력하고 15분 넘게 읽으면, 15분 판정에서 잘려 이어지는 구간이 OPEN 을 물려받는다", () => {
+    const t = create();
+    t.activate("csa/a", "OPEN");
+    advance(500);
+    input(); // 0.5초
+    advance(20 * MIN - 500); // 15분 판정 — 0.5초에서 잘려 0.5초 OPEN 조각은 버려진다
+    input(); // 20분
+    advance(MIN);
+    t.end();
+    expect(emitted.map(rows)).toEqual([
+      [["csa/a", "OPEN", 500, 20 * MIN, 20 * MIN - 500]],
+      [["csa/a", "RESUME", 20 * MIN, 21 * MIN, MIN]],
+    ]);
+  });
+
+  it("가림으로 버려진 OPEN 도 다시 볼 때 물려받고, 한 번 물려준 뒤에는 RESUME 이다", () => {
+    const t = create();
+    t.activate("csa/a", "OPEN");
+    advance(500);
+    setVisibility("hidden");
+    advance(16 * MIN); // 15분 판정 — 0.5초 OPEN 조각을 버린다
+    setVisibility("visible");
+    advance(MIN);
+    win.dispatchEvent(new Event("pagehide"));
+    advance(1000);
+    input();
+    advance(2000);
+    t.end();
+    expect(emitted.map(rows)).toEqual([
+      [["csa/a", "OPEN", 16 * MIN + 500, 17 * MIN + 500, MIN]],
+      [["csa/a", "RESUME", 17 * MIN + 1500, 17 * MIN + 3500, 2000]],
+    ]);
+  });
+
+  it("release 는 OPEN 대기를 지운다(업무 호출 뒤 1초 안에 닫은 탭은 아무것도 남기지 않는다)", () => {
+    const t = create();
+    t.activate("csa/a", "OPEN");
+    advance(500);
+    t.release("csa/a");
+    t.activate("csa/a"); // 같은 키를 다시 보더라도 OPEN 을 물려받지 않는다
+    advance(2000);
+    t.end();
+    expect(emitted.map(rows)).toEqual([[["csa/a", "RESUME", 500, 2500, 2000]]]);
+  });
+});
+
 describe("UsageTracker 빠른 전환", () => {
   it("짧은 간격으로 오가도 같은 clientSegId 가 두 번 나오지 않고, 이용 시간 합이 경과 시간을 넘지 않는다", () => {
     const t = create({ createId: createUsageSegmentId }); // 실제 ID 생성기

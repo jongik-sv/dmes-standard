@@ -127,6 +127,11 @@ export class UsageTracker {
   private nextKind: UsageStartKind = "RESUME";
   /** key → 열린 구간(보고 있거나 일시정지 중). 보고 있는 것은 currentKey 의 구간 하나뿐이다. */
   private readonly segments = new Map<string, OpenSegment>();
+  /**
+   * OPEN 대기 — OPEN 구간이 이용 시간 1초 미만으로 버려졌지만 대상이 아직 살아 있는 key. 그 key 의 다음 구간을
+   * 열 때(어느 경로든) OPEN 으로 시작해 열람 횟수를 잃지 않는다. release·pagehide·로그아웃은 지운다.
+   */
+  private readonly pendingOpen = new Set<string>();
   private lastInputAt = 0;
   /** 시계가 뒤로 가도 이용 시간이 음수가 되지 않게 지금까지 본 가장 늦은 시각. */
   private lastTime = Number.NEGATIVE_INFINITY;
@@ -216,6 +221,7 @@ export class UsageTracker {
     }
     const seg = this.segments.get(key);
     if (seg) this.emit([this.finish(key, seg)]);
+    this.pendingOpen.delete(key); // 1초 안에 닫은 탭은 아무것도 남기지 않는다
   }
 
   /** 로그아웃 — 일시정지 중인 것까지 모든 구간을 내보내고, 다시 activate 될 때까지 열지 않는다. */
@@ -274,7 +280,7 @@ export class UsageTracker {
     this.segments.set(this.currentKey, {
       id: this.createId(),
       pageId: this.currentPageId,
-      startKind: this.nextKind,
+      startKind: this.takeStartKind(this.currentKey, this.nextKind),
       startedAt: t,
       accumulatedMs: 0,
       runningSince: t,
@@ -311,6 +317,7 @@ export class UsageTracker {
     if (!this.closeIfIdle(t)) this.pauseRunning(t);
     const out: UsageSegment[] = [];
     for (const [key, seg] of [...this.segments]) out.push(this.finish(key, seg));
+    this.pendingOpen.clear();
     this.nextKind = "RESUME";
     this.emit(out);
   }
@@ -335,7 +342,7 @@ export class UsageTracker {
       this.segments.set(key, {
         id: this.createId(),
         pageId: seg.pageId,
-        startKind: "RESUME",
+        startKind: this.takeStartKind(key, "RESUME"),
         startedAt: cutAt,
         accumulatedMs: 0,
         runningSince: cutAt,
@@ -345,9 +352,18 @@ export class UsageTracker {
     this.emit(out);
   }
 
-  /** 일시정지된 구간을 목록에서 빼고 내보낼 행으로 바꾼다. */
+  /** key 의 새 구간 시작 사유 — OPEN 대기가 있으면 소비해 OPEN, 없으면 kind. */
+  private takeStartKind(key: string, kind: UsageStartKind): UsageStartKind {
+    return this.pendingOpen.delete(key) ? "OPEN" : kind;
+  }
+
+  /**
+   * 일시정지된 구간을 목록에서 빼고 내보낼 행으로 바꾼다. OPEN 구간이 1초 미만이라 버려질 것이면 OPEN 대기를 남긴다
+   * (release·closeAll 은 이어서 지운다).
+   */
   private finish(key: string, seg: OpenSegment): UsageSegment {
     this.segments.delete(key);
+    if (seg.startKind === "OPEN" && seg.accumulatedMs < this.minSegmentMs) this.pendingOpen.add(key);
     return {
       clientSegId: seg.id,
       pageId: seg.pageId,
