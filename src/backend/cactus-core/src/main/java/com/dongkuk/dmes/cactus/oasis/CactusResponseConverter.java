@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.cactus.oasis;
 
+import com.dongkuk.dmes.cactus.common.ResponseCodeAware;
 import com.dongkuk.dmes.cactus.web.response.CactusResponse;
 import com.dongkuk.dmes.cactus.web.response.GridResult;
 import com.dongkuk.dmes.cactus.web.response.ResponseMeta;
@@ -90,12 +91,32 @@ public class CactusResponseConverter {
      * 에러 결과를 CactusResponse로 변환한다.
      */
     private CactusResponse convertError(ServiceResult result, String txId) {
-        String code = (result.serviceResultCode() == ServiceResultCode.USER_ERROR)
-                ? "E001" : "S001";
+        String code = responseCode(result.exception());
+        if (code == null) {
+            code = (result.serviceResultCode() == ServiceResultCode.USER_ERROR) ? "E001" : "S001";
+        }
         String message = result.serviceResultMessage() != null
                 ? result.serviceResultMessage()
                 : "오류가 발생했습니다.";
 
         return new CactusResponse.Builder(ResponseMeta.error(txId, code, message)).build();
+    }
+
+    /** 원인 사슬에서 {@link ResponseCodeAware} 예외의 코드를 찾는다(감싸인 예외까지, 순환 방지로 깊이 제한). 없으면 null. */
+    private static String responseCode(Throwable e) {
+        Throwable t = e;
+        for (int depth = 0; t != null && depth < 16; depth++) {
+            if (t instanceof ResponseCodeAware aware) {
+                String code = aware.responseCode();
+                if (code != null && !code.isBlank()) {
+                    return code;
+                }
+            }
+            if (t.getCause() == t) {
+                break;
+            }
+            t = t.getCause();
+        }
+        return null;
     }
 }

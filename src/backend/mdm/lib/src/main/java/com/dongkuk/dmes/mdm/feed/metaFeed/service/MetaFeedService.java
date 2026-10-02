@@ -110,7 +110,7 @@ public class MetaFeedService {
      */
     public Map<String, Object> save(MetaFeedSaveRequest request, List<Map<String, Object>> keys) {
         if (!currentUser.roleIds().contains(SYSADMIN)) {
-            throw MdmErrors.of(MdmErrorCode.SYSADMIN_ROLE_REQUIRED);
+            throw MdmErrors.coded(MdmErrorCode.SYSADMIN_ROLE_REQUIRED); // meta.code MDM027 — 화면이 코드로 가린다(Ruling R10)
         }
         MetaTargetType type = requireType(request == null ? null : request.getType());
         String kindText = request == null ? null : request.getKind();

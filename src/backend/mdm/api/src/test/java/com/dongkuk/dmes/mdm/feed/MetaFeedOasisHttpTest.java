@@ -346,6 +346,8 @@ class MetaFeedOasisHttpTest {
 
         JsonNode denied = post("save", "SYSTEM", body(params, "coil_thk"));
         assertFalse(denied.path("meta").path("success").asBoolean(true), denied.toString());
+        // 계약(Ruling R10) — 권한 거부는 meta.code MDM027 이다(BPMN 안 예외의 기본 S001 이 아니다).
+        assertEquals("MDM027", denied.path("meta").path("code").asText(), denied.toString());
         assertTrue(denied.path("meta").path("message").asText().startsWith(MdmErrorCode.SYSADMIN_ROLE_REQUIRED.defaultMessage()),
                 denied.toString());
         assertEquals(List.of(), MetaRevTestSupport.rows(jdbc));

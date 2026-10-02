@@ -28,6 +28,17 @@ class MdmErrorsTest {
     }
 
     @Test
+    void coded_는_같은_모양에_OASIS_meta_code_용_MDMnnn_을_더한다() {
+        BusinessException e = MdmErrors.coded(MdmErrorCode.SYSADMIN_ROLE_REQUIRED);
+        assertEquals(ErrorCode.ACCESS_DENIED, e.getErrorCode());
+        assertEquals("시스템 관리자만 할 수 있습니다", e.getMessage());
+        assertEquals("MDM027", e.getErrors().get(0).code());
+        assertEquals("MDM027", ((com.dongkuk.dmes.cactus.common.ResponseCodeAware) e).responseCode());
+        // 다른 MDM 오류는 BPMN 경로 기본 코드(S001) 관례 그대로 — 응답 코드를 스스로 정하지 않는다.
+        assertEquals(false, MdmErrors.of(MdmErrorCode.SYSADMIN_ROLE_REQUIRED) instanceof com.dongkuk.dmes.cactus.common.ResponseCodeAware);
+    }
+
+    @Test
     void 검사_이슈를_뒤이은_detail_로_싣는다() {
         List<MdmCheckIssue> issues = List.of(
                 new MdmCheckIssue("C1", "첫 이슈", "codeName", "P01"),
