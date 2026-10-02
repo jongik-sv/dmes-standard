@@ -14,7 +14,7 @@ export const SCHEMA_PATH = path.resolve(
   HERE,
   "../../../backend/maru-mdm-engine/src/main/resources/kr/dongkuk/maru/mdm/engine/engine-contract.schema.json",
 );
-export const OUTPUT_PATH = path.resolve(HERE, "../src/contract/engine-contract.generated.ts");
+export const OUTPUT_PATH = path.resolve(HERE, "../../shared/src/evalex/engine-contract.generated.ts");
 
 // 절대경로·시각을 넣지 않는다 — 어긋남 테스트가 환경마다 달라진다.
 const BANNER = `/* 생성 파일 — 직접 고치지 않는다.
