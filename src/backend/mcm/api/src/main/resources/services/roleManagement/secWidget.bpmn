@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="secWidgetDefinitions"
+                  targetNamespace="http://dongkuk.com/dmes/mcm">
+  <!-- 사용자 위젯 탭·배치 저장(포털 홈) — 스펙 2026-10-02-widget-foundation §4.2. 본인 데이터라 AUTH_ONLY. -->
+  <bpmn:process id="secWidget" name="사용자 위젯 서비스" isExecutable="true">
+    <bpmn:startEvent id="start"><bpmn:outgoing>flow_to_gw</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+
+    <bpmn:exclusiveGateway id="actionGateway">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_search</bpmn:outgoing>
+      <bpmn:outgoing>flow_saveTab</bpmn:outgoing>
+      <bpmn:outgoing>flow_deleteTab</bpmn:outgoing>
+      <bpmn:outgoing>flow_reorderTabs</bpmn:outgoing>
+      <bpmn:outgoing>flow_resetHome</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
+    <bpmn:serviceTask id="searchTask" name="위젯 탭·배치 조회" camunda:class="secWidgetService">
+      <bpmn:extensionElements><camunda:properties>
+        <camunda:property name="method" value="search" />
+        <camunda:property name="output" value="result" />
+        <camunda:property name="dto" value="com.dongkuk.dmes.mcm.widget.dto.SecWidgetSearchRequest" />
+      </camunda:properties></bpmn:extensionElements>
+      <bpmn:incoming>flow_search</bpmn:incoming>
+      <bpmn:outgoing>flow_search_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="endSearch" />
+    <bpmn:endEvent id="endSearch"><bpmn:incoming>flow_search_end</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_saveTab" name="saveTab" sourceRef="actionGateway" targetRef="saveTabTask" />
+    <bpmn:serviceTask id="saveTabTask" name="탭 저장(통째로 교체)" camunda:class="secWidgetService">
+      <bpmn:extensionElements><camunda:properties>
+        <camunda:property name="method" value="saveTab" />
+        <camunda:property name="output" value="result" />
+        <camunda:property name="dto" value="com.dongkuk.dmes.mcm.widget.dto.SecWidgetTabSaveRequest" />
+      </camunda:properties></bpmn:extensionElements>
+      <bpmn:incoming>flow_saveTab</bpmn:incoming>
+      <bpmn:outgoing>flow_saveTab_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_saveTab_end" sourceRef="saveTabTask" targetRef="endSaveTab" />
+    <bpmn:endEvent id="endSaveTab"><bpmn:incoming>flow_saveTab_end</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_deleteTab" name="deleteTab" sourceRef="actionGateway" targetRef="deleteTabTask" />
+    <bpmn:serviceTask id="deleteTabTask" name="탭 지우기" camunda:class="secWidgetService">
+      <bpmn:extensionElements><camunda:properties>
+        <camunda:property name="method" value="deleteTab" />
+        <camunda:property name="output" value="result" />
+        <camunda:property name="dto" value="com.dongkuk.dmes.mcm.widget.dto.SecWidgetTabRequest" />
+      </camunda:properties></bpmn:extensionElements>
+      <bpmn:incoming>flow_deleteTab</bpmn:incoming>
+      <bpmn:outgoing>flow_deleteTab_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_deleteTab_end" sourceRef="deleteTabTask" targetRef="endDeleteTab" />
+    <bpmn:endEvent id="endDeleteTab"><bpmn:incoming>flow_deleteTab_end</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_reorderTabs" name="reorderTabs" sourceRef="actionGateway" targetRef="reorderTabsTask" />
+    <bpmn:serviceTask id="reorderTabsTask" name="탭 순서 바꾸기" camunda:class="secWidgetService">
+      <bpmn:extensionElements><camunda:properties>
+        <camunda:property name="method" value="reorderTabs" />
+        <camunda:property name="output" value="result" />
+      </camunda:properties></bpmn:extensionElements>
+      <bpmn:incoming>flow_reorderTabs</bpmn:incoming>
+      <bpmn:outgoing>flow_reorderTabs_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_reorderTabs_end" sourceRef="reorderTabsTask" targetRef="endReorderTabs" />
+    <bpmn:endEvent id="endReorderTabs"><bpmn:incoming>flow_reorderTabs_end</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_resetHome" name="resetHome" sourceRef="actionGateway" targetRef="resetHomeTask" />
+    <bpmn:serviceTask id="resetHomeTask" name="홈 기본 배치로 되돌리기" camunda:class="secWidgetService">
+      <bpmn:extensionElements><camunda:properties>
+        <camunda:property name="method" value="resetHome" />
+        <camunda:property name="output" value="result" />
+        <camunda:property name="dto" value="com.dongkuk.dmes.mcm.widget.dto.SecWidgetSearchRequest" />
+      </camunda:properties></bpmn:extensionElements>
+      <bpmn:incoming>flow_resetHome</bpmn:incoming>
+      <bpmn:outgoing>flow_resetHome_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_resetHome_end" sourceRef="resetHomeTask" targetRef="endResetHome" />
+    <bpmn:endEvent id="endResetHome"><bpmn:incoming>flow_resetHome_end</bpmn:incoming></bpmn:endEvent>
+  </bpmn:process>
+</bpmn:definitions>
