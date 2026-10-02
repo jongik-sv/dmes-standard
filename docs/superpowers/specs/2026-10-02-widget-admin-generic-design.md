@@ -261,7 +261,7 @@ BE `EndpointPermissionFilter.AUTH_ONLY_OBJ_ACTION_PREFIXES` 와 FE `m-mcm/proxy.
 | 서비스/action | 입력 | 출력 | 과제 |
 |---|---|---|---|
 | `widgetDef/list` | — | `{ defs: WidgetDefRow[], homeDefault: WidgetItem[] \| null, homeDefaultKey: string \| null }` — 사용자 부서 기준 기본 배치(§4.2 순서), 없으면 null. **모든 사용자가 부르므로 `configJson` 에서 서버 전용 키를 지우고 돌려준다**(`query-*`: `sql`, `chat`: `systemPrompt`·`dataQueryDefIds`). 관리자 `commWidgetMng/search` 는 전부 돌려준다 | B |
-| `widgetData/run` | `defId` | `{ columns: [{name}], rows: [...], truncated: boolean }` | C |
+| `widgetData/run` | `defId` | `{ columns: string[], rows: [...], truncated: boolean }` | C |
 | `widgetExt/exchange` | `base`(KRW), `symbols`(목록), `days`(1~90) | `{ latest: [{cur, rate, diff, date}], history: [{date, cur, rate}] }` | D |
 | `widgetExt/weather` | `lat`, `lon` | `{ current: {temp, code, wind, humidity}, daily: [{date, min, max, code, pop}] }` | D |
 | `widgetChat/history` | `instId` | `{ messages: [{seq, role, content, links}] }` | D |
@@ -353,7 +353,7 @@ mcm-core `widget.query` 패키지의 `WidgetQueryExecutor`. mcm 업무 코드에
 ### 8.1 환율
 
 - 제공자 인터페이스 `ExchangeRateProvider`: `fetch(base, symbols, from, to) → [{date, cur, rate}]`.
-  - 기본 `FrankfurterProvider` — `https://api.frankfurter.dev/v1/{from}..{to}?base=KRW&symbols=USD,EUR` 를 받아 역수로 바꿔 「1 외화 = n KRW」 로 저장한다(유럽중앙은행 기준, 키 없음, 영업일만 있음).
+  - 기본 `FrankfurterProvider` — `https://api.frankfurter.dev/v1/{from}..{to}?symbols=KRW,USD,…` 를 EUR 기준으로 받아 「1 외화 = KRW ÷ X」 교차 계산으로 「1 외화 = n KRW」 를 저장한다(유럽중앙은행 기준, 키 없음, 영업일만 있음. 처음 적은 base=KRW 역수 방식에서 구현 때 바꿨다. Frankfurter 는 VND 를 주지 않는다).
   - `KoreaEximProvider` — `dmes.widget.ext.exchange.koreaexim-key` 가 있을 때 쓴다(한국수출입은행 매매기준율).
   - 고르기: `dmes.widget.ext.exchange.provider`(`frankfurter` 기본·`koreaexim`).
 - 조회 흐름: DB 에서 기간 값을 읽고, 빠진 날짜가 있으면(오늘 포함, 하루 한 번만 시도) 제공자로 채워 넣은 뒤 돌려준다. 제공자 실패면 DB 에 있는 값만 돌려주고 `stale: true` 를 붙인다.
@@ -460,7 +460,7 @@ interface LlmClient {
 - **shared 단위**: `mergeWidgetRegistry`(덮어쓰기·사용 중지·유형 없음·코드 없음), `WidgetFrame` 사용 중지 빈 칸, `WidgetPicker` 사용 중지 숨김, `WidgetWorkspace` `registryStatus`·`typeTitles`·`singleTab`.
 - **코드 생성**: 유형 폴더 검사(ID 불일치·파일 누락·중복) 실패.
 - **유형 렌더러·편집기**(vitest): 각 유형 최소 1개 — html 정화/iframe sandbox 속성(`allow-same-origin` 없음), web 같은 출처 거절, links 동작, 쿼리 표 `__preview` 경로.
-- **백엔드(SQLite, 도커 금지)**: 정의 저장 검사·ID 생성·삭제 거절(사용 중), 기본 배치 부서 상위 탐색·순환 방지, `widgetDef/list` 응답, SQL 검사기(허용·거절 사례 표), 실행기 행 상한·롤백·캐시, 환율 빈 날짜 채우기·역수 변환(가짜 HTTP), 날씨 캐시(가짜 HTTP), 미디어 형식·크기·SVG 거절·경로 조작, 챗봇 도구 반복·허용 defId·기록 100개 유지(가짜 LLM). OASIS BPMN 계약 시험(A 의 `SecWidgetBpmnActionTest` 방식).
+- **백엔드(SQLite, 도커 금지)**: 정의 저장 검사·ID 생성·삭제 거절(사용 중), 기본 배치 부서 상위 탐색·순환 방지, `widgetDef/list` 응답, SQL 검사기(허용·거절 사례 표), 실행기 행 상한·롤백·캐시, 환율 빈 날짜 채우기·EUR 교차 계산(가짜 HTTP), 날씨 캐시(가짜 HTTP), 미디어 형식·크기·SVG 거절·경로 조작, 챗봇 도구 반복·허용 defId·기록 100개 유지(가짜 LLM). OASIS BPMN 계약 시험(A 의 `SecWidgetBpmnActionTest` 방식).
 - **E2E**(ego-browser, 끝나면 브라우저 닫기): 관리 화면에서 코드 위젯 이름 덮어쓰기 → 홈 서랍에 반영, 사용 중지 → 홈에 빈 칸, 정의 위젯(쿼리 표·md·링크·환율·날씨·미디어·챗봇) 만들기 → 홈에 놓기, 전사·부서 기본 배치 편집 → 새 사용자 홈에 반영.
 
 ## 14. 진행 단계와 병합
