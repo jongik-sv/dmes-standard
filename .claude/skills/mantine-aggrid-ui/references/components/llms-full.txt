@@ -1639,7 +1639,7 @@ import { Input } from "@dk-oasis/shared/form";
 </FormGroup>
 ```
 
-MDM 정의로 값을 검사하려면 `useMdmValidation()`(`@dk-oasis/shared/mdm-meta`)의 결과를 `error` 로 준다. 저장 실패 오류는 `toFieldErrors(e)`(`@dk-oasis/shared/http`)에서 그 칸(`field`)의 `message` 를 `error` 로 준다.
+MDM 정의로 값을 검사하려면 `useMdmValidation()`(`@dk-oasis/shared/mdm-meta`)의 결과를 `error` 로 준다. 저장 실패 오류는 `toFieldErrors(e)`(`@dk-oasis/shared/http`, `e` 는 서버 `errors` 를 실은 오류나 OASIS 봉투)에서 그 칸(`field`)의 `message` 를 `error` 로 준다.
 
 ```tsx
 const { validateValue } = useMdmValidation();
@@ -3450,7 +3450,7 @@ const info = useMdmColumns([{ name: "title" }, { name: "etc", meta: false }]); /
 ```tsx
 import { FormGroup } from "@dk-oasis/shared/form";
 import { AgDataGrid } from "@dk-oasis/shared/grid";
-import { HttpError, toFieldErrors } from "@dk-oasis/shared/http";
+import { toFieldErrors } from "@dk-oasis/shared/http";
 import { useMdmValidation } from "@dk-oasis/shared/mdm-meta";
 
 const { validateValue, validateRows } = useMdmValidation();
@@ -3469,7 +3469,7 @@ async function save() {
     return;
   }
   try { await saveApi(changed); setFieldErrors([]); }
-  catch (e) { setFieldErrors(toFieldErrors(e, "notice")); }    // HttpError.errors(ErrorDetail) → 칸 오류
+  catch (e) { setFieldErrors(toFieldErrors(e, "notice")); }    // e.errors(서버 ErrorDetail 목록) → 칸 오류
 }
 <AgDataGrid columns={COLUMNS} data={rows} rowKey="NOTICE_ID" mdmValidate fieldErrors={fieldErrors} />
 ```
@@ -3477,7 +3477,8 @@ async function save() {
 - `useMdmValidation()` 은 공급자 안(포털 탭)에서만 검사한다. 밖이거나 `disabled` 면 늘 통과다. 받아 둔 메타만 쓰므로(동기) 그리드 열·`FormGroup name` 으로 등록되지 않은 이름은 첫 호출에서 요청만 걸고 건너뛴다.
 - `validateValue(name, value, row?, meta?)` · `validateRow(row, names)` → `{ 이름: 오류 }` · `validateRows(rows, names)` → `[{ rowIndex, field, issue }]`(`rowStatus` `D`·`deleted`, `_rowState`·`nativeeditor_status` `deleted` 행 제외).
 - `validateMdmValue(column, value, row?, caption?)` 는 메타를 이미 가진 곳(시험·특수 화면)에서 쓴다.
-- `toFieldErrors(source, grid?)` 는 `apiRequest` 가 던진 `HttpError`(`errors` = 서버 `ErrorDetail` 목록), OASIS 봉투 `{ meta, errors }`, 배열을 받아 `field` 가 있는 것만 `{ rowKey, rowIndex, field, message }` 로 돌려준다. `grid` 를 주면 그 그리드와 grid 없는 것만. 검증 불가(`MDM_UNAVAILABLE`, field 없음)는 빠지므로 메시지로 보인다.
+- `toFieldErrors(source, grid?)` 는 `errors` 배열을 가진 값(OASIS 봉투 `{ meta, errors }`, `errors` 를 실은 오류 객체, `apiRequest` 가 HTTP 4xx·5xx 에서 던진 `HttpError`)이나 배열을 받아 `field` 가 있는 것만 `{ rowKey, rowIndex, field, message }` 로 돌려준다. `grid` 를 주면 그 그리드와 grid 없는 것만. 검증 불가(`MDM_UNAVAILABLE`, field 없음)는 빠지므로 메시지로 보인다.
+- **OASIS 서비스는 `BusinessException` 을 HTTP 200 + `meta.success=false` 봉투로 돌려준다** — `apiRequest` 가 던지지 않는다. 화면의 봉투 해제 함수가 거부를 판정해 오류를 던질 때 봉투의 `errors` 를 그 오류 객체의 `errors` 칸에 실어야 `toFieldErrors(e)` 가 읽는다(또는 봉투를 그대로 넘긴다).
 
 ## Props
 

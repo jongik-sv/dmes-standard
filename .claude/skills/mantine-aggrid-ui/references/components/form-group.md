@@ -54,7 +54,7 @@ import { Input } from "@dk-oasis/shared/form";
 </FormGroup>
 ```
 
-MDM 정의로 값을 검사하려면 `useMdmValidation()`(`@dk-oasis/shared/mdm-meta`)의 결과를 `error` 로 준다. 저장 실패 오류는 `toFieldErrors(e)`(`@dk-oasis/shared/http`)에서 그 칸(`field`)의 `message` 를 `error` 로 준다.
+MDM 정의로 값을 검사하려면 `useMdmValidation()`(`@dk-oasis/shared/mdm-meta`)의 결과를 `error` 로 준다. 저장 실패 오류는 `toFieldErrors(e)`(`@dk-oasis/shared/http`, `e` 는 서버 `errors` 를 실은 오류나 OASIS 봉투)에서 그 칸(`field`)의 `message` 를 `error` 로 준다.
 
 ```tsx
 const { validateValue } = useMdmValidation();

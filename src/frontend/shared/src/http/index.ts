@@ -56,7 +56,11 @@ function errorDetailsOf(source: unknown): unknown[] | null {
 /**
  * 서버 오류 → 칸 오류 목록. `field` 가 있는 상세만 남긴다(검증 불가 `MDM_UNAVAILABLE` 처럼 칸이 없는 것은 메시지로 보인다).
  *
- * @param source {@link apiRequest} 가 던진 {@link HttpError}, OASIS 응답 봉투(`{ meta, errors }`), 또는 상세 배열
+ * OASIS 서비스는 `BusinessException` 을 HTTP 200 + `meta.success=false` 봉투로 돌려주므로 {@link apiRequest} 가 던지지 않는다 —
+ * 화면이 봉투를 판정해 던지는 오류에 `errors` 를 실어 두거나 봉투를 그대로 넘긴다.
+ *
+ * @param source `errors` 배열을 가진 값(OASIS 응답 봉투 `{ meta, errors }`, `errors` 를 실은 오류 객체, HTTP 4xx·5xx 에서
+ *   {@link apiRequest} 가 던진 {@link HttpError}) 또는 상세 배열
  * @param grid 주면 그 그리드의 상세와 grid 가 없는 상세(폼 하나)만
  */
 export function toFieldErrors(source: unknown, grid?: string): FieldErrorItem[] {
