@@ -81,12 +81,31 @@ describe("searchWidgetDefs", () => {
 });
 
 describe("saveWidgetDef", () => {
-  it("def Map 키 전부를 params 로 평평하게 보내고 저장된 def(만든 widgetId)를 돌려준다", async () => {
+  it("값이 있는 def 키를 params 로 평평하게 보내고 저장된 def(만든 widgetId)를 돌려준다", async () => {
     reply({ meta: { success: true }, data: { result: { def: { widgetId: "def.k3x9q2ab", srcTp: "D" } } } });
     const def = await saveWidgetDef(PARAMS);
     expect(sent().url).toBe("/api/mcm/oasis/commWidgetMng/save");
-    expect(sent().body).toEqual({ meta: { menuId: "commWidgetMng" }, params: PARAMS });
+    expect(sent().body).toEqual({
+      meta: { menuId: "commWidgetMng" },
+      params: {
+        widgetId: "",
+        srcTp: "D",
+        typeId: "markdown",
+        title: "안내",
+        defW: 8,
+        defH: 10,
+        multipleYn: "Y",
+        useYn: "Y",
+        configJson: '{"markdown":""}',
+      },
+    });
     expect(def.widgetId).toBe("def.k3x9q2ab");
+  });
+
+  it("null 값은 params 에서 뺀다(cactus 요청 변환기가 null 을 받으면 요청 전체가 실패한다)", async () => {
+    reply({ meta: { success: true }, data: { result: { def: { widgetId: "def.k3x9q2ab" } } } });
+    await saveWidgetDef(PARAMS);
+    expect(Object.values(sent().body.params)).not.toContain(null);
   });
 
   it("거절 문구를 그대로 던진다", async () => {

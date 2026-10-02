@@ -41,10 +41,22 @@ function unwrapPayload(res: unknown): Record<string, unknown> {
   return out;
 }
 
+/**
+ * params 에서 null·undefined 값을 뺀다. cactus 요청 변환기는 params 값마다 TypedObject 를 만드는데
+ * null 이면 IllegalArgumentException 으로 요청 전체가 실패한다. 빈 칸은 키를 빼서 보내고 서버가 null 로 읽는다.
+ */
+export function dropNullParams(params: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== null && value !== undefined) out[key] = value;
+  }
+  return out;
+}
+
 async function callAction(action: string, params: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
   const res = await api.request<unknown>(`${OASIS_BASE}/${action}`, {
     method: "POST",
-    body: { meta: { menuId: SCREEN_ID }, params },
+    body: { meta: { menuId: SCREEN_ID }, params: dropNullParams(params) },
   });
   return unwrapPayload(res);
 }
