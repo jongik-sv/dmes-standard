@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import {
   type FavoriteFolderChoice,
   PortalShell,
@@ -15,6 +15,7 @@ import "@dk-oasis/shared/grid.css";
 import "@dk-oasis/shared/form.css";
 import "@dk-oasis/shared/modal.css";
 import { resolvePortalPage } from "./registered-modules";
+import { publishPortalMenu } from "@/lib/portal-menu-store";
 
 const MODULE_ID = "mcm";
 const MENU_ENDPOINT = { endpoint: "/api/mcm/oasis/secUser/myMenusTree" };
@@ -215,6 +216,11 @@ export default function PortalPage() {
     isLoading: isMenuLoading,
     errorMessage: menuErrorMessage,
   } = usePortalMenu(MENU_ENDPOINT);
+
+  // 받은 메뉴를 화면들이 다시 조회하지 않고 쓰게 올려 둔다(예: 홈의 "공지 관리 ›" 권한 판정).
+  useEffect(() => {
+    publishPortalMenu(menu?.items ?? null);
+  }, [menu]);
 
   const {
     favorites,
