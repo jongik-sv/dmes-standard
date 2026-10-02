@@ -2,7 +2,7 @@
 export const WIDGET_COLS = 24;
 export const WIDGET_ROW_HEIGHT = 20;
 export const WIDGET_MARGIN = 8;
-export const WIDGET_WIDE_MIN_WIDTH = 1200;
+export const WIDGET_WIDE_MIN_WIDTH = 960;
 export const WIDGET_MEDIUM_MIN_WIDTH = 768;
 export const WIDGET_DEFAULT_MIN_SIZE = { w: 4, h: 6 } as const;
 export const WIDGET_RESIZE_HANDLES = ["n", "e", "s", "w", "ne", "se", "sw", "nw"] as const;

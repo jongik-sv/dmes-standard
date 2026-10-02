@@ -65,13 +65,13 @@ describe("WidgetBoard", () => {
   });
 
   it("좁은 폭이면 편집 모드여도 손잡이가 없고 onWideChange(false) 를 알린다", () => {
-    const { onWideChange } = render({ editing: true, width: 1000 });
+    const { onWideChange } = render({ editing: true, width: 900 });
     expect(host.querySelector(".react-resizable-handle")).toBeNull();
     expect(onWideChange).toHaveBeenLastCalledWith(false);
   });
 
   it("cols 를 넘기면 보드 자기 폭이 작아도 그 칸 수를 쓴다", () => {
-    render({ editing: true, width: 1030, cols: 24 });
+    render({ editing: true, width: 820, cols: 24 });
     expect(host.querySelector(".cm-widget-board")!.getAttribute("data-cols")).toBe("24");
     expect(host.querySelector(".react-resizable-handle")).not.toBeNull();
   });

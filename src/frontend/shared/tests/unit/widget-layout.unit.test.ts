@@ -44,10 +44,10 @@ function assertNoOverlap(items: WidgetItem[]) {
 }
 
 describe("colsForWidth", () => {
-  it("1200 이상 24칸, 768 이상 12칸, 그 아래 1칸", () => {
+  it("960 이상 24칸, 768 이상 12칸, 그 아래 1칸", () => {
     expect(colsForWidth(1440)).toBe(24);
-    expect(colsForWidth(1200)).toBe(24);
-    expect(colsForWidth(1199)).toBe(12);
+    expect(colsForWidth(960)).toBe(24);
+    expect(colsForWidth(959)).toBe(12);
     expect(colsForWidth(768)).toBe(12);
     expect(colsForWidth(767)).toBe(1);
   });

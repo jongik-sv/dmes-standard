@@ -82,15 +82,15 @@ describe("WidgetWorkspace", () => {
   });
 
   it("좁은 폭이면 [배치 편집]이 비활성이고 안내 제목을 단다", async () => {
-    await mount(makeStore([]), { boardWidth: 1000 });
+    await mount(makeStore([]), { boardWidth: 900 });
     expect(btn('[data-action="start-edit"]').disabled).toBe(true);
     expect(btn('[data-action="start-edit"]').title).toBe("넓은 화면에서 편집할 수 있습니다");
   });
 
   it("서랍이 보드 폭을 줄여도 칸 수·손잡이·서랍이 유지된다(D1)", async () => {
-    // 바깥 폭 1300(24칸), 보드 폭 1030(서랍이 연 상태를 흉내)
+    // 바깥 폭 1100(24칸), 보드 폭 820(서랍이 연 상태를 흉내)
     const store = makeStore([{ tabId: "home", name: "홈", seq: 0, locked: false, items: [it_("a"), it_("b", 6, 0)] }]);
-    const props = { registry: REG, homeDefault: HOME_DEFAULT, store, confirm: vi.fn(async () => true), notify: vi.fn(), workspaceWidth: 1300, boardWidth: 1030 };
+    const props = { registry: REG, homeDefault: HOME_DEFAULT, store, confirm: vi.fn(async () => true), notify: vi.fn(), workspaceWidth: 1100, boardWidth: 820 };
     act(() => root.render(h(WidgetWorkspace, props)));
     await flush();
     click('[data-action="start-edit"]');
@@ -105,11 +105,11 @@ describe("WidgetWorkspace", () => {
 
   it("편집 중 바깥 폭이 문턱 밑으로 가면 서랍이 사라지고 [완료]·[취소]는 동작한다", async () => {
     const store = makeStore([]);
-    const props = { registry: REG, homeDefault: HOME_DEFAULT, store, confirm: vi.fn(async () => true), notify: vi.fn(), workspaceWidth: 1300, boardWidth: 1030 };
+    const props = { registry: REG, homeDefault: HOME_DEFAULT, store, confirm: vi.fn(async () => true), notify: vi.fn(), workspaceWidth: 1100, boardWidth: 820 };
     act(() => root.render(h(WidgetWorkspace, props)));
     await flush();
     click('[data-action="start-edit"]');
-    act(() => root.render(h(WidgetWorkspace, { ...props, workspaceWidth: 1000 })));
+    act(() => root.render(h(WidgetWorkspace, { ...props, workspaceWidth: 900 })));
     await flush();
     expect(host.querySelector(".cm-widget-picker")).toBeNull();
     expect(host.querySelector(".react-resizable-handle")).toBeNull();
