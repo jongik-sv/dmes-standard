@@ -1,11 +1,16 @@
 package com.dongkuk.dmes.cactus.mdm;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.dongkuk.dmes.cactus.web.inbound.CactusRequestMappingHandlerMapping;
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -18,9 +23,15 @@ import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeHeader;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeItemRow;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeRows;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeVersionRow;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -29,9 +40,20 @@ class MdmMetaControllerTest {
 
     private FakeMetaFeed feed;
     private MockMvc mvc;
+    private final Logger controllerLog = (Logger) LoggerFactory.getLogger(MdmMetaController.class);
+    private final ListAppender<ILoggingEvent> logs = new ListAppender<>();
+
+    @AfterEach
+    void tearDown() {
+        controllerLog.detachAppender(logs);
+        SecurityContextHolder.clearContext();
+    }
 
     @BeforeEach
     void setUp() {
+        logs.start();
+        controllerLog.addAppender(logs);
+        SecurityContextHolder.clearContext();
         MutableClock clock = new MutableClock(Instant.parse("2026-10-02T00:00:00Z"));
         feed = new FakeMetaFeed();
         MdmMetaCache cache = new MdmMetaCache(100, Duration.ofMinutes(60), clock);
@@ -84,6 +106,44 @@ class MdmMetaControllerTest {
                 .andExpect(jsonPath("$.items.procCol.allowedCodes").value(nullValue()))
                 .andExpect(jsonPath("$.unavailable").isEmpty())
                 .andExpect(jsonPath("$.missing").isEmpty());
+        assertThat(warnings()).isEmpty(); // MDM 에서 받을 수 없음은 WARN 이 아니다
+    }
+
+    /** 검토 반영 — MDM 장애가 아닌 예외(해석기 오류 등)는 컬럼은 그대로 두되 WARN 으로 예외와 함께 남긴다. */
+    @Test
+    void 코드_해석이_MDM_장애가_아닌_예외로_실패하면_WARN_을_남기고_컬럼은_그대로_준다() throws Exception {
+        feed.put(MdmTargetType.CODE, "PROC_CD", codeRows("PROC_CD", "BOGUS")); // 엔진: 알 수 없는 def_target → IllegalStateException
+        feed.put(MdmTargetType.COLUMN, "PROC_COL", procColumn());
+
+        mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON).content("{\"names\":[\"procCol\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.procCol.physName").value("PROC_COL"))
+                .andExpect(jsonPath("$.items.procCol.allowedCodes").value(nullValue()))
+                .andExpect(jsonPath("$.unavailable").isEmpty());
+        assertThat(warnings()).singleElement().satisfies(e -> {
+            assertThat(e.getFormattedMessage()).contains("PROC_COL").contains("PROC_CD");
+            assertThat(e.getThrowableProxy()).isNotNull();
+            assertThat(e.getThrowableProxy().getClassName()).isEqualTo(IllegalStateException.class.getName());
+        });
+    }
+
+    /** 검토 반영 — 차가운 캐시에서 컬럼 N 개가 서로 다른 코드 K 개를 참조해도 코드 원본은 한 번에 받는다. */
+    @Test
+    void 여러_컬럼의_코드_원본은_한_번의_CODE_요청으로_받는다() throws Exception {
+        feed.put(MdmTargetType.CODE, "PROC_CD", procCodeRows());
+        feed.put(MdmTargetType.CODE, "GRADE_CD", codeRows("GRADE_CD", "CODE"));
+        feed.put(MdmTargetType.COLUMN, "PROC_COL", procColumn());
+        feed.put(MdmTargetType.COLUMN, "PROC_COL2", codeColumn("PROC_COL2", "PROC_CD"));
+        feed.put(MdmTargetType.COLUMN, "GRADE_COL", codeColumn("GRADE_COL", "GRADE_CD"));
+
+        mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"names\":[\"procCol\",\"procCol2\",\"gradeCol\",\"coilThk\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.procCol.allowedCodes[0].code").value("A"))
+                .andExpect(jsonPath("$.items.procCol2.allowedCodes[0].code").value("A"))
+                .andExpect(jsonPath("$.items.gradeCol.allowedCodes[0].code").value("A"));
+        assertThat(feed.fetchCalls.get()).isEqualTo(2); // COLUMN 1번 + CODE 1번
+        assertThat(feed.fetchedKeys.get(1)).containsExactlyInAnyOrder("PROC_CD", "GRADE_CD");
     }
 
     @Test
@@ -123,6 +183,27 @@ class MdmMetaControllerTest {
                 .andExpect(jsonPath("$.maxAgeSeconds").value(3600));
     }
 
+    /** 검토 반영(R10 보강) — 인증된 사용자가 있으면 그 권한으로만 판정하고 헤더는 보지 않는다. */
+    @Test
+    void 인증이_있으면_권한으로_판정하고_헤더는_무시한다() throws Exception {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("u1", null, AuthorityUtils.createAuthorityList("ROLE_MCM_VIEWER")));
+        mvc.perform(get("/api/mls/mdmMeta/status").header("X-Authenticated-Role", "SYSADMIN")).andExpect(status().isForbidden());
+
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("admin", null, AuthorityUtils.createAuthorityList("ROLE_sysadmin")));
+        mvc.perform(get("/api/mls/mdmMeta/status")).andExpect(status().isOk());
+    }
+
+    /** 익명 인증(또는 인증 없음)이면 헤더로 판정한다 — mqc·mpp·mpn 처럼 사용자 문맥이 없는 모듈. */
+    @Test
+    void 익명_인증이면_헤더로_판정한다() throws Exception {
+        SecurityContextHolder.getContext().setAuthentication(
+                new AnonymousAuthenticationToken("k", "anonymousUser", AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS")));
+        mvc.perform(get("/api/mls/mdmMeta/status").header("X-Authenticated-Role", "ROLE_SYSADMIN")).andExpect(status().isOk());
+        mvc.perform(get("/api/mls/mdmMeta/status").header("X-Authenticated-Role", "MCM_VIEWER")).andExpect(status().isForbidden());
+    }
+
     @Test
     void entries_는_대상_종류와_키로_거르고_잘못된_종류는_400() throws Exception {
         mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON).content("{\"names\":[\"COIL_THK\",\"NOPE\"]}"));
@@ -149,19 +230,31 @@ class MdmMetaControllerTest {
                 .andExpect(status().isForbidden());
     }
 
+    private List<ILoggingEvent> warnings() {
+        return logs.list.stream().filter(e -> e.getLevel() == Level.WARN).toList();
+    }
+
     private static CodeRows procCodeRows() {
-        return new CodeRows(new CodeHeader("PROC_CD", "INUSE"),
+        return codeRows("PROC_CD", "CODE");
+    }
+
+    private static CodeRows codeRows(String codeId, String defTarget) {
+        return new CodeRows(new CodeHeader(codeId, "INUSE"),
                 List.of(new CodeVersionRow(new BigDecimal("1.000"), "RELEASED", LocalDateTime.of(2026, 1, 1, 0, 0),
                         LocalDateTime.of(9999, 12, 31, 0, 0))),
                 List.of(new CodeItemRow("A", new BigDecimal("1.000"), new BigDecimal("9999.000"), "에이", null, 1,
                         Arrays.asList(new String[5]), Arrays.asList(new String[10]))),
-                List.of(new CodeCateRow("BASE", new BigDecimal("1.000"), new BigDecimal("9999.000"), "REGEX", ".*", "CODE")),
+                List.of(new CodeCateRow("BASE", new BigDecimal("1.000"), new BigDecimal("9999.000"), "REGEX", ".*", defTarget)),
                 List.of());
     }
 
     private static MdmColumnMeta procColumn() {
-        return new MdmColumnMeta("PROC_COL", "공정", null, null, null, null, null, "STRING", 10, null,
+        return codeColumn("PROC_COL", "PROC_CD");
+    }
+
+    private static MdmColumnMeta codeColumn(String physName, String codeId) {
+        return new MdmColumnMeta(physName, "공정", null, null, null, null, null, "STRING", 10, null,
                 false, null, null, null, null, new MdmColumnMeta.DomainRef("8", "공정", "CODE"), null, null, List.of(),
-                new MdmColumnMeta.CodeRefMeta("PROC_CD", "BASE"));
+                new MdmColumnMeta.CodeRefMeta(codeId, "BASE"));
     }
 }

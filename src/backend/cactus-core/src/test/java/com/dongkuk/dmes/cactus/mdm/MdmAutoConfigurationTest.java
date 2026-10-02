@@ -78,15 +78,15 @@ class MdmAutoConfigurationTest {
     }
 
     /**
-     * 되돌아보기 설정이 폴러에 닿는다. page-limit 50 은 기본 되돌아보기(100) 이하라, 설정을 버리는 6인자 생성자였다면 기동 검증에서 실패한다
-     * — 기동이 되는 것 자체가 7 이 전달됐다는 증거다.
+     * 되돌아보기 설정이 폴러에 닿는다 — 폴러는 {@code page-limit <= lookback} 이면 생성 때 예외다. page-limit 50 에서 lookback 7 은 기동되고
+     * 60 은 기동되지 않는다. 설정을 버리는 6인자 생성자(늘 100)였다면 둘 다 실패하고, 설정이 아예 안 닿았다면(0) 둘 다 성공한다 — 두 결과가 갈리는
+     * 것 자체가 설정값이 생성자에 전달된다는 증거라 private 필드를 읽지 않는다.
      */
     @Test
     void revision_lookback_설정이_폴러에_전달된다() {
         runner.withPropertyValues(ON).withPropertyValues("cactus.mdm.revision-lookback=7", "cactus.mdm.page-limit=50").run(ctx -> {
             assertThat(ctx).hasNotFailed();
-            assertThat(ctx.getBean(MdmRevisionPoller.class)).extracting("lookback").isEqualTo(7);
-            assertThat(ctx.getBean(MdmRevisionPoller.class)).extracting("pageLimit").isEqualTo(50);
+            assertThat(ctx).hasSingleBean(MdmRevisionPoller.class);
         });
         runner.withPropertyValues(ON).withPropertyValues("cactus.mdm.revision-lookback=60", "cactus.mdm.page-limit=50")
                 .run(ctx -> assertThat(ctx).hasFailed());

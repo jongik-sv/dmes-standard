@@ -3,11 +3,15 @@ package com.dongkuk.dmes.cactus.mdm;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import kr.dongkuk.maru.mdm.engine.code.CodeResolver;
 import kr.dongkuk.maru.mdm.engine.code.DefaultCodeResolver;
 import kr.dongkuk.maru.mdm.engine.spi.CodeEffLookup;
@@ -15,6 +19,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.util.ClassUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,8 +37,8 @@ import org.springframework.web.bind.annotation.ResponseBody;
  * 업무 모듈 MDM 메타 엔드포인트 {@code /api/{module}/mdmMeta/*}(spec docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md §5.5). 포털 BFF
  * catch-all 이 경로를 그대로 넘기므로 BE 경로가 {@code /api/{module}/...} 로 시작한다. {@code {module}} 이 이 인스턴스 모듈과 다르면 404.
  *
- * <p>권한: columns·domains 는 로그인 사용자(BFF AUTH_ONLY). status·entries·load 는 SYSADMIN 만 — 요청 헤더 {@code X-Authenticated-Role}
- * 로 판정한다(Ruling R10 — mqc·mpp·mpn 에는 ClientKeyFilter·사용자 문맥이 없다). {@code DmomReceiveController} 처럼 {@code @Controller} 없이
+ * <p>권한: columns·domains 는 로그인 사용자(BFF AUTH_ONLY). status·entries·load 는 SYSADMIN 만 — 보안 문맥에 인증이 있으면 그 권한으로,
+ * 없으면 요청 헤더 {@code X-Authenticated-Role} 로 판정한다(Ruling R10 — mqc·mpp·mpn 에는 ClientKeyFilter·사용자 문맥이 없다). {@code DmomReceiveController} 처럼 {@code @Controller} 없이
  * 클래스 수준 {@code @RequestMapping} + {@code @ResponseBody} 로 두고 자동 설정이 {@code @Bean} 으로 만든다.
  */
 @ResponseBody
@@ -37,6 +46,8 @@ import org.springframework.web.bind.annotation.ResponseBody;
 public class MdmMetaController {
 
     private static final Logger log = LoggerFactory.getLogger(MdmMetaController.class);
+    private static final boolean SECURITY_PRESENT = ClassUtils.isPresent(
+            "org.springframework.security.core.context.SecurityContextHolder", MdmMetaController.class.getClassLoader());
     static final String ROLE_HEADER = "X-Authenticated-Role";
     static final String SYSADMIN = "SYSADMIN";
     static final int MAX_PAGE_SIZE = 500;
@@ -88,13 +99,14 @@ public class MdmMetaController {
             }
         }
         MdmMetaService.MdmLookup r = service.lookup(MdmTargetType.COLUMN, new LinkedHashSet<>(physByName.values()));
+        Set<String> codesUnavailable = prefetchCodes(r.found().values());
         Map<String, Object> items = new LinkedHashMap<>();
         List<String> missing = new ArrayList<>();
         List<String> unavailable = new ArrayList<>();
         physByName.forEach((name, phys) -> {
             Object v = r.found().get(phys);
             if (v instanceof MdmColumnMeta m) {
-                items.put(name, MdmJson.plain(screen(m)));
+                items.put(name, MdmJson.plain(screen(m, codesUnavailable)));
             } else if (r.unavailable().contains(phys)) {
                 unavailable.add(name);
             } else {
@@ -197,11 +209,24 @@ public class MdmMetaController {
         return ResponseEntity.ok(out);
     }
 
-    static boolean isSysadmin(String roles) {
-        if (roles == null) {
-            return false;
+    /**
+     * SYSADMIN 판정(Ruling R10 + 검토 보강). 보안 문맥에 익명이 아닌 인증이 권한과 함께 있으면 그 권한으로만 판정한다(JWT·ClientKeyFilter 가
+     * 세운 인증 — 헤더를 다시 믿지 않는다). 그런 인증이 없을 때(mqc·mpp·mpn 처럼 사용자 문맥이 없는 모듈)만 {@code X-Authenticated-Role}
+     * 헤더(콤마 목록)로 판정한다. 두 경우 모두 {@code ROLE_} 접두를 떼고 대소문자를 가리지 않는다.
+     */
+    static boolean isSysadmin(String roleHeader) {
+        Optional<List<String>> authorities = SECURITY_PRESENT ? SecurityAuthorities.current() : Optional.empty();
+        if (authorities.isPresent()) {
+            return containsSysadmin(authorities.get());
         }
-        for (String role : roles.split(",")) {
+        return roleHeader != null && containsSysadmin(Arrays.asList(roleHeader.split(",")));
+    }
+
+    private static boolean containsSysadmin(List<String> roles) {
+        for (String role : roles) {
+            if (role == null) {
+                continue;
+            }
             String t = role.trim();
             if (t.regionMatches(true, 0, "ROLE_", 0, 5)) {
                 t = t.substring(5);
@@ -211,6 +236,19 @@ public class MdmMetaController {
             }
         }
         return false;
+    }
+
+    /** spring-security 가 있을 때만 읽힌다(cactus-core 는 compileOnly — 이 클래스를 건드리지 않으면 로드되지 않는다). */
+    private static final class SecurityAuthorities {
+
+        static Optional<List<String>> current() {
+            Authentication a = SecurityContextHolder.getContext().getAuthentication();
+            if (a == null || !a.isAuthenticated() || a instanceof AnonymousAuthenticationToken || a.getAuthorities() == null
+                    || a.getAuthorities().isEmpty()) {
+                return Optional.empty();
+            }
+            return Optional.of(a.getAuthorities().stream().map(GrantedAuthority::getAuthority).toList());
+        }
     }
 
     private ResponseEntity<Map<String, Object>> guard(String module, String roles) {
@@ -226,20 +264,46 @@ public class MdmMetaController {
     }
 
     /**
-     * 컬럼 메타 → 화면 메타. 컬럼 메타는 {@link MdmMetaService} 로 직접 받은 값이다 — {@link MdmDefinitionLookup#column} 을 거치지 않는다(그
-     * 경로는 코드 원본까지 미리 받아 실패를 던지므로 캡션·툴팁 메타까지 unavailable 이 된다). 허용 코드는 따로 풀고, 풀 수 없으면(코드 원본을 받을
-     * 수 없음·코드 정의 손상) 컬럼은 그대로 두고 {@code allowedCodes} 만 null 로 둔다.
+     * 컬럼들이 참조하는 코드 원본을 한 번에 받아 캐시에 둔다(차가운 캐시에서 코드 id 마다 MDM 을 따로 부르지 않게).
+     *
+     * @return 받을 수 없는 코드 id — 이 요청에서는 다시 부르지 않고 허용 코드를 비운다
      */
-    private MdmScreenColumn screen(MdmColumnMeta m) {
+    private Set<String> prefetchCodes(Collection<Object> columns) {
+        LinkedHashSet<String> ids = new LinkedHashSet<>();
+        for (Object v : columns) {
+            if (v instanceof MdmColumnMeta m && m.codeRef() != null && m.codeRef().maruCodeId() != null
+                    && !m.codeRef().maruCodeId().isBlank()) {
+                ids.add(m.codeRef().maruCodeId());
+            }
+        }
+        if (ids.isEmpty()) {
+            return Set.of();
+        }
+        return new HashSet<>(service.lookup(MdmTargetType.CODE, ids).unavailable());
+    }
+
+    /**
+     * 컬럼 메타 → 화면 메타. 컬럼 메타는 {@link MdmMetaService} 로 직접 받은 값이다 — {@link MdmDefinitionLookup#column} 을 거치지 않는다(그
+     * 경로는 코드 원본까지 미리 받아 실패를 던지므로 캡션·툴팁 메타까지 unavailable 이 된다). 허용 코드는 따로 풀고, 풀 수 없으면 컬럼은 그대로
+     * 두고 {@code allowedCodes} 만 null 로 둔다. 코드 원본을 받을 수 없는 것(MDM 장애·손상 정의)은 DEBUG, 그 밖의 예외(해석기 오류 등 —
+     * 프로그램·데이터 결함일 수 있다)는 WARN 으로 예외와 함께 남긴다.
+     */
+    private MdmScreenColumn screen(MdmColumnMeta m, Set<String> codesUnavailable) {
         List<MdmScreenColumn.AllowedCode> allowed = null;
-        if (m.codeRef() != null && m.codeRef().maruCodeId() != null && !m.codeRef().maruCodeId().isBlank()) {
-            try {
-                LocalDateTime now = LocalDateTime.ofInstant(clock.instant(), MdmDefinitionLookup.KST);
-                allowed = codes.codeList(m.codeRef().maruCodeId(), m.codeRef().cateId(), now).stream()
-                        .map(e -> new MdmScreenColumn.AllowedCode(e.code(), e.name())).toList();
-            } catch (RuntimeException e) {
-                log.debug("[mdm] 허용 코드를 풀 수 없어 비워 둔다 — {} {}: {}", m.physName(), m.codeRef().maruCodeId(), e.getMessage());
-                allowed = null;
+        String codeId = m.codeRef() == null ? null : m.codeRef().maruCodeId();
+        if (codeId != null && !codeId.isBlank()) {
+            if (codesUnavailable.contains(codeId)) {
+                log.debug("[mdm] 코드 원본을 받을 수 없어 허용 코드를 비워 둔다 — {} {}", m.physName(), codeId);
+            } else {
+                try {
+                    LocalDateTime now = LocalDateTime.ofInstant(clock.instant(), MdmDefinitionLookup.KST);
+                    allowed = codes.codeList(codeId, m.codeRef().cateId(), now).stream()
+                            .map(e -> new MdmScreenColumn.AllowedCode(e.code(), e.name())).toList();
+                } catch (MdmUnavailableException e) {
+                    log.debug("[mdm] 코드 원본을 받을 수 없어 허용 코드를 비워 둔다 — {} {}: {}", m.physName(), codeId, e.getMessage());
+                } catch (RuntimeException e) {
+                    log.warn("[mdm] 허용 코드를 풀지 못해 비워 둔다 — {} {}", m.physName(), codeId, e);
+                }
             }
         }
         return MdmScreenColumn.of(m, allowed);
