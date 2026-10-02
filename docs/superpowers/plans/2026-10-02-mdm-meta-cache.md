@@ -131,6 +131,8 @@
 
 `{module}` 이 이 인스턴스 모듈과 다르면 404. SYSADMIN 판정은 요청 헤더 `X-Authenticated-Role`(콤마 목록, `ROLE_` 접두 무시)로 한다.
 
+> **실행 기록 주석(2026-10-02, 최종 수정 물결):** `entries` 출력에서 `value` 를 뺐다 — `bizExpr.text`·룰 정의 전체 같은 서버 전용 값이 관리 화면(브라우저)으로 나가지 않게(spec §4.2). 지금 항목은 `{type, key, absent, loadedAt, hits, remainingSeconds, loadSeq}` 이다. 위 표는 기록이라 고치지 않는다.
+
 ## Rulings(스펙이 정하지 않은 세부 — 이 계획이 정했다)
 
 - **R1 기록 쓰기:** `MetaRevisionRecorder` 는 여러 행 `VALUES` 네이티브 INSERT 한 문장(200행씩)으로 쓴다. 키 수와 무관하게 SQL 문이 하나라 기존 SQL 문 수 가드(`*QueryCountTest`)가 키 수만큼 늘지 않는다. 감사 9칼럼은 `MdmNativeAuditSupport.currentStamp()`·`MdmTemporalBinder.toDb` 로 채운다(`RuleSetTestCaseWrites` 선례). 읽기는 JPA 엔티티 `MdmMetaRev`·`MdmMetaRevRepository`.
