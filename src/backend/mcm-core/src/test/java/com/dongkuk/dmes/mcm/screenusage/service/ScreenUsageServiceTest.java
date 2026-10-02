@@ -47,6 +47,7 @@ class ScreenUsageServiceTest {
     /** 2026-10-02 10:00 Asia/Seoul */
     private static final Instant NOW = Instant.parse("2026-10-02T01:00:00Z");
     private static final long NOW_MS = NOW.toEpochMilli();
+    private static final long THIRTY_DAYS_MS = 30L * 24 * 60 * 60 * 1000;
 
     @Mock ScreenUsageLogRepository logRepository;
     @Mock SecUserRepository secUserRepository;
@@ -120,13 +121,14 @@ class ScreenUsageServiceTest {
         Map<String, Object> tooShort = seg("s7", "p/a", "OPEN", -60_000, 999);              // 1초 미만
         Map<String, Object> tooLong = seg("s8", "p/a", "OPEN", -90_000_000, 86_400_001);    // 24시간 초과
         Map<String, Object> future = seg("s9", "p/a", "OPEN", 300_001, 10_000);             // 5분 넘게 미래
+        Map<String, Object> tooOld = seg("s11", "p/a", "OPEN", -THIRTY_DAYS_MS - 1, 10_000);   // 30일 + 1ms 전
         Map<String, Object> textTime = seg("s10", "p/a", "OPEN", -60_000, 10_000);
         textTime.put("startedAt", String.valueOf(NOW_MS - 60_000));                          // 숫자가 아님
 
         Map<String, Object> result = service.record(Arrays.asList(
-                ok, noSegId, blankPage, longPage, badKind, reversed, tooShort, tooLong, future, textTime, null));
+                ok, noSegId, blankPage, longPage, badKind, reversed, tooShort, tooLong, future, tooOld, textTime, null));
 
-        assertThat(result).containsEntry("saved", 1).containsEntry("skipped", 10);
+        assertThat(result).containsEntry("saved", 1).containsEntry("skipped", 11);
         verify(logRepository).saveAll(rowsCaptor.capture());
         assertThat(rowsCaptor.getValue()).extracting(ScreenUsageLog::getClientSegId).containsExactly("s1");
     }
@@ -138,9 +140,10 @@ class ScreenUsageServiceTest {
                 seg("b1", "p/a", "OPEN", -60_000, 1_000),
                 seg("b2", "p/a", "SWITCH", -86_400_000, 86_400_000),
                 seg("b3", "p/a", "RESUME", 300_000, 1_000),
-                seg("b4", "p/" + "x".repeat(198), "OPEN", -60_000, 1_000)));
+                seg("b4", "p/" + "x".repeat(198), "OPEN", -60_000, 1_000),
+                seg("b5", "p/a", "OPEN", -THIRTY_DAYS_MS, 1_000)));                      // 정확히 30일 전
 
-        assertThat(result).containsEntry("saved", 4).containsEntry("skipped", 0);
+        assertThat(result).containsEntry("saved", 5).containsEntry("skipped", 0);
     }
 
     @Test

@@ -40,6 +40,9 @@ public class ScreenUsageService {
     static final long MIN_DURATION_MS = 1_000L;
     static final long MAX_DURATION_MS = 24L * 60 * 60 * 1000;
     static final long MAX_FUTURE_MS = 5L * 60 * 1000;
+    /** 수신 시각보다 이만큼(일) 넘게 과거인 구간은 버린다 — startedAt=0 같은 값이 영구 집계에 남는 것을 막는다. */
+    static final long MAX_PAST_DAYS = 30L;
+    static final long MAX_PAST_MS = MAX_PAST_DAYS * 24 * 60 * 60 * 1000;
     static final int MAX_PAGE_ID_LENGTH = 200;
     static final int MAX_SEG_ID_LENGTH = 36;
     static final Set<String> START_KINDS = Set.of("OPEN", "SWITCH", "RESUME");
@@ -152,6 +155,7 @@ public class ScreenUsageService {
             long duration = ended - started;
             if (duration < MIN_DURATION_MS || duration > MAX_DURATION_MS) return null; // ENDED < STARTED 포함
             if (started > receivedMs + MAX_FUTURE_MS) return null;
+            if (started < receivedMs - MAX_PAST_MS) return null;
             return new Candidate(segId, pageId, kind, started, ended);
         }
 

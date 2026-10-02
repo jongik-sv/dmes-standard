@@ -121,8 +121,25 @@ class ScreenUsageRollupJpaTest {
         assertThat(result.purged()).isEqualTo(1);
         assertThat(logRepository.findAll()).extracting(l -> l.getStartedAt())
                 .containsExactly(LocalDateTime.of(2025, 10, 3, 0, 0, 0));
-        assertThat(dayRow("20251002", "userA", "D100").getOpenCnt()).isEqualTo(1);
+        // 보관 기간(오늘-365일) 밖 일자는 집계하지 않는다 — 롤업 하한이 오늘-365일이다.
+        assertThat(dayRow("20251002", "userA", "D100")).isNull();
         assertThat(dayRow("20251003", "userA", "D100").getOpenCnt()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("집계가 비어 있고 원본에 400일 전 행이 있어도 보관 기간 밖 일자는 집계하지 않는다")
+    void rollupLowerBound() {
+        LocalDateTime old = LocalDateTime.of(2026, 10, 3, 10, 0).minusDays(400);
+        logRepository.saveAll(List.of(
+                log("userA", "D100", PAGE, "OPEN", old, 1_000),
+                log("userA", "D100", PAGE, "OPEN", LocalDateTime.of(2026, 10, 2, 10, 0), 1_000)));
+
+        ScreenUsageRollup.Result result = rollupAt(LocalDateTime.of(2026, 10, 3, 2, 0)).rollup();
+
+        assertThat(result.days()).isEqualTo(365); // 오늘-365일 ~ 어제
+        assertThat(dayRow(old.toLocalDate().format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE), "userA", "D100")).isNull();
+        assertThat(dayRow("20261002", "userA", "D100").getOpenCnt()).isEqualTo(1);
+        assertThat(dayRepository.findAll()).hasSize(1);
     }
 
     @Test

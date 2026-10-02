@@ -20,7 +20,7 @@ import java.util.List;
  * <ol>
  *   <li>범위: 집계 테이블 최대 USAGE_DT 의 2일 전 ~ 어제 (집계가 비면 원본 최소 일자부터). 늦게 도착한 구간 반영용.</li>
  *   <li>일자마다 원본을 읽어 Java 에서 키별 합산 → 그 일자 삭제 → 삽입 ({@link ScreenUsageDayWriter}). 일자 단위 멱등이라
- *       서버 여러 대가 돌아도 결과가 같다(ShedLock 없음).</li>
+ *       서버 여러 대가 돌아도 결과가 같다(ShedLock 없음). 서버가 여러 대이면 늦게 커밋한 인스턴스가 그 회차에 PK 위반 warn 을 남기고 중단하는데, 이는 정상 동작이다.</li>
  *   <li>집계가 끝난 뒤 STARTED_AT &lt; 오늘-365일 0시 원본 삭제. 위 루프가 어제까지 모두 집계했으므로 삭제 대상 일자는
  *       전부 집계된 일자다. 루프가 실패하면 예외로 빠져 삭제하지 않는다.</li>
  * </ol>
@@ -62,7 +62,7 @@ public class ScreenUsageRollup {
             Result result = rollup();
             log.info("ScreenUsageRollup: {} 일 집계, 원본 {} 건 보관 삭제", result.days(), result.purged());
         } catch (Exception e) {
-            log.warn("ScreenUsageRollup 실패 (swallow): {}", e.getMessage());
+            log.warn("ScreenUsageRollup 실패 (swallow)", e);
         }
     }
 
@@ -72,6 +72,11 @@ public class ScreenUsageRollup {
         LocalDate from = startDate();
         if (from == null) {
             return new Result(0, 0);
+        }
+        // 보관 기간 밖은 원본이 이미 지워졌을 수 있다 — 빈 목록으로 다시 계산해 기존 집계를 지우지 않도록 자른다.
+        LocalDate oldest = today.minusDays(RETENTION_DAYS);
+        if (from.isBefore(oldest)) {
+            from = oldest;
         }
 
         int days = 0;
