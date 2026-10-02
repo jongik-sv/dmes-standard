@@ -4,8 +4,10 @@
  * 상세 표의 제목 줄 — MDM 컬럼 사전 연결(spec 2026-10-03-mdm-screen-meta-validation §7)의 상세 폼 쪽 파일럿.
  *
  * 상세 표(`DETAIL_*` th/td)는 FormGroup 을 쓰지 않는다(screen-patterns §B). 그래서 FormGroup `name` 이 해 주던 일을
- * 훅으로 직접 한다: 라벨은 `useMdmColumn` + `resolveCaption`(폼 캡션 labelMid → …), 값 검사는 `useMdmValidation` 결과를
- * `Input error` 로 보인다. 포털 탭 밖(공급자 없음)에서는 훅이 아무것도 부르지 않아 예전과 같은 "제목" 라벨이고 검사도 없다.
+ * 훅으로 직접 한다: 라벨은 `useMdmColumn` + `resolveCaption`(폼 캡션 labelMid → …), 값 검사는 같은 `useMdmColumn` 결과(column)로
+ * `validateMdmValue` 를 불러 `Input error` 로 보인다(렌더마다 부르지만 요청을 걸지 않는다 — 메타 요청은 `useMdmColumn` 등록 한 번뿐이라
+ * MDM 장애 중에도 글자마다 요청이 나가지 않는다). 포털 탭 밖(공급자 없음)에서는 훅이 아무것도 부르지 않아 예전과 같은 "제목" 라벨이고
+ * 검사도 없다.
  *
  * 오류 문구 우선순위: 저장 때 서버·저장 전 검사가 준 `error` > 입력 중 화면 검사. 빈 칸의 필수 검사는 저장 때 한다.
  */
@@ -17,7 +19,7 @@ import {
   resolveCaption,
   useMdmCaptionPriority,
   useMdmColumn,
-  useMdmValidation,
+  validateMdmValue,
 } from "@dk-oasis/shared/mdm-meta";
 
 import { TITLE_MAX } from "./types";
@@ -44,7 +46,6 @@ export function NoticeTitleRow({
   // 열(그리드 key)이 이미 TITLE 을 등록했지만, 이 줄이 단독으로 쓰여도 메타를 받도록 직접 등록한다(요청은 한 틱에 묶인다).
   const { column } = useMdmColumn(NAME);
   const priority = useMdmCaptionPriority();
-  const { validateValue } = useMdmValidation();
   const [touched, setTouched] = useState(false);
 
   // 폼 캡션 — 적은 라벨이 없으므로(명시 없음) MDM 캡션, 없으면 "제목".
@@ -56,7 +57,9 @@ export function NoticeTitleRow({
     FALLBACK_CAPTION,
   );
   const clientIssue =
-    touched || value !== "" ? validateValue(NAME, value)?.message : undefined;
+    column && (touched || value !== "")
+      ? validateMdmValue(column, value)?.message
+      : undefined;
 
   return (
     <tr>

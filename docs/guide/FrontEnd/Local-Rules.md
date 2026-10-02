@@ -296,7 +296,7 @@ shared `Modal` 의 `lg`·`xl` 은 최소 높이(70·80vh)만 있고 고정 높�
 **값 검증**
 
 - 표준 문구와 판정은 서버 저장 검증(`MdmValidator`, [백엔드 가이드 §11.2](../BackEnd/Backend-Implementation-Guide.md#112-저장-검증mdmvalidator))과 같다. 화면 검사는 편의이고 서버가 기준이다. 비즈니스식은 화면에서 검사하지 않는다.
-- 상세 표·폼: `useMdmValidation().validateValue(name, value)` 결과를 `Input error` 에 준다(입력 중 즉시). 저장 직전에는 `validateRow(row, names)` 로 한 번 더 막는다. 이 화면이 검사하는 칸은 **서버 `MdmValidator.columns(...)` 와 같은 칸**이어야 한다 — 서버는 MDM 정의가 DB 칸보다 엄격하지 않은 칸만 검사한다.
+- 상세 표·폼: `useMdmValidation().validateValue(name, value)` 결과를 `Input error` 에 준다(입력 중 즉시). 같은 컴포넌트가 `useMdmColumn(name)` 을 이미 부르면 그 `column` 으로 `validateMdmValue(column, value)` 를 불러도 같다. 저장 직전에는 `validateRow(row, names)` 로 한 번 더 막는다. 훅은 받아 둔 메타만 쓰고 요청하지 않으므로 검사할 칸은 그리드 열·`FormGroup name`·`useMdmColumn(s)` 로 등록해 둔다(렌더마다 요청하면 MDM 장애 중 글자마다 POST 가 나간다). 이 화면이 검사하는 칸은 **서버 `MdmValidator.columns(...)` 와 같은 칸**이어야 한다 — 서버는 MDM 정의가 DB 칸보다 엄격하지 않은 칸만 검사한다.
 - 편집 그리드: `mdmValidate`(편집 가능하고 MDM 에 연결된 열만, 바뀐 칸 즉시 표시), 저장 전 전체는 `validateRows`.
 - **서버 저장 오류 → 칸 오류**: OASIS 서비스는 `BusinessException` 을 HTTP 200 + `meta.success=false` 봉투로 돌려주므로 `apiRequest` 가 던지지 않는다. 화면의 봉투 해제 함수가 거부를 판정해 던지는 오류에 봉투의 `errors` 를 실어야 `toFieldErrors(e, grid)` 가 읽는다(`noticeMgmt/api.ts` 의 `NoticeApiError.errors`). 이 결과를 그리드는 `fieldErrors`, 상세 표는 칸별 `error` 로 준다.
 - `rowIndex` 는 **요청 목록의 자리**다. 바뀐 행만 보내는 화면이 그 결과를 그리드 `fieldErrors` 에 그대로 넘기면 엉뚱한 행이 표시된다 — 요청 행에 `rowKey` 를 실어 보내 그 값으로 맞추거나 data 자리로 바꿔 넘긴다. 한 행만 보내는 상세 저장은 `rowIndex` 를 보지 않고 `field` 로만 칸을 찾는다.

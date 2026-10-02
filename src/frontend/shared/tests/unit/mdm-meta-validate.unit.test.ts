@@ -9,7 +9,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   MdmMetaProvider,
   codePointLength,
+  requestColumns,
   resetMdmMetaStore,
+  toPhysName,
+  useMdmColumn,
   useMdmValidation,
   validateMdmValue,
   type MdmScreenColumn,
@@ -316,10 +319,9 @@ describe("useMdmValidation", () => {
       root.render(withProvider ? createElement(MdmMetaProvider, { module: "mls" }, probe) : probe)
     );
     if (names.length > 0) {
-      // 화면의 그리드·폼이 이름을 등록한 것과 같게 store 를 채운다.
-      api!.validateRow({}, names);
+      // 화면의 그리드·폼(useMdmColumn·그리드 열)이 이름을 등록한 것과 같게 store 를 채운다.
       await act(async () => {
-        await settle(60);
+        await requestColumns("mls", names.map((n) => toPhysName(n)!));
       });
     }
     return {
@@ -342,17 +344,51 @@ describe("useMdmValidation", () => {
     await m.unmount();
   });
 
-  it("모르는 이름은 메타를 요청해 두고, 받은 뒤부터 검사한다", async () => {
+  it("등록되지 않은 이름은 요청하지 않고 건너뛴다 — 렌더 중 부수 효과가 없고, 등록(받아 둠) 뒤부터 검사한다", async () => {
     const f = fakeMetaFetch({ columns: { TITLE, QTY } });
     vi.stubGlobal("fetch", f.fn);
     const m = await mount(true);
     expect(m.api().validateValue("title", "")).toBeNull();
+    expect(m.api().validateRows([{ title: "" }], ["title"])).toEqual([]);
     await act(async () => {
       await settle(60);
     });
-    expect(f.calls[0].body).toEqual({ names: ["TITLE"] });
+    expect(f.calls).toHaveLength(0);
+    await act(async () => {
+      await requestColumns("mls", ["TITLE"]);
+    });
     expect(m.api().validateValue("title", "")?.code).toBe("REQUIRED");
     await m.unmount();
+  });
+
+  /**
+   * 업무 BE 가 MDM 에 닿지 못하거나(unavailable) 500 이 나는 동안에도, 렌더마다 validateValue 를 불러(입력 칸 즉시 검사) 글자마다 POST 가 나가지
+   * 않는다 — 요청은 칸을 등록한(useMdmColumn) 한 번뿐이다. 묶음 틱(16ms)보다 길게 쉬며 다시 그려 같은 틱 묶음으로 가려지지 않게 한다.
+   */
+  it.each([
+    ["unavailable", { columns: { TITLE }, unavailable: ["TITLE"] }],
+    ["HTTP 500", { columns: { TITLE }, status: 500 }],
+  ] as const)("%s 상태에서 렌더마다 validateValue 를 불러도 POST 는 1회", async (_label, meta) => {
+    const f = fakeMetaFetch(meta);
+    vi.stubGlobal("fetch", f.fn);
+    const seen: Array<string | null> = [];
+    function Row({ value }: { value: string }) {
+      useMdmColumn("title");
+      const { validateValue } = useMdmValidation();
+      seen.push(validateValue("title", value)?.code ?? null);
+      return null;
+    }
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    for (const value of ["a", "ab", "abc", "abcd", "abcdefgh"]) {
+      await act(async () => root.render(createElement(MdmMetaProvider, { module: "mls" }, createElement(Row, { value }))));
+      await act(async () => {
+        await settle(40);
+      });
+    }
+    expect(f.calls.filter((c) => c.url.endsWith("/mdmMeta/columns"))).toHaveLength(1);
+    expect(seen.every((c) => c === null)).toBe(true); // 모르는 동안은 서버에 맡긴다
+    await act(async () => root.unmount());
   });
 
   it("validateValue·validateRow·validateRows — 키를 물리명으로, meta 로 덮고 false 면 끈다", async () => {

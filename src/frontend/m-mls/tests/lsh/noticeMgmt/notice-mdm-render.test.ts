@@ -156,6 +156,43 @@ describe("상세 표 제목 줄", () => {
     expect(errorText()).toBe("제목은(는) 최대 1000자입니다");
   });
 
+  it.each([
+    ["unavailable", 200],
+    ["HTTP 500", 500],
+  ] as const)(
+    "MDM 을 받지 못하는 동안(%s) 제목을 여러 번 고쳐 그려도 메타 요청은 1회",
+    async (_label, status) => {
+      const calls: string[] = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (input: RequestInfo | URL) => {
+          calls.push(String(input));
+          return status === 200
+            ? new Response(
+                JSON.stringify({
+                  items: {},
+                  missing: [],
+                  unavailable: ["TITLE"],
+                }),
+                {
+                  status: 200,
+                  headers: { "Content-Type": "application/json" },
+                },
+              )
+            : new Response(JSON.stringify({ message: "x" }), { status });
+        }),
+      );
+      for (const value of ["가", "가나", "가나다", "가나다라마바"]) {
+        await show(inPortalTab(titleRow({ value })));
+      }
+      expect(
+        calls.filter((u) => u.endsWith("/api/mls/mdmMeta/columns")),
+      ).toHaveLength(1);
+      expect(label()).toBe("제목 *");
+      expect(errorText()).toBeUndefined();
+    },
+  );
+
   it("값을 고치면 onChange 로 알린다", async () => {
     vi.stubGlobal("fetch", fakeMdmFetch().fn);
     const seen: string[] = [];

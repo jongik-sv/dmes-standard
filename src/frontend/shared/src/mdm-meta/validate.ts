@@ -16,7 +16,7 @@ import { D, convertForType, evaluate, isSupported, type Dec } from "../evalex";
 import type { AstNode } from "../evalex";
 import { mdmCaption } from "./caption";
 import { resolveMdmPhysName, useMdmMetaScope } from "./context";
-import { peekColumn, requestColumns } from "./store";
+import { peekColumn } from "./store";
 import type { MdmScreenColumn } from "./types";
 
 export type MdmValueIssueCode = "REQUIRED" | "TYPE" | "LENGTH" | "SCALE" | "CODE" | "STD_EXPR";
@@ -210,8 +210,10 @@ function isDeletedRow(row: Record<string, unknown>): boolean {
  * 폼·저장 전 검사 훅(spec §4·§5). 포털 탭 공급자(`MdmMetaProvider`) 안에서만 검사한다 — 밖이거나 `disabled` 면 늘 통과다.
  *
  * - 이름은 화면 키(`codeNm` → `CODE_NM`), `meta` 문자열이 이기고 `false` 면 끈다(spec B6).
- * - 메타는 store 에 이미 받아 둔 것만 쓴다(동기). 아직 모르는 이름은 그 자리에서 요청만 걸어 두므로 첫 호출은 그 칸을 건너뛸 수 있다 —
- *   그리드 열·`FormGroup name` 으로 등록된 칸은 화면이 열릴 때 이미 받아 둔다.
+ * - 메타는 store 에 이미 받아 둔 것만 쓴다(동기, 요청하지 않는다). 칸은 그리드 열·`FormGroup name`·`useMdmColumn(s)` 로 등록해 화면이
+ *   열릴 때 받아 둔다 — 등록하지 않은 이름, 아직 못 받은 이름(unavailable·오류)은 건너뛰고 서버 검증에 맡긴다.
+ *   렌더 중에 부르는 함수라(입력 칸 즉시 검사) 여기서 요청을 걸면 렌더 중 부수 효과이고, store 가 보관하지 않는 unavailable·500 동안에는
+ *   글자마다 POST 가 나간다(장애 중 요청 폭주).
  * - MDM 에 없는 이름은 검사하지 않는다.
  */
 export function useMdmValidation(): {
@@ -225,15 +227,12 @@ export function useMdmValidation(): {
     const lookup = (names: Array<{ name: string; meta?: string | false }>) => {
       const out = new Map<string, MdmScreenColumn | null>();
       if (!module) return out;
-      const unknown: string[] = [];
       for (const { name, meta } of names) {
         const phys = resolveMdmPhysName(name, meta);
         if (!phys) continue;
         const col = peekColumn(module, phys);
-        if (col === undefined) unknown.push(phys);
-        else out.set(name, col);
+        if (col !== undefined) out.set(name, col);
       }
-      if (unknown.length > 0) void requestColumns(module, unknown);
       return out;
     };
     const validateValue = (name: string, value: unknown, row?: Record<string, unknown>, meta?: string | false) => {

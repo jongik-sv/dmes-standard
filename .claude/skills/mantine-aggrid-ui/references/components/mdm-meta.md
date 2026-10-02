@@ -12,7 +12,7 @@
 
 - 쓴다: 그리드 `header`·폼 `label` 을 표준 용어(MDM)로 맞추고 싶을 때 — 그냥 비운다. 화면이 직접 메타를 읽어 표시할 때 `useMdmColumn`. 화면 고유 위치에 MDM 정보 카드를 띄울 때 `MdmMetaCard`.
 - 쓴다(값 검사): 폼은 `useMdmValidation()` 결과를 `FormGroup error` 로, 그리드는 `mdmValidate`, 저장 전 전체 검사는 `validateRows`, 저장 실패는 `toFieldErrors` → 그리드 `fieldErrors`·폼 `error`.
-- 쓰지 않는다: 값 검사에 `useMdmColumn` 으로 메타를 읽어 직접 비교하지 않는다 — `useMdmValidation` 이 서버와 같은 판정·문구를 낸다. 비즈니스식(업무 규칙)은 화면에서 검사하지 않는다(서버 `MdmValidator` 몫).
+- 쓰지 않는다: 값 검사에 `useMdmColumn` 으로 메타를 읽어 길이·필수를 손으로 비교하지 않는다 — `useMdmValidation` 이나 `validateMdmValue(column, value)`(같은 판정)가 서버와 같은 판정·문구를 낸다. 비즈니스식(업무 규칙)은 화면에서 검사하지 않는다(서버 `MdmValidator` 몫).
 - [ag-data-grid](ag-data-grid.md)·[form-group](form-group.md) 은 이 공급자를 스스로 읽는다. 머리글·라벨에는 이 문서의 훅을 따로 쓰지 않는다.
 
 ## 표준 사용
@@ -58,14 +58,14 @@ const info = useMdmColumns([{ name: "title" }, { name: "etc", meta: false }]); /
 새 화면의 상세 폼은 `DETAIL_*` 표라 `FormGroup name` 이 없다([detail-form](detail-form.md)). 라벨·검사는 훅으로 직접 잇는다. 툴팁(`MdmMetaCard`)은 이 패턴에 아직 없다.
 
 ```tsx
-const { column } = useMdmColumn("TITLE");
+const { column } = useMdmColumn("TITLE");   // 칸 등록 — 메타 요청은 이 한 번(마운트·이름이 바뀔 때)
 const caption = resolveCaption(column, "form", undefined, useMdmCaptionPriority(), "제목"); // MDM 폼 캡션, 없으면 "제목"
-const { validateValue } = useMdmValidation();
+const issue = column ? validateMdmValue(column, v) : null;   // 같은 column 으로 바로 판정(렌더마다 불러도 요청 없음)
 
 <tr>
   <th style={DETAIL_LABEL_CELL}>{caption} *</th>
   <td style={DETAIL_VALUE_CELL}>
-    <Input value={v} error={serverError ?? validateValue("TITLE", v)?.message} onChange={onChange} />
+    <Input value={v} error={serverError ?? issue?.message} onChange={onChange} />
   </td>
 </tr>
 ```
@@ -117,9 +117,9 @@ async function save() {
 <AgDataGrid columns={COLUMNS} data={rows} rowKey="NOTICE_ID" mdmValidate fieldErrors={fieldErrors} />
 ```
 
-- `useMdmValidation()` 은 공급자 안(포털 탭)에서만 검사한다. 밖이거나 `disabled` 면 늘 통과다. 받아 둔 메타만 쓰므로(동기) 그리드 열·`FormGroup name` 으로 등록되지 않은 이름은 첫 호출에서 요청만 걸고 건너뛴다.
+- `useMdmValidation()` 은 공급자 안(포털 탭)에서만 검사한다. 밖이거나 `disabled` 면 늘 통과다. **받아 둔 메타만 쓰고 요청하지 않는다**(동기, 렌더 중 불러도 부수 효과 없음) — 검사할 칸은 그리드 열·`FormGroup name`·`useMdmColumn(s)` 로 등록해 둔다. 등록하지 않았거나 아직 못 받은(MDM 장애 unavailable·500) 이름은 건너뛰고 서버에 맡긴다. 렌더마다 요청을 걸면 장애 중 글자마다 POST 가 나가므로 훅이 일부러 걸지 않는다.
 - `validateValue(name, value, row?, meta?)` · `validateRow(row, names)` → `{ 이름: 오류 }` · `validateRows(rows, names)` → `[{ rowIndex, field, issue }]`(`rowStatus` `D`·`deleted`, `_rowState`·`nativeeditor_status` `deleted` 행 제외).
-- `validateMdmValue(column, value, row?, caption?)` 는 메타를 이미 가진 곳(시험·특수 화면)에서 쓴다.
+- `validateMdmValue(column, value, row?, caption?)` 는 메타를 이미 가진 곳(같은 컴포넌트의 `useMdmColumn` 결과, 시험)에서 쓴다.
 - `toFieldErrors(source, grid?)` 는 `errors` 배열을 가진 값(OASIS 봉투 `{ meta, errors }`, `errors` 를 실은 오류 객체, `apiRequest` 가 HTTP 4xx·5xx 에서 던진 `HttpError`)이나 배열을 받아 `field` 가 있는 것만 `{ rowKey, rowIndex, field, message }` 로 돌려준다. `grid` 를 주면 그 그리드와 grid 없는 것만. 검증 불가(`MDM_UNAVAILABLE`, field 없음)는 빠지므로 메시지로 보인다.
 - **OASIS 서비스는 `BusinessException` 을 HTTP 200 + `meta.success=false` 봉투로 돌려준다** — `apiRequest` 가 던지지 않는다. 화면의 봉투 해제 함수가 거부를 판정해 오류를 던질 때 봉투의 `errors` 를 그 오류 객체의 `errors` 칸에 실어야 `toFieldErrors(e)` 가 읽는다(또는 봉투를 그대로 넘긴다).
 
@@ -165,7 +165,7 @@ async function save() {
 - `src/frontend/shared/src/portal-shell/portal-shell.tsx` `TabPageSlot`: 탭 본문을 `MdmMetaProvider` 로 감싼다.
 - 화면 파일럿: `src/frontend/m-mls/pages/lsh/noticeMgmt/`(2026-10-03)
   - `notice-columns.tsx`: `TITLE` 열의 `header` 를 비워 MDM 캡션·머리글 툴팁을 쓴다. 파생 열(`CATEGORY_LABEL` 등)은 header 를 그대로 적는다.
-  - `NoticeTitleRow.tsx`: 상세 표(th/td) 제목 줄 — 라벨은 `useMdmColumn` + `resolveCaption`, 입력 중 검사는 `useMdmValidation().validateValue` → `Input error`.
+  - `NoticeTitleRow.tsx`: 상세 표(th/td) 제목 줄 — 라벨은 `useMdmColumn` + `resolveCaption`, 입력 중 검사는 같은 `column` 으로 `validateMdmValue` → `Input error`(MDM 장애 중에도 요청은 등록 한 번).
   - `page.tsx`: 저장 전 `validateRow` 로 막고, 저장 실패는 `toFieldErrors(e, "master")` → 칸별 `error`(고치면 지운다). 그리드에 `mdmValidate`(목록이 읽기 전용이라 지금은 검사할 칸이 없다).
   - `api.ts`: `NoticeApiError.errors` 에 OASIS 봉투의 `errors` 를 실어 `toFieldErrors` 가 읽게 한다.
   - 시험: `m-mls/tests/lsh/noticeMgmt/notice-page-mdm.test.ts`(화면 전체), `notice-mdm-render.test.ts`(제목 줄·그리드 캡션).

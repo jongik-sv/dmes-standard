@@ -87,7 +87,7 @@ import { DatePicker, Input, Textarea } from "@dk-oasis/shared/form";
 | `FormGroup` 으로 상세 폼을 만든다 | 이 표로 만든다. |
 | 필수 표시를 `*` 앞 공백 없이 붙이거나 빨간색 인라인으로 준다 | 라벨 끝에 " *" 만 붙인다. 색은 주지 않는다. |
 | 선택 행이 없는데 입력이 활성이다 | `disabled={!form || isBusy}` 로 막는다. |
-| 입력이 MDM 컬럼 사전 칸인데 라벨·검사를 손으로 적는다 | `useMdmColumn`+`resolveCaption`(라벨), `useMdmValidation` → `Input error`([mdm-meta](mdm-meta.md) §상세 표). |
+| 입력이 MDM 컬럼 사전 칸인데 라벨·검사를 손으로 적는다 | `useMdmColumn`+`resolveCaption`(라벨), 같은 `column` 으로 `validateMdmValue` → `Input error`([mdm-meta](mdm-meta.md) §상세 표). |
 
 ## 실제 사용 예
 
