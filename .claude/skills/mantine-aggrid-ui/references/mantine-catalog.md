@@ -1,6 +1,6 @@
 # Mantine 컴포넌트 → MES 공통 컴포넌트 대응표
 
-[mantine.dev/core/package](https://mantine.dev/core/package/) 의 컴포넌트(설치본 `@mantine/core` 9.6.0 의 117개, `@mantine/dates` 9.6.0)를 MES 화면 관점에서 분류한다. **화면(m-*)은 Mantine 을 직접 import 하지 않는다.** 화면 개발자는 ①표에서 shared 래퍼를 찾아 쓰고, 래퍼가 없으면 ③표를 보고 사용자에게 shared 추가를 제안한다. 이 표는 shared 를 고치는 개발자가 어떤 Mantine 컴포넌트 위에 래퍼를 만들지 정할 때도 쓴다.
+[mantine.dev/core/package](https://mantine.dev/core/package/) 의 컴포넌트(설치본 `@mantine/core` 9.6.0 의 117개, `@mantine/dates` 9.6.0)를 MES 화면 관점에서 분류한다. **화면(m-*)은 Mantine 을 직접 import 하지 않는다.** 화면 개발자는 ①표에서 shared 래퍼를 찾아 쓰고, 래퍼가 없으면 ③표를 보고 shared 에 래퍼를 새로 등록한다(Part B §18, 새 컴포넌트는 묻지 않고 진행). 이 표는 shared 를 고치는 개발자가 어떤 Mantine 컴포넌트 위에 래퍼를 만들지 정할 때도 쓴다.
 
 Mantine 문서 조회: `python3 .claude/skills/mantine-aggrid-ui/scripts/mantine_docs.py get <이름>`. 목록은 mantine.dev 최신판 기준이므로, 새로 쓰려는 컴포넌트는 설치본 `node_modules/@mantine/core/lib/components/<이름>` 이 있는지 먼저 확인한다(작성 시점에는 목록 전부가 설치본에 있다).
 
@@ -33,8 +33,11 @@ Mantine 문서 조회: `python3 .claude/skills/mantine-aggrid-ui/scripts/mantine
 | `Splitter` | **쓰지 않는다** → `ContentBody resizable` | [content-body](components/content-body.md) |
 | `Badge` (그리드 셀) | `GridBadge` (`grid`, 자체 구현) | [grid-badge](components/grid-badge.md) |
 | `CopyButton` | `CopyTextButton` (shared 내부, `ErrorModal` 이 사용) | — |
+| `@mantine/tiptap` `RichTextEditor` | **쓰지 않는다** → `MarkdownEditor`·`MarkdownView`·`MarkdownField` (`markdown-editor`, Tiptap 직접 사용) | [markdown-editor](components/markdown-editor.md) |
 
 Mantine 이 아닌 shared 공통 요소: `AgDataGrid`·`GridPanel`·`useGridDataManager`(ag-grid-community), `MatrixTable`, `charts`(자체 SVG), `exportToExcel`(xlsx).
+
+서식 있는 글(메모·설명) 편집은 `@mantine/tiptap` 의 `RichTextEditor` 대신 shared `markdown-editor` 를 쓴다. 이유: ① 포털이 원격 모듈의 CSS 파일을 싣지 않는다 — `RichTextEditor` 는 `@mantine/tiptap/styles.css` 를 따로 불러와야 하는데, shared 래퍼는 자기 `<style>` 을 직접 넣는다(Part B §18-3). ② 화면은 Mantine 을 직접 쓰지 않고 shared 래퍼만 쓴다 — 도구 막대도 shared `Button`·`Input` 으로 그려 다른 입력 칸과 모습이 같다. ③ 저장 형식이 HTML 이 아니라 마크다운 문자열이다(`RichTextEditor` 는 HTML 을 다룬다). `@mantine/tiptap` 은 설치하지 않는다.
 
 ## ② 셸·Provider 안에서만 쓴다 — 화면은 의식하지 않는다
 
@@ -42,7 +45,7 @@ Mantine 이 아닌 shared 공통 요소: `AgDataGrid`·`GridPanel`·`useGridData
 
 ## ③ MES 에 쓸모가 있지만 래퍼가 없다 — shared 추가 후보
 
-화면에서 Mantine 을 직접 쓰지 않는다. 필요하면 사용자에게 알리고, 승인되면 shared 에 래퍼를 추가한 뒤(Part B §17) 컴포넌트 문서와 [components/llms.txt](components/llms.txt) 에 등재한다. 우선순위는 MES 화면에서 나올 빈도로 매겼다.
+화면에서 Mantine 을 직접 쓰지 않는다. 필요하면 shared 에 래퍼를 새로 등록하고(Part B §18 절차, 새 컴포넌트는 묻지 않고 진행) 컴포넌트 문서와 [components/llms.txt](components/llms.txt) 에 등재한다. 이미 있는 래퍼를 바꾸는 일은 사용자 승인 뒤에 한다. 우선순위는 MES 화면에서 나올 빈도로 매겼다.
 
 | Mantine | MES 용도 | 우선 | 지금 쓰는 대체 |
 |---|---|---|---|

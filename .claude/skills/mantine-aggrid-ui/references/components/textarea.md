@@ -10,6 +10,7 @@
 
 - 쓴다: 상세 폼의 비고·내용·사유.
 - 쓰지 않는다: 한 줄 입력 → [Input](input.md).
+- 쓰지 않는다: 서식(제목·목록·링크)이 필요한 메모·설명 → [MarkdownEditor](markdown-editor.md).
 
 ## 표준 사용
 

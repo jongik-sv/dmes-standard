@@ -49,6 +49,7 @@
 - [Tabs](tabs.md): 한 영역 안에서 내용을 밑줄형 탭으로 나눠 보여 줄 때 쓴다. 탭 머리줄만 그리므로 본문 전환은 화면이 직접 한다.
 - [Tree](tree.md): 메뉴·코드 계층처럼 부모-자식 구조를 접고 펼치는 트리로 보여 주고 한 노드를 고르게 할 때 쓴다.
 - [LookupModal (LookupTextField · LookupIconButton)](lookup.md): 코드(품목·부서 등)를 직접 입력하거나, 돋보기 버튼·F4 로 검색 팝업을 열어 코드·명 한 행을 골라 채울 때 쓴다.
+- [MarkdownEditor](markdown-editor.md): 메모·설명처럼 서식(제목·굵게·목록·할 일·인용·링크)이 있는 글을 마크다운 문자열로 편집하고 보여 줄 때 쓴다. 서식 모드와 MD(원문) 모드를 오가며 고친다.
 - [MatrixTable](matrix-table.md): "첫 열(라벨) + 동적으로 늘어나는 열 + 셀마다 직접 그린 값" 구조의 비교 매트릭스(피벗) 표를 보일 때 쓴다.
 - [차트 (DonutChart · PieChart · HBarChart · LineChart · StackedBarChart)](charts.md): 현황 대시보드에서 비율(도넛·파이), 항목별 크기(가로 막대), 추이(선), 구성 비율(누적 막대)을 간단한 SVG 차트로 보일 때 쓴다.
 - [exportToExcel](export-to-excel.md): 화면의 목록 데이터를 엑셀(.xlsx) 파일로 내려받게 할 때 쓴다. ag-grid 의 Excel Export 는 Enterprise 기능이라 쓰지 않는다.

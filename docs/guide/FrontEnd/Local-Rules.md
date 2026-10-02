@@ -242,3 +242,9 @@ shared·m-mcm 의 Prettier 는 `prettier-plugin-tailwindcss` 를 쓴다. 이 플
 
 - 조건부 클래스는 통째 문자열 두 개 중 하나를 고른다: `className={on ? "a b" : "a"}`. 또는 `` `a ${on ? "b" : ""}` `` 처럼 공백을 템플릿 리터럴 쪽(고정 부분)에 둔다.
 - 예시: `shared/src/portal-shell/portal-shell.tsx` 의 AppShell className.
+
+## 22. 목록 기호 — 포털은 `ul`·`ol` 기호를 지운다 (2026-10-02)
+
+포털(m-mcm `app/globals.css`)이 싣는 Tailwind v4 preflight 가 `ol, ul, menu { list-style: none }`(layer base)을 건다. 화면에 글머리 점·번호가 필요하면 그 요소의 CSS 에 `list-style: disc`(중첩 `circle`)·`decimal` 과 왼쪽 들여쓰기를 직접 준다. 레이어 밖 규칙이라 preflight 를 이긴다. 단위 테스트(happy-dom)에는 preflight 가 없어 이 문제가 보이지 않는다.
+
+- 마크다운 글(메모·설명)은 `@dk-oasis/shared/markdown-editor` 가 이미 명시한다 — 화면에서 다시 그리지 않는다.

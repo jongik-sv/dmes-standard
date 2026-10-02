@@ -33,6 +33,7 @@ UI(폼·모달·메시지·탭·트리·레이아웃·portal-shell·로그인 �
 | `@dk-oasis/shared/form`                       | MUST                   | 입력 컨트롤                          | §14-2            |
 | `@dk-oasis/shared/grid`                       | MUST                   | Grid 및 행 상태 관리                 | §9, §14-2        |
 | `@dk-oasis/shared/tree`                       | SHOULD                 | 트리 표현                            | —                |
+| `@dk-oasis/shared/markdown-editor`            | SHOULD                 | 마크다운 메모·설명 편집과 표시       | §18              |
 | `@dk-oasis/shared/modal`                      | MUST (모달 페이지)     | Modal 시스템                         | §11 E            |
 | `@dk-oasis/shared/message-provider`           | MUST                   | 사용자 메시지                        | §8               |
 | `@dk-oasis/shared/use-api-call`               | SHOULD                 | API 호출 + 메시지                    | §8               |
@@ -388,10 +389,36 @@ import { useGfnMessage } from "@dk-oasis/shared/message-provider";
 - MUST NOT: 커스텀 `fetch` / `axios` wrapper 작성.
 - MUST NOT: `alert`, `console.error` 로 사용자 메시지 표시.
 - MUST NOT: shared 의 컴포넌트를 페이지 로컬에서 중복 구현.
-- MUST NOT: `@mantine/*` 를 화면 모듈에서 직접 import 하지 않는다. 필요한 컴포넌트가 shared 에 없으면 shared 에 추가한다.
+- MUST NOT: `@mantine/*` 를 화면 모듈에서 직접 import 하지 않는다. 필요한 컴포넌트가 shared 에 없으면 shared 에 추가한다(§18).
+- MUST NOT: 업무 도메인에 묶이지 않는 UI 부품을 화면 폴더에 만들어 그 화면에서만 쓴다. shared 에 등록한다(§18).
 - MUST NOT: 상대경로 체인(`../../../`) 으로 shared 또는 타 도메인 import.
 - MUST NOT: `@dk-oasis/shared/dist/...` 직접 import.
 - MUST NOT: 본 문서에 등재되지 않은 경로/심볼 임의 사용.
 - 위 금지 사항 중 import 규칙은 `mantine-aggrid-ui` 스킬의 `audit` 가 기계 점검한다([FrontEnd 인덱스 §자동 점검](../README.md#자동-점검)).
 
 ---
+
+## 18. 새 공통 컴포넌트 등록
+
+화면 작업 중 **업무 도메인에 묶이지 않는 UI 부품**(입력 칸·편집기·표시 부품·도구 막대 등)을 새로 만들게 되면, 화면 폴더에 두지 않고 `@dk-oasis/shared` 에 공통 컴포넌트로 등록한다(2026-10-02 사용자 지시).
+
+### 18-1. 등록 대상 판정
+
+- MUST 등록: 다른 화면에서도 같은 모습·동작으로 쓸 수 있는 부품. 예: 마크다운 메모 편집기, 기간 입력, 파일 첨부 칸.
+- 화면에 둔다: 그 화면의 업무 모델(흐름도 노드, 판정표 행 등)을 알아야만 동작하는 부품. 그 안에 도메인과 무관한 부분이 있으면 그 부분만 떼어 등록하고, 화면은 등록한 부품을 감싸 쓴다.
+- 애매하면 등록하는 쪽을 고른다.
+
+### 18-2. 승인
+
+- 새 컴포넌트·새 서브패스 추가는 이 절을 사용자의 상시 승인으로 보고 묻지 않고 진행한다.
+- 기존 shared 컴포넌트의 props·기본 동작·모습을 바꾸는 일은 지금처럼 사용자에게 알리고 승인 뒤에 한다. 다른 화면이 함께 바뀌기 때문이다.
+
+### 18-3. 등록 절차 — 한 작업 안에서 끝낸다
+
+1. **소스**: `shared/src/components/<이름>/` 와 `index.ts`. 화면 모듈 import, 화면 전용 저장 키·CSS 변수·클래스(예: React Flow 의 `nodrag`)를 남기지 않는다. 화면마다 달라지는 값(저장 키, 추가 클래스, testId, 문구)은 props 로 받고 기본값을 둔다.
+2. **스타일**: 색·간격은 공통 토큰(`--color-*`, `--spacing-*`)만 쓴다. 새 `.css` export 를 만들지 않고 컴포넌트가 자기 `<style>` 을 직접 넣는다(`LookupModal` 과 같은 방식). 포털이 원격 모듈의 CSS 파일을 싣지 않기 때문이다.
+3. **의존성**: 새 라이브러리는 라이선스(MIT·Apache 등)를 확인한 뒤 shared `dependencies` 에 넣는다. 화면 패키지에는 같은 라이브러리를 직접 두지 않고, `pnpm why <라이브러리>` 로 한 벌만 설치됐는지 확인한다.
+4. **노출**: `shared/tsup.config.ts` 의 `entry`, `shared/package.json` 의 `exports`, 본 문서 §1 허용 목록 표에 새 서브패스를 넣는다.
+5. **시험**: 컴포넌트 단위 시험은 `shared/tests/unit/` 에 둔다. 화면에 붙여 보는 통합 시험은 화면 패키지에 둔다.
+6. **문서**: `mantine-aggrid-ui` 스킬의 `references/components/<이름>.md` 를 쓰고 색인을 갱신한다(스킬 §4 의 0번 절차).
+7. **빌드·검증**: shared 를 `.d.ts` 를 켠 채 build 한 뒤, 쓰는 화면 패키지의 lint·build·test 를 돌린다.

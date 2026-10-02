@@ -33,6 +33,7 @@ export default defineConfig((options) => ({
     charts: "src/components/charts/index.ts",
     "matrix-table": "src/components/matrix-table/index.ts",
     lookup: "src/components/lookup/index.ts",
+    "markdown-editor": "src/components/markdown-editor/index.ts",
     oasis: "src/oasis/index.ts",
     "oasis-proxy": "src/oasis-proxy/index.ts",
     lib: "src/lib/index.ts",

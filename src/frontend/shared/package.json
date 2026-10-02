@@ -134,6 +134,10 @@
       "types": "./dist/lookup.d.ts",
       "import": "./dist/lookup.js"
     },
+    "./markdown-editor": {
+      "types": "./dist/markdown-editor.d.ts",
+      "import": "./dist/markdown-editor.js"
+    },
     "./oasis": {
       "types": "./dist/oasis.d.ts",
       "import": "./dist/oasis.js"
@@ -163,7 +167,14 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@tiptap/extension-hard-break": "^3.31.4",
+    "@tiptap/extension-list": "^3.31.4",
+    "@tiptap/markdown": "^3.31.4",
+    "@tiptap/pm": "^3.31.4",
+    "@tiptap/react": "^3.31.4",
+    "@tiptap/starter-kit": "^3.31.4",
     "html-to-image": "^1.11.13",
+    "marked": "^17.0.6",
     "next": "16.1.6",
     "next-auth": "^4.24.13"
   },
