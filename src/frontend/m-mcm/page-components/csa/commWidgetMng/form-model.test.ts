@@ -4,6 +4,7 @@ import type { WidgetDefRow, WidgetRegistry, WidgetTypeRegistry } from "@dk-oasis
 
 import {
   buildAdminRows,
+  canSaveForm,
   codeForm,
   filterAdminRows,
   formToRow,
@@ -218,6 +219,12 @@ describe("validateDefForm", () => {
     expect(validateDefForm(dForm({ defW: "24" }))).toEqual([]);
   });
 
+  it("최소 너비 25 는 기본 너비가 비어도 거절(서버 checkSizes 와 같다)", () => {
+    expect(validateDefForm(dForm({ defW: "", minW: "25" }))).toContain("최소 너비는 24 이하여야 합니다.");
+    expect(validateDefForm(dForm({ defW: "", minW: "24" }))).toEqual([]);
+    expect(validateDefForm({ ...codeForm("home.notice"), minW: "25" })).toContain("최소 너비는 24 이하여야 합니다.");
+  });
+
   it("새로 고침 주기 10 은 거절, 30~86400 만", () => {
     const msg = "새로 고침 주기는 30~86400초여야 합니다.";
     expect(validateDefForm(dForm({ refreshSec: "10" }))).toContain(msg);
@@ -397,6 +404,51 @@ describe("isFormDirty", () => {
     expect(isFormDirty(a, { ...a, title: "x" })).toBe(true);
     expect(isFormDirty(a, { ...a, config: { markdown: "x" } })).toBe(true);
     expect(isFormDirty(null, a)).toBe(false);
+  });
+
+  it("화면 전용 키(__preview)만 다르면 바뀐 것이 아니다 — [쿼리 시험]만 누른 정의는 저장할 것이 없다", () => {
+    const base = { ...newDefForm(TYPES["query-table"].meta), config: { sql: "select 1", columns: [] } };
+    const tried = { ...base, config: { ...base.config, __preview: { columns: ["A"], rows: [{ A: 1 }], truncated: false } } };
+    expect(isFormDirty(base, tried)).toBe(false);
+    expect(isFormDirty(tried, base)).toBe(false);
+    expect(isFormDirty(base, { ...tried, config: { ...tried.config, sql: "select 2" } })).toBe(true);
+  });
+});
+
+describe("canSaveForm", () => {
+  const ok = { loaded: true, busy: false, canSave: true, unknownType: false, errorCount: 0 };
+
+  it("목록을 한 번도 받지 못했으면 막는다 — 빈 코드 폼 저장이 기존 덮어쓰기 행을 NULL 로 지우지 않게", () => {
+    const blank = codeForm("home.notice");
+    const typed = { ...blank, title: "새 이름" };
+    expect(canSaveForm({ ...ok, loaded: false, form: typed, baseline: blank })).toBe(false);
+    expect(canSaveForm({ ...ok, loaded: false, form: newDefForm(TYPES.markdown.meta), baseline: null })).toBe(false);
+  });
+
+  it("덮어쓰기 행이 없는 코드 위젯을 아무것도 안 바꾸고 저장하지 않는다(빈 C 행이 생기지 않게)", () => {
+    const blank = codeForm("home.notice");
+    expect(canSaveForm({ ...ok, form: blank, baseline: blank })).toBe(false);
+    expect(canSaveForm({ ...ok, form: { ...blank, useYn: "N" }, baseline: blank })).toBe(true);
+  });
+
+  it("고친 것이 없는 기존 정의 위젯도 막는다", () => {
+    const d = rowToForm(defRow({ widgetId: "def.a0000001", srcTp: "D", typeId: "markdown", title: "안내" }));
+    expect(canSaveForm({ ...ok, form: d, baseline: d })).toBe(false);
+    expect(canSaveForm({ ...ok, form: { ...d, title: "안내2" }, baseline: d })).toBe(true);
+  });
+
+  it("새 정의 위젯(저장 전)은 손대지 않아도 저장할 수 있다", () => {
+    const n = newDefForm(TYPES.markdown.meta);
+    expect(canSaveForm({ ...ok, form: n, baseline: n })).toBe(true);
+  });
+
+  it("처리 중·권한 없음·폼 없음·알 수 없는 유형·오류가 있으면 막는다", () => {
+    const n = newDefForm(TYPES.markdown.meta);
+    expect(canSaveForm({ ...ok, busy: true, form: n, baseline: n })).toBe(false);
+    expect(canSaveForm({ ...ok, canSave: false, form: n, baseline: n })).toBe(false);
+    expect(canSaveForm({ ...ok, form: null, baseline: null })).toBe(false);
+    expect(canSaveForm({ ...ok, unknownType: true, form: n, baseline: n })).toBe(false);
+    expect(canSaveForm({ ...ok, errorCount: 1, form: n, baseline: n })).toBe(false);
   });
 });
 

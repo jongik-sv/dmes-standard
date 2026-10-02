@@ -242,7 +242,7 @@ const utf8Bytes = (s: string): number => new TextEncoder().encode(s).length;
 
 /**
  * 상세 폼 검사 — 서버 §5.3 과 같은 규칙의 화면 판. 오류 문구 목록(빈 배열이면 저장 가능).
- * 공통: 이름 1~50자(정의 위젯 필수), 크기는 비우거나 1 이상 정수·같은 축 MIN ≤ DEF ≤ MAX·기본 너비 ≤ 24,
+ * 공통: 이름 1~50자(정의 위젯 필수), 크기는 비우거나 1 이상 정수·같은 축 MIN ≤ DEF ≤ MAX·기본·최소 너비 ≤ 24,
  * 새로 고침 30~86400초, 문자열은 컬럼 길이 이하. 정의 위젯: 유형 필수, 정의 설정 200KB 이하.
  */
 export function validateDefForm(form: DefForm): string[] {
@@ -269,6 +269,8 @@ export function validateDefForm(form: DefForm): string[] {
     sizes[key] = Number(t);
   }
   if (sizes.defW != null && sizes.defW > GRID_COLS) errors.push(`기본 너비는 ${GRID_COLS} 이하여야 합니다.`);
+  // 서버 checkSizes 와 같다 — 기본 너비를 비워도 최소 너비 25 이상은 거절.
+  if (sizes.minW != null && sizes.minW > GRID_COLS) errors.push(`최소 너비는 ${GRID_COLS} 이하여야 합니다.`);
   for (const [axis, name] of [
     ["W", "너비"],
     ["H", "높이"],
@@ -293,10 +295,40 @@ export function validateDefForm(form: DefForm): string[] {
   return errors;
 }
 
-/** 저장하지 않은 변경이 있는가(둘 중 하나가 없으면 false). */
+/** 비교용 — 저장 때 지우는 화면 전용 키(__preview 등)는 변경으로 치지 않는다. */
+const comparable = (form: DefForm): string => JSON.stringify({ ...form, config: stripScreenOnlyKeys(form.config) });
+
+/** 저장하지 않은 변경이 있는가(둘 중 하나가 없으면 false). 화면 전용 `__*` 키만 다르면 false — [쿼리 시험]만 누른 정의는 저장할 것이 없다. */
 export function isFormDirty(base: DefForm | null, form: DefForm | null): boolean {
   if (!base || !form) return false;
-  return JSON.stringify(base) !== JSON.stringify(form);
+  return comparable(base) !== comparable(form);
+}
+
+export interface SaveGateInput {
+  /**
+   * commWidgetMng/search 가 한 번이라도 성공했는가. 아니면 덮어쓰기(C) 행을 몰라 빈 코드 폼이 열리고,
+   * 그 저장이 기존 덮어쓰기(사용 중지·크기)를 NULL 로 덮어쓴다(서버 save 는 요청 값으로 모든 칸을 바꾼다) — 편집을 막는다.
+   */
+  loaded: boolean;
+  busy: boolean;
+  /** 저장 버튼 권한(메뉴 RBAC). */
+  canSave: boolean;
+  form: DefForm | null;
+  baseline: DefForm | null;
+  /** 정의 위젯의 유형이 등록부에 없다 — 지우기만 할 수 있다. */
+  unknownType: boolean;
+  /** 폼 검사 + 유형 편집기 오류 수. */
+  errorCount: number;
+}
+
+/**
+ * [저장] 활성 조건. 목록을 받았고·처리 중이 아니고·권한·폼·알려진 유형·오류 없음에 더해,
+ * 기존 행은 바뀐 값이 있어야 한다(덮어쓰기 행이 없는 코드 위젯을 그대로 저장하면 모든 칸 NULL 인 C 행이 생긴다).
+ * 새 정의 위젯(widgetId "")은 손대지 않아도 저장할 수 있다.
+ */
+export function canSaveForm(g: SaveGateInput): boolean {
+  if (!g.loaded || g.busy || !g.canSave || !g.form || g.unknownType || g.errorCount > 0) return false;
+  return g.form.widgetId === "" || isFormDirty(g.baseline, g.form);
 }
 
 /** 미리보기 틀 크기 — 폭 = 미리보기 영역 × w/24, 높이 = h×20 + (h−1)×8 px(보드의 한 칸·간격과 같다). */

@@ -27,6 +27,8 @@ export default function CommWidgetMngPage() {
   const { showMessage } = useMessage();
   const [tab, setTab] = useState<AdminTab>("list");
   const [reloadSignal, setReloadSignal] = useState(0);
+  /** 위젯 목록 탭이 조회·저장·삭제 처리 중인지 — 그동안 [조회] 를 막는다. 탭은 첫 조회 중으로 마운트된다. */
+  const [listBusy, setListBusy] = useState(true);
   /** 위젯 목록 탭에 저장하지 않은 변경이 있는지 — 탭을 바꾸면 그 탭 상태가 사라지므로 먼저 묻는다. */
   const listDirty = useRef(false);
 
@@ -64,6 +66,7 @@ export default function CommWidgetMngPage() {
             onClick: () => setReloadSignal((n) => n + 1),
             type: "primary",
             action: "search",
+            disabled: listBusy,
           },
         ]
       : [];
@@ -80,7 +83,7 @@ export default function CommWidgetMngPage() {
       <div data-testid="widget-admin-page" style={{ display: "contents" }}>
         <Tabs items={TAB_ITEMS} activeKey={tab} onChange={handleTabChange} />
         {tab === "list" ? (
-          <WidgetListTab reloadSignal={reloadSignal} onDirtyChange={handleDirtyChange} />
+          <WidgetListTab reloadSignal={reloadSignal} onDirtyChange={handleDirtyChange} onBusyChange={setListBusy} />
         ) : (
           <LayoutTab />
         )}

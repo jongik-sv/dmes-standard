@@ -7,6 +7,7 @@
  * - [새 위젯](유형 고르기) → 빈 상세(newDefForm). [저장] → toSaveParams(화면 전용 `__*` 키 제거) → save → 다시 조회·그 행 선택.
  * - [삭제](정의 위젯, 사용자 수 0)·[코드 값으로 되돌리기](덮어쓰기 행이 있을 때) → 확인 후 delete.
  * - 바뀐 값이 있는데 다른 행·새 위젯을 고르면 「저장하지 않은 변경을 버릴까요?」.
+ * - 첫 조회가 실패하면(목록을 한 번도 못 받으면) 목록을 비우고 편집을 막는다(계획 Review Focus 1 과 같은 부류). [조회]로 다시 받는다.
  * - 상세 안 실행 버튼은 PageLayout 을 거치지 않으므로 canDoButton 으로 직접 권한을 본다(서버도 메뉴 RBAC 로 막는다).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -23,6 +24,7 @@ import { WIDGET_TYPE_REGISTRY } from "@/lib/generated/widget-type-registry";
 import { deleteWidgetDef, saveWidgetDef, searchWidgetDefs } from "./api";
 import {
   buildAdminRows,
+  canSaveForm,
   codeForm,
   filterAdminRows,
   isFormDirty,
@@ -109,9 +111,11 @@ export interface WidgetListTabProps {
   reloadSignal: number;
   /** 저장하지 않은 변경이 있는지 — 탭을 바꿀 때 화면이 확인을 묻는다. */
   onDirtyChange?: (dirty: boolean) => void;
+  /** 조회·저장·삭제 처리 중인지 — 화면이 상단 [조회] 를 막는다. */
+  onBusyChange?: (busy: boolean) => void;
 }
 
-export function WidgetListTab({ reloadSignal, onDirtyChange }: WidgetListTabProps) {
+export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: WidgetListTabProps) {
   const { showMessage } = useMessage();
   const rbac = useUserButtonRbac();
   const canSave = canDoButton(rbac, SCREEN_ID, "save");
@@ -129,8 +133,18 @@ export function WidgetListTab({ reloadSignal, onDirtyChange }: WidgetListTabProp
   const [openSeq, setOpenSeq] = useState(0);
   /** 첫 조회 중으로 시작한다(첫 조회 effect 가 setState 를 동기로 부르지 않게). */
   const [isBusy, setIsBusy] = useState(true);
+  /**
+   * search 가 한 번이라도 성공했는가(applyList 에서만 true, 다시 false 로 두지 않는다).
+   * 아니면 덮어쓰기(C) 행을 몰라 빈 코드 폼이 열리고, 그 저장이 기존 덮어쓰기(사용 중지 등)를 NULL 로 지운다 —
+   * 목록을 비우고 [새 위젯]·[저장]·[삭제]·상세를 막는다. 나중 [조회] 실패는 이전 목록을 그대로 둔다.
+   */
+  const [loaded, setLoaded] = useState(false);
+  const loadFailed = !loaded && !isBusy;
 
-  const rows = useMemo(() => buildAdminRows(WIDGET_REGISTRY, WIDGET_TYPE_REGISTRY, defs, usage), [defs, usage]);
+  const rows = useMemo(
+    () => (loaded ? buildAdminRows(WIDGET_REGISTRY, WIDGET_TYPE_REGISTRY, defs, usage) : []),
+    [loaded, defs, usage]
+  );
   const visibleRows = useMemo(() => filterAdminRows(rows, filters), [rows, filters]);
   const selectedRow = useMemo(() => (selectedId ? (rows.find((r) => r.widgetId === selectedId) ?? null) : null), [rows, selectedId]);
   const dirty = isFormDirty(baseline, form);
@@ -139,6 +153,10 @@ export function WidgetListTab({ reloadSignal, onDirtyChange }: WidgetListTabProp
   useEffect(() => {
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
+
+  useEffect(() => {
+    onBusyChange?.(isBusy);
+  }, [isBusy, onBusyChange]);
 
   const openForm = useCallback((next: DefForm | null, widgetId: string) => {
     setSelectedId(widgetId);
@@ -154,6 +172,7 @@ export function WidgetListTab({ reloadSignal, onDirtyChange }: WidgetListTabProp
       const nextDefs = out.defs.map(toWidgetDefRow).filter((d): d is WidgetDefRow => d !== null);
       setDefs(nextDefs);
       setUsage(out.usage);
+      setLoaded(true);
       const nextRows = buildAdminRows(WIDGET_REGISTRY, WIDGET_TYPE_REGISTRY, nextDefs, out.usage);
       const target = selectAfter ? nextRows.find((r) => r.widgetId === selectAfter) : undefined;
       if (target) openForm(formForRow(target), target.widgetId);
@@ -241,10 +260,10 @@ export function WidgetListTab({ reloadSignal, onDirtyChange }: WidgetListTabProp
   const handleNew = useCallback(
     (typeId: string) => {
       const type = WIDGET_TYPE_REGISTRY[typeId];
-      if (!type) return;
+      if (!type || !loaded) return;
       guard("저장하지 않은 변경을 버릴까요?", () => openForm(newDefForm(type.meta), ""));
     },
-    [guard, openForm]
+    [loaded, guard, openForm]
   );
 
   const handleFormChange = useCallback((patch: Partial<DefForm>) => {
@@ -266,7 +285,7 @@ export function WidgetListTab({ reloadSignal, onDirtyChange }: WidgetListTabProp
   const allErrors = unknownType ? formErrors : [...formErrors, ...editorErrors];
 
   const handleSave = useCallback(async () => {
-    if (!form) return;
+    if (!form || !loaded) return;
     const errs = [...validateDefForm(form), ...editorErrors];
     if (errs.length > 0) {
       showMessage({ message: errs[0], alertType: "warning" });
@@ -282,7 +301,7 @@ export function WidgetListTab({ reloadSignal, onDirtyChange }: WidgetListTabProp
     } finally {
       setIsBusy(false);
     }
-  }, [form, editorErrors, load, showMessage]);
+  }, [form, loaded, editorErrors, load, showMessage]);
 
   const handleDelete = useCallback(() => {
     const row = selectedRow;
@@ -316,9 +335,19 @@ export function WidgetListTab({ reloadSignal, onDirtyChange }: WidgetListTabProp
 
   const isCodeRow = selectedRow?.kind === "코드";
   const inUse = (selectedRow?.userCount ?? 0) > 0;
+  /** 목록을 받았고 처리 중이 아니다 — 상세 칸·[새 위젯]·[삭제] 를 쓸 수 있다. */
+  const editable = loaded && !isBusy;
   const deleteEnabled =
-    !isBusy && canDelete && !!selectedRow?.def && (isCodeRow ? selectedRow.overridden : !inUse);
-  const saveEnabled = !isBusy && canSave && !!form && !unknownType && allErrors.length === 0;
+    editable && canDelete && !!selectedRow?.def && (isCodeRow ? selectedRow.overridden : !inUse);
+  const saveEnabled = canSaveForm({
+    loaded,
+    busy: isBusy,
+    canSave,
+    form,
+    baseline,
+    unknownType,
+    errorCount: allErrors.length,
+  });
 
   return (
     <>
@@ -353,12 +382,19 @@ export function WidgetListTab({ reloadSignal, onDirtyChange }: WidgetListTabProp
             <GridPanel
               title="위젯 목록"
               count={visibleRows.length}
+              titleExtra={
+                loadFailed ? (
+                  <span className="form-error-message" role="alert" data-testid="widget-admin-load-error">
+                    위젯 목록을 불러오지 못했습니다. [조회]로 다시 시도하세요.
+                  </span>
+                ) : null
+              }
               headerExtra={
                 <Select
                   value=""
                   options={TYPE_OPTIONS}
                   placeholder="새 위젯(유형 고르기)"
-                  disabled={isBusy || !canSave || TYPE_OPTIONS.length === 0}
+                  disabled={!editable || !canSave || TYPE_OPTIONS.length === 0}
                   aria-label="새 위젯 유형"
                   data-testid="widget-admin-new"
                   onChange={handleNew}
@@ -387,7 +423,7 @@ export function WidgetListTab({ reloadSignal, onDirtyChange }: WidgetListTabProp
                 codeMeta={codeEntry?.meta}
                 typeEntry={typeEntry}
                 editorKey={String(openSeq)}
-                disabled={isBusy}
+                disabled={!editable}
                 errors={allErrors}
                 preview={
                   form && (codeEntry || typeEntry) ? (
