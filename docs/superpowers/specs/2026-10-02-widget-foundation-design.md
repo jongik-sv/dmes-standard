@@ -244,19 +244,19 @@ export const WIDGET_REGISTRY: Record<string, {
 
 | 지금 ID | 새 ID | 기본 자리(x,y) · 크기(w×h) | 비고 |
 |---|---|---|---|
-| kpi | `home.kpi` | 0,0 · 24×6 | 샘플 |
-| notice | `home.notice` | 0,6 · 10×16 | 실제 조회(noticeBoard). `linkPageId` = 공지관리 |
-| notifications | `home.notifications` | 10,6 · 7×16 | 샘플 |
-| quickLinks | `home.quickLinks` | 17,6 · 7×16 | 사용자 즐겨찾기 |
-| monthly | `home.monthly` | 0,22 · 9×13 | 샘플 차트 |
-| equipment | `home.equipment` | 9,22 · 6×13 | 샘플 차트 |
-| process | `home.process` | 15,22 · 9×13 | 샘플 차트 |
-| workOrders | `home.workOrders` | 0,35 · 14×14 | 샘플 그리드 |
-| alarms | `home.alarms` | 14,35 · 10×7 | 샘플 |
-| defect | `home.defect` | 14,42 · 10×7 | 샘플 차트 |
-| shipments | `home.shipments` | 0,49 · 24×10 | 샘플 그리드 |
+| kpi | `home.kpi` | 0,0 · 24×7 | 샘플 |
+| notice | `home.notice` | 0,7 · 10×16 | 실제 조회(noticeBoard). `linkPageId` = 공지관리 |
+| notifications | `home.notifications` | 10,7 · 7×16 | 샘플 |
+| quickLinks | `home.quickLinks` | 17,7 · 7×16 | 사용자 즐겨찾기 |
+| monthly | `home.monthly` | 0,23 · 9×13 | 샘플 차트 |
+| equipment | `home.equipment` | 9,23 · 6×13 | 샘플 차트 |
+| process | `home.process` | 15,23 · 9×13 | 샘플 차트 |
+| workOrders | `home.workOrders` | 0,36 · 14×14 | 샘플 그리드 |
+| alarms | `home.alarms` | 14,36 · 10×7 | 샘플 |
+| defect | `home.defect` | 14,43 · 10×7 | 샘플 차트 |
+| shipments | `home.shipments` | 0,50 · 24×10 | 샘플 그리드 |
 
-- 이 표가 `HOME_DEFAULT_LAYOUT` 이다(시안과 같다). 기본 배치에서는 아무 위젯도 잠그지 않는다(시안의 「주요 지표」 잠금은 잠금 동작을 보이기 위한 예시다).
+- 이 표가 `HOME_DEFAULT_LAYOUT` 이다(시안 대비 「주요 지표」 높이만 6→7, W-D15). 기본 배치에서는 아무 위젯도 잠그지 않는다(시안의 「주요 지표」 잠금은 잠금 동작을 보이기 위한 예시다).
 
 - 지금 카드 안 내용(조회·그리드·차트·선택 상태)은 그대로 옮기고 카드 바깥(제목 줄)만 `WidgetFrame` 으로 바꾼다. `DashboardCard` 의 `subtitle` 은 메타 `subtitle` 로, `actions` 는 `<WidgetHeaderActions>` 로, `children(size)` 는 `useWidgetBodySize()` 로 옮긴다.
 - 공지 위젯·긴급 공지 띠·알림 위젯이 공지 목록과 선택 상태를 함께 쓰므로, 화면 수준 상태 대신 `page-components/home/notice-store.ts`(구독형 저장소)에 둔다. 「내용 보기」는 공지를 고르고 공지 위젯이 현재 탭에 있으면 그 위젯으로 스크롤한다(다른 탭의 위젯을 열지는 않는다 — 위젯끼리 연동은 범위 밖).
@@ -299,3 +299,4 @@ export const WIDGET_REGISTRY: Record<string, {
 | W-D12 | 편집은 24칸 화면에서만 | 좁은 화면에서 옮긴 결과를 넓은 화면 좌표로 되돌릴 규칙이 없다. 다시 흘린 배치는 보기 전용으로 둔다 |
 | W-D13 | 칸 수·편집 가능 판정은 서랍 자리를 포함한 작업 공간 바깥 폭으로 한다. 보드가 잰 폭은 격자 픽셀 폭으로만 쓴다 | 서랍을 열면 보드가 좁아져 칸 수가 진동한 결함(E2E D1) |
 | W-D14 | 24칸 문턱을 1200 에서 960px 로 낮춘다(2026-10-02 사용자 결정) | 1440 창+사이드바(1160)와 1280 노트북+사이드바(약 1000)에서도 24칸 배치·편집을 쓰게 |
+| W-D15 | 「주요 지표」 기본 크기를 24×6 에서 24×7 로 늘리고 아래 위젯을 한 칸씩 내린다(2026-10-02 사용자 결정) | 24×6 에서는 넓은 화면에서도 KPI 카드 아래 줄이 잘리고 안쪽 스크롤바가 생김(E2E O2) |
