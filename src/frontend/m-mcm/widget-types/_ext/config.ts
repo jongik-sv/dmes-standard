@@ -7,8 +7,8 @@
 
 // ── 환율 ─────────────────────────────────────────────────────────────────
 
-/** 편집기가 보여 주는 통화(스펙 §6 Task 12). */
-export const EXCHANGE_CURRENCIES = ["USD", "EUR", "JPY", "CNY", "GBP", "AUD", "CAD", "CHF", "HKD", "SGD", "VND", "THB"] as const;
+/** 편집기가 보여 주는 통화(스펙 §6 Task 12). VND 는 기본 제공자 Frankfurter(유럽중앙은행)가 주지 않아 뺐다. */
+export const EXCHANGE_CURRENCIES = ["USD", "EUR", "JPY", "CNY", "GBP", "AUD", "CAD", "CHF", "HKD", "SGD", "THB"] as const;
 /** 서버가 한 번에 받는 통화 수(widgetExt/exchange symbols 1~10개). */
 export const MAX_EXCHANGE_CURRENCIES = 10;
 export const EXCHANGE_DAY_OPTIONS = [7, 30, 90] as const;
