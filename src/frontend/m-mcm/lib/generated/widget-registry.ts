@@ -3,6 +3,28 @@
 // widgets/{group}/{name}/widget.meta.ts(정적) + widget.tsx(지연 로딩). 스펙 2026-10-02-widget-foundation §2.3.
 import type { WidgetRegistry } from "@dk-oasis/shared/widget";
 
-export const WIDGET_REGISTRY: WidgetRegistry = {
+import { meta as m0 } from "@/widgets/home/alarms/widget.meta";
+import { meta as m1 } from "@/widgets/home/defect/widget.meta";
+import { meta as m2 } from "@/widgets/home/equipment/widget.meta";
+import { meta as m3 } from "@/widgets/home/kpi/widget.meta";
+import { meta as m4 } from "@/widgets/home/monthly/widget.meta";
+import { meta as m5 } from "@/widgets/home/notice/widget.meta";
+import { meta as m6 } from "@/widgets/home/notifications/widget.meta";
+import { meta as m7 } from "@/widgets/home/process/widget.meta";
+import { meta as m8 } from "@/widgets/home/quickLinks/widget.meta";
+import { meta as m9 } from "@/widgets/home/shipments/widget.meta";
+import { meta as m10 } from "@/widgets/home/workOrders/widget.meta";
 
+export const WIDGET_REGISTRY: WidgetRegistry = {
+  "home.alarms": { meta: m0, load: () => import("@/widgets/home/alarms/widget") },
+  "home.defect": { meta: m1, load: () => import("@/widgets/home/defect/widget") },
+  "home.equipment": { meta: m2, load: () => import("@/widgets/home/equipment/widget") },
+  "home.kpi": { meta: m3, load: () => import("@/widgets/home/kpi/widget") },
+  "home.monthly": { meta: m4, load: () => import("@/widgets/home/monthly/widget") },
+  "home.notice": { meta: m5, load: () => import("@/widgets/home/notice/widget") },
+  "home.notifications": { meta: m6, load: () => import("@/widgets/home/notifications/widget") },
+  "home.process": { meta: m7, load: () => import("@/widgets/home/process/widget") },
+  "home.quickLinks": { meta: m8, load: () => import("@/widgets/home/quickLinks/widget") },
+  "home.shipments": { meta: m9, load: () => import("@/widgets/home/shipments/widget") },
+  "home.workOrders": { meta: m10, load: () => import("@/widgets/home/workOrders/widget") },
 };
