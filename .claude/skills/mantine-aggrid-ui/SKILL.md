@@ -65,7 +65,7 @@ python3 $D/aggrid_docs.py recommendations           # 공식 ag-dev 의 LLM 흔�
 | 모달·트리·탭·룩업 | `modal`, `tree`, `tabs`, `lookup` |
 | 모양이 정해지지 않은 JSON 값 보기(캐시 값·설정·응답 본문) | `json-view`: `JsonView`(읽기 전용 접는 트리, `fill` 로 패널 남은 높이 채움) |
 | 서식 있는 메모·설명(마크다운) 편집·표시 | `markdown-editor`: `MarkdownEditor`(편집기 — `editable` 로 읽기·편집 전환, 여닫기는 화면이 정함), `MarkdownField`(폼·패널 칸 — 고칠 수 있으면 처음부터 편집기, `fill` 로 남은 높이 채움), `MarkdownView`(읽기 전용). 서식 없는 여러 줄 입력은 `form` 의 `Textarea` |
-| 머리글·라벨 캡션과 툴팁을 MDM 컬럼 사전에서 | `mdm-meta`: 포털 탭이 `MdmMetaProvider` 를 자동으로 씌운다 — 그리드 `header`·폼 `label` 을 **생략**하면 MDM 캡션, 메타 툴팁(`MdmMetaCard`)은 자동. 다른 물리명은 `meta`, 끄기는 `meta: false`([mdm-meta](references/components/mdm-meta.md)) |
+| 머리글·라벨 캡션과 툴팁을 MDM 컬럼 사전에서 | `mdm-meta`: 포털 탭이 `MdmMetaProvider` 를 자동으로 씌운다 — 그리드 `header`·폼 `label` 을 **생략**하면 MDM 캡션, 메타 툴팁(`MdmMetaCard`)은 자동. 다른 물리명은 `meta`, 끄기는 `meta: false`. `FormGroup` 을 쓰지 않는 th/td 상세 표 라벨은 `MdmFieldLabel`([mdm-meta](references/components/mdm-meta.md)) |
 | 입력값을 MDM 정의(필수·형식·길이·허용 코드·표준식)로 검사·서버 저장 오류를 칸에 표시 | 그리드 `mdmValidate` + `fieldErrors={toFieldErrors(e, grid)}`, 폼 `useMdmValidation()` 결과를 `FormGroup error` 로, 저장 전 `validateRows`. 오류 칸 클래스 `cell-mdm-invalid`([mdm-meta](references/components/mdm-meta.md) §화면 값 검증) |
 
 - **데이터테이블(머리행 + 데이터 행이 반복되는 목록)은 반드시 공용 `AgDataGrid` 로 그린다.** 크기·테두리·선택·편집 모양이 모든 화면에서 같아야 하기 때문이다. 원시 `<table>` 이나 다른 그리드 라이브러리로 목록을 그리지 않는다(두 번째 그리드였던 `CustomDataGrid` 는 2026-09-29 삭제). 카드·패널·모달 안의 몇 행짜리 작은 목록도 예외가 아니며, `height="auto"`(행 수만큼 높이가 늘어남)로 그린다. 행 선택은 `onRowClick`·`highlightedRowKey`, 셀 안 배지·버튼은 `GridColumn.render`, 셀 편집은 `editable`·`cellEditor` 로 한다. 예외는 라벨-값 짝으로 된 폼 배치 표(`<thead>` 없음)와 `matrix-table` 뿐이다. `A audit` 가 화면의 `<thead>` 를 잡는다.

@@ -301,7 +301,7 @@ shared `Modal` 의 `lg`·`xl` 은 최소 높이(70·80vh)만 있고 고정 높�
 - **기존 화면을 표준 캡션으로 바꿀 때는 `header` 를 지우지 말고 `captionPriority="mdm"` 을 쓴다(대체 캡션 유지).** 화면을 `<MdmMetaProvider captionPriority="mdm">` 으로 감싸고 `module` 은 지정하지 않는다(바깥 포털 공급자를 따른다). 그러면 MDM 이 있으면 표준 캡션, 없거나 받지 못하면(장애·사전에서 지워짐·포털 밖) 적어 둔 `header` 가 보인다. `header` 를 지우면 MDM 을 받지 못할 때 열 `key`(`TITLE`)가 머리글로 보이고 상세 라벨과 어긋난다. 새 화면은 `header` 를 생략해도 된다(D-146 명시 우선 — 생략하면 MDM 캡션을 따른다).
 - 표시용 파생 열(`CATEGORY_LABEL` 등)처럼 물리명과 맞지 않는 열은 `header` 를 적고, `captionPriority="mdm"` 화면에서는 `meta: false` 로 연결을 끈다(사전에 우연히 같은 이름이 생겨도 머리글이 바뀌지 않게, 묻는 이름도 줄인다). 다른 물리명이 맞으면 `meta="물리명"`, 엉뚱하게 맞으면 `meta: false`. 엑셀 내보내기 등에서 `header` 를 읽을 때는 `useResolvedGridColumns(COLUMNS)` 결과를 쓴다.
 - `FormGroup` 을 쓰는 입력은 `name`(화면 필드 이름)을 주고 `label` 을 생략하면 MDM 폼 캡션·툴팁이 붙는다(§7 의 `tip` 은 적으면 이긴다).
-- **상세 표(`DETAIL_*` th/td)는 `FormGroup` 을 쓰지 않으므로** 훅으로 직접 잇는다: 라벨은 `useMdmColumn("TITLE")` + `resolveCaption(column, "form", undefined, useMdmCaptionPriority(), "제목")`. 이 패턴은 아직 툴팁이 없다(MDM 카드를 띄울 공통 부품은 후속).
+- **th/td 상세 표 라벨은 `MdmFieldLabel`**: 상세 표(`DETAIL_*`)는 `FormGroup` 을 쓰지 않으므로 th 안에 `<MdmFieldLabel name="TITLE" label="제목" required />` 을 둔다(캡션 우선순위는 `FormGroup` 과 같고, 사전에 있으면 라벨에 올릴 때 MDM 컬럼·도메인 카드 툴팁이 뜬다. 사전에 없거나 포털 밖이면 `label` 글자 그대로). th 에 `{caption} *` 를 손으로 그리거나 `resolveCaption` 으로 라벨만 만들지 않는다.
 
 **값 검증**
 

@@ -58,6 +58,21 @@ import { DatePicker, Input, Textarea } from "@dk-oasis/shared/form";
 </tr>
 ```
 
+### MDM 컬럼 사전과 맞는 입력
+
+입력이 MDM 컬럼 사전의 칸과 맞으면(물리명 같음) 라벨 글자 대신 `MdmFieldLabel` 을 th 안에 둔다. 캡션(적은 `label` 또는 MDM 폼 캡션)과 라벨에 올릴 때 뜨는 MDM 컬럼·도메인 툴팁이 함께 붙는다. 사전에 없거나 포털 밖이면 `label` 글자 그대로이고 DOM 도 단순 텍스트와 같다. 필수 표시는 `required`(라벨 뒤 " *").
+
+```tsx
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
+
+<tr>
+  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="TITLE" label="제목" required /></th>
+  <td style={DETAIL_VALUE_CELL}><Input value={form?.TITLE ?? ""} onChange={(v) => handleFormChange("TITLE", v)} /></td>
+</tr>
+```
+
+값 검사·서버 오류 연결은 [mdm-meta](mdm-meta.md) §상세 표. 사전에 이름이 없는 줄(`NOTICE_ID` 등)은 지금처럼 글자 th 로 둔다.
+
 ### 값 칸에 입력과 버튼 함께
 
 값 칸 안에서 `div` 로 `flex` 를 쓰되 간격은 `var(--spacing-xs)` 같은 토큰만 쓴다. 버튼은 [Button](button.md)이다.
@@ -87,9 +102,9 @@ import { DatePicker, Input, Textarea } from "@dk-oasis/shared/form";
 | `FormGroup` 으로 상세 폼을 만든다 | 이 표로 만든다. |
 | 필수 표시를 `*` 앞 공백 없이 붙이거나 빨간색 인라인으로 준다 | 라벨 끝에 " *" 만 붙인다. 색은 주지 않는다. |
 | 선택 행이 없는데 입력이 활성이다 | `disabled={!form || isBusy}` 로 막는다. |
-| 입력이 MDM 컬럼 사전 칸인데 라벨·검사를 손으로 적는다 | `useMdmColumn`+`resolveCaption`(라벨), 같은 `column` 으로 `validateMdmValue` → `Input error`([mdm-meta](mdm-meta.md) §상세 표). |
+| 입력이 MDM 컬럼 사전 칸인데 라벨·검사를 손으로 적는다 | 라벨은 th 안의 `MdmFieldLabel`(캡션+툴팁), 검사는 `useMdmColumn` 의 `column` 으로 `validateMdmValue` → `Input error`([mdm-meta](mdm-meta.md) §상세 표). |
 
 ## 실제 사용 예
 
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:302` 목록 옆 상세 폼 전체(Input·Select·DatePicker·Textarea, 읽기전용 공지번호, 필수 " *", `!form` 비활성).
+- `src/frontend/m-mls/pages/lsh/noticeMgmt/page.tsx:302` 목록 옆 상세 폼 전체(Input·Select·DatePicker·Textarea, 읽기전용 공지번호, 필수 " *", `!form` 비활성). 제목 줄은 `NoticeTitleRow.tsx`(`MdmFieldLabel`).
 - `src/frontend/m-mdm/pages/dma/unitMng/page.tsx:262` ComboBox·읽기전용 Input 이 섞인 상세 폼. m-mdm 화면이므로 `MdmPageLayout` 아래에 있다.
