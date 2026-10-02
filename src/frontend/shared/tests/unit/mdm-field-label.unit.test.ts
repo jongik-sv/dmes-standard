@@ -5,6 +5,8 @@
  *  - 캡션 우선순위: 적은 label 이 이긴다(explicit), captionPriority="mdm" 이면 MDM 이 이긴다. kind 로 그리드·폼 캡션 칸을 고른다.
  *  - 메타가 있으면 hover·focus 때 FormGroup 과 같은 포털 툴팁(.form-tip-text--portal)에 MdmMetaCard 를 띄우고, 스크린리더 설명은 aria-describedby 로 잇는다.
  */
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { act, createElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -272,5 +274,13 @@ describe("공급자 안 — 툴팁(B3·B8)", () => {
     const t = trigger()!;
     expect(t.classList.contains("my-label")).toBe(true);
     expect(t.style.fontWeight).toBe("700");
+  });
+
+  it("카드 폭: 툴팁 상자는 body 아래 position:fixed 라 폭 0 감싸개(ag-grid .ag-tooltip-custom 사고, 02fd9586)에 갇히지 않고, form.css 가 폭을 220~320px 로 둔다", () => {
+    const css = readFileSync(resolve(process.cwd(), "src/components/form/form.css"), "utf8");
+    const box = /\.form-tip-text\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(box).toMatch(/min-width:\s*220px/);
+    expect(box).toMatch(/max-width:\s*320px/);
+    expect(box).not.toMatch(/(^|[;\s])width:/); // 고정 폭을 두지 않는다 — 내용 폭(shrink-to-fit)
   });
 });
