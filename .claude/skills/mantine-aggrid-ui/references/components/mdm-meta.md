@@ -53,6 +53,28 @@ const info = useMdmColumns([{ name: "title" }, { name: "etc", meta: false }]); /
 
 `resolveCaption(column, "grid" | "form", 적은값, "explicit" | "mdm", 화면키)` — 그리드는 `labelShort` → `labelMid` → `labelLong` → `columnName`, 폼은 `labelMid` → `labelLong` → `labelShort` → `columnName`.
 
+### 상세 표(th/td)에서 — FormGroup 없이 훅으로
+
+새 화면의 상세 폼은 `DETAIL_*` 표라 `FormGroup name` 이 없다([detail-form](detail-form.md)). 라벨·검사는 훅으로 직접 잇는다. 툴팁(`MdmMetaCard`)은 이 패턴에 아직 없다.
+
+```tsx
+const { column } = useMdmColumn("TITLE");
+const caption = resolveCaption(column, "form", undefined, useMdmCaptionPriority(), "제목"); // MDM 폼 캡션, 없으면 "제목"
+const { validateValue } = useMdmValidation();
+
+<tr>
+  <th style={DETAIL_LABEL_CELL}>{caption} *</th>
+  <td style={DETAIL_VALUE_CELL}>
+    <Input value={v} error={serverError ?? validateValue("TITLE", v)?.message} onChange={onChange} />
+  </td>
+</tr>
+```
+
+- 서버 오류(`toFieldErrors(e, grid)` 결과)는 칸별 상태에 담아 `error` 로 준다. 그 칸을 고치거나 다른 행을 열면 지운다.
+- 저장 전 `validateRow(row, names)` 로 막을 칸은 서버 `MdmValidator.columns(...)` 와 같게 둔다.
+- 훅은 공급자(포털 탭) 밖이면 아무것도 부르지 않고 늘 통과다 — 포털 밖 단독 실행에서도 같은 코드가 돈다.
+- 빈 칸은 입력 중에는 검사하지 않는다(필수는 저장 때). 예: `m-mls/pages/lsh/noticeMgmt/NoticeTitleRow.tsx`.
+
 ### 화면 값 검증(C, 2026-10-03)
 
 판정과 문구는 서버 저장 검증(cactus-core `MdmValidator`)과 같다. 순서: 빈 값(공백만 포함) → 필수 → 타입 → 길이·소수 자리 → 허용 코드 → 도메인 표준식, 첫 실패에서 멈춘다.
@@ -90,7 +112,7 @@ async function save() {
     return;
   }
   try { await saveApi(changed); setFieldErrors([]); }
-  catch (e) { setFieldErrors(toFieldErrors(e, "notice")); }    // e.errors(서버 ErrorDetail 목록) → 칸 오류
+  catch (e) { setFieldErrors(toFieldErrors(e, "master")); }    // e.errors(서버 ErrorDetail 목록) → 칸 오류. 두 번째 인자 = 요청의 grid 이름
 }
 <AgDataGrid columns={COLUMNS} data={rows} rowKey="NOTICE_ID" mdmValidate fieldErrors={fieldErrors} />
 ```
@@ -141,4 +163,9 @@ async function save() {
 ## 실제 사용 예
 
 - `src/frontend/shared/src/portal-shell/portal-shell.tsx` `TabPageSlot`: 탭 본문을 `MdmMetaProvider` 로 감싼다.
-- 화면 파일럿: m-mls `lsh/noticeMgmt`(T6 에서 적용).
+- 화면 파일럿: `src/frontend/m-mls/pages/lsh/noticeMgmt/`(2026-10-03)
+  - `notice-columns.tsx`: `TITLE` 열의 `header` 를 비워 MDM 캡션·머리글 툴팁을 쓴다. 파생 열(`CATEGORY_LABEL` 등)은 header 를 그대로 적는다.
+  - `NoticeTitleRow.tsx`: 상세 표(th/td) 제목 줄 — 라벨은 `useMdmColumn` + `resolveCaption`, 입력 중 검사는 `useMdmValidation().validateValue` → `Input error`.
+  - `page.tsx`: 저장 전 `validateRow` 로 막고, 저장 실패는 `toFieldErrors(e, "master")` → 칸별 `error`(고치면 지운다). 그리드에 `mdmValidate`(목록이 읽기 전용이라 지금은 검사할 칸이 없다).
+  - `api.ts`: `NoticeApiError.errors` 에 OASIS 봉투의 `errors` 를 실어 `toFieldErrors` 가 읽게 한다.
+  - 시험: `m-mls/tests/lsh/noticeMgmt/notice-page-mdm.test.ts`(화면 전체), `notice-mdm-render.test.ts`(제목 줄·그리드 캡션).
