@@ -38,11 +38,15 @@ GROUPS: list[tuple[str, list[str]]] = [
     ("목록 (`@dk-oasis/shared/grid`)", ["ag-data-grid", "grid-panel", "use-grid-data-manager", "grid-badge", "pagination"]),
     ("팝업·메시지 (`modal`, `message-provider`, `use-api-call`)", ["modal", "message"]),
     ("대시보드 (`@dk-oasis/shared/dashboard`)", ["dashboard"]),
+    ("위젯 (`@dk-oasis/shared/widget`)", ["widget"]),
     ("탭·트리·룩업·기타", ["tabs", "tree", "lookup", "markdown-editor", "notice-body-view", "matrix-table", "charts", "export-to-excel", "icons"]),
 ]
 
 # 화면 문서에 싣지 않는 shared export 와 이유. coverage 가 이 목록을 "의도적 제외"로 본다.
 EXCLUDED: dict[str, str] = {
+    "WIDGET_CSS": "WidgetStyle 내부용 CSS 문자열",
+    "getDraggingWidget": "WidgetPicker·WidgetBoard 끌기 공유용 내부 함수",
+    "setDraggingWidget": "WidgetPicker·WidgetBoard 끌기 공유용 내부 함수",
     "DataGrid": "AgDataGrid 의 별칭. 새 코드는 AgDataGrid",
     "useRowStateManager": "옛 행 상태 훅(_rowState). 새 화면은 useGridDataManager",
     "ResizableFormPanel": "Part B §4-3 이 새 화면 사용 금지. ContentBody resizable",
@@ -76,6 +80,7 @@ EXPORT_FILES = [
     "components/markdown-editor/index.ts",
     "components/notice-body-view/index.ts",
     "components/dashboard/index.ts",
+    "widget/index.ts",
     "components/matrix-table/index.ts",
     "components/charts/index.ts",
     "components/modal.tsx",

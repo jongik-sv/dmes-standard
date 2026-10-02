@@ -37,3 +37,5 @@ export { WidgetTabs } from "./WidgetTabs";
 export type { WidgetTabsProps } from "./WidgetTabs";
 export { WidgetPicker } from "./WidgetPicker";
 export type { WidgetPickerProps } from "./WidgetPicker";
+export { WidgetWorkspace } from "./WidgetWorkspace";
+export type { WidgetWorkspaceProps } from "./WidgetWorkspace";
