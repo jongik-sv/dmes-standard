@@ -1,10 +1,13 @@
 "use client";
 
-/** [위젯 추가] 서랍 — 이름·설명 검색, 눌러서 맨 아래에 추가, 끌어서 원하는 자리에 놓기(스펙 §3.4). */
+/**
+ * [위젯 추가] 서랍 — 이름·설명 검색, 눌러서 맨 아래에 추가, 끌어서 원하는 자리에 놓기(스펙 §3.4).
+ * 사용 중지 위젯은 보이지 않고, 정의 위젯(kind "def")은 제목 아래에 유형 이름을 작은 글씨로 보인다(스펙 widget-admin-generic §2).
+ */
 import { useMemo, useState } from "react";
 
 import { WidgetStyle } from "./styles";
-import type { WidgetItem, WidgetRegistry } from "./types";
+import type { WidgetItem, WidgetMeta, WidgetRegistry } from "./types";
 import { setDraggingWidget } from "./widget-dnd";
 import { canAddWidget } from "./widget-layout";
 
@@ -12,17 +15,26 @@ export interface WidgetPickerProps {
   registry: WidgetRegistry;
   items: readonly WidgetItem[];
   onAdd: (widgetId: string) => void;
+  /** 위젯 유형 ID → 이름("query-table" → "쿼리 표"). 정의 위젯 제목 아래에 보인다. */
+  typeTitles?: Readonly<Record<string, string>>;
 }
 
-export function WidgetPicker({ registry, items, onAdd }: WidgetPickerProps) {
+/** 정의 위젯의 유형 이름 — 코드 위젯이거나 이름을 모르면 null. */
+function typeTitleOf(meta: WidgetMeta, typeTitles?: Readonly<Record<string, string>>): string | null {
+  if (meta.kind !== "def" || !meta.typeId || !typeTitles) return null;
+  return typeTitles[meta.typeId] ?? null;
+}
+
+export function WidgetPicker({ registry, items, onAdd, typeTitles }: WidgetPickerProps) {
   const [query, setQuery] = useState("");
   const list = useMemo(() => {
     const q = query.trim();
     return Object.values(registry)
       .map((e) => e.meta)
-      .filter((m) => !q || m.title.includes(q) || (m.description ?? "").includes(q))
+      .filter((m) => !m.disabled)
+      .filter((m) => !q || m.title.includes(q) || (m.description ?? "").includes(q) || (typeTitleOf(m, typeTitles) ?? "").includes(q))
       .sort((a, b) => a.title.localeCompare(b.title, "ko"));
-  }, [registry, query]);
+  }, [registry, query, typeTitles]);
 
   return (
     <aside className="cm-widget-picker" aria-label="위젯 추가">
@@ -41,6 +53,7 @@ export function WidgetPicker({ registry, items, onAdd }: WidgetPickerProps) {
         {list.length === 0 && <div className="cm-widget__state">검색 결과가 없습니다.</div>}
         {list.map((m) => {
           const enabled = canAddWidget(items, m);
+          const typeTitle = typeTitleOf(m, typeTitles);
           return (
             <button
               key={m.id}
@@ -64,6 +77,7 @@ export function WidgetPicker({ registry, items, onAdd }: WidgetPickerProps) {
                   {m.defaultSize.w}×{m.defaultSize.h}
                 </span>
               </span>
+              {typeTitle && <span className="cm-widget-picker__type">{typeTitle}</span>}
               {m.description && <p className="cm-widget-picker__desc">{m.description}</p>}
             </button>
           );
