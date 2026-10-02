@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { WidgetDefRow, WidgetRegistry, WidgetTypeRegistry } from "@dk-oasis/shared/widget";
 
 import {
+  blankOverrideNotice,
   buildAdminRows,
   canSaveForm,
   codeForm,
@@ -416,7 +417,7 @@ describe("isFormDirty", () => {
 });
 
 describe("canSaveForm", () => {
-  const ok = { loaded: true, busy: false, canSave: true, unknownType: false, errorCount: 0 };
+  const ok = { loaded: true, busy: false, canSave: true, unknownType: false, errorCount: 0, editorReady: true };
 
   it("목록을 한 번도 받지 못했으면 막는다 — 빈 코드 폼 저장이 기존 덮어쓰기 행을 NULL 로 지우지 않게", () => {
     const blank = codeForm("home.notice");
@@ -440,6 +441,26 @@ describe("canSaveForm", () => {
   it("새 정의 위젯(저장 전)은 손대지 않아도 저장할 수 있다", () => {
     const n = newDefForm(TYPES.markdown.meta);
     expect(canSaveForm({ ...ok, form: n, baseline: n })).toBe(true);
+  });
+
+  it("이미 덮어쓴 코드 위젯의 칸을 모두 비우고 사용 Y 로 두면 막고 되돌리기 안내를 보인다", () => {
+    const overridden = rowToForm(defRow({ widgetId: "home.notice", srcTp: "C", title: "공지 새 이름" }));
+    const cleared = { ...overridden, title: "" };
+    expect(canSaveForm({ ...ok, form: cleared, baseline: overridden })).toBe(false);
+    expect(blankOverrideNotice(overridden, cleared)).toContain("[코드 값으로 되돌리기]");
+    // 사용 중지로 바꾸면 덮어쓰기가 남으므로 저장할 수 있다.
+    expect(canSaveForm({ ...ok, form: { ...cleared, useYn: "N" }, baseline: overridden })).toBe(true);
+    expect(blankOverrideNotice(overridden, { ...cleared, useYn: "N" })).toBeNull();
+    // 처음부터 빈 코드 폼이면 안내는 없다(그냥 바꾼 것이 없을 뿐).
+    expect(blankOverrideNotice(codeForm("home.notice"), codeForm("home.notice"))).toBeNull();
+  });
+
+  it("유형 편집기가 첫 검사 결과를 알리기 전에는 정의 위젯을 저장할 수 없다(코드 위젯은 상관없다)", () => {
+    const n = newDefForm(TYPES.markdown.meta);
+    expect(canSaveForm({ ...ok, editorReady: false, form: n, baseline: n })).toBe(false);
+    expect(canSaveForm({ ...ok, editorReady: true, form: n, baseline: n })).toBe(true);
+    const blank = codeForm("home.notice");
+    expect(canSaveForm({ ...ok, editorReady: false, form: { ...blank, useYn: "N" }, baseline: blank })).toBe(true);
   });
 
   it("처리 중·권한 없음·폼 없음·알 수 없는 유형·오류가 있으면 막는다", () => {

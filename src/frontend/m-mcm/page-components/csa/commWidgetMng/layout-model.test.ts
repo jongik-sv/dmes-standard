@@ -175,6 +175,24 @@ describe("서버 줄 ↔ 위젯 항목", () => {
     ]);
   });
 
+  it("layoutItemsFromRows — instId·widgetId 가 빈 줄과 객체가 아닌 줄은 건너뛴다", () => {
+    const out = layoutItemsFromRows([
+      { instId: "", widgetId: "home.kpi", posX: 0, posY: 0, sizeW: 4, sizeH: 4 },
+      { instId: "a", widgetId: "", posX: 0, posY: 0, sizeW: 4, sizeH: 4 },
+      { widgetId: "home.kpi" },
+      null,
+      "x",
+      { instId: "ok", widgetId: "home.kpi", posX: 1, posY: 2, sizeW: 3, sizeH: 4 },
+    ]);
+    expect(out.map((i) => i.instId)).toEqual(["ok"]);
+  });
+
+  it("layoutItemsFromRows — 좌표·크기가 숫자가 아니면 NaN 대신 0", () => {
+    const [it] = layoutItemsFromRows([{ instId: "a", widgetId: "home.kpi", posX: "abc", posY: null, sizeW: undefined, sizeH: "" }]);
+    expect(it).toMatchObject({ x: 0, y: 0, w: 0, h: 0 });
+    expect(Object.values(it).some((v) => typeof v === "number" && Number.isNaN(v))).toBe(false);
+  });
+
   it("layoutItemsFromRows — 배열이 아니면 빈 배열", () => {
     expect(layoutItemsFromRows(undefined)).toEqual([]);
     expect(layoutItemsFromRows(null)).toEqual([]);

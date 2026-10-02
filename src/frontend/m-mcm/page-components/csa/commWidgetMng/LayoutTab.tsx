@@ -11,7 +11,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { Badge, Button, Spinner } from "@dk-oasis/shared/form";
+import { Button, Spinner } from "@dk-oasis/shared/form";
 import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 import { ContentBody, ContentPanel } from "@dk-oasis/shared/layout";
 import { useMessage } from "@dk-oasis/shared/message-provider";
@@ -48,6 +48,17 @@ import { createLayoutStore } from "./layout-store";
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 const BOARD_TEST_ID = "widget-layout-board";
+
+/** 상속 안내 띠 — 긴 문장이 줄바꿈되게 알약이 아닌 블록으로 그린다(색은 의미 토큰만). */
+const NOTICE_STYLE = {
+  padding: "var(--spacing-xs) var(--spacing-sm)",
+  borderRadius: "var(--radius-sm)",
+  background: "var(--color-primary-soft)",
+  color: "var(--color-primary)",
+  fontSize: "var(--font-size-sm)",
+  lineHeight: 1.4,
+  overflowWrap: "anywhere",
+} as const;
 
 /**
  * 보드가 편집 모드인가 — WidgetWorkspace 는 편집 상태를 밖으로 알리지 않으므로 편집 모드에만 있는 [취소] 버튼(data-action="cancel-edit")으로 본다.
@@ -126,7 +137,10 @@ function LayoutBoard({ layoutKey, title, rows, registry, registryStatus, onRetry
   if (state.status === "error" || !store) {
     return (
       <>
-        <Badge tone="danger" label={state.status === "error" ? state.message : "배치를 불러오지 못했습니다."} testId="widget-layout-error" />
+        {/* 서버 문구는 길 수 있어 한 줄 알약(Badge) 대신 줄바꿈되는 글로 보인다. */}
+        <div className="form-error-message" role="alert" data-testid="widget-layout-error">
+          {state.status === "error" ? state.message : "배치를 불러오지 못했습니다."}
+        </div>
         <Button onClick={retry}>다시 시도</Button>
       </>
     );
@@ -135,7 +149,11 @@ function LayoutBoard({ layoutKey, title, rows, registry, registryStatus, onRetry
   const notice = saved ? null : inheritNotice(layoutKey, state.layout.sourceKey, rows);
   return (
     <>
-      {notice && <Badge tone="primary" label={notice} testId="widget-layout-inherit-notice" />}
+      {notice && (
+        <div style={NOTICE_STYLE} data-testid="widget-layout-inherit-notice">
+          {notice}
+        </div>
+      )}
       <WidgetWorkspace
         registry={registry}
         homeDefault={HOME_DEFAULT_LAYOUT}
@@ -263,9 +281,11 @@ export function LayoutTab() {
   const handleDelete = useCallback(() => {
     if (!selected.saved) return;
     const key = selected.layoutKey;
+    // 편집 중인 보드는 지운 뒤 다시 마운트되어 편집 내용도 사라진다.
+    const editingNote = isBoardEditing() ? " 편집 중인 변경도 사라집니다." : "";
     showMessage({
       title: "확인",
-      message: deleteConfirmMessage(key, rows),
+      message: `${deleteConfirmMessage(key, rows)}${editingNote}`,
       alertType: "confirm",
       onConfirm: async () => {
         setDeleting(true);
@@ -289,7 +309,7 @@ export function LayoutTab() {
   return (
     <>
       <ContentBody root resizable storageKey="mcm.csa.commWidgetMng.layout">
-        <ContentPanel width={260} minSize={180}>
+        <ContentPanel width={200} minSize={160}>
           <GridPanel
             title="배치 목록"
             count={rows.length}

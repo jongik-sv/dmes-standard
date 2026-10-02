@@ -82,7 +82,8 @@ export function WidgetPreview({ form, codeEntry, typeEntry }: WidgetPreviewProps
   const box = previewBox(areaWidth, size);
   const item: WidgetItem = {
     instId: "preview",
-    widgetId: entry?.meta.id ?? PREVIEW_WIDGET_ID,
+    // 저장 전 정의 위젯은 "" — 쿼리 위젯이 자리 표시 ID(def.preview)로 서버 실행을 부르지 않게 한다(meta.id 는 자리 표시 그대로).
+    widgetId: form.widgetId,
     x: 0,
     y: 0,
     w: size.w,

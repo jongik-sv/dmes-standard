@@ -151,24 +151,34 @@ export function buildTypeTitles(types: Readonly<Record<string, { meta: { title: 
   return out;
 }
 
-const int = (v: unknown): number => Number(v);
+/** 숫자가 아니면(NaN·무한대·빈 값) 0 — 보드(sanitizeLayout)가 위젯별 범위로 다시 자른다. home 의 homeItemsFromRows 와 같다. */
+const int = (v: unknown): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
 
-/** 서버 배치 줄 → 위젯 항목(문자열 숫자 변환, lockYn Y → locked, 기본 배치에는 인스턴스 설정이 없어 config 는 null). */
+/** 서버 배치 줄 → 위젯 항목(문자열 숫자 변환, lockYn Y → locked, 기본 배치에는 인스턴스 설정이 없어 config 는 null). instId·widgetId 가 빈 줄은 건너뛴다. */
 export function layoutItemsFromRows(rows: unknown): WidgetItem[] {
   if (!Array.isArray(rows)) return [];
-  return rows.map((raw) => {
+  const out: WidgetItem[] = [];
+  for (const raw of rows) {
+    if (typeof raw !== "object" || raw === null || Array.isArray(raw)) continue;
     const r = raw as LayoutItemRow;
-    return {
-      instId: String(r.instId ?? ""),
-      widgetId: String(r.widgetId ?? ""),
+    const instId = String(r.instId ?? "");
+    const widgetId = String(r.widgetId ?? "");
+    if (!instId || !widgetId) continue;
+    out.push({
+      instId,
+      widgetId,
       x: int(r.posX),
       y: int(r.posY),
       w: int(r.sizeW),
       h: int(r.sizeH),
       locked: r.lockYn === "Y",
       config: null,
-    };
-  });
+    });
+  }
+  return out;
 }
 
 /** 위젯 항목 → 서버 배치 줄(saveLayout grids.widgets.rows). */

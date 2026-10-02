@@ -23,6 +23,7 @@ import { WIDGET_TYPE_REGISTRY } from "@/lib/generated/widget-type-registry";
 
 import { deleteWidgetDef, saveWidgetDef, searchWidgetDefs } from "./api";
 import {
+  blankOverrideNotice,
   buildAdminRows,
   canSaveForm,
   codeForm,
@@ -129,6 +130,8 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
   const [form, setForm] = useState<DefForm | null>(null);
   const [baseline, setBaseline] = useState<DefForm | null>(null);
   const [editorErrors, setEditorErrors] = useState<string[]>([]);
+  /** 유형 편집기가 첫 검사 결과를 알렸는가 — React.lazy 로 불러오는 동안은 오류 0건처럼 보이므로 그 사이 [저장]을 막는다. */
+  const [editorReady, setEditorReady] = useState(false);
   /** 상세를 새로 열 때마다 올린다 — 유형 편집기·미리보기를 다시 마운트한다. */
   const [openSeq, setOpenSeq] = useState(0);
   /** 첫 조회 중으로 시작한다(첫 조회 effect 가 setState 를 동기로 부르지 않게). */
@@ -163,6 +166,7 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
     setForm(next);
     setBaseline(next);
     setEditorErrors([]);
+    setEditorReady(false);
     setOpenSeq((n) => n + 1);
   }, []);
 
@@ -275,6 +279,7 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
   }, []);
 
   const handleEditorValidate = useCallback((errors: string[]) => {
+    setEditorReady(true);
     setEditorErrors((prev) => (prev.join("\n") === errors.join("\n") ? prev : errors));
   }, []);
 
@@ -282,7 +287,9 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
   const typeEntry = isDef && form?.typeId ? WIDGET_TYPE_REGISTRY[form.typeId] : undefined;
   const codeEntry = form && !isDef ? WIDGET_REGISTRY[form.widgetId] : undefined;
   const unknownType = isDef && !typeEntry;
+  const clearedNotice = blankOverrideNotice(baseline, form);
   const allErrors = unknownType ? formErrors : [...formErrors, ...editorErrors];
+  const shownErrors = clearedNotice ? [...allErrors, clearedNotice] : allErrors;
 
   const handleSave = useCallback(async () => {
     if (!form || !loaded) return;
@@ -295,7 +302,13 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
     try {
       const saved = await saveWidgetDef(toSaveParams(form));
       showMessage({ message: "저장되었습니다.", alertType: "success", toast: true });
-      await load(saved.widgetId);
+      // 다시 조회가 실패해도 폼이 widgetId "" 로 남아 [저장]이 정의 행을 하나 더 만들지 않게, 받은 ID 를 폼·기준값에 먼저 넣는다.
+      const savedId = saved.widgetId || form.widgetId;
+      const savedForm = { ...form, widgetId: savedId };
+      setSelectedId(savedId);
+      setForm(savedForm);
+      setBaseline(savedForm);
+      await load(savedId);
     } catch (e) {
       showMessage({ title: "오류", message: errorText(e), alertType: "error" });
     } finally {
@@ -347,6 +360,7 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
     baseline,
     unknownType,
     errorCount: allErrors.length,
+    editorReady: editorReady || !typeEntry,
   });
 
   return (
@@ -424,7 +438,7 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
                 typeEntry={typeEntry}
                 editorKey={String(openSeq)}
                 disabled={!editable}
-                errors={allErrors}
+                errors={shownErrors}
                 preview={
                   form && (codeEntry || typeEntry) ? (
                     <WidgetPreview key={openSeq} form={form} codeEntry={codeEntry} typeEntry={typeEntry} />

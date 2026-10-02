@@ -86,7 +86,9 @@ export async function fetchWidgetDefs(): Promise<WidgetDefsResult> {
     body: { meta: { menuId: "HOME" }, params: {} },
   });
   const out = unwrap(res);
-  const defs = Array.isArray(out.defs) ? out.defs.filter(isRecord) : [];
+  // 성공 응답인데 defs 가 없거나 배열이 아니면 응답 모양 위반이다 — 빈 목록·ready 로 두면 정의 위젯이 배치에서 지워질 수 있다.
+  if (!Array.isArray(out.defs)) throw new Error("위젯 정의 응답 형식이 올바르지 않습니다.");
+  const defs = out.defs.filter(isRecord);
   const home = Array.isArray(out.homeDefault) ? homeItemsFromRows(out.homeDefault) : null;
   return { rawDefs: defs, homeDefault: home };
 }
@@ -124,7 +126,12 @@ export function defsReducer(state: DefsState, action: DefsAction): DefsState {
     case "retry":
       return { ...state, status: "loading" };
     case "loaded":
-      return { status: "ready", rawDefs: action.rawDefs, homeDefault: action.homeDefault };
+      // 서버 defs 가 비어 있고 기존 것도 비어 있으면 rawDefs 참조를 그대로 둔다 — 새 빈 배열이면 등록부가 다시 합쳐져 작업 공간이 한 번 더 불러온다.
+      return {
+        status: "ready",
+        rawDefs: action.rawDefs.length === 0 && state.rawDefs.length === 0 ? state.rawDefs : action.rawDefs,
+        homeDefault: action.homeDefault,
+      };
     case "failed":
       return { ...state, status: "error" };
   }

@@ -319,15 +319,36 @@ export interface SaveGateInput {
   unknownType: boolean;
   /** 폼 검사 + 유형 편집기 오류 수. */
   errorCount: number;
+  /**
+   * 유형 편집기가 첫 검사 결과(onValidate)를 알렸는가. React.lazy 편집기는 불러오는 동안 오류가 0건으로 보이므로,
+   * 정의 위젯(유형을 아는 경우)은 이것이 true 가 되기 전에는 저장할 수 없다. 코드 위젯·알 수 없는 유형은 보지 않는다.
+   */
+  editorReady: boolean;
+}
+
+/** 덮어쓰기 칸이 모두 비어 있는 코드 위젯 폼(사용 Y) — 저장하면 모든 칸이 NULL 인 C 행만 남는다. */
+export function isBlankCodeOverride(form: DefForm | null): boolean {
+  if (!form || form.srcTp !== "C") return false;
+  const blank = codeForm(form.widgetId) as unknown as Record<string, unknown>;
+  const cur = form as unknown as Record<string, unknown>;
+  return Object.keys(blank).every((k) => JSON.stringify(cur[k] ?? null) === JSON.stringify(blank[k] ?? null));
+}
+
+/** 이미 덮어쓴 코드 위젯의 칸을 모두 비웠을 때의 안내(아니면 null). 저장 대신 되돌리기를 쓰게 한다. */
+export function blankOverrideNotice(base: DefForm | null, form: DefForm | null): string | null {
+  if (!isBlankCodeOverride(form) || isBlankCodeOverride(base)) return null;
+  return "덮어쓴 값을 모두 비웠습니다. [코드 값으로 되돌리기]를 쓰세요.";
 }
 
 /**
  * [저장] 활성 조건. 목록을 받았고·처리 중이 아니고·권한·폼·알려진 유형·오류 없음에 더해,
  * 기존 행은 바뀐 값이 있어야 한다(덮어쓰기 행이 없는 코드 위젯을 그대로 저장하면 모든 칸 NULL 인 C 행이 생긴다).
- * 새 정의 위젯(widgetId "")은 손대지 않아도 저장할 수 있다.
+ * 새 정의 위젯(widgetId "")은 손대지 않아도 저장할 수 있다. 덮어쓰기 칸을 모두 비운 코드 위젯은 막는다(되돌리기를 쓴다).
  */
 export function canSaveForm(g: SaveGateInput): boolean {
   if (!g.loaded || g.busy || !g.canSave || !g.form || g.unknownType || g.errorCount > 0) return false;
+  if (g.form.srcTp === "D" && !g.editorReady) return false;
+  if (isBlankCodeOverride(g.form)) return false;
   return g.form.widgetId === "" || isFormDirty(g.baseline, g.form);
 }
 

@@ -121,9 +121,14 @@ describe("fetchWidgetDefs", () => {
     expect((await fetchWidgetDefs()).homeDefault).toBeNull();
   });
 
-  it("defs 가 없거나 배열이 아니면 빈 목록, 객체가 아닌 줄은 뺀다", async () => {
+  it("성공 응답인데 defs 가 없거나 배열이 아니면 응답 모양 위반으로 던진다", async () => {
     reply({ meta: { success: true }, data: { result: {} } });
-    expect((await fetchWidgetDefs()).rawDefs).toEqual([]);
+    await expect(fetchWidgetDefs()).rejects.toThrow("형식");
+    reply({ meta: { success: true }, data: { result: { defs: "x", homeDefault: null } } });
+    await expect(fetchWidgetDefs()).rejects.toThrow("형식");
+  });
+
+  it("객체가 아닌 defs 줄은 뺀다", async () => {
     reply({ meta: { success: true }, data: { result: { defs: [null, 3, "x", { widgetId: "home.kpi", srcTp: "C" }] } } });
     expect((await fetchWidgetDefs()).rawDefs).toEqual([{ widgetId: "home.kpi", srcTp: "C" }]);
   });
@@ -193,6 +198,15 @@ describe("defsReducer (registryStatus)", () => {
   it("응답이 오면 ready 와 정의·기본 배치", () => {
     const next = defsReducer(INITIAL_DEFS_STATE, { type: "loaded", rawDefs: defs, homeDefault: home });
     expect(next).toEqual({ status: "ready", rawDefs: defs, homeDefault: home });
+  });
+
+  it("서버 defs 가 비어 있으면 기존 rawDefs 참조를 그대로 둔다(등록부가 다시 합쳐지지 않는다)", () => {
+    const next = defsReducer(INITIAL_DEFS_STATE, { type: "loaded", rawDefs: [], homeDefault: null });
+    expect(next.status).toBe("ready");
+    expect(next.rawDefs).toBe(INITIAL_DEFS_STATE.rawDefs);
+    // 기존에 정의가 있었는데 서버가 비웠다면 비운 값이 맞다.
+    const ready: DefsState = defsReducer(INITIAL_DEFS_STATE, { type: "loaded", rawDefs: defs, homeDefault: null });
+    expect(defsReducer(ready, { type: "loaded", rawDefs: [], homeDefault: null }).rawDefs).toEqual([]);
   });
 
   it("실패하면 error — 코드 등록부만 남고 편집은 막힌다", () => {
