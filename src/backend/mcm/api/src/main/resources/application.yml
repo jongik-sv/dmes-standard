@@ -38,6 +38,13 @@ spring:
   flyway:
     enabled: false
 
+  # ── 미디어 위젯 파일 올리기 한도 (스펙 2026-10-02-widget-admin-generic §4.3) ──
+  # 동영상 100MB 까지 받는다(이미지 10MB 는 WidgetMediaStorage 가 따로 거른다). 요청 한도는 파일 + multipart 머리말 여유 1MB.
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 101MB
+
 server:
   # 로컬 bootRun/IDE 실행 포트. WAR(WildFly) 배포 시엔 무시되고 WildFly http 포트(8100)를 사용.
   port: 8100
@@ -121,6 +128,13 @@ mcm:
     min-length: 0           # 길이 검증 끔
     complexity-pattern: ""  # 복잡도 검증 끔
     legacy-grace-days: -1
+
+# ── 위젯 (스펙 2026-10-02-widget-admin-generic) ──
+dmes:
+  widget:
+    # 미디어 위젯 파일 본체 폴더(§4.3). 실행 폴더 기준 상대 경로 — bootRun 은 src/backend/mcm. 없으면 첫 올리기 때 만든다.
+    # 파일 이름은 FILE_ID(32자 16진수)만 쓴다. 운영계는 공유 디스크 절대 경로로 바꾼다.
+    media-dir: ./data/widget-media
 
 # ── caravan-console 자체 설정 + Repository alias (kmc-core 0.2.0 패턴 B) ──
 # caravan 의존 제거 (2026-05-12) — caravan-console.kafka.* / caravan.* 블록 삭제. caravan 라이브러리는 caravan-hub 호스트에서만 사용 (v4 정본).
