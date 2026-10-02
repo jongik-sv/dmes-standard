@@ -6,7 +6,7 @@
  * - 보기 모드 탭 메뉴 작업(이름·잠금·옮기기·지우기·홈 되돌리기)은 바로 저장하고, 실패하면 화면을 되돌린다.
  * - 편집 모드 탭 메뉴는 이름 바꾸기만(이름은 [완료] 때 저장). (+) 새 탭은 편집 모드로 만들고 [취소]면 사라진다.
  * - 불러오기 실패면 기본 「홈」을 보이고 [배치 편집]을 막는다(빈 상태로 덮어쓰지 않게).
- * - 정의 위젯 목록(registryStatus)이 loading·error 면 [배치 편집]을 막고, error 면 띠를 보인다(스펙 widget-admin-generic §1.1·W-D19).
+ * - 정의 위젯 목록(registryStatus)이 loading·error 면 [배치 편집]과 (+) 새 탭(둘 다 편집 진입로)·탭 메뉴를 막고, error 면 띠를 보인다(스펙 widget-admin-generic §1.1·W-D19).
  * - singleTab 이면 탭 줄 대신 제목을 보이고 「홈」 하나만 다룬다(관리자 기본 배치 편집, 스펙 §10.2).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -262,8 +262,9 @@ export function WidgetWorkspace({
   }, [editing]);
 
   /* ── 탭 작업 ── */
+  // (+) 새 탭도 편집 모드로 들어가는 길이다 — 정의 목록이 준비되지 않았으면 [배치 편집]처럼 막는다(W-D19).
   const addTab = () => {
-    if (saving || tabs.length >= MAX_TABS) return;
+    if (saving || tabs.length >= MAX_TABS || !registryReady) return;
     const tabId = nextTabId(tabs);
     let name = "새 탭";
     for (let n = 2; tabs.some((t) => t.name === name); n += 1) name = `새 탭 ${n}`;
@@ -445,7 +446,8 @@ export function WidgetWorkspace({
           tabs={tabs}
           activeTabId={active.tabId}
           editing={editing}
-          menuDisabled={status === "error" || saving}
+          // 정의 목록이 loading·error 면 (+) 새 탭(편집 진입로)도 막는다 — WidgetTabs 는 (+)·⋯ 메뉴를 한 prop 으로 막는다.
+          menuDisabled={status === "error" || saving || !registryReady}
           renamingTabId={renamingTabId}
           onSelect={selectTab}
           onAdd={addTab}

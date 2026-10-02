@@ -50,7 +50,7 @@ export default function NoticeWidget({ refreshKey }: WidgetProps) {
 | 정의 위젯 | `def.{key}` (예: `def.k3x9q2ab`) | 위젯 **유형**의 렌더러 `widget-types/{typeId}/renderer.tsx` | DB 정의 행(`srcTp: "D"`) |
 
 - 위젯 유형 하나 = m-mcm `widget-types/{typeId}/` 폴더 하나(`type.meta.ts` 의 `WidgetTypeMeta` + `renderer.tsx` + `editor.tsx`). 생성기가 `WIDGET_TYPE_REGISTRY`(`WidgetTypeRegistry`)를 만든다. 렌더러는 `WidgetProps.definition`(정의 설정)을 받아 그리고, 편집기는 관리 화면에서 `WidgetTypeEditorProps`(`value`·`onChange`·`onValidate?`)를 받는다.
-- 화면은 코드 등록부 + 유형 등록부 + `widgetDef/list` 행을 `mergeWidgetRegistry` 로 합친 **실행 시 등록부**를 작업 공간에 넘긴다. 정의 목록을 받는 동안·실패하면 `registryStatus` 로 알려 [배치 편집]을 막는다 — 정의 위젯이 「없는 위젯」으로 보이는 상태에서 저장하면 사용자 탭에서 지워지기 때문이다.
+- 화면은 코드 등록부 + 유형 등록부 + `widgetDef/list` 행을 `mergeWidgetRegistry` 로 합친 **실행 시 등록부**를 작업 공간에 넘긴다. 정의 목록을 받는 동안·실패하면 `registryStatus` 로 알려 편집 진입로([배치 편집]·(+) 새 탭)를 막는다 — 정의 위젯이 「없는 위젯」으로 보이는 상태에서 저장하면 사용자 탭에서 지워지기 때문이다.
 
 ```tsx
 import { mergeWidgetRegistry, toWidgetDefRow, WidgetWorkspace, type WidgetDefRow } from "@dk-oasis/shared/widget";
@@ -102,10 +102,10 @@ function Home({ store, rawDefs, status, retry }: Props) {
 
 ## 편집 흐름
 
-- [배치 편집]은 24칸(≥960px, 서랍 자리를 포함한 작업 공간 폭 기준)에서만 켜진다. 좁은 화면·잠긴 탭·불러오기 실패·정의 목록 불러오는 중(「위젯 목록을 불러오는 중입니다」)·정의 목록 실패(「위젯 정의를 불러오지 못했습니다」)면 비활성이고 안내 제목이 붙는다. 정의 목록 실패면 탭 줄 위에 띠와 [다시 시도](`onRetryRegistry` 가 있을 때)가 보이고, 편집 중에 정의 목록이 준비 상태가 아니게 되면 [완료]가 막힌다.
+- [배치 편집]은 24칸(≥960px, 서랍 자리를 포함한 작업 공간 폭 기준)에서만 켜진다. 좁은 화면·잠긴 탭·불러오기 실패·정의 목록 불러오는 중(「위젯 목록을 불러오는 중입니다」)·정의 목록 실패(「위젯 정의를 불러오지 못했습니다」)면 비활성이고 안내 제목이 붙는다. 정의 목록이 불러오는 중·실패면 (+) 새 탭도 비활성이고 탭 메뉴(⋯)는 숨는다((+)도 편집 모드로 들어가는 길이라서다. 불러오기 실패 때와 같은 모양). 정의 목록 실패면 탭 줄 위에 띠와 [다시 시도](`onRetryRegistry` 가 있을 때)가 보이고, 편집 중에 정의 목록이 준비 상태가 아니게 되면 [완료]가 막힌다.
 - [완료]는 편집을 시작한 뒤 바뀐 탭만 `store.saveTab` 한다. 저장이 실패하면 편집 모드와 변경을 유지하고 알린다(탭 여러 개면 저장된 탭은 [취소]로 되돌리지 않고, 다시 [완료]하면 실패한 탭만 저장한다). 불러오기가 끝나지 않았거나 실패한 상태에서는 [완료]가 막힌다. [취소]는 바뀐 것이 있으면 확인 뒤 되돌린다. 편집 중 Escape 는 [취소]와 같다. 저장하는 동안에는 보드 편집·서랍·[취소]·Escape·(+) 새 탭·탭 메뉴(이름 바꾸기)가 멈춘다(입력 칸·메뉴·확인 창 안의 Escape 는 각자 처리한다). 서랍에서 눌러 추가한 위젯으로는 스크롤한다.
 - 보기 모드 탭 메뉴 작업(이름 바꾸기·잠금·왼쪽/오른쪽·지우기·홈 기본 배치로 되돌리기)은 바로 저장하며, 실패하면 화면을 원래대로 되돌린다.
-- (+) 새 탭은 편집 모드로 들어가고 [취소]하면 사라진다.
+- (+) 새 탭은 편집 모드로 들어가고 [취소]하면 사라진다. 그래서 [배치 편집]처럼 저장 중·불러오기 실패·정의 목록 불러오는 중·실패면 막힌다.
 
 ## Props
 
@@ -122,7 +122,7 @@ WidgetWorkspaceProps
 | boardWidth | `number` | - | 시험용 고정 폭(px). 보드에 넘기는 픽셀 폭 |
 | workspaceWidth | `number` | - | 시험용 고정 폭(px). 서랍 자리까지 포함한 바깥 폭 — 칸 수·편집 가능 판정에 쓴다(칸 수는 서랍 열림에 흔들리지 않는다) |
 | testId | `string` | - | 뿌리 `data-testid`. 정의 목록 실패 띠는 `{testId}-registry-error`(testId 가 없으면 띠에 testid 없음) |
-| registryStatus | `"ready" \| "loading" \| "error"` | `"ready"` | 정의 위젯 목록(`widgetDef/list`) 상태. loading·error 면 [배치 편집]을 막고, error 면 탭 줄(또는 단일 탭 제목) 위에 「위젯 정의를 불러오지 못했습니다」 띠 |
+| registryStatus | `"ready" \| "loading" \| "error"` | `"ready"` | 정의 위젯 목록(`widgetDef/list`) 상태. loading·error 면 [배치 편집]·(+) 새 탭을 막고 탭 메뉴(⋯)를 숨기며, error 면 탭 줄(또는 단일 탭 제목) 위에 「위젯 정의를 불러오지 못했습니다」 띠 |
 | onRetryRegistry | `() => void` | - | 띠의 [다시 시도](`data-action="retry-registry"`). 없으면 버튼을 그리지 않는다 |
 | typeTitles | `Readonly<Record<string, string>>` | - | 유형 ID → 이름. 서랍이 정의 위젯 제목 아래에 유형 이름을 보인다(서랍 검색도 유형 이름으로 찾는다) |
 | singleTab | `{ title: string }` | - | 탭 줄을 숨기고 「홈」 하나만 다룬다(관리자 기본 배치 편집). 인라인 객체로 넘겨도 다시 불러오지 않는다 |

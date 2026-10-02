@@ -87,6 +87,8 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
   const [bodySize, setBodySize] = useState<{ width: number; height: number | null }>({ width: 0, height: null });
   const bodyRef = useRef<HTMLDivElement>(null);
   const meta = entry?.meta;
+  // 본문(bodyRef)은 「없는 위젯」·사용 중지 칸에는 없다 — 같은 틀이 그 칸에서 본문 있는 칸으로 바뀌면 관찰을 다시 붙인다.
+  const hasBody = !!entry && !entry.meta.disabled;
 
   useEffect(() => {
     const el = bodyRef.current;
@@ -97,7 +99,7 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [hasBody]);
 
   // 자동 새로 고침 — 보기 모드에서만, 최소 30초. 사용 중지 위젯은 본체가 없으므로 타이머도 걸지 않는다.
   const refreshSec = meta?.disabled ? undefined : meta?.refreshSec;

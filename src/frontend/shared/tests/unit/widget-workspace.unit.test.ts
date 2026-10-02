@@ -556,4 +556,31 @@ describe("WidgetWorkspace", () => {
     expect(banner!.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(btn('[data-action="start-edit"]').disabled).toBe(true);
   });
+
+  /* ── (+) 새 탭도 편집 진입로다 — 정의 목록이 준비되지 않았으면 함께 막는다(Review Focus #1) ── */
+  for (const registryStatus of ["loading", "error"] as const) {
+    it(`registryStatus="${registryStatus}" 면 (+) 가 비활성이고 눌러도 편집 모드로 들어가지 않으며 탭이 늘지 않는다`, async () => {
+      await mount(makeStore([]), { registryStatus, onRetryRegistry: vi.fn() });
+      expect(btn('[data-action="add-tab"]').disabled).toBe(true);
+      click('[data-action="add-tab"]');
+      await flush();
+      expect(host.querySelector('[data-action="done-edit"]')).toBeNull();
+      expect(host.querySelectorAll('[role="tab"]')).toHaveLength(1);
+      expect(host.querySelector(".cm-widget-tab__name")).toBeNull();
+    });
+  }
+
+  it("registryStatus 가 loading 에서 ready 로 바뀌면 (+) 가 다시 켜지고 새 탭을 만들 수 있다", async () => {
+    const store = makeStore([]);
+    const base = { registry: REG, homeDefault: HOME_DEFAULT, store, confirm: vi.fn(async () => true), notify: vi.fn(), boardWidth: 1440 };
+    act(() => root.render(h(WidgetWorkspace, { ...base, registryStatus: "loading" })));
+    await flush();
+    expect(btn('[data-action="add-tab"]').disabled).toBe(true);
+    act(() => root.render(h(WidgetWorkspace, { ...base, registryStatus: "ready" })));
+    await flush();
+    expect(btn('[data-action="add-tab"]').disabled).toBe(false);
+    click('[data-action="add-tab"]');
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(2);
+    expect(btn('[data-action="done-edit"]')).not.toBeNull();
+  });
 });

@@ -3,7 +3,7 @@ import { act, createElement as h, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { WidgetFrame, WidgetHeaderActions, useWidgetStatus } from "../../src/widget";
+import { WidgetFrame, WidgetHeaderActions, useWidgetBodySize, useWidgetStatus } from "../../src/widget";
 import type { WidgetItem, WidgetRegistryEntry } from "../../src/widget";
 
 let host: HTMLDivElement;
@@ -217,5 +217,43 @@ describe("WidgetFrame", () => {
     act(() => root.render(h(WidgetFrame, { item: item({ locked: true }), entry: e, editing: true, onToggleLock: noop, onRemove: noop })));
     await flush();
     expect((host.querySelector('[data-action="remove"]') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("같은 틀이 사용 중지 entry 에서 사용 entry 로 바뀌면 본문 크기 관찰을 붙여 useWidgetBodySize 가 잰 크기를 준다", async () => {
+    // happy-dom 의 ResizeObserver 는 알리지 않으므로 observe 대상과 콜백을 잡는 가짜로 바꾼다.
+    const observers: FakeResizeObserver[] = [];
+    class FakeResizeObserver {
+      targets: Element[] = [];
+      constructor(readonly cb: ResizeObserverCallback) {
+        observers.push(this);
+      }
+      observe(el: Element) {
+        this.targets.push(el);
+      }
+      unobserve() {}
+      disconnect() {
+        this.targets = [];
+      }
+    }
+    vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+    try {
+      const Body = () => {
+        const { width } = useWidgetBodySize();
+        return h("p", { "data-testid": "body" }, `폭 ${width}`);
+      };
+      const { entry: off } = disabledEntry();
+      act(() => root.render(h(WidgetFrame, { item: item(), entry: off, editing: false, onToggleLock: noop, onRemove: noop })));
+      await flush();
+      act(() => root.render(h(WidgetFrame, { item: item(), entry: entry(Body), editing: false, onToggleLock: noop, onRemove: noop })));
+      await flush();
+      const body = host.querySelector(".cm-widget__body")!;
+      const ro = observers.find((o) => o.targets.includes(body));
+      expect(ro).toBeDefined();
+      act(() => ro!.cb([{ contentRect: { width: 320, height: 180 } } as unknown as ResizeObserverEntry], ro as unknown as ResizeObserver));
+      await flush();
+      expect(host.querySelector('[data-testid="body"]')!.textContent).toBe("폭 320");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
